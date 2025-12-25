@@ -774,8 +774,6 @@ func (s *conversation) syncConversationByChannels(c *wkhttp.Context) {
 		return
 	}
 
-	fmt.Println("channelRecentMessages0---->", channelRecentMessages)
-
 	// 组装响应
 	resps := make([]*syncUserConversationResp, 0, len(req.Channels))
 
@@ -793,7 +791,6 @@ func (s *conversation) syncConversationByChannels(c *wkhttp.Context) {
 
 		// 填充最近消息
 		for _, channelRecentMessage := range channelRecentMessages {
-			fmt.Println("channelRecentMessage1---->", channelRecentMessage.ChannelId, fakeChannelId)
 			if fakeChannelId == channelRecentMessage.ChannelId && ch.ChannelType == channelRecentMessage.ChannelType {
 				if len(channelRecentMessage.Messages) > 0 {
 					lastMsg := channelRecentMessage.Messages[0]
@@ -806,8 +803,6 @@ func (s *conversation) syncConversationByChannels(c *wkhttp.Context) {
 					resp.Version = time.Unix(int64(lastMsg.Timestamp), 0).UnixNano()
 				}
 				resp.Recents = channelRecentMessage.Messages
-
-				fmt.Println("resp.Recents1---->", resp.Recents)
 
 				// 如果最后一条消息是自己发送的，则已读序号为最后一条消息的序号
 				if len(resp.Recents) > 0 {

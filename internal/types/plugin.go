@@ -51,11 +51,11 @@ type Plugin interface {
 type PluginMethod string
 
 const (
-	PluginSend         PluginMethod = "Send"
-	PluginPersistAfter PluginMethod = "PersistAfter"
-	PluginReceive      PluginMethod = "Receive"
-	PluginRoute        PluginMethod = "Route"
-	PluginConfigUpdate PluginMethod = "ConfigUpdate"
+	PluginSend         PluginMethod = "Send"         // 调用插件的Send方法, 在消息发送前调用，可以修改消息内容和消息发送状态，比如消息发送失败，可以修改消息发送状态为失败
+	PluginPersistAfter PluginMethod = "PersistAfter" // 消息持久化后调用
+	PluginReceive      PluginMethod = "Receive"      // 调用插件的收消息方法 裂变后的消息
+	PluginRoute        PluginMethod = "Route"        // 调用插件的路由方法, 用于处理HTTP请求
+	PluginConfigUpdate PluginMethod = "ConfigUpdate" // 配置更新后调用
 )
 
 func (p PluginMethod) String() string {

@@ -39,8 +39,8 @@ func (s *Store) GetStreams(streamNo string) ([]*wkdb.Stream, error) {
 
 // 保存流(v2)
 func (s *Store) SaveStreamV2(stream *wkdb.StreamV2) error {
-	data := EncodeCMDStreamV2(stream)
-	cmd := NewCMD(CMDSaveStreamV2, data)
+	data := EncodeCMDStreamV2(stream, CmdVersionStreamV2)
+	cmd := NewCMDWithVersion(CMDSaveStreamV2, data, CmdVersionStreamV2)
 	cmdData, err := cmd.Marshal()
 	if err != nil {
 		return err

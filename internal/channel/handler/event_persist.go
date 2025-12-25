@@ -58,7 +58,7 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 			}
 
 			// 通知插件
-			h.pluginInvokePersistAfter(persists)
+			h.pluginInvokePersistAfter(ctx.ChannelId, ctx.ChannelType, persists)
 		}
 
 		// 修改原因码
@@ -114,15 +114,13 @@ func (h *Handler) persist(ctx *eventbus.ChannelContext) {
 
 }
 
-func (h *Handler) pluginInvokePersistAfter(msgs []wkdb.Message) {
+func (h *Handler) pluginInvokePersistAfter(channelId string, channelType uint8, msgs []wkdb.Message) {
 	plugins := service.PluginManager.Plugins(types.PluginPersistAfter)
 	if len(plugins) == 0 {
 		return
 	}
 
-	timeoutCtx, cancel := h.WithTimeout()
-	defer cancel()
-
+	// 构建插件消息
 	pluginMessages := make([]*pluginproto.Message, 0, len(msgs))
 	for _, msg := range msgs {
 		pluginMessages = append(pluginMessages, &pluginproto.Message{
@@ -143,11 +141,57 @@ func (h *Handler) pluginInvokePersistAfter(msgs []wkdb.Message) {
 	msgBatch := &pluginproto.MessageBatch{
 		Messages: pluginMessages,
 	}
+
+	// 获取频道领导节点ID
+	leaderId, err := service.Cluster.LeaderIdOfChannel(channelId, channelType)
+	if err != nil {
+		h.Error("pluginInvokePersistAfter: get channel leader failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		// 如果获取领导节点失败，直接在本地执行
+		h.executePluginPersistAfterLocal(channelId, channelType, msgBatch)
+		return
+	}
+
+	// 如果当前节点是频道领导节点，直接执行
+	if options.G.IsLocalNode(leaderId) {
+		h.executePluginPersistAfterLocal(channelId, channelType, msgBatch)
+		return
+	}
+
+	// 当前节点非频道领导节点，转发请求到领导节点执行
+	h.forwardPersistAfterToLeader(leaderId, channelId, channelType, msgBatch)
+}
+
+// executePluginPersistAfterLocal 在本地执行插件PersistAfter调用
+func (h *Handler) executePluginPersistAfterLocal(channelId string, channelType uint8, msgBatch *pluginproto.MessageBatch) {
+	plugins := service.PluginManager.Plugins(types.PluginPersistAfter)
+	if len(plugins) == 0 {
+		return
+	}
+
+	timeoutCtx, cancel := h.WithTimeout()
+	defer cancel()
+
 	for _, pg := range plugins {
 		err := pg.PersistAfter(timeoutCtx, msgBatch)
 		if err != nil {
-			h.Error("plugin persist after error", zap.Error(err))
+			h.Error("plugin persist after error", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		}
+	}
+}
+
+// forwardPersistAfterToLeader 转发PersistAfter请求到频道领导节点
+func (h *Handler) forwardPersistAfterToLeader(leaderId uint64, channelId string, channelType uint8, msgBatch *pluginproto.MessageBatch) {
+	// 序列化消息批次
+	msgData, err := msgBatch.Marshal()
+	if err != nil {
+		h.Error("forwardPersistAfterToLeader: marshal message batch failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		return
+	}
+
+	// 使用 ingress.Client 转发请求
+	err = h.client.RequestPersistAfter(leaderId, channelId, channelType, msgData)
+	if err != nil {
+		h.Error("forwardPersistAfterToLeader: request failed", zap.Error(err), zap.Uint64("leaderId", leaderId), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 	}
 }
 

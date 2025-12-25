@@ -83,3 +83,8 @@ func (s *Store) DeleteChannelAndClearMessages(channelID string, channelType uint
 func (s *Store) SearchMessages(req wkdb.MessageSearchReq) ([]wkdb.Message, error) {
 	return s.wdb.SearchMessages(req)
 }
+
+// LoadMsgByClientMsgNo 通过 clientMsgNo 加载消息
+func (s *Store) LoadMsgByClientMsgNo(channelId string, channelType uint8, clientMsgNo string) (wkdb.Message, error) {
+	return s.wdb.LoadMsgByClientMsgNo(channelId, channelType, clientMsgNo)
+}

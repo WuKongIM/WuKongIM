@@ -318,6 +318,7 @@ func (s *request) processSingleChannel(uid string, msgCount int, channel *channe
 
 					message.End = streamV2.End
 					message.EndReason = streamV2.EndReason
+					message.Error = streamV2.Error
 					message.StreamData = streamV2.Payload
 					break
 				}

@@ -51,8 +51,9 @@ func (m *message) route(r *wkhttp.WKHttp) {
 	r.POST("/message/sync", m.sync)       // 消息同步(写模式) （将废弃）
 	r.POST("/message/syncack", m.syncack) // 消息同步回执(写模式) （将废弃）
 
-	r.POST("/messages", m.searchMessages) // 批量查询消息
-	r.POST("/message", m.searchMessage)   // 搜索单条消息
+	r.POST("/messages", m.searchMessages)                      // 批量查询消息
+	r.POST("/message", m.searchMessage)                        // 搜索单条消息
+	r.GET("/message/byclientmsgno", m.getMessageByClientMsgNo) // 通过 client_msg_no 查询消息
 
 	// 频道消息相关端点（从 channel.go 移动过来）
 	r.POST("/channel/messagesync", m.syncMessages)               // 同步频道消息
@@ -705,6 +706,7 @@ func (m *message) searchMessage(c *wkhttp.Context) {
 		LoginUid    string `json:"login_uid"`
 		ChannelId   string `json:"channel_id"`
 		ChannelType uint8  `json:"channel_type"`
+		// message_id 和 client_msg_no 二选一
 		MessageId   int64  `json:"message_id"`
 		ClientMsgNo string `json:"client_msg_no"`
 	}
@@ -771,6 +773,61 @@ func (m *message) searchMessage(c *wkhttp.Context) {
 
 	resp := &types.MessageResp{}
 	resp.From(messages[0], options.G.SystemUID)
+	c.JSON(http.StatusOK, resp)
+}
+
+// getMessageByClientMsgNo 通过 client_msg_no 查询消息
+func (m *message) getMessageByClientMsgNo(c *wkhttp.Context) {
+	channelId := c.Query("channel_id")
+	channelType := wkutil.StringToUint8(c.Query("channel_type"))
+	clientMsgNo := c.Query("client_msg_no")
+
+	if strings.TrimSpace(channelId) == "" {
+		c.ResponseError(errors.New("channel_id不能为空"))
+		return
+	}
+
+	if channelType == 0 {
+		c.ResponseError(errors.New("channel_type不能为0"))
+		return
+	}
+
+	if strings.TrimSpace(clientMsgNo) == "" {
+		c.ResponseError(errors.New("client_msg_no不能为空"))
+		return
+	}
+
+	fakeChannelId := channelId
+	// 注意：如果是个人频道，需要传入完整的 fakeChannelId（如 uid1@uid2）
+
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(fakeChannelId, channelType)
+	if err != nil {
+		m.Error("获取频道所在节点失败！", zap.Error(err), zap.String("channelID", fakeChannelId), zap.Uint8("channelType", channelType))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	leaderIsSelf := leaderInfo.Id == options.G.Cluster.NodeId
+
+	if !leaderIsSelf {
+		m.Debug("转发请求：", zap.String("url", fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path)))
+		c.Forward(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path))
+		return
+	}
+
+	msg, err := service.Store.LoadMsgByClientMsgNo(fakeChannelId, channelType, clientMsgNo)
+	if err != nil {
+		if err == wkdb.ErrNotFound {
+			m.Info("消息不存在！", zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.String("clientMsgNo", clientMsgNo))
+			c.ResponseStatus(http.StatusNotFound)
+			return
+		}
+		m.Error("查询消息失败！", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.String("clientMsgNo", clientMsgNo))
+		c.ResponseError(err)
+		return
+	}
+
+	resp := &types.MessageResp{}
+	resp.From(msg, options.G.SystemUID)
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -913,6 +970,7 @@ func (m *message) syncMessages(c *wkhttp.Context) {
 
 						message.End = streamV2.End
 						message.EndReason = streamV2.EndReason
+						message.Error = streamV2.Error
 						message.StreamData = streamV2.Payload
 						break
 					}

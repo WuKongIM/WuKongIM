@@ -1,9 +1,13 @@
 package ingress
 
 import (
+	"context"
 	"errors"
 
+	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
+	"github.com/WuKongIM/WuKongIM/internal/types"
+	"github.com/WuKongIM/WuKongIM/internal/types/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
@@ -36,10 +40,52 @@ func (i *Ingress) SetRoutes() {
 	service.Cluster.Route("/wk/ingress/getSubscribers", i.handleGetSubscribers)
 	// 获取流
 	service.Cluster.Route("/wk/ingress/getStreams", i.handleGetStreams)
-
 	// 获取流(v2)
 	service.Cluster.Route("/wk/ingress/getStreamsV2", i.handleGetStreamsV2)
+	// 处理转发的PersistAfter插件调用请求
+	service.Cluster.Route("/wk/ingress/persistAfter", i.handlePersistAfter)
+}
 
+// handlePersistAfter 处理转发的PersistAfter插件调用请求
+func (i *Ingress) handlePersistAfter(c *wkserver.Context) {
+	req := &PersistAfterReq{}
+	if err := req.Decode(c.Body()); err != nil {
+		i.Error("handlePersistAfter: decode failed", zap.Error(err))
+		c.WriteErr(err)
+		return
+	}
+
+	// 反序列化消息批次
+	msgBatch := &pluginproto.MessageBatch{}
+	if len(req.Messages) > 0 {
+		if err := msgBatch.Unmarshal(req.Messages); err != nil {
+			i.Error("handlePersistAfter: unmarshal message batch failed", zap.Error(err))
+			c.WriteErr(err)
+			return
+		}
+	}
+
+	// 在领导节点上执行插件调用
+	i.executePluginPersistAfter(req.ChannelId, req.ChannelType, msgBatch)
+	c.WriteOk()
+}
+
+// executePluginPersistAfter 在本地执行插件PersistAfter调用
+func (i *Ingress) executePluginPersistAfter(channelId string, channelType uint8, msgBatch *pluginproto.MessageBatch) {
+	plugins := service.PluginManager.Plugins(types.PluginPersistAfter)
+	if len(plugins) == 0 {
+		return
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), options.G.Channel.ProcessTimeout)
+	defer cancel()
+
+	for _, pg := range plugins {
+		err := pg.PersistAfter(timeoutCtx, msgBatch)
+		if err != nil {
+			i.Error("plugin persist after error", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		}
+	}
 }
 
 func (i *Ingress) handleGetTag(c *wkserver.Context) {

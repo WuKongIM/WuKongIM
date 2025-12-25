@@ -625,7 +625,7 @@ func (s *Store) handleUpdateConversationDeletedAtMsgSeq(cmd *CMD) error {
 }
 
 func (s *Store) handleSaveStreamV2(cmd *CMD) error {
-	stream, err := cmd.DecodeCMDStreamV2()
+	stream, err := cmd.DecodeCMDStreamV2(cmd.version)
 	if err != nil {
 		return err
 	}
