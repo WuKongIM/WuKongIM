@@ -81,7 +81,7 @@ func (h *Handler) handleConnect(event *eventbus.Event) (wkproto.ReasonCode, *wkp
 		}
 		device, err := service.Store.GetDevice(uid, connectPacket.DeviceFlag)
 		if err != nil {
-			h.Error("get device token err", zap.Error(err), zap.String("uid", uid), zap.Uint64("sourceNodeId", event.SourceNodeId))
+			h.Error("get device token err", zap.Error(err), zap.String("uid", uid), zap.String("deviceFlag", connectPacket.DeviceFlag.String()), zap.Uint64("sourceNodeId", event.SourceNodeId))
 			return wkproto.ReasonAuthFail, nil, err
 		}
 		if device.Token != connectPacket.Token {
