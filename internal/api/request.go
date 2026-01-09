@@ -26,17 +26,115 @@ type request struct {
 }
 
 func newRequset(s *Server) *request {
-
 	return &request{
 		Log: wklog.NewWKLog("request"),
 		s:   s,
 	}
 }
 
+// ==================== 公共辅助函数 ====================
+
+// makeChannelKey 生成频道唯一键
+func makeChannelKey(channelId string, channelType uint8) string {
+	return channelId + ":" + string(channelType)
+}
+
+// convertMessagesToResp 将数据库消息转换为响应消息
+func convertMessagesToResp(messages []wkdb.Message) types.MessageRespSlice {
+	messageResps := make(types.MessageRespSlice, 0, len(messages))
+	for _, msg := range messages {
+		messageResp := &types.MessageResp{}
+		messageResp.From(msg, options.G.SystemUID)
+		messageResps = append(messageResps, messageResp)
+	}
+	return messageResps
+}
+
+// enrichStreamMessages 填充流消息数据
+func (s *request) enrichStreamMessages(channelId string, channelType uint8, messageResps types.MessageRespSlice) error {
+	// 收集流消息的ClientMsgNo
+	streamClientMsgNos := make([]string, 0)
+	for _, message := range messageResps {
+		setting := wkproto.Setting(message.Setting)
+		if setting.IsSet(wkproto.SettingStream) {
+			streamClientMsgNos = append(streamClientMsgNos, message.ClientMsgNo)
+		}
+	}
+
+	if len(streamClientMsgNos) == 0 {
+		return nil
+	}
+
+	// 加载流消息数据
+	streamV2s, err := s.loadStreamV2Messages(channelId, channelType, streamClientMsgNos)
+	if err != nil {
+		s.Error("enrichStreamMessages: loadStreamV2Messages failed", zap.Error(err))
+		return err
+	}
+
+	// 填充流消息数据到响应中
+	for _, message := range messageResps {
+		setting := wkproto.Setting(message.Setting)
+		if !setting.IsSet(wkproto.SettingStream) {
+			continue
+		}
+		for _, streamV2 := range streamV2s {
+			if message.MessageId == streamV2.MessageId {
+				message.End = streamV2.End
+				message.EndReason = streamV2.EndReason
+				message.Error = streamV2.Error
+				message.StreamData = streamV2.Payload
+				break
+			}
+		}
+	}
+	return nil
+}
+
+// runParallel 并行执行任务并收集结果
+func runParallel[K comparable, V any](
+	groups map[K]V,
+	process func(V) ([]*channelRecentMessage, error),
+) ([]*channelRecentMessage, error) {
+	totalResults := make([]*channelRecentMessage, 0)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(groups))
+
+	for _, items := range groups {
+		wg.Add(1)
+		go func(v V) {
+			defer wg.Done()
+			results, err := process(v)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			mu.Lock()
+			totalResults = append(totalResults, results...)
+			mu.Unlock()
+		}(items)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return totalResults, nil
+}
+
+// ==================== 集群消息同步 ====================
+
 func (s *request) getRecentMessagesForCluster(uid string, msgCount int, channels []*channelRecentMessageReq, orderByLast bool) ([]*channelRecentMessage, error) {
 	if len(channels) == 0 {
 		return nil, nil
 	}
+
 	var (
 		channelRecentMessages     []*channelRecentMessage
 		err                       error
@@ -46,10 +144,8 @@ func (s *request) getRecentMessagesForCluster(uid string, msgCount int, channels
 	// 按照频道所在节点进行分组
 	peerChannelRecentMessageReqsMap := make(map[uint64][]*channelRecentMessageReq)
 	for _, channelRecentMsgReq := range channels {
-		fakeChannelId := channelRecentMsgReq.ChannelId
-		leaderInfo, err := service.Cluster.LeaderOfChannel(fakeChannelId, channelRecentMsgReq.ChannelType) // 获取频道的领导节点
+		leaderInfo, err := service.Cluster.LeaderOfChannel(channelRecentMsgReq.ChannelId, channelRecentMsgReq.ChannelType)
 		if err != nil {
-			// s.Warn("getRecentMessagesForCluster: 获取频道所在节点失败！", zap.Error(err), zap.String("channelId", fakeChannelId), zap.Uint8("channelType", channelRecentMsgReq.ChannelType))
 			continue
 		}
 		peerChannelRecentMessageReqsMap[leaderInfo.Id] = append(peerChannelRecentMessageReqsMap[leaderInfo.Id], channelRecentMsgReq)
@@ -60,22 +156,22 @@ func (s *request) getRecentMessagesForCluster(uid string, msgCount int, channels
 		var reqErr error
 		wg := &sync.WaitGroup{}
 		for nodeId, peerChannelRecentMessageReqs := range peerChannelRecentMessageReqsMap {
-			if nodeId == options.G.Cluster.NodeId { // 本机节点忽略
+			if nodeId == options.G.Cluster.NodeId {
 				continue
 			}
 			wg.Add(1)
-			go func(pID uint64, reqs []*channelRecentMessageReq, uidStr string, msgCt int) {
-				results, err := s.requestSyncMessage(pID, reqs, uidStr, msgCt, orderByLast)
+			go func(pID uint64, reqs []*channelRecentMessageReq) {
+				defer wg.Done()
+				results, err := s.requestSyncMessage(pID, reqs, uid, msgCount, orderByLast)
 				if err != nil {
 					s.Error("请求同步消息失败！", zap.Error(err), zap.Uint64("nodeId", pID))
 					reqErr = err
-				} else {
-					channelRecentMessagesLock.Lock()
-					channelRecentMessages = append(channelRecentMessages, results...)
-					channelRecentMessagesLock.Unlock()
+					return
 				}
-				wg.Done()
-			}(nodeId, peerChannelRecentMessageReqs, uid, msgCount)
+				channelRecentMessagesLock.Lock()
+				channelRecentMessages = append(channelRecentMessages, results...)
+				channelRecentMessagesLock.Unlock()
+			}(nodeId, peerChannelRecentMessageReqs)
 		}
 		wg.Wait()
 		if reqErr != nil {
@@ -85,24 +181,25 @@ func (s *request) getRecentMessagesForCluster(uid string, msgCount int, channels
 	}
 
 	// 请求本地的最近消息列表
-	localPeerChannelRecentMessageReqs := peerChannelRecentMessageReqsMap[options.G.Cluster.NodeId]
-	if len(localPeerChannelRecentMessageReqs) > 0 {
-		results, err := s.getRecentMessages(uid, msgCount, localPeerChannelRecentMessageReqs, orderByLast)
+	localChannels := peerChannelRecentMessageReqsMap[options.G.Cluster.NodeId]
+	if len(localChannels) > 0 {
+		results, err := s.getRecentMessages(uid, msgCount, localChannels, orderByLast)
 		if err != nil {
 			return nil, err
 		}
 		channelRecentMessages = append(channelRecentMessages, results...)
 	}
+
 	return channelRecentMessages, nil
 }
 
 func (s *request) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessageReq, uid string, msgCount int, orderByLast bool) ([]*channelRecentMessage, error) {
-
-	nodeInfo := service.Cluster.NodeInfoById(nodeID) // 获取频道的领导节点
+	nodeInfo := service.Cluster.NodeInfoById(nodeID)
 	if nodeInfo == nil {
 		s.Error("节点不存在！", zap.Uint64("nodeID", nodeID))
 		return nil, errors.New("节点不存在！")
 	}
+
 	reqURL := fmt.Sprintf("%s/%s", nodeInfo.ApiServerAddr, "conversation/syncMessages")
 	request := rest.Request{
 		Method:  rest.Method("POST"),
@@ -114,9 +211,12 @@ func (s *request) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessage
 			"order_by_last": wkutil.BoolToInt(orderByLast),
 		})),
 	}
+
 	s.Debug("同步会话消息!", zap.String("apiURL", reqURL), zap.String("uid", uid), zap.Any("channels", reqs))
+
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
+
 	resp, err := rest.SendWithContext(timeoutCtx, request)
 	if err != nil {
 		return nil, err
@@ -124,6 +224,7 @@ func (s *request) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessage
 	if err := handlerIMError(resp); err != nil {
 		return nil, err
 	}
+
 	var results []*channelRecentMessage
 	if err := wkutil.ReadJSONByByte([]byte(resp.Body), &results); err != nil {
 		return nil, err
@@ -131,207 +232,124 @@ func (s *request) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessage
 	return results, nil
 }
 
+// ==================== 本地消息查询 ====================
+
 // getRecentMessages 获取频道最近消息
 // orderByLast: true 按照最新的消息排序 false 按照最旧的消息排序
 func (s *request) getRecentMessages(uid string, msgCount int, channels []*channelRecentMessageReq, orderByLast bool) ([]*channelRecentMessage, error) {
-	channelRecentMessages := make([]*channelRecentMessage, 0, len(channels))
 	if len(channels) == 0 {
-		return channelRecentMessages, nil
+		return []*channelRecentMessage{}, nil
 	}
 
-	// 批量查询优化：将相同查询条件的频道分组
-	type batchKey struct {
-		msgSeq      uint64
-		orderByLast bool
-	}
-	batchGroups := make(map[batchKey][]*channelRecentMessageReq)
-
-	for _, channel := range channels {
-		key := batchKey{
-			msgSeq:      channel.LastMsgSeq,
-			orderByLast: orderByLast,
-		}
-		batchGroups[key] = append(batchGroups[key], channel)
-	}
-
-	// 使用并发处理不同的批次组
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	errChan := make(chan error, len(batchGroups))
-
-	for key, batchChannels := range batchGroups {
-		wg.Add(1)
-		go func(k batchKey, chs []*channelRecentMessageReq) {
-			defer wg.Done()
-
-			// 批量处理相同条件的频道
-			results, err := s.processBatchChannels(uid, msgCount, chs, k.orderByLast)
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			mu.Lock()
-			channelRecentMessages = append(channelRecentMessages, results...)
-			mu.Unlock()
-		}(key, batchChannels)
-	}
-
-	wg.Wait()
-	close(errChan)
-
-	// 检查错误
-	for err := range errChan {
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return channelRecentMessages, nil
+	// 按数据库分片分组并行处理
+	shardGroups := s.groupChannelsByDbShard(channels)
+	return runParallel(shardGroups, func(chs []*channelRecentMessageReq) ([]*channelRecentMessage, error) {
+		return s.processBatchChannels(uid, msgCount, chs, orderByLast)
+	})
 }
 
-// processBatchChannels 批量处理频道消息查询
-func (s *request) processBatchChannels(uid string, msgCount int, channels []*channelRecentMessageReq, orderByLast bool) ([]*channelRecentMessage, error) {
-	results := make([]*channelRecentMessage, 0, len(channels))
-
-	// 如果批次较小，使用原有逻辑
-	if len(channels) <= 5 {
-		for _, channel := range channels {
-			result, err := s.processSingleChannel(uid, msgCount, channel, orderByLast)
-			if err != nil {
-				return nil, err
-			}
-			results = append(results, result)
-		}
-		return results, nil
-	}
-
-	// 批次较大时，使用优化的批量查询
-	// TODO: 这里可以进一步优化，实现真正的批量数据库查询
-	// 目前先使用并发来提升性能
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	errChan := make(chan error, len(channels))
-
-	// 限制并发数
-	semaphore := make(chan struct{}, 10)
-
+// groupChannelsByDbShard 按数据库分片对频道进行分组
+func (s *request) groupChannelsByDbShard(channels []*channelRecentMessageReq) map[uint32][]*channelRecentMessageReq {
+	shardGroups := make(map[uint32][]*channelRecentMessageReq)
 	for _, channel := range channels {
-		wg.Add(1)
-		go func(ch *channelRecentMessageReq) {
-			defer wg.Done()
+		shardIndex := service.Store.GetChannelShardIndex(channel.ChannelId, channel.ChannelType)
+		shardGroups[shardIndex] = append(shardGroups[shardIndex], channel)
+	}
+	return shardGroups
+}
 
-			semaphore <- struct{}{}
-			defer func() { <-semaphore }()
-
-			result, err := s.processSingleChannel(uid, msgCount, ch, orderByLast)
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			mu.Lock()
-			results = append(results, result)
-			mu.Unlock()
-		}(channel)
+// processBatchChannels 批量处理频道消息查询（统一使用批量模式）
+func (s *request) processBatchChannels(uid string, msgCount int, channels []*channelRecentMessageReq, orderByLast bool) ([]*channelRecentMessage, error) {
+	if len(channels) == 0 {
+		return nil, nil
 	}
 
-	wg.Wait()
-	close(errChan)
+	// 构建批量查询请求
+	wkdbChannels := make([]wkdb.Channel, 0, len(channels))
+	for _, channel := range channels {
+		wkdbChannels = append(wkdbChannels, wkdb.Channel{
+			ChannelId:   channel.ChannelId,
+			ChannelType: channel.ChannelType,
+		})
+	}
 
-	for err := range errChan {
-		if err != nil {
+	// 批量获取用户最后消息序号
+	userLastMsgSeqMap, err := service.Store.GetUserLastMsgSeqBatch(uid, wkdbChannels)
+	if err != nil {
+		s.Error("批量查询用户最后消息序号失败！", zap.Error(err), zap.String("uid", uid))
+		return nil, err
+	}
+
+	// 批量加载消息
+	msgMap, err := s.loadMessagesBatch(channels, msgCount, orderByLast)
+	if err != nil {
+		return nil, err
+	}
+
+	// 组装最终结果
+	results := make([]*channelRecentMessage, 0, len(channels))
+	for _, channel := range channels {
+		channelKey := makeChannelKey(channel.ChannelId, channel.ChannelType)
+
+		// 获取消息响应
+		messageResps := msgMap[channelKey]
+
+		// 处理流消息
+		if err := s.enrichStreamMessages(channel.ChannelId, channel.ChannelType, messageResps); err != nil {
 			return nil, err
 		}
+
+		results = append(results, &channelRecentMessage{
+			ChannelId:      channel.ChannelId,
+			ChannelType:    channel.ChannelType,
+			Messages:       messageResps,
+			UserLastMsgSeq: userLastMsgSeqMap[channelKey],
+		})
 	}
 
 	return results, nil
 }
 
-// processSingleChannel 处理单个频道的消息查询
-func (s *request) processSingleChannel(uid string, msgCount int, channel *channelRecentMessageReq, orderByLast bool) (*channelRecentMessage, error) {
-	var (
-		recentMessages []wkdb.Message
-		err            error
-	)
-
-	fakeChannelID := channel.ChannelId
-	msgSeq := channel.LastMsgSeq
-	messageResps := types.MessageRespSlice{}
-
-	if orderByLast {
-		if msgSeq > 0 {
-			msgSeq = msgSeq - 1 // 这里减1的目的是为了获取到最后一条消息
+// loadMessagesBatch 批量加载频道消息（使用批量查询接口）
+func (s *request) loadMessagesBatch(channels []*channelRecentMessageReq, msgCount int, orderByLast bool) (map[string]types.MessageRespSlice, error) {
+	// 构建批量查询请求
+	batchRequests := make([]wkdb.BatchMsgRequest, 0, len(channels))
+	for _, channel := range channels {
+		msgSeq := channel.LastMsgSeq
+		if orderByLast && msgSeq > 0 {
+			msgSeq = msgSeq - 1
 		}
-
-		recentMessages, err = service.Store.LoadLastMsgsWithEnd(fakeChannelID, channel.ChannelType, msgSeq, msgCount)
-		if err != nil {
-			s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint64("LastMsgSeq", channel.LastMsgSeq))
-			return nil, err
-		}
-		if len(recentMessages) > 0 {
-			for _, recentMessage := range recentMessages {
-				messageResp := &types.MessageResp{}
-				messageResp.From(recentMessage, options.G.SystemUID)
-				messageResps = append(messageResps, messageResp)
-			}
-		}
-		sort.Sort(sort.Reverse(messageResps))
-	} else {
-		recentMessages, err = service.Store.LoadNextRangeMsgs(fakeChannelID, channel.ChannelType, msgSeq, 0, msgCount)
-		if err != nil {
-			s.Error("查询最近消息失败！", zap.Error(err), zap.String("uid", uid), zap.String("fakeChannelID", fakeChannelID), zap.Uint8("channelType", channel.ChannelType), zap.Uint64("LastMsgSeq", channel.LastMsgSeq))
-			return nil, err
-		}
-
-		if len(recentMessages) > 0 {
-			for _, recentMessage := range recentMessages {
-				messageResp := &types.MessageResp{}
-				messageResp.From(recentMessage, options.G.SystemUID)
-				messageResps = append(messageResps, messageResp)
-			}
-		}
+		batchRequests = append(batchRequests, wkdb.BatchMsgRequest{
+			ChannelId:   channel.ChannelId,
+			ChannelType: channel.ChannelType,
+			MsgSeq:      msgSeq,
+			Limit:       msgCount,
+			OrderByLast: orderByLast,
+		})
 	}
 
-	streamClientMsgNos := make([]string, 0, len(messageResps)) // 已存储的流消息ID
-	for _, message := range messageResps {
-		setting := wkproto.Setting(message.Setting)
-		if !setting.IsSet(wkproto.SettingStream) {
-			continue
-		}
-		streamClientMsgNos = append(streamClientMsgNos, message.ClientMsgNo)
+	// 批量查询消息
+	batchResponses, err := service.Store.LoadMsgsBatch(batchRequests)
+	if err != nil {
+		s.Error("批量查询消息失败！", zap.Error(err))
+		return nil, err
 	}
 
-	if len(streamClientMsgNos) > 0 {
-		streamV2s, err := s.loadStreamV2Messages(fakeChannelID, channel.ChannelType, streamClientMsgNos)
-		if err != nil {
-			s.Error("syncMessages: loadStreamV2Messages failed", zap.Error(err))
-			return nil, err
+	// 构建结果映射
+	msgMap := make(map[string]types.MessageRespSlice, len(batchResponses))
+	for _, resp := range batchResponses {
+		channelKey := makeChannelKey(resp.ChannelId, resp.ChannelType)
+		messageResps := convertMessagesToResp(resp.Messages)
+		if orderByLast {
+			sort.Sort(sort.Reverse(messageResps))
 		}
-		for _, message := range messageResps {
-			setting := wkproto.Setting(message.Setting)
-			if !setting.IsSet(wkproto.SettingStream) {
-				continue
-			}
-			for _, streamV2 := range streamV2s {
-				if message.MessageId == streamV2.MessageId {
-
-					message.End = streamV2.End
-					message.EndReason = streamV2.EndReason
-					message.Error = streamV2.Error
-					message.StreamData = streamV2.Payload
-					break
-				}
-			}
-		}
+		msgMap[channelKey] = messageResps
 	}
 
-	return &channelRecentMessage{
-		ChannelId:   channel.ChannelId,
-		ChannelType: channel.ChannelType,
-		Messages:    messageResps,
-	}, nil
+	return msgMap, nil
 }
+
+// ==================== 工具函数 ====================
 
 func handlerIMError(resp *rest.Response) error {
 	if resp.StatusCode != http.StatusOK {
@@ -348,16 +366,17 @@ func handlerIMError(resp *rest.Response) error {
 	}
 	return nil
 }
+
 func (s *request) loadStreamV2Messages(channelId string, channelType uint8, clientMsgNos []string) ([]*wkdb.StreamV2, error) {
 	slotLeaderId, err := service.Cluster.SlotLeaderIdOfChannel(channelId, channelType)
 	if err != nil {
-		s.Error("loadStreamMessages: get leader id failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
+		s.Error("loadStreamMessages: get leader id failed", zap.Error(err),
+			zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
 		return nil, err
 	}
-	// 如果是本节点，则直接加载
+
 	if options.G.IsLocalNode(slotLeaderId) {
 		return service.CommonService.GetStreamsForLocal(clientMsgNos)
 	}
-	// 请求远程节点
 	return s.s.client.RequestStreamsV2(slotLeaderId, clientMsgNos)
 }

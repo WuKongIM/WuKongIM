@@ -84,7 +84,8 @@ type channelRecentMessageReq struct {
 }
 
 type channelRecentMessage struct {
-	ChannelId   string               `json:"channel_id"`
-	ChannelType uint8                `json:"channel_type"`
-	Messages    []*types.MessageResp `json:"messages"`
+	ChannelId      string               `json:"channel_id"`
+	ChannelType    uint8                `json:"channel_type"`
+	Messages       []*types.MessageResp `json:"messages"`
+	UserLastMsgSeq uint64               `json:"user_last_msg_seq"` // 当前用户在频道里发送的最新的消息序号
 }

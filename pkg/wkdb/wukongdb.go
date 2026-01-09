@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/trace"
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	"github.com/bwmarrin/snowflake"
@@ -37,14 +38,15 @@ type wukongDB struct {
 
 	metrics trace.IDBMetrics
 
-	channelSeqCache    *channelSeqCache
-	conversationCache  *ConversationCache
-	channelInfoCache   *ChannelInfoCache
-	permissionCache    *PermissionCache           // 统一的权限缓存（替代 denylistCache, subscriberCache, allowlistCache）
-	clusterConfigCache *ChannelClusterConfigCache // 频道集群配置缓存
-	deviceCache        *DeviceCache               // 设备缓存
-	cacheManager       *CacheManager              // 缓存管理器
-	performanceMonitor *PerformanceMonitor        // 性能监控器
+	channelSeqCache      *channelSeqCache
+	conversationCache    *ConversationCache
+	channelInfoCache     *ChannelInfoCache
+	permissionCache      *PermissionCache           // 统一的权限缓存（替代 denylistCache, subscriberCache, allowlistCache）
+	clusterConfigCache   *ChannelClusterConfigCache // 频道集群配置缓存
+	deviceCache          *DeviceCache               // 设备缓存
+	userLastMsgSeqCache  *userLastMsgSeqCache       // 用户在频道内发送的最后一条消息序号缓存
+	cacheManager         *CacheManager              // 缓存管理器
+	performanceMonitor   *PerformanceMonitor        // 性能监控器
 
 	h hash.Hash32
 }
@@ -73,13 +75,14 @@ func NewWukongDB(opts *Options) DB {
 		cancelCtx:          cancelCtx,
 		cancelFunc:         cancelFunc,
 		metrics:            metrics,
-		channelSeqCache:    newChannelSeqCache(1000, endian),
-		conversationCache:  NewConversationCache(1000),         // 缓存1000个 GetLastConversations 查询结果
-		channelInfoCache:   NewChannelInfoCache(1000),          // 缓存频道信息
-		permissionCache:    NewPermissionCache(1000),           // 缓存权限查询结果（统一缓存）
-		clusterConfigCache: NewChannelClusterConfigCache(1000), // 缓存集群配置
-		deviceCache:        NewDeviceCache(1000),               // 缓存1000个设备
-		performanceMonitor: NewPerformanceMonitor(),            // 性能监控器
+		channelSeqCache:     newChannelSeqCache(1000, endian),
+		conversationCache:   NewConversationCache(1000),         // 缓存1000个 GetLastConversations 查询结果
+		channelInfoCache:    NewChannelInfoCache(1000),          // 缓存频道信息
+		permissionCache:     NewPermissionCache(1000),           // 缓存权限查询结果（统一缓存）
+		clusterConfigCache:  NewChannelClusterConfigCache(1000), // 缓存集群配置
+		deviceCache:         NewDeviceCache(1000),               // 缓存1000个设备
+		userLastMsgSeqCache: newUserLastMsgSeqCache(10000),      // 缓存10000个用户在频道内发送的最后一条消息序号
+		performanceMonitor:  NewPerformanceMonitor(),            // 性能监控器
 		h:                  fnv.New32(),
 		sync: &pebble.WriteOptions{
 			Sync: true,
@@ -223,6 +226,16 @@ func (wk *wukongDB) defaultShardBatchDB() *BatchDB {
 
 func (wk *wukongDB) channelSlotId(channelId string) uint32 {
 	return wkutil.GetSlotNum(int(wk.opts.SlotCount), channelId)
+}
+
+// GetShardNum 获取数据库分片数量
+func (wk *wukongDB) GetShardNum() int {
+	return int(wk.shardNum)
+}
+
+// GetChannelShardIndex 获取频道所在的分片索引
+func (wk *wukongDB) GetChannelShardIndex(channelId string, channelType uint8) uint32 {
+	return uint32(key.ChannelToNum(channelId, channelType) % uint64(wk.shardNum))
 }
 
 func (wk *wukongDB) collectMetricsLoop() {
