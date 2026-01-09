@@ -25,6 +25,7 @@ import (
 
 	// --- 引入必要的项目包 ---
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	"github.com/WuKongIM/WuKongIM/pkg/wkutil"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
@@ -539,4 +540,135 @@ func decodePacket(data []byte) (wkproto.Frame, error) {
 	// 使用全局编解码器实例的 DecodeFrame 方法
 	f, _, err := protoCodec.DecodeFrame(data, wkproto.LatestVersion)
 	return f, err
+}
+
+// --- 辅助函数 ---
+
+// apiPost 发送 HTTP POST 请求
+func apiPost(url string, body interface{}) (*http.Response, error) {
+	jsonData, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: requestTimeout}
+	return client.Do(req)
+}
+
+// apiGet 发送 HTTP GET 请求
+func apiGet(url string) (*http.Response, error) {
+	client := &http.Client{Timeout: requestTimeout}
+	return client.Get(url)
+}
+
+// testWSClient 封装 WebSocket 客户端用于测试
+type testWSClient struct {
+	conn *websocket.Conn
+	t    *testing.T
+}
+
+func newTestWSClient(t *testing.T, wsURL string) *testWSClient {
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
+	return &testWSClient{conn: conn, t: t}
+}
+
+func (c *testWSClient) Close() {
+	if c.conn != nil {
+		c.conn.Close()
+	}
+}
+
+func (c *testWSClient) Connect(uid, token string) error {
+	connectPacket := &wkproto.ConnectPacket{
+		Version:         wkproto.LatestVersion,
+		DeviceID:        "e2e_device_" + wkutil.GenUUID()[:8],
+		DeviceFlag:      wkproto.APP,
+		UID:             uid,
+		Token:           token,
+		ClientTimestamp: time.Now().UnixMilli(),
+	}
+	data, err := encodePacket(connectPacket)
+	if err != nil {
+		return err
+	}
+	err = c.conn.WriteMessage(websocket.BinaryMessage, data)
+	if err != nil {
+		return err
+	}
+
+	// 等待 CONNACK
+	c.conn.SetReadDeadline(time.Now().Add(wsTimeout))
+	_, msgBytes, err := c.conn.ReadMessage()
+	if err != nil {
+		return err
+	}
+	frame, err := decodePacket(msgBytes)
+	if err != nil {
+		return err
+	}
+	if frame.GetFrameType() != wkproto.CONNACK {
+		return fmt.Errorf("expected CONNACK, got %v", frame.GetFrameType())
+	}
+	connack := frame.(*wkproto.ConnackPacket)
+	if connack.ReasonCode != wkproto.ReasonSuccess {
+		return fmt.Errorf("CONNACK failed with reason code: %v", connack.ReasonCode)
+	}
+	return nil
+}
+
+func (c *testWSClient) SendMessage(channelId string, channelType uint8, payload []byte) error {
+	sendPacket := &wkproto.SendPacket{
+		ChannelID:   channelId,
+		ChannelType: channelType,
+		Payload:     payload,
+		ClientMsgNo: wkutil.GenUUID(),
+	}
+	data, err := encodePacket(sendPacket)
+	if err != nil {
+		return err
+	}
+	return c.conn.WriteMessage(websocket.BinaryMessage, data)
+}
+
+func (c *testWSClient) WaitForRecv(timeout time.Duration) (*wkproto.RecvPacket, error) {
+	c.conn.SetReadDeadline(time.Now().Add(timeout))
+	for {
+		_, msgBytes, err := c.conn.ReadMessage()
+		if err != nil {
+			return nil, err
+		}
+		frame, err := decodePacket(msgBytes)
+		if err != nil {
+			return nil, err
+		}
+		if frame.GetFrameType() == wkproto.RECV {
+			return frame.(*wkproto.RecvPacket), nil
+		}
+		// 忽略其他包，如 PONG
+	}
+}
+
+func (c *testWSClient) WaitForSendack(timeout time.Duration) (*wkproto.SendackPacket, error) {
+	c.conn.SetReadDeadline(time.Now().Add(timeout))
+	for {
+		_, msgBytes, err := c.conn.ReadMessage()
+		if err != nil {
+			return nil, err
+		}
+		frame, err := decodePacket(msgBytes)
+		if err != nil {
+			return nil, err
+		}
+		if frame.GetFrameType() == wkproto.SENDACK {
+			return frame.(*wkproto.SendackPacket), nil
+		}
+	}
 }
