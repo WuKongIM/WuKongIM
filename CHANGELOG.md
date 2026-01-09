@@ -1,5 +1,35 @@
 # WuKongIM Changelog
 
+## [v2.2.2-20251229] - 2025-12-29
+
+### 🚀 New Features
+- **API**: Added batch remove subscribers API
+- **API**: 添加批量移除订阅者 API
+- **Event**: Added `error` field to event structure
+- **事件**: 在事件结构中增加 `error` 字段
+
+### 🐞 Bug Fixes
+- **HTTP**: Fixed `/conversation/sync` reporting `No HttpMessageConverter` (#485)
+- **HTTP**: 修复 `/conversation/sync` 接口报 `No HttpMessageConverter` 的问题 (#485)
+- **Plugin**: Fixed the timing of plugin `persistAfter` execution
+- **插件**: 修复插件 `persistAfter` 的执行时机
+- **Conversation**: Fixed bug where unread count in session sync could return 0
+- **会话**: 修复同步会话接口未读数量有概率返回 0 的问题
+- **Protocol**: Fixed crash caused by incorrect proxy protocol format (#458)
+- **协议**: 修复代理协议格式错误导致程序崩溃的问题 (#458)
+- **Database**: Fixed conversation issues in `wkdb` (issue #454)
+- **数据库**: 修复 `wkdb` 中会话相关的问题 (issue #454)
+- **System**: Fixed application version display issue
+- **系统**: 修复应用版本不显示的问题
+
+### 🔧 Technical Improvements
+- **Logging**: Updated connection logs
+- **日志**: 更新连接相关日志
+- **Documentation**: Updated README and documentation
+- **文档**: 更新 README 及相关文档
+
+**Full Changelog**: https://github.com/WuKongIM/WuKongIM/compare/v2.2.1-20250624...v2.2.2-20251229
+
 ## [v2.2.1-20250624] - 2025-06-24
 
 ### 🚀 Major Features

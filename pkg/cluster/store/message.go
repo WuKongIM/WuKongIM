@@ -88,3 +88,18 @@ func (s *Store) SearchMessages(req wkdb.MessageSearchReq) ([]wkdb.Message, error
 func (s *Store) LoadMsgByClientMsgNo(channelId string, channelType uint8, clientMsgNo string) (wkdb.Message, error) {
 	return s.wdb.LoadMsgByClientMsgNo(channelId, channelType, clientMsgNo)
 }
+
+// GetUserLastMsgSeq 获取用户在指定频道内发送的最新一条消息的seq
+func (s *Store) GetUserLastMsgSeq(fromUid string, channelId string, channelType uint8) (uint64, error) {
+	return s.wdb.GetUserLastMsgSeq(fromUid, channelId, channelType)
+}
+
+// LoadMsgsBatch 批量获取多个频道的消息
+func (s *Store) LoadMsgsBatch(requests []wkdb.BatchMsgRequest) ([]wkdb.BatchMsgResponse, error) {
+	return s.wdb.LoadMsgsBatch(requests)
+}
+
+// GetUserLastMsgSeqBatch 批量获取用户在多个频道的最后消息序号
+func (s *Store) GetUserLastMsgSeqBatch(fromUid string, channels []wkdb.Channel) (map[string]uint64, error) {
+	return s.wdb.GetUserLastMsgSeqBatch(fromUid, channels)
+}
