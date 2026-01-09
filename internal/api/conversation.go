@@ -323,6 +323,8 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 		MsgCount            int64   `json:"msg_count"`             // 每个会话消息数量
 		OnlyUnread          uint8   `json:"only_unread"`           // 只返回未读最近会话 1.只返回未读最近会话 0.不限制
 		ExcludeChannelTypes []uint8 `json:"exclude_channel_types"` // 排除的频道类型
+		Page                int     `json:"page"`                  // 页码，从1开始，默认为0表示不分页
+		PageSize            int     `json:"page_size"`             // 每页大小，默认100
 	}
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {
@@ -432,6 +434,31 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 	// 去掉重复的会话
 	conversations = removeDuplicates(conversations)
 
+	// 分页处理
+	totalCount := len(conversations)
+	if req.Page > 0 {
+		pageSize := req.PageSize
+		if pageSize <= 0 {
+			pageSize = 100 // 默认每页100条
+		}
+		if pageSize > 500 {
+			pageSize = 500 // 最大每页500条
+		}
+
+		start := (req.Page - 1) * pageSize
+		end := start + pageSize
+
+		if start >= totalCount {
+			// 页码超出范围，返回空结果
+			c.JSON(http.StatusOK, []*syncUserConversationResp{})
+			return
+		}
+		if end > totalCount {
+			end = totalCount
+		}
+		conversations = conversations[start:end]
+	}
+
 	// 设置最近会话已读至的消息序列号
 	for _, conversation := range conversations {
 
@@ -498,6 +525,13 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 						resp.Timestamp = int64(lastMsg.Timestamp)
 						if lastMsg.MessageSeq > uint64(resp.ReadedToMsgSeq) {
 							resp.Unread = int(lastMsg.MessageSeq - uint64(resp.ReadedToMsgSeq))
+						}
+
+						// 判断如果当前频道最新的消息序号减去当前用户在当前频道里发送的最后一条消息序号小于未读数量 则未读数量应该以频道最新序号 - 用户最后一条消息发送序号为准
+						if channelRecentMessage.UserLastMsgSeq > uint64(resp.ReadedToMsgSeq) {
+							if (lastMsg.MessageSeq - channelRecentMessage.UserLastMsgSeq) < uint64(resp.Unread) {
+								resp.Unread = int(lastMsg.MessageSeq - channelRecentMessage.UserLastMsgSeq)
+							}
 						}
 
 						resp.Version = time.Unix(int64(lastMsg.Timestamp), 0).UnixNano()
@@ -800,6 +834,14 @@ func (s *conversation) syncConversationByChannels(c *wkhttp.Context) {
 					if lastMsg.MessageSeq > uint64(resp.ReadedToMsgSeq) {
 						resp.Unread = int(lastMsg.MessageSeq - uint64(resp.ReadedToMsgSeq))
 					}
+
+					// 判断如果当前频道最新的消息序号减去当前用户在当前频道里发送的最后一条消息序号小于未读数量 则未读数量应该以频道最新序号 - 用户最后一条消息发送序号为准
+					if channelRecentMessage.UserLastMsgSeq > uint64(resp.ReadedToMsgSeq) {
+						if (lastMsg.MessageSeq - channelRecentMessage.UserLastMsgSeq) < uint64(resp.Unread) {
+							resp.Unread = int(lastMsg.MessageSeq - channelRecentMessage.UserLastMsgSeq)
+						}
+					}
+
 					resp.Version = time.Unix(int64(lastMsg.Timestamp), 0).UnixNano()
 				}
 				resp.Recents = channelRecentMessage.Messages

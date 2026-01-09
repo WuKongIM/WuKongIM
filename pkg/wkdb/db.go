@@ -35,6 +35,11 @@ type DB interface {
 	GetPerformanceMonitor() *PerformanceMonitor
 
 	GetCacheManager() *CacheManager
+
+	// GetShardNum 获取数据库分片数量
+	GetShardNum() int
+	// GetChannelShardIndex 获取频道所在的分片索引
+	GetChannelShardIndex(channelId string, channelType uint8) uint32
 }
 
 type MessageDB interface {
@@ -92,6 +97,31 @@ type MessageDB interface {
 
 	// LoadMsgByClientMsgNo 通过 clientMsgNo 加载消息
 	LoadMsgByClientMsgNo(channelId string, channelType uint8, clientMsgNo string) (Message, error)
+
+	// GetUserLastMsgSeq 获取用户在指定频道内发送的最新一条消息的seq
+	GetUserLastMsgSeq(fromUid string, channelId string, channelType uint8) (uint64, error)
+
+	// LoadMsgsBatch 批量获取多个频道的消息
+	LoadMsgsBatch(requests []BatchMsgRequest) ([]BatchMsgResponse, error)
+
+	// GetUserLastMsgSeqBatch 批量获取用户在多个频道的最后消息序号
+	GetUserLastMsgSeqBatch(fromUid string, channels []Channel) (map[string]uint64, error)
+}
+
+// BatchMsgRequest 批量消息查询请求
+type BatchMsgRequest struct {
+	ChannelId   string // 频道ID
+	ChannelType uint8  // 频道类型
+	MsgSeq      uint64 // 消息序号（OrderByLast=true时为EndSeq，否则为StartSeq）
+	Limit       int    // 限制数量
+	OrderByLast bool   // true: 从最新往前查（LoadLastMsgsWithEnd）, false: 从指定位置往后查（LoadNextRangeMsgs）
+}
+
+// BatchMsgResponse 批量消息查询响应
+type BatchMsgResponse struct {
+	ChannelId   string    // 频道ID
+	ChannelType uint8     // 频道类型
+	Messages    []Message // 消息列表
 }
 
 type DeviceDB interface {

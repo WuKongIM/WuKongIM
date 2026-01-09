@@ -48,6 +48,13 @@ func (wk *wukongDB) AppendMessages(channelId string, channelType uint8, msgs []M
 
 	wk.channelSeqCache.setChannelLastSeq(channelId, channelType, uint64(lastMsg.MessageSeq))
 
+	// 更新用户最后发送消息序号缓存
+	for _, msg := range msgs {
+		if msg.FromUID != "" {
+			wk.userLastMsgSeqCache.updateIfGreater(msg.FromUID, channelId, channelType, uint64(msg.MessageSeq))
+		}
+	}
+
 	return nil
 }
 
@@ -954,6 +961,273 @@ func (wk *wukongDB) LoadMsgByClientMsgNo(channelId string, channelType uint8, cl
 	}
 
 	return EmptyMessage, ErrNotFound
+}
+
+// GetUserLastMsgSeq 获取用户在指定频道内发送的最新一条消息的seq
+// 使用LRU缓存优化查询性能
+func (wk *wukongDB) GetUserLastMsgSeq(fromUid string, channelId string, channelType uint8) (uint64, error) {
+	// 先从缓存中查询
+	if seq, ok := wk.userLastMsgSeqCache.get(fromUid, channelId, channelType); ok {
+		return seq, nil
+	}
+
+	// 缓存未命中，从数据库查询
+	seq, err := wk.queryUserLastMsgSeqFromDB(fromUid, channelId, channelType)
+	if err != nil {
+		return 0, err
+	}
+
+	// 写入缓存
+	wk.userLastMsgSeqCache.set(fromUid, channelId, channelType, seq)
+
+	return seq, nil
+}
+
+// queryUserLastMsgSeqFromDB 从数据库查询用户在指定频道内发送的最新一条消息的seq
+func (wk *wukongDB) queryUserLastMsgSeqFromDB(fromUid string, channelId string, channelType uint8) (uint64, error) {
+	db := wk.channelDb(channelId, channelType)
+
+	var maxPrimaryValue [16]byte
+	wk.endian.PutUint64(maxPrimaryValue[:], key.ChannelToNum(channelId, channelType))
+	wk.endian.PutUint64(maxPrimaryValue[8:], math.MaxUint64)
+
+	var minPrimaryValue [16]byte
+	wk.endian.PutUint64(minPrimaryValue[:], key.ChannelToNum(channelId, channelType))
+	wk.endian.PutUint64(minPrimaryValue[8:], 0)
+
+	highKey := key.NewMessageSecondIndexFromUidKey(fromUid, maxPrimaryValue)
+	lowKey := key.NewMessageSecondIndexFromUidKey(fromUid, minPrimaryValue)
+
+	iter, err := db.NewIter(&pebble.IterOptions{
+		LowerBound: lowKey,
+		UpperBound: highKey,
+	})
+	if err != nil {
+		return 0, err
+	}
+	defer iter.Close()
+
+	if iter.Last() {
+		primaryBytes, err := key.ParseMessageSecondIndexKey(iter.Key())
+		if err != nil {
+			return 0, err
+		}
+		return wk.endian.Uint64(primaryBytes[8:]), nil
+	}
+
+	return 0, nil
+}
+
+// LoadMsgsBatch 批量获取多个频道的消息
+// 按数据库分片分组处理，减少迭代器创建开销
+// 根据 OrderByLast 选择不同的查询方式：
+// - OrderByLast=true: 使用 LoadLastMsgsWithEnd（从最新往前查）
+// - OrderByLast=false: 使用 LoadNextRangeMsgs（从指定位置往后查）
+func (wk *wukongDB) LoadMsgsBatch(requests []BatchMsgRequest) ([]BatchMsgResponse, error) {
+	if len(requests) == 0 {
+		return nil, nil
+	}
+
+	// 按数据库分片分组
+	shardMap := make(map[uint32][]int) // shardIndex -> request indices
+	for i, req := range requests {
+		shardIndex := wk.channelDbIndex(req.ChannelId, req.ChannelType)
+		shardMap[shardIndex] = append(shardMap[shardIndex], i)
+	}
+
+	// 预分配结果数组
+	results := make([]BatchMsgResponse, len(requests))
+
+	// 同一分片内顺序处理，共享数据库连接
+	for shardIndex, indices := range shardMap {
+		db := wk.shardDBById(shardIndex)
+		for _, idx := range indices {
+			req := requests[idx]
+			msgs, err := wk.loadMsgsWithDb(db, req)
+			if err != nil {
+				return nil, err
+			}
+			results[idx] = BatchMsgResponse{
+				ChannelId:   req.ChannelId,
+				ChannelType: req.ChannelType,
+				Messages:    msgs,
+			}
+		}
+	}
+
+	return results, nil
+}
+
+// loadMsgsWithDb 使用指定的数据库加载消息
+func (wk *wukongDB) loadMsgsWithDb(db *pebble.DB, req BatchMsgRequest) ([]Message, error) {
+	// 获取频道最后消息序号
+	lastSeq, err := wk.getChannelLastMessageSeqWithDb(db, req.ChannelId, req.ChannelType)
+	if err != nil {
+		return nil, err
+	}
+	if lastSeq == 0 {
+		return nil, nil
+	}
+
+	var minSeq, maxSeq uint64
+
+	if req.OrderByLast {
+		// LoadLastMsgsWithEnd 逻辑
+		if req.MsgSeq > lastSeq {
+			return nil, nil
+		}
+		maxSeq = lastSeq + 1
+		endSeq := req.MsgSeq
+		if endSeq == 0 {
+			if lastSeq < uint64(req.Limit) {
+				minSeq = 1
+			} else {
+				minSeq = lastSeq - uint64(req.Limit) + 1
+			}
+		} else {
+			if lastSeq-endSeq > uint64(req.Limit) {
+				minSeq = lastSeq - uint64(req.Limit) + 1
+			} else {
+				minSeq = endSeq + 1
+			}
+		}
+	} else {
+		// LoadNextRangeMsgs 逻辑
+		minSeq = req.MsgSeq
+		maxSeq = lastSeq + 1
+	}
+
+	iter, err := db.NewIter(&pebble.IterOptions{
+		LowerBound: key.NewMessagePrimaryKey(req.ChannelId, req.ChannelType, minSeq),
+		UpperBound: key.NewMessagePrimaryKey(req.ChannelId, req.ChannelType, maxSeq),
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+
+	msgs := make([]Message, 0, req.Limit)
+	err = wk.iteratorChannelMessages(iter, req.Limit, func(m Message) bool {
+		msgs = append(msgs, m)
+		return true
+	})
+	if err != nil {
+		return nil, err
+	}
+	return msgs, nil
+}
+
+// getChannelLastMessageSeqWithDb 使用指定数据库获取频道最后消息序号
+func (wk *wukongDB) getChannelLastMessageSeqWithDb(db *pebble.DB, channelId string, channelType uint8) (uint64, error) {
+	// 先查缓存
+	seq, _, ok := wk.channelSeqCache.getChannelLastSeq(channelId, channelType)
+	if ok && seq > 0 {
+		return seq, nil
+	}
+
+	// 缓存未命中，从数据库查询
+	data, closer, err := db.Get(key.NewChannelLastMessageSeqKey(channelId, channelType))
+	if err != nil {
+		if err == pebble.ErrNotFound {
+			return 0, nil
+		}
+		return 0, err
+	}
+	defer closer.Close()
+
+	if len(data) < 8 {
+		return 0, nil
+	}
+	seq = wk.endian.Uint64(data[:8])
+
+	// 写入缓存
+	wk.channelSeqCache.setChannelLastSeq(channelId, channelType, seq)
+
+	return seq, nil
+}
+
+// GetUserLastMsgSeqBatch 批量获取用户在多个频道的最后消息序号
+// 按数据库分片分组处理，减少迭代器创建开销
+// 优先使用缓存，缓存未命中时才查询数据库
+func (wk *wukongDB) GetUserLastMsgSeqBatch(fromUid string, channels []Channel) (map[string]uint64, error) {
+	if len(channels) == 0 {
+		return nil, nil
+	}
+
+	results := make(map[string]uint64, len(channels))
+
+	// 先从缓存获取，记录未命中的频道
+	uncachedChannels := make([]Channel, 0)
+	for _, ch := range channels {
+		channelKey := ch.ChannelId + ":" + string(ch.ChannelType)
+		if seq, ok := wk.userLastMsgSeqCache.get(fromUid, ch.ChannelId, ch.ChannelType); ok {
+			results[channelKey] = seq
+		} else {
+			uncachedChannels = append(uncachedChannels, ch)
+		}
+	}
+
+	// 如果全部命中缓存，直接返回
+	if len(uncachedChannels) == 0 {
+		return results, nil
+	}
+
+	// 按数据库分片分组处理未命中的频道
+	shardMap := make(map[uint32][]Channel) // shardIndex -> channels
+	for _, ch := range uncachedChannels {
+		shardIndex := wk.channelDbIndex(ch.ChannelId, ch.ChannelType)
+		shardMap[shardIndex] = append(shardMap[shardIndex], ch)
+	}
+
+	// 同一分片内顺序处理，共享数据库连接
+	for shardIndex, chs := range shardMap {
+		db := wk.shardDBById(shardIndex)
+		for _, ch := range chs {
+			seq, err := wk.queryUserLastMsgSeqWithDb(db, fromUid, ch.ChannelId, ch.ChannelType)
+			if err != nil {
+				return nil, err
+			}
+			channelKey := ch.ChannelId + ":" + string(ch.ChannelType)
+			results[channelKey] = seq
+			// 写入缓存
+			wk.userLastMsgSeqCache.set(fromUid, ch.ChannelId, ch.ChannelType, seq)
+		}
+	}
+
+	return results, nil
+}
+
+// queryUserLastMsgSeqWithDb 使用指定数据库查询用户最后消息序号
+func (wk *wukongDB) queryUserLastMsgSeqWithDb(db *pebble.DB, fromUid string, channelId string, channelType uint8) (uint64, error) {
+	var maxPrimaryValue [16]byte
+	wk.endian.PutUint64(maxPrimaryValue[:], key.ChannelToNum(channelId, channelType))
+	wk.endian.PutUint64(maxPrimaryValue[8:], math.MaxUint64)
+
+	var minPrimaryValue [16]byte
+	wk.endian.PutUint64(minPrimaryValue[:], key.ChannelToNum(channelId, channelType))
+	wk.endian.PutUint64(minPrimaryValue[8:], 0)
+
+	highKey := key.NewMessageSecondIndexFromUidKey(fromUid, maxPrimaryValue)
+	lowKey := key.NewMessageSecondIndexFromUidKey(fromUid, minPrimaryValue)
+
+	iter, err := db.NewIter(&pebble.IterOptions{
+		LowerBound: lowKey,
+		UpperBound: highKey,
+	})
+	if err != nil {
+		return 0, err
+	}
+	defer iter.Close()
+
+	if iter.Last() {
+		primaryBytes, err := key.ParseMessageSecondIndexKey(iter.Key())
+		if err != nil {
+			return 0, err
+		}
+		return wk.endian.Uint64(primaryBytes[8:]), nil
+	}
+
+	return 0, nil
 }
 
 func (wk *wukongDB) setChannelLastMessageSeq(channelId string, channelType uint8, seq uint64, w *Batch) error {

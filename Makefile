@@ -17,8 +17,8 @@ deploy-arm:
 	docker push wukongim/wukongim:latest-arm64
 deploy-v2-dev:
 	docker build -t wukongim .  --platform linux/amd64
-	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.2.2-20251225-pebblev2
-	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.2.2-20251225-pebblev2
+	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.2.3-dev-pebblev2
+	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.2.3-dev-pebblev2
 deploy-v2:
 	docker buildx build -t wukongim . --platform linux/amd64,linux/arm64
 	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.2.2-20251225-pebblev2
