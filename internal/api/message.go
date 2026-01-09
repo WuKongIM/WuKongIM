@@ -1084,13 +1084,24 @@ func (m *message) requestStreams(leaderId uint64, streamNos []string) (map[strin
 func (m *message) getChannelMaxMessageSeq(c *wkhttp.Context) {
 	channelId := c.Query("channel_id")
 	channelType := wkutil.StringToUint8(c.Query("channel_type"))
+	loginUid := c.Query("login_uid")
 
 	if channelId == "" {
 		c.ResponseError(errors.New("channel_id不能为空"))
 		return
 	}
 
-	leaderInfo, err := service.Cluster.LeaderOfChannelForRead(channelId, channelType)
+	fakeChannelId := channelId
+
+	if channelType == wkproto.ChannelTypePerson {
+		if strings.TrimSpace(loginUid) == "" {
+			c.ResponseError(errors.New("login_uid不能为空"))
+			return
+		}
+		fakeChannelId = options.GetFakeChannelIDWith(loginUid, channelId)
+	}
+
+	leaderInfo, err := service.Cluster.LeaderOfChannelForRead(fakeChannelId, channelType)
 	if err != nil && errors.Is(err, cluster.ErrChannelClusterConfigNotFound) {
 		c.JSON(http.StatusOK, gin.H{
 			"message_seq": 0,
@@ -1107,7 +1118,7 @@ func (m *message) getChannelMaxMessageSeq(c *wkhttp.Context) {
 		return
 	}
 
-	msgSeq, err := service.Store.GetLastMsgSeq(channelId, channelType)
+	msgSeq, err := service.Store.GetLastMsgSeq(fakeChannelId, channelType)
 	if err != nil {
 		c.ResponseError(err)
 		return
