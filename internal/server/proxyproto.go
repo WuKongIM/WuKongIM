@@ -104,12 +104,10 @@ func (ap AddressFamilyAndProtocol) IsUnspec() bool {
 
 // 是否是代理协议
 func isProxyProto(buff []byte) bool {
-
-	b1 := buff[:1]
-	if bytes.Equal(b1[:1], SIGV1[:1]) || bytes.Equal(b1[:1], SIGV2[:1]) {
-		return true
+	if len(buff) < 1 {
+		return false
 	}
-	return false
+	return buff[0] == SIGV1[0] || buff[0] == SIGV2[0]
 }
 
 // 解析代理协议 如果是代理协议则解析出真实的地址（如果通过反向代理并开启了代理协议，需要从代理协议里获取到连接的真实ip）
@@ -117,25 +115,21 @@ func parseProxyProto(buff []byte) (remoteAddr net.Addr, size int, err error) {
 
 	dataLen := len(buff)
 
-	if dataLen <= 5 {
+	if dataLen < 5 {
 		return nil, 0, ErrNoProxyProtocol
 	}
 
-	b1 := buff[:1]
+	if bytes.HasPrefix(buff, SIGV1) {
+		return parseProxyProtoV1(buff)
+	}
 
-	if bytes.Equal(b1[:1], SIGV1[:1]) || bytes.Equal(b1[:1], SIGV2[:1]) {
-		signature := buff[:5]
-		if bytes.Equal(signature[:5], SIGV1) {
-			return parseProxyProtoV1(buff)
-		}
-		if dataLen <= 12 {
-			return nil, 0, ErrNoProxyProtocol
-		}
-		signature = buff[:12]
-		if bytes.Equal(signature[:12], SIGV2) {
-			fmt.Println("proxyproto: proxy protocol v2")
-			return parseProxyProtoV2(buff)
-		}
+	if dataLen < 12 {
+		return nil, 0, ErrNoProxyProtocol
+	}
+
+	if bytes.HasPrefix(buff, SIGV2) {
+		fmt.Println("proxyproto: proxy protocol v2")
+		return parseProxyProtoV2(buff)
 	}
 
 	return nil, 0, ErrNoProxyProtocol
@@ -192,6 +186,10 @@ func parseProxyProtoV1(data []byte) (remoteAddr net.Addr, size int, err error) {
 	// Expect 6 tokens only when UNKNOWN is not present.
 	if transportProtocol != UNSPEC && len(tokens) < 6 {
 		return nil, 0, ErrCantReadAddressFamilyAndProtocol
+	}
+
+	if transportProtocol == UNSPEC {
+		return nil, len(buf) + 1, nil
 	}
 
 	// Otherwise, continue to read addresses and ports
