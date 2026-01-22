@@ -332,6 +332,11 @@ type Conversation struct {
 }
 
 func (c *Conversation) Marshal() ([]byte, error) {
+	// 校验必要字段
+	if c.Uid == "" {
+		return nil, fmt.Errorf("Conversation.Marshal: Uid is empty, channelId=%s, channelType=%d", c.ChannelId, c.ChannelType)
+	}
+
 	enc := wkproto.NewEncoder()
 	defer enc.End()
 	enc.WriteUint64(c.Id)
@@ -405,6 +410,12 @@ func (c *Conversation) Unmarshal(data []byte) error {
 	if updatedAt > 0 {
 		ct := time.Unix(int64(updatedAt/1e9), int64(updatedAt%1e9))
 		c.UpdatedAt = &ct
+	}
+
+	// 反序列化后校验：如果 Uid 为空，返回错误（便于追踪问题来源）
+	if c.Uid == "" {
+		return fmt.Errorf("Conversation.Unmarshal: Uid is empty after decode, id=%d, channelId=%s, channelType=%d, dataLen=%d",
+			c.Id, c.ChannelId, c.ChannelType, len(data))
 	}
 
 	return nil

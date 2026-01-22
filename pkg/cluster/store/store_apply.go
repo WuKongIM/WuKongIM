@@ -557,6 +557,9 @@ func (s *Store) handleAddStreams(cmd *CMD) error {
 func (s *Store) handleAddOrUpdateConversations(cmd *CMD) error {
 	conversations, err := cmd.DecodeCMDAddOrUpdateConversations()
 	if err != nil {
+		s.Error("handleAddOrUpdateConversations: failed to decode conversations",
+			zap.Error(err),
+			zap.Int("dataLen", len(cmd.Data)))
 		return err
 	}
 	return s.wdb.AddOrUpdateConversations(conversations)
@@ -601,6 +604,9 @@ func (s *Store) handleAddOrUpdateConversationsBatchIfNotExistForCMDs(cmds []*CMD
 	for _, cmd := range cmds {
 		cns, err := cmd.DecodeCMDAddOrUpdateConversations()
 		if err != nil {
+			s.Error("handleAddOrUpdateConversationsBatchIfNotExistForCMDs: failed to decode conversations",
+				zap.Error(err),
+				zap.Int("dataLen", len(cmd.Data)))
 			return err
 		}
 		conversations = append(conversations, cns...)
@@ -611,6 +617,9 @@ func (s *Store) handleAddOrUpdateConversationsBatchIfNotExistForCMDs(cmds []*CMD
 func (s *Store) handleAddOrUpdateConversationsBatchIfNotExist(cmd *CMD) error {
 	conversations, err := cmd.DecodeCMDAddOrUpdateConversations()
 	if err != nil {
+		s.Error("handleAddOrUpdateConversationsBatchIfNotExist: failed to decode conversations",
+			zap.Error(err),
+			zap.Int("dataLen", len(cmd.Data)))
 		return err
 	}
 	return s.wdb.AddOrUpdateConversationsBatchIfNotExist(conversations)
