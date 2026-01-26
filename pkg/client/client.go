@@ -152,6 +152,14 @@ func (c *Client) close(status Status, err error) {
 	c.stopPingTimer()
 	c.pingIntervalTimer = nil
 
+	// 清理pongs切片，通知所有等待的channel
+	for _, ch := range c.pongs {
+		if ch != nil {
+			close(ch)
+		}
+	}
+	c.pongs = nil
+
 	// Need to close and set TCP conn to nil if reconnect loop has stopped,
 	// otherwise we would incorrectly invoke Disconnect handler (if set)
 	// down below.
@@ -259,6 +267,8 @@ func (c *Client) doReconnect() {
 			rt.Stop()
 		case <-rt.C:
 		}
+		// 确保timer被停止，防止泄漏
+		rt.Stop()
 
 		if waitForGoRoutines {
 			c.waitForExits()
@@ -338,7 +348,14 @@ func (c *Client) FlushTimeout(timeout time.Duration) (err error) {
 		return ErrConnectionClosed
 	}
 	t := globalTimerPool.Get(timeout)
-	defer globalTimerPool.Put(t)
+	// 确保timer总是归还到池中，即使发生panic
+	defer func() {
+		globalTimerPool.Put(t)
+		// 从panic中恢复，防止timer泄漏
+		if r := recover(); r != nil {
+			err = ErrConnectionClosed
+		}
+	}()
 
 	// Create a buffered channel to prevent chan send to block
 	// in processPong() if this code here times out just when
@@ -369,6 +386,13 @@ func (c *Client) LastSendMsgTime() time.Time {
 	return c.lastSendMsgTime
 }
 
+// PongsQueueLen 返回当前pongs队列长度，用于监控
+func (c *Client) PongsQueueLen() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.pongs)
+}
+
 // FIXME: This is a hack
 // removeFlushEntry is needed when we need to discard queued up responses
 // for our pings as part of a flush call. This happens when we have a flush
@@ -379,9 +403,11 @@ func (c *Client) removeFlushEntry(ch chan struct{}) bool {
 	if c.pongs == nil {
 		return false
 	}
-	for i, cp := range c.pongs {
-		if cp == ch {
-			c.pongs[i] = nil
+	// 从后往前遍历，找到并真正删除元素，防止切片泄漏
+	for i := len(c.pongs) - 1; i >= 0; i-- {
+		if c.pongs[i] == ch {
+			// 真正删除元素：将后面的元素前移
+			c.pongs = append(c.pongs[:i], c.pongs[i+1:]...)
 			return true
 		}
 	}
@@ -573,6 +599,18 @@ func (c *Client) handlePong() {
 	if len(c.pongs) > 0 {
 		ch = c.pongs[0]
 		c.pongs = append(c.pongs[:0], c.pongs[1:]...)
+		
+		// 清理可能存在的nil元素（防止旧代码遗留的问题）
+		// 如果切片中积累了太多nil，进行一次压缩
+		if len(c.pongs) > 100 {
+			cleaned := make([]chan struct{}, 0, len(c.pongs))
+			for _, p := range c.pongs {
+				if p != nil {
+					cleaned = append(cleaned, p)
+				}
+			}
+			c.pongs = cleaned
+		}
 	}
 	c.pingOut = 0
 	c.mu.Unlock()
