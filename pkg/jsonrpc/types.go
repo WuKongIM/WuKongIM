@@ -16,9 +16,9 @@ import (
 type DeviceFlagEnum int
 
 const (
-	DeviceApp DeviceFlagEnum = 1
-	DeviceWeb DeviceFlagEnum = 2
-	DeviceSys DeviceFlagEnum = 3
+	DeviceApp DeviceFlagEnum = 0
+	DeviceWeb DeviceFlagEnum = 1
+	DeviceSys DeviceFlagEnum = 2
 )
 
 type ReasonCodeEnum int
