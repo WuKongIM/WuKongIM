@@ -102,16 +102,16 @@ type ConnectParams struct {
 }
 
 type SendParams struct {
-	Header      Header          `json:"header,omitempty"`
-	Setting     SettingFlags    `json:"setting,omitempty"`
-	MsgKey      string          `json:"msgKey,omitempty"`
-	Expire      uint32          `json:"expire,omitempty"`
-	ClientMsgNo string          `json:"clientMsgNo,omitempty"`
-	StreamNo    string          `json:"streamNo,omitempty"`
-	ChannelID   string          `json:"channelId"`
-	ChannelType int             `json:"channelType"`
-	Topic       string          `json:"topic,omitempty"`
-	Payload     json.RawMessage `json:"payload"`
+	Header      Header       `json:"header,omitempty"`
+	Setting     SettingFlags `json:"setting,omitempty"`
+	MsgKey      string       `json:"msgKey,omitempty"`
+	Expire      uint32       `json:"expire,omitempty"`
+	ClientMsgNo string       `json:"clientMsgNo,omitempty"`
+	StreamNo    string       `json:"streamNo,omitempty"`
+	ChannelID   string       `json:"channelId"`
+	ChannelType int          `json:"channelType"`
+	Topic       string       `json:"topic,omitempty"`
+	Payload     []byte       `json:"payload"`
 }
 
 type RecvAckParams struct {
@@ -175,22 +175,22 @@ type SubscriptionResult struct {
 // --- Specific Notification Payloads (Params) ---
 
 type RecvNotificationParams struct {
-	Header      *Header         `json:"header,omitempty"`
-	Setting     *SettingFlags   `json:"setting,omitempty"`
-	MsgKey      string          `json:"msgKey,omitempty"`
-	Expire      uint32          `json:"expire,omitempty"`
-	MessageID   string          `json:"messageId"`
-	MessageSeq  uint32          `json:"messageSeq"`
-	ClientMsgNo string          `json:"clientMsgNo,omitempty"`
-	StreamNo    string          `json:"streamNo,omitempty"`
-	StreamID    string          `json:"streamId,omitempty"`
-	StreamFlag  StreamFlagEnum  `json:"streamFlag,omitempty"`
-	Timestamp   int32           `json:"timestamp"`
-	ChannelID   string          `json:"channelId"`
-	ChannelType int             `json:"channelType"`
-	Topic       string          `json:"topic,omitempty"`
-	FromUID     string          `json:"fromUid"`
-	Payload     json.RawMessage `json:"payload"`
+	Header      *Header        `json:"header,omitempty"`
+	Setting     *SettingFlags  `json:"setting,omitempty"`
+	MsgKey      string         `json:"msgKey,omitempty"`
+	Expire      uint32         `json:"expire,omitempty"`
+	MessageID   string         `json:"messageId"`
+	MessageSeq  uint32         `json:"messageSeq"`
+	ClientMsgNo string         `json:"clientMsgNo,omitempty"`
+	StreamNo    string         `json:"streamNo,omitempty"`
+	StreamID    string         `json:"streamId,omitempty"`
+	StreamFlag  StreamFlagEnum `json:"streamFlag,omitempty"`
+	Timestamp   int32          `json:"timestamp"`
+	ChannelID   string         `json:"channelId"`
+	ChannelType int            `json:"channelType"`
+	Topic       string         `json:"topic,omitempty"`
+	FromUID     string         `json:"fromUid"`
+	Payload     []byte         `json:"payload"`
 }
 
 // DisconnectNotificationParams are same as DisconnectParams
@@ -373,7 +373,7 @@ func FromProtoConnectAck(ack *wkproto.ConnackPacket) *ConnectResult {
 
 // ToProto converts JSON-RPC SendParams to wkproto.SendReq
 func (p SendParams) ToProto() *wkproto.SendPacket {
-	payloadBytes := []byte(p.Payload)
+	payloadBytes := p.Payload
 	clientMsgNo := p.ClientMsgNo
 	if clientMsgNo == "" {
 		clientMsgNo = wkutil.GenUUID()
@@ -438,7 +438,7 @@ func FromProtoRecvPacket(pkt *wkproto.RecvPacket) RecvNotificationParams {
 		ChannelType: int(pkt.ChannelType),
 		Topic:       pkt.Topic,
 		FromUID:     pkt.FromUID,
-		Payload:     json.RawMessage(pkt.Payload),
+		Payload:     pkt.Payload,
 	}
 	return params
 }
@@ -617,7 +617,7 @@ func (r ConnectRequest) ToProto() *wkproto.ConnectPacket {
 
 // ToProto converts the full SendRequest to its proto representation
 func (r SendRequest) ToProto() (*wkproto.SendPacket, error) {
-	payloadBytes := []byte(r.Params.Payload)
+	payloadBytes := r.Params.Payload
 	pkt := &wkproto.SendPacket{
 		Framer:      headerToFramer(r.Params.Header),
 		Setting:     r.Params.Setting.ToProto(),
