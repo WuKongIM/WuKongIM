@@ -15,6 +15,14 @@ func (rg *RaftGroup) Propose(raftKey string, id uint64, data []byte) (*types.Pro
 	return rg.ProposeTimeout(timeoutCtx, raftKey, id, data)
 }
 
+func (rg *RaftGroup) ProposeBatch(raftKey string, reqs types.ProposeReqSet) (types.ProposeRespSet, error) {
+	raft := rg.raftList.get(raftKey)
+	if raft == nil {
+		return nil, fmt.Errorf("raft not found, key:%s", raftKey)
+	}
+	return rg.proposeBatchTimeout(context.Background(), raft, reqs, nil)
+}
+
 func (rg *RaftGroup) ProposeUntilApplied(raftKey string, id uint64, data []byte) (*types.ProposeResp, error) {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), rg.opts.ProposeTimeout)
 	defer cancel()
