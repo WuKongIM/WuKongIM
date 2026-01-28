@@ -23,6 +23,12 @@ func (s *Server) SlotLeaderId(slotId uint32) uint64 {
 
 }
 
+func (s *Server) Propose(slotId uint32, data []byte) (*types.ProposeResp, error) {
+	shardNo := SlotIdToKey(slotId)
+	logId := s.GenLogId()
+	return s.raftGroup.Propose(shardNo, logId, data)
+}
+
 func (s *Server) ProposeUntilApplied(slotId uint32, data []byte) (*types.ProposeResp, error) {
 
 	start := time.Now()

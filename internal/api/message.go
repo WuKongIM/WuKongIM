@@ -122,7 +122,7 @@ func (m *message) send(c *wkhttp.Context) {
 			}
 		} else {
 			// 生成tag
-			nodeInfo, err := service.Cluster.LeaderOfChannel(tmpChannelId, wkproto.ChannelTypeTemp)
+			nodeInfo, err := service.Cluster.SlotLeaderOfChannel(tmpChannelId, wkproto.ChannelTypeTemp)
 			if err != nil {
 				m.Error("获取在线cmd频道所在节点失败！", zap.Error(err), zap.String("channelID", tmpChannelId), zap.Uint8("channelType", wkproto.ChannelTypeTemp))
 				c.ResponseError(errors.New("获取频道所在节点失败！"))
@@ -182,7 +182,7 @@ func (m *message) send(c *wkhttp.Context) {
 
 // 请求临时频道设置订阅者
 func (m *message) requestSetSubscribersForTmpChannel(tmpChannelId string, uids []string) error {
-	nodeInfo, err := service.Cluster.LeaderOfChannel(tmpChannelId, wkproto.ChannelTypeTemp)
+	nodeInfo, err := service.Cluster.SlotLeaderOfChannel(tmpChannelId, wkproto.ChannelTypeTemp)
 	if err != nil {
 		return err
 	}

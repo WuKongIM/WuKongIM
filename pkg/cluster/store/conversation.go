@@ -252,7 +252,7 @@ func (s *Store) UpdateConversationIfSeqGreaterAsync(uid string, channelId string
 		slotId = s.opts.Slot.GetSlotId(channelId)
 	}
 
-	_, err = s.opts.Slot.ProposeUntilApplied(slotId, cmdData)
+	_, err = s.opts.Slot.Propose(slotId, cmdData)
 	if err != nil {
 		s.Error("UpdateConversationIfSeqGreaterAsync failed", zap.Error(err), zap.String("uid", uid), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("readToMsgSeq", readToMsgSeq))
 		return err
