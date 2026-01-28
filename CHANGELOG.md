@@ -1,5 +1,41 @@
 # WuKongIM Changelog
 
+## [v2.2.3-20260128] - 2026-01-28
+
+### 🚀 New Features
+- **Cluster**: Added `CMDUpdateConversationIfSeqGreater` for cluster synchronization
+- **集群**: 添加 `CMDUpdateConversationIfSeqGreater` 用于集群同步
+- **API**: Added `login_uid` parameter to `getChannelMaxMessageSeq`
+- **API**: `getChannelMaxMessageSeq` 接口添加 `login_uid` 参数
+
+### 🐞 Bug Fixes
+- **Cluster**: Fixed channel leader lookup and optimized cluster slot propose
+- **集群**: 修复频道领导者查找并优化集群槽位提议
+- **Message**: Fixed `getCmdSubscribers` failure in `processMakeTag`
+- **消息**: 修复 `processMakeTag` 中 `getCmdSubscribers` 失败的问题
+- **Protocol**: Fixed `cmd recvack` error
+- **协议**: 修复 `cmd recvack` 错误
+- **Protocol**: Fixed slice out of range panic in proxy protocol parsing
+- **协议**: 修复代理协议解析中的切片越界 panic
+- **Storage**: Fixed SIGSEGV crash caused by Pebble slice storage in `channelSeqCache`
+- **存储**: 修复 `channelSeqCache` 存储 Pebble 切片导致的 SIGSEGV 崩溃问题
+- **Conversation**: Added defensive checks for empty Uid to prevent panic
+- **会话**: 为空 Uid 添加防御性检查以防止 panic
+- **Conversation**: Fixed message sequence validation logic (`lastMsg.MessageSeq >= resp.ReadedToMsgSeq`)
+- **会话**: 修复消息序号验证逻辑 (`lastMsg.MessageSeq >= resp.ReadedToMsgSeq`)
+- **JSON-RPC**: Fixed `DeviceFlag` enum error
+- **JSON-RPC**: 修复 `DeviceFlag` 枚举错误
+
+### 🔧 Technical Improvements
+- **Performance**: Optimized message batch query performance via database sharding
+- **性能**: 通过数据库分片优化消息批量查询性能
+- **API**: Added pagination support for `syncUserConversation`
+- **API**: 为 `syncUserConversation` 添加分页支持
+- **Refactor**: Changed `json.RawMessage` to `[]byte` for better handling
+- **重构**: 将 `json.RawMessage` 更改为 `[]byte` 以获得更好的处理效果
+
+**Full Changelog**: https://github.com/WuKongIM/WuKongIM/compare/v2.2.2-20251229...v2.2.3-20260128
+
 ## [v2.2.2-20251229] - 2025-12-29
 
 ### 🚀 New Features
