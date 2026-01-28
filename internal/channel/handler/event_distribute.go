@@ -363,7 +363,7 @@ func (h *Handler) getCmdSubscribers(channelId string, channelType uint8) ([]stri
 	// 原频道id
 	orgFakeChannelId := options.G.CmdChannelConvertOrginalChannel(channelId)
 	// 获取原频道的领导节点id
-	leaderNode, err := service.Cluster.LeaderOfChannelForRead(orgFakeChannelId, channelType)
+	leaderNode, err := service.Cluster.LeaderOfChannel(orgFakeChannelId, channelType)
 	if err != nil {
 		h.Error("processMakeTag: get leaderNode failed", zap.Error(err), zap.String("fakeChannelId", channelId), zap.Uint8("channelType", channelType))
 		return nil, err
