@@ -58,7 +58,11 @@ func (c *channelSeqCache) setChannelLastSeq(channelId string, channelType uint8,
 
 func (c *channelSeqCache) setChannelLastSeqWithBytes(channelId string, channelType uint8, data []byte) {
 	key := c.getChannelKey(channelId, channelType)
-	c.lruCache.Add(key, data) // Add will handle eviction if capacity is reached
+	if len(data) > 0 {
+		copyData := make([]byte, len(data))
+		copy(copyData, data)
+		c.lruCache.Add(key, copyData)
+	}
 }
 
 func (c *channelSeqCache) invalidateChannelLastSeq(channelId string, channelType uint8) {

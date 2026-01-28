@@ -106,6 +106,8 @@ const (
 	CMDUpdateConversationDeletedAtMsgSeq
 	// 保存流(v2)
 	CMDSaveStreamV2
+	// 更新最近会话的已读位置（如果seq更大）
+	CMDUpdateConversationIfSeqGreater
 )
 
 func (c CMDType) Uint16() uint16 {
@@ -202,6 +204,8 @@ func (c CMDType) String() string {
 		return "CMDUpdateConversationDeletedAtMsgSeq"
 	case CMDSaveStreamV2:
 		return "CMDSaveStreamV2"
+	case CMDUpdateConversationIfSeqGreater:
+		return "CMDUpdateConversationIfSeqGreater"
 	default:
 		return fmt.Sprintf("CMDUnknown[%d]", c)
 	}
@@ -531,6 +535,17 @@ func (c *CMD) CMDContent() (string, error) {
 			return "", err
 		}
 		return wkutil.ToJSON(stream), nil
+	case CMDUpdateConversationIfSeqGreater:
+		uid, channelId, channelType, readToMsgSeq, err := c.DecodeCMDUpdateConversationIfSeqGreater()
+		if err != nil {
+			return "", err
+		}
+		return wkutil.ToJSON(map[string]interface{}{
+			"uid":          uid,
+			"channelId":    channelId,
+			"channelType":  channelType,
+			"readToMsgSeq": readToMsgSeq,
+		}), nil
 	}
 
 	return "", nil
@@ -1650,6 +1665,33 @@ func (c *CMD) DecodeCMDStreamV2(version CmdVersion) (stream *wkdb.StreamV2, err 
 	}
 
 	if stream.Payload, err = decoder.BinaryAll(); err != nil {
+		return
+	}
+	return
+}
+
+func EncodeCMDUpdateConversationIfSeqGreater(uid string, channelId string, channelType uint8, readToMsgSeq uint64) []byte {
+	encoder := wkproto.NewEncoder()
+	defer encoder.End()
+	encoder.WriteString(uid)
+	encoder.WriteString(channelId)
+	encoder.WriteUint8(channelType)
+	encoder.WriteUint64(readToMsgSeq)
+	return encoder.Bytes()
+}
+
+func (c *CMD) DecodeCMDUpdateConversationIfSeqGreater() (uid string, channelId string, channelType uint8, readToMsgSeq uint64, err error) {
+	decoder := wkproto.NewDecoder(c.Data)
+	if uid, err = decoder.String(); err != nil {
+		return
+	}
+	if channelId, err = decoder.String(); err != nil {
+		return
+	}
+	if channelType, err = decoder.Uint8(); err != nil {
+		return
+	}
+	if readToMsgSeq, err = decoder.Uint64(); err != nil {
 		return
 	}
 	return

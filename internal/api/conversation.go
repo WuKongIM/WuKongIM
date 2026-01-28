@@ -529,7 +529,7 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 
 						// 判断如果当前频道最新的消息序号减去当前用户在当前频道里发送的最后一条消息序号小于未读数量 则未读数量应该以频道最新序号 - 用户最后一条消息发送序号为准
 						if channelRecentMessage.UserLastMsgSeq > uint64(resp.ReadedToMsgSeq) {
-							if (lastMsg.MessageSeq - channelRecentMessage.UserLastMsgSeq) < uint64(resp.Unread) {
+							if (lastMsg.MessageSeq-channelRecentMessage.UserLastMsgSeq) < uint64(resp.Unread) && lastMsg.MessageSeq >= uint64(resp.ReadedToMsgSeq) {
 								resp.Unread = int(lastMsg.MessageSeq - channelRecentMessage.UserLastMsgSeq)
 							}
 						}

@@ -166,6 +166,8 @@ func (s *Store) applyCMD(cmd *CMD, logIndex uint64) error {
 		return s.handleUpdateConversationDeletedAtMsgSeq(cmd)
 	case CMDSaveStreamV2: // 保存流(v2)
 		return s.handleSaveStreamV2(cmd)
+	case CMDUpdateConversationIfSeqGreater: // 更新最近会话的已读位置（如果seq更大）
+		return s.handleUpdateConversationIfSeqGreater(cmd)
 	default:
 		s.Error("unknown cmd type", zap.String("cmdType", cmd.CmdType.String()))
 		return nil
@@ -557,6 +559,9 @@ func (s *Store) handleAddStreams(cmd *CMD) error {
 func (s *Store) handleAddOrUpdateConversations(cmd *CMD) error {
 	conversations, err := cmd.DecodeCMDAddOrUpdateConversations()
 	if err != nil {
+		s.Error("handleAddOrUpdateConversations: failed to decode conversations",
+			zap.Error(err),
+			zap.Int("dataLen", len(cmd.Data)))
 		return err
 	}
 	return s.wdb.AddOrUpdateConversations(conversations)
@@ -601,6 +606,9 @@ func (s *Store) handleAddOrUpdateConversationsBatchIfNotExistForCMDs(cmds []*CMD
 	for _, cmd := range cmds {
 		cns, err := cmd.DecodeCMDAddOrUpdateConversations()
 		if err != nil {
+			s.Error("handleAddOrUpdateConversationsBatchIfNotExistForCMDs: failed to decode conversations",
+				zap.Error(err),
+				zap.Int("dataLen", len(cmd.Data)))
 			return err
 		}
 		conversations = append(conversations, cns...)
@@ -611,6 +619,9 @@ func (s *Store) handleAddOrUpdateConversationsBatchIfNotExistForCMDs(cmds []*CMD
 func (s *Store) handleAddOrUpdateConversationsBatchIfNotExist(cmd *CMD) error {
 	conversations, err := cmd.DecodeCMDAddOrUpdateConversations()
 	if err != nil {
+		s.Error("handleAddOrUpdateConversationsBatchIfNotExist: failed to decode conversations",
+			zap.Error(err),
+			zap.Int("dataLen", len(cmd.Data)))
 		return err
 	}
 	return s.wdb.AddOrUpdateConversationsBatchIfNotExist(conversations)
@@ -647,3 +658,11 @@ func (s *Store) handleSaveStreamV2(cmd *CMD) error {
 // 	}
 // 	return s.wdb.UpdatePluginConfig(pluginNo, config)
 // }
+
+func (s *Store) handleUpdateConversationIfSeqGreater(cmd *CMD) error {
+	uid, channelId, channelType, readToMsgSeq, err := cmd.DecodeCMDUpdateConversationIfSeqGreater()
+	if err != nil {
+		return err
+	}
+	return s.wdb.UpdateConversationIfSeqGreater(uid, channelId, channelType, readToMsgSeq)
+}

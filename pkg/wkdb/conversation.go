@@ -21,6 +21,14 @@ func (wk *wukongDB) AddOrUpdateConversations(conversations []Conversation) error
 	userBatchMap := make(map[uint32]*Batch)
 
 	for _, conversation := range conversations {
+		// 防御性检查：跳过 Uid 为空的会话，避免 panic
+		if conversation.Uid == "" {
+			wk.Warn("AddOrUpdateConversations: skipping conversation with empty Uid",
+				zap.String("channelId", conversation.ChannelId),
+				zap.Uint8("channelType", conversation.ChannelType),
+				zap.Uint64("id", conversation.Id))
+			continue
+		}
 		shardId := wk.shardId(conversation.Uid)
 		batch := userBatchMap[shardId]
 		if batch == nil {
@@ -84,7 +92,14 @@ func (wk *wukongDB) AddOrUpdateConversationsBatchIfNotExist(conversations []Conv
 	userBatchMap := make(map[uint32]*Batch) // 用户uid分区对应的db
 
 	for _, conversation := range conversations {
-
+		// 防御性检查：跳过 Uid 为空的会话，避免 panic
+		if conversation.Uid == "" {
+			wk.Warn("AddOrUpdateConversationsBatchIfNotExist: skipping conversation with empty Uid",
+				zap.String("channelId", conversation.ChannelId),
+				zap.Uint8("channelType", conversation.ChannelType),
+				zap.Uint64("id", conversation.Id))
+			continue
+		}
 		shardId := wk.shardId(conversation.Uid)
 		batch := userBatchMap[shardId]
 		if batch == nil {
@@ -129,6 +144,14 @@ func (wk *wukongDB) AddOrUpdateConversationsBatchIfNotExist(conversations []Conv
 
 func (wk *wukongDB) AddOrUpdateConversationsWithUser(uid string, conversations []Conversation) error {
 	wk.metrics.AddOrUpdateConversationsAdd(1)
+
+	// 防御性检查：如果 uid 为空，记录警告并返回
+	if uid == "" {
+		wk.Warn("AddOrUpdateConversationsWithUser: uid is empty, skipping",
+			zap.Int("conversationCount", len(conversations)))
+		return nil
+	}
+
 	wk.dblock.conversationLock.lock(uid)
 	defer wk.dblock.conversationLock.unlock(uid)
 	if wk.opts.EnableCost {
@@ -239,6 +262,41 @@ func (wk *wukongDB) UpdateConversationIfSeqGreaterAsync(uid, channelId string, c
 	w.Set(key.NewConversationColumnKey(uid, existConversation.Id, key.TableConversation.Column.UpdatedAt), updatedAtBytes)
 	wk.conversationCache.InvalidateUserConversations(uid)
 	return w.Commit()
+}
+
+func (wk *wukongDB) UpdateConversationIfSeqGreater(uid, channelId string, channelType uint8, readToMsgSeq uint64) error {
+
+	existConversation, err := wk.GetConversation(uid, channelId, channelType)
+	if err != nil {
+		return err
+	}
+	if IsEmptyConversation(existConversation) {
+		return nil
+	}
+
+	if existConversation.ReadToMsgSeq >= readToMsgSeq { // 如果当前readToMsgSeq大于或等于传过来的，则不需要更新
+		return nil
+	}
+
+	w := wk.shardDB(uid).NewBatch()
+	// readedToMsgSeq
+	var msgSeqBytes = make([]byte, 8)
+	wk.endian.PutUint64(msgSeqBytes, readToMsgSeq)
+	err = w.Set(key.NewConversationColumnKey(uid, existConversation.Id, key.TableConversation.Column.ReadedToMsgSeq), msgSeqBytes, wk.noSync)
+	if err != nil {
+		return err
+	}
+
+	// updatedAt
+	updatedAtBytes := make([]byte, 8)
+	updatedAt := uint64(time.Now().UnixNano())
+	wk.endian.PutUint64(updatedAtBytes, updatedAt)
+	err = w.Set(key.NewConversationColumnKey(uid, existConversation.Id, key.TableConversation.Column.UpdatedAt), updatedAtBytes, wk.noSync)
+	if err != nil {
+		return err
+	}
+	wk.conversationCache.InvalidateUserConversations(uid)
+	return w.Commit(wk.sync)
 }
 
 // GetConversations 获取指定用户的最近会话
