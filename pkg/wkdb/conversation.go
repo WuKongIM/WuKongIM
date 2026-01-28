@@ -264,6 +264,41 @@ func (wk *wukongDB) UpdateConversationIfSeqGreaterAsync(uid, channelId string, c
 	return w.Commit()
 }
 
+func (wk *wukongDB) UpdateConversationIfSeqGreater(uid, channelId string, channelType uint8, readToMsgSeq uint64) error {
+
+	existConversation, err := wk.GetConversation(uid, channelId, channelType)
+	if err != nil {
+		return err
+	}
+	if IsEmptyConversation(existConversation) {
+		return nil
+	}
+
+	if existConversation.ReadToMsgSeq >= readToMsgSeq { // 如果当前readToMsgSeq大于或等于传过来的，则不需要更新
+		return nil
+	}
+
+	w := wk.shardDB(uid).NewBatch()
+	// readedToMsgSeq
+	var msgSeqBytes = make([]byte, 8)
+	wk.endian.PutUint64(msgSeqBytes, readToMsgSeq)
+	err = w.Set(key.NewConversationColumnKey(uid, existConversation.Id, key.TableConversation.Column.ReadedToMsgSeq), msgSeqBytes, wk.noSync)
+	if err != nil {
+		return err
+	}
+
+	// updatedAt
+	updatedAtBytes := make([]byte, 8)
+	updatedAt := uint64(time.Now().UnixNano())
+	wk.endian.PutUint64(updatedAtBytes, updatedAt)
+	err = w.Set(key.NewConversationColumnKey(uid, existConversation.Id, key.TableConversation.Column.UpdatedAt), updatedAtBytes, wk.noSync)
+	if err != nil {
+		return err
+	}
+	wk.conversationCache.InvalidateUserConversations(uid)
+	return w.Commit(wk.sync)
+}
+
 // GetConversations 获取指定用户的最近会话
 func (wk *wukongDB) GetConversations(uid string) ([]Conversation, error) {
 
