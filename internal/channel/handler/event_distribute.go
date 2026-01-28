@@ -122,7 +122,7 @@ func (h *Handler) distributeByTag(slotLeaderId uint64, tag *types.Tag, channelId
 		}
 	}
 
-	// 本地分发
+	// 本地分发 （分发本节点上的用户）
 	var offlineUids []string // 需要推离线的用户
 	var pubshEvents []*eventbus.Event
 	localHasEvent := false

@@ -238,7 +238,7 @@ func (wk *wukongDB) UpdateConversationDeletedAtMsgSeq(uid string, channelId stri
 func (wk *wukongDB) UpdateConversationIfSeqGreaterAsync(uid, channelId string, channelType uint8, readToMsgSeq uint64) error {
 
 	existConversation, err := wk.GetConversation(uid, channelId, channelType)
-	if err != nil {
+	if err != nil && err != ErrNotFound {
 		return err
 	}
 	if IsEmptyConversation(existConversation) {
@@ -267,7 +267,7 @@ func (wk *wukongDB) UpdateConversationIfSeqGreaterAsync(uid, channelId string, c
 func (wk *wukongDB) UpdateConversationIfSeqGreater(uid, channelId string, channelType uint8, readToMsgSeq uint64) error {
 
 	existConversation, err := wk.GetConversation(uid, channelId, channelType)
-	if err != nil {
+	if err != nil && err != ErrNotFound {
 		return err
 	}
 	if IsEmptyConversation(existConversation) {
