@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
+	wkproto "github.com/WuKongIM/WuKongIMGoProto"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -234,5 +235,27 @@ func (s *Store) GetChannelConversationLocalUsers(channelId string, channelType u
 }
 
 func (s *Store) UpdateConversationIfSeqGreaterAsync(uid string, channelId string, channelType uint8, readToMsgSeq uint64) error {
-	return s.wdb.UpdateConversationIfSeqGreaterAsync(uid, channelId, channelType, readToMsgSeq)
+	data := EncodeCMDUpdateConversationIfSeqGreater(uid, channelId, channelType, readToMsgSeq)
+	cmd := NewCMD(CMDUpdateConversationIfSeqGreater, data)
+	cmdData, err := cmd.Marshal()
+	if err != nil {
+		return err
+	}
+
+	// 根据channelType判断获取slotId的方式
+	var slotId uint32
+	if channelType == wkproto.ChannelTypePerson {
+		// 个人频道根据uid获取slotId
+		slotId = s.opts.Slot.GetSlotId(uid)
+	} else {
+		// 其他频道根据channelId获取slotId
+		slotId = s.opts.Slot.GetSlotId(channelId)
+	}
+
+	_, err = s.opts.Slot.ProposeUntilApplied(slotId, cmdData)
+	if err != nil {
+		s.Error("UpdateConversationIfSeqGreaterAsync failed", zap.Error(err), zap.String("uid", uid), zap.String("channelId", channelId), zap.Uint8("channelType", channelType), zap.Uint64("readToMsgSeq", readToMsgSeq))
+		return err
+	}
+	return nil
 }

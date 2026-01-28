@@ -166,6 +166,8 @@ func (s *Store) applyCMD(cmd *CMD, logIndex uint64) error {
 		return s.handleUpdateConversationDeletedAtMsgSeq(cmd)
 	case CMDSaveStreamV2: // 保存流(v2)
 		return s.handleSaveStreamV2(cmd)
+	case CMDUpdateConversationIfSeqGreater: // 更新最近会话的已读位置（如果seq更大）
+		return s.handleUpdateConversationIfSeqGreater(cmd)
 	default:
 		s.Error("unknown cmd type", zap.String("cmdType", cmd.CmdType.String()))
 		return nil
@@ -656,3 +658,11 @@ func (s *Store) handleSaveStreamV2(cmd *CMD) error {
 // 	}
 // 	return s.wdb.UpdatePluginConfig(pluginNo, config)
 // }
+
+func (s *Store) handleUpdateConversationIfSeqGreater(cmd *CMD) error {
+	uid, channelId, channelType, readToMsgSeq, err := cmd.DecodeCMDUpdateConversationIfSeqGreater()
+	if err != nil {
+		return err
+	}
+	return s.wdb.UpdateConversationIfSeqGreater(uid, channelId, channelType, readToMsgSeq)
+}
