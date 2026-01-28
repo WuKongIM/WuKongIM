@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"fmt"
+
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
@@ -30,8 +32,10 @@ func (h *Handler) recvack(event *eventbus.Event) {
 	if persist {
 		currMsg = service.RetryManager.RetryMessage(conn.NodeId, conn.ConnId, recvackPacket.MessageID)
 	}
+	fmt.Println("recvack1------------->", isCmd, persist, isMaster, conn.Uid)
 	if isCmd && persist && isMaster {
 		if currMsg != nil {
+			fmt.Println("recvack2------------->", currMsg.ChannelId, currMsg.ChannelType, recvackPacket.MessageSeq)
 			// 更新最近会话的已读位置
 			err := service.Store.UpdateConversationIfSeqGreaterAsync(conn.Uid, currMsg.ChannelId, currMsg.ChannelType, uint64(recvackPacket.MessageSeq))
 			if err != nil && err != wkdb.ErrNotFound {
