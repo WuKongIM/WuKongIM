@@ -177,7 +177,6 @@ func (h *Handler) setRecvPacketBasicFields(recvPacket *wkproto.RecvPacket, e *ev
 	recvPacket.ClientMsgNo = sendPacket.ClientMsgNo
 	recvPacket.StreamNo = sendPacket.StreamNo
 	recvPacket.StreamId = uint64(e.MessageId)
-	recvPacket.StreamFlag = e.StreamFlag
 	recvPacket.FromUID = fromUid
 	recvPacket.Expire = sendPacket.Expire
 	recvPacket.ChannelID = sendPacket.ChannelID

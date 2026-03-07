@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/track"
 	"github.com/WuKongIM/WuKongIM/internal/types"
 	cluster "github.com/WuKongIM/WuKongIM/pkg/cluster/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/wkcache"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb/key"
 	"github.com/WuKongIM/WuKongIM/pkg/wkhttp"
@@ -54,6 +56,8 @@ func (m *message) route(r *wkhttp.WKHttp) {
 	r.POST("/messages", m.searchMessages)                      // 批量查询消息
 	r.POST("/message", m.searchMessage)                        // 搜索单条消息
 	r.GET("/message/byclientmsgno", m.getMessageByClientMsgNo) // 通过 client_msg_no 查询消息
+	r.POST("/message/eventappend", m.eventAppend)              // 追加消息事件
+	r.POST("/message/eventsync", m.eventSync)                  // 同步消息事件
 
 	// 频道消息相关端点（从 channel.go 移动过来）
 	r.POST("/channel/messagesync", m.syncMessages)               // 同步频道消息
@@ -153,7 +157,7 @@ func (m *message) send(c *wkhttp.Context) {
 
 		clientMsgNo := fmt.Sprintf("%s0", wkutil.GenUUID())
 		// 发送消息
-		_, err := sendMessageToChannel(req, tmpChannelId, tmpChannelType, clientMsgNo, wkproto.StreamFlagIng)
+		_, err := sendMessageToChannel(req, tmpChannelId, tmpChannelType, clientMsgNo)
 		if err != nil {
 			c.ResponseError(err)
 			return
@@ -169,7 +173,7 @@ func (m *message) send(c *wkhttp.Context) {
 	}
 
 	// 发送消息
-	messageId, err := sendMessageToChannel(req, channelId, channelType, clientMsgNo, wkproto.StreamFlagIng)
+	messageId, err := sendMessageToChannel(req, channelId, channelType, clientMsgNo)
 	if err != nil {
 		c.ResponseError(err)
 		return
@@ -212,7 +216,7 @@ func (m *message) requestSetSubscribersForTmpChannel(tmpChannelId string, uids [
 	return nil
 }
 
-func sendMessageToChannel(req messageSendReq, channelId string, channelType uint8, clientMsgNo string, streamFlag wkproto.StreamFlag) (int64, error) {
+func sendMessageToChannel(req messageSendReq, channelId string, channelType uint8, clientMsgNo string) (int64, error) {
 
 	// m.s.monitor.SendPacketInc(req.Header.NoPersist != 1)
 	// m.s.monitor.SendSystemMsgInc()
@@ -235,7 +239,7 @@ func sendMessageToChannel(req messageSendReq, channelId string, channelType uint
 	}
 
 	var setting wkproto.Setting
-	if len(strings.TrimSpace(req.StreamNo)) > 0 {
+	if req.IsStream == 1 {
 		setting = setting.Set(wkproto.SettingStream)
 	}
 
@@ -247,7 +251,6 @@ func sendMessageToChannel(req messageSendReq, channelId string, channelType uint
 		},
 		Setting:     setting,
 		Expire:      req.Expire,
-		StreamNo:    req.StreamNo,
 		ClientMsgNo: clientMsgNo,
 		ChannelID:   channelId,
 		ChannelType: channelType,
@@ -255,23 +258,15 @@ func sendMessageToChannel(req messageSendReq, channelId string, channelType uint
 	}
 	messageId := options.G.GenMessageId()
 
-	eventType := eventbus.EventChannelOnSend
-
-	if strings.TrimSpace(req.StreamNo) != "" {
-		eventType = eventbus.EventChannelOnStream
-	}
-
 	event := &eventbus.Event{
 		Conn: &eventbus.Conn{
 			Uid:      req.FromUID,
 			DeviceId: options.G.SystemDeviceId,
 		},
-		Type:       eventType,
-		Frame:      sendPacket,
-		MessageId:  messageId,
-		StreamNo:   req.StreamNo,
-		StreamFlag: streamFlag,
-		TagKey:     req.TagKey,
+		Type:      eventbus.EventChannelOnSend,
+		Frame:     sendPacket,
+		MessageId: messageId,
+		TagKey:    req.TagKey,
 		Track: track.Message{
 			PreStart: time.Now(),
 		},
@@ -317,7 +312,7 @@ func (m *message) sendBatch(c *wkhttp.Context) {
 			ChannelID:   subscriber,
 			ChannelType: wkproto.ChannelTypePerson,
 			Payload:     req.Payload,
-		}, subscriber, wkproto.ChannelTypePerson, clientMsgNo, wkproto.StreamFlagIng)
+		}, subscriber, wkproto.ChannelTypePerson, clientMsgNo)
 		if err != nil {
 			failUids = append(failUids, subscriber)
 			reasons = append(reasons, err.Error())
@@ -831,20 +826,258 @@ func (m *message) getMessageByClientMsgNo(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func (m *message) eventAppend(c *wkhttp.Context) {
+
+	// -------------------- 1. 解析请求 --------------------
+	var req eventAppendReq
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		m.Error("eventAppend: 数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if err := req.Check(); err != nil {
+		c.ResponseError(err)
+		return
+	}
+	if strings.TrimSpace(req.FromUID) == "" {
+		req.FromUID = options.G.SystemUID
+	}
+
+	fakeChannelID := req.ChannelID
+	if req.ChannelType == wkproto.ChannelTypePerson {
+		fakeChannelID = options.GetFakeChannelIDWith(req.ChannelID, req.FromUID)
+	}
+
+	eventType := strings.ToLower(strings.TrimSpace(req.EventType))
+	laneID := strings.TrimSpace(req.LaneID)
+	if laneID == "" {
+		laneID = "main"
+	}
+
+	// -------------------- 2. 转发到 leader --------------------
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(fakeChannelID, req.ChannelType)
+	if err != nil {
+		m.Error("eventAppend: 获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	if leaderInfo.Id != options.G.Cluster.NodeId {
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
+	// -------------------- 3. 按事件类型分发 --------------------
+	switch eventType {
+	case "stream.delta":
+		m.handleStreamDelta(c, &req, fakeChannelID, laneID, eventType)
+	default:
+		m.handleStreamPersist(c, &req, fakeChannelID, laneID, eventType)
+	}
+}
+
+// handleStreamDelta 处理 stream.delta 事件，全部走内存缓存，不落盘。
+func (m *message) handleStreamDelta(c *wkhttp.Context, req *eventAppendReq, fakeChannelID, laneID, eventType string) {
+	if service.MessageEventCache == nil {
+		c.ResponseError(errors.New("event cache not available"))
+		return
+	}
+
+	cacheLaneState, err := service.MessageEventCache.AppendDelta(
+		req.ClientMsgNo, fakeChannelID, req.ChannelType,
+		laneID, req.EventID, eventType, req.Visibility, req.OccurredAt, req.Payload,
+	)
+	if err != nil {
+		m.Error("eventAppend: delta cache append failed", zap.Error(err), zap.String("clientMsgNo", req.ClientMsgNo), zap.String("eventID", req.EventID))
+		c.ResponseError(err)
+		return
+	}
+
+	c.ResponseOKWithData(eventAppendResp{
+		ClientMsgNo:  req.ClientMsgNo,
+		LaneID:       laneID,
+		EventID:      req.EventID,
+		MsgEventSeq:  cacheLaneState.PersistedSeq,
+		StreamStatus: cacheLaneState.Status,
+		ChannelID:    req.ChannelID,
+		ChannelType:  req.ChannelType,
+		FromUID:      req.FromUID,
+	})
+}
+
+// handleStreamPersist 处理 stream.open / 终态事件 / 非 stream 事件，通过 raft 提案持久化。
+func (m *message) handleStreamPersist(c *wkhttp.Context, req *eventAppendReq, fakeChannelID, laneID, eventType string) {
+	payload := []byte(req.Payload)
+
+	// 终态事件：将缓存中累积的快照合并到 payload
+	if isTerminalStreamEventType(eventType) && service.MessageEventCache != nil {
+		if mergedPayload, _, err := service.MessageEventCache.BuildTerminalPayload(
+			req.ClientMsgNo, fakeChannelID, req.ChannelType,
+			laneID, payload, req.EventID, eventType, req.Visibility, req.OccurredAt,
+		); err == nil {
+			payload = mergedPayload
+		}
+	}
+
+	// raft 提案落盘
+	evt := &wkdb.MessageEvent{
+		ClientMsgNo: req.ClientMsgNo,
+		EventID:     req.EventID,
+		LaneID:      laneID,
+		EventType:   eventType,
+		Visibility:  req.Visibility,
+		OccurredAt:  req.OccurredAt,
+		Payload:     payload,
+		Headers:     req.Headers,
+	}
+	stored, laneState, err := service.Store.AppendMessageEventWithLaneState(fakeChannelID, req.ChannelType, evt)
+	if err != nil {
+		m.Error("eventAppend: 追加事件失败！", zap.Error(err), zap.String("clientMsgNo", req.ClientMsgNo), zap.String("eventID", req.EventID))
+		c.ResponseError(err)
+		return
+	}
+
+	// 同步持久化结果到缓存
+	m.syncEventCacheAfterPersist(req, fakeChannelID, laneID, stored.MsgEventSeq, laneState.Status)
+
+	c.ResponseOKWithData(eventAppendResp{
+		ClientMsgNo:  stored.ClientMsgNo,
+		LaneID:       stored.LaneID,
+		EventID:      stored.EventID,
+		MsgEventSeq:  stored.MsgEventSeq,
+		StreamStatus: laneState.Status,
+		ChannelID:    req.ChannelID,
+		ChannelType:  req.ChannelType,
+		FromUID:      req.FromUID,
+	})
+}
+
+// syncEventCacheAfterPersist 在 raft 提案落盘后，将结果同步到内存缓存。
+func (m *message) syncEventCacheAfterPersist(req *eventAppendReq, fakeChannelID, laneID string, persistedSeq uint64, status string) {
+	if service.MessageEventCache == nil {
+		return
+	}
+	if _, err := service.MessageEventCache.UpsertSession(wkcache.MessageEventSessionMeta{
+		ClientMsgNo: req.ClientMsgNo,
+		ChannelId:   fakeChannelID,
+		ChannelType: req.ChannelType,
+		FromUid:     req.FromUID,
+	}, laneID, persistedSeq); err != nil && err != wkcache.ErrMessageEventChannelMismatch {
+		m.Warn("eventAppend: upsert cache failed", zap.Error(err), zap.String("clientMsgNo", req.ClientMsgNo))
+	}
+	if err := service.MessageEventCache.MarkLanePersisted(req.ClientMsgNo, fakeChannelID, req.ChannelType, laneID, status, persistedSeq); err != nil && err != wkcache.ErrMessageEventSessionNotFound {
+		m.Warn("eventAppend: mark lane persisted failed", zap.Error(err), zap.String("clientMsgNo", req.ClientMsgNo))
+	}
+}
+
+func (m *message) eventSync(c *wkhttp.Context) {
+	var req eventSyncReq
+	bodyBytes, err := BindJSON(&req, c)
+	if err != nil {
+		m.Error("eventSync: 数据格式有误！", zap.Error(err))
+		c.ResponseError(err)
+		return
+	}
+	if err := req.Check(); err != nil {
+		c.ResponseError(err)
+		return
+	}
+	if req.Limit == 0 {
+		req.Limit = 200
+	}
+	if req.Limit > 2000 {
+		req.Limit = 2000
+	}
+
+	fakeChannelID := req.ChannelID
+	if req.ChannelType == wkproto.ChannelTypePerson && strings.TrimSpace(req.FromUID) != "" {
+		fakeChannelID = options.GetFakeChannelIDWith(req.ChannelID, req.FromUID)
+	}
+	leaderInfo, err := service.Cluster.SlotLeaderOfChannel(fakeChannelID, req.ChannelType)
+	if err != nil {
+		m.Error("eventSync: 获取频道所在节点失败！", zap.Error(err), zap.String("channelID", req.ChannelID), zap.Uint8("channelType", req.ChannelType))
+		c.ResponseError(errors.New("获取频道所在节点失败！"))
+		return
+	}
+	if leaderInfo.Id != options.G.Cluster.NodeId {
+		c.ForwardWithBody(fmt.Sprintf("%s%s", leaderInfo.ApiServerAddr, c.Request.URL.Path), bodyBytes)
+		return
+	}
+
+	events, err := service.Store.ListMessageEvents(fakeChannelID, req.ChannelType, req.ClientMsgNo, req.FromMsgEventSeq, req.LaneID, req.Limit+1)
+	if err != nil {
+		m.Error("eventSync: 加载事件失败！", zap.Error(err), zap.String("clientMsgNo", req.ClientMsgNo))
+		c.ResponseError(err)
+		return
+	}
+
+	filtered := make([]wkdb.MessageEvent, 0, len(events))
+	for _, evt := range events {
+		if req.IncludePrivate != 1 && (evt.Visibility == "private" || evt.Visibility == "restricted") {
+			continue
+		}
+		filtered = append(filtered, evt)
+		if len(filtered) >= req.Limit+1 {
+			break
+		}
+	}
+
+	more := 0
+	if len(filtered) > req.Limit {
+		more = 1
+		filtered = filtered[:req.Limit]
+	}
+
+	nextSeq := req.FromMsgEventSeq
+	if len(filtered) > 0 {
+		nextSeq = filtered[len(filtered)-1].MsgEventSeq
+	}
+
+	respEvents := make([]map[string]interface{}, 0, len(filtered))
+	for _, evt := range filtered {
+		respEvt := map[string]interface{}{
+			"msg_event_seq": evt.MsgEventSeq,
+			"event_id":      evt.EventID,
+			"lane_id":       evt.LaneID,
+			"event_type":    evt.EventType,
+			"visibility":    evt.Visibility,
+			"occurred_at":   evt.OccurredAt,
+		}
+		if len(evt.Payload) > 0 {
+			var payload interface{}
+			if err := json.Unmarshal(evt.Payload, &payload); err != nil {
+				respEvt["payload"] = string(evt.Payload)
+			} else {
+				respEvt["payload"] = payload
+			}
+		}
+		respEvents = append(respEvents, respEvt)
+	}
+
+	c.ResponseOKWithData(map[string]interface{}{
+		"client_msg_no":       req.ClientMsgNo,
+		"from_msg_event_seq":  req.FromMsgEventSeq,
+		"next_msg_event_seq":  nextSeq,
+		"more":                more,
+		"events":              respEvents,
+		"filtered_by_lane_id": req.LaneID,
+	})
+}
+
 // ==================== 从 channel.go 移动过来的方法 ====================
 
 // 同步频道内的消息
 func (m *message) syncMessages(c *wkhttp.Context) {
 
 	var req struct {
-		LoginUID        string   `json:"login_uid"` // 当前登录用户的uid
-		ChannelID       string   `json:"channel_id"`
-		ChannelType     uint8    `json:"channel_type"`
-		StartMessageSeq uint64   `json:"start_message_seq"` //开始消息列号（结果包含start_message_seq的消息）
-		EndMessageSeq   uint64   `json:"end_message_seq"`   // 结束消息列号（结果不包含end_message_seq的消息）
-		Limit           int      `json:"limit"`             // 每次同步数量限制
-		PullMode        PullMode `json:"pull_mode"`         // 拉取模式 0:向下拉取 1:向上拉取
-		StreamV2        uint8    `json:"stream_v2"`         // 是否使用stream_v2
+		LoginUID         string   `json:"login_uid"` // 当前登录用户的uid
+		ChannelID        string   `json:"channel_id"`
+		ChannelType      uint8    `json:"channel_type"`
+		StartMessageSeq  uint64   `json:"start_message_seq"`  //开始消息列号（结果包含start_message_seq的消息）
+		EndMessageSeq    uint64   `json:"end_message_seq"`    // 结束消息列号（结果不包含end_message_seq的消息）
+		Limit            int      `json:"limit"`              // 每次同步数量限制
+		PullMode         PullMode `json:"pull_mode"`          // 拉取模式 0:向下拉取 1:向上拉取
+		EventSummaryMode string   `json:"event_summary_mode"` // 事件摘要模式：basic/full
 	}
 	bodyBytes, err := BindJSON(&req, c)
 	if err != nil {
@@ -942,70 +1175,11 @@ func (m *message) syncMessages(c *wkhttp.Context) {
 		}
 	}
 
-	if req.StreamV2 == 1 {
-		streamClientMsgNos := make([]string, 0, len(messageResps)) // 已存储的流消息ID
-
-		for _, message := range messageResps {
-			setting := wkproto.Setting(message.Setting)
-			if !setting.IsSet(wkproto.SettingStream) {
-				continue
-			}
-			streamClientMsgNos = append(streamClientMsgNos, message.ClientMsgNo)
-		}
-
-		if len(streamClientMsgNos) > 0 {
-			streamV2s, err := m.loadStreamV2Messages(fakeChannelID, req.ChannelType, streamClientMsgNos)
-			if err != nil {
-				m.Error("syncMessages: loadStreamV2Messages failed", zap.Error(err), zap.Any("req", req))
-				c.ResponseError(err)
-				return
-			}
-			for _, message := range messageResps {
-				setting := wkproto.Setting(message.Setting)
-				if !setting.IsSet(wkproto.SettingStream) {
-					continue
-				}
-				for _, streamV2 := range streamV2s {
-					if message.MessageId == streamV2.MessageId {
-
-						message.End = streamV2.End
-						message.EndReason = streamV2.EndReason
-						message.Error = streamV2.Error
-						message.StreamData = streamV2.Payload
-						break
-					}
-				}
-			}
-		}
-	} else {
-		// 获取消息的流
-		streamNos := make([]string, 0)
-		for _, message := range messageResps {
-			if strings.TrimSpace(message.StreamNo) == "" {
-				continue
-			}
-			streamNos = append(streamNos, message.StreamNo)
-		}
-
-		if len(streamNos) > 0 {
-			streamItemsMap, err := m.loadStreamMessages(fakeChannelID, req.ChannelType, streamNos)
-			if err != nil {
-				m.Error("syncMessages: loadStreamMessages failed", zap.Error(err), zap.Any("req", req))
-				c.ResponseError(err)
-				return
-			}
-
-			for _, message := range messageResps {
-				if strings.TrimSpace(message.StreamNo) == "" {
-					continue
-				}
-				streamItems, ok := streamItemsMap[message.StreamNo]
-				if !ok {
-					continue
-				}
-				message.Streams = streamItems
-			}
-		}
+	// 填充事件元数据和 legacy 流字段
+	if err := m.fillMessagesEventMeta(fakeChannelID, req.ChannelType, messageResps, req.EventSummaryMode); err != nil {
+		m.Error("syncMessages: fillMessagesEventMeta failed", zap.Error(err), zap.Any("req", req))
+		c.ResponseError(err)
+		return
 	}
 
 	// 返回消息
@@ -1017,68 +1191,131 @@ func (m *message) syncMessages(c *wkhttp.Context) {
 	})
 }
 
-func (m *message) loadStreamMessages(channelId string, channelType uint8, streamNos []string) (map[string][]*types.StreamItemResp, error) {
-	leaderId, err := service.Cluster.SlotLeaderIdOfChannel(channelId, channelType)
-	if err != nil {
-		m.Error("loadStreamMessages: get leader id failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
-		return nil, err
+func (m *message) fillMessagesEventMeta(channelId string, channelType uint8, messages []*types.MessageResp, summaryMode string) error {
+	mode := strings.ToLower(strings.TrimSpace(summaryMode))
+	if mode == "" {
+		mode = "full"
 	}
 
-	// 如果是本节点，则直接加载
-	if options.G.IsLocalNode(leaderId) {
-		return m.loadLocalStreamMessages(streamNos)
-	}
-
-	// 请求远程节点
-	return m.requestStreams(leaderId, streamNos)
-}
-
-func (m *message) loadLocalStreamMessages(streamNos []string) (map[string][]*types.StreamItemResp, error) {
-	streamItemsMap := make(map[string][]*types.StreamItemResp)
-	for _, streamNo := range streamNos {
-		streamItems, err := m.loadLocalStreamMessage(streamNo)
-		if err != nil {
-			return nil, err
+	// Only collect clientMsgNos from stream messages (SettingStream flag).
+	clientMsgNos := make([]string, 0, len(messages))
+	for _, msg := range messages {
+		setting := wkproto.Setting(msg.Setting)
+		if setting.IsSet(wkproto.SettingStream) && msg.ClientMsgNo != "" {
+			clientMsgNos = append(clientMsgNos, msg.ClientMsgNo)
 		}
-		streamItemsMap[streamNo] = streamItems
 	}
-	return streamItemsMap, nil
+	if len(clientMsgNos) == 0 {
+		return nil
+	}
+
+	allLaneStates, err := service.Store.GetMessageLaneStatesBatch(channelId, channelType, clientMsgNos)
+	if err != nil {
+		return err
+	}
+
+	for _, msg := range messages {
+		laneStates := allLaneStates[msg.ClientMsgNo]
+		if len(laneStates) == 0 {
+			continue
+		}
+		meta := &types.MessageEventMeta{
+			HasEvents: true,
+			LaneCount: len(laneStates),
+			Lanes:     make([]*types.MessageEventLaneMeta, 0, len(laneStates)),
+		}
+
+		for _, laneState := range laneStates {
+			laneMeta := &types.MessageEventLaneMeta{
+				LaneID:          laneState.LaneID,
+				Status:          laneState.Status,
+				LastMsgEventSeq: laneState.LastMsgEventSeq,
+				EndReason:       laneState.EndReason,
+				Error:           laneState.Error,
+			}
+			if laneState.LastMsgEventSeq > meta.LastMsgEventSeq {
+				meta.LastMsgEventSeq = laneState.LastMsgEventSeq
+			}
+			if laneState.Status == "open" {
+				meta.OpenLaneCount++
+			}
+			if mode == "full" && len(laneState.SnapshotPayload) > 0 {
+				var snapshot interface{}
+				if err := json.Unmarshal(laneState.SnapshotPayload, &snapshot); err != nil {
+					laneMeta.Snapshot = string(laneState.SnapshotPayload)
+				} else {
+					laneMeta.Snapshot = snapshot
+				}
+			}
+			meta.Lanes = append(meta.Lanes, laneMeta)
+		}
+		meta.EventVersion = meta.LastMsgEventSeq
+		msg.EventMeta = meta
+		msg.EventHint = &types.MessageEventSyncHint{
+			ClientMsgNo:     msg.ClientMsgNo,
+			FromMsgEventSeq: 0,
+		}
+
+		mainState := findMainLaneState(laneStates)
+		if mainState != nil {
+			if len(mainState.SnapshotPayload) > 0 {
+				msg.StreamData = toLegacyStreamData(mainState.SnapshotPayload)
+			}
+			msg.End = toLegacyEnd(mainState.Status)
+			msg.EndReason = mainState.EndReason
+			msg.Error = mainState.Error
+		}
+	}
+	return nil
 }
 
-func (m *message) loadLocalStreamMessage(streamNo string) ([]*types.StreamItemResp, error) {
-	// 获取流
-	streams, err := service.Store.GetStreams(streamNo)
-	if err != nil {
-		return nil, err
+func findMainLaneState(states []wkdb.MessageLaneState) *wkdb.MessageLaneState {
+	for _, state := range states {
+		if state.LaneID == "main" {
+			cp := state
+			return &cp
+		}
 	}
-	if len(streams) == 0 {
-		return nil, nil
-	}
-
-	resps := make([]*types.StreamItemResp, 0, len(streams))
-	for _, stream := range streams {
-		resp := types.NewStreamItemResp(stream)
-		resps = append(resps, resp)
-	}
-	return resps, nil
+	return nil
 }
 
-func (m *message) requestStreams(leaderId uint64, streamNos []string) (map[string][]*types.StreamItemResp, error) {
-	resp, err := m.s.client.RequestStreams(leaderId, streamNos)
-	if err != nil {
-		m.Error("requestStreamMessages: requestStreams failed", zap.Error(err))
-		return nil, err
+func toLegacyEnd(status string) uint8 {
+	switch status {
+	case "closed", "error", "cancelled":
+		return 1
+	default:
+		return 0
 	}
+}
 
-	streamItemsMap := make(map[string][]*types.StreamItemResp)
-	for _, stream := range resp.Streams {
-		streamItemsMap[stream.StreamNo] = append(streamItemsMap[stream.StreamNo], &types.StreamItemResp{
-			StreamNo: stream.StreamNo,
-			StreamId: stream.StreamId,
-			Payload:  stream.Payload,
-		})
+func toLegacyStreamData(snapshotPayload []byte) []byte {
+	if len(snapshotPayload) == 0 {
+		return nil
 	}
-	return streamItemsMap, nil
+	m := map[string]interface{}{}
+	if err := json.Unmarshal(snapshotPayload, &m); err != nil {
+		return snapshotPayload
+	}
+	kind, _ := m["kind"].(string)
+	switch kind {
+	case "text":
+		text, _ := m["text"].(string)
+		return []byte(text)
+	case "binary":
+		if data, ok := m["data"].(string); ok {
+			return []byte(data)
+		}
+	}
+	return snapshotPayload
+}
+
+func isTerminalStreamEventType(eventType string) bool {
+	switch eventType {
+	case "stream.close", "stream.error", "stream.cancel":
+		return true
+	default:
+		return false
+	}
 }
 
 func (m *message) getChannelMaxMessageSeq(c *wkhttp.Context) {
@@ -1180,18 +1417,4 @@ func (m *message) getChannelLastMessage(c *wkhttp.Context) {
 	resp := &types.MessageResp{}
 	resp.From(messages[0], options.G.SystemUID)
 	c.JSON(http.StatusOK, resp)
-}
-
-func (m *message) loadStreamV2Messages(channelId string, channelType uint8, clientMsgNos []string) ([]*wkdb.StreamV2, error) {
-	slotLeaderId, err := service.Cluster.SlotLeaderIdOfChannel(channelId, channelType)
-	if err != nil {
-		m.Error("loadStreamMessages: get leader id failed", zap.Error(err), zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
-		return nil, err
-	}
-	// 如果是本节点，则直接加载
-	if options.G.IsLocalNode(slotLeaderId) {
-		return service.CommonService.GetStreamsForLocal(clientMsgNos)
-	}
-	// 请求远程节点
-	return m.s.client.RequestStreamsV2(slotLeaderId, clientMsgNos)
 }

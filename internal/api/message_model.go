@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/types"
@@ -11,7 +12,7 @@ import (
 type messageSendReq struct {
 	Header      types.MessageHeader `json:"header"`        // 消息头
 	ClientMsgNo string              `json:"client_msg_no"` // 客户端消息编号（相同编号，客户端只会显示一条）
-	StreamNo    string              `json:"stream_no"`     // 消息流编号
+	IsStream    int                 `json:"is_stream"`     // 是否为流消息（1=是），设置后可通过 eventAppend 追加事件
 	FromUID     string              `json:"from_uid"`      // 发送者UID
 	ChannelID   string              `json:"channel_id"`    // 频道ID
 	ChannelType uint8               `json:"channel_type"`  // 频道类型
@@ -58,6 +59,71 @@ func (s syncackReq) Check() error {
 	}
 	if s.LastMessageSeq == 0 {
 		return errors.New("最后一次messageSeq不能为0！")
+	}
+	return nil
+}
+
+type eventAppendReq struct {
+	ChannelID   string            `json:"channel_id"`
+	ChannelType uint8             `json:"channel_type"`
+	FromUID     string            `json:"from_uid"`
+	ClientMsgNo string            `json:"client_msg_no"`
+	EventID     string            `json:"event_id"`
+	EventType   string            `json:"event_type"`
+	LaneID      string            `json:"lane_id"`
+	Visibility  string            `json:"visibility"`
+	OccurredAt  int64             `json:"occurred_at"`
+	Payload     json.RawMessage   `json:"payload"`
+	Headers     map[string]string `json:"headers"`
+}
+
+func (r eventAppendReq) Check() error {
+	if strings.TrimSpace(r.ChannelID) == "" {
+		return errors.New("channel_id不能为空！")
+	}
+	if strings.TrimSpace(r.ClientMsgNo) == "" {
+		return errors.New("client_msg_no不能为空！")
+	}
+	if strings.TrimSpace(r.EventID) == "" {
+		return errors.New("event_id不能为空！")
+	}
+	if strings.TrimSpace(r.EventType) == "" {
+		return errors.New("event_type不能为空！")
+	}
+	return nil
+}
+
+type eventAppendResp struct {
+	ClientMsgNo  string `json:"client_msg_no"`
+	LaneID       string `json:"lane_id"`
+	EventID      string `json:"event_id"`
+	MsgEventSeq  uint64 `json:"msg_event_seq"`
+	StreamStatus string `json:"stream_status"`
+	ChannelID    string `json:"channel_id"`
+	ChannelType  uint8  `json:"channel_type"`
+	FromUID      string `json:"from_uid"`
+}
+
+type eventSyncReq struct {
+	ChannelID       string `json:"channel_id"`
+	ChannelType     uint8  `json:"channel_type"`
+	FromUID         string `json:"from_uid"`
+	ClientMsgNo     string `json:"client_msg_no"`
+	LaneID          string `json:"lane_id"`
+	FromMsgEventSeq uint64 `json:"from_msg_event_seq"`
+	Limit           int    `json:"limit"`
+	IncludePrivate  uint8  `json:"include_private"`
+}
+
+func (r eventSyncReq) Check() error {
+	if strings.TrimSpace(r.ChannelID) == "" {
+		return errors.New("channel_id不能为空！")
+	}
+	if strings.TrimSpace(r.ClientMsgNo) == "" {
+		return errors.New("client_msg_no不能为空！")
+	}
+	if r.Limit < 0 {
+		return errors.New("limit不能为负数！")
 	}
 	return nil
 }

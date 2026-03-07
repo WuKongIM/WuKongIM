@@ -133,14 +133,6 @@ func (s *apiServer) setRoutes() {
 		st := newStress(s.s)
 		st.route(s.r)
 	}
-	// stream
-	stream := newStream(s.s)
-	stream.route(s.r)
-
-	// event v2
-	event := newEvent(s.s)
-	event.route(s.r)
-
 	// tag
 	tag := newTag(s.s)
 	tag.route(s.r)

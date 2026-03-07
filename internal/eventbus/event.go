@@ -31,8 +31,7 @@ const (
 	// =================== 频道事件 ===================
 	// EventChannelOnSend 频道收到发送消息
 	EventChannelOnSend
-	// EventChannelOnStream 频道收到流消息
-	EventChannelOnStream
+	_eventChannelOnStreamRemoved // 已移除，保留占位以维持iota值
 	// EventChannelWebhook 频道webhook
 	EventChannelWebhook
 	// EventChannelDistribute 频道消息分发
@@ -61,8 +60,6 @@ func (e EventType) String() string {
 		return "EventConnRemove"
 	case EventChannelOnSend:
 		return "EventChannelOnSend"
-	case EventChannelOnStream:
-		return "EventChannelOnStream"
 	case EventChannelWebhook:
 		return "EventChannelWebhook"
 	case EventChannelDistribute:
@@ -83,11 +80,9 @@ type Event struct {
 	Type         EventType
 	Conn         *Conn
 	Frame        wkproto.Frame
-	MessageId    int64
-	MessageSeq   uint64
-	StreamNo     string             // 流号编号
-	StreamFlag   wkproto.StreamFlag // 流消息标记
-	ReasonCode   wkproto.ReasonCode
+	MessageId  int64
+	MessageSeq uint64
+	ReasonCode wkproto.ReasonCode
 	TagKey       string // tag的key
 	ToUid        string // 发送事件的目标用户
 	SourceNodeId uint64 // 事件发起源节点
@@ -106,11 +101,9 @@ func (e *Event) Clone() *Event {
 		Type:         e.Type,
 		Conn:         e.Conn,
 		Frame:        e.Frame,
-		MessageId:    e.MessageId,
-		MessageSeq:   e.MessageSeq,
-		StreamNo:     e.StreamNo,
-		StreamFlag:   e.StreamFlag,
-		ReasonCode:   e.ReasonCode,
+		MessageId:  e.MessageId,
+		MessageSeq: e.MessageSeq,
+		ReasonCode: e.ReasonCode,
 		TagKey:       e.TagKey,
 		ToUid:        e.ToUid,
 		SourceNodeId: e.SourceNodeId,
@@ -133,11 +126,9 @@ func (e *Event) Size() uint64 {
 	if e.hasFrame() == 1 {
 		size += 4 + uint64(e.Frame.GetFrameSize())
 	}
-	size += 8                           // message id
-	size += 8                           // message seq
-	size += uint64(2 + len(e.StreamNo)) // stream no
-	size += 1                           // stream flag
-	size += 1                           // reason code
+	size += 8 // message id
+	size += 8 // message seq
+	size += 1 // reason code
 	size += uint64(2 + len(e.TagKey))   // tag key
 	size += uint64(2 + len(e.ToUid))    // to uid
 	size += 8                           // source node id
@@ -181,8 +172,6 @@ func (e Event) encodeWithEcoder(enc *wkproto.Encoder) error {
 
 	enc.WriteInt64(e.MessageId)
 	enc.WriteUint64(e.MessageSeq)
-	enc.WriteString(e.StreamNo)
-	enc.WriteUint8(uint8(e.StreamFlag))
 	enc.WriteUint8(uint8(e.ReasonCode))
 	enc.WriteString(e.TagKey)
 	enc.WriteString(e.ToUid)
@@ -258,16 +247,6 @@ func (e *Event) decodeWithDecoder(dec *wkproto.Decoder) error {
 	if e.MessageSeq, err = dec.Uint64(); err != nil {
 		return err
 	}
-
-	if e.StreamNo, err = dec.String(); err != nil {
-		return err
-	}
-
-	var streamFlag uint8
-	if streamFlag, err = dec.Uint8(); err != nil {
-		return err
-	}
-	e.StreamFlag = wkproto.StreamFlag(streamFlag)
 
 	var reasonCode uint8
 	if reasonCode, err = dec.Uint8(); err != nil {

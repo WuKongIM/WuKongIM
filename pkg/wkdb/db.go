@@ -25,8 +25,8 @@ type DB interface {
 	TotalDB
 	//	系统账号
 	SystemUidDB
-	// 流
-	StreamDB
+	// 消息事件流
+	MessageEventDB
 	// 测试机
 	TesterDB
 	// 插件
@@ -40,6 +40,23 @@ type DB interface {
 	GetShardNum() int
 	// GetChannelShardIndex 获取频道所在的分片索引
 	GetChannelShardIndex(channelId string, channelType uint8) uint32
+}
+
+type MessageEventDB interface {
+	// AppendMessageEventWithLaneState applies one event into lane projection state in one write.
+	// Channel info is taken from event.ChannelId and event.ChannelType.
+	AppendMessageEventWithLaneState(event *MessageEvent) (*MessageEvent, *MessageLaneState, error)
+	// GetMessageEventByEventID finds a projected event view by (channel, client_msg_no, event_id).
+	GetMessageEventByEventID(channelId string, channelType uint8, clientMsgNo, eventID string) (*MessageEvent, error)
+	// ListMessageEvents lists projected lane events greater than fromMsgEventSeq in ascending msg_event_seq.
+	ListMessageEvents(channelId string, channelType uint8, clientMsgNo string, fromMsgEventSeq uint64, laneID string, limit int) ([]MessageEvent, error)
+	// GetMessageLaneStates returns all lane projection states of one message.
+	GetMessageLaneStates(channelId string, channelType uint8, clientMsgNo string) ([]MessageLaneState, error)
+	// GetMessageLaneStatesBatch returns lane states for multiple client_msg_nos in one pass.
+	// Result is keyed by client_msg_no; entries with no lane states are omitted.
+	GetMessageLaneStatesBatch(channelId string, channelType uint8, clientMsgNos []string) (map[string][]MessageLaneState, error)
+	// GetMessageLaneState returns one lane projection state.
+	GetMessageLaneState(channelId string, channelType uint8, clientMsgNo, laneID string) (*MessageLaneState, error)
 }
 
 type MessageDB interface {
@@ -411,30 +428,6 @@ type SystemUidDB interface {
 	RemoveSystemUids(uids []string) error
 	// GetSystemUids 获取系统账号的uid
 	GetSystemUids() ([]string, error)
-}
-
-type StreamDB interface {
-	// AddStreamMeta 添加流元数据
-	AddStreamMeta(streamMeta *StreamMeta) error
-
-	GetStreamMeta(streamNo string) (*StreamMeta, error)
-
-	// AddStream 添加流
-	AddStream(stream *Stream) error
-
-	// AddStreams 批量添加流
-	AddStreams(streams []*Stream) error
-
-	// GetStreams 获取流
-	GetStreams(streamNo string) ([]*Stream, error)
-
-	// SaveStreamV2 保存流V2
-	SaveStreamV2(stream *StreamV2) error
-	// GetStreamV2 获取流V2
-	GetStreamV2(clientMsgNo string) (*StreamV2, error)
-
-	// GetStreamV2s 获取流V2
-	GetStreamV2s(clientMsgNos []string) ([]*StreamV2, error)
 }
 
 type TesterDB interface {

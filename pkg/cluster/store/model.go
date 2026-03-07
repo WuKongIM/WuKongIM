@@ -3,7 +3,6 @@ package store
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
@@ -69,12 +68,9 @@ const (
 	CMDSystemUIDsAdd
 	// 移除系统UID
 	CMDSystemUIDsRemove
-	// 保存流元数据
-	CMDSaveStreamMeta
-	// 流结束
-	CMDStreamEnd
-	// 追加流元素
-	CMDAppendStreamItem
+	_cmdSaveStreamMetaRemoved  // 已移除，保留占位
+	_cmdStreamEndRemoved       // 已移除，保留占位
+	_cmdAppendStreamItemRemoved // 已移除，保留占位
 	// 频道分布式配置保存
 	CMDChannelClusterConfigSave
 	// 频道分布式配置删除
@@ -82,10 +78,8 @@ const (
 
 	// 批量更新最近会话
 	CMDBatchUpdateConversation
-	// 添加流元数据
-	CMDAddStreamMeta
-	// 添加流元数据
-	CMDAddStreams
+	_cmdAddStreamMetaRemoved  // 已移除，保留占位
+	_cmdAddStreamsRemoved     // 已移除，保留占位
 	// 批量添加最近会话
 	CMDAddOrUpdateConversations
 	// 添加或更新测试机
@@ -104,8 +98,9 @@ const (
 	CMDAddOrUpdateConversationsBatchIfNotExist
 	// 更新最近会话的已删除的消息序号位置
 	CMDUpdateConversationDeletedAtMsgSeq
-	// 保存流(v2)
-	CMDSaveStreamV2
+	_cmdSaveStreamV2Removed // 已移除，保留占位
+	// 追加消息事件
+	CMDAppendMessageEvent
 	// 更新最近会话的已读位置（如果seq更大）
 	CMDUpdateConversationIfSeqGreater
 )
@@ -166,12 +161,6 @@ func (c CMDType) String() string {
 		return "CMDSystemUIDsAdd"
 	case CMDSystemUIDsRemove:
 		return "CMDSystemUIDsRemove"
-	case CMDSaveStreamMeta:
-		return "CMDSaveStreamMeta"
-	case CMDStreamEnd:
-		return "CMDStreamEnd"
-	case CMDAppendStreamItem:
-		return "CMDAppendStreamItem"
 	case CMDChannelClusterConfigSave:
 		return "CMDChannelClusterConfigSave"
 	case CMDChannelClusterConfigDelete:
@@ -180,10 +169,6 @@ func (c CMDType) String() string {
 		return "CMDBatchUpdateConversation"
 	case CMDDeleteConversations:
 		return "CMDDeleteConversations"
-	case CMDAddStreamMeta:
-		return "CMDAddStreamMeta"
-	case CMDAddStreams:
-		return "CMDAddStreams"
 	case CMDAddOrUpdateConversations:
 		return "CMDAddOrUpdateConversations"
 	case CMDAddOrUpdateTester:
@@ -202,8 +187,8 @@ func (c CMDType) String() string {
 		return "CMDAddOrUpdateConversationsBatchIfNotExist"
 	case CMDUpdateConversationDeletedAtMsgSeq:
 		return "CMDUpdateConversationDeletedAtMsgSeq"
-	case CMDSaveStreamV2:
-		return "CMDSaveStreamV2"
+	case CMDAppendMessageEvent:
+		return "CMDAppendMessageEvent"
 	case CMDUpdateConversationIfSeqGreater:
 		return "CMDUpdateConversationIfSeqGreater"
 	default:
@@ -529,12 +514,12 @@ func (c *CMD) CMDContent() (string, error) {
 			"channelType":     channelType,
 			"deletedAtMsgSeq": deletedAtMsgSeq,
 		}), nil
-	case CMDSaveStreamV2:
-		stream, err := c.DecodeCMDStreamV2(c.version)
+	case CMDAppendMessageEvent:
+		event, err := c.DecodeCMDMessageEvent(c.version)
 		if err != nil {
 			return "", err
 		}
-		return wkutil.ToJSON(stream), nil
+		return wkutil.ToJSON(event), nil
 	case CMDUpdateConversationIfSeqGreater:
 		uid, channelId, channelType, readToMsgSeq, err := c.DecodeCMDUpdateConversationIfSeqGreater()
 		if err != nil {
@@ -1071,60 +1056,6 @@ func (c *CMD) DecodeCMDDeleteConversations() (uid string, channels []wkdb.Channe
 
 }
 
-func EncodeCMDStreamEnd(channelID string, channelType uint8, streamNo string) []byte {
-	encoder := wkproto.NewEncoder()
-	defer encoder.End()
-	encoder.WriteString(channelID)
-	encoder.WriteUint8(channelType)
-	encoder.WriteString(streamNo)
-	return encoder.Bytes()
-}
-
-func (c *CMD) DecodeCMDStreamEnd() (channelID string, channelType uint8, streamNo string, err error) {
-	decoder := wkproto.NewDecoder(c.Data)
-	if channelID, err = decoder.String(); err != nil {
-		return
-	}
-	if channelType, err = decoder.Uint8(); err != nil {
-		return
-	}
-	if streamNo, err = decoder.String(); err != nil {
-		return
-	}
-	return
-}
-
-// func EncodeCMDAppendStreamItem(channelID string, channelType uint8, streamNo string, item *wkstore.StreamItem) []byte {
-// 	encoder := wkproto.NewEncoder()
-// 	defer encoder.End()
-
-// 	encoder.WriteString(channelID)
-// 	encoder.WriteUint8(channelType)
-// 	encoder.WriteString(streamNo)
-// 	encoder.WriteBinary(wkstore.EncodeStreamItem(item))
-
-// 	return encoder.Bytes()
-// }
-// func (c *CMD) DecodeCMDAppendStreamItem() (channelID string, channelType uint8, streamNo string, item *wkstore.StreamItem, err error) {
-// 	decoder := wkproto.NewDecoder(c.Data)
-// 	if channelID, err = decoder.String(); err != nil {
-// 		return
-// 	}
-// 	if channelType, err = decoder.Uint8(); err != nil {
-// 		return
-// 	}
-// 	if streamNo, err = decoder.String(); err != nil {
-// 		return
-// 	}
-// 	var itemBytes []byte
-// 	itemBytes, err = decoder.Binary()
-// 	if err != nil {
-// 		return
-// 	}
-// 	item, err = wkstore.DecodeStreamItem(itemBytes)
-// 	return
-// }
-
 func EncodeCMDChannelClusterConfigSave(channelID string, channelType uint8, data []byte) ([]byte, error) {
 	encoder := wkproto.NewEncoder()
 	defer encoder.End()
@@ -1230,56 +1161,6 @@ func (c *CMD) DecodeCMDSystemUIDs() (uids []string, err error) {
 		uids = append(uids, uid)
 	}
 	return
-}
-
-func EncodeCMDAddStreamMeta(streamMeta *wkdb.StreamMeta) []byte {
-	return streamMeta.Encode()
-}
-
-func (c *CMD) DecodeCMDAddStreamMeta() (streamMeta *wkdb.StreamMeta, err error) {
-	streamMeta = &wkdb.StreamMeta{}
-	err = streamMeta.Decode(c.Data)
-	return
-}
-
-func EncodeCMDAddStreams(streams []*wkdb.Stream) []byte {
-	encoder := wkproto.NewEncoder()
-	defer encoder.End()
-	encoder.WriteUint32(uint32(len(streams)))
-	for _, stream := range streams {
-		data := stream.Encode()
-		encoder.WriteUint32(uint32(len(data)))
-		encoder.WriteBytes(data)
-	}
-	return encoder.Bytes()
-}
-
-func (c *CMD) DecodeCMDAddStreams() ([]*wkdb.Stream, error) {
-	decoder := wkproto.NewDecoder(c.Data)
-	var count uint32
-	var err error
-	if count, err = decoder.Uint32(); err != nil {
-		return nil, err
-	}
-	streams := make([]*wkdb.Stream, 0, count)
-	for i := uint32(0); i < count; i++ {
-		dataLen, err := decoder.Uint32()
-		if err != nil {
-			return nil, err
-		}
-
-		data, err := decoder.Bytes(int(dataLen))
-		if err != nil {
-			return nil, err
-		}
-
-		stream := &wkdb.Stream{}
-		if err = stream.Decode(data); err != nil {
-			return nil, err
-		}
-		streams = append(streams, stream)
-	}
-	return streams, nil
 }
 
 func EncodeCMDAddOrUpdateConversationsWithChannel(channelId string, channelType uint8, subscribers []string, readToMsgSeq uint64, conversationType wkdb.ConversationType, unreadCount int, createdAt, updatedAt int64) []byte {
@@ -1611,62 +1492,20 @@ func (c *CMD) DecodeCMDUpdateConversationDeletedAtMsgSeq() (uid string, channelI
 	return
 }
 
-func EncodeCMDStreamV2(stream *wkdb.StreamV2, version CmdVersion) []byte {
-	encoder := wkproto.NewEncoder()
-	defer encoder.End()
-	encoder.WriteString(stream.ClientMsgNo)
-	encoder.WriteInt64(stream.MessageId)
-	encoder.WriteString(stream.ChannelId)
-	encoder.WriteUint8(stream.ChannelType)
-	encoder.WriteString(stream.FromUid)
-	encoder.WriteUint8(stream.End)
-	encoder.WriteUint8(stream.EndReason)
-	if version > 0 {
-		if len(stream.Error) > math.MaxInt16 {
-			encoder.WriteString(stream.Error[:math.MaxInt16])
-		} else {
-			encoder.WriteString(stream.Error)
-		}
+func EncodeCMDMessageEvent(event *wkdb.MessageEvent, _ CmdVersion) []byte {
+	if event == nil {
+		return nil
 	}
-	encoder.WriteBytes(stream.Payload)
-	return encoder.Bytes()
+	data, err := json.Marshal(event)
+	if err != nil {
+		return nil
+	}
+	return data
 }
 
-func (c *CMD) DecodeCMDStreamV2(version CmdVersion) (stream *wkdb.StreamV2, err error) {
-	decoder := wkproto.NewDecoder(c.Data)
-	stream = &wkdb.StreamV2{}
-
-	if stream.ClientMsgNo, err = decoder.String(); err != nil {
-		return
-	}
-
-	if stream.MessageId, err = decoder.Int64(); err != nil {
-		return
-	}
-	if stream.ChannelId, err = decoder.String(); err != nil {
-		return
-	}
-	if stream.ChannelType, err = decoder.Uint8(); err != nil {
-		return
-	}
-	if stream.FromUid, err = decoder.String(); err != nil {
-		return
-	}
-	if stream.End, err = decoder.Uint8(); err != nil {
-		return
-	}
-	if stream.EndReason, err = decoder.Uint8(); err != nil {
-		return
-	}
-	if version > 0 {
-		if stream.Error, err = decoder.String(); err != nil {
-			return
-		}
-	}
-
-	if stream.Payload, err = decoder.BinaryAll(); err != nil {
-		return
-	}
+func (c *CMD) DecodeCMDMessageEvent(_ CmdVersion) (event *wkdb.MessageEvent, err error) {
+	event = &wkdb.MessageEvent{}
+	err = json.Unmarshal(c.Data, event)
 	return
 }
 
