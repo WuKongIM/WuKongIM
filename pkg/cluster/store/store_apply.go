@@ -144,10 +144,6 @@ func (s *Store) applyCMD(cmd *CMD, logIndex uint64) error {
 		return s.handleSystemUIDsAdd(cmd)
 	case CMDSystemUIDsRemove: // 移除系统UID
 		return s.handleSystemUIDsRemove(cmd)
-	case CMDAddStreamMeta: // 添加流元数据
-		return s.handleAddStreamMeta(cmd)
-	case CMDAddStreams: // 添加流
-		return s.handleAddStreams(cmd)
 	case CMDAddOrUpdateTester: // 添加或更新测试机
 		return s.handleAddOrUpdateTester(cmd)
 	case CMDRemoveTester: // 移除测试机
@@ -164,8 +160,8 @@ func (s *Store) applyCMD(cmd *CMD, logIndex uint64) error {
 		return s.handleAddOrUpdateConversationsBatchIfNotExist(cmd)
 	case CMDUpdateConversationDeletedAtMsgSeq: // 更新最近会话的已删除的消息序号位置
 		return s.handleUpdateConversationDeletedAtMsgSeq(cmd)
-	case CMDSaveStreamV2: // 保存流(v2)
-		return s.handleSaveStreamV2(cmd)
+	case CMDAppendMessageEvent: // 追加消息事件
+		return s.handleAppendMessageEvent(cmd)
 	case CMDUpdateConversationIfSeqGreater: // 更新最近会话的已读位置（如果seq更大）
 		return s.handleUpdateConversationIfSeqGreater(cmd)
 	default:
@@ -540,22 +536,6 @@ func (s *Store) handleSystemUIDsRemove(cmd *CMD) error {
 	return s.wdb.RemoveSystemUids(uids)
 }
 
-func (s *Store) handleAddStreamMeta(cmd *CMD) error {
-	streamMeta, err := cmd.DecodeCMDAddStreamMeta()
-	if err != nil {
-		return err
-	}
-	return s.wdb.AddStreamMeta(streamMeta)
-}
-
-func (s *Store) handleAddStreams(cmd *CMD) error {
-	streams, err := cmd.DecodeCMDAddStreams()
-	if err != nil {
-		return err
-	}
-	return s.wdb.AddStreams(streams)
-}
-
 func (s *Store) handleAddOrUpdateConversations(cmd *CMD) error {
 	conversations, err := cmd.DecodeCMDAddOrUpdateConversations()
 	if err != nil {
@@ -635,12 +615,13 @@ func (s *Store) handleUpdateConversationDeletedAtMsgSeq(cmd *CMD) error {
 	return s.wdb.UpdateConversationDeletedAtMsgSeq(uid, channelId, channelType, deletedAtMsgSeq)
 }
 
-func (s *Store) handleSaveStreamV2(cmd *CMD) error {
-	stream, err := cmd.DecodeCMDStreamV2(cmd.version)
+func (s *Store) handleAppendMessageEvent(cmd *CMD) error {
+	event, err := cmd.DecodeCMDMessageEvent(cmd.version)
 	if err != nil {
 		return err
 	}
-	return s.wdb.SaveStreamV2(stream)
+	_, _, err = s.wdb.AppendMessageEventWithLaneState(event)
+	return err
 }
 
 // func (s *Store) handleAddOrUpdatePlugin(cmd *CMD) error {

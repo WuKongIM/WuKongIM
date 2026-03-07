@@ -744,43 +744,6 @@ var TableSystemUid = struct {
 	},
 }
 
-// ======================== stream ========================
-
-var TableStream = struct {
-	Id        [2]byte
-	Size      int
-	IndexSize int
-	Index     struct {
-		StreamNo [2]byte
-	}
-}{
-	Id:        [2]byte{0x11, 0x01},
-	IndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + indexName + columnHash + seq
-	Index: struct {
-		StreamNo [2]byte
-	}{
-		StreamNo: [2]byte{0x11, 0x01},
-	},
-}
-
-// ======================== streamMeta ========================
-
-var TableStreamMeta = struct {
-	Id     [2]byte
-	Size   int
-	Column struct {
-		StreamNo [2]byte
-	}
-}{
-	Id:   [2]byte{0x12, 0x01},
-	Size: 2 + 2 + 8 + 2, // tableId + dataType  + primaryKey + columnKey
-	Column: struct {
-		StreamNo [2]byte
-	}{
-		StreamNo: [2]byte{0x12, 0x01},
-	},
-}
-
 // ======================== TableConversationLocalUser ========================
 
 // 最近会话与本地用户关系表
@@ -903,45 +866,46 @@ var TablePluginUser = struct {
 	},
 }
 
-// ======================== TableStreamV2 ========================
-var TableStreamV2 = struct {
+// ======================== TableMessageEvent ========================
+
+var TableMessageEvent = struct {
 	Id        [2]byte
-	Size      int
 	IndexSize int
-	Column    struct {
-		ClientMsgNo [2]byte // 客户端消息唯一编号
-		MessageId   [2]byte // 消息唯一id
-		ChannelId   [2]byte // 频道id
-		ChannelType [2]byte // 频道类型
-		FromUid     [2]byte // 发送者uid
-		End         [2]byte // 流是否正常结束
-		EndReason   [2]byte // 流结束原因
-		Payload     [2]byte // 流数据
-		Error       [2]byte // 错误信息
+	Index     struct {
+		ClientSeq     [2]byte // channel_hash + client_msg_no + msg_event_seq
+		ClientLaneSeq [2]byte // channel_hash + client_msg_no + lane_id + msg_event_seq
+		EventID       [2]byte // channel_hash + client_msg_no + event_id
 	}
 }{
-	Id:        [2]byte{0x17, 0x01},
-	Size:      2 + 2 + 8 + 2,     // tableId + dataType  + primaryKey + columnKey
-	IndexSize: 2 + 2 + 2 + 8 + 8, // tableId + dataType + indexName + columnHash + seq
-	Column: struct {
-		ClientMsgNo [2]byte
-		MessageId   [2]byte
-		ChannelId   [2]byte
-		ChannelType [2]byte
-		FromUid     [2]byte
-		End         [2]byte
-		EndReason   [2]byte
-		Payload     [2]byte
-		Error       [2]byte
+	Id:        [2]byte{0x18, 0x01},
+	IndexSize: 2 + 2 + 2 + 8 + 8 + 8, // tableId + dataType + indexName + channelHash + columnHash + seq
+	Index: struct {
+		ClientSeq     [2]byte
+		ClientLaneSeq [2]byte
+		EventID       [2]byte
 	}{
-		ClientMsgNo: [2]byte{0x17, 0x01},
-		MessageId:   [2]byte{0x17, 0x02},
-		ChannelId:   [2]byte{0x17, 0x03},
-		ChannelType: [2]byte{0x17, 0x04},
-		FromUid:     [2]byte{0x17, 0x05},
-		End:         [2]byte{0x17, 0x06},
-		EndReason:   [2]byte{0x17, 0x07},
-		Payload:     [2]byte{0x17, 0x08},
-		Error:       [2]byte{0x17, 0x09},
+		ClientSeq:     [2]byte{0x18, 0x01},
+		ClientLaneSeq: [2]byte{0x18, 0x02},
+		EventID:       [2]byte{0x18, 0x03},
 	},
+}
+
+// ======================== TableMessageLaneState ========================
+
+var TableMessageLaneState = struct {
+	Id   [2]byte
+	Size int
+}{
+	Id:   [2]byte{0x19, 0x01},
+	Size: 2 + 2 + 8 + 8 + 8, // tableId + dataType + channel_hash + client_hash + lane_hash
+}
+
+// ======================== TableMessageEventSeq ========================
+
+var TableMessageEventSeq = struct {
+	Id   [2]byte
+	Size int
+}{
+	Id:   [2]byte{0x1A, 0x01},
+	Size: 2 + 2 + 8 + 8, // tableId + dataType + channel_hash + client_hash
 }

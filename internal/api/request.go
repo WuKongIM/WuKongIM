@@ -50,43 +50,48 @@ func convertMessagesToResp(messages []wkdb.Message) types.MessageRespSlice {
 	return messageResps
 }
 
-// enrichStreamMessages 填充流消息数据
+// enrichStreamMessages 使用消息事件系统填充流消息的 legacy 字段
 func (s *request) enrichStreamMessages(channelId string, channelType uint8, messageResps types.MessageRespSlice) error {
-	// 收集流消息的ClientMsgNo
-	streamClientMsgNos := make([]string, 0)
-	for _, message := range messageResps {
-		setting := wkproto.Setting(message.Setting)
-		if setting.IsSet(wkproto.SettingStream) {
-			streamClientMsgNos = append(streamClientMsgNos, message.ClientMsgNo)
-		}
-	}
-
-	if len(streamClientMsgNos) == 0 {
+	if len(messageResps) == 0 {
 		return nil
 	}
 
-	// 加载流消息数据
-	streamV2s, err := s.loadStreamV2Messages(channelId, channelType, streamClientMsgNos)
+	clientMsgNos := make([]string, 0)
+	for _, msg := range messageResps {
+		setting := wkproto.Setting(msg.Setting)
+		if setting.IsSet(wkproto.SettingStream) && msg.ClientMsgNo != "" {
+			clientMsgNos = append(clientMsgNos, msg.ClientMsgNo)
+		}
+	}
+	if len(clientMsgNos) == 0 {
+		return nil
+	}
+
+	allLaneStates, err := service.Store.GetMessageLaneStatesBatch(channelId, channelType, clientMsgNos)
 	if err != nil {
-		s.Error("enrichStreamMessages: loadStreamV2Messages failed", zap.Error(err))
+		s.Error("enrichStreamMessages: GetMessageLaneStatesBatch failed", zap.Error(err))
 		return err
 	}
 
-	// 填充流消息数据到响应中
-	for _, message := range messageResps {
-		setting := wkproto.Setting(message.Setting)
+	for _, msg := range messageResps {
+		setting := wkproto.Setting(msg.Setting)
 		if !setting.IsSet(wkproto.SettingStream) {
 			continue
 		}
-		for _, streamV2 := range streamV2s {
-			if message.MessageId == streamV2.MessageId {
-				message.End = streamV2.End
-				message.EndReason = streamV2.EndReason
-				message.Error = streamV2.Error
-				message.StreamData = streamV2.Payload
-				break
-			}
+		laneStates := allLaneStates[msg.ClientMsgNo]
+		if len(laneStates) == 0 {
+			continue
 		}
+		mainState := findMainLaneState(laneStates)
+		if mainState == nil {
+			continue
+		}
+		if len(mainState.SnapshotPayload) > 0 {
+			msg.StreamData = toLegacyStreamData(mainState.SnapshotPayload)
+		}
+		msg.End = toLegacyEnd(mainState.Status)
+		msg.EndReason = mainState.EndReason
+		msg.Error = mainState.Error
 	}
 	return nil
 }
@@ -234,7 +239,7 @@ func (s *request) requestSyncMessage(nodeID uint64, reqs []*channelRecentMessage
 
 // ==================== 本地消息查询 ====================
 
-// getRecentMessages 获取频道最近消息
+// getRecentMessages 获取本节点频道最近消息
 // orderByLast: true 按照最新的消息排序 false 按照最旧的消息排序
 func (s *request) getRecentMessages(uid string, msgCount int, channels []*channelRecentMessageReq, orderByLast bool) ([]*channelRecentMessage, error) {
 	if len(channels) == 0 {
@@ -365,18 +370,4 @@ func handlerIMError(resp *rest.Response) error {
 		return fmt.Errorf("IM服务返回状态[%d]失败！", resp.StatusCode)
 	}
 	return nil
-}
-
-func (s *request) loadStreamV2Messages(channelId string, channelType uint8, clientMsgNos []string) ([]*wkdb.StreamV2, error) {
-	slotLeaderId, err := service.Cluster.SlotLeaderIdOfChannel(channelId, channelType)
-	if err != nil {
-		s.Error("loadStreamMessages: get leader id failed", zap.Error(err),
-			zap.String("channelId", channelId), zap.Uint8("channelType", channelType))
-		return nil, err
-	}
-
-	if options.G.IsLocalNode(slotLeaderId) {
-		return service.CommonService.GetStreamsForLocal(clientMsgNos)
-	}
-	return s.s.client.RequestStreamsV2(slotLeaderId, clientMsgNos)
 }

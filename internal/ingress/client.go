@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/service"
-	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wkserver/proto"
 	"go.uber.org/zap"
@@ -120,55 +119,6 @@ func (c *Client) RequestSubscribers(toNodeId uint64, channelId string, channelTy
 		return nil, err
 	}
 	return subResp.Subscribers, nil
-}
-
-// 获取消息流
-func (c *Client) RequestStreams(toNodeId uint64, streamNos []string) (*StreamResp, error) {
-	req := &StreamReq{
-		StreamNos: streamNos,
-	}
-	data, err := req.Encode()
-	if err != nil {
-		return nil, err
-	}
-	resp, err := c.request(toNodeId, "/wk/ingress/getStreams", data)
-	if err != nil {
-		return nil, err
-	}
-	err = c.handleRespError(resp)
-	if err != nil {
-		return nil, err
-	}
-	streamResp := &StreamResp{}
-	err = streamResp.Decode(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return streamResp, nil
-}
-
-func (c *Client) RequestStreamsV2(toNodeId uint64, clientMsgNos []string) (StreamRespV2, error) {
-	req := &StreamReqV2{
-		ClientMsgNos: clientMsgNos,
-	}
-	data, err := req.Encode()
-	if err != nil {
-		return nil, err
-	}
-	resp, err := c.request(toNodeId, "/wk/ingress/getStreamsV2", data)
-	if err != nil {
-		return nil, err
-	}
-	err = c.handleRespError(resp)
-	if err != nil {
-		return nil, err
-	}
-	streamResp := StreamRespV2(make([]*wkdb.StreamV2, 0, len(clientMsgNos)))
-	err = streamResp.Decode(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return streamResp, nil
 }
 
 func (c *Client) request(toNodeId uint64, path string, body []byte) (*proto.Response, error) {

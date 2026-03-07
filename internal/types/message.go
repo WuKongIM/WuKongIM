@@ -15,19 +15,14 @@ type MessageResp struct {
 	Setting      uint8         `json:"setting"`       // 设置
 	MessageId    int64         `json:"message_id"`    // 服务端的消息ID(全局唯一)
 	MessageIdStr string        `json:"message_idstr"` // 服务端的消息ID(全局唯一)
-	ClientMsgNo  string        `json:"client_msg_no"` // 客户端消息唯一编号
+	ClientMsgNo string `json:"client_msg_no"` // 客户端消息唯一编号
 
-	// 后续以下4个stream相关的字段将删除，使用v2版本的stream
-	StreamNo    string            `json:"stream_no,omitempty"` // 流编号
-	StreamId    uint64            `json:"stream_id,omitempty"` // 流序号
-	StreamIdStr string            `json:"stream_idstr,omitempty"`
-	Streams     []*StreamItemResp `json:"streams,omitempty"` // 消息流内容
-
-	// v2 版本的stream的字段
-	End        uint8  `json:"end,omitempty"` // 是否是最后一段
-	EndReason  uint8  `json:"end_reason,omitempty"`
-	Error      string `json:"error,omitempty"`       // 错误信息
-	StreamData []byte `json:"stream_data,omitempty"` // 消息块合并后的字节
+	End        uint8                 `json:"end,omitempty"` // 是否是最后一段
+	EndReason  uint8                 `json:"end_reason,omitempty"`
+	Error      string                `json:"error,omitempty"`       // 错误信息
+	StreamData []byte                `json:"stream_data,omitempty"` // 消息块合并后的字节
+	EventMeta  *MessageEventMeta     `json:"event_meta,omitempty"`
+	EventHint  *MessageEventSyncHint `json:"event_sync_hint,omitempty"`
 
 	MessageSeq  uint64 `json:"message_seq"`     // 消息序列号 （用户唯一，有序递增）
 	FromUID     string `json:"from_uid"`        // 发送者UID
@@ -37,6 +32,29 @@ type MessageResp struct {
 	Expire      uint32 `json:"expire"`          // 消息过期时间
 	Timestamp   int32  `json:"timestamp"`       // 服务器消息时间戳(10位，到秒)
 	Payload     []byte `json:"payload"`         // 消息内容
+}
+
+type MessageEventMeta struct {
+	HasEvents       bool                    `json:"has_events"`
+	EventVersion    uint64                  `json:"event_version,omitempty"`
+	LastMsgEventSeq uint64                  `json:"last_msg_event_seq,omitempty"`
+	LaneCount       int                     `json:"lane_count,omitempty"`
+	OpenLaneCount   int                     `json:"open_lane_count,omitempty"`
+	Lanes           []*MessageEventLaneMeta `json:"lanes,omitempty"`
+}
+
+type MessageEventLaneMeta struct {
+	LaneID          string      `json:"lane_id"`
+	Status          string      `json:"status"`
+	LastMsgEventSeq uint64      `json:"last_msg_event_seq,omitempty"`
+	Snapshot        interface{} `json:"snapshot,omitempty"`
+	EndReason       uint8       `json:"end_reason,omitempty"`
+	Error           string      `json:"error,omitempty"`
+}
+
+type MessageEventSyncHint struct {
+	ClientMsgNo     string `json:"client_msg_no"`
+	FromMsgEventSeq uint64 `json:"from_msg_event_seq"`
 }
 
 func (m *MessageResp) From(messageD wkdb.Message, systemUid string) {
@@ -54,9 +72,6 @@ func (m *MessageResp) From(messageD wkdb.Message, systemUid string) {
 	m.MessageId = messageD.MessageID
 	m.MessageIdStr = strconv.FormatInt(messageD.MessageID, 10)
 	m.ClientMsgNo = messageD.ClientMsgNo
-	m.StreamNo = messageD.StreamNo
-	m.StreamId = messageD.StreamId
-	m.StreamIdStr = strconv.FormatUint(messageD.StreamId, 10)
 	m.MessageSeq = uint64(messageD.MessageSeq)
 	m.FromUID = fromUid
 	m.Expire = messageD.Expire
@@ -108,19 +123,3 @@ type RetryMessage struct {
 	Pri         int64               // 优先级的时间点 值越小越优先
 }
 
-type StreamItemResp struct {
-	StreamId    uint64 `json:"stream_id"`    // 流id
-	StreamIdStr string `json:"stream_idstr"` // 流id
-	StreamNo    string `json:"stream_no"`    // 流编号
-	Payload     []byte `json:"payload"`      // 消息内容
-}
-
-func NewStreamItemResp(m *wkdb.Stream) *StreamItemResp {
-
-	return &StreamItemResp{
-		StreamId:    m.StreamId,
-		StreamIdStr: strconv.FormatUint(m.StreamId, 10),
-		StreamNo:    m.StreamNo,
-		Payload:     m.Payload,
-	}
-}

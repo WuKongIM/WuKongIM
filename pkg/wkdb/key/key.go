@@ -901,31 +901,6 @@ func NewSystemUidColumnKey(id uint64, columnName [2]byte) []byte {
 	return key
 }
 
-// ---------------------- stream ----------------------
-
-func NewStreamIndexKey(streamNo string, seq uint64) []byte {
-	key := make([]byte, TableStream.IndexSize)
-	key[0] = TableStream.Id[0]
-	key[1] = TableStream.Id[1]
-	key[2] = dataTypeIndex
-	key[3] = 0
-	key[4] = TableStream.Index.StreamNo[0]
-	key[5] = TableStream.Index.StreamNo[1]
-	binary.BigEndian.PutUint64(key[6:], HashWithString(streamNo))
-	binary.BigEndian.PutUint64(key[14:], seq)
-	return key
-}
-
-func NewStreamMetaKey(streamNo string) []byte {
-	key := make([]byte, 12)
-	key[0] = TableStreamMeta.Id[0]
-	key[1] = TableStreamMeta.Id[1]
-	key[2] = dataTypeTable
-	key[3] = 0
-	binary.BigEndian.PutUint64(key[4:], HashWithString(streamNo))
-	return key
-}
-
 // ---------------------- ConversationLocalUser ----------------------
 
 func NewConversationLocalUserKey(channelId string, channelType uint8, uid string) []byte {
@@ -1078,27 +1053,115 @@ func ParsePluginUserSecondIndexKey(key []byte) (columnValue uint64, id uint64, e
 
 }
 
-// ---------------------- TableStreamV2 ----------------------
+// ---------------------- TableMessageEvent ----------------------
 
-func NewStreamV2ColumnKey(clientMsgNo string, columnName [2]byte) []byte {
-	key := make([]byte, TableStreamV2.Size)
-	key[0] = TableStreamV2.Id[0]
-	key[1] = TableStreamV2.Id[1]
-	key[2] = dataTypeTable
+// ChannelHash computes the hash for the channel dimension key component.
+func ChannelHash(channelId string, channelType uint8) uint64 {
+	return HashWithString(channelId + ":" + strconv.FormatUint(uint64(channelType), 10))
+}
+
+func newMessageEventIndexKey(indexName [2]byte, channelHash uint64, columnValue uint64, seq uint64) []byte {
+	key := make([]byte, TableMessageEvent.IndexSize)
+	key[0] = TableMessageEvent.Id[0]
+	key[1] = TableMessageEvent.Id[1]
+	key[2] = dataTypeIndex
 	key[3] = 0
-	binary.BigEndian.PutUint64(key[4:], HashWithString(clientMsgNo))
-	key[12] = columnName[0]
-	key[13] = columnName[1]
+	key[4] = indexName[0]
+	key[5] = indexName[1]
+	binary.BigEndian.PutUint64(key[6:], channelHash)
+	binary.BigEndian.PutUint64(key[14:], columnValue)
+	binary.BigEndian.PutUint64(key[22:], seq)
 	return key
 }
 
-func ParseStreamV2ColumnKey(key []byte) (messageId int64, columnName [2]byte, err error) {
-	if len(key) != TableStreamV2.Size {
-		err = fmt.Errorf("streamV2: invalid key length, keyLen: %d", len(key))
+func NewMessageEventClientSeqKey(channelId string, channelType uint8, clientMsgNo string, msgEventSeq uint64) []byte {
+	return newMessageEventIndexKey(TableMessageEvent.Index.ClientSeq, ChannelHash(channelId, channelType), HashWithString(clientMsgNo), msgEventSeq)
+}
+
+func NewMessageEventClientSeqLowKey(channelId string, channelType uint8, clientMsgNo string) []byte {
+	return NewMessageEventClientSeqKey(channelId, channelType, clientMsgNo, 0)
+}
+
+func NewMessageEventClientSeqHighKey(channelId string, channelType uint8, clientMsgNo string) []byte {
+	return NewMessageEventClientSeqKey(channelId, channelType, clientMsgNo, math.MaxUint64)
+}
+
+func NewMessageEventClientLaneSeqKey(channelId string, channelType uint8, clientMsgNo, laneID string, msgEventSeq uint64) []byte {
+	return newMessageEventIndexKey(TableMessageEvent.Index.ClientLaneSeq, ChannelHash(channelId, channelType), HashWithString(clientMsgNo+":"+laneID), msgEventSeq)
+}
+
+func NewMessageEventClientLaneSeqLowKey(channelId string, channelType uint8, clientMsgNo, laneID string) []byte {
+	return NewMessageEventClientLaneSeqKey(channelId, channelType, clientMsgNo, laneID, 0)
+}
+
+func NewMessageEventClientLaneSeqHighKey(channelId string, channelType uint8, clientMsgNo, laneID string) []byte {
+	return NewMessageEventClientLaneSeqKey(channelId, channelType, clientMsgNo, laneID, math.MaxUint64)
+}
+
+func NewMessageEventIDIndexKey(channelId string, channelType uint8, clientMsgNo, eventID string) []byte {
+	return newMessageEventIndexKey(TableMessageEvent.Index.EventID, ChannelHash(channelId, channelType), HashWithString(clientMsgNo), HashWithString(eventID))
+}
+
+func ParseMessageEventIndexKey(key []byte) (indexName [2]byte, channelHash uint64, columnValue uint64, seq uint64, err error) {
+	if len(key) != TableMessageEvent.IndexSize {
+		err = fmt.Errorf("messageEvent: invalid index key length, keyLen: %d", len(key))
 		return
 	}
-	messageId = int64(binary.BigEndian.Uint64(key[4:]))
-	columnName[0] = key[12]
-	columnName[1] = key[13]
+	indexName[0] = key[4]
+	indexName[1] = key[5]
+	channelHash = binary.BigEndian.Uint64(key[6:])
+	columnValue = binary.BigEndian.Uint64(key[14:])
+	seq = binary.BigEndian.Uint64(key[22:])
 	return
+}
+
+// ---------------------- TableMessageLaneState ----------------------
+
+func NewMessageLaneStateKey(channelId string, channelType uint8, clientMsgNo, laneID string) []byte {
+	key := make([]byte, TableMessageLaneState.Size)
+	key[0] = TableMessageLaneState.Id[0]
+	key[1] = TableMessageLaneState.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], ChannelHash(channelId, channelType))
+	binary.BigEndian.PutUint64(key[12:], HashWithString(clientMsgNo))
+	binary.BigEndian.PutUint64(key[20:], HashWithString(laneID))
+	return key
+}
+
+func NewMessageLaneStateLowKey(channelId string, channelType uint8, clientMsgNo string) []byte {
+	key := make([]byte, TableMessageLaneState.Size)
+	key[0] = TableMessageLaneState.Id[0]
+	key[1] = TableMessageLaneState.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], ChannelHash(channelId, channelType))
+	binary.BigEndian.PutUint64(key[12:], HashWithString(clientMsgNo))
+	binary.BigEndian.PutUint64(key[20:], 0)
+	return key
+}
+
+func NewMessageLaneStateHighKey(channelId string, channelType uint8, clientMsgNo string) []byte {
+	key := make([]byte, TableMessageLaneState.Size)
+	key[0] = TableMessageLaneState.Id[0]
+	key[1] = TableMessageLaneState.Id[1]
+	key[2] = dataTypeTable
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], ChannelHash(channelId, channelType))
+	binary.BigEndian.PutUint64(key[12:], HashWithString(clientMsgNo))
+	binary.BigEndian.PutUint64(key[20:], math.MaxUint64)
+	return key
+}
+
+// ---------------------- TableMessageEventSeq ----------------------
+
+func NewMessageEventSeqKey(channelId string, channelType uint8, clientMsgNo string) []byte {
+	key := make([]byte, TableMessageEventSeq.Size)
+	key[0] = TableMessageEventSeq.Id[0]
+	key[1] = TableMessageEventSeq.Id[1]
+	key[2] = dataTypeOther
+	key[3] = 0
+	binary.BigEndian.PutUint64(key[4:], ChannelHash(channelId, channelType))
+	binary.BigEndian.PutUint64(key[12:], HashWithString(clientMsgNo))
+	return key
 }

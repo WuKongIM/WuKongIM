@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/eventbus"
@@ -200,7 +199,7 @@ func (h *Handler) toPersistMessages(channelId string, channelType uint8, events 
 	persists := make([]wkdb.Message, 0, len(events))
 	for _, e := range events {
 		sendPacket := e.Frame.(*wkproto.SendPacket)
-		if sendPacket.NoPersist || e.ReasonCode != wkproto.ReasonSuccess || strings.TrimSpace(e.StreamNo) != "" {
+		if sendPacket.NoPersist || e.ReasonCode != wkproto.ReasonSuccess {
 			continue
 		}
 

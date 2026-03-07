@@ -38,10 +38,6 @@ func (i *Ingress) SetRoutes() {
 	service.Cluster.Route("/wk/ingress/addTag", i.handleAddTag)
 	// 获取订阅者
 	service.Cluster.Route("/wk/ingress/getSubscribers", i.handleGetSubscribers)
-	// 获取流
-	service.Cluster.Route("/wk/ingress/getStreams", i.handleGetStreams)
-	// 获取流(v2)
-	service.Cluster.Route("/wk/ingress/getStreamsV2", i.handleGetStreamsV2)
 	// 处理转发的PersistAfter插件调用请求
 	service.Cluster.Route("/wk/ingress/persistAfter", i.handlePersistAfter)
 }
@@ -285,65 +281,3 @@ func (i *Ingress) handleGetSubscribers(c *wkserver.Context) {
 	c.Write(data)
 }
 
-func (i *Ingress) handleGetStreams(c *wkserver.Context) {
-	req := &StreamReq{}
-	err := req.Decode(c.Body())
-	if err != nil {
-		i.Error("handleGetStreams: decode failed", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
-
-	streamResps := make([]*Stream, 0, len(req.StreamNos))
-	for _, streamNo := range req.StreamNos {
-		streams, err := service.Store.GetStreams(streamNo)
-		if err != nil {
-			i.Error("handleGetStreams: get streams failed", zap.Error(err))
-			c.WriteErr(err)
-			return
-		}
-		for _, stream := range streams {
-			streamResps = append(streamResps, &Stream{
-				StreamNo: stream.StreamNo,
-				StreamId: stream.StreamId,
-				Payload:  stream.Payload,
-			})
-		}
-	}
-	resp := &StreamResp{
-		Streams: streamResps,
-	}
-	data, err := resp.Encode()
-	if err != nil {
-		i.Error("handleGetStreams: encode failed", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
-	c.Write(data)
-}
-
-func (i *Ingress) handleGetStreamsV2(c *wkserver.Context) {
-	req := &StreamReqV2{}
-	err := req.Decode(c.Body())
-	if err != nil {
-		i.Error("handleGetStreams: decode failed", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
-
-	streams, err := service.CommonService.GetStreamsForLocal(req.ClientMsgNos)
-	if err != nil {
-		i.Error("handleGetStreams: get streams failed", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
-	resp := StreamRespV2(streams)
-	data, err := resp.Encode()
-	if err != nil {
-		i.Error("handleGetStreams: encode failed", zap.Error(err))
-		c.WriteErr(err)
-		return
-	}
-	c.Write(data)
-
-}

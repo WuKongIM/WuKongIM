@@ -1386,6 +1386,102 @@
         }
       }
     },
+    "/message/eventappend": {
+      "post": {
+        "summary": "Append Message Event",
+        "description": "Append an event to a message's event stream. Events are sub-resources of messages, identified by `client_msg_no`. The message (anchor) must already exist before appending events.\n\n**Event lifecycle:** `stream.open` → `stream.delta` (×N) → `stream.close` / `stream.error` / `stream.cancel`\n\n**Routing:**\n- `stream.delta` events are processed entirely in the memory cache (no disk I/O), requiring a prior `stream.open` to initialize the cache session.\n- `stream.open` and terminal events (`stream.close`, `stream.error`, `stream.cancel`) are persisted via Raft proposal.\n- Requests are automatically forwarded to the slot leader node.",
+        "tags": ["Message Event"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventAppendRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Event appended successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/EventAppendResponse"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Possible causes: missing required fields, cache session not found (stream.delta without prior stream.open), stream already closed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/message/eventsync": {
+      "post": {
+        "summary": "Sync Message Events",
+        "description": "Retrieve events for a specific message by `client_msg_no`. Returns projected lane state snapshots (not individual event logs) ordered by `msg_event_seq`. Supports cursor-based pagination via `from_msg_event_seq` and optional lane filtering.\n\nRequests are automatically forwarded to the slot leader node.",
+        "tags": ["Message Event"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventSyncRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Events synced successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/EventSyncResponse"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/channel/messagesync": {
       "post": {
         "summary": "Sync Channel Messages",
@@ -4270,6 +4366,260 @@
             "type": "string",
             "description": "Plugin number",
             "example": "plugin_001"
+          }
+        }
+      },
+      "EventAppendRequest": {
+        "type": "object",
+        "required": ["channel_id", "client_msg_no", "event_id", "event_type"],
+        "description": "Append an event to a message's event stream.",
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "description": "Channel ID. For person-to-person channels, this is the peer's UID.",
+            "example": "user_002"
+          },
+          "channel_type": {
+            "type": "integer",
+            "description": "Channel type. 1 = person-to-person, 2 = group.",
+            "example": 1
+          },
+          "from_uid": {
+            "type": "string",
+            "description": "Sender UID. Defaults to system UID if omitted.",
+            "example": "user_001"
+          },
+          "client_msg_no": {
+            "type": "string",
+            "description": "Client message number of the anchor message. The message must already exist.",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "event_id": {
+            "type": "string",
+            "description": "Unique event identifier. Used for idempotency on persisted events (stream.open / terminal).",
+            "example": "evt_abc123"
+          },
+          "event_type": {
+            "type": "string",
+            "description": "Event type. Case-insensitive. Supported types: `stream.open`, `stream.delta`, `stream.snapshot`, `stream.close`, `stream.error`, `stream.cancel`.",
+            "example": "stream.delta",
+            "enum": ["stream.open", "stream.delta", "stream.snapshot", "stream.close", "stream.error", "stream.cancel"]
+          },
+          "lane_id": {
+            "type": "string",
+            "description": "Lane identifier for parallel event streams within a single message. Defaults to `main` if omitted.",
+            "example": "main",
+            "default": "main"
+          },
+          "visibility": {
+            "type": "string",
+            "description": "Event visibility. Used by eventsync to filter events.",
+            "example": "public"
+          },
+          "occurred_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Event timestamp in milliseconds since epoch. Auto-filled with current time if omitted.",
+            "example": 1709827200000
+          },
+          "payload": {
+            "type": "object",
+            "description": "Event payload. Structure depends on event_type. For text deltas: `{\"kind\":\"text\",\"delta\":\"...\"}`. For close: `{\"end_reason\":0}`. For error: `{\"error\":\"...\"}`. For non-text deltas: any JSON object.",
+            "example": {"kind": "text", "delta": "Hello"}
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Optional key-value headers attached to the event."
+          }
+        }
+      },
+      "EventAppendResponse": {
+        "type": "object",
+        "properties": {
+          "client_msg_no": {
+            "type": "string",
+            "description": "Client message number.",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "lane_id": {
+            "type": "string",
+            "description": "Lane ID (normalized, e.g. empty → \"main\").",
+            "example": "main"
+          },
+          "event_id": {
+            "type": "string",
+            "description": "Event ID echoed back.",
+            "example": "evt_abc123"
+          },
+          "msg_event_seq": {
+            "type": "integer",
+            "format": "uint64",
+            "description": "Message-level event sequence number. For delta events (cache path), this is the last persisted seq. For persisted events, this is the newly allocated seq.",
+            "example": 5
+          },
+          "stream_status": {
+            "type": "string",
+            "description": "Current lane status after applying this event.",
+            "enum": ["open", "closed", "error", "cancelled"],
+            "example": "open"
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "Channel ID (original, not fakeChannelID).",
+            "example": "user_002"
+          },
+          "channel_type": {
+            "type": "integer",
+            "description": "Channel type.",
+            "example": 1
+          },
+          "from_uid": {
+            "type": "string",
+            "description": "Sender UID.",
+            "example": "user_001"
+          }
+        }
+      },
+      "EventSyncRequest": {
+        "type": "object",
+        "required": ["channel_id", "client_msg_no"],
+        "description": "Sync events for a specific message.",
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "description": "Channel ID.",
+            "example": "user_002"
+          },
+          "channel_type": {
+            "type": "integer",
+            "description": "Channel type. 1 = person, 2 = group.",
+            "example": 1
+          },
+          "from_uid": {
+            "type": "string",
+            "description": "Sender UID. Required for person-to-person channels to compute the internal channel ID.",
+            "example": "user_001"
+          },
+          "client_msg_no": {
+            "type": "string",
+            "description": "Client message number to sync events for.",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "lane_id": {
+            "type": "string",
+            "description": "Optional lane filter. If set, only events from this lane are returned.",
+            "example": "main"
+          },
+          "from_msg_event_seq": {
+            "type": "integer",
+            "format": "uint64",
+            "description": "Cursor: only return events with `msg_event_seq > from_msg_event_seq`. Use 0 to fetch from the beginning.",
+            "example": 0,
+            "default": 0
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of events to return. Default 200, max 2000.",
+            "example": 50,
+            "default": 200,
+            "maximum": 2000
+          },
+          "include_private": {
+            "type": "integer",
+            "description": "Set to 1 to include events with `private` or `restricted` visibility. Default 0 (exclude).",
+            "example": 0,
+            "default": 0
+          }
+        }
+      },
+      "EventSyncResponse": {
+        "type": "object",
+        "properties": {
+          "client_msg_no": {
+            "type": "string",
+            "description": "Echoed client message number.",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "from_msg_event_seq": {
+            "type": "integer",
+            "format": "uint64",
+            "description": "The cursor that was passed in the request.",
+            "example": 0
+          },
+          "next_msg_event_seq": {
+            "type": "integer",
+            "format": "uint64",
+            "description": "Cursor for the next page. Pass this as `from_msg_event_seq` in the next request.",
+            "example": 5
+          },
+          "more": {
+            "type": "integer",
+            "description": "1 if there are more events beyond this page, 0 otherwise.",
+            "example": 0
+          },
+          "filtered_by_lane_id": {
+            "type": "string",
+            "description": "The lane_id filter that was applied, empty string if no filter.",
+            "example": ""
+          },
+          "events": {
+            "type": "array",
+            "description": "List of projected event snapshots, ordered by msg_event_seq ascending.",
+            "items": {
+              "$ref": "#/components/schemas/EventSyncItem"
+            }
+          }
+        }
+      },
+      "EventSyncItem": {
+        "type": "object",
+        "description": "A projected event snapshot built from the lane state. This is NOT the original event payload but a merged view.",
+        "properties": {
+          "msg_event_seq": {
+            "type": "integer",
+            "format": "uint64",
+            "description": "Event sequence number.",
+            "example": 3
+          },
+          "event_id": {
+            "type": "string",
+            "description": "Last event ID that updated this lane.",
+            "example": "evt_close_1"
+          },
+          "lane_id": {
+            "type": "string",
+            "description": "Lane identifier.",
+            "example": "main"
+          },
+          "event_type": {
+            "type": "string",
+            "description": "Last event type applied to this lane.",
+            "example": "stream.close"
+          },
+          "visibility": {
+            "type": "string",
+            "description": "Visibility of the last event.",
+            "example": "public"
+          },
+          "occurred_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Timestamp of the last event in milliseconds.",
+            "example": 1709827200000
+          },
+          "payload": {
+            "type": "object",
+            "description": "Merged snapshot payload. For text streams, this is `{\"kind\":\"text\",\"text\":\"accumulated text\"}`. For non-text, this is the last delta payload or a status summary."
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Event headers (if any)."
           }
         }
       },

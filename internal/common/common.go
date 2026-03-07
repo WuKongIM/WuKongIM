@@ -11,8 +11,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/options"
 	"github.com/WuKongIM/WuKongIM/internal/service"
 	"github.com/WuKongIM/WuKongIM/internal/types"
-	"github.com/WuKongIM/WuKongIM/pkg/wkcache"
-	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/WuKongIM/pkg/wknet"
 	wkproto "github.com/WuKongIM/WuKongIMGoProto"
@@ -146,44 +144,6 @@ func (s *Service) getOrMakePersonTag(fakeChannelId string) (*types.Tag, error) {
 	}
 	service.TagManager.SetChannelTag(fakeChannelId, wkproto.ChannelTypePerson, tag.Key)
 	return tag, nil
-}
-
-func (s *Service) GetStreamsForLocal(clientMsgNos []string) ([]*wkdb.StreamV2, error) {
-	streamResps := make([]*wkdb.StreamV2, 0, len(clientMsgNos)) // 流消息集合
-	noCacheClientMsgNos := make([]string, 0, len(clientMsgNos)) // 没有缓存的流消息id
-	for _, clientMsgNo := range clientMsgNos {
-		stream, err := service.StreamCache.GetStream(clientMsgNo)
-		if err != nil && err != wkcache.ErrStreamNotFound {
-			s.Warn("GetStreams: get stream failed", zap.Error(err), zap.String("clientMsgNo", clientMsgNo))
-			continue
-		}
-		if stream == nil {
-			noCacheClientMsgNos = append(noCacheClientMsgNos, clientMsgNo)
-			continue
-		}
-		meta := stream.Meta
-		payload := service.StreamCache.GetStreamData(stream)
-		streamResps = append(streamResps, &wkdb.StreamV2{
-			ClientMsgNo: clientMsgNo,
-			MessageId:   meta.MessageId,
-			ChannelId:   meta.ChannelId,
-			ChannelType: meta.ChannelType,
-			FromUid:     meta.FromUid,
-			End:         meta.EndReason,
-			EndReason:   meta.EndReason,
-			Payload:     payload,
-		})
-	}
-
-	if len(noCacheClientMsgNos) > 0 {
-		streamV2s, err := service.Store.GetStreamV2s(noCacheClientMsgNos)
-		if err != nil {
-			s.Warn("GetStreams: get stream failed", zap.Error(err))
-			return nil, err
-		}
-		streamResps = append(streamResps, streamV2s...)
-	}
-	return streamResps, nil
 }
 
 // 检查连接的真实性 并获取真实连接

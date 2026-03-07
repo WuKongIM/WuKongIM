@@ -631,8 +631,6 @@ func newDBMessage(m *types.MessageResp) wkdb.Message {
 			MessageID:   m.MessageId,
 			MessageSeq:  uint32(m.MessageSeq),
 			ClientMsgNo: m.ClientMsgNo,
-			StreamNo:    m.StreamNo,
-			StreamId:    m.StreamId,
 			Timestamp:   m.Timestamp,
 			ChannelID:   m.ChannelID,
 			ChannelType: m.ChannelType,

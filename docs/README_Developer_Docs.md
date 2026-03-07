@@ -32,6 +32,36 @@
 
 **适合人群：** 已经熟悉项目，需要快速查阅的开发者
 
+### 3. [消息地基 + 通用事件流设计](./Message_Event_Stream_Design.md)
+**面向流式场景的设计文档，包含：**
+- 消息与事件的聚合关系（事件必须挂消息）
+- `eventappend` / `eventsync` 接口设计
+- `messagesync` 的离线兼容扩展
+- 单流与多流（`lane_id`）示例
+- 幂等、顺序与迁移策略
+
+**适合人群：** 需要实现流式事件（文本、工具、状态流）和离线同步的开发者
+
+### 4. [事件合并规则（独立文档）](./Event_Merge_Rules.md)
+**聚焦离线合并逻辑的规则文档，包含：**
+- 基于 `client_msg_no + lane_id` 的确定性合并规则
+- 通用事件类型（`stream.open/delta/snapshot/close/error/cancel`）状态机
+- `payload.kind` 的分类型合并策略（text/tool/workflow/binary）
+- `messagesync` 返回字段映射与兼容规则
+- 文本流、工具流、多轨道消息的完整示例
+
+**适合人群：** 需要实现离线聚合、回放一致性和高性能读取路径的开发者
+
+### 5. [事件流 DB 方法与伪代码](./Event_DB_Methods_Pseudocode.md)
+**聚焦存储层落地的实现文档，包含：**
+- `MessageEventLog` / `MessageLaneState` / `event_id` 索引 / 序号分配器
+- 贴合 `wkdb + pebble` 的 key 组织建议
+- DB 方法签名（追加、查询、游标拉取）
+- 写路径原子提交、离线读取、游标读取伪代码
+- API 到 DB 的调用映射关系
+
+**适合人群：** 需要实现或评审存储层代码的开发者
+
 ## 🏗️ 架构概览
 
 WuKongIM 是一个高性能的分布式即时通讯服务，采用去中心化设计，具有以下核心特性：
