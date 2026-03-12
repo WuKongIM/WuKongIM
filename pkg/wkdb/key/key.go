@@ -1086,16 +1086,16 @@ func NewMessageEventClientSeqHighKey(channelId string, channelType uint8, client
 	return NewMessageEventClientSeqKey(channelId, channelType, clientMsgNo, math.MaxUint64)
 }
 
-func NewMessageEventClientLaneSeqKey(channelId string, channelType uint8, clientMsgNo, laneID string, msgEventSeq uint64) []byte {
-	return newMessageEventIndexKey(TableMessageEvent.Index.ClientLaneSeq, ChannelHash(channelId, channelType), HashWithString(clientMsgNo+":"+laneID), msgEventSeq)
+func NewMessageEventKeySeqKey(channelId string, channelType uint8, clientMsgNo, eventKey string, msgEventSeq uint64) []byte {
+	return newMessageEventIndexKey(TableMessageEvent.Index.ClientKeySeq, ChannelHash(channelId, channelType), HashWithString(clientMsgNo+":"+eventKey), msgEventSeq)
 }
 
-func NewMessageEventClientLaneSeqLowKey(channelId string, channelType uint8, clientMsgNo, laneID string) []byte {
-	return NewMessageEventClientLaneSeqKey(channelId, channelType, clientMsgNo, laneID, 0)
+func NewMessageEventKeySeqLowKey(channelId string, channelType uint8, clientMsgNo, eventKey string) []byte {
+	return NewMessageEventKeySeqKey(channelId, channelType, clientMsgNo, eventKey, 0)
 }
 
-func NewMessageEventClientLaneSeqHighKey(channelId string, channelType uint8, clientMsgNo, laneID string) []byte {
-	return NewMessageEventClientLaneSeqKey(channelId, channelType, clientMsgNo, laneID, math.MaxUint64)
+func NewMessageEventKeySeqHighKey(channelId string, channelType uint8, clientMsgNo, eventKey string) []byte {
+	return NewMessageEventKeySeqKey(channelId, channelType, clientMsgNo, eventKey, math.MaxUint64)
 }
 
 func NewMessageEventIDIndexKey(channelId string, channelType uint8, clientMsgNo, eventID string) []byte {
@@ -1115,24 +1115,24 @@ func ParseMessageEventIndexKey(key []byte) (indexName [2]byte, channelHash uint6
 	return
 }
 
-// ---------------------- TableMessageLaneState ----------------------
+// ---------------------- TableMessageEventState ----------------------
 
-func NewMessageLaneStateKey(channelId string, channelType uint8, clientMsgNo, laneID string) []byte {
-	key := make([]byte, TableMessageLaneState.Size)
-	key[0] = TableMessageLaneState.Id[0]
-	key[1] = TableMessageLaneState.Id[1]
+func NewMessageEventStateKey(channelId string, channelType uint8, clientMsgNo, eventKey string) []byte {
+	key := make([]byte, TableMessageEventState.Size)
+	key[0] = TableMessageEventState.Id[0]
+	key[1] = TableMessageEventState.Id[1]
 	key[2] = dataTypeTable
 	key[3] = 0
 	binary.BigEndian.PutUint64(key[4:], ChannelHash(channelId, channelType))
 	binary.BigEndian.PutUint64(key[12:], HashWithString(clientMsgNo))
-	binary.BigEndian.PutUint64(key[20:], HashWithString(laneID))
+	binary.BigEndian.PutUint64(key[20:], HashWithString(eventKey))
 	return key
 }
 
-func NewMessageLaneStateLowKey(channelId string, channelType uint8, clientMsgNo string) []byte {
-	key := make([]byte, TableMessageLaneState.Size)
-	key[0] = TableMessageLaneState.Id[0]
-	key[1] = TableMessageLaneState.Id[1]
+func NewMessageEventStateLowKey(channelId string, channelType uint8, clientMsgNo string) []byte {
+	key := make([]byte, TableMessageEventState.Size)
+	key[0] = TableMessageEventState.Id[0]
+	key[1] = TableMessageEventState.Id[1]
 	key[2] = dataTypeTable
 	key[3] = 0
 	binary.BigEndian.PutUint64(key[4:], ChannelHash(channelId, channelType))
@@ -1141,10 +1141,10 @@ func NewMessageLaneStateLowKey(channelId string, channelType uint8, clientMsgNo 
 	return key
 }
 
-func NewMessageLaneStateHighKey(channelId string, channelType uint8, clientMsgNo string) []byte {
-	key := make([]byte, TableMessageLaneState.Size)
-	key[0] = TableMessageLaneState.Id[0]
-	key[1] = TableMessageLaneState.Id[1]
+func NewMessageEventStateHighKey(channelId string, channelType uint8, clientMsgNo string) []byte {
+	key := make([]byte, TableMessageEventState.Size)
+	key[0] = TableMessageEventState.Id[0]
+	key[1] = TableMessageEventState.Id[1]
 	key[2] = dataTypeTable
 	key[3] = 0
 	binary.BigEndian.PutUint64(key[4:], ChannelHash(channelId, channelType))

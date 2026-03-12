@@ -620,7 +620,7 @@ func (s *Store) handleAppendMessageEvent(cmd *CMD) error {
 	if err != nil {
 		return err
 	}
-	_, _, err = s.wdb.AppendMessageEventWithLaneState(event)
+	_, _, err = s.wdb.AppendMessageEventWithState(event)
 	return err
 }
 

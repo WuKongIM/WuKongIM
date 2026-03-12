@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -50,7 +51,7 @@ func convertMessagesToResp(messages []wkdb.Message) types.MessageRespSlice {
 	return messageResps
 }
 
-// enrichStreamMessages 使用消息事件系统填充流消息的 legacy 字段
+// enrichStreamMessages 使用消息事件系统填充流消息的 EventMeta 和 legacy 字段
 func (s *request) enrichStreamMessages(channelId string, channelType uint8, messageResps types.MessageRespSlice) error {
 	if len(messageResps) == 0 {
 		return nil
@@ -67,9 +68,9 @@ func (s *request) enrichStreamMessages(channelId string, channelType uint8, mess
 		return nil
 	}
 
-	allLaneStates, err := service.Store.GetMessageLaneStatesBatch(channelId, channelType, clientMsgNos)
+	allEventStates, err := service.Store.GetMessageEventStatesBatch(channelId, channelType, clientMsgNos)
 	if err != nil {
-		s.Error("enrichStreamMessages: GetMessageLaneStatesBatch failed", zap.Error(err))
+		s.Error("enrichStreamMessages: GetMessageEventStatesBatch failed", zap.Error(err))
 		return err
 	}
 
@@ -78,20 +79,62 @@ func (s *request) enrichStreamMessages(channelId string, channelType uint8, mess
 		if !setting.IsSet(wkproto.SettingStream) {
 			continue
 		}
-		laneStates := allLaneStates[msg.ClientMsgNo]
-		if len(laneStates) == 0 {
+		eventStates := mergeEventStatesWithCache(channelId, channelType, msg.ClientMsgNo, allEventStates[msg.ClientMsgNo])
+		if len(eventStates) == 0 {
 			continue
 		}
-		mainState := findMainLaneState(laneStates)
-		if mainState == nil {
-			continue
+
+		// 构建 EventMeta
+		meta := &types.MessageEventMeta{
+			HasEvents: true,
+			Events:    make([]*types.MessageEventKeyMeta, 0, len(eventStates)),
 		}
-		if len(mainState.SnapshotPayload) > 0 {
-			msg.StreamData = toLegacyStreamData(mainState.SnapshotPayload)
+		for _, eventState := range eventStates {
+			if eventState.EventKey == wkdb.EventKeyFinish {
+				meta.Completed = true
+				continue
+			}
+			keyMeta := &types.MessageEventKeyMeta{
+				EventKey:        eventState.EventKey,
+				Status:          eventState.Status,
+				LastMsgEventSeq: eventState.LastMsgEventSeq,
+				EndReason:       eventState.EndReason,
+				Error:           eventState.Error,
+			}
+			if eventState.LastMsgEventSeq > meta.LastMsgEventSeq {
+				meta.LastMsgEventSeq = eventState.LastMsgEventSeq
+			}
+			if eventState.Status == wkdb.EventStatusOpen {
+				meta.OpenEventCount++
+			}
+			if len(eventState.SnapshotPayload) > 0 {
+				var snapshot interface{}
+				if err := json.Unmarshal(eventState.SnapshotPayload, &snapshot); err != nil {
+					keyMeta.Snapshot = string(eventState.SnapshotPayload)
+				} else {
+					keyMeta.Snapshot = snapshot
+				}
+			}
+			meta.Events = append(meta.Events, keyMeta)
 		}
-		msg.End = toLegacyEnd(mainState.Status)
-		msg.EndReason = mainState.EndReason
-		msg.Error = mainState.Error
+		meta.EventCount = len(meta.Events)
+		meta.EventVersion = meta.LastMsgEventSeq
+		msg.EventMeta = meta
+		msg.EventHint = &types.MessageEventSyncHint{
+			ClientMsgNo:     msg.ClientMsgNo,
+			FromMsgEventSeq: 0,
+		}
+
+		// 填充 legacy 字段
+		mainState := findMainEventState(eventStates)
+		if mainState != nil {
+			if len(mainState.SnapshotPayload) > 0 {
+				msg.StreamData = toLegacyStreamData(mainState.SnapshotPayload)
+			}
+			msg.End = toLegacyEnd(mainState.Status)
+			msg.EndReason = mainState.EndReason
+			msg.Error = mainState.Error
+		}
 	}
 	return nil
 }

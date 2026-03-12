@@ -472,6 +472,29 @@ export default class API {
         })
     }
 
+    // 同步消息事件
+    public messageEventSync(req: {
+        channelId: string,
+        channelType: number,
+        clientMsgNo: string,
+        fromUid?: string,
+        eventKey?: string,
+        fromMsgEventSeq?: number,
+        limit?: number,
+        includePrivate?: number,
+    }): Promise<any> {
+        return APIClient.shared.post("/cluster/message/eventsync", {
+            channel_id: req.channelId,
+            channel_type: req.channelType,
+            client_msg_no: req.clientMsgNo,
+            from_uid: req.fromUid || '',
+            event_key: req.eventKey || '',
+            from_msg_event_seq: req.fromMsgEventSeq || 0,
+            limit: req.limit || 50,
+            include_private: req.includePrivate || 1,
+        })
+    }
+
 }
 
 export class SystemSetting {

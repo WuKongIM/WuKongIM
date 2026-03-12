@@ -7,13 +7,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.uber.org/zap"
 )
 
 var (
 	ErrMessageEventSessionNotFound = errors.New("message event session not found")
-	ErrMessageEventLaneNotFound    = errors.New("message event lane not found")
+	ErrMessageEventKeyNotFound     = errors.New("message event key not found")
 	ErrMessageEventChannelMismatch = errors.New("message event channel mismatch")
 	ErrInvalidClientMsgNo          = errors.New("invalid client_msg_no")
 	ErrStreamClosed                = errors.New("stream closed")
@@ -32,16 +33,16 @@ type MessageEventCacheOptions struct {
 }
 
 type MessageEventSessionMeta struct {
-	ClientMsgNo string
-	ChannelId   string
-	ChannelType uint8
-	FromUid     string
-	MessageID   int64
-	MessageSeq  uint64
+	ClientMsgNo       string
+	ChannelId         string // 存储的是 fakeChannelId
+	ChannelType       uint8
+	FromUid           string
+	OriginalChannelId string // 原始频道 ID（用于响应和推送）
+	MessageId         int64  // 消息 ID（用于推送）
 }
 
-type MessageEventLaneState struct {
-	LaneID          string
+type EventKeyState struct {
+	EventKey        string
 	PersistedSeq    uint64
 	Status          string
 	LastEventID     string
@@ -55,7 +56,7 @@ type MessageEventLaneState struct {
 
 type messageEventSession struct {
 	meta      MessageEventSessionMeta
-	lanes     map[string]*MessageEventLaneState
+	keyStates map[string]*EventKeyState
 	createdAt time.Time
 	updatedAt time.Time
 }
@@ -104,6 +105,50 @@ func (c *MessageEventCache) Close() error {
 	return nil
 }
 
+// RegisterStreamMessage 注册流式消息元信息（仅创建 session，不创建 event key），
+// 用于 /message/send 时缓存元信息，供后续 eventappend 自动填充 from_uid、message_id。
+func (c *MessageEventCache) RegisterStreamMessage(meta MessageEventSessionMeta) error {
+	meta.ClientMsgNo = strings.TrimSpace(meta.ClientMsgNo)
+	if meta.ClientMsgNo == "" {
+		return ErrInvalidClientMsgNo
+	}
+	now := time.Now()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if _, ok := c.sessions[meta.ClientMsgNo]; ok {
+		return nil // 已存在，跳过
+	}
+	if len(c.sessions) >= c.opts.MaxSessions {
+		c.evictOneLocked()
+	}
+	c.sessions[meta.ClientMsgNo] = &messageEventSession{
+		meta:      meta,
+		keyStates: make(map[string]*EventKeyState),
+		createdAt: now,
+		updatedAt: now,
+	}
+	return nil
+}
+
+// GetSessionMetaByClientMsgNo 仅通过 client_msg_no 查找 session 元信息（不校验 channel），
+// 用于 eventappend 自动填充缺失字段。
+func (c *MessageEventCache) GetSessionMetaByClientMsgNo(clientMsgNo string) (*MessageEventSessionMeta, bool) {
+	clientMsgNo = strings.TrimSpace(clientMsgNo)
+	if clientMsgNo == "" {
+		return nil, false
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	s, ok := c.sessions[clientMsgNo]
+	if !ok {
+		return nil, false
+	}
+	meta := s.meta
+	return &meta, true
+}
+
 func (c *MessageEventCache) GetSessionMeta(clientMsgNo, channelId string, channelType uint8) (*MessageEventSessionMeta, bool) {
 	clientMsgNo = strings.TrimSpace(clientMsgNo)
 	if clientMsgNo == "" {
@@ -124,9 +169,41 @@ func (c *MessageEventCache) GetSessionMeta(clientMsgNo, channelId string, channe
 	return &meta, true
 }
 
-func (c *MessageEventCache) UpsertSession(meta MessageEventSessionMeta, laneID string, persistedSeq uint64) (*MessageEventLaneState, error) {
+// GetEventKeyStates returns all EventKeyState entries for a session.
+// Returns nil, false if the session does not exist or channel mismatches.
+func (c *MessageEventCache) GetEventKeyStates(clientMsgNo, channelId string, channelType uint8) ([]EventKeyState, bool) {
+	clientMsgNo = strings.TrimSpace(clientMsgNo)
+	if clientMsgNo == "" {
+		return nil, false
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	s, ok := c.sessions[clientMsgNo]
+	if !ok {
+		return nil, false
+	}
+	if s.meta.ChannelId != channelId || s.meta.ChannelType != channelType {
+		return nil, false
+	}
+	if len(s.keyStates) == 0 {
+		return nil, false
+	}
+
+	result := make([]EventKeyState, 0, len(s.keyStates))
+	for _, ks := range s.keyStates {
+		if ks == nil {
+			continue
+		}
+		result = append(result, *cloneEventKeyState(ks))
+	}
+	return result, true
+}
+
+func (c *MessageEventCache) UpsertSession(meta MessageEventSessionMeta, eventKey string, persistedSeq uint64) (*EventKeyState, error) {
 	meta.ClientMsgNo = strings.TrimSpace(meta.ClientMsgNo)
-	laneID = normalizeMessageEventLaneID(laneID)
+	eventKey = normalizeEventKey(eventKey)
 	if meta.ClientMsgNo == "" {
 		return nil, ErrInvalidClientMsgNo
 	}
@@ -142,7 +219,7 @@ func (c *MessageEventCache) UpsertSession(meta MessageEventSessionMeta, laneID s
 		}
 		s = &messageEventSession{
 			meta:      meta,
-			lanes:     make(map[string]*MessageEventLaneState),
+			keyStates: make(map[string]*EventKeyState),
 			createdAt: now,
 			updatedAt: now,
 		}
@@ -154,81 +231,39 @@ func (c *MessageEventCache) UpsertSession(meta MessageEventSessionMeta, laneID s
 		if strings.TrimSpace(meta.FromUid) != "" {
 			s.meta.FromUid = meta.FromUid
 		}
-		if meta.MessageID > 0 {
-			s.meta.MessageID = meta.MessageID
+		if strings.TrimSpace(meta.OriginalChannelId) != "" {
+			s.meta.OriginalChannelId = meta.OriginalChannelId
 		}
-		if meta.MessageSeq > 0 {
-			s.meta.MessageSeq = meta.MessageSeq
+		if meta.MessageId != 0 {
+			s.meta.MessageId = meta.MessageId
 		}
 		s.updatedAt = now
 	}
 
-	lane := s.lanes[laneID]
-	if lane == nil {
-		lane = &MessageEventLaneState{
-			LaneID:    laneID,
-			Status:    "open",
+	ks := s.keyStates[eventKey]
+	if ks == nil {
+		ks = &EventKeyState{
+			EventKey:  eventKey,
+			Status:    wkdb.EventStatusOpen,
 			UpdatedAt: now,
 		}
-		s.lanes[laneID] = lane
+		s.keyStates[eventKey] = ks
 	}
-	if persistedSeq > lane.PersistedSeq {
-		lane.PersistedSeq = persistedSeq
+	if persistedSeq > ks.PersistedSeq {
+		ks.PersistedSeq = persistedSeq
 	}
-	if lane.Status == "" {
-		lane.Status = "open"
+	if ks.Status == "" {
+		ks.Status = wkdb.EventStatusOpen
 	}
-	lane.UpdatedAt = now
-	return cloneLaneState(lane), nil
-}
-
-func (c *MessageEventCache) AppendTextDelta(clientMsgNo, channelId string, channelType uint8, laneID, eventID, eventType, visibility string, occurredAt int64, delta string) (*MessageEventLaneState, error) {
-	clientMsgNo = strings.TrimSpace(clientMsgNo)
-	laneID = normalizeMessageEventLaneID(laneID)
-	if clientMsgNo == "" {
-		return nil, ErrInvalidClientMsgNo
-	}
-	if strings.TrimSpace(delta) == "" {
-		return nil, nil
-	}
-
-	now := time.Now()
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	s, ok := c.sessions[clientMsgNo]
-	if !ok {
-		return nil, ErrMessageEventSessionNotFound
-	}
-	if s.meta.ChannelId != channelId || s.meta.ChannelType != channelType {
-		return nil, ErrMessageEventChannelMismatch
-	}
-
-	lane := s.lanes[laneID]
-	if lane == nil {
-		return nil, ErrMessageEventLaneNotFound
-	}
-	if isMessageEventLaneTerminal(lane.Status) {
-		return nil, ErrStreamClosed
-	}
-
-	lane.TextSnapshot += delta
-	lane.LastEventID = strings.TrimSpace(eventID)
-	lane.LastEventType = strings.TrimSpace(eventType)
-	lane.LastVisibility = strings.TrimSpace(visibility)
-	lane.LastOccurredAt = occurredAt
-	lane.Status = "open"
-	lane.UpdatedAt = now
-	s.updatedAt = now
-
-	return cloneLaneState(lane), nil
+	ks.UpdatedAt = now
+	return cloneEventKeyState(ks), nil
 }
 
 // AppendDelta handles any stream.delta event via cache. For text kind, it accumulates
 // the delta string. For other kinds, it stores the raw payload as the snapshot.
-func (c *MessageEventCache) AppendDelta(clientMsgNo, channelId string, channelType uint8, laneID, eventID, eventType, visibility string, occurredAt int64, payload []byte) (*MessageEventLaneState, error) {
+func (c *MessageEventCache) AppendDelta(clientMsgNo, channelId string, channelType uint8, eventKey, eventID, eventType, visibility string, occurredAt int64, payload []byte) (*EventKeyState, error) {
 	clientMsgNo = strings.TrimSpace(clientMsgNo)
-	laneID = normalizeMessageEventLaneID(laneID)
+	eventKey = normalizeEventKey(eventKey)
 	if clientMsgNo == "" {
 		return nil, ErrInvalidClientMsgNo
 	}
@@ -245,34 +280,34 @@ func (c *MessageEventCache) AppendDelta(clientMsgNo, channelId string, channelTy
 		return nil, ErrMessageEventChannelMismatch
 	}
 
-	lane := s.lanes[laneID]
-	if lane == nil {
-		return nil, ErrMessageEventLaneNotFound
+	ks := s.keyStates[eventKey]
+	if ks == nil {
+		return nil, ErrMessageEventKeyNotFound
 	}
-	if isMessageEventLaneTerminal(lane.Status) {
+	if isEventKeyTerminal(ks.Status) {
 		return nil, ErrStreamClosed
 	}
 
 	if textDelta := extractCacheTextDelta(payload); textDelta != "" {
-		lane.TextSnapshot += textDelta
+		ks.TextSnapshot += textDelta
 	} else if len(payload) > 0 {
-		lane.SnapshotPayload = append([]byte(nil), payload...)
+		ks.SnapshotPayload = append([]byte(nil), payload...)
 	}
 
-	lane.LastEventID = strings.TrimSpace(eventID)
-	lane.LastEventType = strings.TrimSpace(eventType)
-	lane.LastVisibility = strings.TrimSpace(visibility)
-	lane.LastOccurredAt = occurredAt
-	lane.Status = "open"
-	lane.UpdatedAt = now
+	ks.LastEventID = strings.TrimSpace(eventID)
+	ks.LastEventType = strings.TrimSpace(eventType)
+	ks.LastVisibility = strings.TrimSpace(visibility)
+	ks.LastOccurredAt = occurredAt
+	ks.Status = wkdb.EventStatusOpen
+	ks.UpdatedAt = now
 	s.updatedAt = now
 
-	return cloneLaneState(lane), nil
+	return cloneEventKeyState(ks), nil
 }
 
-func (c *MessageEventCache) BuildTerminalPayload(clientMsgNo, channelId string, channelType uint8, laneID string, payload []byte, eventID, eventType, visibility string, occurredAt int64) ([]byte, *MessageEventLaneState, error) {
+func (c *MessageEventCache) BuildTerminalPayload(clientMsgNo, channelId string, channelType uint8, eventKey string, payload []byte, eventID, eventType, visibility string, occurredAt int64) ([]byte, *EventKeyState, error) {
 	clientMsgNo = strings.TrimSpace(clientMsgNo)
-	laneID = normalizeMessageEventLaneID(laneID)
+	eventKey = normalizeEventKey(eventKey)
 	if clientMsgNo == "" {
 		return payload, nil, ErrInvalidClientMsgNo
 	}
@@ -288,27 +323,27 @@ func (c *MessageEventCache) BuildTerminalPayload(clientMsgNo, channelId string, 
 	if s.meta.ChannelId != channelId || s.meta.ChannelType != channelType {
 		return payload, nil, ErrMessageEventChannelMismatch
 	}
-	lane := s.lanes[laneID]
-	if lane == nil {
-		return payload, nil, ErrMessageEventLaneNotFound
+	ks := s.keyStates[eventKey]
+	if ks == nil {
+		return payload, nil, ErrMessageEventKeyNotFound
 	}
 
-	lane.LastEventID = strings.TrimSpace(eventID)
-	lane.LastEventType = strings.TrimSpace(eventType)
-	lane.LastVisibility = strings.TrimSpace(visibility)
-	lane.LastOccurredAt = occurredAt
-	lane.UpdatedAt = now
+	ks.LastEventID = strings.TrimSpace(eventID)
+	ks.LastEventType = strings.TrimSpace(eventType)
+	ks.LastVisibility = strings.TrimSpace(visibility)
+	ks.LastOccurredAt = occurredAt
+	ks.UpdatedAt = now
 	s.updatedAt = now
 
-	if lane.TextSnapshot == "" && len(lane.SnapshotPayload) == 0 {
-		return payload, cloneLaneState(lane), nil
+	if ks.TextSnapshot == "" && len(ks.SnapshotPayload) == 0 {
+		return payload, cloneEventKeyState(ks), nil
 	}
-	return mergeTerminalPayloadWithSnapshot(payload, lane.TextSnapshot, lane.SnapshotPayload), cloneLaneState(lane), nil
+	return mergeTerminalPayloadWithSnapshot(payload, ks.TextSnapshot, ks.SnapshotPayload), cloneEventKeyState(ks), nil
 }
 
-func (c *MessageEventCache) MarkLanePersisted(clientMsgNo, channelId string, channelType uint8, laneID, status string, persistedSeq uint64) error {
+func (c *MessageEventCache) MarkEventKeyPersisted(clientMsgNo, channelId string, channelType uint8, eventKey, status string, persistedSeq uint64) error {
 	clientMsgNo = strings.TrimSpace(clientMsgNo)
-	laneID = normalizeMessageEventLaneID(laneID)
+	eventKey = normalizeEventKey(eventKey)
 	if clientMsgNo == "" {
 		return ErrInvalidClientMsgNo
 	}
@@ -325,24 +360,24 @@ func (c *MessageEventCache) MarkLanePersisted(clientMsgNo, channelId string, cha
 		return ErrMessageEventChannelMismatch
 	}
 
-	lane := s.lanes[laneID]
-	if lane == nil {
-		lane = &MessageEventLaneState{
-			LaneID:    laneID,
+	ks := s.keyStates[eventKey]
+	if ks == nil {
+		ks = &EventKeyState{
+			EventKey:  eventKey,
 			UpdatedAt: now,
 		}
-		s.lanes[laneID] = lane
+		s.keyStates[eventKey] = ks
 	}
-	if persistedSeq > lane.PersistedSeq {
-		lane.PersistedSeq = persistedSeq
+	if persistedSeq > ks.PersistedSeq {
+		ks.PersistedSeq = persistedSeq
 	}
 	if strings.TrimSpace(status) != "" {
-		lane.Status = strings.TrimSpace(status)
+		ks.Status = strings.TrimSpace(status)
 	}
-	lane.UpdatedAt = now
+	ks.UpdatedAt = now
 	s.updatedAt = now
 
-	if allMessageEventLanesTerminal(s.lanes) {
+	if allEventKeysTerminal(s.keyStates) {
 		delete(c.sessions, clientMsgNo)
 	}
 	return nil
@@ -394,45 +429,45 @@ func (c *MessageEventCache) evictOneLocked() {
 	}
 }
 
-func normalizeMessageEventLaneID(laneID string) string {
-	laneID = strings.TrimSpace(laneID)
-	if laneID == "" {
-		return "main"
+func normalizeEventKey(eventKey string) string {
+	eventKey = strings.TrimSpace(eventKey)
+	if eventKey == "" {
+		return wkdb.EventKeyDefault
 	}
-	return laneID
+	return eventKey
 }
 
-func isMessageEventLaneTerminal(status string) bool {
+func isEventKeyTerminal(status string) bool {
 	switch status {
-	case "closed", "error", "cancelled":
+	case wkdb.EventStatusClosed, wkdb.EventStatusError, wkdb.EventStatusCancelled:
 		return true
 	default:
 		return false
 	}
 }
 
-func allMessageEventLanesTerminal(lanes map[string]*MessageEventLaneState) bool {
-	if len(lanes) == 0 {
+func allEventKeysTerminal(keyStates map[string]*EventKeyState) bool {
+	if len(keyStates) == 0 {
 		return false
 	}
-	for _, lane := range lanes {
-		if lane == nil {
+	for _, ks := range keyStates {
+		if ks == nil {
 			continue
 		}
-		if !isMessageEventLaneTerminal(lane.Status) {
+		if !isEventKeyTerminal(ks.Status) {
 			return false
 		}
 	}
 	return true
 }
 
-func cloneLaneState(lane *MessageEventLaneState) *MessageEventLaneState {
-	if lane == nil {
+func cloneEventKeyState(ks *EventKeyState) *EventKeyState {
+	if ks == nil {
 		return nil
 	}
-	cp := *lane
-	if len(lane.SnapshotPayload) > 0 {
-		cp.SnapshotPayload = append([]byte(nil), lane.SnapshotPayload...)
+	cp := *ks
+	if len(ks.SnapshotPayload) > 0 {
+		cp.SnapshotPayload = append([]byte(nil), ks.SnapshotPayload...)
 	}
 	return &cp
 }
@@ -446,7 +481,7 @@ func mergeTerminalPayloadWithSnapshot(payload []byte, textSnapshot string, snaps
 	}
 	if textSnapshot != "" {
 		body["snapshot"] = map[string]interface{}{
-			"kind": "text",
+			"kind": wkdb.SnapshotKindText,
 			"text": textSnapshot,
 		}
 	} else if len(snapshotPayload) > 0 {
@@ -473,7 +508,7 @@ func extractCacheTextDelta(payload []byte) string {
 		return ""
 	}
 	kind, _ := m["kind"].(string)
-	if kind != "text" {
+	if kind != wkdb.SnapshotKindText {
 		return ""
 	}
 	delta, _ := m["delta"].(string)

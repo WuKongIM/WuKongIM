@@ -1386,10 +1386,10 @@
         }
       }
     },
-    "/message/eventappend": {
+    "/message/event": {
       "post": {
         "summary": "Append Message Event",
-        "description": "Append an event to a message's event stream. Events are sub-resources of messages, identified by `client_msg_no`. The message (anchor) must already exist before appending events.\n\n**Event lifecycle:** `stream.open` → `stream.delta` (×N) → `stream.close` / `stream.error` / `stream.cancel`\n\n**Routing:**\n- `stream.delta` events are processed entirely in the memory cache (no disk I/O), requiring a prior `stream.open` to initialize the cache session.\n- `stream.open` and terminal events (`stream.close`, `stream.error`, `stream.cancel`) are persisted via Raft proposal.\n- Requests are automatically forwarded to the slot leader node.",
+        "description": "Append an event on a message identified by `client_msg_no`. Message is the anchor entity; events are projections on top of that message.\n\n`event_key` identifies an event lane within the same message (defaults to `main`).\n\n**Routing:**\n- `stream.delta` is handled in memory cache for low latency.\n- All other event types are persisted through Raft.\n- Requests are automatically forwarded to the slot leader node.",
         "tags": ["Message Event"],
         "requestBody": {
           "required": true,
@@ -1422,7 +1422,7 @@
             }
           },
           "400": {
-            "description": "Bad request. Possible causes: missing required fields, cache session not found (stream.delta without prior stream.open), stream already closed.",
+            "description": "Bad request. Possible causes: missing required fields, stream already closed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1437,7 +1437,7 @@
     "/message/eventsync": {
       "post": {
         "summary": "Sync Message Events",
-        "description": "Retrieve events for a specific message by `client_msg_no`. Returns projected lane state snapshots (not individual event logs) ordered by `msg_event_seq`. Supports cursor-based pagination via `from_msg_event_seq` and optional lane filtering.\n\nRequests are automatically forwarded to the slot leader node.",
+        "description": "Retrieve projected event states for a specific message by `client_msg_no`, ordered by `msg_event_seq`. Supports cursor-based pagination via `from_msg_event_seq` and optional `event_key` filtering.\n\nRequests are automatically forwarded to the slot leader node.",
         "tags": ["Message Event"],
         "requestBody": {
           "required": true,
@@ -1485,7 +1485,7 @@
     "/channel/messagesync": {
       "post": {
         "summary": "Sync Channel Messages",
-        "description": "Synchronize messages from a channel with pagination support",
+        "description": "Synchronize messages from a channel with pagination support. For stream messages, response can include merged event state (`event_meta`) and sync hint (`event_sync_hint`).",
         "tags": ["Message"],
         "requestBody": {
           "required": true,
@@ -2749,161 +2749,6 @@
           }
         }
       }
-    },
-    "/event": {
-      "post": {
-        "summary": "Send Event | 发送事件",
-        "description": "Send various types of events to channels, including streaming text messages and custom events. Supports AG-UI protocol events for real-time streaming communication.\n\n**Event Types Supported:**\n- `___TextMessageStart`: Start a streaming text message session\n- `___TextMessageContent`: Send content chunks for streaming text\n- `___TextMessageEnd`: End a streaming text message session\n- `___ToolCallStart`: Start a tool call event\n- `___ToolCallArgs`: Send tool call arguments\n- `___ToolCallEnd`: End a tool call event\n- `___ToolCallResult`: Send tool call results\n- Custom event types for application-specific events\n\n**Streaming Message Flow:**\n1. Send `___TextMessageStart` to initiate a stream\n2. Send multiple `___TextMessageContent` events with message chunks\n3. Send `___TextMessageEnd` to close the stream\n\n**Important Notes:**\n- The same `client_msg_no` must be used for all events in a streaming session\n- Only one stream can be active per channel unless `force=1` is used\n- For person channels, the system automatically handles fake channel ID generation\n- Events are automatically routed to the appropriate cluster node\n\n**Usage Examples:**\n\n*Streaming Text Message:*\n```bash\n# 1. Start stream\ncurl -X POST /event \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"client_msg_no\": \"stream_001\",\n    \"channel_id\": \"user_123\",\n    \"channel_type\": 1,\n    \"from_uid\": \"ai_bot\",\n    \"event\": {\n      \"type\": \"___TextMessageStart\",\n      \"data\": \"Starting response...\"\n    }\n  }'\n\n# 2. Send content chunks\ncurl -X POST /event \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"client_msg_no\": \"stream_001\",\n    \"channel_id\": \"user_123\",\n    \"channel_type\": 1,\n    \"from_uid\": \"ai_bot\",\n    \"event\": {\n      \"type\": \"___TextMessageContent\",\n      \"data\": \"Hello! How can I help you?\"\n    }\n  }'\n\n# 3. End stream\ncurl -X POST /event \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"client_msg_no\": \"stream_001\",\n    \"channel_id\": \"user_123\",\n    \"channel_type\": 1,\n    \"from_uid\": \"ai_bot\",\n    \"event\": {\n      \"type\": \"___TextMessageEnd\",\n      \"data\": \"\"\n    }\n  }'\n```\n\n*Custom Event:*\n```bash\ncurl -X POST /event \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"client_msg_no\": \"custom_001\",\n    \"channel_id\": \"group_456\",\n    \"channel_type\": 2,\n    \"from_uid\": \"system\",\n    \"event\": {\n      \"type\": \"user_joined\",\n      \"timestamp\": 1640995200000,\n      \"data\": \"{\\\"user_id\\\": \\\"new_user\\\", \\\"username\\\": \\\"Alice\\\"}\"\n    }\n  }'\n```\n\n**Chinese Description:**\n发送各种类型的事件到频道，包括流式文本消息和自定义事件。支持AG-UI协议事件，用于实时流式通信。支持文本消息流、工具调用等多种事件类型。流式消息需要按顺序发送开始、内容、结束事件，使用相同的client_msg_no标识。",
-        "tags": ["Event"],
-        "parameters": [
-          {
-            "name": "force",
-            "in": "query",
-            "description": "Force end existing streams in the channel before starting a new one (1 for true, 0 for false)",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": ["0", "1"],
-              "default": "0"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EventRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Event sent successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - invalid parameters or event data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "examples": {
-                  "missing_event_type": {
-                    "summary": "Missing event type | 缺少事件类型",
-                    "description": "Event type is required and cannot be empty",
-                    "value": {
-                      "error": "事件类型不能为空！",
-                      "error_en": "Event type cannot be empty!"
-                    }
-                  },
-                  "missing_client_msg_no": {
-                    "summary": "Missing client message number | 缺少客户端消息编号",
-                    "description": "Client message number is required for tracking",
-                    "value": {
-                      "error": "client_msg_no不能为空！",
-                      "error_en": "client_msg_no cannot be empty!"
-                    }
-                  },
-                  "invalid_data_format": {
-                    "summary": "Invalid data format | 数据格式错误",
-                    "description": "Request body format is invalid",
-                    "value": {
-                      "error": "数据格式有误！",
-                      "error_en": "Invalid data format!"
-                    }
-                  },
-                  "stream_already_running": {
-                    "summary": "Stream already running in channel | 频道中已有流在运行",
-                    "description": "Cannot start a new stream when another is active. Use force=1 to override.",
-                    "value": {
-                      "error": "频道中已有流正在运行！",
-                      "error_en": "A stream is already running in the channel!",
-                      "suggestion": "Use ?force=1 to force end existing streams"
-                    }
-                  },
-                  "stream_not_found": {
-                    "summary": "Stream not found | 流不存在",
-                    "description": "The specified stream does not exist or has expired",
-                    "value": {
-                      "error": "流不存在！",
-                      "error_en": "Stream does not exist!"
-                    }
-                  },
-                  "stream_closed": {
-                    "summary": "Stream already closed | 流已关闭",
-                    "description": "Cannot send content to a closed stream",
-                    "value": {
-                      "error": "流已关闭！",
-                      "error_en": "Stream is already closed!"
-                    }
-                  },
-                  "channel_mismatch": {
-                    "summary": "Channel mismatch | 频道不匹配",
-                    "description": "Stream channel does not match the request channel",
-                    "value": {
-                      "error": "流的频道不匹配！",
-                      "error_en": "Stream channel does not match!"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "examples": {
-                  "cluster_error": {
-                    "summary": "Cluster node error | 集群节点错误",
-                    "description": "Failed to determine which cluster node handles the channel",
-                    "value": {
-                      "error": "获取频道所在节点失败！",
-                      "error_en": "Failed to get channel's cluster node!"
-                    }
-                  },
-                  "stream_processing_error": {
-                    "summary": "Stream processing error | 流处理错误",
-                    "description": "Error occurred while processing stream message events",
-                    "value": {
-                      "error": "处理消息开始事件失败！",
-                      "error_en": "Failed to process message start event!"
-                    }
-                  },
-                  "message_send_error": {
-                    "summary": "Message send error | 消息发送错误",
-                    "description": "Failed to send the event message",
-                    "value": {
-                      "error": "发送事件失败！",
-                      "error_en": "Failed to send event!"
-                    }
-                  },
-                  "stream_force_end_error": {
-                    "summary": "Force end stream error | 强制结束流错误",
-                    "description": "Failed to force end existing streams",
-                    "value": {
-                      "error": "强制结束其他流失败！",
-                      "error_en": "Failed to force end other streams!"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
@@ -3462,19 +3307,61 @@
       "MessageResponse": {
         "type": "object",
         "properties": {
+          "header": {
+            "$ref": "#/components/schemas/MessageHeader"
+          },
+          "setting": {
+            "type": "integer",
+            "format": "uint8",
+            "description": "Message setting flags.",
+            "example": 0
+          },
           "message_id": {
             "type": "integer",
             "format": "int64",
             "example": 123456789
           },
+          "message_idstr": {
+            "type": "string",
+            "description": "String representation of message_id.",
+            "example": "123456789"
+          },
           "message_seq": {
             "type": "integer",
-            "format": "int64",
+            "format": "uint64",
             "example": 1001
           },
           "client_msg_no": {
             "type": "string",
             "example": "client_msg_123"
+          },
+          "end": {
+            "type": "integer",
+            "format": "uint8",
+            "description": "Legacy stream end flag (1 means stream reached terminal state).",
+            "example": 0
+          },
+          "end_reason": {
+            "type": "integer",
+            "format": "uint8",
+            "description": "Legacy stream end reason code.",
+            "example": 0
+          },
+          "error": {
+            "type": "string",
+            "description": "Legacy stream error message.",
+            "example": ""
+          },
+          "stream_data": {
+            "type": "string",
+            "format": "byte",
+            "description": "Legacy merged stream data from main event_key snapshot."
+          },
+          "event_meta": {
+            "$ref": "#/components/schemas/MessageEventMeta"
+          },
+          "event_sync_hint": {
+            "$ref": "#/components/schemas/MessageEventSyncHint"
           },
           "from_uid": {
             "type": "string",
@@ -3486,18 +3373,118 @@
           },
           "channel_type": {
             "type": "integer",
-            "format": "int8",
+            "format": "uint8",
             "example": 2
+          },
+          "topic": {
+            "type": "string",
+            "example": "topic_1"
+          },
+          "expire": {
+            "type": "integer",
+            "format": "uint32",
+            "example": 0
           },
           "timestamp": {
             "type": "integer",
-            "format": "int64",
+            "format": "int32",
             "example": 1640995200
           },
           "payload": {
             "type": "string",
             "format": "byte",
             "example": "SGVsbG8gV29ybGQ="
+          }
+        }
+      },
+      "MessageEventMeta": {
+        "type": "object",
+        "properties": {
+          "has_events": {
+            "type": "boolean",
+            "description": "Whether this message has associated event states.",
+            "example": true
+          },
+          "event_version": {
+            "type": "integer",
+            "format": "uint64",
+            "description": "Version of event projection (currently equals last_msg_event_seq).",
+            "example": 12
+          },
+          "last_msg_event_seq": {
+            "type": "integer",
+            "format": "uint64",
+            "description": "Largest msg_event_seq among all event keys.",
+            "example": 12
+          },
+          "event_key_count": {
+            "type": "integer",
+            "description": "Count of event keys associated with this message.",
+            "example": 2
+          },
+          "open_event_key_count": {
+            "type": "integer",
+            "description": "Count of event keys still in open state.",
+            "example": 1
+          },
+          "event_keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageEventKeyMeta"
+            }
+          }
+        }
+      },
+      "MessageEventKeyMeta": {
+        "type": "object",
+        "properties": {
+          "event_key": {
+            "type": "string",
+            "description": "Event key identifier inside the message.",
+            "example": "main"
+          },
+          "status": {
+            "type": "string",
+            "description": "Current status of this event key projection.",
+            "enum": ["open", "closed", "error", "cancelled"],
+            "example": "open"
+          },
+          "last_msg_event_seq": {
+            "type": "integer",
+            "format": "uint64",
+            "description": "Last msg_event_seq applied to this event key.",
+            "example": 12
+          },
+          "snapshot": {
+            "description": "Optional merged snapshot payload (present in full summary mode).",
+            "nullable": true
+          },
+          "end_reason": {
+            "type": "integer",
+            "format": "uint8",
+            "description": "Terminal reason code for stream-like event types.",
+            "example": 0
+          },
+          "error": {
+            "type": "string",
+            "description": "Terminal error text for stream.error.",
+            "example": ""
+          }
+        }
+      },
+      "MessageEventSyncHint": {
+        "type": "object",
+        "properties": {
+          "client_msg_no": {
+            "type": "string",
+            "description": "Anchor message client message number.",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "from_msg_event_seq": {
+            "type": "integer",
+            "format": "uint64",
+            "description": "Suggested cursor for `/message/eventsync`.",
+            "example": 0
           }
         }
       },
@@ -3983,6 +3970,13 @@
             "type": "integer",
             "description": "Pull mode (0=down, 1=up)",
             "enum": [0, 1]
+          },
+          "event_summary_mode": {
+            "type": "string",
+            "description": "Event summary mode for stream messages (`basic` or `full`). `full` includes snapshot payload.",
+            "example": "full",
+            "default": "full",
+            "enum": ["basic", "full"]
           }
         }
       },
@@ -4371,7 +4365,7 @@
       },
       "EventAppendRequest": {
         "type": "object",
-        "required": ["channel_id", "client_msg_no", "event_id", "event_type"],
+        "required": ["channel_id", "channel_type", "client_msg_no", "event_id", "event_type"],
         "description": "Append an event to a message's event stream.",
         "properties": {
           "channel_id": {
@@ -4386,8 +4380,14 @@
           },
           "from_uid": {
             "type": "string",
-            "description": "Sender UID. Defaults to system UID if omitted.",
+            "description": "Sender UID. Auto-filled from cache if the anchor message was sent with `is_stream: 1` on the same node. Defaults to system UID if both cache miss and omitted.",
             "example": "user_001"
+          },
+          "message_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Message ID of the anchor message, used for online push correlation. Auto-filled from cache if the anchor message was sent with `is_stream: 1` on the same node.",
+            "example": 123456789
           },
           "client_msg_no": {
             "type": "string",
@@ -4396,25 +4396,25 @@
           },
           "event_id": {
             "type": "string",
-            "description": "Unique event identifier. Used for idempotency on persisted events (stream.open / terminal).",
+            "description": "Unique event identifier. Used for idempotency on persisted events (terminal events like stream.close / stream.error / stream.cancel).",
             "example": "evt_abc123"
           },
           "event_type": {
             "type": "string",
-            "description": "Event type. Case-insensitive. Supported types: `stream.open`, `stream.delta`, `stream.snapshot`, `stream.close`, `stream.error`, `stream.cancel`.",
-            "example": "stream.delta",
-            "enum": ["stream.open", "stream.delta", "stream.snapshot", "stream.close", "stream.error", "stream.cancel"]
+            "description": "Event type. Case-insensitive. `stream.delta` uses in-memory fast path; other event types are persisted.",
+            "example": "stream.delta"
           },
-          "lane_id": {
+          "event_key": {
             "type": "string",
-            "description": "Lane identifier for parallel event streams within a single message. Defaults to `main` if omitted.",
+            "description": "Event key for partitioning multiple event lanes within the same message. Defaults to `main`.",
             "example": "main",
             "default": "main"
           },
           "visibility": {
             "type": "string",
-            "description": "Event visibility. Used by eventsync to filter events.",
-            "example": "public"
+            "description": "Event visibility.",
+            "example": "public",
+            "enum": ["public", "private", "restricted"]
           },
           "occurred_at": {
             "type": "integer",
@@ -4444,9 +4444,9 @@
             "description": "Client message number.",
             "example": "550e8400-e29b-41d4-a716-446655440000"
           },
-          "lane_id": {
+          "event_key": {
             "type": "string",
-            "description": "Lane ID (normalized, e.g. empty → \"main\").",
+            "description": "Normalized event key (e.g. empty -> `main`).",
             "example": "main"
           },
           "event_id": {
@@ -4462,7 +4462,7 @@
           },
           "stream_status": {
             "type": "string",
-            "description": "Current lane status after applying this event.",
+            "description": "Current event-key status after applying this event.",
             "enum": ["open", "closed", "error", "cancelled"],
             "example": "open"
           },
@@ -4485,7 +4485,7 @@
       },
       "EventSyncRequest": {
         "type": "object",
-        "required": ["channel_id", "client_msg_no"],
+        "required": ["channel_id", "channel_type", "client_msg_no"],
         "description": "Sync events for a specific message.",
         "properties": {
           "channel_id": {
@@ -4508,9 +4508,9 @@
             "description": "Client message number to sync events for.",
             "example": "550e8400-e29b-41d4-a716-446655440000"
           },
-          "lane_id": {
+          "event_key": {
             "type": "string",
-            "description": "Optional lane filter. If set, only events from this lane are returned.",
+            "description": "Optional event_key filter. If set, only projected state for this event key is returned.",
             "example": "main"
           },
           "from_msg_event_seq": {
@@ -4560,14 +4560,14 @@
             "description": "1 if there are more events beyond this page, 0 otherwise.",
             "example": 0
           },
-          "filtered_by_lane_id": {
+          "filtered_by_event_key": {
             "type": "string",
-            "description": "The lane_id filter that was applied, empty string if no filter.",
+            "description": "The event_key filter applied, empty string if no filter.",
             "example": ""
           },
           "events": {
             "type": "array",
-            "description": "List of projected event snapshots, ordered by msg_event_seq ascending.",
+            "description": "List of projected event states, ordered by msg_event_seq ascending.",
             "items": {
               "$ref": "#/components/schemas/EventSyncItem"
             }
@@ -4576,7 +4576,7 @@
       },
       "EventSyncItem": {
         "type": "object",
-        "description": "A projected event snapshot built from the lane state. This is NOT the original event payload but a merged view.",
+        "description": "Projected event state built from stored message-event state, not the raw append log.",
         "properties": {
           "msg_event_seq": {
             "type": "integer",
@@ -4586,17 +4586,17 @@
           },
           "event_id": {
             "type": "string",
-            "description": "Last event ID that updated this lane.",
+            "description": "Last event ID applied to this event key.",
             "example": "evt_close_1"
           },
-          "lane_id": {
+          "event_key": {
             "type": "string",
-            "description": "Lane identifier.",
+            "description": "Event key identifier.",
             "example": "main"
           },
           "event_type": {
             "type": "string",
-            "description": "Last event type applied to this lane.",
+            "description": "Last event type applied to this event key.",
             "example": "stream.close"
           },
           "visibility": {
@@ -4612,14 +4612,7 @@
           },
           "payload": {
             "type": "object",
-            "description": "Merged snapshot payload. For text streams, this is `{\"kind\":\"text\",\"text\":\"accumulated text\"}`. For non-text, this is the last delta payload or a status summary."
-          },
-          "headers": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            },
-            "description": "Event headers (if any)."
+            "description": "Projected payload/snapshot. For text streams, typically `{\"kind\":\"text\",\"text\":\"...\"}`."
           }
         }
       },
@@ -4635,160 +4628,6 @@
             "type": "string",
             "description": "Detailed error description",
             "example": "The provided parameters are invalid"
-          }
-        }
-      },
-      "EventRequest": {
-        "type": "object",
-        "required": ["client_msg_no", "channel_id", "channel_type", "event"],
-        "description": "Request payload for sending events to channels. Used for both streaming messages and custom events.",
-        "properties": {
-          "client_msg_no": {
-            "type": "string",
-            "description": "Client message number - must be unique and not repeated. Used to identify and track the message/stream. For streaming messages, all events in the same stream should use the same client_msg_no. UUID format is recommended.",
-            "example": "550e8400-e29b-41d4-a716-446655440000",
-            "minLength": 1,
-            "maxLength": 64
-          },
-          "channel_id": {
-            "type": "string",
-            "description": "Target channel ID where the event will be sent. For person channels, this should be the target user ID. For group channels, this should be the group ID.",
-            "example": "channel_123",
-            "minLength": 1,
-            "maxLength": 64
-          },
-          "channel_type": {
-            "type": "integer",
-            "format": "uint8",
-            "description": "Channel type that determines how the message is routed:\n- 1: Person/Direct message channel\n- 2: Group channel\n- Other values: Custom channel types",
-            "example": 2,
-            "minimum": 1,
-            "maximum": 255
-          },
-          "from_uid": {
-            "type": "string",
-            "description": "Sender user ID. If not provided or empty, defaults to the system UID. This identifies who is sending the event.",
-            "example": "user_456",
-            "maxLength": 64
-          },
-          "event": {
-            "$ref": "#/components/schemas/EventModel"
-          }
-        },
-        "examples": {
-          "text_message_start": {
-            "summary": "Start streaming text message",
-            "value": {
-              "client_msg_no": "msg_001_stream_start",
-              "channel_id": "group_ai_chat",
-              "channel_type": 2,
-              "from_uid": "ai_assistant",
-              "event": {
-                "type": "___TextMessageStart",
-                "data": "Starting AI response..."
-              }
-            }
-          },
-          "text_message_content": {
-            "summary": "Send text message content chunk",
-            "value": {
-              "client_msg_no": "msg_001_stream_start",
-              "channel_id": "group_ai_chat",
-              "channel_type": 2,
-              "from_uid": "ai_assistant",
-              "event": {
-                "type": "___TextMessageContent",
-                "data": "Hello! How can I help you today?"
-              }
-            }
-          },
-          "text_message_end": {
-            "summary": "End streaming text message",
-            "value": {
-              "client_msg_no": "msg_001_stream_start",
-              "channel_id": "group_ai_chat",
-              "channel_type": 2,
-              "from_uid": "ai_assistant",
-              "event": {
-                "type": "___TextMessageEnd",
-                "data": ""
-              }
-            }
-          },
-          "custom_event": {
-            "summary": "Send custom event",
-            "value": {
-              "client_msg_no": "custom_event_001",
-              "channel_id": "user_123",
-              "channel_type": 1,
-              "from_uid": "system",
-              "event": {
-                "type": "user_status_update",
-                "data": "{\"status\": \"online\", \"last_seen\": 1640995200000}"
-              }
-            }
-          }
-        }
-      },
-      "EventModel": {
-        "type": "object",
-        "required": ["type"],
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Event ID (optional, auto-generated for some event types)",
-            "example": "event_789",
-            "maxLength": 64
-          },
-          "type": {
-            "type": "string",
-            "description": "Event type - supports AG-UI protocol events and custom events. AG-UI events enable real-time streaming communication for AI applications.\n\n**AG-UI Protocol Events:**\n- `___TextMessageStart`: Initiates a streaming text message session\n- `___TextMessageContent`: Sends content chunks during streaming\n- `___TextMessageEnd`: Terminates a streaming text message session\n- `___ToolCallStart`: Begins a tool/function call event\n- `___ToolCallArgs`: Sends arguments for tool calls\n- `___ToolCallEnd`: Ends a tool call event\n- `___ToolCallResult`: Returns results from tool execution\n\n**Custom Events:** Any string not starting with `___` is treated as a custom event type.",
-            "example": "___TextMessageStart",
-            "enum": [
-              "___TextMessageStart",
-              "___TextMessageContent",
-              "___TextMessageEnd",
-              "___ToolCallStart",
-              "___ToolCallArgs",
-              "___ToolCallEnd",
-              "___ToolCallResult"
-            ]
-          },
-          "timestamp": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Event timestamp (optional, Unix timestamp in milliseconds)",
-            "example": 1640995200000
-          },
-          "data": {
-            "type": "string",
-            "description": "Event data content. The format depends on the event type:\n\n**For Text Message Events:**\n- `___TextMessageStart`: Initial message content or metadata\n- `___TextMessageContent`: Text chunk for streaming\n- `___TextMessageEnd`: Final content or completion marker\n\n**For Tool Call Events:**\n- `___ToolCallStart`: Tool name or metadata\n- `___ToolCallArgs`: JSON string with function arguments\n- `___ToolCallEnd`: Completion status\n- `___ToolCallResult`: JSON string with execution results\n\n**For Custom Events:** Any string data relevant to your application",
-            "examples": {
-              "text_start": {
-                "summary": "Text message start",
-                "value": "Starting AI response..."
-              },
-              "text_content": {
-                "summary": "Text message content chunk",
-                "value": "Hello, this is a streaming message chunk"
-              },
-              "text_end": {
-                "summary": "Text message end",
-                "value": ""
-              },
-              "tool_args": {
-                "summary": "Tool call arguments",
-                "value": "{\"query\": \"weather in Beijing\", \"units\": \"metric\"}"
-              },
-              "tool_result": {
-                "summary": "Tool call result",
-                "value": "{\"temperature\": 25, \"condition\": \"sunny\", \"humidity\": 60}"
-              },
-              "custom_event": {
-                "summary": "Custom event data",
-                "value": "{\"action\": \"user_joined\", \"user_id\": \"user123\"}"
-              }
-            }
           }
         }
       }
@@ -4839,10 +4678,6 @@
     {
       "name": "Tag",
       "description": "Tag management endpoints"
-    },
-    {
-      "name": "Event",
-      "description": "Event sending and streaming message endpoints for real-time communication"
     }
   ]
 }

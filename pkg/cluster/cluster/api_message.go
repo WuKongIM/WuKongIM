@@ -197,6 +197,16 @@ func (s *Server) messageSearch(c *wkhttp.Context) {
 	})
 }
 
+// messageEventSync 将消息事件同步请求转发到本节点的主 API 服务
+func (s *Server) messageEventSync(c *wkhttp.Context) {
+	node := s.cfgServer.Node(s.opts.ConfigOptions.NodeId)
+	if node == nil {
+		c.ResponseError(errors.New("local node not found"))
+		return
+	}
+	c.Forward(fmt.Sprintf("%s/message/eventsync", node.ApiServerAddr))
+}
+
 func (s *Server) requestNodeMessageSearch(path string, nodeId uint64, queryMap map[string]string, headers map[string]string) (*messageRespTotal, error) {
 	node := s.cfgServer.Node(nodeId)
 	if node == nil {

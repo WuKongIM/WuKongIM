@@ -235,7 +235,7 @@ for each lane in groupBy(client_msg_no, lane_id):
 
 ## 10. 关键伪代码（可直接映射实现）
 
-### 10.1 `POST /message/eventappend` 写路径
+### 10.1 `POST /message/event` 写路径
 
 说明：事件不逐条落盘，仅更新 `MessageLaneState` 投影。`msg_event_seq` 用于标记投影版本。
 

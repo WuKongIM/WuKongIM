@@ -30,7 +30,8 @@ func (s *Server) ServerAPI(route *wkhttp.WKHttp, prefix string) {
 	route.GET(s.formatPath("/slots/:id/localReplica"), s.slotLocalReplicaGet) // 获取槽在本节点的副本信息
 	route.POST(s.formatPath("/slots/:id/election"), s.slotElection)           // 指定槽重新选举
 	// ================== message ==================
-	route.GET(s.formatPath("/messages"), s.messageSearch) // 搜索消息
+	route.GET(s.formatPath("/messages"), s.messageSearch)              // 搜索消息
+	route.POST(s.formatPath("/message/eventsync"), s.messageEventSync) // 同步消息事件
 
 	// ================== channel ==================
 	route.GET(s.formatPath("/channels"), s.channelSearch)                                        // 频道搜索

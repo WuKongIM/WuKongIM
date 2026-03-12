@@ -43,20 +43,18 @@ type DB interface {
 }
 
 type MessageEventDB interface {
-	// AppendMessageEventWithLaneState applies one event into lane projection state in one write.
-	// Channel info is taken from event.ChannelId and event.ChannelType.
-	AppendMessageEventWithLaneState(event *MessageEvent) (*MessageEvent, *MessageLaneState, error)
+	// AppendMessageEventWithState applies one event and updates the event key projection state.
+	AppendMessageEventWithState(event *MessageEvent) (*MessageEvent, *MessageEventState, error)
 	// GetMessageEventByEventID finds a projected event view by (channel, client_msg_no, event_id).
 	GetMessageEventByEventID(channelId string, channelType uint8, clientMsgNo, eventID string) (*MessageEvent, error)
-	// ListMessageEvents lists projected lane events greater than fromMsgEventSeq in ascending msg_event_seq.
-	ListMessageEvents(channelId string, channelType uint8, clientMsgNo string, fromMsgEventSeq uint64, laneID string, limit int) ([]MessageEvent, error)
-	// GetMessageLaneStates returns all lane projection states of one message.
-	GetMessageLaneStates(channelId string, channelType uint8, clientMsgNo string) ([]MessageLaneState, error)
-	// GetMessageLaneStatesBatch returns lane states for multiple client_msg_nos in one pass.
-	// Result is keyed by client_msg_no; entries with no lane states are omitted.
-	GetMessageLaneStatesBatch(channelId string, channelType uint8, clientMsgNos []string) (map[string][]MessageLaneState, error)
-	// GetMessageLaneState returns one lane projection state.
-	GetMessageLaneState(channelId string, channelType uint8, clientMsgNo, laneID string) (*MessageLaneState, error)
+	// ListMessageEvents lists projected events greater than fromMsgEventSeq in ascending msg_event_seq.
+	ListMessageEvents(channelId string, channelType uint8, clientMsgNo string, fromMsgEventSeq uint64, eventKey string, limit int) ([]MessageEvent, error)
+	// GetMessageEventStates returns all event key projection states of one message.
+	GetMessageEventStates(channelId string, channelType uint8, clientMsgNo string) ([]MessageEventState, error)
+	// GetMessageEventStatesBatch returns event key states for multiple client_msg_nos in one pass.
+	GetMessageEventStatesBatch(channelId string, channelType uint8, clientMsgNos []string) (map[string][]MessageEventState, error)
+	// GetMessageEventState returns one event key projection state.
+	GetMessageEventState(channelId string, channelType uint8, clientMsgNo, eventKey string) (*MessageEventState, error)
 }
 
 type MessageDB interface {

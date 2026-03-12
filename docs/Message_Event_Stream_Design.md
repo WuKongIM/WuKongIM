@@ -69,7 +69,7 @@
 
 ## 4. 接口设计
 
-## 4.1 发送事件：`POST /message/eventappend`
+## 4.1 发送事件：`POST /message/event`
 
 说明：客户端只传 `client_msg_no`，不传 `message_id`。
 
@@ -286,7 +286,7 @@
 
 ### 示例A：Agent 文本流（lane_id=`assistant_text`）
 
-`POST /message/eventappend` 请求示例（文本增量）：
+`POST /message/event` 请求示例（文本增量）：
 
 ```json
 {
@@ -308,7 +308,7 @@
 
 ### 示例B：Agent 工具调用流（lane_id=`tool_weather`）
 
-`POST /message/eventappend` 请求示例（工具调用开始）：
+`POST /message/event` 请求示例（工具调用开始）：
 
 ```json
 {
@@ -329,7 +329,7 @@
 }
 ```
 
-`POST /message/eventappend` 请求示例（工具参数增量）：
+`POST /message/event` 请求示例（工具参数增量）：
 
 ```json
 {
@@ -350,7 +350,7 @@
 }
 ```
 
-`POST /message/eventappend` 请求示例（工具结果）：
+`POST /message/event` 请求示例（工具结果）：
 
 ```json
 {

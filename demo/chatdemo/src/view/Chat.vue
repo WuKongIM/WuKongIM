@@ -56,6 +56,24 @@ const token = router.currentRoute.value.query.token as string || "token111";
 
 title.value = `${uid || ""}(未连接)`
 
+// renderStreamText 从 event_meta 或 stream_data 中提取流文本到 message.streamText
+const renderStreamText = (m: any) => {
+    // 优先使用 event_meta 中的 snapshot
+    const eventMeta = m.eventMeta
+    if (eventMeta && eventMeta.events && eventMeta.events.length > 0) {
+        for (const ek of eventMeta.events) {
+            if (ek.event_key === "main" || eventMeta.events.length === 1) {
+                const snapshot = ek.snapshot
+                if (snapshot && snapshot.kind === "text" && snapshot.text) {
+                    m.streamText = snapshot.text
+                    return
+                }
+            }
+        }
+    }
+    // fallback: stream_data 已经在 convert.ts 中处理
+}
+
 let connectStatusListener!: ConnectStatusListener
 let messageListener!: MessageListener
 let messageStatusListener!: MessageStatusListener
@@ -124,24 +142,45 @@ const connectIM = (addr: string) => {
     }
     WKSDK.shared().chatManager.addMessageListener(messageListener)
 
-    // 流监听
+    // 事件监听 —— 使用 dataJson 获取推送数据
     eventListener = async (event: WKEvent) => {
+        if (!event.dataJson) return
+
+        const pushData = event.dataJson
+
+        const clientMsgNo = pushData.client_msg_no
+        if (!clientMsgNo) return
+
         for (const message of messages.value) {
-            console.log("eventListener--->", event.id, event.type,event.dataText)
-            if (message.clientMsgNo === event.id) {
-                if (message.contentType === MessageContentType.text) {
-                    message.streamText = (message.streamText || "") + (event.dataText || "")
+            if (message.clientMsgNo !== clientMsgNo) continue
+
+            if (event.type === "stream.delta") {
+                // 增量事件：从 payload 中提取文本 delta
+                const payload = pushData.payload
+                if (payload && payload.kind === "text" && payload.delta) {
+                    message.streamText = (message.streamText || "") + payload.delta
                     const htmlText = await marked.parse(message.streamText)
-                    const textContent = new MessageText(htmlText || "")
-                    message.content = textContent
+                    message.content = new MessageText(htmlText || "")
                 }
-                // 刷新ui
-                messages.value = [...messages.value]
-                nextTick(() => {
-                    scrollBottom()
-                })
-                break
+            } else if (event.type === "stream.close" || event.type === "stream.error" || event.type === "stream.cancel") {
+                // 终态事件：可能携带最终 snapshot
+                const payload = pushData.payload
+                const snapshotText = payload?.snapshot?.kind === "text" ? (payload.snapshot.text as string) : ""
+                if (snapshotText) {
+                    message.streamText = snapshotText
+                    const htmlText = await marked.parse(message.streamText)
+                    message.content = new MessageText(htmlText || "")
+                }
+            } else if (event.type === "stream.finish") {
+                (message as any).completed = true
             }
+
+            // 刷新 UI
+            messages.value = [...messages.value]
+            nextTick(() => {
+                scrollBottom()
+            })
+            break
         }
     }
     WKSDK.shared().eventManager.addEventListener(eventListener)
@@ -205,6 +244,7 @@ const pullLast = async () => {
     // 渲染流消息
     for (const m of msgs) {
         if (m.setting.streamOn) {
+            renderStreamText(m)
             if (m.streamText && m.streamText.length > 0) {
                 const htmlText = await marked.parse(m.streamText)
                 m.content = new MessageText(htmlText)
@@ -239,6 +279,7 @@ const pullDown = async () => {
     // 渲染流消息
     for (const m of msgs) {
         if (m.setting.streamOn) {
+            renderStreamText(m)
             if (m.streamText && m.streamText.length > 0) {
                 const htmlText = await marked.parse(m.streamText)
                 m.content = new MessageText(htmlText)
