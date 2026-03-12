@@ -175,6 +175,71 @@ const onMessageTrace = (clientMsgNo: string) => {
     router.push(`/monitor/trace?clientMsgNo=${clientMsgNo}`)
 }
 
+// ==================== 消息事件 ====================
+const eventList = ref<any[]>([])
+const eventLoading = ref<boolean>(false)
+const eventHasMore = ref<boolean>(false)
+const eventNextSeq = ref<number>(0)
+const eventPayloadContent = ref<string>('')
+
+const onShowEvents = (message: any) => {
+    eventList.value = []
+    eventNextSeq.value = 0
+    eventHasMore.value = false
+    loadEvents(message, 0)
+    const dialog = document.getElementById('eventDialog') as HTMLDialogElement;
+    dialog.showModal();
+}
+
+const currentEventMessage = ref<any>(null)
+
+const loadEvents = (message: any, fromSeq: number) => {
+    currentEventMessage.value = message
+    eventLoading.value = true
+    API.shared.messageEventSync({
+        channelId: message.channel_id,
+        channelType: message.channel_type,
+        clientMsgNo: message.client_msg_no,
+        fromMsgEventSeq: fromSeq,
+        limit: 50,
+        includePrivate: 1,
+    }).then((res) => {
+        const newEvents = res.data?.events || []
+        if (fromSeq === 0) {
+            eventList.value = newEvents
+        } else {
+            eventList.value = eventList.value.concat(newEvents)
+        }
+        eventNextSeq.value = res.data?.next_msg_event_seq || 0
+        eventHasMore.value = res.data?.more === 1
+    }).catch((err) => {
+        alert(err)
+    }).finally(() => {
+        eventLoading.value = false
+    })
+}
+
+const loadMoreEvents = () => {
+    if (currentEventMessage.value && eventHasMore.value) {
+        loadEvents(currentEventMessage.value, eventNextSeq.value)
+    }
+}
+
+const onShowEventPayload = (event: any) => {
+    if (event.payload) {
+        eventPayloadContent.value = JSON.stringify(event.payload, null, 2)
+    } else {
+        eventPayloadContent.value = '(空)'
+    }
+    const dialog = document.getElementById('eventPayloadDialog') as HTMLDialogElement;
+    dialog.showModal();
+}
+
+const formatEventTime = (ts: number) => {
+    if (!ts) return ''
+    return new Date(ts).toLocaleString()
+}
+
 </script>
 
 <template>
@@ -305,6 +370,8 @@ const onMessageTrace = (clientMsgNo: string) => {
                         <td class="flex">
                             <button class="btn btn-link btn-sm"
                                 v-on:click="() => onMessageTrace(message.client_msg_no)">消息轨迹</button>
+                            <button class="btn btn-link btn-sm" v-if="message.is_stream === 1"
+                                v-on:click="() => onShowEvents(message)">消息事件</button>
                         </td>
                     </tr>
 
@@ -332,6 +399,71 @@ const onMessageTrace = (clientMsgNo: string) => {
             <div class="modal-box flex flex-wrap gap-2">
                 <div>{{ content }}</div>
 
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+
+        <dialog id="eventDialog" class="modal">
+            <div class="modal-box max-w-4xl">
+                <h3 class="font-bold text-lg mb-4">消息事件</h3>
+                <div class="overflow-x-auto max-h-[60vh] overflow-y-auto">
+                    <table class="table table-sm table-pin-rows">
+                        <thead>
+                            <tr>
+                                <th>事件序号</th>
+                                <th>事件ID</th>
+                                <th>Event Key</th>
+                                <th>事件类型</th>
+                                <th>可见性</th>
+                                <th>时间</th>
+                                <th>Payload</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="evt in eventList" :key="evt.msg_event_seq">
+                                <td>{{ evt.msg_event_seq }}</td>
+                                <td>{{ evt.event_id }}</td>
+                                <td>{{ evt.event_key }}</td>
+                                <td>{{ evt.event_type }}</td>
+                                <td>{{ evt.visibility }}</td>
+                                <td>{{ formatEventTime(evt.occurred_at) }}</td>
+                                <td class="text-blue-800 cursor-pointer" v-on:click="() => onShowEventPayload(evt)">
+                                    <a href="#">{{ evt.payload ? ellipsis(JSON.stringify(evt.payload), 30) : '(空)' }}</a>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div v-if="eventList.length === 0 && !eventLoading" class="text-center py-4 text-gray-400">
+                        暂无事件数据
+                    </div>
+                    <div v-if="eventLoading" class="text-center py-4">加载中...</div>
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <button v-if="eventHasMore" class="btn btn-sm btn-primary" v-on:click="loadMoreEvents"
+                        :disabled="eventLoading">加载更多</button>
+                </div>
+                <div class="modal-action">
+                    <form method="dialog">
+                        <button class="btn">关闭</button>
+                    </form>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
+
+        <dialog id="eventPayloadDialog" class="modal">
+            <div class="modal-box">
+                <h3 class="font-bold text-lg mb-4">Payload</h3>
+                <pre class="whitespace-pre-wrap break-all bg-base-200 p-4 rounded-lg text-sm max-h-[60vh] overflow-y-auto">{{ eventPayloadContent }}</pre>
+                <div class="modal-action">
+                    <form method="dialog">
+                        <button class="btn">关闭</button>
+                    </form>
+                </div>
             </div>
             <form method="dialog" class="modal-backdrop">
                 <button>close</button>

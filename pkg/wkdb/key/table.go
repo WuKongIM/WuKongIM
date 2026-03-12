@@ -873,7 +873,7 @@ var TableMessageEvent = struct {
 	IndexSize int
 	Index     struct {
 		ClientSeq     [2]byte // channel_hash + client_msg_no + msg_event_seq
-		ClientLaneSeq [2]byte // channel_hash + client_msg_no + lane_id + msg_event_seq
+		ClientKeySeq [2]byte // channel_hash + client_msg_no + event_key + msg_event_seq
 		EventID       [2]byte // channel_hash + client_msg_no + event_id
 	}
 }{
@@ -881,23 +881,23 @@ var TableMessageEvent = struct {
 	IndexSize: 2 + 2 + 2 + 8 + 8 + 8, // tableId + dataType + indexName + channelHash + columnHash + seq
 	Index: struct {
 		ClientSeq     [2]byte
-		ClientLaneSeq [2]byte
-		EventID       [2]byte
+		ClientKeySeq [2]byte
+		EventID      [2]byte
 	}{
-		ClientSeq:     [2]byte{0x18, 0x01},
-		ClientLaneSeq: [2]byte{0x18, 0x02},
+		ClientSeq:    [2]byte{0x18, 0x01},
+		ClientKeySeq: [2]byte{0x18, 0x02},
 		EventID:       [2]byte{0x18, 0x03},
 	},
 }
 
-// ======================== TableMessageLaneState ========================
+// ======================== TableMessageEventState ========================
 
-var TableMessageLaneState = struct {
+var TableMessageEventState = struct {
 	Id   [2]byte
 	Size int
 }{
 	Id:   [2]byte{0x19, 0x01},
-	Size: 2 + 2 + 8 + 8 + 8, // tableId + dataType + channel_hash + client_hash + lane_hash
+	Size: 2 + 2 + 8 + 8 + 8, // tableId + dataType + channel_hash + client_hash + event_key_hash
 }
 
 // ======================== TableMessageEventSeq ========================

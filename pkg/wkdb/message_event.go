@@ -2,6 +2,7 @@ package wkdb
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -11,9 +12,39 @@ import (
 	"github.com/cockroachdb/pebble"
 )
 
+// ---- 事件类型常量 ----
 const (
-	messageEventDefaultLane = "main"
+	EventTypeStreamDelta    = "stream.delta"
+	EventTypeStreamClose    = "stream.close"
+	EventTypeStreamError    = "stream.error"
+	EventTypeStreamCancel   = "stream.cancel"
+	EventTypeStreamSnapshot = "stream.snapshot"
+	EventTypeStreamFinish   = "stream.finish"
 )
+
+// ---- 事件状态常量 ----
+const (
+	EventStatusOpen      = "open"
+	EventStatusClosed    = "closed"
+	EventStatusError     = "error"
+	EventStatusCancelled = "cancelled"
+)
+
+// ---- 默认 event key ----
+const EventKeyDefault = "main"
+
+// ---- 消息级终结 event key ----
+const EventKeyFinish = "__finish__"
+
+// ---- 可见性常量 ----
+const (
+	VisibilityPublic     = "public"
+	VisibilityPrivate    = "private"
+	VisibilityRestricted = "restricted"
+)
+
+// ---- 快照类型常量 ----
+const SnapshotKindText = "text"
 
 // MessageEvent is an event row bound to a specific client_msg_no.
 type MessageEvent struct {
@@ -22,7 +53,7 @@ type MessageEvent struct {
 	ClientMsgNo string            `json:"client_msg_no"`
 	MsgEventSeq uint64            `json:"msg_event_seq"`
 	EventID     string            `json:"event_id"`
-	LaneID      string            `json:"lane_id"`
+	EventKey    string            `json:"event_key"`
 	EventType   string            `json:"event_type"`
 	Visibility  string            `json:"visibility,omitempty"`
 	OccurredAt  int64             `json:"occurred_at,omitempty"`
@@ -30,12 +61,12 @@ type MessageEvent struct {
 	Headers     map[string]string `json:"headers,omitempty"`
 }
 
-// MessageLaneState is the projection state per lane.
-type MessageLaneState struct {
+// MessageEventState is the projection state per event key.
+type MessageEventState struct {
 	ChannelId       string `json:"channel_id"`
 	ChannelType     uint8  `json:"channel_type"`
 	ClientMsgNo     string `json:"client_msg_no"`
-	LaneID          string `json:"lane_id"`
+	EventKey        string `json:"event_key"`
 	Status          string `json:"status"`
 	LastMsgEventSeq uint64 `json:"last_msg_event_seq"`
 	LastEventID     string `json:"last_event_id,omitempty"`
@@ -47,7 +78,7 @@ type MessageLaneState struct {
 	Error           string `json:"error,omitempty"`
 }
 
-func (wk *wukongDB) AppendMessageEventWithLaneState(event *MessageEvent) (*MessageEvent, *MessageLaneState, error) {
+func (wk *wukongDB) AppendMessageEventWithState(event *MessageEvent) (*MessageEvent, *MessageEventState, error) {
 	if event == nil {
 		return nil, nil, ErrNotFound
 	}
@@ -65,7 +96,7 @@ func (wk *wukongDB) AppendMessageEventWithLaneState(event *MessageEvent) (*Messa
 	event.ClientMsgNo = strings.TrimSpace(event.ClientMsgNo)
 	event.EventID = strings.TrimSpace(event.EventID)
 	event.EventType = strings.ToLower(strings.TrimSpace(event.EventType))
-	event.LaneID = normalizeLaneID(event.LaneID)
+	event.EventKey = normalizeEventKey(event.EventKey)
 	if event.OccurredAt == 0 {
 		event.OccurredAt = time.Now().UnixMilli()
 	}
@@ -74,27 +105,27 @@ func (wk *wukongDB) AppendMessageEventWithLaneState(event *MessageEvent) (*Messa
 	wk.dblock.userLock.Lock(lockKey)
 	defer wk.dblock.userLock.Unlock(lockKey)
 
-	laneState, err := wk.GetMessageLaneState(event.ChannelId, event.ChannelType, event.ClientMsgNo, event.LaneID)
+	eventState, err := wk.GetMessageEventState(event.ChannelId, event.ChannelType, event.ClientMsgNo, event.EventKey)
 	if err != nil {
 		return nil, nil, err
 	}
-	if laneState != nil && laneState.LastEventID != "" && laneState.LastEventID == event.EventID {
+	if eventState != nil && eventState.LastEventID != "" && eventState.LastEventID == event.EventID {
 		cp := *event
-		cp.MsgEventSeq = laneState.LastMsgEventSeq
-		cp.LaneID = laneState.LaneID
-		cp.EventType = laneState.LastEventType
-		cp.Visibility = laneState.LastVisibility
-		cp.OccurredAt = laneState.LastOccurredAt
-		if len(laneState.SnapshotPayload) > 0 {
-			cp.Payload = append([]byte(nil), laneState.SnapshotPayload...)
+		cp.MsgEventSeq = eventState.LastMsgEventSeq
+		cp.EventKey = eventState.EventKey
+		cp.EventType = eventState.LastEventType
+		cp.Visibility = eventState.LastVisibility
+		cp.OccurredAt = eventState.LastOccurredAt
+		if len(eventState.SnapshotPayload) > 0 {
+			cp.Payload = append([]byte(nil), eventState.SnapshotPayload...)
 		}
-		return &cp, laneState, nil
+		return &cp, eventState, nil
 	}
-	if laneState != nil && isTerminalStatus(laneState.Status) {
-		return wk.buildProjectedEvent(event.ChannelId, event.ChannelType, event.ClientMsgNo, *laneState), laneState, nil
+	if eventState != nil && isTerminalStatus(eventState.Status) {
+		return wk.buildProjectedEvent(event.ChannelId, event.ChannelType, event.ClientMsgNo, *eventState), eventState, nil
 	}
 
-	db := wk.shardDB(event.ClientMsgNo)
+	db := wk.channelDb(event.ChannelId, event.ChannelType)
 	batch := db.NewBatch()
 	defer batch.Close()
 
@@ -103,22 +134,22 @@ func (wk *wukongDB) AppendMessageEventWithLaneState(event *MessageEvent) (*Messa
 		return nil, nil, err
 	}
 	event.MsgEventSeq = seq
-	if laneState == nil {
-		laneState = &MessageLaneState{
+	if eventState == nil {
+		eventState = &MessageEventState{
 			ChannelId:   event.ChannelId,
 			ChannelType: event.ChannelType,
 			ClientMsgNo: event.ClientMsgNo,
-			LaneID:      event.LaneID,
+			EventKey:    event.EventKey,
 		}
 	}
 
-	mergedState := reduceLaneState(laneState, event)
-	laneStateBytes, err := json.Marshal(mergedState)
+	mergedState := reduceEventState(eventState, event)
+	stateBytes, err := json.Marshal(mergedState)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	if err := batch.Set(key.NewMessageLaneStateKey(mergedState.ChannelId, mergedState.ChannelType, mergedState.ClientMsgNo, mergedState.LaneID), laneStateBytes, wk.noSync); err != nil {
+	fmt.Println("NewMessageEventStateKey---->", event.ChannelId, event.ChannelType, event.ClientMsgNo, event.EventKey)
+	if err := batch.Set(key.NewMessageEventStateKey(mergedState.ChannelId, mergedState.ChannelType, mergedState.ClientMsgNo, mergedState.EventKey), stateBytes, wk.noSync); err != nil {
 		return nil, nil, err
 	}
 
@@ -134,7 +165,7 @@ func (wk *wukongDB) GetMessageEventByEventID(channelId string, channelType uint8
 	if clientMsgNo == "" || eventID == "" {
 		return nil, nil
 	}
-	states, err := wk.GetMessageLaneStates(channelId, channelType, clientMsgNo)
+	states, err := wk.GetMessageEventStates(channelId, channelType, clientMsgNo)
 	if err != nil {
 		return nil, err
 	}
@@ -147,27 +178,27 @@ func (wk *wukongDB) GetMessageEventByEventID(channelId string, channelType uint8
 	return nil, nil
 }
 
-func (wk *wukongDB) ListMessageEvents(channelId string, channelType uint8, clientMsgNo string, fromMsgEventSeq uint64, laneID string, limit int) ([]MessageEvent, error) {
+func (wk *wukongDB) ListMessageEvents(channelId string, channelType uint8, clientMsgNo string, fromMsgEventSeq uint64, eventKey string, limit int) ([]MessageEvent, error) {
 	clientMsgNo = strings.TrimSpace(clientMsgNo)
-	laneID = strings.TrimSpace(laneID)
+	eventKey = strings.TrimSpace(eventKey)
 	if clientMsgNo == "" {
 		return nil, nil
 	}
 	if limit <= 0 {
 		limit = 200
 	}
-	if laneID != "" {
-		laneID = normalizeLaneID(laneID)
+	if eventKey != "" {
+		eventKey = normalizeEventKey(eventKey)
 	}
 
-	states, err := wk.GetMessageLaneStates(channelId, channelType, clientMsgNo)
+	states, err := wk.GetMessageEventStates(channelId, channelType, clientMsgNo)
 	if err != nil {
 		return nil, err
 	}
 
 	res := make([]MessageEvent, 0, len(states))
 	for _, state := range states {
-		if laneID != "" && state.LaneID != laneID {
+		if eventKey != "" && state.EventKey != eventKey {
 			continue
 		}
 		if state.LastMsgEventSeq <= fromMsgEventSeq {
@@ -185,22 +216,22 @@ func (wk *wukongDB) ListMessageEvents(channelId string, channelType uint8, clien
 	return res, nil
 }
 
-func (wk *wukongDB) GetMessageLaneStates(channelId string, channelType uint8, clientMsgNo string) ([]MessageLaneState, error) {
+func (wk *wukongDB) GetMessageEventStates(channelId string, channelType uint8, clientMsgNo string) ([]MessageEventState, error) {
 	clientMsgNo = strings.TrimSpace(clientMsgNo)
 	if clientMsgNo == "" {
 		return nil, nil
 	}
 
-	db := wk.shardDB(clientMsgNo)
+	db := wk.channelDb(channelId, channelType)
 	iter := db.NewIter(&pebble.IterOptions{
-		LowerBound: key.NewMessageLaneStateLowKey(channelId, channelType, clientMsgNo),
-		UpperBound: key.NewMessageLaneStateHighKey(channelId, channelType, clientMsgNo),
+		LowerBound: key.NewMessageEventStateLowKey(channelId, channelType, clientMsgNo),
+		UpperBound: key.NewMessageEventStateHighKey(channelId, channelType, clientMsgNo),
 	})
 	defer iter.Close()
 
-	states := make([]MessageLaneState, 0)
+	states := make([]MessageEventState, 0)
 	for iter.First(); iter.Valid(); iter.Next() {
-		var state MessageLaneState
+		var state MessageEventState
 		if err := json.Unmarshal(iter.Value(), &state); err != nil {
 			return nil, err
 		}
@@ -209,66 +240,50 @@ func (wk *wukongDB) GetMessageLaneStates(channelId string, channelType uint8, cl
 	return states, nil
 }
 
-func (wk *wukongDB) GetMessageLaneStatesBatch(channelId string, channelType uint8, clientMsgNos []string) (map[string][]MessageLaneState, error) {
+func (wk *wukongDB) GetMessageEventStatesBatch(channelId string, channelType uint8, clientMsgNos []string) (map[string][]MessageEventState, error) {
 	if len(clientMsgNos) == 0 {
 		return nil, nil
 	}
 
-	// Group clientMsgNos by shard to minimize iterator creation.
-	type shardGroup struct {
-		shardId      uint32
-		clientMsgNos []string
-	}
-	shardMap := make(map[uint32]*shardGroup)
+	fmt.Println("GetMessageEventStatesBatch---->", channelId, channelType, clientMsgNos)
+	// 同一 channel 的所有 clientMsgNo 都在同一个 shard 上
+	db := wk.channelDb(channelId, channelType)
+	result := make(map[string][]MessageEventState, len(clientMsgNos))
 	for _, cmn := range clientMsgNos {
 		cmn = strings.TrimSpace(cmn)
 		if cmn == "" {
 			continue
 		}
-		sid := wk.shardId(cmn)
-		g, ok := shardMap[sid]
-		if !ok {
-			g = &shardGroup{shardId: sid}
-			shardMap[sid] = g
+		iter := db.NewIter(&pebble.IterOptions{
+			LowerBound: key.NewMessageEventStateLowKey(channelId, channelType, cmn),
+			UpperBound: key.NewMessageEventStateHighKey(channelId, channelType, cmn),
+		})
+		var states []MessageEventState
+		for iter.First(); iter.Valid(); iter.Next() {
+			var state MessageEventState
+			if err := json.Unmarshal(iter.Value(), &state); err != nil {
+				_ = iter.Close()
+				return nil, err
+			}
+			states = append(states, state)
 		}
-		g.clientMsgNos = append(g.clientMsgNos, cmn)
-	}
-
-	result := make(map[string][]MessageLaneState, len(clientMsgNos))
-	for sid, g := range shardMap {
-		db := wk.shardDBById(sid)
-		for _, cmn := range g.clientMsgNos {
-			iter := db.NewIter(&pebble.IterOptions{
-				LowerBound: key.NewMessageLaneStateLowKey(channelId, channelType, cmn),
-				UpperBound: key.NewMessageLaneStateHighKey(channelId, channelType, cmn),
-			})
-			var states []MessageLaneState
-			for iter.First(); iter.Valid(); iter.Next() {
-				var state MessageLaneState
-				if err := json.Unmarshal(iter.Value(), &state); err != nil {
-					_ = iter.Close()
-					return nil, err
-				}
-				states = append(states, state)
-			}
-			_ = iter.Close()
-			if len(states) > 0 {
-				result[cmn] = states
-			}
+		_ = iter.Close()
+		if len(states) > 0 {
+			result[cmn] = states
 		}
 	}
 	return result, nil
 }
 
-func (wk *wukongDB) GetMessageLaneState(channelId string, channelType uint8, clientMsgNo, laneID string) (*MessageLaneState, error) {
+func (wk *wukongDB) GetMessageEventState(channelId string, channelType uint8, clientMsgNo, eventKey string) (*MessageEventState, error) {
 	clientMsgNo = strings.TrimSpace(clientMsgNo)
-	laneID = normalizeLaneID(laneID)
+	eventKey = normalizeEventKey(eventKey)
 	if clientMsgNo == "" {
 		return nil, nil
 	}
 
-	db := wk.shardDB(clientMsgNo)
-	v, closer, err := db.Get(key.NewMessageLaneStateKey(channelId, channelType, clientMsgNo, laneID))
+	db := wk.channelDb(channelId, channelType)
+	v, closer, err := db.Get(key.NewMessageEventStateKey(channelId, channelType, clientMsgNo, eventKey))
 	if err != nil {
 		if err == pebble.ErrNotFound {
 			return nil, nil
@@ -280,7 +295,7 @@ func (wk *wukongDB) GetMessageLaneState(channelId string, channelType uint8, cli
 		_ = closer.Close()
 	}
 
-	var state MessageLaneState
+	var state MessageEventState
 	if err := json.Unmarshal(vCopy, &state); err != nil {
 		return nil, err
 	}
@@ -313,26 +328,26 @@ func (wk *wukongDB) incrMessageEventSeq(channelId string, channelType uint8, cli
 	return next, nil
 }
 
-func normalizeLaneID(laneID string) string {
-	laneID = strings.TrimSpace(laneID)
-	if laneID == "" {
-		return messageEventDefaultLane
+func normalizeEventKey(eventKey string) string {
+	eventKey = strings.TrimSpace(eventKey)
+	if eventKey == "" {
+		return EventKeyDefault
 	}
-	return laneID
+	return eventKey
 }
 
 func isTerminalStatus(status string) bool {
 	switch status {
-	case "closed", "error", "cancelled":
+	case EventStatusClosed, EventStatusError, EventStatusCancelled:
 		return true
 	default:
 		return false
 	}
 }
 
-func reduceLaneState(state *MessageLaneState, event *MessageEvent) *MessageLaneState {
+func reduceEventState(state *MessageEventState, event *MessageEvent) *MessageEventState {
 	if state == nil {
-		state = &MessageLaneState{}
+		state = &MessageEventState{}
 	}
 	if state.ChannelId == "" {
 		state.ChannelId = event.ChannelId
@@ -341,8 +356,8 @@ func reduceLaneState(state *MessageLaneState, event *MessageEvent) *MessageLaneS
 	if state.ClientMsgNo == "" {
 		state.ClientMsgNo = event.ClientMsgNo
 	}
-	if state.LaneID == "" {
-		state.LaneID = event.LaneID
+	if state.EventKey == "" {
+		state.EventKey = event.EventKey
 	}
 	state.LastEventID = event.EventID
 	state.LastEventType = event.EventType
@@ -354,35 +369,38 @@ func reduceLaneState(state *MessageLaneState, event *MessageEvent) *MessageLaneS
 	}
 
 	switch event.EventType {
-	case "stream.open":
-		state.Status = "open"
-	case "stream.delta":
+	case EventTypeStreamDelta:
+		if state.Status == "" {
+			state.Status = EventStatusOpen
+		}
 		applyDeltaSnapshot(state, event)
-	case "stream.snapshot":
+	case EventTypeStreamSnapshot:
 		state.SnapshotPayload = append([]byte(nil), event.Payload...)
-	case "stream.close":
+	case EventTypeStreamClose:
 		if snapshot := extractSnapshot(event.Payload); len(snapshot) > 0 {
 			state.SnapshotPayload = snapshot
 		}
-		state.Status = "closed"
+		state.Status = EventStatusClosed
 		state.EndReason = extractEndReason(event.Payload)
-	case "stream.error":
+	case EventTypeStreamError:
 		if snapshot := extractSnapshot(event.Payload); len(snapshot) > 0 {
 			state.SnapshotPayload = snapshot
 		}
-		state.Status = "error"
+		state.Status = EventStatusError
 		state.Error = extractError(event.Payload)
-	case "stream.cancel":
+	case EventTypeStreamCancel:
 		if snapshot := extractSnapshot(event.Payload); len(snapshot) > 0 {
 			state.SnapshotPayload = snapshot
 		}
-		state.Status = "cancelled"
+		state.Status = EventStatusCancelled
+	case EventTypeStreamFinish:
+		state.Status = EventStatusClosed
 	}
 	state.LastMsgEventSeq = event.MsgEventSeq
 	return state
 }
 
-func applyDeltaSnapshot(state *MessageLaneState, event *MessageEvent) {
+func applyDeltaSnapshot(state *MessageEventState, event *MessageEvent) {
 	if len(event.Payload) == 0 {
 		return
 	}
@@ -393,7 +411,7 @@ func applyDeltaSnapshot(state *MessageLaneState, event *MessageEvent) {
 		return
 	}
 	kind, _ := payload["kind"].(string)
-	if kind != "text" {
+	if kind != SnapshotKindText {
 		state.SnapshotPayload = append([]byte(nil), event.Payload...)
 		return
 	}
@@ -403,12 +421,12 @@ func applyDeltaSnapshot(state *MessageLaneState, event *MessageEvent) {
 		return
 	}
 
-	snapshot := map[string]interface{}{"kind": "text", "text": ""}
+	snapshot := map[string]interface{}{"kind": SnapshotKindText, "text": ""}
 	if len(state.SnapshotPayload) > 0 {
 		_ = json.Unmarshal(state.SnapshotPayload, &snapshot)
 	}
 	text, _ := snapshot["text"].(string)
-	snapshot["kind"] = "text"
+	snapshot["kind"] = SnapshotKindText
 	snapshot["text"] = text + delta
 	data, _ := json.Marshal(snapshot)
 	state.SnapshotPayload = data
@@ -470,10 +488,10 @@ func extractSnapshot(payload []byte) []byte {
 	return data
 }
 
-func (wk *wukongDB) buildProjectedEvent(channelId string, channelType uint8, clientMsgNo string, state MessageLaneState) *MessageEvent {
+func (wk *wukongDB) buildProjectedEvent(channelId string, channelType uint8, clientMsgNo string, state MessageEventState) *MessageEvent {
 	eventType := state.LastEventType
 	if strings.TrimSpace(eventType) == "" {
-		eventType = "projection.snapshot"
+		eventType = EventTypeStreamSnapshot
 	}
 	payload := append([]byte(nil), state.SnapshotPayload...)
 	if len(payload) == 0 {
@@ -494,7 +512,7 @@ func (wk *wukongDB) buildProjectedEvent(channelId string, channelType uint8, cli
 		ClientMsgNo: clientMsgNo,
 		MsgEventSeq: state.LastMsgEventSeq,
 		EventID:     state.LastEventID,
-		LaneID:      state.LaneID,
+		EventKey:    state.EventKey,
 		EventType:   eventType,
 		Visibility:  state.LastVisibility,
 		OccurredAt:  state.LastOccurredAt,

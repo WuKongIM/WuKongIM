@@ -991,11 +991,17 @@ type messageResp struct {
 	Payload         []byte `json:"payload"`          // 消息内容
 	Expire          uint32 `json:"expire"`           // 消息过期时间 0 表示永不过期
 	Term            uint64 `json:"term"`             // 消息任期
+	IsStream        int    `json:"is_stream"`        // 是否是流式消息
 }
 
 func newMessageResp(m wkdb.Message) *messageResp {
 
 	timestampFormat := wkutil.ToyyyyMMddHHmm(time.Unix(int64(m.Timestamp), 0))
+
+	isStream := 0
+	if wkproto.Setting(m.Setting).IsSet(wkproto.SettingStream) {
+		isStream = 1
+	}
 
 	return &messageResp{
 		MessageId:       strconv.FormatInt(m.MessageID, 10),
@@ -1010,6 +1016,7 @@ func newMessageResp(m wkdb.Message) *messageResp {
 		Payload:         m.Payload,
 		Expire:          m.Expire,
 		Term:            m.Term,
+		IsStream:        isStream,
 	}
 }
 

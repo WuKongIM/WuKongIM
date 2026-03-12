@@ -155,7 +155,7 @@ function GetMessageLaneStates(channelId, channelType, clientMsgNo):
 
 ## 6. 与 API 层对接
 
-1. `POST /message/eventappend`：调用 `AppendMessageEventWithLaneState`，直接拿到 `msg_event_seq` 与 lane 最新状态。
+1. `POST /message/event`：调用 `AppendMessageEventWithLaneState`，直接拿到 `msg_event_seq` 与 lane 最新状态。
 2. `POST /message/eventsync`：调用 `ListMessageEvents`，生成 `from_msg_event_seq/next_msg_event_seq`。
 3. `POST /channel/messagesync`：先查消息，再用 `GetMessageLaneStates(client_msg_no)` 填充 `event_meta`。
 

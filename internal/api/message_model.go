@@ -67,10 +67,11 @@ type eventAppendReq struct {
 	ChannelID   string            `json:"channel_id"`
 	ChannelType uint8             `json:"channel_type"`
 	FromUID     string            `json:"from_uid"`
+	MessageID   int64             `json:"message_id"`
 	ClientMsgNo string            `json:"client_msg_no"`
 	EventID     string            `json:"event_id"`
 	EventType   string            `json:"event_type"`
-	LaneID      string            `json:"lane_id"`
+	EventKey      string            `json:"event_key"`
 	Visibility  string            `json:"visibility"`
 	OccurredAt  int64             `json:"occurred_at"`
 	Payload     json.RawMessage   `json:"payload"`
@@ -95,7 +96,7 @@ func (r eventAppendReq) Check() error {
 
 type eventAppendResp struct {
 	ClientMsgNo  string `json:"client_msg_no"`
-	LaneID       string `json:"lane_id"`
+	EventKey       string `json:"event_key"`
 	EventID      string `json:"event_id"`
 	MsgEventSeq  uint64 `json:"msg_event_seq"`
 	StreamStatus string `json:"stream_status"`
@@ -109,7 +110,7 @@ type eventSyncReq struct {
 	ChannelType     uint8  `json:"channel_type"`
 	FromUID         string `json:"from_uid"`
 	ClientMsgNo     string `json:"client_msg_no"`
-	LaneID          string `json:"lane_id"`
+	EventKey          string `json:"event_key"`
 	FromMsgEventSeq uint64 `json:"from_msg_event_seq"`
 	Limit           int    `json:"limit"`
 	IncludePrivate  uint8  `json:"include_private"`

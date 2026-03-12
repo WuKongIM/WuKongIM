@@ -6,8 +6,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wkdb"
 )
 
-// AppendMessageEventWithLaneState appends one event through raft proposal and returns persisted event + lane state.
-func (s *Store) AppendMessageEventWithLaneState(channelId string, channelType uint8, event *wkdb.MessageEvent) (*wkdb.MessageEvent, *wkdb.MessageLaneState, error) {
+// AppendMessageEventWithState appends one event through raft proposal and returns persisted event + state.
+func (s *Store) AppendMessageEventWithState(channelId string, channelType uint8, event *wkdb.MessageEvent) (*wkdb.MessageEvent, *wkdb.MessageEventState, error) {
 	if event == nil {
 		return nil, nil, wkdb.ErrNotFound
 	}
@@ -32,39 +32,39 @@ func (s *Store) AppendMessageEventWithLaneState(channelId string, channelType ui
 		return nil, nil, err
 	}
 
-	laneID := strings.TrimSpace(event.LaneID)
-	if laneID == "" {
-		laneID = "main"
+	eventKey := strings.TrimSpace(event.EventKey)
+	if eventKey == "" {
+		eventKey = wkdb.EventKeyDefault
 	}
-	laneState, err := s.wdb.GetMessageLaneState(channelId, channelType, event.ClientMsgNo, laneID)
+	eventState, err := s.wdb.GetMessageEventState(channelId, channelType, event.ClientMsgNo, eventKey)
 	if err != nil {
 		return nil, nil, err
 	}
-	if laneState == nil {
+	if eventState == nil {
 		return nil, nil, wkdb.ErrNotFound
 	}
 	stored := *event
-	stored.LaneID = laneState.LaneID
-	stored.MsgEventSeq = laneState.LastMsgEventSeq
-	return &stored, laneState, nil
+	stored.EventKey = eventState.EventKey
+	stored.MsgEventSeq = eventState.LastMsgEventSeq
+	return &stored, eventState, nil
 }
 
 func (s *Store) GetMessageEventByEventID(channelId string, channelType uint8, clientMsgNo, eventID string) (*wkdb.MessageEvent, error) {
 	return s.wdb.GetMessageEventByEventID(channelId, channelType, clientMsgNo, eventID)
 }
 
-func (s *Store) ListMessageEvents(channelId string, channelType uint8, clientMsgNo string, fromMsgEventSeq uint64, laneID string, limit int) ([]wkdb.MessageEvent, error) {
-	return s.wdb.ListMessageEvents(channelId, channelType, clientMsgNo, fromMsgEventSeq, laneID, limit)
+func (s *Store) ListMessageEvents(channelId string, channelType uint8, clientMsgNo string, fromMsgEventSeq uint64, eventKey string, limit int) ([]wkdb.MessageEvent, error) {
+	return s.wdb.ListMessageEvents(channelId, channelType, clientMsgNo, fromMsgEventSeq, eventKey, limit)
 }
 
-func (s *Store) GetMessageLaneStates(channelId string, channelType uint8, clientMsgNo string) ([]wkdb.MessageLaneState, error) {
-	return s.wdb.GetMessageLaneStates(channelId, channelType, clientMsgNo)
+func (s *Store) GetMessageEventStates(channelId string, channelType uint8, clientMsgNo string) ([]wkdb.MessageEventState, error) {
+	return s.wdb.GetMessageEventStates(channelId, channelType, clientMsgNo)
 }
 
-func (s *Store) GetMessageLaneStatesBatch(channelId string, channelType uint8, clientMsgNos []string) (map[string][]wkdb.MessageLaneState, error) {
-	return s.wdb.GetMessageLaneStatesBatch(channelId, channelType, clientMsgNos)
+func (s *Store) GetMessageEventStatesBatch(channelId string, channelType uint8, clientMsgNos []string) (map[string][]wkdb.MessageEventState, error) {
+	return s.wdb.GetMessageEventStatesBatch(channelId, channelType, clientMsgNos)
 }
 
-func (s *Store) GetMessageLaneState(channelId string, channelType uint8, clientMsgNo, laneID string) (*wkdb.MessageLaneState, error) {
-	return s.wdb.GetMessageLaneState(channelId, channelType, clientMsgNo, laneID)
+func (s *Store) GetMessageEventState(channelId string, channelType uint8, clientMsgNo, eventKey string) (*wkdb.MessageEventState, error) {
+	return s.wdb.GetMessageEventState(channelId, channelType, clientMsgNo, eventKey)
 }

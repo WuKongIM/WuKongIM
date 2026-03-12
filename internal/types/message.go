@@ -35,16 +35,17 @@ type MessageResp struct {
 }
 
 type MessageEventMeta struct {
-	HasEvents       bool                    `json:"has_events"`
-	EventVersion    uint64                  `json:"event_version,omitempty"`
-	LastMsgEventSeq uint64                  `json:"last_msg_event_seq,omitempty"`
-	LaneCount       int                     `json:"lane_count,omitempty"`
-	OpenLaneCount   int                     `json:"open_lane_count,omitempty"`
-	Lanes           []*MessageEventLaneMeta `json:"lanes,omitempty"`
+	HasEvents          bool                    `json:"has_events"`
+	Completed          bool                    `json:"completed"`
+	EventVersion       uint64                  `json:"event_version,omitempty"`
+	LastMsgEventSeq    uint64                  `json:"last_msg_event_seq,omitempty"`
+	EventCount         int                     `json:"event_count,omitempty"`
+	OpenEventCount     int                     `json:"open_event_count,omitempty"`
+	Events             []*MessageEventKeyMeta  `json:"events,omitempty"`
 }
 
-type MessageEventLaneMeta struct {
-	LaneID          string      `json:"lane_id"`
+type MessageEventKeyMeta struct {
+	EventKey        string      `json:"event_key"`
 	Status          string      `json:"status"`
 	LastMsgEventSeq uint64      `json:"last_msg_event_seq,omitempty"`
 	Snapshot        interface{} `json:"snapshot,omitempty"`

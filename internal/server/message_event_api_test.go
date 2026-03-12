@@ -45,10 +45,10 @@ func sendAnchorMessage(t *testing.T, apiBaseURL, clientMsgNo, channelID, fromUID
 	}, 8*time.Second, 80*time.Millisecond)
 }
 
-// eventAppend is a shorthand for calling /message/eventappend.
+// eventAppend is a shorthand for calling /message/event.
 func eventAppend(t *testing.T, apiBaseURL string, req map[string]interface{}) (int, map[string]interface{}) {
 	t.Helper()
-	return postJSON(t, apiBaseURL+"/message/eventappend", req)
+	return postJSON(t, apiBaseURL+"/message/event", req)
 }
 
 // eventAppendData calls eventAppend and returns the data map directly. Fails if status != 200.
@@ -76,20 +76,8 @@ func TestMessageEventAPI_AppendSyncAndMessageSyncMeta(t *testing.T) {
 		"from_uid":      fromUID,
 		"client_msg_no": clientMsgNo,
 		"event_id":      "evt_1",
-		"event_type":    "stream.open",
-		"lane_id":       "main",
-		"visibility":    "public",
-		"payload":       map[string]interface{}{"kind": "text"},
-	})
-
-	eventAppendData(t, apiBaseURL, map[string]interface{}{
-		"channel_id":    channelID,
-		"channel_type":  wkproto.ChannelTypePerson,
-		"from_uid":      fromUID,
-		"client_msg_no": clientMsgNo,
-		"event_id":      "evt_2",
 		"event_type":    "stream.delta",
-		"lane_id":       "main",
+		"event_key":     "main",
 		"visibility":    "public",
 		"payload":       map[string]interface{}{"kind": "text", "delta": "你好，事件流"},
 	})
@@ -99,9 +87,9 @@ func TestMessageEventAPI_AppendSyncAndMessageSyncMeta(t *testing.T) {
 		"channel_type":  wkproto.ChannelTypePerson,
 		"from_uid":      fromUID,
 		"client_msg_no": clientMsgNo,
-		"event_id":      "evt_3",
+		"event_id":      "evt_2",
 		"event_type":    "stream.close",
-		"lane_id":       "main",
+		"event_key":     "main",
 		"visibility":    "public",
 		"payload":       map[string]interface{}{"end_reason": 0},
 	})
@@ -112,7 +100,7 @@ func TestMessageEventAPI_AppendSyncAndMessageSyncMeta(t *testing.T) {
 		"channel_type":       wkproto.ChannelTypePerson,
 		"from_uid":           fromUID,
 		"client_msg_no":      clientMsgNo,
-		"lane_id":            "main",
+		"event_key":          "main",
 		"from_msg_event_seq": 0,
 		"limit":              10,
 	})
@@ -120,7 +108,7 @@ func TestMessageEventAPI_AppendSyncAndMessageSyncMeta(t *testing.T) {
 	data := body["data"].(map[string]interface{})
 	events := data["events"].([]interface{})
 	require.Len(t, events, 1)
-	require.Equal(t, float64(2), events[0].(map[string]interface{})["msg_event_seq"])
+	require.Equal(t, float64(1), events[0].(map[string]interface{})["msg_event_seq"])
 
 	// messagesync
 	status, syncBodyBytes := postJSONRaw(t, apiBaseURL+"/channel/messagesync", map[string]interface{}{
@@ -144,12 +132,12 @@ func TestMessageEventAPI_AppendSyncAndMessageSyncMeta(t *testing.T) {
 	target := findMessageByClientMsgNo(t, messages, clientMsgNo)
 	eventMeta := target["event_meta"].(map[string]interface{})
 	require.Equal(t, true, eventMeta["has_events"])
-	require.Equal(t, float64(1), eventMeta["lane_count"])
-	lanes := eventMeta["lanes"].([]interface{})
-	require.Len(t, lanes, 1)
-	lane := lanes[0].(map[string]interface{})
-	require.Equal(t, "main", lane["lane_id"])
-	require.Equal(t, "closed", lane["status"])
+	require.Equal(t, float64(1), eventMeta["event_count"])
+	eventKeys :=eventMeta["events"].([]interface{})
+	require.Len(t, eventKeys, 1)
+	ek := eventKeys[0].(map[string]interface{})
+	require.Equal(t, "main", ek["event_key"])
+	require.Equal(t, "closed", ek["status"])
 	streamDataBase64, ok := target["stream_data"].(string)
 	require.True(t, ok)
 	streamData, err := base64.StdEncoding.DecodeString(streamDataBase64)
@@ -159,81 +147,98 @@ func TestMessageEventAPI_AppendSyncAndMessageSyncMeta(t *testing.T) {
 	_ = s
 }
 
-func TestMessageEventAPI_OpenIdempotent(t *testing.T) {
+func TestMessageEventAPI_DefaultEventKey(t *testing.T) {
 	_, apiBaseURL := newEventAPITestServer(t)
 
-	clientMsgNo := "cmn-open-idempotent"
+	clientMsgNo := "cmn-default-key"
 	channelID := "u2"
 	fromUID := "u1"
 
 	sendAnchorMessage(t, apiBaseURL, clientMsgNo, channelID, fromUID)
 
-	d1 := eventAppendData(t, apiBaseURL, map[string]interface{}{
-		"channel_id":    channelID,
-		"channel_type":  wkproto.ChannelTypePerson,
-		"from_uid":      fromUID,
-		"client_msg_no": clientMsgNo,
-		"event_id":      "evt_open",
-		"event_type":    "stream.open",
-		"lane_id":       "main",
-	})
-	firstSeq := d1["msg_event_seq"]
-
-	// retry same event_id → should be idempotent (DB path handles this)
-	d2 := eventAppendData(t, apiBaseURL, map[string]interface{}{
-		"channel_id":    channelID,
-		"channel_type":  wkproto.ChannelTypePerson,
-		"from_uid":      fromUID,
-		"client_msg_no": clientMsgNo,
-		"event_id":      "evt_open",
-		"event_type":    "stream.open",
-		"lane_id":       "main",
-	})
-	require.Equal(t, firstSeq, d2["msg_event_seq"])
-}
-
-func TestMessageEventAPI_DefaultLane(t *testing.T) {
-	_, apiBaseURL := newEventAPITestServer(t)
-
-	clientMsgNo := "cmn-default-lane"
-	channelID := "u2"
-	fromUID := "u1"
-
-	sendAnchorMessage(t, apiBaseURL, clientMsgNo, channelID, fromUID)
-
-	// omit lane_id → should default to "main"
+	// omit event_key → should default to "main"
 	d := eventAppendData(t, apiBaseURL, map[string]interface{}{
-		"channel_id":    channelID,
-		"channel_type":  wkproto.ChannelTypePerson,
-		"from_uid":      fromUID,
-		"client_msg_no": clientMsgNo,
-		"event_id":      "evt_open",
-		"event_type":    "stream.open",
-	})
-	require.Equal(t, "main", d["lane_id"])
-}
-
-func TestMessageEventAPI_DeltaWithoutOpenFails(t *testing.T) {
-	_, apiBaseURL := newEventAPITestServer(t)
-
-	clientMsgNo := "cmn-delta-no-open"
-	channelID := "u2"
-	fromUID := "u1"
-
-	sendAnchorMessage(t, apiBaseURL, clientMsgNo, channelID, fromUID)
-
-	// stream.delta without prior stream.open → cache has no session → error
-	status, _ := eventAppend(t, apiBaseURL, map[string]interface{}{
 		"channel_id":    channelID,
 		"channel_type":  wkproto.ChannelTypePerson,
 		"from_uid":      fromUID,
 		"client_msg_no": clientMsgNo,
 		"event_id":      "evt_delta",
 		"event_type":    "stream.delta",
-		"lane_id":       "main",
 		"payload":       map[string]interface{}{"kind": "text", "delta": "x"},
 	})
-	require.Equal(t, http.StatusBadRequest, status)
+	require.Equal(t, "main", d["event_key"])
+}
+
+func TestMessageEventAPI_DeltaCloseWithoutOpen(t *testing.T) {
+	_, apiBaseURL := newEventAPITestServer(t)
+
+	clientMsgNo := "cmn-delta-close-no-open"
+	channelID := "u2"
+	fromUID := "u1"
+
+	sendAnchorMessage(t, apiBaseURL, clientMsgNo, channelID, fromUID)
+
+	// send → delta("hello ") → delta("world") → close, all without stream.open
+	eventAppendData(t, apiBaseURL, map[string]interface{}{
+		"channel_id":    channelID,
+		"channel_type":  wkproto.ChannelTypePerson,
+		"from_uid":      fromUID,
+		"client_msg_no": clientMsgNo,
+		"event_id":      "evt_d1",
+		"event_type":    "stream.delta",
+		"event_key":     "main",
+		"payload":       map[string]interface{}{"kind": "text", "delta": "hello "},
+	})
+
+	eventAppendData(t, apiBaseURL, map[string]interface{}{
+		"channel_id":    channelID,
+		"channel_type":  wkproto.ChannelTypePerson,
+		"from_uid":      fromUID,
+		"client_msg_no": clientMsgNo,
+		"event_id":      "evt_d2",
+		"event_type":    "stream.delta",
+		"event_key":     "main",
+		"payload":       map[string]interface{}{"kind": "text", "delta": "world"},
+	})
+
+	closeData := eventAppendData(t, apiBaseURL, map[string]interface{}{
+		"channel_id":    channelID,
+		"channel_type":  wkproto.ChannelTypePerson,
+		"from_uid":      fromUID,
+		"client_msg_no": clientMsgNo,
+		"event_id":      "evt_close",
+		"event_type":    "stream.close",
+		"event_key":     "main",
+		"payload":       map[string]interface{}{"end_reason": 0},
+	})
+	require.Equal(t, "closed", closeData["stream_status"])
+
+	// messagesync: verify snapshot and status
+	status, syncRaw := postJSONRaw(t, apiBaseURL+"/channel/messagesync", map[string]interface{}{
+		"login_uid":          fromUID,
+		"channel_id":         channelID,
+		"channel_type":       wkproto.ChannelTypePerson,
+		"start_message_seq":  0,
+		"end_message_seq":    0,
+		"limit":              20,
+		"pull_mode":          0,
+		"stream_v2":          1,
+		"include_event_meta": 1,
+		"event_summary_mode": "full",
+	})
+	require.Equal(t, http.StatusOK, status)
+
+	var syncResp map[string]interface{}
+	err := json.Unmarshal(syncRaw, &syncResp)
+	require.NoError(t, err)
+	target := findMessageByClientMsgNo(t, syncResp["messages"].([]interface{}), clientMsgNo)
+	eventMeta := target["event_meta"].(map[string]interface{})
+	eventKeys := eventMeta["events"].([]interface{})
+	require.Len(t, eventKeys, 1)
+	ek := eventKeys[0].(map[string]interface{})
+	require.Equal(t, "closed", ek["status"])
+	snapshot := ek["snapshot"].(map[string]interface{})
+	require.Equal(t, "hello world", snapshot["text"])
 }
 
 func TestMessageEventAPI_ResponseFields(t *testing.T) {
@@ -245,32 +250,6 @@ func TestMessageEventAPI_ResponseFields(t *testing.T) {
 
 	sendAnchorMessage(t, apiBaseURL, clientMsgNo, channelID, fromUID)
 
-	// stream.open response (DB path)
-	openData := eventAppendData(t, apiBaseURL, map[string]interface{}{
-		"channel_id":    channelID,
-		"channel_type":  wkproto.ChannelTypePerson,
-		"from_uid":      fromUID,
-		"client_msg_no": clientMsgNo,
-		"event_id":      "evt_open",
-		"event_type":    "stream.open",
-		"lane_id":       "main",
-	})
-
-	// verify expected fields present
-	require.Equal(t, clientMsgNo, openData["client_msg_no"])
-	require.Equal(t, "main", openData["lane_id"])
-	require.Equal(t, "evt_open", openData["event_id"])
-	require.NotNil(t, openData["msg_event_seq"])
-	require.NotNil(t, openData["stream_status"])
-	require.Equal(t, channelID, openData["channel_id"])
-	require.Equal(t, float64(wkproto.ChannelTypePerson), openData["channel_type"])
-	require.Equal(t, fromUID, openData["from_uid"])
-	// message_id and message_seq should NOT be present
-	_, hasMessageID := openData["message_id"]
-	_, hasMessageSeq := openData["message_seq"]
-	require.False(t, hasMessageID, "response should not contain message_id")
-	require.False(t, hasMessageSeq, "response should not contain message_seq")
-
 	// stream.delta response (cache path)
 	deltaData := eventAppendData(t, apiBaseURL, map[string]interface{}{
 		"channel_id":    channelID,
@@ -279,15 +258,24 @@ func TestMessageEventAPI_ResponseFields(t *testing.T) {
 		"client_msg_no": clientMsgNo,
 		"event_id":      "evt_delta",
 		"event_type":    "stream.delta",
-		"lane_id":       "main",
+		"event_key":     "main",
 		"payload":       map[string]interface{}{"kind": "text", "delta": "x"},
 	})
+
+	// verify expected fields present
 	require.Equal(t, clientMsgNo, deltaData["client_msg_no"])
-	require.Equal(t, "main", deltaData["lane_id"])
-	_, hasMessageID = deltaData["message_id"]
-	_, hasMessageSeq = deltaData["message_seq"]
-	require.False(t, hasMessageID, "delta response should not contain message_id")
-	require.False(t, hasMessageSeq, "delta response should not contain message_seq")
+	require.Equal(t, "main", deltaData["event_key"])
+	require.Equal(t, "evt_delta", deltaData["event_id"])
+	require.NotNil(t, deltaData["msg_event_seq"])
+	require.NotNil(t, deltaData["stream_status"])
+	require.Equal(t, channelID, deltaData["channel_id"])
+	require.Equal(t, float64(wkproto.ChannelTypePerson), deltaData["channel_type"])
+	require.Equal(t, fromUID, deltaData["from_uid"])
+	// message_id and message_seq should NOT be present
+	_, hasMessageID := deltaData["message_id"]
+	_, hasMessageSeq := deltaData["message_seq"]
+	require.False(t, hasMessageID, "response should not contain message_id")
+	require.False(t, hasMessageSeq, "response should not contain message_seq")
 }
 
 func TestMessageEventAPI_MultiDeltaAccumulation(t *testing.T) {
@@ -304,19 +292,9 @@ func TestMessageEventAPI_MultiDeltaAccumulation(t *testing.T) {
 		"channel_type":  wkproto.ChannelTypePerson,
 		"from_uid":      fromUID,
 		"client_msg_no": clientMsgNo,
-		"event_id":      "evt_open",
-		"event_type":    "stream.open",
-		"lane_id":       "main",
-	})
-
-	eventAppendData(t, apiBaseURL, map[string]interface{}{
-		"channel_id":    channelID,
-		"channel_type":  wkproto.ChannelTypePerson,
-		"from_uid":      fromUID,
-		"client_msg_no": clientMsgNo,
 		"event_id":      "evt_d1",
 		"event_type":    "stream.delta",
-		"lane_id":       "main",
+		"event_key":     "main",
 		"payload":       map[string]interface{}{"kind": "text", "delta": "hello "},
 	})
 
@@ -327,7 +305,7 @@ func TestMessageEventAPI_MultiDeltaAccumulation(t *testing.T) {
 		"client_msg_no": clientMsgNo,
 		"event_id":      "evt_d2",
 		"event_type":    "stream.delta",
-		"lane_id":       "main",
+		"event_key":     "main",
 		"payload":       map[string]interface{}{"kind": "text", "delta": "world"},
 	})
 
@@ -338,7 +316,7 @@ func TestMessageEventAPI_MultiDeltaAccumulation(t *testing.T) {
 		"client_msg_no": clientMsgNo,
 		"event_id":      "evt_close",
 		"event_type":    "stream.close",
-		"lane_id":       "main",
+		"event_key":     "main",
 		"payload":       map[string]interface{}{"end_reason": 0},
 	})
 
@@ -371,16 +349,6 @@ func TestMessageEventAPI_NonTextDelta(t *testing.T) {
 
 	sendAnchorMessage(t, apiBaseURL, clientMsgNo, channelID, fromUID)
 
-	eventAppendData(t, apiBaseURL, map[string]interface{}{
-		"channel_id":    channelID,
-		"channel_type":  wkproto.ChannelTypePerson,
-		"from_uid":      fromUID,
-		"client_msg_no": clientMsgNo,
-		"event_id":      "evt_open",
-		"event_type":    "stream.open",
-		"lane_id":       "main",
-	})
-
 	// non-text delta
 	eventAppendData(t, apiBaseURL, map[string]interface{}{
 		"channel_id":    channelID,
@@ -389,7 +357,7 @@ func TestMessageEventAPI_NonTextDelta(t *testing.T) {
 		"client_msg_no": clientMsgNo,
 		"event_id":      "evt_tool",
 		"event_type":    "stream.delta",
-		"lane_id":       "main",
+		"event_key":     "main",
 		"payload":       map[string]interface{}{"kind": "tool_call", "tool": "weather"},
 	})
 
@@ -401,7 +369,7 @@ func TestMessageEventAPI_NonTextDelta(t *testing.T) {
 		"client_msg_no": clientMsgNo,
 		"event_id":      "evt_close",
 		"event_type":    "stream.close",
-		"lane_id":       "main",
+		"event_key":     "main",
 		"payload":       map[string]interface{}{"end_reason": 0},
 	})
 
@@ -433,16 +401,6 @@ func TestMessageEventAPI_StreamError(t *testing.T) {
 
 	sendAnchorMessage(t, apiBaseURL, clientMsgNo, channelID, fromUID)
 
-	eventAppendData(t, apiBaseURL, map[string]interface{}{
-		"channel_id":    channelID,
-		"channel_type":  wkproto.ChannelTypePerson,
-		"from_uid":      fromUID,
-		"client_msg_no": clientMsgNo,
-		"event_id":      "evt_open",
-		"event_type":    "stream.open",
-		"lane_id":       "main",
-	})
-
 	d := eventAppendData(t, apiBaseURL, map[string]interface{}{
 		"channel_id":    channelID,
 		"channel_type":  wkproto.ChannelTypePerson,
@@ -450,7 +408,7 @@ func TestMessageEventAPI_StreamError(t *testing.T) {
 		"client_msg_no": clientMsgNo,
 		"event_id":      "evt_error",
 		"event_type":    "stream.error",
-		"lane_id":       "main",
+		"event_key":     "main",
 		"payload":       map[string]interface{}{"error": "timeout"},
 	})
 	require.Equal(t, "error", d["stream_status"])
@@ -465,16 +423,6 @@ func TestMessageEventAPI_StreamCancel(t *testing.T) {
 
 	sendAnchorMessage(t, apiBaseURL, clientMsgNo, channelID, fromUID)
 
-	eventAppendData(t, apiBaseURL, map[string]interface{}{
-		"channel_id":    channelID,
-		"channel_type":  wkproto.ChannelTypePerson,
-		"from_uid":      fromUID,
-		"client_msg_no": clientMsgNo,
-		"event_id":      "evt_open",
-		"event_type":    "stream.open",
-		"lane_id":       "main",
-	})
-
 	d := eventAppendData(t, apiBaseURL, map[string]interface{}{
 		"channel_id":    channelID,
 		"channel_type":  wkproto.ChannelTypePerson,
@@ -482,7 +430,7 @@ func TestMessageEventAPI_StreamCancel(t *testing.T) {
 		"client_msg_no": clientMsgNo,
 		"event_id":      "evt_cancel",
 		"event_type":    "stream.cancel",
-		"lane_id":       "main",
+		"event_key":     "main",
 	})
 	require.Equal(t, "cancelled", d["stream_status"])
 }
@@ -496,29 +444,18 @@ func TestMessageEventAPI_EventTypeCaseInsensitive(t *testing.T) {
 
 	sendAnchorMessage(t, apiBaseURL, clientMsgNo, channelID, fromUID)
 
-	// uppercase event_type should work
-	d := eventAppendData(t, apiBaseURL, map[string]interface{}{
-		"channel_id":    channelID,
-		"channel_type":  wkproto.ChannelTypePerson,
-		"from_uid":      fromUID,
-		"client_msg_no": clientMsgNo,
-		"event_id":      "evt_open",
-		"event_type":    "STREAM.OPEN",
-		"lane_id":       "main",
-	})
-	require.Equal(t, "open", d["stream_status"])
-
 	// mixed case delta
-	eventAppendData(t, apiBaseURL, map[string]interface{}{
+	d := eventAppendData(t, apiBaseURL, map[string]interface{}{
 		"channel_id":    channelID,
 		"channel_type":  wkproto.ChannelTypePerson,
 		"from_uid":      fromUID,
 		"client_msg_no": clientMsgNo,
 		"event_id":      "evt_delta",
 		"event_type":    "Stream.Delta",
-		"lane_id":       "main",
+		"event_key":     "main",
 		"payload":       map[string]interface{}{"kind": "text", "delta": "x"},
 	})
+	require.Equal(t, "open", d["stream_status"])
 
 	// mixed case close
 	d = eventAppendData(t, apiBaseURL, map[string]interface{}{
@@ -528,10 +465,88 @@ func TestMessageEventAPI_EventTypeCaseInsensitive(t *testing.T) {
 		"client_msg_no": clientMsgNo,
 		"event_id":      "evt_close",
 		"event_type":    "STREAM.CLOSE",
-		"lane_id":       "main",
+		"event_key":     "main",
 		"payload":       map[string]interface{}{"end_reason": 0},
 	})
 	require.Equal(t, "closed", d["stream_status"])
+}
+
+func TestMessageEventAPI_StreamFinish(t *testing.T) {
+	_, apiBaseURL := newEventAPITestServer(t)
+
+	clientMsgNo := "cmn-stream-finish"
+	channelID := "u2"
+	fromUID := "u1"
+
+	sendAnchorMessage(t, apiBaseURL, clientMsgNo, channelID, fromUID)
+
+	// delta → close on "main" key
+	eventAppendData(t, apiBaseURL, map[string]interface{}{
+		"channel_id":    channelID,
+		"channel_type":  wkproto.ChannelTypePerson,
+		"from_uid":      fromUID,
+		"client_msg_no": clientMsgNo,
+		"event_id":      "evt_d1",
+		"event_type":    "stream.delta",
+		"event_key":     "main",
+		"payload":       map[string]interface{}{"kind": "text", "delta": "hello"},
+	})
+
+	eventAppendData(t, apiBaseURL, map[string]interface{}{
+		"channel_id":    channelID,
+		"channel_type":  wkproto.ChannelTypePerson,
+		"from_uid":      fromUID,
+		"client_msg_no": clientMsgNo,
+		"event_id":      "evt_close",
+		"event_type":    "stream.close",
+		"event_key":     "main",
+		"payload":       map[string]interface{}{"end_reason": 0},
+	})
+
+	// send stream.finish
+	finishData := eventAppendData(t, apiBaseURL, map[string]interface{}{
+		"channel_id":    channelID,
+		"channel_type":  wkproto.ChannelTypePerson,
+		"from_uid":      fromUID,
+		"client_msg_no": clientMsgNo,
+		"event_id":      "evt_finish",
+		"event_type":    "stream.finish",
+	})
+	require.Equal(t, "closed", finishData["stream_status"])
+
+	// messagesync: verify event_meta.completed == true and events array does not contain __finish__
+	status, syncRaw := postJSONRaw(t, apiBaseURL+"/channel/messagesync", map[string]interface{}{
+		"login_uid":          fromUID,
+		"channel_id":         channelID,
+		"channel_type":       wkproto.ChannelTypePerson,
+		"start_message_seq":  0,
+		"end_message_seq":    0,
+		"limit":              20,
+		"pull_mode":          0,
+		"stream_v2":          1,
+		"include_event_meta": 1,
+	})
+	require.Equal(t, http.StatusOK, status)
+
+	var syncResp map[string]interface{}
+	err := json.Unmarshal(syncRaw, &syncResp)
+	require.NoError(t, err)
+	target := findMessageByClientMsgNo(t, syncResp["messages"].([]interface{}), clientMsgNo)
+	eventMeta := target["event_meta"].(map[string]interface{})
+
+	// completed should be true
+	require.Equal(t, true, eventMeta["completed"])
+
+	// events array should not contain __finish__
+	eventKeys := eventMeta["events"].([]interface{})
+	for _, ek := range eventKeys {
+		ekMap := ek.(map[string]interface{})
+		require.NotEqual(t, "__finish__", ekMap["event_key"], "events should not contain __finish__ entry")
+	}
+
+	// events should only have "main"
+	require.Len(t, eventKeys, 1)
+	require.Equal(t, "main", eventKeys[0].(map[string]interface{})["event_key"])
 }
 
 func TestMessageEventAPI_MissingRequiredFields(t *testing.T) {
@@ -543,7 +558,8 @@ func TestMessageEventAPI_MissingRequiredFields(t *testing.T) {
 		"from_uid":      "u1",
 		"client_msg_no": "cmn_1",
 		"event_id":      "evt_1",
-		"event_type":    "stream.open",
+		"event_type":    "stream.delta",
+		"payload":       map[string]interface{}{"kind": "text", "delta": "x"},
 	})
 	require.Equal(t, http.StatusBadRequest, status)
 
@@ -553,7 +569,8 @@ func TestMessageEventAPI_MissingRequiredFields(t *testing.T) {
 		"channel_type": wkproto.ChannelTypePerson,
 		"from_uid":     "u1",
 		"event_id":     "evt_1",
-		"event_type":   "stream.open",
+		"event_type":   "stream.delta",
+		"payload":      map[string]interface{}{"kind": "text", "delta": "x"},
 	})
 	require.Equal(t, http.StatusBadRequest, status)
 
@@ -563,7 +580,8 @@ func TestMessageEventAPI_MissingRequiredFields(t *testing.T) {
 		"channel_type":  wkproto.ChannelTypePerson,
 		"from_uid":      "u1",
 		"client_msg_no": "cmn_1",
-		"event_type":    "stream.open",
+		"event_type":    "stream.delta",
+		"payload":       map[string]interface{}{"kind": "text", "delta": "x"},
 	})
 	require.Equal(t, http.StatusBadRequest, status)
 
@@ -592,19 +610,9 @@ func TestMessageEventAPI_MessageSyncEventSummaryMode(t *testing.T) {
 		"channel_type":  wkproto.ChannelTypePerson,
 		"from_uid":      fromUID,
 		"client_msg_no": clientMsgNo,
-		"event_id":      "evt_open",
-		"event_type":    "stream.open",
-		"lane_id":       "main",
-	})
-
-	eventAppendData(t, apiBaseURL, map[string]interface{}{
-		"channel_id":    channelID,
-		"channel_type":  wkproto.ChannelTypePerson,
-		"from_uid":      fromUID,
-		"client_msg_no": clientMsgNo,
 		"event_id":      "evt_summary_1",
 		"event_type":    "stream.delta",
-		"lane_id":       "main",
+		"event_key":     "main",
 		"visibility":    "public",
 		"payload":       map[string]interface{}{"kind": "text", "delta": "summary-check"},
 	})
@@ -617,11 +625,11 @@ func TestMessageEventAPI_MessageSyncEventSummaryMode(t *testing.T) {
 		"client_msg_no": clientMsgNo,
 		"event_id":      "evt_close",
 		"event_type":    "stream.close",
-		"lane_id":       "main",
+		"event_key":     "main",
 		"payload":       map[string]interface{}{"end_reason": 0},
 	})
 
-	// basic: no snapshot field in lane summary
+	// basic: no snapshot field in event key summary
 	status, syncRaw := postJSONRaw(t, apiBaseURL+"/channel/messagesync", map[string]interface{}{
 		"login_uid":          fromUID,
 		"channel_id":         channelID,
@@ -640,8 +648,8 @@ func TestMessageEventAPI_MessageSyncEventSummaryMode(t *testing.T) {
 	err := json.Unmarshal(syncRaw, &basicResp)
 	require.NoError(t, err)
 	basicMsg := findMessageByClientMsgNo(t, basicResp["messages"].([]interface{}), clientMsgNo)
-	basicLane := basicMsg["event_meta"].(map[string]interface{})["lanes"].([]interface{})[0].(map[string]interface{})
-	_, basicHasSnapshot := basicLane["snapshot"]
+	basicEK := basicMsg["event_meta"].(map[string]interface{})["events"].([]interface{})[0].(map[string]interface{})
+	_, basicHasSnapshot := basicEK["snapshot"]
 	require.False(t, basicHasSnapshot)
 
 	// full: snapshot field present
@@ -663,8 +671,8 @@ func TestMessageEventAPI_MessageSyncEventSummaryMode(t *testing.T) {
 	err = json.Unmarshal(syncRaw, &fullResp)
 	require.NoError(t, err)
 	fullMsg := findMessageByClientMsgNo(t, fullResp["messages"].([]interface{}), clientMsgNo)
-	fullLane := fullMsg["event_meta"].(map[string]interface{})["lanes"].([]interface{})[0].(map[string]interface{})
-	_, fullHasSnapshot := fullLane["snapshot"]
+	fullEK := fullMsg["event_meta"].(map[string]interface{})["events"].([]interface{})[0].(map[string]interface{})
+	_, fullHasSnapshot := fullEK["snapshot"]
 	require.True(t, fullHasSnapshot)
 }
 

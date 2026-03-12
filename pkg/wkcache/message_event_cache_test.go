@@ -16,8 +16,6 @@ func TestMessageEventCache_OpenDeltaTerminal(t *testing.T) {
 		ChannelId:   "ch_1",
 		ChannelType: 1,
 		FromUid:     "u1",
-		MessageID:   1001,
-		MessageSeq:  100,
 	}
 
 	lane, err := cache.UpsertSession(meta, "main", 10)
@@ -25,11 +23,11 @@ func TestMessageEventCache_OpenDeltaTerminal(t *testing.T) {
 	require.Equal(t, uint64(10), lane.PersistedSeq)
 	require.Equal(t, "open", lane.Status)
 
-	lane, err = cache.AppendTextDelta("cmn_1", "ch_1", 1, "main", "evt_delta_1", "stream.delta", "public", 1, "hello ")
+	lane, err = cache.AppendDelta("cmn_1", "ch_1", 1, "main", "evt_delta_1", "stream.delta", "public", 1, []byte(`{"kind":"text","delta":"hello "}`))
 	require.NoError(t, err)
 	require.Equal(t, "hello ", lane.TextSnapshot)
 
-	lane, err = cache.AppendTextDelta("cmn_1", "ch_1", 1, "main", "evt_delta_2", "stream.delta", "public", 2, "world")
+	lane, err = cache.AppendDelta("cmn_1", "ch_1", 1, "main", "evt_delta_2", "stream.delta", "public", 2, []byte(`{"kind":"text","delta":"world"}`))
 	require.NoError(t, err)
 	require.Equal(t, "hello world", lane.TextSnapshot)
 
@@ -44,7 +42,7 @@ func TestMessageEventCache_OpenDeltaTerminal(t *testing.T) {
 	require.Equal(t, "text", snapshot["kind"])
 	require.Equal(t, "hello world", snapshot["text"])
 
-	err = cache.MarkLanePersisted("cmn_1", "ch_1", 1, "main", "closed", 11)
+	err = cache.MarkEventKeyPersisted("cmn_1", "ch_1", 1, "main", "closed", 11)
 	require.NoError(t, err)
 }
 
@@ -59,7 +57,7 @@ func TestMessageEventCache_ChannelMismatch(t *testing.T) {
 	}, "main", 1)
 	require.NoError(t, err)
 
-	_, err = cache.AppendTextDelta("cmn_2", "ch_2", 1, "main", "evt", "stream.delta", "public", 1, "x")
+	_, err = cache.AppendDelta("cmn_2", "ch_2", 1, "main", "evt", "stream.delta", "public", 1, []byte(`{"kind":"text","delta":"x"}`))
 	require.ErrorIs(t, err, ErrMessageEventChannelMismatch)
 }
 
@@ -126,7 +124,7 @@ func TestMessageEventCache_AppendDelta_SessionNotFound(t *testing.T) {
 	require.ErrorIs(t, err, ErrMessageEventSessionNotFound)
 }
 
-func TestMessageEventCache_AppendDelta_ClosedLane(t *testing.T) {
+func TestMessageEventCache_AppendDelta_ClosedKey(t *testing.T) {
 	cache := NewMessageEventCache(nil)
 	defer cache.Close()
 
@@ -137,17 +135,17 @@ func TestMessageEventCache_AppendDelta_ClosedLane(t *testing.T) {
 	}, "main", 0)
 	require.NoError(t, err)
 
-	err = cache.MarkLanePersisted("cmn_ad_closed", "ch_1", 1, "main", "closed", 5)
+	err = cache.MarkEventKeyPersisted("cmn_ad_closed", "ch_1", 1, "main", "closed", 5)
 	require.NoError(t, err)
 
-	// re-create session since MarkLanePersisted may have cleaned it up
+	// re-create session since MarkEventKeyPersisted may have cleaned it up
 	_, err = cache.UpsertSession(MessageEventSessionMeta{
 		ClientMsgNo: "cmn_ad_closed2",
 		ChannelId:   "ch_1",
 		ChannelType: 1,
 	}, "main", 0)
 	require.NoError(t, err)
-	err = cache.MarkLanePersisted("cmn_ad_closed2", "ch_1", 1, "main", "closed", 5)
+	err = cache.MarkEventKeyPersisted("cmn_ad_closed2", "ch_1", 1, "main", "closed", 5)
 	require.NoError(t, err)
 
 	_, err = cache.AppendDelta("cmn_ad_closed2", "ch_1", 1, "main",
@@ -174,7 +172,7 @@ func TestMessageEventCache_AppendDelta_ChannelMismatch(t *testing.T) {
 	require.ErrorIs(t, err, ErrMessageEventChannelMismatch)
 }
 
-func TestMessageEventCache_AppendDelta_NonMainLane(t *testing.T) {
+func TestMessageEventCache_AppendDelta_NonMainKey(t *testing.T) {
 	cache := NewMessageEventCache(nil)
 	defer cache.Close()
 
@@ -190,7 +188,7 @@ func TestMessageEventCache_AppendDelta_NonMainLane(t *testing.T) {
 		[]byte(`{"kind":"text","delta":"天气"}`))
 	require.NoError(t, err)
 	require.Equal(t, "天气", lane.TextSnapshot)
-	require.Equal(t, "tool_weather", lane.LaneID)
+	require.Equal(t, "tool_weather", lane.EventKey)
 }
 
 // ---- BuildTerminalPayload with non-text snapshot ----
@@ -269,7 +267,7 @@ func TestMessageEventCache_SessionAutoCleanup(t *testing.T) {
 	require.NotNil(t, meta)
 
 	// mark lane as closed → session should be auto-removed
-	err = cache.MarkLanePersisted("cmn_cleanup", "ch_1", 1, "main", "closed", 10)
+	err = cache.MarkEventKeyPersisted("cmn_cleanup", "ch_1", 1, "main", "closed", 10)
 	require.NoError(t, err)
 
 	meta, ok = cache.GetSessionMeta("cmn_cleanup", "ch_1", 1)
@@ -277,7 +275,7 @@ func TestMessageEventCache_SessionAutoCleanup(t *testing.T) {
 	require.Nil(t, meta)
 }
 
-func TestMessageEventCache_SessionAutoCleanup_MultiLane(t *testing.T) {
+func TestMessageEventCache_SessionAutoCleanup_MultiKey(t *testing.T) {
 	cache := NewMessageEventCache(nil)
 	defer cache.Close()
 
@@ -291,18 +289,18 @@ func TestMessageEventCache_SessionAutoCleanup_MultiLane(t *testing.T) {
 		ClientMsgNo: "cmn_cleanup_ml",
 		ChannelId:   "ch_1",
 		ChannelType: 1,
-	}, "tool_lane", 0)
+	}, "tool_key", 0)
 	require.NoError(t, err)
 
 	// close only one lane → session should remain
-	err = cache.MarkLanePersisted("cmn_cleanup_ml", "ch_1", 1, "main", "closed", 5)
+	err = cache.MarkEventKeyPersisted("cmn_cleanup_ml", "ch_1", 1, "main", "closed", 5)
 	require.NoError(t, err)
 	meta, ok := cache.GetSessionMeta("cmn_cleanup_ml", "ch_1", 1)
 	require.True(t, ok)
 	require.NotNil(t, meta)
 
 	// close second lane → session should be removed
-	err = cache.MarkLanePersisted("cmn_cleanup_ml", "ch_1", 1, "tool_lane", "closed", 6)
+	err = cache.MarkEventKeyPersisted("cmn_cleanup_ml", "ch_1", 1, "tool_key", "closed", 6)
 	require.NoError(t, err)
 	meta, ok = cache.GetSessionMeta("cmn_cleanup_ml", "ch_1", 1)
 	require.False(t, ok)
