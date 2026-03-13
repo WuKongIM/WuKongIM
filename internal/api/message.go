@@ -446,7 +446,6 @@ func (m *message) sync(c *wkhttp.Context) {
 
 	// 获取每个session的消息
 	messageResps := make([]*types.MessageResp, 0)
-	deletes := make([]wkdb.Channel, 0) // 待删除的会话
 	if len(channelRecentMessageReqs) > 0 {
 		channelRecentMessages, err := m.s.requset.getRecentMessagesForCluster(req.UID, req.Limit, channelRecentMessageReqs, false)
 		if err != nil {
@@ -457,10 +456,6 @@ func (m *message) sync(c *wkhttp.Context) {
 		for _, channelRecentMessage := range channelRecentMessages {
 
 			if len(channelRecentMessage.Messages) == 0 {
-				deletes = append(deletes, wkdb.Channel{
-					ChannelId:   channelRecentMessage.ChannelId,
-					ChannelType: channelRecentMessage.ChannelType,
-				})
 				continue
 			}
 			isExceedLimit := false // 是否超过限制
@@ -487,15 +482,6 @@ func (m *message) sync(c *wkhttp.Context) {
 			m.syncRecordLock.Unlock()
 		}
 	}
-	if len(deletes) > 0 {
-		err = service.Store.DeleteConversations(req.UID, deletes)
-		if err != nil {
-			m.Error("删除最近会话失败！", zap.Error(err))
-			c.ResponseError(err)
-			return
-		}
-	}
-
 	c.JSON(http.StatusOK, messageResps)
 
 }
@@ -549,7 +535,6 @@ func (m *message) syncack(c *wkhttp.Context) {
 	}
 
 	conversations := make([]wkdb.Conversation, 0)
-	deletes := make([]wkdb.Channel, 0)
 	for _, record := range records {
 		needAdd := false
 
@@ -582,33 +567,12 @@ func (m *message) syncack(c *wkhttp.Context) {
 			conversations = append(conversations, conversation)
 		}
 
-		lastMsgSeq, err := service.Store.GetChannelLastMessageSeq(record.channelId, record.channelType)
-		if err != nil {
-			m.Error("GetChannelLastMessageSeq failed", zap.Error(err))
-			continue
-		}
-
-		if record.lastMsgSeq >= lastMsgSeq {
-			deletes = append(deletes, wkdb.Channel{
-				ChannelId:   record.channelId,
-				ChannelType: record.channelType,
-			})
-		}
-
 	}
 	if len(conversations) > 0 {
 		err := service.Store.AddOrUpdateUserConversations(req.UID, conversations)
 		if err != nil {
 			m.Error("消息同步回执失败！", zap.Error(err), zap.String("uid", req.UID))
 			c.ResponseError(errors.New("消息同步回执失败！"))
-			return
-		}
-	}
-	if len(deletes) > 0 {
-		err = service.Store.DeleteConversations(req.UID, deletes)
-		if err != nil {
-			m.Error("删除最近会话失败！", zap.Error(err))
-			c.ResponseError(err)
 			return
 		}
 	}

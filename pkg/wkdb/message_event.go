@@ -245,7 +245,6 @@ func (wk *wukongDB) GetMessageEventStatesBatch(channelId string, channelType uin
 		return nil, nil
 	}
 
-	fmt.Println("GetMessageEventStatesBatch---->", channelId, channelType, clientMsgNos)
 	// 同一 channel 的所有 clientMsgNo 都在同一个 shard 上
 	db := wk.channelDb(channelId, channelType)
 	result := make(map[string][]MessageEventState, len(clientMsgNos))
