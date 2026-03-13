@@ -1,5 +1,31 @@
 # WuKongIM Changelog
 
+## [v2.2.4-20260313] - 2026-03-13
+
+### 🚀 New Features
+- **CLI**: Added `wkcli` CLI tool with channel, chat, health, message, user and server commands
+- **CLI**: 新增 `wkcli` 命令行工具，支持频道、聊天、健康检查、消息、用户和服务器管理
+- **CLI**: Added conversation management commands to `wkcli`
+- **CLI**: 为 `wkcli` 添加会话管理命令
+
+### 🐞 Bug Fixes
+- **Conversation**: Fixed sender's own messages being counted as unread
+- **会话**: 修复发送者自己的消息被计入未读数的问题
+- **Message**: Fixed CMD messages being re-delivered after syncack
+- **消息**: 修复 CMD 消息在 syncack 后被重新投递的问题
+- **Cluster**: Fixed node restart causing continuous panic (#509)
+- **集群**: 修复节点重启一直 panic 的问题 (#509)
+
+### 🔧 Refactoring
+- **Event**: Replaced old stream system with new message event system
+- **事件**: 用新的消息事件系统替换旧的 stream 系统
+- **Event**: Renamed lane to event key and added real-time event push
+- **事件**: 将 lane 重命名为 event key 并添加实时事件推送
+
+**Full Changelog**: https://github.com/WuKongIM/WuKongIM/compare/v2.2.3-20260128...v2.2.4-20260313
+
+---
+
 ## [v2.2.3-20260128] - 2026-01-28
 
 ### 🚀 New Features
