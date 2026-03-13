@@ -531,6 +531,7 @@ func (s *conversation) syncUserConversation(c *wkhttp.Context) {
 						if channelRecentMessage.UserLastMsgSeq > uint64(resp.ReadedToMsgSeq) {
 							if (lastMsg.MessageSeq-channelRecentMessage.UserLastMsgSeq) < uint64(resp.Unread) && lastMsg.MessageSeq >= uint64(resp.ReadedToMsgSeq) {
 								resp.Unread = int(lastMsg.MessageSeq - channelRecentMessage.UserLastMsgSeq)
+								resp.ReadedToMsgSeq = uint32(channelRecentMessage.UserLastMsgSeq)
 							}
 						}
 
@@ -839,6 +840,7 @@ func (s *conversation) syncConversationByChannels(c *wkhttp.Context) {
 					if channelRecentMessage.UserLastMsgSeq > uint64(resp.ReadedToMsgSeq) {
 						if (lastMsg.MessageSeq - channelRecentMessage.UserLastMsgSeq) < uint64(resp.Unread) {
 							resp.Unread = int(lastMsg.MessageSeq - channelRecentMessage.UserLastMsgSeq)
+							resp.ReadedToMsgSeq = uint32(channelRecentMessage.UserLastMsgSeq)
 						}
 					}
 
@@ -848,7 +850,7 @@ func (s *conversation) syncConversationByChannels(c *wkhttp.Context) {
 
 				// 如果最后一条消息是自己发送的，则已读序号为最后一条消息的序号
 				if len(resp.Recents) > 0 {
-					lastMsg := resp.Recents[len(resp.Recents)-1]
+					lastMsg := resp.Recents[0]
 					if lastMsg.FromUID == req.UID {
 						resp.ReadedToMsgSeq = uint32(lastMsg.MessageSeq)
 						resp.Unread = 0
