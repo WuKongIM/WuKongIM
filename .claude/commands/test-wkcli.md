@@ -133,7 +133,44 @@ cmd/wkcli/wkcli cmd sync --uid clitest2
 
 验证: 应返回 "0 command message(s)"。
 
-### 12. 服务器状态
+### 12. 会话管理 (conversation)
+
+同步会话列表:
+```
+cmd/wkcli/wkcli conversation sync --uid clitest1 --msg_count 5
+```
+
+验证: 应返回会话表格，包含 clitestgroup 频道。
+
+获取会话频道列表:
+```
+cmd/wkcli/wkcli conv channels --uid clitest1
+```
+
+验证: 应返回包含 clitestgroup 的频道列表。
+
+设置未读数:
+```
+cmd/wkcli/wkcli conv setunread --uid clitest1 --channel_id clitestgroup --channel_type 2 --unread 5
+```
+
+验证: 应返回 "Unread set to 5"。
+
+清空未读数:
+```
+cmd/wkcli/wkcli conv clearunread --uid clitest1 --channel_id clitestgroup --channel_type 2
+```
+
+验证: 应返回 "Unread cleared"。再次 sync 确认 Unread 为 0。
+
+删除会话:
+```
+cmd/wkcli/wkcli conv delete --uid clitest1 --channel_id clitestgroup --channel_type 2
+```
+
+验证: 应返回 "Conversation deleted"。
+
+### 13. 服务器状态
 
 ```
 cmd/wkcli/wkcli server varz
@@ -142,7 +179,7 @@ cmd/wkcli/wkcli server connz --limit 10
 
 验证: varz 应显示服务器指标表格，connz 应显示连接列表（可能为空）。
 
-### 13. WebSocket Chat 冒烟测试
+### 14. WebSocket Chat 冒烟测试
 
 运行 chat 连接冒烟测试（连上 → 认证 → 发消息 → 断开）:
 
@@ -152,7 +189,7 @@ go test -run TestSmokeChatConnect -v -timeout 30s ./cmd/wkcli/
 
 验证: 应依次通过 5 个步骤: Getting WS route → Connecting → Authenticating → Sending message → Disconnecting。
 
-### 14. 清理频道
+### 15. 清理频道
 
 ```
 cmd/wkcli/wkcli channel delete --channel_id clitestgroup --channel_type 2
@@ -160,7 +197,7 @@ cmd/wkcli/wkcli channel delete --channel_id clitestgroup --channel_type 2
 
 验证: 应返回删除成功。
 
-### 15. 单元测试
+### 16. 单元测试
 
 ```
 go test -short -count=1 -timeout 30s ./cmd/wkcli/
