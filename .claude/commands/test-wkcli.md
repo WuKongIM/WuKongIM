@@ -179,7 +179,21 @@ cmd/wkcli/wkcli server connz --limit 10
 
 验证: varz 应显示服务器指标表格，connz 应显示连接列表（可能为空）。
 
-### 14. WebSocket Chat 冒烟测试
+### 14. Benchmark 压测
+
+使用限速模式快速验证 bench 命令是否正常工作:
+```
+cmd/wkcli/wkcli bench --pairs 2 --duration 5s --rate 1000 --payload 256
+```
+
+验证:
+- 应打印 Banner（Mode, Address, Pairs 等配置信息）
+- 应显示 Connecting、Warming up、Benchmarking 进度
+- 最终输出 Throughput（Send/Receive 的 Messages、Rate、MB/s）
+- 输出 Latency（Min、Avg、P50、P95、P99、Max），限速模式下 P50 应在毫秒级
+- 输出 Summary（Duration 应接近 5s，Send Errors 应为 0，Loss Rate 应接近 0%）
+
+### 15. WebSocket Chat 冒烟测试
 
 运行 chat 连接冒烟测试（连上 → 认证 → 发消息 → 断开）:
 
@@ -189,7 +203,7 @@ go test -run TestSmokeChatConnect -v -timeout 30s ./cmd/wkcli/
 
 验证: 应依次通过 5 个步骤: Getting WS route → Connecting → Authenticating → Sending message → Disconnecting。
 
-### 15. 清理频道
+### 16. 清理频道
 
 ```
 cmd/wkcli/wkcli channel delete --channel_id clitestgroup --channel_type 2
@@ -197,7 +211,7 @@ cmd/wkcli/wkcli channel delete --channel_id clitestgroup --channel_type 2
 
 验证: 应返回删除成功。
 
-### 16. 单元测试
+### 17. 单元测试
 
 ```
 go test -short -count=1 -timeout 30s ./cmd/wkcli/
