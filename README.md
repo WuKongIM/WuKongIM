@@ -17,7 +17,7 @@ Technical Highlights: Custom protocol, Distributed Raft (modified pull mode), Mu
 [中文](./README_CN.md)
 
 <p align="center">
-<img align="left" height="160" src="./docs/logo.png">
+<img align="left" height="160" src="./docs/images/logo.png">
 <ul>
 <li><strong>Website</strong>: https://githubim.com</li>
 <li><strong>Protocol 1</strong>: <a href="https://githubim.com/server/advance/proto.html">WuKongIM Binary Protocol</a></li>
@@ -36,7 +36,7 @@ Technical Highlights: Custom protocol, Distributed Raft (modified pull mode), Mu
 Architecture
 --------
 
-![Architecture](./docs/architecture_v2_en.svg)
+![Architecture](./docs/architecture/architecture_v2_en.svg)
 
 ![Cluster Architecture](./docs/architecture/cluster_v2_en.svg)
 
