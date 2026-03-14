@@ -344,6 +344,7 @@ func (n *Node) stepLearner(e types.Event) error {
 				if err != nil {
 					return err
 				}
+				n.advance()
 			} else {
 				if e.Speed == types.SpeedSuspend {
 					n.suspend = true
@@ -370,6 +371,8 @@ func (n *Node) stepLearner(e types.Event) error {
 			if e.Index < n.queue.lastLogIndex {
 				n.queue.truncateLogTo(e.Index)
 			}
+			n.sendSyncReq()
+			n.advance()
 		}
 	case types.StoreResp: // 异步存储日志返回
 		n.queue.appending = false
@@ -378,6 +381,8 @@ func (n *Node) stepLearner(e types.Event) error {
 				n.Panic("invalid append response", zap.Uint64("index", e.Index), zap.Uint64("lastLogIndex", n.queue.lastLogIndex))
 			}
 			n.queue.storeTo(e.Index)
+			n.sendSyncReq()
+			n.advance()
 		}
 
 	case types.ConfigResp: // 配置返回
