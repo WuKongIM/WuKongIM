@@ -1,7 +1,6 @@
 package wkdb_test
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -296,49 +295,4 @@ func TestCacheManagerCleanupInterval(t *testing.T) {
 	// 验证新间隔
 	stats = cacheManager.GetCacheStats()
 	assert.Equal(t, newInterval.Seconds(), stats["cleanup_interval_seconds"])
-}
-
-// BenchmarkCacheManagerOverhead 测试缓存管理器的开销
-func BenchmarkCacheManagerOverhead(b *testing.B) {
-	// 创建缓存
-	permissionCache := wkdb.NewPermissionCache(1000)
-	deviceCache := wkdb.NewDeviceCache(1000)
-
-	// 创建缓存管理器
-	cacheManager := wkdb.NewCacheManager(
-		permissionCache,
-		nil, nil, nil,
-		deviceCache,
-	)
-
-	// 添加一些数据
-	for i := 0; i < 100; i++ {
-		permissionCache.SetDenylistExists("channel", 1, fmt.Sprintf("user%d", i), true)
-		deviceCache.SetDevice(wkdb.Device{
-			Id:         uint64(i),
-			Uid:        fmt.Sprintf("user%d", i),
-			DeviceFlag: uint64(i),
-		})
-	}
-
-	b.Run("GetCacheStats", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			_ = cacheManager.GetCacheStats()
-		}
-	})
-
-	b.Run("GetTotalCacheSize", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			_ = cacheManager.GetTotalCacheSize()
-		}
-	})
-
-	b.Run("ForceCleanup", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			cacheManager.ForceCleanup()
-		}
-	})
 }

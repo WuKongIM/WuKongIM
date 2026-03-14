@@ -170,30 +170,6 @@ func BenchmarkUint64Dedup(b *testing.B) {
 		}
 	}
 }
-
-// 基准测试：原地去重
-func BenchmarkInPlaceDedup(b *testing.B) {
-	data := generateStringSlice(1000, 0.5)
-
-	b.Run("InPlace", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			testData := make([]string, len(data))
-			copy(testData, data)
-			_ = RemoveRepeatedElementInPlace(testData)
-		}
-	})
-
-	b.Run("Regular", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			testData := make([]string, len(data))
-			copy(testData, data)
-			_ = RemoveRepeatedElement(testData)
-		}
-	})
-}
-
 // 功能测试
 func TestRemoveRepeatedElement(t *testing.T) {
 	tests := []struct {

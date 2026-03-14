@@ -311,37 +311,3 @@ func TestConfigTemplates(t *testing.T) {
 		})
 	}
 }
-
-// 基准测试
-func BenchmarkConfigValidation(b *testing.B) {
-	config := DefaultSendQueueConfig()
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = config.ValidateConfig()
-	}
-}
-
-func BenchmarkGetConfigByProfile(b *testing.B) {
-	profiles := []string{"default", "high_throughput", "low_latency", "memory_constrained", "adaptive"}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		profile := profiles[i%len(profiles)]
-		_ = GetConfigByProfile(profile)
-	}
-}
-
-func BenchmarkAnalyzePerformance(b *testing.B) {
-	stats := map[string]interface{}{
-		"queue_length":       500,
-		"current_capacity":   1000,
-		"perf_total_sent":    uint64(1000),
-		"perf_total_dropped": uint64(50),
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = AnalyzePerformance(stats)
-	}
-}

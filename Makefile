@@ -37,3 +37,25 @@ deploy-latest-v2:
 
 # docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2
 # docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2-dev
+
+bench:
+	go test -bench=. -benchmem -count=5 -run='^$$' -timeout 30m ./...
+
+bench-compare:
+	@if [ -z "$$(git status --porcelain)" ]; then \
+		echo "Working tree is clean, proceeding..."; \
+	else \
+		echo "Error: working tree is dirty. Please commit or stash changes first."; \
+		exit 1; \
+	fi
+	@CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	BASE_BRANCH=$${BASE_BRANCH:-main}; \
+	echo "Comparing $$BASE_BRANCH vs $$CURRENT_BRANCH"; \
+	git stash --include-untracked 2>/dev/null || true; \
+	git checkout $$BASE_BRANCH; \
+	go test -bench=. -benchmem -count=5 -run='^$$' -timeout 30m ./... > base.txt; \
+	git checkout $$CURRENT_BRANCH; \
+	git stash pop 2>/dev/null || true; \
+	go test -bench=. -benchmem -count=5 -run='^$$' -timeout 30m ./... > pr.txt; \
+	benchstat base.txt pr.txt; \
+	rm -f base.txt pr.txt
