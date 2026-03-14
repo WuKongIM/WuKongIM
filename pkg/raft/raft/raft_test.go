@@ -313,6 +313,13 @@ func TestProposeUntilApplied(t *testing.T) {
 	_, err = leader.ProposeUntilApplied(1, []byte("test"))
 	assert.Nil(t, err)
 
+	// Wait for all nodes to commit and replicate
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	raft1.WaitUtilCommit(timeoutCtx, 1)
+	raft2.WaitUtilCommit(timeoutCtx, 1)
+	raft3.WaitUtilCommit(timeoutCtx, 1)
+
 	node1Logs := raft1.Options().Storage.(*testStorage).logs
 	node2Logs := raft2.Options().Storage.(*testStorage).logs
 	node3Logs := raft3.Options().Storage.(*testStorage).logs
@@ -395,6 +402,9 @@ func (s *testStorage) GetTermStartIndex(term uint32) (uint64, error) {
 }
 
 func (s *testStorage) TruncateLogTo(index uint64) error {
+	if int(index) > len(s.logs) {
+		return nil
+	}
 	s.logs = s.logs[:index]
 	return nil
 }
