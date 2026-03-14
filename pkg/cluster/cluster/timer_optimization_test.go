@@ -91,55 +91,6 @@ func TestWaitForMessageOptimization(t *testing.T) {
 			float64(time.Millisecond*10), "Should timeout at expected time")
 	})
 }
-
-// BenchmarkTimerCreation 基准测试：Timer 创建性能对比
-func BenchmarkTimerCreation(b *testing.B) {
-	timeout := time.Millisecond * 100
-
-	b.Run("time.NewTimer", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			timer := time.NewTimer(timeout)
-			timer.Stop()
-		}
-	})
-
-	b.Run("time.After", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			select {
-			case <-time.After(timeout):
-			default:
-			}
-		}
-	})
-
-	b.Run("TimerPool", func(b *testing.B) {
-		pool := NewTimerPool()
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			timer := pool.Get(timeout)
-			pool.Put(timer)
-		}
-	})
-}
-
-// BenchmarkWaitForMessage 基准测试：消息等待性能对比
-func BenchmarkWaitForMessage(b *testing.B) {
-	queue := NewAdaptiveSendQueue(1000, 4000, 10*1024*1024)
-	defer queue.Close()
-
-	ctx := context.Background()
-	timeout := time.Microsecond * 100 // 很短的超时，主要测试创建开销
-
-	b.Run("OptimizedWaitForMessage", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			_ = queue.WaitForMessage(ctx, timeout)
-		}
-	})
-}
-
 // TestMemoryUsage 测试内存使用情况
 func TestMemoryUsage(t *testing.T) {
 	if testing.Short() {

@@ -75,48 +75,6 @@ func TestGetLastConversationsWithCache(t *testing.T) {
 		assert.Equal(t, result1[i].ChannelId, result2[i].ChannelId)
 	}
 }
-
-// 基准测试：对比有缓存和无缓存的性能
-func BenchmarkGetLastConversationsWithCache(b *testing.B) {
-	d := newTestDB(b)
-	err := d.Open()
-	assert.NoError(b, err)
-
-	defer func() {
-		err := d.Close()
-		assert.NoError(b, err)
-	}()
-
-	uid := "bench_user"
-	now := time.Now()
-
-	// 创建测试数据
-	conversations := make([]wkdb.Conversation, 0, 30)
-	for i := 0; i < 30; i++ {
-		updatedAt := now.Add(time.Duration(i) * time.Minute)
-		conversations = append(conversations, wkdb.Conversation{
-			Id:           uint64(i + 1),
-			Uid:          uid,
-			ChannelId:    fmt.Sprintf("channel_%d", i),
-			ChannelType:  1,
-			Type:         wkdb.ConversationTypeChat,
-			UnreadCount:  uint32(i + 1),
-			ReadToMsgSeq: uint64(i + 1),
-			CreatedAt:    &now,
-			UpdatedAt:    &updatedAt,
-		})
-	}
-
-	err = d.AddOrUpdateConversationsWithUser(uid, conversations)
-	assert.NoError(b, err)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := d.GetLastConversations(uid, wkdb.ConversationTypeChat, 0, nil, 10)
-		assert.NoError(b, err)
-	}
-}
-
 // 测试智能缓存更新的性能
 func TestSmartCacheUpdatePerformance(t *testing.T) {
 	d := newTestDB(t)
@@ -340,40 +298,4 @@ func TestCacheConcurrentQueries(t *testing.T) {
 			t.Fatal("Concurrent query timeout")
 		}
 	}
-}
-
-// 基准测试：缓存性能
-func BenchmarkConversationCacheOperations(b *testing.B) {
-	cache := wkdb.NewConversationCache(10000)
-
-	// 预填充缓存
-	conversations := make([]wkdb.Conversation, 100)
-	for i := 0; i < 100; i++ {
-		conversations[i] = wkdb.Conversation{
-			Id:          uint64(i),
-			Uid:         fmt.Sprintf("user%d", i%10),
-			ChannelId:   fmt.Sprintf("channel%d", i),
-			ChannelType: 1,
-		}
-	}
-
-	b.Run("SetLastConversations", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			uid := fmt.Sprintf("user%d", i%10)
-			cache.SetLastConversations(uid, wkdb.ConversationTypeChat, 0, nil, 10, conversations)
-		}
-	})
-
-	// 预填充一些数据用于读取测试
-	for i := 0; i < 10; i++ {
-		uid := fmt.Sprintf("user%d", i)
-		cache.SetLastConversations(uid, wkdb.ConversationTypeChat, 0, nil, 10, conversations)
-	}
-
-	b.Run("GetLastConversations", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			uid := fmt.Sprintf("user%d", i%10)
-			cache.GetLastConversations(uid, wkdb.ConversationTypeChat, 0, nil, 10)
-		}
-	})
 }

@@ -144,34 +144,6 @@ func TestPerformanceAnalyzer(t *testing.T) {
 
 	t.Logf("Performance Report:\n%s", report)
 }
-
-// BenchmarkPerformanceMonitorOverhead 测试性能监控的开销
-func BenchmarkPerformanceMonitorOverhead(b *testing.B) {
-	monitor := wkdb.NewPerformanceMonitor()
-
-	b.Run("RecordMethodCall", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			monitor.RecordMethodCall("BenchmarkMethod", time.Microsecond)
-		}
-	})
-
-	b.Run("RecordCacheHit", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			monitor.RecordCacheHit("permission")
-		}
-	})
-
-	b.Run("MethodTimer", func(b *testing.B) {
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			timer := monitor.NewMethodTimer("BenchmarkTimerMethod")
-			timer.Stop()
-		}
-	})
-}
-
 // TestPerformanceIntegration 集成测试：验证性能监控与数据库操作的集成
 func TestPerformanceIntegration(t *testing.T) {
 	d := newTestDB(t)

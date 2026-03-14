@@ -271,30 +271,3 @@ func TestBatchReceiveTimeout(t *testing.T) {
 		assert.Less(t, duration, time.Millisecond*50, "Should return quickly when messages are available")
 	})
 }
-
-// BenchmarkMessageProcessingLatency 基准测试消息处理延迟
-func BenchmarkMessageProcessingLatency(b *testing.B) {
-	opts := NewOptions()
-	opts.SendQueueLength = 1000
-	opts.MaxSendQueueSize = 10 * 1024 * 1024
-
-	node := NewImprovedNode(1, "benchmark", "127.0.0.1:8080", opts)
-	defer node.Stop()
-	node.SetTestMode(true) // 启用测试模式
-	node.Start()
-
-	// 预热
-	for i := 0; i < 100; i++ {
-		msg := &proto.Message{MsgType: uint32(i)}
-		_ = node.Send(msg)
-	}
-	time.Sleep(time.Millisecond * 100)
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			msg := &proto.Message{MsgType: 1}
-			_ = node.Send(msg)
-		}
-	})
-}
