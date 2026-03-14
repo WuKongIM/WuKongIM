@@ -95,9 +95,9 @@ func (d *docs) swaggerUI(c *wkhttp.Context) {
 func (d *docs) openAPI(c *wkhttp.Context) {
 	// 尝试多个可能的 OpenAPI 文件路径
 	possiblePaths := []string{
-		filepath.Join("docs", "openapi.json"),                          // 相对于工作目录
-		filepath.Join(options.G.DataDir, "..", "docs", "openapi.json"), // 相对于数据目录
-		"./docs/openapi.json",                                          // 当前目录
+		filepath.Join("docs", "api", "openapi.json"),                          // 相对于工作目录
+		filepath.Join(options.G.DataDir, "..", "docs", "api", "openapi.json"), // 相对于数据目录
+		"./docs/api/openapi.json",                                              // 当前目录
 	}
 
 	var data []byte
@@ -115,7 +115,7 @@ func (d *docs) openAPI(c *wkhttp.Context) {
 	if err != nil {
 		d.Error("Failed to read openapi.json from any location", zap.Error(err), zap.Strings("tried_paths", possiblePaths))
 		c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": "Failed to load API specification. Please ensure docs/openapi.json exists.",
+			"error": "Failed to load API specification. Please ensure docs/api/openapi.json exists.",
 		})
 		return
 	}
