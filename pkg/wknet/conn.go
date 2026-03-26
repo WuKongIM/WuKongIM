@@ -135,6 +135,7 @@ type DefaultConn struct {
 	context        atomic.Value
 	authed         atomic.Bool // if the connection is authed
 	id             atomic.Int64
+	generation     atomic.Uint64
 	uid            atomic.String
 	valueMap       sync.Map
 
@@ -149,7 +150,11 @@ type DefaultConn struct {
 }
 
 func GetDefaultConn(id int64, connFd NetFd, localAddr, remoteAddr net.Addr, eg *Engine, reactorSub *ReactorSub) *DefaultConn {
-	defaultConn := eg.defaultConnPool.Get().(*DefaultConn)
+	// DefaultConn participates in async close/read/idle-timeout paths.
+	// Reusing it through sync.Pool allows stale goroutines to act on a
+	// different accepted connection after release.
+	defaultConn := &DefaultConn{}
+	defaultConn.generation.Inc()
 	defaultConn.id.Store(id)
 	defaultConn.fd = connFd
 	defaultConn.remoteAddr = remoteAddr
@@ -374,8 +379,6 @@ func (d *DefaultConn) release() {
 		d.Debug("outboundBuffer release error", zap.Error(err))
 	}
 
-	d.eg.defaultConnPool.Put(d)
-
 }
 
 func (d *DefaultConn) Peek(n int) ([]byte, error) {
@@ -466,6 +469,7 @@ func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
 	}
 
 	d.maxIdle = maxIdle
+	connGeneration := d.generation.Load()
 
 	if d.idleTimer != nil {
 		d.idleTimer.Stop()
@@ -477,6 +481,9 @@ func (d *DefaultConn) SetMaxIdle(maxIdle time.Duration) {
 			d.maxIdleLock.Lock()
 			defer d.maxIdleLock.Unlock()
 
+			if d.generation.Load() != connGeneration {
+				return
+			}
 			if d.lastActivity.Load().Add(maxIdle).After(time.Now()) {
 				return
 			}

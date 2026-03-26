@@ -2,7 +2,6 @@ package wknet
 
 import (
 	"net"
-	"sync"
 	"time"
 
 	"github.com/RussellLuo/timingwheel"
@@ -11,14 +10,13 @@ import (
 )
 
 type Engine struct {
-	connMatrix      *connMatrix              // 在线连接
-	connsUnixLock   deadlock.RWMutex         // 在线连接锁
-	options         *Options                 // 配置
-	eventHandler    *EventHandler            // 事件
-	reactorMain     *ReactorMain             // 主reactor
-	timingWheel     *timingwheel.TimingWheel // Time wheel delay task
-	defaultConnPool *sync.Pool               // 默认连接对象池
-	clientIDGen     atomic.Int64             // 客户端ID生成器
+	connMatrix    *connMatrix              // 在线连接
+	connsUnixLock deadlock.RWMutex         // 在线连接锁
+	options       *Options                 // 配置
+	eventHandler  *EventHandler            // 事件
+	reactorMain   *ReactorMain             // 主reactor
+	timingWheel   *timingwheel.TimingWheel // Time wheel delay task
+	clientIDGen   atomic.Int64             // 客户端ID生成器
 }
 
 func NewEngine(opts ...Option) *Engine {
@@ -36,11 +34,6 @@ func NewEngine(opts ...Option) *Engine {
 		options:      options,
 		eventHandler: NewEventHandler(),
 		timingWheel:  timingwheel.NewTimingWheel(time.Millisecond*10, 1000),
-		defaultConnPool: &sync.Pool{
-			New: func() any {
-				return &DefaultConn{}
-			},
-		},
 	}
 	eg.reactorMain = NewReactorMain(eg)
 	return eg
