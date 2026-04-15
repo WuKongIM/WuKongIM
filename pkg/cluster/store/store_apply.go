@@ -47,47 +47,82 @@ func (s *Store) ApplySlotLogs(slotId uint32, logs []types.Log) error {
 }
 
 func (s *Store) applyCMDs(cmds []*CMD, logIndexs []uint64) error {
-	channelClusterConfigsCMDs := make([]*CMD, 0, len(cmds))
-	confVersions := make([]uint64, 0, len(cmds))
-	var addOrUpdateUserConversationsCMDs []*CMD
-	var addOrUpdateConversationsBatchIfNotExistCMDs []*CMD
+	type aggregateRunType uint8
+	const (
+		aggregateRunTypeNone aggregateRunType = iota
+		aggregateRunTypeChannelClusterConfigSave
+		aggregateRunTypeAddOrUpdateUserConversations
+		aggregateRunTypeAddOrUpdateConversationsBatchIfNotExist
+		aggregateRunTypeDeleteConversations
+	)
 
-	for i, cmd := range cmds {
-
-		switch cmd.CmdType {
-		case CMDChannelClusterConfigSave: // 保存频道分布式配置
-			channelClusterConfigsCMDs = append(channelClusterConfigsCMDs, cmd)
-			confVersions = append(confVersions, logIndexs[i])
-		case CMDAddOrUpdateUserConversations: // 添加或更新会话
-			addOrUpdateUserConversationsCMDs = append(addOrUpdateUserConversationsCMDs, cmd)
-		case CMDAddOrUpdateConversationsBatchIfNotExist: // 添加或更新用户会话
-			addOrUpdateConversationsBatchIfNotExistCMDs = append(addOrUpdateConversationsBatchIfNotExistCMDs, cmd)
+	classifyRunType := func(cmdType CMDType) aggregateRunType {
+		switch cmdType {
+		case CMDChannelClusterConfigSave:
+			return aggregateRunTypeChannelClusterConfigSave
+		case CMDAddOrUpdateUserConversations:
+			return aggregateRunTypeAddOrUpdateUserConversations
+		case CMDAddOrUpdateConversationsBatchIfNotExist:
+			return aggregateRunTypeAddOrUpdateConversationsBatchIfNotExist
+		case CMDDeleteConversation, CMDDeleteConversations:
+			return aggregateRunTypeDeleteConversations
 		default:
-			err := s.applyCMD(cmd, logIndexs[i])
-			if err != nil {
+			return aggregateRunTypeNone
+		}
+	}
+
+	currentRunType := aggregateRunTypeNone
+	runCMDs := make([]*CMD, 0, len(cmds))
+	runLogIndexes := make([]uint64, 0, len(cmds))
+	flushRun := func() error {
+		if len(runCMDs) == 0 {
+			return nil
+		}
+		switch currentRunType {
+		case aggregateRunTypeChannelClusterConfigSave:
+			if err := s.handleChannelClusterConfigSavesForCMDs(runCMDs, runLogIndexes); err != nil {
+				return err
+			}
+		case aggregateRunTypeAddOrUpdateUserConversations:
+			if err := s.handleAddOrUpdateUserConversationsForCMDs(runCMDs); err != nil {
+				return err
+			}
+		case aggregateRunTypeAddOrUpdateConversationsBatchIfNotExist:
+			if err := s.handleAddOrUpdateConversationsBatchIfNotExistForCMDs(runCMDs); err != nil {
+				return err
+			}
+		case aggregateRunTypeDeleteConversations:
+			if err := s.handleDeleteConversationsForCMDs(runCMDs); err != nil {
 				return err
 			}
 		}
+		runCMDs = runCMDs[:0]
+		runLogIndexes = runLogIndexes[:0]
+		currentRunType = aggregateRunTypeNone
+		return nil
 	}
-	if len(channelClusterConfigsCMDs) > 0 {
-		err := s.handleChannelClusterConfigSavesForCMDs(channelClusterConfigsCMDs, confVersions)
-		if err != nil {
-			return err
+
+	for i, cmd := range cmds {
+		runType := classifyRunType(cmd.CmdType)
+		if runType == aggregateRunTypeNone {
+			if err := flushRun(); err != nil {
+				return err
+			}
+			if err := s.applyCMD(cmd, logIndexs[i]); err != nil {
+				return err
+			}
+			continue
 		}
-	}
-	if len(addOrUpdateUserConversationsCMDs) > 0 {
-		err := s.handleAddOrUpdateUserConversationsForCMDs(addOrUpdateUserConversationsCMDs)
-		if err != nil {
-			return err
+		if currentRunType != aggregateRunTypeNone && currentRunType != runType {
+			if err := flushRun(); err != nil {
+				return err
+			}
 		}
+		currentRunType = runType
+		runCMDs = append(runCMDs, cmd)
+		runLogIndexes = append(runLogIndexes, logIndexs[i])
 	}
-	if len(addOrUpdateConversationsBatchIfNotExistCMDs) > 0 {
-		err := s.handleAddOrUpdateConversationsBatchIfNotExistForCMDs(addOrUpdateConversationsBatchIfNotExistCMDs)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return flushRun()
 }
 
 func (s *Store) applyCMD(cmd *CMD, logIndex uint64) error {
@@ -458,6 +493,43 @@ func (s *Store) handleDeleteConversations(cmd *CMD) error {
 		return err
 	}
 	return s.wdb.DeleteConversations(uid, channels)
+}
+
+func (s *Store) handleDeleteConversationsForCMDs(cmds []*CMD) error {
+	uidOrder := make([]string, 0, len(cmds))
+	deleteChannelMap := make(map[string][]wkdb.Channel, len(cmds))
+
+	for _, cmd := range cmds {
+		switch cmd.CmdType {
+		case CMDDeleteConversation:
+			uid, channelID, channelType, err := cmd.DecodeCMDDeleteConversation()
+			if err != nil {
+				return err
+			}
+			if _, exists := deleteChannelMap[uid]; !exists {
+				uidOrder = append(uidOrder, uid)
+			}
+			deleteChannelMap[uid] = append(deleteChannelMap[uid], wkdb.Channel{ChannelId: channelID, ChannelType: channelType})
+		case CMDDeleteConversations:
+			uid, channels, err := cmd.DecodeCMDDeleteConversations()
+			if err != nil {
+				return err
+			}
+			if _, exists := deleteChannelMap[uid]; !exists {
+				uidOrder = append(uidOrder, uid)
+			}
+			deleteChannelMap[uid] = append(deleteChannelMap[uid], channels...)
+		default:
+			return fmt.Errorf("unsupported delete command type: %s", cmd.CmdType.String())
+		}
+	}
+
+	for _, uid := range uidOrder {
+		if err := s.wdb.DeleteConversations(uid, deleteChannelMap[uid]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) handleChannelClusterConfigSaves(reqs []*channelCfgReq) error {

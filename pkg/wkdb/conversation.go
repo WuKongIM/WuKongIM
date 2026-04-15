@@ -565,6 +565,9 @@ func (wk *wukongDB) DeleteConversation(uid string, channelId string, channelType
 func (wk *wukongDB) DeleteConversations(uid string, channels []Channel) error {
 
 	wk.metrics.DeleteConversationsAdd(1)
+	if len(channels) == 0 {
+		return nil
+	}
 
 	batch := wk.sharedBatchDB(uid).NewBatch()
 
@@ -1077,13 +1080,14 @@ func (wk *wukongDB) iterateConversation(iter *pebble.Iterator, iterFnc func(conv
 // 设置最近会话用户关系
 func (wk *wukongDB) setConversationLocalUserRelation(conversations []Conversation, commitWait bool) error {
 
-	// 按照频道分组
-	batchMap := make(map[string]*Batch)
+	// 按照频道分片分组
+	batchMap := make(map[uint32]*Batch)
 	for _, conversation := range conversations {
-		batch := batchMap[conversation.Uid]
+		shard := wk.GetChannelShardIndex(conversation.ChannelId, conversation.ChannelType)
+		batch := batchMap[shard]
 		if batch == nil {
 			batch = wk.channelBatchDb(conversation.ChannelId, conversation.ChannelType).NewBatch()
-			batchMap[conversation.Uid] = batch
+			batchMap[shard] = batch
 		}
 		batch.Set(key.NewConversationLocalUserKey(conversation.ChannelId, conversation.ChannelType, conversation.Uid), nil)
 	}
@@ -1114,11 +1118,23 @@ func (wk *wukongDB) deleteConversationLocalUserRelation(channelId string, channe
 }
 
 func (wk *wukongDB) deleteConversationLocalUserRelationWithChannels(uid string, channels []Channel) error {
-	batch := wk.sharedBatchDB(uid).NewBatch()
+	batchMap := make(map[uint32]*Batch)
 	for _, channel := range channels {
+		shard := wk.GetChannelShardIndex(channel.ChannelId, channel.ChannelType)
+		batch := batchMap[shard]
+		if batch == nil {
+			batch = wk.channelBatchDb(channel.ChannelId, channel.ChannelType).NewBatch()
+			batchMap[shard] = batch
+		}
 		batch.Delete(key.NewConversationLocalUserKey(channel.ChannelId, channel.ChannelType, uid))
 	}
-	return batch.CommitWait()
+
+	for _, batch := range batchMap {
+		if err := batch.CommitWait(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // func (wk *wukongDB) parseConversations(iter *pebble.Iterator, limit int) ([]Conversation, error) {

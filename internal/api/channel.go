@@ -24,12 +24,40 @@ type channel struct {
 	s *Server
 }
 
+type conversationDeleter interface {
+	DeleteFromCache(uid string, channelId string, channelType uint8) error
+}
+
+type conversationBatchDeleter interface {
+	DeleteConversations(uid string, channels []wkdb.Channel) error
+}
+
 // NewChannel 创建API
 func newChannel(s *Server) *channel {
 	return &channel{
 		s:   s,
 		Log: wklog.NewWKLog("Channel"),
 	}
+}
+
+func deleteChannelConversations(cacheDeleter conversationDeleter, storeDeleter conversationBatchDeleter, channelId string, channelType uint8, uids []string) error {
+	if channelType == wkproto.ChannelTypeLive {
+		return nil
+	}
+	return deleteUserConversations(cacheDeleter, storeDeleter, channelId, channelType, uids)
+}
+
+func deleteUserConversations(cacheDeleter conversationDeleter, storeDeleter conversationBatchDeleter, channelId string, channelType uint8, uids []string) error {
+	channels := []wkdb.Channel{{ChannelId: channelId, ChannelType: channelType}}
+	for _, uid := range uids {
+		if err := cacheDeleter.DeleteFromCache(uid, channelId, channelType); err != nil {
+			return err
+		}
+		if err := storeDeleter.DeleteConversations(uid, channels); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Route Route
@@ -471,23 +499,11 @@ func (ch *channel) removeSubscriber(c *wkhttp.Context) {
 	}
 
 	// 删除订阅者的会话缓存
-	if req.ChannelType != wkproto.ChannelTypeLive { // 直播频道不处理最近会话
-		for _, subscriber := range req.Subscribers {
-			err = service.ConversationManager.DeleteFromCache(subscriber, req.ChannelId, req.ChannelType)
-			if err != nil {
-				ch.Error("删除订阅者的会话失败！", zap.Error(err))
-				c.ResponseError(err)
-				return
-			}
-
-			// 删除订阅者的会话
-			err = service.Store.DeleteConversation(subscriber, req.ChannelId, req.ChannelType)
-			if err != nil {
-				ch.Error("删除订阅者的会话失败！", zap.Error(err))
-				c.ResponseError(err)
-				return
-			}
-		}
+	err = deleteChannelConversations(service.ConversationManager, service.Store, req.ChannelId, req.ChannelType, req.Subscribers)
+	if err != nil {
+		ch.Error("删除订阅者的会话失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
 	}
 
 	err = ch.updateTagBySubscribers(req.ChannelId, req.ChannelType, req.Subscribers, true)
@@ -637,22 +653,11 @@ func (ch *channel) blacklistAdd(c *wkhttp.Context) {
 	}
 
 	// 删除黑名单的会话缓存
-	if req.ChannelType != wkproto.ChannelTypeLive { // 直播频道不处理最近会话
-		for _, uid := range req.UIDs {
-			err = service.ConversationManager.DeleteFromCache(uid, req.ChannelId, req.ChannelType)
-			if err != nil {
-				ch.Error("删除订阅者的会话失败！", zap.Error(err))
-				c.ResponseError(err)
-				return
-			}
-			// 删除订阅者的会话
-			err = service.Store.DeleteConversation(uid, req.ChannelId, req.ChannelType)
-			if err != nil {
-				ch.Error("删除订阅者的会话失败！", zap.Error(err))
-				c.ResponseError(err)
-				return
-			}
-		}
+	err = deleteChannelConversations(service.ConversationManager, service.Store, req.ChannelId, req.ChannelType, req.UIDs)
+	if err != nil {
+		ch.Error("删除订阅者的会话失败！", zap.Error(err))
+		c.ResponseError(err)
+		return
 	}
 
 	c.ResponseOK()
@@ -710,22 +715,11 @@ func (ch *channel) blacklistSet(c *wkhttp.Context) {
 		}
 
 		// 删除黑名单的会话缓存
-		if req.ChannelType != wkproto.ChannelTypeLive { // 直播频道不处理最近会话
-			for _, uid := range req.UIDs {
-				err = service.ConversationManager.DeleteFromCache(uid, req.ChannelId, req.ChannelType)
-				if err != nil {
-					ch.Error("删除订阅者的会话失败！", zap.Error(err))
-					c.ResponseError(err)
-					return
-				}
-				// 删除订阅者的会话
-				err = service.Store.DeleteConversation(uid, req.ChannelId, req.ChannelType)
-				if err != nil {
-					ch.Error("删除订阅者的会话失败！", zap.Error(err))
-					c.ResponseError(err)
-					return
-				}
-			}
+		err = deleteChannelConversations(service.ConversationManager, service.Store, req.ChannelId, req.ChannelType, req.UIDs)
+		if err != nil {
+			ch.Error("删除订阅者的会话失败！", zap.Error(err))
+			c.ResponseError(err)
+			return
 		}
 	}
 

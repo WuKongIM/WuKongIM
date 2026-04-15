@@ -10,6 +10,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const deleteConversationsChunkSize = 1000
+
 func (s *Store) AddOrUpdateConversations(conversations []wkdb.Conversation) error {
 	// 将会话按照slotId来分组
 	slotConversationsMap := make(map[uint32][]wkdb.Conversation)
@@ -196,15 +198,39 @@ func (s *Store) DeleteConversation(uid string, channelID string, channelType uin
 }
 
 func (s *Store) DeleteConversations(uid string, channels []wkdb.Channel) error {
-	data := EncodeCMDDeleteConversations(uid, channels)
-	cmd := NewCMD(CMDDeleteConversations, data)
-	cmdData, err := cmd.Marshal()
-	if err != nil {
-		return err
-	}
 	slotId := s.opts.Slot.GetSlotId(uid)
-	_, err = s.opts.Slot.ProposeUntilApplied(slotId, cmdData)
-	return err
+	for _, chunk := range chunkChannels(channels, deleteConversationsChunkSize) {
+		data := EncodeCMDDeleteConversations(uid, chunk)
+		cmd := NewCMD(CMDDeleteConversations, data)
+		cmdData, err := cmd.Marshal()
+		if err != nil {
+			return err
+		}
+		_, err = s.opts.Slot.ProposeUntilApplied(slotId, cmdData)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func chunkChannels(channels []wkdb.Channel, size int) [][]wkdb.Channel {
+	if len(channels) == 0 {
+		return nil
+	}
+	if size <= 0 || len(channels) <= size {
+		return [][]wkdb.Channel{channels}
+	}
+
+	chunks := make([][]wkdb.Channel, 0, (len(channels)+size-1)/size)
+	for start := 0; start < len(channels); start += size {
+		end := start + size
+		if end > len(channels) {
+			end = len(channels)
+		}
+		chunks = append(chunks, channels[start:end])
+	}
+	return chunks
 }
 
 func (s *Store) GetConversations(uid string) ([]wkdb.Conversation, error) {
