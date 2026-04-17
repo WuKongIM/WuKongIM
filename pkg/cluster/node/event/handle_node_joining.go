@@ -142,6 +142,13 @@ func (s *Server) handleNodeJoining() error {
 		if err != nil {
 			return err
 		}
+	} else {
+		// Bug fix #529: slots already balanced, directly transition node to Joined
+		// Previously: migrateSlots empty → ProposeJoined never called → node stuck in Joining forever
+		err := s.cfgServer.ProposeJoined(joiningNode.Id, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
