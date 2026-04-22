@@ -145,7 +145,8 @@ func (u *user) getOnlineStatus(c *wkhttp.Context) {
 	}
 
 	var conns []*OnlinestatusResp
-	conns, err = u.getOnlineConnsForCluster(uids)
+	headers := c.CopyRequestHeader(c.Request)
+	conns, err = u.getOnlineConnsForCluster(uids, headers)
 	if err != nil {
 		u.Error("获取在线状态失败！", zap.Error(err))
 		c.ResponseError(err)
@@ -155,7 +156,7 @@ func (u *user) getOnlineStatus(c *wkhttp.Context) {
 	c.JSON(http.StatusOK, conns)
 }
 
-func (u *user) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, error) {
+func (u *user) getOnlineConnsForCluster(uids []string, headers map[string]string) ([]*OnlinestatusResp, error) {
 	uidInPeerMap := make(map[uint64][]string)
 	localUids := make([]string, 0)
 	for _, uid := range uids {
@@ -188,7 +189,7 @@ func (u *user) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, err
 		for nodeId, uidList := range uidInPeerMap {
 			wg.Add(1)
 			go func(pid uint64, uidArr []string) {
-				results, err := u.requestOnlineStatus(pid, uidArr)
+				results, err := u.requestOnlineStatus(pid, uidArr, headers)
 				if err != nil {
 					reqErr = err
 				} else {
@@ -208,7 +209,7 @@ func (u *user) getOnlineConnsForCluster(uids []string) ([]*OnlinestatusResp, err
 	return conns, nil
 }
 
-func (u *user) requestOnlineStatus(nodeId uint64, uids []string) ([]*OnlinestatusResp, error) {
+func (u *user) requestOnlineStatus(nodeId uint64, uids []string, headers map[string]string) ([]*OnlinestatusResp, error) {
 
 	nodeInfo := service.Cluster.NodeInfoById(nodeId) // 获取频道的领导节点
 	if nodeInfo == nil {
@@ -216,7 +217,7 @@ func (u *user) requestOnlineStatus(nodeId uint64, uids []string) ([]*Onlinestatu
 		return nil, errors.New("节点信息不存在")
 	}
 	reqURL := fmt.Sprintf("%s/user/onlinestatus", nodeInfo.ApiServerAddr)
-	resp, err := network.Post(reqURL, []byte(wkutil.ToJSON(uids)), nil)
+	resp, err := network.Post(reqURL, []byte(wkutil.ToJSON(uids)), headers)
 	if err != nil {
 		u.Error("获取在线用户状态失败！", zap.Error(err), zap.String("reqURL", reqURL))
 		return nil, err
@@ -425,6 +426,7 @@ func (u *user) systemUidsAdd(c *wkhttp.Context) {
 
 	// 将系统账号添加到各个节点的缓存内
 	nodes := service.Cluster.Nodes()
+	headers := c.CopyRequestHeader(c.Request)
 
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), options.G.Cluster.ReqTimeout)
 	defer cancel()
@@ -438,7 +440,7 @@ func (u *user) systemUidsAdd(c *wkhttp.Context) {
 		}
 		requestGroup.Go(func(n *types.Node) func() error {
 			return func() error {
-				return u.requestSystemUidsAddToCache(n, req.UIDs)
+				return u.requestSystemUidsAddToCache(n, req.UIDs, headers)
 			}
 		}(node))
 	}
@@ -454,11 +456,11 @@ func (u *user) systemUidsAdd(c *wkhttp.Context) {
 
 }
 
-func (u *user) requestSystemUidsAddToCache(nodeInfo *types.Node, uids []string) error {
+func (u *user) requestSystemUidsAddToCache(nodeInfo *types.Node, uids []string, headers map[string]string) error {
 	reqURL := fmt.Sprintf("%s/user/systemuids_add_to_cache", nodeInfo.ApiServerAddr)
 	resp, err := network.Post(reqURL, []byte(wkutil.ToJSON(map[string]interface{}{
 		"uids": uids,
-	})), nil)
+	})), headers)
 	if err != nil {
 		u.Error("添加系统账号到缓存失败！", zap.Error(err), zap.String("reqURL", reqURL))
 		return err
@@ -521,6 +523,7 @@ func (u *user) systemUidsRemove(c *wkhttp.Context) {
 
 	// 将系统账号从各个节点的缓存内移除
 	nodes := service.Cluster.Nodes()
+	headers := c.CopyRequestHeader(c.Request)
 
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), options.G.Cluster.ReqTimeout)
 	defer cancel()
@@ -534,7 +537,7 @@ func (u *user) systemUidsRemove(c *wkhttp.Context) {
 		}
 		requestGroup.Go(func(n *types.Node) func() error {
 			return func() error {
-				return u.requestSystemUidsRemoveFromCache(n, req.UIDs)
+				return u.requestSystemUidsRemoveFromCache(n, req.UIDs, headers)
 			}
 		}(node))
 	}
@@ -549,11 +552,11 @@ func (u *user) systemUidsRemove(c *wkhttp.Context) {
 	c.ResponseOK()
 }
 
-func (u *user) requestSystemUidsRemoveFromCache(nodeInfo *types.Node, uids []string) error {
+func (u *user) requestSystemUidsRemoveFromCache(nodeInfo *types.Node, uids []string, headers map[string]string) error {
 	reqURL := fmt.Sprintf("%s/user/systemuids_remove_from_cache", nodeInfo.ApiServerAddr)
 	resp, err := network.Post(reqURL, []byte(wkutil.ToJSON(map[string]interface{}{
 		"uids": uids,
-	})), nil)
+	})), headers)
 	if err != nil {
 		u.Error("移除系统账号从缓存失败！", zap.Error(err), zap.String("reqURL", reqURL))
 		return err
