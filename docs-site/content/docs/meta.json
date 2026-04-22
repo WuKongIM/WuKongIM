@@ -1,0 +1,13 @@
+{
+  "pages": [
+    "index",
+    "getting-started",
+    "overview",
+    "quick-start",
+    "client",
+    "server",
+    "ai-agent",
+    "operations",
+    "resources"
+  ]
+}

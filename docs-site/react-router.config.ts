@@ -2,12 +2,14 @@ import type { Config } from '@react-router/dev/config';
 import { glob } from 'node:fs/promises';
 import { getSlugs } from 'fumadocs-core/source';
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 function toDocUrl(slugs: string[]) {
   return slugs.length === 0 ? '/' : `/${slugs.join('/')}`;
 }
 
 export default {
-  ssr: false,
+  ssr: !isProduction,
   buildDirectory: 'dist',
   future: {
     v8_middleware: true,

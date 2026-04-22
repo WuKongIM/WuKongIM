@@ -1,0 +1,134 @@
+---
+title: 基础配置
+description: 先理解监听、对外地址、鉴权、管理后台和数据目录这些最常改的配置。
+---
+
+基础配置不用追求一次看完全部参数，先抓住五类最常改的就够了：
+
+- 监听
+- 对外地址
+- 鉴权
+- 管理后台 / Demo
+- 数据目录
+
+## 1. 先看最常对照的文件
+
+如果你是第一次理解配置，建议按这个顺序看：
+
+1. `config/wk.yaml`
+2. `exampleconfig/single.yaml`
+
+前者适合理解“有哪些配置块”，后者适合理解“最小可运行配置长什么样”。
+
+## 2. 运行与监听配置
+
+这组参数解决的是“服务自己绑定在哪些端口”。
+
+最常见的是：
+
+- `mode`
+- `addr`
+- `httpAddr`
+- `wsAddr`
+- `wssAddr`
+- `rootDir`
+
+可以先这样理解：
+
+- `addr`：TCP 长连接监听
+- `httpAddr`：HTTP API 监听
+- `wsAddr` / `wssAddr`：WebSocket 监听
+- `rootDir`：数据存储目录
+
+## 3. 对外地址配置
+
+这组配置最容易把人绕进去。
+
+`config/wk.yaml` 里最关键的是 `external` 配置块，例如：
+
+```yaml
+external:
+  ip: ""
+# tcpAddr: ""
+# wsAddr: ""
+# wssAddr: ""
+# managerAddr: ""
+# apiUrl: ""
+```
+
+要记住一句话：
+
+**监听地址是服务自己绑定的地址，对外地址是客户端和外部系统真正看到的地址。**
+
+如果你部署在：
+
+- 内外网分离环境
+- Docker 网关后面
+- 负载均衡或反向代理后面
+
+那这组参数尤其重要。
+
+## 4. 鉴权相关配置
+
+基础鉴权里最常见的是：
+
+- `tokenAuthOn`
+- `auth.kind`
+- `auth.users`
+- `jwt.secret`
+- `jwt.expire`
+- `managerToken`
+
+怎么理解：
+
+- 客户端连接鉴权：更偏 `tokenAuthOn`
+- 管理端 / API 认证：更偏 `auth`、`jwt`、`managerToken`
+
+这两类认证不是一回事，不要混看。
+
+## 5. 管理后台和 Demo
+
+最常见的是：
+
+- `manager.on`
+- `manager.addr`
+- `demo.on`
+- `demo.addr`
+
+如果你只是本地验证，这两组一般很有帮助；如果是生产环境，要明确是否真的需要对外暴露。
+
+## 6. 单机场景最小建议
+
+如果你只想先跑起来，最先确认这些值就够了：
+
+- `httpAddr`
+- `wsAddr`
+- `rootDir`
+- `external.ip`
+- `manager.addr`
+- `demo.addr`
+
+之后再根据实际网络环境补齐 `external.wsAddr`、`external.tcpAddr` 等值。
+
+## 7. 最常见的错误
+
+### 错误 1：只改监听地址，不改对外地址
+
+这样服务可能已经起来了，但客户端还是会拿到错误地址。
+
+### 错误 2：改了 yaml，却忘了环境变量覆盖
+
+部署环境里如果已经有 `WK_...` 环境变量，实际运行结果可能和文件不一致。
+
+### 错误 3：把管理后台地址直接暴露到不该暴露的环境
+
+本地验证没问题，生产环境要更谨慎。
+
+## 下一步
+
+<Cards>
+  <Card title="看集群配置" href="/operations/configuration/cluster" />
+  <Card title="看 Linux 单机部署" href="/operations/linux/single-node" />
+  <Card title="看 Docker 单机部署" href="/operations/docker/single-node" />
+  <Card title="看故障排查" href="/operations/troubleshooting" />
+</Cards>

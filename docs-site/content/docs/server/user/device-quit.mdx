@@ -1,0 +1,34 @@
+---
+title: 强制设备退出
+description: 当设备连接异常、账号冲突或需要管理员操作时，可以用这个接口让指定设备下线。
+---
+
+核心接口：
+
+```text
+POST /user/device_quit
+```
+
+## 最重要的参数
+
+| 参数 | 必填 | 说明 |
+| --- | --- | --- |
+| `uid` | 是 | 用户 ID |
+| `device_flag` | 否 | 指定设备类型，不传则按服务端逻辑处理 |
+
+## 最小示例
+
+```bash
+curl -X POST "http://localhost:5001/user/device_quit" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "uid": "user123",
+    "device_flag": 1
+  }'
+```
+
+## 适合场景
+
+- 管理员踢下线
+- 处理异常连接
+- 设备切换时主动清理旧连接

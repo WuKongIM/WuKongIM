@@ -1,0 +1,193 @@
+---
+title: 单机部署
+description: 用 Docker Compose 在一台机器上跑起 API、长连接、后台和 Demo。
+---
+
+如果你要在最短时间里把 WuKongIM 跑起来，Docker 单机仍然是最直接的路径。
+
+这页放在“部署与运维”下面，所以重点不是“第一次体验怎么点点点”，而是：
+
+- 用什么基线文件
+- 哪些地址一定要先改
+- 启动后怎么做最小验证
+- 后面怎么平滑转到集群
+
+如果你只是第一次尝鲜，先看 [`快速开始里的 Docker 单机部署`](/quick-start/docker-single-node)。  
+如果你已经进入部署阶段，希望按仓库示例正式整理环境，就继续看这页。
+
+## 适用场景
+
+- 本地或测试环境
+- 小型业务先单机上线
+- 需要尽快验证管理后台、Demo、长连接和 API 全链路
+
+单机的优点是部署简单、性能不错；缺点是没有容灾，备份需要你自己负责。
+
+## 环境要求
+
+- Linux 环境
+- Docker 24 或更高版本
+- 建议 2 核 4G 起步，生产更建议 4 核 8G 或更高
+
+## 推荐直接复用仓库示例
+
+当前仓库根目录已经提供了单机示例：
+
+```text
+docker-compose.yaml
+```
+
+不要一开始自己从零拼配置，先基于这个文件改地址，出问题更容易对照排查。
+
+## 第一步：准备运行目录
+
+```bash
+mkdir -p ~/wukongim
+cd ~/wukongim
+```
+
+把仓库里的 `docker-compose.yaml` 复制过来，或者直接在仓库根目录启动也可以。
+
+## 第二步：理解这份 Compose 在做什么
+
+核心服务只有两类：
+
+- `wukongim`
+- `prometheus`
+
+其中 `wukongim` 对外暴露：
+
+- `5001` HTTP API
+- `5100` TCP
+- `5200` WebSocket
+- `5300` 管理后台
+- `5172` Demo
+- `11110` 集群节点通信端口
+
+## 第三步：先改这几个关键值
+
+根目录 `docker-compose.yaml` 里最关键的是下面这些环境变量：
+
+- `WK_EXTERNAL_IP`
+- `WK_CLUSTER_SERVERADDR`
+- `WK_CLUSTER_APIURL`
+- `WK_INTRANET_TCPADDR`
+
+它们分别对应：
+
+- 对外可见 IP
+- 节点间通信地址
+- 节点 HTTP API 内网地址
+- 节点 TCP 内网地址
+
+最常见的错误不是参数漏写，而是把“监听地址”“内网地址”“公网地址”混成一件事。
+
+## 第四步：同时准备 `prometheus.yml`
+
+仓库示例还依赖一个最小 Prometheus 配置文件：
+
+```yaml
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+scrape_configs:
+  - job_name: wukongim1-trace-metrics
+    static_configs:
+      - targets: ['wukongim:5300']
+        labels:
+          id: "1001"
+```
+
+如果你只是想先跑通，也可以先最小化使用这份配置，不必一开始扩展复杂监控规则。
+
+## 第五步：启动服务
+
+```bash
+docker compose up -d
+```
+
+停止服务：
+
+```bash
+docker compose stop
+```
+
+如果你改了镜像或环境变量，直接再次执行 `docker compose up -d` 即可刷新容器。
+
+## 最小验证路径
+
+按这个顺序检查最省时间：
+
+### 1. 健康检查
+
+```bash
+curl http://127.0.0.1:5001/health
+```
+
+预期返回：
+
+```json
+{"status":"ok"}
+```
+
+### 2. 管理后台
+
+访问：
+
+```text
+http://<host>:5300/web
+```
+
+### 3. 聊天 Demo
+
+访问：
+
+```text
+http://<host>:5172/chatdemo
+```
+
+### 4. 客户端连接地址
+
+再确认 Web 和 App 端应该连的不是 `5001`，而是：
+
+- WebSocket：`5200`
+- TCP：`5100`
+
+## 常见坑
+
+### 1. 把 `5001` 当成客户端连接地址
+
+这是最常见的误用。  
+`5001` 是 API，不是客户端长连接入口。
+
+### 2. `WK_EXTERNAL_IP` 没改
+
+这样路由相关能力返回的对外地址会是错的，客户端很容易连不上。
+
+### 3. 管理后台能打开，但 Demo 连不上
+
+通常说明：
+
+- API 没问题
+- 但 WS/TCP 端口或外部地址配置有问题
+
+### 4. 单机能跑，但没有备份策略
+
+单机不是不能上线，而是你要清楚它没有容灾，数据目录需要自己备份。
+
+## 什么时候该从这里升级到集群
+
+出现下面这些信号时，就该看集群路径了：
+
+- 不能接受单点故障
+- 需要跨多台机器承载
+- 需要继续扩容
+- 希望入口统一走网关
+
+## 下一步
+
+<Cards>
+  <Card title="看部署方案选择" href="/operations/deployment-selection" />
+  <Card title="看单机还是集群" href="/operations/single-node-vs-cluster" />
+  <Card title="看 Docker 集群部署" href="/operations/docker/cluster" />
+</Cards>

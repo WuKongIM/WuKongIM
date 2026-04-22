@@ -1,0 +1,177 @@
+---
+title: 集群部署
+description: 直接基于仓库里的 docker/cluster 示例启动三节点集群和统一入口。
+---
+
+如果你已经明确需要：
+
+- 高可用
+- 多节点承载
+- 后续继续扩容
+
+同时又希望继续沿用 Docker 方式部署，那么最直接的入口就是仓库里的：
+
+```text
+docker/cluster
+```
+
+这条路径的价值在于：你不需要自己从零拼一套三节点、网关、监控的结构。
+
+## 先理解这套示例到底包含什么
+
+当前仓库里的 `docker/cluster/docker-compose.yaml` 不是只有 3 个节点，它实际还包括：
+
+- `wukongim1`
+- `wukongim2`
+- `wukongim3`
+- `nginx`
+- `prometheus`
+
+也就是说，这套示例已经把下面三层一起搭好了：
+
+1. 三节点 WuKongIM 集群
+2. 统一入口层
+3. 基础监控抓取
+
+## 网关层负责什么
+
+`docker/cluster/nginx.conf` 里已经把这些入口统一代理了：
+
+- HTTP API
+- TCP
+- WebSocket
+- 管理后台
+- Demo
+
+这也是为什么集群部署和单机部署的端口不一样。
+
+## 示例里对外暴露的端口
+
+| 对外端口 | 实际能力 |
+| --- | --- |
+| `15001` | HTTP API |
+| `15100` | TCP |
+| `15200` | WebSocket |
+| `15300` | 管理后台 |
+| `15172` | Demo |
+
+客户端和业务系统在集群场景下，优先访问这组统一入口，而不是直接访问某个节点容器。
+
+## 启动前一定要改哪些值
+
+这是最重要的部分。
+
+当前示例里有不少是“为了本地或演示方便”的占位值，你正式使用前至少要确认这些：
+
+### 1. 节点间通信地址
+
+每个节点都有：
+
+- `WK_CLUSTER_NODEID`
+- `WK_CLUSTER_SERVERADDR`
+- `WK_CLUSTER_APIURL`
+- `WK_CLUSTER_INITNODES`
+
+这组值决定的是集群内部怎么互相认识和通信。
+
+### 2. 客户端对外地址
+
+示例里每个节点都设置了：
+
+- `WK_EXTERNAL_WSADDR`
+- `WK_EXTERNAL_TCPADDR`
+
+它们不应该写成节点私有地址，而应该写成客户端真正要访问的统一入口地址。
+
+### 3. 监控地址
+
+如果你准备保留监控链路，还要确认：
+
+- `WK_TRACE_PROMETHEUSAPIURL`
+
+## 为什么这组示例能帮你少踩坑
+
+因为它已经把集群部署里最容易漏掉的两件事做进去了：
+
+- 统一入口层
+- 监控抓取层
+
+很多人自己从零起容器，只会起 3 个节点，最后发现：
+
+- 客户端不知道该连谁
+- 管理后台地址混乱
+- 扩容后监控没跟上
+
+## 推荐启动顺序
+
+### 1. 先检查 compose 文件和 nginx 配置
+
+重点确认：
+
+- `node1.wk.local` / `node2.wk.local` / `node3.wk.local` 这类地址在你的环境里是否成立
+- 对外端口是否会和现有服务冲突
+- `WK_EXTERNAL_*` 是否已经替换成你的实际入口地址
+
+### 2. 再启动整组容器
+
+```bash
+cd docker/cluster
+docker compose up -d
+```
+
+### 3. 启动后先看整体状态
+
+```bash
+docker compose ps
+docker compose logs -f nginx
+docker compose logs -f wukongim1
+```
+
+## 怎么判断这套集群真的跑起来了
+
+至少按这个顺序验证：
+
+1. `http://<host>:15001/health`
+2. 管理后台 `http://<host>:15300/web`
+3. Demo `http://<host>:15172/chatdemo`
+4. 客户端 WebSocket 连接 `ws://<host>:15200`
+
+不要只看容器是 `Up`，那只能说明进程在，不代表入口和链路都对。
+
+## 最常见的错误
+
+### 错误 1：只改了节点地址，没改 `WK_EXTERNAL_*`
+
+这样集群内部可能是通的，但客户端还是会拿到错误的连接地址。
+
+### 错误 2：直接照搬 `node1.wk.local`
+
+这类别名在你的环境里不一定能解析，必须先确认网络和 DNS / hosts 方案。
+
+### 错误 3：只验证 API，不验证 WS / TCP
+
+WuKongIM 的核心是长连接链路，只看 HTTP 不够。
+
+### 错误 4：容器起来了，就认为高可用已经完成
+
+真正的完成标准应该是：
+
+- 统一入口可访问
+- 客户端能正常连接
+- 管理后台可用
+- 消息链路正常
+
+## 什么时候优先走这条路径
+
+- 你已经决定不做单机
+- 团队习惯容器化部署
+- 希望直接基于仓库现成示例起一套集群
+
+## 下一步
+
+<Cards>
+  <Card title="看 Docker 扩容" href="/operations/docker/scaling" />
+  <Card title="看 Docker 升级" href="/operations/docker/upgrade" />
+  <Card title="看集群配置" href="/operations/configuration/cluster" />
+  <Card title="看故障排查" href="/operations/troubleshooting" />
+</Cards>

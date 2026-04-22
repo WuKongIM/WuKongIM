@@ -1,0 +1,138 @@
+---
+title: Webhook
+description: 说明 WuKongIM 对外事件回调与业务系统对接方式。
+---
+
+Webhook 的定位很简单：
+
+**WuKongIM 主动把事件推给你的业务系统。**
+
+它适合处理这些场景：
+
+- 用户在线状态变更
+- 离线推送通知
+- 把消息事件同步到你的业务侧
+
+如果你希望业务系统“被动轮询”查询状态，Webhook 不是首选；它更适合做事件驱动集成。
+
+## 配置入口在哪里
+
+当前仓库的配置示例里已经有 Webhook 配置说明：
+
+```yaml
+webhook:
+  httpAddr: "http://your-service/webhook"
+  grpcAddr: ""
+  msgNotifyEventPushInterval: 500ms
+  msgNotifyEventRetryMaxCount: 5
+  msgNotifyEventCountPerPush: 100
+  focusEvents:
+    - "msg.offline"
+    - "msg.notify"
+    - "user.onlinestatus"
+```
+
+最重要的原则是：
+
+- `httpAddr` 和 `grpcAddr` 二选一
+- 如果配置了 `grpcAddr`，就不会再走 `httpAddr`
+
+## 事件怎么组织
+
+Webhook 是 **POST 请求**，事件名通过查询参数传入。
+
+例如：
+
+```text
+http://your-service/webhook?event=user.onlinestatus
+```
+
+也就是说：
+
+- URL 决定回调入口
+- `event` 决定当前这次是什么事件
+- 请求体是对应事件的数据
+
+## 当前实现里最重要的事件
+
+根据当前仓库代码，至少应先关注这三个事件：
+
+- `user.onlinestatus`
+- `msg.offline`
+- `msg.notify`
+
+### `user.onlinestatus`
+
+用于用户上线、下线通知。
+
+旧文档里的格式说明仍然成立：请求体是字符串数组，每一项包含 UID、设备标识、在线状态、连接 ID 等信息。
+
+### `msg.offline`
+
+用于通知业务侧“这条消息需要走离线推送”。
+
+最常见用法是：
+
+- 业务侧收到回调
+- 解码消息 payload
+- 再调用厂商推送服务发给目标用户
+
+### `msg.notify`
+
+用于把消息事件推送给第三方业务系统。  
+如果你希望把消息同步到自己的业务层、审计层或异步处理链路，这个事件更重要。
+
+## HTTP 还是 gRPC
+
+怎么选可以直接这样判断：
+
+- 接入简单、先跑通：HTTP
+- 吞吐更高、回调压力更大：gRPC
+
+如果你还在摸清事件模型，先用 HTTP 更容易调试。
+
+## 接入建议
+
+### 1. 先只订阅必要事件
+
+不要一上来就把所有事件都接进来。  
+优先只配业务真正需要的 `focusEvents`。
+
+### 2. 先保证接收端足够快
+
+Webhook 本质上在走你的业务系统。  
+如果你的接收服务太慢，回调积压和重试都会影响整体稳定性。
+
+### 3. `payload` 仍然要按消息体去解析
+
+对消息类事件来说，请求体里的 `payload` 通常仍然是编码后的消息内容，不要把它当成“已经是业务 JSON”直接使用。
+
+### 4. 离线推送和在线消息不要混成一层逻辑
+
+`msg.offline` 更适合接厂商推送链路，`msg.notify` 更适合业务事件同步。
+
+## 常见坑
+
+### 1. 只配了回调 URL，没有配事件过滤
+
+这样后面回调量一大，业务侧很快就会变乱。
+
+### 2. 接收端返回不稳定
+
+Webhook 不是“发了就算”，如果你的接收端经常超时或失败，会出现重试和积压。
+
+### 3. HTTP 和 gRPC 同时理解成并行开启
+
+当前实现里不是“双写”，而是优先走 gRPC。
+
+### 4. 把 Webhook 当成主业务接口
+
+它更适合做事件通知和异步联动，不适合承载复杂同步事务。
+
+## 下一步
+
+<Cards>
+  <Card title="看消息接口" href="/server/message" />
+  <Card title="看用户在线状态" href="/server/user/online-status" />
+  <Card title="看系统健康检查" href="/server/system/health" />
+</Cards>

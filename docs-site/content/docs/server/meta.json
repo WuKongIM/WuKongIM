@@ -1,0 +1,18 @@
+{
+  "title": "服务端集成",
+  "icon": "server",
+  "pages": [
+    "index",
+    "auth-and-connection",
+    "route",
+    "message",
+    "channel",
+    "user",
+    "conversation",
+    "connection",
+    "webhook",
+    "plugin",
+    "advance",
+    "system"
+  ]
+}

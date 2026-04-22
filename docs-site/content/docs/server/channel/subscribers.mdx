@@ -1,0 +1,66 @@
+---
+title: 频道成员管理
+description: 成员管理主要关注三件事：添加成员、移除成员，以及是否用重置方式覆盖现有成员。
+---
+
+频道成员管理主要围绕这两个接口：
+
+- `POST /channel/subscriber_add`
+- `POST /channel/subscriber_remove`
+
+## 添加成员
+
+适合场景：
+
+- 邀请新成员进群
+- 初始化或补充群成员
+- 通过 `reset=1` 直接重置整组成员
+
+最小示例：
+
+```bash
+curl -X POST "http://localhost:5001/channel/subscriber_add" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel_id": "group123",
+    "channel_type": 2,
+    "subscribers": ["user4", "user5"],
+    "reset": 0
+  }'
+```
+
+## 移除成员
+
+适合场景：
+
+- 踢出成员
+- 用户退群
+- 清理无效成员
+
+最小示例：
+
+```bash
+curl -X POST "http://localhost:5001/channel/subscriber_remove" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel_id": "group123",
+    "channel_type": 2,
+    "subscribers": ["user4", "user5"]
+  }'
+```
+
+## 两个重要参数
+
+### `reset`
+
+- `0`：追加成员
+- `1`：重置现有成员列表
+
+### `temp_subscriber`
+
+- `0`：正式成员
+- `1`：临时订阅者
+
+## 什么时候该用重置模式
+
+只有你明确要“以这次请求为准覆盖整个成员列表”时，才用 `reset=1`。普通邀请成员不要用它。

@@ -1,0 +1,11 @@
+{
+  "title": "认识 WuKongIM",
+  "icon": "overview",
+  "pages": [
+    "index",
+    "use-cases",
+    "capabilities",
+    "architecture",
+    "concepts"
+  ]
+}

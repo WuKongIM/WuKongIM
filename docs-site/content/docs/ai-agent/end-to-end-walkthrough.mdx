@@ -1,0 +1,325 @@
+---
+title: 端到端 Walkthrough
+description: 用一条完整 AI 回复链路，串起锚点消息、事件追加、在线展示、离线恢复和细粒度补拉。
+---
+
+这一页不按“接口列表”来讲，而是按一条真实链路来走。
+
+目标是把下面这些动作串成一件完整的事：
+
+- 先创建锚点消息
+- 再持续追加事件
+- 在线时逐步展示生成过程
+- 离线后优先恢复聚合结果
+- 必要时再补拉细粒度事件
+
+## 场景设定
+
+假设用户 `u1` 向 AI 助手发起一轮天气查询，频道是和助手的单聊。
+
+这轮交互里会出现两条轨道：
+
+- `main`：AI 回复文本
+- `tool_weather`：天气工具调用结果
+
+对应的一条业务消息会使用同一个 `client_msg_no`，例如：
+
+`cmn_agent_weather_001`
+
+## 第一步：先创建锚点消息
+
+第一步不是直接发事件，而是先把消息本身写进去。
+
+这里通常走现有的 [`发送消息`](/server/message/send)：
+
+```bash
+curl -X POST "http://localhost:5001/message/send" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from_uid": "assistant_bot",
+    "channel_id": "u1",
+    "channel_type": 1,
+    "client_msg_no": "cmn_agent_weather_001",
+    "is_stream": 1,
+    "payload": "eyJ0eXBlIjoyLCJ0ZXh0IjoiIn0="
+  }'
+```
+
+这一条消息的职责很明确：
+
+- 作为整轮 AI 输出的锚点
+- 占住现有消息主链路
+- 为后续事件提供 `client_msg_no` 关联键
+
+这里最重要的不是 payload 里已经有完整内容，而是：
+
+- **消息已经存在**
+- **并且 `is_stream` 必须是 `1`**
+
+如果这条锚点消息不是流式消息，后面的 `/message/event` 追加就不应该成立。
+
+## 第二步：打开主文本轨道
+
+接下来，服务端开始向 `main` 轨道写入事件。
+
+先发 `stream.open`：
+
+```json
+{
+  "channel_id": "u1",
+  "channel_type": 1,
+  "from_uid": "assistant_bot",
+  "client_msg_no": "cmn_agent_weather_001",
+  "event_id": "evt_main_open_001",
+  "event_type": "stream.open",
+  "lane_id": "main",
+  "visibility": "public",
+  "occurred_at": 1772860800000,
+  "payload": {
+    "kind": "text"
+  }
+}
+```
+
+这个动作的意义是：
+
+- 告诉客户端主输出流已经开始
+- 初始化 `main` 轨道状态
+- 为后续 delta 做准备
+
+## 第三步：持续写入文本增量
+
+模型开始生成文本后，服务端持续追加 `stream.delta`：
+
+```json
+{
+  "channel_id": "u1",
+  "channel_type": 1,
+  "from_uid": "assistant_bot",
+  "client_msg_no": "cmn_agent_weather_001",
+  "event_id": "evt_main_delta_001",
+  "event_type": "stream.delta",
+  "lane_id": "main",
+  "visibility": "public",
+  "occurred_at": 1772860801000,
+  "payload": {
+    "kind": "text",
+    "delta": "北京今天"
+  }
+}
+```
+
+随后可以继续追加：
+
+```json
+{
+  "client_msg_no": "cmn_agent_weather_001",
+  "event_id": "evt_main_delta_002",
+  "event_type": "stream.delta",
+  "lane_id": "main",
+  "payload": {
+    "kind": "text",
+    "delta": " 26°C，晴。"
+  }
+}
+```
+
+在线客户端通常会在这个阶段一边收事件，一边逐步渲染文本。
+
+## 第四步：并行写入工具轨道
+
+如果模型过程中调用了天气工具，不需要把工具结果塞回 `main` 轨道。
+
+更合适的方式是单独写 `tool_weather`：
+
+先打开轨道：
+
+```json
+{
+  "client_msg_no": "cmn_agent_weather_001",
+  "event_id": "evt_tool_open_001",
+  "event_type": "stream.open",
+  "lane_id": "tool_weather",
+  "payload": {
+    "kind": "tool",
+    "tool_name": "weather.search",
+    "tool_call_id": "tc_weather_001"
+  }
+}
+```
+
+再写入工具结果快照：
+
+```json
+{
+  "client_msg_no": "cmn_agent_weather_001",
+  "event_id": "evt_tool_snapshot_001",
+  "event_type": "stream.snapshot",
+  "lane_id": "tool_weather",
+  "payload": {
+    "kind": "tool",
+    "tool_name": "weather.search",
+    "tool_call_id": "tc_weather_001",
+    "result": {
+      "temp_c": 26,
+      "condition": "Sunny"
+    }
+  }
+}
+```
+
+这样做的好处是：
+
+- 文本展示逻辑不会被工具结构污染
+- UI 可以选择显示或隐藏工具详情
+- 离线聚合时不同 lane 可以各自保留状态
+
+## 第五步：关闭轨道并完成聚合
+
+当文本和工具都结束时，服务端分别写入 `stream.close`。
+
+这时服务端侧应该已经同步更新好 `MessageLaneState`：
+
+- `main` 轨道有最终文本快照
+- `tool_weather` 轨道有最终工具结果
+- 每个轨道都有自己的 `status` 和 `last_msg_event_seq`
+
+这一步之后，系统已经具备两种读法：
+
+- 在线：继续看事件过程
+- 离线：直接看聚合结果
+
+## 第六步：在线客户端怎么显示
+
+如果客户端在线，最常见的处理顺序是：
+
+1. 收到锚点消息后先渲染一个“正在生成”的消息气泡
+2. 收到 `main` 轨道 delta 后逐步更新文本
+3. 收到 `tool_weather` 轨道事件后更新工具面板或状态区
+4. 收到 `close` 后把消息状态切到完成
+
+这里的关键点是：
+
+- `main` 轨道负责主内容体验
+- `tool_*` 轨道负责附加过程信息
+- 客户端不需要等全部结束后才开始展示
+
+## 第七步：离线客户端怎么恢复
+
+如果客户端中途离线，重新进入会话时，第一优先级不是立刻重放所有事件，而是先走 [`消息同步`](/server/message/sync)。
+
+请求示例：
+
+```json
+{
+  "login_uid": "u1",
+  "channel_id": "u1",
+  "channel_type": 1,
+  "start_message_seq": 0,
+  "end_message_seq": 0,
+  "limit": 30,
+  "pull_mode": 1,
+  "stream_v2": 1,
+  "include_event_meta": 1,
+  "event_summary_mode": "basic"
+}
+```
+
+服务端返回的重点在于该条消息上的 `event_meta`：
+
+```json
+{
+  "client_msg_no": "cmn_agent_weather_001",
+  "stream_data": "北京今天 26°C，晴。",
+  "event_meta": {
+    "has_events": true,
+    "lane_count": 2,
+    "open_lane_count": 0,
+    "lanes": [
+      {
+        "lane_id": "main",
+        "status": "closed",
+        "last_msg_event_seq": 12,
+        "snapshot": {
+          "kind": "text",
+          "text": "北京今天 26°C，晴。"
+        }
+      },
+      {
+        "lane_id": "tool_weather",
+        "status": "closed",
+        "last_msg_event_seq": 8,
+        "snapshot": {
+          "kind": "tool",
+          "tool_name": "weather.search",
+          "tool_call_id": "tc_weather_001",
+          "result": {
+            "temp_c": 26,
+            "condition": "Sunny"
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+这样客户端即使没见过中间过程，也能先恢复出“最终可读结果”。
+
+## 第八步：什么时候再调 `eventsync`
+
+只有在客户端真的需要更细的过程时，才去补拉事件增量。
+
+典型情况包括：
+
+- 要做逐字回放
+- 要展示工具调用全过程
+- 要补齐离线期间的中间状态变化
+
+这时再调用 `POST /message/eventsync`：
+
+```json
+{
+  "channel_id": "u1",
+  "channel_type": 1,
+  "client_msg_no": "cmn_agent_weather_001",
+  "lane_id": "",
+  "from_msg_event_seq": 0,
+  "limit": 200,
+  "include_private": 0
+}
+```
+
+这里的思路不是“每次都这样读”，而是：
+
+- 默认先恢复聚合结果
+- 有需要再细化到事件层
+
+## 这一整条链路解决了什么
+
+如果按这个顺序接入，你会同时得到：
+
+- 现有消息体系兼容性
+- 在线渐进展示能力
+- 离线快速恢复能力
+- 多轨道并行表达能力
+
+而且它不会要求你一开始就推翻普通消息接口。
+
+## 最小落地链路
+
+如果你只想先把第一版做通，最小闭环通常是：
+
+1. 用 `/message/send` 创建 `is_stream = 1` 的锚点消息
+2. 用 `/message/event` 写 `main` 轨道事件
+3. 在服务端维护 `MessageLaneState`
+4. 用 `/channel/messagesync` 返回 `event_meta`
+5. 最后才补 `/message/eventsync`
+
+这个顺序和 [`架构落地建议`](/ai-agent/architecture-guidance) 是一致的，只是这里把它展开成了一条完整业务链路。
+
+## 读完这一页之后
+
+如果你要回到模型和接口解释，看 [`消息事件流`](/ai-agent/message-event-stream)。
+
+如果你要回到聚合规则，看 [`事件合并规则`](/ai-agent/event-merge-rules)。

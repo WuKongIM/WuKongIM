@@ -1,0 +1,36 @@
+---
+title: 用户
+description: 收纳用户 Token、在线状态、系统账号和设备管理相关接口。
+---
+
+用户接口主要解决三类问题：
+
+- 给客户端准备和更新连接凭据
+- 查询用户在线状态
+- 管理用户设备连接
+
+## 常用入口
+
+<Cards>
+  <Card title="更新用户 Token" href="/server/user/token" />
+  <Card title="获取在线状态" href="/server/user/online-status" />
+  <Card title="强制设备退出" href="/server/user/device-quit" />
+</Cards>
+
+## 这些接口一般怎么用
+
+### 登录或刷新凭据
+
+先用 `POST /user/token` 写入或刷新某个用户在某个设备上的 token。
+
+### 判断用户当前是否在线
+
+用 `POST /user/onlinestatus` 一次查多个用户的在线状态。
+
+### 处理异常连接或主动踢下线
+
+用 `POST /user/device_quit` 强制指定设备退出。
+
+## 阅读顺序建议
+
+如果你正在接入登录流程，先看 [`更新用户 Token`](/server/user/token)。

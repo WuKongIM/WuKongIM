@@ -1,0 +1,165 @@
+---
+title: 发送消息
+description: 服务端向频道写入单条消息时最常用的接口。
+---
+
+核心接口：
+
+```text
+POST /message/send
+```
+
+这是服务端最常用的消息接口，用来向某个频道写入一条消息。
+
+它适合这类场景：
+
+- 后台代发欢迎消息、系统通知、业务消息
+- 业务服务主动往单聊或群聊写一条消息
+- 需要自己控制消息头、过期时间、是否流式等发送参数
+
+如果你是在做客户端历史补拉，不要用这个接口，改看 [`消息同步`](/server/message/sync)。
+
+## 最重要的参数
+
+| 参数 | 必填 | 说明 |
+| --- | --- | --- |
+| `payload` | 是 | Base64 编码后的消息内容 |
+| `from_uid` | 否 | 发送者 UID；不传时服务端会自动使用系统 UID |
+| `channel_id` | 条件必填 | 目标频道 ID |
+| `channel_type` | 是 | `1` 个人频道，`2` 群组频道 |
+| `client_msg_no` | 否 | 客户端消息号，建议带上，便于去重和状态跟踪 |
+| `is_stream` | 否 | 是否为流消息，`1` 表示流式消息；如果后续还要通过事件接口追加内容，必须设为 `1` |
+| `subscribers` | 否 | 指定接收者列表，用于定向投递场景 |
+
+## 最小示例
+
+```bash
+curl -X POST "http://localhost:5001/message/send" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from_uid": "user123",
+    "channel_id": "group123",
+    "channel_type": 2,
+    "payload": "SGVsbG8gV29ybGQ=",
+    "client_msg_no": "msg_001"
+  }'
+```
+
+## 返回什么
+
+普通频道发送成功时会拿到：
+
+- `message_id`
+- `client_msg_no`
+
+当前接口不会直接返回 `message_seq`。
+
+如果你走的是 `subscribers` 定向投递模式，服务端更关注“是否成功投递”，这类请求不要依赖返回 `message_id` 做后续逻辑。
+
+## 发送前先确认三件事
+
+### 1. `payload` 要先编码
+
+不要直接把原始文本塞进去。通常做法是先组织消息结构，再做 Base64 编码。
+
+### 2. `channel_id` 直接传原始值
+
+不要给它额外加前缀。
+
+### 3. `channel_type` 要和频道实际类型一致
+
+- 单聊：`1`
+- 群聊：`2`
+
+## 三个最容易踩坑的约束
+
+### 1. `channel_id` 和 `subscribers` 不能同时传
+
+这两个模式是互斥的：
+
+- 传 `channel_id`：表示发到一个正常频道
+- 传 `subscribers`：表示发给一组指定用户
+
+不要一边指定频道，一边又指定接收者列表。
+
+### 2. 使用 `subscribers` 时，`header.sync_once` 必须是 `1`
+
+这是命令/定向投递模式的约束。如果 `subscribers` 有值，但 `header.sync_once != 1`，请求会被直接拒绝。
+
+这类场景通常用于：
+
+- 指定用户的命令消息
+- 一次性通知
+- 不希望扩散到整个频道订阅者的定向消息
+
+### 3. `from_uid` 可以不传
+
+如果你留空 `from_uid`，服务端会自动把发送者设为系统用户。  
+这很适合：
+
+- 系统通知
+- 平台代发消息
+- 后台任务触发的自动消息
+
+## 常见扩展参数
+
+- `header.no_persist`
+  控制是否持久化
+- `header.red_dot`
+  控制是否显示红点
+- `header.sync_once`
+  命令/定向消息时常用，和 `subscribers` 配合使用
+- `expire`
+  消息过期时间
+- `is_stream`
+  开启后表示这是一条流消息；如果后续还要通过 `/message/event` 追加事件，锚点消息必须设置 `is_stream = 1`
+
+## AI Agent / 事件流场景要额外确认的事
+
+如果这条消息会作为 AI Agent 的锚点消息，后续还要挂：
+
+- 文本 delta
+- 工具调用结果
+- workflow 状态事件
+
+那发送锚点消息时必须带上：
+
+```json
+{
+  "is_stream": 1
+}
+```
+
+否则这条消息虽然能发送成功，但不应该被当成可追加事件的流式锚点消息来使用。
+
+## 一个更完整的示例
+
+```bash
+curl -X POST "http://localhost:5001/message/send" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "header": {
+      "red_dot": 1,
+      "sync_once": 0,
+      "no_persist": 0
+    },
+    "from_uid": "",
+    "channel_id": "group123",
+    "channel_type": 2,
+    "client_msg_no": "order_notice_001",
+    "payload": "eyJ0eXBlIjoxLCJ0ZXh0Ijoi5L2g5aW977yM5LiL5Y2V5oiQ5YqfIn0="
+  }'
+```
+
+这个示例里：
+
+- `from_uid` 为空，服务端会自动使用系统 UID
+- 消息会持久化
+- 会正常计入红点
+- 是普通频道消息，不是定向 `subscribers` 模式
+
+## 什么时候看其他接口
+
+- 要给多个用户发同一条消息：看 [`批量发送`](/server/message/batch-send)
+- 要按消息序号补拉历史消息：看 [`消息同步`](/server/message/sync)
+- 要精确查某条消息：看 [`查询单条消息`](/server/message/search)

@@ -1,0 +1,144 @@
+---
+title: 监控
+description: Linux 部署下，先把 Prometheus 抓取和 WuKongIM 的 trace 配置接上，再谈图表和告警。
+---
+
+Linux 监控这页先只解决最核心的问题：
+
+- Prometheus 从哪里抓
+- WuKongIM 需要配置什么
+- 先验证什么最有价值
+
+如果这三件事没接好，后面的图表和告警都不稳。
+
+## 当前仓库里的监控基线
+
+你可以从这几个地方理解当前仓库的监控路径：
+
+- `exampleconfig/single.yaml`
+- `exampleconfig/cluster1.yaml`
+- `exampleconfig/cluster2.yaml`
+- `exampleconfig/cluster3.yaml`
+- 根目录和 `docker/cluster` 里的 `prometheus.yml`
+
+这些文件共同指向的监控模型很简单：
+
+**Prometheus 负责抓取，WuKongIM 负责暴露和查询 trace/metrics 数据。**
+
+## 最重要的两步
+
+### 1. 在 Prometheus 里加抓取目标
+
+先在 `scrape_configs` 里为每个节点增加监控目标。
+
+最小示例：
+
+```yaml
+scrape_configs:
+  - job_name: wukongim1-trace-metrics
+    static_configs:
+      - targets: ['10.0.0.10:5300']
+        labels:
+          id: "1001"
+```
+
+这里通常要注意：
+
+- `targets` 用节点内网地址
+- 端口通常是管理端口
+- `labels.id` 对应节点 `nodeId`
+
+## 2. 在 WuKongIM 配置里指向 Prometheus
+
+各节点配置里需要设置：
+
+```yaml
+trace:
+  prometheusApiUrl: "http://10.0.0.20:9090"
+```
+
+这个地址应该是 **Prometheus 的内网可访问地址**。
+
+## 为什么这一步不能省
+
+当前仓库里的监控接口不只是“直接吐本地数字”，它会依赖 Prometheus API 做查询和聚合。
+
+所以如果：
+
+- Prometheus 没抓到节点
+- 或 `trace.prometheusApiUrl` 没配对
+
+那么管理侧监控页面和相关指标接口就很容易拿不到正确数据。
+
+## Linux 部署下建议怎么组织
+
+最简单的思路是：
+
+- Prometheus 独立部署
+- 每个 WuKongIM 节点都暴露自己的监控端
+- 管理面板和监控查询统一通过 Prometheus 聚合
+
+## 先看哪些监控最有价值
+
+第一阶段不要一口气追求“全量观测”，先盯住这些：
+
+- 节点是否存活
+- 连接数变化
+- 消息流量变化
+- 集群状态是否异常
+
+也就是先把“能不能工作”和“有没有明显异常”看清楚。
+
+## 最小验证顺序
+
+最省时间的做法通常是：
+
+1. 先看 Prometheus Targets 是否 `UP`
+2. 再看 `trace.prometheusApiUrl` 是否指向正确
+3. 再看管理侧监控接口或页面是否出数
+4. 最后再做图表和告警
+
+## 管理侧常用监控入口
+
+当前仓库里还能看到这些接口：
+
+- `/metrics`
+- `/metrics/app`
+- `/metrics/cluster`
+- `/metrics/system`
+
+如果你在用管理后台，这些接口就是管理面板的数据来源之一。
+
+## 怎么验证监控接通
+
+至少做这几步：
+
+1. Prometheus Targets 页面确认目标节点是 `UP`
+2. WuKongIM 配置里的 `trace.prometheusApiUrl` 指向正确
+3. 管理侧监控页面或监控接口能拿到数据
+
+## 常见坑
+
+### 1. 抓取目标写成公网地址
+
+监控通常更适合走内网，公网地址既不稳定也不安全。
+
+### 2. 节点启动了，但 Prometheus 里没有目标
+
+这说明问题在抓取配置，不在 WuKongIM 本身。
+
+### 3. Prometheus 能抓到，但管理面板还是没数据
+
+优先检查 `trace.prometheusApiUrl`。
+
+### 4. 新增节点后忘了补监控配置
+
+扩容成功不代表观测也自动扩好了。
+
+## 下一步
+
+<Cards>
+  <Card title="看 Linux 集群部署" href="/operations/linux/cluster" />
+  <Card title="看连接管理" href="/server/connection" />
+  <Card title="看运维排障" href="/operations/troubleshooting" />
+</Cards>

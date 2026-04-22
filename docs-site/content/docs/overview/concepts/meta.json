@@ -1,0 +1,10 @@
+{
+  "title": "核心概念",
+  "pages": [
+    "message",
+    "channel",
+    "user",
+    "device",
+    "conversation"
+  ]
+}

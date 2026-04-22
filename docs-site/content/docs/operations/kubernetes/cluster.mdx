@@ -1,0 +1,96 @@
+---
+title: 集群部署
+description: 基于 Helm 在 Kubernetes 中部署多副本 WuKongIM 集群。
+---
+
+如果你的目标已经不是“先跑起来”，而是：
+
+- 需要高可用
+- 需要容灾
+- 预计后续会继续扩容
+
+那 Kubernetes 下更合理的路径就是直接部署多副本集群。
+
+## 什么时候应该直接上这一页
+
+- 业务要进生产
+- 已有 Kubernetes 运维体系
+- 不能接受单点故障
+- 团队能处理存储、网络、Service 暴露和滚动升级
+
+## 先明确一个边界
+
+Kubernetes 解决的是编排和运维自动化，不会自动替你解决所有业务层高可用问题。
+
+你仍然需要确认：
+
+- 持久化存储策略
+- 节点间网络连通
+- 对外访问方式
+- 升级和回滚预案
+
+## 基本部署步骤
+
+### 1. 准备 Helm 仓库
+
+```bash
+helm repo add wukongim https://wukongim.github.io/helm/
+helm repo update
+helm search repo wukongim
+```
+
+### 2. 以多副本方式安装
+
+```bash
+helm install wkim wukongim/wukongim \
+  -n wukongim \
+  --create-namespace \
+  --set replicaCount=3
+```
+
+如果你要固定 Chart 版本，再补：
+
+```bash
+--version <chart-version>
+```
+
+## 部署后重点检查什么
+
+```bash
+kubectl get pods -n wukongim -o wide
+kubectl get svc -n wukongim
+kubectl get pvc -n wukongim
+helm status wkim -n wukongim
+```
+
+建议至少确认：
+
+- 副本数量符合预期
+- Pod 分布和网络正常
+- 所有需要的卷都已绑定
+- 节点间集群通信端口没有被环境策略挡住
+
+## 怎么做最小集群验证
+
+1. 检查所有副本都已 Ready
+2. 通过 API 查看节点状态
+3. 实际连一次客户端
+4. 发一条消息并做同步验证
+
+如果你只验证了 Pod Running，没有验证连接和消息链路，这还不算真正部署完成。
+
+## 最常见的坑
+
+- 把 K8s 多副本等同于“什么都不用管的高可用”
+- 没有确认集群通信和持久化策略
+- 没有提前规划对外暴露地址，导致客户端能连内网不能连外网
+- 把单机验证参数直接搬到生产集群
+
+## 下一步
+
+<Cards>
+  <Card title="看 Kubernetes 扩容" href="/operations/kubernetes/scaling" />
+  <Card title="看 Kubernetes 升级" href="/operations/kubernetes/upgrade" />
+  <Card title="看系统健康检查" href="/server/system/health" />
+  <Card title="看路由与连接" href="/server/auth-and-connection" />
+</Cards>

@@ -1,0 +1,9 @@
+{
+  "title": "用户",
+  "pages": [
+    "index",
+    "token",
+    "online-status",
+    "device-quit"
+  ]
+}

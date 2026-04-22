@@ -1,0 +1,16 @@
+{
+  "title": "部署与运维",
+  "icon": "operations",
+  "pages": [
+    "index",
+    "deployment-selection",
+    "single-node-vs-cluster",
+    "docker",
+    "linux",
+    "kubernetes",
+    "configuration",
+    "observability",
+    "data-migration",
+    "troubleshooting"
+  ]
+}

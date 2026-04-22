@@ -1,0 +1,11 @@
+{
+  "title": "AI Agent",
+  "icon": "ai-agent",
+  "pages": [
+    "index",
+    "message-event-stream",
+    "event-merge-rules",
+    "architecture-guidance",
+    "end-to-end-walkthrough"
+  ]
+}

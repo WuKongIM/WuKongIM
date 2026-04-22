@@ -1,0 +1,48 @@
+---
+title: 更新用户 Token
+description: 服务端把业务用户和 WuKongIM 连接凭据关联起来时，最常用的就是这个接口。
+---
+
+核心接口：
+
+```text
+POST /user/token
+```
+
+## 它解决什么问题
+
+当你的业务系统已经确认用户身份后，需要把该用户的 `uid`、`token`、设备类型写入 WuKongIM，客户端后续才能用这些信息建立连接。
+
+## 最重要的参数
+
+| 参数 | 必填 | 说明 |
+| --- | --- | --- |
+| `uid` | 是 | 业务里的用户唯一 ID |
+| `token` | 是 | 该用户的连接凭据 |
+| `device_flag` | 是 | `0` App，`1` Web，`2` Desktop |
+| `device_level` | 否 | `0` 从设备，`1` 主设备 |
+
+## 最小示例
+
+```bash
+curl -X POST "http://localhost:5001/user/token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "uid": "user123",
+    "token": "new_auth_token_here",
+    "device_flag": 1,
+    "device_level": 1
+  }'
+```
+
+## 使用建议
+
+- `uid` 使用你的业务主键，不要临时随机生成
+- 不同设备应区分 `device_flag`
+- 如果你的业务区分主设备和从设备，可以再用 `device_level`
+
+## 什么时候会重复调用
+
+- 用户重新登录
+- Token 刷新
+- 多设备重新绑定

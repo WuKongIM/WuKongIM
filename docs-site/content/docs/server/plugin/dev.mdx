@@ -1,0 +1,163 @@
+---
+title: 开发
+description: 介绍 WuKongIM 插件开发方式、调试流程和常用生命周期函数。
+---
+
+目前插件开发只支持 Go 语言。
+
+开发插件需要依赖 `WuKongIM` 的插件库 [Go PDK](https://github.com/WuKongIM/go-pdk)。
+
+> 插件能力在 WuKongIM `2.1.3` 及以上版本可用。
+
+## 开发插件
+
+完整示例源码：
+
+- [ai-example/main.go](https://github.com/WuKongIM/plugins/blob/main/ai-example/main.go)
+
+### 定义插件结构体
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/WuKongIM/go-pdk"
+)
+
+// 定义插件的配置结构体
+type Config struct {
+	Name string `json:"name" label:"AI名字"`
+}
+
+// 插件结构体
+type AIExample struct {
+	Config Config // 名字必须为 Config，后台配置会自动填充到这里
+}
+
+// 创建一个插件对象
+func New() interface{} {
+	return &AIExample{}
+}
+```
+
+### 定义插件函数
+
+```go
+// 收到消息时调用
+func (a *AIExample) Receive(c *pdk.Context) {
+	text := a.getText(c)
+
+	data, _ := json.Marshal(map[string]interface{}{
+		"type":    1,
+		"content": fmt.Sprintf("我是%s,收到您的消息：%s", a.Config.Name, text),
+	})
+
+	c.Reply(data)
+}
+
+func (a *AIExample) getText(c *pdk.Context) string {
+	var payload map[string]interface{}
+	_ = json.Unmarshal(c.GetPayload(), &payload)
+
+	if content, ok := payload["content"].(string); ok {
+		return content
+	}
+	return ""
+}
+```
+
+### 启动插件
+
+```go
+func main() {
+	pdk.RunServer(
+		New,
+		"wk.plugin.ai-example",
+		pdk.WithVersion("0.0.1"),
+		pdk.WithPriority(1),
+	)
+}
+```
+
+## 调试插件
+
+### 源码启动单机 WuKongIM
+
+先下载 `WuKongIM` 源码并进入根目录：
+
+- [WuKongIM](https://github.com/WuKongIM/WuKongIM)
+
+执行：
+
+```bash
+go run main.go --config exampleconfig/single.yaml
+```
+
+### 启动插件
+
+进入插件源码根目录，执行：
+
+```bash
+go run main.go
+```
+
+如果插件日志中出现成功连接信息，说明已经与 `WuKongIM` 建立连接。
+
+![插件连接成功](/images/plugin/plugin-connect.png)
+
+### 绑定用户
+
+全局插件不需要这一步。  
+如果是用户插件，在 `WuKongIM 后台 -> AI -> 添加 AI` 中完成绑定：
+
+![绑定插件](/images/plugin/bind.png)
+
+之后给绑定的 UID 发送消息，即可调试插件的 `Receive` 方法。
+
+## 函数说明
+
+### `Setup()`
+
+插件启动时调用，适合做初始化逻辑，例如建立数据库连接、加载模型或准备缓存。
+
+### `Route(c *pdk.Route)`
+
+插件路由函数。插件可以定义自己的 HTTP 接口，例如：
+
+```go
+func (a *AIExample) Route(c *pdk.Route) {
+	// http://127.0.0.1:5001/plugins/[插件编号]/hello
+	c.GET("/hello", a.sayHello)
+}
+
+func (a *AIExample) sayHello(c *pdk.Context) {
+	c.JSON(200, map[string]string{"message": "Hello from plugin"})
+}
+```
+
+源码参考：
+
+- [hello/hello.go](https://github.com/WuKongIM/plugins/blob/main/hello/hello.go)
+
+### `Receive(c *pdk.Context)`
+
+收到发给插件绑定用户的消息时，`WuKongIM` 会调用这个函数。这个函数只作用于已绑定的用户。
+
+### `Send(c *pdk.Context)`
+
+消息发送前，`WuKongIM` 会调用这个函数。你可以在这里修改消息内容或做拦截处理。它属于全局函数。
+
+### `PersistAfter(c *pdk.Context)`
+
+消息存储后、扩散前，`WuKongIM` 会调用这个函数。适合做消息搜索、统计分析等全局能力。
+
+### `ConfigUpdate()`
+
+插件配置发生变化时调用。
+
+### `Stop()`
+
+插件停止时调用，适合做清理工作。

@@ -1,0 +1,175 @@
+---
+title: 集群部署
+description: Linux 直跑多节点集群时，先把节点间通信、统一入口和对外地址三层关系理顺。
+---
+
+Linux 集群部署适合已经明确有这些需求的场景：
+
+- 不能接受单点故障
+- 需要多机承载
+- 需要继续扩容
+- 希望消息和数据具备更强的容灾能力
+
+和单机相比，集群部署真正增加的复杂度不在“命令更多”，而在于你必须同时处理三件事：
+
+- 节点之间怎么互相访问
+- 客户端通过哪个统一入口访问
+- 每个节点对外宣告的地址是什么
+
+## 先理解适用前提
+
+WuKongIM 集群更适合：
+
+- 正式生产环境
+- 对可用性要求较高的业务
+- 后续明确要扩容的系统
+
+如果你现在只是第一次验证链路，先回去走 [`Linux 单机部署`](/operations/linux/single-node) 会更省时间。
+
+## 当前仓库最应该先对照的配置
+
+Linux 集群这条路径，优先以仓库示例为准：
+
+- `exampleconfig/cluster1.yaml`
+- `exampleconfig/cluster2.yaml`
+- `exampleconfig/cluster3.yaml`
+
+这三份配置已经体现了当前仓库对初始多节点集群的实际组织方式。
+
+## 集群里最关键的配置块
+
+以 `cluster1.yaml` 这类示例为例，最重要的是：
+
+```yaml
+cluster:
+  nodeId: 1
+  addr: "tcp://127.0.0.1:10001"
+  serverAddr: "127.0.0.1:10001"
+  apiUrl: "http://127.0.0.1:5001"
+  initNodes:
+    - "1@127.0.0.1:10001"
+    - "2@127.0.0.1:10002"
+    - "3@127.0.0.1:10003"
+```
+
+这几个字段要这样理解：
+
+- `nodeId`：当前节点唯一编号
+- `addr`：本机监听地址
+- `serverAddr`：其他节点访问当前节点的地址
+- `apiUrl`：其他节点访问当前节点 API 的地址
+- `initNodes`：初始集群全量节点清单
+
+## 节点自身地址和统一入口不是一回事
+
+这是 Linux 集群最容易写错的地方。
+
+每个节点自己会有：
+
+- 本机 API 地址
+- 本机 TCP 地址
+- 本机 WebSocket 地址
+
+但客户端通常不应该直接感知这些分散地址，而是访问统一入口层，例如 Nginx。
+
+也就是说：
+
+- 节点内部互通靠 `serverAddr` / `apiUrl`
+- 客户端访问靠统一入口
+
+## 推荐的部署结构
+
+最容易理解的结构是：
+
+```text
+客户端
+  -> Nginx / 网关
+  -> 多个 WuKongIM 节点
+  -> Prometheus 等监控
+```
+
+旧站里这条路径也是这么组织的，当前仓库的 Docker 集群示例同样体现了这种结构。
+
+## Nginx 在这条路径里负责什么
+
+如果你做 Linux 集群直跑，通常还需要单独准备一个统一入口层。
+
+它至少要转发：
+
+- HTTP API
+- TCP
+- WebSocket
+- 管理后台
+- Demo
+
+否则客户端和管理系统就得直接面对各个节点，后续扩容和维护都会变得很乱。
+
+## 最小部署步骤
+
+### 1. 给每个节点准备独立配置文件
+
+每个节点都要有独立的：
+
+- `nodeId`
+- `serverAddr`
+- `apiUrl`
+- `rootDir`
+
+### 2. 三个节点的 `initNodes` 要保持一致
+
+初始集群 bootstrap 阶段，这一点非常关键。
+
+### 3. 准备统一入口层
+
+至少把 API、TCP、WS、Manager、Demo 都接到入口层。
+
+### 4. 启动所有节点
+
+```bash
+./wukongim --config ./cluster1.yaml -d
+./wukongim --config ./cluster2.yaml -d
+./wukongim --config ./cluster3.yaml -d
+```
+
+### 5. 再验证统一入口
+
+不要只看节点本机能否访问，还要看统一入口是否正常返回。
+
+## 怎么验证集群部署成功
+
+至少按下面顺序检查：
+
+- 每个节点进程都正常运行
+- 集群节点之间地址互通
+- `/health` 正常
+- 管理后台能看到多节点
+- 客户端能通过统一入口连接
+
+## 常见坑
+
+### 1. 所有节点都能启动，但彼此互相访问不到
+
+通常就是 `serverAddr` 或 `apiUrl` 写成了只有本机能访问的地址。
+
+### 2. 节点能互通，但客户端连不上
+
+通常是统一入口层没配完整，尤其漏了：
+
+- WebSocket
+- TCP
+
+### 3. `initNodes` 在不同节点上不一致
+
+这会让初始集群状态很难排查。
+
+### 4. 直接让客户端感知每个节点地址
+
+短期能跑，长期会让扩容和路由策略变得非常难管。
+
+## 下一步
+
+<Cards>
+  <Card title="看 Linux 扩容" href="/operations/linux/scaling" />
+  <Card title="看 Linux 监控" href="/operations/linux/monitoring" />
+  <Card title="看集群配置" href="/operations/configuration/cluster" />
+</Cards>

@@ -1,0 +1,146 @@
+---
+title: Docker 单机部署
+description: 作为默认上手路径，先用 Docker 单机把 WuKongIM 跑起来。
+---
+
+这是第一次体验 WuKongIM 的默认路径。目标不是一步到位搭生产环境，而是先在一台机器上把服务、管理后台和聊天 Demo 跑起来。
+
+## 适用场景
+
+- 本地学习和验证
+- 小型应用先用单机上线
+- 准备后续再扩成集群
+
+单机部署的优点是简单、性能不错、后续还能扩容；缺点是没有容灾，需要自己做好备份。
+
+## 环境准备
+
+- Linux 服务器或 Linux 开发环境
+- Docker 24 或更高版本
+- 至少 2 核 4G，推荐 4 核 8G 起步
+
+如果你只是本地体验，也可以直接复用仓库根目录里的 `docker-compose.yaml` 示例文件。
+
+## 第一步：创建运行目录
+
+```bash
+mkdir -p ~/wukongim
+cd ~/wukongim
+```
+
+## 第二步：创建 `docker-compose.yaml`
+
+下面这份内容与当前仓库根目录的 Docker Compose 示例保持一致，适合单机体验：
+
+```yaml
+version: '3.7'
+services:
+  wukongim:
+    image: registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2
+    environment:
+      - "WK_CLUSTER_NODEID=1001"
+      - "WK_CLUSTER_SERVERADDR=xx.xx.xx.xx:11110"
+      - "WK_TRACE_PROMETHEUSAPIURL=http://prometheus:9090"
+      - "WK_MODE=release"
+      - "WK_EXTERNAL_IP=xxx.xxx.xxx.xxx"
+      - "WK_CLUSTER_APIURL=http://xx.xxx.xxx.xx:5001"
+      - "WK_INTRANET_TCPADDR=xx.xx.xxx.xx:5100"
+    healthcheck:
+      test: "wget -q -Y off -O /dev/null http://localhost:5001/health > /dev/null 2>&1"
+      interval: 10s
+      timeout: 10s
+      retries: 3
+    restart: always
+    volumes:
+      - ./wukongimdata:/root/wukongim
+    ports:
+      - 5001:5001
+      - 5100:5100
+      - 5200:5200
+      - 5300:5300
+      - 5172:5172
+      - 11110:11110
+  prometheus:
+    image: registry.cn-shanghai.aliyuncs.com/wukongim/prometheus:v2.53.1
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    ports:
+      - "9090:9090"
+```
+
+## 第三步：创建 `prometheus.yml`
+
+```yaml
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+scrape_configs:
+  - job_name: wukongim1-trace-metrics
+    static_configs:
+      - targets: ['wukongim:5300']
+        labels:
+          id: "1001"
+```
+
+## 第四步：替换几个关键地址
+
+启动前至少确认下面几个值：
+
+- `WK_EXTERNAL_IP`：客户端能访问到的外网 IP
+- `WK_CLUSTER_SERVERADDR`：节点内部通信地址，单机体验时通常仍填当前机器的内网 IP
+- `WK_CLUSTER_APIURL`：当前节点的 HTTP API 内网地址
+- `WK_INTRANET_TCPADDR`：当前节点的 TCP 内网地址
+
+如果只是本机体验，直接按本机地址替换即可。
+
+## 第五步：启动服务
+
+```bash
+docker compose up -d
+```
+
+停止服务：
+
+```bash
+docker compose stop
+```
+
+## 端口说明
+
+| 端口 | 用途 | 访问建议 |
+| --- | --- | --- |
+| `5001` | HTTP API | 只建议内网访问 |
+| `5100` | TCP 连接 | App 或 TCP 客户端访问 |
+| `5200` | WebSocket 连接 | Web 端访问 |
+| `5300` | 管理后台 | 内网或受控环境开放 |
+| `5172` | 聊天 Demo | 体验环境开放 |
+| `11110` | 集群节点通信 | 仅节点内网通信 |
+
+## 验证是否成功
+
+先看健康检查：
+
+```bash
+curl http://127.0.0.1:5001/health
+```
+
+预期返回：
+
+```json
+{"status":"ok"}
+```
+
+然后访问：
+
+- 管理后台：`http://127.0.0.1:5300/web`
+- 聊天 Demo：`http://127.0.0.1:5172/chatdemo`
+
+如果 Demo 可以登录并收发消息，说明最小链路已经跑通。
+
+## 跑通后下一步看哪里
+
+<Cards>
+  <Card title="继续连接测试" href="/quick-start/verify-connection" />
+  <Card title="开始接客户端 SDK" href="/client/sdk-selection" />
+  <Card title="看部署方案选择" href="/operations/deployment-selection" />
+</Cards>

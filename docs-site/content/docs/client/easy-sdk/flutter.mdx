@@ -1,0 +1,62 @@
+---
+title: Flutter 快速接入
+description: Flutter 跨平台应用的快速接入入口。
+---
+
+Flutter 端也建议先走同一条最短路径：安装、初始化、监听、连接。
+
+## 第一步：安装 SDK
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  wukong_easy_sdk: ^1.0.0
+```
+
+然后执行：
+
+```bash
+flutter pub get
+```
+
+## 第二步：初始化
+
+```dart
+final config = WuKongConfig(
+  serverUrl: "ws://your-wukongim-server.com:5200",
+  uid: "your_user_id",
+  token: "your_auth_token",
+);
+
+final easySDK = WuKongEasySDK.getInstance();
+await easySDK.init(config);
+```
+
+## 第三步：监听事件
+
+```dart
+easySDK.addEventListener(WuKongEvent.connect, (result) {
+  print("Connected: $result");
+});
+
+easySDK.addEventListener(WuKongEvent.message, (message) {
+  print("Received: $message");
+});
+```
+
+## 第四步：建立连接
+
+```dart
+await easySDK.connect();
+```
+
+## 最常见的错误
+
+- 页面销毁时没有移除监听器
+- 服务端凭据没有准备好
+- 客户端地址仍然写成了 `5001`
+
+## 下一步
+
+先确认 [`鉴权与连接`](/server/auth-and-connection) 已经打通，再继续做消息和会话 UI。

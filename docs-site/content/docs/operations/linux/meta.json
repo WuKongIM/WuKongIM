@@ -1,0 +1,10 @@
+{
+  "title": "Linux 部署",
+  "pages": [
+    "single-node",
+    "cluster",
+    "monitoring",
+    "scaling",
+    "upgrade"
+  ]
+}

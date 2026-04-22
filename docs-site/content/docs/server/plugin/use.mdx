@@ -1,0 +1,58 @@
+---
+title: 使用
+description: 介绍 WuKongIM 插件的安装、配置、调用和卸载方式。
+---
+
+> 插件在 WuKongIM `2.1.3` 或以上版本才支持。
+
+## 安装插件
+
+### 下载插件
+
+先从 [`插件市场`](/server/plugin/market) 下载对应系统和架构的插件包。
+
+### 安装插件
+
+复制插件到 `WuKongIM` 数据目录下的 `plugins` 目录即可完成安装。
+
+![插件目录](/images/plugin/plugin-dir.png)
+
+如果日志提示 `permission denied`，执行下面的命令给插件增加执行权限：
+
+```bash
+sudo chmod +x 插件名字
+```
+
+### 配置插件
+
+如果插件需要配置，在 `WuKongIM` 管理后台的插件列表里会显示配置按钮，点击后即可配置。
+
+配置内容会根据不同插件而不同。
+
+![插件配置入口](/images/plugin/plugin-config.png)
+
+![插件配置表单](/images/plugin/plugin-config2.png)
+
+`guest` 用户没有权限配置插件。权限配置可参考 [`认证与连接`](/server/auth-and-connection)。
+
+## 调用插件
+
+如果是全局插件，只要系统中有消息发送，插件就会被调用。
+
+如果是 AI 一类的用户插件，需要先把插件绑定到用户 UID 上。
+
+在 `WuKongIM 后台 -> AI -> 添加 AI` 中即可完成绑定。
+
+![绑定插件到用户](/images/plugin/bind.png)
+
+插件绑定后，给该用户发消息时，消息也会转给插件处理，插件可以直接做出响应。
+
+例如把 AI 示例插件 `wk.plugin.ai-example` 绑定到用户 `robot` 后，给 `robot` 发消息，AI 插件就会返回结果。
+
+![AI 插件示例](/images/plugin/ai-demo.png)
+
+## 卸载插件
+
+在 `WuKongIM -> 插件 -> 卸载` 中即可卸载插件。
+
+![卸载插件](/images/plugin/uinstall.png)

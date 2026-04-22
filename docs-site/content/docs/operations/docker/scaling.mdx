@@ -1,0 +1,168 @@
+---
+title: 扩容
+description: 基于当前 Docker 集群示例增加节点时，先改节点清单，再改网关和监控。
+---
+
+Docker 扩容的核心不是 `docker compose --scale`，而是把**新节点完整纳入现有集群拓扑**。
+
+如果你当前还是单机版 `docker-compose.yaml`，建议先切到 [`Docker 集群部署`](/operations/docker/cluster) 这条路径，再考虑扩容。
+
+## 先说结论
+
+扩容时至少会同时改三类东西：
+
+- 集群节点配置
+- 网关负载均衡配置
+- 监控采集配置
+
+只加一个容器、不更新其他入口配置，通常不算真正扩容完成。
+
+## 适用前提
+
+- 你已经跑的是集群部署，而不是单机 Compose
+- 你当前的基线接近仓库里的 `docker/cluster/docker-compose.yaml`
+- 你准备新增的是节点，不是缩容
+
+当前文档只覆盖“加节点”。
+
+## 扩容前先检查
+
+- 先备份现有数据目录，例如 `wukongim1_data`、`wukongim2_data`、`wukongim3_data`
+- 备份 `docker-compose.yaml` 和 `nginx.conf`
+- 为新节点准备唯一的 `nodeId`
+- 确认新节点的容器别名、数据目录、通信地址都不会和旧节点冲突
+
+## 仓库示例里要改哪些位置
+
+当前示例目录：
+
+```text
+docker/cluster
+```
+
+通常要改：
+
+- `docker/cluster/docker-compose.yaml`
+- `docker/cluster/nginx.conf`
+- `docker/cluster/prometheus.yml`
+
+## 第一步：在 Compose 里新增节点
+
+最稳妥的做法是复制一个现有节点服务，例如以 `wukongim3` 为模板新增 `wukongim4`，然后修改这些值：
+
+- `WK_CLUSTER_NODEID`
+- `WK_CLUSTER_SERVERADDR`
+- `WK_CLUSTER_APIURL`
+- Docker 网络别名
+- 数据卷目录
+
+例如：
+
+```yaml
+wukongim4:
+  <<: *wukongim-common
+  container_name: wukongim4
+  environment:
+    - "WK_CLUSTER_NODEID=1004"
+    - "WK_MODE=release"
+    - "WK_INTRANET_TCPADDR=127.0.0.1:15100"
+    - "WK_EXTERNAL_WSADDR=ws://127.0.0.1:15200"
+    - "WK_EXTERNAL_TCPADDR=127.0.0.1:15100"
+    - "WK_CLUSTER_SERVERADDR=node4.wk.local:11110"
+    - "WK_CLUSTER_APIURL=http://node4.wk.local:5001"
+    - "WK_CLUSTER_INITNODES=1001@node1.wk.local 1002@node2.wk.local 1003@node3.wk.local 1004@node4.wk.local"
+  networks:
+    wukongim-bridge:
+      aliases:
+        - node4.wk.local
+  volumes:
+    - ./wukongim4_data:/root/wukongim
+```
+
+## 第二步：把 `WK_CLUSTER_INITNODES` 同步到所有节点
+
+这一步很关键。
+
+新增节点后，不只是新节点自己要知道全量节点列表，现有节点也应该更新为新的集群节点清单。
+
+也就是：
+
+- `wukongim1`
+- `wukongim2`
+- `wukongim3`
+- `wukongim4`
+
+都改成包含 `1004@node4.wk.local` 的版本。
+
+## 第三步：更新 `nginx.conf`
+
+当前仓库里的 `docker/cluster/nginx.conf` 对下面几类能力都做了 upstream 负载均衡：
+
+- API
+- Demo
+- Manager
+- WebSocket
+- TCP
+
+所以新增节点后，对应 upstream 也要加进去，例如：
+
+```nginx
+upstream wukongimapi {
+    server node1.wk.local:5001;
+    server node2.wk.local:5001;
+    server node3.wk.local:5001;
+    server node4.wk.local:5001;
+}
+```
+
+其他几个 upstream 同理。
+
+## 第四步：把新节点纳入监控
+
+如果你在用仓库示例里的 Prometheus，也别忘了把新节点监控目标补进去。
+
+否则扩容后你在图表里只能看到旧节点。
+
+## 第五步：启动变更
+
+在 `docker/cluster` 目录执行：
+
+```bash
+docker compose up -d
+```
+
+如果只是更新配置，也可以先看差异后再重启相关服务。
+
+## 怎么验证扩容成功
+
+优先看这几类结果：
+
+- `docker compose ps` 里新节点容器已正常运行
+- `http://<gateway-host>:15001/health` 仍然可访问
+- 管理后台节点列表里能看到新节点已加入
+- WebSocket、TCP、API 经过网关仍然可正常访问
+
+## 常见坑
+
+### 1. 只改了 Compose，没改 Nginx
+
+这样新节点可能已经加入集群，但网关根本不会把流量转过去。
+
+### 2. 节点 ID 重复
+
+`WK_CLUSTER_NODEID` 必须全局唯一。
+
+### 3. 只在新节点上更新 `WK_CLUSTER_INITNODES`
+
+这样会导致节点清单不一致，后续排查很麻烦。
+
+### 4. 想当然地热缩容
+
+当前文档只讨论扩容，不讨论在线缩容。
+
+## 下一步
+
+<Cards>
+  <Card title="看 Docker 集群部署" href="/operations/docker/cluster" />
+  <Card title="看 Docker 升级" href="/operations/docker/upgrade" />
+</Cards>

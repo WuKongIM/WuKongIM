@@ -1,0 +1,11 @@
+{
+  "title": "Web SDK",
+  "pages": [
+    "index",
+    "integration",
+    "connection",
+    "message",
+    "conversation",
+    "channel"
+  ]
+}

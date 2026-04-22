@@ -1,0 +1,91 @@
+---
+title: 频道
+description: 说明 Web SDK 的频道与订阅相关能力。
+---
+
+Web SDK 里的频道能力主要围绕 `channelManager` 展开。
+
+它负责的不是消息正文，而是“这个频道本身是什么、有哪些资料、有哪些成员”。
+
+## 你通常会用频道能力做什么
+
+- 获取频道资料
+- 缓存频道资料
+- 监听频道资料变化
+- 同步群成员或订阅者列表
+
+这部分能力最常出现在这些页面里：
+
+- 会话列表头像和标题展示
+- 聊天页头部资料
+- 群成员管理
+- 群资料卡片
+
+## 1. 获取频道资料
+
+如果你已经实现了频道资料数据源，可以主动触发拉取：
+
+```ts
+WKSDK.shared().channelManager.fetchChannelInfo(channel);
+```
+
+随后也可以直接从缓存里读取：
+
+```ts
+const info = WKSDK.shared().channelManager.getChannelInfo(channel);
+```
+
+## 2. 先把频道资料数据源接好
+
+```ts
+WKSDK.shared().config.provider.channelInfoCallback = async (channel) => {
+  return fetchYourChannelInfo(channel);
+};
+```
+
+这里返回的通常是你业务定义下的频道展示信息，比如：
+
+- 标题
+- 头像
+- 是否免打扰
+- 是否置顶
+- 业务扩展字段
+
+## 3. 监听频道资料变化
+
+```ts
+const onChannelInfo = (channelInfo) => {
+  console.log(channelInfo);
+};
+
+WKSDK.shared().channelManager.addListener(onChannelInfo);
+```
+
+这一步常用来在资料更新后刷新列表和会话头部显示。
+
+## 4. 群成员或订阅者同步
+
+如果你有群成员场景，可以继续实现订阅者同步数据源。之后：
+
+```ts
+WKSDK.shared().channelManager.syncSubscribes(channel);
+const subscribers = WKSDK.shared().channelManager.getSubscribes(channel);
+```
+
+这部分更适合群聊、社群、客服工作台等需要看成员关系的业务。
+
+## 最常见的误区
+
+- 频道资料完全写死在前端，不从业务服务端同步
+- 把频道属性和会话属性混在一起
+- 认为单聊不需要频道概念，结果后续消息和会话逻辑不好统一
+- 认为群成员同步是 SDK 自动完成的，没有补自己的数据源
+
+## 下一步
+
+<Cards>
+  <Card title="看消息能力" href="/client/full-sdk/web/message" />
+  <Card title="看会话能力" href="/client/full-sdk/web/conversation" />
+  <Card title="看频道概念" href="/overview/concepts/channel" />
+  <Card title="看服务端频道接口" href="/server/channel" />
+</Cards>

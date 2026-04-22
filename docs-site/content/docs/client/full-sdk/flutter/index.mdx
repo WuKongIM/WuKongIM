@@ -1,0 +1,65 @@
+---
+title: Flutter SDK
+description: Flutter 平台完整 SDK 的总览页。
+---
+
+Flutter SDK 适合需要同时覆盖多端、又希望保留完整 IM 客户端能力的项目。
+
+它更适合这些场景：
+
+- 你已经确定要做完整聊天体验
+- 需要消息、会话、未读、频道这些能力一起工作
+- 希望一套客户端逻辑覆盖多个移动端平台
+
+如果你只是想先把能力接起来、验证基本链路，优先看 [`快速接入 SDK`](/client/easy-sdk/flutter)。  
+如果你准备正式做跨端聊天产品，就继续按完整 SDK 路径往下看。
+
+## Flutter 完整 SDK 最适合这几类场景
+
+- 一套代码覆盖 iOS / Android 的 IM 应用
+- 业务复杂，不能只停留在“收发一条消息”
+- 需要完整的历史消息、会话列表、未读和频道能力
+- 需要保留更多自定义空间，而不是只接一个轻量封装
+
+## 接入前建议先明确
+
+### 1. 你是否已经决定走“完整客户端”方案
+
+完整 SDK 的重点不是“更快”，而是“更完整”。  
+如果你的目标是长期维护的正式产品，这条路更合适。
+
+### 2. 业务服务端负责哪些事情
+
+通常业务服务端要负责：
+
+- 生成用户 Token
+- 提供登录态
+- 按你的业务补充会话和消息扩展字段
+
+### 3. 客户端本地要维护哪些状态
+
+完整 Flutter 接入时，通常要把这些一起考虑：
+
+- 当前连接状态
+- 本地消息游标
+- 最近会话列表
+- 未读数和会话更新
+
+## 推荐阅读顺序
+
+Flutter 平台的专属细节页会继续完善，但眼下最值得先读的是完整链路里的共性部分：
+
+<Cards>
+  <Card title="先看完整 SDK 总览" href="/client/full-sdk" />
+  <Card title="看服务端鉴权与连接" href="/server/auth-and-connection" />
+  <Card title="看连接地址获取" href="/server/route/get-address" />
+  <Card title="看历史消息同步" href="/server/message/sync" />
+  <Card title="看消息概念" href="/overview/concepts/message" />
+  <Card title="看频道概念" href="/overview/concepts/channel" />
+</Cards>
+
+## 你现在可以怎么选
+
+- 先验证跨端可行性：看 [`Flutter 快速接入`](/client/easy-sdk/flutter)
+- 直接开始正式接入：先看 [`服务端鉴权与连接`](/server/auth-and-connection)
+- 想找一条更完整的阅读样板：看 [`Web 完整 SDK`](/client/full-sdk/web)

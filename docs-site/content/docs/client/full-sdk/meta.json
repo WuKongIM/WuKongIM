@@ -1,0 +1,12 @@
+{
+  "title": "完整 SDK",
+  "pages": [
+    "index",
+    "web",
+    "ios",
+    "android",
+    "flutter",
+    "harmonyos",
+    "other-platforms"
+  ]
+}

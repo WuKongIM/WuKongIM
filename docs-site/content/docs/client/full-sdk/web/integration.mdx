@@ -1,0 +1,109 @@
+---
+title: 集成
+description: 说明 Web SDK 的安装、初始化与最小集成方式。
+---
+
+这页只回答一个问题：
+
+**要把 Web 完整 SDK 真正接进项目，最少要做哪几件事？**
+
+答案是四件：
+
+1. 安装 SDK
+2. 准备 `uid`、`token` 和连接地址
+3. 挂接你自己的数据源回调
+4. 发起连接
+
+## 1. 安装
+
+```bash
+npm install wukongimjssdk
+```
+
+如果只是本地调试，也可以走旧文档里的 CDN 引入方式；但新项目优先建议 `npm`。
+
+## 2. 准备连接所需的三个输入
+
+Web 完整 SDK 接入时，客户端至少要知道：
+
+- 当前用户 `uid`
+- 当前用户 `token`
+- 当前应该连接的 WebSocket 地址 `addr`
+
+其中 `uid` 和 `token` 一般来自你的业务服务端，`addr` 在生产环境里通常建议先通过服务端路由接口获取，而不是写死。
+
+## 3. 接上你自己的业务数据源
+
+完整 SDK 和“快速接入版”最大的差别就在这里。
+
+它不仅负责建连接，还会把这些同步动作交给你自己的业务接口来完成：
+
+- 同步某个频道的历史消息
+- 同步最近会话列表
+- 获取频道资料
+- 如果有需要，还可以补充频道成员同步、附件上传等能力
+
+最小示例可以先这样接：
+
+```ts
+import { Channel, ChannelInfo, SyncOptions, WKSDK } from 'wukongimjssdk';
+
+WKSDK.shared().config.provider.syncMessagesCallback = async (
+  channel: Channel,
+  opts: SyncOptions,
+) => {
+  return fetchYourMessages(channel, opts);
+};
+
+WKSDK.shared().config.provider.syncConversationsCallback = async () => {
+  return fetchYourConversations();
+};
+
+WKSDK.shared().config.provider.channelInfoCallback = async (
+  channel: Channel,
+): Promise<ChannelInfo> => {
+  return fetchYourChannelInfo(channel);
+};
+```
+
+这里的 `fetchYourMessages`、`fetchYourConversations`、`fetchYourChannelInfo` 都应该由你自己的业务接口实现。
+
+## 4. 初始化配置并连接
+
+```ts
+import WKSDK from 'wukongimjssdk';
+
+const config = WKSDK.shared().config;
+config.uid = 'u10001';
+config.token = 'your-token';
+config.addr = 'ws://your-wukongim-server:5200';
+
+WKSDK.shared().config = config;
+WKSDK.shared().connect();
+```
+
+如果你是集群或生产环境，`addr` 更推荐先从你的服务端或路由接口拿到，再设置给 SDK。
+
+## 一个更符合真实项目的接入顺序
+
+1. 用户先登录你的业务系统
+2. 业务服务端返回 `uid`、`token`
+3. 业务服务端或路由接口返回当前长连接地址
+4. 客户端挂好数据源回调
+5. 客户端调用 `connect()`
+
+## 最常见的四个坑
+
+- 只配了 SDK 连接，没有实现消息和会话数据源回调
+- 把管理接口地址当成 WebSocket 长连接地址
+- 把 `uid` / `token` 写死在前端而不是交给业务服务端生成
+- 以为完整 SDK 会自动替你补齐所有业务接口
+
+## 下一步
+
+<Cards>
+  <Card title="看连接管理" href="/client/full-sdk/web/connection" />
+  <Card title="看消息能力" href="/client/full-sdk/web/message" />
+  <Card title="看会话能力" href="/client/full-sdk/web/conversation" />
+  <Card title="看服务端鉴权与连接" href="/server/auth-and-connection" />
+</Cards>

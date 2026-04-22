@@ -1,0 +1,12 @@
+{
+  "title": "快速开始",
+  "icon": "quick-start",
+  "pages": [
+    "index",
+    "prerequisites",
+    "docker-single-node",
+    "verify-connection",
+    "send-first-message",
+    "next-steps"
+  ]
+}

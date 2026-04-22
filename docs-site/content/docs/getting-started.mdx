@@ -1,33 +1,23 @@
 ---
-title: Getting Started
-description: Run the WuKongIM docs site locally and produce a static build.
+title: 开始使用
+description: 保留旧入口名称，但把用户尽快导向新的主路径，而不是停留在过时的占位页上。
 ---
 
-This page is a placeholder for the first version of the documentation site.
+如果你是第一次进入文档，建议不要从这页停留太久，直接按目标进入更具体的主路径。
 
-## Local Development
+<Cards>
+  <Card title="先了解 WuKongIM" href="/overview" />
+  <Card title="快速开始" href="/quick-start" />
+  <Card title="客户端接入" href="/client" />
+  <Card title="服务端集成" href="/server" />
+</Cards>
 
-Install dependencies and start the dev server:
+## 这页为什么还保留
 
-```bash
-npm install
-npm run dev
-```
+- 避免旧链接或旧习惯入口直接失效
+- 作为迁移期间的过渡页
+- 帮用户快速分流到新的信息架构
 
-The site should be available locally with the docs homepage mounted at `/`.
+## 如果你想最快跑起来
 
-## Production Build
-
-Create the static output:
-
-```bash
-npm run build
-```
-
-The generated files are written under `docs-site/dist`.
-
-## Next Steps
-
-- Migrate existing WuKongIM documentation into this site
-- Refine navigation and landing content
-- Add deployment instructions for the new docs site
+直接进入 [`/quick-start`](/quick-start)，那里只保留最短体验路径，不会让你先在部署方式和资料页之间来回跳转。

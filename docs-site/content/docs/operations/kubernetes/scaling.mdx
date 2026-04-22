@@ -1,0 +1,72 @@
+---
+title: 扩容
+description: Kubernetes 环境下 WuKongIM 集群扩容的建议步骤。
+---
+
+Kubernetes 下的扩容，本质上还是围绕 Helm 调整副本规模。
+
+这一页只回答两个问题：
+
+- 什么时候该扩
+- 扩完后怎么确认不是“看起来成功，实际上没接好”
+
+## 什么时候考虑扩容
+
+- 在线连接数持续增长
+- 单节点资源接近瓶颈
+- 需要更强的容灾能力
+- 已经确认不是客户端、网关或配置问题导致的假性压力
+
+## 扩容的基本做法
+
+```bash
+helm upgrade wkim wukongim/wukongim \
+  -n wukongim \
+  --set replicaCount=5
+```
+
+如果你的环境使用固定 Chart 版本，记得同时带上原来使用的 `--version <chart-version>`，避免升级时顺带切了 Chart 版本。
+
+## 扩容后一定要检查什么
+
+```bash
+kubectl get pods -n wukongim
+kubectl get svc -n wukongim
+helm status wkim -n wukongim
+```
+
+除了副本数变化，更关键的是确认：
+
+- 新 Pod 已正常 Ready
+- 存储和网络都没有异常
+- 节点状态已经稳定
+- 客户端连接与消息链路正常
+
+## 扩容后推荐的验证顺序
+
+1. 看 Pod 和 PVC 状态
+2. 看节点健康
+3. 做一次客户端连接验证
+4. 做一次消息发送和同步验证
+5. 再观察一段时间资源和错误日志
+
+## 一个高频误区
+
+只看副本数增加，不看业务链路。
+
+这会导致表面上扩容完成，但实际问题仍然可能出在：
+
+- Service 暴露
+- 外部地址
+- 节点间通信
+- 持久化卷
+- 路由和连接策略
+
+## 下一步
+
+<Cards>
+  <Card title="看 Kubernetes 集群部署" href="/operations/kubernetes/cluster" />
+  <Card title="看 Kubernetes 升级" href="/operations/kubernetes/upgrade" />
+  <Card title="看系统健康检查" href="/server/system/health" />
+  <Card title="看运维排障" href="/operations/troubleshooting" />
+</Cards>

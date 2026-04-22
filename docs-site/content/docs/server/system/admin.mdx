@@ -1,0 +1,133 @@
+---
+title: 管理接口
+description: 先理解管理后台登录和鉴权方式，再去调集群管理类接口。
+---
+
+这页先聚焦最常用、最基础的一项管理能力：
+
+```text
+POST /manager/login
+```
+
+它的作用不是给客户端用户登录，而是给**管理后台和运维管理侧**拿访问令牌。
+
+## 这个接口通常给谁用
+
+- 内置管理后台 `/web`
+- 自己封装的运维面板
+- 需要调集群管理接口的后台工具
+
+如果你是在做业务侧消息发送、查询、路由，不要先从这里开始。
+
+## 最小请求
+
+```bash
+curl -X POST "http://localhost:5300/manager/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "admin",
+    "password": "your_password"
+  }'
+```
+
+这里更推荐直接打管理端口，例如默认的 `5300`。
+
+## 请求参数
+
+| 参数 | 必填 | 说明 |
+| --- | --- | --- |
+| `username` | 是 | 管理用户名 |
+| `password` | 是 | 管理密码 |
+
+## 成功返回什么
+
+当前实现返回：
+
+```json
+{
+  "username": "admin",
+  "token": "jwt-token",
+  "exp": 1760000000,
+  "permissions": "*:write"
+}
+```
+
+字段含义：
+
+- `username`：当前登录用户
+- `token`：后续请求使用的 JWT
+- `exp`：过期时间戳
+- `permissions`：权限字符串
+
+## 登录成功后怎么用
+
+管理端后续请求通常会带：
+
+```text
+Authorization: Bearer <token>
+```
+
+当前仓库里的管理前端就是按这个方式发请求的。
+
+## 它依赖什么配置
+
+这个接口成功与否，最关键取决于两类配置：
+
+- `auth.users` 里的用户名和密码
+- `jwt.secret`
+
+如果 `jwt.secret` 没配，接口会直接失败。
+
+所以“管理登录”不是独立存在的，它依赖你先把基础认证配置好。
+
+## 和 `managerToken` 的关系
+
+仓库里还存在 `managerToken` 这类配置。
+
+它更像一种管理侧直通令牌能力，和 `/manager/login` 生成的 JWT 是两条不同路径。  
+如果你只是正常使用管理后台，优先理解 `/manager/login` + `Authorization` 这一套就够了。
+
+## 常见坑
+
+### 1. 把它当成业务用户登录接口
+
+这不是客户端用户登录接口，而是管理侧登录。
+
+### 2. 用户密码明明配了，却还是登录失败
+
+优先检查：
+
+- `auth.users` 是否真的包含该用户
+- `jwt.secret` 是否配置
+- 管理端口是不是打对了
+
+### 3. 登录成功后，后续接口还是 401
+
+通常是因为后续请求没带：
+
+```text
+Authorization: Bearer <token>
+```
+
+### 4. 误以为打开 `/web` 就不需要认证
+
+静态页面能打开，不代表管理 API 可以直接访问。
+
+## 什么时候看这页后面的接口
+
+当你需要：
+
+- 查看集群信息
+- 节点迁移
+- 槽位迁移
+- 管理监控或管理面板
+
+再继续看集群和系统相关页面。
+
+## 下一步
+
+<Cards>
+  <Card title="看健康检查" href="/server/system/health" />
+  <Card title="看数据迁移状态" href="/server/system/migrate" />
+  <Card title="看部署与运维" href="/operations" />
+</Cards>
