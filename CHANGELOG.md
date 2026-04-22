@@ -1,5 +1,37 @@
 # WuKongIM Changelog
 
+## [v2.2.5-20260422] - 2026-04-22
+
+### 🚀 New Features
+- **CLI**: Added `wkcli bench` command with dedicated benchmark engine, metrics collection, and report generation
+- **CLI**: 新增 `wkcli bench` 压测命令，支持独立压测引擎、指标采集与报告生成
+- **Documentation**: Added a new Fumadocs-based docs site with homepage routing and structured navigation
+- **文档**: 新增基于 Fumadocs 的文档站，提供首页路由和结构化导航
+
+### 🐞 Bug Fixes
+- **Raft**: Fixed learner sync pipeline by restoring missing `advance()` and `sendSyncReq()` calls, improving log catch-up during node migration
+- **Raft**: 修复 learner 同步流水线缺失 `advance()` 和 `sendSyncReq()` 调用的问题，改善节点迁移期间的日志追赶
+- **Network**: Fixed `wknet` connection reuse `bad file descriptor` race condition
+- **网络**: 修复 `wknet` 连接复用导致的 `bad file descriptor` 竞争问题
+- **Benchmark**: Fixed benchmark elapsed time inflation caused by `Flush()` running inside `sendLoop`
+- **压测**: 修复 `sendLoop` 内执行 `Flush()` 导致压测耗时被放大的问题
+
+### 🔧 Technical Improvements
+- **Benchmarking**: Consolidated scattered benchmark cases into dedicated bench files, Makefile targets, and GitHub Actions workflow
+- **压测体系**: 将分散的基准测试整合为独立的 bench 文件、Makefile 目标和 GitHub Actions 工作流
+- **Testing**: Added comprehensive raft node unit tests and 12 multi-node raft flow integration tests
+- **测试**: 新增完整的 raft 节点单元测试和 12 个多节点 raft 流程集成测试
+
+### 📚 Documentation
+- **Docs**: Reorganized legacy docs, refreshed generated API docs, and added log compaction documentation
+- **文档**: 重组旧版文档，更新生成的 API 文档，并补充日志压缩相关文档
+- **Docs Site**: Expanded docs content for overview, quick start, client SDKs, server APIs, operations, resources, plugins, stress reports, and AI Agent scenarios
+- **文档站**: 扩展概览、快速开始、客户端 SDK、服务端 API、运维、资源、插件、压测报告和 AI Agent 场景文档
+
+**Full Changelog**: https://github.com/WuKongIM/WuKongIM/compare/v2.2.4-20260313...v2.2.5-20260422
+
+---
+
 ## [v2.2.4-20260313] - 2026-03-13
 
 ### 🚀 New Features
