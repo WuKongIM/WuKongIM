@@ -32,7 +32,7 @@ app.New(Config) (*App, error)
 App.Start() / Stop()
 App.Cluster() / App.ChannelLog() / App.Store()
 App.Message() / App.Conversation() / App.ConversationProjector()
-App.Gateway() / App.GatewayHandler() / App.API()
+App.Gateway() / App.GatewayHandler() / App.API() / App.Manager()
 App.DB() / App.RaftDB() / App.ChannelLogDB() / App.ISRRuntime()
 
 // Gateway Handler — 网关事件回调
@@ -71,7 +71,7 @@ online.Registry.ActiveConnectionsBySlot(slotID)
 | 类型 | 文件 | 说明 |
 |------|------|------|
 | `App` | app/app.go:30 | 核心结构体，聚合 Cluster/ChannelLog/Gateway/所有 Usecase/Runtime |
-| `Config` | app/config.go:15 | 配置容器：Node, Storage, Cluster, API, Gateway, Conversation, Observability, Log |
+| `Config` | app/config.go:15 | 配置容器：Node, Storage, Cluster, API, Manager, Gateway, Conversation, Observability, Log |
 | `Gateway` | gateway/gateway.go:14 | 网关：管理 Listener/Session/Protocol 注册 |
 | `Server` | gateway/core/server.go:27 | 网关核心服务器：管理监听器、协议分发 |
 | `Session` | gateway/session/session.go:17 | 客户端会话：写队列、状态管理、Frame 读写 |
@@ -128,9 +128,10 @@ New(Config):
     ⑫ 创建 Node Access: accessnode.New (注册节点间 RPC Handler，包括 channel leader repair/evaluate)
     ⑬ 创建 Message: message.New(cluster, online, dispatcher, deliveryAck)
     ⑭ 创建 User: userusecase.New
-    ⑮ 创建 API: accessapi.New (HTTP 服务器)
-    ⑯ 创建 Gateway Handler: accessgateway.New
-    ⑰ 创建 Gateway: gateway.New(handler, authenticator, listeners)
+    ⑮ 可选创建 Management + Manager: managementusecase.New → accessmanager.New (后台管理 HTTP 服务器)
+    ⑯ 可选创建 API: accessapi.New (HTTP 服务器)
+    ⑰ 创建 Gateway Handler: accessgateway.New
+    ⑱ 创建 Gateway: gateway.New(handler, authenticator, listeners)
 
 Start():
   ① startCluster → cluster.Start()
@@ -146,7 +147,7 @@ Start():
 
 ### 5.2 停止
 
-入口: `app/lifecycle.go:87 Stop`
+入口: `app/lifecycle.go Stop`
 
 ```
 Stop():
