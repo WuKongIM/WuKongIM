@@ -46,6 +46,7 @@ cmd/
 
 internal/
   app/                   组合根；负责 build、lifecycle、config、依赖装配
+    lifecycle/           生命周期管理器与资源栈原语
   access/                接入层，只做入口适配
     api/                 HTTP API 入口与路由适配
     gateway/             网关 frame -> usecase 的适配
