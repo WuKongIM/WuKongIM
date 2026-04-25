@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	gatewaysession "github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
@@ -586,19 +587,19 @@ func TestLocalDeliveryResolverSplitsExpandedRoutesAcrossPages(t *testing.T) {
 }
 
 type recordingDeliveryOwnerNotifier struct {
-	acks        []message.RouteAckCommand
-	offlines    []message.SessionClosedCommand
+	acks        []deliveryevents.RouteAck
+	offlines    []deliveryevents.SessionClosed
 	ackErr      error
 	offlineErr  error
 	localClosed bool
 }
 
-func (r *recordingDeliveryOwnerNotifier) NotifyAck(_ context.Context, _ uint64, cmd message.RouteAckCommand) error {
+func (r *recordingDeliveryOwnerNotifier) NotifyAck(_ context.Context, _ uint64, cmd deliveryevents.RouteAck) error {
 	r.acks = append(r.acks, cmd)
 	return r.ackErr
 }
 
-func (r *recordingDeliveryOwnerNotifier) NotifyOffline(_ context.Context, _ uint64, cmd message.SessionClosedCommand) error {
+func (r *recordingDeliveryOwnerNotifier) NotifyOffline(_ context.Context, _ uint64, cmd deliveryevents.SessionClosed) error {
 	r.offlines = append(r.offlines, cmd)
 	return r.offlineErr
 }
@@ -650,21 +651,21 @@ func (s *optionRecordingSession) Writes() []outboundWrite {
 }
 
 type recordingRouteAcker struct {
-	acks []message.RouteAckCommand
+	acks []deliveryevents.RouteAck
 	err  error
 }
 
-func (r *recordingRouteAcker) AckRoute(_ context.Context, cmd message.RouteAckCommand) error {
+func (r *recordingRouteAcker) AckRoute(_ context.Context, cmd deliveryevents.RouteAck) error {
 	r.acks = append(r.acks, cmd)
 	return r.err
 }
 
 type recordingSessionCloser struct {
-	closed []message.SessionClosedCommand
+	closed []deliveryevents.SessionClosed
 	err    error
 }
 
-func (r *recordingSessionCloser) SessionClosed(_ context.Context, cmd message.SessionClosedCommand) error {
+func (r *recordingSessionCloser) SessionClosed(_ context.Context, cmd deliveryevents.SessionClosed) error {
 	r.closed = append(r.closed, cmd)
 	return r.err
 }
