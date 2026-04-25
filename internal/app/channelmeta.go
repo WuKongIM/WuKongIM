@@ -50,6 +50,11 @@ type channelMetaCluster interface {
 	RemoveLocalRuntime(key channel.ChannelKey) error
 }
 
+type channelMetaBootstrapper struct {
+	*runtimechannelmeta.RuntimeBootstrapper
+	cluster runtimechannelmeta.BootstrapCluster
+}
+
 type channelMetaSync struct {
 	source          channelMetaSource
 	cluster         channelMetaCluster
@@ -75,6 +80,19 @@ type channelMetaSync struct {
 	repairer     channelMetaRepairer
 
 	lastHashSlotTableVersion uint64
+}
+
+func newChannelMetaBootstrapper(cluster runtimechannelmeta.BootstrapCluster, store runtimechannelmeta.BootstrapStore, defaultMinISR int, now func() time.Time, logger wklog.Logger) *channelMetaBootstrapper {
+	return &channelMetaBootstrapper{
+		RuntimeBootstrapper: runtimechannelmeta.NewBootstrapper(runtimechannelmeta.BootstrapOptions{
+			Cluster:       cluster,
+			Store:         store,
+			DefaultMinISR: defaultMinISR,
+			Now:           now,
+			Logger:        logger,
+		}),
+		cluster: cluster,
+	}
 }
 
 type channelActivationCache struct {
