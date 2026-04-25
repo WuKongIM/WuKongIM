@@ -17,7 +17,7 @@
 [English](./README.md)
 
 <p align="center">
-<img align="left" height="160" src="./docs/images/logo.png">
+<img align="left" height="160" src="./resources/images/logo.png">
 <ul>
 <!-- <li><strong>QQ群</strong>: <a href="#">750224611</a></li> -->
 <!-- <li><strong>微信</strong>: <a href="#">wukongimgo（备注进群）</a></li> -->
@@ -38,9 +38,9 @@
 架构图
 --------
 
-![架构图](./docs/architecture/architecture_v2.svg)
+![架构图](./resources/architecture/architecture_v2.svg)
 
-![架构图](./docs/architecture/cluster.png)
+![架构图](./resources/architecture/cluster.png)
 
 
 视频演示
@@ -57,10 +57,10 @@
   <tbody>
     <tr>
       <td style="text-align: center;">
-        <img src="./docs/architecture/cluster-failover.webp" alt="故障转移">
+        <img src="./resources/architecture/cluster-failover.webp" alt="故障转移">
       </td>
       <td style="text-align: center;">
-         <img src="./docs/video/stream.webp" alt="AI+流消息">
+         <img src="./resources/video/stream.webp" alt="AI+流消息">
       </td>
     </tr>
   </tbody>
@@ -291,7 +291,7 @@ await im.connect()
 节点故障转移演示
 --------
 
-![节点故障转移演示](./docs/architecture/cluster-failover.webp)
+![节点故障转移演示](./resources/architecture/cluster-failover.webp)
 
 
 后台截图
@@ -300,11 +300,11 @@ await im.connect()
 
 ||||
 |:---:|:---:|:--:|
-|![](./docs/2.0-screen/screen-01.png)|![](./docs/2.0-screen/screen-02.png)|![](./docs/2.0-screen/screen-03.png)|
-|![](./docs/2.0-screen/screen-04.png)|![](./docs/2.0-screen/screen-05.png)|![](./docs/2.0-screen/screen-06.png)|
-|![](./docs/2.0-screen/screen-07.png)|![](./docs/2.0-screen/screen-08.png)|![](./docs/2.0-screen/screen-09.png)|
-|![](./docs/2.0-screen/screen-10.png)|![](./docs/2.0-screen/screen-11.png)| ![](./docs/2.0-screen/screen-12.png) |
-| ![](./docs/2.0-screen/screen-13.png) | ![](./docs/2.0-screen/screen-14.png) |
+|![](./resources/2.0-screen/screen-01.png)|![](./resources/2.0-screen/screen-02.png)|![](./resources/2.0-screen/screen-03.png)|
+|![](./resources/2.0-screen/screen-04.png)|![](./resources/2.0-screen/screen-05.png)|![](./resources/2.0-screen/screen-06.png)|
+|![](./resources/2.0-screen/screen-07.png)|![](./resources/2.0-screen/screen-08.png)|![](./resources/2.0-screen/screen-09.png)|
+|![](./resources/2.0-screen/screen-10.png)|![](./resources/2.0-screen/screen-11.png)| ![](./resources/2.0-screen/screen-12.png) |
+| ![](./resources/2.0-screen/screen-13.png) | ![](./resources/2.0-screen/screen-14.png) |
 
 Star
 ---------------
@@ -326,13 +326,13 @@ https://github.com/TangSengDaoDao/TangSengDaoDaoServer
 
 ||||
 |:---:|:---:|:--:|
-|![](./docs/case/tsdaodao/screenshot/conversationlist.webp)|![](./docs/case/tsdaodao/screenshot/messages.webp)|![](./docs/case/tsdaodao/screenshot/robot.webp)|
+|![](./resources/case/tsdaodao/screenshot/conversationlist.webp)|![](./resources/case/tsdaodao/screenshot/messages.webp)|![](./resources/case/tsdaodao/screenshot/robot.webp)|
 
 
 |||          |
 |:---:|:---:|:-------------------:|
 
-![](./docs/case/tsdaodao/screenshot/pc11.png)
+![](./resources/case/tsdaodao/screenshot/pc11.png)
 
 
 

@@ -17,7 +17,7 @@ Technical Highlights: Custom protocol, Distributed Raft (modified pull mode), Mu
 [中文](./README_CN.md)
 
 <p align="center">
-<img align="left" height="160" src="./docs/images/logo.png">
+<img align="left" height="160" src="./resources/images/logo.png">
 <ul>
 <li><strong>Website</strong>: https://githubim.com</li>
 <li><strong>Protocol 1</strong>: <a href="https://githubim.com/server/advance/proto.html">WuKongIM Binary Protocol</a></li>
@@ -36,9 +36,9 @@ Technical Highlights: Custom protocol, Distributed Raft (modified pull mode), Mu
 Architecture
 --------
 
-![Architecture](./docs/architecture/architecture_v2_en.svg)
+![Architecture](./resources/architecture/architecture_v2_en.svg)
 
-![Cluster Architecture](./docs/architecture/cluster_v2_en.svg)
+![Cluster Architecture](./resources/architecture/cluster_v2_en.svg)
 
 
 Video Demonstrations
@@ -55,10 +55,10 @@ Video Demonstrations
   <tbody>
     <tr>
       <td style="text-align: center;">
-        <img src="./docs/architecture/cluster-failover.webp" alt="Failover">
+        <img src="./resources/architecture/cluster-failover.webp" alt="Failover">
       </td>
       <td style="text-align: center;">
-         <img src="./docs/video/stream.webp" alt="AI + Streaming">
+         <img src="./resources/video/stream.webp" alt="AI + Streaming">
       </td>
     </tr>
   </tbody>
@@ -283,7 +283,7 @@ SDKs and Demos
 Node Failover Demo
 --------
 
-![Node Failover Demo](./docs/architecture/cluster-failover.webp)
+![Node Failover Demo](./resources/architecture/cluster-failover.webp)
 
 
 Screenshots
@@ -292,11 +292,11 @@ Screenshots
 
 ||||
 |:---:|:---:|:--:|
-|![](./docs/2.0-screen/screen-01.png)|![](./docs/2.0-screen/screen-02.png)|![](./docs/2.0-screen/screen-03.png)|
-|![](./docs/2.0-screen/screen-04.png)|![](./docs/2.0-screen/screen-05.png)|![](./docs/2.0-screen/screen-06.png)|
-|![](./docs/2.0-screen/screen-07.png)|![](./docs/2.0-screen/screen-08.png)|![](./docs/2.0-screen/screen-09.png)|
-|![](./docs/2.0-screen/screen-10.png)|![](./docs/2.0-screen/screen-11.png)| ![](./docs/2.0-screen/screen-12.png) |
-| ![](./docs/2.0-screen/screen-13.png) | ![](./docs/2.0-screen/screen-14.png) |
+|![](./resources/2.0-screen/screen-01.png)|![](./resources/2.0-screen/screen-02.png)|![](./resources/2.0-screen/screen-03.png)|
+|![](./resources/2.0-screen/screen-04.png)|![](./resources/2.0-screen/screen-05.png)|![](./resources/2.0-screen/screen-06.png)|
+|![](./resources/2.0-screen/screen-07.png)|![](./resources/2.0-screen/screen-08.png)|![](./resources/2.0-screen/screen-09.png)|
+|![](./resources/2.0-screen/screen-10.png)|![](./resources/2.0-screen/screen-11.png)| ![](./resources/2.0-screen/screen-12.png) |
+| ![](./resources/2.0-screen/screen-13.png) | ![](./resources/2.0-screen/screen-14.png) |
 
 Star
 ---------------
@@ -318,13 +318,13 @@ https://github.com/TangSengDaoDao/TangSengDaoDaoServer
 
 ||||
 |:---:|:---:|:--:|
-|![](./docs/case/tsdaodao/screenshot/conversationlist.webp)|![](./docs/case/tsdaodao/screenshot/messages.webp)|![](./docs/case/tsdaodao/screenshot/robot.webp)|
+|![](./resources/case/tsdaodao/screenshot/conversationlist.webp)|![](./resources/case/tsdaodao/screenshot/messages.webp)|![](./resources/case/tsdaodao/screenshot/robot.webp)|
 
 
 |||          |
 |:---:|:---:|:-------------------:|
 
-![](./docs/case/tsdaodao/screenshot/pc11.png)
+![](./resources/case/tsdaodao/screenshot/pc11.png)
 
 
 
