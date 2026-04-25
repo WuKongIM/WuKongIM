@@ -235,15 +235,20 @@ messages.Send(ctx, cmd):
 
 ```
 asyncCommittedDispatcher.SubmitCommitted(ctx, message):
-  ① 判断 preferLocal:
-     本地节点是 Channel Leader → 本地处理
-     否则 → nodeClient RPC 转发到 Leader 节点
+  ① preferLocal=true（当前 app/build.go 默认）:
+     → 不查询 Channel Leader，不做 node RPC 转发
+     → 直接在当前节点 submitLocal
   ② 本地处理:
      a. delivery.Submit(ctx, committedEnvelope):
         → deliveryRuntime.Manager.Submit [见 5.6]
         → envelope 内保留 SenderSessionID，用于过滤当前发送连接
      b. conversation.SubmitCommitted(ctx, message):
         → conversationProjector 更新会话投影
+  ③ fallback / legacy path（preferLocal=false 或 owner 已知远端）:
+     → 查询 channelLog.Status 获取 owner/leader
+     → owner 是本节点则 submitLocal
+     → owner 是远端且 nodeClient 可用时，通过 node RPC 转发到 owner 节点
+     → owner 未知或远端提交失败时，保底本地提交会话投影
 ```
 
 ### 5.6 投递运行时
