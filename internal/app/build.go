@@ -382,7 +382,7 @@ func build(cfg Config) (_ *App, err error) {
 		Runtime: app.deliveryRuntime,
 		Logger:  app.logger.Named("delivery"),
 	})
-	committedDispatcher := asyncCommittedDispatcher{
+	committedRouter := asyncCommittedDispatcher{
 		localNodeID:  cfg.Node.ID,
 		preferLocal:  true,
 		logger:       app.logger.Named("delivery.route"),
@@ -391,6 +391,7 @@ func build(cfg Config) (_ *App, err error) {
 		conversation: app.conversationProjector,
 		nodeClient:   app.nodeClient,
 	}
+	committedDispatcher := committedFanout{subscribers: []committedSubscriber{committedRouter}}
 	app.nodeAccess = accessnode.New(accessnode.Options{
 		Cluster:               app.cluster,
 		Presence:              app.presenceApp,
