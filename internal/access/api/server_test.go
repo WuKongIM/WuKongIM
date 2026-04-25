@@ -461,6 +461,77 @@ func TestSendMessageMapsSemanticErrorsToHTTPStatus(t *testing.T) {
 	}
 }
 
+func TestChannelMessageSyncMapsLegacyRequestToUsecase(t *testing.T) {
+	msgs := &recordingMessageUsecase{
+		syncResult: message.SyncChannelMessagesResult{
+			More: true,
+			Messages: []channel.Message{
+				{
+					Framer:      frame.Framer{NoPersist: true, RedDot: true, SyncOnce: true},
+					Setting:     3,
+					MessageID:   88,
+					MessageSeq:  2,
+					ClientMsgNo: "c1",
+					FromUID:     "u2",
+					ChannelID:   runtimechannelid.EncodePersonChannel("u1", "u2"),
+					ChannelType: frame.ChannelTypePerson,
+					Expire:      60,
+					Timestamp:   123,
+					Payload:     []byte("hello"),
+				},
+			},
+		},
+	}
+	srv := New(Options{Messages: msgs})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/channel/messagesync", bytes.NewBufferString(`{"login_uid":"u1","channel_id":"u2","channel_type":1,"start_message_seq":2,"end_message_seq":5,"limit":30,"pull_mode":1,"event_summary_mode":"full"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"start_message_seq":2,"end_message_seq":5,"more":1,"messages":[{"header":{"no_persist":1,"red_dot":1,"sync_once":1},"setting":3,"message_id":88,"message_idstr":"88","client_msg_no":"c1","message_seq":2,"from_uid":"u2","channel_id":"u2","channel_type":1,"expire":60,"timestamp":123,"payload":"aGVsbG8="}]}`, rec.Body.String())
+	require.Len(t, msgs.syncQueries, 1)
+	require.Equal(t, message.SyncChannelMessagesQuery{
+		LoginUID:         "u1",
+		ChannelID:        "u2",
+		ChannelType:      frame.ChannelTypePerson,
+		StartMessageSeq:  2,
+		EndMessageSeq:    5,
+		Limit:            30,
+		PullMode:         message.PullModeUp,
+		EventSummaryMode: "full",
+	}, msgs.syncQueries[0])
+}
+
+func TestChannelMessageSyncReturnsLegacyEmptyResponse(t *testing.T) {
+	msgs := &recordingMessageUsecase{}
+	srv := New(Options{Messages: msgs})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/channel/messagesync", bytes.NewBufferString(`{"login_uid":"u1","channel_id":"g1","channel_type":2}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"start_message_seq":0,"end_message_seq":0,"more":0,"messages":[]}`, rec.Body.String())
+}
+
+func TestChannelMessageSyncReturnsLegacyValidationError(t *testing.T) {
+	srv := New(Options{Messages: message.New(message.Options{})})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/channel/messagesync", bytes.NewBufferString(`{"login_uid":"","channel_id":"g1","channel_type":2}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"msg":"login_uid不能为空！","status":400}`, rec.Body.String())
+}
+
 func TestUpdateTokenMapsJSONToUsecaseCommand(t *testing.T) {
 	users := &recordingUserUsecase{}
 	srv := New(Options{Users: users})
@@ -655,10 +726,14 @@ func TestConversationSyncIgnoresLegacySyncGate(t *testing.T) {
 
 type recordingMessageUsecase struct {
 	calls        []message.SendCommand
+	syncQueries  []message.SyncChannelMessagesQuery
 	sendContexts []context.Context
 	sendFn       func(context.Context, message.SendCommand) (message.SendResult, error)
+	syncFn       func(context.Context, message.SyncChannelMessagesQuery) (message.SyncChannelMessagesResult, error)
 	result       message.SendResult
+	syncResult   message.SyncChannelMessagesResult
 	err          error
+	syncErr      error
 }
 
 func (r *recordingMessageUsecase) Send(ctx context.Context, cmd message.SendCommand) (message.SendResult, error) {
@@ -668,6 +743,14 @@ func (r *recordingMessageUsecase) Send(ctx context.Context, cmd message.SendComm
 		return r.sendFn(ctx, cmd)
 	}
 	return r.result, r.err
+}
+
+func (r *recordingMessageUsecase) SyncChannelMessages(ctx context.Context, query message.SyncChannelMessagesQuery) (message.SyncChannelMessagesResult, error) {
+	r.syncQueries = append(r.syncQueries, query)
+	if r.syncFn != nil {
+		return r.syncFn(ctx, query)
+	}
+	return r.syncResult, r.syncErr
 }
 
 type recordingUserUsecase struct {

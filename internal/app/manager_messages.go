@@ -5,6 +5,7 @@ import (
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
@@ -67,6 +68,66 @@ func (r managerMessageReader) queryLocal(req managementusecase.MessageQueryReque
 		Items:         append([]channel.Message(nil), page.Messages...),
 		HasMore:       page.HasMore,
 		NextBeforeSeq: page.NextBeforeSeq,
+	}, nil
+}
+
+func (r managerMessageReader) SyncMessages(ctx context.Context, req messageusecase.ChannelMessageQuery) (messageusecase.ChannelMessagePage, error) {
+	if r.channelLog == nil || r.metas == nil {
+		return messageusecase.ChannelMessagePage{}, nil
+	}
+
+	meta, err := r.metas.GetChannelRuntimeMeta(ctx, req.ChannelID.ID, int64(req.ChannelID.Type))
+	if err != nil {
+		return messageusecase.ChannelMessagePage{}, err
+	}
+	if meta.Leader == 0 {
+		return messageusecase.ChannelMessagePage{}, raftcluster.ErrNoLeader
+	}
+	if meta.Leader == r.localNodeID {
+		return r.syncLocal(req)
+	}
+	if r.remote == nil {
+		return messageusecase.ChannelMessagePage{}, channel.ErrStaleMeta
+	}
+	return r.syncRemote(ctx, meta.Leader, req)
+}
+
+func (r managerMessageReader) syncLocal(req messageusecase.ChannelMessageQuery) (messageusecase.ChannelMessagePage, error) {
+	committedHW, err := channelhandler.LoadCommittedHW(r.channelLog, req.ChannelID)
+	if err != nil {
+		return messageusecase.ChannelMessagePage{}, err
+	}
+	page, err := channelhandler.SyncMessages(r.channelLog, committedHW, channelhandler.SyncMessagesRequest{
+		ChannelID: req.ChannelID,
+		StartSeq:  req.StartSeq,
+		EndSeq:    req.EndSeq,
+		Limit:     req.Limit,
+		PullMode:  channelhandler.SyncPullMode(req.PullMode),
+	})
+	if err != nil {
+		return messageusecase.ChannelMessagePage{}, err
+	}
+	return messageusecase.ChannelMessagePage{
+		Messages: append([]channel.Message(nil), page.Messages...),
+		HasMore:  page.HasMore,
+	}, nil
+}
+
+func (r managerMessageReader) syncRemote(ctx context.Context, nodeID uint64, req messageusecase.ChannelMessageQuery) (messageusecase.ChannelMessagePage, error) {
+	page, err := r.remote.QueryChannelMessages(ctx, nodeID, accessnode.ChannelMessagesQuery{
+		ChannelID: req.ChannelID,
+		SyncMode:  true,
+		StartSeq:  req.StartSeq,
+		EndSeq:    req.EndSeq,
+		Limit:     req.Limit,
+		PullMode:  uint8(req.PullMode),
+	})
+	if err != nil {
+		return messageusecase.ChannelMessagePage{}, err
+	}
+	return messageusecase.ChannelMessagePage{
+		Messages: append([]channel.Message(nil), page.Messages...),
+		HasMore:  page.HasMore,
 	}, nil
 }
 

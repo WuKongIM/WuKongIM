@@ -54,6 +54,11 @@ type ChannelCluster interface {
 	Append(ctx context.Context, req channel.AppendRequest) (channel.AppendResult, error)
 }
 
+type ChannelMessageReader interface {
+	// SyncMessages returns one authoritative legacy-compatible channel message page.
+	SyncMessages(ctx context.Context, query ChannelMessageQuery) (ChannelMessagePage, error)
+}
+
 type MetaRefresher interface {
 	// RefreshChannelMeta loads authoritative channel metadata, applies the
 	// refreshed routing/runtime view locally, and returns the applied metadata.

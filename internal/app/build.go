@@ -341,9 +341,15 @@ func build(cfg Config) (_ *App, err error) {
 		Logger:                app.logger.Named("access.node"),
 	})
 	app.messageApp = message.New(message.Options{
-		IdentityStore:       app.store,
-		ChannelStore:        app.store,
-		Cluster:             app.channelLog,
+		IdentityStore: app.store,
+		ChannelStore:  app.store,
+		Cluster:       app.channelLog,
+		MessageReader: managerMessageReader{
+			localNodeID: cfg.Node.ID,
+			channelLog:  app.channelLogDB,
+			metas:       app.store,
+			remote:      app.nodeClient,
+		},
 		MetaRefresher:       app.channelMetaSync,
 		RemoteAppender:      app.nodeClient,
 		Online:              onlineRegistry,

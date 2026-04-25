@@ -18,6 +18,7 @@ var ErrListenAddrRequired = errors.New("access/api: listen address required")
 
 type MessageUsecase interface {
 	Send(ctx context.Context, cmd message.SendCommand) (message.SendResult, error)
+	SyncChannelMessages(ctx context.Context, query message.SyncChannelMessagesQuery) (message.SyncChannelMessagesResult, error)
 }
 
 type UserUsecase interface {

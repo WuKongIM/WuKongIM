@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
@@ -16,19 +16,27 @@ import (
 type ChannelMessagesQuery struct {
 	// ChannelID identifies the channel to scan.
 	ChannelID channel.ChannelID `json:"channel_id"`
+	// SyncMode enables legacy-compatible range sync instead of manager descending query.
+	SyncMode bool `json:"sync_mode,omitempty"`
 	// BeforeSeq is the exclusive upper sequence bound for pagination.
 	BeforeSeq uint64 `json:"before_seq,omitempty"`
+	// StartSeq is the inclusive starting sequence boundary for sync mode.
+	StartSeq uint64 `json:"start_seq,omitempty"`
+	// EndSeq is the exclusive ending sequence boundary for sync mode.
+	EndSeq uint64 `json:"end_seq,omitempty"`
 	// Limit is the maximum number of matched messages to return.
 	Limit int `json:"limit"`
+	// PullMode selects the legacy sync direction when sync mode is enabled.
+	PullMode uint8 `json:"pull_mode,omitempty"`
 	// MessageID filters the result to matching durable message identifiers when set.
 	MessageID uint64 `json:"message_id,omitempty"`
 	// ClientMsgNo filters the result to matching client message numbers when set.
 	ClientMsgNo string `json:"client_msg_no,omitempty"`
 }
 
-// ChannelMessagesPage is one channel message page in descending sequence order.
+// ChannelMessagesPage is one channel message page in the order selected by the query mode.
 type ChannelMessagesPage struct {
-	// Messages contains matched messages ordered from newest to oldest.
+	// Messages contains matched messages in query order.
 	Messages []channel.Message `json:"messages,omitempty"`
 	// HasMore reports whether another matched page exists.
 	HasMore bool `json:"has_more"`
@@ -83,6 +91,25 @@ func (a *Adapter) handleChannelMessagesRPC(ctx context.Context, body []byte) ([]
 	committedHW, err := channelhandler.LoadCommittedHW(a.channelLogDB, req.Query.ChannelID)
 	if err != nil {
 		return nil, err
+	}
+	if req.Query.SyncMode {
+		page, err := channelhandler.SyncMessages(a.channelLogDB, committedHW, channelhandler.SyncMessagesRequest{
+			ChannelID: req.Query.ChannelID,
+			StartSeq:  req.Query.StartSeq,
+			EndSeq:    req.Query.EndSeq,
+			Limit:     req.Query.Limit,
+			PullMode:  channelhandler.SyncPullMode(req.Query.PullMode),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return encodeChannelMessagesResponse(channelMessagesResponse{
+			Status: rpcStatusOK,
+			Page: ChannelMessagesPage{
+				Messages: append([]channel.Message(nil), page.Messages...),
+				HasMore:  page.HasMore,
+			},
+		})
 	}
 	page, err := channelhandler.QueryMessages(a.channelLogDB, committedHW, channelhandler.QueryMessagesRequest{
 		ChannelID:   req.Query.ChannelID,

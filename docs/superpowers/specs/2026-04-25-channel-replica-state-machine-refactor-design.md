@@ -75,6 +75,7 @@ func (m *machine) Apply(event) ([]effect, []completion)
 
 状态机只做同步、确定性的状态变化，不做阻塞 IO。需要持久化或通知时返回 effect：
 
+- `beginEpochEffect`
 - `appendLeaderBatchEffect`
 - `applyFollowerBatchEffect`
 - `truncateLogAndHistoryEffect`
@@ -91,7 +92,7 @@ There is no separate leader append sync effect. Durable append/apply effects rep
 
 ### 3.4 Effect Fencing And Ordering
 
-Every effect that can return to the loop must carry enough fencing data to prove it still belongs to the current replica state:
+Every effect that can return to the loop must carry enough fencing data to prove it still belongs to the current replica state. Durable-state-mutating effects must be fenced before the write whenever the store can validate the fence, and must still be fenced again when the result returns:
 
 - monotonic `effectID` allocated by the loop;
 - channel key;
@@ -155,15 +156,16 @@ Required tests:
 
 ### 3.7 Durable IO Boundary
 
-用更明确的 durable adapter 统一当前分散接口。初期可在包内通过 adapter 包装现有接口，避免 runtime/app 大改。
+用更明确的 durable adapter 统一当前分散接口。初期可在包内通过 adapter 包装现有接口，避免 runtime/app 大改。生产 `pkg/channel/store.ChannelStore` should grow/implement the combined interfaces needed for atomic durable state updates; split-store fallback exists for compatibility and tests, but recovery must validate and reject/repair unsafe partial state.
 
 Target contract:
 
 ```go
 type durableReplicaStore interface {
     Recover(ctx context.Context) (durableView, error)
+    BeginEpoch(ctx context.Context, point channel.EpochPoint, expectedLEO uint64) error
     AppendLeaderBatch(ctx context.Context, records []channel.Record) (oldLEO uint64, newLEO uint64, err error)
-    ApplyFollowerBatch(ctx context.Context, req channel.ApplyFetchStoreRequest) (newLEO uint64, err error)
+    ApplyFollowerBatch(ctx context.Context, req channel.ApplyFetchStoreRequest, epochPoint *channel.EpochPoint) (newLEO uint64, err error)
     TruncateLogAndHistory(ctx context.Context, to uint64) error
     StoreCheckpointMonotonic(ctx context.Context, checkpoint channel.Checkpoint, visibleHW uint64, leo uint64) error
     InstallSnapshotAtomically(ctx context.Context, snap channel.Snapshot, checkpoint channel.Checkpoint, epochPoint channel.EpochPoint) (leo uint64, err error)
@@ -172,12 +174,15 @@ type durableReplicaStore interface {
 
 Durability requirements:
 
-- `AppendLeaderBatch` writes records durably and returns both previous and new LEO. Success means the batch is synced/durable.
-- `ApplyFollowerBatch` atomically writes fetched records plus optional checkpoint, matching the existing `ChannelStore.StoreApplyFetch` durable apply semantics.
+- `BeginEpoch` durably writes an epoch boundary at `expectedLEO` and is idempotent for the same `(epoch,startOffset)`. It must reject if current LEO differs from `expectedLEO` or if history would become non-monotonic. This effect is serialized on the durable mutation lane before leader reconcile/append for that epoch proceeds.
+- `AppendLeaderBatch` writes records durably and returns both previous and new LEO. Success means the batch is synced/durable. Leader epoch boundaries are written by `BeginEpoch`, not by a later append side effect.
+- `ApplyFollowerBatch` atomically writes fetched records, optional checkpoint, and optional epoch boundary. Follower apply across a new epoch must not persist records without the epoch point, or the epoch point without the records, unless recovery can detect and repair the partial state.
 - `TruncateLogAndHistory` must atomically make log LEO and epoch history consistent. If the backing store cannot provide that atomic operation initially, `Recover` must detect mismatched log/history and either repair to a safe prefix or return `ErrCorruptState`; silent acceptance is not allowed.
-- `InstallSnapshotAtomically` must publish snapshot payload, checkpoint, log start offset, and epoch history expectation as one durable operation, or recovery must reject/repair partial state.
-- `StoreCheckpointMonotonic` must reject `checkpoint.HW > visibleHW`, `checkpoint.HW > leo`, and checkpoint regressions except when recovery is loading older durable state before runtime monotonicity starts.
-- Checkpoint persistence may lag runtime HW, but it cannot lead runtime HW or LEO.
+- `InstallSnapshotAtomically` must publish snapshot payload, checkpoint, log start offset, and epoch history expectation as one durable operation. If a split-store fallback is used, recovery must detect partial snapshot publication and reject/repair it before starting the loop.
+- `StoreCheckpointMonotonic` is a durable-state mutation and is serialized on the same per-replica durable mutation lane as epoch, append/apply, truncate, and snapshot effects. It must reject `checkpoint.HW > visibleHW`, `checkpoint.HW > leo`, and checkpoint regressions before writing.
+- Checkpoint persistence may lag runtime HW, but it cannot lead runtime HW or LEO. A stale checkpoint result may be discarded by the loop, but stale checkpoint writes must also be made harmless by serialization plus monotonic store-side validation.
+
+Recovery validation must cover partial states after leader `BeginEpoch`, follower apply with an epoch point, truncate+history, and snapshot+checkpoint/history. The package must include tests that inject or simulate partial log/history/snapshot/checkpoint combinations and prove recovery rejects or repairs them to a safe prefix.
 
 ### 3.8 Snapshot Publication
 
@@ -266,7 +271,7 @@ ApplyFetch(req)
 ```text
 BecomeLeader(meta)
   -> validate meta and lease
-  -> append epoch point if needed through durable transaction/effect
+  -> beginEpochEffect if needed through durable transaction/effect
   -> seed progress(local=LEO, peers=HW)
   -> if local tail or checkpoint gap exists: CommitReady=false
   -> if proof needed: probeReconcileEffect
@@ -285,7 +290,7 @@ Safety rules:
 - Missing/offline ISR peers count as `HW` at most, never as local `LEO`.
 - `candidate < HW` is corrupt/no-lead.
 - Lease expiry, newer meta, tombstone, or close during reconcile fences/discards pending reconcile effects.
-- Effect order is: append epoch point, collect/validate proofs, optional truncate, store checkpoint, publish `CommitReady=true`, then notify commit once.
+- Effect order is: begin epoch boundary, collect/validate proofs, optional truncate, store checkpoint, publish `CommitReady=true`, then notify commit once.
 
 ### 4.6 Recovery
 
@@ -358,7 +363,7 @@ pkg/channel/replica/
   machine.go                  internal state transition machine
   state.go                    internal state and published snapshot
   invariant.go                invariant checks
-  durable_store.go            durable adapter and store contracts
+  durable_store.go            durable adapter and store contracts, including epoch/checkpoint/snapshot transactions
   epoch_lineage.go            epoch/divergence pure functions
   progress_tracker.go         quorum progress pure functions + state helpers
   append_pipeline.go          append grouping and waiter flow
@@ -414,9 +419,11 @@ This should cover leader transition, append durable result, stale append result,
 Add tests with real `pkg/channel/store` where feasible:
 
 - append and reopen recovers LEO/checkpoint consistently;
-- apply-fetch-with-checkpoint reopens with records and checkpoint together;
+- begin-epoch reopens with LEO/history consistent;
+- apply-fetch-with-checkpoint-and-epoch reopens with records, checkpoint, and history together;
 - truncate+history either commits both or recovery rejects/repairs partial state;
-- snapshot+checkpoint reopens with consistent log start, HW, CheckpointHW, and epoch history.
+- snapshot+checkpoint/history reopens with consistent log start, HW, CheckpointHW, and epoch history;
+- injected partial history/log and snapshot/checkpoint states are rejected or repaired to a safe prefix.
 
 Long-running crash/fault injection tests should use integration tags if they become slow.
 

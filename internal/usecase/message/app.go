@@ -11,16 +11,21 @@ import (
 )
 
 var (
-	ErrUnauthenticatedSender = errors.New("usecase/message: unauthenticated sender")
-	ErrClusterRequired       = errors.New("usecase/message: channel cluster required")
-	ErrMetaRefresherRequired = errors.New("usecase/message: meta refresher required")
-	ErrRemoteAppenderRequired = errors.New("usecase/message: remote appender required")
+	ErrUnauthenticatedSender   = errors.New("usecase/message: unauthenticated sender")
+	ErrClusterRequired         = errors.New("usecase/message: channel cluster required")
+	ErrMetaRefresherRequired   = errors.New("usecase/message: meta refresher required")
+	ErrRemoteAppenderRequired  = errors.New("usecase/message: remote appender required")
+	ErrSyncLoginUIDRequired    = errors.New("login_uid不能为空！")
+	ErrSyncChannelIDRequired   = errors.New("channel_id不能为空！")
+	ErrSyncChannelTypeRequired = errors.New("channel_type不能为空！")
+	ErrMessageReaderRequired   = errors.New("usecase/message: message reader required")
 )
 
 type Options struct {
 	IdentityStore       IdentityStore
 	ChannelStore        ChannelStore
 	Cluster             ChannelCluster
+	MessageReader       ChannelMessageReader
 	MetaRefresher       MetaRefresher
 	RemoteAppender      RemoteAppender
 	Online              online.Registry
@@ -40,6 +45,7 @@ type App struct {
 	identities      IdentityStore
 	channels        ChannelStore
 	cluster         ChannelCluster
+	messageReader   ChannelMessageReader
 	refresher       MetaRefresher
 	remoteAppender  RemoteAppender
 	online          online.Registry
@@ -73,6 +79,7 @@ func New(opts Options) *App {
 		identities:      opts.IdentityStore,
 		channels:        opts.ChannelStore,
 		cluster:         opts.Cluster,
+		messageReader:   opts.MessageReader,
 		refresher:       opts.MetaRefresher,
 		remoteAppender:  opts.RemoteAppender,
 		online:          opts.Online,

@@ -50,7 +50,7 @@ Expected: if package FLOW exists, read it before edits. If it does not exist, fi
 
 - [ ] **Step 3: Establish sequential execution**
 
-Record in implementation notes: Tasks 1-18 are sequential unless explicitly split by file ownership. Subagents may review, write isolated pure-function tests, or inspect code; they must not concurrently edit shared files such as `replica.go`, `progress.go`, `append.go`, `replication.go`, or `loop.go`.
+Record in implementation notes: Tasks 1-19 are sequential unless explicitly split by file ownership. Subagents may review, write isolated pure-function tests, or inspect code; they must not concurrently edit shared files such as `replica.go`, `progress.go`, `append.go`, `replication.go`, or `loop.go`.
 
 ---
 
@@ -213,7 +213,7 @@ Expected: PASS.
 
 - [ ] **Step 1: Write contract tests for fake adapter**
 
-Add tests for `AppendLeaderBatch`, `ApplyFollowerBatch`, `TruncateLogAndHistory`, `StoreCheckpointMonotonic`, and `InstallSnapshotAtomically` using fake stores. Cover checkpoint > HW/LEO rejection and truncate history/log consistency.
+Add tests for `BeginEpoch`, `AppendLeaderBatch`, `ApplyFollowerBatch` with optional epoch point, `TruncateLogAndHistory`, `StoreCheckpointMonotonic`, and `InstallSnapshotAtomically` using fake stores. Cover checkpoint > HW/LEO rejection, truncate history/log consistency, follower apply records+epoch consistency, and snapshot payload+checkpoint+history consistency.
 
 - [ ] **Step 2: Run RED**
 
@@ -223,15 +223,15 @@ Expected: FAIL or compile failure until adapter exists.
 
 - [ ] **Step 3: Implement adapter wrapping existing split interfaces**
 
-Create package-private adapter that wraps current `LogStore`, `CheckpointStore`, `ApplyFetchStore`, `EpochHistoryStore`, and `SnapshotApplier`. Keep `ReplicaConfig` compatible.
+Create package-private adapter that wraps current `LogStore`, `CheckpointStore`, `ApplyFetchStore`, `EpochHistoryStore`, and `SnapshotApplier`. Keep `ReplicaConfig` compatible. If `ApplyFetchStore` is nil, preserve the current fallback through `LogStore.Append` + checkpoint store for compatibility, but mark it as split-store fallback and require recovery validation for partial records/checkpoint/history states. Production `pkg/channel/store.ChannelStore` should implement the combined durable path so follower records, optional checkpoint, and optional epoch point are one Pebble batch.
 
-- [ ] **Step 4: Add recovery validation for partial truncate**
+- [ ] **Step 4: Add recovery validation for all partial durable states**
 
-If atomic truncate cannot be guaranteed by wrapped stores, make recovery validate log/history consistency and return `ErrCorruptState` for mismatched unsafe state.
+If atomic truncate/snapshot/epoch apply cannot be guaranteed by wrapped stores, make recovery validate log/history/snapshot/checkpoint consistency and return `ErrCorruptState` for mismatched unsafe state. Add a note that split-store fallback is compatibility-only and not the preferred production path.
 
 - [ ] **Step 5: Run durable tests**
 
-Run: `go test ./pkg/channel/replica -run '^TestDurableStore|TestNewReplica|TestInstallSnapshot' -count=1`
+Run: `go test ./pkg/channel/replica -run '^TestDurableStore|TestNewReplica|TestRecover|TestInstallSnapshot' -count=1`
 
 Expected: PASS.
 
@@ -270,6 +270,7 @@ Expected: PASS.
 **Files:**
 - Create: `pkg/channel/replica/commands.go`
 - Create: `pkg/channel/replica/machine.go`
+- Create: `pkg/channel/replica/state.go`
 - Create: `pkg/channel/replica/machine_test.go`
 
 - [ ] **Step 1: Write machine tests first**
@@ -284,7 +285,7 @@ Expected: FAIL or compile failure until machine types exist.
 
 - [ ] **Step 3: Implement minimal machine model**
 
-Create internal event/effect/completion types and implement enough transitions for tests. Machine transitions must call invariant checks.
+Create internal state, event, effect, and completion types and implement enough transitions for tests. Machine transitions must call invariant checks. `state.go` is introduced here so later loop/snapshot work compiles against a stable internal state type.
 
 - [ ] **Step 4: Run machine tests**
 
@@ -439,7 +440,7 @@ Mark checkpoint queue/in-flight state loop-owned.
 ### Task 11: Harden Immutable Snapshot Usage
 
 **Files:**
-- Create: `pkg/channel/replica/state.go`
+- Modify: `pkg/channel/replica/state.go`
 - Modify: `pkg/channel/replica/append.go`
 - Modify: `pkg/channel/replica/fetch.go`
 - Modify: `pkg/channel/replica/progress.go`
@@ -555,7 +556,7 @@ Expected: PASS.
 
 - [ ] **Step 1: Add apply/truncate stale-result tests**
 
-Cover stale apply result after role/meta change, truncate result racing with append/apply result, and snapshot result after tombstone/close.
+Cover stale apply result after role/meta change, truncate result racing with append/apply result, follower apply across a new epoch with records+history consistency, and snapshot result after tombstone/close.
 
 - [ ] **Step 2: Run RED/characterization mix**
 
@@ -569,7 +570,7 @@ Loop validates request, emits durable apply/truncate effects, and applies result
 
 - [ ] **Step 4: Ensure snapshot path uses `InstallSnapshotAtomically`**
 
-Snapshot install must update snapshot payload, checkpoint, log start, and epoch history consistently.
+Snapshot install must update snapshot payload, checkpoint, log start, and epoch history consistently. Prefer a real `ChannelStore`-backed combined durable operation; if a split-store fallback remains for tests or non-production adapters, recovery must detect partial snapshot/checkpoint/history publication and reject or repair it before the loop starts.
 
 - [ ] **Step 5: Run apply/snapshot tests**
 
@@ -622,16 +623,17 @@ Mark `reconcilePending` and reconcile-related `epochHistory` mutation loop-owned
 ### Task 16: Add Real Store Durability Characterization
 
 **Files:**
+- Modify: `pkg/channel/store/*.go`
 - Create or modify: `pkg/channel/store/*_test.go`
 - Create or modify: `pkg/channel/replica/*_test.go` only if package-level fake cannot cover contract
 
 - [ ] **Step 1: Add real-store tests where fast enough**
 
-Cover append reopen, apply-fetch-with-checkpoint reopen, truncate+history consistency, and snapshot+checkpoint consistency using `pkg/channel/store` test utilities.
+Cover begin-epoch reopen, append reopen, apply-fetch-with-checkpoint-and-epoch reopen, truncate+history consistency, snapshot+checkpoint/history consistency, monotonic checkpoint, and injected partial history/log/snapshot/checkpoint recovery behavior using `pkg/channel/store` test utilities. The implementation must add or verify real `ChannelStore` combined durable operations for begin epoch, apply-fetch+checkpoint+epoch, truncate+history, snapshot+checkpoint/history, and monotonic checkpoint; tests alone are not sufficient if production store paths remain split unsafely.
 
 - [ ] **Step 2: Run store/replica durability tests**
 
-Run: `go test ./pkg/channel/store ./pkg/channel/replica -run 'Test.*(Recover|Reopen|Durable|Checkpoint|Snapshot|Truncate)' -count=1`
+Run: `go test ./pkg/channel/store ./pkg/channel/replica -run 'Test.*(Recover|Reopen|Durable|Checkpoint|Snapshot|Truncate|Epoch)' -count=1`
 
 Expected: PASS. If any test is too slow or needs crash process isolation, move it behind `integration` tag and document why.
 
@@ -656,11 +658,11 @@ Remove old append collector, advance publisher, and checkpoint publisher if repl
 
 - [ ] **Step 3: Remove transitional dual paths**
 
-Search for direct mutation of `state`, `progress`, `waiters`, `appendPending`, `checkpointQueued`, and `reconcilePending` outside machine/loop-owned files.
+Search for direct mutable ownership of `meta`, `state`, `progress`, `waiters`, `appendPending`, `pendingCheckpoint`, `checkpointQueued`, `checkpointInFlight`, `reconcilePending`, `epochHistory`, and `closed` outside machine/loop-owned files.
 
-Run: `rg -n 'r\.(state|progress|waiters|appendPending|checkpointQueued|checkpointInFlight|reconcilePending|epochHistory)\s*=' pkg/channel/replica`
+Run: `rg -n 'r\.(meta|state|progress|waiters|appendPending|pendingCheckpoint|checkpointQueued|checkpointInFlight|reconcilePending|epochHistory|closed)\b|delete\(r\.progress' pkg/channel/replica`
 
-Expected: assignments are only in loop/machine/durable recovery setup paths.
+Expected: direct mutable field ownership is only in an explicit allowlist of loop/machine/durable recovery files. Any remaining usage in legacy files such as `append.go`, `fetch.go`, `progress.go`, `replication.go`, or `reconcile.go` must be read-only snapshot access or removed. Document the allowlist in the task notes, including any remaining `closed` or `pendingCheckpoint` access.
 
 - [ ] **Step 4: Run package race detector**
 

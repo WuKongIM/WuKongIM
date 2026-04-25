@@ -198,6 +198,7 @@ System (0x17): prefix + key + tableID + systemID + ...
 - **结构化 `message` 表才是持久化真相**: `channel.Record.Payload` 现在只是 ingress/egress 兼容层；排查落盘问题时优先看 `store/message_table.go`、`store/table_codec.go`，不要再把 raw payload 当作唯一来源。
 - **幂等命中依赖唯一索引 + PayloadHash**: 幂等检查走 `uidx_from_uid_client_msg_no`，并且必须校验 FNV-64a PayloadHash 一致，否则返回 `ErrIdempotencyConflict`；不再通过扫描原始日志后解码比对。
 - **按 MessageID / ClientMsgNo 查询已经是索引直达**: `MessageID` 命中唯一索引，`ClientMsgNo` 命中 `(client_msg_no, message_seq)` 索引分页；不要再写“全表扫描后过滤”的调用路径。
+- **旧版 messagesync 只读 committed message 表**: `handler/message_sync.go:SyncMessages` 复用 `ListMessagesBySeq()`，按旧版 `start_message_seq` / `end_message_seq` / `pull_mode` 语义裁剪结果，并始终按 `message_seq` 升序返回给 HTTP API。
 - **Group Commit 窗口**: 默认 1ms/64条/64KB，配置在 `replica/replica.go:effectiveAppendGroupCommit*`。调大会增加延迟但提高吞吐。
 - **双水位不要混用**: `HW` 是运行时 CommitHW，驱动 sendack / committed reads / fetch；`CheckpointHW` 是冷恢复安全下界；`CommitReady` 决定 leader 是否已经完成 quorum-safe 收敛。live read path 不能再把 `LoadCheckpoint()` 当作 committed source of truth。
 - **LEO 由最大 `message_seq` 恢复**: 重启后的 `LEO()` 不再依赖旧 offset 日志键，而是扫描 `message` 表最大主键；如果主记录 family 缺失、payload family 孤儿或索引指到不存在行，会按 `ErrCorruptState` 处理。

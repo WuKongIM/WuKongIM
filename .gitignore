@@ -65,3 +65,4 @@ wukongim.conf
 docker/dev-cluster/
 docker/dev-observability/
 tmp/
+node_modules/
