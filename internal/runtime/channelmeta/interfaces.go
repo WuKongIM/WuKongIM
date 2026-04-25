@@ -11,19 +11,34 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
-// MetaSource reads authoritative channel runtime metadata.
-type MetaSource interface {
+// MetaReader reads one authoritative channel runtime metadata record.
+type MetaReader interface {
 	// GetChannelRuntimeMeta reads one authoritative runtime metadata record.
 	GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error)
+}
+
+// MetaLister lists authoritative channel runtime metadata records.
+type MetaLister interface {
 	// ListChannelRuntimeMeta lists authoritative runtime metadata visible to this node.
 	ListChannelRuntimeMeta(ctx context.Context) ([]metadb.ChannelRuntimeMeta, error)
 }
 
-// MetaStore persists authoritative channel runtime metadata.
-type MetaStore interface {
-	MetaSource
+// MetaSource reads authoritative channel runtime metadata.
+type MetaSource interface {
+	MetaReader
+	MetaLister
+}
+
+// BootstrapStore persists metadata created by bootstrap flows.
+type BootstrapStore interface {
+	MetaReader
 	// UpsertChannelRuntimeMeta writes an authoritative runtime metadata record.
 	UpsertChannelRuntimeMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) error
+}
+
+// RepairStore persists metadata when this node is the authoritative slot leader.
+type RepairStore interface {
+	MetaReader
 	// UpsertChannelRuntimeMetaIfLocalLeader writes metadata only when this node is the local authoritative slot leader.
 	UpsertChannelRuntimeMetaIfLocalLeader(ctx context.Context, meta metadb.ChannelRuntimeMeta) error
 }
@@ -72,8 +87,16 @@ type LocalRuntime interface {
 	EnsureLocalRuntime(meta channel.Meta) error
 	// RemoveLocalRuntime removes node-local runtime for a channel key.
 	RemoveLocalRuntime(key channel.ChannelKey) error
-	// Channel returns the active local channel handle for observation.
-	Channel(key channel.ChannelKey) (channel.HandlerChannel, bool)
+	// Channel returns the active local channel observer.
+	Channel(key channel.ChannelKey) (ChannelObserver, bool)
+}
+
+// ChannelObserver exposes read-only channel state needed by channelmeta flows.
+type ChannelObserver interface {
+	// Meta returns the currently applied channel metadata.
+	Meta() channel.Meta
+	// Status returns the current local replica status.
+	Status() channel.ReplicaState
 }
 
 // Runtime applies both routing and node-local channel runtime metadata.

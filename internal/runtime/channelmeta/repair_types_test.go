@@ -1,96 +1,54 @@
 package channelmeta
 
 import (
-	"encoding/json"
+	"reflect"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
 )
 
-func TestLeaderRepairDTOJSONRoundTrip(t *testing.T) {
-	want := LeaderRepairRequest{
-		ChannelID:            channel.ChannelID{ID: "dto-repair", Type: 2},
-		ObservedChannelEpoch: 11,
-		ObservedLeaderEpoch:  7,
-		Reason:               "leader_dead",
-	}
-
-	body, err := json.Marshal(want)
-	require.NoError(t, err)
-
-	var got LeaderRepairRequest
-	require.NoError(t, json.Unmarshal(body, &got))
-	require.Equal(t, want, got)
+func TestLeaderRepairDTOFieldsAreTransportNeutral(t *testing.T) {
+	requireTransportNeutralFields(t, LeaderRepairRequest{}, []string{
+		"ChannelID",
+		"ObservedChannelEpoch",
+		"ObservedLeaderEpoch",
+		"Reason",
+	})
+	requireTransportNeutralFields(t, LeaderRepairResult{}, []string{
+		"Meta",
+		"Changed",
+	})
 }
 
-func TestLeaderRepairResultDTOJSONRoundTrip(t *testing.T) {
-	want := LeaderRepairResult{
-		Meta: metadb.ChannelRuntimeMeta{
-			ChannelID:    "dto-repair-result",
-			ChannelType:  2,
-			ChannelEpoch: 13,
-			LeaderEpoch:  5,
-			Replicas:     []uint64{1, 2, 3},
-			ISR:          []uint64{1, 3},
-			Leader:       3,
-			MinISR:       2,
-			Status:       uint8(channel.StatusActive),
-			Features:     4,
-			LeaseUntilMS: 123456789,
-		},
-		Changed: true,
-	}
-
-	body, err := json.Marshal(want)
-	require.NoError(t, err)
-
-	var got LeaderRepairResult
-	require.NoError(t, json.Unmarshal(body, &got))
-	require.Equal(t, want, got)
+func TestLeaderEvaluateDTOFieldsAreTransportNeutral(t *testing.T) {
+	requireTransportNeutralFields(t, LeaderEvaluateRequest{}, []string{
+		"Meta",
+	})
+	requireTransportNeutralFields(t, LeaderPromotionReport{}, []string{
+		"NodeID",
+		"Exists",
+		"ChannelEpoch",
+		"LocalLEO",
+		"LocalCheckpointHW",
+		"LocalOffsetEpoch",
+		"CommitReadyNow",
+		"ProjectedSafeHW",
+		"ProjectedTruncateTo",
+		"CanLead",
+		"Reason",
+	})
 }
 
-func TestLeaderEvaluateDTOJSONRoundTrip(t *testing.T) {
-	wantReq := LeaderEvaluateRequest{
-		Meta: metadb.ChannelRuntimeMeta{
-			ChannelID:    "dto-evaluate",
-			ChannelType:  3,
-			ChannelEpoch: 21,
-			LeaderEpoch:  8,
-			Replicas:     []uint64{4, 5, 6},
-			ISR:          []uint64{4, 6},
-			Leader:       4,
-			MinISR:       2,
-			Status:       uint8(channel.StatusActive),
-			Features:     9,
-			LeaseUntilMS: 987654321,
-		},
+func requireTransportNeutralFields(t *testing.T, value any, want []string) {
+	t.Helper()
+
+	typ := reflect.TypeOf(value)
+	require.Equal(t, reflect.Struct, typ.Kind())
+	got := make([]string, 0, typ.NumField())
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		got = append(got, field.Name)
+		require.Emptyf(t, field.Tag.Get("json"), "%s.%s should not define transport JSON tags", typ.Name(), field.Name)
 	}
-	wantReport := LeaderPromotionReport{
-		NodeID:              6,
-		Exists:              true,
-		ChannelEpoch:        21,
-		LocalLEO:            44,
-		LocalCheckpointHW:   33,
-		LocalOffsetEpoch:    7,
-		CommitReadyNow:      true,
-		ProjectedSafeHW:     40,
-		ProjectedTruncateTo: 39,
-		CanLead:             true,
-		Reason:              "safe",
-	}
-
-	reqBody, err := json.Marshal(wantReq)
-	require.NoError(t, err)
-	reportBody, err := json.Marshal(wantReport)
-	require.NoError(t, err)
-
-	var gotReq LeaderEvaluateRequest
-	require.NoError(t, json.Unmarshal(reqBody, &gotReq))
-	require.Equal(t, wantReq, gotReq)
-
-	var gotReport LeaderPromotionReport
-	require.NoError(t, json.Unmarshal(reportBody, &gotReport))
-	require.Equal(t, wantReport, gotReport)
+	require.Equal(t, want, got)
 }
