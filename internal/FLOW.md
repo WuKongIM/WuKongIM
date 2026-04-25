@@ -134,15 +134,16 @@ New(Config):
     ⑱ 创建 Gateway: gateway.New(handler, authenticator, listeners)
 
 Start():
-  ① startCluster → cluster.Start()
-  ② waitForManagedSlotsReady (超时 10s)
-  ③ startChannelMetaSync → channelMetaSync.Start()（启动轻量 active-slot leader watcher；不再做全量 channel runtime meta scan；slot leader 变化只触发权威 reread / 本地 apply；refresh worker 绑定 ChannelMetaSync 生命周期，Stop 会先取消并等待这些后台 refresh 退出；若刷新发现权威 leader 缺失/已死/不在副本集，则由当前 slot leader 走权威修复并持久化新的 channel leader）
-  ④ startPresence → presenceWorker.Start()
-  ⑤ startConversationProjector → conversationProjector.Start()
-  ⑥ startGateway → gateway.Start()
-  ⑦ startAPI → api.Start()
-  ⑧ startManager → manager.Start()
-  任一步骤失败 → 每个已启动组件会按启动逆序停止
+  → 构造 lifecycle.Manager，按声明顺序启动组件:
+    ① cluster → cluster.Start()
+    ② managed_slots_ready → waitForManagedSlotsReady (超时 10s；start-only gate，Stop 为 no-op)
+    ③ channelmeta → channelMetaSync.Start()（启动轻量 active-slot leader watcher；不再做全量 channel runtime meta scan；slot leader 变化只触发权威 reread / 本地 apply；refresh worker 绑定 ChannelMetaSync 生命周期，StopWithoutCleanup 会先取消并等待这些后台 refresh 退出；若刷新发现权威 leader 缺失/已死/不在副本集，则由当前 slot leader 走权威修复并持久化新的 channel leader）
+    ④ presence → presenceWorker.Start()
+    ⑤ conversation_projector → conversationProjector.Start()
+    ⑥ gateway → gateway.Start()
+    ⑦ api → api.Start()
+    ⑧ manager → manager.Start()
+  任一步骤失败 → lifecycle.Manager 只回滚已启动组件，并按启动逆序停止；失败后 app.started 复位为 false
 ```
 
 ### 5.2 停止
@@ -152,17 +153,20 @@ Start():
 ```
 Stop():
   stopOnce.Do:
-    ① stopManager (5s 超时)
-    ② stopAPI (5s 超时)
-    ③ stopGateway
-    ④ stopConversationProjector
-    ⑤ stopPresence
-    ⑥ stopChannelMetaSync
-    ⑦ stopCluster
-    ⑧ closeChannelLogDB + dataPlaneClient.Stop + dataPlanePool.Close
-    ⑨ closeRaftDB
-    ⑩ closeWKDB (metadb)
-    ⑪ syncLogger
+    → 创建 5s 有界 stop context，并交给 lifecycle.Manager 按启动逆序停止组件:
+      ① manager
+      ② api
+      ③ gateway
+      ④ conversation_projector
+      ⑤ presence
+      ⑥ channelmeta
+      ⑦ managed_slots_ready (no-op)
+      ⑧ cluster
+    → channelmeta 停止使用 StopWithoutCleanup：它只停止 refresh/watch 后台任务，不清理本地 channel runtime；cluster/channel runtime 关闭流程负责运行时清理，避免 app 停止路径提前删除仍由底层拥有的状态。
+    ⑨ closeChannelLogDB + dataPlaneClient.Stop + dataPlanePool.Close
+    ⑩ closeRaftDB
+    ⑪ closeWKDB (metadb)
+    ⑫ syncLogger
   所有错误通过 errors.Join 聚合返回
 ```
 

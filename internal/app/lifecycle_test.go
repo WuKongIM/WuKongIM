@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -380,6 +381,245 @@ func TestAppLifecycleStartsPresenceWorkerBeforeGateway(t *testing.T) {
 
 	require.NoError(t, app.Start())
 	require.Equal(t, []string{"cluster.start", "presence.start", "gateway.start"}, calls)
+}
+
+func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
+	var calls []string
+
+	app := &App{
+		cluster: &appLifecycleTestCluster{
+			waitFn: func(context.Context) error {
+				calls = append(calls, "managed_slots_ready.start")
+				return nil
+			},
+		},
+		gateway: &gateway.Gateway{},
+		startClusterFn: func() error {
+			calls = append(calls, "cluster.start")
+			return nil
+		},
+		startChannelMetaSyncFn: func() error {
+			calls = append(calls, "channelmeta.start")
+			return nil
+		},
+		startPresenceFn: func() error {
+			calls = append(calls, "presence.start")
+			return nil
+		},
+		startConversationProjectorFn: func() error {
+			calls = append(calls, "conversation_projector.start")
+			return nil
+		},
+		startGatewayFn: func() error {
+			calls = append(calls, "gateway.start")
+			return nil
+		},
+		startAPIFn: func() error {
+			calls = append(calls, "api.start")
+			return nil
+		},
+		startManagerFn: func() error {
+			calls = append(calls, "manager.start")
+			return nil
+		},
+	}
+
+	require.NoError(t, app.Start())
+	require.Equal(t, []string{
+		"cluster.start",
+		"managed_slots_ready.start",
+		"channelmeta.start",
+		"presence.start",
+		"conversation_projector.start",
+		"gateway.start",
+		"api.start",
+		"manager.start",
+	}, calls)
+}
+
+func TestAppLifecycleWaitManagedSlotsReadyRollsBackCluster(t *testing.T) {
+	waitErr := errors.New("managed slots not ready")
+	var calls []string
+
+	app := &App{
+		cluster: &appLifecycleTestCluster{
+			waitFn: func(context.Context) error {
+				calls = append(calls, "managed_slots_ready.start")
+				return waitErr
+			},
+		},
+		gateway: &gateway.Gateway{},
+		startClusterFn: func() error {
+			calls = append(calls, "cluster.start")
+			return nil
+		},
+		startGatewayFn: func() error {
+			calls = append(calls, "gateway.start")
+			return nil
+		},
+		stopClusterFn: func() {
+			calls = append(calls, "cluster.stop")
+		},
+	}
+
+	err := app.Start()
+	require.ErrorIs(t, err, waitErr)
+	require.Equal(t, []string{"cluster.start", "managed_slots_ready.start", "cluster.stop"}, calls)
+	require.False(t, app.started.Load())
+}
+
+func TestAppLifecycleStopAggregatesComponentErrors(t *testing.T) {
+	managerErr := errors.New("manager stop failed")
+	apiErr := errors.New("api stop failed")
+	gatewayErr := errors.New("gateway stop failed")
+	conversationErr := errors.New("conversation stop failed")
+	presenceErr := errors.New("presence stop failed")
+	channelMetaErr := errors.New("channelmeta stop failed")
+
+	app := &App{
+		cluster:                      &appLifecycleTestCluster{},
+		gateway:                      &gateway.Gateway{},
+		startClusterFn:               func() error { return nil },
+		startChannelMetaSyncFn:       func() error { return nil },
+		startPresenceFn:              func() error { return nil },
+		startConversationProjectorFn: func() error { return nil },
+		startGatewayFn:               func() error { return nil },
+		startAPIFn:                   func() error { return nil },
+		startManagerFn:               func() error { return nil },
+		stopManagerFn:                func() error { return managerErr },
+		stopAPIFn:                    func() error { return apiErr },
+		stopGatewayFn:                func() error { return gatewayErr },
+		stopConversationProjectorFn:  func() error { return conversationErr },
+		stopPresenceFn:               func() error { return presenceErr },
+		stopChannelMetaSyncFn:        func() error { return channelMetaErr },
+		stopClusterFn:                func() {},
+		closeRaftDBFn:                func() error { return nil },
+		closeWKDBFn:                  func() error { return nil },
+	}
+
+	require.NoError(t, app.Start())
+
+	err := app.Stop()
+	require.ErrorIs(t, err, managerErr)
+	require.ErrorIs(t, err, apiErr)
+	require.ErrorIs(t, err, gatewayErr)
+	require.ErrorIs(t, err, conversationErr)
+	require.ErrorIs(t, err, presenceErr)
+	require.ErrorIs(t, err, channelMetaErr)
+}
+
+func TestAppLifecycleStopAfterPartialStartDoesNotDoubleStop(t *testing.T) {
+	startErr := errors.New("api start failed")
+	var calls []string
+
+	app := &App{
+		cluster: &appLifecycleTestCluster{},
+		gateway: &gateway.Gateway{},
+		startClusterFn: func() error {
+			calls = append(calls, "cluster.start")
+			return nil
+		},
+		startChannelMetaSyncFn: func() error {
+			calls = append(calls, "channelmeta.start")
+			return nil
+		},
+		startPresenceFn: func() error {
+			calls = append(calls, "presence.start")
+			return nil
+		},
+		startConversationProjectorFn: func() error {
+			calls = append(calls, "conversation_projector.start")
+			return nil
+		},
+		startGatewayFn: func() error {
+			calls = append(calls, "gateway.start")
+			return nil
+		},
+		startAPIFn: func() error {
+			calls = append(calls, "api.start")
+			return startErr
+		},
+		stopGatewayFn: func() error {
+			calls = append(calls, "gateway.stop")
+			return nil
+		},
+		stopConversationProjectorFn: func() error {
+			calls = append(calls, "conversation_projector.stop")
+			return nil
+		},
+		stopPresenceFn: func() error {
+			calls = append(calls, "presence.stop")
+			return nil
+		},
+		stopChannelMetaSyncFn: func() error {
+			calls = append(calls, "channelmeta.stop")
+			return nil
+		},
+		stopClusterFn: func() {
+			calls = append(calls, "cluster.stop")
+		},
+		closeRaftDBFn: func() error {
+			calls = append(calls, "raft.close")
+			return nil
+		},
+		closeWKDBFn: func() error {
+			calls = append(calls, "metadb.close")
+			return nil
+		},
+	}
+
+	require.ErrorIs(t, app.Start(), startErr)
+	require.NoError(t, app.Stop())
+	require.Equal(t, []string{
+		"cluster.start",
+		"channelmeta.start",
+		"presence.start",
+		"conversation_projector.start",
+		"gateway.start",
+		"api.start",
+		"gateway.stop",
+		"conversation_projector.stop",
+		"presence.stop",
+		"channelmeta.stop",
+		"cluster.stop",
+		"raft.close",
+		"metadb.close",
+	}, calls)
+}
+
+func TestAppLifecycleStopUsesBoundedContextForContextAwareComponents(t *testing.T) {
+	var apiCtx context.Context
+	var managerCtx context.Context
+
+	app := &App{
+		cluster:        &appLifecycleTestCluster{},
+		gateway:        &gateway.Gateway{},
+		startClusterFn: func() error { return nil },
+		startGatewayFn: func() error { return nil },
+		startAPIFn:     func() error { return nil },
+		startManagerFn: func() error { return nil },
+		stopClusterFn:  func() {},
+		stopAPIWithContextFn: func(ctx context.Context) error {
+			apiCtx = ctx
+			return nil
+		},
+		stopManagerWithContextFn: func(ctx context.Context) error {
+			managerCtx = ctx
+			return nil
+		},
+		closeRaftDBFn: func() error { return nil },
+		closeWKDBFn:   func() error { return nil },
+	}
+
+	require.NoError(t, app.Start())
+	require.NoError(t, app.Stop())
+	require.NotNil(t, apiCtx)
+	require.NotNil(t, managerCtx)
+	require.Equal(t, managerCtx, apiCtx)
+	deadline, ok := apiCtx.Deadline()
+	require.True(t, ok, "stop context should be bounded")
+	require.Positive(t, time.Until(deadline))
+	require.LessOrEqual(t, time.Until(deadline), apiStopTimeout)
 }
 
 func TestStartStopIncludesConversationProjector(t *testing.T) {
@@ -1118,6 +1358,18 @@ func (r *recordingLogger) With(...wklog.Field) wklog.Logger {
 }
 func (r *recordingLogger) Sync() error {
 	r.syncCalls++
+	return nil
+}
+
+type appLifecycleTestCluster struct {
+	raftcluster.API
+	waitFn func(context.Context) error
+}
+
+func (c *appLifecycleTestCluster) WaitForManagedSlotsReady(ctx context.Context) error {
+	if c.waitFn != nil {
+		return c.waitFn(ctx)
+	}
 	return nil
 }
 

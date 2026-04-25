@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -9,6 +10,7 @@ import (
 	accessgateway "github.com/WuKongIM/WuKongIM/internal/access/gateway"
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
+	applifecycle "github.com/WuKongIM/WuKongIM/internal/app/lifecycle"
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
@@ -66,6 +68,7 @@ type App struct {
 
 	stopOnce       sync.Once
 	lifecycle      sync.Mutex
+	lifecycleMgr   *applifecycle.Manager
 	started        atomic.Bool
 	stopped        atomic.Bool
 	clusterOn      atomic.Bool
@@ -83,6 +86,8 @@ type App struct {
 	startAPIFn                   func() error
 	startManagerFn               func() error
 	startGatewayFn               func() error
+	stopAPIWithContextFn         func(context.Context) error
+	stopManagerWithContextFn     func(context.Context) error
 	stopAPIFn                    func() error
 	stopManagerFn                func() error
 	stopGatewayFn                func() error
