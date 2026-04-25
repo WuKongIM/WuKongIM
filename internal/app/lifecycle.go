@@ -72,6 +72,7 @@ func (a *App) Start() error {
 	a.gatewayOn.Store(true)
 	if err := a.startAPI(); err != nil {
 		_ = a.stopGateway()
+		_ = a.stopConversationProjector()
 		_ = a.stopPresence()
 		_ = a.stopChannelMetaSync()
 		_ = a.stopClusterWithError()
@@ -84,6 +85,7 @@ func (a *App) Start() error {
 	if err := a.startManager(); err != nil {
 		_ = a.stopAPI()
 		_ = a.stopGateway()
+		_ = a.stopConversationProjector()
 		_ = a.stopPresence()
 		_ = a.stopChannelMetaSync()
 		_ = a.stopClusterWithError()

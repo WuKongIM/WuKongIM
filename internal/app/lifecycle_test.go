@@ -447,6 +447,164 @@ func TestStartRollsBackClusterWhenGatewayStartFails(t *testing.T) {
 	require.False(t, app.started.Load())
 }
 
+func TestStartRollsBackConversationWhenAPIStartFails(t *testing.T) {
+	var calls []string
+	var conversationStops int
+	startErr := errors.New("api start failed")
+
+	app := &App{
+		cluster:         &raftcluster.Cluster{},
+		channelMetaSync: &channelMetaSync{},
+		gateway:         &gateway.Gateway{},
+		startClusterFn: func() error {
+			calls = append(calls, "cluster.start")
+			return nil
+		},
+		startChannelMetaSyncFn: func() error {
+			calls = append(calls, "meta.start")
+			return nil
+		},
+		startPresenceFn: func() error {
+			calls = append(calls, "presence.start")
+			return nil
+		},
+		startConversationProjectorFn: func() error {
+			calls = append(calls, "conversation.start")
+			return nil
+		},
+		startGatewayFn: func() error {
+			calls = append(calls, "gateway.start")
+			return nil
+		},
+		startAPIFn: func() error {
+			calls = append(calls, "api.start")
+			return startErr
+		},
+		stopGatewayFn: func() error {
+			calls = append(calls, "gateway.stop")
+			return nil
+		},
+		stopConversationProjectorFn: func() error {
+			conversationStops++
+			calls = append(calls, "conversation.stop")
+			return nil
+		},
+		stopPresenceFn: func() error {
+			calls = append(calls, "presence.stop")
+			return nil
+		},
+		stopChannelMetaSyncFn: func() error {
+			calls = append(calls, "meta.stop")
+			return nil
+		},
+		stopClusterFn: func() {
+			calls = append(calls, "cluster.stop")
+		},
+	}
+
+	err := app.Start()
+	require.ErrorIs(t, err, startErr)
+	require.Equal(t, []string{
+		"cluster.start",
+		"meta.start",
+		"presence.start",
+		"conversation.start",
+		"gateway.start",
+		"api.start",
+		"gateway.stop",
+		"conversation.stop",
+		"presence.stop",
+		"meta.stop",
+		"cluster.stop",
+	}, calls)
+	require.Equal(t, 1, conversationStops)
+	require.False(t, app.started.Load())
+}
+
+func TestStartRollsBackConversationWhenManagerStartFails(t *testing.T) {
+	var calls []string
+	var conversationStops int
+	startErr := errors.New("manager start failed")
+
+	app := &App{
+		cluster:         &raftcluster.Cluster{},
+		channelMetaSync: &channelMetaSync{},
+		gateway:         &gateway.Gateway{},
+		startClusterFn: func() error {
+			calls = append(calls, "cluster.start")
+			return nil
+		},
+		startChannelMetaSyncFn: func() error {
+			calls = append(calls, "meta.start")
+			return nil
+		},
+		startPresenceFn: func() error {
+			calls = append(calls, "presence.start")
+			return nil
+		},
+		startConversationProjectorFn: func() error {
+			calls = append(calls, "conversation.start")
+			return nil
+		},
+		startGatewayFn: func() error {
+			calls = append(calls, "gateway.start")
+			return nil
+		},
+		startAPIFn: func() error {
+			calls = append(calls, "api.start")
+			return nil
+		},
+		startManagerFn: func() error {
+			calls = append(calls, "manager.start")
+			return startErr
+		},
+		stopAPIFn: func() error {
+			calls = append(calls, "api.stop")
+			return nil
+		},
+		stopGatewayFn: func() error {
+			calls = append(calls, "gateway.stop")
+			return nil
+		},
+		stopConversationProjectorFn: func() error {
+			conversationStops++
+			calls = append(calls, "conversation.stop")
+			return nil
+		},
+		stopPresenceFn: func() error {
+			calls = append(calls, "presence.stop")
+			return nil
+		},
+		stopChannelMetaSyncFn: func() error {
+			calls = append(calls, "meta.stop")
+			return nil
+		},
+		stopClusterFn: func() {
+			calls = append(calls, "cluster.stop")
+		},
+	}
+
+	err := app.Start()
+	require.ErrorIs(t, err, startErr)
+	require.Equal(t, []string{
+		"cluster.start",
+		"meta.start",
+		"presence.start",
+		"conversation.start",
+		"gateway.start",
+		"api.start",
+		"manager.start",
+		"api.stop",
+		"gateway.stop",
+		"conversation.stop",
+		"presence.stop",
+		"meta.stop",
+		"cluster.stop",
+	}, calls)
+	require.Equal(t, 1, conversationStops)
+	require.False(t, app.started.Load())
+}
+
 func TestStartRollsBackAPIAndClusterWhenManagerStartFails(t *testing.T) {
 	var calls []string
 	startErr := errors.New("manager start failed")

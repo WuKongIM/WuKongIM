@@ -140,7 +140,8 @@ Start():
   ⑤ startConversationProjector → conversationProjector.Start()
   ⑥ startGateway → gateway.Start()
   ⑦ startAPI → api.Start()
-  任一步骤失败 → 反向回滚已启动组件
+  ⑧ startManager → manager.Start()
+  任一步骤失败 → 每个已启动组件会按启动逆序停止
 ```
 
 ### 5.2 停止
@@ -150,16 +151,17 @@ Start():
 ```
 Stop():
   stopOnce.Do:
-    ① stopAPI (5s 超时)
-    ② stopGateway
-    ③ stopConversationProjector
-    ④ stopPresence
-    ⑤ stopChannelMetaSync
-    ⑥ stopCluster
-    ⑦ closeChannelLogDB + dataPlaneClient.Stop + dataPlanePool.Close
-    ⑧ closeRaftDB
-    ⑨ closeWKDB (metadb)
-    ⑩ syncLogger
+    ① stopManager (5s 超时)
+    ② stopAPI (5s 超时)
+    ③ stopGateway
+    ④ stopConversationProjector
+    ⑤ stopPresence
+    ⑥ stopChannelMetaSync
+    ⑦ stopCluster
+    ⑧ closeChannelLogDB + dataPlaneClient.Stop + dataPlanePool.Close
+    ⑨ closeRaftDB
+    ⑩ closeWKDB (metadb)
+    ⑪ syncLogger
   所有错误通过 errors.Join 聚合返回
 ```
 
@@ -433,8 +435,8 @@ message.App.SyncChannelMessages(ctx, query):
 
 ## 8. 避坑清单
 
-- **启动顺序严格**: `Start()` 按 Cluster → WaitReady → ChannelMetaSync → Presence → Conversation → Gateway → API 顺序启动，任一步骤失败会反向回滚已启动组件。不要尝试跳过或重排。
-- **停止顺序相反**: `Stop()` 先停 API/Gateway（停止接入新请求），再停业务层，最后停 Cluster 和关闭数据库。`stopOnce` 保证幂等。
+- **启动顺序严格**: `Start()` 按 Cluster → WaitReady → ChannelMetaSync → Presence → Conversation → Gateway → API → Manager 顺序启动，任一步骤失败会按启动逆序停止每个已启动组件。不要尝试跳过或重排。
+- **停止顺序相反**: `Stop()` 先停 Manager/API/Gateway（停止接入新请求），再停业务层，最后停 Cluster 和关闭数据库。`stopOnce` 保证幂等。
 - **Person 频道 ID 规范化**: 发送到 Person 频道时，`NormalizePersonChannel(fromUID, channelID)` 会将两个 UID 排序拼接为统一的 channelID。直接使用原始 channelID 会导致同一对话产生两个不同的 Channel。
 - **sendWithMetaRefreshRetry 只刷新一次权威结果，但可能顺带触发权威 leader repair**: 消息 Append 遇到 `ErrStaleMeta`、`ErrNotLeader` 或 `ErrRerouted` 时会触发一次刷新重试。若权威 `ChannelRuntimeMeta` 读到 `ErrNotFound`，刷新路径会先按 Slot 拓扑 bootstrap 缺失的运行时元数据；若读到的权威元数据 lease 已过期/即将过期，则当前 Channel Leader 所在节点会先尝试权威续租；若 lease 已经失效且本次刷新不在 leader 本机，刷新路径会把它当作 `leader_lease_expired` 交给当前 slot leader 重新选择/确认可写 leader，避免继续把写流量转发到一个已经失去租约却尚未被 controller 标 dead 的旧 leader。刷新后的权威 meta 若命中 `leader_missing` / `leader_not_replica` / `leader_dead` / `leader_draining` / `leader_lease_expired`，则会由当前 slot leader 选举并持久化新的 channel leader；持久化步骤只允许当前本地 slot leader 提案，若 repair 过程中 slot leadership 翻转，则会重新路由到新的 slot leader 重新执行，然后重新读取权威结果、应用到本地 ISR runtime，并把这份已应用视图返回给发送路径。重试后的本地 `Append` 若发现当前节点只是 Follower，或刷新后本地 runtime 已被移除但最新路由 meta 指向远端 leader，会按最新 meta 中的 Leader 走 node RPC 转发。
 - **权威 runtime-meta reconcile ≠ replica reconcile**: `channelMetaSync` / `sendWithMetaRefreshRetry` 里的 reconcile 现在只负责两件事：当前 Channel Leader 的 lease 续租，以及在权威 leader 缺失/失效（包括 lease 已失效但 leader 尚未被 controller 判 dead）时由 slot leader 持久化新的 `ChannelRuntimeMeta.Leader` / `LeaderEpoch` / `LeaseUntilMS`；它不再把权威 `ChannelRuntimeMeta` 的 leader / replicas / ISR 跟着 Slot 拓扑漂移。`pkg/channel` 里的 replica reconcile probe 则负责在启动或 leader transfer 后重建 quorum-safe `CommitHW`，把副本从 `CommitReady=false` 拉到可服务状态。前者解决“路由是否仍然有效”，后者解决“现在是否安全可写”。
