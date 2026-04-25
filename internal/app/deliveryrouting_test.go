@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	gatewaysession "github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -265,7 +266,7 @@ func TestAsyncCommittedDispatcherFallsBackToLocalConversationWhenOwnerIsUnknown(
 		conversation: conversation,
 	}
 
-	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), deliveryruntime.CommittedEnvelope{
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
 		Message: channel.Message{
 			ChannelID:   "g1",
 			ChannelType: 2,
@@ -291,7 +292,7 @@ func TestAsyncCommittedDispatcherSubmitsDurableMessageToLocalDelivery(t *testing
 		delivery: delivery,
 	}
 
-	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), deliveryruntime.CommittedEnvelope{
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
 		Message: channel.Message{
 			MessageID:   88,
 			MessageSeq:  7,
@@ -352,7 +353,7 @@ func TestAsyncCommittedDispatcherSubmitsToConversationProjector(t *testing.T) {
 		FromUID:     "u1",
 		Payload:     []byte("hello projector"),
 	}
-	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), deliveryruntime.CommittedEnvelope{Message: msg}))
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: msg}))
 
 	require.Eventually(t, func() bool {
 		return len(delivery.calls) == 1 && len(conversation.calls) == 1
@@ -384,7 +385,7 @@ func TestAsyncCommittedDispatcherPrefersLocalDeliveryWithoutOwnerLookup(t *testi
 		FromUID:     "u1",
 		Payload:     []byte("hello local"),
 	}
-	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), deliveryruntime.CommittedEnvelope{Message: msg}))
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: msg}))
 
 	require.Eventually(t, func() bool {
 		return len(delivery.calls) == 1 && len(conversation.calls) == 1

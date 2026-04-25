@@ -400,7 +400,7 @@ func build(cfg Config) (_ *App, err error) {
 		ChannelLog:            app.channelLog,
 		ChannelLogDB:          app.channelLogDB,
 		ChannelMeta:           app.channelMetaSync,
-		DeliverySubmit:        committedDispatcher,
+		DeliverySubmit:        deliveryRuntimeCommittedSubmitter{target: committedDispatcher},
 		DeliveryAck:           app.deliveryApp,
 		DeliveryOffline:       app.deliveryApp,
 		DeliveryAckIndex:      app.deliveryAcks,

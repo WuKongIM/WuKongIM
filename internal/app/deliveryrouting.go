@@ -7,6 +7,7 @@ import (
 	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
@@ -40,10 +41,11 @@ type asyncCommittedDispatcher struct {
 	nodeClient   committedNodeSubmitter
 }
 
-func (d asyncCommittedDispatcher) SubmitCommitted(ctx context.Context, env deliveryruntime.CommittedEnvelope) error {
+func (d asyncCommittedDispatcher) SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
 	if d.delivery == nil && d.conversation == nil {
 		return nil
 	}
+	env := committedEnvelopeFromMessageEvent(event)
 	if ctx == nil {
 		ctx = context.Background()
 	} else {
@@ -53,6 +55,29 @@ func (d asyncCommittedDispatcher) SubmitCommitted(ctx context.Context, env deliv
 		d.routeCommitted(ctx, env)
 	}()
 	return nil
+}
+
+func committedEnvelopeFromMessageEvent(event messageevents.MessageCommitted) deliveryruntime.CommittedEnvelope {
+	return deliveryruntime.CommittedEnvelope{
+		Message:         event.Message,
+		SenderSessionID: event.SenderSessionID,
+	}
+}
+
+type deliveryRuntimeCommittedSubmitter struct {
+	target interface {
+		SubmitCommitted(context.Context, messageevents.MessageCommitted) error
+	}
+}
+
+func (s deliveryRuntimeCommittedSubmitter) SubmitCommitted(ctx context.Context, env deliveryruntime.CommittedEnvelope) error {
+	if s.target == nil {
+		return nil
+	}
+	return s.target.SubmitCommitted(ctx, messageevents.MessageCommitted{
+		Message:         env.Message,
+		SenderSessionID: env.SenderSessionID,
+	})
 }
 
 func (d asyncCommittedDispatcher) routeCommitted(ctx context.Context, env deliveryruntime.CommittedEnvelope) {

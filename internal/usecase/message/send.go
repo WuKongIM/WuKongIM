@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
-	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -80,7 +80,7 @@ func (a *App) sendDurable(ctx context.Context, cmd SendCommand) (SendResult, err
 	}
 
 	if a.dispatcher != nil {
-		if err := a.dispatcher.SubmitCommitted(ctx, deliveryruntime.CommittedEnvelope{
+		if err := a.dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted{
 			Message:         result.Message,
 			SenderSessionID: cmd.SenderSessionID,
 		}); err != nil {
