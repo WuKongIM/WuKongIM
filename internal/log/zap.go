@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -203,8 +202,4 @@ func bracketNameEncoder(name string, enc zapcore.PrimitiveArrayEncoder) {
 		return
 	}
 	enc.AppendString("[" + name + "]")
-}
-
-func logPath(cfg Config, filename string) string {
-	return filepath.Join(cfg.Dir, filename)
 }

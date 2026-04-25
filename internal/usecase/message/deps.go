@@ -68,7 +68,3 @@ type MetaRefresher interface {
 type RemoteAppender interface {
 	AppendToLeader(ctx context.Context, nodeID uint64, req channel.AppendRequest) (channel.AppendResult, error)
 }
-
-type onlineRegistryProvider interface {
-	OnlineRegistry() online.Registry
-}

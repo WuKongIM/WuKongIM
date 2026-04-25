@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/stretchr/testify/require"
 )
 

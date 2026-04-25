@@ -314,8 +314,7 @@ func (s *Server) onOpen(listener *listenerRuntime, conn transport.Conn) error {
 	}
 	state.touchReadActivity()
 
-	var sess session.Session
-	sess = session.New(session.Config{
+	sess := session.New(session.Config{
 		ID:               s.nextSessionID.Add(1),
 		Listener:         listener.options.Name,
 		RemoteAddr:       conn.RemoteAddr(),

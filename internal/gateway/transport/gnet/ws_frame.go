@@ -202,15 +202,3 @@ func validWSClosePayload(payload []byte) error {
 	}
 	return nil
 }
-
-func wsPayloadLooksText(payload []byte) bool {
-	if !utf8.Valid(payload) {
-		return false
-	}
-	for _, b := range payload {
-		if b < 0x20 && b != '\n' && b != '\r' && b != '\t' {
-			return false
-		}
-	}
-	return true
-}

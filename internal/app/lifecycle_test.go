@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sync/atomic"
 	"testing"
 	"time"
 	"unsafe"
@@ -703,10 +702,6 @@ func TestStopStopsGatewayBeforeClosingStorage(t *testing.T) {
 	var calls []string
 
 	app := &App{
-		started:       atomicBool(true),
-		clusterOn:     atomicBool(true),
-		gatewayOn:     atomicBool(true),
-		channelMetaOn: atomicBool(true),
 		stopGatewayFn: func() error {
 			calls = append(calls, "gateway.stop")
 			return nil
@@ -731,6 +726,10 @@ func TestStopStopsGatewayBeforeClosingStorage(t *testing.T) {
 			return nil
 		},
 	}
+	app.started.Store(true)
+	app.clusterOn.Store(true)
+	app.gatewayOn.Store(true)
+	app.channelMetaOn.Store(true)
 
 	require.NoError(t, app.Stop())
 	require.Equal(t, []string{"gateway.stop", "meta.stop", "cluster.stop", "channellog.close", "raft.close", "metadb.close"}, calls)
@@ -743,9 +742,6 @@ func TestStopSkipsChannelMetaCleanupBecauseClusterShutdownClosesRuntime(t *testi
 	cluster := &fakeChannelMetaCluster{}
 
 	app := &App{
-		started:       atomicBool(true),
-		channelMetaOn: atomicBool(true),
-		clusterOn:     atomicBool(true),
 		channelMetaSync: &channelMetaSync{
 			cluster: cluster,
 			cancel: func() {
@@ -760,6 +756,9 @@ func TestStopSkipsChannelMetaCleanupBecauseClusterShutdownClosesRuntime(t *testi
 		closeRaftDBFn: func() error { return nil },
 		closeWKDBFn:   func() error { return nil },
 	}
+	app.started.Store(true)
+	app.channelMetaOn.Store(true)
+	app.clusterOn.Store(true)
 
 	require.NoError(t, app.Stop())
 	require.Empty(t, cluster.removed)
@@ -816,11 +815,6 @@ func TestStopStopsAPIBeforeGatewayAndClusterClose(t *testing.T) {
 	var calls []string
 
 	app := &App{
-		started:       atomicBool(true),
-		clusterOn:     atomicBool(true),
-		apiOn:         atomicBool(true),
-		gatewayOn:     atomicBool(true),
-		channelMetaOn: atomicBool(true),
 		stopGatewayFn: func() error {
 			calls = append(calls, "gateway.stop")
 			return nil
@@ -849,6 +843,11 @@ func TestStopStopsAPIBeforeGatewayAndClusterClose(t *testing.T) {
 			return nil
 		},
 	}
+	app.started.Store(true)
+	app.clusterOn.Store(true)
+	app.apiOn.Store(true)
+	app.gatewayOn.Store(true)
+	app.channelMetaOn.Store(true)
 
 	require.NoError(t, app.Stop())
 	require.Equal(t, []string{"api.stop", "gateway.stop", "meta.stop", "cluster.stop", "channellog.close", "raft.close", "metadb.close"}, calls)
@@ -858,12 +857,6 @@ func TestStopStopsManagerBeforeAPIGatewayAndClusterClose(t *testing.T) {
 	var calls []string
 
 	app := &App{
-		started:       atomicBool(true),
-		clusterOn:     atomicBool(true),
-		managerOn:     atomicBool(true),
-		apiOn:         atomicBool(true),
-		gatewayOn:     atomicBool(true),
-		channelMetaOn: atomicBool(true),
 		stopManagerFn: func() error {
 			calls = append(calls, "manager.stop")
 			return nil
@@ -896,6 +889,12 @@ func TestStopStopsManagerBeforeAPIGatewayAndClusterClose(t *testing.T) {
 			return nil
 		},
 	}
+	app.started.Store(true)
+	app.clusterOn.Store(true)
+	app.managerOn.Store(true)
+	app.apiOn.Store(true)
+	app.gatewayOn.Store(true)
+	app.channelMetaOn.Store(true)
 
 	require.NoError(t, app.Stop())
 	require.Equal(t, []string{"manager.stop", "api.stop", "gateway.stop", "meta.stop", "cluster.stop", "channellog.close", "raft.close", "metadb.close"}, calls)
@@ -905,9 +904,6 @@ func TestStopIsIdempotent(t *testing.T) {
 	var calls []string
 
 	app := &App{
-		started:   atomicBool(true),
-		clusterOn: atomicBool(true),
-		gatewayOn: atomicBool(true),
 		stopGatewayFn: func() error {
 			calls = append(calls, "gateway.stop")
 			return nil
@@ -924,6 +920,9 @@ func TestStopIsIdempotent(t *testing.T) {
 			return nil
 		},
 	}
+	app.started.Store(true)
+	app.clusterOn.Store(true)
+	app.gatewayOn.Store(true)
 
 	require.NoError(t, app.Stop())
 	require.NoError(t, app.Stop())
@@ -1028,9 +1027,6 @@ func TestStopJoinsCleanupErrors(t *testing.T) {
 	errMetaDB := errors.New("metadb close")
 
 	app := &App{
-		started:   atomicBool(true),
-		clusterOn: atomicBool(true),
-		gatewayOn: atomicBool(true),
 		stopGatewayFn: func() error {
 			return errGateway
 		},
@@ -1042,6 +1038,9 @@ func TestStopJoinsCleanupErrors(t *testing.T) {
 			return errMetaDB
 		},
 	}
+	app.started.Store(true)
+	app.clusterOn.Store(true)
+	app.gatewayOn.Store(true)
 
 	joinedErr := app.Stop()
 	require.ErrorIs(t, joinedErr, errGateway)
@@ -1053,10 +1052,10 @@ func TestStopSyncsLogger(t *testing.T) {
 	logger := &recordingLogger{}
 	app := &App{
 		logger:        logger,
-		started:       atomicBool(true),
 		closeRaftDBFn: func() error { return nil },
 		closeWKDBFn:   func() error { return nil },
 	}
+	app.started.Store(true)
 
 	require.NoError(t, app.Stop())
 	require.Equal(t, 1, logger.syncCalls)
@@ -1102,11 +1101,6 @@ func openWKDBForTest(path string) (interface{ Close() error }, error) {
 
 func openRaftDBForTest(path string) (interface{ Close() error }, error) {
 	return raftstorage.Open(path)
-}
-
-func atomicBool(v bool) (flag atomic.Bool) {
-	flag.Store(v)
-	return flag
 }
 
 type recordingLogger struct {

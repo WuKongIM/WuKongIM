@@ -191,10 +191,10 @@ func (s *channelMetaSync) enqueueLocalReplicaStateChange(key channel.ChannelKey)
 }
 
 func (s *channelMetaSync) watchLocalReplicaStateChanges(ctx context.Context) {
-	defer s.refreshWG.Done()
 	if s == nil {
 		return
 	}
+	defer s.refreshWG.Done()
 	s.mu.Lock()
 	stateChanges := s.stateChanges
 	s.mu.Unlock()

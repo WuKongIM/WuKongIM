@@ -746,18 +746,6 @@ func (f channelLogConversationFacts) LoadRecentMessagesBatch(ctx context.Context
 	return out, nil
 }
 
-func (f channelLogConversationFacts) loadLatestMessage(ctx context.Context, key conversationusecase.ConversationKey) (channel.Message, bool, error) {
-	channelID := channel.ChannelID{ID: key.ChannelID, Type: key.ChannelType}
-	msg, ok, err := loadLatestConversationMessage(ctx, f.cluster, channelID, conversationFetchMaxBytes)
-	if err == nil || errors.Is(err, channel.ErrChannelNotFound) {
-		return msg, ok, nil
-	}
-	if !errors.Is(err, channel.ErrStaleMeta) {
-		return channel.Message{}, false, err
-	}
-	return f.loadRemoteLatestMessage(ctx, channelID)
-}
-
 func (f channelLogConversationFacts) loadRemoteLatestMessage(ctx context.Context, key channel.ChannelID) (channel.Message, bool, error) {
 	ownerNodeID, err := f.ownerNodeID(ctx, key)
 	if err != nil {
