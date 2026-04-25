@@ -46,4 +46,22 @@ external_ip.txt
 
 wukongim.pid
 
-WuKongIMDocs/
+.worktrees/
+
+WuKongIM-v2/
+
+.docker-data
+.cluster-dev-data
+
+.agents/
+_bmad/
+_bmad-output
+.claude/
+.superpowers/
+
+learn_project/
+wukongim.conf
+.devdata/
+docker/dev-cluster/
+docker/dev-observability/
+tmp/

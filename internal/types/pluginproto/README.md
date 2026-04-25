@@ -1,1 +1,0 @@
-protoc ./internal/types/pluginproto/plugin.proto --go_out=./internal/types/pluginproto

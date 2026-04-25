@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: WuKongIM
+    orgId: 1
+    folder: WuKongIM
+    type: file
+    disableDeletion: true
+    editable: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards

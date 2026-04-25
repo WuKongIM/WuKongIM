@@ -1,5 +1,13 @@
-web/dist
-web/node_modules
-.vscode
+.git
+.worktrees
+.devdata
 .VSCodeCounter
-.github
+.superpowers
+.claude
+.DS_Store
+*.test
+learn_project
+docker/dev-cluster
+tmp
+docs
+wukongim.conf

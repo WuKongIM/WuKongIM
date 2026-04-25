@@ -20,3 +20,5 @@ node_modules
 *.njsproj
 *.sln
 *.sw?
+.vite
+dist

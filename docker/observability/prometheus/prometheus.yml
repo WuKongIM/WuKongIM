@@ -1,0 +1,14 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: wukongim
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - wk-node1:5001
+          - wk-node2:5001
+          - wk-node3:5001
+        labels:
+          cluster: local-dev

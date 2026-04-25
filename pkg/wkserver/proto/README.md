@@ -1,1 +1,0 @@
-protoc ./pkg/wkserver/proto/request.proto --go_out=./pkg/wkserver/proto

@@ -1,0 +1,96 @@
+services:
+  wk-node1:
+    image: wukongim-dev:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      WK_LOG_LEVEL: debug
+    volumes:
+      - ./docker/conf/node1.conf:/etc/wukongim/wukongim.conf:ro
+      - ./docker/dev-cluster/node1:/var/lib/wukongim
+    ports:
+      - "15001:5001"
+      - "15100:5100"
+      - "15200:5200"
+      - "17100:7000"
+
+  wk-node2:
+    image: wukongim-dev:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      WK_LOG_LEVEL: debug
+    volumes:
+      - ./docker/conf/node2.conf:/etc/wukongim/wukongim.conf:ro
+      - ./docker/dev-cluster/node2:/var/lib/wukongim
+    ports:
+      - "15002:5001"
+      - "15101:5100"
+      - "15201:5200"
+      - "17001:7000"
+
+  wk-node3:
+    image: wukongim-dev:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      WK_LOG_LEVEL: debug
+    volumes:
+      - ./docker/conf/node3.conf:/etc/wukongim/wukongim.conf:ro
+      - ./docker/dev-cluster/node3:/var/lib/wukongim
+    ports:
+      - "15003:5001"
+      - "15102:5100"
+      - "15202:5200"
+      - "17002:7000"
+
+  wk-web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - wk-node1
+    environment:
+      WK_WEB_API_URL: ${WK_WEB_API_URL:-http://wk-node1:5301}
+    ports:
+      - "18080:80"
+
+  prometheus:
+    image: prom/prometheus:v3
+    restart: unless-stopped
+    depends_on:
+      - wk-node1
+      - wk-node2
+      - wk-node3
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./docker/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/dev-observability/prometheus:/prometheus
+    ports:
+      - "9091:9090"
+
+  grafana:
+    image: grafana/grafana:13.1.0-24485707904
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: Aa12345678
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/observability/grafana/dashboards:/etc/grafana/dashboards:ro
+      - ./docker/dev-observability/grafana:/var/lib/grafana
+    ports:
+      - "3000:3000"

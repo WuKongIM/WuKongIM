@@ -1,9 +1,0 @@
-{
-  "title": "Kubernetes 部署",
-  "pages": [
-    "single-node",
-    "cluster",
-    "scaling",
-    "upgrade"
-  ]
-}
