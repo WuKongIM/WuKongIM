@@ -106,6 +106,7 @@ func (r *replica) runLocalLeaderReconcile() error {
 }
 
 func (r *replica) completeLeaderReconcileLocked() error {
+	oldHW := r.state.HW
 	candidate, err := r.reconcileCandidateLocked()
 	if err != nil {
 		return err
@@ -141,6 +142,9 @@ func (r *replica) completeLeaderReconcileLocked() error {
 	r.state.OffsetEpoch = offsetEpochForLEO(r.epochHistory, r.state.LEO)
 	r.reconcilePending = nil
 	r.publishStateLocked()
+	if candidate > oldHW && r.onLeaderHWAdvance != nil {
+		go r.onLeaderHWAdvance()
+	}
 	return nil
 }
 

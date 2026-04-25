@@ -247,6 +247,7 @@ func (r *runtime) processFollowerLongPoll(ch *channel, meta core.Meta) {
 			continue
 		}
 		manager := r.ensureLaneManager(peer)
+		r.markFollowerLaneCursor(manager, ch.key)
 		manager.MarkChannelPending(ch.key)
 		laneID := manager.LaneFor(ch.key)
 		r.scheduleLaneDispatch(peer, laneID)

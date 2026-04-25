@@ -1689,6 +1689,47 @@ func TestSessionLongPollLeaseOnlyMetaUpdateKeepsExistingLaneManager(t *testing.T
 	require.Equal(t, uint64(7), req.SessionEpoch)
 }
 
+func TestSessionLongPollLeaderChangeOpenCarriesFollowerCursor(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+		cfg.FollowerReplicationRetryInterval = time.Hour
+	})
+
+	meta := testMetaLocal(26022, 4, 3, []core.NodeID{1, 2, 3})
+	mustEnsureLocal(t, env.runtime, meta)
+
+	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	replica.state.LEO = 1
+	replica.state.HW = 0
+	replica.state.OffsetEpoch = meta.Epoch
+	replica.mu.Unlock()
+
+	next := meta
+	next.Leader = 2
+	require.NoError(t, env.runtime.ApplyMeta(next))
+
+	session := env.sessions.session(2)
+	waitForSessionSendCount(t, session, 1)
+
+	session.mu.Lock()
+	last := session.last
+	session.mu.Unlock()
+	require.Equal(t, MessageKindLanePollRequest, last.Kind)
+	require.NotNil(t, last.LanePollRequest)
+	require.Equal(t, LanePollOpOpen, last.LanePollRequest.Op)
+	require.Len(t, last.LanePollRequest.CursorDelta, 1)
+	require.Equal(t, LaneCursorDelta{
+		ChannelKey:   meta.Key,
+		ChannelEpoch: meta.Epoch,
+		MatchOffset:  1,
+		OffsetEpoch:  meta.Epoch,
+	}, last.LanePollRequest.CursorDelta[0])
+}
+
 func TestSessionLongPollNeedResetForcesFullOpen(t *testing.T) {
 	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
 		cfg.LongPollLaneCount = 4

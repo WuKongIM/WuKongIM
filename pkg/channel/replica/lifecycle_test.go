@@ -105,6 +105,51 @@ func TestBecomeLeaderReconcilesFetchedTailWhenFollowerHasRecordsAboveHW(t *testi
 	}, time.Second, 10*time.Millisecond, "leader reconcile should commit a quorum-visible fetched tail even if follower state previously looked commit-ready")
 }
 
+func TestBecomeLeaderReconcileNotifiesHWAdvance(t *testing.T) {
+	env := newTestEnv(t)
+	env.localNode = 3
+	env.log.records = []channel.Record{{Payload: []byte("a"), SizeBytes: 1}}
+	env.log.leo = 1
+	env.checkpoints.loadErr = nil
+	env.checkpoints.checkpoint = channel.Checkpoint{Epoch: 7, LogStartOffset: 0, HW: 0}
+	env.history.loadErr = nil
+	env.history.points = []channel.EpochPoint{{Epoch: 7, StartOffset: 0}}
+	env.peerProofs = map[channel.NodeID]channel.ReplicaReconcileProof{
+		2: {OffsetEpoch: 7, LogEndOffset: 1, CheckpointHW: 0},
+	}
+
+	r := newReplicaFromEnv(t, env)
+	followerMeta := activeMetaWithMinISR(7, 1, 2)
+	r.mustApplyMeta(t, followerMeta)
+	require.NoError(t, r.BecomeFollower(followerMeta))
+
+	r.mu.Lock()
+	r.state.LEO = 1
+	r.state.HW = 0
+	r.state.CheckpointHW = 0
+	r.state.CommitReady = true
+	r.publishStateLocked()
+	r.mu.Unlock()
+
+	notified := make(chan struct{}, 1)
+	r.SetLeaderHWAdvanceNotifier(func() {
+		notified <- struct{}{}
+	})
+
+	leaderMeta := activeMetaWithMinISR(8, 3, 2)
+	r.mustApplyMeta(t, leaderMeta)
+	require.NoError(t, r.BecomeLeader(leaderMeta))
+	require.Eventually(t, func() bool {
+		return r.Status().HW == 1
+	}, time.Second, 10*time.Millisecond)
+
+	select {
+	case <-notified:
+	case <-time.After(time.Second):
+		t.Fatal("leader reconcile did not notify HW advance")
+	}
+}
+
 func TestBecomeLeaderCommitsFullyProvenTailWithoutWaitingForOfflinePeerProof(t *testing.T) {
 	env := newTestEnv(t)
 	env.localNode = 3

@@ -93,7 +93,7 @@ Replica 层 (replica/append.go):
 steady-state `long_poll`（当前唯一复制主路径）:
   ① follower 侧 Runtime 为每个 peer 维护固定 `N lane` 的 `PeerLaneManager`，并通过 runtime 内部 `lane dispatcher` 统一调度 `(peer,lane)` 的实际发送
   ② channel startup / membership change / response reissue 只负责标记 lane dirty 或 pending，并把 lane 交给 dispatcher；dispatcher 保证同一 `(peer,lane)` 只会 single-flight 发送一条 poll，但真正会阻塞到 RPC 返回的 send 会异步发车，避免被单个 long-poll park 串住其他 lane
-  ③ lane 首次发送 `open(full membership)`，后续 steady-state 只发 `poll(membershipVersionHint + cursorDelta[])`
+  ③ lane 首次发送 `open(full membership + 当前 follower cursorDelta)`，后续 steady-state 只发 `poll(membershipVersionHint + cursorDelta[])`
   ④ leader 侧 Runtime 为每个 `(peer,lane)` 维护 `LeaderLaneSession`；频道把复制事件通过 `replicationTargets` 直达对应 lane
   ⑤ leader 处理 `ServeLanePoll` 时，先应用 `cursorDelta` 推进 follower progress / HW，再从 lane ready queue 挑选可返回的 channel item
   ⑥ 若 lane 当前无 ready item，则 park 到 `maxWait` 或新事件；空响应是正常 timeout，follower 收到后立即续下一条 poll

@@ -338,6 +338,7 @@ func (r *runtime) syncFollowerLaneMembership(previous *core.Meta, next core.Meta
 		manager := r.ensureLaneManager(next.Leader)
 		laneID := manager.LaneFor(next.Key)
 		if manager.UpsertChannel(next.Key, next.Epoch) {
+			r.markFollowerLaneCursor(manager, next.Key)
 			r.scheduleLaneDispatch(next.Leader, laneID)
 		}
 		return
@@ -365,10 +366,32 @@ func (r *runtime) syncFollowerLaneMembership(previous *core.Meta, next core.Meta
 	if next.Leader != 0 && next.Leader != r.cfg.LocalNode {
 		manager := r.ensureLaneManager(next.Leader)
 		laneID := manager.LaneFor(next.Key)
-		if manager.UpsertChannel(next.Key, next.Epoch) && previous != nil {
-			r.scheduleLaneDispatch(next.Leader, laneID)
+		if manager.UpsertChannel(next.Key, next.Epoch) {
+			r.markFollowerLaneCursor(manager, next.Key)
+			if previous != nil {
+				r.scheduleLaneDispatch(next.Leader, laneID)
+			}
 		}
 	}
+}
+
+// markFollowerLaneCursor publishes the follower's current durable cursor into
+// the next lane poll so a new leader does not resend an already copied tail.
+func (r *runtime) markFollowerLaneCursor(manager *PeerLaneManager, key core.ChannelKey) {
+	if manager == nil {
+		return
+	}
+	ch, ok := r.lookupChannel(key)
+	if !ok {
+		return
+	}
+	state := ch.Status()
+	manager.MarkCursorDelta(LaneCursorDelta{
+		ChannelKey:   key,
+		ChannelEpoch: state.Epoch,
+		MatchOffset:  state.LEO,
+		OffsetEpoch:  state.OffsetEpoch,
+	})
 }
 
 func (r *runtime) syncLeaderLaneTargets(ch *channel, next core.Meta) {
