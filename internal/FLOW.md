@@ -465,7 +465,7 @@ message.App.SyncChannelMessages(ctx, query):
 
 ## 9. 测试说明
 
-`internal/app` 默认单元测试只覆盖快速配置、装配和 single-node cluster 行为；真实 multi-node cluster harness、checkpoint、send stress、trace 等慢测试统一放在 `integration` build tag 后面。
+`internal/app` 默认单元测试只覆盖快速配置、装配和 单节点集群行为；真实多节点集群 harness、checkpoint、send stress、trace 等慢测试统一放在 `integration` build tag 后面。
 
 ```bash
 GOWORK=off go test ./internal/app
