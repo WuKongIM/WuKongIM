@@ -2,14 +2,14 @@ package app
 
 import (
 	"context"
-	"time"
 
+	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
-const slotLeaderRefreshTimeout = 5 * time.Second
+const slotLeaderRefreshTimeout = runtimechannelmeta.SlotLeaderRefreshTimeout
 
 // scheduleSlotLeaderRefresh refreshes active local channel metas in the slot
 // after the authoritative slot leader changes.
@@ -17,81 +17,15 @@ func (s *channelMetaSync) scheduleSlotLeaderRefresh(slotID multiraft.SlotID) {
 	if s == nil {
 		return
 	}
-	keys := s.snapshotAppliedLocalKeysForSlot(slotID)
-	if len(keys) == 0 {
-		return
-	}
-
 	s.mu.Lock()
 	runCtx := s.runCtx
+	s.mu.Unlock()
 	if runCtx == nil {
-		s.mu.Unlock()
 		return
 	}
-	if s.pendingSlots == nil {
-		s.pendingSlots = make(map[multiraft.SlotID]struct{})
-	}
-	if _, ok := s.pendingSlots[slotID]; ok {
-		if s.dirtySlots == nil {
-			s.dirtySlots = make(map[multiraft.SlotID]struct{})
-		}
-		s.dirtySlots[slotID] = struct{}{}
-		s.mu.Unlock()
-		return
-	}
-	s.pendingSlots[slotID] = struct{}{}
-	s.refreshWG.Add(1)
-	s.mu.Unlock()
-
-	go func(runCtx context.Context) {
-		defer s.refreshWG.Done()
-		for {
-			for _, key := range s.snapshotAppliedLocalKeysForSlot(slotID) {
-				ctx, cancel := context.WithTimeout(runCtx, slotLeaderRefreshTimeout)
-				_, _ = s.refreshAuthoritativeByKey(ctx, key)
-				cancel()
-				if runCtx.Err() != nil {
-					s.clearPendingSlotRefresh(slotID)
-					return
-				}
-			}
-			if !s.advancePendingSlotRefresh(slotID) {
-				return
-			}
-		}
-	}(runCtx)
-}
-
-func (s *channelMetaSync) clearPendingSlotRefresh(slotID multiraft.SlotID) {
-	if s == nil {
-		return
-	}
-	s.mu.Lock()
-	if s.pendingSlots != nil {
-		delete(s.pendingSlots, slotID)
-	}
-	if s.dirtySlots != nil {
-		delete(s.dirtySlots, slotID)
-	}
-	s.mu.Unlock()
-}
-
-func (s *channelMetaSync) advancePendingSlotRefresh(slotID multiraft.SlotID) bool {
-	if s == nil {
-		return false
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.dirtySlots != nil {
-		if _, ok := s.dirtySlots[slotID]; ok {
-			delete(s.dirtySlots, slotID)
-			return true
-		}
-	}
-	if s.pendingSlots != nil {
-		delete(s.pendingSlots, slotID)
-	}
-	return false
+	s.slotRefresh.Schedule(runCtx, &s.refreshWG, slotID, s.snapshotAppliedLocalKeysForSlot, func(ctx context.Context, key channel.ChannelKey) {
+		_, _ = s.refreshAuthoritativeByKey(ctx, key)
+	}, slotLeaderRefreshTimeout)
 }
 
 func (s *channelMetaSync) snapshotAppliedLocalKeysForSlot(slotID multiraft.SlotID) []channel.ChannelKey {
@@ -150,44 +84,32 @@ func (s *channelMetaSync) observeLocalReplicaStateChange(key channel.ChannelKey)
 	if s == nil || s.localRuntime == nil {
 		return
 	}
-	handle, ok := s.localRuntime.Channel(key)
-	if !ok {
-		return
-	}
-	state := handle.Status()
-	if state.Role == channel.ReplicaRoleTombstoned {
-		s.mu.Lock()
-		s.untrackAppliedLocalKeyLocked(key)
-		s.mu.Unlock()
-		return
-	}
-	s.mu.Lock()
-	s.trackAppliedLocalKeyLocked(key)
-	s.mu.Unlock()
-	if observedLeaderRepairReason(handle.Meta(), state) == "" {
-		return
-	}
-	slotID, ok := s.slotForChannelKey(key)
-	if !ok {
-		return
-	}
-	s.scheduleSlotLeaderRefresh(slotID)
+	runtimechannelmeta.ObserveLocalReplicaStateChange(runtimechannelmeta.LocalReplicaStateChange{
+		Key:     key,
+		Runtime: channelMetaLocalRuntime{runtime: s.localRuntime},
+		Track: func(key channel.ChannelKey) {
+			s.mu.Lock()
+			s.trackAppliedLocalKeyLocked(key)
+			s.mu.Unlock()
+		},
+		Untrack: func(key channel.ChannelKey) {
+			s.mu.Lock()
+			s.untrackAppliedLocalKeyLocked(key)
+			s.mu.Unlock()
+		},
+		SlotForKey:          s.slotForChannelKey,
+		ScheduleSlotRefresh: s.scheduleSlotLeaderRefresh,
+	})
 }
 
 func (s *channelMetaSync) enqueueLocalReplicaStateChange(key channel.ChannelKey) {
-	if s == nil || key == "" {
+	if s == nil {
 		return
 	}
 	s.mu.Lock()
 	stateChanges := s.stateChanges
 	s.mu.Unlock()
-	if stateChanges == nil {
-		return
-	}
-	select {
-	case stateChanges <- key:
-	default:
-	}
+	runtimechannelmeta.EnqueueLocalReplicaStateChange(stateChanges, key)
 }
 
 func (s *channelMetaSync) watchLocalReplicaStateChanges(ctx context.Context) {
@@ -198,15 +120,20 @@ func (s *channelMetaSync) watchLocalReplicaStateChanges(ctx context.Context) {
 	s.mu.Lock()
 	stateChanges := s.stateChanges
 	s.mu.Unlock()
-	if stateChanges == nil {
-		return
+	runtimechannelmeta.WatchLocalReplicaStateChanges(ctx, stateChanges, s.observeLocalReplicaStateChange)
+}
+
+type channelMetaLocalRuntime struct {
+	runtime channel.HandlerRuntime
+}
+
+func (r channelMetaLocalRuntime) Channel(key channel.ChannelKey) (runtimechannelmeta.ChannelObserver, bool) {
+	if r.runtime == nil {
+		return nil, false
 	}
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case key := <-stateChanges:
-			s.observeLocalReplicaStateChange(key)
-		}
+	handle, ok := r.runtime.Channel(key)
+	if !ok {
+		return nil, false
 	}
+	return handle, true
 }

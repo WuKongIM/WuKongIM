@@ -404,6 +404,7 @@ func (c appChannelRuntimeControl) Close() error {
 	return c.runtime.Close()
 }
 
+//lint:ignore U1000 used by integration tests built with the integration tag.
 func containsNodeID(values []channel.NodeID, target channel.NodeID) bool {
 	for _, value := range values {
 		if value == target {

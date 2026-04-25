@@ -12,11 +12,9 @@ import (
 	channelreplica "github.com/WuKongIM/WuKongIM/pkg/channel/replica"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
-	"golang.org/x/sync/singleflight"
 )
 
 type channelMetaSource interface {
@@ -72,11 +70,9 @@ type channelMetaSync struct {
 	appliedSlots map[multiraft.SlotID]int
 	slotLeaders  map[multiraft.SlotID]multiraft.NodeID
 	cache        channelActivationCache
-	pendingSlots map[multiraft.SlotID]struct{}
-	dirtySlots   map[multiraft.SlotID]struct{}
-	nodeLiveness map[uint64]controllermeta.NodeStatus
+	liveness     runtimechannelmeta.LivenessCache
+	slotRefresh  runtimechannelmeta.SlotRefreshScheduler
 	localRuntime channel.HandlerRuntime
-	livenessSF   singleflight.Group
 	repairer     channelMetaRepairer
 
 	lastHashSlotTableVersion uint64

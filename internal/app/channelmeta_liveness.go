@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 
+	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
@@ -14,89 +15,36 @@ type strictNodeLivenessSource interface {
 	ListNodesStrict(ctx context.Context) ([]controllermeta.ClusterNode, error)
 }
 
-const nodeLivenessSingleflightKey = "controller_nodes"
-
 // UpdateNodeLiveness stores the latest known controller-observed status for a node.
 func (s *channelMetaSync) UpdateNodeLiveness(nodeID uint64, status controllermeta.NodeStatus) {
-	if s == nil || nodeID == 0 {
+	if s == nil {
 		return
 	}
-	shouldRefresh := false
-	s.mu.Lock()
-	if s.nodeLiveness == nil {
-		s.nodeLiveness = make(map[uint64]controllermeta.NodeStatus)
-	}
-	previous, ok := s.nodeLiveness[nodeID]
-	s.nodeLiveness[nodeID] = status
-	shouldRefresh = (status == controllermeta.NodeStatusDead || status == controllermeta.NodeStatusDraining) && (!ok || previous != status)
-	s.mu.Unlock()
-	if shouldRefresh {
+	if s.liveness.Update(nodeID, status) {
 		s.scheduleLeaderHealthRefresh(nodeID)
 	}
 }
 
 func (s *channelMetaSync) nodeLivenessStatus(nodeID uint64) (controllermeta.NodeStatus, bool) {
-	if s == nil || nodeID == 0 {
+	if s == nil {
 		return controllermeta.NodeStatusUnknown, false
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	status, ok := s.nodeLiveness[nodeID]
-	return status, ok
+	return s.liveness.Status(nodeID)
 }
 
 func (s *channelMetaSync) warmNodeLiveness(ctx context.Context, nodeID uint64) {
-	if s == nil || nodeID == 0 {
+	if s == nil {
 		return
 	}
-	if _, ok := s.nodeLivenessStatus(nodeID); ok {
-		return
-	}
-	source := s.nodeLivenessSource()
-	if source == nil {
-		return
-	}
-	value, err, _ := s.livenessSF.Do(nodeLivenessSingleflightKey, func() (any, error) {
-		nodes, err := source.ListNodesStrict(ctx)
-		if err != nil {
-			return nil, err
-		}
-		s.storeNodeLivenessSnapshot(nodes)
-		return nodes, nil
-	})
-	if err != nil {
-		return
-	}
-	nodes, ok := value.([]controllermeta.ClusterNode)
-	if !ok {
-		return
-	}
-	s.storeNodeLivenessSnapshot(nodes)
+	s.liveness.Warm(ctx, nodeID, s.nodeLivenessSource())
 }
 
-func (s *channelMetaSync) nodeLivenessSource() strictNodeLivenessSource {
+func (s *channelMetaSync) nodeLivenessSource() runtimechannelmeta.LivenessSource {
 	if s == nil || s.bootstrap == nil || s.bootstrap.cluster == nil {
 		return nil
 	}
 	source, _ := s.bootstrap.cluster.(strictNodeLivenessSource)
 	return source
-}
-
-func (s *channelMetaSync) storeNodeLivenessSnapshot(nodes []controllermeta.ClusterNode) {
-	if s == nil || len(nodes) == 0 {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.nodeLiveness == nil {
-		s.nodeLiveness = make(map[uint64]controllermeta.NodeStatus, len(nodes))
-	}
-	for _, node := range nodes {
-		if node.NodeID == 0 {
-			continue
-		}
-		s.nodeLiveness[node.NodeID] = node.Status
-	}
 }
 
 // scheduleLeaderHealthRefresh re-reads affected active local channels when the
@@ -150,7 +98,7 @@ func (s *channelMetaSync) needsLeaderRepair(meta metadb.ChannelRuntimeMeta) (boo
 	if reason := s.localRuntimeLeaderRepairReason(meta); reason != "" {
 		return true, reason
 	}
-	if runtimeMetaLeaseNeedsRenewal(meta.LeaseUntilMS, s.now().UTC(), 0) {
+	if runtimechannelmeta.MetaLeaseNeedsRenewal(meta.LeaseUntilMS, s.now().UTC(), 0) {
 		return true, channel.LeaderRepairReasonLeaderLeaseExpired.String()
 	}
 	return false, ""
@@ -169,19 +117,7 @@ func (s *channelMetaSync) localRuntimeLeaderRepairReason(meta metadb.ChannelRunt
 }
 
 func observedLeaderRepairReason(meta channel.Meta, state channel.ReplicaState) string {
-	if meta.Status != channel.StatusActive || state.Role == channel.ReplicaRoleTombstoned {
-		return ""
-	}
-	if state.Leader == 0 || state.Leader == meta.Leader {
-		return ""
-	}
-	if state.Epoch != 0 && meta.Epoch != 0 && state.Epoch != meta.Epoch {
-		return ""
-	}
-	if !containsNodeID(meta.ISR, state.Leader) {
-		return ""
-	}
-	return channel.LeaderRepairReasonLeaderDrift.String()
+	return runtimechannelmeta.ObservedLeaderRepairReason(meta, state)
 }
 
 func (s *channelMetaSync) scheduleLeaderRepairForMeta(meta channel.Meta) {
