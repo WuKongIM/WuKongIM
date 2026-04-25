@@ -12,6 +12,7 @@ import (
 	accessgateway "github.com/WuKongIM/WuKongIM/internal/access/gateway"
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
+	applifecycle "github.com/WuKongIM/WuKongIM/internal/app/lifecycle"
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
@@ -39,30 +40,19 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
+// buildAfterChannelRuntimeHook is a narrow test hook for late build failures.
+var buildAfterChannelRuntimeHook func(*App) error
+
 func build(cfg Config) (_ *App, err error) {
 	if err := cfg.ApplyDefaultsAndValidate(); err != nil {
 		return nil, err
 	}
 
 	app := &App{cfg: cfg, createdAt: time.Now()}
+	cleanup := &applifecycle.ResourceStack{}
 	defer func() {
-		if err == nil {
-			return
-		}
-		if app.logger != nil {
-			_ = app.logger.Sync()
-		}
-		if app.raftDB != nil {
-			_ = app.raftDB.Close()
-			app.raftDB = nil
-		}
-		if app.channelLogDB != nil {
-			_ = app.channelLogDB.Close()
-			app.channelLogDB = nil
-		}
-		if app.db != nil {
-			_ = app.db.Close()
-			app.db = nil
+		if err != nil {
+			err = errors.Join(err, cleanup.Close())
 		}
 	}()
 
@@ -79,6 +69,7 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: create logger: %w", err)
 	}
+	cleanup.Push("logger", func() error { return app.syncLogger() })
 	if cfg.Observability.MetricsEnabled {
 		app.metrics = obsmetrics.New(cfg.Node.ID, cfg.Node.Name)
 	}
@@ -87,11 +78,23 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: open metadb: %w", err)
 	}
+	cleanup.Push("metadb", func() error {
+		if app.db == nil {
+			return nil
+		}
+		return app.db.Close()
+	})
 
 	app.raftDB, err = raftstorage.Open(cfg.Storage.RaftPath)
 	if err != nil {
 		return nil, fmt.Errorf("app: open raftstorage: %w", err)
 	}
+	cleanup.Push("raft log db", func() error {
+		if app.raftDB == nil {
+			return nil
+		}
+		return app.raftDB.Close()
+	})
 
 	clusterCfg := cfg.Cluster.runtimeConfig(cfg.Storage, app.db, app.raftDB, cfg.Node.ID, app.logger.Named("cluster"))
 	var transportObserver transport.ObserverHooks
@@ -124,6 +127,12 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: open channel store: %w", err)
 	}
+	cleanup.Push("channel log db", func() error {
+		if app.channelLogDB == nil {
+			return nil
+		}
+		return app.channelLogDB.Close()
+	})
 
 	messageIDs, err := messageid.NewSnowflakeGenerator(cfg.Node.ID)
 	if err != nil {
@@ -140,6 +149,7 @@ func build(cfg Config) (_ *App, err error) {
 	if dialTimeout <= 0 {
 		dialTimeout = defaultDataPlaneDialTimeout
 	}
+	dataPlanePoolOwnedByClient := false
 	replicationCfg := cfg.Cluster.replicationConfig()
 	app.dataPlanePool = transport.NewPool(transport.PoolConfig{
 		Discovery:   discovery,
@@ -147,7 +157,22 @@ func build(cfg Config) (_ *App, err error) {
 		DialTimeout: dialTimeout,
 		Observer:    transportObserver,
 	})
+	cleanup.Push("data-plane pool", func() error {
+		if dataPlanePoolOwnedByClient || app.dataPlanePool == nil {
+			return nil
+		}
+		app.dataPlanePool.Close()
+		return nil
+	})
 	app.dataPlaneClient = transport.NewClient(app.dataPlanePool)
+	dataPlanePoolOwnedByClient = true
+	cleanup.Push("data-plane client", func() error {
+		if app.dataPlaneClient == nil {
+			return nil
+		}
+		app.dataPlaneClient.Stop()
+		return nil
+	})
 	app.isrTransport, err = channeltransport.New(channeltransport.Options{
 		LocalNode:           channel.NodeID(cfg.Node.ID),
 		Client:              app.dataPlaneClient,
@@ -162,6 +187,13 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: create channel transport: %w", err)
 	}
+	channelTransportOwnedByChannelLog := false
+	cleanup.Push("channel transport", func() error {
+		if channelTransportOwnedByChannelLog || app.isrTransport == nil {
+			return nil
+		}
+		return app.isrTransport.Close()
+	})
 	app.channelMetaSync = &channelMetaSync{
 		localNode:       cfg.Node.ID,
 		refreshInterval: time.Second,
@@ -196,12 +228,32 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: create channel runtime: %w", err)
 	}
+	isrRuntimeOwnedByChannelLog := false
+	cleanup.Push("isr runtime", func() error {
+		if isrRuntimeOwnedByChannelLog || app.isrRuntime == nil {
+			return nil
+		}
+		return app.isrRuntime.Close()
+	})
 	app.channelMetaSync.localRuntime = app.isrRuntime
 	app.channelLog, err = newAppChannelCluster(app.channelLogDB, app.isrRuntime, app.isrTransport, messageIDs, cfg.Node.ID, app.logger)
 	if err != nil {
 		return nil, fmt.Errorf("app: create channel cluster: %w", err)
 	}
+	channelTransportOwnedByChannelLog = true
+	isrRuntimeOwnedByChannelLog = true
+	cleanup.Push("app channel cluster", func() error {
+		if app.channelLog == nil {
+			return nil
+		}
+		return app.channelLog.Close()
+	})
 	app.channelLog.metrics = app.metrics
+	if buildAfterChannelRuntimeHook != nil {
+		if err := buildAfterChannelRuntimeHook(app); err != nil {
+			return nil, fmt.Errorf("app: after channel runtime build: %w", err)
+		}
+	}
 
 	app.store = metastore.New(app.cluster, app.db)
 	app.nodeClient = accessnode.NewClient(app.cluster)
@@ -448,6 +500,7 @@ func build(cfg Config) (_ *App, err error) {
 		return nil, fmt.Errorf("app: create gateway: %w", err)
 	}
 
+	cleanup.Release()
 	return app, nil
 }
 

@@ -11,6 +11,7 @@ import (
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
 )
@@ -177,6 +178,38 @@ func TestBuildForwardsGatewaySendTimeoutIntoHandler(t *testing.T) {
 	})
 
 	require.Equal(t, 27*time.Second, appGatewayHandlerDurationField(t, app.GatewayHandler(), "sendTimeout"))
+}
+
+func TestNewClosesChannelRuntimeResourcesWhenLateBuildFails(t *testing.T) {
+	cfg := testConfig(t)
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	lateBuildErr := errors.New("forced late build failure")
+	var closeCalls []string
+
+	previousHook := buildAfterChannelRuntimeHook
+	buildAfterChannelRuntimeHook = func(app *App) error {
+		require.NotNil(t, app.dataPlanePool)
+		require.NotNil(t, app.dataPlaneClient)
+		require.NotNil(t, app.isrTransport)
+		require.NotNil(t, app.isrRuntime)
+		require.NotNil(t, app.channelLog)
+		app.channelLog.closers = append(app.channelLog.closers, func() error {
+			closeCalls = append(closeCalls, "channel cluster")
+			return nil
+		})
+		return lateBuildErr
+	}
+	t.Cleanup(func() {
+		buildAfterChannelRuntimeHook = previousHook
+	})
+
+	_, err := New(cfg)
+	require.ErrorIs(t, err, lateBuildErr)
+	require.Equal(t, []string{"channel cluster"}, closeCalls)
+
+	reopenedChannelLog, openErr := channelstore.Open(cfg.Storage.ChannelLogPath)
+	require.NoError(t, openErr)
+	require.NoError(t, reopenedChannelLog.Close())
 }
 
 type staleConversationFactsCluster struct{}
