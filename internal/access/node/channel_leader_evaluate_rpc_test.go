@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -30,7 +31,7 @@ func TestChannelLeaderEvaluateCandidateRPCRejectsReplicaOutsideISR(t *testing.T)
 	})
 
 	client := NewClient(node1)
-	_, err := client.EvaluateChannelLeaderCandidate(context.Background(), 2, ChannelLeaderEvaluateRequest{
+	_, err := client.EvaluateChannelLeaderCandidate(context.Background(), 2, channelmeta.LeaderEvaluateRequest{
 		Meta: metadb.ChannelRuntimeMeta{
 			ChannelID:   "evaluate-outside-isr",
 			ChannelType: 2,
@@ -54,7 +55,7 @@ func TestChannelLeaderEvaluateCandidateRPCReturnsPromotionReport(t *testing.T) {
 	node1 := network.cluster(1)
 	node2 := network.cluster(2)
 
-	want := ChannelLeaderPromotionReport{
+	want := channelmeta.LeaderPromotionReport{
 		NodeID:              2,
 		Exists:              true,
 		ChannelEpoch:        9,
@@ -76,7 +77,7 @@ func TestChannelLeaderEvaluateCandidateRPCReturnsPromotionReport(t *testing.T) {
 	})
 
 	client := NewClient(node1)
-	got, err := client.EvaluateChannelLeaderCandidate(context.Background(), 2, ChannelLeaderEvaluateRequest{
+	got, err := client.EvaluateChannelLeaderCandidate(context.Background(), 2, channelmeta.LeaderEvaluateRequest{
 		Meta: metadb.ChannelRuntimeMeta{
 			ChannelID:    "evaluate-report",
 			ChannelType:  2,
@@ -95,7 +96,7 @@ func TestChannelLeaderEvaluateCandidateRPCReturnsPromotionReport(t *testing.T) {
 }
 
 func TestChannelLeaderEvaluateRPCNilAdapterReturnsErrorInsteadOfPanicking(t *testing.T) {
-	body, err := json.Marshal(ChannelLeaderEvaluateRequest{
+	body, err := json.Marshal(channelmeta.LeaderEvaluateRequest{
 		Meta: metadb.ChannelRuntimeMeta{
 			ChannelID:   "evaluate-nil-adapter",
 			ChannelType: 2,
@@ -116,12 +117,12 @@ func TestChannelLeaderEvaluateRPCNilAdapterReturnsErrorInsteadOfPanicking(t *tes
 }
 
 type stubNodeChannelLeaderEvaluator struct {
-	calls  []ChannelLeaderEvaluateRequest
-	report ChannelLeaderPromotionReport
+	calls  []channelmeta.LeaderEvaluateRequest
+	report channelmeta.LeaderPromotionReport
 	err    error
 }
 
-func (s *stubNodeChannelLeaderEvaluator) EvaluateChannelLeaderCandidate(_ context.Context, req ChannelLeaderEvaluateRequest) (ChannelLeaderPromotionReport, error) {
+func (s *stubNodeChannelLeaderEvaluator) EvaluateChannelLeaderCandidate(_ context.Context, req channelmeta.LeaderEvaluateRequest) (channelmeta.LeaderPromotionReport, error) {
 	s.calls = append(s.calls, req)
 	return s.report, s.err
 }

@@ -1,13 +1,11 @@
 package app
 
 import (
-	"context"
 	"sync"
 	"testing"
 
 	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,90 +32,6 @@ func TestMemoryGenerationStoreConcurrentAccess(t *testing.T) {
 		}(worker)
 	}
 	wg.Wait()
-}
-
-type fakeChannelMetaSource struct {
-	mu             sync.Mutex
-	get            map[channel.ChannelID]metadb.ChannelRuntimeMeta
-	list           []metadb.ChannelRuntimeMeta
-	getErr         error
-	listErr        error
-	version        uint64
-	getResults     []fakeChannelMetaGetResult
-	getCalls       int
-	listCalls      int
-	getBlock       <-chan struct{}
-	getStarted     chan<- struct{}
-	getRespectsCtx bool
-	lastGetMeta    metadb.ChannelRuntimeMeta
-	upsertErr      error
-	upserts        []metadb.ChannelRuntimeMeta
-}
-
-type fakeChannelMetaGetResult struct {
-	meta metadb.ChannelRuntimeMeta
-	err  error
-}
-
-func (f *fakeChannelMetaSource) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
-	if f.getStarted != nil {
-		select {
-		case f.getStarted <- struct{}{}:
-		default:
-		}
-	}
-	if f.getBlock != nil {
-		if f.getRespectsCtx {
-			select {
-			case <-f.getBlock:
-			case <-ctx.Done():
-				return metadb.ChannelRuntimeMeta{}, ctx.Err()
-			}
-		} else {
-			<-f.getBlock
-		}
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.getCalls++
-	if f.getCalls <= len(f.getResults) {
-		result := f.getResults[f.getCalls-1]
-		if result.err != nil {
-			return metadb.ChannelRuntimeMeta{}, result.err
-		}
-		f.lastGetMeta = result.meta
-		return result.meta, nil
-	}
-	if f.getErr != nil {
-		return metadb.ChannelRuntimeMeta{}, f.getErr
-	}
-	meta := f.get[channel.ChannelID{ID: channelID, Type: uint8(channelType)}]
-	f.lastGetMeta = meta
-	return meta, nil
-}
-
-func (f *fakeChannelMetaSource) ListChannelRuntimeMeta(context.Context) ([]metadb.ChannelRuntimeMeta, error) {
-	f.mu.Lock()
-	f.listCalls++
-	f.mu.Unlock()
-	if f.listErr != nil {
-		return nil, f.listErr
-	}
-	return append([]metadb.ChannelRuntimeMeta(nil), f.list...), nil
-}
-
-func (f *fakeChannelMetaSource) HashSlotTableVersion() uint64 {
-	return f.version
-}
-
-func (f *fakeChannelMetaSource) UpsertChannelRuntimeMeta(_ context.Context, meta metadb.ChannelRuntimeMeta) error {
-	f.upserts = append(f.upserts, meta)
-	return f.upsertErr
-}
-
-func (f *fakeChannelMetaSource) UpsertChannelRuntimeMetaIfLocalLeader(_ context.Context, meta metadb.ChannelRuntimeMeta) error {
-	f.upserts = append(f.upserts, meta)
-	return f.upsertErr
 }
 
 type fakeChannelMetaCluster struct {

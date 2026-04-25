@@ -2,7 +2,7 @@
 
 ## Responsibility
 
-`internal/runtime/channelmeta` owns node-local contracts, DTOs, activation cache primitives, authoritative metadata bootstrap/lease renewal, liveness cache, local state watcher primitives, and the channel runtime metadata resolver. The resolver keeps authoritative slot metadata aligned with routing metadata and node-local channel runtime state while app remains responsible for composition.
+`internal/runtime/channelmeta` owns node-local contracts, neutral DTOs, activation cache primitives, authoritative metadata bootstrap/lease renewal, liveness cache, local state watcher primitives, the channel runtime metadata resolver, and authoritative channel leader repair/evaluation behavior. The resolver keeps authoritative slot metadata aligned with routing metadata and node-local channel runtime state while app remains responsible for composition.
 
 ## Cluster-First Semantics
 
@@ -17,8 +17,8 @@ This package must not import these application or adapter layers:
 - `internal/usecase/*`
 - `internal/app`
 
-Runtime-owned DTOs stay neutral. Adapter-specific RPC DTO conversion belongs at the adapter edge, currently `internal/access/node` or `internal/app` while migration is in progress.
+Runtime-owned DTOs stay neutral. Adapter-specific RPC DTO conversion belongs at the adapter edge, currently `internal/access/node`. `internal/app` only wires runtime ports, lifecycle, and dependency composition.
 
-## Temporary Migration State
+## Repair Ownership
 
-Channelmeta resolver orchestration now lives in this package. `internal/app` keeps a thin compatibility wrapper for wiring, lifecycle, and the concrete channel leader repair implementation until Task 14 moves repair behavior behind runtime-owned ports.
+`LeaderRepairer` owns authoritative channel leader repair decisions behind neutral ports for the metadata store, slot leadership lookup, remote repair/evaluate client, and local evaluator. `LeaderPromotionEvaluator` owns local durable log inspection and peer probe collection for promotion safety. Node RPC handlers in `internal/access/node` remain transport adapters: they decode access DTOs, convert them to runtime DTOs, call the injected runtime interfaces, and encode RPC responses.

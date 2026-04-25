@@ -262,24 +262,24 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: create channel repair probe client: %w", err)
 	}
-	channelLeaderEvaluator := &channelLeaderPromotionEvaluator{
-		db:        app.channelLogDB,
-		localNode: cfg.Node.ID,
-		probe:     repairProbeClient,
-	}
-	channelLeaderRepairer := &channelLeaderRepairer{
-		store:     app.store,
-		cluster:   app.cluster,
-		remote:    app.nodeClient,
-		evaluator: channelLeaderEvaluator,
-		localNode: cfg.Node.ID,
-		now:       time.Now,
-		applyAuthoritative: func(meta metadb.ChannelRuntimeMeta) error {
+	channelLeaderEvaluator := runtimechannelmeta.NewLeaderPromotionEvaluator(runtimechannelmeta.LeaderPromotionEvaluatorOptions{
+		DB:        app.channelLogDB,
+		LocalNode: cfg.Node.ID,
+		Probe:     repairProbeClient,
+	})
+	channelLeaderRepairer := runtimechannelmeta.NewLeaderRepairer(runtimechannelmeta.LeaderRepairerOptions{
+		Store:     app.store,
+		Cluster:   app.cluster,
+		Remote:    app.nodeClient,
+		Evaluator: channelLeaderEvaluator,
+		LocalNode: cfg.Node.ID,
+		Now:       time.Now,
+		ApplyAuthoritative: func(meta metadb.ChannelRuntimeMeta) error {
 			_, err := app.channelMetaSync.applyAuthoritativeMeta(meta)
 			return err
 		},
-		needsRepair: app.channelMetaSync.needsLeaderRepair,
-	}
+		RepairPolicy: app.channelMetaSync.needsLeaderRepair,
+	})
 	app.channelMetaSync.resolver = runtimechannelmeta.NewSync(runtimechannelmeta.SyncOptions{
 		Source: app.store,
 		Runtime: channelMetaRuntimeAdapter{

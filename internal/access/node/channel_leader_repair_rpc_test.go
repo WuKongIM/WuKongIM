@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -22,7 +23,7 @@ func TestChannelLeaderRepairRPCRedirectsToCurrentSlotLeader(t *testing.T) {
 
 	id := channel.ChannelID{ID: "repair-redirect", Type: 2}
 	leaderRepairer := &stubNodeChannelLeaderRepairer{
-		result: ChannelLeaderRepairResult{
+		result: channelmeta.LeaderRepairResult{
 			Meta: metadb.ChannelRuntimeMeta{
 				ChannelID:    id.ID,
 				ChannelType:  int64(id.Type),
@@ -53,7 +54,7 @@ func TestChannelLeaderRepairRPCRedirectsToCurrentSlotLeader(t *testing.T) {
 	})
 
 	client := NewClient(node1)
-	got, err := client.RepairChannelLeader(context.Background(), ChannelLeaderRepairRequest{
+	got, err := client.RepairChannelLeader(context.Background(), channelmeta.LeaderRepairRequest{
 		ChannelID:            id,
 		ObservedChannelEpoch: 9,
 		ObservedLeaderEpoch:  7,
@@ -83,7 +84,7 @@ func TestChannelLeaderRepairRPCMapsNoSafeCandidateStatus(t *testing.T) {
 	})
 
 	client := NewClient(node1)
-	_, err := client.RepairChannelLeader(context.Background(), ChannelLeaderRepairRequest{
+	_, err := client.RepairChannelLeader(context.Background(), channelmeta.LeaderRepairRequest{
 		ChannelID:            channel.ChannelID{ID: "repair-none", Type: 2},
 		ObservedChannelEpoch: 6,
 		ObservedLeaderEpoch:  5,
@@ -102,7 +103,7 @@ func TestChannelLeaderRepairRPCReturnsAuthoritativeMetaAfterRepair(t *testing.T)
 	node2 := network.cluster(2)
 
 	id := channel.ChannelID{ID: "repair-authoritative", Type: 2}
-	want := ChannelLeaderRepairResult{
+	want := channelmeta.LeaderRepairResult{
 		Meta: metadb.ChannelRuntimeMeta{
 			ChannelID:    id.ID,
 			ChannelType:  int64(id.Type),
@@ -126,7 +127,7 @@ func TestChannelLeaderRepairRPCReturnsAuthoritativeMetaAfterRepair(t *testing.T)
 	})
 
 	client := NewClient(node1)
-	got, err := client.RepairChannelLeader(context.Background(), ChannelLeaderRepairRequest{
+	got, err := client.RepairChannelLeader(context.Background(), channelmeta.LeaderRepairRequest{
 		ChannelID:            id,
 		ObservedChannelEpoch: 11,
 		ObservedLeaderEpoch:  8,
@@ -138,12 +139,12 @@ func TestChannelLeaderRepairRPCReturnsAuthoritativeMetaAfterRepair(t *testing.T)
 }
 
 type stubNodeChannelLeaderRepairer struct {
-	calls  []ChannelLeaderRepairRequest
-	result ChannelLeaderRepairResult
+	calls  []channelmeta.LeaderRepairRequest
+	result channelmeta.LeaderRepairResult
 	err    error
 }
 
-func (s *stubNodeChannelLeaderRepairer) RepairChannelLeaderAuthoritative(_ context.Context, req ChannelLeaderRepairRequest) (ChannelLeaderRepairResult, error) {
+func (s *stubNodeChannelLeaderRepairer) RepairChannelLeaderAuthoritative(_ context.Context, req channelmeta.LeaderRepairRequest) (channelmeta.LeaderRepairResult, error) {
 	s.calls = append(s.calls, req)
 	return s.result, s.err
 }

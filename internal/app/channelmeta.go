@@ -203,10 +203,6 @@ func (s channelSnapshotApplier) InstallSnapshot(_ context.Context, snap channel.
 	return s.store.StoreSnapshotPayload(snap.Payload)
 }
 
-func projectChannelMeta(meta metadb.ChannelRuntimeMeta) channel.Meta {
-	return runtimechannelmeta.ProjectChannelMeta(meta)
-}
-
 func containsUint64(values []uint64, target uint64) bool {
 	for _, value := range values {
 		if value == target {

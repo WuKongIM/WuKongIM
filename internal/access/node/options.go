@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 
+	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
@@ -46,12 +47,12 @@ type ChannelMetaRefresher interface {
 
 // ChannelLeaderRepairer repairs a channel leader on the authoritative slot leader.
 type ChannelLeaderRepairer interface {
-	RepairChannelLeaderAuthoritative(ctx context.Context, req ChannelLeaderRepairRequest) (ChannelLeaderRepairResult, error)
+	RepairChannelLeaderAuthoritative(ctx context.Context, req channelmeta.LeaderRepairRequest) (channelmeta.LeaderRepairResult, error)
 }
 
 // ChannelLeaderEvaluator evaluates whether the local replica can safely lead.
 type ChannelLeaderEvaluator interface {
-	EvaluateChannelLeaderCandidate(ctx context.Context, req ChannelLeaderEvaluateRequest) (ChannelLeaderPromotionReport, error)
+	EvaluateChannelLeaderCandidate(ctx context.Context, req channelmeta.LeaderEvaluateRequest) (channelmeta.LeaderPromotionReport, error)
 }
 
 type DeliveryAck interface {

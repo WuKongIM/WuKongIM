@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
@@ -637,7 +638,7 @@ func TestThreeNodeAppGatewaySendTimesOutWaitingForQuorumWithMinISR3(t *testing.T
 
 	harness.stopNode(t, blockedFollowerID)
 
-	staleMeta := projectChannelMeta(meta)
+	staleMeta := runtimechannelmeta.ProjectChannelMeta(meta)
 	staleMeta.LeaderEpoch--
 	staleMeta.Leader = channel.NodeID(sender.cfg.Node.ID)
 	sender.channelLog.service.RestoreMeta(staleMeta.Key, staleMeta, true)
