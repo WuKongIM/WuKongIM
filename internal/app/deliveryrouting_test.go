@@ -428,13 +428,13 @@ func TestLocalDeliveryPushBuildsPersonChannelViewPerRouteUID(t *testing.T) {
 		SessionID: 1,
 		UID:       "u1",
 		State:     online.LocalRouteStateActive,
-		Session:   sender.Session,
+		Session:   sender,
 	}))
 	require.NoError(t, registry.Register(online.OnlineConn{
 		SessionID: 2,
 		UID:       "u2",
 		State:     online.LocalRouteStateActive,
-		Session:   recipient.Session,
+		Session:   recipient,
 	}))
 
 	push := localDeliveryPush{
@@ -488,19 +488,19 @@ func TestLocalDeliveryPushSkipsOriginSessionButKeepsOtherSenderSessions(t *testi
 		SessionID: 1,
 		UID:       "u1",
 		State:     online.LocalRouteStateActive,
-		Session:   origin.Session,
+		Session:   origin,
 	}))
 	require.NoError(t, registry.Register(online.OnlineConn{
 		SessionID: 3,
 		UID:       "u1",
 		State:     online.LocalRouteStateActive,
-		Session:   mirror.Session,
+		Session:   mirror,
 	}))
 	require.NoError(t, registry.Register(online.OnlineConn{
 		SessionID: 2,
 		UID:       "u2",
 		State:     online.LocalRouteStateActive,
-		Session:   recipient.Session,
+		Session:   recipient,
 	}))
 
 	push := localDeliveryPush{
@@ -634,6 +634,10 @@ func newOptionRecordingSession(id uint64, listener string) *optionRecordingSessi
 		},
 	})
 	return recorder
+}
+
+func (s *optionRecordingSession) WriteFrame(f frame.Frame) error {
+	return s.Session.WriteFrame(f)
 }
 
 func (s *optionRecordingSession) Writes() []outboundWrite {

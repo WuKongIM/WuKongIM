@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -30,7 +29,7 @@ func TestAPIServerSendMessageWithRealMessageApp(t *testing.T) {
 	require.NoError(t, msgApp.OnlineRegistry().Register(online.OnlineConn{
 		SessionID: 2,
 		UID:       "u2",
-		Session:   session.New(session.Config{ID: 2, Listener: "api"}),
+		Session:   apiTestSession{id: 2, listener: "api"},
 	}))
 
 	srv := New(Options{
@@ -76,6 +75,20 @@ func TestAPIServerSendMessageWithRealMessageApp(t *testing.T) {
 	require.Equal(t, uint64(7), got.MessageSeq)
 	require.Equal(t, uint8(frame.ReasonSuccess), got.Reason)
 }
+
+type apiTestSession struct {
+	id       uint64
+	listener string
+}
+
+func (s apiTestSession) ID() uint64                   { return s.id }
+func (s apiTestSession) Listener() string             { return s.listener }
+func (s apiTestSession) RemoteAddr() string           { return "" }
+func (s apiTestSession) LocalAddr() string            { return "" }
+func (s apiTestSession) WriteFrame(frame.Frame) error { return nil }
+func (s apiTestSession) Close() error                 { return nil }
+func (s apiTestSession) SetValue(string, any)         {}
+func (s apiTestSession) Value(string) any             { return nil }
 
 type fakeIdentityStore struct{}
 

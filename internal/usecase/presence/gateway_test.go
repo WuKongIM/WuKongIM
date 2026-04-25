@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
@@ -30,7 +29,7 @@ func TestActivateRegistersLocalRouteAndRollsBackWhenAuthorityRegisterFails(t *te
 		DeviceLevel: frame.DeviceLevelMaster,
 		Listener:    "tcp",
 		ConnectedAt: time.Unix(200, 0),
-		Session:     session.New(session.Config{ID: 11, Listener: "tcp"}),
+		Session:     newPresenceTestSession(11, "tcp"),
 	})
 
 	require.Error(t, err)
@@ -70,7 +69,7 @@ func TestActivateRollsBackNewRouteWhenRouteActionAckFails(t *testing.T) {
 		DeviceLevel: frame.DeviceLevelMaster,
 		Listener:    "tcp",
 		ConnectedAt: time.Unix(200, 0),
-		Session:     session.New(session.Config{ID: 11, Listener: "tcp"}),
+		Session:     newPresenceTestSession(11, "tcp"),
 	})
 
 	require.Error(t, err)
@@ -82,7 +81,7 @@ func TestActivateRollsBackNewRouteWhenRouteActionAckFails(t *testing.T) {
 
 func TestDeactivateRemovesLocalRouteAndBestEffortUnregistersAuthority(t *testing.T) {
 	onlineReg := online.NewRegistry()
-	sess := session.New(session.Config{ID: 11, Listener: "tcp"})
+	sess := newPresenceTestSession(11, "tcp")
 	require.NoError(t, onlineReg.Register(online.OnlineConn{
 		SessionID:   11,
 		UID:         "u1",
@@ -118,7 +117,7 @@ func TestDeactivateRemovesLocalRouteAndBestEffortUnregistersAuthority(t *testing
 
 func TestApplyRouteActionMarksRouteClosingBeforeAck(t *testing.T) {
 	onlineReg := online.NewRegistry()
-	sess := session.New(session.Config{ID: 11, Listener: "tcp"})
+	sess := newPresenceTestSession(11, "tcp")
 	require.NoError(t, onlineReg.Register(online.OnlineConn{
 		SessionID:   11,
 		UID:         "u1",
@@ -155,7 +154,7 @@ func TestApplyRouteActionMarksRouteClosingBeforeAck(t *testing.T) {
 
 func TestApplyRouteActionRejectsMismatchedActiveRoute(t *testing.T) {
 	onlineReg := online.NewRegistry()
-	sess := session.New(session.Config{ID: 11, Listener: "tcp"})
+	sess := newPresenceTestSession(11, "tcp")
 	require.NoError(t, onlineReg.Register(online.OnlineConn{
 		SessionID:   11,
 		UID:         "u1",

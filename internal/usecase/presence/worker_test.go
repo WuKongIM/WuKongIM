@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
@@ -104,6 +103,6 @@ func mustRegisterTestConn(t *testing.T, reg online.Registry, sessionID uint64, u
 		State:       online.LocalRouteStateActive,
 		Listener:    "tcp",
 		ConnectedAt: time.Unix(200, 0),
-		Session:     session.New(session.Config{ID: sessionID, Listener: "tcp"}),
+		Session:     newPresenceTestSession(sessionID, "tcp"),
 	}))
 }

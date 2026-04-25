@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +27,7 @@ func TestRegistryRegisterStoresDeviceIDGroupAndActiveState(t *testing.T) {
 		DeviceLevel: frame.DeviceLevelMaster,
 		Listener:    "tcp",
 		ConnectedAt: time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC),
-		Session:     session.New(session.Config{ID: 11, Listener: "tcp"}),
+		Session:     newRecordingSession(11, "tcp"),
 	}
 
 	require.NoError(t, reg.Register(conn))
@@ -59,7 +58,7 @@ func TestRegistryRegisterLookupAndUnregister(t *testing.T) {
 		DeviceLevel: frame.DeviceLevelMaster,
 		Listener:    "tcp",
 		ConnectedAt: fixedNow,
-		Session:     session.New(session.Config{ID: 1, Listener: "tcp"}),
+		Session:     newRecordingSession(1, "tcp"),
 	}
 	conn2 := OnlineConn{
 		SessionID:   2,
@@ -68,7 +67,7 @@ func TestRegistryRegisterLookupAndUnregister(t *testing.T) {
 		DeviceLevel: frame.DeviceLevelSlave,
 		Listener:    "ws",
 		ConnectedAt: fixedNow.Add(time.Minute),
-		Session:     session.New(session.Config{ID: 2, Listener: "ws"}),
+		Session:     newRecordingSession(2, "ws"),
 	}
 
 	require.NoError(t, reg.Register(conn1))
@@ -107,7 +106,7 @@ func TestRegistryRegisterOverwritesSessionAndCleansOldUIDBucket(t *testing.T) {
 		DeviceLevel: frame.DeviceLevelMaster,
 		Listener:    "tcp",
 		ConnectedAt: fixedNow,
-		Session:     session.New(session.Config{ID: 1, Listener: "tcp"}),
+		Session:     newRecordingSession(1, "tcp"),
 	}
 	second := OnlineConn{
 		SessionID:   1,
@@ -116,7 +115,7 @@ func TestRegistryRegisterOverwritesSessionAndCleansOldUIDBucket(t *testing.T) {
 		DeviceLevel: frame.DeviceLevelSlave,
 		Listener:    "tcp",
 		ConnectedAt: fixedNow.Add(time.Minute),
-		Session:     session.New(session.Config{ID: 1, Listener: "tcp"}),
+		Session:     newRecordingSession(1, "tcp"),
 	}
 
 	require.NoError(t, reg.Register(first))
@@ -139,7 +138,7 @@ func TestRegistryUnregisterIsIdempotent(t *testing.T) {
 		DeviceLevel: frame.DeviceLevelMaster,
 		Listener:    "tcp",
 		ConnectedAt: time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC),
-		Session:     session.New(session.Config{ID: 1, Listener: "tcp"}),
+		Session:     newRecordingSession(1, "tcp"),
 	}
 
 	require.NoError(t, reg.Register(conn))
@@ -162,7 +161,7 @@ func TestRegistryMarkClosingRemovesRouteFromUIDDeliveryAndBucketDigest(t *testin
 		State:       LocalRouteStateActive,
 		DeviceFlag:  frame.APP,
 		DeviceLevel: frame.DeviceLevelMaster,
-		Session:     session.New(session.Config{ID: 11, Listener: "tcp"}),
+		Session:     newRecordingSession(11, "tcp"),
 	}))
 
 	before := reg.ActiveSlots()
@@ -184,7 +183,7 @@ func TestRegistryMarkClosingUpdatesOnlyOccupiedGroupSnapshots(t *testing.T) {
 		State:       LocalRouteStateActive,
 		DeviceFlag:  frame.APP,
 		DeviceLevel: frame.DeviceLevelMaster,
-		Session:     session.New(session.Config{ID: 11, Listener: "tcp"}),
+		Session:     newRecordingSession(11, "tcp"),
 	}))
 	require.NoError(t, reg.Register(OnlineConn{
 		SessionID:   12,
@@ -194,7 +193,7 @@ func TestRegistryMarkClosingUpdatesOnlyOccupiedGroupSnapshots(t *testing.T) {
 		State:       LocalRouteStateActive,
 		DeviceFlag:  frame.WEB,
 		DeviceLevel: frame.DeviceLevelSlave,
-		Session:     session.New(session.Config{ID: 12, Listener: "ws"}),
+		Session:     newRecordingSession(12, "ws"),
 	}))
 
 	before := reg.ActiveSlots()
@@ -223,7 +222,7 @@ func TestRegistryActiveConnectionsByGroupReturnsOnlyActiveRoutes(t *testing.T) {
 		State:       LocalRouteStateActive,
 		DeviceFlag:  frame.APP,
 		DeviceLevel: frame.DeviceLevelMaster,
-		Session:     session.New(session.Config{ID: 11, Listener: "tcp"}),
+		Session:     newRecordingSession(11, "tcp"),
 	}
 	closing := OnlineConn{
 		SessionID:   12,
@@ -233,7 +232,7 @@ func TestRegistryActiveConnectionsByGroupReturnsOnlyActiveRoutes(t *testing.T) {
 		State:       LocalRouteStateClosing,
 		DeviceFlag:  frame.WEB,
 		DeviceLevel: frame.DeviceLevelSlave,
-		Session:     session.New(session.Config{ID: 12, Listener: "ws"}),
+		Session:     newRecordingSession(12, "ws"),
 	}
 
 	require.NoError(t, reg.Register(active))

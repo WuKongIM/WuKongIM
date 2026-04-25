@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -311,7 +310,7 @@ func (s *recordingSession) LocalAddr() string {
 	return ""
 }
 
-func (s *recordingSession) WriteFrame(f frame.Frame, _ ...session.WriteOption) error {
+func (s *recordingSession) WriteFrame(f frame.Frame) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -343,4 +342,4 @@ func (s *recordingSession) WrittenFrames() []frame.Frame {
 
 var _ UserStore = (*fakeUserStore)(nil)
 var _ DeviceStore = (*fakeDeviceStore)(nil)
-var _ session.Session = (*recordingSession)(nil)
+var _ online.SessionWriter = (*recordingSession)(nil)

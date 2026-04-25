@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
@@ -30,7 +29,7 @@ func BenchmarkHeartbeatBuckets100kRoutes(b *testing.B) {
 			State:       online.LocalRouteStateActive,
 			Listener:    "tcp",
 			ConnectedAt: time.Unix(200, 0),
-			Session:     session.New(session.Config{ID: uint64(i + 1), Listener: "tcp"}),
+			Session:     newPresenceTestSession(uint64(i+1), "tcp"),
 		})
 	}
 

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -146,7 +145,7 @@ func TestActivateLogsAuthorityRegisterFailure(t *testing.T) {
 func TestDeactivateLogsBestEffortUnregister(t *testing.T) {
 	logger := newRecordingLogger("presence")
 	onlineReg := online.NewRegistry()
-	sess := session.New(session.Config{ID: 11, Listener: "tcp"})
+	sess := newPresenceTestSession(11, "tcp")
 	require.NoError(t, onlineReg.Register(online.OnlineConn{
 		SessionID:   11,
 		UID:         "u1",
@@ -182,7 +181,7 @@ func TestDeactivateLogsBestEffortUnregister(t *testing.T) {
 func TestApplyRouteActionLogsFencedMismatch(t *testing.T) {
 	logger := newRecordingLogger("presence")
 	onlineReg := online.NewRegistry()
-	sess := session.New(session.Config{ID: 11, Listener: "tcp"})
+	sess := newPresenceTestSession(11, "tcp")
 	require.NoError(t, onlineReg.Register(online.OnlineConn{
 		SessionID:   11,
 		UID:         "u1",
@@ -227,6 +226,6 @@ func validActivateCommand() ActivateCommand {
 		DeviceLevel: frame.DeviceLevelMaster,
 		Listener:    "tcp",
 		ConnectedAt: time.Unix(200, 0),
-		Session:     session.New(session.Config{ID: 11, Listener: "tcp"}),
+		Session:     newPresenceTestSession(11, "tcp"),
 	}
 }

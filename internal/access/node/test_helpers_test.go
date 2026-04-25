@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -45,7 +44,7 @@ func testOnlineConn(sessionID uint64, uid string, slotID uint64) online.OnlineCo
 		State:       online.LocalRouteStateActive,
 		Listener:    "tcp",
 		ConnectedAt: time.Unix(200, 0),
-		Session:     session.New(session.Config{ID: sessionID, Listener: "tcp"}),
+		Session:     newRecordingSession(sessionID, "tcp"),
 	}
 }
 
@@ -69,7 +68,7 @@ func (s *recordingSession) RemoteAddr() string { return "" }
 
 func (s *recordingSession) LocalAddr() string { return "" }
 
-func (s *recordingSession) WriteFrame(f frame.Frame, _ ...session.WriteOption) error {
+func (s *recordingSession) WriteFrame(f frame.Frame) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.frames = append(s.frames, f)
