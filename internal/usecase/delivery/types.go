@@ -1,11 +1,11 @@
 package delivery
 
 import (
+	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 )
 
-func routeAckFromMessage(cmd message.RouteAckCommand) runtimedelivery.RouteAck {
+func routeAckFromEvent(cmd deliveryevents.RouteAck) runtimedelivery.RouteAck {
 	return runtimedelivery.RouteAck{
 		UID:        cmd.UID,
 		SessionID:  cmd.SessionID,
@@ -14,7 +14,7 @@ func routeAckFromMessage(cmd message.RouteAckCommand) runtimedelivery.RouteAck {
 	}
 }
 
-func sessionClosedFromMessage(cmd message.SessionClosedCommand) runtimedelivery.SessionClosed {
+func sessionClosedFromEvent(cmd deliveryevents.SessionClosed) runtimedelivery.SessionClosed {
 	return runtimedelivery.SessionClosed{
 		UID:       cmd.UID,
 		SessionID: cmd.SessionID,

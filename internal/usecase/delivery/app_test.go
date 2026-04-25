@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
@@ -49,7 +49,7 @@ func TestAckRouteDelegatesToRuntime(t *testing.T) {
 	runtime := &recordingRuntime{}
 	app := New(Options{Runtime: runtime})
 
-	err := app.AckRoute(context.Background(), message.RouteAckCommand{
+	err := app.AckRoute(context.Background(), deliveryevents.RouteAck{
 		UID:        "u2",
 		SessionID:  22,
 		MessageID:  101,
@@ -69,7 +69,7 @@ func TestSessionClosedDelegatesToRuntime(t *testing.T) {
 	runtime := &recordingRuntime{}
 	app := New(Options{Runtime: runtime})
 
-	err := app.SessionClosed(context.Background(), message.SessionClosedCommand{
+	err := app.SessionClosed(context.Background(), deliveryevents.SessionClosed{
 		UID:       "u2",
 		SessionID: 22,
 	})

@@ -3,10 +3,10 @@ package node
 import (
 	"context"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
@@ -56,11 +56,11 @@ type ChannelLeaderEvaluator interface {
 }
 
 type DeliveryAck interface {
-	AckRoute(ctx context.Context, cmd message.RouteAckCommand) error
+	AckRoute(ctx context.Context, cmd deliveryevents.RouteAck) error
 }
 
 type DeliveryOffline interface {
-	SessionClosed(ctx context.Context, cmd message.SessionClosedCommand) error
+	SessionClosed(ctx context.Context, cmd deliveryevents.SessionClosed) error
 }
 
 type Options struct {

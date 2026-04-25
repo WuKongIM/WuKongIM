@@ -62,6 +62,7 @@ internal/
     types/               网关通用类型与选项
   log/                   应用日志配置与 zap/lumberjack 封装
   contracts/             跨用例/运行时的轻量事件合约
+    deliveryevents/      投递回执与离线事件合约
     messageevents/       消息提交事件合约
   usecase/               可复用业务用例，不依赖具体入口协议
     conversation/        会话投影、同步等用例

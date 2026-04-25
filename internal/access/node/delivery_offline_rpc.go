@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 )
 
 type deliveryOfflineRequest struct {
-	Command message.SessionClosedCommand `json:"command"`
+	Command deliveryevents.SessionClosed `json:"command"`
 }
 
 func (a *Adapter) handleDeliveryOfflineRPC(ctx context.Context, body []byte) ([]byte, error) {

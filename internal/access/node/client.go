@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -132,7 +132,7 @@ func (c *Client) PushBatch(ctx context.Context, nodeID uint64, cmd DeliveryPushC
 	return resp, nil
 }
 
-func (c *Client) NotifyAck(ctx context.Context, nodeID uint64, cmd message.RouteAckCommand) error {
+func (c *Client) NotifyAck(ctx context.Context, nodeID uint64, cmd deliveryevents.RouteAck) error {
 	resp, err := callDeliveryDirect(ctx, c, nodeID, deliveryAckRPCServiceID, deliveryAckRequest{
 		Command: cmd,
 	}, decodeDeliveryResponse)
@@ -145,7 +145,7 @@ func (c *Client) NotifyAck(ctx context.Context, nodeID uint64, cmd message.Route
 	return nil
 }
 
-func (c *Client) NotifyOffline(ctx context.Context, nodeID uint64, cmd message.SessionClosedCommand) error {
+func (c *Client) NotifyOffline(ctx context.Context, nodeID uint64, cmd deliveryevents.SessionClosed) error {
 	resp, err := callDeliveryDirect(ctx, c, nodeID, deliveryOfflineRPCServiceID, deliveryOfflineRequest{
 		Command: cmd,
 	}, decodeDeliveryResponse)
