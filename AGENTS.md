@@ -69,6 +69,7 @@ internal/
     presence/            在线状态登记与权威查询用例
     user/                用户与 token 相关用例
   runtime/               节点内运行时原语
+    channelmeta/         节点内 channel runtime meta resolver / bootstrap / repair / liveness 合约
     channelid/           个人频道等 channel id 派生
     delivery/            节点内投递 actor / mailbox / retry runtime
     messageid/           消息 ID 分配

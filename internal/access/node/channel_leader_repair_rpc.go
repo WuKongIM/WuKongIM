@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -155,4 +156,36 @@ func decodeChannelLeaderRepairResponse(body []byte) (channelLeaderRepairResponse
 	var resp channelLeaderRepairResponse
 	err := json.Unmarshal(body, &resp)
 	return resp, err
+}
+
+func toChannelmetaLeaderRepairRequest(req ChannelLeaderRepairRequest) channelmeta.LeaderRepairRequest {
+	return channelmeta.LeaderRepairRequest{
+		ChannelID:            req.ChannelID,
+		ObservedChannelEpoch: req.ObservedChannelEpoch,
+		ObservedLeaderEpoch:  req.ObservedLeaderEpoch,
+		Reason:               req.Reason,
+	}
+}
+
+func fromChannelmetaLeaderRepairRequest(req channelmeta.LeaderRepairRequest) ChannelLeaderRepairRequest {
+	return ChannelLeaderRepairRequest{
+		ChannelID:            req.ChannelID,
+		ObservedChannelEpoch: req.ObservedChannelEpoch,
+		ObservedLeaderEpoch:  req.ObservedLeaderEpoch,
+		Reason:               req.Reason,
+	}
+}
+
+func toChannelmetaLeaderRepairResult(result ChannelLeaderRepairResult) channelmeta.LeaderRepairResult {
+	return channelmeta.LeaderRepairResult{
+		Meta:    result.Meta,
+		Changed: result.Changed,
+	}
+}
+
+func fromChannelmetaLeaderRepairResult(result channelmeta.LeaderRepairResult) ChannelLeaderRepairResult {
+	return ChannelLeaderRepairResult{
+		Meta:    result.Meta,
+		Changed: result.Changed,
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 )
@@ -106,4 +107,44 @@ func containsUint64(values []uint64, target uint64) bool {
 		}
 	}
 	return false
+}
+
+func toChannelmetaLeaderEvaluateRequest(req ChannelLeaderEvaluateRequest) channelmeta.LeaderEvaluateRequest {
+	return channelmeta.LeaderEvaluateRequest{Meta: req.Meta}
+}
+
+func fromChannelmetaLeaderEvaluateRequest(req channelmeta.LeaderEvaluateRequest) ChannelLeaderEvaluateRequest {
+	return ChannelLeaderEvaluateRequest{Meta: req.Meta}
+}
+
+func toChannelmetaLeaderPromotionReport(report ChannelLeaderPromotionReport) channelmeta.LeaderPromotionReport {
+	return channelmeta.LeaderPromotionReport{
+		NodeID:              report.NodeID,
+		Exists:              report.Exists,
+		ChannelEpoch:        report.ChannelEpoch,
+		LocalLEO:            report.LocalLEO,
+		LocalCheckpointHW:   report.LocalCheckpointHW,
+		LocalOffsetEpoch:    report.LocalOffsetEpoch,
+		CommitReadyNow:      report.CommitReadyNow,
+		ProjectedSafeHW:     report.ProjectedSafeHW,
+		ProjectedTruncateTo: report.ProjectedTruncateTo,
+		CanLead:             report.CanLead,
+		Reason:              report.Reason,
+	}
+}
+
+func fromChannelmetaLeaderPromotionReport(report channelmeta.LeaderPromotionReport) ChannelLeaderPromotionReport {
+	return ChannelLeaderPromotionReport{
+		NodeID:              report.NodeID,
+		Exists:              report.Exists,
+		ChannelEpoch:        report.ChannelEpoch,
+		LocalLEO:            report.LocalLEO,
+		LocalCheckpointHW:   report.LocalCheckpointHW,
+		LocalOffsetEpoch:    report.LocalOffsetEpoch,
+		CommitReadyNow:      report.CommitReadyNow,
+		ProjectedSafeHW:     report.ProjectedSafeHW,
+		ProjectedTruncateTo: report.ProjectedTruncateTo,
+		CanLead:             report.CanLead,
+		Reason:              report.Reason,
+	}
 }
