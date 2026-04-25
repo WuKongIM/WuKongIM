@@ -440,6 +440,43 @@ func TestHandlerOnFrameSendMapsCanceledRequestContextToSendack(t *testing.T) {
 	require.ErrorIs(t, msgs.sendContexts[0].Err(), context.Canceled)
 }
 
+func TestHandlerOnFrameSendMapsSendTimeoutToSendack(t *testing.T) {
+	sender := newOptionRecordingSession(1, "tcp")
+	sender.SetValue(coregateway.SessionValueUID, "u1")
+	msgs := &fakeMessageUsecase{
+		sendFn: func(ctx context.Context, _ message.SendCommand) (message.SendResult, error) {
+			<-ctx.Done()
+			return message.SendResult{}, ctx.Err()
+		},
+	}
+	handler := New(Options{
+		Messages:    msgs,
+		SendTimeout: 5 * time.Millisecond,
+	})
+	ctx := &coregateway.Context{
+		Session:        sender,
+		Listener:       "tcp",
+		ReplyToken:     "reply-timeout",
+		RequestContext: context.Background(),
+	}
+
+	err := handler.OnFrame(ctx, &frame.SendPacket{
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		ClientSeq:   35,
+		ClientMsgNo: "ctx-timeout",
+	})
+
+	require.NoError(t, err)
+	require.Len(t, sender.Writes(), 1)
+	ack := requireSendackPacket(t, sender.Writes()[0].f)
+	require.Equal(t, frame.ReasonSystemError, ack.ReasonCode)
+	require.Equal(t, uint64(35), ack.ClientSeq)
+	require.Equal(t, "ctx-timeout", ack.ClientMsgNo)
+	require.Len(t, msgs.sendContexts, 1)
+	require.ErrorIs(t, msgs.sendContexts[0].Err(), context.DeadlineExceeded)
+}
+
 func TestHandlerOnFrameSendMapsChannelclusterErrorsToSendack(t *testing.T) {
 	tests := []struct {
 		name   string

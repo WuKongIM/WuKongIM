@@ -465,9 +465,11 @@ message.App.SyncChannelMessages(ctx, query):
 
 ## 9. 测试说明
 
-`internal/app` 默认单元测试只覆盖快速配置、装配和单节点集群行为；真实多节点集群 harness、checkpoint、send stress、trace 等慢测试统一放在 `integration` build tag 后面。
+`internal/app` 默认单元测试只覆盖快速配置、装配和单节点集群行为；真实多节点集群 harness、checkpoint、send stress、trace 等慢测试统一放在 `integration` build tag 后面。Gateway/access 的真实 WKProto listener 测试，以及 gnet TCP/WebSocket listener、engine group、socket lifecycle 测试，也统一放在 `integration` build tag 后面；默认单元测试只保留 handler/core/factory 等快速覆盖。
 
 ```bash
 GOWORK=off go test ./internal/app
 GOWORK=off go test -tags=integration ./internal/app
+GOWORK=off go test ./internal/access/gateway ./internal/gateway/transport/gnet
+GOWORK=off go test -tags=integration ./internal/access/gateway ./internal/gateway/transport/gnet
 ```
