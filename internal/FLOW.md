@@ -462,3 +462,12 @@ message.App.SyncChannelMessages(ctx, query):
 - **Gateway 空闲断开只看客户端入站**: `gateway/core/server.go` 的 idle monitor 只根据最近一次客户端入站数据刷新 deadline；客户端发送的任意 frame（包括 `PingPacket`）都会续期，服务端持续下发消息不会延长 `IdleTimeout`。默认超时为 3 分钟。
 - **Gateway TokenAuth 当前不可用**: `Config.Gateway.TokenAuthOn = true` 会直接报错 `gateway token auth requires verifier hooks`，需要先注册验证钩子。
 - **Cluster.Slots 静态配置已废弃**: 配置中设置 `Cluster.Slots` 会直接报错，必须使用 `Cluster.InitialSlotCount` 走 Controller 管理的动态 Slot 分配。
+
+## 9. 测试说明
+
+`internal/app` 默认单元测试只覆盖快速配置、装配和 single-node cluster 行为；真实 multi-node cluster harness、checkpoint、send stress、trace 等慢测试统一放在 `integration` build tag 后面。
+
+```bash
+GOWORK=off go test ./internal/app
+GOWORK=off go test -tags=integration ./internal/app
+```

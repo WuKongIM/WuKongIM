@@ -2,15 +2,12 @@ package app
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
@@ -21,12 +18,9 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/gateway/testkit"
-	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	codec "github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
 )
 
@@ -251,64 +245,124 @@ func (o sendStressOutcome) ErrorRate() float64 {
 func loadSendStressConfig(t *testing.T) sendStressConfig {
 	t.Helper()
 
-	enabled, ok, err := parseSendStressEnabled(os.Getenv(sendStressEnv))
+	cfg, err := loadSendStressConfigFromEnv(os.LookupEnv)
+	require.NoError(t, err)
+	return cfg
+}
+
+func loadSendStressConfigFromEnv(lookup func(string) (string, bool)) (sendStressConfig, error) {
+	enabled, ok, err := parseSendStressEnabled(lookupEnvValue(lookup, sendStressEnv))
 	if err != nil {
-		t.Fatalf("parse %s: %v", sendStressEnv, err)
+		return sendStressConfig{}, fmt.Errorf("parse %s: %w", sendStressEnv, err)
 	}
 	if !ok {
 		enabled = false
 	}
-	mode, ok, err := parseSendStressMode(os.Getenv(sendStressModeEnv))
+	mode, ok, err := parseSendStressMode(lookupEnvValue(lookup, sendStressModeEnv))
 	if err != nil {
-		t.Fatalf("parse %s: %v", sendStressModeEnv, err)
+		return sendStressConfig{}, fmt.Errorf("parse %s: %w", sendStressModeEnv, err)
 	}
 	if !ok {
 		mode = sendStressModeLatency
 	}
 
+	duration, err := sendStressEnvDuration(lookup, sendStressDurationEnv, 5*time.Second)
+	if err != nil {
+		return sendStressConfig{}, err
+	}
+	workers, err := sendStressEnvInt(lookup, sendStressWorkersEnv, max(4, runtime.GOMAXPROCS(0)))
+	if err != nil {
+		return sendStressConfig{}, err
+	}
+	messagesPerWorker, err := sendStressEnvInt(lookup, sendStressMessagesPerWorkerEnv, 50)
+	if err != nil {
+		return sendStressConfig{}, err
+	}
+	dialTimeout, err := sendStressEnvDuration(lookup, sendStressDialTimeoutEnv, 3*time.Second)
+	if err != nil {
+		return sendStressConfig{}, err
+	}
+	ackTimeout, err := sendStressEnvDuration(lookup, sendStressAckTimeoutEnv, 5*time.Second)
+	if err != nil {
+		return sendStressConfig{}, err
+	}
+	seed, err := sendStressEnvInt64(lookup, sendStressSeedEnv, 20260408)
+	if err != nil {
+		return sendStressConfig{}, err
+	}
+
 	cfg := sendStressConfig{
 		Enabled:              enabled,
 		Mode:                 mode,
-		Duration:             envDuration(t, sendStressDurationEnv, 5*time.Second),
-		Workers:              envInt(t, sendStressWorkersEnv, max(4, runtime.GOMAXPROCS(0))),
-		MessagesPerWorker:    envInt(t, sendStressMessagesPerWorkerEnv, 50),
-		DialTimeout:          envDuration(t, sendStressDialTimeoutEnv, 3*time.Second),
-		AckTimeout:           envDuration(t, sendStressAckTimeoutEnv, 5*time.Second),
-		Seed:                 envInt64(t, sendStressSeedEnv, 20260408),
+		Duration:             duration,
+		Workers:              workers,
+		MessagesPerWorker:    messagesPerWorker,
+		DialTimeout:          dialTimeout,
+		AckTimeout:           ackTimeout,
+		Seed:                 seed,
 		MaxInflightPerWorker: 1,
 	}
 	if cfg.Mode == sendStressModeThroughput {
-		cfg.MaxInflightPerWorker = envInt(t, sendStressMaxInflightEnv, sendStressThroughputInflight)
+		maxInflight, err := sendStressEnvInt(lookup, sendStressMaxInflightEnv, sendStressThroughputInflight)
+		if err != nil {
+			return sendStressConfig{}, err
+		}
+		cfg.MaxInflightPerWorker = maxInflight
 	}
-
-	if cfg.Workers <= 0 {
-		t.Fatalf("%s must be > 0, got %d", sendStressWorkersEnv, cfg.Workers)
-	}
-	if cfg.MessagesPerWorker <= 0 {
-		t.Fatalf("%s must be > 0, got %d", sendStressMessagesPerWorkerEnv, cfg.MessagesPerWorker)
-	}
-	if cfg.Duration <= 0 {
-		t.Fatalf("%s must be > 0, got %s", sendStressDurationEnv, cfg.Duration)
-	}
-	if cfg.DialTimeout <= 0 {
-		t.Fatalf("%s must be > 0, got %s", sendStressDialTimeoutEnv, cfg.DialTimeout)
-	}
-	if cfg.AckTimeout <= 0 {
-		t.Fatalf("%s must be > 0, got %s", sendStressAckTimeoutEnv, cfg.AckTimeout)
-	}
-	if value, ok := os.LookupEnv(sendStressSendersEnv); !ok || strings.TrimSpace(value) == "" {
+	if value, ok := lookup(sendStressSendersEnv); !ok || strings.TrimSpace(value) == "" {
 		cfg.Senders = max(8, cfg.Workers)
 	} else {
 		parsed, err := strconv.Atoi(strings.TrimSpace(value))
 		if err != nil {
-			t.Fatalf("parse %s: %v", sendStressSendersEnv, err)
+			return sendStressConfig{}, fmt.Errorf("parse %s: %w", sendStressSendersEnv, err)
 		}
 		cfg.Senders = parsed
 	}
 	if err := validateSendStressConfig(cfg); err != nil {
-		t.Fatal(err)
+		return sendStressConfig{}, err
 	}
-	return cfg
+	return cfg, nil
+}
+
+func lookupEnvValue(lookup func(string) (string, bool), name string) string {
+	value, _ := lookup(name)
+	return value
+}
+
+func sendStressEnvDuration(lookup func(string) (string, bool), name string, fallback time.Duration) (time.Duration, error) {
+	value, ok := lookup(name)
+	if !ok || strings.TrimSpace(value) == "" {
+		return fallback, nil
+	}
+	parsed, err := time.ParseDuration(strings.TrimSpace(value))
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", name, err)
+	}
+	return parsed, nil
+}
+
+func sendStressEnvInt(lookup func(string) (string, bool), name string, fallback int) (int, error) {
+	value, ok := lookup(name)
+	if !ok || strings.TrimSpace(value) == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", name, err)
+	}
+	return parsed, nil
+}
+
+func sendStressEnvInt64(lookup func(string) (string, bool), name string, fallback int64) (int64, error) {
+	value, ok := lookup(name)
+	if !ok || strings.TrimSpace(value) == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", name, err)
+	}
+	return parsed, nil
 }
 
 func validateSendStressConfig(cfg sendStressConfig) error {
@@ -650,11 +704,6 @@ func sendStressUniqueTargetCount(targets []sendStressTarget) int {
 }
 
 func TestSendStressConfigDefaultsAndOverrides(t *testing.T) {
-	if os.Getenv("SEND_STRESS_FORCE_INVALID_LOAD") == "1" {
-		_ = loadSendStressConfig(t)
-		return
-	}
-
 	acceptance := sendStressAcceptancePreset()
 	clearSendStressConfigEnv(t)
 	defaultCfg := loadSendStressConfig(t)
@@ -728,7 +777,22 @@ func TestSendStressConfigDefaultsAndOverrides(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), sendStressMessagesPerWorkerEnv)
 
-	assertLoadSendStressConfigFailsOnInvalidEnv(t)
+}
+
+func TestLoadSendStressConfigRejectsInvalidEnvWithoutSubprocess(t *testing.T) {
+	env := map[string]string{
+		sendStressEnv:        "1",
+		sendStressWorkersEnv: "0",
+		sendStressSendersEnv: "1",
+	}
+
+	_, err := loadSendStressConfigFromEnv(func(name string) (string, bool) {
+		value, ok := env[name]
+		return value, ok
+	})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), sendStressWorkersEnv)
 }
 
 func TestSelectSendStressThreeNodeRunUsesAcceptancePresetWhenOnlyOptedIn(t *testing.T) {
@@ -1205,6 +1269,25 @@ func TestRunSendStressWorkersThroughputModeCapsInflightPerWorker(t *testing.T) {
 	require.LessOrEqual(t, maxInflight.Load(), int64(cfg.MaxInflightPerWorker))
 }
 
+func TestRunContinuousSendStressAckServerTreatsClosedPipeAsCleanShutdown(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- runContinuousSendStressAckServer(serverConn)
+	}()
+
+	require.NoError(t, writeSendStressFrame(clientConn, &frame.SendPacket{
+		ChannelID:   "recipient",
+		ChannelType: frame.ChannelTypePerson,
+		ClientSeq:   1,
+		ClientMsgNo: "closed-pipe",
+		Payload:     []byte("closed pipe"),
+	}, time.Second))
+	require.NoError(t, clientConn.Close())
+
+	require.NoError(t, <-serverErr)
+}
+
 func TestRunSendStressWorkerThroughputUsesDurationInsteadOfMessageBudget(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
 	t.Cleanup(func() {
@@ -1248,131 +1331,6 @@ func TestRunSendStressWorkerThroughputUsesDurationInsteadOfMessageBudget(t *test
 
 	require.NoError(t, clientConn.Close())
 	require.NoError(t, <-serverErr)
-}
-
-func TestSendStressThreeNode(t *testing.T) {
-	selection := selectSendStressThreeNodeRun(t)
-	cfg := selection.cfg
-	preset := selection.preset
-
-	harness := newThreeNodeAppHarnessWithConfigMutator(t, func(appCfg *Config) {
-		if selection.useAcceptancePreset {
-			applySendPathTuning(t, appCfg, preset)
-		}
-		if cfg.Mode == sendStressModeThroughput {
-			appCfg.Gateway.DefaultSession.AsyncSendDispatch = true
-		}
-	})
-	leaderID := harness.waitForStableLeader(t, 1)
-	leader := harness.apps[leaderID]
-
-	targets := preloadSendStressTargets(t, harness, leader, cfg, selection.minISR, sendStressScenarioMultiTarget)
-	assertSendStressAcceptanceMinISR(t, harness, leader, targets, selection.minISR)
-	outcome, observed, records, failures := runSendStressWorkers(t, harness, targets, cfg, sendStressScenarioMultiTarget)
-	verifySendStressCommittedRecords(t, harness, records)
-	if cfg.Mode == sendStressModeThroughput {
-		t.Logf("send stress baseline artifacts: log=%s cpu=%s block=%s", sendStressBaselineLogPath, sendStressBaselineCPUPath, sendStressBaselineBlockPath)
-		t.Logf("%s", compareSendStressBaseline(observed))
-	}
-
-	t.Logf("send stress results: total=%d success=%d failed=%d error_rate=%.2f%%", outcome.Total, outcome.Success, outcome.Failed, outcome.ErrorRate())
-	if len(failures) > 0 {
-		t.Logf("send stress failures: %s", strings.Join(failures, " | "))
-	}
-
-	require.NotZero(t, outcome.Total)
-	require.Equal(t, outcome.Total, outcome.Success)
-	require.Zero(t, outcome.Failed)
-	require.Len(t, records, int(outcome.Success))
-}
-
-func TestSendStressSingleHotChannelThreeNode(t *testing.T) {
-	selection := selectSendStressThreeNodeRun(t)
-	cfg := selection.cfg
-	preset := selection.preset
-
-	harness := newThreeNodeAppHarnessWithConfigMutator(t, func(appCfg *Config) {
-		if selection.useAcceptancePreset {
-			applySendPathTuning(t, appCfg, preset)
-		}
-		if cfg.Mode == sendStressModeThroughput {
-			appCfg.Gateway.DefaultSession.AsyncSendDispatch = true
-		}
-	})
-	leaderID := harness.waitForStableLeader(t, 1)
-	leader := harness.apps[leaderID]
-
-	targets := preloadSendStressTargets(t, harness, leader, cfg, selection.minISR, sendStressScenarioSingleHotChannel)
-	require.Equal(t, 1, sendStressUniqueTargetCount(targets))
-	assertSendStressAcceptanceMinISR(t, harness, leader, targets, selection.minISR)
-	outcome, observed, records, failures := runSendStressWorkers(t, harness, targets, cfg, sendStressScenarioSingleHotChannel)
-	verifySendStressCommittedRecordsForScenario(t, harness, records, sendStressScenarioSingleHotChannel)
-	if cfg.Mode == sendStressModeThroughput {
-		artifacts := sendStressArtifactsForScenario(sendStressScenarioSingleHotChannel)
-		t.Logf("send stress hot-channel artifacts: label=%s log=%s cpu=%s block=%s", artifacts.Label, artifacts.LogPath, artifacts.CPUPath, artifacts.BlockPath)
-		t.Logf("%s", compareSendStressBaseline(observed))
-	}
-
-	t.Logf("send stress hot-channel results: total=%d success=%d failed=%d error_rate=%.2f%%", outcome.Total, outcome.Success, outcome.Failed, outcome.ErrorRate())
-	if len(failures) > 0 {
-		t.Logf("send stress hot-channel failures: %s", strings.Join(failures, " | "))
-	}
-
-	require.NotZero(t, outcome.Total)
-	require.Equal(t, outcome.Total, outcome.Success)
-	require.Zero(t, outcome.Failed)
-	require.Len(t, records, int(outcome.Success))
-}
-
-func TestSendStressHotColdSkewThreeNode(t *testing.T) {
-	selection := selectSendStressThreeNodeRun(t)
-	cfg := selection.cfg
-	preset := selection.preset
-
-	harness := newThreeNodeAppHarnessWithConfigMutator(t, func(appCfg *Config) {
-		if selection.useAcceptancePreset {
-			applySendPathTuning(t, appCfg, preset)
-		}
-		if cfg.Mode == sendStressModeThroughput {
-			appCfg.Gateway.DefaultSession.AsyncSendDispatch = true
-		}
-	})
-	leaderID := harness.waitForStableLeader(t, 1)
-	leader := harness.apps[leaderID]
-
-	targets := preloadSendStressTargets(t, harness, leader, cfg, selection.minISR, sendStressScenarioHotColdSkew)
-	require.Greater(t, sendStressUniqueTargetCount(targets), 1)
-	assertSendStressAcceptanceMinISR(t, harness, leader, targets, selection.minISR)
-	outcome, observed, records, failures := runSendStressWorkers(t, harness, targets, cfg, sendStressScenarioHotColdSkew)
-	verifySendStressCommittedRecordsForScenario(t, harness, records, sendStressScenarioHotColdSkew)
-	hotSummary, coldSummary := summarizeSendStressHotColdLatencies(records)
-	if cfg.Mode == sendStressModeThroughput {
-		artifacts := sendStressArtifactsForScenario(sendStressScenarioHotColdSkew)
-		t.Logf("send stress hot-cold artifacts: label=%s log=%s cpu=%s block=%s", artifacts.Label, artifacts.LogPath, artifacts.CPUPath, artifacts.BlockPath)
-		t.Logf("%s", compareSendStressBaseline(observed))
-	}
-
-	t.Logf(
-		"send stress hot-cold results: total=%d success=%d failed=%d error_rate=%.2f%% hot_count=%d hot_p95=%s cold_count=%d cold_p95=%s",
-		outcome.Total,
-		outcome.Success,
-		outcome.Failed,
-		outcome.ErrorRate(),
-		hotSummary.Count,
-		hotSummary.P95,
-		coldSummary.Count,
-		coldSummary.P95,
-	)
-	if len(failures) > 0 {
-		t.Logf("send stress hot-cold failures: %s", strings.Join(failures, " | "))
-	}
-
-	require.NotZero(t, hotSummary.Count)
-	require.NotZero(t, coldSummary.Count)
-	require.NotZero(t, outcome.Total)
-	require.Equal(t, outcome.Total, outcome.Success)
-	require.Zero(t, outcome.Failed)
-	require.Len(t, records, int(outcome.Success))
 }
 
 func selectSendStressThreeNodeRun(t *testing.T) sendStressThreeNodeRunSelection {
@@ -1474,344 +1432,6 @@ func applySendStressAcceptanceConfigEnv(t *testing.T, preset sendStressConfig) {
 	t.Setenv(sendStressSeedEnv, strconv.FormatInt(preset.Seed, 10))
 }
 
-func assertSendStressAcceptanceMinISR(t *testing.T, harness *threeNodeAppHarness, leader *App, targets []sendStressTarget, minISR int) {
-	t.Helper()
-
-	require.NotNil(t, harness)
-	require.NotNil(t, leader)
-	require.NotEmpty(t, targets)
-
-	for _, target := range targets {
-		meta, err := leader.Store().GetChannelRuntimeMeta(context.Background(), target.ChannelID, int64(target.ChannelType))
-		require.NoError(t, err)
-		require.EqualValues(t, minISR, meta.MinISR, "leader store should preserve MinISR for %s", target.ChannelID)
-
-		for _, app := range harness.appsWithLeaderFirst(leader.cfg.Node.ID) {
-			meta, err := app.Store().GetChannelRuntimeMeta(context.Background(), target.ChannelID, int64(target.ChannelType))
-			require.NoError(t, err)
-			require.EqualValues(t, minISR, meta.MinISR, "app %d should preserve MinISR for %s", app.cfg.Node.ID, target.ChannelID)
-		}
-	}
-}
-
-func assertLoadSendStressConfigFailsOnInvalidEnv(t *testing.T) {
-	t.Helper()
-
-	cmd := exec.Command("go", "test", "./internal/app", "-run", "^TestSendStressConfigDefaultsAndOverrides$", "-count=1")
-	cmd.Dir = filepath.Clean(filepath.Join("..", ".."))
-	cmd.Env = filterSendStressEnv(os.Environ())
-	cmd.Env = append(cmd.Env,
-		"SEND_STRESS_FORCE_INVALID_LOAD=1",
-		"WK_SEND_STRESS=1",
-		"WK_SEND_STRESS_WORKERS=0",
-		"WK_SEND_STRESS_SENDERS=1",
-	)
-
-	var output bytes.Buffer
-	cmd.Stdout = &output
-	cmd.Stderr = &output
-
-	err := cmd.Run()
-	require.Error(t, err)
-	require.Contains(t, output.String(), sendStressWorkersEnv)
-}
-
-func filterSendStressEnv(env []string) []string {
-	filtered := make([]string, 0, len(env))
-	for _, entry := range env {
-		if strings.HasPrefix(entry, sendStressEnv+"=") ||
-			strings.HasPrefix(entry, sendStressModeEnv+"=") ||
-			strings.HasPrefix(entry, sendStressDurationEnv+"=") ||
-			strings.HasPrefix(entry, sendStressWorkersEnv+"=") ||
-			strings.HasPrefix(entry, sendStressSendersEnv+"=") ||
-			strings.HasPrefix(entry, sendStressMessagesPerWorkerEnv+"=") ||
-			strings.HasPrefix(entry, sendStressMaxInflightEnv+"=") ||
-			strings.HasPrefix(entry, sendStressDialTimeoutEnv+"=") ||
-			strings.HasPrefix(entry, sendStressAckTimeoutEnv+"=") ||
-			strings.HasPrefix(entry, sendStressSeedEnv+"=") {
-			continue
-		}
-		filtered = append(filtered, entry)
-	}
-	return filtered
-}
-
-func preloadSendStressTargets(t *testing.T, harness *threeNodeAppHarness, leader *App, cfg sendStressConfig, minISR int, scenario sendStressScenario) []sendStressTarget {
-	t.Helper()
-	require.NotNil(t, harness)
-	require.NotNil(t, leader)
-	require.NotZero(t, cfg.Senders)
-
-	leaderID := leader.cfg.Node.ID
-	targets := make([]sendStressTarget, 0, cfg.Senders)
-	upsertMeta := func(channelID string, channelType uint8, channelEpoch uint64) {
-		t.Helper()
-
-		meta := metadb.ChannelRuntimeMeta{
-			ChannelID:    channelID,
-			ChannelType:  int64(channelType),
-			ChannelEpoch: channelEpoch,
-			LeaderEpoch:  channelEpoch,
-			Replicas:     []uint64{1, 2, 3},
-			ISR:          []uint64{1, 2, 3},
-			Leader:       leaderID,
-			MinISR:       int64(minISR),
-			Status:       uint8(channel.StatusActive),
-			Features:     uint64(channel.MessageSeqFormatLegacyU32),
-			LeaseUntilMS: time.Now().Add(time.Minute).UnixMilli(),
-		}
-		require.NoError(t, leader.Store().UpsertChannelRuntimeMeta(context.Background(), meta))
-
-		id := channel.ChannelID{ID: channelID, Type: channelType}
-		for _, app := range harness.appsWithLeaderFirst(leaderID) {
-			_, err := app.channelMetaSync.RefreshChannelMeta(context.Background(), id)
-			require.NoError(t, err)
-		}
-	}
-	switch scenario {
-	case "", sendStressScenarioMultiTarget:
-		for idx := 0; idx < cfg.Senders; idx++ {
-			senderUID := fmt.Sprintf("stress-sender-%03d", idx)
-			recipientUID := fmt.Sprintf("stress-recipient-%03d", idx)
-			channelID := deliveryusecase.EncodePersonChannel(senderUID, recipientUID)
-			channelType := frame.ChannelTypePerson
-			channelEpoch := uint64(1000 + idx)
-			upsertMeta(channelID, channelType, channelEpoch)
-
-			targets = append(targets, sendStressTarget{
-				SenderUID:     senderUID,
-				RecipientUID:  recipientUID,
-				ChannelID:     channelID,
-				ChannelType:   channelType,
-				OwnerNodeID:   leaderID,
-				ConnectNodeID: leaderID,
-			})
-		}
-	case sendStressScenarioSingleHotChannel:
-		channelID := "stress-hot-group-channel"
-		channelType := frame.ChannelTypeGroup
-		channelEpoch := uint64(5000)
-		upsertMeta(channelID, channelType, channelEpoch)
-
-		for idx := 0; idx < cfg.Senders; idx++ {
-			senderUID := fmt.Sprintf("stress-sender-%03d", idx)
-			recipientUID := fmt.Sprintf("stress-group-member-%03d", idx)
-			targets = append(targets, sendStressTarget{
-				SenderUID:     senderUID,
-				RecipientUID:  recipientUID,
-				ChannelID:     channelID,
-				ChannelType:   channelType,
-				OwnerNodeID:   leaderID,
-				ConnectNodeID: leaderID,
-			})
-		}
-	case sendStressScenarioHotColdSkew:
-		hotChannelID := "stress-hot-group-channel"
-		upsertMeta(hotChannelID, frame.ChannelTypeGroup, 5000)
-
-		hotSenders := max(1, cfg.Senders/4)
-		if hotSenders > 8 {
-			hotSenders = 8
-		}
-		for idx := 0; idx < cfg.Senders; idx++ {
-			senderUID := fmt.Sprintf("stress-sender-%03d", idx)
-			if idx < hotSenders {
-				recipientUID := fmt.Sprintf("stress-hot-member-%03d", idx)
-				targets = append(targets, sendStressTarget{
-					SenderUID:     senderUID,
-					RecipientUID:  recipientUID,
-					ChannelID:     hotChannelID,
-					ChannelType:   frame.ChannelTypeGroup,
-					OwnerNodeID:   leaderID,
-					ConnectNodeID: leaderID,
-				})
-				continue
-			}
-
-			recipientUID := fmt.Sprintf("stress-cold-recipient-%03d", idx)
-			channelID := deliveryusecase.EncodePersonChannel(senderUID, recipientUID)
-			upsertMeta(channelID, frame.ChannelTypePerson, uint64(7000+idx))
-			targets = append(targets, sendStressTarget{
-				SenderUID:     senderUID,
-				RecipientUID:  recipientUID,
-				ChannelID:     channelID,
-				ChannelType:   frame.ChannelTypePerson,
-				OwnerNodeID:   leaderID,
-				ConnectNodeID: leaderID,
-			})
-		}
-	default:
-		t.Fatalf("unknown send stress scenario %q", scenario)
-	}
-	return targets
-}
-
-func runSendStressWorkers(t *testing.T, harness *threeNodeAppHarness, targets []sendStressTarget, cfg sendStressConfig, scenario sendStressScenario) (sendStressOutcome, sendStressObservedMetrics, []sendStressRecord, []string) {
-	t.Helper()
-	require.NotNil(t, harness)
-	require.NotEmpty(t, targets)
-	require.NotZero(t, cfg.Workers)
-
-	activeTargetCount := sendStressActiveTargetCount(cfg, len(targets))
-	uniqueTargetCount := sendStressUniqueTargetCount(targets)
-	require.Positive(t, activeTargetCount)
-
-	clients := make([]sendStressWorkerClient, 0, activeTargetCount)
-	for worker := 0; worker < activeTargetCount; worker++ {
-		target := targets[worker]
-		app := harness.apps[target.ConnectNodeID]
-		require.NotNil(t, app, "connect node %d is not running", target.ConnectNodeID)
-		conn := runSendStressClient(t, app, target.SenderUID, cfg)
-		clients = append(clients, sendStressWorkerClient{
-			target:  target,
-			conn:    conn,
-			reader:  newSendStressFrameReader(conn),
-			writeMu: &sync.Mutex{},
-		})
-	}
-	defer func() {
-		for _, client := range clients {
-			if client.conn != nil {
-				_ = client.conn.Close()
-			}
-		}
-	}()
-
-	warmupRecords := warmupSendStressClients(t, clients, cfg)
-	verifySendStressCommittedRecords(t, harness, warmupRecords)
-
-	var total atomic.Uint64
-	var success atomic.Uint64
-	var failed atomic.Uint64
-	var verificationFailures atomic.Uint64
-	var mu sync.Mutex
-	records := make([]sendStressRecord, 0, activeTargetCount*cfg.MessagesPerWorker)
-	latencies := make([]time.Duration, 0, activeTargetCount*cfg.MessagesPerWorker)
-	failures := make([]string, 0, 8)
-	appendFailure := func(format string, args ...any) {
-		mu.Lock()
-		defer mu.Unlock()
-		if len(failures) >= 8 {
-			return
-		}
-		failures = append(failures, fmt.Sprintf(format, args...))
-	}
-
-	startedAt := time.Now()
-	deadline := startedAt.Add(cfg.Duration)
-	var wg sync.WaitGroup
-	for worker, client := range clients {
-		worker := worker
-		client := client
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			var (
-				workerOutcome  sendStressOutcome
-				workerRecords  []sendStressRecord
-				workerFailures []string
-				err            error
-			)
-			if cfg.Mode == sendStressModeThroughput {
-				workerOutcome, workerRecords, workerFailures, err = runSendStressWorkerThroughput(client, worker, cfg, deadline)
-			} else {
-				workerOutcome, workerRecords, workerFailures = runSendStressWorkerLatency(client, worker, cfg, deadline)
-			}
-			if err != nil {
-				workerFailures = append(workerFailures, err.Error())
-			}
-
-			total.Add(workerOutcome.Total)
-			success.Add(workerOutcome.Success)
-			failed.Add(workerOutcome.Failed)
-
-			mu.Lock()
-			records = append(records, workerRecords...)
-			for _, record := range workerRecords {
-				latencies = append(latencies, record.AckLatency)
-			}
-			mu.Unlock()
-			for _, failure := range workerFailures {
-				verificationFailures.Add(1)
-				appendFailure("%s", failure)
-			}
-		}()
-	}
-	wg.Wait()
-
-	elapsed := time.Since(startedAt)
-	outcome := sendStressOutcome{
-		Total:   total.Load(),
-		Success: success.Load(),
-		Failed:  failed.Load(),
-	}
-	latencySummary := summarizeSendStressLatencies(latencies)
-	qps := 0.0
-	if elapsed > 0 {
-		qps = float64(outcome.Success) / elapsed.Seconds()
-	}
-	observed := sendStressObservedMetrics{
-		QPS:                  qps,
-		P50:                  latencySummary.P50,
-		P95:                  latencySummary.P95,
-		P99:                  latencySummary.P99,
-		VerificationCount:    len(records),
-		VerificationFailures: int(verificationFailures.Load()),
-	}
-	t.Logf(
-		"send stress metrics: scenario=%s mode=%s max_inflight=%d duration=%s workers=%d senders=%d active_target_count=%d unique_target_count=%d total=%d success=%d failed=%d qps=%.2f p50=%s p95=%s p99=%s max=%s verification_count=%d verification_failures=%d",
-		scenario,
-		cfg.Mode,
-		cfg.MaxInflightPerWorker,
-		elapsed,
-		cfg.Workers,
-		cfg.Senders,
-		activeTargetCount,
-		uniqueTargetCount,
-		outcome.Total,
-		outcome.Success,
-		outcome.Failed,
-		qps,
-		latencySummary.P50,
-		latencySummary.P95,
-		latencySummary.P99,
-		latencySummary.Max,
-		observed.VerificationCount,
-		observed.VerificationFailures,
-	)
-	if len(failures) > 0 {
-		t.Logf("send stress failure samples: %s", strings.Join(failures, " | "))
-	}
-
-	return outcome, observed, records, failures
-}
-
-func verifySendStressCommittedRecordsForScenario(t *testing.T, harness *threeNodeAppHarness, records []sendStressRecord, scenario sendStressScenario) {
-	t.Helper()
-	switch scenario {
-	case sendStressScenarioSingleHotChannel:
-		verifySendStressCommittedRecordsHotChannel(t, harness, records)
-	default:
-		verifySendStressCommittedRecords(t, harness, records)
-	}
-}
-
-func verifySendStressCommittedRecordsHotChannel(t *testing.T, harness *threeNodeAppHarness, records []sendStressRecord) {
-	t.Helper()
-	require.NotNil(t, harness)
-
-	plan, err := buildSendStressVerificationPlan(records)
-	require.NoError(t, err)
-
-	for _, app := range harness.orderedApps() {
-		require.NotNil(t, app, "replica is not running")
-		failure := waitForSendStressReplicaRangeMatch(app, plan, sendStressReplicaVerifyTimeout)
-		require.Emptyf(t, failure, "send stress durable verification node=%d failed: %s", app.cfg.Node.ID, failure)
-	}
-
-	t.Logf("send stress durable verification: verification_count=%d verification_failures=%d", len(plan.OrderedSeqs), 0)
-}
-
 func buildSendStressVerificationPlan(records []sendStressRecord) (sendStressVerificationPlan, error) {
 	if len(records) == 0 {
 		return sendStressVerificationPlan{}, nil
@@ -1841,66 +1461,6 @@ func buildSendStressVerificationPlan(records []sendStressRecord) (sendStressVeri
 	return plan, nil
 }
 
-func loadSendStressReplicaMessages(app *App, plan sendStressVerificationPlan) (map[uint64]channel.Message, uint64, error) {
-	if len(plan.OrderedSeqs) == 0 {
-		return map[uint64]channel.Message{}, 0, nil
-	}
-	if app == nil {
-		return nil, 0, fmt.Errorf("replica is not running")
-	}
-
-	key := channelhandler.KeyFromChannelID(plan.ChannelID)
-	handle, ok := app.ISRRuntime().Channel(key)
-	if !ok {
-		return nil, 0, fmt.Errorf("channel=%s/%d node=%d missing runtime", plan.ChannelID.ID, plan.ChannelID.Type, app.cfg.Node.ID)
-	}
-
-	state := handle.Status()
-	maxSeq := plan.OrderedSeqs[len(plan.OrderedSeqs)-1]
-	if !state.CommitReady {
-		return nil, state.HW, fmt.Errorf("channel=%s/%d node=%d not commit ready", plan.ChannelID.ID, plan.ChannelID.Type, app.cfg.Node.ID)
-	}
-	if state.HW < maxSeq {
-		return nil, state.HW, fmt.Errorf("channel=%s/%d node=%d committed_hw=%d below max_seq=%d", plan.ChannelID.ID, plan.ChannelID.Type, app.cfg.Node.ID, state.HW, maxSeq)
-	}
-
-	store := channelStoreForID(app.ChannelLogDB(), plan.ChannelID)
-	msgs, err := channelhandler.LoadNextRangeMsgs(store, state.HW, plan.OrderedSeqs[0], maxSeq, 0)
-	if err != nil {
-		return nil, state.HW, err
-	}
-
-	loaded := make(map[uint64]channel.Message, len(msgs))
-	for _, msg := range msgs {
-		loaded[msg.MessageSeq] = msg
-	}
-	return loaded, state.HW, nil
-}
-
-func waitForSendStressReplicaRangeMatch(app *App, plan sendStressVerificationPlan, timeout time.Duration) string {
-	if len(plan.OrderedSeqs) == 0 {
-		return ""
-	}
-
-	deadline := time.Now().Add(timeout)
-	lastFailure := "replica verification timed out before any read"
-	for {
-		loaded, committedHW, err := loadSendStressReplicaMessages(app, plan)
-		if err != nil {
-			lastFailure = err.Error()
-		} else {
-			lastFailure = sendStressReplicaRangeMismatch(app.cfg.Node.ID, plan, loaded, committedHW)
-			if lastFailure == "" {
-				return ""
-			}
-		}
-		if time.Now().After(deadline) {
-			return lastFailure
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-}
-
 func sendStressReplicaRangeMismatch(nodeID uint64, plan sendStressVerificationPlan, loaded map[uint64]channel.Message, committedHW uint64) string {
 	for _, seq := range plan.OrderedSeqs {
 		record := plan.ExpectedBySeq[seq]
@@ -1920,32 +1480,6 @@ func sendStressReplicaRangeMismatch(nodeID uint64, plan sendStressVerificationPl
 		return fmt.Sprintf("replica mismatch node=%d worker=%d iteration=%d sender=%s recipient=%s connect_node=%d message_seq=%d message_id=%d client_seq=%d client_msg_no=%s committed_hw=%d frames_before_ack=%v replica_from=%s replica_client_msg_no=%s replica_payload=%q replica_channel=%s replica_channel_type=%d replica_message_id=%d", nodeID, record.Worker, record.Iteration, record.SenderUID, record.RecipientUID, record.ConnectNodeID, record.MessageSeq, record.MessageID, record.ClientSeq, record.ClientMsgNo, committedHW, record.FramesBeforeAck, msg.FromUID, msg.ClientMsgNo, string(msg.Payload), msg.ChannelID, msg.ChannelType, msg.MessageID)
 	}
 	return ""
-}
-
-func runSendStressWorkerLatency(client sendStressWorkerClient, worker int, cfg sendStressConfig, deadline time.Time) (sendStressOutcome, []sendStressRecord, []string) {
-	records := make([]sendStressRecord, 0, cfg.MessagesPerWorker)
-	failures := make([]string, 0, 1)
-	outcome := sendStressOutcome{}
-
-	for iteration := 0; iteration < cfg.MessagesPerWorker; iteration++ {
-		if time.Now().After(deadline) {
-			break
-		}
-
-		outcome.Total++
-		clientSeq := uint64(iteration + 2)
-		clientMsgNo := fmt.Sprintf("send-stress-%d-%s-%02d-%d", worker, client.target.SenderUID, iteration, cfg.Seed)
-		payload := []byte(fmt.Sprintf("send-stress payload worker=%d sender=%s recipient=%s iteration=%d seed=%d", worker, client.target.SenderUID, client.target.RecipientUID, iteration, cfg.Seed))
-		record, failure, ok := executeSendStressAttempt(client, worker, "measure", iteration, clientSeq, clientMsgNo, payload, cfg.AckTimeout)
-		if !ok {
-			outcome.Failed++
-			failures = append(failures, failure)
-			break
-		}
-		outcome.Success++
-		records = append(records, record)
-	}
-	return outcome, records, failures
 }
 
 func runSendStressWorkerThroughput(client sendStressWorkerClient, worker int, cfg sendStressConfig, deadline time.Time) (sendStressOutcome, []sendStressRecord, []string, error) {
@@ -2091,174 +1625,6 @@ func readSendStressThroughputAcks(client sendStressWorkerClient, ackTimeout time
 	}
 }
 
-func warmupSendStressClients(t *testing.T, clients []sendStressWorkerClient, cfg sendStressConfig) []sendStressRecord {
-	t.Helper()
-	require.NotEmpty(t, clients)
-
-	ackTimeout := cfg.AckTimeout
-	if ackTimeout < sendStressWarmupAckTimeout {
-		ackTimeout = sendStressWarmupAckTimeout
-	}
-
-	startedAt := time.Now()
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	records := make([]sendStressRecord, 0, len(clients))
-	failures := make([]string, 0, len(clients))
-	for worker, client := range clients {
-		worker := worker
-		client := client
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			clientMsgNo := fmt.Sprintf("send-stress-warmup-%d-%s-%d", worker, client.target.SenderUID, cfg.Seed)
-			payload := []byte(fmt.Sprintf("send-stress warmup worker=%d sender=%s recipient=%s seed=%d", worker, client.target.SenderUID, client.target.RecipientUID, cfg.Seed))
-			record, failure, ok := executeSendStressAttempt(client, worker, "warmup", -1, 1, clientMsgNo, payload, ackTimeout)
-
-			mu.Lock()
-			defer mu.Unlock()
-			if ok {
-				records = append(records, record)
-				return
-			}
-			failures = append(failures, failure)
-		}()
-	}
-	wg.Wait()
-
-	t.Logf("send stress warmup: workers=%d success=%d failed=%d timeout=%s duration=%s", len(clients), len(records), len(failures), ackTimeout, time.Since(startedAt))
-	if len(failures) > 0 {
-		t.Fatalf("send stress warmup failures: %s", strings.Join(failures, " | "))
-	}
-	return records
-}
-
-func executeSendStressAttempt(client sendStressWorkerClient, worker int, phase string, iteration int, clientSeq uint64, clientMsgNo string, payload []byte, ackTimeout time.Duration) (sendStressRecord, string, bool) {
-	packet := &frame.SendPacket{
-		ChannelID:   client.target.sendPacketChannelID(),
-		ChannelType: client.target.ChannelType,
-		ClientSeq:   clientSeq,
-		ClientMsgNo: clientMsgNo,
-		Payload:     payload,
-	}
-
-	sendStart := time.Now()
-	if err := writeSendStressClientFrame(client, packet, ackTimeout); err != nil {
-		return sendStressRecord{}, fmt.Sprintf("worker=%d sender=%s connect_node=%d phase=%s iteration=%d write error=%v", worker, client.target.SenderUID, client.target.ConnectNodeID, phase, iteration, err), false
-	}
-
-	sendack, framesBeforeAck, err := waitForSendStressSendack(client, ackTimeout)
-	ackLatency := time.Since(sendStart)
-	if err != nil {
-		return sendStressRecord{}, fmt.Sprintf("worker=%d sender=%s connect_node=%d phase=%s iteration=%d readack error=%v", worker, client.target.SenderUID, client.target.ConnectNodeID, phase, iteration, err), false
-	}
-	if sendack.ClientSeq != clientSeq || sendack.ClientMsgNo != clientMsgNo {
-		return sendStressRecord{}, fmt.Sprintf("worker=%d sender=%s connect_node=%d phase=%s iteration=%d ack_mismatch client_seq=%d/%d client_msg_no=%s/%s", worker, client.target.SenderUID, client.target.ConnectNodeID, phase, iteration, sendack.ClientSeq, clientSeq, sendack.ClientMsgNo, clientMsgNo), false
-	}
-	if sendack.ReasonCode != frame.ReasonSuccess || sendack.MessageID == 0 || sendack.MessageSeq == 0 {
-		return sendStressRecord{}, fmt.Sprintf("worker=%d sender=%s connect_node=%d phase=%s iteration=%d reason=%s message_id=%d message_seq=%d", worker, client.target.SenderUID, client.target.ConnectNodeID, phase, iteration, sendack.ReasonCode, sendack.MessageID, sendack.MessageSeq), false
-	}
-
-	return sendStressRecord{
-		Worker:          worker,
-		Iteration:       iteration,
-		SenderUID:       client.target.SenderUID,
-		RecipientUID:    client.target.RecipientUID,
-		ChannelID:       client.target.ChannelID,
-		ChannelType:     client.target.ChannelType,
-		ClientSeq:       clientSeq,
-		ClientMsgNo:     clientMsgNo,
-		Payload:         payload,
-		MessageID:       sendack.MessageID,
-		MessageSeq:      sendack.MessageSeq,
-		AckLatency:      ackLatency,
-		OwnerNodeID:     client.target.OwnerNodeID,
-		ConnectNodeID:   client.target.ConnectNodeID,
-		FramesBeforeAck: append([]string(nil), framesBeforeAck...),
-	}, "", true
-}
-
-func verifySendStressCommittedRecords(t *testing.T, harness *threeNodeAppHarness, records []sendStressRecord) {
-	t.Helper()
-	require.NotNil(t, harness)
-
-	verificationCount := 0
-	for _, record := range records {
-		id := channel.ChannelID{
-			ID:   record.ChannelID,
-			Type: record.ChannelType,
-		}
-		owner := harness.apps[record.OwnerNodeID]
-		require.NotNil(t, owner, "owner node %d is not running", record.OwnerNodeID)
-
-		ownerMsg := waitForAppCommittedMessage(t, owner, id, record.MessageSeq, 5*time.Second)
-		require.Equalf(t, record.Payload, ownerMsg.Payload, "owner mismatch worker=%d iteration=%d sender=%s recipient=%s connect_node=%d message_seq=%d message_id=%d client_seq=%d client_msg_no=%s frames_before_ack=%v owner_from=%s owner_client_msg_no=%s owner_payload=%q", record.Worker, record.Iteration, record.SenderUID, record.RecipientUID, record.ConnectNodeID, record.MessageSeq, record.MessageID, record.ClientSeq, record.ClientMsgNo, record.FramesBeforeAck, ownerMsg.FromUID, ownerMsg.ClientMsgNo, string(ownerMsg.Payload))
-		require.Equalf(t, record.SenderUID, ownerMsg.FromUID, "owner sender mismatch worker=%d iteration=%d message_seq=%d client_msg_no=%s frames_before_ack=%v owner_from=%s owner_payload=%q", record.Worker, record.Iteration, record.MessageSeq, record.ClientMsgNo, record.FramesBeforeAck, ownerMsg.FromUID, string(ownerMsg.Payload))
-		require.Equalf(t, record.ClientMsgNo, ownerMsg.ClientMsgNo, "owner client_msg_no mismatch worker=%d iteration=%d message_seq=%d client_msg_no=%s frames_before_ack=%v owner_client_msg_no=%s owner_payload=%q", record.Worker, record.Iteration, record.MessageSeq, record.ClientMsgNo, record.FramesBeforeAck, ownerMsg.ClientMsgNo, string(ownerMsg.Payload))
-		require.Equalf(t, record.ChannelID, ownerMsg.ChannelID, "owner channel mismatch worker=%d iteration=%d message_seq=%d client_msg_no=%s", record.Worker, record.Iteration, record.MessageSeq, record.ClientMsgNo)
-		require.Equalf(t, record.ChannelType, ownerMsg.ChannelType, "owner channel type mismatch worker=%d iteration=%d message_seq=%d client_msg_no=%s", record.Worker, record.Iteration, record.MessageSeq, record.ClientMsgNo)
-
-		for _, app := range harness.orderedApps() {
-			msg := waitForAppCommittedMessage(t, app, id, record.MessageSeq, 5*time.Second)
-			require.Equalf(t, record.Payload, msg.Payload, "replica mismatch node=%d worker=%d iteration=%d sender=%s recipient=%s connect_node=%d message_seq=%d message_id=%d client_seq=%d client_msg_no=%s frames_before_ack=%v replica_from=%s replica_client_msg_no=%s replica_payload=%q", app.cfg.Node.ID, record.Worker, record.Iteration, record.SenderUID, record.RecipientUID, record.ConnectNodeID, record.MessageSeq, record.MessageID, record.ClientSeq, record.ClientMsgNo, record.FramesBeforeAck, msg.FromUID, msg.ClientMsgNo, string(msg.Payload))
-			require.Equalf(t, record.SenderUID, msg.FromUID, "replica sender mismatch node=%d worker=%d iteration=%d message_seq=%d client_msg_no=%s", app.cfg.Node.ID, record.Worker, record.Iteration, record.MessageSeq, record.ClientMsgNo)
-			require.Equalf(t, record.ClientMsgNo, msg.ClientMsgNo, "replica client_msg_no mismatch node=%d worker=%d iteration=%d message_seq=%d client_msg_no=%s replica_client_msg_no=%s", app.cfg.Node.ID, record.Worker, record.Iteration, record.MessageSeq, record.ClientMsgNo, msg.ClientMsgNo)
-			require.Equalf(t, record.ChannelID, msg.ChannelID, "replica channel mismatch node=%d worker=%d iteration=%d message_seq=%d client_msg_no=%s", app.cfg.Node.ID, record.Worker, record.Iteration, record.MessageSeq, record.ClientMsgNo)
-			require.Equalf(t, record.ChannelType, msg.ChannelType, "replica channel type mismatch node=%d worker=%d iteration=%d message_seq=%d client_msg_no=%s", app.cfg.Node.ID, record.Worker, record.Iteration, record.MessageSeq, record.ClientMsgNo)
-			require.Equalf(t, record.MessageSeq, msg.MessageSeq, "replica message_seq mismatch node=%d worker=%d iteration=%d client_msg_no=%s", app.cfg.Node.ID, record.Worker, record.Iteration, record.ClientMsgNo)
-		}
-		verificationCount++
-	}
-
-	t.Logf("send stress durable verification: verification_count=%d verification_failures=%d", verificationCount, 0)
-}
-
-func runSendStressClient(t *testing.T, app *App, senderUID string, cfg sendStressConfig) net.Conn {
-	t.Helper()
-	require.NotNil(t, app)
-	require.NotEmpty(t, senderUID)
-	require.NotZero(t, cfg.DialTimeout)
-
-	conn, err := dialSendStressClient(app, senderUID, cfg)
-	require.NoError(t, err)
-	return conn
-}
-
-func dialSendStressClient(app *App, senderUID string, cfg sendStressConfig) (net.Conn, error) {
-	conn, err := net.DialTimeout("tcp", app.Gateway().ListenerAddr("tcp-wkproto"), cfg.DialTimeout)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := writeSendStressFrame(conn, &frame.ConnectPacket{
-		Version:         frame.LatestVersion,
-		UID:             senderUID,
-		DeviceID:        senderUID + "-stress-device",
-		DeviceFlag:      frame.APP,
-		ClientTimestamp: time.Now().UnixMilli(),
-	}, cfg.DialTimeout); err != nil {
-		_ = conn.Close()
-		return nil, err
-	}
-
-	f, err := readSendStressFrameWithin(conn, cfg.AckTimeout)
-	if err != nil {
-		_ = conn.Close()
-		return nil, err
-	}
-	connack, ok := f.(*frame.ConnackPacket)
-	if !ok {
-		_ = conn.Close()
-		return nil, fmt.Errorf("expected *frame.ConnackPacket, got %T", f)
-	}
-	if connack.ReasonCode != frame.ReasonSuccess {
-		_ = conn.Close()
-		return nil, fmt.Errorf("connect failed with reason %s", connack.ReasonCode)
-	}
-	return conn, nil
-}
-
 func writeSendStressClientFrame(client sendStressWorkerClient, f frame.Frame, timeout time.Duration) error {
 	if client.writeMu == nil {
 		return writeSendStressFrame(client.conn, f, timeout)
@@ -2353,42 +1719,15 @@ func readSendStressFrameWithin(conn net.Conn, timeout time.Duration) (frame.Fram
 	return f, nil
 }
 
-func waitForSendStressSendack(client sendStressWorkerClient, timeout time.Duration) (*frame.SendackPacket, []string, error) {
-	deadline := time.Now().Add(timeout)
-	framesBeforeAck := make([]string, 0, 2)
-	for {
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			return nil, framesBeforeAck, fmt.Errorf("timed out waiting for sendack")
-		}
-
-		f, err := readSendStressClientFrame(client, remaining)
-		if err != nil {
-			return nil, framesBeforeAck, err
-		}
-
-		switch pkt := f.(type) {
-		case *frame.SendackPacket:
-			return pkt, framesBeforeAck, nil
-		case *frame.RecvPacket:
-			framesBeforeAck = append(framesBeforeAck, fmt.Sprintf("recv(message_id=%d,message_seq=%d,client_seq=%d,client_msg_no=%s,payload=%q)", pkt.MessageID, pkt.MessageSeq, pkt.ClientSeq, pkt.ClientMsgNo, string(pkt.Payload)))
-			if err := writeSendStressClientFrame(client, &frame.RecvackPacket{
-				MessageID:  pkt.MessageID,
-				MessageSeq: pkt.MessageSeq,
-			}, remaining); err != nil {
-				return nil, framesBeforeAck, err
-			}
-		default:
-			return nil, framesBeforeAck, fmt.Errorf("unexpected frame while waiting for sendack: %T", f)
-		}
-	}
+func isSendStressClosedConnError(err error) bool {
+	return errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, io.ErrClosedPipe)
 }
 
 func runContinuousSendStressAckServer(conn net.Conn) error {
 	for {
 		f, err := readSendStressFrameWithin(conn, 5*time.Second)
 		if err != nil {
-			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+			if isSendStressClosedConnError(err) {
 				return nil
 			}
 			var netErr net.Error
@@ -2408,7 +1747,7 @@ func runContinuousSendStressAckServer(conn net.Conn) error {
 			MessageID:   int64(1000 + send.ClientSeq),
 			MessageSeq:  send.ClientSeq,
 		}, time.Second); err != nil {
-			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+			if isSendStressClosedConnError(err) {
 				return nil
 			}
 			return err
