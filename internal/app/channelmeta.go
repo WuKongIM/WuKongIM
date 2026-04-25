@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	channelreplica "github.com/WuKongIM/WuKongIM/pkg/channel/replica"
@@ -74,6 +75,52 @@ type channelMetaSync struct {
 	repairer     channelMetaRepairer
 
 	lastHashSlotTableVersion uint64
+}
+
+type channelActivationCache struct {
+	runtimechannelmeta.ActivationCache
+}
+
+func (c *channelActivationCache) loadPositive(key channel.ChannelKey, now time.Time) (channel.Meta, bool) {
+	if c == nil {
+		return channel.Meta{}, false
+	}
+	return c.ActivationCache.LoadPositive(key, now)
+}
+
+func (c *channelActivationCache) storePositive(key channel.ChannelKey, meta channel.Meta, now time.Time) {
+	if c == nil {
+		return
+	}
+	c.ActivationCache.StorePositive(key, meta, now)
+}
+
+func (c *channelActivationCache) loadNegative(key channel.ChannelKey, now time.Time) error {
+	if c == nil {
+		return nil
+	}
+	return c.ActivationCache.LoadNegative(key, now)
+}
+
+func (c *channelActivationCache) storeNegative(key channel.ChannelKey, err error, now time.Time) {
+	if c == nil {
+		return
+	}
+	c.ActivationCache.StoreNegative(key, err, now)
+}
+
+func (c *channelActivationCache) runSingleflight(key channel.ChannelKey, fn func() (channel.Meta, error)) (channel.Meta, error) {
+	if c == nil {
+		return fn()
+	}
+	return c.ActivationCache.RunSingleflight(key, fn)
+}
+
+func (c *channelActivationCache) clear() {
+	if c == nil {
+		return
+	}
+	c.ActivationCache.Clear()
 }
 
 func newMemoryGenerationStore() *memoryGenerationStore {
