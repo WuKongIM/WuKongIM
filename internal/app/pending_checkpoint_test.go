@@ -383,7 +383,6 @@ type blockedCheckpointCoordinator struct {
 	engineField  reflect.Value
 	previous     reflect.Value
 	restoreOnce  sync.Once
-	releaseOnce  sync.Once
 	shutdownOnce sync.Once
 }
 
@@ -457,12 +456,6 @@ func installBlockedCheckpointCoordinator(t *testing.T, engine *channelstore.Engi
 	}()
 
 	return blocked
-}
-
-func (b *blockedCheckpointCoordinator) release() {
-	b.releaseOnce.Do(func() {
-		close(b.releaseFirst)
-	})
 }
 
 func (b *blockedCheckpointCoordinator) shutdown(t *testing.T) {

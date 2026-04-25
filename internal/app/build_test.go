@@ -311,25 +311,6 @@ func normalizeConversationFactsBatchCalls(calls []conversationFactsBatchCall) []
 	return out
 }
 
-func appRuntimeStringField(t *testing.T, appRuntime any, structField, name string) string {
-	t.Helper()
-
-	value := reflect.ValueOf(appRuntime)
-	if value.Kind() != reflect.Pointer || value.IsNil() {
-		t.Fatalf("runtime is %s, want non-nil pointer", value.Kind())
-	}
-	cfgField := value.Elem().FieldByName(structField)
-	if !cfgField.IsValid() {
-		t.Fatalf("runtime missing %s field", structField)
-	}
-	cfg := reflect.NewAt(cfgField.Type(), unsafe.Pointer(cfgField.UnsafeAddr())).Elem()
-	field := cfg.FieldByName(name)
-	if !field.IsValid() {
-		t.Fatalf("runtime config missing %s field", name)
-	}
-	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().String()
-}
-
 func appRuntimeIntField(t *testing.T, appRuntime any, structField, name string) int {
 	t.Helper()
 
@@ -366,20 +347,6 @@ func appRuntimeDurationField(t *testing.T, appRuntime any, structField, name str
 		t.Fatalf("runtime config missing %s field", name)
 	}
 	return time.Duration(reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Int())
-}
-
-func appTransportStringField(t *testing.T, transport any, name string) string {
-	t.Helper()
-
-	value := reflect.ValueOf(transport)
-	if value.Kind() != reflect.Pointer || value.IsNil() {
-		t.Fatalf("transport is %s, want non-nil pointer", value.Kind())
-	}
-	field := value.Elem().FieldByName(name)
-	if !field.IsValid() {
-		t.Fatalf("transport missing %s field", name)
-	}
-	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().String()
 }
 
 func appTransportIntField(t *testing.T, transport any, name string) int {

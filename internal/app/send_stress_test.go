@@ -1536,10 +1536,6 @@ func filterSendStressEnv(env []string) []string {
 	return filtered
 }
 
-func preloadSendStressChannels(t *testing.T, harness *threeNodeAppHarness, leader *App, cfg sendStressConfig, minISR int) []sendStressTarget {
-	return preloadSendStressTargets(t, harness, leader, cfg, minISR, sendStressScenarioMultiTarget)
-}
-
 func preloadSendStressTargets(t *testing.T, harness *threeNodeAppHarness, leader *App, cfg sendStressConfig, minISR int, scenario sendStressScenario) []sendStressTarget {
 	t.Helper()
 	require.NotNil(t, harness)
@@ -2384,107 +2380,6 @@ func waitForSendStressSendack(client sendStressWorkerClient, timeout time.Durati
 			}
 		default:
 			return nil, framesBeforeAck, fmt.Errorf("unexpected frame while waiting for sendack: %T", f)
-		}
-	}
-}
-
-func runScriptedSendStressAckServer(conn net.Conn, expected int, started chan<- struct{}, releaseAcks <-chan struct{}, maxInflightBeforeRelease *atomic.Int64) error {
-	type ackEnvelope struct {
-		packet *frame.SendackPacket
-	}
-
-	acks := make(chan ackEnvelope, expected)
-	readerErrCh := make(chan error, 1)
-	var currentInflight atomic.Int64
-	var releaseObserved atomic.Bool
-
-	go func() {
-		for i := 0; i < expected; i++ {
-			f, err := readSendStressFrameWithin(conn, 5*time.Second)
-			if err != nil {
-				readerErrCh <- err
-				close(acks)
-				return
-			}
-			send, ok := f.(*frame.SendPacket)
-			if !ok {
-				readerErrCh <- fmt.Errorf("expected *frame.SendPacket, got %T", f)
-				close(acks)
-				return
-			}
-			inflight := currentInflight.Add(1)
-			if maxInflightBeforeRelease != nil && !releaseObserved.Load() {
-				for {
-					prev := maxInflightBeforeRelease.Load()
-					if inflight <= prev || maxInflightBeforeRelease.CompareAndSwap(prev, inflight) {
-						break
-					}
-				}
-			}
-			if !releaseObserved.Load() {
-				select {
-				case started <- struct{}{}:
-				default:
-				}
-			}
-			acks <- ackEnvelope{
-				packet: &frame.SendackPacket{
-					ClientSeq:   send.ClientSeq,
-					ClientMsgNo: send.ClientMsgNo,
-					ReasonCode:  frame.ReasonSuccess,
-					MessageID:   int64(1000 + send.ClientSeq),
-					MessageSeq:  send.ClientSeq,
-				},
-			}
-		}
-		close(acks)
-		readerErrCh <- nil
-	}()
-
-	pending := make([]ackEnvelope, 0, expected)
-	released := false
-	flushPending := func() error {
-		for len(pending) > 0 {
-			env := pending[0]
-			pending = pending[1:]
-			if err := writeSendStressFrame(conn, env.packet, 5*time.Second); err != nil {
-				return err
-			}
-			currentInflight.Add(-1)
-		}
-		return nil
-	}
-
-	releaseCh := releaseAcks
-	for {
-		select {
-		case env, ok := <-acks:
-			if !ok {
-				if !released && releaseCh != nil {
-					<-releaseCh
-					releaseCh = nil
-					released = true
-				}
-				if err := flushPending(); err != nil {
-					return err
-				}
-				return <-readerErrCh
-			}
-			if released {
-				if err := writeSendStressFrame(conn, env.packet, 5*time.Second); err != nil {
-					return err
-				}
-				currentInflight.Add(-1)
-				continue
-			}
-			pending = append(pending, env)
-		case <-releaseCh:
-			releaseObserved.Store(true)
-			released = true
-			releaseCh = nil
-			if err := flushPending(); err != nil {
-				return err
-			}
 		}
 	}
 }

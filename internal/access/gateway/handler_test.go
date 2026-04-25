@@ -648,14 +648,6 @@ func requireSendackPacket(t *testing.T, f frame.Frame) *frame.SendackPacket {
 	return ack
 }
 
-func requireRecvPacket(t *testing.T, f frame.Frame) *frame.RecvPacket {
-	t.Helper()
-
-	recv, ok := f.(*frame.RecvPacket)
-	require.True(t, ok, "expected *frame.RecvPacket, got %T", f)
-	return recv
-}
-
 func setEncryptedSession(sess gatewaysession.Session, keys wkprotoenc.SessionKeys) {
 	sess.SetValue(coregateway.SessionValueEncryptionEnabled, true)
 	sess.SetValue(coregateway.SessionValueAESKey, append([]byte(nil), keys.AESKey...))

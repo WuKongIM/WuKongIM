@@ -451,12 +451,3 @@ func readSendackPacketVersion(t *testing.T, conn net.Conn, version uint8) *frame
 	require.True(t, ok, "expected *frame.SendackPacket, got %T", f)
 	return ack
 }
-
-func readRecvPacket(t *testing.T, conn net.Conn) *frame.RecvPacket {
-	t.Helper()
-
-	f := readWKProtoFrame(t, conn)
-	recv, ok := f.(*frame.RecvPacket)
-	require.True(t, ok, "expected *frame.RecvPacket, got %T", f)
-	return recv
-}

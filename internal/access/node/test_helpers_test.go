@@ -27,13 +27,6 @@ func mustEncodeFrame(t *testing.T, f frame.Frame) []byte {
 	return body
 }
 
-func mustDecodeDeliveryResponse(t *testing.T, body []byte) deliveryResponse {
-	t.Helper()
-	resp, err := decodeDeliveryResponse(body)
-	require.NoError(t, err)
-	return resp
-}
-
 func mustDecodeDeliveryPushResponse(t *testing.T, body []byte) deliveryPushResponse {
 	t.Helper()
 	resp, err := decodeDeliveryPushResponse(body)

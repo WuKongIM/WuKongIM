@@ -89,12 +89,6 @@ type subscriberListCall struct {
 	limit       int
 }
 
-type subscriberPage struct {
-	uids       []string
-	nextCursor string
-	done       bool
-}
-
 func (f *fakeSubscriberStore) SnapshotChannelSubscribers(_ context.Context, channelID string, channelType int64) ([]string, error) {
 	f.snapshotCalls = append(f.snapshotCalls, subscriberSnapshotCall{
 		channelID:   channelID,

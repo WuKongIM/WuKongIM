@@ -791,14 +791,6 @@ func (d *recordingDelivery) Deliver(recipients []online.OnlineConn, f frame.Fram
 	return nil
 }
 
-type failingDelivery struct {
-	err error
-}
-
-func (d failingDelivery) Deliver([]online.OnlineConn, frame.Frame) error {
-	return d.err
-}
-
 type fakeRecipientDirectory struct {
 	endpointsByUID map[string][]Endpoint
 	err            error
@@ -835,22 +827,6 @@ func (d *recordingCommittedDispatcher) SubmitCommitted(_ context.Context, env de
 }
 
 type deliveryEnvelopeRecord = deliveryruntime.CommittedEnvelope
-
-type failingRemoteDelivery struct {
-	err error
-}
-
-func (d failingRemoteDelivery) DeliverRemote(context.Context, RemoteDeliveryCommand) error {
-	return d.err
-}
-
-func requireRecvPacket(t *testing.T, f frame.Frame) *frame.RecvPacket {
-	t.Helper()
-
-	recv, ok := f.(*frame.RecvPacket)
-	require.True(t, ok, "expected *frame.RecvPacket, got %T", f)
-	return recv
-}
 
 type fakeIdentityStore struct{}
 
