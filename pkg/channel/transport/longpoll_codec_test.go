@@ -101,6 +101,9 @@ func TestLongPollFetchResponseTimedOutRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encodeLongPollFetchResponse() error = %v", err)
 	}
+	if data[0] != longPollResponseCodecVer {
+		t.Fatalf("long-poll response version = %d, want %d", data[0], longPollResponseCodecVer)
+	}
 	got, err := decodeLongPollFetchResponse(data)
 	if err != nil {
 		t.Fatalf("decodeLongPollFetchResponse() error = %v", err)
@@ -143,8 +146,8 @@ func TestLongPollFetchResponseMixedItemsRoundTrip(t *testing.T) {
 				Flags:        LongPollItemFlagData,
 				LeaderHW:     51,
 				Records: []channel.Record{
-					{Payload: []byte("one"), SizeBytes: 3},
-					{Payload: []byte("two"), SizeBytes: 3},
+					{ID: 201, Index: 50, Epoch: 10, Payload: []byte("one"), SizeBytes: 3},
+					{ID: 202, Index: 51, Epoch: 10, Payload: []byte("two"), SizeBytes: 3},
 				},
 			},
 			{
@@ -251,7 +254,11 @@ func assertLongPollItemEqual(t *testing.T, got, want LongPollItem, idx int) {
 		t.Fatalf("item[%d] record len = %d, want %d", idx, len(got.Records), len(want.Records))
 	}
 	for j := range got.Records {
-		if got.Records[j].SizeBytes != want.Records[j].SizeBytes || string(got.Records[j].Payload) != string(want.Records[j].Payload) {
+		if got.Records[j].ID != want.Records[j].ID ||
+			got.Records[j].Index != want.Records[j].Index ||
+			got.Records[j].Epoch != want.Records[j].Epoch ||
+			got.Records[j].SizeBytes != want.Records[j].SizeBytes ||
+			string(got.Records[j].Payload) != string(want.Records[j].Payload) {
 			t.Fatalf("item[%d].record[%d] = %+v, want %+v", idx, j, got.Records[j], want.Records[j])
 		}
 	}

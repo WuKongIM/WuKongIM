@@ -27,6 +27,82 @@ func TestChannelStoreAppendsAndReadsRecords(t *testing.T) {
 	require.Equal(t, []byte("a"), mustDecodeStoreMessage(t, records[0].Payload).Payload)
 }
 
+func TestChannelStoreReadReturnsLogEntryHeaders(t *testing.T) {
+	st := newTestChannelStore(t)
+	firstPayload := mustEncodeStoreMessage(t, channel.Message{
+		MessageID:   41,
+		ClientMsgNo: "c-1",
+		FromUID:     "u1",
+		ChannelID:   st.id.ID,
+		ChannelType: st.id.Type,
+		Payload:     []byte("one"),
+	})
+	secondPayload := mustEncodeStoreMessage(t, channel.Message{
+		MessageID:   42,
+		ClientMsgNo: "c-2",
+		FromUID:     "u2",
+		ChannelID:   st.id.ID,
+		ChannelType: st.id.Type,
+		Payload:     []byte("two"),
+	})
+
+	base, err := st.Append([]channel.Record{
+		{ID: 41, Payload: firstPayload, SizeBytes: len(firstPayload)},
+		{ID: 42, Payload: secondPayload, SizeBytes: len(secondPayload)},
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), base)
+
+	records, err := st.Read(0, 1024)
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	require.Equal(t, uint64(41), records[0].ID)
+	require.Equal(t, uint64(1), records[0].Index)
+	require.Equal(t, uint64(42), records[1].ID)
+	require.Equal(t, uint64(2), records[1].Index)
+}
+
+func TestChannelStoreApplyFetchRejectsMismatchedRecordIndex(t *testing.T) {
+	st := newTestChannelStore(t)
+	payload := mustEncodeStoreMessage(t, channel.Message{
+		MessageID:   51,
+		ClientMsgNo: "c-1",
+		FromUID:     "u1",
+		ChannelID:   st.id.ID,
+		ChannelType: st.id.Type,
+		Payload:     []byte("one"),
+	})
+
+	_, err := st.StoreApplyFetch(channel.ApplyFetchStoreRequest{
+		Records: []channel.Record{{
+			ID:        51,
+			Index:     2,
+			Payload:   payload,
+			SizeBytes: len(payload),
+		}},
+	})
+	require.ErrorIs(t, err, channel.ErrCorruptState)
+}
+
+func TestChannelStoreAppendRejectsMismatchedRecordID(t *testing.T) {
+	st := newTestChannelStore(t)
+	payload := mustEncodeStoreMessage(t, channel.Message{
+		MessageID:   61,
+		ClientMsgNo: "c-1",
+		FromUID:     "u1",
+		ChannelID:   st.id.ID,
+		ChannelType: st.id.Type,
+		Payload:     []byte("one"),
+	})
+
+	_, err := st.Append([]channel.Record{{
+		ID:        62,
+		Payload:   payload,
+		SizeBytes: len(payload),
+	}})
+	require.ErrorIs(t, err, channel.ErrCorruptState)
+}
+
 func TestChannelStoreExposesStructuredQueryAPIs(t *testing.T) {
 	st := newTestChannelStore(t)
 

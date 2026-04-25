@@ -17,9 +17,9 @@ const (
 	RPCServiceReconcileProbe uint8 = 34
 
 	fetchRequestCodecVersion  byte = 1
-	fetchResponseCodecVersion byte = 1
+	fetchResponseCodecVersion byte = 2
 	longPollRequestCodecVer   byte = 1
-	longPollResponseCodecVer  byte = 1
+	longPollResponseCodecVer  byte = 2
 	reconcileProbeCodecVer    byte = 1
 	reconcileProbeRespVer     byte = 1
 )
@@ -122,13 +122,7 @@ func encodeFetchResponse(resp runtime.FetchResponseEnvelope) ([]byte, error) {
 		return nil, err
 	}
 	for _, record := range resp.Records {
-		if err := binary.Write(buf, binary.BigEndian, int64(record.SizeBytes)); err != nil {
-			return nil, err
-		}
-		if err := binary.Write(buf, binary.BigEndian, uint32(len(record.Payload))); err != nil {
-			return nil, err
-		}
-		if _, err := buf.Write(record.Payload); err != nil {
+		if err := writeRecord(buf, record); err != nil {
 			return nil, err
 		}
 	}
@@ -176,27 +170,63 @@ func decodeFetchResponse(data []byte) (runtime.FetchResponseEnvelope, error) {
 	}
 	resp.Records = make([]channel.Record, 0, count)
 	for i := uint32(0); i < count; i++ {
-		var sizeBytes int64
-		if err := binary.Read(rd, binary.BigEndian, &sizeBytes); err != nil {
+		record, err := readRecord(rd)
+		if err != nil {
 			return runtime.FetchResponseEnvelope{}, err
 		}
-		var payloadLen uint32
-		if err := binary.Read(rd, binary.BigEndian, &payloadLen); err != nil {
-			return runtime.FetchResponseEnvelope{}, err
-		}
-		recordPayload := make([]byte, payloadLen)
-		if _, err := io.ReadFull(rd, recordPayload); err != nil {
-			return runtime.FetchResponseEnvelope{}, err
-		}
-		resp.Records = append(resp.Records, channel.Record{
-			Payload:   recordPayload,
-			SizeBytes: int(sizeBytes),
-		})
+		resp.Records = append(resp.Records, record)
 	}
 	if rd.Len() != 0 {
 		return runtime.FetchResponseEnvelope{}, fmt.Errorf("channeltransport: trailing fetch response payload bytes")
 	}
 	return resp, nil
+}
+
+func writeRecord(buf *bytes.Buffer, record channel.Record) error {
+	if err := binary.Write(buf, binary.BigEndian, record.ID); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.BigEndian, record.Index); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.BigEndian, record.Epoch); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.BigEndian, int64(record.SizeBytes)); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.BigEndian, uint32(len(record.Payload))); err != nil {
+		return err
+	}
+	_, err := buf.Write(record.Payload)
+	return err
+}
+
+func readRecord(rd *bytes.Reader) (channel.Record, error) {
+	var record channel.Record
+	if err := binary.Read(rd, binary.BigEndian, &record.ID); err != nil {
+		return channel.Record{}, err
+	}
+	if err := binary.Read(rd, binary.BigEndian, &record.Index); err != nil {
+		return channel.Record{}, err
+	}
+	if err := binary.Read(rd, binary.BigEndian, &record.Epoch); err != nil {
+		return channel.Record{}, err
+	}
+	var sizeBytes int64
+	if err := binary.Read(rd, binary.BigEndian, &sizeBytes); err != nil {
+		return channel.Record{}, err
+	}
+	var payloadLen uint32
+	if err := binary.Read(rd, binary.BigEndian, &payloadLen); err != nil {
+		return channel.Record{}, err
+	}
+	record.Payload = make([]byte, payloadLen)
+	if _, err := io.ReadFull(rd, record.Payload); err != nil {
+		return channel.Record{}, err
+	}
+	record.SizeBytes = int(sizeBytes)
+	return record, nil
 }
 
 func encodeReconcileProbeRequest(req runtime.ReconcileProbeRequestEnvelope) ([]byte, error) {

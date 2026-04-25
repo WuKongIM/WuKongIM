@@ -122,7 +122,19 @@ type ChannelRuntimeStatus struct {
 }
 
 type Record struct {
-	Payload   []byte
+	// ID is the message id carried by this channel log entry.
+	// Append drafts may set ID before the log index is assigned; fetched records
+	// must preserve it so followers can validate and persist the same message id.
+	ID uint64
+	// Index is the 1-based channel log index. For message entries it is exactly
+	// the message sequence exposed to clients.
+	Index uint64
+	// Epoch is the channel epoch that produced this log entry. Existing stores may
+	// leave it zero when epoch ownership is represented by epoch history ranges.
+	Epoch uint64
+	// Payload is the encoded durable message body.
+	Payload []byte
+	// SizeBytes is the encoded entry size used for batching and fetch budgets.
 	SizeBytes int
 }
 

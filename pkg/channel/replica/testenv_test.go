@@ -36,8 +36,11 @@ func (f *fakeLogStore) Append(records []channel.Record) (uint64, error) {
 	f.appendCount++
 	base := f.leo
 	for _, record := range records {
-		f.records = append(f.records, cloneRecord(record))
 		f.leo++
+		if record.Index == 0 {
+			record.Index = f.leo
+		}
+		f.records = append(f.records, cloneRecord(record))
 	}
 	if f.appendSignal != nil {
 		select {

@@ -161,11 +161,19 @@ func structuredRowsFromCompatibilityRecords(startSeq uint64, records []channel.R
 
 	rows := make([]messageRow, 0, len(records))
 	for i, record := range records {
+		expectedSeq := startSeq + uint64(i)
+		if record.Index != 0 && record.Index != expectedSeq {
+			return nil, channel.ErrCorruptState
+		}
+
 		row, err := decodeCompatibilityRecordPayload(record.Payload)
 		if err != nil {
 			return nil, err
 		}
-		row.MessageSeq = startSeq + uint64(i)
+		if record.ID != 0 && record.ID != row.MessageID {
+			return nil, channel.ErrCorruptState
+		}
+		row.MessageSeq = expectedSeq
 		rows = append(rows, row)
 	}
 	return rows, nil
@@ -179,6 +187,8 @@ func compatibilityRecordsFromRows(rows []messageRow) ([]channel.Record, error) {
 		if err != nil {
 			return nil, err
 		}
+		record.ID = row.MessageID
+		record.Index = row.MessageSeq
 		records = append(records, record)
 	}
 	return records, nil

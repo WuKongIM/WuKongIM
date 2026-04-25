@@ -23,6 +23,9 @@ func TestAppendUsesRuntimeKeyAndReturnsMessageSeq(t *testing.T) {
 		},
 	}
 	handle.appendFn = func(_ context.Context, records []core.Record) (core.CommitResult, error) {
+		if len(records) != 1 || records[0].ID != 1 {
+			t.Fatalf("append record headers = %+v, want generated message id 1", records)
+		}
 		base, err := store.Append(records)
 		if err != nil {
 			return core.CommitResult{}, err

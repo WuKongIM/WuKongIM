@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 )
@@ -238,13 +237,7 @@ func encodeLongPollFetchResponse(resp LongPollFetchResponse) ([]byte, error) {
 			return nil, err
 		}
 		for _, record := range item.Records {
-			if err := binary.Write(buf, binary.BigEndian, int64(record.SizeBytes)); err != nil {
-				return nil, err
-			}
-			if err := binary.Write(buf, binary.BigEndian, uint32(len(record.Payload))); err != nil {
-				return nil, err
-			}
-			if _, err := buf.Write(record.Payload); err != nil {
+			if err := writeRecord(buf, record); err != nil {
 				return nil, err
 			}
 		}
@@ -327,22 +320,11 @@ func decodeLongPollFetchResponse(data []byte) (LongPollFetchResponse, error) {
 		}
 		item.Records = make([]channel.Record, 0, recordCount)
 		for j := uint32(0); j < recordCount; j++ {
-			var sizeBytes int64
-			if err := binary.Read(rd, binary.BigEndian, &sizeBytes); err != nil {
+			record, err := readRecord(rd)
+			if err != nil {
 				return LongPollFetchResponse{}, err
 			}
-			var payloadLen uint32
-			if err := binary.Read(rd, binary.BigEndian, &payloadLen); err != nil {
-				return LongPollFetchResponse{}, err
-			}
-			payload := make([]byte, payloadLen)
-			if _, err := io.ReadFull(rd, payload); err != nil {
-				return LongPollFetchResponse{}, err
-			}
-			item.Records = append(item.Records, channel.Record{
-				Payload:   payload,
-				SizeBytes: int(sizeBytes),
-			})
+			item.Records = append(item.Records, record)
 		}
 		resp.Items = append(resp.Items, item)
 	}

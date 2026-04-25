@@ -64,14 +64,17 @@ func TestFetchResponseCodecRoundTrip(t *testing.T) {
 		TruncateTo: &truncateTo,
 		LeaderHW:   12,
 		Records: []channel.Record{
-			{Payload: []byte("a"), SizeBytes: 1},
-			{Payload: []byte("bc"), SizeBytes: 2},
+			{ID: 101, Index: 10, Epoch: 3, Payload: []byte("a"), SizeBytes: 1},
+			{ID: 102, Index: 11, Epoch: 3, Payload: []byte("bc"), SizeBytes: 2},
 		},
 	}
 
 	data, err := encodeFetchResponse(resp)
 	if err != nil {
 		t.Fatalf("encodeFetchResponse() error = %v", err)
+	}
+	if data[0] != fetchResponseCodecVersion {
+		t.Fatalf("fetch response version = %d, want %d", data[0], fetchResponseCodecVersion)
 	}
 	got, err := decodeFetchResponse(data)
 	if err != nil {
@@ -83,7 +86,11 @@ func TestFetchResponseCodecRoundTrip(t *testing.T) {
 	if got.TruncateTo == nil || *got.TruncateTo != truncateTo {
 		t.Fatalf("TruncateTo = %+v, want %d", got.TruncateTo, truncateTo)
 	}
-	if len(got.Records) != len(resp.Records) || string(got.Records[1].Payload) != "bc" {
+	if len(got.Records) != len(resp.Records) ||
+		got.Records[1].ID != 102 ||
+		got.Records[1].Index != 11 ||
+		got.Records[1].Epoch != 3 ||
+		string(got.Records[1].Payload) != "bc" {
 		t.Fatalf("records = %+v, want %+v", got.Records, resp.Records)
 	}
 }

@@ -48,6 +48,10 @@ func (r *replica) ApplyFetch(_ context.Context, req channel.ReplicaApplyFetchReq
 	}
 
 	if len(req.Records) > 0 {
+		if err := validateFetchedRecordIndexes(req.Records, leo+1); err != nil {
+			r.mu.Unlock()
+			return err
+		}
 		rangeStart := leo + 1
 		rangeEnd := leo + uint64(len(req.Records))
 		if len(r.epochHistory) == 0 || r.epochHistory[len(r.epochHistory)-1].Epoch != req.Epoch {
@@ -179,5 +183,15 @@ func (r *replica) ApplyFetch(_ context.Context, req channel.ReplicaApplyFetchReq
 	r.state.OffsetEpoch = offsetEpochForLEO(r.epochHistory, leo)
 	r.publishStateLocked()
 	r.mu.Unlock()
+	return nil
+}
+
+func validateFetchedRecordIndexes(records []channel.Record, firstIndex uint64) error {
+	for i, record := range records {
+		expected := firstIndex + uint64(i)
+		if record.Index != expected {
+			return channel.ErrCorruptState
+		}
+	}
 	return nil
 }

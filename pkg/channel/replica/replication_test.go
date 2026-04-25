@@ -14,11 +14,24 @@ func TestApplyFetchAdvancesCheckpointToMinLeaderHWAndLEO(t *testing.T) {
 		ChannelKey: "group-10",
 		Epoch:      7,
 		Leader:     1,
-		Records:    []channel.Record{{Payload: []byte("a"), SizeBytes: 1}},
+		Records:    []channel.Record{{Index: 1, Payload: []byte("a"), SizeBytes: 1}},
 		LeaderHW:   10,
 	})
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), env.checkpoints.lastStored().HW)
+}
+
+func TestApplyFetchRejectsNonContiguousRecordIndex(t *testing.T) {
+	env := newFollowerEnv(t)
+	err := env.replica.ApplyFetch(context.Background(), channel.ReplicaApplyFetchRequest{
+		ChannelKey: "group-10",
+		Epoch:      7,
+		Leader:     1,
+		Records:    []channel.Record{{Index: 2, Payload: []byte("a"), SizeBytes: 1}},
+		LeaderHW:   2,
+	})
+	require.ErrorIs(t, err, channel.ErrCorruptState)
+	require.Zero(t, env.log.LEO())
 }
 
 func TestApplyFetchRejectsStaleEpoch(t *testing.T) {

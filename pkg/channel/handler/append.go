@@ -68,6 +68,7 @@ func (s *service) Append(ctx context.Context, req channel.AppendRequest) (channe
 	}
 
 	commit, err := group.Append(ctx, []channel.Record{{
+		ID:        draft.MessageID,
 		Payload:   encoded,
 		SizeBytes: len(encoded),
 	}})
