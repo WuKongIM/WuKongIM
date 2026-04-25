@@ -2,7 +2,7 @@
 
 ## Responsibility
 
-`internal/runtime/channelmeta` owns node-local contracts, DTOs, activation cache primitives, authoritative metadata bootstrap/lease renewal, liveness cache, and local state watcher primitives for channel runtime metadata resolver, bootstrap, liveness, and leader repair flows. The package is the migration target for channel runtime meta coordination that keeps authoritative slot metadata aligned with node-local channel runtime state.
+`internal/runtime/channelmeta` owns node-local contracts, DTOs, activation cache primitives, authoritative metadata bootstrap/lease renewal, liveness cache, local state watcher primitives, and the channel runtime metadata resolver. The resolver keeps authoritative slot metadata aligned with routing metadata and node-local channel runtime state while app remains responsible for composition.
 
 ## Cluster-First Semantics
 
@@ -21,4 +21,4 @@ Runtime-owned DTOs stay neutral. Adapter-specific RPC DTO conversion belongs at 
 
 ## Temporary Migration State
 
-Channelmeta orchestration still lives in `internal/app/channelmeta*.go` until Tasks 13-14 move resolver and repair code into this package. The activation cache, singleflight coalescing primitive, bootstrapper, leader lease renewal, liveness cache, slot refresh scheduler, and local replica state watcher now live here so app orchestration can reuse them without owning runtime metadata primitives.
+Channelmeta resolver orchestration now lives in this package. `internal/app` keeps a thin compatibility wrapper for wiring, lifecycle, and the concrete channel leader repair implementation until Task 14 moves repair behavior behind runtime-owned ports.

@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
+	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
@@ -978,30 +979,37 @@ func TestStopStopsGatewayBeforeClosingStorage(t *testing.T) {
 
 func TestStopSkipsChannelMetaCleanupBecauseClusterShutdownClosesRuntime(t *testing.T) {
 	key := channelhandler.KeyFromChannelID(channel.ChannelID{ID: "local-stop", Type: 1})
-	done := make(chan struct{})
 	cluster := &fakeChannelMetaCluster{}
+	syncer := &channelMetaSync{
+		resolver: runtimechannelmeta.NewSync(runtimechannelmeta.SyncOptions{
+			Runtime:   cluster,
+			LocalNode: 2,
+		}),
+	}
+	_, err := syncer.applyAuthoritativeMeta(metadb.ChannelRuntimeMeta{
+		ChannelID:   "local-stop",
+		ChannelType: 1,
+		Replicas:    []uint64{2},
+		ISR:         []uint64{2},
+		Leader:      2,
+		Status:      uint8(channel.StatusActive),
+	})
+	require.NoError(t, err)
 
 	app := &App{
-		channelMetaSync: &channelMetaSync{
-			cluster: cluster,
-			cancel: func() {
-				close(done)
-			},
-			done: done,
-			appliedLocal: map[channel.ChannelKey]struct{}{
-				key: {},
-			},
-		},
-		stopClusterFn: func() {},
-		closeRaftDBFn: func() error { return nil },
-		closeWKDBFn:   func() error { return nil },
+		channelMetaSync: syncer,
+		stopClusterFn:   func() {},
+		closeRaftDBFn:   func() error { return nil },
+		closeWKDBFn:     func() error { return nil },
 	}
 	app.started.Store(true)
 	app.channelMetaOn.Store(true)
 	app.clusterOn.Store(true)
 
 	require.NoError(t, app.Stop())
+	require.Equal(t, []channel.ChannelKey(nil), cluster.runtimeRemoved)
 	require.Empty(t, cluster.removed)
+	require.Equal(t, key, cluster.runtimeUpserts[0].Key)
 }
 
 func TestAppLifecycleStopsPresenceWorkerAfterGateway(t *testing.T) {

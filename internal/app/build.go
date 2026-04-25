@@ -15,6 +15,7 @@ import (
 	applifecycle "github.com/WuKongIM/WuKongIM/internal/app/lifecycle"
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
+	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/messageid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -194,10 +195,7 @@ func build(cfg Config) (_ *App, err error) {
 		}
 		return app.isrTransport.Close()
 	})
-	app.channelMetaSync = &channelMetaSync{
-		localNode:       cfg.Node.ID,
-		refreshInterval: time.Second,
-	}
+	app.channelMetaSync = &channelMetaSync{}
 	replicaFactory := newChannelReplicaFactory(app.channelLogDB, channel.NodeID(cfg.Node.ID), nil, cfg.Cluster.AppendGroupCommitMaxWait, cfg.Cluster.AppendGroupCommitMaxRecords, cfg.Cluster.AppendGroupCommitMaxBytes, app.logger.Named("channel"))
 	replicaFactory.onStateChange = app.channelMetaSync.enqueueLocalReplicaStateChange
 	app.isrRuntime, err = channelruntime.New(channelruntime.Config{
@@ -235,7 +233,6 @@ func build(cfg Config) (_ *App, err error) {
 		}
 		return app.isrRuntime.Close()
 	})
-	app.channelMetaSync.localRuntime = app.isrRuntime
 	app.channelLog, err = newAppChannelCluster(app.channelLogDB, app.isrRuntime, app.isrTransport, messageIDs, cfg.Node.ID, app.logger)
 	if err != nil {
 		return nil, fmt.Errorf("app: create channel cluster: %w", err)
@@ -283,7 +280,29 @@ func build(cfg Config) (_ *App, err error) {
 		},
 		needsRepair: app.channelMetaSync.needsLeaderRepair,
 	}
-	app.channelMetaSync.repairer = channelLeaderRepairer
+	app.channelMetaSync.resolver = runtimechannelmeta.NewSync(runtimechannelmeta.SyncOptions{
+		Source: app.store,
+		Runtime: channelMetaRuntimeAdapter{
+			routing:  app.channelLog,
+			local:    app.channelLog,
+			observer: app.isrRuntime,
+		},
+		Bootstrapper: runtimechannelmeta.NewBootstrapper(runtimechannelmeta.BootstrapOptions{
+			Cluster:       app.cluster,
+			Store:         app.store,
+			DefaultMinISR: cfg.Cluster.ChannelBootstrapDefaultMinISR,
+			Now:           time.Now,
+			Logger:        app.logger,
+		}),
+		Cluster:         app.cluster,
+		Repairer:        channelLeaderRepairer,
+		RepairPolicy:    app.channelMetaSync.needsLeaderRepair,
+		LivenessSource:  app.cluster,
+		LocalNode:       cfg.Node.ID,
+		RefreshInterval: time.Second,
+		Now:             time.Now,
+		AfterLocalApply: app.channelMetaSync.scheduleLeaderRepairForMeta,
+	})
 	app.conversationProjector = conversationusecase.NewProjector(conversationusecase.ProjectorOptions{
 		Store:              app.store,
 		FlushInterval:      cfg.Conversation.FlushInterval,
@@ -307,9 +326,6 @@ func build(cfg Config) (_ *App, err error) {
 		ChannelProbeBatchSize: cfg.Conversation.ChannelProbeBatchSize,
 		Logger:                app.logger.Named("conversation"),
 	})
-	app.channelMetaSync.source = app.store
-	app.channelMetaSync.cluster = app.channelLog
-	app.channelMetaSync.bootstrap = newChannelMetaBootstrapper(app.cluster, app.store, cfg.Cluster.ChannelBootstrapDefaultMinISR, time.Now, app.logger)
 	onlineRegistry := online.NewRegistry()
 	authorityClient := &presenceAuthorityClient{
 		cluster:     app.cluster,
