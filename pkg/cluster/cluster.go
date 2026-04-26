@@ -117,7 +117,8 @@ func NewCluster(cfg Config) (*Cluster, error) {
 		logger: defaultLogger(cfg.Logger),
 		obs:    cfg.Observer,
 		transportResources: transportResources{
-			rpcMux: transport.NewRPCMux(),
+			rpcMux:    transport.NewRPCMux(),
+			discovery: NewDynamicDiscovery(cfg.Seeds, cfg.Nodes),
 		},
 		router:   NewRouter(NewHashSlotTable(cfg.effectiveHashSlotCount(), int(cfg.effectiveInitialSlotCount())), cfg.NodeID, nil),
 		runState: newRuntimeState(),
@@ -178,6 +179,10 @@ func (c *Cluster) Start() error {
 		return err
 	}
 	c.startControllerClient()
+	if err := c.joinClusterIfConfigured(context.Background()); err != nil {
+		c.Stop()
+		return err
+	}
 	c.startObservationLoop()
 	if err := c.seedLegacySlotsIfConfigured(); err != nil {
 		c.Stop()
@@ -187,7 +192,7 @@ func (c *Cluster) Start() error {
 }
 
 func (c *Cluster) startTransportLayer() error {
-	layer := newTransportLayer(c.cfg, NewStaticDiscovery(c.cfg.Nodes), c.rpcMux)
+	layer := newTransportLayer(c.cfg, c.discovery, c.rpcMux)
 	if err := layer.Start(c.cfg.ListenAddr, c.handleRaftMessage, c.handleForwardRPC, c.handleControllerRPC, c.handleManagedSlotRPC); err != nil {
 		return err
 	}
@@ -310,7 +315,7 @@ func (c *Cluster) startControllerClient() {
 	if c.migrationWorker == nil {
 		c.migrationWorker = newHashSlotMigrationWorker()
 	}
-	client := newControllerClient(c, c.cfg.DerivedControllerNodes(), c.assignments)
+	client := newControllerClient(c, c.controllerBootstrapNodes(), c.assignments)
 	client.onLeaderChange = func(multiraft.NodeID) {
 		if c.runtimeReporter != nil {
 			c.runtimeReporter.requestFullSync()
@@ -325,6 +330,129 @@ func (c *Cluster) startControllerClient() {
 		client:  client,
 		cache:   c.assignments,
 	}
+}
+
+func (c *Cluster) joinClusterIfConfigured(ctx context.Context) error {
+	if c == nil || !c.cfg.JoinModeEnabled() || len(c.cfg.Nodes) > 0 {
+		return nil
+	}
+	if c.controllerClient == nil {
+		return ErrNotStarted
+	}
+	return c.joinClusterWithRetry(ctx)
+}
+
+func (c *Cluster) joinClusterWithRetry(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	backoff := 50 * time.Millisecond
+	maxBackoff := time.Second
+	req := joinClusterRequest{
+		NodeID:         uint64(c.cfg.NodeID),
+		Addr:           c.cfg.AdvertiseAddr,
+		CapacityWeight: 1,
+		Token:          c.cfg.JoinToken,
+		Version:        supportedJoinProtocolVersion,
+	}
+	for {
+		if c.stopped.Load() {
+			return transport.ErrStopped
+		}
+		resp, err := c.controllerClient.JoinCluster(ctx, req)
+		if err == nil {
+			_ = c.applyHashSlotTablePayload(resp.HashSlotTable)
+			c.applyClusterNodes(resp.Nodes)
+			if client, ok := c.controllerClient.(*controllerClient); ok {
+				client.UpdatePeers(c.controllerPeerIDs(resp.Nodes))
+			}
+			return nil
+		}
+		if !retryableJoinClusterError(err) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(backoff):
+		}
+		if backoff < maxBackoff {
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+		}
+	}
+}
+
+func retryableJoinClusterError(err error) bool {
+	var joinErr *joinClusterError
+	if errors.As(err, &joinErr) {
+		return joinErr.Retryable()
+	}
+	if errors.Is(err, ErrInvalidConfig) || errors.Is(err, transport.ErrStopped) {
+		return false
+	}
+	return true
+}
+
+func (c *Cluster) applyClusterNodes(nodes []controllermeta.ClusterNode) {
+	if c == nil || len(nodes) == 0 {
+		return
+	}
+	discovery, ok := c.discovery.(interface{ UpdateNodes([]NodeConfig) []uint64 })
+	if !ok {
+		return
+	}
+	configs := make([]NodeConfig, 0, len(nodes))
+	for _, node := range nodes {
+		if node.NodeID == 0 || node.Addr == "" || node.JoinState == controllermeta.NodeJoinStateRejected {
+			continue
+		}
+		configs = append(configs, NodeConfig{NodeID: multiraft.NodeID(node.NodeID), Addr: node.Addr})
+	}
+	discovery.UpdateNodes(configs)
+}
+
+func (c *Cluster) controllerBootstrapNodes() []NodeConfig {
+	if c == nil {
+		return nil
+	}
+	if len(c.cfg.Nodes) > 0 {
+		return c.cfg.DerivedControllerNodes()
+	}
+	nodes := make([]NodeConfig, 0, len(c.cfg.Seeds))
+	for _, seed := range c.cfg.Seeds {
+		nodes = append(nodes, NodeConfig{NodeID: seed.ID, Addr: seed.Addr})
+	}
+	return nodes
+}
+
+func (c *Cluster) controllerPeerIDs(nodes []controllermeta.ClusterNode) []multiraft.NodeID {
+	seen := make(map[multiraft.NodeID]struct{}, len(c.cfg.Seeds)+len(nodes))
+	out := make([]multiraft.NodeID, 0, len(c.cfg.Seeds)+len(nodes))
+	for _, seed := range c.cfg.Seeds {
+		if seed.ID == 0 {
+			continue
+		}
+		if _, ok := seen[seed.ID]; ok {
+			continue
+		}
+		seen[seed.ID] = struct{}{}
+		out = append(out, seed.ID)
+	}
+	for _, node := range nodes {
+		if node.NodeID == 0 || node.Addr == "" || node.JoinState == controllermeta.NodeJoinStateRejected {
+			continue
+		}
+		nodeID := multiraft.NodeID(node.NodeID)
+		if _, ok := seen[nodeID]; ok {
+			continue
+		}
+		seen[nodeID] = struct{}{}
+		out = append(out, nodeID)
+	}
+	return out
 }
 
 func (c *Cluster) startObservationLoop() {

@@ -144,7 +144,10 @@ func build(cfg Config) (_ *App, err error) {
 		return nil, fmt.Errorf("app: create gateway boot id: %w", err)
 	}
 
-	discovery := raftcluster.NewStaticDiscovery(cfg.Cluster.runtimeNodes())
+	discovery := app.cluster.Discovery()
+	if discovery == nil {
+		return nil, fmt.Errorf("app: cluster discovery not initialized")
+	}
 	poolSize := effectiveDataPlanePoolSize(cfg.Cluster.PoolSize, cfg.Cluster.DataPlanePoolSize)
 	dialTimeout := cfg.Cluster.DialTimeout
 	if dialTimeout <= 0 {
@@ -165,6 +168,17 @@ func build(cfg Config) (_ *App, err error) {
 		app.dataPlanePool.Close()
 		return nil
 	})
+	if dynamicDiscovery, ok := discovery.(interface {
+		OnAddressChange(func(nodeID uint64, oldAddr, newAddr string)) func()
+	}); ok {
+		cancelDiscoveryWatch := dynamicDiscovery.OnAddressChange(func(nodeID uint64, _, _ string) {
+			app.dataPlanePool.ClosePeer(nodeID)
+		})
+		cleanup.Push("data-plane discovery watch", func() error {
+			cancelDiscoveryWatch()
+			return nil
+		})
+	}
 	app.dataPlaneClient = transport.NewClient(app.dataPlanePool)
 	dataPlanePoolOwnedByClient = true
 	cleanup.Push("data-plane client", func() error {
@@ -665,6 +679,9 @@ func (c ClusterConfig) runtimeConfig(storage StorageConfig, db *metadb.DB, raftD
 		NewStateMachine:              metafsm.NewStateMachineFactory(db),
 		NewStateMachineWithHashSlots: metafsm.NewHashSlotStateMachineFactory(db),
 		Nodes:                        c.runtimeNodes(),
+		Seeds:                        c.runtimeSeeds(),
+		AdvertiseAddr:                c.AdvertiseAddr,
+		JoinToken:                    c.JoinToken,
 		ForwardTimeout:               c.ForwardTimeout,
 		PoolSize:                     c.PoolSize,
 		TickInterval:                 c.TickInterval,
@@ -695,6 +712,17 @@ func (c ClusterConfig) runtimeNodes() []raftcluster.NodeConfig {
 		})
 	}
 	return nodes
+}
+
+func (c ClusterConfig) runtimeSeeds() []raftcluster.SeedConfig {
+	seeds := make([]raftcluster.SeedConfig, 0, len(c.Seeds))
+	for i, addr := range c.Seeds {
+		seeds = append(seeds, raftcluster.SeedConfig{
+			ID:   multiraft.NodeID(^uint64(0) - uint64(i)),
+			Addr: addr,
+		})
+	}
+	return seeds
 }
 
 const conversationFetchMaxBytes = 1 << 20

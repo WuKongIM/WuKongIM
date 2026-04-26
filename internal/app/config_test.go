@@ -757,6 +757,23 @@ func TestClusterRuntimeConfigIncludesTimeoutOverrides(t *testing.T) {
 	require.Equal(t, cfg.Cluster.Timeouts, runtimeCfg.Timeouts)
 }
 
+func TestClusterRuntimeConfigIncludesDynamicJoinSettings(t *testing.T) {
+	cfg := validConfig()
+	cfg.Cluster.Seeds = []string{"wk-node1:7000", "wk-node2:7000"}
+	cfg.Cluster.AdvertiseAddr = "wk-node4:7000"
+	cfg.Cluster.JoinToken = "join-secret"
+
+	runtimeCfg := cfg.Cluster.runtimeConfig(cfg.Storage, nil, nil, cfg.Node.ID, nil)
+
+	require.Equal(t, "wk-node4:7000", runtimeCfg.AdvertiseAddr)
+	require.Equal(t, "join-secret", runtimeCfg.JoinToken)
+	require.Len(t, runtimeCfg.Seeds, 2)
+	require.Equal(t, "wk-node1:7000", runtimeCfg.Seeds[0].Addr)
+	require.Equal(t, "wk-node2:7000", runtimeCfg.Seeds[1].Addr)
+	require.NotZero(t, runtimeCfg.Seeds[0].ID)
+	require.NotEqual(t, runtimeCfg.Seeds[0].ID, runtimeCfg.Seeds[1].ID)
+}
+
 func validConfig() Config {
 	return Config{
 		Node: NodeConfig{

@@ -7,6 +7,7 @@ import (
 	"net"
 	"path/filepath"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2758,6 +2759,113 @@ func TestStartControllerClientInitializesDefaultMigrationWorker(t *testing.T) {
 	}
 	if _, ok := cluster.migrationWorker.(*slotmigration.Worker); !ok {
 		t.Fatalf("migrationWorker type = %T, want *slotmigration.Worker", cluster.migrationWorker)
+	}
+}
+
+func TestClusterStartJoinModeJoinsBeforeObservationLoops(t *testing.T) {
+	seed := transport.NewServer()
+	seedMux := transport.NewRPCMux()
+	var joinSeen atomic.Bool
+	var preJoinObservation atomic.Bool
+	table := NewHashSlotTable(8, 2)
+	table.Reassign(0, 2)
+	seedMux.Handle(rpcServiceController, func(_ context.Context, body []byte) ([]byte, error) {
+		req, err := decodeControllerRequest(body)
+		if err != nil {
+			return nil, err
+		}
+		switch req.Kind {
+		case controllerRPCJoinCluster:
+			joinSeen.Store(true)
+			if req.Join == nil || req.Join.NodeID != 4 || req.Join.Addr != "127.0.0.1:9004" || req.Join.Token != "join-secret" {
+				return encodeControllerResponse(req.Kind, controllerRPCResponse{
+					Join: joinRejection(joinErrorInvalidRequest, "unexpected join request"),
+				})
+			}
+			return encodeControllerResponse(req.Kind, controllerRPCResponse{
+				Join: &joinClusterResponse{
+					Nodes: []controllermeta.ClusterNode{
+						{
+							NodeID:         1,
+							Addr:           "127.0.0.1:9001",
+							Role:           controllermeta.NodeRoleControllerVoter,
+							JoinState:      controllermeta.NodeJoinStateActive,
+							Status:         controllermeta.NodeStatusAlive,
+							CapacityWeight: 1,
+						},
+						{
+							NodeID:         4,
+							Addr:           "127.0.0.1:9004",
+							Role:           controllermeta.NodeRoleData,
+							JoinState:      controllermeta.NodeJoinStateJoining,
+							Status:         controllermeta.NodeStatusAlive,
+							CapacityWeight: 1,
+						},
+					},
+					HashSlotTableVersion: table.Version(),
+					HashSlotTable:        table.Encode(),
+				},
+			})
+		case controllerRPCHeartbeat, controllerRPCRuntimeReport:
+			if !joinSeen.Load() {
+				preJoinObservation.Store(true)
+			}
+			return encodeControllerResponse(req.Kind, controllerRPCResponse{})
+		default:
+			return encodeControllerResponse(req.Kind, controllerRPCResponse{})
+		}
+	})
+	seed.HandleRPCMux(seedMux)
+	requireNoErr(t, seed.Start("127.0.0.1:0"))
+	t.Cleanup(seed.Stop)
+
+	cfg := validTestConfig()
+	cfg.NodeID = 4
+	cfg.ListenAddr = "127.0.0.1:0"
+	cfg.ControllerMetaPath = filepath.Join(t.TempDir(), "controller-meta")
+	cfg.ControllerRaftPath = filepath.Join(t.TempDir(), "controller-raft")
+	cfg.Nodes = nil
+	cfg.Slots = nil
+	cfg.InitialSlotCount = 2
+	cfg.SlotCount = 2
+	cfg.HashSlotCount = 8
+	cfg.ControllerReplicaN = 1
+	cfg.SlotReplicaN = 1
+	cfg.Seeds = []SeedConfig{{ID: 9001, Addr: seed.Listener().Addr().String()}}
+	cfg.AdvertiseAddr = "127.0.0.1:9004"
+	cfg.JoinToken = "join-secret"
+	cfg.Timeouts.ObservationHeartbeatInterval = time.Hour
+	cfg.Timeouts.ObservationRuntimeScanInterval = time.Hour
+	cfg.Timeouts.ObservationSlowSyncInterval = time.Hour
+	cfg.Timeouts.PlannerSafetyInterval = time.Hour
+
+	cluster, err := NewCluster(cfg)
+	if err != nil {
+		t.Fatalf("NewCluster() error = %v", err)
+	}
+	requireNoErr(t, cluster.Start())
+	t.Cleanup(cluster.Stop)
+
+	if !joinSeen.Load() {
+		t.Fatal("JoinCluster was not called")
+	}
+	if preJoinObservation.Load() {
+		t.Fatal("observation RPC happened before JoinCluster")
+	}
+	if cluster.HashSlotTableVersion() != table.Version() {
+		t.Fatalf("HashSlotTableVersion = %d, want %d", cluster.HashSlotTableVersion(), table.Version())
+	}
+	addr, err := cluster.Discovery().Resolve(4)
+	if err != nil || addr != "127.0.0.1:9004" {
+		t.Fatalf("Resolve(4) = %q, %v", addr, err)
+	}
+	client, ok := cluster.controllerClient.(*controllerClient)
+	if !ok {
+		t.Fatalf("controllerClient type = %T, want *controllerClient", cluster.controllerClient)
+	}
+	targets := client.targets()
+	if len(targets) == 0 {
+		t.Fatal("controller client targets empty after join")
 	}
 }
 

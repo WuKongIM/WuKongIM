@@ -81,7 +81,7 @@ NewCluster(cfg):
 
 Start():
   ③ startTransportLayer():
-     创建 StaticDiscovery → Server → 注册 4 个 Handler:
+     使用 Cluster-owned DynamicDiscovery → Server → 注册 4 个 Handler:
        msgTypeRaft       → handleRaftMessage
        rpcServiceForward → handleForwardRPC
        rpcServiceController → handleControllerRPC
@@ -102,7 +102,8 @@ Start():
   ⑥ startControllerClient():
      条件: ControllerEnabled()
      → newHashSlotMigrationWorker()
-     → newControllerClient(peers, cache)
+     → newControllerClient(static controller peers 或 join seeds, cache)
+     → join mode 且本节点不在静态 Nodes 中时，先 JoinCluster，成功后更新 discovery / HashSlotTable / controller client peers
      → onLeaderChange 时通知 runtimeObservationReporter.requestFullSync()
      → 创建 slotAgent{cluster, client, cache}
   ⑦ startObservationLoop():

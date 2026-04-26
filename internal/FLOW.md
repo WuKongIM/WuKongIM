@@ -120,7 +120,7 @@ New(Config):
          OnLeaderChange: 调度热 slot 的 authoritative reread
          OnNodeStatusChange: 更新 channelMetaSync.nodeLiveness cache
     ⑥ 创建 Channel Log 基础设施:
-       messageid.NewSnowflakeGenerator → dataPlanePool → dataPlaneClient
+       messageid.NewSnowflakeGenerator → dataPlanePool(复用 cluster.DynamicDiscovery) → dataPlaneClient
        → channeltransport.New → channelruntime.New → appChannelCluster
        → channeltransport.NewProbeClient（供权威 leader repair 候选评估复用 `ReconcileProbe` RPC）
        → runtime 会读取 FollowerReplicationRetryInterval；leader replica 会读取 AppendGroupCommitMaxWait/Records/Bytes；

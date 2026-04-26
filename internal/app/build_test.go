@@ -12,6 +12,7 @@ import (
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
 )
@@ -165,6 +166,32 @@ func TestBuildLongPollForwardsReplicationSettingsIntoChannelConfigs(t *testing.T
 	require.Equal(t, 2*time.Millisecond, appTransportDurationField(t, app.isrTransport, "longPollMaxWait"))
 	require.Equal(t, 128*1024, appTransportIntField(t, app.isrTransport, "longPollMaxBytes"))
 	require.Equal(t, 32, appTransportIntField(t, app.isrTransport, "longPollMaxChannels"))
+}
+
+func TestBuildWiresDataPlanePoolToClusterDiscovery(t *testing.T) {
+	cfg := testConfig(t)
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	clusterDiscovery := app.cluster.Discovery()
+	require.NotNil(t, clusterDiscovery)
+	poolDiscovery := appDataPlanePoolDiscovery(t, app)
+	require.NotNil(t, poolDiscovery)
+	require.Equal(t, reflect.ValueOf(clusterDiscovery).Pointer(), reflect.ValueOf(poolDiscovery).Pointer())
+
+	dynamic, ok := clusterDiscovery.(interface {
+		UpdateNodes([]raftcluster.NodeConfig) []uint64
+	})
+	require.True(t, ok, "cluster discovery should be mutable")
+	dynamic.UpdateNodes([]raftcluster.NodeConfig{{NodeID: 99, Addr: "127.0.0.1:9999"}})
+
+	addr, err := poolDiscovery.Resolve(99)
+	require.NoError(t, err)
+	require.Equal(t, "127.0.0.1:9999", addr)
 }
 
 func TestBuildForwardsGatewaySendTimeoutIntoHandler(t *testing.T) {
@@ -408,6 +435,34 @@ func appTransportDurationField(t *testing.T, transport any, name string) time.Du
 		t.Fatalf("transport missing %s field", name)
 	}
 	return time.Duration(reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Int())
+}
+
+func appDataPlanePoolDiscovery(t *testing.T, app *App) interface {
+	Resolve(uint64) (string, error)
+} {
+	t.Helper()
+
+	require.NotNil(t, app.dataPlanePool)
+	pool := reflect.ValueOf(app.dataPlanePool)
+	if pool.Kind() != reflect.Pointer || pool.IsNil() {
+		t.Fatalf("dataPlanePool is %s, want non-nil pointer", pool.Kind())
+	}
+	cfgField := pool.Elem().FieldByName("cfg")
+	if !cfgField.IsValid() {
+		t.Fatal("dataPlanePool missing cfg field")
+	}
+	cfg := reflect.NewAt(cfgField.Type(), unsafe.Pointer(cfgField.UnsafeAddr())).Elem()
+	discoveryField := cfg.FieldByName("Discovery")
+	if !discoveryField.IsValid() {
+		t.Fatal("dataPlanePool cfg missing Discovery field")
+	}
+	discovery, ok := discoveryField.Interface().(interface {
+		Resolve(uint64) (string, error)
+	})
+	if !ok {
+		t.Fatalf("dataPlanePool discovery type = %T", discoveryField.Interface())
+	}
+	return discovery
 }
 
 func appGatewayHandlerDurationField(t *testing.T, handler any, name string) time.Duration {

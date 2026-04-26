@@ -40,7 +40,7 @@ func (t *transportLayer) Start(
 		return ErrNotStarted
 	}
 	if t.discovery == nil {
-		t.discovery = NewStaticDiscovery(t.cfg.Nodes)
+		t.discovery = NewDynamicDiscovery(t.cfg.Seeds, t.cfg.Nodes)
 	}
 
 	t.server = transport.NewServerWithConfig(transport.ServerConfig{
@@ -74,6 +74,14 @@ func (t *transportLayer) Start(
 		DefaultPri:  transport.PriorityRPC,
 		Observer:    t.cfg.TransportObserver,
 	})
+	if dynamic, ok := t.discovery.(interface {
+		OnAddressChange(func(nodeID uint64, oldAddr, newAddr string)) func()
+	}); ok {
+		dynamic.OnAddressChange(func(nodeID uint64, _, _ string) {
+			t.raftPool.ClosePeer(nodeID)
+			t.rpcPool.ClosePeer(nodeID)
+		})
+	}
 	t.raftClient = transport.NewClient(t.raftPool)
 	t.fwdClient = transport.NewClient(t.rpcPool)
 	return nil
@@ -97,5 +105,8 @@ func (t *transportLayer) Stop() {
 	}
 	if t.server != nil {
 		t.server.Stop()
+	}
+	if t.discovery != nil {
+		t.discovery.Stop()
 	}
 }

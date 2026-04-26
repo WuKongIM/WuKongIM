@@ -156,14 +156,35 @@ func (c *Config) validate() error {
 	if c.SlotReplicaN <= 0 {
 		return fmt.Errorf("%w: SlotReplicaN must be > 0", ErrInvalidConfig)
 	}
-	if c.ControllerReplicaN > len(c.Nodes) {
-		return fmt.Errorf("%w: ControllerReplicaN=%d exceeds Nodes=%d", ErrInvalidConfig, c.ControllerReplicaN, len(c.Nodes))
-	}
-	if c.SlotReplicaN > len(c.Nodes) {
-		return fmt.Errorf("%w: SlotReplicaN=%d exceeds Nodes=%d", ErrInvalidConfig, c.SlotReplicaN, len(c.Nodes))
-	}
 	if (c.ControllerMetaPath == "") != (c.ControllerRaftPath == "") {
 		return fmt.Errorf("%w: ControllerMetaPath and ControllerRaftPath must be set together", ErrInvalidConfig)
+	}
+
+	staticCluster := len(c.Nodes) > 0
+	joinMode := !staticCluster && len(c.Seeds) > 0
+	if !staticCluster && !joinMode {
+		return fmt.Errorf("%w: Nodes or Seeds must be set", ErrInvalidConfig)
+	}
+	if staticCluster {
+		if c.ControllerReplicaN > len(c.Nodes) {
+			return fmt.Errorf("%w: ControllerReplicaN=%d exceeds Nodes=%d", ErrInvalidConfig, c.ControllerReplicaN, len(c.Nodes))
+		}
+		if c.SlotReplicaN > len(c.Nodes) {
+			return fmt.Errorf("%w: SlotReplicaN=%d exceeds Nodes=%d", ErrInvalidConfig, c.SlotReplicaN, len(c.Nodes))
+		}
+	}
+	if len(c.Seeds) > 0 {
+		if err := validateSeedConfigs(c.Seeds); err != nil {
+			return err
+		}
+	}
+	if joinMode {
+		if c.AdvertiseAddr == "" {
+			return fmt.Errorf("%w: AdvertiseAddr must be set in join mode", ErrInvalidConfig)
+		}
+		if c.JoinToken == "" {
+			return fmt.Errorf("%w: JoinToken must be set in join mode", ErrInvalidConfig)
+		}
 	}
 
 	nodeSet := make(map[multiraft.NodeID]bool, len(c.Nodes))
@@ -177,7 +198,7 @@ func (c *Config) validate() error {
 			selfFound = true
 		}
 	}
-	if !selfFound {
+	if staticCluster && !selfFound {
 		return fmt.Errorf("%w: NodeID %d not found in Nodes", ErrInvalidConfig, c.NodeID)
 	}
 
@@ -202,6 +223,28 @@ func (c *Config) validate() error {
 	}
 	if len(c.Slots) > 0 && !slotSelfFound {
 		return fmt.Errorf("%w: NodeID %d not found as peer in any slot", ErrInvalidConfig, c.NodeID)
+	}
+	return nil
+}
+
+func validateSeedConfigs(seeds []SeedConfig) error {
+	ids := make(map[multiraft.NodeID]struct{}, len(seeds))
+	addrs := make(map[string]struct{}, len(seeds))
+	for _, seed := range seeds {
+		if seed.ID == 0 {
+			return fmt.Errorf("%w: seed id must be set", ErrInvalidConfig)
+		}
+		if seed.Addr == "" {
+			return fmt.Errorf("%w: seed addr must be set", ErrInvalidConfig)
+		}
+		if _, exists := ids[seed.ID]; exists {
+			return fmt.Errorf("%w: duplicate seed id %d", ErrInvalidConfig, seed.ID)
+		}
+		if _, exists := addrs[seed.Addr]; exists {
+			return fmt.Errorf("%w: duplicate seed addr %s", ErrInvalidConfig, seed.Addr)
+		}
+		ids[seed.ID] = struct{}{}
+		addrs[seed.Addr] = struct{}{}
 	}
 	return nil
 }

@@ -334,6 +334,58 @@ func TestConfigValidateRejectsLocalNodeMissingWithLegacySlots(t *testing.T) {
 	}
 }
 
+func TestConfigValidateAllowsJoinModeWithoutStaticNodes(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.NodeID = 4
+	cfg.Nodes = nil
+	cfg.Slots = nil
+	cfg.ControllerReplicaN = 3
+	cfg.SlotReplicaN = 2
+	cfg.Seeds = []SeedConfig{{ID: 9001, Addr: "127.0.0.1:9001"}}
+	cfg.AdvertiseAddr = "127.0.0.1:9004"
+	cfg.JoinToken = "join-secret"
+
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigValidateStaticModeStillRequiresLocalNodeInNodes(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.NodeID = 4
+	cfg.Seeds = []SeedConfig{{ID: 9001, Addr: "127.0.0.1:9001"}}
+	cfg.AdvertiseAddr = "127.0.0.1:9004"
+	cfg.JoinToken = "join-secret"
+
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+	}
+}
+
+func TestConfigValidateJoinModeRequiresAdvertiseAddrAndToken(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.NodeID = 4
+	cfg.Nodes = nil
+	cfg.Slots = nil
+	cfg.ControllerReplicaN = 3
+	cfg.SlotReplicaN = 2
+	cfg.Seeds = []SeedConfig{{ID: 9001, Addr: "127.0.0.1:9001"}}
+
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+	}
+
+	cfg.AdvertiseAddr = "127.0.0.1:9004"
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+	}
+
+	cfg.JoinToken = "join-secret"
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestConfigValidateRejectsOnlyOneControllerPath(t *testing.T) {
 	cfg := validTestConfig()
 	cfg.ControllerRaftPath = ""
