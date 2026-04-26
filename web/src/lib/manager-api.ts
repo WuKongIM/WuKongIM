@@ -15,6 +15,7 @@ import type {
   ManagerOverviewResponse,
   ManagerPermission,
   ManagerSlotDetailResponse,
+  ManagerSlotRemoveResponse,
   ManagerSlotRecoverResponse,
   ManagerSlotRebalanceResponse,
   ManagerSlotsResponse,
@@ -221,6 +222,18 @@ export function getSlots() {
 
 export function getSlot(slotId: number) {
   return jsonManagerFetch<ManagerSlotDetailResponse>(`/manager/slots/${slotId}`)
+}
+
+export function addSlot() {
+  return jsonManagerFetch<ManagerSlotDetailResponse>("/manager/slots", {
+    method: "POST",
+  })
+}
+
+export function removeSlot(slotId: number) {
+  return jsonManagerFetch<ManagerSlotRemoveResponse>(`/manager/slots/${slotId}`, {
+    method: "DELETE",
+  })
 }
 
 export function transferSlotLeader(slotId: number, input: TransferSlotLeaderInput) {

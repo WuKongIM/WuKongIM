@@ -101,10 +101,12 @@ FinalizeMigration:
   读取 HashSlotTable → 将 hash slot 最终切换到 Target → 若 Source 已无 hash slot 且无剩余迁移，则原子删除对应 SlotAssignment/Task → 保存回 controllermeta
 
 AddSlot:
-  创建新 SlotAssignment → 调用 hash-slot 再平衡算法 → 为迁入新 Slot 的 hash slot 建立 Snapshot 阶段迁移记录
+  若已有 hash-slot 迁移则拒绝 → 创建新 SlotAssignment → 调用 hash-slot 再平衡算法
+  → 为迁入新 Slot 的 hash slot 建立 Snapshot 阶段迁移记录
 
 RemoveSlot:
-  调用 hash-slot 再平衡算法 → 为被移除 Slot 上的 hash slot 建立 Snapshot 阶段迁移记录
+  若已有 hash-slot 迁移或正在移除最后一个物理 Slot 则拒绝
+  → 调用 hash-slot 再平衡算法 → 为被移除 Slot 上的 hash slot 建立 Snapshot 阶段迁移记录
   SlotAssignment 先保留，待最后一个 hash slot FinalizeMigration 后自动删除
 ```
 
@@ -113,7 +115,9 @@ RemoveSlot:
 入口: `plane/planner.go:93 NextDecision`
 
 ```
-第一遍 — 遍历所有 Slot (1~SlotCount):
+第一遍 — 遍历当前物理 Slot 集合:
+  Slot 集合来自 HashSlotTable 当前分配 + 已存在 Assignment/Runtime/Task；
+  仅 HashSlotTable 缺失时回退到 InitialSlotCount/SlotCount 做初始 bootstrap seed。
   ReconcileSlot (planner.go:22):
     ① 无仲裁 → Degraded(等待)
     ② 有进行中Task → 检查 taskRunnable(Pending直接可执行, Retrying等NextRunAt)

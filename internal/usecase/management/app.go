@@ -41,6 +41,10 @@ type ClusterReader interface {
 	Rebalance(ctx context.Context) ([]raftcluster.MigrationPlan, error)
 	// GetMigrationStatus returns the currently active hash-slot migrations.
 	GetMigrationStatus() []raftcluster.HashSlotMigration
+	// AddSlot creates a new physical slot through the controller leader.
+	AddSlot(ctx context.Context) (multiraft.SlotID, error)
+	// RemoveSlot starts removal for one physical slot through the controller leader.
+	RemoveSlot(ctx context.Context, slotID multiraft.SlotID) error
 	ControllerLeaderID() uint64
 	// ListNodeOnboardingCandidates returns data nodes and current Slot load for onboarding review.
 	ListNodeOnboardingCandidates(ctx context.Context) ([]raftcluster.NodeOnboardingCandidate, error)

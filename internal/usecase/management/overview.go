@@ -49,7 +49,7 @@ type OverviewNodes struct {
 
 // OverviewSlots contains manager homepage slot counters.
 type OverviewSlots struct {
-	// Total is the number of configured physical slots.
+	// Total is the number of assigned physical slots.
 	Total int
 	// Ready is the count of slots with quorum.
 	Ready int
@@ -182,8 +182,7 @@ func (a *App) GetOverview(ctx context.Context) (Overview, error) {
 		return Overview{}, err
 	}
 
-	slotIDs := append([]multiraft.SlotID(nil), a.cluster.SlotIDs()...)
-	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	slotIDs := overviewAssignmentSlotIDs(assignments)
 
 	overview := Overview{
 		GeneratedAt: a.now().UTC(),
@@ -222,6 +221,21 @@ func summarizeOverviewNodes(nodes []controllermeta.ClusterNode) OverviewNodes {
 		}
 	}
 	return out
+}
+
+func overviewAssignmentSlotIDs(assignments []controllermeta.SlotAssignment) []multiraft.SlotID {
+	seen := make(map[multiraft.SlotID]struct{}, len(assignments))
+	slotIDs := make([]multiraft.SlotID, 0, len(assignments))
+	for _, assignment := range assignments {
+		slotID := multiraft.SlotID(assignment.SlotID)
+		if _, ok := seen[slotID]; ok {
+			continue
+		}
+		seen[slotID] = struct{}{}
+		slotIDs = append(slotIDs, slotID)
+	}
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	return slotIDs
 }
 
 func overviewSlot(slotID multiraft.SlotID, assignments map[uint32]controllermeta.SlotAssignment, views map[uint32]controllermeta.SlotRuntimeView) (Slot, bool) {

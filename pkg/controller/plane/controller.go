@@ -102,6 +102,7 @@ func (c *Controller) snapshot(ctx context.Context) (PlannerState, error) {
 		Assignments:    make(map[uint32]controllermeta.SlotAssignment, len(assignments)),
 		Runtime:        make(map[uint32]controllermeta.SlotRuntimeView, len(views)),
 		Tasks:          make(map[uint32]controllermeta.ReconcileTask, len(tasks)),
+		PhysicalSlots:  make(map[uint32]struct{}),
 		MigratingSlots: make(map[uint32]struct{}),
 	}
 	for _, node := range nodes {
@@ -117,6 +118,9 @@ func (c *Controller) snapshot(ctx context.Context) (PlannerState, error) {
 		state.Tasks[task.SlotID] = task
 	}
 	if table != nil {
+		for _, slotID := range table.AssignedSlotIDs() {
+			state.PhysicalSlots[uint32(slotID)] = struct{}{}
+		}
 		for _, migration := range table.ActiveMigrations() {
 			state.MigratingSlots[uint32(migration.Source)] = struct{}{}
 			state.MigratingSlots[uint32(migration.Target)] = struct{}{}

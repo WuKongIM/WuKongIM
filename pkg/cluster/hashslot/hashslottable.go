@@ -186,6 +186,27 @@ func (t *HashSlotTable) HashSlotsOf(slotID multiraft.SlotID) []uint16 {
 	return out
 }
 
+// AssignedSlotIDs returns sorted distinct non-zero physical slot IDs referenced by the table.
+func (t *HashSlotTable) AssignedSlotIDs() []multiraft.SlotID {
+	if t == nil {
+		return nil
+	}
+	seen := make(map[multiraft.SlotID]struct{})
+	out := make([]multiraft.SlotID, 0)
+	for _, slotID := range t.assignment {
+		if slotID == 0 {
+			continue
+		}
+		if _, ok := seen[slotID]; ok {
+			continue
+		}
+		seen[slotID] = struct{}{}
+		out = append(out, slotID)
+	}
+	sortSlotIDs(out)
+	return out
+}
+
 func (t *HashSlotTable) Version() uint64 {
 	if t == nil {
 		return 0

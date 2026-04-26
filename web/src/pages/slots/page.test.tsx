@@ -10,6 +10,8 @@ import { SlotsPage } from "@/pages/slots/page"
 
 const getSlotsMock = vi.fn()
 const getSlotMock = vi.fn()
+const addSlotMock = vi.fn()
+const removeSlotMock = vi.fn()
 const transferSlotLeaderMock = vi.fn()
 const recoverSlotMock = vi.fn()
 const rebalanceSlotsMock = vi.fn()
@@ -20,6 +22,8 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     ...actual,
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
     getSlot: (...args: unknown[]) => getSlotMock(...args),
+    addSlot: (...args: unknown[]) => addSlotMock(...args),
+    removeSlot: (...args: unknown[]) => removeSlotMock(...args),
     transferSlotLeader: (...args: unknown[]) => transferSlotLeaderMock(...args),
     recoverSlot: (...args: unknown[]) => recoverSlotMock(...args),
     rebalanceSlots: (...args: unknown[]) => rebalanceSlotsMock(...args),
@@ -60,6 +64,8 @@ beforeEach(() => {
   resetLocale()
   getSlotsMock.mockReset()
   getSlotMock.mockReset()
+  addSlotMock.mockReset()
+  removeSlotMock.mockReset()
   transferSlotLeaderMock.mockReset()
   recoverSlotMock.mockReset()
   rebalanceSlotsMock.mockReset()
@@ -73,6 +79,39 @@ beforeEach(() => {
     expiresAt: "2099-04-22T12:00:00Z",
     permissions: [{ resource: "cluster.slot", actions: ["r", "w"] }],
   })
+})
+
+test("adds a physical slot and opens the returned detail", async () => {
+  const addedSlot = {
+    ...slotRow,
+    slot_id: 11,
+    state: { quorum: "unknown", sync: "unreported" },
+    assignment: { desired_peers: [1, 2, 3], config_epoch: 1, balance_version: 0 },
+    runtime: {
+      ...slotRow.runtime,
+      current_peers: [],
+      leader_id: 0,
+      healthy_voters: 0,
+      has_quorum: false,
+      observed_config_epoch: 0,
+    },
+    task: null,
+  }
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+  addSlotMock.mockResolvedValueOnce(addedSlot)
+  getSlotsMock.mockResolvedValueOnce({ total: 2, items: [slotRow, addedSlot] })
+
+  const user = userEvent.setup()
+  renderSlotsPage()
+
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Add slot" }))
+  await user.click(screen.getByRole("button", { name: "Confirm" }))
+
+  expect(addSlotMock).toHaveBeenCalledTimes(1)
+  expect(getSlotsMock).toHaveBeenCalledTimes(2)
+  expect(await screen.findByRole("heading", { name: "Slot 11" })).toBeInTheDocument()
+  expect(screen.getByText("Leader 0")).toBeInTheDocument()
 })
 
 function renderSlotsPage() {
@@ -153,6 +192,28 @@ test("shows rebalance plan results after confirmation", async () => {
   expect(await screen.findByText("From slot 9 to slot 11")).toBeInTheDocument()
 })
 
+test("starts physical slot removal and refreshes the list", async () => {
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+  getSlotMock.mockResolvedValueOnce(slotDetail)
+  removeSlotMock.mockResolvedValueOnce({ slot_id: 9, result: "removal_started" })
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+
+  const user = userEvent.setup()
+  renderSlotsPage()
+
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Inspect slot 9" }))
+  expect(await screen.findByText("Desired peers")).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Remove slot" }))
+  await user.click(screen.getByRole("button", { name: "Confirm" }))
+
+  expect(removeSlotMock).toHaveBeenCalledWith(9)
+  expect(getSlotsMock).toHaveBeenCalledTimes(2)
+  expect(await screen.findByText("Total: 1")).toBeInTheDocument()
+  expect(screen.queryByText("Desired peers")).not.toBeInTheDocument()
+})
+
 test("renders unavailable state when the slot list request fails", async () => {
   getSlotsMock.mockRejectedValueOnce(
     new ManagerApiError(503, "service_unavailable", "slot leader unavailable"),
@@ -174,6 +235,25 @@ test("shows conflict feedback when slot rebalance is rejected", async () => {
 
   expect(await screen.findByText("Slot 9")).toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Rebalance slots" }))
+  await user.click(screen.getByRole("button", { name: "Confirm" }))
+
+  expect(await screen.findByText("slot migrations already in progress")).toBeInTheDocument()
+})
+
+test("shows conflict feedback when slot remove is rejected", async () => {
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+  getSlotMock.mockResolvedValueOnce(slotDetail)
+  removeSlotMock.mockRejectedValueOnce(
+    new ManagerApiError(409, "conflict", "slot migrations already in progress"),
+  )
+
+  const user = userEvent.setup()
+  renderSlotsPage()
+
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Inspect slot 9" }))
+  expect(await screen.findByText("Desired peers")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Remove slot" }))
   await user.click(screen.getByRole("button", { name: "Confirm" }))
 
   expect(await screen.findByText("slot migrations already in progress")).toBeInTheDocument()

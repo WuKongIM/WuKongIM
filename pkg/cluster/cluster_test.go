@@ -316,6 +316,24 @@ func TestSnapshotPlannerStateUsesObservationSnapshotForRuntime(t *testing.T) {
 	}
 }
 
+func TestSnapshotPlannerStateUsesHashSlotTableAsPhysicalSlotSet(t *testing.T) {
+	cluster, _, _ := newTestLocalControllerCluster(t, true)
+	cluster.router.UpdateHashSlotTable(NewHashSlotTable(8, 3))
+
+	state, err := cluster.snapshotPlannerState(context.Background())
+	if err != nil {
+		t.Fatalf("snapshotPlannerState() error = %v", err)
+	}
+	for _, slotID := range []uint32{1, 2, 3} {
+		if _, ok := state.PhysicalSlots[slotID]; !ok {
+			t.Fatalf("snapshotPlannerState() missing physical slot %d in %v", slotID, state.PhysicalSlots)
+		}
+	}
+	if len(state.PhysicalSlots) != 3 {
+		t.Fatalf("snapshotPlannerState() physical slots len = %d, want 3", len(state.PhysicalSlots))
+	}
+}
+
 func TestSnapshotPlannerStateUsesMetadataSnapshotWhenWarm(t *testing.T) {
 	cluster, host, _ := newTestLocalControllerCluster(t, true)
 
@@ -1092,6 +1110,86 @@ func TestWaitForManagedSlotsReadyUsesConfiguredObservationInterval(t *testing.T)
 	}
 }
 
+func TestManagedSlotsReadyAcceptsAddedAssignmentBeyondInitialSlotCount(t *testing.T) {
+	cluster := &Cluster{
+		cfg: Config{
+			NodeID:           1,
+			InitialSlotCount: 2,
+		},
+		controllerResources: controllerResources{
+			controllerClient: fakeControllerClient{
+				assignments: []controllermeta.SlotAssignment{
+					{SlotID: 1, DesiredPeers: []uint64{2, 3}},
+					{SlotID: 2, DesiredPeers: []uint64{2, 3}},
+					{SlotID: 3, DesiredPeers: []uint64{2, 3}},
+				},
+			},
+		},
+	}
+
+	ready, err := cluster.managedSlotsReady(context.Background())
+
+	if err != nil {
+		t.Fatalf("managedSlotsReady() error = %v", err)
+	}
+	if !ready {
+		t.Fatal("managedSlotsReady() = false, want true")
+	}
+}
+
+func TestManagedSlotsReadyAcceptsFinalizedRemovedAssignmentBelowInitialSlotCount(t *testing.T) {
+	cluster := &Cluster{
+		cfg: Config{
+			NodeID:           1,
+			InitialSlotCount: 3,
+		},
+		controllerResources: controllerResources{
+			controllerClient: fakeControllerClient{
+				assignments: []controllermeta.SlotAssignment{
+					{SlotID: 1, DesiredPeers: []uint64{2, 3}},
+					{SlotID: 2, DesiredPeers: []uint64{2, 3}},
+				},
+			},
+		},
+	}
+
+	ready, err := cluster.managedSlotsReady(context.Background())
+
+	if err != nil {
+		t.Fatalf("managedSlotsReady() error = %v", err)
+	}
+	if !ready {
+		t.Fatal("managedSlotsReady() = false, want true")
+	}
+}
+
+func TestManagedSlotsReadyRejectsMissingAssignmentForPhysicalSlot(t *testing.T) {
+	cluster := &Cluster{
+		cfg: Config{
+			NodeID:           1,
+			InitialSlotCount: 3,
+		},
+		router: NewRouter(NewHashSlotTable(8, 3), 1, nil),
+		controllerResources: controllerResources{
+			controllerClient: fakeControllerClient{
+				assignments: []controllermeta.SlotAssignment{
+					{SlotID: 1, DesiredPeers: []uint64{2, 3}},
+					{SlotID: 2, DesiredPeers: []uint64{2, 3}},
+				},
+			},
+		},
+	}
+
+	ready, err := cluster.managedSlotsReady(context.Background())
+
+	if err != nil {
+		t.Fatalf("managedSlotsReady() error = %v", err)
+	}
+	if ready {
+		t.Fatal("managedSlotsReady() = true, want false when a hash-table physical slot has no assignment")
+	}
+}
+
 func TestSlotIDsUseInitialSlotCount(t *testing.T) {
 	cluster := &Cluster{
 		cfg: Config{
@@ -1109,6 +1207,29 @@ func TestSlotIDsUseInitialSlotCount(t *testing.T) {
 		if slotIDs[i] != want[i] {
 			t.Fatalf("SlotIDs() = %v, want %v", slotIDs, want)
 		}
+	}
+}
+
+func TestSlotIDsUseDynamicAssignmentsWhenAvailable(t *testing.T) {
+	assignments := newAssignmentCache()
+	assignments.SetAssignments([]controllermeta.SlotAssignment{
+		{SlotID: 3, DesiredPeers: []uint64{1}},
+		{SlotID: 1, DesiredPeers: []uint64{1}},
+	})
+	cluster := &Cluster{
+		cfg: Config{
+			HashSlotCount:    8,
+			InitialSlotCount: 2,
+		},
+		agentResources: agentResources{
+			assignments: assignments,
+		},
+	}
+
+	slotIDs := cluster.SlotIDs()
+	want := []multiraft.SlotID{1, 3}
+	if !reflect.DeepEqual(slotIDs, want) {
+		t.Fatalf("SlotIDs() = %v, want %v", slotIDs, want)
 	}
 }
 

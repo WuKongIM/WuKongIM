@@ -262,6 +262,14 @@ func (f *fakeNodeOperatorCluster) Rebalance(context.Context) ([]raftcluster.Migr
 	return nil, nil
 }
 
+func (f *fakeNodeOperatorCluster) AddSlot(context.Context) (multiraft.SlotID, error) {
+	return 0, nil
+}
+
+func (f *fakeNodeOperatorCluster) RemoveSlot(context.Context, multiraft.SlotID) error {
+	return nil
+}
+
 func (f *fakeNodeOperatorCluster) ListNodeOnboardingCandidates(context.Context) ([]raftcluster.NodeOnboardingCandidate, error) {
 	return nil, nil
 }

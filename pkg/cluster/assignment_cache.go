@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"sort"
 	"sync"
 
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
@@ -59,6 +60,27 @@ func (c *assignmentCache) PeersForSlot(slotID multiraft.SlotID) ([]multiraft.Nod
 		return nil, false
 	}
 	return append([]multiraft.NodeID(nil), peers...), true
+}
+
+func (c *assignmentCache) SlotIDs() []multiraft.SlotID {
+	if c == nil {
+		return nil
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	slotIDs := make([]multiraft.SlotID, 0, len(c.assignments))
+	for _, assignment := range c.assignments {
+		if assignment.SlotID == 0 {
+			continue
+		}
+		slotIDs = append(slotIDs, multiraft.SlotID(assignment.SlotID))
+	}
+	sort.Slice(slotIDs, func(i, j int) bool {
+		return slotIDs[i] < slotIDs[j]
+	})
+	return slotIDs
 }
 
 func (c *assignmentCache) Snapshot() []controllermeta.SlotAssignment {

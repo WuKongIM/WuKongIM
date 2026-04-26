@@ -846,13 +846,15 @@ func (c *Cluster) snapshotPlannerState(ctx context.Context) (slotcontroller.Plan
 	if err != nil {
 		return slotcontroller.PlannerState{}, err
 	}
+	table := c.GetHashSlotTable()
 	state := slotcontroller.PlannerState{
 		Now:            time.Now(),
 		Nodes:          make(map[uint64]controllermeta.ClusterNode, len(nodes)),
 		Assignments:    make(map[uint32]controllermeta.SlotAssignment, len(assignments)),
 		Runtime:        make(map[uint32]controllermeta.SlotRuntimeView, len(views)),
 		Tasks:          make(map[uint32]controllermeta.ReconcileTask, len(tasks)),
-		MigratingSlots: activeMigratingSlots(c.GetHashSlotTable()),
+		PhysicalSlots:  assignedPhysicalSlots(table),
+		MigratingSlots: activeMigratingSlots(table),
 	}
 	for _, node := range nodes {
 		state.Nodes[node.NodeID] = node
@@ -1247,8 +1249,21 @@ func (c *Cluster) RPCService(ctx context.Context, nodeID multiraft.NodeID, slotI
 	return c.fwdClient.RPCService(ctx, uint64(nodeID), uint64(slotID), serviceID, payload)
 }
 
-// SlotIDs returns the configured control-plane slot ids.
+// SlotIDs returns the current physical slot IDs with bootstrap fallback.
 func (c *Cluster) SlotIDs() []multiraft.SlotID {
+	if c != nil && c.assignments != nil {
+		if slotIDs := c.assignments.SlotIDs(); len(slotIDs) > 0 {
+			return slotIDs
+		}
+	}
+	if c != nil && c.router != nil {
+		table := c.router.hashSlotTable.Load()
+		if table != nil {
+			if slotIDs := table.AssignedSlotIDs(); len(slotIDs) > 0 {
+				return slotIDs
+			}
+		}
+	}
 	initialSlotCount := c.cfg.effectiveInitialSlotCount()
 	slotIDs := make([]multiraft.SlotID, 0, initialSlotCount)
 	for slotID := uint32(1); slotID <= initialSlotCount; slotID++ {
@@ -1572,19 +1587,27 @@ func (c *Cluster) managedSlotsReady(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if len(assignments) != len(slotIDs) {
+	if len(assignments) == 0 {
 		return false, nil
 	}
 
-	assignmentByGroup := make(map[uint32]controllermeta.SlotAssignment, len(assignments))
+	requiredSlotIDs := c.hashTableAssignedSlotIDs()
+	if len(requiredSlotIDs) == 0 {
+		requiredSlotIDs = slotIDsFromAssignments(assignments)
+	}
+	if len(requiredSlotIDs) == 0 {
+		return false, nil
+	}
+
+	assignmentBySlot := make(map[uint32]controllermeta.SlotAssignment, len(assignments))
 	for _, assignment := range assignments {
 		if len(assignment.DesiredPeers) == 0 {
 			return false, nil
 		}
-		assignmentByGroup[assignment.SlotID] = assignment
+		assignmentBySlot[assignment.SlotID] = assignment
 	}
-	for _, slotID := range slotIDs {
-		if _, ok := assignmentByGroup[uint32(slotID)]; !ok {
+	for _, slotID := range requiredSlotIDs {
+		if _, ok := assignmentBySlot[uint32(slotID)]; !ok {
 			return false, nil
 		}
 	}
@@ -1595,6 +1618,28 @@ func (c *Cluster) managedSlotsReady(ctx context.Context) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+func (c *Cluster) hashTableAssignedSlotIDs() []multiraft.SlotID {
+	if c == nil || c.router == nil {
+		return nil
+	}
+	table := c.router.hashSlotTable.Load()
+	if table == nil {
+		return nil
+	}
+	return table.AssignedSlotIDs()
+}
+
+func slotIDsFromAssignments(assignments []controllermeta.SlotAssignment) []multiraft.SlotID {
+	slotIDs := make([]multiraft.SlotID, 0, len(assignments))
+	for _, assignment := range assignments {
+		if assignment.SlotID == 0 {
+			continue
+		}
+		slotIDs = append(slotIDs, multiraft.SlotID(assignment.SlotID))
+	}
+	return slotIDs
 }
 
 func (c *Cluster) localAssignedSlotIDs(assignments []controllermeta.SlotAssignment) []multiraft.SlotID {

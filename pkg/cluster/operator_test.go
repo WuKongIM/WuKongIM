@@ -171,6 +171,34 @@ func TestAddSlotChoosesNextSlotIDAndCurrentPeers(t *testing.T) {
 	}
 }
 
+func TestAddSlotRejectsActiveMigrations(t *testing.T) {
+	table := NewHashSlotTable(8, 2)
+	table.StartMigration(3, 1, 2)
+
+	called := false
+	cluster := &Cluster{
+		router: NewRouter(table, 1, nil),
+		controllerResources: controllerResources{
+			controllerLeaderWaitTimeout: testControllerLeaderWaitTimeout,
+			controllerClient: fakeControllerClient{
+				assignments: []controllermeta.SlotAssignment{
+					{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}},
+					{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}},
+				},
+				addSlotFn: func(_ context.Context, _ slotcontroller.AddSlotRequest) error {
+					called = true
+					return nil
+				},
+			},
+		},
+	}
+
+	_, err := cluster.AddSlot(context.Background())
+
+	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.False(t, called)
+}
+
 func TestRemoveSlotSubmitsControllerCommand(t *testing.T) {
 	var got slotcontroller.RemoveSlotRequest
 	cluster := &Cluster{
@@ -196,6 +224,87 @@ func TestRemoveSlotSubmitsControllerCommand(t *testing.T) {
 	if got.SlotID != 2 {
 		t.Fatalf("submitted SlotID = %d, want 2", got.SlotID)
 	}
+}
+
+func TestRemoveSlotRejectsAnyActiveMigration(t *testing.T) {
+	table := NewHashSlotTable(8, 3)
+	table.StartMigration(2, 1, 2)
+
+	called := false
+	cluster := &Cluster{
+		router: NewRouter(table, 1, nil),
+		controllerResources: controllerResources{
+			controllerLeaderWaitTimeout: testControllerLeaderWaitTimeout,
+			controllerClient: fakeControllerClient{
+				assignments: []controllermeta.SlotAssignment{
+					{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}},
+					{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}},
+					{SlotID: 3, DesiredPeers: []uint64{1, 2, 3}},
+				},
+				removeSlotFn: func(_ context.Context, _ slotcontroller.RemoveSlotRequest) error {
+					called = true
+					return nil
+				},
+			},
+		},
+	}
+
+	err := cluster.RemoveSlot(context.Background(), 3)
+
+	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.False(t, called)
+}
+
+func TestRemoveSlotRejectsActiveMigrationBeforeOwnershipCheck(t *testing.T) {
+	table := NewHashSlotTable(8, 1)
+	table.StartMigration(2, 1, 2)
+
+	called := false
+	cluster := &Cluster{
+		router: NewRouter(table, 1, nil),
+		controllerResources: controllerResources{
+			controllerLeaderWaitTimeout: testControllerLeaderWaitTimeout,
+			controllerClient: fakeControllerClient{
+				assignments: []controllermeta.SlotAssignment{
+					{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}},
+					{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}},
+				},
+				removeSlotFn: func(_ context.Context, _ slotcontroller.RemoveSlotRequest) error {
+					called = true
+					return nil
+				},
+			},
+		},
+	}
+
+	err := cluster.RemoveSlot(context.Background(), 2)
+
+	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.False(t, called)
+}
+
+func TestRemoveSlotRejectsLastPhysicalSlot(t *testing.T) {
+	called := false
+	cluster := &Cluster{
+		router: NewRouter(NewHashSlotTable(8, 1), 1, nil),
+		controllerResources: controllerResources{
+			controllerLeaderWaitTimeout: testControllerLeaderWaitTimeout,
+			controllerClient: fakeControllerClient{
+				assignments: []controllermeta.SlotAssignment{
+					{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}},
+				},
+				removeSlotFn: func(_ context.Context, _ slotcontroller.RemoveSlotRequest) error {
+					called = true
+					return nil
+				},
+			},
+		},
+	}
+
+	err := cluster.RemoveSlot(context.Background(), 1)
+
+	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.False(t, called)
 }
 
 func TestRebalanceStartsMigrationsFromCurrentTable(t *testing.T) {

@@ -21,7 +21,9 @@ import {
   loginManager,
   managerFetch,
   ManagerApiError,
+  addSlot,
   markNodeDraining,
+  removeSlot,
   rebalanceSlots,
   recoverSlot,
   resetManagerAuthConfig,
@@ -317,6 +319,39 @@ describe("manager api client", () => {
       "/manager/connections/101",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
+  })
+
+  it("posts slot add and remove actions using backend endpoints", async () => {
+    const slotDetail = {
+      slot_id: 11,
+      state: { quorum: "ready", sync: "matched" },
+      assignment: { desired_peers: [1, 2, 3], config_epoch: 1, balance_version: 0 },
+      runtime: {
+        current_peers: [1, 2, 3],
+        leader_id: 1,
+        healthy_voters: 3,
+        has_quorum: true,
+        observed_config_epoch: 1,
+        last_report_at: "2026-04-23T08:00:00Z",
+      },
+      task: null,
+    }
+    const removeResult = { slot_id: 11, result: "removal_started" }
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(slotDetail), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(removeResult), { status: 200 }))
+
+    await expect(addSlot()).resolves.toEqual(slotDetail)
+    let requestInit = fetchMock.mock.calls[0]?.[1] as { method: string; body?: string; headers: Headers }
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/slots")
+    expect(requestInit.method).toBe("POST")
+    expect(requestInit.body).toBeUndefined()
+    expect(requestInit.headers.get("Content-Type")).toBeNull()
+
+    await expect(removeSlot(11)).resolves.toEqual(removeResult)
+    requestInit = fetchMock.mock.calls[1]?.[1] as { method: string }
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/manager/slots/11")
+    expect(requestInit.method).toBe("DELETE")
   })
 
   it("posts slot operator actions using backend request field names", async () => {

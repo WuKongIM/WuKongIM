@@ -30,6 +30,10 @@ type Management interface {
 	ListSlots(ctx context.Context) ([]managementusecase.Slot, error)
 	// GetSlot returns one manager-facing slot detail DTO.
 	GetSlot(ctx context.Context, slotID uint32) (managementusecase.SlotDetail, error)
+	// AddSlot creates a new physical slot and returns the latest detail DTO.
+	AddSlot(ctx context.Context) (managementusecase.SlotDetail, error)
+	// RemoveSlot starts physical slot removal and returns the accepted outcome DTO.
+	RemoveSlot(ctx context.Context, slotID uint32) (managementusecase.SlotRemoveResult, error)
 	// TransferSlotLeader transfers one slot leader and returns the latest detail DTO.
 	TransferSlotLeader(ctx context.Context, slotID uint32, targetNodeID uint64) (managementusecase.SlotDetail, error)
 	// RecoverSlot runs one slot recover flow and returns the latest outcome DTO.

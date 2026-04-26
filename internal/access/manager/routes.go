@@ -42,6 +42,8 @@ func (s *Server) registerRoutes() {
 	if s.auth.enabled() {
 		slotWrites.Use(s.requirePermission("cluster.slot", "w"))
 	}
+	slotWrites.POST("/slots", s.handleSlotAdd)
+	slotWrites.DELETE("/slots/:slot_id", s.handleSlotDelete)
 	slotWrites.POST("/slots/:slot_id/leader/transfer", s.handleSlotLeaderTransfer)
 	slotWrites.POST("/slots/:slot_id/recover", s.handleSlotRecover)
 	slotWrites.POST("/slots/rebalance", s.handleSlotRebalance)

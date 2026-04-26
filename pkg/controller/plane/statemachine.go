@@ -519,6 +519,17 @@ func (sm *StateMachine) applyAddSlot(ctx context.Context, req AddSlotRequest) er
 	if err != nil {
 		return err
 	}
+	if len(table.ActiveMigrations()) > 0 {
+		return controllermeta.ErrInvalidArgument
+	}
+	if len(table.HashSlotsOf(multiraft.SlotID(req.NewSlotID))) > 0 {
+		return controllermeta.ErrInvalidArgument
+	}
+	if _, err := sm.store.GetAssignment(ctx, uint32(req.NewSlotID)); err == nil {
+		return controllermeta.ErrInvalidArgument
+	} else if !errors.Is(err, controllermeta.ErrNotFound) {
+		return err
+	}
 
 	plan := hashslot.ComputeAddSlotPlan(table, multiraft.SlotID(req.NewSlotID))
 	for _, migration := range plan {
@@ -549,6 +560,15 @@ func (sm *StateMachine) applyRemoveSlot(ctx context.Context, req RemoveSlotReque
 	if err != nil {
 		return err
 	}
+	if len(table.ActiveMigrations()) > 0 {
+		return controllermeta.ErrInvalidArgument
+	}
+	if len(table.HashSlotsOf(multiraft.SlotID(req.SlotID))) == 0 {
+		return controllermeta.ErrInvalidArgument
+	}
+	if removingLastAssignedSlot(table, multiraft.SlotID(req.SlotID)) {
+		return controllermeta.ErrInvalidArgument
+	}
 
 	plan := hashslot.ComputeRemoveSlotPlan(table, multiraft.SlotID(req.SlotID))
 	for _, migration := range plan {
@@ -556,6 +576,11 @@ func (sm *StateMachine) applyRemoveSlot(ctx context.Context, req RemoveSlotReque
 	}
 
 	return sm.store.SaveHashSlotTable(ctx, table)
+}
+
+func removingLastAssignedSlot(table *hashslot.HashSlotTable, slotID multiraft.SlotID) bool {
+	assigned := table.AssignedSlotIDs()
+	return len(assigned) == 1 && assigned[0] == slotID
 }
 
 func firstBootstrapTarget(peers []uint64) uint64 {

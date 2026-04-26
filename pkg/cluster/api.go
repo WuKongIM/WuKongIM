@@ -52,6 +52,8 @@ type API interface {
 	RecoverSlot(ctx context.Context, slotID uint32, strategy RecoverStrategy) error
 	// RecoverSlotStrict runs slot recovery against controller-leader assignments only.
 	RecoverSlotStrict(ctx context.Context, slotID uint32, strategy RecoverStrategy) error
+	AddSlot(ctx context.Context) (multiraft.SlotID, error)
+	RemoveSlot(ctx context.Context, slotID multiraft.SlotID) error
 	Rebalance(ctx context.Context) ([]MigrationPlan, error)
 	ListNodeOnboardingCandidates(ctx context.Context) ([]NodeOnboardingCandidate, error)
 	CreateNodeOnboardingPlan(ctx context.Context, targetNodeID uint64, retryOfJobID string) (controllermeta.NodeOnboardingJob, error)

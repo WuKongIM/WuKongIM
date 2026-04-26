@@ -69,6 +69,59 @@ func TestStateMachineAddSlotCreatesAssignmentAndMigrations(t *testing.T) {
 	require.Equal(t, controllermeta.TaskStatusPending, task.Status)
 }
 
+func TestStateMachineAddSlotRejectsActiveMigrations(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{})
+	ctx := context.Background()
+
+	table := hashslot.NewHashSlotTable(8, 2)
+	table.StartMigration(3, 1, 2)
+	require.NoError(t, store.SaveHashSlotTable(ctx, table))
+
+	err := sm.Apply(ctx, Command{
+		Kind: CommandKindAddSlot,
+		AddSlot: &AddSlotRequest{
+			NewSlotID: 3,
+			Peers:     []uint64{1, 2, 3},
+		},
+	})
+
+	require.ErrorIs(t, err, controllermeta.ErrInvalidArgument)
+	_, err = store.GetAssignment(ctx, 3)
+	require.ErrorIs(t, err, controllermeta.ErrNotFound)
+	loaded, err := store.LoadHashSlotTable(ctx)
+	require.NoError(t, err)
+	require.Len(t, loaded.ActiveMigrations(), 1)
+}
+
+func TestStateMachineAddSlotRejectsExistingPhysicalSlot(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{})
+	ctx := context.Background()
+	require.NoError(t, store.SaveHashSlotTable(ctx, hashslot.NewHashSlotTable(8, 2)))
+	require.NoError(t, store.UpsertAssignment(ctx, controllermeta.SlotAssignment{
+		SlotID:       2,
+		DesiredPeers: []uint64{1, 2, 3},
+		ConfigEpoch:  7,
+	}))
+
+	err := sm.Apply(ctx, Command{
+		Kind: CommandKindAddSlot,
+		AddSlot: &AddSlotRequest{
+			NewSlotID: 2,
+			Peers:     []uint64{9, 10, 11},
+		},
+	})
+
+	require.ErrorIs(t, err, controllermeta.ErrInvalidArgument)
+	assignment, err := store.GetAssignment(ctx, 2)
+	require.NoError(t, err)
+	require.Equal(t, []uint64{1, 2, 3}, assignment.DesiredPeers)
+	require.EqualValues(t, 7, assignment.ConfigEpoch)
+	_, err = store.GetTask(ctx, 2)
+	require.ErrorIs(t, err, controllermeta.ErrNotFound)
+}
+
 func TestStateMachineRemoveSlotCreatesMigrationsWithoutDeletingAssignmentYet(t *testing.T) {
 	store := openControllerStore(t)
 	sm := NewStateMachine(store, StateMachineConfig{})
@@ -106,6 +159,77 @@ func TestStateMachineRemoveSlotCreatesMigrationsWithoutDeletingAssignmentYet(t *
 	require.Equal(t, 0, counts[2])
 	require.Equal(t, 4, counts[1])
 	require.Equal(t, 4, counts[3])
+}
+
+func TestStateMachineRemoveSlotRejectsActiveMigrations(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{})
+	ctx := context.Background()
+
+	table := hashslot.NewHashSlotTable(8, 3)
+	table.StartMigration(2, 1, 2)
+	require.NoError(t, store.SaveHashSlotTable(ctx, table))
+	require.NoError(t, store.UpsertAssignment(ctx, assignmentWithPeers(1, 1, 2, 3)))
+	require.NoError(t, store.UpsertAssignment(ctx, assignmentWithPeers(2, 1, 2, 3)))
+	require.NoError(t, store.UpsertAssignment(ctx, assignmentWithPeers(3, 1, 2, 3)))
+
+	err := sm.Apply(ctx, Command{
+		Kind: CommandKindRemoveSlot,
+		RemoveSlot: &RemoveSlotRequest{
+			SlotID: 3,
+		},
+	})
+
+	require.ErrorIs(t, err, controllermeta.ErrInvalidArgument)
+	loaded, err := store.LoadHashSlotTable(ctx)
+	require.NoError(t, err)
+	require.Len(t, loaded.ActiveMigrations(), 1)
+	require.NotEmpty(t, loaded.HashSlotsOf(3))
+}
+
+func TestStateMachineRemoveSlotRejectsLastPhysicalSlot(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{})
+	ctx := context.Background()
+
+	require.NoError(t, store.SaveHashSlotTable(ctx, hashslot.NewHashSlotTable(8, 1)))
+	require.NoError(t, store.UpsertAssignment(ctx, assignmentWithPeers(1, 1, 2, 3)))
+
+	err := sm.Apply(ctx, Command{
+		Kind: CommandKindRemoveSlot,
+		RemoveSlot: &RemoveSlotRequest{
+			SlotID: 1,
+		},
+	})
+
+	require.ErrorIs(t, err, controllermeta.ErrInvalidArgument)
+	assignment, err := store.GetAssignment(ctx, 1)
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), assignment.SlotID)
+	loaded, err := store.LoadHashSlotTable(ctx)
+	require.NoError(t, err)
+	require.Empty(t, loaded.ActiveMigrations())
+	require.Len(t, loaded.HashSlotsOf(1), 8)
+}
+
+func TestStateMachineRemoveSlotRejectsMissingPhysicalSlot(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{})
+	ctx := context.Background()
+	require.NoError(t, store.SaveHashSlotTable(ctx, hashslot.NewHashSlotTable(8, 2)))
+
+	err := sm.Apply(ctx, Command{
+		Kind:       CommandKindRemoveSlot,
+		RemoveSlot: &RemoveSlotRequest{SlotID: 3},
+	})
+
+	require.ErrorIs(t, err, controllermeta.ErrInvalidArgument)
+	loaded, err := store.LoadHashSlotTable(ctx)
+	require.NoError(t, err)
+	require.Empty(t, loaded.ActiveMigrations())
+	require.Empty(t, loaded.HashSlotsOf(3))
+	require.Len(t, loaded.HashSlotsOf(1), 4)
+	require.Len(t, loaded.HashSlotsOf(2), 4)
 }
 
 func TestStateMachineFinalizeMigrationDeletesDrainedSlotAssignment(t *testing.T) {

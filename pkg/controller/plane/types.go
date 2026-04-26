@@ -29,11 +29,13 @@ type PlannerConfig struct {
 }
 
 type PlannerState struct {
-	Now            time.Time
-	Nodes          map[uint64]controllermeta.ClusterNode
-	Assignments    map[uint32]controllermeta.SlotAssignment
-	Runtime        map[uint32]controllermeta.SlotRuntimeView
-	Tasks          map[uint32]controllermeta.ReconcileTask
+	Now         time.Time
+	Nodes       map[uint64]controllermeta.ClusterNode
+	Assignments map[uint32]controllermeta.SlotAssignment
+	Runtime     map[uint32]controllermeta.SlotRuntimeView
+	Tasks       map[uint32]controllermeta.ReconcileTask
+	// PhysicalSlots is the authoritative physical slot set from the hash-slot table.
+	PhysicalSlots  map[uint32]struct{}
 	MigratingSlots map[uint32]struct{}
 	// PauseRebalance disables opportunistic automatic Rebalance decisions while keeping Bootstrap/Repair active.
 	PauseRebalance bool

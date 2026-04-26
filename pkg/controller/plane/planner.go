@@ -103,7 +103,7 @@ func (p *Planner) ReconcileSlot(_ context.Context, state PlannerState, slotID ui
 }
 
 func (p *Planner) NextDecision(ctx context.Context, state PlannerState) (Decision, error) {
-	for slotID := uint32(1); slotID <= p.cfg.SlotCount; slotID++ {
+	for _, slotID := range p.reconcileSlotIDs(state) {
 		decision, err := p.ReconcileSlot(ctx, state, slotID)
 		if err != nil {
 			return Decision{}, err
@@ -118,6 +118,43 @@ func (p *Planner) NextDecision(ctx context.Context, state PlannerState) (Decisio
 	}
 
 	return p.nextRebalanceDecision(state), nil
+}
+
+func (p *Planner) reconcileSlotIDs(state PlannerState) []uint32 {
+	slotSet := make(map[uint32]struct{})
+	if len(state.PhysicalSlots) > 0 {
+		for slotID := range state.PhysicalSlots {
+			if slotID != 0 {
+				slotSet[slotID] = struct{}{}
+			}
+		}
+	} else {
+		for slotID := uint32(1); slotID <= p.cfg.SlotCount; slotID++ {
+			slotSet[slotID] = struct{}{}
+		}
+	}
+	for slotID := range state.Assignments {
+		if slotID != 0 {
+			slotSet[slotID] = struct{}{}
+		}
+	}
+	for slotID := range state.Runtime {
+		if slotID != 0 {
+			slotSet[slotID] = struct{}{}
+		}
+	}
+	for slotID := range state.Tasks {
+		if slotID != 0 {
+			slotSet[slotID] = struct{}{}
+		}
+	}
+
+	slotIDs := make([]uint32, 0, len(slotSet))
+	for slotID := range slotSet {
+		slotIDs = append(slotIDs, slotID)
+	}
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	return slotIDs
 }
 
 func (p *Planner) nextRebalanceDecision(state PlannerState) Decision {

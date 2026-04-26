@@ -16,8 +16,10 @@ import { SectionCard } from "@/components/shell/section-card"
 import { Button } from "@/components/ui/button"
 import {
   ManagerApiError,
+  addSlot,
   getSlot,
   getSlots,
+  removeSlot,
   rebalanceSlots,
   recoverSlot,
   transferSlotLeader,
@@ -112,6 +114,12 @@ export function SlotsPage() {
   const [recoverPending, setRecoverPending] = useState(false)
   const [recoverError, setRecoverError] = useState("")
   const [recoverStrategy, setRecoverStrategy] = useState<string>(recoverStrategies[0].value)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addPending, setAddPending] = useState(false)
+  const [addError, setAddError] = useState("")
+  const [removeOpen, setRemoveOpen] = useState(false)
+  const [removePending, setRemovePending] = useState(false)
+  const [removeError, setRemoveError] = useState("")
   const [rebalanceOpen, setRebalanceOpen] = useState(false)
   const [rebalancePending, setRebalancePending] = useState(false)
   const [rebalanceError, setRebalanceError] = useState("")
@@ -178,6 +186,8 @@ export function SlotsPage() {
     setRecoverOpen(false)
     setRecoverError("")
     setRecoverStrategy(recoverStrategies[0].value)
+    setRemoveOpen(false)
+    setRemoveError("")
   }, [])
 
   const refreshOpenDetail = useCallback(async (slotId: number) => {
@@ -254,6 +264,45 @@ export function SlotsPage() {
     }
   }, [])
 
+  const runAddSlot = useCallback(async () => {
+    setAddPending(true)
+    setAddError("")
+
+    try {
+      const nextDetail = await addSlot()
+      setDetail(nextDetail)
+      setSelectedSlotId(nextDetail.slot_id)
+      setAddOpen(false)
+      await loadSlots(true)
+    } catch (error) {
+      setAddError(error instanceof Error ? error.message : "slot add failed")
+    } finally {
+      setAddPending(false)
+    }
+  }, [loadSlots])
+
+  const runRemoveSlot = useCallback(async () => {
+    if (!selectedSlotId) {
+      return
+    }
+
+    setRemovePending(true)
+    setRemoveError("")
+
+    try {
+      await removeSlot(selectedSlotId)
+      setRemoveOpen(false)
+      setSelectedSlotId(null)
+      setDetail(null)
+      setDetailError(null)
+      await loadSlots(true)
+    } catch (error) {
+      setRemoveError(error instanceof Error ? error.message : "slot remove failed")
+    } finally {
+      setRemovePending(false)
+    }
+  }, [loadSlots, selectedSlotId])
+
   const slotSummary = useMemo(() => {
     const items = state.slots?.items ?? []
     return {
@@ -281,6 +330,17 @@ export function SlotsPage() {
               {state.refreshing
                 ? intl.formatMessage({ id: "common.refreshing" })
                 : intl.formatMessage({ id: "common.refresh" })}
+            </Button>
+            <Button
+              disabled={!canWriteSlots}
+              onClick={() => {
+                setAddOpen(true)
+                setAddError("")
+              }}
+              size="sm"
+              variant="outline"
+            >
+              {intl.formatMessage({ id: "slots.addSlot" })}
             </Button>
             <Button
               disabled={!canWriteSlots}
@@ -451,6 +511,17 @@ export function SlotsPage() {
         footer={
           detail ? (
             <div className="flex items-center justify-end gap-2">
+              <Button
+                disabled={!canWriteSlots}
+                onClick={() => {
+                  setRemoveOpen(true)
+                  setRemoveError("")
+                }}
+                size="sm"
+                variant="destructive"
+              >
+                {intl.formatMessage({ id: "slots.removeSlot" })}
+              </Button>
               <Button
                 disabled={!canWriteSlots}
                 onClick={() => {
@@ -637,6 +708,46 @@ export function SlotsPage() {
         open={rebalanceOpen}
         pending={rebalancePending}
         title={intl.formatMessage({ id: "slots.rebalance" })}
+      />
+
+      <ConfirmDialog
+        confirmLabel={intl.formatMessage({ id: "common.confirm" })}
+        description={intl.formatMessage({ id: "slots.addDescription" })}
+        error={addError}
+        onConfirm={() => {
+          void runAddSlot()
+        }}
+        onOpenChange={(open) => {
+          setAddOpen(open)
+          if (!open) {
+            setAddError("")
+          }
+        }}
+        open={addOpen}
+        pending={addPending}
+        title={intl.formatMessage({ id: "slots.addSlot" })}
+      />
+
+      <ConfirmDialog
+        confirmLabel={intl.formatMessage({ id: "common.confirm" })}
+        description={
+          selectedSlotId
+            ? intl.formatMessage({ id: "slots.removeDescription" }, { id: selectedSlotId })
+            : undefined
+        }
+        error={removeError}
+        onConfirm={() => {
+          void runRemoveSlot()
+        }}
+        onOpenChange={(open) => {
+          setRemoveOpen(open)
+          if (!open) {
+            setRemoveError("")
+          }
+        }}
+        open={removeOpen}
+        pending={removePending}
+        title={intl.formatMessage({ id: "slots.removeSlot" })}
       />
     </PageContainer>
   )

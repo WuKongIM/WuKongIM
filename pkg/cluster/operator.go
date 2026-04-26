@@ -198,6 +198,9 @@ func (c *Cluster) AddSlot(ctx context.Context) (multiraft.SlotID, error) {
 	if err != nil {
 		return 0, err
 	}
+	if table := c.GetHashSlotTable(); table != nil && len(table.ActiveMigrations()) > 0 {
+		return 0, ErrInvalidConfig
+	}
 
 	newSlotID, peers, err := nextSlotDefinition(c, assignments)
 	if err != nil {
@@ -222,18 +225,24 @@ func (c *Cluster) RemoveSlot(ctx context.Context, slotID multiraft.SlotID) error
 	if table == nil {
 		return ErrNotStarted
 	}
+	if len(table.ActiveMigrations()) > 0 {
+		return ErrInvalidConfig
+	}
 	if len(table.HashSlotsOf(slotID)) == 0 {
 		return ErrSlotNotFound
 	}
-	for _, migration := range table.ActiveMigrations() {
-		if migration.Source == slotID || migration.Target == slotID {
-			return ErrInvalidConfig
-		}
+	if removingLastClusterSlot(table, slotID) {
+		return ErrInvalidConfig
 	}
 
 	return c.submitRemoveSlot(ctx, slotcontroller.RemoveSlotRequest{
 		SlotID: uint64(slotID),
 	})
+}
+
+func removingLastClusterSlot(table *HashSlotTable, slotID multiraft.SlotID) bool {
+	assigned := table.AssignedSlotIDs()
+	return len(assigned) == 1 && assigned[0] == slotID
 }
 
 func (c *Cluster) Rebalance(ctx context.Context) ([]MigrationPlan, error) {

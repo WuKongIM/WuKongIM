@@ -208,6 +208,14 @@ func (f fakeClusterReader) Rebalance(context.Context) ([]raftcluster.MigrationPl
 	return append([]raftcluster.MigrationPlan(nil), f.rebalancePlan...), f.rebalanceErr
 }
 
+func (f fakeClusterReader) AddSlot(context.Context) (multiraft.SlotID, error) {
+	return 0, nil
+}
+
+func (f fakeClusterReader) RemoveSlot(context.Context, multiraft.SlotID) error {
+	return nil
+}
+
 func (f fakeClusterReader) ListNodeOnboardingCandidates(context.Context) ([]raftcluster.NodeOnboardingCandidate, error) {
 	return nil, nil
 }

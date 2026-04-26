@@ -444,6 +444,17 @@ func activeMigratingSlots(table *HashSlotTable) map[uint32]struct{} {
 	return out
 }
 
+func assignedPhysicalSlots(table *HashSlotTable) map[uint32]struct{} {
+	out := make(map[uint32]struct{})
+	if table == nil {
+		return out
+	}
+	for _, slotID := range table.AssignedSlotIDs() {
+		out[uint32(slotID)] = struct{}{}
+	}
+	return out
+}
+
 func slotcontrollerSlotLoads(assignments map[uint32]controllermeta.SlotAssignment) map[uint64]int {
 	loads := make(map[uint64]int)
 	for _, assignment := range assignments {

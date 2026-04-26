@@ -25,6 +25,7 @@ func TestGetOverviewAggregatesCountsAndAnomalies(t *testing.T) {
 				{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 8, BalanceVersion: 1},
 				{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 8, BalanceVersion: 1},
 				{SlotID: 3, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 8, BalanceVersion: 1},
+				{SlotID: 4, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 8, BalanceVersion: 1},
 			},
 			views: []controllermeta.SlotRuntimeView{
 				{SlotID: 1, CurrentPeers: []uint64{1, 2, 3}, LeaderID: 1, HealthyVoters: 3, HasQuorum: true, ObservedConfigEpoch: 8, LastReportAt: now.Add(-time.Second)},
@@ -78,7 +79,38 @@ func TestGetOverviewAggregatesCountsAndAnomalies(t *testing.T) {
 	}, summarizeOverviewTaskAnomalies(got.Anomalies.Tasks.Retrying.Items))
 }
 
-func TestGetOverviewUsesSlotIDsAsUniverseAndCapsAnomalies(t *testing.T) {
+func TestGetOverviewUsesAssignmentSlotIDsAsUniverse(t *testing.T) {
+	now := time.Unix(1713736200, 0).UTC()
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			controllerLeaderID: 2,
+			slotIDs:            []multiraft.SlotID{1, 2, 4},
+			assignments: []controllermeta.SlotAssignment{
+				{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 9, BalanceVersion: 1},
+				{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 9, BalanceVersion: 1},
+				{SlotID: 3, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 9, BalanceVersion: 1},
+			},
+			views: []controllermeta.SlotRuntimeView{
+				{SlotID: 1, CurrentPeers: []uint64{1, 2, 3}, LeaderID: 1, HealthyVoters: 3, HasQuorum: true, ObservedConfigEpoch: 9, LastReportAt: now},
+				{SlotID: 2, CurrentPeers: []uint64{1, 2, 3}, LeaderID: 2, HealthyVoters: 3, HasQuorum: true, ObservedConfigEpoch: 9, LastReportAt: now},
+				{SlotID: 3, CurrentPeers: []uint64{1, 2, 3}, LeaderID: 0, HealthyVoters: 1, HasQuorum: false, ObservedConfigEpoch: 9, LastReportAt: now},
+				{SlotID: 4, CurrentPeers: []uint64{1, 2, 3}, LeaderID: 0, HealthyVoters: 1, HasQuorum: false, ObservedConfigEpoch: 9, LastReportAt: now},
+			},
+		},
+		Now: func() time.Time { return now },
+	})
+
+	got, err := app.GetOverview(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 3, got.Slots.Total)
+	require.Equal(t, 2, got.Slots.Ready)
+	require.Equal(t, 1, got.Slots.QuorumLost)
+	require.Equal(t, 1, got.Slots.LeaderMissing)
+	require.Equal(t, 0, got.Slots.Unreported)
+	require.Equal(t, []uint32{3}, overviewSlotIDs(got.Anomalies.Slots.QuorumLost.Items))
+}
+
+func TestGetOverviewCapsAssignmentBackedAnomalies(t *testing.T) {
 	now := time.Unix(1713736200, 0).UTC()
 	views := make([]controllermeta.SlotRuntimeView, 0, 6)
 	assignments := make([]controllermeta.SlotAssignment, 0, 6)
@@ -116,8 +148,8 @@ func TestGetOverviewUsesSlotIDsAsUniverseAndCapsAnomalies(t *testing.T) {
 
 	got, err := app.GetOverview(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 7, got.Slots.Total)
-	require.Equal(t, 1, got.Slots.Unreported)
+	require.Equal(t, 6, got.Slots.Total)
+	require.Equal(t, 0, got.Slots.Unreported)
 	require.Equal(t, 6, got.Anomalies.Slots.QuorumLost.Count)
 	require.Equal(t, 5, len(got.Anomalies.Slots.QuorumLost.Items))
 	require.Equal(t, []uint32{1, 2, 3, 4, 5}, overviewSlotIDs(got.Anomalies.Slots.QuorumLost.Items))

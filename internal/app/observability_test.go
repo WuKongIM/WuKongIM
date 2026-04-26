@@ -503,8 +503,40 @@ func (f fakeObservabilityCluster) RecoverSlotStrict(context.Context, uint32, raf
 	return nil
 }
 
+func (f fakeObservabilityCluster) AddSlot(context.Context) (multiraft.SlotID, error) {
+	return 0, nil
+}
+
+func (f fakeObservabilityCluster) RemoveSlot(context.Context, multiraft.SlotID) error {
+	return nil
+}
+
 func (f fakeObservabilityCluster) Rebalance(context.Context) ([]raftcluster.MigrationPlan, error) {
 	return nil, nil
+}
+
+func (f fakeObservabilityCluster) ListNodeOnboardingCandidates(context.Context) ([]raftcluster.NodeOnboardingCandidate, error) {
+	return nil, nil
+}
+
+func (f fakeObservabilityCluster) CreateNodeOnboardingPlan(context.Context, uint64, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}
+
+func (f fakeObservabilityCluster) StartNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}
+
+func (f fakeObservabilityCluster) ListNodeOnboardingJobs(context.Context, int, string) ([]controllermeta.NodeOnboardingJob, string, bool, error) {
+	return nil, "", false, nil
+}
+
+func (f fakeObservabilityCluster) GetNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}
+
+func (f fakeObservabilityCluster) RetryNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
 }
 
 func (f fakeObservabilityCluster) Server() *transport.Server { return nil }

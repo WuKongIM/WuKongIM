@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/hashslot"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 )
 
@@ -52,6 +53,44 @@ func TestPlannerPrefersRepairBeforeRebalance(t *testing.T) {
 	decision, err := planner.NextDecision(context.Background(), state)
 	require.NoError(t, err)
 	require.Equal(t, uint32(1), decision.SlotID)
+	require.NotNil(t, decision.Task)
+	require.Equal(t, controllermeta.TaskKindRepair, decision.Task.Kind)
+}
+
+func TestPlannerDoesNotBootstrapRemovedInitialSlotOutsidePhysicalSet(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 3, ReplicaN: 3})
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3),
+		withPhysicalSlots(1, 3),
+		withAssignment(1, 1, 2, 3),
+		withAssignment(3, 1, 2, 3),
+		withRuntimeView(1, []uint64{1, 2, 3}, true),
+		withRuntimeView(3, []uint64{1, 2, 3}, true),
+	)
+
+	decision, err := planner.NextDecision(context.Background(), state)
+	require.NoError(t, err)
+	require.Zero(t, decision.SlotID)
+	require.Nil(t, decision.Task)
+}
+
+func TestPlannerRepairsAddedSlotBeyondInitialSlotCount(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 2, ReplicaN: 3})
+	state := testState(
+		aliveNode(1), aliveNode(2), deadNode(3), aliveNode(4),
+		withPhysicalSlots(1, 2, 3),
+		withAssignment(1, 1, 2, 4),
+		withAssignment(2, 1, 2, 4),
+		withAssignment(3, 1, 2, 3),
+		withRuntimeView(1, []uint64{1, 2, 4}, true),
+		withRuntimeView(2, []uint64{1, 2, 4}, true),
+		withRuntimeView(3, []uint64{1, 2, 3}, true),
+	)
+	state.PauseRebalance = true
+
+	decision, err := planner.NextDecision(context.Background(), state)
+	require.NoError(t, err)
+	require.Equal(t, uint32(3), decision.SlotID)
 	require.NotNil(t, decision.Task)
 	require.Equal(t, controllermeta.TaskKindRepair, decision.Task.Kind)
 }
@@ -393,6 +432,24 @@ func TestControllerTickNoOpsWhenNotLeader(t *testing.T) {
 	})
 
 	require.NoError(t, controller.Tick(context.Background()))
+}
+
+func TestControllerSnapshotUsesHashSlotTableAsPhysicalSlotSet(t *testing.T) {
+	store := openControllerStore(t)
+	ctx := context.Background()
+	table := hashslot.NewHashSlotTable(8, 3)
+	require.NoError(t, store.SaveHashSlotTable(ctx, table))
+
+	controller := NewController(store, ControllerConfig{
+		Planner: PlannerConfig{SlotCount: 2, ReplicaN: 3},
+	})
+
+	state, err := controller.snapshot(ctx)
+	require.NoError(t, err)
+	require.Contains(t, state.PhysicalSlots, uint32(1))
+	require.Contains(t, state.PhysicalSlots, uint32(2))
+	require.Contains(t, state.PhysicalSlots, uint32(3))
+	require.Len(t, state.PhysicalSlots, 3)
 }
 
 func TestStateMachineTransitionsNodeStatusFromSuspectToDeadToAlive(t *testing.T) {
@@ -1062,6 +1119,17 @@ func withMigratingSlot(slotID uint32) stateOption {
 			state.MigratingSlots = make(map[uint32]struct{})
 		}
 		state.MigratingSlots[slotID] = struct{}{}
+	}
+}
+
+func withPhysicalSlots(slotIDs ...uint32) stateOption {
+	return func(state *PlannerState) {
+		if state.PhysicalSlots == nil {
+			state.PhysicalSlots = make(map[uint32]struct{})
+		}
+		for _, slotID := range slotIDs {
+			state.PhysicalSlots[slotID] = struct{}{}
+		}
 	}
 }
 

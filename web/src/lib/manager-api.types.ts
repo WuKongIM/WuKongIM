@@ -153,6 +153,11 @@ export type ManagerSlotDetailResponse = ManagerSlot & {
   task: ManagerTask | null
 }
 
+export type ManagerSlotRemoveResponse = {
+  slot_id: number
+  result: string
+}
+
 export type ManagerSlotRecoverResponse = {
   strategy: string
   result: string
