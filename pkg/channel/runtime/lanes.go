@@ -394,12 +394,18 @@ func (r *runtime) markFollowerLaneCursor(manager *PeerLaneManager, key core.Chan
 	})
 }
 
-func (r *runtime) syncLeaderLaneTargets(ch *channel, next core.Meta) {
+func (r *runtime) syncLeaderLaneTargets(ch *channel, previous *core.Meta, next core.Meta) {
 	if !r.longPollEnabled() || ch == nil {
 		return
 	}
 
-	for _, target := range ch.replicationTargetsSnapshot() {
+	currentTargets := ch.replicationTargetsSnapshot()
+	nextTargets := r.leaderLaneTargetsFor(next)
+	if r.shouldKeepLeaderLaneTargets(previous, next, currentTargets, nextTargets) {
+		return
+	}
+
+	for _, target := range currentTargets {
 		if session, ok := r.leaderLanes.Session(target); ok {
 			session.ForgetChannel(ch.key)
 		}
@@ -410,14 +416,41 @@ func (r *runtime) syncLeaderLaneTargets(ch *channel, next core.Meta) {
 	if next.Leader != r.cfg.LocalNode {
 		return
 	}
-	targets := make([]PeerLaneKey, 0, len(next.Replicas))
-	laneID := laneIDFor(next.Key, r.cfg.LongPollLaneCount)
-	for _, peer := range next.Replicas {
+	ch.setReplicationTargets(nextTargets)
+	r.leaderLanes.SetReplicationTargets(ch.key, nextTargets)
+}
+
+func (r *runtime) leaderLaneTargetsFor(meta core.Meta) []PeerLaneKey {
+	if meta.Leader != r.cfg.LocalNode {
+		return nil
+	}
+	targets := make([]PeerLaneKey, 0, len(meta.Replicas))
+	laneID := laneIDFor(meta.Key, r.cfg.LongPollLaneCount)
+	for _, peer := range meta.Replicas {
 		if peer == 0 || peer == r.cfg.LocalNode {
 			continue
 		}
 		targets = append(targets, PeerLaneKey{Peer: peer, LaneID: laneID})
 	}
-	ch.setReplicationTargets(targets)
-	r.leaderLanes.SetReplicationTargets(ch.key, targets)
+	return targets
+}
+
+// shouldKeepLeaderLaneTargets preserves leader-side lane sessions when a meta
+// refresh only renews the lease and does not change channel leadership or epoch.
+func (r *runtime) shouldKeepLeaderLaneTargets(previous *core.Meta, next core.Meta, currentTargets, nextTargets []PeerLaneKey) bool {
+	if previous == nil {
+		return false
+	}
+	if !metaEqualExceptLease(*previous, next) {
+		return false
+	}
+	if len(currentTargets) != len(nextTargets) {
+		return false
+	}
+	for i := range currentTargets {
+		if currentTargets[i] != nextTargets[i] {
+			return false
+		}
+	}
+	return true
 }

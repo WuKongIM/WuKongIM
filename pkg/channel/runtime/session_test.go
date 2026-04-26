@@ -1689,6 +1689,80 @@ func TestSessionLongPollLeaseOnlyMetaUpdateKeepsExistingLaneManager(t *testing.T
 	require.Equal(t, uint64(7), req.SessionEpoch)
 }
 
+func TestSessionLongPollLeaderLeaseRenewalPreservesFollowerCursor(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+		cfg.FollowerReplicationRetryInterval = time.Hour
+	})
+
+	meta := testMetaLocal(260211, 4, 1, []core.NodeID{1, 2, 3})
+	meta.LeaseUntil = time.Unix(1_700_000_000, 0).UTC().Add(time.Minute)
+	mustEnsureLocal(t, env.runtime, meta)
+
+	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	replica.state.LEO = 1
+	replica.state.HW = 1
+	replica.state.OffsetEpoch = meta.Epoch
+	replica.fetchResult = core.ReplicaFetchResult{HW: 1}
+	replica.mu.Unlock()
+
+	laneID := testFollowerLaneFor(meta.Key, 4)
+	openResp, err := env.runtime.ServeLanePoll(context.Background(), LanePollRequestEnvelope{
+		ReplicaID:   2,
+		LaneID:      laneID,
+		LaneCount:   4,
+		Op:          LanePollOpOpen,
+		MaxWait:     time.Millisecond,
+		MaxBytes:    64 * 1024,
+		MaxChannels: 64,
+		FullMembership: []LaneMembership{
+			{ChannelKey: meta.Key, ChannelEpoch: meta.Epoch},
+		},
+		CursorDelta: []LaneCursorDelta{
+			{
+				ChannelKey:   meta.Key,
+				ChannelEpoch: meta.Epoch,
+				MatchOffset:  1,
+				OffsetEpoch:  meta.Epoch,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, LanePollStatusOK, openResp.Status)
+
+	renewed := meta
+	renewed.LeaseUntil = meta.LeaseUntil.Add(30 * time.Second)
+	require.NoError(t, env.runtime.ApplyMeta(renewed))
+
+	session, ok := env.runtime.leaderLanes.Session(PeerLaneKey{Peer: 2, LaneID: laneID})
+	require.True(t, ok)
+	session.MarkDataReady(meta.Key, meta.Epoch)
+
+	resp, err := env.runtime.ServeLanePoll(context.Background(), LanePollRequestEnvelope{
+		ReplicaID:    2,
+		LaneID:       laneID,
+		LaneCount:    4,
+		SessionID:    openResp.SessionID,
+		SessionEpoch: openResp.SessionEpoch,
+		Op:           LanePollOpPoll,
+		MaxWait:      time.Millisecond,
+		MaxBytes:     64 * 1024,
+		MaxChannels:  64,
+	})
+	require.NoError(t, err)
+	require.Equal(t, LanePollStatusOK, resp.Status)
+
+	replica.mu.Lock()
+	gotFetch := replica.lastFetch
+	replica.mu.Unlock()
+	require.Equal(t, uint64(1), gotFetch.FetchOffset)
+	require.Equal(t, meta.Epoch, gotFetch.OffsetEpoch)
+}
+
 func TestSessionLongPollLeaderChangeOpenCarriesFollowerCursor(t *testing.T) {
 	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
 		cfg.LongPollLaneCount = 4

@@ -188,7 +188,7 @@ func (r *runtime) EnsureChannel(meta core.Meta) error {
 	shard.channels[meta.Key] = ch
 	shard.mu.Unlock()
 	r.syncFollowerLaneMembership(nil, meta)
-	r.syncLeaderLaneTargets(ch, meta)
+	r.syncLeaderLaneTargets(ch, nil, meta)
 
 	if meta.Leader != r.cfg.LocalNode {
 		r.retryReplication(meta.Key, meta.Leader, true)
@@ -220,7 +220,7 @@ func (r *runtime) RemoveChannel(key core.ChannelKey) error {
 	delete(shard.channels, key)
 	shard.mu.Unlock()
 	r.syncFollowerLaneMembership(&previousMeta, core.Meta{})
-	r.syncLeaderLaneTargets(ch, core.Meta{})
+	r.syncLeaderLaneTargets(ch, &previousMeta, core.Meta{})
 	r.snapshots.removeWaiter(key)
 	r.evictInvalidPeerSessions(r.activeReplicationPeers(previousMeta))
 	r.sendCoordMu.Unlock()
@@ -260,7 +260,7 @@ func (r *runtime) ApplyMeta(meta core.Meta) error {
 		r.snapshots.removeWaiter(meta.Key)
 	}
 	r.syncFollowerLaneMembership(&previousMeta, meta)
-	r.syncLeaderLaneTargets(ch, meta)
+	r.syncLeaderLaneTargets(ch, &previousMeta, meta)
 	r.evictInvalidPeerSessions(invalidatedPeers)
 	r.sendCoordMu.Unlock()
 	r.clearInvalidPeerWork(ch, meta)
@@ -504,14 +504,20 @@ func shouldSkipReplicaApplyMeta(ch *channel, localNode core.NodeID, next core.Me
 }
 
 func metaEqual(a, b core.Meta) bool {
+	if !metaEqualExceptLease(a, b) {
+		return false
+	}
+	return a.LeaseUntil.Equal(b.LeaseUntil)
+}
+
+func metaEqualExceptLease(a, b core.Meta) bool {
 	if a.Key != b.Key ||
 		a.Epoch != b.Epoch ||
 		a.LeaderEpoch != b.LeaderEpoch ||
 		a.Leader != b.Leader ||
 		a.MinISR != b.MinISR ||
 		a.Status != b.Status ||
-		a.Features != b.Features ||
-		!a.LeaseUntil.Equal(b.LeaseUntil) {
+		a.Features != b.Features {
 		return false
 	}
 	if len(a.Replicas) != len(b.Replicas) || len(a.ISR) != len(b.ISR) {
