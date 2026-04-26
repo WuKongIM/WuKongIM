@@ -29,6 +29,12 @@ type DynamicDiscovery struct {
 	stopped        bool
 }
 
+type discoveryAddressChange struct {
+	nodeID  uint64
+	oldAddr string
+	newAddr string
+}
+
 // NewDynamicDiscovery builds a discovery source from bootstrap seeds and an optional node snapshot.
 func NewDynamicDiscovery(seeds []SeedConfig, nodes []NodeConfig) *DynamicDiscovery {
 	d := &DynamicDiscovery{
@@ -83,9 +89,23 @@ func (d *DynamicDiscovery) Resolve(nodeID uint64) (string, error) {
 
 // UpsertSeed records a bootstrap seed without replacing the dynamic node snapshot.
 func (d *DynamicDiscovery) UpsertSeed(seed SeedConfig) {
+	nodeID := uint64(seed.ID)
+	var changes []discoveryAddressChange
+	var subscribers []func(nodeID uint64, oldAddr, newAddr string)
+
 	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.seeds[uint64(seed.ID)] = NodeInfo{NodeID: seed.ID, Addr: seed.Addr}
+	oldAddr, oldOK := d.effectiveAddrLocked(nodeID, d.nodes)
+	d.seeds[nodeID] = NodeInfo{NodeID: seed.ID, Addr: seed.Addr}
+	newAddr, newOK := d.effectiveAddrLocked(nodeID, d.nodes)
+	if oldOK && newOK && oldAddr != newAddr {
+		changes = append(changes, discoveryAddressChange{nodeID: nodeID, oldAddr: oldAddr, newAddr: newAddr})
+	}
+	if len(changes) > 0 && !d.stopped {
+		subscribers = d.subscribersLocked()
+	}
+	d.mu.Unlock()
+
+	notifyDiscoveryAddressChanges(changes, subscribers)
 }
 
 // UpdateNodes replaces the dynamic node snapshot and reports effective address changes.
@@ -95,12 +115,7 @@ func (d *DynamicDiscovery) UpdateNodes(nodes []NodeConfig) (changed []uint64) {
 		next[uint64(node.NodeID)] = NodeInfo{NodeID: node.NodeID, Addr: node.Addr}
 	}
 
-	type addressChange struct {
-		nodeID  uint64
-		oldAddr string
-		newAddr string
-	}
-	var changes []addressChange
+	var changes []discoveryAddressChange
 	var subscribers []func(nodeID uint64, oldAddr, newAddr string)
 
 	d.mu.Lock()
@@ -114,49 +129,50 @@ func (d *DynamicDiscovery) UpdateNodes(nodes []NodeConfig) (changed []uint64) {
 	for nodeID := range d.seeds {
 		affected[nodeID] = struct{}{}
 	}
-	oldEffective := func(nodeID uint64) (string, bool) {
-		if node, ok := d.nodes[nodeID]; ok {
-			return node.Addr, true
-		}
-		if node, ok := d.seeds[nodeID]; ok {
-			return node.Addr, true
-		}
-		return "", false
-	}
-	nextEffective := func(nodeID uint64) (string, bool) {
-		if node, ok := next[nodeID]; ok {
-			return node.Addr, true
-		}
-		if node, ok := d.seeds[nodeID]; ok {
-			return node.Addr, true
-		}
-		return "", false
-	}
 	for nodeID := range affected {
-		oldAddr, oldOK := oldEffective(nodeID)
-		newAddr, newOK := nextEffective(nodeID)
+		oldAddr, oldOK := d.effectiveAddrLocked(nodeID, d.nodes)
+		newAddr, newOK := d.effectiveAddrLocked(nodeID, next)
 		if oldOK != newOK || oldAddr != newAddr {
 			changed = append(changed, nodeID)
-			changes = append(changes, addressChange{nodeID: nodeID, oldAddr: oldAddr, newAddr: newAddr})
+			changes = append(changes, discoveryAddressChange{nodeID: nodeID, oldAddr: oldAddr, newAddr: newAddr})
 		}
 	}
 	d.nodes = next
 	if len(changes) > 0 && !d.stopped {
-		subscribers = make([]func(nodeID uint64, oldAddr, newAddr string), 0, len(d.subscribers))
-		for _, fn := range d.subscribers {
-			subscribers = append(subscribers, fn)
-		}
+		subscribers = d.subscribersLocked()
 	}
 	d.mu.Unlock()
 
 	sort.Slice(changed, func(i, j int) bool { return changed[i] < changed[j] })
+	notifyDiscoveryAddressChanges(changes, subscribers)
+	return changed
+}
+
+func (d *DynamicDiscovery) effectiveAddrLocked(nodeID uint64, nodes map[uint64]NodeInfo) (string, bool) {
+	if node, ok := nodes[nodeID]; ok {
+		return node.Addr, true
+	}
+	if node, ok := d.seeds[nodeID]; ok {
+		return node.Addr, true
+	}
+	return "", false
+}
+
+func (d *DynamicDiscovery) subscribersLocked() []func(nodeID uint64, oldAddr, newAddr string) {
+	subscribers := make([]func(nodeID uint64, oldAddr, newAddr string), 0, len(d.subscribers))
+	for _, fn := range d.subscribers {
+		subscribers = append(subscribers, fn)
+	}
+	return subscribers
+}
+
+func notifyDiscoveryAddressChanges(changes []discoveryAddressChange, subscribers []func(nodeID uint64, oldAddr, newAddr string)) {
 	sort.Slice(changes, func(i, j int) bool { return changes[i].nodeID < changes[j].nodeID })
 	for _, change := range changes {
 		for _, fn := range subscribers {
 			fn(change.nodeID, change.oldAddr, change.newAddr)
 		}
 	}
-	return changed
 }
 
 // OnAddressChange registers a callback for transport pools that need to evict stale peers.

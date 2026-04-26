@@ -894,6 +894,78 @@ func TestPoolClosePeerEvictsCachedConnectionAndRefreshesAddress(t *testing.T) {
 	}
 }
 
+func TestPoolClosePeerDuringDialRetriesWithRefreshedAddress(t *testing.T) {
+	discovery := &mutableDiscovery{addrs: map[NodeID]string{2: "old"}}
+	oldDialStarted := make(chan struct{})
+	releaseOldDial := make(chan struct{})
+	dialed := make(chan string, 2)
+	var oldDialOnce sync.Once
+
+	pool := NewPool(PoolConfig{
+		Discovery:   discovery,
+		Size:        1,
+		DialTimeout: time.Second,
+		Dial: func(network, addr string, timeout time.Duration) (net.Conn, error) {
+			dialed <- addr
+			if addr == "old" {
+				oldDialOnce.Do(func() { close(oldDialStarted) })
+				<-releaseOldDial
+			}
+			return newBlockingConn(), nil
+		},
+		QueueSizes: [numPriorities]int{4, 4, 4},
+		DefaultPri: PriorityRaft,
+	})
+	defer pool.Close()
+
+	acquired := make(chan *MuxConn, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		mc, err := pool.acquire(2, 0)
+		if err == nil {
+			acquired <- mc
+		}
+		errCh <- err
+	}()
+
+	select {
+	case <-oldDialStarted:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for old dial")
+	}
+
+	discovery.Set(2, "new")
+	pool.ClosePeer(2)
+	close(releaseOldDial)
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("acquire error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for acquire")
+	}
+	select {
+	case <-acquired:
+	default:
+		t.Fatal("acquire returned no connection")
+	}
+
+	var got []string
+	for len(got) < 2 {
+		select {
+		case addr := <-dialed:
+			got = append(got, addr)
+		case <-time.After(time.Second):
+			t.Fatalf("dialed addresses = %v, want old then new", got)
+		}
+	}
+	if got[0] != "old" || got[1] != "new" {
+		t.Fatalf("dialed addresses = %v, want [old new]", got)
+	}
+}
+
 func TestPoolSendRecoversAfterPeerRestartOnSameAddress(t *testing.T) {
 	addr := reserveTCPAddr(t)
 	firstLn := mustListenOnAddr(t, addr)

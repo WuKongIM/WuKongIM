@@ -32,9 +32,10 @@ type Pool struct {
 }
 
 type nodeConnSet struct {
-	addr  atomic.Value
-	slots []*connSlot
-	conns []atomic.Pointer[MuxConn]
+	addr    atomic.Value
+	evicted atomic.Bool
+	slots   []*connSlot
+	conns   []atomic.Pointer[MuxConn]
 }
 
 type connSlot struct {
@@ -103,7 +104,7 @@ func (p *Pool) ClosePeer(nodeID NodeID) {
 		return
 	}
 	if value, ok := p.nodes.LoadAndDelete(nodeID); ok {
-		value.(*nodeConnSet).closeAndClear()
+		value.(*nodeConnSet).evictAndClose()
 	}
 }
 
@@ -152,6 +153,14 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 	}
 	slot := set.slots[int(shardKey%uint64(len(set.slots)))]
 	for {
+		if set.evicted.Load() {
+			set, err = p.getOrCreateNodeSet(nodeID)
+			if err != nil {
+				return nil, err
+			}
+			slot = set.slots[int(shardKey%uint64(len(set.slots)))]
+			continue
+		}
 		if mc := slot.conn.Load(); mc != nil {
 			if !mc.closed.Load() {
 				return mc, nil
@@ -170,6 +179,10 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 
 		ready = make(chan struct{})
 		slot.mu.Lock()
+		if set.evicted.Load() {
+			slot.mu.Unlock()
+			continue
+		}
 		if mc := slot.conn.Load(); mc != nil {
 			slot.mu.Unlock()
 			continue
@@ -201,9 +214,20 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 			slot.finishDial(nil, dialErr, ready)
 			return nil, dialErr
 		}
+		if set.evicted.Load() {
+			_ = raw.Close()
+			slot.finishDial(nil, nil, ready)
+			continue
+		}
 		setTCPKeepAlive(raw)
 		mc := newMuxConn(raw, nil, ConnConfig{QueueSizes: p.cfg.QueueSizes, Observer: p.cfg.Observer})
-		slot.finishDial(mc, nil, ready)
+		if !slot.finishDialIfActive(mc, ready, func() bool { return !set.evicted.Load() }) {
+			continue
+		}
+		if current, ok := p.nodes.Load(nodeID); !ok || current != set || mc.closed.Load() {
+			mc.Close()
+			continue
+		}
 		return mc, nil
 	}
 }
@@ -264,25 +288,36 @@ func priorityKind(pri Priority) string {
 }
 
 func (p *Pool) getOrCreateNodeSet(nodeID NodeID) (*nodeConnSet, error) {
-	if value, ok := p.nodes.Load(nodeID); ok {
-		return value.(*nodeConnSet), nil
-	}
+	for {
+		if value, ok := p.nodes.Load(nodeID); ok {
+			set := value.(*nodeConnSet)
+			if !set.evicted.Load() {
+				return set, nil
+			}
+			p.nodes.CompareAndDelete(nodeID, set)
+			continue
+		}
 
-	addr, err := p.cfg.Discovery.Resolve(nodeID)
-	if err != nil {
-		return nil, err
-	}
+		addr, err := p.cfg.Discovery.Resolve(nodeID)
+		if err != nil {
+			return nil, err
+		}
 
-	created := &nodeConnSet{
-		slots: make([]*connSlot, p.cfg.Size),
-		conns: make([]atomic.Pointer[MuxConn], p.cfg.Size),
+		created := &nodeConnSet{
+			slots: make([]*connSlot, p.cfg.Size),
+			conns: make([]atomic.Pointer[MuxConn], p.cfg.Size),
+		}
+		created.addr.Store(addr)
+		for i := range created.slots {
+			created.slots[i] = &connSlot{mirror: &created.conns[i]}
+		}
+		actual, _ := p.nodes.LoadOrStore(nodeID, created)
+		set := actual.(*nodeConnSet)
+		if !set.evicted.Load() {
+			return set, nil
+		}
+		p.nodes.CompareAndDelete(nodeID, set)
 	}
-	created.addr.Store(addr)
-	for i := range created.slots {
-		created.slots[i] = &connSlot{mirror: &created.conns[i]}
-	}
-	actual, _ := p.nodes.LoadOrStore(nodeID, created)
-	return actual.(*nodeConnSet), nil
 }
 
 func (s *connSlot) clearClosedConn(mc *MuxConn) {
@@ -316,6 +351,14 @@ func (s *nodeConnSet) closeAndClear() {
 	}
 }
 
+func (s *nodeConnSet) evictAndClose() {
+	if s == nil {
+		return
+	}
+	s.evicted.Store(true)
+	s.closeAndClear()
+}
+
 func (s *connSlot) closeAndClear() {
 	s.mu.Lock()
 	mc := s.conn.Load()
@@ -329,6 +372,31 @@ func (s *connSlot) closeAndClear() {
 	if mc != nil {
 		mc.Close()
 	}
+}
+
+func (s *connSlot) finishDialIfActive(mc *MuxConn, ready chan struct{}, active func() bool) bool {
+	s.mu.Lock()
+	ok := active == nil || active()
+	if ok {
+		s.conn.Store(mc)
+		if s.mirror != nil {
+			s.mirror.Store(mc)
+		}
+		s.lastErr = nil
+		s.lastDialFail = time.Time{}
+	} else {
+		s.lastErr = nil
+		s.lastDialFail = time.Time{}
+	}
+	if s.ready == ready {
+		s.ready = nil
+	}
+	s.mu.Unlock()
+	close(ready)
+	if !ok && mc != nil {
+		mc.Close()
+	}
+	return ok
 }
 
 func (s *connSlot) waiterOrCooldown() (chan struct{}, error) {
