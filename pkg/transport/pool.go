@@ -105,8 +105,11 @@ func (p *Pool) ClosePeer(nodeID NodeID) {
 	if p == nil {
 		return
 	}
-	if value, ok := p.nodes.LoadAndDelete(nodeID); ok {
-		value.(*nodeConnSet).evictAndClose()
+	if value, ok := p.nodes.Load(nodeID); ok {
+		set := value.(*nodeConnSet)
+		set.evictAndClose(func() {
+			p.nodes.CompareAndDelete(nodeID, set)
+		})
 	}
 }
 
@@ -163,10 +166,16 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 			slot = set.slots[int(shardKey%uint64(len(set.slots)))]
 			continue
 		}
-		if mc := slot.conn.Load(); mc != nil {
-			if !mc.closed.Load() {
+		if set.beginUse() {
+			if mc := slot.conn.Load(); mc != nil && !mc.closed.Load() {
+				set.endUse()
 				return mc, nil
 			}
+			set.endUse()
+		} else {
+			continue
+		}
+		if mc := slot.conn.Load(); mc != nil {
 			slot.clearClosedConn(mc)
 		}
 
@@ -176,6 +185,10 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 			continue
 		}
 		if cachedErr != nil {
+			if !set.beginUse() {
+				continue
+			}
+			set.endUse()
 			return nil, cachedErr
 		}
 
@@ -362,17 +375,33 @@ func (s *nodeConnSet) closeAndClear() {
 	}
 }
 
-func (s *nodeConnSet) evictAndClose() {
+func (s *nodeConnSet) evictAndClose(remove func()) {
 	if s == nil {
 		return
 	}
 	s.evictMu.Lock()
-	if s.evicted.Swap(true) {
-		s.evictMu.Unlock()
-		return
+	alreadyEvicted := s.evicted.Swap(true)
+	if !alreadyEvicted && remove != nil {
+		remove()
 	}
 	s.evictMu.Unlock()
+	if alreadyEvicted {
+		return
+	}
 	s.closeAndClear()
+}
+
+func (s *nodeConnSet) beginUse() bool {
+	s.evictMu.RLock()
+	if s.evicted.Load() {
+		s.evictMu.RUnlock()
+		return false
+	}
+	return true
+}
+
+func (s *nodeConnSet) endUse() {
+	s.evictMu.RUnlock()
 }
 
 func (s *connSlot) closeAndClear() {
