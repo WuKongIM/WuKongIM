@@ -35,6 +35,6 @@ Use the package test suite for resolver, bootstrap, watcher, liveness, and repai
 
 ```bash
 GOWORK=off go test ./internal/runtime/channelmeta -count=1
-GOWORK=off go test ./internal/runtime/channelmeta -run 'TestChannelMeta.*Repair|TestChannelLeader.*Repair|TestChannelLeader.*Evaluate' -count=1
+GOWORK=off go test ./internal/runtime/channelmeta -run 'TestChannelMeta.*Repair|TestChannelLeader.*Repair|TestChannelLeader.*Evaluate|TestChannelLeaderPromotionEvaluator' -count=1
 GOWORK=off go test ./internal -run TestInternalImportBoundaries -count=1
 ```

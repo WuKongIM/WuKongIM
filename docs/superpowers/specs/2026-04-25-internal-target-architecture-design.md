@@ -52,7 +52,7 @@ app -> all modules as the only composition root
 internal/
   app/
     compose/              dependency graph construction
-    lifecycle/            lifecycle DAG and resource stack
+    lifecycle/            ordered lifecycle manager and resource stack
   config/                 file/env loading, defaults, validation, examples
   access/
     api/                  external HTTP API adapter
@@ -258,7 +258,7 @@ type AuthoritativeApplier interface {
 
 ## 8. Lifecycle And Resource Management
 
-Replace manual lifecycle sequencing with a small lifecycle DAG.
+Replace manual lifecycle sequencing with a small ordered lifecycle manager.
 
 ```go
 type Component interface {
@@ -272,6 +272,7 @@ Default startup order:
 
 ```text
 cluster
+  -> managed_slots_ready
   -> channelmeta
   -> presence
   -> conversation_projector
@@ -422,7 +423,7 @@ component tests
   access/api with fake usecases
   access/gateway with fake message/presence
   access/node RPC codec contracts
-  lifecycle DAG and resource stack
+  lifecycle manager and resource stack
 
 integration tests
   single-node cluster

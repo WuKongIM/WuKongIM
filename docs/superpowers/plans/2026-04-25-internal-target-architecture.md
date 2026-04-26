@@ -338,7 +338,7 @@ Expected: PASS and materially faster than the previous ~70s normal app package r
 Run:
 
 ```bash
-go test -tags=integration -count=1 ./internal/app -run 'TestThreeNodeAppSendAckReturnsBeforeLeaderCheckpointDurability|TestAppSingleNodeClusterStartsAndServesGateway'
+go test -tags=integration -count=1 ./internal/app -run 'TestThreeNodeAppSendAckReturnsBeforeLeaderCheckpointDurability|TestAppStartAcceptsWKProtoConnectionAndStopsCleanly'
 ```
 
 Expected: PASS. If exact names differ, choose one pending checkpoint three-node test and one single-node cluster startup smoke.
@@ -1606,7 +1606,7 @@ Expected: PASS.
 Run:
 
 ```bash
-go test -tags=integration -count=1 ./internal/app -run 'TestThreeNodeAppSendAckReturnsBeforeLeaderCheckpointDurability|TestAppSingleNodeClusterStartsAndServesGateway'
+go test -tags=integration -count=1 ./internal/app -run 'TestThreeNodeAppSendAckReturnsBeforeLeaderCheckpointDurability|TestAppStartAcceptsWKProtoConnectionAndStopsCleanly'
 ```
 
 Expected: PASS. If exact names changed, choose one pending checkpoint three-node test and one single-node cluster app startup test.

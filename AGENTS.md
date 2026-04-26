@@ -60,7 +60,10 @@ internal/
     testkit/             网关测试桩与辅助工具
     transport/           gnet 等底层传输实现
     types/               网关通用类型与选项
+    wkprotoenc/          WKProto 加解密辅助
   log/                   应用日志配置与 zap/lumberjack 封装
+  observability/         节点内可观测性辅助
+    sendtrace/           消息发送链路 trace 记录
   contracts/             跨用例/运行时的轻量事件合约
     deliveryevents/      投递回执与离线事件合约
     messageevents/       消息提交事件合约

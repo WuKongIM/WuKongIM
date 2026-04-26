@@ -174,7 +174,8 @@ Stop():
       ⑦ managed_slots_ready (no-op)
       ⑧ cluster
     → channelmeta 停止使用 StopWithoutCleanup：它只停止 refresh/watch 后台任务，不清理本地 channel runtime；cluster/channel runtime 关闭流程负责运行时清理，避免 app 停止路径提前删除仍由底层拥有的状态。
-    ⑨ 关闭 build 阶段已转交给 App 的 channel/runtime resources: channelLogDB + dataPlaneClient.Stop + dataPlanePool.Close
+    ⑨ 关闭 build 阶段已转交给 App 的 channel/runtime resources:
+       channelLog.Close（关闭 channel transport / ISR runtime closers）→ dataPlaneClient.Stop → dataPlanePool.Close → channelLogDB.Close
     ⑩ closeRaftDB
     ⑪ closeWKDB (metadb)
     ⑫ syncLogger
