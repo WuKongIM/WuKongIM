@@ -1,4 +1,4 @@
-package app
+package channelmeta
 
 import (
 	"context"
@@ -13,47 +13,63 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-const channelMetaBootstrapLease = 30 * time.Second
+// BootstrapLease is the leader lease duration assigned to bootstrapped or renewed channel metadata.
+const BootstrapLease = 30 * time.Second
 
-type channelMetaBootstrapCluster interface {
-	SlotForKey(key string) multiraft.SlotID
-	PeersForSlot(slotID multiraft.SlotID) []multiraft.NodeID
-	LeaderOf(slotID multiraft.SlotID) (multiraft.NodeID, error)
+// BootstrapOptions configures the channel runtime metadata bootstrapper.
+type BootstrapOptions struct {
+	// Cluster provides slot topology and current slot leader observations.
+	Cluster BootstrapCluster
+	// Store reads and writes authoritative channel runtime metadata.
+	Store BootstrapStore
+	// DefaultMinISR is the configured MinISR used for new channel metadata.
+	DefaultMinISR int
+	// Now returns the current time used to derive leader leases.
+	Now func() time.Time
+	// Logger records bootstrap events and failures.
+	Logger wklog.Logger
 }
 
-type channelMetaBootstrapStore interface {
-	GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error)
-	UpsertChannelRuntimeMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) error
-}
-
-type channelMetaBootstrapper struct {
-	cluster       channelMetaBootstrapCluster
-	store         channelMetaBootstrapStore
+// RuntimeBootstrapper creates and renews authoritative channel runtime metadata.
+type RuntimeBootstrapper struct {
+	cluster       BootstrapCluster
+	store         BootstrapStore
 	defaultMinISR int
 	now           func() time.Time
 	logger        wklog.Logger
 }
 
-func newChannelMetaBootstrapper(cluster channelMetaBootstrapCluster, store channelMetaBootstrapStore, defaultMinISR int, now func() time.Time, logger wklog.Logger) *channelMetaBootstrapper {
+var _ Bootstrapper = (*RuntimeBootstrapper)(nil)
+
+// Keep the historical app event prefix while this runtime primitive is migrated
+// behind existing dashboards and log queries.
+const bootstrapEventPrefix = "app.channelmeta.bootstrap."
+
+// NewBootstrapper constructs a channel runtime metadata bootstrapper.
+func NewBootstrapper(opts BootstrapOptions) *RuntimeBootstrapper {
+	now := opts.Now
 	if now == nil {
 		now = time.Now
 	}
+	logger := opts.Logger
 	if logger == nil {
 		logger = wklog.NewNop()
 	}
+	defaultMinISR := opts.DefaultMinISR
 	if defaultMinISR <= 0 {
 		defaultMinISR = 2
 	}
-	return &channelMetaBootstrapper{
-		cluster:       cluster,
-		store:         store,
+	return &RuntimeBootstrapper{
+		cluster:       opts.Cluster,
+		store:         opts.Store,
 		defaultMinISR: defaultMinISR,
 		now:           now,
 		logger:        logger.Named("channelmeta.bootstrap"),
 	}
 }
 
-func (b *channelMetaBootstrapper) EnsureChannelRuntimeMeta(ctx context.Context, id channel.ChannelID) (metadb.ChannelRuntimeMeta, bool, error) {
+// EnsureChannelRuntimeMeta creates missing authoritative runtime metadata from slot topology.
+func (b *RuntimeBootstrapper) EnsureChannelRuntimeMeta(ctx context.Context, id channel.ChannelID) (metadb.ChannelRuntimeMeta, bool, error) {
 	if b == nil || b.store == nil {
 		return metadb.ChannelRuntimeMeta{}, false, fmt.Errorf("channelmeta bootstrap: store is nil")
 	}
@@ -72,7 +88,7 @@ func (b *channelMetaBootstrapper) EnsureChannelRuntimeMeta(ctx context.Context, 
 	replicas := projectBootstrapReplicaIDs(b.cluster.PeersForSlot(slotID))
 	minISR := int64(clampBootstrapMinISR(b.defaultMinISR, len(replicas)))
 	b.logger.Info("missing runtime metadata; bootstrapping",
-		wklog.Event("app.channelmeta.bootstrap.missing"),
+		wklog.Event(bootstrapEventPrefix+"missing"),
 		wklog.ChannelID(id.ID),
 		wklog.ChannelType(int64(id.Type)),
 		wklog.SlotID(uint64(slotID)),
@@ -110,7 +126,7 @@ func (b *channelMetaBootstrapper) EnsureChannelRuntimeMeta(ctx context.Context, 
 		MinISR:       minISR,
 		Status:       uint8(channel.StatusActive),
 		Features:     uint64(channel.MessageSeqFormatLegacyU32),
-		LeaseUntilMS: b.now().UTC().Add(channelMetaBootstrapLease).UnixMilli(),
+		LeaseUntilMS: b.now().UTC().Add(BootstrapLease).UnixMilli(),
 	}
 
 	if err := b.store.UpsertChannelRuntimeMeta(ctx, candidate); err != nil {
@@ -127,7 +143,7 @@ func (b *channelMetaBootstrapper) EnsureChannelRuntimeMeta(ctx context.Context, 
 	}
 
 	b.logger.Info("bootstrapped runtime metadata",
-		wklog.Event("app.channelmeta.bootstrap.bootstrapped"),
+		wklog.Event(bootstrapEventPrefix+"bootstrapped"),
 		wklog.ChannelID(id.ID),
 		wklog.ChannelType(int64(id.Type)),
 		wklog.SlotID(uint64(slotID)),
@@ -139,12 +155,51 @@ func (b *channelMetaBootstrapper) EnsureChannelRuntimeMeta(ctx context.Context, 
 	return authoritative, true, nil
 }
 
-func (b *channelMetaBootstrapper) logBootstrapFailure(id channel.ChannelID, slotID multiraft.SlotID, leader uint64, replicaCount int, minISR int64, err error) {
+// RenewChannelLeaderLease refreshes only the current channel leader lease.
+func (b *RuntimeBootstrapper) RenewChannelLeaderLease(ctx context.Context, meta metadb.ChannelRuntimeMeta, localNode uint64, renewBefore time.Duration) (metadb.ChannelRuntimeMeta, bool, error) {
+	if b == nil || b.store == nil {
+		return meta, false, nil
+	}
+	if meta.Status != uint8(channel.StatusActive) {
+		return meta, false, nil
+	}
+	if meta.Leader != localNode {
+		return meta, false, nil
+	}
+
+	now := b.now().UTC()
+	if !MetaLeaseNeedsRenewal(meta.LeaseUntilMS, now, renewBefore) {
+		return meta, false, nil
+	}
+	candidate := meta
+	candidate.LeaseUntilMS = now.Add(BootstrapLease).UnixMilli()
+	if err := b.store.UpsertChannelRuntimeMeta(ctx, candidate); err != nil {
+		return metadb.ChannelRuntimeMeta{}, false, fmt.Errorf("channelmeta lifecycle: upsert runtime metadata: %w", err)
+	}
+
+	authoritative, err := b.store.GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	if err != nil {
+		return metadb.ChannelRuntimeMeta{}, false, fmt.Errorf("channelmeta lifecycle: reread runtime metadata: %w", err)
+	}
+	return authoritative, true, nil
+}
+
+// MetaLeaseNeedsRenewal reports whether a leader lease is expired or within the renewal lead time.
+func MetaLeaseNeedsRenewal(leaseUntilMS int64, now time.Time, renewBefore time.Duration) bool {
+	if leaseUntilMS <= 0 {
+		return true
+	}
+	leaseUntil := time.UnixMilli(leaseUntilMS).UTC()
+	deadline := now.UTC().Add(renewBefore)
+	return !leaseUntil.After(deadline)
+}
+
+func (b *RuntimeBootstrapper) logBootstrapFailure(id channel.ChannelID, slotID multiraft.SlotID, leader uint64, replicaCount int, minISR int64, err error) {
 	if b == nil || b.logger == nil {
 		return
 	}
 	fields := []wklog.Field{
-		wklog.Event("app.channelmeta.bootstrap.failed"),
+		wklog.Event(bootstrapEventPrefix + "failed"),
 		wklog.ChannelID(id.ID),
 		wklog.ChannelType(int64(id.Type)),
 		wklog.SlotID(uint64(slotID)),

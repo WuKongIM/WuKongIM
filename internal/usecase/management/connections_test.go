@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -26,12 +25,12 @@ func TestListConnectionsReturnsMappedItemsOrderedByConnectedAtDesc(t *testing.T)
 		State:       online.LocalRouteStateActive,
 		Listener:    "tcp",
 		ConnectedAt: base.Add(2 * time.Minute),
-		Session: session.New(session.Config{
-			ID:         5,
-			Listener:   "tcp",
-			RemoteAddr: "10.0.0.5:5000",
-			LocalAddr:  "127.0.0.1:7000",
-		}),
+		Session: managementTestSession{
+			id:         5,
+			listener:   "tcp",
+			remoteAddr: "10.0.0.5:5000",
+			localAddr:  "127.0.0.1:7000",
+		},
 	}))
 	require.NoError(t, reg.Register(online.OnlineConn{
 		SessionID:   3,
@@ -43,12 +42,12 @@ func TestListConnectionsReturnsMappedItemsOrderedByConnectedAtDesc(t *testing.T)
 		State:       online.LocalRouteStateActive,
 		Listener:    "ws",
 		ConnectedAt: base.Add(4 * time.Minute),
-		Session: session.New(session.Config{
-			ID:         3,
-			Listener:   "ws",
-			RemoteAddr: "10.0.0.3:5001",
-			LocalAddr:  "127.0.0.1:7100",
-		}),
+		Session: managementTestSession{
+			id:         3,
+			listener:   "ws",
+			remoteAddr: "10.0.0.3:5001",
+			localAddr:  "127.0.0.1:7100",
+		},
 	}))
 	require.NoError(t, reg.Register(online.OnlineConn{
 		SessionID:   8,
@@ -60,12 +59,12 @@ func TestListConnectionsReturnsMappedItemsOrderedByConnectedAtDesc(t *testing.T)
 		State:       online.LocalRouteStateActive,
 		Listener:    "tcp",
 		ConnectedAt: base.Add(4 * time.Minute),
-		Session: session.New(session.Config{
-			ID:         8,
-			Listener:   "tcp",
-			RemoteAddr: "10.0.0.8:5002",
-			LocalAddr:  "127.0.0.1:7200",
-		}),
+		Session: managementTestSession{
+			id:         8,
+			listener:   "tcp",
+			remoteAddr: "10.0.0.8:5002",
+			localAddr:  "127.0.0.1:7200",
+		},
 	}))
 	require.NoError(t, reg.Register(online.OnlineConn{
 		SessionID:   12,
@@ -77,12 +76,12 @@ func TestListConnectionsReturnsMappedItemsOrderedByConnectedAtDesc(t *testing.T)
 		State:       online.LocalRouteStateClosing,
 		Listener:    "tcp",
 		ConnectedAt: base.Add(5 * time.Minute),
-		Session: session.New(session.Config{
-			ID:         12,
-			Listener:   "tcp",
-			RemoteAddr: "10.0.0.12:5003",
-			LocalAddr:  "127.0.0.1:7300",
-		}),
+		Session: managementTestSession{
+			id:         12,
+			listener:   "tcp",
+			remoteAddr: "10.0.0.12:5003",
+			localAddr:  "127.0.0.1:7300",
+		},
 	}))
 
 	app := New(Options{Online: reg})
@@ -147,12 +146,12 @@ func TestGetConnectionReturnsMappedDetail(t *testing.T) {
 		State:       online.LocalRouteStateClosing,
 		Listener:    "tcp",
 		ConnectedAt: connectedAt,
-		Session: session.New(session.Config{
-			ID:         101,
-			Listener:   "tcp",
-			RemoteAddr: "172.16.0.1:5500",
-			LocalAddr:  "127.0.0.1:7500",
-		}),
+		Session: managementTestSession{
+			id:         101,
+			listener:   "tcp",
+			remoteAddr: "172.16.0.1:5500",
+			localAddr:  "127.0.0.1:7500",
+		},
 	}))
 
 	app := New(Options{Online: reg})
@@ -219,4 +218,41 @@ func connectionTimes(items []Connection) []time.Time {
 		out = append(out, item.ConnectedAt)
 	}
 	return out
+}
+
+type managementTestSession struct {
+	id         uint64
+	listener   string
+	remoteAddr string
+	localAddr  string
+}
+
+func (s managementTestSession) ID() uint64 {
+	return s.id
+}
+
+func (s managementTestSession) Listener() string {
+	return s.listener
+}
+
+func (s managementTestSession) RemoteAddr() string {
+	return s.remoteAddr
+}
+
+func (s managementTestSession) LocalAddr() string {
+	return s.localAddr
+}
+
+func (s managementTestSession) WriteFrame(frame.Frame) error {
+	return nil
+}
+
+func (s managementTestSession) Close() error {
+	return nil
+}
+
+func (s managementTestSession) SetValue(string, any) {}
+
+func (s managementTestSession) Value(string) any {
+	return nil
 }

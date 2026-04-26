@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
@@ -146,7 +145,7 @@ func TestAuthorityHeartbeatMatchesGatewayGroupDigest(t *testing.T) {
 		SlotID:      1,
 		State:       online.LocalRouteStateActive,
 		Listener:    "tcp",
-		Session:     session.New(session.Config{ID: 100, Listener: "tcp"}),
+		Session:     newPresenceTestSession(100, "tcp"),
 	}))
 
 	groups := reg.ActiveSlots()

@@ -1,4 +1,4 @@
-package app
+package channelmeta
 
 import (
 	"errors"
@@ -24,20 +24,16 @@ type cachedChannelMetaError struct {
 	expiresAt time.Time
 }
 
-type channelMetaActivationCall struct {
-	done chan struct{}
-	meta channel.Meta
-	err  error
-}
-
-type channelActivationCache struct {
+// ActivationCache stores short-lived channel activation results and coalesces concurrent loads.
+type ActivationCache struct {
 	mu       sync.Mutex
 	positive map[channel.ChannelKey]cachedChannelMeta
 	negative map[channel.ChannelKey]cachedChannelMetaError
-	calls    map[channel.ChannelKey]*channelMetaActivationCall
+	calls    map[channel.ChannelKey]*activationCall
 }
 
-func (c *channelActivationCache) loadPositive(key channel.ChannelKey, now time.Time) (channel.Meta, bool) {
+// LoadPositive returns a cached channel metadata result when it has not expired.
+func (c *ActivationCache) LoadPositive(key channel.ChannelKey, now time.Time) (channel.Meta, bool) {
 	if c == nil {
 		return channel.Meta{}, false
 	}
@@ -54,7 +50,8 @@ func (c *channelActivationCache) loadPositive(key channel.ChannelKey, now time.T
 	return entry.meta, true
 }
 
-func (c *channelActivationCache) storePositive(key channel.ChannelKey, meta channel.Meta, now time.Time) {
+// StorePositive caches a successful activation result and clears stale negative state.
+func (c *ActivationCache) StorePositive(key channel.ChannelKey, meta channel.Meta, now time.Time) {
 	if c == nil {
 		return
 	}
@@ -69,7 +66,8 @@ func (c *channelActivationCache) storePositive(key channel.ChannelKey, meta chan
 	c.positive[key] = cachedChannelMeta{meta: meta, expiresAt: now.Add(channelMetaPositiveCacheTTL)}
 }
 
-func (c *channelActivationCache) loadNegative(key channel.ChannelKey, now time.Time) error {
+// LoadNegative returns a cached not-found activation error when it has not expired.
+func (c *ActivationCache) LoadNegative(key channel.ChannelKey, now time.Time) error {
 	if c == nil {
 		return nil
 	}
@@ -86,7 +84,8 @@ func (c *channelActivationCache) loadNegative(key channel.ChannelKey, now time.T
 	return entry.err
 }
 
-func (c *channelActivationCache) storeNegative(key channel.ChannelKey, err error, now time.Time) {
+// StoreNegative caches only not-found activation errors and clears stale positive state.
+func (c *ActivationCache) StoreNegative(key channel.ChannelKey, err error, now time.Time) {
 	if c == nil || err == nil {
 		return
 	}
@@ -104,33 +103,8 @@ func (c *channelActivationCache) storeNegative(key channel.ChannelKey, err error
 	c.negative[key] = cachedChannelMetaError{err: err, expiresAt: now.Add(channelMetaNegativeCacheTTL)}
 }
 
-func (c *channelActivationCache) runSingleflight(key channel.ChannelKey, fn func() (channel.Meta, error)) (channel.Meta, error) {
-	if c == nil {
-		return fn()
-	}
-	c.mu.Lock()
-	if c.calls == nil {
-		c.calls = make(map[channel.ChannelKey]*channelMetaActivationCall)
-	}
-	if call, ok := c.calls[key]; ok {
-		c.mu.Unlock()
-		<-call.done
-		return call.meta, call.err
-	}
-	call := &channelMetaActivationCall{done: make(chan struct{})}
-	c.calls[key] = call
-	c.mu.Unlock()
-
-	call.meta, call.err = fn()
-	close(call.done)
-
-	c.mu.Lock()
-	delete(c.calls, key)
-	c.mu.Unlock()
-	return call.meta, call.err
-}
-
-func (c *channelActivationCache) clear() {
+// Clear drops cached activation successes and not-found errors.
+func (c *ActivationCache) Clear() {
 	if c == nil {
 		return
 	}

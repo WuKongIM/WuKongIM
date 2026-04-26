@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	gatewaysession "github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -265,7 +267,7 @@ func TestAsyncCommittedDispatcherFallsBackToLocalConversationWhenOwnerIsUnknown(
 		conversation: conversation,
 	}
 
-	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), deliveryruntime.CommittedEnvelope{
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
 		Message: channel.Message{
 			ChannelID:   "g1",
 			ChannelType: 2,
@@ -291,7 +293,7 @@ func TestAsyncCommittedDispatcherSubmitsDurableMessageToLocalDelivery(t *testing
 		delivery: delivery,
 	}
 
-	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), deliveryruntime.CommittedEnvelope{
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
 		Message: channel.Message{
 			MessageID:   88,
 			MessageSeq:  7,
@@ -352,7 +354,7 @@ func TestAsyncCommittedDispatcherSubmitsToConversationProjector(t *testing.T) {
 		FromUID:     "u1",
 		Payload:     []byte("hello projector"),
 	}
-	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), deliveryruntime.CommittedEnvelope{Message: msg}))
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: msg}))
 
 	require.Eventually(t, func() bool {
 		return len(delivery.calls) == 1 && len(conversation.calls) == 1
@@ -384,7 +386,7 @@ func TestAsyncCommittedDispatcherPrefersLocalDeliveryWithoutOwnerLookup(t *testi
 		FromUID:     "u1",
 		Payload:     []byte("hello local"),
 	}
-	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), deliveryruntime.CommittedEnvelope{Message: msg}))
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: msg}))
 
 	require.Eventually(t, func() bool {
 		return len(delivery.calls) == 1 && len(conversation.calls) == 1
@@ -428,13 +430,13 @@ func TestLocalDeliveryPushBuildsPersonChannelViewPerRouteUID(t *testing.T) {
 		SessionID: 1,
 		UID:       "u1",
 		State:     online.LocalRouteStateActive,
-		Session:   sender.Session,
+		Session:   sender,
 	}))
 	require.NoError(t, registry.Register(online.OnlineConn{
 		SessionID: 2,
 		UID:       "u2",
 		State:     online.LocalRouteStateActive,
-		Session:   recipient.Session,
+		Session:   recipient,
 	}))
 
 	push := localDeliveryPush{
@@ -488,19 +490,19 @@ func TestLocalDeliveryPushSkipsOriginSessionButKeepsOtherSenderSessions(t *testi
 		SessionID: 1,
 		UID:       "u1",
 		State:     online.LocalRouteStateActive,
-		Session:   origin.Session,
+		Session:   origin,
 	}))
 	require.NoError(t, registry.Register(online.OnlineConn{
 		SessionID: 3,
 		UID:       "u1",
 		State:     online.LocalRouteStateActive,
-		Session:   mirror.Session,
+		Session:   mirror,
 	}))
 	require.NoError(t, registry.Register(online.OnlineConn{
 		SessionID: 2,
 		UID:       "u2",
 		State:     online.LocalRouteStateActive,
-		Session:   recipient.Session,
+		Session:   recipient,
 	}))
 
 	push := localDeliveryPush{
@@ -585,19 +587,19 @@ func TestLocalDeliveryResolverSplitsExpandedRoutesAcrossPages(t *testing.T) {
 }
 
 type recordingDeliveryOwnerNotifier struct {
-	acks        []message.RouteAckCommand
-	offlines    []message.SessionClosedCommand
+	acks        []deliveryevents.RouteAck
+	offlines    []deliveryevents.SessionClosed
 	ackErr      error
 	offlineErr  error
 	localClosed bool
 }
 
-func (r *recordingDeliveryOwnerNotifier) NotifyAck(_ context.Context, _ uint64, cmd message.RouteAckCommand) error {
+func (r *recordingDeliveryOwnerNotifier) NotifyAck(_ context.Context, _ uint64, cmd deliveryevents.RouteAck) error {
 	r.acks = append(r.acks, cmd)
 	return r.ackErr
 }
 
-func (r *recordingDeliveryOwnerNotifier) NotifyOffline(_ context.Context, _ uint64, cmd message.SessionClosedCommand) error {
+func (r *recordingDeliveryOwnerNotifier) NotifyOffline(_ context.Context, _ uint64, cmd deliveryevents.SessionClosed) error {
 	r.offlines = append(r.offlines, cmd)
 	return r.offlineErr
 }
@@ -636,6 +638,10 @@ func newOptionRecordingSession(id uint64, listener string) *optionRecordingSessi
 	return recorder
 }
 
+func (s *optionRecordingSession) WriteFrame(f frame.Frame) error {
+	return s.Session.WriteFrame(f)
+}
+
 func (s *optionRecordingSession) Writes() []outboundWrite {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -645,21 +651,21 @@ func (s *optionRecordingSession) Writes() []outboundWrite {
 }
 
 type recordingRouteAcker struct {
-	acks []message.RouteAckCommand
+	acks []deliveryevents.RouteAck
 	err  error
 }
 
-func (r *recordingRouteAcker) AckRoute(_ context.Context, cmd message.RouteAckCommand) error {
+func (r *recordingRouteAcker) AckRoute(_ context.Context, cmd deliveryevents.RouteAck) error {
 	r.acks = append(r.acks, cmd)
 	return r.err
 }
 
 type recordingSessionCloser struct {
-	closed []message.SessionClosedCommand
+	closed []deliveryevents.SessionClosed
 	err    error
 }
 
-func (r *recordingSessionCloser) SessionClosed(_ context.Context, cmd message.SessionClosedCommand) error {
+func (r *recordingSessionCloser) SessionClosed(_ context.Context, cmd deliveryevents.SessionClosed) error {
 	r.closed = append(r.closed, cmd)
 	return r.err
 }

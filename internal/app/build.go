@@ -12,8 +12,10 @@ import (
 	accessgateway "github.com/WuKongIM/WuKongIM/internal/access/gateway"
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
+	applifecycle "github.com/WuKongIM/WuKongIM/internal/app/lifecycle"
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
+	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/messageid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -39,30 +41,19 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
+// buildAfterChannelRuntimeHook is a narrow test hook for late build failures.
+var buildAfterChannelRuntimeHook func(*App) error
+
 func build(cfg Config) (_ *App, err error) {
 	if err := cfg.ApplyDefaultsAndValidate(); err != nil {
 		return nil, err
 	}
 
 	app := &App{cfg: cfg, createdAt: time.Now()}
+	cleanup := &applifecycle.ResourceStack{}
 	defer func() {
-		if err == nil {
-			return
-		}
-		if app.logger != nil {
-			_ = app.logger.Sync()
-		}
-		if app.raftDB != nil {
-			_ = app.raftDB.Close()
-			app.raftDB = nil
-		}
-		if app.channelLogDB != nil {
-			_ = app.channelLogDB.Close()
-			app.channelLogDB = nil
-		}
-		if app.db != nil {
-			_ = app.db.Close()
-			app.db = nil
+		if err != nil {
+			err = errors.Join(err, cleanup.Close())
 		}
 	}()
 
@@ -79,6 +70,7 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: create logger: %w", err)
 	}
+	cleanup.Push("logger", func() error { return app.syncLogger() })
 	if cfg.Observability.MetricsEnabled {
 		app.metrics = obsmetrics.New(cfg.Node.ID, cfg.Node.Name)
 	}
@@ -87,11 +79,23 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: open metadb: %w", err)
 	}
+	cleanup.Push("metadb", func() error {
+		if app.db == nil {
+			return nil
+		}
+		return app.db.Close()
+	})
 
 	app.raftDB, err = raftstorage.Open(cfg.Storage.RaftPath)
 	if err != nil {
 		return nil, fmt.Errorf("app: open raftstorage: %w", err)
 	}
+	cleanup.Push("raft log db", func() error {
+		if app.raftDB == nil {
+			return nil
+		}
+		return app.raftDB.Close()
+	})
 
 	clusterCfg := cfg.Cluster.runtimeConfig(cfg.Storage, app.db, app.raftDB, cfg.Node.ID, app.logger.Named("cluster"))
 	var transportObserver transport.ObserverHooks
@@ -124,6 +128,12 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: open channel store: %w", err)
 	}
+	cleanup.Push("channel log db", func() error {
+		if app.channelLogDB == nil {
+			return nil
+		}
+		return app.channelLogDB.Close()
+	})
 
 	messageIDs, err := messageid.NewSnowflakeGenerator(cfg.Node.ID)
 	if err != nil {
@@ -140,6 +150,7 @@ func build(cfg Config) (_ *App, err error) {
 	if dialTimeout <= 0 {
 		dialTimeout = defaultDataPlaneDialTimeout
 	}
+	dataPlanePoolOwnedByClient := false
 	replicationCfg := cfg.Cluster.replicationConfig()
 	app.dataPlanePool = transport.NewPool(transport.PoolConfig{
 		Discovery:   discovery,
@@ -147,7 +158,22 @@ func build(cfg Config) (_ *App, err error) {
 		DialTimeout: dialTimeout,
 		Observer:    transportObserver,
 	})
+	cleanup.Push("data-plane pool", func() error {
+		if dataPlanePoolOwnedByClient || app.dataPlanePool == nil {
+			return nil
+		}
+		app.dataPlanePool.Close()
+		return nil
+	})
 	app.dataPlaneClient = transport.NewClient(app.dataPlanePool)
+	dataPlanePoolOwnedByClient = true
+	cleanup.Push("data-plane client", func() error {
+		if app.dataPlaneClient == nil {
+			return nil
+		}
+		app.dataPlaneClient.Stop()
+		return nil
+	})
 	app.isrTransport, err = channeltransport.New(channeltransport.Options{
 		LocalNode:           channel.NodeID(cfg.Node.ID),
 		Client:              app.dataPlaneClient,
@@ -162,10 +188,14 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: create channel transport: %w", err)
 	}
-	app.channelMetaSync = &channelMetaSync{
-		localNode:       cfg.Node.ID,
-		refreshInterval: time.Second,
-	}
+	channelTransportOwnedByChannelLog := false
+	cleanup.Push("channel transport", func() error {
+		if channelTransportOwnedByChannelLog || app.isrTransport == nil {
+			return nil
+		}
+		return app.isrTransport.Close()
+	})
+	app.channelMetaSync = &channelMetaSync{}
 	replicaFactory := newChannelReplicaFactory(app.channelLogDB, channel.NodeID(cfg.Node.ID), nil, cfg.Cluster.AppendGroupCommitMaxWait, cfg.Cluster.AppendGroupCommitMaxRecords, cfg.Cluster.AppendGroupCommitMaxBytes, app.logger.Named("channel"))
 	replicaFactory.onStateChange = app.channelMetaSync.enqueueLocalReplicaStateChange
 	app.isrRuntime, err = channelruntime.New(channelruntime.Config{
@@ -196,12 +226,31 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: create channel runtime: %w", err)
 	}
-	app.channelMetaSync.localRuntime = app.isrRuntime
+	isrRuntimeOwnedByChannelLog := false
+	cleanup.Push("isr runtime", func() error {
+		if isrRuntimeOwnedByChannelLog || app.isrRuntime == nil {
+			return nil
+		}
+		return app.isrRuntime.Close()
+	})
 	app.channelLog, err = newAppChannelCluster(app.channelLogDB, app.isrRuntime, app.isrTransport, messageIDs, cfg.Node.ID, app.logger)
 	if err != nil {
 		return nil, fmt.Errorf("app: create channel cluster: %w", err)
 	}
+	channelTransportOwnedByChannelLog = true
+	isrRuntimeOwnedByChannelLog = true
+	cleanup.Push("app channel cluster", func() error {
+		if app.channelLog == nil {
+			return nil
+		}
+		return app.channelLog.Close()
+	})
 	app.channelLog.metrics = app.metrics
+	if buildAfterChannelRuntimeHook != nil {
+		if err := buildAfterChannelRuntimeHook(app); err != nil {
+			return nil, fmt.Errorf("app: after channel runtime build: %w", err)
+		}
+	}
 
 	app.store = metastore.New(app.cluster, app.db)
 	app.nodeClient = accessnode.NewClient(app.cluster)
@@ -213,25 +262,47 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: create channel repair probe client: %w", err)
 	}
-	channelLeaderEvaluator := &channelLeaderPromotionEvaluator{
-		db:        app.channelLogDB,
-		localNode: cfg.Node.ID,
-		probe:     repairProbeClient,
-	}
-	channelLeaderRepairer := &channelLeaderRepairer{
-		store:     app.store,
-		cluster:   app.cluster,
-		remote:    app.nodeClient,
-		evaluator: channelLeaderEvaluator,
-		localNode: cfg.Node.ID,
-		now:       time.Now,
-		applyAuthoritative: func(meta metadb.ChannelRuntimeMeta) error {
+	channelLeaderEvaluator := runtimechannelmeta.NewLeaderPromotionEvaluator(runtimechannelmeta.LeaderPromotionEvaluatorOptions{
+		DB:        app.channelLogDB,
+		LocalNode: cfg.Node.ID,
+		Probe:     repairProbeClient,
+	})
+	channelLeaderRepairer := runtimechannelmeta.NewLeaderRepairer(runtimechannelmeta.LeaderRepairerOptions{
+		Store:     app.store,
+		Cluster:   app.cluster,
+		Remote:    app.nodeClient,
+		Evaluator: channelLeaderEvaluator,
+		LocalNode: cfg.Node.ID,
+		Now:       time.Now,
+		ApplyAuthoritative: func(meta metadb.ChannelRuntimeMeta) error {
 			_, err := app.channelMetaSync.applyAuthoritativeMeta(meta)
 			return err
 		},
-		needsRepair: app.channelMetaSync.needsLeaderRepair,
-	}
-	app.channelMetaSync.repairer = channelLeaderRepairer
+		RepairPolicy: app.channelMetaSync.needsLeaderRepair,
+	})
+	app.channelMetaSync.resolver = runtimechannelmeta.NewSync(runtimechannelmeta.SyncOptions{
+		Source: app.store,
+		Runtime: channelMetaRuntimeAdapter{
+			routing:  app.channelLog,
+			local:    app.channelLog,
+			observer: app.isrRuntime,
+		},
+		Bootstrapper: runtimechannelmeta.NewBootstrapper(runtimechannelmeta.BootstrapOptions{
+			Cluster:       app.cluster,
+			Store:         app.store,
+			DefaultMinISR: cfg.Cluster.ChannelBootstrapDefaultMinISR,
+			Now:           time.Now,
+			Logger:        app.logger,
+		}),
+		Cluster:         app.cluster,
+		Repairer:        channelLeaderRepairer,
+		RepairPolicy:    app.channelMetaSync.needsLeaderRepair,
+		LivenessSource:  app.cluster,
+		LocalNode:       cfg.Node.ID,
+		RefreshInterval: time.Second,
+		Now:             time.Now,
+		AfterLocalApply: app.channelMetaSync.scheduleLeaderRepairForMeta,
+	})
 	app.conversationProjector = conversationusecase.NewProjector(conversationusecase.ProjectorOptions{
 		Store:              app.store,
 		FlushInterval:      cfg.Conversation.FlushInterval,
@@ -255,9 +326,6 @@ func build(cfg Config) (_ *App, err error) {
 		ChannelProbeBatchSize: cfg.Conversation.ChannelProbeBatchSize,
 		Logger:                app.logger.Named("conversation"),
 	})
-	app.channelMetaSync.source = app.store
-	app.channelMetaSync.cluster = app.channelLog
-	app.channelMetaSync.bootstrap = newChannelMetaBootstrapper(app.cluster, app.store, cfg.Cluster.ChannelBootstrapDefaultMinISR, time.Now, app.logger)
 	onlineRegistry := online.NewRegistry()
 	authorityClient := &presenceAuthorityClient{
 		cluster:     app.cluster,
@@ -314,7 +382,7 @@ func build(cfg Config) (_ *App, err error) {
 		Runtime: app.deliveryRuntime,
 		Logger:  app.logger.Named("delivery"),
 	})
-	committedDispatcher := asyncCommittedDispatcher{
+	committedRouter := asyncCommittedDispatcher{
 		localNodeID:  cfg.Node.ID,
 		preferLocal:  true,
 		logger:       app.logger.Named("delivery.route"),
@@ -323,6 +391,7 @@ func build(cfg Config) (_ *App, err error) {
 		conversation: app.conversationProjector,
 		nodeClient:   app.nodeClient,
 	}
+	committedDispatcher := committedFanout{subscribers: []committedSubscriber{committedRouter}}
 	app.nodeAccess = accessnode.New(accessnode.Options{
 		Cluster:               app.cluster,
 		Presence:              app.presenceApp,
@@ -332,7 +401,7 @@ func build(cfg Config) (_ *App, err error) {
 		ChannelLog:            app.channelLog,
 		ChannelLogDB:          app.channelLogDB,
 		ChannelMeta:           app.channelMetaSync,
-		DeliverySubmit:        committedDispatcher,
+		DeliverySubmit:        deliveryRuntimeCommittedSubmitter{target: committedDispatcher},
 		DeliveryAck:           app.deliveryApp,
 		DeliveryOffline:       app.deliveryApp,
 		DeliveryAckIndex:      app.deliveryAcks,
@@ -448,6 +517,7 @@ func build(cfg Config) (_ *App, err error) {
 		return nil, fmt.Errorf("app: create gateway: %w", err)
 	}
 
+	cleanup.Release()
 	return app, nil
 }
 
@@ -744,18 +814,6 @@ func (f channelLogConversationFacts) LoadRecentMessagesBatch(ctx context.Context
 		out[key] = messages
 	}
 	return out, nil
-}
-
-func (f channelLogConversationFacts) loadLatestMessage(ctx context.Context, key conversationusecase.ConversationKey) (channel.Message, bool, error) {
-	channelID := channel.ChannelID{ID: key.ChannelID, Type: key.ChannelType}
-	msg, ok, err := loadLatestConversationMessage(ctx, f.cluster, channelID, conversationFetchMaxBytes)
-	if err == nil || errors.Is(err, channel.ErrChannelNotFound) {
-		return msg, ok, nil
-	}
-	if !errors.Is(err, channel.ErrStaleMeta) {
-		return channel.Message{}, false, err
-	}
-	return f.loadRemoteLatestMessage(ctx, channelID)
 }
 
 func (f channelLogConversationFacts) loadRemoteLatestMessage(ctx context.Context, key channel.ChannelID) (channel.Message, bool, error) {

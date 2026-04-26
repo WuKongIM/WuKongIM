@@ -38,15 +38,54 @@ func TestHandlerOnSessionActivateCallsPresenceActivate(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, connack)
 	require.Len(t, presenceUsecase.activateCommands, 1)
-	require.Equal(t, presence.ActivateCommand{
-		UID:         "u1",
-		DeviceID:    "dev-1",
-		DeviceFlag:  frame.APP,
-		DeviceLevel: frame.DeviceLevelMaster,
-		Listener:    "tcp",
-		ConnectedAt: fixedNow,
-		Session:     ctx.Session,
-	}, presenceUsecase.activateCommands[0])
+	cmd := presenceUsecase.activateCommands[0]
+	require.Equal(t, "u1", cmd.UID)
+	require.Equal(t, "dev-1", cmd.DeviceID)
+	require.Equal(t, frame.APP, cmd.DeviceFlag)
+	require.Equal(t, frame.DeviceLevelMaster, cmd.DeviceLevel)
+	require.Equal(t, "tcp", cmd.Listener)
+	require.Equal(t, fixedNow, cmd.ConnectedAt)
+	require.NotNil(t, cmd.Session)
+	require.Equal(t, ctx.Session.ID(), cmd.Session.ID())
+	require.Equal(t, ctx.Session.Listener(), cmd.Session.Listener())
+	cmd.Session.SetValue("adapter-key", "adapter-value")
+	require.Equal(t, "adapter-value", ctx.Session.Value("adapter-key"))
+}
+
+func TestOnlineSessionAdapterImplementsRuntimeWriterAndForwards(t *testing.T) {
+	var _ online.SessionWriter = onlineSessionAdapter{}
+	var gotFrame frame.Frame
+	var gotMeta gatewaysession.OutboundMeta
+	sess := gatewaysession.New(gatewaysession.Config{
+		ID:         42,
+		Listener:   "tcp",
+		RemoteAddr: "10.0.0.1:9000",
+		LocalAddr:  "127.0.0.1:7000",
+		WriteFrameFn: func(f frame.Frame, meta gatewaysession.OutboundMeta) error {
+			gotFrame = f
+			gotMeta = meta
+			return nil
+		},
+	})
+	sess.SetValue("device", "ios")
+
+	writer := newOnlineSessionAdapter(sess)
+	require.NotNil(t, writer)
+	require.Equal(t, uint64(42), writer.ID())
+	require.Equal(t, "tcp", writer.Listener())
+	require.Equal(t, "10.0.0.1:9000", writer.RemoteAddr())
+	require.Equal(t, "127.0.0.1:7000", writer.LocalAddr())
+	require.Equal(t, "ios", writer.Value("device"))
+
+	ping := &frame.PingPacket{}
+	require.NoError(t, writer.WriteFrame(ping))
+	require.Same(t, ping, gotFrame)
+	require.Empty(t, gotMeta.ReplyToken)
+
+	writer.SetValue("uid", "u1")
+	require.Equal(t, "u1", sess.Value("uid"))
+	require.NoError(t, writer.Close())
+	require.ErrorIs(t, writer.WriteFrame(&frame.PingPacket{}), gatewaysession.ErrSessionClosed)
 }
 
 func TestHandlerOnSessionOpenIsNoop(t *testing.T) {
@@ -440,6 +479,43 @@ func TestHandlerOnFrameSendMapsCanceledRequestContextToSendack(t *testing.T) {
 	require.ErrorIs(t, msgs.sendContexts[0].Err(), context.Canceled)
 }
 
+func TestHandlerOnFrameSendMapsSendTimeoutToSendack(t *testing.T) {
+	sender := newOptionRecordingSession(1, "tcp")
+	sender.SetValue(coregateway.SessionValueUID, "u1")
+	msgs := &fakeMessageUsecase{
+		sendFn: func(ctx context.Context, _ message.SendCommand) (message.SendResult, error) {
+			<-ctx.Done()
+			return message.SendResult{}, ctx.Err()
+		},
+	}
+	handler := New(Options{
+		Messages:    msgs,
+		SendTimeout: 5 * time.Millisecond,
+	})
+	ctx := &coregateway.Context{
+		Session:        sender,
+		Listener:       "tcp",
+		ReplyToken:     "reply-timeout",
+		RequestContext: context.Background(),
+	}
+
+	err := handler.OnFrame(ctx, &frame.SendPacket{
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		ClientSeq:   35,
+		ClientMsgNo: "ctx-timeout",
+	})
+
+	require.NoError(t, err)
+	require.Len(t, sender.Writes(), 1)
+	ack := requireSendackPacket(t, sender.Writes()[0].f)
+	require.Equal(t, frame.ReasonSystemError, ack.ReasonCode)
+	require.Equal(t, uint64(35), ack.ClientSeq)
+	require.Equal(t, "ctx-timeout", ack.ClientMsgNo)
+	require.Len(t, msgs.sendContexts, 1)
+	require.ErrorIs(t, msgs.sendContexts[0].Err(), context.DeadlineExceeded)
+}
+
 func TestHandlerOnFrameSendMapsChannelclusterErrorsToSendack(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -576,7 +652,7 @@ func TestNewSharesOnlineRegistryWithInjectedMessageApp(t *testing.T) {
 		DeviceLevel: frame.DeviceLevelMaster,
 		Listener:    "tcp",
 		ConnectedAt: fixedGatewayNow,
-		Session:     sender,
+		Session:     newOnlineSessionAdapter(sender),
 	}))
 	require.NoError(t, msgApp.OnlineRegistry().Register(online.OnlineConn{
 		SessionID:   recipient.ID(),
@@ -585,7 +661,7 @@ func TestNewSharesOnlineRegistryWithInjectedMessageApp(t *testing.T) {
 		DeviceLevel: frame.DeviceLevelMaster,
 		Listener:    "tcp",
 		ConnectedAt: fixedGatewayNow,
-		Session:     recipient,
+		Session:     newOnlineSessionAdapter(recipient),
 	}))
 	require.Same(t, msgApp.OnlineRegistry(), handler.online)
 	require.Len(t, handler.online.ConnectionsByUID("u2"), 1)
@@ -646,14 +722,6 @@ func requireSendackPacket(t *testing.T, f frame.Frame) *frame.SendackPacket {
 	ack, ok := f.(*frame.SendackPacket)
 	require.True(t, ok, "expected *frame.SendackPacket, got %T", f)
 	return ack
-}
-
-func requireRecvPacket(t *testing.T, f frame.Frame) *frame.RecvPacket {
-	t.Helper()
-
-	recv, ok := f.(*frame.RecvPacket)
-	require.True(t, ok, "expected *frame.RecvPacket, got %T", f)
-	return recv
 }
 
 func setEncryptedSession(sess gatewaysession.Session, keys wkprotoenc.SessionKeys) {

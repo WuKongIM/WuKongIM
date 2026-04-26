@@ -31,7 +31,7 @@ func activateCommandFromContext(ctx *coregateway.Context, now time.Time) (presen
 		DeviceLevel: deviceLevelFromValue(ctx.Session.Value(coregateway.SessionValueDeviceLevel)),
 		Listener:    listener,
 		ConnectedAt: now,
-		Session:     ctx.Session,
+		Session:     newOnlineSessionAdapter(ctx.Session),
 	}, nil
 }
 

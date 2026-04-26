@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -64,33 +65,34 @@ func (a *Adapter) handleChannelLeaderRepairRPC(ctx context.Context, body []byte)
 	if a == nil || a.channelLeaderRepair == nil {
 		return nil, fmt.Errorf("access/node: channel leader repair not configured")
 	}
-	result, err := a.channelLeaderRepair.RepairChannelLeaderAuthoritative(ctx, req)
+	result, err := a.channelLeaderRepair.RepairChannelLeaderAuthoritative(ctx, toChannelmetaLeaderRepairRequest(req))
 	if errors.Is(err, channel.ErrNoSafeChannelLeader) {
 		return encodeChannelLeaderRepairResponse(channelLeaderRepairResponse{Status: rpcStatusNoSafeCandidate})
 	}
 	if err != nil {
 		return nil, err
 	}
+	accessResult := fromChannelmetaLeaderRepairResult(result)
 	return encodeChannelLeaderRepairResponse(channelLeaderRepairResponse{
 		Status: rpcStatusOK,
-		Result: &result,
+		Result: &accessResult,
 	})
 }
 
 // RepairChannelLeader asks the current slot leader to repair the channel leader.
-func (c *Client) RepairChannelLeader(ctx context.Context, req ChannelLeaderRepairRequest) (ChannelLeaderRepairResult, error) {
+func (c *Client) RepairChannelLeader(ctx context.Context, req channelmeta.LeaderRepairRequest) (channelmeta.LeaderRepairResult, error) {
 	if c == nil || c.cluster == nil {
-		return ChannelLeaderRepairResult{}, fmt.Errorf("access/node: cluster not configured")
+		return channelmeta.LeaderRepairResult{}, fmt.Errorf("access/node: cluster not configured")
 	}
 	slotID := c.cluster.SlotForKey(req.ChannelID.ID)
-	body, err := json.Marshal(req)
+	body, err := json.Marshal(fromChannelmetaLeaderRepairRequest(req))
 	if err != nil {
-		return ChannelLeaderRepairResult{}, err
+		return channelmeta.LeaderRepairResult{}, err
 	}
 
 	peers := c.cluster.PeersForSlot(slotID)
 	if len(peers) == 0 {
-		return ChannelLeaderRepairResult{}, raftcluster.ErrSlotNotFound
+		return channelmeta.LeaderRepairResult{}, raftcluster.ErrSlotNotFound
 	}
 
 	tried := make(map[multiraft.NodeID]struct{}, len(peers))
@@ -119,9 +121,9 @@ func (c *Client) RepairChannelLeader(ctx context.Context, req ChannelLeaderRepai
 		switch resp.Status {
 		case rpcStatusOK:
 			if resp.Result == nil {
-				return ChannelLeaderRepairResult{}, fmt.Errorf("access/node: missing channel leader repair result")
+				return channelmeta.LeaderRepairResult{}, fmt.Errorf("access/node: missing channel leader repair result")
 			}
-			return *resp.Result, nil
+			return toChannelmetaLeaderRepairResult(*resp.Result), nil
 		case rpcStatusNotLeader:
 			if leaderID := multiraft.NodeID(resp.LeaderID); leaderID != 0 {
 				if _, ok := tried[leaderID]; !ok {
@@ -135,16 +137,16 @@ func (c *Client) RepairChannelLeader(ctx context.Context, req ChannelLeaderRepai
 		case rpcStatusNoSlot:
 			lastErr = raftcluster.ErrSlotNotFound
 		case rpcStatusNoSafeCandidate:
-			return ChannelLeaderRepairResult{}, channel.ErrNoSafeChannelLeader
+			return channelmeta.LeaderRepairResult{}, channel.ErrNoSafeChannelLeader
 		default:
 			lastErr = fmt.Errorf("access/node: unexpected channel leader repair status %q", resp.Status)
 		}
 	}
 
 	if lastErr != nil {
-		return ChannelLeaderRepairResult{}, lastErr
+		return channelmeta.LeaderRepairResult{}, lastErr
 	}
-	return ChannelLeaderRepairResult{}, raftcluster.ErrNoLeader
+	return channelmeta.LeaderRepairResult{}, raftcluster.ErrNoLeader
 }
 
 func encodeChannelLeaderRepairResponse(resp channelLeaderRepairResponse) ([]byte, error) {
@@ -155,4 +157,36 @@ func decodeChannelLeaderRepairResponse(body []byte) (channelLeaderRepairResponse
 	var resp channelLeaderRepairResponse
 	err := json.Unmarshal(body, &resp)
 	return resp, err
+}
+
+func toChannelmetaLeaderRepairRequest(req ChannelLeaderRepairRequest) channelmeta.LeaderRepairRequest {
+	return channelmeta.LeaderRepairRequest{
+		ChannelID:            req.ChannelID,
+		ObservedChannelEpoch: req.ObservedChannelEpoch,
+		ObservedLeaderEpoch:  req.ObservedLeaderEpoch,
+		Reason:               req.Reason,
+	}
+}
+
+func fromChannelmetaLeaderRepairRequest(req channelmeta.LeaderRepairRequest) ChannelLeaderRepairRequest {
+	return ChannelLeaderRepairRequest{
+		ChannelID:            req.ChannelID,
+		ObservedChannelEpoch: req.ObservedChannelEpoch,
+		ObservedLeaderEpoch:  req.ObservedLeaderEpoch,
+		Reason:               req.Reason,
+	}
+}
+
+func toChannelmetaLeaderRepairResult(result ChannelLeaderRepairResult) channelmeta.LeaderRepairResult {
+	return channelmeta.LeaderRepairResult{
+		Meta:    result.Meta,
+		Changed: result.Changed,
+	}
+}
+
+func fromChannelmetaLeaderRepairResult(result channelmeta.LeaderRepairResult) ChannelLeaderRepairResult {
+	return ChannelLeaderRepairResult{
+		Meta:    result.Meta,
+		Changed: result.Changed,
+	}
 }

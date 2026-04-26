@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -310,9 +310,9 @@ func TestSendSubmitsCommittedMessageFromClusterResult(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, dispatcher.calls, 1)
-	require.Equal(t, "committed-sender", dispatcher.calls[0].FromUID)
-	require.Equal(t, "committed-topic", dispatcher.calls[0].Topic)
-	require.Equal(t, []byte("committed-payload"), dispatcher.calls[0].Payload)
+	require.Equal(t, "committed-sender", dispatcher.calls[0].Message.FromUID)
+	require.Equal(t, "committed-topic", dispatcher.calls[0].Message.Topic)
+	require.Equal(t, []byte("committed-payload"), dispatcher.calls[0].Message.Payload)
 }
 
 func TestSendDoesNotPerformSynchronousDeliveryAfterDurableWrite(t *testing.T) {
@@ -791,14 +791,6 @@ func (d *recordingDelivery) Deliver(recipients []online.OnlineConn, f frame.Fram
 	return nil
 }
 
-type failingDelivery struct {
-	err error
-}
-
-func (d failingDelivery) Deliver([]online.OnlineConn, frame.Frame) error {
-	return d.err
-}
-
 type fakeRecipientDirectory struct {
 	endpointsByUID map[string][]Endpoint
 	err            error
@@ -827,30 +819,14 @@ type recordingCommittedDispatcher struct {
 	err   error
 }
 
-func (d *recordingCommittedDispatcher) SubmitCommitted(_ context.Context, env deliveryruntime.CommittedEnvelope) error {
+func (d *recordingCommittedDispatcher) SubmitCommitted(_ context.Context, env messageevents.MessageCommitted) error {
 	copied := env
-	copied.Payload = append([]byte(nil), env.Payload...)
+	copied.Message.Payload = append([]byte(nil), env.Message.Payload...)
 	d.calls = append(d.calls, deliveryEnvelopeRecord(copied))
 	return d.err
 }
 
-type deliveryEnvelopeRecord = deliveryruntime.CommittedEnvelope
-
-type failingRemoteDelivery struct {
-	err error
-}
-
-func (d failingRemoteDelivery) DeliverRemote(context.Context, RemoteDeliveryCommand) error {
-	return d.err
-}
-
-func requireRecvPacket(t *testing.T, f frame.Frame) *frame.RecvPacket {
-	t.Helper()
-
-	recv, ok := f.(*frame.RecvPacket)
-	require.True(t, ok, "expected *frame.RecvPacket, got %T", f)
-	return recv
-}
+type deliveryEnvelopeRecord = messageevents.MessageCommitted
 
 type fakeIdentityStore struct{}
 

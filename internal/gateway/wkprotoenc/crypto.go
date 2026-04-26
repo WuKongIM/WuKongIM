@@ -16,9 +16,9 @@ import (
 const sessionIVSize = 16
 
 var (
-	ErrInvalidPublicKey = errors.New("gateway/wkprotoenc: invalid public key")
+	ErrInvalidPublicKey  = errors.New("gateway/wkprotoenc: invalid public key")
 	ErrMissingSessionKey = errors.New("gateway/wkprotoenc: missing session key")
-	ErrMsgKeyMismatch = errors.New("gateway/wkprotoenc: msg key mismatch")
+	ErrMsgKeyMismatch    = errors.New("gateway/wkprotoenc: msg key mismatch")
 )
 
 type SessionKeys struct {

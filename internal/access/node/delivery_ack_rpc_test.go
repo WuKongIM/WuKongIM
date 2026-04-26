@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/stretchr/testify/require"
 )
@@ -28,14 +28,14 @@ func TestAckNotifyRPCRoutesAckToOwnerActor(t *testing.T) {
 	})
 
 	client := NewClient(node1)
-	err := client.NotifyAck(context.Background(), 2, message.RouteAckCommand{
+	err := client.NotifyAck(context.Background(), 2, deliveryevents.RouteAck{
 		UID:        "u2",
 		SessionID:  10,
 		MessageID:  88,
 		MessageSeq: 9,
 	})
 	require.NoError(t, err)
-	require.Equal(t, []message.RouteAckCommand{{
+	require.Equal(t, []deliveryevents.RouteAck{{
 		UID:        "u2",
 		SessionID:  10,
 		MessageID:  88,
@@ -44,10 +44,10 @@ func TestAckNotifyRPCRoutesAckToOwnerActor(t *testing.T) {
 }
 
 type recordingDeliveryAck struct {
-	calls []message.RouteAckCommand
+	calls []deliveryevents.RouteAck
 }
 
-func (r *recordingDeliveryAck) AckRoute(_ context.Context, cmd message.RouteAckCommand) error {
+func (r *recordingDeliveryAck) AckRoute(_ context.Context, cmd deliveryevents.RouteAck) error {
 	r.calls = append(r.calls, cmd)
 	return nil
 }

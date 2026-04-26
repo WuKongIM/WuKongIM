@@ -3,15 +3,15 @@ package delivery
 import (
 	"context"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 )
 
-func (a *App) AckRoute(ctx context.Context, cmd message.RouteAckCommand) error {
+func (a *App) AckRoute(ctx context.Context, cmd deliveryevents.RouteAck) error {
 	if a == nil || a.runtime == nil {
 		return nil
 	}
-	return a.runtime.AckRoute(ctx, routeAckFromMessage(cmd))
+	return a.runtime.AckRoute(ctx, routeAckFromEvent(cmd))
 }
 
 func (noopRuntime) AckRoute(context.Context, runtimedelivery.RouteAck) error {

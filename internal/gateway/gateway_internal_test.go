@@ -5,16 +5,7 @@ import (
 
 	gnettransport "github.com/WuKongIM/WuKongIM/internal/gateway/transport/gnet"
 	"github.com/WuKongIM/WuKongIM/internal/gateway/transport/stdnet"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
-
-type registryTestHandler struct{}
-
-func (registryTestHandler) OnListenerError(string, error)       {}
-func (registryTestHandler) OnSessionOpen(*Context) error        { return nil }
-func (registryTestHandler) OnFrame(*Context, frame.Frame) error { return nil }
-func (registryTestHandler) OnSessionClose(*Context) error       { return nil }
-func (registryTestHandler) OnSessionError(*Context, error)      {}
 
 func TestNewRegistersRealTransportFactories(t *testing.T) {
 	registry, err := buildRegistry()

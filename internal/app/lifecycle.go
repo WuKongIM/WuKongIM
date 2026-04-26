@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	applifecycle "github.com/WuKongIM/WuKongIM/internal/app/lifecycle"
 )
 
 const (
@@ -24,75 +26,14 @@ func (a *App) Start() error {
 	if !a.started.CompareAndSwap(false, true) {
 		return ErrAlreadyStarted
 	}
-	if err := a.startCluster(); err != nil {
+
+	manager := applifecycle.NewManager(a.startLifecycleComponents()...)
+	if err := manager.Start(context.Background()); err != nil {
+		a.lifecycleMgr = nil
 		a.started.Store(false)
 		return err
 	}
-	a.clusterOn.Store(true)
-	if err := a.waitForManagedSlotsReady(); err != nil {
-		_ = a.stopClusterWithError()
-		a.started.Store(false)
-		return err
-	}
-	if a.channelMetaSync != nil || a.startChannelMetaSyncFn != nil {
-		if err := a.startChannelMetaSync(); err != nil {
-			_ = a.stopClusterWithError()
-			a.started.Store(false)
-			return err
-		}
-		a.channelMetaOn.Store(true)
-	}
-	if a.presenceWorker != nil || a.startPresenceFn != nil {
-		if err := a.startPresence(); err != nil {
-			_ = a.stopChannelMetaSync()
-			_ = a.stopClusterWithError()
-			a.started.Store(false)
-			return err
-		}
-		a.presenceOn.Store(true)
-	}
-	if a.conversationProjector != nil || a.startConversationProjectorFn != nil {
-		if err := a.startConversationProjector(); err != nil {
-			_ = a.stopPresence()
-			_ = a.stopChannelMetaSync()
-			_ = a.stopClusterWithError()
-			a.started.Store(false)
-			return err
-		}
-		a.conversationOn.Store(true)
-	}
-	if err := a.startGateway(); err != nil {
-		_ = a.stopConversationProjector()
-		_ = a.stopPresence()
-		_ = a.stopChannelMetaSync()
-		_ = a.stopClusterWithError()
-		a.started.Store(false)
-		return err
-	}
-	a.gatewayOn.Store(true)
-	if err := a.startAPI(); err != nil {
-		_ = a.stopGateway()
-		_ = a.stopPresence()
-		_ = a.stopChannelMetaSync()
-		_ = a.stopClusterWithError()
-		a.started.Store(false)
-		return err
-	}
-	if a.api != nil || a.startAPIFn != nil {
-		a.apiOn.Store(true)
-	}
-	if err := a.startManager(); err != nil {
-		_ = a.stopAPI()
-		_ = a.stopGateway()
-		_ = a.stopPresence()
-		_ = a.stopChannelMetaSync()
-		_ = a.stopClusterWithError()
-		a.started.Store(false)
-		return err
-	}
-	if a.manager != nil || a.startManagerFn != nil {
-		a.managerOn.Store(true)
-	}
+	a.lifecycleMgr = manager
 	return nil
 }
 
@@ -107,14 +48,10 @@ func (a *App) Stop() error {
 	var err error
 	a.stopOnce.Do(func() {
 		a.started.Store(false)
+		stopCtx, cancel := context.WithTimeout(context.Background(), apiStopTimeout)
+		defer cancel()
 		err = errors.Join(
-			a.stopManager(),
-			a.stopAPI(),
-			a.stopGateway(),
-			a.stopConversationProjector(),
-			a.stopPresence(),
-			a.stopChannelMetaSync(),
-			a.stopClusterWithError(),
+			a.stopLifecycleManager(stopCtx),
 			a.closeChannelLogDB(),
 			a.closeRaftDB(),
 			a.closeWKDB(),
@@ -122,6 +59,25 @@ func (a *App) Stop() error {
 		)
 	})
 	return err
+}
+
+func (a *App) stopLifecycleManager(ctx context.Context) error {
+	if a.lifecycleMgr != nil {
+		err := a.lifecycleMgr.Stop(ctx)
+		a.lifecycleMgr = nil
+		return err
+	}
+	return stopComponentsReverse(ctx, a.stopLifecycleComponents())
+}
+
+func stopComponentsReverse(ctx context.Context, components []applifecycle.Component) error {
+	var errs []error
+	for i := len(components) - 1; i >= 0; i-- {
+		if err := components[i].Stop(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (a *App) startCluster() error {
@@ -251,9 +207,12 @@ func (a *App) stopChannelMetaSync() error {
 	return err
 }
 
-func (a *App) stopAPI() error {
+func (a *App) stopAPI(ctx context.Context) error {
 	if !a.apiOn.Swap(false) {
 		return nil
+	}
+	if a.stopAPIWithContextFn != nil {
+		return a.stopAPIWithContextFn(ctx)
 	}
 	if a.stopAPIFn != nil {
 		return a.stopAPIFn()
@@ -261,14 +220,15 @@ func (a *App) stopAPI() error {
 	if a.api == nil {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), apiStopTimeout)
-	defer cancel()
 	return a.api.Stop(ctx)
 }
 
-func (a *App) stopManager() error {
+func (a *App) stopManager(ctx context.Context) error {
 	if !a.managerOn.Swap(false) {
 		return nil
+	}
+	if a.stopManagerWithContextFn != nil {
+		return a.stopManagerWithContextFn(ctx)
 	}
 	if a.stopManagerFn != nil {
 		return a.stopManagerFn()
@@ -276,8 +236,6 @@ func (a *App) stopManager() error {
 	if a.manager == nil {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), apiStopTimeout)
-	defer cancel()
 	return a.manager.Stop(ctx)
 }
 

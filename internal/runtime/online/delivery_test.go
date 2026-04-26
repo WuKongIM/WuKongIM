@@ -5,7 +5,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )
@@ -64,10 +63,9 @@ type erroringSession struct {
 	writeAttempts int
 }
 
-func (s *erroringSession) WriteFrame(f frame.Frame, opts ...session.WriteOption) error {
+func (s *erroringSession) WriteFrame(f frame.Frame) error {
 	s.writeAttempts++
 	_ = f
-	_ = opts
 	return s.err
 }
 
@@ -99,7 +97,7 @@ func (s *recordingSession) LocalAddr() string {
 	return ""
 }
 
-func (s *recordingSession) WriteFrame(f frame.Frame, _ ...session.WriteOption) error {
+func (s *recordingSession) WriteFrame(f frame.Frame) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

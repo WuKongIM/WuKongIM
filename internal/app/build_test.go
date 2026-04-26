@@ -11,6 +11,7 @@ import (
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
 )
@@ -179,6 +180,38 @@ func TestBuildForwardsGatewaySendTimeoutIntoHandler(t *testing.T) {
 	require.Equal(t, 27*time.Second, appGatewayHandlerDurationField(t, app.GatewayHandler(), "sendTimeout"))
 }
 
+func TestNewClosesChannelRuntimeResourcesWhenLateBuildFails(t *testing.T) {
+	cfg := testConfig(t)
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	lateBuildErr := errors.New("forced late build failure")
+	var closeCalls []string
+
+	previousHook := buildAfterChannelRuntimeHook
+	buildAfterChannelRuntimeHook = func(app *App) error {
+		require.NotNil(t, app.dataPlanePool)
+		require.NotNil(t, app.dataPlaneClient)
+		require.NotNil(t, app.isrTransport)
+		require.NotNil(t, app.isrRuntime)
+		require.NotNil(t, app.channelLog)
+		app.channelLog.closers = append(app.channelLog.closers, func() error {
+			closeCalls = append(closeCalls, "channel cluster")
+			return nil
+		})
+		return lateBuildErr
+	}
+	t.Cleanup(func() {
+		buildAfterChannelRuntimeHook = previousHook
+	})
+
+	_, err := New(cfg)
+	require.ErrorIs(t, err, lateBuildErr)
+	require.Equal(t, []string{"channel cluster"}, closeCalls)
+
+	reopenedChannelLog, openErr := channelstore.Open(cfg.Storage.ChannelLogPath)
+	require.NoError(t, openErr)
+	require.NoError(t, reopenedChannelLog.Close())
+}
+
 type staleConversationFactsCluster struct{}
 
 func (staleConversationFactsCluster) Status(channel.ChannelID) (channel.ChannelRuntimeStatus, error) {
@@ -311,25 +344,6 @@ func normalizeConversationFactsBatchCalls(calls []conversationFactsBatchCall) []
 	return out
 }
 
-func appRuntimeStringField(t *testing.T, appRuntime any, structField, name string) string {
-	t.Helper()
-
-	value := reflect.ValueOf(appRuntime)
-	if value.Kind() != reflect.Pointer || value.IsNil() {
-		t.Fatalf("runtime is %s, want non-nil pointer", value.Kind())
-	}
-	cfgField := value.Elem().FieldByName(structField)
-	if !cfgField.IsValid() {
-		t.Fatalf("runtime missing %s field", structField)
-	}
-	cfg := reflect.NewAt(cfgField.Type(), unsafe.Pointer(cfgField.UnsafeAddr())).Elem()
-	field := cfg.FieldByName(name)
-	if !field.IsValid() {
-		t.Fatalf("runtime config missing %s field", name)
-	}
-	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().String()
-}
-
 func appRuntimeIntField(t *testing.T, appRuntime any, structField, name string) int {
 	t.Helper()
 
@@ -366,20 +380,6 @@ func appRuntimeDurationField(t *testing.T, appRuntime any, structField, name str
 		t.Fatalf("runtime config missing %s field", name)
 	}
 	return time.Duration(reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Int())
-}
-
-func appTransportStringField(t *testing.T, transport any, name string) string {
-	t.Helper()
-
-	value := reflect.ValueOf(transport)
-	if value.Kind() != reflect.Pointer || value.IsNil() {
-		t.Fatalf("transport is %s, want non-nil pointer", value.Kind())
-	}
-	field := value.Elem().FieldByName(name)
-	if !field.IsValid() {
-		t.Fatalf("transport missing %s field", name)
-	}
-	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().String()
 }
 
 func appTransportIntField(t *testing.T, transport any, name string) int {

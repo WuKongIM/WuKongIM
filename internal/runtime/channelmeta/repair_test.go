@@ -1,4 +1,4 @@
-package app
+package channelmeta
 
 import (
 	"context"
@@ -6,193 +6,13 @@ import (
 	"testing"
 	"time"
 
-	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
-	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 )
-
-func TestChannelMetaSyncRefreshRepairsDeadLeaderViaSlotLeader(t *testing.T) {
-	id := channel.ChannelID{ID: "repair-refresh", Type: 1}
-	source := &fakeChannelMetaSource{
-		get: map[channel.ChannelID]metadb.ChannelRuntimeMeta{
-			id: {
-				ChannelID:    id.ID,
-				ChannelType:  int64(id.Type),
-				ChannelEpoch: 9,
-				LeaderEpoch:  7,
-				Replicas:     []uint64{2, 3, 4},
-				ISR:          []uint64{2, 3, 4},
-				Leader:       3,
-				MinISR:       2,
-				Status:       uint8(channel.StatusActive),
-			},
-		},
-	}
-	cluster := &fakeChannelMetaCluster{}
-	repairer := &stubChannelMetaRepairer{
-		meta: metadb.ChannelRuntimeMeta{
-			ChannelID:    id.ID,
-			ChannelType:  int64(id.Type),
-			ChannelEpoch: 9,
-			LeaderEpoch:  8,
-			Replicas:     []uint64{2, 3, 4},
-			ISR:          []uint64{2, 3, 4},
-			Leader:       4,
-			MinISR:       2,
-			Status:       uint8(channel.StatusActive),
-		},
-		changed: true,
-	}
-	syncer := &channelMetaSync{
-		source:    source,
-		cluster:   cluster,
-		localNode: 2,
-		repairer:  repairer,
-	}
-	syncer.UpdateNodeLiveness(3, controllermeta.NodeStatusDead)
-
-	got, err := syncer.RefreshChannelMeta(context.Background(), id)
-
-	require.NoError(t, err)
-	require.Equal(t, channel.NodeID(4), got.Leader)
-	require.Len(t, repairer.calls, 1)
-	require.Equal(t, "leader_dead", repairer.calls[0].reason)
-}
-
-func TestChannelMetaSyncRefreshRepairsExpiredLeaderLeaseViaSlotLeader(t *testing.T) {
-	id := channel.ChannelID{ID: "repair-expired-lease", Type: 1}
-	expired := metadb.ChannelRuntimeMeta{
-		ChannelID:    id.ID,
-		ChannelType:  int64(id.Type),
-		ChannelEpoch: 9,
-		LeaderEpoch:  7,
-		Replicas:     []uint64{2, 3, 4},
-		ISR:          []uint64{2, 3, 4},
-		Leader:       3,
-		MinISR:       2,
-		Status:       uint8(channel.StatusActive),
-		LeaseUntilMS: time.Now().Add(-time.Second).UnixMilli(),
-	}
-	repaired := expired
-	repaired.Leader = 4
-	repaired.LeaderEpoch = 8
-	repaired.LeaseUntilMS = time.Now().Add(time.Minute).UnixMilli()
-	source := &fakeChannelMetaSource{
-		get: map[channel.ChannelID]metadb.ChannelRuntimeMeta{
-			id: expired,
-		},
-	}
-	cluster := &fakeChannelMetaCluster{}
-	repairer := &stubChannelMetaRepairer{
-		meta:    repaired,
-		changed: true,
-	}
-	syncer := &channelMetaSync{
-		source:    source,
-		cluster:   cluster,
-		localNode: 2,
-		repairer:  repairer,
-	}
-
-	got, err := syncer.RefreshChannelMeta(context.Background(), id)
-
-	require.NoError(t, err)
-	require.Equal(t, channel.NodeID(4), got.Leader)
-	require.Len(t, repairer.calls, 1)
-	require.Equal(t, "leader_lease_expired", repairer.calls[0].reason)
-}
-
-func TestChannelMetaSyncRefreshReturnsErrNoSafeChannelLeaderWhenRepairHasNoCandidate(t *testing.T) {
-	id := channel.ChannelID{ID: "repair-none", Type: 1}
-	source := &fakeChannelMetaSource{
-		get: map[channel.ChannelID]metadb.ChannelRuntimeMeta{
-			id: {
-				ChannelID:    id.ID,
-				ChannelType:  int64(id.Type),
-				ChannelEpoch: 5,
-				LeaderEpoch:  4,
-				Replicas:     []uint64{2, 3},
-				ISR:          []uint64{2, 3},
-				Leader:       3,
-				MinISR:       2,
-				Status:       uint8(channel.StatusActive),
-			},
-		},
-	}
-	syncer := &channelMetaSync{
-		source:    source,
-		cluster:   &fakeChannelMetaCluster{},
-		localNode: 2,
-		repairer:  &stubChannelMetaRepairer{err: channel.ErrNoSafeChannelLeader},
-	}
-	syncer.UpdateNodeLiveness(3, controllermeta.NodeStatusDead)
-
-	_, err := syncer.RefreshChannelMeta(context.Background(), id)
-
-	require.ErrorIs(t, err, channel.ErrNoSafeChannelLeader)
-}
-
-func TestChannelMetaSyncRefreshSingleflightsConcurrentLeaderRepair(t *testing.T) {
-	id := channel.ChannelID{ID: "repair-sf", Type: 1}
-	source := &fakeChannelMetaSource{
-		get: map[channel.ChannelID]metadb.ChannelRuntimeMeta{
-			id: {
-				ChannelID:    id.ID,
-				ChannelType:  int64(id.Type),
-				ChannelEpoch: 6,
-				LeaderEpoch:  3,
-				Replicas:     []uint64{2, 3, 4},
-				ISR:          []uint64{2, 3, 4},
-				Leader:       3,
-				MinISR:       2,
-				Status:       uint8(channel.StatusActive),
-			},
-		},
-	}
-	block := make(chan struct{})
-	repairer := &stubChannelMetaRepairer{
-		block: block,
-		meta: metadb.ChannelRuntimeMeta{
-			ChannelID:    id.ID,
-			ChannelType:  int64(id.Type),
-			ChannelEpoch: 6,
-			LeaderEpoch:  4,
-			Replicas:     []uint64{2, 3, 4},
-			ISR:          []uint64{2, 3, 4},
-			Leader:       4,
-			MinISR:       2,
-			Status:       uint8(channel.StatusActive),
-		},
-		changed: true,
-	}
-	syncer := &channelMetaSync{
-		source:    source,
-		cluster:   &fakeChannelMetaCluster{},
-		localNode: 2,
-		repairer:  repairer,
-	}
-	syncer.UpdateNodeLiveness(3, controllermeta.NodeStatusDead)
-
-	var wg sync.WaitGroup
-	for i := 0; i < 6; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_, _ = syncer.RefreshChannelMeta(context.Background(), id)
-		}()
-	}
-
-	time.Sleep(20 * time.Millisecond)
-	close(block)
-	wg.Wait()
-
-	require.Len(t, repairer.calls, 1)
-}
 
 func TestChannelLeaderRepairerRereadsAuthoritativeMetaBeforeChoosingCandidate(t *testing.T) {
 	id := channel.ChannelID{ID: "repair-reread", Type: 1}
@@ -211,7 +31,7 @@ func TestChannelLeaderRepairerRereadsAuthoritativeMetaBeforeChoosingCandidate(t 
 		get: map[channel.ChannelID]metadb.ChannelRuntimeMeta{id: latest},
 	}
 	remote := &stubChannelLeaderRepairRemote{}
-	repairer := &channelLeaderRepairer{
+	repairer := &LeaderRepairer{
 		store: source,
 		now:   time.Now,
 		needsRepair: func(meta metadb.ChannelRuntimeMeta) (bool, string) {
@@ -220,7 +40,7 @@ func TestChannelLeaderRepairerRereadsAuthoritativeMetaBeforeChoosingCandidate(t 
 		remote: remote,
 	}
 
-	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), accessnode.ChannelLeaderRepairRequest{
+	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), LeaderRepairRequest{
 		ChannelID:            id,
 		ObservedChannelEpoch: 7,
 		ObservedLeaderEpoch:  8,
@@ -250,7 +70,7 @@ func TestChannelLeaderRepairerSelectsCandidateWithHighestProjectedSafeHW(t *test
 	repaired := dead
 	repaired.Leader = 4
 	repaired.LeaderEpoch = 8
-	repaired.LeaseUntilMS = now.Add(channelMetaBootstrapLease).UnixMilli()
+	repaired.LeaseUntilMS = now.Add(BootstrapLease).UnixMilli()
 	source := &fakeChannelMetaSource{
 		getResults: []fakeChannelMetaGetResult{
 			{meta: dead},
@@ -258,7 +78,7 @@ func TestChannelLeaderRepairerSelectsCandidateWithHighestProjectedSafeHW(t *test
 		},
 	}
 	remote := &stubChannelLeaderRepairRemote{
-		evaluateByNode: map[uint64]accessnode.ChannelLeaderPromotionReport{
+		evaluateByNode: map[uint64]LeaderPromotionReport{
 			2: {
 				NodeID:              2,
 				Exists:              true,
@@ -283,7 +103,7 @@ func TestChannelLeaderRepairerSelectsCandidateWithHighestProjectedSafeHW(t *test
 			},
 		},
 	}
-	repairer := &channelLeaderRepairer{
+	repairer := &LeaderRepairer{
 		store:     source,
 		localNode: 9,
 		now:       func() time.Time { return now },
@@ -293,7 +113,7 @@ func TestChannelLeaderRepairerSelectsCandidateWithHighestProjectedSafeHW(t *test
 		remote: remote,
 	}
 
-	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), accessnode.ChannelLeaderRepairRequest{
+	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), LeaderRepairRequest{
 		ChannelID:            id,
 		ObservedChannelEpoch: dead.ChannelEpoch,
 		ObservedLeaderEpoch:  dead.LeaderEpoch,
@@ -308,7 +128,7 @@ func TestChannelLeaderRepairerSelectsCandidateWithHighestProjectedSafeHW(t *test
 	require.Equal(t, dead.LeaderEpoch+1, source.upserts[0].LeaderEpoch)
 	require.Equal(t, dead.Replicas, source.upserts[0].Replicas)
 	require.Equal(t, dead.ISR, source.upserts[0].ISR)
-	require.Equal(t, now.Add(channelMetaBootstrapLease).UnixMilli(), source.upserts[0].LeaseUntilMS)
+	require.Equal(t, now.Add(BootstrapLease).UnixMilli(), source.upserts[0].LeaseUntilMS)
 }
 
 func TestChannelLeaderRepairerKeepsExpiredLeaderCandidateDuringRepair(t *testing.T) {
@@ -327,7 +147,7 @@ func TestChannelLeaderRepairerKeepsExpiredLeaderCandidateDuringRepair(t *testing
 		LeaseUntilMS: now.Add(-time.Second).UnixMilli(),
 	}
 	renewed := expired
-	renewed.LeaseUntilMS = now.Add(channelMetaBootstrapLease).UnixMilli()
+	renewed.LeaseUntilMS = now.Add(BootstrapLease).UnixMilli()
 	source := &fakeChannelMetaSource{
 		getResults: []fakeChannelMetaGetResult{
 			{meta: expired},
@@ -335,7 +155,7 @@ func TestChannelLeaderRepairerKeepsExpiredLeaderCandidateDuringRepair(t *testing
 		},
 	}
 	remote := &stubChannelLeaderRepairRemote{
-		evaluateByNode: map[uint64]accessnode.ChannelLeaderPromotionReport{
+		evaluateByNode: map[uint64]LeaderPromotionReport{
 			4: {
 				NodeID:              4,
 				Exists:              true,
@@ -360,7 +180,7 @@ func TestChannelLeaderRepairerKeepsExpiredLeaderCandidateDuringRepair(t *testing
 			},
 		},
 	}
-	repairer := &channelLeaderRepairer{
+	repairer := &LeaderRepairer{
 		store:     source,
 		localNode: 9,
 		now:       func() time.Time { return now },
@@ -370,7 +190,7 @@ func TestChannelLeaderRepairerKeepsExpiredLeaderCandidateDuringRepair(t *testing
 		remote: remote,
 	}
 
-	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), accessnode.ChannelLeaderRepairRequest{
+	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), LeaderRepairRequest{
 		ChannelID:            id,
 		ObservedChannelEpoch: expired.ChannelEpoch,
 		ObservedLeaderEpoch:  expired.LeaderEpoch,
@@ -416,7 +236,7 @@ func TestChannelLeaderRepairerRenewsExpiredLeaderLeaseWithoutLeaderTransferWhenC
 		LeaseUntilMS: now.Add(-time.Second).UnixMilli(),
 	}
 	renewed := expired
-	renewed.LeaseUntilMS = now.Add(channelMetaBootstrapLease).UnixMilli()
+	renewed.LeaseUntilMS = now.Add(BootstrapLease).UnixMilli()
 	source := &fakeChannelMetaSource{
 		getResults: []fakeChannelMetaGetResult{
 			{meta: expired},
@@ -424,7 +244,7 @@ func TestChannelLeaderRepairerRenewsExpiredLeaderLeaseWithoutLeaderTransferWhenC
 		},
 	}
 	remote := &stubChannelLeaderRepairRemote{
-		evaluateByNode: map[uint64]accessnode.ChannelLeaderPromotionReport{
+		evaluateByNode: map[uint64]LeaderPromotionReport{
 			4: {
 				NodeID:              4,
 				Exists:              true,
@@ -449,7 +269,7 @@ func TestChannelLeaderRepairerRenewsExpiredLeaderLeaseWithoutLeaderTransferWhenC
 			},
 		},
 	}
-	repairer := &channelLeaderRepairer{
+	repairer := &LeaderRepairer{
 		store:     source,
 		localNode: 9,
 		now:       func() time.Time { return now },
@@ -459,7 +279,7 @@ func TestChannelLeaderRepairerRenewsExpiredLeaderLeaseWithoutLeaderTransferWhenC
 		remote: remote,
 	}
 
-	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), accessnode.ChannelLeaderRepairRequest{
+	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), LeaderRepairRequest{
 		ChannelID:            id,
 		ObservedChannelEpoch: expired.ChannelEpoch,
 		ObservedLeaderEpoch:  expired.LeaderEpoch,
@@ -471,7 +291,7 @@ func TestChannelLeaderRepairerRenewsExpiredLeaderLeaseWithoutLeaderTransferWhenC
 	require.Len(t, source.upserts, 1)
 	require.Equal(t, uint64(4), source.upserts[0].Leader)
 	require.Equal(t, expired.LeaderEpoch, source.upserts[0].LeaderEpoch)
-	require.Equal(t, now.Add(channelMetaBootstrapLease).UnixMilli(), source.upserts[0].LeaseUntilMS)
+	require.Equal(t, now.Add(BootstrapLease).UnixMilli(), source.upserts[0].LeaseUntilMS)
 	require.Empty(t, remote.evaluateCalls)
 }
 
@@ -491,7 +311,7 @@ func TestChannelLeaderRepairerKeepsCurrentLeaderOnExpiredLeaseTie(t *testing.T) 
 		LeaseUntilMS: now.Add(-time.Second).UnixMilli(),
 	}
 	renewed := expired
-	renewed.LeaseUntilMS = now.Add(channelMetaBootstrapLease).UnixMilli()
+	renewed.LeaseUntilMS = now.Add(BootstrapLease).UnixMilli()
 	source := &fakeChannelMetaSource{
 		getResults: []fakeChannelMetaGetResult{
 			{meta: expired},
@@ -499,7 +319,7 @@ func TestChannelLeaderRepairerKeepsCurrentLeaderOnExpiredLeaseTie(t *testing.T) 
 		},
 	}
 	remote := &stubChannelLeaderRepairRemote{
-		evaluateByNode: map[uint64]accessnode.ChannelLeaderPromotionReport{
+		evaluateByNode: map[uint64]LeaderPromotionReport{
 			3: {
 				NodeID:              3,
 				Exists:              true,
@@ -524,7 +344,7 @@ func TestChannelLeaderRepairerKeepsCurrentLeaderOnExpiredLeaseTie(t *testing.T) 
 			},
 		},
 	}
-	repairer := &channelLeaderRepairer{
+	repairer := &LeaderRepairer{
 		store:     source,
 		localNode: 9,
 		now:       func() time.Time { return now },
@@ -534,7 +354,7 @@ func TestChannelLeaderRepairerKeepsCurrentLeaderOnExpiredLeaseTie(t *testing.T) 
 		remote: remote,
 	}
 
-	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), accessnode.ChannelLeaderRepairRequest{
+	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), LeaderRepairRequest{
 		ChannelID:            id,
 		ObservedChannelEpoch: expired.ChannelEpoch,
 		ObservedLeaderEpoch:  expired.LeaderEpoch,
@@ -566,7 +386,7 @@ func TestChannelLeaderRepairerAppliesAuthoritativeMetaLocallyAfterRepair(t *test
 	repaired := dead
 	repaired.Leader = 4
 	repaired.LeaderEpoch = 8
-	repaired.LeaseUntilMS = now.Add(channelMetaBootstrapLease).UnixMilli()
+	repaired.LeaseUntilMS = now.Add(BootstrapLease).UnixMilli()
 	source := &fakeChannelMetaSource{
 		getResults: []fakeChannelMetaGetResult{
 			{meta: dead},
@@ -574,7 +394,7 @@ func TestChannelLeaderRepairerAppliesAuthoritativeMetaLocallyAfterRepair(t *test
 		},
 	}
 	remote := &stubChannelLeaderRepairRemote{
-		evaluateByNode: map[uint64]accessnode.ChannelLeaderPromotionReport{
+		evaluateByNode: map[uint64]LeaderPromotionReport{
 			4: {
 				NodeID:              4,
 				Exists:              true,
@@ -589,7 +409,7 @@ func TestChannelLeaderRepairerAppliesAuthoritativeMetaLocallyAfterRepair(t *test
 		},
 	}
 	var applied []metadb.ChannelRuntimeMeta
-	repairer := &channelLeaderRepairer{
+	repairer := &LeaderRepairer{
 		store:     source,
 		localNode: 9,
 		now:       func() time.Time { return now },
@@ -603,7 +423,7 @@ func TestChannelLeaderRepairerAppliesAuthoritativeMetaLocallyAfterRepair(t *test
 		},
 	}
 
-	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), accessnode.ChannelLeaderRepairRequest{
+	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), LeaderRepairRequest{
 		ChannelID:            id,
 		ObservedChannelEpoch: dead.ChannelEpoch,
 		ObservedLeaderEpoch:  dead.LeaderEpoch,
@@ -629,7 +449,7 @@ func TestChannelLeaderRepairerEvaluatesDeadLeaderCandidateAsProjectedLeader(t *t
 		Status:       uint8(channel.StatusActive),
 	}
 	remote := &stubChannelLeaderRepairRemote{
-		evaluateByNode: map[uint64]accessnode.ChannelLeaderPromotionReport{
+		evaluateByNode: map[uint64]LeaderPromotionReport{
 			4: {
 				NodeID:       4,
 				ChannelEpoch: dead.ChannelEpoch,
@@ -637,7 +457,7 @@ func TestChannelLeaderRepairerEvaluatesDeadLeaderCandidateAsProjectedLeader(t *t
 			},
 		},
 	}
-	repairer := &channelLeaderRepairer{
+	repairer := &LeaderRepairer{
 		remote:    remote,
 		localNode: 9,
 	}
@@ -669,12 +489,12 @@ func TestChannelLeaderRepairerRoutesRepairToRemoteSlotLeader(t *testing.T) {
 	repaired.Leader = 4
 	repaired.LeaderEpoch = 8
 	remote := &stubChannelLeaderRepairRemote{
-		repairResult: accessnode.ChannelLeaderRepairResult{
+		repairResult: LeaderRepairResult{
 			Meta:    repaired,
 			Changed: true,
 		},
 	}
-	repairer := &channelLeaderRepairer{
+	repairer := &LeaderRepairer{
 		cluster: fakeChannelLeaderRepairCluster{
 			slotID:   7,
 			leaderID: 9,
@@ -688,7 +508,7 @@ func TestChannelLeaderRepairerRoutesRepairToRemoteSlotLeader(t *testing.T) {
 	require.True(t, changed)
 	require.Equal(t, repaired, got)
 	require.Len(t, remote.repairCalls, 1)
-	require.Equal(t, accessnode.ChannelLeaderRepairRequest{
+	require.Equal(t, LeaderRepairRequest{
 		ChannelID:            id,
 		ObservedChannelEpoch: observed.ChannelEpoch,
 		ObservedLeaderEpoch:  observed.LeaderEpoch,
@@ -717,11 +537,11 @@ func TestChannelLeaderRepairerReroutesWhenLocalSlotLeadershipChangesBeforePersis
 		upsertErr: raftcluster.ErrNotLeader,
 	}
 	remote := &stubChannelLeaderRepairRemote{
-		repairResult: accessnode.ChannelLeaderRepairResult{
+		repairResult: LeaderRepairResult{
 			Meta:    repaired,
 			Changed: true,
 		},
-		evaluateByNode: map[uint64]accessnode.ChannelLeaderPromotionReport{
+		evaluateByNode: map[uint64]LeaderPromotionReport{
 			2: {
 				NodeID:       2,
 				ChannelEpoch: observed.ChannelEpoch,
@@ -736,7 +556,7 @@ func TestChannelLeaderRepairerReroutesWhenLocalSlotLeadershipChangesBeforePersis
 			},
 		},
 	}
-	repairer := &channelLeaderRepairer{
+	repairer := &LeaderRepairer{
 		store:     source,
 		cluster:   &sequencedChannelLeaderRepairCluster{leaders: []multiraft.NodeID{2, 9}, localLeader: 2},
 		remote:    remote,
@@ -776,7 +596,7 @@ func TestChannelLeaderRepairerUsesLatestRepairReasonBeforeSelectingCandidate(t *
 		},
 	}
 	remote := &stubChannelLeaderRepairRemote{
-		evaluateByNode: map[uint64]accessnode.ChannelLeaderPromotionReport{
+		evaluateByNode: map[uint64]LeaderPromotionReport{
 			2: {
 				NodeID:              2,
 				ChannelEpoch:        latest.ChannelEpoch,
@@ -793,7 +613,7 @@ func TestChannelLeaderRepairerUsesLatestRepairReasonBeforeSelectingCandidate(t *
 			},
 		},
 	}
-	repairer := &channelLeaderRepairer{
+	repairer := &LeaderRepairer{
 		store:     source,
 		localNode: 99,
 		now:       time.Now,
@@ -803,7 +623,7 @@ func TestChannelLeaderRepairerUsesLatestRepairReasonBeforeSelectingCandidate(t *
 		},
 	}
 
-	_, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), accessnode.ChannelLeaderRepairRequest{
+	_, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), LeaderRepairRequest{
 		ChannelID:            id,
 		ObservedChannelEpoch: latest.ChannelEpoch,
 		ObservedLeaderEpoch:  latest.LeaderEpoch,
@@ -832,7 +652,7 @@ func TestChannelLeaderRepairerReturnsLatestMetaWhenObservedEpochsAreStale(t *tes
 		get: map[channel.ChannelID]metadb.ChannelRuntimeMeta{id: latest},
 	}
 	remote := &stubChannelLeaderRepairRemote{
-		evaluateByNode: map[uint64]accessnode.ChannelLeaderPromotionReport{
+		evaluateByNode: map[uint64]LeaderPromotionReport{
 			2: {
 				NodeID:              2,
 				ChannelEpoch:        latest.ChannelEpoch,
@@ -842,7 +662,7 @@ func TestChannelLeaderRepairerReturnsLatestMetaWhenObservedEpochsAreStale(t *tes
 			},
 		},
 	}
-	repairer := &channelLeaderRepairer{
+	repairer := &LeaderRepairer{
 		store:     source,
 		localNode: 99,
 		now:       time.Now,
@@ -852,7 +672,7 @@ func TestChannelLeaderRepairerReturnsLatestMetaWhenObservedEpochsAreStale(t *tes
 		},
 	}
 
-	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), accessnode.ChannelLeaderRepairRequest{
+	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), LeaderRepairRequest{
 		ChannelID:            id,
 		ObservedChannelEpoch: latest.ChannelEpoch - 1,
 		ObservedLeaderEpoch:  latest.LeaderEpoch - 1,
@@ -897,7 +717,7 @@ func TestChannelLeaderPromotionEvaluatorCollectPromotionProofsValidatesProbeResp
 			},
 		},
 	}
-	evaluator := &channelLeaderPromotionEvaluator{
+	evaluator := &LeaderPromotionEvaluator{
 		localNode: 2,
 		probe:     probe,
 	}
@@ -912,7 +732,7 @@ func TestChannelLeaderPromotionEvaluatorCollectPromotionProofsValidatesProbeResp
 }
 
 func TestPromotionProofsRejectStaleLeaderEpoch(t *testing.T) {
-	meta := projectChannelMeta(metadb.ChannelRuntimeMeta{
+	meta := ProjectChannelMeta(metadb.ChannelRuntimeMeta{
 		ChannelID:    "promotion-stale-leader-epoch",
 		ChannelType:  1,
 		ChannelEpoch: 9,
@@ -938,7 +758,7 @@ func TestPromotionProofsRejectStaleLeaderEpoch(t *testing.T) {
 			},
 		},
 	}
-	evaluator := &channelLeaderPromotionEvaluator{
+	evaluator := &LeaderPromotionEvaluator{
 		localNode: 2,
 		probe:     probe,
 	}
@@ -951,7 +771,7 @@ func TestPromotionProofsRejectStaleLeaderEpoch(t *testing.T) {
 }
 
 func TestPromotionProofsRejectMismatchedReplicaID(t *testing.T) {
-	meta := projectChannelMeta(metadb.ChannelRuntimeMeta{
+	meta := ProjectChannelMeta(metadb.ChannelRuntimeMeta{
 		ChannelID:    "promotion-wrong-peer",
 		ChannelType:  1,
 		ChannelEpoch: 9,
@@ -977,7 +797,7 @@ func TestPromotionProofsRejectMismatchedReplicaID(t *testing.T) {
 			},
 		},
 	}
-	evaluator := &channelLeaderPromotionEvaluator{
+	evaluator := &LeaderPromotionEvaluator{
 		localNode: 2,
 		probe:     probe,
 	}
@@ -1024,50 +844,64 @@ func TestValidPromotionProbeResponseRequiresGenerationMatchWhenPinned(t *testing
 	}))
 }
 
-type stubChannelMetaRepairer struct {
-	calls   []stubChannelMetaRepairCall
-	meta    metadb.ChannelRuntimeMeta
-	changed bool
-	err     error
-	block   <-chan struct{}
+type fakeChannelMetaSource struct {
+	mu         sync.Mutex
+	get        map[channel.ChannelID]metadb.ChannelRuntimeMeta
+	getResults []fakeChannelMetaGetResult
+	getCalls   int
+	upsertErr  error
+	upserts    []metadb.ChannelRuntimeMeta
 }
 
-type stubChannelMetaRepairCall struct {
-	meta   metadb.ChannelRuntimeMeta
-	reason string
+type fakeChannelMetaGetResult struct {
+	meta metadb.ChannelRuntimeMeta
+	err  error
 }
 
-func (s *stubChannelMetaRepairer) RepairIfNeeded(_ context.Context, meta metadb.ChannelRuntimeMeta, reason string) (metadb.ChannelRuntimeMeta, bool, error) {
-	s.calls = append(s.calls, stubChannelMetaRepairCall{meta: meta, reason: reason})
-	if s.block != nil {
-		<-s.block
+func (f *fakeChannelMetaSource) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.getCalls++
+	if f.getCalls <= len(f.getResults) {
+		result := f.getResults[f.getCalls-1]
+		if result.err != nil {
+			return metadb.ChannelRuntimeMeta{}, result.err
+		}
+		return result.meta, nil
 	}
-	return s.meta, s.changed, s.err
+	return f.get[channel.ChannelID{ID: channelID, Type: uint8(channelType)}], nil
+}
+
+func (f *fakeChannelMetaSource) UpsertChannelRuntimeMetaIfLocalLeader(_ context.Context, meta metadb.ChannelRuntimeMeta) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.upserts = append(f.upserts, meta)
+	return f.upsertErr
 }
 
 type stubChannelLeaderRepairRemote struct {
-	repairCalls       []accessnode.ChannelLeaderRepairRequest
-	repairResult      accessnode.ChannelLeaderRepairResult
+	repairCalls       []LeaderRepairRequest
+	repairResult      LeaderRepairResult
 	repairErr         error
 	evaluateCalls     []stubChannelLeaderEvaluateCall
-	evaluateByNode    map[uint64]accessnode.ChannelLeaderPromotionReport
+	evaluateByNode    map[uint64]LeaderPromotionReport
 	evaluateErrByNode map[uint64]error
 }
 
 type stubChannelLeaderEvaluateCall struct {
 	nodeID uint64
-	req    accessnode.ChannelLeaderEvaluateRequest
+	req    LeaderEvaluateRequest
 }
 
-func (s *stubChannelLeaderRepairRemote) RepairChannelLeader(_ context.Context, req accessnode.ChannelLeaderRepairRequest) (accessnode.ChannelLeaderRepairResult, error) {
+func (s *stubChannelLeaderRepairRemote) RepairChannelLeader(_ context.Context, req LeaderRepairRequest) (LeaderRepairResult, error) {
 	s.repairCalls = append(s.repairCalls, req)
 	return s.repairResult, s.repairErr
 }
 
-func (s *stubChannelLeaderRepairRemote) EvaluateChannelLeaderCandidate(_ context.Context, nodeID uint64, req accessnode.ChannelLeaderEvaluateRequest) (accessnode.ChannelLeaderPromotionReport, error) {
+func (s *stubChannelLeaderRepairRemote) EvaluateChannelLeaderCandidate(_ context.Context, nodeID uint64, req LeaderEvaluateRequest) (LeaderPromotionReport, error) {
 	s.evaluateCalls = append(s.evaluateCalls, stubChannelLeaderEvaluateCall{nodeID: nodeID, req: req})
 	if err := s.evaluateErrByNode[nodeID]; err != nil {
-		return accessnode.ChannelLeaderPromotionReport{}, err
+		return LeaderPromotionReport{}, err
 	}
 	return s.evaluateByNode[nodeID], nil
 }

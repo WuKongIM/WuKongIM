@@ -46,6 +46,7 @@ cmd/
 
 internal/
   app/                   组合根；负责 build、lifecycle、config、依赖装配
+    lifecycle/           生命周期管理器与资源栈原语
   access/                接入层，只做入口适配
     api/                 HTTP API 入口与路由适配
     gateway/             网关 frame -> usecase 的适配
@@ -59,7 +60,13 @@ internal/
     testkit/             网关测试桩与辅助工具
     transport/           gnet 等底层传输实现
     types/               网关通用类型与选项
+    wkprotoenc/          WKProto 加解密辅助
   log/                   应用日志配置与 zap/lumberjack 封装
+  observability/         节点内可观测性辅助
+    sendtrace/           消息发送链路 trace 记录
+  contracts/             跨用例/运行时的轻量事件合约
+    deliveryevents/      投递回执与离线事件合约
+    messageevents/       消息提交事件合约
   usecase/               可复用业务用例，不依赖具体入口协议
     conversation/        会话投影、同步等用例
     delivery/            投递、离线、订阅等用例
@@ -68,6 +75,7 @@ internal/
     presence/            在线状态登记与权威查询用例
     user/                用户与 token 相关用例
   runtime/               节点内运行时原语
+    channelmeta/         节点内 channel runtime meta resolver / bootstrap / repair / liveness 合约
     channelid/           个人频道等 channel id 派生
     delivery/            节点内投递 actor / mailbox / retry runtime
     messageid/           消息 ID 分配

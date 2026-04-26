@@ -7,6 +7,8 @@ import (
 	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
@@ -40,10 +42,11 @@ type asyncCommittedDispatcher struct {
 	nodeClient   committedNodeSubmitter
 }
 
-func (d asyncCommittedDispatcher) SubmitCommitted(ctx context.Context, env deliveryruntime.CommittedEnvelope) error {
+func (d asyncCommittedDispatcher) SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
 	if d.delivery == nil && d.conversation == nil {
 		return nil
 	}
+	env := committedEnvelopeFromMessageEvent(event)
 	if ctx == nil {
 		ctx = context.Background()
 	} else {
@@ -53,6 +56,29 @@ func (d asyncCommittedDispatcher) SubmitCommitted(ctx context.Context, env deliv
 		d.routeCommitted(ctx, env)
 	}()
 	return nil
+}
+
+func committedEnvelopeFromMessageEvent(event messageevents.MessageCommitted) deliveryruntime.CommittedEnvelope {
+	return deliveryruntime.CommittedEnvelope{
+		Message:         event.Message,
+		SenderSessionID: event.SenderSessionID,
+	}
+}
+
+type deliveryRuntimeCommittedSubmitter struct {
+	target interface {
+		SubmitCommitted(context.Context, messageevents.MessageCommitted) error
+	}
+}
+
+func (s deliveryRuntimeCommittedSubmitter) SubmitCommitted(ctx context.Context, env deliveryruntime.CommittedEnvelope) error {
+	if s.target == nil {
+		return nil
+	}
+	return s.target.SubmitCommitted(ctx, messageevents.MessageCommitted{
+		Message:         env.Message,
+		SenderSessionID: env.SenderSessionID,
+	})
 }
 
 func (d asyncCommittedDispatcher) routeCommitted(ctx context.Context, env deliveryruntime.CommittedEnvelope) {
@@ -435,33 +461,34 @@ type ackRouting struct {
 }
 
 func (r ackRouting) AckRoute(ctx context.Context, cmd message.RouteAckCommand) error {
+	event := deliveryRouteAckFromMessage(cmd)
 	if r.remoteAcks != nil {
-		if binding, ok := r.remoteAcks.Lookup(cmd.SessionID, cmd.MessageID); ok {
+		if binding, ok := r.remoteAcks.Lookup(event.SessionID, event.MessageID); ok {
 			if binding.OwnerNodeID != 0 && binding.OwnerNodeID != r.localNodeID {
 				if r.notifier == nil {
 					return errRemoteAckNotifierRequired
 				}
-				if err := r.notifier.NotifyAck(ctx, binding.OwnerNodeID, cmd); err != nil {
+				if err := r.notifier.NotifyAck(ctx, binding.OwnerNodeID, event); err != nil {
 					return err
 				}
-				r.remoteAcks.Remove(cmd.SessionID, cmd.MessageID)
+				r.remoteAcks.Remove(event.SessionID, event.MessageID)
 				return nil
 			}
 			if r.local == nil {
-				r.remoteAcks.Remove(cmd.SessionID, cmd.MessageID)
+				r.remoteAcks.Remove(event.SessionID, event.MessageID)
 				return nil
 			}
-			if err := r.local.AckRoute(ctx, cmd); err != nil {
+			if err := r.local.AckRoute(ctx, event); err != nil {
 				return err
 			}
-			r.remoteAcks.Remove(cmd.SessionID, cmd.MessageID)
+			r.remoteAcks.Remove(event.SessionID, event.MessageID)
 			return nil
 		}
 	}
 	if r.local == nil {
 		return nil
 	}
-	return r.local.AckRoute(ctx, cmd)
+	return r.local.AckRoute(ctx, event)
 }
 
 type offlineRouting struct {
@@ -473,10 +500,11 @@ type offlineRouting struct {
 
 func (r offlineRouting) SessionClosed(ctx context.Context, cmd message.SessionClosedCommand) error {
 	var err error
+	event := deliverySessionClosedFromMessage(cmd)
 	localBindings := make([]deliveryruntime.AckBinding, 0)
 	if r.remoteAcks != nil {
 		ownerBindings := make(map[uint64][]deliveryruntime.AckBinding)
-		for _, binding := range r.remoteAcks.LookupSession(cmd.SessionID) {
+		for _, binding := range r.remoteAcks.LookupSession(event.SessionID) {
 			if binding.OwnerNodeID == 0 || binding.OwnerNodeID == r.localNodeID {
 				localBindings = append(localBindings, binding)
 				continue
@@ -488,7 +516,7 @@ func (r offlineRouting) SessionClosed(ctx context.Context, cmd message.SessionCl
 				err = errors.Join(err, errRemoteOfflineNotifierRequired)
 				continue
 			}
-			notifyErr := r.notifier.NotifyOffline(ctx, ownerNodeID, cmd)
+			notifyErr := r.notifier.NotifyOffline(ctx, ownerNodeID, event)
 			err = errors.Join(err, notifyErr)
 			if notifyErr != nil {
 				continue
@@ -499,7 +527,7 @@ func (r offlineRouting) SessionClosed(ctx context.Context, cmd message.SessionCl
 		}
 	}
 	if r.local != nil {
-		localErr := r.local.SessionClosed(ctx, cmd)
+		localErr := r.local.SessionClosed(ctx, event)
 		err = errors.Join(err, localErr)
 		if localErr == nil && r.remoteAcks != nil {
 			for _, binding := range localBindings {
@@ -514,17 +542,33 @@ func (r offlineRouting) SessionClosed(ctx context.Context, cmd message.SessionCl
 	return err
 }
 
+func deliveryRouteAckFromMessage(cmd message.RouteAckCommand) deliveryevents.RouteAck {
+	return deliveryevents.RouteAck{
+		UID:        cmd.UID,
+		SessionID:  cmd.SessionID,
+		MessageID:  cmd.MessageID,
+		MessageSeq: cmd.MessageSeq,
+	}
+}
+
+func deliverySessionClosedFromMessage(cmd message.SessionClosedCommand) deliveryevents.SessionClosed {
+	return deliveryevents.SessionClosed{
+		UID:       cmd.UID,
+		SessionID: cmd.SessionID,
+	}
+}
+
 type routeAcker interface {
-	AckRoute(ctx context.Context, cmd message.RouteAckCommand) error
+	AckRoute(ctx context.Context, cmd deliveryevents.RouteAck) error
 }
 
 type sessionCloser interface {
-	SessionClosed(ctx context.Context, cmd message.SessionClosedCommand) error
+	SessionClosed(ctx context.Context, cmd deliveryevents.SessionClosed) error
 }
 
 type deliveryOwnerNotifier interface {
-	NotifyAck(ctx context.Context, nodeID uint64, cmd message.RouteAckCommand) error
-	NotifyOffline(ctx context.Context, nodeID uint64, cmd message.SessionClosedCommand) error
+	NotifyAck(ctx context.Context, nodeID uint64, cmd deliveryevents.RouteAck) error
+	NotifyOffline(ctx context.Context, nodeID uint64, cmd deliveryevents.SessionClosed) error
 }
 
 type committedNodeSubmitter interface {

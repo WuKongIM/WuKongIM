@@ -315,17 +315,7 @@ func collectOverviewTaskAnomalies(overview *Overview, tasks []controllermeta.Rec
 }
 
 func overviewTaskAnomalyItem(task Task) OverviewTaskAnomalyItem {
-	return OverviewTaskAnomalyItem{
-		SlotID:     task.SlotID,
-		Kind:       task.Kind,
-		Step:       task.Step,
-		Status:     task.Status,
-		SourceNode: task.SourceNode,
-		TargetNode: task.TargetNode,
-		Attempt:    task.Attempt,
-		NextRunAt:  task.NextRunAt,
-		LastError:  task.LastError,
-	}
+	return OverviewTaskAnomalyItem(task)
 }
 
 func appendOverviewTaskAnomaly(group *OverviewTaskAnomalyGroup, item OverviewTaskAnomalyItem) {

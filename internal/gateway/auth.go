@@ -13,11 +13,11 @@ type AuthenticatorFunc = gatewaytypes.AuthenticatorFunc
 type AuthResult = gatewaytypes.AuthResult
 
 const (
-	SessionValueUID             = gatewaytypes.SessionValueUID
-	SessionValueDeviceID        = gatewaytypes.SessionValueDeviceID
-	SessionValueDeviceFlag      = gatewaytypes.SessionValueDeviceFlag
-	SessionValueDeviceLevel     = gatewaytypes.SessionValueDeviceLevel
-	SessionValueProtocolVersion = gatewaytypes.SessionValueProtocolVersion
+	SessionValueUID               = gatewaytypes.SessionValueUID
+	SessionValueDeviceID          = gatewaytypes.SessionValueDeviceID
+	SessionValueDeviceFlag        = gatewaytypes.SessionValueDeviceFlag
+	SessionValueDeviceLevel       = gatewaytypes.SessionValueDeviceLevel
+	SessionValueProtocolVersion   = gatewaytypes.SessionValueProtocolVersion
 	SessionValueEncryptionEnabled = gatewaytypes.SessionValueEncryptionEnabled
 	SessionValueAESKey            = gatewaytypes.SessionValueAESKey
 	SessionValueAESIV             = gatewaytypes.SessionValueAESIV
@@ -125,7 +125,7 @@ func NewWKProtoAuthenticator(opts WKProtoAuthOptions) Authenticator {
 		}
 
 		return &AuthResult{
-			Connack: connack,
+			Connack:       connack,
 			SessionValues: sessionValues,
 		}, nil
 	})

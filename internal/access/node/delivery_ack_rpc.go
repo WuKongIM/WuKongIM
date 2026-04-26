@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 )
 
 type deliveryAckRequest struct {
-	Command message.RouteAckCommand `json:"command"`
+	Command deliveryevents.RouteAck `json:"command"`
 }
 
 func (a *Adapter) handleDeliveryAckRPC(ctx context.Context, body []byte) ([]byte, error) {

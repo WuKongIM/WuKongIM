@@ -3,9 +3,10 @@ package node
 import (
 	"context"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
+	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
@@ -46,20 +47,20 @@ type ChannelMetaRefresher interface {
 
 // ChannelLeaderRepairer repairs a channel leader on the authoritative slot leader.
 type ChannelLeaderRepairer interface {
-	RepairChannelLeaderAuthoritative(ctx context.Context, req ChannelLeaderRepairRequest) (ChannelLeaderRepairResult, error)
+	RepairChannelLeaderAuthoritative(ctx context.Context, req channelmeta.LeaderRepairRequest) (channelmeta.LeaderRepairResult, error)
 }
 
 // ChannelLeaderEvaluator evaluates whether the local replica can safely lead.
 type ChannelLeaderEvaluator interface {
-	EvaluateChannelLeaderCandidate(ctx context.Context, req ChannelLeaderEvaluateRequest) (ChannelLeaderPromotionReport, error)
+	EvaluateChannelLeaderCandidate(ctx context.Context, req channelmeta.LeaderEvaluateRequest) (channelmeta.LeaderPromotionReport, error)
 }
 
 type DeliveryAck interface {
-	AckRoute(ctx context.Context, cmd message.RouteAckCommand) error
+	AckRoute(ctx context.Context, cmd deliveryevents.RouteAck) error
 }
 
 type DeliveryOffline interface {
-	SessionClosed(ctx context.Context, cmd message.SessionClosedCommand) error
+	SessionClosed(ctx context.Context, cmd deliveryevents.SessionClosed) error
 }
 
 type Options struct {
