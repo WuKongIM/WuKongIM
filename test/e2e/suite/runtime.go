@@ -42,6 +42,7 @@ type StartedCluster struct {
 	Nodes          []StartedNode
 	lastReadyz     map[uint64]HTTPObservation
 	lastSlotBodies map[uint32]string
+	workspace      Workspace
 }
 
 // Option customizes one e2e cluster start.
@@ -174,6 +175,7 @@ func (s *Suite) StartThreeNodeCluster(opts ...Option) *StartedCluster {
 		Nodes:          make([]StartedNode, 0, len(specs)),
 		lastReadyz:     make(map[uint64]HTTPObservation, len(specs)),
 		lastSlotBodies: make(map[uint32]string),
+		workspace:      workspace,
 	}
 	for _, spec := range specs {
 		process := &NodeProcess{Spec: spec, BinaryPath: s.binaryPath}
@@ -190,6 +192,43 @@ func (s *Suite) StartThreeNodeCluster(opts ...Option) *StartedCluster {
 	})
 
 	return cluster
+}
+
+// StartDynamicJoinNode starts one node using seed-based dynamic join config.
+func (s *Suite) StartDynamicJoinNode(cluster *StartedCluster, nodeID uint64, joinToken string, opts ...Option) *StartedNode {
+	s.t.Helper()
+	require.NotNil(s.t, cluster)
+	require.NotEmpty(s.t, cluster.Nodes)
+
+	options := resolveSuiteOptions(opts...)
+	workspace := cluster.workspace
+	if workspace.RootDir == "" {
+		workspace = s.workspace
+	}
+	if options.workspaceRootDir != "" || options.nodeLogRootDir != "" {
+		workspace = NewWorkspace(s.t, opts...)
+	}
+
+	spec := buildNodeSpec(nodeID, ReserveLoopbackPorts(s.t), workspace, options)
+	require.NoError(s.t, workspace.ensureNodeDirs(spec.ID))
+
+	seeds := make([]NodeSpec, 0, len(cluster.Nodes))
+	for _, node := range cluster.Nodes {
+		seeds = append(seeds, node.Spec)
+	}
+	require.NoError(s.t, os.WriteFile(spec.ConfigPath, []byte(RenderSeedJoinConfig(spec, seeds, joinToken)), 0o644))
+
+	process := &NodeProcess{Spec: spec, BinaryPath: s.binaryPath}
+	require.NoError(s.t, process.Start())
+
+	cluster.Nodes = append(cluster.Nodes, StartedNode{Spec: spec, Process: process})
+	if cluster.lastReadyz == nil {
+		cluster.lastReadyz = make(map[uint64]HTTPObservation)
+	}
+	if cluster.lastSlotBodies == nil {
+		cluster.lastSlotBodies = make(map[uint32]string)
+	}
+	return &cluster.Nodes[len(cluster.Nodes)-1]
 }
 
 // WaitClusterReady waits until every node satisfies the node-ready contract.

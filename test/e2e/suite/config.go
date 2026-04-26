@@ -67,6 +67,44 @@ func RenderClusterConfig(local NodeSpec, nodes []NodeSpec) string {
 	return strings.Join(rendered, "\n") + "\n"
 }
 
+// RenderSeedJoinConfig renders a dynamic-join config with seeds and no static node list.
+func RenderSeedJoinConfig(local NodeSpec, seeds []NodeSpec, joinToken string) string {
+	replicaN := len(seeds)
+	lines := []configLine{
+		{key: "WK_NODE_ID", value: fmt.Sprintf("%d", local.ID)},
+		{key: "WK_NODE_NAME", value: local.Name},
+		{key: "WK_NODE_DATA_DIR", value: local.DataDir},
+		{key: "WK_CLUSTER_LISTEN_ADDR", value: local.ClusterAddr},
+		{key: "WK_CLUSTER_ADVERTISE_ADDR", value: local.ClusterAddr},
+		{key: "WK_CLUSTER_SLOT_COUNT", value: "1"},
+		{key: "WK_CLUSTER_INITIAL_SLOT_COUNT", value: "1"},
+		{key: "WK_CLUSTER_CONTROLLER_REPLICA_N", value: fmt.Sprintf("%d", replicaN)},
+		{key: "WK_CLUSTER_SLOT_REPLICA_N", value: fmt.Sprintf("%d", replicaN)},
+		{key: "WK_CLUSTER_SEEDS", value: marshalSeedAddrs(seeds)},
+		{key: "WK_CLUSTER_JOIN_TOKEN", value: joinToken},
+		{key: "WK_GATEWAY_LISTENERS", value: fmt.Sprintf(`[{"name":"tcp-wkproto","network":"tcp","address":"%s","transport":"gnet","protocol":"wkproto"}]`, local.GatewayAddr)},
+	}
+	if local.APIAddr != "" {
+		lines = append(lines, configLine{key: "WK_API_LISTEN_ADDR", value: local.APIAddr})
+	}
+	if local.ManagerAddr != "" {
+		lines = append(lines,
+			configLine{key: "WK_MANAGER_LISTEN_ADDR", value: local.ManagerAddr},
+			configLine{key: "WK_MANAGER_AUTH_ON", value: "false"},
+		)
+	}
+	if local.LogDir != "" {
+		lines = append(lines, configLine{key: "WK_LOG_DIR", value: local.LogDir})
+	}
+	lines = applyConfigOverrides(lines, local.ConfigOverrides)
+
+	rendered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		rendered = append(rendered, line.key+"="+line.value)
+	}
+	return strings.Join(rendered, "\n") + "\n"
+}
+
 func marshalClusterNodes(nodes []NodeSpec) string {
 	type clusterNode struct {
 		ID   uint64 `json:"id"`
@@ -84,6 +122,19 @@ func marshalClusterNodes(nodes []NodeSpec) string {
 	data, err := json.Marshal(items)
 	if err != nil {
 		panic(fmt.Sprintf("marshal cluster nodes: %v", err))
+	}
+	return string(data)
+}
+
+func marshalSeedAddrs(seeds []NodeSpec) string {
+	addrs := make([]string, 0, len(seeds))
+	for _, seed := range seeds {
+		addrs = append(addrs, seed.ClusterAddr)
+	}
+
+	data, err := json.Marshal(addrs)
+	if err != nil {
+		panic(fmt.Sprintf("marshal cluster seeds: %v", err))
 	}
 	return string(data)
 }

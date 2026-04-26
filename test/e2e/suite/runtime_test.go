@@ -137,6 +137,30 @@ func TestStartThreeNodeClusterAppliesNodeConfigOverrides(t *testing.T) {
 	require.Contains(t, string(cfg), "WK_LOG_LEVEL=debug")
 }
 
+func TestStartDynamicJoinNodeWritesSeedJoinConfigAndAppendsToCluster(t *testing.T) {
+	t.Setenv("WK_E2E_BINARY", writeFakeNodeBinary(t))
+
+	suite := New(t)
+	cluster := suite.StartThreeNodeCluster()
+
+	joined := suite.StartDynamicJoinNode(cluster, 4, "join-secret")
+
+	require.Len(t, cluster.Nodes, 4)
+	require.Equal(t, uint64(4), joined.Spec.ID)
+	require.Equal(t, uint64(4), cluster.MustNode(4).Spec.ID)
+	require.FileExists(t, joined.Spec.ConfigPath)
+
+	cfg, err := os.ReadFile(joined.Spec.ConfigPath)
+	require.NoError(t, err)
+	require.Contains(t, string(cfg), "WK_NODE_ID=4")
+	require.Contains(t, string(cfg), "WK_CLUSTER_ADVERTISE_ADDR="+joined.Spec.ClusterAddr)
+	require.Contains(t, string(cfg), "WK_CLUSTER_JOIN_TOKEN=join-secret")
+	require.NotContains(t, string(cfg), "WK_CLUSTER_NODES=")
+	for _, seed := range cluster.Nodes[:3] {
+		require.Contains(t, string(cfg), seed.Spec.ClusterAddr)
+	}
+}
+
 func writeFakeNodeBinary(t *testing.T) string {
 	t.Helper()
 

@@ -43,6 +43,35 @@ type managerConnectionsResponse struct {
 	Items []ManagerConnection `json:"items"`
 }
 
+// ManagerNodesResponse mirrors the manager node list response used by e2e.
+type ManagerNodesResponse struct {
+	Total int           `json:"total"`
+	Items []ManagerNode `json:"items"`
+}
+
+// ManagerNode mirrors the manager node fields used by e2e assertions.
+type ManagerNode struct {
+	NodeID          uint64                `json:"node_id"`
+	Addr            string                `json:"addr"`
+	Status          string                `json:"status"`
+	LastHeartbeatAt time.Time             `json:"last_heartbeat_at"`
+	IsLocal         bool                  `json:"is_local"`
+	CapacityWeight  int                   `json:"capacity_weight"`
+	Controller      ManagerNodeController `json:"controller"`
+	SlotStats       ManagerNodeSlotStats  `json:"slot_stats"`
+}
+
+// ManagerNodeController contains controller role fields from /manager/nodes.
+type ManagerNodeController struct {
+	Role string `json:"role"`
+}
+
+// ManagerNodeSlotStats contains slot hosting counts from /manager/nodes.
+type ManagerNodeSlotStats struct {
+	Count       int `json:"count"`
+	LeaderCount int `json:"leader_count"`
+}
+
 // ManagerConnection mirrors the subset of the manager connections response used by e2e.
 type ManagerConnection struct {
 	UID string `json:"uid"`
@@ -74,6 +103,74 @@ func FetchConnections(ctx context.Context, node StartedNode) ([]ManagerConnectio
 		return nil, body, err
 	}
 	return resp.Items, body, nil
+}
+
+// FetchNodes fetches the manager node list from the started node.
+func FetchNodes(ctx context.Context, node StartedNode) ([]ManagerNode, []byte, error) {
+	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, "/manager/nodes")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	resp, err := decodeManagerNodesResponse(body)
+	if err != nil {
+		return nil, body, err
+	}
+	return resp.Items, body, nil
+}
+
+func decodeManagerNodesResponse(body []byte) (ManagerNodesResponse, error) {
+	var resp ManagerNodesResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return ManagerNodesResponse{}, err
+	}
+	return resp, nil
+}
+
+func managerNodeByID(items []ManagerNode, nodeID uint64) (ManagerNode, bool) {
+	for _, item := range items {
+		if item.NodeID == nodeID {
+			return item, true
+		}
+	}
+	return ManagerNode{}, false
+}
+
+// WaitForManagerNode waits until /manager/nodes contains a node accepted by the predicate.
+func WaitForManagerNode(ctx context.Context, node StartedNode, nodeID uint64, accept func(ManagerNode) bool) (ManagerNode, []byte, error) {
+	ticker := time.NewTicker(readyPollInterval)
+	defer ticker.Stop()
+
+	var (
+		lastErr  error
+		lastBody []byte
+	)
+	for {
+		items, body, err := FetchNodes(ctx, node)
+		if err == nil {
+			lastBody = body
+			managerNode, ok := managerNodeByID(items, nodeID)
+			if ok && (accept == nil || accept(managerNode)) {
+				return managerNode, body, nil
+			}
+			if ok {
+				lastErr = fmt.Errorf("manager node %d did not satisfy expected state", nodeID)
+			} else {
+				lastErr = fmt.Errorf("manager node %d not present", nodeID)
+			}
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			if lastErr != nil {
+				return ManagerNode{}, lastBody, lastErr
+			}
+			return ManagerNode{}, lastBody, ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 // ResolveSlotTopology resolves the externally observed slot topology for one managed slot.

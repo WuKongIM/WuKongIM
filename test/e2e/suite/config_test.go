@@ -114,3 +114,36 @@ func TestRenderClusterConfigAppliesConfigOverrides(t *testing.T) {
 	require.NotContains(t, cfg, "WK_MANAGER_AUTH_ON=false")
 	require.Contains(t, cfg, "WK_LOG_LEVEL=debug")
 }
+
+func TestRenderSeedJoinConfigUsesSeedsWithoutStaticNodes(t *testing.T) {
+	local := NodeSpec{
+		ID:          4,
+		Name:        "node-4",
+		DataDir:     "/tmp/node-4/data",
+		ClusterAddr: "127.0.0.1:17004",
+		GatewayAddr: "127.0.0.1:15104",
+		APIAddr:     "127.0.0.1:18084",
+		ManagerAddr: "127.0.0.1:19084",
+		LogDir:      "/tmp/node-4/logs",
+	}
+	seeds := []NodeSpec{
+		{ID: 1, ClusterAddr: "127.0.0.1:17001"},
+		{ID: 2, ClusterAddr: "127.0.0.1:17002"},
+		{ID: 3, ClusterAddr: "127.0.0.1:17003"},
+	}
+
+	cfg := RenderSeedJoinConfig(local, seeds, "join-secret")
+
+	require.Contains(t, cfg, "WK_NODE_ID=4")
+	require.Contains(t, cfg, "WK_NODE_NAME=node-4")
+	require.Contains(t, cfg, "WK_NODE_DATA_DIR=/tmp/node-4/data")
+	require.Contains(t, cfg, "WK_CLUSTER_LISTEN_ADDR=127.0.0.1:17004")
+	require.Contains(t, cfg, "WK_CLUSTER_ADVERTISE_ADDR=127.0.0.1:17004")
+	require.Contains(t, cfg, `WK_CLUSTER_SEEDS=["127.0.0.1:17001","127.0.0.1:17002","127.0.0.1:17003"]`)
+	require.Contains(t, cfg, "WK_CLUSTER_JOIN_TOKEN=join-secret")
+	require.Contains(t, cfg, "WK_CLUSTER_CONTROLLER_REPLICA_N=3")
+	require.Contains(t, cfg, "WK_CLUSTER_SLOT_REPLICA_N=3")
+	require.NotContains(t, cfg, "WK_CLUSTER_NODES=")
+	require.Contains(t, cfg, "WK_MANAGER_AUTH_ON=false")
+	require.Contains(t, cfg, "WK_LOG_DIR=/tmp/node-4/logs")
+}
