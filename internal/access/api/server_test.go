@@ -724,6 +724,65 @@ func TestConversationSyncIgnoresLegacySyncGate(t *testing.T) {
 	require.JSONEq(t, `[]`, rec.Body.String())
 }
 
+func TestConversationClearUnreadMapsLegacyRequestToUsecaseCommand(t *testing.T) {
+	conversations := &recordingConversationUsecase{}
+	srv := New(Options{Conversations: conversations})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/conversations/clearUnread", bytes.NewBufferString(`{"uid":"u1","channel_id":"u2","channel_type":1,"message_seq":12}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"status":200}`, rec.Body.String())
+	require.Equal(t, []conversationusecase.ClearUnreadCommand{
+		{
+			UID:         "u1",
+			ChannelID:   runtimechannelid.EncodePersonChannel("u1", "u2"),
+			ChannelType: frame.ChannelTypePerson,
+			MessageSeq:  12,
+		},
+	}, conversations.clearUnreadCommands)
+}
+
+func TestConversationSetUnreadMapsLegacyRequestToUsecaseCommand(t *testing.T) {
+	conversations := &recordingConversationUsecase{}
+	srv := New(Options{Conversations: conversations})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/conversations/setUnread", bytes.NewBufferString(`{"uid":"u1","channel_id":"g1","channel_type":2,"unread":3}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"status":200}`, rec.Body.String())
+	require.Equal(t, []conversationusecase.SetUnreadCommand{
+		{
+			UID:         "u1",
+			ChannelID:   "g1",
+			ChannelType: frame.ChannelTypeGroup,
+			Unread:      3,
+		},
+	}, conversations.setUnreadCommands)
+}
+
+func TestConversationSetUnreadRejectsInvalidLegacyRequest(t *testing.T) {
+	conversations := &recordingConversationUsecase{}
+	srv := New(Options{Conversations: conversations})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/conversations/setUnread", bytes.NewBufferString(`{"uid":"","channel_id":"g1","channel_type":2,"unread":3}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"msg":"UID cannot be empty","status":400}`, rec.Body.String())
+	require.Empty(t, conversations.setUnreadCommands)
+}
+
 type recordingMessageUsecase struct {
 	calls        []message.SendCommand
 	syncQueries  []message.SyncChannelMessagesQuery
@@ -764,12 +823,26 @@ func (r *recordingUserUsecase) UpdateToken(_ context.Context, cmd user.UpdateTok
 }
 
 type recordingConversationUsecase struct {
-	queries []conversationusecase.SyncQuery
-	result  conversationusecase.SyncResult
-	err     error
+	queries             []conversationusecase.SyncQuery
+	clearUnreadCommands []conversationusecase.ClearUnreadCommand
+	setUnreadCommands   []conversationusecase.SetUnreadCommand
+	result              conversationusecase.SyncResult
+	err                 error
+	clearUnreadErr      error
+	setUnreadErr        error
 }
 
 func (r *recordingConversationUsecase) Sync(_ context.Context, query conversationusecase.SyncQuery) (conversationusecase.SyncResult, error) {
 	r.queries = append(r.queries, query)
 	return r.result, r.err
+}
+
+func (r *recordingConversationUsecase) ClearUnread(_ context.Context, cmd conversationusecase.ClearUnreadCommand) error {
+	r.clearUnreadCommands = append(r.clearUnreadCommands, cmd)
+	return r.clearUnreadErr
+}
+
+func (r *recordingConversationUsecase) SetUnread(_ context.Context, cmd conversationusecase.SetUnreadCommand) error {
+	r.setUnreadCommands = append(r.setUnreadCommands, cmd)
+	return r.setUnreadErr
 }

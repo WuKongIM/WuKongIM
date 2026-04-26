@@ -396,6 +396,86 @@ func TestAsyncCommittedDispatcherPrefersLocalDeliveryWithoutOwnerLookup(t *testi
 	require.Equal(t, msg, conversation.calls[0])
 }
 
+func TestDeliverySuccessDiagnosticsUseDebugLevel(t *testing.T) {
+	logger := newCapturedLogger("")
+
+	dispatcher := asyncCommittedDispatcher{logger: logger}
+	dispatcher.logCommittedRoute(deliveryruntime.CommittedEnvelope{
+		Message: channel.Message{
+			ChannelID:   "g1",
+			ChannelType: 2,
+			MessageID:   101,
+			MessageSeq:  1,
+		},
+	}, "local_owner", 1, nil)
+	requireCapturedLogEntry(t, logger, "DEBUG", "", "delivery.diag.committed_route")
+
+	store := &resolverSnapshotStore{uids: []string{"u2"}}
+	resolver := localDeliveryResolver{
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
+			Store: store,
+		}),
+		authority: &recordingAuthoritative{
+			batches: map[string][]presence.Route{
+				"u2": {{UID: "u2", NodeID: 1, BootID: 11, SessionID: 2}},
+			},
+		},
+		pageSize: 8,
+		logger:   logger,
+	}
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   "g1",
+		ChannelType: 2,
+	}, deliveryruntime.CommittedEnvelope{})
+	require.NoError(t, err)
+	_, _, _, err = resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	requireCapturedLogEntry(t, logger, "DEBUG", "", "delivery.diag.resolve_page")
+
+	push := localDeliveryPush{
+		online:        online.NewRegistry(),
+		localNodeID:   1,
+		gatewayBootID: 11,
+		logger:        logger,
+	}
+	_, err = push.Push(context.Background(), deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				ChannelID:   "g1",
+				ChannelType: 2,
+				MessageID:   102,
+				MessageSeq:  2,
+			},
+		},
+	})
+	require.NoError(t, err)
+	requireCapturedLogEntry(t, logger, "DEBUG", "", "delivery.diag.local_push")
+}
+
+func TestDeliveryResolverMissingAuthoritativeEndpointsUseDebugLevel(t *testing.T) {
+	logger := newCapturedLogger("")
+	resolver := localDeliveryResolver{
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
+			Store: &resolverSnapshotStore{uids: []string{"offline-u2"}},
+		}),
+		authority: &recordingAuthoritative{batches: map[string][]presence.Route{}},
+		pageSize:  8,
+		logger:    logger,
+	}
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   "g1",
+		ChannelType: 2,
+	}, deliveryruntime.CommittedEnvelope{})
+	require.NoError(t, err)
+
+	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.Empty(t, routes)
+	require.True(t, done)
+	entry := requireCapturedLogEntry(t, logger, "DEBUG", "", "delivery.diag.resolve_page")
+	require.Equal(t, "offline-u2", requireCapturedFieldValue[string](t, entry, "missingUIDs"))
+}
+
 func TestBuildRealtimeRecvPacketUsesDurableTimestampAndPersonChannelView(t *testing.T) {
 	packet := buildRealtimeRecvPacket(channel.Message{
 		MessageID:   88,

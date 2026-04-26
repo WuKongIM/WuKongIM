@@ -209,12 +209,14 @@ func (f *fakeReplicaFactory) New(cfg ChannelConfig) (replica.Replica, error) {
 }
 
 type fakeReplica struct {
-	mu              sync.Mutex
-	state           core.ReplicaState
-	tombstone       int
-	tombstoneErr    error
-	becomeLeaderErr error
-	closeCount      int
+	mu                  sync.Mutex
+	state               core.ReplicaState
+	tombstone           int
+	tombstoneErr        error
+	becomeLeaderErr     error
+	closeCount          int
+	onLeaderLocalAppend func()
+	onLeaderHWAdvance   func()
 }
 
 func (r *fakeReplica) ApplyMeta(meta core.Meta) error {
@@ -295,6 +297,18 @@ func (r *fakeReplica) Status() core.ReplicaState {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.state
+}
+
+func (r *fakeReplica) SetLeaderLocalAppendNotifier(fn func()) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.onLeaderLocalAppend = fn
+}
+
+func (r *fakeReplica) SetLeaderHWAdvanceNotifier(fn func()) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.onLeaderHWAdvance = fn
 }
 
 func (r *fakeReplica) closeCalls() int {

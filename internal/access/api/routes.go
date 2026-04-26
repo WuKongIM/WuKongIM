@@ -36,5 +36,7 @@ func (s *Server) registerRoutes() {
 	s.engine.POST("/user/token", s.handleUpdateToken)
 	s.engine.POST("/message/send", s.handleSendMessage)
 	s.engine.POST("/channel/messagesync", s.handleChannelMessageSync)
+	s.engine.POST("/conversations/clearUnread", s.handleConversationClearUnread)
+	s.engine.POST("/conversations/setUnread", s.handleConversationSetUnread)
 	s.engine.POST("/conversation/sync", s.handleConversationSync)
 }

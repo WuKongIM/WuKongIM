@@ -566,8 +566,10 @@ type conversationSyncRepoStub struct {
 	channelUpdates     map[metadb.ConversationKey]metadb.ChannelUpdateLog
 	latest             map[ConversationKey]channel.Message
 	recents            map[ConversationKey][]channel.Message
+	upsertedStates     []metadb.UserConversationState
 	clearedActive      []metadb.ConversationKey
 	clearCalls         int
+	upsertErr          error
 	clearErrs          []error
 	channelUpdateLoads [][]metadb.ConversationKey
 	latestLoads        []ConversationKey
@@ -592,6 +594,17 @@ func (r *conversationSyncRepoStub) GetUserConversationState(_ context.Context, u
 		return metadb.UserConversationState{}, metadb.ErrNotFound
 	}
 	return state, nil
+}
+
+func (r *conversationSyncRepoStub) UpsertUserConversationStates(_ context.Context, states []metadb.UserConversationState) error {
+	if r.upsertErr != nil {
+		return r.upsertErr
+	}
+	for _, state := range states {
+		r.states[metadb.ConversationKey{ChannelID: state.ChannelID, ChannelType: state.ChannelType}] = state
+		r.upsertedStates = append(r.upsertedStates, state)
+	}
+	return nil
 }
 
 func (r *conversationSyncRepoStub) ListUserConversationActive(_ context.Context, _ string, limit int) ([]metadb.UserConversationState, error) {

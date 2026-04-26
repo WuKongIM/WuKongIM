@@ -144,7 +144,7 @@ func (d asyncCommittedDispatcher) logCommittedRoute(env deliveryruntime.Committe
 		d.logger.Warn("committed message routing observed failure", fields...)
 		return
 	}
-	d.logger.Info("committed message routed", fields...)
+	d.logger.Debug("committed message routed", fields...)
 }
 
 func (d asyncCommittedDispatcher) submitLocal(ctx context.Context, env deliveryruntime.CommittedEnvelope) {
@@ -276,9 +276,9 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 			}
 			if len(missing) > 0 {
 				fields = append(fields, wklog.String("missingUIDs", strings.Join(missing, ",")))
-				r.logger.Warn("delivery resolver found missing authoritative endpoints", fields...)
+				r.logger.Debug("delivery resolver found missing authoritative endpoints", fields...)
 			} else {
-				r.logger.Info("delivery resolver expanded authoritative endpoints", fields...)
+				r.logger.Debug("delivery resolver expanded authoritative endpoints", fields...)
 			}
 		}
 		if len(expanded) == 0 {
@@ -345,7 +345,7 @@ func (p localDeliveryPush) pushEnvelope(env deliveryruntime.CommittedEnvelope, r
 		}
 	}
 	if p.logger != nil {
-		p.logger.Info("local delivery push finished",
+		p.logger.Debug("local delivery push finished",
 			wklog.Event("delivery.diag.local_push"),
 			wklog.String("channelID", env.ChannelID),
 			wklog.Int("channelType", int(env.ChannelType)),
@@ -431,7 +431,7 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 				continue
 			}
 			if p.logger != nil {
-				p.logger.Info("remote delivery push finished",
+				p.logger.Debug("remote delivery push finished",
 					wklog.Event("delivery.diag.remote_push"),
 					wklog.String("channelID", cmd.Envelope.ChannelID),
 					wklog.Int("channelType", int(cmd.Envelope.ChannelType)),

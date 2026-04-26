@@ -16,6 +16,7 @@ const (
 	userConversationStateRPCGet      = "get"
 	userConversationStateRPCList     = "list_active"
 	userConversationStateRPCScanPage = "scan_page"
+	userConversationStateRPCUpsert   = "upsert"
 	userConversationStateRPCTouch    = "touch_active"
 	userConversationStateRPCClear    = "clear_active"
 )
@@ -29,6 +30,7 @@ type userConversationStateRPCRequest struct {
 	ChannelType int64                                `json:"channel_type,omitempty"`
 	After       *metadb.ConversationCursor           `json:"after,omitempty"`
 	Limit       int                                  `json:"limit,omitempty"`
+	States      []metadb.UserConversationState       `json:"states,omitempty"`
 	Patches     []metadb.UserConversationActivePatch `json:"patches,omitempty"`
 	Keys        []metadb.ConversationKey             `json:"keys,omitempty"`
 }
@@ -54,6 +56,38 @@ func (s *Store) GetUserConversationState(ctx context.Context, uid, channelID str
 	slotID := s.cluster.SlotForKey(uid)
 	hashSlot := hashSlotForKey(s.cluster, uid)
 	return s.getUserConversationStateAuthoritative(ctx, slotID, hashSlot, uid, channelID, channelType)
+}
+
+// UpsertUserConversationStates writes user conversation read/delete state through the authoritative UID slot.
+func (s *Store) UpsertUserConversationStates(ctx context.Context, states []metadb.UserConversationState) error {
+	if len(states) == 0 {
+		return nil
+	}
+
+	grouped, err := s.groupUserConversationStatesBySlotAndHashSlot(states)
+	if err != nil {
+		return err
+	}
+	for slotID, groups := range grouped {
+		for hashSlot, groupStates := range groups {
+			if s.shouldServeSlotLocally(slotID) {
+				cmd := metafsm.EncodeUpsertUserConversationStatesCommand(groupStates)
+				if err := proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd); err != nil {
+					return err
+				}
+				continue
+			}
+			if _, err := s.callUserConversationStateRPC(ctx, slotID, userConversationStateRPCRequest{
+				Op:       userConversationStateRPCUpsert,
+				SlotID:   uint64(slotID),
+				HashSlot: hashSlot,
+				States:   groupStates,
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (s *Store) ListUserConversationActive(ctx context.Context, uid string, limit int) ([]metadb.UserConversationState, error) {
@@ -245,6 +279,12 @@ func (s *Store) handleUserConversationStateRPC(ctx context.Context, body []byte)
 			Cursor: cursor,
 			Done:   done,
 		})
+	case userConversationStateRPCUpsert:
+		cmd := metafsm.EncodeUpsertUserConversationStatesCommand(req.States)
+		if err := proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd); err != nil {
+			return nil, err
+		}
+		return encodeUserConversationStateRPCResponse(userConversationStateRPCResponse{Status: rpcStatusOK})
 	case userConversationStateRPCTouch:
 		cmd := metafsm.EncodeTouchUserConversationActiveAtCommand(req.Patches)
 		if err := proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd); err != nil {
@@ -272,6 +312,22 @@ func decodeUserConversationStateRPCResponse(body []byte) (userConversationStateR
 		return userConversationStateRPCResponse{}, err
 	}
 	return resp, nil
+}
+
+func (s *Store) groupUserConversationStatesBySlotAndHashSlot(states []metadb.UserConversationState) (map[multiraft.SlotID]map[uint16][]metadb.UserConversationState, error) {
+	grouped := make(map[multiraft.SlotID]map[uint16][]metadb.UserConversationState, len(states))
+	for _, state := range states {
+		if state.UID == "" {
+			return nil, fmt.Errorf("metastore: empty uid in user conversation state")
+		}
+		slotID := s.cluster.SlotForKey(state.UID)
+		hashSlot := hashSlotForKey(s.cluster, state.UID)
+		if grouped[slotID] == nil {
+			grouped[slotID] = make(map[uint16][]metadb.UserConversationState)
+		}
+		grouped[slotID][hashSlot] = append(grouped[slotID][hashSlot], state)
+	}
+	return grouped, nil
 }
 
 func (s *Store) groupUserConversationActivePatchesBySlotAndHashSlot(patches []metadb.UserConversationActivePatch) (map[multiraft.SlotID]map[uint16][]metadb.UserConversationActivePatch, error) {

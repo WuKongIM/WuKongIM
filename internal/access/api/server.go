@@ -27,6 +27,8 @@ type UserUsecase interface {
 
 type ConversationUsecase interface {
 	Sync(ctx context.Context, query conversationusecase.SyncQuery) (conversationusecase.SyncResult, error)
+	ClearUnread(ctx context.Context, cmd conversationusecase.ClearUnreadCommand) error
+	SetUnread(ctx context.Context, cmd conversationusecase.SetUnreadCommand) error
 }
 
 type LegacyRouteAddresses struct {

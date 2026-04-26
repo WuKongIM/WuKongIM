@@ -23,6 +23,8 @@ Store.AddChannelSubscribers / RemoveChannelSubscribers / ListChannelSubscribers
 Store.UpsertChannelRuntimeMeta / GetChannelRuntimeMeta / ListChannelRuntimeMeta / ScanChannelRuntimeMetaSlotPage
 Store.CreateUser / UpsertUser / GetUser
 Store.UpsertDevice / GetDevice
+Store.GetUserConversationState / UpsertUserConversationStates / ListUserConversationActive / ScanUserConversationStatePage
+Store.TouchUserConversationActiveAt / ClearUserConversationActiveAt
 Store.RegisterChannelUpdateOverlay(overlay)  // 注册热路径覆盖层
 
 // multiraft/api.go — Raft Runtime 底层 API

@@ -35,6 +35,59 @@ func TestEnsureChannel(t *testing.T) {
 	require.Equal(t, uint64(1), store.stored[meta.Key])
 }
 
+func TestEnsureChannelLeaderLocalAppendNotifierDoesNotBlockCaller(t *testing.T) {
+	store := newFakeGenerationStore()
+	factory := newFakeReplicaFactory()
+	created, err := New(Config{
+		LocalNode:           1,
+		ReplicaFactory:      factory,
+		GenerationStore:     store,
+		LongPollLaneCount:   4,
+		LongPollMaxWait:     time.Second,
+		LongPollMaxBytes:    64 * 1024,
+		LongPollMaxChannels: 64,
+		Tombstones: TombstonePolicy{
+			TombstoneTTL: 30 * time.Second,
+		},
+		Now: time.Now,
+	})
+	require.NoError(t, err)
+	rt := created.(*runtime)
+	t.Cleanup(func() {
+		rt.stopTombstoneCleanup()
+	})
+
+	meta := testMeta("room-local-append-async")
+	require.NoError(t, rt.EnsureChannel(meta))
+
+	factory.mu.Lock()
+	require.Len(t, factory.replicas, 1)
+	rep := factory.replicas[0]
+	factory.mu.Unlock()
+
+	rep.mu.Lock()
+	notify := rep.onLeaderLocalAppend
+	rep.mu.Unlock()
+	require.NotNil(t, notify)
+
+	shard := rt.shardFor(meta.Key)
+	shard.mu.Lock()
+	done := make(chan struct{})
+	go func() {
+		notify()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		shard.mu.Unlock()
+	case <-time.After(25 * time.Millisecond):
+		shard.mu.Unlock()
+		<-done
+		t.Fatal("leader local append notifier blocked the replica caller")
+	}
+}
+
 func TestRemoveChannel(t *testing.T) {
 	rt := newTestRuntime(t)
 	meta := testMeta("room-remove")

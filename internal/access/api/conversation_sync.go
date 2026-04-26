@@ -1,9 +1,12 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/gin-gonic/gin"
 )
 
@@ -60,4 +63,98 @@ func (s *Server) handleConversationSync(c *gin.Context) {
 		resp = append(resp, newLegacyConversationResponse(req.UID, item))
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+func (s *Server) handleConversationClearUnread(c *gin.Context) {
+	var req clearConversationUnreadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeLegacyJSONError(c, "数据格式有误！")
+		return
+	}
+	if err := validateClearConversationUnreadRequest(req); err != nil {
+		writeLegacyJSONError(c, err.Error())
+		return
+	}
+	if s == nil || s.conversations == nil {
+		writeLegacyJSONError(c, "conversation usecase not configured")
+		return
+	}
+
+	channelID, err := normalizeLegacyConversationChannelID(req.UID, req.ChannelID, req.ChannelType)
+	if err != nil {
+		writeLegacyJSONError(c, "invalid channel_id")
+		return
+	}
+	if err := s.conversations.ClearUnread(c.Request.Context(), conversationusecase.ClearUnreadCommand{
+		UID:         req.UID,
+		ChannelID:   channelID,
+		ChannelType: req.ChannelType,
+		MessageSeq:  req.MessageSeq,
+	}); err != nil {
+		writeLegacyJSONError(c, err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK})
+}
+
+func (s *Server) handleConversationSetUnread(c *gin.Context) {
+	var req setConversationUnreadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeLegacyJSONError(c, "数据格式有误！")
+		return
+	}
+	if err := validateSetConversationUnreadRequest(req); err != nil {
+		writeLegacyJSONError(c, err.Error())
+		return
+	}
+	if s == nil || s.conversations == nil {
+		writeLegacyJSONError(c, "conversation usecase not configured")
+		return
+	}
+
+	channelID, err := normalizeLegacyConversationChannelID(req.UID, req.ChannelID, req.ChannelType)
+	if err != nil {
+		writeLegacyJSONError(c, "invalid channel_id")
+		return
+	}
+	if err := s.conversations.SetUnread(c.Request.Context(), conversationusecase.SetUnreadCommand{
+		UID:         req.UID,
+		ChannelID:   channelID,
+		ChannelType: req.ChannelType,
+		Unread:      req.Unread,
+	}); err != nil {
+		writeLegacyJSONError(c, err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK})
+}
+
+func validateClearConversationUnreadRequest(req clearConversationUnreadRequest) error {
+	if req.UID == "" {
+		return errors.New("uid cannot be empty")
+	}
+	if req.ChannelID == "" || req.ChannelType == 0 {
+		return errors.New("channel_id or channel_type cannot be empty")
+	}
+	return nil
+}
+
+func validateSetConversationUnreadRequest(req setConversationUnreadRequest) error {
+	if req.UID == "" {
+		return errors.New("UID cannot be empty")
+	}
+	if req.ChannelID == "" || req.ChannelType == 0 {
+		return errors.New("channel_id or channel_type cannot be empty")
+	}
+	if req.Unread < 0 {
+		return errors.New("unread cannot be negative")
+	}
+	return nil
+}
+
+func normalizeLegacyConversationChannelID(uid, channelID string, channelType uint8) (string, error) {
+	if channelType != frame.ChannelTypePerson {
+		return channelID, nil
+	}
+	return runtimechannelid.NormalizePersonChannel(uid, channelID)
 }

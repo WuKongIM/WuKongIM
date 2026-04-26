@@ -164,7 +164,7 @@ func (r *runtime) EnsureChannel(meta core.Meta) error {
 	}
 	if notifier, ok := rep.(interface{ SetLeaderLocalAppendNotifier(func()) }); ok {
 		notifier.SetLeaderLocalAppendNotifier(func() {
-			r.onChannelAppend(meta.Key)
+			go r.onChannelAppend(meta.Key)
 		})
 	}
 	if notifier, ok := rep.(interface{ SetLeaderHWAdvanceNotifier(func()) }); ok {

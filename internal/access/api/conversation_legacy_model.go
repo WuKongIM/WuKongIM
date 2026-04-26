@@ -20,6 +20,20 @@ type syncConversationRequest struct {
 	Limit               int     `json:"limit"`
 }
 
+type clearConversationUnreadRequest struct {
+	UID         string `json:"uid"`
+	ChannelID   string `json:"channel_id"`
+	ChannelType uint8  `json:"channel_type"`
+	MessageSeq  uint64 `json:"message_seq"`
+}
+
+type setConversationUnreadRequest struct {
+	UID         string `json:"uid"`
+	ChannelID   string `json:"channel_id"`
+	ChannelType uint8  `json:"channel_type"`
+	Unread      int    `json:"unread"`
+}
+
 type legacyConversationResponse struct {
 	ChannelID       string              `json:"channel_id"`
 	ChannelType     uint8               `json:"channel_type"`
