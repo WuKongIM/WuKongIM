@@ -76,3 +76,37 @@ func TestDynamicDiscoveryInvokesSubscribersForChangedAndRemovedNodes(t *testing.
 		{nodeID: 2, oldAddr: "b", newAddr: ""},
 	}, events)
 }
+
+func TestDynamicDiscoveryUpdateReportsSeedToDynamicAddressChange(t *testing.T) {
+	d := NewDynamicDiscovery([]SeedConfig{{ID: 1, Addr: "old"}}, nil)
+	defer d.Stop()
+
+	var events []struct {
+		nodeID  uint64
+		oldAddr string
+		newAddr string
+	}
+	cancel := d.OnAddressChange(func(nodeID uint64, oldAddr, newAddr string) {
+		events = append(events, struct {
+			nodeID  uint64
+			oldAddr string
+			newAddr string
+		}{nodeID: nodeID, oldAddr: oldAddr, newAddr: newAddr})
+	})
+	defer cancel()
+
+	changed := d.UpdateNodes([]NodeConfig{{NodeID: 1, Addr: "new"}})
+
+	require.Equal(t, []uint64{1}, changed)
+	require.Equal(t, []struct {
+		nodeID  uint64
+		oldAddr string
+		newAddr string
+	}{
+		{nodeID: 1, oldAddr: "old", newAddr: "new"},
+	}, events)
+
+	addr, err := d.Resolve(1)
+	require.NoError(t, err)
+	require.Equal(t, "new", addr)
+}

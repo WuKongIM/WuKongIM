@@ -88,7 +88,7 @@ func (d *DynamicDiscovery) UpsertSeed(seed SeedConfig) {
 	d.seeds[uint64(seed.ID)] = NodeInfo{NodeID: seed.ID, Addr: seed.Addr}
 }
 
-// UpdateNodes replaces the dynamic node snapshot and reports nodes whose address changed or disappeared.
+// UpdateNodes replaces the dynamic node snapshot and reports effective address changes.
 func (d *DynamicDiscovery) UpdateNodes(nodes []NodeConfig) (changed []uint64) {
 	next := make(map[uint64]NodeInfo, len(nodes))
 	for _, node := range nodes {
@@ -104,16 +104,40 @@ func (d *DynamicDiscovery) UpdateNodes(nodes []NodeConfig) (changed []uint64) {
 	var subscribers []func(nodeID uint64, oldAddr, newAddr string)
 
 	d.mu.Lock()
-	for nodeID, oldNode := range d.nodes {
-		newNode, ok := next[nodeID]
-		if !ok {
-			changed = append(changed, nodeID)
-			changes = append(changes, addressChange{nodeID: nodeID, oldAddr: oldNode.Addr})
-			continue
+	affected := make(map[uint64]struct{}, len(d.nodes)+len(next)+len(d.seeds))
+	for nodeID := range d.nodes {
+		affected[nodeID] = struct{}{}
+	}
+	for nodeID := range next {
+		affected[nodeID] = struct{}{}
+	}
+	for nodeID := range d.seeds {
+		affected[nodeID] = struct{}{}
+	}
+	oldEffective := func(nodeID uint64) (string, bool) {
+		if node, ok := d.nodes[nodeID]; ok {
+			return node.Addr, true
 		}
-		if oldNode.Addr != newNode.Addr {
+		if node, ok := d.seeds[nodeID]; ok {
+			return node.Addr, true
+		}
+		return "", false
+	}
+	nextEffective := func(nodeID uint64) (string, bool) {
+		if node, ok := next[nodeID]; ok {
+			return node.Addr, true
+		}
+		if node, ok := d.seeds[nodeID]; ok {
+			return node.Addr, true
+		}
+		return "", false
+	}
+	for nodeID := range affected {
+		oldAddr, oldOK := oldEffective(nodeID)
+		newAddr, newOK := nextEffective(nodeID)
+		if oldOK != newOK || oldAddr != newAddr {
 			changed = append(changed, nodeID)
-			changes = append(changes, addressChange{nodeID: nodeID, oldAddr: oldNode.Addr, newAddr: newNode.Addr})
+			changes = append(changes, addressChange{nodeID: nodeID, oldAddr: oldAddr, newAddr: newAddr})
 		}
 	}
 	d.nodes = next
