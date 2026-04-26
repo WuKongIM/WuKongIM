@@ -397,6 +397,16 @@ func (s *Sync) activate(ctx context.Context, key channel.ChannelKey, source chan
 		}
 	}
 	meta, err := s.cache.RunSingleflight(key, func() (channel.Meta, error) {
+		// Re-check cache inside the coalesced call to avoid a second authority read when
+		// a concurrent caller missed the outer cache check before the first call stored it.
+		if source != channelruntime.ActivationSourceBusiness {
+			if meta, ok := s.cache.LoadPositive(key, s.Now()); ok {
+				return meta, nil
+			}
+			if err := s.cache.LoadNegative(key, s.Now()); err != nil {
+				return channel.Meta{}, err
+			}
+		}
 		loaded, err := load(ctx)
 		if err != nil {
 			s.cache.StoreNegative(key, err, s.Now())
