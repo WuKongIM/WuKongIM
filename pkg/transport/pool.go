@@ -213,9 +213,10 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 
 		addr, resolveErr := p.cfg.Discovery.Resolve(nodeID)
 		if resolveErr != nil {
-			if !set.finishSlotDial(slot, nil, resolveErr, ready) {
+			if !set.finishSlotDial(slot, nil, nil, ready) {
 				continue
 			}
+			p.nodes.CompareAndDelete(nodeID, set)
 			return nil, resolveErr
 		}
 		if set.evicted.Load() {
@@ -322,16 +323,10 @@ func (p *Pool) getOrCreateNodeSet(nodeID NodeID) (*nodeConnSet, error) {
 			continue
 		}
 
-		addr, err := p.cfg.Discovery.Resolve(nodeID)
-		if err != nil {
-			return nil, err
-		}
-
 		created := &nodeConnSet{
 			slots: make([]*connSlot, p.cfg.Size),
 			conns: make([]atomic.Pointer[MuxConn], p.cfg.Size),
 		}
-		created.addr.Store(addr)
 		for i := range created.slots {
 			created.slots[i] = &connSlot{mirror: &created.conns[i]}
 		}
