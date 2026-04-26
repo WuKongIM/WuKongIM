@@ -25,6 +25,20 @@ func TestPlannerCreatesBootstrapTaskForBrandNewSlot(t *testing.T) {
 	require.Len(t, decision.Assignment.DesiredPeers, 3)
 }
 
+func TestPlannerBootstrapSkipsInactiveOrNonDataNodes(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 1, ReplicaN: 3})
+	state := testState(
+		withMembershipNode(1, controllermeta.NodeStatusAlive, controllermeta.NodeRoleData, controllermeta.NodeJoinStateJoining),
+		withMembershipNode(2, controllermeta.NodeStatusAlive, controllermeta.NodeRoleControllerVoter, controllermeta.NodeJoinStateActive),
+		aliveNode(3), aliveNode(4), aliveNode(5),
+	)
+
+	decision, err := planner.ReconcileSlot(context.Background(), state, 1)
+	require.NoError(t, err)
+	require.NotNil(t, decision.Task)
+	require.Equal(t, []uint64{3, 4, 5}, decision.Assignment.DesiredPeers)
+}
+
 func TestPlannerPrefersRepairBeforeRebalance(t *testing.T) {
 	planner := NewPlanner(PlannerConfig{SlotCount: 2, ReplicaN: 3})
 	state := testState(
@@ -40,6 +54,62 @@ func TestPlannerPrefersRepairBeforeRebalance(t *testing.T) {
 	require.Equal(t, uint32(1), decision.SlotID)
 	require.NotNil(t, decision.Task)
 	require.Equal(t, controllermeta.TaskKindRepair, decision.Task.Kind)
+}
+
+func TestPlannerRepairTargetSkipsInactiveOrNonDataNodes(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 1, ReplicaN: 3})
+	state := testState(
+		aliveNode(1), aliveNode(2), deadNode(3),
+		withMembershipNode(4, controllermeta.NodeStatusAlive, controllermeta.NodeRoleData, controllermeta.NodeJoinStateJoining),
+		withMembershipNode(5, controllermeta.NodeStatusAlive, controllermeta.NodeRoleControllerVoter, controllermeta.NodeJoinStateActive),
+		aliveNode(6),
+		withAssignment(1, 1, 2, 3),
+		withRuntimeView(1, []uint64{1, 2, 3}, true),
+	)
+
+	decision, err := planner.ReconcileSlot(context.Background(), state, 1)
+	require.NoError(t, err)
+	require.NotNil(t, decision.Task)
+	require.Equal(t, controllermeta.TaskKindRepair, decision.Task.Kind)
+	require.Equal(t, uint64(6), decision.Task.TargetNode)
+}
+
+func TestPlannerRepairsInactiveOrNonDataExistingPeer(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		role      controllermeta.NodeRole
+		joinState controllermeta.NodeJoinState
+	}{
+		{
+			name:      "joining data node",
+			role:      controllermeta.NodeRoleData,
+			joinState: controllermeta.NodeJoinStateJoining,
+		},
+		{
+			name:      "controller voter node",
+			role:      controllermeta.NodeRoleControllerVoter,
+			joinState: controllermeta.NodeJoinStateActive,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			planner := NewPlanner(PlannerConfig{SlotCount: 1, ReplicaN: 3})
+			state := testState(
+				aliveNode(1), aliveNode(2),
+				withMembershipNode(3, controllermeta.NodeStatusAlive, tc.role, tc.joinState),
+				aliveNode(4),
+				withAssignment(1, 1, 2, 3),
+				withRuntimeView(1, []uint64{1, 2, 3}, true),
+			)
+
+			decision, err := planner.ReconcileSlot(context.Background(), state, 1)
+			require.NoError(t, err)
+			require.NotNil(t, decision.Task)
+			require.Equal(t, controllermeta.TaskKindRepair, decision.Task.Kind)
+			require.Equal(t, uint64(3), decision.Task.SourceNode)
+			require.Equal(t, uint64(4), decision.Task.TargetNode)
+			require.Equal(t, []uint64{1, 2, 4}, decision.Assignment.DesiredPeers)
+		})
+	}
 }
 
 func TestPlannerDoesNotMigrateOnSuspectNode(t *testing.T) {
@@ -90,6 +160,26 @@ func TestPlannerRebalancesOnlyWhenSkewExceedsThreshold(t *testing.T) {
 	require.NotNil(t, decision.Task)
 	require.Equal(t, controllermeta.TaskKindRebalance, decision.Task.Kind)
 	require.Equal(t, uint64(4), decision.Task.TargetNode)
+}
+
+func TestPlannerRebalanceSkipsInactiveOrNonDataNodes(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 2, ReplicaN: 3, RebalanceSkewThreshold: 2})
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3),
+		withMembershipNode(4, controllermeta.NodeStatusAlive, controllermeta.NodeRoleData, controllermeta.NodeJoinStateJoining),
+		withMembershipNode(5, controllermeta.NodeStatusAlive, controllermeta.NodeRoleControllerVoter, controllermeta.NodeJoinStateActive),
+		aliveNode(6),
+		withAssignment(1, 1, 2, 3),
+		withAssignment(2, 1, 2, 3),
+		withRuntimeView(1, []uint64{1, 2, 3}, true),
+		withRuntimeView(2, []uint64{1, 2, 3}, true),
+	)
+
+	decision, err := planner.NextDecision(context.Background(), state)
+	require.NoError(t, err)
+	require.NotNil(t, decision.Task)
+	require.Equal(t, controllermeta.TaskKindRebalance, decision.Task.Kind)
+	require.Equal(t, uint64(6), decision.Task.TargetNode)
 }
 
 func TestPlannerSkipsMigratingSlotDuringRebalanceSelection(t *testing.T) {
@@ -903,10 +993,16 @@ func deadNode(nodeID uint64) stateOption {
 }
 
 func withNode(nodeID uint64, status controllermeta.NodeStatus) stateOption {
+	return withMembershipNode(nodeID, status, controllermeta.NodeRoleData, controllermeta.NodeJoinStateActive)
+}
+
+func withMembershipNode(nodeID uint64, status controllermeta.NodeStatus, role controllermeta.NodeRole, joinState controllermeta.NodeJoinState) stateOption {
 	return func(state *PlannerState) {
 		state.Nodes[nodeID] = controllermeta.ClusterNode{
 			NodeID:          nodeID,
 			Addr:            "127.0.0.1:7000",
+			Role:            role,
+			JoinState:       joinState,
 			Status:          status,
 			LastHeartbeatAt: state.Now,
 			CapacityWeight:  1,

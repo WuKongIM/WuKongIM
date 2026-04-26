@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 func TestControllerHostStartElectsSingleLocalPeer(t *testing.T) {
@@ -514,6 +516,26 @@ func TestControllerHostMetadataSnapshotReloadUpdatesObservationSyncState(t *test
 	}
 	if got, want := len(resp.Nodes), 1; got != want {
 		t.Fatalf("len(resp.Nodes) = %d, want %d", got, want)
+	}
+}
+
+func TestControllerHostMetadataSnapshotReloadUpdatesObservationHintPeers(t *testing.T) {
+	_, host, _ := newTestLocalControllerCluster(t, false)
+	requireNoErr(t, host.meta.UpsertNode(context.Background(), controllermeta.ClusterNode{
+		NodeID:          2,
+		Addr:            "127.0.0.1:7002",
+		Role:            controllermeta.NodeRoleData,
+		JoinState:       controllermeta.NodeJoinStateJoining,
+		Status:          controllermeta.NodeStatusAlive,
+		LastHeartbeatAt: time.Unix(1710001200, 0),
+		CapacityWeight:  1,
+	}))
+
+	host.handleLeaderChange(2, host.localNode)
+	waitForControllerMetadataSnapshotClean(t, host, time.Second)
+
+	if got, want := host.observationHintPeers(), []multiraft.NodeID{2}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("hintPeers = %v, want %v", got, want)
 	}
 }
 

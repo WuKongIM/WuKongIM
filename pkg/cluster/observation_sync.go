@@ -353,6 +353,7 @@ func (s *observationSyncState) replaceNodesLocked(next map[uint64]controllermeta
 		s.revisions.Nodes++
 		delete(s.nodes, nodeID)
 		delete(s.nodeRevisionByID, nodeID)
+		s.historyFloor.Nodes = s.revisions.Nodes
 	}
 }
 

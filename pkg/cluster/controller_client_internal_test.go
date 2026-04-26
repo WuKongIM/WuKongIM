@@ -348,6 +348,67 @@ func TestControllerClientFetchObservationDeltaUsesLocalFastPathWithoutSelfRPC(t 
 	require.Equal(t, uint64(cluster.cfg.NodeID), resp.LeaderID)
 }
 
+func TestControllerClientListNodesUpdatesDynamicDiscovery(t *testing.T) {
+	leader := transport.NewServer()
+	leaderMux := transport.NewRPCMux()
+	leaderMux.Handle(rpcServiceController, func(_ context.Context, body []byte) ([]byte, error) {
+		req, err := decodeControllerRequest(body)
+		require.NoError(t, err)
+		require.Equal(t, controllerRPCListNodes, req.Kind)
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{
+			Nodes: []controllermeta.ClusterNode{
+				{
+					NodeID:         1,
+					Addr:           "127.0.0.1:7101",
+					Status:         controllermeta.NodeStatusAlive,
+					CapacityWeight: 1,
+				},
+				{
+					NodeID:         2,
+					Addr:           "127.0.0.1:7102",
+					Status:         controllermeta.NodeStatusAlive,
+					CapacityWeight: 1,
+				},
+			},
+		})
+	})
+	leader.HandleRPCMux(leaderMux)
+	require.NoError(t, leader.Start("127.0.0.1:0"))
+	t.Cleanup(leader.Stop)
+
+	discovery := NewDynamicDiscovery(nil, []NodeConfig{{NodeID: 1, Addr: leader.Listener().Addr().String()}})
+	defer discovery.Stop()
+	var events []uint64
+	discovery.OnAddressChange(func(nodeID uint64, _, _ string) {
+		events = append(events, nodeID)
+	})
+	pool := transport.NewPool(discovery, 1, 50*time.Millisecond)
+	t.Cleanup(pool.Close)
+
+	client := transport.NewClient(pool)
+	t.Cleanup(client.Stop)
+
+	cluster := &Cluster{
+		cfg: Config{NodeID: 3},
+		transportResources: transportResources{
+			fwdClient: client,
+			discovery: discovery,
+		},
+	}
+	controllerClient := newControllerClient(cluster, []NodeConfig{{NodeID: 1}}, nil)
+
+	nodes, err := controllerClient.ListNodes(context.Background())
+	require.NoError(t, err)
+	require.Len(t, nodes, 2)
+	addr, err := discovery.Resolve(1)
+	require.NoError(t, err)
+	require.Equal(t, "127.0.0.1:7101", addr)
+	addr, err = discovery.Resolve(2)
+	require.NoError(t, err)
+	require.Equal(t, "127.0.0.1:7102", addr)
+	require.ElementsMatch(t, []uint64{1, 2}, events)
+}
+
 func TestControllerClientRuntimeReportRedirectMarksReporterForFullSync(t *testing.T) {
 	staleLeader := transport.NewServer()
 	staleLeaderMux := transport.NewRPCMux()
@@ -410,6 +471,67 @@ func TestControllerClientRuntimeReportRedirectMarksReporterForFullSync(t *testin
 	require.NoError(t, err)
 	require.Equal(t, multiraft.NodeID(2), controllerClient.cachedLeader())
 	require.Equal(t, 1, fullSyncMarks)
+}
+
+func TestControllerClientJoinClusterUpdatesDynamicDiscovery(t *testing.T) {
+	leader := transport.NewServer()
+	leaderMux := transport.NewRPCMux()
+	leaderMux.Handle(rpcServiceController, func(_ context.Context, body []byte) ([]byte, error) {
+		req, err := decodeControllerRequest(body)
+		require.NoError(t, err)
+		require.Equal(t, controllerRPCJoinCluster, req.Kind)
+		require.NotNil(t, req.Join)
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{
+			Join: &joinClusterResponse{
+				Nodes: []controllermeta.ClusterNode{
+					{
+						NodeID:         1,
+						Addr:           "127.0.0.1:7101",
+						Status:         controllermeta.NodeStatusAlive,
+						CapacityWeight: 1,
+					},
+					{
+						NodeID:         req.Join.NodeID,
+						Addr:           req.Join.Addr,
+						Status:         controllermeta.NodeStatusAlive,
+						CapacityWeight: 1,
+					},
+				},
+			},
+		})
+	})
+	leader.HandleRPCMux(leaderMux)
+	require.NoError(t, leader.Start("127.0.0.1:0"))
+	t.Cleanup(leader.Stop)
+
+	discovery := NewDynamicDiscovery(nil, []NodeConfig{{NodeID: 1, Addr: leader.Listener().Addr().String()}})
+	defer discovery.Stop()
+	pool := transport.NewPool(discovery, 1, 50*time.Millisecond)
+	t.Cleanup(pool.Close)
+
+	client := transport.NewClient(pool)
+	t.Cleanup(client.Stop)
+
+	cluster := &Cluster{
+		cfg: Config{NodeID: 3},
+		transportResources: transportResources{
+			fwdClient: client,
+			discovery: discovery,
+		},
+	}
+	controllerClient := newControllerClient(cluster, []NodeConfig{{NodeID: 1}}, nil)
+
+	resp, err := controllerClient.JoinCluster(context.Background(), joinClusterRequest{
+		NodeID:  3,
+		Addr:    "127.0.0.1:7303",
+		Token:   "join-secret",
+		Version: supportedJoinProtocolVersion,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Nodes, 2)
+	addr, err := discovery.Resolve(3)
+	require.NoError(t, err)
+	require.Equal(t, "127.0.0.1:7303", addr)
 }
 
 func TestControllerClientJoinClusterReturnsTypedJoinError(t *testing.T) {

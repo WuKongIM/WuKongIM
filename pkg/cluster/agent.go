@@ -106,10 +106,14 @@ func (a *slotAgent) SyncObservationDelta(ctx context.Context, hint observationHi
 	nodeStatusChanges := diffObservationNodeStatuses(beforeNodes, a.observationState.Nodes)
 	a.pendingReconcileScope = requestedSlotSet(reconcileScopeFromObservationDelta(delta))
 	assignments := sortedObservationAssignments(a.observationState.Assignments)
+	nodes := sortedObservationNodes(a.observationState.Nodes)
 	a.observationMu.Unlock()
 
 	if a.cache != nil {
 		a.cache.SetAssignments(assignments)
+	}
+	if a.cluster != nil && (delta.FullSync || len(delta.Nodes) > 0) {
+		a.cluster.applyClusterNodes(nodes)
 	}
 	if a.cluster != nil && !a.cluster.isLocalControllerLeader() {
 		if hook := a.cluster.obs.OnNodeStatusChange; hook != nil {
@@ -166,10 +170,14 @@ func (a *slotAgent) listControllerNodes(ctx context.Context) ([]controllermeta.C
 	}
 	if a.cluster != nil && a.cluster.controllerHost != nil && a.cluster.controllerHost.IsLeader(a.cluster.cfg.NodeID) {
 		if snapshot, ok := a.cluster.controllerHost.metadataSnapshot(); ok {
+			a.cluster.applyClusterNodes(snapshot.Nodes)
 			return snapshot.Nodes, nil
 		}
 	}
 	if nodes, ok := a.appliedObservationNodes(); ok {
+		if a.cluster != nil {
+			a.cluster.applyClusterNodes(nodes)
+		}
 		return nodes, nil
 	}
 	var nodes []controllermeta.ClusterNode
@@ -179,9 +187,16 @@ func (a *slotAgent) listControllerNodes(ctx context.Context) ([]controllermeta.C
 		return err
 	})
 	if err == nil || !controllerReadFallbackAllowed(err) || a.cluster == nil || a.cluster.controllerMeta == nil {
+		if err == nil && a.cluster != nil {
+			a.cluster.applyClusterNodes(nodes)
+		}
 		return nodes, err
 	}
-	return a.cluster.controllerMeta.ListNodes(ctx)
+	nodes, err = a.cluster.controllerMeta.ListNodes(ctx)
+	if err == nil {
+		a.cluster.applyClusterNodes(nodes)
+	}
+	return nodes, err
 }
 
 func (a *slotAgent) listRuntimeViews(ctx context.Context) ([]controllermeta.SlotRuntimeView, bool, error) {

@@ -2317,6 +2317,229 @@ func TestSyncObservationDeltaInvokesOnNodeStatusChangeForNodeDiff(t *testing.T) 
 	}
 }
 
+func TestSlotAgentSyncObservationDeltaUpdatesDiscoveryWithMergedNodes(t *testing.T) {
+	discovery := NewDynamicDiscovery(nil, []NodeConfig{
+		{NodeID: 1, Addr: "127.0.0.1:7001"},
+		{NodeID: 2, Addr: "127.0.0.1:7002"},
+	})
+	defer discovery.Stop()
+
+	var events []struct {
+		nodeID  uint64
+		oldAddr string
+		newAddr string
+	}
+	discovery.OnAddressChange(func(nodeID uint64, oldAddr, newAddr string) {
+		events = append(events, struct {
+			nodeID  uint64
+			oldAddr string
+			newAddr string
+		}{nodeID: nodeID, oldAddr: oldAddr, newAddr: newAddr})
+	})
+
+	cluster := &Cluster{
+		cfg: Config{NodeID: 1},
+		transportResources: transportResources{
+			discovery: discovery,
+		},
+	}
+	agent := &slotAgent{
+		cluster: cluster,
+		client: fakeControllerClient{
+			fetchObservationDeltaFn: func(context.Context, observationDeltaRequest) (observationDeltaResponse, error) {
+				return observationDeltaResponse{
+					LeaderID:         2,
+					LeaderGeneration: 1,
+					Revisions:        observationRevisions{Nodes: 2},
+					Nodes: []controllermeta.ClusterNode{
+						{
+							NodeID:         2,
+							Addr:           "127.0.0.1:7202",
+							Status:         controllermeta.NodeStatusAlive,
+							CapacityWeight: 1,
+						},
+						{
+							NodeID:         3,
+							Addr:           "127.0.0.1:7003",
+							Status:         controllermeta.NodeStatusAlive,
+							CapacityWeight: 1,
+						},
+					},
+				}, nil
+			},
+		},
+	}
+	agent.observationState = observationAppliedState{
+		LeaderID:         2,
+		LeaderGeneration: 1,
+		Nodes: map[uint64]controllermeta.ClusterNode{
+			1: {
+				NodeID:         1,
+				Addr:           "127.0.0.1:7001",
+				Status:         controllermeta.NodeStatusAlive,
+				CapacityWeight: 1,
+			},
+			2: {
+				NodeID:         2,
+				Addr:           "127.0.0.1:7002",
+				Status:         controllermeta.NodeStatusAlive,
+				CapacityWeight: 1,
+			},
+		},
+		Revisions: observationRevisions{Nodes: 1},
+	}
+
+	if err := agent.SyncObservationDelta(context.Background(), observationHint{}); err != nil {
+		t.Fatalf("SyncObservationDelta() error = %v", err)
+	}
+
+	for nodeID, wantAddr := range map[uint64]string{
+		1: "127.0.0.1:7001",
+		2: "127.0.0.1:7202",
+		3: "127.0.0.1:7003",
+	} {
+		addr, err := discovery.Resolve(nodeID)
+		if err != nil {
+			t.Fatalf("Resolve(%d) error = %v", nodeID, err)
+		}
+		if addr != wantAddr {
+			t.Fatalf("Resolve(%d) = %q, want %q", nodeID, addr, wantAddr)
+		}
+	}
+	if got, want := events, []struct {
+		nodeID  uint64
+		oldAddr string
+		newAddr string
+	}{
+		{nodeID: 2, oldAddr: "127.0.0.1:7002", newAddr: "127.0.0.1:7202"},
+		{nodeID: 3, oldAddr: "", newAddr: "127.0.0.1:7003"},
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("discovery events = %+v, want %+v", got, want)
+	}
+}
+
+func TestSlotAgentSyncObservationFullSyncRemovesMissingDynamicNode(t *testing.T) {
+	discovery := NewDynamicDiscovery(nil, []NodeConfig{
+		{NodeID: 1, Addr: "127.0.0.1:7001"},
+		{NodeID: 2, Addr: "127.0.0.1:7002"},
+	})
+	defer discovery.Stop()
+
+	var events []struct {
+		nodeID  uint64
+		oldAddr string
+		newAddr string
+	}
+	discovery.OnAddressChange(func(nodeID uint64, oldAddr, newAddr string) {
+		events = append(events, struct {
+			nodeID  uint64
+			oldAddr string
+			newAddr string
+		}{nodeID: nodeID, oldAddr: oldAddr, newAddr: newAddr})
+	})
+
+	cluster := &Cluster{
+		cfg: Config{NodeID: 1},
+		transportResources: transportResources{
+			discovery: discovery,
+		},
+	}
+	agent := &slotAgent{
+		cluster: cluster,
+		client: fakeControllerClient{
+			fetchObservationDeltaFn: func(context.Context, observationDeltaRequest) (observationDeltaResponse, error) {
+				return observationDeltaResponse{
+					LeaderID:         2,
+					LeaderGeneration: 1,
+					Revisions:        observationRevisions{Nodes: 3},
+					FullSync:         true,
+					Nodes: []controllermeta.ClusterNode{{
+						NodeID:         1,
+						Addr:           "127.0.0.1:7001",
+						Status:         controllermeta.NodeStatusAlive,
+						CapacityWeight: 1,
+					}},
+				}, nil
+			},
+		},
+	}
+	agent.observationState = observationAppliedState{
+		LeaderID:         2,
+		LeaderGeneration: 1,
+		Nodes: map[uint64]controllermeta.ClusterNode{
+			1: {
+				NodeID:         1,
+				Addr:           "127.0.0.1:7001",
+				Status:         controllermeta.NodeStatusAlive,
+				CapacityWeight: 1,
+			},
+			2: {
+				NodeID:         2,
+				Addr:           "127.0.0.1:7002",
+				Status:         controllermeta.NodeStatusAlive,
+				CapacityWeight: 1,
+			},
+		},
+		Revisions: observationRevisions{Nodes: 2},
+	}
+
+	if err := agent.SyncObservationDelta(context.Background(), observationHint{}); err != nil {
+		t.Fatalf("SyncObservationDelta() error = %v", err)
+	}
+	if _, err := discovery.Resolve(2); !errors.Is(err, transport.ErrNodeNotFound) {
+		t.Fatalf("Resolve(2) error = %v, want %v", err, transport.ErrNodeNotFound)
+	}
+	if got, want := events, []struct {
+		nodeID  uint64
+		oldAddr string
+		newAddr string
+	}{{nodeID: 2, oldAddr: "127.0.0.1:7002", newAddr: ""}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("discovery events = %+v, want %+v", got, want)
+	}
+}
+
+func TestApplyClusterNodesPreservesConfiguredStaticNodes(t *testing.T) {
+	discovery := NewDynamicDiscovery(nil, []NodeConfig{
+		{NodeID: 1, Addr: "127.0.0.1:7001"},
+		{NodeID: 2, Addr: "127.0.0.1:7002"},
+	})
+	defer discovery.Stop()
+
+	cluster := &Cluster{
+		cfg: Config{
+			Nodes: []NodeConfig{
+				{NodeID: 1, Addr: "127.0.0.1:7001"},
+				{NodeID: 2, Addr: "127.0.0.1:7002"},
+			},
+		},
+		transportResources: transportResources{
+			discovery: discovery,
+		},
+	}
+
+	cluster.applyClusterNodes([]controllermeta.ClusterNode{{
+		NodeID:         1,
+		Addr:           "127.0.0.1:7101",
+		Status:         controllermeta.NodeStatusAlive,
+		CapacityWeight: 1,
+	}})
+
+	addr, err := discovery.Resolve(1)
+	if err != nil {
+		t.Fatalf("Resolve(1) error = %v", err)
+	}
+	if addr != "127.0.0.1:7101" {
+		t.Fatalf("Resolve(1) = %q, want controller snapshot address", addr)
+	}
+	addr, err = discovery.Resolve(2)
+	if err != nil {
+		t.Fatalf("Resolve(2) error = %v", err)
+	}
+	if addr != "127.0.0.1:7002" {
+		t.Fatalf("Resolve(2) = %q, want configured static address", addr)
+	}
+}
+
 func TestWakeReconcileOnceLeavesMigrationProgressToDedicatedLoop(t *testing.T) {
 	cluster := newUnitObservationTestCluster(t)
 

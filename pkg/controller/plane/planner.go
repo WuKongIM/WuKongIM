@@ -192,7 +192,7 @@ func (p *Planner) selectBootstrapPeers(state PlannerState) []uint64 {
 	}
 	candidates := make([]candidate, 0, len(state.Nodes))
 	for nodeID, node := range state.Nodes {
-		if node.Status != controllermeta.NodeStatusAlive {
+		if !nodeSchedulableForData(node) {
 			continue
 		}
 		candidates = append(candidates, candidate{nodeID: nodeID, load: loads[nodeID]})
@@ -218,7 +218,7 @@ func (p *Planner) selectBootstrapPeers(state PlannerState) []uint64 {
 func (p *Planner) firstPeerNeedingRepair(state PlannerState, peers []uint64) uint64 {
 	for _, peer := range peers {
 		node, ok := state.Nodes[peer]
-		if !ok || node.Status == controllermeta.NodeStatusDead || node.Status == controllermeta.NodeStatusDraining {
+		if !ok || node.Status == controllermeta.NodeStatusDead || node.Status == controllermeta.NodeStatusDraining || !nodeActiveDataMember(node) {
 			return peer
 		}
 	}
@@ -233,7 +233,7 @@ func (p *Planner) selectRepairTarget(state PlannerState, peers []uint64) uint64 
 	}
 	candidates := make([]candidate, 0, len(state.Nodes))
 	for nodeID, node := range state.Nodes {
-		if node.Status != controllermeta.NodeStatusAlive {
+		if !nodeSchedulableForData(node) {
 			continue
 		}
 		if containsPeer(peers, nodeID) {
@@ -266,7 +266,7 @@ func slotLoads(assignments map[uint32]controllermeta.SlotAssignment) map[uint64]
 func loadExtremes(state PlannerState, loads map[uint64]int) (minNode uint64, minLoad int, maxNode uint64, maxLoad int) {
 	first := true
 	for nodeID, node := range state.Nodes {
-		if node.Status != controllermeta.NodeStatusAlive {
+		if !nodeSchedulableForData(node) {
 			continue
 		}
 		load := loads[nodeID]
@@ -284,6 +284,14 @@ func loadExtremes(state PlannerState, loads map[uint64]int) (minNode uint64, min
 		}
 	}
 	return minNode, minLoad, maxNode, maxLoad
+}
+
+func nodeSchedulableForData(node controllermeta.ClusterNode) bool {
+	return node.Status == controllermeta.NodeStatusAlive && nodeActiveDataMember(node)
+}
+
+func nodeActiveDataMember(node controllermeta.ClusterNode) bool {
+	return node.Role == controllermeta.NodeRoleData && node.JoinState == controllermeta.NodeJoinStateActive
 }
 
 func containsPeer(peers []uint64, nodeID uint64) bool {

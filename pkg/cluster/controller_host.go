@@ -25,8 +25,12 @@ type controllerHost struct {
 	// syncState tracks leader-local observation revisions and delta-ready snapshots.
 	syncState *observationSyncState
 	// hintClient sends best-effort observation wakeups to followers.
-	hintClient      *transport.Client
-	hintPeers       []multiraft.NodeID
+	hintClient *transport.Client
+	// hintMu protects hintPeers because metadata reload and hint sending can run concurrently.
+	hintMu    sync.RWMutex
+	hintPeers []multiraft.NodeID
+	// staticHintPeers keeps configured peers as an observation hint baseline before dynamic metadata is available.
+	staticHintPeers []multiraft.NodeID
 	healthScheduler *nodeHealthScheduler
 	localNode       multiraft.NodeID
 
@@ -50,6 +54,8 @@ type controllerHost struct {
 	bgCancel context.CancelFunc
 	// metadataReloadTimeout bounds Pebble-backed metadata snapshot reload I/O in background workers.
 	metadataReloadTimeout time.Duration
+	// onMetadataNodesLoaded receives the full membership snapshot after leader-local metadata reloads.
+	onMetadataNodesLoaded func([]controllermeta.ClusterNode)
 
 	warmupMu         sync.RWMutex
 	warmupLeaderID   multiraft.NodeID
@@ -104,6 +110,7 @@ func newControllerHost(cfg Config, layer *transportLayer) (*controllerHost, erro
 		}
 		host.hintPeers = append(host.hintPeers, node.NodeID)
 	}
+	host.staticHintPeers = append([]multiraft.NodeID(nil), host.hintPeers...)
 	timeouts := cfg.Timeouts
 	timeouts.applyDefaults()
 	host.metadataReloadTimeout = timeouts.ControllerRequest
@@ -112,6 +119,10 @@ func newControllerHost(cfg Config, layer *transportLayer) (*controllerHost, erro
 	host.loadHashSlotTableFn = func(ctx context.Context) (*HashSlotTable, error) { return host.meta.LoadHashSlotTable(ctx) }
 	host.loadNodeMirrorFn = func(ctx context.Context) ([]controllermeta.ClusterNode, error) { return host.meta.ListNodes(ctx) }
 	host.metadataSnapshotState.onLoaded = func(snapshot controllerMetadataSnapshot) {
+		host.updateObservationHintPeers(snapshot.Nodes)
+		if host.onMetadataNodesLoaded != nil {
+			host.onMetadataNodesLoaded(snapshot.Nodes)
+		}
 		if host.syncState != nil {
 			before := host.syncState.currentRevisions()
 			host.syncState.replaceMetadataSnapshot(snapshot)
@@ -289,17 +300,68 @@ func (h *controllerHost) emitObservationHintSince(before observationRevisions) {
 }
 
 func (h *controllerHost) emitObservationHint(hint observationHint) {
-	if h == nil || h.hintClient == nil || len(h.hintPeers) == 0 {
+	if h == nil || h.hintClient == nil {
+		return
+	}
+	peers := h.observationHintPeers()
+	if len(peers) == 0 {
 		return
 	}
 
 	body := encodeObservationHint(hint)
-	for _, peerID := range h.hintPeers {
+	for _, peerID := range peers {
 		if peerID == 0 || peerID == h.localNode {
 			continue
 		}
 		_ = h.hintClient.Send(uint64(peerID), 0, msgTypeObservationHint, body)
 	}
+}
+
+func (h *controllerHost) updateObservationHintPeers(nodes []controllermeta.ClusterNode) {
+	if h == nil {
+		return
+	}
+	seen := make(map[multiraft.NodeID]struct{}, len(h.staticHintPeers)+len(nodes))
+	peers := make([]multiraft.NodeID, 0, len(h.staticHintPeers)+len(nodes))
+	for _, peer := range h.staticHintPeers {
+		if peer == 0 || peer == h.localNode {
+			continue
+		}
+		if _, ok := seen[peer]; ok {
+			continue
+		}
+		seen[peer] = struct{}{}
+		peers = append(peers, peer)
+	}
+	for _, node := range nodes {
+		if node.NodeID == 0 || multiraft.NodeID(node.NodeID) == h.localNode || node.Addr == "" {
+			continue
+		}
+		if node.JoinState == controllermeta.NodeJoinStateRejected {
+			continue
+		}
+		if node.Role != controllermeta.NodeRoleData {
+			continue
+		}
+		peer := multiraft.NodeID(node.NodeID)
+		if _, ok := seen[peer]; ok {
+			continue
+		}
+		seen[peer] = struct{}{}
+		peers = append(peers, peer)
+	}
+	h.hintMu.Lock()
+	h.hintPeers = peers
+	h.hintMu.Unlock()
+}
+
+func (h *controllerHost) observationHintPeers() []multiraft.NodeID {
+	if h == nil {
+		return nil
+	}
+	h.hintMu.RLock()
+	defer h.hintMu.RUnlock()
+	return append([]multiraft.NodeID(nil), h.hintPeers...)
 }
 
 func (h *controllerHost) hashSlotTableSnapshot() (*HashSlotTable, bool) {

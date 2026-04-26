@@ -80,6 +80,7 @@ func (c *controllerClient) ListNodes(ctx context.Context) ([]controllermeta.Clus
 	if err != nil {
 		return nil, err
 	}
+	c.cluster.applyClusterNodes(resp.Nodes)
 	return resp.Nodes, nil
 }
 
@@ -242,6 +243,7 @@ func (c *controllerClient) JoinCluster(ctx context.Context, req joinClusterReque
 	if err := c.cluster.applyHashSlotTablePayload(resp.Join.HashSlotTable); err != nil {
 		return joinClusterResponse{}, err
 	}
+	c.cluster.applyClusterNodes(resp.Join.Nodes)
 	return *resp.Join, nil
 }
 

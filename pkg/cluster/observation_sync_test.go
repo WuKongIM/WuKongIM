@@ -71,6 +71,34 @@ func TestObservationSyncStateBuildDeltaFallsBackToFullSyncOnRevisionGap(t *testi
 	}
 }
 
+func TestObservationSyncStateBuildDeltaForcesFullSyncOnNodeRemoval(t *testing.T) {
+	state := newObservationSyncState()
+	state.replaceMetadataSnapshot(controllerMetadataSnapshot{
+		Nodes: []controllermeta.ClusterNode{
+			testObservationNode(1, controllermeta.NodeStatusAlive),
+			testObservationNode(2, controllermeta.NodeStatusAlive),
+		},
+	})
+	before := state.currentRevisions()
+
+	state.replaceMetadataSnapshot(controllerMetadataSnapshot{
+		Nodes: []controllermeta.ClusterNode{
+			testObservationNode(1, controllermeta.NodeStatusAlive),
+		},
+	})
+
+	resp := state.buildDelta(observationDeltaRequest{Revisions: before})
+	if !resp.FullSync {
+		t.Fatal("buildDelta(...).FullSync = false after node removal, want true")
+	}
+	if got, want := len(resp.Nodes), 1; got != want {
+		t.Fatalf("len(resp.Nodes) = %d, want %d", got, want)
+	}
+	if resp.Nodes[0].NodeID != 1 {
+		t.Fatalf("resp.Nodes[0].NodeID = %d, want 1", resp.Nodes[0].NodeID)
+	}
+}
+
 func TestObservationSyncStateBuildDeltaScopesReturnedSlots(t *testing.T) {
 	state := newObservationSyncState()
 	state.replaceMetadataSnapshot(controllerMetadataSnapshot{

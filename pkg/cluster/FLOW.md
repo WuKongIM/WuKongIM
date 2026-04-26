@@ -193,6 +193,7 @@ wakeReconcileLoop（signalLoop，收到 hint 时立即执行）:
         - leader 按 revision 返回增量，必要时 fallback full sync
      → applyObservationDelta:
         - 更新 follower 本地 assignments / tasks / nodes / runtime views cache
+        - 若本次包含 node 变化或 full sync，用合并后的完整 nodes cache 刷新 DynamicDiscovery
         - 记录本次 delta 的 scoped reconcile slots（若 delta 不含 nodes 变化）
         - 对 `delta.Nodes` 做状态 diff；除 controller leader 外的节点都通过
           `ObserverHooks.OnNodeStatusChange` 感知 node status 变更
@@ -391,12 +392,13 @@ Delta 转发 (运行时):
                            → dynamic join mode 下拒绝未知节点绕过 JoinCluster
        runtime_report    → 更新 leader-local runtime observation；FullSync 可激活 Joining 节点
        join_cluster      → 校验 token/version/conflict → Propose(NodeJoin)
-                           → 返回显式 JoinErrorCode 或 nodes + HashSlot table
+                           → 刷新 leader DynamicDiscovery，返回显式 JoinErrorCode 或 nodes + HashSlot table
        list_assignments  → 优先读 leader-local metadata snapshot.Assignments
                            + leader-local HashSlot snapshot（miss 时 fallback store）
                            → metadata snapshot dirty / cold 时 fallback `controllerMeta.ListAssignments`
        list_nodes        → 优先读 leader-local metadata snapshot.Nodes
                            → snapshot dirty / cold 时 fallback `controllerMeta.ListNodes`
+                           → client 侧用返回的完整 nodes snapshot 刷新 DynamicDiscovery
        list_runtime_views→ controllerHost.snapshotObservations().RuntimeViews
        operator          → Propose(OperatorRequest)
        list_tasks        → 优先读 leader-local metadata snapshot.Tasks
@@ -446,6 +448,8 @@ Delta 转发 (运行时):
 - **Manager recover 必须走 strict assignments**: `RecoverSlotStrict` 使用 `ListSlotAssignmentsStrict` 作为唯一 assignment 来源，避免 manager 写接口因为 fallback 到本地 assignment 状态而在不同节点上看到不同恢复结论。
 - **Controller HashSlot 读快路径**: leader 处理 `heartbeat` / `list_assignments` 时优先读 `controllerHost` 持有的 HashSlot snapshot；只有 snapshot cold miss 才会回落到 `controllerMeta.LoadHashSlotTable()`，回填后再继续返回。
 - **Controller metadata 读快路径**: leader-local `controllerMetadataSnapshot` 缓存 Nodes / Assignments / Tasks。planner、调和器本地 leader helper、以及 leader 侧 `list_assignments` / `list_nodes` / `list_tasks` / `get_task` 都优先读 clean snapshot；只要 snapshot dirty / cold 就必须回落到 Pebble-backed `controllerMeta`。
+- **Membership snapshot 同步到 discovery**: Controller 返回或加载的完整 Nodes snapshot 会写入现有 `DynamicDiscovery` 实例；observation 增量必须先合并 follower 本地 cache，再用完整 nodes 刷新，不能用 `delta.Nodes` 覆盖，否则会误删未变化节点并触发错误连接驱逐。
+- **Observation hint peers 动态更新**: controller leader 的 metadata snapshot reload 会用 Data 且非 Rejected 的节点刷新 observation hint 目标，并保留静态配置 peers；Joining 节点因此能收到 full-sync hint 并完成激活。
 - **节点健康改为 deadline 驱动**: steady-state 不再由 `controllerTickOnce()` 提案 `EvaluateTimeouts`；leader 本地 `nodeHealthScheduler` 只在 Alive/Suspect/Dead 边沿变化时提案 `NodeStatusUpdate`。
 - **节点健康 mirror 只反映 committed state**: `nodeHealthScheduler` 对 repeated Alive observation 优先读本地 durable node mirror；mirror miss 才 `GetNode()`。mirror 通过 leader change 全量 reload 和 committed command 增量 refresh 维护，不直接信任 proposal payload。
 - **NodeStatus 观察链路有且仅有两条**: controller leader 通过 committed `NodeStatusUpdate` / operator command 触发 `OnNodeStatusChange`；其他节点则只通过 `SyncObservationDelta()` 里的 `delta.Nodes` diff 触发同一个 hook，避免 app 层维护两套分支逻辑。

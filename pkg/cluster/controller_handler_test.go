@@ -215,6 +215,9 @@ func TestControllerHandlerHeartbeatUpdatesNodeObservationOnly(t *testing.T) {
 func TestControllerHandlerJoinClusterLeaderProposesNodeJoin(t *testing.T) {
 	cluster, host, _ := newTestLocalControllerCluster(t, true)
 	cluster.cfg.JoinToken = "join-secret"
+	discovery := NewDynamicDiscovery(nil, []NodeConfig{{NodeID: cluster.cfg.NodeID, Addr: cluster.cfg.Nodes[0].Addr}})
+	defer discovery.Stop()
+	cluster.discovery = discovery
 	handler := &controllerHandler{cluster: cluster}
 
 	body, err := encodeControllerRequest(controllerRPCRequest{
@@ -265,6 +268,13 @@ func TestControllerHandlerJoinClusterLeaderProposesNodeJoin(t *testing.T) {
 	}
 	if node.JoinState != controllermeta.NodeJoinStateJoining || node.Role != controllermeta.NodeRoleData {
 		t.Fatalf("joined node membership = role %d state %d", node.Role, node.JoinState)
+	}
+	addr, err := discovery.Resolve(2)
+	if err != nil {
+		t.Fatalf("Resolve(joined node) error = %v", err)
+	}
+	if addr != "127.0.0.1:2222" {
+		t.Fatalf("Resolve(joined node) = %q, want %q", addr, "127.0.0.1:2222")
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -261,6 +262,7 @@ func (c *Cluster) startControllerRaftIfLocalPeer() error {
 	if err != nil {
 		return err
 	}
+	host.onMetadataNodesLoaded = c.applyClusterNodes
 	table, err := c.ensureControllerHashSlotTable(context.Background(), host.meta)
 	if err != nil {
 		host.Stop()
@@ -397,20 +399,32 @@ func retryableJoinClusterError(err error) bool {
 }
 
 func (c *Cluster) applyClusterNodes(nodes []controllermeta.ClusterNode) {
-	if c == nil || len(nodes) == 0 {
+	if c == nil {
 		return
 	}
 	discovery, ok := c.discovery.(interface{ UpdateNodes([]NodeConfig) []uint64 })
 	if !ok {
 		return
 	}
-	configs := make([]NodeConfig, 0, len(nodes))
+	configsByID := make(map[multiraft.NodeID]NodeConfig, len(c.cfg.Nodes)+len(nodes))
+	for _, node := range c.cfg.Nodes {
+		if node.NodeID == 0 || node.Addr == "" {
+			continue
+		}
+		configsByID[node.NodeID] = node
+	}
 	for _, node := range nodes {
 		if node.NodeID == 0 || node.Addr == "" || node.JoinState == controllermeta.NodeJoinStateRejected {
 			continue
 		}
-		configs = append(configs, NodeConfig{NodeID: multiraft.NodeID(node.NodeID), Addr: node.Addr})
+		nodeID := multiraft.NodeID(node.NodeID)
+		configsByID[nodeID] = NodeConfig{NodeID: nodeID, Addr: node.Addr}
 	}
+	configs := make([]NodeConfig, 0, len(configsByID))
+	for _, node := range configsByID {
+		configs = append(configs, node)
+	}
+	sort.Slice(configs, func(i, j int) bool { return configs[i].NodeID < configs[j].NodeID })
 	discovery.UpdateNodes(configs)
 }
 
@@ -1288,6 +1302,7 @@ func (c *Cluster) ListNodes(ctx context.Context) ([]controllermeta.ClusterNode, 
 			return err
 		})
 		if err == nil {
+			c.applyClusterNodes(nodes)
 			return nodes, nil
 		}
 		if !controllerReadFallbackAllowed(err) || c.controllerMeta == nil {
@@ -1295,7 +1310,11 @@ func (c *Cluster) ListNodes(ctx context.Context) ([]controllermeta.ClusterNode, 
 		}
 	}
 	if c.controllerMeta != nil {
-		return c.controllerMeta.ListNodes(ctx)
+		nodes, err := c.controllerMeta.ListNodes(ctx)
+		if err == nil {
+			c.applyClusterNodes(nodes)
+		}
+		return nodes, err
 	}
 	return nil, ErrNotStarted
 }
@@ -1303,7 +1322,11 @@ func (c *Cluster) ListNodes(ctx context.Context) ([]controllermeta.ClusterNode, 
 // ListNodesStrict returns the controller leader's node snapshot without local fallback.
 func (c *Cluster) ListNodesStrict(ctx context.Context) ([]controllermeta.ClusterNode, error) {
 	if c != nil && c.controllerMeta != nil && c.isLocalControllerLeader() {
-		return c.controllerMeta.ListNodes(ctx)
+		nodes, err := c.controllerMeta.ListNodes(ctx)
+		if err == nil {
+			c.applyClusterNodes(nodes)
+		}
+		return nodes, err
 	}
 	if c != nil && c.controllerClient != nil {
 		var nodes []controllermeta.ClusterNode
@@ -1315,6 +1338,7 @@ func (c *Cluster) ListNodesStrict(ctx context.Context) ([]controllermeta.Cluster
 		if err != nil {
 			return nil, err
 		}
+		c.applyClusterNodes(nodes)
 		return nodes, nil
 	}
 	return nil, ErrNotStarted

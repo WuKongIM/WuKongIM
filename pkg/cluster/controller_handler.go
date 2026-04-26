@@ -385,6 +385,7 @@ func (h *controllerHandler) handleJoinCluster(
 	if err != nil {
 		return nil, err
 	}
+	c.applyClusterNodes(nodes)
 	table, err := loadHashSlotTable()
 	if err != nil {
 		return nil, err

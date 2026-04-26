@@ -113,14 +113,14 @@ RemoveSlot:
     ① 无仲裁 → Degraded(等待)
     ② 有进行中Task → 检查 taskRunnable(Pending直接可执行, Retrying等NextRunAt)
     ③ 无Assignment且无RuntimeView → Bootstrap:
-       selectBootstrapPeers → 选 ReplicaN 个最低负载 Alive 节点 (planner.go:168)
-    ④ DesiredPeers 中有 Dead/Draining → Repair:
-       firstPeerNeedingRepair (planner.go:199) → selectRepairTarget (planner.go:209)
+       selectBootstrapPeers → 选 ReplicaN 个最低负载 Active+Alive+Data 节点 (planner.go)
+    ④ DesiredPeers 中有 Dead/Draining 或非 Active Data 成员 → Repair:
+       firstPeerNeedingRepair → selectRepairTarget
   找到第一个需要处理的 → 立即返回
 
 第二遍 — 无紧急任务时尝试 Rebalance (planner.go:107):
   ① slotLoads 计算每节点 Slot 数 (planner.go:237)
-  ② loadExtremes 找 min/max 节点 (planner.go:247)
+  ② loadExtremes 仅在 Active+Alive+Data 节点中找 min/max 节点 (planner.go)
   ③ maxLoad - minLoad < 阈值(默认2) → 无需均衡
   ④ 找候选: 在maxNode上且不在minNode上, 有仲裁, 无失败任务
   ⑤ 迁移中的物理 Slot(source/target 任一侧)跳过 Repair/Rebalance，避免副本迁移和 hash-slot 数据迁移叠加
