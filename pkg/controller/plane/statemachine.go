@@ -88,6 +88,11 @@ func (sm *StateMachine) Apply(ctx context.Context, cmd Command) error {
 			return controllermeta.ErrInvalidArgument
 		}
 		return sm.applyNodeJoinActivate(ctx, *cmd.NodeJoinActivate)
+	case CommandKindNodeOnboardingJobUpdate:
+		if cmd.NodeOnboarding == nil || cmd.NodeOnboarding.Job == nil {
+			return controllermeta.ErrInvalidArgument
+		}
+		return sm.applyNodeOnboardingJobUpdate(ctx, *cmd.NodeOnboarding)
 	case CommandKindStartMigration:
 		if cmd.Migration == nil {
 			return controllermeta.ErrInvalidArgument
@@ -121,6 +126,14 @@ func (sm *StateMachine) Apply(ctx context.Context, cmd Command) error {
 	default:
 		return controllermeta.ErrInvalidArgument
 	}
+}
+
+func (sm *StateMachine) applyNodeOnboardingJobUpdate(ctx context.Context, update NodeOnboardingJobUpdate) error {
+	if update.Job == nil {
+		return controllermeta.ErrInvalidArgument
+	}
+	_, err := sm.store.GuardedUpsertOnboardingJob(ctx, *update.Job, update.ExpectedStatus, update.Assignment, update.Task)
+	return err
 }
 
 func (sm *StateMachine) applyNodeHeartbeat(ctx context.Context, report AgentReport) error {

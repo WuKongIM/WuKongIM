@@ -35,6 +35,10 @@ type PlannerState struct {
 	Runtime        map[uint32]controllermeta.SlotRuntimeView
 	Tasks          map[uint32]controllermeta.ReconcileTask
 	MigratingSlots map[uint32]struct{}
+	// PauseRebalance disables opportunistic automatic Rebalance decisions while keeping Bootstrap/Repair active.
+	PauseRebalance bool
+	// LockedSlots prevents ordinary planner decisions for slots owned by an external coordinator.
+	LockedSlots map[uint32]struct{}
 }
 
 type Decision struct {

@@ -19,11 +19,12 @@ const (
 	CommandKindAdvanceMigration
 	CommandKindFinalizeMigration
 	CommandKindAbortMigration
-	CommandKindAddSlot          CommandKind = 14
-	CommandKindRemoveSlot       CommandKind = 15
-	CommandKindNodeStatusUpdate CommandKind = 16
-	CommandKindNodeJoin         CommandKind = 17
-	CommandKindNodeJoinActivate CommandKind = 18
+	CommandKindAddSlot                 CommandKind = 14
+	CommandKindRemoveSlot              CommandKind = 15
+	CommandKindNodeStatusUpdate        CommandKind = 16
+	CommandKindNodeJoin                CommandKind = 17
+	CommandKindNodeJoinActivate        CommandKind = 18
+	CommandKindNodeOnboardingJobUpdate CommandKind = 19
 )
 
 type OperatorKind uint8
@@ -106,6 +107,18 @@ type NodeJoinActivateRequest struct {
 	ActivatedAt time.Time
 }
 
+// NodeOnboardingJobUpdate persists a job transition and optional Slot task mutation atomically.
+type NodeOnboardingJobUpdate struct {
+	// Job is the full durable job state to upsert.
+	Job *controllermeta.NodeOnboardingJob
+	// ExpectedStatus is optional; when set, the state machine no-ops if the stored job has moved elsewhere.
+	ExpectedStatus *controllermeta.OnboardingJobStatus
+	// Assignment is written with Task when starting a move; nil means no assignment mutation.
+	Assignment *controllermeta.SlotAssignment
+	// Task is written with Assignment when starting a move; nil means no task mutation.
+	Task *controllermeta.ReconcileTask
+}
+
 type Command struct {
 	Kind             CommandKind
 	Report           *AgentReport
@@ -119,4 +132,5 @@ type Command struct {
 	NodeStatusUpdate *NodeStatusUpdate
 	NodeJoin         *NodeJoinRequest
 	NodeJoinActivate *NodeJoinActivateRequest
+	NodeOnboarding   *NodeOnboardingJobUpdate
 }

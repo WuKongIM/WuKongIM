@@ -43,6 +43,10 @@ func (p *Planner) ReconcileSlot(_ context.Context, state PlannerState, slotID ui
 		}
 		return decision, nil
 	}
+	if state.slotLocked(slotID) {
+		decision.Assignment = assignment
+		return decision, nil
+	}
 	if !hasAssignment && !hasView {
 		peers := p.selectBootstrapPeers(state)
 		if len(peers) < p.cfg.ReplicaN {
@@ -109,6 +113,10 @@ func (p *Planner) NextDecision(ctx context.Context, state PlannerState) (Decisio
 		}
 	}
 
+	if state.PauseRebalance {
+		return Decision{}, nil
+	}
+
 	return p.nextRebalanceDecision(state), nil
 }
 
@@ -121,7 +129,7 @@ func (p *Planner) nextRebalanceDecision(state PlannerState) Decision {
 
 	candidates := make([]controllermeta.SlotAssignment, 0, len(state.Assignments))
 	for _, assignment := range state.Assignments {
-		if state.slotMigrating(assignment.SlotID) {
+		if state.slotMigrating(assignment.SlotID) || state.slotLocked(assignment.SlotID) {
 			continue
 		}
 		if containsPeer(assignment.DesiredPeers, maxNode) && !containsPeer(assignment.DesiredPeers, minNode) {
@@ -181,6 +189,14 @@ func (s PlannerState) slotMigrating(slotID uint32) bool {
 		return false
 	}
 	_, ok := s.MigratingSlots[slotID]
+	return ok
+}
+
+func (s PlannerState) slotLocked(slotID uint32) bool {
+	if len(s.LockedSlots) == 0 {
+		return false
+	}
+	_, ok := s.LockedSlots[slotID]
 	return ok
 }
 

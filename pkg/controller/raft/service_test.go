@@ -350,6 +350,35 @@ func TestEncodeDecodeCommandNodeJoinActivateRoundTrip(t *testing.T) {
 	require.Equal(t, *cmd.NodeJoinActivate, *decoded.NodeJoinActivate)
 }
 
+func TestEncodeDecodeCommandRoundTripsNodeOnboardingJobUpdate(t *testing.T) {
+	expected := controllermeta.OnboardingJobStatusPlanned
+	job, assignment, task := sampleRaftOnboardingUpdate()
+	cmd := slotcontroller.Command{
+		Kind: slotcontroller.CommandKindNodeOnboardingJobUpdate,
+		NodeOnboarding: &slotcontroller.NodeOnboardingJobUpdate{
+			Job:            &job,
+			ExpectedStatus: &expected,
+			Assignment:     &assignment,
+			Task:           &task,
+		},
+	}
+
+	data, err := encodeCommand(cmd)
+	require.NoError(t, err)
+	decoded, err := decodeCommand(data)
+	require.NoError(t, err)
+
+	require.Equal(t, cmd.Kind, decoded.Kind)
+	require.NotNil(t, decoded.NodeOnboarding)
+	require.NotNil(t, decoded.NodeOnboarding.Job)
+	require.Equal(t, job.JobID, decoded.NodeOnboarding.Job.JobID)
+	require.Equal(t, job.Plan.BlockedReasons[0].Scope, decoded.NodeOnboarding.Job.Plan.BlockedReasons[0].Scope)
+	require.Equal(t, job.Moves[0].DesiredPeersAfter, decoded.NodeOnboarding.Job.Moves[0].DesiredPeersAfter)
+	require.Equal(t, expected, *decoded.NodeOnboarding.ExpectedStatus)
+	require.Equal(t, assignment.DesiredPeers, decoded.NodeOnboarding.Assignment.DesiredPeers)
+	require.Equal(t, task.Kind, decoded.NodeOnboarding.Task.Kind)
+}
+
 func TestFailInflightProposalsOnLeaderLossFailsQueuedAndIndexed(t *testing.T) {
 	queuedResp := make(chan error, 1)
 	indexedResp := make(chan error, 1)
@@ -380,6 +409,76 @@ func TestFailInflightProposalsOnLeaderLossLeavesLeaderRequestsIntact(t *testing.
 		t.Fatalf("unexpected inflight failure: %v", err)
 	default:
 	}
+}
+
+func sampleRaftOnboardingUpdate() (controllermeta.NodeOnboardingJob, controllermeta.SlotAssignment, controllermeta.ReconcileTask) {
+	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+	task := controllermeta.ReconcileTask{
+		SlotID:     2,
+		Kind:       controllermeta.TaskKindRebalance,
+		Step:       controllermeta.TaskStepAddLearner,
+		SourceNode: 1,
+		TargetNode: 4,
+		Status:     controllermeta.TaskStatusPending,
+	}
+	job := controllermeta.NodeOnboardingJob{
+		JobID:           "onboard-20260426-000001",
+		TargetNodeID:    4,
+		Status:          controllermeta.OnboardingJobStatusRunning,
+		CreatedAt:       now,
+		UpdatedAt:       now.Add(time.Second),
+		StartedAt:       now.Add(time.Minute),
+		PlanVersion:     1,
+		PlanFingerprint: "fingerprint",
+		Plan: controllermeta.NodeOnboardingPlan{
+			TargetNodeID: 4,
+			Summary: controllermeta.NodeOnboardingPlanSummary{
+				PlannedTargetSlotCount: 1,
+				PlannedLeaderGain:      1,
+			},
+			Moves: []controllermeta.NodeOnboardingPlanMove{{
+				SlotID:                 2,
+				SourceNodeID:           1,
+				TargetNodeID:           4,
+				Reason:                 "replica_balance",
+				DesiredPeersBefore:     []uint64{1, 2, 3},
+				DesiredPeersAfter:      []uint64{2, 3, 4},
+				CurrentLeaderID:        1,
+				LeaderTransferRequired: true,
+			}},
+			BlockedReasons: []controllermeta.NodeOnboardingBlockedReason{{
+				Code:    "slot_task_running",
+				Scope:   "slot",
+				SlotID:  2,
+				Message: "slot has running reconcile task",
+			}},
+		},
+		Moves: []controllermeta.NodeOnboardingMove{{
+			SlotID:                 2,
+			SourceNodeID:           1,
+			TargetNodeID:           4,
+			Status:                 controllermeta.OnboardingMoveStatusRunning,
+			TaskKind:               controllermeta.TaskKindRebalance,
+			TaskSlotID:             2,
+			StartedAt:              now.Add(time.Minute),
+			DesiredPeersBefore:     []uint64{1, 2, 3},
+			DesiredPeersAfter:      []uint64{2, 3, 4},
+			LeaderBefore:           1,
+			LeaderTransferRequired: true,
+		}},
+		CurrentMoveIndex: 0,
+		ResultCounts: controllermeta.OnboardingResultCounts{
+			Running: 1,
+		},
+		CurrentTask: &task,
+	}
+	assignment := controllermeta.SlotAssignment{
+		SlotID:         2,
+		DesiredPeers:   []uint64{2, 3, 4},
+		ConfigEpoch:    4,
+		BalanceVersion: 8,
+	}
+	return job, assignment, task
 }
 
 type testEnv struct {
