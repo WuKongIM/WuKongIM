@@ -199,7 +199,7 @@ func TestChannelLeaderRepairerKeepsExpiredLeaderCandidateDuringRepair(t *testing
 
 	require.NoError(t, err)
 	require.True(t, got.Changed)
-	require.Empty(t, remote.evaluateCalls)
+	require.Equal(t, []uint64{4}, evaluatedNodeIDs(remote.evaluateCalls))
 	require.Len(t, source.upserts, 1)
 	require.Equal(t, uint64(4), source.upserts[0].Leader)
 	require.Equal(t, expired.LeaderEpoch, source.upserts[0].LeaderEpoch)
@@ -292,7 +292,86 @@ func TestChannelLeaderRepairerRenewsExpiredLeaderLeaseWithoutLeaderTransferWhenC
 	require.Equal(t, uint64(4), source.upserts[0].Leader)
 	require.Equal(t, expired.LeaderEpoch, source.upserts[0].LeaderEpoch)
 	require.Equal(t, now.Add(BootstrapLease).UnixMilli(), source.upserts[0].LeaseUntilMS)
-	require.Empty(t, remote.evaluateCalls)
+	require.Equal(t, []uint64{4}, evaluatedNodeIDs(remote.evaluateCalls))
+}
+
+func TestChannelLeaderRepairerTransfersExpiredLeaseWhenCurrentLeaderCannotBeEvaluated(t *testing.T) {
+	now := time.UnixMilli(1_700_001_112_700).UTC()
+	id := channel.ChannelID{ID: "repair-expired-unreachable", Type: 1}
+	expired := metadb.ChannelRuntimeMeta{
+		ChannelID:    id.ID,
+		ChannelType:  int64(id.Type),
+		ChannelEpoch: 11,
+		LeaderEpoch:  7,
+		Replicas:     []uint64{2, 4, 5},
+		ISR:          []uint64{4, 2, 5},
+		Leader:       4,
+		MinISR:       2,
+		Status:       uint8(channel.StatusActive),
+		LeaseUntilMS: now.Add(-time.Second).UnixMilli(),
+	}
+	repaired := expired
+	repaired.Leader = 2
+	repaired.LeaderEpoch = expired.LeaderEpoch + 1
+	repaired.LeaseUntilMS = now.Add(BootstrapLease).UnixMilli()
+	source := &fakeChannelMetaSource{
+		getResults: []fakeChannelMetaGetResult{
+			{meta: expired},
+			{meta: repaired},
+		},
+	}
+	remote := &stubChannelLeaderRepairRemote{
+		evaluateErrByNode: map[uint64]error{
+			4: context.DeadlineExceeded,
+		},
+		evaluateByNode: map[uint64]LeaderPromotionReport{
+			2: {
+				NodeID:              2,
+				Exists:              true,
+				ChannelEpoch:        expired.ChannelEpoch,
+				LocalLEO:            11,
+				LocalCheckpointHW:   11,
+				LocalOffsetEpoch:    4,
+				ProjectedSafeHW:     11,
+				ProjectedTruncateTo: 11,
+				CanLead:             true,
+			},
+			5: {
+				NodeID:              5,
+				Exists:              true,
+				ChannelEpoch:        expired.ChannelEpoch,
+				LocalLEO:            10,
+				LocalCheckpointHW:   10,
+				LocalOffsetEpoch:    4,
+				ProjectedSafeHW:     10,
+				ProjectedTruncateTo: 10,
+				CanLead:             true,
+			},
+		},
+	}
+	repairer := &LeaderRepairer{
+		store:     source,
+		localNode: 9,
+		now:       func() time.Time { return now },
+		needsRepair: func(meta metadb.ChannelRuntimeMeta) (bool, string) {
+			return meta.Leader == 4, "leader_lease_expired"
+		},
+		remote: remote,
+	}
+
+	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), LeaderRepairRequest{
+		ChannelID:            id,
+		ObservedChannelEpoch: expired.ChannelEpoch,
+		ObservedLeaderEpoch:  expired.LeaderEpoch,
+		Reason:               "leader_lease_expired",
+	})
+
+	require.NoError(t, err)
+	require.True(t, got.Changed)
+	require.Len(t, source.upserts, 1)
+	require.Equal(t, uint64(2), source.upserts[0].Leader)
+	require.Equal(t, expired.LeaderEpoch+1, source.upserts[0].LeaderEpoch)
+	require.Equal(t, []uint64{4, 2, 5}, evaluatedNodeIDs(remote.evaluateCalls))
 }
 
 func TestChannelLeaderRepairerKeepsCurrentLeaderOnExpiredLeaseTie(t *testing.T) {
@@ -366,7 +445,7 @@ func TestChannelLeaderRepairerKeepsCurrentLeaderOnExpiredLeaseTie(t *testing.T) 
 	require.Len(t, source.upserts, 1)
 	require.Equal(t, uint64(3), source.upserts[0].Leader)
 	require.Equal(t, expired.LeaderEpoch, source.upserts[0].LeaderEpoch)
-	require.Empty(t, remote.evaluateCalls)
+	require.Equal(t, []uint64{3}, evaluatedNodeIDs(remote.evaluateCalls))
 }
 
 func TestChannelLeaderRepairerAppliesAuthoritativeMetaLocallyAfterRepair(t *testing.T) {
@@ -891,6 +970,14 @@ type stubChannelLeaderRepairRemote struct {
 type stubChannelLeaderEvaluateCall struct {
 	nodeID uint64
 	req    LeaderEvaluateRequest
+}
+
+func evaluatedNodeIDs(calls []stubChannelLeaderEvaluateCall) []uint64 {
+	out := make([]uint64, 0, len(calls))
+	for _, call := range calls {
+		out = append(out, call.nodeID)
+	}
+	return out
 }
 
 func (s *stubChannelLeaderRepairRemote) RepairChannelLeader(_ context.Context, req LeaderRepairRequest) (LeaderRepairResult, error) {

@@ -141,27 +141,6 @@ func (r *LeaderRepairer) RepairChannelLeaderAuthoritative(ctx context.Context, r
 				currentReason = reason
 			}
 		}
-		if shouldRenewExpiredLeaderLease(latest, currentReason) {
-			updated := latest
-			updated.LeaseUntilMS = r.currentTime().Add(BootstrapLease).UnixMilli()
-			if err := r.store.UpsertChannelRuntimeMetaIfLocalLeader(ctx, updated); err != nil {
-				return nil, err
-			}
-			authoritative, err := r.store.GetChannelRuntimeMeta(ctx, req.ChannelID.ID, int64(req.ChannelID.Type))
-			if err != nil {
-				return nil, err
-			}
-			if r.applyAuthoritative != nil {
-				if err := r.applyAuthoritative(authoritative); err != nil {
-					return nil, err
-				}
-			}
-			return LeaderRepairResult{
-				Meta:    authoritative,
-				Changed: true,
-			}, nil
-		}
-
 		best, err := r.selectLeaderCandidate(ctx, latest, currentReason)
 		if err != nil {
 			return nil, err
@@ -201,12 +180,6 @@ func (r *LeaderRepairer) RepairChannelLeaderAuthoritative(ctx context.Context, r
 		return LeaderRepairResult{}, fmt.Errorf("channelmeta repair: unexpected singleflight result %T", value)
 	}
 	return result, nil
-}
-
-func shouldRenewExpiredLeaderLease(meta metadb.ChannelRuntimeMeta, reason string) bool {
-	return reason == channel.LeaderRepairReasonLeaderLeaseExpired.String() &&
-		meta.Leader != 0 &&
-		containsUint64(meta.Replicas, meta.Leader)
 }
 
 func (r *LeaderRepairer) selectLeaderCandidate(ctx context.Context, meta metadb.ChannelRuntimeMeta, reason string) (LeaderPromotionReport, error) {
