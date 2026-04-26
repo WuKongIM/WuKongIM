@@ -5,6 +5,7 @@ import (
 	"math"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
@@ -144,6 +145,12 @@ type ClusterConfig struct {
 	AppendGroupCommitMaxBytes int
 	// Nodes lists every cluster node participating in the cluster runtime.
 	Nodes []NodeConfigRef
+	// Seeds lists existing cluster RPC addresses used only to bootstrap dynamic node join.
+	Seeds []string
+	// AdvertiseAddr is this node's cluster RPC address published to controller membership.
+	AdvertiseAddr string
+	// JoinToken authenticates automatic node join requests.
+	JoinToken string
 	// Slots is deprecated and must remain empty because slots are managed by the controller.
 	Slots []SlotConfig
 	// ControllerReplicaN is the number of controller Raft voters.
@@ -213,6 +220,11 @@ func (c *ClusterConfig) SetReplicationExplicitFlags(longPollLaneCountSet, longPo
 	c.longPollMaxWaitSet = longPollMaxWaitSet
 	c.longPollMaxBytesSet = longPollMaxBytesSet
 	c.longPollMaxChannelsSet = longPollMaxChannelsSet
+}
+
+// JoinModeEnabled reports whether any dynamic node join bootstrap setting is configured.
+func (c ClusterConfig) JoinModeEnabled() bool {
+	return len(c.Seeds) > 0 || c.AdvertiseAddr != "" || c.JoinToken != ""
 }
 
 // NodeConfigRef describes one node entry in the cluster membership list.
@@ -350,9 +362,6 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if c.Cluster.ListenAddr == "" {
 		return fmt.Errorf("%w: cluster listen addr must be set", ErrInvalidConfig)
 	}
-	if len(c.Cluster.Nodes) == 0 {
-		return fmt.Errorf("%w: cluster nodes must be set", ErrInvalidConfig)
-	}
 	if len(c.Gateway.Listeners) == 0 {
 		return fmt.Errorf("%w: gateway listeners must be set", ErrInvalidConfig)
 	}
@@ -420,22 +429,43 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if uint32(c.Cluster.HashSlotCount) < initialSlotCount {
 		return fmt.Errorf("%w: cluster hash slot count %d must be >= initial slot count %d", ErrInvalidConfig, c.Cluster.HashSlotCount, initialSlotCount)
 	}
-	if c.Cluster.ControllerReplicaN == 0 {
+	staticCluster := len(c.Cluster.Nodes) > 0
+	dynamicJoin := !staticCluster && len(c.Cluster.Seeds) > 0
+	if !staticCluster && !dynamicJoin {
+		if c.Cluster.JoinModeEnabled() {
+			return fmt.Errorf("%w: cluster seeds must be set for dynamic join mode", ErrInvalidConfig)
+		}
+		return fmt.Errorf("%w: cluster nodes must be set", ErrInvalidConfig)
+	}
+	if len(c.Cluster.Seeds) > 0 {
+		if err := validateClusterSeeds(c.Cluster.Seeds); err != nil {
+			return err
+		}
+	}
+	if dynamicJoin {
+		if c.Cluster.AdvertiseAddr == "" {
+			return fmt.Errorf("%w: cluster advertise addr must be set for dynamic join mode", ErrInvalidConfig)
+		}
+		if c.Cluster.JoinToken == "" {
+			return fmt.Errorf("%w: cluster join token must be set for dynamic join mode", ErrInvalidConfig)
+		}
+	}
+	if staticCluster && c.Cluster.ControllerReplicaN == 0 {
 		c.Cluster.ControllerReplicaN = len(c.Cluster.Nodes)
 	}
 	if c.Cluster.ControllerReplicaN <= 0 {
 		return fmt.Errorf("%w: controller replica count must be positive", ErrInvalidConfig)
 	}
-	if c.Cluster.ControllerReplicaN > len(c.Cluster.Nodes) {
+	if staticCluster && c.Cluster.ControllerReplicaN > len(c.Cluster.Nodes) {
 		return fmt.Errorf("%w: controller replica count %d exceeds cluster nodes %d", ErrInvalidConfig, c.Cluster.ControllerReplicaN, len(c.Cluster.Nodes))
 	}
-	if c.Cluster.SlotReplicaN == 0 {
+	if staticCluster && c.Cluster.SlotReplicaN == 0 {
 		c.Cluster.SlotReplicaN = len(c.Cluster.Nodes)
 	}
 	if c.Cluster.SlotReplicaN <= 0 {
 		return fmt.Errorf("%w: slot replica count must be positive", ErrInvalidConfig)
 	}
-	if c.Cluster.SlotReplicaN > len(c.Cluster.Nodes) {
+	if staticCluster && c.Cluster.SlotReplicaN > len(c.Cluster.Nodes) {
 		return fmt.Errorf("%w: slot replica count %d exceeds cluster nodes %d", ErrInvalidConfig, c.Cluster.SlotReplicaN, len(c.Cluster.Nodes))
 	}
 	if c.Cluster.ChannelBootstrapDefaultMinISR <= 0 {
@@ -606,28 +636,45 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	c.Cluster.AppendGroupCommitMaxRecords = effectiveAppendGroupCommitMaxRecords(c.Cluster.AppendGroupCommitMaxRecords)
 	c.Cluster.AppendGroupCommitMaxBytes = effectiveAppendGroupCommitMaxBytes(c.Cluster.AppendGroupCommitMaxBytes)
 
-	nodeSet := make(map[uint64]struct{}, len(c.Cluster.Nodes))
-	selfNodeFound := false
-	for _, node := range c.Cluster.Nodes {
-		if node.ID == 0 {
-			return fmt.Errorf("%w: cluster node id must be set", ErrInvalidConfig)
+	if staticCluster {
+		nodeSet := make(map[uint64]struct{}, len(c.Cluster.Nodes))
+		selfNodeFound := false
+		for _, node := range c.Cluster.Nodes {
+			if node.ID == 0 {
+				return fmt.Errorf("%w: cluster node id must be set", ErrInvalidConfig)
+			}
+			if node.Addr == "" {
+				return fmt.Errorf("%w: cluster node addr must be set", ErrInvalidConfig)
+			}
+			if _, ok := nodeSet[node.ID]; ok {
+				return fmt.Errorf("%w: duplicate cluster node id %d", ErrInvalidConfig, node.ID)
+			}
+			nodeSet[node.ID] = struct{}{}
+			if node.ID == c.Node.ID {
+				selfNodeFound = true
+			}
 		}
-		if node.Addr == "" {
-			return fmt.Errorf("%w: cluster node addr must be set", ErrInvalidConfig)
-		}
-		if _, ok := nodeSet[node.ID]; ok {
-			return fmt.Errorf("%w: duplicate cluster node id %d", ErrInvalidConfig, node.ID)
-		}
-		nodeSet[node.ID] = struct{}{}
-		if node.ID == c.Node.ID {
-			selfNodeFound = true
+
+		if !selfNodeFound {
+			return fmt.Errorf("%w: node id %d not found in cluster nodes", ErrInvalidConfig, c.Node.ID)
 		}
 	}
 
-	if !selfNodeFound {
-		return fmt.Errorf("%w: node id %d not found in cluster nodes", ErrInvalidConfig, c.Node.ID)
-	}
+	return nil
+}
 
+func validateClusterSeeds(seeds []string) error {
+	seen := make(map[string]struct{}, len(seeds))
+	for _, seed := range seeds {
+		seed = strings.TrimSpace(seed)
+		if seed == "" {
+			return fmt.Errorf("%w: cluster seed addr must be set", ErrInvalidConfig)
+		}
+		if _, ok := seen[seed]; ok {
+			return fmt.Errorf("%w: duplicate cluster seed %q", ErrInvalidConfig, seed)
+		}
+		seen[seed] = struct{}{}
+	}
 	return nil
 }
 

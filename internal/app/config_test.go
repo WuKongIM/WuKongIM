@@ -43,6 +43,7 @@ func supportedConfigExampleKeys() []string {
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_BYTES",
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_RECORDS",
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_WAIT",
+		"WK_CLUSTER_ADVERTISE_ADDR",
 		"WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR",
 		"WK_CLUSTER_CONFIG_CHANGE_RETRY_BUDGET",
 		"WK_CLUSTER_CONTROLLER_LEADER_WAIT_TIMEOUT",
@@ -61,6 +62,7 @@ func supportedConfigExampleKeys() []string {
 		"WK_CLUSTER_HASH_SLOT_COUNT",
 		"WK_CLUSTER_HEARTBEAT_TICK",
 		"WK_CLUSTER_INITIAL_SLOT_COUNT",
+		"WK_CLUSTER_JOIN_TOKEN",
 		"WK_CLUSTER_LEADER_TRANSFER_RETRY_BUDGET",
 		"WK_CLUSTER_LISTEN_ADDR",
 		"WK_CLUSTER_LONG_POLL_LANE_COUNT",
@@ -77,6 +79,7 @@ func supportedConfigExampleKeys() []string {
 		"WK_CLUSTER_OBSERVATION_RUNTIME_SCAN_INTERVAL",
 		"WK_CLUSTER_POOL_SIZE",
 		"WK_CLUSTER_RAFT_WORKERS",
+		"WK_CLUSTER_SEEDS",
 		"WK_CLUSTER_SLOT_COUNT",
 		"WK_CLUSTER_SLOT_REPLICA_N",
 		"WK_CLUSTER_TICK_INTERVAL",
@@ -286,6 +289,149 @@ func TestConfigValidateRejectsLocalNodeMissingFromClusterNodes(t *testing.T) {
 	cfg.Cluster.SlotReplicaN = 3
 
 	require.Error(t, cfg.ApplyDefaultsAndValidate())
+}
+
+func TestConfigValidateStaticClusterNodesStillDefaultReplicasAndRequireLocalNode(t *testing.T) {
+	cfg := validConfig()
+	cfg.Cluster.Nodes = []NodeConfigRef{
+		{ID: 3, Addr: "127.0.0.1:7002"},
+		{ID: 1, Addr: "127.0.0.1:7000"},
+		{ID: 2, Addr: "127.0.0.1:7001"},
+	}
+	cfg.Cluster.ControllerReplicaN = 0
+	cfg.Cluster.SlotReplicaN = 0
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	require.Equal(t, 3, cfg.Cluster.ControllerReplicaN)
+	require.Equal(t, 3, cfg.Cluster.SlotReplicaN)
+
+	cfg = validConfig()
+	cfg.Node.ID = 4
+	cfg.Cluster.Nodes = []NodeConfigRef{
+		{ID: 1, Addr: "127.0.0.1:7000"},
+		{ID: 2, Addr: "127.0.0.1:7001"},
+		{ID: 3, Addr: "127.0.0.1:7002"},
+	}
+	cfg.Cluster.ControllerReplicaN = 0
+	cfg.Cluster.SlotReplicaN = 0
+
+	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "not found in cluster nodes")
+}
+
+func TestConfigValidateSeedJoinAllowsEmptyNodesWithCompleteJoinSettings(t *testing.T) {
+	cfg := validConfig()
+	cfg.Node.ID = 4
+	cfg.Cluster.Nodes = nil
+	cfg.Cluster.Seeds = []string{"wk-node1:7000", "wk-node2:7000"}
+	cfg.Cluster.AdvertiseAddr = "wk-node4:7000"
+	cfg.Cluster.JoinToken = "join-secret"
+	cfg.Cluster.ControllerReplicaN = 1
+	cfg.Cluster.SlotReplicaN = 1
+
+	require.True(t, cfg.Cluster.JoinModeEnabled())
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	require.Empty(t, cfg.Cluster.Nodes)
+	require.Equal(t, []string{"wk-node1:7000", "wk-node2:7000"}, cfg.Cluster.Seeds)
+}
+
+func TestConfigValidateSeedJoinRejectsEmptyAdvertiseAddr(t *testing.T) {
+	cfg := validConfig()
+	cfg.Node.ID = 4
+	cfg.Cluster.Nodes = nil
+	cfg.Cluster.Seeds = []string{"wk-node1:7000"}
+	cfg.Cluster.AdvertiseAddr = ""
+	cfg.Cluster.JoinToken = "join-secret"
+	cfg.Cluster.ControllerReplicaN = 1
+	cfg.Cluster.SlotReplicaN = 1
+
+	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "cluster advertise addr")
+}
+
+func TestConfigValidateSeedJoinRejectsEmptyJoinToken(t *testing.T) {
+	cfg := validConfig()
+	cfg.Node.ID = 4
+	cfg.Cluster.Nodes = nil
+	cfg.Cluster.Seeds = []string{"wk-node1:7000"}
+	cfg.Cluster.AdvertiseAddr = "wk-node4:7000"
+	cfg.Cluster.JoinToken = ""
+	cfg.Cluster.ControllerReplicaN = 1
+	cfg.Cluster.SlotReplicaN = 1
+
+	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "cluster join token")
+}
+
+func TestConfigValidateSeedJoinRejectsMissingReplicaCounts(t *testing.T) {
+	t.Run("controller replica count", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Node.ID = 4
+		cfg.Cluster.Nodes = nil
+		cfg.Cluster.Seeds = []string{"wk-node1:7000"}
+		cfg.Cluster.AdvertiseAddr = "wk-node4:7000"
+		cfg.Cluster.JoinToken = "join-secret"
+		cfg.Cluster.ControllerReplicaN = 0
+		cfg.Cluster.SlotReplicaN = 1
+
+		require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "controller replica count")
+	})
+
+	t.Run("slot replica count", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Node.ID = 4
+		cfg.Cluster.Nodes = nil
+		cfg.Cluster.Seeds = []string{"wk-node1:7000"}
+		cfg.Cluster.AdvertiseAddr = "wk-node4:7000"
+		cfg.Cluster.JoinToken = "join-secret"
+		cfg.Cluster.ControllerReplicaN = 1
+		cfg.Cluster.SlotReplicaN = 0
+
+		require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "slot replica count")
+	})
+}
+
+func TestConfigValidateSeedJoinRejectsInvalidSeeds(t *testing.T) {
+	t.Run("empty seed", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Node.ID = 4
+		cfg.Cluster.Nodes = nil
+		cfg.Cluster.Seeds = []string{"wk-node1:7000", ""}
+		cfg.Cluster.AdvertiseAddr = "wk-node4:7000"
+		cfg.Cluster.JoinToken = "join-secret"
+		cfg.Cluster.ControllerReplicaN = 1
+		cfg.Cluster.SlotReplicaN = 1
+
+		require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "cluster seed addr")
+	})
+
+	t.Run("duplicate seed", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Node.ID = 4
+		cfg.Cluster.Nodes = nil
+		cfg.Cluster.Seeds = []string{"wk-node1:7000", "wk-node1:7000"}
+		cfg.Cluster.AdvertiseAddr = "wk-node4:7000"
+		cfg.Cluster.JoinToken = "join-secret"
+		cfg.Cluster.ControllerReplicaN = 1
+		cfg.Cluster.SlotReplicaN = 1
+
+		require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "duplicate cluster seed")
+	})
+}
+
+func TestConfigValidateStaticNodesRemainAuthoritativeWhenSeedsAreAlsoSet(t *testing.T) {
+	cfg := validConfig()
+	cfg.Cluster.Nodes = []NodeConfigRef{
+		{ID: 3, Addr: "127.0.0.1:7002"},
+		{ID: 1, Addr: "127.0.0.1:7000"},
+		{ID: 2, Addr: "127.0.0.1:7001"},
+	}
+	cfg.Cluster.Seeds = []string{"wk-node4:7000"}
+	cfg.Cluster.ControllerReplicaN = 0
+	cfg.Cluster.SlotReplicaN = 0
+
+	require.True(t, cfg.Cluster.JoinModeEnabled())
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	require.Equal(t, 3, cfg.Cluster.ControllerReplicaN)
+	require.Equal(t, 3, cfg.Cluster.SlotReplicaN)
+	require.Equal(t, []string{"wk-node4:7000"}, cfg.Cluster.Seeds)
 }
 
 func TestConfigGatewayDefaultsSessionOptions(t *testing.T) {

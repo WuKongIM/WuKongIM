@@ -251,6 +251,10 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	seeds, err := parseJSONStringList(v, "WK_CLUSTER_SEEDS")
+	if err != nil {
+		return app.Config{}, err
+	}
 	if raw := strings.TrimSpace(stringValue(v, "WK_CLUSTER_GROUPS")); raw != "" {
 		return app.Config{}, fmt.Errorf("%w: WK_CLUSTER_GROUPS is no longer supported; remove static slot peers and keep WK_CLUSTER_INITIAL_SLOT_COUNT only", app.ErrInvalidConfig)
 	}
@@ -377,6 +381,9 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			AppendGroupCommitMaxWait:         appendGroupCommitMaxWait,
 			AppendGroupCommitMaxRecords:      appendGroupCommitMaxRecords,
 			AppendGroupCommitMaxBytes:        appendGroupCommitMaxBytes,
+			Seeds:                            seeds,
+			AdvertiseAddr:                    stringValue(v, "WK_CLUSTER_ADVERTISE_ADDR"),
+			JoinToken:                        stringValue(v, "WK_CLUSTER_JOIN_TOKEN"),
 			Timeouts: raftcluster.Timeouts{
 				ControllerObservation:              controllerObservationInterval,
 				ControllerRequest:                  controllerRequestTimeout,
@@ -514,6 +521,19 @@ func parseJSONValue[T any](v *viper.Viper, key string) (T, error) {
 
 	if err := jsonUnmarshalString(raw, &value); err != nil {
 		return zero, fmt.Errorf("parse %s as JSON: %w", key, err)
+	}
+	return value, nil
+}
+
+func parseJSONStringList(v *viper.Viper, key string) ([]string, error) {
+	raw := stringValue(v, key)
+	if raw == "" {
+		return nil, nil
+	}
+
+	var value []string
+	if err := jsonUnmarshalString(raw, &value); err != nil {
+		return nil, fmt.Errorf("parse %s as JSON: %w", key, err)
 	}
 	return value, nil
 }

@@ -81,6 +81,29 @@ func TestLoadConfigParsesConfFileIntoAppConfig(t *testing.T) {
 	require.Len(t, cfg.Gateway.Listeners, 1)
 }
 
+func TestLoadConfigParsesClusterSeedJoinKeys(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=4",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-4"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7003",
+		"WK_CLUSTER_ADVERTISE_ADDR=wk-node4:7000",
+		`WK_CLUSTER_SEEDS=["wk-node1:7000","wk-node2:7000"]`,
+		"WK_CLUSTER_JOIN_TOKEN=join-secret",
+		"WK_CLUSTER_INITIAL_SLOT_COUNT=1",
+		"WK_CLUSTER_HASH_SLOT_COUNT=256",
+		"WK_CLUSTER_CONTROLLER_REPLICA_N=1",
+		"WK_CLUSTER_SLOT_REPLICA_N=1",
+		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5103","transport":"stdnet","protocol":"wkproto"}]`,
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, []string{"wk-node1:7000", "wk-node2:7000"}, cfg.Cluster.Seeds)
+	require.Equal(t, "wk-node4:7000", cfg.Cluster.AdvertiseAddr)
+	require.Equal(t, "join-secret", cfg.Cluster.JoinToken)
+}
+
 func TestLoadConfigUsesBuiltInDefaultsWhenOptionalConfKeysAreMissing(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",

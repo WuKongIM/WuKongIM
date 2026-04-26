@@ -51,6 +51,11 @@ WK_CLUSTER_MANAGED_SLOT_LEADER_MOVE_TIMEOUT=5s
 WK_CLUSTER_CONFIG_CHANGE_RETRY_BUDGET=300ms
 WK_CLUSTER_LEADER_TRANSFER_RETRY_BUDGET=300ms
 WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]
+# Optional dynamic join bootstrap. Existing nodes should keep WK_CLUSTER_NODES for first bootstrap.
+# New data nodes can use seeds plus a join token instead of a full static node list.
+# WK_CLUSTER_SEEDS=["wk-node1:7000"]
+# WK_CLUSTER_ADVERTISE_ADDR=wk-node4:7000
+# WK_CLUSTER_JOIN_TOKEN=change-me
 
 WK_API_LISTEN_ADDR=0.0.0.0:5001
 # Manager API uses a dedicated HTTP port for backend administration only.
