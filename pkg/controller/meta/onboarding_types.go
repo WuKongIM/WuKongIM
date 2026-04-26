@@ -118,6 +118,8 @@ type NodeOnboardingPlanMove struct {
 type NodeOnboardingBlockedReason struct {
 	// Code is the stable machine-readable blocked reason code.
 	Code string
+	// Scope identifies the planner level that produced this blocked reason.
+	Scope string
 	// SlotID optionally identifies the blocked slot.
 	SlotID uint32
 	// NodeID optionally identifies the blocked node.

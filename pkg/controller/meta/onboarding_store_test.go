@@ -58,6 +58,16 @@ func TestOnboardingJobValidationRejectsInvalidJobs(t *testing.T) {
 			job.CurrentTask = &ReconcileTask{SlotID: 2, Kind: TaskKindUnknown, Step: TaskStepAddLearner}
 			return job
 		}()},
+		{name: "empty blocked reason scope", job: func() NodeOnboardingJob {
+			job := sampleOnboardingJob("onboard-invalid", now)
+			job.Plan.BlockedReasons[0].Scope = ""
+			return job
+		}()},
+		{name: "current move index past last move", job: func() NodeOnboardingJob {
+			job := sampleOnboardingJob("onboard-invalid", now)
+			job.CurrentMoveIndex = len(job.Moves)
+			return job
+		}()},
 	}
 
 	for _, tt := range tests {
@@ -195,6 +205,7 @@ func sampleOnboardingJob(jobID string, now time.Time) NodeOnboardingJob {
 			}},
 			BlockedReasons: []NodeOnboardingBlockedReason{{
 				Code:    "leader_warmup",
+				Scope:   "cluster",
 				SlotID:  2,
 				NodeID:  4,
 				Message: "leader observation is warming up",

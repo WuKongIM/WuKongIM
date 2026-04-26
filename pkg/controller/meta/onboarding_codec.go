@@ -173,7 +173,7 @@ func normalizeAndValidateOnboardingJob(job NodeOnboardingJob, invalid error) (No
 	if job.PlanVersion == 0 || job.CreatedAt.IsZero() || job.UpdatedAt.IsZero() {
 		return NodeOnboardingJob{}, invalid
 	}
-	if job.CurrentMoveIndex < -1 || job.CurrentMoveIndex > len(job.Moves) {
+	if job.CurrentMoveIndex < -1 || (job.CurrentMoveIndex != -1 && job.CurrentMoveIndex >= len(job.Moves)) {
 		return NodeOnboardingJob{}, invalid
 	}
 	if job.ResultCounts.Pending < 0 || job.ResultCounts.Running < 0 || job.ResultCounts.Completed < 0 || job.ResultCounts.Failed < 0 || job.ResultCounts.Skipped < 0 {
@@ -188,7 +188,7 @@ func normalizeAndValidateOnboardingJob(job NodeOnboardingJob, invalid error) (No
 		}
 	}
 	for _, reason := range job.Plan.BlockedReasons {
-		if reason.Code == "" {
+		if reason.Code == "" || reason.Scope == "" {
 			return NodeOnboardingJob{}, invalid
 		}
 	}
@@ -379,6 +379,7 @@ func appendOnboardingBlockedReasons(dst []byte, reasons []NodeOnboardingBlockedR
 	dst = binary.AppendUvarint(dst, uint64(len(reasons)))
 	for _, reason := range reasons {
 		dst = appendString(dst, reason.Code)
+		dst = appendString(dst, reason.Scope)
 		dst = binary.BigEndian.AppendUint32(dst, reason.SlotID)
 		dst = binary.BigEndian.AppendUint64(dst, reason.NodeID)
 		dst = appendString(dst, reason.Message)
@@ -402,11 +403,17 @@ func readOnboardingBlockedReasons(src []byte) ([]NodeOnboardingBlockedReason, []
 			return nil, nil, ErrCorruptValue
 		}
 		rest = next
+		scope, next, err := readString(rest)
+		if err != nil {
+			return nil, nil, ErrCorruptValue
+		}
+		rest = next
 		if len(rest) < 4+8 {
 			return nil, nil, ErrCorruptValue
 		}
 		reason := NodeOnboardingBlockedReason{
 			Code:   code,
+			Scope:  scope,
 			SlotID: binary.BigEndian.Uint32(rest[:4]),
 			NodeID: binary.BigEndian.Uint64(rest[4:12]),
 		}
