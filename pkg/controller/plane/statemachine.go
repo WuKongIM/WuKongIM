@@ -78,6 +78,16 @@ func (sm *StateMachine) Apply(ctx context.Context, cmd Command) error {
 			return controllermeta.ErrInvalidArgument
 		}
 		return sm.applyNodeStatusUpdate(ctx, *cmd.NodeStatusUpdate)
+	case CommandKindNodeJoin:
+		if cmd.NodeJoin == nil {
+			return controllermeta.ErrInvalidArgument
+		}
+		return sm.applyNodeJoin(ctx, *cmd.NodeJoin)
+	case CommandKindNodeJoinActivate:
+		if cmd.NodeJoinActivate == nil {
+			return controllermeta.ErrInvalidArgument
+		}
+		return sm.applyNodeJoinActivate(ctx, *cmd.NodeJoinActivate)
 	case CommandKindStartMigration:
 		if cmd.Migration == nil {
 			return controllermeta.ErrInvalidArgument
@@ -145,6 +155,84 @@ func (sm *StateMachine) applyNodeHeartbeat(ctx context.Context, report AgentRepo
 		return sm.store.UpsertRuntimeView(ctx, *report.Runtime)
 	}
 	return nil
+}
+
+func (sm *StateMachine) applyNodeJoin(ctx context.Context, req NodeJoinRequest) error {
+	if req.NodeID == 0 || req.Addr == "" {
+		return controllermeta.ErrInvalidArgument
+	}
+
+	existing, err := sm.store.GetNode(ctx, req.NodeID)
+	switch {
+	case errors.Is(err, controllermeta.ErrNotFound):
+		if err := sm.ensureNodeAddrAvailable(ctx, req.NodeID, req.Addr); err != nil {
+			return err
+		}
+		return sm.store.UpsertNode(ctx, controllermeta.ClusterNode{
+			NodeID:          req.NodeID,
+			Name:            req.Name,
+			Addr:            req.Addr,
+			Role:            controllermeta.NodeRoleData,
+			JoinState:       controllermeta.NodeJoinStateJoining,
+			Status:          controllermeta.NodeStatusAlive,
+			JoinedAt:        req.JoinedAt,
+			LastHeartbeatAt: req.JoinedAt,
+			CapacityWeight:  normalizeNodeCapacity(req.CapacityWeight),
+		})
+	case err != nil:
+		return err
+	}
+
+	if existing.Addr != req.Addr {
+		return controllermeta.ErrInvalidArgument
+	}
+	if err := sm.ensureNodeAddrAvailable(ctx, req.NodeID, req.Addr); err != nil {
+		return err
+	}
+	if req.Name != "" {
+		existing.Name = req.Name
+	}
+	if req.CapacityWeight > 0 {
+		existing.CapacityWeight = req.CapacityWeight
+	}
+	if existing.CapacityWeight <= 0 {
+		existing.CapacityWeight = 1
+	}
+	return sm.store.UpsertNode(ctx, existing)
+}
+
+func (sm *StateMachine) ensureNodeAddrAvailable(ctx context.Context, nodeID uint64, addr string) error {
+	nodes, err := sm.store.ListNodes(ctx)
+	if err != nil {
+		return err
+	}
+	for _, node := range nodes {
+		if node.NodeID != nodeID && node.Addr == addr {
+			return controllermeta.ErrInvalidArgument
+		}
+	}
+	return nil
+}
+
+func (sm *StateMachine) applyNodeJoinActivate(ctx context.Context, req NodeJoinActivateRequest) error {
+	if req.NodeID == 0 {
+		return controllermeta.ErrInvalidArgument
+	}
+
+	node, err := sm.store.GetNode(ctx, req.NodeID)
+	if err != nil {
+		return err
+	}
+	switch node.JoinState {
+	case controllermeta.NodeJoinStateJoining:
+		// The Controller leader only emits this command after observing runtime full sync.
+		node.JoinState = controllermeta.NodeJoinStateActive
+		return sm.store.UpsertNode(ctx, node)
+	case controllermeta.NodeJoinStateActive:
+		return nil
+	default:
+		return controllermeta.ErrInvalidArgument
+	}
 }
 
 func (sm *StateMachine) applyOperatorRequest(ctx context.Context, op OperatorRequest) error {

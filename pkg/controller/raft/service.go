@@ -72,16 +72,18 @@ type loadedMemoryStorage struct {
 }
 
 type commandEnvelope struct {
-	Kind             slotcontroller.CommandKind           `json:"kind"`
-	Report           *slotcontroller.AgentReport          `json:"report,omitempty"`
-	Op               *slotcontroller.OperatorRequest      `json:"op,omitempty"`
-	Advance          *taskAdvanceEnvelope                 `json:"advance,omitempty"`
-	Assignment       *slotcontrollerAssignmentEnvelope    `json:"assignment,omitempty"`
-	Task             *slotcontrollerReconcileTaskEnvelope `json:"task,omitempty"`
-	Migration        *slotcontroller.MigrationRequest     `json:"migration,omitempty"`
-	AddSlot          *slotcontroller.AddSlotRequest       `json:"add_slot,omitempty"`
-	RemoveSlot       *slotcontroller.RemoveSlotRequest    `json:"remove_slot,omitempty"`
-	NodeStatusUpdate *slotcontroller.NodeStatusUpdate     `json:"node_status_update,omitempty"`
+	Kind             slotcontroller.CommandKind              `json:"kind"`
+	Report           *slotcontroller.AgentReport             `json:"report,omitempty"`
+	Op               *slotcontroller.OperatorRequest         `json:"op,omitempty"`
+	Advance          *taskAdvanceEnvelope                    `json:"advance,omitempty"`
+	Assignment       *slotcontrollerAssignmentEnvelope       `json:"assignment,omitempty"`
+	Task             *slotcontrollerReconcileTaskEnvelope    `json:"task,omitempty"`
+	Migration        *slotcontroller.MigrationRequest        `json:"migration,omitempty"`
+	AddSlot          *slotcontroller.AddSlotRequest          `json:"add_slot,omitempty"`
+	RemoveSlot       *slotcontroller.RemoveSlotRequest       `json:"remove_slot,omitempty"`
+	NodeStatusUpdate *slotcontroller.NodeStatusUpdate        `json:"node_status_update,omitempty"`
+	NodeJoin         *slotcontroller.NodeJoinRequest         `json:"node_join,omitempty"`
+	NodeJoinActivate *slotcontroller.NodeJoinActivateRequest `json:"node_join_activate,omitempty"`
 }
 
 type taskAdvanceEnvelope struct {
@@ -632,6 +634,12 @@ func encodeCommand(cmd slotcontroller.Command) ([]byte, error) {
 	if cmd.NodeStatusUpdate != nil {
 		envelope.NodeStatusUpdate = cloneNodeStatusUpdate(cmd.NodeStatusUpdate)
 	}
+	if cmd.NodeJoin != nil {
+		envelope.NodeJoin = cloneNodeJoinRequest(cmd.NodeJoin)
+	}
+	if cmd.NodeJoinActivate != nil {
+		envelope.NodeJoinActivate = cloneNodeJoinActivateRequest(cmd.NodeJoinActivate)
+	}
 	return json.Marshal(envelope)
 }
 
@@ -699,6 +707,12 @@ func decodeCommand(data []byte) (slotcontroller.Command, error) {
 	if envelope.NodeStatusUpdate != nil {
 		cmd.NodeStatusUpdate = cloneNodeStatusUpdate(envelope.NodeStatusUpdate)
 	}
+	if envelope.NodeJoin != nil {
+		cmd.NodeJoin = cloneNodeJoinRequest(envelope.NodeJoin)
+	}
+	if envelope.NodeJoinActivate != nil {
+		cmd.NodeJoinActivate = cloneNodeJoinActivateRequest(envelope.NodeJoinActivate)
+	}
 	return cmd, nil
 }
 
@@ -765,6 +779,29 @@ func cloneNodeStatusUpdate(update *slotcontroller.NodeStatusUpdate) *slotcontrol
 		cloned.Transitions = append(cloned.Transitions, next)
 	}
 	return cloned
+}
+
+func cloneNodeJoinRequest(req *slotcontroller.NodeJoinRequest) *slotcontroller.NodeJoinRequest {
+	if req == nil {
+		return nil
+	}
+	return &slotcontroller.NodeJoinRequest{
+		NodeID:         req.NodeID,
+		Name:           req.Name,
+		Addr:           req.Addr,
+		CapacityWeight: req.CapacityWeight,
+		JoinedAt:       req.JoinedAt,
+	}
+}
+
+func cloneNodeJoinActivateRequest(req *slotcontroller.NodeJoinActivateRequest) *slotcontroller.NodeJoinActivateRequest {
+	if req == nil {
+		return nil
+	}
+	return &slotcontroller.NodeJoinActivateRequest{
+		NodeID:      req.NodeID,
+		ActivatedAt: req.ActivatedAt,
+	}
 }
 
 func failTracked(queue []trackedProposal, byIndex map[uint64]trackedProposal, err error) {

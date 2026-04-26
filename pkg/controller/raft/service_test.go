@@ -308,6 +308,48 @@ func TestControllerRaftServicePublishesLeaderChangeHook(t *testing.T) {
 	require.Equal(t, leaderChange{from: 0, to: 1}, changes[len(changes)-1])
 }
 
+func TestEncodeDecodeCommandNodeJoinRoundTrip(t *testing.T) {
+	joinedAt := time.Unix(100, 0)
+	cmd := slotcontroller.Command{
+		Kind: slotcontroller.CommandKindNodeJoin,
+		NodeJoin: &slotcontroller.NodeJoinRequest{
+			NodeID:         7,
+			Name:           "worker-7",
+			Addr:           "127.0.0.1:7007",
+			CapacityWeight: 5,
+			JoinedAt:       joinedAt,
+		},
+	}
+
+	data, err := encodeCommand(cmd)
+	require.NoError(t, err)
+	decoded, err := decodeCommand(data)
+	require.NoError(t, err)
+
+	require.Equal(t, cmd.Kind, decoded.Kind)
+	require.NotNil(t, decoded.NodeJoin)
+	require.Equal(t, *cmd.NodeJoin, *decoded.NodeJoin)
+}
+
+func TestEncodeDecodeCommandNodeJoinActivateRoundTrip(t *testing.T) {
+	cmd := slotcontroller.Command{
+		Kind: slotcontroller.CommandKindNodeJoinActivate,
+		NodeJoinActivate: &slotcontroller.NodeJoinActivateRequest{
+			NodeID:      7,
+			ActivatedAt: time.Unix(200, 0),
+		},
+	}
+
+	data, err := encodeCommand(cmd)
+	require.NoError(t, err)
+	decoded, err := decodeCommand(data)
+	require.NoError(t, err)
+
+	require.Equal(t, cmd.Kind, decoded.Kind)
+	require.NotNil(t, decoded.NodeJoinActivate)
+	require.Equal(t, *cmd.NodeJoinActivate, *decoded.NodeJoinActivate)
+}
+
 func TestFailInflightProposalsOnLeaderLossFailsQueuedAndIndexed(t *testing.T) {
 	queuedResp := make(chan error, 1)
 	indexedResp := make(chan error, 1)

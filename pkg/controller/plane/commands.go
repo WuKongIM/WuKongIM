@@ -22,6 +22,8 @@ const (
 	CommandKindAddSlot          CommandKind = 14
 	CommandKindRemoveSlot       CommandKind = 15
 	CommandKindNodeStatusUpdate CommandKind = 16
+	CommandKindNodeJoin         CommandKind = 17
+	CommandKindNodeJoinActivate CommandKind = 18
 )
 
 type OperatorKind uint8
@@ -82,6 +84,28 @@ type NodeStatusUpdate struct {
 	Transitions []NodeStatusTransition
 }
 
+// NodeJoinRequest records the durable metadata for a data node entering membership.
+type NodeJoinRequest struct {
+	// NodeID is the stable non-zero cluster identity being admitted.
+	NodeID uint64
+	// Name is the optional operator-facing display name for the node.
+	Name string
+	// Addr is the unique node RPC address used by controller readers.
+	Addr string
+	// CapacityWeight is normalized to a positive planner capacity before persistence.
+	CapacityWeight int
+	// JoinedAt is the controller time used for initial join and heartbeat metadata.
+	JoinedAt time.Time
+}
+
+// NodeJoinActivateRequest promotes a joined node after runtime full sync is observed.
+type NodeJoinActivateRequest struct {
+	// NodeID is the joined node to activate.
+	NodeID uint64
+	// ActivatedAt is the controller observation time for the full-sync activation edge.
+	ActivatedAt time.Time
+}
+
 type Command struct {
 	Kind             CommandKind
 	Report           *AgentReport
@@ -93,4 +117,6 @@ type Command struct {
 	AddSlot          *AddSlotRequest
 	RemoveSlot       *RemoveSlotRequest
 	NodeStatusUpdate *NodeStatusUpdate
+	NodeJoin         *NodeJoinRequest
+	NodeJoinActivate *NodeJoinActivateRequest
 }

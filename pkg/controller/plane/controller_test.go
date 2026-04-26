@@ -504,6 +504,164 @@ func TestStateMachineRequiresResumeToLeaveDraining(t *testing.T) {
 	require.Equal(t, NodeStatusAlive, node.Status)
 }
 
+func TestStateMachineApplyNodeJoin(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{})
+	ctx := context.Background()
+	joinedAt := time.Unix(100, 0)
+
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindNodeJoin,
+		NodeJoin: &NodeJoinRequest{
+			NodeID:         7,
+			Name:           "worker-7",
+			Addr:           "127.0.0.1:7007",
+			CapacityWeight: 5,
+			JoinedAt:       joinedAt,
+		},
+	}))
+
+	node, err := store.GetNode(ctx, 7)
+	require.NoError(t, err)
+	require.Equal(t, uint64(7), node.NodeID)
+	require.Equal(t, "worker-7", node.Name)
+	require.Equal(t, "127.0.0.1:7007", node.Addr)
+	require.Equal(t, controllermeta.NodeRoleData, node.Role)
+	require.Equal(t, controllermeta.NodeJoinStateJoining, node.JoinState)
+	require.Equal(t, controllermeta.NodeStatusAlive, node.Status)
+	require.Equal(t, joinedAt, node.JoinedAt)
+	require.Equal(t, joinedAt, node.LastHeartbeatAt)
+	require.Equal(t, 5, node.CapacityWeight)
+
+	node.Status = controllermeta.NodeStatusDraining
+	require.NoError(t, store.UpsertNode(ctx, node))
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindNodeJoin,
+		NodeJoin: &NodeJoinRequest{
+			NodeID:         7,
+			Name:           "worker-7-renamed",
+			Addr:           "127.0.0.1:7007",
+			CapacityWeight: 8,
+			JoinedAt:       time.Unix(200, 0),
+		},
+	}))
+
+	node, err = store.GetNode(ctx, 7)
+	require.NoError(t, err)
+	require.Equal(t, "worker-7-renamed", node.Name)
+	require.Equal(t, 8, node.CapacityWeight)
+	require.Equal(t, controllermeta.NodeStatusDraining, node.Status)
+	require.Equal(t, joinedAt, node.JoinedAt)
+	require.Equal(t, joinedAt, node.LastHeartbeatAt)
+
+	err = sm.Apply(ctx, Command{
+		Kind: CommandKindNodeJoin,
+		NodeJoin: &NodeJoinRequest{
+			NodeID:   7,
+			Addr:     "127.0.0.1:7008",
+			JoinedAt: time.Unix(300, 0),
+		},
+	})
+	require.ErrorIs(t, err, controllermeta.ErrInvalidArgument)
+
+	err = sm.Apply(ctx, Command{
+		Kind: CommandKindNodeJoin,
+		NodeJoin: &NodeJoinRequest{
+			NodeID:   8,
+			Addr:     "127.0.0.1:7007",
+			JoinedAt: time.Unix(300, 0),
+		},
+	})
+	require.ErrorIs(t, err, controllermeta.ErrInvalidArgument)
+}
+
+func TestStateMachineNodeHeartbeatKeepsJoiningUntilFullSync(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{})
+	ctx := context.Background()
+
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindNodeJoin,
+		NodeJoin: &NodeJoinRequest{
+			NodeID:         9,
+			Name:           "worker-9",
+			Addr:           "127.0.0.1:7009",
+			CapacityWeight: 2,
+			JoinedAt:       time.Unix(10, 0),
+		},
+	}))
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindNodeHeartbeat,
+		Report: &AgentReport{
+			NodeID:         9,
+			Addr:           "127.0.0.1:7009",
+			ObservedAt:     time.Unix(20, 0),
+			CapacityWeight: 3,
+		},
+	}))
+
+	node, err := store.GetNode(ctx, 9)
+	require.NoError(t, err)
+	require.Equal(t, controllermeta.NodeStatusAlive, node.Status)
+	require.Equal(t, controllermeta.NodeJoinStateJoining, node.JoinState)
+	require.Equal(t, time.Unix(20, 0), node.LastHeartbeatAt)
+	require.Equal(t, 3, node.CapacityWeight)
+
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindNodeHeartbeat,
+		Report: &AgentReport{
+			NodeID:     10,
+			Addr:       "127.0.0.1:7010",
+			ObservedAt: time.Unix(30, 0),
+		},
+	}))
+	legacyNode, err := store.GetNode(ctx, 10)
+	require.NoError(t, err)
+	require.Equal(t, controllermeta.NodeRoleData, legacyNode.Role)
+	require.Equal(t, controllermeta.NodeJoinStateActive, legacyNode.JoinState)
+	require.Equal(t, controllermeta.NodeStatusAlive, legacyNode.Status)
+}
+
+func TestStateMachineNodeJoinActivate(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{})
+	ctx := context.Background()
+
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindNodeJoin,
+		NodeJoin: &NodeJoinRequest{
+			NodeID:   11,
+			Name:     "worker-11",
+			Addr:     "127.0.0.1:7011",
+			JoinedAt: time.Unix(10, 0),
+		},
+	}))
+	node, err := store.GetNode(ctx, 11)
+	require.NoError(t, err)
+	require.Equal(t, controllermeta.NodeJoinStateJoining, node.JoinState)
+
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindNodeJoinActivate,
+		NodeJoinActivate: &NodeJoinActivateRequest{
+			NodeID:      11,
+			ActivatedAt: time.Unix(20, 0),
+		},
+	}))
+	node, err = store.GetNode(ctx, 11)
+	require.NoError(t, err)
+	require.Equal(t, controllermeta.NodeJoinStateActive, node.JoinState)
+	require.Equal(t, controllermeta.NodeStatusAlive, node.Status)
+
+	err = sm.Apply(ctx, Command{
+		Kind: CommandKindNodeJoinActivate,
+		NodeJoinActivate: &NodeJoinActivateRequest{
+			NodeID:      12,
+			ActivatedAt: time.Unix(20, 0),
+		},
+	})
+	require.ErrorIs(t, err, controllermeta.ErrNotFound)
+}
+
 func statusPtr(status controllermeta.NodeStatus) *controllermeta.NodeStatus {
 	return &status
 }
