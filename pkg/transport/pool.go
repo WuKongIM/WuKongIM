@@ -92,14 +92,19 @@ func (p *Pool) RPC(ctx context.Context, nodeID NodeID, shardKey uint64, payload 
 
 func (p *Pool) Close() {
 	p.nodes.Range(func(_, value any) bool {
-		set := value.(*nodeConnSet)
-		for i := range set.slots {
-			if mc := set.slots[i].conn.Load(); mc != nil {
-				mc.Close()
-			}
-		}
+		value.(*nodeConnSet).close()
 		return true
 	})
+}
+
+// ClosePeer evicts all cached connections for one peer without touching other nodes.
+func (p *Pool) ClosePeer(nodeID NodeID) {
+	if p == nil {
+		return
+	}
+	if value, ok := p.nodes.LoadAndDelete(nodeID); ok {
+		value.(*nodeConnSet).close()
+	}
 }
 
 func (p *Pool) Stats() []PoolPeerStats {
@@ -289,6 +294,30 @@ func (s *connSlot) clearClosedConn(mc *MuxConn) {
 		}
 	}
 	s.mu.Unlock()
+}
+
+func (s *nodeConnSet) close() {
+	if s == nil {
+		return
+	}
+	for i := range s.slots {
+		s.slots[i].close()
+	}
+}
+
+func (s *connSlot) close() {
+	s.mu.Lock()
+	mc := s.conn.Load()
+	s.conn.Store(nil)
+	if s.mirror != nil {
+		s.mirror.Store(nil)
+	}
+	s.lastErr = nil
+	s.lastDialFail = time.Time{}
+	s.mu.Unlock()
+	if mc != nil {
+		mc.Close()
+	}
 }
 
 func (s *connSlot) waiterOrCooldown() (chan struct{}, error) {
