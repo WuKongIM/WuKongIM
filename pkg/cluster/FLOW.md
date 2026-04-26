@@ -103,7 +103,7 @@ Start():
      条件: ControllerEnabled()
      → newHashSlotMigrationWorker()
      → newControllerClient(static controller peers 或 join seeds, cache)
-     → join mode 且本节点不在静态 Nodes 中时，先 JoinCluster，成功后作为 data worker 更新 discovery / HashSlotTable / controller client peers（不变更 Controller voter 集合）
+     → join mode 且本节点不在静态 Nodes 中时，先 JoinCluster（携带 NodeID / Node.Name / AdvertiseAddr / token / version），校验响应包含本节点且地址匹配后，作为 data worker 更新 discovery / HashSlotTable / controller client peers（不变更 Controller voter 集合）
      → onLeaderChange 时通知 runtimeObservationReporter.requestFullSync()
      → 创建 slotAgent{cluster, client, cache}
   ⑦ startObservationLoop():
@@ -158,7 +158,7 @@ heartbeatLoop 每 ObservationHeartbeatInterval (默认2s) 执行:
 
 heartbeatOnce(ctx):
   ① agent.HeartbeatOnce(ctx):
-     → client.Report(nodeStatus)  // 仅上报节点心跳
+     → client.Report(nodeStatus)  // 仅上报节点心跳；地址优先使用 AdvertiseAddr，避免把监听绑定地址写回 membership
      → 响应中携带 HashSlotTable → applyHashSlotTablePayload 更新 Router + 状态机
      → Controller Leader 本地只更新 `observationCache.nodes` / `nodeHealthScheduler`
        steady-state heartbeat 不再夹带 per-slot RuntimeView

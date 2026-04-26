@@ -166,6 +166,9 @@ func (sm *StateMachine) applyNodeJoin(ctx context.Context, req NodeJoinRequest) 
 	switch {
 	case errors.Is(err, controllermeta.ErrNotFound):
 		if err := sm.ensureNodeAddrAvailable(ctx, req.NodeID, req.Addr); err != nil {
+			if errors.Is(err, controllermeta.ErrInvalidArgument) {
+				return nil
+			}
 			return err
 		}
 		return sm.store.UpsertNode(ctx, controllermeta.ClusterNode{
@@ -183,10 +186,15 @@ func (sm *StateMachine) applyNodeJoin(ctx context.Context, req NodeJoinRequest) 
 		return err
 	}
 
+	// Conflicting replicated joins may have passed leader-side prechecks concurrently.
+	// Treat them as stale no-ops so one bad command cannot stop the controller Raft apply loop.
 	if existing.Addr != req.Addr {
-		return controllermeta.ErrInvalidArgument
+		return nil
 	}
 	if err := sm.ensureNodeAddrAvailable(ctx, req.NodeID, req.Addr); err != nil {
+		if errors.Is(err, controllermeta.ErrInvalidArgument) {
+			return nil
+		}
 		return err
 	}
 	if req.Name != "" {

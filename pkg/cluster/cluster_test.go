@@ -137,6 +137,76 @@ func TestControllerReportAddrUsesBoundListener(t *testing.T) {
 	}
 }
 
+func TestControllerReportAddrPrefersAdvertiseAddrOverBoundListener(t *testing.T) {
+	srv := newStartedTestServer(t)
+
+	cluster := &Cluster{
+		cfg: Config{
+			ListenAddr:    "0.0.0.0:0",
+			AdvertiseAddr: "wk-node-4.example:7000",
+		},
+		transportResources: transportResources{
+			server: srv,
+		},
+	}
+
+	if got, want := cluster.controllerReportAddr(), "wk-node-4.example:7000"; got != want {
+		t.Fatalf("controllerReportAddr() = %q, want %q", got, want)
+	}
+}
+
+func TestJoinClusterWithRetryIncludesNodeName(t *testing.T) {
+	var gotReq joinClusterRequest
+	cluster := &Cluster{
+		cfg: Config{
+			NodeID:        4,
+			Name:          "worker-4",
+			AdvertiseAddr: "wk-node-4.example:7000",
+			JoinToken:     "join-secret",
+		},
+		controllerResources: controllerResources{
+			controllerClient: fakeControllerClient{
+				joinClusterFn: func(_ context.Context, req joinClusterRequest) (joinClusterResponse, error) {
+					gotReq = req
+					return joinClusterResponse{
+						Nodes: []controllermeta.ClusterNode{{NodeID: req.NodeID, Addr: req.Addr}},
+					}, nil
+				},
+			},
+		},
+	}
+
+	if err := cluster.joinClusterWithRetry(context.Background()); err != nil {
+		t.Fatalf("joinClusterWithRetry() error = %v", err)
+	}
+	if gotReq.Name != "worker-4" {
+		t.Fatalf("JoinCluster request Name = %q, want %q", gotReq.Name, "worker-4")
+	}
+}
+
+func TestJoinClusterWithRetryRejectsResponseMissingJoinedNode(t *testing.T) {
+	cluster := &Cluster{
+		cfg: Config{
+			NodeID:        4,
+			Name:          "worker-4",
+			AdvertiseAddr: "wk-node-4.example:7000",
+			JoinToken:     "join-secret",
+		},
+		controllerResources: controllerResources{
+			controllerClient: fakeControllerClient{
+				joinClusterResp: joinClusterResponse{
+					Nodes: []controllermeta.ClusterNode{{NodeID: 2, Addr: "wk-node-2.example:7000"}},
+				},
+			},
+		},
+	}
+
+	err := cluster.joinClusterWithRetry(context.Background())
+	if !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("joinClusterWithRetry() error = %v, want %v", err, ErrInvalidConfig)
+	}
+}
+
 func TestListObservedRuntimeViewsUsesControllerClientWhenAvailable(t *testing.T) {
 	dir := t.TempDir()
 	store, err := controllermeta.Open(filepath.Join(dir, "controller-meta"))

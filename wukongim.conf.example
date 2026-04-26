@@ -54,6 +54,7 @@ WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]
 # Optional dynamic join bootstrap. Existing nodes should keep WK_CLUSTER_NODES for first bootstrap.
 # New data nodes can use seeds plus a join token instead of a full static node list.
 # Dynamic join adds data workers only; Controller voter changes remain an explicit operator action.
+# Startup retries JoinCluster before app HTTP/gateway services start; keep a seed reachable during rollout.
 # WK_CLUSTER_SEEDS=["wk-node1:7000"]
 # WK_CLUSTER_ADVERTISE_ADDR=wk-node4:7000
 # WK_CLUSTER_JOIN_TOKEN=change-me

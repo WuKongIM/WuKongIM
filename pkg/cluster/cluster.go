@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -352,6 +353,7 @@ func (c *Cluster) joinClusterWithRetry(ctx context.Context) error {
 	maxBackoff := time.Second
 	req := joinClusterRequest{
 		NodeID:         uint64(c.cfg.NodeID),
+		Name:           c.cfg.Name,
 		Addr:           c.cfg.AdvertiseAddr,
 		CapacityWeight: 1,
 		Token:          c.cfg.JoinToken,
@@ -363,6 +365,9 @@ func (c *Cluster) joinClusterWithRetry(ctx context.Context) error {
 		}
 		resp, err := c.controllerClient.JoinCluster(ctx, req)
 		if err == nil {
+			if err := validateJoinedMembership(resp.Nodes, req); err != nil {
+				return err
+			}
 			_ = c.applyHashSlotTablePayload(resp.HashSlotTable)
 			c.applyClusterNodes(resp.Nodes)
 			if client, ok := c.controllerClient.(*controllerClient); ok {
@@ -385,6 +390,20 @@ func (c *Cluster) joinClusterWithRetry(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+func validateJoinedMembership(nodes []controllermeta.ClusterNode, req joinClusterRequest) error {
+	wantAddr := strings.TrimSpace(req.Addr)
+	for _, node := range nodes {
+		if node.NodeID != req.NodeID {
+			continue
+		}
+		if node.JoinState == controllermeta.NodeJoinStateRejected || strings.TrimSpace(node.Addr) != wantAddr {
+			return fmt.Errorf("%w: join response membership mismatch for node %d", ErrInvalidConfig, req.NodeID)
+		}
+		return nil
+	}
+	return fmt.Errorf("%w: join response missing node %d", ErrInvalidConfig, req.NodeID)
 }
 
 func retryableJoinClusterError(err error) bool {
@@ -1585,6 +1604,9 @@ func (c *Cluster) localAssignedSlotIDs(assignments []controllermeta.SlotAssignme
 }
 
 func (c *Cluster) controllerReportAddr() string {
+	if addr := strings.TrimSpace(c.cfg.AdvertiseAddr); addr != "" {
+		return addr
+	}
 	if c.server != nil && c.server.Listener() != nil {
 		return c.server.Listener().Addr().String()
 	}

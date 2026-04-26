@@ -240,6 +240,9 @@ func (c *controllerClient) JoinCluster(ctx context.Context, req joinClusterReque
 			Message: resp.Join.JoinErrorMessage,
 		}
 	}
+	if err := validateJoinedMembership(resp.Join.Nodes, req); err != nil {
+		return joinClusterResponse{}, err
+	}
 	if err := c.cluster.applyHashSlotTablePayload(resp.Join.HashSlotTable); err != nil {
 		return joinClusterResponse{}, err
 	}

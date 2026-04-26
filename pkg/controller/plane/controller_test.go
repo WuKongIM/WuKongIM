@@ -652,7 +652,12 @@ func TestStateMachineApplyNodeJoin(t *testing.T) {
 			JoinedAt: time.Unix(300, 0),
 		},
 	})
-	require.ErrorIs(t, err, controllermeta.ErrInvalidArgument)
+	require.NoError(t, err)
+	node, err = store.GetNode(ctx, 7)
+	require.NoError(t, err)
+	require.Equal(t, "127.0.0.1:7007", node.Addr)
+	require.Equal(t, "worker-7-renamed", node.Name)
+	require.Equal(t, 8, node.CapacityWeight)
 
 	err = sm.Apply(ctx, Command{
 		Kind: CommandKindNodeJoin,
@@ -662,7 +667,9 @@ func TestStateMachineApplyNodeJoin(t *testing.T) {
 			JoinedAt: time.Unix(300, 0),
 		},
 	})
-	require.ErrorIs(t, err, controllermeta.ErrInvalidArgument)
+	require.NoError(t, err)
+	_, err = store.GetNode(ctx, 8)
+	require.ErrorIs(t, err, controllermeta.ErrNotFound)
 }
 
 func TestStateMachineNodeHeartbeatKeepsJoiningUntilFullSync(t *testing.T) {

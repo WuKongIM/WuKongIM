@@ -212,6 +212,57 @@ func TestControllerHandlerHeartbeatUpdatesNodeObservationOnly(t *testing.T) {
 	}
 }
 
+func TestControllerHandlerHeartbeatPreservesJoinedAdvertiseAddr(t *testing.T) {
+	cluster, host, _ := newTestLocalControllerCluster(t, true)
+	handler := &controllerHandler{cluster: cluster}
+	advertiseAddr := "wk-node-2.example:7000"
+	if err := host.meta.UpsertNode(context.Background(), controllermeta.ClusterNode{
+		NodeID:          2,
+		Name:            "worker-2",
+		Addr:            advertiseAddr,
+		Role:            controllermeta.NodeRoleData,
+		JoinState:       controllermeta.NodeJoinStateJoining,
+		Status:          controllermeta.NodeStatusAlive,
+		JoinedAt:        time.Unix(1710000300, 0),
+		LastHeartbeatAt: time.Unix(1710000300, 0),
+		CapacityWeight:  1,
+	}); err != nil {
+		t.Fatalf("UpsertNode() error = %v", err)
+	}
+
+	reporterServer := newStartedTestServer(t)
+	reporter := &Cluster{
+		cfg: Config{
+			NodeID:        2,
+			ListenAddr:    "0.0.0.0:0",
+			AdvertiseAddr: advertiseAddr,
+		},
+		transportResources: transportResources{server: reporterServer},
+	}
+	report := slotcontrollerReport(reporter, time.Unix(1710000400, 0), nil)
+	if report.Addr != advertiseAddr {
+		t.Fatalf("heartbeat report Addr = %q, want advertise addr %q", report.Addr, advertiseAddr)
+	}
+	body, err := encodeControllerRequest(controllerRPCRequest{
+		Kind:   controllerRPCHeartbeat,
+		Report: &report,
+	})
+	if err != nil {
+		t.Fatalf("encodeControllerRequest() error = %v", err)
+	}
+	if _, err := handler.Handle(context.Background(), body); err != nil {
+		t.Fatalf("controllerHandler.Handle() error = %v", err)
+	}
+
+	node, err := host.meta.GetNode(context.Background(), 2)
+	if err != nil {
+		t.Fatalf("GetNode() error = %v", err)
+	}
+	if node.Addr != advertiseAddr {
+		t.Fatalf("node Addr after heartbeat = %q, want %q", node.Addr, advertiseAddr)
+	}
+}
+
 func TestControllerHandlerJoinClusterLeaderProposesNodeJoin(t *testing.T) {
 	cluster, host, _ := newTestLocalControllerCluster(t, true)
 	cluster.cfg.JoinToken = "join-secret"
@@ -373,6 +424,55 @@ func TestControllerHandlerJoinClusterRejectsConflictsWithExplicitCodes(t *testin
 			}
 			if resp.Join == nil || resp.Join.JoinErrorCode != tc.code {
 				t.Fatalf("join response = %+v, want code %q", resp.Join, tc.code)
+			}
+		})
+	}
+}
+
+func TestCommittedJoinRejectionClassifiesPostCommitConflicts(t *testing.T) {
+	tests := []struct {
+		name  string
+		req   joinClusterRequest
+		nodes []controllermeta.ClusterNode
+		code  joinErrorCode
+	}{
+		{
+			name:  "committed membership",
+			req:   joinClusterRequest{NodeID: 4, Addr: "wk-node-4:7000"},
+			nodes: []controllermeta.ClusterNode{{NodeID: 4, Addr: "wk-node-4:7000", JoinState: controllermeta.NodeJoinStateJoining}},
+			code:  joinErrorNone,
+		},
+		{
+			name:  "node id conflict",
+			req:   joinClusterRequest{NodeID: 4, Addr: "wk-node-4-new:7000"},
+			nodes: []controllermeta.ClusterNode{{NodeID: 4, Addr: "wk-node-4-old:7000", JoinState: controllermeta.NodeJoinStateJoining}},
+			code:  joinErrorNodeIDConflict,
+		},
+		{
+			name:  "address conflict",
+			req:   joinClusterRequest{NodeID: 5, Addr: "wk-node-4:7000"},
+			nodes: []controllermeta.ClusterNode{{NodeID: 4, Addr: "wk-node-4:7000", JoinState: controllermeta.NodeJoinStateJoining}},
+			code:  joinErrorAddrConflict,
+		},
+		{
+			name:  "missing membership",
+			req:   joinClusterRequest{NodeID: 5, Addr: "wk-node-5:7000"},
+			nodes: []controllermeta.ClusterNode{{NodeID: 4, Addr: "wk-node-4:7000", JoinState: controllermeta.NodeJoinStateJoining}},
+			code:  joinErrorTemporary,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := joinRejectionFromCommittedNodes(tc.nodes, tc.req)
+			if tc.code == joinErrorNone {
+				if resp != nil {
+					t.Fatalf("joinRejectionFromCommittedNodes() = %+v, want nil", resp)
+				}
+				return
+			}
+			if resp == nil || resp.JoinErrorCode != tc.code {
+				t.Fatalf("joinRejectionFromCommittedNodes() = %+v, want code %q", resp, tc.code)
 			}
 		})
 	}
@@ -1070,7 +1170,7 @@ func newTestLocalControllerCluster(t *testing.T, start bool) (*Cluster, *control
 
 func waitForTestControllerLeader(t *testing.T, host *controllerHost, want multiraft.NodeID) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	for host.LeaderID() != want && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}

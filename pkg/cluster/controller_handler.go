@@ -385,6 +385,9 @@ func (h *controllerHandler) handleJoinCluster(
 	if err != nil {
 		return nil, err
 	}
+	if resp := joinRejectionFromCommittedNodes(nodes, *req.Join); resp != nil {
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{Join: resp})
+	}
 	c.applyClusterNodes(nodes)
 	table, err := loadHashSlotTable()
 	if err != nil {
@@ -432,6 +435,28 @@ func (c *Cluster) validateJoinClusterRequest(ctx context.Context, req joinCluste
 		}
 	}
 	return nil, true
+}
+
+func joinRejectionFromCommittedNodes(nodes []controllermeta.ClusterNode, req joinClusterRequest) *joinClusterResponse {
+	wantAddr := strings.TrimSpace(req.Addr)
+	for _, node := range nodes {
+		addr := strings.TrimSpace(node.Addr)
+		if node.NodeID == req.NodeID {
+			if addr == wantAddr && node.JoinState != controllermeta.NodeJoinStateRejected {
+				return nil
+			}
+			if addr != wantAddr {
+				return joinRejection(joinErrorNodeIDConflict, "node id already uses a different address")
+			}
+			return joinRejection(joinErrorTemporary, "join membership was not committed")
+		}
+	}
+	for _, node := range nodes {
+		if node.NodeID != req.NodeID && strings.TrimSpace(node.Addr) == wantAddr {
+			return joinRejection(joinErrorAddrConflict, "address already belongs to another node")
+		}
+	}
+	return joinRejection(joinErrorTemporary, "join membership was not committed")
 }
 
 func joinRejection(code joinErrorCode, message string) *joinClusterResponse {

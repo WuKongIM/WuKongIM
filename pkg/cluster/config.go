@@ -39,7 +39,9 @@ const (
 )
 
 type Config struct {
-	NodeID                       multiraft.NodeID
+	NodeID multiraft.NodeID
+	// Name is this node's human-readable name advertised during dynamic membership joins.
+	Name                         string
 	ListenAddr                   string
 	SlotCount                    uint32
 	HashSlotCount                uint16

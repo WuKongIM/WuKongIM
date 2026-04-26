@@ -97,7 +97,7 @@ func build(cfg Config) (_ *App, err error) {
 		return app.raftDB.Close()
 	})
 
-	clusterCfg := cfg.Cluster.runtimeConfig(cfg.Storage, app.db, app.raftDB, cfg.Node.ID, app.logger.Named("cluster"))
+	clusterCfg := cfg.Cluster.runtimeConfig(cfg.Storage, app.db, app.raftDB, cfg.Node.ID, cfg.Node.Name, app.logger.Named("cluster"))
 	var transportObserver transport.ObserverHooks
 	clusterObserver := raftcluster.ObserverHooks{
 		OnLeaderChange: func(slotID uint32, _, _ multiraft.NodeID) {
@@ -664,9 +664,10 @@ func effectiveDataPlaneMaxPendingFetch(clusterPoolSize, configured int) int {
 	return dataPlaneMaxFetchInflightPeer(clusterPoolSize)
 }
 
-func (c ClusterConfig) runtimeConfig(storage StorageConfig, db *metadb.DB, raftDB *raftstorage.DB, nodeID uint64, logger wklog.Logger) raftcluster.Config {
+func (c ClusterConfig) runtimeConfig(storage StorageConfig, db *metadb.DB, raftDB *raftstorage.DB, nodeID uint64, nodeName string, logger wklog.Logger) raftcluster.Config {
 	return raftcluster.Config{
 		NodeID:                       multiraft.NodeID(nodeID),
+		Name:                         nodeName,
 		ListenAddr:                   c.ListenAddr,
 		SlotCount:                    c.SlotCount,
 		HashSlotCount:                c.HashSlotCount,

@@ -148,6 +148,7 @@ Join 必须支持幂等：
 - 同一 `NodeID + AdvertiseAddr` 重复 join，视为成功，返回当前 membership。
 - 同一 `NodeID` 但地址不同，默认拒绝，避免误把旧节点身份绑定到新地址。
 - 不同 `NodeID` 但地址相同，拒绝。
+- 已复制到 Controller Raft 的冲突 join 命令按 stale no-op 处理，避免并发 precheck 竞态导致 apply loop 退出。
 - 已处于 `Draining` 的节点重复 join，不自动恢复，需要显式 `resume`。
 - token 缺失或错误，拒绝且不写入 membership。
 
@@ -167,6 +168,8 @@ Join 必须支持幂等：
 - 按指数退避重试。
 - 不启动 managed Slot 写入能力。
 - 健康检查返回 joining / not ready，避免误接业务流量。
+
+实现状态：当前实现先在 `Start()` 内同步重试 JoinCluster，成功后才启动应用 HTTP/gateway 生命周期；`/readyz` 可见的 joining / not ready 语义留作后续生命周期改造。
 
 ## 5. DynamicDiscovery
 

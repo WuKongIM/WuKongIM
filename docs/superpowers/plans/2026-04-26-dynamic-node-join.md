@@ -434,8 +434,8 @@ In `pkg/controller/plane/controller_test.go`, add tests for:
 
 - `CommandKindNodeJoin` creates a `Joining` data node with supplied name, addr, capacity, joined time.
 - Repeating join with same `NodeID + Addr` is idempotent.
-- Same `NodeID` with different addr is rejected.
-- Different `NodeID` with same addr is rejected.
+- Same `NodeID` with different addr is rejected by Join RPC precheck; stale replicated state-machine apply is a no-op to keep Controller Raft alive.
+- Different `NodeID` with same addr is rejected by Join RPC precheck; stale replicated state-machine apply is a no-op to keep Controller Raft alive.
 - `applyNodeHeartbeat` updates status/heartbeat for a `Joining` node but does not make it schedulable yet.
 - `CommandKindNodeJoinActivate` transitions `JoinStateJoining` to `JoinStateActive` only after the node has completed runtime full sync.
 - Legacy static bootstrap compatibility: a direct heartbeat for an unknown node still creates a default data/active member in the state machine; dynamic join mode blocks this earlier in the Controller RPC handler.
@@ -751,10 +751,10 @@ Rules:
 
 - Static existing nodes with no seeds do nothing.
 - Static nodes with seeds may accept joiners but should not auto-join themselves.
-- Join mode with no local static membership calls `controllerClient.JoinCluster` with `NodeID`, `AdvertiseAddr`, token, and version.
+- Join mode with no local static membership calls `controllerClient.JoinCluster` with `NodeID`, `Node.Name`, `AdvertiseAddr`, token, and version.
 - Use `joinClusterWithRetry(ctx)` rather than one best-effort call: retry transient network/not-leader/no-leader errors and retryable JoinCluster response codes with bounded exponential backoff, but return immediately for non-retryable response codes such as invalid token, NodeID conflict, address conflict, unsupported version, or invalid config.
-- While retrying, keep the node in `joining` / not-ready state and do not start observation loops or managed Slot write capability. `Start()` may block inside the retry loop until join succeeds or the caller stops the cluster; tests should use short retry intervals through existing timeout scaling.
-- On success, apply returned HashSlotTable and nodes.
+- While retrying, keep the node in `joining` / not-ready state and do not start observation loops or managed Slot write capability. Current implementation blocks inside `Start()` until join succeeds or the caller stops the cluster, so app HTTP/gateway services and `/readyz` are not available during this retry; non-blocking joining readiness is deferred.
+- On success, require the returned nodes to contain the joining `NodeID + AdvertiseAddr` before applying the HashSlotTable and nodes.
 - Update controller client peers to known controller voters. For first implementation, if role data/controller distinction is not yet fully propagated in returned nodes, keep using seed targets plus all returned nodes so leader discovery still works.
 
 - [ ] **Step 7: Wire app build**
