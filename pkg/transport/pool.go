@@ -341,7 +341,7 @@ func (p *Pool) getOrCreateNodeSet(nodeID NodeID) (*nodeConnSet, error) {
 
 func (s *connSlot) clearClosedConn(mc *MuxConn) {
 	s.mu.Lock()
-	if s.conn.Load() == mc {
+	if s.conn.Load() == mc && mc != nil && mc.closed.Load() {
 		s.conn.Store(nil)
 		if s.mirror != nil {
 			s.mirror.Store(nil)
