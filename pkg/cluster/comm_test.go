@@ -110,6 +110,36 @@ func newStartedTestNodeWithHashSlots(
 	controllerReplicaN int,
 	withController bool,
 ) *testNode {
+	return newStartedTestNodeWithHashSlotsMutate(
+		t,
+		dir,
+		nodeID,
+		listenAddr,
+		nodes,
+		slots,
+		slotCount,
+		hashSlotCount,
+		slotReplicaN,
+		controllerReplicaN,
+		withController,
+		nil,
+	)
+}
+
+func newStartedTestNodeWithHashSlotsMutate(
+	t testing.TB,
+	dir string,
+	nodeID multiraft.NodeID,
+	listenAddr string,
+	nodes []raftcluster.NodeConfig,
+	slots []raftcluster.SlotConfig,
+	slotCount int,
+	hashSlotCount uint16,
+	slotReplicaN int,
+	controllerReplicaN int,
+	withController bool,
+	mutate func(*raftcluster.Config),
+) *testNode {
 	t.Helper()
 
 	db, err := metadb.Open(filepath.Join(dir, "data"))
@@ -151,6 +181,9 @@ func newStartedTestNodeWithHashSlots(
 		DialTimeout:                  testClusterDialTimeout,
 		ForwardTimeout:               testClusterForwardTimeout,
 		PoolSize:                     testClusterPoolSize,
+	}
+	if mutate != nil {
+		mutate(&cfg)
 	}
 
 	c, err := raftcluster.NewCluster(cfg)

@@ -70,7 +70,7 @@ NodeHeartbeat (statemachine.go:79):
   兼容命令；仍可查找/创建节点并更新 Addr/Heartbeat/Weight/RuntimeView，但 steady-state 观测路径已不再持续提案该命令
 
 NodeJoin / NodeJoinActivate:
-  Join 创建 `Role=Data`、`JoinState=Joining` 的数据节点；FullSync 后由 Controller RPC 路径提案 Activate 转为 `JoinState=Active`
+  Join 创建 `Role=Data`、`JoinState=Joining` 的数据节点，不变更 Controller voter 集合；FullSync 后由 Controller RPC 路径提案 Activate 转为 `JoinState=Active`
 
 OperatorRequest (statemachine.go:113):
   MarkDraining → Status=Draining
