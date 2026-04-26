@@ -170,6 +170,47 @@ func TestControllerCodecJoinClusterRejectionRoundTrip(t *testing.T) {
 	}
 }
 
+func TestControllerCodecNodeOnboardingRoundTrip(t *testing.T) {
+	reqBody, err := encodeControllerRequest(controllerRPCRequest{
+		Kind: controllerRPCCreateOnboardingPlan,
+		OnboardingPlan: &nodeOnboardingPlanRequest{
+			TargetNodeID: 4,
+			RetryOfJobID: "failed-job",
+		},
+	})
+	if err != nil {
+		t.Fatalf("encodeControllerRequest() error = %v", err)
+	}
+	req, err := decodeControllerRequest(reqBody)
+	if err != nil {
+		t.Fatalf("decodeControllerRequest() error = %v", err)
+	}
+	if req.Kind != controllerRPCCreateOnboardingPlan || req.OnboardingPlan == nil ||
+		req.OnboardingPlan.TargetNodeID != 4 || req.OnboardingPlan.RetryOfJobID != "failed-job" {
+		t.Fatalf("decoded onboarding plan request = %+v", req.OnboardingPlan)
+	}
+
+	job := sampleClusterOnboardingJob("onboard-20260426-000001", controllermeta.OnboardingJobStatusPlanned)
+	respBody, err := encodeControllerResponse(controllerRPCListOnboardingJobs, controllerRPCResponse{
+		OnboardingJobs:      []controllermeta.NodeOnboardingJob{job},
+		OnboardingCursor:    "cursor",
+		OnboardingHasMore:   true,
+		OnboardingErrorCode: onboardingErrorPlanStale,
+	})
+	if err != nil {
+		t.Fatalf("encodeControllerResponse() error = %v", err)
+	}
+	resp, err := decodeControllerResponse(controllerRPCListOnboardingJobs, respBody)
+	if err != nil {
+		t.Fatalf("decodeControllerResponse() error = %v", err)
+	}
+	if len(resp.OnboardingJobs) != 1 || resp.OnboardingJobs[0].JobID != job.JobID ||
+		len(resp.OnboardingJobs[0].Plan.Moves) != 1 || resp.OnboardingCursor != "cursor" ||
+		!resp.OnboardingHasMore || resp.OnboardingErrorCode != onboardingErrorPlanStale {
+		t.Fatalf("decoded onboarding response = %+v", resp)
+	}
+}
+
 func TestControllerCodecClusterNodeMembershipFieldsRoundTrip(t *testing.T) {
 	joinedAt := time.Unix(1710002345, 0)
 	nodes := []controllermeta.ClusterNode{{

@@ -32,6 +32,12 @@ type controllerAPI interface {
 	AddSlot(ctx context.Context, req slotcontroller.AddSlotRequest) error
 	RemoveSlot(ctx context.Context, req slotcontroller.RemoveSlotRequest) error
 	JoinCluster(ctx context.Context, req joinClusterRequest) (joinClusterResponse, error)
+	ListNodeOnboardingCandidates(ctx context.Context) ([]NodeOnboardingCandidate, error)
+	CreateNodeOnboardingPlan(ctx context.Context, targetNodeID uint64, retryOfJobID string) (controllermeta.NodeOnboardingJob, error)
+	StartNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
+	ListNodeOnboardingJobs(ctx context.Context, limit int, cursor string) ([]controllermeta.NodeOnboardingJob, string, bool, error)
+	GetNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
+	RetryNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
 }
 
 type controllerClient struct {
@@ -248,6 +254,94 @@ func (c *controllerClient) JoinCluster(ctx context.Context, req joinClusterReque
 	}
 	c.cluster.applyClusterNodes(resp.Join.Nodes)
 	return *resp.Join, nil
+}
+
+func (c *controllerClient) ListNodeOnboardingCandidates(ctx context.Context) ([]NodeOnboardingCandidate, error) {
+	resp, err := c.call(ctx, controllerRPCRequest{Kind: controllerRPCListOnboardingCandidates})
+	if err != nil {
+		return nil, err
+	}
+	if err := onboardingErrorFromCode(resp.OnboardingErrorCode); err != nil {
+		return nil, err
+	}
+	return resp.OnboardingCandidates, nil
+}
+
+func (c *controllerClient) CreateNodeOnboardingPlan(ctx context.Context, targetNodeID uint64, retryOfJobID string) (controllermeta.NodeOnboardingJob, error) {
+	resp, err := c.call(ctx, controllerRPCRequest{
+		Kind: controllerRPCCreateOnboardingPlan,
+		OnboardingPlan: &nodeOnboardingPlanRequest{
+			TargetNodeID: targetNodeID,
+			RetryOfJobID: retryOfJobID,
+		},
+	})
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	return onboardingJobFromResponse(resp)
+}
+
+func (c *controllerClient) StartNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error) {
+	resp, err := c.call(ctx, controllerRPCRequest{
+		Kind:          controllerRPCStartOnboardingJob,
+		OnboardingJob: &nodeOnboardingJobRequest{JobID: jobID},
+	})
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	return onboardingJobFromResponse(resp)
+}
+
+func (c *controllerClient) ListNodeOnboardingJobs(ctx context.Context, limit int, cursor string) ([]controllermeta.NodeOnboardingJob, string, bool, error) {
+	resp, err := c.call(ctx, controllerRPCRequest{
+		Kind: controllerRPCListOnboardingJobs,
+		OnboardingJobs: &nodeOnboardingJobsRequest{
+			Limit:  limit,
+			Cursor: cursor,
+		},
+	})
+	if err != nil {
+		return nil, "", false, err
+	}
+	if err := onboardingErrorFromCode(resp.OnboardingErrorCode); err != nil {
+		return nil, "", false, err
+	}
+	return resp.OnboardingJobs, resp.OnboardingCursor, resp.OnboardingHasMore, nil
+}
+
+func (c *controllerClient) GetNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error) {
+	resp, err := c.call(ctx, controllerRPCRequest{
+		Kind:          controllerRPCGetOnboardingJob,
+		OnboardingJob: &nodeOnboardingJobRequest{JobID: jobID},
+	})
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	return onboardingJobFromResponse(resp)
+}
+
+func (c *controllerClient) RetryNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error) {
+	resp, err := c.call(ctx, controllerRPCRequest{
+		Kind:          controllerRPCRetryOnboardingJob,
+		OnboardingJob: &nodeOnboardingJobRequest{JobID: jobID},
+	})
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	return onboardingJobFromResponse(resp)
+}
+
+func onboardingJobFromResponse(resp controllerRPCResponse) (controllermeta.NodeOnboardingJob, error) {
+	if resp.NotFound {
+		return controllermeta.NodeOnboardingJob{}, controllermeta.ErrNotFound
+	}
+	if err := onboardingErrorFromCode(resp.OnboardingErrorCode); err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	if resp.OnboardingJob == nil {
+		return controllermeta.NodeOnboardingJob{}, ErrInvalidConfig
+	}
+	return *resp.OnboardingJob, nil
 }
 
 func (c *controllerClient) UpdatePeers(peers []multiraft.NodeID) {

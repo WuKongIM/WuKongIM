@@ -758,6 +758,14 @@ func (c *Cluster) controllerTickOnce(ctx context.Context) {
 	if err != nil {
 		return
 	}
+	runningOnboarding, onboardingAdvanced := c.advanceNodeOnboardingOnce(ctx, state)
+	if onboardingAdvanced {
+		return
+	}
+	if runningOnboarding {
+		state.PauseRebalance = true
+		state.LockedSlots = c.currentOnboardingLockedSlots(ctx)
+	}
 	planner := slotcontroller.NewPlanner(slotcontroller.PlannerConfig{
 		SlotCount: c.cfg.effectiveInitialSlotCount(),
 		ReplicaN:  c.cfg.SlotReplicaN,
@@ -839,11 +847,12 @@ func (c *Cluster) snapshotPlannerState(ctx context.Context) (slotcontroller.Plan
 		return slotcontroller.PlannerState{}, err
 	}
 	state := slotcontroller.PlannerState{
-		Now:         time.Now(),
-		Nodes:       make(map[uint64]controllermeta.ClusterNode, len(nodes)),
-		Assignments: make(map[uint32]controllermeta.SlotAssignment, len(assignments)),
-		Runtime:     make(map[uint32]controllermeta.SlotRuntimeView, len(views)),
-		Tasks:       make(map[uint32]controllermeta.ReconcileTask, len(tasks)),
+		Now:            time.Now(),
+		Nodes:          make(map[uint64]controllermeta.ClusterNode, len(nodes)),
+		Assignments:    make(map[uint32]controllermeta.SlotAssignment, len(assignments)),
+		Runtime:        make(map[uint32]controllermeta.SlotRuntimeView, len(views)),
+		Tasks:          make(map[uint32]controllermeta.ReconcileTask, len(tasks)),
+		MigratingSlots: activeMigratingSlots(c.GetHashSlotTable()),
 	}
 	for _, node := range nodes {
 		state.Nodes[node.NodeID] = node

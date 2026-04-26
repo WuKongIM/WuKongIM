@@ -10,26 +10,32 @@ import (
 )
 
 const (
-	rpcServiceController               uint8            = 14
-	controllerRPCShardKey              multiraft.SlotID = multiraft.SlotID(^uint32(0))
-	controllerRPCHeartbeat             string           = "heartbeat"
-	controllerRPCRuntimeReport         string           = "runtime_report"
-	controllerRPCListAssignments       string           = "list_assignments"
-	controllerRPCListNodes             string           = "list_nodes"
-	controllerRPCListRuntimeViews      string           = "list_runtime_views"
-	controllerRPCListTasks             string           = "list_tasks"
-	controllerRPCFetchObservationDelta string           = "fetch_observation_delta"
-	controllerRPCOperator              string           = "operator"
-	controllerRPCGetTask               string           = "get_task"
-	controllerRPCForceReconcile        string           = "force_reconcile"
-	controllerRPCTaskResult            string           = "task_result"
-	controllerRPCStartMigration        string           = "start_migration"
-	controllerRPCAdvanceMigration      string           = "advance_migration"
-	controllerRPCFinalizeMigration     string           = "finalize_migration"
-	controllerRPCAbortMigration        string           = "abort_migration"
-	controllerRPCAddSlot               string           = "add_slot"
-	controllerRPCRemoveSlot            string           = "remove_slot"
-	controllerRPCJoinCluster           string           = "join_cluster"
+	rpcServiceController                  uint8            = 14
+	controllerRPCShardKey                 multiraft.SlotID = multiraft.SlotID(^uint32(0))
+	controllerRPCHeartbeat                string           = "heartbeat"
+	controllerRPCRuntimeReport            string           = "runtime_report"
+	controllerRPCListAssignments          string           = "list_assignments"
+	controllerRPCListNodes                string           = "list_nodes"
+	controllerRPCListRuntimeViews         string           = "list_runtime_views"
+	controllerRPCListTasks                string           = "list_tasks"
+	controllerRPCFetchObservationDelta    string           = "fetch_observation_delta"
+	controllerRPCOperator                 string           = "operator"
+	controllerRPCGetTask                  string           = "get_task"
+	controllerRPCForceReconcile           string           = "force_reconcile"
+	controllerRPCTaskResult               string           = "task_result"
+	controllerRPCStartMigration           string           = "start_migration"
+	controllerRPCAdvanceMigration         string           = "advance_migration"
+	controllerRPCFinalizeMigration        string           = "finalize_migration"
+	controllerRPCAbortMigration           string           = "abort_migration"
+	controllerRPCAddSlot                  string           = "add_slot"
+	controllerRPCRemoveSlot               string           = "remove_slot"
+	controllerRPCJoinCluster              string           = "join_cluster"
+	controllerRPCListOnboardingCandidates string           = "list_onboarding_candidates"
+	controllerRPCCreateOnboardingPlan     string           = "create_onboarding_plan"
+	controllerRPCStartOnboardingJob       string           = "start_onboarding_job"
+	controllerRPCListOnboardingJobs       string           = "list_onboarding_jobs"
+	controllerRPCGetOnboardingJob         string           = "get_onboarding_job"
+	controllerRPCRetryOnboardingJob       string           = "retry_onboarding_job"
 )
 
 const (
@@ -61,6 +67,22 @@ const (
 	controllerKindAddSlot
 	controllerKindRemoveSlot
 	controllerKindJoinCluster
+	controllerKindListOnboardingCandidates
+	controllerKindCreateOnboardingPlan
+	controllerKindStartOnboardingJob
+	controllerKindListOnboardingJobs
+	controllerKindGetOnboardingJob
+	controllerKindRetryOnboardingJob
+)
+
+type onboardingErrorCode string
+
+const (
+	onboardingErrorNone              onboardingErrorCode = ""
+	onboardingErrorRunningJobExists  onboardingErrorCode = "running_job_exists"
+	onboardingErrorPlanNotExecutable onboardingErrorCode = "plan_not_executable"
+	onboardingErrorPlanStale         onboardingErrorCode = "plan_stale"
+	onboardingErrorInvalidJobState   onboardingErrorCode = "invalid_job_state"
 )
 
 type controllerRPCRequest struct {
@@ -75,6 +97,9 @@ type controllerRPCRequest struct {
 	AddSlot          *slotcontroller.AddSlotRequest
 	RemoveSlot       *slotcontroller.RemoveSlotRequest
 	Join             *joinClusterRequest
+	OnboardingPlan   *nodeOnboardingPlanRequest
+	OnboardingJob    *nodeOnboardingJobRequest
+	OnboardingJobs   *nodeOnboardingJobsRequest
 }
 
 type controllerTaskAdvance struct {
@@ -93,19 +118,26 @@ type runtimeObservationReport struct {
 }
 
 type controllerRPCResponse struct {
-	NotLeader            bool
-	NotFound             bool
-	LeaderID             uint64
-	LeaderAddr           string
-	Nodes                []controllermeta.ClusterNode
-	Assignments          []controllermeta.SlotAssignment
-	RuntimeViews         []controllermeta.SlotRuntimeView
-	Tasks                []controllermeta.ReconcileTask
-	ObservationDelta     *observationDeltaResponse
-	Task                 *controllermeta.ReconcileTask
-	HashSlotTableVersion uint64
-	HashSlotTable        []byte
-	Join                 *joinClusterResponse
+	NotLeader              bool
+	NotFound               bool
+	LeaderID               uint64
+	LeaderAddr             string
+	Nodes                  []controllermeta.ClusterNode
+	Assignments            []controllermeta.SlotAssignment
+	RuntimeViews           []controllermeta.SlotRuntimeView
+	Tasks                  []controllermeta.ReconcileTask
+	ObservationDelta       *observationDeltaResponse
+	Task                   *controllermeta.ReconcileTask
+	HashSlotTableVersion   uint64
+	HashSlotTable          []byte
+	Join                   *joinClusterResponse
+	OnboardingCandidates   []NodeOnboardingCandidate
+	OnboardingJob          *controllermeta.NodeOnboardingJob
+	OnboardingJobs         []controllermeta.NodeOnboardingJob
+	OnboardingCursor       string
+	OnboardingHasMore      bool
+	OnboardingErrorCode    onboardingErrorCode
+	OnboardingErrorMessage string
 }
 
 type joinClusterRequest struct {
@@ -123,6 +155,20 @@ type joinClusterResponse struct {
 	HashSlotTable        []byte
 	JoinErrorCode        joinErrorCode
 	JoinErrorMessage     string
+}
+
+type nodeOnboardingPlanRequest struct {
+	TargetNodeID uint64
+	RetryOfJobID string
+}
+
+type nodeOnboardingJobRequest struct {
+	JobID string
+}
+
+type nodeOnboardingJobsRequest struct {
+	Limit  int
+	Cursor string
 }
 
 func encodeControllerRequest(req controllerRPCRequest) ([]byte, error) {
@@ -270,7 +316,24 @@ func encodeControllerRequestPayload(req controllerRPCRequest) ([]byte, error) {
 			return nil, ErrInvalidConfig
 		}
 		return encodeJoinClusterRequest(*req.Join), nil
+	case controllerRPCCreateOnboardingPlan:
+		if req.OnboardingPlan == nil {
+			return nil, ErrInvalidConfig
+		}
+		return encodeNodeOnboardingPlanRequest(*req.OnboardingPlan), nil
+	case controllerRPCStartOnboardingJob, controllerRPCGetOnboardingJob, controllerRPCRetryOnboardingJob:
+		if req.OnboardingJob == nil {
+			return nil, ErrInvalidConfig
+		}
+		return encodeNodeOnboardingJobRequest(*req.OnboardingJob), nil
+	case controllerRPCListOnboardingJobs:
+		if req.OnboardingJobs == nil {
+			return nil, ErrInvalidConfig
+		}
+		return encodeNodeOnboardingJobsRequest(*req.OnboardingJobs), nil
 	case controllerRPCListAssignments, controllerRPCListNodes, controllerRPCListRuntimeViews, controllerRPCListTasks, controllerRPCGetTask, controllerRPCForceReconcile:
+		return nil, nil
+	case controllerRPCListOnboardingCandidates:
 		return nil, nil
 	default:
 		return nil, ErrInvalidConfig
@@ -342,7 +405,33 @@ func decodeControllerRequestPayload(req *controllerRPCRequest, payload []byte) e
 		}
 		req.Join = &join
 		return nil
+	case controllerRPCCreateOnboardingPlan:
+		plan, err := decodeNodeOnboardingPlanRequest(payload)
+		if err != nil {
+			return err
+		}
+		req.OnboardingPlan = &plan
+		return nil
+	case controllerRPCStartOnboardingJob, controllerRPCGetOnboardingJob, controllerRPCRetryOnboardingJob:
+		job, err := decodeNodeOnboardingJobRequest(payload)
+		if err != nil {
+			return err
+		}
+		req.OnboardingJob = &job
+		return nil
+	case controllerRPCListOnboardingJobs:
+		jobs, err := decodeNodeOnboardingJobsRequest(payload)
+		if err != nil {
+			return err
+		}
+		req.OnboardingJobs = &jobs
+		return nil
 	case controllerRPCListAssignments, controllerRPCListNodes, controllerRPCListRuntimeViews, controllerRPCListTasks, controllerRPCGetTask, controllerRPCForceReconcile:
+		if len(payload) != 0 {
+			return ErrInvalidConfig
+		}
+		return nil
+	case controllerRPCListOnboardingCandidates:
 		if len(payload) != 0 {
 			return ErrInvalidConfig
 		}
@@ -380,6 +469,9 @@ func encodeControllerResponsePayload(kind string, resp controllerRPCResponse) ([
 		return encodeReconcileTask(*resp.Task), nil
 	case controllerRPCJoinCluster:
 		return encodeJoinClusterResponse(resp.LeaderAddr, resp.Join), nil
+	case controllerRPCListOnboardingCandidates, controllerRPCCreateOnboardingPlan, controllerRPCStartOnboardingJob,
+		controllerRPCListOnboardingJobs, controllerRPCGetOnboardingJob, controllerRPCRetryOnboardingJob:
+		return encodeNodeOnboardingResponse(resp), nil
 	default:
 		return nil, ErrInvalidConfig
 	}
@@ -460,6 +552,9 @@ func decodeControllerResponsePayload(kind string, resp *controllerRPCResponse, p
 		resp.LeaderAddr = leaderAddr
 		resp.Join = &join
 		return nil
+	case controllerRPCListOnboardingCandidates, controllerRPCCreateOnboardingPlan, controllerRPCStartOnboardingJob,
+		controllerRPCListOnboardingJobs, controllerRPCGetOnboardingJob, controllerRPCRetryOnboardingJob:
+		return decodeNodeOnboardingResponse(resp, payload)
 	default:
 		return ErrInvalidConfig
 	}
@@ -503,6 +598,18 @@ func controllerKindCode(kind string) (byte, error) {
 		return controllerKindRemoveSlot, nil
 	case controllerRPCJoinCluster:
 		return controllerKindJoinCluster, nil
+	case controllerRPCListOnboardingCandidates:
+		return controllerKindListOnboardingCandidates, nil
+	case controllerRPCCreateOnboardingPlan:
+		return controllerKindCreateOnboardingPlan, nil
+	case controllerRPCStartOnboardingJob:
+		return controllerKindStartOnboardingJob, nil
+	case controllerRPCListOnboardingJobs:
+		return controllerKindListOnboardingJobs, nil
+	case controllerRPCGetOnboardingJob:
+		return controllerKindGetOnboardingJob, nil
+	case controllerRPCRetryOnboardingJob:
+		return controllerKindRetryOnboardingJob, nil
 	default:
 		return controllerKindUnknown, ErrInvalidConfig
 	}
@@ -546,9 +653,652 @@ func controllerKindName(kind byte) (string, error) {
 		return controllerRPCRemoveSlot, nil
 	case controllerKindJoinCluster:
 		return controllerRPCJoinCluster, nil
+	case controllerKindListOnboardingCandidates:
+		return controllerRPCListOnboardingCandidates, nil
+	case controllerKindCreateOnboardingPlan:
+		return controllerRPCCreateOnboardingPlan, nil
+	case controllerKindStartOnboardingJob:
+		return controllerRPCStartOnboardingJob, nil
+	case controllerKindListOnboardingJobs:
+		return controllerRPCListOnboardingJobs, nil
+	case controllerKindGetOnboardingJob:
+		return controllerRPCGetOnboardingJob, nil
+	case controllerKindRetryOnboardingJob:
+		return controllerRPCRetryOnboardingJob, nil
 	default:
 		return "", ErrInvalidConfig
 	}
+}
+
+func encodeNodeOnboardingPlanRequest(req nodeOnboardingPlanRequest) []byte {
+	body := make([]byte, 0, 16+len(req.RetryOfJobID))
+	body = binary.BigEndian.AppendUint64(body, req.TargetNodeID)
+	return appendString(body, req.RetryOfJobID)
+}
+
+func decodeNodeOnboardingPlanRequest(body []byte) (nodeOnboardingPlanRequest, error) {
+	target, rest, err := readUint64(body)
+	if err != nil {
+		return nodeOnboardingPlanRequest{}, err
+	}
+	retryOf, rest, err := readString(rest)
+	if err != nil || len(rest) != 0 {
+		return nodeOnboardingPlanRequest{}, ErrInvalidConfig
+	}
+	return nodeOnboardingPlanRequest{TargetNodeID: target, RetryOfJobID: retryOf}, nil
+}
+
+func encodeNodeOnboardingJobRequest(req nodeOnboardingJobRequest) []byte {
+	return appendString(nil, req.JobID)
+}
+
+func decodeNodeOnboardingJobRequest(body []byte) (nodeOnboardingJobRequest, error) {
+	jobID, rest, err := readString(body)
+	if err != nil || len(rest) != 0 {
+		return nodeOnboardingJobRequest{}, ErrInvalidConfig
+	}
+	return nodeOnboardingJobRequest{JobID: jobID}, nil
+}
+
+func encodeNodeOnboardingJobsRequest(req nodeOnboardingJobsRequest) []byte {
+	body := appendInt64(nil, int64(req.Limit))
+	return appendString(body, req.Cursor)
+}
+
+func decodeNodeOnboardingJobsRequest(body []byte) (nodeOnboardingJobsRequest, error) {
+	limit, rest, err := readInt64(body)
+	if err != nil {
+		return nodeOnboardingJobsRequest{}, err
+	}
+	cursor, rest, err := readString(rest)
+	if err != nil || len(rest) != 0 {
+		return nodeOnboardingJobsRequest{}, ErrInvalidConfig
+	}
+	return nodeOnboardingJobsRequest{Limit: int(limit), Cursor: cursor}, nil
+}
+
+func encodeNodeOnboardingResponse(resp controllerRPCResponse) []byte {
+	body := appendString(nil, string(resp.OnboardingErrorCode))
+	body = appendString(body, resp.OnboardingErrorMessage)
+	body = binary.AppendUvarint(body, uint64(len(resp.OnboardingCandidates)))
+	for _, candidate := range resp.OnboardingCandidates {
+		body = appendNodeOnboardingCandidate(body, candidate)
+	}
+	if resp.OnboardingJob != nil {
+		body = append(body, 1)
+		body = appendBytes(body, encodeNodeOnboardingJob(*resp.OnboardingJob))
+	} else {
+		body = append(body, 0)
+	}
+	body = binary.AppendUvarint(body, uint64(len(resp.OnboardingJobs)))
+	for _, job := range resp.OnboardingJobs {
+		body = appendBytes(body, encodeNodeOnboardingJob(job))
+	}
+	body = appendString(body, resp.OnboardingCursor)
+	if resp.OnboardingHasMore {
+		body = append(body, 1)
+	} else {
+		body = append(body, 0)
+	}
+	return body
+}
+
+func decodeNodeOnboardingResponse(resp *controllerRPCResponse, body []byte) error {
+	code, rest, err := readString(body)
+	if err != nil {
+		return err
+	}
+	message, rest, err := readString(rest)
+	if err != nil {
+		return err
+	}
+	resp.OnboardingErrorCode = onboardingErrorCode(code)
+	resp.OnboardingErrorMessage = message
+	count, rest, err := readUvarint(rest)
+	if err != nil {
+		return err
+	}
+	resp.OnboardingCandidates = make([]NodeOnboardingCandidate, 0, count)
+	for i := uint64(0); i < count; i++ {
+		candidate, next, err := consumeNodeOnboardingCandidate(rest)
+		if err != nil {
+			return err
+		}
+		resp.OnboardingCandidates = append(resp.OnboardingCandidates, candidate)
+		rest = next
+	}
+	if len(rest) < 1 {
+		return ErrInvalidConfig
+	}
+	hasJob := rest[0] == 1
+	rest = rest[1:]
+	if hasJob {
+		jobBody, next, err := readBytes(rest)
+		if err != nil {
+			return err
+		}
+		job, err := decodeNodeOnboardingJob(jobBody)
+		if err != nil {
+			return err
+		}
+		resp.OnboardingJob = &job
+		rest = next
+	}
+	jobCount, rest, err := readUvarint(rest)
+	if err != nil {
+		return err
+	}
+	resp.OnboardingJobs = make([]controllermeta.NodeOnboardingJob, 0, jobCount)
+	for i := uint64(0); i < jobCount; i++ {
+		jobBody, next, err := readBytes(rest)
+		if err != nil {
+			return err
+		}
+		job, err := decodeNodeOnboardingJob(jobBody)
+		if err != nil {
+			return err
+		}
+		resp.OnboardingJobs = append(resp.OnboardingJobs, job)
+		rest = next
+	}
+	cursor, rest, err := readString(rest)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return ErrInvalidConfig
+	}
+	resp.OnboardingCursor = cursor
+	resp.OnboardingHasMore = rest[0] == 1
+	return nil
+}
+
+func appendNodeOnboardingCandidate(dst []byte, candidate NodeOnboardingCandidate) []byte {
+	node := controllermeta.ClusterNode{
+		NodeID:    candidate.NodeID,
+		Name:      candidate.Name,
+		Addr:      candidate.Addr,
+		Role:      candidate.Role,
+		JoinState: candidate.JoinState,
+		Status:    candidate.Status,
+	}
+	dst = appendClusterNode(dst, node)
+	dst = appendInt64(dst, int64(candidate.SlotCount))
+	dst = appendInt64(dst, int64(candidate.LeaderCount))
+	if candidate.Recommended {
+		return append(dst, 1)
+	}
+	return append(dst, 0)
+}
+
+func consumeNodeOnboardingCandidate(body []byte) (NodeOnboardingCandidate, []byte, error) {
+	node, rest, err := consumeClusterNode(body)
+	if err != nil {
+		return NodeOnboardingCandidate{}, nil, err
+	}
+	slotCount, rest, err := readInt64(rest)
+	if err != nil {
+		return NodeOnboardingCandidate{}, nil, err
+	}
+	leaderCount, rest, err := readInt64(rest)
+	if err != nil {
+		return NodeOnboardingCandidate{}, nil, err
+	}
+	if len(rest) < 1 {
+		return NodeOnboardingCandidate{}, nil, ErrInvalidConfig
+	}
+	return NodeOnboardingCandidate{
+		NodeID:      node.NodeID,
+		Name:        node.Name,
+		Addr:        node.Addr,
+		Role:        node.Role,
+		JoinState:   node.JoinState,
+		Status:      node.Status,
+		SlotCount:   int(slotCount),
+		LeaderCount: int(leaderCount),
+		Recommended: rest[0] == 1,
+	}, rest[1:], nil
+}
+
+func encodeNodeOnboardingJob(job controllermeta.NodeOnboardingJob) []byte {
+	body := appendString(nil, job.JobID)
+	body = binary.BigEndian.AppendUint64(body, job.TargetNodeID)
+	body = appendString(body, job.RetryOfJobID)
+	body = appendString(body, string(job.Status))
+	body = appendInt64(body, unixNanoOrZero(job.CreatedAt))
+	body = appendInt64(body, unixNanoOrZero(job.UpdatedAt))
+	body = appendInt64(body, unixNanoOrZero(job.StartedAt))
+	body = appendInt64(body, unixNanoOrZero(job.CompletedAt))
+	body = binary.BigEndian.AppendUint32(body, job.PlanVersion)
+	body = appendString(body, job.PlanFingerprint)
+	body = appendBytes(body, encodeNodeOnboardingPlan(job.Plan))
+	body = binary.AppendUvarint(body, uint64(len(job.Moves)))
+	for _, move := range job.Moves {
+		body = appendBytes(body, encodeNodeOnboardingMove(move))
+	}
+	body = appendInt64(body, int64(job.CurrentMoveIndex))
+	body = appendNodeOnboardingResultCounts(body, job.ResultCounts)
+	if job.CurrentTask != nil {
+		body = append(body, 1)
+		body = appendBytes(body, encodeReconcileTask(*job.CurrentTask))
+	} else {
+		body = append(body, 0)
+	}
+	return appendString(body, job.LastError)
+}
+
+func decodeNodeOnboardingJob(body []byte) (controllermeta.NodeOnboardingJob, error) {
+	jobID, rest, err := readString(body)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	target, rest, err := readUint64(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	retryOf, rest, err := readString(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	status, rest, err := readString(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	createdAt, rest, err := readTimeNanos(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	updatedAt, rest, err := readTimeNanos(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	startedAt, rest, err := readTimeNanos(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	completedAt, rest, err := readTimeNanos(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	planVersion, rest, err := readUint32(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	fingerprint, rest, err := readString(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	planBody, rest, err := readBytes(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	plan, err := decodeNodeOnboardingPlan(planBody)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	moveCount, rest, err := readUvarint(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	moves := make([]controllermeta.NodeOnboardingMove, 0, moveCount)
+	for i := uint64(0); i < moveCount; i++ {
+		moveBody, next, err := readBytes(rest)
+		if err != nil {
+			return controllermeta.NodeOnboardingJob{}, err
+		}
+		move, err := decodeNodeOnboardingMove(moveBody)
+		if err != nil {
+			return controllermeta.NodeOnboardingJob{}, err
+		}
+		moves = append(moves, move)
+		rest = next
+	}
+	currentIndex, rest, err := readInt64(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	counts, rest, err := consumeNodeOnboardingResultCounts(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingJob{}, err
+	}
+	if len(rest) < 1 {
+		return controllermeta.NodeOnboardingJob{}, ErrInvalidConfig
+	}
+	var currentTask *controllermeta.ReconcileTask
+	if rest[0] == 1 {
+		taskBody, next, err := readBytes(rest[1:])
+		if err != nil {
+			return controllermeta.NodeOnboardingJob{}, err
+		}
+		task, err := decodeReconcileTask(taskBody)
+		if err != nil {
+			return controllermeta.NodeOnboardingJob{}, err
+		}
+		currentTask = &task
+		rest = next
+	} else {
+		rest = rest[1:]
+	}
+	lastError, rest, err := readString(rest)
+	if err != nil || len(rest) != 0 {
+		return controllermeta.NodeOnboardingJob{}, ErrInvalidConfig
+	}
+	return controllermeta.NodeOnboardingJob{
+		JobID:            jobID,
+		TargetNodeID:     target,
+		RetryOfJobID:     retryOf,
+		Status:           controllermeta.OnboardingJobStatus(status),
+		CreatedAt:        createdAt,
+		UpdatedAt:        updatedAt,
+		StartedAt:        startedAt,
+		CompletedAt:      completedAt,
+		PlanVersion:      planVersion,
+		PlanFingerprint:  fingerprint,
+		Plan:             plan,
+		Moves:            moves,
+		CurrentMoveIndex: int(currentIndex),
+		ResultCounts:     counts,
+		CurrentTask:      currentTask,
+		LastError:        lastError,
+	}, nil
+}
+
+func encodeNodeOnboardingPlan(plan controllermeta.NodeOnboardingPlan) []byte {
+	body := binary.BigEndian.AppendUint64(nil, plan.TargetNodeID)
+	body = appendNodeOnboardingPlanSummary(body, plan.Summary)
+	body = binary.AppendUvarint(body, uint64(len(plan.Moves)))
+	for _, move := range plan.Moves {
+		body = appendBytes(body, encodeNodeOnboardingPlanMove(move))
+	}
+	body = binary.AppendUvarint(body, uint64(len(plan.BlockedReasons)))
+	for _, reason := range plan.BlockedReasons {
+		body = appendBytes(body, encodeNodeOnboardingBlockedReason(reason))
+	}
+	return body
+}
+
+func decodeNodeOnboardingPlan(body []byte) (controllermeta.NodeOnboardingPlan, error) {
+	target, rest, err := readUint64(body)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlan{}, err
+	}
+	summary, rest, err := consumeNodeOnboardingPlanSummary(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlan{}, err
+	}
+	moveCount, rest, err := readUvarint(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlan{}, err
+	}
+	moves := make([]controllermeta.NodeOnboardingPlanMove, 0, moveCount)
+	for i := uint64(0); i < moveCount; i++ {
+		moveBody, next, err := readBytes(rest)
+		if err != nil {
+			return controllermeta.NodeOnboardingPlan{}, err
+		}
+		move, err := decodeNodeOnboardingPlanMove(moveBody)
+		if err != nil {
+			return controllermeta.NodeOnboardingPlan{}, err
+		}
+		moves = append(moves, move)
+		rest = next
+	}
+	reasonCount, rest, err := readUvarint(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlan{}, err
+	}
+	reasons := make([]controllermeta.NodeOnboardingBlockedReason, 0, reasonCount)
+	for i := uint64(0); i < reasonCount; i++ {
+		reasonBody, next, err := readBytes(rest)
+		if err != nil {
+			return controllermeta.NodeOnboardingPlan{}, err
+		}
+		reason, err := decodeNodeOnboardingBlockedReason(reasonBody)
+		if err != nil {
+			return controllermeta.NodeOnboardingPlan{}, err
+		}
+		reasons = append(reasons, reason)
+		rest = next
+	}
+	if len(rest) != 0 {
+		return controllermeta.NodeOnboardingPlan{}, ErrInvalidConfig
+	}
+	return controllermeta.NodeOnboardingPlan{TargetNodeID: target, Summary: summary, Moves: moves, BlockedReasons: reasons}, nil
+}
+
+func appendNodeOnboardingPlanSummary(dst []byte, summary controllermeta.NodeOnboardingPlanSummary) []byte {
+	dst = appendInt64(dst, int64(summary.CurrentTargetSlotCount))
+	dst = appendInt64(dst, int64(summary.PlannedTargetSlotCount))
+	dst = appendInt64(dst, int64(summary.CurrentTargetLeaderCount))
+	return appendInt64(dst, int64(summary.PlannedLeaderGain))
+}
+
+func consumeNodeOnboardingPlanSummary(body []byte) (controllermeta.NodeOnboardingPlanSummary, []byte, error) {
+	currentSlots, rest, err := readInt64(body)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlanSummary{}, nil, err
+	}
+	plannedSlots, rest, err := readInt64(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlanSummary{}, nil, err
+	}
+	currentLeaders, rest, err := readInt64(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlanSummary{}, nil, err
+	}
+	leaderGain, rest, err := readInt64(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlanSummary{}, nil, err
+	}
+	return controllermeta.NodeOnboardingPlanSummary{
+		CurrentTargetSlotCount:   int(currentSlots),
+		PlannedTargetSlotCount:   int(plannedSlots),
+		CurrentTargetLeaderCount: int(currentLeaders),
+		PlannedLeaderGain:        int(leaderGain),
+	}, rest, nil
+}
+
+func encodeNodeOnboardingPlanMove(move controllermeta.NodeOnboardingPlanMove) []byte {
+	body := binary.BigEndian.AppendUint32(nil, move.SlotID)
+	body = binary.BigEndian.AppendUint64(body, move.SourceNodeID)
+	body = binary.BigEndian.AppendUint64(body, move.TargetNodeID)
+	body = appendString(body, move.Reason)
+	body = appendUint64Slice(body, move.DesiredPeersBefore)
+	body = appendUint64Slice(body, move.DesiredPeersAfter)
+	body = binary.BigEndian.AppendUint64(body, move.CurrentLeaderID)
+	if move.LeaderTransferRequired {
+		return append(body, 1)
+	}
+	return append(body, 0)
+}
+
+func decodeNodeOnboardingPlanMove(body []byte) (controllermeta.NodeOnboardingPlanMove, error) {
+	slotID, rest, err := readUint32(body)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlanMove{}, err
+	}
+	source, rest, err := readUint64(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlanMove{}, err
+	}
+	target, rest, err := readUint64(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlanMove{}, err
+	}
+	reason, rest, err := readString(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlanMove{}, err
+	}
+	before, rest, err := readUint64Slice(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlanMove{}, err
+	}
+	after, rest, err := readUint64Slice(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlanMove{}, err
+	}
+	leader, rest, err := readUint64(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingPlanMove{}, err
+	}
+	if len(rest) != 1 {
+		return controllermeta.NodeOnboardingPlanMove{}, ErrInvalidConfig
+	}
+	return controllermeta.NodeOnboardingPlanMove{SlotID: slotID, SourceNodeID: source, TargetNodeID: target, Reason: reason, DesiredPeersBefore: before, DesiredPeersAfter: after, CurrentLeaderID: leader, LeaderTransferRequired: rest[0] == 1}, nil
+}
+
+func encodeNodeOnboardingBlockedReason(reason controllermeta.NodeOnboardingBlockedReason) []byte {
+	body := appendString(nil, reason.Code)
+	body = appendString(body, reason.Scope)
+	body = binary.BigEndian.AppendUint32(body, reason.SlotID)
+	body = binary.BigEndian.AppendUint64(body, reason.NodeID)
+	return appendString(body, reason.Message)
+}
+
+func decodeNodeOnboardingBlockedReason(body []byte) (controllermeta.NodeOnboardingBlockedReason, error) {
+	code, rest, err := readString(body)
+	if err != nil {
+		return controllermeta.NodeOnboardingBlockedReason{}, err
+	}
+	scope, rest, err := readString(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingBlockedReason{}, err
+	}
+	slotID, rest, err := readUint32(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingBlockedReason{}, err
+	}
+	nodeID, rest, err := readUint64(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingBlockedReason{}, err
+	}
+	message, rest, err := readString(rest)
+	if err != nil || len(rest) != 0 {
+		return controllermeta.NodeOnboardingBlockedReason{}, ErrInvalidConfig
+	}
+	return controllermeta.NodeOnboardingBlockedReason{Code: code, Scope: scope, SlotID: slotID, NodeID: nodeID, Message: message}, nil
+}
+
+func encodeNodeOnboardingMove(move controllermeta.NodeOnboardingMove) []byte {
+	body := binary.BigEndian.AppendUint32(nil, move.SlotID)
+	body = binary.BigEndian.AppendUint64(body, move.SourceNodeID)
+	body = binary.BigEndian.AppendUint64(body, move.TargetNodeID)
+	body = appendString(body, string(move.Status))
+	body = append(body, byte(move.TaskKind))
+	body = binary.BigEndian.AppendUint32(body, move.TaskSlotID)
+	body = appendInt64(body, unixNanoOrZero(move.StartedAt))
+	body = appendInt64(body, unixNanoOrZero(move.CompletedAt))
+	body = appendString(body, move.LastError)
+	body = appendUint64Slice(body, move.DesiredPeersBefore)
+	body = appendUint64Slice(body, move.DesiredPeersAfter)
+	body = binary.BigEndian.AppendUint64(body, move.LeaderBefore)
+	body = binary.BigEndian.AppendUint64(body, move.LeaderAfter)
+	if move.LeaderTransferRequired {
+		return append(body, 1)
+	}
+	return append(body, 0)
+}
+
+func decodeNodeOnboardingMove(body []byte) (controllermeta.NodeOnboardingMove, error) {
+	slotID, rest, err := readUint32(body)
+	if err != nil {
+		return controllermeta.NodeOnboardingMove{}, err
+	}
+	source, rest, err := readUint64(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingMove{}, err
+	}
+	target, rest, err := readUint64(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingMove{}, err
+	}
+	status, rest, err := readString(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingMove{}, err
+	}
+	if len(rest) < 1 {
+		return controllermeta.NodeOnboardingMove{}, ErrInvalidConfig
+	}
+	taskKind := controllermeta.TaskKind(rest[0])
+	taskSlotID, rest, err := readUint32(rest[1:])
+	if err != nil {
+		return controllermeta.NodeOnboardingMove{}, err
+	}
+	startedAt, rest, err := readTimeNanos(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingMove{}, err
+	}
+	completedAt, rest, err := readTimeNanos(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingMove{}, err
+	}
+	lastError, rest, err := readString(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingMove{}, err
+	}
+	before, rest, err := readUint64Slice(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingMove{}, err
+	}
+	after, rest, err := readUint64Slice(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingMove{}, err
+	}
+	leaderBefore, rest, err := readUint64(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingMove{}, err
+	}
+	leaderAfter, rest, err := readUint64(rest)
+	if err != nil {
+		return controllermeta.NodeOnboardingMove{}, err
+	}
+	if len(rest) != 1 {
+		return controllermeta.NodeOnboardingMove{}, ErrInvalidConfig
+	}
+	return controllermeta.NodeOnboardingMove{SlotID: slotID, SourceNodeID: source, TargetNodeID: target, Status: controllermeta.OnboardingMoveStatus(status), TaskKind: taskKind, TaskSlotID: taskSlotID, StartedAt: startedAt, CompletedAt: completedAt, LastError: lastError, DesiredPeersBefore: before, DesiredPeersAfter: after, LeaderBefore: leaderBefore, LeaderAfter: leaderAfter, LeaderTransferRequired: rest[0] == 1}, nil
+}
+
+func appendNodeOnboardingResultCounts(dst []byte, counts controllermeta.OnboardingResultCounts) []byte {
+	dst = appendInt64(dst, int64(counts.Pending))
+	dst = appendInt64(dst, int64(counts.Running))
+	dst = appendInt64(dst, int64(counts.Completed))
+	dst = appendInt64(dst, int64(counts.Failed))
+	return appendInt64(dst, int64(counts.Skipped))
+}
+
+func consumeNodeOnboardingResultCounts(body []byte) (controllermeta.OnboardingResultCounts, []byte, error) {
+	pending, rest, err := readInt64(body)
+	if err != nil {
+		return controllermeta.OnboardingResultCounts{}, nil, err
+	}
+	running, rest, err := readInt64(rest)
+	if err != nil {
+		return controllermeta.OnboardingResultCounts{}, nil, err
+	}
+	completed, rest, err := readInt64(rest)
+	if err != nil {
+		return controllermeta.OnboardingResultCounts{}, nil, err
+	}
+	failed, rest, err := readInt64(rest)
+	if err != nil {
+		return controllermeta.OnboardingResultCounts{}, nil, err
+	}
+	skipped, rest, err := readInt64(rest)
+	if err != nil {
+		return controllermeta.OnboardingResultCounts{}, nil, err
+	}
+	return controllermeta.OnboardingResultCounts{Pending: int(pending), Running: int(running), Completed: int(completed), Failed: int(failed), Skipped: int(skipped)}, rest, nil
+}
+
+func readTimeNanos(body []byte) (time.Time, []byte, error) {
+	nanos, rest, err := readInt64(body)
+	if err != nil {
+		return time.Time{}, nil, err
+	}
+	if nanos == 0 {
+		return time.Time{}, rest, nil
+	}
+	return time.Unix(0, nanos), rest, nil
 }
 
 func readControllerPayload(body []byte) ([]byte, error) {

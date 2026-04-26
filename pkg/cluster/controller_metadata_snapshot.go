@@ -27,6 +27,12 @@ type controllerMetadataSnapshot struct {
 	Tasks []controllermeta.ReconcileTask
 	// TasksBySlot indexes Tasks by slot ID.
 	TasksBySlot map[uint32]controllermeta.ReconcileTask
+	// OnboardingJobs is the full list of durable node onboarding jobs.
+	OnboardingJobs []controllermeta.NodeOnboardingJob
+	// OnboardingJobsByID indexes OnboardingJobs by job ID.
+	OnboardingJobsByID map[string]controllermeta.NodeOnboardingJob
+	// OnboardingJobsByStatus indexes OnboardingJobs by durable job status.
+	OnboardingJobsByStatus map[controllermeta.OnboardingJobStatus][]controllermeta.NodeOnboardingJob
 
 	// LeaderID is the controller leader this snapshot is associated with.
 	LeaderID multiraft.NodeID
@@ -72,6 +78,9 @@ func (s controllerMetadataSnapshot) clone() controllerMetadataSnapshot {
 	if len(s.Tasks) > 0 {
 		out.Tasks = append([]controllermeta.ReconcileTask(nil), s.Tasks...)
 	}
+	if len(s.OnboardingJobs) > 0 {
+		out.OnboardingJobs = cloneClusterOnboardingJobs(s.OnboardingJobs)
+	}
 	if len(s.NodesByID) > 0 {
 		out.NodesByID = make(map[uint64]controllermeta.ClusterNode, len(s.NodesByID))
 		for k, v := range s.NodesByID {
@@ -88,6 +97,18 @@ func (s controllerMetadataSnapshot) clone() controllerMetadataSnapshot {
 		out.TasksBySlot = make(map[uint32]controllermeta.ReconcileTask, len(s.TasksBySlot))
 		for k, v := range s.TasksBySlot {
 			out.TasksBySlot[k] = v
+		}
+	}
+	if len(s.OnboardingJobsByID) > 0 {
+		out.OnboardingJobsByID = make(map[string]controllermeta.NodeOnboardingJob, len(s.OnboardingJobsByID))
+		for k, v := range s.OnboardingJobsByID {
+			out.OnboardingJobsByID[k] = cloneClusterOnboardingJob(v)
+		}
+	}
+	if len(s.OnboardingJobsByStatus) > 0 {
+		out.OnboardingJobsByStatus = make(map[controllermeta.OnboardingJobStatus][]controllermeta.NodeOnboardingJob, len(s.OnboardingJobsByStatus))
+		for k, v := range s.OnboardingJobsByStatus {
+			out.OnboardingJobsByStatus[k] = cloneClusterOnboardingJobs(v)
 		}
 	}
 	return out
@@ -329,6 +350,10 @@ func loadControllerMetadataSnapshot(ctx context.Context, store *controllermeta.S
 	if err != nil {
 		return controllerMetadataSnapshot{}, err
 	}
+	rawOnboardingJobs, _, _, err := store.ListOnboardingJobs(ctx, 0, "")
+	if err != nil {
+		return controllerMetadataSnapshot{}, err
+	}
 
 	nodes := make([]controllermeta.ClusterNode, 0, len(rawNodes))
 	for _, node := range rawNodes {
@@ -348,14 +373,18 @@ func loadControllerMetadataSnapshot(ctx context.Context, store *controllermeta.S
 	sort.Slice(nodes, func(i, j int) bool { return nodes[i].NodeID < nodes[j].NodeID })
 	sort.Slice(assignments, func(i, j int) bool { return assignments[i].SlotID < assignments[j].SlotID })
 	sort.Slice(tasks, func(i, j int) bool { return tasks[i].SlotID < tasks[j].SlotID })
+	sortNodeOnboardingJobsForAPI(rawOnboardingJobs)
 
 	snapshot := controllerMetadataSnapshot{
-		Nodes:             nodes,
-		NodesByID:         make(map[uint64]controllermeta.ClusterNode, len(nodes)),
-		Assignments:       make([]controllermeta.SlotAssignment, 0, len(assignments)),
-		AssignmentsBySlot: make(map[uint32]controllermeta.SlotAssignment, len(assignments)),
-		Tasks:             tasks,
-		TasksBySlot:       make(map[uint32]controllermeta.ReconcileTask, len(tasks)),
+		Nodes:                  nodes,
+		NodesByID:              make(map[uint64]controllermeta.ClusterNode, len(nodes)),
+		Assignments:            make([]controllermeta.SlotAssignment, 0, len(assignments)),
+		AssignmentsBySlot:      make(map[uint32]controllermeta.SlotAssignment, len(assignments)),
+		Tasks:                  tasks,
+		TasksBySlot:            make(map[uint32]controllermeta.ReconcileTask, len(tasks)),
+		OnboardingJobs:         cloneClusterOnboardingJobs(rawOnboardingJobs),
+		OnboardingJobsByID:     make(map[string]controllermeta.NodeOnboardingJob, len(rawOnboardingJobs)),
+		OnboardingJobsByStatus: make(map[controllermeta.OnboardingJobStatus][]controllermeta.NodeOnboardingJob),
 	}
 	for _, node := range nodes {
 		snapshot.NodesByID[node.NodeID] = node
@@ -370,6 +399,11 @@ func loadControllerMetadataSnapshot(ctx context.Context, store *controllermeta.S
 	}
 	for _, task := range tasks {
 		snapshot.TasksBySlot[task.SlotID] = task
+	}
+	for _, job := range snapshot.OnboardingJobs {
+		cloned := cloneClusterOnboardingJob(job)
+		snapshot.OnboardingJobsByID[job.JobID] = cloned
+		snapshot.OnboardingJobsByStatus[job.Status] = append(snapshot.OnboardingJobsByStatus[job.Status], cloned)
 	}
 	return snapshot, nil
 }

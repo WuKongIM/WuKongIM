@@ -258,6 +258,96 @@ func (h *controllerHandler) Handle(ctx context.Context, body []byte) ([]byte, er
 			return nil, err
 		}
 		return encodeControllerResponse(req.Kind, controllerRPCResponse{})
+	case controllerRPCListOnboardingCandidates:
+		if leaderID := c.controller.LeaderID(); leaderID != uint64(c.cfg.NodeID) {
+			return marshalRedirect()
+		}
+		candidates, err := c.listNodeOnboardingCandidatesOnLeader(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{OnboardingCandidates: candidates})
+	case controllerRPCCreateOnboardingPlan:
+		if leaderID := c.controller.LeaderID(); leaderID != uint64(c.cfg.NodeID) {
+			return marshalRedirect()
+		}
+		if req.OnboardingPlan == nil {
+			return nil, ErrInvalidConfig
+		}
+		job, err := c.createNodeOnboardingPlanOnLeader(ctx, req.OnboardingPlan.TargetNodeID, req.OnboardingPlan.RetryOfJobID)
+		if errors.Is(err, controllermeta.ErrNotFound) {
+			return encodeControllerResponse(req.Kind, controllerRPCResponse{NotFound: true})
+		}
+		if err != nil {
+			if code := onboardingErrorCodeFromError(err); code != onboardingErrorNone {
+				return encodeControllerResponse(req.Kind, controllerRPCResponse{OnboardingErrorCode: code, OnboardingErrorMessage: err.Error()})
+			}
+			return nil, err
+		}
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{OnboardingJob: &job})
+	case controllerRPCStartOnboardingJob:
+		if leaderID := c.controller.LeaderID(); leaderID != uint64(c.cfg.NodeID) {
+			return marshalRedirect()
+		}
+		if req.OnboardingJob == nil {
+			return nil, ErrInvalidConfig
+		}
+		job, err := c.startNodeOnboardingJobOnLeader(ctx, req.OnboardingJob.JobID)
+		if errors.Is(err, controllermeta.ErrNotFound) {
+			return encodeControllerResponse(req.Kind, controllerRPCResponse{NotFound: true})
+		}
+		if err != nil {
+			if code := onboardingErrorCodeFromError(err); code != onboardingErrorNone {
+				return encodeControllerResponse(req.Kind, controllerRPCResponse{OnboardingErrorCode: code, OnboardingErrorMessage: err.Error()})
+			}
+			return nil, err
+		}
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{OnboardingJob: &job})
+	case controllerRPCListOnboardingJobs:
+		if leaderID := c.controller.LeaderID(); leaderID != uint64(c.cfg.NodeID) {
+			return marshalRedirect()
+		}
+		if req.OnboardingJobs == nil {
+			return nil, ErrInvalidConfig
+		}
+		jobs, cursor, hasMore, err := c.listNodeOnboardingJobsOnLeader(ctx, req.OnboardingJobs.Limit, req.OnboardingJobs.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{OnboardingJobs: jobs, OnboardingCursor: cursor, OnboardingHasMore: hasMore})
+	case controllerRPCGetOnboardingJob:
+		if leaderID := c.controller.LeaderID(); leaderID != uint64(c.cfg.NodeID) {
+			return marshalRedirect()
+		}
+		if req.OnboardingJob == nil {
+			return nil, ErrInvalidConfig
+		}
+		job, err := c.controllerMeta.GetOnboardingJob(ctx, req.OnboardingJob.JobID)
+		if errors.Is(err, controllermeta.ErrNotFound) {
+			return encodeControllerResponse(req.Kind, controllerRPCResponse{NotFound: true})
+		}
+		if err != nil {
+			return nil, err
+		}
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{OnboardingJob: &job})
+	case controllerRPCRetryOnboardingJob:
+		if leaderID := c.controller.LeaderID(); leaderID != uint64(c.cfg.NodeID) {
+			return marshalRedirect()
+		}
+		if req.OnboardingJob == nil {
+			return nil, ErrInvalidConfig
+		}
+		job, err := c.RetryNodeOnboardingJob(ctx, req.OnboardingJob.JobID)
+		if errors.Is(err, controllermeta.ErrNotFound) {
+			return encodeControllerResponse(req.Kind, controllerRPCResponse{NotFound: true})
+		}
+		if err != nil {
+			if code := onboardingErrorCodeFromError(err); code != onboardingErrorNone {
+				return encodeControllerResponse(req.Kind, controllerRPCResponse{OnboardingErrorCode: code, OnboardingErrorMessage: err.Error()})
+			}
+			return nil, err
+		}
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{OnboardingJob: &job})
 	case controllerRPCStartMigration, controllerRPCAdvanceMigration, controllerRPCFinalizeMigration, controllerRPCAbortMigration,
 		controllerRPCAddSlot, controllerRPCRemoveSlot:
 		if leaderID := c.controller.LeaderID(); leaderID != uint64(c.cfg.NodeID) {

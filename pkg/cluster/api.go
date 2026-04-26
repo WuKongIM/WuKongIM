@@ -53,6 +53,12 @@ type API interface {
 	// RecoverSlotStrict runs slot recovery against controller-leader assignments only.
 	RecoverSlotStrict(ctx context.Context, slotID uint32, strategy RecoverStrategy) error
 	Rebalance(ctx context.Context) ([]MigrationPlan, error)
+	ListNodeOnboardingCandidates(ctx context.Context) ([]NodeOnboardingCandidate, error)
+	CreateNodeOnboardingPlan(ctx context.Context, targetNodeID uint64, retryOfJobID string) (controllermeta.NodeOnboardingJob, error)
+	StartNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
+	ListNodeOnboardingJobs(ctx context.Context, limit int, cursor string) ([]controllermeta.NodeOnboardingJob, string, bool, error)
+	GetNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
+	RetryNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
 
 	Server() *transport.Server
 	RPCMux() *transport.RPCMux

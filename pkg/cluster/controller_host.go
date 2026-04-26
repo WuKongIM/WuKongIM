@@ -914,7 +914,8 @@ func shouldMarkMetadataSnapshotDirty(cmd slotcontroller.Command) bool {
 		slotcontroller.CommandKindRemoveSlot,
 		slotcontroller.CommandKindNodeStatusUpdate,
 		slotcontroller.CommandKindNodeJoin,
-		slotcontroller.CommandKindNodeJoinActivate:
+		slotcontroller.CommandKindNodeJoinActivate,
+		slotcontroller.CommandKindNodeOnboardingJobUpdate:
 		return true
 	default:
 		return false

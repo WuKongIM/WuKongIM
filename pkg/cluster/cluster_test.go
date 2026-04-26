@@ -3553,6 +3553,30 @@ func (f fakeControllerClient) JoinCluster(ctx context.Context, req joinClusterRe
 	return f.joinClusterResp, f.joinClusterErr
 }
 
+func (f fakeControllerClient) ListNodeOnboardingCandidates(context.Context) ([]NodeOnboardingCandidate, error) {
+	return nil, nil
+}
+
+func (f fakeControllerClient) CreateNodeOnboardingPlan(context.Context, uint64, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}
+
+func (f fakeControllerClient) StartNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}
+
+func (f fakeControllerClient) ListNodeOnboardingJobs(context.Context, int, string) ([]controllermeta.NodeOnboardingJob, string, bool, error) {
+	return nil, "", false, nil
+}
+
+func (f fakeControllerClient) GetNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}
+
+func (f fakeControllerClient) RetryNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}
+
 func TestGroupAgentShouldExecuteTaskUsesLowestAliveAssignedPeerForBootstrap(t *testing.T) {
 	agent := &slotAgent{
 		cluster: &Cluster{cfg: Config{NodeID: 3}},
