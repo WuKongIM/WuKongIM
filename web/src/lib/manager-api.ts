@@ -7,6 +7,9 @@ import type {
   ManagerConnectionsResponse,
   ManagerLoginResponse,
   ManagerMessagesResponse,
+  ManagerNodeOnboardingCandidatesResponse,
+  ManagerNodeOnboardingJob,
+  ManagerNodeOnboardingJobsResponse,
   ManagerNodeDetailResponse,
   ManagerNodesResponse,
   ManagerOverviewResponse,
@@ -18,8 +21,10 @@ import type {
   ManagerTaskDetailResponse,
   ManagerTasksResponse,
   MessageListParams,
+  NodeOnboardingJobsParams,
   RecoverSlotInput,
   TransferSlotLeaderInput,
+  CreateNodeOnboardingPlanInput,
 } from "@/lib/manager-api.types"
 
 export type ManagerAuthConfig = {
@@ -108,6 +113,19 @@ function buildChannelRuntimeMetaPath(params?: ChannelRuntimeMetaListParams) {
 
   const query = search.toString()
   return query ? `/manager/channel-runtime-meta?${query}` : "/manager/channel-runtime-meta"
+}
+
+function buildNodeOnboardingJobsPath(params?: NodeOnboardingJobsParams) {
+  const search = new URLSearchParams()
+  if (typeof params?.limit === "number") {
+    search.set("limit", String(params.limit))
+  }
+  if (params?.cursor) {
+    search.set("cursor", params.cursor)
+  }
+
+  const query = search.toString()
+  return query ? `/manager/node-onboarding/jobs?${query}` : "/manager/node-onboarding/jobs"
 }
 
 function buildMessageListPath(params: MessageListParams) {
@@ -253,4 +271,35 @@ export function getChannelRuntimeMetaDetail(channelType: number, channelId: stri
   return jsonManagerFetch<ManagerChannelRuntimeMetaDetailResponse>(
     `/manager/channel-runtime-meta/${channelType}/${encodeURIComponent(channelId)}`,
   )
+}
+
+export function getNodeOnboardingCandidates() {
+  return jsonManagerFetch<ManagerNodeOnboardingCandidatesResponse>("/manager/node-onboarding/candidates")
+}
+
+export function createNodeOnboardingPlan(input: CreateNodeOnboardingPlanInput) {
+  return jsonManagerFetch<ManagerNodeOnboardingJob>("/manager/node-onboarding/plan", {
+    method: "POST",
+    body: JSON.stringify({ target_node_id: input.targetNodeId }),
+  })
+}
+
+export function startNodeOnboardingJob(jobId: string) {
+  return jsonManagerFetch<ManagerNodeOnboardingJob>(`/manager/node-onboarding/jobs/${encodeURIComponent(jobId)}/start`, {
+    method: "POST",
+  })
+}
+
+export function getNodeOnboardingJobs(params?: NodeOnboardingJobsParams) {
+  return jsonManagerFetch<ManagerNodeOnboardingJobsResponse>(buildNodeOnboardingJobsPath(params))
+}
+
+export function getNodeOnboardingJob(jobId: string) {
+  return jsonManagerFetch<ManagerNodeOnboardingJob>(`/manager/node-onboarding/jobs/${encodeURIComponent(jobId)}`)
+}
+
+export function retryNodeOnboardingJob(jobId: string) {
+  return jsonManagerFetch<ManagerNodeOnboardingJob>(`/manager/node-onboarding/jobs/${encodeURIComponent(jobId)}/retry`, {
+    method: "POST",
+  })
 }

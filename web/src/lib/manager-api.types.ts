@@ -246,6 +246,115 @@ export type ManagerMessagesResponse = {
   next_cursor?: string
 }
 
+
+export type ManagerNodeOnboardingCandidate = {
+  node_id: number
+  name: string
+  addr: string
+  role: string
+  join_state: string
+  status: string
+  slot_count: number
+  leader_count: number
+  recommended: boolean
+}
+
+export type ManagerNodeOnboardingCandidatesResponse = {
+  total: number
+  items: ManagerNodeOnboardingCandidate[]
+}
+
+export type ManagerNodeOnboardingPlanSummary = {
+  current_target_slot_count: number
+  planned_target_slot_count: number
+  current_target_leader_count: number
+  planned_leader_gain: number
+}
+
+export type ManagerNodeOnboardingPlanMove = {
+  slot_id: number
+  source_node_id: number
+  target_node_id: number
+  reason: string
+  desired_peers_before: number[]
+  desired_peers_after: number[]
+  current_leader_id: number
+  leader_transfer_required: boolean
+}
+
+export type ManagerNodeOnboardingBlockedReason = {
+  code: string
+  scope: string
+  slot_id: number
+  node_id: number
+  message: string
+}
+
+export type ManagerNodeOnboardingPlan = {
+  target_node_id: number
+  summary: ManagerNodeOnboardingPlanSummary
+  moves: ManagerNodeOnboardingPlanMove[]
+  blocked_reasons: ManagerNodeOnboardingBlockedReason[]
+}
+
+export type ManagerNodeOnboardingMove = {
+  slot_id: number
+  source_node_id: number
+  target_node_id: number
+  status: string
+  task_kind: string
+  task_slot_id: number
+  started_at: string
+  completed_at: string
+  last_error: string
+  desired_peers_before: number[]
+  desired_peers_after: number[]
+  leader_before: number
+  leader_after: number
+  leader_transfer_required: boolean
+}
+
+export type ManagerNodeOnboardingResultCounts = {
+  pending: number
+  running: number
+  completed: number
+  failed: number
+  skipped: number
+}
+
+export type ManagerNodeOnboardingJob = {
+  job_id: string
+  target_node_id: number
+  retry_of_job_id: string
+  status: string
+  created_at: string
+  updated_at: string
+  started_at: string
+  completed_at: string
+  plan_version: number
+  plan_fingerprint: string
+  plan: ManagerNodeOnboardingPlan
+  moves: ManagerNodeOnboardingMove[]
+  current_move_index: number
+  result_counts: ManagerNodeOnboardingResultCounts
+  last_error: string
+}
+
+export type ManagerNodeOnboardingJobsResponse = {
+  items: ManagerNodeOnboardingJob[]
+  next_cursor: string
+  has_more: boolean
+}
+
+export type CreateNodeOnboardingPlanInput = {
+  targetNodeId: number
+}
+
+export type NodeOnboardingJobsParams = {
+  limit?: number
+  cursor?: string
+}
+
 export type TransferSlotLeaderInput = {
   targetNodeId: number
 }

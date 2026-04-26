@@ -14,6 +14,8 @@ const getChannelRuntimeMetaMock = vi.fn()
 const getConnectionsMock = vi.fn()
 const getMessagesMock = vi.fn()
 const getSlotsMock = vi.fn()
+const getNodeOnboardingCandidatesMock = vi.fn()
+const getNodeOnboardingJobsMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -26,6 +28,8 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getConnections: (...args: unknown[]) => getConnectionsMock(...args),
     getMessages: (...args: unknown[]) => getMessagesMock(...args),
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
+    getNodeOnboardingCandidates: (...args: unknown[]) => getNodeOnboardingCandidatesMock(...args),
+    getNodeOnboardingJobs: (...args: unknown[]) => getNodeOnboardingJobsMock(...args),
   }
 })
 
@@ -39,6 +43,8 @@ beforeEach(() => {
   getConnectionsMock.mockReset()
   getMessagesMock.mockReset()
   getSlotsMock.mockReset()
+  getNodeOnboardingCandidatesMock.mockReset()
+  getNodeOnboardingJobsMock.mockReset()
 
   getOverviewMock.mockResolvedValue({
     generated_at: "2026-04-23T08:00:00Z",
@@ -112,6 +118,21 @@ beforeEach(() => {
       local_addr: "127.0.0.1:7000",
     }],
   })
+  getNodeOnboardingCandidatesMock.mockResolvedValue({
+    total: 1,
+    items: [{
+      node_id: 4,
+      name: "node-4",
+      addr: "127.0.0.1:7004",
+      role: "data",
+      join_state: "active",
+      status: "alive",
+      slot_count: 0,
+      leader_count: 0,
+      recommended: true,
+    }],
+  })
+  getNodeOnboardingJobsMock.mockResolvedValue({ items: [], next_cursor: "", has_more: false })
   getSlotsMock.mockResolvedValue({
     total: 1,
     items: [{
@@ -147,6 +168,7 @@ it.each([
   ["/connections", "Connections", "Connection Inventory"],
   ["/messages", "Messages", "Message Query"],
   ["/slots", "Slots", "Slot Inventory"],
+  ["/onboarding", "Onboarding", "Candidate Nodes"],
 ])("renders %s shell", async (path, title, section) => {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
 
@@ -201,6 +223,7 @@ it.each([
   ["/connections", "连接", "连接清单"],
   ["/messages", "消息", "消息查询"],
   ["/slots", "槽位", "槽位清单"],
+  ["/onboarding", "扩容", "候选节点"],
   ["/network", "网络", "管理 API 覆盖"],
   ["/topology", "拓扑", "管理 API 覆盖"],
 ])("renders %s in Chinese", async (path, title, section) => {

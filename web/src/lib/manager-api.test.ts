@@ -7,7 +7,11 @@ import {
   getConnection,
   getConnections,
   getMessages,
+  createNodeOnboardingPlan,
   getNode,
+  getNodeOnboardingCandidates,
+  getNodeOnboardingJob,
+  getNodeOnboardingJobs,
   getNodes,
   getOverview,
   getSlot,
@@ -22,6 +26,8 @@ import {
   recoverSlot,
   resetManagerAuthConfig,
   resumeNode,
+  retryNodeOnboardingJob,
+  startNodeOnboardingJob,
   transferSlotLeader,
 } from "@/lib/manager-api"
 
@@ -431,6 +437,98 @@ describe("manager api client", () => {
     await expect(getChannelRuntimeMetaDetail(1, "u1@u2")).resolves.toEqual(detailResponse)
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channel-runtime-meta?limit=100&cursor=cursor-1")
     expect(fetchMock.mock.calls[1]?.[0]).toBe("/manager/channel-runtime-meta/1/u1%40u2")
+  })
+
+
+  it("calls node onboarding manager endpoints", async () => {
+    const candidates = {
+      total: 1,
+      items: [{
+        node_id: 4,
+        name: "node-4",
+        addr: "127.0.0.1:7004",
+        role: "data",
+        join_state: "active",
+        status: "alive",
+        slot_count: 0,
+        leader_count: 0,
+        recommended: true,
+      }],
+    }
+    const job = {
+      job_id: "onboard-1",
+      target_node_id: 4,
+      retry_of_job_id: "",
+      status: "planned",
+      created_at: "2026-04-26T12:00:00Z",
+      updated_at: "2026-04-26T12:00:00Z",
+      started_at: "0001-01-01T00:00:00Z",
+      completed_at: "0001-01-01T00:00:00Z",
+      plan_version: 1,
+      plan_fingerprint: "fp-1",
+      plan: {
+        target_node_id: 4,
+        summary: {
+          current_target_slot_count: 0,
+          planned_target_slot_count: 1,
+          current_target_leader_count: 0,
+          planned_leader_gain: 1,
+        },
+        moves: [{
+          slot_id: 2,
+          source_node_id: 1,
+          target_node_id: 4,
+          reason: "underloaded_target",
+          desired_peers_before: [1, 2, 3],
+          desired_peers_after: [2, 3, 4],
+          current_leader_id: 1,
+          leader_transfer_required: true,
+        }],
+        blocked_reasons: [],
+      },
+      moves: [{
+        slot_id: 2,
+        source_node_id: 1,
+        target_node_id: 4,
+        status: "pending",
+        task_kind: "rebalance",
+        task_slot_id: 2,
+        started_at: "0001-01-01T00:00:00Z",
+        completed_at: "0001-01-01T00:00:00Z",
+        last_error: "",
+        desired_peers_before: [1, 2, 3],
+        desired_peers_after: [2, 3, 4],
+        leader_before: 1,
+        leader_after: 0,
+        leader_transfer_required: true,
+      }],
+      current_move_index: -1,
+      result_counts: { pending: 1, running: 0, completed: 0, failed: 0, skipped: 0 },
+      last_error: "",
+    }
+    const jobs = { items: [job], next_cursor: "cursor-2", has_more: true }
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(candidates), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(job), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(job), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(jobs), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(job), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(job), { status: 200 }))
+
+    await expect(getNodeOnboardingCandidates()).resolves.toEqual(candidates)
+    await expect(createNodeOnboardingPlan({ targetNodeId: 4 })).resolves.toEqual(job)
+    await expect(startNodeOnboardingJob("onboard-1")).resolves.toEqual(job)
+    await expect(getNodeOnboardingJobs({ limit: 25, cursor: "cursor-1" })).resolves.toEqual(jobs)
+    await expect(getNodeOnboardingJob("onboard-1")).resolves.toEqual(job)
+    await expect(retryNodeOnboardingJob("onboard-1")).resolves.toEqual(job)
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/node-onboarding/candidates")
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/manager/node-onboarding/plan")
+    expect(JSON.parse((fetchMock.mock.calls[1]?.[1] as { body: string }).body)).toEqual({ target_node_id: 4 })
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("/manager/node-onboarding/jobs/onboard-1/start")
+    expect(fetchMock.mock.calls[3]?.[0]).toBe("/manager/node-onboarding/jobs?limit=25&cursor=cursor-1")
+    expect(fetchMock.mock.calls[4]?.[0]).toBe("/manager/node-onboarding/jobs/onboard-1")
+    expect(fetchMock.mock.calls[5]?.[0]).toBe("/manager/node-onboarding/jobs/onboard-1/retry")
   })
 
   it.each([

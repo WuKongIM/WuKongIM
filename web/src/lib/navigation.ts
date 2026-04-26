@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react"
 import {
   Cable,
   Database,
+  GitPullRequestArrow,
   LayoutDashboard,
   MessageSquare,
   Radar,
@@ -65,6 +66,12 @@ export const navigationGroups: NavigationGroup[] = [
         titleMessageId: "nav.slots.title",
         descriptionMessageId: "nav.slots.description",
         icon: Database,
+      },
+      {
+        href: "/onboarding",
+        titleMessageId: "nav.onboarding.title",
+        descriptionMessageId: "nav.onboarding.description",
+        icon: GitPullRequestArrow,
       },
     ],
   },
