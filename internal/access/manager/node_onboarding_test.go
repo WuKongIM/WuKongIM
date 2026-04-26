@@ -28,6 +28,59 @@ func TestManagerNodeOnboardingPlanRoute(t *testing.T) {
 	require.Contains(t, rec.Body.String(), `"pending":1`)
 }
 
+func TestManagerNodeOnboardingPlanIgnoresRetryLinkage(t *testing.T) {
+	var gotReq managementusecase.CreateNodeOnboardingPlanRequest
+	srv := New(Options{Management: managementStub{
+		nodeOnboardingJob:         sampleManagerNodeOnboardingJob(),
+		nodeOnboardingPlanReqSink: &gotReq,
+	}})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/node-onboarding/plan", strings.NewReader(`{"target_node_id":4,"retry_of_job_id":"job-forged"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, uint64(4), gotReq.TargetNodeID)
+	require.Empty(t, gotReq.RetryOfJobID)
+}
+
+func TestManagerNodeOnboardingCandidatesRequiresNodeReadPermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "slot-viewer",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.slot",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{nodeOnboardingCandidates: managementusecase.NodeOnboardingCandidatesResponse{
+			Total: 1,
+			Items: []managementusecase.NodeOnboardingCandidate{{NodeID: 4, Status: "alive"}},
+		}},
+	})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/node-onboarding/candidates", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "slot-viewer"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
+}
+
+func TestManagerNodeOnboardingJobsMapsInvalidCursor(t *testing.T) {
+	srv := New(Options{Management: managementStub{nodeOnboardingJobErr: raftcluster.ErrInvalidConfig}})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/node-onboarding/jobs?cursor=bad", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"error":"invalid_request","message":"invalid request"}`, rec.Body.String())
+}
+
 func TestManagerNodeOnboardingStartMapsPlanStale(t *testing.T) {
 	srv := New(Options{Management: managementStub{nodeOnboardingJobErr: raftcluster.ErrOnboardingPlanStale}})
 	rec := httptest.NewRecorder()

@@ -2297,6 +2297,7 @@ type managementStub struct {
 	nodeOnboardingCandidatesErr     error
 	nodeOnboardingJob               managementusecase.NodeOnboardingJobResponse
 	nodeOnboardingJobs              managementusecase.NodeOnboardingJobsResponse
+	nodeOnboardingPlanReqSink       *managementusecase.CreateNodeOnboardingPlanRequest
 	nodeOnboardingJobErr            error
 }
 
@@ -2380,7 +2381,10 @@ func (s managementStub) ListNodeOnboardingCandidates(context.Context) (managemen
 	return s.nodeOnboardingCandidates, s.nodeOnboardingCandidatesErr
 }
 
-func (s managementStub) CreateNodeOnboardingPlan(context.Context, managementusecase.CreateNodeOnboardingPlanRequest) (managementusecase.NodeOnboardingJobResponse, error) {
+func (s managementStub) CreateNodeOnboardingPlan(_ context.Context, req managementusecase.CreateNodeOnboardingPlanRequest) (managementusecase.NodeOnboardingJobResponse, error) {
+	if s.nodeOnboardingPlanReqSink != nil {
+		*s.nodeOnboardingPlanReqSink = req
+	}
 	return s.nodeOnboardingJob, s.nodeOnboardingJobErr
 }
 

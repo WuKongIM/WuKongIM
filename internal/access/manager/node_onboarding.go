@@ -37,7 +37,6 @@ type nodeOnboardingCandidateDTO struct {
 
 type createNodeOnboardingPlanRequest struct {
 	TargetNodeID uint64 `json:"target_node_id"`
-	RetryOfJobID string `json:"retry_of_job_id"`
 }
 
 type nodeOnboardingJobsResponse struct {
@@ -152,7 +151,7 @@ func (s *Server) handleNodeOnboardingPlan(c *gin.Context) {
 		return
 	}
 
-	job, err := s.management.CreateNodeOnboardingPlan(c.Request.Context(), managementusecase.CreateNodeOnboardingPlanRequest{TargetNodeID: req.TargetNodeID, RetryOfJobID: req.RetryOfJobID})
+	job, err := s.management.CreateNodeOnboardingPlan(c.Request.Context(), managementusecase.CreateNodeOnboardingPlanRequest{TargetNodeID: req.TargetNodeID})
 	if err != nil {
 		handleNodeOnboardingError(c, err)
 		return
@@ -233,6 +232,8 @@ func (s *Server) handleNodeOnboardingJob(c *gin.Context) {
 func handleNodeOnboardingError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, controllermeta.ErrInvalidArgument):
+		jsonError(c, http.StatusBadRequest, "invalid_request", "invalid request")
+	case errors.Is(err, raftcluster.ErrInvalidConfig):
 		jsonError(c, http.StatusBadRequest, "invalid_request", "invalid request")
 	case errors.Is(err, controllermeta.ErrNotFound):
 		jsonError(c, http.StatusNotFound, "not_found", "job not found")

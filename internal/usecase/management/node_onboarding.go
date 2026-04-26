@@ -10,128 +10,202 @@ import (
 
 // NodeOnboardingCandidate is a manager-facing candidate node for explicit Slot allocation.
 type NodeOnboardingCandidate struct {
-	NodeID      uint64
-	Name        string
-	Addr        string
-	Role        string
-	JoinState   string
-	Status      string
-	SlotCount   int
+	// NodeID is the stable cluster node identity.
+	NodeID uint64
+	// Name is the optional operator-facing node name.
+	Name string
+	// Addr is the node RPC address.
+	Addr string
+	// Role is the manager-facing node role string.
+	Role string
+	// JoinState is the dynamic membership state string.
+	JoinState string
+	// Status is the manager-facing health status string.
+	Status string
+	// SlotCount is the number of Slot replicas currently assigned to this node.
+	SlotCount int
+	// LeaderCount is the number of observed Slot leaders on this node.
 	LeaderCount int
+	// Recommended marks nodes below average replica load.
 	Recommended bool
 }
 
 // NodeOnboardingCandidatesResponse contains candidate nodes.
 type NodeOnboardingCandidatesResponse struct {
+	// Total is the number of returned candidates.
 	Total int
+	// Items contains the candidate node list.
 	Items []NodeOnboardingCandidate
 }
 
 // CreateNodeOnboardingPlanRequest creates a reviewed planned job.
 type CreateNodeOnboardingPlanRequest struct {
+	// TargetNodeID is the node that should receive Slot resources.
 	TargetNodeID uint64
+	// RetryOfJobID links internal retry-created plans to a previous failed job.
 	RetryOfJobID string
 }
 
 // ListNodeOnboardingJobsRequest lists manager-facing jobs.
 type ListNodeOnboardingJobsRequest struct {
-	Limit  int
+	// Limit caps the number of jobs returned.
+	Limit int
+	// Cursor is the opaque pagination cursor returned by the cluster API.
 	Cursor string
 }
 
 // NodeOnboardingJobsResponse is one paged job list.
 type NodeOnboardingJobsResponse struct {
-	Items      []NodeOnboardingJob
+	// Items contains the returned jobs.
+	Items []NodeOnboardingJob
+	// NextCursor is the opaque cursor for the next page.
 	NextCursor string
-	HasMore    bool
+	// HasMore reports whether another page is available.
+	HasMore bool
 }
 
 // NodeOnboardingJobResponse wraps one onboarding job.
 type NodeOnboardingJobResponse struct {
+	// Job is the manager-facing onboarding job DTO.
 	Job NodeOnboardingJob
 }
 
 // NodeOnboardingJob is the manager-facing durable onboarding job DTO.
 type NodeOnboardingJob struct {
-	JobID            string
-	TargetNodeID     uint64
-	RetryOfJobID     string
-	Status           string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	StartedAt        time.Time
-	CompletedAt      time.Time
-	PlanVersion      uint32
-	PlanFingerprint  string
-	Plan             NodeOnboardingPlan
-	Moves            []NodeOnboardingMove
+	// JobID is the stable durable job identity.
+	JobID string
+	// TargetNodeID is the node receiving Slot resources.
+	TargetNodeID uint64
+	// RetryOfJobID identifies the failed job this job retries, when present.
+	RetryOfJobID string
+	// Status is the durable job lifecycle status.
+	Status string
+	// CreatedAt records when the plan was persisted.
+	CreatedAt time.Time
+	// UpdatedAt records the latest durable mutation time.
+	UpdatedAt time.Time
+	// StartedAt records when execution began.
+	StartedAt time.Time
+	// CompletedAt records when the job reached a terminal state.
+	CompletedAt time.Time
+	// PlanVersion identifies the persisted plan schema.
+	PlanVersion uint32
+	// PlanFingerprint verifies the reviewed plan against current controller state.
+	PlanFingerprint string
+	// Plan is the immutable operator-reviewed plan.
+	Plan NodeOnboardingPlan
+	// Moves contains per-Slot execution state.
+	Moves []NodeOnboardingMove
+	// CurrentMoveIndex points at the active move, or -1 before execution.
 	CurrentMoveIndex int
-	ResultCounts     NodeOnboardingResultCounts
-	LastError        string
+	// ResultCounts summarizes move status totals.
+	ResultCounts NodeOnboardingResultCounts
+	// LastError stores the latest job-level error.
+	LastError string
 }
 
 // NodeOnboardingPlan is the manager-facing reviewed plan.
 type NodeOnboardingPlan struct {
-	TargetNodeID   uint64
-	Summary        NodeOnboardingPlanSummary
-	Moves          []NodeOnboardingPlanMove
+	// TargetNodeID is the node receiving Slot resources.
+	TargetNodeID uint64
+	// Summary contains aggregate before/after load estimates.
+	Summary NodeOnboardingPlanSummary
+	// Moves contains deterministic Slot move proposals.
+	Moves []NodeOnboardingPlanMove
+	// BlockedReasons explains why planning could not produce more safe moves.
 	BlockedReasons []NodeOnboardingBlockedReason
 }
 
 // NodeOnboardingPlanSummary contains aggregate plan load effects.
 type NodeOnboardingPlanSummary struct {
-	CurrentTargetSlotCount   int
-	PlannedTargetSlotCount   int
+	// CurrentTargetSlotCount is the target's current assigned Slot replica count.
+	CurrentTargetSlotCount int
+	// PlannedTargetSlotCount is the expected target Slot replica count after moves.
+	PlannedTargetSlotCount int
+	// CurrentTargetLeaderCount is the target's current observed leader count.
 	CurrentTargetLeaderCount int
-	PlannedLeaderGain        int
+	// PlannedLeaderGain is the number of planned leader transfers to the target.
+	PlannedLeaderGain int
 }
 
 // NodeOnboardingPlanMove describes one reviewed Slot move.
 type NodeOnboardingPlanMove struct {
-	SlotID                 uint32
-	SourceNodeID           uint64
-	TargetNodeID           uint64
-	Reason                 string
-	DesiredPeersBefore     []uint64
-	DesiredPeersAfter      []uint64
-	CurrentLeaderID        uint64
+	// SlotID is the physical Slot whose desired peers change.
+	SlotID uint32
+	// SourceNodeID is the node giving up the Slot replica.
+	SourceNodeID uint64
+	// TargetNodeID is the onboarding node receiving the Slot replica.
+	TargetNodeID uint64
+	// Reason is the stable planner explanation for this move.
+	Reason string
+	// DesiredPeersBefore is the canonical peer set before the move.
+	DesiredPeersBefore []uint64
+	// DesiredPeersAfter is the canonical peer set after the move.
+	DesiredPeersAfter []uint64
+	// CurrentLeaderID is the observed leader when the plan was created.
+	CurrentLeaderID uint64
+	// LeaderTransferRequired marks moves that should transfer leadership to the target.
 	LeaderTransferRequired bool
 }
 
 // NodeOnboardingBlockedReason explains why a plan or Slot is blocked.
 type NodeOnboardingBlockedReason struct {
-	Code    string
-	Scope   string
-	SlotID  uint32
-	NodeID  uint64
+	// Code is the stable machine-readable blocked reason.
+	Code string
+	// Scope identifies the planner level that produced the reason.
+	Scope string
+	// SlotID optionally identifies the blocked Slot.
+	SlotID uint32
+	// NodeID optionally identifies the blocked node.
+	NodeID uint64
+	// Message is a concise operator-facing explanation.
 	Message string
 }
 
 // NodeOnboardingMove is one durable execution move.
 type NodeOnboardingMove struct {
-	SlotID                 uint32
-	SourceNodeID           uint64
-	TargetNodeID           uint64
-	Status                 string
-	TaskKind               string
-	TaskSlotID             uint32
-	StartedAt              time.Time
-	CompletedAt            time.Time
-	LastError              string
-	DesiredPeersBefore     []uint64
-	DesiredPeersAfter      []uint64
-	LeaderBefore           uint64
-	LeaderAfter            uint64
+	// SlotID is the physical Slot being moved.
+	SlotID uint32
+	// SourceNodeID is the node giving up the Slot replica.
+	SourceNodeID uint64
+	// TargetNodeID is the onboarding node receiving the Slot replica.
+	TargetNodeID uint64
+	// Status is the durable move lifecycle status.
+	Status string
+	// TaskKind is the reconcile task kind backing the move.
+	TaskKind string
+	// TaskSlotID is the reconcile task Slot identifier.
+	TaskSlotID uint32
+	// StartedAt records when this move started.
+	StartedAt time.Time
+	// CompletedAt records when this move reached a terminal state.
+	CompletedAt time.Time
+	// LastError stores the latest move-level error.
+	LastError string
+	// DesiredPeersBefore is the canonical peer set before the move.
+	DesiredPeersBefore []uint64
+	// DesiredPeersAfter is the canonical peer set after the move.
+	DesiredPeersAfter []uint64
+	// LeaderBefore is the leader observed before the move started.
+	LeaderBefore uint64
+	// LeaderAfter is the leader observed after the move completed.
+	LeaderAfter uint64
+	// LeaderTransferRequired marks moves that should transfer leadership to the target.
 	LeaderTransferRequired bool
 }
 
 // NodeOnboardingResultCounts summarizes move states.
 type NodeOnboardingResultCounts struct {
-	Pending   int
-	Running   int
+	// Pending is the number of moves that have not started.
+	Pending int
+	// Running is the number of moves currently executing.
+	Running int
+	// Completed is the number of successful moves.
 	Completed int
-	Failed    int
-	Skipped   int
+	// Failed is the number of failed moves.
+	Failed int
+	// Skipped is the number of moves already satisfied.
+	Skipped int
 }
 
 func (a *App) ListNodeOnboardingCandidates(ctx context.Context) (NodeOnboardingCandidatesResponse, error) {
