@@ -97,7 +97,7 @@ func (d *DynamicDiscovery) UpsertSeed(seed SeedConfig) {
 	oldAddr, oldOK := d.effectiveAddrLocked(nodeID, d.nodes)
 	d.seeds[nodeID] = NodeInfo{NodeID: seed.ID, Addr: seed.Addr}
 	newAddr, newOK := d.effectiveAddrLocked(nodeID, d.nodes)
-	if oldOK && newOK && oldAddr != newAddr {
+	if oldOK != newOK || oldAddr != newAddr {
 		changes = append(changes, discoveryAddressChange{nodeID: nodeID, oldAddr: oldAddr, newAddr: newAddr})
 	}
 	if len(changes) > 0 && !d.stopped {

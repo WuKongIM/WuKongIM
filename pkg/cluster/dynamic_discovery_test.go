@@ -103,6 +103,32 @@ func TestDynamicDiscoveryUpsertSeedNotifiesEffectiveAddressChange(t *testing.T) 
 	}{{nodeID: 1, oldAddr: "old", newAddr: "new"}}, events)
 }
 
+func TestDynamicDiscoveryUpsertSeedNotifiesSeedAddition(t *testing.T) {
+	d := NewDynamicDiscovery(nil, nil)
+	defer d.Stop()
+
+	var events []struct {
+		nodeID  uint64
+		oldAddr string
+		newAddr string
+	}
+	d.OnAddressChange(func(nodeID uint64, oldAddr, newAddr string) {
+		events = append(events, struct {
+			nodeID  uint64
+			oldAddr string
+			newAddr string
+		}{nodeID: nodeID, oldAddr: oldAddr, newAddr: newAddr})
+	})
+
+	d.UpsertSeed(SeedConfig{ID: 1, Addr: "new"})
+
+	require.Equal(t, []struct {
+		nodeID  uint64
+		oldAddr string
+		newAddr string
+	}{{nodeID: 1, oldAddr: "", newAddr: "new"}}, events)
+}
+
 func TestDynamicDiscoveryUpdateReportsSeedToDynamicAddressChange(t *testing.T) {
 	d := NewDynamicDiscovery([]SeedConfig{{ID: 1, Addr: "old"}}, nil)
 	defer d.Stop()

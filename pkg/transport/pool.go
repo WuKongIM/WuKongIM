@@ -198,8 +198,16 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 
 		addr, resolveErr := p.cfg.Discovery.Resolve(nodeID)
 		if resolveErr != nil {
+			if set.evicted.Load() {
+				slot.finishDial(nil, nil, ready)
+				continue
+			}
 			slot.finishDial(nil, resolveErr, ready)
 			return nil, resolveErr
+		}
+		if set.evicted.Load() {
+			slot.finishDial(nil, nil, ready)
+			continue
 		}
 		set.addr.Store(addr)
 
@@ -211,6 +219,11 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 		raw, dialErr := dial("tcp", addr, p.cfg.DialTimeout)
 		p.observeDial(nodeID, dialErr, time.Since(startedAt))
 		if dialErr != nil {
+			// Eviction wins over stale in-flight dial failures so callers retry with fresh discovery.
+			if set.evicted.Load() {
+				slot.finishDial(nil, nil, ready)
+				continue
+			}
 			slot.finishDial(nil, dialErr, ready)
 			return nil, dialErr
 		}
