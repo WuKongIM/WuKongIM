@@ -104,7 +104,7 @@ func TestPlanNodeOnboardingSkipsUnsafeSlotsWithSpecificReasons(t *testing.T) {
 			setup: func(input *OnboardingPlanInput) {
 				input.Assignments[1] = onboardingAssignment(1, 1, 2, 3)
 			},
-			code: "slot_no_runtime",
+			code: "no_runtime_view",
 		},
 		{
 			name: "quorum lost",
@@ -139,7 +139,7 @@ func TestPlanNodeOnboardingSkipsUnsafeSlotsWithSpecificReasons(t *testing.T) {
 				input.Runtime[1] = onboardingRuntime(1, 1, []uint64{1, 2, 3}, true)
 				input.MigratingSlots[1] = struct{}{}
 			},
-			code: "slot_migrating",
+			code: "slot_hash_migration_active",
 		},
 	}
 

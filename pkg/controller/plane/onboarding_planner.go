@@ -163,7 +163,7 @@ func (p *OnboardingPlanner) onboardingCandidates(input OnboardingPlanInput, assi
 			continue
 		}
 		if _, migrating := input.MigratingSlots[assignment.SlotID]; migrating {
-			blocked.add("slot_migrating", "slot", assignment.SlotID, 0, "slot is protected by hash-slot migration")
+			blocked.add("slot_hash_migration_active", "slot", assignment.SlotID, 0, "slot is protected by hash-slot migration")
 			continue
 		}
 		if task, ok := input.Tasks[assignment.SlotID]; ok {
@@ -176,7 +176,7 @@ func (p *OnboardingPlanner) onboardingCandidates(input OnboardingPlanInput, assi
 		}
 		view, ok := input.Runtime[assignment.SlotID]
 		if !ok {
-			blocked.add("slot_no_runtime", "slot", assignment.SlotID, 0, "slot has no runtime view")
+			blocked.add("no_runtime_view", "slot", assignment.SlotID, 0, "slot has no runtime view")
 			continue
 		}
 		if !view.HasQuorum {

@@ -56,7 +56,6 @@ func onboardingFingerprintDocument(input OnboardingPlanFingerprintInput) map[str
 			"desired_peers_before":     append([]uint64(nil), move.DesiredPeersBefore...),
 			"hash_migration_absent":    !migrating,
 			"leader_transfer_required": move.LeaderTransferRequired,
-			"reason":                   move.Reason,
 			"runtime": map[string]any{
 				"current_peers":         append([]uint64(nil), view.CurrentPeers...),
 				"has_quorum":            view.HasQuorum,

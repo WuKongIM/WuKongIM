@@ -28,6 +28,14 @@ func TestOnboardingPlanFingerprintChangesWhenAssignmentEpochChanges(t *testing.T
 	require.NotEqual(t, OnboardingPlanFingerprint(input), OnboardingPlanFingerprint(changed))
 }
 
+func TestOnboardingPlanFingerprintIgnoresMoveReason(t *testing.T) {
+	input := sampleFingerprintInput()
+	changed := sampleFingerprintInput()
+	changed.Plan.Moves[0].Reason = "manual_operator_note"
+
+	require.Equal(t, OnboardingPlanFingerprint(input), OnboardingPlanFingerprint(changed))
+}
+
 func TestOnboardingPlanFingerprintPreservesMoveOrder(t *testing.T) {
 	input := sampleFingerprintInput()
 	reordered := sampleFingerprintInput()
@@ -48,7 +56,7 @@ func TestOnboardingPlanFingerprintCanonicalJSONSortsKeysAndOmitsWhitespace(t *te
 	require.NotContains(t, canonical, "\n")
 	require.NotContains(t, canonical, "\t")
 	require.True(t, strings.HasPrefix(canonical, `{"moves":[{"assignment":{"balance_version":2,"config_epoch":7},"current_leader_id":1`))
-	require.Contains(t, canonical, `"reason":"replica_balance"`)
+	require.NotContains(t, canonical, `"reason"`)
 	require.Contains(t, canonical, `"runtime":{"current_peers":[1,2,3],"has_quorum":true,"leader_id":1,"observed_config_epoch":7}`)
 	require.True(t, strings.HasSuffix(canonical, `"target":{"join_state":2,"node_id":4,"role":1,"status":1}}`))
 }
