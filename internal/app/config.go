@@ -12,28 +12,43 @@ import (
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
+// Config contains all application configuration loaded for one WuKongIM node.
 type Config struct {
-	Node          NodeConfig
-	Storage       StorageConfig
-	Cluster       ClusterConfig
-	API           APIConfig
-	Manager       ManagerConfig
-	Gateway       GatewayConfig
-	Conversation  ConversationConfig
+	// Node configures this process identity and local data root.
+	Node NodeConfig
+	// Storage configures local durable storage paths.
+	Storage StorageConfig
+	// Cluster configures controller, slot, and channel replication runtimes.
+	Cluster ClusterConfig
+	// API configures the public HTTP API entry point.
+	API APIConfig
+	// Manager configures the administration HTTP API entry point.
+	Manager ManagerConfig
+	// Gateway configures client connection listeners and session behavior.
+	Gateway GatewayConfig
+	// Conversation configures conversation projection and sync behavior.
+	Conversation ConversationConfig
+	// Observability configures metrics and health endpoint detail.
 	Observability ObservabilityConfig
-	Log           LogConfig
+	// Log configures application logging output.
+	Log LogConfig
 }
 
+// ObservabilityConfig controls runtime metrics and health response detail.
 type ObservabilityConfig struct {
-	MetricsEnabled      bool
+	// MetricsEnabled enables the metrics endpoint and metrics collection.
+	MetricsEnabled bool
+	// HealthDetailEnabled includes dependency details in health responses.
 	HealthDetailEnabled bool
-	HealthDebugEnabled  bool
+	// HealthDebugEnabled includes debug-oriented health diagnostics.
+	HealthDebugEnabled bool
 
 	metricsEnabledSet      bool
 	healthDetailEnabledSet bool
 	healthDebugEnabledSet  bool
 }
 
+// SetExplicitFlags records whether observability booleans were explicitly configured.
 func (c *ObservabilityConfig) SetExplicitFlags(metricsSet, detailSet, debugSet bool) {
 	if c == nil {
 		return
@@ -43,20 +58,30 @@ func (c *ObservabilityConfig) SetExplicitFlags(metricsSet, detailSet, debugSet b
 	c.healthDebugEnabledSet = debugSet
 }
 
+// LogConfig defines zap and lumberjack logging settings.
 type LogConfig struct {
-	Level      string
-	Dir        string
-	MaxSize    int
-	MaxAge     int
+	// Level is the minimum log level, such as debug, info, warn, or error.
+	Level string
+	// Dir is the directory used for rolling log files.
+	Dir string
+	// MaxSize is the maximum size in megabytes before a log file rotates.
+	MaxSize int
+	// MaxAge is the maximum number of days to retain old log files.
+	MaxAge int
+	// MaxBackups is the maximum number of rotated log files to retain.
 	MaxBackups int
-	Compress   bool
-	Console    bool
-	Format     string
+	// Compress enables gzip compression for rotated log files.
+	Compress bool
+	// Console enables writing logs to stdout or stderr.
+	Console bool
+	// Format selects the log encoder format, such as console or json.
+	Format string
 
 	compressSet bool
 	consoleSet  bool
 }
 
+// SetExplicitFlags records whether log booleans were explicitly configured.
 func (c *LogConfig) SetExplicitFlags(compressSet, consoleSet bool) {
 	if c == nil {
 		return
@@ -65,50 +90,90 @@ func (c *LogConfig) SetExplicitFlags(compressSet, consoleSet bool) {
 	c.consoleSet = consoleSet
 }
 
+// NodeConfig defines this node's cluster identity and local data root.
 type NodeConfig struct {
-	ID      uint64
-	Name    string
+	// ID is the stable cluster node ID and must fit the message ID generator range.
+	ID uint64
+	// Name is the human-readable node name used in diagnostics.
+	Name string
+	// DataDir is the base directory used to derive default storage paths.
 	DataDir string
 }
 
+// StorageConfig defines local paths for metadata, Raft, and channel logs.
 type StorageConfig struct {
-	DBPath             string
-	RaftPath           string
-	ChannelLogPath     string
+	// DBPath is the local metadata database path.
+	DBPath string
+	// RaftPath is the local slot Raft log path.
+	RaftPath string
+	// ChannelLogPath is the local channel message log path.
+	ChannelLogPath string
+	// ControllerMetaPath is the local controller metadata path.
 	ControllerMetaPath string
+	// ControllerRaftPath is the local controller Raft log path.
 	ControllerRaftPath string
 }
 
+// ClusterConfig defines controller, slot, and channel replication settings for this node's cluster runtime.
 type ClusterConfig struct {
-	ListenAddr                       string
-	SlotCount                        uint32
-	HashSlotCount                    uint16
-	InitialSlotCount                 uint32
-	ChannelBootstrapDefaultMinISR    int
-	LongPollLaneCount                int
-	LongPollMaxWait                  time.Duration
-	LongPollMaxBytes                 int
-	LongPollMaxChannels              int
+	// ListenAddr is the node-to-node cluster RPC listen address.
+	ListenAddr string
+	// SlotCount is the legacy configured physical slot count and mirrors InitialSlotCount when set.
+	SlotCount uint32
+	// HashSlotCount is the number of hash slots used to map keys to managed physical slots.
+	HashSlotCount uint16
+	// InitialSlotCount is the number of managed physical slots to create at bootstrap.
+	InitialSlotCount uint32
+	// ChannelBootstrapDefaultMinISR is the default MinISR for newly bootstrapped channel metadata.
+	ChannelBootstrapDefaultMinISR int
+	// LongPollLaneCount is the number of channel fetch long-poll lanes.
+	LongPollLaneCount int
+	// LongPollMaxWait is the maximum wait for one channel fetch long-poll request.
+	LongPollMaxWait time.Duration
+	// LongPollMaxBytes is the maximum response size for one channel fetch long-poll request.
+	LongPollMaxBytes int
+	// LongPollMaxChannels is the maximum number of channels served by one long-poll cycle.
+	LongPollMaxChannels int
+	// FollowerReplicationRetryInterval is the retry interval for channel follower replication.
 	FollowerReplicationRetryInterval time.Duration
-	AppendGroupCommitMaxWait         time.Duration
-	AppendGroupCommitMaxRecords      int
-	AppendGroupCommitMaxBytes        int
-	Nodes                            []NodeConfigRef
-	Slots                            []SlotConfig
-	ControllerReplicaN               int
-	SlotReplicaN                     int
-	ForwardTimeout                   time.Duration
-	PoolSize                         int
-	DataPlanePoolSize                int
-	TickInterval                     time.Duration
-	RaftWorkers                      int
-	ElectionTick                     int
-	HeartbeatTick                    int
-	DialTimeout                      time.Duration
-	Timeouts                         raftcluster.Timeouts
-	DataPlaneRPCTimeout              time.Duration
-	DataPlaneMaxFetchInflight        int
-	DataPlaneMaxPendingFetch         int
+	// AppendGroupCommitMaxWait is the maximum delay for channel append group commit batching.
+	AppendGroupCommitMaxWait time.Duration
+	// AppendGroupCommitMaxRecords is the maximum record count for one append group commit batch.
+	AppendGroupCommitMaxRecords int
+	// AppendGroupCommitMaxBytes is the maximum byte size for one append group commit batch.
+	AppendGroupCommitMaxBytes int
+	// Nodes lists every cluster node participating in the cluster runtime.
+	Nodes []NodeConfigRef
+	// Slots is deprecated and must remain empty because slots are managed by the controller.
+	Slots []SlotConfig
+	// ControllerReplicaN is the number of controller Raft voters.
+	ControllerReplicaN int
+	// SlotReplicaN is the target replica count for each managed slot.
+	SlotReplicaN int
+	// ForwardTimeout is the timeout for internal forwarding operations.
+	ForwardTimeout time.Duration
+	// PoolSize is the general cluster worker pool size hint.
+	PoolSize int
+	// DataPlanePoolSize is the channel data-plane RPC pool size.
+	DataPlanePoolSize int
+	// TickInterval is the Raft tick interval.
+	TickInterval time.Duration
+	// RaftWorkers is the number of workers used by the Raft runtime.
+	RaftWorkers int
+	// ElectionTick is the Raft election timeout measured in ticks.
+	ElectionTick int
+	// HeartbeatTick is the Raft heartbeat interval measured in ticks.
+	HeartbeatTick int
+	// DialTimeout is the timeout for node-to-node connection dialing.
+	DialTimeout time.Duration
+	// Timeouts configures controller observation, managed slot, and retry budgets.
+	Timeouts raftcluster.Timeouts
+	// DataPlaneRPCTimeout is the timeout for channel data-plane RPCs.
+	DataPlaneRPCTimeout time.Duration
+	// DataPlaneMaxFetchInflight limits concurrent fetch RPCs per data-plane client.
+	DataPlaneMaxFetchInflight int
+	// DataPlaneMaxPendingFetch limits queued fetch RPCs per data-plane client.
+	DataPlaneMaxPendingFetch int
 
 	channelBootstrapDefaultMinISRSet    bool
 	followerReplicationRetryIntervalSet bool
@@ -121,6 +186,7 @@ type ClusterConfig struct {
 	longPollMaxChannelsSet              bool
 }
 
+// SetExplicitFlags records whether channel replication settings were explicitly configured.
 func (c *ClusterConfig) SetExplicitFlags(
 	channelBootstrapDefaultMinISRSet bool,
 	followerReplicationRetryIntervalSet bool,
@@ -138,6 +204,7 @@ func (c *ClusterConfig) SetExplicitFlags(
 	c.appendGroupCommitMaxBytesSet = appendGroupCommitMaxBytesSet
 }
 
+// SetReplicationExplicitFlags records whether long-poll replication settings were explicitly configured.
 func (c *ClusterConfig) SetReplicationExplicitFlags(longPollLaneCountSet, longPollMaxWaitSet, longPollMaxBytesSet, longPollMaxChannelsSet bool) {
 	if c == nil {
 		return
@@ -148,16 +215,23 @@ func (c *ClusterConfig) SetReplicationExplicitFlags(longPollLaneCountSet, longPo
 	c.longPollMaxChannelsSet = longPollMaxChannelsSet
 }
 
+// NodeConfigRef describes one node entry in the cluster membership list.
 type NodeConfigRef struct {
-	ID   uint64
+	// ID is the stable numeric cluster node ID.
+	ID uint64
+	// Addr is the node-to-node cluster RPC address for this node.
 	Addr string
 }
 
+// SlotConfig describes a deprecated static slot assignment.
 type SlotConfig struct {
-	ID    uint32
+	// ID is the deprecated static slot ID.
+	ID uint32
+	// Peers lists deprecated static slot replica node IDs.
 	Peers []uint64
 }
 
+// DerivedControllerNodes returns the sorted controller voter subset.
 func (c ClusterConfig) DerivedControllerNodes() []NodeConfigRef {
 	nodes := append([]NodeConfigRef(nil), c.Nodes...)
 	sort.Slice(nodes, func(i, j int) bool {
@@ -169,15 +243,21 @@ func (c ClusterConfig) DerivedControllerNodes() []NodeConfigRef {
 	return nodes
 }
 
+// GatewayConfig defines client gateway listener and session settings.
 type GatewayConfig struct {
-	TokenAuthOn    bool
-	SendTimeout    time.Duration
+	// TokenAuthOn enables token authentication for gateway sessions.
+	TokenAuthOn bool
+	// SendTimeout bounds how long gateway send handling waits for durable completion.
+	SendTimeout time.Duration
+	// DefaultSession defines default session buffering and timeout behavior.
 	DefaultSession gateway.SessionOptions
-	Listeners      []gateway.ListenerOptions
+	// Listeners lists gateway listener bindings.
+	Listeners []gateway.ListenerOptions
 
 	sendTimeoutSet bool
 }
 
+// SetExplicitFlags records whether gateway settings were explicitly configured.
 func (c *GatewayConfig) SetExplicitFlags(sendTimeoutSet bool) {
 	if c == nil {
 		return
@@ -185,10 +265,15 @@ func (c *GatewayConfig) SetExplicitFlags(sendTimeoutSet bool) {
 	c.sendTimeoutSet = sendTimeoutSet
 }
 
+// APIConfig configures the public HTTP API service.
 type APIConfig struct {
-	ListenAddr      string
+	// ListenAddr is the HTTP API listen address. An empty value disables the API service.
+	ListenAddr string
+	// ExternalTCPAddr is the published TCP gateway address returned by route APIs.
 	ExternalTCPAddr string
-	ExternalWSAddr  string
+	// ExternalWSAddr is the published WebSocket gateway address returned by route APIs.
+	ExternalWSAddr string
+	// ExternalWSSAddr is the published secure WebSocket gateway address returned by route APIs.
 	ExternalWSSAddr string
 }
 
@@ -227,17 +312,27 @@ type ManagerPermissionConfig struct {
 	Actions []string
 }
 
+// ConversationConfig controls conversation projection, sync limits, and batching.
 type ConversationConfig struct {
-	ColdThreshold         time.Duration
-	ActiveScanLimit       int
+	// ColdThreshold is the inactivity duration after which conversations are treated as cold.
+	ColdThreshold time.Duration
+	// ActiveScanLimit limits how many active conversations are scanned in one pass.
+	ActiveScanLimit int
+	// ChannelProbeBatchSize limits channel probes per conversation scan batch.
 	ChannelProbeBatchSize int
-	SyncDefaultLimit      int
-	SyncMaxLimit          int
-	FlushInterval         time.Duration
-	FlushDirtyLimit       int
-	SubscriberPageSize    int
+	// SyncDefaultLimit is the default number of conversations returned by sync APIs.
+	SyncDefaultLimit int
+	// SyncMaxLimit is the maximum number of conversations returned by sync APIs.
+	SyncMaxLimit int
+	// FlushInterval is the periodic conversation projector flush interval.
+	FlushInterval time.Duration
+	// FlushDirtyLimit is the dirty conversation count that triggers an eager flush.
+	FlushDirtyLimit int
+	// SubscriberPageSize is the page size used when scanning channel subscribers for projection side effects.
+	SubscriberPageSize int
 }
 
+// ApplyDefaultsAndValidate fills default values and validates cross-field constraints.
 func (c *Config) ApplyDefaultsAndValidate() error {
 	if c == nil {
 		return fmt.Errorf("%w: nil config", ErrInvalidConfig)

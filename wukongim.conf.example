@@ -3,10 +3,16 @@
 WK_NODE_ID=1
 WK_NODE_NAME=node-1
 WK_NODE_DATA_DIR=./data/node-1
+# Optional: override storage paths. Defaults are derived from WK_NODE_DATA_DIR.
+# WK_STORAGE_DB_PATH=./data/node-1/data
+# WK_STORAGE_RAFT_PATH=./data/node-1/raft
+# WK_STORAGE_CHANNEL_LOG_PATH=./data/node-1/channellog
 WK_STORAGE_CONTROLLER_META_PATH=./data/node-1/controller-meta
 WK_STORAGE_CONTROLLER_RAFT_PATH=./data/node-1/controller-raft
 
 WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000
+# Optional legacy alias for WK_CLUSTER_INITIAL_SLOT_COUNT; keep equal when both are set.
+# WK_CLUSTER_SLOT_COUNT=1
 WK_CLUSTER_HASH_SLOT_COUNT=256
 WK_CLUSTER_INITIAL_SLOT_COUNT=1
 WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR=2
@@ -18,6 +24,10 @@ WK_CLUSTER_CONTROLLER_REPLICA_N=1
 WK_CLUSTER_SLOT_REPLICA_N=1
 WK_CLUSTER_FORWARD_TIMEOUT=2s
 WK_CLUSTER_TICK_INTERVAL=200ms
+WK_CLUSTER_POOL_SIZE=1
+WK_CLUSTER_RAFT_WORKERS=1
+WK_CLUSTER_ELECTION_TICK=10
+WK_CLUSTER_HEARTBEAT_TICK=1
 WK_CLUSTER_DIAL_TIMEOUT=2s
 WK_CLUSTER_DATA_PLANE_RPC_TIMEOUT=1s
 WK_CLUSTER_FOLLOWER_REPLICATION_RETRY_INTERVAL=1s
@@ -61,7 +71,25 @@ WK_HEALTH_DEBUG_ENABLE=false
 
 # Optional: allow gateway send frames on the same connection to dispatch concurrently.
 # WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH=true
+# Optional: enable token authentication when verifier hooks are available.
+# WK_GATEWAY_TOKEN_AUTH_ON=false
+# Optional: gateway session safety and buffering defaults.
+# WK_GATEWAY_DEFAULT_SESSION_CLOSE_ON_HANDLER_ERROR=true
+# WK_GATEWAY_DEFAULT_SESSION_READ_BUFFER_SIZE=4096
+# WK_GATEWAY_DEFAULT_SESSION_WRITE_QUEUE_SIZE=1024
+# WK_GATEWAY_DEFAULT_SESSION_MAX_INBOUND_BYTES=1048576
+# WK_GATEWAY_DEFAULT_SESSION_MAX_OUTBOUND_BYTES=1048576
 # Optional: bound how long the gateway waits for durable send completion before failing sendack.
 # WK_GATEWAY_SEND_TIMEOUT=20s
 WK_GATEWAY_DEFAULT_SESSION_IDLE_TIMEOUT=3m
+# WK_GATEWAY_DEFAULT_SESSION_WRITE_TIMEOUT=5s
 WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"0.0.0.0:5100","transport":"gnet","protocol":"wkproto"},{"name":"ws-gateway","network":"websocket","address":"0.0.0.0:5200","transport":"gnet","protocol":"wsmux"}]
+
+WK_LOG_LEVEL=info
+WK_LOG_DIR=./logs
+WK_LOG_MAX_SIZE=100
+WK_LOG_MAX_AGE=30
+WK_LOG_MAX_BACKUPS=10
+WK_LOG_COMPRESS=true
+WK_LOG_CONSOLE=true
+WK_LOG_FORMAT=console
