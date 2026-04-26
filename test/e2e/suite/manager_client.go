@@ -3,6 +3,7 @@
 package suite
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -72,9 +73,191 @@ type ManagerNodeSlotStats struct {
 	LeaderCount int `json:"leader_count"`
 }
 
+// ManagerNodeOnboardingCandidatesResponse mirrors the manager onboarding candidate list.
+type ManagerNodeOnboardingCandidatesResponse struct {
+	Total int                              `json:"total"`
+	Items []ManagerNodeOnboardingCandidate `json:"items"`
+}
+
+// ManagerNodeOnboardingCandidate mirrors the manager onboarding candidate node DTO.
+type ManagerNodeOnboardingCandidate struct {
+	NodeID      uint64 `json:"node_id"`
+	Name        string `json:"name"`
+	Addr        string `json:"addr"`
+	Role        string `json:"role"`
+	JoinState   string `json:"join_state"`
+	Status      string `json:"status"`
+	SlotCount   int    `json:"slot_count"`
+	LeaderCount int    `json:"leader_count"`
+	Recommended bool   `json:"recommended"`
+}
+
+// ManagerNodeOnboardingJob mirrors the manager onboarding job DTO used by e2e.
+type ManagerNodeOnboardingJob struct {
+	JobID        string                      `json:"job_id"`
+	TargetNodeID uint64                      `json:"target_node_id"`
+	Status       string                      `json:"status"`
+	Plan         ManagerNodeOnboardingPlan   `json:"plan"`
+	Moves        []ManagerNodeOnboardingMove `json:"moves"`
+	ResultCounts ManagerNodeOnboardingCounts `json:"result_counts"`
+	LastError    string                      `json:"last_error"`
+}
+
+// ManagerNodeOnboardingPlan mirrors the reviewed onboarding plan.
+type ManagerNodeOnboardingPlan struct {
+	TargetNodeID   uint64                               `json:"target_node_id"`
+	Summary        ManagerNodeOnboardingPlanSummary     `json:"summary"`
+	Moves          []ManagerNodeOnboardingPlanMove      `json:"moves"`
+	BlockedReasons []ManagerNodeOnboardingBlockedReason `json:"blocked_reasons"`
+}
+
+// ManagerNodeOnboardingPlanSummary mirrors aggregate plan load effects.
+type ManagerNodeOnboardingPlanSummary struct {
+	CurrentTargetSlotCount   int `json:"current_target_slot_count"`
+	PlannedTargetSlotCount   int `json:"planned_target_slot_count"`
+	CurrentTargetLeaderCount int `json:"current_target_leader_count"`
+	PlannedLeaderGain        int `json:"planned_leader_gain"`
+}
+
+// ManagerNodeOnboardingPlanMove mirrors one planned Slot move.
+type ManagerNodeOnboardingPlanMove struct {
+	SlotID                 uint32   `json:"slot_id"`
+	SourceNodeID           uint64   `json:"source_node_id"`
+	TargetNodeID           uint64   `json:"target_node_id"`
+	DesiredPeersBefore     []uint64 `json:"desired_peers_before"`
+	DesiredPeersAfter      []uint64 `json:"desired_peers_after"`
+	LeaderTransferRequired bool     `json:"leader_transfer_required"`
+}
+
+// ManagerNodeOnboardingBlockedReason mirrors one planner blocked reason.
+type ManagerNodeOnboardingBlockedReason struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// ManagerNodeOnboardingMove mirrors one durable execution move.
+type ManagerNodeOnboardingMove struct {
+	SlotID    uint32 `json:"slot_id"`
+	Status    string `json:"status"`
+	LastError string `json:"last_error"`
+}
+
+// ManagerNodeOnboardingCounts mirrors job result counters.
+type ManagerNodeOnboardingCounts struct {
+	Pending   int `json:"pending"`
+	Running   int `json:"running"`
+	Completed int `json:"completed"`
+	Failed    int `json:"failed"`
+	Skipped   int `json:"skipped"`
+}
+
 // ManagerConnection mirrors the subset of the manager connections response used by e2e.
 type ManagerConnection struct {
 	UID string `json:"uid"`
+}
+
+// FetchNodeOnboardingCandidates fetches manager onboarding candidates from the started node.
+func FetchNodeOnboardingCandidates(ctx context.Context, node StartedNode) (ManagerNodeOnboardingCandidatesResponse, []byte, error) {
+	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, "/manager/node-onboarding/candidates")
+	if err != nil {
+		return ManagerNodeOnboardingCandidatesResponse{}, nil, err
+	}
+
+	resp, err := decodeNodeOnboardingCandidatesResponse(body)
+	if err != nil {
+		return ManagerNodeOnboardingCandidatesResponse{}, body, err
+	}
+	return resp, body, nil
+}
+
+// CreateNodeOnboardingPlan creates a manager-reviewed onboarding plan for targetNodeID.
+func CreateNodeOnboardingPlan(ctx context.Context, node StartedNode, targetNodeID uint64) (ManagerNodeOnboardingJob, []byte, error) {
+	body, err := postHTTPJSONBody(ctx, node.Spec.ManagerAddr, "/manager/node-onboarding/plan", map[string]uint64{"target_node_id": targetNodeID})
+	if err != nil {
+		return ManagerNodeOnboardingJob{}, nil, err
+	}
+
+	job, err := decodeNodeOnboardingJobResponse(body)
+	if err != nil {
+		return ManagerNodeOnboardingJob{}, body, err
+	}
+	return job, body, nil
+}
+
+// StartNodeOnboardingJob starts a planned onboarding job through the manager API.
+func StartNodeOnboardingJob(ctx context.Context, node StartedNode, jobID string) (ManagerNodeOnboardingJob, []byte, error) {
+	body, err := postHTTPJSONBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/node-onboarding/jobs/%s/start", jobID), nil)
+	if err != nil {
+		return ManagerNodeOnboardingJob{}, nil, err
+	}
+
+	job, err := decodeNodeOnboardingJobResponse(body)
+	if err != nil {
+		return ManagerNodeOnboardingJob{}, body, err
+	}
+	return job, body, nil
+}
+
+// FetchNodeOnboardingJob fetches one onboarding job through the manager API.
+func FetchNodeOnboardingJob(ctx context.Context, node StartedNode, jobID string) (ManagerNodeOnboardingJob, []byte, error) {
+	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/node-onboarding/jobs/%s", jobID))
+	if err != nil {
+		return ManagerNodeOnboardingJob{}, nil, err
+	}
+
+	job, err := decodeNodeOnboardingJobResponse(body)
+	if err != nil {
+		return ManagerNodeOnboardingJob{}, body, err
+	}
+	return job, body, nil
+}
+
+// WaitForNodeOnboardingJob waits until a manager onboarding job satisfies accept.
+func WaitForNodeOnboardingJob(ctx context.Context, node StartedNode, jobID string, accept func(ManagerNodeOnboardingJob) bool) (ManagerNodeOnboardingJob, []byte, error) {
+	ticker := time.NewTicker(readyPollInterval)
+	defer ticker.Stop()
+
+	var (
+		lastErr  error
+		lastBody []byte
+	)
+	for {
+		job, body, err := FetchNodeOnboardingJob(ctx, node, jobID)
+		if err == nil {
+			lastBody = body
+			if accept == nil || accept(job) {
+				return job, body, nil
+			}
+			lastErr = fmt.Errorf("onboarding job %s did not satisfy expected state", jobID)
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			if lastErr != nil {
+				return ManagerNodeOnboardingJob{}, lastBody, lastErr
+			}
+			return ManagerNodeOnboardingJob{}, lastBody, ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func decodeNodeOnboardingCandidatesResponse(body []byte) (ManagerNodeOnboardingCandidatesResponse, error) {
+	var resp ManagerNodeOnboardingCandidatesResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return ManagerNodeOnboardingCandidatesResponse{}, err
+	}
+	return resp, nil
+}
+
+func decodeNodeOnboardingJobResponse(body []byte) (ManagerNodeOnboardingJob, error) {
+	var job ManagerNodeOnboardingJob
+	if err := json.Unmarshal(body, &job); err != nil {
+		return ManagerNodeOnboardingJob{}, err
+	}
+	return job, nil
 }
 
 // FetchSlotDetail fetches one manager slot detail from the started node.
@@ -301,6 +484,42 @@ func fetchHTTPBody(ctx context.Context, addr, path string) ([]byte, error) {
 		return nil, fmt.Errorf("manager endpoint %s returned %d: %s", path, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	return body, nil
+}
+
+func postHTTPJSONBody(ctx context.Context, addr, path string, payload any) ([]byte, error) {
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	var body io.Reader
+	if payload != nil {
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
+		body = bytes.NewReader(data)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+addr+path, body)
+	if err != nil {
+		return nil, err
+	}
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("manager endpoint %s returned %d: %s", path, resp.StatusCode, strings.TrimSpace(string(respBody)))
+	}
+	return respBody, nil
 }
 
 func parseSlotTopology(slotID uint32, expectedNodeIDs []uint64, body []byte) (SlotTopology, error) {

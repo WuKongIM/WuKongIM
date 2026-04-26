@@ -10,7 +10,7 @@ This domain covers black-box cluster membership and control-plane behavior that 
 
 | Scenario | Purpose | Run |
 | --- | --- | --- |
-| `dynamic_node_join` | Prove a fourth data node can join a running three-node cluster through seed config and exchange WKProto person messages with an existing node. | `go test -tags=e2e ./test/e2e/cluster/dynamic_node_join -count=1` |
+| `dynamic_node_join` | Prove a fourth data node can join a running three-node cluster through seed config, exchange WKProto person messages with an existing node, and receive Slot resources through manager onboarding. | `go test -tags=e2e ./test/e2e/cluster/dynamic_node_join -count=1` |
 
 ## Maintenance Rules
 
