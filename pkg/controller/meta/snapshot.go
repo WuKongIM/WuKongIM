@@ -80,6 +80,7 @@ func (s *Store) ImportSnapshot(ctx context.Context, data []byte) error {
 		recordPrefixAssignment,
 		recordPrefixRuntimeView,
 		recordPrefixTask,
+		recordPrefixOnboardingJob,
 	} {
 		if err := s.checkContext(ctx); err != nil {
 			return err
@@ -113,6 +114,7 @@ func (s *Store) collectSnapshotEntriesLocked(ctx context.Context) ([]snapshotEnt
 		recordPrefixAssignment,
 		recordPrefixRuntimeView,
 		recordPrefixTask,
+		recordPrefixOnboardingJob,
 	} {
 		lowerBound, upperBound := prefixBounds(prefix)
 		iter, err := s.db.NewIter(&pebble.IterOptions{
@@ -275,6 +277,9 @@ func validateSnapshotValue(key, value []byte) error {
 		return err
 	case recordPrefixTask:
 		_, err := decodeReconcileTask(key, value)
+		return err
+	case recordPrefixOnboardingJob:
+		_, err := decodeOnboardingJob(key, value)
 		return err
 	default:
 		return ErrCorruptValue

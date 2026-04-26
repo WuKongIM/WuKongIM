@@ -13,12 +13,13 @@ const (
 	clusterNodeRecordVersion1 byte = 1
 	clusterNodeRecordVersion2 byte = 2
 
-	recordPrefixNode        byte = 'n'
-	recordPrefixMembership  byte = 'm'
-	recordPrefixAssignment  byte = 'a'
-	recordPrefixRuntimeView byte = 'v'
-	recordPrefixTask        byte = 't'
-	recordPrefixHashSlot    byte = 'h'
+	recordPrefixNode          byte = 'n'
+	recordPrefixMembership    byte = 'm'
+	recordPrefixAssignment    byte = 'a'
+	recordPrefixRuntimeView   byte = 'v'
+	recordPrefixTask          byte = 't'
+	recordPrefixHashSlot      byte = 'h'
+	recordPrefixOnboardingJob byte = 'o'
 )
 
 func encodeNodeKey(nodeID uint64) []byte {
@@ -87,6 +88,9 @@ func validateSnapshotKey(key []byte) error {
 		return nil
 	case recordPrefixAssignment, recordPrefixRuntimeView, recordPrefixTask:
 		_, err := decodeGroupKey(key, key[0])
+		return err
+	case recordPrefixOnboardingJob:
+		_, err := decodeOnboardingJobKey(key)
 		return err
 	default:
 		return ErrCorruptValue
