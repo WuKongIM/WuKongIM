@@ -42,6 +42,10 @@ API.MarkNodeDraining(ctx, nodeID) / ResumeNode(ctx, nodeID)
 API.TransferSlotLeader(ctx, slotID, nodeID) / RecoverSlot(ctx, slotID, strategy) / RecoverSlotStrict(ctx, slotID, strategy)
 API.TransportPoolStats()
 Cluster.AddSlot(ctx) / RemoveSlot(ctx, slotID) / Rebalance(ctx)
+API.ListNodeOnboardingCandidates(ctx)
+API.CreateNodeOnboardingPlan(ctx, targetNodeID, retryOfJobID)
+API.StartNodeOnboardingJob(ctx, jobID)
+API.ListNodeOnboardingJobs(ctx, limit, cursor) / GetNodeOnboardingJob(ctx, jobID) / RetryNodeOnboardingJob(ctx, jobID)
 
 // 传输层 — 共享给业务层注册额外 Handler
 API.Server() / RPCMux() / Discovery() / RPCService(ctx, nodeID, slotID, serviceID, payload)
@@ -67,6 +71,7 @@ API.Server() / RPCMux() / Discovery() / RPCService(ctx, nodeID, slotID, serviceI
 | `runtimeObservationReporter` | runtime_observation_reporter.go | 节点侧 runtime 增量上报器：mirror / dirtyViews / closedSlots / needFullSync |
 | `observationCache` | observation_cache.go | leader-local 观测缓存：节点心跳 + `runtimeViewsByNode` 聚合视图 + TTL 淘汰 |
 | `ObserverHooks` | config.go:71 | 可观测钩子：OnControllerCall / OnControllerDecision / OnReconcileStep / OnForwardPropose / OnSlotEnsure / OnTaskResult / OnHashSlotMigration / OnLeaderChange / OnNodeStatusChange |
+| `NodeOnboardingCandidate` | onboarding.go | 管理后台扩容候选节点：节点状态、当前 Slot replica 数、leader 数、是否推荐 |
 
 ## 5. 核心流程
 
@@ -234,7 +239,17 @@ controllerTickOnce(ctx):
         - `FullSync=false`：增量 upsert + `ClosedSlots` 删除
         - snapshot 时按 slot 聚合为 planner 需要的视图
         - 长期未更新节点通过 coarse TTL 淘汰 zombie runtime view
-  ③ planner.NextDecision(state)
+  ③ advanceNodeOnboardingOnce(state)
+     → 若存在 running onboarding job，每轮最多推进一个状态转移：
+       - pending move: propose NodeOnboardingJobUpdate，同时写入目标 Assignment + TaskKindRebalance
+       - running move: 等待 Assignment/Runtime 收敛；必要时调用 TransferSlotLeader 后再完成 move
+       - 全部 move 终态成功: 标记 job completed；异常: 标记 failed
+     → 如果本轮已推进 onboarding，直接返回，避免同 tick 再做普通 planner 决策
+  ④ 若仍有 running onboarding job:
+     → state.PauseRebalance=true，暂停普通自动 Rebalance
+     → state.LockedSlots=currentOnboardingLockedSlots，锁住当前 onboarding move 的 Slot
+     → Bootstrap/Repair 仍允许 planner 处理
+  ⑤ planner.NextDecision(state)
      → 如果有新决策且对应 Slot 无现有任务 → Propose(AssignmentTaskUpdate)
      → 成功后通过 OnControllerDecision 上报任务类型与决策耗时
 ```
@@ -409,6 +424,28 @@ Delta 转发 (运行时):
        task_result       → Propose(TaskResult)
        start/advance/finalize/abort_migration → Propose(Migration)
        add_slot/remove_slot → Propose(AddSlot/RemoveSlot)
+       list_onboarding_candidates → 读取严格 leader 视图，返回 Active Data 节点当前 Slot/leader 负载和推荐状态
+       create_onboarding_plan → 基于当前 leader 状态生成并持久化 planned job；blocked plan 也会保存，供管理后台解释原因
+       start_onboarding_job → 校验 planned job 指纹和可执行性，提案 running 状态；若其它 job 已 running 返回 onboarding error code
+       list/get_onboarding_job → 读取持久化 job，列表按 manager-facing created_at desc 分页
+       retry_onboarding_job → 仅允许 failed job，基于原 target 创建新的 planned job，并保留 retry_of_job_id
+```
+
+### 5.9 新节点资源分配（Node Onboarding）
+
+```
+管理后台 / internal/usecase/management:
+  ① GET candidates：查看 Active Data 节点当前 Slot replica / Leader 数，识别新加入但尚未承载资源的节点
+  ② POST plan：选择 target_node_id，Controller Leader 生成 durable planned job（含 moves、blocked reasons、plan fingerprint）
+  ③ POST jobs/:job_id/start：只启动已审核的 planned job，不重新生成计划
+  ④ GET jobs / jobs/:job_id：轮询进度和每个 move 的 running/completed/failed/skipped 状态
+  ⑤ POST jobs/:job_id/retry：failed job 才能重试，创建新的 planned job
+
+执行语义:
+  - 新节点 Join + Activate 只进入 membership/discovery，不会自动获得 Slot replica/Leader。
+  - Onboarding job 通过 Rebalance 任务把选定 Slot replica 串行迁入 target；需要时在 move 完成前把 Slot Leader 转到 target。
+  - 同一时间只允许一个 running onboarding job；running 期间普通自动 Rebalance 暂停，避免扩容计划被其它均衡任务打乱。
+  - 每个 controller tick 最多提案一个 onboarding command，确保 assignment/task/job 三者状态可追踪、可恢复。
 ```
 
 ## 6. RPC Service IDs
@@ -419,7 +456,7 @@ Delta 转发 (运行时):
 | 14 | `rpcServiceController` | Controller 控制面 RPC | codec_control.go |
 | 20 | `rpcServiceManagedSlot` | 受管 Slot 操作 RPC | managed_slots.go |
 
-**Controller RPC 操作** (17 种): `heartbeat` / `runtime_report` / `join_cluster` / `list_assignments` / `list_nodes` / `list_runtime_views` / `fetch_observation_delta` / `operator` / `get_task` / `force_reconcile` / `task_result` / `start_migration` / `advance_migration` / `finalize_migration` / `abort_migration` / `add_slot` / `remove_slot`
+**Controller RPC 操作** (23 种): `heartbeat` / `runtime_report` / `join_cluster` / `list_assignments` / `list_nodes` / `list_runtime_views` / `fetch_observation_delta` / `operator` / `get_task` / `force_reconcile` / `task_result` / `start_migration` / `advance_migration` / `finalize_migration` / `abort_migration` / `add_slot` / `remove_slot` / `list_onboarding_candidates` / `create_onboarding_plan` / `start_onboarding_job` / `list_onboarding_jobs` / `get_onboarding_job` / `retry_onboarding_job`
 
 **Managed Slot RPC 操作** (4 种): `status` / `change_config` / `import_snapshot` / `transfer_leader`
 
@@ -438,6 +475,10 @@ Delta 转发 (运行时):
 | `ErrRerouted` | 请求被重路由 | errors.go |
 | `ErrInvalidConfig` | 配置校验失败 | errors.go |
 | `ErrManualRecoveryRequired` | 可达副本不足法定人数 | errors.go |
+| `ErrOnboardingRunningJobExists` | 已有其它新节点资源分配作业在运行 | onboarding.go |
+| `ErrOnboardingPlanNotExecutable` | 审核计划当前不可执行或含 blocked reason | onboarding.go |
+| `ErrOnboardingPlanStale` | 审核计划指纹与当前 Controller 状态不一致 | onboarding.go |
+| `ErrOnboardingInvalidJobState` | 对 job 当前状态执行了非法操作（如非 failed 重试） | onboarding.go |
 
 ## 8. 避坑清单
 
@@ -466,3 +507,6 @@ Delta 转发 (运行时):
 - **observeOnce 容忍 SyncAssignments 失败**: 即使 `SyncAssignments` 返回错误，只要本地有缓存的 assignments 且错误是可降级的，仍会触发 `ApplyAssignments`。保证网络抖动时调和不停滞。
 - **运行时状态机注册**: `newStateMachine` 创建状态机后立即调用 `registerRuntimeStateMachine`，使后续 `updateRuntimeHashSlotTable` 能推送最新 hash slot 集合。漏注册会导致迁移后状态机不知道自己拥有哪些 hash slot。
 - **Config 校验**: `HashSlotCount >= InitialSlotCount` 是硬性约束；`HashSlotCount > 1` 时必须提供 `NewStateMachineWithHashSlots` 工厂函数；`ControllerReplicaN` 和 `SlotReplicaN` 不能超过节点数。
+- **新节点加入不等于资源分配**: dynamic join + activation 只让节点进入 Active Data membership；要承载 Slot replica/Leader，必须通过 manager onboarding job 显式 plan/start。
+- **Onboarding API 不走本地降级**: 候选、计划、启动、列表、详情、重试都必须由 controller leader 的严格视图处理，避免不同节点基于滞后 metadata 创建冲突计划。
+- **Onboarding 执行与普通 Rebalance 隔离**: running job 存在时 `controllerTickOnce()` 先推进 onboarding；未推进时才运行 planner，并设置 PauseRebalance/LockedSlots，防止普通 Rebalance 抢占 onboarding Slot。

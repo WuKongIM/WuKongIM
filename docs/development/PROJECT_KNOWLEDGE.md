@@ -14,3 +14,4 @@
 - Dynamic node join adds ordinary data nodes only; Controller Raft voter changes remain explicit future operator work.
 - Dynamic join startup retries JoinCluster synchronously before app HTTP/gateway services start; non-blocking joining readiness is future lifecycle work.
 - Controller state-machine join conflicts are stale no-ops; Join RPC prechecks still return explicit conflict errors to callers.
+- Active data nodes added by dynamic join do not automatically receive Slot replicas or Leaders; operators must create and start a manager node onboarding job for explicit resource allocation.

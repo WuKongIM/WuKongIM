@@ -9,7 +9,7 @@
 
 | 子包 | 入口/核心类型 | 职责 |
 |------|-------------|------|
-| `meta/` | `meta.Store` | Pebble KV 持久化：Node / Assignment / Task / Membership 的 CRUD；`RuntimeView` 结构仍保留但 steady-state 读路径已转为 leader 本地 observation |
+| `meta/` | `meta.Store` | Pebble KV 持久化：Node / Assignment / Task / Membership / NodeOnboardingJob 的 CRUD；`RuntimeView` 结构仍保留但 steady-state 读路径已转为 leader 本地 observation |
 | `raft/` | `raft.NewService()` → `Service` | Raft 共识服务：事件循环、提案处理、日志持久化、Leader 选举 |
 | `plane/` | `plane.NewController()` → `Controller` | 控制面逻辑：StateMachine 命令应用 + Planner 调度决策 + Controller.Tick 编排 |
 
@@ -36,7 +36,8 @@ StateMachine.Apply(ctx, Command) error
 | `SlotAssignment` | meta/types.go | Slot分配：SlotID, DesiredPeers, ConfigEpoch, BalanceVersion |
 | `SlotRuntimeView` | meta/types.go | Slot运行时：CurrentPeers, LeaderID, HasQuorum, ObservedConfigEpoch |
 | `ReconcileTask` | meta/types.go | 调和任务：Kind(Bootstrap/Repair/Rebalance), Step, SourceNode, TargetNode, Attempt, Status |
-| `Command` | plane/commands.go | 命令信封：Kind + Report/Op/Advance/Assignment/Task/Migration/AddSlot/RemoveSlot/NodeStatusUpdate/NodeJoin/NodeJoinActivate |
+| `NodeOnboardingJob` | meta/onboarding_types.go | 新节点显式资源分配作业：planned/running/failed/completed/cancelled 状态、审核计划、执行 moves、指纹、结果计数 |
+| `Command` | plane/commands.go | 命令信封：Kind + Report/Op/Advance/Assignment/Task/Migration/AddSlot/RemoveSlot/NodeStatusUpdate/NodeJoin/NodeJoinActivate/NodeOnboarding |
 
 **节点状态转移:**
 ```
@@ -71,6 +72,10 @@ NodeHeartbeat (statemachine.go:79):
 
 NodeJoin / NodeJoinActivate:
   Join 创建 `Role=Data`、`JoinState=Joining` 的数据节点，不变更 Controller voter 集合；FullSync 后由 Controller RPC 路径提案 Activate 转为 `JoinState=Active`
+
+NodeOnboardingJobUpdate:
+  复制新节点资源分配作业的完整状态；可带 ExpectedStatus 做状态保护，可带 Assignment+Task 原子写入单个 Slot 的 Rebalance 任务
+  ExpectedStatus 不匹配、已有其它 running job、或 running-job 竞态均按幂等 no-op 处理，避免把应用冲突作为 Raft Apply fatal error 返回
 
 OperatorRequest (statemachine.go:113):
   MarkDraining → Status=Draining
@@ -125,6 +130,13 @@ RemoveSlot:
   ④ 找候选: 在maxNode上且不在minNode上, 有仲裁, 无失败任务
   ⑤ 迁移中的物理 Slot(source/target 任一侧)跳过 Repair/Rebalance，避免副本迁移和 hash-slot 数据迁移叠加
   ⑥ 按 BalanceVersion 排序(最久未动优先) → 生成 Rebalance 任务
+
+节点 Onboarding 计划 (onboarding_planner.go):
+  ① 输入 target node、Nodes、Assignments、Tasks、RuntimeViews、running jobs
+  ② 只允许 Active+Alive+Data 目标节点；不满足时生成 blocked reason，但仍可持久化 planned job 供管理后台查看
+  ③ 按当前负载模拟把 Slot replica 逐个迁入 target，跳过无 runtime view、无仲裁、已有任务、任务失败、hash-slot 迁移中、无安全 source 的 Slot
+  ④ 优先选择 source 当前为 leader 的 Slot，并按 source 负载、BalanceVersion、SlotID 做确定性排序；需要 leader 迁移时标记 LeaderTransferRequired
+  ⑤ 计划指纹使用 canonical JSON + SHA-256，Start 前重新计算，防止审核后 Assignment/Runtime 状态变化导致执行旧计划
 ```
 
 ### 5.4 Controller.Tick 编排
@@ -136,11 +148,25 @@ RemoveSlot:
   ② snapshot() → 从 Store 加载 durable Nodes/Assignments/Tasks，并从 Controller Leader 本地 observation snapshot 取 RuntimeViews
   ③ 若 leader 仍处于 warmup（尚未收到新鲜观测）则跳过本轮规划
   ④ Planner.NextDecision(state) → Decision{SlotID, Assignment, Task}
+     - 上层 cluster 可设置 PauseRebalance：暂停普通自动 Rebalance，但 Bootstrap/Repair 仍继续
+     - 上层 cluster 可设置 LockedSlots：跳过由 Onboarding 外部协调器占用的 Slot，避免普通 planner 抢同一 Slot
   ⑤ SlotID == 0 → 无需操作
   ⑥ 持久化:
      有 Assignment+Task → store.UpsertAssignmentTask (原子)
      仅 Assignment → store.UpsertAssignment
      仅 Task → store.UpsertTask
+```
+
+节点 Onboarding 执行协调 (onboarding_executor.go):
+```
+ValidateNodeOnboardingStart:
+  planned job 必须无 blocked reasons、含可执行 move，且当前状态重新生成的 plan fingerprint 必须等于审核时指纹
+
+NextNodeOnboardingAction:
+  ① 每次只返回一个状态转移，外层每个 controller tick 最多提案一条 command
+  ② pending move 若目标 Assignment 已满足则 skipped，否则写入新 Assignment + TaskKindRebalance 并把 move 标记 running
+  ③ running move 等 Assignment/Runtime 收敛；若需 leader transfer，先请求外层转移 Slot Leader，再标记 completed
+  ④ 任一兼容性错误或 leader transfer 失败会把 move/job 标记 failed；所有 moves 终态成功后 job 标记 completed
 ```
 
 ### 5.5 任务步骤推进
@@ -152,9 +178,9 @@ AddLearner → CatchUp → Promote → TransferLeader → RemoveOld
 
 ## 6. 存储层要点
 
-- **记录前缀**: `n`(Node) / `m`(Membership) / `a`(Assignment) / `v`(RuntimeView) / `t`(Task) → `meta/store.go`
+- **记录前缀**: `n`(Node) / `m`(Membership) / `a`(Assignment) / `v`(RuntimeView) / `t`(Task) / `o`(NodeOnboardingJob) → `meta/store.go`
 - **二进制编解码**: 第一字节版本号，大端序整数，varint 变长字段 → `meta/codec.go`
-- **原子操作**: `UpsertNodeAndDeleteRepairTasks` / `UpsertAssignmentTask` → 保证跨记录一致性
+- **原子操作**: `UpsertNodeAndDeleteRepairTasks` / `UpsertAssignmentTask` / `GuardedUpsertOnboardingJob` → 保证跨记录一致性；Onboarding 开始单个 move 时可在同一 batch 写 job + assignment + task
 - **快照**: Magic("WKCS") + Version + Entries + CRC32 → `meta/snapshot.go`
 
 ## 7. Raft 配置
@@ -180,3 +206,5 @@ AddLearner → CatchUp → Promote → TransferLeader → RemoveOld
 - **指数退避上限**: `retryDelay` 中 shift 上限为 30，防止溢出。重试延迟 = base × 2^(attempt-1)。
 - **Command 序列化为 JSON**: `raft/service.go:encodeCommand` 使用 JSON（非二进制），TaskAdvance.Err 序列化为 string 再反序列化为 `errors.New`。
 - **Leader 丢失时清理**: `raft/service.go:failInflightProposalsOnLeaderLoss` 在每次状态检查后清理所有 pending 提案，返回 ErrNotLeader。
+- **Onboarding Apply 冲突必须 no-op**: `NodeOnboardingJobUpdate` 的状态保护、单 running job 保护和竞态保护都不能从 StateMachine.Apply 返回业务错误；调用方必须在 propose 后重新读取 job 判断转换是否真的生效。
+- **Onboarding 与普通 Rebalance 互斥**: running onboarding job 存在时，上层 cluster tick 会暂停普通自动 Rebalance，并锁定当前 onboarding move 的 Slot；Bootstrap/Repair 仍可继续，避免扩容流程阻塞安全修复。
