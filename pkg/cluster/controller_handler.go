@@ -2,7 +2,10 @@ package cluster
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
+	"strings"
+	"time"
 
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
@@ -24,9 +27,11 @@ func (h *controllerHandler) Handle(ctx context.Context, body []byte) ([]byte, er
 
 	c := h.cluster
 	marshalRedirect := func() ([]byte, error) {
+		leaderID := c.controller.LeaderID()
 		return encodeControllerResponse(req.Kind, controllerRPCResponse{
-			NotLeader: true,
-			LeaderID:  c.controller.LeaderID(),
+			NotLeader:  true,
+			LeaderID:   leaderID,
+			LeaderAddr: c.controllerLeaderAddr(leaderID),
 		})
 	}
 	loadHashSlotTable := func() (*HashSlotTable, error) {
@@ -46,6 +51,8 @@ func (h *controllerHandler) Handle(ctx context.Context, body []byte) ([]byte, er
 	}
 
 	switch req.Kind {
+	case controllerRPCJoinCluster:
+		return h.handleJoinCluster(ctx, req, marshalRedirect, loadHashSlotTable)
 	case controllerRPCHeartbeat:
 		if req.Report == nil {
 			return nil, ErrInvalidConfig
@@ -55,6 +62,9 @@ func (h *controllerHandler) Handle(ctx context.Context, body []byte) ([]byte, er
 		}
 		if c.controllerHost == nil {
 			return nil, ErrNotStarted
+		}
+		if !c.isNodeAuthorizedForObservation(ctx, req.Report.NodeID) {
+			return nil, ErrInvalidConfig
 		}
 		c.controllerHost.applyObservation(*req.Report)
 		table, err := loadHashSlotTable()
@@ -77,6 +87,15 @@ func (h *controllerHandler) Handle(ctx context.Context, body []byte) ([]byte, er
 		}
 		if c.controllerHost == nil {
 			return nil, ErrNotStarted
+		}
+		if !c.isNodeAuthorizedForObservation(ctx, req.RuntimeReport.NodeID) {
+			return nil, ErrInvalidConfig
+		}
+		if err := c.activateJoinedNodeOnFullSync(ctx, *req.RuntimeReport); err != nil {
+			if errors.Is(err, controllerraft.ErrNotLeader) {
+				return marshalRedirect()
+			}
+			return nil, err
 		}
 		c.controllerHost.applyRuntimeReport(*req.RuntimeReport)
 		return encodeControllerResponse(req.Kind, controllerRPCResponse{})
@@ -295,4 +314,191 @@ func (h *controllerHandler) Handle(ctx context.Context, body []byte) ([]byte, er
 	default:
 		return nil, ErrInvalidConfig
 	}
+}
+
+func (h *controllerHandler) handleJoinCluster(
+	ctx context.Context,
+	req controllerRPCRequest,
+	marshalRedirect func() ([]byte, error),
+	loadHashSlotTable func() (*HashSlotTable, error),
+) ([]byte, error) {
+	if req.Join == nil {
+		return nil, ErrInvalidConfig
+	}
+	c := h.cluster
+	if leaderID := c.controller.LeaderID(); leaderID != uint64(c.cfg.NodeID) {
+		if c.controllerClient != nil {
+			resp, err := c.controllerClient.JoinCluster(ctx, *req.Join)
+			if err == nil {
+				return encodeControllerResponse(req.Kind, controllerRPCResponse{Join: &resp})
+			}
+			var joinErr *joinClusterError
+			if errors.As(err, &joinErr) {
+				return encodeControllerResponse(req.Kind, controllerRPCResponse{
+					Join: &joinClusterResponse{
+						JoinErrorCode:    joinErr.Code,
+						JoinErrorMessage: sanitizeJoinErrorMessage(joinErr.Message),
+					},
+				})
+			}
+		}
+		return marshalRedirect()
+	}
+	if c.controllerHost == nil {
+		return nil, ErrNotStarted
+	}
+
+	if resp, ok := c.validateJoinClusterRequest(ctx, *req.Join); !ok {
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{Join: resp})
+	}
+
+	joinedAt := time.Now()
+	proposeCtx, cancel := c.withControllerTimeout(ctx)
+	err := c.controller.Propose(proposeCtx, slotcontroller.Command{
+		Kind: slotcontroller.CommandKindNodeJoin,
+		NodeJoin: &slotcontroller.NodeJoinRequest{
+			NodeID:         req.Join.NodeID,
+			Name:           req.Join.Name,
+			Addr:           req.Join.Addr,
+			CapacityWeight: req.Join.CapacityWeight,
+			JoinedAt:       joinedAt,
+		},
+	})
+	cancel()
+	if err != nil {
+		switch {
+		case errors.Is(err, controllerraft.ErrNotLeader):
+			return marshalRedirect()
+		case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+			return encodeControllerResponse(req.Kind, controllerRPCResponse{Join: joinRejection(joinErrorCommitTimeout, "join commit timed out")})
+		case errors.Is(err, controllermeta.ErrInvalidArgument):
+			if resp, ok := c.validateJoinClusterRequest(ctx, *req.Join); !ok {
+				return encodeControllerResponse(req.Kind, controllerRPCResponse{Join: resp})
+			}
+			return encodeControllerResponse(req.Kind, controllerRPCResponse{Join: joinRejection(joinErrorInvalidRequest, "invalid join request")})
+		default:
+			return encodeControllerResponse(req.Kind, controllerRPCResponse{Join: joinRejection(joinErrorTemporary, "join temporarily unavailable")})
+		}
+	}
+
+	nodes, err := c.controllerMeta.ListNodes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	table, err := loadHashSlotTable()
+	if err != nil {
+		return nil, err
+	}
+	return encodeControllerResponse(req.Kind, controllerRPCResponse{
+		LeaderID:   uint64(c.cfg.NodeID),
+		LeaderAddr: c.controllerLeaderAddr(uint64(c.cfg.NodeID)),
+		Join: &joinClusterResponse{
+			Nodes:                nodes,
+			HashSlotTableVersion: table.Version(),
+			HashSlotTable:        table.Encode(),
+		},
+	})
+}
+
+func (c *Cluster) validateJoinClusterRequest(ctx context.Context, req joinClusterRequest) (*joinClusterResponse, bool) {
+	if req.NodeID == 0 || strings.TrimSpace(req.Addr) == "" || req.CapacityWeight < 0 {
+		return joinRejection(joinErrorInvalidRequest, "invalid join request"), false
+	}
+	if req.Version != supportedJoinProtocolVersion {
+		return joinRejection(joinErrorUnsupportedVersion, "unsupported join protocol version"), false
+	}
+	if c == nil || c.cfg.JoinToken == "" ||
+		subtle.ConstantTimeCompare([]byte(req.Token), []byte(c.cfg.JoinToken)) != 1 {
+		return joinRejection(joinErrorInvalidToken, "invalid join token"), false
+	}
+	existing, err := c.controllerMeta.GetNode(ctx, req.NodeID)
+	switch {
+	case err == nil:
+		if existing.Addr != req.Addr {
+			return joinRejection(joinErrorNodeIDConflict, "node id already uses a different address"), false
+		}
+	case errors.Is(err, controllermeta.ErrNotFound):
+	default:
+		return joinRejection(joinErrorTemporary, "join temporarily unavailable"), false
+	}
+	nodes, err := c.controllerMeta.ListNodes(ctx)
+	if err != nil {
+		return joinRejection(joinErrorTemporary, "join temporarily unavailable"), false
+	}
+	for _, node := range nodes {
+		if node.NodeID != req.NodeID && node.Addr == req.Addr {
+			return joinRejection(joinErrorAddrConflict, "address already belongs to another node"), false
+		}
+	}
+	return nil, true
+}
+
+func joinRejection(code joinErrorCode, message string) *joinClusterResponse {
+	return &joinClusterResponse{
+		JoinErrorCode:    code,
+		JoinErrorMessage: sanitizeJoinErrorMessage(message),
+	}
+}
+
+func sanitizeJoinErrorMessage(message string) string {
+	return strings.TrimSpace(message)
+}
+
+func (c *Cluster) controllerLeaderAddr(leaderID uint64) string {
+	if c == nil || c.discovery == nil || leaderID == 0 {
+		return ""
+	}
+	addr, err := c.discovery.Resolve(leaderID)
+	if err != nil {
+		return ""
+	}
+	return addr
+}
+
+func (c *Cluster) isNodeAuthorizedForObservation(ctx context.Context, nodeID uint64) bool {
+	if c == nil || nodeID == 0 {
+		return false
+	}
+	if !c.cfg.JoinModeEnabled() {
+		return true
+	}
+	for _, node := range c.cfg.Nodes {
+		if uint64(node.NodeID) == nodeID {
+			return true
+		}
+	}
+	if c.controllerHost != nil {
+		if snapshot, ok := c.controllerHost.metadataSnapshot(); ok {
+			if node, exists := snapshot.NodesByID[nodeID]; exists {
+				return node.JoinState != controllermeta.NodeJoinStateRejected
+			}
+		}
+	}
+	if c.controllerMeta == nil {
+		return false
+	}
+	node, err := c.controllerMeta.GetNode(ctx, nodeID)
+	return err == nil && node.JoinState != controllermeta.NodeJoinStateRejected
+}
+
+func (c *Cluster) activateJoinedNodeOnFullSync(ctx context.Context, report runtimeObservationReport) error {
+	if c == nil || c.controller == nil || c.controllerMeta == nil || !report.FullSync || report.NodeID == 0 {
+		return nil
+	}
+	node, err := c.controllerMeta.GetNode(ctx, report.NodeID)
+	if errors.Is(err, controllermeta.ErrNotFound) {
+		return nil
+	}
+	if err != nil || node.JoinState != controllermeta.NodeJoinStateJoining {
+		return err
+	}
+	proposeCtx, cancel := c.withControllerTimeout(ctx)
+	defer cancel()
+	return c.controller.Propose(proposeCtx, slotcontroller.Command{
+		Kind: slotcontroller.CommandKindNodeJoinActivate,
+		NodeJoinActivate: &slotcontroller.NodeJoinActivateRequest{
+			NodeID:      report.NodeID,
+			ActivatedAt: report.ObservedAt,
+		},
+	})
 }

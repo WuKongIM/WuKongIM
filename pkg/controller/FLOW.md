@@ -32,11 +32,11 @@ StateMachine.Apply(ctx, Command) error
 
 | 类型 | 文件 | 说明 |
 |------|------|------|
-| `ClusterNode` | meta/types.go | 节点：NodeID, Addr, Status(Alive/Suspect/Dead/Draining), LastHeartbeatAt, CapacityWeight |
+| `ClusterNode` | meta/types.go | 节点：NodeID, Name, Addr, Role, JoinState, Status(Alive/Suspect/Dead/Draining), JoinedAt, LastHeartbeatAt, CapacityWeight |
 | `SlotAssignment` | meta/types.go | Slot分配：SlotID, DesiredPeers, ConfigEpoch, BalanceVersion |
 | `SlotRuntimeView` | meta/types.go | Slot运行时：CurrentPeers, LeaderID, HasQuorum, ObservedConfigEpoch |
 | `ReconcileTask` | meta/types.go | 调和任务：Kind(Bootstrap/Repair/Rebalance), Step, SourceNode, TargetNode, Attempt, Status |
-| `Command` | plane/commands.go | 命令信封：Kind + Report/Op/Advance/Assignment/Task/Migration/AddSlot/RemoveSlot/NodeStatusUpdate |
+| `Command` | plane/commands.go | 命令信封：Kind + Report/Op/Advance/Assignment/Task/Migration/AddSlot/RemoveSlot/NodeStatusUpdate/NodeJoin/NodeJoinActivate |
 
 **节点状态转移:**
 ```
@@ -68,6 +68,9 @@ Unknown → Alive ←→ Suspect(心跳>3s) → Dead(心跳>10s)
 ```
 NodeHeartbeat (statemachine.go:79):
   兼容命令；仍可查找/创建节点并更新 Addr/Heartbeat/Weight/RuntimeView，但 steady-state 观测路径已不再持续提案该命令
+
+NodeJoin / NodeJoinActivate:
+  Join 创建 `Role=Data`、`JoinState=Joining` 的数据节点；FullSync 后由 Controller RPC 路径提案 Activate 转为 `JoinState=Active`
 
 OperatorRequest (statemachine.go:113):
   MarkDraining → Status=Draining

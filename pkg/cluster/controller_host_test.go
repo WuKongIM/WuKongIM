@@ -60,6 +60,21 @@ func requireNoErr(t *testing.T, err error) {
 	}
 }
 
+func TestControllerHostMetadataDirtyIncludesNodeJoinCommands(t *testing.T) {
+	for _, kind := range []slotcontroller.CommandKind{
+		slotcontroller.CommandKindNodeJoin,
+		slotcontroller.CommandKindNodeJoinActivate,
+	} {
+		cmd := slotcontroller.Command{Kind: kind}
+		if !shouldMarkMetadataSnapshotDirty(cmd) {
+			t.Fatalf("shouldMarkMetadataSnapshotDirty(%d) = false, want true", kind)
+		}
+		if !shouldEnqueueMetadataSnapshotReload(cmd) {
+			t.Fatalf("shouldEnqueueMetadataSnapshotReload(%d) = false, want true", kind)
+		}
+	}
+}
+
 func TestControllerHostHashSlotSnapshotReloadsOnLocalLeaderChange(t *testing.T) {
 	_, host, _ := newTestLocalControllerCluster(t, false)
 

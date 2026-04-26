@@ -29,10 +29,13 @@ const (
 	controllerRPCAbortMigration        string           = "abort_migration"
 	controllerRPCAddSlot               string           = "add_slot"
 	controllerRPCRemoveSlot            string           = "remove_slot"
+	controllerRPCJoinCluster           string           = "join_cluster"
 )
 
 const (
-	controllerCodecVersion byte = 1
+	controllerCodecVersion       byte = 1
+	clusterNodeWireVersion2      byte = 0xFF
+	supportedJoinProtocolVersion      = "1"
 
 	controllerRespFlagNotLeader byte = 1 << iota
 	controllerRespFlagNotFound
@@ -57,6 +60,7 @@ const (
 	controllerKindAbortMigration
 	controllerKindAddSlot
 	controllerKindRemoveSlot
+	controllerKindJoinCluster
 )
 
 type controllerRPCRequest struct {
@@ -70,6 +74,7 @@ type controllerRPCRequest struct {
 	Migration        *slotcontroller.MigrationRequest
 	AddSlot          *slotcontroller.AddSlotRequest
 	RemoveSlot       *slotcontroller.RemoveSlotRequest
+	Join             *joinClusterRequest
 }
 
 type controllerTaskAdvance struct {
@@ -91,6 +96,7 @@ type controllerRPCResponse struct {
 	NotLeader            bool
 	NotFound             bool
 	LeaderID             uint64
+	LeaderAddr           string
 	Nodes                []controllermeta.ClusterNode
 	Assignments          []controllermeta.SlotAssignment
 	RuntimeViews         []controllermeta.SlotRuntimeView
@@ -99,6 +105,24 @@ type controllerRPCResponse struct {
 	Task                 *controllermeta.ReconcileTask
 	HashSlotTableVersion uint64
 	HashSlotTable        []byte
+	Join                 *joinClusterResponse
+}
+
+type joinClusterRequest struct {
+	NodeID         uint64
+	Name           string
+	Addr           string
+	CapacityWeight int
+	Token          string
+	Version        string
+}
+
+type joinClusterResponse struct {
+	Nodes                []controllermeta.ClusterNode
+	HashSlotTableVersion uint64
+	HashSlotTable        []byte
+	JoinErrorCode        joinErrorCode
+	JoinErrorMessage     string
 }
 
 func encodeControllerRequest(req controllerRPCRequest) ([]byte, error) {
@@ -241,6 +265,11 @@ func encodeControllerRequestPayload(req controllerRPCRequest) ([]byte, error) {
 			return nil, ErrInvalidConfig
 		}
 		return encodeRemoveSlotRequest(*req.RemoveSlot), nil
+	case controllerRPCJoinCluster:
+		if req.Join == nil {
+			return nil, ErrInvalidConfig
+		}
+		return encodeJoinClusterRequest(*req.Join), nil
 	case controllerRPCListAssignments, controllerRPCListNodes, controllerRPCListRuntimeViews, controllerRPCListTasks, controllerRPCGetTask, controllerRPCForceReconcile:
 		return nil, nil
 	default:
@@ -306,6 +335,13 @@ func decodeControllerRequestPayload(req *controllerRPCRequest, payload []byte) e
 		}
 		req.RemoveSlot = &removeSlot
 		return nil
+	case controllerRPCJoinCluster:
+		join, err := decodeJoinClusterRequest(payload)
+		if err != nil {
+			return err
+		}
+		req.Join = &join
+		return nil
 	case controllerRPCListAssignments, controllerRPCListNodes, controllerRPCListRuntimeViews, controllerRPCListTasks, controllerRPCGetTask, controllerRPCForceReconcile:
 		if len(payload) != 0 {
 			return ErrInvalidConfig
@@ -342,6 +378,8 @@ func encodeControllerResponsePayload(kind string, resp controllerRPCResponse) ([
 			return nil, nil
 		}
 		return encodeReconcileTask(*resp.Task), nil
+	case controllerRPCJoinCluster:
+		return encodeJoinClusterResponse(resp.LeaderAddr, resp.Join), nil
 	default:
 		return nil, ErrInvalidConfig
 	}
@@ -414,6 +452,14 @@ func decodeControllerResponsePayload(kind string, resp *controllerRPCResponse, p
 		}
 		resp.Task = &task
 		return nil
+	case controllerRPCJoinCluster:
+		leaderAddr, join, err := decodeJoinClusterResponse(payload)
+		if err != nil {
+			return err
+		}
+		resp.LeaderAddr = leaderAddr
+		resp.Join = &join
+		return nil
 	default:
 		return ErrInvalidConfig
 	}
@@ -455,6 +501,8 @@ func controllerKindCode(kind string) (byte, error) {
 		return controllerKindAddSlot, nil
 	case controllerRPCRemoveSlot:
 		return controllerKindRemoveSlot, nil
+	case controllerRPCJoinCluster:
+		return controllerKindJoinCluster, nil
 	default:
 		return controllerKindUnknown, ErrInvalidConfig
 	}
@@ -496,6 +544,8 @@ func controllerKindName(kind byte) (string, error) {
 		return controllerRPCAddSlot, nil
 	case controllerKindRemoveSlot:
 		return controllerRPCRemoveSlot, nil
+	case controllerKindJoinCluster:
+		return controllerRPCJoinCluster, nil
 	default:
 		return "", ErrInvalidConfig
 	}
@@ -845,6 +895,102 @@ func decodeRemoveSlotRequest(body []byte) (slotcontroller.RemoveSlotRequest, err
 	return slotcontroller.RemoveSlotRequest{SlotID: binary.BigEndian.Uint64(body)}, nil
 }
 
+func encodeJoinClusterRequest(req joinClusterRequest) []byte {
+	body := make([]byte, 0, 48+len(req.Name)+len(req.Addr)+len(req.Token)+len(req.Version))
+	body = binary.BigEndian.AppendUint64(body, req.NodeID)
+	body = appendString(body, req.Name)
+	body = appendString(body, req.Addr)
+	body = appendInt64(body, int64(req.CapacityWeight))
+	body = appendString(body, req.Token)
+	return appendString(body, req.Version)
+}
+
+func decodeJoinClusterRequest(body []byte) (joinClusterRequest, error) {
+	nodeID, rest, err := readUint64(body)
+	if err != nil {
+		return joinClusterRequest{}, err
+	}
+	name, rest, err := readString(rest)
+	if err != nil {
+		return joinClusterRequest{}, err
+	}
+	addr, rest, err := readString(rest)
+	if err != nil {
+		return joinClusterRequest{}, err
+	}
+	capacityWeight, rest, err := readInt64(rest)
+	if err != nil {
+		return joinClusterRequest{}, err
+	}
+	token, rest, err := readString(rest)
+	if err != nil {
+		return joinClusterRequest{}, err
+	}
+	version, rest, err := readString(rest)
+	if err != nil || len(rest) != 0 {
+		return joinClusterRequest{}, ErrInvalidConfig
+	}
+	return joinClusterRequest{
+		NodeID:         nodeID,
+		Name:           name,
+		Addr:           addr,
+		CapacityWeight: int(capacityWeight),
+		Token:          token,
+		Version:        version,
+	}, nil
+}
+
+func encodeJoinClusterResponse(leaderAddr string, resp *joinClusterResponse) []byte {
+	body := make([]byte, 0, 64+len(leaderAddr))
+	body = appendString(body, leaderAddr)
+	if resp == nil {
+		resp = &joinClusterResponse{}
+	}
+	body = appendBytes(body, encodeClusterNodes(resp.Nodes))
+	body = binary.BigEndian.AppendUint64(body, resp.HashSlotTableVersion)
+	body = appendBytes(body, resp.HashSlotTable)
+	body = appendString(body, string(resp.JoinErrorCode))
+	return appendString(body, resp.JoinErrorMessage)
+}
+
+func decodeJoinClusterResponse(body []byte) (string, joinClusterResponse, error) {
+	leaderAddr, rest, err := readString(body)
+	if err != nil {
+		return "", joinClusterResponse{}, err
+	}
+	nodesBody, rest, err := readBytes(rest)
+	if err != nil {
+		return "", joinClusterResponse{}, err
+	}
+	nodes, err := decodeClusterNodes(nodesBody)
+	if err != nil {
+		return "", joinClusterResponse{}, err
+	}
+	version, rest, err := readUint64(rest)
+	if err != nil {
+		return "", joinClusterResponse{}, err
+	}
+	table, rest, err := readBytes(rest)
+	if err != nil {
+		return "", joinClusterResponse{}, err
+	}
+	code, rest, err := readString(rest)
+	if err != nil {
+		return "", joinClusterResponse{}, err
+	}
+	message, rest, err := readString(rest)
+	if err != nil || len(rest) != 0 {
+		return "", joinClusterResponse{}, ErrInvalidConfig
+	}
+	return leaderAddr, joinClusterResponse{
+		Nodes:                nodes,
+		HashSlotTableVersion: version,
+		HashSlotTable:        table,
+		JoinErrorCode:        joinErrorCode(code),
+		JoinErrorMessage:     message,
+	}, nil
+}
+
 func encodeHashSlotTableSync(version uint64, table []byte) []byte {
 	body := make([]byte, 0, 8+binary.MaxVarintLen64+len(table))
 	body = binary.BigEndian.AppendUint64(body, version)
@@ -927,7 +1073,11 @@ func appendClusterNode(dst []byte, node controllermeta.ClusterNode) []byte {
 	dst = appendString(dst, node.Addr)
 	dst = append(dst, byte(node.Status))
 	dst = appendInt64(dst, node.LastHeartbeatAt.UnixNano())
-	return appendInt64(dst, int64(node.CapacityWeight))
+	dst = appendInt64(dst, int64(node.CapacityWeight))
+	dst = append(dst, clusterNodeWireVersion2)
+	dst = appendString(dst, node.Name)
+	dst = append(dst, byte(node.Role), byte(node.JoinState))
+	return appendInt64(dst, unixNanoOrZero(node.JoinedAt))
 }
 
 func consumeClusterNode(body []byte) (controllermeta.ClusterNode, []byte, error) {
@@ -951,13 +1101,48 @@ func consumeClusterNode(body []byte) (controllermeta.ClusterNode, []byte, error)
 	if err != nil {
 		return controllermeta.ClusterNode{}, nil, err
 	}
+	name := ""
+	role := controllermeta.NodeRoleData
+	joinState := controllermeta.NodeJoinStateActive
+	joinedAt := time.Unix(0, lastHeartbeatAtUnix)
+	if len(rest) > 0 && rest[0] == clusterNodeWireVersion2 {
+		name, rest, err = readString(rest[1:])
+		if err != nil {
+			return controllermeta.ClusterNode{}, nil, err
+		}
+		if len(rest) < 2 {
+			return controllermeta.ClusterNode{}, nil, ErrInvalidConfig
+		}
+		role = controllermeta.NodeRole(rest[0])
+		joinState = controllermeta.NodeJoinState(rest[1])
+		joinedAtUnix, next, err := readInt64(rest[2:])
+		if err != nil {
+			return controllermeta.ClusterNode{}, nil, err
+		}
+		joinedAt = time.Unix(0, joinedAtUnix)
+		if joinedAtUnix == 0 {
+			joinedAt = time.Time{}
+		}
+		rest = next
+	}
 	return controllermeta.ClusterNode{
 		NodeID:          nodeID,
+		Name:            name,
 		Addr:            addr,
+		Role:            role,
+		JoinState:       joinState,
 		Status:          status,
+		JoinedAt:        joinedAt,
 		LastHeartbeatAt: time.Unix(0, lastHeartbeatAtUnix),
 		CapacityWeight:  int(capacityWeight),
 	}, rest, nil
+}
+
+func unixNanoOrZero(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixNano()
 }
 
 func encodeAssignments(assignments []controllermeta.SlotAssignment) []byte {

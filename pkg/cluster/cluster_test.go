@@ -2885,6 +2885,9 @@ type fakeControllerClient struct {
 	addSlotErr                  error
 	removeSlotFn                func(context.Context, slotcontroller.RemoveSlotRequest) error
 	removeSlotErr               error
+	joinClusterFn               func(context.Context, joinClusterRequest) (joinClusterResponse, error)
+	joinClusterResp             joinClusterResponse
+	joinClusterErr              error
 }
 
 type fakeHashSlotMigrationWorker struct {
@@ -3140,6 +3143,13 @@ func (f fakeControllerClient) RemoveSlot(ctx context.Context, req slotcontroller
 		return f.removeSlotFn(ctx, req)
 	}
 	return f.removeSlotErr
+}
+
+func (f fakeControllerClient) JoinCluster(ctx context.Context, req joinClusterRequest) (joinClusterResponse, error) {
+	if f.joinClusterFn != nil {
+		return f.joinClusterFn(ctx, req)
+	}
+	return f.joinClusterResp, f.joinClusterErr
 }
 
 func TestGroupAgentShouldExecuteTaskUsesLowestAliveAssignedPeerForBootstrap(t *testing.T) {

@@ -27,7 +27,7 @@ type transportResources struct {
 	rpcPool        *transport.Pool
 	raftClient     *transport.Client
 	fwdClient      *transport.Client
-	discovery      *StaticDiscovery
+	discovery      Discovery
 }
 
 type controllerResources struct {

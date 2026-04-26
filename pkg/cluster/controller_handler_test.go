@@ -212,6 +212,245 @@ func TestControllerHandlerHeartbeatUpdatesNodeObservationOnly(t *testing.T) {
 	}
 }
 
+func TestControllerHandlerJoinClusterLeaderProposesNodeJoin(t *testing.T) {
+	cluster, host, _ := newTestLocalControllerCluster(t, true)
+	cluster.cfg.JoinToken = "join-secret"
+	handler := &controllerHandler{cluster: cluster}
+
+	body, err := encodeControllerRequest(controllerRPCRequest{
+		Kind: controllerRPCJoinCluster,
+		Join: &joinClusterRequest{
+			NodeID:         2,
+			Name:           "worker-2",
+			Addr:           "127.0.0.1:2222",
+			CapacityWeight: 5,
+			Token:          "join-secret",
+			Version:        supportedJoinProtocolVersion,
+		},
+	})
+	if err != nil {
+		t.Fatalf("encodeControllerRequest() error = %v", err)
+	}
+
+	respBody, err := handler.Handle(context.Background(), body)
+	if err != nil {
+		t.Fatalf("controllerHandler.Handle() error = %v", err)
+	}
+	resp, err := decodeControllerResponse(controllerRPCJoinCluster, respBody)
+	if err != nil {
+		t.Fatalf("decodeControllerResponse() error = %v", err)
+	}
+	if resp.NotLeader {
+		t.Fatal("controllerHandler.Handle() NotLeader = true, want false")
+	}
+	if resp.Join == nil {
+		t.Fatal("Join = nil, want payload")
+	}
+	if resp.Join.JoinErrorCode != joinErrorNone {
+		t.Fatalf("JoinErrorCode = %q, want empty", resp.Join.JoinErrorCode)
+	}
+	if resp.Join.HashSlotTableVersion == 0 || len(resp.Join.HashSlotTable) == 0 {
+		t.Fatalf("hash slot sync = version %d bytes %d, want payload", resp.Join.HashSlotTableVersion, len(resp.Join.HashSlotTable))
+	}
+	if len(resp.Join.Nodes) != 1 || resp.Join.Nodes[0].NodeID != 2 {
+		t.Fatalf("Join.Nodes = %#v, want joined node", resp.Join.Nodes)
+	}
+
+	node, err := host.meta.GetNode(context.Background(), 2)
+	if err != nil {
+		t.Fatalf("GetNode() error = %v", err)
+	}
+	if node.Name != "worker-2" || node.Addr != "127.0.0.1:2222" {
+		t.Fatalf("joined node identity = %+v", node)
+	}
+	if node.JoinState != controllermeta.NodeJoinStateJoining || node.Role != controllermeta.NodeRoleData {
+		t.Fatalf("joined node membership = role %d state %d", node.Role, node.JoinState)
+	}
+}
+
+func TestControllerHandlerJoinClusterRejectsInvalidTokenWithoutProposal(t *testing.T) {
+	cluster, host, _ := newTestLocalControllerCluster(t, true)
+	cluster.cfg.JoinToken = "join-secret"
+	handler := &controllerHandler{cluster: cluster}
+
+	before, err := host.raftDB.ForController().LastIndex(context.Background())
+	if err != nil {
+		t.Fatalf("LastIndex(before) error = %v", err)
+	}
+	body, err := encodeControllerRequest(controllerRPCRequest{
+		Kind: controllerRPCJoinCluster,
+		Join: &joinClusterRequest{
+			NodeID:         2,
+			Addr:           "127.0.0.1:2222",
+			Token:          "wrong",
+			Version:        supportedJoinProtocolVersion,
+			CapacityWeight: 1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("encodeControllerRequest() error = %v", err)
+	}
+
+	respBody, err := handler.Handle(context.Background(), body)
+	if err != nil {
+		t.Fatalf("controllerHandler.Handle() error = %v", err)
+	}
+	resp, err := decodeControllerResponse(controllerRPCJoinCluster, respBody)
+	if err != nil {
+		t.Fatalf("decodeControllerResponse() error = %v", err)
+	}
+	if resp.Join == nil || resp.Join.JoinErrorCode != joinErrorInvalidToken {
+		t.Fatalf("join response = %+v, want invalid token", resp.Join)
+	}
+	if _, err := host.meta.GetNode(context.Background(), 2); err != controllermeta.ErrNotFound {
+		t.Fatalf("GetNode() error = %v, want not found", err)
+	}
+	after, err := host.raftDB.ForController().LastIndex(context.Background())
+	if err != nil {
+		t.Fatalf("LastIndex(after) error = %v", err)
+	}
+	if after != before {
+		t.Fatalf("LastIndex() after invalid token = %d, want unchanged %d", after, before)
+	}
+}
+
+func TestControllerHandlerJoinClusterRejectsConflictsWithExplicitCodes(t *testing.T) {
+	cluster, host, _ := newTestLocalControllerCluster(t, true)
+	cluster.cfg.JoinToken = "join-secret"
+	handler := &controllerHandler{cluster: cluster}
+
+	requireNoErr(t, host.meta.UpsertNode(context.Background(), controllermeta.ClusterNode{
+		NodeID:          2,
+		Addr:            "127.0.0.1:2222",
+		Status:          controllermeta.NodeStatusAlive,
+		LastHeartbeatAt: time.Unix(1710000500, 0),
+		CapacityWeight:  1,
+	}))
+
+	for _, tc := range []struct {
+		name string
+		req  joinClusterRequest
+		code joinErrorCode
+	}{
+		{
+			name: "node id conflict",
+			req: joinClusterRequest{
+				NodeID: 2, Addr: "127.0.0.1:3333", Token: "join-secret", Version: supportedJoinProtocolVersion,
+			},
+			code: joinErrorNodeIDConflict,
+		},
+		{
+			name: "address conflict",
+			req: joinClusterRequest{
+				NodeID: 3, Addr: "127.0.0.1:2222", Token: "join-secret", Version: supportedJoinProtocolVersion,
+			},
+			code: joinErrorAddrConflict,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := tc.req
+			body, err := encodeControllerRequest(controllerRPCRequest{Kind: controllerRPCJoinCluster, Join: &req})
+			if err != nil {
+				t.Fatalf("encodeControllerRequest() error = %v", err)
+			}
+			respBody, err := handler.Handle(context.Background(), body)
+			if err != nil {
+				t.Fatalf("controllerHandler.Handle() error = %v", err)
+			}
+			resp, err := decodeControllerResponse(controllerRPCJoinCluster, respBody)
+			if err != nil {
+				t.Fatalf("decodeControllerResponse() error = %v", err)
+			}
+			if resp.Join == nil || resp.Join.JoinErrorCode != tc.code {
+				t.Fatalf("join response = %+v, want code %q", resp.Join, tc.code)
+			}
+		})
+	}
+}
+
+func TestControllerHandlerDynamicJoinRejectsUnknownObservationReports(t *testing.T) {
+	cluster, _, _ := newTestLocalControllerCluster(t, true)
+	cluster.cfg.JoinToken = "join-secret"
+	handler := &controllerHandler{cluster: cluster}
+
+	heartbeatBody, err := encodeControllerRequest(controllerRPCRequest{
+		Kind: controllerRPCHeartbeat,
+		Report: &slotcontroller.AgentReport{
+			NodeID:     2,
+			Addr:       "127.0.0.1:2222",
+			ObservedAt: time.Unix(1710000600, 0),
+		},
+	})
+	if err != nil {
+		t.Fatalf("encodeControllerRequest() error = %v", err)
+	}
+	if _, err := handler.Handle(context.Background(), heartbeatBody); err != ErrInvalidConfig {
+		t.Fatalf("heartbeat Handle() error = %v, want %v", err, ErrInvalidConfig)
+	}
+
+	runtimeBody, err := encodeControllerRequest(controllerRPCRequest{
+		Kind: controllerRPCRuntimeReport,
+		RuntimeReport: &runtimeObservationReport{
+			NodeID:     2,
+			ObservedAt: time.Unix(1710000601, 0),
+			FullSync:   true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("encodeControllerRequest() error = %v", err)
+	}
+	if _, err := handler.Handle(context.Background(), runtimeBody); err != ErrInvalidConfig {
+		t.Fatalf("runtime Handle() error = %v, want %v", err, ErrInvalidConfig)
+	}
+}
+
+func TestControllerHandlerRuntimeFullSyncActivatesJoiningNode(t *testing.T) {
+	cluster, host, _ := newTestLocalControllerCluster(t, true)
+	cluster.cfg.JoinToken = "join-secret"
+	handler := &controllerHandler{cluster: cluster}
+
+	requireNoErr(t, host.meta.UpsertNode(context.Background(), controllermeta.ClusterNode{
+		NodeID:          2,
+		Addr:            "127.0.0.1:2222",
+		Role:            controllermeta.NodeRoleData,
+		JoinState:       controllermeta.NodeJoinStateJoining,
+		Status:          controllermeta.NodeStatusAlive,
+		JoinedAt:        time.Unix(1710000600, 0),
+		LastHeartbeatAt: time.Unix(1710000600, 0),
+		CapacityWeight:  1,
+	}))
+	body, err := encodeControllerRequest(controllerRPCRequest{
+		Kind: controllerRPCRuntimeReport,
+		RuntimeReport: &runtimeObservationReport{
+			NodeID:     2,
+			ObservedAt: time.Unix(1710000700, 0),
+			FullSync:   true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("encodeControllerRequest() error = %v", err)
+	}
+
+	respBody, err := handler.Handle(context.Background(), body)
+	if err != nil {
+		t.Fatalf("controllerHandler.Handle() error = %v", err)
+	}
+	resp, err := decodeControllerResponse(controllerRPCRuntimeReport, respBody)
+	if err != nil {
+		t.Fatalf("decodeControllerResponse() error = %v", err)
+	}
+	if resp.NotLeader {
+		t.Fatal("controllerHandler.Handle() NotLeader = true, want false")
+	}
+	node, err := host.meta.GetNode(context.Background(), 2)
+	if err != nil {
+		t.Fatalf("GetNode() error = %v", err)
+	}
+	if node.JoinState != controllermeta.NodeJoinStateActive {
+		t.Fatalf("JoinState = %d, want active", node.JoinState)
+	}
+}
+
 func TestControllerHandlerHeartbeatUsesHashSlotSnapshotWhenWarm(t *testing.T) {
 	cluster, host, _ := newTestLocalControllerCluster(t, true)
 	handler := &controllerHandler{cluster: cluster}
@@ -807,7 +1046,8 @@ func newTestLocalControllerCluster(t *testing.T, start bool) (*Cluster, *control
 		cfg:    cfg,
 		router: NewRouter(NewHashSlotTable(cfg.effectiveHashSlotCount(), int(cfg.effectiveInitialSlotCount())), cfg.NodeID, nil),
 		transportResources: transportResources{
-			server: layer.server,
+			server:    layer.server,
+			discovery: layer.discovery,
 		},
 		controllerResources: controllerResources{
 			controllerHost: host,

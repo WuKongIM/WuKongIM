@@ -558,7 +558,8 @@ func (h *controllerHost) handleCommittedCommand(cmd slotcontroller.Command) {
 	}
 	h.emitCommittedNodeStatusChanges(nodeStatusChanges)
 	switch cmd.Kind {
-	case slotcontroller.CommandKindNodeStatusUpdate, slotcontroller.CommandKindOperatorRequest:
+	case slotcontroller.CommandKindNodeStatusUpdate, slotcontroller.CommandKindOperatorRequest,
+		slotcontroller.CommandKindNodeJoin, slotcontroller.CommandKindNodeJoinActivate:
 		h.refreshWarmupReady()
 	}
 	h.markPlannerDirty()
@@ -849,7 +850,9 @@ func shouldMarkMetadataSnapshotDirty(cmd slotcontroller.Command) bool {
 		slotcontroller.CommandKindAbortMigration,
 		slotcontroller.CommandKindAddSlot,
 		slotcontroller.CommandKindRemoveSlot,
-		slotcontroller.CommandKindNodeStatusUpdate:
+		slotcontroller.CommandKindNodeStatusUpdate,
+		slotcontroller.CommandKindNodeJoin,
+		slotcontroller.CommandKindNodeJoinActivate:
 		return true
 	default:
 		return false

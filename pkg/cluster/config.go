@@ -64,6 +64,12 @@ type Config struct {
 	Observer                     ObserverHooks
 	TransportObserver            transport.ObserverHooks
 	Logger                       wklog.Logger
+	// Seeds lists bootstrap controller RPC endpoints used by a joining node before it has full membership.
+	Seeds []SeedConfig
+	// AdvertiseAddr is this node's externally reachable cluster RPC address for dynamic membership.
+	AdvertiseAddr string
+	// JoinToken authenticates JoinCluster requests; it must be identical across nodes that accept joiners.
+	JoinToken string
 }
 
 type Timeouts struct {
@@ -321,6 +327,11 @@ func (c Config) HasLocalControllerPeer() bool {
 
 func (c Config) ControllerEnabled() bool {
 	return c.ControllerMetaPath != "" && c.ControllerRaftPath != ""
+}
+
+// JoinModeEnabled reports whether dynamic join configuration is present.
+func (c Config) JoinModeEnabled() bool {
+	return len(c.Seeds) > 0 || c.AdvertiseAddr != "" || c.JoinToken != ""
 }
 
 func (c Config) effectiveInitialSlotCount() uint32 {

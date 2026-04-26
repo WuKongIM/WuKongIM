@@ -60,6 +60,139 @@ func TestControllerCodecRoundTripRequest(t *testing.T) {
 	}
 }
 
+func TestControllerCodecJoinClusterRoundTrip(t *testing.T) {
+	joinedAt := time.Unix(1710001234, 99)
+	reqBody, err := encodeControllerRequest(controllerRPCRequest{
+		Kind: controllerRPCJoinCluster,
+		Join: &joinClusterRequest{
+			NodeID:         4,
+			Name:           "worker-4",
+			Addr:           "10.0.0.4:1111",
+			CapacityWeight: 7,
+			Token:          "join-secret",
+			Version:        supportedJoinProtocolVersion,
+		},
+	})
+	if err != nil {
+		t.Fatalf("encodeControllerRequest() error = %v", err)
+	}
+
+	req, err := decodeControllerRequest(reqBody)
+	if err != nil {
+		t.Fatalf("decodeControllerRequest() error = %v", err)
+	}
+	if req.Kind != controllerRPCJoinCluster {
+		t.Fatalf("req.Kind = %q, want %q", req.Kind, controllerRPCJoinCluster)
+	}
+	if req.Join == nil || !reflect.DeepEqual(*req.Join, joinClusterRequest{
+		NodeID:         4,
+		Name:           "worker-4",
+		Addr:           "10.0.0.4:1111",
+		CapacityWeight: 7,
+		Token:          "join-secret",
+		Version:        supportedJoinProtocolVersion,
+	}) {
+		t.Fatalf("decoded join request = %+v", req.Join)
+	}
+
+	table := NewHashSlotTable(8, 2)
+	respBody, err := encodeControllerResponse(controllerRPCJoinCluster, controllerRPCResponse{
+		LeaderID:   1,
+		LeaderAddr: "10.0.0.1:1111",
+		Join: &joinClusterResponse{
+			Nodes: []controllermeta.ClusterNode{{
+				NodeID:          4,
+				Name:            "worker-4",
+				Addr:            "10.0.0.4:1111",
+				Role:            controllermeta.NodeRoleData,
+				JoinState:       controllermeta.NodeJoinStateJoining,
+				Status:          controllermeta.NodeStatusAlive,
+				JoinedAt:        joinedAt,
+				LastHeartbeatAt: joinedAt.Add(time.Second),
+				CapacityWeight:  7,
+			}},
+			HashSlotTableVersion: table.Version(),
+			HashSlotTable:        table.Encode(),
+		},
+	})
+	if err != nil {
+		t.Fatalf("encodeControllerResponse() error = %v", err)
+	}
+
+	resp, err := decodeControllerResponse(controllerRPCJoinCluster, respBody)
+	if err != nil {
+		t.Fatalf("decodeControllerResponse() error = %v", err)
+	}
+	if resp.LeaderID != 1 || resp.LeaderAddr != "10.0.0.1:1111" {
+		t.Fatalf("decoded leader hint = id %d addr %q", resp.LeaderID, resp.LeaderAddr)
+	}
+	if resp.Join == nil {
+		t.Fatal("resp.Join = nil, want payload")
+	}
+	if !reflect.DeepEqual(resp.Join.Nodes, []controllermeta.ClusterNode{{
+		NodeID:          4,
+		Name:            "worker-4",
+		Addr:            "10.0.0.4:1111",
+		Role:            controllermeta.NodeRoleData,
+		JoinState:       controllermeta.NodeJoinStateJoining,
+		Status:          controllermeta.NodeStatusAlive,
+		JoinedAt:        joinedAt,
+		LastHeartbeatAt: joinedAt.Add(time.Second),
+		CapacityWeight:  7,
+	}}) {
+		t.Fatalf("decoded join nodes = %+v", resp.Join.Nodes)
+	}
+	if resp.Join.HashSlotTableVersion != table.Version() || !reflect.DeepEqual(resp.Join.HashSlotTable, table.Encode()) {
+		t.Fatalf("decoded hash slot sync = version %d bytes %d", resp.Join.HashSlotTableVersion, len(resp.Join.HashSlotTable))
+	}
+}
+
+func TestControllerCodecJoinClusterRejectionRoundTrip(t *testing.T) {
+	body, err := encodeControllerResponse(controllerRPCJoinCluster, controllerRPCResponse{
+		Join: &joinClusterResponse{
+			JoinErrorCode:    joinErrorInvalidToken,
+			JoinErrorMessage: "invalid join token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("encodeControllerResponse() error = %v", err)
+	}
+
+	resp, err := decodeControllerResponse(controllerRPCJoinCluster, body)
+	if err != nil {
+		t.Fatalf("decodeControllerResponse() error = %v", err)
+	}
+	if resp.Join == nil {
+		t.Fatal("resp.Join = nil, want payload")
+	}
+	if resp.Join.JoinErrorCode != joinErrorInvalidToken || resp.Join.JoinErrorMessage != "invalid join token" {
+		t.Fatalf("decoded join rejection = %+v", resp.Join)
+	}
+}
+
+func TestControllerCodecClusterNodeMembershipFieldsRoundTrip(t *testing.T) {
+	joinedAt := time.Unix(1710002345, 0)
+	nodes := []controllermeta.ClusterNode{{
+		NodeID:          6,
+		Name:            "worker-6",
+		Addr:            "10.0.0.6:1111",
+		Role:            controllermeta.NodeRoleControllerVoter,
+		JoinState:       controllermeta.NodeJoinStateRejected,
+		Status:          controllermeta.NodeStatusSuspect,
+		JoinedAt:        joinedAt,
+		LastHeartbeatAt: joinedAt.Add(time.Second),
+		CapacityWeight:  11,
+	}}
+
+	got, err := decodeClusterNodes(encodeClusterNodes(nodes))
+	if err != nil {
+		t.Fatalf("decodeClusterNodes() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, nodes) {
+		t.Fatalf("decoded nodes = %+v, want %+v", got, nodes)
+	}
+}
+
 func TestControllerCodecRoundTripResponsePayloads(t *testing.T) {
 	nextRunAt := time.Unix(1710001111, 9876)
 	cases := []struct {

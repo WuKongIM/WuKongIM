@@ -173,6 +173,16 @@ func (s *nodeHealthScheduler) handleCommittedCommand(cmd slotcontroller.Command)
 			return
 		}
 		s.refreshNodeFromStore(context.Background(), cmd.Op.NodeID)
+	case slotcontroller.CommandKindNodeJoin:
+		if cmd.NodeJoin == nil {
+			return
+		}
+		s.refreshNodeFromStore(context.Background(), cmd.NodeJoin.NodeID)
+	case slotcontroller.CommandKindNodeJoinActivate:
+		if cmd.NodeJoinActivate == nil {
+			return
+		}
+		s.refreshNodeFromStore(context.Background(), cmd.NodeJoinActivate.NodeID)
 	}
 }
 

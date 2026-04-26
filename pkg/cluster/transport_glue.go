@@ -15,10 +15,10 @@ type transportLayer struct {
 	rpcPool    *transport.Pool
 	raftClient *transport.Client
 	fwdClient  *transport.Client
-	discovery  *StaticDiscovery
+	discovery  Discovery
 }
 
-func newTransportLayer(cfg Config, discovery *StaticDiscovery, rpcMux *transport.RPCMux) *transportLayer {
+func newTransportLayer(cfg Config, discovery Discovery, rpcMux *transport.RPCMux) *transportLayer {
 	if rpcMux == nil {
 		rpcMux = transport.NewRPCMux()
 	}

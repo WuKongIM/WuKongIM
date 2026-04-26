@@ -376,17 +376,21 @@ Delta 转发 (运行时):
      → 若 target 是本地节点：直接走 `handleControllerRPC(ctx, body)`，避免 controller self-RPC
      → 否则走 `RPCService(target, rpcServiceController=14, body)`
      → decodeControllerResponse:
-        NotLeader + LeaderID → 更新缓存，插入 leader 为首重试
+        NotLeader + LeaderID → 更新缓存，插入 leader 为首重试；join_cluster 可携带 LeaderAddr 作为临时 seed
         NotLeader + 无 LeaderID → 清除缓存，尝试下一个
         正常 → 缓存该 target 为 Leader，返回
 
 服务端 Handle(ctx, body):
   → 解码 req → 校验 Controller Leader:
-     非 Leader → marshalRedirect(LeaderID)
+     非 Leader → marshalRedirect(LeaderID, LeaderAddr)
      是 Leader → 分发处理:
        heartbeat         → 更新 leader-local observation / 刷新健康 deadline
                            → 优先读 leader-local HashSlot snapshot 返回版本/表
                            → snapshot miss 时 fallback store 并回填 snapshot
+                           → dynamic join mode 下拒绝未知节点绕过 JoinCluster
+       runtime_report    → 更新 leader-local runtime observation；FullSync 可激活 Joining 节点
+       join_cluster      → 校验 token/version/conflict → Propose(NodeJoin)
+                           → 返回显式 JoinErrorCode 或 nodes + HashSlot table
        list_assignments  → 优先读 leader-local metadata snapshot.Assignments
                            + leader-local HashSlot snapshot（miss 时 fallback store）
                            → metadata snapshot dirty / cold 时 fallback `controllerMeta.ListAssignments`
@@ -412,7 +416,7 @@ Delta 转发 (运行时):
 | 14 | `rpcServiceController` | Controller 控制面 RPC | codec_control.go |
 | 20 | `rpcServiceManagedSlot` | 受管 Slot 操作 RPC | managed_slots.go |
 
-**Controller RPC 操作** (14 种): `heartbeat` / `list_assignments` / `list_nodes` / `list_runtime_views` / `operator` / `get_task` / `force_reconcile` / `task_result` / `start_migration` / `advance_migration` / `finalize_migration` / `abort_migration` / `add_slot` / `remove_slot`
+**Controller RPC 操作** (17 种): `heartbeat` / `runtime_report` / `join_cluster` / `list_assignments` / `list_nodes` / `list_runtime_views` / `fetch_observation_delta` / `operator` / `get_task` / `force_reconcile` / `task_result` / `start_migration` / `advance_migration` / `finalize_migration` / `abort_migration` / `add_slot` / `remove_slot`
 
 **Managed Slot RPC 操作** (4 种): `status` / `change_config` / `import_snapshot` / `transfer_leader`
 

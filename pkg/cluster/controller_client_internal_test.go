@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -409,6 +410,126 @@ func TestControllerClientRuntimeReportRedirectMarksReporterForFullSync(t *testin
 	require.NoError(t, err)
 	require.Equal(t, multiraft.NodeID(2), controllerClient.cachedLeader())
 	require.Equal(t, 1, fullSyncMarks)
+}
+
+func TestControllerClientJoinClusterReturnsTypedJoinError(t *testing.T) {
+	leader := transport.NewServer()
+	leaderMux := transport.NewRPCMux()
+	leaderMux.Handle(rpcServiceController, func(_ context.Context, body []byte) ([]byte, error) {
+		req, err := decodeControllerRequest(body)
+		require.NoError(t, err)
+		require.Equal(t, controllerRPCJoinCluster, req.Kind)
+		require.NotNil(t, req.Join)
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{
+			Join: &joinClusterResponse{
+				JoinErrorCode:    joinErrorInvalidToken,
+				JoinErrorMessage: "invalid join token",
+			},
+		})
+	})
+	leader.HandleRPCMux(leaderMux)
+	require.NoError(t, leader.Start("127.0.0.1:0"))
+	t.Cleanup(leader.Stop)
+
+	discovery := &controllerClientTestDiscovery{
+		addrs: map[uint64]string{1: leader.Listener().Addr().String()},
+	}
+	pool := transport.NewPool(discovery, 1, 50*time.Millisecond)
+	t.Cleanup(pool.Close)
+
+	client := transport.NewClient(pool)
+	t.Cleanup(client.Stop)
+
+	cluster := &Cluster{
+		cfg: Config{NodeID: 2},
+		transportResources: transportResources{
+			fwdClient: client,
+		},
+	}
+	controllerClient := newControllerClient(cluster, []NodeConfig{{NodeID: 1}}, nil)
+
+	_, err := controllerClient.JoinCluster(context.Background(), joinClusterRequest{
+		NodeID:  2,
+		Addr:    "127.0.0.1:2222",
+		Token:   "wrong",
+		Version: supportedJoinProtocolVersion,
+	})
+	require.Error(t, err)
+	var joinErr *joinClusterError
+	require.True(t, errors.As(err, &joinErr))
+	require.Equal(t, joinErrorInvalidToken, joinErr.Code)
+	require.False(t, joinErr.Retryable())
+}
+
+func TestControllerClientUpdatePeersReplacesRetryTargets(t *testing.T) {
+	first := transport.NewServer()
+	firstMux := transport.NewRPCMux()
+	firstMux.Handle(rpcServiceController, func(_ context.Context, body []byte) ([]byte, error) {
+		req, err := decodeControllerRequest(body)
+		require.NoError(t, err)
+		require.Equal(t, controllerRPCJoinCluster, req.Kind)
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{
+			NotLeader: true,
+			LeaderID:  2,
+		})
+	})
+	first.HandleRPCMux(firstMux)
+	require.NoError(t, first.Start("127.0.0.1:0"))
+	t.Cleanup(first.Stop)
+
+	second := transport.NewServer()
+	secondMux := transport.NewRPCMux()
+	var seen int32
+	secondMux.Handle(rpcServiceController, func(_ context.Context, body []byte) ([]byte, error) {
+		req, err := decodeControllerRequest(body)
+		require.NoError(t, err)
+		require.Equal(t, controllerRPCJoinCluster, req.Kind)
+		atomic.AddInt32(&seen, 1)
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{
+			Join: &joinClusterResponse{
+				Nodes: []controllermeta.ClusterNode{{
+					NodeID:         2,
+					Addr:           "127.0.0.1:2222",
+					Status:         controllermeta.NodeStatusAlive,
+					CapacityWeight: 1,
+				}},
+			},
+		})
+	})
+	second.HandleRPCMux(secondMux)
+	require.NoError(t, second.Start("127.0.0.1:0"))
+	t.Cleanup(second.Stop)
+
+	discovery := &controllerClientTestDiscovery{
+		addrs: map[uint64]string{
+			1: first.Listener().Addr().String(),
+			2: second.Listener().Addr().String(),
+		},
+	}
+	pool := transport.NewPool(discovery, 1, 50*time.Millisecond)
+	t.Cleanup(pool.Close)
+
+	client := transport.NewClient(pool)
+	t.Cleanup(client.Stop)
+
+	cluster := &Cluster{
+		cfg: Config{NodeID: 3},
+		transportResources: transportResources{
+			fwdClient: client,
+		},
+	}
+	controllerClient := newControllerClient(cluster, []NodeConfig{{NodeID: 1}}, nil)
+	controllerClient.UpdatePeers([]multiraft.NodeID{2})
+
+	resp, err := controllerClient.JoinCluster(context.Background(), joinClusterRequest{
+		NodeID:  3,
+		Addr:    "127.0.0.1:3333",
+		Token:   "join-secret",
+		Version: supportedJoinProtocolVersion,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Nodes, 1)
+	require.EqualValues(t, 1, atomic.LoadInt32(&seen))
 }
 
 type recordedLogEntry struct {

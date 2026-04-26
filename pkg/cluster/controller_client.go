@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -30,11 +31,13 @@ type controllerAPI interface {
 	AbortMigration(ctx context.Context, req slotcontroller.MigrationRequest) error
 	AddSlot(ctx context.Context, req slotcontroller.AddSlotRequest) error
 	RemoveSlot(ctx context.Context, req slotcontroller.RemoveSlotRequest) error
+	JoinCluster(ctx context.Context, req joinClusterRequest) (joinClusterResponse, error)
 }
 
 type controllerClient struct {
 	cluster *Cluster
 	cache   *assignmentCache
+	peersMu sync.RWMutex
 	peers   []multiraft.NodeID
 
 	leader         atomic.Uint64
@@ -219,6 +222,45 @@ func (c *controllerClient) RemoveSlot(ctx context.Context, req slotcontroller.Re
 	return err
 }
 
+func (c *controllerClient) JoinCluster(ctx context.Context, req joinClusterRequest) (joinClusterResponse, error) {
+	resp, err := c.call(ctx, controllerRPCRequest{
+		Kind: controllerRPCJoinCluster,
+		Join: &req,
+	})
+	if err != nil {
+		return joinClusterResponse{}, err
+	}
+	if resp.Join == nil {
+		return joinClusterResponse{}, ErrInvalidConfig
+	}
+	if resp.Join.JoinErrorCode != joinErrorNone {
+		return *resp.Join, &joinClusterError{
+			Code:    resp.Join.JoinErrorCode,
+			Message: resp.Join.JoinErrorMessage,
+		}
+	}
+	if err := c.cluster.applyHashSlotTablePayload(resp.Join.HashSlotTable); err != nil {
+		return joinClusterResponse{}, err
+	}
+	return *resp.Join, nil
+}
+
+func (c *controllerClient) UpdatePeers(peers []multiraft.NodeID) {
+	if c == nil {
+		return
+	}
+	next := make([]multiraft.NodeID, 0, len(peers))
+	for _, peer := range peers {
+		if peer == 0 {
+			continue
+		}
+		next = append(next, peer)
+	}
+	c.peersMu.Lock()
+	c.peers = next
+	c.peersMu.Unlock()
+}
+
 func (c *controllerClient) call(ctx context.Context, req controllerRPCRequest) (resp controllerRPCResponse, err error) {
 	start := time.Now()
 	defer func() {
@@ -287,6 +329,7 @@ func (c *controllerClient) call(ctx context.Context, req controllerRPCRequest) (
 		if resp.NotLeader {
 			if resp.LeaderID != 0 {
 				leaderID := multiraft.NodeID(resp.LeaderID)
+				c.upsertLeaderSeed(leaderID, resp.LeaderAddr)
 				c.setLeader(leaderID)
 				if _, seen := tried[leaderID]; !seen {
 					targets = append([]multiraft.NodeID{leaderID}, targets...)
@@ -321,11 +364,12 @@ func (c *controllerClient) targets() []multiraft.NodeID {
 		leader = hintedLeader
 	}
 
-	targets := make([]multiraft.NodeID, 0, len(c.peers)+1)
+	peers := c.peerSnapshot()
+	targets := make([]multiraft.NodeID, 0, len(peers)+1)
 	if leader != 0 {
 		targets = append(targets, leader)
 	}
-	for _, peer := range c.peers {
+	for _, peer := range peers {
 		if peer == leader {
 			continue
 		}
@@ -342,12 +386,32 @@ func (c *controllerClient) localLeaderHint() (multiraft.NodeID, bool) {
 	if leader == 0 {
 		return 0, false
 	}
-	for _, peer := range c.peers {
+	for _, peer := range c.peerSnapshot() {
 		if peer == leader {
 			return leader, true
 		}
 	}
 	return 0, false
+}
+
+func (c *controllerClient) peerSnapshot() []multiraft.NodeID {
+	if c == nil {
+		return nil
+	}
+	c.peersMu.RLock()
+	defer c.peersMu.RUnlock()
+	return append([]multiraft.NodeID(nil), c.peers...)
+}
+
+func (c *controllerClient) upsertLeaderSeed(leader multiraft.NodeID, addr string) {
+	if c == nil || c.cluster == nil || leader == 0 || addr == "" {
+		return
+	}
+	discovery, ok := c.cluster.discovery.(interface{ UpsertSeed(SeedConfig) })
+	if !ok || discovery == nil {
+		return
+	}
+	discovery.UpsertSeed(SeedConfig{ID: leader, Addr: addr})
 }
 
 func (c *controllerClient) cachedLeader() multiraft.NodeID {
