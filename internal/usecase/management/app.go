@@ -42,6 +42,18 @@ type ClusterReader interface {
 	// GetMigrationStatus returns the currently active hash-slot migrations.
 	GetMigrationStatus() []raftcluster.HashSlotMigration
 	ControllerLeaderID() uint64
+	// ListNodeOnboardingCandidates returns data nodes and current Slot load for onboarding review.
+	ListNodeOnboardingCandidates(ctx context.Context) ([]raftcluster.NodeOnboardingCandidate, error)
+	// CreateNodeOnboardingPlan creates a durable reviewed onboarding plan on the controller leader.
+	CreateNodeOnboardingPlan(ctx context.Context, targetNodeID uint64, retryOfJobID string) (controllermeta.NodeOnboardingJob, error)
+	// StartNodeOnboardingJob starts a planned onboarding job.
+	StartNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
+	// ListNodeOnboardingJobs returns durable onboarding jobs in manager order.
+	ListNodeOnboardingJobs(ctx context.Context, limit int, cursor string) ([]controllermeta.NodeOnboardingJob, string, bool, error)
+	// GetNodeOnboardingJob returns one durable onboarding job.
+	GetNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
+	// RetryNodeOnboardingJob creates a replacement plan for a failed onboarding job.
+	RetryNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
 }
 
 // ChannelRuntimeMetaReader exposes authoritative slot-level channel runtime pages.

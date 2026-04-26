@@ -261,3 +261,27 @@ func (f *fakeNodeOperatorCluster) GetMigrationStatus() []raftcluster.HashSlotMig
 func (f *fakeNodeOperatorCluster) Rebalance(context.Context) ([]raftcluster.MigrationPlan, error) {
 	return nil, nil
 }
+
+func (f *fakeNodeOperatorCluster) ListNodeOnboardingCandidates(context.Context) ([]raftcluster.NodeOnboardingCandidate, error) {
+	return nil, nil
+}
+
+func (f *fakeNodeOperatorCluster) CreateNodeOnboardingPlan(context.Context, uint64, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}
+
+func (f *fakeNodeOperatorCluster) StartNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}
+
+func (f *fakeNodeOperatorCluster) ListNodeOnboardingJobs(context.Context, int, string) ([]controllermeta.NodeOnboardingJob, string, bool, error) {
+	return nil, "", false, nil
+}
+
+func (f *fakeNodeOperatorCluster) GetNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}
+
+func (f *fakeNodeOperatorCluster) RetryNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}

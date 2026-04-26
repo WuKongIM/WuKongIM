@@ -208,6 +208,30 @@ func (f fakeClusterReader) Rebalance(context.Context) ([]raftcluster.MigrationPl
 	return append([]raftcluster.MigrationPlan(nil), f.rebalancePlan...), f.rebalanceErr
 }
 
+func (f fakeClusterReader) ListNodeOnboardingCandidates(context.Context) ([]raftcluster.NodeOnboardingCandidate, error) {
+	return nil, nil
+}
+
+func (f fakeClusterReader) CreateNodeOnboardingPlan(context.Context, uint64, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}
+
+func (f fakeClusterReader) StartNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}
+
+func (f fakeClusterReader) ListNodeOnboardingJobs(context.Context, int, string) ([]controllermeta.NodeOnboardingJob, string, bool, error) {
+	return nil, "", false, nil
+}
+
+func (f fakeClusterReader) GetNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}
+
+func (f fakeClusterReader) RetryNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
+	return controllermeta.NodeOnboardingJob{}, nil
+}
+
 type nodeSummary struct {
 	NodeID          uint64
 	Status          string

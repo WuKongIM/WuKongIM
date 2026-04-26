@@ -2293,6 +2293,11 @@ type managementStub struct {
 	messagesErr                     error
 	overview                        managementusecase.Overview
 	overviewErr                     error
+	nodeOnboardingCandidates        managementusecase.NodeOnboardingCandidatesResponse
+	nodeOnboardingCandidatesErr     error
+	nodeOnboardingJob               managementusecase.NodeOnboardingJobResponse
+	nodeOnboardingJobs              managementusecase.NodeOnboardingJobsResponse
+	nodeOnboardingJobErr            error
 }
 
 func (s managementStub) ListNodes(context.Context) ([]managementusecase.Node, error) {
@@ -2369,6 +2374,30 @@ func (s managementStub) ListMessages(_ context.Context, req managementusecase.Li
 
 func (s managementStub) GetOverview(context.Context) (managementusecase.Overview, error) {
 	return s.overview, s.overviewErr
+}
+
+func (s managementStub) ListNodeOnboardingCandidates(context.Context) (managementusecase.NodeOnboardingCandidatesResponse, error) {
+	return s.nodeOnboardingCandidates, s.nodeOnboardingCandidatesErr
+}
+
+func (s managementStub) CreateNodeOnboardingPlan(context.Context, managementusecase.CreateNodeOnboardingPlanRequest) (managementusecase.NodeOnboardingJobResponse, error) {
+	return s.nodeOnboardingJob, s.nodeOnboardingJobErr
+}
+
+func (s managementStub) StartNodeOnboardingJob(context.Context, string) (managementusecase.NodeOnboardingJobResponse, error) {
+	return s.nodeOnboardingJob, s.nodeOnboardingJobErr
+}
+
+func (s managementStub) ListNodeOnboardingJobs(context.Context, managementusecase.ListNodeOnboardingJobsRequest) (managementusecase.NodeOnboardingJobsResponse, error) {
+	return s.nodeOnboardingJobs, s.nodeOnboardingJobErr
+}
+
+func (s managementStub) GetNodeOnboardingJob(context.Context, string) (managementusecase.NodeOnboardingJobResponse, error) {
+	return s.nodeOnboardingJob, s.nodeOnboardingJobErr
+}
+
+func (s managementStub) RetryNodeOnboardingJob(context.Context, string) (managementusecase.NodeOnboardingJobResponse, error) {
+	return s.nodeOnboardingJob, s.nodeOnboardingJobErr
 }
 
 type channelRuntimeMetaDetailCall struct {

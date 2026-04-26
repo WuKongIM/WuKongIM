@@ -52,6 +52,18 @@ type Management interface {
 	ListMessages(ctx context.Context, req managementusecase.ListMessagesRequest) (managementusecase.ListMessagesResponse, error)
 	// GetOverview returns the manager homepage overview DTO.
 	GetOverview(ctx context.Context) (managementusecase.Overview, error)
+	// ListNodeOnboardingCandidates returns nodes eligible for explicit onboarding allocation.
+	ListNodeOnboardingCandidates(ctx context.Context) (managementusecase.NodeOnboardingCandidatesResponse, error)
+	// CreateNodeOnboardingPlan creates a durable planned onboarding job for review.
+	CreateNodeOnboardingPlan(ctx context.Context, req managementusecase.CreateNodeOnboardingPlanRequest) (managementusecase.NodeOnboardingJobResponse, error)
+	// StartNodeOnboardingJob starts a reviewed onboarding job.
+	StartNodeOnboardingJob(ctx context.Context, jobID string) (managementusecase.NodeOnboardingJobResponse, error)
+	// ListNodeOnboardingJobs returns durable onboarding jobs.
+	ListNodeOnboardingJobs(ctx context.Context, req managementusecase.ListNodeOnboardingJobsRequest) (managementusecase.NodeOnboardingJobsResponse, error)
+	// GetNodeOnboardingJob returns one durable onboarding job.
+	GetNodeOnboardingJob(ctx context.Context, jobID string) (managementusecase.NodeOnboardingJobResponse, error)
+	// RetryNodeOnboardingJob creates a new plan from a failed onboarding job.
+	RetryNodeOnboardingJob(ctx context.Context, jobID string) (managementusecase.NodeOnboardingJobResponse, error)
 }
 
 // PermissionConfig binds a resource to allowed actions.

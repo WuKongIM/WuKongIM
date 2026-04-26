@@ -46,6 +46,22 @@ func (s *Server) registerRoutes() {
 	slotWrites.POST("/slots/:slot_id/recover", s.handleSlotRecover)
 	slotWrites.POST("/slots/rebalance", s.handleSlotRebalance)
 
+	onboardingReads := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		onboardingReads.Use(s.requirePermission("cluster.slot", "r"))
+	}
+	onboardingReads.GET("/node-onboarding/candidates", s.handleNodeOnboardingCandidates)
+	onboardingReads.GET("/node-onboarding/jobs", s.handleNodeOnboardingJobs)
+	onboardingReads.GET("/node-onboarding/jobs/:job_id", s.handleNodeOnboardingJob)
+
+	onboardingWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		onboardingWrites.Use(s.requirePermission("cluster.slot", "w"))
+	}
+	onboardingWrites.POST("/node-onboarding/plan", s.handleNodeOnboardingPlan)
+	onboardingWrites.POST("/node-onboarding/jobs/:job_id/start", s.handleNodeOnboardingStart)
+	onboardingWrites.POST("/node-onboarding/jobs/:job_id/retry", s.handleNodeOnboardingRetry)
+
 	tasks := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		tasks.Use(s.requirePermission("cluster.task", "r"))
