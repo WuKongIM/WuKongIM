@@ -501,7 +501,7 @@ The architecture refactor is successful when:
 ## 16. Non-Goals
 
 - Do not split `internal` into separate deployable services.
-- Do not introduce a standalone non-cluster mode.
+- Do not introduce a separate non-cluster deployment mode.
 - Do not change external gateway or HTTP protocol behavior as part of the architecture refactor.
 - Do not rewrite `pkg/cluster` or `pkg/channel` unless a specific adapter boundary requires a small interface adjustment.
 - Do not introduce a generic global service container.
