@@ -42,6 +42,63 @@ func TestStoreAssignmentAndTaskRoundTrip(t *testing.T) {
 	require.Equal(t, TaskKindRepair, task.Kind)
 }
 
+func TestStoreClusterNodeMembershipFieldsRoundTrip(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	joinedAt := time.Unix(10, 0)
+	heartbeatAt := time.Unix(20, 0)
+
+	err := store.UpsertNode(ctx, ClusterNode{
+		NodeID: 4, Name: "wk-node4", Addr: "wk-node4:7000",
+		Role: NodeRoleData, JoinState: NodeJoinStateActive,
+		Status: NodeStatusAlive, JoinedAt: joinedAt,
+		LastHeartbeatAt: heartbeatAt, CapacityWeight: 2,
+	})
+	require.NoError(t, err)
+
+	got, err := store.GetNode(ctx, 4)
+	require.NoError(t, err)
+	require.Equal(t, "wk-node4", got.Name)
+	require.Equal(t, NodeRoleData, got.Role)
+	require.Equal(t, NodeJoinStateActive, got.JoinState)
+	require.Equal(t, joinedAt, got.JoinedAt)
+}
+
+func TestStoreClusterNodeVersion1DefaultsMembership(t *testing.T) {
+	ctx := context.Background()
+	lastHeartbeatAt := time.Unix(30, 0)
+	value := encodeClusterNodeVersion1ForTest(ClusterNode{
+		NodeID:          5,
+		Addr:            "wk-node5:7000",
+		Status:          NodeStatusAlive,
+		LastHeartbeatAt: lastHeartbeatAt,
+		CapacityWeight:  3,
+	})
+
+	node, err := decodeClusterNode(encodeNodeKey(5), value)
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), node.NodeID)
+	require.Equal(t, "wk-node5:7000", node.Addr)
+	require.Equal(t, "", node.Name)
+	require.Equal(t, NodeRoleData, node.Role)
+	require.Equal(t, NodeJoinStateActive, node.JoinState)
+	require.Equal(t, lastHeartbeatAt, node.LastHeartbeatAt)
+	require.Equal(t, lastHeartbeatAt, node.JoinedAt)
+
+	store := openTestStore(t)
+	err = store.ImportSnapshot(ctx, encodeSnapshot([]snapshotEntry{{
+		Key:   encodeNodeKey(5),
+		Value: value,
+	}}))
+	require.NoError(t, err)
+
+	got, err := store.GetNode(ctx, 5)
+	require.NoError(t, err)
+	require.Equal(t, NodeRoleData, got.Role)
+	require.Equal(t, NodeJoinStateActive, got.JoinState)
+	require.Equal(t, lastHeartbeatAt, got.JoinedAt)
+}
+
 func TestStoreSnapshotRoundTrip(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
@@ -377,8 +434,12 @@ func TestDecodeRejectsInvalidPersistedEnums(t *testing.T) {
 		Status:          NodeStatusAlive,
 		LastHeartbeatAt: time.Unix(50, 0),
 	})
-	nodeValue[16] = 99
-	_, err := decodeClusterNode(encodeNodeKey(1), nodeValue)
+	_, nodeRest, err := readString(nodeValue[1:])
+	require.NoError(t, err)
+	_, nodeRest, err = readString(nodeRest)
+	require.NoError(t, err)
+	nodeValue[len(nodeValue)-len(nodeRest)] = 99
+	_, err = decodeClusterNode(encodeNodeKey(1), nodeValue)
 	require.ErrorIs(t, err, ErrCorruptValue)
 
 	viewValue := encodeGroupRuntimeView(SlotRuntimeView{
@@ -838,6 +899,18 @@ func appendRawUint64Slice(dst []byte, values []uint64) []byte {
 		dst = binary.BigEndian.AppendUint64(dst, value)
 	}
 	return dst
+}
+
+func encodeClusterNodeVersion1ForTest(node ClusterNode) []byte {
+	node = normalizeClusterNode(node)
+
+	data := make([]byte, 0, 32+len(node.Addr))
+	data = append(data, clusterNodeRecordVersion1)
+	data = appendString(data, node.Addr)
+	data = append(data, byte(node.Status))
+	data = appendInt64(data, node.LastHeartbeatAt.UnixNano())
+	data = appendInt64(data, int64(node.CapacityWeight))
+	return data
 }
 
 type stepCancelContext struct {

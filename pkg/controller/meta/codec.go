@@ -10,6 +10,9 @@ import (
 const (
 	recordVersion byte = 1
 
+	clusterNodeRecordVersion1 byte = 1
+	clusterNodeRecordVersion2 byte = 2
+
 	recordPrefixNode        byte = 'n'
 	recordPrefixMembership  byte = 'm'
 	recordPrefixAssignment  byte = 'a'
@@ -93,11 +96,15 @@ func validateSnapshotKey(key []byte) error {
 func encodeClusterNode(node ClusterNode) []byte {
 	node = normalizeClusterNode(node)
 
-	data := make([]byte, 0, 32+len(node.Addr))
-	data = append(data, recordVersion)
+	data := make([]byte, 0, 48+len(node.Addr)+len(node.Name))
+	data = append(data, clusterNodeRecordVersion2)
 	data = appendString(data, node.Addr)
+	data = appendString(data, node.Name)
 	data = append(data, byte(node.Status))
+	data = append(data, byte(node.Role))
+	data = append(data, byte(node.JoinState))
 	data = appendInt64(data, node.LastHeartbeatAt.UnixNano())
+	data = appendInt64(data, node.JoinedAt.UnixNano())
 	data = appendInt64(data, int64(node.CapacityWeight))
 	return data
 }
@@ -107,11 +114,20 @@ func decodeClusterNode(key, data []byte) (ClusterNode, error) {
 	if err != nil {
 		return ClusterNode{}, err
 	}
-	if len(data) == 0 || data[0] != recordVersion {
+	if len(data) == 0 {
 		return ClusterNode{}, ErrCorruptValue
 	}
-	rest := data[1:]
+	switch data[0] {
+	case clusterNodeRecordVersion1:
+		return decodeClusterNodeVersion1(nodeID, data[1:])
+	case clusterNodeRecordVersion2:
+		return decodeClusterNodeVersion2(nodeID, data[1:])
+	default:
+		return ClusterNode{}, ErrCorruptValue
+	}
+}
 
+func decodeClusterNodeVersion1(nodeID uint64, rest []byte) (ClusterNode, error) {
 	addr, rest, err := readString(rest)
 	if err != nil {
 		return ClusterNode{}, err
@@ -143,7 +159,62 @@ func decodeClusterNode(key, data []byte) (ClusterNode, error) {
 	return ClusterNode{
 		NodeID:          nodeID,
 		Addr:            addr,
+		Role:            NodeRoleData,
+		JoinState:       NodeJoinStateActive,
 		Status:          status,
+		JoinedAt:        time.Unix(0, lastHeartbeatAt),
+		LastHeartbeatAt: time.Unix(0, lastHeartbeatAt),
+		CapacityWeight:  int(capacityWeight),
+	}, nil
+}
+
+func decodeClusterNodeVersion2(nodeID uint64, rest []byte) (ClusterNode, error) {
+	addr, rest, err := readString(rest)
+	if err != nil {
+		return ClusterNode{}, err
+	}
+	if addr == "" {
+		return ClusterNode{}, ErrCorruptValue
+	}
+	name, rest, err := readString(rest)
+	if err != nil {
+		return ClusterNode{}, err
+	}
+	if len(rest) < 3 {
+		return ClusterNode{}, ErrCorruptValue
+	}
+	status := NodeStatus(rest[0])
+	role := NodeRole(rest[1])
+	joinState := NodeJoinState(rest[2])
+	if !validNodeStatus(status) || !validNodeRole(role) || !validNodeJoinState(joinState) {
+		return ClusterNode{}, ErrCorruptValue
+	}
+	rest = rest[3:]
+
+	lastHeartbeatAt, rest, err := readInt64(rest)
+	if err != nil {
+		return ClusterNode{}, err
+	}
+	joinedAt, rest, err := readInt64(rest)
+	if err != nil {
+		return ClusterNode{}, err
+	}
+	capacityWeight, rest, err := readInt64(rest)
+	if err != nil {
+		return ClusterNode{}, err
+	}
+	if len(rest) != 0 || capacityWeight <= 0 || capacityWeight > math.MaxInt {
+		return ClusterNode{}, ErrCorruptValue
+	}
+
+	return ClusterNode{
+		NodeID:          nodeID,
+		Name:            name,
+		Addr:            addr,
+		Role:            role,
+		JoinState:       joinState,
+		Status:          status,
+		JoinedAt:        time.Unix(0, joinedAt),
 		LastHeartbeatAt: time.Unix(0, lastHeartbeatAt),
 		CapacityWeight:  int(capacityWeight),
 	}, nil
@@ -357,6 +428,15 @@ func decodeControllerMembership(data []byte) (ControllerMembership, error) {
 }
 
 func normalizeClusterNode(node ClusterNode) ClusterNode {
+	if node.Role == NodeRoleUnknown {
+		node.Role = NodeRoleData
+	}
+	if node.JoinState == NodeJoinStateUnknown {
+		node.JoinState = NodeJoinStateActive
+	}
+	if node.JoinedAt.IsZero() {
+		node.JoinedAt = node.LastHeartbeatAt
+	}
 	if node.CapacityWeight == 0 {
 		node.CapacityWeight = 1
 	}
@@ -403,6 +483,14 @@ func normalizeUint64Set(values []uint64) []uint64 {
 
 func validNodeStatus(status NodeStatus) bool {
 	return status >= NodeStatusAlive && status <= NodeStatusDraining
+}
+
+func validNodeRole(role NodeRole) bool {
+	return role >= NodeRoleData && role <= NodeRoleControllerVoter
+}
+
+func validNodeJoinState(state NodeJoinState) bool {
+	return state >= NodeJoinStateJoining && state <= NodeJoinStateRejected
 }
 
 func validTaskKind(kind TaskKind) bool {

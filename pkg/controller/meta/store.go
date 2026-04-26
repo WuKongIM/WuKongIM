@@ -241,10 +241,11 @@ func (s *Store) UpsertNode(ctx context.Context, node ClusterNode) error {
 	if err := s.checkContext(ctx); err != nil {
 		return err
 	}
-	if node.NodeID == 0 || node.Addr == "" || node.CapacityWeight < 0 || !validNodeStatus(node.Status) {
-		return ErrInvalidArgument
+	var err error
+	node, err = normalizeAndValidateClusterNode(node, ErrInvalidArgument)
+	if err != nil {
+		return err
 	}
-	node = normalizeClusterNode(node)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -259,10 +260,11 @@ func (s *Store) UpsertNodeAndDeleteRepairTasks(ctx context.Context, node Cluster
 	if err := s.checkContext(ctx); err != nil {
 		return err
 	}
-	if node.NodeID == 0 || node.Addr == "" || node.CapacityWeight < 0 || !validNodeStatus(node.Status) {
-		return ErrInvalidArgument
+	var err error
+	node, err = normalizeAndValidateClusterNode(node, ErrInvalidArgument)
+	if err != nil {
+		return err
 	}
-	node = normalizeClusterNode(node)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -339,6 +341,17 @@ func containsUint64(values []uint64, target uint64) bool {
 		}
 	}
 	return false
+}
+
+func normalizeAndValidateClusterNode(node ClusterNode, invalid error) (ClusterNode, error) {
+	if node.NodeID == 0 || node.Addr == "" || node.CapacityWeight < 0 || !validNodeStatus(node.Status) {
+		return ClusterNode{}, invalid
+	}
+	node = normalizeClusterNode(node)
+	if !validNodeRole(node.Role) || !validNodeJoinState(node.JoinState) {
+		return ClusterNode{}, invalid
+	}
+	return node, nil
 }
 
 func (s *Store) GetAssignment(ctx context.Context, slotID uint32) (SlotAssignment, error) {
