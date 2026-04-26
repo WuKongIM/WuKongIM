@@ -32,7 +32,9 @@ type Pool struct {
 }
 
 type nodeConnSet struct {
-	addr    atomic.Value
+	addr atomic.Value
+	// evictMu serializes eviction with finishing in-flight dials.
+	evictMu sync.RWMutex
 	evicted atomic.Bool
 	slots   []*connSlot
 	conns   []atomic.Pointer[MuxConn]
@@ -198,11 +200,9 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 
 		addr, resolveErr := p.cfg.Discovery.Resolve(nodeID)
 		if resolveErr != nil {
-			if set.evicted.Load() {
-				slot.finishDial(nil, nil, ready)
+			if !set.finishSlotDial(slot, nil, resolveErr, ready) {
 				continue
 			}
-			slot.finishDial(nil, resolveErr, ready)
 			return nil, resolveErr
 		}
 		if set.evicted.Load() {
@@ -220,11 +220,9 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 		p.observeDial(nodeID, dialErr, time.Since(startedAt))
 		if dialErr != nil {
 			// Eviction wins over stale in-flight dial failures so callers retry with fresh discovery.
-			if set.evicted.Load() {
-				slot.finishDial(nil, nil, ready)
+			if !set.finishSlotDial(slot, nil, dialErr, ready) {
 				continue
 			}
-			slot.finishDial(nil, dialErr, ready)
 			return nil, dialErr
 		}
 		if set.evicted.Load() {
@@ -234,7 +232,7 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 		}
 		setTCPKeepAlive(raw)
 		mc := newMuxConn(raw, nil, ConnConfig{QueueSizes: p.cfg.QueueSizes, Observer: p.cfg.Observer})
-		if !slot.finishDialIfActive(mc, ready, func() bool { return !set.evicted.Load() }) {
+		if !set.finishSlotDial(slot, mc, nil, ready) {
 			continue
 		}
 		if current, ok := p.nodes.Load(nodeID); !ok || current != set || mc.closed.Load() {
@@ -368,7 +366,12 @@ func (s *nodeConnSet) evictAndClose() {
 	if s == nil {
 		return
 	}
-	s.evicted.Store(true)
+	s.evictMu.Lock()
+	if s.evicted.Swap(true) {
+		s.evictMu.Unlock()
+		return
+	}
+	s.evictMu.Unlock()
 	s.closeAndClear()
 }
 
@@ -387,29 +390,19 @@ func (s *connSlot) closeAndClear() {
 	}
 }
 
-func (s *connSlot) finishDialIfActive(mc *MuxConn, ready chan struct{}, active func() bool) bool {
-	s.mu.Lock()
-	ok := active == nil || active()
-	if ok {
-		s.conn.Store(mc)
-		if s.mirror != nil {
-			s.mirror.Store(mc)
-		}
-		s.lastErr = nil
-		s.lastDialFail = time.Time{}
+func (s *nodeConnSet) finishSlotDial(slot *connSlot, mc *MuxConn, dialErr error, ready chan struct{}) bool {
+	s.evictMu.RLock()
+	active := !s.evicted.Load()
+	if active {
+		slot.finishDial(mc, dialErr, ready)
 	} else {
-		s.lastErr = nil
-		s.lastDialFail = time.Time{}
+		slot.finishDial(nil, nil, ready)
 	}
-	if s.ready == ready {
-		s.ready = nil
-	}
-	s.mu.Unlock()
-	close(ready)
-	if !ok && mc != nil {
+	s.evictMu.RUnlock()
+	if !active && mc != nil {
 		mc.Close()
 	}
-	return ok
+	return active
 }
 
 func (s *connSlot) waiterOrCooldown() (chan struct{}, error) {
