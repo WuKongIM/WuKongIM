@@ -103,7 +103,7 @@ func (p *Pool) ClosePeer(nodeID NodeID) {
 		return
 	}
 	if value, ok := p.nodes.LoadAndDelete(nodeID); ok {
-		value.(*nodeConnSet).close()
+		value.(*nodeConnSet).closeAndClear()
 	}
 }
 
@@ -301,11 +301,22 @@ func (s *nodeConnSet) close() {
 		return
 	}
 	for i := range s.slots {
-		s.slots[i].close()
+		if mc := s.slots[i].conn.Load(); mc != nil {
+			mc.Close()
+		}
 	}
 }
 
-func (s *connSlot) close() {
+func (s *nodeConnSet) closeAndClear() {
+	if s == nil {
+		return
+	}
+	for i := range s.slots {
+		s.slots[i].closeAndClear()
+	}
+}
+
+func (s *connSlot) closeAndClear() {
 	s.mu.Lock()
 	mc := s.conn.Load()
 	s.conn.Store(nil)
