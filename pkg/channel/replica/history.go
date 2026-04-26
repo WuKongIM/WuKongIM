@@ -2,44 +2,26 @@ package replica
 
 import "github.com/WuKongIM/WuKongIM/pkg/channel"
 
-func (r *replica) appendEpochPointLocked(point channel.EpochPoint) error {
-	if len(r.epochHistory) > 0 {
-		last := r.epochHistory[len(r.epochHistory)-1]
+func appendEpochPointInMemory(history []channel.EpochPoint, point channel.EpochPoint) ([]channel.EpochPoint, error) {
+	if point.Epoch == 0 {
+		return nil, channel.ErrCorruptState
+	}
+	if len(history) > 0 {
+		last := history[len(history)-1]
 		switch {
 		case point.Epoch > last.Epoch:
 			if point.StartOffset < last.StartOffset {
-				return channel.ErrCorruptState
+				return nil, channel.ErrCorruptState
 			}
 		case point.Epoch == last.Epoch && point.StartOffset == last.StartOffset:
-			return nil
+			return history, nil
 		default:
-			return channel.ErrCorruptState
+			return nil, channel.ErrCorruptState
 		}
 	}
-
-	if err := r.history.Append(point); err != nil {
-		return err
-	}
-	r.epochHistory = append(r.epochHistory, point)
-	return nil
-}
-
-func (r *replica) truncateLogToLocked(to uint64) error {
-	if err := r.log.Truncate(to); err != nil {
-		return err
-	}
-	if err := r.log.Sync(); err != nil {
-		return err
-	}
-	if err := r.history.TruncateTo(to); err != nil {
-		return err
-	}
-	leo := r.log.LEO()
-	if leo != to {
-		return channel.ErrCorruptState
-	}
-	r.epochHistory = trimEpochHistoryToLEO(r.epochHistory, to)
-	return nil
+	out := append([]channel.EpochPoint(nil), history...)
+	out = append(out, point)
+	return out, nil
 }
 
 func trimEpochHistoryToLEO(history []channel.EpochPoint, leo uint64) []channel.EpochPoint {
@@ -55,19 +37,4 @@ func trimEpochHistoryToLEO(history []channel.EpochPoint, leo uint64) []channel.E
 		return nil
 	}
 	return append([]channel.EpochPoint(nil), history[:end]...)
-}
-
-func offsetEpochForLEO(history []channel.EpochPoint, leo uint64) uint64 {
-	if len(history) == 0 {
-		return 0
-	}
-
-	var epoch uint64
-	for _, point := range history {
-		if point.StartOffset > leo {
-			break
-		}
-		epoch = point.Epoch
-	}
-	return epoch
 }

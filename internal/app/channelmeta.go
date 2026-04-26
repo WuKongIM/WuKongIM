@@ -153,6 +153,17 @@ func (s channelSnapshotApplier) InstallSnapshot(_ context.Context, snap channel.
 	return s.store.StoreSnapshotPayload(snap.Payload)
 }
 
+func (s channelSnapshotApplier) LoadSnapshotPayload(_ context.Context) ([]byte, error) {
+	payload, err := s.store.LoadSnapshotPayload()
+	if err != nil {
+		return nil, err
+	}
+	if payload == nil {
+		return nil, channel.ErrEmptyState
+	}
+	return payload, nil
+}
+
 func (s *channelMetaSync) RefreshChannelMeta(ctx context.Context, id channel.ChannelID) (channel.Meta, error) {
 	return s.ActivateByID(ctx, id, channelruntime.ActivationSourceBusiness)
 }

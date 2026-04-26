@@ -21,9 +21,14 @@ func encodeHistoryPrefix(channelKey channel.ChannelKey) []byte {
 	return encodeTableSystemPrefix(channelKey, channelSystemTableID, channelSystemIDHistory)
 }
 
-func encodeHistoryKey(channelKey channel.ChannelKey, startOffset uint64) []byte {
+func encodeHistoryOffsetKey(channelKey channel.ChannelKey, startOffset uint64) []byte {
 	key := encodeHistoryPrefix(channelKey)
 	return binary.BigEndian.AppendUint64(key, startOffset)
+}
+
+func encodeHistoryPointKey(channelKey channel.ChannelKey, point channel.EpochPoint) []byte {
+	key := encodeHistoryOffsetKey(channelKey, point.StartOffset)
+	return binary.BigEndian.AppendUint64(key, point.Epoch)
 }
 
 func encodeSnapshotKey(channelKey channel.ChannelKey) []byte {

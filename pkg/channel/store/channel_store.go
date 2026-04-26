@@ -16,9 +16,12 @@ type ChannelStore struct {
 	messages messageTable
 
 	writeMu sync.Mutex
-	mu      sync.Mutex
-	leo     atomic.Uint64
-	loaded  atomic.Bool
+	// checkpointMu serializes monotonic checkpoint writers without queuing them
+	// behind append-only log commits.
+	checkpointMu sync.Mutex
+	mu           sync.Mutex
+	leo          atomic.Uint64
+	loaded       atomic.Bool
 
 	writeInProgress    atomic.Bool
 	durableCommitCount atomic.Int64

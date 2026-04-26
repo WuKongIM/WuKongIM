@@ -616,6 +616,42 @@ func TestChannelLeaderRepairerAppliesAuthoritativeMetaLocallyAfterRepair(t *test
 	require.Equal(t, repaired, applied[0])
 }
 
+func TestChannelLeaderRepairerEvaluatesDeadLeaderCandidateAsProjectedLeader(t *testing.T) {
+	dead := metadb.ChannelRuntimeMeta{
+		ChannelID:    "repair-candidate-projected-leader",
+		ChannelType:  1,
+		ChannelEpoch: 11,
+		LeaderEpoch:  7,
+		Replicas:     []uint64{2, 4, 5},
+		ISR:          []uint64{2, 4, 5},
+		Leader:       5,
+		MinISR:       2,
+		Status:       uint8(channel.StatusActive),
+	}
+	remote := &stubChannelLeaderRepairRemote{
+		evaluateByNode: map[uint64]accessnode.ChannelLeaderPromotionReport{
+			4: {
+				NodeID:       4,
+				ChannelEpoch: dead.ChannelEpoch,
+				CanLead:      true,
+			},
+		},
+	}
+	repairer := &channelLeaderRepairer{
+		remote:    remote,
+		localNode: 9,
+	}
+
+	_, err := repairer.evaluateLeaderCandidate(context.Background(), 4, dead, "leader_dead")
+
+	require.NoError(t, err)
+	require.Len(t, remote.evaluateCalls, 1)
+	gotMeta := remote.evaluateCalls[0].req.Meta
+	require.Equal(t, uint64(4), gotMeta.Leader)
+	require.Equal(t, []uint64{2, 4}, gotMeta.ISR)
+	require.Equal(t, dead.LeaderEpoch, gotMeta.LeaderEpoch)
+}
+
 func TestChannelLeaderRepairerRoutesRepairToRemoteSlotLeader(t *testing.T) {
 	id := channel.ChannelID{ID: "repair-remote", Type: 1}
 	observed := metadb.ChannelRuntimeMeta{
@@ -842,8 +878,9 @@ func TestChannelLeaderPromotionEvaluatorCollectPromotionProofsValidatesProbeResp
 			3: {
 				ChannelKey:   meta.Key,
 				Epoch:        meta.Epoch,
+				LeaderEpoch:  meta.LeaderEpoch,
 				Generation:   9,
-				ReplicaID:    99,
+				ReplicaID:    3,
 				OffsetEpoch:  7,
 				LogEndOffset: 12,
 				CheckpointHW: 10,
@@ -851,6 +888,7 @@ func TestChannelLeaderPromotionEvaluatorCollectPromotionProofsValidatesProbeResp
 			4: {
 				ChannelKey:   channel.ChannelKey("channel/1/bWlzbWF0Y2g="),
 				Epoch:        meta.Epoch,
+				LeaderEpoch:  meta.LeaderEpoch,
 				Generation:   0,
 				ReplicaID:    4,
 				OffsetEpoch:  7,
@@ -869,24 +907,120 @@ func TestChannelLeaderPromotionEvaluatorCollectPromotionProofsValidatesProbeResp
 	require.Len(t, proofs, 1)
 	require.Equal(t, meta.Key, proofs[0].ChannelKey)
 	require.Equal(t, meta.Epoch, proofs[0].Epoch)
+	require.Equal(t, meta.LeaderEpoch, proofs[0].LeaderEpoch)
 	require.Equal(t, channel.NodeID(3), proofs[0].ReplicaID)
+}
+
+func TestPromotionProofsRejectStaleLeaderEpoch(t *testing.T) {
+	meta := projectChannelMeta(metadb.ChannelRuntimeMeta{
+		ChannelID:    "promotion-stale-leader-epoch",
+		ChannelType:  1,
+		ChannelEpoch: 9,
+		LeaderEpoch:  7,
+		Replicas:     []uint64{2, 3},
+		ISR:          []uint64{2, 3},
+		Leader:       2,
+		MinISR:       2,
+		Status:       uint8(channel.StatusActive),
+		LeaseUntilMS: time.Now().Add(time.Minute).UnixMilli(),
+	})
+	probe := &stubChannelLeaderProbeClient{
+		responses: map[channel.NodeID]channelruntime.ReconcileProbeResponseEnvelope{
+			3: {
+				ChannelKey:   meta.Key,
+				Epoch:        meta.Epoch,
+				LeaderEpoch:  meta.LeaderEpoch - 1,
+				Generation:   0,
+				ReplicaID:    3,
+				OffsetEpoch:  9,
+				LogEndOffset: 12,
+				CheckpointHW: 10,
+			},
+		},
+	}
+	evaluator := &channelLeaderPromotionEvaluator{
+		localNode: 2,
+		probe:     probe,
+	}
+
+	proofs := evaluator.collectPromotionProofs(context.Background(), meta)
+
+	require.Empty(t, proofs)
+	require.Len(t, probe.requests, 1)
+	require.Equal(t, meta.LeaderEpoch, probe.requests[0].LeaderEpoch)
+}
+
+func TestPromotionProofsRejectMismatchedReplicaID(t *testing.T) {
+	meta := projectChannelMeta(metadb.ChannelRuntimeMeta{
+		ChannelID:    "promotion-wrong-peer",
+		ChannelType:  1,
+		ChannelEpoch: 9,
+		LeaderEpoch:  7,
+		Replicas:     []uint64{2, 3},
+		ISR:          []uint64{2, 3},
+		Leader:       2,
+		MinISR:       2,
+		Status:       uint8(channel.StatusActive),
+		LeaseUntilMS: time.Now().Add(time.Minute).UnixMilli(),
+	})
+	probe := &stubChannelLeaderProbeClient{
+		responses: map[channel.NodeID]channelruntime.ReconcileProbeResponseEnvelope{
+			3: {
+				ChannelKey:   meta.Key,
+				Epoch:        meta.Epoch,
+				LeaderEpoch:  meta.LeaderEpoch,
+				Generation:   0,
+				ReplicaID:    4,
+				OffsetEpoch:  9,
+				LogEndOffset: 12,
+				CheckpointHW: 10,
+			},
+		},
+	}
+	evaluator := &channelLeaderPromotionEvaluator{
+		localNode: 2,
+		probe:     probe,
+	}
+
+	proofs := evaluator.collectPromotionProofs(context.Background(), meta)
+
+	require.Empty(t, proofs)
 }
 
 func TestValidPromotionProbeResponseRequiresGenerationMatchWhenPinned(t *testing.T) {
 	req := channelruntime.ReconcileProbeRequestEnvelope{
-		ChannelKey: channel.ChannelKey("channel/1/cGlubmVk"),
-		Epoch:      5,
-		Generation: 7,
+		ChannelKey:  channel.ChannelKey("channel/1/cGlubmVk"),
+		Epoch:       5,
+		LeaderEpoch: 11,
+		Generation:  7,
 	}
-	require.True(t, validPromotionProbeResponse(req, channelruntime.ReconcileProbeResponseEnvelope{
-		ChannelKey: req.ChannelKey,
-		Epoch:      req.Epoch,
-		Generation: req.Generation,
+	require.True(t, validPromotionProbeResponse(req, channel.NodeID(3), channelruntime.ReconcileProbeResponseEnvelope{
+		ChannelKey:  req.ChannelKey,
+		Epoch:       req.Epoch,
+		LeaderEpoch: req.LeaderEpoch,
+		Generation:  req.Generation,
+		ReplicaID:   3,
 	}))
-	require.False(t, validPromotionProbeResponse(req, channelruntime.ReconcileProbeResponseEnvelope{
-		ChannelKey: req.ChannelKey,
-		Epoch:      req.Epoch,
-		Generation: req.Generation + 1,
+	require.False(t, validPromotionProbeResponse(req, channel.NodeID(3), channelruntime.ReconcileProbeResponseEnvelope{
+		ChannelKey:  req.ChannelKey,
+		Epoch:       req.Epoch,
+		LeaderEpoch: req.LeaderEpoch,
+		Generation:  req.Generation + 1,
+		ReplicaID:   3,
+	}))
+	require.False(t, validPromotionProbeResponse(req, channel.NodeID(3), channelruntime.ReconcileProbeResponseEnvelope{
+		ChannelKey:  req.ChannelKey,
+		Epoch:       req.Epoch,
+		LeaderEpoch: req.LeaderEpoch - 1,
+		Generation:  req.Generation,
+		ReplicaID:   3,
+	}))
+	require.False(t, validPromotionProbeResponse(req, channel.NodeID(3), channelruntime.ReconcileProbeResponseEnvelope{
+		ChannelKey:  req.ChannelKey,
+		Epoch:       req.Epoch,
+		LeaderEpoch: req.LeaderEpoch,
+		Generation:  req.Generation,
+		ReplicaID:   4,
 	}))
 }
 
@@ -985,9 +1119,11 @@ func (s *sequencedChannelLeaderRepairCluster) IsLocal(nodeID multiraft.NodeID) b
 type stubChannelLeaderProbeClient struct {
 	responses map[channel.NodeID]channelruntime.ReconcileProbeResponseEnvelope
 	errs      map[channel.NodeID]error
+	requests  []channelruntime.ReconcileProbeRequestEnvelope
 }
 
-func (s *stubChannelLeaderProbeClient) Probe(_ context.Context, peer channel.NodeID, _ channelruntime.ReconcileProbeRequestEnvelope) (channelruntime.ReconcileProbeResponseEnvelope, error) {
+func (s *stubChannelLeaderProbeClient) Probe(_ context.Context, peer channel.NodeID, req channelruntime.ReconcileProbeRequestEnvelope) (channelruntime.ReconcileProbeResponseEnvelope, error) {
+	s.requests = append(s.requests, req)
 	if err := s.errs[peer]; err != nil {
 		return channelruntime.ReconcileProbeResponseEnvelope{}, err
 	}

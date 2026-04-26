@@ -243,8 +243,10 @@ type ReplicaFollowerCursorUpdate struct {
 }
 
 type ReplicaReconcileProof struct {
-	ChannelKey   ChannelKey
-	Epoch        uint64
+	ChannelKey ChannelKey
+	Epoch      uint64
+	// LeaderEpoch fences the proof to the leader meta generation that requested it.
+	LeaderEpoch  uint64
 	ReplicaID    NodeID
 	OffsetEpoch  uint64
 	LogEndOffset uint64

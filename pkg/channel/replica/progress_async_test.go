@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const asyncCheckpointTestTimeout = 3 * time.Second
+
 type blockingCheckpointStore struct {
 	mu sync.Mutex
 
@@ -70,7 +72,7 @@ type flakyCheckpointStore struct {
 	stored     []channel.Checkpoint
 	attempts   int
 
-	firstFailed  chan struct{}
+	firstFailed   chan struct{}
 	secondStarted chan struct{}
 	releaseSecond chan struct{}
 }
@@ -140,7 +142,7 @@ func TestAdvanceCommitHWCompletesWaitersBeforeCheckpointStoreReturns(t *testing.
 func runAdvanceCommitHWCompletesWaitersBeforeCheckpointStoreReturns(t *testing.T) {
 	cluster := newThreeReplicaClusterWithMinISR(t, 2)
 	checkpoints := newBlockingCheckpointStore()
-	cluster.leader.checkpoints = checkpoints
+	replaceReplicaCheckpointStoreForTest(cluster.leader, checkpoints)
 
 	appendDone := make(chan channel.CommitResult, 1)
 	appendErr := make(chan error, 1)
@@ -161,11 +163,13 @@ func runAdvanceCommitHWCompletesWaitersBeforeCheckpointStoreReturns(t *testing.T
 	ack := func(matchOffset uint64) <-chan error {
 		done := make(chan error, 1)
 		go func() {
-			done <- cluster.leader.ApplyProgressAck(context.Background(), channel.ReplicaProgressAckRequest{
-				ChannelKey:  cluster.leader.state.ChannelKey,
-				Epoch:       cluster.leader.state.Epoch,
+			st := cluster.leader.Status()
+			done <- cluster.leader.ApplyFollowerCursor(context.Background(), channel.ReplicaFollowerCursorUpdate{
+				ChannelKey:  st.ChannelKey,
+				Epoch:       st.Epoch,
 				ReplicaID:   cluster.follower2.localNode,
 				MatchOffset: matchOffset,
+				OffsetEpoch: st.OffsetEpoch,
 			})
 		}()
 		return done
@@ -174,7 +178,7 @@ func runAdvanceCommitHWCompletesWaitersBeforeCheckpointStoreReturns(t *testing.T
 	ackOne := ack(1)
 	select {
 	case <-checkpoints.startedFirst:
-	case <-time.After(time.Second):
+	case <-time.After(asyncCheckpointTestTimeout):
 		t.Fatal("first checkpoint store did not start")
 	}
 
@@ -232,7 +236,7 @@ func TestCheckpointWriterCoalescesToLatestCommitHW(t *testing.T) {
 func runCheckpointWriterCoalescesToLatestCommitHW(t *testing.T) {
 	cluster := newThreeReplicaClusterWithMinISR(t, 2)
 	checkpoints := newBlockingCheckpointStore()
-	cluster.leader.checkpoints = checkpoints
+	replaceReplicaCheckpointStoreForTest(cluster.leader, checkpoints)
 
 	appendDone := make(chan channel.CommitResult, 1)
 	appendErr := make(chan error, 1)
@@ -253,17 +257,19 @@ func runCheckpointWriterCoalescesToLatestCommitHW(t *testing.T) {
 	for _, matchOffset := range []uint64{1, 2, 3} {
 		done := make(chan error, 1)
 		go func(offset uint64) {
-			done <- cluster.leader.ApplyProgressAck(context.Background(), channel.ReplicaProgressAckRequest{
-				ChannelKey:  cluster.leader.state.ChannelKey,
-				Epoch:       cluster.leader.state.Epoch,
+			st := cluster.leader.Status()
+			done <- cluster.leader.ApplyFollowerCursor(context.Background(), channel.ReplicaFollowerCursorUpdate{
+				ChannelKey:  st.ChannelKey,
+				Epoch:       st.Epoch,
 				ReplicaID:   cluster.follower2.localNode,
 				MatchOffset: offset,
+				OffsetEpoch: st.OffsetEpoch,
 			})
 		}(matchOffset)
 		if matchOffset == 1 {
 			select {
 			case <-checkpoints.startedFirst:
-			case <-time.After(time.Second):
+			case <-time.After(asyncCheckpointTestTimeout):
 				t.Fatal("first checkpoint store did not start")
 			}
 		}
@@ -301,7 +307,7 @@ func runCheckpointWriterCoalescesToLatestCommitHW(t *testing.T) {
 func TestCheckpointWriterRetriesFailedStoreAndRestoresCommitReady(t *testing.T) {
 	cluster := newThreeReplicaClusterWithMinISR(t, 2)
 	checkpoints := newFlakyCheckpointStore()
-	cluster.leader.checkpoints = checkpoints
+	replaceReplicaCheckpointStoreForTest(cluster.leader, checkpoints)
 
 	appendDone := make(chan channel.CommitResult, 1)
 	appendErr := make(chan error, 1)
@@ -317,11 +323,13 @@ func TestCheckpointWriterRetriesFailedStoreAndRestoresCommitReady(t *testing.T) 
 	}()
 	waitForLogAppend(t, cluster.leader.log.(*fakeLogStore), 1)
 
-	require.NoError(t, cluster.leader.ApplyProgressAck(context.Background(), channel.ReplicaProgressAckRequest{
-		ChannelKey:  cluster.leader.state.ChannelKey,
-		Epoch:       cluster.leader.state.Epoch,
+	st := cluster.leader.Status()
+	require.NoError(t, cluster.leader.ApplyFollowerCursor(context.Background(), channel.ReplicaFollowerCursorUpdate{
+		ChannelKey:  st.ChannelKey,
+		Epoch:       st.Epoch,
 		ReplicaID:   cluster.follower2.localNode,
 		MatchOffset: 1,
+		OffsetEpoch: st.OffsetEpoch,
 	}))
 
 	select {
@@ -329,18 +337,18 @@ func TestCheckpointWriterRetriesFailedStoreAndRestoresCommitReady(t *testing.T) 
 		require.Equal(t, uint64(1), result.NextCommitHW)
 	case err := <-appendErr:
 		t.Fatalf("append failed: %v", err)
-	case <-time.After(time.Second):
+	case <-time.After(asyncCheckpointTestTimeout):
 		t.Fatal("append did not complete after quorum commit")
 	}
 
 	select {
 	case <-checkpoints.firstFailed:
-	case <-time.After(time.Second):
+	case <-time.After(asyncCheckpointTestTimeout):
 		t.Fatal("checkpoint writer did not observe the injected failure")
 	}
 	select {
 	case <-checkpoints.secondStarted:
-	case <-time.After(time.Second):
+	case <-time.After(asyncCheckpointTestTimeout):
 		t.Fatal("checkpoint writer did not retry after store failure")
 	}
 
@@ -358,4 +366,178 @@ func TestCheckpointWriterRetriesFailedStoreAndRestoresCommitReady(t *testing.T) 
 		return st.CommitReady && st.CheckpointHW == 1
 	}, time.Second, 10*time.Millisecond)
 	require.Equal(t, []uint64{1}, checkpoints.storedHWs())
+}
+
+func TestCheckpointResultKeepsNewerQueuedCheckpoint(t *testing.T) {
+	r := newCheckpointLoopReplicaForTest()
+	r.mu.Lock()
+	r.state.HW = 3
+	r.state.LEO = 3
+	r.pendingCheckpoint = channel.Checkpoint{Epoch: r.state.Epoch, LogStartOffset: 0, HW: 3}
+	r.checkpointQueued = true
+	r.checkpointInFlight = true
+	r.pendingCheckpointEffectID = 1
+	r.publishStateLocked()
+	r.mu.Unlock()
+
+	result := r.applyLoopEvent(machineCheckpointStoredEvent{
+		EffectID:       1,
+		ChannelKey:     r.state.ChannelKey,
+		Epoch:          r.state.Epoch,
+		LeaderEpoch:    r.meta.LeaderEpoch,
+		RoleGeneration: r.roleGeneration,
+		Checkpoint:     channel.Checkpoint{Epoch: r.state.Epoch, LogStartOffset: 0, HW: 1},
+	})
+
+	require.NoError(t, result.Err)
+	require.Equal(t, uint64(1), r.Status().CheckpointHW)
+	select {
+	case effect := <-r.checkpointEffects:
+		require.Equal(t, uint64(3), effect.Checkpoint.HW)
+	default:
+		t.Fatal("newer queued checkpoint was not emitted after older result")
+	}
+}
+
+func TestCheckpointResultAfterCloseDoesNotPublishCheckpoint(t *testing.T) {
+	r := newCheckpointLoopReplicaForTest()
+	r.mu.Lock()
+	r.state.HW = 1
+	r.state.LEO = 1
+	r.checkpointInFlight = true
+	r.pendingCheckpointEffectID = 1
+	r.publishStateLocked()
+	r.mu.Unlock()
+	require.NoError(t, r.applyCloseCommand().Err)
+
+	result := r.applyLoopEvent(machineCheckpointStoredEvent{
+		EffectID:       1,
+		ChannelKey:     r.state.ChannelKey,
+		Epoch:          r.state.Epoch,
+		LeaderEpoch:    r.meta.LeaderEpoch,
+		RoleGeneration: r.roleGeneration - 1,
+		Checkpoint:     channel.Checkpoint{Epoch: r.state.Epoch, LogStartOffset: 0, HW: 1},
+	})
+
+	require.NoError(t, result.Err)
+	require.Equal(t, uint64(0), r.Status().CheckpointHW)
+	select {
+	case effect := <-r.checkpointEffects:
+		t.Fatalf("closed replica emitted stale checkpoint effect: %+v", effect)
+	default:
+	}
+}
+
+func TestCheckpointResultAfterTombstoneDoesNotPublishCheckpoint(t *testing.T) {
+	r := newCheckpointLoopReplicaForTest()
+	r.mu.Lock()
+	r.state.HW = 1
+	r.state.LEO = 1
+	r.checkpointInFlight = true
+	r.pendingCheckpointEffectID = 1
+	r.publishStateLocked()
+	r.mu.Unlock()
+	require.NoError(t, r.applyTombstoneCommand().Err)
+
+	result := r.applyLoopEvent(machineCheckpointStoredEvent{
+		EffectID:       1,
+		ChannelKey:     r.state.ChannelKey,
+		Epoch:          r.state.Epoch,
+		LeaderEpoch:    r.meta.LeaderEpoch,
+		RoleGeneration: r.roleGeneration - 1,
+		Checkpoint:     channel.Checkpoint{Epoch: r.state.Epoch, LogStartOffset: 0, HW: 1},
+	})
+
+	require.NoError(t, result.Err)
+	require.Equal(t, uint64(0), r.Status().CheckpointHW)
+	select {
+	case effect := <-r.checkpointEffects:
+		t.Fatalf("tombstoned replica emitted stale checkpoint effect: %+v", effect)
+	default:
+	}
+}
+
+func TestFencedCheckpointResultKeepsNewerQueuedCheckpoint(t *testing.T) {
+	r := newCheckpointLoopReplicaForTest()
+	r.mu.Lock()
+	r.state.HW = 3
+	r.state.LEO = 3
+	r.pendingCheckpoint = channel.Checkpoint{Epoch: r.state.Epoch, LogStartOffset: 0, HW: 3}
+	r.checkpointQueued = true
+	r.checkpointInFlight = true
+	r.pendingCheckpointEffectID = 1
+	r.publishStateLocked()
+	r.mu.Unlock()
+
+	result := r.applyLoopEvent(machineCheckpointStoredEvent{
+		EffectID:       1,
+		ChannelKey:     r.state.ChannelKey,
+		Epoch:          r.state.Epoch,
+		LeaderEpoch:    r.meta.LeaderEpoch,
+		RoleGeneration: r.roleGeneration - 1,
+		Checkpoint:     channel.Checkpoint{Epoch: r.state.Epoch, LogStartOffset: 0, HW: 1},
+	})
+
+	require.NoError(t, result.Err)
+	require.Equal(t, uint64(0), r.Status().CheckpointHW)
+	select {
+	case effect := <-r.checkpointEffects:
+		require.Equal(t, uint64(3), effect.Checkpoint.HW)
+	default:
+		t.Fatal("newer queued checkpoint was dropped after fenced result")
+	}
+}
+
+func TestCheckpointEffectRejectsDurableRegression(t *testing.T) {
+	checkpoints := &fakeCheckpointStore{checkpoint: channel.Checkpoint{Epoch: 7, LogStartOffset: 0, HW: 2}}
+	r := &replica{
+		log:         &fakeLogStore{leo: 3},
+		checkpoints: checkpoints,
+		history:     &fakeEpochHistoryStore{},
+		durable:     newDurableReplicaStore(&fakeLogStore{leo: 3}, checkpoints, nil, &fakeEpochHistoryStore{}, nil),
+		meta:        activeMetaWithMinISR(7, 1, 1),
+		state:       channel.ReplicaState{ChannelKey: "group-10", Role: channel.ReplicaRoleLeader, Epoch: 7, HW: 3, LEO: 3},
+	}
+	r.roleGeneration = 1
+	r.pendingCheckpointEffectID = 11
+
+	err := r.storeCheckpointEffect(context.Background(), storeCheckpointEffect{
+		EffectID:       11,
+		ChannelKey:     "group-10",
+		Epoch:          7,
+		LeaderEpoch:    r.meta.LeaderEpoch,
+		RoleGeneration: 1,
+		Checkpoint:     channel.Checkpoint{Epoch: 7, LogStartOffset: 0, HW: 1},
+		VisibleHW:      3,
+		LEO:            3,
+	})
+
+	require.ErrorIs(t, err, channel.ErrCorruptState)
+	require.Empty(t, checkpoints.stored)
+}
+
+func newCheckpointLoopReplicaForTest() *replica {
+	meta := activeMetaWithMinISR(7, 1, 2)
+	r := &replica{
+		localNode:         1,
+		meta:              meta,
+		progress:          map[channel.NodeID]uint64{1: 0, 2: 0, 3: 0},
+		checkpointEffects: make(chan storeCheckpointEffect, 2),
+		stopCh:            make(chan struct{}),
+		roleGeneration:    2,
+		state: channel.ReplicaState{
+			ChannelKey:  meta.Key,
+			Role:        channel.ReplicaRoleLeader,
+			Epoch:       meta.Epoch,
+			Leader:      meta.Leader,
+			CommitReady: true,
+		},
+	}
+	r.publishStateLocked()
+	return r
+}
+
+func replaceReplicaCheckpointStoreForTest(r *replica, checkpoints CheckpointStore) {
+	r.checkpoints = checkpoints
+	r.durable = newDurableReplicaStore(r.log, checkpoints, nil, r.history, nil)
 }

@@ -39,6 +39,14 @@ type replicaRecordingLogger struct {
 	sink   *replicaRecordingLoggerSink
 }
 
+type corruptAppendDurableStore struct {
+	durableReplicaStore
+}
+
+func (s corruptAppendDurableStore) AppendLeaderBatch(ctx context.Context, records []channel.Record) (uint64, uint64, error) {
+	return 0, uint64(len(records) + 1), nil
+}
+
 func newReplicaRecordingLogger(module string) *replicaRecordingLogger {
 	return &replicaRecordingLogger{module: module, sink: &replicaRecordingLoggerSink{}}
 }
@@ -127,61 +135,32 @@ func requireReplicaFieldValue[T any](t *testing.T, entry replicaRecordedLogEntry
 	return value
 }
 
-func TestAppendCollectorDrainsBurstsWithoutRetrigger(t *testing.T) {
+func TestAppendPipelineBatchesBurstAppends(t *testing.T) {
 	env := newTestEnv(t)
-	env.replica = newReplicaFromEnvWithGroupCommit(t, env, time.Millisecond, 1, 1024)
+	env.replica = newReplicaFromEnvWithGroupCommit(t, env, 25*time.Millisecond, 8, 1024)
 	meta := activeMetaWithMinISR(7, 1, 1)
 	env.replica.mustApplyMeta(t, meta)
 	require.NoError(t, env.replica.BecomeLeader(meta))
 
-	env.log.syncStarted = make(chan struct{}, 1)
-	env.log.syncContinue = make(chan struct{})
-
-	waiter1 := acquireAppendWaiter()
-	waiter1.result = channel.CommitResult{RecordCount: 1}
-	req1 := acquireAppendRequest()
-	req1.ctx = context.Background()
-	req1.batch = []channel.Record{{Payload: []byte("a"), SizeBytes: 1}}
-	req1.byteCount = appendRequestBytes(req1.batch)
-	req1.waiter = waiter1
-
-	waiter2 := acquireAppendWaiter()
-	waiter2.result = channel.CommitResult{RecordCount: 1}
-	req2 := acquireAppendRequest()
-	req2.ctx = context.Background()
-	req2.batch = []channel.Record{{Payload: []byte("b"), SizeBytes: 1}}
-	req2.byteCount = appendRequestBytes(req2.batch)
-	req2.waiter = waiter2
-
-	env.replica.appendMu.Lock()
-	env.replica.appendPending = append(env.replica.appendPending, req1)
-	env.replica.appendMu.Unlock()
-	// Trigger collector only once. The second request is enqueued while collector
-	// is flushing and must still be drained by the same collector loop.
-	env.replica.signalAppendCollector()
-
-	<-env.log.syncStarted
-	env.replica.appendMu.Lock()
-	env.replica.appendPending = append(env.replica.appendPending, req2)
-	env.replica.appendMu.Unlock()
-	close(env.log.syncContinue)
-
-	select {
-	case <-waiter1.ch:
-	case <-time.After(time.Second):
-		t.Fatal("first append request did not complete")
-	}
-	select {
-	case <-waiter2.ch:
-	case <-time.After(time.Second):
-		t.Fatal("second append request did not complete without retrigger")
+	done := make(chan error, 2)
+	for _, payload := range []string{"a", "b"} {
+		payload := payload
+		go func() {
+			_, err := env.replica.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte(payload), SizeBytes: 1}})
+			done <- err
+		}()
 	}
 
-	releaseAppendWaiter(waiter1)
-	releaseAppendWaiter(waiter2)
-	releaseAppendRequest(req1)
-	releaseAppendRequest(req2)
-	require.Equal(t, 2, env.log.appendCount)
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-done:
+			require.NoError(t, err)
+		case <-time.After(time.Second):
+			t.Fatal("append request did not complete")
+		}
+	}
+
+	require.Equal(t, 1, env.log.appendCount)
 	require.Equal(t, uint64(2), env.replica.Status().LEO)
 }
 
@@ -295,11 +274,27 @@ func TestLeaderLeaseExpiryFencesAppend(t *testing.T) {
 	env.replica = newReplicaFromEnv(t, env)
 	env.replica.mustApplyMeta(t, meta)
 	require.NoError(t, env.replica.BecomeLeader(meta))
+	beforeGeneration := env.replica.roleGeneration
 
 	env.clock.Advance(2 * time.Second)
 	_, err := env.replica.Append(context.Background(), []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
 	require.ErrorIs(t, err, channel.ErrLeaseExpired)
 	require.Equal(t, channel.ReplicaRoleFencedLeader, env.replica.state.Role)
+	require.Greater(t, env.replica.roleGeneration, beforeGeneration)
+}
+
+func TestAppendableLeaseExpiryAdvancesRoleGeneration(t *testing.T) {
+	r := newLeaderReplica(t)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.meta.LeaseUntil = time.Unix(1_699_999_999, 0).UTC()
+	beforeGeneration := r.roleGeneration
+
+	err := r.appendableLocked()
+
+	require.ErrorIs(t, err, channel.ErrLeaseExpired)
+	require.Equal(t, channel.ReplicaRoleFencedLeader, r.state.Role)
+	require.Greater(t, r.roleGeneration, beforeGeneration)
 }
 
 func TestAppendContextCancellationReturnsPromptly(t *testing.T) {
@@ -323,6 +318,169 @@ func TestAppendContextCancellationReturnsPromptly(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("append did not return after context cancellation")
 	}
+}
+
+func TestAppendQueuedCancellationCompletesBeforeDurableWrite(t *testing.T) {
+	env := newTestEnv(t)
+	env.replica = newReplicaFromEnvWithGroupCommit(t, env, time.Second, 8, 1024)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	env.replica.mustApplyMeta(t, meta)
+	require.NoError(t, env.replica.BecomeLeader(meta))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := env.replica.Append(ctx, []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
+		done <- err
+	}()
+
+	require.Eventually(t, func() bool {
+		env.replica.mu.RLock()
+		defer env.replica.mu.RUnlock()
+		return len(env.replica.appendPending) == 1
+	}, time.Second, 10*time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("queued append did not return after cancellation")
+	}
+	require.Equal(t, 0, env.log.appendCount)
+}
+
+func TestAppendDurableInFlightCancellationReturnsBeforeSyncCompletes(t *testing.T) {
+	env := newTestEnv(t)
+	env.replica = newReplicaFromEnvWithGroupCommit(t, env, time.Millisecond, 1, 1024)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	env.replica.mustApplyMeta(t, meta)
+	require.NoError(t, env.replica.BecomeLeader(meta))
+	env.log.syncStarted = make(chan struct{}, 1)
+	env.log.syncContinue = make(chan struct{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := env.replica.Append(ctx, []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
+		done <- err
+	}()
+
+	select {
+	case <-env.log.syncStarted:
+	case <-time.After(time.Second):
+		t.Fatal("durable append did not start")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("durable in-flight append cancellation waited for sync")
+	}
+	close(env.log.syncContinue)
+	require.Eventually(t, func() bool {
+		return env.replica.Status().LEO == 1
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestAppendDurableResultAfterLeaseExpiryDoesNotPublishLEO(t *testing.T) {
+	env := newTestEnv(t)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	meta.LeaseUntil = env.clock.Now().Add(time.Second)
+	env.replica = newReplicaFromEnvWithGroupCommit(t, env, time.Millisecond, 1, 1024)
+	env.replica.mustApplyMeta(t, meta)
+	require.NoError(t, env.replica.BecomeLeader(meta))
+	env.log.syncStarted = make(chan struct{}, 1)
+	env.log.syncContinue = make(chan struct{})
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := env.replica.Append(context.Background(), []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
+		done <- err
+	}()
+	select {
+	case <-env.log.syncStarted:
+	case <-time.After(time.Second):
+		t.Fatal("durable append did not start")
+	}
+	env.clock.Advance(2 * time.Second)
+	close(env.log.syncContinue)
+
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, channel.ErrLeaseExpired)
+	case <-time.After(time.Second):
+		t.Fatal("append did not fail after lease expiry")
+	}
+	st := env.replica.Status()
+	require.Equal(t, channel.ReplicaRoleFencedLeader, st.Role)
+	require.Equal(t, uint64(0), st.LEO)
+}
+
+func TestAppendPendingAfterLeaseExpiryFailsBeforeDurableWrite(t *testing.T) {
+	env := newTestEnv(t)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	meta.LeaseUntil = env.clock.Now().Add(time.Second)
+	env.replica = newReplicaFromEnvWithGroupCommit(t, env, time.Millisecond, 1, 1024)
+	env.replica.mustApplyMeta(t, meta)
+	require.NoError(t, env.replica.BecomeLeader(meta))
+	env.log.syncStarted = make(chan struct{}, 2)
+	env.log.syncContinue = make(chan struct{})
+
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := env.replica.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("first"), SizeBytes: 5}})
+		firstDone <- err
+	}()
+	select {
+	case <-env.log.syncStarted:
+	case <-time.After(time.Second):
+		t.Fatal("first durable append did not start")
+	}
+
+	secondDone := make(chan error, 1)
+	go func() {
+		_, err := env.replica.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("second"), SizeBytes: 6}})
+		secondDone <- err
+	}()
+	require.Eventually(t, func() bool {
+		env.replica.mu.RLock()
+		defer env.replica.mu.RUnlock()
+		return len(env.replica.appendPending) == 1
+	}, time.Second, 10*time.Millisecond)
+
+	env.clock.Advance(2 * time.Second)
+	close(env.log.syncContinue)
+
+	select {
+	case err := <-firstDone:
+		require.ErrorIs(t, err, channel.ErrLeaseExpired)
+	case <-time.After(time.Second):
+		t.Fatal("first append did not fail after lease expiry")
+	}
+	select {
+	case err := <-secondDone:
+		require.ErrorIs(t, err, channel.ErrLeaseExpired)
+	case <-time.After(time.Second):
+		t.Fatal("queued append did not fail after lease expiry")
+	}
+	require.Equal(t, 1, env.log.appendCount)
+	require.Equal(t, uint64(0), env.replica.Status().LEO)
+}
+
+func TestAppendDurableWrongNewLEOFailsAsCorruptState(t *testing.T) {
+	env := newTestEnv(t)
+	env.replica = newReplicaFromEnvWithGroupCommit(t, env, time.Millisecond, 1, 1024)
+	env.replica.durable = corruptAppendDurableStore{durableReplicaStore: env.replica.durable}
+	meta := activeMetaWithMinISR(7, 1, 1)
+	env.replica.mustApplyMeta(t, meta)
+	require.NoError(t, env.replica.BecomeLeader(meta))
+
+	_, err := env.replica.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
+
+	require.ErrorIs(t, err, channel.ErrCorruptState)
+	require.Equal(t, uint64(0), env.replica.Status().LEO)
 }
 
 func TestAppendContextCancellationLogsTimeoutSnapshot(t *testing.T) {

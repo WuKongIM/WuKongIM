@@ -19,8 +19,11 @@ type fakeLogStore struct {
 	syncCount     int
 	truncateCalls []uint64
 	appendSignal  chan uint64
+	readStarted   chan struct{}
+	readContinue  chan struct{}
 	syncStarted   chan struct{}
 	syncContinue  chan struct{}
+	syncCanceled  chan struct{}
 }
 
 func (f *fakeLogStore) LEO() uint64 {
@@ -54,6 +57,18 @@ func (f *fakeLogStore) Append(records []channel.Record) (uint64, error) {
 func (f *fakeLogStore) Read(from uint64, maxBytes int) ([]channel.Record, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.readStarted != nil {
+		select {
+		case f.readStarted <- struct{}{}:
+		default:
+		}
+	}
+	if f.readContinue != nil {
+		readContinue := f.readContinue
+		f.mu.Unlock()
+		<-readContinue
+		f.mu.Lock()
+	}
 	if from >= uint64(len(f.records)) {
 		return nil, nil
 	}
@@ -90,8 +105,11 @@ func (f *fakeLogStore) Truncate(to uint64) error {
 }
 
 func (f *fakeLogStore) Sync() error {
+	return f.SyncContext(context.Background())
+}
+
+func (f *fakeLogStore) SyncContext(ctx context.Context) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.syncCount++
 	if f.syncStarted != nil {
 		select {
@@ -99,8 +117,25 @@ func (f *fakeLogStore) Sync() error {
 		default:
 		}
 	}
-	if f.syncContinue != nil {
-		<-f.syncContinue
+	syncContinue := f.syncContinue
+	syncCanceled := f.syncCanceled
+	f.mu.Unlock()
+
+	if syncContinue != nil {
+		select {
+		case <-syncContinue:
+		case <-ctx.Done():
+			if syncCanceled != nil {
+				select {
+				case syncCanceled <- struct{}{}:
+				default:
+				}
+			}
+			return ctx.Err()
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -198,6 +233,15 @@ func (f *fakeSnapshotApplier) InstallSnapshot(_ context.Context, snap channel.Sn
 	return nil
 }
 
+func (f *fakeSnapshotApplier) LoadSnapshot(_ context.Context) (channel.Snapshot, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.installed) == 0 {
+		return channel.Snapshot{}, channel.ErrEmptyState
+	}
+	return cloneSnapshot(f.installed[len(f.installed)-1]), nil
+}
+
 type fakeApplyFetchStore struct {
 	calls     int
 	leo       uint64
@@ -273,6 +317,9 @@ func (f fakeReconcileProbeSource) ProbeQuorum(_ context.Context, meta channel.Me
 			if proof.Epoch == 0 {
 				proof.Epoch = meta.Epoch
 			}
+			if proof.LeaderEpoch == 0 {
+				proof.LeaderEpoch = meta.LeaderEpoch
+			}
 			if proof.ReplicaID == 0 {
 				proof.ReplicaID = id
 			}
@@ -286,6 +333,7 @@ func (f fakeReconcileProbeSource) ProbeQuorum(_ context.Context, meta channel.Me
 		proofs = append(proofs, channel.ReplicaReconcileProof{
 			ChannelKey:   meta.Key,
 			Epoch:        meta.Epoch,
+			LeaderEpoch:  meta.LeaderEpoch,
 			ReplicaID:    id,
 			OffsetEpoch:  meta.Epoch,
 			LogEndOffset: offset,

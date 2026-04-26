@@ -147,6 +147,26 @@ func TestBecomeFollowerAcceptsSameEpochLeaderTransferWithHigherLeaderEpoch(t *te
 	require.Equal(t, channel.NodeID(2), st.Leader)
 }
 
+func TestLifecycleCommandsAdvanceRoleGeneration(t *testing.T) {
+	r := newTestReplica(t)
+	initial := r.roleGeneration
+
+	require.NoError(t, r.ApplyMeta(activeMetaWithMinISR(7, 1, 2)))
+	afterMeta := r.roleGeneration
+	require.Greater(t, afterMeta, initial)
+
+	require.NoError(t, r.BecomeFollower(activeMetaWithMinISR(8, 2, 2)))
+	afterFollower := r.roleGeneration
+	require.Greater(t, afterFollower, afterMeta)
+
+	require.NoError(t, r.Tombstone())
+	afterTombstone := r.roleGeneration
+	require.Greater(t, afterTombstone, afterFollower)
+
+	require.NoError(t, r.Close())
+	require.Greater(t, r.roleGeneration, afterTombstone)
+}
+
 func TestTombstoneFencesFutureOperations(t *testing.T) {
 	r := newTestReplica(t)
 	require.NoError(t, r.Tombstone())

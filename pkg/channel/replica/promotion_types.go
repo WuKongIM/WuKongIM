@@ -15,6 +15,8 @@ const (
 type DurableReplicaView struct {
 	// EpochHistory is the local epoch lineage used to detect divergent peers.
 	EpochHistory []channel.EpochPoint
+	// LogStartOffset is the first retained log offset after snapshot compaction.
+	LogStartOffset uint64
 	// LEO is the local durable log end offset.
 	LEO uint64
 	// HW is the locally known committed high watermark.

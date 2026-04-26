@@ -130,6 +130,76 @@ func TestStoreApplyFetchPreservesLeaderSequenceAfterTruncate(t *testing.T) {
 	require.Equal(t, uint64(25), third.MessageID)
 }
 
+func TestStoreApplyFetchWithEpochPersistsRecordsCheckpointAndHistory(t *testing.T) {
+	id := channel.ChannelID{ID: "c1", Type: 1}
+	st := openTestChannelStore(t, channel.ChannelKey("channel/1/c1"), id)
+
+	require.NoError(t, st.AppendHistory(channel.EpochPoint{Epoch: 7, StartOffset: 0}))
+	_, err := st.Append([]channel.Record{{
+		Payload:   mustEncodeApplyFetchMessagePayload(t, 11, "u1", "m1", "one"),
+		SizeBytes: 1,
+	}})
+	require.NoError(t, err)
+
+	checkpoint := channel.Checkpoint{Epoch: 8, LogStartOffset: 0, HW: 2}
+	nextLEO, err := st.StoreApplyFetchWithEpoch(channel.ApplyFetchStoreRequest{
+		PreviousCommittedHW: 1,
+		Records: []channel.Record{{
+			Payload:   mustEncodeApplyFetchMessagePayload(t, 12, "u1", "m2", "two"),
+			SizeBytes: 1,
+		}},
+		Checkpoint: &checkpoint,
+	}, &channel.EpochPoint{Epoch: 8, StartOffset: 1})
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), nextLEO)
+
+	loadedCheckpoint, err := st.LoadCheckpoint()
+	require.NoError(t, err)
+	require.Equal(t, checkpoint, loadedCheckpoint)
+
+	history, err := st.LoadHistory()
+	require.NoError(t, err)
+	require.Equal(t, []channel.EpochPoint{
+		{Epoch: 7, StartOffset: 0},
+		{Epoch: 8, StartOffset: 1},
+	}, history)
+
+	current, ok, err := st.GetIdempotency(channel.IdempotencyKey{
+		ChannelID:   id,
+		FromUID:     "u1",
+		ClientMsgNo: "m2",
+	})
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, uint64(12), current.MessageID)
+	require.Equal(t, uint64(2), current.MessageSeq)
+}
+
+func TestStoreApplyFetchWithEpochPreservesSameOffsetEpochBoundary(t *testing.T) {
+	id := channel.ChannelID{ID: "c1", Type: 1}
+	st := openTestChannelStore(t, channel.ChannelKey("channel/1/c1"), id)
+	require.NoError(t, st.AppendHistory(channel.EpochPoint{Epoch: 7, StartOffset: 0}))
+
+	checkpoint := channel.Checkpoint{Epoch: 8, LogStartOffset: 0, HW: 1}
+	nextLEO, err := st.StoreApplyFetchWithEpoch(channel.ApplyFetchStoreRequest{
+		PreviousCommittedHW: 0,
+		Records: []channel.Record{{
+			Payload:   mustEncodeApplyFetchMessagePayload(t, 13, "u1", "m3", "three"),
+			SizeBytes: 1,
+		}},
+		Checkpoint: &checkpoint,
+	}, &channel.EpochPoint{Epoch: 8, StartOffset: 0})
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), nextLEO)
+
+	history, err := st.LoadHistory()
+	require.NoError(t, err)
+	require.Equal(t, []channel.EpochPoint{
+		{Epoch: 7, StartOffset: 0},
+		{Epoch: 8, StartOffset: 0},
+	}, history)
+}
+
 func mustEncodeApplyFetchMessagePayload(t *testing.T, messageID uint64, fromUID, clientMsgNo, body string) []byte {
 	t.Helper()
 

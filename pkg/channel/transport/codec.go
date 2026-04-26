@@ -20,8 +20,8 @@ const (
 	fetchResponseCodecVersion byte = 2
 	longPollRequestCodecVer   byte = 1
 	longPollResponseCodecVer  byte = 2
-	reconcileProbeCodecVer    byte = 1
-	reconcileProbeRespVer     byte = 1
+	reconcileProbeCodecVer    byte = 2
+	reconcileProbeRespVer     byte = 2
 )
 
 func encodeFetchRequest(req runtime.FetchRequestEnvelope) ([]byte, error) {
@@ -238,6 +238,9 @@ func encodeReconcileProbeRequest(req runtime.ReconcileProbeRequestEnvelope) ([]b
 	if err := binary.Write(buf, binary.BigEndian, req.Epoch); err != nil {
 		return nil, err
 	}
+	if err := binary.Write(buf, binary.BigEndian, req.LeaderEpoch); err != nil {
+		return nil, err
+	}
 	if err := binary.Write(buf, binary.BigEndian, req.Generation); err != nil {
 		return nil, err
 	}
@@ -265,6 +268,9 @@ func decodeReconcileProbeRequest(data []byte) (runtime.ReconcileProbeRequestEnve
 	if err := binary.Read(rd, binary.BigEndian, &req.Epoch); err != nil {
 		return runtime.ReconcileProbeRequestEnvelope{}, err
 	}
+	if err := binary.Read(rd, binary.BigEndian, &req.LeaderEpoch); err != nil {
+		return runtime.ReconcileProbeRequestEnvelope{}, err
+	}
 	if err := binary.Read(rd, binary.BigEndian, &req.Generation); err != nil {
 		return runtime.ReconcileProbeRequestEnvelope{}, err
 	}
@@ -286,6 +292,9 @@ func encodeReconcileProbeResponse(resp runtime.ReconcileProbeResponseEnvelope) (
 		return nil, err
 	}
 	if err := binary.Write(buf, binary.BigEndian, resp.Epoch); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(buf, binary.BigEndian, resp.LeaderEpoch); err != nil {
 		return nil, err
 	}
 	if err := binary.Write(buf, binary.BigEndian, resp.Generation); err != nil {
@@ -322,6 +331,9 @@ func decodeReconcileProbeResponse(data []byte) (runtime.ReconcileProbeResponseEn
 	}
 	resp := runtime.ReconcileProbeResponseEnvelope{ChannelKey: channelKey}
 	if err := binary.Read(rd, binary.BigEndian, &resp.Epoch); err != nil {
+		return runtime.ReconcileProbeResponseEnvelope{}, err
+	}
+	if err := binary.Read(rd, binary.BigEndian, &resp.LeaderEpoch); err != nil {
 		return runtime.ReconcileProbeResponseEnvelope{}, err
 	}
 	if err := binary.Read(rd, binary.BigEndian, &resp.Generation); err != nil {

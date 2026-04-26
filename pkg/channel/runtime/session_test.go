@@ -2226,6 +2226,7 @@ func TestSessionServeReconcileProbeActivatesMissingChannelOnce(t *testing.T) {
 		cfg.Activator = activator
 	})
 	meta := testMetaLocal(2605, 6, 1, []core.NodeID{1, 2})
+	meta.LeaderEpoch = 11
 
 	activator.fn = func(context.Context, core.ChannelKey, ActivationSource) (core.Meta, error) {
 		if err := env.runtime.EnsureChannel(meta); err != nil {
@@ -2241,10 +2242,11 @@ func TestSessionServeReconcileProbeActivatesMissingChannelOnce(t *testing.T) {
 	}
 
 	resp, err := env.runtime.ServeReconcileProbe(context.Background(), ReconcileProbeRequestEnvelope{
-		ChannelKey: meta.Key,
-		Epoch:      meta.Epoch,
-		Generation: 1,
-		ReplicaID:  2,
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		Generation:  1,
+		ReplicaID:   2,
 	})
 	if err != nil {
 		t.Fatalf("ServeReconcileProbe() error = %v", err)
@@ -2258,7 +2260,7 @@ func TestSessionServeReconcileProbeActivatesMissingChannelOnce(t *testing.T) {
 	if activator.calls[0].key != meta.Key {
 		t.Fatalf("activation key = %q, want %q", activator.calls[0].key, meta.Key)
 	}
-	if resp.ChannelKey != meta.Key || resp.Epoch != meta.Epoch || resp.Generation != 1 {
+	if resp.ChannelKey != meta.Key || resp.Epoch != meta.Epoch || resp.LeaderEpoch != meta.LeaderEpoch || resp.Generation != 1 {
 		t.Fatalf("unexpected probe response metadata: %+v", resp)
 	}
 	if resp.OffsetEpoch != 4 || resp.LogEndOffset != 7 || resp.CheckpointHW != 5 {
@@ -2272,6 +2274,7 @@ func TestSessionServeReconcileProbeAllowsExternalProbeWithoutGeneration(t *testi
 		cfg.Activator = activator
 	})
 	meta := testMetaLocal(2606, 6, 1, []core.NodeID{1, 2})
+	meta.LeaderEpoch = 12
 
 	activator.fn = func(context.Context, core.ChannelKey, ActivationSource) (core.Meta, error) {
 		if err := env.runtime.EnsureChannel(meta); err != nil {
@@ -2287,16 +2290,34 @@ func TestSessionServeReconcileProbeAllowsExternalProbeWithoutGeneration(t *testi
 	}
 
 	resp, err := env.runtime.ServeReconcileProbe(context.Background(), ReconcileProbeRequestEnvelope{
-		ChannelKey: meta.Key,
-		Epoch:      meta.Epoch,
-		Generation: 0,
-		ReplicaID:  2,
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		Generation:  0,
+		ReplicaID:   2,
 	})
 	require.NoError(t, err)
 	require.Equal(t, meta.Key, resp.ChannelKey)
 	require.Equal(t, meta.Epoch, resp.Epoch)
+	require.Equal(t, meta.LeaderEpoch, resp.LeaderEpoch)
 	require.Equal(t, uint64(9), resp.LogEndOffset)
 	require.Equal(t, uint64(8), resp.CheckpointHW)
+}
+
+func TestSessionServeReconcileProbeRejectsMissingLeaderEpoch(t *testing.T) {
+	env := newSessionTestEnv(t)
+	meta := testMetaLocal(2607, 6, 1, []core.NodeID{1, 2})
+	meta.LeaderEpoch = 13
+	mustEnsureLocal(t, env.runtime, meta)
+
+	_, err := env.runtime.ServeReconcileProbe(context.Background(), ReconcileProbeRequestEnvelope{
+		ChannelKey: meta.Key,
+		Epoch:      meta.Epoch,
+		Generation: 1,
+		ReplicaID:  2,
+	})
+
+	require.ErrorIs(t, err, core.ErrStaleMeta)
 }
 
 func TestSessionServeFetchWaitsForReplicaStateChangeBeforeReturningRecords(t *testing.T) {

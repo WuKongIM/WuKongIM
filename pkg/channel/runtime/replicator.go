@@ -87,10 +87,11 @@ func (r *runtime) processReplication(key core.ChannelKey) {
 			env.Kind = MessageKindReconcileProbeRequest
 			env.FetchRequest = nil
 			env.ReconcileProbeRequest = &ReconcileProbeRequestEnvelope{
-				ChannelKey: key,
-				Epoch:      state.Epoch,
-				Generation: ch.gen,
-				ReplicaID:  r.cfg.LocalNode,
+				ChannelKey:  key,
+				Epoch:       state.Epoch,
+				LeaderEpoch: meta.LeaderEpoch,
+				Generation:  ch.gen,
+				ReplicaID:   r.cfg.LocalNode,
 			}
 		}
 		sendStartedAt := r.cfg.Now()
@@ -153,10 +154,11 @@ func (r *runtime) processLeaderLongPoll(ch *channel, meta core.Meta) {
 			RequestID:  r.requestID.Add(1),
 			Kind:       MessageKindReconcileProbeRequest,
 			ReconcileProbeRequest: &ReconcileProbeRequestEnvelope{
-				ChannelKey: ch.key,
-				Epoch:      state.Epoch,
-				Generation: ch.gen,
-				ReplicaID:  r.cfg.LocalNode,
+				ChannelKey:  ch.key,
+				Epoch:       state.Epoch,
+				LeaderEpoch: meta.LeaderEpoch,
+				Generation:  ch.gen,
+				ReplicaID:   r.cfg.LocalNode,
 			},
 		}
 		err := r.sendEnvelope(env)

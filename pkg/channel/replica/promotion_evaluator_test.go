@@ -72,6 +72,28 @@ func TestPromotionEvaluatorReturnsNoCandidateWhenCandidateFallsBelowHW(t *testin
 	require.Equal(t, string(promotionReasonCandidateBelowHW), report.Reason)
 }
 
+func TestPromotionEvaluatorIgnoresProofBelowSnapshotBoundary(t *testing.T) {
+	meta := promotionTestMeta([]channel.NodeID{2, 3}, 2, 9)
+	local := DurableReplicaView{
+		EpochHistory:   []channel.EpochPoint{{Epoch: 9, StartOffset: 5}},
+		LogStartOffset: 5,
+		LEO:            9,
+		HW:             5,
+		CheckpointHW:   5,
+		OffsetEpoch:    9,
+	}
+
+	report, err := EvaluateLeaderPromotion(meta, local, []channel.ReplicaReconcileProof{
+		{ReplicaID: 3, OffsetEpoch: 9, LogEndOffset: 4, CheckpointHW: 4},
+	})
+
+	require.NoError(t, err)
+	require.True(t, report.CanLead)
+	require.Equal(t, uint64(5), report.ProjectedSafeHW)
+	require.Equal(t, uint64(5), report.ProjectedTruncateTo)
+	require.False(t, report.CommitReadyNow)
+}
+
 func TestPromotionEvaluatorMarksCommitReadyWhenDurablePrefixAlreadyVisible(t *testing.T) {
 	meta := promotionTestMeta([]channel.NodeID{2, 3}, 2, 5)
 	local := DurableReplicaView{
@@ -104,7 +126,7 @@ func TestPromotionEvaluatorRejectsCandidateWithoutDurableState(t *testing.T) {
 	require.Equal(t, string(promotionReasonCandidateMissingState), report.Reason)
 }
 
-func TestPromotionEvaluatorRequiresActualProofsToReachMinISR(t *testing.T) {
+func TestPromotionEvaluatorDoesNotProjectMissingISRAboveHW(t *testing.T) {
 	meta := promotionTestMeta([]channel.NodeID{2, 3, 4}, 3, 8)
 	local := DurableReplicaView{
 		EpochHistory: []channel.EpochPoint{{Epoch: 8, StartOffset: 0}},
@@ -119,8 +141,31 @@ func TestPromotionEvaluatorRequiresActualProofsToReachMinISR(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.False(t, report.CanLead)
-	require.Equal(t, string(promotionReasonInsufficientQuorum), report.Reason)
+	require.True(t, report.CanLead)
+	require.Equal(t, uint64(7), report.ProjectedSafeHW)
+	require.Equal(t, uint64(7), report.ProjectedTruncateTo)
+	require.False(t, report.CommitReadyNow)
+}
+
+func TestPromotionEvaluatorTreatsMissingISRAsHWOnly(t *testing.T) {
+	meta := promotionTestMeta([]channel.NodeID{2, 3, 4}, 3, 8)
+	local := DurableReplicaView{
+		EpochHistory: []channel.EpochPoint{{Epoch: 8, StartOffset: 0}},
+		LEO:          9,
+		HW:           7,
+		CheckpointHW: 7,
+		OffsetEpoch:  8,
+	}
+
+	report, err := EvaluateLeaderPromotion(meta, local, []channel.ReplicaReconcileProof{
+		{ReplicaID: 3, OffsetEpoch: 8, LogEndOffset: 9, CheckpointHW: 7},
+	})
+
+	require.NoError(t, err)
+	require.True(t, report.CanLead)
+	require.Equal(t, uint64(7), report.ProjectedSafeHW)
+	require.Equal(t, uint64(7), report.ProjectedTruncateTo)
+	require.False(t, report.CommitReadyNow)
 }
 
 func TestPromotionEvaluatorAllowsMinISR1WithLocalDurableStateOnly(t *testing.T) {

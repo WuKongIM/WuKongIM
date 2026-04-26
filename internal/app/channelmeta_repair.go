@@ -262,7 +262,7 @@ func (r *channelLeaderRepairer) shouldSkipRepairCandidate(meta metadb.ChannelRun
 }
 
 func (r *channelLeaderRepairer) evaluateLeaderCandidate(ctx context.Context, nodeID uint64, meta metadb.ChannelRuntimeMeta, reason string) (accessnode.ChannelLeaderPromotionReport, error) {
-	req := accessnode.ChannelLeaderEvaluateRequest{Meta: evaluationMetaForRepair(meta, reason)}
+	req := accessnode.ChannelLeaderEvaluateRequest{Meta: evaluationMetaForCandidate(meta, reason, nodeID)}
 	if nodeID == r.localNode && r.evaluator != nil {
 		return r.evaluator.EvaluateChannelLeaderCandidate(ctx, req)
 	}
@@ -305,6 +305,18 @@ func evaluationMetaForRepair(meta metadb.ChannelRuntimeMeta, reason string) meta
 	trimmed := meta
 	trimmed.ISR = trimmedISR
 	return trimmed
+}
+
+func evaluationMetaForCandidate(meta metadb.ChannelRuntimeMeta, reason string, candidate uint64) metadb.ChannelRuntimeMeta {
+	projected := evaluationMetaForRepair(meta, reason)
+	if candidate == 0 {
+		return projected
+	}
+	if !containsUint64(projected.Replicas, candidate) || !containsUint64(projected.ISR, candidate) {
+		return projected
+	}
+	projected.Leader = candidate
+	return projected
 }
 
 func observedRepairEpochsStale(req accessnode.ChannelLeaderRepairRequest, latest metadb.ChannelRuntimeMeta) bool {
@@ -383,21 +395,23 @@ func (e *channelLeaderPromotionEvaluator) collectPromotionProofs(ctx context.Con
 			continue
 		}
 		req := channelruntime.ReconcileProbeRequestEnvelope{
-			ChannelKey: meta.Key,
-			Epoch:      meta.Epoch,
-			Generation: 0,
-			ReplicaID:  channel.NodeID(e.localNode),
+			ChannelKey:  meta.Key,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			Generation:  0,
+			ReplicaID:   channel.NodeID(e.localNode),
 		}
 		resp, err := e.probe.Probe(ctx, replicaID, req)
 		if err != nil {
 			continue
 		}
-		if !validPromotionProbeResponse(req, resp) {
+		if !validPromotionProbeResponse(req, replicaID, resp) {
 			continue
 		}
 		proofs = append(proofs, channel.ReplicaReconcileProof{
 			ChannelKey:   meta.Key,
 			Epoch:        meta.Epoch,
+			LeaderEpoch:  meta.LeaderEpoch,
 			ReplicaID:    replicaID,
 			OffsetEpoch:  resp.OffsetEpoch,
 			LogEndOffset: resp.LogEndOffset,
@@ -410,14 +424,20 @@ func (e *channelLeaderPromotionEvaluator) collectPromotionProofs(ctx context.Con
 // validPromotionProbeResponse accepts generation drift only for external
 // leader-repair probes, which intentionally send Generation=0 and expect the
 // replica to reply with its current runtime generation.
-func validPromotionProbeResponse(req channelruntime.ReconcileProbeRequestEnvelope, resp channelruntime.ReconcileProbeResponseEnvelope) bool {
+func validPromotionProbeResponse(req channelruntime.ReconcileProbeRequestEnvelope, expectedReplicaID channel.NodeID, resp channelruntime.ReconcileProbeResponseEnvelope) bool {
 	if resp.ChannelKey != req.ChannelKey {
 		return false
 	}
 	if resp.Epoch != req.Epoch {
 		return false
 	}
+	if resp.LeaderEpoch != req.LeaderEpoch {
+		return false
+	}
 	if req.Generation != 0 && resp.Generation != req.Generation {
+		return false
+	}
+	if resp.ReplicaID != expectedReplicaID {
 		return false
 	}
 	return true
@@ -444,11 +464,12 @@ func loadDurableReplicaView(store *channelstore.ChannelStore) (channelreplica.Du
 	leo := store.LEO()
 	exists := leo > 0 || checkpoint != (channel.Checkpoint{}) || len(history) > 0
 	view := channelreplica.DurableReplicaView{
-		EpochHistory: append([]channel.EpochPoint(nil), history...),
-		LEO:          leo,
-		HW:           checkpoint.HW,
-		CheckpointHW: checkpoint.HW,
-		OffsetEpoch:  offsetEpochForRepair(history, leo),
+		EpochHistory:   append([]channel.EpochPoint(nil), history...),
+		LogStartOffset: checkpoint.LogStartOffset,
+		LEO:            leo,
+		HW:             checkpoint.HW,
+		CheckpointHW:   checkpoint.HW,
+		OffsetEpoch:    offsetEpochForRepair(history, leo),
 	}
 	return view, exists, nil
 }

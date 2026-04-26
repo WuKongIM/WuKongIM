@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"errors"
 	"slices"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -21,7 +22,10 @@ func EvaluateLeaderPromotion(meta channel.Meta, local DurableReplicaView, proofs
 		return report, nil
 	}
 
-	peerMatches := make(map[channel.NodeID]uint64, len(proofs))
+	matchOffsets := make(map[channel.NodeID]uint64, len(proofs)+1)
+	if meta.Leader != 0 {
+		matchOffsets[meta.Leader] = local.LEO
+	}
 	for _, proof := range proofs {
 		if proof.ReplicaID == 0 || !slices.Contains(meta.ISR, proof.ReplicaID) {
 			continue
@@ -29,27 +33,26 @@ func EvaluateLeaderPromotion(meta channel.Meta, local DurableReplicaView, proofs
 		if proof.CheckpointHW > proof.LogEndOffset {
 			continue
 		}
-		matchOffset := promotionMatchOffset(local.EpochHistory, proof.LogEndOffset, proof.OffsetEpoch, local.LEO)
-		if current, ok := peerMatches[proof.ReplicaID]; ok && current >= matchOffset {
+		matchOffset, err := reconcileProofMatchOffset(local.EpochHistory, local.LogStartOffset, local.HW, local.LEO, proof)
+		if err != nil {
+			if errors.Is(err, channel.ErrStaleMeta) || errors.Is(err, channel.ErrSnapshotRequired) {
+				continue
+			}
+			return PromotionReport{}, err
+		}
+		if current, ok := matchOffsets[proof.ReplicaID]; ok && current >= matchOffset {
 			continue
 		}
-		peerMatches[proof.ReplicaID] = matchOffset
+		matchOffsets[proof.ReplicaID] = matchOffset
 	}
 
-	matches := make([]uint64, 0, len(meta.ISR))
-	matches = append(matches, local.LEO)
-	for _, matchOffset := range peerMatches {
-		matches = append(matches, matchOffset)
+	candidate, ok, err := reconcileQuorumCandidate(meta.ISR, matchOffsets, meta.MinISR, local.HW, local.LEO)
+	if err != nil {
+		return PromotionReport{}, err
 	}
-	if len(matches) < meta.MinISR {
+	if !ok {
 		report.Reason = string(promotionReasonInsufficientQuorum)
 		return report, nil
-	}
-
-	slices.Sort(matches)
-	candidate := matches[len(matches)-meta.MinISR]
-	if candidate > local.LEO {
-		candidate = local.LEO
 	}
 
 	report.ProjectedSafeHW = candidate
@@ -69,33 +72,4 @@ func hasDurableReplicaState(local DurableReplicaView) bool {
 		local.CheckpointHW > 0 ||
 		local.OffsetEpoch > 0 ||
 		len(local.EpochHistory) > 0
-}
-
-func promotionMatchOffset(history []channel.EpochPoint, logEndOffset, offsetEpoch, leaderLEO uint64) uint64 {
-	if len(history) == 0 || offsetEpoch == 0 {
-		if logEndOffset > leaderLEO {
-			return leaderLEO
-		}
-		return logEndOffset
-	}
-
-	matchOffset := uint64(0)
-	index := -1
-	for i, point := range history {
-		if point.Epoch <= offsetEpoch {
-			index = i
-			continue
-		}
-		break
-	}
-	if index >= 0 {
-		matchOffset = leaderLEO
-		if index+1 < len(history) {
-			matchOffset = history[index+1].StartOffset
-		}
-	}
-	if logEndOffset > matchOffset {
-		return matchOffset
-	}
-	return logEndOffset
 }

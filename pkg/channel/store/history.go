@@ -48,21 +48,43 @@ func (s *ChannelStore) AppendHistory(point channel.EpochPoint) error {
 	if err != nil {
 		return err
 	}
-	if len(points) > 0 {
-		last := points[len(points)-1]
-		switch {
-		case point.Epoch > last.Epoch:
-			if point.StartOffset < last.StartOffset {
-				return channel.ErrCorruptState
-			}
-		case point.Epoch == last.Epoch && point.StartOffset == last.StartOffset:
-			return nil
-		default:
-			return channel.ErrCorruptState
-		}
+	needsAppend, err := shouldAppendHistoryPoint(points, point)
+	if err != nil {
+		return err
+	}
+	if !needsAppend {
+		return nil
 	}
 
-	return s.engine.db.Set(encodeHistoryKey(s.key, point.StartOffset), encodeEpochPoint(point), pebble.Sync)
+	return s.engine.db.Set(encodeHistoryPointKey(s.key, point), encodeEpochPoint(point), pebble.Sync)
+}
+
+func shouldAppendHistoryPoint(points []channel.EpochPoint, point channel.EpochPoint) (bool, error) {
+	if point.Epoch == 0 {
+		return false, channel.ErrCorruptState
+	}
+	if len(points) == 0 {
+		return true, nil
+	}
+	last := points[len(points)-1]
+	switch {
+	case point.Epoch > last.Epoch:
+		if point.StartOffset < last.StartOffset {
+			return false, channel.ErrCorruptState
+		}
+		return true, nil
+	case point.Epoch == last.Epoch && point.StartOffset == last.StartOffset:
+		return false, nil
+	default:
+		return false, channel.ErrCorruptState
+	}
+}
+
+func (s *ChannelStore) writeHistoryPoint(writeBatch *pebble.Batch, point channel.EpochPoint) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	return writeBatch.Set(encodeHistoryPointKey(s.key, point), encodeEpochPoint(point), pebble.NoSync)
 }
 
 func (s *ChannelStore) TruncateHistoryTo(leo uint64) error {
@@ -79,7 +101,7 @@ func (s *ChannelStore) trimHistoryAfter(startOffset uint64) error {
 	prefix := encodeHistoryPrefix(s.key)
 	batch := s.engine.db.NewBatch()
 	defer batch.Close()
-	if err := batch.DeleteRange(encodeHistoryKey(s.key, startOffset), keyUpperBound(prefix), pebble.Sync); err != nil {
+	if err := batch.DeleteRange(encodeHistoryOffsetKey(s.key, startOffset), keyUpperBound(prefix), pebble.Sync); err != nil {
 		return err
 	}
 	return batch.Commit(pebble.Sync)

@@ -687,6 +687,17 @@ func (s channelSnapshotApplier) InstallSnapshot(_ context.Context, snap channel.
 	return s.store.StoreSnapshotPayload(snap.Payload)
 }
 
+func (s channelSnapshotApplier) LoadSnapshotPayload(_ context.Context) ([]byte, error) {
+	payload, err := s.store.LoadSnapshotPayload()
+	if err != nil {
+		return nil, err
+	}
+	if payload == nil {
+		return nil, channel.ErrEmptyState
+	}
+	return payload, nil
+}
+
 type channelTestGenerationStore struct{}
 
 func (channelTestGenerationStore) Load(channel.ChannelKey) (uint64, error) { return 0, nil }

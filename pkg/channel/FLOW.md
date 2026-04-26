@@ -10,7 +10,7 @@
 | 子包 | 入口/核心类型 | 职责 |
 |------|-------------|------|
 | `handler/` | `handler.New()` → `Service` | 请求校验、幂等去重、兼容 DurableMessage ingress/egress 编解码、基于结构化消息表的读取与查询 |
-| `replica/` | `replica.NewReplica()` → `Replica` | 副本状态机：Group Commit 追加、HW 推进、分歧检测、角色转换、恢复；并提供 dry-run leader promotion evaluator |
+| `replica/` | `replica.NewReplica()` → `Replica` | 单 channel ISR 副本状态机：loop-owned Group Commit 追加、HW/Checkpoint 推进、epoch 分歧检测、角色转换、恢复、快照和 leader reconcile；并提供 dry-run leader promotion evaluator |
 | `runtime/` | `runtime.Build()` → `Runtime` | 频道生命周期管理、复制调度（三优先级）、leader/follower lane 状态、 多级背压、墓碑清理 |
 | `store/` | `store.NewEngine()` → `Engine` | Pebble 结构化 `message` 表：主记录、二级索引、Checkpoint/EpochHistory/Snapshot 等系统状态持久化 |
 | `transport/` | `transport.Build()` | steady-state `LongPollFetch`、辅助 `Fetch`，始终独立保留的 `ReconcileProbe` RPC，以及供控制面 leader-repair 复用的同步 `ProbeClient` |
@@ -58,17 +58,17 @@ Handler 层:
   ⑤ 编码兼容层 DurableMessage → handler/codec.go:encodeMessage
      这份 `[]byte` 只作为 replica/transport 仍在使用的 ingress 表示；磁盘真相已是结构化 `message` 行
 
-Replica 层 (replica/append.go):
+Replica 层 (replica/append.go + replica/append_pipeline.go):
   ⑥ 先检查 leader 是否 `CommitReady=true`；若刚启动/刚完成 leader transfer 但尚未完成 reconcile，则直接返回 ErrNotReady
-  ⑦ Group Commit 收集 (1ms窗口/64条/64KB) → collectAppendBatch
-  ⑧ Leader LogStore 在单 channel `writeMu` 下先 prepare 记录，再把 synced append 提交给 `store/commit.go`
+  ⑦ facade 将 append request 提交到 replica loop；loop-owned append pipeline 按 1ms/64条/64KB 做 Group Commit
+  ⑧ append effect worker 在 `durableMu` 下执行 Leader LogStore append/sync；底层 store 在单 channel `writeMu` 下先 prepare 记录，再把 synced append 提交给 `store/commit.go`
      的跨频道 coordinator，用 200µs 窗口合并 Pebble Sync；sync 完成前不发布新的 LEO
   ⑨ `ChannelStore.prepareAppendLocked()` 会把兼容层 payload 解成 `messageRow`，并由 `messageTable.append()`
      写入 `message` 表的 primary/payload families，同时维护 `message_id` / `client_msg_no`
      / `uidx_from_uid_client_msg_no` 三类索引
-  ⑩ sync 成功后执行 publish：更新 durable commit 计数、发布 LEO，并注册 Waiter (目标 CommitHW = LEO + recordCount)
-  ⑪ `progress.go:advanceHW` 取 ISR 中第 MinISR 高的 MatchOffset，满足 quorum 后先推进运行时 `HW(CommitHW)`、完成 Waiter / sendack
-  ⑫ Checkpoint 持久化由后台 publisher 异步 coalescing；写盘成功后才推进 `CheckpointHW`
+  ⑩ durable result 带 EffectID/Channel/Epoch/LeaderEpoch/RoleGeneration 回到 loop；fence 通过后才发布 LEO，并注册 Quorum Waiter (目标 CommitHW = LEO + recordCount)
+  ⑪ `progress_pipeline.go:advanceHWLocked` 取 ISR 中第 MinISR 高的 MatchOffset，满足 quorum 后先推进运行时 `HW(CommitHW)`、完成 Waiter / sendack
+  ⑫ Checkpoint 持久化由 checkpoint effect worker 异步 coalescing；写盘成功后才推进 `CheckpointHW`
 ```
 
 ### 5.2 消息获取（Fetch）
@@ -87,7 +87,7 @@ Replica 层 (replica/append.go):
 
 ### 5.3 副本复制（Replication）
 
-发起: `runtime/replicator.go` | 接收: `replica/replication.go:ApplyFetch`
+发起: `runtime/replicator.go` | 接收: `replica/follower_apply.go:ApplyFetch`
 
 ```
 steady-state `long_poll`（当前唯一复制主路径）:
@@ -107,7 +107,7 @@ steady-state `long_poll`（当前唯一复制主路径）:
 Reconcile Probe（启动 / leader transfer 后的 provisional 收敛）:
   ① leader promotion 或 recover 后若 `CommitReady=false`，runtime 触发 peer probe；leader 本地 append 也会给未建立 steady-state lane 视图的冷 follower 排一个轻量 wake-up probe
   ② transport/session.go 发送 ReconcileProbe RPC，收集 follower 的 {OffsetEpoch, LogEndOffset, CheckpointHW}
-  ③ replica/reconcile.go 基于 epoch lineage + quorum proofs 计算 quorum-safe prefix
+  ③ replica/reconcile_coordinator.go 基于 epoch lineage + quorum proofs 计算 quorum-safe prefix
   ④ 保留 quorum-safe tail，必要时截断 minority-only suffix
   ⑤ 持久化新的 Checkpoint，推进 `CheckpointHW`，最后把 `CommitReady` 置为 true
 ```
@@ -123,7 +123,7 @@ Promotion Dry-run（供 app 侧权威 leader repair 选主）:
   ④ `replica/promotion_evaluator.go` 基于 durable view + proof 计算：
      `ProjectedSafeHW` / `ProjectedTruncateTo` / `CommitReadyNow` / `CanLead`
      - 候选副本必须先拥有本地 durable state；冷空副本不会因为 peer proof 存在就被提升
-     - 只有真实收到的 quorum proof 才计入 `MinISR`；缺失 proof 不会再被本地 `HW` 隐式补票
+     - 缺失 ISR proof 只按候选本地 `HW` 计入 quorum-safe prefix，不会证明 `HW` 以上的本地 tail
   ⑤ app 层再根据报告排序并持久化新的 `ChannelRuntimeMeta.Leader`；
      这一步只决定“谁最安全”，真正切主后的 runtime reconcile 仍按正常 leader promotion 流程执行
 ```
@@ -133,19 +133,19 @@ Promotion Dry-run（供 app 侧权威 leader repair 选主）:
 入口: `replica/replica.go`
 
 ```
-BecomeLeader (replica.go:153):
+BecomeLeader (replica.go:219 → lifecycle_pipeline.go:87):
   ① 验证 Meta.Leader 是本节点
-  ② 追加 EpochPoint → history.go:appendEpochPointLocked
-  ③ 初始化 Progress: 本节点=LEO, 其他ISR=当前安全 committed frontier → progress.go:seedLeaderProgressLocked
+  ② 如需新 epoch boundary，先发 `beginLeaderEpochEffect`，由 durable adapter 以 expected LEO fence 写入 EpochPoint
+  ③ 初始化 Progress: 本节点=LEO, 其他ISR=当前安全 committed frontier → progress_pipeline.go:seedLeaderProgressLocked
   ④ 若本地恢复结果仍是 provisional，则允许完成 leader promotion，但保持 `CommitReady=false`
   ⑤ Runtime 触发 reconcile；只有 `CommitReady=true` 后 leader 才接受新的 Append
-  ⑥ 检查 Lease → 过期则 FencedLeader
+  ⑥ BecomeLeader 入场 Lease 已过期会直接返回 ErrLeaseExpired；已发布 leader 在 append/reconcile 中发现 lease 过期才会变为 FencedLeader
 
-BecomeFollower (replica.go:209):
+BecomeFollower (replica.go:227 → lifecycle_pipeline.go:270):
   ① 应用新 Meta（支持同 channel epoch 下、更高 LeaderEpoch 的 leader transfer）
   ② 失败所有待处理 Append (failOutstandingAppendWorkLocked)
 
-Tombstone (replica.go:230):
+Tombstone (replica.go:231 → lifecycle_pipeline.go:293):
   ① 标记 Tombstoned → 拒绝所有后续操作
 ```
 
@@ -159,7 +159,7 @@ Tombstone (replica.go:230):
   ③ 校验一致性 (CheckpointHW ≤ LEO，其中 `LEO` 由 `message` 表最大 `message_seq` 恢复；Epoch 匹配)
   ④ 启动时不再立即把 `LEO > CheckpointHW` 的尾巴截断掉；先保留 local tail，发布 `CommitReady=false`
   ⑤ 若后续 probe 证明尾巴是 quorum-safe，就保留并提升 CommitHW；若只存在于 minority/stale leader，则在 reconcile 中截断
-  ⑥ reconcile 成功后持久化 fresh checkpoint，推进 `CheckpointHW`，再标记 recovered / `CommitReady=true`
+  ⑥ `recovered=true` 在启动恢复成功后设置；reconcile 成功后持久化 fresh checkpoint，推进 `CheckpointHW` 并恢复 `CommitReady=true`
   → Runtime.EnsureChannel(meta) → ApplyMeta → BecomeLeader/BecomeFollower
 ```
 
@@ -202,11 +202,11 @@ System (0x17): prefix + key + tableID + systemID + ...
 - **Group Commit 窗口**: 默认 1ms/64条/64KB，配置在 `replica/replica.go:effectiveAppendGroupCommit*`。调大会增加延迟但提高吞吐。
 - **双水位不要混用**: `HW` 是运行时 CommitHW，驱动 sendack / committed reads / fetch；`CheckpointHW` 是冷恢复安全下界；`CommitReady` 决定 leader 是否已经完成 quorum-safe 收敛。live read path 不能再把 `LoadCheckpoint()` 当作 committed source of truth。
 - **LEO 由最大 `message_seq` 恢复**: 重启后的 `LEO()` 不再依赖旧 offset 日志键，而是扫描 `message` 表最大主键；如果主记录 family 缺失、payload family 孤儿或索引指到不存在行，会按 `ErrCorruptState` 处理。
-- **HW 推进不可回退**: 运行时 `HW(CommitHW)` 只能前进不能后退。`progress.go:advanceHW` 会检查 newHW ≥ currentHW。
-- **Lease 过期自动降级**: Leader Lease 过期后自动变为 FencedLeader，拒绝所有写入但不影响读取。见 `replica/append.go:appendableLocked`。
+- **HW 推进不可回退**: 运行时 `HW(CommitHW)` 只能前进不能后退。`progress_pipeline.go:advanceHWLocked` 会检查 newHW ≥ currentHW。
+- **Lease 过期自动降级**: Leader Lease 过期后自动变为 FencedLeader，拒绝所有写入但不影响读取。见 `replica/append_pipeline.go:appendableLocked` 和 `replica/reconcile_coordinator.go:ensureReconcileLeaseLocked`。
 - **Cross-channel durable batching**: `store/commit.go` 使用 200µs 窗口跨频道合并 Pebble durable 写入；Leader 的 synced Append 和 Follower 的 ApplyFetch 都走同一个 coordinator。单频道的 `writeMu` 仍然串行，且 sync 完成前不会发布新的 LEO。
 - **手工 `PutIdempotency()` 只应服务恢复/快照路径**: 追加消息时 `Append()` / `StoreApplyFetch()` 已经维护唯一索引；测试或业务代码再额外覆盖同一索引值，可能把 append 已写入的 `payload_hash` 覆盖掉并制造假性损坏。
-- **Checkpoint 不再阻塞 sendack**: leader 在 quorum commit 后先完成 Append waiter，Checkpoint 持久化走后台 coalescing；若 checkpoint 写盘长期失败，当前实现还缺少显式 health / metrics 暴露。
+- **Checkpoint 不再阻塞 sendack**: leader 在 quorum commit 后先完成 Append waiter，Checkpoint 持久化走 checkpoint effect worker coalescing；若 checkpoint 写盘失败会临时置 `CommitReady=false` 并重试，当前实现还缺少显式 health / metrics 暴露。
 - **leader reconcile 先区分“需要 peer 证明”与“只差本地 checkpoint”**: 若 leader transfer 后只是 `CheckpointHW < HW`、本地没有 `LEO > HW` 的 provisional tail，则会直接做本地 reconcile，不等待 peer probe；若已经拿到足以证明本地 tail 全量 quorum-safe 的 proof，也不会继续卡在离线 ISR peer 上。
 - **Transport RPC 分片**: steady-state lane poll 按 `laneID` 路由，保证同一 `(peer,lane)` 有序；辅助 `Fetch` / `ReconcileProbe` 继续按 FNV-64a(ChannelKey) 路由；app 侧同步 `ProbeClient` 也复用同一个 `ReconcileProbe` service。见 `transport/session.go` / `transport/probe_client.go`。
 - **Leader lane session 是固定规模资源**: ready queue / parked waiter 的规模与 `peer * laneCount` 成正比，不会退化成 per-channel timer / goroutine。
@@ -216,5 +216,5 @@ System (0x17): prefix + key + tableID + systemID + ...
 - **leader append 会主动叫醒冷 follower**: long-poll 打开后，leader 本地 append 会把尚未被 lane session 跟踪的复制目标补一个 `ReconcileProbe`，避免 follower 必须依赖启动全量预热才能开始拉取。
 - **`cursorDelta` 是唯一 steady-state ACK**: follower 不再单独发送 `ProgressAck`；复制进度通过下一条 lane poll 回传给 leader。
 - **promotion evaluator 看的是 quorum-safe prefix，不是“谁的 LEO 最大”**: dry-run 评估优先依据 quorum proofs 计算 `ProjectedSafeHW` / `ProjectedTruncateTo`，必要时会拒绝拥有更长但不安全尾巴的副本；app 层选主只能从持久化 ISR 中挑候选，不能把 stale replica 选成新 leader。
-- **promotion evaluator 不给缺失 proof 补票**: 只有本地 durable view + 实际收到的 peer proof 才能组成 `MinISR`；缺 proof 时会直接返回 `insufficient_quorum`，避免把本地 `HW` 当成隐式多数派证明。
+- **promotion evaluator 不用缺失 proof 证明 tail**: 缺失 ISR proof 会按候选本地 `HW` 参与 quorum-safe prefix 计算；它可以保留已提交前缀，但不会把 `HW` 以上的本地 tail 当成多数派已证明。
 - **promotion evaluator 不会提升冷空副本**: 若候选本地没有任何 durable state（没有 epoch lineage / offset / checkpoint），即使其他 ISR 有 proof 也会返回 `candidate_missing_state`。

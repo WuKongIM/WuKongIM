@@ -881,6 +881,7 @@ func (r *runtime) applyReconcileProbeResponseEnvelope(ch *channel, env Reconcile
 	return ch.replica.ApplyReconcileProof(context.Background(), core.ReplicaReconcileProof{
 		ChannelKey:   env.ChannelKey,
 		Epoch:        env.Epoch,
+		LeaderEpoch:  env.LeaderEpoch,
 		ReplicaID:    env.ReplicaID,
 		OffsetEpoch:  env.OffsetEpoch,
 		LogEndOffset: env.LogEndOffset,
@@ -961,11 +962,15 @@ func (r *runtime) ServeReconcileProbe(ctx context.Context, req ReconcileProbeReq
 	if req.Epoch != meta.Epoch {
 		return ReconcileProbeResponseEnvelope{}, core.ErrStaleMeta
 	}
+	if req.LeaderEpoch != meta.LeaderEpoch {
+		return ReconcileProbeResponseEnvelope{}, core.ErrStaleMeta
+	}
 
 	state := ch.Status()
 	return ReconcileProbeResponseEnvelope{
 		ChannelKey:   req.ChannelKey,
 		Epoch:        state.Epoch,
+		LeaderEpoch:  meta.LeaderEpoch,
 		Generation:   ch.gen,
 		ReplicaID:    r.cfg.LocalNode,
 		OffsetEpoch:  state.OffsetEpoch,

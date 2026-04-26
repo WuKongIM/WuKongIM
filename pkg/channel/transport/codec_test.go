@@ -94,3 +94,52 @@ func TestFetchResponseCodecRoundTrip(t *testing.T) {
 		t.Fatalf("records = %+v, want %+v", got.Records, resp.Records)
 	}
 }
+
+func TestReconcileProbeCodecVersionsIncludeLeaderEpoch(t *testing.T) {
+	req := runtime.ReconcileProbeRequestEnvelope{
+		ChannelKey:  "g1",
+		Epoch:       3,
+		LeaderEpoch: 9,
+		Generation:  7,
+		ReplicaID:   2,
+	}
+	reqData, err := encodeReconcileProbeRequest(req)
+	if err != nil {
+		t.Fatalf("encodeReconcileProbeRequest() error = %v", err)
+	}
+	if reqData[0] != 2 {
+		t.Fatalf("reconcile probe request version = %d, want 2", reqData[0])
+	}
+	gotReq, err := decodeReconcileProbeRequest(reqData)
+	if err != nil {
+		t.Fatalf("decodeReconcileProbeRequest() error = %v", err)
+	}
+	if gotReq != req {
+		t.Fatalf("request = %+v, want %+v", gotReq, req)
+	}
+
+	resp := runtime.ReconcileProbeResponseEnvelope{
+		ChannelKey:   "g1",
+		Epoch:        3,
+		LeaderEpoch:  9,
+		Generation:   8,
+		ReplicaID:    4,
+		OffsetEpoch:  3,
+		LogEndOffset: 12,
+		CheckpointHW: 11,
+	}
+	respData, err := encodeReconcileProbeResponse(resp)
+	if err != nil {
+		t.Fatalf("encodeReconcileProbeResponse() error = %v", err)
+	}
+	if respData[0] != 2 {
+		t.Fatalf("reconcile probe response version = %d, want 2", respData[0])
+	}
+	gotResp, err := decodeReconcileProbeResponse(respData)
+	if err != nil {
+		t.Fatalf("decodeReconcileProbeResponse() error = %v", err)
+	}
+	if gotResp != resp {
+		t.Fatalf("response = %+v, want %+v", gotResp, resp)
+	}
+}

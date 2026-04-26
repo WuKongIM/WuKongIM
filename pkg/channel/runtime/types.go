@@ -91,15 +91,17 @@ type FetchResponseEnvelope struct {
 }
 
 type ReconcileProbeRequestEnvelope struct {
-	ChannelKey core.ChannelKey
-	Epoch      uint64
-	Generation uint64
-	ReplicaID  core.NodeID
+	ChannelKey  core.ChannelKey
+	Epoch       uint64
+	LeaderEpoch uint64
+	Generation  uint64
+	ReplicaID   core.NodeID
 }
 
 type ReconcileProbeResponseEnvelope struct {
 	ChannelKey   core.ChannelKey
 	Epoch        uint64
+	LeaderEpoch  uint64
 	Generation   uint64
 	ReplicaID    core.NodeID
 	OffsetEpoch  uint64

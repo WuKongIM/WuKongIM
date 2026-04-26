@@ -250,13 +250,21 @@ func (b commitBatch) completeAll(err error) {
 }
 
 func (s *ChannelStore) StoreApplyFetch(req channel.ApplyFetchStoreRequest) (uint64, error) {
-	return s.applyFetchedRecords(req.Records, req.Checkpoint)
+	return s.applyFetchedRecords(req, nil)
 }
 
-func (s *ChannelStore) applyFetchedRecords(records []channel.Record, checkpoint *channel.Checkpoint) (uint64, error) {
+// StoreApplyFetchWithEpoch atomically persists fetched records, an optional
+// checkpoint, and an optional epoch boundary in the same Pebble batch.
+func (s *ChannelStore) StoreApplyFetchWithEpoch(req channel.ApplyFetchStoreRequest, epochPoint *channel.EpochPoint) (uint64, error) {
+	return s.applyFetchedRecords(req, epochPoint)
+}
+
+func (s *ChannelStore) applyFetchedRecords(req channel.ApplyFetchStoreRequest, epochPoint *channel.EpochPoint) (uint64, error) {
 	if err := s.validate(); err != nil {
 		return 0, err
 	}
+	records := req.Records
+	checkpoint := req.Checkpoint
 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -267,20 +275,63 @@ func (s *ChannelStore) applyFetchedRecords(records []channel.Record, checkpoint 
 		s.mu.Unlock()
 		return 0, err
 	}
-	if len(records) == 0 && checkpoint == nil {
+	if len(records) == 0 && checkpoint == nil && epochPoint == nil {
 		s.mu.Unlock()
 		return base, nil
+	}
+	nextLEO := base + uint64(len(records))
+	if checkpoint != nil {
+		if err := validateStoreCheckpoint(*checkpoint); err != nil {
+			s.mu.Unlock()
+			return 0, err
+		}
+		if checkpoint.HW < req.PreviousCommittedHW {
+			s.mu.Unlock()
+			return 0, channel.ErrCorruptState
+		}
+		if checkpoint.HW > nextLEO {
+			s.mu.Unlock()
+			return 0, channel.ErrCorruptState
+		}
+	}
+	if epochPoint != nil && epochPoint.StartOffset != base {
+		s.mu.Unlock()
+		return 0, channel.ErrCorruptState
+	}
+	var historyPoint *channel.EpochPoint
+	if epochPoint != nil {
+		points, err := s.loadHistoryOrEmpty()
+		if err != nil {
+			s.mu.Unlock()
+			return 0, err
+		}
+		needsAppend, err := shouldAppendHistoryPoint(points, *epochPoint)
+		if err != nil {
+			s.mu.Unlock()
+			return 0, err
+		}
+		if needsAppend {
+			point := *epochPoint
+			historyPoint = &point
+		}
+	}
+	if checkpoint != nil {
+		s.checkpointMu.Lock()
+		defer s.checkpointMu.Unlock()
+		if err := s.validateCheckpointMonotonicAgainstCurrent(*checkpoint); err != nil {
+			s.mu.Unlock()
+			return 0, err
+		}
 	}
 	s.writeInProgress.Store(true)
 	s.mu.Unlock()
 	defer s.failPendingWrite()
 
-	nextLEO := base + uint64(len(records))
 	if coordinator := s.commitCoordinator(); coordinator != nil {
 		err := coordinator.submit(commitRequest{
 			channelKey: s.key,
 			build: func(writeBatch *pebble.Batch) error {
-				return s.writeApplyFetchedRecords(writeBatch, base, records, checkpoint)
+				return s.writeApplyFetchedRecords(writeBatch, base, records, checkpoint, historyPoint)
 			},
 			publish: func() error {
 				s.publishDurableWrite(nextLEO)
@@ -296,7 +347,7 @@ func (s *ChannelStore) applyFetchedRecords(records []channel.Record, checkpoint 
 	batch := s.engine.db.NewBatch()
 	defer batch.Close()
 
-	if err := s.writeApplyFetchedRecords(batch, base, records, checkpoint); err != nil {
+	if err := s.writeApplyFetchedRecords(batch, base, records, checkpoint, historyPoint); err != nil {
 		return 0, err
 	}
 	if err := batch.Commit(pebble.Sync); err != nil {
@@ -306,7 +357,7 @@ func (s *ChannelStore) applyFetchedRecords(records []channel.Record, checkpoint 
 	return nextLEO, nil
 }
 
-func (s *ChannelStore) writeApplyFetchedRecords(writeBatch *pebble.Batch, base uint64, records []channel.Record, checkpoint *channel.Checkpoint) error {
+func (s *ChannelStore) writeApplyFetchedRecords(writeBatch *pebble.Batch, base uint64, records []channel.Record, checkpoint *channel.Checkpoint, epochPoint *channel.EpochPoint) error {
 	rows, err := structuredRowsFromCompatibilityRecords(base+1, records)
 	if err != nil {
 		return err
@@ -318,6 +369,11 @@ func (s *ChannelStore) writeApplyFetchedRecords(writeBatch *pebble.Batch, base u
 	}
 	if checkpoint != nil {
 		if err := s.writeCheckpoint(writeBatch, *checkpoint); err != nil {
+			return err
+		}
+	}
+	if epochPoint != nil {
+		if err := s.writeHistoryPoint(writeBatch, *epochPoint); err != nil {
 			return err
 		}
 	}

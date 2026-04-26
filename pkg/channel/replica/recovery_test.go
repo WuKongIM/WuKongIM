@@ -31,11 +31,12 @@ func TestNewReplicaRetainsQuorumSafeTailUntilReconcile(t *testing.T) {
 	r.mustApplyMeta(t, meta)
 	require.NoError(t, r.BecomeLeader(meta))
 	require.Empty(t, env.log.truncateCalls, "reconcile must retain a majority-visible tail")
-	require.NoError(t, r.ApplyProgressAck(context.Background(), channel.ReplicaProgressAckRequest{
+	require.NoError(t, r.ApplyFollowerCursor(context.Background(), channel.ReplicaFollowerCursorUpdate{
 		ChannelKey:  meta.Key,
 		Epoch:       meta.Epoch,
 		ReplicaID:   2,
 		MatchOffset: safeTail,
+		OffsetEpoch: r.Status().OffsetEpoch,
 	}))
 	require.Eventually(t, func() bool {
 		st = r.Status()
@@ -138,6 +139,15 @@ func TestNewReplicaRejectsCheckpointBeyondLEO(t *testing.T) {
 	if !errors.Is(err, channel.ErrCorruptState) {
 		t.Fatalf("expected ErrCorruptState, got %v", err)
 	}
+}
+
+func TestNewReplicaRecoveryFailureReturnsBeforeWorkersStart(t *testing.T) {
+	env := newTestEnv(t)
+	env.checkpoints.loadErr = errors.New("load checkpoint")
+
+	_, err := NewReplica(env.config())
+
+	require.ErrorContains(t, err, "load checkpoint")
 }
 
 func TestNewReplicaBootstrapsEmptyState(t *testing.T) {
