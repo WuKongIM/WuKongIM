@@ -11,4 +11,5 @@ const (
 	channelMessagesRPCServiceID       uint8 = 36
 	channelLeaderRepairRPCServiceID   uint8 = 37
 	channelLeaderEvaluateRPCServiceID uint8 = 38
+	runtimeSummaryRPCServiceID        uint8 = 39
 )
