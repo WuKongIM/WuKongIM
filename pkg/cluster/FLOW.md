@@ -102,6 +102,8 @@ Start():
      → host.storeHashSlotTableSnapshot(table) 预热 leader-local HashSlot snapshot
      → router.UpdateHashSlotTable
      → host.Start()
+       Controller Raft 使用独立的 transport message type，必须避免与 Slot Raft / observation hint 冲突；
+       入站 Controller Raft frame 只接受 To=local 且 From!=local 的消息，避免 stale discovery / loopback 帧进入 RawNode。
   ⑤ startMultiraftRuntime():
      → multiraft.New(nodeID, tickInterval, workers, raftTransport)
      → 绑定 Router.runtime

@@ -21,6 +21,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	raft "go.etcd.io/raft/v3"
+	"go.etcd.io/raft/v3/raftpb"
 )
 
 func TestServiceBootstrapsOnlyOnSmallestDerivedPeer(t *testing.T) {
@@ -129,6 +130,62 @@ func TestServiceProposeReturnsRunLoopErrorAfterExit(t *testing.T) {
 
 	err := service.Propose(context.Background(), slotcontroller.Command{})
 	require.ErrorIs(t, err, sentinel)
+}
+
+func TestServiceHandleMessageDropsMisroutedRaftMessages(t *testing.T) {
+	service := &Service{
+		cfg:     Config{NodeID: 1},
+		started: true,
+		stopCh:  make(chan struct{}),
+		stepCh:  make(chan raftpb.Message, 4),
+	}
+
+	misrouted := []raftpb.Message{
+		{From: 1, To: 2, Type: raftpb.MsgHeartbeat},
+		{From: 2, To: 2, Type: raftpb.MsgHeartbeat},
+		{From: 1, To: 1, Type: raftpb.MsgHeartbeat},
+	}
+	for _, msg := range misrouted {
+		service.handleMessage(mustMarshalRaftMessage(t, msg))
+		select {
+		case got := <-service.stepCh:
+			t.Fatalf("handleMessage stepped misrouted message %+v", got)
+		default:
+		}
+	}
+
+	valid := raftpb.Message{From: 2, To: 1, Type: raftpb.MsgHeartbeat}
+	service.handleMessage(mustMarshalRaftMessage(t, valid))
+	select {
+	case got := <-service.stepCh:
+		require.Equal(t, valid, got)
+	default:
+		t.Fatal("handleMessage dropped valid inbound message")
+	}
+}
+
+func TestControllerRaftMessageTypeAvoidsClusterTransportTypes(t *testing.T) {
+	const (
+		clusterRaftMessageType            uint8 = 1
+		clusterObservationHintMessageType uint8 = 2
+	)
+
+	require.NotContains(t, []uint8{
+		clusterRaftMessageType,
+		clusterObservationHintMessageType,
+	}, msgTypeControllerRaft)
+}
+
+func TestRaftTransportSkipsLocalMessages(t *testing.T) {
+	rt := &raftTransport{localNodeID: 1}
+
+	err := rt.Send(context.Background(), []raftpb.Message{
+		{From: 1, To: 1, Type: raftpb.MsgHeartbeat},
+		{From: 2, To: 2, Type: raftpb.MsgHeartbeat},
+		{From: 2, To: 1, Type: raftpb.MsgHeartbeat},
+	})
+
+	require.NoError(t, err)
 }
 
 func TestServiceProposeAppliesMigrationCommand(t *testing.T) {
@@ -737,6 +794,13 @@ func (c *bootstrapCounts) snapshot() map[uint64]int {
 		out[nodeID] = count
 	}
 	return out
+}
+
+func mustMarshalRaftMessage(t *testing.T, msg raftpb.Message) []byte {
+	t.Helper()
+	body, err := msg.Marshal()
+	require.NoError(t, err)
+	return body
 }
 
 func sortedPeers(peers []uint64) []uint64 {

@@ -8,17 +8,23 @@ import (
 )
 
 const (
-	msgTypeControllerRaft uint8  = 2
+	// msgTypeControllerRaft must not collide with cluster-level transport
+	// message types because controller raft shares the same transport.Server.
+	msgTypeControllerRaft uint8  = 3
 	controllerShardKey    uint64 = 1
 )
 
 type raftTransport struct {
+	// client sends controller Raft frames through the shared cluster transport pool.
 	client *transport.Client
+	// localNodeID identifies looped outbound frames that must never enter the network.
+	localNodeID uint64
 }
 
-func newTransport(pool *transport.Pool) *raftTransport {
+func newTransport(pool *transport.Pool, localNodeID uint64) *raftTransport {
 	return &raftTransport{
-		client: transport.NewClient(pool),
+		client:      transport.NewClient(pool),
+		localNodeID: localNodeID,
 	}
 }
 
@@ -33,6 +39,9 @@ func (t *raftTransport) Send(ctx context.Context, messages []raftpb.Message) err
 	for _, msg := range messages {
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		if msg.To == 0 || msg.To == msg.From || (t.localNodeID != 0 && msg.To == t.localNodeID) {
+			continue
 		}
 		data, err := msg.Marshal()
 		if err != nil {

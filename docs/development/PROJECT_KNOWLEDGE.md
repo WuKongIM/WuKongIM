@@ -20,3 +20,7 @@
 
 ### Planning writes
 - Production controller planning writes must go through Controller Raft proposals; direct Store writes are only for local tests or tools.
+
+### Controller Raft transport
+- Controller Raft shares the cluster transport server, so its wire message type must stay distinct from slot Raft and observation-hint message types.
+- Inbound Controller Raft frames must be addressed to the local node and originate from a different node; drop looped or misrouted frames before calling `RawNode.Step`.

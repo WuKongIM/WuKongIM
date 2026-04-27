@@ -12,6 +12,7 @@ import (
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -248,7 +249,7 @@ func (s *Service) Start(ctx context.Context) error {
 		return err
 	}
 
-	s.transport = newTransport(s.cfg.Pool)
+	s.transport = newTransport(s.cfg.Pool, s.cfg.NodeID)
 	s.stopCh = make(chan struct{})
 	s.doneCh = make(chan struct{})
 	s.stepCh = make(chan raftpb.Message, 1024)
@@ -375,6 +376,9 @@ func (s *Service) handleMessage(body []byte) {
 	if err := msg.Unmarshal(body); err != nil {
 		return
 	}
+	if s.dropInboundRaftMessage(msg) {
+		return
+	}
 
 	s.mu.Lock()
 	started := s.started
@@ -391,6 +395,43 @@ func (s *Service) handleMessage(body []byte) {
 	default:
 		// Drop on backpressure; raft will retry.
 	}
+}
+
+// dropInboundRaftMessage rejects stale or looped network frames before RawNode.Step.
+func (s *Service) dropInboundRaftMessage(msg raftpb.Message) bool {
+	localNodeID := s.cfg.NodeID
+	if localNodeID == 0 {
+		return false
+	}
+
+	reason := ""
+	switch {
+	case msg.To != localNodeID:
+		reason = "target_mismatch"
+	case msg.From == localNodeID:
+		reason = "loopback"
+	case msg.To == msg.From:
+		reason = "self_addressed"
+	}
+	if reason == "" {
+		return false
+	}
+
+	// Network-delivered controller raft traffic must always be addressed to this
+	// node and come from a different peer. Dropping stale or looped frames here
+	// prevents RawNode from panicking on self-addressed heartbeat responses.
+	if s.cfg.Logger != nil {
+		s.cfg.Logger.Named("raft").Warn("drop misrouted controller raft message",
+			wklog.RaftScope("controller"),
+			wklog.NodeID(localNodeID),
+			wklog.TargetNodeID(msg.To),
+			wklog.PeerNodeID(msg.From),
+			wklog.String("raftMsgType", msg.Type.String()),
+			wklog.Reason(reason),
+			wklog.Event("controller.raft.message.drop"),
+		)
+	}
+	return true
 }
 
 func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, stopCh <-chan struct{}, doneCh chan struct{}, transport *raftTransport) {
