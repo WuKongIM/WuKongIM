@@ -33,8 +33,11 @@ func TestTransportLayerStartInitializesServerAndClients(t *testing.T) {
 	if layer.rpcMux == nil {
 		t.Fatal("transportLayer.Start() did not initialize rpc mux")
 	}
-	if layer.raftClient == nil || layer.fwdClient == nil {
+	if layer.raftClient == nil || layer.fwdClient == nil || layer.controllerRPCClient == nil {
 		t.Fatal("transportLayer.Start() did not initialize clients")
+	}
+	if layer.controllerPool == nil {
+		t.Fatal("transportLayer.Start() did not initialize controller pool")
 	}
 }
 

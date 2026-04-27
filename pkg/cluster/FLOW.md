@@ -91,9 +91,10 @@ Start():
        rpcServiceForward → handleForwardRPC
        rpcServiceController → handleControllerRPC
        rpcServiceManagedSlot → handleManagedSlotRPC
-     创建 raftPool + rpcPool → raftClient + fwdClient
+     创建 raftPool + rpcPool + controllerPool → raftClient + fwdClient + controllerRPCClient
      Server / Pool 通过 Config.TransportObserver 上报 transport send/receive bytes、dial / enqueue 结果，以及 RPC client 调用结果 / 时延 / inflight
-     Cluster.TransportPoolStats() 在观测刷新时聚合 raftPool/rpcPool 的 active/idle 连接数
+     Cluster.TransportPoolStats() 在观测刷新时聚合 raftPool/rpcPool/controllerPool 的 active/idle 连接数
+     controller RPC 使用独立 controllerPool，避免被业务 forward / managed-slot RPC 队列阻塞
   ④ startControllerRaftIfLocalPeer():
      条件: ControllerEnabled() && HasLocalControllerPeer()
      → newControllerHost(cfg, transport)

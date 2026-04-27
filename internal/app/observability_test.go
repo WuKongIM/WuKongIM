@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -294,6 +295,7 @@ func TestMetricsHandlerRefreshesControllerMetricsFromClusterState(t *testing.T) 
 			},
 		},
 	}
+	app.observedClusterCache.store(app.collectObservedClusterState(), time.Now())
 
 	handler := app.metricsHandler()
 	require.NotNil(t, handler)
@@ -325,6 +327,42 @@ func TestMetricsHandlerRefreshesControllerMetricsFromClusterState(t *testing.T) 
 	migrationsActive := requireMetricFamilyByName(t, families, "wukongim_controller_hashslot_migrations_active")
 	require.Len(t, migrationsActive.GetMetric(), 1)
 	require.Equal(t, float64(2), migrationsActive.GetMetric()[0].GetGauge().GetValue())
+}
+
+func TestMetricsHandlerUsesCachedControllerStateWithoutLiveClusterReads(t *testing.T) {
+	cluster := &countingObservabilityCluster{
+		fakeObservabilityCluster: fakeObservabilityCluster{
+			nodes: []controllermeta.ClusterNode{
+				{NodeID: 1, Status: controllermeta.NodeStatusDead},
+			},
+		},
+	}
+	app := &App{
+		cfg: Config{
+			Node: NodeConfig{ID: 1, Name: "node-1"},
+		},
+		metrics: obsmetrics.New(1, "node-1"),
+		cluster: cluster,
+	}
+	app.observedClusterCache.store(observedClusterState{
+		nodes: []controllermeta.ClusterNode{
+			{NodeID: 1, Status: controllermeta.NodeStatusAlive},
+		},
+	}, time.Now())
+
+	handler := app.metricsHandler()
+	require.NotNil(t, handler)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	handler.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	require.EqualValues(t, 0, cluster.nodesCalls.Load(), "metrics scrape must not issue live controller reads")
+	families, err := app.metrics.Gather()
+	require.NoError(t, err)
+	nodesAlive := requireMetricFamilyByName(t, families, "wukongim_controller_nodes_alive")
+	require.Equal(t, float64(1), nodesAlive.GetMetric()[0].GetGauge().GetValue())
 }
 
 func TestMetricsHandlerRefreshesStorageMetricsFromStorageState(t *testing.T) {
@@ -396,6 +434,16 @@ type fakeObservabilityCluster struct {
 	migrations           []raftcluster.HashSlotMigration
 	transportStats       []transport.PoolPeerStats
 	waitReadyErr         error
+}
+
+type countingObservabilityCluster struct {
+	fakeObservabilityCluster
+	nodesCalls atomic.Int32
+}
+
+func (f *countingObservabilityCluster) ListNodes(ctx context.Context) ([]controllermeta.ClusterNode, error) {
+	f.nodesCalls.Add(1)
+	return f.fakeObservabilityCluster.ListNodes(ctx)
 }
 
 func (f fakeObservabilityCluster) Start() error { return nil }

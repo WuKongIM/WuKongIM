@@ -219,6 +219,83 @@ func TestPoolObserverTracksDialLifecycle(t *testing.T) {
 	})
 }
 
+func TestPoolRPCAcquireWaitRespectsContextDeadline(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var startedOnce sync.Once
+
+	pool := NewPool(PoolConfig{
+		Discovery:   staticDiscovery{addrs: map[NodeID]string{2: "127.0.0.1:1"}},
+		Size:        1,
+		DialTimeout: time.Second,
+		QueueSizes:  [numPriorities]int{4, 4, 4},
+		DefaultPri:  PriorityRPC,
+		Dial: func(network, addr string, timeout time.Duration) (net.Conn, error) {
+			startedOnce.Do(func() { close(started) })
+			<-release
+			return nil, errors.New("dial released")
+		},
+	})
+	defer pool.Close()
+	defer close(release)
+
+	firstErr := make(chan error, 1)
+	go func() {
+		_, err := pool.RPC(context.Background(), 2, 0, []byte("first"))
+		firstErr <- err
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for first dial")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	secondErr := make(chan error, 1)
+	go func() {
+		_, err := pool.RPC(ctx, 2, 0, []byte("second"))
+		secondErr <- err
+	}()
+
+	select {
+	case err := <-secondErr:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("second RPC error = %v, want %v", err, context.DeadlineExceeded)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("second RPC did not return when its context expired")
+	}
+}
+
+func TestPoolRPCDialRespectsContextDeadline(t *testing.T) {
+	pool := NewPool(PoolConfig{
+		Discovery:   staticDiscovery{addrs: map[NodeID]string{2: "127.0.0.1:1"}},
+		Size:        1,
+		DialTimeout: time.Second,
+		QueueSizes:  [numPriorities]int{4, 4, 4},
+		DefaultPri:  PriorityRPC,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		},
+	})
+	defer pool.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	started := time.Now()
+	_, err := pool.RPC(ctx, 2, 0, []byte("req"))
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("RPC() error = %v, want %v", err, context.DeadlineExceeded)
+	}
+	if elapsed := time.Since(started); elapsed >= 250*time.Millisecond {
+		t.Fatalf("RPC() elapsed = %s, want context deadline to stop dial promptly", elapsed)
+	}
+}
+
 func TestPoolObserverTracksEnqueueResults(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -536,7 +613,7 @@ func TestPoolAcquireConcurrentColdSlotSharesSingleDialAndError(t *testing.T) {
 	for i := 0; i < 8; i++ {
 		go func() {
 			<-start
-			_, err := pool.acquire(2, 0)
+			_, err := pool.acquire(context.Background(), 2, 0)
 			resultCh <- err
 		}()
 	}
@@ -636,7 +713,7 @@ func TestPoolAcquireAfterCooldownStartsOneNewDial(t *testing.T) {
 	for i := 0; i < 8; i++ {
 		go func() {
 			<-start
-			mc, err := pool.acquire(2, 0)
+			mc, err := pool.acquire(context.Background(), 2, 0)
 			if err == nil {
 				connCh <- mc
 			}
@@ -698,7 +775,7 @@ func TestPoolAcquireClosedSlotTriggersSingleRewarm(t *testing.T) {
 	})
 	defer pool.Close()
 
-	mc, err := pool.acquire(2, 0)
+	mc, err := pool.acquire(context.Background(), 2, 0)
 	if err != nil {
 		t.Fatalf("initial acquire error = %v", err)
 	}
@@ -735,7 +812,7 @@ func TestPoolAcquireClosedSlotTriggersSingleRewarm(t *testing.T) {
 	conns := make(chan *MuxConn, 8)
 	for i := 0; i < 8; i++ {
 		go func() {
-			mc, err := pool.acquire(2, 0)
+			mc, err := pool.acquire(context.Background(), 2, 0)
 			if err == nil {
 				conns <- mc
 			}
@@ -760,7 +837,7 @@ func TestPoolAcquireClosedSlotTriggersSingleRewarm(t *testing.T) {
 
 	requireEventually(t, func() bool { return dials.Load() == 3 })
 
-	reused, err := pool.acquire(2, 0)
+	reused, err := pool.acquire(context.Background(), 2, 0)
 	if err != nil {
 		t.Fatalf("post-rewarm acquire error = %v", err)
 	}
@@ -815,7 +892,7 @@ func TestPoolAcquireClosedSlotRefreshesDiscoveryAddressAfterRestart(t *testing.T
 	})
 	defer pool.Close()
 
-	mc, err := pool.acquire(2, 0)
+	mc, err := pool.acquire(context.Background(), 2, 0)
 	if err != nil {
 		t.Fatalf("initial acquire error = %v", err)
 	}
@@ -831,7 +908,7 @@ func TestPoolAcquireClosedSlotRefreshesDiscoveryAddressAfterRestart(t *testing.T
 	}
 	mc.Close()
 
-	rewarmed, err := pool.acquire(2, 0)
+	rewarmed, err := pool.acquire(context.Background(), 2, 0)
 	if err != nil {
 		t.Fatalf("acquire after restart error = %v, want redial using refreshed discovery address", err)
 	}
@@ -861,7 +938,7 @@ func TestPoolClosePeerEvictsCachedConnectionAndRefreshesAddress(t *testing.T) {
 	})
 	defer pool.Close()
 
-	first, err := pool.acquire(2, 0)
+	first, err := pool.acquire(context.Background(), 2, 0)
 	if err != nil {
 		t.Fatalf("initial acquire error = %v", err)
 	}
@@ -877,7 +954,7 @@ func TestPoolClosePeerEvictsCachedConnectionAndRefreshesAddress(t *testing.T) {
 	discovery.Set(2, "new")
 	pool.ClosePeer(2)
 
-	second, err := pool.acquire(2, 0)
+	second, err := pool.acquire(context.Background(), 2, 0)
 	if err != nil {
 		t.Fatalf("acquire after ClosePeer error = %v", err)
 	}
@@ -921,7 +998,7 @@ func TestPoolClosePeerDuringDialRetriesWithRefreshedAddress(t *testing.T) {
 	acquired := make(chan *MuxConn, 1)
 	errCh := make(chan error, 1)
 	go func() {
-		mc, err := pool.acquire(2, 0)
+		mc, err := pool.acquire(context.Background(), 2, 0)
 		if err == nil {
 			acquired <- mc
 		}
@@ -994,7 +1071,7 @@ func TestPoolClosePeerDuringFailedDialRetriesWithRefreshedAddress(t *testing.T) 
 
 	errCh := make(chan error, 1)
 	go func() {
-		_, err := pool.acquire(2, 0)
+		_, err := pool.acquire(context.Background(), 2, 0)
 		errCh <- err
 	}()
 
@@ -1353,7 +1430,7 @@ func mustListenOnAddr(t *testing.T, addr string) net.Listener {
 
 func mustAcquireError(t *testing.T, pool *Pool, nodeID NodeID, shardKey uint64) error {
 	t.Helper()
-	_, err := pool.acquire(nodeID, shardKey)
+	_, err := pool.acquire(context.Background(), nodeID, shardKey)
 	if err == nil {
 		t.Fatal("acquire unexpectedly succeeded")
 	}

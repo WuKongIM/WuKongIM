@@ -8,14 +8,16 @@ import (
 )
 
 type transportLayer struct {
-	cfg        Config
-	server     *transport.Server
-	rpcMux     *transport.RPCMux
-	raftPool   *transport.Pool
-	rpcPool    *transport.Pool
-	raftClient *transport.Client
-	fwdClient  *transport.Client
-	discovery  Discovery
+	cfg                 Config
+	server              *transport.Server
+	rpcMux              *transport.RPCMux
+	raftPool            *transport.Pool
+	rpcPool             *transport.Pool
+	controllerPool      *transport.Pool
+	raftClient          *transport.Client
+	fwdClient           *transport.Client
+	controllerRPCClient *transport.Client
+	discovery           Discovery
 }
 
 func newTransportLayer(cfg Config, discovery Discovery, rpcMux *transport.RPCMux) *transportLayer {
@@ -74,16 +76,26 @@ func (t *transportLayer) Start(
 		DefaultPri:  transport.PriorityRPC,
 		Observer:    t.cfg.TransportObserver,
 	})
+	t.controllerPool = transport.NewPool(transport.PoolConfig{
+		Discovery:   t.discovery,
+		Size:        t.cfg.PoolSize,
+		DialTimeout: t.cfg.DialTimeout,
+		QueueSizes:  [3]int{0, 256, 0},
+		DefaultPri:  transport.PriorityRPC,
+		Observer:    t.cfg.TransportObserver,
+	})
 	if dynamic, ok := t.discovery.(interface {
 		OnAddressChange(func(nodeID uint64, oldAddr, newAddr string)) func()
 	}); ok {
 		dynamic.OnAddressChange(func(nodeID uint64, _, _ string) {
 			t.raftPool.ClosePeer(nodeID)
 			t.rpcPool.ClosePeer(nodeID)
+			t.controllerPool.ClosePeer(nodeID)
 		})
 	}
 	t.raftClient = transport.NewClient(t.raftPool)
 	t.fwdClient = transport.NewClient(t.rpcPool)
+	t.controllerRPCClient = transport.NewClient(t.controllerPool)
 	return nil
 }
 
@@ -94,6 +106,9 @@ func (t *transportLayer) Stop() {
 	if t.fwdClient != nil {
 		t.fwdClient.Stop()
 	}
+	if t.controllerRPCClient != nil {
+		t.controllerRPCClient.Stop()
+	}
 	if t.raftClient != nil {
 		t.raftClient.Stop()
 	}
@@ -102,6 +117,9 @@ func (t *transportLayer) Stop() {
 	}
 	if t.rpcPool != nil {
 		t.rpcPool.Close()
+	}
+	if t.controllerPool != nil {
+		t.controllerPool.Close()
 	}
 	if t.server != nil {
 		t.server.Stop()

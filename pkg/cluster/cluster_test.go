@@ -1810,10 +1810,18 @@ func TestTransportPoolStatsMergeRaftAndRPCPools(t *testing.T) {
 				QueueSizes:  [3]int{4, 4, 4},
 				DefaultPri:  transport.PriorityRPC,
 			}),
+			controllerPool: transport.NewPool(transport.PoolConfig{
+				Discovery:   singleNodeDiscovery{addr: ln.Addr().String()},
+				Size:        2,
+				DialTimeout: time.Second,
+				QueueSizes:  [3]int{4, 4, 4},
+				DefaultPri:  transport.PriorityRPC,
+			}),
 		},
 	}
 	defer cluster.raftPool.Close()
 	defer cluster.rpcPool.Close()
+	defer cluster.controllerPool.Close()
 
 	if err := cluster.raftPool.Send(1, 0, 1, []byte("raft")); err != nil {
 		t.Fatalf("raftPool.Send() error = %v", err)
@@ -1824,6 +1832,9 @@ func TestTransportPoolStatsMergeRaftAndRPCPools(t *testing.T) {
 	if err := cluster.rpcPool.Send(1, 1, 2, []byte("rpc-b")); err != nil {
 		t.Fatalf("rpcPool second Send() error = %v", err)
 	}
+	if err := cluster.controllerPool.Send(1, 0, 2, []byte("controller")); err != nil {
+		t.Fatalf("controllerPool Send() error = %v", err)
+	}
 
 	stats := cluster.TransportPoolStats()
 	if len(stats) != 1 {
@@ -1832,11 +1843,11 @@ func TestTransportPoolStatsMergeRaftAndRPCPools(t *testing.T) {
 	if stats[0].NodeID != 1 {
 		t.Fatalf("TransportPoolStats() nodeID = %d, want 1", stats[0].NodeID)
 	}
-	if stats[0].Active != 3 {
-		t.Fatalf("TransportPoolStats() active = %d, want 3", stats[0].Active)
+	if stats[0].Active != 4 {
+		t.Fatalf("TransportPoolStats() active = %d, want 4", stats[0].Active)
 	}
-	if stats[0].Idle != 2 {
-		t.Fatalf("TransportPoolStats() idle = %d, want 2", stats[0].Idle)
+	if stats[0].Idle != 3 {
+		t.Fatalf("TransportPoolStats() idle = %d, want 3", stats[0].Idle)
 	}
 
 	_ = ln.Close()

@@ -61,10 +61,11 @@ type App struct {
 	gateway               *gateway.Gateway
 	gatewayBootID         uint64
 
-	isrTransport    *channeltransport.Transport
-	dataPlanePool   *transport.Pool
-	dataPlaneClient *transport.Client
-	metrics         *obsmetrics.Registry
+	isrTransport         *channeltransport.Transport
+	dataPlanePool        *transport.Pool
+	dataPlaneClient      *transport.Client
+	metrics              *obsmetrics.Registry
+	observedClusterCache observedClusterStateCache
 
 	stopOnce       sync.Once
 	lifecycle      sync.Mutex

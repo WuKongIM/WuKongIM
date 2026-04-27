@@ -252,6 +252,33 @@ func TestControllerClientLogsFinalFailure(t *testing.T) {
 	require.Equal(t, transport.ErrNodeNotFound, requireRecordedField[error](t, entry, "error"))
 }
 
+func TestControllerClientBestEffortReadFailureLogsWarning(t *testing.T) {
+	discovery := &controllerClientTestDiscovery{addrs: map[uint64]string{}}
+	pool := transport.NewPool(discovery, 1, 50*time.Millisecond)
+	t.Cleanup(pool.Close)
+
+	client := transport.NewClient(pool)
+	t.Cleanup(client.Stop)
+
+	logger := newRecordingLogger("cluster")
+	cluster := &Cluster{
+		cfg:    Config{NodeID: 3},
+		logger: logger,
+		transportResources: transportResources{
+			fwdClient: client,
+		},
+	}
+	controllerClient := newControllerClient(cluster, []NodeConfig{{NodeID: 1}}, nil)
+
+	_, err := controllerClient.ListNodes(WithBestEffortControllerRead(context.Background()))
+	require.ErrorIs(t, err, transport.ErrNodeNotFound)
+
+	entry := requireRecordedLogEntry(t, logger, "WARN", "cluster.controller", "cluster.controller.rpc.failed")
+	require.Equal(t, "controller rpc read failed", entry.msg)
+	require.Equal(t, controllerRPCListNodes, requireRecordedField[string](t, entry, "rpc"))
+	requireNoRecordedLogEntry(t, logger, "ERROR", "cluster.controller", "cluster.controller.rpc.failed")
+}
+
 func TestControllerClientRuntimeReportFallsThroughRedirectToCurrentLeader(t *testing.T) {
 	staleLeader := transport.NewServer()
 	staleLeaderMux := transport.NewRPCMux()
@@ -713,6 +740,53 @@ func TestControllerClientUpdatePeersReplacesRetryTargets(t *testing.T) {
 	require.EqualValues(t, 1, atomic.LoadInt32(&seen))
 }
 
+func TestControllerClientUsesDedicatedControllerRPCClient(t *testing.T) {
+	leader := transport.NewServer()
+	leaderMux := transport.NewRPCMux()
+	leaderMux.Handle(rpcServiceController, func(_ context.Context, body []byte) ([]byte, error) {
+		req, err := decodeControllerRequest(body)
+		require.NoError(t, err)
+		require.Equal(t, controllerRPCListNodes, req.Kind)
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{
+			Nodes: []controllermeta.ClusterNode{{
+				NodeID:         1,
+				Addr:           "127.0.0.1:7101",
+				Status:         controllermeta.NodeStatusAlive,
+				CapacityWeight: 1,
+			}},
+		})
+	})
+	leader.HandleRPCMux(leaderMux)
+	require.NoError(t, leader.Start("127.0.0.1:0"))
+	t.Cleanup(leader.Stop)
+
+	fwdPool := transport.NewPool(&controllerClientTestDiscovery{addrs: map[uint64]string{}}, 1, 50*time.Millisecond)
+	t.Cleanup(fwdPool.Close)
+	controllerPool := transport.NewPool(&controllerClientTestDiscovery{
+		addrs: map[uint64]string{1: leader.Listener().Addr().String()},
+	}, 1, 50*time.Millisecond)
+	t.Cleanup(controllerPool.Close)
+
+	fwdClient := transport.NewClient(fwdPool)
+	t.Cleanup(fwdClient.Stop)
+	controllerRPCClient := transport.NewClient(controllerPool)
+	t.Cleanup(controllerRPCClient.Stop)
+
+	cluster := &Cluster{
+		cfg: Config{NodeID: 3},
+		transportResources: transportResources{
+			fwdClient:           fwdClient,
+			controllerRPCClient: controllerRPCClient,
+		},
+	}
+	controllerClient := newControllerClient(cluster, []NodeConfig{{NodeID: 1}}, nil)
+
+	nodes, err := controllerClient.ListNodes(context.Background())
+	require.NoError(t, err)
+	require.Len(t, nodes, 1)
+	require.EqualValues(t, 1, nodes[0].NodeID)
+}
+
 type recordedLogEntry struct {
 	level  string
 	module string
@@ -807,6 +881,19 @@ func requireRecordedLogEntry(t *testing.T, logger *recordingLogger, level, modul
 	}
 	t.Fatalf("log entry not found: level=%s module=%s event=%s entries=%#v", level, module, event, logger.entries())
 	return recordedLogEntry{}
+}
+
+func requireNoRecordedLogEntry(t *testing.T, logger *recordingLogger, level, module, event string) {
+	t.Helper()
+	for _, entry := range logger.entries() {
+		if entry.level != level || entry.module != module {
+			continue
+		}
+		field, ok := entry.field("event")
+		if ok && field.Value == event {
+			t.Fatalf("unexpected log entry found: level=%s module=%s event=%s entry=%#v", level, module, event, entry)
+		}
+	}
 }
 
 func requireRecordedField[T any](t *testing.T, entry recordedLogEntry, key string) T {

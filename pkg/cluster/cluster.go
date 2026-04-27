@@ -22,14 +22,16 @@ import (
 )
 
 type transportResources struct {
-	transportLayer *transportLayer
-	server         *transport.Server
-	rpcMux         *transport.RPCMux
-	raftPool       *transport.Pool
-	rpcPool        *transport.Pool
-	raftClient     *transport.Client
-	fwdClient      *transport.Client
-	discovery      Discovery
+	transportLayer      *transportLayer
+	server              *transport.Server
+	rpcMux              *transport.RPCMux
+	raftPool            *transport.Pool
+	rpcPool             *transport.Pool
+	controllerPool      *transport.Pool
+	raftClient          *transport.Client
+	fwdClient           *transport.Client
+	controllerRPCClient *transport.Client
+	discovery           Discovery
 }
 
 type controllerResources struct {
@@ -205,8 +207,10 @@ func (c *Cluster) startTransportLayer() error {
 	c.rpcMux = layer.rpcMux
 	c.raftPool = layer.raftPool
 	c.rpcPool = layer.rpcPool
+	c.controllerPool = layer.controllerPool
 	c.raftClient = layer.raftClient
 	c.fwdClient = layer.fwdClient
+	c.controllerRPCClient = layer.controllerRPCClient
 	c.discovery = layer.discovery
 	return nil
 }
@@ -247,8 +251,17 @@ func (c *Cluster) startPools() {
 		DefaultPri:  transport.PriorityRPC,
 		Observer:    c.cfg.TransportObserver,
 	})
+	c.controllerPool = transport.NewPool(transport.PoolConfig{
+		Discovery:   c.discovery,
+		Size:        c.cfg.PoolSize,
+		DialTimeout: c.cfg.DialTimeout,
+		QueueSizes:  [3]int{0, 256, 0},
+		DefaultPri:  transport.PriorityRPC,
+		Observer:    c.cfg.TransportObserver,
+	})
 	c.raftClient = transport.NewClient(c.raftPool)
 	c.fwdClient = transport.NewClient(c.rpcPool)
+	c.controllerRPCClient = transport.NewClient(c.controllerPool)
 }
 
 func (c *Cluster) startControllerRaftIfLocalPeer() error {
@@ -658,6 +671,9 @@ func (c *Cluster) Stop() {
 		if c.fwdClient != nil {
 			c.fwdClient.Stop()
 		}
+		if c.controllerRPCClient != nil {
+			c.controllerRPCClient.Stop()
+		}
 		if c.raftClient != nil {
 			c.raftClient.Stop()
 		}
@@ -666,6 +682,9 @@ func (c *Cluster) Stop() {
 		}
 		if c.rpcPool != nil {
 			c.rpcPool.Close()
+		}
+		if c.controllerPool != nil {
+			c.controllerPool.Close()
 		}
 		if c.server != nil {
 			c.server.Stop()
@@ -1247,6 +1266,20 @@ func (c *Cluster) RPCService(ctx context.Context, nodeID multiraft.NodeID, slotI
 		return nil, ErrNotStarted
 	}
 	return c.fwdClient.RPCService(ctx, uint64(nodeID), uint64(slotID), serviceID, payload)
+}
+
+func (c *Cluster) controllerRPCService(ctx context.Context, nodeID multiraft.NodeID, payload []byte) ([]byte, error) {
+	if c.stopped.Load() {
+		return nil, transport.ErrStopped
+	}
+	client := c.controllerRPCClient
+	if client == nil {
+		client = c.fwdClient
+	}
+	if client == nil {
+		return nil, ErrNotStarted
+	}
+	return client.RPCService(ctx, uint64(nodeID), uint64(controllerRPCShardKey), rpcServiceController, payload)
 }
 
 // SlotIDs returns the current physical slot IDs with bootstrap fallback.

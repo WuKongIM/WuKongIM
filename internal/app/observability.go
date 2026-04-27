@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -30,7 +32,11 @@ type transportMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
-const observabilityQueryTimeout = 100 * time.Millisecond
+const (
+	observabilityQueryTimeout            = 100 * time.Millisecond
+	controllerMetricsRefreshInterval     = 2 * time.Second
+	controllerMetricsRefreshQueryTimeout = time.Second
+)
 
 type observedClusterState struct {
 	nodes          []controllermeta.ClusterNode
@@ -42,6 +48,58 @@ type observedClusterState struct {
 	assignmentsErr error
 	viewsErr       error
 	tasksErr       error
+}
+
+func (s observedClusterState) hasControllerReadError() bool {
+	return s.nodesErr != nil || s.assignmentsErr != nil || s.viewsErr != nil || s.tasksErr != nil
+}
+
+func cloneObservedClusterState(state observedClusterState) observedClusterState {
+	return observedClusterState{
+		nodes:          append([]controllermeta.ClusterNode(nil), state.nodes...),
+		assignments:    append([]controllermeta.SlotAssignment(nil), state.assignments...),
+		views:          append([]controllermeta.SlotRuntimeView(nil), state.views...),
+		tasks:          append([]controllermeta.ReconcileTask(nil), state.tasks...),
+		migrations:     append([]raftcluster.HashSlotMigration(nil), state.migrations...),
+		nodesErr:       state.nodesErr,
+		assignmentsErr: state.assignmentsErr,
+		viewsErr:       state.viewsErr,
+		tasksErr:       state.tasksErr,
+	}
+}
+
+type observedClusterStateCache struct {
+	mu          sync.RWMutex
+	state       observedClusterState
+	refreshedAt time.Time
+	refreshing  atomic.Bool
+}
+
+func (c *observedClusterStateCache) snapshot(maxAge time.Duration) (observedClusterState, bool) {
+	if c == nil {
+		return observedClusterState{}, true
+	}
+	c.mu.RLock()
+	state := cloneObservedClusterState(c.state)
+	refreshedAt := c.refreshedAt
+	c.mu.RUnlock()
+	if refreshedAt.IsZero() {
+		return state, true
+	}
+	if maxAge > 0 && time.Since(refreshedAt) > maxAge {
+		return state, true
+	}
+	return state, false
+}
+
+func (c *observedClusterStateCache) store(state observedClusterState, refreshedAt time.Time) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	c.state = cloneObservedClusterState(state)
+	c.refreshedAt = refreshedAt
+	c.mu.Unlock()
 }
 
 func (o gatewayMetricsObserver) OnConnectionOpen(event accessgateway.ConnectionEvent) {
@@ -444,25 +502,32 @@ func (a *App) clusterHashSlotTableVersion() uint64 {
 }
 
 func (a *App) collectObservedClusterState() observedClusterState {
+	return a.collectObservedClusterStateWithTimeout(context.Background(), observabilityQueryTimeout)
+}
+
+func (a *App) collectObservedClusterStateWithTimeout(parent context.Context, timeout time.Duration) observedClusterState {
 	if a == nil || a.cluster == nil {
 		return observedClusterState{}
+	}
+	if parent == nil {
+		parent = context.Background()
 	}
 
 	state := observedClusterState{}
 
-	nodesCtx, cancel := context.WithTimeout(context.Background(), observabilityQueryTimeout)
+	nodesCtx, cancel := context.WithTimeout(parent, timeout)
 	state.nodes, state.nodesErr = a.cluster.ListNodes(nodesCtx)
 	cancel()
 
-	assignmentsCtx, cancel := context.WithTimeout(context.Background(), observabilityQueryTimeout)
+	assignmentsCtx, cancel := context.WithTimeout(parent, timeout)
 	state.assignments, state.assignmentsErr = a.cluster.ListSlotAssignments(assignmentsCtx)
 	cancel()
 
-	viewsCtx, cancel := context.WithTimeout(context.Background(), observabilityQueryTimeout)
+	viewsCtx, cancel := context.WithTimeout(parent, timeout)
 	state.views, state.viewsErr = a.cluster.ListObservedRuntimeViews(viewsCtx)
 	cancel()
 
-	tasksCtx, cancel := context.WithTimeout(context.Background(), observabilityQueryTimeout)
+	tasksCtx, cancel := context.WithTimeout(parent, timeout)
 	state.tasks, state.tasksErr = a.cluster.ListTasks(tasksCtx)
 	cancel()
 	state.migrations = a.cluster.GetMigrationStatus()
@@ -494,11 +559,43 @@ func (a *App) refreshControllerMetrics() {
 		return
 	}
 
-	clusterState := a.collectObservedClusterState()
+	clusterState := a.cachedObservedClusterState()
 	alive, suspect, dead := clusterNodeCounts(clusterState.nodes)
 	a.metrics.Controller.SetNodeCounts(alive, suspect, dead)
 	a.metrics.Controller.SetTaskActive(controllerActiveTaskCounts(clusterState.tasks))
 	a.metrics.Controller.SetMigrationsActive(len(clusterState.migrations))
+}
+
+func (a *App) cachedObservedClusterState() observedClusterState {
+	if a == nil {
+		return observedClusterState{}
+	}
+	state, stale := a.observedClusterCache.snapshot(controllerMetricsRefreshInterval)
+	if stale {
+		a.triggerObservedClusterRefresh()
+	}
+	return state
+}
+
+func (a *App) triggerObservedClusterRefresh() {
+	if a == nil || a.cluster == nil {
+		return
+	}
+	if !a.observedClusterCache.refreshing.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		defer a.observedClusterCache.refreshing.Store(false)
+
+		ctx, cancel := context.WithTimeout(context.Background(), controllerMetricsRefreshQueryTimeout)
+		defer cancel()
+		ctx = raftcluster.WithBestEffortControllerRead(ctx)
+		state := a.collectObservedClusterStateWithTimeout(ctx, controllerMetricsRefreshQueryTimeout)
+		if state.hasControllerReadError() {
+			return
+		}
+		a.observedClusterCache.store(state, time.Now())
+	}()
 }
 
 func (a *App) refreshStorageMetrics() {

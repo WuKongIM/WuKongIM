@@ -18,6 +18,7 @@ type PoolConfig struct {
 	Size        int
 	DialTimeout time.Duration
 	Dial        func(network, addr string, timeout time.Duration) (net.Conn, error)
+	DialContext func(ctx context.Context, network, addr string) (net.Conn, error)
 	QueueSizes  [numPriorities]int
 	DefaultPri  Priority
 	Observer    ObserverHooks
@@ -70,7 +71,7 @@ func NewPool(args ...any) *Pool {
 }
 
 func (p *Pool) Send(nodeID NodeID, shardKey uint64, msgType uint8, body []byte) error {
-	mc, err := p.acquire(nodeID, shardKey)
+	mc, err := p.acquire(context.Background(), nodeID, shardKey)
 	if err != nil {
 		p.observeEnqueue(nodeID, p.cfg.DefaultPri, err)
 		return err
@@ -81,7 +82,10 @@ func (p *Pool) Send(nodeID NodeID, shardKey uint64, msgType uint8, body []byte) 
 }
 
 func (p *Pool) RPC(ctx context.Context, nodeID NodeID, shardKey uint64, payload []byte) ([]byte, error) {
-	mc, err := p.acquire(nodeID, shardKey)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	mc, err := p.acquire(ctx, nodeID, shardKey)
 	if err != nil {
 		p.observeEnqueue(nodeID, PriorityRPC, err)
 		return nil, err
@@ -151,13 +155,19 @@ func (p *Pool) Stats() []PoolPeerStats {
 	return stats
 }
 
-func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
+func (p *Pool) acquire(ctx context.Context, nodeID NodeID, shardKey uint64) (*MuxConn, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	set, err := p.getOrCreateNodeSet(nodeID)
 	if err != nil {
 		return nil, err
 	}
 	slot := set.slots[int(shardKey%uint64(len(set.slots)))]
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if set.evicted.Load() {
 			set, err = p.getOrCreateNodeSet(nodeID)
 			if err != nil {
@@ -181,7 +191,9 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 
 		ready, cachedErr := slot.waiterOrCooldown()
 		if ready != nil {
-			<-ready
+			if err := waitReadyOrContext(ctx, ready); err != nil {
+				return nil, err
+			}
 			continue
 		}
 		if cachedErr != nil {
@@ -205,7 +217,9 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 		if slot.ready != nil {
 			ready = slot.ready
 			slot.mu.Unlock()
-			<-ready
+			if err := waitReadyOrContext(ctx, ready); err != nil {
+				return nil, err
+			}
 			continue
 		}
 		slot.ready = ready
@@ -225,12 +239,8 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 		}
 		set.addr.Store(addr)
 
-		dial := p.cfg.Dial
-		if dial == nil {
-			dial = net.DialTimeout
-		}
 		startedAt := time.Now()
-		raw, dialErr := dial("tcp", addr, p.cfg.DialTimeout)
+		raw, dialErr := p.dialContext(ctx, "tcp", addr)
 		p.observeDial(nodeID, dialErr, time.Since(startedAt))
 		if dialErr != nil {
 			// Eviction wins over stale in-flight dial failures so callers retry with fresh discovery.
@@ -255,6 +265,34 @@ func (p *Pool) acquire(nodeID NodeID, shardKey uint64) (*MuxConn, error) {
 		}
 		return mc, nil
 	}
+}
+
+func waitReadyOrContext(ctx context.Context, ready <-chan struct{}) error {
+	select {
+	case <-ready:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (p *Pool) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if p != nil && p.cfg.DialTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, p.cfg.DialTimeout)
+		defer cancel()
+	}
+	if p != nil && p.cfg.DialContext != nil {
+		return p.cfg.DialContext(ctx, network, addr)
+	}
+	if p != nil && p.cfg.Dial != nil {
+		return p.cfg.Dial(network, addr, p.cfg.DialTimeout)
+	}
+	dialer := net.Dialer{Timeout: p.cfg.DialTimeout}
+	return dialer.DialContext(ctx, network, addr)
 }
 
 func (p *Pool) observeDial(nodeID NodeID, err error, dur time.Duration) {

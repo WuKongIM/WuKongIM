@@ -409,7 +409,7 @@ func (c *controllerClient) call(ctx context.Context, req controllerRPCRequest) (
 		if target == c.cluster.cfg.NodeID {
 			respBody, err = c.cluster.handleControllerRPC(rpcCtx, body)
 		} else {
-			respBody, err = c.cluster.RPCService(rpcCtx, target, controllerRPCShardKey, rpcServiceController, body)
+			respBody, err = c.cluster.controllerRPCService(rpcCtx, target, body)
 		}
 		cancel()
 		if err != nil {
@@ -449,7 +449,7 @@ func (c *controllerClient) call(ctx context.Context, req controllerRPCRequest) (
 		lastErr = ErrNoLeader
 	}
 	err = lastErr
-	c.logFailure(req, lastTarget, err)
+	c.logFailure(ctx, req, lastTarget, err)
 	return controllerRPCResponse{}, err
 }
 
@@ -552,14 +552,30 @@ func (c *controllerClient) logRetry(req controllerRPCRequest, target multiraft.N
 	logger.Warn(msg, fields...)
 }
 
-func (c *controllerClient) logFailure(req controllerRPCRequest, target multiraft.NodeID, err error) {
+func (c *controllerClient) logFailure(ctx context.Context, req controllerRPCRequest, target multiraft.NodeID, err error) {
 	logger := c.controllerLogger()
 	if logger == nil {
 		return
 	}
 	fields := c.controllerLogFields(req, target)
 	fields = append(fields, wklog.Event("cluster.controller.rpc.failed"), wklog.Error(err))
+	if controllerRPCLogPolicyFromContext(ctx) == controllerRPCLogBestEffortRead && isReadOnlyControllerRPC(req.Kind) {
+		logger.Warn("controller rpc read failed", fields...)
+		return
+	}
 	logger.Error("controller rpc failed", fields...)
+}
+
+func isReadOnlyControllerRPC(kind string) bool {
+	switch kind {
+	case controllerRPCListNodes,
+		controllerRPCListAssignments,
+		controllerRPCListRuntimeViews,
+		controllerRPCListTasks:
+		return true
+	default:
+		return false
+	}
 }
 
 func (c *controllerClient) controllerLogFields(req controllerRPCRequest, target multiraft.NodeID) []wklog.Field {

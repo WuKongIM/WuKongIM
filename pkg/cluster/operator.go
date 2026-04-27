@@ -299,6 +299,7 @@ func (c *Cluster) TransportPoolStats() []transport.PoolPeerStats {
 
 	mergePoolStats(c.raftPool)
 	mergePoolStats(c.rpcPool)
+	mergePoolStats(c.controllerPool)
 
 	stats := make([]transport.PoolPeerStats, 0, len(merged))
 	for _, stat := range merged {
