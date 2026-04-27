@@ -2,16 +2,27 @@ package management
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 const (
 	scaleInOnboardingJobScanLimit = 100
 	scaleInFutureReportTolerance  = time.Second
+	scaleInDefaultLeaderTransfers = 1
+	scaleInMaxLeaderTransfers     = 3
+)
+
+var (
+	// ErrNodeScaleInBlocked reports that preflight safety checks currently block the action.
+	ErrNodeScaleInBlocked = errors.New("management: node scale-in blocked")
+	// ErrInvalidNodeScaleInState reports that the requested action does not fit the current scale-in state.
+	ErrInvalidNodeScaleInState = errors.New("management: invalid node scale-in state")
 )
 
 // NodeScaleInStatus describes the current manager-driven scale-in state.
@@ -40,6 +51,34 @@ type NodeScaleInPlanRequest struct {
 	ConfirmStatefulSetTail bool
 	// ExpectedTailNodeID is the node ID the operator expects Kubernetes scale-down to remove.
 	ExpectedTailNodeID uint64
+}
+
+// AdvanceNodeScaleInRequest controls one bounded scale-in advancement attempt.
+type AdvanceNodeScaleInRequest struct {
+	// MaxLeaderTransfers caps leader transfers performed by one request; zero defaults to one.
+	MaxLeaderTransfers int
+	// ForceCloseConnections requests connection closing but is not a safety override.
+	ForceCloseConnections bool
+}
+
+// NodeScaleInReportError carries the latest report alongside a typed action error.
+type NodeScaleInReportError struct {
+	// Err is the typed cause returned by errors.Is/As.
+	Err error
+	// Report is the latest fail-closed report for the target node.
+	Report NodeScaleInReport
+}
+
+func (e NodeScaleInReportError) Error() string {
+	if e.Err == nil {
+		return "management: node scale-in report error"
+	}
+	return e.Err.Error()
+}
+
+// Unwrap returns the typed action error.
+func (e NodeScaleInReportError) Unwrap() error {
+	return e.Err
 }
 
 // NodeScaleInReport contains safety checks, progress counters, and the current scale-in status.
@@ -227,6 +266,103 @@ func (a *App) PlanNodeScaleIn(ctx context.Context, nodeID uint64, req NodeScaleI
 	report.Status = scaleInStatus(target, targetFound, report.BlockedReasons, report.Progress, report.ConnectionSafetyVerified)
 	report.SafeToRemove = report.Status == NodeScaleInStatusReadyToRemove
 	return report, nil
+}
+
+// StartNodeScaleIn marks a preflight-safe node as Draining and returns the refreshed report.
+func (a *App) StartNodeScaleIn(ctx context.Context, nodeID uint64, req NodeScaleInPlanRequest) (NodeScaleInReport, error) {
+	report, err := a.PlanNodeScaleIn(ctx, nodeID, req)
+	if err != nil {
+		return report, err
+	}
+	if len(report.BlockedReasons) > 0 {
+		return report, NodeScaleInReportError{Err: ErrNodeScaleInBlocked, Report: report}
+	}
+	if report.Status != NodeScaleInStatusNotStarted {
+		return report, nil
+	}
+	if a == nil || a.cluster == nil {
+		return report, NodeScaleInReportError{Err: ErrNodeScaleInBlocked, Report: report}
+	}
+	if err := a.cluster.MarkNodeDraining(ctx, nodeID); err != nil {
+		return report, err
+	}
+	return a.PlanNodeScaleIn(ctx, nodeID, req)
+}
+
+// GetNodeScaleInStatus returns the current scale-in report without requiring a mutating action request.
+func (a *App) GetNodeScaleInStatus(ctx context.Context, nodeID uint64) (NodeScaleInReport, error) {
+	return a.PlanNodeScaleIn(ctx, nodeID, NodeScaleInPlanRequest{
+		ConfirmStatefulSetTail: true,
+		ExpectedTailNodeID:     nodeID,
+	})
+}
+
+// CancelNodeScaleIn resumes a Draining node and returns the refreshed report.
+func (a *App) CancelNodeScaleIn(ctx context.Context, nodeID uint64) (NodeScaleInReport, error) {
+	if a == nil || a.cluster == nil {
+		return NodeScaleInReport{NodeID: nodeID, Status: NodeScaleInStatusBlocked}, ErrNodeScaleInBlocked
+	}
+	nodes, err := a.cluster.ListNodesStrict(ctx)
+	if err != nil {
+		return NodeScaleInReport{NodeID: nodeID, Status: NodeScaleInStatusBlocked}, err
+	}
+	target, ok := findScaleInNode(nodes, nodeID)
+	if !ok {
+		return NodeScaleInReport{NodeID: nodeID, Status: NodeScaleInStatusBlocked}, controllermeta.ErrNotFound
+	}
+	if target.Status != controllermeta.NodeStatusDraining {
+		return a.GetNodeScaleInStatus(ctx, nodeID)
+	}
+	if err := a.cluster.ResumeNode(ctx, nodeID); err != nil {
+		return NodeScaleInReport{NodeID: nodeID, Status: NodeScaleInStatusBlocked}, err
+	}
+	return a.GetNodeScaleInStatus(ctx, nodeID)
+}
+
+// AdvanceNodeScaleIn performs a bounded leader-transfer step and returns the refreshed report.
+func (a *App) AdvanceNodeScaleIn(ctx context.Context, nodeID uint64, req AdvanceNodeScaleInRequest) (NodeScaleInReport, error) {
+	report, err := a.GetNodeScaleInStatus(ctx, nodeID)
+	if err != nil {
+		return report, err
+	}
+	if req.ForceCloseConnections {
+		return report, NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
+	}
+	if a == nil || a.cluster == nil {
+		return report, NodeScaleInReportError{Err: ErrNodeScaleInBlocked, Report: report}
+	}
+
+	snapshot, err := a.loadNodeScaleInSnapshot(ctx, nodeID)
+	if err != nil {
+		return report, err
+	}
+	target, ok := findScaleInNode(snapshot.nodes, nodeID)
+	if !ok {
+		return report, controllermeta.ErrNotFound
+	}
+	if target.Status != controllermeta.NodeStatusDraining {
+		return report, NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
+	}
+
+	limit := clampScaleInLeaderTransfers(req.MaxLeaderTransfers)
+	transferred := 0
+	for _, view := range snapshot.views {
+		if view.LeaderID != nodeID {
+			continue
+		}
+		candidate, ok := selectScaleInLeaderCandidate(snapshot.nodes, snapshot.assignments, view, nodeID)
+		if !ok {
+			return report, NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
+		}
+		if err := a.cluster.TransferSlotLeader(ctx, view.SlotID, multiraft.NodeID(candidate)); err != nil {
+			return report, err
+		}
+		transferred++
+		if transferred >= limit {
+			break
+		}
+	}
+	return a.GetNodeScaleInStatus(ctx, nodeID)
 }
 
 func (a *App) loadNodeScaleInSnapshot(ctx context.Context, nodeID uint64) (nodeScaleInSnapshot, error) {
@@ -423,6 +559,54 @@ func scaleInRuntimeViewBySlot(views []controllermeta.SlotRuntimeView) map[uint32
 		bySlot[view.SlotID] = view
 	}
 	return bySlot
+}
+
+func scaleInAssignmentBySlot(assignments []controllermeta.SlotAssignment) map[uint32]controllermeta.SlotAssignment {
+	bySlot := make(map[uint32]controllermeta.SlotAssignment, len(assignments))
+	for _, assignment := range assignments {
+		bySlot[assignment.SlotID] = assignment
+	}
+	return bySlot
+}
+
+func clampScaleInLeaderTransfers(limit int) int {
+	if limit <= 0 {
+		return scaleInDefaultLeaderTransfers
+	}
+	if limit > scaleInMaxLeaderTransfers {
+		return scaleInMaxLeaderTransfers
+	}
+	return limit
+}
+
+func selectScaleInLeaderCandidate(nodes []controllermeta.ClusterNode, assignments []controllermeta.SlotAssignment, view controllermeta.SlotRuntimeView, target uint64) (uint64, bool) {
+	eligible := scaleInEligibleLeaderCandidates(nodes, target)
+	assignment, _ := scaleInAssignmentBySlot(assignments)[view.SlotID]
+	for _, peer := range assignment.DesiredPeers {
+		if _, ok := eligible[peer]; ok {
+			return peer, true
+		}
+	}
+	for _, peer := range view.CurrentPeers {
+		if _, ok := eligible[peer]; ok {
+			return peer, true
+		}
+	}
+	return 0, false
+}
+
+func scaleInEligibleLeaderCandidates(nodes []controllermeta.ClusterNode, target uint64) map[uint64]struct{} {
+	eligible := make(map[uint64]struct{})
+	for _, node := range nodes {
+		if node.NodeID == target {
+			continue
+		}
+		if node.Role != controllermeta.NodeRoleData || node.JoinState != controllermeta.NodeJoinStateActive || node.Status != controllermeta.NodeStatusAlive {
+			continue
+		}
+		eligible[node.NodeID] = struct{}{}
+	}
+	return eligible
 }
 
 func scaleInAssignedReplicaCount(assignments []controllermeta.SlotAssignment, nodeID uint64) int {

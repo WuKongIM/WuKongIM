@@ -7,6 +7,7 @@ import (
 
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 )
 
@@ -156,6 +157,94 @@ func TestPlanNodeScaleInReportsReadyToRemove(t *testing.T) {
 	require.True(t, report.ConnectionSafetyVerified)
 }
 
+func TestStartNodeScaleInBlocksWhenPreflightFails(t *testing.T) {
+	fixture := newScaleInActionFixture()
+
+	report, err := fixture.app.StartNodeScaleIn(context.Background(), 3, NodeScaleInPlanRequest{})
+
+	require.ErrorIs(t, err, ErrNodeScaleInBlocked)
+	require.Contains(t, scaleInReasonCodes(report.BlockedReasons), "tail_node_mapping_unverified")
+	require.Zero(t, fixture.cluster.markNodeDrainingCalls)
+	require.False(t, report.SafeToRemove)
+}
+
+func TestStartNodeScaleInMarksNodeDrainingAndRefreshesReport(t *testing.T) {
+	fixture := newScaleInActionFixture()
+
+	report, err := fixture.app.StartNodeScaleIn(context.Background(), 3, fixture.req)
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), fixture.cluster.markNodeDrainingNodeID)
+	require.Equal(t, 1, fixture.cluster.markNodeDrainingCalls)
+	require.Equal(t, NodeScaleInStatusMigratingReplicas, report.Status)
+	require.False(t, report.SafeToRemove)
+}
+
+func TestStartNodeScaleInIsIdempotentWhenAlreadyDraining(t *testing.T) {
+	fixture := newScaleInActionFixture()
+	fixture.cluster.nodes[2].Status = controllermeta.NodeStatusDraining
+
+	report, err := fixture.app.StartNodeScaleIn(context.Background(), 3, fixture.req)
+
+	require.NoError(t, err)
+	require.Zero(t, fixture.cluster.markNodeDrainingCalls)
+	require.Equal(t, NodeScaleInStatusMigratingReplicas, report.Status)
+}
+
+func TestCancelNodeScaleInCallsResumeNode(t *testing.T) {
+	fixture := newScaleInActionFixture()
+	fixture.cluster.nodes[2].Status = controllermeta.NodeStatusDraining
+
+	report, err := fixture.app.CancelNodeScaleIn(context.Background(), 3)
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), fixture.cluster.resumeNodeID)
+	require.Equal(t, 1, fixture.cluster.resumeNodeCalls)
+	require.Equal(t, NodeScaleInStatusNotStarted, report.Status)
+}
+
+func TestAdvanceNodeScaleInTransfersOneLeaderToAliveDataCandidate(t *testing.T) {
+	fixture := newScaleInActionFixture()
+	fixture.cluster.nodes[2].Status = controllermeta.NodeStatusDraining
+	fixture.cluster.assignments = []controllermeta.SlotAssignment{{SlotID: 7, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 1}}
+	fixture.cluster.views = []controllermeta.SlotRuntimeView{{SlotID: 7, CurrentPeers: []uint64{1, 2, 3}, LeaderID: 3, HealthyVoters: 3, HasQuorum: true, LastReportAt: fixture.now}}
+
+	report, err := fixture.app.AdvanceNodeScaleIn(context.Background(), 3, AdvanceNodeScaleInRequest{MaxLeaderTransfers: 1})
+
+	require.NoError(t, err)
+	require.Equal(t, []scaleInTransfer{{slotID: 7, nodeID: 1}}, fixture.cluster.transfers)
+	require.Equal(t, NodeScaleInStatusMigratingReplicas, report.Status)
+	require.Equal(t, 0, report.Progress.SlotLeaders)
+}
+
+func TestAdvanceNodeScaleInReturnsInvalidStateWhenNoLeaderCandidate(t *testing.T) {
+	fixture := newScaleInActionFixture()
+	fixture.cluster.nodes[2].Status = controllermeta.NodeStatusDraining
+	fixture.cluster.assignments = []controllermeta.SlotAssignment{{SlotID: 7, DesiredPeers: []uint64{3}, ConfigEpoch: 1}}
+	fixture.cluster.views = []controllermeta.SlotRuntimeView{{SlotID: 7, CurrentPeers: []uint64{3}, LeaderID: 3, HealthyVoters: 1, HasQuorum: true, LastReportAt: fixture.now}}
+
+	report, err := fixture.app.AdvanceNodeScaleIn(context.Background(), 3, AdvanceNodeScaleInRequest{MaxLeaderTransfers: 1})
+
+	require.ErrorIs(t, err, ErrInvalidNodeScaleInState)
+	require.Empty(t, fixture.cluster.transfers)
+	require.False(t, report.SafeToRemove)
+}
+
+func TestAdvanceNodeScaleInDoesNotTreatForceCloseAsSafetyOverride(t *testing.T) {
+	fixture := newScaleInActionFixture()
+	fixture.cluster.nodes[2].Status = controllermeta.NodeStatusDraining
+	fixture.cluster.assignments = []controllermeta.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 2}}
+	fixture.cluster.views = []controllermeta.SlotRuntimeView{{SlotID: 1, CurrentPeers: []uint64{1, 2}, LeaderID: 1, HealthyVoters: 2, HasQuorum: true, LastReportAt: fixture.now}}
+	fixture.runtime.summary = NodeRuntimeSummary{NodeID: 3, ActiveOnline: 2}
+
+	report, err := fixture.app.AdvanceNodeScaleIn(context.Background(), 3, AdvanceNodeScaleInRequest{ForceCloseConnections: true})
+
+	require.ErrorIs(t, err, ErrInvalidNodeScaleInState)
+	require.Equal(t, NodeScaleInStatusWaitingConnections, report.Status)
+	require.False(t, report.SafeToRemove)
+	require.Zero(t, len(fixture.cluster.transfers))
+}
+
 func scaleInReasonCodes(reasons []NodeScaleInBlockedReason) []string {
 	codes := make([]string, 0, len(reasons))
 	for _, reason := range reasons {
@@ -182,4 +271,99 @@ type scaleInRuntimeSummaryReader struct {
 
 func (r scaleInRuntimeSummaryReader) NodeRuntimeSummary(context.Context, uint64) (NodeRuntimeSummary, error) {
 	return r.summary, r.err
+}
+
+type mutableScaleInRuntimeSummaryReader struct {
+	summary NodeRuntimeSummary
+	err     error
+}
+
+func (r *mutableScaleInRuntimeSummaryReader) NodeRuntimeSummary(context.Context, uint64) (NodeRuntimeSummary, error) {
+	return r.summary, r.err
+}
+
+type scaleInActionFixture struct {
+	app     *App
+	cluster *fakeScaleInActionCluster
+	runtime *mutableScaleInRuntimeSummaryReader
+	req     NodeScaleInPlanRequest
+	now     time.Time
+}
+
+func newScaleInActionFixture() scaleInActionFixture {
+	now := time.Unix(1713686400, 0).UTC()
+	cluster := &fakeScaleInActionCluster{fakeClusterReader: fakeClusterReader{
+		nodes: []controllermeta.ClusterNode{
+			scaleInTestNode(1, controllermeta.NodeRoleData, controllermeta.NodeJoinStateActive, controllermeta.NodeStatusAlive),
+			scaleInTestNode(2, controllermeta.NodeRoleData, controllermeta.NodeJoinStateActive, controllermeta.NodeStatusAlive),
+			scaleInTestNode(3, controllermeta.NodeRoleData, controllermeta.NodeJoinStateActive, controllermeta.NodeStatusAlive),
+		},
+		assignments: []controllermeta.SlotAssignment{
+			{SlotID: 1, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 1},
+			{SlotID: 2, DesiredPeers: []uint64{2, 3}, ConfigEpoch: 1},
+		},
+		views: []controllermeta.SlotRuntimeView{
+			{SlotID: 1, CurrentPeers: []uint64{1, 2}, LeaderID: 1, HealthyVoters: 2, HasQuorum: true, LastReportAt: now},
+			{SlotID: 2, CurrentPeers: []uint64{2, 3}, LeaderID: 2, HealthyVoters: 2, HasQuorum: true, LastReportAt: now},
+		},
+	}}
+	runtime := &mutableScaleInRuntimeSummaryReader{summary: NodeRuntimeSummary{NodeID: 3}}
+	req := NodeScaleInPlanRequest{ConfirmStatefulSetTail: true, ExpectedTailNodeID: 3}
+	app := New(Options{
+		ControllerPeerIDs:        []uint64{1},
+		SlotReplicaN:             2,
+		ScaleInRuntimeViewMaxAge: time.Minute,
+		Cluster:                  cluster,
+		RuntimeSummary:           runtime,
+		Now:                      func() time.Time { return now },
+	})
+	return scaleInActionFixture{app: app, cluster: cluster, runtime: runtime, req: req, now: now}
+}
+
+type fakeScaleInActionCluster struct {
+	fakeClusterReader
+	markNodeDrainingNodeID uint64
+	markNodeDrainingCalls  int
+	resumeNodeID           uint64
+	resumeNodeCalls        int
+	transfers              []scaleInTransfer
+}
+
+type scaleInTransfer struct {
+	slotID uint32
+	nodeID multiraft.NodeID
+}
+
+func (f *fakeScaleInActionCluster) MarkNodeDraining(_ context.Context, nodeID uint64) error {
+	f.markNodeDrainingNodeID = nodeID
+	f.markNodeDrainingCalls++
+	for i := range f.nodes {
+		if f.nodes[i].NodeID == nodeID {
+			f.nodes[i].Status = controllermeta.NodeStatusDraining
+			return nil
+		}
+	}
+	return controllermeta.ErrNotFound
+}
+
+func (f *fakeScaleInActionCluster) ResumeNode(_ context.Context, nodeID uint64) error {
+	f.resumeNodeID = nodeID
+	f.resumeNodeCalls++
+	for i := range f.nodes {
+		if f.nodes[i].NodeID == nodeID {
+			f.nodes[i].Status = controllermeta.NodeStatusAlive
+			return nil
+		}
+	}
+	return controllermeta.ErrNotFound
+}
+
+func (f *fakeScaleInActionCluster) TransferSlotLeader(_ context.Context, slotID uint32, nodeID multiraft.NodeID) error {
+	f.transfers = append(f.transfers, scaleInTransfer{slotID: slotID, nodeID: nodeID})
+	for i := range f.views {
+		if f.views[i].SlotID == slotID {
+			f.views[i].LeaderID = uint64(nodeID)
+		}
+	}
+	return nil
 }
