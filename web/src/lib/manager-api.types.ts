@@ -111,6 +111,95 @@ export type ManagerNodeDetailResponse = ManagerNode & {
   }
 }
 
+// ManagerNodeScaleInReport describes the backend-manager safety report for one node scale-in flow.
+export type ManagerNodeScaleInReport = {
+  node_id: number
+  status: string
+  safe_to_remove: boolean
+  can_start: boolean
+  can_advance: boolean
+  can_cancel: boolean
+  connection_safety_verified: boolean
+  blocked_reasons: ManagerNodeScaleInBlockedReason[]
+  checks: ManagerNodeScaleInChecks
+  progress: ManagerNodeScaleInProgress
+  runtime: ManagerNodeScaleInRuntime
+  leaders: ManagerNodeScaleInLeader[]
+  next_action?: string
+}
+
+// ManagerNodeScaleInChecks exposes individual preflight and runtime safety checks.
+export type ManagerNodeScaleInChecks = {
+  target_exists: boolean
+  target_is_data_node: boolean
+  target_is_active_or_draining: boolean
+  target_is_not_controller_voter: boolean
+  tail_node_mapping_verified: boolean
+  remaining_data_nodes_enough: boolean
+  controller_leader_available: boolean
+  slot_replica_count_known: boolean
+  no_other_draining_node: boolean
+  no_active_hashslot_migrations: boolean
+  no_running_onboarding: boolean
+  no_active_reconcile_tasks_involving_target: boolean
+  no_failed_reconcile_tasks: boolean
+  runtime_views_complete_and_fresh: boolean
+  all_slots_have_quorum: boolean
+  target_not_unique_healthy_replica: boolean
+}
+
+// ManagerNodeScaleInProgress contains counters that explain remaining scale-in work.
+export type ManagerNodeScaleInProgress = {
+  assigned_slot_replicas: number
+  observed_slot_replicas: number
+  slot_leaders: number
+  active_tasks_involving_node: number
+  active_migrations_involving_node: number
+  active_connections: number
+  closing_connections: number
+  gateway_sessions: number
+  active_connections_unknown: boolean
+}
+
+// ManagerNodeScaleInRuntime contains live runtime counters used for connection safety.
+export type ManagerNodeScaleInRuntime = {
+  node_id: number
+  active_online: number
+  closing_online: number
+  total_online: number
+  gateway_sessions: number
+  sessions_by_listener: Record<string, number>
+  accepting_new_sessions: boolean
+  draining: boolean
+  unknown: boolean
+}
+
+// ManagerNodeScaleInBlockedReason is a stable machine-readable blocker plus operator text.
+export type ManagerNodeScaleInBlockedReason = {
+  code: string
+  message: string
+  count: number
+  slot_id: number
+  node_id: number
+}
+
+// ManagerNodeScaleInLeader is reserved for leader transfer suggestions returned by the backend.
+export type ManagerNodeScaleInLeader = {
+  slot_id: number
+  current_leader_id: number
+  transfer_candidates: number[]
+}
+
+export type CreateNodeScaleInPlanInput = {
+  confirmStatefulSetTail: boolean
+  expectedTailNodeId: number
+}
+
+export type AdvanceNodeScaleInInput = {
+  maxLeaderTransfers?: number
+  forceCloseConnections?: boolean
+}
+
 export type ManagerSlot = {
   slot_id: number
   state: {

@@ -11,6 +11,7 @@ import type {
   ManagerNodeOnboardingJob,
   ManagerNodeOnboardingJobsResponse,
   ManagerNodeDetailResponse,
+  ManagerNodeScaleInReport,
   ManagerNodesResponse,
   ManagerOverviewResponse,
   ManagerPermission,
@@ -26,6 +27,8 @@ import type {
   RecoverSlotInput,
   TransferSlotLeaderInput,
   CreateNodeOnboardingPlanInput,
+  CreateNodeScaleInPlanInput,
+  AdvanceNodeScaleInInput,
 } from "@/lib/manager-api.types"
 
 export type ManagerAuthConfig = {
@@ -49,17 +52,20 @@ export type ManagerSession = {
 type ManagerErrorResponse = {
   error?: string
   message?: string
+  report?: unknown
 }
 
 export class ManagerApiError extends Error {
   status: number
   error: string
+  report?: unknown
 
-  constructor(status: number, error: string, message: string) {
+  constructor(status: number, error: string, message: string, report?: unknown) {
     super(message)
     this.name = "ManagerApiError"
     this.status = status
     this.error = error
+    this.report = report
   }
 }
 
@@ -95,6 +101,7 @@ async function parseManagerError(response: Response) {
     response.status,
     payload?.error ?? "request_failed",
     payload?.message ?? `Request failed with status ${response.status}`,
+    payload?.report,
   )
 }
 
@@ -212,6 +219,47 @@ export function markNodeDraining(nodeId: number) {
 
 export function resumeNode(nodeId: number) {
   return jsonManagerFetch<ManagerNodeDetailResponse>(`/manager/nodes/${nodeId}/resume`, {
+    method: "POST",
+  })
+}
+
+function buildNodeScaleInPlanBody(input: CreateNodeScaleInPlanInput) {
+  return JSON.stringify({
+    confirm_statefulset_tail: input.confirmStatefulSetTail,
+    expected_tail_node_id: input.expectedTailNodeId,
+  })
+}
+
+export function planNodeScaleIn(nodeId: number, input: CreateNodeScaleInPlanInput) {
+  return jsonManagerFetch<ManagerNodeScaleInReport>(`/manager/nodes/${nodeId}/scale-in/plan`, {
+    method: "POST",
+    body: buildNodeScaleInPlanBody(input),
+  })
+}
+
+export function startNodeScaleIn(nodeId: number, input: CreateNodeScaleInPlanInput) {
+  return jsonManagerFetch<ManagerNodeScaleInReport>(`/manager/nodes/${nodeId}/scale-in/start`, {
+    method: "POST",
+    body: buildNodeScaleInPlanBody(input),
+  })
+}
+
+export function getNodeScaleInStatus(nodeId: number) {
+  return jsonManagerFetch<ManagerNodeScaleInReport>(`/manager/nodes/${nodeId}/scale-in/status`)
+}
+
+export function advanceNodeScaleIn(nodeId: number, input: AdvanceNodeScaleInInput = {}) {
+  return jsonManagerFetch<ManagerNodeScaleInReport>(`/manager/nodes/${nodeId}/scale-in/advance`, {
+    method: "POST",
+    body: JSON.stringify({
+      max_leader_transfers: input.maxLeaderTransfers,
+      force_close_connections: input.forceCloseConnections,
+    }),
+  })
+}
+
+export function cancelNodeScaleIn(nodeId: number) {
+  return jsonManagerFetch<ManagerNodeScaleInReport>(`/manager/nodes/${nodeId}/scale-in/cancel`, {
     method: "POST",
   })
 }
