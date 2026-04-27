@@ -814,6 +814,27 @@ func TestListObservedRuntimeViewsStrictReturnsLeaderReadErrorWithoutLocalFallbac
 	}
 }
 
+func TestListObservedRuntimeViewsStrictFailsWhenLeaderObservationWarmupIncomplete(t *testing.T) {
+	cluster, host, _ := newTestLocalControllerCluster(t, true)
+	if err := host.meta.UpsertNode(context.Background(), controllermeta.ClusterNode{
+		NodeID:          uint64(cluster.cfg.NodeID),
+		Addr:            "127.0.0.1:7001",
+		Status:          controllermeta.NodeStatusAlive,
+		LastHeartbeatAt: time.Now(),
+		CapacityWeight:  1,
+	}); err != nil {
+		t.Fatalf("UpsertNode() error = %v", err)
+	}
+	if host.warmupComplete() {
+		t.Fatal("warmupComplete() = true before runtime full sync, want false")
+	}
+
+	_, err := cluster.ListObservedRuntimeViewsStrict(context.Background())
+	if !errors.Is(err, ErrObservationNotReady) {
+		t.Fatalf("ListObservedRuntimeViewsStrict() error = %v, want %v", err, ErrObservationNotReady)
+	}
+}
+
 func TestListSlotAssignmentsStrictReturnsLeaderReadErrorWithoutLocalFallback(t *testing.T) {
 	dir := t.TempDir()
 	store, err := controllermeta.Open(filepath.Join(dir, "controller-meta"))
@@ -837,6 +858,36 @@ func TestListSlotAssignmentsStrictReturnsLeaderReadErrorWithoutLocalFallback(t *
 	_, err = cluster.ListSlotAssignmentsStrict(context.Background())
 	if !errors.Is(err, ErrNoLeader) {
 		t.Fatalf("ListSlotAssignmentsStrict() error = %v, want %v", err, ErrNoLeader)
+	}
+}
+
+func TestListActiveMigrationsStrictRefreshesLeaderHashSlotTable(t *testing.T) {
+	cluster, host, _ := newTestLocalControllerCluster(t, true)
+	table := NewHashSlotTable(8, 2)
+	hashSlot := uint16(3)
+	source := table.Lookup(hashSlot)
+	target := multiraft.SlotID(1)
+	if source == target {
+		target = 2
+	}
+	table.StartMigration(hashSlot, source, target)
+	if err := host.meta.SaveHashSlotTable(context.Background(), table); err != nil {
+		t.Fatalf("SaveHashSlotTable() error = %v", err)
+	}
+
+	migrations, err := cluster.ListActiveMigrationsStrict(context.Background())
+	if err != nil {
+		t.Fatalf("ListActiveMigrationsStrict() error = %v", err)
+	}
+	if len(migrations) != 1 {
+		t.Fatalf("len(ListActiveMigrationsStrict()) = %d, want 1: %v", len(migrations), migrations)
+	}
+	want := HashSlotMigration{HashSlot: hashSlot, Source: source, Target: target, Phase: PhaseSnapshot}
+	if migrations[0] != want {
+		t.Fatalf("ListActiveMigrationsStrict()[0] = %+v, want %+v", migrations[0], want)
+	}
+	if got := cluster.GetHashSlotTable().ActiveMigrations(); len(got) != 1 || got[0] != want {
+		t.Fatalf("router active migrations = %+v, want [%+v]", got, want)
 	}
 }
 

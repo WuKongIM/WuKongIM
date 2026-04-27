@@ -175,6 +175,9 @@ func (h *controllerHandler) Handle(ctx context.Context, body []byte) ([]byte, er
 		if c.controllerHost == nil {
 			return nil, ErrNotStarted
 		}
+		if !c.controllerHost.warmupComplete() {
+			return nil, ErrObservationNotReady
+		}
 		return encodeControllerResponse(req.Kind, controllerRPCResponse{
 			RuntimeViews: c.controllerHost.snapshotObservations().RuntimeViews,
 		})

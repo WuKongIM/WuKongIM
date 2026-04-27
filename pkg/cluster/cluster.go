@@ -1446,7 +1446,10 @@ func (c *Cluster) ListObservedRuntimeViews(ctx context.Context) ([]controllermet
 
 // ListObservedRuntimeViewsStrict returns the controller leader's observed runtime snapshot without local fallback.
 func (c *Cluster) ListObservedRuntimeViewsStrict(ctx context.Context) ([]controllermeta.SlotRuntimeView, error) {
-	if views, ok := c.localObservedRuntimeViews(); ok {
+	if views, ok, err := c.localObservedRuntimeViewsStrict(); ok || err != nil {
+		if err != nil {
+			return nil, err
+		}
 		return views, nil
 	}
 	if c != nil && c.controllerClient != nil {
@@ -1462,6 +1465,16 @@ func (c *Cluster) ListObservedRuntimeViewsStrict(ctx context.Context) ([]control
 		return views, nil
 	}
 	return nil, ErrNotStarted
+}
+
+func (c *Cluster) localObservedRuntimeViewsStrict() ([]controllermeta.SlotRuntimeView, bool, error) {
+	if c == nil || c.controllerHost == nil || !c.controllerHost.IsLeader(c.cfg.NodeID) {
+		return nil, false, nil
+	}
+	if !c.controllerHost.warmupComplete() {
+		return nil, true, ErrObservationNotReady
+	}
+	return c.controllerHost.snapshotObservations().RuntimeViews, true, nil
 }
 
 func (c *Cluster) localObservedRuntimeViews() ([]controllermeta.SlotRuntimeView, bool) {

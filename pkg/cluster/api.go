@@ -40,6 +40,8 @@ type API interface {
 	ListTasks(ctx context.Context) ([]controllermeta.ReconcileTask, error)
 	// ListTasksStrict returns the controller leader's task snapshot without local fallback.
 	ListTasksStrict(ctx context.Context) ([]controllermeta.ReconcileTask, error)
+	// ListActiveMigrationsStrict returns the controller leader's active hash-slot migrations without local fallback.
+	ListActiveMigrationsStrict(ctx context.Context) ([]HashSlotMigration, error)
 	GetMigrationStatus() []HashSlotMigration
 	TransportPoolStats() []transport.PoolPeerStats
 	GetReconcileTask(ctx context.Context, slotID uint32) (controllermeta.ReconcileTask, error)

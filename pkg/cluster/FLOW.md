@@ -51,6 +51,8 @@ API.ListNodeOnboardingJobs(ctx, limit, cursor) / GetNodeOnboardingJob(ctx, jobID
 API.Server() / RPCMux() / Discovery() / RPCService(ctx, nodeID, slotID, serviceID, payload)
 ```
 
+`ListObservedRuntimeViewsStrict` 在本地 Controller leader observation warmup 未完成时会 fail closed 返回 `ErrObservationNotReady`，调用方不能回退到本地非严格缓存作为安全判断依据。
+
 ## 4. 关键类型
 
 | 类型 | 文件 | 说明 |
