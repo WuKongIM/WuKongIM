@@ -89,3 +89,26 @@ func (s *nodeDrainState) KnownNotDraining() bool {
 	ready, _ := s.Ready()
 	return ready
 }
+
+func (a *App) observeNodeStatusChange(nodeID uint64, status controllermeta.NodeStatus) {
+	if a == nil {
+		return
+	}
+	if a.nodeDrainState != nil {
+		a.nodeDrainState.Observe(nodeID, status)
+	}
+	if nodeID == a.cfg.Node.ID {
+		a.updateGatewayAdmissionFromDrainState()
+	}
+}
+
+func (a *App) updateGatewayAdmissionFromDrainState() {
+	if a == nil || a.gateway == nil {
+		return
+	}
+	accepting := false
+	if a.nodeDrainState != nil {
+		accepting = a.nodeDrainState.KnownNotDraining()
+	}
+	a.gateway.SetAcceptingNewSessions(accepting)
+}

@@ -108,9 +108,7 @@ func build(cfg Config) (_ *App, err error) {
 			app.channelMetaSync.scheduleSlotLeaderRefresh(multiraft.SlotID(slotID))
 		},
 		OnNodeStatusChange: func(nodeID uint64, _ controllermeta.NodeStatus, to controllermeta.NodeStatus) {
-			if app.nodeDrainState != nil {
-				app.nodeDrainState.Observe(nodeID, to)
-			}
+			app.observeNodeStatusChange(nodeID, to)
 			if app.channelMetaSync == nil {
 				return
 			}
@@ -539,6 +537,7 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: create gateway: %w", err)
 	}
+	app.updateGatewayAdmissionFromDrainState()
 
 	cleanup.Release()
 	return app, nil
