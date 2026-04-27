@@ -275,13 +275,13 @@ func (a *App) StartNodeScaleIn(ctx context.Context, nodeID uint64, req NodeScale
 		return report, err
 	}
 	if len(report.BlockedReasons) > 0 {
-		return report, NodeScaleInReportError{Err: ErrNodeScaleInBlocked, Report: report}
+		return report, &NodeScaleInReportError{Err: ErrNodeScaleInBlocked, Report: report}
 	}
 	if report.Status != NodeScaleInStatusNotStarted {
 		return report, nil
 	}
 	if a == nil || a.cluster == nil {
-		return report, NodeScaleInReportError{Err: ErrNodeScaleInBlocked, Report: report}
+		return report, &NodeScaleInReportError{Err: ErrNodeScaleInBlocked, Report: report}
 	}
 	if err := a.cluster.MarkNodeDraining(ctx, nodeID); err != nil {
 		return report, err
@@ -326,10 +326,10 @@ func (a *App) AdvanceNodeScaleIn(ctx context.Context, nodeID uint64, req Advance
 		return report, err
 	}
 	if req.ForceCloseConnections {
-		return report, NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
+		return report, &NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
 	}
 	if a == nil || a.cluster == nil {
-		return report, NodeScaleInReportError{Err: ErrNodeScaleInBlocked, Report: report}
+		return report, &NodeScaleInReportError{Err: ErrNodeScaleInBlocked, Report: report}
 	}
 
 	snapshot, err := a.loadNodeScaleInSnapshot(ctx, nodeID)
@@ -341,7 +341,7 @@ func (a *App) AdvanceNodeScaleIn(ctx context.Context, nodeID uint64, req Advance
 		return report, controllermeta.ErrNotFound
 	}
 	if target.Status != controllermeta.NodeStatusDraining {
-		return report, NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
+		return report, &NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
 	}
 
 	limit := clampScaleInLeaderTransfers(req.MaxLeaderTransfers)
@@ -352,7 +352,7 @@ func (a *App) AdvanceNodeScaleIn(ctx context.Context, nodeID uint64, req Advance
 		}
 		candidate, ok := selectScaleInLeaderCandidate(snapshot.nodes, snapshot.assignments, view, nodeID)
 		if !ok {
-			return report, NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
+			return report, &NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
 		}
 		if err := a.cluster.TransferSlotLeader(ctx, view.SlotID, multiraft.NodeID(candidate)); err != nil {
 			return report, err
