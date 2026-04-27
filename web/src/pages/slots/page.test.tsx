@@ -81,6 +81,28 @@ beforeEach(() => {
   })
 })
 
+test("enables slot write actions for wildcard manager permissions", async () => {
+  useAuthStore.setState({
+    permissions: [{ resource: "*", actions: ["*"] }],
+  })
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+  getSlotMock.mockResolvedValueOnce(slotDetail)
+
+  const user = userEvent.setup()
+  renderSlotsPage()
+
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Add slot" })).toBeEnabled()
+  expect(screen.getByRole("button", { name: "Rebalance slots" })).toBeEnabled()
+
+  await user.click(screen.getByRole("button", { name: "Inspect slot 9" }))
+
+  expect(await screen.findByText("Desired peers")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Transfer leader" })).toBeEnabled()
+  expect(screen.getByRole("button", { name: "Recover slot" })).toBeEnabled()
+  expect(screen.getByRole("button", { name: "Remove slot" })).toBeEnabled()
+})
+
 test("adds a physical slot and opens the returned detail", async () => {
   const addedSlot = {
     ...slotRow,

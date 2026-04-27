@@ -69,7 +69,7 @@ function hasPermission(
   action: string,
 ) {
   return permissions.some((permission) => {
-    if (permission.resource !== resource) {
+    if (permission.resource !== resource && permission.resource !== "*") {
       return false
     }
     return permission.actions.includes(action) || permission.actions.includes("*")
