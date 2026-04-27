@@ -210,6 +210,39 @@ func TestReconcilerTickScopesToAffectedLocalSlotsWhenDeltaIsScoped(t *testing.T)
 	}
 }
 
+func TestReconcilerTickDoesNotBootstrapRemoteTarget(t *testing.T) {
+	cluster := newObserverTestCluster(t, ObserverHooks{})
+	assignment := controllermeta.SlotAssignment{
+		SlotID:       1,
+		DesiredPeers: []uint64{1, 2, 3},
+		ConfigEpoch:  1,
+	}
+	task := controllermeta.ReconcileTask{
+		SlotID:     1,
+		Kind:       controllermeta.TaskKindBootstrap,
+		Step:       controllermeta.TaskStepAddLearner,
+		TargetNode: 2,
+		Status:     controllermeta.TaskStatusPending,
+		NextRunAt:  time.Now(),
+	}
+	cluster.assignments.SetAssignments([]controllermeta.SlotAssignment{assignment})
+	agent := &slotAgent{
+		cluster: cluster,
+		client: fakeControllerClient{
+			listTasks: []controllermeta.ReconcileTask{task},
+			tasks:     map[uint32]controllermeta.ReconcileTask{1: task},
+		},
+		cache: cluster.assignments,
+	}
+
+	if err := newReconciler(agent).Tick(context.Background()); err != nil {
+		t.Fatalf("Tick() error = %v", err)
+	}
+	if _, err := cluster.runtime.Status(1); !errors.Is(err, multiraft.ErrSlotNotFound) {
+		t.Fatalf("runtime.Status() error = %v, want %v", err, multiraft.ErrSlotNotFound)
+	}
+}
+
 func TestReconcilerTickLoadsTasksViaListTasksBeforePerSlotConfirmation(t *testing.T) {
 	cluster, err := NewCluster(Config{
 		NodeID:       1,

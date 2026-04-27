@@ -61,7 +61,7 @@ func (p *Planner) ReconcileSlot(_ context.Context, state PlannerState, slotID ui
 			SlotID:     slotID,
 			Kind:       controllermeta.TaskKindBootstrap,
 			Step:       controllermeta.TaskStepAddLearner,
-			TargetNode: peers[0],
+			TargetNode: bootstrapTargetPeer(slotID, peers),
 		}
 		return decision, nil
 	}
@@ -367,6 +367,14 @@ func replacePeer(peers []uint64, source, target uint64) []uint64 {
 	next = append(next, target)
 	sort.Slice(next, func(i, j int) bool { return next[i] < next[j] })
 	return next
+}
+
+// bootstrapTargetPeer rotates initial Slot leadership targets across desired peers.
+func bootstrapTargetPeer(slotID uint32, peers []uint64) uint64 {
+	if len(peers) == 0 {
+		return 0
+	}
+	return peers[(int(slotID)-1)%len(peers)]
 }
 
 func taskRunnable(now time.Time, task controllermeta.ReconcileTask) bool {

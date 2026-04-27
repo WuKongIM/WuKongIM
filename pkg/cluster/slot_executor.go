@@ -14,6 +14,7 @@ type slotExecutor struct {
 	waitForLeader              func(context.Context, multiraft.SlotID) error
 	changeSlotConfig           func(context.Context, multiraft.SlotID, multiraft.ConfigChange) error
 	waitForCatchUp             func(context.Context, multiraft.SlotID, multiraft.NodeID) error
+	ensureBootstrapLeader      func(context.Context, multiraft.SlotID, multiraft.NodeID) error
 	ensureLeaderMovedOffSource func(context.Context, multiraft.SlotID, multiraft.NodeID, multiraft.NodeID) error
 	managedSlotExecutionHook   func() ManagedSlotExecutionTestHook
 }
@@ -23,6 +24,7 @@ type slotExecutorFuncs struct {
 	waitForLeader              func(context.Context, multiraft.SlotID) error
 	changeSlotConfig           func(context.Context, multiraft.SlotID, multiraft.ConfigChange) error
 	waitForCatchUp             func(context.Context, multiraft.SlotID, multiraft.NodeID) error
+	ensureBootstrapLeader      func(context.Context, multiraft.SlotID, multiraft.NodeID) error
 	ensureLeaderMovedOffSource func(context.Context, multiraft.SlotID, multiraft.NodeID, multiraft.NodeID) error
 	managedSlotExecutionHook   func() ManagedSlotExecutionTestHook
 }
@@ -52,6 +54,10 @@ func newSlotExecutorWithFuncs(cluster *Cluster, funcs slotExecutorFuncs) *slotEx
 	executor.waitForCatchUp = funcs.waitForCatchUp
 	if executor.waitForCatchUp == nil {
 		executor.waitForCatchUp = cluster.managedSlots().waitForCatchUp
+	}
+	executor.ensureBootstrapLeader = funcs.ensureBootstrapLeader
+	if executor.ensureBootstrapLeader == nil {
+		executor.ensureBootstrapLeader = cluster.managedSlots().ensureLeaderOnTarget
 	}
 	executor.ensureLeaderMovedOffSource = funcs.ensureLeaderMovedOffSource
 	if executor.ensureLeaderMovedOffSource == nil {
@@ -92,7 +98,10 @@ func (e *slotExecutor) Execute(ctx context.Context, assignment assignmentTaskSta
 
 	switch assignment.task.Kind {
 	case controllermeta.TaskKindBootstrap:
-		return e.waitForLeader(ctx, slotID)
+		if err := e.waitForLeader(ctx, slotID); err != nil {
+			return err
+		}
+		return e.ensureBootstrapLeader(ctx, slotID, multiraft.NodeID(assignment.task.TargetNode))
 	case controllermeta.TaskKindRepair, controllermeta.TaskKindRebalance:
 		if err := e.changeSlotConfig(ctx, slotID, multiraft.ConfigChange{
 			Type:   multiraft.AddLearner,

@@ -3850,6 +3850,34 @@ func TestGroupAgentShouldExecuteTaskUsesLowestAliveAssignedPeerForBootstrap(t *t
 	}
 }
 
+func TestGroupAgentShouldExecuteBootstrapTaskOnTargetNode(t *testing.T) {
+	assignment := controllermeta.SlotAssignment{
+		SlotID:       1,
+		DesiredPeers: []uint64{1, 2, 3},
+	}
+	task := controllermeta.ReconcileTask{
+		SlotID:     1,
+		Kind:       controllermeta.TaskKindBootstrap,
+		TargetNode: 3,
+		Status:     controllermeta.TaskStatusPending,
+	}
+	nodes := map[uint64]controllermeta.ClusterNode{
+		1: {NodeID: 1, Status: controllermeta.NodeStatusAlive},
+		2: {NodeID: 2, Status: controllermeta.NodeStatusAlive},
+		3: {NodeID: 3, Status: controllermeta.NodeStatusAlive},
+	}
+
+	targetAgent := &slotAgent{cluster: &Cluster{cfg: Config{NodeID: 3}}}
+	if !newReconciler(targetAgent).shouldExecuteTask(assignment, task, nodes) {
+		t.Fatal("shouldExecuteTask() on target = false, want true")
+	}
+
+	nonTargetAgent := &slotAgent{cluster: &Cluster{cfg: Config{NodeID: 1}}}
+	if newReconciler(nonTargetAgent).shouldExecuteTask(assignment, task, nodes) {
+		t.Fatal("shouldExecuteTask() on non-target = true, want false")
+	}
+}
+
 func TestGroupAgentShouldExecuteRepairTaskOnCurrentGroupLeader(t *testing.T) {
 	cluster := &Cluster{cfg: Config{NodeID: 4}}
 	restoreLeader := cluster.setManagedSlotLeaderTestHook(func(_ *Cluster, slotID multiraft.SlotID) (multiraft.NodeID, error, bool) {

@@ -23,6 +23,7 @@
 
 ### Planning writes
 - Production controller planning writes must go through Controller Raft proposals; direct Store writes are only for local tests or tools.
+- Bootstrap planning rotates `Task.TargetNode` across DesiredPeers by SlotID, and cluster execution transfers the initialized Slot Leader to that target to avoid concentrated initial leader placement.
 
 ### Controller Raft transport
 - Controller Raft shares the cluster transport server, so its wire message type must stay distinct from slot Raft and observation-hint message types.

@@ -123,6 +123,7 @@ RemoveSlot:
     ② 有进行中Task → 检查 taskRunnable(Pending直接可执行, Retrying等NextRunAt)
     ③ 无Assignment且无RuntimeView → Bootstrap:
        selectBootstrapPeers → 选 ReplicaN 个最低负载 Active+Alive+Data 节点 (planner.go)
+       bootstrapTargetPeer → 按 SlotID 在 DesiredPeers 中轮转 TargetNode，使初始化 Slot Leader 尽量均匀分布
     ④ DesiredPeers 中有 Dead/Draining 或非 Active Data 成员 → Repair:
        firstPeerNeedingRepair → selectRepairTarget
   找到第一个需要处理的 → 立即返回

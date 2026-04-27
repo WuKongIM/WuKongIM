@@ -124,20 +124,6 @@ func (r *reconciler) Tick(ctx context.Context) error {
 			a.clearPendingTaskReport(assignment.SlotID)
 			continue
 		}
-		_, hasView := viewByGroup[assignment.SlotID]
-		bootstrapAuthorized := task.Kind == controllermeta.TaskKindBootstrap &&
-			reconcileTaskRunnable(now, task)
-		if bootstrapAuthorized {
-			if err := a.cluster.ensureManagedSlotLocal(
-				ctx,
-				multiraft.SlotID(assignment.SlotID),
-				assignment.DesiredPeers,
-				hasView,
-				true,
-			); err != nil {
-				return err
-			}
-		}
 		localAssigned := assignmentContainsPeer(assignment.DesiredPeers, uint64(a.cluster.cfg.NodeID))
 		view, hasView := viewByGroup[assignment.SlotID]
 		localSourceProtected := r.sourceSlotShouldRemainOpen(task, view, liveRuntimeViews && hasView)
@@ -179,6 +165,17 @@ func (r *reconciler) Tick(ctx context.Context) error {
 			continue
 		}
 		task = freshTask
+		if task.Kind == controllermeta.TaskKindBootstrap {
+			if err := a.cluster.ensureManagedSlotLocal(
+				ctx,
+				multiraft.SlotID(assignment.SlotID),
+				assignment.DesiredPeers,
+				hasView,
+				true,
+			); err != nil {
+				return err
+			}
+		}
 		execErr := a.cluster.executeReconcileTask(ctx, assignmentTaskState{
 			assignment: assignment,
 			task:       task,
@@ -252,6 +249,10 @@ func (r *reconciler) shouldExecuteTask(assignment controllermeta.SlotAssignment,
 	}
 	localNodeID := uint64(r.agent.cluster.cfg.NodeID)
 	switch task.Kind {
+	case controllermeta.TaskKindBootstrap:
+		if task.TargetNode != 0 {
+			return task.TargetNode == localNodeID
+		}
 	case controllermeta.TaskKindRepair, controllermeta.TaskKindRebalance:
 		if task.SourceNode == localNodeID {
 			return true

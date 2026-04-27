@@ -27,6 +27,20 @@ func TestPlannerCreatesBootstrapTaskForBrandNewSlot(t *testing.T) {
 	require.Len(t, decision.Assignment.DesiredPeers, 3)
 }
 
+func TestPlannerBootstrapRotatesTargetNodeAcrossSlots(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 4, ReplicaN: 3})
+	state := testState(aliveNode(1), aliveNode(2), aliveNode(3))
+
+	for slotID, wantTarget := range map[uint32]uint64{1: 1, 2: 2, 3: 3, 4: 1} {
+		decision, err := planner.ReconcileSlot(context.Background(), state, slotID)
+
+		require.NoError(t, err)
+		require.NotNil(t, decision.Task)
+		require.Equal(t, controllermeta.TaskKindBootstrap, decision.Task.Kind)
+		require.Equal(t, wantTarget, decision.Task.TargetNode)
+	}
+}
+
 func TestPlannerBootstrapSkipsInactiveOrNonDataNodes(t *testing.T) {
 	planner := NewPlanner(PlannerConfig{SlotCount: 1, ReplicaN: 3})
 	state := testState(

@@ -342,6 +342,43 @@ func (m *slotManager) ensureLeaderMovedOffSource(ctx context.Context, slotID mul
 	}
 }
 
+// ensureLeaderOnTarget moves a bootstrapped Slot leader to the planned target node.
+func (m *slotManager) ensureLeaderOnTarget(ctx context.Context, slotID multiraft.SlotID, targetNode multiraft.NodeID) error {
+	if m == nil || m.cluster == nil {
+		return ErrNotStarted
+	}
+	if targetNode == 0 {
+		return nil
+	}
+	c := m.cluster
+	deadline := time.Now().Add(c.timeoutConfig().ManagedSlotLeaderMove)
+	for {
+		if time.Now().After(deadline) {
+			return ErrLeaderNotStable
+		}
+		leaderID, err := m.currentLeader(slotID)
+		if err != nil || leaderID == 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(c.managedSlotLeaderMovePollInterval()):
+			}
+			continue
+		}
+		if leaderID == targetNode {
+			return nil
+		}
+		if err := m.transferLeadership(ctx, slotID, targetNode); err != nil && !errors.Is(err, ErrNotLeader) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(c.managedSlotLeaderMovePollInterval()):
+		}
+	}
+}
+
 func (m *slotManager) statusOnNode(ctx context.Context, nodeID multiraft.NodeID, slotID multiraft.SlotID) (managedSlotStatus, error) {
 	if m == nil || m.cluster == nil {
 		return managedSlotStatus{}, ErrNotStarted

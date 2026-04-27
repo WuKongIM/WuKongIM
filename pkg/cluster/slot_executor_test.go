@@ -116,6 +116,52 @@ func TestSlotExecutorExecuteRepairAndRebalanceStepOrder(t *testing.T) {
 	}
 }
 
+func TestSlotExecutorExecuteBootstrapTransfersLeaderToTarget(t *testing.T) {
+	cluster := &Cluster{}
+	var calls []string
+	executor := newSlotExecutorWithFuncs(cluster, slotExecutorFuncs{
+		prepareSlot: func(slotID multiraft.SlotID, desiredPeers []uint64) {
+			if slotID != 1 {
+				t.Fatalf("prepareSlot() slotID = %d, want 1", slotID)
+			}
+			calls = append(calls, "PrepareSlot")
+		},
+		waitForLeader: func(_ context.Context, slotID multiraft.SlotID) error {
+			if slotID != 1 {
+				t.Fatalf("waitForLeader() slotID = %d, want 1", slotID)
+			}
+			calls = append(calls, "WaitForLeader")
+			return nil
+		},
+		ensureBootstrapLeader: func(_ context.Context, slotID multiraft.SlotID, targetNode multiraft.NodeID) error {
+			if slotID != 1 {
+				t.Fatalf("ensureBootstrapLeader() slotID = %d, want 1", slotID)
+			}
+			if targetNode != 3 {
+				t.Fatalf("ensureBootstrapLeader() targetNode = %d, want 3", targetNode)
+			}
+			calls = append(calls, "EnsureBootstrapLeader")
+			return nil
+		},
+	})
+
+	err := executor.Execute(context.Background(), assignmentTaskState{
+		assignment: controllermeta.SlotAssignment{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}},
+		task: controllermeta.ReconcileTask{
+			SlotID:     1,
+			Kind:       controllermeta.TaskKindBootstrap,
+			TargetNode: 3,
+		},
+	})
+	if err != nil {
+		t.Fatalf("slotExecutor.Execute() error = %v, want nil", err)
+	}
+	want := []string{"PrepareSlot", "WaitForLeader", "EnsureBootstrapLeader"}
+	if !slices.Equal(calls, want) {
+		t.Fatalf("slotExecutor.Execute() calls = %v, want %v", calls, want)
+	}
+}
+
 func TestSlotExecutorExecuteStopsOnStepError(t *testing.T) {
 	cluster := &Cluster{}
 	sentinel := errors.New("promote failed")
