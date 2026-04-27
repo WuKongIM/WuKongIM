@@ -66,6 +66,7 @@ type App struct {
 	dataPlaneClient      *transport.Client
 	metrics              *obsmetrics.Registry
 	observedClusterCache observedClusterStateCache
+	nodeDrainState       *nodeDrainState
 
 	stopOnce       sync.Once
 	lifecycle      sync.Mutex

@@ -418,7 +418,8 @@ func (a *App) readyzReport(ctx context.Context) (bool, any) {
 	}
 
 	hashSlotReady := a.clusterHashSlotTableVersion() > 0
-	ready := gatewayReady && clusterReady && hashSlotReady
+	nodeNotDraining, drainReason := a.localNodeNotDraining()
+	ready := gatewayReady && clusterReady && hashSlotReady && nodeNotDraining
 	status := "not_ready"
 	if ready {
 		status = "ready"
@@ -427,11 +428,20 @@ func (a *App) readyzReport(ctx context.Context) (bool, any) {
 	return ready, map[string]any{
 		"status": status,
 		"checks": map[string]any{
-			"gateway":         gatewayReady,
-			"managed_slots":   clusterReady,
-			"hash_slot_table": hashSlotReady,
+			"gateway":           gatewayReady,
+			"managed_slots":     clusterReady,
+			"hash_slot_table":   hashSlotReady,
+			"node_not_draining": nodeNotDraining,
+			"node_drain_reason": drainReason,
 		},
 	}
+}
+
+func (a *App) localNodeNotDraining() (bool, string) {
+	if a == nil || a.nodeDrainState == nil {
+		return false, "unknown"
+	}
+	return a.nodeDrainState.Ready()
 }
 
 func (a *App) debugConfigSnapshot() any {

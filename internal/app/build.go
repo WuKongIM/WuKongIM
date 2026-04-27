@@ -50,6 +50,7 @@ func build(cfg Config) (_ *App, err error) {
 	}
 
 	app := &App{cfg: cfg, createdAt: time.Now()}
+	app.nodeDrainState = newNodeDrainState(cfg.Node.ID, time.Now)
 	cleanup := &applifecycle.ResourceStack{}
 	defer func() {
 		if err != nil {
@@ -107,6 +108,9 @@ func build(cfg Config) (_ *App, err error) {
 			app.channelMetaSync.scheduleSlotLeaderRefresh(multiraft.SlotID(slotID))
 		},
 		OnNodeStatusChange: func(nodeID uint64, _ controllermeta.NodeStatus, to controllermeta.NodeStatus) {
+			if app.nodeDrainState != nil {
+				app.nodeDrainState.Observe(nodeID, to)
+			}
 			if app.channelMetaSync == nil {
 				return
 			}
