@@ -101,20 +101,31 @@ type ClusterNode struct {
 }
 
 type SlotAssignment struct {
-	SlotID         uint32
-	DesiredPeers   []uint64
-	ConfigEpoch    uint64
+	// SlotID is the non-zero physical slot identity controlled by this assignment.
+	SlotID uint32
+	// DesiredPeers is the canonical voter set the data plane should converge to.
+	DesiredPeers []uint64
+	// ConfigEpoch increments whenever the desired peer set changes.
+	ConfigEpoch uint64
+	// BalanceVersion increments on opportunistic rebalance moves to preserve fair ordering.
 	BalanceVersion uint64
 }
 
 type SlotRuntimeView struct {
-	SlotID              uint32
-	CurrentPeers        []uint64
-	LeaderID            uint64
-	HealthyVoters       uint32
-	HasQuorum           bool
+	// SlotID is the physical slot identity described by this observation.
+	SlotID uint32
+	// CurrentPeers is the observed voter or learner set currently known to the slot runtime.
+	CurrentPeers []uint64
+	// LeaderID is the observed slot Raft leader, or zero when no stable leader is known.
+	LeaderID uint64
+	// HealthyVoters is the number of observed voters that are healthy enough for quorum checks.
+	HealthyVoters uint32
+	// HasQuorum reports whether the current runtime view can safely accept automatic changes.
+	HasQuorum bool
+	// ObservedConfigEpoch is the assignment epoch observed by the reporting runtime.
 	ObservedConfigEpoch uint64
-	LastReportAt        time.Time
+	// LastReportAt records when the controller leader received this runtime observation.
+	LastReportAt time.Time
 }
 
 type ControllerMembership struct {
@@ -122,13 +133,22 @@ type ControllerMembership struct {
 }
 
 type ReconcileTask struct {
-	SlotID     uint32
-	Kind       TaskKind
-	Step       TaskStep
+	// SlotID is the physical slot this task reconciles.
+	SlotID uint32
+	// Kind identifies why the reconciliation is running.
+	Kind TaskKind
+	// Step records the next data-plane operation to execute.
+	Step TaskStep
+	// SourceNode is the node being replaced or moved away from, when applicable.
 	SourceNode uint64
+	// TargetNode is the node being added or promoted by this task.
 	TargetNode uint64
-	Attempt    uint32
-	NextRunAt  time.Time
-	Status     TaskStatus
-	LastError  string
+	// Attempt is incremented after failed task result reports.
+	Attempt uint32
+	// NextRunAt is the earliest time a retrying task may be executed again.
+	NextRunAt time.Time
+	// Status records whether the task is pending, retrying, or failed.
+	Status TaskStatus
+	// LastError stores the latest executor error for operator inspection.
+	LastError string
 }

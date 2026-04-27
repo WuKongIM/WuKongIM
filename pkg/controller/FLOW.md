@@ -22,7 +22,7 @@ Service.LeaderID() uint64             // 当前 Leader
 Service.Start(ctx) / Stop()           // 生命周期
 
 // plane/controller.go — 调度入口
-Controller.Tick(ctx) error            // 周期调用，仅 Leader 执行决策
+Controller.Tick(ctx) error            // 周期调用，仅 Leader 执行决策；配置 Propose 时通过 Raft 提案写入，未配置时仅用于本地测试/工具直写 Store
 
 // plane/statemachine.go — Raft 提交后的命令应用
 StateMachine.Apply(ctx, Command) error
@@ -156,9 +156,11 @@ RemoveSlot:
      - 上层 cluster 可设置 LockedSlots：跳过由 Onboarding 外部协调器占用的 Slot，避免普通 planner 抢同一 Slot
   ⑤ SlotID == 0 → 无需操作
   ⑥ 持久化:
-     有 Assignment+Task → store.UpsertAssignmentTask (原子)
-     仅 Assignment → store.UpsertAssignment
-     仅 Task → store.UpsertTask
+     配置 ControllerConfig.Propose → 提案 AssignmentTaskUpdate，由 Raft commit 后 StateMachine.Apply 写入 Store
+     未配置 Propose（本地测试/工具兼容路径）:
+       有 Assignment+Task → store.UpsertAssignmentTask (原子)
+       仅 Assignment → store.UpsertAssignment
+       仅 Task → store.UpsertTask
 ```
 
 节点 Onboarding 执行协调 (onboarding_executor.go):
@@ -201,7 +203,7 @@ AddLearner → CatchUp → Promote → TransferLeader → RemoveOld
 
 ## 8. 避坑清单
 
-- **仅 Leader 规划**: `Controller.Tick` 第一行检查 `isLeader()`，Follower 上调用是空操作。不要在 Follower 上直接写 Store。
+- **仅 Leader 规划**: `Controller.Tick` 第一行检查 `isLeader()`，Follower 上调用是空操作。生产路径应配置 `ControllerConfig.Propose` 或使用 `cluster.controllerTickOnce()`，不要绕过 Raft 在 Follower 上直接写 Store。
 - **Repair 过时检测**: `statemachine.go:repairTaskObsolete` 在应用 Repair 任务前检查 SourceNode 是否已恢复为 Alive。跳过则避免不必要的迁移。
 - **Attempt 匹配**: `applyTaskResult` 用 Attempt 字段防止过期的 TaskResult 影响新一轮任务。Attempt 不匹配时静默忽略。
 - **Draining 不受观测恢复影响**: `NodeStatusUpdate` / `applyNodeHeartbeat` 都不能把 Draining 自动恢复为 Alive，必须通过 OperatorResumeNode 显式恢复。

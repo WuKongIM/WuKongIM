@@ -21,11 +21,16 @@ const (
 )
 
 type PlannerConfig struct {
-	SlotCount              uint32
-	ReplicaN               int
+	// SlotCount is the initial physical slot fallback used before a hash-slot table exists.
+	SlotCount uint32
+	// ReplicaN is the desired replica count for bootstrap peer selection.
+	ReplicaN int
+	// RebalanceSkewThreshold is the minimum max-min slot replica skew before rebalancing.
 	RebalanceSkewThreshold int
-	MaxTaskAttempts        int
-	RetryBackoffBase       time.Duration
+	// MaxTaskAttempts is reserved for task retry policies owned by the state machine.
+	MaxTaskAttempts int
+	// RetryBackoffBase is reserved for task retry policies owned by the state machine.
+	RetryBackoffBase time.Duration
 }
 
 type PlannerState struct {

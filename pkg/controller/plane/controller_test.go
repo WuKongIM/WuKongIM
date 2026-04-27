@@ -3,6 +3,7 @@ package plane
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -432,6 +433,51 @@ func TestControllerTickNoOpsWhenNotLeader(t *testing.T) {
 	})
 
 	require.NoError(t, controller.Tick(context.Background()))
+}
+
+func TestControllerTickReturnsClosedWhenNil(t *testing.T) {
+	var controller *Controller
+
+	require.ErrorIs(t, controller.Tick(context.Background()), controllermeta.ErrClosed)
+}
+
+func TestControllerTickProposesDecisionWhenProposerConfigured(t *testing.T) {
+	store := openControllerStore(t)
+	ctx := context.Background()
+	for nodeID := uint64(1); nodeID <= 3; nodeID++ {
+		require.NoError(t, store.UpsertNode(ctx, controllermeta.ClusterNode{
+			NodeID:          nodeID,
+			Addr:            fmt.Sprintf("127.0.0.1:700%d", nodeID),
+			Role:            controllermeta.NodeRoleData,
+			JoinState:       controllermeta.NodeJoinStateActive,
+			Status:          controllermeta.NodeStatusAlive,
+			LastHeartbeatAt: time.Unix(100, 0),
+			CapacityWeight:  1,
+		}))
+	}
+
+	var proposed []Command
+	controller := NewController(store, ControllerConfig{
+		Planner: PlannerConfig{SlotCount: 1, ReplicaN: 3},
+		Now:     func() time.Time { return time.Unix(100, 0) },
+		Propose: func(_ context.Context, cmd Command) error {
+			proposed = append(proposed, cmd)
+			return nil
+		},
+	})
+
+	require.NoError(t, controller.Tick(ctx))
+	require.Len(t, proposed, 1)
+	require.Equal(t, CommandKindAssignmentTaskUpdate, proposed[0].Kind)
+	require.NotNil(t, proposed[0].Assignment)
+	require.Equal(t, uint32(1), proposed[0].Assignment.SlotID)
+	require.NotNil(t, proposed[0].Task)
+	require.Equal(t, controllermeta.TaskKindBootstrap, proposed[0].Task.Kind)
+	require.Equal(t, controllermeta.TaskStatusPending, proposed[0].Task.Status)
+	require.Equal(t, time.Unix(100, 0), proposed[0].Task.NextRunAt)
+
+	_, err := store.GetTask(ctx, 1)
+	require.ErrorIs(t, err, controllermeta.ErrNotFound)
 }
 
 func TestControllerSnapshotUsesHashSlotTableAsPhysicalSlotSet(t *testing.T) {

@@ -13,12 +13,16 @@ type Controller struct {
 	planner  *Planner
 	now      func() time.Time
 	isLeader func() bool
+	propose  func(context.Context, Command) error
 }
 
 type ControllerConfig struct {
 	Planner  PlannerConfig
 	Now      func() time.Time
 	IsLeader func() bool
+	// Propose submits planner mutations through the replicated controller log.
+	// When nil, Tick falls back to direct store writes for local tests and tools.
+	Propose func(context.Context, Command) error
 }
 
 func NewController(store *controllermeta.Store, cfg ControllerConfig) *Controller {
@@ -35,10 +39,14 @@ func NewController(store *controllermeta.Store, cfg ControllerConfig) *Controlle
 		planner:  NewPlanner(cfg.Planner),
 		now:      now,
 		isLeader: isLeader,
+		propose:  cfg.Propose,
 	}
 }
 
 func (c *Controller) Tick(ctx context.Context) error {
+	if c == nil || c.store == nil {
+		return controllermeta.ErrClosed
+	}
 	if c != nil && c.isLeader != nil && !c.isLeader() {
 		return nil
 	}
@@ -55,9 +63,29 @@ func (c *Controller) Tick(ctx context.Context) error {
 	if decision.SlotID == 0 {
 		return nil
 	}
+	return c.persistDecision(ctx, state, decision)
+}
+
+func (c *Controller) persistDecision(ctx context.Context, state PlannerState, decision Decision) error {
+	assignment := decision.Assignment
+	var assignmentPtr *controllermeta.SlotAssignment
+	if assignment.SlotID != 0 {
+		assignmentPtr = &assignment
+	}
+
+	var taskPtr *controllermeta.ReconcileTask
 	if decision.Task == nil {
-		if decision.Assignment.SlotID != 0 {
-			return c.store.UpsertAssignment(ctx, decision.Assignment)
+		if c.propose != nil {
+			if assignmentPtr == nil {
+				return nil
+			}
+			return c.propose(ctx, Command{
+				Kind:       CommandKindAssignmentTaskUpdate,
+				Assignment: assignmentPtr,
+			})
+		}
+		if assignmentPtr != nil {
+			return c.store.UpsertAssignment(ctx, *assignmentPtr)
 		}
 		return nil
 	}
@@ -68,8 +96,17 @@ func (c *Controller) Tick(ctx context.Context) error {
 	if task.NextRunAt.IsZero() {
 		task.NextRunAt = state.Now
 	}
-	if decision.Assignment.SlotID != 0 {
-		return c.store.UpsertAssignmentTask(ctx, decision.Assignment, task)
+	taskPtr = &task
+
+	if c.propose != nil {
+		return c.propose(ctx, Command{
+			Kind:       CommandKindAssignmentTaskUpdate,
+			Assignment: assignmentPtr,
+			Task:       taskPtr,
+		})
+	}
+	if assignmentPtr != nil {
+		return c.store.UpsertAssignmentTask(ctx, *assignmentPtr, task)
 	}
 	return c.store.UpsertTask(ctx, task)
 }
