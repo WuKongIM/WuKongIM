@@ -167,6 +167,30 @@ describe("manager api client", () => {
         capacity_weight: 1,
         controller: { role: "leader" },
         slot_stats: { count: 3, leader_count: 2 },
+        distributed_log: {
+          controller: { role: "leader", leader_id: 1, voter: true },
+          slots: {
+            replica_count: 3,
+            leader_count: 2,
+            follower_count: 1,
+            max_commit_lag: 7,
+            max_apply_gap: 2,
+            unavailable_count: 1,
+            unhealthy_count: 2,
+            samples: [{
+              slot_id: 9,
+              role: "follower",
+              leader_id: 2,
+              commit_index: 93,
+              applied_index: 91,
+              leader_commit_index: 100,
+              commit_lag: 7,
+              apply_gap: 2,
+              quorum: "healthy",
+              status: "lagging",
+            }],
+          },
+        },
       }],
     }
     const nodeDetail = {
@@ -204,6 +228,19 @@ describe("manager api client", () => {
       capacity_weight: 1,
       controller: { role: "follower" },
       slot_stats: { count: 3, leader_count: 0 },
+      distributed_log: {
+        controller: { role: "follower", leader_id: 1, voter: true },
+        slots: {
+          replica_count: 3,
+          leader_count: 0,
+          follower_count: 3,
+          max_commit_lag: 0,
+          max_apply_gap: 0,
+          unavailable_count: 0,
+          unhealthy_count: 0,
+          samples: [],
+        },
+      },
       slots: { hosted_ids: [1, 2], leader_ids: [] },
     }
     fetchMock.mockResolvedValue(new Response(JSON.stringify(actionResult), { status: 200 }))

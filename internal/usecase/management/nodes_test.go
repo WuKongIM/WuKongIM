@@ -41,6 +41,101 @@ func TestListNodesAggregatesControllerRoleAndSlotCounts(t *testing.T) {
 	require.Equal(t, 2, got[1].CapacityWeight)
 }
 
+func TestListNodesAggregatesDistributedLogHealth(t *testing.T) {
+	app := New(Options{
+		LocalNodeID:       2,
+		ControllerPeerIDs: []uint64{1, 2},
+		Cluster: fakeClusterReader{
+			controllerLeaderID: 1,
+			nodes: []controllermeta.ClusterNode{
+				{NodeID: 1, Addr: "127.0.0.1:7001", Status: controllermeta.NodeStatusAlive, CapacityWeight: 1},
+				{NodeID: 2, Addr: "127.0.0.1:7002", Status: controllermeta.NodeStatusAlive, CapacityWeight: 1},
+			},
+			views: []controllermeta.SlotRuntimeView{
+				{SlotID: 7, CurrentPeers: []uint64{1, 2}, LeaderID: 1, HasQuorum: true},
+				{SlotID: 9, CurrentPeers: []uint64{1, 2}, LeaderID: 2, HasQuorum: false},
+			},
+			slotLogStatus: map[slotLogStatusKey]raftcluster.SlotLogStatus{
+				{nodeID: 1, slotID: 7}: {LeaderID: 1, CommitIndex: 120, AppliedIndex: 118},
+				{nodeID: 2, slotID: 7}: {LeaderID: 1, CommitIndex: 116, AppliedIndex: 114},
+				{nodeID: 1, slotID: 9}: {LeaderID: 2, CommitIndex: 54, AppliedIndex: 54},
+				{nodeID: 2, slotID: 9}: {LeaderID: 2, CommitIndex: 60, AppliedIndex: 58},
+			},
+		},
+	})
+
+	got, err := app.ListNodes(context.Background())
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	require.Equal(t, NodeDistributedLog{
+		Controller: NodeControllerLog{Role: "leader", LeaderID: 1, Voter: true},
+		Slots: NodeSlotLogHealth{
+			ReplicaCount:     2,
+			LeaderCount:      1,
+			FollowerCount:    1,
+			MaxCommitLag:     6,
+			MaxApplyGap:      2,
+			UnavailableCount: 0,
+			UnhealthyCount:   2,
+			Samples: []NodeSlotLogSample{{
+				SlotID:            9,
+				Role:              "follower",
+				LeaderID:          2,
+				CommitIndex:       54,
+				AppliedIndex:      54,
+				LeaderCommitIndex: 60,
+				CommitLag:         6,
+				ApplyGap:          0,
+				Quorum:            "lost",
+				Status:            "quorum_lost",
+			}, {
+				SlotID:            7,
+				Role:              "leader",
+				LeaderID:          1,
+				CommitIndex:       120,
+				AppliedIndex:      118,
+				LeaderCommitIndex: 120,
+				CommitLag:         0,
+				ApplyGap:          2,
+				Quorum:            "healthy",
+				Status:            "lagging",
+			}},
+		},
+	}, got[0].DistributedLog)
+	require.Equal(t, uint64(4), got[1].DistributedLog.Slots.MaxCommitLag)
+	require.Equal(t, uint64(2), got[1].DistributedLog.Slots.MaxApplyGap)
+}
+
+func TestGetNodeIncludesUnavailableDistributedLogSamples(t *testing.T) {
+	app := New(Options{
+		LocalNodeID:       1,
+		ControllerPeerIDs: []uint64{1},
+		Cluster: fakeClusterReader{
+			controllerLeaderID: 1,
+			nodes: []controllermeta.ClusterNode{
+				{NodeID: 2, Addr: "127.0.0.1:7002", Status: controllermeta.NodeStatusAlive, CapacityWeight: 1},
+			},
+			views: []controllermeta.SlotRuntimeView{
+				{SlotID: 11, CurrentPeers: []uint64{2}, LeaderID: 0, HasQuorum: false},
+			},
+			slotLogStatusErr: map[slotLogStatusKey]error{
+				{nodeID: 2, slotID: 11}: raftcluster.ErrSlotNotFound,
+			},
+		},
+	})
+
+	got, err := app.GetNode(context.Background(), 2)
+	require.NoError(t, err)
+	require.Equal(t, 1, got.DistributedLog.Slots.UnavailableCount)
+	require.Equal(t, 1, got.DistributedLog.Slots.UnhealthyCount)
+	require.Equal(t, []NodeSlotLogSample{{
+		SlotID: 11,
+		Role:   "unknown",
+		Quorum: "lost",
+		Status: "unavailable",
+	}}, got.DistributedLog.Slots.Samples)
+}
+
 func TestListNodesSortsByNodeIDAndDefaultsCountsToZero(t *testing.T) {
 	app := New(Options{
 		LocalNodeID:       9,
@@ -94,6 +189,14 @@ func TestGetNodeReturnsNodeWithHostedAndLeaderSlots(t *testing.T) {
 			LeaderSlotCount: 2,
 			IsLocal:         true,
 			CapacityWeight:  2,
+			DistributedLog: NodeDistributedLog{
+				Controller: NodeControllerLog{Role: "follower", LeaderID: 1, Voter: true},
+				Slots: NodeSlotLogHealth{
+					ReplicaCount:  3,
+					LeaderCount:   2,
+					FollowerCount: 1,
+				},
+			},
 		},
 		Slots: NodeSlots{
 			HostedIDs: []uint32{2, 4, 7},
@@ -129,6 +232,8 @@ type fakeClusterReader struct {
 	listSlotAssignmentsErr      error
 	views                       []controllermeta.SlotRuntimeView
 	listObservedRuntimeViewsErr error
+	slotLogStatus               map[slotLogStatusKey]raftcluster.SlotLogStatus
+	slotLogStatusErr            map[slotLogStatusKey]error
 	tasks                       []controllermeta.ReconcileTask
 	taskBySlot                  map[uint32]controllermeta.ReconcileTask
 	listTasksErr                error
@@ -145,6 +250,11 @@ type fakeClusterReader struct {
 	onboardingJobs              []controllermeta.NodeOnboardingJob
 	onboardingHasMore           bool
 	listOnboardingJobsErr       error
+}
+
+type slotLogStatusKey struct {
+	nodeID uint64
+	slotID uint32
 }
 
 func (f fakeClusterReader) SlotIDs() []multiraft.SlotID {
@@ -169,6 +279,17 @@ func (f fakeClusterReader) ListSlotAssignmentsStrict(context.Context) ([]control
 
 func (f fakeClusterReader) ListObservedRuntimeViewsStrict(context.Context) ([]controllermeta.SlotRuntimeView, error) {
 	return append([]controllermeta.SlotRuntimeView(nil), f.views...), f.listObservedRuntimeViewsErr
+}
+
+func (f fakeClusterReader) SlotLogStatusOnNode(_ context.Context, nodeID uint64, slotID uint32) (raftcluster.SlotLogStatus, error) {
+	key := slotLogStatusKey{nodeID: nodeID, slotID: slotID}
+	if err := f.slotLogStatusErr[key]; err != nil {
+		return raftcluster.SlotLogStatus{}, err
+	}
+	if status, ok := f.slotLogStatus[key]; ok {
+		return status, nil
+	}
+	return raftcluster.SlotLogStatus{}, nil
 }
 
 func (f fakeClusterReader) ListTasksStrict(context.Context) ([]controllermeta.ReconcileTask, error) {

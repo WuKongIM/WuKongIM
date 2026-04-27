@@ -149,6 +149,30 @@ func TestManagerNodesReturnsAggregatedList(t *testing.T) {
 				LeaderSlotCount: 2,
 				IsLocal:         true,
 				CapacityWeight:  1,
+				DistributedLog: managementusecase.NodeDistributedLog{
+					Controller: managementusecase.NodeControllerLog{Role: "leader", LeaderID: 1, Voter: true},
+					Slots: managementusecase.NodeSlotLogHealth{
+						ReplicaCount:     3,
+						LeaderCount:      2,
+						FollowerCount:    1,
+						MaxCommitLag:     7,
+						MaxApplyGap:      2,
+						UnavailableCount: 1,
+						UnhealthyCount:   2,
+						Samples: []managementusecase.NodeSlotLogSample{{
+							SlotID:            9,
+							Role:              "follower",
+							LeaderID:          2,
+							CommitIndex:       93,
+							AppliedIndex:      91,
+							LeaderCommitIndex: 100,
+							CommitLag:         7,
+							ApplyGap:          2,
+							Quorum:            "healthy",
+							Status:            "lagging",
+						}},
+					},
+				},
 			}},
 		},
 	})
@@ -175,6 +199,34 @@ func TestManagerNodesReturnsAggregatedList(t *testing.T) {
 			"slot_stats": {
 				"count": 3,
 				"leader_count": 2
+			},
+			"distributed_log": {
+				"controller": {
+					"role": "leader",
+					"leader_id": 1,
+					"voter": true
+				},
+				"slots": {
+					"replica_count": 3,
+					"leader_count": 2,
+					"follower_count": 1,
+					"max_commit_lag": 7,
+					"max_apply_gap": 2,
+					"unavailable_count": 1,
+					"unhealthy_count": 2,
+					"samples": [{
+						"slot_id": 9,
+						"role": "follower",
+						"leader_id": 2,
+						"commit_index": 93,
+						"applied_index": 91,
+						"leader_commit_index": 100,
+						"commit_lag": 7,
+						"apply_gap": 2,
+						"quorum": "healthy",
+						"status": "lagging"
+					}]
+				}
 			}
 		}]
 	}`, rec.Body.String())
@@ -301,6 +353,19 @@ func TestManagerNodeDetailReturnsAggregatedDetail(t *testing.T) {
 		"slot_stats": {
 			"count": 3,
 			"leader_count": 2
+		},
+		"distributed_log": {
+			"controller": {"role": "", "leader_id": 0, "voter": false},
+			"slots": {
+				"replica_count": 0,
+				"leader_count": 0,
+				"follower_count": 0,
+				"max_commit_lag": 0,
+				"max_apply_gap": 0,
+				"unavailable_count": 0,
+				"unhealthy_count": 0,
+				"samples": []
+			}
 		},
 		"slots": {
 			"hosted_ids": [2, 4, 7],
@@ -492,6 +557,19 @@ func TestManagerNodeDrainingReturnsUpdatedNodeDetail(t *testing.T) {
 			"count": 3,
 			"leader_count": 0
 		},
+		"distributed_log": {
+			"controller": {"role": "", "leader_id": 0, "voter": false},
+			"slots": {
+				"replica_count": 0,
+				"leader_count": 0,
+				"follower_count": 0,
+				"max_commit_lag": 0,
+				"max_apply_gap": 0,
+				"unavailable_count": 0,
+				"unhealthy_count": 0,
+				"samples": []
+			}
+		},
 		"slots": {
 			"hosted_ids": [2, 4, 7],
 			"leader_ids": []
@@ -658,6 +736,19 @@ func TestManagerNodeResumeReturnsUpdatedNodeDetail(t *testing.T) {
 		"slot_stats": {
 			"count": 3,
 			"leader_count": 0
+		},
+		"distributed_log": {
+			"controller": {"role": "", "leader_id": 0, "voter": false},
+			"slots": {
+				"replica_count": 0,
+				"leader_count": 0,
+				"follower_count": 0,
+				"max_commit_lag": 0,
+				"max_apply_gap": 0,
+				"unavailable_count": 0,
+				"unhealthy_count": 0,
+				"samples": []
+			}
 		},
 		"slots": {
 			"hosted_ids": [2, 4, 7],

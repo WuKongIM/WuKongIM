@@ -25,6 +25,8 @@ import {
   startNodeScaleIn,
 } from "@/lib/manager-api"
 import type {
+  ManagerNodeDistributedLog,
+  ManagerNodeSlotLogSample,
   ManagerNodeDetailResponse,
   ManagerNodeScaleInReport,
   ManagerNodesResponse,
@@ -99,6 +101,66 @@ function formatScaleInCheckLabel(value: string) {
 
 function formatBooleanValue(intl: IntlShape, value: boolean) {
   return intl.formatMessage({ id: value ? "nodes.scaleIn.yes" : "nodes.scaleIn.no" })
+}
+
+function emptyDistributedLog(): ManagerNodeDistributedLog {
+  return {
+    controller: { role: "none", leader_id: 0, voter: false },
+    slots: {
+      replica_count: 0,
+      leader_count: 0,
+      follower_count: 0,
+      max_commit_lag: 0,
+      max_apply_gap: 0,
+      unavailable_count: 0,
+      unhealthy_count: 0,
+      samples: [],
+    },
+  }
+}
+
+function nodeDistributedLog(log: ManagerNodeDistributedLog | undefined) {
+  return log ?? emptyDistributedLog()
+}
+
+function formatDistributedLogLag(log: ManagerNodeDistributedLog) {
+  return `max lag ${log.slots.max_commit_lag} / apply gap ${log.slots.max_apply_gap}`
+}
+
+function formatDistributedLogHealth(log: ManagerNodeDistributedLog) {
+  return `${log.slots.unhealthy_count} unhealthy / ${log.slots.unavailable_count} unavailable`
+}
+
+function formatControllerVoter(intl: IntlShape, voter: boolean) {
+  return intl.formatMessage({ id: voter ? "nodes.distributedLog.controllerVoter" : "nodes.distributedLog.controllerNonVoter" })
+}
+
+function SlotLogSampleList({ samples }: { samples: ManagerNodeSlotLogSample[] }) {
+  if (samples.length === 0) {
+    return (
+      <div className="rounded-lg border border-border bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
+        No unhealthy slot log samples.
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-2">
+      {samples.map((sample) => (
+        <div className="rounded-lg border border-border bg-muted/20 px-3 py-3" key={sample.slot_id}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm font-semibold text-foreground">Slot {sample.slot_id}</div>
+            <StatusBadge value={sample.status} />
+          </div>
+          <div className="mt-2 grid gap-1 text-sm text-muted-foreground md:grid-cols-2">
+            <span>{sample.role} · leader {sample.leader_id || "-"}</span>
+            <span>quorum {sample.quorum}</span>
+            <span>commit {sample.commit_index} / applied {sample.applied_index}</span>
+            <span>leader commit {sample.leader_commit_index} / lag {sample.commit_lag}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function ScaleInMetricCard({ label, value }: { label: string; value: number | string }) {
@@ -502,74 +564,84 @@ export function NodesPage() {
                     <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.status" })}</th>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.controller" })}</th>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.slots" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.distributedLog" })}</th>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.actions" })}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {state.nodes.items.map((node) => (
-                    <tr className="border-t border-border" key={node.node_id}>
-                      <td className="px-3 py-3 text-sm font-medium text-foreground">{node.node_id}</td>
-                      <td className="px-3 py-3 text-sm text-foreground">{node.addr}</td>
-                      <td className="px-3 py-3 text-sm text-foreground">
-                        <StatusBadge value={node.status} />
-                      </td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{node.controller.role}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">
-                        {intl.formatMessage(
-                          { id: "nodes.slotSummary" },
-                          {
-                            total: node.slot_stats.count,
-                            leaders: node.slot_stats.leader_count,
-                          },
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-foreground">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            aria-label={intl.formatMessage(
-                              { id: "nodes.inspectNode" },
-                              { id: node.node_id },
-                            )}
-                            onClick={() => {
-                              void openDetail(node.node_id)
-                            }}
-                            size="sm"
-                            variant="outline"
-                          >
-                            {intl.formatMessage({ id: "common.inspect" })}
-                          </Button>
-                          <Button
-                            disabled={!canWriteNodes}
-                            onClick={() => {
-                              setSelectedNodeId(node.node_id)
-                              setPendingAction(node.status === "draining" ? "resume" : "drain")
-                              setActionError("")
-                            }}
-                            size="sm"
-                            variant="outline"
-                          >
-                            {node.status === "draining"
-                              ? intl.formatMessage({ id: "nodes.resume" })
-                              : intl.formatMessage({ id: "nodes.drain" })}
-                          </Button>
-                          <Button
-                            aria-label={intl.formatMessage(
-                              { id: "nodes.scaleIn.reviewForNode" },
-                              { id: node.node_id },
-                            )}
-                            disabled={!canReadScaleIn || scaleInAction === "plan"}
-                            onClick={() => {
-                              void reviewScaleIn(node.node_id)
-                            }}
-                            size="sm"
-                            variant="outline"
-                          >
-                            {intl.formatMessage({ id: "nodes.scaleIn.button" })}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {state.nodes.items.map((node) => {
+                    const log = nodeDistributedLog(node.distributed_log)
+                    return (
+                      <tr className="border-t border-border" key={node.node_id}>
+                        <td className="px-3 py-3 text-sm font-medium text-foreground">{node.node_id}</td>
+                        <td className="px-3 py-3 text-sm text-foreground">{node.addr}</td>
+                        <td className="px-3 py-3 text-sm text-foreground">
+                          <StatusBadge value={node.status} />
+                        </td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{node.controller.role}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          {intl.formatMessage(
+                            { id: "nodes.slotSummary" },
+                            {
+                              total: node.slot_stats.count,
+                              leaders: node.slot_stats.leader_count,
+                            },
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          <div className="space-y-1">
+                            <div>{formatDistributedLogLag(log)}</div>
+                            <div>{formatDistributedLogHealth(log)}</div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-sm text-foreground">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              aria-label={intl.formatMessage(
+                                { id: "nodes.inspectNode" },
+                                { id: node.node_id },
+                              )}
+                              onClick={() => {
+                                void openDetail(node.node_id)
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {intl.formatMessage({ id: "common.inspect" })}
+                            </Button>
+                            <Button
+                              disabled={!canWriteNodes}
+                              onClick={() => {
+                                setSelectedNodeId(node.node_id)
+                                setPendingAction(node.status === "draining" ? "resume" : "drain")
+                                setActionError("")
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {node.status === "draining"
+                                ? intl.formatMessage({ id: "nodes.resume" })
+                                : intl.formatMessage({ id: "nodes.drain" })}
+                            </Button>
+                            <Button
+                              aria-label={intl.formatMessage(
+                                { id: "nodes.scaleIn.reviewForNode" },
+                                { id: node.node_id },
+                              )}
+                              disabled={!canReadScaleIn || scaleInAction === "plan"}
+                              onClick={() => {
+                                void reviewScaleIn(node.node_id)
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {intl.formatMessage({ id: "nodes.scaleIn.button" })}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -694,6 +766,38 @@ export function NodesPage() {
         ) : null}
         {!detailLoading && !detailError && detail ? (
           <div className="space-y-4">
+            {(() => {
+              const log = nodeDistributedLog(detail.distributed_log)
+              return (
+                <div className="rounded-lg border border-border bg-muted/10 p-3">
+                  <div className="text-sm font-semibold text-foreground">
+                    {intl.formatMessage({ id: "nodes.distributedLog.title" })}
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    <ScaleInMetricCard
+                      label={intl.formatMessage({ id: "nodes.distributedLog.metrics.replicas" })}
+                      value={log.slots.replica_count}
+                    />
+                    <ScaleInMetricCard
+                      label={intl.formatMessage({ id: "nodes.distributedLog.metrics.maxCommitLag" })}
+                      value={log.slots.max_commit_lag}
+                    />
+                    <ScaleInMetricCard
+                      label={intl.formatMessage({ id: "nodes.distributedLog.metrics.maxApplyGap" })}
+                      value={log.slots.max_apply_gap}
+                    />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-sm text-muted-foreground">
+                    <span>{formatControllerVoter(intl, log.controller.voter)}</span>
+                    <span>controller leader {log.controller.leader_id || "-"}</span>
+                    <span>{formatDistributedLogHealth(log)}</span>
+                  </div>
+                  <div className="mt-3">
+                    <SlotLogSampleList samples={log.slots.samples} />
+                  </div>
+                </div>
+              )
+            })()}
             <KeyValueList
               items={[
                 { label: intl.formatMessage({ id: "nodes.detail.address" }), value: detail.addr },

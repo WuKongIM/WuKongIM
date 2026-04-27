@@ -41,6 +41,16 @@ type managedSlotRPCResponse struct {
 
 type ManagedSlotExecutionTestHook func(slotID uint32, task controllermeta.ReconcileTask) error
 
+// SlotLogStatus is the manager-facing read-only Raft log watermark for one Slot on one node.
+type SlotLogStatus struct {
+	// LeaderID is the Slot Raft leader known by the queried node.
+	LeaderID multiraft.NodeID
+	// CommitIndex is the highest committed Raft log index known by the queried node.
+	CommitIndex uint64
+	// AppliedIndex is the highest Raft log index applied by the queried node.
+	AppliedIndex uint64
+}
+
 type managedSlotStatus struct {
 	LeaderID     multiraft.NodeID
 	CommitIndex  uint64
@@ -199,6 +209,19 @@ func (c *Cluster) managedSlotStatusOnNode(ctx context.Context, nodeID multiraft.
 
 func (c *Cluster) localManagedSlotStatus(slotID multiraft.SlotID) (managedSlotStatus, error) {
 	return c.managedSlots().localStatus(slotID)
+}
+
+// SlotLogStatusOnNode returns one node's local Raft log watermark for a managed Slot.
+func (c *Cluster) SlotLogStatusOnNode(ctx context.Context, nodeID uint64, slotID uint32) (SlotLogStatus, error) {
+	status, err := c.managedSlots().statusOnNode(ctx, multiraft.NodeID(nodeID), multiraft.SlotID(slotID))
+	if err != nil {
+		return SlotLogStatus{}, err
+	}
+	return SlotLogStatus{
+		LeaderID:     status.LeaderID,
+		CommitIndex:  status.CommitIndex,
+		AppliedIndex: status.AppliedIndex,
+	}, nil
 }
 
 func reconcileStepName(task controllermeta.ReconcileTask) string {
