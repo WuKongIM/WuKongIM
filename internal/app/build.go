@@ -462,6 +462,7 @@ func build(cfg Config) (_ *App, err error) {
 		app.managementApp = managementusecase.New(managementusecase.Options{
 			LocalNodeID:        cfg.Node.ID,
 			ControllerPeerIDs:  controllerPeerIDs(cfg.Cluster.DerivedControllerNodes()),
+			SlotReplicaN:       cfg.Cluster.SlotReplicaN,
 			Cluster:            app.cluster,
 			Online:             onlineRegistry,
 			ChannelRuntimeMeta: app.store,

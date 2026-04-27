@@ -74,16 +74,52 @@ type MessageReader interface {
 	QueryMessages(ctx context.Context, req MessageQueryRequest) (MessageQueryPage, error)
 }
 
+// RuntimeSummaryReader reads local or remote node runtime state needed by scale-in safety checks.
+type RuntimeSummaryReader interface {
+	// NodeRuntimeSummary returns online and gateway counters for one cluster node.
+	NodeRuntimeSummary(ctx context.Context, nodeID uint64) (NodeRuntimeSummary, error)
+}
+
+// NodeRuntimeSummary contains target-node connection and gateway admission counters.
+type NodeRuntimeSummary struct {
+	// NodeID identifies the cluster node described by this summary.
+	NodeID uint64
+	// ActiveOnline counts active authenticated online connections.
+	ActiveOnline int
+	// ClosingOnline counts authenticated online connections that are closing but not fully removed.
+	ClosingOnline int
+	// TotalOnline counts all authenticated online connections tracked by the node.
+	TotalOnline int
+	// GatewaySessions counts all gateway sessions, including unauthenticated sessions.
+	GatewaySessions int
+	// SessionsByListener groups gateway sessions by listener name or address.
+	SessionsByListener map[string]int
+	// AcceptingNewSessions reports whether gateway admission currently accepts new sessions.
+	AcceptingNewSessions bool
+	// Draining reports whether the target node believes it is in drain mode.
+	Draining bool
+	// Unknown means runtime counters could not be read and must fail closed for scale-in safety.
+	Unknown bool
+}
+
+const defaultScaleInRuntimeViewMaxAge = 30 * time.Second
+
 // Options configures the management usecase app.
 type Options struct {
 	// LocalNodeID is the node ID of the current process.
 	LocalNodeID uint64
 	// ControllerPeerIDs lists the configured controller peer node IDs.
 	ControllerPeerIDs []uint64
+	// SlotReplicaN is the configured target replica count for each managed slot.
+	SlotReplicaN int
+	// ScaleInRuntimeViewMaxAge bounds how old runtime observations may be for scale-in safety.
+	ScaleInRuntimeViewMaxAge time.Duration
 	// Cluster provides distributed cluster read access.
 	Cluster ClusterReader
 	// Online provides local online connection reads.
 	Online online.Registry
+	// RuntimeSummary reads local or remote node runtime counters for scale-in safety.
+	RuntimeSummary RuntimeSummaryReader
 	// ChannelRuntimeMeta provides authoritative slot-level runtime meta pages.
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
 	// Messages provides authoritative channel message pages.
@@ -94,13 +130,16 @@ type Options struct {
 
 // App serves manager-oriented read usecases.
 type App struct {
-	localNodeID        uint64
-	controllerPeerIDs  map[uint64]struct{}
-	cluster            ClusterReader
-	online             online.Registry
-	channelRuntimeMeta ChannelRuntimeMetaReader
-	messages           MessageReader
-	now                func() time.Time
+	localNodeID              uint64
+	controllerPeerIDs        map[uint64]struct{}
+	slotReplicaN             int
+	scaleInRuntimeViewMaxAge time.Duration
+	cluster                  ClusterReader
+	online                   online.Registry
+	runtimeSummary           RuntimeSummaryReader
+	channelRuntimeMeta       ChannelRuntimeMetaReader
+	messages                 MessageReader
+	now                      func() time.Time
 }
 
 // New constructs the management usecase app.
@@ -116,13 +155,20 @@ func New(opts Options) *App {
 	if now == nil {
 		now = time.Now
 	}
+	scaleInRuntimeViewMaxAge := opts.ScaleInRuntimeViewMaxAge
+	if scaleInRuntimeViewMaxAge <= 0 {
+		scaleInRuntimeViewMaxAge = defaultScaleInRuntimeViewMaxAge
+	}
 	return &App{
-		localNodeID:        opts.LocalNodeID,
-		controllerPeerIDs:  peers,
-		cluster:            opts.Cluster,
-		online:             opts.Online,
-		channelRuntimeMeta: opts.ChannelRuntimeMeta,
-		messages:           opts.Messages,
-		now:                now,
+		localNodeID:              opts.LocalNodeID,
+		controllerPeerIDs:        peers,
+		slotReplicaN:             opts.SlotReplicaN,
+		scaleInRuntimeViewMaxAge: scaleInRuntimeViewMaxAge,
+		cluster:                  opts.Cluster,
+		online:                   opts.Online,
+		runtimeSummary:           opts.RuntimeSummary,
+		channelRuntimeMeta:       opts.ChannelRuntimeMeta,
+		messages:                 opts.Messages,
+		now:                      now,
 	}
 }
