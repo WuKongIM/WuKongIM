@@ -166,6 +166,11 @@ type fakeNodeOperatorCluster struct {
 	listTasksErr                error
 	taskBySlot                  map[uint32]controllermeta.ReconcileTask
 	getTaskErr                  error
+	activeMigrations            []raftcluster.HashSlotMigration
+	listActiveMigrationsErr     error
+	onboardingJobs              []controllermeta.NodeOnboardingJob
+	onboardingHasMore           bool
+	listOnboardingJobsErr       error
 	markNodeDrainingCalledWith  uint64
 	markNodeDrainingCalls       int
 	markNodeDrainingErr         error
@@ -254,6 +259,10 @@ func (f *fakeNodeOperatorCluster) RecoverSlotStrict(context.Context, uint32, raf
 	return nil
 }
 
+func (f *fakeNodeOperatorCluster) ListActiveMigrationsStrict(context.Context) ([]raftcluster.HashSlotMigration, error) {
+	return append([]raftcluster.HashSlotMigration(nil), f.activeMigrations...), f.listActiveMigrationsErr
+}
+
 func (f *fakeNodeOperatorCluster) GetMigrationStatus() []raftcluster.HashSlotMigration {
 	return nil
 }
@@ -283,7 +292,7 @@ func (f *fakeNodeOperatorCluster) StartNodeOnboardingJob(context.Context, string
 }
 
 func (f *fakeNodeOperatorCluster) ListNodeOnboardingJobs(context.Context, int, string) ([]controllermeta.NodeOnboardingJob, string, bool, error) {
-	return nil, "", false, nil
+	return append([]controllermeta.NodeOnboardingJob(nil), f.onboardingJobs...), "", f.onboardingHasMore, f.listOnboardingJobsErr
 }
 
 func (f *fakeNodeOperatorCluster) GetNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {

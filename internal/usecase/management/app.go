@@ -27,6 +27,8 @@ type ClusterReader interface {
 	ListObservedRuntimeViewsStrict(ctx context.Context) ([]controllermeta.SlotRuntimeView, error)
 	// ListTasksStrict returns the controller leader's task snapshot without local fallback.
 	ListTasksStrict(ctx context.Context) ([]controllermeta.ReconcileTask, error)
+	// ListActiveMigrationsStrict returns controller-leader active hash-slot migrations.
+	ListActiveMigrationsStrict(ctx context.Context) ([]raftcluster.HashSlotMigration, error)
 	// GetReconcileTaskStrict returns the controller leader's task detail without local fallback.
 	GetReconcileTaskStrict(ctx context.Context, slotID uint32) (controllermeta.ReconcileTask, error)
 	// MarkNodeDraining marks a node as draining through the controller leader.
