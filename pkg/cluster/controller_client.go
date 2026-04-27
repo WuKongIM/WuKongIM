@@ -109,6 +109,9 @@ func (c *controllerClient) ListRuntimeViews(ctx context.Context) ([]controllerme
 	if err != nil {
 		return nil, err
 	}
+	if resp.ObservationNotReady {
+		return nil, ErrObservationNotReady
+	}
 	return resp.RuntimeViews, nil
 }
 

@@ -45,6 +45,7 @@ const (
 
 	controllerRespFlagNotLeader byte = 1 << iota
 	controllerRespFlagNotFound
+	controllerRespFlagObservationNotReady
 )
 
 const (
@@ -120,6 +121,7 @@ type runtimeObservationReport struct {
 type controllerRPCResponse struct {
 	NotLeader              bool
 	NotFound               bool
+	ObservationNotReady    bool
 	LeaderID               uint64
 	LeaderAddr             string
 	Nodes                  []controllermeta.ClusterNode
@@ -231,6 +233,9 @@ func encodeControllerResponse(kind string, resp controllerRPCResponse) ([]byte, 
 	if resp.NotFound {
 		flags |= controllerRespFlagNotFound
 	}
+	if resp.ObservationNotReady {
+		flags |= controllerRespFlagObservationNotReady
+	}
 
 	payload, err := encodeControllerResponsePayload(kind, resp)
 	if err != nil {
@@ -259,9 +264,10 @@ func decodeControllerResponse(kind string, body []byte) (controllerRPCResponse, 
 	}
 
 	resp := controllerRPCResponse{
-		NotLeader: body[1]&controllerRespFlagNotLeader != 0,
-		NotFound:  body[1]&controllerRespFlagNotFound != 0,
-		LeaderID:  binary.BigEndian.Uint64(body[2:10]),
+		NotLeader:           body[1]&controllerRespFlagNotLeader != 0,
+		NotFound:            body[1]&controllerRespFlagNotFound != 0,
+		ObservationNotReady: body[1]&controllerRespFlagObservationNotReady != 0,
+		LeaderID:            binary.BigEndian.Uint64(body[2:10]),
 	}
 	if err := decodeControllerResponsePayload(kind, &resp, payload); err != nil {
 		return controllerRPCResponse{}, err
