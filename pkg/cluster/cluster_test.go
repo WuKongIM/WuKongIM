@@ -155,6 +155,29 @@ func TestControllerReportAddrPrefersAdvertiseAddrOverBoundListener(t *testing.T)
 	}
 }
 
+func TestControllerReportAddrPrefersStaticNodeAddrOverBoundListener(t *testing.T) {
+	srv := newStartedTestServer(t)
+
+	cluster := &Cluster{
+		cfg: Config{
+			NodeID:     2,
+			ListenAddr: "0.0.0.0:0",
+			Nodes: []NodeConfig{
+				{NodeID: 1, Addr: "wk-node1:7000"},
+				{NodeID: 2, Addr: "wk-node2:7000"},
+				{NodeID: 3, Addr: "wk-node3:7000"},
+			},
+		},
+		transportResources: transportResources{
+			server: srv,
+		},
+	}
+
+	if got, want := cluster.controllerReportAddr(), "wk-node2:7000"; got != want {
+		t.Fatalf("controllerReportAddr() = %q, want static node addr %q", got, want)
+	}
+}
+
 func TestJoinClusterWithRetryIncludesNodeName(t *testing.T) {
 	var gotReq joinClusterRequest
 	cluster := &Cluster{
@@ -2739,6 +2762,49 @@ func TestApplyClusterNodesPreservesConfiguredStaticNodes(t *testing.T) {
 	}
 	if addr != "127.0.0.1:7002" {
 		t.Fatalf("Resolve(2) = %q, want configured static address", addr)
+	}
+}
+
+func TestApplyClusterNodesIgnoresUnroutableMetadataAddress(t *testing.T) {
+	discovery := NewDynamicDiscovery(nil, []NodeConfig{
+		{NodeID: 1, Addr: "wk-node1:7000"},
+		{NodeID: 2, Addr: "wk-node2:7000"},
+		{NodeID: 3, Addr: "wk-node3:7000"},
+	})
+	defer discovery.Stop()
+
+	cluster := &Cluster{
+		cfg: Config{
+			Nodes: []NodeConfig{
+				{NodeID: 1, Addr: "wk-node1:7000"},
+				{NodeID: 2, Addr: "wk-node2:7000"},
+				{NodeID: 3, Addr: "wk-node3:7000"},
+			},
+		},
+		transportResources: transportResources{
+			discovery: discovery,
+		},
+	}
+
+	cluster.applyClusterNodes([]controllermeta.ClusterNode{
+		{NodeID: 2, Addr: "[::]:7000", Status: controllermeta.NodeStatusAlive, CapacityWeight: 1},
+		{NodeID: 3, Addr: "0.0.0.0:7000", Status: controllermeta.NodeStatusAlive, CapacityWeight: 1},
+	})
+
+	for _, tc := range []struct {
+		nodeID uint64
+		want   string
+	}{
+		{nodeID: 2, want: "wk-node2:7000"},
+		{nodeID: 3, want: "wk-node3:7000"},
+	} {
+		addr, err := discovery.Resolve(tc.nodeID)
+		if err != nil {
+			t.Fatalf("Resolve(%d) error = %v", tc.nodeID, err)
+		}
+		if addr != tc.want {
+			t.Fatalf("Resolve(%d) = %q, want static fallback %q", tc.nodeID, addr, tc.want)
+		}
 	}
 }
 

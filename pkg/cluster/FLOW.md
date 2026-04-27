@@ -168,7 +168,7 @@ heartbeatLoop 每 ObservationHeartbeatInterval (默认2s) 执行:
 
 heartbeatOnce(ctx):
   ① agent.HeartbeatOnce(ctx):
-     → client.Report(nodeStatus)  // 仅上报节点心跳；地址优先使用 AdvertiseAddr，避免把监听绑定地址写回 membership
+     → client.Report(nodeStatus)  // 仅上报节点心跳；地址优先使用 AdvertiseAddr，其次使用本节点 WK_CLUSTER_NODES 静态地址，避免把监听绑定地址写回 membership
      → 响应中携带 HashSlotTable → applyHashSlotTablePayload 更新 Router + 状态机
      → Controller Leader 本地只更新 `observationCache.nodes` / `nodeHealthScheduler`
        steady-state heartbeat 不再夹带 per-slot RuntimeView
@@ -514,7 +514,7 @@ SlotIDs()/planner/readiness:
 - **Manager recover 必须走 strict assignments**: `RecoverSlotStrict` 使用 `ListSlotAssignmentsStrict` 作为唯一 assignment 来源，避免 manager 写接口因为 fallback 到本地 assignment 状态而在不同节点上看到不同恢复结论。
 - **Controller HashSlot 读快路径**: leader 处理 `heartbeat` / `list_assignments` 时优先读 `controllerHost` 持有的 HashSlot snapshot；只有 snapshot cold miss 才会回落到 `controllerMeta.LoadHashSlotTable()`，回填后再继续返回。
 - **Controller metadata 读快路径**: leader-local `controllerMetadataSnapshot` 缓存 Nodes / Assignments / Tasks。planner、调和器本地 leader helper、以及 leader 侧 `list_assignments` / `list_nodes` / `list_tasks` / `get_task` 都优先读 clean snapshot；只要 snapshot dirty / cold 就必须回落到 Pebble-backed `controllerMeta`。
-- **Membership snapshot 同步到 discovery**: Controller 返回或加载的完整 Nodes snapshot 会写入现有 `DynamicDiscovery` 实例；observation 增量必须先合并 follower 本地 cache，再用完整 nodes 刷新，不能用 `delta.Nodes` 覆盖，否则会误删未变化节点并触发错误连接驱逐。
+- **Membership snapshot 同步到 discovery**: Controller 返回或加载的完整 Nodes snapshot 会写入现有 `DynamicDiscovery` 实例；observation 增量必须先合并 follower 本地 cache，再用完整 nodes 刷新，不能用 `delta.Nodes` 覆盖，否则会误删未变化节点并触发错误连接驱逐。写入 discovery 时会跳过 `0.0.0.0` / `[::]` 等监听绑定地址，保留静态 `WK_CLUSTER_NODES` 作为可路由基线。
 - **Observation hint peers 动态更新**: controller leader 的 metadata snapshot reload 会用 Data 且非 Rejected 的节点刷新 observation hint 目标，并保留静态配置 peers；Joining 节点因此能收到 full-sync hint 并完成激活。
 - **节点健康改为 deadline 驱动**: steady-state 不再由 `controllerTickOnce()` 提案 `EvaluateTimeouts`；leader 本地 `nodeHealthScheduler` 只在 Alive/Suspect/Dead 边沿变化时提案 `NodeStatusUpdate`。
 - **节点健康 mirror 只反映 committed state**: `nodeHealthScheduler` 对 repeated Alive observation 优先读本地 durable node mirror；mirror miss 才 `GetNode()`。mirror 通过 leader change 全量 reload 和 committed command 增量 refresh 维护，不直接信任 proposal payload。

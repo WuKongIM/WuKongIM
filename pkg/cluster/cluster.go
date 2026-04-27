@@ -449,6 +449,9 @@ func (c *Cluster) applyClusterNodes(nodes []controllermeta.ClusterNode) {
 		if node.NodeID == 0 || node.Addr == "" || node.JoinState == controllermeta.NodeJoinStateRejected {
 			continue
 		}
+		if validateNodeAdvertiseAddr(node.Addr) != nil {
+			continue
+		}
 		nodeID := multiraft.NodeID(node.NodeID)
 		configsByID[nodeID] = NodeConfig{NodeID: nodeID, Addr: node.Addr}
 	}
@@ -1694,10 +1697,26 @@ func (c *Cluster) controllerReportAddr() string {
 	if addr := strings.TrimSpace(c.cfg.AdvertiseAddr); addr != "" {
 		return addr
 	}
+	if addr := c.configuredLocalNodeAddr(); addr != "" {
+		return addr
+	}
 	if c.server != nil && c.server.Listener() != nil {
 		return c.server.Listener().Addr().String()
 	}
 	return c.cfg.ListenAddr
+}
+
+// configuredLocalNodeAddr returns the static cluster address for this node.
+func (c *Cluster) configuredLocalNodeAddr() string {
+	if c == nil {
+		return ""
+	}
+	for _, node := range c.cfg.Nodes {
+		if node.NodeID == c.cfg.NodeID {
+			return strings.TrimSpace(node.Addr)
+		}
+	}
+	return ""
 }
 
 func (c *Cluster) setRuntimePeers(slotID multiraft.SlotID, peers []multiraft.NodeID) {

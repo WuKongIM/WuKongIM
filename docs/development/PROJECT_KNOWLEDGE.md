@@ -12,6 +12,8 @@
 ### Discovery baseline
 - Static `WK_CLUSTER_NODES` remain a discovery baseline; controller node snapshots overlay them so early empty metadata reads do not break existing static clusters.
 - Static `WK_CLUSTER_NODES` addresses must be unique advertised endpoints; `0.0.0.0` is only a listen bind address and must not be published as a peer address.
+- Static cluster heartbeats must publish `WK_CLUSTER_ADVERTISE_ADDR` or the local `WK_CLUSTER_NODES` address; never publish the bound listener address such as `[::]:7000`.
+- Discovery must ignore controller metadata addresses that are unspecified bind endpoints and keep the static node address instead.
 - Dynamic node join adds ordinary data nodes only; Controller Raft voter changes remain explicit future operator work.
 - Dynamic join startup retries JoinCluster synchronously before app HTTP/gateway services start; non-blocking joining readiness is future lifecycle work.
 - Controller state-machine join conflicts are stale no-ops; Join RPC prechecks still return explicit conflict errors to callers.
