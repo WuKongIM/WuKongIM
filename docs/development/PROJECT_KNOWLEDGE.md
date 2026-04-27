@@ -28,3 +28,6 @@
 - Controller Raft shares the cluster transport server, so its wire message type must stay distinct from slot Raft and observation-hint message types.
 - Inbound Controller Raft frames must be addressed to the local node and originate from a different node; drop looped or misrouted frames before calling `RawNode.Step`.
 - Controller read RPCs can see `not leader` while Raft elects or fails over; keep those retryable read failures out of ERROR logs.
+
+### Node scale-in
+- Manager-driven node scale-in drains a node to `ready_to_remove`; it must not call physical Slot removal or Kubernetes scale-down directly.

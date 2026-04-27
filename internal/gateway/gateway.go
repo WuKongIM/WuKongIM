@@ -53,6 +53,27 @@ func (g *Gateway) ListenerAddr(name string) string {
 	return addr
 }
 
+func (g *Gateway) SetAcceptingNewSessions(accepting bool) {
+	if g == nil || g.server == nil {
+		return
+	}
+	g.server.SetAcceptingNewSessions(accepting)
+}
+
+func (g *Gateway) AcceptingNewSessions() bool {
+	if g == nil || g.server == nil {
+		return false
+	}
+	return g.server.AcceptingNewSessions()
+}
+
+func (g *Gateway) SessionSummary() core.SessionSummary {
+	if g == nil || g.server == nil {
+		return core.SessionSummary{SessionsByListener: map[string]int{}}
+	}
+	return g.server.SessionSummary()
+}
+
 func buildRegistry() (*core.Registry, error) {
 	registry := core.NewRegistry()
 	if err := registry.RegisterTransport(stdnet.NewFactory()); err != nil {

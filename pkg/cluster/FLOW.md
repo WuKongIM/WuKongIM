@@ -35,7 +35,7 @@ API.ListTasks(ctx) / ListTasksStrict(ctx)
 API.WaitForManagedSlotsReady(ctx)
 
 // 运维操作 — operator.go
-API.ListSlotAssignments(ctx) / ListSlotAssignmentsStrict(ctx)
+API.ListSlotAssignments(ctx) / ListSlotAssignmentsStrict(ctx) / ListActiveMigrationsStrict(ctx)
 API.ListObservedRuntimeViews(ctx) / ListObservedRuntimeViewsStrict(ctx)
 API.GetReconcileTask(ctx, slotID) / GetReconcileTaskStrict(ctx, slotID) / ForceReconcile(ctx, slotID)
 API.MarkNodeDraining(ctx, nodeID) / ResumeNode(ctx, nodeID)
@@ -50,6 +50,9 @@ API.ListNodeOnboardingJobs(ctx, limit, cursor) / GetNodeOnboardingJob(ctx, jobID
 // 传输层 — 共享给业务层注册额外 Handler
 API.Server() / RPCMux() / Discovery() / RPCService(ctx, nodeID, slotID, serviceID, payload)
 ```
+
+`ListActiveMigrationsStrict` 先执行严格的 Controller leader assignment/hash-slot table 刷新，再从刷新后的路由表读取 active migrations。
+`ListObservedRuntimeViewsStrict` 在本地或远端 Controller leader observation warmup 未完成时会 fail closed 返回 `ErrObservationNotReady`，调用方不能回退到本地非严格缓存作为安全判断依据。
 
 ## 4. 关键类型
 

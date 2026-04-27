@@ -31,6 +31,23 @@ func (s *Server) registerRoutes() {
 	nodeWrites.POST("/nodes/:node_id/draining", s.handleNodeDraining)
 	nodeWrites.POST("/nodes/:node_id/resume", s.handleNodeResume)
 
+	scaleInReads := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		scaleInReads.Use(s.requirePermission("cluster.node", "r"))
+		scaleInReads.Use(s.requirePermission("cluster.slot", "r"))
+	}
+	scaleInReads.POST("/nodes/:node_id/scale-in/plan", s.handleNodeScaleInPlan)
+	scaleInReads.GET("/nodes/:node_id/scale-in/status", s.handleNodeScaleInStatus)
+
+	scaleInWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		scaleInWrites.Use(s.requirePermission("cluster.node", "w"))
+		scaleInWrites.Use(s.requirePermission("cluster.slot", "w"))
+	}
+	scaleInWrites.POST("/nodes/:node_id/scale-in/start", s.handleNodeScaleInStart)
+	scaleInWrites.POST("/nodes/:node_id/scale-in/advance", s.handleNodeScaleInAdvance)
+	scaleInWrites.POST("/nodes/:node_id/scale-in/cancel", s.handleNodeScaleInCancel)
+
 	slots := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		slots.Use(s.requirePermission("cluster.slot", "r"))

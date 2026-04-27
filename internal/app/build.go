@@ -50,6 +50,7 @@ func build(cfg Config) (_ *App, err error) {
 	}
 
 	app := &App{cfg: cfg, createdAt: time.Now()}
+	app.nodeDrainState = newNodeDrainState(cfg.Node.ID, time.Now)
 	cleanup := &applifecycle.ResourceStack{}
 	defer func() {
 		if err != nil {
@@ -107,6 +108,7 @@ func build(cfg Config) (_ *App, err error) {
 			app.channelMetaSync.scheduleSlotLeaderRefresh(multiraft.SlotID(slotID))
 		},
 		OnNodeStatusChange: func(nodeID uint64, _ controllermeta.NodeStatus, to controllermeta.NodeStatus) {
+			app.observeNodeStatusChange(nodeID, to)
 			if app.channelMetaSync == nil {
 				return
 			}
@@ -341,6 +343,8 @@ func build(cfg Config) (_ *App, err error) {
 		Logger:                app.logger.Named("conversation"),
 	})
 	onlineRegistry := online.NewRegistry()
+	app.onlineRegistry = onlineRegistry
+	runtimeSummaries := runtimeSummaryCollector{app: app}
 	authorityClient := &presenceAuthorityClient{
 		cluster:     app.cluster,
 		remote:      app.nodeClient,
@@ -421,6 +425,7 @@ func build(cfg Config) (_ *App, err error) {
 		DeliveryAckIndex:      app.deliveryAcks,
 		ChannelLeaderRepair:   channelLeaderRepairer,
 		ChannelLeaderEvaluate: channelLeaderEvaluator,
+		RuntimeSummary:        nodeRuntimeSummaryProvider{collector: runtimeSummaries},
 		Logger:                app.logger.Named("access.node"),
 	})
 	app.messageApp = message.New(message.Options{
@@ -462,8 +467,10 @@ func build(cfg Config) (_ *App, err error) {
 		app.managementApp = managementusecase.New(managementusecase.Options{
 			LocalNodeID:        cfg.Node.ID,
 			ControllerPeerIDs:  controllerPeerIDs(cfg.Cluster.DerivedControllerNodes()),
+			SlotReplicaN:       cfg.Cluster.SlotReplicaN,
 			Cluster:            app.cluster,
 			Online:             onlineRegistry,
+			RuntimeSummary:     managementRuntimeSummaryReader{collector: runtimeSummaries, nodeClient: app.nodeClient},
 			ChannelRuntimeMeta: app.store,
 			Messages: managerMessageReader{
 				localNodeID: cfg.Node.ID,
@@ -530,6 +537,7 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: create gateway: %w", err)
 	}
+	app.updateGatewayAdmissionFromDrainState()
 
 	cleanup.Release()
 	return app, nil

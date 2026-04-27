@@ -31,6 +31,7 @@ type Server struct {
 	sessions   *session.Manager
 
 	nextSessionID atomic.Uint64
+	accepting     atomic.Bool
 
 	mu        sync.Mutex
 	started   bool
@@ -80,6 +81,16 @@ type sessionState struct {
 	lastReadActivity atomic.Int64
 }
 
+// SessionSummary contains aggregate gateway session counts for drain safety.
+type SessionSummary struct {
+	// GatewaySessions counts all sessions currently tracked by gateway core.
+	GatewaySessions int
+	// SessionsByListener groups tracked sessions by listener name.
+	SessionsByListener map[string]int
+	// AcceptingNewSessions reports whether new connection admission is enabled.
+	AcceptingNewSessions bool
+}
+
 func NewServer(registry *Registry, opts *gatewaytypes.Options) (*Server, error) {
 	if registry == nil {
 		return nil, ErrNilRegistry
@@ -125,14 +136,16 @@ func NewServer(registry *Registry, opts *gatewaytypes.Options) (*Server, error) 
 		listeners = append(listeners, runtime)
 	}
 
-	return &Server{
+	srv := &Server{
 		registry:   registry,
 		options:    cfg,
 		dispatcher: newDispatcher(cfg.Handler),
 		sessions:   session.NewManager(),
 		listeners:  listeners,
 		states:     make(map[connKey]*sessionState),
-	}, nil
+	}
+	srv.accepting.Store(true)
+	return srv, nil
 }
 
 func (s *Server) Start() error {
@@ -294,6 +307,10 @@ func (h *connHandler) OnClose(conn transport.Conn, err error) {
 
 func (s *Server) onOpen(listener *listenerRuntime, conn transport.Conn) error {
 	if listener == nil || conn == nil {
+		return nil
+	}
+	if !s.AcceptingNewSessions() {
+		_ = conn.Close()
 		return nil
 	}
 
@@ -828,6 +845,42 @@ func (s *Server) state(listener string, connID uint64) *sessionState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.states[connKey{listener: listener, connID: connID}]
+}
+
+// SetAcceptingNewSessions toggles gateway admission for newly opened connections.
+func (s *Server) SetAcceptingNewSessions(accepting bool) {
+	if s == nil {
+		return
+	}
+	s.accepting.Store(accepting)
+}
+
+// AcceptingNewSessions reports whether gateway admission accepts newly opened connections.
+func (s *Server) AcceptingNewSessions() bool {
+	if s == nil {
+		return false
+	}
+	return s.accepting.Load()
+}
+
+// SessionSummary returns aggregate gateway session counts grouped by listener.
+func (s *Server) SessionSummary() SessionSummary {
+	if s == nil {
+		return SessionSummary{SessionsByListener: map[string]int{}}
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	summary := SessionSummary{
+		SessionsByListener:   make(map[string]int),
+		AcceptingNewSessions: s.AcceptingNewSessions(),
+	}
+	for key := range s.states {
+		summary.GatewaySessions++
+		summary.SessionsByListener[key.listener]++
+	}
+	return summary
 }
 
 func (s *Server) rollbackStart(listeners []transport.Listener) {

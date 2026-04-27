@@ -243,6 +243,38 @@ func TestRegistryActiveConnectionsByGroupReturnsOnlyActiveRoutes(t *testing.T) {
 	require.Equal(t, active, conns[0])
 }
 
+func TestMemoryRegistrySummaryCountsActiveAndClosingConnections(t *testing.T) {
+	reg := NewRegistry()
+	require.NoError(t, reg.Register(OnlineConn{
+		SessionID: 1,
+		UID:       "u1",
+		Listener:  "tcp",
+		State:     LocalRouteStateActive,
+		Session:   newRecordingSession(1, "tcp"),
+	}))
+	require.NoError(t, reg.Register(OnlineConn{
+		SessionID: 2,
+		UID:       "u2",
+		Listener:  "ws",
+		State:     LocalRouteStateActive,
+		Session:   newRecordingSession(2, "ws"),
+	}))
+	require.NoError(t, reg.Register(OnlineConn{
+		SessionID: 3,
+		UID:       "u3",
+		Listener:  "tcp",
+		State:     LocalRouteStateClosing,
+		Session:   newRecordingSession(3, "tcp"),
+	}))
+
+	summary := reg.Summary()
+
+	require.Equal(t, 2, summary.Active)
+	require.Equal(t, 1, summary.Closing)
+	require.Equal(t, 3, summary.Total)
+	require.Equal(t, map[string]int{"tcp": 2, "ws": 1}, summary.SessionsByListener)
+}
+
 func listenersOf(conns []OnlineConn) []string {
 	listeners := make([]string, 0, len(conns))
 	for _, conn := range conns {

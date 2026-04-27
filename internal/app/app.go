@@ -13,6 +13,7 @@ import (
 	applifecycle "github.com/WuKongIM/WuKongIM/internal/app/lifecycle"
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
@@ -60,12 +61,14 @@ type App struct {
 	gatewayHandler        *accessgateway.Handler
 	gateway               *gateway.Gateway
 	gatewayBootID         uint64
+	onlineRegistry        online.Registry
 
 	isrTransport         *channeltransport.Transport
 	dataPlanePool        *transport.Pool
 	dataPlaneClient      *transport.Client
 	metrics              *obsmetrics.Registry
 	observedClusterCache observedClusterStateCache
+	nodeDrainState       *nodeDrainState
 
 	stopOnce       sync.Once
 	lifecycle      sync.Mutex

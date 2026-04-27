@@ -12,6 +12,7 @@ var (
 	ErrRerouted               = errors.New("raftcluster: rerouted")
 	ErrInvalidConfig          = errors.New("raftcluster: invalid config")
 	ErrManualRecoveryRequired = errors.New("raftcluster: manual recovery required")
+	ErrObservationNotReady    = errors.New("raftcluster: observation not ready")
 )
 
 type joinErrorCode string

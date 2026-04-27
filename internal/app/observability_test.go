@@ -516,6 +516,10 @@ func (f fakeObservabilityCluster) GetMigrationStatus() []raftcluster.HashSlotMig
 	return append([]raftcluster.HashSlotMigration(nil), f.migrations...)
 }
 
+func (f fakeObservabilityCluster) ListActiveMigrationsStrict(context.Context) ([]raftcluster.HashSlotMigration, error) {
+	return append([]raftcluster.HashSlotMigration(nil), f.migrations...), nil
+}
+
 func (f fakeObservabilityCluster) TransportPoolStats() []transport.PoolPeerStats {
 	return append([]transport.PoolPeerStats(nil), f.transportStats...)
 }

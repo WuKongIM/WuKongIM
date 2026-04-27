@@ -51,6 +51,18 @@ type SlotSnapshot struct {
 	Digest uint64
 }
 
+// Summary contains aggregate local online connection counts for drain safety.
+type Summary struct {
+	// Active counts sessions available for delivery.
+	Active int
+	// Closing counts sessions that are closing but not fully unregistered.
+	Closing int
+	// Total counts all sessions tracked by the registry.
+	Total int
+	// SessionsByListener groups tracked sessions by gateway listener.
+	SessionsByListener map[string]int
+}
+
 type Registry interface {
 	Register(conn OnlineConn) error
 	Unregister(sessionID uint64)
@@ -59,6 +71,7 @@ type Registry interface {
 	ConnectionsByUID(uid string) []OnlineConn
 	ActiveConnectionsBySlot(slotID uint64) []OnlineConn
 	ActiveSlots() []SlotSnapshot
+	Summary() Summary
 }
 
 type Delivery interface {

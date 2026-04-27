@@ -775,6 +775,22 @@ func (f *fakeRegistry) ActiveSlots() []online.SlotSnapshot {
 	return nil
 }
 
+func (f *fakeRegistry) Summary() online.Summary {
+	summary := online.Summary{SessionsByListener: make(map[string]int)}
+	for _, conns := range f.byUID {
+		for _, conn := range conns {
+			summary.Total++
+			if conn.State == online.LocalRouteStateClosing {
+				summary.Closing++
+			} else {
+				summary.Active++
+			}
+			summary.SessionsByListener[conn.Listener]++
+		}
+	}
+	return summary
+}
+
 type deliveryCall struct {
 	recipients []online.OnlineConn
 	frame      frame.Frame

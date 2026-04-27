@@ -137,9 +137,14 @@ type fakeClusterReader struct {
 	resumeNodeErr               error
 	transferSlotLeaderErr       error
 	recoverSlotStrictErr        error
+	activeMigrations            []raftcluster.HashSlotMigration
+	listActiveMigrationsErr     error
 	migrationStatus             []raftcluster.HashSlotMigration
 	rebalancePlan               []raftcluster.MigrationPlan
 	rebalanceErr                error
+	onboardingJobs              []controllermeta.NodeOnboardingJob
+	onboardingHasMore           bool
+	listOnboardingJobsErr       error
 }
 
 func (f fakeClusterReader) SlotIDs() []multiraft.SlotID {
@@ -200,6 +205,10 @@ func (f fakeClusterReader) RecoverSlotStrict(context.Context, uint32, raftcluste
 	return f.recoverSlotStrictErr
 }
 
+func (f fakeClusterReader) ListActiveMigrationsStrict(context.Context) ([]raftcluster.HashSlotMigration, error) {
+	return append([]raftcluster.HashSlotMigration(nil), f.activeMigrations...), f.listActiveMigrationsErr
+}
+
 func (f fakeClusterReader) GetMigrationStatus() []raftcluster.HashSlotMigration {
 	return append([]raftcluster.HashSlotMigration(nil), f.migrationStatus...)
 }
@@ -229,7 +238,7 @@ func (f fakeClusterReader) StartNodeOnboardingJob(context.Context, string) (cont
 }
 
 func (f fakeClusterReader) ListNodeOnboardingJobs(context.Context, int, string) ([]controllermeta.NodeOnboardingJob, string, bool, error) {
-	return nil, "", false, nil
+	return append([]controllermeta.NodeOnboardingJob(nil), f.onboardingJobs...), "", f.onboardingHasMore, f.listOnboardingJobsErr
 }
 
 func (f fakeClusterReader) GetNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {

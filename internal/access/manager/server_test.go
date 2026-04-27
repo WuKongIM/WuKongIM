@@ -2263,6 +2263,11 @@ type managementStub struct {
 	nodeDrainingErr                 error
 	nodeResume                      managementusecase.NodeDetail
 	nodeResumeErr                   error
+	nodeScaleInReport               managementusecase.NodeScaleInReport
+	nodeScaleInErr                  error
+	nodeScaleInNodeIDSink           *uint64
+	nodeScaleInPlanReqSink          *managementusecase.NodeScaleInPlanRequest
+	nodeScaleInAdvanceReqSink       *managementusecase.AdvanceNodeScaleInRequest
 	slotLeaderTransfer              managementusecase.SlotDetail
 	slotLeaderTransferErr           error
 	slotAdd                         managementusecase.SlotDetail
@@ -2319,6 +2324,50 @@ func (s managementStub) MarkNodeDraining(context.Context, uint64) (managementuse
 
 func (s managementStub) ResumeNode(context.Context, uint64) (managementusecase.NodeDetail, error) {
 	return s.nodeResume, s.nodeResumeErr
+}
+
+func (s managementStub) PlanNodeScaleIn(_ context.Context, nodeID uint64, req managementusecase.NodeScaleInPlanRequest) (managementusecase.NodeScaleInReport, error) {
+	if s.nodeScaleInNodeIDSink != nil {
+		*s.nodeScaleInNodeIDSink = nodeID
+	}
+	if s.nodeScaleInPlanReqSink != nil {
+		*s.nodeScaleInPlanReqSink = req
+	}
+	return s.nodeScaleInReport, s.nodeScaleInErr
+}
+
+func (s managementStub) StartNodeScaleIn(_ context.Context, nodeID uint64, req managementusecase.NodeScaleInPlanRequest) (managementusecase.NodeScaleInReport, error) {
+	if s.nodeScaleInNodeIDSink != nil {
+		*s.nodeScaleInNodeIDSink = nodeID
+	}
+	if s.nodeScaleInPlanReqSink != nil {
+		*s.nodeScaleInPlanReqSink = req
+	}
+	return s.nodeScaleInReport, s.nodeScaleInErr
+}
+
+func (s managementStub) GetNodeScaleInStatus(_ context.Context, nodeID uint64) (managementusecase.NodeScaleInReport, error) {
+	if s.nodeScaleInNodeIDSink != nil {
+		*s.nodeScaleInNodeIDSink = nodeID
+	}
+	return s.nodeScaleInReport, s.nodeScaleInErr
+}
+
+func (s managementStub) AdvanceNodeScaleIn(_ context.Context, nodeID uint64, req managementusecase.AdvanceNodeScaleInRequest) (managementusecase.NodeScaleInReport, error) {
+	if s.nodeScaleInNodeIDSink != nil {
+		*s.nodeScaleInNodeIDSink = nodeID
+	}
+	if s.nodeScaleInAdvanceReqSink != nil {
+		*s.nodeScaleInAdvanceReqSink = req
+	}
+	return s.nodeScaleInReport, s.nodeScaleInErr
+}
+
+func (s managementStub) CancelNodeScaleIn(_ context.Context, nodeID uint64) (managementusecase.NodeScaleInReport, error) {
+	if s.nodeScaleInNodeIDSink != nil {
+		*s.nodeScaleInNodeIDSink = nodeID
+	}
+	return s.nodeScaleInReport, s.nodeScaleInErr
 }
 
 func (s managementStub) ListSlots(context.Context) ([]managementusecase.Slot, error) {

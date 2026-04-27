@@ -157,6 +157,56 @@ func TestControllerClientForceReconcileFallsThroughRawNotLeaderError(t *testing.
 	require.Equal(t, multiraft.NodeID(2), controllerClient.cachedLeader())
 }
 
+func TestControllerClientListRuntimeViewsPreservesObservationNotReady(t *testing.T) {
+	leader := transport.NewServer()
+	leaderMux := transport.NewRPCMux()
+	leaderMux.Handle(rpcServiceController, func(_ context.Context, body []byte) ([]byte, error) {
+		req, err := decodeControllerRequest(body)
+		require.NoError(t, err)
+		require.Equal(t, controllerRPCListRuntimeViews, req.Kind)
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{ObservationNotReady: true})
+	})
+	leader.HandleRPCMux(leaderMux)
+	require.NoError(t, leader.Start("127.0.0.1:0"))
+	t.Cleanup(leader.Stop)
+
+	follower := transport.NewServer()
+	followerMux := transport.NewRPCMux()
+	followerMux.Handle(rpcServiceController, func(_ context.Context, body []byte) ([]byte, error) {
+		req, err := decodeControllerRequest(body)
+		require.NoError(t, err)
+		require.Equal(t, controllerRPCListRuntimeViews, req.Kind)
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{NotLeader: true, LeaderID: 1})
+	})
+	follower.HandleRPCMux(followerMux)
+	require.NoError(t, follower.Start("127.0.0.1:0"))
+	t.Cleanup(follower.Stop)
+
+	discovery := &controllerClientTestDiscovery{
+		addrs: map[uint64]string{
+			1: leader.Listener().Addr().String(),
+			2: follower.Listener().Addr().String(),
+		},
+	}
+	pool := transport.NewPool(discovery, 1, 50*time.Millisecond)
+	t.Cleanup(pool.Close)
+
+	client := transport.NewClient(pool)
+	t.Cleanup(client.Stop)
+
+	cluster := &Cluster{
+		cfg: Config{NodeID: 3},
+		transportResources: transportResources{
+			fwdClient: client,
+		},
+	}
+	controllerClient := newControllerClient(cluster, []NodeConfig{{NodeID: 1}, {NodeID: 2}}, nil)
+	controllerClient.setLeader(1)
+
+	_, err := controllerClient.ListRuntimeViews(context.Background())
+	require.ErrorIs(t, err, ErrObservationNotReady)
+}
+
 func TestControllerClientLeaderCacheUsesAtomicUint64(t *testing.T) {
 	field, ok := reflect.TypeOf(controllerClient{}).FieldByName("leader")
 	require.True(t, ok)

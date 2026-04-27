@@ -187,6 +187,29 @@ func (r *MemoryRegistry) ActiveSlots() []SlotSnapshot {
 	return out
 }
 
+// Summary returns aggregate active and closing connection counts.
+func (r *MemoryRegistry) Summary() Summary {
+	if r == nil {
+		return Summary{SessionsByListener: map[string]int{}}
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	summary := Summary{SessionsByListener: make(map[string]int)}
+	for _, conn := range r.bySession {
+		summary.Total++
+		switch conn.State {
+		case LocalRouteStateClosing:
+			summary.Closing++
+		default:
+			summary.Active++
+		}
+		summary.SessionsByListener[conn.Listener]++
+	}
+	return summary
+}
+
 func (r *MemoryRegistry) addActiveIndexes(conn OnlineConn) {
 	if _, ok := r.byUID[conn.UID]; !ok {
 		r.byUID[conn.UID] = make(map[uint64]OnlineConn)

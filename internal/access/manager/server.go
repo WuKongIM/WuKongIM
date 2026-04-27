@@ -26,6 +26,16 @@ type Management interface {
 	MarkNodeDraining(ctx context.Context, nodeID uint64) (managementusecase.NodeDetail, error)
 	// ResumeNode marks a node as alive and returns the latest detail DTO.
 	ResumeNode(ctx context.Context, nodeID uint64) (managementusecase.NodeDetail, error)
+	// PlanNodeScaleIn returns the manager-driven scale-in safety report without side effects.
+	PlanNodeScaleIn(ctx context.Context, nodeID uint64, req managementusecase.NodeScaleInPlanRequest) (managementusecase.NodeScaleInReport, error)
+	// StartNodeScaleIn marks a preflight-safe node as draining and returns the refreshed report.
+	StartNodeScaleIn(ctx context.Context, nodeID uint64, req managementusecase.NodeScaleInPlanRequest) (managementusecase.NodeScaleInReport, error)
+	// GetNodeScaleInStatus returns the current manager-driven scale-in report.
+	GetNodeScaleInStatus(ctx context.Context, nodeID uint64) (managementusecase.NodeScaleInReport, error)
+	// AdvanceNodeScaleIn performs one bounded scale-in advancement step.
+	AdvanceNodeScaleIn(ctx context.Context, nodeID uint64, req managementusecase.AdvanceNodeScaleInRequest) (managementusecase.NodeScaleInReport, error)
+	// CancelNodeScaleIn resumes a draining scale-in target and returns the refreshed report.
+	CancelNodeScaleIn(ctx context.Context, nodeID uint64) (managementusecase.NodeScaleInReport, error)
 	// ListSlots returns manager-facing slot DTOs.
 	ListSlots(ctx context.Context) ([]managementusecase.Slot, error)
 	// GetSlot returns one manager-facing slot detail DTO.

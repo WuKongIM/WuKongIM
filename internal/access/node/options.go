@@ -63,6 +63,33 @@ type DeliveryOffline interface {
 	SessionClosed(ctx context.Context, cmd deliveryevents.SessionClosed) error
 }
 
+// RuntimeSummary contains local node runtime counters exposed over node RPC.
+type RuntimeSummary struct {
+	// NodeID identifies the cluster node described by this summary.
+	NodeID uint64
+	// ActiveOnline counts active authenticated online connections.
+	ActiveOnline int
+	// ClosingOnline counts authenticated online connections that are closing.
+	ClosingOnline int
+	// TotalOnline counts all authenticated online connections tracked locally.
+	TotalOnline int
+	// GatewaySessions counts all gateway sessions, including unauthenticated sessions.
+	GatewaySessions int
+	// SessionsByListener groups gateway sessions by listener.
+	SessionsByListener map[string]int
+	// AcceptingNewSessions reports whether gateway admission currently accepts new sessions.
+	AcceptingNewSessions bool
+	// Draining reports whether the local node is currently draining.
+	Draining bool
+	// Unknown means runtime counters could not be read and must fail closed.
+	Unknown bool
+}
+
+// RuntimeSummaryProvider provides the local node runtime summary for RPC callers.
+type RuntimeSummaryProvider interface {
+	LocalRuntimeSummary(ctx context.Context) (RuntimeSummary, error)
+}
+
 type Options struct {
 	Cluster               Cluster
 	Presence              Presence
@@ -78,6 +105,7 @@ type Options struct {
 	ChannelLeaderRepair   ChannelLeaderRepairer
 	ChannelLeaderEvaluate ChannelLeaderEvaluator
 	DeliveryAckIndex      *deliveryruntime.AckIndex
+	RuntimeSummary        RuntimeSummaryProvider
 	Codec                 codec.Protocol
 	Logger                wklog.Logger
 }
@@ -97,6 +125,7 @@ type Adapter struct {
 	channelLeaderRepair   ChannelLeaderRepairer
 	channelLeaderEvaluate ChannelLeaderEvaluator
 	deliveryAckIndex      *deliveryruntime.AckIndex
+	runtimeSummary        RuntimeSummaryProvider
 	codec                 codec.Protocol
 	logger                wklog.Logger
 }
@@ -123,6 +152,7 @@ func New(opts Options) *Adapter {
 		channelLeaderRepair:   opts.ChannelLeaderRepair,
 		channelLeaderEvaluate: opts.ChannelLeaderEvaluate,
 		deliveryAckIndex:      opts.DeliveryAckIndex,
+		runtimeSummary:        opts.RuntimeSummary,
 		codec:                 opts.Codec,
 		logger:                opts.Logger,
 	}
@@ -137,6 +167,7 @@ func New(opts Options) *Adapter {
 		opts.Cluster.RPCMux().Handle(channelMessagesRPCServiceID, adapter.handleChannelMessagesRPC)
 		opts.Cluster.RPCMux().Handle(channelLeaderRepairRPCServiceID, adapter.handleChannelLeaderRepairRPC)
 		opts.Cluster.RPCMux().Handle(channelLeaderEvaluateRPCServiceID, adapter.handleChannelLeaderEvaluateRPC)
+		opts.Cluster.RPCMux().Handle(runtimeSummaryRPCServiceID, adapter.handleRuntimeSummaryRPC)
 	}
 	return adapter
 }
