@@ -549,6 +549,10 @@ func (c *controllerClient) logRetry(req controllerRPCRequest, target multiraft.N
 	}
 	fields := c.controllerLogFields(req, target)
 	fields = append(fields, wklog.Event("cluster.controller.rpc.retrying"), wklog.Error(err))
+	if shouldDebugLogReadOnlyControllerFailure(req, err) {
+		logger.Debug("controller rpc read attempt failed, retrying", fields...)
+		return
+	}
 	logger.Warn(msg, fields...)
 }
 
@@ -559,11 +563,20 @@ func (c *controllerClient) logFailure(ctx context.Context, req controllerRPCRequ
 	}
 	fields := c.controllerLogFields(req, target)
 	fields = append(fields, wklog.Event("cluster.controller.rpc.failed"), wklog.Error(err))
+	if shouldDebugLogReadOnlyControllerFailure(req, err) {
+		logger.Debug("controller rpc read unavailable", fields...)
+		return
+	}
 	if controllerRPCLogPolicyFromContext(ctx) == controllerRPCLogBestEffortRead && isReadOnlyControllerRPC(req.Kind) {
 		logger.Warn("controller rpc read failed", fields...)
 		return
 	}
 	logger.Error("controller rpc failed", fields...)
+}
+
+// shouldDebugLogReadOnlyControllerFailure keeps transient read unavailability out of operator error logs.
+func shouldDebugLogReadOnlyControllerFailure(req controllerRPCRequest, err error) bool {
+	return isReadOnlyControllerRPC(req.Kind) && controllerCommandRetryAllowed(err)
 }
 
 func isReadOnlyControllerRPC(kind string) bool {

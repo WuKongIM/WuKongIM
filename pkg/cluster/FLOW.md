@@ -114,6 +114,8 @@ Start():
      → join mode 且本节点不在静态 Nodes 中时，先 JoinCluster（携带 NodeID / Node.Name / AdvertiseAddr / token / version），校验响应包含本节点且地址匹配后，作为 data worker 更新 discovery / HashSlotTable / controller client peers（不变更 Controller voter 集合）
      → onLeaderChange 时通知 runtimeObservationReporter.requestFullSync()
      → 创建 slotAgent{cluster, client, cache}
+     Controller client 的只读 RPC（list_nodes / list_assignments / list_runtime_views / list_tasks）遇到 not leader /
+     no leader / deadline exceeded 时按 DEBUG 记录，避免启动选主或 failover 期间把可重试读抬成 ERROR。
   ⑦ startObservationLoop():
      条件: controllerClient != nil
      → 创建 runtimeObservationReporter

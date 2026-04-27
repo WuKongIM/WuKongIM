@@ -279,6 +279,50 @@ func TestControllerClientBestEffortReadFailureLogsWarning(t *testing.T) {
 	requireNoRecordedLogEntry(t, logger, "ERROR", "cluster.controller", "cluster.controller.rpc.failed")
 }
 
+func TestControllerClientReadOnlyNotLeaderLogsAtDebug(t *testing.T) {
+	follower := transport.NewServer()
+	followerMux := transport.NewRPCMux()
+	followerMux.Handle(rpcServiceController, func(_ context.Context, body []byte) ([]byte, error) {
+		req, err := decodeControllerRequest(body)
+		require.NoError(t, err)
+		require.Equal(t, controllerRPCListAssignments, req.Kind)
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{NotLeader: true})
+	})
+	follower.HandleRPCMux(followerMux)
+	require.NoError(t, follower.Start("127.0.0.1:0"))
+	t.Cleanup(follower.Stop)
+
+	discovery := &controllerClientTestDiscovery{addrs: map[uint64]string{1: follower.Listener().Addr().String()}}
+	pool := transport.NewPool(discovery, 1, 50*time.Millisecond)
+	t.Cleanup(pool.Close)
+
+	client := transport.NewClient(pool)
+	t.Cleanup(client.Stop)
+
+	logger := newRecordingLogger("cluster")
+	cluster := &Cluster{
+		cfg:    Config{NodeID: 3},
+		logger: logger,
+		transportResources: transportResources{
+			fwdClient: client,
+		},
+	}
+	controllerClient := newControllerClient(cluster, []NodeConfig{{NodeID: 1}}, nil)
+
+	_, err := controllerClient.RefreshAssignments(context.Background())
+	require.ErrorIs(t, err, ErrNotLeader)
+
+	retry := requireRecordedLogEntry(t, logger, "DEBUG", "cluster.controller", "cluster.controller.rpc.retrying")
+	require.Equal(t, "controller rpc read attempt failed, retrying", retry.msg)
+	require.Equal(t, controllerRPCListAssignments, requireRecordedField[string](t, retry, "rpc"))
+
+	failed := requireRecordedLogEntry(t, logger, "DEBUG", "cluster.controller", "cluster.controller.rpc.failed")
+	require.Equal(t, "controller rpc read unavailable", failed.msg)
+	require.Equal(t, controllerRPCListAssignments, requireRecordedField[string](t, failed, "rpc"))
+	requireNoRecordedLogEntry(t, logger, "WARN", "cluster.controller", "cluster.controller.rpc.retrying")
+	requireNoRecordedLogEntry(t, logger, "ERROR", "cluster.controller", "cluster.controller.rpc.failed")
+}
+
 func TestControllerClientRuntimeReportFallsThroughRedirectToCurrentLeader(t *testing.T) {
 	staleLeader := transport.NewServer()
 	staleLeaderMux := transport.NewRPCMux()
