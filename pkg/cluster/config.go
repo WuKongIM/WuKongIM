@@ -3,7 +3,10 @@ package cluster
 import (
 	"fmt"
 	"math"
+	"net"
+	"net/netip"
 	"sort"
+	"strings"
 	"time"
 
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
@@ -190,11 +193,20 @@ func (c *Config) validate() error {
 	}
 
 	nodeSet := make(map[multiraft.NodeID]bool, len(c.Nodes))
+	nodeAddrs := make(map[string]multiraft.NodeID, len(c.Nodes))
 	selfFound := false
 	for _, n := range c.Nodes {
 		if nodeSet[n.NodeID] {
 			return fmt.Errorf("%w: duplicate NodeID %d in Nodes", ErrInvalidConfig, n.NodeID)
 		}
+		if err := validateNodeAdvertiseAddr(n.Addr); err != nil {
+			return fmt.Errorf("%w: node %d addr %q is invalid: %v", ErrInvalidConfig, n.NodeID, n.Addr, err)
+		}
+		addrKey := strings.TrimSpace(n.Addr)
+		if existing, ok := nodeAddrs[addrKey]; ok {
+			return fmt.Errorf("%w: duplicate node addr %s for nodes %d and %d", ErrInvalidConfig, addrKey, existing, n.NodeID)
+		}
+		nodeAddrs[addrKey] = n.NodeID
 		nodeSet[n.NodeID] = true
 		if n.NodeID == c.NodeID {
 			selfFound = true
@@ -225,6 +237,28 @@ func (c *Config) validate() error {
 	}
 	if len(c.Slots) > 0 && !slotSelfFound {
 		return fmt.Errorf("%w: NodeID %d not found as peer in any slot", ErrInvalidConfig, c.NodeID)
+	}
+	return nil
+}
+
+func validateNodeAdvertiseAddr(addr string) error {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return fmt.Errorf("addr must be set")
+	}
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(host) == "" {
+		return fmt.Errorf("host must be routable")
+	}
+	parsed, err := netip.ParseAddr(host)
+	if err != nil {
+		return nil
+	}
+	if parsed.IsUnspecified() {
+		return fmt.Errorf("host must not be an unspecified bind address")
 	}
 	return nil
 }

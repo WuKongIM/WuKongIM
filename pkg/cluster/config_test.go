@@ -293,6 +293,24 @@ func TestConfigValidate_DuplicateNodeID(t *testing.T) {
 	}
 }
 
+func TestConfigValidateRejectsDuplicateNodeAddress(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.Nodes[1].Addr = cfg.Nodes[0].Addr
+
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+	}
+}
+
+func TestConfigValidateRejectsUnroutableNodeAddress(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.Nodes[1].Addr = "0.0.0.0:9002"
+
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+	}
+}
+
 func TestConfigValidate_DuplicateSlotID(t *testing.T) {
 	cfg := validTestConfig()
 	cfg.SlotCount = 2
