@@ -20,7 +20,7 @@ type slotExecutor struct {
 	waitForCatchUp             func(context.Context, multiraft.SlotID, multiraft.NodeID) error
 	ensureBootstrapLeader      func(context.Context, multiraft.SlotID, multiraft.NodeID) error
 	ensureLeaderMovedOffSource func(context.Context, multiraft.SlotID, multiraft.NodeID, multiraft.NodeID) error
-	transferLeadership         func(context.Context, multiraft.SlotID, multiraft.NodeID) error
+	transferLeadershipFrom     func(context.Context, multiraft.SlotID, multiraft.NodeID, multiraft.NodeID) error
 	waitForSpecificLeader      func(context.Context, multiraft.SlotID, multiraft.NodeID) error
 	managedSlotExecutionHook   func() ManagedSlotExecutionTestHook
 }
@@ -33,6 +33,7 @@ type slotExecutorFuncs struct {
 	ensureBootstrapLeader      func(context.Context, multiraft.SlotID, multiraft.NodeID) error
 	ensureLeaderMovedOffSource func(context.Context, multiraft.SlotID, multiraft.NodeID, multiraft.NodeID) error
 	transferLeadership         func(context.Context, multiraft.SlotID, multiraft.NodeID) error
+	transferLeadershipFrom     func(context.Context, multiraft.SlotID, multiraft.NodeID, multiraft.NodeID) error
 	waitForSpecificLeader      func(context.Context, multiraft.SlotID, multiraft.NodeID) error
 	managedSlotExecutionHook   func() ManagedSlotExecutionTestHook
 }
@@ -71,9 +72,14 @@ func newSlotExecutorWithFuncs(cluster *Cluster, funcs slotExecutorFuncs) *slotEx
 	if executor.ensureLeaderMovedOffSource == nil {
 		executor.ensureLeaderMovedOffSource = cluster.managedSlots().ensureLeaderMovedOffSource
 	}
-	executor.transferLeadership = funcs.transferLeadership
-	if executor.transferLeadership == nil {
-		executor.transferLeadership = cluster.managedSlots().transferLeadership
+	executor.transferLeadershipFrom = funcs.transferLeadershipFrom
+	if executor.transferLeadershipFrom == nil {
+		executor.transferLeadershipFrom = cluster.managedSlots().transferLeadershipFrom
+	}
+	if funcs.transferLeadershipFrom == nil && funcs.transferLeadership != nil {
+		executor.transferLeadershipFrom = func(ctx context.Context, slotID multiraft.SlotID, _ multiraft.NodeID, target multiraft.NodeID) error {
+			return funcs.transferLeadership(ctx, slotID, target)
+		}
 	}
 	executor.waitForSpecificLeader = funcs.waitForSpecificLeader
 	if executor.waitForSpecificLeader == nil {
@@ -203,7 +209,7 @@ func (e *slotExecutor) executeLeaderTransfer(ctx context.Context, assignment ass
 	if view.LeaderID == targetNode {
 		return nil
 	}
-	if err := e.transferLeadership(ctx, slotID, multiraft.NodeID(targetNode)); err != nil {
+	if err := e.transferLeadershipFrom(ctx, slotID, multiraft.NodeID(view.LeaderID), multiraft.NodeID(targetNode)); err != nil {
 		return err
 	}
 	return e.waitForSpecificLeader(ctx, slotID, multiraft.NodeID(targetNode))

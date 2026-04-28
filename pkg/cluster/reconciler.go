@@ -147,6 +147,9 @@ func (r *reconciler) Tick(ctx context.Context) error {
 		execHasView := hasView
 		if task.Kind == controllermeta.TaskKindLeaderTransfer {
 			execHasView = liveRuntimeViews && hasView
+			if !execHasView {
+				continue
+			}
 		}
 		var shouldExecute bool
 		if execHasView {

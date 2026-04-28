@@ -43,3 +43,20 @@ func TestBuildRuntimeViewIncludesCurrentVoters(t *testing.T) {
 		t.Fatalf("buildRuntimeView() CurrentPeers = %v, want %v", got, want)
 	}
 }
+
+func TestBuildRuntimeViewHealthyVotersUsesCurrentVotersWhenKnown(t *testing.T) {
+	view := buildRuntimeView(
+		time.Unix(1710017002, 0),
+		multiraft.SlotID(8),
+		multiraft.Status{
+			LeaderID:      multiraft.NodeID(2),
+			CurrentVoters: []multiraft.NodeID{1, 2, 3},
+		},
+		[]multiraft.NodeID{1, 2, 3, 4},
+		6,
+	)
+
+	if got, want := view.HealthyVoters, uint32(3); got != want {
+		t.Fatalf("buildRuntimeView() HealthyVoters = %d, want %d", got, want)
+	}
+}

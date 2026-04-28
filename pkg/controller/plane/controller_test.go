@@ -600,6 +600,27 @@ func TestPlannerLeaderRebalanceCreatesTransferTaskForSkew(t *testing.T) {
 	require.Equal(t, uint64(3), decision.Assignment.PreferredLeader)
 }
 
+func TestPlannerLeaderRebalanceImprovesSevereSkewWithOneTransfer(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 5, ReplicaN: 3, LeaderSkewThreshold: 1})
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3),
+		withAssignment(1, 1, 2, 3), withPreferredLeader(1, 1), withRuntimeViewVoters(1, []uint64{1, 2, 3}, 1, true),
+		withAssignment(2, 1, 2, 3), withPreferredLeader(2, 1), withRuntimeViewVoters(2, []uint64{1, 2, 3}, 1, true),
+		withAssignment(3, 1, 2, 3), withPreferredLeader(3, 1), withRuntimeViewVoters(3, []uint64{1, 2, 3}, 1, true),
+		withAssignment(4, 1, 2, 3), withPreferredLeader(4, 1), withRuntimeViewVoters(4, []uint64{1, 2, 3}, 1, true),
+		withAssignment(5, 1, 2, 3), withPreferredLeader(5, 1), withRuntimeViewVoters(5, []uint64{1, 2, 3}, 1, true),
+	)
+
+	decision, err := planner.NextDecision(context.Background(), state)
+
+	require.NoError(t, err)
+	require.NotNil(t, decision.Task)
+	require.Equal(t, controllermeta.TaskKindLeaderTransfer, decision.Task.Kind)
+	require.Equal(t, uint64(1), decision.Task.SourceNode)
+	require.Equal(t, uint64(2), decision.Task.TargetNode)
+	require.Equal(t, uint64(2), decision.Assignment.PreferredLeader)
+}
+
 func TestPlannerLeaderPreferenceConvergenceCreatesTransferTowardPreferred(t *testing.T) {
 	planner := NewPlanner(PlannerConfig{SlotCount: 3, ReplicaN: 3, LeaderSkewThreshold: 2})
 	state := testState(

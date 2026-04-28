@@ -300,7 +300,7 @@ Tick(ctx):
        b. shouldExecuteTask: 确定由哪个节点执行
           - Bootstrap: 若 Task.TargetNode 已设置，则由 TargetNode 执行，用于初始化 Leader 均衡；旧任务无 TargetNode 时回退到 DesiredPeers 中最小 alive NodeID
           - Repair/Rebalance: SourceNode 优先，否则 Leader 执行
-          - LeaderTransfer: 只信任 live/controller-leader runtime observation；优先由当前观测且 eligible 的 Leader 执行；若 live Leader 未知或不具备 active data 资格，则由 DesiredPeers 中最小 alive active data 节点作为 deterministic checker 执行并上报安全失败
+          - LeaderTransfer: 只信任 live/controller-leader runtime observation；没有 live view 时本轮跳过且不上报任务结果；有 live view 时优先由当前观测且 eligible 的 Leader 执行；若 live Leader 未知或不具备 active data 资格，则由 DesiredPeers 中最小 alive active data 节点作为 deterministic checker 执行并上报安全失败
           - 其他: DesiredPeers 中最小 NodeID(alive) 执行
        c. getTask(fresh read) 确认任务仍有效
        d. executeReconcileTask → slotExecutor.Execute [见 5.6]
@@ -365,8 +365,8 @@ Execute(ctx, assignment):
        - TargetNode 必须同时在 DesiredPeers 和 CurrentVoters
        - TargetNode 必须是 alive + active + data 节点
     ③ TargetNode 已是 Leader 时直接返回成功
-    ④ transferLeadership(slotID, TargetNode)
-       → managed slot transfer leadership: LeaderOf(slotID) 后本地 runtime.TransferLeadership 或远程 managed-slot RPC
+    ④ transferLeadershipFrom(slotID, observedLeader, TargetNode)
+       → managed slot transfer leadership: 每次尝试先重读 currentLeader，若已不同于 observedLeader 则返回 ErrLeaderTransferSafetyCheck；否则本地 runtime.TransferLeadership 或远程 managed-slot RPC
     ⑤ waitForSpecificLeader(slotID, TargetNode)
        → 轮询 currentLeader 直到目标成为 Leader (超时 ManagedSlotLeaderMove)
     ⑥ 任一安全校验失败返回 ErrLeaderTransferSafetyCheck，deterministic checker 会按同一错误上报 retryable 失败；Controller 重试耗尽后删除 LeaderTransfer 任务并写入冷却时间
@@ -546,7 +546,7 @@ SlotIDs()/planner/readiness:
 - **NodeStatus 观察链路有且仅有两条**: controller leader 通过 committed `NodeStatusUpdate` / operator command 触发 `OnNodeStatusChange`；其他节点则只通过 `SyncObservationDelta()` 里的 `delta.Nodes` diff 触发同一个 hook，避免 app 层维护两套分支逻辑。
 - **新 leader 先 warmup 再规划**: leader change 会清空旧 observation，等待 fresh observation 后再恢复 Repair/Rebalance 规划，避免把“暂时未观测到”误判为节点故障。
 - **controller leader warmup 会重挂 node-health deadline**: 新 controller leader 读取 metadata snapshot / node mirror 时，不只是恢复 `nodeMirror`，还会基于持久化的 `LastHeartbeatAt` 重新挂回 suspect/dead timer。这样即使故障节点正好是旧 controller leader，dead 检测也不会因为 leader failover 而永久停在 `Alive`。
-- **调和器任务执行权**: 并非所有节点都执行任务。`shouldExecuteTask` 逻辑: Bootstrap 优先 Task.TargetNode 执行以均衡初始 Leader；Repair/Rebalance 优先 SourceNode 执行，SourceNode 不可用时由 Leader 执行；LeaderTransfer 只用 live/controller-leader runtime view 选择当前 eligible Leader，Leader 未知、不 eligible 或只拿到 fallback runtime view 时由 deterministic checker 上报安全失败；其它任务由 DesiredPeers 中最小 alive NodeID 执行。错配会导致任务不执行。
+- **调和器任务执行权**: 并非所有节点都执行任务。`shouldExecuteTask` 逻辑: Bootstrap 优先 Task.TargetNode 执行以均衡初始 Leader；Repair/Rebalance 优先 SourceNode 执行，SourceNode 不可用时由 Leader 执行；LeaderTransfer 只用 live/controller-leader runtime view 选择当前 eligible Leader；缺少 live view 或只拿到 fallback runtime view 时跳过本轮且不上报任务结果，live Leader 未知或不 eligible 时由 deterministic checker 上报安全失败；其它任务由 DesiredPeers 中最小 alive NodeID 执行。错配会导致任务不执行。
 - **源 Slot 保护**: 当 Repair/Rebalance 任务的 SourceNode == 本节点时，即使该 Slot 不在 `desiredLocalSlots` 中，调和器也会保护它不被关闭（`protectedSourceSlots`），否则 changeConfig/RemoveVoter 发送不出去。
 - **ensureLocal 三条路径**: 有 HardState → Open；无 HardState+bootstrapAuthorized → Bootstrap；无 HardState+hasRuntimeView → Open 等 Leader 添加。混淆条件会导致 Slot 无法加入集群或重复 Bootstrap。
 - **Bootstrap 只在任务执行节点授权时**: `bootstrapAuthorized=true` 仅在 `reconciler.Tick` 中确认 `TaskKindBootstrap` 可运行且本节点是执行节点后才传入。防止非目标节点提前 Bootstrap 同一 Slot。

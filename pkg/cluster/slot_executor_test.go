@@ -173,9 +173,9 @@ func TestSlotExecutorExecuteLeaderTransferOnlyTransfersLeadership(t *testing.T) 
 			t.Fatal("changeSlotConfig should not be called for leader transfer")
 			return nil
 		},
-		transferLeadership: func(_ context.Context, slotID multiraft.SlotID, target multiraft.NodeID) error {
-			if slotID != 1 || target != 2 {
-				t.Fatalf("transferLeadership() slot=%d target=%d, want slot=1 target=2", slotID, target)
+		transferLeadershipFrom: func(_ context.Context, slotID multiraft.SlotID, expectedLeader, target multiraft.NodeID) error {
+			if slotID != 1 || expectedLeader != 1 || target != 2 {
+				t.Fatalf("transferLeadershipFrom() slot=%d expected=%d target=%d, want slot=1 expected=1 target=2", slotID, expectedLeader, target)
 			}
 			transferred = true
 			return nil
@@ -208,6 +208,24 @@ func TestSlotExecutorExecuteLeaderTransferOnlyTransfersLeadership(t *testing.T) 
 	}
 	if !transferred {
 		t.Fatal("transferLeadership was not called")
+	}
+}
+
+func TestSlotManagerTransferLeadershipFromRejectsChangedObservedLeader(t *testing.T) {
+	cluster := newObserverTestCluster(t, ObserverHooks{})
+	cluster.cfg.NodeID = 1
+	restoreLeader := cluster.setManagedSlotLeaderTestHook(func(_ *Cluster, slotID multiraft.SlotID) (multiraft.NodeID, error, bool) {
+		if slotID != 1 {
+			t.Fatalf("leader hook slotID = %d, want 1", slotID)
+		}
+		return 3, nil, true
+	})
+	defer restoreLeader()
+
+	err := cluster.managedSlots().transferLeadershipFrom(context.Background(), 1, 1, 2)
+
+	if !errors.Is(err, ErrLeaderTransferSafetyCheck) {
+		t.Fatalf("transferLeadershipFrom() error = %v, want %v", err, ErrLeaderTransferSafetyCheck)
 	}
 }
 

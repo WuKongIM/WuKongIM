@@ -459,7 +459,7 @@ func (p *Planner) nextLeaderSkewCorrection(state PlannerState, loads map[uint64]
 				if !p.leaderTransferSafeCandidate(state, assignment, view, target) {
 					continue
 				}
-				if !resultingLeaderSkewAllowed(state, view.LeaderID, target, p.cfg.LeaderSkewThreshold) {
+				if !resultingLeaderSkewImproves(state, view.LeaderID, target) {
 					continue
 				}
 				return leaderTransferDecision(assignment, view.LeaderID, target, true)
@@ -599,6 +599,20 @@ func resultingLeaderSkewAllowed(state PlannerState, from, to uint64, threshold i
 	}
 	_, minLoad, _, maxLoad := loadExtremes(state, loads)
 	return maxLoad-minLoad <= threshold
+}
+
+// resultingLeaderSkewImproves allows severe skew correction to converge over multiple safe transfers.
+func resultingLeaderSkewImproves(state PlannerState, from, to uint64) bool {
+	loads := actualLeaderLoads(state)
+	_, beforeMin, _, beforeMax := loadExtremes(state, loads)
+	if from != 0 && loads[from] > 0 {
+		loads[from]--
+	}
+	if to != 0 {
+		loads[to]++
+	}
+	_, afterMin, _, afterMax := loadExtremes(state, loads)
+	return afterMax-afterMin < beforeMax-beforeMin
 }
 
 func leaderTransferDecision(assignment controllermeta.SlotAssignment, source, target uint64, updatePreferred bool) Decision {

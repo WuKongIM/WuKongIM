@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -180,6 +181,18 @@ func (m *slotManager) changeConfigRemote(ctx context.Context, leaderID multiraft
 }
 
 func (m *slotManager) transferLeadership(ctx context.Context, slotID multiraft.SlotID, target multiraft.NodeID) error {
+	return m.transferLeadershipChecked(ctx, slotID, 0, target)
+}
+
+// transferLeadershipFrom moves leadership only if the current leader still matches the observed leader.
+func (m *slotManager) transferLeadershipFrom(ctx context.Context, slotID multiraft.SlotID, expectedLeader, target multiraft.NodeID) error {
+	if expectedLeader == 0 {
+		return fmt.Errorf("%w: expected leader missing", ErrLeaderTransferSafetyCheck)
+	}
+	return m.transferLeadershipChecked(ctx, slotID, expectedLeader, target)
+}
+
+func (m *slotManager) transferLeadershipChecked(ctx context.Context, slotID multiraft.SlotID, expectedLeader, target multiraft.NodeID) error {
 	if m == nil || m.cluster == nil {
 		return ErrNotStarted
 	}
@@ -191,9 +204,12 @@ func (m *slotManager) transferLeadership(ctx context.Context, slotID multiraft.S
 			return errors.Is(err, ErrNotLeader)
 		},
 	}.Do(ctx, func(attemptCtx context.Context) error {
-		leaderID, err := c.LeaderOf(slotID)
+		leaderID, err := m.currentLeader(slotID)
 		if err != nil {
 			return err
+		}
+		if expectedLeader != 0 && leaderID != expectedLeader {
+			return fmt.Errorf("%w: observed leader changed from %d to %d", ErrLeaderTransferSafetyCheck, expectedLeader, leaderID)
 		}
 		if c.IsLocal(leaderID) {
 			return m.transferLeaderLocal(attemptCtx, slotID, target)
@@ -209,6 +225,9 @@ func (m *slotManager) transferLeaderLocal(ctx context.Context, slotID multiraft.
 	err := m.cluster.runtime.TransferLeadership(ctx, slotID, target)
 	if errors.Is(err, multiraft.ErrSlotNotFound) {
 		return ErrSlotNotFound
+	}
+	if errors.Is(err, multiraft.ErrNotLeader) {
+		return ErrNotLeader
 	}
 	return err
 }

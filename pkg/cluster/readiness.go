@@ -136,7 +136,10 @@ func buildRuntimeView(now time.Time, slotID multiraft.SlotID, status multiraft.S
 		ObservedConfigEpoch: observedConfigEpoch,
 		LastReportAt:        now,
 	}
-	if len(currentPeers) > 0 {
+	if len(currentVoters) > 0 {
+		view.HealthyVoters = uint32(len(currentVoters))
+		view.HasQuorum = status.LeaderID != 0
+	} else if len(currentPeers) > 0 {
 		view.HealthyVoters = uint32(len(currentPeers))
 		view.HasQuorum = status.LeaderID != 0
 	}

@@ -252,10 +252,10 @@ func TestReconcilerLeaderTransferPassesRuntimeViewAndNodesIntoAssignmentTaskStat
 
 	var transferCalls int
 	cluster.slotExecutor = newSlotExecutorWithFuncs(cluster, slotExecutorFuncs{
-		transferLeadership: func(_ context.Context, slotID multiraft.SlotID, target multiraft.NodeID) error {
+		transferLeadershipFrom: func(_ context.Context, slotID multiraft.SlotID, expectedLeader, target multiraft.NodeID) error {
 			transferCalls++
-			if slotID != 1 || target != 2 {
-				t.Fatalf("transferLeadership() slot=%d target=%d, want slot=1 target=2", slotID, target)
+			if slotID != 1 || expectedLeader != 1 || target != 2 {
+				t.Fatalf("transferLeadershipFrom() slot=%d expected=%d target=%d, want slot=1 expected=1 target=2", slotID, expectedLeader, target)
 			}
 			return nil
 		},
@@ -361,7 +361,7 @@ func TestReconcilerLeaderTransferUnknownLeaderUsesDeterministicChecker(t *testin
 	}
 }
 
-func TestReconcilerLeaderTransferFallbackRuntimeViewFailsClosed(t *testing.T) {
+func TestReconcilerLeaderTransferFallbackRuntimeViewSkipsAttempt(t *testing.T) {
 	cluster := newReconcilerLeaderTransferCluster(t, 1)
 	store, err := controllermeta.Open(filepath.Join(t.TempDir(), "controller-meta"))
 	if err != nil {
@@ -391,6 +391,7 @@ func TestReconcilerLeaderTransferFallbackRuntimeViewFailsClosed(t *testing.T) {
 	})
 
 	var reportCalls int
+	var getTaskCalls int
 	agent := &slotAgent{
 		cluster: cluster,
 		client: fakeControllerClient{
@@ -398,11 +399,12 @@ func TestReconcilerLeaderTransferFallbackRuntimeViewFailsClosed(t *testing.T) {
 			listRuntimeViewsErr: ErrNoLeader,
 			listTasks:           []controllermeta.ReconcileTask{task},
 			tasks:               map[uint32]controllermeta.ReconcileTask{1: task},
+			getTaskFn: func(context.Context, uint32) (controllermeta.ReconcileTask, error) {
+				getTaskCalls++
+				return task, nil
+			},
 			reportTaskResultFn: func(_ context.Context, _ controllermeta.ReconcileTask, gotErr error) error {
 				reportCalls++
-				if !errors.Is(gotErr, ErrLeaderTransferSafetyCheck) {
-					t.Fatalf("reported taskErr = %v, want %v", gotErr, ErrLeaderTransferSafetyCheck)
-				}
 				return nil
 			},
 		},
@@ -412,8 +414,11 @@ func TestReconcilerLeaderTransferFallbackRuntimeViewFailsClosed(t *testing.T) {
 	if err := newReconciler(agent).Tick(context.Background()); err != nil {
 		t.Fatalf("Tick() error = %v", err)
 	}
-	if reportCalls != 1 {
-		t.Fatalf("ReportTaskResult() calls = %d, want 1", reportCalls)
+	if getTaskCalls != 0 {
+		t.Fatalf("GetTask() calls = %d, want 0 without live runtime view", getTaskCalls)
+	}
+	if reportCalls != 0 {
+		t.Fatalf("ReportTaskResult() calls = %d, want 0 without live runtime view", reportCalls)
 	}
 }
 

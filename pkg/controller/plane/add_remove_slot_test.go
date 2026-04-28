@@ -99,6 +99,8 @@ func TestStateMachineAddSlotRejectsMissingPreferredLeader(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, store.SaveHashSlotTable(ctx, hashslot.NewHashSlotTable(8, 2)))
 
+	// Legacy control/raft AddSlot payloads decode to PreferredLeader=0 and must
+	// fail closed at the state-machine boundary instead of deriving a default.
 	err := sm.Apply(ctx, Command{
 		Kind: CommandKindAddSlot,
 		AddSlot: &AddSlotRequest{
