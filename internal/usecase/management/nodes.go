@@ -5,14 +5,25 @@ import (
 	"sort"
 	"time"
 
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 )
+
+// NodeList is the manager-facing node inventory snapshot.
+type NodeList struct {
+	// GeneratedAt records when this inventory snapshot was built.
+	GeneratedAt time.Time
+	// ControllerLeaderID is the Controller Raft leader known to this node.
+	ControllerLeaderID uint64
+	// Items contains ordered node inventory rows.
+	Items []Node
+}
 
 // Node is the manager-facing node DTO.
 type Node struct {
 	// NodeID is the node identifier.
 	NodeID uint64
+	// Name is the operator-facing node name persisted in controller metadata.
+	Name string
 	// Addr is the cluster listen address of the node.
 	Addr string
 	// Status is the manager-facing node status string.
@@ -29,87 +40,93 @@ type Node struct {
 	IsLocal bool
 	// CapacityWeight is the configured controller capacity weight.
 	CapacityWeight int
-	// DistributedLog contains manager-facing Raft log health summaries for this node.
-	DistributedLog NodeDistributedLog
+	// Membership contains durable membership role and lifecycle state.
+	Membership NodeMembership
+	// Health contains observed node health and operator state.
+	Health NodeHealth
+	// Controller contains Controller Raft role and voter context.
+	Controller NodeController
+	// Slots contains lightweight Slot placement counts.
+	Slots NodeSlotSummary
+	// Runtime contains node-local online and gateway counters.
+	Runtime NodeRuntimeSummary
+	// Actions contains backend business capability hints for UI actions.
+	Actions NodeActions
 }
 
-// NodeDistributedLog contains controller and Slot Raft log health summaries for one node.
-type NodeDistributedLog struct {
-	// Controller contains controller Raft placement and leadership context.
-	Controller NodeControllerLog
-	// Slots contains Slot Raft log health aggregated for Slots hosted by the node.
-	Slots NodeSlotLogHealth
-}
-
-// NodeControllerLog describes this node's controller Raft membership perspective.
-type NodeControllerLog struct {
-	// Role is the current controller role summary for the node.
+// NodeMembership describes durable cluster membership for one node.
+type NodeMembership struct {
+	// Role is the durable cluster membership role, such as data or controller_voter.
 	Role string
-	// LeaderID is the current controller Raft leader known locally.
-	LeaderID uint64
-	// Voter reports whether this node is configured as a controller voter.
-	Voter bool
+	// JoinState is the durable membership lifecycle state.
+	JoinState string
+	// Schedulable reports whether the planner may place data replicas on this node.
+	Schedulable bool
 }
 
-// NodeSlotLogHealth aggregates distributed Slot Raft log health for one node.
-type NodeSlotLogHealth struct {
-	// ReplicaCount is the number of observed Slot Raft replicas hosted by the node.
-	ReplicaCount int
-	// LeaderCount is the number of observed Slot Raft leaders hosted by the node.
-	LeaderCount int
-	// FollowerCount is the number of observed Slot Raft followers hosted by the node.
-	FollowerCount int
-	// MaxCommitLag is the largest gap between a Slot leader commit index and this node's commit index.
-	MaxCommitLag uint64
-	// MaxApplyGap is the largest gap between this node's commit index and applied index.
-	MaxApplyGap uint64
-	// UnavailableCount is the number of hosted Slots whose local log watermark could not be read.
-	UnavailableCount int
-	// UnhealthyCount is the number of hosted Slots that are unavailable, quorum-lost, or lagging.
-	UnhealthyCount int
-	// Samples contains ordered Slot log samples that explain non-healthy state.
-	Samples []NodeSlotLogSample
-}
-
-// NodeSlotLogSample is a sampled per-Slot Raft log health row for node details and list drilldown.
-type NodeSlotLogSample struct {
-	// SlotID is the physical Slot identity for the sampled log row.
-	SlotID uint32
-	// Role is this node's role in the Slot Raft group.
-	Role string
-	// LeaderID is the Slot Raft leader reported by the runtime view.
-	LeaderID uint64
-	// CommitIndex is this node's local committed Raft log index for the Slot.
-	CommitIndex uint64
-	// AppliedIndex is this node's local applied Raft log index for the Slot.
-	AppliedIndex uint64
-	// LeaderCommitIndex is the Slot leader's committed Raft log index when available.
-	LeaderCommitIndex uint64
-	// CommitLag is LeaderCommitIndex minus CommitIndex when both are known.
-	CommitLag uint64
-	// ApplyGap is CommitIndex minus AppliedIndex when both are known.
-	ApplyGap uint64
-	// Quorum is a manager-facing quorum summary: healthy or lost.
-	Quorum string
-	// Status is a manager-facing log health summary for this Slot sample.
+// NodeHealth describes observed node health and operator state.
+type NodeHealth struct {
+	// Status is the manager-facing health or operator state.
 	Status string
+	// LastHeartbeatAt is the latest controller heartbeat timestamp.
+	LastHeartbeatAt time.Time
+}
+
+// NodeController describes this node's Controller Raft perspective.
+type NodeController struct {
+	// Role is leader, follower, or none.
+	Role string
+	// Voter reports whether this node is a configured Controller voter.
+	Voter bool
+	// LeaderID is the current Controller Raft leader known locally.
+	LeaderID uint64
+}
+
+// NodeSlotSummary contains lightweight Slot placement counts for one node.
+type NodeSlotSummary struct {
+	// ReplicaCount is the number of observed Slot replicas hosted by the node.
+	ReplicaCount int
+	// LeaderCount is the number of observed Slots led by the node.
+	LeaderCount int
+	// FollowerCount is the number of observed non-leader Slot replicas hosted by the node.
+	FollowerCount int
+	// QuorumLostCount is the number of hosted Slots whose runtime view lacks quorum.
+	QuorumLostCount int
+	// UnreportedCount is the number of expected hosted Slots missing runtime observation.
+	UnreportedCount int
+}
+
+// NodeActions contains backend business capability hints for UI actions.
+type NodeActions struct {
+	// CanDrain reports whether the node can be marked draining.
+	CanDrain bool
+	// CanResume reports whether the node can be resumed from draining.
+	CanResume bool
+	// CanScaleIn reports whether the data-node scale-in flow can be considered.
+	CanScaleIn bool
+	// CanOnboard reports whether the node can be considered for explicit resource allocation.
+	CanOnboard bool
 }
 
 // ListNodes returns the manager node list DTOs ordered by node ID.
-func (a *App) ListNodes(ctx context.Context) ([]Node, error) {
+func (a *App) ListNodes(ctx context.Context) (NodeList, error) {
 	clusterNodes, slotSummary, controllerLeaderID, err := a.loadNodeSnapshot(ctx)
 	if err != nil {
-		return nil, err
+		return NodeList{}, err
 	}
 	nodes := make([]Node, 0, len(clusterNodes))
 	for _, clusterNode := range clusterNodes {
-		nodes = append(nodes, a.managerNode(clusterNode, controllerLeaderID, slotSummary))
+		nodes = append(nodes, a.managerNode(ctx, clusterNode, controllerLeaderID, slotSummary))
 	}
 
 	sort.Slice(nodes, func(i, j int) bool {
 		return nodes[i].NodeID < nodes[j].NodeID
 	})
-	return nodes, nil
+	return NodeList{
+		GeneratedAt:        a.now(),
+		ControllerLeaderID: controllerLeaderID,
+		Items:              nodes,
+	}, nil
 }
 
 func (a *App) controllerRole(nodeID, controllerLeaderID uint64) string {
@@ -137,12 +154,44 @@ func managerNodeStatus(status controllermeta.NodeStatus) string {
 	}
 }
 
+func managerNodeRole(role controllermeta.NodeRole) string {
+	switch role {
+	case controllermeta.NodeRoleData:
+		return "data"
+	case controllermeta.NodeRoleControllerVoter:
+		return "controller_voter"
+	default:
+		return "unknown"
+	}
+}
+
+func managerNodeJoinState(state controllermeta.NodeJoinState) string {
+	switch state {
+	case controllermeta.NodeJoinStateJoining:
+		return "joining"
+	case controllermeta.NodeJoinStateActive:
+		return "active"
+	case controllermeta.NodeJoinStateRejected:
+		return "rejected"
+	default:
+		return "unknown"
+	}
+}
+
+func managerNodeSchedulable(node controllermeta.ClusterNode) bool {
+	return node.Role == controllermeta.NodeRoleData &&
+		node.JoinState == controllermeta.NodeJoinStateActive &&
+		node.Status == controllermeta.NodeStatusAlive
+}
+
 type nodeSlotSummary struct {
 	slotCountByNode       map[uint64]int
 	leaderSlotCountByNode map[uint64]int
+	followerCountByNode   map[uint64]int
+	quorumLostByNode      map[uint64]int
+	unreportedByNode      map[uint64]int
 	hostedSlotIDsByNode   map[uint64][]uint32
 	leaderSlotIDsByNode   map[uint64][]uint32
-	distributedLogByNode  map[uint64]NodeDistributedLog
 }
 
 func (a *App) loadNodeSnapshot(ctx context.Context) ([]controllermeta.ClusterNode, nodeSlotSummary, uint64, error) {
@@ -160,7 +209,6 @@ func (a *App) loadNodeSnapshot(ctx context.Context) ([]controllermeta.ClusterNod
 	}
 	controllerLeaderID := a.cluster.ControllerLeaderID()
 	summary := summarizeNodeSlots(views)
-	summary.distributedLogByNode = a.summarizeDistributedLog(ctx, views, controllerLeaderID)
 	return clusterNodes, summary, controllerLeaderID, nil
 }
 
@@ -168,14 +216,22 @@ func summarizeNodeSlots(views []controllermeta.SlotRuntimeView) nodeSlotSummary 
 	summary := nodeSlotSummary{
 		slotCountByNode:       make(map[uint64]int),
 		leaderSlotCountByNode: make(map[uint64]int),
+		followerCountByNode:   make(map[uint64]int),
+		quorumLostByNode:      make(map[uint64]int),
+		unreportedByNode:      make(map[uint64]int),
 		hostedSlotIDsByNode:   make(map[uint64][]uint32),
 		leaderSlotIDsByNode:   make(map[uint64][]uint32),
-		distributedLogByNode:  make(map[uint64]NodeDistributedLog),
 	}
 	for _, view := range views {
 		for _, peer := range view.CurrentPeers {
 			summary.slotCountByNode[peer]++
 			summary.hostedSlotIDsByNode[peer] = append(summary.hostedSlotIDsByNode[peer], view.SlotID)
+			if !view.HasQuorum {
+				summary.quorumLostByNode[peer]++
+			}
+			if view.LeaderID != peer {
+				summary.followerCountByNode[peer]++
+			}
 		}
 		if view.LeaderID != 0 {
 			summary.leaderSlotCountByNode[view.LeaderID]++
@@ -195,173 +251,6 @@ func summarizeNodeSlots(views []controllermeta.SlotRuntimeView) nodeSlotSummary 
 	return summary
 }
 
-const maxNodeSlotLogSamples = 8
-
-type nodeSlotLogStatusKey struct {
-	nodeID uint64
-	slotID uint32
-}
-
-type nodeSlotLogStatusResult struct {
-	status raftcluster.SlotLogStatus
-	err    error
-}
-
-type slotLogStatusReader interface {
-	SlotLogStatusOnNode(ctx context.Context, nodeID uint64, slotID uint32) (raftcluster.SlotLogStatus, error)
-}
-
-func (a *App) summarizeDistributedLog(ctx context.Context, views []controllermeta.SlotRuntimeView, controllerLeaderID uint64) map[uint64]NodeDistributedLog {
-	out := make(map[uint64]NodeDistributedLog)
-	if a == nil || a.cluster == nil {
-		return out
-	}
-	statuses := a.loadSlotLogStatuses(ctx, views)
-	for _, view := range views {
-		for _, nodeID := range view.CurrentPeers {
-			log := out[nodeID]
-			log.Controller = NodeControllerLog{
-				Role:     a.controllerRole(nodeID, controllerLeaderID),
-				LeaderID: controllerLeaderID,
-				Voter:    a.isControllerPeer(nodeID),
-			}
-			log.Slots.ReplicaCount++
-			if view.LeaderID == nodeID {
-				log.Slots.LeaderCount++
-			} else {
-				log.Slots.FollowerCount++
-			}
-
-			sample := buildNodeSlotLogSample(nodeID, view, statuses)
-			if sample.Status == "unavailable" {
-				log.Slots.UnavailableCount++
-			}
-			if sample.Status != "healthy" {
-				log.Slots.UnhealthyCount++
-				log.Slots.Samples = append(log.Slots.Samples, sample)
-			}
-			if sample.CommitLag > log.Slots.MaxCommitLag {
-				log.Slots.MaxCommitLag = sample.CommitLag
-			}
-			if sample.ApplyGap > log.Slots.MaxApplyGap {
-				log.Slots.MaxApplyGap = sample.ApplyGap
-			}
-			out[nodeID] = log
-		}
-	}
-	for nodeID, log := range out {
-		sortNodeSlotLogSamples(log.Slots.Samples)
-		if len(log.Slots.Samples) > maxNodeSlotLogSamples {
-			log.Slots.Samples = append([]NodeSlotLogSample(nil), log.Slots.Samples[:maxNodeSlotLogSamples]...)
-		}
-		out[nodeID] = log
-	}
-	return out
-}
-
-func (a *App) loadSlotLogStatuses(ctx context.Context, views []controllermeta.SlotRuntimeView) map[nodeSlotLogStatusKey]nodeSlotLogStatusResult {
-	out := make(map[nodeSlotLogStatusKey]nodeSlotLogStatusResult)
-	reader, ok := a.cluster.(slotLogStatusReader)
-	if !ok {
-		return out
-	}
-	for _, view := range views {
-		nodeIDs := append([]uint64(nil), view.CurrentPeers...)
-		if view.LeaderID != 0 {
-			nodeIDs = append(nodeIDs, view.LeaderID)
-		}
-		for _, nodeID := range nodeIDs {
-			key := nodeSlotLogStatusKey{nodeID: nodeID, slotID: view.SlotID}
-			if _, exists := out[key]; exists {
-				continue
-			}
-			status, err := reader.SlotLogStatusOnNode(ctx, nodeID, view.SlotID)
-			out[key] = nodeSlotLogStatusResult{status: status, err: err}
-		}
-	}
-	return out
-}
-
-func buildNodeSlotLogSample(nodeID uint64, view controllermeta.SlotRuntimeView, statuses map[nodeSlotLogStatusKey]nodeSlotLogStatusResult) NodeSlotLogSample {
-	role := "follower"
-	if view.LeaderID == nodeID {
-		role = "leader"
-	} else if view.LeaderID == 0 {
-		role = "unknown"
-	}
-	sample := NodeSlotLogSample{
-		SlotID:   view.SlotID,
-		Role:     role,
-		LeaderID: view.LeaderID,
-		Quorum:   "healthy",
-		Status:   "healthy",
-	}
-	if !view.HasQuorum {
-		sample.Quorum = "lost"
-	}
-
-	local, ok := statuses[nodeSlotLogStatusKey{nodeID: nodeID, slotID: view.SlotID}]
-	if !ok || local.err != nil {
-		sample.Status = "unavailable"
-		return sample
-	}
-	sample.CommitIndex = local.status.CommitIndex
-	sample.AppliedIndex = local.status.AppliedIndex
-	sample.ApplyGap = subtractUint64(local.status.CommitIndex, local.status.AppliedIndex)
-
-	if view.LeaderID != 0 {
-		leader, ok := statuses[nodeSlotLogStatusKey{nodeID: view.LeaderID, slotID: view.SlotID}]
-		if ok && leader.err == nil {
-			sample.LeaderCommitIndex = leader.status.CommitIndex
-			sample.CommitLag = subtractUint64(leader.status.CommitIndex, local.status.CommitIndex)
-		}
-	}
-	switch {
-	case sample.Quorum == "lost":
-		sample.Status = "quorum_lost"
-	case sample.CommitLag > 0 || sample.ApplyGap > 0:
-		sample.Status = "lagging"
-	default:
-		sample.Status = "healthy"
-	}
-	return sample
-}
-
-func sortNodeSlotLogSamples(samples []NodeSlotLogSample) {
-	sort.Slice(samples, func(i, j int) bool {
-		if samples[i].Status != samples[j].Status {
-			return nodeSlotLogStatusRank(samples[i].Status) < nodeSlotLogStatusRank(samples[j].Status)
-		}
-		if samples[i].CommitLag != samples[j].CommitLag {
-			return samples[i].CommitLag > samples[j].CommitLag
-		}
-		if samples[i].ApplyGap != samples[j].ApplyGap {
-			return samples[i].ApplyGap > samples[j].ApplyGap
-		}
-		return samples[i].SlotID < samples[j].SlotID
-	})
-}
-
-func nodeSlotLogStatusRank(status string) int {
-	switch status {
-	case "unavailable":
-		return 0
-	case "quorum_lost":
-		return 1
-	case "lagging":
-		return 2
-	default:
-		return 3
-	}
-}
-
-func subtractUint64(left, right uint64) uint64 {
-	if left <= right {
-		return 0
-	}
-	return left - right
-}
-
 func (a *App) isControllerPeer(nodeID uint64) bool {
 	if a == nil {
 		return false
@@ -370,25 +259,74 @@ func (a *App) isControllerPeer(nodeID uint64) bool {
 	return ok
 }
 
-func (a *App) managerNode(clusterNode controllermeta.ClusterNode, controllerLeaderID uint64, slotSummary nodeSlotSummary) Node {
-	distributedLog := slotSummary.distributedLogByNode[clusterNode.NodeID]
-	if distributedLog.Controller.Role == "" {
-		distributedLog.Controller = NodeControllerLog{
-			Role:     a.controllerRole(clusterNode.NodeID, controllerLeaderID),
-			LeaderID: controllerLeaderID,
-			Voter:    a.isControllerPeer(clusterNode.NodeID),
-		}
+func (a *App) managerNode(ctx context.Context, clusterNode controllermeta.ClusterNode, controllerLeaderID uint64, slotSummary nodeSlotSummary) Node {
+	controllerRole := a.controllerRole(clusterNode.NodeID, controllerLeaderID)
+	healthStatus := managerNodeStatus(clusterNode.Status)
+	slotCount := slotSummary.slotCountByNode[clusterNode.NodeID]
+	leaderSlotCount := slotSummary.leaderSlotCountByNode[clusterNode.NodeID]
+	followerSlotCount := slotSummary.followerCountByNode[clusterNode.NodeID]
+	if followerSlotCount == 0 && slotCount > leaderSlotCount {
+		followerSlotCount = slotCount - leaderSlotCount
 	}
+	if followerSlotCount < 0 {
+		followerSlotCount = 0
+	}
+	runtime := a.nodeRuntimeSummary(ctx, clusterNode.NodeID)
 	return Node{
 		NodeID:          clusterNode.NodeID,
+		Name:            clusterNode.Name,
 		Addr:            clusterNode.Addr,
-		Status:          managerNodeStatus(clusterNode.Status),
+		Status:          healthStatus,
 		LastHeartbeatAt: clusterNode.LastHeartbeatAt,
-		ControllerRole:  a.controllerRole(clusterNode.NodeID, controllerLeaderID),
-		SlotCount:       slotSummary.slotCountByNode[clusterNode.NodeID],
-		LeaderSlotCount: slotSummary.leaderSlotCountByNode[clusterNode.NodeID],
+		ControllerRole:  controllerRole,
+		SlotCount:       slotCount,
+		LeaderSlotCount: leaderSlotCount,
 		IsLocal:         clusterNode.NodeID == a.localNodeID,
 		CapacityWeight:  clusterNode.CapacityWeight,
-		DistributedLog:  distributedLog,
+		Membership: NodeMembership{
+			Role:        managerNodeRole(clusterNode.Role),
+			JoinState:   managerNodeJoinState(clusterNode.JoinState),
+			Schedulable: managerNodeSchedulable(clusterNode),
+		},
+		Health: NodeHealth{
+			Status:          healthStatus,
+			LastHeartbeatAt: clusterNode.LastHeartbeatAt,
+		},
+		Controller: NodeController{
+			Role:     controllerRole,
+			Voter:    a.isControllerPeer(clusterNode.NodeID),
+			LeaderID: controllerLeaderID,
+		},
+		Slots: NodeSlotSummary{
+			ReplicaCount:    slotCount,
+			LeaderCount:     leaderSlotCount,
+			FollowerCount:   followerSlotCount,
+			QuorumLostCount: slotSummary.quorumLostByNode[clusterNode.NodeID],
+			UnreportedCount: slotSummary.unreportedByNode[clusterNode.NodeID],
+		},
+		Runtime: runtime,
+		Actions: NodeActions{
+			CanDrain:   clusterNode.Status != controllermeta.NodeStatusDraining && clusterNode.Status != controllermeta.NodeStatusDead,
+			CanResume:  clusterNode.Status == controllermeta.NodeStatusDraining,
+			CanScaleIn: clusterNode.Role == controllermeta.NodeRoleData && clusterNode.JoinState == controllermeta.NodeJoinStateActive && !a.isControllerPeer(clusterNode.NodeID),
+			CanOnboard: clusterNode.Role == controllermeta.NodeRoleData && clusterNode.JoinState == controllermeta.NodeJoinStateActive && clusterNode.Status == controllermeta.NodeStatusAlive && slotCount == 0,
+		},
 	}
+}
+
+func (a *App) nodeRuntimeSummary(ctx context.Context, nodeID uint64) NodeRuntimeSummary {
+	if a == nil || a.runtimeSummary == nil {
+		return NodeRuntimeSummary{NodeID: nodeID, Unknown: true}
+	}
+	summary, err := a.runtimeSummary.NodeRuntimeSummary(ctx, nodeID)
+	if err != nil {
+		return NodeRuntimeSummary{NodeID: nodeID, Unknown: true}
+	}
+	if summary.NodeID == 0 {
+		summary.NodeID = nodeID
+	}
+	if summary.SessionsByListener == nil {
+		summary.SessionsByListener = map[string]int{}
+	}
+	return summary
 }

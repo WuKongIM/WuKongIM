@@ -19,7 +19,7 @@ var ErrListenAddrRequired = errors.New("access/manager: listen address required"
 // Management exposes the manager usecases needed by HTTP handlers.
 type Management interface {
 	// ListNodes returns manager-facing node DTOs.
-	ListNodes(ctx context.Context) ([]managementusecase.Node, error)
+	ListNodes(ctx context.Context) (managementusecase.NodeList, error)
 	// GetNode returns one manager-facing node detail DTO.
 	GetNode(ctx context.Context, nodeID uint64) (managementusecase.NodeDetail, error)
 	// MarkNodeDraining marks a node as draining and returns the latest detail DTO.

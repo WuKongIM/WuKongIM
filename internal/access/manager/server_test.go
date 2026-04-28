@@ -127,8 +127,9 @@ func TestManagerNodesRejectsInsufficientPermission(t *testing.T) {
 	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
 }
 
-func TestManagerNodesReturnsAggregatedList(t *testing.T) {
-	lastHeartbeatAt := time.Date(2026, 4, 21, 15, 4, 5, 0, time.UTC)
+func TestManagerNodesReturnsAggregatedInventory(t *testing.T) {
+	generatedAt := time.Date(2026, 4, 28, 10, 0, 0, 0, time.UTC)
+	lastHeartbeatAt := time.Date(2026, 4, 28, 9, 59, 58, 0, time.UTC)
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "admin",
@@ -139,8 +140,9 @@ func TestManagerNodesReturnsAggregatedList(t *testing.T) {
 			}},
 		}}),
 		Management: managementStub{
-			nodes: []managementusecase.Node{{
+			nodes: nodeListAt(generatedAt, 1, managementusecase.Node{
 				NodeID:          1,
+				Name:            "node-1",
 				Addr:            "127.0.0.1:7000",
 				Status:          "alive",
 				LastHeartbeatAt: lastHeartbeatAt,
@@ -149,31 +151,39 @@ func TestManagerNodesReturnsAggregatedList(t *testing.T) {
 				LeaderSlotCount: 2,
 				IsLocal:         true,
 				CapacityWeight:  1,
-				DistributedLog: managementusecase.NodeDistributedLog{
-					Controller: managementusecase.NodeControllerLog{Role: "leader", LeaderID: 1, Voter: true},
-					Slots: managementusecase.NodeSlotLogHealth{
-						ReplicaCount:     3,
-						LeaderCount:      2,
-						FollowerCount:    1,
-						MaxCommitLag:     7,
-						MaxApplyGap:      2,
-						UnavailableCount: 1,
-						UnhealthyCount:   2,
-						Samples: []managementusecase.NodeSlotLogSample{{
-							SlotID:            9,
-							Role:              "follower",
-							LeaderID:          2,
-							CommitIndex:       93,
-							AppliedIndex:      91,
-							LeaderCommitIndex: 100,
-							CommitLag:         7,
-							ApplyGap:          2,
-							Quorum:            "healthy",
-							Status:            "lagging",
-						}},
-					},
+				Membership: managementusecase.NodeMembership{
+					Role:        "data",
+					JoinState:   "active",
+					Schedulable: true,
 				},
-			}},
+				Health: managementusecase.NodeHealth{
+					Status:          "alive",
+					LastHeartbeatAt: lastHeartbeatAt,
+				},
+				Controller: managementusecase.NodeController{
+					Role:     "leader",
+					Voter:    true,
+					LeaderID: 1,
+				},
+				Slots: managementusecase.NodeSlotSummary{
+					ReplicaCount:  3,
+					LeaderCount:   2,
+					FollowerCount: 1,
+				},
+				Runtime: managementusecase.NodeRuntimeSummary{
+					NodeID:               1,
+					ActiveOnline:         4,
+					ClosingOnline:        1,
+					TotalOnline:          5,
+					GatewaySessions:      6,
+					SessionsByListener:   map[string]int{},
+					AcceptingNewSessions: true,
+				},
+				Actions: managementusecase.NodeActions{
+					CanDrain:   true,
+					CanScaleIn: true,
+				},
+			}),
 		},
 	})
 
@@ -185,20 +195,58 @@ func TestManagerNodesReturnsAggregatedList(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.JSONEq(t, `{
+		"generated_at": "2026-04-28T10:00:00Z",
+		"controller_leader_id": 1,
 		"total": 1,
 		"items": [{
 			"node_id": 1,
+			"name": "node-1",
 			"addr": "127.0.0.1:7000",
 			"status": "alive",
-			"last_heartbeat_at": "2026-04-21T15:04:05Z",
+			"last_heartbeat_at": "2026-04-28T09:59:58Z",
 			"is_local": true,
 			"capacity_weight": 1,
+			"membership": {
+				"role": "data",
+				"join_state": "active",
+				"schedulable": true
+			},
+			"health": {
+				"status": "alive",
+				"last_heartbeat_at": "2026-04-28T09:59:58Z"
+			},
 			"controller": {
-				"role": "leader"
+				"role": "leader",
+				"voter": true,
+				"leader_id": 1
 			},
 			"slot_stats": {
 				"count": 3,
 				"leader_count": 2
+			},
+			"slots": {
+				"replica_count": 3,
+				"leader_count": 2,
+				"follower_count": 1,
+				"quorum_lost_count": 0,
+				"unreported_count": 0
+			},
+			"runtime": {
+				"node_id": 1,
+				"active_online": 4,
+				"closing_online": 1,
+				"total_online": 5,
+				"gateway_sessions": 6,
+				"sessions_by_listener": {},
+				"accepting_new_sessions": true,
+				"draining": false,
+				"unknown": false
+			},
+			"actions": {
+				"can_drain": true,
+				"can_resume": false,
+				"can_scale_in": true,
+				"can_onboard": false
 			}
 		}]
 	}`, rec.Body.String())
@@ -288,6 +336,7 @@ func TestManagerNodeDetailReturnsAggregatedDetail(t *testing.T) {
 			nodeDetail: managementusecase.NodeDetail{
 				Node: managementusecase.Node{
 					NodeID:          2,
+					Name:            "node-2",
 					Addr:            "127.0.0.1:7002",
 					Status:          "draining",
 					LastHeartbeatAt: lastHeartbeatAt,
@@ -296,6 +345,37 @@ func TestManagerNodeDetailReturnsAggregatedDetail(t *testing.T) {
 					LeaderSlotCount: 2,
 					IsLocal:         true,
 					CapacityWeight:  2,
+					Membership: managementusecase.NodeMembership{
+						Role:        "data",
+						JoinState:   "active",
+						Schedulable: false,
+					},
+					Health: managementusecase.NodeHealth{
+						Status:          "draining",
+						LastHeartbeatAt: lastHeartbeatAt,
+					},
+					Controller: managementusecase.NodeController{
+						Role:     "follower",
+						Voter:    true,
+						LeaderID: 1,
+					},
+					Slots: managementusecase.NodeSlotSummary{
+						ReplicaCount:    3,
+						LeaderCount:     2,
+						FollowerCount:   1,
+						QuorumLostCount: 1,
+					},
+					Runtime: managementusecase.NodeRuntimeSummary{
+						NodeID:             2,
+						ActiveOnline:       4,
+						TotalOnline:        4,
+						GatewaySessions:    5,
+						SessionsByListener: map[string]int{"tcp": 5},
+						Draining:           true,
+					},
+					Actions: managementusecase.NodeActions{
+						CanResume: true,
+					},
 				},
 				Slots: managementusecase.NodeSlots{
 					HostedIDs: []uint32{2, 4, 7},
@@ -314,21 +394,55 @@ func TestManagerNodeDetailReturnsAggregatedDetail(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.JSONEq(t, `{
 		"node_id": 2,
+		"name": "node-2",
 		"addr": "127.0.0.1:7002",
 		"status": "draining",
 		"last_heartbeat_at": "2026-04-21T15:04:05Z",
 		"is_local": true,
 		"capacity_weight": 2,
+		"membership": {
+			"role": "data",
+			"join_state": "active",
+			"schedulable": false
+		},
+		"health": {
+			"status": "draining",
+			"last_heartbeat_at": "2026-04-21T15:04:05Z"
+		},
 		"controller": {
-			"role": "follower"
+			"role": "follower",
+			"voter": true,
+			"leader_id": 1
 		},
 		"slot_stats": {
 			"count": 3,
 			"leader_count": 2
 		},
+		"runtime": {
+			"node_id": 2,
+			"active_online": 4,
+			"closing_online": 0,
+			"total_online": 4,
+			"gateway_sessions": 5,
+			"sessions_by_listener": {"tcp": 5},
+			"accepting_new_sessions": false,
+			"draining": true,
+			"unknown": false
+		},
+		"actions": {
+			"can_drain": false,
+			"can_resume": true,
+			"can_scale_in": false,
+			"can_onboard": false
+		},
 		"slots": {
 			"hosted_ids": [2, 4, 7],
-			"leader_ids": [2, 4]
+			"leader_ids": [2, 4],
+			"replica_count": 3,
+			"leader_count": 2,
+			"follower_count": 1,
+			"quorum_lost_count": 1,
+			"unreported_count": 0
 		}
 	}`, rec.Body.String())
 }
@@ -478,6 +592,7 @@ func TestManagerNodeDrainingReturnsUpdatedNodeDetail(t *testing.T) {
 			nodeDraining: managementusecase.NodeDetail{
 				Node: managementusecase.Node{
 					NodeID:          2,
+					Name:            "node-2",
 					Addr:            "127.0.0.1:7002",
 					Status:          "draining",
 					LastHeartbeatAt: lastHeartbeatAt,
@@ -486,6 +601,32 @@ func TestManagerNodeDrainingReturnsUpdatedNodeDetail(t *testing.T) {
 					LeaderSlotCount: 0,
 					IsLocal:         false,
 					CapacityWeight:  2,
+					Membership: managementusecase.NodeMembership{
+						Role:        "data",
+						JoinState:   "active",
+						Schedulable: false,
+					},
+					Health: managementusecase.NodeHealth{
+						Status:          "draining",
+						LastHeartbeatAt: lastHeartbeatAt,
+					},
+					Controller: managementusecase.NodeController{
+						Role:     "follower",
+						Voter:    true,
+						LeaderID: 1,
+					},
+					Slots: managementusecase.NodeSlotSummary{
+						ReplicaCount:  3,
+						FollowerCount: 3,
+					},
+					Runtime: managementusecase.NodeRuntimeSummary{
+						NodeID:             2,
+						SessionsByListener: map[string]int{},
+						Draining:           true,
+					},
+					Actions: managementusecase.NodeActions{
+						CanResume: true,
+					},
 				},
 				Slots: managementusecase.NodeSlots{
 					HostedIDs: []uint32{2, 4, 7},
@@ -504,21 +645,55 @@ func TestManagerNodeDrainingReturnsUpdatedNodeDetail(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.JSONEq(t, `{
 		"node_id": 2,
+		"name": "node-2",
 		"addr": "127.0.0.1:7002",
 		"status": "draining",
 		"last_heartbeat_at": "2026-04-22T02:04:05Z",
 		"is_local": false,
 		"capacity_weight": 2,
+		"membership": {
+			"role": "data",
+			"join_state": "active",
+			"schedulable": false
+		},
+		"health": {
+			"status": "draining",
+			"last_heartbeat_at": "2026-04-22T02:04:05Z"
+		},
 		"controller": {
-			"role": "follower"
+			"role": "follower",
+			"voter": true,
+			"leader_id": 1
 		},
 		"slot_stats": {
 			"count": 3,
 			"leader_count": 0
 		},
+		"runtime": {
+			"node_id": 2,
+			"active_online": 0,
+			"closing_online": 0,
+			"total_online": 0,
+			"gateway_sessions": 0,
+			"sessions_by_listener": {},
+			"accepting_new_sessions": false,
+			"draining": true,
+			"unknown": false
+		},
+		"actions": {
+			"can_drain": false,
+			"can_resume": true,
+			"can_scale_in": false,
+			"can_onboard": false
+		},
 		"slots": {
 			"hosted_ids": [2, 4, 7],
-			"leader_ids": []
+			"leader_ids": [],
+			"replica_count": 3,
+			"leader_count": 0,
+			"follower_count": 3,
+			"quorum_lost_count": 0,
+			"unreported_count": 0
 		}
 	}`, rec.Body.String())
 }
@@ -645,6 +820,7 @@ func TestManagerNodeResumeReturnsUpdatedNodeDetail(t *testing.T) {
 			nodeResume: managementusecase.NodeDetail{
 				Node: managementusecase.Node{
 					NodeID:          2,
+					Name:            "node-2",
 					Addr:            "127.0.0.1:7002",
 					Status:          "alive",
 					LastHeartbeatAt: lastHeartbeatAt,
@@ -653,6 +829,33 @@ func TestManagerNodeResumeReturnsUpdatedNodeDetail(t *testing.T) {
 					LeaderSlotCount: 0,
 					IsLocal:         false,
 					CapacityWeight:  2,
+					Membership: managementusecase.NodeMembership{
+						Role:        "data",
+						JoinState:   "active",
+						Schedulable: true,
+					},
+					Health: managementusecase.NodeHealth{
+						Status:          "alive",
+						LastHeartbeatAt: lastHeartbeatAt,
+					},
+					Controller: managementusecase.NodeController{
+						Role:     "follower",
+						Voter:    true,
+						LeaderID: 1,
+					},
+					Slots: managementusecase.NodeSlotSummary{
+						ReplicaCount:  3,
+						FollowerCount: 3,
+					},
+					Runtime: managementusecase.NodeRuntimeSummary{
+						NodeID:               2,
+						SessionsByListener:   map[string]int{},
+						AcceptingNewSessions: true,
+					},
+					Actions: managementusecase.NodeActions{
+						CanDrain:   true,
+						CanScaleIn: true,
+					},
 				},
 				Slots: managementusecase.NodeSlots{
 					HostedIDs: []uint32{2, 4, 7},
@@ -671,21 +874,55 @@ func TestManagerNodeResumeReturnsUpdatedNodeDetail(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.JSONEq(t, `{
 		"node_id": 2,
+		"name": "node-2",
 		"addr": "127.0.0.1:7002",
 		"status": "alive",
 		"last_heartbeat_at": "2026-04-22T02:05:06Z",
 		"is_local": false,
 		"capacity_weight": 2,
+		"membership": {
+			"role": "data",
+			"join_state": "active",
+			"schedulable": true
+		},
+		"health": {
+			"status": "alive",
+			"last_heartbeat_at": "2026-04-22T02:05:06Z"
+		},
 		"controller": {
-			"role": "follower"
+			"role": "follower",
+			"voter": true,
+			"leader_id": 1
 		},
 		"slot_stats": {
 			"count": 3,
 			"leader_count": 0
 		},
+		"runtime": {
+			"node_id": 2,
+			"active_online": 0,
+			"closing_online": 0,
+			"total_online": 0,
+			"gateway_sessions": 0,
+			"sessions_by_listener": {},
+			"accepting_new_sessions": true,
+			"draining": false,
+			"unknown": false
+		},
+		"actions": {
+			"can_drain": true,
+			"can_resume": false,
+			"can_scale_in": true,
+			"can_onboard": false
+		},
 		"slots": {
 			"hosted_ids": [2, 4, 7],
-			"leader_ids": []
+			"leader_ids": [],
+			"replica_count": 3,
+			"leader_count": 0,
+			"follower_count": 3,
+			"quorum_lost_count": 0,
+			"unreported_count": 0
 		}
 	}`, rec.Body.String())
 }
@@ -2283,7 +2520,7 @@ func mustEncodeChannelRuntimeMetaCursorForTest(t *testing.T, cursor managementus
 }
 
 type managementStub struct {
-	nodes                           []managementusecase.Node
+	nodes                           managementusecase.NodeList
 	nodesErr                        error
 	nodeDetail                      managementusecase.NodeDetail
 	nodeDetailErr                   error
@@ -2338,8 +2575,20 @@ type managementStub struct {
 	nodeOnboardingJobErr            error
 }
 
-func (s managementStub) ListNodes(context.Context) ([]managementusecase.Node, error) {
-	return append([]managementusecase.Node(nil), s.nodes...), s.nodesErr
+func nodeListAt(t time.Time, leader uint64, items ...managementusecase.Node) managementusecase.NodeList {
+	return managementusecase.NodeList{
+		GeneratedAt:        t,
+		ControllerLeaderID: leader,
+		Items:              append([]managementusecase.Node(nil), items...),
+	}
+}
+
+func (s managementStub) ListNodes(context.Context) (managementusecase.NodeList, error) {
+	return managementusecase.NodeList{
+		GeneratedAt:        s.nodes.GeneratedAt,
+		ControllerLeaderID: s.nodes.ControllerLeaderID,
+		Items:              append([]managementusecase.Node(nil), s.nodes.Items...),
+	}, s.nodesErr
 }
 
 func (s managementStub) GetNode(context.Context, uint64) (managementusecase.NodeDetail, error) {

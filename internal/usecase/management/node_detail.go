@@ -33,7 +33,7 @@ func (a *App) GetNode(ctx context.Context, nodeID uint64) (NodeDetail, error) {
 			continue
 		}
 		return NodeDetail{
-			Node: a.managerNode(clusterNode, controllerLeaderID, slotSummary),
+			Node: a.managerNode(ctx, clusterNode, controllerLeaderID, slotSummary),
 			Slots: NodeSlots{
 				HostedIDs: append([]uint32(nil), slotSummary.hostedSlotIDsByNode[nodeID]...),
 				LeaderIDs: append([]uint32(nil), slotSummary.leaderSlotIDsByNode[nodeID]...),

@@ -157,16 +157,45 @@ describe("manager api client", () => {
 
   it("fetches node list and detail data from manager endpoints", async () => {
     const nodesResponse = {
+      generated_at: "2026-04-23T08:00:01Z",
+      controller_leader_id: 1,
       total: 1,
       items: [{
         node_id: 1,
+        name: "node-1",
         addr: "127.0.0.1:7000",
         status: "alive",
         last_heartbeat_at: "2026-04-23T08:00:00Z",
         is_local: true,
         capacity_weight: 1,
-        controller: { role: "leader" },
+        membership: { role: "data", join_state: "active", schedulable: true },
+        health: { status: "alive", last_heartbeat_at: "2026-04-23T08:00:00Z" },
+        controller: { role: "leader", voter: true, leader_id: 1 },
         slot_stats: { count: 3, leader_count: 2 },
+        slots: {
+          replica_count: 3,
+          leader_count: 2,
+          follower_count: 1,
+          quorum_lost_count: 0,
+          unreported_count: 0,
+        },
+        runtime: {
+          node_id: 1,
+          active_online: 4,
+          closing_online: 0,
+          total_online: 4,
+          gateway_sessions: 5,
+          sessions_by_listener: {},
+          accepting_new_sessions: true,
+          draining: false,
+          unknown: false,
+        },
+        actions: {
+          can_drain: true,
+          can_resume: false,
+          can_scale_in: true,
+          can_onboard: false,
+        },
       }],
     }
     const nodeDetail = {
@@ -174,6 +203,11 @@ describe("manager api client", () => {
       slots: {
         hosted_ids: [1, 2, 3],
         leader_ids: [1, 2],
+        replica_count: 3,
+        leader_count: 2,
+        follower_count: 1,
+        quorum_lost_count: 0,
+        unreported_count: 0,
       },
     }
 
@@ -197,14 +231,42 @@ describe("manager api client", () => {
   it("posts node draining and resume actions", async () => {
     const actionResult = {
       node_id: 1,
+      name: "node-1",
       addr: "127.0.0.1:7000",
       status: "draining",
       last_heartbeat_at: "2026-04-23T08:00:00Z",
       is_local: false,
       capacity_weight: 1,
-      controller: { role: "follower" },
+      membership: { role: "data", join_state: "active", schedulable: false },
+      health: { status: "draining", last_heartbeat_at: "2026-04-23T08:00:00Z" },
+      controller: { role: "follower", voter: true, leader_id: 1 },
       slot_stats: { count: 3, leader_count: 0 },
-      slots: { hosted_ids: [1, 2], leader_ids: [] },
+      slots: {
+        hosted_ids: [1, 2],
+        leader_ids: [],
+        replica_count: 3,
+        leader_count: 0,
+        follower_count: 3,
+        quorum_lost_count: 0,
+        unreported_count: 0,
+      },
+      runtime: {
+        node_id: 1,
+        active_online: 0,
+        closing_online: 0,
+        total_online: 0,
+        gateway_sessions: 0,
+        sessions_by_listener: {},
+        accepting_new_sessions: false,
+        draining: true,
+        unknown: false,
+      },
+      actions: {
+        can_drain: false,
+        can_resume: true,
+        can_scale_in: false,
+        can_onboard: false,
+      },
     }
     fetchMock.mockResolvedValue(new Response(JSON.stringify(actionResult), { status: 200 }))
 

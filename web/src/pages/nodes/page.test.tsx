@@ -36,18 +36,48 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
 
 const nodeRow = {
   node_id: 1,
+  name: "node-1",
   addr: "127.0.0.1:7000",
   status: "alive",
   last_heartbeat_at: "2026-04-23T08:00:00Z",
   is_local: true,
   capacity_weight: 1,
-  controller: { role: "leader" },
+  membership: { role: "data", join_state: "active", schedulable: true },
+  health: { status: "alive", last_heartbeat_at: "2026-04-23T08:00:00Z" },
+  controller: { role: "leader", voter: true, leader_id: 1 },
   slot_stats: { count: 3, leader_count: 2 },
+  slots: {
+    replica_count: 3,
+    leader_count: 2,
+    follower_count: 1,
+    quorum_lost_count: 0,
+    unreported_count: 0,
+  },
+  runtime: {
+    node_id: 1,
+    active_online: 4,
+    closing_online: 0,
+    total_online: 4,
+    gateway_sessions: 5,
+    sessions_by_listener: {},
+    accepting_new_sessions: true,
+    draining: false,
+    unknown: false,
+  },
+  actions: {
+    can_drain: true,
+    can_resume: false,
+    can_scale_in: true,
+    can_onboard: false,
+  },
 }
 
 const drainingNodeRow = {
   ...nodeRow,
   status: "draining",
+  health: { ...nodeRow.health, status: "draining" },
+  runtime: { ...nodeRow.runtime, accepting_new_sessions: false, draining: true },
+  actions: { ...nodeRow.actions, can_drain: false, can_resume: true },
 }
 
 const nodeDetail = {
@@ -55,6 +85,11 @@ const nodeDetail = {
   slots: {
     hosted_ids: [1, 2, 3],
     leader_ids: [1, 2],
+    replica_count: 3,
+    leader_count: 2,
+    follower_count: 1,
+    quorum_lost_count: 0,
+    unreported_count: 0,
   },
 }
 
@@ -63,6 +98,11 @@ const drainingNodeDetail = {
   slots: {
     hosted_ids: [1, 2, 3],
     leader_ids: [],
+    replica_count: 3,
+    leader_count: 0,
+    follower_count: 3,
+    quorum_lost_count: 0,
+    unreported_count: 0,
   },
 }
 
@@ -203,7 +243,12 @@ function renderNodesPage() {
 }
 
 test("omits distributed log health from the node list and detail", async () => {
-  getNodesMock.mockResolvedValueOnce({ total: 1, items: [nodeRow] })
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
   getNodeMock.mockResolvedValueOnce(nodeDetail)
 
   const user = userEvent.setup()
@@ -211,7 +256,6 @@ test("omits distributed log health from the node list and detail", async () => {
 
   expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
   expect(screen.queryByText("Distributed Log")).not.toBeInTheDocument()
-  expect(screen.queryByText("replicas 3 / leaders 2 / followers 1")).not.toBeInTheDocument()
   expect(screen.queryByText("max lag 7 / apply gap 2")).not.toBeInTheDocument()
   expect(screen.queryByText("2 unhealthy / 1 unavailable")).not.toBeInTheDocument()
 
@@ -219,17 +263,49 @@ test("omits distributed log health from the node list and detail", async () => {
 
   expect(await screen.findByText("Hosted IDs")).toBeInTheDocument()
   expect(screen.queryByText("Distributed Log Health")).not.toBeInTheDocument()
-  expect(screen.queryByText("Controller voter")).not.toBeInTheDocument()
   expect(screen.queryByText("Slot 9")).not.toBeInTheDocument()
   expect(screen.queryByText("commit 93 / applied 91")).not.toBeInTheDocument()
   expect(screen.queryByText("leader commit 100 / lag 7")).not.toBeInTheDocument()
 })
 
+test("renders layered node inventory fields and honors backend action hints", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [{
+      ...nodeRow,
+      actions: { ...nodeRow.actions, can_drain: false },
+    }],
+  })
+
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  expect(screen.getByText("data")).toBeInTheDocument()
+  expect(screen.getByText("active")).toBeInTheDocument()
+  expect(screen.getByText("schedulable")).toBeInTheDocument()
+  expect(screen.getByText("controller voter")).toBeInTheDocument()
+  expect(screen.getByText("replicas 3 / leaders 2 / followers 1")).toBeInTheDocument()
+  expect(screen.getByText("sessions 5 / online 4")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Drain" })).toBeDisabled()
+})
+
 test("opens node detail and refreshes after draining", async () => {
-  getNodesMock.mockResolvedValueOnce({ total: 1, items: [nodeRow] })
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
   getNodeMock.mockResolvedValueOnce(nodeDetail)
   markNodeDrainingMock.mockResolvedValueOnce(drainingNodeDetail)
-  getNodesMock.mockResolvedValueOnce({ total: 1, items: [drainingNodeRow] })
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:02Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [drainingNodeRow],
+  })
   getNodeMock.mockResolvedValueOnce(drainingNodeDetail)
 
   const user = userEvent.setup()
@@ -250,10 +326,20 @@ test("opens node detail and refreshes after draining", async () => {
 })
 
 test("refreshes the open detail sheet after resuming a node", async () => {
-  getNodesMock.mockResolvedValueOnce({ total: 1, items: [drainingNodeRow] })
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [drainingNodeRow],
+  })
   getNodeMock.mockResolvedValueOnce(drainingNodeDetail)
   resumeNodeMock.mockResolvedValueOnce(nodeDetail)
-  getNodesMock.mockResolvedValueOnce({ total: 1, items: [nodeRow] })
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:02Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
   getNodeMock.mockResolvedValueOnce(nodeDetail)
 
   const user = userEvent.setup()
@@ -292,10 +378,20 @@ test("shows an unavailable state when the manager node list is unavailable", asy
 })
 
 test("reviews a scale-in plan and starts scale-in after confirmation", async () => {
-  getNodesMock.mockResolvedValueOnce({ total: 1, items: [nodeRow] })
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
   planNodeScaleInMock.mockResolvedValueOnce(scaleInPlanReport)
   startNodeScaleInMock.mockResolvedValueOnce(scaleInRunningReport)
-  getNodesMock.mockResolvedValueOnce({ total: 1, items: [drainingNodeRow] })
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:02Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [drainingNodeRow],
+  })
 
   const user = userEvent.setup()
   renderNodesPage()
@@ -323,7 +419,12 @@ test("reviews a scale-in plan and starts scale-in after confirmation", async () 
 })
 
 test("uses a blocked scale-in report returned with a 409 error", async () => {
-  getNodesMock.mockResolvedValueOnce({ total: 1, items: [nodeRow] })
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
   planNodeScaleInMock.mockRejectedValueOnce(
     new ManagerApiError(409, "scale_in_blocked", "scale-in blocked", scaleInBlockedReport),
   )
@@ -339,7 +440,12 @@ test("uses a blocked scale-in report returned with a 409 error", async () => {
 })
 
 test("advances an active scale-in report", async () => {
-  getNodesMock.mockResolvedValueOnce({ total: 1, items: [nodeRow] })
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
   planNodeScaleInMock.mockResolvedValueOnce(scaleInRunningReport)
   advanceNodeScaleInMock.mockResolvedValueOnce(scaleInReadyReport)
 
@@ -355,10 +461,20 @@ test("advances an active scale-in report", async () => {
 })
 
 test("cancels an active scale-in report", async () => {
-  getNodesMock.mockResolvedValueOnce({ total: 1, items: [nodeRow] })
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
   planNodeScaleInMock.mockResolvedValueOnce(scaleInRunningReport)
   cancelNodeScaleInMock.mockResolvedValueOnce(scaleInPlanReport)
-  getNodesMock.mockResolvedValueOnce({ total: 1, items: [nodeRow] })
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:02Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
 
   const user = userEvent.setup()
   renderNodesPage()
