@@ -39,10 +39,12 @@ A preferred Slot leader is a **soft controller intent**:
 1. Controller chooses a preferred leader from the Slot's desired peers.
 2. Raft may elect any valid leader when availability requires it.
 3. Controller observes the actual leader through `SlotRuntimeView.LeaderID`.
-4. If actual leader differs from preferred leader and safety checks pass, controller schedules a bounded leader transfer.
+4. If actual leader differs from preferred leader, safety checks pass, and the move preserves or improves global leader balance, controller schedules a bounded leader transfer.
 5. If the transfer fails or target becomes unsafe, the current Raft leader remains valid and the controller retries later with backoff or recomputes the preference.
 
 The invariant is: **preferred leader guides convergence; Raft leader determines current authority**.
+
+V1 prioritizes global leader balance over exact sticky per-Slot leadership. A balanced-but-wrong leader layout may remain unchanged if moving one Slot at a time would temporarily violate the leader skew threshold.
 
 ## 5. Data Model
 
@@ -50,11 +52,12 @@ Extend `controllermeta.SlotAssignment`:
 
 ```go
 type SlotAssignment struct {
-    SlotID          uint32
-    DesiredPeers    []uint64
-    PreferredLeader uint64
-    ConfigEpoch     uint64
-    BalanceVersion  uint64
+    SlotID                      uint32
+    DesiredPeers                []uint64
+    PreferredLeader             uint64
+    LeaderTransferCooldownUntil time.Time
+    ConfigEpoch                 uint64
+    BalanceVersion              uint64
 }
 ```
 
@@ -62,11 +65,33 @@ Rules:
 
 - `PreferredLeader == 0` means legacy assignment with no durable recommendation. Readers should treat it as "unset".
 - When set, `PreferredLeader` must be one of `DesiredPeers`.
+- `LeaderTransferCooldownUntil` is controller-owned durable cooldown state. The planner must not create a new leader-transfer task for the Slot before this time.
 - Normalization should sort/deduplicate `DesiredPeers` without dropping `PreferredLeader`.
 - Decode paths must remain backward compatible with old persisted assignments and set `PreferredLeader=0` for old records.
 - Any assignment write that changes `DesiredPeers` must either preserve a still-valid preferred leader or choose a new one.
+- Successful leader-transfer task results should update `LeaderTransferCooldownUntil` and delete the task atomically.
+- Failed leader-transfer retries should use the existing task `NextRunAt`; task presence blocks competing Slot tasks while the retry budget is active.
 
 `SlotRuntimeView.LeaderID` remains observed runtime state. It is not durable steady-state metadata.
+
+Extend runtime observation with explicit current voters:
+
+```go
+type SlotRuntimeView struct {
+    SlotID        uint32
+    CurrentPeers  []uint64
+    CurrentVoters []uint64
+    LeaderID      uint64
+    // existing fields omitted
+}
+```
+
+Rules:
+
+- `CurrentPeers` may remain a legacy compatibility field for the currently known peer set.
+- `CurrentVoters` is the authoritative observed voter set used by leader-transfer planning and execution.
+- If `CurrentVoters` is empty, leader transfer must treat voter membership as unknown and skip the Slot.
+- `multiraft.Status` or managed Slot status should expose the Raft current voter set from RawNode status/config so observation can populate `CurrentVoters`.
 
 ## 6. Planner Behavior
 
@@ -105,7 +130,7 @@ When `DesiredPeers` changes because of repair or rebalance:
 
 ### 6.4 Leader Rebalance
 
-Add a planner decision path after urgent bootstrap/repair and before or after replica rebalance, depending on safety policy. Recommended order:
+Add a planner decision path after urgent bootstrap/repair and replica rebalance. V1 uses this order:
 
 1. Bootstrap and repair first.
 2. Running onboarding/scale-in coordination next.
@@ -119,10 +144,22 @@ Leader rebalance should be opportunistic. It creates work only when:
 - Slot is not locked by onboarding/scale-in;
 - Slot is not involved in hash-slot migration;
 - Slot has quorum and a non-zero actual leader;
+- Slot has more than one desired voter;
+- Slot is not inside `LeaderTransferCooldownUntil`;
+- target is in the observed current voter set;
 - target is in `DesiredPeers` and is active/alive/data;
-- `maxLeaderLoad - minLeaderLoad > LeaderSkewThreshold`.
+- the trigger-specific skew rule below is satisfied.
 
 A conservative default `LeaderSkewThreshold=1` is recommended.
+
+The planner should persist `PreferredLeader` before scheduling the transfer because it represents controller intent. If a transfer task exhausts retries and the target is no longer eligible, the planner should recompute the preference on a later tick instead of blindly retrying the same target forever.
+
+Terminal failed `TaskKindLeaderTransfer` tasks must not remain as durable blockers. When a leader-transfer task reaches the retry limit, the controller should delete that task and set `LeaderTransferCooldownUntil` to a failure cooldown. Repair/rebalance/bootstrap tasks may still use durable `TaskStatusFailed` for operator inspection; opportunistic leader-transfer tasks self-clear so future safety-critical tasks are not blocked.
+
+V1 has two leader-placement triggers:
+
+- **Skew correction**: when actual leader load skew exceeds `LeaderSkewThreshold`, choose a Slot whose transfer reduces skew. This path may update `PreferredLeader` to the chosen target before creating the task.
+- **Preference convergence**: when actual leader differs from an existing valid `PreferredLeader`, create a task only if the transfer keeps resulting actual leader skew within `LeaderSkewThreshold` or otherwise improves skew. V1 does not chase exact preferred-leader matching if doing so would temporarily create an imbalanced layout.
 
 ## 7. Task Model
 
@@ -145,13 +182,16 @@ Execution flow:
 LeaderTransfer task:
   1. Read current Slot leader.
   2. If current leader already equals TargetNode, succeed.
-  3. Validate TargetNode is assigned and eligible.
+  3. Validate TargetNode is assigned, eligible, and in the observed current voter set.
   4. Call TransferLeadership(slotID, TargetNode).
   5. Wait until observed/current leader equals TargetNode, or timeout.
-  6. Report success or retryable error.
+  6. On success, update the Slot assignment cooldown and delete the task.
+  7. On failure, report a retryable error through the existing task retry path.
 ```
 
 Failures should follow the existing task retry mechanism, with extra care to avoid rapid repeated transfers.
+
+The task must not call `TransferLeadership` when the current Slot leader or current voter set is unknown. Unknown leader/voter state is a safety stop for the transfer itself, but it must not leave the task pending forever. A deterministic checker node reports a retryable safety failure so `Attempt`/`NextRunAt` advances; if the condition stays unknown through the retry budget, the task self-clears with a failure cooldown.
 
 ## 8. Safety and Rate Limiting
 
@@ -162,15 +202,27 @@ Leader transfer is safe only when all checks pass:
 - Actual leader is known.
 - Target node is active, alive, and data-capable.
 - Target node is in the Slot's desired peer set.
+- Target node is in the Slot's observed current voter set.
 - Target node has opened the Slot runtime or can be confirmed through managed Slot status.
 - No conflicting bootstrap/repair/rebalance/hash-slot migration/onboarding task is active for the Slot.
 
 Rate limits:
 
 - Limit leader-transfer tasks per controller tick.
-- Limit leader transfers per target/source node per time window.
-- Add per-Slot cooldown after successful or failed transfer.
+- Use the planner's existing one-decision-per-tick behavior as the V1 global transfer limit.
+- Persist per-Slot cooldown in `SlotAssignment.LeaderTransferCooldownUntil`.
+- Use task `NextRunAt` for failed-transfer retry backoff while a leader-transfer task exists.
+- Delete terminal failed leader-transfer tasks and apply a failure cooldown instead of storing a durable failed leader-transfer task.
 - During rolling restart, prefer waiting for observations to stabilize before transferring leaders back.
+- Do not implement per-node sliding transfer windows in V1. If needed later, add explicit durable controller metadata for them; do not hide them in process-local state.
+
+State ownership:
+
+- Policy defaults and limits live in controller/cluster config.
+- Per-Slot successful-transfer cooldown is durable controller metadata on `SlotAssignment`.
+- Failed-transfer backoff is durable task metadata through `ReconcileTask.NextRunAt`.
+- Terminal failed leader-transfer cooldown is durable controller metadata on `SlotAssignment`; the task itself is deleted.
+- Per-tick limiting is process-local and safe to reset after controller failover because durable cooldown/task state prevents immediate per-Slot storms.
 
 Recommended initial defaults:
 
@@ -189,17 +241,19 @@ Controller leader tick:
   compute replica load and leader load
   bootstrap/repair/rebalance decisions first
   if no urgent task:
-    find leader skew
-    choose a safe Slot whose current leader is overloaded
-    choose underloaded target from that Slot's desired peers
+    try skew correction when actual leader skew exceeds threshold
+    otherwise try preference convergence only when resulting skew stays allowed
+    require target in observed CurrentVoters
+    skip Slots inside durable cooldown
     upsert PreferredLeader if needed
     create TaskKindLeaderTransfer
 
 Node reconciler:
   apply assignment cache
   load tasks
-  execute TaskKindLeaderTransfer on current leader or deterministic executor
-  call managed Slot TransferLeadership
+  execute TaskKindLeaderTransfer on current leader when known
+  if leader/voters are unknown, deterministic checker reports retryable safety failure
+  call managed Slot TransferLeadership only after leader and voters are known
   report task result
 
 Runtime observation:
@@ -210,7 +264,7 @@ Runtime observation:
 
 ## 10. Executor Ownership
 
-`TaskKindLeaderTransfer` should be executed by the current Slot leader when possible. If the current leader cannot be read, use a deterministic fallback among desired peers, but the actual `TransferLeadership` call must still be routed to the current leader through existing managed Slot RPC logic.
+`TaskKindLeaderTransfer` should be executed by the current Slot leader when possible. If the current leader or current voter set cannot be resolved, a deterministic checker among active desired peers should report a retryable safety failure. The checker must not bypass leader resolution or call transfer without a known current leader and voter set.
 
 This keeps entry adapters thin and reuses `slotManager.transferLeadership`.
 
@@ -237,7 +291,10 @@ Metrics should include:
 - Existing persisted assignments decode with `PreferredLeader=0`.
 - Planner should lazily fill missing `PreferredLeader` when it next safely updates an assignment or schedules leader rebalance.
 - No config migration is required for single-node clusters.
-- Rolling upgrade safety: nodes that do not understand the new assignment codec must not be mixed after the codec changes. If rolling binary compatibility is required, use a versioned codec field and ensure old nodes reject newer controller metadata rather than corrupting it.
+- The assignment codec should move to a versioned v2 layout that includes `PreferredLeader` and `LeaderTransferCooldownUntil`.
+- Runtime observation and controller RPC/control assignment payload codecs must also carry the new fields needed by planner and manager readers, including `PreferredLeader`, `LeaderTransferCooldownUntil`, and `CurrentVoters`.
+- Decoders must accept the old v1 layout and produce zero values for the new fields. Empty `CurrentVoters` means leader-transfer target membership is unknown and must fail closed.
+- Mixed-version rolling upgrades are not supported for this metadata change unless old binaries explicitly reject unknown v2 assignment records. Operators should upgrade all controller-capable nodes before enabling preferred-leader balancing.
 
 ## 13. Testing Plan
 
@@ -249,13 +306,19 @@ Unit tests:
 - Planner replaces preferred leader when removed from desired peers.
 - Leader rebalance skips slots without quorum, with tasks, in migration, or with invalid targets.
 - Leader rebalance creates at most the configured number of tasks per tick.
+- Leader rebalance skips single-voter Slots.
+- Leader rebalance honors durable `LeaderTransferCooldownUntil`.
+- Leader rebalance requires target in observed `CurrentVoters`.
+- Terminal failed leader-transfer tasks self-clear and set failure cooldown, allowing later repair/rebalance tasks.
+- Unknown leader/current-voter leader-transfer tasks advance retry state through a deterministic checker and do not remain pending forever.
+- Preference convergence skips balanced-but-wrong layouts when a single transfer would violate leader skew threshold.
 
 Cluster tests:
 
 - Initial multi-node cluster has near-even Slot leader distribution.
 - Restarting a Slot leader causes temporary drift, then controller transfers back or rebalances after cooldown.
 - Rolling restart does not trigger transfer storms.
-- Single-node cluster remains stable and creates no leader-transfer tasks.
+- Single-node cluster may fill `PreferredLeader`, remains stable, and creates no leader-transfer tasks.
 - AddSlot selects a balanced preferred leader instead of always the smallest peer.
 
 Manager/usecase tests:
@@ -263,27 +326,28 @@ Manager/usecase tests:
 - Slot detail includes preferred leader and leader match status.
 - Node leader counts remain based on actual runtime leaders.
 
-## 14. Open Questions
+## 14. V1 Decisions
 
-1. Should leader rebalance run strictly after replica rebalance, or may it run before replica rebalance when replica skew is already below threshold?
-2. Should `PreferredLeader` be changed proactively to the balanced target before transfer, or only after transfer succeeds?
-3. Should a failed leader transfer keep the same preferred leader and retry, or clear/recompute preference after N failures?
-
-Recommended answers for V1:
-
-1. Run leader rebalance after replica rebalance.
-2. Persist `PreferredLeader` before scheduling the transfer, because it represents controller intent.
-3. Keep preference during retry budget, then recompute after task failure if target is no longer eligible.
+- Leader rebalance runs after replica rebalance.
+- `PreferredLeader` is persisted before scheduling the transfer because it represents controller intent.
+- A failed leader transfer keeps the same preferred leader during the task retry budget.
+- After a leader-transfer task reaches failed terminal status, the planner may recompute the preference if the target is no longer eligible.
+- Per-Slot successful-transfer cooldown is durable assignment metadata.
+- Terminal failed leader-transfer tasks are deleted and converted into a durable per-Slot failure cooldown.
+- Leader-transfer target eligibility requires the target to be present in the observed current voter set.
+- Unknown leader/current-voter tasks are reported as retryable safety failures by a deterministic checker; they do not wait forever.
+- V1 repairs preferred-leader mismatches only when the move preserves or improves global leader balance.
+- Per-node sliding transfer windows are out of scope for V1.
 
 ## 15. Implementation Stages
 
 ### Stage 1: Durable Preferred Leader
 
-Add `PreferredLeader` to controller metadata, codec, DTOs, bootstrap planner, and AddSlot path. Keep behavior compatible with existing leader transfer code.
+Add `PreferredLeader`, `LeaderTransferCooldownUntil`, and observed `CurrentVoters` to controller metadata, codecs, DTOs, bootstrap planner, and AddSlot path. Keep behavior compatible with existing leader transfer code.
 
 ### Stage 2: Leader Transfer Task
 
-Add `TaskKindLeaderTransfer`, executor handling, safety checks, retry behavior, and observability hooks.
+Add `TaskKindLeaderTransfer`, executor handling, known-leader/current-voter safety checks, retry behavior, durable success/failure cooldown updates, terminal failure self-clear, and observability hooks.
 
 ### Stage 3: Planner Leader Rebalance
 
