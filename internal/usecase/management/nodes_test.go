@@ -36,104 +36,95 @@ func TestListNodesAggregatesControllerRoleAndSlotCounts(t *testing.T) {
 		{NodeID: 1, Status: "alive", ControllerRole: "leader", SlotCount: 1, LeaderSlotCount: 1, IsLocal: false},
 		{NodeID: 2, Status: "draining", ControllerRole: "follower", SlotCount: 2, LeaderSlotCount: 1, IsLocal: true},
 		{NodeID: 3, Status: "alive", ControllerRole: "none", SlotCount: 1, LeaderSlotCount: 0, IsLocal: false},
-	}, summarizeNodes(got))
-	require.Equal(t, now.Add(-1*time.Second), got[0].LastHeartbeatAt)
-	require.Equal(t, 2, got[1].CapacityWeight)
+	}, summarizeNodes(got.Items))
+	require.Equal(t, now.Add(-1*time.Second), got.Items[0].LastHeartbeatAt)
+	require.Equal(t, 2, got.Items[1].CapacityWeight)
 }
 
-func TestListNodesAggregatesDistributedLogHealth(t *testing.T) {
+func TestListNodesReturnsLayeredInventoryFields(t *testing.T) {
+	now := time.Unix(1714298400, 0).UTC()
 	app := New(Options{
-		LocalNodeID:       2,
+		LocalNodeID:       1,
 		ControllerPeerIDs: []uint64{1, 2},
+		SlotReplicaN:      3,
+		Now:               func() time.Time { return now },
 		Cluster: fakeClusterReader{
 			controllerLeaderID: 1,
-			nodes: []controllermeta.ClusterNode{
-				{NodeID: 1, Addr: "127.0.0.1:7001", Status: controllermeta.NodeStatusAlive, CapacityWeight: 1},
-				{NodeID: 2, Addr: "127.0.0.1:7002", Status: controllermeta.NodeStatusAlive, CapacityWeight: 1},
-			},
-			views: []controllermeta.SlotRuntimeView{
-				{SlotID: 7, CurrentPeers: []uint64{1, 2}, LeaderID: 1, HasQuorum: true},
-				{SlotID: 9, CurrentPeers: []uint64{1, 2}, LeaderID: 2, HasQuorum: false},
-			},
-			slotLogStatus: map[slotLogStatusKey]raftcluster.SlotLogStatus{
-				{nodeID: 1, slotID: 7}: {LeaderID: 1, CommitIndex: 120, AppliedIndex: 118},
-				{nodeID: 2, slotID: 7}: {LeaderID: 1, CommitIndex: 116, AppliedIndex: 114},
-				{nodeID: 1, slotID: 9}: {LeaderID: 2, CommitIndex: 54, AppliedIndex: 54},
-				{nodeID: 2, slotID: 9}: {LeaderID: 2, CommitIndex: 60, AppliedIndex: 58},
-			},
+			nodes: []controllermeta.ClusterNode{{
+				NodeID:          1,
+				Name:            "node-1",
+				Addr:            "10.0.0.1:7000",
+				Role:            controllermeta.NodeRoleData,
+				JoinState:       controllermeta.NodeJoinStateActive,
+				Status:          controllermeta.NodeStatusAlive,
+				LastHeartbeatAt: now.Add(-2 * time.Second),
+				CapacityWeight:  2,
+			}},
+			views: []controllermeta.SlotRuntimeView{{
+				SlotID:       7,
+				CurrentPeers: []uint64{1, 2, 3},
+				LeaderID:     1,
+				HasQuorum:    true,
+			}},
 		},
+		RuntimeSummary: scaleInRuntimeSummaryReader{summary: NodeRuntimeSummary{
+			NodeID:               1,
+			ActiveOnline:         4,
+			GatewaySessions:      5,
+			AcceptingNewSessions: true,
+		}},
 	})
 
 	got, err := app.ListNodes(context.Background())
 	require.NoError(t, err)
-	require.Len(t, got, 2)
-	require.Equal(t, NodeDistributedLog{
-		Controller: NodeControllerLog{Role: "leader", LeaderID: 1, Voter: true},
-		Slots: NodeSlotLogHealth{
-			ReplicaCount:     2,
-			LeaderCount:      1,
-			FollowerCount:    1,
-			MaxCommitLag:     6,
-			MaxApplyGap:      2,
-			UnavailableCount: 0,
-			UnhealthyCount:   2,
-			Samples: []NodeSlotLogSample{{
-				SlotID:            9,
-				Role:              "follower",
-				LeaderID:          2,
-				CommitIndex:       54,
-				AppliedIndex:      54,
-				LeaderCommitIndex: 60,
-				CommitLag:         6,
-				ApplyGap:          0,
-				Quorum:            "lost",
-				Status:            "quorum_lost",
-			}, {
-				SlotID:            7,
-				Role:              "leader",
-				LeaderID:          1,
-				CommitIndex:       120,
-				AppliedIndex:      118,
-				LeaderCommitIndex: 120,
-				CommitLag:         0,
-				ApplyGap:          2,
-				Quorum:            "healthy",
-				Status:            "lagging",
-			}},
-		},
-	}, got[0].DistributedLog)
-	require.Equal(t, uint64(4), got[1].DistributedLog.Slots.MaxCommitLag)
-	require.Equal(t, uint64(2), got[1].DistributedLog.Slots.MaxApplyGap)
+	require.Equal(t, now, got.GeneratedAt)
+	require.Equal(t, uint64(1), got.ControllerLeaderID)
+	require.Len(t, got.Items, 1)
+	node := got.Items[0]
+	require.Equal(t, "node-1", node.Name)
+	require.Equal(t, "data", node.Membership.Role)
+	require.Equal(t, "active", node.Membership.JoinState)
+	require.True(t, node.Membership.Schedulable)
+	require.Equal(t, "alive", node.Health.Status)
+	require.Equal(t, now.Add(-2*time.Second), node.Health.LastHeartbeatAt)
+	require.Equal(t, "leader", node.Controller.Role)
+	require.True(t, node.Controller.Voter)
+	require.Equal(t, uint64(1), node.Controller.LeaderID)
+	require.Equal(t, 1, node.Slots.ReplicaCount)
+	require.Equal(t, 1, node.Slots.LeaderCount)
+	require.Equal(t, 0, node.Slots.FollowerCount)
+	require.Equal(t, 0, node.Slots.QuorumLostCount)
+	require.Equal(t, 0, node.Slots.UnreportedCount)
+	require.Equal(t, 4, node.Runtime.ActiveOnline)
+	require.Equal(t, 5, node.Runtime.GatewaySessions)
+	require.True(t, node.Runtime.AcceptingNewSessions)
+	require.True(t, node.Actions.CanDrain)
+	require.False(t, node.Actions.CanResume)
 }
 
-func TestGetNodeIncludesUnavailableDistributedLogSamples(t *testing.T) {
-	app := New(Options{
-		LocalNodeID:       1,
-		ControllerPeerIDs: []uint64{1},
-		Cluster: fakeClusterReader{
-			controllerLeaderID: 1,
-			nodes: []controllermeta.ClusterNode{
-				{NodeID: 2, Addr: "127.0.0.1:7002", Status: controllermeta.NodeStatusAlive, CapacityWeight: 1},
-			},
-			views: []controllermeta.SlotRuntimeView{
-				{SlotID: 11, CurrentPeers: []uint64{2}, LeaderID: 0, HasQuorum: false},
-			},
-			slotLogStatusErr: map[slotLogStatusKey]error{
-				{nodeID: 2, slotID: 11}: raftcluster.ErrSlotNotFound,
-			},
-		},
-	})
+func TestListNodesDoesNotReadDistributedLogStatus(t *testing.T) {
+	cluster := &fakeNodeInventoryCluster{fakeClusterReader: fakeClusterReader{
+		controllerLeaderID: 1,
+		nodes: []controllermeta.ClusterNode{{
+			NodeID:         1,
+			Addr:           "127.0.0.1:7001",
+			Role:           controllermeta.NodeRoleData,
+			JoinState:      controllermeta.NodeJoinStateActive,
+			Status:         controllermeta.NodeStatusAlive,
+			CapacityWeight: 1,
+		}},
+		views: []controllermeta.SlotRuntimeView{{
+			SlotID:       1,
+			CurrentPeers: []uint64{1},
+			LeaderID:     1,
+			HasQuorum:    true,
+		}},
+	}}
+	app := New(Options{Cluster: cluster, ControllerPeerIDs: []uint64{1}, Now: time.Now})
 
-	got, err := app.GetNode(context.Background(), 2)
+	_, err := app.ListNodes(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 1, got.DistributedLog.Slots.UnavailableCount)
-	require.Equal(t, 1, got.DistributedLog.Slots.UnhealthyCount)
-	require.Equal(t, []NodeSlotLogSample{{
-		SlotID: 11,
-		Role:   "unknown",
-		Quorum: "lost",
-		Status: "unavailable",
-	}}, got.DistributedLog.Slots.Samples)
+	require.Zero(t, cluster.logStatusCalls)
 }
 
 func TestListNodesSortsByNodeIDAndDefaultsCountsToZero(t *testing.T) {
@@ -154,7 +145,7 @@ func TestListNodesSortsByNodeIDAndDefaultsCountsToZero(t *testing.T) {
 	require.Equal(t, []nodeSummary{
 		{NodeID: 4, Status: "dead", ControllerRole: "leader", SlotCount: 0, LeaderSlotCount: 0, IsLocal: false},
 		{NodeID: 9, Status: "suspect", ControllerRole: "none", SlotCount: 0, LeaderSlotCount: 0, IsLocal: true},
-	}, summarizeNodes(got))
+	}, summarizeNodes(got.Items))
 }
 
 func TestGetNodeReturnsNodeWithHostedAndLeaderSlots(t *testing.T) {
@@ -189,13 +180,30 @@ func TestGetNodeReturnsNodeWithHostedAndLeaderSlots(t *testing.T) {
 			LeaderSlotCount: 2,
 			IsLocal:         true,
 			CapacityWeight:  2,
-			DistributedLog: NodeDistributedLog{
-				Controller: NodeControllerLog{Role: "follower", LeaderID: 1, Voter: true},
-				Slots: NodeSlotLogHealth{
-					ReplicaCount:  3,
-					LeaderCount:   2,
-					FollowerCount: 1,
-				},
+			Membership: NodeMembership{
+				Role:      "unknown",
+				JoinState: "unknown",
+			},
+			Health: NodeHealth{
+				Status:          "draining",
+				LastHeartbeatAt: now.Add(-2 * time.Second),
+			},
+			Controller: NodeController{
+				Role:     "follower",
+				Voter:    true,
+				LeaderID: 1,
+			},
+			Slots: NodeSlotSummary{
+				ReplicaCount:  3,
+				LeaderCount:   2,
+				FollowerCount: 1,
+			},
+			Runtime: NodeRuntimeSummary{
+				NodeID:  2,
+				Unknown: true,
+			},
+			Actions: NodeActions{
+				CanResume: true,
 			},
 		},
 		Slots: NodeSlots{
@@ -255,6 +263,16 @@ type fakeClusterReader struct {
 type slotLogStatusKey struct {
 	nodeID uint64
 	slotID uint32
+}
+
+type fakeNodeInventoryCluster struct {
+	fakeClusterReader
+	logStatusCalls int
+}
+
+func (f *fakeNodeInventoryCluster) SlotLogStatusOnNode(context.Context, uint64, uint32) (raftcluster.SlotLogStatus, error) {
+	f.logStatusCalls++
+	return raftcluster.SlotLogStatus{}, nil
 }
 
 func (f fakeClusterReader) SlotIDs() []multiraft.SlotID {
