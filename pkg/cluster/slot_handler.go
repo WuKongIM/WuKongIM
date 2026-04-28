@@ -27,9 +27,10 @@ func (h *slotHandler) Handle(ctx context.Context, body []byte) ([]byte, error) {
 		switch {
 		case err == nil:
 			return encodeManagedSlotResponse(managedSlotRPCResponse{
-				LeaderID:     uint64(status.LeaderID),
-				CommitIndex:  status.CommitIndex,
-				AppliedIndex: status.AppliedIndex,
+				LeaderID:      uint64(status.LeaderID),
+				CurrentVoters: uint64sFromNodeIDs(status.CurrentVoters),
+				CommitIndex:   status.CommitIndex,
+				AppliedIndex:  status.AppliedIndex,
 			})
 		case errors.Is(err, ErrSlotNotFound), errors.Is(err, multiraft.ErrSlotNotFound):
 			return encodeManagedSlotResponse(managedSlotRPCResponse{NotFound: true})

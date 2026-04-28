@@ -116,7 +116,7 @@ Worker 循环:
        - when `lastApplied` advances, `storage.MarkApplied(lastApplied)`
        - rawNode.Advance(ready)
        - 通过 Future 通知提案者
-    ⑥ refreshStatus → 检测 Leader 丢失，清理 pending 提案
+    ⑥ refreshStatus → 刷新 Leader / 当前 voter 观测，检测 Leader 丢失并清理 pending 提案
     ⑦ finishProcessing
 ```
 

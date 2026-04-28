@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"sort"
 	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -505,6 +506,7 @@ func (g *slot) refreshStatus() {
 	defer g.mu.Unlock()
 	prevRole := g.status.Role
 	g.status.LeaderID = NodeID(st.Lead)
+	g.status.CurrentVoters = currentVotersFromRaftStatus(st)
 	g.status.Term = st.Term
 	g.status.CommitIndex = st.Commit
 	g.status.AppliedIndex = st.Applied
@@ -512,6 +514,21 @@ func (g *slot) refreshStatus() {
 	if prevRole == RoleLeader && g.status.Role != RoleLeader {
 		g.failLeadershipDependentLocked(ErrNotLeader)
 	}
+}
+
+func currentVotersFromRaftStatus(st raft.Status) []NodeID {
+	ids := st.Config.Voters.IDs()
+	if len(ids) == 0 {
+		return nil
+	}
+	voters := make([]NodeID, 0, len(ids))
+	for id := range ids {
+		voters = append(voters, NodeID(id))
+	}
+	sort.Slice(voters, func(i, j int) bool {
+		return voters[i] < voters[j]
+	})
+	return voters
 }
 
 func (g *slot) appliedIndex() uint64 {

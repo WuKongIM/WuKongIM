@@ -215,11 +215,17 @@ func runtimeViewEquivalent(left, right controllermeta.SlotRuntimeView) bool {
 		left.HealthyVoters != right.HealthyVoters ||
 		left.HasQuorum != right.HasQuorum ||
 		left.ObservedConfigEpoch != right.ObservedConfigEpoch ||
-		len(left.CurrentPeers) != len(right.CurrentPeers) {
+		len(left.CurrentPeers) != len(right.CurrentPeers) ||
+		len(left.CurrentVoters) != len(right.CurrentVoters) {
 		return false
 	}
 	for i := range left.CurrentPeers {
 		if left.CurrentPeers[i] != right.CurrentPeers[i] {
+			return false
+		}
+	}
+	for i := range left.CurrentVoters {
+		if left.CurrentVoters[i] != right.CurrentVoters[i] {
 			return false
 		}
 	}

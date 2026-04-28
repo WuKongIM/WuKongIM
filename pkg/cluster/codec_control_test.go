@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"encoding/binary"
 	"reflect"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ func TestControllerCodecRoundTripRequest(t *testing.T) {
 			Runtime: &controllermeta.SlotRuntimeView{
 				SlotID:              7,
 				CurrentPeers:        []uint64{1, 2, 3},
+				CurrentVoters:       []uint64{1, 2},
 				LeaderID:            2,
 				HealthyVoters:       2,
 				HasQuorum:           true,
@@ -49,6 +51,7 @@ func TestControllerCodecRoundTripRequest(t *testing.T) {
 		Runtime: &controllermeta.SlotRuntimeView{
 			SlotID:              7,
 			CurrentPeers:        []uint64{1, 2, 3},
+			CurrentVoters:       []uint64{1, 2},
 			LeaderID:            2,
 			HealthyVoters:       2,
 			HasQuorum:           true,
@@ -246,10 +249,12 @@ func TestControllerCodecRoundTripResponsePayloads(t *testing.T) {
 			kind: controllerRPCListAssignments,
 			resp: controllerRPCResponse{
 				Assignments: []controllermeta.SlotAssignment{{
-					SlotID:         3,
-					DesiredPeers:   []uint64{2, 4, 6},
-					ConfigEpoch:    7,
-					BalanceVersion: 8,
+					SlotID:                      3,
+					DesiredPeers:                []uint64{2, 4, 6},
+					PreferredLeader:             4,
+					LeaderTransferCooldownUntil: time.Unix(1710002220, 10),
+					ConfigEpoch:                 7,
+					BalanceVersion:              8,
 				}},
 			},
 		},
@@ -273,6 +278,7 @@ func TestControllerCodecRoundTripResponsePayloads(t *testing.T) {
 				RuntimeViews: []controllermeta.SlotRuntimeView{{
 					SlotID:              8,
 					CurrentPeers:        []uint64{1, 3, 8},
+					CurrentVoters:       []uint64{1, 3},
 					LeaderID:            3,
 					HealthyVoters:       2,
 					HasQuorum:           true,
@@ -366,6 +372,7 @@ func TestControllerCodecRuntimeObservationReportRoundTrip(t *testing.T) {
 				{
 					SlotID:              1,
 					CurrentPeers:        []uint64{1, 2, 3},
+					CurrentVoters:       []uint64{1, 2},
 					LeaderID:            2,
 					HealthyVoters:       3,
 					HasQuorum:           true,
@@ -375,6 +382,7 @@ func TestControllerCodecRuntimeObservationReportRoundTrip(t *testing.T) {
 				{
 					SlotID:              2,
 					CurrentPeers:        []uint64{2, 3, 4},
+					CurrentVoters:       []uint64{2, 3},
 					LeaderID:            3,
 					HealthyVoters:       2,
 					HasQuorum:           true,
@@ -407,6 +415,7 @@ func TestControllerCodecRuntimeObservationReportRoundTrip(t *testing.T) {
 			{
 				SlotID:              1,
 				CurrentPeers:        []uint64{1, 2, 3},
+				CurrentVoters:       []uint64{1, 2},
 				LeaderID:            2,
 				HealthyVoters:       3,
 				HasQuorum:           true,
@@ -416,6 +425,7 @@ func TestControllerCodecRuntimeObservationReportRoundTrip(t *testing.T) {
 			{
 				SlotID:              2,
 				CurrentPeers:        []uint64{2, 3, 4},
+				CurrentVoters:       []uint64{2, 3},
 				LeaderID:            3,
 				HealthyVoters:       2,
 				HasQuorum:           true,
@@ -539,5 +549,94 @@ func TestControllerCodecObservationDeltaRoundTrip(t *testing.T) {
 		DeletedRuntimeSlots: []uint32{2},
 	}) {
 		t.Fatalf("decoded observation delta response = %+v", resp.ObservationDelta)
+	}
+}
+
+func TestControllerCodecAssignmentRoundTripPreferredLeader(t *testing.T) {
+	cooldown := time.Unix(10, 20)
+	body := appendAssignment(nil, controllermeta.SlotAssignment{
+		SlotID:                      1,
+		DesiredPeers:                []uint64{1, 2, 3},
+		PreferredLeader:             2,
+		LeaderTransferCooldownUntil: cooldown,
+		ConfigEpoch:                 4,
+		BalanceVersion:              5,
+	})
+
+	got, rest, err := consumeAssignment(body)
+	if err != nil {
+		t.Fatalf("consumeAssignment() error = %v", err)
+	}
+	if len(rest) != 0 {
+		t.Fatalf("consumeAssignment() rest len = %d, want 0", len(rest))
+	}
+	if got.PreferredLeader != 2 {
+		t.Fatalf("PreferredLeader = %d, want 2", got.PreferredLeader)
+	}
+	if !got.LeaderTransferCooldownUntil.Equal(cooldown) {
+		t.Fatalf("LeaderTransferCooldownUntil = %v, want %v", got.LeaderTransferCooldownUntil, cooldown)
+	}
+}
+
+func TestControllerCodecRuntimeViewRoundTripCurrentVoters(t *testing.T) {
+	now := time.Unix(10, 20)
+	body := appendRuntimeView(nil, controllermeta.SlotRuntimeView{
+		SlotID:              1,
+		CurrentPeers:        []uint64{1, 2, 3, 4},
+		CurrentVoters:       []uint64{1, 2, 3},
+		LeaderID:            2,
+		HealthyVoters:       3,
+		HasQuorum:           true,
+		ObservedConfigEpoch: 7,
+		LastReportAt:        now,
+	})
+
+	got, rest, err := consumeRuntimeView(body)
+	if err != nil {
+		t.Fatalf("consumeRuntimeView() error = %v", err)
+	}
+	if len(rest) != 0 {
+		t.Fatalf("consumeRuntimeView() rest len = %d, want 0", len(rest))
+	}
+	if want := []uint64{1, 2, 3}; !reflect.DeepEqual(got.CurrentVoters, want) {
+		t.Fatalf("CurrentVoters = %v, want %v", got.CurrentVoters, want)
+	}
+}
+
+func TestControllerCodecDecodeLegacyAssignmentRecordDefaultsPreferredLeader(t *testing.T) {
+	legacy := make([]byte, 0, 48)
+	legacy = binary.BigEndian.AppendUint32(legacy, 1)
+	legacy = appendUint64Slice(legacy, []uint64{1, 2, 3})
+	legacy = binary.BigEndian.AppendUint64(legacy, 4)
+	legacy = binary.BigEndian.AppendUint64(legacy, 5)
+
+	got, err := decodeAssignmentRecord(legacy)
+	if err != nil {
+		t.Fatalf("decodeAssignmentRecord() error = %v", err)
+	}
+	if got.PreferredLeader != 0 {
+		t.Fatalf("PreferredLeader = %d, want 0", got.PreferredLeader)
+	}
+	if !got.LeaderTransferCooldownUntil.IsZero() {
+		t.Fatalf("LeaderTransferCooldownUntil = %v, want zero", got.LeaderTransferCooldownUntil)
+	}
+}
+
+func TestControllerCodecDecodeLegacyRuntimeViewRecordDefaultsCurrentVoters(t *testing.T) {
+	legacy := make([]byte, 0, 64)
+	legacy = binary.BigEndian.AppendUint32(legacy, 1)
+	legacy = appendUint64Slice(legacy, []uint64{1, 2, 3})
+	legacy = binary.BigEndian.AppendUint64(legacy, 2)
+	legacy = binary.BigEndian.AppendUint32(legacy, 3)
+	legacy = append(legacy, 1)
+	legacy = binary.BigEndian.AppendUint64(legacy, 7)
+	legacy = appendInt64(legacy, time.Unix(10, 20).UnixNano())
+
+	got, err := decodeRuntimeViewRecord(legacy)
+	if err != nil {
+		t.Fatalf("decodeRuntimeViewRecord() error = %v", err)
+	}
+	if got.CurrentVoters != nil {
+		t.Fatalf("CurrentVoters = %v, want nil", got.CurrentVoters)
 	}
 }

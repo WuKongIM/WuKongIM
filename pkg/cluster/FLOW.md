@@ -189,7 +189,7 @@ runtimeObservationOnce(ctx):
      → snapshotRuntimeObservationViews():
         遍历 runtime.Slots() → runtime.Status(slotID) → buildRuntimeView
      → 与 mirror 对比：
-        - LeaderID / CurrentPeers / HealthyVoters / HasQuorum / ObservedConfigEpoch 变化 → dirtyViews
+        - LeaderID / CurrentPeers / CurrentVoters / HealthyVoters / HasQuorum / ObservedConfigEpoch 变化 → dirtyViews
         - deleteRuntimePeers(slotID) → closedSlots tombstone
      → 若无 dirty / tombstone 且未到 full sync 周期 → 不发 controller RPC
      → flush 成功后更新本地 mirror，失败则保留 dirty 状态

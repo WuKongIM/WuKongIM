@@ -62,6 +62,7 @@ func TestObservationCacheApplyRuntimeReportFullSyncReplacesNodeViews(t *testing.
 			{
 				SlotID:              1,
 				CurrentPeers:        []uint64{1, 2, 3},
+				CurrentVoters:       []uint64{1, 2},
 				LeaderID:            1,
 				HealthyVoters:       3,
 				HasQuorum:           true,
@@ -71,6 +72,7 @@ func TestObservationCacheApplyRuntimeReportFullSyncReplacesNodeViews(t *testing.
 			{
 				SlotID:              2,
 				CurrentPeers:        []uint64{1, 2, 3},
+				CurrentVoters:       []uint64{1, 2, 3},
 				LeaderID:            2,
 				HealthyVoters:       3,
 				HasQuorum:           true,
@@ -101,6 +103,7 @@ func TestObservationCacheApplyRuntimeReportFullSyncReplacesNodeViews(t *testing.
 		Views: []controllermeta.SlotRuntimeView{{
 			SlotID:              2,
 			CurrentPeers:        []uint64{1, 3},
+			CurrentVoters:       []uint64{1, 3},
 			LeaderID:            3,
 			HealthyVoters:       2,
 			HasQuorum:           true,
@@ -122,6 +125,9 @@ func TestObservationCacheApplyRuntimeReportFullSyncReplacesNodeViews(t *testing.
 	if got, want := snapshot.RuntimeViews[0].CurrentPeers, []uint64{1, 3}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("snapshot.RuntimeViews[0].CurrentPeers = %v, want %v", got, want)
 	}
+	if got, want := snapshot.RuntimeViews[0].CurrentVoters, []uint64{1, 3}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("snapshot.RuntimeViews[0].CurrentVoters = %v, want %v", got, want)
+	}
 }
 
 func TestObservationCacheApplyRuntimeReportIncrementalUpsertsAndDeletes(t *testing.T) {
@@ -133,6 +139,7 @@ func TestObservationCacheApplyRuntimeReportIncrementalUpsertsAndDeletes(t *testi
 		Views: []controllermeta.SlotRuntimeView{{
 			SlotID:              9,
 			CurrentPeers:        []uint64{2, 3, 4},
+			CurrentVoters:       []uint64{2, 3},
 			LeaderID:            3,
 			HealthyVoters:       3,
 			HasQuorum:           true,
@@ -225,6 +232,7 @@ func TestObservationCacheSnapshotReturnsStableCopies(t *testing.T) {
 		Views: []controllermeta.SlotRuntimeView{{
 			SlotID:              9,
 			CurrentPeers:        []uint64{2, 3, 4},
+			CurrentVoters:       []uint64{2, 3},
 			LeaderID:            3,
 			HealthyVoters:       3,
 			HasQuorum:           true,
@@ -236,6 +244,7 @@ func TestObservationCacheSnapshotReturnsStableCopies(t *testing.T) {
 	snapshot := cache.snapshot()
 	snapshot.Nodes[0].Addr = "mutated"
 	snapshot.RuntimeViews[0].CurrentPeers[0] = 99
+	snapshot.RuntimeViews[0].CurrentVoters[0] = 99
 
 	next := cache.snapshot()
 	if got, want := next.Nodes[0].Addr, "node-2"; got != want {
@@ -243,5 +252,8 @@ func TestObservationCacheSnapshotReturnsStableCopies(t *testing.T) {
 	}
 	if got, want := next.RuntimeViews[0].CurrentPeers, []uint64{2, 3, 4}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("snapshot runtime peers = %v, want %v", got, want)
+	}
+	if got, want := next.RuntimeViews[0].CurrentVoters, []uint64{2, 3}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("snapshot runtime voters = %v, want %v", got, want)
 	}
 }

@@ -127,7 +127,7 @@ func encodeManagedSlotResponse(resp managedSlotRPCResponse) ([]byte, error) {
 	}
 
 	message := []byte(resp.Message)
-	body := make([]byte, 0, 1+1+8+8+8+binary.MaxVarintLen64+len(message))
+	body := make([]byte, 0, 1+1+8+8+8+binary.MaxVarintLen64+len(message)+binary.MaxVarintLen64+len(resp.CurrentVoters)*8)
 	body = append(body, managedSlotCodecVersion, flags)
 
 	var fixed [24]byte
@@ -137,6 +137,7 @@ func encodeManagedSlotResponse(resp managedSlotRPCResponse) ([]byte, error) {
 	body = append(body, fixed[:]...)
 	body = binary.AppendUvarint(body, uint64(len(message)))
 	body = append(body, message...)
+	body = appendUint64Slice(body, resp.CurrentVoters)
 	return body, nil
 }
 
@@ -161,10 +162,19 @@ func decodeManagedSlotResponse(body []byte) (managedSlotRPCResponse, error) {
 		return managedSlotRPCResponse{}, ErrInvalidConfig
 	}
 	offset := 26 + n
-	if len(body[offset:]) != int(messageLen) {
+	if len(body[offset:]) < int(messageLen) {
 		return managedSlotRPCResponse{}, ErrInvalidConfig
 	}
-	resp.Message = string(body[offset:])
+	messageEnd := offset + int(messageLen)
+	resp.Message = string(body[offset:messageEnd])
+	rest := body[messageEnd:]
+	if len(rest) > 0 {
+		currentVoters, next, err := readUint64Slice(rest)
+		if err != nil || len(next) != 0 {
+			return managedSlotRPCResponse{}, ErrInvalidConfig
+		}
+		resp.CurrentVoters = currentVoters
+	}
 
 	switch {
 	case resp.NotLeader:

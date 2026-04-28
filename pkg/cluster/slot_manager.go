@@ -413,9 +413,10 @@ func (m *slotManager) statusOnNode(ctx context.Context, nodeID multiraft.NodeID,
 		return managedSlotStatus{}, err
 	}
 	return managedSlotStatus{
-		LeaderID:     multiraft.NodeID(resp.LeaderID),
-		CommitIndex:  resp.CommitIndex,
-		AppliedIndex: resp.AppliedIndex,
+		LeaderID:      multiraft.NodeID(resp.LeaderID),
+		CurrentVoters: nodeIDsFromUint64s(resp.CurrentVoters),
+		CommitIndex:   resp.CommitIndex,
+		AppliedIndex:  resp.AppliedIndex,
 	}, nil
 }
 
@@ -431,8 +432,9 @@ func (m *slotManager) localStatus(slotID multiraft.SlotID) (managedSlotStatus, e
 		return managedSlotStatus{}, err
 	}
 	return managedSlotStatus{
-		LeaderID:     status.LeaderID,
-		CommitIndex:  status.CommitIndex,
-		AppliedIndex: status.AppliedIndex,
+		LeaderID:      status.LeaderID,
+		CurrentVoters: append([]multiraft.NodeID(nil), status.CurrentVoters...),
+		CommitIndex:   status.CommitIndex,
+		AppliedIndex:  status.AppliedIndex,
 	}, nil
 }

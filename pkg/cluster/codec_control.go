@@ -49,6 +49,13 @@ const (
 )
 
 const (
+	controllerAssignmentRecordV1  byte = 1
+	controllerAssignmentRecordV2  byte = 2
+	controllerRuntimeViewRecordV1 byte = 1
+	controllerRuntimeViewRecordV2 byte = 2
+)
+
+const (
 	controllerKindUnknown byte = iota
 	controllerKindHeartbeat
 	controllerKindRuntimeReport
@@ -1930,13 +1937,83 @@ func decodeAssignments(body []byte) ([]controllermeta.SlotAssignment, error) {
 }
 
 func appendAssignment(dst []byte, assignment controllermeta.SlotAssignment) []byte {
-	dst = binary.BigEndian.AppendUint32(dst, assignment.SlotID)
-	dst = appendUint64Slice(dst, assignment.DesiredPeers)
-	dst = binary.BigEndian.AppendUint64(dst, assignment.ConfigEpoch)
-	return binary.BigEndian.AppendUint64(dst, assignment.BalanceVersion)
+	record := make([]byte, 0, 64)
+	record = append(record, controllerAssignmentRecordV2)
+	record = binary.BigEndian.AppendUint32(record, assignment.SlotID)
+	record = appendUint64Slice(record, assignment.DesiredPeers)
+	record = binary.BigEndian.AppendUint64(record, assignment.ConfigEpoch)
+	record = binary.BigEndian.AppendUint64(record, assignment.BalanceVersion)
+	record = binary.BigEndian.AppendUint64(record, assignment.PreferredLeader)
+	record = appendInt64(record, unixNanoOrZero(assignment.LeaderTransferCooldownUntil))
+	return appendBytes(dst, record)
 }
 
 func consumeAssignment(body []byte) (controllermeta.SlotAssignment, []byte, error) {
+	record, rest, err := readBytes(body)
+	if err != nil {
+		return controllermeta.SlotAssignment{}, nil, err
+	}
+	assignment, err := decodeAssignmentRecord(record)
+	if err != nil {
+		return controllermeta.SlotAssignment{}, nil, err
+	}
+	return assignment, rest, nil
+}
+
+func decodeAssignmentRecord(record []byte) (controllermeta.SlotAssignment, error) {
+	if len(record) == 0 {
+		return controllermeta.SlotAssignment{}, ErrInvalidConfig
+	}
+	switch record[0] {
+	case controllerAssignmentRecordV1:
+		return decodeAssignmentRecordV1(record[1:])
+	case controllerAssignmentRecordV2:
+		return decodeAssignmentRecordV2(record[1:])
+	default:
+		return decodeAssignmentRecordV1(record)
+	}
+}
+
+func decodeAssignmentRecordV1(body []byte) (controllermeta.SlotAssignment, error) {
+	slotID, rest, err := readUint32(body)
+	if err != nil {
+		return controllermeta.SlotAssignment{}, err
+	}
+	desiredPeers, rest, err := readUint64Slice(rest)
+	if err != nil {
+		return controllermeta.SlotAssignment{}, err
+	}
+	configEpoch, rest, err := readUint64(rest)
+	if err != nil {
+		return controllermeta.SlotAssignment{}, err
+	}
+	balanceVersion, rest, err := readUint64(rest)
+	if err != nil {
+		return controllermeta.SlotAssignment{}, err
+	}
+	if len(rest) != 0 {
+		return controllermeta.SlotAssignment{}, ErrInvalidConfig
+	}
+	return controllermeta.SlotAssignment{
+		SlotID:         slotID,
+		DesiredPeers:   desiredPeers,
+		ConfigEpoch:    configEpoch,
+		BalanceVersion: balanceVersion,
+	}, nil
+}
+
+func decodeAssignmentRecordV2(body []byte) (controllermeta.SlotAssignment, error) {
+	assignment, rest, err := decodeAssignmentRecordV2Prefix(body)
+	if err != nil {
+		return controllermeta.SlotAssignment{}, err
+	}
+	if len(rest) != 0 {
+		return controllermeta.SlotAssignment{}, ErrInvalidConfig
+	}
+	return assignment, nil
+}
+
+func decodeAssignmentRecordV2Prefix(body []byte) (controllermeta.SlotAssignment, []byte, error) {
 	slotID, rest, err := readUint32(body)
 	if err != nil {
 		return controllermeta.SlotAssignment{}, nil, err
@@ -1953,12 +2030,25 @@ func consumeAssignment(body []byte) (controllermeta.SlotAssignment, []byte, erro
 	if err != nil {
 		return controllermeta.SlotAssignment{}, nil, err
 	}
-	return controllermeta.SlotAssignment{
-		SlotID:         slotID,
-		DesiredPeers:   desiredPeers,
-		ConfigEpoch:    configEpoch,
-		BalanceVersion: balanceVersion,
-	}, rest, nil
+	preferredLeader, rest, err := readUint64(rest)
+	if err != nil {
+		return controllermeta.SlotAssignment{}, nil, err
+	}
+	cooldownUnix, rest, err := readInt64(rest)
+	if err != nil {
+		return controllermeta.SlotAssignment{}, nil, err
+	}
+	assignment := controllermeta.SlotAssignment{
+		SlotID:          slotID,
+		DesiredPeers:    desiredPeers,
+		PreferredLeader: preferredLeader,
+		ConfigEpoch:     configEpoch,
+		BalanceVersion:  balanceVersion,
+	}
+	if cooldownUnix != 0 {
+		assignment.LeaderTransferCooldownUntil = time.Unix(0, cooldownUnix)
+	}
+	return assignment, rest, nil
 }
 
 func encodeRuntimeViews(views []controllermeta.SlotRuntimeView) []byte {
@@ -2030,47 +2120,80 @@ func decodeReconcileTasks(body []byte) ([]controllermeta.ReconcileTask, error) {
 }
 
 func appendRuntimeView(dst []byte, view controllermeta.SlotRuntimeView) []byte {
-	dst = binary.BigEndian.AppendUint32(dst, view.SlotID)
-	dst = appendUint64Slice(dst, view.CurrentPeers)
-	dst = binary.BigEndian.AppendUint64(dst, view.LeaderID)
-	dst = binary.BigEndian.AppendUint32(dst, view.HealthyVoters)
+	record := make([]byte, 0, 80)
+	record = append(record, controllerRuntimeViewRecordV2)
+	record = binary.BigEndian.AppendUint32(record, view.SlotID)
+	record = appendUint64Slice(record, view.CurrentPeers)
+	record = appendUint64Slice(record, view.CurrentVoters)
+	record = binary.BigEndian.AppendUint64(record, view.LeaderID)
+	record = binary.BigEndian.AppendUint32(record, view.HealthyVoters)
 	if view.HasQuorum {
-		dst = append(dst, 1)
+		record = append(record, 1)
 	} else {
-		dst = append(dst, 0)
+		record = append(record, 0)
 	}
-	dst = binary.BigEndian.AppendUint64(dst, view.ObservedConfigEpoch)
-	return appendInt64(dst, view.LastReportAt.UnixNano())
+	record = binary.BigEndian.AppendUint64(record, view.ObservedConfigEpoch)
+	record = appendInt64(record, unixNanoOrZero(view.LastReportAt))
+	return appendBytes(dst, record)
 }
 
 func consumeRuntimeView(body []byte) (controllermeta.SlotRuntimeView, []byte, error) {
-	slotID, rest, err := readUint32(body)
+	record, rest, err := readBytes(body)
 	if err != nil {
 		return controllermeta.SlotRuntimeView{}, nil, err
+	}
+	view, err := decodeRuntimeViewRecord(record)
+	if err != nil {
+		return controllermeta.SlotRuntimeView{}, nil, err
+	}
+	return view, rest, nil
+}
+
+func decodeRuntimeViewRecord(record []byte) (controllermeta.SlotRuntimeView, error) {
+	if len(record) == 0 {
+		return controllermeta.SlotRuntimeView{}, ErrInvalidConfig
+	}
+	switch record[0] {
+	case controllerRuntimeViewRecordV1:
+		return decodeRuntimeViewRecordV1(record[1:])
+	case controllerRuntimeViewRecordV2:
+		return decodeRuntimeViewRecordV2(record[1:])
+	default:
+		return decodeRuntimeViewRecordV1(record)
+	}
+}
+
+func decodeRuntimeViewRecordV1(body []byte) (controllermeta.SlotRuntimeView, error) {
+	slotID, rest, err := readUint32(body)
+	if err != nil {
+		return controllermeta.SlotRuntimeView{}, err
 	}
 	currentPeers, rest, err := readUint64Slice(rest)
 	if err != nil {
-		return controllermeta.SlotRuntimeView{}, nil, err
+		return controllermeta.SlotRuntimeView{}, err
 	}
 	leaderID, rest, err := readUint64(rest)
 	if err != nil {
-		return controllermeta.SlotRuntimeView{}, nil, err
+		return controllermeta.SlotRuntimeView{}, err
 	}
 	healthyVoters, rest, err := readUint32(rest)
 	if err != nil {
-		return controllermeta.SlotRuntimeView{}, nil, err
+		return controllermeta.SlotRuntimeView{}, err
 	}
 	if len(rest) < 1 {
-		return controllermeta.SlotRuntimeView{}, nil, ErrInvalidConfig
+		return controllermeta.SlotRuntimeView{}, ErrInvalidConfig
 	}
 	hasQuorum := rest[0] == 1
 	observedConfigEpoch, rest, err := readUint64(rest[1:])
 	if err != nil {
-		return controllermeta.SlotRuntimeView{}, nil, err
+		return controllermeta.SlotRuntimeView{}, err
 	}
 	lastReportAtUnix, rest, err := readInt64(rest)
 	if err != nil {
-		return controllermeta.SlotRuntimeView{}, nil, err
+		return controllermeta.SlotRuntimeView{}, err
+	}
+	if len(rest) != 0 {
+		return controllermeta.SlotRuntimeView{}, ErrInvalidConfig
 	}
 	return controllermeta.SlotRuntimeView{
 		SlotID:              slotID,
@@ -2080,7 +2203,55 @@ func consumeRuntimeView(body []byte) (controllermeta.SlotRuntimeView, []byte, er
 		HasQuorum:           hasQuorum,
 		ObservedConfigEpoch: observedConfigEpoch,
 		LastReportAt:        time.Unix(0, lastReportAtUnix),
-	}, rest, nil
+	}, nil
+}
+
+func decodeRuntimeViewRecordV2(body []byte) (controllermeta.SlotRuntimeView, error) {
+	slotID, rest, err := readUint32(body)
+	if err != nil {
+		return controllermeta.SlotRuntimeView{}, err
+	}
+	currentPeers, rest, err := readUint64Slice(rest)
+	if err != nil {
+		return controllermeta.SlotRuntimeView{}, err
+	}
+	currentVoters, rest, err := readUint64Slice(rest)
+	if err != nil {
+		return controllermeta.SlotRuntimeView{}, err
+	}
+	leaderID, rest, err := readUint64(rest)
+	if err != nil {
+		return controllermeta.SlotRuntimeView{}, err
+	}
+	healthyVoters, rest, err := readUint32(rest)
+	if err != nil {
+		return controllermeta.SlotRuntimeView{}, err
+	}
+	if len(rest) < 1 {
+		return controllermeta.SlotRuntimeView{}, ErrInvalidConfig
+	}
+	hasQuorum := rest[0] == 1
+	observedConfigEpoch, rest, err := readUint64(rest[1:])
+	if err != nil {
+		return controllermeta.SlotRuntimeView{}, err
+	}
+	lastReportAtUnix, rest, err := readInt64(rest)
+	if err != nil {
+		return controllermeta.SlotRuntimeView{}, err
+	}
+	if len(rest) != 0 {
+		return controllermeta.SlotRuntimeView{}, ErrInvalidConfig
+	}
+	return controllermeta.SlotRuntimeView{
+		SlotID:              slotID,
+		CurrentPeers:        currentPeers,
+		CurrentVoters:       currentVoters,
+		LeaderID:            leaderID,
+		HealthyVoters:       healthyVoters,
+		HasQuorum:           hasQuorum,
+		ObservedConfigEpoch: observedConfigEpoch,
+		LastReportAt:        time.Unix(0, lastReportAtUnix),
+	}, nil
 }
 
 func encodeReconcileTask(task controllermeta.ReconcileTask) []byte {
