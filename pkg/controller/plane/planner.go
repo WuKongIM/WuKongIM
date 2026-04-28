@@ -425,10 +425,8 @@ func (p *Planner) preferredLeaderForPeers(state PlannerState, current controller
 		}
 	}
 	loads := leaderLoads(state)
-	if current.PreferredLeader != 0 {
-		delete(loads, current.PreferredLeader)
-	}
-	return choosePreferredLeader(nextPeers, loads)
+	subtractCurrentLeaderContribution(loads, state, current)
+	return choosePreferredLeader(eligiblePreferredLeaderPeers(state, nextPeers), loads)
 }
 
 func (p *Planner) nextLeaderPlacementDecision(state PlannerState) Decision {
@@ -443,24 +441,76 @@ func (p *Planner) nextLeaderPlacementDecision(state PlannerState) Decision {
 }
 
 func (p *Planner) nextLeaderSkewCorrection(state PlannerState, loads map[uint64]int) Decision {
-	minNode, minLoad, maxNode, maxLoad := loadExtremes(state, loads)
-	if minNode == 0 || maxNode == 0 || maxLoad-minLoad <= p.cfg.LeaderSkewThreshold {
+	_, minLoad, _, maxLoad := loadExtremes(state, loads)
+	if maxLoad-minLoad <= p.cfg.LeaderSkewThreshold {
 		return Decision{}
 	}
-	for _, assignment := range sortedAssignments(state.Assignments) {
-		view := state.Runtime[assignment.SlotID]
-		if view.LeaderID != maxNode {
-			continue
+
+	for _, source := range overloadedLeaderCandidates(state, loads, minLoad, p.cfg.LeaderSkewThreshold) {
+		for _, target := range lowLoadLeaderCandidates(state, loads, maxLoad) {
+			if target == source || loads[target] >= loads[source] {
+				continue
+			}
+			for _, assignment := range sortedAssignments(state.Assignments) {
+				view := state.Runtime[assignment.SlotID]
+				if view.LeaderID != source {
+					continue
+				}
+				if !p.leaderTransferSafeCandidate(state, assignment, view, target) {
+					continue
+				}
+				if !resultingLeaderSkewAllowed(state, view.LeaderID, target, p.cfg.LeaderSkewThreshold) {
+					continue
+				}
+				return leaderTransferDecision(assignment, view.LeaderID, target, true)
+			}
 		}
-		if !p.leaderTransferSafeCandidate(state, assignment, view, minNode) {
-			continue
-		}
-		if !resultingLeaderSkewAllowed(state, view.LeaderID, minNode, p.cfg.LeaderSkewThreshold) {
-			continue
-		}
-		return leaderTransferDecision(assignment, view.LeaderID, minNode, true)
 	}
 	return Decision{}
+}
+
+// overloadedLeaderCandidates returns active data nodes whose leader load exceeds the allowed skew.
+func overloadedLeaderCandidates(state PlannerState, loads map[uint64]int, minLoad int, threshold int) []uint64 {
+	candidates := make([]uint64, 0, len(state.Nodes))
+	for nodeID, node := range state.Nodes {
+		if !nodeSchedulableForData(node) {
+			continue
+		}
+		if loads[nodeID]-minLoad <= threshold {
+			continue
+		}
+		candidates = append(candidates, nodeID)
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		left, right := candidates[i], candidates[j]
+		if loads[left] == loads[right] {
+			return left < right
+		}
+		return loads[left] > loads[right]
+	})
+	return candidates
+}
+
+// lowLoadLeaderCandidates returns active data nodes in deterministic low-load order.
+func lowLoadLeaderCandidates(state PlannerState, loads map[uint64]int, maxLoad int) []uint64 {
+	candidates := make([]uint64, 0, len(state.Nodes))
+	for nodeID, node := range state.Nodes {
+		if !nodeSchedulableForData(node) {
+			continue
+		}
+		if loads[nodeID] >= maxLoad {
+			continue
+		}
+		candidates = append(candidates, nodeID)
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		left, right := candidates[i], candidates[j]
+		if loads[left] == loads[right] {
+			return left < right
+		}
+		return loads[left] < loads[right]
+	})
+	return candidates
 }
 
 func (p *Planner) nextPreferenceConvergence(state PlannerState, loads map[uint64]int) Decision {
@@ -505,7 +555,7 @@ func leaderTransferObservationsComplete(state PlannerState) bool {
 func actualLeaderLoads(state PlannerState) map[uint64]int {
 	loads := make(map[uint64]int)
 	for slotID, assignment := range state.Assignments {
-		if len(assignment.DesiredPeers) <= 1 {
+		if state.slotMigrating(slotID) || state.slotLocked(slotID) || len(assignment.DesiredPeers) <= 1 {
 			continue
 		}
 		view := state.Runtime[slotID]
@@ -576,6 +626,31 @@ func sortedAssignments(assignments map[uint32]controllermeta.SlotAssignment) []c
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].SlotID < out[j].SlotID })
 	return out
+}
+
+// eligiblePreferredLeaderPeers filters desired peers to active, alive data nodes.
+func eligiblePreferredLeaderPeers(state PlannerState, peers []uint64) []uint64 {
+	eligible := make([]uint64, 0, len(peers))
+	for _, peer := range peers {
+		if node, ok := state.Nodes[peer]; ok && nodeSchedulableForData(node) {
+			eligible = append(eligible, peer)
+		}
+	}
+	return eligible
+}
+
+// subtractCurrentLeaderContribution removes only this slot's leader/preference contribution.
+func subtractCurrentLeaderContribution(loads map[uint64]int, state PlannerState, current controllermeta.SlotAssignment) {
+	contributor := uint64(0)
+	if view, ok := state.Runtime[current.SlotID]; ok && view.LeaderID != 0 {
+		contributor = view.LeaderID
+	} else {
+		contributor = current.PreferredLeader
+	}
+	if contributor == 0 || loads[contributor] == 0 {
+		return
+	}
+	loads[contributor]--
 }
 
 func taskRunnable(now time.Time, task controllermeta.ReconcileTask) bool {

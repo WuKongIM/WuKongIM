@@ -579,6 +579,51 @@ func TestControllerCodecAssignmentRoundTripPreferredLeader(t *testing.T) {
 	}
 }
 
+func TestControllerCodecAddSlotRequestRoundTripPreferredLeader(t *testing.T) {
+	body, err := encodeControllerRequest(controllerRPCRequest{
+		Kind: controllerRPCAddSlot,
+		AddSlot: &slotcontroller.AddSlotRequest{
+			NewSlotID:       12,
+			Peers:           []uint64{1, 2, 3},
+			PreferredLeader: 2,
+		},
+	})
+	if err != nil {
+		t.Fatalf("encodeControllerRequest() error = %v", err)
+	}
+
+	req, err := decodeControllerRequest(body)
+	if err != nil {
+		t.Fatalf("decodeControllerRequest() error = %v", err)
+	}
+	if req.AddSlot == nil {
+		t.Fatal("req.AddSlot = nil, want payload")
+	}
+	if !reflect.DeepEqual(*req.AddSlot, slotcontroller.AddSlotRequest{
+		NewSlotID:       12,
+		Peers:           []uint64{1, 2, 3},
+		PreferredLeader: 2,
+	}) {
+		t.Fatalf("decoded AddSlot = %+v", req.AddSlot)
+	}
+}
+
+func TestControllerCodecDecodeLegacyAddSlotRequestDefaultsPreferredLeader(t *testing.T) {
+	legacy := binary.BigEndian.AppendUint64(nil, 12)
+	legacy = appendUint64Slice(legacy, []uint64{1, 2, 3})
+
+	got, err := decodeAddSlotRequest(legacy)
+	if err != nil {
+		t.Fatalf("decodeAddSlotRequest() error = %v", err)
+	}
+	if got.NewSlotID != 12 || !reflect.DeepEqual(got.Peers, []uint64{1, 2, 3}) {
+		t.Fatalf("decoded legacy AddSlot = %+v", got)
+	}
+	if got.PreferredLeader != 0 {
+		t.Fatalf("PreferredLeader = %d, want 0", got.PreferredLeader)
+	}
+}
+
 func TestControllerCodecRuntimeViewRoundTripCurrentVoters(t *testing.T) {
 	now := time.Unix(10, 20)
 	body := appendRuntimeView(nil, controllermeta.SlotRuntimeView{

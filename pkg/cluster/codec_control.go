@@ -1633,9 +1633,10 @@ func decodeMigrationRequest(body []byte) (slotcontroller.MigrationRequest, error
 }
 
 func encodeAddSlotRequest(req slotcontroller.AddSlotRequest) []byte {
-	body := make([]byte, 0, 8+len(req.Peers)*8)
+	body := make([]byte, 0, 16+len(req.Peers)*8)
 	body = binary.BigEndian.AppendUint64(body, req.NewSlotID)
-	return appendUint64Slice(body, req.Peers)
+	body = appendUint64Slice(body, req.Peers)
+	return binary.BigEndian.AppendUint64(body, req.PreferredLeader)
 }
 
 func decodeAddSlotRequest(body []byte) (slotcontroller.AddSlotRequest, error) {
@@ -1644,10 +1645,20 @@ func decodeAddSlotRequest(body []byte) (slotcontroller.AddSlotRequest, error) {
 		return slotcontroller.AddSlotRequest{}, err
 	}
 	peers, rest, err := readUint64Slice(rest)
-	if err != nil || len(rest) != 0 {
+	if err != nil {
 		return slotcontroller.AddSlotRequest{}, ErrInvalidConfig
 	}
-	return slotcontroller.AddSlotRequest{NewSlotID: newSlotID, Peers: peers}, nil
+	preferredLeader := uint64(0)
+	if len(rest) != 0 {
+		preferredLeader, rest, err = readUint64(rest)
+		if err != nil {
+			return slotcontroller.AddSlotRequest{}, ErrInvalidConfig
+		}
+		if len(rest) != 0 {
+			return slotcontroller.AddSlotRequest{}, ErrInvalidConfig
+		}
+	}
+	return slotcontroller.AddSlotRequest{NewSlotID: newSlotID, Peers: peers, PreferredLeader: preferredLeader}, nil
 }
 
 func encodeRemoveSlotRequest(req slotcontroller.RemoveSlotRequest) []byte {

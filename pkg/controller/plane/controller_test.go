@@ -208,6 +208,54 @@ func TestPlannerRepairReplacesPreferredLeaderWhenStillDesiredButIneligible(t *te
 	require.Contains(t, decision.Assignment.DesiredPeers, decision.Assignment.PreferredLeader)
 }
 
+func TestPlannerRepairReplacementPreferredLeaderSkipsIneligibleNextPeers(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		option stateOption
+	}{
+		{name: "draining", option: drainingNode(2)},
+		{name: "joining", option: withMembershipNode(2, controllermeta.NodeStatusAlive, controllermeta.NodeRoleData, controllermeta.NodeJoinStateJoining)},
+		{name: "controller-only", option: withMembershipNode(2, controllermeta.NodeStatusAlive, controllermeta.NodeRoleControllerVoter, controllermeta.NodeJoinStateActive)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			planner := NewPlanner(PlannerConfig{SlotCount: 1, ReplicaN: 3})
+			state := testState(
+				aliveNode(1), tc.option, aliveNode(4), deadNode(5), aliveNode(6),
+				withAssignment(1, 1, 5, 2), withPreferredLeader(1, 5),
+				withRuntimeView(1, []uint64{1, 5, 2}, true),
+			)
+
+			decision, err := planner.ReconcileSlot(context.Background(), state, 1)
+
+			require.NoError(t, err)
+			require.NotNil(t, decision.Task)
+			require.Equal(t, controllermeta.TaskKindRepair, decision.Task.Kind)
+			require.NotEqual(t, uint64(2), decision.Assignment.PreferredLeader)
+			require.Contains(t, decision.Assignment.DesiredPeers, decision.Assignment.PreferredLeader)
+			require.True(t, nodeSchedulableForData(state.Nodes[decision.Assignment.PreferredLeader]))
+		})
+	}
+}
+
+func TestPlannerPreferredLeaderReplacementBalancesWithoutCurrentSlotContribution(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 3, ReplicaN: 3})
+	current := controllermeta.SlotAssignment{
+		SlotID:          1,
+		DesiredPeers:    []uint64{1, 2, 5},
+		PreferredLeader: 5,
+	}
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3), deadNode(5),
+		func(state *PlannerState) { state.Assignments[1] = current },
+		withRuntimeViewVoters(1, []uint64{1, 2, 5}, 1, true),
+		withAssignment(2, 2, 3, 5), withPreferredLeader(2, 2),
+	)
+
+	preferred := planner.preferredLeaderForPeers(state, current, []uint64{1, 2, 3})
+
+	require.Equal(t, uint64(1), preferred)
+}
+
 func TestPlannerRepairsInactiveOrNonDataExistingPeer(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -552,6 +600,25 @@ func TestPlannerLeaderRebalanceCreatesTransferTaskForSkew(t *testing.T) {
 	require.Equal(t, uint64(3), decision.Assignment.PreferredLeader)
 }
 
+func TestPlannerLeaderRebalanceTriesEligibleLowLoadVotersBeyondGlobalMin(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 5, ReplicaN: 3, LeaderSkewThreshold: 2})
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3), aliveNode(4),
+		withAssignment(1, 1, 2, 3), withPreferredLeader(1, 1), withRuntimeViewVoters(1, []uint64{1, 2, 3}, 1, true),
+		withAssignment(2, 1, 2, 3), withPreferredLeader(2, 1), withRuntimeViewVoters(2, []uint64{1, 2, 3}, 1, true),
+		withAssignment(3, 1, 2, 3), withPreferredLeader(3, 1), withRuntimeViewVoters(3, []uint64{1, 2, 3}, 1, true),
+		withAssignment(4, 1, 2, 3), withPreferredLeader(4, 2), withRuntimeViewVoters(4, []uint64{1, 2, 3}, 2, true),
+		withAssignment(5, 1, 2, 3), withPreferredLeader(5, 3), withRuntimeViewVoters(5, []uint64{1, 2, 3}, 3, true),
+	)
+
+	decision := planner.nextLeaderPlacementDecision(state)
+
+	require.NotNil(t, decision.Task)
+	require.Equal(t, controllermeta.TaskKindLeaderTransfer, decision.Task.Kind)
+	require.Equal(t, uint64(1), decision.Task.SourceNode)
+	require.Equal(t, uint64(2), decision.Task.TargetNode)
+}
+
 func TestPlannerLeaderRebalanceSkipsWhenAnyAssignedSlotMissingRuntimeView(t *testing.T) {
 	planner := NewPlanner(PlannerConfig{SlotCount: 3, ReplicaN: 3, LeaderSkewThreshold: 1})
 	state := testState(
@@ -578,6 +645,20 @@ func TestPlannerLeaderRebalanceSkipsSingleVoterSingleNode(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Nil(t, decision.Task)
+}
+
+func TestPlannerActualLeaderLoadsIgnoresSlotsThatCannotTransfer(t *testing.T) {
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3),
+		withAssignment(1, 1, 2, 3), withRuntimeViewVoters(1, []uint64{1, 2, 3}, 1, true),
+		withAssignment(2, 1, 2, 3), withRuntimeViewVoters(2, []uint64{1, 2, 3}, 1, true), withMigratingSlot(2),
+		withAssignment(3, 1, 2, 3), withRuntimeViewVoters(3, []uint64{1, 2, 3}, 1, true), withLockedSlot(3),
+		withAssignment(4, 1), withRuntimeViewVoters(4, []uint64{1}, 1, true),
+	)
+
+	loads := actualLeaderLoads(state)
+
+	require.Equal(t, 1, loads[1])
 }
 
 func TestPlannerLeaderRebalanceSkipsMissingCurrentVoters(t *testing.T) {
@@ -1444,6 +1525,15 @@ func withMigratingSlot(slotID uint32) stateOption {
 			state.MigratingSlots = make(map[uint32]struct{})
 		}
 		state.MigratingSlots[slotID] = struct{}{}
+	}
+}
+
+func withLockedSlot(slotID uint32) stateOption {
+	return func(state *PlannerState) {
+		if state.LockedSlots == nil {
+			state.LockedSlots = make(map[uint32]struct{})
+		}
+		state.LockedSlots[slotID] = struct{}{}
 	}
 }
 
