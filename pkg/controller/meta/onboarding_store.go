@@ -234,14 +234,7 @@ func validateOnboardingJobAssignmentTask(job NodeOnboardingJob, assignment SlotA
 }
 
 func normalizeAndValidateAssignmentForOnboarding(assignment SlotAssignment) (SlotAssignment, error) {
-	if assignment.SlotID == 0 {
-		return SlotAssignment{}, ErrInvalidArgument
-	}
-	assignment = normalizeGroupAssignment(assignment)
-	if err := validateRequiredPeerSet(assignment.DesiredPeers, ErrInvalidArgument); err != nil {
-		return SlotAssignment{}, err
-	}
-	return assignment, nil
+	return normalizeAndValidateAssignmentForPersistence(assignment, ErrInvalidArgument)
 }
 
 func normalizeAndValidateTaskForOnboarding(task ReconcileTask) (ReconcileTask, error) {

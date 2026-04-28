@@ -42,6 +42,132 @@ func TestStoreAssignmentAndTaskRoundTrip(t *testing.T) {
 	require.Equal(t, TaskKindRepair, task.Kind)
 }
 
+func TestStoreAssignmentCodecRoundTripPreferredLeaderAndCooldown(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	cooldownUntil := time.Unix(1700000000, 123)
+	assignment := SlotAssignment{
+		SlotID:                      7,
+		DesiredPeers:                []uint64{3, 1, 2, 2},
+		ConfigEpoch:                 11,
+		BalanceVersion:              3,
+		PreferredLeader:             2,
+		LeaderTransferCooldownUntil: cooldownUntil,
+	}
+
+	decoded, err := decodeGroupAssignment(encodeGroupKey(recordPrefixAssignment, assignment.SlotID), encodeGroupAssignment(assignment))
+	require.NoError(t, err)
+	require.Equal(t, []uint64{1, 2, 3}, decoded.DesiredPeers)
+	require.Equal(t, uint64(2), decoded.PreferredLeader)
+	require.Equal(t, cooldownUntil, decoded.LeaderTransferCooldownUntil)
+
+	require.NoError(t, store.UpsertAssignment(ctx, assignment))
+	got, err := store.GetAssignment(ctx, assignment.SlotID)
+	require.NoError(t, err)
+	require.Equal(t, []uint64{1, 2, 3}, got.DesiredPeers)
+	require.Equal(t, uint64(2), got.PreferredLeader)
+	require.Equal(t, cooldownUntil, got.LeaderTransferCooldownUntil)
+}
+
+func TestDecodeGroupAssignmentV1DefaultsPreferredLeaderFields(t *testing.T) {
+	value := encodeGroupAssignmentVersion1ForTest(SlotAssignment{
+		SlotID:         9,
+		DesiredPeers:   []uint64{1, 2, 3},
+		ConfigEpoch:    4,
+		BalanceVersion: 5,
+	})
+
+	assignment, err := decodeGroupAssignment(encodeGroupKey(recordPrefixAssignment, 9), value)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), assignment.PreferredLeader)
+	require.True(t, assignment.LeaderTransferCooldownUntil.IsZero())
+	require.Equal(t, []uint64{1, 2, 3}, assignment.DesiredPeers)
+	require.Equal(t, uint64(4), assignment.ConfigEpoch)
+	require.Equal(t, uint64(5), assignment.BalanceVersion)
+}
+
+func TestDecodeGroupAssignmentRejectsPreferredLeaderOutsideDesiredPeers(t *testing.T) {
+	value := encodeGroupAssignment(SlotAssignment{
+		SlotID:          3,
+		DesiredPeers:    []uint64{1, 2, 3},
+		PreferredLeader: 9,
+	})
+
+	_, err := decodeGroupAssignment(encodeGroupKey(recordPrefixAssignment, 3), value)
+	require.ErrorIs(t, err, ErrCorruptValue)
+}
+
+func TestStoreRejectsPreferredLeaderOutsideDesiredPeersAcrossWritePaths(t *testing.T) {
+	ctx := context.Background()
+	invalidAssignment := SlotAssignment{
+		SlotID:          3,
+		DesiredPeers:    []uint64{1, 2, 3},
+		PreferredLeader: 9,
+	}
+	validTask := ReconcileTask{SlotID: 3, Kind: TaskKindRebalance, Step: TaskStepAddLearner, SourceNode: 1, TargetNode: 4}
+
+	tests := []struct {
+		name string
+		run  func(*Store) error
+	}{
+		{
+			name: "UpsertAssignment",
+			run: func(store *Store) error {
+				return store.UpsertAssignment(ctx, invalidAssignment)
+			},
+		},
+		{
+			name: "UpsertAssignmentTask",
+			run: func(store *Store) error {
+				return store.UpsertAssignmentTask(ctx, invalidAssignment, validTask)
+			},
+		},
+		{
+			name: "UpsertAssignmentsAndSaveHashSlotTable",
+			run: func(store *Store) error {
+				return store.UpsertAssignmentsAndSaveHashSlotTable(ctx, []SlotAssignment{invalidAssignment}, hashslot.NewHashSlotTable(8, 2))
+			},
+		},
+		{
+			name: "UpsertAssignmentTaskAndSaveHashSlotTable",
+			run: func(store *Store) error {
+				return store.UpsertAssignmentTaskAndSaveHashSlotTable(ctx, invalidAssignment, validTask, hashslot.NewHashSlotTable(8, 2))
+			},
+		},
+		{
+			name: "UpsertAssignmentAndDeleteTask",
+			run: func(store *Store) error {
+				return store.UpsertAssignmentAndDeleteTask(ctx, invalidAssignment, invalidAssignment.SlotID)
+			},
+		},
+		{
+			name: "GuardedUpsertOnboardingJob",
+			run: func(store *Store) error {
+				now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+				job := sampleOnboardingJobWithStatus("onboard-preferred-leader", OnboardingJobStatusPlanned, now)
+				if err := store.UpsertOnboardingJob(ctx, job); err != nil {
+					return err
+				}
+				job.Status = OnboardingJobStatusRunning
+				job.StartedAt = now.Add(time.Minute)
+				expected := OnboardingJobStatusPlanned
+				_, err := store.GuardedUpsertOnboardingJob(ctx, job, &expected, &invalidAssignment, &validTask)
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := openTestStore(t)
+			err := tt.run(store)
+			require.ErrorIs(t, err, ErrInvalidArgument)
+			_, err = store.GetAssignment(ctx, invalidAssignment.SlotID)
+			require.ErrorIs(t, err, ErrNotFound)
+		})
+	}
+}
+
 func TestStoreClusterNodeMembershipFieldsRoundTrip(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
@@ -156,6 +282,54 @@ func TestStoreSnapshotRoundTrip(t *testing.T) {
 	restoredTable, err := restored.LoadHashSlotTable(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, restoredTable.GetMigration(3))
+}
+
+func TestStoreRuntimeViewCodecRoundTripCurrentVoters(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	reportAt := time.Unix(1700000100, 456)
+	view := SlotRuntimeView{
+		SlotID:              4,
+		CurrentPeers:        []uint64{5, 3, 4, 3},
+		CurrentVoters:       []uint64{5, 3, 5},
+		LeaderID:            5,
+		HealthyVoters:       2,
+		HasQuorum:           true,
+		ObservedConfigEpoch: 9,
+		LastReportAt:        reportAt,
+	}
+
+	decoded, err := decodeGroupRuntimeView(encodeGroupKey(recordPrefixRuntimeView, view.SlotID), encodeGroupRuntimeView(view))
+	require.NoError(t, err)
+	require.Equal(t, []uint64{3, 4, 5}, decoded.CurrentPeers)
+	require.Equal(t, []uint64{3, 5}, decoded.CurrentVoters)
+	require.Equal(t, uint64(5), decoded.LeaderID)
+
+	require.NoError(t, store.UpsertRuntimeView(ctx, view))
+	got, err := store.GetRuntimeView(ctx, view.SlotID)
+	require.NoError(t, err)
+	require.Equal(t, []uint64{3, 4, 5}, got.CurrentPeers)
+	require.Equal(t, []uint64{3, 5}, got.CurrentVoters)
+	require.Equal(t, uint64(5), got.LeaderID)
+	require.Equal(t, reportAt, got.LastReportAt)
+}
+
+func TestDecodeGroupRuntimeViewV1DefaultsCurrentVoters(t *testing.T) {
+	value := encodeGroupRuntimeViewVersion1ForTest(SlotRuntimeView{
+		SlotID:              4,
+		CurrentPeers:        []uint64{1, 2, 3},
+		LeaderID:            2,
+		HealthyVoters:       2,
+		HasQuorum:           true,
+		ObservedConfigEpoch: 9,
+		LastReportAt:        time.Unix(1700000100, 0),
+	})
+
+	view, err := decodeGroupRuntimeView(encodeGroupKey(recordPrefixRuntimeView, 4), value)
+	require.NoError(t, err)
+	require.Equal(t, []uint64{1, 2, 3}, view.CurrentPeers)
+	require.Nil(t, view.CurrentVoters)
+	require.Equal(t, uint64(2), view.LeaderID)
 }
 
 func TestStoreHashSlotTableRoundTrip(t *testing.T) {
@@ -531,6 +705,37 @@ func TestStoreUpsertAssignmentTaskIsAtomic(t *testing.T) {
 	require.ErrorIs(t, err, ErrNotFound)
 }
 
+func TestStoreUpsertAssignmentAndDeleteTask(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	cooldownUntil := time.Unix(1700000200, 789)
+	require.NoError(t, store.UpsertTask(ctx, ReconcileTask{
+		SlotID:     6,
+		Kind:       TaskKindLeaderTransfer,
+		Step:       TaskStepTransferLeader,
+		SourceNode: 1,
+		TargetNode: 2,
+	}))
+
+	err := store.UpsertAssignmentAndDeleteTask(ctx, SlotAssignment{
+		SlotID:                      6,
+		DesiredPeers:                []uint64{1, 2, 3},
+		ConfigEpoch:                 12,
+		BalanceVersion:              4,
+		PreferredLeader:             2,
+		LeaderTransferCooldownUntil: cooldownUntil,
+	}, 6)
+	require.NoError(t, err)
+
+	assignment, err := store.GetAssignment(ctx, 6)
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), assignment.PreferredLeader)
+	require.Equal(t, cooldownUntil, assignment.LeaderTransferCooldownUntil)
+
+	_, err = store.GetTask(ctx, 6)
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
 func TestUpsertRejectsInvalidPeerSets(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
@@ -568,6 +773,21 @@ func TestUpsertRejectsInvalidRuntimeViewState(t *testing.T) {
 		HealthyVoters: 4,
 	})
 	require.ErrorIs(t, err, ErrInvalidArgument)
+
+	err = store.UpsertRuntimeView(ctx, SlotRuntimeView{
+		SlotID:        1,
+		CurrentPeers:  []uint64{1, 2, 3},
+		CurrentVoters: []uint64{1, 2},
+		LeaderID:      3,
+	})
+	require.ErrorIs(t, err, ErrInvalidArgument)
+
+	err = store.UpsertRuntimeView(ctx, SlotRuntimeView{
+		SlotID:        1,
+		CurrentPeers:  []uint64{1, 2, 3},
+		CurrentVoters: []uint64{0, 1},
+	})
+	require.ErrorIs(t, err, ErrInvalidArgument)
 }
 
 func TestStoreCanonicalizesPeerOrdering(t *testing.T) {
@@ -579,8 +799,9 @@ func TestStoreCanonicalizesPeerOrdering(t *testing.T) {
 		DesiredPeers: []uint64{3, 1, 2, 2},
 	}))
 	require.NoError(t, store.UpsertRuntimeView(ctx, SlotRuntimeView{
-		SlotID:       9,
-		CurrentPeers: []uint64{5, 3, 5, 4},
+		SlotID:        9,
+		CurrentPeers:  []uint64{5, 3, 5, 4},
+		CurrentVoters: []uint64{5, 3, 5},
 	}))
 
 	assignment, err := store.GetAssignment(ctx, 9)
@@ -590,6 +811,7 @@ func TestStoreCanonicalizesPeerOrdering(t *testing.T) {
 	view, err := store.GetRuntimeView(ctx, 9)
 	require.NoError(t, err)
 	require.Equal(t, []uint64{3, 4, 5}, view.CurrentPeers)
+	require.Equal(t, []uint64{3, 5}, view.CurrentVoters)
 }
 
 func TestStoreListMethodsReturnDeterministicOrder(t *testing.T) {
@@ -899,6 +1121,35 @@ func appendRawUint64Slice(dst []byte, values []uint64) []byte {
 		dst = binary.BigEndian.AppendUint64(dst, value)
 	}
 	return dst
+}
+
+func encodeGroupAssignmentVersion1ForTest(assignment SlotAssignment) []byte {
+	assignment = normalizeGroupAssignment(assignment)
+
+	data := make([]byte, 0, 32)
+	data = append(data, 1)
+	data = binary.BigEndian.AppendUint64(data, assignment.ConfigEpoch)
+	data = binary.BigEndian.AppendUint64(data, assignment.BalanceVersion)
+	data = appendUint64Slice(data, assignment.DesiredPeers)
+	return data
+}
+
+func encodeGroupRuntimeViewVersion1ForTest(view SlotRuntimeView) []byte {
+	view = normalizeGroupRuntimeView(view)
+
+	data := make([]byte, 0, 48)
+	data = append(data, 1)
+	data = binary.BigEndian.AppendUint64(data, view.LeaderID)
+	data = binary.BigEndian.AppendUint32(data, view.HealthyVoters)
+	if view.HasQuorum {
+		data = append(data, 1)
+	} else {
+		data = append(data, 0)
+	}
+	data = binary.BigEndian.AppendUint64(data, view.ObservedConfigEpoch)
+	data = appendInt64(data, view.LastReportAt.UnixNano())
+	data = appendUint64Slice(data, view.CurrentPeers)
+	return data
 }
 
 func encodeClusterNodeVersion1ForTest(node ClusterNode) []byte {

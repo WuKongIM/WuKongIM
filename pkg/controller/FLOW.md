@@ -33,9 +33,9 @@ StateMachine.Apply(ctx, Command) error
 | 类型 | 文件 | 说明 |
 |------|------|------|
 | `ClusterNode` | meta/types.go | 节点：NodeID, Name, Addr, Role, JoinState, Status(Alive/Suspect/Dead/Draining), JoinedAt, LastHeartbeatAt, CapacityWeight |
-| `SlotAssignment` | meta/types.go | Slot分配：SlotID, DesiredPeers, ConfigEpoch, BalanceVersion |
-| `SlotRuntimeView` | meta/types.go | Slot运行时：CurrentPeers, LeaderID, HasQuorum, ObservedConfigEpoch |
-| `ReconcileTask` | meta/types.go | 调和任务：Kind(Bootstrap/Repair/Rebalance), Step, SourceNode, TargetNode, Attempt, Status |
+| `SlotAssignment` | meta/types.go | Slot分配：SlotID, DesiredPeers, ConfigEpoch, BalanceVersion, PreferredLeader, LeaderTransferCooldownUntil |
+| `SlotRuntimeView` | meta/types.go | Slot运行时：CurrentPeers, CurrentVoters, LeaderID, HasQuorum, ObservedConfigEpoch |
+| `ReconcileTask` | meta/types.go | 调和任务：Kind(Bootstrap/Repair/Rebalance/LeaderTransfer), Step, SourceNode, TargetNode, Attempt, Status |
 | `NodeOnboardingJob` | meta/onboarding_types.go | 新节点显式资源分配作业：planned/running/failed/completed/cancelled 状态、审核计划、执行 moves、指纹、结果计数 |
 | `Command` | plane/commands.go | 命令信封：Kind + Report/Op/Advance/Assignment/Task/Migration/AddSlot/RemoveSlot/NodeStatusUpdate/NodeJoin/NodeJoinActivate/NodeOnboarding |
 

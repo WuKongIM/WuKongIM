@@ -12,6 +12,10 @@ const (
 
 	clusterNodeRecordVersion1 byte = 1
 	clusterNodeRecordVersion2 byte = 2
+	assignmentRecordVersion1  byte = 1
+	assignmentRecordVersion2  byte = 2
+	runtimeViewRecordVersion1 byte = 1
+	runtimeViewRecordVersion2 byte = 2
 
 	recordPrefixNode          byte = 'n'
 	recordPrefixMembership    byte = 'm'
@@ -227,10 +231,12 @@ func decodeClusterNodeVersion2(nodeID uint64, rest []byte) (ClusterNode, error) 
 func encodeGroupAssignment(assignment SlotAssignment) []byte {
 	assignment = normalizeGroupAssignment(assignment)
 
-	data := make([]byte, 0, 32)
-	data = append(data, recordVersion)
+	data := make([]byte, 0, 48)
+	data = append(data, assignmentRecordVersion2)
 	data = binary.BigEndian.AppendUint64(data, assignment.ConfigEpoch)
 	data = binary.BigEndian.AppendUint64(data, assignment.BalanceVersion)
+	data = binary.BigEndian.AppendUint64(data, assignment.PreferredLeader)
+	data = appendInt64(data, unixNanoOrZero(assignment.LeaderTransferCooldownUntil))
 	data = appendUint64Slice(data, assignment.DesiredPeers)
 	return data
 }
@@ -240,11 +246,23 @@ func decodeGroupAssignment(key, data []byte) (SlotAssignment, error) {
 	if err != nil {
 		return SlotAssignment{}, err
 	}
-	if len(data) < 1+8+8 || data[0] != recordVersion {
+	if len(data) == 0 {
 		return SlotAssignment{}, ErrCorruptValue
 	}
-	rest := data[1:]
+	switch data[0] {
+	case assignmentRecordVersion1:
+		return decodeGroupAssignmentVersion1(slotID, data[1:])
+	case assignmentRecordVersion2:
+		return decodeGroupAssignmentVersion2(slotID, data[1:])
+	default:
+		return SlotAssignment{}, ErrCorruptValue
+	}
+}
 
+func decodeGroupAssignmentVersion1(slotID uint32, rest []byte) (SlotAssignment, error) {
+	if len(rest) < 8+8 {
+		return SlotAssignment{}, ErrCorruptValue
+	}
 	configEpoch := binary.BigEndian.Uint64(rest[:8])
 	rest = rest[8:]
 	balanceVersion := binary.BigEndian.Uint64(rest[:8])
@@ -265,11 +283,49 @@ func decodeGroupAssignment(key, data []byte) (SlotAssignment, error) {
 	}, nil
 }
 
+func decodeGroupAssignmentVersion2(slotID uint32, rest []byte) (SlotAssignment, error) {
+	if len(rest) < 8+8+8+8 {
+		return SlotAssignment{}, ErrCorruptValue
+	}
+	configEpoch := binary.BigEndian.Uint64(rest[:8])
+	rest = rest[8:]
+	balanceVersion := binary.BigEndian.Uint64(rest[:8])
+	rest = rest[8:]
+	preferredLeader := binary.BigEndian.Uint64(rest[:8])
+	rest = rest[8:]
+	cooldownUnixNano, rest, err := readInt64(rest)
+	if err != nil {
+		return SlotAssignment{}, err
+	}
+	desiredPeers, rest, err := readUint64Slice(rest)
+	if err != nil || len(rest) != 0 {
+		return SlotAssignment{}, ErrCorruptValue
+	}
+	if err := validateCanonicalPeerSet(desiredPeers, ErrCorruptValue); err != nil {
+		return SlotAssignment{}, err
+	}
+	if err := validatePreferredLeaderInDesiredPeers(preferredLeader, desiredPeers, ErrCorruptValue); err != nil {
+		return SlotAssignment{}, err
+	}
+
+	assignment := SlotAssignment{
+		SlotID:          slotID,
+		DesiredPeers:    desiredPeers,
+		ConfigEpoch:     configEpoch,
+		BalanceVersion:  balanceVersion,
+		PreferredLeader: preferredLeader,
+	}
+	if cooldownUnixNano != 0 {
+		assignment.LeaderTransferCooldownUntil = time.Unix(0, cooldownUnixNano)
+	}
+	return assignment, nil
+}
+
 func encodeGroupRuntimeView(view SlotRuntimeView) []byte {
 	view = normalizeGroupRuntimeView(view)
 
 	data := make([]byte, 0, 48)
-	data = append(data, recordVersion)
+	data = append(data, runtimeViewRecordVersion2)
 	data = binary.BigEndian.AppendUint64(data, view.LeaderID)
 	data = binary.BigEndian.AppendUint32(data, view.HealthyVoters)
 	if view.HasQuorum {
@@ -280,6 +336,7 @@ func encodeGroupRuntimeView(view SlotRuntimeView) []byte {
 	data = binary.BigEndian.AppendUint64(data, view.ObservedConfigEpoch)
 	data = appendInt64(data, view.LastReportAt.UnixNano())
 	data = appendUint64Slice(data, view.CurrentPeers)
+	data = appendUint64Slice(data, view.CurrentVoters)
 	return data
 }
 
@@ -288,11 +345,23 @@ func decodeGroupRuntimeView(key, data []byte) (SlotRuntimeView, error) {
 	if err != nil {
 		return SlotRuntimeView{}, err
 	}
-	if len(data) < 1+8+4+1+8+8 || data[0] != recordVersion {
+	if len(data) == 0 {
 		return SlotRuntimeView{}, ErrCorruptValue
 	}
-	rest := data[1:]
+	switch data[0] {
+	case runtimeViewRecordVersion1:
+		return decodeGroupRuntimeViewVersion1(slotID, data[1:])
+	case runtimeViewRecordVersion2:
+		return decodeGroupRuntimeViewVersion2(slotID, data[1:])
+	default:
+		return SlotRuntimeView{}, ErrCorruptValue
+	}
+}
 
+func decodeGroupRuntimeViewVersion1(slotID uint32, rest []byte) (SlotRuntimeView, error) {
+	if len(rest) < 8+4+1+8+8 {
+		return SlotRuntimeView{}, ErrCorruptValue
+	}
 	leaderID := binary.BigEndian.Uint64(rest[:8])
 	rest = rest[8:]
 	healthyVoters := binary.BigEndian.Uint32(rest[:4])
@@ -319,6 +388,57 @@ func decodeGroupRuntimeView(key, data []byte) (SlotRuntimeView, error) {
 	view := SlotRuntimeView{
 		SlotID:              slotID,
 		CurrentPeers:        currentPeers,
+		LeaderID:            leaderID,
+		HealthyVoters:       healthyVoters,
+		HasQuorum:           hasQuorum,
+		ObservedConfigEpoch: observedConfigEpoch,
+		LastReportAt:        time.Unix(0, lastReportAt),
+	}
+	if err := validateRuntimeViewState(view, ErrCorruptValue); err != nil {
+		return SlotRuntimeView{}, err
+	}
+	return view, nil
+}
+
+func decodeGroupRuntimeViewVersion2(slotID uint32, rest []byte) (SlotRuntimeView, error) {
+	if len(rest) < 8+4+1+8+8 {
+		return SlotRuntimeView{}, ErrCorruptValue
+	}
+	leaderID := binary.BigEndian.Uint64(rest[:8])
+	rest = rest[8:]
+	healthyVoters := binary.BigEndian.Uint32(rest[:4])
+	rest = rest[4:]
+	if rest[0] != 0 && rest[0] != 1 {
+		return SlotRuntimeView{}, ErrCorruptValue
+	}
+	hasQuorum := rest[0] == 1
+	rest = rest[1:]
+	observedConfigEpoch := binary.BigEndian.Uint64(rest[:8])
+	rest = rest[8:]
+	lastReportAt, rest, err := readInt64(rest)
+	if err != nil {
+		return SlotRuntimeView{}, err
+	}
+	currentPeers, rest, err := readUint64Slice(rest)
+	if err != nil {
+		return SlotRuntimeView{}, ErrCorruptValue
+	}
+	currentVoters, rest, err := readUint64Slice(rest)
+	if err != nil || len(rest) != 0 {
+		return SlotRuntimeView{}, ErrCorruptValue
+	}
+	if err := validateCanonicalPeerSet(currentPeers, ErrCorruptValue); err != nil {
+		return SlotRuntimeView{}, err
+	}
+	if len(currentVoters) > 0 {
+		if err := validateCanonicalPeerSet(currentVoters, ErrCorruptValue); err != nil {
+			return SlotRuntimeView{}, err
+		}
+	}
+	view := SlotRuntimeView{
+		SlotID:              slotID,
+		CurrentPeers:        currentPeers,
+		CurrentVoters:       currentVoters,
 		LeaderID:            leaderID,
 		HealthyVoters:       healthyVoters,
 		HasQuorum:           hasQuorum,
@@ -454,6 +574,7 @@ func normalizeGroupAssignment(assignment SlotAssignment) SlotAssignment {
 
 func normalizeGroupRuntimeView(view SlotRuntimeView) SlotRuntimeView {
 	view.CurrentPeers = normalizeUint64Set(view.CurrentPeers)
+	view.CurrentVoters = normalizeUint64Set(view.CurrentVoters)
 	return view
 }
 
@@ -498,7 +619,7 @@ func validNodeJoinState(state NodeJoinState) bool {
 }
 
 func validTaskKind(kind TaskKind) bool {
-	return kind >= TaskKindBootstrap && kind <= TaskKindRebalance
+	return kind >= TaskKindBootstrap && kind <= TaskKindLeaderTransfer
 }
 
 func validTaskStep(step TaskStep) bool {
@@ -556,6 +677,11 @@ func validateRuntimeViewState(view SlotRuntimeView, invalid error) error {
 	if err := validateRequiredPeerSet(view.CurrentPeers, invalid); err != nil {
 		return err
 	}
+	if len(view.CurrentVoters) > 0 {
+		if err := validateCanonicalPeerSet(view.CurrentVoters, invalid); err != nil {
+			return err
+		}
+	}
 	if view.LeaderID != 0 {
 		idx := sort.Search(len(view.CurrentPeers), func(i int) bool {
 			return view.CurrentPeers[i] >= view.LeaderID
@@ -563,11 +689,39 @@ func validateRuntimeViewState(view SlotRuntimeView, invalid error) error {
 		if idx == len(view.CurrentPeers) || view.CurrentPeers[idx] != view.LeaderID {
 			return invalid
 		}
+		if len(view.CurrentVoters) > 0 {
+			idx := sort.Search(len(view.CurrentVoters), func(i int) bool {
+				return view.CurrentVoters[i] >= view.LeaderID
+			})
+			if idx == len(view.CurrentVoters) || view.CurrentVoters[idx] != view.LeaderID {
+				return invalid
+			}
+		}
 	}
 	if view.HealthyVoters > uint32(len(view.CurrentPeers)) {
 		return invalid
 	}
 	return nil
+}
+
+func validatePreferredLeaderInDesiredPeers(preferredLeader uint64, desiredPeers []uint64, invalid error) error {
+	if preferredLeader == 0 {
+		return nil
+	}
+	idx := sort.Search(len(desiredPeers), func(i int) bool {
+		return desiredPeers[i] >= preferredLeader
+	})
+	if idx == len(desiredPeers) || desiredPeers[idx] != preferredLeader {
+		return invalid
+	}
+	return nil
+}
+
+func unixNanoOrZero(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixNano()
 }
 
 func appendString(dst []byte, value string) []byte {
