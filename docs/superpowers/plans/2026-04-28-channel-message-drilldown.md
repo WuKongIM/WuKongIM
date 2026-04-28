@@ -41,7 +41,7 @@ Add a test in `internal/usecase/management/channel_runtime_meta_test.go` that co
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `go test ./internal/usecase/management -run TestListChannelRuntimeMetaIncludesMaxMessageSeq -count=1`
+Run: `GOWORK=off go test ./internal/usecase/management -run TestListChannelRuntimeMetaIncludesMaxMessageSeq -count=1`
 
 Expected: FAIL because `ChannelRuntimeMeta.MaxMessageSeq` or the reader method is missing.
 
@@ -67,7 +67,7 @@ Update `ListChannelRuntimeMeta` so after scanning each page, it fills `MaxMessag
 
 - [ ] **Step 5: Run list test to verify it passes**
 
-Run: `go test ./internal/usecase/management -run TestListChannelRuntimeMetaIncludesMaxMessageSeq -count=1`
+Run: `GOWORK=off go test ./internal/usecase/management -run TestListChannelRuntimeMetaIncludesMaxMessageSeq -count=1`
 
 Expected: PASS.
 
@@ -77,7 +77,7 @@ Add a test that calls `GetChannelRuntimeMeta` and asserts `MaxMessageSeq` is set
 
 - [ ] **Step 7: Run detail test to verify it fails**
 
-Run: `go test ./internal/usecase/management -run TestGetChannelRuntimeMetaIncludesMaxMessageSeq -count=1`
+Run: `GOWORK=off go test ./internal/usecase/management -run TestGetChannelRuntimeMetaIncludesMaxMessageSeq -count=1`
 
 Expected: FAIL because detail does not yet populate the field.
 
@@ -87,7 +87,7 @@ Update `GetChannelRuntimeMeta` to call `a.messages.MaxMessageSeq` for the reques
 
 - [ ] **Step 9: Run usecase tests**
 
-Run: `go test ./internal/usecase/management -count=1`
+Run: `GOWORK=off go test ./internal/usecase/management -count=1`
 
 Expected: PASS.
 
@@ -108,7 +108,7 @@ In `internal/access/node/channel_messages_rpc_test.go`, add a test that sends a 
 
 - [ ] **Step 3: Run node RPC test to verify it fails**
 
-Run: `go test ./internal/access/node -run TestChannelMessagesRPCReturnsMaxMessageSeq -count=1`
+Run: `GOWORK=off go test ./internal/access/node -run TestChannelMessagesRPCReturnsMaxMessageSeq -count=1`
 
 Expected: FAIL because the RPC request/response has no max-seq mode.
 
@@ -142,7 +142,7 @@ Use the same metadata lookup and leader routing as `QueryMessages`. Local path r
 
 - [ ] **Step 6: Run node/app targeted tests**
 
-Run: `go test ./internal/access/node ./internal/app -run 'TestChannelMessagesRPCReturnsMaxMessageSeq|TestManagerMessageReaderMaxMessageSeq' -count=1`
+Run: `GOWORK=off go test ./internal/access/node ./internal/app -run 'TestChannelMessagesRPCReturnsMaxMessageSeq|TestManagerMessageReaderMaxMessageSeq' -count=1`
 
 Expected: PASS, or PASS for the node test and no matching app test if no app unit test was added.
 
@@ -158,7 +158,7 @@ Update `TestManagerChannelRuntimeMetaReturnsPagedList` and `TestManagerChannelRu
 
 - [ ] **Step 2: Run tests to verify failure**
 
-Run: `go test ./internal/access/manager -run 'TestManagerChannelRuntimeMetaReturnsPagedList|TestManagerChannelRuntimeMetaDetailReturnsObject' -count=1`
+Run: `GOWORK=off go test ./internal/access/manager -run 'TestManagerChannelRuntimeMetaReturnsPagedList|TestManagerChannelRuntimeMetaDetailReturnsObject' -count=1`
 
 Expected: FAIL because DTOs do not serialize `max_message_seq`.
 
@@ -175,7 +175,7 @@ Set it in `channelRuntimeMetaDTO`.
 
 - [ ] **Step 4: Run manager tests**
 
-Run: `go test ./internal/access/manager -run 'TestManagerChannelRuntimeMeta|TestManagerMessages' -count=1`
+Run: `GOWORK=off go test ./internal/access/manager -run 'TestManagerChannelRuntimeMeta|TestManagerMessages' -count=1`
 
 Expected: PASS.
 
@@ -194,7 +194,7 @@ Update `channelRow` in `web/src/pages/channels/page.test.tsx` with `max_message_
 
 - [ ] **Step 2: Run channel page test to verify failure**
 
-Run: `cd web && bun test src/pages/channels/page.test.tsx`
+Run: `cd web && bun run test -- src/pages/channels/page.test.tsx`
 
 Expected: FAIL because columns/action are missing.
 
@@ -225,7 +225,7 @@ In `web/src/pages/channels/page.tsx`, import `useNavigate`, render `Replicas` an
 
 - [ ] **Step 6: Run channel page test**
 
-Run: `cd web && bun test src/pages/channels/page.test.tsx`
+Run: `cd web && bun run test -- src/pages/channels/page.test.tsx`
 
 Expected: PASS.
 
@@ -241,7 +241,7 @@ Add a test rendering `MessagesPage` under a memory router at `/messages?channel_
 
 - [ ] **Step 2: Run test to verify failure**
 
-Run: `cd web && bun test src/pages/messages/page.test.tsx`
+Run: `cd web && bun run test -- src/pages/messages/page.test.tsx`
 
 Expected: FAIL because URL params are ignored.
 
@@ -251,7 +251,7 @@ In `web/src/pages/messages/page.tsx`, import `useSearchParams`, derive initial f
 
 - [ ] **Step 4: Run messages page test**
 
-Run: `cd web && bun test src/pages/messages/page.test.tsx`
+Run: `cd web && bun run test -- src/pages/messages/page.test.tsx`
 
 Expected: PASS.
 
@@ -262,13 +262,13 @@ Expected: PASS.
 
 - [ ] **Step 1: Run backend targeted tests**
 
-Run: `go test ./internal/usecase/management ./internal/access/manager ./internal/access/node ./internal/app -count=1`
+Run: `GOWORK=off go test ./internal/usecase/management ./internal/access/manager ./internal/access/node ./internal/app -count=1`
 
 Expected: PASS.
 
 - [ ] **Step 2: Run frontend targeted tests**
 
-Run: `cd web && bun test src/pages/channels/page.test.tsx src/pages/messages/page.test.tsx src/lib/manager-api.test.ts`
+Run: `cd web && bun run test -- src/pages/channels/page.test.tsx src/pages/messages/page.test.tsx src/lib/manager-api.test.ts`
 
 Expected: PASS.
 

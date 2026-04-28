@@ -49,6 +49,8 @@ type ChannelRuntimeMetaDTO struct {
 	ISR []uint64 `json:"isr"`
 	// MinISR is the configured minimum in-sync replica count.
 	MinISR int64 `json:"min_isr"`
+	// MaxMessageSeq is the maximum committed message sequence for the channel.
+	MaxMessageSeq uint64 `json:"max_message_seq"`
 	// Status is the stable runtime status string.
 	Status string `json:"status"`
 }
@@ -232,16 +234,17 @@ func channelRuntimeMetaDTOs(items []managementusecase.ChannelRuntimeMeta) []Chan
 
 func channelRuntimeMetaDTO(item managementusecase.ChannelRuntimeMeta) ChannelRuntimeMetaDTO {
 	return ChannelRuntimeMetaDTO{
-		ChannelID:    item.ChannelID,
-		ChannelType:  item.ChannelType,
-		SlotID:       item.SlotID,
-		ChannelEpoch: item.ChannelEpoch,
-		LeaderEpoch:  item.LeaderEpoch,
-		Leader:       item.Leader,
-		Replicas:     append([]uint64(nil), item.Replicas...),
-		ISR:          append([]uint64(nil), item.ISR...),
-		MinISR:       item.MinISR,
-		Status:       item.Status,
+		ChannelID:     item.ChannelID,
+		ChannelType:   item.ChannelType,
+		SlotID:        item.SlotID,
+		ChannelEpoch:  item.ChannelEpoch,
+		LeaderEpoch:   item.LeaderEpoch,
+		Leader:        item.Leader,
+		Replicas:      append([]uint64(nil), item.Replicas...),
+		ISR:           append([]uint64(nil), item.ISR...),
+		MinISR:        item.MinISR,
+		MaxMessageSeq: item.MaxMessageSeq,
+		Status:        item.Status,
 	}
 }
 

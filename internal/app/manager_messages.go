@@ -49,6 +49,34 @@ func (r managerMessageReader) QueryMessages(ctx context.Context, req managementu
 	return r.queryRemote(ctx, meta.Leader, req)
 }
 
+func (r managerMessageReader) MaxMessageSeq(ctx context.Context, id channel.ChannelID) (uint64, error) {
+	if r.channelLog == nil || r.metas == nil {
+		return 0, nil
+	}
+
+	meta, err := r.metas.GetChannelRuntimeMeta(ctx, id.ID, int64(id.Type))
+	if err != nil {
+		return 0, err
+	}
+	if meta.Leader == 0 {
+		return 0, raftcluster.ErrNoLeader
+	}
+	if meta.Leader == r.localNodeID {
+		return channelhandler.LoadCommittedHW(r.channelLog, id)
+	}
+	if r.remote == nil {
+		return 0, channel.ErrStaleMeta
+	}
+	page, err := r.remote.QueryChannelMessages(ctx, meta.Leader, accessnode.ChannelMessagesQuery{
+		ChannelID:  id,
+		MaxSeqOnly: true,
+	})
+	if err != nil {
+		return 0, err
+	}
+	return page.MaxMessageSeq, nil
+}
+
 func (r managerMessageReader) queryLocal(req managementusecase.MessageQueryRequest) (managementusecase.MessageQueryPage, error) {
 	committedHW, err := channelhandler.LoadCommittedHW(r.channelLog, req.ChannelID)
 	if err != nil {

@@ -137,6 +137,47 @@ func TestListChannelRuntimeMetaMapsStableStatusStrings(t *testing.T) {
 	require.Equal(t, []string{"creating", "active", "deleting", "deleted", "unknown"}, channelRuntimeMetaStatuses(got.Items))
 }
 
+func TestListChannelRuntimeMetaIncludesMaxMessageSeq(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{
+		pages: map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
+			1: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						testChannelRuntimeMeta("s1-a", 1, channel.StatusActive),
+						testChannelRuntimeMeta("s1-b", 1, channel.StatusActive),
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "s1-b", ChannelType: 1},
+					done:   true,
+				},
+			},
+		},
+	}
+	messages := &fakeMessageReader{
+		maxSeqByChannel: map[channel.ChannelID]uint64{
+			{ID: "s1-a", Type: 1}: 9,
+			{ID: "s1-b", Type: 1}: 12,
+		},
+	}
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotIDs: []multiraft.SlotID{1},
+		},
+		ChannelRuntimeMeta: reader,
+		Messages:           messages,
+	})
+
+	got, err := app.ListChannelRuntimeMeta(context.Background(), ListChannelRuntimeMetaRequest{Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, []ChannelRuntimeMeta{
+		{ChannelID: "s1-a", ChannelType: 1, SlotID: 1, Status: "active", MaxMessageSeq: 9},
+		{ChannelID: "s1-b", ChannelType: 1, SlotID: 1, Status: "active", MaxMessageSeq: 12},
+	}, summarizeChannelRuntimeMetaResponse(got).Items)
+	require.Equal(t, []channel.ChannelID{
+		{ID: "s1-a", Type: 1},
+		{ID: "s1-b", Type: 1},
+	}, messages.maxSeqCalls)
+}
+
 func TestListChannelRuntimeMetaPropagatesAuthoritativeErrors(t *testing.T) {
 	reader := &fakeChannelRuntimeMetaReader{
 		pages: map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
@@ -231,6 +272,32 @@ func TestGetChannelRuntimeMetaReturnsDetailWithSlotAndHashSlot(t *testing.T) {
 		channelID:   "g1",
 		channelType: 2,
 	}}, reader.getCalls)
+}
+
+func TestGetChannelRuntimeMetaIncludesMaxMessageSeq(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{
+		metaByKey: map[metadb.ConversationKey]metadb.ChannelRuntimeMeta{
+			{ChannelID: "g1", ChannelType: 2}: testChannelRuntimeMeta("g1", 2, channel.StatusActive),
+		},
+	}
+	messages := &fakeMessageReader{
+		maxSeqByChannel: map[channel.ChannelID]uint64{
+			{ID: "g1", Type: 2}: 42,
+		},
+	}
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotForKey:     map[string]multiraft.SlotID{"g1": 7},
+			hashSlotForKey: map[string]uint16{"g1": 129},
+		},
+		ChannelRuntimeMeta: reader,
+		Messages:           messages,
+	})
+
+	got, err := app.GetChannelRuntimeMeta(context.Background(), "g1", 2)
+	require.NoError(t, err)
+	require.Equal(t, uint64(42), got.MaxMessageSeq)
+	require.Equal(t, []channel.ChannelID{{ID: "g1", Type: 2}}, messages.maxSeqCalls)
 }
 
 func TestGetChannelRuntimeMetaPropagatesNotFound(t *testing.T) {
@@ -332,10 +399,11 @@ func summarizeChannelRuntimeMetaResponse(resp ListChannelRuntimeMetaResponse) Li
 	}
 	for _, item := range resp.Items {
 		out.Items = append(out.Items, ChannelRuntimeMeta{
-			ChannelID:   item.ChannelID,
-			ChannelType: item.ChannelType,
-			SlotID:      item.SlotID,
-			Status:      item.Status,
+			ChannelID:     item.ChannelID,
+			ChannelType:   item.ChannelType,
+			SlotID:        item.SlotID,
+			MaxMessageSeq: item.MaxMessageSeq,
+			Status:        item.Status,
 		})
 	}
 	return out

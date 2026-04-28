@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useIntl } from "react-intl"
+import { useSearchParams } from "react-router-dom"
 
 import { DetailSheet } from "@/components/manager/detail-sheet"
 import { KeyValueList } from "@/components/manager/key-value-list"
@@ -81,11 +82,19 @@ function formatTimestamp(timestamp: number) {
 
 export function MessagesPage() {
   const intl = useIntl()
-  const [query, setQuery] = useState<QueryForm>(defaultQuery)
+  const [searchParams] = useSearchParams()
+  const initialChannelId = searchParams.get("channel_id")?.trim() ?? ""
+  const initialChannelType = searchParams.get("channel_type")?.trim() || defaultQuery.channelType
+  const [query, setQuery] = useState<QueryForm>(() => ({
+    ...defaultQuery,
+    channelId: initialChannelId,
+    channelType: initialChannelType,
+  }))
   const [submitted, setSubmitted] = useState<SubmittedQuery | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [selectedMessage, setSelectedMessage] = useState<ManagerMessage | null>(null)
   const [payloadFormat, setPayloadFormat] = useState<PayloadFormat>("text")
+  const autoQueryStartedRef = useRef(false)
   const [state, setState] = useState<MessagesState>({
     messages: null,
     loading: false,
@@ -140,6 +149,28 @@ export function MessagesPage() {
       }))
     }
   }, [])
+
+  useEffect(() => {
+    if (autoQueryStartedRef.current) {
+      return
+    }
+    autoQueryStartedRef.current = true
+
+    const channelId = initialChannelId.trim()
+    const channelType = Number(initialChannelType)
+    if (!channelId || !Number.isInteger(channelType) || channelType <= 0) {
+      return
+    }
+
+    const nextQuery: SubmittedQuery = {
+      channelId,
+      channelType,
+      clientMsgNo: "",
+    }
+    setValidationError(null)
+    setSubmitted(nextQuery)
+    void runQuery(nextQuery, false)
+  }, [initialChannelId, initialChannelType, runQuery])
 
   const openDetail = useCallback((message: ManagerMessage) => {
     setSelectedMessage(message)

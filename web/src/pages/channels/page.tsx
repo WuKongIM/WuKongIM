@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useIntl } from "react-intl"
+import { useNavigate } from "react-router-dom"
 
 import { DetailSheet } from "@/components/manager/detail-sheet"
 import { KeyValueList } from "@/components/manager/key-value-list"
@@ -47,6 +48,7 @@ function formatNodeList(nodeIds: number[]) {
 
 export function ChannelsPage() {
   const intl = useIntl()
+  const navigate = useNavigate()
   const [state, setState] = useState<ChannelsState>({
     channels: null,
     loading: true,
@@ -160,6 +162,13 @@ export function ChannelsPage() {
     setDetail(null)
     setDetailError(null)
   }, [])
+
+  const openMessages = useCallback(
+    (channelType: number, channelId: string) => {
+      navigate(`/messages?channel_id=${encodeURIComponent(channelId)}&channel_type=${channelType}`)
+    },
+    [navigate],
+  )
 
   const summary = useMemo(() => {
     const items = state.channels?.items ?? []
@@ -277,6 +286,8 @@ export function ChannelsPage() {
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.type" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.slot" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.leader" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.replicas" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.maxMessageSeq" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.status" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.actions" })}</th>
                     </tr>
@@ -288,23 +299,40 @@ export function ChannelsPage() {
                         <td className="px-3 py-3 text-sm text-muted-foreground">{channel.channel_type}</td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{channel.slot_id}</td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{channel.leader}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatNodeList(channel.replicas)}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{channel.max_message_seq}</td>
                         <td className="px-3 py-3 text-sm text-foreground">
                           <StatusBadge value={channel.status} />
                         </td>
                         <td className="px-3 py-3 text-sm text-foreground">
-                          <Button
-                            aria-label={intl.formatMessage(
-                              { id: "channels.inspectChannel" },
-                              { id: channel.channel_id },
-                            )}
-                            onClick={() => {
-                              void openDetail(channel.channel_type, channel.channel_id)
-                            }}
-                            size="sm"
-                            variant="outline"
-                          >
-                            {intl.formatMessage({ id: "common.inspect" })}
-                          </Button>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              aria-label={intl.formatMessage(
+                                { id: "channels.inspectChannel" },
+                                { id: channel.channel_id },
+                              )}
+                              onClick={() => {
+                                void openDetail(channel.channel_type, channel.channel_id)
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {intl.formatMessage({ id: "common.inspect" })}
+                            </Button>
+                            <Button
+                              aria-label={intl.formatMessage(
+                                { id: "channels.viewMessages" },
+                                { id: channel.channel_id },
+                              )}
+                              onClick={() => {
+                                openMessages(channel.channel_type, channel.channel_id)
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {intl.formatMessage({ id: "channels.messagesAction" })}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -364,6 +392,10 @@ export function ChannelsPage() {
               },
               { label: intl.formatMessage({ id: "channels.detail.isr" }), value: formatNodeList(detail.isr) },
               { label: intl.formatMessage({ id: "channels.detail.minIsr" }), value: detail.min_isr },
+              {
+                label: intl.formatMessage({ id: "channels.detail.maxMessageSeq" }),
+                value: detail.max_message_seq,
+              },
               {
                 label: intl.formatMessage({ id: "channels.detail.channelEpoch" }),
                 value: detail.channel_epoch,

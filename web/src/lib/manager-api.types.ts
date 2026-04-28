@@ -287,6 +287,7 @@ export type ManagerChannelRuntimeMeta = {
   replicas: number[]
   isr: number[]
   min_isr: number
+  max_message_seq: number
   status: string
 }
 

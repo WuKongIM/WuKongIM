@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
 
 import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
@@ -30,6 +31,7 @@ const channelRow = {
   replicas: [1, 2, 3],
   isr: [1, 2],
   min_isr: 2,
+  max_message_seq: 42,
   status: "active",
 }
 
@@ -66,12 +68,40 @@ beforeEach(() => {
 function renderChannelsPage() {
   return render(
     <I18nProvider>
-      <ChannelsPage />
+      <MemoryRouter initialEntries={["/channels"]}>
+        <Routes>
+          <Route path="/channels" element={<ChannelsPage />} />
+          <Route path="/messages" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
     </I18nProvider>,
   )
 }
 
-test("renders channel runtime rows and opens detail from manager APIs", async () => {
+function LocationProbe() {
+  const location = useLocation()
+  return <div>{`${location.pathname}${location.search}`}</div>
+}
+
+test("renders channel runtime rows and opens messages query", async () => {
+  getChannelRuntimeMetaMock.mockResolvedValueOnce({
+    items: [channelRow],
+    has_more: false,
+  })
+  getChannelRuntimeMetaDetailMock.mockResolvedValueOnce(channelDetail)
+
+  const user = userEvent.setup()
+  renderChannelsPage()
+
+  expect(await screen.findByText("alpha")).toBeInTheDocument()
+  expect(screen.getByText("1, 2, 3")).toBeInTheDocument()
+  expect(screen.getByText("42")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "View channel alpha messages" }))
+
+  expect(await screen.findByText("/messages?channel_id=alpha&channel_type=1")).toBeInTheDocument()
+})
+
+test("opens channel detail from manager APIs", async () => {
   getChannelRuntimeMetaMock.mockResolvedValueOnce({
     items: [channelRow],
     has_more: false,

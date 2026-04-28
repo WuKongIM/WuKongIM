@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -74,6 +75,8 @@ type ChannelRuntimeMetaReader interface {
 type MessageReader interface {
 	// QueryMessages returns one authoritative message page for a channel.
 	QueryMessages(ctx context.Context, req MessageQueryRequest) (MessageQueryPage, error)
+	// MaxMessageSeq returns the maximum committed message sequence for a channel.
+	MaxMessageSeq(ctx context.Context, id channel.ChannelID) (uint64, error)
 }
 
 // RuntimeSummaryReader reads local or remote node runtime state needed by scale-in safety checks.

@@ -87,12 +87,19 @@ func TestListMessagesPropagatesReaderErrors(t *testing.T) {
 }
 
 type fakeMessageReader struct {
-	lastReq MessageQueryRequest
-	result  MessageQueryPage
-	err     error
+	lastReq         MessageQueryRequest
+	result          MessageQueryPage
+	err             error
+	maxSeqByChannel map[channel.ChannelID]uint64
+	maxSeqCalls     []channel.ChannelID
 }
 
 func (f *fakeMessageReader) QueryMessages(_ context.Context, req MessageQueryRequest) (MessageQueryPage, error) {
 	f.lastReq = req
 	return f.result, f.err
+}
+
+func (f *fakeMessageReader) MaxMessageSeq(_ context.Context, id channel.ChannelID) (uint64, error) {
+	f.maxSeqCalls = append(f.maxSeqCalls, id)
+	return f.maxSeqByChannel[id], f.err
 }

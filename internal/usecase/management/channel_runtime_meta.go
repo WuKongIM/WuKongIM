@@ -29,6 +29,8 @@ type ChannelRuntimeMeta struct {
 	ISR []uint64
 	// MinISR is the configured minimum in-sync replica count.
 	MinISR int64
+	// MaxMessageSeq is the maximum committed message sequence for the channel.
+	MaxMessageSeq uint64
 	// Status is the stable manager-facing runtime status string.
 	Status string
 }
@@ -106,7 +108,11 @@ func (a *App) ListChannelRuntimeMeta(ctx context.Context, req ListChannelRuntime
 		if err != nil {
 			return ListChannelRuntimeMetaResponse{}, err
 		}
-		resp.Items = append(resp.Items, managerChannelRuntimeMetaItems(slotID, page)...)
+		items, err := a.managerChannelRuntimeMetaItems(ctx, slotID, page)
+		if err != nil {
+			return ListChannelRuntimeMetaResponse{}, err
+		}
+		resp.Items = append(resp.Items, items...)
 
 		if !done {
 			resp.HasMore = true
@@ -145,8 +151,12 @@ func (a *App) GetChannelRuntimeMeta(ctx context.Context, channelID string, chann
 	}
 
 	slotID := a.cluster.SlotForKey(channelID)
+	maxMessageSeq, err := a.channelMaxMessageSeq(ctx, channelID, channelType)
+	if err != nil {
+		return ChannelRuntimeMetaDetail{}, err
+	}
 	return ChannelRuntimeMetaDetail{
-		ChannelRuntimeMeta: managerChannelRuntimeMeta(slotID, meta),
+		ChannelRuntimeMeta: managerChannelRuntimeMetaWithMaxSeq(slotID, meta, maxMessageSeq),
 		HashSlot:           a.cluster.HashSlotForKey(channelID),
 		Features:           meta.Features,
 		LeaseUntilMS:       meta.LeaseUntilMS,
@@ -194,27 +204,43 @@ func (a *App) findNextChannelRuntimeMetaSlotWithData(ctx context.Context, slotID
 	return 0, false, nil
 }
 
-func managerChannelRuntimeMetaItems(slotID multiraft.SlotID, metas []metadb.ChannelRuntimeMeta) []ChannelRuntimeMeta {
+func (a *App) managerChannelRuntimeMetaItems(ctx context.Context, slotID multiraft.SlotID, metas []metadb.ChannelRuntimeMeta) ([]ChannelRuntimeMeta, error) {
 	out := make([]ChannelRuntimeMeta, 0, len(metas))
 	for _, meta := range metas {
-		out = append(out, managerChannelRuntimeMeta(slotID, meta))
+		maxMessageSeq, err := a.channelMaxMessageSeq(ctx, meta.ChannelID, meta.ChannelType)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, managerChannelRuntimeMetaWithMaxSeq(slotID, meta, maxMessageSeq))
 	}
-	return out
+	return out, nil
 }
 
 func managerChannelRuntimeMeta(slotID multiraft.SlotID, meta metadb.ChannelRuntimeMeta) ChannelRuntimeMeta {
+	return managerChannelRuntimeMetaWithMaxSeq(slotID, meta, 0)
+}
+
+func managerChannelRuntimeMetaWithMaxSeq(slotID multiraft.SlotID, meta metadb.ChannelRuntimeMeta, maxMessageSeq uint64) ChannelRuntimeMeta {
 	return ChannelRuntimeMeta{
-		ChannelID:    meta.ChannelID,
-		ChannelType:  meta.ChannelType,
-		SlotID:       uint32(slotID),
-		ChannelEpoch: meta.ChannelEpoch,
-		LeaderEpoch:  meta.LeaderEpoch,
-		Leader:       meta.Leader,
-		Replicas:     append([]uint64(nil), meta.Replicas...),
-		ISR:          append([]uint64(nil), meta.ISR...),
-		MinISR:       meta.MinISR,
-		Status:       managerChannelRuntimeStatus(meta.Status),
+		ChannelID:     meta.ChannelID,
+		ChannelType:   meta.ChannelType,
+		SlotID:        uint32(slotID),
+		ChannelEpoch:  meta.ChannelEpoch,
+		LeaderEpoch:   meta.LeaderEpoch,
+		Leader:        meta.Leader,
+		Replicas:      append([]uint64(nil), meta.Replicas...),
+		ISR:           append([]uint64(nil), meta.ISR...),
+		MinISR:        meta.MinISR,
+		MaxMessageSeq: maxMessageSeq,
+		Status:        managerChannelRuntimeStatus(meta.Status),
 	}
+}
+
+func (a *App) channelMaxMessageSeq(ctx context.Context, channelID string, channelType int64) (uint64, error) {
+	if a == nil || a.messages == nil {
+		return 0, nil
+	}
+	return a.messages.MaxMessageSeq(ctx, channel.ChannelID{ID: channelID, Type: uint8(channelType)})
 }
 
 func managerChannelRuntimeStatus(status uint8) string {

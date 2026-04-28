@@ -18,6 +18,8 @@ type ChannelMessagesQuery struct {
 	ChannelID channel.ChannelID `json:"channel_id"`
 	// SyncMode enables legacy-compatible range sync instead of manager descending query.
 	SyncMode bool `json:"sync_mode,omitempty"`
+	// MaxSeqOnly requests only the maximum committed message sequence.
+	MaxSeqOnly bool `json:"max_seq_only,omitempty"`
 	// BeforeSeq is the exclusive upper sequence bound for pagination.
 	BeforeSeq uint64 `json:"before_seq,omitempty"`
 	// StartSeq is the inclusive starting sequence boundary for sync mode.
@@ -42,6 +44,8 @@ type ChannelMessagesPage struct {
 	HasMore bool `json:"has_more"`
 	// NextBeforeSeq is the exclusive upper sequence bound for the next page.
 	NextBeforeSeq uint64 `json:"next_before_seq,omitempty"`
+	// MaxMessageSeq is the maximum committed message sequence for the channel.
+	MaxMessageSeq uint64 `json:"max_message_seq,omitempty"`
 }
 
 type channelMessagesRequest struct {
@@ -91,6 +95,14 @@ func (a *Adapter) handleChannelMessagesRPC(ctx context.Context, body []byte) ([]
 	committedHW, err := channelhandler.LoadCommittedHW(a.channelLogDB, req.Query.ChannelID)
 	if err != nil {
 		return nil, err
+	}
+	if req.Query.MaxSeqOnly {
+		return encodeChannelMessagesResponse(channelMessagesResponse{
+			Status: rpcStatusOK,
+			Page: ChannelMessagesPage{
+				MaxMessageSeq: committedHW,
+			},
+		})
 	}
 	if req.Query.SyncMode {
 		page, err := channelhandler.SyncMessages(a.channelLogDB, committedHW, channelhandler.SyncMessagesRequest{

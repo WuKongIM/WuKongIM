@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { MemoryRouter } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
 
 import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
@@ -41,13 +42,43 @@ beforeEach(() => {
   })
 })
 
-function renderMessagesPage() {
+function renderMessagesPage(initialEntry = "/messages") {
   return render(
     <I18nProvider>
-      <MessagesPage />
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <MessagesPage />
+      </MemoryRouter>
     </I18nProvider>,
   )
 }
+
+test("auto-runs a message query from URL channel params", async () => {
+  getMessagesMock.mockResolvedValueOnce({
+    items: [{
+      message_id: 101,
+      message_seq: 9,
+      client_msg_no: "c-101",
+      channel_id: "room-1",
+      channel_type: 2,
+      from_uid: "u1",
+      timestamp: 1713859200,
+      payload: "aGVsbG8=",
+    }],
+    has_more: false,
+  })
+
+  renderMessagesPage("/messages?channel_id=room-1&channel_type=2")
+
+  expect(await screen.findByText("c-101")).toBeInTheDocument()
+  expect(getMessagesMock).toHaveBeenCalledWith({
+    channelId: "room-1",
+    channelType: 2,
+    limit: 50,
+    clientMsgNo: "",
+  })
+  expect(screen.getByLabelText("Channel ID")).toHaveValue("room-1")
+  expect(screen.getByLabelText("Channel type")).toHaveValue(2)
+})
 
 test("submits a message query and renders rows", async () => {
   getMessagesMock.mockResolvedValueOnce({

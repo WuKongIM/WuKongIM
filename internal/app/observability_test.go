@@ -464,6 +464,10 @@ func (f fakeObservabilityCluster) HashSlotTableVersion() uint64 { return f.hashS
 
 func (f fakeObservabilityCluster) LeaderOf(multiraft.SlotID) (multiraft.NodeID, error) { return 1, nil }
 
+func (f fakeObservabilityCluster) SlotLogStatusOnNode(context.Context, uint64, uint32) (raftcluster.SlotLogStatus, error) {
+	return raftcluster.SlotLogStatus{}, nil
+}
+
 func (f fakeObservabilityCluster) Propose(context.Context, multiraft.SlotID, []byte) error {
 	return nil
 }
