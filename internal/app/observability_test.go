@@ -329,6 +329,57 @@ func TestMetricsHandlerRefreshesControllerMetricsFromClusterState(t *testing.T) 
 	require.Equal(t, float64(2), migrationsActive.GetMetric()[0].GetGauge().GetValue())
 }
 
+func TestSlotLeaderSkewCountsActiveDataNodesWithZeroLeaders(t *testing.T) {
+	nodes := []controllermeta.ClusterNode{
+		{NodeID: 1, Status: controllermeta.NodeStatusAlive, Role: controllermeta.NodeRoleData, JoinState: controllermeta.NodeJoinStateActive},
+		{NodeID: 2, Status: controllermeta.NodeStatusAlive, Role: controllermeta.NodeRoleData, JoinState: controllermeta.NodeJoinStateActive},
+		{NodeID: 3, Status: controllermeta.NodeStatusAlive, Role: controllermeta.NodeRoleData, JoinState: controllermeta.NodeJoinStateActive},
+	}
+	views := []controllermeta.SlotRuntimeView{
+		{SlotID: 1, LeaderID: 1},
+		{SlotID: 2, LeaderID: 1},
+		{SlotID: 3, LeaderID: 2},
+	}
+
+	require.Equal(t, 2, slotLeaderSkew(nodes, views))
+}
+
+func TestMetricsHandlerRefreshesSlotLeaderSkew(t *testing.T) {
+	app := &App{
+		cfg: Config{
+			Node: NodeConfig{ID: 1, Name: "node-1"},
+		},
+		metrics: obsmetrics.New(1, "node-1"),
+		cluster: fakeObservabilityCluster{
+			nodes: []controllermeta.ClusterNode{
+				{NodeID: 1, Status: controllermeta.NodeStatusAlive, Role: controllermeta.NodeRoleData, JoinState: controllermeta.NodeJoinStateActive},
+				{NodeID: 2, Status: controllermeta.NodeStatusAlive, Role: controllermeta.NodeRoleData, JoinState: controllermeta.NodeJoinStateActive},
+				{NodeID: 3, Status: controllermeta.NodeStatusAlive, Role: controllermeta.NodeRoleData, JoinState: controllermeta.NodeJoinStateActive},
+			},
+			views: []controllermeta.SlotRuntimeView{
+				{SlotID: 1, LeaderID: 1},
+				{SlotID: 2, LeaderID: 1},
+				{SlotID: 3, LeaderID: 2},
+			},
+		},
+	}
+	app.observedClusterCache.store(app.collectObservedClusterState(), time.Now())
+
+	handler := app.metricsHandler()
+	require.NotNil(t, handler)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	handler.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	families, err := app.metrics.Gather()
+	require.NoError(t, err)
+	skew := requireMetricFamilyByName(t, families, "wukongim_controller_slot_leader_skew")
+	require.Len(t, skew.GetMetric(), 1)
+	require.Equal(t, float64(2), skew.GetMetric()[0].GetGauge().GetValue())
+}
+
 func TestMetricsHandlerUsesCachedControllerStateWithoutLiveClusterReads(t *testing.T) {
 	cluster := &countingObservabilityCluster{
 		fakeObservabilityCluster: fakeObservabilityCluster{

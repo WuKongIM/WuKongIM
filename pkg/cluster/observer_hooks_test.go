@@ -393,6 +393,49 @@ func TestObserverHooksOnTaskResult(t *testing.T) {
 	}
 }
 
+func TestControllerTaskKindNameLeaderTransfer(t *testing.T) {
+	if got := controllerTaskKindName(controllermeta.TaskKindLeaderTransfer); got != "leader_transfer" {
+		t.Fatalf("controllerTaskKindName(LeaderTransfer) = %q, want %q", got, "leader_transfer")
+	}
+}
+
+func TestObserverHooksOnTaskResultClassifiesLeaderTransferSafetyCheck(t *testing.T) {
+	var (
+		gotKind   string
+		gotResult string
+	)
+	cluster := &Cluster{
+		obs: ObserverHooks{
+			OnTaskResult: func(_ uint32, kind string, result string) {
+				gotKind = kind
+				gotResult = result
+			},
+		},
+	}
+	agent := &slotAgent{
+		cluster: cluster,
+		client: fakeControllerClient{
+			reportTaskResultFn: func(context.Context, controllermeta.ReconcileTask, error) error {
+				return nil
+			},
+		},
+	}
+
+	err := agent.reportTaskResult(context.Background(), controllermeta.ReconcileTask{
+		SlotID: 1,
+		Kind:   controllermeta.TaskKindLeaderTransfer,
+	}, ErrLeaderTransferSafetyCheck)
+	if err != nil {
+		t.Fatalf("reportTaskResult() error = %v", err)
+	}
+	if gotKind != "leader_transfer" {
+		t.Fatalf("OnTaskResult() kind = %q, want %q", gotKind, "leader_transfer")
+	}
+	if gotResult != "safety_check" {
+		t.Fatalf("OnTaskResult() result = %q, want %q", gotResult, "safety_check")
+	}
+}
+
 func TestObserverHooksOnHashSlotMigrationComplete(t *testing.T) {
 	table := NewHashSlotTable(8, 2)
 	table.StartMigration(3, 1, 2)

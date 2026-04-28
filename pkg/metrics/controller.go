@@ -7,8 +7,8 @@ import (
 )
 
 var (
-	controllerTaskKinds        = []string{"bootstrap", "repair", "rebalance"}
-	controllerTaskResults      = []string{"ok", "fail", "timeout"}
+	controllerTaskKinds        = []string{"bootstrap", "repair", "rebalance", "leader_transfer"}
+	controllerTaskResults      = []string{"ok", "fail", "timeout", "safety_check"}
 	controllerMigrationResults = []string{"ok", "fail", "abort"}
 )
 
@@ -22,6 +22,7 @@ type ControllerMetrics struct {
 	nodesAlive       prometheus.Gauge
 	nodesSuspect     prometheus.Gauge
 	nodesDead        prometheus.Gauge
+	slotLeaderSkew   prometheus.Gauge
 }
 
 func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labels) *ControllerMetrics {
@@ -72,6 +73,11 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 			Help:        "Number of dead controller-tracked nodes.",
 			ConstLabels: labels,
 		}),
+		slotLeaderSkew: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_controller_slot_leader_skew",
+			Help:        "Max-minus-min Slot leader count skew across active data nodes.",
+			ConstLabels: labels,
+		}),
 	}
 
 	registry.MustRegister(
@@ -84,6 +90,7 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 		m.nodesAlive,
 		m.nodesSuspect,
 		m.nodesDead,
+		m.slotLeaderSkew,
 	)
 
 	for _, kind := range controllerTaskKinds {
@@ -94,6 +101,7 @@ func newControllerMetrics(registry prometheus.Registerer, labels prometheus.Labe
 		}
 	}
 	m.migrationsActive.Set(0)
+	m.slotLeaderSkew.Set(0)
 	for _, result := range controllerMigrationResults {
 		m.migrationsTotal.WithLabelValues(result)
 	}
@@ -146,4 +154,11 @@ func (m *ControllerMetrics) SetTaskActive(counts map[string]int) {
 	for _, kind := range controllerTaskKinds {
 		m.tasksActive.WithLabelValues(kind).Set(float64(counts[kind]))
 	}
+}
+
+func (m *ControllerMetrics) SetSlotLeaderSkew(skew int) {
+	if m == nil {
+		return
+	}
+	m.slotLeaderSkew.Set(float64(skew))
 }

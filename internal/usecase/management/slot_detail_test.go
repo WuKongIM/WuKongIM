@@ -107,6 +107,37 @@ func TestGetSlotReturnsDetailWithNilTaskWhenTaskNotFound(t *testing.T) {
 	require.Nil(t, got.Task)
 }
 
+func TestGetSlotMarksLeaderTransferPendingForLeaderTransferTask(t *testing.T) {
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			assignments: []controllermeta.SlotAssignment{{
+				SlotID:          4,
+				DesiredPeers:    []uint64{1, 2, 3},
+				PreferredLeader: 2,
+			}},
+			views: []controllermeta.SlotRuntimeView{{
+				SlotID:        4,
+				CurrentPeers:  []uint64{1, 2, 3},
+				CurrentVoters: []uint64{1, 2, 3},
+				LeaderID:      1,
+				HasQuorum:     true,
+			}},
+			taskBySlot: map[uint32]controllermeta.ReconcileTask{4: {
+				SlotID: 4,
+				Kind:   controllermeta.TaskKindLeaderTransfer,
+				Status: controllermeta.TaskStatusPending,
+			}},
+		},
+	})
+
+	got, err := app.GetSlot(context.Background(), 4)
+
+	require.NoError(t, err)
+	require.True(t, got.State.LeaderTransferPending)
+	require.False(t, got.State.LeaderMatch)
+	require.Equal(t, "leader_transfer", got.Task.Kind)
+}
+
 func TestGetSlotReturnsRuntimeOnlyDetailWhenAssignmentMissing(t *testing.T) {
 	reportAt := time.Unix(1713686400, 0).UTC()
 	app := New(Options{

@@ -1029,6 +1029,8 @@ func controllerTaskKindName(kind controllermeta.TaskKind) string {
 		return "repair"
 	case controllermeta.TaskKindRebalance:
 		return "rebalance"
+	case controllermeta.TaskKindLeaderTransfer:
+		return "leader_transfer"
 	default:
 		return "unknown"
 	}
@@ -1040,6 +1042,8 @@ func controllerTaskResult(err error) string {
 		return "ok"
 	case errors.Is(err, context.DeadlineExceeded):
 		return "timeout"
+	case errors.Is(err, ErrLeaderTransferSafetyCheck):
+		return "safety_check"
 	default:
 		return "fail"
 	}

@@ -181,15 +181,19 @@ func TestManagerSlotRecoverReturnsUpdatedOutcome(t *testing.T) {
 			"slot_id": 2,
 			"state": {
 				"quorum": "ready",
-				"sync": "matched"
+				"sync": "matched",
+				"leader_match": false,
+				"leader_transfer_pending": false
 			},
 			"assignment": {
 				"desired_peers": [1, 2, 3],
+				"preferred_leader_id": 0,
 				"config_epoch": 8,
 				"balance_version": 3
 			},
 			"runtime": {
 				"current_peers": [1, 2, 3],
+				"current_voters": null,
 				"leader_id": 3,
 				"healthy_voters": 3,
 				"has_quorum": true,

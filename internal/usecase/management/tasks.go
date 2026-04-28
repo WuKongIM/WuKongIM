@@ -79,10 +79,12 @@ func (a *App) GetTask(ctx context.Context, slotID uint32) (TaskDetail, error) {
 
 	detail := TaskDetail{Task: managerTask(task)}
 	if slot, ok := managerSlotByID(task.SlotID, assignments, views); ok {
+		applySlotTaskState(&slot, task)
 		detail.Slot = slot
 		return detail, nil
 	}
 	detail.Slot = slotWithoutObservation(task.SlotID)
+	applySlotTaskState(&detail.Slot, task)
 	return detail, nil
 }
 
@@ -108,6 +110,8 @@ func managerTaskKind(kind controllermeta.TaskKind) string {
 		return "repair"
 	case controllermeta.TaskKindRebalance:
 		return "rebalance"
+	case controllermeta.TaskKindLeaderTransfer:
+		return "leader_transfer"
 	default:
 		return "unknown"
 	}

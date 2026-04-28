@@ -26,12 +26,18 @@ type SlotState struct {
 	Quorum string
 	// Sync summarizes whether runtime peers/config match the desired assignment.
 	Sync string
+	// LeaderMatch reports whether the preferred leader is currently leading.
+	LeaderMatch bool
+	// LeaderTransferPending reports whether a leader transfer task is current.
+	LeaderTransferPending bool
 }
 
 // SlotAssignment contains the manager-facing desired slot placement view.
 type SlotAssignment struct {
 	// DesiredPeers is the desired slot voter set.
 	DesiredPeers []uint64
+	// PreferredLeader is the controller preferred leader; zero means unset.
+	PreferredLeader uint64
 	// ConfigEpoch is the desired slot config epoch.
 	ConfigEpoch uint64
 	// BalanceVersion is the desired slot balance generation.
@@ -40,8 +46,10 @@ type SlotAssignment struct {
 
 // SlotRuntime contains the manager-facing observed slot runtime view.
 type SlotRuntime struct {
-	// CurrentPeers is the currently observed slot voter set.
+	// CurrentPeers is the currently observed slot peer set.
 	CurrentPeers []uint64
+	// CurrentVoters is the currently observed slot voter set.
+	CurrentVoters []uint64
 	// LeaderID is the currently observed slot leader.
 	LeaderID uint64
 	// HealthyVoters is the observed healthy voter count.
@@ -68,13 +76,20 @@ func (a *App) ListSlots(ctx context.Context) ([]Slot, error) {
 	if err != nil {
 		return nil, err
 	}
+	tasks, err := a.cluster.ListTasksStrict(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	viewsBySlot := runtimeViewsBySlot(views)
+	tasksBySlot := reconcileTasksBySlot(tasks)
 
 	slots := make([]Slot, 0, len(assignments))
 	for _, assignment := range assignments {
 		view, ok := viewsBySlot[assignment.SlotID]
-		slots = append(slots, slotFromAssignmentView(assignment, view, ok))
+		slot := slotFromAssignmentView(assignment, view, ok)
+		applySlotTaskState(&slot, tasksBySlot[assignment.SlotID])
+		slots = append(slots, slot)
 	}
 
 	sort.Slice(slots, func(i, j int) bool {
@@ -91,18 +106,28 @@ func runtimeViewsBySlot(views []controllermeta.SlotRuntimeView) map[uint32]contr
 	return viewsBySlot
 }
 
+func reconcileTasksBySlot(tasks []controllermeta.ReconcileTask) map[uint32]controllermeta.ReconcileTask {
+	tasksBySlot := make(map[uint32]controllermeta.ReconcileTask, len(tasks))
+	for _, task := range tasks {
+		tasksBySlot[task.SlotID] = task
+	}
+	return tasksBySlot
+}
+
 func slotFromAssignmentView(assignment controllermeta.SlotAssignment, view controllermeta.SlotRuntimeView, hasView bool) Slot {
 	slot := Slot{
 		SlotID: assignment.SlotID,
 		Assignment: SlotAssignment{
-			DesiredPeers:   append([]uint64(nil), assignment.DesiredPeers...),
-			ConfigEpoch:    assignment.ConfigEpoch,
-			BalanceVersion: assignment.BalanceVersion,
+			DesiredPeers:    append([]uint64(nil), assignment.DesiredPeers...),
+			PreferredLeader: assignment.PreferredLeader,
+			ConfigEpoch:     assignment.ConfigEpoch,
+			BalanceVersion:  assignment.BalanceVersion,
 		},
 	}
 	if hasView {
 		slot.Runtime = SlotRuntime{
 			CurrentPeers:        append([]uint64(nil), view.CurrentPeers...),
+			CurrentVoters:       append([]uint64(nil), view.CurrentVoters...),
 			LeaderID:            view.LeaderID,
 			HealthyVoters:       view.HealthyVoters,
 			HasQuorum:           view.HasQuorum,
@@ -111,10 +136,18 @@ func slotFromAssignmentView(assignment controllermeta.SlotAssignment, view contr
 		}
 	}
 	slot.State = SlotState{
-		Quorum: managerSlotQuorumState(hasView, slot.Runtime.HasQuorum),
-		Sync:   managerSlotSyncState(assignment, view, hasView),
+		Quorum:      managerSlotQuorumState(hasView, slot.Runtime.HasQuorum),
+		Sync:        managerSlotSyncState(assignment, view, hasView),
+		LeaderMatch: assignment.PreferredLeader != 0 && assignment.PreferredLeader == view.LeaderID,
 	}
 	return slot
+}
+
+func applySlotTaskState(slot *Slot, task controllermeta.ReconcileTask) {
+	if slot == nil {
+		return
+	}
+	slot.State.LeaderTransferPending = task.Kind == controllermeta.TaskKindLeaderTransfer
 }
 
 func managerSlotQuorumState(hasView, hasQuorum bool) string {

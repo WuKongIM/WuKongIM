@@ -227,7 +227,7 @@ func TestControllerMetricsTrackDecisionStateAndTaskCounts(t *testing.T) {
 	require.NoError(t, err)
 
 	decisions := requireMetricFamily(t, families, "wukongim_controller_decisions_total")
-	require.Len(t, decisions.GetMetric(), 3)
+	require.Len(t, decisions.GetMetric(), 4)
 	foundRepair := false
 	for _, metric := range decisions.GetMetric() {
 		labels := metric.GetLabel()
@@ -250,7 +250,7 @@ func TestControllerMetricsTrackDecisionStateAndTaskCounts(t *testing.T) {
 	require.Equal(t, float64(2), nodesAlive.GetMetric()[0].GetGauge().GetValue())
 
 	tasksActive := requireMetricFamily(t, families, "wukongim_controller_tasks_active")
-	require.Len(t, tasksActive.GetMetric(), 3)
+	require.Len(t, tasksActive.GetMetric(), 4)
 
 	migrationsActive := requireMetricFamily(t, families, "wukongim_controller_hashslot_migrations_active")
 	require.Len(t, migrationsActive.GetMetric(), 1)
@@ -268,6 +268,34 @@ func TestControllerMetricsTrackDecisionStateAndTaskCounts(t *testing.T) {
 		}
 	}
 	require.True(t, foundOK, "ok migration counter should be present")
+}
+
+func TestControllerMetricsIncludeLeaderTransferAndLeaderSkew(t *testing.T) {
+	reg := New(1, "node-1")
+	reg.Controller.ObserveDecision("leader_transfer", time.Millisecond)
+	reg.Controller.ObserveTaskCompleted("leader_transfer", "safety_check")
+	reg.Controller.SetTaskActive(map[string]int{"leader_transfer": 1})
+	reg.Controller.SetSlotLeaderSkew(2)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	decisions := requireMetricFamily(t, families, "wukongim_controller_decisions_total")
+	leaderTransferDecision := findMetricByLabels(t, decisions, map[string]string{"type": "leader_transfer"})
+	requireMetricLabels(t, leaderTransferDecision, map[string]string{"type": "leader_transfer"})
+	require.Equal(t, float64(1), leaderTransferDecision.GetCounter().GetValue())
+
+	completed := requireMetricFamily(t, families, "wukongim_controller_tasks_completed_total")
+	completedSafety := findMetricByLabels(t, completed, map[string]string{"type": "leader_transfer", "result": "safety_check"})
+	requireMetricLabels(t, completedSafety, map[string]string{"type": "leader_transfer", "result": "safety_check"})
+	require.Equal(t, float64(1), completedSafety.GetCounter().GetValue())
+
+	active := requireMetricFamily(t, families, "wukongim_controller_tasks_active")
+	activeLeaderTransfer := findMetricByLabels(t, active, map[string]string{"type": "leader_transfer"})
+	require.Equal(t, float64(1), activeLeaderTransfer.GetGauge().GetValue())
+
+	skew := requireMetricFamily(t, families, "wukongim_controller_slot_leader_skew")
+	require.Equal(t, float64(2), skew.GetMetric()[0].GetGauge().GetValue())
 }
 
 func TestStorageMetricsTrackDiskUsageByStore(t *testing.T) {
@@ -324,4 +352,26 @@ func requireMetricLabels(t *testing.T, metric *dto.Metric, want map[string]strin
 	for key, value := range want {
 		require.Equal(t, value, got[key], "label %s", key)
 	}
+}
+
+func findMetricByLabels(t *testing.T, family *dto.MetricFamily, want map[string]string) *dto.Metric {
+	t.Helper()
+	for _, metric := range family.GetMetric() {
+		got := make(map[string]string, len(metric.GetLabel()))
+		for _, label := range metric.GetLabel() {
+			got[label.GetName()] = label.GetValue()
+		}
+		matched := true
+		for key, value := range want {
+			if got[key] != value {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return metric
+		}
+	}
+	t.Fatalf("metric family %q with labels %v not found", family.GetName(), want)
+	return nil
 }

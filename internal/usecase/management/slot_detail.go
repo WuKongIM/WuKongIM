@@ -43,6 +43,7 @@ func (a *App) GetSlot(ctx context.Context, slotID uint32) (SlotDetail, error) {
 		return SlotDetail{}, err
 	}
 
+	applySlotTaskState(&detail.Slot, task)
 	taskDTO := managerTask(task)
 	detail.Task = &taskDTO
 	return detail, nil
@@ -81,6 +82,7 @@ func slotFromRuntimeView(slotID uint32, view controllermeta.SlotRuntimeView) Slo
 		},
 		Runtime: SlotRuntime{
 			CurrentPeers:        append([]uint64(nil), view.CurrentPeers...),
+			CurrentVoters:       append([]uint64(nil), view.CurrentVoters...),
 			LeaderID:            view.LeaderID,
 			HealthyVoters:       view.HealthyVoters,
 			HasQuorum:           view.HasQuorum,
