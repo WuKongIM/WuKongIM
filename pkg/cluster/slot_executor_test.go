@@ -162,21 +162,216 @@ func TestSlotExecutorExecuteBootstrapTransfersLeaderToTarget(t *testing.T) {
 	}
 }
 
-func TestSlotExecutorExecuteLeaderTransferFailsClosedBeforeImplementation(t *testing.T) {
+func TestSlotExecutorExecuteLeaderTransferOnlyTransfersLeadership(t *testing.T) {
 	cluster := &Cluster{}
+	var transferred bool
 	executor := newSlotExecutorWithFuncs(cluster, slotExecutorFuncs{
-		prepareSlot: func(multiraft.SlotID, []uint64) {},
+		prepareSlot: func(multiraft.SlotID, []uint64) {
+			t.Fatal("prepareSlot should not be called for leader transfer")
+		},
+		changeSlotConfig: func(context.Context, multiraft.SlotID, multiraft.ConfigChange) error {
+			t.Fatal("changeSlotConfig should not be called for leader transfer")
+			return nil
+		},
+		transferLeadership: func(_ context.Context, slotID multiraft.SlotID, target multiraft.NodeID) error {
+			if slotID != 1 || target != 2 {
+				t.Fatalf("transferLeadership() slot=%d target=%d, want slot=1 target=2", slotID, target)
+			}
+			transferred = true
+			return nil
+		},
+		waitForSpecificLeader: func(_ context.Context, slotID multiraft.SlotID, target multiraft.NodeID) error {
+			if slotID != 1 || target != 2 {
+				t.Fatalf("waitForSpecificLeader() slot=%d target=%d, want slot=1 target=2", slotID, target)
+			}
+			return nil
+		},
 	})
 
 	err := executor.Execute(context.Background(), assignmentTaskState{
-		assignment: controllermeta.SlotAssignment{SlotID: 1},
+		assignment:     controllermeta.SlotAssignment{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}},
+		runtimeView:    controllermeta.SlotRuntimeView{SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
+		hasRuntimeView: true,
+		nodes: map[uint64]controllermeta.ClusterNode{
+			2: leaderTransferTestNode(2),
+		},
 		task: controllermeta.ReconcileTask{
-			SlotID: 1,
-			Kind:   controllermeta.TaskKindLeaderTransfer,
+			SlotID:     1,
+			Kind:       controllermeta.TaskKindLeaderTransfer,
+			Step:       controllermeta.TaskStepTransferLeader,
+			TargetNode: 2,
 		},
 	})
-	if !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("slotExecutor.Execute() error = %v, want %v", err, ErrInvalidConfig)
+	if err != nil {
+		t.Fatalf("slotExecutor.Execute() error = %v, want nil", err)
+	}
+	if !transferred {
+		t.Fatal("transferLeadership was not called")
+	}
+}
+
+func TestSlotExecutorExecuteLeaderTransferAlreadyLeaderNoOp(t *testing.T) {
+	cluster := &Cluster{}
+	executor := newSlotExecutorWithFuncs(cluster, slotExecutorFuncs{
+		prepareSlot: func(multiraft.SlotID, []uint64) {
+			t.Fatal("prepareSlot should not be called for leader transfer")
+		},
+		transferLeadership: func(context.Context, multiraft.SlotID, multiraft.NodeID) error {
+			t.Fatal("transferLeadership should not be called when target is already leader")
+			return nil
+		},
+		waitForSpecificLeader: func(context.Context, multiraft.SlotID, multiraft.NodeID) error {
+			t.Fatal("waitForSpecificLeader should not be called when target is already leader")
+			return nil
+		},
+	})
+
+	err := executor.Execute(context.Background(), leaderTransferTestState(2, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+		2: leaderTransferTestNode(2),
+	}))
+	if err != nil {
+		t.Fatalf("slotExecutor.Execute() error = %v, want nil", err)
+	}
+}
+
+func TestSlotExecutorExecuteLeaderTransferRejectsUnsafeRuntimeView(t *testing.T) {
+	testCases := []struct {
+		name  string
+		state assignmentTaskState
+	}{
+		{
+			name: "missing runtime view",
+			state: func() assignmentTaskState {
+				state := leaderTransferTestState(1, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+					2: leaderTransferTestNode(2),
+				})
+				state.hasRuntimeView = false
+				return state
+			}(),
+		},
+		{
+			name: "unknown leader",
+			state: leaderTransferTestState(0, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+				2: leaderTransferTestNode(2),
+			}),
+		},
+		{
+			name: "empty current voters",
+			state: leaderTransferTestState(1, []uint64{1, 2, 3}, nil, map[uint64]controllermeta.ClusterNode{
+				2: leaderTransferTestNode(2),
+			}),
+		},
+		{
+			name: "leader not current voter",
+			state: leaderTransferTestState(4, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+				2: leaderTransferTestNode(2),
+			}),
+		},
+		{
+			name: "runtime view slot mismatch",
+			state: func() assignmentTaskState {
+				state := leaderTransferTestState(1, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+					2: leaderTransferTestNode(2),
+				})
+				state.runtimeView.SlotID = 2
+				return state
+			}(),
+		},
+		{
+			name: "runtime view config epoch stale",
+			state: func() assignmentTaskState {
+				state := leaderTransferTestState(1, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+					2: leaderTransferTestNode(2),
+				})
+				state.assignment.ConfigEpoch = 2
+				state.runtimeView.ObservedConfigEpoch = 1
+				return state
+			}(),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			executor := newSlotExecutorWithFuncs(&Cluster{}, leaderTransferRejectingFuncs(t))
+
+			err := executor.Execute(context.Background(), tc.state)
+			if !errors.Is(err, ErrLeaderTransferSafetyCheck) {
+				t.Fatalf("slotExecutor.Execute() error = %v, want %v", err, ErrLeaderTransferSafetyCheck)
+			}
+		})
+	}
+}
+
+func TestSlotExecutorExecuteLeaderTransferRejectsUnsafeTarget(t *testing.T) {
+	testCases := []struct {
+		name  string
+		state assignmentTaskState
+	}{
+		{
+			name: "target not in desired peers",
+			state: leaderTransferTestState(1, []uint64{1, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+				2: leaderTransferTestNode(2),
+			}),
+		},
+		{
+			name: "target not in current voters",
+			state: leaderTransferTestState(1, []uint64{1, 2, 3}, []uint64{1, 3}, map[uint64]controllermeta.ClusterNode{
+				2: leaderTransferTestNode(2),
+			}),
+		},
+		{
+			name:  "target missing",
+			state: leaderTransferTestState(1, []uint64{1, 2, 3}, []uint64{1, 2, 3}, nil),
+		},
+		{
+			name: "target dead",
+			state: leaderTransferTestState(1, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+				2: leaderTransferTestNodeWithStatus(2, controllermeta.NodeStatusDead),
+			}),
+		},
+		{
+			name: "target suspect",
+			state: leaderTransferTestState(1, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+				2: leaderTransferTestNodeWithStatus(2, controllermeta.NodeStatusSuspect),
+			}),
+		},
+		{
+			name: "target draining",
+			state: leaderTransferTestState(1, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+				2: leaderTransferTestNodeWithStatus(2, controllermeta.NodeStatusDraining),
+			}),
+		},
+		{
+			name: "target joining",
+			state: leaderTransferTestState(1, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+				2: {
+					NodeID:    2,
+					Role:      controllermeta.NodeRoleData,
+					JoinState: controllermeta.NodeJoinStateJoining,
+					Status:    controllermeta.NodeStatusAlive,
+				},
+			}),
+		},
+		{
+			name: "target controller only",
+			state: leaderTransferTestState(1, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+				2: {
+					NodeID:    2,
+					Role:      controllermeta.NodeRoleControllerVoter,
+					JoinState: controllermeta.NodeJoinStateActive,
+					Status:    controllermeta.NodeStatusAlive,
+				},
+			}),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			executor := newSlotExecutorWithFuncs(&Cluster{}, leaderTransferRejectingFuncs(t))
+
+			err := executor.Execute(context.Background(), tc.state)
+			if !errors.Is(err, ErrLeaderTransferSafetyCheck) {
+				t.Fatalf("slotExecutor.Execute() error = %v, want %v", err, ErrLeaderTransferSafetyCheck)
+			}
+		})
 	}
 }
 
@@ -239,5 +434,54 @@ func configChangeStepName(change multiraft.ChangeType) string {
 		return "RemoveVoter"
 	default:
 		return fmt.Sprintf("UnknownChangeType(%d)", change)
+	}
+}
+
+func leaderTransferTestState(leaderID uint64, desiredPeers, currentVoters []uint64, nodes map[uint64]controllermeta.ClusterNode) assignmentTaskState {
+	return assignmentTaskState{
+		assignment: controllermeta.SlotAssignment{SlotID: 1, DesiredPeers: desiredPeers},
+		runtimeView: controllermeta.SlotRuntimeView{
+			SlotID:        1,
+			LeaderID:      leaderID,
+			CurrentVoters: currentVoters,
+		},
+		hasRuntimeView: true,
+		nodes:          nodes,
+		task: controllermeta.ReconcileTask{
+			SlotID:     1,
+			Kind:       controllermeta.TaskKindLeaderTransfer,
+			Step:       controllermeta.TaskStepTransferLeader,
+			TargetNode: 2,
+		},
+	}
+}
+
+func leaderTransferTestNode(nodeID uint64) controllermeta.ClusterNode {
+	return leaderTransferTestNodeWithStatus(nodeID, controllermeta.NodeStatusAlive)
+}
+
+func leaderTransferTestNodeWithStatus(nodeID uint64, status controllermeta.NodeStatus) controllermeta.ClusterNode {
+	return controllermeta.ClusterNode{
+		NodeID:    nodeID,
+		Role:      controllermeta.NodeRoleData,
+		JoinState: controllermeta.NodeJoinStateActive,
+		Status:    status,
+	}
+}
+
+func leaderTransferRejectingFuncs(t *testing.T) slotExecutorFuncs {
+	t.Helper()
+	return slotExecutorFuncs{
+		prepareSlot: func(multiraft.SlotID, []uint64) {
+			t.Fatal("prepareSlot should not be called for rejected leader transfer")
+		},
+		transferLeadership: func(context.Context, multiraft.SlotID, multiraft.NodeID) error {
+			t.Fatal("transferLeadership should not be called for rejected leader transfer")
+			return nil
+		},
+		waitForSpecificLeader: func(context.Context, multiraft.SlotID, multiraft.NodeID) error {
+			t.Fatal("waitForSpecificLeader should not be called for rejected leader transfer")
+			return nil
+		},
 	}
 }

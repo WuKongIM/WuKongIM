@@ -243,6 +243,171 @@ func TestReconcilerTickDoesNotBootstrapRemoteTarget(t *testing.T) {
 	}
 }
 
+func TestReconcilerLeaderTransferPassesRuntimeViewAndNodesIntoAssignmentTaskState(t *testing.T) {
+	cluster := newReconcilerLeaderTransferCluster(t, 1)
+	assignment := controllermeta.SlotAssignment{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 1}
+	task := leaderTransferReconcileTask(1, 2)
+	cluster.assignments.SetAssignments([]controllermeta.SlotAssignment{assignment})
+
+	var transferCalls int
+	cluster.slotExecutor = newSlotExecutorWithFuncs(cluster, slotExecutorFuncs{
+		transferLeadership: func(_ context.Context, slotID multiraft.SlotID, target multiraft.NodeID) error {
+			transferCalls++
+			if slotID != 1 || target != 2 {
+				t.Fatalf("transferLeadership() slot=%d target=%d, want slot=1 target=2", slotID, target)
+			}
+			return nil
+		},
+		waitForSpecificLeader: func(context.Context, multiraft.SlotID, multiraft.NodeID) error {
+			return nil
+		},
+	})
+
+	var reportedErr error
+	agent := &slotAgent{
+		cluster: cluster,
+		client: fakeControllerClient{
+			nodes:        []controllermeta.ClusterNode{reconcilerLeaderTransferNode(1), reconcilerLeaderTransferNode(2), reconcilerLeaderTransferNode(3)},
+			runtimeViews: []controllermeta.SlotRuntimeView{{SlotID: 1, LeaderID: 1, CurrentPeers: []uint64{1, 2, 3}, CurrentVoters: []uint64{1, 2, 3}}},
+			listTasks:    []controllermeta.ReconcileTask{task},
+			tasks:        map[uint32]controllermeta.ReconcileTask{1: task},
+			reportTaskResultFn: func(_ context.Context, gotTask controllermeta.ReconcileTask, gotErr error) error {
+				if !sameReconcileTaskIdentity(gotTask, task) {
+					t.Fatalf("reported task = %+v, want %+v", gotTask, task)
+				}
+				reportedErr = gotErr
+				return nil
+			},
+		},
+		cache: cluster.assignments,
+	}
+
+	if err := newReconciler(agent).Tick(context.Background()); err != nil {
+		t.Fatalf("Tick() error = %v", err)
+	}
+	if transferCalls != 1 {
+		t.Fatalf("transferLeadership() calls = %d, want 1", transferCalls)
+	}
+	if reportedErr != nil {
+		t.Fatalf("reported taskErr = %v, want nil", reportedErr)
+	}
+}
+
+func TestReconcilerLeaderTransferDoesNotExecuteOnNonLeaderWhenLeaderKnown(t *testing.T) {
+	cluster := newReconcilerLeaderTransferCluster(t, 2)
+	assignment := controllermeta.SlotAssignment{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 1}
+	task := leaderTransferReconcileTask(1, 3)
+	cluster.assignments.SetAssignments([]controllermeta.SlotAssignment{assignment})
+	cluster.slotExecutor = newSlotExecutorWithFuncs(cluster, slotExecutorFuncs{
+		transferLeadership: func(context.Context, multiraft.SlotID, multiraft.NodeID) error {
+			t.Fatal("transferLeadership should not be called on non-leader while leader is eligible")
+			return nil
+		},
+	})
+
+	agent := &slotAgent{
+		cluster: cluster,
+		client: fakeControllerClient{
+			nodes:        []controllermeta.ClusterNode{reconcilerLeaderTransferNode(1), reconcilerLeaderTransferNode(2), reconcilerLeaderTransferNode(3)},
+			runtimeViews: []controllermeta.SlotRuntimeView{{SlotID: 1, LeaderID: 1, CurrentPeers: []uint64{1, 2, 3}, CurrentVoters: []uint64{1, 2, 3}}},
+			listTasks:    []controllermeta.ReconcileTask{task},
+			tasks:        map[uint32]controllermeta.ReconcileTask{1: task},
+		},
+		cache: cluster.assignments,
+	}
+
+	if err := newReconciler(agent).Tick(context.Background()); err != nil {
+		t.Fatalf("Tick() error = %v", err)
+	}
+}
+
+func TestReconcilerLeaderTransferUnknownLeaderUsesDeterministicChecker(t *testing.T) {
+	cluster := newReconcilerLeaderTransferCluster(t, 1)
+	assignment := controllermeta.SlotAssignment{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 1}
+	task := leaderTransferReconcileTask(1, 2)
+	cluster.assignments.SetAssignments([]controllermeta.SlotAssignment{assignment})
+	cluster.slotExecutor = newSlotExecutorWithFuncs(cluster, slotExecutorFuncs{
+		transferLeadership: func(context.Context, multiraft.SlotID, multiraft.NodeID) error {
+			t.Fatal("transferLeadership should not be called when runtime leader is unknown")
+			return nil
+		},
+	})
+
+	var reportCalls int
+	agent := &slotAgent{
+		cluster: cluster,
+		client: fakeControllerClient{
+			nodes:        []controllermeta.ClusterNode{reconcilerLeaderTransferNode(1), reconcilerLeaderTransferNode(2), reconcilerLeaderTransferNode(3)},
+			runtimeViews: []controllermeta.SlotRuntimeView{{SlotID: 1, LeaderID: 0, CurrentPeers: []uint64{1, 2, 3}}},
+			listTasks:    []controllermeta.ReconcileTask{task},
+			tasks:        map[uint32]controllermeta.ReconcileTask{1: task},
+			reportTaskResultFn: func(_ context.Context, _ controllermeta.ReconcileTask, gotErr error) error {
+				reportCalls++
+				if !errors.Is(gotErr, ErrLeaderTransferSafetyCheck) {
+					t.Fatalf("reported taskErr = %v, want %v", gotErr, ErrLeaderTransferSafetyCheck)
+				}
+				return nil
+			},
+		},
+		cache: cluster.assignments,
+	}
+
+	if err := newReconciler(agent).Tick(context.Background()); err != nil {
+		t.Fatalf("Tick() error = %v", err)
+	}
+	if reportCalls != 1 {
+		t.Fatalf("ReportTaskResult() calls = %d, want 1", reportCalls)
+	}
+}
+
+func TestReconcilerLeaderTransferKnownDeadLeaderFallsBackToChecker(t *testing.T) {
+	cluster := newReconcilerLeaderTransferCluster(t, 2)
+	assignment := controllermeta.SlotAssignment{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 1}
+	task := leaderTransferReconcileTask(1, 3)
+	cluster.assignments.SetAssignments([]controllermeta.SlotAssignment{assignment})
+
+	var transferCalls int
+	cluster.slotExecutor = newSlotExecutorWithFuncs(cluster, slotExecutorFuncs{
+		transferLeadership: func(context.Context, multiraft.SlotID, multiraft.NodeID) error {
+			transferCalls++
+			return ErrLeaderTransferSafetyCheck
+		},
+	})
+
+	var reportCalls int
+	agent := &slotAgent{
+		cluster: cluster,
+		client: fakeControllerClient{
+			nodes: []controllermeta.ClusterNode{
+				reconcilerLeaderTransferNodeWithStatus(1, controllermeta.NodeStatusDead),
+				reconcilerLeaderTransferNode(2),
+				reconcilerLeaderTransferNode(3),
+			},
+			runtimeViews: []controllermeta.SlotRuntimeView{{SlotID: 1, LeaderID: 1, CurrentPeers: []uint64{1, 2, 3}, CurrentVoters: []uint64{1, 2, 3}}},
+			listTasks:    []controllermeta.ReconcileTask{task},
+			tasks:        map[uint32]controllermeta.ReconcileTask{1: task},
+			reportTaskResultFn: func(_ context.Context, _ controllermeta.ReconcileTask, gotErr error) error {
+				reportCalls++
+				if !errors.Is(gotErr, ErrLeaderTransferSafetyCheck) {
+					t.Fatalf("reported taskErr = %v, want %v", gotErr, ErrLeaderTransferSafetyCheck)
+				}
+				return nil
+			},
+		},
+		cache: cluster.assignments,
+	}
+
+	if err := newReconciler(agent).Tick(context.Background()); err != nil {
+		t.Fatalf("Tick() error = %v", err)
+	}
+	if transferCalls != 1 {
+		t.Fatalf("transferLeadership() calls = %d, want 1 via deterministic checker", transferCalls)
+	}
+	if reportCalls != 1 {
+		t.Fatalf("ReportTaskResult() calls = %d, want 1", reportCalls)
+	}
+}
+
 func TestReconcilerTickLoadsTasksViaListTasksBeforePerSlotConfirmation(t *testing.T) {
 	cluster, err := NewCluster(Config{
 		NodeID:       1,
@@ -403,5 +568,82 @@ func TestReconcilerTickLoadsTasksOnceForMultipleAssignments(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&getTaskCalls); got != 0 {
 		t.Fatalf("GetTask() calls = %d, want 0 without runnable tasks", got)
+	}
+}
+
+func newReconcilerLeaderTransferCluster(t *testing.T, nodeID uint64) *Cluster {
+	t.Helper()
+
+	cluster, err := NewCluster(Config{
+		NodeID:       multiraft.NodeID(nodeID),
+		ListenAddr:   "127.0.0.1:0",
+		SlotCount:    1,
+		SlotReplicaN: 3,
+		Nodes: []NodeConfig{
+			{NodeID: 1, Addr: "127.0.0.1:7001"},
+			{NodeID: 2, Addr: "127.0.0.1:7002"},
+			{NodeID: 3, Addr: "127.0.0.1:7003"},
+		},
+		NewStorage: func(multiraft.SlotID) (multiraft.Storage, error) {
+			return &observerTestStorage{}, nil
+		},
+		NewStateMachine: func(multiraft.SlotID) (multiraft.StateMachine, error) {
+			return observerTestStateMachine{}, nil
+		},
+		Timeouts: Timeouts{
+			ManagedSlotLeaderWait: 200 * time.Millisecond,
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewCluster() error = %v", err)
+	}
+
+	rt, err := multiraft.New(multiraft.Options{
+		NodeID:       multiraft.NodeID(nodeID),
+		TickInterval: 10 * time.Millisecond,
+		Workers:      1,
+		Transport:    observerTestTransport{},
+		Raft: multiraft.RaftOptions{
+			ElectionTick:  3,
+			HeartbeatTick: 1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("multiraft.New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = rt.Close()
+	})
+
+	cluster.runtime = rt
+	cluster.router = NewRouter(
+		NewHashSlotTable(cluster.cfg.effectiveHashSlotCount(), int(cluster.cfg.effectiveInitialSlotCount())),
+		cluster.cfg.NodeID,
+		rt,
+	)
+	return cluster
+}
+
+func leaderTransferReconcileTask(slotID uint32, targetNode uint64) controllermeta.ReconcileTask {
+	return controllermeta.ReconcileTask{
+		SlotID:     slotID,
+		Kind:       controllermeta.TaskKindLeaderTransfer,
+		Step:       controllermeta.TaskStepTransferLeader,
+		TargetNode: targetNode,
+		Status:     controllermeta.TaskStatusPending,
+		NextRunAt:  time.Now(),
+	}
+}
+
+func reconcilerLeaderTransferNode(nodeID uint64) controllermeta.ClusterNode {
+	return reconcilerLeaderTransferNodeWithStatus(nodeID, controllermeta.NodeStatusAlive)
+}
+
+func reconcilerLeaderTransferNodeWithStatus(nodeID uint64, status controllermeta.NodeStatus) controllermeta.ClusterNode {
+	return controllermeta.ClusterNode{
+		NodeID:    nodeID,
+		Role:      controllermeta.NodeRoleData,
+		JoinState: controllermeta.NodeJoinStateActive,
+		Status:    status,
 	}
 }

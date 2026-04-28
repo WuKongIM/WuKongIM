@@ -342,6 +342,28 @@ func (m *slotManager) ensureLeaderMovedOffSource(ctx context.Context, slotID mul
 	}
 }
 
+func (m *slotManager) waitForSpecificLeader(ctx context.Context, slotID multiraft.SlotID, target multiraft.NodeID) error {
+	if m == nil || m.cluster == nil {
+		return ErrNotStarted
+	}
+	c := m.cluster
+	deadline := time.Now().Add(c.timeoutConfig().ManagedSlotLeaderMove)
+	for {
+		if time.Now().After(deadline) {
+			return ErrLeaderNotStable
+		}
+		leaderID, err := m.currentLeader(slotID)
+		if err == nil && leaderID == target {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(c.managedSlotLeaderMovePollInterval()):
+		}
+	}
+}
+
 // ensureLeaderOnTarget moves a bootstrapped Slot leader to the planned target node.
 func (m *slotManager) ensureLeaderOnTarget(ctx context.Context, slotID multiraft.SlotID, targetNode multiraft.NodeID) error {
 	if m == nil || m.cluster == nil {
