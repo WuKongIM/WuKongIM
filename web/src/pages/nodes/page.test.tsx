@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -289,6 +289,45 @@ test("renders layered node inventory fields and honors backend action hints", as
   expect(screen.getByText("replicas 3 / leaders 2 / followers 1")).toBeInTheDocument()
   expect(screen.getByText("sessions 5 / online 4")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Drain" })).toBeDisabled()
+})
+
+test("uses compact node page chrome without duplicate header actions", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
+
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  expect(screen.queryByText("Scope: all nodes")).not.toBeInTheDocument()
+  expect(screen.queryByText("Current node placement, role, and lifecycle state from the manager API.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Inspect a node for hosted slot details or run lifecycle actions.")).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Inspect" })).not.toBeInTheDocument()
+  expect(screen.getByText("Total: 1")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
+})
+
+test("opens scale-in review in a sheet instead of an inline section", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
+  planNodeScaleInMock.mockResolvedValueOnce(scaleInPlanReport)
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Review scale-in for node 1" }))
+
+  const dialog = await screen.findByRole("dialog", { name: "Scale-in Plan" })
+  expect(within(dialog).getByText("Assigned replicas")).toBeInTheDocument()
+  expect(within(dialog).getByText("Node 1 manager-driven scale-in safety report.")).toBeInTheDocument()
 })
 
 test("opens node detail and refreshes after draining", async () => {

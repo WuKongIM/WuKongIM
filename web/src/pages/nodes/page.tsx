@@ -7,11 +7,8 @@ import { DetailSheet } from "@/components/manager/detail-sheet"
 import { KeyValueList } from "@/components/manager/key-value-list"
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
-import { TableToolbar } from "@/components/manager/table-toolbar"
 import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/shell/page-container"
-import { PageHeader } from "@/components/shell/page-header"
-import { SectionCard } from "@/components/shell/section-card"
 import {
   ManagerApiError,
   advanceNodeScaleIn,
@@ -381,6 +378,17 @@ export function NodesPage() {
     setActionError("")
   }, [])
 
+  const closeScaleIn = useCallback((open: boolean) => {
+    if (open) {
+      return
+    }
+    setScaleInNodeId(null)
+    setScaleInReport(null)
+    setScaleInError("")
+    setScaleInAction(null)
+    setScaleInConfirmAction(null)
+  }, [])
+
   const applyScaleInError = useCallback((error: unknown) => {
     if (error instanceof ManagerApiError && isNodeScaleInReport(error.report)) {
       setScaleInNodeId(error.report.node_id)
@@ -511,39 +519,29 @@ export function NodesPage() {
 
   return (
     <PageContainer>
-      <PageHeader
-        title={intl.formatMessage({ id: "nav.nodes.title" })}
-        description={intl.formatMessage({ id: "nav.nodes.description" })}
-        actions={
-          <>
-            <Button
-              onClick={() => {
-                void loadNodes(true)
-              }}
-              size="sm"
-              variant="outline"
-            >
-              {state.refreshing
-                ? intl.formatMessage({ id: "common.refreshing" })
-                : intl.formatMessage({ id: "common.refresh" })}
-            </Button>
-            <Button disabled size="sm">
-              {intl.formatMessage({ id: "common.inspect" })}
-            </Button>
-          </>
-        }
-      >
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          <div className="rounded-md border border-border bg-background px-3 py-2">
-            {intl.formatMessage({ id: "nodes.scopeAllNodes" })}
-          </div>
-          <div className="rounded-md border border-border bg-background px-3 py-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            {intl.formatMessage({ id: "nav.nodes.title" })}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             {state.nodes
               ? intl.formatMessage({ id: "nodes.totalValue" }, { total: state.nodes.total })
               : intl.formatMessage({ id: "nodes.totalPending" })}
-          </div>
+          </p>
         </div>
-      </PageHeader>
+        <Button
+          onClick={() => {
+            void loadNodes(true)
+          }}
+          size="sm"
+          variant="outline"
+        >
+          {state.refreshing
+            ? intl.formatMessage({ id: "common.refreshing" })
+            : intl.formatMessage({ id: "common.refresh" })}
+        </Button>
+      </div>
 
       {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nav.nodes.title" })} /> : null}
       {!state.loading && state.error ? (
@@ -556,18 +554,7 @@ export function NodesPage() {
         />
       ) : null}
       {!state.loading && !state.error && state.nodes ? (
-        <SectionCard
-          description={intl.formatMessage({ id: "nodes.inventoryDescription" })}
-          title={intl.formatMessage({ id: "nodes.inventoryTitle" })}
-        >
-          <TableToolbar
-            description={intl.formatMessage({ id: "nodes.toolbarDescription" })}
-            onRefresh={() => {
-              void loadNodes(true)
-            }}
-            refreshing={state.refreshing}
-            title={intl.formatMessage({ id: "nodes.toolbarTitle" })}
-          />
+        <div className="rounded-xl border border-border bg-card p-3 shadow-none">
           {state.nodes.items.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full border-collapse">
@@ -674,13 +661,18 @@ export function NodesPage() {
           ) : (
             <ResourceState kind="empty" title={intl.formatMessage({ id: "nodes.inventoryTitle" })} />
           )}
-        </SectionCard>
+        </div>
       ) : null}
 
-      {scaleInNodeId ? (
-        <SectionCard
-          action={(
-            <div className="flex flex-wrap items-center gap-2">
+      <DetailSheet
+        description={
+          scaleInNodeId
+            ? intl.formatMessage({ id: "nodes.scaleIn.description" }, { id: scaleInNodeId })
+            : intl.formatMessage({ id: "nodes.scaleIn.title" })
+        }
+        footer={
+          scaleInNodeId ? (
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {scaleInReport ? (
                 <Button
                   disabled={!canReadScaleIn || scaleInAction === "refresh"}
@@ -724,25 +716,23 @@ export function NodesPage() {
                 </Button>
               ) : null}
             </div>
-          )}
-          description={intl.formatMessage(
-            { id: "nodes.scaleIn.description" },
-            { id: scaleInNodeId },
-          )}
-          title={intl.formatMessage({ id: "nodes.scaleIn.title" })}
-        >
-          {scaleInAction === "plan" && !scaleInReport ? (
-            <ResourceState kind="loading" title={intl.formatMessage({ id: "nodes.scaleIn.title" })} />
-          ) : null}
-          {!canWriteScaleIn ? (
-            <div className="mb-3 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-              {intl.formatMessage({ id: "nodes.scaleIn.permissionRequired" })}
-            </div>
-          ) : null}
-          {scaleInError ? <p className="mb-3 text-sm text-destructive">{scaleInError}</p> : null}
-          {scaleInReport ? <ScaleInReportView intl={intl} report={scaleInReport} /> : null}
-        </SectionCard>
-      ) : null}
+          ) : null
+        }
+        onOpenChange={closeScaleIn}
+        open={scaleInNodeId !== null}
+        title={intl.formatMessage({ id: "nodes.scaleIn.title" })}
+      >
+        {scaleInAction === "plan" && !scaleInReport ? (
+          <ResourceState kind="loading" title={intl.formatMessage({ id: "nodes.scaleIn.title" })} />
+        ) : null}
+        {!canWriteScaleIn ? (
+          <div className="mb-3 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+            {intl.formatMessage({ id: "nodes.scaleIn.permissionRequired" })}
+          </div>
+        ) : null}
+        {scaleInError ? <p className="mb-3 text-sm text-destructive">{scaleInError}</p> : null}
+        {scaleInReport ? <ScaleInReportView intl={intl} report={scaleInReport} /> : null}
+      </DetailSheet>
 
       <DetailSheet
         description={
