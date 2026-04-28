@@ -193,6 +193,7 @@ func TestSlotExecutorExecuteLeaderTransferOnlyTransfersLeadership(t *testing.T) 
 		runtimeView:    controllermeta.SlotRuntimeView{SlotID: 1, LeaderID: 1, CurrentVoters: []uint64{1, 2, 3}},
 		hasRuntimeView: true,
 		nodes: map[uint64]controllermeta.ClusterNode{
+			1: leaderTransferTestNode(1),
 			2: leaderTransferTestNode(2),
 		},
 		task: controllermeta.ReconcileTask{
@@ -281,12 +282,32 @@ func TestSlotExecutorExecuteLeaderTransferRejectsUnsafeRuntimeView(t *testing.T)
 			name: "runtime view config epoch stale",
 			state: func() assignmentTaskState {
 				state := leaderTransferTestState(1, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+					1: leaderTransferTestNode(1),
 					2: leaderTransferTestNode(2),
 				})
 				state.assignment.ConfigEpoch = 2
 				state.runtimeView.ObservedConfigEpoch = 1
 				return state
 			}(),
+		},
+		{
+			name: "runtime view config epoch zero is stale when assignment epoch known",
+			state: func() assignmentTaskState {
+				state := leaderTransferTestState(1, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+					1: leaderTransferTestNode(1),
+					2: leaderTransferTestNode(2),
+				})
+				state.assignment.ConfigEpoch = 2
+				state.runtimeView.ObservedConfigEpoch = 0
+				return state
+			}(),
+		},
+		{
+			name: "observed leader dead",
+			state: leaderTransferTestState(1, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+				1: leaderTransferTestNodeWithStatus(1, controllermeta.NodeStatusDead),
+				2: leaderTransferTestNode(2),
+			}),
 		},
 	}
 	for _, tc := range testCases {
@@ -372,6 +393,21 @@ func TestSlotExecutorExecuteLeaderTransferRejectsUnsafeTarget(t *testing.T) {
 				t.Fatalf("slotExecutor.Execute() error = %v, want %v", err, ErrLeaderTransferSafetyCheck)
 			}
 		})
+	}
+}
+
+func TestSlotExecutorExecuteLeaderTransferRejectsNonLeaderExecutor(t *testing.T) {
+	cluster := &Cluster{cfg: Config{NodeID: 2}}
+	executor := newSlotExecutorWithFuncs(cluster, leaderTransferRejectingFuncs(t))
+	state := leaderTransferTestState(1, []uint64{1, 2, 3}, []uint64{1, 2, 3}, map[uint64]controllermeta.ClusterNode{
+		1: leaderTransferTestNode(1),
+		3: leaderTransferTestNode(3),
+	})
+	state.task.TargetNode = 3
+
+	err := executor.Execute(context.Background(), state)
+	if !errors.Is(err, ErrLeaderTransferSafetyCheck) {
+		t.Fatalf("slotExecutor.Execute() error = %v, want %v", err, ErrLeaderTransferSafetyCheck)
 	}
 }
 

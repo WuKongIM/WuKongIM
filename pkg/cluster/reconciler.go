@@ -144,8 +144,12 @@ func (r *reconciler) Tick(ctx context.Context) error {
 			}
 		}
 		runnable := reconcileTaskRunnable(now, task)
+		execHasView := hasView
+		if task.Kind == controllermeta.TaskKindLeaderTransfer {
+			execHasView = liveRuntimeViews && hasView
+		}
 		var shouldExecute bool
-		if hasView {
+		if execHasView {
 			shouldExecute = r.shouldExecuteTask(assignment, task, nodeByID, view)
 		} else {
 			shouldExecute = r.shouldExecuteTask(assignment, task, nodeByID)
@@ -184,7 +188,7 @@ func (r *reconciler) Tick(ctx context.Context) error {
 		execErr := a.cluster.executeReconcileTask(ctx, assignmentTaskState{
 			assignment:     assignment,
 			runtimeView:    view,
-			hasRuntimeView: hasView,
+			hasRuntimeView: execHasView,
 			nodes:          nodeByID,
 			task:           task,
 		})

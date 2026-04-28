@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -268,7 +269,7 @@ func TestReconcilerLeaderTransferPassesRuntimeViewAndNodesIntoAssignmentTaskStat
 		cluster: cluster,
 		client: fakeControllerClient{
 			nodes:        []controllermeta.ClusterNode{reconcilerLeaderTransferNode(1), reconcilerLeaderTransferNode(2), reconcilerLeaderTransferNode(3)},
-			runtimeViews: []controllermeta.SlotRuntimeView{{SlotID: 1, LeaderID: 1, CurrentPeers: []uint64{1, 2, 3}, CurrentVoters: []uint64{1, 2, 3}}},
+			runtimeViews: []controllermeta.SlotRuntimeView{{SlotID: 1, LeaderID: 1, CurrentPeers: []uint64{1, 2, 3}, CurrentVoters: []uint64{1, 2, 3}, ObservedConfigEpoch: 1}},
 			listTasks:    []controllermeta.ReconcileTask{task},
 			tasks:        map[uint32]controllermeta.ReconcileTask{1: task},
 			reportTaskResultFn: func(_ context.Context, gotTask controllermeta.ReconcileTask, gotErr error) error {
@@ -360,6 +361,62 @@ func TestReconcilerLeaderTransferUnknownLeaderUsesDeterministicChecker(t *testin
 	}
 }
 
+func TestReconcilerLeaderTransferFallbackRuntimeViewFailsClosed(t *testing.T) {
+	cluster := newReconcilerLeaderTransferCluster(t, 1)
+	store, err := controllermeta.Open(filepath.Join(t.TempDir(), "controller-meta"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = store.Close()
+	})
+	cluster.controllerMeta = store
+	assignment := controllermeta.SlotAssignment{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 1}
+	task := leaderTransferReconcileTask(1, 2)
+	cluster.assignments.SetAssignments([]controllermeta.SlotAssignment{assignment})
+	if err := store.UpsertRuntimeView(context.Background(), controllermeta.SlotRuntimeView{
+		SlotID:              1,
+		LeaderID:            1,
+		CurrentPeers:        []uint64{1, 2, 3},
+		CurrentVoters:       []uint64{1, 2, 3},
+		ObservedConfigEpoch: 1,
+	}); err != nil {
+		t.Fatalf("UpsertRuntimeView() error = %v", err)
+	}
+	cluster.slotExecutor = newSlotExecutorWithFuncs(cluster, slotExecutorFuncs{
+		transferLeadership: func(context.Context, multiraft.SlotID, multiraft.NodeID) error {
+			t.Fatal("transferLeadership should not be called from non-live runtime view")
+			return nil
+		},
+	})
+
+	var reportCalls int
+	agent := &slotAgent{
+		cluster: cluster,
+		client: fakeControllerClient{
+			nodes:               []controllermeta.ClusterNode{reconcilerLeaderTransferNode(1), reconcilerLeaderTransferNode(2), reconcilerLeaderTransferNode(3)},
+			listRuntimeViewsErr: ErrNoLeader,
+			listTasks:           []controllermeta.ReconcileTask{task},
+			tasks:               map[uint32]controllermeta.ReconcileTask{1: task},
+			reportTaskResultFn: func(_ context.Context, _ controllermeta.ReconcileTask, gotErr error) error {
+				reportCalls++
+				if !errors.Is(gotErr, ErrLeaderTransferSafetyCheck) {
+					t.Fatalf("reported taskErr = %v, want %v", gotErr, ErrLeaderTransferSafetyCheck)
+				}
+				return nil
+			},
+		},
+		cache: cluster.assignments,
+	}
+
+	if err := newReconciler(agent).Tick(context.Background()); err != nil {
+		t.Fatalf("Tick() error = %v", err)
+	}
+	if reportCalls != 1 {
+		t.Fatalf("ReportTaskResult() calls = %d, want 1", reportCalls)
+	}
+}
+
 func TestReconcilerLeaderTransferKnownDeadLeaderFallsBackToChecker(t *testing.T) {
 	cluster := newReconcilerLeaderTransferCluster(t, 2)
 	assignment := controllermeta.SlotAssignment{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 1}
@@ -370,7 +427,8 @@ func TestReconcilerLeaderTransferKnownDeadLeaderFallsBackToChecker(t *testing.T)
 	cluster.slotExecutor = newSlotExecutorWithFuncs(cluster, slotExecutorFuncs{
 		transferLeadership: func(context.Context, multiraft.SlotID, multiraft.NodeID) error {
 			transferCalls++
-			return ErrLeaderTransferSafetyCheck
+			t.Fatal("transferLeadership should not be called when observed leader is dead")
+			return nil
 		},
 	})
 
@@ -400,8 +458,8 @@ func TestReconcilerLeaderTransferKnownDeadLeaderFallsBackToChecker(t *testing.T)
 	if err := newReconciler(agent).Tick(context.Background()); err != nil {
 		t.Fatalf("Tick() error = %v", err)
 	}
-	if transferCalls != 1 {
-		t.Fatalf("transferLeadership() calls = %d, want 1 via deterministic checker", transferCalls)
+	if transferCalls != 0 {
+		t.Fatalf("transferLeadership() calls = %d, want 0 for dead observed leader", transferCalls)
 	}
 	if reportCalls != 1 {
 		t.Fatalf("ReportTaskResult() calls = %d, want 1", reportCalls)

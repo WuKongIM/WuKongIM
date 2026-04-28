@@ -179,8 +179,15 @@ func (e *slotExecutor) executeLeaderTransfer(ctx context.Context, assignment ass
 	if !assignmentContainsPeer(view.CurrentVoters, view.LeaderID) {
 		return fmt.Errorf("%w: observed leader is not a current voter", ErrLeaderTransferSafetyCheck)
 	}
-	if assignment.assignment.ConfigEpoch != 0 && view.ObservedConfigEpoch != 0 && view.ObservedConfigEpoch < assignment.assignment.ConfigEpoch {
+	if assignment.assignment.ConfigEpoch != 0 && view.ObservedConfigEpoch < assignment.assignment.ConfigEpoch {
 		return fmt.Errorf("%w: runtime view config epoch is stale", ErrLeaderTransferSafetyCheck)
+	}
+	leaderNode, ok := assignment.nodes[view.LeaderID]
+	if !ok || !controllerNodeEligibleForLeaderTransfer(leaderNode) {
+		return fmt.Errorf("%w: observed leader node not eligible", ErrLeaderTransferSafetyCheck)
+	}
+	if localNodeID := uint64(e.cluster.cfg.NodeID); localNodeID != 0 && localNodeID != view.LeaderID {
+		return fmt.Errorf("%w: executor is not observed leader", ErrLeaderTransferSafetyCheck)
 	}
 	targetNode := assignment.task.TargetNode
 	if !assignmentContainsPeer(assignment.assignment.DesiredPeers, targetNode) {
