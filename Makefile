@@ -1,39 +1,34 @@
+PLATFORMS ?= linux/amd64,linux/arm64
+IMAGE ?= wukongim
+V2_DEV_IMAGE ?= registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.2.6-dev
+V2_VERSION ?= v2.2.1-20250624
+
 build:
-	docker build -t wukongim .
+	docker buildx build --platform $(PLATFORMS) -t $(IMAGE) --output type=oci,dest=$(IMAGE).tar .
 push:
-	docker tag wukongim wukongim/wukongim:latest-dev
-	docker push wukongim/wukongim:latest-dev
+	docker buildx build --platform $(PLATFORMS) -t wukongim/wukongim:latest-dev --push .
 deploy:
-	docker build -t wukongim .
-	docker tag wukongim wukongim/wukongim:latest
-	docker push wukongim/wukongim:latest	
+	docker buildx build --platform $(PLATFORMS) -t wukongim/wukongim:latest --push .
 deploy-dev:
-	docker build -t wukongim .
-	docker tag wukongim wukongim/wukongim:latest-dev
-	docker push wukongim/wukongim:latest-dev
+	docker buildx build --platform $(PLATFORMS) -t wukongim/wukongim:latest-dev --push .
 deploy-arm:
 	docker build -t wukongimarm64 . -f Dockerfile.arm64 --platform linux/arm64
 	docker tag wukongimarm64 wukongim/wukongim:latest-arm64
 	docker push wukongim/wukongim:latest-arm64
 deploy-v2-dev:
-	docker build -t wukongim .  --platform linux/amd64
-	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.2.4-dev
-	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.2.4-dev
+	docker buildx build --platform $(PLATFORMS) -t $(V2_DEV_IMAGE) --push .
 deploy-v2:
-	docker buildx build -t wukongim . --platform linux/amd64,linux/arm64
-	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.2.1-20250624
-	docker tag wukongim wukongim/wukongim:v2.2.1-20250624
-	docker tag wukongim ghcr.io/wukongim/wukongim:v2.2.1-20250624
-	docker tag wukongim ghcr.io/wukongim/wukongim:v2
-	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2.2.1-20250624
-	docker push wukongim/wukongim:v2.2.1-20250624
-	docker push ghcr.io/wukongim/wukongim:v2
+	docker buildx build --platform $(PLATFORMS) \
+		-t registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:$(V2_VERSION) \
+		-t wukongim/wukongim:$(V2_VERSION) \
+		-t ghcr.io/wukongim/wukongim:$(V2_VERSION) \
+		-t ghcr.io/wukongim/wukongim:v2 \
+		--push .
 deploy-latest-v2:
-	docker build -t wukongim .
-	docker tag wukongim registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2
-	docker tag wukongim wukongim/wukongim:v2
-	docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2
-	docker push wukongim/wukongim:v2		
+	docker buildx build --platform $(PLATFORMS) \
+		-t registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v2 \
+		-t wukongim/wukongim:v2 \
+		--push .
 
 # docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2
 # docker push registry.cn-shanghai.aliyuncs.com/wukongim/wukongim:v1.2-dev
