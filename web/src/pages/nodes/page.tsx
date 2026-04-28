@@ -25,6 +25,7 @@ import {
   startNodeScaleIn,
 } from "@/lib/manager-api"
 import type {
+  ManagerNode,
   ManagerNodeDetailResponse,
   ManagerNodeScaleInReport,
   ManagerNodesResponse,
@@ -99,6 +100,81 @@ function formatScaleInCheckLabel(value: string) {
 
 function formatBooleanValue(intl: IntlShape, value: boolean) {
   return intl.formatMessage({ id: value ? "nodes.scaleIn.yes" : "nodes.scaleIn.no" })
+}
+
+function nodeHealthStatus(node: ManagerNode) {
+  return node.health?.status ?? node.status
+}
+
+function nodeLastHeartbeat(node: ManagerNode) {
+  return node.health?.last_heartbeat_at ?? node.last_heartbeat_at
+}
+
+function nodeSlotSummary(node: ManagerNode) {
+  const replicaCount = node.slots?.replica_count ?? node.slot_stats.count
+  const leaderCount = node.slots?.leader_count ?? node.slot_stats.leader_count
+  const followerCount = node.slots?.follower_count ?? Math.max(replicaCount - leaderCount, 0)
+  return {
+    replicaCount,
+    leaderCount,
+    followerCount,
+    quorumLostCount: node.slots?.quorum_lost_count ?? 0,
+    unreportedCount: node.slots?.unreported_count ?? 0,
+  }
+}
+
+function nodeMembershipRole(node: ManagerNode) {
+  return node.membership?.role ?? "unknown"
+}
+
+function nodeJoinState(node: ManagerNode) {
+  return node.membership?.join_state ?? "unknown"
+}
+
+function nodeRuntimeSummaryText(intl: IntlShape, node: ManagerNode) {
+  if (!node.runtime || node.runtime.unknown) {
+    return intl.formatMessage({ id: "nodes.runtimeUnknown" })
+  }
+  return intl.formatMessage(
+    { id: "nodes.runtimeSummary" },
+    { sessions: node.runtime.gateway_sessions, online: node.runtime.active_online },
+  )
+}
+
+function nodeSlotSummaryText(intl: IntlShape, node: ManagerNode) {
+  const slots = nodeSlotSummary(node)
+  return intl.formatMessage(
+    { id: "nodes.slotLayerSummary" },
+    {
+      replicas: slots.replicaCount,
+      leaders: slots.leaderCount,
+      followers: slots.followerCount,
+    },
+  )
+}
+
+function nodeSchedulableText(intl: IntlShape, node: ManagerNode) {
+  return intl.formatMessage({
+    id: node.membership?.schedulable ? "nodes.schedulable" : "nodes.notSchedulable",
+  })
+}
+
+function nodeControllerVoterText(intl: IntlShape, node: ManagerNode) {
+  return intl.formatMessage({
+    id: node.controller.voter ? "nodes.controllerVoter" : "nodes.controllerNonVoter",
+  })
+}
+
+function canDrainNode(node: ManagerNode, canWriteNodes: boolean) {
+  return canWriteNodes && (node.actions?.can_drain ?? true)
+}
+
+function canResumeNode(node: ManagerNode, canWriteNodes: boolean) {
+  return canWriteNodes && (node.actions?.can_resume ?? true)
+}
+
+function canScaleInNode(node: ManagerNode, canReadScaleIn: boolean) {
+  return canReadScaleIn && (node.actions?.can_scale_in ?? true)
 }
 
 function ScaleInMetricCard({ label, value }: { label: string; value: number | string }) {
@@ -499,77 +575,99 @@ export function NodesPage() {
                   <tr>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.node" })}</th>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.address" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.status" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.membership" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.health" })}</th>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.controller" })}</th>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.slots" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.runtime" })}</th>
                     <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.actions" })}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {state.nodes.items.map((node) => (
-                    <tr className="border-t border-border" key={node.node_id}>
-                      <td className="px-3 py-3 text-sm font-medium text-foreground">{node.node_id}</td>
-                      <td className="px-3 py-3 text-sm text-foreground">{node.addr}</td>
-                      <td className="px-3 py-3 text-sm text-foreground">
-                        <StatusBadge value={node.status} />
-                      </td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{node.controller.role}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">
-                        {intl.formatMessage(
-                          { id: "nodes.slotSummary" },
-                          {
-                            total: node.slot_stats.count,
-                            leaders: node.slot_stats.leader_count,
-                          },
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-foreground">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            aria-label={intl.formatMessage(
-                              { id: "nodes.inspectNode" },
-                              { id: node.node_id },
-                            )}
-                            onClick={() => {
-                              void openDetail(node.node_id)
-                            }}
-                            size="sm"
-                            variant="outline"
-                          >
-                            {intl.formatMessage({ id: "common.inspect" })}
-                          </Button>
-                          <Button
-                            disabled={!canWriteNodes}
-                            onClick={() => {
-                              setSelectedNodeId(node.node_id)
-                              setPendingAction(node.status === "draining" ? "resume" : "drain")
-                              setActionError("")
-                            }}
-                            size="sm"
-                            variant="outline"
-                          >
-                            {node.status === "draining"
-                              ? intl.formatMessage({ id: "nodes.resume" })
-                              : intl.formatMessage({ id: "nodes.drain" })}
-                          </Button>
-                          <Button
-                            aria-label={intl.formatMessage(
-                              { id: "nodes.scaleIn.reviewForNode" },
-                              { id: node.node_id },
-                            )}
-                            disabled={!canReadScaleIn || scaleInAction === "plan"}
-                            onClick={() => {
-                              void reviewScaleIn(node.node_id)
-                            }}
-                            size="sm"
-                            variant="outline"
-                          >
-                            {intl.formatMessage({ id: "nodes.scaleIn.button" })}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {state.nodes.items.map((node) => {
+                    const healthStatus = nodeHealthStatus(node)
+                    const isDraining = healthStatus === "draining"
+                    const lifecycleActionAllowed = isDraining
+                      ? canResumeNode(node, canWriteNodes)
+                      : canDrainNode(node, canWriteNodes)
+                    return (
+                      <tr className="border-t border-border" key={node.node_id}>
+                        <td className="px-3 py-3 text-sm font-medium text-foreground">
+                          <div>{node.node_id}</div>
+                          {node.name ? (
+                            <div className="mt-1 text-xs font-normal text-muted-foreground">{node.name}</div>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-foreground">{node.addr}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          <div className="font-medium text-foreground">{nodeMembershipRole(node)}</div>
+                          <div className="mt-1">{nodeJoinState(node)}</div>
+                          <div className="mt-1 text-xs">{nodeSchedulableText(intl, node)}</div>
+                        </td>
+                        <td className="px-3 py-3 text-sm text-foreground">
+                          <StatusBadge value={healthStatus} />
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            {formatTimestamp(intl, nodeLastHeartbeat(node))}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          <div className="font-medium text-foreground">{node.controller.role}</div>
+                          <div className="mt-1 text-xs">{nodeControllerVoterText(intl, node)}</div>
+                        </td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          {nodeSlotSummaryText(intl, node)}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          {nodeRuntimeSummaryText(intl, node)}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-foreground">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              aria-label={intl.formatMessage(
+                                { id: "nodes.inspectNode" },
+                                { id: node.node_id },
+                              )}
+                              onClick={() => {
+                                void openDetail(node.node_id)
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {intl.formatMessage({ id: "common.inspect" })}
+                            </Button>
+                            <Button
+                              disabled={!lifecycleActionAllowed}
+                              onClick={() => {
+                                setSelectedNodeId(node.node_id)
+                                setPendingAction(isDraining ? "resume" : "drain")
+                                setActionError("")
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {isDraining
+                                ? intl.formatMessage({ id: "nodes.resume" })
+                                : intl.formatMessage({ id: "nodes.drain" })}
+                            </Button>
+                            <Button
+                              aria-label={intl.formatMessage(
+                                { id: "nodes.scaleIn.reviewForNode" },
+                                { id: node.node_id },
+                              )}
+                              disabled={!canScaleInNode(node, canReadScaleIn) || scaleInAction === "plan"}
+                              onClick={() => {
+                                void reviewScaleIn(node.node_id)
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {intl.formatMessage({ id: "nodes.scaleIn.button" })}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -656,14 +754,18 @@ export function NodesPage() {
           detail ? (
             <div className="flex items-center justify-end gap-2">
               <Button
-                disabled={!canWriteNodes}
+                disabled={
+                  nodeHealthStatus(detail) === "draining"
+                    ? !canResumeNode(detail, canWriteNodes)
+                    : !canDrainNode(detail, canWriteNodes)
+                }
                 onClick={() => {
-                  setPendingAction(detail.status === "draining" ? "resume" : "drain")
+                  setPendingAction(nodeHealthStatus(detail) === "draining" ? "resume" : "drain")
                   setActionError("")
                 }}
                 size="sm"
               >
-                {detail.status === "draining"
+                {nodeHealthStatus(detail) === "draining"
                   ? intl.formatMessage({ id: "nodes.resumeNode" })
                   : intl.formatMessage({ id: "nodes.drainNode" })}
               </Button>
@@ -699,19 +801,43 @@ export function NodesPage() {
                 { label: intl.formatMessage({ id: "nodes.detail.address" }), value: detail.addr },
                 {
                   label: intl.formatMessage({ id: "nodes.detail.status" }),
-                  value: <StatusBadge value={detail.status} />,
+                  value: <StatusBadge value={nodeHealthStatus(detail)} />,
+                },
+                {
+                  label: intl.formatMessage({ id: "nodes.detail.membershipRole" }),
+                  value: nodeMembershipRole(detail),
+                },
+                {
+                  label: intl.formatMessage({ id: "nodes.detail.joinState" }),
+                  value: nodeJoinState(detail),
+                },
+                {
+                  label: intl.formatMessage({ id: "nodes.detail.schedulable" }),
+                  value: nodeSchedulableText(intl, detail),
                 },
                 {
                   label: intl.formatMessage({ id: "nodes.detail.controllerRole" }),
                   value: detail.controller.role,
                 },
                 {
+                  label: intl.formatMessage({ id: "nodes.detail.controllerVoter" }),
+                  value: nodeControllerVoterText(intl, detail),
+                },
+                {
                   label: intl.formatMessage({ id: "nodes.detail.lastHeartbeat" }),
-                  value: formatTimestamp(intl, detail.last_heartbeat_at),
+                  value: formatTimestamp(intl, nodeLastHeartbeat(detail)),
                 },
                 {
                   label: intl.formatMessage({ id: "nodes.detail.capacityWeight" }),
                   value: detail.capacity_weight,
+                },
+                {
+                  label: intl.formatMessage({ id: "nodes.detail.slotSummary" }),
+                  value: nodeSlotSummaryText(intl, detail),
+                },
+                {
+                  label: intl.formatMessage({ id: "nodes.detail.runtime" }),
+                  value: nodeRuntimeSummaryText(intl, detail),
                 },
                 {
                   label: intl.formatMessage({ id: "nodes.detail.hostedIds" }),

@@ -85,21 +85,71 @@ export type ManagerOverviewTaskAnomalyItem = {
 
 export type ManagerNode = {
   node_id: number
+  name?: string
   addr: string
   status: string
   last_heartbeat_at: string
   is_local: boolean
   capacity_weight: number
-  controller: {
-    role: string
-  }
+  membership?: ManagerNodeMembership
+  health?: ManagerNodeHealth
+  controller: ManagerNodeController
   slot_stats: {
     count: number
     leader_count: number
   }
+  slots?: ManagerNodeSlotsSummary
+  runtime?: ManagerNodeRuntime
+  actions?: ManagerNodeActions
+}
+
+export type ManagerNodeMembership = {
+  role: string
+  join_state: string
+  schedulable: boolean
+}
+
+export type ManagerNodeHealth = {
+  status: string
+  last_heartbeat_at: string
+}
+
+export type ManagerNodeController = {
+  role: string
+  voter?: boolean
+  leader_id?: number
+}
+
+export type ManagerNodeSlotsSummary = {
+  replica_count: number
+  leader_count: number
+  follower_count: number
+  quorum_lost_count: number
+  unreported_count: number
+}
+
+export type ManagerNodeRuntime = {
+  node_id: number
+  active_online: number
+  closing_online: number
+  total_online: number
+  gateway_sessions: number
+  sessions_by_listener: Record<string, number>
+  accepting_new_sessions: boolean
+  draining: boolean
+  unknown: boolean
+}
+
+export type ManagerNodeActions = {
+  can_drain: boolean
+  can_resume: boolean
+  can_scale_in: boolean
+  can_onboard: boolean
 }
 
 export type ManagerNodesResponse = {
+  generated_at: string
+  controller_leader_id: number
   total: number
   items: ManagerNode[]
 }
@@ -108,6 +158,11 @@ export type ManagerNodeDetailResponse = ManagerNode & {
   slots: {
     hosted_ids: number[]
     leader_ids: number[]
+    replica_count: number
+    leader_count: number
+    follower_count: number
+    quorum_lost_count: number
+    unreported_count: number
   }
 }
 
