@@ -58,6 +58,8 @@ func TestStoreAssignmentCodecRoundTripPreferredLeaderAndCooldown(t *testing.T) {
 	decoded, err := decodeGroupAssignment(encodeGroupKey(recordPrefixAssignment, assignment.SlotID), encodeGroupAssignment(assignment))
 	require.NoError(t, err)
 	require.Equal(t, []uint64{1, 2, 3}, decoded.DesiredPeers)
+	require.Equal(t, uint64(11), decoded.ConfigEpoch)
+	require.Equal(t, uint64(3), decoded.BalanceVersion)
 	require.Equal(t, uint64(2), decoded.PreferredLeader)
 	require.Equal(t, cooldownUntil, decoded.LeaderTransferCooldownUntil)
 
@@ -65,6 +67,8 @@ func TestStoreAssignmentCodecRoundTripPreferredLeaderAndCooldown(t *testing.T) {
 	got, err := store.GetAssignment(ctx, assignment.SlotID)
 	require.NoError(t, err)
 	require.Equal(t, []uint64{1, 2, 3}, got.DesiredPeers)
+	require.Equal(t, uint64(11), got.ConfigEpoch)
+	require.Equal(t, uint64(3), got.BalanceVersion)
 	require.Equal(t, uint64(2), got.PreferredLeader)
 	require.Equal(t, cooldownUntil, got.LeaderTransferCooldownUntil)
 }
@@ -795,6 +799,31 @@ func TestUpsertRejectsInvalidRuntimeViewState(t *testing.T) {
 		SlotID:        1,
 		CurrentPeers:  []uint64{1, 2, 3},
 		CurrentVoters: []uint64{0, 1},
+	})
+	require.ErrorIs(t, err, ErrInvalidArgument)
+}
+
+func TestUpsertRuntimeViewRejectsCurrentVotersOutsideCurrentPeers(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	err := store.UpsertRuntimeView(ctx, SlotRuntimeView{
+		SlotID:        1,
+		CurrentPeers:  []uint64{1, 2, 3},
+		CurrentVoters: []uint64{1, 4},
+	})
+	require.ErrorIs(t, err, ErrInvalidArgument)
+}
+
+func TestUpsertRuntimeViewRejectsHealthyVotersExceedingKnownCurrentVoters(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	err := store.UpsertRuntimeView(ctx, SlotRuntimeView{
+		SlotID:        1,
+		CurrentPeers:  []uint64{1, 2, 3},
+		CurrentVoters: []uint64{1, 2},
+		HealthyVoters: 3,
 	})
 	require.ErrorIs(t, err, ErrInvalidArgument)
 }

@@ -681,6 +681,14 @@ func validateRuntimeViewState(view SlotRuntimeView, invalid error) error {
 		if err := validateCanonicalPeerSet(view.CurrentVoters, invalid); err != nil {
 			return err
 		}
+		for _, voterID := range view.CurrentVoters {
+			idx := sort.Search(len(view.CurrentPeers), func(i int) bool {
+				return view.CurrentPeers[i] >= voterID
+			})
+			if idx == len(view.CurrentPeers) || view.CurrentPeers[idx] != voterID {
+				return invalid
+			}
+		}
 	}
 	if view.LeaderID != 0 {
 		idx := sort.Search(len(view.CurrentPeers), func(i int) bool {
@@ -698,7 +706,11 @@ func validateRuntimeViewState(view SlotRuntimeView, invalid error) error {
 			}
 		}
 	}
-	if view.HealthyVoters > uint32(len(view.CurrentPeers)) {
+	maxHealthyVoters := len(view.CurrentPeers)
+	if len(view.CurrentVoters) > 0 {
+		maxHealthyVoters = len(view.CurrentVoters)
+	}
+	if view.HealthyVoters > uint32(maxHealthyVoters) {
 		return invalid
 	}
 	return nil
