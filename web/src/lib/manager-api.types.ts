@@ -97,38 +97,6 @@ export type ManagerNode = {
     count: number
     leader_count: number
   }
-  distributed_log: ManagerNodeDistributedLog
-}
-
-export type ManagerNodeDistributedLog = {
-  controller: {
-    role: string
-    leader_id: number
-    voter: boolean
-  }
-  slots: {
-    replica_count: number
-    leader_count: number
-    follower_count: number
-    max_commit_lag: number
-    max_apply_gap: number
-    unavailable_count: number
-    unhealthy_count: number
-    samples: ManagerNodeSlotLogSample[]
-  }
-}
-
-export type ManagerNodeSlotLogSample = {
-  slot_id: number
-  role: string
-  leader_id: number
-  commit_index: number
-  applied_index: number
-  leader_commit_index: number
-  commit_lag: number
-  apply_gap: number
-  quorum: string
-  status: string
 }
 
 export type ManagerNodesResponse = {

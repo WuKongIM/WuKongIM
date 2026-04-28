@@ -79,50 +79,7 @@ func nodeDTO(item managementusecase.Node) NodeDTO {
 			Count:       item.SlotCount,
 			LeaderCount: item.LeaderSlotCount,
 		},
-		DistributedLog: nodeDistributedLogDTO(item.DistributedLog),
 	}
-}
-
-func nodeDistributedLogDTO(item managementusecase.NodeDistributedLog) NodeDistributedLogDTO {
-	return NodeDistributedLogDTO{
-		Controller: NodeControllerLogDTO{
-			Role:     item.Controller.Role,
-			LeaderID: item.Controller.LeaderID,
-			Voter:    item.Controller.Voter,
-		},
-		Slots: NodeSlotLogHealthDTO{
-			ReplicaCount:     item.Slots.ReplicaCount,
-			LeaderCount:      item.Slots.LeaderCount,
-			FollowerCount:    item.Slots.FollowerCount,
-			MaxCommitLag:     item.Slots.MaxCommitLag,
-			MaxApplyGap:      item.Slots.MaxApplyGap,
-			UnavailableCount: item.Slots.UnavailableCount,
-			UnhealthyCount:   item.Slots.UnhealthyCount,
-			Samples:          nodeSlotLogSampleDTOs(item.Slots.Samples),
-		},
-	}
-}
-
-func nodeSlotLogSampleDTOs(items []managementusecase.NodeSlotLogSample) []NodeSlotLogSampleDTO {
-	if len(items) == 0 {
-		return []NodeSlotLogSampleDTO{}
-	}
-	out := make([]NodeSlotLogSampleDTO, 0, len(items))
-	for _, item := range items {
-		out = append(out, NodeSlotLogSampleDTO{
-			SlotID:            item.SlotID,
-			Role:              item.Role,
-			LeaderID:          item.LeaderID,
-			CommitIndex:       item.CommitIndex,
-			AppliedIndex:      item.AppliedIndex,
-			LeaderCommitIndex: item.LeaderCommitIndex,
-			CommitLag:         item.CommitLag,
-			ApplyGap:          item.ApplyGap,
-			Quorum:            item.Quorum,
-			Status:            item.Status,
-		})
-	}
-	return out
 }
 
 func parseNodeIDParam(raw string) (uint64, error) {

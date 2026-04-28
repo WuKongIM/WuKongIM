@@ -37,8 +37,6 @@ type NodeDTO struct {
 	Controller NodeControllerDTO `json:"controller"`
 	// SlotStats contains slot hosting summary fields.
 	SlotStats NodeSlotStatsDTO `json:"slot_stats"`
-	// DistributedLog contains controller and Slot Raft log health summaries.
-	DistributedLog NodeDistributedLogDTO `json:"distributed_log"`
 }
 
 // NodeControllerDTO contains controller-facing node state.
@@ -53,68 +51,6 @@ type NodeSlotStatsDTO struct {
 	Count int `json:"count"`
 	// LeaderCount is the number of observed slots led by the node.
 	LeaderCount int `json:"leader_count"`
-}
-
-// NodeDistributedLogDTO contains distributed log health summaries for one node.
-type NodeDistributedLogDTO struct {
-	// Controller contains controller Raft placement and leadership context.
-	Controller NodeControllerLogDTO `json:"controller"`
-	// Slots contains Slot Raft log health aggregated for Slots hosted by the node.
-	Slots NodeSlotLogHealthDTO `json:"slots"`
-}
-
-// NodeControllerLogDTO contains controller Raft membership context for one node.
-type NodeControllerLogDTO struct {
-	// Role is the current controller role summary for the node.
-	Role string `json:"role"`
-	// LeaderID is the current controller Raft leader known locally.
-	LeaderID uint64 `json:"leader_id"`
-	// Voter reports whether this node is configured as a controller voter.
-	Voter bool `json:"voter"`
-}
-
-// NodeSlotLogHealthDTO contains aggregated Slot Raft log health for one node.
-type NodeSlotLogHealthDTO struct {
-	// ReplicaCount is the number of observed Slot Raft replicas hosted by the node.
-	ReplicaCount int `json:"replica_count"`
-	// LeaderCount is the number of observed Slot Raft leaders hosted by the node.
-	LeaderCount int `json:"leader_count"`
-	// FollowerCount is the number of observed Slot Raft followers hosted by the node.
-	FollowerCount int `json:"follower_count"`
-	// MaxCommitLag is the largest leader commit to local commit gap.
-	MaxCommitLag uint64 `json:"max_commit_lag"`
-	// MaxApplyGap is the largest local commit to applied gap.
-	MaxApplyGap uint64 `json:"max_apply_gap"`
-	// UnavailableCount is the number of hosted Slots whose log watermark could not be read.
-	UnavailableCount int `json:"unavailable_count"`
-	// UnhealthyCount is the number of hosted Slots that are unavailable, quorum-lost, or lagging.
-	UnhealthyCount int `json:"unhealthy_count"`
-	// Samples contains ordered Slot log samples that explain non-healthy state.
-	Samples []NodeSlotLogSampleDTO `json:"samples"`
-}
-
-// NodeSlotLogSampleDTO contains one sampled Slot Raft log health row.
-type NodeSlotLogSampleDTO struct {
-	// SlotID is the physical Slot identity for the sampled log row.
-	SlotID uint32 `json:"slot_id"`
-	// Role is this node's role in the Slot Raft group.
-	Role string `json:"role"`
-	// LeaderID is the Slot Raft leader reported by the runtime view.
-	LeaderID uint64 `json:"leader_id"`
-	// CommitIndex is this node's local committed Raft log index for the Slot.
-	CommitIndex uint64 `json:"commit_index"`
-	// AppliedIndex is this node's local applied Raft log index for the Slot.
-	AppliedIndex uint64 `json:"applied_index"`
-	// LeaderCommitIndex is the Slot leader's committed Raft log index when available.
-	LeaderCommitIndex uint64 `json:"leader_commit_index"`
-	// CommitLag is LeaderCommitIndex minus CommitIndex when both are known.
-	CommitLag uint64 `json:"commit_lag"`
-	// ApplyGap is CommitIndex minus AppliedIndex when both are known.
-	ApplyGap uint64 `json:"apply_gap"`
-	// Quorum is a manager-facing quorum summary: healthy or lost.
-	Quorum string `json:"quorum"`
-	// Status is a manager-facing log health summary for this Slot sample.
-	Status string `json:"status"`
 }
 
 func (s *Server) handleNodes(c *gin.Context) {

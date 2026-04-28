@@ -34,31 +34,6 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
   }
 })
 
-const distributedLog = {
-  controller: { role: "leader", leader_id: 1, voter: true },
-  slots: {
-    replica_count: 3,
-    leader_count: 2,
-    follower_count: 1,
-    max_commit_lag: 7,
-    max_apply_gap: 2,
-    unavailable_count: 1,
-    unhealthy_count: 2,
-    samples: [{
-      slot_id: 9,
-      role: "follower",
-      leader_id: 2,
-      commit_index: 93,
-      applied_index: 91,
-      leader_commit_index: 100,
-      commit_lag: 7,
-      apply_gap: 2,
-      quorum: "healthy",
-      status: "lagging",
-    }],
-  },
-}
-
 const nodeRow = {
   node_id: 1,
   addr: "127.0.0.1:7000",
@@ -68,7 +43,6 @@ const nodeRow = {
   capacity_weight: 1,
   controller: { role: "leader" },
   slot_stats: { count: 3, leader_count: 2 },
-  distributed_log: distributedLog,
 }
 
 const drainingNodeRow = {
@@ -228,24 +202,27 @@ function renderNodesPage() {
   )
 }
 
-test("shows distributed log health in the node list and detail", async () => {
+test("omits distributed log health from the node list and detail", async () => {
   getNodesMock.mockResolvedValueOnce({ total: 1, items: [nodeRow] })
   getNodeMock.mockResolvedValueOnce(nodeDetail)
 
   const user = userEvent.setup()
   renderNodesPage()
 
-  expect(await screen.findByText("replicas 3 / leaders 2 / followers 1")).toBeInTheDocument()
-  expect(await screen.findByText("max lag 7 / apply gap 2")).toBeInTheDocument()
-  expect(screen.getByText("2 unhealthy / 1 unavailable")).toBeInTheDocument()
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  expect(screen.queryByText("Distributed Log")).not.toBeInTheDocument()
+  expect(screen.queryByText("replicas 3 / leaders 2 / followers 1")).not.toBeInTheDocument()
+  expect(screen.queryByText("max lag 7 / apply gap 2")).not.toBeInTheDocument()
+  expect(screen.queryByText("2 unhealthy / 1 unavailable")).not.toBeInTheDocument()
 
   await user.click(screen.getByRole("button", { name: "Inspect node 1" }))
 
-  expect(await screen.findByText("Distributed Log Health")).toBeInTheDocument()
-  expect(screen.getByText("Controller voter")).toBeInTheDocument()
-  expect(screen.getByText("Slot 9")).toBeInTheDocument()
-  expect(screen.getByText("commit 93 / applied 91")).toBeInTheDocument()
-  expect(screen.getByText("leader commit 100 / lag 7")).toBeInTheDocument()
+  expect(await screen.findByText("Hosted IDs")).toBeInTheDocument()
+  expect(screen.queryByText("Distributed Log Health")).not.toBeInTheDocument()
+  expect(screen.queryByText("Controller voter")).not.toBeInTheDocument()
+  expect(screen.queryByText("Slot 9")).not.toBeInTheDocument()
+  expect(screen.queryByText("commit 93 / applied 91")).not.toBeInTheDocument()
+  expect(screen.queryByText("leader commit 100 / lag 7")).not.toBeInTheDocument()
 })
 
 test("opens node detail and refreshes after draining", async () => {
