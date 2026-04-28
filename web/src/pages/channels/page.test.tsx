@@ -83,6 +83,25 @@ function LocationProbe() {
   return <div>{`${location.pathname}${location.search}`}</div>
 }
 
+test("uses compact channel page chrome without summary cards", async () => {
+  getChannelRuntimeMetaMock.mockResolvedValueOnce({
+    items: [channelRow],
+    has_more: false,
+  })
+
+  renderChannelsPage()
+
+  expect(await screen.findByText("alpha")).toBeInTheDocument()
+  expect(screen.getByText("Loaded: 1")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
+  expect(screen.queryByText("Scope: all channels")).not.toBeInTheDocument()
+  expect(screen.queryByText("Channel lists and runtime drill-in status.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Loaded channels")).not.toBeInTheDocument()
+  expect(screen.queryByText("Distinct physical slots represented in view.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Paged runtime metadata from the channel manager endpoints.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Inspect one channel to view slot ownership and runtime lease metadata.")).not.toBeInTheDocument()
+})
+
 test("renders channel runtime rows and opens messages query", async () => {
   getChannelRuntimeMetaMock.mockResolvedValueOnce({
     items: [channelRow],
