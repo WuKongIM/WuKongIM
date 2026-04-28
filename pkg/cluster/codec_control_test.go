@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"encoding/binary"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -622,6 +623,32 @@ func TestControllerCodecDecodeLegacyAssignmentRecordDefaultsPreferredLeader(t *t
 	}
 }
 
+func TestControllerCodecDecodeLegacyAssignmentRecordHighByteSlotIDs(t *testing.T) {
+	for _, slotID := range []uint32{0x01000000, 0x02000000} {
+		t.Run(fmt.Sprintf("slot_%#x", slotID), func(t *testing.T) {
+			legacy := make([]byte, 0, 48)
+			legacy = binary.BigEndian.AppendUint32(legacy, slotID)
+			legacy = appendUint64Slice(legacy, []uint64{1, 2, 3})
+			legacy = binary.BigEndian.AppendUint64(legacy, 4)
+			legacy = binary.BigEndian.AppendUint64(legacy, 5)
+
+			got, err := decodeAssignmentRecord(legacy)
+			if err != nil {
+				t.Fatalf("decodeAssignmentRecord() error = %v", err)
+			}
+			if got.SlotID != slotID {
+				t.Fatalf("SlotID = %#x, want %#x", got.SlotID, slotID)
+			}
+			if got.PreferredLeader != 0 {
+				t.Fatalf("PreferredLeader = %d, want 0", got.PreferredLeader)
+			}
+			if !got.LeaderTransferCooldownUntil.IsZero() {
+				t.Fatalf("LeaderTransferCooldownUntil = %v, want zero", got.LeaderTransferCooldownUntil)
+			}
+		})
+	}
+}
+
 func TestControllerCodecDecodeLegacyRuntimeViewRecordDefaultsCurrentVoters(t *testing.T) {
 	legacy := make([]byte, 0, 64)
 	legacy = binary.BigEndian.AppendUint32(legacy, 1)
@@ -638,5 +665,31 @@ func TestControllerCodecDecodeLegacyRuntimeViewRecordDefaultsCurrentVoters(t *te
 	}
 	if got.CurrentVoters != nil {
 		t.Fatalf("CurrentVoters = %v, want nil", got.CurrentVoters)
+	}
+}
+
+func TestControllerCodecDecodeLegacyRuntimeViewRecordHighByteSlotIDs(t *testing.T) {
+	for _, slotID := range []uint32{0x01000000, 0x02000000} {
+		t.Run(fmt.Sprintf("slot_%#x", slotID), func(t *testing.T) {
+			legacy := make([]byte, 0, 64)
+			legacy = binary.BigEndian.AppendUint32(legacy, slotID)
+			legacy = appendUint64Slice(legacy, []uint64{1, 2, 3})
+			legacy = binary.BigEndian.AppendUint64(legacy, 2)
+			legacy = binary.BigEndian.AppendUint32(legacy, 3)
+			legacy = append(legacy, 1)
+			legacy = binary.BigEndian.AppendUint64(legacy, 7)
+			legacy = appendInt64(legacy, time.Unix(10, 20).UnixNano())
+
+			got, err := decodeRuntimeViewRecord(legacy)
+			if err != nil {
+				t.Fatalf("decodeRuntimeViewRecord() error = %v", err)
+			}
+			if got.SlotID != slotID {
+				t.Fatalf("SlotID = %#x, want %#x", got.SlotID, slotID)
+			}
+			if got.CurrentVoters != nil {
+				t.Fatalf("CurrentVoters = %v, want nil", got.CurrentVoters)
+			}
+		})
 	}
 }

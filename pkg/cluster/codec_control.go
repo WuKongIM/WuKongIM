@@ -49,10 +49,13 @@ const (
 )
 
 const (
-	controllerAssignmentRecordV1  byte = 1
-	controllerAssignmentRecordV2  byte = 2
-	controllerRuntimeViewRecordV1 byte = 1
-	controllerRuntimeViewRecordV2 byte = 2
+	// controllerRecordMagic is an impossible SlotID for persisted records and
+	// separates new internally versioned bodies from legacy unframed bodies.
+	controllerRecordMagic         uint32 = 0
+	controllerAssignmentRecordV1  byte   = 1
+	controllerAssignmentRecordV2  byte   = 2
+	controllerRuntimeViewRecordV1 byte   = 1
+	controllerRuntimeViewRecordV2 byte   = 2
 )
 
 const (
@@ -1938,6 +1941,7 @@ func decodeAssignments(body []byte) ([]controllermeta.SlotAssignment, error) {
 
 func appendAssignment(dst []byte, assignment controllermeta.SlotAssignment) []byte {
 	record := make([]byte, 0, 64)
+	record = binary.BigEndian.AppendUint32(record, controllerRecordMagic)
 	record = append(record, controllerAssignmentRecordV2)
 	record = binary.BigEndian.AppendUint32(record, assignment.SlotID)
 	record = appendUint64Slice(record, assignment.DesiredPeers)
@@ -1964,13 +1968,16 @@ func decodeAssignmentRecord(record []byte) (controllermeta.SlotAssignment, error
 	if len(record) == 0 {
 		return controllermeta.SlotAssignment{}, ErrInvalidConfig
 	}
-	switch record[0] {
-	case controllerAssignmentRecordV1:
-		return decodeAssignmentRecordV1(record[1:])
-	case controllerAssignmentRecordV2:
-		return decodeAssignmentRecordV2(record[1:])
-	default:
+	if !hasControllerRecordMagic(record) {
 		return decodeAssignmentRecordV1(record)
+	}
+	switch record[4] {
+	case controllerAssignmentRecordV1:
+		return decodeAssignmentRecordV1(record[5:])
+	case controllerAssignmentRecordV2:
+		return decodeAssignmentRecordV2(record[5:])
+	default:
+		return controllermeta.SlotAssignment{}, ErrInvalidConfig
 	}
 }
 
@@ -2121,6 +2128,7 @@ func decodeReconcileTasks(body []byte) ([]controllermeta.ReconcileTask, error) {
 
 func appendRuntimeView(dst []byte, view controllermeta.SlotRuntimeView) []byte {
 	record := make([]byte, 0, 80)
+	record = binary.BigEndian.AppendUint32(record, controllerRecordMagic)
 	record = append(record, controllerRuntimeViewRecordV2)
 	record = binary.BigEndian.AppendUint32(record, view.SlotID)
 	record = appendUint64Slice(record, view.CurrentPeers)
@@ -2153,14 +2161,21 @@ func decodeRuntimeViewRecord(record []byte) (controllermeta.SlotRuntimeView, err
 	if len(record) == 0 {
 		return controllermeta.SlotRuntimeView{}, ErrInvalidConfig
 	}
-	switch record[0] {
-	case controllerRuntimeViewRecordV1:
-		return decodeRuntimeViewRecordV1(record[1:])
-	case controllerRuntimeViewRecordV2:
-		return decodeRuntimeViewRecordV2(record[1:])
-	default:
+	if !hasControllerRecordMagic(record) {
 		return decodeRuntimeViewRecordV1(record)
 	}
+	switch record[4] {
+	case controllerRuntimeViewRecordV1:
+		return decodeRuntimeViewRecordV1(record[5:])
+	case controllerRuntimeViewRecordV2:
+		return decodeRuntimeViewRecordV2(record[5:])
+	default:
+		return controllermeta.SlotRuntimeView{}, ErrInvalidConfig
+	}
+}
+
+func hasControllerRecordMagic(record []byte) bool {
+	return len(record) >= 5 && binary.BigEndian.Uint32(record[:4]) == controllerRecordMagic
 }
 
 func decodeRuntimeViewRecordV1(body []byte) (controllermeta.SlotRuntimeView, error) {
