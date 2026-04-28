@@ -511,7 +511,7 @@ func (sm *StateMachine) applyAbortMigration(ctx context.Context, req MigrationRe
 }
 
 func (sm *StateMachine) applyAddSlot(ctx context.Context, req AddSlotRequest) error {
-	if req.NewSlotID == 0 {
+	if req.NewSlotID == 0 || req.PreferredLeader == 0 || !containsPeer(req.Peers, req.PreferredLeader) {
 		return controllermeta.ErrInvalidArgument
 	}
 
@@ -537,15 +537,16 @@ func (sm *StateMachine) applyAddSlot(ctx context.Context, req AddSlotRequest) er
 	}
 
 	assignment := controllermeta.SlotAssignment{
-		SlotID:       uint32(req.NewSlotID),
-		DesiredPeers: append([]uint64(nil), req.Peers...),
-		ConfigEpoch:  1,
+		SlotID:          uint32(req.NewSlotID),
+		DesiredPeers:    append([]uint64(nil), req.Peers...),
+		PreferredLeader: req.PreferredLeader,
+		ConfigEpoch:     1,
 	}
 	task := controllermeta.ReconcileTask{
 		SlotID:     uint32(req.NewSlotID),
 		Kind:       controllermeta.TaskKindBootstrap,
 		Step:       controllermeta.TaskStepAddLearner,
-		TargetNode: firstBootstrapTarget(req.Peers),
+		TargetNode: req.PreferredLeader,
 		Status:     controllermeta.TaskStatusPending,
 	}
 	return sm.store.UpsertAssignmentTaskAndSaveHashSlotTable(ctx, assignment, task, table)
@@ -581,19 +582,6 @@ func (sm *StateMachine) applyRemoveSlot(ctx context.Context, req RemoveSlotReque
 func removingLastAssignedSlot(table *hashslot.HashSlotTable, slotID multiraft.SlotID) bool {
 	assigned := table.AssignedSlotIDs()
 	return len(assigned) == 1 && assigned[0] == slotID
-}
-
-func firstBootstrapTarget(peers []uint64) uint64 {
-	var target uint64
-	for _, peer := range peers {
-		if peer == 0 {
-			continue
-		}
-		if target == 0 || peer < target {
-			target = peer
-		}
-	}
-	return target
 }
 
 func drainedSlotAssignmentRemovable(table *hashslot.HashSlotTable, slotID multiraft.SlotID) bool {

@@ -16,6 +16,15 @@ func NewPlanner(cfg PlannerConfig) *Planner {
 	if cfg.RebalanceSkewThreshold <= 0 {
 		cfg.RebalanceSkewThreshold = 2
 	}
+	if cfg.LeaderSkewThreshold <= 0 {
+		cfg.LeaderSkewThreshold = 1
+	}
+	if cfg.LeaderTransferCooldown == 0 {
+		cfg.LeaderTransferCooldown = 30 * time.Second
+	}
+	if cfg.LeaderTransferFailureCooldown == 0 {
+		cfg.LeaderTransferFailureCooldown = 30 * time.Second
+	}
 	return &Planner{cfg: cfg}
 }
 
@@ -52,16 +61,18 @@ func (p *Planner) ReconcileSlot(_ context.Context, state PlannerState, slotID ui
 		if len(peers) < p.cfg.ReplicaN {
 			return decision, nil
 		}
+		preferred := choosePreferredLeader(peers, leaderLoads(state))
 		decision.Assignment = controllermeta.SlotAssignment{
-			SlotID:       slotID,
-			DesiredPeers: peers,
-			ConfigEpoch:  1,
+			SlotID:          slotID,
+			DesiredPeers:    peers,
+			PreferredLeader: preferred,
+			ConfigEpoch:     1,
 		}
 		decision.Task = &controllermeta.ReconcileTask{
 			SlotID:     slotID,
 			Kind:       controllermeta.TaskKindBootstrap,
 			Step:       controllermeta.TaskStepAddLearner,
-			TargetNode: bootstrapTargetPeer(slotID, peers),
+			TargetNode: preferred,
 		}
 		return decision, nil
 	}
@@ -87,10 +98,12 @@ func (p *Planner) ReconcileSlot(_ context.Context, state PlannerState, slotID ui
 
 	desiredPeers := replacePeer(assignment.DesiredPeers, deadOrDraining, target)
 	decision.Assignment = controllermeta.SlotAssignment{
-		SlotID:         assignment.SlotID,
-		DesiredPeers:   desiredPeers,
-		ConfigEpoch:    assignment.ConfigEpoch + 1,
-		BalanceVersion: assignment.BalanceVersion,
+		SlotID:                      assignment.SlotID,
+		DesiredPeers:                desiredPeers,
+		ConfigEpoch:                 assignment.ConfigEpoch + 1,
+		BalanceVersion:              assignment.BalanceVersion,
+		PreferredLeader:             p.preferredLeaderForPeers(state, assignment, desiredPeers),
+		LeaderTransferCooldownUntil: assignment.LeaderTransferCooldownUntil,
 	}
 	decision.Task = &controllermeta.ReconcileTask{
 		SlotID:     slotID,
@@ -117,7 +130,13 @@ func (p *Planner) NextDecision(ctx context.Context, state PlannerState) (Decisio
 		return Decision{}, nil
 	}
 
-	return p.nextRebalanceDecision(state), nil
+	if decision := p.nextRebalanceDecision(state); decision.Task != nil {
+		return decision, nil
+	}
+	if decision := p.nextLeaderPlacementDecision(state); decision.Task != nil {
+		return decision, nil
+	}
+	return Decision{}, nil
 }
 
 func (p *Planner) reconcileSlotIDs(state PlannerState) []uint32 {
@@ -200,13 +219,16 @@ func (p *Planner) nextRebalanceDecision(state PlannerState) Decision {
 		if p.firstPeerNeedingRepair(state, assignment.DesiredPeers) != 0 {
 			continue
 		}
+		nextPeers := replacePeer(assignment.DesiredPeers, maxNode, minNode)
 		decision := Decision{
 			SlotID: assignment.SlotID,
 			Assignment: controllermeta.SlotAssignment{
-				SlotID:         assignment.SlotID,
-				DesiredPeers:   replacePeer(assignment.DesiredPeers, maxNode, minNode),
-				ConfigEpoch:    assignment.ConfigEpoch + 1,
-				BalanceVersion: assignment.BalanceVersion + 1,
+				SlotID:                      assignment.SlotID,
+				DesiredPeers:                nextPeers,
+				ConfigEpoch:                 assignment.ConfigEpoch + 1,
+				BalanceVersion:              assignment.BalanceVersion + 1,
+				PreferredLeader:             p.preferredLeaderForPeers(state, assignment, nextPeers),
+				LeaderTransferCooldownUntil: assignment.LeaderTransferCooldownUntil,
 			},
 		}
 		decision.Task = &controllermeta.ReconcileTask{
@@ -369,12 +391,191 @@ func replacePeer(peers []uint64, source, target uint64) []uint64 {
 	return next
 }
 
-// bootstrapTargetPeer rotates initial Slot leadership targets across desired peers.
-func bootstrapTargetPeer(slotID uint32, peers []uint64) uint64 {
-	if len(peers) == 0 {
-		return 0
+func leaderLoads(state PlannerState) map[uint64]int {
+	loads := make(map[uint64]int)
+	for slotID, assignment := range state.Assignments {
+		if view, ok := state.Runtime[slotID]; ok && view.LeaderID != 0 {
+			loads[view.LeaderID]++
+			continue
+		}
+		if assignment.PreferredLeader != 0 {
+			loads[assignment.PreferredLeader]++
+		}
 	}
-	return peers[(int(slotID)-1)%len(peers)]
+	return loads
+}
+
+func choosePreferredLeader(peers []uint64, loads map[uint64]int) uint64 {
+	var target uint64
+	var targetLoad int
+	for _, peer := range peers {
+		load := loads[peer]
+		if target == 0 || load < targetLoad || (load == targetLoad && peer < target) {
+			target = peer
+			targetLoad = load
+		}
+	}
+	return target
+}
+
+func (p *Planner) preferredLeaderForPeers(state PlannerState, current controllermeta.SlotAssignment, nextPeers []uint64) uint64 {
+	if current.PreferredLeader != 0 && containsPeer(nextPeers, current.PreferredLeader) {
+		if node, ok := state.Nodes[current.PreferredLeader]; ok && nodeSchedulableForData(node) {
+			return current.PreferredLeader
+		}
+	}
+	loads := leaderLoads(state)
+	if current.PreferredLeader != 0 {
+		delete(loads, current.PreferredLeader)
+	}
+	return choosePreferredLeader(nextPeers, loads)
+}
+
+func (p *Planner) nextLeaderPlacementDecision(state PlannerState) Decision {
+	if !leaderTransferObservationsComplete(state) {
+		return Decision{}
+	}
+	loads := actualLeaderLoads(state)
+	if decision := p.nextLeaderSkewCorrection(state, loads); decision.Task != nil {
+		return decision
+	}
+	return p.nextPreferenceConvergence(state, loads)
+}
+
+func (p *Planner) nextLeaderSkewCorrection(state PlannerState, loads map[uint64]int) Decision {
+	minNode, minLoad, maxNode, maxLoad := loadExtremes(state, loads)
+	if minNode == 0 || maxNode == 0 || maxLoad-minLoad <= p.cfg.LeaderSkewThreshold {
+		return Decision{}
+	}
+	for _, assignment := range sortedAssignments(state.Assignments) {
+		view := state.Runtime[assignment.SlotID]
+		if view.LeaderID != maxNode {
+			continue
+		}
+		if !p.leaderTransferSafeCandidate(state, assignment, view, minNode) {
+			continue
+		}
+		if !resultingLeaderSkewAllowed(state, view.LeaderID, minNode, p.cfg.LeaderSkewThreshold) {
+			continue
+		}
+		return leaderTransferDecision(assignment, view.LeaderID, minNode, true)
+	}
+	return Decision{}
+}
+
+func (p *Planner) nextPreferenceConvergence(state PlannerState, loads map[uint64]int) Decision {
+	for _, assignment := range sortedAssignments(state.Assignments) {
+		if state.slotMigrating(assignment.SlotID) || state.slotLocked(assignment.SlotID) || len(assignment.DesiredPeers) <= 1 {
+			continue
+		}
+		view := state.Runtime[assignment.SlotID]
+		target := assignment.PreferredLeader
+		fillPreferred := false
+		if target == 0 {
+			target = choosePreferredLeader(assignment.DesiredPeers, loads)
+			fillPreferred = target != 0
+		}
+		if target == 0 || target == view.LeaderID {
+			continue
+		}
+		if !p.leaderTransferSafeCandidate(state, assignment, view, target) {
+			continue
+		}
+		if !resultingLeaderSkewAllowed(state, view.LeaderID, target, p.cfg.LeaderSkewThreshold) {
+			continue
+		}
+		return leaderTransferDecision(assignment, view.LeaderID, target, fillPreferred)
+	}
+	return Decision{}
+}
+
+func leaderTransferObservationsComplete(state PlannerState) bool {
+	for slotID, assignment := range state.Assignments {
+		if state.slotMigrating(slotID) || state.slotLocked(slotID) || len(assignment.DesiredPeers) <= 1 {
+			continue
+		}
+		view, ok := state.Runtime[slotID]
+		if !ok || view.LeaderID == 0 || len(view.CurrentVoters) == 0 || !view.HasQuorum {
+			return false
+		}
+	}
+	return true
+}
+
+func actualLeaderLoads(state PlannerState) map[uint64]int {
+	loads := make(map[uint64]int)
+	for slotID, assignment := range state.Assignments {
+		if len(assignment.DesiredPeers) <= 1 {
+			continue
+		}
+		view := state.Runtime[slotID]
+		if view.LeaderID != 0 {
+			loads[view.LeaderID]++
+		}
+	}
+	return loads
+}
+
+func (p *Planner) leaderTransferSafeCandidate(state PlannerState, assignment controllermeta.SlotAssignment, view controllermeta.SlotRuntimeView, target uint64) bool {
+	if target == 0 || target == view.LeaderID {
+		return false
+	}
+	if state.slotMigrating(assignment.SlotID) || state.slotLocked(assignment.SlotID) || len(assignment.DesiredPeers) <= 1 {
+		return false
+	}
+	if _, ok := state.Tasks[assignment.SlotID]; ok {
+		return false
+	}
+	if assignment.LeaderTransferCooldownUntil.After(state.Now) {
+		return false
+	}
+	if !view.HasQuorum || view.LeaderID == 0 || len(view.CurrentVoters) == 0 {
+		return false
+	}
+	if !containsPeer(assignment.DesiredPeers, target) || !containsPeer(view.CurrentVoters, target) {
+		return false
+	}
+	node, ok := state.Nodes[target]
+	return ok && nodeSchedulableForData(node)
+}
+
+func resultingLeaderSkewAllowed(state PlannerState, from, to uint64, threshold int) bool {
+	loads := actualLeaderLoads(state)
+	if from != 0 && loads[from] > 0 {
+		loads[from]--
+	}
+	if to != 0 {
+		loads[to]++
+	}
+	_, minLoad, _, maxLoad := loadExtremes(state, loads)
+	return maxLoad-minLoad <= threshold
+}
+
+func leaderTransferDecision(assignment controllermeta.SlotAssignment, source, target uint64, updatePreferred bool) Decision {
+	updated := assignment
+	if updatePreferred {
+		updated.PreferredLeader = target
+	}
+	return Decision{
+		SlotID:     assignment.SlotID,
+		Assignment: updated,
+		Task: &controllermeta.ReconcileTask{
+			SlotID:     assignment.SlotID,
+			Kind:       controllermeta.TaskKindLeaderTransfer,
+			Step:       controllermeta.TaskStepTransferLeader,
+			SourceNode: source,
+			TargetNode: target,
+		},
+	}
+}
+
+func sortedAssignments(assignments map[uint32]controllermeta.SlotAssignment) []controllermeta.SlotAssignment {
+	out := make([]controllermeta.SlotAssignment, 0, len(assignments))
+	for _, assignment := range assignments {
+		out = append(out, assignment)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].SlotID < out[j].SlotID })
+	return out
 }
 
 func taskRunnable(now time.Time, task controllermeta.ReconcileTask) bool {

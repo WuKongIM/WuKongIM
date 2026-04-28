@@ -242,8 +242,9 @@ func TestServiceProposeAppliesAddSlotCommand(t *testing.T) {
 	require.NoError(t, node.service.Propose(ctx, slotcontroller.Command{
 		Kind: slotcontroller.CommandKindAddSlot,
 		AddSlot: &slotcontroller.AddSlotRequest{
-			NewSlotID: 3,
-			Peers:     []uint64{1},
+			NewSlotID:       3,
+			Peers:           []uint64{1},
+			PreferredLeader: 1,
 		},
 	}))
 
@@ -251,6 +252,7 @@ func TestServiceProposeAppliesAddSlotCommand(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint32(3), assignment.SlotID)
 	require.Equal(t, []uint64{1}, assignment.DesiredPeers)
+	require.Equal(t, uint64(1), assignment.PreferredLeader)
 
 	task, err := node.meta.GetTask(ctx, 3)
 	require.NoError(t, err)
@@ -443,6 +445,28 @@ func TestEncodeDecodeCommandAssignmentPreservesPreferredLeader(t *testing.T) {
 	require.Equal(t, cmd.Assignment.BalanceVersion, decoded.Assignment.BalanceVersion)
 	require.NotNil(t, decoded.Task)
 	require.Equal(t, cmd.Task.Kind, decoded.Task.Kind)
+}
+
+func TestEncodeDecodeCommandAddSlotPreservesPreferredLeader(t *testing.T) {
+	cmd := slotcontroller.Command{
+		Kind: slotcontroller.CommandKindAddSlot,
+		AddSlot: &slotcontroller.AddSlotRequest{
+			NewSlotID:       4,
+			Peers:           []uint64{1, 2, 3},
+			PreferredLeader: 2,
+		},
+	}
+
+	data, err := encodeCommand(cmd)
+	require.NoError(t, err)
+	decoded, err := decodeCommand(data)
+	require.NoError(t, err)
+
+	require.Equal(t, cmd.Kind, decoded.Kind)
+	require.NotNil(t, decoded.AddSlot)
+	require.Equal(t, cmd.AddSlot.NewSlotID, decoded.AddSlot.NewSlotID)
+	require.Equal(t, cmd.AddSlot.Peers, decoded.AddSlot.Peers)
+	require.Equal(t, cmd.AddSlot.PreferredLeader, decoded.AddSlot.PreferredLeader)
 }
 
 func TestEncodeDecodeCommandRoundTripsNodeOnboardingJobUpdate(t *testing.T) {

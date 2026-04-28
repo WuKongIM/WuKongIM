@@ -101,8 +101,9 @@ FinalizeMigration:
   读取 HashSlotTable → 将 hash slot 最终切换到 Target → 若 Source 已无 hash slot 且无剩余迁移，则原子删除对应 SlotAssignment/Task → 保存回 controllermeta
 
 AddSlot:
-  若已有 hash-slot 迁移则拒绝 → 创建新 SlotAssignment → 调用 hash-slot 再平衡算法
-  → 为迁入新 Slot 的 hash slot 建立 Snapshot 阶段迁移记录
+  若已有 hash-slot 迁移、PreferredLeader 为空或不在 Peers 中则拒绝
+  → 创建带 PreferredLeader 的新 SlotAssignment，并把 Bootstrap 任务 TargetNode 指向该 PreferredLeader
+  → 调用 hash-slot 再平衡算法，为迁入新 Slot 的 hash slot 建立 Snapshot 阶段迁移记录
 
 RemoveSlot:
   若已有 hash-slot 迁移或正在移除最后一个物理 Slot 则拒绝
@@ -123,9 +124,11 @@ RemoveSlot:
     ② 有进行中Task → 检查 taskRunnable(Pending直接可执行, Retrying等NextRunAt)
     ③ 无Assignment且无RuntimeView → Bootstrap:
        selectBootstrapPeers → 选 ReplicaN 个最低负载 Active+Alive+Data 节点 (planner.go)
-       bootstrapTargetPeer → 按 SlotID 在 DesiredPeers 中轮转 TargetNode，使初始化 Slot Leader 尽量均匀分布
+       choosePreferredLeader → 按已观测 LeaderID 或缺失观测时的 PreferredLeader 负载选择 DesiredPeers 中最低负载节点
+       Assignment.PreferredLeader 持久化，Bootstrap 任务 TargetNode 指向 PreferredLeader
     ④ DesiredPeers 中有 Dead/Draining 或非 Active Data 成员 → Repair:
        firstPeerNeedingRepair → selectRepairTarget
+       PreferredLeader 仍在新 DesiredPeers 且 Active+Alive+Data 时保留，否则按 leader 负载重新选择
   找到第一个需要处理的 → 立即返回
 
 第二遍 — 无紧急任务时尝试 Rebalance (planner.go:107):
@@ -134,7 +137,14 @@ RemoveSlot:
   ③ maxLoad - minLoad < 阈值(默认2) → 无需均衡
   ④ 找候选: 在maxNode上且不在minNode上, 有仲裁, 无失败任务
   ⑤ 迁移中的物理 Slot(source/target 任一侧)跳过 Repair/Rebalance，避免副本迁移和 hash-slot 数据迁移叠加
-  ⑥ 按 BalanceVersion 排序(最久未动优先) → 生成 Rebalance 任务
+  ⑥ 按 BalanceVersion 排序(最久未动优先) → 生成 Rebalance 任务，并为新 DesiredPeers 保留或重选 PreferredLeader
+
+第三遍 — 无副本变更时尝试 LeaderTransfer:
+  ① 要求所有已分配、非迁移、非锁定的多副本 Slot 都有完整 RuntimeView：LeaderID、CurrentVoters、HasQuorum
+  ② 仅使用实际 LeaderID 负载做倾斜判断；缺失观测时 fail-closed，不混用 PreferredLeader
+  ③ 目标必须在 DesiredPeers、CurrentVoters 中，且是 Active+Alive+Data 节点；单节点集群不生成 LeaderTransfer 任务
+  ④ 冷却中、已有任务、迁移/锁定、目标等于当前 leader、或转移后超过 leader skew 阈值时跳过
+  ⑤ 生成 TaskKindLeaderTransfer/TaskStepTransferLeader，必要时同步更新 Assignment.PreferredLeader，但不单独增加 ConfigEpoch
 
 节点 Onboarding 计划 (onboarding_planner.go):
   ① 输入 target node、Nodes、Assignments、Tasks、RuntimeViews、running jobs

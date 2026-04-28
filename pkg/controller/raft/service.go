@@ -731,8 +731,9 @@ func encodeCommand(cmd slotcontroller.Command) ([]byte, error) {
 	}
 	if cmd.AddSlot != nil {
 		envelope.AddSlot = &slotcontroller.AddSlotRequest{
-			NewSlotID: cmd.AddSlot.NewSlotID,
-			Peers:     append([]uint64(nil), cmd.AddSlot.Peers...),
+			NewSlotID:       cmd.AddSlot.NewSlotID,
+			Peers:           append([]uint64(nil), cmd.AddSlot.Peers...),
+			PreferredLeader: cmd.AddSlot.PreferredLeader,
 		}
 	}
 	if cmd.RemoveSlot != nil {
@@ -788,8 +789,9 @@ func decodeCommand(data []byte) (slotcontroller.Command, error) {
 	}
 	if envelope.AddSlot != nil {
 		cmd.AddSlot = &slotcontroller.AddSlotRequest{
-			NewSlotID: envelope.AddSlot.NewSlotID,
-			Peers:     append([]uint64(nil), envelope.AddSlot.Peers...),
+			NewSlotID:       envelope.AddSlot.NewSlotID,
+			Peers:           append([]uint64(nil), envelope.AddSlot.Peers...),
+			PreferredLeader: envelope.AddSlot.PreferredLeader,
 		}
 	}
 	if envelope.RemoveSlot != nil {

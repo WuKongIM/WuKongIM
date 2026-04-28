@@ -34,8 +34,9 @@ func TestStateMachineAddSlotCreatesAssignmentAndMigrations(t *testing.T) {
 	require.NoError(t, sm.Apply(ctx, Command{
 		Kind: CommandKindAddSlot,
 		AddSlot: &AddSlotRequest{
-			NewSlotID: 3,
-			Peers:     []uint64{1, 2, 3},
+			NewSlotID:       3,
+			Peers:           []uint64{1, 2, 3},
+			PreferredLeader: 1,
 		},
 	}))
 
@@ -69,6 +70,64 @@ func TestStateMachineAddSlotCreatesAssignmentAndMigrations(t *testing.T) {
 	require.Equal(t, controllermeta.TaskStatusPending, task.Status)
 }
 
+func TestStateMachineAddSlotPersistsPreferredLeader(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{})
+	ctx := context.Background()
+	require.NoError(t, store.SaveHashSlotTable(ctx, hashslot.NewHashSlotTable(8, 2)))
+
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindAddSlot,
+		AddSlot: &AddSlotRequest{
+			NewSlotID:       3,
+			Peers:           []uint64{1, 2, 3},
+			PreferredLeader: 2,
+		},
+	}))
+
+	assignment, err := store.GetAssignment(ctx, 3)
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), assignment.PreferredLeader)
+	task, err := store.GetTask(ctx, 3)
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), task.TargetNode)
+}
+
+func TestStateMachineAddSlotRejectsMissingPreferredLeader(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{})
+	ctx := context.Background()
+	require.NoError(t, store.SaveHashSlotTable(ctx, hashslot.NewHashSlotTable(8, 2)))
+
+	err := sm.Apply(ctx, Command{
+		Kind: CommandKindAddSlot,
+		AddSlot: &AddSlotRequest{
+			NewSlotID: 3,
+			Peers:     []uint64{1, 2, 3},
+		},
+	})
+
+	require.ErrorIs(t, err, controllermeta.ErrInvalidArgument)
+}
+
+func TestStateMachineAddSlotRejectsPreferredLeaderOutsidePeers(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{})
+	ctx := context.Background()
+	require.NoError(t, store.SaveHashSlotTable(ctx, hashslot.NewHashSlotTable(8, 2)))
+
+	err := sm.Apply(ctx, Command{
+		Kind: CommandKindAddSlot,
+		AddSlot: &AddSlotRequest{
+			NewSlotID:       3,
+			Peers:           []uint64{1, 2, 3},
+			PreferredLeader: 4,
+		},
+	})
+
+	require.ErrorIs(t, err, controllermeta.ErrInvalidArgument)
+}
+
 func TestStateMachineAddSlotRejectsActiveMigrations(t *testing.T) {
 	store := openControllerStore(t)
 	sm := NewStateMachine(store, StateMachineConfig{})
@@ -81,8 +140,9 @@ func TestStateMachineAddSlotRejectsActiveMigrations(t *testing.T) {
 	err := sm.Apply(ctx, Command{
 		Kind: CommandKindAddSlot,
 		AddSlot: &AddSlotRequest{
-			NewSlotID: 3,
-			Peers:     []uint64{1, 2, 3},
+			NewSlotID:       3,
+			Peers:           []uint64{1, 2, 3},
+			PreferredLeader: 1,
 		},
 	})
 
@@ -108,8 +168,9 @@ func TestStateMachineAddSlotRejectsExistingPhysicalSlot(t *testing.T) {
 	err := sm.Apply(ctx, Command{
 		Kind: CommandKindAddSlot,
 		AddSlot: &AddSlotRequest{
-			NewSlotID: 2,
-			Peers:     []uint64{9, 10, 11},
+			NewSlotID:       2,
+			Peers:           []uint64{9, 10, 11},
+			PreferredLeader: 9,
 		},
 	})
 
