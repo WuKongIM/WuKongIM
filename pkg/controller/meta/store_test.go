@@ -141,6 +141,15 @@ func TestStoreRejectsPreferredLeaderOutsideDesiredPeersAcrossWritePaths(t *testi
 			},
 		},
 		{
+			name: "UpsertOnboardingJobAssignmentTask",
+			run: func(store *Store) error {
+				now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+				job := sampleOnboardingJobWithStatus("onboard-preferred-leader-task", OnboardingJobStatusRunning, now)
+				job.CurrentTask = &validTask
+				return store.UpsertOnboardingJobAssignmentTask(ctx, job, invalidAssignment, validTask)
+			},
+		},
+		{
 			name: "GuardedUpsertOnboardingJob",
 			run: func(store *Store) error {
 				now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
