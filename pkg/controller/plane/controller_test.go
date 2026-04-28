@@ -1404,6 +1404,125 @@ func TestStateMachineLeaderTransferFailureExhaustionDeletesTaskAndSetsFailureCoo
 	require.Equal(t, now.Add(time.Minute).UnixNano(), assignment.LeaderTransferCooldownUntil.UnixNano())
 }
 
+func TestStateMachineLeaderTransferFailureBelowMaxAttemptsRetriesWithoutCooldown(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{
+		MaxTaskAttempts:  3,
+		RetryBackoffBase: time.Second,
+	})
+	ctx := context.Background()
+
+	require.NoError(t, store.UpsertAssignment(ctx, controllermeta.SlotAssignment{
+		SlotID:          1,
+		DesiredPeers:    []uint64{1, 2, 3},
+		PreferredLeader: 2,
+	}))
+	require.NoError(t, store.UpsertTask(ctx, controllermeta.ReconcileTask{
+		SlotID:     1,
+		Kind:       controllermeta.TaskKindLeaderTransfer,
+		Step:       controllermeta.TaskStepTransferLeader,
+		SourceNode: 1,
+		TargetNode: 2,
+		Attempt:    1,
+		Status:     controllermeta.TaskStatusPending,
+	}))
+
+	now := time.Unix(100, 0)
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindTaskResult,
+		Advance: &TaskAdvance{
+			SlotID:  1,
+			Attempt: 1,
+			Now:     now,
+			Err:     errors.New("leader transfer still running"),
+		},
+	}))
+
+	task, err := store.GetTask(ctx, 1)
+	require.NoError(t, err)
+	require.Equal(t, controllermeta.TaskStatusRetrying, task.Status)
+	require.EqualValues(t, 2, task.Attempt)
+	require.Contains(t, task.LastError, "leader transfer still running")
+	require.Equal(t, now.Add(2*time.Second).UnixNano(), task.NextRunAt.UnixNano())
+
+	assignment, err := store.GetAssignment(ctx, 1)
+	require.NoError(t, err)
+	require.True(t, assignment.LeaderTransferCooldownUntil.IsZero())
+}
+
+func TestStateMachineLeaderTransferDefaultCooldowns(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		store := openControllerStore(t)
+		sm := NewStateMachine(store, StateMachineConfig{})
+		ctx := context.Background()
+
+		require.NoError(t, store.UpsertAssignment(ctx, controllermeta.SlotAssignment{
+			SlotID:          1,
+			DesiredPeers:    []uint64{1, 2, 3},
+			PreferredLeader: 2,
+		}))
+		require.NoError(t, store.UpsertTask(ctx, controllermeta.ReconcileTask{
+			SlotID:     1,
+			Kind:       controllermeta.TaskKindLeaderTransfer,
+			Step:       controllermeta.TaskStepTransferLeader,
+			SourceNode: 1,
+			TargetNode: 2,
+			Status:     controllermeta.TaskStatusPending,
+		}))
+
+		now := time.Unix(100, 0)
+		require.NoError(t, sm.Apply(ctx, Command{
+			Kind: CommandKindTaskResult,
+			Advance: &TaskAdvance{
+				SlotID: 1,
+				Now:    now,
+			},
+		}))
+
+		assignment, err := store.GetAssignment(ctx, 1)
+		require.NoError(t, err)
+		require.Equal(t, now.Add(30*time.Second).UnixNano(), assignment.LeaderTransferCooldownUntil.UnixNano())
+	})
+
+	t.Run("terminal failure", func(t *testing.T) {
+		store := openControllerStore(t)
+		sm := NewStateMachine(store, StateMachineConfig{})
+		ctx := context.Background()
+
+		require.NoError(t, store.UpsertAssignment(ctx, controllermeta.SlotAssignment{
+			SlotID:          1,
+			DesiredPeers:    []uint64{1, 2, 3},
+			PreferredLeader: 2,
+		}))
+		require.NoError(t, store.UpsertTask(ctx, controllermeta.ReconcileTask{
+			SlotID:     1,
+			Kind:       controllermeta.TaskKindLeaderTransfer,
+			Step:       controllermeta.TaskStepTransferLeader,
+			SourceNode: 1,
+			TargetNode: 2,
+			Attempt:    2,
+			Status:     controllermeta.TaskStatusRetrying,
+			NextRunAt:  time.Unix(99, 0),
+			LastError:  "previous",
+		}))
+
+		now := time.Unix(100, 0)
+		require.NoError(t, sm.Apply(ctx, Command{
+			Kind: CommandKindTaskResult,
+			Advance: &TaskAdvance{
+				SlotID:  1,
+				Attempt: 2,
+				Now:     now,
+				Err:     errors.New("current voters unknown"),
+			},
+		}))
+
+		assignment, err := store.GetAssignment(ctx, 1)
+		require.NoError(t, err)
+		require.Equal(t, now.Add(30*time.Second).UnixNano(), assignment.LeaderTransferCooldownUntil.UnixNano())
+	})
+}
+
 func TestStateMachineLeaderTransferMissingAssignmentDeletesTask(t *testing.T) {
 	store := openControllerStore(t)
 	sm := NewStateMachine(store, StateMachineConfig{
