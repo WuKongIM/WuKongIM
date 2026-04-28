@@ -5,10 +5,7 @@ import { useSearchParams } from "react-router-dom"
 import { DetailSheet } from "@/components/manager/detail-sheet"
 import { KeyValueList } from "@/components/manager/key-value-list"
 import { ResourceState } from "@/components/manager/resource-state"
-import { TableToolbar } from "@/components/manager/table-toolbar"
 import { PageContainer } from "@/components/shell/page-container"
-import { PageHeader } from "@/components/shell/page-header"
-import { SectionCard } from "@/components/shell/section-card"
 import { Button } from "@/components/ui/button"
 import { ManagerApiError, getMessages } from "@/lib/manager-api"
 import type { ManagerMessage, ManagerMessagesResponse } from "@/lib/manager-api.types"
@@ -230,14 +227,6 @@ export function MessagesPage() {
     await runQuery(submitted, true)
   }, [runQuery, submitted])
 
-  const summary = useMemo(() => {
-    const items = state.messages?.items ?? []
-    return {
-      total: items.length,
-      senders: new Set(items.map((item) => item.from_uid)).size,
-    }
-  }, [state.messages])
-
   const visiblePayload = useMemo(() => {
     if (!selectedMessage) {
       return ""
@@ -249,29 +238,41 @@ export function MessagesPage() {
 
   return (
     <PageContainer>
-      <PageHeader
-        title={intl.formatMessage({ id: "nav.messages.title" })}
-        description={intl.formatMessage({ id: "nav.messages.description" })}
-      >
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          <div className="rounded-md border border-border bg-background px-3 py-2">
-            {submitted
-              ? intl.formatMessage({ id: "messages.scopeValue" }, { id: submitted.channelId })
-              : intl.formatMessage({ id: "messages.scopePending" })}
-          </div>
-          <div className="rounded-md border border-border bg-background px-3 py-2">
-            {state.messages
-              ? intl.formatMessage({ id: "messages.loadedValue" }, { count: state.messages.items.length })
-              : intl.formatMessage({ id: "messages.loadedPending" })}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            {intl.formatMessage({ id: "nav.messages.title" })}
+          </h1>
+          <div className="mt-1 flex flex-wrap gap-3 text-sm text-muted-foreground">
+            <span>
+              {submitted
+                ? intl.formatMessage({ id: "messages.scopeValue" }, { id: submitted.channelId })
+                : intl.formatMessage({ id: "messages.scopePending" })}
+            </span>
+            <span>
+              {state.messages
+                ? intl.formatMessage({ id: "messages.loadedValue" }, { count: state.messages.items.length })
+                : intl.formatMessage({ id: "messages.loadedPending" })}
+            </span>
           </div>
         </div>
-      </PageHeader>
+        {submitted ? (
+          <Button
+            onClick={() => {
+              void refresh()
+            }}
+            size="sm"
+            variant="outline"
+          >
+            {state.refreshing
+              ? intl.formatMessage({ id: "common.refreshing" })
+              : intl.formatMessage({ id: "common.refresh" })}
+          </Button>
+        ) : null}
+      </div>
 
-      <SectionCard
-        description={intl.formatMessage({ id: "messages.queryDescription" })}
-        title={intl.formatMessage({ id: "messages.queryTitle" })}
-      >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_10rem_10rem_minmax(0,1fr)_auto] xl:items-end">
           <label className="grid gap-2 text-sm text-foreground">
             <span>{intl.formatMessage({ id: "messages.form.channelId" })}</span>
             <input
@@ -318,118 +319,99 @@ export function MessagesPage() {
               value={query.clientMsgNo}
             />
           </label>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              onClick={() => {
+                void submit()
+              }}
+            >
+              {intl.formatMessage({ id: "common.search" })}
+            </Button>
+          </div>
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button onClick={() => { void submit() }}>
-            {intl.formatMessage({ id: "common.search" })}
-          </Button>
-          {validationError ? <p className="text-sm text-destructive">{validationError}</p> : null}
-        </div>
-      </SectionCard>
+        {validationError ? <p className="mt-3 text-sm text-destructive">{validationError}</p> : null}
+      </div>
 
-      {state.messages ? (
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-2">
-          <SectionCard
-            description={intl.formatMessage({ id: "messages.cards.loaded.description" })}
-            title={intl.formatMessage({ id: "messages.cards.loaded.title" })}
-          >
-            <div className="text-3xl font-semibold text-foreground">{summary.total}</div>
-          </SectionCard>
-          <SectionCard
-            description={intl.formatMessage({ id: "messages.cards.senders.description" })}
-            title={intl.formatMessage({ id: "messages.cards.senders.title" })}
-          >
-            <div className="text-3xl font-semibold text-foreground">{summary.senders}</div>
-          </SectionCard>
-        </section>
-      ) : null}
-
-      <SectionCard
-        description={intl.formatMessage({ id: "messages.resultsDescription" })}
-        title={intl.formatMessage({ id: "messages.resultsTitle" })}
-      >
-        <TableToolbar
-          actions={
-            state.messages?.has_more ? (
-              <Button
-                onClick={() => {
-                  void loadMore()
-                }}
-                size="sm"
-                variant="outline"
-              >
-                {state.loadingMore
-                  ? intl.formatMessage({ id: "common.loading" })
-                  : intl.formatMessage({ id: "common.loadMore" })}
-              </Button>
-            ) : null
-          }
-          description={intl.formatMessage({ id: "messages.toolbarDescription" })}
-          onRefresh={submitted ? () => { void refresh() } : undefined}
-          refreshing={state.refreshing}
-          title={intl.formatMessage({ id: "messages.toolbarTitle" })}
-        />
-
-        {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "messages.toolbarTitle" })} /> : null}
+      <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+        {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nav.messages.title" })} /> : null}
         {!state.loading && state.error ? (
           <ResourceState
             kind={mapErrorKind(state.error)}
-            onRetry={submitted ? () => { void refresh() } : undefined}
-            title={intl.formatMessage({ id: "messages.toolbarTitle" })}
+            onRetry={submitted ? () => {
+              void refresh()
+            } : undefined}
+            title={intl.formatMessage({ id: "nav.messages.title" })}
           />
         ) : null}
         {!state.loading && !state.error && !state.queried ? (
-          <ResourceState kind="empty" title={intl.formatMessage({ id: "messages.toolbarTitle" })} />
+          <ResourceState kind="empty" title={intl.formatMessage({ id: "nav.messages.title" })} />
         ) : null}
         {!state.loading && !state.error && state.messages ? (
           state.messages.items.length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full border-collapse">
-                <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.seq" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.messageId" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.clientMsgNo" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.fromUid" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.timestamp" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.payload" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.actions" })}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {state.messages.items.map((message) => (
-                    <tr className="border-t border-border" key={`${message.message_seq}-${message.message_id}`}>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{message.message_seq}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{message.message_id}</td>
-                      <td className="px-3 py-3 text-sm font-medium text-foreground">{message.client_msg_no || "-"}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{message.from_uid || "-"}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{formatTimestamp(message.timestamp)}</td>
-                      <td className="max-w-[24rem] px-3 py-3 text-sm text-foreground">{decodePayload(message.payload) || "-"}</td>
-                      <td className="px-3 py-3 text-sm text-foreground">
-                        <Button
-                          aria-label={intl.formatMessage(
-                            { id: "messages.inspectMessage" },
-                            { id: message.message_id },
-                          )}
-                          onClick={() => {
-                            openDetail(message)
-                          }}
-                          size="sm"
-                          variant="outline"
-                        >
-                          {intl.formatMessage({ id: "common.inspect" })}
-                        </Button>
-                      </td>
+            <>
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="w-full border-collapse">
+                  <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.seq" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.messageId" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.clientMsgNo" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.fromUid" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.timestamp" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.payload" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "messages.table.actions" })}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {state.messages.items.map((message) => (
+                      <tr className="border-t border-border" key={`${message.message_seq}-${message.message_id}`}>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{message.message_seq}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{message.message_id}</td>
+                        <td className="px-3 py-3 text-sm font-medium text-foreground">{message.client_msg_no || "-"}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{message.from_uid || "-"}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatTimestamp(message.timestamp)}</td>
+                        <td className="max-w-[24rem] px-3 py-3 text-sm text-foreground">{decodePayload(message.payload) || "-"}</td>
+                        <td className="px-3 py-3 text-sm text-foreground">
+                          <Button
+                            aria-label={intl.formatMessage(
+                              { id: "messages.inspectMessage" },
+                              { id: message.message_id },
+                            )}
+                            onClick={() => {
+                              openDetail(message)
+                            }}
+                            size="sm"
+                            variant="outline"
+                          >
+                            {intl.formatMessage({ id: "common.inspect" })}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {state.messages.has_more ? (
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    onClick={() => {
+                      void loadMore()
+                    }}
+                    size="sm"
+                    variant="outline"
+                  >
+                    {state.loadingMore
+                      ? intl.formatMessage({ id: "common.loading" })
+                      : intl.formatMessage({ id: "common.loadMore" })}
+                  </Button>
+                </div>
+              ) : null}
+            </>
           ) : (
-            <ResourceState kind="empty" title={intl.formatMessage({ id: "messages.toolbarTitle" })} />
+            <ResourceState kind="empty" title={intl.formatMessage({ id: "nav.messages.title" })} />
           )
         ) : null}
-      </SectionCard>
+      </div>
 
       <DetailSheet
         description={

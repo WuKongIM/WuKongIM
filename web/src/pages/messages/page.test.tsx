@@ -52,6 +52,43 @@ function renderMessagesPage(initialEntry = "/messages") {
   )
 }
 
+test("uses compact message page chrome without summary cards", async () => {
+  getMessagesMock.mockResolvedValueOnce({
+    items: [{
+      message_id: 101,
+      message_seq: 9,
+      client_msg_no: "c-101",
+      channel_id: "room-1",
+      channel_type: 2,
+      from_uid: "u1",
+      timestamp: 1713859200,
+      payload: "aGVsbG8=",
+    }],
+    has_more: false,
+  })
+
+  renderMessagesPage("/messages?channel_id=room-1&channel_type=2")
+
+  expect(await screen.findByText("c-101")).toBeInTheDocument()
+  expect(screen.getByText("Scope: channel room-1")).toBeInTheDocument()
+  expect(screen.getByText("Loaded: 1")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
+  expect(screen.getByLabelText("Channel ID")).toHaveValue("room-1")
+  expect(screen.getByLabelText("Channel type")).toHaveValue(2)
+  expect(screen.getByRole("button", { name: "Search" })).toBeInTheDocument()
+  expect(screen.queryByText("Channel-scoped message search and pagination.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Message Filters")).not.toBeInTheDocument()
+  expect(screen.queryByText("Filter by channel, message ID, or client message number before querying the manager API.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Loaded messages")).not.toBeInTheDocument()
+  expect(screen.queryByText("Total matched messages loaded into the current page set.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Senders")).not.toBeInTheDocument()
+  expect(screen.queryByText("Distinct senders represented in the current result set.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Message Query")).not.toBeInTheDocument()
+  expect(screen.queryByText("Paged results returned by the manager message query endpoint.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Query results")).not.toBeInTheDocument()
+  expect(screen.queryByText("Newest matched messages ordered by committed sequence.")).not.toBeInTheDocument()
+})
+
 test("auto-runs a message query from URL channel params", async () => {
   getMessagesMock.mockResolvedValueOnce({
     items: [{
