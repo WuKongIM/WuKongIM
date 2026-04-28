@@ -162,6 +162,24 @@ func TestSlotExecutorExecuteBootstrapTransfersLeaderToTarget(t *testing.T) {
 	}
 }
 
+func TestSlotExecutorExecuteLeaderTransferFailsClosedBeforeImplementation(t *testing.T) {
+	cluster := &Cluster{}
+	executor := newSlotExecutorWithFuncs(cluster, slotExecutorFuncs{
+		prepareSlot: func(multiraft.SlotID, []uint64) {},
+	})
+
+	err := executor.Execute(context.Background(), assignmentTaskState{
+		assignment: controllermeta.SlotAssignment{SlotID: 1},
+		task: controllermeta.ReconcileTask{
+			SlotID: 1,
+			Kind:   controllermeta.TaskKindLeaderTransfer,
+		},
+	})
+	if !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("slotExecutor.Execute() error = %v, want %v", err, ErrInvalidConfig)
+	}
+}
+
 func TestSlotExecutorExecuteStopsOnStepError(t *testing.T) {
 	cluster := &Cluster{}
 	sentinel := errors.New("promote failed")

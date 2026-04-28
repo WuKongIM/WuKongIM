@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
@@ -138,6 +139,8 @@ func (e *slotExecutor) Execute(ctx context.Context, assignment assignmentTaskSta
 			}
 		}
 		return nil
+	case controllermeta.TaskKindLeaderTransfer:
+		return fmt.Errorf("%w: leader transfer task execution is not implemented", ErrInvalidConfig)
 	default:
 		return nil
 	}
