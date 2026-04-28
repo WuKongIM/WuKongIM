@@ -131,6 +131,7 @@ export const zhCNMessages: AppMessages = {
   "nodes.distributedLog.title": "分布式日志健康",
   "nodes.distributedLog.controllerVoter": "控制器投票节点",
   "nodes.distributedLog.controllerNonVoter": "非控制器投票节点",
+  "nodes.distributedLog.replicaSummary": "副本 {replicas} / Leader {leaders} / Follower {followers}",
   "nodes.distributedLog.metrics.replicas": "槽位副本",
   "nodes.distributedLog.metrics.maxCommitLag": "最大提交滞后",
   "nodes.distributedLog.metrics.maxApplyGap": "最大应用差距",

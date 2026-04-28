@@ -235,6 +235,7 @@ test("shows distributed log health in the node list and detail", async () => {
   const user = userEvent.setup()
   renderNodesPage()
 
+  expect(await screen.findByText("replicas 3 / leaders 2 / followers 1")).toBeInTheDocument()
   expect(await screen.findByText("max lag 7 / apply gap 2")).toBeInTheDocument()
   expect(screen.getByText("2 unhealthy / 1 unavailable")).toBeInTheDocument()
 

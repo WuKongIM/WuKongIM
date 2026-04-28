@@ -132,6 +132,7 @@ export const enMessages: AppMessages = {
   "nodes.distributedLog.title": "Distributed Log Health",
   "nodes.distributedLog.controllerVoter": "Controller voter",
   "nodes.distributedLog.controllerNonVoter": "Controller non-voter",
+  "nodes.distributedLog.replicaSummary": "replicas {replicas} / leaders {leaders} / followers {followers}",
   "nodes.distributedLog.metrics.replicas": "Slot replicas",
   "nodes.distributedLog.metrics.maxCommitLag": "Max commit lag",
   "nodes.distributedLog.metrics.maxApplyGap": "Max apply gap",

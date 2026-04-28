@@ -127,6 +127,17 @@ function formatDistributedLogLag(log: ManagerNodeDistributedLog) {
   return `max lag ${log.slots.max_commit_lag} / apply gap ${log.slots.max_apply_gap}`
 }
 
+function formatDistributedLogReplicas(intl: IntlShape, log: ManagerNodeDistributedLog) {
+  return intl.formatMessage(
+    { id: "nodes.distributedLog.replicaSummary" },
+    {
+      replicas: log.slots.replica_count,
+      leaders: log.slots.leader_count,
+      followers: log.slots.follower_count,
+    },
+  )
+}
+
 function formatDistributedLogHealth(log: ManagerNodeDistributedLog) {
   return `${log.slots.unhealthy_count} unhealthy / ${log.slots.unavailable_count} unavailable`
 }
@@ -590,6 +601,7 @@ export function NodesPage() {
                         </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">
                           <div className="space-y-1">
+                            <div>{formatDistributedLogReplicas(intl, log)}</div>
                             <div>{formatDistributedLogLag(log)}</div>
                             <div>{formatDistributedLogHealth(log)}</div>
                           </div>
