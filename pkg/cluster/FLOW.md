@@ -462,10 +462,11 @@ Delta 转发 (运行时):
 
 ```
 AddSlot(ctx):
-  ① 读取 Controller SlotAssignment 作为当前物理 Slot 基准
+  ① 严格读取 Controller Leader 的 SlotAssignment 和 RuntimeViews；观测未 ready 时返回 ErrObservationNotReady，不回退本地缓存
   ② 若 HashSlotTable 存在活跃迁移 → ErrInvalidConfig（管理层映射为迁移冲突）
   ③ 选择 max(assignment.SlotID)+1 作为新物理 Slot，复用当前最小 Slot 的 DesiredPeers
-  ④ 提案 AddSlot；Controller 持久化新 Assignment + Bootstrap task，并生成迁入新 Slot 的 hash-slot migration
+  ④ 新 Slot PreferredLeader 按当前 Leader 负载选择：Runtime Leader 非 0 时优先计入实际 Leader，否则计入 assignment.PreferredLeader
+  ⑤ 提案 AddSlot（携带 PreferredLeader）；Controller 持久化新 Assignment + Bootstrap task，并生成迁入新 Slot 的 hash-slot migration
 
 RemoveSlot(ctx, slotID):
   ① 若 HashSlotTable 缺失 / slotID 不存在 / 存在任意活跃迁移 / 将移除最后一个物理 Slot → 拒绝

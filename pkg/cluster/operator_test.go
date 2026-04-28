@@ -7,6 +7,7 @@ import (
 
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )
@@ -148,6 +149,10 @@ func TestAddSlotChoosesNextSlotIDAndCurrentPeers(t *testing.T) {
 					{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}},
 					{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}},
 				},
+				runtimeViews: []controllermeta.SlotRuntimeView{
+					{SlotID: 1, LeaderID: 1},
+					{SlotID: 2, LeaderID: 2},
+				},
 				addSlotFn: func(_ context.Context, req slotcontroller.AddSlotRequest) error {
 					got = req
 					return nil
@@ -169,6 +174,12 @@ func TestAddSlotChoosesNextSlotIDAndCurrentPeers(t *testing.T) {
 	if len(got.Peers) != 3 || got.Peers[0] != 1 || got.Peers[1] != 2 || got.Peers[2] != 3 {
 		t.Fatalf("submitted peers = %v, want [1 2 3]", got.Peers)
 	}
+	if got.PreferredLeader == 0 {
+		t.Fatal("submitted PreferredLeader = 0, want non-zero peer")
+	}
+	if !assignmentContainsPeer(got.Peers, got.PreferredLeader) {
+		t.Fatalf("submitted PreferredLeader = %d, want one of peers %v", got.PreferredLeader, got.Peers)
+	}
 }
 
 func TestAddSlotRejectsActiveMigrations(t *testing.T) {
@@ -185,6 +196,10 @@ func TestAddSlotRejectsActiveMigrations(t *testing.T) {
 					{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}},
 					{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}},
 				},
+				runtimeViews: []controllermeta.SlotRuntimeView{
+					{SlotID: 1, LeaderID: 1},
+					{SlotID: 2, LeaderID: 2},
+				},
 				addSlotFn: func(_ context.Context, _ slotcontroller.AddSlotRequest) error {
 					called = true
 					return nil
@@ -197,6 +212,37 @@ func TestAddSlotRejectsActiveMigrations(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrInvalidConfig)
 	require.False(t, called)
+}
+
+func TestNextSlotDefinitionChoosesBalancedPreferredLeaderFromActualRuntime(t *testing.T) {
+	c := &Cluster{}
+	assignments := []controllermeta.SlotAssignment{
+		{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, PreferredLeader: 2},
+		{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}, PreferredLeader: 3},
+	}
+	views := []controllermeta.SlotRuntimeView{
+		{SlotID: 1, CurrentVoters: []uint64{1, 2, 3}, LeaderID: 1, HasQuorum: true},
+		{SlotID: 2, CurrentVoters: []uint64{1, 2, 3}, LeaderID: 1, HasQuorum: true},
+	}
+
+	slotID, peers, preferred, err := nextSlotDefinition(c, assignments, views)
+	require.NoError(t, err)
+	require.Equal(t, multiraft.SlotID(3), slotID)
+	require.Equal(t, []uint64{1, 2, 3}, peers)
+	require.Equal(t, uint64(2), preferred)
+}
+
+func TestNextSlotDefinitionFallsBackToPreferredLeaderWhenRuntimeMissing(t *testing.T) {
+	c := &Cluster{}
+	assignments := []controllermeta.SlotAssignment{
+		{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, PreferredLeader: 1},
+		{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}, PreferredLeader: 1},
+	}
+
+	_, peers, preferred, err := nextSlotDefinition(c, assignments, nil)
+	require.NoError(t, err)
+	require.Equal(t, []uint64{1, 2, 3}, peers)
+	require.Equal(t, uint64(2), preferred)
 }
 
 func TestRemoveSlotSubmitsControllerCommand(t *testing.T) {
