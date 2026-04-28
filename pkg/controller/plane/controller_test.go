@@ -1326,6 +1326,115 @@ func TestStateMachineResumeNodeRestoresAssignmentFromPendingRepair(t *testing.T)
 	require.ErrorIs(t, err, controllermeta.ErrNotFound)
 }
 
+func TestStateMachineLeaderTransferSuccessDeletesTaskAndSetsCooldown(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{LeaderTransferCooldown: 30 * time.Second})
+	ctx := context.Background()
+
+	require.NoError(t, store.UpsertAssignment(ctx, controllermeta.SlotAssignment{
+		SlotID:          1,
+		DesiredPeers:    []uint64{1, 2, 3},
+		PreferredLeader: 2,
+	}))
+	require.NoError(t, store.UpsertTask(ctx, controllermeta.ReconcileTask{
+		SlotID:     1,
+		Kind:       controllermeta.TaskKindLeaderTransfer,
+		Step:       controllermeta.TaskStepTransferLeader,
+		SourceNode: 1,
+		TargetNode: 2,
+		Status:     controllermeta.TaskStatusPending,
+	}))
+
+	now := time.Unix(100, 0)
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindTaskResult,
+		Advance: &TaskAdvance{
+			SlotID: 1,
+			Now:    now,
+		},
+	}))
+
+	_, err := store.GetTask(ctx, 1)
+	require.ErrorIs(t, err, controllermeta.ErrNotFound)
+	assignment, err := store.GetAssignment(ctx, 1)
+	require.NoError(t, err)
+	require.Equal(t, now.Add(30*time.Second).UnixNano(), assignment.LeaderTransferCooldownUntil.UnixNano())
+}
+
+func TestStateMachineLeaderTransferFailureExhaustionDeletesTaskAndSetsFailureCooldown(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{
+		MaxTaskAttempts:               3,
+		RetryBackoffBase:              time.Second,
+		LeaderTransferFailureCooldown: time.Minute,
+	})
+	ctx := context.Background()
+
+	require.NoError(t, store.UpsertAssignment(ctx, controllermeta.SlotAssignment{
+		SlotID:          1,
+		DesiredPeers:    []uint64{1, 2, 3},
+		PreferredLeader: 2,
+	}))
+	require.NoError(t, store.UpsertTask(ctx, controllermeta.ReconcileTask{
+		SlotID:     1,
+		Kind:       controllermeta.TaskKindLeaderTransfer,
+		Step:       controllermeta.TaskStepTransferLeader,
+		TargetNode: 2,
+		Attempt:    2,
+		Status:     controllermeta.TaskStatusRetrying,
+		NextRunAt:  time.Unix(99, 0),
+		LastError:  "previous",
+	}))
+
+	now := time.Unix(100, 0)
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindTaskResult,
+		Advance: &TaskAdvance{
+			SlotID:  1,
+			Attempt: 2,
+			Now:     now,
+			Err:     errors.New("current voters unknown"),
+		},
+	}))
+
+	_, err := store.GetTask(ctx, 1)
+	require.ErrorIs(t, err, controllermeta.ErrNotFound)
+	assignment, err := store.GetAssignment(ctx, 1)
+	require.NoError(t, err)
+	require.Equal(t, now.Add(time.Minute).UnixNano(), assignment.LeaderTransferCooldownUntil.UnixNano())
+}
+
+func TestStateMachineLeaderTransferMissingAssignmentDeletesTask(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{
+		MaxTaskAttempts:  3,
+		RetryBackoffBase: time.Second,
+	})
+	ctx := context.Background()
+
+	require.NoError(t, store.UpsertTask(ctx, controllermeta.ReconcileTask{
+		SlotID:    1,
+		Kind:      controllermeta.TaskKindLeaderTransfer,
+		Step:      controllermeta.TaskStepTransferLeader,
+		Attempt:   2,
+		Status:    controllermeta.TaskStatusRetrying,
+		NextRunAt: time.Unix(99, 0),
+	}))
+
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindTaskResult,
+		Advance: &TaskAdvance{
+			SlotID:  1,
+			Attempt: 2,
+			Now:     time.Unix(100, 0),
+			Err:     errors.New("transfer rejected"),
+		},
+	}))
+
+	_, err := store.GetTask(ctx, 1)
+	require.ErrorIs(t, err, controllermeta.ErrNotFound)
+}
+
 func TestStateMachineMarksTaskFailedAfterRetryExhaustion(t *testing.T) {
 	store := openControllerStore(t)
 	sm := NewStateMachine(store, StateMachineConfig{

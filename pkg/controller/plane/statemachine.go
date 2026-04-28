@@ -13,10 +13,18 @@ import (
 )
 
 type StateMachineConfig struct {
-	SuspectTimeout   time.Duration
-	DeadTimeout      time.Duration
-	MaxTaskAttempts  int
+	// SuspectTimeout is the heartbeat silence duration that moves an alive node to suspect.
+	SuspectTimeout time.Duration
+	// DeadTimeout is the heartbeat silence duration that moves a node to dead.
+	DeadTimeout time.Duration
+	// MaxTaskAttempts is the maximum number of failed task attempts before terminal handling.
+	MaxTaskAttempts int
+	// RetryBackoffBase is the base duration for exponential task retry delays.
 	RetryBackoffBase time.Duration
+	// LeaderTransferCooldown is the durable cooldown written after a successful leader transfer task.
+	LeaderTransferCooldown time.Duration
+	// LeaderTransferFailureCooldown is the durable cooldown written after terminal leader transfer failure.
+	LeaderTransferFailureCooldown time.Duration
 }
 
 type StateMachine struct {
@@ -25,9 +33,11 @@ type StateMachine struct {
 }
 
 const (
-	defaultSuspectTimeout   = 3 * time.Second
-	defaultDeadTimeout      = 10 * time.Second
-	defaultRetryBackoffBase = time.Second
+	defaultSuspectTimeout                = 3 * time.Second
+	defaultDeadTimeout                   = 10 * time.Second
+	defaultRetryBackoffBase              = time.Second
+	defaultLeaderTransferCooldown        = 30 * time.Second
+	defaultLeaderTransferFailureCooldown = 30 * time.Second
 )
 
 func NewStateMachine(store *controllermeta.Store, cfg StateMachineConfig) *StateMachine {
@@ -42,6 +52,12 @@ func NewStateMachine(store *controllermeta.Store, cfg StateMachineConfig) *State
 	}
 	if cfg.RetryBackoffBase <= 0 {
 		cfg.RetryBackoffBase = defaultRetryBackoffBase
+	}
+	if cfg.LeaderTransferCooldown <= 0 {
+		cfg.LeaderTransferCooldown = defaultLeaderTransferCooldown
+	}
+	if cfg.LeaderTransferFailureCooldown <= 0 {
+		cfg.LeaderTransferFailureCooldown = defaultLeaderTransferFailureCooldown
 	}
 	return &StateMachine{store: store, cfg: cfg}
 }
@@ -326,6 +342,9 @@ func (sm *StateMachine) applyTaskResult(ctx context.Context, advance TaskAdvance
 	if task.Attempt != advance.Attempt {
 		return nil
 	}
+	if task.Kind == controllermeta.TaskKindLeaderTransfer {
+		return sm.applyLeaderTransferTaskResult(ctx, task, advance)
+	}
 	if advance.Err == nil {
 		return sm.store.DeleteTask(ctx, advance.SlotID)
 	}
@@ -339,6 +358,32 @@ func (sm *StateMachine) applyTaskResult(ctx context.Context, advance TaskAdvance
 	}
 
 	task.Status = controllermeta.TaskStatusRetrying
+	task.NextRunAt = advance.Now.Add(sm.retryDelay(task.Attempt))
+	return sm.store.UpsertTask(ctx, task)
+}
+
+func (sm *StateMachine) applyLeaderTransferTaskResult(ctx context.Context, task controllermeta.ReconcileTask, advance TaskAdvance) error {
+	assignment, err := sm.store.GetAssignment(ctx, task.SlotID)
+	if errors.Is(err, controllermeta.ErrNotFound) {
+		return sm.store.DeleteTask(ctx, task.SlotID)
+	}
+	if err != nil {
+		return err
+	}
+
+	if advance.Err == nil {
+		assignment.LeaderTransferCooldownUntil = advance.Now.Add(sm.cfg.LeaderTransferCooldown)
+		return sm.store.UpsertAssignmentAndDeleteTask(ctx, assignment, task.SlotID)
+	}
+
+	task.Attempt++
+	if int(task.Attempt) >= sm.cfg.MaxTaskAttempts {
+		assignment.LeaderTransferCooldownUntil = advance.Now.Add(sm.cfg.LeaderTransferFailureCooldown)
+		return sm.store.UpsertAssignmentAndDeleteTask(ctx, assignment, task.SlotID)
+	}
+
+	task.Status = controllermeta.TaskStatusRetrying
+	task.LastError = advance.Err.Error()
 	task.NextRunAt = advance.Now.Add(sm.retryDelay(task.Attempt))
 	return sm.store.UpsertTask(ctx, task)
 }
