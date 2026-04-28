@@ -89,7 +89,8 @@ EvaluateTimeouts (statemachine.go:142):
 
 TaskResult (statemachine.go:168):
   成功(Err=nil) → 删除任务
-  失败 → Attempt++, <MaxAttempts(3)则Retrying+指数退避, 否则Failed
+  普通任务失败 → Attempt++, <MaxAttempts(3)则Retrying+指数退避, 否则Failed
+  LeaderTransfer 失败 → 未耗尽时 Retrying；终态失败时删除 Task，并写入 LeaderTransferCooldownUntil，避免失败任务永久占用 Slot
 
 AssignmentTaskUpdate (statemachine.go:200):
   Repair任务先检查SourceNode是否恢复(已Alive→过时跳过) → 原子持久化Assignment+Task
@@ -219,7 +220,8 @@ AddLearner → CatchUp → Promote → TransferLeader → RemoveOld
 - **Attempt 匹配**: `applyTaskResult` 用 Attempt 字段防止过期的 TaskResult 影响新一轮任务。Attempt 不匹配时静默忽略。
 - **Draining 不受观测恢复影响**: `NodeStatusUpdate` / `applyNodeHeartbeat` 都不能把 Draining 自动恢复为 Alive，必须通过 OperatorResumeNode 显式恢复。
 - **健康状态改为边沿复制**: steady-state 不再周期性 `EvaluateTimeouts`；由 leader 本地 deadline scheduler 只在状态跨边沿时提案 `NodeStatusUpdate`。
-- **规划依赖 leader 本地 observation**: RuntimeView 不再是 steady-state 的 replicated metadata。新 leader warmup 期间必须 fail-closed，优先延迟 Repair/Rebalance，避免误判。
+- **规划依赖 leader 本地 observation**: RuntimeView 不再是 steady-state 的 replicated metadata。新 leader warmup 期间必须 fail-closed，优先延迟 Repair/Rebalance/LeaderTransfer，避免误判。
+- **PreferredLeader 是软意图**: `SlotAssignment.PreferredLeader` 只表达 Controller 的目标 Leader；Raft 当前 Leader 和 CurrentVoters 仍是执行 LeaderTransfer 的权威安全输入。
 - **指数退避上限**: `retryDelay` 中 shift 上限为 30，防止溢出。重试延迟 = base × 2^(attempt-1)。
 - **Command 序列化为 JSON**: `raft/service.go:encodeCommand` 使用 JSON（非二进制），TaskAdvance.Err 序列化为 string 再反序列化为 `errors.New`。
 - **Leader 丢失时清理**: `raft/service.go:failInflightProposalsOnLeaderLoss` 在每次状态检查后清理所有 pending 提案，返回 ErrNotLeader。

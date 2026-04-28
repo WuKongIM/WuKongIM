@@ -54,6 +54,7 @@ API.Server() / RPCMux() / Discovery() / RPCService(ctx, nodeID, slotID, serviceI
 
 `ListActiveMigrationsStrict` 先执行严格的 Controller leader assignment/hash-slot table 刷新，再从刷新后的路由表读取 active migrations。
 `ListObservedRuntimeViewsStrict` 在本地或远端 Controller leader observation warmup 未完成时会 fail closed 返回 `ErrObservationNotReady`，调用方不能回退到本地非严格缓存作为安全判断依据。
+Controller metrics 通过 ObserverHooks 记录 `leader_transfer` 任务结果（含 `safety_check`），并在 metrics refresh 时根据 observed runtime view 计算 Slot leader skew。
 
 ## 4. 关键类型
 
@@ -74,7 +75,7 @@ API.Server() / RPCMux() / Discovery() / RPCService(ctx, nodeID, slotID, serviceI
 | `runtimeState` | runtime_state.go | 运行时状态：slotID → 当前 peers 映射（线程安全） |
 | `runtimeObservationReporter` | runtime_observation_reporter.go | 节点侧 runtime 增量上报器：mirror / dirtyViews / closedSlots / needFullSync |
 | `observationCache` | observation_cache.go | leader-local 观测缓存：节点心跳 + `runtimeViewsByNode` 聚合视图 + TTL 淘汰 |
-| `ObserverHooks` | config.go:71 | 可观测钩子：OnControllerCall / OnControllerDecision / OnReconcileStep / OnForwardPropose / OnSlotEnsure / OnTaskResult / OnHashSlotMigration / OnLeaderChange / OnNodeStatusChange |
+| `ObserverHooks` | config.go:71 | 可观测钩子：OnControllerCall / OnControllerDecision / OnReconcileStep / OnForwardPropose / OnSlotEnsure / OnTaskResult / OnHashSlotMigration / OnLeaderChange / OnNodeStatusChange；LeaderTransfer 任务名输出为 `leader_transfer`，安全校验失败输出为 `safety_check` |
 | `NodeOnboardingCandidate` | onboarding.go | 管理后台扩容候选节点：节点状态、当前 Slot replica 数、leader 数、是否推荐 |
 
 ## 5. 核心流程
@@ -368,7 +369,7 @@ Execute(ctx, assignment):
        → managed slot transfer leadership: LeaderOf(slotID) 后本地 runtime.TransferLeadership 或远程 managed-slot RPC
     ⑤ waitForSpecificLeader(slotID, TargetNode)
        → 轮询 currentLeader 直到目标成为 Leader (超时 ManagedSlotLeaderMove)
-    ⑥ 任一安全校验失败返回 ErrLeaderTransferSafetyCheck，Controller 通过任务 retry/last error 暴露失败原因
+    ⑥ 任一安全校验失败返回 ErrLeaderTransferSafetyCheck，deterministic checker 会按同一错误上报 retryable 失败；Controller 重试耗尽后删除 LeaderTransfer 任务并写入冷却时间
 ```
 
 ### 5.7 Hash Slot 迁移
