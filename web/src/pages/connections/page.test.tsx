@@ -64,6 +64,30 @@ function renderConnectionsPage() {
   )
 }
 
+test("uses compact connection page chrome without summary cards", async () => {
+  getConnectionsMock.mockResolvedValueOnce({ total: 1, items: [connectionRow] })
+
+  renderConnectionsPage()
+
+  expect(await screen.findByText("u1")).toBeInTheDocument()
+  expect(screen.getByText("Total: 1")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
+  expect(screen.queryByText("Scope: local node")).not.toBeInTheDocument()
+  expect(screen.queryByText("Connection inventory and transport state.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Sessions")).not.toBeInTheDocument()
+  expect(screen.queryByText("Local sessions currently listed by the manager API.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Users")).not.toBeInTheDocument()
+  expect(screen.queryByText("Distinct user IDs represented in the local view.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Slots")).not.toBeInTheDocument()
+  expect(screen.queryByText("Distinct slot IDs represented in the local view.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Listeners")).not.toBeInTheDocument()
+  expect(screen.queryByText("Listener types represented in the local view.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Connection Inventory")).not.toBeInTheDocument()
+  expect(screen.queryByText("Current local connection records from the manager connections endpoints.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Local connections")).not.toBeInTheDocument()
+  expect(screen.queryByText("Inspect one connection to view addresses, slot ownership, and session metadata.")).not.toBeInTheDocument()
+})
+
 test("renders connection rows and opens detail from manager APIs", async () => {
   getConnectionsMock.mockResolvedValueOnce({ total: 1, items: [connectionRow] })
   getConnectionMock.mockResolvedValueOnce(connectionDetail)
@@ -106,6 +130,6 @@ test("renders empty state when there are no local connections", async () => {
 
   renderConnectionsPage()
 
-  expect((await screen.findAllByText("Connection Inventory")).length).toBeGreaterThan(0)
+  expect(await screen.findByRole("heading", { name: "Connections" })).toBeInTheDocument()
   expect(screen.getByText(/no manager data is available/i)).toBeInTheDocument()
 })

@@ -9,10 +9,7 @@ import { DetailSheet } from "@/components/manager/detail-sheet"
 import { KeyValueList } from "@/components/manager/key-value-list"
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
-import { TableToolbar } from "@/components/manager/table-toolbar"
 import { PageContainer } from "@/components/shell/page-container"
-import { PageHeader } from "@/components/shell/page-header"
-import { SectionCard } from "@/components/shell/section-card"
 import { Button } from "@/components/ui/button"
 import {
   ManagerApiError,
@@ -303,69 +300,54 @@ export function SlotsPage() {
     }
   }, [loadSlots, selectedSlotId])
 
-  const slotSummary = useMemo(() => {
-    const items = state.slots?.items ?? []
-    return {
-      total: items.length,
-      ready: items.filter((item) => item.state.quorum === "ready").length,
-      inSync: items.filter((item) => item.state.sync === "in_sync").length,
-      leaders: items.filter((item) => item.runtime.leader_id > 0).length,
-    }
-  }, [state.slots])
-
   return (
     <PageContainer>
-      <PageHeader
-        title={intl.formatMessage({ id: "nav.slots.title" })}
-        description={intl.formatMessage({ id: "nav.slots.description" })}
-        actions={
-          <>
-            <Button
-              onClick={() => {
-                void loadSlots(true)
-              }}
-              size="sm"
-              variant="outline"
-            >
-              {state.refreshing
-                ? intl.formatMessage({ id: "common.refreshing" })
-                : intl.formatMessage({ id: "common.refresh" })}
-            </Button>
-            <Button
-              disabled={!canWriteSlots}
-              onClick={() => {
-                setAddOpen(true)
-                setAddError("")
-              }}
-              size="sm"
-              variant="outline"
-            >
-              {intl.formatMessage({ id: "slots.addSlot" })}
-            </Button>
-            <Button
-              disabled={!canWriteSlots}
-              onClick={() => {
-                setRebalanceOpen(true)
-                setRebalanceError("")
-              }}
-              size="sm"
-            >
-              {intl.formatMessage({ id: "slots.rebalance" })}
-            </Button>
-          </>
-        }
-      >
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          <div className="rounded-md border border-border bg-background px-3 py-2">
-            {intl.formatMessage({ id: "slots.scopeAllSlots" })}
-          </div>
-          <div className="rounded-md border border-border bg-background px-3 py-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            {intl.formatMessage({ id: "nav.slots.title" })}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             {state.slots
               ? intl.formatMessage({ id: "slots.totalValue" }, { total: state.slots.total })
               : intl.formatMessage({ id: "slots.totalPending" })}
-          </div>
+          </p>
         </div>
-      </PageHeader>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() => {
+              void loadSlots(true)
+            }}
+            size="sm"
+            variant="outline"
+          >
+            {state.refreshing
+              ? intl.formatMessage({ id: "common.refreshing" })
+              : intl.formatMessage({ id: "common.refresh" })}
+          </Button>
+          <Button
+            disabled={!canWriteSlots}
+            onClick={() => {
+              setAddOpen(true)
+              setAddError("")
+            }}
+            size="sm"
+            variant="outline"
+          >
+            {intl.formatMessage({ id: "slots.addSlot" })}
+          </Button>
+          <Button
+            disabled={!canWriteSlots}
+            onClick={() => {
+              setRebalanceOpen(true)
+              setRebalanceError("")
+            }}
+            size="sm"
+          >
+            {intl.formatMessage({ id: "slots.rebalance" })}
+          </Button>
+        </div>
+      </div>
 
       {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nav.slots.title" })} /> : null}
       {!state.loading && state.error ? (
@@ -379,45 +361,7 @@ export function SlotsPage() {
       ) : null}
       {!state.loading && !state.error && state.slots ? (
         <>
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <SectionCard
-              description={intl.formatMessage({ id: "slots.cards.leaderCoverage.description" })}
-              title={intl.formatMessage({ id: "slots.cards.leaderCoverage.title" })}
-            >
-              <div className="text-3xl font-semibold text-foreground">{slotSummary.leaders}</div>
-            </SectionCard>
-            <SectionCard
-              description={intl.formatMessage({ id: "slots.cards.ready.description" })}
-              title={intl.formatMessage({ id: "slots.cards.ready.title" })}
-            >
-              <div className="text-3xl font-semibold text-foreground">{slotSummary.ready}</div>
-            </SectionCard>
-            <SectionCard
-              description={intl.formatMessage({ id: "slots.cards.inSync.description" })}
-              title={intl.formatMessage({ id: "slots.cards.inSync.title" })}
-            >
-              <div className="text-3xl font-semibold text-foreground">{slotSummary.inSync}</div>
-            </SectionCard>
-            <SectionCard
-              description={intl.formatMessage({ id: "slots.cards.tracked.description" })}
-              title={intl.formatMessage({ id: "slots.cards.tracked.title" })}
-            >
-              <div className="text-3xl font-semibold text-foreground">{slotSummary.total}</div>
-            </SectionCard>
-          </section>
-
-          <SectionCard
-            description={intl.formatMessage({ id: "slots.inventoryDescription" })}
-            title={intl.formatMessage({ id: "slots.inventoryTitle" })}
-          >
-            <TableToolbar
-              description={intl.formatMessage({ id: "slots.toolbarDescription" })}
-              onRefresh={() => {
-                void loadSlots(true)
-              }}
-              refreshing={state.refreshing}
-              title={intl.formatMessage({ id: "slots.toolbarTitle" })}
-            />
+          <div className="rounded-xl border border-border bg-card p-3 shadow-none">
             {state.slots.items.length > 0 ? (
               <div className="overflow-x-auto rounded-lg border border-border">
                 <table className="w-full border-collapse">
@@ -469,15 +413,12 @@ export function SlotsPage() {
                 </table>
               </div>
             ) : (
-              <ResourceState kind="empty" title={intl.formatMessage({ id: "slots.inventoryTitle" })} />
+              <ResourceState kind="empty" title={intl.formatMessage({ id: "nav.slots.title" })} />
             )}
-          </SectionCard>
+          </div>
 
           {rebalancePlan ? (
-            <SectionCard
-              description={intl.formatMessage({ id: "slots.rebalancePlan.description" })}
-              title={intl.formatMessage({ id: "slots.rebalancePlan.title" })}
-            >
+            <div className="rounded-xl border border-border bg-card p-3 shadow-none">
               {rebalancePlan.items.length > 0 ? (
                 <div className="space-y-3">
                   {rebalancePlan.items.map((item) => (
@@ -497,7 +438,7 @@ export function SlotsPage() {
               ) : (
                 <ResourceState kind="empty" title={intl.formatMessage({ id: "slots.rebalancePlan.title" })} />
               )}
-            </SectionCard>
+            </div>
           ) : null}
         </>
       ) : null}

@@ -1,15 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useIntl, type IntlShape } from "react-intl"
 
 import { DetailSheet } from "@/components/manager/detail-sheet"
 import { KeyValueList } from "@/components/manager/key-value-list"
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
-import { TableToolbar } from "@/components/manager/table-toolbar"
 import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/shell/page-container"
-import { PageHeader } from "@/components/shell/page-header"
-import { SectionCard } from "@/components/shell/section-card"
 import { ManagerApiError, getConnection, getConnections } from "@/lib/manager-api"
 import type {
   ManagerConnectionDetailResponse,
@@ -121,46 +118,31 @@ export function ConnectionsPage() {
     setDetailError(null)
   }, [])
 
-  const summary = useMemo(() => {
-    const items = state.connections?.items ?? []
-    return {
-      total: items.length,
-      users: new Set(items.map((item) => item.uid)).size,
-      slots: new Set(items.map((item) => item.slot_id)).size,
-      listeners: new Set(items.map((item) => item.listener)).size,
-    }
-  }, [state.connections])
-
   return (
     <PageContainer>
-      <PageHeader
-        title={intl.formatMessage({ id: "nav.connections.title" })}
-        description={intl.formatMessage({ id: "nav.connections.description" })}
-        actions={
-          <Button
-            onClick={() => {
-              void loadConnections(true)
-            }}
-            size="sm"
-            variant="outline"
-          >
-            {state.refreshing
-              ? intl.formatMessage({ id: "common.refreshing" })
-              : intl.formatMessage({ id: "common.refresh" })}
-          </Button>
-        }
-      >
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          <div className="rounded-md border border-border bg-background px-3 py-2">
-            {intl.formatMessage({ id: "connections.scopeLocalNode" })}
-          </div>
-          <div className="rounded-md border border-border bg-background px-3 py-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            {intl.formatMessage({ id: "nav.connections.title" })}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             {state.connections
               ? intl.formatMessage({ id: "connections.totalValue" }, { total: state.connections.total })
               : intl.formatMessage({ id: "connections.totalPending" })}
-          </div>
+          </p>
         </div>
-      </PageHeader>
+        <Button
+          onClick={() => {
+            void loadConnections(true)
+          }}
+          size="sm"
+          variant="outline"
+        >
+          {state.refreshing
+            ? intl.formatMessage({ id: "common.refreshing" })
+            : intl.formatMessage({ id: "common.refresh" })}
+        </Button>
+      </div>
 
       {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nav.connections.title" })} /> : null}
       {!state.loading && state.error ? (
@@ -173,108 +155,68 @@ export function ConnectionsPage() {
         />
       ) : null}
       {!state.loading && !state.error && state.connections ? (
-        <>
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <SectionCard
-              description={intl.formatMessage({ id: "connections.cards.sessions.description" })}
-              title={intl.formatMessage({ id: "connections.cards.sessions.title" })}
-            >
-              <div className="text-3xl font-semibold text-foreground">{summary.total}</div>
-            </SectionCard>
-            <SectionCard
-              description={intl.formatMessage({ id: "connections.cards.users.description" })}
-              title={intl.formatMessage({ id: "connections.cards.users.title" })}
-            >
-              <div className="text-3xl font-semibold text-foreground">{summary.users}</div>
-            </SectionCard>
-            <SectionCard
-              description={intl.formatMessage({ id: "connections.cards.slots.description" })}
-              title={intl.formatMessage({ id: "connections.cards.slots.title" })}
-            >
-              <div className="text-3xl font-semibold text-foreground">{summary.slots}</div>
-            </SectionCard>
-            <SectionCard
-              description={intl.formatMessage({ id: "connections.cards.listeners.description" })}
-              title={intl.formatMessage({ id: "connections.cards.listeners.title" })}
-            >
-              <div className="text-3xl font-semibold text-foreground">{summary.listeners}</div>
-            </SectionCard>
-          </section>
-
-          <SectionCard
-            description={intl.formatMessage({ id: "connections.inventoryDescription" })}
-            title={intl.formatMessage({ id: "connections.inventoryTitle" })}
-          >
-            <TableToolbar
-              description={intl.formatMessage({ id: "connections.toolbarDescription" })}
-              onRefresh={() => {
-                void loadConnections(true)
-              }}
-              refreshing={state.refreshing}
-              title={intl.formatMessage({ id: "connections.toolbarTitle" })}
-            />
-            {state.connections.items.length > 0 ? (
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full border-collapse">
-                  <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.session" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.uid" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.deviceId" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.device" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.listener" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.state" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.connectedAt" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.actions" })}</th>
+        <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+          {state.connections.items.length > 0 ? (
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full border-collapse">
+                <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.session" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.uid" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.deviceId" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.device" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.listener" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.state" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.connectedAt" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "connections.table.actions" })}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.connections.items.map((connection) => (
+                    <tr className="border-t border-border" key={connection.session_id}>
+                      <td className="px-3 py-3 text-sm font-medium text-foreground">
+                        {connection.session_id}
+                      </td>
+                      <td className="px-3 py-3 text-sm text-foreground">{connection.uid}</td>
+                      <td className="px-3 py-3 text-sm text-muted-foreground">
+                        {connection.device_id}
+                      </td>
+                      <td className="px-3 py-3 text-sm text-muted-foreground">
+                        {formatDevice(connection)}
+                      </td>
+                      <td className="px-3 py-3 text-sm text-muted-foreground">
+                        {connection.listener}
+                      </td>
+                      <td className="px-3 py-3 text-sm text-foreground">
+                        <StatusBadge value={connection.state} />
+                      </td>
+                      <td className="px-3 py-3 text-sm text-muted-foreground">
+                        {formatTimestamp(intl, connection.connected_at)}
+                      </td>
+                      <td className="px-3 py-3 text-sm text-foreground">
+                        <Button
+                          aria-label={intl.formatMessage(
+                            { id: "connections.inspectConnection" },
+                            { id: connection.session_id },
+                          )}
+                          onClick={() => {
+                            void openDetail(connection.session_id)
+                          }}
+                          size="sm"
+                          variant="outline"
+                        >
+                          {intl.formatMessage({ id: "common.inspect" })}
+                        </Button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {state.connections.items.map((connection) => (
-                      <tr className="border-t border-border" key={connection.session_id}>
-                        <td className="px-3 py-3 text-sm font-medium text-foreground">
-                          {connection.session_id}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-foreground">{connection.uid}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">
-                          {connection.device_id}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">
-                          {formatDevice(connection)}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">
-                          {connection.listener}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-foreground">
-                          <StatusBadge value={connection.state} />
-                        </td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">
-                          {formatTimestamp(intl, connection.connected_at)}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-foreground">
-                          <Button
-                            aria-label={intl.formatMessage(
-                              { id: "connections.inspectConnection" },
-                              { id: connection.session_id },
-                            )}
-                            onClick={() => {
-                              void openDetail(connection.session_id)
-                            }}
-                            size="sm"
-                            variant="outline"
-                          >
-                            {intl.formatMessage({ id: "common.inspect" })}
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <ResourceState kind="empty" title={intl.formatMessage({ id: "connections.inventoryTitle" })} />
-            )}
-          </SectionCard>
-        </>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <ResourceState kind="empty" title={intl.formatMessage({ id: "nav.connections.title" })} />
+          )}
+        </div>
       ) : null}
 
       <DetailSheet

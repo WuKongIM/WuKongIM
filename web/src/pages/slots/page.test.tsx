@@ -144,6 +144,32 @@ function renderSlotsPage() {
   )
 }
 
+test("uses compact slot page chrome without summary cards", async () => {
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+
+  renderSlotsPage()
+
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  expect(screen.getByText("Total: 1")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Add slot" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Rebalance slots" })).toBeInTheDocument()
+  expect(screen.queryByText("Scope: all slots")).not.toBeInTheDocument()
+  expect(screen.queryByText("Slot distribution and runtime status.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Leader coverage")).not.toBeInTheDocument()
+  expect(screen.queryByText("Slots currently reporting a leader.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Ready slots")).not.toBeInTheDocument()
+  expect(screen.queryByText("Slots whose quorum state is ready.")).not.toBeInTheDocument()
+  expect(screen.queryByText("In sync")).not.toBeInTheDocument()
+  expect(screen.queryByText("Slots whose sync state is in sync.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Tracked slots")).not.toBeInTheDocument()
+  expect(screen.queryByText("Physical slots currently tracked.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Slot Inventory")).not.toBeInTheDocument()
+  expect(screen.queryByText("Current assignment and runtime state from the manager slot endpoints.")).not.toBeInTheDocument()
+  expect(screen.queryByText("Cluster slots")).not.toBeInTheDocument()
+  expect(screen.queryByText("Inspect one slot to view task state or run operator actions.")).not.toBeInTheDocument()
+})
+
 test("opens slot detail and transfers the leader", async () => {
   getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
   getSlotMock.mockResolvedValueOnce(slotDetail)
