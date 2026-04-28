@@ -86,6 +86,25 @@ func TestRuntimeStatusIncludesCurrentVoters(t *testing.T) {
 	}
 }
 
+func TestRuntimeStatusCurrentVotersSnapshotIsImmutable(t *testing.T) {
+	rt := newStartedRuntime(t)
+	slotID := openSingleNodeLeader(t, rt, 107)
+
+	st, err := rt.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	st.CurrentVoters[0] = 99
+
+	next, err := rt.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status() second error = %v", err)
+	}
+	if got, want := next.CurrentVoters, []NodeID{1}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("second Status().CurrentVoters = %v, want %v", got, want)
+	}
+}
+
 func TestCloseSlotStopsFurtherProcessing(t *testing.T) {
 	rt := newStartedRuntime(t)
 	slotID := SlotID(103)

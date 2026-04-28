@@ -649,6 +649,39 @@ func TestControllerCodecDecodeLegacyAssignmentRecordHighByteSlotIDs(t *testing.T
 	}
 }
 
+func TestControllerCodecDecodeLegacyAssignmentCollectionsHighByteSlotIDs(t *testing.T) {
+	assignmentsBody := binary.AppendUvarint(nil, 2)
+	assignmentsBody = appendLegacyAssignmentRecordForTest(assignmentsBody, 0x01000000, []uint64{1, 2, 3}, 4, 5)
+	assignmentsBody = appendLegacyAssignmentRecordForTest(assignmentsBody, 0x02000000, []uint64{2, 3, 4}, 6, 7)
+
+	assignments, err := decodeAssignments(assignmentsBody)
+	if err != nil {
+		t.Fatalf("decodeAssignments() error = %v", err)
+	}
+	if got, want := []uint32{assignments[0].SlotID, assignments[1].SlotID}, []uint32{0x01000000, 0x02000000}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("assignment SlotIDs = %#v, want %#v", got, want)
+	}
+
+	table := []byte("hash-slot-table")
+	withTable := append([]byte(nil), assignmentsBody...)
+	withTable = binary.BigEndian.AppendUint64(withTable, 9)
+	withTable = appendBytes(withTable, table)
+
+	assignments, version, decodedTable, err := decodeAssignmentsWithHashSlotTable(withTable)
+	if err != nil {
+		t.Fatalf("decodeAssignmentsWithHashSlotTable() error = %v", err)
+	}
+	if version != 9 {
+		t.Fatalf("version = %d, want 9", version)
+	}
+	if !reflect.DeepEqual(decodedTable, table) {
+		t.Fatalf("table = %v, want %v", decodedTable, table)
+	}
+	if got, want := []uint32{assignments[0].SlotID, assignments[1].SlotID}, []uint32{0x01000000, 0x02000000}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("assignment SlotIDs with table = %#v, want %#v", got, want)
+	}
+}
+
 func TestControllerCodecDecodeLegacyRuntimeViewRecordDefaultsCurrentVoters(t *testing.T) {
 	legacy := make([]byte, 0, 64)
 	legacy = binary.BigEndian.AppendUint32(legacy, 1)
@@ -665,6 +698,91 @@ func TestControllerCodecDecodeLegacyRuntimeViewRecordDefaultsCurrentVoters(t *te
 	}
 	if got.CurrentVoters != nil {
 		t.Fatalf("CurrentVoters = %v, want nil", got.CurrentVoters)
+	}
+}
+
+func TestControllerCodecDecodeLegacyRuntimeViewCollectionsHighByteSlotIDs(t *testing.T) {
+	reportedAt := time.Unix(1710000300, 45)
+	viewsBody := binary.AppendUvarint(nil, 2)
+	viewsBody = appendLegacyRuntimeViewRecordForTest(viewsBody, 0x01000000, []uint64{1, 2, 3}, 2, 3, true, 4, reportedAt)
+	viewsBody = appendLegacyRuntimeViewRecordForTest(viewsBody, 0x02000000, []uint64{2, 3, 4}, 3, 3, true, 5, reportedAt.Add(time.Second))
+
+	views, err := decodeRuntimeViews(viewsBody)
+	if err != nil {
+		t.Fatalf("decodeRuntimeViews() error = %v", err)
+	}
+	if got, want := []uint32{views[0].SlotID, views[1].SlotID}, []uint32{0x01000000, 0x02000000}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("runtime view SlotIDs = %#v, want %#v", got, want)
+	}
+	if views[0].CurrentVoters != nil || views[1].CurrentVoters != nil {
+		t.Fatalf("legacy CurrentVoters = %v/%v, want nil", views[0].CurrentVoters, views[1].CurrentVoters)
+	}
+
+	withRest := append([]byte(nil), viewsBody...)
+	withRest = binary.BigEndian.AppendUint32(withRest, 99)
+	views, rest, err := consumeRuntimeViews(withRest)
+	if err != nil {
+		t.Fatalf("consumeRuntimeViews() error = %v", err)
+	}
+	if len(views) != 2 {
+		t.Fatalf("consumeRuntimeViews() views len = %d, want 2", len(views))
+	}
+	if got, want := binary.BigEndian.Uint32(rest), uint32(99); got != want {
+		t.Fatalf("consumeRuntimeViews() rest marker = %d, want %d", got, want)
+	}
+}
+
+func TestControllerCodecDecodeLegacyRuntimeObservationReportHighByteSlotIDs(t *testing.T) {
+	reportedAt := time.Unix(1710000400, 0)
+	body := make([]byte, 0, 128)
+	body = binary.BigEndian.AppendUint64(body, 9)
+	body = appendInt64(body, reportedAt.UnixNano())
+	body = append(body, 1)
+	body = binary.AppendUvarint(body, 1)
+	body = appendLegacyRuntimeViewRecordForTest(body, 0x01000000, []uint64{1, 2, 3}, 2, 3, true, 4, reportedAt)
+	body = appendUint32Slice(body, []uint32{7})
+
+	report, err := decodeRuntimeObservationReport(body)
+	if err != nil {
+		t.Fatalf("decodeRuntimeObservationReport() error = %v", err)
+	}
+	if report.NodeID != 9 || !report.FullSync {
+		t.Fatalf("decoded report header = %+v", report)
+	}
+	if len(report.Views) != 1 || report.Views[0].SlotID != 0x01000000 {
+		t.Fatalf("decoded report views = %+v", report.Views)
+	}
+	if report.Views[0].CurrentVoters != nil {
+		t.Fatalf("CurrentVoters = %v, want nil", report.Views[0].CurrentVoters)
+	}
+}
+
+func TestControllerCodecDecodeLegacyObservationDeltaRuntimeViewsHighByteSlotIDs(t *testing.T) {
+	reportedAt := time.Unix(1710000500, 0)
+	runtimeViewsBody := binary.AppendUvarint(nil, 1)
+	runtimeViewsBody = appendLegacyRuntimeViewRecordForTest(runtimeViewsBody, 0x02000000, []uint64{1, 2, 3}, 2, 3, true, 4, reportedAt)
+
+	body := make([]byte, 0, 256)
+	body = binary.BigEndian.AppendUint64(body, 9)
+	body = binary.BigEndian.AppendUint64(body, 3)
+	body = appendObservationRevisions(body, observationRevisions{Assignments: 1, Tasks: 2, Nodes: 3, Runtime: 4})
+	body = append(body, 1)
+	body = appendBytes(body, encodeAssignments(nil))
+	body = appendBytes(body, encodeReconcileTasks(nil))
+	body = appendBytes(body, encodeClusterNodes(nil))
+	body = appendBytes(body, runtimeViewsBody)
+	body = appendUint32Slice(body, nil)
+	body = appendUint32Slice(body, nil)
+
+	delta, err := decodeObservationDeltaResponse(body)
+	if err != nil {
+		t.Fatalf("decodeObservationDeltaResponse() error = %v", err)
+	}
+	if len(delta.RuntimeViews) != 1 || delta.RuntimeViews[0].SlotID != 0x02000000 {
+		t.Fatalf("decoded delta runtime views = %+v", delta.RuntimeViews)
+	}
+	if delta.RuntimeViews[0].CurrentVoters != nil {
+		t.Fatalf("CurrentVoters = %v, want nil", delta.RuntimeViews[0].CurrentVoters)
 	}
 }
 
@@ -692,4 +810,25 @@ func TestControllerCodecDecodeLegacyRuntimeViewRecordHighByteSlotIDs(t *testing.
 			}
 		})
 	}
+}
+
+func appendLegacyAssignmentRecordForTest(dst []byte, slotID uint32, peers []uint64, configEpoch, balanceVersion uint64) []byte {
+	dst = binary.BigEndian.AppendUint32(dst, slotID)
+	dst = appendUint64Slice(dst, peers)
+	dst = binary.BigEndian.AppendUint64(dst, configEpoch)
+	return binary.BigEndian.AppendUint64(dst, balanceVersion)
+}
+
+func appendLegacyRuntimeViewRecordForTest(dst []byte, slotID uint32, peers []uint64, leaderID uint64, healthyVoters uint32, hasQuorum bool, observedConfigEpoch uint64, lastReportAt time.Time) []byte {
+	dst = binary.BigEndian.AppendUint32(dst, slotID)
+	dst = appendUint64Slice(dst, peers)
+	dst = binary.BigEndian.AppendUint64(dst, leaderID)
+	dst = binary.BigEndian.AppendUint32(dst, healthyVoters)
+	if hasQuorum {
+		dst = append(dst, 1)
+	} else {
+		dst = append(dst, 0)
+	}
+	dst = binary.BigEndian.AppendUint64(dst, observedConfigEpoch)
+	return appendInt64(dst, lastReportAt.UnixNano())
 }

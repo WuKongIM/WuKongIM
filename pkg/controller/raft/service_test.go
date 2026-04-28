@@ -407,6 +407,44 @@ func TestEncodeDecodeCommandNodeJoinActivateRoundTrip(t *testing.T) {
 	require.Equal(t, *cmd.NodeJoinActivate, *decoded.NodeJoinActivate)
 }
 
+func TestEncodeDecodeCommandAssignmentPreservesPreferredLeader(t *testing.T) {
+	cooldown := time.Unix(1710000200, 123)
+	cmd := slotcontroller.Command{
+		Kind: slotcontroller.CommandKindAssignmentTaskUpdate,
+		Assignment: &controllermeta.SlotAssignment{
+			SlotID:                      7,
+			DesiredPeers:                []uint64{1, 2, 3},
+			PreferredLeader:             2,
+			LeaderTransferCooldownUntil: cooldown,
+			ConfigEpoch:                 4,
+			BalanceVersion:              5,
+		},
+		Task: &controllermeta.ReconcileTask{
+			SlotID:     7,
+			Kind:       controllermeta.TaskKindRebalance,
+			Step:       controllermeta.TaskStepTransferLeader,
+			TargetNode: 2,
+			Status:     controllermeta.TaskStatusPending,
+		},
+	}
+
+	data, err := encodeCommand(cmd)
+	require.NoError(t, err)
+	decoded, err := decodeCommand(data)
+	require.NoError(t, err)
+
+	require.Equal(t, cmd.Kind, decoded.Kind)
+	require.NotNil(t, decoded.Assignment)
+	require.Equal(t, cmd.Assignment.SlotID, decoded.Assignment.SlotID)
+	require.Equal(t, cmd.Assignment.DesiredPeers, decoded.Assignment.DesiredPeers)
+	require.Equal(t, cmd.Assignment.PreferredLeader, decoded.Assignment.PreferredLeader)
+	require.Equal(t, cmd.Assignment.LeaderTransferCooldownUntil, decoded.Assignment.LeaderTransferCooldownUntil)
+	require.Equal(t, cmd.Assignment.ConfigEpoch, decoded.Assignment.ConfigEpoch)
+	require.Equal(t, cmd.Assignment.BalanceVersion, decoded.Assignment.BalanceVersion)
+	require.NotNil(t, decoded.Task)
+	require.Equal(t, cmd.Task.Kind, decoded.Task.Kind)
+}
+
 func TestEncodeDecodeCommandRoundTripsNodeOnboardingJobUpdate(t *testing.T) {
 	expected := controllermeta.OnboardingJobStatusPlanned
 	job, assignment, task := sampleRaftOnboardingUpdate()
@@ -432,7 +470,7 @@ func TestEncodeDecodeCommandRoundTripsNodeOnboardingJobUpdate(t *testing.T) {
 	require.Equal(t, job.Plan.BlockedReasons[0].Scope, decoded.NodeOnboarding.Job.Plan.BlockedReasons[0].Scope)
 	require.Equal(t, job.Moves[0].DesiredPeersAfter, decoded.NodeOnboarding.Job.Moves[0].DesiredPeersAfter)
 	require.Equal(t, expected, *decoded.NodeOnboarding.ExpectedStatus)
-	require.Equal(t, assignment.DesiredPeers, decoded.NodeOnboarding.Assignment.DesiredPeers)
+	require.Equal(t, assignment, *decoded.NodeOnboarding.Assignment)
 	require.Equal(t, task.Kind, decoded.NodeOnboarding.Task.Kind)
 }
 
@@ -530,10 +568,12 @@ func sampleRaftOnboardingUpdate() (controllermeta.NodeOnboardingJob, controllerm
 		CurrentTask: &task,
 	}
 	assignment := controllermeta.SlotAssignment{
-		SlotID:         2,
-		DesiredPeers:   []uint64{2, 3, 4},
-		ConfigEpoch:    4,
-		BalanceVersion: 8,
+		SlotID:                      2,
+		DesiredPeers:                []uint64{2, 3, 4},
+		PreferredLeader:             3,
+		LeaderTransferCooldownUntil: now.Add(5 * time.Minute),
+		ConfigEpoch:                 4,
+		BalanceVersion:              8,
 	}
 	return job, assignment, task
 }

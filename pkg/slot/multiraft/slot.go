@@ -546,7 +546,9 @@ func (g *slot) statusSnapshot() (Status, error) {
 	if g.fatalErr != nil {
 		return Status{}, g.fatalErr
 	}
-	return g.status, nil
+	status := g.status
+	status.CurrentVoters = append([]NodeID(nil), g.status.CurrentVoters...)
+	return status, nil
 }
 
 func (g *slot) admissionErrLocked() error {

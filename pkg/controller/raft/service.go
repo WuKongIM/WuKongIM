@@ -96,10 +96,12 @@ type taskAdvanceEnvelope struct {
 }
 
 type slotcontrollerAssignmentEnvelope struct {
-	SlotID         uint32   `json:"slot_id"`
-	DesiredPeers   []uint64 `json:"desired_peers,omitempty"`
-	ConfigEpoch    uint64   `json:"config_epoch,omitempty"`
-	BalanceVersion uint64   `json:"balance_version,omitempty"`
+	SlotID                      uint32    `json:"slot_id"`
+	DesiredPeers                []uint64  `json:"desired_peers,omitempty"`
+	ConfigEpoch                 uint64    `json:"config_epoch,omitempty"`
+	BalanceVersion              uint64    `json:"balance_version,omitempty"`
+	PreferredLeader             uint64    `json:"preferred_leader,omitempty"`
+	LeaderTransferCooldownUntil time.Time `json:"leader_transfer_cooldown_until,omitempty"`
 }
 
 type slotcontrollerReconcileTaskEnvelope struct {
@@ -815,10 +817,12 @@ func assignmentEnvelopeFromMeta(assignment *controllermeta.SlotAssignment) *slot
 		return nil
 	}
 	return &slotcontrollerAssignmentEnvelope{
-		SlotID:         assignment.SlotID,
-		DesiredPeers:   append([]uint64(nil), assignment.DesiredPeers...),
-		ConfigEpoch:    assignment.ConfigEpoch,
-		BalanceVersion: assignment.BalanceVersion,
+		SlotID:                      assignment.SlotID,
+		DesiredPeers:                append([]uint64(nil), assignment.DesiredPeers...),
+		ConfigEpoch:                 assignment.ConfigEpoch,
+		BalanceVersion:              assignment.BalanceVersion,
+		PreferredLeader:             assignment.PreferredLeader,
+		LeaderTransferCooldownUntil: assignment.LeaderTransferCooldownUntil,
 	}
 }
 
@@ -827,10 +831,12 @@ func assignmentEnvelopeToMeta(envelope *slotcontrollerAssignmentEnvelope) *contr
 		return nil
 	}
 	return &controllermeta.SlotAssignment{
-		SlotID:         envelope.SlotID,
-		DesiredPeers:   append([]uint64(nil), envelope.DesiredPeers...),
-		ConfigEpoch:    envelope.ConfigEpoch,
-		BalanceVersion: envelope.BalanceVersion,
+		SlotID:                      envelope.SlotID,
+		DesiredPeers:                append([]uint64(nil), envelope.DesiredPeers...),
+		ConfigEpoch:                 envelope.ConfigEpoch,
+		BalanceVersion:              envelope.BalanceVersion,
+		PreferredLeader:             envelope.PreferredLeader,
+		LeaderTransferCooldownUntil: envelope.LeaderTransferCooldownUntil,
 	}
 }
 
