@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useIntl } from "react-intl"
 import { useNavigate } from "react-router-dom"
 
@@ -6,10 +6,7 @@ import { DetailSheet } from "@/components/manager/detail-sheet"
 import { KeyValueList } from "@/components/manager/key-value-list"
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
-import { TableToolbar } from "@/components/manager/table-toolbar"
 import { PageContainer } from "@/components/shell/page-container"
-import { PageHeader } from "@/components/shell/page-header"
-import { SectionCard } from "@/components/shell/section-card"
 import { Button } from "@/components/ui/button"
 import {
   ManagerApiError,
@@ -170,46 +167,31 @@ export function ChannelsPage() {
     [navigate],
   )
 
-  const summary = useMemo(() => {
-    const items = state.channels?.items ?? []
-    return {
-      total: items.length,
-      active: items.filter((item) => item.status === "active").length,
-      slots: new Set(items.map((item) => item.slot_id)).size,
-      leaders: new Set(items.map((item) => item.leader)).size,
-    }
-  }, [state.channels])
-
   return (
     <PageContainer>
-      <PageHeader
-        title={intl.formatMessage({ id: "nav.channels.title" })}
-        description={intl.formatMessage({ id: "nav.channels.description" })}
-        actions={
-          <Button
-            onClick={() => {
-              void loadChannels(true)
-            }}
-            size="sm"
-            variant="outline"
-          >
-            {state.refreshing
-              ? intl.formatMessage({ id: "common.refreshing" })
-              : intl.formatMessage({ id: "common.refresh" })}
-          </Button>
-        }
-      >
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          <div className="rounded-md border border-border bg-background px-3 py-2">
-            {intl.formatMessage({ id: "channels.scopeAllChannels" })}
-          </div>
-          <div className="rounded-md border border-border bg-background px-3 py-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            {intl.formatMessage({ id: "nav.channels.title" })}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             {state.channels
               ? intl.formatMessage({ id: "channels.loadedValue" }, { count: state.channels.items.length })
               : intl.formatMessage({ id: "channels.loadedPending" })}
-          </div>
+          </p>
         </div>
-      </PageHeader>
+        <Button
+          onClick={() => {
+            void loadChannels(true)
+          }}
+          size="sm"
+          variant="outline"
+        >
+          {state.refreshing
+            ? intl.formatMessage({ id: "common.refreshing" })
+            : intl.formatMessage({ id: "common.refresh" })}
+        </Button>
+      </div>
 
       {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nav.channels.title" })} /> : null}
       {!state.loading && state.error ? (
@@ -222,62 +204,9 @@ export function ChannelsPage() {
         />
       ) : null}
       {!state.loading && !state.error && state.channels ? (
-        <>
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <SectionCard
-              description={intl.formatMessage({ id: "channels.cards.loaded.description" })}
-              title={intl.formatMessage({ id: "channels.cards.loaded.title" })}
-            >
-              <div className="text-3xl font-semibold text-foreground">{summary.total}</div>
-            </SectionCard>
-            <SectionCard
-              description={intl.formatMessage({ id: "channels.cards.active.description" })}
-              title={intl.formatMessage({ id: "channels.cards.active.title" })}
-            >
-              <div className="text-3xl font-semibold text-foreground">{summary.active}</div>
-            </SectionCard>
-            <SectionCard
-              description={intl.formatMessage({ id: "channels.cards.slots.description" })}
-              title={intl.formatMessage({ id: "channels.cards.slots.title" })}
-            >
-              <div className="text-3xl font-semibold text-foreground">{summary.slots}</div>
-            </SectionCard>
-            <SectionCard
-              description={intl.formatMessage({ id: "channels.cards.leaders.description" })}
-              title={intl.formatMessage({ id: "channels.cards.leaders.title" })}
-            >
-              <div className="text-3xl font-semibold text-foreground">{summary.leaders}</div>
-            </SectionCard>
-          </section>
-
-          <SectionCard
-            description={intl.formatMessage({ id: "channels.runtimeDescription" })}
-            title={intl.formatMessage({ id: "channels.runtimeTitle" })}
-          >
-            <TableToolbar
-              actions={
-                state.channels.has_more ? (
-                  <Button
-                    onClick={() => {
-                      void loadMoreChannels()
-                    }}
-                    size="sm"
-                    variant="outline"
-                  >
-                    {state.loadingMore
-                      ? intl.formatMessage({ id: "common.loading" })
-                      : intl.formatMessage({ id: "common.loadMore" })}
-                  </Button>
-                ) : null
-              }
-              description={intl.formatMessage({ id: "channels.toolbarDescription" })}
-              onRefresh={() => {
-                void loadChannels(true)
-              }}
-              refreshing={state.refreshing}
-              title={intl.formatMessage({ id: "channels.toolbarTitle" })}
-            />
-            {state.channels.items.length > 0 ? (
+        <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+          {state.channels.items.length > 0 ? (
+            <>
               <div className="overflow-x-auto rounded-lg border border-border">
                 <table className="w-full border-collapse">
                   <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
@@ -339,11 +268,26 @@ export function ChannelsPage() {
                   </tbody>
                 </table>
               </div>
-            ) : (
-              <ResourceState kind="empty" title={intl.formatMessage({ id: "channels.runtimeTitle" })} />
-            )}
-          </SectionCard>
-        </>
+              {state.channels.has_more ? (
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    onClick={() => {
+                      void loadMoreChannels()
+                    }}
+                    size="sm"
+                    variant="outline"
+                  >
+                    {state.loadingMore
+                      ? intl.formatMessage({ id: "common.loading" })
+                      : intl.formatMessage({ id: "common.loadMore" })}
+                  </Button>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <ResourceState kind="empty" title={intl.formatMessage({ id: "channels.runtimeTitle" })} />
+          )}
+        </div>
       ) : null}
 
       <DetailSheet
