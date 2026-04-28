@@ -943,7 +943,7 @@ func (ch *channel) whitelistAdd(c *wkhttp.Context) {
 			fakeChannelId := options.GetFakeChannelIDWith(uid, req.ChannelId)
 			err = service.Store.AddConversationsIfNotExist([]wkdb.Conversation{
 				{
-					Uid:         uid,
+					Uid:         req.ChannelId,
 					Type:        wkdb.ConversationTypeChat,
 					ChannelId:   fakeChannelId,
 					ChannelType: req.ChannelType,
