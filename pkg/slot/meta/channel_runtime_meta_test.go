@@ -105,6 +105,100 @@ func TestShardStoreDeleteChannelRuntimeMeta(t *testing.T) {
 	}
 }
 
+func TestShardStoreUpsertChannelRuntimeMetaRejectsStaleLeaderEpoch(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	shard := db.ForSlot(7)
+
+	current := ChannelRuntimeMeta{
+		ChannelID:    "runtime-stale",
+		ChannelType:  1,
+		ChannelEpoch: 9,
+		LeaderEpoch:  4,
+		Replicas:     []uint64{1, 2, 3},
+		ISR:          []uint64{1, 2, 3},
+		Leader:       2,
+		MinISR:       2,
+		Status:       2,
+		Features:     1,
+		LeaseUntilMS: 2000,
+	}
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, current))
+
+	stale := current
+	stale.LeaderEpoch = current.LeaderEpoch - 1
+	stale.Leader = 1
+	stale.LeaseUntilMS = 5000
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, stale))
+
+	got, err := shard.GetChannelRuntimeMeta(ctx, current.ChannelID, current.ChannelType)
+	require.NoError(t, err)
+	require.Equal(t, normalizeChannelRuntimeMeta(current), got)
+}
+
+func TestShardStoreUpsertChannelRuntimeMetaPreservesLongerLeaseForSameEpoch(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	shard := db.ForSlot(7)
+
+	current := ChannelRuntimeMeta{
+		ChannelID:    "runtime-lease",
+		ChannelType:  1,
+		ChannelEpoch: 9,
+		LeaderEpoch:  4,
+		Replicas:     []uint64{1, 2, 3},
+		ISR:          []uint64{1, 2, 3},
+		Leader:       2,
+		MinISR:       2,
+		Status:       2,
+		Features:     1,
+		LeaseUntilMS: 5000,
+	}
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, current))
+
+	shorter := current
+	shorter.LeaseUntilMS = 1000
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, shorter))
+
+	got, err := shard.GetChannelRuntimeMeta(ctx, current.ChannelID, current.ChannelType)
+	require.NoError(t, err)
+	require.Equal(t, int64(5000), got.LeaseUntilMS)
+}
+
+func TestWriteBatchUpsertChannelRuntimeMetaRejectsStaleLeaderEpoch(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	shard := db.ForSlot(7)
+
+	current := ChannelRuntimeMeta{
+		ChannelID:    "runtime-batch-stale",
+		ChannelType:  1,
+		ChannelEpoch: 9,
+		LeaderEpoch:  4,
+		Replicas:     []uint64{1, 2, 3},
+		ISR:          []uint64{1, 2, 3},
+		Leader:       2,
+		MinISR:       2,
+		Status:       2,
+		Features:     1,
+		LeaseUntilMS: 2000,
+	}
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, current))
+
+	stale := current
+	stale.LeaderEpoch = current.LeaderEpoch - 1
+	stale.Leader = 1
+	stale.LeaseUntilMS = 5000
+	wb := db.NewWriteBatch()
+	require.NoError(t, wb.UpsertChannelRuntimeMeta(7, stale))
+	require.NoError(t, wb.Commit())
+	wb.Close()
+
+	got, err := shard.GetChannelRuntimeMeta(ctx, current.ChannelID, current.ChannelType)
+	require.NoError(t, err)
+	require.Equal(t, normalizeChannelRuntimeMeta(current), got)
+}
+
 func TestShardStoreUpsertChannelRuntimeMetaRejectsInvalidTopology(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)

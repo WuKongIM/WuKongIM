@@ -498,6 +498,57 @@ func TestResolverRefreshRenewsExpiredLeaderLeaseBeforeApply(t *testing.T) {
 	require.Equal(t, []channel.Meta{ProjectChannelMeta(renewed)}, runtime.applied)
 }
 
+func TestResolverRefreshRepairsExpiredLeaderLeaseBeforeBlindRenewal(t *testing.T) {
+	now := time.UnixMilli(1_700_000_777_000).UTC()
+	id := channel.ChannelID{ID: "lease-repair-first", Type: 1}
+	expired := metadb.ChannelRuntimeMeta{
+		ChannelID:    id.ID,
+		ChannelType:  int64(id.Type),
+		ChannelEpoch: 5,
+		LeaderEpoch:  7,
+		Replicas:     []uint64{2, 3},
+		ISR:          []uint64{2, 3},
+		Leader:       2,
+		MinISR:       2,
+		Status:       uint8(channel.StatusActive),
+		Features:     uint64(channel.MessageSeqFormatLegacyU32),
+		LeaseUntilMS: now.Add(-time.Second).UnixMilli(),
+	}
+	repaired := expired
+	repaired.LeaseUntilMS = now.Add(BootstrapLease).UnixMilli()
+	source := &resolverSourceFake{
+		getResults: []resolverGetResult{{meta: expired}},
+	}
+	runtime := &resolverRuntimeFake{}
+	repairer := &resolverRepairerFake{meta: repaired, changed: true}
+	syncer := NewSync(SyncOptions{
+		Source:  source,
+		Runtime: runtime,
+		Bootstrapper: NewBootstrapper(BootstrapOptions{
+			Cluster:       &resolverBootstrapClusterFake{slotID: 9, peers: []uint64{2, 3}, leader: 2},
+			Store:         source,
+			DefaultMinISR: 2,
+			Now:           func() time.Time { return now },
+			Logger:        wklog.NewNop(),
+		}),
+		Repairer: repairer,
+		RepairPolicy: func(meta metadb.ChannelRuntimeMeta) (bool, string) {
+			return MetaLeaseNeedsRenewal(meta.LeaseUntilMS, now, 0), channel.LeaderRepairReasonLeaderLeaseExpired.String()
+		},
+		LocalNode: 2,
+	})
+
+	got, err := syncer.RefreshChannelMeta(context.Background(), id)
+
+	require.NoError(t, err)
+	calls := repairer.snapshotCalls()
+	require.Len(t, calls, 1)
+	require.Equal(t, channel.LeaderRepairReasonLeaderLeaseExpired.String(), calls[0].reason)
+	require.Empty(t, source.upserts, "expired leader lease must not be renewed before repair evaluation")
+	require.Equal(t, ProjectChannelMeta(repaired), got)
+	require.Equal(t, []channel.Meta{ProjectChannelMeta(repaired)}, runtime.applied)
+}
+
 func TestResolverRefreshDoesNotApplyPartialMetadataWhenBootstrapFails(t *testing.T) {
 	id := channel.ChannelID{ID: "g1", Type: 2}
 	bootstrapErr := errors.New("write failed")

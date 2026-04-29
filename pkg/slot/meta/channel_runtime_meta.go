@@ -3,6 +3,7 @@ package meta
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"sort"
 
 	"github.com/cockroachdb/pebble/v2"
@@ -72,6 +73,14 @@ func (s *ShardStore) UpsertChannelRuntimeMeta(ctx context.Context, meta ChannelR
 	defer s.db.mu.Unlock()
 
 	key := encodeChannelRuntimeMetaPrimaryKey(s.slot, meta.ChannelID, meta.ChannelType, channelRuntimeMetaPrimaryFamilyID)
+	existing, exists, err := s.getChannelRuntimeMetaForPrimaryKeyLocked(key, meta.ChannelID, meta.ChannelType)
+	if err != nil {
+		return err
+	}
+	meta, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, exists, meta)
+	if !shouldWrite {
+		return nil
+	}
 	value := encodeChannelRuntimeMetaFamilyValue(meta, key)
 
 	batch := s.db.db.NewBatch()
@@ -81,6 +90,23 @@ func (s *ShardStore) UpsertChannelRuntimeMeta(ctx context.Context, meta ChannelR
 		return err
 	}
 	return batch.Commit(pebble.Sync)
+}
+
+func (s *ShardStore) getChannelRuntimeMetaForPrimaryKeyLocked(key []byte, channelID string, channelType int64) (ChannelRuntimeMeta, bool, error) {
+	value, err := s.db.getValue(key)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return ChannelRuntimeMeta{}, false, nil
+		}
+		return ChannelRuntimeMeta{}, false, err
+	}
+	meta, err := decodeChannelRuntimeMetaFamilyValue(key, value)
+	if err != nil {
+		return ChannelRuntimeMeta{}, false, err
+	}
+	meta.ChannelID = channelID
+	meta.ChannelType = channelType
+	return meta, true, nil
 }
 
 func (s *ShardStore) DeleteChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) error {
@@ -160,6 +186,30 @@ func normalizeChannelRuntimeMeta(meta ChannelRuntimeMeta) ChannelRuntimeMeta {
 	meta.Replicas = normalizeUint64Set(meta.Replicas)
 	meta.ISR = normalizeUint64Set(meta.ISR)
 	return meta
+}
+
+// resolveMonotonicChannelRuntimeMeta prevents stale runtime metadata from
+// regressing leadership epochs or shortening a live lease in the same epoch.
+func resolveMonotonicChannelRuntimeMeta(existing ChannelRuntimeMeta, exists bool, candidate ChannelRuntimeMeta) (ChannelRuntimeMeta, bool) {
+	if !exists {
+		return candidate, true
+	}
+	switch {
+	case candidate.ChannelEpoch < existing.ChannelEpoch:
+		return existing, false
+	case candidate.ChannelEpoch > existing.ChannelEpoch:
+		return candidate, true
+	case candidate.LeaderEpoch < existing.LeaderEpoch:
+		return existing, false
+	case candidate.LeaderEpoch > existing.LeaderEpoch:
+		return candidate, true
+	case candidate.Leader != existing.Leader:
+		return existing, false
+	}
+	if candidate.LeaseUntilMS < existing.LeaseUntilMS {
+		candidate.LeaseUntilMS = existing.LeaseUntilMS
+	}
+	return candidate, true
 }
 
 func normalizeUint64Set(values []uint64) []uint64 {

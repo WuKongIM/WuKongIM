@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/binary"
 	"sync"
 	"time"
 
@@ -87,6 +88,44 @@ func (e *Engine) ForChannel(key channel.ChannelKey, id channel.ChannelID) *Chann
 	}
 	e.stores[key] = st
 	return st
+}
+
+// ListChannelKeys returns persisted channels that have structured message
+// rows. It scans table-state keys instead of the in-memory store cache so a
+// restarted node can replay committed side effects before accepting ingress.
+func (e *Engine) ListChannelKeys() ([]channel.ChannelKey, error) {
+	if e == nil || e.db == nil {
+		return nil, channel.ErrInvalidArgument
+	}
+	iter, err := e.db.NewIter(&pebble.IterOptions{
+		LowerBound: []byte{keyspaceTableState},
+		UpperBound: []byte{keyspaceTableState + 1},
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+
+	seen := make(map[channel.ChannelKey]struct{})
+	keys := make([]channel.ChannelKey, 0, 16)
+	for ok := iter.First(); ok; ok = iter.Next() {
+		key, rest, err := decodeKeyspaceChannelKey(iter.Key(), keyspaceTableState)
+		if err != nil {
+			return nil, err
+		}
+		if len(rest) < 4 || binary.BigEndian.Uint32(rest[:4]) != TableIDMessage {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		keys = append(keys, key)
+	}
+	if err := iter.Error(); err != nil {
+		return nil, err
+	}
+	return keys, nil
 }
 
 func (e *Engine) commitCoordinator() *commitCoordinator {

@@ -50,6 +50,7 @@ type App struct {
 	conversationApp       *conversationusecase.App
 	deliveryRuntime       *deliveryruntime.Manager
 	deliveryAcks          *deliveryruntime.AckIndex
+	committedReplayer     *committedReplayer
 	messageApp            *message.App
 	managementApp         *managementusecase.App
 	conversationProjector conversationusecase.Projector
@@ -70,18 +71,19 @@ type App struct {
 	observedClusterCache observedClusterStateCache
 	nodeDrainState       *nodeDrainState
 
-	stopOnce       sync.Once
-	lifecycle      sync.Mutex
-	lifecycleMgr   *applifecycle.Manager
-	started        atomic.Bool
-	stopped        atomic.Bool
-	clusterOn      atomic.Bool
-	channelMetaOn  atomic.Bool
-	presenceOn     atomic.Bool
-	conversationOn atomic.Bool
-	apiOn          atomic.Bool
-	managerOn      atomic.Bool
-	gatewayOn      atomic.Bool
+	stopOnce          sync.Once
+	lifecycle         sync.Mutex
+	lifecycleMgr      *applifecycle.Manager
+	started           atomic.Bool
+	stopped           atomic.Bool
+	clusterOn         atomic.Bool
+	channelMetaOn     atomic.Bool
+	presenceOn        atomic.Bool
+	conversationOn    atomic.Bool
+	committedReplayOn atomic.Bool
+	apiOn             atomic.Bool
+	managerOn         atomic.Bool
+	gatewayOn         atomic.Bool
 
 	startClusterFn               func() error
 	startChannelMetaSyncFn       func() error

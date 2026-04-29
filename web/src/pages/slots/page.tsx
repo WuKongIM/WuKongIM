@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import {
   ManagerApiError,
   addSlot,
+  getNodes,
   getSlot,
   getSlots,
   removeSlot,
@@ -22,6 +23,8 @@ import {
   transferSlotLeader,
 } from "@/lib/manager-api"
 import type {
+  ManagerNode,
+  ManagerNodesResponse,
   ManagerSlotDetailResponse,
   ManagerSlotRebalanceResponse,
   ManagerSlotsResponse,
@@ -77,6 +80,34 @@ function formatNodeList(nodeIds: number[]) {
   return nodeIds.length > 0 ? nodeIds.join(", ") : "-"
 }
 
+function defaultNodeId(nodes: ManagerNodesResponse | null) {
+  if (!nodes || nodes.items.length === 0) {
+    return null
+  }
+  return nodes.items.find((node) => node.is_local)?.node_id ?? nodes.items[0].node_id
+}
+
+function hasNode(nodes: ManagerNodesResponse | null, nodeId: number) {
+  return Boolean(nodes?.items.some((node) => node.node_id === nodeId))
+}
+
+function formatNodeOption(intl: IntlShape, node: ManagerNode) {
+  const label = node.name
+    ? `${node.name} (${node.node_id})`
+    : intl.formatMessage({ id: "slots.nodeValue" }, { id: node.node_id })
+  return node.is_local ? intl.formatMessage({ id: "slots.localNodeValue" }, { label }) : label
+}
+
+function formatNodeLog(intl: IntlShape, slot: ManagerSlotsResponse["items"][number]) {
+  if (!slot.node_log) {
+    return "-"
+  }
+  return intl.formatMessage(
+    { id: "slots.logHeightValue" },
+    { commit: slot.node_log.commit_index, applied: slot.node_log.applied_index },
+  )
+}
+
 export function SlotsPage() {
   const intl = useIntl()
   const recoverStrategies = useMemo(
@@ -99,6 +130,8 @@ export function SlotsPage() {
     refreshing: false,
     error: null,
   })
+  const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
   const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null)
   const [detail, setDetail] = useState<ManagerSlotDetailResponse | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -122,7 +155,36 @@ export function SlotsPage() {
   const [rebalanceError, setRebalanceError] = useState("")
   const [rebalancePlan, setRebalancePlan] = useState<ManagerSlotRebalanceResponse | null>(null)
 
-  const loadSlots = useCallback(async (refreshing: boolean) => {
+  const loadNodes = useCallback(async () => {
+    try {
+      const nextNodes = await getNodes()
+      setNodes(nextNodes)
+      setSelectedNodeId((current) => {
+        if (current !== null && hasNode(nextNodes, current)) {
+          return current
+        }
+        return defaultNodeId(nextNodes)
+      })
+      if (nextNodes.items.length === 0) {
+        setState({ slots: null, loading: false, refreshing: false, error: null })
+      }
+    } catch (error) {
+      setNodes(null)
+      setSelectedNodeId(null)
+      setState({
+        slots: null,
+        loading: false,
+        refreshing: false,
+        error: error instanceof Error ? error : new Error("node request failed"),
+      })
+    }
+  }, [])
+
+  const loadSlots = useCallback(async (refreshing: boolean, nodeId: number | null) => {
+    if (!nodeId) {
+      setState({ slots: null, loading: false, refreshing: false, error: null })
+      return
+    }
     setState((current) => ({
       ...current,
       loading: refreshing ? current.loading : true,
@@ -131,7 +193,7 @@ export function SlotsPage() {
     }))
 
     try {
-      const slots = await getSlots()
+      const slots = await getSlots({ nodeId })
       setState({ slots, loading: false, refreshing: false, error: null })
     } catch (error) {
       setState({
@@ -159,8 +221,14 @@ export function SlotsPage() {
   }, [])
 
   useEffect(() => {
-    void loadSlots(false)
-  }, [loadSlots])
+    void loadNodes()
+  }, [loadNodes])
+
+  useEffect(() => {
+    if (selectedNodeId !== null) {
+      void loadSlots(false, selectedNodeId)
+    }
+  }, [loadSlots, selectedNodeId])
 
   const openDetail = useCallback(
     async (slotId: number) => {
@@ -188,9 +256,9 @@ export function SlotsPage() {
   }, [])
 
   const refreshOpenDetail = useCallback(async (slotId: number) => {
-    await loadSlots(true)
+    await loadSlots(true, selectedNodeId)
     await loadSlotDetail(slotId)
-  }, [loadSlotDetail, loadSlots])
+  }, [loadSlotDetail, loadSlots, selectedNodeId])
 
   const submitTransfer = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -270,13 +338,13 @@ export function SlotsPage() {
       setDetail(nextDetail)
       setSelectedSlotId(nextDetail.slot_id)
       setAddOpen(false)
-      await loadSlots(true)
+      await loadSlots(true, selectedNodeId)
     } catch (error) {
       setAddError(error instanceof Error ? error.message : "slot add failed")
     } finally {
       setAddPending(false)
     }
-  }, [loadSlots])
+  }, [loadSlots, selectedNodeId])
 
   const runRemoveSlot = useCallback(async () => {
     if (!selectedSlotId) {
@@ -292,13 +360,13 @@ export function SlotsPage() {
       setSelectedSlotId(null)
       setDetail(null)
       setDetailError(null)
-      await loadSlots(true)
+      await loadSlots(true, selectedNodeId)
     } catch (error) {
       setRemoveError(error instanceof Error ? error.message : "slot remove failed")
     } finally {
       setRemovePending(false)
     }
-  }, [loadSlots, selectedSlotId])
+  }, [loadSlots, selectedNodeId, selectedSlotId])
 
   return (
     <PageContainer>
@@ -314,9 +382,27 @@ export function SlotsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <span>{intl.formatMessage({ id: "slots.nodeFilter" })}</span>
+            <select
+              className="h-7 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+              disabled={!nodes || nodes.items.length === 0}
+              onChange={(event) => {
+                const nextNodeId = Number(event.target.value)
+                setSelectedNodeId(Number.isInteger(nextNodeId) && nextNodeId > 0 ? nextNodeId : null)
+              }}
+              value={selectedNodeId ?? ""}
+            >
+              {nodes?.items.map((node) => (
+                <option key={node.node_id} value={node.node_id}>
+                  {formatNodeOption(intl, node)}
+                </option>
+              ))}
+            </select>
+          </label>
           <Button
             onClick={() => {
-              void loadSlots(true)
+              void loadSlots(true, selectedNodeId)
             }}
             size="sm"
             variant="outline"
@@ -354,7 +440,11 @@ export function SlotsPage() {
         <ResourceState
           kind={mapErrorKind(state.error)}
           onRetry={() => {
-            void loadSlots(false)
+            if (selectedNodeId !== null) {
+              void loadSlots(false, selectedNodeId)
+              return
+            }
+            void loadNodes()
           }}
           title={intl.formatMessage({ id: "nav.slots.title" })}
         />
@@ -373,6 +463,7 @@ export function SlotsPage() {
                       <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.desiredPeerSet" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.currentPeerSet" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.leader" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.logHeight" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.actions" })}</th>
                     </tr>
                   </thead>
@@ -395,6 +486,7 @@ export function SlotsPage() {
                           {formatNodeList(slot.runtime.current_peers)}
                         </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{slot.runtime.leader_id}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatNodeLog(intl, slot)}</td>
                         <td className="px-3 py-3 text-sm text-foreground">
                           <Button
                             aria-label={intl.formatMessage({ id: "slots.inspectSlot" }, { id: slot.slot_id })}

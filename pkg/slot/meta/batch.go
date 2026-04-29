@@ -1,6 +1,10 @@
 package meta
 
-import "github.com/cockroachdb/pebble/v2"
+import (
+	"errors"
+
+	"github.com/cockroachdb/pebble/v2"
+)
 
 // WriteBatch accumulates multiple writes into a single pebble batch,
 // committing them atomically with one fsync in Commit.
@@ -9,6 +13,7 @@ type WriteBatch struct {
 	batch                  *pebble.Batch
 	writtenUserKeys        map[string]struct{}
 	userConversationStates map[string]userConversationStateBatchEntry
+	channelRuntimeMetas    map[string]ChannelRuntimeMeta
 }
 
 type userConversationStateBatchEntry struct {
@@ -137,8 +142,20 @@ func (b *WriteBatch) UpsertChannelRuntimeMeta(hashSlot uint16, meta ChannelRunti
 	meta = normalizeChannelRuntimeMeta(meta)
 
 	key := encodeChannelRuntimeMetaPrimaryKey(hashSlot, meta.ChannelID, meta.ChannelType, channelRuntimeMetaPrimaryFamilyID)
+	existing, exists, err := b.loadChannelRuntimeMeta(hashSlot, key, meta.ChannelID, meta.ChannelType)
+	if err != nil {
+		return err
+	}
+	meta, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, exists, meta)
+	if !shouldWrite {
+		return nil
+	}
 	value := encodeChannelRuntimeMetaFamilyValue(meta, key)
-	return b.batch.Set(key, value, nil)
+	if err := b.batch.Set(key, value, nil); err != nil {
+		return err
+	}
+	b.rememberChannelRuntimeMeta(hashSlot, meta)
+	return nil
 }
 
 // UpsertUserConversationState encodes and stages a user conversation state write.
@@ -364,6 +381,9 @@ func (b *WriteBatch) Commit() error {
 	b.db.mu.Lock()
 	defer b.db.mu.Unlock()
 
+	if err := b.enforceChannelRuntimeMetaMonotonicLocked(); err != nil {
+		return err
+	}
 	return b.batch.Commit(pebble.Sync)
 }
 
@@ -387,6 +407,81 @@ func (b *WriteBatch) userKeyWritten(key []byte) bool {
 	}
 	_, ok := b.writtenUserKeys[string(key)]
 	return ok
+}
+
+func (b *WriteBatch) loadChannelRuntimeMeta(hashSlot uint16, key []byte, channelID string, channelType int64) (ChannelRuntimeMeta, bool, error) {
+	batchKey := channelRuntimeMetaBatchKey(hashSlot, channelID, channelType)
+	if b.channelRuntimeMetas != nil {
+		if meta, ok := b.channelRuntimeMetas[batchKey]; ok {
+			return meta, true, nil
+		}
+	}
+	value, err := b.db.getValue(key)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return ChannelRuntimeMeta{}, false, nil
+		}
+		return ChannelRuntimeMeta{}, false, err
+	}
+	meta, err := decodeChannelRuntimeMetaFamilyValue(key, value)
+	if err != nil {
+		return ChannelRuntimeMeta{}, false, err
+	}
+	meta.ChannelID = channelID
+	meta.ChannelType = channelType
+	return meta, true, nil
+}
+
+func (b *WriteBatch) rememberChannelRuntimeMeta(hashSlot uint16, meta ChannelRuntimeMeta) {
+	if b.channelRuntimeMetas == nil {
+		b.channelRuntimeMetas = make(map[string]ChannelRuntimeMeta, 1)
+	}
+	b.channelRuntimeMetas[channelRuntimeMetaBatchKey(hashSlot, meta.ChannelID, meta.ChannelType)] = meta
+}
+
+func channelRuntimeMetaBatchKey(hashSlot uint16, channelID string, channelType int64) string {
+	return string(encodeChannelRuntimeMetaPrimaryKey(hashSlot, channelID, channelType, channelRuntimeMetaPrimaryFamilyID))
+}
+
+func (b *WriteBatch) enforceChannelRuntimeMetaMonotonicLocked() error {
+	if len(b.channelRuntimeMetas) == 0 {
+		return nil
+	}
+	for keyString, candidate := range b.channelRuntimeMetas {
+		key := []byte(keyString)
+		existing, exists, err := b.loadChannelRuntimeMetaFromDBLocked(key, candidate.ChannelID, candidate.ChannelType)
+		if err != nil {
+			return err
+		}
+		next, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, exists, candidate)
+		if !shouldWrite && exists {
+			next = existing
+		}
+		if !shouldWrite && !exists {
+			continue
+		}
+		if err := b.batch.Set(key, encodeChannelRuntimeMetaFamilyValue(next, key), nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *WriteBatch) loadChannelRuntimeMetaFromDBLocked(key []byte, channelID string, channelType int64) (ChannelRuntimeMeta, bool, error) {
+	value, err := b.db.getValue(key)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return ChannelRuntimeMeta{}, false, nil
+		}
+		return ChannelRuntimeMeta{}, false, err
+	}
+	meta, err := decodeChannelRuntimeMetaFamilyValue(key, value)
+	if err != nil {
+		return ChannelRuntimeMeta{}, false, err
+	}
+	meta.ChannelID = channelID
+	meta.ChannelType = channelType
+	return meta, true, nil
 }
 
 func (b *WriteBatch) loadUserConversationState(hashSlot uint16, primaryKey []byte, uid, channelID string, channelType int64) (UserConversationState, bool, error) {

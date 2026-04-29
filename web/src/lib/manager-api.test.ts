@@ -325,6 +325,30 @@ describe("manager api client", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/manager/slots/9", expect.anything())
   })
 
+  it("fetches node-scoped slot list data from the manager endpoint", async () => {
+    const slotsResponse = {
+      total: 1,
+      items: [{
+        slot_id: 9,
+        state: { quorum: "ready", sync: "in_sync" },
+        assignment: { desired_peers: [1, 2, 3], config_epoch: 7, balance_version: 4 },
+        runtime: {
+          current_peers: [1, 2, 3],
+          leader_id: 2,
+          healthy_voters: 3,
+          has_quorum: true,
+          observed_config_epoch: 7,
+          last_report_at: "2026-04-23T08:00:00Z",
+        },
+        node_log: { node_id: 2, leader_id: 2, commit_index: 93, applied_index: 91 },
+      }],
+    }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(slotsResponse), { status: 200 }))
+
+    await expect(getSlots({ nodeId: 2 })).resolves.toEqual(slotsResponse)
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/manager/slots?node_id=2", expect.anything())
+  })
+
   it("fetches message list data from the manager endpoint", async () => {
     const messagesResponse = {
       items: [{

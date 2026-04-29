@@ -153,6 +153,13 @@ func (a *App) startConversationProjector() error {
 	return a.conversationProjector.Start()
 }
 
+func (a *App) startCommittedReplay(ctx context.Context) error {
+	if a.committedReplayer == nil {
+		return nil
+	}
+	return a.committedReplayer.Start(ctx)
+}
+
 func (a *App) stopGateway() error {
 	if !a.gatewayOn.Swap(false) {
 		return nil
@@ -190,6 +197,16 @@ func (a *App) stopConversationProjector() error {
 		return nil
 	}
 	return a.conversationProjector.Stop()
+}
+
+func (a *App) stopCommittedReplay() error {
+	if !a.committedReplayOn.Swap(false) {
+		return nil
+	}
+	if a.committedReplayer == nil {
+		return nil
+	}
+	return a.committedReplayer.Stop()
 }
 
 func (a *App) stopChannelMetaSync() error {

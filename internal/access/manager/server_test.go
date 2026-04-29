@@ -1040,6 +1040,116 @@ func TestManagerSlotsReturnsAggregatedList(t *testing.T) {
 	}`, rec.Body.String())
 }
 
+func TestManagerSlotsFiltersByNodeAndReturnsNodeLogStatus(t *testing.T) {
+	lastReportAt := time.Date(2026, 4, 21, 16, 0, 0, 0, time.UTC)
+	var listOptions managementusecase.ListSlotsOptions
+	stub := managementStub{
+		slots: []managementusecase.Slot{{
+			SlotID: 2,
+			State: managementusecase.SlotState{
+				Quorum: "ready",
+				Sync:   "matched",
+			},
+			Assignment: managementusecase.SlotAssignment{
+				DesiredPeers: []uint64{1, 2, 3},
+				ConfigEpoch:  8,
+			},
+			Runtime: managementusecase.SlotRuntime{
+				CurrentPeers:        []uint64{1, 2, 3},
+				CurrentVoters:       []uint64{1, 2, 3},
+				LeaderID:            1,
+				HealthyVoters:       3,
+				HasQuorum:           true,
+				ObservedConfigEpoch: 8,
+				LastReportAt:        lastReportAt,
+			},
+			NodeLog: &managementusecase.SlotNodeLogStatus{
+				NodeID:       2,
+				LeaderID:     1,
+				CommitIndex:  93,
+				AppliedIndex: 91,
+			},
+		}},
+		listSlotsOptionsSink: &listOptions,
+	}
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.slot",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: stub,
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/slots?node_id=2", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, managementusecase.ListSlotsOptions{NodeID: 2}, listOptions)
+	require.JSONEq(t, `{
+		"total": 1,
+		"items": [{
+			"slot_id": 2,
+			"state": {
+				"quorum": "ready",
+				"sync": "matched",
+				"leader_match": false,
+				"leader_transfer_pending": false
+			},
+			"assignment": {
+				"desired_peers": [1, 2, 3],
+				"preferred_leader_id": 0,
+				"config_epoch": 8,
+				"balance_version": 0
+			},
+			"runtime": {
+				"current_peers": [1, 2, 3],
+				"current_voters": [1, 2, 3],
+				"leader_id": 1,
+				"healthy_voters": 3,
+				"has_quorum": true,
+				"observed_config_epoch": 8,
+				"last_report_at": "2026-04-21T16:00:00Z"
+			},
+			"node_log": {
+				"node_id": 2,
+				"leader_id": 1,
+				"commit_index": 93,
+				"applied_index": 91
+			}
+		}]
+	}`, rec.Body.String())
+}
+
+func TestManagerSlotsRejectsInvalidNodeFilter(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.slot",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/slots?node_id=bad", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"error":"bad_request","message":"invalid node_id"}`, rec.Body.String())
+}
+
 func TestManagerSlotsReturnsServiceUnavailableWhenLeaderConsistentReadUnavailable(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
@@ -2572,6 +2682,7 @@ type managementStub struct {
 	slotRebalanceErr                error
 	slots                           []managementusecase.Slot
 	slotsErr                        error
+	listSlotsOptionsSink            *managementusecase.ListSlotsOptions
 	slotDetail                      managementusecase.SlotDetail
 	slotDetailErr                   error
 	tasks                           []managementusecase.Task
@@ -2674,7 +2785,10 @@ func (s managementStub) CancelNodeScaleIn(_ context.Context, nodeID uint64) (man
 	return s.nodeScaleInReport, s.nodeScaleInErr
 }
 
-func (s managementStub) ListSlots(context.Context) ([]managementusecase.Slot, error) {
+func (s managementStub) ListSlots(_ context.Context, opts managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error) {
+	if s.listSlotsOptionsSink != nil {
+		*s.listSlotsOptionsSink = opts
+	}
 	return append([]managementusecase.Slot(nil), s.slots...), s.slotsErr
 }
 

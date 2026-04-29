@@ -12,6 +12,7 @@ const (
 	appLifecycleChannelMeta           = "channelmeta"
 	appLifecyclePresence              = "presence"
 	appLifecycleConversationProjector = "conversation_projector"
+	appLifecycleCommittedReplay       = "committed_replay"
 	appLifecycleGateway               = "gateway"
 	appLifecycleAPI                   = "api"
 	appLifecycleManager               = "manager"
@@ -61,6 +62,9 @@ func (a *App) lifecycleComponents(includeStopOnly bool) []applifecycle.Component
 	}
 	if a.hasConversationProjectorLifecycle(includeStopOnly) {
 		components = append(components, a.conversationProjectorLifecycleComponent())
+	}
+	if a.hasCommittedReplayLifecycle(includeStopOnly) {
+		components = append(components, a.committedReplayLifecycleComponent())
 	}
 
 	components = append(components, a.gatewayLifecycleComponent())
@@ -147,6 +151,22 @@ func (a *App) conversationProjectorLifecycleComponent() applifecycle.Component {
 	}
 }
 
+func (a *App) committedReplayLifecycleComponent() applifecycle.Component {
+	return appLifecycleComponent{
+		name: appLifecycleCommittedReplay,
+		start: func(ctx context.Context) error {
+			if err := a.startCommittedReplay(ctx); err != nil {
+				return err
+			}
+			a.committedReplayOn.Store(true)
+			return nil
+		},
+		stop: func(context.Context) error {
+			return a.stopCommittedReplay()
+		},
+	}
+}
+
 func (a *App) gatewayLifecycleComponent() applifecycle.Component {
 	return appLifecycleComponent{
 		name: appLifecycleGateway,
@@ -211,6 +231,11 @@ func (a *App) hasConversationProjectorLifecycle(includeStopOnly bool) bool {
 	return a.conversationProjector != nil ||
 		a.startConversationProjectorFn != nil ||
 		(includeStopOnly && (a.stopConversationProjectorFn != nil || a.conversationOn.Load()))
+}
+
+func (a *App) hasCommittedReplayLifecycle(includeStopOnly bool) bool {
+	return a.committedReplayer != nil ||
+		(includeStopOnly && a.committedReplayOn.Load())
 }
 
 func (a *App) hasAPILifecycle(includeStopOnly bool) bool {

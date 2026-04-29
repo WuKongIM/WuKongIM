@@ -472,6 +472,12 @@ func (s *Sync) reconcileChannelRuntimeMeta(ctx context.Context, meta metadb.Chan
 	if s == nil || s.bootstrap == nil {
 		return s.maybeRepairChannelRuntimeMeta(ctx, meta)
 	}
+	if s.repairer != nil && s.repairPolicy != nil {
+		need, _ := s.repairPolicy(meta)
+		if need {
+			return s.maybeRepairChannelRuntimeMeta(ctx, meta)
+		}
+	}
 	reconciled, _, err := s.bootstrap.RenewChannelLeaderLease(ctx, meta, s.localNode, s.leaseRenewLeadTime())
 	if err != nil {
 		return metadb.ChannelRuntimeMeta{}, err

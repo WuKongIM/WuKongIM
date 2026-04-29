@@ -10,6 +10,7 @@ import { SlotsPage } from "@/pages/slots/page"
 
 const getSlotsMock = vi.fn()
 const getSlotMock = vi.fn()
+const getNodesMock = vi.fn()
 const addSlotMock = vi.fn()
 const removeSlotMock = vi.fn()
 const transferSlotLeaderMock = vi.fn()
@@ -22,6 +23,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     ...actual,
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
     getSlot: (...args: unknown[]) => getSlotMock(...args),
+    getNodes: (...args: unknown[]) => getNodesMock(...args),
     addSlot: (...args: unknown[]) => addSlotMock(...args),
     removeSlot: (...args: unknown[]) => removeSlotMock(...args),
     transferSlotLeader: (...args: unknown[]) => transferSlotLeaderMock(...args),
@@ -44,6 +46,18 @@ const slotRow = {
   },
 }
 
+const nodeRow = {
+  node_id: 1,
+  name: "node-1",
+  addr: "127.0.0.1:7001",
+  status: "alive",
+  last_heartbeat_at: "2026-04-23T08:00:00Z",
+  is_local: true,
+  capacity_weight: 1,
+  controller: { role: "leader", voter: true, leader_id: 1 },
+  slot_stats: { count: 1, leader_count: 1 },
+}
+
 const slotDetail = {
   ...slotRow,
   task: {
@@ -64,6 +78,7 @@ beforeEach(() => {
   resetLocale()
   getSlotsMock.mockReset()
   getSlotMock.mockReset()
+  getNodesMock.mockReset()
   addSlotMock.mockReset()
   removeSlotMock.mockReset()
   transferSlotLeaderMock.mockReset()
@@ -78,6 +93,12 @@ beforeEach(() => {
     accessToken: "token-1",
     expiresAt: "2099-04-22T12:00:00Z",
     permissions: [{ resource: "cluster.slot", actions: ["r", "w"] }],
+  })
+  getNodesMock.mockResolvedValue({
+    generated_at: "2026-04-23T08:00:00Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
   })
 })
 
@@ -168,6 +189,32 @@ test("uses compact slot page chrome without summary cards", async () => {
   expect(screen.queryByText("Current assignment and runtime state from the manager slot endpoints.")).not.toBeInTheDocument()
   expect(screen.queryByText("Cluster slots")).not.toBeInTheDocument()
   expect(screen.queryByText("Inspect one slot to view task state or run operator actions.")).not.toBeInTheDocument()
+})
+
+test("defaults to the local node filter and shows selected-node log height", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:00Z",
+    controller_leader_id: 1,
+    total: 2,
+    items: [
+      { ...nodeRow, node_id: 1, name: "node-1", is_local: false },
+      { ...nodeRow, node_id: 2, name: "node-2", is_local: true },
+    ],
+  })
+  getSlotsMock.mockResolvedValueOnce({
+    total: 1,
+    items: [{
+      ...slotRow,
+      node_log: { node_id: 2, leader_id: 2, commit_index: 93, applied_index: 91 },
+    }],
+  })
+
+  renderSlotsPage()
+
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  expect(screen.getByLabelText("Node filter")).toHaveValue("2")
+  expect(getSlotsMock).toHaveBeenCalledWith({ nodeId: 2 })
+  expect(screen.getByText("commit 93 / applied 91")).toBeInTheDocument()
 })
 
 test("opens slot detail and transfers the leader", async () => {
@@ -270,6 +317,21 @@ test("renders unavailable state when the slot list request fails", async () => {
   renderSlotsPage()
 
   expect(await screen.findByText(/currently unavailable/i)).toBeInTheDocument()
+})
+
+test("retries the selected node slot request after a list failure", async () => {
+  getSlotsMock
+    .mockRejectedValueOnce(new ManagerApiError(503, "service_unavailable", "slot leader unavailable"))
+    .mockResolvedValueOnce({ total: 1, items: [slotRow] })
+
+  const user = userEvent.setup()
+  renderSlotsPage()
+
+  expect(await screen.findByText(/currently unavailable/i)).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Retry" }))
+
+  expect(getSlotsMock).toHaveBeenLastCalledWith({ nodeId: 1 })
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
 })
 
 test("shows conflict feedback when slot rebalance is rejected", async () => {

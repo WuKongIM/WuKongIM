@@ -37,7 +37,7 @@ type Management interface {
 	// CancelNodeScaleIn resumes a draining scale-in target and returns the refreshed report.
 	CancelNodeScaleIn(ctx context.Context, nodeID uint64) (managementusecase.NodeScaleInReport, error)
 	// ListSlots returns manager-facing slot DTOs.
-	ListSlots(ctx context.Context) ([]managementusecase.Slot, error)
+	ListSlots(ctx context.Context, opts managementusecase.ListSlotsOptions) ([]managementusecase.Slot, error)
 	// GetSlot returns one manager-facing slot detail DTO.
 	GetSlot(ctx context.Context, slotID uint32) (managementusecase.SlotDetail, error)
 	// AddSlot creates a new physical slot and returns the latest detail DTO.

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +39,7 @@ func TestListSlotsAggregatesAssignmentRuntimeAndDerivedState(t *testing.T) {
 		},
 	})
 
-	got, err := app.ListSlots(context.Background())
+	got, err := app.ListSlots(context.Background(), ListSlotsOptions{})
 	require.NoError(t, err)
 	require.Equal(t, []Slot{{
 		SlotID: 2,
@@ -119,7 +120,7 @@ func TestListSlotsMarksPeerMismatchEpochLagLostAndUnreportedStates(t *testing.T)
 		},
 	})
 
-	got, err := app.ListSlots(context.Background())
+	got, err := app.ListSlots(context.Background(), ListSlotsOptions{})
 	require.NoError(t, err)
 	require.Equal(t, []slotStateSummary{
 		{SlotID: 1, Quorum: "lost", Sync: "peer_mismatch"},
@@ -138,9 +139,38 @@ func TestListSlotsSortsBySlotID(t *testing.T) {
 		},
 	})
 
-	got, err := app.ListSlots(context.Background())
+	got, err := app.ListSlots(context.Background(), ListSlotsOptions{})
 	require.NoError(t, err)
 	require.Equal(t, []uint32{4, 9}, []uint32{got[0].SlotID, got[1].SlotID})
+}
+
+func TestListSlotsFiltersByNodeAndAttachesNodeLogStatus(t *testing.T) {
+	now := time.Unix(1713686400, 0).UTC()
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			assignments: []controllermeta.SlotAssignment{
+				{SlotID: 1, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 7},
+				{SlotID: 2, DesiredPeers: []uint64{3}, ConfigEpoch: 8},
+				{SlotID: 3, DesiredPeers: []uint64{4}, ConfigEpoch: 9},
+			},
+			views: []controllermeta.SlotRuntimeView{
+				{SlotID: 1, CurrentPeers: []uint64{1, 2}, LeaderID: 1, HasQuorum: true, ObservedConfigEpoch: 7, LastReportAt: now},
+				{SlotID: 2, CurrentPeers: []uint64{2, 3}, LeaderID: 3, HasQuorum: true, ObservedConfigEpoch: 8, LastReportAt: now},
+				{SlotID: 3, CurrentPeers: []uint64{4}, LeaderID: 4, HasQuorum: true, ObservedConfigEpoch: 9, LastReportAt: now},
+			},
+			slotLogStatus: map[slotLogStatusKey]raftcluster.SlotLogStatus{
+				{nodeID: 2, slotID: 1}: {LeaderID: 1, CommitIndex: 93, AppliedIndex: 91},
+				{nodeID: 2, slotID: 2}: {LeaderID: 3, CommitIndex: 44, AppliedIndex: 44},
+			},
+		},
+	})
+
+	got, err := app.ListSlots(context.Background(), ListSlotsOptions{NodeID: 2})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	require.Equal(t, []uint32{1, 2}, []uint32{got[0].SlotID, got[1].SlotID})
+	require.Equal(t, &SlotNodeLogStatus{NodeID: 2, LeaderID: 1, CommitIndex: 93, AppliedIndex: 91}, got[0].NodeLog)
+	require.Equal(t, &SlotNodeLogStatus{NodeID: 2, LeaderID: 3, CommitIndex: 44, AppliedIndex: 44}, got[1].NodeLog)
 }
 
 type slotStateSummary struct {

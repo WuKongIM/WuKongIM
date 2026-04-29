@@ -268,12 +268,25 @@ export type ManagerSlot = {
   }
   runtime: {
     current_peers: number[]
+    current_voters?: number[]
     leader_id: number
     healthy_voters: number
     has_quorum: boolean
     observed_config_epoch: number
     last_report_at: string
   }
+  node_log?: ManagerSlotNodeLog | null
+}
+
+export type ManagerSlotNodeLog = {
+  node_id: number
+  leader_id: number
+  commit_index: number
+  applied_index: number
+}
+
+export type SlotListParams = {
+  nodeId?: number
 }
 
 export type ManagerSlotsResponse = {

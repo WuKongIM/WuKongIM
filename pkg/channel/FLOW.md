@@ -188,6 +188,7 @@ System (0x17): prefix + key + tableID + systemID + ...
                - Checkpoint
                - Epoch History
                - Snapshot Payload
+               - Committed Dispatch Cursor
 ```
 
 `channel.Record.Payload` 仍作为复制协议兼容表示存在，但不再是 Pebble 存储真相。详见 `store/keys.go`、`store/table_codec.go`
@@ -205,6 +206,7 @@ System (0x17): prefix + key + tableID + systemID + ...
 - **HW 推进不可回退**: 运行时 `HW(CommitHW)` 只能前进不能后退。`progress_pipeline.go:advanceHWLocked` 会检查 newHW ≥ currentHW。
 - **Lease 过期自动降级**: Leader Lease 过期后自动变为 FencedLeader，拒绝所有写入但不影响读取。见 `replica/append_pipeline.go:appendableLocked` 和 `replica/reconcile_coordinator.go:ensureReconcileLeaseLocked`。
 - **Cross-channel durable batching**: `store/commit.go` 使用 200µs 窗口跨频道合并 Pebble durable 写入；Leader 的 synced Append 和 Follower 的 ApplyFetch 都走同一个 coordinator。单频道的 `writeMu` 仍然串行，且 sync 完成前不会发布新的 LEO。
+- **Committed Dispatch Cursor 不是消息真相**: `store/committed_cursor.go` 的 cursor 只记录异步已提交事件补偿进度，使用 `NoSync` 降低写放大；cursor 丢失只会从结构化 `message` 表重复回放，不能拿它判断消息是否提交。
 - **手工 `PutIdempotency()` 只应服务恢复/快照路径**: 追加消息时 `Append()` / `StoreApplyFetch()` 已经维护唯一索引；测试或业务代码再额外覆盖同一索引值，可能把 append 已写入的 `payload_hash` 覆盖掉并制造假性损坏。
 - **Checkpoint 不再阻塞 sendack**: leader 在 quorum commit 后先完成 Append waiter，Checkpoint 持久化走 checkpoint effect worker coalescing；若 checkpoint 写盘失败会临时置 `CommitReady=false` 并重试，当前实现还缺少显式 health / metrics 暴露。
 - **leader reconcile 先区分“需要 peer 证明”与“只差本地 checkpoint”**: 若 leader transfer 后只是 `CheckpointHW < HW`、本地没有 `LEO > HW` 的 provisional tail，则会直接做本地 reconcile，不等待 peer probe；若已经拿到足以证明本地 tail 全量 quorum-safe 的 proof，也不会继续卡在离线 ISR peer 上。

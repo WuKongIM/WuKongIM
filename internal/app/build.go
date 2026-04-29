@@ -410,6 +410,16 @@ func build(cfg Config) (_ *App, err error) {
 		nodeClient:   app.nodeClient,
 	}
 	committedDispatcher := committedFanout{subscribers: []committedSubscriber{committedRouter}}
+	app.committedReplayer = newCommittedReplayer(committedReplayerConfig{
+		Log: channelStoreCommittedReplayLog{
+			engine:      app.channelLogDB,
+			status:      app.channelLog,
+			localNodeID: cfg.Node.ID,
+		},
+		Delivery:     app.deliveryApp,
+		Conversation: app.conversationProjector,
+		Logger:       app.logger.Named("committed.replay"),
+	})
 	app.nodeAccess = accessnode.New(accessnode.Options{
 		Cluster:               app.cluster,
 		Presence:              app.presenceApp,

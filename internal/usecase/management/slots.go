@@ -18,6 +18,14 @@ type Slot struct {
 	Assignment SlotAssignment
 	// Runtime contains the observed runtime view.
 	Runtime SlotRuntime
+	// NodeLog contains the selected node's local Raft log watermark when requested.
+	NodeLog *SlotNodeLogStatus
+}
+
+// ListSlotsOptions contains optional filters for manager slot inventory reads.
+type ListSlotsOptions struct {
+	// NodeID limits the list to slots assigned to or observed on this node.
+	NodeID uint64
 }
 
 // SlotState contains derived manager slot state fields.
@@ -62,8 +70,20 @@ type SlotRuntime struct {
 	LastReportAt time.Time
 }
 
+// SlotNodeLogStatus is one node's local Raft log watermark for a slot.
+type SlotNodeLogStatus struct {
+	// NodeID is the node that reported the local log watermark.
+	NodeID uint64
+	// LeaderID is the slot Raft leader known by the reporting node.
+	LeaderID uint64
+	// CommitIndex is the highest committed Raft log index known by the reporting node.
+	CommitIndex uint64
+	// AppliedIndex is the highest Raft log index applied by the reporting node.
+	AppliedIndex uint64
+}
+
 // ListSlots returns manager slot DTOs ordered by slot ID.
-func (a *App) ListSlots(ctx context.Context) ([]Slot, error) {
+func (a *App) ListSlots(ctx context.Context, opts ListSlotsOptions) ([]Slot, error) {
 	if a == nil || a.cluster == nil {
 		return nil, nil
 	}
@@ -88,6 +108,21 @@ func (a *App) ListSlots(ctx context.Context) ([]Slot, error) {
 	for _, assignment := range assignments {
 		view, ok := viewsBySlot[assignment.SlotID]
 		slot := slotFromAssignmentView(assignment, view, ok)
+		if opts.NodeID != 0 && !slotMatchesNode(slot, opts.NodeID) {
+			continue
+		}
+		if opts.NodeID != 0 {
+			logStatus, err := a.cluster.SlotLogStatusOnNode(ctx, opts.NodeID, slot.SlotID)
+			if err != nil {
+				return nil, err
+			}
+			slot.NodeLog = &SlotNodeLogStatus{
+				NodeID:       opts.NodeID,
+				LeaderID:     uint64(logStatus.LeaderID),
+				CommitIndex:  logStatus.CommitIndex,
+				AppliedIndex: logStatus.AppliedIndex,
+			}
+		}
 		applySlotTaskState(&slot, tasksBySlot[assignment.SlotID])
 		slots = append(slots, slot)
 	}
@@ -96,6 +131,10 @@ func (a *App) ListSlots(ctx context.Context) ([]Slot, error) {
 		return slots[i].SlotID < slots[j].SlotID
 	})
 	return slots, nil
+}
+
+func slotMatchesNode(slot Slot, nodeID uint64) bool {
+	return containsUint64(slot.Assignment.DesiredPeers, nodeID) || containsUint64(slot.Runtime.CurrentPeers, nodeID)
 }
 
 func runtimeViewsBySlot(views []controllermeta.SlotRuntimeView) map[uint32]controllermeta.SlotRuntimeView {

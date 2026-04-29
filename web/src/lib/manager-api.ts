@@ -24,6 +24,7 @@ import type {
   ManagerTasksResponse,
   MessageListParams,
   NodeOnboardingJobsParams,
+  SlotListParams,
   RecoverSlotInput,
   TransferSlotLeaderInput,
   CreateNodeOnboardingPlanInput,
@@ -264,8 +265,13 @@ export function cancelNodeScaleIn(nodeId: number) {
   })
 }
 
-export function getSlots() {
-  return jsonManagerFetch<ManagerSlotsResponse>("/manager/slots")
+export function getSlots(params: SlotListParams = {}) {
+  const search = new URLSearchParams()
+  if (params.nodeId) {
+    search.set("node_id", String(params.nodeId))
+  }
+  const query = search.toString()
+  return jsonManagerFetch<ManagerSlotsResponse>(`/manager/slots${query ? `?${query}` : ""}`)
 }
 
 export function getSlot(slotId: number) {

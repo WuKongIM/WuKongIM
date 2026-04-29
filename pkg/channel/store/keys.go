@@ -7,10 +7,11 @@ import (
 )
 
 const (
-	channelSystemTableID      uint32 = TableIDMessage
-	channelSystemIDCheckpoint uint16 = 1
-	channelSystemIDHistory    uint16 = 2
-	channelSystemIDSnapshot   uint16 = 3
+	channelSystemTableID           uint32 = TableIDMessage
+	channelSystemIDCheckpoint      uint16 = 1
+	channelSystemIDHistory         uint16 = 2
+	channelSystemIDSnapshot        uint16 = 3
+	channelSystemIDCommittedCursor uint16 = 4
 )
 
 func encodeCheckpointKey(channelKey channel.ChannelKey) []byte {
@@ -33,6 +34,11 @@ func encodeHistoryPointKey(channelKey channel.ChannelKey, point channel.EpochPoi
 
 func encodeSnapshotKey(channelKey channel.ChannelKey) []byte {
 	return encodeTableSystemKey(channelKey, channelSystemTableID, channelSystemIDSnapshot)
+}
+
+func encodeCommittedDispatchCursorKey(channelKey channel.ChannelKey, name string) []byte {
+	key := encodeTableSystemPrefix(channelKey, channelSystemTableID, channelSystemIDCommittedCursor)
+	return appendKeyString(key, name)
 }
 
 func encodeIdempotencyIndexPrefix(channelKey channel.ChannelKey) []byte {

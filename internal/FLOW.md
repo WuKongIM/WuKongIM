@@ -186,6 +186,7 @@ online.Registry.Connection(sessionID)
    ├─ ChannelMetaSync（元数据同步）
    ├─ Presence（在线状态 + Worker）
    ├─ Delivery（投递管理器）
+   ├─ CommittedReplay（从 Channel Log 补偿已提交事件）
    ├─ Message（消息用例）
    └─ Node Access（RPC Handler）
 
@@ -204,9 +205,10 @@ online.Registry.Connection(sessionID)
 3. channelmeta（启动 active-slot leader watcher）
 4. presence（启动 Worker）
 5. conversation_projector
-6. gateway
-7. api
-8. manager
+6. committed_replay
+7. gateway
+8. api
+9. manager
 ```
 
 ### 4.2 停止流程
@@ -218,16 +220,17 @@ online.Registry.Connection(sessionID)
 1. manager
 2. api
 3. gateway
-4. conversation_projector
-5. presence
-6. channelmeta（StopWithoutCleanup）
-7. managed_slots_ready（no-op）
-8. cluster
+4. committed_replay
+5. conversation_projector
+6. presence
+7. channelmeta（StopWithoutCleanup）
+8. managed_slots_ready（no-op）
+9. cluster
 
 然后关闭资源:
-9. channelLog.Close
-10. dataPlaneClient.Stop
-11. dataPlanePool.Close
+10. channelLog.Close
+11. dataPlaneClient.Stop
+12. dataPlanePool.Close
 12. channelLogDB.Close
 13. raftDB.Close
 14. metadb.Close
@@ -267,6 +270,10 @@ dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted)
   └─ asyncCommittedDispatcher
       ├─ delivery.Submit（投递）
       └─ conversation.SubmitCommitted（会话投影）
+committed_replay 后台从已提交 Channel Log 补偿未分发事件
+  ├─ 按 committed cursor 扫描 message_seq
+  ├─ 重新提交 delivery / conversation
+  └─ conversation.Flush 成功后批量推进 cursor
   ↓
 返回 SendResult{MessageID, MessageSeq}
   ↓
@@ -505,6 +512,7 @@ handleRecvAck(ctx, pkt)
 
 ### 🔴 已提交消息分发
 - **committedFanout + asyncCommittedDispatcher 的 preferLocal**: message 用例只发布 `messageevents.MessageCommitted`，`asyncCommittedDispatcher` 会把已提交消息直接进入本地 delivery runtime，避免所有实时投递都绕经 Leader
+- **committed_replay 是补偿路径，不阻塞 Sendack**: Sendack 仍只等待 Channel Log quorum commit；后台 replayer 以 Channel Log 为真相，用批量 cursor 兜底补发 delivery / conversation，cursor 只在 conversation flush 成功后推进。
 
 ---
 

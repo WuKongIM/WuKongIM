@@ -30,6 +30,22 @@ func encodeKeyspacePrefix(keyspace byte, channelKey channel.ChannelKey) []byte {
 	return key
 }
 
+func decodeKeyspaceChannelKey(raw []byte, keyspace byte) (channel.ChannelKey, []byte, error) {
+	if len(raw) == 0 || raw[0] != keyspace {
+		return "", nil, channel.ErrCorruptValue
+	}
+	length, n := binary.Uvarint(raw[1:])
+	if n <= 0 {
+		return "", nil, channel.ErrCorruptValue
+	}
+	start := 1 + n
+	end := start + int(length)
+	if end < start || len(raw) < end {
+		return "", nil, channel.ErrCorruptValue
+	}
+	return channel.ChannelKey(string(raw[start:end])), raw[end:], nil
+}
+
 func encodeTableStatePrefix(channelKey channel.ChannelKey, tableID uint32) []byte {
 	key := encodeKeyspacePrefix(keyspaceTableState, channelKey)
 	return binary.BigEndian.AppendUint32(key, tableID)

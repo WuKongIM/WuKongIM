@@ -28,6 +28,8 @@ type SlotDTO struct {
 	Assignment SlotAssignmentDTO `json:"assignment"`
 	// Runtime contains the observed slot runtime view.
 	Runtime SlotRuntimeDTO `json:"runtime"`
+	// NodeLog contains the selected node's local log watermark when requested.
+	NodeLog *SlotNodeLogDTO `json:"node_log,omitempty"`
 }
 
 // SlotDetailDTO is the manager-facing slot detail response body.
@@ -79,6 +81,18 @@ type SlotRuntimeDTO struct {
 	LastReportAt time.Time `json:"last_report_at"`
 }
 
+// SlotNodeLogDTO contains one selected node's local slot log watermark.
+type SlotNodeLogDTO struct {
+	// NodeID is the node that reported the local log watermark.
+	NodeID uint64 `json:"node_id"`
+	// LeaderID is the slot Raft leader known by the reporting node.
+	LeaderID uint64 `json:"leader_id"`
+	// CommitIndex is the highest committed Raft log index known by the reporting node.
+	CommitIndex uint64 `json:"commit_index"`
+	// AppliedIndex is the highest Raft log index applied by the reporting node.
+	AppliedIndex uint64 `json:"applied_index"`
+}
+
 // SlotTaskDTO contains the optional current task summary for slot detail.
 type SlotTaskDTO struct {
 	// Kind is the stringified task kind.
@@ -104,7 +118,12 @@ func (s *Server) handleSlots(c *gin.Context) {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
 		return
 	}
-	items, err := s.management.ListSlots(c.Request.Context())
+	opts, err := parseListSlotsOptions(c)
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid node_id")
+		return
+	}
+	items, err := s.management.ListSlots(c.Request.Context(), opts)
 	if err != nil {
 		if leaderConsistentReadUnavailable(err) {
 			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "controller leader consistent read unavailable")
@@ -117,6 +136,18 @@ func (s *Server) handleSlots(c *gin.Context) {
 		Total: len(items),
 		Items: slotDTOs(items),
 	})
+}
+
+func parseListSlotsOptions(c *gin.Context) (managementusecase.ListSlotsOptions, error) {
+	rawNodeID := c.Query("node_id")
+	if rawNodeID == "" {
+		return managementusecase.ListSlotsOptions{}, nil
+	}
+	nodeID, err := parseNodeIDParam(rawNodeID)
+	if err != nil {
+		return managementusecase.ListSlotsOptions{}, err
+	}
+	return managementusecase.ListSlotsOptions{NodeID: nodeID}, nil
 }
 
 func (s *Server) handleSlot(c *gin.Context) {
@@ -177,6 +208,19 @@ func slotDTO(item managementusecase.Slot) SlotDTO {
 			ObservedConfigEpoch: item.Runtime.ObservedConfigEpoch,
 			LastReportAt:        item.Runtime.LastReportAt,
 		},
+		NodeLog: slotNodeLogDTO(item.NodeLog),
+	}
+}
+
+func slotNodeLogDTO(item *managementusecase.SlotNodeLogStatus) *SlotNodeLogDTO {
+	if item == nil {
+		return nil
+	}
+	return &SlotNodeLogDTO{
+		NodeID:       item.NodeID,
+		LeaderID:     item.LeaderID,
+		CommitIndex:  item.CommitIndex,
+		AppliedIndex: item.AppliedIndex,
 	}
 }
 

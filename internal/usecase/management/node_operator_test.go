@@ -203,6 +203,10 @@ func (f *fakeNodeOperatorCluster) ListObservedRuntimeViewsStrict(context.Context
 	return append([]controllermeta.SlotRuntimeView(nil), f.views...), f.listObservedRuntimeViewsErr
 }
 
+func (f *fakeNodeOperatorCluster) SlotLogStatusOnNode(context.Context, uint64, uint32) (raftcluster.SlotLogStatus, error) {
+	return raftcluster.SlotLogStatus{}, nil
+}
+
 func (f *fakeNodeOperatorCluster) ListTasksStrict(context.Context) ([]controllermeta.ReconcileTask, error) {
 	return append([]controllermeta.ReconcileTask(nil), f.tasks...), f.listTasksErr
 }
