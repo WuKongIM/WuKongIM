@@ -625,6 +625,254 @@ func TestStateMachineSnapshotRestoreIncludesIncomingDeltaHashSlots(t *testing.T)
 	}
 }
 
+func TestStateMachineRestorePreservesImportedMigrationSourceOutboxForCleanupRecovery(t *testing.T) {
+	ctx := context.Background()
+	sourceDB := openTestDB(t)
+
+	state := metadb.HashSlotMigrationState{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, LastOutboxIndex: 100}
+	outbox := metadb.HashSlotMigrationOutboxRow{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, SourceIndex: 100, Data: []byte("source-cmd")}
+	applied := metadb.AppliedHashSlotDelta{HashSlot: 5, SourceSlot: 11, SourceIndex: 99}
+	if err := sourceDB.UpsertHashSlotMigrationState(ctx, state); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(): %v", err)
+	}
+	if err := sourceDB.UpsertHashSlotMigrationOutbox(ctx, outbox); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationOutbox(): %v", err)
+	}
+	if err := sourceDB.MarkAppliedHashSlotDelta(ctx, applied); err != nil {
+		t.Fatalf("MarkAppliedHashSlotDelta(): %v", err)
+	}
+	snap, err := sourceDB.ExportHashSlotSnapshot(ctx, []uint16{5})
+	if err != nil {
+		t.Fatalf("ExportHashSlotSnapshot(): %v", err)
+	}
+
+	restoreDB := openTestDB(t)
+	restoreSM, err := NewStateMachineWithHashSlots(restoreDB, 22, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots(restore) error = %v", err)
+	}
+	restoreRaw, ok := restoreSM.(*stateMachine)
+	if !ok {
+		t.Fatalf("restore state machine type = %T, want *stateMachine", restoreSM)
+	}
+	if err := restoreRaw.ImportHashSlotSnapshot(ctx, snap); err != nil {
+		t.Fatalf("ImportHashSlotSnapshot() error = %v", err)
+	}
+
+	gotState, err := restoreDB.LoadHashSlotMigrationState(ctx, 5)
+	if err != nil {
+		t.Fatalf("LoadHashSlotMigrationState() after restore: %v", err)
+	}
+	if gotState != state {
+		t.Fatalf("restored migration state = %#v, want %#v", gotState, state)
+	}
+	rows, err := restoreDB.ListHashSlotMigrationOutbox(ctx, 5, 11, 22, 0, 10)
+	if err != nil {
+		t.Fatalf("ListHashSlotMigrationOutbox() after restore: %v", err)
+	}
+	if !reflect.DeepEqual(rows, []metadb.HashSlotMigrationOutboxRow{outbox}) {
+		t.Fatalf("restored source outbox rows = %#v, want %#v", rows, []metadb.HashSlotMigrationOutboxRow{outbox})
+	}
+	ok, err = restoreDB.HasAppliedHashSlotDelta(ctx, applied)
+	if err != nil {
+		t.Fatalf("HasAppliedHashSlotDelta() after restore: %v", err)
+	}
+	if !ok {
+		t.Fatal("HasAppliedHashSlotDelta() after restore = false, want true")
+	}
+}
+
+func TestStateMachineRestoreRemovesStaleLocalMigrationMeta(t *testing.T) {
+	ctx := context.Background()
+	sourceDB := openTestDB(t)
+	if err := sourceDB.ForHashSlot(5).UpsertUser(ctx, metadb.User{UID: "u-restore-exact", Token: "snapshot-token"}); err != nil {
+		t.Fatalf("source UpsertUser(): %v", err)
+	}
+	sourceSM, err := NewStateMachineWithHashSlots(sourceDB, 22, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots(source) error = %v", err)
+	}
+	sourceSnap, err := sourceSM.Snapshot(ctx)
+	if err != nil {
+		t.Fatalf("source Snapshot(): %v", err)
+	}
+
+	restoreDB := openTestDB(t)
+	staleState := metadb.HashSlotMigrationState{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, LastOutboxIndex: 200}
+	staleRow := metadb.HashSlotMigrationOutboxRow{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, SourceIndex: 200, Data: []byte("stale")}
+	staleDelta := metadb.AppliedHashSlotDelta{HashSlot: 5, SourceSlot: 11, SourceIndex: 199}
+	if err := restoreDB.UpsertHashSlotMigrationState(ctx, staleState); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(stale): %v", err)
+	}
+	if err := restoreDB.UpsertHashSlotMigrationOutbox(ctx, staleRow); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationOutbox(stale): %v", err)
+	}
+	if err := restoreDB.MarkAppliedHashSlotDelta(ctx, staleDelta); err != nil {
+		t.Fatalf("MarkAppliedHashSlotDelta(stale): %v", err)
+	}
+	restoreSM, err := NewStateMachineWithHashSlots(restoreDB, 22, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots(restore) error = %v", err)
+	}
+	if err := restoreSM.Restore(ctx, sourceSnap); err != nil {
+		t.Fatalf("Restore(): %v", err)
+	}
+
+	if _, err := restoreDB.LoadHashSlotMigrationState(ctx, 5); !errors.Is(err, metadb.ErrNotFound) {
+		t.Fatalf("LoadHashSlotMigrationState() after restore err = %v, want ErrNotFound", err)
+	}
+	if _, err := restoreDB.LoadHashSlotMigrationOutbox(ctx, 5, 11, 22, 200); !errors.Is(err, metadb.ErrNotFound) {
+		t.Fatalf("LoadHashSlotMigrationOutbox() after restore err = %v, want ErrNotFound", err)
+	}
+	applied, err := restoreDB.HasAppliedHashSlotDelta(ctx, staleDelta)
+	if err != nil {
+		t.Fatalf("HasAppliedHashSlotDelta() after restore: %v", err)
+	}
+	if applied {
+		t.Fatal("HasAppliedHashSlotDelta() after restore = true, want false")
+	}
+	got, err := restoreDB.ForHashSlot(5).GetUser(ctx, "u-restore-exact")
+	if err != nil {
+		t.Fatalf("ForHashSlot(5).GetUser() after restore: %v", err)
+	}
+	if got.Token != "snapshot-token" {
+		t.Fatalf("restored user = %#v", got)
+	}
+}
+
+func TestStateMachineImportHashSlotSnapshotAllowsIncomingDeltaBeforeRuntimeTableUpdate(t *testing.T) {
+	ctx := context.Background()
+	sourceDB := openTestDB(t)
+	if err := sourceDB.ForHashSlot(5).UpsertUser(ctx, metadb.User{UID: "u-snapshot", Token: "snapshot-token"}); err != nil {
+		t.Fatalf("source UpsertUser(): %v", err)
+	}
+	snap, err := sourceDB.ExportHashSlotSnapshot(ctx, []uint16{5})
+	if err != nil {
+		t.Fatalf("ExportHashSlotSnapshot(): %v", err)
+	}
+
+	db := openTestDB(t)
+	sm, err := NewStateMachineWithHashSlots(db, 22, []uint16{7})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	raw, ok := sm.(*stateMachine)
+	if !ok {
+		t.Fatalf("state machine type = %T, want *stateMachine", sm)
+	}
+	if err := raw.ImportHashSlotSnapshot(ctx, snap); err != nil {
+		t.Fatalf("ImportHashSlotSnapshot(): %v", err)
+	}
+
+	if _, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   22,
+		HashSlot: 5,
+		Index:    10,
+		Term:     1,
+		Data: EncodeApplyDeltaCommand(
+			11,
+			101,
+			5,
+			EncodeUpsertUserCommand(metadb.User{UID: "u-import-delta", Token: "token-1"}),
+		),
+	}); err != nil {
+		t.Fatalf("Apply(apply_delta after snapshot import) error = %v", err)
+	}
+	got, err := db.ForHashSlot(5).GetUser(ctx, "u-import-delta")
+	if err != nil {
+		t.Fatalf("ForHashSlot(5).GetUser() error = %v", err)
+	}
+	if got.Token != "token-1" {
+		t.Fatalf("stored user token = %q, want token-1", got.Token)
+	}
+}
+
+func TestStateMachineImportHashSlotSnapshotDoesNotClearLocalSourceFenceOnSharedDB(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sourceSM, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots(source) error = %v", err)
+	}
+	sourceRaw := sourceSM.(*stateMachine)
+	sourceRaw.migrations[5] = migrationRuntimeState{target: 22, phase: migrationPhaseSwitching}
+
+	if _, err := sourceRaw.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    100,
+		Term:     1,
+		Data:     EncodeEnterFenceCommandForTarget(5, 22),
+	}); err != nil {
+		t.Fatalf("Apply(enter fence) error = %v", err)
+	}
+	snap, err := sourceRaw.ExportHashSlotSnapshot(ctx, 5)
+	if err != nil {
+		t.Fatalf("ExportHashSlotSnapshot(): %v", err)
+	}
+	newerState := metadb.HashSlotMigrationState{
+		HashSlot:        5,
+		SourceSlot:      11,
+		TargetSlot:      22,
+		Phase:           uint8(migrationPhaseSwitching),
+		FenceIndex:      100,
+		LastOutboxIndex: 200,
+		LastAckedIndex:  100,
+	}
+	newerRow := metadb.HashSlotMigrationOutboxRow{
+		HashSlot:    5,
+		SourceSlot:  11,
+		TargetSlot:  22,
+		SourceIndex: 200,
+		Data:        []byte("newer-local-source-delta"),
+	}
+	if err := db.UpsertHashSlotMigrationState(ctx, newerState); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(newer): %v", err)
+	}
+	if err := db.UpsertHashSlotMigrationOutbox(ctx, newerRow); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationOutbox(newer): %v", err)
+	}
+
+	targetSM, err := NewStateMachineWithHashSlots(db, 22, []uint16{7})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots(target) error = %v", err)
+	}
+	targetRaw := targetSM.(*stateMachine)
+	if err := targetRaw.ImportHashSlotSnapshot(ctx, snap); err != nil {
+		t.Fatalf("ImportHashSlotSnapshot(): %v", err)
+	}
+
+	gotState, err := db.LoadHashSlotMigrationState(ctx, 5)
+	if err != nil {
+		t.Fatalf("LoadHashSlotMigrationState() after import: %v", err)
+	}
+	if gotState != newerState {
+		t.Fatalf("migration state after import = %#v, want newer local state %#v", gotState, newerState)
+	}
+	if _, err := db.LoadHashSlotMigrationOutbox(ctx, 5, 11, 22, 100); err != nil {
+		t.Fatalf("LoadHashSlotMigrationOutbox() after import: %v", err)
+	}
+	if gotRow, err := db.LoadHashSlotMigrationOutbox(ctx, 5, 11, 22, 200); err != nil {
+		t.Fatalf("LoadHashSlotMigrationOutbox(newer) after import: %v", err)
+	} else if !reflect.DeepEqual(gotRow, newerRow) {
+		t.Fatalf("newer outbox after import = %#v, want %#v", gotRow, newerRow)
+	}
+	result, err := sourceRaw.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    101,
+		Term:     1,
+		Data:     EncodeUpsertUserCommand(metadb.User{UID: "u-after-import", Token: "token"}),
+	})
+	if err != nil {
+		t.Fatalf("Apply(source write after import) error = %v", err)
+	}
+	if string(result) != ApplyResultHashSlotFenced {
+		t.Fatalf("Apply(source write after import) result = %q, want %q", result, ApplyResultHashSlotFenced)
+	}
+}
+
 func TestStateMachineUpdateOwnedHashSlotsAllowsReroutedWrites(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -959,11 +1207,122 @@ func TestApplyBatchRejectsHashSlotNotOwned(t *testing.T) {
 	}
 }
 
+func TestApplyBatchAcceptsApplyDeltaBeforeIncomingRuntimeMarker(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 22, []uint16{7})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	bsm, ok := sm.(multiraft.BatchStateMachine)
+	if !ok {
+		t.Fatalf("state machine does not implement BatchStateMachine: %T", sm)
+	}
+
+	_, err = bsm.ApplyBatch(ctx, []multiraft.Command{
+		{
+			SlotID:   22,
+			HashSlot: 5,
+			Index:    1,
+			Term:     1,
+			Data: EncodeApplyDeltaCommand(
+				11,
+				100,
+				5,
+				EncodeUpsertUserCommand(metadb.User{UID: "u-delta-before-marker", Token: "delta-token"}),
+			),
+		},
+	})
+	if err != nil {
+		t.Fatalf("ApplyBatch(apply_delta before incoming marker) error = %v", err)
+	}
+	got, err := db.ForHashSlot(5).GetUser(ctx, "u-delta-before-marker")
+	if err != nil {
+		t.Fatalf("ForHashSlot(5).GetUser() error = %v", err)
+	}
+	if got.Token != "delta-token" {
+		t.Fatalf("stored user = %#v", got)
+	}
+}
+
+func TestApplyBatchAcceptsHashSlotZeroApplyDeltaBeforeIncomingRuntimeMarker(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 22, []uint16{7})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	bsm, ok := sm.(multiraft.BatchStateMachine)
+	if !ok {
+		t.Fatalf("state machine does not implement BatchStateMachine: %T", sm)
+	}
+
+	_, err = bsm.ApplyBatch(ctx, []multiraft.Command{
+		{
+			SlotID:   22,
+			HashSlot: 0,
+			Index:    1,
+			Term:     1,
+			Data: EncodeApplyDeltaCommand(
+				11,
+				100,
+				0,
+				EncodeUpsertUserCommand(metadb.User{UID: "u-delta-zero-before-marker", Token: "delta-token"}),
+			),
+		},
+	})
+	if err != nil {
+		t.Fatalf("ApplyBatch(hash-slot 0 apply_delta before incoming marker) error = %v", err)
+	}
+	got, err := db.ForHashSlot(0).GetUser(ctx, "u-delta-zero-before-marker")
+	if err != nil {
+		t.Fatalf("ForHashSlot(0).GetUser() error = %v", err)
+	}
+	if got.Token != "delta-token" {
+		t.Fatalf("stored user = %#v", got)
+	}
+}
+
+func TestStateMachineAcceptsDelayedEnterFenceAfterOwnershipMoved(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 2, []uint16{4})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	raw := sm.(*stateMachine)
+	raw.UpdateOwnedHashSlots([]uint16{5})
+
+	result, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   2,
+		HashSlot: 4,
+		Index:    10,
+		Term:     1,
+		Data:     EncodeEnterFenceCommandForTarget(4, 1),
+	})
+	if err != nil {
+		t.Fatalf("Apply(delayed enter fence) error = %v", err)
+	}
+	if string(result) != ApplyResultOK {
+		t.Fatalf("Apply(delayed enter fence) result = %q, want %q", result, ApplyResultOK)
+	}
+	state, err := db.LoadHashSlotMigrationState(ctx, 4)
+	if err != nil {
+		t.Fatalf("LoadHashSlotMigrationState() error = %v", err)
+	}
+	if state.SourceSlot != 2 || state.TargetSlot != 1 || state.FenceIndex != 10 {
+		t.Fatalf("migration state = %#v, want source=2 target=1 fence=10", state)
+	}
+}
+
 func TestApplyBatchApplyDeltaCommandAcceptedForMigratingHashSlotBeforeFinalize(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
 
-	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{4})
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
 	if err != nil {
 		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
 	}
@@ -1139,6 +1498,143 @@ func TestStateMachineDeduplicatesRepeatedApplyDelta(t *testing.T) {
 	}
 }
 
+func TestStateMachineApplyDeltaRestartDedupPersists(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	firstSM, err := NewStateMachineWithHashSlots(db, 11, []uint16{2})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots(first) error = %v", err)
+	}
+	firstRaw, ok := firstSM.(*stateMachine)
+	if !ok {
+		t.Fatalf("state machine type = %T, want *stateMachine", firstSM)
+	}
+	firstRaw.UpdateIncomingDeltaHashSlots([]uint16{5})
+
+	delta := metadb.AppliedHashSlotDelta{HashSlot: 5, SourceSlot: 21, SourceIndex: 9}
+	firstCmd := multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    1,
+		Term:     1,
+		Data: EncodeApplyDeltaCommand(
+			multiraft.SlotID(delta.SourceSlot),
+			delta.SourceIndex,
+			delta.HashSlot,
+			EncodeUpsertUserCommand(metadb.User{UID: "u-dedup-restart", Token: "first-token"}),
+		),
+	}
+	if _, err := firstSM.Apply(ctx, firstCmd); err != nil {
+		t.Fatalf("first Apply() error = %v", err)
+	}
+	ok, err = db.HasAppliedHashSlotDelta(ctx, delta)
+	if err != nil {
+		t.Fatalf("HasAppliedHashSlotDelta() after first apply: %v", err)
+	}
+	if !ok {
+		t.Fatal("HasAppliedHashSlotDelta() after first apply = false, want true")
+	}
+
+	restartedSM, err := NewStateMachineWithHashSlots(db, 11, []uint16{2})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots(restarted) error = %v", err)
+	}
+	restartedRaw, ok := restartedSM.(*stateMachine)
+	if !ok {
+		t.Fatalf("state machine type = %T, want *stateMachine", restartedSM)
+	}
+	restartedRaw.UpdateIncomingDeltaHashSlots([]uint16{5})
+
+	duplicateCmd := firstCmd
+	duplicateCmd.Index = 2
+	duplicateCmd.Data = EncodeApplyDeltaCommand(
+		multiraft.SlotID(delta.SourceSlot),
+		delta.SourceIndex,
+		delta.HashSlot,
+		EncodeUpsertUserCommand(metadb.User{UID: "u-dedup-restart", Token: "second-token"}),
+	)
+	if _, err := restartedSM.Apply(ctx, duplicateCmd); err != nil {
+		t.Fatalf("duplicate Apply() after restart error = %v", err)
+	}
+
+	got, err := db.ForHashSlot(5).GetUser(ctx, "u-dedup-restart")
+	if err != nil {
+		t.Fatalf("ForHashSlot(5).GetUser() error = %v", err)
+	}
+	if got.Token != "first-token" {
+		t.Fatalf("stored token after duplicate apply = %q, want %q", got.Token, "first-token")
+	}
+}
+
+func TestStateMachineDeduplicatesRepeatedApplyDeltaWithinBatch(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{2})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	raw, ok := sm.(*stateMachine)
+	if !ok {
+		t.Fatalf("state machine type = %T, want *stateMachine", sm)
+	}
+	raw.UpdateIncomingDeltaHashSlots([]uint16{5})
+	bsm, ok := sm.(multiraft.BatchStateMachine)
+	if !ok {
+		t.Fatalf("state machine does not implement BatchStateMachine: %T", sm)
+	}
+
+	delta := metadb.AppliedHashSlotDelta{HashSlot: 5, SourceSlot: 21, SourceIndex: 9}
+	cmds := []multiraft.Command{
+		{
+			SlotID:   11,
+			HashSlot: delta.HashSlot,
+			Index:    1,
+			Term:     1,
+			Data: EncodeApplyDeltaCommand(
+				multiraft.SlotID(delta.SourceSlot),
+				delta.SourceIndex,
+				delta.HashSlot,
+				EncodeUpsertUserCommand(metadb.User{UID: "u-dedup-batch", Token: "first-token"}),
+			),
+		},
+		{
+			SlotID:   11,
+			HashSlot: delta.HashSlot,
+			Index:    2,
+			Term:     1,
+			Data: EncodeApplyDeltaCommand(
+				multiraft.SlotID(delta.SourceSlot),
+				delta.SourceIndex,
+				delta.HashSlot,
+				EncodeUpsertUserCommand(metadb.User{UID: "u-dedup-batch", Token: "second-token"}),
+			),
+		},
+	}
+	if _, err := bsm.ApplyBatch(ctx, cmds); err != nil {
+		t.Fatalf("ApplyBatch() error = %v", err)
+	}
+
+	got, err := db.ForHashSlot(5).GetUser(ctx, "u-dedup-batch")
+	if err != nil {
+		t.Fatalf("ForHashSlot(5).GetUser() error = %v", err)
+	}
+	if got.Token != "first-token" {
+		t.Fatalf("stored token after duplicate batch apply = %q, want %q", got.Token, "first-token")
+	}
+	ok, err = db.HasAppliedHashSlotDelta(ctx, delta)
+	if err != nil {
+		t.Fatalf("HasAppliedHashSlotDelta() after batch apply: %v", err)
+	}
+	if !ok {
+		t.Fatal("HasAppliedHashSlotDelta() after batch apply = false, want true")
+	}
+	if len(raw.appliedDelta) != 1 {
+		t.Fatalf("len(appliedDelta) = %d, want 1", len(raw.appliedDelta))
+	}
+}
+
 func TestStateMachineForwardsDeltaDuringMigration(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -1192,6 +1688,778 @@ func TestStateMachineForwardsDeltaDuringMigration(t *testing.T) {
 	}
 	if gotCmd.HashSlot != 5 || gotCmd.Index != 3 || gotCmd.Term != 1 || !reflect.DeepEqual(gotCmd.Data, cmd.Data) {
 		t.Fatalf("forwardDelta cmd = %#v, want %#v", gotCmd, cmd)
+	}
+}
+
+func TestStateMachinePersistsMigrationDeltaOutboxWithoutForwarder(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	raw, ok := sm.(*stateMachine)
+	if !ok {
+		t.Fatalf("state machine type = %T, want *stateMachine", sm)
+	}
+	raw.migrations[5] = migrationRuntimeState{target: 22, phase: migrationPhaseDelta}
+
+	cmd := multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    100,
+		Term:     1,
+		Data:     EncodeUpsertUserCommand(metadb.User{UID: "u-outbox-missing-forwarder", Token: "token-1"}),
+	}
+	if _, err := sm.Apply(ctx, cmd); err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+
+	gotUser, err := db.ForHashSlot(5).GetUser(ctx, "u-outbox-missing-forwarder")
+	if err != nil {
+		t.Fatalf("ForHashSlot(5).GetUser() error = %v", err)
+	}
+	if gotUser.Token != "token-1" {
+		t.Fatalf("stored user token = %q, want token-1", gotUser.Token)
+	}
+	rows, err := db.ListHashSlotMigrationOutbox(ctx, 5, 11, 22, 0, 10)
+	if err != nil {
+		t.Fatalf("ListHashSlotMigrationOutbox(): %v", err)
+	}
+	wantRow := metadb.HashSlotMigrationOutboxRow{
+		HashSlot:    5,
+		SourceSlot:  11,
+		TargetSlot:  22,
+		SourceIndex: 100,
+		Data:        cmd.Data,
+	}
+	if !reflect.DeepEqual(rows, []metadb.HashSlotMigrationOutboxRow{wantRow}) {
+		t.Fatalf("outbox rows = %#v, want %#v", rows, []metadb.HashSlotMigrationOutboxRow{wantRow})
+	}
+	state, err := db.LoadHashSlotMigrationState(ctx, 5)
+	if err != nil {
+		t.Fatalf("LoadHashSlotMigrationState(): %v", err)
+	}
+	if state.SourceSlot != 11 || state.TargetSlot != 22 || state.LastOutboxIndex != 100 {
+		t.Fatalf("migration state = %#v, want source=11 target=22 lastOutbox=100", state)
+	}
+}
+
+func TestStateMachinePersistsMigrationDeltaOutboxDuringSwitching(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	raw, ok := sm.(*stateMachine)
+	if !ok {
+		t.Fatalf("state machine type = %T, want *stateMachine", sm)
+	}
+	raw.migrations[5] = migrationRuntimeState{target: 22, phase: migrationPhaseSwitching}
+
+	cmd := multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    100,
+		Term:     1,
+		Data:     EncodeUpsertUserCommand(metadb.User{UID: "u-outbox-switching", Token: "token-1"}),
+	}
+	if _, err := sm.Apply(ctx, cmd); err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+
+	rows, err := db.ListHashSlotMigrationOutbox(ctx, 5, 11, 22, 0, 10)
+	if err != nil {
+		t.Fatalf("ListHashSlotMigrationOutbox(): %v", err)
+	}
+	wantRow := metadb.HashSlotMigrationOutboxRow{
+		HashSlot:    5,
+		SourceSlot:  11,
+		TargetSlot:  22,
+		SourceIndex: 100,
+		Data:        cmd.Data,
+	}
+	if !reflect.DeepEqual(rows, []metadb.HashSlotMigrationOutboxRow{wantRow}) {
+		t.Fatalf("outbox rows = %#v, want %#v", rows, []metadb.HashSlotMigrationOutboxRow{wantRow})
+	}
+}
+
+func TestStateMachineEnterFenceRejectsLaterSourceWrites(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	raw, ok := sm.(*stateMachine)
+	if !ok {
+		t.Fatalf("state machine type = %T, want *stateMachine", sm)
+	}
+	raw.migrations[5] = migrationRuntimeState{target: 22, phase: migrationPhaseSwitching}
+
+	if _, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    100,
+		Term:     1,
+		Data:     EncodeUpsertUserCommand(metadb.User{UID: "u-before-fence", Token: "token-1"}),
+	}); err != nil {
+		t.Fatalf("Apply(before fence) error = %v", err)
+	}
+	if _, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    101,
+		Term:     1,
+		Data:     EncodeEnterFenceCommand(5),
+	}); err != nil {
+		t.Fatalf("Apply(enter fence) error = %v", err)
+	}
+	result, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    102,
+		Term:     1,
+		Data:     EncodeUpsertUserCommand(metadb.User{UID: "u-after-fence", Token: "token-2"}),
+	})
+	if err != nil {
+		t.Fatalf("Apply(after fence) error = %v", err)
+	}
+	if string(result) != ApplyResultHashSlotFenced {
+		t.Fatalf("Apply(after fence) result = %q, want %q", result, ApplyResultHashSlotFenced)
+	}
+	if _, err := db.ForHashSlot(5).GetUser(ctx, "u-after-fence"); !errors.Is(err, metadb.ErrNotFound) {
+		t.Fatalf("GetUser(after fence) err = %v, want ErrNotFound", err)
+	}
+
+	state, err := db.LoadHashSlotMigrationState(ctx, 5)
+	if err != nil {
+		t.Fatalf("LoadHashSlotMigrationState(): %v", err)
+	}
+	if state.FenceIndex != 101 || state.LastOutboxIndex != 101 {
+		t.Fatalf("migration state = %#v, want fence=101 lastOutbox=101", state)
+	}
+	rows, err := db.ListHashSlotMigrationOutbox(ctx, 5, 11, 22, 0, 10)
+	if err != nil {
+		t.Fatalf("ListHashSlotMigrationOutbox(): %v", err)
+	}
+	if len(rows) != 2 || rows[0].SourceIndex != 100 || rows[1].SourceIndex != 101 {
+		t.Fatalf("outbox rows = %#v, want source indexes 100 and 101", rows)
+	}
+}
+
+func TestStateMachineEnterSnapshotFenceDoesNotForwardBeforeTargetAcceptsDelta(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	raw, ok := sm.(*stateMachine)
+	if !ok {
+		t.Fatalf("state machine type = %T, want *stateMachine", sm)
+	}
+	forwarded := 0
+	raw.forwardDelta = func(context.Context, multiraft.SlotID, multiraft.Command) error {
+		forwarded++
+		return nil
+	}
+
+	if _, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    101,
+		Term:     1,
+		Data:     EncodeEnterFenceCommandForTarget(5, 22),
+	}); err != nil {
+		t.Fatalf("Apply(snapshot fence) error = %v", err)
+	}
+	if forwarded != 0 {
+		t.Fatalf("forwarded snapshot fence deltas = %d, want 0 before target is marked incoming", forwarded)
+	}
+	rows, err := db.ListHashSlotMigrationOutbox(ctx, 5, 11, 22, 0, 10)
+	if err != nil {
+		t.Fatalf("ListHashSlotMigrationOutbox(): %v", err)
+	}
+	if len(rows) != 1 || rows[0].SourceIndex != 101 {
+		t.Fatalf("outbox rows = %#v, want persisted fence source index 101", rows)
+	}
+}
+
+func TestStateMachineAllowsApplyDeltaAfterEnterFence(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	raw, ok := sm.(*stateMachine)
+	if !ok {
+		t.Fatalf("state machine type = %T, want *stateMachine", sm)
+	}
+	raw.migrations[5] = migrationRuntimeState{target: 22, phase: migrationPhaseSwitching}
+	if _, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    101,
+		Term:     1,
+		Data:     EncodeEnterFenceCommand(5),
+	}); err != nil {
+		t.Fatalf("Apply(enter fence) error = %v", err)
+	}
+
+	if _, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    102,
+		Term:     1,
+		Data: EncodeApplyDeltaCommand(
+			21,
+			9,
+			5,
+			EncodeUpsertUserCommand(metadb.User{UID: "u-delta-after-fence", Token: "delta-token"}),
+		),
+	}); err != nil {
+		t.Fatalf("Apply(apply_delta after fence) error = %v", err)
+	}
+
+	got, err := db.ForHashSlot(5).GetUser(ctx, "u-delta-after-fence")
+	if err != nil {
+		t.Fatalf("ForHashSlot(5).GetUser() error = %v", err)
+	}
+	if got.Token != "delta-token" {
+		t.Fatalf("stored user token = %q, want delta-token", got.Token)
+	}
+}
+
+func TestStateMachineDurableFenceRejectsWritesWithoutRuntimeMigration(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	if err := db.UpsertHashSlotMigrationState(ctx, metadb.HashSlotMigrationState{
+		HashSlot:        5,
+		SourceSlot:      11,
+		TargetSlot:      22,
+		Phase:           uint8(migrationPhaseSwitching),
+		FenceIndex:      101,
+		LastOutboxIndex: 101,
+		LastAckedIndex:  101,
+	}); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(): %v", err)
+	}
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+
+	result, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    102,
+		Term:     1,
+		Data:     EncodeUpsertUserCommand(metadb.User{UID: "u-durable-fence", Token: "token-1"}),
+	})
+	if err != nil {
+		t.Fatalf("Apply(after durable fence) error = %v", err)
+	}
+	if string(result) != ApplyResultHashSlotFenced {
+		t.Fatalf("Apply(after durable fence) result = %q, want %q", result, ApplyResultHashSlotFenced)
+	}
+	if _, err := db.ForHashSlot(5).GetUser(ctx, "u-durable-fence"); !errors.Is(err, metadb.ErrNotFound) {
+		t.Fatalf("GetUser(after durable fence) err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestStateMachinePersistsMigrationDeltaOutboxWhenForwarderFails(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	raw, ok := sm.(*stateMachine)
+	if !ok {
+		t.Fatalf("state machine type = %T, want *stateMachine", sm)
+	}
+	raw.migrations[5] = migrationRuntimeState{target: 22, phase: migrationPhaseDelta}
+	raw.forwardDelta = func(context.Context, multiraft.SlotID, multiraft.Command) error {
+		return errors.New("forward unavailable")
+	}
+
+	cmd := multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    101,
+		Term:     1,
+		Data:     EncodeUpsertUserCommand(metadb.User{UID: "u-outbox-forward-fails", Token: "token-1"}),
+	}
+	if _, err := sm.Apply(ctx, cmd); err != nil {
+		t.Fatalf("Apply() error = %v, want local commit with durable outbox", err)
+	}
+
+	rows, err := db.ListHashSlotMigrationOutbox(ctx, 5, 11, 22, 0, 10)
+	if err != nil {
+		t.Fatalf("ListHashSlotMigrationOutbox(): %v", err)
+	}
+	if len(rows) != 1 || rows[0].SourceIndex != 101 {
+		t.Fatalf("outbox rows = %#v, want source index 101", rows)
+	}
+	gotUser, err := db.ForHashSlot(5).GetUser(ctx, "u-outbox-forward-fails")
+	if err != nil {
+		t.Fatalf("ForHashSlot(5).GetUser() error = %v", err)
+	}
+	if gotUser.Token != "token-1" {
+		t.Fatalf("stored user token = %q, want token-1", gotUser.Token)
+	}
+}
+
+func TestStateMachineAckHashSlotMigrationOutboxAdvancesProgressAndDeletesRow(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	raw, ok := sm.(*stateMachine)
+	if !ok {
+		t.Fatalf("state machine type = %T, want *stateMachine", sm)
+	}
+
+	state := metadb.HashSlotMigrationState{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, LastOutboxIndex: 100}
+	row := metadb.HashSlotMigrationOutboxRow{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, SourceIndex: 100, Data: []byte("cmd")}
+	if err := db.UpsertHashSlotMigrationState(ctx, state); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(): %v", err)
+	}
+	if err := db.UpsertHashSlotMigrationOutbox(ctx, row); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationOutbox(): %v", err)
+	}
+
+	if err := raw.AckHashSlotMigrationOutbox(ctx, 5, 11, 22, 100); err != nil {
+		t.Fatalf("AckHashSlotMigrationOutbox(): %v", err)
+	}
+	gotState, err := db.LoadHashSlotMigrationState(ctx, 5)
+	if err != nil {
+		t.Fatalf("LoadHashSlotMigrationState(): %v", err)
+	}
+	if gotState.LastAckedIndex != 100 {
+		t.Fatalf("LastAckedIndex = %d, want 100", gotState.LastAckedIndex)
+	}
+	if _, err := db.LoadHashSlotMigrationOutbox(ctx, 5, 11, 22, 100); !errors.Is(err, metadb.ErrNotFound) {
+		t.Fatalf("LoadHashSlotMigrationOutbox() after ack err = %v, want ErrNotFound", err)
+	}
+
+	if err := raw.AckHashSlotMigrationOutbox(ctx, 5, 11, 22, 101); !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("AckHashSlotMigrationOutbox(beyond outbox) err = %v, want ErrInvalidArgument", err)
+	}
+}
+
+func TestStateMachineApplyReplicatedAckHashSlotMigrationOutboxAdvancesProgressAndDeletesRow(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+
+	state := metadb.HashSlotMigrationState{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, LastOutboxIndex: 100}
+	row := metadb.HashSlotMigrationOutboxRow{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, SourceIndex: 100, Data: []byte("cmd")}
+	if err := db.UpsertHashSlotMigrationState(ctx, state); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(): %v", err)
+	}
+	if err := db.UpsertHashSlotMigrationOutbox(ctx, row); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationOutbox(): %v", err)
+	}
+
+	result, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    101,
+		Term:     1,
+		Data:     EncodeAckHashSlotMigrationOutboxCommand(5, 11, 22, 100),
+	})
+	if err != nil {
+		t.Fatalf("Apply(replicated ack) error = %v", err)
+	}
+	if string(result) != ApplyResultOK {
+		t.Fatalf("Apply(replicated ack) result = %q, want %q", result, ApplyResultOK)
+	}
+	gotState, err := db.LoadHashSlotMigrationState(ctx, 5)
+	if err != nil {
+		t.Fatalf("LoadHashSlotMigrationState(): %v", err)
+	}
+	if gotState.LastAckedIndex != 100 {
+		t.Fatalf("LastAckedIndex = %d, want 100", gotState.LastAckedIndex)
+	}
+	if _, err := db.LoadHashSlotMigrationOutbox(ctx, 5, 11, 22, 100); !errors.Is(err, metadb.ErrNotFound) {
+		t.Fatalf("LoadHashSlotMigrationOutbox() after replicated ack err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestStateMachineCleanupHashSlotMigrationOutboxDeletesStateAndRows(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	raw, ok := sm.(*stateMachine)
+	if !ok {
+		t.Fatalf("state machine type = %T, want *stateMachine", sm)
+	}
+
+	state := metadb.HashSlotMigrationState{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, LastOutboxIndex: 101}
+	rows := []metadb.HashSlotMigrationOutboxRow{
+		{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, SourceIndex: 100, Data: []byte("cmd-100")},
+		{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, SourceIndex: 101, Data: []byte("cmd-101")},
+		{HashSlot: 5, SourceSlot: 11, TargetSlot: 33, SourceIndex: 100, Data: []byte("other-target")},
+	}
+	if err := db.UpsertHashSlotMigrationState(ctx, state); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(): %v", err)
+	}
+	for _, row := range rows {
+		if err := db.UpsertHashSlotMigrationOutbox(ctx, row); err != nil {
+			t.Fatalf("UpsertHashSlotMigrationOutbox(%#v): %v", row, err)
+		}
+	}
+
+	if err := raw.CleanupHashSlotMigrationOutbox(ctx, 5, 11, 22, 101); err != nil {
+		t.Fatalf("CleanupHashSlotMigrationOutbox(): %v", err)
+	}
+	if _, err := db.LoadHashSlotMigrationState(ctx, 5); !errors.Is(err, metadb.ErrNotFound) {
+		t.Fatalf("LoadHashSlotMigrationState() after cleanup err = %v, want ErrNotFound", err)
+	}
+	gotRows, err := db.ListHashSlotMigrationOutbox(ctx, 5, 11, 22, 0, 10)
+	if err != nil {
+		t.Fatalf("ListHashSlotMigrationOutbox(cleaned pair): %v", err)
+	}
+	if len(gotRows) != 0 {
+		t.Fatalf("cleaned pair rows = %#v, want none", gotRows)
+	}
+	otherRows, err := db.ListHashSlotMigrationOutbox(ctx, 5, 11, 33, 0, 10)
+	if err != nil {
+		t.Fatalf("ListHashSlotMigrationOutbox(other target): %v", err)
+	}
+	if len(otherRows) != 1 || otherRows[0].TargetSlot != 33 {
+		t.Fatalf("other target rows = %#v, want preserved row", otherRows)
+	}
+}
+
+func TestStateMachineApplyReplicatedCleanupHashSlotMigrationOutboxDeletesStateAndRows(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+
+	state := metadb.HashSlotMigrationState{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, LastOutboxIndex: 101}
+	rows := []metadb.HashSlotMigrationOutboxRow{
+		{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, SourceIndex: 100, Data: []byte("cmd-100")},
+		{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, SourceIndex: 101, Data: []byte("cmd-101")},
+		{HashSlot: 5, SourceSlot: 11, TargetSlot: 33, SourceIndex: 100, Data: []byte("other-target")},
+	}
+	if err := db.UpsertHashSlotMigrationState(ctx, state); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(): %v", err)
+	}
+	for _, row := range rows {
+		if err := db.UpsertHashSlotMigrationOutbox(ctx, row); err != nil {
+			t.Fatalf("UpsertHashSlotMigrationOutbox(%#v): %v", row, err)
+		}
+	}
+
+	result, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    102,
+		Term:     1,
+		Data:     EncodeCleanupHashSlotMigrationOutboxCommand(5, 11, 22, 101),
+	})
+	if err != nil {
+		t.Fatalf("Apply(replicated cleanup) error = %v", err)
+	}
+	if string(result) != ApplyResultOK {
+		t.Fatalf("Apply(replicated cleanup) result = %q, want %q", result, ApplyResultOK)
+	}
+	if _, err := db.LoadHashSlotMigrationState(ctx, 5); !errors.Is(err, metadb.ErrNotFound) {
+		t.Fatalf("LoadHashSlotMigrationState() after replicated cleanup err = %v, want ErrNotFound", err)
+	}
+	gotRows, err := db.ListHashSlotMigrationOutbox(ctx, 5, 11, 22, 0, 10)
+	if err != nil {
+		t.Fatalf("ListHashSlotMigrationOutbox(cleaned pair): %v", err)
+	}
+	if len(gotRows) != 0 {
+		t.Fatalf("cleaned pair rows = %#v, want none", gotRows)
+	}
+	otherRows, err := db.ListHashSlotMigrationOutbox(ctx, 5, 11, 33, 0, 10)
+	if err != nil {
+		t.Fatalf("ListHashSlotMigrationOutbox(other target): %v", err)
+	}
+	if len(otherRows) != 1 || otherRows[0].TargetSlot != 33 {
+		t.Fatalf("other target rows = %#v, want preserved row", otherRows)
+	}
+}
+
+func TestStateMachineApplyStaleReplicatedCleanupDoesNotDeleteNewerSameDirectionState(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+
+	state := metadb.HashSlotMigrationState{
+		HashSlot:        5,
+		SourceSlot:      11,
+		TargetSlot:      22,
+		Phase:           uint8(migrationPhaseSwitching),
+		FenceIndex:      200,
+		LastOutboxIndex: 200,
+	}
+	rows := []metadb.HashSlotMigrationOutboxRow{
+		{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, SourceIndex: 100, Data: []byte("old-cmd")},
+		{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, SourceIndex: 200, Data: []byte("new-cmd")},
+	}
+	if err := db.UpsertHashSlotMigrationState(ctx, state); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(): %v", err)
+	}
+	for _, row := range rows {
+		if err := db.UpsertHashSlotMigrationOutbox(ctx, row); err != nil {
+			t.Fatalf("UpsertHashSlotMigrationOutbox(%#v): %v", row, err)
+		}
+	}
+
+	if _, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    201,
+		Term:     1,
+		Data:     EncodeCleanupHashSlotMigrationOutboxCommand(5, 11, 22, 100),
+	}); err != nil {
+		t.Fatalf("Apply(stale replicated cleanup) error = %v", err)
+	}
+
+	gotState, err := db.LoadHashSlotMigrationState(ctx, 5)
+	if err != nil {
+		t.Fatalf("LoadHashSlotMigrationState(): %v", err)
+	}
+	if gotState.LastOutboxIndex != 200 || gotState.FenceIndex != 200 {
+		t.Fatalf("migration state after stale cleanup = %#v, want newer state preserved", gotState)
+	}
+	if _, err := db.LoadHashSlotMigrationOutbox(ctx, 5, 11, 22, 100); !errors.Is(err, metadb.ErrNotFound) {
+		t.Fatalf("old outbox after stale cleanup err = %v, want ErrNotFound", err)
+	}
+	if _, err := db.LoadHashSlotMigrationOutbox(ctx, 5, 11, 22, 200); err != nil {
+		t.Fatalf("new outbox after stale cleanup err = %v, want preserved row", err)
+	}
+}
+
+func TestStateMachineApplyStaleReplicatedCleanupDoesNotDeleteUnindexedSameDirectionState(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+
+	state := metadb.HashSlotMigrationState{
+		HashSlot:   5,
+		SourceSlot: 11,
+		TargetSlot: 22,
+		Phase:      uint8(migrationPhaseDelta),
+	}
+	if err := db.UpsertHashSlotMigrationState(ctx, state); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(): %v", err)
+	}
+
+	if _, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    201,
+		Term:     1,
+		Data:     EncodeCleanupHashSlotMigrationOutboxCommand(5, 11, 22, 100),
+	}); err != nil {
+		t.Fatalf("Apply(stale replicated cleanup) error = %v", err)
+	}
+
+	gotState, err := db.LoadHashSlotMigrationState(ctx, 5)
+	if err != nil {
+		t.Fatalf("LoadHashSlotMigrationState(): %v", err)
+	}
+	if gotState.LastOutboxIndex != 0 || gotState.SourceSlot != 11 || gotState.TargetSlot != 22 {
+		t.Fatalf("migration state after stale cleanup = %#v, want unindexed state preserved", gotState)
+	}
+}
+
+func TestStateMachineDirectCleanupDoesNotDeleteRowsBeyondCurrentState(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	raw := sm.(*stateMachine)
+
+	state := metadb.HashSlotMigrationState{
+		HashSlot:        5,
+		SourceSlot:      11,
+		TargetSlot:      22,
+		Phase:           uint8(migrationPhaseSwitching),
+		FenceIndex:      200,
+		LastOutboxIndex: 200,
+	}
+	rows := []metadb.HashSlotMigrationOutboxRow{
+		{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, SourceIndex: 100, Data: []byte("old-cmd")},
+		{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, SourceIndex: 200, Data: []byte("new-cmd")},
+	}
+	if err := db.UpsertHashSlotMigrationState(ctx, state); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(): %v", err)
+	}
+	for _, row := range rows {
+		if err := db.UpsertHashSlotMigrationOutbox(ctx, row); err != nil {
+			t.Fatalf("UpsertHashSlotMigrationOutbox(%#v): %v", row, err)
+		}
+	}
+
+	if err := raw.CleanupHashSlotMigrationOutbox(ctx, 5, 11, 22, 100); err != nil {
+		t.Fatalf("CleanupHashSlotMigrationOutbox(): %v", err)
+	}
+
+	if _, err := db.LoadHashSlotMigrationState(ctx, 5); err != nil {
+		t.Fatalf("LoadHashSlotMigrationState() after direct cleanup: %v", err)
+	}
+	if _, err := db.LoadHashSlotMigrationOutbox(ctx, 5, 11, 22, 100); !errors.Is(err, metadb.ErrNotFound) {
+		t.Fatalf("old outbox after direct cleanup err = %v, want ErrNotFound", err)
+	}
+	if _, err := db.LoadHashSlotMigrationOutbox(ctx, 5, 11, 22, 200); err != nil {
+		t.Fatalf("new outbox after direct cleanup err = %v, want preserved row", err)
+	}
+}
+
+func TestStateMachineReplacesStaleMigrationOutboxStateForNewTarget(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	staleState := metadb.HashSlotMigrationState{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, LastOutboxIndex: 100}
+	staleRow := metadb.HashSlotMigrationOutboxRow{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, SourceIndex: 100, Data: []byte("stale-cmd")}
+	if err := db.UpsertHashSlotMigrationState(ctx, staleState); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(stale): %v", err)
+	}
+	if err := db.UpsertHashSlotMigrationOutbox(ctx, staleRow); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationOutbox(stale): %v", err)
+	}
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	raw, ok := sm.(*stateMachine)
+	if !ok {
+		t.Fatalf("state machine type = %T, want *stateMachine", sm)
+	}
+	raw.migrations[5] = migrationRuntimeState{target: 33, phase: migrationPhaseDelta}
+
+	cmd := multiraft.Command{
+		SlotID:   11,
+		HashSlot: 5,
+		Index:    101,
+		Term:     1,
+		Data:     EncodeUpsertUserCommand(metadb.User{UID: "u-new-target", Token: "token-new"}),
+	}
+	if _, err := sm.Apply(ctx, cmd); err != nil {
+		t.Fatalf("Apply() with stale migration state error = %v", err)
+	}
+
+	staleRows, err := db.ListHashSlotMigrationOutbox(ctx, 5, 11, 22, 0, 10)
+	if err != nil {
+		t.Fatalf("ListHashSlotMigrationOutbox(stale target): %v", err)
+	}
+	if len(staleRows) != 0 {
+		t.Fatalf("stale target rows = %#v, want none", staleRows)
+	}
+	newRows, err := db.ListHashSlotMigrationOutbox(ctx, 5, 11, 33, 0, 10)
+	if err != nil {
+		t.Fatalf("ListHashSlotMigrationOutbox(new target): %v", err)
+	}
+	if len(newRows) != 1 || newRows[0].SourceIndex != 101 {
+		t.Fatalf("new target rows = %#v, want source index 101", newRows)
+	}
+	state, err := db.LoadHashSlotMigrationState(ctx, 5)
+	if err != nil {
+		t.Fatalf("LoadHashSlotMigrationState(): %v", err)
+	}
+	if state.TargetSlot != 33 || state.LastOutboxIndex != 101 {
+		t.Fatalf("migration state = %#v, want target 33 lastOutbox 101", state)
+	}
+}
+
+func TestStateMachineReplacesStaleMigrationOutboxStateOncePerBatch(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+
+	staleState := metadb.HashSlotMigrationState{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, LastOutboxIndex: 100}
+	staleRow := metadb.HashSlotMigrationOutboxRow{HashSlot: 5, SourceSlot: 11, TargetSlot: 22, SourceIndex: 100, Data: []byte("stale-cmd")}
+	if err := db.UpsertHashSlotMigrationState(ctx, staleState); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationState(stale): %v", err)
+	}
+	if err := db.UpsertHashSlotMigrationOutbox(ctx, staleRow); err != nil {
+		t.Fatalf("UpsertHashSlotMigrationOutbox(stale): %v", err)
+	}
+
+	sm, err := NewStateMachineWithHashSlots(db, 11, []uint16{5})
+	if err != nil {
+		t.Fatalf("NewStateMachineWithHashSlots() error = %v", err)
+	}
+	raw, ok := sm.(*stateMachine)
+	if !ok {
+		t.Fatalf("state machine type = %T, want *stateMachine", sm)
+	}
+	raw.migrations[5] = migrationRuntimeState{target: 33, phase: migrationPhaseDelta}
+	bsm, ok := sm.(multiraft.BatchStateMachine)
+	if !ok {
+		t.Fatalf("state machine does not implement BatchStateMachine: %T", sm)
+	}
+
+	cmds := []multiraft.Command{
+		{
+			SlotID:   11,
+			HashSlot: 5,
+			Index:    101,
+			Term:     1,
+			Data:     EncodeUpsertUserCommand(metadb.User{UID: "u-new-target-1", Token: "token-1"}),
+		},
+		{
+			SlotID:   11,
+			HashSlot: 5,
+			Index:    102,
+			Term:     1,
+			Data:     EncodeUpsertUserCommand(metadb.User{UID: "u-new-target-2", Token: "token-2"}),
+		},
+	}
+	if _, err := bsm.ApplyBatch(ctx, cmds); err != nil {
+		t.Fatalf("ApplyBatch() with stale migration state error = %v", err)
+	}
+
+	rows, err := db.ListHashSlotMigrationOutbox(ctx, 5, 11, 33, 0, 10)
+	if err != nil {
+		t.Fatalf("ListHashSlotMigrationOutbox(new target): %v", err)
+	}
+	if len(rows) != 2 || rows[0].SourceIndex != 101 || rows[1].SourceIndex != 102 {
+		t.Fatalf("new target rows = %#v, want source indexes 101 and 102", rows)
 	}
 }
 

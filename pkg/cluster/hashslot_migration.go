@@ -18,6 +18,7 @@ const (
 	defaultHashSlotMigrationStableThreshold int64 = 100
 	defaultHashSlotMigrationStableWindow          = time.Second
 	hashSlotDeltaForwardRetryInterval             = 100 * time.Millisecond
+	hashSlotDeltaOutboxReplayLimit                = 64
 )
 
 type hashSlotMigrationWorker interface {
@@ -37,6 +38,14 @@ type hashSlotSnapshotImporter interface {
 	ImportHashSlotSnapshot(context.Context, metadb.SlotSnapshot) error
 }
 
+type hashSlotDeltaOutboxStore interface {
+	LoadHashSlotMigrationState(context.Context, uint16) (metadb.HashSlotMigrationState, error)
+	ListHashSlotMigrationStates(context.Context) ([]metadb.HashSlotMigrationState, error)
+	ListHashSlotMigrationOutbox(context.Context, uint16, uint64, uint64, uint64, int) ([]metadb.HashSlotMigrationOutboxRow, error)
+	AckHashSlotMigrationOutbox(context.Context, uint16, uint64, uint64, uint64) error
+	CleanupHashSlotMigrationOutbox(context.Context, uint16, uint64, uint64, uint64) error
+}
+
 func newHashSlotMigrationWorker() hashSlotMigrationWorker {
 	return slotmigration.NewWorker(defaultHashSlotMigrationStableThreshold, defaultHashSlotMigrationStableWindow)
 }
@@ -49,14 +58,14 @@ func deltaMigrationRuntimeForSlot(table *HashSlotTable, slotID multiraft.SlotID)
 	var incoming []uint16
 	outgoing := make(map[uint16]multiraft.SlotID)
 	for _, migration := range table.ActiveMigrations() {
-		if migration.Phase != PhaseDelta {
+		if migration.Target == slotID {
+			incoming = append(incoming, migration.HashSlot)
+		}
+		if migration.Phase != PhaseDelta && migration.Phase != PhaseSwitching {
 			continue
 		}
 		if migration.Source == slotID && migration.Target != 0 {
 			outgoing[migration.HashSlot] = migration.Target
-		}
-		if migration.Target == slotID {
-			incoming = append(incoming, migration.HashSlot)
 		}
 	}
 	if len(outgoing) == 0 {
@@ -67,7 +76,7 @@ func deltaMigrationRuntimeForSlot(table *HashSlotTable, slotID multiraft.SlotID)
 
 func (c *Cluster) makeHashSlotDeltaForwarder() func(context.Context, multiraft.SlotID, multiraft.Command) error {
 	return func(_ context.Context, target multiraft.SlotID, cmd multiraft.Command) error {
-		if c == nil || target == 0 || cmd.SlotID == 0 || cmd.HashSlot == 0 || len(cmd.Data) == 0 {
+		if c == nil || target == 0 || cmd.SlotID == 0 || len(cmd.Data) == 0 {
 			return nil
 		}
 		cloned := multiraft.Command{
@@ -83,7 +92,7 @@ func (c *Cluster) makeHashSlotDeltaForwarder() func(context.Context, multiraft.S
 }
 
 func (c *Cluster) forwardHashSlotDelta(target multiraft.SlotID, cmd multiraft.Command) {
-	if c == nil || target == 0 || cmd.HashSlot == 0 || len(cmd.Data) == 0 {
+	if c == nil || target == 0 || len(cmd.Data) == 0 {
 		return
 	}
 	payload := metafsm.EncodeApplyDeltaCommand(cmd.SlotID, cmd.Index, cmd.HashSlot, cmd.Data)
@@ -93,7 +102,7 @@ func (c *Cluster) forwardHashSlotDelta(target multiraft.SlotID, cmd multiraft.Co
 			timeout = defaultForwardTimeout
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		err := c.ProposeWithHashSlot(ctx, target, cmd.HashSlot, payload)
+		err := c.proposeHashSlotDelta(ctx, target, cmd.HashSlot, payload)
 		cancel()
 		if err == nil {
 			return
@@ -117,13 +126,38 @@ func (c *Cluster) observeHashSlotMigrations(ctx context.Context) error {
 	for _, migration := range desiredList {
 		desired[migration.HashSlot] = migration
 	}
+	if err := c.retryPendingHashSlotDeltaCleanups(ctx); err != nil {
+		return err
+	}
+	if err := c.reconcileOrphanedHashSlotMigrationStates(ctx, desired); err != nil {
+		return err
+	}
 	pendingAbortErr := c.retryPendingHashSlotAborts(ctx, desired, table.Version())
 
 	for _, active := range c.migrationWorker.ActiveMigrations() {
 		want, ok := desired[active.HashSlot]
-		if !ok || c.hasPendingHashSlotAbort(active.HashSlot, active.Source, active.Target) || want.Source != active.Source || want.Target != active.Target || !c.shouldExecuteHashSlotMigration(want) {
+		abortLocal := false
+		cleanupSourceOutbox := false
+		switch {
+		case !ok:
+			abortLocal = true
+			cleanupSourceOutbox = true
+		case c.hasPendingHashSlotAbort(active.HashSlot, active.Source, active.Target):
+			abortLocal = true
+		case want.Source != active.Source || want.Target != active.Target:
+			abortLocal = true
+			cleanupSourceOutbox = true
+		case !c.shouldExecuteHashSlotMigration(want):
+			abortLocal = true
+		}
+		if abortLocal {
 			if err := c.migrationWorker.AbortMigration(active.HashSlot); err != nil {
 				return err
+			}
+			if cleanupSourceOutbox {
+				if err := c.completeHashSlotDeltaOutboxCleanup(ctx, HashSlotMigration{HashSlot: active.HashSlot, Source: active.Source, Target: active.Target}); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -140,16 +174,30 @@ func (c *Cluster) observeHashSlotMigrations(ctx context.Context) error {
 		}
 	}
 
+	if err := c.completeActiveHashSlotSnapshots(ctx); err != nil {
+		return err
+	}
+	outboxDrained, err := c.replayActiveHashSlotDeltaOutboxes(ctx, desiredList)
+	if err != nil {
+		return err
+	}
+	fenceReady, err := c.ensureSwitchingHashSlotMigrationFences(ctx, desired, outboxDrained)
+	if err != nil {
+		return err
+	}
+
 	for _, migration := range desired {
 		if migration.Phase != PhaseSwitching || !c.shouldExecuteHashSlotMigration(migration) {
+			continue
+		}
+		if !outboxDrained[migration.HashSlot] || !fenceReady[migration.HashSlot] {
 			continue
 		}
 		if err := c.migrationWorker.MarkSwitchComplete(migration.HashSlot); err != nil {
 			return err
 		}
 	}
-
-	if err := c.completeActiveHashSlotSnapshots(ctx); err != nil {
+	if err := c.advanceSwitchingHashSlotMigrations(ctx, desired, outboxDrained); err != nil {
 		return err
 	}
 
@@ -170,10 +218,25 @@ func (c *Cluster) observeHashSlotMigrations(ctx context.Context) error {
 		}
 		switch transition.To {
 		case slotmigration.PhaseDelta, slotmigration.PhaseSwitching:
+			if transition.To == slotmigration.PhaseSwitching {
+				if !outboxDrained[transition.HashSlot] {
+					continue
+				}
+				ready, err := c.ensureHashSlotMigrationFence(ctx, HashSlotMigration{HashSlot: transition.HashSlot, Source: transition.Source, Target: transition.Target, Phase: PhaseDelta})
+				if err != nil {
+					return err
+				}
+				if !ready {
+					continue
+				}
+			}
 			if err := c.advanceHashSlotMigration(ctx, transition.HashSlot, transition.Source, transition.Target, uint8(transition.To)); err != nil {
 				return err
 			}
 		case slotmigration.PhaseDone:
+			if !outboxDrained[transition.HashSlot] || !fenceReady[transition.HashSlot] {
+				continue
+			}
 			if err := c.finalizeHashSlotMigration(ctx, transition.HashSlot, transition.Source, transition.Target); err != nil {
 				return err
 			}
@@ -187,6 +250,216 @@ func (c *Cluster) observeHashSlotMigrations(ctx context.Context) error {
 		return pendingAbortErr
 	}
 	return nil
+}
+
+func (c *Cluster) advanceSwitchingHashSlotMigrations(ctx context.Context, desired map[uint16]HashSlotMigration, outboxDrained map[uint16]bool) error {
+	if c == nil || c.migrationWorker == nil {
+		return nil
+	}
+	for _, active := range c.migrationWorker.ActiveMigrations() {
+		if active.Phase != slotmigration.PhaseSwitching {
+			continue
+		}
+		want, ok := desired[active.HashSlot]
+		if !ok || want.Phase != PhaseDelta || want.Source != active.Source || want.Target != active.Target {
+			continue
+		}
+		if !outboxDrained[active.HashSlot] {
+			continue
+		}
+		ready, err := c.ensureHashSlotMigrationFence(ctx, want)
+		if err != nil {
+			return err
+		}
+		if !ready {
+			continue
+		}
+		if err := c.advanceHashSlotMigration(ctx, active.HashSlot, active.Source, active.Target, uint8(slotmigration.PhaseSwitching)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Cluster) ensureSwitchingHashSlotMigrationFences(ctx context.Context, desired map[uint16]HashSlotMigration, outboxDrained map[uint16]bool) (map[uint16]bool, error) {
+	ready := make(map[uint16]bool)
+	if c == nil {
+		return ready, nil
+	}
+	for _, migration := range desired {
+		if migration.Phase != PhaseSwitching {
+			continue
+		}
+		if !c.shouldExecuteHashSlotMigration(migration) || !outboxDrained[migration.HashSlot] {
+			continue
+		}
+		ok, err := c.ensureHashSlotMigrationFence(ctx, migration)
+		if err != nil {
+			return nil, err
+		}
+		ready[migration.HashSlot] = ok
+	}
+	return ready, nil
+}
+
+func (c *Cluster) ensureHashSlotMigrationFence(ctx context.Context, migration HashSlotMigration) (bool, error) {
+	store, ok := c.hashSlotMigrationStore(migration.Source)
+	if !ok {
+		return false, nil
+	}
+	ready, err := hashSlotMigrationFenceReady(ctx, store, migration)
+	if err != nil || ready {
+		return ready, err
+	}
+	if err := c.proposeHashSlotFence(ctx, migration.Source, migration.HashSlot, migration.Target); err != nil {
+		return false, err
+	}
+	return hashSlotMigrationFenceReady(ctx, store, migration)
+}
+
+func (c *Cluster) ensureHashSlotMigrationFenceApplied(ctx context.Context, migration HashSlotMigration) (bool, error) {
+	store, ok := c.hashSlotMigrationStore(migration.Source)
+	if !ok {
+		return false, nil
+	}
+	applied, err := hashSlotMigrationFenceApplied(ctx, store, migration)
+	if err != nil || applied {
+		return applied, err
+	}
+	if err := c.proposeHashSlotFence(ctx, migration.Source, migration.HashSlot, migration.Target); err != nil {
+		return false, err
+	}
+	return hashSlotMigrationFenceApplied(ctx, store, migration)
+}
+
+func (c *Cluster) hashSlotMigrationStore(source multiraft.SlotID) (hashSlotDeltaOutboxStore, bool) {
+	sm, ok := c.runtimeStateMachine(source)
+	if !ok {
+		return nil, false
+	}
+	store, ok := sm.(hashSlotDeltaOutboxStore)
+	if !ok {
+		return nil, false
+	}
+	return store, true
+}
+
+func (c *Cluster) hashSlotMigrationStores() map[multiraft.SlotID]hashSlotDeltaOutboxStore {
+	if c == nil {
+		return nil
+	}
+	c.runtimeStateMachinesMu.RLock()
+	defer c.runtimeStateMachinesMu.RUnlock()
+
+	stores := make(map[multiraft.SlotID]hashSlotDeltaOutboxStore)
+	for slotID, sm := range c.runtimeStateMachines {
+		store, ok := sm.(hashSlotDeltaOutboxStore)
+		if !ok {
+			continue
+		}
+		stores[slotID] = store
+	}
+	return stores
+}
+
+func hashSlotMigrationFenceApplied(ctx context.Context, store hashSlotDeltaOutboxStore, migration HashSlotMigration) (bool, error) {
+	state, err := store.LoadHashSlotMigrationState(ctx, migration.HashSlot)
+	if errors.Is(err, metadb.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return state.SourceSlot == uint64(migration.Source) && state.TargetSlot == uint64(migration.Target) && state.FenceIndex != 0, nil
+}
+
+func hashSlotMigrationFenceReady(ctx context.Context, store hashSlotDeltaOutboxStore, migration HashSlotMigration) (bool, error) {
+	state, err := store.LoadHashSlotMigrationState(ctx, migration.HashSlot)
+	if errors.Is(err, metadb.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if state.SourceSlot != uint64(migration.Source) || state.TargetSlot != uint64(migration.Target) || state.FenceIndex == 0 {
+		return false, nil
+	}
+	return state.LastAckedIndex >= state.FenceIndex && state.LastAckedIndex >= state.LastOutboxIndex, nil
+}
+
+func (c *Cluster) replayActiveHashSlotDeltaOutboxes(ctx context.Context, migrations []HashSlotMigration) (map[uint16]bool, error) {
+	drained := make(map[uint16]bool)
+	for _, migration := range migrations {
+		if migration.Phase != PhaseDelta && migration.Phase != PhaseSwitching {
+			continue
+		}
+		if !c.shouldExecuteHashSlotMigration(migration) {
+			continue
+		}
+		ok, err := c.replayHashSlotDeltaOutbox(ctx, migration)
+		if err != nil {
+			return nil, err
+		}
+		drained[migration.HashSlot] = ok
+	}
+	return drained, nil
+}
+
+func (c *Cluster) replayHashSlotDeltaOutbox(ctx context.Context, migration HashSlotMigration) (bool, error) {
+	sm, ok := c.runtimeStateMachine(migration.Source)
+	if !ok {
+		return false, nil
+	}
+	store, ok := sm.(hashSlotDeltaOutboxStore)
+	if !ok {
+		return false, nil
+	}
+
+	rows, err := store.ListHashSlotMigrationOutbox(ctx, migration.HashSlot, uint64(migration.Source), uint64(migration.Target), 0, hashSlotDeltaOutboxReplayLimit)
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		payload := metafsm.EncodeApplyDeltaCommand(migration.Source, row.SourceIndex, row.HashSlot, row.Data)
+		if err := c.proposeHashSlotDelta(ctx, migration.Target, row.HashSlot, payload); err != nil {
+			return false, err
+		}
+		if err := c.proposeHashSlotOutboxAck(ctx, migration.Source, row.HashSlot, migration.Target, row.SourceIndex); err != nil {
+			return false, err
+		}
+	}
+	return len(rows) < hashSlotDeltaOutboxReplayLimit, nil
+}
+
+func (c *Cluster) proposeHashSlotDelta(ctx context.Context, target multiraft.SlotID, hashSlot uint16, payload []byte) error {
+	if c != nil && c.proposeHashSlotDeltaTestHook != nil {
+		return c.proposeHashSlotDeltaTestHook(ctx, target, hashSlot, payload)
+	}
+	return c.ProposeWithHashSlot(ctx, target, hashSlot, payload)
+}
+
+func (c *Cluster) proposeHashSlotFence(ctx context.Context, source multiraft.SlotID, hashSlot uint16, target multiraft.SlotID) error {
+	payload := metafsm.EncodeEnterFenceCommandForTarget(hashSlot, target)
+	if c != nil && c.proposeHashSlotFenceTestHook != nil {
+		return c.proposeHashSlotFenceTestHook(ctx, source, hashSlot, payload)
+	}
+	return c.ProposeWithHashSlot(ctx, source, hashSlot, payload)
+}
+
+func (c *Cluster) proposeHashSlotOutboxAck(ctx context.Context, source multiraft.SlotID, hashSlot uint16, target multiraft.SlotID, sourceIndex uint64) error {
+	payload := metafsm.EncodeAckHashSlotMigrationOutboxCommand(hashSlot, source, target, sourceIndex)
+	if c != nil && c.proposeHashSlotAckTestHook != nil {
+		return c.proposeHashSlotAckTestHook(ctx, source, hashSlot, target, sourceIndex, payload)
+	}
+	return c.ProposeWithHashSlot(ctx, source, hashSlot, payload)
+}
+
+func (c *Cluster) proposeHashSlotOutboxCleanup(ctx context.Context, source multiraft.SlotID, hashSlot uint16, target multiraft.SlotID, throughIndex uint64) error {
+	payload := metafsm.EncodeCleanupHashSlotMigrationOutboxCommand(hashSlot, source, target, throughIndex)
+	if c != nil && c.proposeHashSlotCleanupTestHook != nil {
+		return c.proposeHashSlotCleanupTestHook(ctx, source, hashSlot, target, payload)
+	}
+	return c.ProposeWithHashSlot(ctx, source, hashSlot, payload)
 }
 
 func orderHashSlotMigrationsForStart(migrations []HashSlotMigration) []HashSlotMigration {
@@ -254,6 +527,64 @@ func (c *Cluster) retryPendingHashSlotAborts(ctx context.Context, desired map[ui
 	return firstErr
 }
 
+func (c *Cluster) retryPendingHashSlotDeltaCleanups(ctx context.Context) error {
+	if c == nil || len(c.pendingHashSlotDeltaCleanups) == 0 {
+		return nil
+	}
+	for _, migration := range c.pendingHashSlotDeltaCleanups {
+		if err := c.completeHashSlotDeltaOutboxCleanup(ctx, migration); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Cluster) reconcileOrphanedHashSlotMigrationStates(ctx context.Context, desired map[uint16]HashSlotMigration) error {
+	if c == nil {
+		return nil
+	}
+	stores := c.hashSlotMigrationStores()
+	seen := make(map[hashSlotDeltaCleanupKey]struct{})
+	for _, store := range stores {
+		states, err := store.ListHashSlotMigrationStates(ctx)
+		if err != nil {
+			return err
+		}
+		for _, state := range states {
+			if state.SourceSlot == 0 || state.TargetSlot == 0 || state.LastOutboxIndex == 0 {
+				continue
+			}
+			key := hashSlotDeltaCleanupKey{
+				hashSlot: state.HashSlot,
+				source:   multiraft.SlotID(state.SourceSlot),
+				target:   multiraft.SlotID(state.TargetSlot),
+			}
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			if active, ok := desired[state.HashSlot]; ok && uint64(active.Source) == state.SourceSlot && uint64(active.Target) == state.TargetSlot {
+				continue
+			}
+			migration := HashSlotMigration{
+				HashSlot: state.HashSlot,
+				Source:   multiraft.SlotID(state.SourceSlot),
+				Target:   multiraft.SlotID(state.TargetSlot),
+			}
+			if _, ok := stores[migration.Source]; ok {
+				if err := c.completeHashSlotDeltaOutboxCleanup(ctx, migration); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := store.CleanupHashSlotMigrationOutbox(ctx, state.HashSlot, state.SourceSlot, state.TargetSlot, state.LastOutboxIndex); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (c *Cluster) hasPendingHashSlotAbort(hashSlot uint16, source, target multiraft.SlotID) bool {
 	if c == nil || len(c.pendingHashSlotAborts) == 0 {
 		return false
@@ -263,7 +594,7 @@ func (c *Cluster) hasPendingHashSlotAbort(hashSlot uint16, source, target multir
 }
 
 func (c *Cluster) markPendingHashSlotAbort(hashSlot uint16, source, target multiraft.SlotID) {
-	if c == nil || hashSlot == 0 || source == 0 || target == 0 {
+	if c == nil || source == 0 || target == 0 {
 		return
 	}
 	if c.pendingHashSlotAborts == nil {
@@ -306,6 +637,16 @@ func (c *Cluster) completeActiveHashSlotSnapshots(ctx context.Context) error {
 }
 
 func (c *Cluster) completeHashSlotSnapshot(ctx context.Context, migration slotmigration.Migration) error {
+	if _, err := c.currentManagedSlotLeader(migration.Target); err != nil {
+		return ErrSlotNotFound
+	}
+	fenced, err := c.ensureHashSlotMigrationFenceApplied(ctx, HashSlotMigration{HashSlot: migration.HashSlot, Source: migration.Source, Target: migration.Target, Phase: PhaseSnapshot})
+	if err != nil {
+		return err
+	}
+	if !fenced {
+		return ErrSlotNotFound
+	}
 	snap, sourceApplyIndex, err := c.exportHashSlotSnapshot(ctx, migration.Source, migration.HashSlot)
 	if err != nil {
 		return err
@@ -344,6 +685,9 @@ func (c *Cluster) StartHashSlotMigration(ctx context.Context, hashSlot uint16, t
 	if table == nil {
 		return ErrNotStarted
 	}
+	if !c.cfg.EnableHashSlotMigration {
+		return ErrInvalidConfig
+	}
 	source := table.Lookup(hashSlot)
 	if source == 0 || target == 0 || source == target {
 		return ErrInvalidConfig
@@ -356,20 +700,28 @@ func (c *Cluster) StartHashSlotMigration(ctx context.Context, hashSlot uint16, t
 }
 
 func (c *Cluster) finalizeHashSlotMigration(ctx context.Context, hashSlot uint16, source, target multiraft.SlotID) error {
-	return c.submitHashSlotMigration(ctx, controllerRPCFinalizeMigration, slotcontroller.CommandKindFinalizeMigration, slotcontroller.MigrationRequest{
+	if err := c.submitHashSlotMigration(ctx, controllerRPCFinalizeMigration, slotcontroller.CommandKindFinalizeMigration, slotcontroller.MigrationRequest{
 		HashSlot: hashSlot,
 		Source:   uint64(source),
 		Target:   uint64(target),
-	})
+	}); err != nil {
+		return err
+	}
+	return c.completeHashSlotDeltaOutboxCleanup(ctx, HashSlotMigration{HashSlot: hashSlot, Source: source, Target: target})
 }
 
 func (c *Cluster) AbortHashSlotMigration(ctx context.Context, hashSlot uint16) error {
 	req := slotcontroller.MigrationRequest{HashSlot: hashSlot}
+	var cleanup HashSlotMigration
 	if c != nil {
 		if pending, ok := c.pendingHashSlotAborts[hashSlot]; ok {
 			req.Source = uint64(pending.migration.Source)
 			req.Target = uint64(pending.migration.Target)
-			return c.submitHashSlotMigration(ctx, controllerRPCAbortMigration, slotcontroller.CommandKindAbortMigration, req)
+			cleanup = pending.migration
+			if err := c.submitHashSlotMigration(ctx, controllerRPCAbortMigration, slotcontroller.CommandKindAbortMigration, req); err != nil {
+				return err
+			}
+			return c.completeHashSlotDeltaOutboxCleanup(ctx, cleanup)
 		}
 	}
 	if c != nil && c.router != nil {
@@ -377,10 +729,60 @@ func (c *Cluster) AbortHashSlotMigration(ctx context.Context, hashSlot uint16) e
 			if migration := table.GetMigration(hashSlot); migration != nil {
 				req.Source = uint64(migration.Source)
 				req.Target = uint64(migration.Target)
+				cleanup = *migration
 			}
 		}
 	}
-	return c.submitHashSlotMigration(ctx, controllerRPCAbortMigration, slotcontroller.CommandKindAbortMigration, req)
+	if err := c.submitHashSlotMigration(ctx, controllerRPCAbortMigration, slotcontroller.CommandKindAbortMigration, req); err != nil {
+		return err
+	}
+	if cleanup.Source == 0 || cleanup.Target == 0 {
+		return nil
+	}
+	return c.completeHashSlotDeltaOutboxCleanup(ctx, cleanup)
+}
+
+func (c *Cluster) completeHashSlotDeltaOutboxCleanup(ctx context.Context, migration HashSlotMigration) error {
+	if migration.Source == 0 || migration.Target == 0 {
+		return nil
+	}
+	key := hashSlotDeltaCleanupKey{hashSlot: migration.HashSlot, source: migration.Source, target: migration.Target}
+	if c.pendingHashSlotDeltaCleanups == nil {
+		c.pendingHashSlotDeltaCleanups = make(map[hashSlotDeltaCleanupKey]HashSlotMigration)
+	}
+	c.pendingHashSlotDeltaCleanups[key] = migration
+	if err := c.cleanupHashSlotDeltaOutbox(ctx, migration); err != nil {
+		if errors.Is(err, ErrSlotNotFound) || errors.Is(err, ErrInvalidConfig) {
+			return nil
+		}
+		return err
+	}
+	delete(c.pendingHashSlotDeltaCleanups, key)
+	return nil
+}
+
+func (c *Cluster) cleanupHashSlotDeltaOutbox(ctx context.Context, migration HashSlotMigration) error {
+	if migration.Source == 0 || migration.Target == 0 {
+		return nil
+	}
+	store, ok := c.hashSlotMigrationStore(migration.Source)
+	if !ok {
+		return ErrSlotNotFound
+	}
+	state, err := store.LoadHashSlotMigrationState(ctx, migration.HashSlot)
+	if errors.Is(err, metadb.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if state.SourceSlot != uint64(migration.Source) || state.TargetSlot != uint64(migration.Target) {
+		return nil
+	}
+	if state.LastOutboxIndex == 0 {
+		return nil
+	}
+	return c.proposeHashSlotOutboxCleanup(ctx, migration.Source, migration.HashSlot, migration.Target, state.LastOutboxIndex)
 }
 
 func (c *Cluster) submitHashSlotMigration(ctx context.Context, rpcKind string, commandKind slotcontroller.CommandKind, req slotcontroller.MigrationRequest) error {

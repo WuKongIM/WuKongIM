@@ -502,6 +502,10 @@ func (f fakeObservabilityCluster) ListObservedRuntimeViewsStrict(context.Context
 	return append([]controllermeta.SlotRuntimeView(nil), f.views...), nil
 }
 
+func (f fakeObservabilityCluster) SlotLogStatusOnNode(context.Context, uint64, uint32) (raftcluster.SlotLogStatus, error) {
+	return raftcluster.SlotLogStatus{}, nil
+}
+
 func (f fakeObservabilityCluster) ControllerLeaderID() uint64 { return 0 }
 
 func (f fakeObservabilityCluster) ListTasks(context.Context) ([]controllermeta.ReconcileTask, error) {

@@ -125,11 +125,11 @@ func buildRuntimeView(now time.Time, slotID multiraft.SlotID, status multiraft.S
 	}
 
 	view := controllermeta.SlotRuntimeView{
-		SlotID:       uint32(slotID),
-		CurrentPeers: currentPeers,
-		LeaderID:     uint64(status.LeaderID),
+		SlotID:              uint32(slotID),
+		CurrentPeers:        currentPeers,
+		LeaderID:            uint64(status.LeaderID),
 		ObservedConfigEpoch: observedConfigEpoch,
-		LastReportAt: now,
+		LastReportAt:        now,
 	}
 	if len(currentPeers) > 0 {
 		view.HealthyVoters = uint32(len(currentPeers))

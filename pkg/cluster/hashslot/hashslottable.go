@@ -98,7 +98,7 @@ func (t *HashSlotTable) StartMigration(hashSlot uint16, sourceSlot, targetSlot m
 		Target:   targetSlot,
 		Phase:    PhaseSnapshot,
 	}
-	if existing, ok := t.migrations[hashSlot]; ok && existing == migration {
+	if _, ok := t.migrations[hashSlot]; ok {
 		return
 	}
 	if t.migrations == nil {

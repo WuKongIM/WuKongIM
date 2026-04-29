@@ -44,11 +44,15 @@ const (
 type Config struct {
 	NodeID multiraft.NodeID
 	// Name is this node's human-readable name advertised during dynamic membership joins.
-	Name                         string
-	ListenAddr                   string
-	SlotCount                    uint32
-	HashSlotCount                uint16
-	InitialSlotCount             uint32
+	Name             string
+	ListenAddr       string
+	SlotCount        uint32
+	HashSlotCount    uint16
+	InitialSlotCount uint32
+	// EnableHashSlotMigration allows experimental hash-slot migration workflows.
+	// Keep this disabled unless durable delta forwarding, source fencing, and
+	// recoverable cutover semantics are explicitly accepted.
+	EnableHashSlotMigration      bool
 	ControllerMetaPath           string
 	ControllerRaftPath           string
 	ControllerReplicaN           int

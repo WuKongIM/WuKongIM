@@ -194,6 +194,15 @@ func (c *Cluster) recoverSlotWithAssignments(ctx context.Context, slotID uint32,
 }
 
 func (c *Cluster) AddSlot(ctx context.Context) (multiraft.SlotID, error) {
+	if c == nil {
+		return 0, ErrNotStarted
+	}
+	if c.controllerClient == nil && c.controllerMeta == nil && c.controller == nil {
+		return 0, ErrNotStarted
+	}
+	if !c.cfg.EnableHashSlotMigration {
+		return 0, ErrInvalidConfig
+	}
 	assignments, err := c.listSlotAssignmentsForOperator(ctx)
 	if err != nil {
 		return 0, err
@@ -224,6 +233,9 @@ func (c *Cluster) RemoveSlot(ctx context.Context, slotID multiraft.SlotID) error
 	table := c.GetHashSlotTable()
 	if table == nil {
 		return ErrNotStarted
+	}
+	if !c.cfg.EnableHashSlotMigration {
+		return ErrInvalidConfig
 	}
 	if len(table.ActiveMigrations()) > 0 {
 		return ErrInvalidConfig

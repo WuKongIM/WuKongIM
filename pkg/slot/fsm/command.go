@@ -106,6 +106,8 @@ const (
 
 	// ApplyResultOK is the result returned by Apply/ApplyBatch on success.
 	ApplyResultOK = "ok"
+	// ApplyResultHashSlotFenced reports a committed source write rejected by a migration fence.
+	ApplyResultHashSlotFenced = "hash_slot_fenced"
 
 	// headerSize is version (1) + cmdType (1).
 	headerSize = 2
@@ -143,6 +145,8 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeDeleteChannelUpdateLogs:       decodeDeleteChannelUpdateLogs,
 	cmdTypeApplyDelta:                    decodeApplyDelta,
 	cmdTypeEnterFence:                    decodeEnterFence,
+	cmdTypeAckMigrationOutbox:            decodeAckMigrationOutbox,
+	cmdTypeCleanupMigrationOutbox:        decodeCleanupMigrationOutbox,
 }
 
 // --- UpsertUser ---

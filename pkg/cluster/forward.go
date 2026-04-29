@@ -16,12 +16,15 @@ func (c *Cluster) forwardToLeader(ctx context.Context, leaderID multiraft.NodeID
 	if err != nil {
 		return err
 	}
-	errCode, _, decodeErr := decodeForwardResp(resp)
+	errCode, data, decodeErr := decodeForwardResp(resp)
 	if decodeErr != nil {
 		return fmt.Errorf("decode forward response: %w", decodeErr)
 	}
 	switch errCode {
 	case errCodeOK:
+		if isHashSlotFencedResult(data) {
+			return ErrHashSlotFenced
+		}
 		return nil
 	case errCodeNotLeader:
 		return ErrNotLeader

@@ -484,7 +484,18 @@ func (sm *StateMachine) applyAdvanceMigration(ctx context.Context, req Migration
 	if err != nil {
 		return err
 	}
-	table.AdvanceMigration(req.HashSlot, hashslot.MigrationPhase(req.Phase))
+	migration := table.GetMigration(req.HashSlot)
+	if !migrationRequestMatches(migration, req) {
+		return nil
+	}
+	next := hashslot.MigrationPhase(req.Phase)
+	if migration.Phase == next {
+		return nil
+	}
+	if !legalMigrationPhaseAdvance(migration.Phase, next) {
+		return nil
+	}
+	table.AdvanceMigration(req.HashSlot, next)
 	return sm.store.SaveHashSlotTable(ctx, table)
 }
 
@@ -493,8 +504,15 @@ func (sm *StateMachine) applyFinalizeMigration(ctx context.Context, req Migratio
 	if err != nil {
 		return err
 	}
+	migration := table.GetMigration(req.HashSlot)
+	if !migrationRequestMatches(migration, req) {
+		return nil
+	}
+	if migration.Phase != hashslot.PhaseSwitching {
+		return nil
+	}
 	table.FinalizeMigration(req.HashSlot)
-	sourceSlot := multiraft.SlotID(req.Source)
+	sourceSlot := migration.Source
 	if drainedSlotAssignmentRemovable(table, sourceSlot) {
 		return sm.store.DeleteAssignmentTaskAndSaveHashSlotTable(ctx, uint32(sourceSlot), table)
 	}
@@ -506,8 +524,33 @@ func (sm *StateMachine) applyAbortMigration(ctx context.Context, req MigrationRe
 	if err != nil {
 		return err
 	}
+	migration := table.GetMigration(req.HashSlot)
+	if !migrationRequestMatches(migration, req) {
+		return nil
+	}
 	table.AbortMigration(req.HashSlot)
 	return sm.store.SaveHashSlotTable(ctx, table)
+}
+
+func migrationRequestMatches(migration *hashslot.HashSlotMigration, req MigrationRequest) bool {
+	if migration == nil {
+		return false
+	}
+	if req.Source == 0 || req.Target == 0 {
+		return false
+	}
+	return migration.Source == multiraft.SlotID(req.Source) && migration.Target == multiraft.SlotID(req.Target)
+}
+
+func legalMigrationPhaseAdvance(current, next hashslot.MigrationPhase) bool {
+	switch current {
+	case hashslot.PhaseSnapshot:
+		return next == hashslot.PhaseDelta
+	case hashslot.PhaseDelta:
+		return next == hashslot.PhaseSwitching
+	default:
+		return false
+	}
 }
 
 func (sm *StateMachine) applyAddSlot(ctx context.Context, req AddSlotRequest) error {

@@ -108,6 +108,18 @@ func TestWorkerMigrationPhaseTransitions(t *testing.T) {
 	}
 }
 
+func TestWorkerAllowsHashSlotZeroMigration(t *testing.T) {
+	worker := NewWorker(100, 200*time.Millisecond)
+
+	if err := worker.StartMigration(0, 2, 4); err != nil {
+		t.Fatalf("StartMigration(hashSlot=0) error = %v", err)
+	}
+	active := worker.ActiveMigrations()
+	if len(active) != 1 || active[0].HashSlot != 0 || active[0].Source != 2 || active[0].Target != 4 {
+		t.Fatalf("ActiveMigrations() = %#v, want hash slot 0 migration", active)
+	}
+}
+
 func TestWorkerTickTimesOutStalledMigration(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	worker := NewWorker(100, time.Second)
