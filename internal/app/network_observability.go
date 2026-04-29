@@ -299,12 +299,8 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 			acc.service.P99Ms = durationPercentileMs(acc.durations, 0.99)
 		}
 		snap.Services = append(snap.Services, acc.service)
-		if acc.service.Group == "channel_data_plane" || acc.service.Service == "channel_append" {
-			snap.ChannelReplication.Services = append(snap.ChannelReplication.Services, acc.service)
-		}
 	}
 	sortNetworkServices(snap.Services)
-	sortNetworkServices(snap.ChannelReplication.Services)
 
 	for _, stat := range o.dataPlanePoolStatsLocked() {
 		snap.DataPlanePools = append(snap.DataPlanePools, managementusecase.NetworkPoolPeerStats{

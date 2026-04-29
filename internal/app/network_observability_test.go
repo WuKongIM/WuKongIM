@@ -97,6 +97,8 @@ func TestNetworkObservabilityLongPollTimeoutCountedOnceInManagementSummary(t *te
 	require.NoError(t, err)
 	require.Equal(t, 1, summary.Services[0].ExpectedTimeout1m)
 	require.Equal(t, 1, summary.ChannelReplication.LongPollTimeouts1m)
+	require.Len(t, summary.ChannelReplication.Services, 1)
+	require.Equal(t, "channel_long_poll_fetch", summary.ChannelReplication.Services[0].Service)
 }
 
 func TestNetworkObservabilitySnapshotIncludesConfigAndDataPlanePools(t *testing.T) {
