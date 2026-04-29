@@ -209,8 +209,12 @@ func (r *sendStressFrameReader) ReadWithin(timeout time.Duration) (frame.Frame, 
 				return nil, err
 			}
 			if f != nil && size > 0 {
+				f = cloneSendStressDecodedFrame(f)
 				copy(r.buf, r.buf[size:])
 				r.buf = r.buf[:len(r.buf)-size]
+				if err := applySendStressClientFrameState(r.conn, f); err != nil {
+					return nil, err
+				}
 				return f, nil
 			}
 		}
@@ -1189,6 +1193,48 @@ func TestSendStressFrameReaderPreservesPartialFrameAcrossTimeout(t *testing.T) {
 	require.EqualValues(t, ack.MessageSeq, got.MessageSeq)
 }
 
+func TestSendStressFrameReaderCopiesRecvPayloadBeforeBufferCompaction(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	t.Cleanup(func() {
+		_ = clientConn.Close()
+		_ = serverConn.Close()
+	})
+
+	reader := newSendStressFrameReader(clientConn)
+	first := &frame.RecvPacket{
+		MessageID:   101,
+		MessageSeq:  1,
+		ClientMsgNo: "first",
+		ChannelID:   "sender-a",
+		ChannelType: frame.ChannelTypePerson,
+		FromUID:     "sender-a",
+		Payload:     []byte("first-payload"),
+	}
+	second := &frame.RecvPacket{
+		MessageID:   102,
+		MessageSeq:  2,
+		ClientMsgNo: "second",
+		ChannelID:   "sender-a",
+		ChannelType: frame.ChannelTypePerson,
+		FromUID:     "sender-a",
+		Payload:     []byte("second-payload"),
+	}
+	firstPayload, err := codec.New().EncodeFrame(first, frame.LatestVersion)
+	require.NoError(t, err)
+	secondPayload, err := codec.New().EncodeFrame(second, frame.LatestVersion)
+	require.NoError(t, err)
+
+	go func() {
+		_, _ = serverConn.Write(append(firstPayload, secondPayload...))
+	}()
+
+	f, err := reader.ReadWithin(time.Second)
+	require.NoError(t, err)
+	got, ok := f.(*frame.RecvPacket)
+	require.True(t, ok)
+	require.Equal(t, []byte("first-payload"), got.Payload)
+}
+
 func TestRunSendStressWorkersThroughputModeCapsInflightPerWorker(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
 	t.Cleanup(func() {
@@ -1703,20 +1749,38 @@ func readSendStressFrameWithin(conn net.Conn, timeout time.Duration) (frame.Fram
 	if err != nil {
 		return nil, err
 	}
+	if err := applySendStressClientFrameState(conn, f); err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+func cloneSendStressDecodedFrame(f frame.Frame) frame.Frame {
+	switch pkt := f.(type) {
+	case *frame.RecvPacket:
+		cloned := *pkt
+		cloned.Payload = append([]byte(nil), pkt.Payload...)
+		return &cloned
+	case *frame.SendPacket:
+		cloned := *pkt
+		cloned.Payload = append([]byte(nil), pkt.Payload...)
+		return &cloned
+	default:
+		return f
+	}
+}
+
+func applySendStressClientFrameState(conn net.Conn, f frame.Frame) error {
 	if value, ok := appWKProtoClients.Load(conn); ok {
 		client := value.(*testkit.WKProtoClient)
 		switch pkt := f.(type) {
 		case *frame.ConnackPacket:
-			if err := client.ApplyConnack(pkt); err != nil {
-				return nil, err
-			}
+			return client.ApplyConnack(pkt)
 		case *frame.RecvPacket:
-			if err := client.DecryptRecvPacket(pkt); err != nil {
-				return nil, err
-			}
+			return client.DecryptRecvPacket(pkt)
 		}
 	}
-	return f, nil
+	return nil
 }
 
 func isSendStressClosedConnError(err error) bool {
