@@ -274,7 +274,7 @@ func finalizeHashSlotMigrationOnController(ctx context.Context, nodes []*testNod
 		return errors.New("controller leader not found")
 	}
 	payload := make([]byte, 0, 1+1+4+1+19)
-	payload = append(payload, 1 /* controller codec version */, 13 /* finalize_migration kind */)
+	payload = append(payload, 1 /* controller codec version */, 14 /* finalize_migration kind */)
 	payload = binary.BigEndian.AppendUint32(payload, 0)
 	payload = binary.AppendUvarint(payload, 19)
 	payload = binary.BigEndian.AppendUint16(payload, hashSlot)
@@ -385,23 +385,76 @@ func waitForNoActiveMigrations(t *testing.T, nodes []*testNode, timeout time.Dur
 func waitForHashSlotTargets(t *testing.T, nodes []*testNode, targets map[uint16]multiraft.SlotID, timeout time.Duration) {
 	t.Helper()
 
-	require.Eventually(t, func() bool {
-		for _, node := range nodes {
-			if node == nil || node.cluster == nil {
-				continue
-			}
-			table := node.cluster.GetHashSlotTable()
-			if table == nil {
-				return false
-			}
-			for hashSlot, target := range targets {
-				if table.Lookup(hashSlot) != target {
-					return false
-				}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if hashSlotTargetsReady(nodes, targets) {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	for _, node := range nodes {
+		if node == nil || node.cluster == nil {
+			continue
+		}
+		table := node.cluster.GetHashSlotTable()
+		var lookups map[uint16]multiraft.SlotID
+		if table != nil {
+			lookups = make(map[uint16]multiraft.SlotID, len(targets))
+			for hashSlot := range targets {
+				lookups[hashSlot] = table.Lookup(hashSlot)
 			}
 		}
-		return true
-	}, timeout, 100*time.Millisecond)
+		t.Logf("node=%d tableVersion=%d targetLookups=%v migrations=%+v leaders=%v", node.nodeID, node.cluster.HashSlotTableVersion(), lookups, node.cluster.GetMigrationStatus(), migrationLeaders(node, targets))
+	}
+	require.Failf(t, "hash slot targets did not converge", "targets=%v timeout=%s", targets, timeout)
+}
+
+func migrationLeaders(node *testNode, targets map[uint16]multiraft.SlotID) map[multiraft.SlotID]string {
+	leaders := make(map[multiraft.SlotID]string)
+	if node == nil || node.cluster == nil {
+		return leaders
+	}
+	for _, target := range targets {
+		if _, ok := leaders[target]; ok {
+			continue
+		}
+		leaders[target] = describeLeaderOf(node, target)
+	}
+	for _, migration := range node.cluster.GetMigrationStatus() {
+		if _, ok := leaders[migration.Source]; !ok {
+			leaders[migration.Source] = describeLeaderOf(node, migration.Source)
+		}
+		if _, ok := leaders[migration.Target]; !ok {
+			leaders[migration.Target] = describeLeaderOf(node, migration.Target)
+		}
+	}
+	return leaders
+}
+
+func describeLeaderOf(node *testNode, slotID multiraft.SlotID) string {
+	leader, err := node.cluster.LeaderOf(slotID)
+	if err != nil {
+		return err.Error()
+	}
+	return fmt.Sprintf("%d", leader)
+}
+
+func hashSlotTargetsReady(nodes []*testNode, targets map[uint16]multiraft.SlotID) bool {
+	for _, node := range nodes {
+		if node == nil || node.cluster == nil {
+			continue
+		}
+		table := node.cluster.GetHashSlotTable()
+		if table == nil {
+			return false
+		}
+		for hashSlot, target := range targets {
+			if table.Lookup(hashSlot) != target {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func addSlotOnControllerLeader(t *testing.T, nodes []*testNode) multiraft.SlotID {

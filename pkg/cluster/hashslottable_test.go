@@ -158,6 +158,24 @@ func TestHashSlotTableMigrationLifecycle(t *testing.T) {
 	}
 }
 
+func TestHashSlotTableStartMigrationDoesNotOverwriteActiveMigration(t *testing.T) {
+	table := NewHashSlotTable(8, 2)
+	table.StartMigration(3, 1, 2)
+
+	table.StartMigration(3, 1, 4)
+
+	got := table.GetMigration(3)
+	if got == nil {
+		t.Fatal("GetMigration(3) = nil, want original migration")
+	}
+	assertMigration(t, *got, HashSlotMigration{
+		HashSlot: 3,
+		Source:   1,
+		Target:   2,
+		Phase:    PhaseSnapshot,
+	})
+}
+
 func TestHashSlotTableClonePreservesMigrationState(t *testing.T) {
 	table := NewHashSlotTable(8, 2)
 	table.StartMigration(3, 1, 2)

@@ -332,7 +332,7 @@ func startThreeNodesWithControllerAndHashSlots(t testing.TB, slotCount int, hash
 	root := t.TempDir()
 	for i := range 3 {
 		dir := filepath.Join(root, fmt.Sprintf("n%d", i+1))
-		testNodes[i] = newStartedTestNodeWithHashSlots(
+		testNodes[i] = newStartedTestNodeWithHashSlotsMutate(
 			t,
 			dir,
 			multiraft.NodeID(i+1),
@@ -344,6 +344,9 @@ func startThreeNodesWithControllerAndHashSlots(t testing.TB, slotCount int, hash
 			replicaN,
 			3,
 			true,
+			func(cfg *raftcluster.Config) {
+				cfg.EnableHashSlotMigration = true
+			},
 		)
 	}
 	t.Cleanup(func() { stopNodes(testNodes) })

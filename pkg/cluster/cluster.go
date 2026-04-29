@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
 	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
+	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -56,23 +58,30 @@ type agentResources struct {
 }
 
 type hashSlotRuntimeResources struct {
-	runtimeStateMachinesMu sync.RWMutex
-	runtimeStateMachines   map[multiraft.SlotID]hashSlotOwnershipUpdater
+	runtimeStateMachinesMu       sync.RWMutex
+	runtimeStateMachines         map[multiraft.SlotID]hashSlotOwnershipUpdater
+	pendingHashSlotDeltaCleanups map[hashSlotDeltaCleanupKey]HashSlotMigration
 }
 
 type observationResources struct {
-	observer            *observerLoop
-	heartbeatObserver   *observerLoop
-	runtimeObserver     *observerLoop
-	slowSyncObserver    *observerLoop
-	plannerObserver     *observerLoop
-	migrationObserver   *observerLoop
-	wakeObserver        *signalLoop
-	plannerWakeObserver *signalLoop
-	runtimeReporter     *runtimeObservationReporter
-	wakeState           *observationWakeState
-	wakeSignal          chan struct{}
-	syncInFlight        atomic.Bool
+	// proposeLocalErrorTestHook observes normalized local propose errors in unit tests.
+	proposeLocalErrorTestHook      func(error)
+	proposeHashSlotDeltaTestHook   func(context.Context, multiraft.SlotID, uint16, []byte) error
+	proposeHashSlotFenceTestHook   func(context.Context, multiraft.SlotID, uint16, []byte) error
+	proposeHashSlotAckTestHook     func(context.Context, multiraft.SlotID, uint16, multiraft.SlotID, uint64, []byte) error
+	proposeHashSlotCleanupTestHook func(context.Context, multiraft.SlotID, uint16, multiraft.SlotID, []byte) error
+	observer                       *observerLoop
+	heartbeatObserver              *observerLoop
+	runtimeObserver                *observerLoop
+	slowSyncObserver               *observerLoop
+	plannerObserver                *observerLoop
+	migrationObserver              *observerLoop
+	wakeObserver                   *signalLoop
+	plannerWakeObserver            *signalLoop
+	runtimeReporter                *runtimeObservationReporter
+	wakeState                      *observationWakeState
+	wakeSignal                     chan struct{}
+	syncInFlight                   atomic.Bool
 }
 
 type Cluster struct {
@@ -96,6 +105,12 @@ type Cluster struct {
 type pendingHashSlotAbort struct {
 	migration             HashSlotMigration
 	lastAbortTableVersion uint64
+}
+
+type hashSlotDeltaCleanupKey struct {
+	hashSlot uint16
+	source   multiraft.SlotID
+	target   multiraft.SlotID
 }
 
 type hashSlotOwnershipUpdater interface {
@@ -972,10 +987,14 @@ func (c *Cluster) ProposeWithHashSlot(ctx context.Context, slotID multiraft.Slot
 		if c.router.IsLocal(leaderID) {
 			future, err := c.runtime.Propose(attemptCtx, slotID, payload)
 			if err != nil {
+				err = normalizeProposeError(err)
+				c.notifyProposeLocalErrorForTest(err)
 				return err
 			}
-			_, err = future.Wait(attemptCtx)
-			return err
+			result, err := future.Wait(attemptCtx)
+			err = normalizeProposeError(err)
+			c.notifyProposeLocalErrorForTest(err)
+			return normalizeProposalResult(result, err)
 		}
 		return c.forwardToLeader(attemptCtx, leaderID, slotID, payload)
 	})
@@ -1001,16 +1020,37 @@ func (c *Cluster) ProposeLocalWithHashSlot(ctx context.Context, slotID multiraft
 	payload := encodeProposalPayload(hashSlot, cmd)
 	future, err := c.runtime.Propose(ctx, slotID, payload)
 	if err != nil {
-		if errors.Is(err, multiraft.ErrNotLeader) {
-			return ErrNotLeader
-		}
-		return err
+		return normalizeProposeError(err)
 	}
-	_, err = future.Wait(ctx)
+	result, err := future.Wait(ctx)
+	return normalizeProposalResult(result, normalizeProposeError(err))
+}
+
+func (c *Cluster) notifyProposeLocalErrorForTest(err error) {
+	if err != nil && c.proposeLocalErrorTestHook != nil {
+		c.proposeLocalErrorTestHook(err)
+	}
+}
+
+func normalizeProposeError(err error) error {
 	if errors.Is(err, multiraft.ErrNotLeader) {
 		return ErrNotLeader
 	}
 	return err
+}
+
+func normalizeProposalResult(result multiraft.Result, err error) error {
+	if err != nil {
+		return err
+	}
+	if isHashSlotFencedResult(result.Data) {
+		return ErrHashSlotFenced
+	}
+	return nil
+}
+
+func isHashSlotFencedResult(data []byte) bool {
+	return bytes.Equal(data, []byte(metafsm.ApplyResultHashSlotFenced))
 }
 
 func observerElapsed(start time.Time) time.Duration {
@@ -1209,6 +1249,7 @@ func (c *Cluster) registerRuntimeStateMachine(slotID multiraft.SlotID, sm multir
 	}
 	c.runtimeStateMachines[slotID] = updater
 	c.runtimeStateMachinesMu.Unlock()
+	c.updateRegisteredStateMachineFromHashSlotTable(slotID, updater)
 }
 
 func (c *Cluster) unregisterRuntimeStateMachine(slotID multiraft.SlotID) {
@@ -1228,6 +1269,25 @@ func (c *Cluster) runtimeStateMachine(slotID multiraft.SlotID) (hashSlotOwnershi
 	defer c.runtimeStateMachinesMu.RUnlock()
 	sm, ok := c.runtimeStateMachines[slotID]
 	return sm, ok
+}
+
+func (c *Cluster) updateRegisteredStateMachineFromHashSlotTable(slotID multiraft.SlotID, updater hashSlotOwnershipUpdater) {
+	if c == nil || updater == nil || c.router == nil {
+		return
+	}
+	table := c.router.hashSlotTable.Load()
+	var hashSlots []uint16
+	var outgoingDeltaTargets map[uint16]multiraft.SlotID
+	var incomingDeltaHashSlots []uint16
+	if table != nil {
+		hashSlots = table.HashSlotsOf(slotID)
+		outgoingDeltaTargets, incomingDeltaHashSlots = deltaMigrationRuntimeForSlot(table, slotID)
+	}
+	updater.UpdateOwnedHashSlots(hashSlots)
+	if migrationUpdater, ok := updater.(hashSlotMigrationRuntimeUpdater); ok {
+		migrationUpdater.UpdateOutgoingDeltaTargets(outgoingDeltaTargets)
+		migrationUpdater.UpdateIncomingDeltaHashSlots(incomingDeltaHashSlots)
+	}
 }
 
 // LeaderOf returns the current leader of the specified slot.
@@ -1882,11 +1942,27 @@ func (c *Cluster) hasActiveMigrationObservationWork() bool {
 	if len(c.pendingHashSlotAborts) > 0 {
 		return true
 	}
+	if len(c.pendingHashSlotDeltaCleanups) > 0 {
+		return true
+	}
 	if len(c.migrationWorker.ActiveMigrations()) > 0 {
 		return true
 	}
 	table := c.GetHashSlotTable()
-	return table != nil && len(table.ActiveMigrations()) > 0
+	if table != nil && len(table.ActiveMigrations()) > 0 {
+		return true
+	}
+	return c.hasPersistedHashSlotMigrationStates(context.Background())
+}
+
+func (c *Cluster) hasPersistedHashSlotMigrationStates(ctx context.Context) bool {
+	for _, store := range c.hashSlotMigrationStores() {
+		states, err := store.ListHashSlotMigrationStates(ctx)
+		if err == nil && len(states) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Cluster) signalObservationWake() {

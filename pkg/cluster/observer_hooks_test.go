@@ -10,6 +10,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/slotmigration"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"go.etcd.io/raft/v3/raftpb"
@@ -439,6 +440,7 @@ func TestObserverHooksOnTaskResultClassifiesLeaderTransferSafetyCheck(t *testing
 func TestObserverHooksOnHashSlotMigrationComplete(t *testing.T) {
 	table := NewHashSlotTable(8, 2)
 	table.StartMigration(3, 1, 2)
+	table.AdvanceMigration(3, PhaseSwitching)
 
 	var (
 		gotHashSlot uint16
@@ -448,9 +450,28 @@ func TestObserverHooksOnHashSlotMigrationComplete(t *testing.T) {
 		calls       int
 	)
 	cluster := &Cluster{
-		cfg:             Config{NodeID: 1},
-		router:          NewRouter(table, 1, nil),
-		migrationWorker: &fakeHashSlotMigrationWorker{transitionsByTick: [][]slotmigration.Transition{{{HashSlot: 3, Source: 1, Target: 2, To: slotmigration.PhaseDone}}}},
+		cfg:    Config{NodeID: 1},
+		router: NewRouter(table, 1, nil),
+		migrationWorker: &fakeHashSlotMigrationWorker{
+			active:            []slotmigration.Migration{{HashSlot: 3, Source: 1, Target: 2, Phase: slotmigration.PhaseSwitching}},
+			transitionsByTick: [][]slotmigration.Transition{{{HashSlot: 3, Source: 1, Target: 2, To: slotmigration.PhaseDone}}},
+		},
+		hashSlotRuntimeResources: hashSlotRuntimeResources{
+			runtimeStateMachines: map[multiraft.SlotID]hashSlotOwnershipUpdater{
+				1: &testHashSlotDeltaOutboxStateMachine{
+					state: metadb.HashSlotMigrationState{
+						HashSlot:        3,
+						SourceSlot:      1,
+						TargetSlot:      2,
+						Phase:           uint8(PhaseSwitching),
+						FenceIndex:      42,
+						LastOutboxIndex: 42,
+						LastAckedIndex:  42,
+					},
+					stateOK: true,
+				},
+			},
+		},
 		controllerResources: controllerResources{
 			controllerClient: fakeControllerClient{
 				finalizeMigrationFn: func(_ context.Context, req slotcontroller.MigrationRequest) error {
@@ -471,6 +492,7 @@ func TestObserverHooksOnHashSlotMigrationComplete(t *testing.T) {
 			},
 		},
 	}
+	installHashSlotMaintenanceProposalHooks(cluster, cluster.runtimeStateMachines[1].(*testHashSlotDeltaOutboxStateMachine))
 
 	restore := cluster.setManagedSlotLeaderTestHook(func(_ *Cluster, slotID multiraft.SlotID) (multiraft.NodeID, error, bool) {
 		if slotID != 1 {

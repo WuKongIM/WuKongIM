@@ -61,7 +61,7 @@ Controller metrics 通过 ObserverHooks 记录 `leader_transfer` 任务结果（
 | 类型 | 文件 | 说明 |
 |------|------|------|
 | `Cluster` | cluster.go:59 | 核心结构体，聚合传输/Controller/Agent/ManagedSlot/迁移等全部资源 |
-| `Config` | config.go:32 | 配置容器：NodeID, ListenAddr, InitialSlotCount/SlotCount(仅初始 bootstrap seed), HashSlotCount, 工厂函数, 超时参数, Observer / TransportObserver 等；其中 TransportObserver 用于汇聚传输层 bytes / dial / enqueue / RPC client 可观测信号 |
+| `Config` | config.go:32 | 配置容器：NodeID, ListenAddr, InitialSlotCount/SlotCount(仅初始 bootstrap seed), HashSlotCount, EnableHashSlotMigration(默认关闭的实验性 hash-slot 迁移开关), 工厂函数, 超时参数, Observer / TransportObserver 等；其中 TransportObserver 用于汇聚传输层 bytes / dial / enqueue / RPC client 可观测信号 |
 | `Timeouts` | config.go:59 | 控制器请求 / 重试预算 + observation cadence：heartbeat、runtime scan、slow sync、planner safety、planner wake debounce 等 |
 | `Router` | router.go:9 | 路由器：持有 HashSlotTable(atomic), 负责 key→slot→leader 映射 |
 | `HashSlotTable` | hashslottable.go | Hash Slot 路由表：hashSlot→物理SlotID 映射 + 迁移状态 |
@@ -376,38 +376,72 @@ Execute(ctx, assignment):
 
 入口: `hashslot_migration.go:105 observeHashSlotMigrations`
 
+对外创建入口 `StartHashSlotMigration`、`AddSlot`、`RemoveSlot` 受 `Config.EnableHashSlotMigration` 保护；默认关闭时返回 `ErrInvalidConfig`，避免在 durable delta forwarding、source fencing、recoverable cutover 语义明确接受前启用实验性迁移。已存在迁移的内部观测、推进、完成和中止流程不受该开关影响。
+
 ```
 迁移阶段: Snapshot → Delta → Switching → Done
 
 observeHashSlotMigrations(ctx):
   ① 从 Router.hashSlotTable 加载所有活跃迁移
-  ② 中止不再需要的活跃迁移:
+  ② 先重试 pending source cleanup，并扫描已注册 source 状态机的持久 migration state:
+     → 如果持久 state 对应的 hashSlot/source/target 已不在 Controller 活跃迁移中，
+       向 source Slot 复制 bounded cleanup 维护命令；这样 finalize/abort 成功后即使节点重启丢失内存 pending map，
+       也能通过持久 state 重新发现并清理 source fence/outbox。
+     → 如果 source Slot 已因 RemoveSlot finalize 被关闭、但同一节点仍有其他已注册状态机可访问共享 metadb，
+       observer 可使用该状态机执行 bounded local cleanup 作为退休 source Slot 的恢复路径。
+  ③ 中止不再需要的活跃迁移:
      → migrationWorker.AbortMigration(hashSlot)
-  ③ 启动新迁移:
+       仅在 Controller 迁移已消失或 source/target 被重新规划时清理 source durable delta outbox；
+       本节点只是暂时不再是 source Leader 时只停止本地 worker，不能删除恢复用 outbox。
+  ④ 启动新迁移:
      条件: shouldExecuteHashSlotMigration (本节点是 source Leader)
      → migrationWorker.StartMigration(hashSlot, source, target)
-  ④ 标记切换完成:
-     Phase == PhaseSwitching → migrationWorker.MarkSwitchComplete(hashSlot)
   ⑤ 完成 Snapshot 阶段:
      Phase == PhaseSnapshot:
+       → 先确认 target Slot 已有 Leader / 可导入快照，避免在 target 尚不可用时提前 fence source
+       → 再向 source Slot 提案 EnterFence，确保 FenceIndex 已在 source apply 路径持久化，
+         从而阻止 snapshot apply index 之后的新 source 写入落在 snapshot/outbox 之外
        → exportHashSlotSnapshot(source, hashSlot)
          状态机导出指定 hashSlot 的数据快照 + 记录 sourceApplyIndex
        → importHashSlotSnapshot(target, snap)
          Leader 本地: 直接 import / 远程: RPC(import_snapshot)
        → migrationWorker.MarkSnapshotComplete(hashSlot, sourceApplyIndex, bytes)
-  ⑥ migrationWorker.Tick() → 产生 Transition:
-     → PhaseDelta: advanceHashSlotMigration (Propose 到 Controller)
+  ⑥ replay durable delta outbox:
+     PhaseDelta / PhaseSwitching 且本节点是 source Leader 时，从 source 状态机批量读取持久 outbox，
+     封装 apply_delta 后提案到 target；只有目标提案成功才向 source Slot 复制 ack 维护命令。
+     如果 source outbox 不可检查，或本轮读取达到 replay limit，视为未 drained。
+  ⑦ source fence / switch readiness:
+     若准备进入 Switching 或 Controller 已处于 Switching，必须确认 source Slot 已持久化 EnterFence；
+     source fsm 持久 fence marker 到 durable outbox，之后普通 source 写入返回 fenced 结果且不让 Raft apply 失败，
+     仅允许 apply_delta / fence 等迁移维护命令；
+     fence marker 被 target apply_delta 并 ack 后，才认为 fence ready。
+  ⑧ 标记切换完成:
+     Phase == PhaseSwitching 且 durable delta outbox 已确认 drained 且 source fence ready → migrationWorker.MarkSwitchComplete(hashSlot)
+  ⑨ migrationWorker.Tick() → 产生 Transition:
+     → PhaseDelta: advanceHashSlotMigration (Propose 到 Controller，payload 携带 hashSlot/source/target/phase)
        同时 fsm 层的 DeltaForwarder 将 live write 转发到 target Slot
-     → PhaseSwitching: advanceHashSlotMigration
-     → PhaseDone: finalizeHashSlotMigration → 更新 HashSlotTable
+     → PhaseSwitching: 仅 durable delta outbox 已确认 drained 且 source fence ready 时 advanceHashSlotMigration（同样携带 source/target identity）
+     → PhaseDone: 仅 durable delta outbox 已确认 drained 且 source fence ready 时 finalizeHashSlotMigration → 更新 HashSlotTable
+       → finalize 成功后向 source Slot 复制 cleanup 维护命令清理 durable delta outbox，cleanup payload 携带 throughIndex，
+         source fsm 只删除 <= throughIndex 的 outbox row，且只有当前 state.LastOutboxIndex 非 0 且不大于 throughIndex 时删除 migration state，
+         防止旧 cleanup 命令擦除同方向的新迁移状态。
        → 成功后通过 OnHashSlotMigration 上报 `result=ok`
      → TimedOut: AbortHashSlotMigration + 记录 pendingAbort
+       → abort 成功后向 source Slot 复制 bounded cleanup 维护命令清理 durable delta outbox，清理失败会登记 pending retry
        → 成功后通过 OnHashSlotMigration 上报 `result=abort`
 
 Delta 转发 (运行时):
+  Controller 表处于 Snapshot 时 target runtime 已发布 incoming delta 标记，保证新增物理 Slot 可用被迁移 hashSlot bootstrap/import；
+  target fsm 对 apply_delta 维护命令做幂等接收，即使 follower 的 runtime incoming 标记落后于 Raft 数据面也不能把 Slot 置为 fatal；
+  Controller 表处于 Delta 或 Switching 时，source runtime 发布 outgoing 标记，target runtime 继续保留 incoming 标记；
+  target import snapshot 后不会删除 hashSlot 的 source migration state/outbox；这些记录是 source fence 和 cleanup recovery 的一部分，
+  后续由 finalize/abort cleanup 或 orphaned-state reconciler 清理。
+  普通 Raft snapshot restore 仍使用 exact import，会替换 state/index/meta span，避免本地旧 migration meta 污染恢复后的状态；
+  只有 live hash-slot 迁移导入路径保留本地 migration meta。
   源 Slot fsm 收到被迁移 hashSlot 的 apply → makeHashSlotDeltaForwarder:
+    → 同一 apply batch 中先把原始 source command 写入 durable delta outbox
     → 封装 EncodeApplyDeltaCommand → ProposeWithHashSlot(target, hashSlot, payload)
-    → 重试直到成功或 Cluster 停止
+    → live forwarding 最佳努力重试直到成功或 Cluster 停止；失败不阻塞 source apply，后续 observer 通过 durable outbox replay 恢复
 ```
 
 ### 5.8 Controller RPC
@@ -463,16 +497,18 @@ Delta 转发 (运行时):
 
 ```
 AddSlot(ctx):
-  ① 严格读取 Controller Leader 的 SlotAssignment 和 RuntimeViews；观测未 ready 时返回 ErrObservationNotReady，不回退本地缓存
-  ② 若 HashSlotTable 存在活跃迁移 → ErrInvalidConfig（管理层映射为迁移冲突）
-  ③ 选择 max(assignment.SlotID)+1 作为新物理 Slot，复用当前最小 Slot 的 DesiredPeers
-  ④ 新 Slot PreferredLeader 按当前 Leader 负载选择：Runtime Leader 非 0 时优先计入实际 Leader，否则计入 assignment.PreferredLeader
-  ⑤ 提案 AddSlot（携带 PreferredLeader）；Controller 持久化新 Assignment + Bootstrap task，并生成迁入新 Slot 的 hash-slot migration
+  ① 若 `EnableHashSlotMigration=false` → ErrInvalidConfig（该入口会创建 hash-slot 迁移）
+  ② 严格读取 Controller Leader 的 SlotAssignment 和 RuntimeViews；观测未 ready 时返回 ErrObservationNotReady，不回退本地缓存
+  ③ 若 HashSlotTable 存在活跃迁移 → ErrInvalidConfig（管理层映射为迁移冲突）
+  ④ 选择 max(assignment.SlotID)+1 作为新物理 Slot，复用当前最小 Slot 的 DesiredPeers
+  ⑤ 新 Slot PreferredLeader 按当前 Leader 负载选择：Runtime Leader 非 0 时优先计入实际 Leader，否则计入 assignment.PreferredLeader
+  ⑥ 提案 AddSlot（携带 PreferredLeader）；Controller 持久化新 Assignment + Bootstrap task，并生成迁入新 Slot 的 hash-slot migration
 
 RemoveSlot(ctx, slotID):
-  ① 若 HashSlotTable 缺失 / slotID 不存在 / 存在任意活跃迁移 / 将移除最后一个物理 Slot → 拒绝
-  ② 提案 RemoveSlot；Controller 生成迁出该 Slot 的 hash-slot migration
-  ③ 被移除 Slot 的 Assignment 暂时保留；最后一个迁移 Finalize 后由 Controller 删除 Assignment/Task
+  ① 若 `EnableHashSlotMigration=false` → ErrInvalidConfig（该入口会创建 hash-slot 迁移）
+  ② 若 HashSlotTable 缺失 / slotID 不存在 / 存在任意活跃迁移 / 将移除最后一个物理 Slot → 拒绝
+  ③ 提案 RemoveSlot；Controller 生成迁出该 Slot 的 hash-slot migration
+  ④ 被移除 Slot 的 Assignment 暂时保留；最后一个迁移 Finalize 后由 Controller 删除 Assignment/Task
 
 SlotIDs()/planner/readiness:
   - 当前物理 Slot 集合以 Controller Assignment / HashSlotTable 为准。
@@ -551,7 +587,9 @@ SlotIDs()/planner/readiness:
 - **ensureLocal 三条路径**: 有 HardState → Open；无 HardState+bootstrapAuthorized → Bootstrap；无 HardState+hasRuntimeView → Open 等 Leader 添加。混淆条件会导致 Slot 无法加入集群或重复 Bootstrap。
 - **Bootstrap 只在任务执行节点授权时**: `bootstrapAuthorized=true` 仅在 `reconciler.Tick` 中确认 `TaskKindBootstrap` 可运行且本节点是执行节点后才传入。防止非目标节点提前 Bootstrap 同一 Slot。
 - **Hash Slot 迁移仅 Source Leader 执行**: `shouldExecuteHashSlotMigration` 检查本节点是否是 source Slot 的 Leader。非 Leader 节点会跳过迁移操作。Leader 切换后迁移自然转移到新 Leader。
-- **Delta 转发无限重试**: `forwardHashSlotDelta` 在后台 goroutine 中无限重试直到成功或 Cluster 停止。这保证了迁移期间 live write 不会丢失，但也意味着 Cluster.Stop 前需等待所有 pending delta 发送完毕。
+- **Delta 转发由 durable outbox 兜底**: `forwardHashSlotDelta` 是 live best-effort 重试并会在 Cluster 停止时退出；迁移期间的恢复语义依赖 source fsm 同批写入的 durable outbox，以及 observer 后续 replay/ack，而不是等待后台 goroutine 全部发送完毕。
+- **Controller 迁移命令必须带完整 identity**: Advance / Finalize / Abort 必须携带当前 migration 的 source 和 target；source/target 缺失或不匹配按 stale no-op 处理，避免旧命令修改同一 hashSlot 的新迁移。
+- **HashSlotTable 不覆盖活跃迁移**: 同一 hashSlot 已有 active migration 时，新的 StartMigration 不会替换原 migration；需要先 finalize / abort 旧迁移。
 - **pendingTaskReport 防重复上报**: 任务执行完成后如果 `reportTaskResult` RPC 失败，会暂存为 `pendingTaskReport`，下一轮 Tick 重试上报。如果 Controller 侧任务已变更（identity 不匹配），旧结果会被丢弃。
 - **ControllerClient Leader 探测有个体超时**: `call()` 对每个 peer 设置独立的 `controllerRequestTimeout`，避免一个慢 peer 耗尽整个重试预算。
 - **observeOnce 容忍 SyncAssignments 失败**: 即使 `SyncAssignments` 返回错误，只要本地有缓存的 assignments 且错误是可降级的，仍会触发 `ApplyAssignments`。保证网络抖动时调和不停滞。

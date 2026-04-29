@@ -317,6 +317,24 @@ func TestStateMachineFinalizeMigrationDeletesDrainedSlotAssignment(t *testing.T)
 	require.NoError(t, err)
 	for _, migration := range loaded.ActiveMigrations() {
 		require.NoError(t, sm.Apply(ctx, Command{
+			Kind: CommandKindAdvanceMigration,
+			Migration: &MigrationRequest{
+				HashSlot: migration.HashSlot,
+				Source:   uint64(migration.Source),
+				Target:   uint64(migration.Target),
+				Phase:    uint8(hashslot.PhaseDelta),
+			},
+		}))
+		require.NoError(t, sm.Apply(ctx, Command{
+			Kind: CommandKindAdvanceMigration,
+			Migration: &MigrationRequest{
+				HashSlot: migration.HashSlot,
+				Source:   uint64(migration.Source),
+				Target:   uint64(migration.Target),
+				Phase:    uint8(hashslot.PhaseSwitching),
+			},
+		}))
+		require.NoError(t, sm.Apply(ctx, Command{
 			Kind: CommandKindFinalizeMigration,
 			Migration: &MigrationRequest{
 				HashSlot: migration.HashSlot,

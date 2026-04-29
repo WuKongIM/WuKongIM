@@ -2,9 +2,11 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
@@ -67,5 +69,31 @@ func TestForwardToLeader_NotLeader(t *testing.T) {
 	err := c.forwardToLeader(ctx, 2, 1, []byte("test"))
 	if err != ErrNotLeader {
 		t.Fatalf("expected ErrNotLeader, got: %v", err)
+	}
+}
+
+func TestForwardToLeaderHashSlotFencedResult(t *testing.T) {
+	srv := transport.NewServer()
+	mux := transport.NewRPCMux()
+	mux.Handle(rpcServiceForward, func(context.Context, []byte) ([]byte, error) {
+		return encodeForwardResp(errCodeOK, []byte(metafsm.ApplyResultHashSlotFenced)), nil
+	})
+	srv.HandleRPCMux(mux)
+	if err := srv.Start("127.0.0.1:0"); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Stop()
+
+	d := NewStaticDiscovery([]NodeConfig{{NodeID: 2, Addr: srv.Listener().Addr().String()}})
+	pool := transport.NewPool(d, 2, 5*time.Second)
+	defer pool.Close()
+	client := transport.NewClient(pool)
+	defer client.Stop()
+
+	c := &Cluster{transportResources: transportResources{fwdClient: client}}
+
+	err := c.forwardToLeader(context.Background(), 2, 1, []byte("test"))
+	if !errors.Is(err, ErrHashSlotFenced) {
+		t.Fatalf("forwardToLeader() err = %v, want ErrHashSlotFenced", err)
 	}
 }

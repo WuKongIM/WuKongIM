@@ -94,6 +94,16 @@ func (db *DB) ExportHashSlotSnapshot(ctx context.Context, hashSlots []uint16) (S
 }
 
 func (db *DB) ImportHashSlotSnapshot(ctx context.Context, snap SlotSnapshot) error {
+	return db.importHashSlotSnapshot(ctx, snap, false)
+}
+
+// ImportHashSlotSnapshotPreservingMigrationMeta imports a live migration snapshot
+// without overwriting local migration coordination metadata.
+func (db *DB) ImportHashSlotSnapshotPreservingMigrationMeta(ctx context.Context, snap SlotSnapshot) error {
+	return db.importHashSlotSnapshot(ctx, snap, true)
+}
+
+func (db *DB) importHashSlotSnapshot(ctx context.Context, snap SlotSnapshot, preserveMigrationMeta bool) error {
 	if len(snap.HashSlots) == 0 {
 		return ErrInvalidArgument
 	}
@@ -122,14 +132,14 @@ func (db *DB) ImportHashSlotSnapshot(ctx context.Context, snap SlotSnapshot) err
 		defer batch.Close()
 
 		for _, hashSlot := range snap.HashSlots {
-			for _, span := range hashSlotAllDataSpans(hashSlot) {
+			for _, span := range hashSlotSnapshotReplaceSpans(hashSlot, preserveMigrationMeta) {
 				if err := batch.DeleteRange(span.Start, span.End, nil); err != nil {
 					return err
 				}
 			}
 		}
 		for _, entry := range decoded.Entries {
-			if err := batch.Set(entry.Key, entry.Value, nil); err != nil {
+			if err := db.stageSlotSnapshotEntry(batch, entry, preserveMigrationMeta); err != nil {
 				return err
 			}
 		}
@@ -137,11 +147,6 @@ func (db *DB) ImportHashSlotSnapshot(ctx context.Context, snap SlotSnapshot) err
 		return batch.Commit(pebble.Sync)
 	}
 
-	for _, hashSlot := range snap.HashSlots {
-		if err := db.DeleteHashSlotData(ctx, hashSlot); err != nil {
-			return err
-		}
-	}
 	if err := db.checkContext(ctx); err != nil {
 		return err
 	}
@@ -149,11 +154,27 @@ func (db *DB) ImportHashSlotSnapshot(ctx context.Context, snap SlotSnapshot) err
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
+	deleteBatch := db.db.NewBatch()
+
+	for _, hashSlot := range snap.HashSlots {
+		for _, span := range hashSlotSnapshotReplaceSpans(hashSlot, preserveMigrationMeta) {
+			if err := deleteBatch.DeleteRange(span.Start, span.End, nil); err != nil {
+				deleteBatch.Close()
+				return err
+			}
+		}
+	}
+	if err := deleteBatch.Commit(pebble.Sync); err != nil {
+		deleteBatch.Close()
+		return err
+	}
+	deleteBatch.Close()
+
 	batch := db.db.NewBatch()
 	defer batch.Close()
 
 	for _, entry := range decoded.Entries {
-		if err := batch.Set(entry.Key, entry.Value, nil); err != nil {
+		if err := db.stageSlotSnapshotEntry(batch, entry, preserveMigrationMeta); err != nil {
 			return err
 		}
 	}
@@ -165,4 +186,27 @@ func (db *DB) ImportHashSlotSnapshot(ctx context.Context, snap SlotSnapshot) err
 	}
 
 	return batch.Commit(pebble.Sync)
+}
+
+func hashSlotSnapshotReplaceSpans(hashSlot uint16, preserveMigrationMeta bool) []Span {
+	if !preserveMigrationMeta {
+		return hashSlotAllDataSpans(hashSlot)
+	}
+	return []Span{
+		hashSlotStateSpan(hashSlot),
+		hashSlotIndexSpan(hashSlot),
+	}
+}
+
+func (db *DB) stageSlotSnapshotEntry(batch *pebble.Batch, entry snapshotEntry, preserveMigrationMeta bool) error {
+	if preserveMigrationMeta && isHashSlotMigrationMetaKey(entry.Key) {
+		exists, err := db.hasKey(entry.Key)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return nil
+		}
+	}
+	return batch.Set(entry.Key, entry.Value, nil)
 }

@@ -69,7 +69,7 @@ func NewWorker(stableThreshold int64, stableWindow time.Duration) *Worker {
 }
 
 func (w *Worker) StartMigration(hashSlot uint16, source, target multiraft.SlotID) error {
-	if w == nil || hashSlot == 0 || source == 0 || target == 0 || source == target {
+	if w == nil || source == 0 || target == 0 || source == target {
 		return errors.New("slotmigration: invalid migration")
 	}
 	w.ensureState()

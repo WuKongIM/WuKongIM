@@ -142,6 +142,7 @@ func TestRecoverSlotStrictReturnsNotFoundWhenStrictAssignmentsMissSlot(t *testin
 func TestAddSlotChoosesNextSlotIDAndCurrentPeers(t *testing.T) {
 	var got slotcontroller.AddSlotRequest
 	cluster := &Cluster{
+		cfg: Config{EnableHashSlotMigration: true},
 		controllerResources: controllerResources{
 			controllerLeaderWaitTimeout: testControllerLeaderWaitTimeout,
 			controllerClient: fakeControllerClient{
@@ -182,12 +183,37 @@ func TestAddSlotChoosesNextSlotIDAndCurrentPeers(t *testing.T) {
 	}
 }
 
+func TestAddSlotDisabledReturnsInvalidConfigWithoutControllerCall(t *testing.T) {
+	called := false
+	cluster := &Cluster{
+		controllerResources: controllerResources{
+			controllerLeaderWaitTimeout: testControllerLeaderWaitTimeout,
+			controllerClient: fakeControllerClient{
+				assignments: []controllermeta.SlotAssignment{
+					{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}},
+					{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}},
+				},
+				addSlotFn: func(_ context.Context, _ slotcontroller.AddSlotRequest) error {
+					called = true
+					return nil
+				},
+			},
+		},
+	}
+
+	_, err := cluster.AddSlot(context.Background())
+
+	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.False(t, called)
+}
+
 func TestAddSlotRejectsActiveMigrations(t *testing.T) {
 	table := NewHashSlotTable(8, 2)
 	table.StartMigration(3, 1, 2)
 
 	called := false
 	cluster := &Cluster{
+		cfg:    Config{EnableHashSlotMigration: true},
 		router: NewRouter(table, 1, nil),
 		controllerResources: controllerResources{
 			controllerLeaderWaitTimeout: testControllerLeaderWaitTimeout,
@@ -248,6 +274,7 @@ func TestNextSlotDefinitionFallsBackToPreferredLeaderWhenRuntimeMissing(t *testi
 func TestRemoveSlotSubmitsControllerCommand(t *testing.T) {
 	var got slotcontroller.RemoveSlotRequest
 	cluster := &Cluster{
+		cfg:    Config{EnableHashSlotMigration: true},
 		router: NewRouter(NewHashSlotTable(8, 2), 1, nil),
 		controllerResources: controllerResources{
 			controllerLeaderWaitTimeout: testControllerLeaderWaitTimeout,
@@ -272,12 +299,38 @@ func TestRemoveSlotSubmitsControllerCommand(t *testing.T) {
 	}
 }
 
+func TestRemoveSlotDisabledReturnsInvalidConfigWithoutControllerCall(t *testing.T) {
+	called := false
+	cluster := &Cluster{
+		router: NewRouter(NewHashSlotTable(8, 2), 1, nil),
+		controllerResources: controllerResources{
+			controllerLeaderWaitTimeout: testControllerLeaderWaitTimeout,
+			controllerClient: fakeControllerClient{
+				assignments: []controllermeta.SlotAssignment{
+					{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}},
+					{SlotID: 2, DesiredPeers: []uint64{1, 2, 3}},
+				},
+				removeSlotFn: func(_ context.Context, _ slotcontroller.RemoveSlotRequest) error {
+					called = true
+					return nil
+				},
+			},
+		},
+	}
+
+	err := cluster.RemoveSlot(context.Background(), 2)
+
+	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.False(t, called)
+}
+
 func TestRemoveSlotRejectsAnyActiveMigration(t *testing.T) {
 	table := NewHashSlotTable(8, 3)
 	table.StartMigration(2, 1, 2)
 
 	called := false
 	cluster := &Cluster{
+		cfg:    Config{EnableHashSlotMigration: true},
 		router: NewRouter(table, 1, nil),
 		controllerResources: controllerResources{
 			controllerLeaderWaitTimeout: testControllerLeaderWaitTimeout,
@@ -307,6 +360,7 @@ func TestRemoveSlotRejectsActiveMigrationBeforeOwnershipCheck(t *testing.T) {
 
 	called := false
 	cluster := &Cluster{
+		cfg:    Config{EnableHashSlotMigration: true},
 		router: NewRouter(table, 1, nil),
 		controllerResources: controllerResources{
 			controllerLeaderWaitTimeout: testControllerLeaderWaitTimeout,
@@ -332,6 +386,7 @@ func TestRemoveSlotRejectsActiveMigrationBeforeOwnershipCheck(t *testing.T) {
 func TestRemoveSlotRejectsLastPhysicalSlot(t *testing.T) {
 	called := false
 	cluster := &Cluster{
+		cfg:    Config{EnableHashSlotMigration: true},
 		router: NewRouter(NewHashSlotTable(8, 1), 1, nil),
 		controllerResources: controllerResources{
 			controllerLeaderWaitTimeout: testControllerLeaderWaitTimeout,
@@ -362,6 +417,7 @@ func TestRebalanceStartsMigrationsFromCurrentTable(t *testing.T) {
 
 	var started []slotcontroller.MigrationRequest
 	cluster := &Cluster{
+		cfg:    Config{EnableHashSlotMigration: true},
 		router: NewRouter(table, 1, nil),
 		controllerResources: controllerResources{
 			controllerLeaderWaitTimeout: testControllerLeaderWaitTimeout,
