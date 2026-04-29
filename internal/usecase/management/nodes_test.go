@@ -8,6 +8,7 @@ import (
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )
 
@@ -260,6 +261,7 @@ type fakeClusterReader struct {
 	onboardingJobs              []controllermeta.NodeOnboardingJob
 	onboardingHasMore           bool
 	listOnboardingJobsErr       error
+	transportStats              []transport.PoolPeerStats
 }
 
 type slotLogStatusKey struct {
@@ -404,6 +406,10 @@ func (f fakeClusterReader) GetNodeOnboardingJob(context.Context, string) (contro
 
 func (f fakeClusterReader) RetryNodeOnboardingJob(context.Context, string) (controllermeta.NodeOnboardingJob, error) {
 	return controllermeta.NodeOnboardingJob{}, nil
+}
+
+func (f fakeClusterReader) TransportPoolStats() []transport.PoolPeerStats {
+	return append([]transport.PoolPeerStats(nil), f.transportStats...)
 }
 
 type nodeSummary struct {
