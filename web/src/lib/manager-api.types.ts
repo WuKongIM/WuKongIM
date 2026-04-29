@@ -289,9 +289,33 @@ export type SlotListParams = {
   nodeId?: number
 }
 
+export type SlotLogListParams = {
+  nodeId: number
+  limit?: number
+  cursor?: number
+}
+
 export type ManagerSlotsResponse = {
   total: number
   items: ManagerSlot[]
+}
+
+export type ManagerSlotLogEntry = {
+  index: number
+  term: number
+  type: string
+  data_size: number
+}
+
+export type ManagerSlotLogsResponse = {
+  node_id: number
+  slot_id: number
+  first_index: number
+  last_index: number
+  commit_index: number
+  applied_index: number
+  next_cursor?: number
+  items: ManagerSlotLogEntry[]
 }
 
 export type ManagerTask = {

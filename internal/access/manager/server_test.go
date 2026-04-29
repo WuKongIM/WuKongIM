@@ -1127,6 +1127,78 @@ func TestManagerSlotsFiltersByNodeAndReturnsNodeLogStatus(t *testing.T) {
 	}`, rec.Body.String())
 }
 
+func TestManagerSlotLogsReturnsNodeScopedEntries(t *testing.T) {
+	var reqSink managementusecase.ListSlotLogEntriesRequest
+	stub := managementStub{
+		slotLogEntriesReqSink: &reqSink,
+		slotLogEntriesPage: managementusecase.SlotLogEntriesResponse{
+			NodeID:       2,
+			SlotID:       9,
+			FirstIndex:   1,
+			LastIndex:    4,
+			CommitIndex:  4,
+			AppliedIndex: 3,
+			NextCursor:   3,
+			Items: []managementusecase.SlotLogEntry{{
+				Index:    4,
+				Term:     2,
+				Type:     "normal",
+				DataSize: 12,
+			}, {
+				Index:    3,
+				Term:     2,
+				Type:     "conf_change",
+				DataSize: 8,
+			}},
+		},
+	}
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.slot",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: stub,
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/slots/9/logs?node_id=2&limit=2&cursor=5", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, managementusecase.ListSlotLogEntriesRequest{
+		NodeID: 2,
+		SlotID: 9,
+		Limit:  2,
+		Cursor: 5,
+	}, reqSink)
+	require.JSONEq(t, `{
+		"node_id": 2,
+		"slot_id": 9,
+		"first_index": 1,
+		"last_index": 4,
+		"commit_index": 4,
+		"applied_index": 3,
+		"next_cursor": 3,
+		"items": [{
+			"index": 4,
+			"term": 2,
+			"type": "normal",
+			"data_size": 12
+		}, {
+			"index": 3,
+			"term": 2,
+			"type": "conf_change",
+			"data_size": 8
+		}]
+	}`, rec.Body.String())
+}
+
 func TestManagerSlotsRejectsInvalidNodeFilter(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
@@ -2683,6 +2755,9 @@ type managementStub struct {
 	slots                           []managementusecase.Slot
 	slotsErr                        error
 	listSlotsOptionsSink            *managementusecase.ListSlotsOptions
+	slotLogEntriesReqSink           *managementusecase.ListSlotLogEntriesRequest
+	slotLogEntriesPage              managementusecase.SlotLogEntriesResponse
+	slotLogEntriesErr               error
 	slotDetail                      managementusecase.SlotDetail
 	slotDetailErr                   error
 	tasks                           []managementusecase.Task
@@ -2794,6 +2869,13 @@ func (s managementStub) ListSlots(_ context.Context, opts managementusecase.List
 
 func (s managementStub) GetSlot(context.Context, uint32) (managementusecase.SlotDetail, error) {
 	return s.slotDetail, s.slotDetailErr
+}
+
+func (s managementStub) ListSlotLogEntries(_ context.Context, req managementusecase.ListSlotLogEntriesRequest) (managementusecase.SlotLogEntriesResponse, error) {
+	if s.slotLogEntriesReqSink != nil {
+		*s.slotLogEntriesReqSink = req
+	}
+	return s.slotLogEntriesPage, s.slotLogEntriesErr
 }
 
 func (s managementStub) AddSlot(context.Context) (managementusecase.SlotDetail, error) {

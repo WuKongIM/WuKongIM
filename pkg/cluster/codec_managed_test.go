@@ -87,6 +87,48 @@ func TestManagedSlotStatusResponseDecodeOldPayloadDefaultsCurrentVoters(t *testi
 	}
 }
 
+func TestManagedSlotLogsCodecRoundTrip(t *testing.T) {
+	reqBody, err := encodeManagedSlotRequest(managedSlotRPCRequest{
+		Kind:   managedSlotRPCLogs,
+		SlotID: 9,
+		Limit:  2,
+		Cursor: 5,
+	})
+	if err != nil {
+		t.Fatalf("encodeManagedSlotRequest() error = %v", err)
+	}
+	req, err := decodeManagedSlotRequest(reqBody)
+	if err != nil {
+		t.Fatalf("decodeManagedSlotRequest() error = %v", err)
+	}
+	if req.Kind != managedSlotRPCLogs || req.SlotID != 9 || req.Limit != 2 || req.Cursor != 5 {
+		t.Fatalf("managed slot logs request round trip = %+v", req)
+	}
+
+	respBody, err := encodeManagedSlotResponse(managedSlotRPCResponse{
+		FirstIndex: 1,
+		LastIndex:  4,
+		NextCursor: 3,
+		LogEntries: []managedSlotLogEntry{{
+			Index:    4,
+			Term:     2,
+			Type:     "normal",
+			DataSize: 12,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("encodeManagedSlotResponse() error = %v", err)
+	}
+	resp, err := decodeManagedSlotResponse(respBody)
+	if err != nil {
+		t.Fatalf("decodeManagedSlotResponse() error = %v", err)
+	}
+	wantEntries := []managedSlotLogEntry{{Index: 4, Term: 2, Type: "normal", DataSize: 12}}
+	if resp.FirstIndex != 1 || resp.LastIndex != 4 || resp.NextCursor != 3 || !reflect.DeepEqual(resp.LogEntries, wantEntries) {
+		t.Fatalf("managed slot logs response round trip = %+v", resp)
+	}
+}
+
 func TestManagedSlotResponseDecodeMapsErrorFlags(t *testing.T) {
 	body, err := encodeManagedSlotResponse(managedSlotRPCResponse{NotLeader: true})
 	if err != nil {

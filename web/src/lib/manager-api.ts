@@ -16,6 +16,7 @@ import type {
   ManagerOverviewResponse,
   ManagerPermission,
   ManagerSlotDetailResponse,
+  ManagerSlotLogsResponse,
   ManagerSlotRemoveResponse,
   ManagerSlotRecoverResponse,
   ManagerSlotRebalanceResponse,
@@ -25,6 +26,7 @@ import type {
   MessageListParams,
   NodeOnboardingJobsParams,
   SlotListParams,
+  SlotLogListParams,
   RecoverSlotInput,
   TransferSlotLeaderInput,
   CreateNodeOnboardingPlanInput,
@@ -276,6 +278,18 @@ export function getSlots(params: SlotListParams = {}) {
 
 export function getSlot(slotId: number) {
   return jsonManagerFetch<ManagerSlotDetailResponse>(`/manager/slots/${slotId}`)
+}
+
+export function getSlotLogs(slotId: number, params: SlotLogListParams) {
+  const search = new URLSearchParams()
+  search.set("node_id", String(params.nodeId))
+  if (typeof params.limit === "number") {
+    search.set("limit", String(params.limit))
+  }
+  if (typeof params.cursor === "number") {
+    search.set("cursor", String(params.cursor))
+  }
+  return jsonManagerFetch<ManagerSlotLogsResponse>(`/manager/slots/${slotId}/logs?${search.toString()}`)
 }
 
 export function addSlot() {

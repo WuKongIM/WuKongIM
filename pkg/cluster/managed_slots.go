@@ -14,6 +14,7 @@ import (
 const (
 	rpcServiceManagedSlot        uint8  = 20
 	managedSlotRPCStatus         string = "status"
+	managedSlotRPCLogs           string = "logs"
 	managedSlotRPCChangeConfig   string = "change_config"
 	managedSlotRPCImportSnapshot string = "import_snapshot"
 	managedSlotRPCTransferLeader string = "transfer_leader"
@@ -25,6 +26,8 @@ type managedSlotRPCRequest struct {
 	TargetNode uint64               `json:"target_node,omitempty"`
 	ChangeType multiraft.ChangeType `json:"change_type,omitempty"`
 	NodeID     uint64               `json:"node_id,omitempty"`
+	Limit      uint64               `json:"limit,omitempty"`
+	Cursor     uint64               `json:"cursor,omitempty"`
 	HashSlot   uint16               `json:"hash_slot,omitempty"`
 	Snapshot   []byte               `json:"snapshot,omitempty"`
 }
@@ -38,6 +41,17 @@ type managedSlotRPCResponse struct {
 	CurrentVoters []uint64 `json:"current_voters,omitempty"`
 	CommitIndex   uint64   `json:"commit_index,omitempty"`
 	AppliedIndex  uint64   `json:"applied_index,omitempty"`
+	FirstIndex    uint64   `json:"first_index,omitempty"`
+	LastIndex     uint64   `json:"last_index,omitempty"`
+	NextCursor    uint64   `json:"next_cursor,omitempty"`
+	LogEntries    []managedSlotLogEntry
+}
+
+type managedSlotLogEntry struct {
+	Index    uint64
+	Term     uint64
+	Type     string
+	DataSize int
 }
 
 type ManagedSlotExecutionTestHook func(slotID uint32, task controllermeta.ReconcileTask) error
@@ -50,6 +64,46 @@ type SlotLogStatus struct {
 	CommitIndex uint64
 	// AppliedIndex is the highest Raft log index applied by the queried node.
 	AppliedIndex uint64
+}
+
+// SlotLogEntriesOptions controls a node-local Slot Raft log entry page.
+type SlotLogEntriesOptions struct {
+	// Limit is the maximum number of log entries to return. Zero uses the default limit.
+	Limit int
+	// Cursor is the exclusive upper log index bound. Zero starts from the latest entry.
+	Cursor uint64
+}
+
+// SlotLogEntry is a manager-facing read-only summary of one Raft log entry.
+type SlotLogEntry struct {
+	// Index is the Raft log index.
+	Index uint64
+	// Term is the Raft term stored on the entry.
+	Term uint64
+	// Type is the normalized Raft entry type.
+	Type string
+	// DataSize is the payload size in bytes.
+	DataSize int
+}
+
+// SlotLogEntries is one node-local page of Slot Raft log entries.
+type SlotLogEntries struct {
+	// NodeID is the node whose local Slot log was read.
+	NodeID uint64
+	// SlotID is the physical Slot identifier.
+	SlotID uint32
+	// FirstIndex is the first available local Raft log index.
+	FirstIndex uint64
+	// LastIndex is the last available local Raft log index.
+	LastIndex uint64
+	// CommitIndex is the queried node's local committed index watermark.
+	CommitIndex uint64
+	// AppliedIndex is the queried node's local applied index watermark.
+	AppliedIndex uint64
+	// NextCursor is the cursor for the next older page. Zero means no more entries.
+	NextCursor uint64
+	// Items contains entries ordered newest first.
+	Items []SlotLogEntry
 }
 
 type managedSlotStatus struct {

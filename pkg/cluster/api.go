@@ -39,6 +39,8 @@ type API interface {
 	ListObservedRuntimeViewsStrict(ctx context.Context) ([]controllermeta.SlotRuntimeView, error)
 	// SlotLogStatusOnNode returns one node's local Raft log watermark for a managed Slot.
 	SlotLogStatusOnNode(ctx context.Context, nodeID uint64, slotID uint32) (SlotLogStatus, error)
+	// SlotLogEntriesOnNode returns one node's local Raft log entries for a managed Slot.
+	SlotLogEntriesOnNode(ctx context.Context, nodeID uint64, slotID uint32, opts SlotLogEntriesOptions) (SlotLogEntries, error)
 	ListTasks(ctx context.Context) ([]controllermeta.ReconcileTask, error)
 	// ListTasksStrict returns the controller leader's task snapshot without local fallback.
 	ListTasksStrict(ctx context.Context) ([]controllermeta.ReconcileTask, error)

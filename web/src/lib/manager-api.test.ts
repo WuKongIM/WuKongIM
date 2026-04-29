@@ -16,6 +16,7 @@ import {
   getNodeScaleInStatus,
   getOverview,
   getSlot,
+  getSlotLogs,
   getSlots,
   getTask,
   getTasks,
@@ -347,6 +348,30 @@ describe("manager api client", () => {
 
     await expect(getSlots({ nodeId: 2 })).resolves.toEqual(slotsResponse)
     expect(fetchMock).toHaveBeenNthCalledWith(1, "/manager/slots?node_id=2", expect.anything())
+  })
+
+  it("fetches node-scoped slot log entries from the manager endpoint", async () => {
+    const logsResponse = {
+      node_id: 2,
+      slot_id: 9,
+      first_index: 1,
+      last_index: 4,
+      commit_index: 4,
+      applied_index: 3,
+      next_cursor: 3,
+      items: [
+        { index: 4, term: 2, type: "normal", data_size: 12 },
+        { index: 3, term: 2, type: "conf_change", data_size: 8 },
+      ],
+    }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(logsResponse), { status: 200 }))
+
+    await expect(getSlotLogs(9, { nodeId: 2, limit: 2, cursor: 5 })).resolves.toEqual(logsResponse)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/manager/slots/9/logs?node_id=2&limit=2&cursor=5",
+      expect.anything(),
+    )
   })
 
   it("fetches message list data from the manager endpoint", async () => {

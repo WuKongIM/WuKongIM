@@ -3,9 +3,11 @@ package manager
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	"github.com/gin-gonic/gin"
 )
@@ -113,6 +115,38 @@ type SlotTaskDTO struct {
 	LastError string `json:"last_error"`
 }
 
+// SlotLogEntriesResponse is the manager slot log entries response body.
+type SlotLogEntriesResponse struct {
+	// NodeID is the node whose local Slot log was read.
+	NodeID uint64 `json:"node_id"`
+	// SlotID is the physical Slot identifier.
+	SlotID uint32 `json:"slot_id"`
+	// FirstIndex is the first available local Raft log index.
+	FirstIndex uint64 `json:"first_index"`
+	// LastIndex is the last available local Raft log index.
+	LastIndex uint64 `json:"last_index"`
+	// CommitIndex is the queried node's local committed index watermark.
+	CommitIndex uint64 `json:"commit_index"`
+	// AppliedIndex is the queried node's local applied index watermark.
+	AppliedIndex uint64 `json:"applied_index"`
+	// NextCursor is the cursor for the next older page. Zero means no more entries.
+	NextCursor uint64 `json:"next_cursor,omitempty"`
+	// Items contains entries ordered newest first.
+	Items []SlotLogEntryDTO `json:"items"`
+}
+
+// SlotLogEntryDTO is one manager-facing Slot Raft log entry summary.
+type SlotLogEntryDTO struct {
+	// Index is the Raft log index.
+	Index uint64 `json:"index"`
+	// Term is the Raft term stored on the entry.
+	Term uint64 `json:"term"`
+	// Type is the normalized Raft entry type.
+	Type string `json:"type"`
+	// DataSize is the payload size in bytes.
+	DataSize int `json:"data_size"`
+}
+
 func (s *Server) handleSlots(c *gin.Context) {
 	if s.management == nil {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
@@ -176,6 +210,57 @@ func (s *Server) handleSlot(c *gin.Context) {
 	c.JSON(http.StatusOK, slotDetailDTO(item))
 }
 
+func (s *Server) handleSlotLogs(c *gin.Context) {
+	if s.management == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
+		return
+	}
+	req, err := parseSlotLogEntriesRequest(c)
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", err.Error())
+		return
+	}
+	page, err := s.management.ListSlotLogEntries(c.Request.Context(), req)
+	if err != nil {
+		if errors.Is(err, raftcluster.ErrSlotNotFound) || errors.Is(err, controllermeta.ErrNotFound) {
+			jsonError(c, http.StatusNotFound, "not_found", "slot log not found")
+			return
+		}
+		if leaderConsistentReadUnavailable(err) {
+			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "slot log read unavailable")
+			return
+		}
+		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, slotLogEntriesDTO(page))
+}
+
+func parseSlotLogEntriesRequest(c *gin.Context) (managementusecase.ListSlotLogEntriesRequest, error) {
+	slotID, err := parseSlotIDParam(c.Param("slot_id"))
+	if err != nil {
+		return managementusecase.ListSlotLogEntriesRequest{}, errors.New("invalid slot_id")
+	}
+	nodeID, err := parseNodeIDParam(c.Query("node_id"))
+	if err != nil {
+		return managementusecase.ListSlotLogEntriesRequest{}, errors.New("invalid node_id")
+	}
+	limit, err := parseSlotLogLimit(c.Query("limit"))
+	if err != nil {
+		return managementusecase.ListSlotLogEntriesRequest{}, errors.New("invalid limit")
+	}
+	cursor, err := parseSlotLogCursor(c.Query("cursor"))
+	if err != nil {
+		return managementusecase.ListSlotLogEntriesRequest{}, errors.New("invalid cursor")
+	}
+	return managementusecase.ListSlotLogEntriesRequest{
+		NodeID: nodeID,
+		SlotID: slotID,
+		Limit:  limit,
+		Cursor: cursor,
+	}, nil
+}
+
 func slotDTOs(items []managementusecase.Slot) []SlotDTO {
 	out := make([]SlotDTO, 0, len(items))
 	for _, item := range items {
@@ -224,11 +309,59 @@ func slotNodeLogDTO(item *managementusecase.SlotNodeLogStatus) *SlotNodeLogDTO {
 	}
 }
 
+func slotLogEntriesDTO(page managementusecase.SlotLogEntriesResponse) SlotLogEntriesResponse {
+	return SlotLogEntriesResponse{
+		NodeID:       page.NodeID,
+		SlotID:       page.SlotID,
+		FirstIndex:   page.FirstIndex,
+		LastIndex:    page.LastIndex,
+		CommitIndex:  page.CommitIndex,
+		AppliedIndex: page.AppliedIndex,
+		NextCursor:   page.NextCursor,
+		Items:        slotLogEntryDTOs(page.Items),
+	}
+}
+
+func slotLogEntryDTOs(items []managementusecase.SlotLogEntry) []SlotLogEntryDTO {
+	out := make([]SlotLogEntryDTO, 0, len(items))
+	for _, item := range items {
+		out = append(out, SlotLogEntryDTO{
+			Index:    item.Index,
+			Term:     item.Term,
+			Type:     item.Type,
+			DataSize: item.DataSize,
+		})
+	}
+	return out
+}
+
 func slotDetailDTO(item managementusecase.SlotDetail) SlotDetailDTO {
 	return SlotDetailDTO{
 		SlotDTO: slotDTO(item.Slot),
 		Task:    slotTaskDTO(item.Task),
 	}
+}
+
+func parseSlotLogLimit(raw string) (int, error) {
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return 0, strconv.ErrSyntax
+	}
+	return value, nil
+}
+
+func parseSlotLogCursor(raw string) (uint64, error) {
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return 0, strconv.ErrSyntax
+	}
+	return value, nil
 }
 
 func slotTaskDTO(item *managementusecase.Task) *SlotTaskDTO {

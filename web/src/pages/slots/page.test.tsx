@@ -10,6 +10,7 @@ import { SlotsPage } from "@/pages/slots/page"
 
 const getSlotsMock = vi.fn()
 const getSlotMock = vi.fn()
+const getSlotLogsMock = vi.fn()
 const getNodesMock = vi.fn()
 const addSlotMock = vi.fn()
 const removeSlotMock = vi.fn()
@@ -23,6 +24,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     ...actual,
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
     getSlot: (...args: unknown[]) => getSlotMock(...args),
+    getSlotLogs: (...args: unknown[]) => getSlotLogsMock(...args),
     getNodes: (...args: unknown[]) => getNodesMock(...args),
     addSlot: (...args: unknown[]) => addSlotMock(...args),
     removeSlot: (...args: unknown[]) => removeSlotMock(...args),
@@ -78,6 +80,7 @@ beforeEach(() => {
   resetLocale()
   getSlotsMock.mockReset()
   getSlotMock.mockReset()
+  getSlotLogsMock.mockReset()
   getNodesMock.mockReset()
   addSlotMock.mockReset()
   removeSlotMock.mockReset()
@@ -99,6 +102,15 @@ beforeEach(() => {
     controller_leader_id: 1,
     total: 1,
     items: [nodeRow],
+  })
+  getSlotLogsMock.mockResolvedValue({
+    node_id: 1,
+    slot_id: 9,
+    first_index: 1,
+    last_index: 0,
+    commit_index: 0,
+    applied_index: 0,
+    items: [],
   })
 })
 
@@ -215,6 +227,37 @@ test("defaults to the local node filter and shows selected-node log height", asy
   expect(screen.getByLabelText("Node filter")).toHaveValue("2")
   expect(getSlotsMock).toHaveBeenCalledWith({ nodeId: 2 })
   expect(screen.getByText("commit 93 / applied 91")).toBeInTheDocument()
+})
+
+test("opens slot detail and shows selected-node log entries", async () => {
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+  getSlotMock.mockResolvedValueOnce(slotDetail)
+  getSlotLogsMock.mockResolvedValueOnce({
+    node_id: 1,
+    slot_id: 9,
+    first_index: 1,
+    last_index: 4,
+    commit_index: 4,
+    applied_index: 3,
+    next_cursor: 3,
+    items: [
+      { index: 4, term: 2, type: "normal", data_size: 12 },
+      { index: 3, term: 2, type: "conf_change", data_size: 8 },
+    ],
+  })
+
+  const user = userEvent.setup()
+  renderSlotsPage()
+
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Inspect slot 9" }))
+
+  expect(await screen.findByText("Log entries")).toBeInTheDocument()
+  expect(getSlotLogsMock).toHaveBeenCalledWith(9, { nodeId: 1, limit: 50 })
+  expect(screen.getByText("Node 1 · commit 4 / applied 3")).toBeInTheDocument()
+  expect(screen.getByText("normal")).toBeInTheDocument()
+  expect(screen.getByText("conf_change")).toBeInTheDocument()
+  expect(screen.getByText("12 B")).toBeInTheDocument()
 })
 
 test("opens slot detail and transfers the leader", async () => {

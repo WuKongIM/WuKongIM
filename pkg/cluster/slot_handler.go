@@ -37,6 +37,30 @@ func (h *slotHandler) Handle(ctx context.Context, body []byte) ([]byte, error) {
 		default:
 			return encodeManagedSlotResponse(managedSlotRPCResponse{Message: err.Error()})
 		}
+	case managedSlotRPCLogs:
+		limit := int(req.Limit)
+		if req.Limit > maxSlotLogEntryLimit {
+			limit = maxSlotLogEntryLimit
+		}
+		page, err := h.cluster.localSlotLogEntries(ctx, uint64(h.cluster.NodeID()), req.SlotID, SlotLogEntriesOptions{
+			Limit:  limit,
+			Cursor: req.Cursor,
+		})
+		switch {
+		case err == nil:
+			return encodeManagedSlotResponse(managedSlotRPCResponse{
+				CommitIndex:  page.CommitIndex,
+				AppliedIndex: page.AppliedIndex,
+				FirstIndex:   page.FirstIndex,
+				LastIndex:    page.LastIndex,
+				NextCursor:   page.NextCursor,
+				LogEntries:   managedSlotLogEntriesFromSlot(page.Items),
+			})
+		case errors.Is(err, ErrSlotNotFound), errors.Is(err, multiraft.ErrSlotNotFound):
+			return encodeManagedSlotResponse(managedSlotRPCResponse{NotFound: true})
+		default:
+			return encodeManagedSlotResponse(managedSlotRPCResponse{Message: err.Error()})
+		}
 	case managedSlotRPCChangeConfig:
 		err := h.cluster.managedSlots().changeConfigLocal(ctx, multiraft.SlotID(req.SlotID), multiraft.ConfigChange{
 			Type:   req.ChangeType,

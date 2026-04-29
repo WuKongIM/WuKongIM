@@ -173,6 +173,53 @@ func TestListSlotsFiltersByNodeAndAttachesNodeLogStatus(t *testing.T) {
 	require.Equal(t, &SlotNodeLogStatus{NodeID: 2, LeaderID: 3, CommitIndex: 44, AppliedIndex: 44}, got[1].NodeLog)
 }
 
+func TestListSlotLogEntriesDelegatesNodeScopedRead(t *testing.T) {
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotLogEntries: map[slotLogEntriesKey]raftcluster.SlotLogEntries{
+				{nodeID: 2, slotID: 9}: {
+					NodeID:       2,
+					SlotID:       9,
+					FirstIndex:   1,
+					LastIndex:    4,
+					CommitIndex:  4,
+					AppliedIndex: 3,
+					NextCursor:   3,
+					Items: []raftcluster.SlotLogEntry{{
+						Index:    4,
+						Term:     2,
+						Type:     "normal",
+						DataSize: 12,
+					}},
+				},
+			},
+		},
+	})
+
+	got, err := app.ListSlotLogEntries(context.Background(), ListSlotLogEntriesRequest{
+		NodeID: 2,
+		SlotID: 9,
+		Limit:  1,
+		Cursor: 5,
+	})
+	require.NoError(t, err)
+	require.Equal(t, SlotLogEntriesResponse{
+		NodeID:       2,
+		SlotID:       9,
+		FirstIndex:   1,
+		LastIndex:    4,
+		CommitIndex:  4,
+		AppliedIndex: 3,
+		NextCursor:   3,
+		Items: []SlotLogEntry{{
+			Index:    4,
+			Term:     2,
+			Type:     "normal",
+			DataSize: 12,
+		}},
+	}, got)
+}
+
 type slotStateSummary struct {
 	SlotID uint32
 	Quorum string

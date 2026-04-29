@@ -18,6 +18,7 @@ const (
 
 	managedSlotKindUnknown byte = iota
 	managedSlotKindStatus
+	managedSlotKindLogs
 	managedSlotKindChangeConfig
 	managedSlotKindTransferLeader
 	managedSlotKindImportSnapshot
@@ -85,6 +86,11 @@ func encodeManagedSlotRequestPayload(req managedSlotRPCRequest) ([]byte, error) 
 	switch req.Kind {
 	case managedSlotRPCStatus, managedSlotRPCChangeConfig, managedSlotRPCTransferLeader:
 		return nil, nil
+	case managedSlotRPCLogs:
+		body := make([]byte, 0, binary.MaxVarintLen64*2)
+		body = binary.AppendUvarint(body, req.Limit)
+		body = binary.AppendUvarint(body, req.Cursor)
+		return body, nil
 	case managedSlotRPCImportSnapshot:
 		body := make([]byte, 0, 2+len(req.Snapshot))
 		body = binary.BigEndian.AppendUint16(body, req.HashSlot)
@@ -101,6 +107,21 @@ func decodeManagedSlotRequestPayload(req *managedSlotRPCRequest, payload []byte)
 		if len(payload) != 0 {
 			return ErrInvalidConfig
 		}
+		return nil
+	case managedSlotRPCLogs:
+		limit, rest, err := readUvarint(payload)
+		if err != nil {
+			return err
+		}
+		cursor, rest, err := readUvarint(rest)
+		if err != nil {
+			return err
+		}
+		if len(rest) != 0 {
+			return ErrInvalidConfig
+		}
+		req.Limit = limit
+		req.Cursor = cursor
 		return nil
 	case managedSlotRPCImportSnapshot:
 		if len(payload) < 2 {
@@ -138,6 +159,9 @@ func encodeManagedSlotResponse(resp managedSlotRPCResponse) ([]byte, error) {
 	body = binary.AppendUvarint(body, uint64(len(message)))
 	body = append(body, message...)
 	body = appendUint64Slice(body, resp.CurrentVoters)
+	if resp.FirstIndex != 0 || resp.LastIndex != 0 || resp.NextCursor != 0 || len(resp.LogEntries) > 0 {
+		body = appendManagedSlotLogEntriesPayload(body, resp)
+	}
 	return body, nil
 }
 
@@ -170,10 +194,16 @@ func decodeManagedSlotResponse(body []byte) (managedSlotRPCResponse, error) {
 	rest := body[messageEnd:]
 	if len(rest) > 0 {
 		currentVoters, next, err := readUint64Slice(rest)
-		if err != nil || len(next) != 0 {
+		if err != nil {
 			return managedSlotRPCResponse{}, ErrInvalidConfig
 		}
 		resp.CurrentVoters = currentVoters
+		rest = next
+	}
+	if len(rest) > 0 {
+		if err := decodeManagedSlotLogEntriesPayload(&resp, rest); err != nil {
+			return managedSlotRPCResponse{}, err
+		}
 	}
 
 	switch {
@@ -194,6 +224,8 @@ func managedSlotKindCode(kind string) (byte, error) {
 	switch kind {
 	case managedSlotRPCStatus:
 		return managedSlotKindStatus, nil
+	case managedSlotRPCLogs:
+		return managedSlotKindLogs, nil
 	case managedSlotRPCChangeConfig:
 		return managedSlotKindChangeConfig, nil
 	case managedSlotRPCTransferLeader:
@@ -209,6 +241,8 @@ func managedSlotKindName(kind byte) (string, error) {
 	switch kind {
 	case managedSlotKindStatus:
 		return managedSlotRPCStatus, nil
+	case managedSlotKindLogs:
+		return managedSlotRPCLogs, nil
 	case managedSlotKindChangeConfig:
 		return managedSlotRPCChangeConfig, nil
 	case managedSlotKindTransferLeader:
@@ -218,4 +252,61 @@ func managedSlotKindName(kind byte) (string, error) {
 	default:
 		return "", ErrInvalidConfig
 	}
+}
+
+func appendManagedSlotLogEntriesPayload(dst []byte, resp managedSlotRPCResponse) []byte {
+	var fixed [24]byte
+	binary.BigEndian.PutUint64(fixed[0:8], resp.FirstIndex)
+	binary.BigEndian.PutUint64(fixed[8:16], resp.LastIndex)
+	binary.BigEndian.PutUint64(fixed[16:24], resp.NextCursor)
+	dst = append(dst, fixed[:]...)
+	dst = binary.AppendUvarint(dst, uint64(len(resp.LogEntries)))
+	for _, entry := range resp.LogEntries {
+		var entryFixed [16]byte
+		binary.BigEndian.PutUint64(entryFixed[0:8], entry.Index)
+		binary.BigEndian.PutUint64(entryFixed[8:16], entry.Term)
+		dst = append(dst, entryFixed[:]...)
+		dst = appendString(dst, entry.Type)
+		dst = binary.AppendUvarint(dst, uint64(entry.DataSize))
+	}
+	return dst
+}
+
+func decodeManagedSlotLogEntriesPayload(resp *managedSlotRPCResponse, src []byte) error {
+	if len(src) < 24 {
+		return ErrInvalidConfig
+	}
+	resp.FirstIndex = binary.BigEndian.Uint64(src[0:8])
+	resp.LastIndex = binary.BigEndian.Uint64(src[8:16])
+	resp.NextCursor = binary.BigEndian.Uint64(src[16:24])
+	count, rest, err := readUvarint(src[24:])
+	if err != nil {
+		return err
+	}
+	entries := make([]managedSlotLogEntry, 0, count)
+	for i := uint64(0); i < count; i++ {
+		if len(rest) < 16 {
+			return ErrInvalidConfig
+		}
+		entry := managedSlotLogEntry{
+			Index: binary.BigEndian.Uint64(rest[0:8]),
+			Term:  binary.BigEndian.Uint64(rest[8:16]),
+		}
+		entry.Type, rest, err = readString(rest[16:])
+		if err != nil {
+			return err
+		}
+		dataSize, next, err := readUvarint(rest)
+		if err != nil {
+			return err
+		}
+		entry.DataSize = int(dataSize)
+		entries = append(entries, entry)
+		rest = next
+	}
+	if len(rest) != 0 {
+		return ErrInvalidConfig
+	}
+	resp.LogEntries = entries
+	return nil
 }
