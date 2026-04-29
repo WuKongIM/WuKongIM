@@ -496,6 +496,11 @@ func TestRefreshChannelMetaCacheBusinessDoesNotJoinFetchNotFoundAndBootstraps(t 
 	close(source.releaseFirst)
 	<-fetchDone
 	require.Len(t, source.snapshotUpserts(), 1)
+
+	got, err := syncer.ActivateByKey(context.Background(), key, channelruntime.ActivationSourceFetch)
+	require.NoError(t, err)
+	require.Equal(t, channel.NodeID(2), got.Leader)
+	require.Equal(t, uint64(1), got.Epoch)
 }
 
 func TestRefreshChannelMetaReportsSharedRepairOutcomeToSingleflightWaiters(t *testing.T) {

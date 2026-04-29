@@ -183,11 +183,15 @@ func (c *ActivationCache) storeNegativeAtGeneration(key channel.ChannelKey, err 
 	if !c.isCurrentGenerationLocked(key, generation) {
 		return
 	}
+	if entry, ok := c.positive[key]; ok {
+		if now.After(entry.expiresAt) {
+			delete(c.positive, key)
+		} else {
+			return
+		}
+	}
 	if c.negative == nil {
 		c.negative = make(map[channel.ChannelKey]cachedChannelMetaError)
-	}
-	if c.positive != nil {
-		delete(c.positive, key)
 	}
 	c.negative[key] = cachedChannelMetaError{err: err, expiresAt: now.Add(channelMetaNegativeCacheTTL)}
 }
@@ -200,6 +204,7 @@ func (c *ActivationCache) Clear() {
 	c.mu.Lock()
 	c.positive = nil
 	c.negative = nil
+	c.generations = nil
 	c.globalGeneration++
 	c.mu.Unlock()
 }
