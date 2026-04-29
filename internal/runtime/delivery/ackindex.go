@@ -82,6 +82,28 @@ func (i *AckIndex) Take(sessionID, messageID uint64) (AckBinding, bool) {
 	return binding, true
 }
 
+// TakeSession atomically returns and removes all acknowledgement bindings for a session.
+func (i *AckIndex) TakeSession(sessionID uint64) []AckBinding {
+	if i == nil {
+		return nil
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	keys := i.reverse[sessionID]
+	if len(keys) == 0 {
+		return nil
+	}
+	out := make([]AckBinding, 0, len(keys))
+	for key := range keys {
+		if binding, ok := i.entries[key]; ok {
+			out = append(out, binding)
+			delete(i.entries, key)
+		}
+	}
+	delete(i.reverse, sessionID)
+	return out
+}
+
 func (i *AckIndex) LookupSession(sessionID uint64) []AckBinding {
 	if i == nil {
 		return nil

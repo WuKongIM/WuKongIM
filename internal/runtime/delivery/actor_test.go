@@ -200,6 +200,49 @@ func TestActorDoesNotExpireRouteAckedDuringFinalRetryPush(t *testing.T) {
 	require.Equal(t, 2, pusher.attemptsFor(101))
 }
 
+func TestActorDoesNotExpireRouteClosedDuringFinalRetryPush(t *testing.T) {
+	clock := &testClock{now: time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)}
+	observer := &recordingDeliveryObserver{}
+	route := testRoute("u2", 1, 11, 2)
+	pusher := newBlockingFinalRetryPusher(route)
+	t.Cleanup(pusher.Unblock)
+	runtime := NewManager(Config{
+		Resolver:         &stubResolver{routesByChannel: map[string][]RouteKey{testChannelID: {route}}},
+		Push:             pusher,
+		Clock:            clock,
+		RetryDelays:      []time.Duration{time.Second},
+		MaxRetryAttempts: 2,
+		Observer:         observer,
+	})
+
+	require.NoError(t, runtime.Submit(context.Background(), testEnvelope(101, 1)))
+	require.True(t, runtime.HasAckBinding(route.SessionID, 101))
+
+	clock.Advance(cappedBackoffWithJitter([]time.Duration{time.Second}, 2))
+	retryDone := make(chan error, 1)
+	go func() {
+		retryDone <- runtime.ProcessRetryTicks(context.Background())
+	}()
+	pusher.WaitForFinalRetry(t)
+
+	closeDone := make(chan error, 1)
+	go func() {
+		closeDone <- runtime.SessionClosed(context.Background(), SessionClosed{
+			UID:       route.UID,
+			SessionID: route.SessionID,
+		})
+	}()
+	require.Eventually(t, func() bool {
+		return !runtime.HasAckBinding(route.SessionID, 101)
+	}, time.Second, time.Millisecond)
+
+	pusher.Unblock()
+	require.NoError(t, <-retryDone)
+	require.NoError(t, <-closeDone)
+	require.Empty(t, observer.expired)
+	require.Equal(t, 2, pusher.attemptsFor(101))
+}
+
 func TestActorResolvesSubscribersPageByPageAndOnlyTracksOnlineRoutes(t *testing.T) {
 	clock := &testClock{now: time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC)}
 	resolver := &pagedStubResolver{

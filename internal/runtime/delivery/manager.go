@@ -88,7 +88,7 @@ func (m *Manager) AckRoute(ctx context.Context, cmd RouteAck) error {
 }
 
 func (m *Manager) SessionClosed(ctx context.Context, cmd SessionClosed) error {
-	bindings := m.ackIdx.LookupSession(cmd.SessionID)
+	bindings := m.ackIdx.TakeSession(cmd.SessionID)
 	for _, binding := range bindings {
 		if err := m.shardFor(ChannelKey{ChannelID: binding.ChannelID, ChannelType: binding.ChannelType}).routeOffline(ctx, binding); err != nil {
 			return err
