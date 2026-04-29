@@ -7,6 +7,7 @@ import {
   getConnection,
   getConnections,
   getMessages,
+  getNetworkSummary,
   createNodeOnboardingPlan,
   getNode,
   getNodeOnboardingCandidates,
@@ -152,6 +153,122 @@ describe("manager api client", () => {
     await expect(getOverview()).resolves.toEqual(overview)
     expect(fetchMock).toHaveBeenCalledWith(
       "/manager/overview",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
+  it("fetches network summary from the manager network endpoint", async () => {
+    const summary = {
+      generated_at: "2026-04-29T12:00:00Z",
+      scope: { view: "local_node", local_node_id: 1, controller_leader_id: 1 },
+      source_status: { local_collector: "ok", controller_context: "ok", runtime_views: "ok", errors: {} },
+      headline: {
+        remote_peers: 1,
+        alive_nodes: 2,
+        suspect_nodes: 0,
+        dead_nodes: 0,
+        draining_nodes: 0,
+        pool_active: 3,
+        pool_idle: 4,
+        rpc_inflight: 1,
+        dial_errors_1m: 0,
+        queue_full_1m: 0,
+        timeouts_1m: 1,
+        stale_observations: 0,
+      },
+      traffic: {
+        scope: "local_total_by_msg_type",
+        tx_bytes_1m: 1024,
+        rx_bytes_1m: 512,
+        tx_bps: 17.06,
+        rx_bps: 8.53,
+        peer_breakdown_available: false,
+        by_message_type: [{
+          direction: "tx",
+          message_type: "rpc",
+          bytes_1m: 1024,
+          bps: 17.06,
+        }],
+      },
+      peers: [{
+        node_id: 2,
+        name: "node-2",
+        addr: "127.0.0.1:7002",
+        health: "alive",
+        last_heartbeat_at: "2026-04-29T11:59:55Z",
+        pools: {
+          cluster: { active: 1, idle: 1 },
+          data_plane: { active: 1, idle: 2 },
+        },
+        rpc: { inflight: 1, calls_1m: 10, p95_ms: 12.5, success_rate: 0.9 },
+        errors: { dial_error_1m: 0, queue_full_1m: 0, timeout_1m: 1, remote_error_1m: 0 },
+      }],
+      services: [{
+        service_id: 35,
+        service: "channel_long_poll_fetch",
+        group: "channel_replication",
+        target_node: 2,
+        inflight: 1,
+        calls_1m: 10,
+        success_1m: 9,
+        expected_timeout_1m: 1,
+        timeout_1m: 0,
+        queue_full_1m: 0,
+        remote_error_1m: 0,
+        other_error_1m: 0,
+        p50_ms: 2.1,
+        p95_ms: 12.5,
+        p99_ms: 20,
+        last_seen_at: "2026-04-29T11:59:58Z",
+      }],
+      channel_replication: {
+        pool: { active: 1, idle: 2 },
+        services: [{
+          service_id: 35,
+          service: "channel_long_poll_fetch",
+          group: "channel_replication",
+          target_node: 2,
+          inflight: 1,
+          calls_1m: 10,
+          success_1m: 9,
+          expected_timeout_1m: 1,
+          timeout_1m: 0,
+          queue_full_1m: 0,
+          remote_error_1m: 0,
+          other_error_1m: 0,
+          p50_ms: 2.1,
+          p95_ms: 12.5,
+          p99_ms: 20,
+          last_seen_at: "2026-04-29T11:59:58Z",
+        }],
+        long_poll: { lane_count: 8, max_wait_ms: 200, max_bytes: 65536, max_channels: 64 },
+        long_poll_timeouts_1m: 1,
+        data_plane_rpc_timeout_ms: 1000,
+      },
+      discovery: {
+        listen_addr: "0.0.0.0:7000",
+        advertise_addr: "127.0.0.1:7000",
+        seeds: [],
+        static_nodes: [{ node_id: 1, addr: "127.0.0.1:7000" }],
+        pool_size: 4,
+        data_plane_pool_size: 4,
+        dial_timeout_ms: 5000,
+        controller_observation_interval_ms: 200,
+      },
+      events: [{
+        at: "2026-04-29T11:59:59Z",
+        severity: "warn",
+        kind: "rpc_timeout",
+        target_node: 2,
+        service: "cluster_ping",
+        message: "rpc timeout",
+      }],
+    }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(summary), { status: 200 }))
+
+    await expect(getNetworkSummary()).resolves.toEqual(summary)
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/network/summary",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
   })
