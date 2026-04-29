@@ -115,9 +115,36 @@ func build(cfg Config) (_ *App, err error) {
 			app.channelMetaSync.UpdateNodeLiveness(nodeID, to)
 		},
 	}
+	app.networkObservability = newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID:                   cfg.Node.ID,
+		LocalNodeName:                 cfg.Node.Name,
+		ListenAddr:                    cfg.Cluster.ListenAddr,
+		AdvertiseAddr:                 cfg.Cluster.AdvertiseAddr,
+		StaticNodes:                   cfg.Cluster.Nodes,
+		Seeds:                         cfg.Cluster.Seeds,
+		PoolSize:                      cfg.Cluster.PoolSize,
+		DataPlanePoolSize:             cfg.Cluster.DataPlanePoolSize,
+		DialTimeout:                   cfg.Cluster.DialTimeout,
+		ControllerObservationInterval: cfg.Cluster.Timeouts.ControllerObservation,
+		DataPlaneRPCTimeout:           cfg.Cluster.DataPlaneRPCTimeout,
+		LongPollLaneCount:             cfg.Cluster.LongPollLaneCount,
+		LongPollMaxWait:               cfg.Cluster.LongPollMaxWait,
+		LongPollMaxBytes:              cfg.Cluster.LongPollMaxBytes,
+		LongPollMaxChannels:           cfg.Cluster.LongPollMaxChannels,
+		DataPlanePoolStats: func() []transport.PoolPeerStats {
+			if app.dataPlanePool == nil {
+				return nil
+			}
+			return app.dataPlanePool.Stats()
+		},
+	})
 	if app.metrics != nil {
 		clusterObserver = mergeClusterObserverHooks(clusterObserver, clusterMetricsObserver{metrics: app.metrics}.Hooks())
 		transportObserver = transportMetricsObserver{metrics: app.metrics}.Hooks()
+	}
+	transportObserver = mergeTransportObserverHooks(transportObserver, app.networkObservability.TransportHooks())
+	clusterObserver = mergeClusterObserverHooks(clusterObserver, app.networkObservability.ClusterHooks())
+	if hasTransportObserverHooks(transportObserver) {
 		clusterCfg.TransportObserver = transportObserver
 	}
 	clusterCfg.Observer = clusterObserver
@@ -493,6 +520,7 @@ func build(cfg Config) (_ *App, err error) {
 			Online:             onlineRegistry,
 			RuntimeSummary:     managementRuntimeSummaryReader{collector: runtimeSummaries, nodeClient: app.nodeClient},
 			ChannelRuntimeMeta: app.store,
+			Network:            app.networkObservability,
 			Messages: managerMessageReader{
 				localNodeID: cfg.Node.ID,
 				channelLog:  app.channelLogDB,
