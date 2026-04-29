@@ -169,6 +169,74 @@ func TestListNetworkSummaryPreservesLocalCollectorWhenControllerReadsFail(t *tes
 	require.Equal(t, uint64(2), got.Peers[0].NodeID)
 }
 
+func TestListNetworkSummaryUsesRuntimeViewsWhenNodeReadFails(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	app := New(Options{
+		LocalNodeID:              1,
+		ScaleInRuntimeViewMaxAge: 10 * time.Second,
+		Cluster: fakeClusterReader{
+			controllerLeaderID: 1,
+			listNodesErr:       errors.New("nodes unavailable"),
+			views: []controllermeta.SlotRuntimeView{
+				{SlotID: 1, LastReportAt: now.Add(-time.Minute)},
+				{SlotID: 2, LastReportAt: now.Add(-time.Second)},
+			},
+			transportStats: []transport.PoolPeerStats{{NodeID: 2, Active: 1, Idle: 2}},
+		},
+		Network: fakeNetworkSnapshotReader{snapshot: NetworkObservationSnapshot{
+			LocalCollectorAvailable: true,
+			Traffic:                 NetworkTraffic{Scope: "local_total_by_msg_type"},
+		}},
+		Now: func() time.Time { return now },
+	})
+
+	got, err := app.ListNetworkSummary(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "unavailable", got.SourceStatus.ControllerContext)
+	require.Equal(t, "ok", got.SourceStatus.RuntimeViews)
+	require.Contains(t, got.SourceStatus.Errors["nodes"], "nodes unavailable")
+	require.NotContains(t, got.SourceStatus.Errors, "runtime_views")
+	require.Equal(t, 1, got.Headline.StaleObservations)
+	require.Equal(t, 0, got.Headline.AliveNodes)
+	require.Len(t, got.Peers, 1)
+	require.Equal(t, uint64(2), got.Peers[0].NodeID)
+	require.Equal(t, NetworkPoolStats{Active: 1, Idle: 2}, got.Peers[0].Pools.Cluster)
+}
+
+func TestListNetworkSummaryUsesNodesWhenRuntimeViewReadFails(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	app := New(Options{
+		LocalNodeID: 1,
+		Cluster: fakeClusterReader{
+			controllerLeaderID:          1,
+			listObservedRuntimeViewsErr: errors.New("runtime views unavailable"),
+			nodes: []controllermeta.ClusterNode{
+				{NodeID: 1, Name: "node-1", Addr: "127.0.0.1:7001", Status: controllermeta.NodeStatusAlive, LastHeartbeatAt: now},
+				{NodeID: 2, Name: "node-2", Addr: "127.0.0.1:7002", Status: controllermeta.NodeStatusDraining, LastHeartbeatAt: now.Add(-time.Second)},
+			},
+		},
+		Network: fakeNetworkSnapshotReader{snapshot: NetworkObservationSnapshot{
+			LocalCollectorAvailable: true,
+			Traffic:                 NetworkTraffic{Scope: "local_total_by_msg_type"},
+		}},
+		Now: func() time.Time { return now },
+	})
+
+	got, err := app.ListNetworkSummary(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "ok", got.SourceStatus.ControllerContext)
+	require.Equal(t, "unavailable", got.SourceStatus.RuntimeViews)
+	require.NotContains(t, got.SourceStatus.Errors, "nodes")
+	require.Contains(t, got.SourceStatus.Errors["runtime_views"], "runtime views unavailable")
+	require.Equal(t, 1, got.Headline.AliveNodes)
+	require.Equal(t, 1, got.Headline.DrainingNodes)
+	require.Equal(t, 0, got.Headline.StaleObservations)
+	require.Len(t, got.Peers, 1)
+	require.Equal(t, uint64(2), got.Peers[0].NodeID)
+	require.Equal(t, "node-2", got.Peers[0].Name)
+	require.Equal(t, "draining", got.Peers[0].Health)
+}
+
 type fakeNetworkSnapshotReader struct {
 	snapshot NetworkObservationSnapshot
 }
