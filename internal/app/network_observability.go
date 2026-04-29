@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	defaultNetworkObservabilityWindow    = time.Minute
-	defaultNetworkObservabilityMaxEvents = 50
-	networkSampleDirectionTX             = "tx"
-	networkSampleDirectionRX             = "rx"
+	defaultNetworkObservabilityWindow     = time.Minute
+	defaultNetworkObservabilityMaxEvents  = 50
+	defaultNetworkObservabilityMaxSamples = 4096
+	networkSampleDirectionTX              = "tx"
+	networkSampleDirectionRX              = "rx"
 )
 
 // networkObservabilityConfig configures local app-level network observations.
@@ -187,10 +188,10 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 		return managementusecase.NetworkObservationSnapshot{}
 	}
 	o.mu.Lock()
-	defer o.mu.Unlock()
 
 	cutoff := now.Add(-o.cfg.Window)
 	o.pruneLocked(cutoff)
+	dataPlanePoolStats := o.cfg.DataPlanePoolStats
 
 	snap := managementusecase.NetworkObservationSnapshot{
 		LocalCollectorAvailable: true,
@@ -302,20 +303,23 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 	}
 	sortNetworkServices(snap.Services)
 
-	for _, stat := range o.dataPlanePoolStatsLocked() {
-		snap.DataPlanePools = append(snap.DataPlanePools, managementusecase.NetworkPoolPeerStats{
-			NodeID: uint64(stat.NodeID),
-			Active: stat.Active,
-			Idle:   stat.Idle,
-		})
-	}
-	sort.Slice(snap.DataPlanePools, func(i, j int) bool { return snap.DataPlanePools[i].NodeID < snap.DataPlanePools[j].NodeID })
-
 	snap.Events = append([]managementusecase.NetworkEvent(nil), o.events...)
 	sort.Slice(snap.Events, func(i, j int) bool { return snap.Events[i].At.After(snap.Events[j].At) })
 	if len(snap.Events) > o.cfg.MaxEvents {
 		snap.Events = snap.Events[:o.cfg.MaxEvents]
 	}
+	o.mu.Unlock()
+
+	if dataPlanePoolStats != nil {
+		for _, stat := range dataPlanePoolStats() {
+			snap.DataPlanePools = append(snap.DataPlanePools, managementusecase.NetworkPoolPeerStats{
+				NodeID: uint64(stat.NodeID),
+				Active: stat.Active,
+				Idle:   stat.Idle,
+			})
+		}
+	}
+	sort.Slice(snap.DataPlanePools, func(i, j int) bool { return snap.DataPlanePools[i].NodeID < snap.DataPlanePools[j].NodeID })
 	return snap
 }
 
@@ -343,8 +347,10 @@ func (o *networkObservability) recordTraffic(msgType uint8, bytes int, direction
 	if o == nil || bytes <= 0 {
 		return
 	}
+	at := o.now()
 	o.mu.Lock()
-	o.traffic = append(o.traffic, networkTrafficSample{at: o.now(), direction: direction, msgType: msgType, bytes: bytes})
+	o.traffic = append(o.traffic, networkTrafficSample{at: at, direction: direction, msgType: msgType, bytes: bytes})
+	o.pruneForWriteLocked(at)
 	o.mu.Unlock()
 }
 
@@ -358,6 +364,7 @@ func (o *networkObservability) recordDial(event transport.DialEvent) {
 	if event.Result == "dial_error" {
 		o.events = append(o.events, managementusecase.NetworkEvent{At: sample.at, Severity: "error", Kind: "dial_error", TargetNode: sample.targetNode, Message: fmt.Sprintf("dial to node %d failed", sample.targetNode)})
 	}
+	o.pruneForWriteLocked(sample.at)
 	o.mu.Unlock()
 }
 
@@ -375,6 +382,7 @@ func (o *networkObservability) recordEnqueue(event transport.EnqueueEvent) {
 		}
 		o.events = append(o.events, managementusecase.NetworkEvent{At: sample.at, Severity: "warn", Kind: "queue_full", TargetNode: sample.targetNode, Message: message})
 	}
+	o.pruneForWriteLocked(sample.at)
 	o.mu.Unlock()
 }
 
@@ -385,7 +393,11 @@ func (o *networkObservability) recordRPCClient(event transport.RPCClientEvent) {
 	at := o.now()
 	key := networkRPCKey{targetNode: uint64(event.TargetNode), serviceID: event.ServiceID}
 	o.mu.Lock()
-	o.inflight[key] = event.Inflight
+	if event.Inflight > 0 {
+		o.inflight[key] = event.Inflight
+	} else {
+		delete(o.inflight, key)
+	}
 	if event.Result != "" {
 		o.rpcs = append(o.rpcs, networkRPCSample{at: at, targetNode: key.targetNode, serviceID: event.ServiceID, result: event.Result, duration: event.Duration})
 		if event.Result == "timeout" && !networkRPCExpectedTimeout(event.ServiceID, event.Result) {
@@ -396,6 +408,7 @@ func (o *networkObservability) recordRPCClient(event transport.RPCClientEvent) {
 			o.events = append(o.events, managementusecase.NetworkEvent{At: at, Severity: "warn", Kind: "rpc_remote_error", TargetNode: key.targetNode, Service: service, Message: fmt.Sprintf("rpc remote error for %s on node %d", service, key.targetNode)})
 		}
 	}
+	o.pruneForWriteLocked(at)
 	o.mu.Unlock()
 }
 
@@ -405,6 +418,7 @@ func (o *networkObservability) appendEvent(event managementusecase.NetworkEvent)
 	}
 	o.mu.Lock()
 	o.events = append(o.events, event)
+	o.pruneForWriteLocked(event.At)
 	o.mu.Unlock()
 }
 
@@ -418,6 +432,15 @@ func (o *networkObservability) pruneLocked(cutoff time.Time) {
 	o.enqueues = pruneEnqueueSamples(o.enqueues, cutoff)
 	o.rpcs = pruneRPCSamples(o.rpcs, cutoff)
 	o.events = pruneNetworkEvents(o.events, cutoff)
+}
+
+func (o *networkObservability) pruneForWriteLocked(now time.Time) {
+	o.pruneLocked(now.Add(-o.cfg.Window))
+	o.traffic = capTrafficSamples(o.traffic, defaultNetworkObservabilityMaxSamples)
+	o.dials = capDialSamples(o.dials, defaultNetworkObservabilityMaxSamples)
+	o.enqueues = capEnqueueSamples(o.enqueues, defaultNetworkObservabilityMaxSamples)
+	o.rpcs = capRPCSamples(o.rpcs, defaultNetworkObservabilityMaxSamples)
+	o.events = capNetworkEvents(o.events, o.cfg.MaxEvents)
 }
 
 func (o *networkObservability) discoverySnapshotLocked() managementusecase.NetworkDiscovery {
@@ -435,13 +458,6 @@ func (o *networkObservability) discoverySnapshotLocked() managementusecase.Netwo
 		out.StaticNodes = append(out.StaticNodes, managementusecase.NetworkDiscoveryNode{NodeID: node.ID, Addr: node.Addr})
 	}
 	return out
-}
-
-func (o *networkObservability) dataPlanePoolStatsLocked() []transport.PoolPeerStats {
-	if o.cfg.DataPlanePoolStats == nil {
-		return nil
-	}
-	return append([]transport.PoolPeerStats(nil), o.cfg.DataPlanePoolStats()...)
 }
 
 func pruneTrafficSamples(samples []networkTrafficSample, cutoff time.Time) []networkTrafficSample {
@@ -492,6 +508,41 @@ func pruneNetworkEvents(events []managementusecase.NetworkEvent, cutoff time.Tim
 		}
 	}
 	return out
+}
+
+func capTrafficSamples(samples []networkTrafficSample, limit int) []networkTrafficSample {
+	if limit <= 0 || len(samples) <= limit {
+		return samples
+	}
+	return samples[len(samples)-limit:]
+}
+
+func capDialSamples(samples []networkDialSample, limit int) []networkDialSample {
+	if limit <= 0 || len(samples) <= limit {
+		return samples
+	}
+	return samples[len(samples)-limit:]
+}
+
+func capEnqueueSamples(samples []networkEnqueueSample, limit int) []networkEnqueueSample {
+	if limit <= 0 || len(samples) <= limit {
+		return samples
+	}
+	return samples[len(samples)-limit:]
+}
+
+func capRPCSamples(samples []networkRPCSample, limit int) []networkRPCSample {
+	if limit <= 0 || len(samples) <= limit {
+		return samples
+	}
+	return samples[len(samples)-limit:]
+}
+
+func capNetworkEvents(events []managementusecase.NetworkEvent, limit int) []managementusecase.NetworkEvent {
+	if limit <= 0 || len(events) <= limit {
+		return events
+	}
+	return events[len(events)-limit:]
 }
 
 func networkRPCExpectedTimeout(serviceID uint8, result string) bool {

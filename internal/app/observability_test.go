@@ -171,6 +171,11 @@ func TestTransportRPCServiceNameCoversKnownServices(t *testing.T) {
 	}
 }
 
+func TestMergeTransportObserverHooksKeepsEmptyHooksEmpty(t *testing.T) {
+	hooks := mergeTransportObserverHooks(transport.ObserverHooks{}, transport.ObserverHooks{})
+	require.False(t, hasTransportObserverHooks(hooks))
+}
+
 func TestMergeTransportObserverHooksCallsBothSides(t *testing.T) {
 	var leftRPC, rightRPC, leftDial, rightDial atomic.Int32
 	hooks := mergeTransportObserverHooks(

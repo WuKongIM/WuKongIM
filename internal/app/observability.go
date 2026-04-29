@@ -272,6 +272,12 @@ func transportRPCServiceName(serviceID uint8) string {
 }
 
 func mergeTransportObserverHooks(left, right transport.ObserverHooks) transport.ObserverHooks {
+	if !hasTransportObserverHooks(left) {
+		return right
+	}
+	if !hasTransportObserverHooks(right) {
+		return left
+	}
 	return transport.ObserverHooks{
 		OnSend: func(msgType uint8, bytes int) {
 			if left.OnSend != nil {

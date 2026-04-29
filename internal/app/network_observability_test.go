@@ -66,6 +66,115 @@ func TestNetworkObservabilityPrunesOldEvents(t *testing.T) {
 	require.Equal(t, 1, snap.Services[0].Calls1m)
 }
 
+func TestNetworkObservabilityPrunesStoredSamplesAndEventsOnWrite(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		Now:         func() time.Time { return now },
+	})
+	hooks := collector.TransportHooks()
+
+	hooks.OnSend(1, 100)
+	hooks.OnReceive(2, 200)
+	hooks.OnDial(transport.DialEvent{TargetNode: 2, Result: "dial_error", Duration: 5 * time.Millisecond})
+	hooks.OnEnqueue(transport.EnqueueEvent{TargetNode: 2, Kind: "rpc", Result: "queue_full"})
+	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Result: "remote_error", Duration: 5 * time.Millisecond})
+
+	now = now.Add(61 * time.Second)
+	hooks.OnSend(3, 300)
+
+	collector.mu.Lock()
+	defer collector.mu.Unlock()
+	require.Len(t, collector.traffic, 1)
+	require.Empty(t, collector.dials)
+	require.Empty(t, collector.enqueues)
+	require.Empty(t, collector.rpcs)
+	require.Empty(t, collector.events)
+}
+
+func TestNetworkObservabilityCapsStoredSamplesOnWrite(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		Now:         func() time.Time { return now },
+	})
+	hooks := collector.TransportHooks()
+
+	for i := 0; i < defaultNetworkObservabilityMaxSamples+1; i++ {
+		hooks.OnSend(1, 1)
+	}
+
+	collector.mu.Lock()
+	defer collector.mu.Unlock()
+	require.Len(t, collector.traffic, defaultNetworkObservabilityMaxSamples)
+}
+
+func TestNetworkObservabilityCapsStoredEventsOnWrite(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		MaxEvents:   2,
+		Now:         func() time.Time { return now },
+	})
+	hooks := collector.TransportHooks()
+
+	hooks.OnDial(transport.DialEvent{TargetNode: 2, Result: "dial_error", Duration: 5 * time.Millisecond})
+	hooks.OnDial(transport.DialEvent{TargetNode: 3, Result: "dial_error", Duration: 5 * time.Millisecond})
+	hooks.OnDial(transport.DialEvent{TargetNode: 4, Result: "dial_error", Duration: 5 * time.Millisecond})
+
+	collector.mu.Lock()
+	defer collector.mu.Unlock()
+	require.Len(t, collector.events, 2)
+	require.Equal(t, uint64(3), collector.events[0].TargetNode)
+	require.Equal(t, uint64(4), collector.events[1].TargetNode)
+}
+
+func TestNetworkObservabilityDropsZeroInflightServicesAfterSamplesExpire(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		Now:         func() time.Time { return now },
+	})
+	hooks := collector.TransportHooks()
+
+	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Inflight: 1})
+	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Inflight: 0})
+	now = now.Add(61 * time.Second)
+
+	snap := collector.NetworkSnapshot(now)
+	require.Empty(t, snap.Services)
+}
+
+func TestNetworkObservabilityCallsDataPlanePoolStatsOutsideLock(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		Now:         func() time.Time { return now },
+	})
+	hooks := collector.TransportHooks()
+	collector.cfg.DataPlanePoolStats = func() []transport.PoolPeerStats {
+		hooks.OnSend(1, 10)
+		return []transport.PoolPeerStats{{NodeID: 2, Active: 1}}
+	}
+
+	done := make(chan managementusecase.NetworkObservationSnapshot, 1)
+	go func() {
+		done <- collector.NetworkSnapshot(now)
+	}()
+
+	select {
+	case snap := <-done:
+		require.Equal(t, []managementusecase.NetworkPoolPeerStats{{NodeID: 2, Active: 1}}, snap.DataPlanePools)
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("NetworkSnapshot deadlocked while DataPlanePoolStats re-entered collector hooks")
+	}
+}
+
 func TestNetworkObservabilityLongPollTimeoutCountedOnceInManagementSummary(t *testing.T) {
 	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	collector := newNetworkObservability(networkObservabilityConfig{
