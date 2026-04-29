@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -118,6 +119,51 @@ func TestActorReportsRouteExpiryObserver(t *testing.T) {
 	require.Len(t, observer.expired, 1)
 	require.Equal(t, uint64(101), observer.expired[0].MessageID)
 	require.Equal(t, route.SessionID, observer.expired[0].Route.SessionID)
+}
+
+func TestActorDoesNotExpireRouteAckedDuringFinalRetryPush(t *testing.T) {
+	clock := &testClock{now: time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)}
+	observer := &recordingDeliveryObserver{}
+	route := testRoute("u2", 1, 11, 2)
+	pusher := newBlockingFinalRetryPusher(route)
+	t.Cleanup(pusher.Unblock)
+	runtime := NewManager(Config{
+		Resolver:         &stubResolver{routesByChannel: map[string][]RouteKey{testChannelID: {route}}},
+		Push:             pusher,
+		Clock:            clock,
+		RetryDelays:      []time.Duration{time.Second},
+		MaxRetryAttempts: 2,
+		Observer:         observer,
+	})
+
+	require.NoError(t, runtime.Submit(context.Background(), testEnvelope(101, 1)))
+	require.True(t, runtime.HasAckBinding(route.SessionID, 101))
+
+	clock.Advance(cappedBackoffWithJitter([]time.Duration{time.Second}, 2))
+	retryDone := make(chan error, 1)
+	go func() {
+		retryDone <- runtime.ProcessRetryTicks(context.Background())
+	}()
+	pusher.WaitForFinalRetry(t)
+
+	ackDone := make(chan error, 1)
+	go func() {
+		ackDone <- runtime.AckRoute(context.Background(), RouteAck{
+			UID:        route.UID,
+			SessionID:  route.SessionID,
+			MessageID:  101,
+			MessageSeq: 1,
+		})
+	}()
+	require.Eventually(t, func() bool {
+		return !runtime.HasAckBinding(route.SessionID, 101)
+	}, time.Second, time.Millisecond)
+
+	pusher.Unblock()
+	require.NoError(t, <-retryDone)
+	require.NoError(t, <-ackDone)
+	require.Empty(t, observer.expired)
+	require.Equal(t, 2, pusher.attemptsFor(101))
 }
 
 func TestActorResolvesSubscribersPageByPageAndOnlyTracksOnlineRoutes(t *testing.T) {
@@ -441,6 +487,68 @@ func (r *recordingDeliveryObserver) OnRouteExpired(event RouteExpiredEvent) {
 }
 
 func (r *recordingDeliveryObserver) OnMaintenanceSnapshot(MaintenanceSnapshot) {}
+
+type blockingFinalRetryPusher struct {
+	route   RouteKey
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+	mu      sync.Mutex
+	calls   []PushCommand
+}
+
+func newBlockingFinalRetryPusher(route RouteKey) *blockingFinalRetryPusher {
+	return &blockingFinalRetryPusher{
+		route:   route,
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (p *blockingFinalRetryPusher) Push(_ context.Context, cmd PushCommand) (PushResult, error) {
+	p.mu.Lock()
+	p.calls = append(p.calls, PushCommand{
+		Envelope: cmd.Envelope,
+		Routes:   append([]RouteKey(nil), cmd.Routes...),
+		Attempt:  cmd.Attempt,
+	})
+	p.mu.Unlock()
+
+	if cmd.Attempt == 2 {
+		p.once.Do(func() { close(p.started) })
+		<-p.release
+	}
+	return PushResult{Accepted: []RouteKey{p.route}}, nil
+}
+
+func (p *blockingFinalRetryPusher) WaitForFinalRetry(t *testing.T) {
+	t.Helper()
+	select {
+	case <-p.started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for final retry push")
+	}
+}
+
+func (p *blockingFinalRetryPusher) Unblock() {
+	select {
+	case <-p.release:
+	default:
+		close(p.release)
+	}
+}
+
+func (p *blockingFinalRetryPusher) attemptsFor(messageID uint64) int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	count := 0
+	for _, call := range p.calls {
+		if call.Envelope.MessageID == messageID {
+			count++
+		}
+	}
+	return count
+}
 
 func (r *pagedStubResolver) BeginResolve(_ context.Context, key ChannelKey, _ CommittedEnvelope) (any, error) {
 	return key.ChannelID, nil

@@ -246,6 +246,12 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 	}
 	for _, route := range result.Accepted {
 		state := a.ensureRouteState(msg, route)
+		if a.routeAckTaken(msg, route, state) {
+			if err := a.finishRoute(ctx, msg, route); err != nil {
+				return err
+			}
+			continue
+		}
 		state.Attempt = attempt
 		state.Accepted = true
 		a.shard.manager.ackIdx.Bind(AckBinding{
@@ -263,6 +269,12 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 	}
 	for _, route := range result.Retryable {
 		state := a.ensureRouteState(msg, route)
+		if a.routeAckTaken(msg, route, state) {
+			if err := a.finishRoute(ctx, msg, route); err != nil {
+				return err
+			}
+			continue
+		}
 		state.Attempt = attempt
 		if !a.scheduleRetry(msg, route, attempt) {
 			if err := a.expireRoute(ctx, msg, route, attempt); err != nil {
@@ -278,9 +290,21 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 	return nil
 }
 
+func (a *actor) routeAckTaken(msg *InflightMessage, route RouteKey, state *RouteDeliveryState) bool {
+	if state == nil || !state.Accepted {
+		return false
+	}
+	_, ok := a.shard.manager.ackIdx.Lookup(route.SessionID, msg.MessageID)
+	return !ok
+}
+
 func (a *actor) expireRoute(ctx context.Context, msg *InflightMessage, route RouteKey, attempt int) error {
-	if _, ok := msg.Routes[route]; !ok {
+	state, ok := msg.Routes[route]
+	if !ok {
 		return nil
+	}
+	if a.routeAckTaken(msg, route, state) {
+		return a.finishRoute(ctx, msg, route)
 	}
 	if err := a.finishRoute(ctx, msg, route); err != nil {
 		return err

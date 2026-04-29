@@ -46,6 +46,22 @@ func (i *AckIndex) Lookup(sessionID, messageID uint64) (AckBinding, bool) {
 	return binding, ok
 }
 
+// Take atomically returns and removes an acknowledgement binding.
+func (i *AckIndex) Take(sessionID, messageID uint64) (AckBinding, bool) {
+	if i == nil {
+		return AckBinding{}, false
+	}
+	key := ackKey{sessionID: sessionID, messageID: messageID}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	binding, ok := i.entries[key]
+	if !ok {
+		return AckBinding{}, false
+	}
+	i.removeLocked(key)
+	return binding, true
+}
+
 func (i *AckIndex) LookupSession(sessionID uint64) []AckBinding {
 	if i == nil {
 		return nil
@@ -80,11 +96,19 @@ func (i *AckIndex) Remove(sessionID, messageID uint64) {
 	key := ackKey{sessionID: sessionID, messageID: messageID}
 	i.mu.Lock()
 	defer i.mu.Unlock()
+	i.removeLocked(key)
+}
+
+func (i *AckIndex) removeLocked(key ackKey) {
+	binding, ok := i.entries[key]
+	if !ok {
+		return
+	}
 	delete(i.entries, key)
-	if sessionBindings := i.reverse[sessionID]; sessionBindings != nil {
+	if sessionBindings := i.reverse[binding.SessionID]; sessionBindings != nil {
 		delete(sessionBindings, key)
 		if len(sessionBindings) == 0 {
-			delete(i.reverse, sessionID)
+			delete(i.reverse, binding.SessionID)
 		}
 	}
 }

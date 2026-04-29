@@ -80,7 +80,7 @@ func (m *Manager) Submit(ctx context.Context, env CommittedEnvelope) error {
 }
 
 func (m *Manager) AckRoute(ctx context.Context, cmd RouteAck) error {
-	binding, ok := m.ackIdx.Lookup(cmd.SessionID, cmd.MessageID)
+	binding, ok := m.ackIdx.Take(cmd.SessionID, cmd.MessageID)
 	if !ok {
 		return nil
 	}
