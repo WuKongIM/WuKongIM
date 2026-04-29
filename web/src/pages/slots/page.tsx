@@ -181,6 +181,7 @@ export function SlotsPage() {
     loading: false,
     error: null,
   })
+  const [expandedSlotLogIndexes, setExpandedSlotLogIndexes] = useState<Set<number>>(() => new Set())
   const [transferOpen, setTransferOpen] = useState(false)
   const [transferPending, setTransferPending] = useState(false)
   const [transferError, setTransferError] = useState("")
@@ -267,6 +268,9 @@ export function SlotsPage() {
 
   const loadSlotLogs = useCallback(async (slotId: number, nodeId: number, cursor?: number) => {
     const append = typeof cursor === "number"
+    if (!append) {
+      setExpandedSlotLogIndexes(new Set())
+    }
     setSlotLogs((current) => ({
       ...current,
       loading: true,
@@ -321,6 +325,7 @@ export function SlotsPage() {
     setDetail(null)
     setDetailError(null)
     setSlotLogs({ page: null, loading: false, error: null })
+    setExpandedSlotLogIndexes(new Set())
     setTransferOpen(false)
     setTransferError("")
     setTargetNodeId("")
@@ -366,6 +371,18 @@ export function SlotsPage() {
       setTransferPending(false)
     }
   }, [intl, refreshOpenDetail, selectedSlotId, targetNodeId])
+
+  const toggleSlotLogDecoded = useCallback((index: number) => {
+    setExpandedSlotLogIndexes((current) => {
+      const next = new Set(current)
+      if (next.has(index)) {
+        next.delete(index)
+      } else {
+        next.add(index)
+      }
+      return next
+    })
+  }, [])
 
   const submitRecover = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -803,6 +820,7 @@ export function SlotsPage() {
                       <tbody>
                         {slotLogs.page.items.map((entry) => {
                           const decoded = formatSlotLogDecoded(entry)
+                          const decodedExpanded = decoded ? expandedSlotLogIndexes.has(entry.index) : false
                           const commandHint = formatSlotLogCommandHint(intl, entry)
                           return (
                             <Fragment key={entry.index}>
@@ -816,13 +834,29 @@ export function SlotsPage() {
                                     {commandHint ? (
                                       <span className="text-xs text-muted-foreground/75">{commandHint}</span>
                                     ) : null}
+                                    {decoded ? (
+                                      <Button
+                                        aria-expanded={decodedExpanded}
+                                        className="mt-1 w-fit"
+                                        onClick={() => toggleSlotLogDecoded(entry.index)}
+                                        size="xs"
+                                        type="button"
+                                        variant="outline"
+                                      >
+                                        {intl.formatMessage({
+                                          id: decodedExpanded
+                                            ? "slots.logs.table.hideDecoded"
+                                            : "slots.logs.table.showDecoded",
+                                        })}
+                                      </Button>
+                                    ) : null}
                                   </div>
                                 </td>
                                 <td className="px-3 py-2 text-sm text-muted-foreground">
                                   {formatDataSize(entry.data_size)}
                                 </td>
                               </tr>
-                              {decoded ? (
+                              {decoded && decodedExpanded ? (
                                 <tr className="border-t border-border/60">
                                   <td className="px-3 pb-3" colSpan={5}>
                                     <div className="rounded-md border border-border/80 bg-muted/30 p-3">

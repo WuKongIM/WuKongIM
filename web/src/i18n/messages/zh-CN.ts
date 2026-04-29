@@ -345,6 +345,8 @@ export const zhCNMessages: AppMessages = {
   "slots.logs.table.command": "命令",
   "slots.logs.table.dataSize": "数据大小",
   "slots.logs.table.decoded": "解析 JSON",
+  "slots.logs.table.showDecoded": "展开解析 JSON",
+  "slots.logs.table.hideDecoded": "收起解析 JSON",
   "slots.logs.loadMore": "加载更多",
   "slots.cards.leaderCoverage.title": "Leader 覆盖",
   "slots.cards.leaderCoverage.description": "当前报告了 Leader 的槽位数。",

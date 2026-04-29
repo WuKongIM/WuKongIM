@@ -346,6 +346,8 @@ export const enMessages: AppMessages = {
   "slots.logs.table.command": "Command",
   "slots.logs.table.dataSize": "Data size",
   "slots.logs.table.decoded": "Decoded JSON",
+  "slots.logs.table.showDecoded": "Show decoded JSON",
+  "slots.logs.table.hideDecoded": "Hide decoded JSON",
   "slots.logs.loadMore": "Load more",
   "slots.cards.leaderCoverage.title": "Leader coverage",
   "slots.cards.leaderCoverage.description": "Slots currently reporting a leader.",
