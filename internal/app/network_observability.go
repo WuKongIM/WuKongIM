@@ -275,7 +275,6 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 		case "timeout":
 			if networkRPCExpectedTimeout(sample.serviceID, sample.result) {
 				acc.service.ExpectedTimeout1m++
-				snap.ChannelReplication.LongPollTimeouts1m++
 			} else {
 				acc.service.Timeout1m++
 				errs := snap.PeerErrors[sample.targetNode]

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -39,7 +40,7 @@ func TestNetworkObservabilityRecordsTransportAndRPCWindow(t *testing.T) {
 	require.Equal(t, "channel_long_poll_fetch", snap.Services[0].Service)
 	require.Equal(t, 1, snap.Services[0].ExpectedTimeout1m)
 	require.Equal(t, 0, snap.Services[0].Timeout1m)
-	require.Equal(t, 1, snap.ChannelReplication.LongPollTimeouts1m)
+	require.Equal(t, 0, snap.ChannelReplication.LongPollTimeouts1m)
 	require.False(t, hasNetworkEvent(snap.Events, "rpc_timeout", "channel_long_poll_fetch"))
 	require.NotEmpty(t, snap.Events)
 }
@@ -63,6 +64,39 @@ func TestNetworkObservabilityPrunesOldEvents(t *testing.T) {
 	require.Len(t, snap.Services, 1)
 	require.Equal(t, "channel_append", snap.Services[0].Service)
 	require.Equal(t, 1, snap.Services[0].Calls1m)
+}
+
+func TestNetworkObservabilityLongPollTimeoutCountedOnceInManagementSummary(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		Now:         func() time.Time { return now },
+	})
+
+	collector.TransportHooks().OnRPCClient(transport.RPCClientEvent{
+		TargetNode: 2,
+		ServiceID:  35,
+		Result:     "timeout",
+		Duration:   200 * time.Millisecond,
+	})
+
+	manager := managementusecase.New(managementusecase.Options{
+		LocalNodeID: 1,
+		Cluster: fakeObservabilityCluster{
+			nodes: []controllermeta.ClusterNode{
+				{NodeID: 1, Status: controllermeta.NodeStatusAlive},
+				{NodeID: 2, Status: controllermeta.NodeStatusAlive},
+			},
+		},
+		Network: collector,
+		Now:     func() time.Time { return now },
+	})
+
+	summary, err := manager.ListNetworkSummary(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, summary.Services[0].ExpectedTimeout1m)
+	require.Equal(t, 1, summary.ChannelReplication.LongPollTimeouts1m)
 }
 
 func TestNetworkObservabilitySnapshotIncludesConfigAndDataPlanePools(t *testing.T) {
