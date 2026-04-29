@@ -1,13 +1,19 @@
 package app
 
 import (
+	"context"
 	"sync"
 	"testing"
+	"time"
 
 	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
+	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
 )
+
+var _ messageusecase.MetaInvalidator = (*channelMetaSync)(nil)
 
 func TestMemoryGenerationStoreConcurrentAccess(t *testing.T) {
 	store := newMemoryGenerationStore()
@@ -32,6 +38,55 @@ func TestMemoryGenerationStoreConcurrentAccess(t *testing.T) {
 		}(worker)
 	}
 	wg.Wait()
+}
+
+func TestChannelMetaSyncInvalidateChannelMetaForwardsToResolver(t *testing.T) {
+	id := channel.ChannelID{ID: "g-forward", Type: 2}
+	now := time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)
+	source := &fakeChannelMetaSource{get: map[channel.ChannelID]metadb.ChannelRuntimeMeta{id: {
+		ChannelID:    id.ID,
+		ChannelType:  int64(id.Type),
+		ChannelEpoch: 1,
+		LeaderEpoch:  1,
+		Leader:       1,
+		Replicas:     []uint64{1},
+		ISR:          []uint64{1},
+		MinISR:       1,
+		Status:       uint8(channel.StatusActive),
+		LeaseUntilMS: now.Add(time.Minute).UnixMilli(),
+	}}}
+	syncer := &channelMetaSync{resolver: runtimechannelmeta.NewSync(runtimechannelmeta.SyncOptions{
+		Source:    source,
+		Runtime:   &fakeChannelMetaCluster{},
+		LocalNode: 1,
+		Now:       func() time.Time { return now },
+	})}
+
+	_, err := syncer.RefreshChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+	_, err = syncer.RefreshChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+	require.Equal(t, 1, source.getCalls)
+
+	syncer.InvalidateChannelMeta(id)
+
+	_, err = syncer.RefreshChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+	require.Equal(t, 2, source.getCalls)
+}
+
+type fakeChannelMetaSource struct {
+	get      map[channel.ChannelID]metadb.ChannelRuntimeMeta
+	getCalls int
+}
+
+func (f *fakeChannelMetaSource) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
+	f.getCalls++
+	return f.get[channel.ChannelID{ID: channelID, Type: uint8(channelType)}], nil
+}
+
+func (f *fakeChannelMetaSource) ListChannelRuntimeMeta(context.Context) ([]metadb.ChannelRuntimeMeta, error) {
+	return nil, nil
 }
 
 type fakeChannelMetaCluster struct {

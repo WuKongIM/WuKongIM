@@ -46,6 +46,13 @@ func (s *channelMetaSync) RefreshChannelMeta(ctx context.Context, id channel.Cha
 	return s.resolver.RefreshChannelMeta(ctx, id)
 }
 
+func (s *channelMetaSync) InvalidateChannelMeta(id channel.ChannelID) {
+	if s == nil || s.resolver == nil {
+		return
+	}
+	s.resolver.InvalidateChannelMeta(id)
+}
+
 func (s *channelMetaSync) ActivateByID(ctx context.Context, id channel.ChannelID, source channelruntime.ActivationSource) (channel.Meta, error) {
 	if s == nil || s.resolver == nil {
 		return channel.Meta{}, channel.ErrInvalidConfig
