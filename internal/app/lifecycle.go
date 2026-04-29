@@ -153,6 +153,16 @@ func (a *App) startConversationProjector() error {
 	return a.conversationProjector.Start()
 }
 
+func (a *App) startDeliveryRuntime(ctx context.Context) error {
+	if a.startDeliveryRuntimeFn != nil {
+		return a.startDeliveryRuntimeFn()
+	}
+	if a.deliveryRuntimeLifecycle == nil {
+		return nil
+	}
+	return a.deliveryRuntimeLifecycle.Start(ctx)
+}
+
 func (a *App) startCommittedReplay(ctx context.Context) error {
 	if a.committedReplayer == nil {
 		return nil
@@ -197,6 +207,19 @@ func (a *App) stopConversationProjector() error {
 		return nil
 	}
 	return a.conversationProjector.Stop()
+}
+
+func (a *App) stopDeliveryRuntime() error {
+	if !a.deliveryRuntimeOn.Swap(false) {
+		return nil
+	}
+	if a.stopDeliveryRuntimeFn != nil {
+		return a.stopDeliveryRuntimeFn()
+	}
+	if a.deliveryRuntimeLifecycle == nil {
+		return nil
+	}
+	return a.deliveryRuntimeLifecycle.Stop()
 }
 
 func (a *App) stopCommittedReplay() error {

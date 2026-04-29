@@ -97,6 +97,19 @@ func TestNewBuildsChannelLogDataPlane(t *testing.T) {
 	require.NotNil(t, app.ChannelLog())
 }
 
+func TestNewBuildsDeliveryRuntimeLifecycle(t *testing.T) {
+	cfg := testConfig(t)
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	require.NotNil(t, app.deliveryRuntime)
+	require.NotNil(t, app.deliveryRuntimeLifecycle)
+}
+
 func TestNewConfiguresISRMaxFetchInflightPeerWithMinimumConcurrency(t *testing.T) {
 	cfg := testConfig(t)
 	cfg.Cluster.PoolSize = 1
@@ -411,6 +424,10 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 			calls = append(calls, "conversation_projector.start")
 			return nil
 		},
+		startDeliveryRuntimeFn: func() error {
+			calls = append(calls, "delivery_runtime.start")
+			return nil
+		},
 		startGatewayFn: func() error {
 			calls = append(calls, "gateway.start")
 			return nil
@@ -432,6 +449,7 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 		"channelmeta.start",
 		"presence.start",
 		"conversation_projector.start",
+		"delivery_runtime.start",
 		"gateway.start",
 		"api.start",
 		"manager.start",

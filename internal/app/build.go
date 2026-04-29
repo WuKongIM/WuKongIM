@@ -377,6 +377,12 @@ func build(cfg Config) (_ *App, err error) {
 	subscriberResolver := deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
 		Store: app.store,
 	})
+	var deliveryObserver deliveryruntime.Observer
+	var deliveryMetrics *obsmetrics.DeliveryMetrics
+	if app.metrics != nil {
+		deliveryMetrics = app.metrics.Delivery
+		deliveryObserver = deliveryRuntimeMetricsObserver{metrics: deliveryMetrics}
+	}
 	app.deliveryRuntime = deliveryruntime.NewManager(deliveryruntime.Config{
 		ShardCount: deliveryShardCountForParallelism(runtime.GOMAXPROCS(0)),
 		Resolver: localDeliveryResolver{
@@ -395,6 +401,11 @@ func build(cfg Config) (_ *App, err error) {
 			client: app.nodeClient,
 			logger: app.logger.Named("delivery.push.remote"),
 		},
+		Observer: deliveryObserver,
+	})
+	app.deliveryRuntimeLifecycle = newDeliveryRuntimeLifecycle(deliveryRuntimeLifecycleConfig{
+		Runtime:  app.deliveryRuntime,
+		Observer: deliveryObserver,
 	})
 	app.deliveryApp = deliveryusecase.New(deliveryusecase.Options{
 		Runtime: app.deliveryRuntime,

@@ -63,6 +63,16 @@ func (i *AckIndex) LookupSession(sessionID uint64) []AckBinding {
 	return out
 }
 
+// Len returns the current number of acknowledgement bindings.
+func (i *AckIndex) Len() int {
+	if i == nil {
+		return 0
+	}
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return len(i.entries)
+}
+
 func (i *AckIndex) Remove(sessionID, messageID uint64) {
 	if i == nil {
 		return

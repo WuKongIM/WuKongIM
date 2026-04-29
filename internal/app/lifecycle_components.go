@@ -12,6 +12,7 @@ const (
 	appLifecycleChannelMeta           = "channelmeta"
 	appLifecyclePresence              = "presence"
 	appLifecycleConversationProjector = "conversation_projector"
+	appLifecycleDeliveryRuntime       = "delivery_runtime"
 	appLifecycleCommittedReplay       = "committed_replay"
 	appLifecycleGateway               = "gateway"
 	appLifecycleAPI                   = "api"
@@ -62,6 +63,9 @@ func (a *App) lifecycleComponents(includeStopOnly bool) []applifecycle.Component
 	}
 	if a.hasConversationProjectorLifecycle(includeStopOnly) {
 		components = append(components, a.conversationProjectorLifecycleComponent())
+	}
+	if a.hasDeliveryRuntimeLifecycle(includeStopOnly) {
+		components = append(components, a.deliveryRuntimeLifecycleComponent())
 	}
 	if a.hasCommittedReplayLifecycle(includeStopOnly) {
 		components = append(components, a.committedReplayLifecycleComponent())
@@ -151,6 +155,22 @@ func (a *App) conversationProjectorLifecycleComponent() applifecycle.Component {
 	}
 }
 
+func (a *App) deliveryRuntimeLifecycleComponent() applifecycle.Component {
+	return appLifecycleComponent{
+		name: appLifecycleDeliveryRuntime,
+		start: func(ctx context.Context) error {
+			if err := a.startDeliveryRuntime(ctx); err != nil {
+				return err
+			}
+			a.deliveryRuntimeOn.Store(true)
+			return nil
+		},
+		stop: func(context.Context) error {
+			return a.stopDeliveryRuntime()
+		},
+	}
+}
+
 func (a *App) committedReplayLifecycleComponent() applifecycle.Component {
 	return appLifecycleComponent{
 		name: appLifecycleCommittedReplay,
@@ -231,6 +251,12 @@ func (a *App) hasConversationProjectorLifecycle(includeStopOnly bool) bool {
 	return a.conversationProjector != nil ||
 		a.startConversationProjectorFn != nil ||
 		(includeStopOnly && (a.stopConversationProjectorFn != nil || a.conversationOn.Load()))
+}
+
+func (a *App) hasDeliveryRuntimeLifecycle(includeStopOnly bool) bool {
+	return a.deliveryRuntimeLifecycle != nil ||
+		a.startDeliveryRuntimeFn != nil ||
+		(includeStopOnly && (a.stopDeliveryRuntimeFn != nil || a.deliveryRuntimeOn.Load()))
 }
 
 func (a *App) hasCommittedReplayLifecycle(includeStopOnly bool) bool {

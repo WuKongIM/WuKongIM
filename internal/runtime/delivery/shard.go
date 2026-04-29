@@ -110,6 +110,23 @@ func (s *shard) sweepIdle() {
 	}
 }
 
+func (s *shard) inflightRouteCount() int {
+	s.mu.Lock()
+	actors := make([]*actor, 0, len(s.actors))
+	for _, act := range s.actors {
+		actors = append(actors, act)
+	}
+	s.mu.Unlock()
+
+	total := 0
+	for _, act := range actors {
+		act.mu.Lock()
+		total += act.inflightRouteCount()
+		act.mu.Unlock()
+	}
+	return total
+}
+
 func (s *shard) actorFor(key ChannelKey) *actor {
 	act := s.actors[key]
 	if act != nil {

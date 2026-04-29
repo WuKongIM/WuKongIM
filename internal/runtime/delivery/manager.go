@@ -16,6 +16,7 @@ type Manager struct {
 	resolver         Resolver
 	push             Pusher
 	clock            Clock
+	observer         Observer
 	ackIdx           *AckIndex
 	resolvePageSize  int
 	limits           Limits
@@ -59,6 +60,7 @@ func NewManager(cfg Config) *Manager {
 		resolver:         cfg.Resolver,
 		push:             cfg.Push,
 		clock:            cfg.Clock,
+		observer:         cfg.Observer,
 		ackIdx:           NewAckIndex(),
 		resolvePageSize:  cfg.ResolvePageSize,
 		limits:           cfg.Limits,
@@ -108,6 +110,26 @@ func (m *Manager) SweepIdle() {
 	for _, shard := range m.shards {
 		shard.sweepIdle()
 	}
+}
+
+// InflightRouteCount returns the number of routes currently tracked by all actors.
+func (m *Manager) InflightRouteCount() int {
+	if m == nil {
+		return 0
+	}
+	total := 0
+	for _, shard := range m.shards {
+		total += shard.inflightRouteCount()
+	}
+	return total
+}
+
+// AckBindingCount returns the number of routes currently awaiting client ack.
+func (m *Manager) AckBindingCount() int {
+	if m == nil {
+		return 0
+	}
+	return m.ackIdx.Len()
 }
 
 func (m *Manager) shardFor(key ChannelKey) *shard {

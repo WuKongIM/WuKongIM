@@ -37,32 +37,33 @@ type App struct {
 	logger    wklog.Logger
 	createdAt time.Time
 
-	db                    *metadb.DB
-	raftDB                *raftstorage.DB
-	channelLogDB          *channelstore.Engine
-	cluster               raftcluster.API
-	isrRuntime            channelruntime.Runtime
-	channelLog            *appChannelCluster
-	channelMetaSync       *channelMetaSync
-	store                 *metastore.Store
-	presenceApp           *presence.App
-	deliveryApp           *deliveryusecase.App
-	conversationApp       *conversationusecase.App
-	deliveryRuntime       *deliveryruntime.Manager
-	deliveryAcks          *deliveryruntime.AckIndex
-	committedReplayer     *committedReplayer
-	messageApp            *message.App
-	managementApp         *managementusecase.App
-	conversationProjector conversationusecase.Projector
-	api                   *accessapi.Server
-	manager               *accessmanager.Server
-	nodeClient            *accessnode.Client
-	nodeAccess            *accessnode.Adapter
-	presenceWorker        *presenceWorker
-	gatewayHandler        *accessgateway.Handler
-	gateway               *gateway.Gateway
-	gatewayBootID         uint64
-	onlineRegistry        online.Registry
+	db                       *metadb.DB
+	raftDB                   *raftstorage.DB
+	channelLogDB             *channelstore.Engine
+	cluster                  raftcluster.API
+	isrRuntime               channelruntime.Runtime
+	channelLog               *appChannelCluster
+	channelMetaSync          *channelMetaSync
+	store                    *metastore.Store
+	presenceApp              *presence.App
+	deliveryApp              *deliveryusecase.App
+	conversationApp          *conversationusecase.App
+	deliveryRuntime          *deliveryruntime.Manager
+	deliveryRuntimeLifecycle *deliveryRuntimeLifecycle
+	deliveryAcks             *deliveryruntime.AckIndex
+	committedReplayer        *committedReplayer
+	messageApp               *message.App
+	managementApp            *managementusecase.App
+	conversationProjector    conversationusecase.Projector
+	api                      *accessapi.Server
+	manager                  *accessmanager.Server
+	nodeClient               *accessnode.Client
+	nodeAccess               *accessnode.Adapter
+	presenceWorker           *presenceWorker
+	gatewayHandler           *accessgateway.Handler
+	gateway                  *gateway.Gateway
+	gatewayBootID            uint64
+	onlineRegistry           online.Registry
 
 	isrTransport         *channeltransport.Transport
 	dataPlanePool        *transport.Pool
@@ -80,6 +81,7 @@ type App struct {
 	channelMetaOn     atomic.Bool
 	presenceOn        atomic.Bool
 	conversationOn    atomic.Bool
+	deliveryRuntimeOn atomic.Bool
 	committedReplayOn atomic.Bool
 	apiOn             atomic.Bool
 	managerOn         atomic.Bool
@@ -89,6 +91,7 @@ type App struct {
 	startChannelMetaSyncFn       func() error
 	startPresenceFn              func() error
 	startConversationProjectorFn func() error
+	startDeliveryRuntimeFn       func() error
 	startAPIFn                   func() error
 	startManagerFn               func() error
 	startGatewayFn               func() error
@@ -98,6 +101,7 @@ type App struct {
 	stopManagerFn                func() error
 	stopGatewayFn                func() error
 	stopConversationProjectorFn  func() error
+	stopDeliveryRuntimeFn        func() error
 	stopPresenceFn               func() error
 	stopChannelMetaSyncFn        func() error
 	stopClusterFn                func()

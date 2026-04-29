@@ -255,17 +255,45 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 			ChannelType: a.key.ChannelType,
 			Route:       route,
 		})
-		a.scheduleRetry(msg, route, attempt)
+		if !a.scheduleRetry(msg, route, attempt) {
+			if err := a.expireRoute(ctx, msg, route, attempt); err != nil {
+				return err
+			}
+		}
 	}
 	for _, route := range result.Retryable {
 		state := a.ensureRouteState(msg, route)
 		state.Attempt = attempt
-		a.scheduleRetry(msg, route, attempt)
+		if !a.scheduleRetry(msg, route, attempt) {
+			if err := a.expireRoute(ctx, msg, route, attempt); err != nil {
+				return err
+			}
+		}
 	}
 	for _, route := range result.Dropped {
 		if err := a.finishRoute(ctx, msg, route); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (a *actor) expireRoute(ctx context.Context, msg *InflightMessage, route RouteKey, attempt int) error {
+	if _, ok := msg.Routes[route]; !ok {
+		return nil
+	}
+	if err := a.finishRoute(ctx, msg, route); err != nil {
+		return err
+	}
+	if observer := a.shard.manager.observer; observer != nil {
+		observer.OnRouteExpired(RouteExpiredEvent{
+			ChannelID:   a.key.ChannelID,
+			ChannelType: a.key.ChannelType,
+			MessageID:   msg.MessageID,
+			MessageSeq:  msg.MessageSeq,
+			Route:       route,
+			Attempt:     attempt,
+		})
 	}
 	return nil
 }
@@ -296,10 +324,10 @@ func (a *actor) finishRoute(_ context.Context, msg *InflightMessage, route Route
 	return nil
 }
 
-func (a *actor) scheduleRetry(msg *InflightMessage, route RouteKey, attempt int) {
+func (a *actor) scheduleRetry(msg *InflightMessage, route RouteKey, attempt int) bool {
 	delay, ok := a.shard.nextRetryDelay(attempt + 1)
 	if !ok {
-		return
+		return false
 	}
 	a.shard.wheel.Schedule(RetryEntry{
 		When:        a.shard.manager.clock.Now().Add(delay),
@@ -309,6 +337,7 @@ func (a *actor) scheduleRetry(msg *InflightMessage, route RouteKey, attempt int)
 		Route:       route,
 		Attempt:     attempt + 1,
 	})
+	return true
 }
 
 func (a *actor) completeMessage(messageID uint64) {

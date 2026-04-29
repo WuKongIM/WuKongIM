@@ -57,6 +57,28 @@ type PushResult struct {
 	Dropped   []RouteKey
 }
 
+// RouteExpiredEvent describes a realtime route removed after exhausting retry budget.
+type RouteExpiredEvent struct {
+	ChannelID   string
+	ChannelType uint8
+	MessageID   uint64
+	MessageSeq  uint64
+	Route       RouteKey
+	Attempt     int
+}
+
+// MaintenanceSnapshot captures delivery runtime gauge values after maintenance passes.
+type MaintenanceSnapshot struct {
+	InflightRoutes int
+	AckBindings    int
+}
+
+// Observer receives delivery runtime lifecycle and route expiry notifications.
+type Observer interface {
+	OnRouteExpired(RouteExpiredEvent)
+	OnMaintenanceSnapshot(MaintenanceSnapshot)
+}
+
 type RetryEntry struct {
 	When        time.Time
 	ChannelID   string
@@ -129,9 +151,11 @@ type Clock interface {
 }
 
 type Config struct {
-	Resolver         Resolver
-	Push             Pusher
-	Clock            Clock
+	Resolver Resolver
+	Push     Pusher
+	Clock    Clock
+	// Observer receives runtime maintenance snapshots and route expiry events.
+	Observer         Observer
 	ShardCount       int
 	ResolvePageSize  int
 	Limits           Limits

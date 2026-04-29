@@ -74,6 +74,52 @@ func TestActorRetryTickRetriesPendingRoutesUntilAcked(t *testing.T) {
 	require.Equal(t, 2, pusher.attemptsFor(101))
 }
 
+func TestActorExpiresAcceptedRouteAfterFinalRetryAttempt(t *testing.T) {
+	clock := &testClock{now: time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)}
+	route := testRoute("u2", 1, 11, 2)
+	pusher := &recordingPusher{responses: []pushResponse{
+		{result: PushResult{Accepted: []RouteKey{route}}},
+		{result: PushResult{Accepted: []RouteKey{route}}},
+	}}
+	runtime := NewManager(Config{
+		Resolver:         &stubResolver{routesByChannel: map[string][]RouteKey{testChannelID: {route}}},
+		Push:             pusher,
+		Clock:            clock,
+		RetryDelays:      []time.Duration{time.Second},
+		MaxRetryAttempts: 2,
+	})
+
+	require.NoError(t, runtime.Submit(context.Background(), testEnvelope(101, 1)))
+	require.True(t, runtime.HasAckBinding(route.SessionID, 101))
+
+	clock.Advance(cappedBackoffWithJitter([]time.Duration{time.Second}, 2))
+	require.NoError(t, runtime.ProcessRetryTicks(context.Background()))
+
+	require.False(t, runtime.HasAckBinding(route.SessionID, 101))
+	require.Equal(t, 2, pusher.attemptsFor(101))
+}
+
+func TestActorReportsRouteExpiryObserver(t *testing.T) {
+	clock := &testClock{now: time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)}
+	observer := &recordingDeliveryObserver{}
+	route := testRoute("u2", 1, 11, 2)
+	runtime := NewManager(Config{
+		Resolver: &stubResolver{routesByChannel: map[string][]RouteKey{testChannelID: {route}}},
+		Push: &recordingPusher{responses: []pushResponse{
+			{result: PushResult{Accepted: []RouteKey{route}}},
+		}},
+		Clock:            clock,
+		RetryDelays:      []time.Duration{time.Second},
+		MaxRetryAttempts: 1,
+		Observer:         observer,
+	})
+
+	require.NoError(t, runtime.Submit(context.Background(), testEnvelope(101, 1)))
+	require.Len(t, observer.expired, 1)
+	require.Equal(t, uint64(101), observer.expired[0].MessageID)
+	require.Equal(t, route.SessionID, observer.expired[0].Route.SessionID)
+}
+
 func TestActorResolvesSubscribersPageByPageAndOnlyTracksOnlineRoutes(t *testing.T) {
 	clock := &testClock{now: time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC)}
 	resolver := &pagedStubResolver{
@@ -385,6 +431,16 @@ type flakyResolveToken struct {
 	channelID string
 	messageID uint64
 }
+
+type recordingDeliveryObserver struct {
+	expired []RouteExpiredEvent
+}
+
+func (r *recordingDeliveryObserver) OnRouteExpired(event RouteExpiredEvent) {
+	r.expired = append(r.expired, event)
+}
+
+func (r *recordingDeliveryObserver) OnMaintenanceSnapshot(MaintenanceSnapshot) {}
 
 func (r *pagedStubResolver) BeginResolve(_ context.Context, key ChannelKey, _ CommittedEnvelope) (any, error) {
 	return key.ChannelID, nil
