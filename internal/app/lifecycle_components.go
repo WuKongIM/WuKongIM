@@ -13,6 +13,7 @@ const (
 	appLifecyclePresence              = "presence"
 	appLifecycleConversationProjector = "conversation_projector"
 	appLifecycleDeliveryRuntime       = "delivery_runtime"
+	appLifecycleCommittedDispatcher   = "committed_dispatcher"
 	appLifecycleCommittedReplay       = "committed_replay"
 	appLifecycleGateway               = "gateway"
 	appLifecycleAPI                   = "api"
@@ -66,6 +67,9 @@ func (a *App) lifecycleComponents(includeStopOnly bool) []applifecycle.Component
 	}
 	if a.hasDeliveryRuntimeLifecycle(includeStopOnly) {
 		components = append(components, a.deliveryRuntimeLifecycleComponent())
+	}
+	if a.hasCommittedDispatcherLifecycle(includeStopOnly) {
+		components = append(components, a.committedDispatcherLifecycleComponent())
 	}
 	if a.hasCommittedReplayLifecycle(includeStopOnly) {
 		components = append(components, a.committedReplayLifecycleComponent())
@@ -187,6 +191,22 @@ func (a *App) committedReplayLifecycleComponent() applifecycle.Component {
 	}
 }
 
+func (a *App) committedDispatcherLifecycleComponent() applifecycle.Component {
+	return appLifecycleComponent{
+		name: appLifecycleCommittedDispatcher,
+		start: func(ctx context.Context) error {
+			if err := a.startCommittedDispatcher(ctx); err != nil {
+				return err
+			}
+			a.committedDispatcherOn.Store(true)
+			return nil
+		},
+		stop: func(context.Context) error {
+			return a.stopCommittedDispatcher()
+		},
+	}
+}
+
 func (a *App) gatewayLifecycleComponent() applifecycle.Component {
 	return appLifecycleComponent{
 		name: appLifecycleGateway,
@@ -261,7 +281,14 @@ func (a *App) hasDeliveryRuntimeLifecycle(includeStopOnly bool) bool {
 
 func (a *App) hasCommittedReplayLifecycle(includeStopOnly bool) bool {
 	return a.committedReplayer != nil ||
-		(includeStopOnly && a.committedReplayOn.Load())
+		a.startCommittedReplayFn != nil ||
+		(includeStopOnly && (a.stopCommittedReplayFn != nil || a.committedReplayOn.Load()))
+}
+
+func (a *App) hasCommittedDispatcherLifecycle(includeStopOnly bool) bool {
+	return a.committedDispatcher != nil ||
+		a.startCommittedDispatcherFn != nil ||
+		(includeStopOnly && (a.stopCommittedDispatcherFn != nil || a.committedDispatcherOn.Load()))
 }
 
 func (a *App) hasAPILifecycle(includeStopOnly bool) bool {

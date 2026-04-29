@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -255,17 +256,87 @@ func TestOfflineRoutingKeepsLocalBindingsWhenLocalCloseFails(t *testing.T) {
 	require.True(t, remoteAcksHas(remoteAcks, 8, 201))
 }
 
+func TestCommittedDispatchQueuePreservesPerChannelOrder(t *testing.T) {
+	delivery := &recordingCommittedSubmitter{}
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID: 1,
+		PreferLocal: true,
+		Delivery:    delivery,
+		ShardCount:  1,
+		QueueDepth:  8,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	defer func() { require.NoError(t, dispatcher.Stop()) }()
+
+	for seq := uint64(1); seq <= 3; seq++ {
+		require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{
+			ChannelID:   "g1",
+			ChannelType: frame.ChannelTypeGroup,
+			MessageID:   seq,
+			MessageSeq:  seq,
+		}}))
+	}
+
+	require.Eventually(t, func() bool { return len(delivery.calls) == 3 }, time.Second, time.Millisecond)
+	require.Equal(t, []uint64{1, 2, 3}, delivery.messageSeqs())
+}
+
+func TestCommittedDispatchQueueOverflowDoesNotFailCommittedSubmit(t *testing.T) {
+	conversation := &recordingFlushingConversationSubmitter{}
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID:           1,
+		PreferLocal:           true,
+		Conversation:          conversation,
+		ShardCount:            1,
+		QueueDepth:            1,
+		DisableWorkersForTest: true,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	defer func() { require.NoError(t, dispatcher.Stop()) }()
+
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 2}}))
+	require.Equal(t, 1, conversation.flushCalls)
+}
+
+func TestCommittedDispatchQueueRecordsMetrics(t *testing.T) {
+	metrics := &recordingCommittedDispatchMetrics{}
+	conversation := &recordingFlushingConversationSubmitter{}
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID:           1,
+		PreferLocal:           true,
+		Conversation:          conversation,
+		Metrics:               metrics,
+		ShardCount:            1,
+		QueueDepth:            1,
+		DisableWorkersForTest: true,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	defer func() { require.NoError(t, dispatcher.Stop()) }()
+
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 2}}))
+
+	require.Equal(t, []string{"0:ok", "0:overflow"}, metrics.enqueues)
+	require.Equal(t, []string{"0"}, metrics.overflows)
+	require.Contains(t, metrics.depths, "0:1")
+}
+
 func TestAsyncCommittedDispatcherFallsBackToLocalConversationWhenOwnerIsUnknown(t *testing.T) {
 	delivery := &recordingCommittedSubmitter{}
 	conversation := &recordingFlushingConversationSubmitter{}
-	dispatcher := asyncCommittedDispatcher{
-		localNodeID: 1,
-		channelLog: &stubChannelLogCluster{
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID: 1,
+		ChannelLog: &stubChannelLogCluster{
 			statusErr: errors.New("leader unknown"),
 		},
-		delivery:     delivery,
-		conversation: conversation,
-	}
+		Delivery:     delivery,
+		Conversation: conversation,
+		ShardCount:   1,
+		QueueDepth:   8,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	defer func() { require.NoError(t, dispatcher.Stop()) }()
 
 	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
 		Message: channel.Message{
@@ -283,15 +354,19 @@ func TestAsyncCommittedDispatcherFallsBackToLocalConversationWhenOwnerIsUnknown(
 
 func TestAsyncCommittedDispatcherSubmitsDurableMessageToLocalDelivery(t *testing.T) {
 	delivery := &recordingCommittedSubmitter{}
-	dispatcher := asyncCommittedDispatcher{
-		localNodeID: 1,
-		channelLog: &stubChannelLogCluster{
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID: 1,
+		ChannelLog: &stubChannelLogCluster{
 			status: channel.ChannelRuntimeStatus{
 				Leader: 1,
 			},
 		},
-		delivery: delivery,
-	}
+		Delivery:   delivery,
+		ShardCount: 1,
+		QueueDepth: 8,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	defer func() { require.NoError(t, dispatcher.Stop()) }()
 
 	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
 		Message: channel.Message{
@@ -334,16 +409,20 @@ func TestAsyncCommittedDispatcherSubmitsDurableMessageToLocalDelivery(t *testing
 func TestAsyncCommittedDispatcherSubmitsToConversationProjector(t *testing.T) {
 	delivery := &recordingCommittedSubmitter{}
 	conversation := &recordingConversationSubmitter{}
-	dispatcher := asyncCommittedDispatcher{
-		localNodeID: 1,
-		channelLog: &stubChannelLogCluster{
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID: 1,
+		ChannelLog: &stubChannelLogCluster{
 			status: channel.ChannelRuntimeStatus{
 				Leader: 1,
 			},
 		},
-		delivery:     delivery,
-		conversation: conversation,
-	}
+		Delivery:     delivery,
+		Conversation: conversation,
+		ShardCount:   1,
+		QueueDepth:   8,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	defer func() { require.NoError(t, dispatcher.Stop()) }()
 
 	msg := channel.Message{
 		ChannelID:   "u1@u2",
@@ -369,13 +448,17 @@ func TestAsyncCommittedDispatcherPrefersLocalDeliveryWithoutOwnerLookup(t *testi
 	channelLog := &stubChannelLogCluster{
 		statusErr: errors.New("status should not be called in local-preferred mode"),
 	}
-	dispatcher := asyncCommittedDispatcher{
-		localNodeID:  1,
-		preferLocal:  true,
-		channelLog:   channelLog,
-		delivery:     delivery,
-		conversation: conversation,
-	}
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID:  1,
+		PreferLocal:  true,
+		ChannelLog:   channelLog,
+		Delivery:     delivery,
+		Conversation: conversation,
+		ShardCount:   1,
+		QueueDepth:   8,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	defer func() { require.NoError(t, dispatcher.Stop()) }()
 
 	msg := channel.Message{
 		ChannelID:   "u1@u2",
@@ -763,6 +846,14 @@ func (r *recordingCommittedSubmitter) SubmitCommitted(_ context.Context, env del
 	return nil
 }
 
+func (r *recordingCommittedSubmitter) messageSeqs() []uint64 {
+	out := make([]uint64, 0, len(r.calls))
+	for _, call := range r.calls {
+		out = append(out, call.MessageSeq)
+	}
+	return out
+}
+
 type recordingConversationSubmitter struct {
 	submitCalls int
 	calls       []channel.Message
@@ -784,6 +875,24 @@ type recordingFlushingConversationSubmitter struct {
 func (r *recordingFlushingConversationSubmitter) Flush(context.Context) error {
 	r.flushCalls++
 	return nil
+}
+
+type recordingCommittedDispatchMetrics struct {
+	depths    []string
+	enqueues  []string
+	overflows []string
+}
+
+func (m *recordingCommittedDispatchMetrics) SetCommittedDispatchQueueDepth(shard string, depth int) {
+	m.depths = append(m.depths, shard+":"+strconv.Itoa(depth))
+}
+
+func (m *recordingCommittedDispatchMetrics) ObserveCommittedDispatchEnqueue(shard, result string) {
+	m.enqueues = append(m.enqueues, shard+":"+result)
+}
+
+func (m *recordingCommittedDispatchMetrics) ObserveCommittedDispatchOverflow(shard string) {
+	m.overflows = append(m.overflows, shard)
 }
 
 type resolverSnapshotStore struct {

@@ -411,16 +411,21 @@ func build(cfg Config) (_ *App, err error) {
 		Runtime: app.deliveryRuntime,
 		Logger:  app.logger.Named("delivery"),
 	})
-	committedRouter := asyncCommittedDispatcher{
-		localNodeID:  cfg.Node.ID,
-		preferLocal:  true,
-		logger:       app.logger.Named("delivery.route"),
-		channelLog:   app.channelLog,
-		delivery:     app.deliveryApp,
-		conversation: app.conversationProjector,
-		nodeClient:   app.nodeClient,
+	var messageMetrics committedDispatchMetrics
+	if app.metrics != nil {
+		messageMetrics = app.metrics.Message
 	}
-	committedDispatcher := committedFanout{subscribers: []committedSubscriber{committedRouter}}
+	app.committedDispatcher = newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID:  cfg.Node.ID,
+		PreferLocal:  true,
+		Logger:       app.logger.Named("delivery.route"),
+		ChannelLog:   app.channelLog,
+		Delivery:     app.deliveryApp,
+		Conversation: app.conversationProjector,
+		NodeClient:   app.nodeClient,
+		Metrics:      messageMetrics,
+	})
+	committedDispatcher := committedFanout{subscribers: []committedSubscriber{app.committedDispatcher}}
 	app.committedReplayer = newCommittedReplayer(committedReplayerConfig{
 		Log: channelStoreCommittedReplayLog{
 			engine:      app.channelLogDB,

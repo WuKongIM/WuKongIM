@@ -163,7 +163,20 @@ func (a *App) startDeliveryRuntime(ctx context.Context) error {
 	return a.deliveryRuntimeLifecycle.Start(ctx)
 }
 
+func (a *App) startCommittedDispatcher(ctx context.Context) error {
+	if a.startCommittedDispatcherFn != nil {
+		return a.startCommittedDispatcherFn()
+	}
+	if a.committedDispatcher == nil {
+		return nil
+	}
+	return a.committedDispatcher.Start(ctx)
+}
+
 func (a *App) startCommittedReplay(ctx context.Context) error {
+	if a.startCommittedReplayFn != nil {
+		return a.startCommittedReplayFn(ctx)
+	}
 	if a.committedReplayer == nil {
 		return nil
 	}
@@ -222,9 +235,25 @@ func (a *App) stopDeliveryRuntime(ctx context.Context) error {
 	return a.deliveryRuntimeLifecycle.StopContext(ctx)
 }
 
+func (a *App) stopCommittedDispatcher() error {
+	if !a.committedDispatcherOn.Swap(false) {
+		return nil
+	}
+	if a.stopCommittedDispatcherFn != nil {
+		return a.stopCommittedDispatcherFn()
+	}
+	if a.committedDispatcher == nil {
+		return nil
+	}
+	return a.committedDispatcher.Stop()
+}
+
 func (a *App) stopCommittedReplay() error {
 	if !a.committedReplayOn.Swap(false) {
 		return nil
+	}
+	if a.stopCommittedReplayFn != nil {
+		return a.stopCommittedReplayFn()
 	}
 	if a.committedReplayer == nil {
 		return nil

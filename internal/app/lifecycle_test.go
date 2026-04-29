@@ -428,6 +428,14 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 			calls = append(calls, "delivery_runtime.start")
 			return nil
 		},
+		startCommittedDispatcherFn: func() error {
+			calls = append(calls, "committed_dispatcher.start")
+			return nil
+		},
+		startCommittedReplayFn: func(context.Context) error {
+			calls = append(calls, "committed_replay.start")
+			return nil
+		},
 		startGatewayFn: func() error {
 			calls = append(calls, "gateway.start")
 			return nil
@@ -450,6 +458,8 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 		"presence.start",
 		"conversation_projector.start",
 		"delivery_runtime.start",
+		"committed_dispatcher.start",
+		"committed_replay.start",
 		"gateway.start",
 		"api.start",
 		"manager.start",
@@ -1065,16 +1075,24 @@ func TestAppLifecycleStopsPresenceWorkerAfterGateway(t *testing.T) {
 		startCalls = append(startCalls, "presence.start")
 		return nil
 	})
+	app.startCommittedDispatcherFn = func() error {
+		startCalls = append(startCalls, "committed_dispatcher.start")
+		return nil
+	}
 	setAppFuncField(t, app, "stopPresenceFn", func() error {
 		stopCalls = append(stopCalls, "presence.stop")
 		return nil
 	})
+	app.stopCommittedDispatcherFn = func() error {
+		stopCalls = append(stopCalls, "committed_dispatcher.stop")
+		return nil
+	}
 
 	require.NoError(t, app.Start())
-	require.Equal(t, []string{"cluster.start", "presence.start", "gateway.start"}, startCalls)
+	require.Equal(t, []string{"cluster.start", "presence.start", "committed_dispatcher.start", "gateway.start"}, startCalls)
 
 	require.NoError(t, app.Stop())
-	require.Equal(t, []string{"gateway.stop", "presence.stop", "cluster.stop", "raft.close", "metadb.close"}, stopCalls)
+	require.Equal(t, []string{"gateway.stop", "committed_dispatcher.stop", "presence.stop", "cluster.stop", "raft.close", "metadb.close"}, stopCalls)
 }
 
 func TestStopStopsAPIBeforeGatewayAndClusterClose(t *testing.T) {

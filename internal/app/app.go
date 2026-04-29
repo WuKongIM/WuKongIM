@@ -51,6 +51,7 @@ type App struct {
 	deliveryRuntime          *deliveryruntime.Manager
 	deliveryRuntimeLifecycle *deliveryRuntimeLifecycle
 	deliveryAcks             *deliveryruntime.AckIndex
+	committedDispatcher      *asyncCommittedDispatcher
 	committedReplayer        *committedReplayer
 	messageApp               *message.App
 	managementApp            *managementusecase.App
@@ -72,26 +73,29 @@ type App struct {
 	observedClusterCache observedClusterStateCache
 	nodeDrainState       *nodeDrainState
 
-	stopOnce          sync.Once
-	lifecycle         sync.Mutex
-	lifecycleMgr      *applifecycle.Manager
-	started           atomic.Bool
-	stopped           atomic.Bool
-	clusterOn         atomic.Bool
-	channelMetaOn     atomic.Bool
-	presenceOn        atomic.Bool
-	conversationOn    atomic.Bool
-	deliveryRuntimeOn atomic.Bool
-	committedReplayOn atomic.Bool
-	apiOn             atomic.Bool
-	managerOn         atomic.Bool
-	gatewayOn         atomic.Bool
+	stopOnce              sync.Once
+	lifecycle             sync.Mutex
+	lifecycleMgr          *applifecycle.Manager
+	started               atomic.Bool
+	stopped               atomic.Bool
+	clusterOn             atomic.Bool
+	channelMetaOn         atomic.Bool
+	presenceOn            atomic.Bool
+	conversationOn        atomic.Bool
+	deliveryRuntimeOn     atomic.Bool
+	committedDispatcherOn atomic.Bool
+	committedReplayOn     atomic.Bool
+	apiOn                 atomic.Bool
+	managerOn             atomic.Bool
+	gatewayOn             atomic.Bool
 
 	startClusterFn               func() error
 	startChannelMetaSyncFn       func() error
 	startPresenceFn              func() error
 	startConversationProjectorFn func() error
 	startDeliveryRuntimeFn       func() error
+	startCommittedDispatcherFn   func() error
+	startCommittedReplayFn       func(context.Context) error
 	startAPIFn                   func() error
 	startManagerFn               func() error
 	startGatewayFn               func() error
@@ -102,6 +106,8 @@ type App struct {
 	stopGatewayFn                func() error
 	stopConversationProjectorFn  func() error
 	stopDeliveryRuntimeFn        func() error
+	stopCommittedDispatcherFn    func() error
+	stopCommittedReplayFn        func() error
 	stopPresenceFn               func() error
 	stopChannelMetaSyncFn        func() error
 	stopClusterFn                func()

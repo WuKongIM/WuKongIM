@@ -186,6 +186,7 @@ online.Registry.Connection(sessionID)
    ├─ ChannelMetaSync（元数据同步）
    ├─ Presence（在线状态 + Worker）
    ├─ Delivery（投递管理器）
+   ├─ CommittedDispatcher（有界分片队列，异步分发已提交事件）
    ├─ CommittedReplay（从 Channel Log 补偿已提交事件）
    ├─ Message（消息用例）
    └─ Node Access（RPC Handler）
@@ -205,10 +206,12 @@ online.Registry.Connection(sessionID)
 3. channelmeta（启动 active-slot leader watcher）
 4. presence（启动 Worker）
 5. conversation_projector
-6. committed_replay
-7. gateway
-8. api
-9. manager
+6. delivery_runtime
+7. committed_dispatcher
+8. committed_replay
+9. gateway
+10. api
+11. manager
 ```
 
 ### 4.2 停止流程
@@ -221,20 +224,22 @@ online.Registry.Connection(sessionID)
 2. api
 3. gateway
 4. committed_replay
-5. conversation_projector
-6. presence
-7. channelmeta（StopWithoutCleanup）
-8. managed_slots_ready（no-op）
-9. cluster
+5. committed_dispatcher
+6. delivery_runtime
+7. conversation_projector
+8. presence
+9. channelmeta（StopWithoutCleanup）
+10. managed_slots_ready（no-op）
+11. cluster
 
 然后关闭资源:
-10. channelLog.Close
-11. dataPlaneClient.Stop
-12. dataPlanePool.Close
-12. channelLogDB.Close
-13. raftDB.Close
-14. metadb.Close
-15. syncLogger
+12. channelLog.Close
+13. dataPlaneClient.Stop
+14. dataPlanePool.Close
+15. channelLogDB.Close
+16. raftDB.Close
+17. metadb.Close
+18. syncLogger
 ```
 
 ### 4.3 消息发送流程
@@ -268,6 +273,8 @@ message.App.Send(ctx, cmd)
 dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted)
   ├─ committedFanout（fanout 给订阅者）
   └─ asyncCommittedDispatcher
+      ├─ 按 ChannelID + ChannelType 选择固定分片队列
+      ├─ 队列满时不失败 Send，改走 conversation fallback + flush
       ├─ delivery.Submit（投递）
       └─ conversation.SubmitCommitted（会话投影）
 committed_replay 后台从已提交 Channel Log 补偿未分发事件
@@ -511,7 +518,8 @@ handleRecvAck(ctx, pkt)
 - **Refresh 热路径只读 node liveness cache**: `RefreshChannelMeta()` 不会每次都直接查 controller，先看本地 `nodeLiveness` cache
 
 ### 🔴 已提交消息分发
-- **committedFanout + asyncCommittedDispatcher 的 preferLocal**: message 用例只发布 `messageevents.MessageCommitted`，`asyncCommittedDispatcher` 会把已提交消息直接进入本地 delivery runtime，避免所有实时投递都绕经 Leader
+- **committedFanout + asyncCommittedDispatcher 的 preferLocal**: message 用例只发布 `messageevents.MessageCommitted`，`asyncCommittedDispatcher` 用有界分片队列分发，默认把已提交消息进入本地 delivery runtime，避免所有实时投递都绕经 Leader。
+- **committed dispatcher 溢出不影响 durable send**: 队列满只记录指标并触发 conversation fallback/flush，Sendack 仍只由 Channel Log quorum commit 决定。
 - **committed_replay 是补偿路径，不阻塞 Sendack**: Sendack 仍只等待 Channel Log quorum commit；后台 replayer 以 Channel Log 为真相，用批量 cursor 兜底补发 delivery / conversation，cursor 只在 conversation flush 成功后推进。
 
 ---

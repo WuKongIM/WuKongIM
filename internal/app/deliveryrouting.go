@@ -3,7 +3,12 @@ package app
 import (
 	"context"
 	"errors"
+	"hash/fnv"
+	"io"
+	"runtime"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
@@ -28,7 +33,44 @@ var (
 const (
 	committedRouteRetryAttempts = 3
 	committedRouteRetryBackoff  = 20 * time.Millisecond
+
+	committedDispatchDefaultQueueDepth = 4096
+	committedDispatchMinShards         = 4
+	committedDispatchMaxShards         = 32
 )
+
+type asyncCommittedDispatcherConfig struct {
+	// LocalNodeID identifies the current node for committed owner routing.
+	LocalNodeID uint64
+	// PreferLocal skips owner lookup and routes committed side effects through this node.
+	PreferLocal bool
+	// Logger records committed routing diagnostics without failing the send path.
+	Logger wklog.Logger
+	// ChannelLog resolves the channel owner when PreferLocal is false.
+	ChannelLog interface {
+		Status(channel.ChannelID) (channel.ChannelRuntimeStatus, error)
+	}
+	// Delivery receives local realtime fanout submissions.
+	Delivery committedDeliverySubmitter
+	// Conversation receives committed messages for conversation projection.
+	Conversation committedConversationSubmitter
+	// NodeClient forwards committed side effects to remote owner nodes.
+	NodeClient committedNodeSubmitter
+	// Metrics observes queue depth, enqueue results, and overflow events.
+	Metrics committedDispatchMetrics
+	// ShardCount controls FIFO worker lanes; zero uses bounded runtime defaults.
+	ShardCount int
+	// QueueDepth controls each shard buffer; zero uses the internal default.
+	QueueDepth int
+	// DisableWorkersForTest leaves queues unconsumed so overflow paths are deterministic.
+	DisableWorkersForTest bool
+}
+
+type committedDispatchMetrics interface {
+	SetCommittedDispatchQueueDepth(shard string, depth int)
+	ObserveCommittedDispatchEnqueue(shard, result string)
+	ObserveCommittedDispatchOverflow(shard string)
+}
 
 type asyncCommittedDispatcher struct {
 	localNodeID uint64
@@ -40,22 +82,163 @@ type asyncCommittedDispatcher struct {
 	delivery     committedDeliverySubmitter
 	conversation committedConversationSubmitter
 	nodeClient   committedNodeSubmitter
+	metrics      committedDispatchMetrics
+
+	mu                    sync.Mutex
+	cancel                context.CancelFunc
+	wg                    sync.WaitGroup
+	shards                []chan committedDispatchItem
+	disableWorkersForTest bool
 }
 
-func (d asyncCommittedDispatcher) SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
+type committedDispatchItem struct {
+	ctx context.Context
+	env deliveryruntime.CommittedEnvelope
+}
+
+func newAsyncCommittedDispatcher(cfg asyncCommittedDispatcherConfig) *asyncCommittedDispatcher {
+	shardCount := cfg.ShardCount
+	if shardCount <= 0 {
+		shardCount = runtime.GOMAXPROCS(0)
+		if shardCount < committedDispatchMinShards {
+			shardCount = committedDispatchMinShards
+		}
+		if shardCount > committedDispatchMaxShards {
+			shardCount = committedDispatchMaxShards
+		}
+	}
+	queueDepth := cfg.QueueDepth
+	if queueDepth <= 0 {
+		queueDepth = committedDispatchDefaultQueueDepth
+	}
+	shards := make([]chan committedDispatchItem, shardCount)
+	for i := range shards {
+		shards[i] = make(chan committedDispatchItem, queueDepth)
+	}
+	return &asyncCommittedDispatcher{
+		localNodeID:           cfg.LocalNodeID,
+		preferLocal:           cfg.PreferLocal,
+		logger:                cfg.Logger,
+		channelLog:            cfg.ChannelLog,
+		delivery:              cfg.Delivery,
+		conversation:          cfg.Conversation,
+		nodeClient:            cfg.NodeClient,
+		metrics:               cfg.Metrics,
+		shards:                shards,
+		disableWorkersForTest: cfg.DisableWorkersForTest,
+	}
+}
+
+func (d *asyncCommittedDispatcher) Start(ctx context.Context) error {
+	if d == nil {
+		return nil
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.cancel != nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	d.cancel = cancel
+	if d.disableWorkersForTest {
+		return nil
+	}
+	for i, shard := range d.shards {
+		shardName := strconv.Itoa(i)
+		d.wg.Add(1)
+		go d.runShard(runCtx, shardName, shard)
+	}
+	return nil
+}
+
+func (d *asyncCommittedDispatcher) Stop() error {
+	if d == nil {
+		return nil
+	}
+	d.mu.Lock()
+	cancel := d.cancel
+	d.cancel = nil
+	d.mu.Unlock()
+	if cancel == nil {
+		return nil
+	}
+	cancel()
+	d.wg.Wait()
+	return nil
+}
+
+func (d *asyncCommittedDispatcher) runShard(ctx context.Context, shardName string, queue <-chan committedDispatchItem) {
+	defer d.wg.Done()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case item := <-queue:
+			d.recordCommittedDispatchDepth(shardName, len(queue))
+			d.routeCommitted(item.ctx, item.env)
+		}
+	}
+}
+
+func (d *asyncCommittedDispatcher) SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
+	if d == nil {
+		return nil
+	}
 	if d.delivery == nil && d.conversation == nil {
 		return nil
 	}
-	env := committedEnvelopeFromMessageEvent(event)
 	if ctx == nil {
 		ctx = context.Background()
 	} else {
 		ctx = context.WithoutCancel(ctx)
 	}
-	go func() {
-		d.routeCommitted(ctx, env)
-	}()
+	cloned := event.Clone()
+	env := committedEnvelopeFromMessageEvent(cloned)
+	idx := d.committedDispatchShard(cloned.Message)
+	shardName := strconv.Itoa(idx)
+	queue := d.shards[idx]
+	select {
+	case queue <- committedDispatchItem{ctx: ctx, env: env}:
+		d.recordCommittedDispatchEnqueue(shardName, "ok")
+		d.recordCommittedDispatchDepth(shardName, len(queue))
+	default:
+		d.recordCommittedDispatchEnqueue(shardName, "overflow")
+		d.recordCommittedDispatchOverflow(shardName)
+		d.recordCommittedDispatchDepth(shardName, len(queue))
+		d.submitConversationFallback(ctx, env)
+	}
 	return nil
+}
+
+func (d *asyncCommittedDispatcher) committedDispatchShard(msg channel.Message) int {
+	if len(d.shards) <= 1 {
+		return 0
+	}
+	hash := fnv.New64a()
+	_, _ = io.WriteString(hash, msg.ChannelID)
+	_, _ = hash.Write([]byte{msg.ChannelType})
+	return int(hash.Sum64() % uint64(len(d.shards)))
+}
+
+func (d *asyncCommittedDispatcher) recordCommittedDispatchDepth(shard string, depth int) {
+	if d.metrics != nil {
+		d.metrics.SetCommittedDispatchQueueDepth(shard, depth)
+	}
+}
+
+func (d *asyncCommittedDispatcher) recordCommittedDispatchEnqueue(shard, result string) {
+	if d.metrics != nil {
+		d.metrics.ObserveCommittedDispatchEnqueue(shard, result)
+	}
+}
+
+func (d *asyncCommittedDispatcher) recordCommittedDispatchOverflow(shard string) {
+	if d.metrics != nil {
+		d.metrics.ObserveCommittedDispatchOverflow(shard)
+	}
 }
 
 func committedEnvelopeFromMessageEvent(event messageevents.MessageCommitted) deliveryruntime.CommittedEnvelope {
@@ -81,7 +264,7 @@ func (s deliveryRuntimeCommittedSubmitter) SubmitCommitted(ctx context.Context, 
 	})
 }
 
-func (d asyncCommittedDispatcher) routeCommitted(ctx context.Context, env deliveryruntime.CommittedEnvelope) {
+func (d *asyncCommittedDispatcher) routeCommitted(ctx context.Context, env deliveryruntime.CommittedEnvelope) {
 	if d.preferLocal {
 		d.logCommittedRoute(env, "prefer_local", d.localNodeID, nil)
 		d.submitLocal(ctx, env)
@@ -124,7 +307,7 @@ func (d asyncCommittedDispatcher) routeCommitted(ctx context.Context, env delive
 	d.submitConversationFallback(ctx, env)
 }
 
-func (d asyncCommittedDispatcher) logCommittedRoute(env deliveryruntime.CommittedEnvelope, stage string, ownerNodeID uint64, err error) {
+func (d *asyncCommittedDispatcher) logCommittedRoute(env deliveryruntime.CommittedEnvelope, stage string, ownerNodeID uint64, err error) {
 	if d.logger == nil {
 		return
 	}
@@ -147,20 +330,20 @@ func (d asyncCommittedDispatcher) logCommittedRoute(env deliveryruntime.Committe
 	d.logger.Debug("committed message routed", fields...)
 }
 
-func (d asyncCommittedDispatcher) submitLocal(ctx context.Context, env deliveryruntime.CommittedEnvelope) {
+func (d *asyncCommittedDispatcher) submitLocal(ctx context.Context, env deliveryruntime.CommittedEnvelope) {
 	if d.delivery != nil {
 		_ = d.delivery.SubmitCommitted(ctx, env)
 	}
 	d.submitConversation(ctx, env.Message)
 }
 
-func (d asyncCommittedDispatcher) submitConversation(ctx context.Context, msg channel.Message) {
+func (d *asyncCommittedDispatcher) submitConversation(ctx context.Context, msg channel.Message) {
 	if d.conversation != nil {
 		_ = d.conversation.SubmitCommitted(ctx, msg)
 	}
 }
 
-func (d asyncCommittedDispatcher) submitConversationFallback(ctx context.Context, env deliveryruntime.CommittedEnvelope) {
+func (d *asyncCommittedDispatcher) submitConversationFallback(ctx context.Context, env deliveryruntime.CommittedEnvelope) {
 	d.submitConversation(ctx, env.Message)
 	if flusher, ok := d.conversation.(committedConversationSubmitterFlusher); ok {
 		_ = flusher.Flush(ctx)
