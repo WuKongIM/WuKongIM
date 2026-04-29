@@ -133,6 +133,46 @@ func TestNetworkObservabilityKeepsRPCCountersExactAbovePreviousSampleCap(t *test
 	require.Equal(t, previousNetworkObservabilitySampleCap+321, snap.Services[0].Timeout1m)
 }
 
+func TestNetworkObservabilityPrunesPartialTrafficBucketsExactly(t *testing.T) {
+	base := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	now := base.Add(100 * time.Millisecond)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		Now:         func() time.Time { return now },
+	})
+	hooks := collector.TransportHooks()
+
+	hooks.OnSend(1, 5)
+	now = base.Add(900 * time.Millisecond)
+	hooks.OnSend(1, 7)
+
+	snap := collector.NetworkSnapshot(base.Add(time.Minute + 899*time.Millisecond))
+	require.Equal(t, int64(7), snap.Traffic.TXBytes1m)
+	require.Equal(t, int64(7), snap.Traffic.ByMessageType[0].Bytes1m)
+}
+
+func TestNetworkObservabilityPrunesPartialRPCBucketsExactly(t *testing.T) {
+	base := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	now := base.Add(100 * time.Millisecond)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		Now:         func() time.Time { return now },
+	})
+	hooks := collector.TransportHooks()
+
+	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Result: "timeout", Duration: 5 * time.Millisecond})
+	now = base.Add(900 * time.Millisecond)
+	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Result: "timeout", Duration: 7 * time.Millisecond})
+
+	snap := collector.NetworkSnapshot(base.Add(time.Minute + 899*time.Millisecond))
+	require.Len(t, snap.Services, 1)
+	require.Equal(t, 1, snap.Services[0].Calls1m)
+	require.Equal(t, 1, snap.Services[0].Timeout1m)
+	require.Equal(t, 7.0, snap.Services[0].P95Ms)
+}
+
 func TestNetworkObservabilityPrunesOldBucketsAndEventsOnWriteAfterQuietWindow(t *testing.T) {
 	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	collector := newNetworkObservability(networkObservabilityConfig{
