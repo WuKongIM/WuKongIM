@@ -19,6 +19,8 @@ type Registry struct {
 	Controller *ControllerMetrics
 	Transport  *TransportMetrics
 	Storage    *StorageMetrics
+	Message    *MessageMetrics
+	Delivery   *DeliveryMetrics
 }
 
 func New(nodeID uint64, nodeName string) *Registry {
@@ -39,6 +41,8 @@ func New(nodeID uint64, nodeName string) *Registry {
 		Controller: newControllerMetrics(registry, labels),
 		Transport:  newTransportMetrics(registry, labels),
 		Storage:    newStorageMetrics(registry, labels),
+		Message:    newMessageMetrics(registry, labels),
+		Delivery:   newDeliveryMetrics(registry, labels),
 	}
 }
 

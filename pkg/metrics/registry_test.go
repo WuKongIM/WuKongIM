@@ -332,6 +332,50 @@ func TestStorageMetricsTrackDiskUsageByStore(t *testing.T) {
 	}
 }
 
+func TestRegistryExposesMessageMetrics(t *testing.T) {
+	reg := New(1, "n1")
+	reg.Message.ObserveMetaRefresh("cache_hit", 3*time.Millisecond)
+	reg.Message.ObserveAppend("local", "ok", 5*time.Millisecond)
+	reg.Message.SetCommittedDispatchQueueDepth("0", 7)
+	reg.Message.ObserveCommittedDispatchEnqueue("0", "ok")
+	reg.Message.ObserveCommittedDispatchEnqueue("0", "overflow")
+	reg.Message.ObserveCommittedDispatchOverflow("0")
+	reg.Message.SetCommittedReplayLag("person", 3)
+	reg.Message.ObserveCommittedReplayPass("ok", 9*time.Millisecond)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	requireMetricFamily(t, families, "wukongim_message_meta_refresh_total")
+	requireMetricFamily(t, families, "wukongim_message_meta_refresh_duration_seconds")
+	requireMetricFamily(t, families, "wukongim_message_append_duration_seconds")
+	requireMetricFamily(t, families, "wukongim_message_committed_dispatch_queue_depth")
+	requireMetricFamily(t, families, "wukongim_message_committed_dispatch_enqueue_total")
+	requireMetricFamily(t, families, "wukongim_message_committed_dispatch_overflow_total")
+	requireMetricFamily(t, families, "wukongim_message_committed_replay_lag_messages")
+	requireMetricFamily(t, families, "wukongim_message_committed_replay_pass_duration_seconds")
+}
+
+func TestRegistryExposesDeliveryMetrics(t *testing.T) {
+	reg := New(1, "n1")
+	reg.Delivery.ObserveResolve("person", "ok", 2*time.Millisecond, 1, 2)
+	reg.Delivery.ObservePushRPC("2", "ok", 4*time.Millisecond, 3)
+	reg.Delivery.SetActorInflightRoutes(9)
+	reg.Delivery.SetAckBindings(5)
+	reg.Delivery.ObserveRouteExpired("group")
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	requireMetricFamily(t, families, "wukongim_delivery_resolve_duration_seconds")
+	requireMetricFamily(t, families, "wukongim_delivery_resolve_pages_total")
+	requireMetricFamily(t, families, "wukongim_delivery_resolve_routes_total")
+	requireMetricFamily(t, families, "wukongim_delivery_push_rpc_total")
+	requireMetricFamily(t, families, "wukongim_delivery_push_rpc_duration_seconds")
+	requireMetricFamily(t, families, "wukongim_delivery_push_rpc_routes_total")
+	requireMetricFamily(t, families, "wukongim_delivery_actor_inflight_routes")
+	requireMetricFamily(t, families, "wukongim_delivery_ack_bindings")
+	requireMetricFamily(t, families, "wukongim_delivery_route_expired_total")
+}
+
 func requireMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
 	t.Helper()
 	for _, family := range families {
