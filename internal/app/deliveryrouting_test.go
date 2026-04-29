@@ -277,7 +277,7 @@ func TestCommittedDispatchQueuePreservesPerChannelOrder(t *testing.T) {
 		}}))
 	}
 
-	require.Eventually(t, func() bool { return len(delivery.calls) == 3 }, time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return delivery.Len() == 3 }, time.Second, time.Millisecond)
 	require.Equal(t, []uint64{1, 2, 3}, delivery.messageSeqs())
 }
 
@@ -296,7 +296,7 @@ func TestCommittedDispatchQueueOverflowDoesNotFailCommittedSubmit(t *testing.T) 
 
 	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
 	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 2}}))
-	require.Equal(t, 1, conversation.flushCalls)
+	require.Equal(t, 1, conversation.FlushCalls())
 }
 
 func TestCommittedDispatchQueueRecordsMetrics(t *testing.T) {
@@ -348,7 +348,7 @@ func TestAsyncCommittedDispatcherFallsBackToLocalConversationWhenOwnerIsUnknown(
 	}))
 
 	require.Eventually(t, func() bool {
-		return delivery.submitCalls == 0 && conversation.submitCalls == 1 && conversation.flushCalls == 1
+		return delivery.SubmitCalls() == 0 && conversation.SubmitCalls() == 1 && conversation.FlushCalls() == 1
 	}, time.Second, 10*time.Millisecond)
 }
 
@@ -387,7 +387,7 @@ func TestAsyncCommittedDispatcherSubmitsDurableMessageToLocalDelivery(t *testing
 	}))
 
 	require.Eventually(t, func() bool {
-		return len(delivery.calls) == 1
+		return delivery.Len() == 1
 	}, time.Second, 10*time.Millisecond)
 	require.Equal(t, channel.Message{
 		ChannelID:   "u1@u2",
@@ -403,7 +403,7 @@ func TestAsyncCommittedDispatcherSubmitsDurableMessageToLocalDelivery(t *testing
 		MsgKey:      "k1",
 		Expire:      60,
 		ClientSeq:   9,
-	}, delivery.calls[0].Message)
+	}, delivery.Calls()[0].Message)
 }
 
 func TestAsyncCommittedDispatcherSubmitsToConversationProjector(t *testing.T) {
@@ -436,10 +436,10 @@ func TestAsyncCommittedDispatcherSubmitsToConversationProjector(t *testing.T) {
 	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: msg}))
 
 	require.Eventually(t, func() bool {
-		return len(delivery.calls) == 1 && len(conversation.calls) == 1
+		return delivery.Len() == 1 && conversation.Len() == 1
 	}, time.Second, 10*time.Millisecond)
-	require.Equal(t, msg, delivery.calls[0].Message)
-	require.Equal(t, msg, conversation.calls[0])
+	require.Equal(t, msg, delivery.Calls()[0].Message)
+	require.Equal(t, msg, conversation.Calls()[0])
 }
 
 func TestAsyncCommittedDispatcherPrefersLocalDeliveryWithoutOwnerLookup(t *testing.T) {
@@ -472,11 +472,11 @@ func TestAsyncCommittedDispatcherPrefersLocalDeliveryWithoutOwnerLookup(t *testi
 	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: msg}))
 
 	require.Eventually(t, func() bool {
-		return len(delivery.calls) == 1 && len(conversation.calls) == 1
+		return delivery.Len() == 1 && conversation.Len() == 1
 	}, time.Second, 10*time.Millisecond)
 	require.Equal(t, 0, channelLog.StatusCalls())
-	require.Equal(t, msg, delivery.calls[0].Message)
-	require.Equal(t, msg, conversation.calls[0])
+	require.Equal(t, msg, delivery.Calls()[0].Message)
+	require.Equal(t, msg, conversation.Calls()[0])
 }
 
 func TestDeliverySuccessDiagnosticsUseDebugLevel(t *testing.T) {
@@ -834,11 +834,14 @@ func (r *recordingSessionCloser) SessionClosed(_ context.Context, cmd deliveryev
 }
 
 type recordingCommittedSubmitter struct {
+	mu          sync.Mutex
 	submitCalls int
 	calls       []deliveryruntime.CommittedEnvelope
 }
 
 func (r *recordingCommittedSubmitter) SubmitCommitted(_ context.Context, env deliveryruntime.CommittedEnvelope) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.submitCalls++
 	copied := env
 	copied.Payload = append([]byte(nil), env.Payload...)
@@ -846,7 +849,33 @@ func (r *recordingCommittedSubmitter) SubmitCommitted(_ context.Context, env del
 	return nil
 }
 
+func (r *recordingCommittedSubmitter) Len() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.calls)
+}
+
+func (r *recordingCommittedSubmitter) SubmitCalls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.submitCalls
+}
+
+func (r *recordingCommittedSubmitter) Calls() []deliveryruntime.CommittedEnvelope {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]deliveryruntime.CommittedEnvelope, len(r.calls))
+	for i, call := range r.calls {
+		copied := call
+		copied.Payload = append([]byte(nil), call.Payload...)
+		out[i] = copied
+	}
+	return out
+}
+
 func (r *recordingCommittedSubmitter) messageSeqs() []uint64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	out := make([]uint64, 0, len(r.calls))
 	for _, call := range r.calls {
 		out = append(out, call.MessageSeq)
@@ -855,16 +884,43 @@ func (r *recordingCommittedSubmitter) messageSeqs() []uint64 {
 }
 
 type recordingConversationSubmitter struct {
+	mu          sync.Mutex
 	submitCalls int
 	calls       []channel.Message
 }
 
 func (r *recordingConversationSubmitter) SubmitCommitted(_ context.Context, msg channel.Message) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.submitCalls++
 	copied := msg
 	copied.Payload = append([]byte(nil), msg.Payload...)
 	r.calls = append(r.calls, copied)
 	return nil
+}
+
+func (r *recordingConversationSubmitter) Len() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.calls)
+}
+
+func (r *recordingConversationSubmitter) SubmitCalls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.submitCalls
+}
+
+func (r *recordingConversationSubmitter) Calls() []channel.Message {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]channel.Message, len(r.calls))
+	for i, call := range r.calls {
+		copied := call
+		copied.Payload = append([]byte(nil), call.Payload...)
+		out[i] = copied
+	}
+	return out
 }
 
 type recordingFlushingConversationSubmitter struct {
@@ -873,8 +929,16 @@ type recordingFlushingConversationSubmitter struct {
 }
 
 func (r *recordingFlushingConversationSubmitter) Flush(context.Context) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.flushCalls++
 	return nil
+}
+
+func (r *recordingFlushingConversationSubmitter) FlushCalls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.flushCalls
 }
 
 type recordingCommittedDispatchMetrics struct {
