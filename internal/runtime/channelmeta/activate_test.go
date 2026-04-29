@@ -17,16 +17,17 @@ func TestActivationCacheRunSingleflightCoalescesConcurrentActivations(t *testing
 	var calls int32
 
 	cache.mu.Lock()
-	cache.calls = map[channel.ChannelKey]*activationCall{key: call}
+	cache.calls = map[activationCallKey]*activationCall{{key: key}: call}
 	cache.mu.Unlock()
 	close(call.done)
 
-	got, err := cache.RunSingleflight(key, func() (channel.Meta, error) {
+	got, result, err := cache.RunSingleflight(key, false, func(ActivationCacheGeneration) (channel.Meta, MetaRefreshResult, error) {
 		atomic.AddInt32(&calls, 1)
-		return channel.Meta{Key: key, Leader: 9}, nil
+		return channel.Meta{Key: key, Leader: 9}, MetaRefreshAuthoritativeRead, nil
 	})
 	require.NoError(t, err)
 	require.Equal(t, want, got)
+	require.Empty(t, result)
 	require.Equal(t, int32(0), atomic.LoadInt32(&calls))
 }
 
@@ -39,7 +40,7 @@ func TestActivationCacheRunSingleflightCleansUpAfterPanic(t *testing.T) {
 		defer func() {
 			require.Equal(t, "boom", recover())
 		}()
-		_, _ = cache.RunSingleflight(key, func() (channel.Meta, error) {
+		_, _, _ = cache.RunSingleflight(key, false, func(ActivationCacheGeneration) (channel.Meta, MetaRefreshResult, error) {
 			panic("boom")
 		})
 	}()
@@ -47,8 +48,8 @@ func TestActivationCacheRunSingleflightCleansUpAfterPanic(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		got, err := cache.RunSingleflight(key, func() (channel.Meta, error) {
-			return want, nil
+		got, _, err := cache.RunSingleflight(key, false, func(ActivationCacheGeneration) (channel.Meta, MetaRefreshResult, error) {
+			return want, MetaRefreshAuthoritativeRead, nil
 		})
 		require.NoError(t, err)
 		require.Equal(t, want, got)

@@ -378,6 +378,212 @@ func TestRefreshChannelMetaReportsCacheHitAndRefreshOutcomes(t *testing.T) {
 	require.Equal(t, []MetaRefreshResult{MetaRefreshAuthoritativeRead, MetaRefreshCacheHit}, observer.results())
 }
 
+func TestRefreshChannelMetaCacheInvalidationSkipsOlderSingleflightAndStore(t *testing.T) {
+	id := channel.ChannelID{ID: "g-invalidate", Type: 2}
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	stale := metadb.ChannelRuntimeMeta{
+		ChannelID: id.ID, ChannelType: int64(id.Type), ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 1, Replicas: []uint64{1, 2}, ISR: []uint64{1, 2}, MinISR: 1,
+		Status: uint8(channel.StatusActive), LeaseUntilMS: now.Add(time.Minute).UnixMilli(),
+	}
+	fresh := stale
+	fresh.ChannelEpoch = 2
+	fresh.LeaderEpoch = 2
+	fresh.Leader = 2
+	source := &invalidationSourceFake{
+		stale:        stale,
+		fresh:        fresh,
+		firstEntered: make(chan struct{}),
+		releaseFirst: make(chan struct{}),
+	}
+	syncer := NewSync(SyncOptions{
+		Source:    source,
+		Runtime:   &resolverRuntimeFake{},
+		LocalNode: 1,
+		Now:       func() time.Time { return now },
+	})
+
+	firstDone := make(chan struct{})
+	go func() {
+		defer close(firstDone)
+		_, _ = syncer.RefreshChannelMeta(context.Background(), id)
+	}()
+	<-source.firstEntered
+
+	syncer.InvalidateChannelMeta(id)
+
+	type activationResult struct {
+		meta channel.Meta
+		err  error
+	}
+	secondDone := make(chan activationResult, 1)
+	go func() {
+		got, err := syncer.RefreshChannelMeta(context.Background(), id)
+		secondDone <- activationResult{meta: got, err: err}
+	}()
+
+	select {
+	case result := <-secondDone:
+		require.NoError(t, result.err)
+		require.Equal(t, channel.NodeID(2), result.meta.Leader)
+	case <-time.After(100 * time.Millisecond):
+		close(source.releaseFirst)
+		<-firstDone
+		<-secondDone
+		require.FailNow(t, "post-invalidation refresh joined an older blocked singleflight call")
+	}
+
+	close(source.releaseFirst)
+	<-firstDone
+	got, err := syncer.RefreshChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+	require.Equal(t, channel.NodeID(2), got.Leader)
+	require.Equal(t, uint64(2), got.Epoch)
+}
+
+func TestRefreshChannelMetaCacheBusinessDoesNotJoinFetchNotFoundAndBootstraps(t *testing.T) {
+	id := channel.ChannelID{ID: "g-business-scope", Type: 2}
+	key := channelhandler.KeyFromChannelID(id)
+	now := time.Date(2026, 4, 29, 13, 0, 0, 0, time.UTC)
+	type activationResult struct {
+		meta channel.Meta
+		err  error
+	}
+	source := &bootstrapOnMissingSourceFake{
+		blockFirst:   true,
+		firstEntered: make(chan struct{}),
+		releaseFirst: make(chan struct{}),
+	}
+	syncer := NewSync(SyncOptions{
+		Source:  source,
+		Runtime: &resolverRuntimeFake{},
+		Bootstrapper: NewBootstrapper(BootstrapOptions{
+			Cluster:       &resolverBootstrapClusterFake{slotID: 7, peers: []uint64{2, 3}, leader: 2},
+			Store:         source,
+			DefaultMinISR: 2,
+			Now:           func() time.Time { return now },
+			Logger:        wklog.NewNop(),
+		}),
+		LocalNode: 2,
+		Now:       func() time.Time { return now },
+	})
+
+	fetchDone := make(chan struct{})
+	go func() {
+		defer close(fetchDone)
+		_, _ = syncer.ActivateByKey(context.Background(), key, channelruntime.ActivationSourceFetch)
+	}()
+	<-source.firstEntered
+
+	businessDone := make(chan activationResult, 1)
+	go func() {
+		got, err := syncer.RefreshChannelMeta(context.Background(), id)
+		businessDone <- activationResult{meta: got, err: err}
+	}()
+
+	select {
+	case result := <-businessDone:
+		require.NoError(t, result.err)
+		require.Equal(t, channel.NodeID(2), result.meta.Leader)
+		require.Equal(t, uint64(1), result.meta.Epoch)
+	case <-time.After(100 * time.Millisecond):
+		close(source.releaseFirst)
+		<-fetchDone
+		<-businessDone
+		require.FailNow(t, "business refresh joined a fetch not-found singleflight call")
+	}
+
+	close(source.releaseFirst)
+	<-fetchDone
+	require.Len(t, source.snapshotUpserts(), 1)
+}
+
+func TestRefreshChannelMetaReportsSharedRepairOutcomeToSingleflightWaiters(t *testing.T) {
+	id := channel.ChannelID{ID: "g-observe-repair", Type: 2}
+	source := &resolverSourceFake{
+		get: map[channel.ChannelID]metadb.ChannelRuntimeMeta{id: {
+			ChannelID: id.ID, ChannelType: int64(id.Type), ChannelEpoch: 1, LeaderEpoch: 1,
+			Leader: 1, Replicas: []uint64{1, 2}, ISR: []uint64{1, 2}, MinISR: 1,
+			Status: uint8(channel.StatusActive),
+		}},
+	}
+	block := make(chan struct{})
+	repairer := &resolverRepairerFake{
+		block: block,
+		meta: metadb.ChannelRuntimeMeta{
+			ChannelID: id.ID, ChannelType: int64(id.Type), ChannelEpoch: 1, LeaderEpoch: 2,
+			Leader: 2, Replicas: []uint64{1, 2}, ISR: []uint64{1, 2}, MinISR: 1,
+			Status: uint8(channel.StatusActive),
+		},
+		changed: true,
+	}
+	observer := &recordingMetaRefreshObserver{}
+	syncer := NewSync(SyncOptions{
+		Source:    source,
+		Runtime:   &resolverRuntimeFake{},
+		Repairer:  repairer,
+		LocalNode: 1,
+		RepairPolicy: func(metadb.ChannelRuntimeMeta) (bool, string) {
+			return true, "leader_dead"
+		},
+		MetaRefreshObserver: observer,
+	})
+
+	const workers = 6
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, err := syncer.RefreshChannelMeta(context.Background(), id)
+			require.NoError(t, err)
+		}()
+	}
+	close(start)
+	require.Eventually(t, func() bool {
+		return len(repairer.snapshotCalls()) == 1
+	}, time.Second, time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
+	close(block)
+	wg.Wait()
+
+	results := observer.results()
+	require.Len(t, results, workers)
+	for _, result := range results {
+		require.Equal(t, MetaRefreshRepair, result)
+	}
+}
+
+func TestActivateByKeyBusinessBootstrapsMissingMetadata(t *testing.T) {
+	id := channel.ChannelID{ID: "g-key-bootstrap", Type: 2}
+	key := channelhandler.KeyFromChannelID(id)
+	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.UTC)
+	source := &bootstrapOnMissingSourceFake{}
+	syncer := NewSync(SyncOptions{
+		Source:  source,
+		Runtime: &resolverRuntimeFake{},
+		Bootstrapper: NewBootstrapper(BootstrapOptions{
+			Cluster:       &resolverBootstrapClusterFake{slotID: 8, peers: []uint64{3, 4}, leader: 3},
+			Store:         source,
+			DefaultMinISR: 2,
+			Now:           func() time.Time { return now },
+			Logger:        wklog.NewNop(),
+		}),
+		LocalNode: 3,
+		Now:       func() time.Time { return now },
+	})
+
+	got, err := syncer.ActivateByKey(context.Background(), key, channelruntime.ActivationSourceBusiness)
+
+	require.NoError(t, err)
+	require.Equal(t, id, got.ID)
+	require.Equal(t, channel.NodeID(3), got.Leader)
+	require.Equal(t, uint64(1), got.Epoch)
+	require.Len(t, source.snapshotUpserts(), 1)
+}
+
 func TestResolverStartDoesNotScanAuthoritativeMetas(t *testing.T) {
 	source := &resolverSourceFake{}
 	runtime := &resolverRuntimeFake{}
@@ -801,6 +1007,26 @@ type resolverGetResult struct {
 	err  error
 }
 
+type invalidationSourceFake struct {
+	mu           sync.Mutex
+	calls        int
+	stale        metadb.ChannelRuntimeMeta
+	fresh        metadb.ChannelRuntimeMeta
+	firstEntered chan struct{}
+	releaseFirst chan struct{}
+}
+
+type bootstrapOnMissingSourceFake struct {
+	mu           sync.Mutex
+	calls        int
+	meta         metadb.ChannelRuntimeMeta
+	hasMeta      bool
+	upserts      []metadb.ChannelRuntimeMeta
+	blockFirst   bool
+	firstEntered chan struct{}
+	releaseFirst chan struct{}
+}
+
 type resolverRepairerFake struct {
 	mu      sync.Mutex
 	calls   []resolverRepairCall
@@ -896,6 +1122,71 @@ func (f *resolverSourceFake) HashSlotTableVersion() uint64 {
 func (f *resolverSourceFake) UpsertChannelRuntimeMeta(_ context.Context, meta metadb.ChannelRuntimeMeta) error {
 	f.upserts = append(f.upserts, meta)
 	return f.upsertErr
+}
+
+func (f *invalidationSourceFake) GetChannelRuntimeMeta(ctx context.Context, _ string, _ int64) (metadb.ChannelRuntimeMeta, error) {
+	f.mu.Lock()
+	f.calls++
+	call := f.calls
+	f.mu.Unlock()
+	if call == 1 {
+		close(f.firstEntered)
+		select {
+		case <-f.releaseFirst:
+		case <-ctx.Done():
+			return metadb.ChannelRuntimeMeta{}, ctx.Err()
+		}
+		return f.stale, nil
+	}
+	return f.fresh, nil
+}
+
+func (f *invalidationSourceFake) ListChannelRuntimeMeta(context.Context) ([]metadb.ChannelRuntimeMeta, error) {
+	return nil, nil
+}
+
+func (f *bootstrapOnMissingSourceFake) GetChannelRuntimeMeta(ctx context.Context, _ string, _ int64) (metadb.ChannelRuntimeMeta, error) {
+	f.mu.Lock()
+	f.calls++
+	call := f.calls
+	if call == 1 && f.blockFirst {
+		entered := f.firstEntered
+		release := f.releaseFirst
+		f.mu.Unlock()
+		close(entered)
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return metadb.ChannelRuntimeMeta{}, ctx.Err()
+		}
+		return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
+	}
+	if !f.hasMeta {
+		f.mu.Unlock()
+		return metadb.ChannelRuntimeMeta{}, metadb.ErrNotFound
+	}
+	meta := f.meta
+	f.mu.Unlock()
+	return meta, nil
+}
+
+func (f *bootstrapOnMissingSourceFake) ListChannelRuntimeMeta(context.Context) ([]metadb.ChannelRuntimeMeta, error) {
+	return nil, nil
+}
+
+func (f *bootstrapOnMissingSourceFake) UpsertChannelRuntimeMeta(_ context.Context, meta metadb.ChannelRuntimeMeta) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.meta = meta
+	f.hasMeta = true
+	f.upserts = append(f.upserts, meta)
+	return nil
+}
+
+func (f *bootstrapOnMissingSourceFake) snapshotUpserts() []metadb.ChannelRuntimeMeta {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]metadb.ChannelRuntimeMeta(nil), f.upserts...)
 }
 
 type resolverRuntimeFake struct {

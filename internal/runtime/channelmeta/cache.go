@@ -26,12 +26,26 @@ type cachedChannelMetaError struct {
 	expiresAt time.Time
 }
 
+// ActivationCacheGeneration identifies the cache generation observed by one activation load.
+type ActivationCacheGeneration struct {
+	global uint64
+	key    uint64
+}
+
+type activationCallKey struct {
+	key        channel.ChannelKey
+	business   bool
+	generation ActivationCacheGeneration
+}
+
 // ActivationCache stores short-lived channel activation results and coalesces concurrent loads.
 type ActivationCache struct {
-	mu       sync.Mutex
-	positive map[channel.ChannelKey]cachedChannelMeta
-	negative map[channel.ChannelKey]cachedChannelMetaError
-	calls    map[channel.ChannelKey]*activationCall
+	mu               sync.Mutex
+	positive         map[channel.ChannelKey]cachedChannelMeta
+	negative         map[channel.ChannelKey]cachedChannelMetaError
+	calls            map[activationCallKey]*activationCall
+	generations      map[channel.ChannelKey]uint64
+	globalGeneration uint64
 }
 
 // LoadPositive returns a cached channel metadata result when it has not expired.
@@ -93,6 +107,33 @@ func (c *ActivationCache) storePositiveEntry(key channel.ChannelKey, entry cache
 	c.positive[key] = entry
 }
 
+func (c *ActivationCache) storeAuthoritativePositiveAtGeneration(key channel.ChannelKey, applied channel.Meta, authoritative metadb.ChannelRuntimeMeta, now time.Time, generation ActivationCacheGeneration) {
+	c.storePositiveEntryAtGeneration(key, cachedChannelMeta{
+		meta:             applied,
+		authoritative:    authoritative,
+		hasAuthoritative: true,
+		expiresAt:        now.Add(channelMetaPositiveCacheTTL),
+	}, generation)
+}
+
+func (c *ActivationCache) storePositiveEntryAtGeneration(key channel.ChannelKey, entry cachedChannelMeta, generation ActivationCacheGeneration) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.isCurrentGenerationLocked(key, generation) {
+		return
+	}
+	if c.positive == nil {
+		c.positive = make(map[channel.ChannelKey]cachedChannelMeta)
+	}
+	if c.negative != nil {
+		delete(c.negative, key)
+	}
+	c.positive[key] = entry
+}
+
 // LoadNegative returns a cached not-found activation error when it has not expired.
 func (c *ActivationCache) LoadNegative(key channel.ChannelKey, now time.Time) error {
 	if c == nil {
@@ -130,6 +171,27 @@ func (c *ActivationCache) StoreNegative(key channel.ChannelKey, err error, now t
 	c.negative[key] = cachedChannelMetaError{err: err, expiresAt: now.Add(channelMetaNegativeCacheTTL)}
 }
 
+func (c *ActivationCache) storeNegativeAtGeneration(key channel.ChannelKey, err error, now time.Time, generation ActivationCacheGeneration) {
+	if c == nil || err == nil {
+		return
+	}
+	if !errors.Is(err, metadb.ErrNotFound) {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.isCurrentGenerationLocked(key, generation) {
+		return
+	}
+	if c.negative == nil {
+		c.negative = make(map[channel.ChannelKey]cachedChannelMetaError)
+	}
+	if c.positive != nil {
+		delete(c.positive, key)
+	}
+	c.negative[key] = cachedChannelMetaError{err: err, expiresAt: now.Add(channelMetaNegativeCacheTTL)}
+}
+
 // Clear drops cached activation successes and not-found errors.
 func (c *ActivationCache) Clear() {
 	if c == nil {
@@ -138,6 +200,7 @@ func (c *ActivationCache) Clear() {
 	c.mu.Lock()
 	c.positive = nil
 	c.negative = nil
+	c.globalGeneration++
 	c.mu.Unlock()
 }
 
@@ -153,5 +216,21 @@ func (c *ActivationCache) Invalidate(key channel.ChannelKey) {
 	if c.negative != nil {
 		delete(c.negative, key)
 	}
+	if c.generations == nil {
+		c.generations = make(map[channel.ChannelKey]uint64)
+	}
+	c.generations[key]++
 	c.mu.Unlock()
+}
+
+func (c *ActivationCache) currentGenerationLocked(key channel.ChannelKey) ActivationCacheGeneration {
+	var keyGeneration uint64
+	if c.generations != nil {
+		keyGeneration = c.generations[key]
+	}
+	return ActivationCacheGeneration{global: c.globalGeneration, key: keyGeneration}
+}
+
+func (c *ActivationCache) isCurrentGenerationLocked(key channel.ChannelKey, generation ActivationCacheGeneration) bool {
+	return c.currentGenerationLocked(key) == generation
 }

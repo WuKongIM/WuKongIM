@@ -251,12 +251,23 @@ func (s *Sync) ActivateByKey(ctx context.Context, key channel.ChannelKey, source
 			return metadb.ChannelRuntimeMeta{}, MetaRefreshError, channel.ErrInvalidConfig
 		}
 		meta, err := s.source.GetChannelRuntimeMeta(ctx, id.ID, int64(id.Type))
+		refreshResult := MetaRefreshAuthoritativeRead
+		if err != nil {
+			if errors.Is(err, metadb.ErrNotFound) && source == channelruntime.ActivationSourceBusiness {
+				meta, err = s.ensureChannelRuntimeMeta(ctx, id)
+				refreshResult = MetaRefreshBootstrap
+			}
+			if err != nil {
+				return metadb.ChannelRuntimeMeta{}, MetaRefreshError, err
+			}
+		}
+		var reconcileResult MetaRefreshResult
+		meta, reconcileResult, err = s.reconcileChannelRuntimeMetaForRefresh(ctx, meta)
 		if err != nil {
 			return metadb.ChannelRuntimeMeta{}, MetaRefreshError, err
 		}
-		meta, refreshResult, err := s.reconcileChannelRuntimeMetaForRefresh(ctx, meta)
-		if err != nil {
-			return metadb.ChannelRuntimeMeta{}, MetaRefreshError, err
+		if refreshResult == MetaRefreshAuthoritativeRead {
+			refreshResult = reconcileResult
 		}
 		return meta, refreshResult, nil
 	})
@@ -301,26 +312,27 @@ func (s *Sync) RefreshAuthoritativeByKey(ctx context.Context, key channel.Channe
 	if err != nil {
 		return channel.Meta{}, err
 	}
-	return s.cache.RunSingleflight(key, func() (channel.Meta, error) {
+	applied, _, err := s.cache.RunSingleflight(key, false, func(generation ActivationCacheGeneration) (channel.Meta, MetaRefreshResult, error) {
 		if s.source == nil {
-			return channel.Meta{}, channel.ErrInvalidConfig
+			return channel.Meta{}, MetaRefreshError, channel.ErrInvalidConfig
 		}
 		meta, err := s.source.GetChannelRuntimeMeta(ctx, id.ID, int64(id.Type))
 		if err != nil {
-			s.cache.StoreNegative(key, err, s.Now())
-			return channel.Meta{}, err
+			s.cache.storeNegativeAtGeneration(key, err, s.Now(), generation)
+			return channel.Meta{}, MetaRefreshError, err
 		}
 		meta, err = s.reconcileChannelRuntimeMeta(ctx, meta)
 		if err != nil {
-			return channel.Meta{}, err
+			return channel.Meta{}, MetaRefreshError, err
 		}
 		applied, err := s.ApplyAuthoritativeMeta(meta)
 		if err != nil {
-			return channel.Meta{}, err
+			return channel.Meta{}, MetaRefreshError, err
 		}
-		s.cache.StoreAuthoritativePositive(key, applied, meta, s.Now())
-		return applied, nil
+		s.cache.storeAuthoritativePositiveAtGeneration(key, applied, meta, s.Now(), generation)
+		return applied, MetaRefreshAuthoritativeRead, nil
 	})
+	return applied, err
 }
 
 // UpdateNodeLiveness stores the latest controller-observed node status.
@@ -507,37 +519,35 @@ func (s *Sync) activate(ctx context.Context, key channel.ChannelKey, source chan
 			return channel.Meta{}, err
 		}
 	}
-	meta, err := s.cache.RunSingleflight(key, func() (channel.Meta, error) {
+	business := source == channelruntime.ActivationSourceBusiness
+	meta, refreshResult, err := s.cache.RunSingleflight(key, business, func(generation ActivationCacheGeneration) (channel.Meta, MetaRefreshResult, error) {
 		// Re-check cache inside the coalesced call to avoid a second authority read when
 		// a concurrent caller missed the outer cache check before the first call stored it.
 		if source == channelruntime.ActivationSourceBusiness {
 			if meta, ok := s.cachedHealthyBusinessMeta(key); ok {
-				setMetaRefreshOutcome(outcome, MetaRefreshCacheHit)
-				return meta, nil
+				return meta, MetaRefreshCacheHit, nil
 			}
 		} else {
 			if meta, ok := s.cache.LoadPositive(key, s.Now()); ok {
-				return meta, nil
+				return meta, MetaRefreshCacheHit, nil
 			}
 			if err := s.cache.LoadNegative(key, s.Now()); err != nil {
-				return channel.Meta{}, err
+				return channel.Meta{}, MetaRefreshError, err
 			}
 		}
 		loaded, refreshResult, err := load(ctx)
 		if err != nil {
-			s.cache.StoreNegative(key, err, s.Now())
-			setMetaRefreshOutcome(outcome, MetaRefreshError)
-			return channel.Meta{}, err
+			s.cache.storeNegativeAtGeneration(key, err, s.Now(), generation)
+			return channel.Meta{}, MetaRefreshError, err
 		}
-		setMetaRefreshOutcome(outcome, refreshResult)
 		applied, err := s.ApplyAuthoritativeMeta(loaded)
 		if err != nil {
-			setMetaRefreshOutcome(outcome, MetaRefreshError)
-			return channel.Meta{}, err
+			return channel.Meta{}, MetaRefreshError, err
 		}
-		s.cache.StoreAuthoritativePositive(key, applied, loaded, s.Now())
-		return applied, nil
+		s.cache.storeAuthoritativePositiveAtGeneration(key, applied, loaded, s.Now(), generation)
+		return applied, refreshResult, nil
 	})
+	setMetaRefreshOutcome(outcome, refreshResult)
 	if err != nil {
 		return channel.Meta{}, err
 	}
