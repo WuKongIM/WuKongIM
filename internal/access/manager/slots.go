@@ -145,6 +145,12 @@ type SlotLogEntryDTO struct {
 	Type string `json:"type"`
 	// DataSize is the payload size in bytes.
 	DataSize int `json:"data_size"`
+	// DecodeStatus reports whether the entry payload was decoded for inspection.
+	DecodeStatus string `json:"decode_status,omitempty"`
+	// DecodedType is the stable command or payload type when decoding succeeds.
+	DecodedType string `json:"decoded_type,omitempty"`
+	// Decoded is a redacted JSON-friendly payload summary for manager inspection.
+	Decoded map[string]any `json:"decoded,omitempty"`
 }
 
 func (s *Server) handleSlots(c *gin.Context) {
@@ -326,10 +332,13 @@ func slotLogEntryDTOs(items []managementusecase.SlotLogEntry) []SlotLogEntryDTO 
 	out := make([]SlotLogEntryDTO, 0, len(items))
 	for _, item := range items {
 		out = append(out, SlotLogEntryDTO{
-			Index:    item.Index,
-			Term:     item.Term,
-			Type:     item.Type,
-			DataSize: item.DataSize,
+			Index:        item.Index,
+			Term:         item.Term,
+			Type:         item.Type,
+			DataSize:     item.DataSize,
+			DecodeStatus: item.DecodeStatus,
+			DecodedType:  item.DecodedType,
+			Decoded:      item.Decoded,
 		})
 	}
 	return out

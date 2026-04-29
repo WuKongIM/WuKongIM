@@ -186,10 +186,17 @@ func TestListSlotLogEntriesDelegatesNodeScopedRead(t *testing.T) {
 					AppliedIndex: 3,
 					NextCursor:   3,
 					Items: []raftcluster.SlotLogEntry{{
-						Index:    4,
-						Term:     2,
-						Type:     "normal",
-						DataSize: 12,
+						Index:        4,
+						Term:         2,
+						Type:         "normal",
+						DataSize:     12,
+						DecodeStatus: "ok",
+						DecodedType:  "upsert_user",
+						Decoded: map[string]any{
+							"command": "upsert_user",
+							"uid":     "u1",
+							"token":   "***",
+						},
 					}},
 				},
 			},
@@ -212,10 +219,17 @@ func TestListSlotLogEntriesDelegatesNodeScopedRead(t *testing.T) {
 		AppliedIndex: 3,
 		NextCursor:   3,
 		Items: []SlotLogEntry{{
-			Index:    4,
-			Term:     2,
-			Type:     "normal",
-			DataSize: 12,
+			Index:        4,
+			Term:         2,
+			Type:         "normal",
+			DataSize:     12,
+			DecodeStatus: "ok",
+			DecodedType:  "upsert_user",
+			Decoded: map[string]any{
+				"command": "upsert_user",
+				"uid":     "u1",
+				"token":   "***",
+			},
 		}},
 	}, got)
 }

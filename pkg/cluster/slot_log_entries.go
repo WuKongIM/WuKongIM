@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 
+	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -144,14 +145,38 @@ func slotLogEntriesFromRaft(entries []raftpb.Entry) []SlotLogEntry {
 	out := make([]SlotLogEntry, 0, len(entries))
 	for i := len(entries) - 1; i >= 0; i-- {
 		entry := entries[i]
-		out = append(out, SlotLogEntry{
+		item := SlotLogEntry{
 			Index:    entry.Index,
 			Term:     entry.Term,
 			Type:     raftEntryTypeName(entry.Type),
 			DataSize: len(entry.Data),
-		})
+		}
+		inspectSlotLogEntryPayload(&item, entry)
+		out = append(out, item)
 	}
 	return out
+}
+
+func inspectSlotLogEntryPayload(item *SlotLogEntry, entry raftpb.Entry) {
+	if entry.Type != raftpb.EntryNormal {
+		return
+	}
+	if len(entry.Data) == 0 {
+		item.DecodeStatus = "empty"
+		item.DecodedType = "noop"
+		item.Decoded = map[string]any{"command": "noop"}
+		return
+	}
+	inspection, err := metafsm.DecodeCommandInspection(entry.Data)
+	if err != nil {
+		item.DecodeStatus = "corrupt"
+		item.DecodedType = "unknown"
+		item.Decoded = map[string]any{"error": err.Error()}
+		return
+	}
+	item.DecodeStatus = "ok"
+	item.DecodedType = inspection.Type
+	item.Decoded = inspection.Payload
 }
 
 func raftEntryTypeName(entryType raftpb.EntryType) string {
@@ -171,10 +196,13 @@ func slotLogEntriesFromManaged(entries []managedSlotLogEntry) []SlotLogEntry {
 	out := make([]SlotLogEntry, 0, len(entries))
 	for _, entry := range entries {
 		out = append(out, SlotLogEntry{
-			Index:    entry.Index,
-			Term:     entry.Term,
-			Type:     entry.Type,
-			DataSize: entry.DataSize,
+			Index:        entry.Index,
+			Term:         entry.Term,
+			Type:         entry.Type,
+			DataSize:     entry.DataSize,
+			DecodeStatus: entry.DecodeStatus,
+			DecodedType:  entry.DecodedType,
+			Decoded:      entry.Decoded,
 		})
 	}
 	return out
@@ -184,10 +212,13 @@ func managedSlotLogEntriesFromSlot(entries []SlotLogEntry) []managedSlotLogEntry
 	out := make([]managedSlotLogEntry, 0, len(entries))
 	for _, entry := range entries {
 		out = append(out, managedSlotLogEntry{
-			Index:    entry.Index,
-			Term:     entry.Term,
-			Type:     entry.Type,
-			DataSize: entry.DataSize,
+			Index:        entry.Index,
+			Term:         entry.Term,
+			Type:         entry.Type,
+			DataSize:     entry.DataSize,
+			DecodeStatus: entry.DecodeStatus,
+			DecodedType:  entry.DecodedType,
+			Decoded:      entry.Decoded,
 		})
 	}
 	return out

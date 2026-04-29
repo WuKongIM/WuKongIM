@@ -48,10 +48,13 @@ type managedSlotRPCResponse struct {
 }
 
 type managedSlotLogEntry struct {
-	Index    uint64
-	Term     uint64
-	Type     string
-	DataSize int
+	Index        uint64
+	Term         uint64
+	Type         string
+	DataSize     int
+	DecodeStatus string
+	DecodedType  string
+	Decoded      map[string]any
 }
 
 type ManagedSlotExecutionTestHook func(slotID uint32, task controllermeta.ReconcileTask) error
@@ -84,6 +87,12 @@ type SlotLogEntry struct {
 	Type string
 	// DataSize is the payload size in bytes.
 	DataSize int
+	// DecodeStatus reports whether the entry payload was decoded for inspection.
+	DecodeStatus string
+	// DecodedType is the stable command or payload type when decoding succeeds.
+	DecodedType string
+	// Decoded is a redacted JSON-friendly payload summary for manager inspection.
+	Decoded map[string]any
 }
 
 // SlotLogEntries is one node-local page of Slot Raft log entries.

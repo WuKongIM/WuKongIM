@@ -360,7 +360,15 @@ describe("manager api client", () => {
       applied_index: 3,
       next_cursor: 3,
       items: [
-        { index: 4, term: 2, type: "normal", data_size: 12 },
+        {
+          index: 4,
+          term: 2,
+          type: "normal",
+          data_size: 12,
+          decode_status: "ok",
+          decoded_type: "upsert_user",
+          decoded: { command: "upsert_user", uid: "u1", token: "***" },
+        },
         { index: 3, term: 2, type: "conf_change", data_size: 8 },
       ],
     }

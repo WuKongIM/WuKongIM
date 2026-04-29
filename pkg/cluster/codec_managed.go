@@ -1,8 +1,10 @@
 package cluster
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -160,7 +162,11 @@ func encodeManagedSlotResponse(resp managedSlotRPCResponse) ([]byte, error) {
 	body = append(body, message...)
 	body = appendUint64Slice(body, resp.CurrentVoters)
 	if resp.FirstIndex != 0 || resp.LastIndex != 0 || resp.NextCursor != 0 || len(resp.LogEntries) > 0 {
-		body = appendManagedSlotLogEntriesPayload(body, resp)
+		var err error
+		body, err = appendManagedSlotLogEntriesPayload(body, resp)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return body, nil
 }
@@ -254,7 +260,7 @@ func managedSlotKindName(kind byte) (string, error) {
 	}
 }
 
-func appendManagedSlotLogEntriesPayload(dst []byte, resp managedSlotRPCResponse) []byte {
+func appendManagedSlotLogEntriesPayload(dst []byte, resp managedSlotRPCResponse) ([]byte, error) {
 	var fixed [24]byte
 	binary.BigEndian.PutUint64(fixed[0:8], resp.FirstIndex)
 	binary.BigEndian.PutUint64(fixed[8:16], resp.LastIndex)
@@ -268,8 +274,18 @@ func appendManagedSlotLogEntriesPayload(dst []byte, resp managedSlotRPCResponse)
 		dst = append(dst, entryFixed[:]...)
 		dst = appendString(dst, entry.Type)
 		dst = binary.AppendUvarint(dst, uint64(entry.DataSize))
+		dst = appendString(dst, entry.DecodeStatus)
+		dst = appendString(dst, entry.DecodedType)
+		decoded, err := json.Marshal(entry.Decoded)
+		if err != nil {
+			return nil, err
+		}
+		if entry.Decoded == nil {
+			decoded = nil
+		}
+		dst = appendBytes(dst, decoded)
 	}
-	return dst
+	return dst, nil
 }
 
 func decodeManagedSlotLogEntriesPayload(resp *managedSlotRPCResponse, src []byte) error {
@@ -301,6 +317,23 @@ func decodeManagedSlotLogEntriesPayload(resp *managedSlotRPCResponse, src []byte
 			return err
 		}
 		entry.DataSize = int(dataSize)
+		entry.DecodeStatus, next, err = readString(next)
+		if err != nil {
+			return err
+		}
+		entry.DecodedType, next, err = readString(next)
+		if err != nil {
+			return err
+		}
+		decoded, next, err := readBytes(next)
+		if err != nil {
+			return err
+		}
+		if len(decoded) > 0 {
+			if err := decodeManagedSlotLogDecoded(decoded, &entry.Decoded); err != nil {
+				return err
+			}
+		}
 		entries = append(entries, entry)
 		rest = next
 	}
@@ -308,5 +341,16 @@ func decodeManagedSlotLogEntriesPayload(resp *managedSlotRPCResponse, src []byte
 		return ErrInvalidConfig
 	}
 	resp.LogEntries = entries
+	return nil
+}
+
+func decodeManagedSlotLogDecoded(src []byte, dst *map[string]any) error {
+	decoder := json.NewDecoder(bytes.NewReader(src))
+	decoder.UseNumber()
+	var decoded map[string]any
+	if err := decoder.Decode(&decoded); err != nil {
+		return ErrInvalidConfig
+	}
+	*dst = decoded
 	return nil
 }

@@ -1140,10 +1140,19 @@ func TestManagerSlotLogsReturnsNodeScopedEntries(t *testing.T) {
 			AppliedIndex: 3,
 			NextCursor:   3,
 			Items: []managementusecase.SlotLogEntry{{
-				Index:    4,
-				Term:     2,
-				Type:     "normal",
-				DataSize: 12,
+				Index:        4,
+				Term:         2,
+				Type:         "normal",
+				DataSize:     12,
+				DecodeStatus: "ok",
+				DecodedType:  "upsert_user",
+				Decoded: map[string]any{
+					"command":      "upsert_user",
+					"uid":          "u1",
+					"token":        "***",
+					"device_flag":  int64(3),
+					"device_level": int64(7),
+				},
 			}, {
 				Index:    3,
 				Term:     2,
@@ -1189,7 +1198,16 @@ func TestManagerSlotLogsReturnsNodeScopedEntries(t *testing.T) {
 			"index": 4,
 			"term": 2,
 			"type": "normal",
-			"data_size": 12
+			"data_size": 12,
+			"decode_status": "ok",
+			"decoded_type": "upsert_user",
+			"decoded": {
+				"command": "upsert_user",
+				"uid": "u1",
+				"token": "***",
+				"device_flag": 3,
+				"device_level": 7
+			}
 		}, {
 			"index": 3,
 			"term": 2,

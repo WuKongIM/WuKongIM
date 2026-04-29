@@ -110,10 +110,17 @@ func TestManagedSlotLogsCodecRoundTrip(t *testing.T) {
 		LastIndex:  4,
 		NextCursor: 3,
 		LogEntries: []managedSlotLogEntry{{
-			Index:    4,
-			Term:     2,
-			Type:     "normal",
-			DataSize: 12,
+			Index:        4,
+			Term:         2,
+			Type:         "normal",
+			DataSize:     12,
+			DecodeStatus: "ok",
+			DecodedType:  "upsert_user",
+			Decoded: map[string]any{
+				"command": "upsert_user",
+				"token":   "***",
+				"uid":     "u1",
+			},
 		}},
 	})
 	if err != nil {
@@ -123,7 +130,19 @@ func TestManagedSlotLogsCodecRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeManagedSlotResponse() error = %v", err)
 	}
-	wantEntries := []managedSlotLogEntry{{Index: 4, Term: 2, Type: "normal", DataSize: 12}}
+	wantEntries := []managedSlotLogEntry{{
+		Index:        4,
+		Term:         2,
+		Type:         "normal",
+		DataSize:     12,
+		DecodeStatus: "ok",
+		DecodedType:  "upsert_user",
+		Decoded: map[string]any{
+			"command": "upsert_user",
+			"token":   "***",
+			"uid":     "u1",
+		},
+	}}
 	if resp.FirstIndex != 1 || resp.LastIndex != 4 || resp.NextCursor != 3 || !reflect.DeepEqual(resp.LogEntries, wantEntries) {
 		t.Fatalf("managed slot logs response round trip = %+v", resp)
 	}

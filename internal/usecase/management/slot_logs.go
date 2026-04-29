@@ -28,6 +28,12 @@ type SlotLogEntry struct {
 	Type string
 	// DataSize is the payload size in bytes.
 	DataSize int
+	// DecodeStatus reports whether the entry payload was decoded for inspection.
+	DecodeStatus string
+	// DecodedType is the stable command or payload type when decoding succeeds.
+	DecodedType string
+	// Decoded is a redacted JSON-friendly payload summary for manager inspection.
+	Decoded map[string]any
 }
 
 // SlotLogEntriesResponse is one node-local Slot Raft log page.
@@ -82,10 +88,13 @@ func slotLogEntries(entries []raftcluster.SlotLogEntry) []SlotLogEntry {
 	out := make([]SlotLogEntry, 0, len(entries))
 	for _, entry := range entries {
 		out = append(out, SlotLogEntry{
-			Index:    entry.Index,
-			Term:     entry.Term,
-			Type:     entry.Type,
-			DataSize: entry.DataSize,
+			Index:        entry.Index,
+			Term:         entry.Term,
+			Type:         entry.Type,
+			DataSize:     entry.DataSize,
+			DecodeStatus: entry.DecodeStatus,
+			DecodedType:  entry.DecodedType,
+			Decoded:      entry.Decoded,
 		})
 	}
 	return out

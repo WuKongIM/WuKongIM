@@ -241,7 +241,15 @@ test("opens slot detail and shows selected-node log entries", async () => {
     applied_index: 3,
     next_cursor: 3,
     items: [
-      { index: 4, term: 2, type: "normal", data_size: 12 },
+      {
+        index: 4,
+        term: 2,
+        type: "normal",
+        data_size: 12,
+        decode_status: "ok",
+        decoded_type: "upsert_user",
+        decoded: { command: "upsert_user", uid: "u1", token: "***" },
+      },
       { index: 3, term: 2, type: "conf_change", data_size: 8 },
     ],
   })
@@ -257,6 +265,8 @@ test("opens slot detail and shows selected-node log entries", async () => {
   expect(screen.getByText("Node 1 · commit 4 / applied 3")).toBeInTheDocument()
   expect(screen.getByText("normal")).toBeInTheDocument()
   expect(screen.getByText("conf_change")).toBeInTheDocument()
+  expect(screen.getByText("upsert_user")).toBeInTheDocument()
+  expect(screen.getByText(/\"uid\": \"u1\"/)).toBeInTheDocument()
   expect(screen.getByText("12 B")).toBeInTheDocument()
 })
 

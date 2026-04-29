@@ -1,5 +1,5 @@
 import type { FormEvent } from "react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 import { useIntl, type IntlShape } from "react-intl"
 
 import { useAuthStore } from "@/auth/auth-store"
@@ -27,6 +27,7 @@ import type {
   ManagerNode,
   ManagerNodesResponse,
   ManagerSlotDetailResponse,
+  ManagerSlotLogEntry,
   ManagerSlotLogsResponse,
   ManagerSlotRebalanceResponse,
   ManagerSlotsResponse,
@@ -120,6 +121,14 @@ function formatNodeLog(intl: IntlShape, slot: ManagerSlotsResponse["items"][numb
 
 function formatDataSize(value: number) {
   return `${value} B`
+}
+
+function formatSlotLogCommand(entry: ManagerSlotLogEntry) {
+  return entry.decoded_type || entry.decode_status || "-"
+}
+
+function formatSlotLogDecoded(entry: ManagerSlotLogEntry) {
+  return entry.decoded ? JSON.stringify(entry.decoded, null, 2) : ""
 }
 
 export function SlotsPage() {
@@ -770,20 +779,43 @@ export function SlotsPage() {
                           <th className="px-3 py-2">{intl.formatMessage({ id: "slots.logs.table.index" })}</th>
                           <th className="px-3 py-2">{intl.formatMessage({ id: "slots.logs.table.term" })}</th>
                           <th className="px-3 py-2">{intl.formatMessage({ id: "slots.logs.table.type" })}</th>
+                          <th className="px-3 py-2">{intl.formatMessage({ id: "slots.logs.table.command" })}</th>
                           <th className="px-3 py-2">{intl.formatMessage({ id: "slots.logs.table.dataSize" })}</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {slotLogs.page.items.map((entry) => (
-                          <tr className="border-t border-border" key={entry.index}>
-                            <td className="px-3 py-2 text-sm font-medium text-foreground">{entry.index}</td>
-                            <td className="px-3 py-2 text-sm text-muted-foreground">{entry.term}</td>
-                            <td className="px-3 py-2 text-sm text-muted-foreground">{entry.type}</td>
-                            <td className="px-3 py-2 text-sm text-muted-foreground">
-                              {formatDataSize(entry.data_size)}
-                            </td>
-                          </tr>
-                        ))}
+                        {slotLogs.page.items.map((entry) => {
+                          const decoded = formatSlotLogDecoded(entry)
+                          return (
+                            <Fragment key={entry.index}>
+                              <tr className="border-t border-border">
+                                <td className="px-3 py-2 text-sm font-medium text-foreground">{entry.index}</td>
+                                <td className="px-3 py-2 text-sm text-muted-foreground">{entry.term}</td>
+                                <td className="px-3 py-2 text-sm text-muted-foreground">{entry.type}</td>
+                                <td className="px-3 py-2 text-sm text-muted-foreground">
+                                  {formatSlotLogCommand(entry)}
+                                </td>
+                                <td className="px-3 py-2 text-sm text-muted-foreground">
+                                  {formatDataSize(entry.data_size)}
+                                </td>
+                              </tr>
+                              {decoded ? (
+                                <tr className="border-t border-border/60">
+                                  <td className="px-3 pb-3" colSpan={5}>
+                                    <div className="rounded-md border border-border/80 bg-muted/30 p-3">
+                                      <div className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                                        {intl.formatMessage({ id: "slots.logs.table.decoded" })}
+                                      </div>
+                                      <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-foreground">
+                                        {decoded}
+                                      </pre>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ) : null}
+                            </Fragment>
+                          )
+                        })}
                       </tbody>
                     </table>
                     {slotLogs.page.next_cursor ? (

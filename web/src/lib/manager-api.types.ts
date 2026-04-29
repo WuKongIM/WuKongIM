@@ -305,6 +305,9 @@ export type ManagerSlotLogEntry = {
   term: number
   type: string
   data_size: number
+  decode_status?: string
+  decoded_type?: string
+  decoded?: Record<string, unknown>
 }
 
 export type ManagerSlotLogsResponse = {

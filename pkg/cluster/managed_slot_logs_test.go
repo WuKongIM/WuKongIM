@@ -3,8 +3,11 @@ package cluster
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
+	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -15,7 +18,12 @@ func TestSlotLogEntriesOnNodeReadsLatestEntriesDescending(t *testing.T) {
 			{Index: 1, Term: 1, Type: raftpb.EntryNormal, Data: []byte("one")},
 			{Index: 2, Term: 1, Type: raftpb.EntryNormal, Data: []byte("two")},
 			{Index: 3, Term: 2, Type: raftpb.EntryConfChange, Data: []byte("config")},
-			{Index: 4, Term: 2, Type: raftpb.EntryNormal, Data: []byte("four")},
+			{Index: 4, Term: 2, Type: raftpb.EntryNormal, Data: metafsm.EncodeUpsertUserCommand(metadb.User{
+				UID:         "u1",
+				Token:       "secret-token",
+				DeviceFlag:  3,
+				DeviceLevel: 7,
+			})},
 		},
 	}
 	cluster := &Cluster{
@@ -55,10 +63,24 @@ func TestSlotLogEntriesOnNodeReadsLatestEntriesDescending(t *testing.T) {
 		AppliedIndex: 3,
 		NextCursor:   3,
 		Items: []SlotLogEntry{{
-			Index:    4,
-			Term:     2,
-			Type:     "normal",
-			DataSize: 4,
+			Index: 4,
+			Term:  2,
+			Type:  "normal",
+			DataSize: len(metafsm.EncodeUpsertUserCommand(metadb.User{
+				UID:         "u1",
+				Token:       "secret-token",
+				DeviceFlag:  3,
+				DeviceLevel: 7,
+			})),
+			DecodeStatus: "ok",
+			DecodedType:  "upsert_user",
+			Decoded: map[string]any{
+				"command":      "upsert_user",
+				"uid":          "u1",
+				"token":        "***",
+				"device_flag":  int64(3),
+				"device_level": int64(7),
+			},
 		}, {
 			Index:    3,
 			Term:     2,
@@ -134,7 +156,7 @@ func equalSlotLogEntries(left, right SlotLogEntries) bool {
 		return false
 	}
 	for i := range left.Items {
-		if left.Items[i] != right.Items[i] {
+		if !reflect.DeepEqual(left.Items[i], right.Items[i]) {
 			return false
 		}
 	}
