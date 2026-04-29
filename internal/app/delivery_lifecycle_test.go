@@ -20,6 +20,7 @@ func TestDeliveryRuntimeLifecycleProcessesTicksAndStops(t *testing.T) {
 	})
 
 	require.NoError(t, lifecycle.Start(context.Background()))
+	clock.WaitForWaiters(t, 2)
 	clock.Fire()
 	require.Eventually(t, func() bool { return runtime.retryCallCount() > 0 }, time.Second, time.Millisecond)
 	require.NoError(t, lifecycle.Stop())
@@ -36,6 +37,15 @@ func (c *manualDeliveryLifecycleClock) After(time.Duration) <-chan time.Time {
 	c.waiters = append(c.waiters, ch)
 	c.mu.Unlock()
 	return ch
+}
+
+func (c *manualDeliveryLifecycleClock) WaitForWaiters(t *testing.T, n int) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return len(c.waiters) >= n
+	}, time.Second, time.Millisecond)
 }
 
 func (c *manualDeliveryLifecycleClock) Fire() {
