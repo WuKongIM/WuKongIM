@@ -336,6 +336,48 @@ func TestResolverRefreshCachesRemoteRoutingMetaWithoutRuntime(t *testing.T) {
 	require.Empty(t, cloneAppliedLocalSet(syncer.appliedLocal))
 }
 
+func TestRefreshChannelMetaUsesHealthyBusinessCache(t *testing.T) {
+	id := channel.ChannelID{ID: "g-fast", Type: 2}
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	source := &resolverSourceFake{get: map[channel.ChannelID]metadb.ChannelRuntimeMeta{id: {
+		ChannelID: id.ID, ChannelType: int64(id.Type), ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
+		Status: uint8(channel.StatusActive), LeaseUntilMS: now.Add(time.Minute).UnixMilli(),
+	}}}
+	syncer := NewSync(SyncOptions{Source: source, Runtime: &resolverRuntimeFake{}, LocalNode: 1, Now: func() time.Time { return now }})
+
+	_, err := syncer.RefreshChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+	_, err = syncer.RefreshChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+	require.Equal(t, 1, source.getCalls)
+}
+
+func TestRefreshChannelMetaReportsCacheHitAndRefreshOutcomes(t *testing.T) {
+	id := channel.ChannelID{ID: "g-observe", Type: 2}
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	observer := &recordingMetaRefreshObserver{}
+	source := &resolverSourceFake{get: map[channel.ChannelID]metadb.ChannelRuntimeMeta{id: {
+		ChannelID: id.ID, ChannelType: int64(id.Type), ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
+		Status: uint8(channel.StatusActive), LeaseUntilMS: now.Add(time.Minute).UnixMilli(),
+	}}}
+	syncer := NewSync(SyncOptions{
+		Source:              source,
+		Runtime:             &resolverRuntimeFake{},
+		LocalNode:           1,
+		Now:                 func() time.Time { return now },
+		MetaRefreshObserver: observer,
+	})
+
+	_, err := syncer.RefreshChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+	_, err = syncer.RefreshChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+
+	require.Equal(t, []MetaRefreshResult{MetaRefreshAuthoritativeRead, MetaRefreshCacheHit}, observer.results())
+}
+
 func TestResolverStartDoesNotScanAuthoritativeMetas(t *testing.T) {
 	source := &resolverSourceFake{}
 	runtime := &resolverRuntimeFake{}
@@ -771,6 +813,27 @@ type resolverRepairerFake struct {
 type resolverRepairCall struct {
 	meta   metadb.ChannelRuntimeMeta
 	reason string
+}
+
+type recordingMetaRefreshObserver struct {
+	mu     sync.Mutex
+	events []MetaRefreshEvent
+}
+
+func (o *recordingMetaRefreshObserver) OnMetaRefresh(event MetaRefreshEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.events = append(o.events, event)
+}
+
+func (o *recordingMetaRefreshObserver) results() []MetaRefreshResult {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	results := make([]MetaRefreshResult, 0, len(o.events))
+	for _, event := range o.events {
+		results = append(results, event.Result)
+	}
+	return results
 }
 
 func (s *resolverRepairerFake) RepairIfNeeded(_ context.Context, meta metadb.ChannelRuntimeMeta, reason string) (metadb.ChannelRuntimeMeta, bool, error) {

@@ -15,8 +15,10 @@ const (
 )
 
 type cachedChannelMeta struct {
-	meta      channel.Meta
-	expiresAt time.Time
+	meta             channel.Meta
+	authoritative    metadb.ChannelRuntimeMeta
+	hasAuthoritative bool
+	expiresAt        time.Time
 }
 
 type cachedChannelMetaError struct {
@@ -34,24 +36,49 @@ type ActivationCache struct {
 
 // LoadPositive returns a cached channel metadata result when it has not expired.
 func (c *ActivationCache) LoadPositive(key channel.ChannelKey, now time.Time) (channel.Meta, bool) {
-	if c == nil {
-		return channel.Meta{}, false
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	entry, ok := c.positive[key]
+	entry, ok := c.loadPositiveEntry(key, now)
 	if !ok {
-		return channel.Meta{}, false
-	}
-	if now.After(entry.expiresAt) {
-		delete(c.positive, key)
 		return channel.Meta{}, false
 	}
 	return entry.meta, true
 }
 
+func (c *ActivationCache) loadPositiveEntry(key channel.ChannelKey, now time.Time) (cachedChannelMeta, bool) {
+	if c == nil {
+		return cachedChannelMeta{}, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.positive[key]
+	if !ok {
+		return cachedChannelMeta{}, false
+	}
+	if now.After(entry.expiresAt) {
+		delete(c.positive, key)
+		return cachedChannelMeta{}, false
+	}
+	return entry, true
+}
+
 // StorePositive caches a successful activation result and clears stale negative state.
 func (c *ActivationCache) StorePositive(key channel.ChannelKey, meta channel.Meta, now time.Time) {
+	c.storePositiveEntry(key, cachedChannelMeta{
+		meta:      meta,
+		expiresAt: now.Add(channelMetaPositiveCacheTTL),
+	})
+}
+
+// StoreAuthoritativePositive caches an applied routing view with its authoritative source record.
+func (c *ActivationCache) StoreAuthoritativePositive(key channel.ChannelKey, applied channel.Meta, authoritative metadb.ChannelRuntimeMeta, now time.Time) {
+	c.storePositiveEntry(key, cachedChannelMeta{
+		meta:             applied,
+		authoritative:    authoritative,
+		hasAuthoritative: true,
+		expiresAt:        now.Add(channelMetaPositiveCacheTTL),
+	})
+}
+
+func (c *ActivationCache) storePositiveEntry(key channel.ChannelKey, entry cachedChannelMeta) {
 	if c == nil {
 		return
 	}
@@ -63,7 +90,7 @@ func (c *ActivationCache) StorePositive(key channel.ChannelKey, meta channel.Met
 	if c.negative != nil {
 		delete(c.negative, key)
 	}
-	c.positive[key] = cachedChannelMeta{meta: meta, expiresAt: now.Add(channelMetaPositiveCacheTTL)}
+	c.positive[key] = entry
 }
 
 // LoadNegative returns a cached not-found activation error when it has not expired.
@@ -111,5 +138,20 @@ func (c *ActivationCache) Clear() {
 	c.mu.Lock()
 	c.positive = nil
 	c.negative = nil
+	c.mu.Unlock()
+}
+
+// Invalidate drops cached activation results for a single channel key.
+func (c *ActivationCache) Invalidate(key channel.ChannelKey) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	if c.positive != nil {
+		delete(c.positive, key)
+	}
+	if c.negative != nil {
+		delete(c.negative, key)
+	}
 	c.mu.Unlock()
 }

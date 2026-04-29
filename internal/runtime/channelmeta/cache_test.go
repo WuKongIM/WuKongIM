@@ -55,3 +55,19 @@ func TestActivationCacheClearDropsPositiveAndNegativeEntries(t *testing.T) {
 	require.False(t, ok)
 	require.NoError(t, cache.LoadNegative(negativeKey, now))
 }
+
+func TestActivationCacheInvalidateDropsOnePositiveEntry(t *testing.T) {
+	cache := &ActivationCache{}
+	key := channel.ChannelKey("channel/1/dTE")
+	other := channel.ChannelKey("channel/1/dTI")
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	cache.StorePositive(key, channel.Meta{Key: key, Leader: 1, LeaseUntil: now.Add(time.Minute), Status: channel.StatusActive}, now)
+	cache.StorePositive(other, channel.Meta{Key: other, Leader: 1, LeaseUntil: now.Add(time.Minute), Status: channel.StatusActive}, now)
+
+	cache.Invalidate(key)
+
+	_, ok := cache.LoadPositive(key, now)
+	require.False(t, ok)
+	_, ok = cache.LoadPositive(other, now)
+	require.True(t, ok)
+}

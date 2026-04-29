@@ -14,6 +14,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
+const channelMetaBusinessCacheRefreshLeadTime = time.Second
+
 // RepairPolicy decides whether a refreshed authoritative metadata record needs leader repair.
 type RepairPolicy func(meta metadb.ChannelRuntimeMeta) (bool, string)
 
@@ -41,6 +43,8 @@ type SyncOptions struct {
 	Now func() time.Time
 	// AfterLocalApply is called after metadata is applied to a local runtime and repair policy still wants repair.
 	AfterLocalApply func(channel.Meta)
+	// MetaRefreshObserver receives one outcome event for each business refresh attempt.
+	MetaRefreshObserver MetaRefreshObserver
 }
 
 // Sync refreshes authoritative channel runtime metadata into routing and local runtime views.
@@ -56,6 +60,7 @@ type Sync struct {
 	refreshInterval time.Duration
 	now             func() time.Time
 	afterLocalApply func(channel.Meta)
+	metaObserver    MetaRefreshObserver
 
 	mu           sync.Mutex
 	scheduleMu   sync.Mutex
@@ -101,6 +106,7 @@ func NewSync(opts SyncOptions) *Sync {
 		refreshInterval: opts.RefreshInterval,
 		now:             now,
 		afterLocalApply: opts.AfterLocalApply,
+		metaObserver:    opts.MetaRefreshObserver,
 	}
 }
 
@@ -178,21 +184,41 @@ func (s *Sync) ActivateByID(ctx context.Context, id channel.ChannelID, source ch
 	if s == nil {
 		return channel.Meta{}, channel.ErrInvalidConfig
 	}
-	return s.activate(ctx, channelhandler.KeyFromChannelID(id), source, func(ctx context.Context) (metadb.ChannelRuntimeMeta, error) {
+	key := channelhandler.KeyFromChannelID(id)
+	outcome := MetaRefreshAuthoritativeRead
+	start := s.Now()
+	var result channel.Meta
+	var err error
+	defer func() {
+		if source == channelruntime.ActivationSourceBusiness {
+			s.observeMetaRefresh(id, key, outcome, start, err)
+		}
+	}()
+	result, err = s.activate(ctx, key, source, &outcome, func(ctx context.Context) (metadb.ChannelRuntimeMeta, MetaRefreshResult, error) {
 		if s.source == nil {
-			return metadb.ChannelRuntimeMeta{}, channel.ErrInvalidConfig
+			return metadb.ChannelRuntimeMeta{}, MetaRefreshError, channel.ErrInvalidConfig
 		}
 		meta, err := s.source.GetChannelRuntimeMeta(ctx, id.ID, int64(id.Type))
+		refreshResult := MetaRefreshAuthoritativeRead
 		if err != nil {
 			if errors.Is(err, metadb.ErrNotFound) && source == channelruntime.ActivationSourceBusiness {
 				meta, err = s.ensureChannelRuntimeMeta(ctx, id)
+				refreshResult = MetaRefreshBootstrap
 			}
 			if err != nil {
-				return metadb.ChannelRuntimeMeta{}, err
+				return metadb.ChannelRuntimeMeta{}, MetaRefreshError, err
 			}
 		}
-		return s.reconcileChannelRuntimeMeta(ctx, meta)
+		meta, reconcileResult, err := s.reconcileChannelRuntimeMetaForRefresh(ctx, meta)
+		if err != nil {
+			return metadb.ChannelRuntimeMeta{}, MetaRefreshError, err
+		}
+		if refreshResult == MetaRefreshAuthoritativeRead {
+			refreshResult = reconcileResult
+		}
+		return meta, refreshResult, nil
 	})
+	return result, err
 }
 
 // ActivateByKey loads authoritative metadata by channel key and applies it to runtime views.
@@ -212,16 +238,29 @@ func (s *Sync) ActivateByKey(ctx context.Context, key channel.ChannelKey, source
 	if err != nil {
 		return channel.Meta{}, err
 	}
-	return s.activate(ctx, key, source, func(ctx context.Context) (metadb.ChannelRuntimeMeta, error) {
+	outcome := MetaRefreshAuthoritativeRead
+	start := s.Now()
+	var result channel.Meta
+	defer func() {
+		if source == channelruntime.ActivationSourceBusiness {
+			s.observeMetaRefresh(id, key, outcome, start, err)
+		}
+	}()
+	result, err = s.activate(ctx, key, source, &outcome, func(ctx context.Context) (metadb.ChannelRuntimeMeta, MetaRefreshResult, error) {
 		if s.source == nil {
-			return metadb.ChannelRuntimeMeta{}, channel.ErrInvalidConfig
+			return metadb.ChannelRuntimeMeta{}, MetaRefreshError, channel.ErrInvalidConfig
 		}
 		meta, err := s.source.GetChannelRuntimeMeta(ctx, id.ID, int64(id.Type))
 		if err != nil {
-			return metadb.ChannelRuntimeMeta{}, err
+			return metadb.ChannelRuntimeMeta{}, MetaRefreshError, err
 		}
-		return s.reconcileChannelRuntimeMeta(ctx, meta)
+		meta, refreshResult, err := s.reconcileChannelRuntimeMetaForRefresh(ctx, meta)
+		if err != nil {
+			return metadb.ChannelRuntimeMeta{}, MetaRefreshError, err
+		}
+		return meta, refreshResult, nil
 	})
+	return result, err
 }
 
 // ApplyAuthoritativeMeta applies one authoritative metadata record to routing and local runtime views.
@@ -279,7 +318,7 @@ func (s *Sync) RefreshAuthoritativeByKey(ctx context.Context, key channel.Channe
 		if err != nil {
 			return channel.Meta{}, err
 		}
-		s.cache.StorePositive(key, applied, s.Now())
+		s.cache.StoreAuthoritativePositive(key, applied, meta, s.Now())
 		return applied, nil
 	})
 }
@@ -329,6 +368,72 @@ func (s *Sync) Now() time.Time {
 		return time.Now()
 	}
 	return s.now()
+}
+
+// InvalidateChannelMeta drops cached metadata for one channel ID.
+func (s *Sync) InvalidateChannelMeta(id channel.ChannelID) {
+	if s == nil {
+		return
+	}
+	s.cache.Invalidate(channelhandler.KeyFromChannelID(id))
+}
+
+func (s *Sync) cachedHealthyBusinessMeta(key channel.ChannelKey) (channel.Meta, bool) {
+	if s == nil {
+		return channel.Meta{}, false
+	}
+	now := s.Now()
+	entry, ok := s.cache.loadPositiveEntry(key, now)
+	if !ok {
+		return channel.Meta{}, false
+	}
+	meta := entry.meta
+	if meta.Status != channel.StatusActive {
+		return channel.Meta{}, false
+	}
+	if meta.Leader == 0 || meta.Epoch == 0 || meta.LeaderEpoch == 0 {
+		return channel.Meta{}, false
+	}
+	if !meta.LeaseUntil.After(now.Add(channelMetaBusinessCacheRefreshLeadTime)) {
+		return channel.Meta{}, false
+	}
+	if status, ok := s.liveness.Status(uint64(meta.Leader)); ok &&
+		(status == controllermeta.NodeStatusDead || status == controllermeta.NodeStatusDraining) {
+		return channel.Meta{}, false
+	}
+	if !entry.hasAuthoritative {
+		return channel.Meta{}, false
+	}
+	if s.repairPolicy != nil {
+		need, _ := s.repairPolicy(entry.authoritative)
+		if need {
+			return channel.Meta{}, false
+		}
+	}
+	return meta, true
+}
+
+func setMetaRefreshOutcome(target *MetaRefreshResult, result MetaRefreshResult) {
+	if target == nil {
+		return
+	}
+	*target = result
+}
+
+func (s *Sync) observeMetaRefresh(id channel.ChannelID, key channel.ChannelKey, result MetaRefreshResult, start time.Time, err error) {
+	if s == nil || s.metaObserver == nil {
+		return
+	}
+	if err != nil {
+		result = MetaRefreshError
+	}
+	s.metaObserver.OnMetaRefresh(MetaRefreshEvent{
+		ChannelID: id,
+		Key:       key,
+		Result:    result,
+		Duration:  s.Now().Sub(start),
+		Err:       err,
+	})
 }
 
 // ScheduleSlotLeaderRefresh refreshes active local channel metas in a slot.
@@ -386,8 +491,14 @@ func (s *Sync) ensureChannelRuntimeMeta(ctx context.Context, id channel.ChannelI
 	return s.source.GetChannelRuntimeMeta(ctx, id.ID, int64(id.Type))
 }
 
-func (s *Sync) activate(ctx context.Context, key channel.ChannelKey, source channelruntime.ActivationSource, load func(context.Context) (metadb.ChannelRuntimeMeta, error)) (channel.Meta, error) {
+func (s *Sync) activate(ctx context.Context, key channel.ChannelKey, source channelruntime.ActivationSource, outcome *MetaRefreshResult, load func(context.Context) (metadb.ChannelRuntimeMeta, MetaRefreshResult, error)) (channel.Meta, error) {
 	s.observeHashSlotTableVersion()
+	if source == channelruntime.ActivationSourceBusiness {
+		if meta, ok := s.cachedHealthyBusinessMeta(key); ok {
+			setMetaRefreshOutcome(outcome, MetaRefreshCacheHit)
+			return meta, nil
+		}
+	}
 	if source != channelruntime.ActivationSourceBusiness {
 		if meta, ok := s.cache.LoadPositive(key, s.Now()); ok {
 			return meta, nil
@@ -399,7 +510,12 @@ func (s *Sync) activate(ctx context.Context, key channel.ChannelKey, source chan
 	meta, err := s.cache.RunSingleflight(key, func() (channel.Meta, error) {
 		// Re-check cache inside the coalesced call to avoid a second authority read when
 		// a concurrent caller missed the outer cache check before the first call stored it.
-		if source != channelruntime.ActivationSourceBusiness {
+		if source == channelruntime.ActivationSourceBusiness {
+			if meta, ok := s.cachedHealthyBusinessMeta(key); ok {
+				setMetaRefreshOutcome(outcome, MetaRefreshCacheHit)
+				return meta, nil
+			}
+		} else {
 			if meta, ok := s.cache.LoadPositive(key, s.Now()); ok {
 				return meta, nil
 			}
@@ -407,16 +523,19 @@ func (s *Sync) activate(ctx context.Context, key channel.ChannelKey, source chan
 				return channel.Meta{}, err
 			}
 		}
-		loaded, err := load(ctx)
+		loaded, refreshResult, err := load(ctx)
 		if err != nil {
 			s.cache.StoreNegative(key, err, s.Now())
+			setMetaRefreshOutcome(outcome, MetaRefreshError)
 			return channel.Meta{}, err
 		}
+		setMetaRefreshOutcome(outcome, refreshResult)
 		applied, err := s.ApplyAuthoritativeMeta(loaded)
 		if err != nil {
+			setMetaRefreshOutcome(outcome, MetaRefreshError)
 			return channel.Meta{}, err
 		}
-		s.cache.StorePositive(key, applied, s.Now())
+		s.cache.StoreAuthoritativePositive(key, applied, loaded, s.Now())
 		return applied, nil
 	})
 	if err != nil {
@@ -469,20 +588,25 @@ func (s *Sync) applyLocalMeta(meta metadb.ChannelRuntimeMeta) (channel.Meta, err
 }
 
 func (s *Sync) reconcileChannelRuntimeMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) (metadb.ChannelRuntimeMeta, error) {
+	reconciled, _, err := s.reconcileChannelRuntimeMetaForRefresh(ctx, meta)
+	return reconciled, err
+}
+
+func (s *Sync) reconcileChannelRuntimeMetaForRefresh(ctx context.Context, meta metadb.ChannelRuntimeMeta) (metadb.ChannelRuntimeMeta, MetaRefreshResult, error) {
 	if s == nil || s.bootstrap == nil {
-		return s.maybeRepairChannelRuntimeMeta(ctx, meta)
+		return s.maybeRepairChannelRuntimeMetaForRefresh(ctx, meta)
 	}
 	if s.repairer != nil && s.repairPolicy != nil {
 		need, _ := s.repairPolicy(meta)
 		if need {
-			return s.maybeRepairChannelRuntimeMeta(ctx, meta)
+			return s.maybeRepairChannelRuntimeMetaForRefresh(ctx, meta)
 		}
 	}
 	reconciled, _, err := s.bootstrap.RenewChannelLeaderLease(ctx, meta, s.localNode, s.leaseRenewLeadTime())
 	if err != nil {
-		return metadb.ChannelRuntimeMeta{}, err
+		return metadb.ChannelRuntimeMeta{}, MetaRefreshError, err
 	}
-	return s.maybeRepairChannelRuntimeMeta(ctx, reconciled)
+	return s.maybeRepairChannelRuntimeMetaForRefresh(ctx, reconciled)
 }
 
 func (s *Sync) leaseRenewLeadTime() time.Duration {
@@ -493,21 +617,26 @@ func (s *Sync) leaseRenewLeadTime() time.Duration {
 }
 
 func (s *Sync) maybeRepairChannelRuntimeMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) (metadb.ChannelRuntimeMeta, error) {
+	repaired, _, err := s.maybeRepairChannelRuntimeMetaForRefresh(ctx, meta)
+	return repaired, err
+}
+
+func (s *Sync) maybeRepairChannelRuntimeMetaForRefresh(ctx context.Context, meta metadb.ChannelRuntimeMeta) (metadb.ChannelRuntimeMeta, MetaRefreshResult, error) {
 	if s == nil || s.repairer == nil || s.repairPolicy == nil {
-		return meta, nil
+		return meta, MetaRefreshAuthoritativeRead, nil
 	}
 	if meta.Leader != 0 {
 		s.WarmNodeLiveness(ctx, meta.Leader)
 	}
 	need, reason := s.repairPolicy(meta)
 	if !need {
-		return meta, nil
+		return meta, MetaRefreshAuthoritativeRead, nil
 	}
 	repaired, _, err := s.repairer.RepairIfNeeded(ctx, meta, reason)
 	if err != nil {
-		return metadb.ChannelRuntimeMeta{}, err
+		return metadb.ChannelRuntimeMeta{}, MetaRefreshError, err
 	}
-	return repaired, nil
+	return repaired, MetaRefreshRepair, nil
 }
 
 func (s *Sync) observeHashSlotTableVersion() {

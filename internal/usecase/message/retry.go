@@ -2,9 +2,11 @@ package message
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -28,46 +30,74 @@ func sendWithEnsuredMeta(
 		return channel.AppendResult{}, ErrMetaRefresherRequired
 	}
 
-	// 1. 激活 channel runtime，获取最新 meta
-	meta, err := refresher.RefreshChannelMeta(ctx, req.ChannelID)
-	if err != nil {
-		sendLogger.Error("refresh channel metadata failed", logFields("message.send.refresh.failed", wklog.Error(err))...)
-		return channel.AppendResult{}, err
-	}
-
-	metaFields := logFields("message.send.meta.resolved",
-		wklog.LeaderNodeID(uint64(meta.Leader)),
-		wklog.Uint64("channelEpoch", meta.Epoch),
-		wklog.Uint64("leaderEpoch", meta.LeaderEpoch),
-		wklog.Int("replicaCount", len(meta.Replicas)),
-	)
-	if now != nil && !meta.LeaseUntil.IsZero() {
-		metaFields = append(metaFields, wklog.Duration("leaseRemaining", meta.LeaseUntil.Sub(now())))
-	}
-	sendLogger.Debug("resolved channel metadata", metaFields...)
-
-	req.ExpectedChannelEpoch = meta.Epoch
-	req.ExpectedLeaderEpoch = meta.LeaderEpoch
-
-	// 2. leader 在远端，直接转发
-	if meta.Leader != 0 && uint64(meta.Leader) != localNodeID {
-		if remote == nil {
-			sendLogger.Error("remote appender required for forwarding", logFields("message.send.remote.required",
-				wklog.LeaderNodeID(uint64(meta.Leader)))...)
-			return channel.AppendResult{}, ErrRemoteAppenderRequired
-		}
-		result, err := remote.AppendToLeader(ctx, uint64(meta.Leader), req)
+	refreshMeta := func() (channel.Meta, error) {
+		meta, err := refresher.RefreshChannelMeta(ctx, req.ChannelID)
 		if err != nil {
-			sendLogger.Error("forward append to leader failed", logFields("message.send.forward.failed",
-				wklog.LeaderNodeID(uint64(meta.Leader)), wklog.Error(err))...)
+			sendLogger.Error("refresh channel metadata failed", logFields("message.send.refresh.failed", wklog.Error(err))...)
+			return channel.Meta{}, err
+		}
+
+		metaFields := logFields("message.send.meta.resolved",
+			wklog.LeaderNodeID(uint64(meta.Leader)),
+			wklog.Uint64("channelEpoch", meta.Epoch),
+			wklog.Uint64("leaderEpoch", meta.LeaderEpoch),
+			wklog.Int("replicaCount", len(meta.Replicas)),
+		)
+		if now != nil && !meta.LeaseUntil.IsZero() {
+			metaFields = append(metaFields, wklog.Duration("leaseRemaining", meta.LeaseUntil.Sub(now())))
+		}
+		sendLogger.Debug("resolved channel metadata", metaFields...)
+		return meta, nil
+	}
+
+	appendWithMeta := func(ctx context.Context, meta channel.Meta, req channel.AppendRequest) (channel.AppendResult, error) {
+		req.ExpectedChannelEpoch = meta.Epoch
+		req.ExpectedLeaderEpoch = meta.LeaderEpoch
+
+		if meta.Leader != 0 && uint64(meta.Leader) != localNodeID {
+			if remote == nil {
+				sendLogger.Error("remote appender required for forwarding", logFields("message.send.remote.required",
+					wklog.LeaderNodeID(uint64(meta.Leader)))...)
+				return channel.AppendResult{}, ErrRemoteAppenderRequired
+			}
+			result, err := remote.AppendToLeader(ctx, uint64(meta.Leader), req)
+			if err != nil {
+				sendLogger.Error("forward append to leader failed", logFields("message.send.forward.failed",
+					wklog.LeaderNodeID(uint64(meta.Leader)), wklog.Error(err))...)
+			}
+			return result, err
+		}
+
+		result, err := cluster.Append(ctx, req)
+		if err != nil {
+			sendLogger.Error("local append failed", logFields("message.send.append.failed", wklog.Error(err))...)
 		}
 		return result, err
 	}
 
-	// 3. leader 在本地，本地 append
-	result, err := cluster.Append(ctx, req)
+	meta, err := refreshMeta()
 	if err != nil {
-		sendLogger.Error("local append failed", logFields("message.send.append.failed", wklog.Error(err))...)
+		return channel.AppendResult{}, err
 	}
-	return result, err
+	result, err := appendWithMeta(ctx, meta, req)
+	if err == nil || !isRetryableMetaAppendError(err) {
+		return result, err
+	}
+
+	if invalidator, ok := refresher.(MetaInvalidator); ok {
+		invalidator.InvalidateChannelMeta(req.ChannelID)
+	}
+	meta, refreshErr := refreshMeta()
+	if refreshErr != nil {
+		return channel.AppendResult{}, refreshErr
+	}
+	return appendWithMeta(ctx, meta, req)
+}
+
+func isRetryableMetaAppendError(err error) bool {
+	return errors.Is(err, channel.ErrStaleMeta) ||
+		errors.Is(err, channel.ErrNotLeader) ||
+		errors.Is(err, channel.ErrLeaseExpired) ||
+		errors.Is(err, raftcluster.ErrNotLeader) ||
+		errors.Is(err, raftcluster.ErrRerouted)
 }

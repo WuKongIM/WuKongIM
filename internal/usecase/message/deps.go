@@ -65,6 +65,12 @@ type MetaRefresher interface {
 	RefreshChannelMeta(ctx context.Context, id channel.ChannelID) (channel.Meta, error)
 }
 
+// MetaInvalidator drops cached channel metadata before a forced refresh.
+type MetaInvalidator interface {
+	// InvalidateChannelMeta invalidates cached metadata for one channel.
+	InvalidateChannelMeta(id channel.ChannelID)
+}
+
 type RemoteAppender interface {
 	AppendToLeader(ctx context.Context, nodeID uint64, req channel.AppendRequest) (channel.AppendResult, error)
 }

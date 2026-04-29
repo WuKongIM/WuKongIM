@@ -49,6 +49,42 @@ type HashSlotTableVersionSource interface {
 	HashSlotTableVersion() uint64
 }
 
+// MetaRefreshResult identifies how one business metadata refresh completed.
+type MetaRefreshResult string
+
+const (
+	// MetaRefreshCacheHit means a healthy cached metadata entry was reused.
+	MetaRefreshCacheHit MetaRefreshResult = "cache_hit"
+	// MetaRefreshAuthoritativeRead means authoritative metadata was read and applied without bootstrap or repair.
+	MetaRefreshAuthoritativeRead MetaRefreshResult = "authoritative_read"
+	// MetaRefreshBootstrap means missing authoritative metadata was created before apply.
+	MetaRefreshBootstrap MetaRefreshResult = "bootstrap"
+	// MetaRefreshRepair means stale authoritative metadata was repaired or validated through repairer.
+	MetaRefreshRepair MetaRefreshResult = "repair"
+	// MetaRefreshError means the refresh failed.
+	MetaRefreshError MetaRefreshResult = "error"
+)
+
+// MetaRefreshEvent describes one business metadata refresh attempt.
+type MetaRefreshEvent struct {
+	// ChannelID is the protocol channel identity being refreshed.
+	ChannelID channel.ChannelID
+	// Key is the node-local channel key being refreshed.
+	Key channel.ChannelKey
+	// Result is the refresh outcome classification.
+	Result MetaRefreshResult
+	// Duration is the elapsed time spent in the refresh attempt.
+	Duration time.Duration
+	// Err is set when Result is MetaRefreshError.
+	Err error
+}
+
+// MetaRefreshObserver receives business metadata refresh outcomes.
+type MetaRefreshObserver interface {
+	// OnMetaRefresh records one business metadata refresh event.
+	OnMetaRefresh(MetaRefreshEvent)
+}
+
 // BootstrapCluster provides cluster topology needed to bootstrap missing runtime metadata.
 type BootstrapCluster interface {
 	// SlotForKey maps a channel key to its authoritative slot.
