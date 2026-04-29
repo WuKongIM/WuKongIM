@@ -56,13 +56,15 @@ type Result struct {
 }
 
 type Status struct {
-	SlotID       SlotID
-	NodeID       NodeID
-	LeaderID     NodeID
-	Term         uint64
-	CommitIndex  uint64
-	AppliedIndex uint64
-	Role         Role
+	SlotID   SlotID
+	NodeID   NodeID
+	LeaderID NodeID
+	// CurrentVoters is the Raft voter set currently observed by this runtime.
+	CurrentVoters []NodeID
+	Term          uint64
+	CommitIndex   uint64
+	AppliedIndex  uint64
+	Role          Role
 }
 
 type Transport interface {

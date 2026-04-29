@@ -11,8 +11,11 @@ import (
 )
 
 type assignmentTaskState struct {
-	assignment controllermeta.SlotAssignment
-	task       controllermeta.ReconcileTask
+	assignment     controllermeta.SlotAssignment
+	runtimeView    controllermeta.SlotRuntimeView
+	hasRuntimeView bool
+	nodes          map[uint64]controllermeta.ClusterNode
+	task           controllermeta.ReconcileTask
 }
 
 type assignmentReconciler interface {

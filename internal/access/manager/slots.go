@@ -43,12 +43,18 @@ type SlotStateDTO struct {
 	Quorum string `json:"quorum"`
 	// Sync summarizes whether runtime peers/config match the assignment.
 	Sync string `json:"sync"`
+	// LeaderMatch reports whether the preferred leader is currently leading.
+	LeaderMatch bool `json:"leader_match"`
+	// LeaderTransferPending reports whether a leader transfer task is current.
+	LeaderTransferPending bool `json:"leader_transfer_pending"`
 }
 
 // SlotAssignmentDTO contains desired slot placement fields.
 type SlotAssignmentDTO struct {
 	// DesiredPeers is the desired slot voter set.
 	DesiredPeers []uint64 `json:"desired_peers"`
+	// PreferredLeaderID is the controller preferred leader; zero means unset.
+	PreferredLeaderID uint64 `json:"preferred_leader_id"`
 	// ConfigEpoch is the desired slot config epoch.
 	ConfigEpoch uint64 `json:"config_epoch"`
 	// BalanceVersion is the desired slot balance generation.
@@ -57,8 +63,10 @@ type SlotAssignmentDTO struct {
 
 // SlotRuntimeDTO contains observed slot runtime fields.
 type SlotRuntimeDTO struct {
-	// CurrentPeers is the currently observed voter set.
+	// CurrentPeers is the currently observed peer set.
 	CurrentPeers []uint64 `json:"current_peers"`
+	// CurrentVoters is the currently observed voter set.
+	CurrentVoters []uint64 `json:"current_voters"`
 	// LeaderID is the observed slot leader.
 	LeaderID uint64 `json:"leader_id"`
 	// HealthyVoters is the observed healthy voter count.
@@ -149,16 +157,20 @@ func slotDTO(item managementusecase.Slot) SlotDTO {
 	return SlotDTO{
 		SlotID: item.SlotID,
 		State: SlotStateDTO{
-			Quorum: item.State.Quorum,
-			Sync:   item.State.Sync,
+			Quorum:                item.State.Quorum,
+			Sync:                  item.State.Sync,
+			LeaderMatch:           item.State.LeaderMatch,
+			LeaderTransferPending: item.State.LeaderTransferPending,
 		},
 		Assignment: SlotAssignmentDTO{
-			DesiredPeers:   append([]uint64(nil), item.Assignment.DesiredPeers...),
-			ConfigEpoch:    item.Assignment.ConfigEpoch,
-			BalanceVersion: item.Assignment.BalanceVersion,
+			DesiredPeers:      append([]uint64(nil), item.Assignment.DesiredPeers...),
+			PreferredLeaderID: item.Assignment.PreferredLeader,
+			ConfigEpoch:       item.Assignment.ConfigEpoch,
+			BalanceVersion:    item.Assignment.BalanceVersion,
 		},
 		Runtime: SlotRuntimeDTO{
 			CurrentPeers:        append([]uint64(nil), item.Runtime.CurrentPeers...),
+			CurrentVoters:       append([]uint64(nil), item.Runtime.CurrentVoters...),
 			LeaderID:            item.Runtime.LeaderID,
 			HealthyVoters:       item.Runtime.HealthyVoters,
 			HasQuorum:           item.Runtime.HasQuorum,

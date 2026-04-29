@@ -980,16 +980,20 @@ func TestManagerSlotsReturnsAggregatedList(t *testing.T) {
 			slots: []managementusecase.Slot{{
 				SlotID: 2,
 				State: managementusecase.SlotState{
-					Quorum: "ready",
-					Sync:   "matched",
+					Quorum:                "ready",
+					Sync:                  "matched",
+					LeaderMatch:           false,
+					LeaderTransferPending: true,
 				},
 				Assignment: managementusecase.SlotAssignment{
-					DesiredPeers:   []uint64{1, 2, 3},
-					ConfigEpoch:    8,
-					BalanceVersion: 3,
+					DesiredPeers:    []uint64{1, 2, 3},
+					PreferredLeader: 2,
+					ConfigEpoch:     8,
+					BalanceVersion:  3,
 				},
 				Runtime: managementusecase.SlotRuntime{
 					CurrentPeers:        []uint64{1, 2, 3},
+					CurrentVoters:       []uint64{1, 2, 3},
 					LeaderID:            1,
 					HealthyVoters:       3,
 					HasQuorum:           true,
@@ -1013,15 +1017,19 @@ func TestManagerSlotsReturnsAggregatedList(t *testing.T) {
 			"slot_id": 2,
 			"state": {
 				"quorum": "ready",
-				"sync": "matched"
+				"sync": "matched",
+				"leader_match": false,
+				"leader_transfer_pending": true
 			},
 			"assignment": {
 				"desired_peers": [1, 2, 3],
+				"preferred_leader_id": 2,
 				"config_epoch": 8,
 				"balance_version": 3
 			},
 			"runtime": {
 				"current_peers": [1, 2, 3],
+				"current_voters": [1, 2, 3],
 				"leader_id": 1,
 				"healthy_voters": 3,
 				"has_quorum": true,
@@ -1133,16 +1141,19 @@ func TestManagerSlotDetailReturnsDetailWithTaskSummary(t *testing.T) {
 				Slot: managementusecase.Slot{
 					SlotID: 2,
 					State: managementusecase.SlotState{
-						Quorum: "ready",
-						Sync:   "matched",
+						Quorum:      "ready",
+						Sync:        "matched",
+						LeaderMatch: true,
 					},
 					Assignment: managementusecase.SlotAssignment{
-						DesiredPeers:   []uint64{2, 3, 5},
-						ConfigEpoch:    8,
-						BalanceVersion: 3,
+						DesiredPeers:    []uint64{2, 3, 5},
+						PreferredLeader: 2,
+						ConfigEpoch:     8,
+						BalanceVersion:  3,
 					},
 					Runtime: managementusecase.SlotRuntime{
 						CurrentPeers:        []uint64{2, 3, 5},
+						CurrentVoters:       []uint64{2, 3, 5},
 						LeaderID:            2,
 						HealthyVoters:       3,
 						HasQuorum:           true,
@@ -1176,15 +1187,19 @@ func TestManagerSlotDetailReturnsDetailWithTaskSummary(t *testing.T) {
 		"slot_id": 2,
 		"state": {
 			"quorum": "ready",
-			"sync": "matched"
+			"sync": "matched",
+			"leader_match": true,
+			"leader_transfer_pending": false
 		},
 		"assignment": {
 			"desired_peers": [2, 3, 5],
+			"preferred_leader_id": 2,
 			"config_epoch": 8,
 			"balance_version": 3
 		},
 		"runtime": {
 			"current_peers": [2, 3, 5],
+			"current_voters": [2, 3, 5],
 			"leader_id": 2,
 			"healthy_voters": 3,
 			"has_quorum": true,
@@ -1225,6 +1240,7 @@ func TestManagerSlotDetailReturnsDetailWithNullTask(t *testing.T) {
 					},
 					Runtime: managementusecase.SlotRuntime{
 						CurrentPeers:        []uint64{7, 8, 9},
+						CurrentVoters:       []uint64{7, 8, 9},
 						LeaderID:            8,
 						HealthyVoters:       2,
 						HasQuorum:           false,
@@ -1245,20 +1261,24 @@ func TestManagerSlotDetailReturnsDetailWithNullTask(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.JSONEq(t, `{
 		"slot_id": 7,
-		"state": {
-			"quorum": "lost",
-			"sync": "unreported"
-		},
-		"assignment": {
-			"desired_peers": null,
-			"config_epoch": 0,
-			"balance_version": 0
-		},
-		"runtime": {
-			"current_peers": [7, 8, 9],
-			"leader_id": 8,
-			"healthy_voters": 2,
-			"has_quorum": false,
+			"state": {
+				"quorum": "lost",
+				"sync": "unreported",
+				"leader_match": false,
+				"leader_transfer_pending": false
+			},
+			"assignment": {
+				"desired_peers": null,
+				"preferred_leader_id": 0,
+				"config_epoch": 0,
+				"balance_version": 0
+			},
+			"runtime": {
+				"current_peers": [7, 8, 9],
+				"current_voters": [7, 8, 9],
+				"leader_id": 8,
+				"healthy_voters": 2,
+				"has_quorum": false,
 			"observed_config_epoch": 0,
 			"last_report_at": "2026-04-21T16:00:00Z"
 		},
@@ -1511,16 +1531,19 @@ func TestManagerTaskDetailReturnsTaskWithSlotContext(t *testing.T) {
 				Slot: managementusecase.Slot{
 					SlotID: 2,
 					State: managementusecase.SlotState{
-						Quorum: "ready",
-						Sync:   "matched",
+						Quorum:      "ready",
+						Sync:        "matched",
+						LeaderMatch: true,
 					},
 					Assignment: managementusecase.SlotAssignment{
-						DesiredPeers:   []uint64{2, 3, 5},
-						ConfigEpoch:    8,
-						BalanceVersion: 3,
+						DesiredPeers:    []uint64{2, 3, 5},
+						PreferredLeader: 2,
+						ConfigEpoch:     8,
+						BalanceVersion:  3,
 					},
 					Runtime: managementusecase.SlotRuntime{
 						CurrentPeers:        []uint64{2, 3, 5},
+						CurrentVoters:       []uint64{2, 3, 5},
 						LeaderID:            2,
 						HealthyVoters:       3,
 						HasQuorum:           true,
@@ -1552,15 +1575,19 @@ func TestManagerTaskDetailReturnsTaskWithSlotContext(t *testing.T) {
 		"slot": {
 			"state": {
 				"quorum": "ready",
-				"sync": "matched"
+				"sync": "matched",
+				"leader_match": true,
+				"leader_transfer_pending": false
 			},
 			"assignment": {
 				"desired_peers": [2, 3, 5],
+				"preferred_leader_id": 2,
 				"config_epoch": 8,
 				"balance_version": 3
 			},
 			"runtime": {
 				"current_peers": [2, 3, 5],
+				"current_voters": [2, 3, 5],
 				"leader_id": 2,
 				"healthy_voters": 3,
 				"has_quorum": true,

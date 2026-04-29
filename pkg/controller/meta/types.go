@@ -56,6 +56,7 @@ const (
 	TaskKindBootstrap
 	TaskKindRepair
 	TaskKindRebalance
+	TaskKindLeaderTransfer
 )
 
 type TaskStep uint8
@@ -109,6 +110,10 @@ type SlotAssignment struct {
 	ConfigEpoch uint64
 	// BalanceVersion increments on opportunistic rebalance moves to preserve fair ordering.
 	BalanceVersion uint64
+	// PreferredLeader is the soft controller preference for the slot leader; zero means unset.
+	PreferredLeader uint64
+	// LeaderTransferCooldownUntil is the durable cooldown before opportunistic leader transfers resume.
+	LeaderTransferCooldownUntil time.Time
 }
 
 type SlotRuntimeView struct {
@@ -116,6 +121,8 @@ type SlotRuntimeView struct {
 	SlotID uint32
 	// CurrentPeers is the observed voter or learner set currently known to the slot runtime.
 	CurrentPeers []uint64
+	// CurrentVoters is the observed voter set used to decide safe leader transfers.
+	CurrentVoters []uint64
 	// LeaderID is the observed slot Raft leader, or zero when no stable leader is known.
 	LeaderID uint64
 	// HealthyVoters is the number of observed voters that are healthy enough for quorum checks.

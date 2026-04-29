@@ -14,19 +14,26 @@ func TestListSlotsAggregatesAssignmentRuntimeAndDerivedState(t *testing.T) {
 	app := New(Options{
 		Cluster: fakeClusterReader{
 			assignments: []controllermeta.SlotAssignment{{
-				SlotID:         2,
-				DesiredPeers:   []uint64{1, 2, 3},
-				ConfigEpoch:    8,
-				BalanceVersion: 3,
+				SlotID:          2,
+				DesiredPeers:    []uint64{1, 2, 3},
+				ConfigEpoch:     8,
+				BalanceVersion:  3,
+				PreferredLeader: 2,
 			}},
 			views: []controllermeta.SlotRuntimeView{{
 				SlotID:              2,
 				CurrentPeers:        []uint64{1, 2, 3},
+				CurrentVoters:       []uint64{1, 2, 3},
 				LeaderID:            1,
 				HealthyVoters:       3,
 				HasQuorum:           true,
 				ObservedConfigEpoch: 8,
 				LastReportAt:        now,
+			}},
+			tasks: []controllermeta.ReconcileTask{{
+				SlotID: 2,
+				Kind:   controllermeta.TaskKindLeaderTransfer,
+				Status: controllermeta.TaskStatusPending,
 			}},
 		},
 	})
@@ -36,16 +43,20 @@ func TestListSlotsAggregatesAssignmentRuntimeAndDerivedState(t *testing.T) {
 	require.Equal(t, []Slot{{
 		SlotID: 2,
 		State: SlotState{
-			Quorum: "ready",
-			Sync:   "matched",
+			Quorum:                "ready",
+			Sync:                  "matched",
+			LeaderMatch:           false,
+			LeaderTransferPending: true,
 		},
 		Assignment: SlotAssignment{
-			DesiredPeers:   []uint64{1, 2, 3},
-			ConfigEpoch:    8,
-			BalanceVersion: 3,
+			DesiredPeers:    []uint64{1, 2, 3},
+			PreferredLeader: 2,
+			ConfigEpoch:     8,
+			BalanceVersion:  3,
 		},
 		Runtime: SlotRuntime{
 			CurrentPeers:        []uint64{1, 2, 3},
+			CurrentVoters:       []uint64{1, 2, 3},
 			LeaderID:            1,
 			HealthyVoters:       3,
 			HasQuorum:           true,
@@ -53,6 +64,27 @@ func TestListSlotsAggregatesAssignmentRuntimeAndDerivedState(t *testing.T) {
 			LastReportAt:        now,
 		},
 	}}, got)
+}
+
+func TestSlotFromAssignmentViewMarksLeaderMatchWhenPreferredLeaderLeads(t *testing.T) {
+	assignment := controllermeta.SlotAssignment{
+		SlotID:          1,
+		DesiredPeers:    []uint64{1, 2, 3},
+		PreferredLeader: 2,
+	}
+	view := controllermeta.SlotRuntimeView{
+		SlotID:        1,
+		CurrentPeers:  []uint64{1, 2, 3},
+		CurrentVoters: []uint64{1, 2, 3},
+		LeaderID:      2,
+		HasQuorum:     true,
+	}
+
+	got := slotFromAssignmentView(assignment, view, true)
+
+	require.Equal(t, uint64(2), got.Assignment.PreferredLeader)
+	require.Equal(t, []uint64{1, 2, 3}, got.Runtime.CurrentVoters)
+	require.True(t, got.State.LeaderMatch)
 }
 
 func TestListSlotsMarksPeerMismatchEpochLagLostAndUnreportedStates(t *testing.T) {

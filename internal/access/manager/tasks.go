@@ -125,16 +125,20 @@ func taskDTO(item managementusecase.Task) TaskDTO {
 func taskSlotDTO(item managementusecase.Slot) TaskSlotDTO {
 	return TaskSlotDTO{
 		State: SlotStateDTO{
-			Quorum: item.State.Quorum,
-			Sync:   item.State.Sync,
+			Quorum:                item.State.Quorum,
+			Sync:                  item.State.Sync,
+			LeaderMatch:           item.State.LeaderMatch,
+			LeaderTransferPending: item.State.LeaderTransferPending,
 		},
 		Assignment: SlotAssignmentDTO{
-			DesiredPeers:   append([]uint64(nil), item.Assignment.DesiredPeers...),
-			ConfigEpoch:    item.Assignment.ConfigEpoch,
-			BalanceVersion: item.Assignment.BalanceVersion,
+			DesiredPeers:      append([]uint64(nil), item.Assignment.DesiredPeers...),
+			PreferredLeaderID: item.Assignment.PreferredLeader,
+			ConfigEpoch:       item.Assignment.ConfigEpoch,
+			BalanceVersion:    item.Assignment.BalanceVersion,
 		},
 		Runtime: SlotRuntimeDTO{
 			CurrentPeers:        append([]uint64(nil), item.Runtime.CurrentPeers...),
+			CurrentVoters:       append([]uint64(nil), item.Runtime.CurrentVoters...),
 			LeaderID:            item.Runtime.LeaderID,
 			HealthyVoters:       item.Runtime.HealthyVoters,
 			HasQuorum:           item.Runtime.HasQuorum,

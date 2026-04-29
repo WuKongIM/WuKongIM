@@ -41,6 +41,14 @@ func TestListTasksSortsBySlotIDAndMapsEnums(t *testing.T) {
 					Attempt:    3,
 					LastError:  "leader transfer rejected",
 				},
+				{
+					SlotID:     8,
+					Kind:       controllermeta.TaskKindLeaderTransfer,
+					Step:       controllermeta.TaskStepTransferLeader,
+					Status:     controllermeta.TaskStatusPending,
+					SourceNode: 1,
+					TargetNode: 2,
+				},
 			},
 		},
 	})
@@ -50,6 +58,7 @@ func TestListTasksSortsBySlotIDAndMapsEnums(t *testing.T) {
 	require.Equal(t, []taskSummary{
 		{SlotID: 4, Kind: "repair", Step: "catch_up", Status: "retrying", SourceNode: 3, TargetNode: 5, Attempt: 1},
 		{SlotID: 6, Kind: "rebalance", Step: "transfer_leader", Status: "failed", SourceNode: 2, TargetNode: 4, Attempt: 3},
+		{SlotID: 8, Kind: "leader_transfer", Step: "transfer_leader", Status: "pending", SourceNode: 1, TargetNode: 2, Attempt: 0},
 		{SlotID: 9, Kind: "bootstrap", Step: "add_learner", Status: "pending", SourceNode: 0, TargetNode: 2, Attempt: 0},
 	}, summarizeTasks(got))
 }

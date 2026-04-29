@@ -33,9 +33,9 @@ StateMachine.Apply(ctx, Command) error
 | 类型 | 文件 | 说明 |
 |------|------|------|
 | `ClusterNode` | meta/types.go | 节点：NodeID, Name, Addr, Role, JoinState, Status(Alive/Suspect/Dead/Draining), JoinedAt, LastHeartbeatAt, CapacityWeight |
-| `SlotAssignment` | meta/types.go | Slot分配：SlotID, DesiredPeers, ConfigEpoch, BalanceVersion |
-| `SlotRuntimeView` | meta/types.go | Slot运行时：CurrentPeers, LeaderID, HasQuorum, ObservedConfigEpoch |
-| `ReconcileTask` | meta/types.go | 调和任务：Kind(Bootstrap/Repair/Rebalance), Step, SourceNode, TargetNode, Attempt, Status |
+| `SlotAssignment` | meta/types.go | Slot分配：SlotID, DesiredPeers, ConfigEpoch, BalanceVersion, PreferredLeader, LeaderTransferCooldownUntil |
+| `SlotRuntimeView` | meta/types.go | Slot运行时：CurrentPeers, CurrentVoters, LeaderID, HasQuorum, ObservedConfigEpoch |
+| `ReconcileTask` | meta/types.go | 调和任务：Kind(Bootstrap/Repair/Rebalance/LeaderTransfer), Step, SourceNode, TargetNode, Attempt, Status |
 | `NodeOnboardingJob` | meta/onboarding_types.go | 新节点显式资源分配作业：planned/running/failed/completed/cancelled 状态、审核计划、执行 moves、指纹、结果计数 |
 | `Command` | plane/commands.go | 命令信封：Kind + Report/Op/Advance/Assignment/Task/Migration/AddSlot/RemoveSlot/NodeStatusUpdate/NodeJoin/NodeJoinActivate/NodeOnboarding |
 
@@ -89,7 +89,8 @@ EvaluateTimeouts (statemachine.go:142):
 
 TaskResult (statemachine.go:168):
   成功(Err=nil) → 删除任务
-  失败 → Attempt++, <MaxAttempts(3)则Retrying+指数退避, 否则Failed
+  普通任务失败 → Attempt++, <MaxAttempts(3)则Retrying+指数退避, 否则Failed
+  LeaderTransfer 失败 → 未耗尽时 Retrying；终态失败时删除 Task，并写入 LeaderTransferCooldownUntil，避免失败任务永久占用 Slot
 
 AssignmentTaskUpdate (statemachine.go:200):
   Repair任务先检查SourceNode是否恢复(已Alive→过时跳过) → 原子持久化Assignment+Task
@@ -101,8 +102,9 @@ FinalizeMigration:
   读取 HashSlotTable → 将 hash slot 最终切换到 Target → 若 Source 已无 hash slot 且无剩余迁移，则原子删除对应 SlotAssignment/Task → 保存回 controllermeta
 
 AddSlot:
-  若已有 hash-slot 迁移则拒绝 → 创建新 SlotAssignment → 调用 hash-slot 再平衡算法
-  → 为迁入新 Slot 的 hash slot 建立 Snapshot 阶段迁移记录
+  若已有 hash-slot 迁移、PreferredLeader 为空或不在 Peers 中则拒绝
+  → 创建带 PreferredLeader 的新 SlotAssignment，并把 Bootstrap 任务 TargetNode 指向该 PreferredLeader
+  → 调用 hash-slot 再平衡算法，为迁入新 Slot 的 hash slot 建立 Snapshot 阶段迁移记录
 
 RemoveSlot:
   若已有 hash-slot 迁移或正在移除最后一个物理 Slot 则拒绝
@@ -123,9 +125,11 @@ RemoveSlot:
     ② 有进行中Task → 检查 taskRunnable(Pending直接可执行, Retrying等NextRunAt)
     ③ 无Assignment且无RuntimeView → Bootstrap:
        selectBootstrapPeers → 选 ReplicaN 个最低负载 Active+Alive+Data 节点 (planner.go)
-       bootstrapTargetPeer → 按 SlotID 在 DesiredPeers 中轮转 TargetNode，使初始化 Slot Leader 尽量均匀分布
+       choosePreferredLeader → 按已观测 LeaderID 或缺失观测时的 PreferredLeader 负载选择 DesiredPeers 中最低负载节点
+       Assignment.PreferredLeader 持久化，Bootstrap 任务 TargetNode 指向 PreferredLeader
     ④ DesiredPeers 中有 Dead/Draining 或非 Active Data 成员 → Repair:
        firstPeerNeedingRepair → selectRepairTarget
+       PreferredLeader 仍在新 DesiredPeers 且 Active+Alive+Data 时保留，否则按 leader 负载重新选择
   找到第一个需要处理的 → 立即返回
 
 第二遍 — 无紧急任务时尝试 Rebalance (planner.go:107):
@@ -134,7 +138,14 @@ RemoveSlot:
   ③ maxLoad - minLoad < 阈值(默认2) → 无需均衡
   ④ 找候选: 在maxNode上且不在minNode上, 有仲裁, 无失败任务
   ⑤ 迁移中的物理 Slot(source/target 任一侧)跳过 Repair/Rebalance，避免副本迁移和 hash-slot 数据迁移叠加
-  ⑥ 按 BalanceVersion 排序(最久未动优先) → 生成 Rebalance 任务
+  ⑥ 按 BalanceVersion 排序(最久未动优先) → 生成 Rebalance 任务，并为新 DesiredPeers 保留或重选 PreferredLeader
+
+第三遍 — 无副本变更时尝试 LeaderTransfer:
+  ① 要求所有已分配、非迁移、非锁定的多副本 Slot 都有完整 RuntimeView：LeaderID、CurrentVoters、HasQuorum
+  ② 仅使用实际 LeaderID 负载做倾斜判断；缺失观测时 fail-closed，不混用 PreferredLeader
+  ③ 目标必须在 DesiredPeers、CurrentVoters 中，且是 Active+Alive+Data 节点；单节点集群不生成 LeaderTransfer 任务
+  ④ 冷却中、已有任务、迁移/锁定、目标等于当前 leader、或转移后超过 leader skew 阈值时跳过
+  ⑤ 生成 TaskKindLeaderTransfer/TaskStepTransferLeader，必要时同步更新 Assignment.PreferredLeader，但不单独增加 ConfigEpoch
 
 节点 Onboarding 计划 (onboarding_planner.go):
   ① 输入 target node、Nodes、Assignments、Tasks、RuntimeViews、running jobs
@@ -209,7 +220,8 @@ AddLearner → CatchUp → Promote → TransferLeader → RemoveOld
 - **Attempt 匹配**: `applyTaskResult` 用 Attempt 字段防止过期的 TaskResult 影响新一轮任务。Attempt 不匹配时静默忽略。
 - **Draining 不受观测恢复影响**: `NodeStatusUpdate` / `applyNodeHeartbeat` 都不能把 Draining 自动恢复为 Alive，必须通过 OperatorResumeNode 显式恢复。
 - **健康状态改为边沿复制**: steady-state 不再周期性 `EvaluateTimeouts`；由 leader 本地 deadline scheduler 只在状态跨边沿时提案 `NodeStatusUpdate`。
-- **规划依赖 leader 本地 observation**: RuntimeView 不再是 steady-state 的 replicated metadata。新 leader warmup 期间必须 fail-closed，优先延迟 Repair/Rebalance，避免误判。
+- **规划依赖 leader 本地 observation**: RuntimeView 不再是 steady-state 的 replicated metadata。新 leader warmup 期间必须 fail-closed，优先延迟 Repair/Rebalance/LeaderTransfer，避免误判。
+- **PreferredLeader 是软意图**: `SlotAssignment.PreferredLeader` 只表达 Controller 的目标 Leader；Raft 当前 Leader 和 CurrentVoters 仍是执行 LeaderTransfer 的权威安全输入。
 - **指数退避上限**: `retryDelay` 中 shift 上限为 30，防止溢出。重试延迟 = base × 2^(attempt-1)。
 - **Command 序列化为 JSON**: `raft/service.go:encodeCommand` 使用 JSON（非二进制），TaskAdvance.Err 序列化为 string 再反序列化为 `errors.New`。
 - **Leader 丢失时清理**: `raft/service.go:failInflightProposalsOnLeaderLoss` 在每次状态检查后清理所有 pending 提案，返回 ErrNotLeader。

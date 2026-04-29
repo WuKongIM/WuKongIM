@@ -22,6 +22,7 @@
 ## Controller
 
 ### Planning writes
+- Slot preferred leaders are controller soft intent. Raft remains authoritative; leader-transfer tasks must target observed current voters only.
 - Production controller planning writes must go through Controller Raft proposals; direct Store writes are only for local tests or tools.
 - Bootstrap planning rotates `Task.TargetNode` across DesiredPeers by SlotID, and cluster execution transfers the initialized Slot Leader to that target to avoid concentrated initial leader placement.
 

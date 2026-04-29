@@ -212,10 +212,11 @@ func TestObservationSyncStateApplyDeltaUpsertsAndDeletesCaches(t *testing.T) {
 
 func testObservationAssignment(slotID uint32, epoch uint64) controllermeta.SlotAssignment {
 	return controllermeta.SlotAssignment{
-		SlotID:         slotID,
-		DesiredPeers:   []uint64{1, 2, 3},
-		ConfigEpoch:    epoch,
-		BalanceVersion: 1,
+		SlotID:          slotID,
+		DesiredPeers:    []uint64{1, 2, 3},
+		PreferredLeader: 2,
+		ConfigEpoch:     epoch,
+		BalanceVersion:  1,
 	}
 }
 
@@ -246,6 +247,7 @@ func testObservationRuntimeView(slotID uint32, leaderID uint64, peers []uint64, 
 	return controllermeta.SlotRuntimeView{
 		SlotID:              slotID,
 		CurrentPeers:        append([]uint64(nil), peers...),
+		CurrentVoters:       append([]uint64(nil), peers...),
 		LeaderID:            leaderID,
 		HealthyVoters:       uint32(len(peers)),
 		HasQuorum:           true,

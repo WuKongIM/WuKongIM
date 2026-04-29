@@ -66,6 +66,8 @@ type MigrationRequest struct {
 type AddSlotRequest struct {
 	NewSlotID uint64
 	Peers     []uint64
+	// PreferredLeader is the non-zero soft leader target chosen before crossing the Raft command boundary.
+	PreferredLeader uint64
 }
 
 type RemoveSlotRequest struct {

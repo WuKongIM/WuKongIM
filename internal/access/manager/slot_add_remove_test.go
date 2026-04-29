@@ -88,15 +88,19 @@ func TestManagerSlotAddReturnsCreatedSlotDetail(t *testing.T) {
 		"slot_id": 3,
 		"state": {
 			"quorum": "ready",
-			"sync": "matched"
+			"sync": "matched",
+			"leader_match": false,
+			"leader_transfer_pending": false
 		},
 		"assignment": {
 			"desired_peers": [1, 2, 3],
+			"preferred_leader_id": 0,
 			"config_epoch": 7,
 			"balance_version": 4
 		},
 		"runtime": {
 			"current_peers": null,
+			"current_voters": null,
 			"leader_id": 0,
 			"healthy_voters": 0,
 			"has_quorum": false,

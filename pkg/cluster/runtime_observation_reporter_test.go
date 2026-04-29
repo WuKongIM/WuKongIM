@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -247,6 +248,48 @@ func TestRuntimeObservationReporterIdleTickSkipsRuntimeRPC(t *testing.T) {
 	}
 }
 
+func TestRuntimeObservationReporterDetectsCurrentVotersChange(t *testing.T) {
+	now := time.Unix(1710015000, 0)
+	current := []controllermeta.SlotRuntimeView{{
+		SlotID:        1,
+		CurrentPeers:  []uint64{1, 2, 3},
+		CurrentVoters: []uint64{1, 2, 3},
+		LeaderID:      1,
+		HasQuorum:     true,
+		LastReportAt:  now,
+	}}
+	var sent []runtimeObservationReport
+	reporter := newRuntimeObservationReporter(runtimeObservationReporterConfig{
+		nodeID:   9,
+		now:      func() time.Time { return now },
+		snapshot: func() ([]controllermeta.SlotRuntimeView, error) { return cloneRuntimeViewsForTest(current), nil },
+		send: func(_ context.Context, report runtimeObservationReport) error {
+			sent = append(sent, report)
+			return nil
+		},
+		fullSyncInterval: time.Minute,
+	})
+
+	reporter.requestFullSync()
+	if err := reporter.tick(context.Background()); err != nil {
+		t.Fatalf("tick() initial full sync error = %v", err)
+	}
+
+	now = now.Add(time.Second)
+	current[0].CurrentVoters = []uint64{1, 2}
+	current[0].LastReportAt = now
+	if err := reporter.tick(context.Background()); err != nil {
+		t.Fatalf("tick() voters change error = %v", err)
+	}
+
+	if len(sent) != 2 {
+		t.Fatalf("send calls = %d, want 2", len(sent))
+	}
+	if got, want := sent[1].Views[0].CurrentVoters, []uint64{1, 2}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("dirty CurrentVoters = %v, want %v", got, want)
+	}
+}
+
 func cloneRuntimeViewsForTest(src []controllermeta.SlotRuntimeView) []controllermeta.SlotRuntimeView {
 	if len(src) == 0 {
 		return nil
@@ -255,6 +298,7 @@ func cloneRuntimeViewsForTest(src []controllermeta.SlotRuntimeView) []controller
 	for i := range src {
 		dst[i] = src[i]
 		dst[i].CurrentPeers = append([]uint64(nil), src[i].CurrentPeers...)
+		dst[i].CurrentVoters = append([]uint64(nil), src[i].CurrentVoters...)
 	}
 	return dst
 }

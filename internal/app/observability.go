@@ -574,6 +574,7 @@ func (a *App) refreshControllerMetrics() {
 	a.metrics.Controller.SetNodeCounts(alive, suspect, dead)
 	a.metrics.Controller.SetTaskActive(controllerActiveTaskCounts(clusterState.tasks))
 	a.metrics.Controller.SetMigrationsActive(len(clusterState.migrations))
+	a.metrics.Controller.SetSlotLeaderSkew(slotLeaderSkew(clusterState.nodes, clusterState.views))
 }
 
 func (a *App) cachedObservedClusterState() observedClusterState {
@@ -748,7 +749,7 @@ func localSlotRole(localNodeID uint64, view controllermeta.SlotRuntimeView) stri
 }
 
 func controllerActiveTaskCounts(tasks []controllermeta.ReconcileTask) map[string]int {
-	counts := make(map[string]int, 3)
+	counts := make(map[string]int, 4)
 	for _, task := range tasks {
 		if task.Status == controllermeta.TaskStatusFailed {
 			continue
@@ -766,9 +767,41 @@ func controllerTaskKind(kind controllermeta.TaskKind) string {
 		return "repair"
 	case controllermeta.TaskKindRebalance:
 		return "rebalance"
+	case controllermeta.TaskKindLeaderTransfer:
+		return "leader_transfer"
 	default:
 		return "unknown"
 	}
+}
+
+func slotLeaderSkew(nodes []controllermeta.ClusterNode, views []controllermeta.SlotRuntimeView) int {
+	leaderCounts := make(map[uint64]int)
+	for _, node := range nodes {
+		if node.Status == controllermeta.NodeStatusAlive && node.Role == controllermeta.NodeRoleData && node.JoinState == controllermeta.NodeJoinStateActive {
+			leaderCounts[node.NodeID] = 0
+		}
+	}
+	if len(leaderCounts) == 0 {
+		return 0
+	}
+	for _, view := range views {
+		if view.LeaderID == 0 {
+			continue
+		}
+		if _, ok := leaderCounts[view.LeaderID]; ok {
+			leaderCounts[view.LeaderID]++
+		}
+	}
+	min, max := -1, 0
+	for _, count := range leaderCounts {
+		if min == -1 || count < min {
+			min = count
+		}
+		if count > max {
+			max = count
+		}
+	}
+	return max - min
 }
 
 func transportMsgType(msgType uint8) string {

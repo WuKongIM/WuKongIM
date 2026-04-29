@@ -194,7 +194,11 @@ func (c *Cluster) recoverSlotWithAssignments(ctx context.Context, slotID uint32,
 }
 
 func (c *Cluster) AddSlot(ctx context.Context) (multiraft.SlotID, error) {
-	assignments, err := c.listSlotAssignmentsForOperator(ctx)
+	assignments, err := c.ListSlotAssignmentsStrict(ctx)
+	if err != nil {
+		return 0, err
+	}
+	views, err := c.ListObservedRuntimeViewsStrict(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -202,14 +206,15 @@ func (c *Cluster) AddSlot(ctx context.Context) (multiraft.SlotID, error) {
 		return 0, ErrInvalidConfig
 	}
 
-	newSlotID, peers, err := nextSlotDefinition(c, assignments)
+	newSlotID, peers, preferredLeader, err := nextSlotDefinition(c, assignments, views)
 	if err != nil {
 		return 0, err
 	}
 
 	req := slotcontroller.AddSlotRequest{
-		NewSlotID: uint64(newSlotID),
-		Peers:     peers,
+		NewSlotID:       uint64(newSlotID),
+		Peers:           peers,
+		PreferredLeader: preferredLeader,
 	}
 	if err := c.submitAddSlot(ctx, req); err != nil {
 		return 0, err
@@ -311,7 +316,7 @@ func (c *Cluster) TransportPoolStats() []transport.PoolPeerStats {
 	return stats
 }
 
-func nextSlotDefinition(c *Cluster, assignments []controllermeta.SlotAssignment) (multiraft.SlotID, []uint64, error) {
+func nextSlotDefinition(c *Cluster, assignments []controllermeta.SlotAssignment, views []controllermeta.SlotRuntimeView) (multiraft.SlotID, []uint64, uint64, error) {
 	var maxSlotID uint32
 	var minSlotID uint32
 	var peers []uint64
@@ -339,16 +344,41 @@ func nextSlotDefinition(c *Cluster, assignments []controllermeta.SlotAssignment)
 		}
 	}
 	if len(peers) == 0 || maxSlotID == 0 {
-		return 0, nil, ErrSlotNotFound
+		return 0, nil, 0, ErrSlotNotFound
 	}
-	return multiraft.SlotID(maxSlotID + 1), peers, nil
+	preferredLeader := chooseAddSlotPreferredLeader(assignments, views, peers)
+	return multiraft.SlotID(maxSlotID + 1), peers, preferredLeader, nil
 }
 
-func (c *Cluster) listSlotAssignmentsForOperator(ctx context.Context) ([]controllermeta.SlotAssignment, error) {
-	if c != nil && c.controllerMeta != nil && c.localControllerLeaderActive() {
-		return c.controllerMeta.ListAssignments(ctx)
+func chooseAddSlotPreferredLeader(assignments []controllermeta.SlotAssignment, views []controllermeta.SlotRuntimeView, peers []uint64) uint64 {
+	viewBySlot := make(map[uint32]controllermeta.SlotRuntimeView, len(views))
+	for _, view := range views {
+		viewBySlot[view.SlotID] = view
 	}
-	return c.ListSlotAssignments(ctx)
+	loads := make(map[uint64]int)
+	for _, assignment := range assignments {
+		if view, ok := viewBySlot[assignment.SlotID]; ok && view.LeaderID != 0 {
+			loads[view.LeaderID]++
+			continue
+		}
+		if assignment.PreferredLeader != 0 {
+			loads[assignment.PreferredLeader]++
+		}
+	}
+	return chooseLowestLoadedPeer(peers, loads)
+}
+
+func chooseLowestLoadedPeer(peers []uint64, loads map[uint64]int) uint64 {
+	var target uint64
+	var targetLoad int
+	for _, peer := range peers {
+		load := loads[peer]
+		if target == 0 || load < targetLoad || (load == targetLoad && peer < target) {
+			target = peer
+			targetLoad = load
+		}
+	}
+	return target
 }
 
 func (c *Cluster) localControllerLeaderActive() bool {

@@ -14,7 +14,7 @@
 | `slotAgent` | `agent.go:21` | 节点代理：心跳上报、同步分配、触发调和 |
 | `reconciler` | `reconciler.go:13` | 分配调和器：确保本地 Slot、加载/执行任务、关闭多余 Slot |
 | `slotManager` | `slot_manager.go:12` | Slot 管理：ensureLocal / changeConfig / transferLeadership / waitForCatchUp |
-| `slotExecutor` | `slot_executor.go:11` | 任务执行器：Bootstrap / Repair / Rebalance 三种任务的分步执行 |
+| `slotExecutor` | `slot_executor.go:11` | 任务执行器：Bootstrap / Repair / Rebalance 的成员变更分步执行，以及 LeaderTransfer 的安全校验与领导权转移 |
 | `controllerClient` | `controller_client.go:31` | Controller RPC 客户端：Leader 发现 + 重试 + 读写操作 |
 | `controllerHandler` | `controller_handler.go:12` | Controller RPC 服务端：请求分发到 Propose / Meta 查询 |
 | `controllerHost` | `controller_host.go` | Controller 本地宿主：管理 Controller Raft + 状态机 + 元数据库 + leader-local observation cache / delta snapshot / planner dirty wake |
@@ -54,6 +54,7 @@ API.Server() / RPCMux() / Discovery() / RPCService(ctx, nodeID, slotID, serviceI
 
 `ListActiveMigrationsStrict` 先执行严格的 Controller leader assignment/hash-slot table 刷新，再从刷新后的路由表读取 active migrations。
 `ListObservedRuntimeViewsStrict` 在本地或远端 Controller leader observation warmup 未完成时会 fail closed 返回 `ErrObservationNotReady`，调用方不能回退到本地非严格缓存作为安全判断依据。
+Controller metrics 通过 ObserverHooks 记录 `leader_transfer` 任务结果（含 `safety_check`），并在 metrics refresh 时根据 observed runtime view 计算 Slot leader skew。
 
 ## 4. 关键类型
 
@@ -67,14 +68,14 @@ API.Server() / RPCMux() / Discovery() / RPCService(ctx, nodeID, slotID, serviceI
 | `slotAgent` | agent.go:21 | 节点代理：持有 Cluster + controllerAPI + assignmentCache |
 | `reconciler` | reconciler.go:13 | 调和器：驱动 ensureLocal + loadTasks + executeTask + reportResult |
 | `slotManager` | slot_manager.go:12 | Slot 管理器：ensureLocal/changeConfig/transferLeadership/waitForCatchUp/statusOnNode |
-| `slotExecutor` | slot_executor.go:11 | 任务执行器：根据 TaskKind 分步执行 Bootstrap/Repair/Rebalance |
+| `slotExecutor` | slot_executor.go:11 | 任务执行器：根据 TaskKind 分步执行 Bootstrap/Repair/Rebalance；LeaderTransfer 只做领导权转移且不改变成员 |
 | `controllerAPI` | controller_client.go:14 | Controller 客户端接口：Report/ListNodes/RefreshAssignments/迁移操作等 14 个方法 |
 | `controllerClient` | controller_client.go:31 | controllerAPI 实现：Leader 缓存 + 逐 peer 探测 + 重定向跟随 |
 | `assignmentCache` | assignment_cache.go | 分配缓存：slotID → desiredPeers 映射，原子快照 |
 | `runtimeState` | runtime_state.go | 运行时状态：slotID → 当前 peers 映射（线程安全） |
 | `runtimeObservationReporter` | runtime_observation_reporter.go | 节点侧 runtime 增量上报器：mirror / dirtyViews / closedSlots / needFullSync |
 | `observationCache` | observation_cache.go | leader-local 观测缓存：节点心跳 + `runtimeViewsByNode` 聚合视图 + TTL 淘汰 |
-| `ObserverHooks` | config.go:71 | 可观测钩子：OnControllerCall / OnControllerDecision / OnReconcileStep / OnForwardPropose / OnSlotEnsure / OnTaskResult / OnHashSlotMigration / OnLeaderChange / OnNodeStatusChange |
+| `ObserverHooks` | config.go:71 | 可观测钩子：OnControllerCall / OnControllerDecision / OnReconcileStep / OnForwardPropose / OnSlotEnsure / OnTaskResult / OnHashSlotMigration / OnLeaderChange / OnNodeStatusChange；LeaderTransfer 任务名输出为 `leader_transfer`，安全校验失败输出为 `safety_check` |
 | `NodeOnboardingCandidate` | onboarding.go | 管理后台扩容候选节点：节点状态、当前 Slot replica 数、leader 数、是否推荐 |
 
 ## 5. 核心流程
@@ -189,7 +190,7 @@ runtimeObservationOnce(ctx):
      → snapshotRuntimeObservationViews():
         遍历 runtime.Slots() → runtime.Status(slotID) → buildRuntimeView
      → 与 mirror 对比：
-        - LeaderID / CurrentPeers / HealthyVoters / HasQuorum / ObservedConfigEpoch 变化 → dirtyViews
+        - LeaderID / CurrentPeers / CurrentVoters / HealthyVoters / HasQuorum / ObservedConfigEpoch 变化 → dirtyViews
         - deleteRuntimePeers(slotID) → closedSlots tombstone
      → 若无 dirty / tombstone 且未到 full sync 周期 → 不发 controller RPC
      → flush 成功后更新本地 mirror，失败则保留 dirty 状态
@@ -299,6 +300,7 @@ Tick(ctx):
        b. shouldExecuteTask: 确定由哪个节点执行
           - Bootstrap: 若 Task.TargetNode 已设置，则由 TargetNode 执行，用于初始化 Leader 均衡；旧任务无 TargetNode 时回退到 DesiredPeers 中最小 alive NodeID
           - Repair/Rebalance: SourceNode 优先，否则 Leader 执行
+          - LeaderTransfer: 只信任 live/controller-leader runtime observation；没有 live view 时本轮跳过且不上报任务结果；有 live view 时优先由当前观测且 eligible 的 Leader 执行；若 live Leader 未知或不具备 active data 资格，则由 DesiredPeers 中最小 alive active data 节点作为 deterministic checker 执行并上报安全失败
           - 其他: DesiredPeers 中最小 NodeID(alive) 执行
        c. getTask(fresh read) 确认任务仍有效
        d. executeReconcileTask → slotExecutor.Execute [见 5.6]
@@ -352,6 +354,22 @@ Execute(ctx, assignment):
        → 如果当前 Leader == sourceNode → transferLeadership(slotID, targetNode)
        → 轮询直到 Leader != sourceNode (超时 ManagedSlotLeaderMove)
     ⑥ sourceNode != 0 时: changeConfig(RemoveVoter, sourceNode)
+
+  LeaderTransfer:
+    ① 不调用 prepareSlot / AddLearner / PromoteLearner / RemoveVoter，避免把纯 Leader 偏好任务变成成员变更
+    ② 基于 assignmentTaskState 中的 runtimeView + nodes 做执行时安全校验:
+       - live/controller-leader runtime view 必须存在，LeaderID 必须已知，CurrentVoters 必须非空
+       - runtime view SlotID / ObservedConfigEpoch 不能落后于 assignment（assignment epoch 已知时 ObservedConfigEpoch=0 也视为 stale）
+       - observed leader 必须仍在 CurrentVoters，且 leader 节点必须是 alive + active + data
+       - 执行节点必须是当前 observed leader；deterministic checker 只负责 fail closed 上报安全失败，不能发起真实 transfer
+       - TargetNode 必须同时在 DesiredPeers 和 CurrentVoters
+       - TargetNode 必须是 alive + active + data 节点
+    ③ TargetNode 已是 Leader 时直接返回成功
+    ④ transferLeadershipFrom(slotID, observedLeader, TargetNode)
+       → managed slot transfer leadership: 每次尝试先重读 currentLeader，若已不同于 observedLeader 则返回 ErrLeaderTransferSafetyCheck；否则本地 runtime.TransferLeadership 或远程 managed-slot RPC
+    ⑤ waitForSpecificLeader(slotID, TargetNode)
+       → 轮询 currentLeader 直到目标成为 Leader (超时 ManagedSlotLeaderMove)
+    ⑥ 任一安全校验失败返回 ErrLeaderTransferSafetyCheck，deterministic checker 会按同一错误上报 retryable 失败；Controller 重试耗尽后删除 LeaderTransfer 任务并写入冷却时间
 ```
 
 ### 5.7 Hash Slot 迁移
@@ -445,10 +463,11 @@ Delta 转发 (运行时):
 
 ```
 AddSlot(ctx):
-  ① 读取 Controller SlotAssignment 作为当前物理 Slot 基准
+  ① 严格读取 Controller Leader 的 SlotAssignment 和 RuntimeViews；观测未 ready 时返回 ErrObservationNotReady，不回退本地缓存
   ② 若 HashSlotTable 存在活跃迁移 → ErrInvalidConfig（管理层映射为迁移冲突）
   ③ 选择 max(assignment.SlotID)+1 作为新物理 Slot，复用当前最小 Slot 的 DesiredPeers
-  ④ 提案 AddSlot；Controller 持久化新 Assignment + Bootstrap task，并生成迁入新 Slot 的 hash-slot migration
+  ④ 新 Slot PreferredLeader 按当前 Leader 负载选择：Runtime Leader 非 0 时优先计入实际 Leader，否则计入 assignment.PreferredLeader
+  ⑤ 提案 AddSlot（携带 PreferredLeader）；Controller 持久化新 Assignment + Bootstrap task，并生成迁入新 Slot 的 hash-slot migration
 
 RemoveSlot(ctx, slotID):
   ① 若 HashSlotTable 缺失 / slotID 不存在 / 存在任意活跃迁移 / 将移除最后一个物理 Slot → 拒绝
@@ -527,7 +546,7 @@ SlotIDs()/planner/readiness:
 - **NodeStatus 观察链路有且仅有两条**: controller leader 通过 committed `NodeStatusUpdate` / operator command 触发 `OnNodeStatusChange`；其他节点则只通过 `SyncObservationDelta()` 里的 `delta.Nodes` diff 触发同一个 hook，避免 app 层维护两套分支逻辑。
 - **新 leader 先 warmup 再规划**: leader change 会清空旧 observation，等待 fresh observation 后再恢复 Repair/Rebalance 规划，避免把“暂时未观测到”误判为节点故障。
 - **controller leader warmup 会重挂 node-health deadline**: 新 controller leader 读取 metadata snapshot / node mirror 时，不只是恢复 `nodeMirror`，还会基于持久化的 `LastHeartbeatAt` 重新挂回 suspect/dead timer。这样即使故障节点正好是旧 controller leader，dead 检测也不会因为 leader failover 而永久停在 `Alive`。
-- **调和器任务执行权**: 并非所有节点都执行任务。`shouldExecuteTask` 逻辑: Bootstrap 优先 Task.TargetNode 执行以均衡初始 Leader；Repair/Rebalance 优先 SourceNode 执行，SourceNode 不可用时由 Leader 执行；其它任务由 DesiredPeers 中最小 alive NodeID 执行。错配会导致任务不执行。
+- **调和器任务执行权**: 并非所有节点都执行任务。`shouldExecuteTask` 逻辑: Bootstrap 优先 Task.TargetNode 执行以均衡初始 Leader；Repair/Rebalance 优先 SourceNode 执行，SourceNode 不可用时由 Leader 执行；LeaderTransfer 只用 live/controller-leader runtime view 选择当前 eligible Leader；缺少 live view 或只拿到 fallback runtime view 时跳过本轮且不上报任务结果，live Leader 未知或不 eligible 时由 deterministic checker 上报安全失败；其它任务由 DesiredPeers 中最小 alive NodeID 执行。错配会导致任务不执行。
 - **源 Slot 保护**: 当 Repair/Rebalance 任务的 SourceNode == 本节点时，即使该 Slot 不在 `desiredLocalSlots` 中，调和器也会保护它不被关闭（`protectedSourceSlots`），否则 changeConfig/RemoveVoter 发送不出去。
 - **ensureLocal 三条路径**: 有 HardState → Open；无 HardState+bootstrapAuthorized → Bootstrap；无 HardState+hasRuntimeView → Open 等 Leader 添加。混淆条件会导致 Slot 无法加入集群或重复 Bootstrap。
 - **Bootstrap 只在任务执行节点授权时**: `bootstrapAuthorized=true` 仅在 `reconciler.Tick` 中确认 `TaskKindBootstrap` 可运行且本节点是执行节点后才传入。防止非目标节点提前 Bootstrap 同一 Slot。

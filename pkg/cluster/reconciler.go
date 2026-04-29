@@ -144,7 +144,19 @@ func (r *reconciler) Tick(ctx context.Context) error {
 			}
 		}
 		runnable := reconcileTaskRunnable(now, task)
-		shouldExecute := r.shouldExecuteTask(assignment, task, nodeByID)
+		execHasView := hasView
+		if task.Kind == controllermeta.TaskKindLeaderTransfer {
+			execHasView = liveRuntimeViews && hasView
+			if !execHasView {
+				continue
+			}
+		}
+		var shouldExecute bool
+		if execHasView {
+			shouldExecute = r.shouldExecuteTask(assignment, task, nodeByID, view)
+		} else {
+			shouldExecute = r.shouldExecuteTask(assignment, task, nodeByID)
+		}
 		if !runnable || !shouldExecute {
 			continue
 		}
@@ -177,8 +189,11 @@ func (r *reconciler) Tick(ctx context.Context) error {
 			}
 		}
 		execErr := a.cluster.executeReconcileTask(ctx, assignmentTaskState{
-			assignment: assignment,
-			task:       task,
+			assignment:     assignment,
+			runtimeView:    view,
+			hasRuntimeView: execHasView,
+			nodes:          nodeByID,
+			task:           task,
 		})
 		reportErr := a.reportTaskResult(ctx, task, execErr)
 		if reportErr != nil {
@@ -243,11 +258,16 @@ func (r *reconciler) loadTasks(ctx context.Context, assignments []controllermeta
 	return taskByGroup, nil
 }
 
-func (r *reconciler) shouldExecuteTask(assignment controllermeta.SlotAssignment, task controllermeta.ReconcileTask, nodes map[uint64]controllermeta.ClusterNode) bool {
+func (r *reconciler) shouldExecuteTask(assignment controllermeta.SlotAssignment, task controllermeta.ReconcileTask, nodes map[uint64]controllermeta.ClusterNode, views ...controllermeta.SlotRuntimeView) bool {
 	if len(assignment.DesiredPeers) == 0 || r == nil || r.agent == nil || r.agent.cluster == nil {
 		return false
 	}
 	localNodeID := uint64(r.agent.cluster.cfg.NodeID)
+	var view controllermeta.SlotRuntimeView
+	hasView := len(views) > 0
+	if hasView {
+		view = views[0]
+	}
 	switch task.Kind {
 	case controllermeta.TaskKindBootstrap:
 		if task.TargetNode != 0 {
@@ -264,10 +284,47 @@ func (r *reconciler) shouldExecuteTask(assignment controllermeta.SlotAssignment,
 		if err == nil {
 			return uint64(leaderID) == localNodeID
 		}
+	case controllermeta.TaskKindLeaderTransfer:
+		if hasView && leaderTransferExecutorEligible(assignment, view, nodes, view.LeaderID) {
+			return view.LeaderID == localNodeID
+		}
+		return deterministicLeaderTransferChecker(assignment.DesiredPeers, nodes) == localNodeID
 	}
 
+	return deterministicAliveTaskExecutor(assignment.DesiredPeers, nodes) == localNodeID
+}
+
+func leaderTransferExecutorEligible(assignment controllermeta.SlotAssignment, view controllermeta.SlotRuntimeView, nodes map[uint64]controllermeta.ClusterNode, nodeID uint64) bool {
+	if nodeID == 0 || !assignmentContainsPeer(assignment.DesiredPeers, nodeID) {
+		return false
+	}
+	if len(view.CurrentVoters) > 0 && !assignmentContainsPeer(view.CurrentVoters, nodeID) {
+		return false
+	}
+	node, ok := nodes[nodeID]
+	return ok && controllerNodeEligibleForLeaderTransfer(node)
+}
+
+func deterministicLeaderTransferChecker(desiredPeers []uint64, nodes map[uint64]controllermeta.ClusterNode) uint64 {
 	minPeer := uint64(0)
-	for _, peer := range assignment.DesiredPeers {
+	for _, peer := range desiredPeers {
+		node, ok := nodes[peer]
+		if !ok || !controllerNodeEligibleForLeaderTransfer(node) {
+			continue
+		}
+		if minPeer == 0 || peer < minPeer {
+			minPeer = peer
+		}
+	}
+	if minPeer != 0 {
+		return minPeer
+	}
+	return lowestPeer(desiredPeers)
+}
+
+func deterministicAliveTaskExecutor(desiredPeers []uint64, nodes map[uint64]controllermeta.ClusterNode) uint64 {
+	minPeer := uint64(0)
+	for _, peer := range desiredPeers {
 		node, ok := nodes[peer]
 		if ok && node.Status != controllermeta.NodeStatusAlive {
 			continue
@@ -276,15 +333,23 @@ func (r *reconciler) shouldExecuteTask(assignment controllermeta.SlotAssignment,
 			minPeer = peer
 		}
 	}
-	if minPeer == 0 {
-		minPeer = assignment.DesiredPeers[0]
-		for _, peer := range assignment.DesiredPeers[1:] {
-			if peer < minPeer {
-				minPeer = peer
-			}
+	if minPeer != 0 {
+		return minPeer
+	}
+	return lowestPeer(desiredPeers)
+}
+
+func lowestPeer(peers []uint64) uint64 {
+	if len(peers) == 0 {
+		return 0
+	}
+	minPeer := peers[0]
+	for _, peer := range peers[1:] {
+		if peer < minPeer {
+			minPeer = peer
 		}
 	}
-	return minPeer == localNodeID
+	return minPeer
 }
 
 func (r *reconciler) shouldPreferSourceTaskExecutor(task controllermeta.ReconcileTask, nodes map[uint64]controllermeta.ClusterNode) bool {

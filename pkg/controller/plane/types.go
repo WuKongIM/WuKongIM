@@ -27,6 +27,12 @@ type PlannerConfig struct {
 	ReplicaN int
 	// RebalanceSkewThreshold is the minimum max-min slot replica skew before rebalancing.
 	RebalanceSkewThreshold int
+	// LeaderSkewThreshold is the maximum allowed max-min leader load skew before transfer planning.
+	LeaderSkewThreshold int
+	// LeaderTransferCooldown is the successful transfer cooldown used by task lifecycle code.
+	LeaderTransferCooldown time.Duration
+	// LeaderTransferFailureCooldown is the failure cooldown used by task lifecycle code.
+	LeaderTransferFailureCooldown time.Duration
 	// MaxTaskAttempts is reserved for task retry policies owned by the state machine.
 	MaxTaskAttempts int
 	// RetryBackoffBase is reserved for task retry policies owned by the state machine.

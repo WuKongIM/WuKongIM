@@ -123,15 +123,23 @@ func buildRuntimeView(now time.Time, slotID multiraft.SlotID, status multiraft.S
 	for _, peer := range peers {
 		currentPeers = append(currentPeers, uint64(peer))
 	}
+	currentVoters := make([]uint64, 0, len(status.CurrentVoters))
+	for _, voter := range status.CurrentVoters {
+		currentVoters = append(currentVoters, uint64(voter))
+	}
 
 	view := controllermeta.SlotRuntimeView{
-		SlotID:       uint32(slotID),
-		CurrentPeers: currentPeers,
-		LeaderID:     uint64(status.LeaderID),
+		SlotID:              uint32(slotID),
+		CurrentPeers:        currentPeers,
+		CurrentVoters:       currentVoters,
+		LeaderID:            uint64(status.LeaderID),
 		ObservedConfigEpoch: observedConfigEpoch,
-		LastReportAt: now,
+		LastReportAt:        now,
 	}
-	if len(currentPeers) > 0 {
+	if len(currentVoters) > 0 {
+		view.HealthyVoters = uint32(len(currentVoters))
+		view.HasQuorum = status.LeaderID != 0
+	} else if len(currentPeers) > 0 {
 		view.HealthyVoters = uint32(len(currentPeers))
 		view.HasQuorum = status.LeaderID != 0
 	}

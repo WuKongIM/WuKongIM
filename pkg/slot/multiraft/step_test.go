@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -69,6 +70,38 @@ func TestStatusIsRaceFree(t *testing.T) {
 		if _, err := fut.Wait(context.Background()); err != nil {
 			t.Fatalf("Wait() error = %v", err)
 		}
+	}
+}
+
+func TestRuntimeStatusIncludesCurrentVoters(t *testing.T) {
+	rt := newStartedRuntime(t)
+	slotID := openSingleNodeLeader(t, rt, 106)
+
+	st, err := rt.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if got, want := st.CurrentVoters, []NodeID{1}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Status().CurrentVoters = %v, want %v", got, want)
+	}
+}
+
+func TestRuntimeStatusCurrentVotersSnapshotIsImmutable(t *testing.T) {
+	rt := newStartedRuntime(t)
+	slotID := openSingleNodeLeader(t, rt, 107)
+
+	st, err := rt.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	st.CurrentVoters[0] = 99
+
+	next, err := rt.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status() second error = %v", err)
+	}
+	if got, want := next.CurrentVoters, []NodeID{1}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("second Status().CurrentVoters = %v, want %v", got, want)
 	}
 }
 

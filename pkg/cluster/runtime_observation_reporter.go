@@ -209,5 +209,6 @@ func cloneRuntimeViews(src []controllermeta.SlotRuntimeView) []controllermeta.Sl
 
 func cloneRuntimeView(src controllermeta.SlotRuntimeView) controllermeta.SlotRuntimeView {
 	src.CurrentPeers = cloneUint64Slice(src.CurrentPeers)
+	src.CurrentVoters = cloneUint64Slice(src.CurrentVoters)
 	return src
 }

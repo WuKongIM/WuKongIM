@@ -30,13 +30,14 @@ type managedSlotRPCRequest struct {
 }
 
 type managedSlotRPCResponse struct {
-	NotLeader    bool   `json:"not_leader,omitempty"`
-	NotFound     bool   `json:"not_found,omitempty"`
-	Timeout      bool   `json:"timeout,omitempty"`
-	Message      string `json:"message,omitempty"`
-	LeaderID     uint64 `json:"leader_id,omitempty"`
-	CommitIndex  uint64 `json:"commit_index,omitempty"`
-	AppliedIndex uint64 `json:"applied_index,omitempty"`
+	NotLeader     bool     `json:"not_leader,omitempty"`
+	NotFound      bool     `json:"not_found,omitempty"`
+	Timeout       bool     `json:"timeout,omitempty"`
+	Message       string   `json:"message,omitempty"`
+	LeaderID      uint64   `json:"leader_id,omitempty"`
+	CurrentVoters []uint64 `json:"current_voters,omitempty"`
+	CommitIndex   uint64   `json:"commit_index,omitempty"`
+	AppliedIndex  uint64   `json:"applied_index,omitempty"`
 }
 
 type ManagedSlotExecutionTestHook func(slotID uint32, task controllermeta.ReconcileTask) error
@@ -52,9 +53,10 @@ type SlotLogStatus struct {
 }
 
 type managedSlotStatus struct {
-	LeaderID     multiraft.NodeID
-	CommitIndex  uint64
-	AppliedIndex uint64
+	LeaderID      multiraft.NodeID
+	CurrentVoters []multiraft.NodeID
+	CommitIndex   uint64
+	AppliedIndex  uint64
 }
 
 type managedSlotStatusTestHook func(c *Cluster, nodeID multiraft.NodeID, slotID multiraft.SlotID) (managedSlotStatus, error, bool)
@@ -65,6 +67,17 @@ type managedSlotHooks struct {
 	execution ManagedSlotExecutionTestHook
 	status    managedSlotStatusTestHook
 	leader    managedSlotLeaderTestHook
+}
+
+func uint64sFromNodeIDs(ids []multiraft.NodeID) []uint64 {
+	if len(ids) == 0 {
+		return nil
+	}
+	peers := make([]uint64, 0, len(ids))
+	for _, id := range ids {
+		peers = append(peers, uint64(id))
+	}
+	return peers
 }
 
 func (c *Cluster) SetManagedSlotExecutionTestHook(hook ManagedSlotExecutionTestHook) func() {

@@ -31,14 +31,46 @@ func TestPlannerBootstrapRotatesTargetNodeAcrossSlots(t *testing.T) {
 	planner := NewPlanner(PlannerConfig{SlotCount: 4, ReplicaN: 3})
 	state := testState(aliveNode(1), aliveNode(2), aliveNode(3))
 
-	for slotID, wantTarget := range map[uint32]uint64{1: 1, 2: 2, 3: 3, 4: 1} {
+	wantTargets := []uint64{1, 2, 3, 1}
+	for slotID := uint32(1); slotID <= 4; slotID++ {
 		decision, err := planner.ReconcileSlot(context.Background(), state, slotID)
 
 		require.NoError(t, err)
 		require.NotNil(t, decision.Task)
 		require.Equal(t, controllermeta.TaskKindBootstrap, decision.Task.Kind)
-		require.Equal(t, wantTarget, decision.Task.TargetNode)
+		require.Equal(t, wantTargets[slotID-1], decision.Task.TargetNode)
+		require.Equal(t, decision.Assignment.PreferredLeader, decision.Task.TargetNode)
+		state.Assignments[slotID] = decision.Assignment
 	}
+}
+
+func TestPlannerBootstrapPersistsPreferredLeaderAndUsesAsTarget(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 4, ReplicaN: 3, LeaderSkewThreshold: 1})
+	state := testState(aliveNode(1), aliveNode(2), aliveNode(3))
+
+	decision, err := planner.ReconcileSlot(context.Background(), state, 2)
+
+	require.NoError(t, err)
+	require.NotNil(t, decision.Task)
+	require.Contains(t, decision.Assignment.DesiredPeers, decision.Assignment.PreferredLeader)
+	require.Equal(t, decision.Assignment.PreferredLeader, decision.Task.TargetNode)
+}
+
+func TestPlannerBootstrapBalancesPreferredLeaderLoad(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 6, ReplicaN: 3, LeaderSkewThreshold: 1})
+	state := testState(aliveNode(1), aliveNode(2), aliveNode(3))
+	loads := map[uint64]int{}
+
+	for slotID := uint32(1); slotID <= 6; slotID++ {
+		decision, err := planner.ReconcileSlot(context.Background(), state, slotID)
+
+		require.NoError(t, err)
+		require.NotZero(t, decision.Assignment.PreferredLeader)
+		loads[decision.Assignment.PreferredLeader]++
+		state.Assignments[slotID] = decision.Assignment
+	}
+
+	require.LessOrEqual(t, maxTestLoad(loads)-minTestLoad(loads, []uint64{1, 2, 3}), 1)
 }
 
 func TestPlannerBootstrapSkipsInactiveOrNonDataNodes(t *testing.T) {
@@ -128,6 +160,102 @@ func TestPlannerRepairTargetSkipsInactiveOrNonDataNodes(t *testing.T) {
 	require.Equal(t, uint64(6), decision.Task.TargetNode)
 }
 
+func TestPlannerRepairPreservesPreferredLeaderWhenStillDesired(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 1, ReplicaN: 3})
+	state := testState(
+		aliveNode(1), deadNode(2), aliveNode(3), aliveNode(4),
+		withAssignment(1, 1, 2, 3), withPreferredLeader(1, 3),
+		withRuntimeView(1, []uint64{1, 2, 3}, true),
+	)
+
+	decision, err := planner.ReconcileSlot(context.Background(), state, 1)
+
+	require.NoError(t, err)
+	require.NotNil(t, decision.Task)
+	require.Equal(t, uint64(3), decision.Assignment.PreferredLeader)
+	require.Contains(t, decision.Assignment.DesiredPeers, decision.Assignment.PreferredLeader)
+}
+
+func TestPlannerRepairReplacesPreferredLeaderWhenSourceRemoved(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 1, ReplicaN: 3})
+	state := testState(
+		aliveNode(1), deadNode(2), aliveNode(3), aliveNode(4),
+		withAssignment(1, 1, 2, 3), withPreferredLeader(1, 2),
+		withRuntimeView(1, []uint64{1, 2, 3}, true),
+	)
+
+	decision, err := planner.ReconcileSlot(context.Background(), state, 1)
+
+	require.NoError(t, err)
+	require.NotNil(t, decision.Task)
+	require.NotEqual(t, uint64(2), decision.Assignment.PreferredLeader)
+	require.Contains(t, decision.Assignment.DesiredPeers, decision.Assignment.PreferredLeader)
+}
+
+func TestPlannerRepairReplacesPreferredLeaderWhenStillDesiredButIneligible(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 1, ReplicaN: 3})
+	state := testState(
+		aliveNode(1), drainingNode(2), deadNode(3), aliveNode(4),
+		withAssignment(1, 1, 2, 3), withPreferredLeader(1, 2),
+		withRuntimeView(1, []uint64{1, 2, 3}, true),
+	)
+
+	decision, err := planner.ReconcileSlot(context.Background(), state, 1)
+
+	require.NoError(t, err)
+	require.NotNil(t, decision.Task)
+	require.NotEqual(t, uint64(2), decision.Assignment.PreferredLeader)
+	require.Contains(t, decision.Assignment.DesiredPeers, decision.Assignment.PreferredLeader)
+}
+
+func TestPlannerRepairReplacementPreferredLeaderSkipsIneligibleNextPeers(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		option stateOption
+	}{
+		{name: "draining", option: drainingNode(2)},
+		{name: "joining", option: withMembershipNode(2, controllermeta.NodeStatusAlive, controllermeta.NodeRoleData, controllermeta.NodeJoinStateJoining)},
+		{name: "controller-only", option: withMembershipNode(2, controllermeta.NodeStatusAlive, controllermeta.NodeRoleControllerVoter, controllermeta.NodeJoinStateActive)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			planner := NewPlanner(PlannerConfig{SlotCount: 1, ReplicaN: 3})
+			state := testState(
+				aliveNode(1), tc.option, aliveNode(4), deadNode(5), aliveNode(6),
+				withAssignment(1, 1, 5, 2), withPreferredLeader(1, 5),
+				withRuntimeView(1, []uint64{1, 5, 2}, true),
+			)
+
+			decision, err := planner.ReconcileSlot(context.Background(), state, 1)
+
+			require.NoError(t, err)
+			require.NotNil(t, decision.Task)
+			require.Equal(t, controllermeta.TaskKindRepair, decision.Task.Kind)
+			require.NotEqual(t, uint64(2), decision.Assignment.PreferredLeader)
+			require.Contains(t, decision.Assignment.DesiredPeers, decision.Assignment.PreferredLeader)
+			require.True(t, nodeSchedulableForData(state.Nodes[decision.Assignment.PreferredLeader]))
+		})
+	}
+}
+
+func TestPlannerPreferredLeaderReplacementBalancesWithoutCurrentSlotContribution(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 3, ReplicaN: 3})
+	current := controllermeta.SlotAssignment{
+		SlotID:          1,
+		DesiredPeers:    []uint64{1, 2, 5},
+		PreferredLeader: 5,
+	}
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3), deadNode(5),
+		func(state *PlannerState) { state.Assignments[1] = current },
+		withRuntimeViewVoters(1, []uint64{1, 2, 5}, 1, true),
+		withAssignment(2, 2, 3, 5), withPreferredLeader(2, 2),
+	)
+
+	preferred := planner.preferredLeaderForPeers(state, current, []uint64{1, 2, 3})
+
+	require.Equal(t, uint64(1), preferred)
+}
+
 func TestPlannerRepairsInactiveOrNonDataExistingPeer(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -164,6 +292,21 @@ func TestPlannerRepairsInactiveOrNonDataExistingPeer(t *testing.T) {
 			require.Equal(t, []uint64{1, 2, 4}, decision.Assignment.DesiredPeers)
 		})
 	}
+}
+
+func TestPlannerRebalanceSetsPreferredLeaderWhenOldPreferredRemoved(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 2, ReplicaN: 2, RebalanceSkewThreshold: 1})
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3),
+		withAssignment(1, 1, 2), withPreferredLeader(1, 1), withRuntimeView(1, []uint64{1, 2}, true),
+		withAssignment(2, 1, 2), withPreferredLeader(2, 2), withRuntimeView(2, []uint64{1, 2}, true),
+	)
+
+	decision := planner.nextRebalanceDecision(state)
+
+	require.NotZero(t, decision.SlotID)
+	require.NotNil(t, decision.Task)
+	require.Contains(t, decision.Assignment.DesiredPeers, decision.Assignment.PreferredLeader)
 }
 
 func TestPlannerDoesNotMigrateOnSuspectNode(t *testing.T) {
@@ -435,6 +578,213 @@ func TestPlannerInitializesAndIncrementsConfigEpochOnMembershipChanges(t *testin
 	require.NoError(t, err)
 	require.NotNil(t, repairDecision.Task)
 	require.EqualValues(t, 8, repairDecision.Assignment.ConfigEpoch)
+}
+
+func TestPlannerLeaderRebalanceCreatesTransferTaskForSkew(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 3, ReplicaN: 3, LeaderSkewThreshold: 1})
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3),
+		withAssignment(1, 1, 2, 3), withPreferredLeader(1, 2), withRuntimeViewVoters(1, []uint64{1, 2, 3}, 1, true),
+		withAssignment(2, 1, 2, 3), withPreferredLeader(2, 2), withRuntimeViewVoters(2, []uint64{1, 2, 3}, 1, true),
+		withAssignment(3, 1, 2, 3), withPreferredLeader(3, 3), withRuntimeViewVoters(3, []uint64{1, 2, 3}, 2, true),
+	)
+
+	decision, err := planner.NextDecision(context.Background(), state)
+
+	require.NoError(t, err)
+	require.NotNil(t, decision.Task)
+	require.Equal(t, controllermeta.TaskKindLeaderTransfer, decision.Task.Kind)
+	require.Equal(t, controllermeta.TaskStepTransferLeader, decision.Task.Step)
+	require.Equal(t, uint64(1), decision.Task.SourceNode)
+	require.Equal(t, uint64(3), decision.Task.TargetNode)
+	require.Equal(t, uint64(3), decision.Assignment.PreferredLeader)
+}
+
+func TestPlannerLeaderRebalanceImprovesSevereSkewWithOneTransfer(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 5, ReplicaN: 3, LeaderSkewThreshold: 1})
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3),
+		withAssignment(1, 1, 2, 3), withPreferredLeader(1, 1), withRuntimeViewVoters(1, []uint64{1, 2, 3}, 1, true),
+		withAssignment(2, 1, 2, 3), withPreferredLeader(2, 1), withRuntimeViewVoters(2, []uint64{1, 2, 3}, 1, true),
+		withAssignment(3, 1, 2, 3), withPreferredLeader(3, 1), withRuntimeViewVoters(3, []uint64{1, 2, 3}, 1, true),
+		withAssignment(4, 1, 2, 3), withPreferredLeader(4, 1), withRuntimeViewVoters(4, []uint64{1, 2, 3}, 1, true),
+		withAssignment(5, 1, 2, 3), withPreferredLeader(5, 1), withRuntimeViewVoters(5, []uint64{1, 2, 3}, 1, true),
+	)
+
+	decision, err := planner.NextDecision(context.Background(), state)
+
+	require.NoError(t, err)
+	require.NotNil(t, decision.Task)
+	require.Equal(t, controllermeta.TaskKindLeaderTransfer, decision.Task.Kind)
+	require.Equal(t, uint64(1), decision.Task.SourceNode)
+	require.Equal(t, uint64(2), decision.Task.TargetNode)
+	require.Equal(t, uint64(2), decision.Assignment.PreferredLeader)
+}
+
+func TestPlannerLeaderPreferenceConvergenceCreatesTransferTowardPreferred(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 3, ReplicaN: 3, LeaderSkewThreshold: 2})
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3),
+		withAssignment(1, 1, 2, 3), withPreferredLeader(1, 2), withRuntimeViewVoters(1, []uint64{1, 2, 3}, 1, true),
+		withAssignment(2, 1, 2, 3), withPreferredLeader(2, 1), withRuntimeViewVoters(2, []uint64{1, 2, 3}, 1, true),
+		withAssignment(3, 1, 2, 3), withPreferredLeader(3, 3), withRuntimeViewVoters(3, []uint64{1, 2, 3}, 3, true),
+	)
+
+	decision, err := planner.NextDecision(context.Background(), state)
+
+	require.NoError(t, err)
+	require.NotNil(t, decision.Task)
+	require.Equal(t, uint32(1), decision.SlotID)
+	require.Equal(t, controllermeta.TaskKindLeaderTransfer, decision.Task.Kind)
+	require.Equal(t, uint64(1), decision.Task.SourceNode)
+	require.Equal(t, uint64(2), decision.Task.TargetNode)
+	require.Equal(t, uint64(2), decision.Assignment.PreferredLeader)
+}
+
+func TestPlannerLeaderRebalanceTriesEligibleLowLoadVotersBeyondGlobalMin(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 5, ReplicaN: 3, LeaderSkewThreshold: 2})
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3), aliveNode(4),
+		withAssignment(1, 1, 2, 3), withPreferredLeader(1, 1), withRuntimeViewVoters(1, []uint64{1, 2, 3}, 1, true),
+		withAssignment(2, 1, 2, 3), withPreferredLeader(2, 1), withRuntimeViewVoters(2, []uint64{1, 2, 3}, 1, true),
+		withAssignment(3, 1, 2, 3), withPreferredLeader(3, 1), withRuntimeViewVoters(3, []uint64{1, 2, 3}, 1, true),
+		withAssignment(4, 1, 2, 3), withPreferredLeader(4, 2), withRuntimeViewVoters(4, []uint64{1, 2, 3}, 2, true),
+		withAssignment(5, 1, 2, 3), withPreferredLeader(5, 3), withRuntimeViewVoters(5, []uint64{1, 2, 3}, 3, true),
+	)
+
+	decision := planner.nextLeaderPlacementDecision(state)
+
+	require.NotNil(t, decision.Task)
+	require.Equal(t, controllermeta.TaskKindLeaderTransfer, decision.Task.Kind)
+	require.Equal(t, uint64(1), decision.Task.SourceNode)
+	require.Equal(t, uint64(2), decision.Task.TargetNode)
+}
+
+func TestPlannerLeaderRebalanceSkipsWhenAnyAssignedSlotMissingRuntimeView(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 3, ReplicaN: 3, LeaderSkewThreshold: 1})
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3),
+		withAssignment(1, 1, 2, 3), withPreferredLeader(1, 2), withRuntimeViewVoters(1, []uint64{1, 2, 3}, 1, true),
+		withAssignment(2, 1, 2, 3), withPreferredLeader(2, 2), withRuntimeViewVoters(2, []uint64{1, 2, 3}, 1, true),
+		withAssignment(3, 1, 2, 3), withPreferredLeader(3, 3),
+	)
+
+	decision, err := planner.NextDecision(context.Background(), state)
+
+	require.NoError(t, err)
+	require.Nil(t, decision.Task)
+}
+
+func TestPlannerLeaderRebalanceSkipsSingleVoterSingleNode(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 1, ReplicaN: 1, LeaderSkewThreshold: 1})
+	state := testState(
+		aliveNode(1),
+		withAssignment(1, 1), withPreferredLeader(1, 1), withRuntimeViewVoters(1, []uint64{1}, 1, true),
+	)
+
+	decision, err := planner.NextDecision(context.Background(), state)
+
+	require.NoError(t, err)
+	require.Nil(t, decision.Task)
+}
+
+func TestPlannerActualLeaderLoadsIgnoresSlotsThatCannotTransfer(t *testing.T) {
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3),
+		withAssignment(1, 1, 2, 3), withRuntimeViewVoters(1, []uint64{1, 2, 3}, 1, true),
+		withAssignment(2, 1, 2, 3), withRuntimeViewVoters(2, []uint64{1, 2, 3}, 1, true), withMigratingSlot(2),
+		withAssignment(3, 1, 2, 3), withRuntimeViewVoters(3, []uint64{1, 2, 3}, 1, true), withLockedSlot(3),
+		withAssignment(4, 1), withRuntimeViewVoters(4, []uint64{1}, 1, true),
+	)
+
+	loads := actualLeaderLoads(state)
+
+	require.Equal(t, 1, loads[1])
+}
+
+func TestPlannerLeaderRebalanceSkipsMissingCurrentVoters(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 2, ReplicaN: 3, LeaderSkewThreshold: 1})
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3),
+		withAssignment(1, 1, 2, 3), withPreferredLeader(1, 2), withRuntimeView(1, []uint64{1, 2, 3}, true),
+		withAssignment(2, 1, 2, 3), withPreferredLeader(2, 3), withRuntimeViewVoters(2, []uint64{1, 2, 3}, 1, true),
+	)
+
+	decision, err := planner.NextDecision(context.Background(), state)
+
+	require.NoError(t, err)
+	require.Nil(t, decision.Task)
+}
+
+func TestPlannerLeaderRebalanceSkipsWhenTargetNotInCurrentVoters(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 3, ReplicaN: 3, LeaderSkewThreshold: 1})
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3),
+		withAssignment(1, 1, 2, 3), withPreferredLeader(1, 3), withRuntimeViewVoters(1, []uint64{1, 2}, 1, true),
+		withAssignment(2, 1, 2, 3), withPreferredLeader(2, 2), withRuntimeViewVoters(2, []uint64{1, 2, 3}, 2, true),
+		withAssignment(3, 1, 2, 3), withPreferredLeader(3, 3), withRuntimeViewVoters(3, []uint64{1, 2}, 1, true),
+	)
+
+	decision, err := planner.NextDecision(context.Background(), state)
+
+	require.NoError(t, err)
+	require.Nil(t, decision.Task)
+}
+
+func TestPlannerLeaderRebalanceSkipsIneligibleTargetNodes(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		option stateOption
+	}{
+		{name: "missing", option: func(*PlannerState) {}},
+		{name: "dead", option: deadNode(2)},
+		{name: "suspect", option: suspectNode(2)},
+		{name: "draining", option: drainingNode(2)},
+		{name: "joining", option: withMembershipNode(2, controllermeta.NodeStatusAlive, controllermeta.NodeRoleData, controllermeta.NodeJoinStateJoining)},
+		{name: "controller-only", option: withMembershipNode(2, controllermeta.NodeStatusAlive, controllermeta.NodeRoleControllerVoter, controllermeta.NodeJoinStateActive)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			planner := NewPlanner(PlannerConfig{SlotCount: 2, ReplicaN: 3, LeaderSkewThreshold: 1})
+			state := testState(
+				aliveNode(1), tc.option, aliveNode(3),
+				withAssignment(1, 1, 2, 3), withPreferredLeader(1, 2), withRuntimeViewVoters(1, []uint64{1, 2, 3}, 1, true),
+				withAssignment(2, 1, 2, 3), withPreferredLeader(2, 3), withRuntimeViewVoters(2, []uint64{1, 2, 3}, 3, true),
+			)
+
+			decision := planner.nextLeaderPlacementDecision(state)
+
+			require.Nil(t, decision.Task)
+		})
+	}
+}
+
+func TestPlannerLeaderRebalanceSkipsCooldown(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 2, ReplicaN: 3, LeaderSkewThreshold: 1})
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3),
+		withAssignment(1, 1, 2, 3), withPreferredLeader(1, 2), withLeaderTransferCooldown(1, time.Unix(130, 0)), withRuntimeViewVoters(1, []uint64{1, 2, 3}, 1, true),
+		withAssignment(2, 1, 2, 3), withPreferredLeader(2, 3), withRuntimeViewVoters(2, []uint64{1, 2, 3}, 3, true),
+	)
+
+	decision, err := planner.NextDecision(context.Background(), state)
+
+	require.NoError(t, err)
+	require.Nil(t, decision.Task)
+}
+
+func TestPlannerLeaderRebalanceSkipsBalancedButWrongPreferenceWhenTransferWouldExceedThreshold(t *testing.T) {
+	planner := NewPlanner(PlannerConfig{SlotCount: 3, ReplicaN: 3, LeaderSkewThreshold: 1})
+	state := testState(
+		aliveNode(1), aliveNode(2), aliveNode(3),
+		withAssignment(1, 1, 2, 3), withPreferredLeader(1, 2), withRuntimeViewVoters(1, []uint64{1, 2, 3}, 1, true),
+		withAssignment(2, 1, 2, 3), withPreferredLeader(2, 2), withRuntimeViewVoters(2, []uint64{1, 2, 3}, 2, true),
+		withAssignment(3, 1, 2, 3), withPreferredLeader(3, 3), withRuntimeViewVoters(3, []uint64{1, 2, 3}, 3, true),
+	)
+
+	decision, err := planner.NextDecision(context.Background(), state)
+
+	require.NoError(t, err)
+	require.Nil(t, decision.Task)
 }
 
 func TestControllerTickNoOpsWhenNotLeader(t *testing.T) {
@@ -1017,6 +1367,234 @@ func TestStateMachineResumeNodeRestoresAssignmentFromPendingRepair(t *testing.T)
 	require.ErrorIs(t, err, controllermeta.ErrNotFound)
 }
 
+func TestStateMachineLeaderTransferSuccessDeletesTaskAndSetsCooldown(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{LeaderTransferCooldown: 30 * time.Second})
+	ctx := context.Background()
+
+	require.NoError(t, store.UpsertAssignment(ctx, controllermeta.SlotAssignment{
+		SlotID:          1,
+		DesiredPeers:    []uint64{1, 2, 3},
+		PreferredLeader: 2,
+	}))
+	require.NoError(t, store.UpsertTask(ctx, controllermeta.ReconcileTask{
+		SlotID:     1,
+		Kind:       controllermeta.TaskKindLeaderTransfer,
+		Step:       controllermeta.TaskStepTransferLeader,
+		SourceNode: 1,
+		TargetNode: 2,
+		Status:     controllermeta.TaskStatusPending,
+	}))
+
+	now := time.Unix(100, 0)
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindTaskResult,
+		Advance: &TaskAdvance{
+			SlotID: 1,
+			Now:    now,
+		},
+	}))
+
+	_, err := store.GetTask(ctx, 1)
+	require.ErrorIs(t, err, controllermeta.ErrNotFound)
+	assignment, err := store.GetAssignment(ctx, 1)
+	require.NoError(t, err)
+	require.Equal(t, now.Add(30*time.Second).UnixNano(), assignment.LeaderTransferCooldownUntil.UnixNano())
+}
+
+func TestStateMachineLeaderTransferFailureExhaustionDeletesTaskAndSetsFailureCooldown(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{
+		MaxTaskAttempts:               3,
+		RetryBackoffBase:              time.Second,
+		LeaderTransferFailureCooldown: time.Minute,
+	})
+	ctx := context.Background()
+
+	require.NoError(t, store.UpsertAssignment(ctx, controllermeta.SlotAssignment{
+		SlotID:          1,
+		DesiredPeers:    []uint64{1, 2, 3},
+		PreferredLeader: 2,
+	}))
+	require.NoError(t, store.UpsertTask(ctx, controllermeta.ReconcileTask{
+		SlotID:     1,
+		Kind:       controllermeta.TaskKindLeaderTransfer,
+		Step:       controllermeta.TaskStepTransferLeader,
+		TargetNode: 2,
+		Attempt:    2,
+		Status:     controllermeta.TaskStatusRetrying,
+		NextRunAt:  time.Unix(99, 0),
+		LastError:  "previous",
+	}))
+
+	now := time.Unix(100, 0)
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindTaskResult,
+		Advance: &TaskAdvance{
+			SlotID:  1,
+			Attempt: 2,
+			Now:     now,
+			Err:     errors.New("current voters unknown"),
+		},
+	}))
+
+	_, err := store.GetTask(ctx, 1)
+	require.ErrorIs(t, err, controllermeta.ErrNotFound)
+	assignment, err := store.GetAssignment(ctx, 1)
+	require.NoError(t, err)
+	require.Equal(t, now.Add(time.Minute).UnixNano(), assignment.LeaderTransferCooldownUntil.UnixNano())
+}
+
+func TestStateMachineLeaderTransferFailureBelowMaxAttemptsRetriesWithoutCooldown(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{
+		MaxTaskAttempts:  3,
+		RetryBackoffBase: time.Second,
+	})
+	ctx := context.Background()
+
+	require.NoError(t, store.UpsertAssignment(ctx, controllermeta.SlotAssignment{
+		SlotID:          1,
+		DesiredPeers:    []uint64{1, 2, 3},
+		PreferredLeader: 2,
+	}))
+	require.NoError(t, store.UpsertTask(ctx, controllermeta.ReconcileTask{
+		SlotID:     1,
+		Kind:       controllermeta.TaskKindLeaderTransfer,
+		Step:       controllermeta.TaskStepTransferLeader,
+		SourceNode: 1,
+		TargetNode: 2,
+		Attempt:    1,
+		Status:     controllermeta.TaskStatusPending,
+	}))
+
+	now := time.Unix(100, 0)
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindTaskResult,
+		Advance: &TaskAdvance{
+			SlotID:  1,
+			Attempt: 1,
+			Now:     now,
+			Err:     errors.New("leader transfer still running"),
+		},
+	}))
+
+	task, err := store.GetTask(ctx, 1)
+	require.NoError(t, err)
+	require.Equal(t, controllermeta.TaskStatusRetrying, task.Status)
+	require.EqualValues(t, 2, task.Attempt)
+	require.Contains(t, task.LastError, "leader transfer still running")
+	require.Equal(t, now.Add(2*time.Second).UnixNano(), task.NextRunAt.UnixNano())
+
+	assignment, err := store.GetAssignment(ctx, 1)
+	require.NoError(t, err)
+	require.True(t, assignment.LeaderTransferCooldownUntil.IsZero())
+}
+
+func TestStateMachineLeaderTransferDefaultCooldowns(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		store := openControllerStore(t)
+		sm := NewStateMachine(store, StateMachineConfig{})
+		ctx := context.Background()
+
+		require.NoError(t, store.UpsertAssignment(ctx, controllermeta.SlotAssignment{
+			SlotID:          1,
+			DesiredPeers:    []uint64{1, 2, 3},
+			PreferredLeader: 2,
+		}))
+		require.NoError(t, store.UpsertTask(ctx, controllermeta.ReconcileTask{
+			SlotID:     1,
+			Kind:       controllermeta.TaskKindLeaderTransfer,
+			Step:       controllermeta.TaskStepTransferLeader,
+			SourceNode: 1,
+			TargetNode: 2,
+			Status:     controllermeta.TaskStatusPending,
+		}))
+
+		now := time.Unix(100, 0)
+		require.NoError(t, sm.Apply(ctx, Command{
+			Kind: CommandKindTaskResult,
+			Advance: &TaskAdvance{
+				SlotID: 1,
+				Now:    now,
+			},
+		}))
+
+		assignment, err := store.GetAssignment(ctx, 1)
+		require.NoError(t, err)
+		require.Equal(t, now.Add(30*time.Second).UnixNano(), assignment.LeaderTransferCooldownUntil.UnixNano())
+	})
+
+	t.Run("terminal failure", func(t *testing.T) {
+		store := openControllerStore(t)
+		sm := NewStateMachine(store, StateMachineConfig{})
+		ctx := context.Background()
+
+		require.NoError(t, store.UpsertAssignment(ctx, controllermeta.SlotAssignment{
+			SlotID:          1,
+			DesiredPeers:    []uint64{1, 2, 3},
+			PreferredLeader: 2,
+		}))
+		require.NoError(t, store.UpsertTask(ctx, controllermeta.ReconcileTask{
+			SlotID:     1,
+			Kind:       controllermeta.TaskKindLeaderTransfer,
+			Step:       controllermeta.TaskStepTransferLeader,
+			SourceNode: 1,
+			TargetNode: 2,
+			Attempt:    2,
+			Status:     controllermeta.TaskStatusRetrying,
+			NextRunAt:  time.Unix(99, 0),
+			LastError:  "previous",
+		}))
+
+		now := time.Unix(100, 0)
+		require.NoError(t, sm.Apply(ctx, Command{
+			Kind: CommandKindTaskResult,
+			Advance: &TaskAdvance{
+				SlotID:  1,
+				Attempt: 2,
+				Now:     now,
+				Err:     errors.New("current voters unknown"),
+			},
+		}))
+
+		assignment, err := store.GetAssignment(ctx, 1)
+		require.NoError(t, err)
+		require.Equal(t, now.Add(30*time.Second).UnixNano(), assignment.LeaderTransferCooldownUntil.UnixNano())
+	})
+}
+
+func TestStateMachineLeaderTransferMissingAssignmentDeletesTask(t *testing.T) {
+	store := openControllerStore(t)
+	sm := NewStateMachine(store, StateMachineConfig{
+		MaxTaskAttempts:  3,
+		RetryBackoffBase: time.Second,
+	})
+	ctx := context.Background()
+
+	require.NoError(t, store.UpsertTask(ctx, controllermeta.ReconcileTask{
+		SlotID:    1,
+		Kind:      controllermeta.TaskKindLeaderTransfer,
+		Step:      controllermeta.TaskStepTransferLeader,
+		Attempt:   2,
+		Status:    controllermeta.TaskStatusRetrying,
+		NextRunAt: time.Unix(99, 0),
+	}))
+
+	require.NoError(t, sm.Apply(ctx, Command{
+		Kind: CommandKindTaskResult,
+		Advance: &TaskAdvance{
+			SlotID:  1,
+			Attempt: 2,
+			Now:     time.Unix(100, 0),
+			Err:     errors.New("transfer rejected"),
+		},
+	}))
+
+	_, err := store.GetTask(ctx, 1)
+	require.ErrorIs(t, err, controllermeta.ErrNotFound)
+}
+
 func TestStateMachineMarksTaskFailedAfterRetryExhaustion(t *testing.T) {
 	store := openControllerStore(t)
 	sm := NewStateMachine(store, StateMachineConfig{
@@ -1112,6 +1690,10 @@ func suspectNode(nodeID uint64) stateOption {
 	return withNode(nodeID, controllermeta.NodeStatusSuspect)
 }
 
+func drainingNode(nodeID uint64) stateOption {
+	return withNode(nodeID, controllermeta.NodeStatusDraining)
+}
+
 func deadNode(nodeID uint64) stateOption {
 	return withNode(nodeID, controllermeta.NodeStatusDead)
 }
@@ -1144,6 +1726,24 @@ func withAssignment(slotID uint32, peers ...uint64) stateOption {
 	}
 }
 
+func withPreferredLeader(slotID uint32, preferredLeader uint64) stateOption {
+	return func(state *PlannerState) {
+		assignment := state.Assignments[slotID]
+		assignment.SlotID = slotID
+		assignment.PreferredLeader = preferredLeader
+		state.Assignments[slotID] = assignment
+	}
+}
+
+func withLeaderTransferCooldown(slotID uint32, until time.Time) stateOption {
+	return func(state *PlannerState) {
+		assignment := state.Assignments[slotID]
+		assignment.SlotID = slotID
+		assignment.LeaderTransferCooldownUntil = until
+		state.Assignments[slotID] = assignment
+	}
+}
+
 func withAssignmentConfigEpoch(slotID uint32, epoch uint64) stateOption {
 	return func(state *PlannerState) {
 		assignment := state.Assignments[slotID]
@@ -1167,6 +1767,21 @@ func withRuntimeView(slotID uint32, peers []uint64, hasQuorum bool) stateOption 
 	}
 }
 
+func withRuntimeViewVoters(slotID uint32, voters []uint64, leaderID uint64, hasQuorum bool) stateOption {
+	return func(state *PlannerState) {
+		state.Runtime[slotID] = controllermeta.SlotRuntimeView{
+			SlotID:              slotID,
+			CurrentPeers:        append([]uint64(nil), voters...),
+			CurrentVoters:       append([]uint64(nil), voters...),
+			LeaderID:            leaderID,
+			HealthyVoters:       uint32(len(voters)),
+			HasQuorum:           hasQuorum,
+			ObservedConfigEpoch: 1,
+			LastReportAt:        state.Now,
+		}
+	}
+}
+
 func withTask(task controllermeta.ReconcileTask) stateOption {
 	return func(state *PlannerState) {
 		state.Tasks[task.SlotID] = task
@@ -1182,6 +1797,15 @@ func withMigratingSlot(slotID uint32) stateOption {
 	}
 }
 
+func withLockedSlot(slotID uint32) stateOption {
+	return func(state *PlannerState) {
+		if state.LockedSlots == nil {
+			state.LockedSlots = make(map[uint32]struct{})
+		}
+		state.LockedSlots[slotID] = struct{}{}
+	}
+}
+
 func withPhysicalSlots(slotIDs ...uint32) stateOption {
 	return func(state *PlannerState) {
 		if state.PhysicalSlots == nil {
@@ -1191,6 +1815,29 @@ func withPhysicalSlots(slotIDs ...uint32) stateOption {
 			state.PhysicalSlots[slotID] = struct{}{}
 		}
 	}
+}
+
+func maxTestLoad(loads map[uint64]int) int {
+	max := 0
+	for _, load := range loads {
+		if load > max {
+			max = load
+		}
+	}
+	return max
+}
+
+func minTestLoad(loads map[uint64]int, nodeIDs []uint64) int {
+	if len(nodeIDs) == 0 {
+		return 0
+	}
+	min := loads[nodeIDs[0]]
+	for _, nodeID := range nodeIDs[1:] {
+		if loads[nodeID] < min {
+			min = loads[nodeID]
+		}
+	}
+	return min
 }
 
 func openControllerStore(tb testing.TB) *controllermeta.Store {

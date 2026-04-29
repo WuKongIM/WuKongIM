@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -180,6 +181,18 @@ func (m *slotManager) changeConfigRemote(ctx context.Context, leaderID multiraft
 }
 
 func (m *slotManager) transferLeadership(ctx context.Context, slotID multiraft.SlotID, target multiraft.NodeID) error {
+	return m.transferLeadershipChecked(ctx, slotID, 0, target)
+}
+
+// transferLeadershipFrom moves leadership only if the current leader still matches the observed leader.
+func (m *slotManager) transferLeadershipFrom(ctx context.Context, slotID multiraft.SlotID, expectedLeader, target multiraft.NodeID) error {
+	if expectedLeader == 0 {
+		return fmt.Errorf("%w: expected leader missing", ErrLeaderTransferSafetyCheck)
+	}
+	return m.transferLeadershipChecked(ctx, slotID, expectedLeader, target)
+}
+
+func (m *slotManager) transferLeadershipChecked(ctx context.Context, slotID multiraft.SlotID, expectedLeader, target multiraft.NodeID) error {
 	if m == nil || m.cluster == nil {
 		return ErrNotStarted
 	}
@@ -191,9 +204,12 @@ func (m *slotManager) transferLeadership(ctx context.Context, slotID multiraft.S
 			return errors.Is(err, ErrNotLeader)
 		},
 	}.Do(ctx, func(attemptCtx context.Context) error {
-		leaderID, err := c.LeaderOf(slotID)
+		leaderID, err := m.currentLeader(slotID)
 		if err != nil {
 			return err
+		}
+		if expectedLeader != 0 && leaderID != expectedLeader {
+			return fmt.Errorf("%w: observed leader changed from %d to %d", ErrLeaderTransferSafetyCheck, expectedLeader, leaderID)
 		}
 		if c.IsLocal(leaderID) {
 			return m.transferLeaderLocal(attemptCtx, slotID, target)
@@ -209,6 +225,9 @@ func (m *slotManager) transferLeaderLocal(ctx context.Context, slotID multiraft.
 	err := m.cluster.runtime.TransferLeadership(ctx, slotID, target)
 	if errors.Is(err, multiraft.ErrSlotNotFound) {
 		return ErrSlotNotFound
+	}
+	if errors.Is(err, multiraft.ErrNotLeader) {
+		return ErrNotLeader
 	}
 	return err
 }
@@ -342,6 +361,28 @@ func (m *slotManager) ensureLeaderMovedOffSource(ctx context.Context, slotID mul
 	}
 }
 
+func (m *slotManager) waitForSpecificLeader(ctx context.Context, slotID multiraft.SlotID, target multiraft.NodeID) error {
+	if m == nil || m.cluster == nil {
+		return ErrNotStarted
+	}
+	c := m.cluster
+	deadline := time.Now().Add(c.timeoutConfig().ManagedSlotLeaderMove)
+	for {
+		if time.Now().After(deadline) {
+			return ErrLeaderNotStable
+		}
+		leaderID, err := m.currentLeader(slotID)
+		if err == nil && leaderID == target {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(c.managedSlotLeaderMovePollInterval()):
+		}
+	}
+}
+
 // ensureLeaderOnTarget moves a bootstrapped Slot leader to the planned target node.
 func (m *slotManager) ensureLeaderOnTarget(ctx context.Context, slotID multiraft.SlotID, targetNode multiraft.NodeID) error {
 	if m == nil || m.cluster == nil {
@@ -413,9 +454,10 @@ func (m *slotManager) statusOnNode(ctx context.Context, nodeID multiraft.NodeID,
 		return managedSlotStatus{}, err
 	}
 	return managedSlotStatus{
-		LeaderID:     multiraft.NodeID(resp.LeaderID),
-		CommitIndex:  resp.CommitIndex,
-		AppliedIndex: resp.AppliedIndex,
+		LeaderID:      multiraft.NodeID(resp.LeaderID),
+		CurrentVoters: nodeIDsFromUint64s(resp.CurrentVoters),
+		CommitIndex:   resp.CommitIndex,
+		AppliedIndex:  resp.AppliedIndex,
 	}, nil
 }
 
@@ -431,8 +473,9 @@ func (m *slotManager) localStatus(slotID multiraft.SlotID) (managedSlotStatus, e
 		return managedSlotStatus{}, err
 	}
 	return managedSlotStatus{
-		LeaderID:     status.LeaderID,
-		CommitIndex:  status.CommitIndex,
-		AppliedIndex: status.AppliedIndex,
+		LeaderID:      status.LeaderID,
+		CurrentVoters: append([]multiraft.NodeID(nil), status.CurrentVoters...),
+		CommitIndex:   status.CommitIndex,
+		AppliedIndex:  status.AppliedIndex,
 	}, nil
 }

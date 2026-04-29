@@ -69,11 +69,9 @@ func (s *Store) UpsertAssignmentsAndSaveHashSlotTable(ctx context.Context, assig
 
 	writes := make([]batchWrite, 0, len(assignments)+1)
 	for _, assignment := range assignments {
-		if assignment.SlotID == 0 {
-			return ErrInvalidArgument
-		}
-		assignment = normalizeGroupAssignment(assignment)
-		if err := validateRequiredPeerSet(assignment.DesiredPeers, ErrInvalidArgument); err != nil {
+		var err error
+		assignment, err = normalizeAndValidateAssignmentForPersistence(assignment, ErrInvalidArgument)
+		if err != nil {
 			return err
 		}
 		writes = append(writes, batchWrite{
@@ -105,8 +103,9 @@ func (s *Store) UpsertAssignmentTaskAndSaveHashSlotTable(ctx context.Context, as
 		return ErrInvalidArgument
 	}
 
-	assignment = normalizeGroupAssignment(assignment)
-	if err := validateRequiredPeerSet(assignment.DesiredPeers, ErrInvalidArgument); err != nil {
+	var err error
+	assignment, err = normalizeAndValidateAssignmentForPersistence(assignment, ErrInvalidArgument)
+	if err != nil {
 		return err
 	}
 	task = normalizeReconcileTask(task)
@@ -293,6 +292,11 @@ func (s *Store) UpsertNodeAndDeleteRepairTasks(ctx context.Context, node Cluster
 		if assignment, ok := assignmentsByGroup[task.SlotID]; ok {
 			if restored, changed := restoreRepairAssignment(assignment, task); changed {
 				assignmentsByGroup[task.SlotID] = restored
+				if validated, err := normalizeAndValidateAssignmentForPersistence(restored, ErrInvalidArgument); err == nil {
+					restored = validated
+				} else {
+					return err
+				}
 				writes = append(writes, batchWrite{
 					key:   encodeGroupKey(recordPrefixAssignment, restored.SlotID),
 					value: encodeGroupAssignment(restored),
@@ -330,6 +334,9 @@ func restoreRepairAssignment(assignment SlotAssignment, task ReconcileTask) (Slo
 	sort.Slice(peers, func(i, j int) bool { return peers[i] < peers[j] })
 
 	restored.DesiredPeers = peers
+	if restored.PreferredLeader == task.TargetNode {
+		restored.PreferredLeader = 0
+	}
 	restored.ConfigEpoch++
 	return normalizeGroupAssignment(restored), true
 }
@@ -352,6 +359,20 @@ func normalizeAndValidateClusterNode(node ClusterNode, invalid error) (ClusterNo
 		return ClusterNode{}, invalid
 	}
 	return node, nil
+}
+
+func normalizeAndValidateAssignmentForPersistence(assignment SlotAssignment, invalid error) (SlotAssignment, error) {
+	if assignment.SlotID == 0 {
+		return SlotAssignment{}, invalid
+	}
+	assignment = normalizeGroupAssignment(assignment)
+	if err := validateRequiredPeerSet(assignment.DesiredPeers, invalid); err != nil {
+		return SlotAssignment{}, err
+	}
+	if err := validatePreferredLeaderInDesiredPeers(assignment.PreferredLeader, assignment.DesiredPeers, invalid); err != nil {
+		return SlotAssignment{}, err
+	}
+	return assignment, nil
 }
 
 func (s *Store) GetAssignment(ctx context.Context, slotID uint32) (SlotAssignment, error) {
@@ -414,11 +435,9 @@ func (s *Store) UpsertAssignment(ctx context.Context, assignment SlotAssignment)
 	if err := s.checkContext(ctx); err != nil {
 		return err
 	}
-	if assignment.SlotID == 0 {
-		return ErrInvalidArgument
-	}
-	assignment = normalizeGroupAssignment(assignment)
-	if err := validateRequiredPeerSet(assignment.DesiredPeers, ErrInvalidArgument); err != nil {
+	var err error
+	assignment, err = normalizeAndValidateAssignmentForPersistence(assignment, ErrInvalidArgument)
+	if err != nil {
 		return err
 	}
 
@@ -429,6 +448,37 @@ func (s *Store) UpsertAssignment(ctx context.Context, assignment SlotAssignment)
 		{
 			key:   encodeGroupKey(recordPrefixAssignment, assignment.SlotID),
 			value: encodeGroupAssignment(assignment),
+		},
+	})
+}
+
+func (s *Store) UpsertAssignmentAndDeleteTask(ctx context.Context, assignment SlotAssignment, slotID uint32) error {
+	if err := s.ensureOpen(); err != nil {
+		return err
+	}
+	if err := s.checkContext(ctx); err != nil {
+		return err
+	}
+	if slotID == 0 || assignment.SlotID != slotID {
+		return ErrInvalidArgument
+	}
+	var err error
+	assignment, err = normalizeAndValidateAssignmentForPersistence(assignment, ErrInvalidArgument)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.writeBatchLocked([]batchWrite{
+		{
+			key:   encodeGroupKey(recordPrefixAssignment, slotID),
+			value: encodeGroupAssignment(assignment),
+		},
+		{
+			key:    encodeGroupKey(recordPrefixTask, slotID),
+			delete: true,
 		},
 	})
 }
@@ -646,8 +696,9 @@ func (s *Store) UpsertAssignmentTask(ctx context.Context, assignment SlotAssignm
 	if assignment.SlotID == 0 || task.SlotID == 0 || assignment.SlotID != task.SlotID {
 		return ErrInvalidArgument
 	}
-	assignment = normalizeGroupAssignment(assignment)
-	if err := validateRequiredPeerSet(assignment.DesiredPeers, ErrInvalidArgument); err != nil {
+	var err error
+	assignment, err = normalizeAndValidateAssignmentForPersistence(assignment, ErrInvalidArgument)
+	if err != nil {
 		return err
 	}
 	task = normalizeReconcileTask(task)

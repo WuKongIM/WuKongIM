@@ -42,6 +42,7 @@ Runtime.ChangeConfig / TransferLeadership / Status
 | `Command` | multiraft/types.go | 状态机命令：SlotID(物理 Raft 组), HashSlot(逻辑哈希分片), Index, Term, Data(TLV编码) |
 | `Future` / `Result` | multiraft/types.go | 异步提案结果，Wait(ctx) 阻塞到提交 |
 | `ConfigChange` | multiraft/types.go | 成员变更：AddVoter / RemoveVoter / AddLearner / PromoteLearner |
+| `Status` | multiraft/types.go | Runtime 观测：Leader、Peers、CurrentVoters、Term/Index 等；CurrentVoters 来自当前 Raft conf state |
 | `Storage` interface | multiraft/types.go | Raft 日志存储抽象：InitialState / Entries / Save / MarkApplied |
 | `User` / `Channel` / `Device` | meta/*.go | 业务数据模型 |
 | `ChannelRuntimeMeta` | meta/channel_runtime_meta.go | Leader/ISR/Epoch 运行时元数据 |
@@ -116,7 +117,7 @@ Worker 循环:
        - when `lastApplied` advances, `storage.MarkApplied(lastApplied)`
        - rawNode.Advance(ready)
        - 通过 Future 通知提案者
-    ⑥ refreshStatus → 检测 Leader 丢失，清理 pending 提案
+    ⑥ refreshStatus → 刷新 Leader / CurrentVoters 观测，检测 Leader 丢失并清理 pending 提案
     ⑦ finishProcessing
 ```
 
