@@ -338,6 +338,8 @@ export const enMessages: AppMessages = {
   "slots.logs.title": "Log entries",
   "slots.logs.description": "Node {node} local Slot Raft log.",
   "slots.logs.nodeWatermarkValue": "Node {node} · commit {commit} / applied {applied}",
+  "slots.logs.command.noop": "Raft no-op",
+  "slots.logs.command.noopHint": "Leader term marker",
   "slots.logs.table.index": "Index",
   "slots.logs.table.term": "Term",
   "slots.logs.table.type": "Type",

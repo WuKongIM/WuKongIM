@@ -242,6 +242,15 @@ test("opens slot detail and shows selected-node log entries", async () => {
     next_cursor: 3,
     items: [
       {
+        index: 5,
+        term: 3,
+        type: "normal",
+        data_size: 0,
+        decode_status: "empty",
+        decoded_type: "noop",
+        decoded: { command: "noop" },
+      },
+      {
         index: 4,
         term: 2,
         type: "normal",
@@ -263,10 +272,15 @@ test("opens slot detail and shows selected-node log entries", async () => {
   expect(await screen.findByText("Log entries")).toBeInTheDocument()
   expect(getSlotLogsMock).toHaveBeenCalledWith(9, { nodeId: 1, limit: 50 })
   expect(screen.getByText("Node 1 · commit 4 / applied 3")).toBeInTheDocument()
-  expect(screen.getByText("normal")).toBeInTheDocument()
+  expect(screen.getAllByText("normal")).toHaveLength(2)
   expect(screen.getByText("conf_change")).toBeInTheDocument()
+  expect(screen.getByText("Raft no-op")).toBeInTheDocument()
+  expect(screen.getByText("Leader term marker")).toBeInTheDocument()
   expect(screen.getByText("upsert_user")).toBeInTheDocument()
   expect(screen.getByText(/\"uid\": \"u1\"/)).toBeInTheDocument()
+  expect(screen.queryByText(/\"command\": \"noop\"/)).not.toBeInTheDocument()
+  expect(screen.getAllByText("Decoded JSON")).toHaveLength(1)
+  expect(screen.getByText("0 B")).toBeInTheDocument()
   expect(screen.getByText("12 B")).toBeInTheDocument()
 })
 

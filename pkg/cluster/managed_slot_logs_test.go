@@ -13,17 +13,19 @@ import (
 )
 
 func TestSlotLogEntriesOnNodeReadsLatestEntriesDescending(t *testing.T) {
+	userCommand := metafsm.EncodeUpsertUserCommand(metadb.User{
+		UID:         "u1",
+		Token:       "secret-token",
+		DeviceFlag:  3,
+		DeviceLevel: 7,
+	})
+	userProposal := encodeProposalPayload(0, userCommand)
 	storage := &slotLogEntriesStorage{
 		entries: []raftpb.Entry{
 			{Index: 1, Term: 1, Type: raftpb.EntryNormal, Data: []byte("one")},
 			{Index: 2, Term: 1, Type: raftpb.EntryNormal, Data: []byte("two")},
 			{Index: 3, Term: 2, Type: raftpb.EntryConfChange, Data: []byte("config")},
-			{Index: 4, Term: 2, Type: raftpb.EntryNormal, Data: metafsm.EncodeUpsertUserCommand(metadb.User{
-				UID:         "u1",
-				Token:       "secret-token",
-				DeviceFlag:  3,
-				DeviceLevel: 7,
-			})},
+			{Index: 4, Term: 2, Type: raftpb.EntryNormal, Data: userProposal},
 		},
 	}
 	cluster := &Cluster{
@@ -63,15 +65,10 @@ func TestSlotLogEntriesOnNodeReadsLatestEntriesDescending(t *testing.T) {
 		AppliedIndex: 3,
 		NextCursor:   3,
 		Items: []SlotLogEntry{{
-			Index: 4,
-			Term:  2,
-			Type:  "normal",
-			DataSize: len(metafsm.EncodeUpsertUserCommand(metadb.User{
-				UID:         "u1",
-				Token:       "secret-token",
-				DeviceFlag:  3,
-				DeviceLevel: 7,
-			})),
+			Index:        4,
+			Term:         2,
+			Type:         "normal",
+			DataSize:     len(userProposal),
 			DecodeStatus: "ok",
 			DecodedType:  "upsert_user",
 			Decoded: map[string]any{

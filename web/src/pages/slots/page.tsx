@@ -123,11 +123,28 @@ function formatDataSize(value: number) {
   return `${value} B`
 }
 
-function formatSlotLogCommand(entry: ManagerSlotLogEntry) {
+function isRaftNoopEntry(entry: ManagerSlotLogEntry) {
+  return entry.data_size === 0 && entry.decoded_type === "noop"
+}
+
+function formatSlotLogCommand(intl: IntlShape, entry: ManagerSlotLogEntry) {
+  if (isRaftNoopEntry(entry)) {
+    return intl.formatMessage({ id: "slots.logs.command.noop" })
+  }
   return entry.decoded_type || entry.decode_status || "-"
 }
 
+function formatSlotLogCommandHint(intl: IntlShape, entry: ManagerSlotLogEntry) {
+  if (isRaftNoopEntry(entry)) {
+    return intl.formatMessage({ id: "slots.logs.command.noopHint" })
+  }
+  return ""
+}
+
 function formatSlotLogDecoded(entry: ManagerSlotLogEntry) {
+  if (isRaftNoopEntry(entry)) {
+    return ""
+  }
   return entry.decoded ? JSON.stringify(entry.decoded, null, 2) : ""
 }
 
@@ -786,6 +803,7 @@ export function SlotsPage() {
                       <tbody>
                         {slotLogs.page.items.map((entry) => {
                           const decoded = formatSlotLogDecoded(entry)
+                          const commandHint = formatSlotLogCommandHint(intl, entry)
                           return (
                             <Fragment key={entry.index}>
                               <tr className="border-t border-border">
@@ -793,7 +811,12 @@ export function SlotsPage() {
                                 <td className="px-3 py-2 text-sm text-muted-foreground">{entry.term}</td>
                                 <td className="px-3 py-2 text-sm text-muted-foreground">{entry.type}</td>
                                 <td className="px-3 py-2 text-sm text-muted-foreground">
-                                  {formatSlotLogCommand(entry)}
+                                  <div className="flex flex-col gap-0.5">
+                                    <span>{formatSlotLogCommand(intl, entry)}</span>
+                                    {commandHint ? (
+                                      <span className="text-xs text-muted-foreground/75">{commandHint}</span>
+                                    ) : null}
+                                  </div>
                                 </td>
                                 <td className="px-3 py-2 text-sm text-muted-foreground">
                                   {formatDataSize(entry.data_size)}

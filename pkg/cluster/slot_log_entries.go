@@ -167,7 +167,14 @@ func inspectSlotLogEntryPayload(item *SlotLogEntry, entry raftpb.Entry) {
 		item.Decoded = map[string]any{"command": "noop"}
 		return
 	}
-	inspection, err := metafsm.DecodeCommandInspection(entry.Data)
+	_, commandData, err := decodeProposalPayload(entry.Data)
+	if err != nil {
+		item.DecodeStatus = "corrupt"
+		item.DecodedType = "unknown"
+		item.Decoded = map[string]any{"error": err.Error()}
+		return
+	}
+	inspection, err := metafsm.DecodeCommandInspection(commandData)
 	if err != nil {
 		item.DecodeStatus = "corrupt"
 		item.DecodedType = "unknown"

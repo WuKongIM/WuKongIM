@@ -337,6 +337,8 @@ export const zhCNMessages: AppMessages = {
   "slots.logs.title": "日志条目",
   "slots.logs.description": "节点 {node} 的本地槽位 Raft 日志。",
   "slots.logs.nodeWatermarkValue": "节点 {node} · commit {commit} / applied {applied}",
+  "slots.logs.command.noop": "Raft 空日志",
+  "slots.logs.command.noopHint": "Leader 任期标记",
   "slots.logs.table.index": "索引",
   "slots.logs.table.term": "任期",
   "slots.logs.table.type": "类型",
