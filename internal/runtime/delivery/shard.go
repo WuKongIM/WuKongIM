@@ -27,8 +27,11 @@ func (s *shard) submit(ctx context.Context, env CommittedEnvelope) error {
 	act := s.actorFor(key)
 	act.mu.Lock()
 	s.mu.Unlock()
-	defer act.mu.Unlock()
-	return act.handleStartDispatch(ctx, env)
+	err := act.handleStartDispatch(ctx, env)
+	events := act.drainExpiredEventsLocked()
+	act.mu.Unlock()
+	s.manager.notifyRouteExpired(events)
+	return err
 }
 
 func (s *shard) routeAcked(ctx context.Context, binding AckBinding) error {
@@ -39,11 +42,14 @@ func (s *shard) routeAcked(ctx context.Context, binding AckBinding) error {
 		return nil
 	}
 	act.mu.Lock()
-	defer act.mu.Unlock()
-	return act.handleRouteAck(ctx, RouteAcked{
+	err := act.handleRouteAck(ctx, RouteAcked{
 		MessageID: binding.MessageID,
 		Route:     binding.Route,
 	})
+	events := act.drainExpiredEventsLocked()
+	act.mu.Unlock()
+	s.manager.notifyRouteExpired(events)
+	return err
 }
 
 func (s *shard) routeOffline(ctx context.Context, binding AckBinding) error {
@@ -54,11 +60,14 @@ func (s *shard) routeOffline(ctx context.Context, binding AckBinding) error {
 		return nil
 	}
 	act.mu.Lock()
-	defer act.mu.Unlock()
-	return act.handleRouteOffline(ctx, RouteOffline{
+	err := act.handleRouteOffline(ctx, RouteOffline{
 		MessageID: binding.MessageID,
 		Route:     binding.Route,
 	})
+	events := act.drainExpiredEventsLocked()
+	act.mu.Unlock()
+	s.manager.notifyRouteExpired(events)
+	return err
 }
 
 func (s *shard) processRetryTicks(ctx context.Context) error {
@@ -75,22 +84,27 @@ func (s *shard) processRetryTicks(ctx context.Context) error {
 			continue
 		}
 		act.mu.Lock()
-		if err := act.handleRetryTick(ctx, RetryTick{Entry: entry}); err != nil {
-			act.mu.Unlock()
+		err := act.handleRetryTick(ctx, RetryTick{Entry: entry})
+		events := act.drainExpiredEventsLocked()
+		act.mu.Unlock()
+		s.manager.notifyRouteExpired(events)
+		if err != nil {
 			return err
 		}
-		act.mu.Unlock()
 	}
 	now := s.manager.clock.Now()
 	for _, act := range actors {
 		act.mu.Lock()
+		var err error
 		if act.hasDueResolveRetry(now) {
-			if err := act.resumeResolvable(ctx); err != nil {
-				act.mu.Unlock()
-				return err
-			}
+			err = act.resumeResolvable(ctx)
 		}
+		events := act.drainExpiredEventsLocked()
 		act.mu.Unlock()
+		s.manager.notifyRouteExpired(events)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

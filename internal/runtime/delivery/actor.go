@@ -18,6 +18,7 @@ type actor struct {
 	inflight        map[uint64]*InflightMessage
 	completed       map[uint64]struct{}
 	completedOrder  []uint64
+	expiredEvents   []RouteExpiredEvent
 	lastActive      int64
 }
 
@@ -246,21 +247,25 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 	}
 	for _, route := range result.Accepted {
 		state := a.ensureRouteState(msg, route)
-		if a.routeAckTaken(msg, route, state) {
-			if err := a.finishRoute(ctx, msg, route); err != nil {
-				return err
-			}
-			continue
-		}
 		state.Attempt = attempt
-		state.Accepted = true
-		a.shard.manager.ackIdx.Bind(AckBinding{
+		binding := AckBinding{
 			SessionID:   route.SessionID,
 			MessageID:   msg.MessageID,
 			ChannelID:   a.key.ChannelID,
 			ChannelType: a.key.ChannelType,
 			Route:       route,
-		})
+		}
+		if state.Accepted {
+			if !a.shard.manager.ackIdx.refresh(binding) {
+				if err := a.finishRoute(ctx, msg, route); err != nil {
+					return err
+				}
+				continue
+			}
+		} else {
+			state.Accepted = true
+			a.shard.manager.ackIdx.Bind(binding)
+		}
 		if !a.scheduleRetry(msg, route, attempt) {
 			if err := a.expireRoute(ctx, msg, route, attempt); err != nil {
 				return err
@@ -269,12 +274,6 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 	}
 	for _, route := range result.Retryable {
 		state := a.ensureRouteState(msg, route)
-		if a.routeAckTaken(msg, route, state) {
-			if err := a.finishRoute(ctx, msg, route); err != nil {
-				return err
-			}
-			continue
-		}
 		state.Attempt = attempt
 		if !a.scheduleRetry(msg, route, attempt) {
 			if err := a.expireRoute(ctx, msg, route, attempt); err != nil {
@@ -290,27 +289,22 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 	return nil
 }
 
-func (a *actor) routeAckTaken(msg *InflightMessage, route RouteKey, state *RouteDeliveryState) bool {
-	if state == nil || !state.Accepted {
-		return false
-	}
-	_, ok := a.shard.manager.ackIdx.Lookup(route.SessionID, msg.MessageID)
-	return !ok
-}
-
 func (a *actor) expireRoute(ctx context.Context, msg *InflightMessage, route RouteKey, attempt int) error {
 	state, ok := msg.Routes[route]
 	if !ok {
 		return nil
 	}
-	if a.routeAckTaken(msg, route, state) {
-		return a.finishRoute(ctx, msg, route)
+	notify := true
+	if state.Accepted {
+		if _, ok := a.shard.manager.ackIdx.Take(route.SessionID, msg.MessageID); !ok {
+			notify = false
+		}
 	}
 	if err := a.finishRoute(ctx, msg, route); err != nil {
 		return err
 	}
-	if observer := a.shard.manager.observer; observer != nil {
-		observer.OnRouteExpired(RouteExpiredEvent{
+	if notify {
+		a.expiredEvents = append(a.expiredEvents, RouteExpiredEvent{
 			ChannelID:   a.key.ChannelID,
 			ChannelType: a.key.ChannelType,
 			MessageID:   msg.MessageID,
@@ -320,6 +314,15 @@ func (a *actor) expireRoute(ctx context.Context, msg *InflightMessage, route Rou
 		})
 	}
 	return nil
+}
+
+func (a *actor) drainExpiredEventsLocked() []RouteExpiredEvent {
+	if len(a.expiredEvents) == 0 {
+		return nil
+	}
+	events := append([]RouteExpiredEvent(nil), a.expiredEvents...)
+	a.expiredEvents = a.expiredEvents[:0]
+	return events
 }
 
 func (a *actor) ensureRouteState(msg *InflightMessage, route RouteKey) *RouteDeliveryState {

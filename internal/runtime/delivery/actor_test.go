@@ -121,6 +121,40 @@ func TestActorReportsRouteExpiryObserver(t *testing.T) {
 	require.Equal(t, route.SessionID, observer.expired[0].Route.SessionID)
 }
 
+func TestActorReportsRouteExpiryObserverOutsideActorLock(t *testing.T) {
+	clock := &testClock{now: time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)}
+	route := testRoute("u2", 1, 11, 2)
+	var runtime *Manager
+	observer := &lockingDeliveryObserver{
+		onExpired: func(RouteExpiredEvent) {
+			_ = runtime.ActorLane(testChannelID, frame.ChannelTypePerson)
+		},
+	}
+	runtime = NewManager(Config{
+		Resolver: &stubResolver{routesByChannel: map[string][]RouteKey{testChannelID: {route}}},
+		Push: &recordingPusher{responses: []pushResponse{
+			{result: PushResult{Accepted: []RouteKey{route}}},
+		}},
+		Clock:            clock,
+		RetryDelays:      []time.Duration{time.Second},
+		MaxRetryAttempts: 1,
+		Observer:         observer,
+	})
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runtime.Submit(context.Background(), testEnvelope(101, 1))
+	}()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("route expiry observer was called while actor lock was held")
+	}
+	require.Equal(t, 1, observer.expiredCount())
+}
+
 func TestActorDoesNotExpireRouteAckedDuringFinalRetryPush(t *testing.T) {
 	clock := &testClock{now: time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)}
 	observer := &recordingDeliveryObserver{}
@@ -487,6 +521,29 @@ func (r *recordingDeliveryObserver) OnRouteExpired(event RouteExpiredEvent) {
 }
 
 func (r *recordingDeliveryObserver) OnMaintenanceSnapshot(MaintenanceSnapshot) {}
+
+type lockingDeliveryObserver struct {
+	mu        sync.Mutex
+	expired   int
+	onExpired func(RouteExpiredEvent)
+}
+
+func (o *lockingDeliveryObserver) OnRouteExpired(event RouteExpiredEvent) {
+	if o.onExpired != nil {
+		o.onExpired(event)
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.expired++
+}
+
+func (o *lockingDeliveryObserver) OnMaintenanceSnapshot(MaintenanceSnapshot) {}
+
+func (o *lockingDeliveryObserver) expiredCount() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.expired
+}
 
 type blockingFinalRetryPusher struct {
 	route   RouteKey

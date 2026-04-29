@@ -26,6 +26,33 @@ func TestDeliveryRuntimeLifecycleProcessesTicksAndStops(t *testing.T) {
 	require.NoError(t, lifecycle.Stop())
 }
 
+func TestDeliveryRuntimeLifecycleStopContextReturnsContextError(t *testing.T) {
+	clock := &manualDeliveryLifecycleClock{}
+	runtime := &blockingDeliveryRuntimeMaintenance{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	lifecycle := newDeliveryRuntimeLifecycle(deliveryRuntimeLifecycleConfig{
+		Runtime:       runtime,
+		TickInterval:  time.Millisecond,
+		SweepInterval: time.Millisecond,
+		After:         clock.After,
+	})
+	t.Cleanup(func() {
+		runtime.Unblock()
+		require.NoError(t, lifecycle.Stop())
+	})
+
+	require.NoError(t, lifecycle.Start(context.Background()))
+	clock.WaitForWaiters(t, 2)
+	clock.Fire()
+	runtime.WaitForRetry(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, lifecycle.StopContext(ctx), context.Canceled)
+}
+
 type manualDeliveryLifecycleClock struct {
 	mu      sync.Mutex
 	waiters []chan time.Time
@@ -89,4 +116,43 @@ func (r *recordingDeliveryRuntimeMaintenance) retryCallCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.retryCalls
+}
+
+type blockingDeliveryRuntimeMaintenance struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (r *blockingDeliveryRuntimeMaintenance) ProcessRetryTicks(context.Context) error {
+	r.once.Do(func() { close(r.started) })
+	<-r.release
+	return nil
+}
+
+func (r *blockingDeliveryRuntimeMaintenance) SweepIdle() {}
+
+func (r *blockingDeliveryRuntimeMaintenance) InflightRouteCount() int {
+	return 0
+}
+
+func (r *blockingDeliveryRuntimeMaintenance) AckBindingCount() int {
+	return 0
+}
+
+func (r *blockingDeliveryRuntimeMaintenance) WaitForRetry(t *testing.T) {
+	t.Helper()
+	select {
+	case <-r.started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for retry tick")
+	}
+}
+
+func (r *blockingDeliveryRuntimeMaintenance) Unblock() {
+	select {
+	case <-r.release:
+	default:
+		close(r.release)
+	}
 }

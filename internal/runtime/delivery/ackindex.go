@@ -36,6 +36,26 @@ func (i *AckIndex) Bind(binding AckBinding) {
 	sessionBindings[key] = struct{}{}
 }
 
+func (i *AckIndex) refresh(binding AckBinding) bool {
+	if i == nil {
+		return false
+	}
+	key := ackKey{sessionID: binding.SessionID, messageID: binding.MessageID}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if _, ok := i.entries[key]; !ok {
+		return false
+	}
+	i.entries[key] = binding
+	sessionBindings := i.reverse[binding.SessionID]
+	if sessionBindings == nil {
+		sessionBindings = make(map[ackKey]struct{})
+		i.reverse[binding.SessionID] = sessionBindings
+	}
+	sessionBindings[key] = struct{}{}
+	return true
+}
+
 func (i *AckIndex) Lookup(sessionID, messageID uint64) (AckBinding, bool) {
 	if i == nil {
 		return AckBinding{}, false

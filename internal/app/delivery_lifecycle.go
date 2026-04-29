@@ -25,7 +25,6 @@ type deliveryRuntimeMaintenance interface {
 
 type deliveryRuntimeLifecycleConfig struct {
 	Runtime       deliveryRuntimeMaintenance
-	Metrics       *obsmetrics.DeliveryMetrics
 	Observer      deliveryruntime.Observer
 	TickInterval  time.Duration
 	SweepInterval time.Duration
@@ -70,21 +69,33 @@ func (l *deliveryRuntimeLifecycle) Start(ctx context.Context) error {
 }
 
 func (l *deliveryRuntimeLifecycle) Stop() error {
+	return l.StopContext(context.Background())
+}
+
+func (l *deliveryRuntimeLifecycle) StopContext(ctx context.Context) error {
 	if l == nil {
 		return nil
 	}
 	l.mu.Lock()
 	cancel := l.cancel
 	done := l.done
-	l.cancel = nil
-	l.done = nil
 	l.mu.Unlock()
 	if cancel == nil {
 		return nil
 	}
 	cancel()
-	<-done
-	return nil
+	select {
+	case <-done:
+		l.mu.Lock()
+		if l.done == done {
+			l.cancel = nil
+			l.done = nil
+		}
+		l.mu.Unlock()
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (l *deliveryRuntimeLifecycle) run(ctx context.Context, done chan struct{}) {
@@ -117,10 +128,6 @@ func (l *deliveryRuntimeLifecycle) observeMaintenanceSnapshot() {
 	}
 	if l.cfg.Observer != nil {
 		l.cfg.Observer.OnMaintenanceSnapshot(snapshot)
-	}
-	if l.cfg.Metrics != nil {
-		l.cfg.Metrics.SetActorInflightRoutes(snapshot.InflightRoutes)
-		l.cfg.Metrics.SetAckBindings(snapshot.AckBindings)
 	}
 }
 

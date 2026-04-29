@@ -132,6 +132,15 @@ func (m *Manager) AckBindingCount() int {
 	return m.ackIdx.Len()
 }
 
+func (m *Manager) notifyRouteExpired(events []RouteExpiredEvent) {
+	if m == nil || m.observer == nil {
+		return
+	}
+	for _, event := range events {
+		m.observer.OnRouteExpired(event)
+	}
+}
+
 func (m *Manager) shardFor(key ChannelKey) *shard {
 	if len(m.shards) == 1 {
 		return m.shards[0]

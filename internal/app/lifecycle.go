@@ -209,7 +209,7 @@ func (a *App) stopConversationProjector() error {
 	return a.conversationProjector.Stop()
 }
 
-func (a *App) stopDeliveryRuntime() error {
+func (a *App) stopDeliveryRuntime(ctx context.Context) error {
 	if !a.deliveryRuntimeOn.Swap(false) {
 		return nil
 	}
@@ -219,7 +219,7 @@ func (a *App) stopDeliveryRuntime() error {
 	if a.deliveryRuntimeLifecycle == nil {
 		return nil
 	}
-	return a.deliveryRuntimeLifecycle.Stop()
+	return a.deliveryRuntimeLifecycle.StopContext(ctx)
 }
 
 func (a *App) stopCommittedReplay() error {

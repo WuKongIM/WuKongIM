@@ -165,8 +165,8 @@ func (a *App) deliveryRuntimeLifecycleComponent() applifecycle.Component {
 			a.deliveryRuntimeOn.Store(true)
 			return nil
 		},
-		stop: func(context.Context) error {
-			return a.stopDeliveryRuntime()
+		stop: func(ctx context.Context) error {
+			return a.stopDeliveryRuntime(ctx)
 		},
 	}
 }
