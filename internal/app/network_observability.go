@@ -14,11 +14,12 @@ import (
 )
 
 const (
-	defaultNetworkObservabilityWindow     = time.Minute
-	defaultNetworkObservabilityMaxEvents  = 50
-	defaultNetworkObservabilityMaxSamples = 4096
-	networkSampleDirectionTX              = "tx"
-	networkSampleDirectionRX              = "rx"
+	defaultNetworkObservabilityWindow    = time.Minute
+	defaultNetworkObservabilityMaxEvents = 50
+	networkObservabilityBucketSize       = time.Second
+	networkObservabilityMaxDurations     = 256
+	networkSampleDirectionTX             = "tx"
+	networkSampleDirectionRX             = "rx"
 )
 
 // networkObservabilityConfig configures local app-level network observations.
@@ -63,46 +64,55 @@ type networkObservabilityConfig struct {
 	Now func() time.Time
 }
 
-// networkObservability records local transport hook samples for manager snapshots.
+// networkObservability records local transport hook aggregates for manager snapshots.
 type networkObservability struct {
 	mu sync.Mutex
 
-	cfg      networkObservabilityConfig
-	traffic  []networkTrafficSample
-	dials    []networkDialSample
-	enqueues []networkEnqueueSample
-	rpcs     []networkRPCSample
-	events   []managementusecase.NetworkEvent
+	cfg networkObservabilityConfig
+	// trafficBuckets stores exact byte totals per time bucket, direction, and message type.
+	trafficBuckets map[networkTrafficBucketKey]int64
+	// dialBuckets stores dial outcome counts per time bucket and peer.
+	dialBuckets map[networkDialBucketKey]int
+	// enqueueBuckets stores enqueue outcome counts per time bucket, peer, and queue kind.
+	enqueueBuckets map[networkEnqueueBucketKey]int
+	// rpcBuckets stores exact RPC outcome counts and bounded latency samples for percentiles.
+	rpcBuckets map[networkRPCBucketKey]networkRPCAggregate
+	// events stores bounded recent warning and status events.
+	events []managementusecase.NetworkEvent
+	// inflight stores the latest in-flight RPC gauge per peer and service.
 	inflight map[networkRPCKey]int
 }
 
-type networkTrafficSample struct {
-	at        time.Time
+type networkTrafficBucketKey struct {
+	bucket    time.Time
 	direction string
 	msgType   uint8
-	bytes     int
 }
 
-type networkDialSample struct {
-	at         time.Time
+type networkDialBucketKey struct {
+	bucket     time.Time
 	targetNode uint64
 	result     string
-	duration   time.Duration
 }
 
-type networkEnqueueSample struct {
-	at         time.Time
+type networkEnqueueBucketKey struct {
+	bucket     time.Time
 	targetNode uint64
 	kind       string
 	result     string
 }
 
-type networkRPCSample struct {
-	at         time.Time
+type networkRPCBucketKey struct {
+	bucket     time.Time
 	targetNode uint64
 	serviceID  uint8
 	result     string
-	duration   time.Duration
+}
+
+type networkRPCAggregate struct {
+	count      int
+	lastSeenAt time.Time
+	durations  []time.Duration
 }
 
 type networkRPCKey struct {
@@ -122,7 +132,14 @@ func newNetworkObservability(cfg networkObservabilityConfig) *networkObservabili
 	}
 	cfg.Seeds = append([]string(nil), cfg.Seeds...)
 	cfg.StaticNodes = append([]NodeConfigRef(nil), cfg.StaticNodes...)
-	return &networkObservability{cfg: cfg, inflight: map[networkRPCKey]int{}}
+	return &networkObservability{
+		cfg:            cfg,
+		trafficBuckets: map[networkTrafficBucketKey]int64{},
+		dialBuckets:    map[networkDialBucketKey]int{},
+		enqueueBuckets: map[networkEnqueueBucketKey]int{},
+		rpcBuckets:     map[networkRPCBucketKey]networkRPCAggregate{},
+		inflight:       map[networkRPCKey]int{},
+	}
 }
 
 // TransportHooks returns callbacks that record local transport traffic and RPC outcomes.
@@ -211,18 +228,18 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 	snap.Traffic.PeerBreakdownAvailable = false
 
 	trafficByType := map[string]managementusecase.NetworkTrafficMessageType{}
-	for _, sample := range o.traffic {
-		if sample.direction == networkSampleDirectionTX {
-			snap.Traffic.TXBytes1m += int64(sample.bytes)
+	for key, bytes := range o.trafficBuckets {
+		if key.direction == networkSampleDirectionTX {
+			snap.Traffic.TXBytes1m += bytes
 		} else {
-			snap.Traffic.RXBytes1m += int64(sample.bytes)
+			snap.Traffic.RXBytes1m += bytes
 		}
-		key := sample.direction + ":" + transportMsgType(sample.msgType)
-		entry := trafficByType[key]
-		entry.Direction = sample.direction
-		entry.MessageType = transportMsgType(sample.msgType)
-		entry.Bytes1m += int64(sample.bytes)
-		trafficByType[key] = entry
+		typeKey := key.direction + ":" + transportMsgType(key.msgType)
+		entry := trafficByType[typeKey]
+		entry.Direction = key.direction
+		entry.MessageType = transportMsgType(key.msgType)
+		entry.Bytes1m += bytes
+		trafficByType[typeKey] = entry
 	}
 	windowSeconds := o.cfg.Window.Seconds()
 	if windowSeconds > 0 {
@@ -242,21 +259,21 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 		return snap.Traffic.ByMessageType[i].MessageType < snap.Traffic.ByMessageType[j].MessageType
 	})
 
-	for _, sample := range o.dials {
-		if sample.result != "dial_error" {
+	for key, count := range o.dialBuckets {
+		if key.result != "dial_error" {
 			continue
 		}
-		errs := snap.PeerErrors[sample.targetNode]
-		errs.DialError1m++
-		snap.PeerErrors[sample.targetNode] = errs
+		errs := snap.PeerErrors[key.targetNode]
+		errs.DialError1m += count
+		snap.PeerErrors[key.targetNode] = errs
 	}
-	for _, sample := range o.enqueues {
-		if sample.result != "queue_full" {
+	for key, count := range o.enqueueBuckets {
+		if key.result != "queue_full" {
 			continue
 		}
-		errs := snap.PeerErrors[sample.targetNode]
-		errs.QueueFull1m++
-		snap.PeerErrors[sample.targetNode] = errs
+		errs := snap.PeerErrors[key.targetNode]
+		errs.QueueFull1m += count
+		snap.PeerErrors[key.targetNode] = errs
 	}
 
 	services := map[networkRPCKey]*networkServiceAccumulator{}
@@ -264,33 +281,25 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 		acc := ensureNetworkServiceAccumulator(services, key)
 		acc.service.Inflight = inflight
 	}
-	for _, sample := range o.rpcs {
-		key := networkRPCKey{targetNode: sample.targetNode, serviceID: sample.serviceID}
-		acc := ensureNetworkServiceAccumulator(services, key)
-		acc.service.Calls1m++
-		acc.service.LastSeenAt = sample.at
-		acc.durations = append(acc.durations, sample.duration)
-		switch sample.result {
+	for key, aggregate := range o.rpcBuckets {
+		serviceKey := networkRPCKey{targetNode: key.targetNode, serviceID: key.serviceID}
+		acc := ensureNetworkServiceAccumulator(services, serviceKey)
+		acc.service.Calls1m += aggregate.count
+		if aggregate.lastSeenAt.After(acc.service.LastSeenAt) {
+			acc.service.LastSeenAt = aggregate.lastSeenAt
+		}
+		acc.durations = append(acc.durations, aggregate.durations...)
+		switch key.result {
 		case "ok":
-			acc.service.Success1m++
+			acc.service.Success1m += aggregate.count
 		case "timeout":
-			if networkRPCExpectedTimeout(sample.serviceID, sample.result) {
-				acc.service.ExpectedTimeout1m++
-			} else {
-				acc.service.Timeout1m++
-				errs := snap.PeerErrors[sample.targetNode]
-				errs.Timeout1m++
-				snap.PeerErrors[sample.targetNode] = errs
-			}
+			acc.service.Timeout1m += aggregate.count
 		case "queue_full":
-			acc.service.QueueFull1m++
+			acc.service.QueueFull1m += aggregate.count
 		case "remote_error":
-			acc.service.RemoteError1m++
-			errs := snap.PeerErrors[sample.targetNode]
-			errs.RemoteError1m++
-			snap.PeerErrors[sample.targetNode] = errs
+			acc.service.RemoteError1m += aggregate.count
 		default:
-			acc.service.OtherError1m++
+			acc.service.OtherError1m += aggregate.count
 		}
 	}
 	for _, acc := range services {
@@ -349,7 +358,8 @@ func (o *networkObservability) recordTraffic(msgType uint8, bytes int, direction
 	}
 	at := o.now()
 	o.mu.Lock()
-	o.traffic = append(o.traffic, networkTrafficSample{at: at, direction: direction, msgType: msgType, bytes: bytes})
+	key := networkTrafficBucketKey{bucket: networkObservabilityBucket(at), direction: direction, msgType: msgType}
+	o.trafficBuckets[key] += int64(bytes)
 	o.pruneForWriteLocked(at)
 	o.mu.Unlock()
 }
@@ -358,13 +368,15 @@ func (o *networkObservability) recordDial(event transport.DialEvent) {
 	if o == nil {
 		return
 	}
-	sample := networkDialSample{at: o.now(), targetNode: uint64(event.TargetNode), result: event.Result, duration: event.Duration}
+	at := o.now()
+	targetNode := uint64(event.TargetNode)
 	o.mu.Lock()
-	o.dials = append(o.dials, sample)
+	key := networkDialBucketKey{bucket: networkObservabilityBucket(at), targetNode: targetNode, result: event.Result}
+	o.dialBuckets[key]++
 	if event.Result == "dial_error" {
-		o.events = append(o.events, managementusecase.NetworkEvent{At: sample.at, Severity: "error", Kind: "dial_error", TargetNode: sample.targetNode, Message: fmt.Sprintf("dial to node %d failed", sample.targetNode)})
+		o.events = append(o.events, managementusecase.NetworkEvent{At: at, Severity: "error", Kind: "dial_error", TargetNode: targetNode, Message: fmt.Sprintf("dial to node %d failed", targetNode)})
 	}
-	o.pruneForWriteLocked(sample.at)
+	o.pruneForWriteLocked(at)
 	o.mu.Unlock()
 }
 
@@ -372,17 +384,19 @@ func (o *networkObservability) recordEnqueue(event transport.EnqueueEvent) {
 	if o == nil {
 		return
 	}
-	sample := networkEnqueueSample{at: o.now(), targetNode: uint64(event.TargetNode), kind: event.Kind, result: event.Result}
+	at := o.now()
+	targetNode := uint64(event.TargetNode)
 	o.mu.Lock()
-	o.enqueues = append(o.enqueues, sample)
+	key := networkEnqueueBucketKey{bucket: networkObservabilityBucket(at), targetNode: targetNode, kind: event.Kind, result: event.Result}
+	o.enqueueBuckets[key]++
 	if event.Result == "queue_full" {
-		message := fmt.Sprintf("%s queue full for node %d", event.Kind, sample.targetNode)
+		message := fmt.Sprintf("%s queue full for node %d", event.Kind, targetNode)
 		if event.Kind == "rpc" || event.Kind == "" {
-			message = fmt.Sprintf("rpc queue full for node %d", sample.targetNode)
+			message = fmt.Sprintf("rpc queue full for node %d", targetNode)
 		}
-		o.events = append(o.events, managementusecase.NetworkEvent{At: sample.at, Severity: "warn", Kind: "queue_full", TargetNode: sample.targetNode, Message: message})
+		o.events = append(o.events, managementusecase.NetworkEvent{At: at, Severity: "warn", Kind: "queue_full", TargetNode: targetNode, Message: message})
 	}
-	o.pruneForWriteLocked(sample.at)
+	o.pruneForWriteLocked(at)
 	o.mu.Unlock()
 }
 
@@ -399,8 +413,15 @@ func (o *networkObservability) recordRPCClient(event transport.RPCClientEvent) {
 		delete(o.inflight, key)
 	}
 	if event.Result != "" {
-		o.rpcs = append(o.rpcs, networkRPCSample{at: at, targetNode: key.targetNode, serviceID: event.ServiceID, result: event.Result, duration: event.Duration})
-		if event.Result == "timeout" && !networkRPCExpectedTimeout(event.ServiceID, event.Result) {
+		bucketKey := networkRPCBucketKey{bucket: networkObservabilityBucket(at), targetNode: key.targetNode, serviceID: event.ServiceID, result: event.Result}
+		aggregate := o.rpcBuckets[bucketKey]
+		aggregate.count++
+		aggregate.lastSeenAt = at
+		if len(aggregate.durations) < networkObservabilityMaxDurations {
+			aggregate.durations = append(aggregate.durations, event.Duration)
+		}
+		o.rpcBuckets[bucketKey] = aggregate
+		if event.Result == "timeout" {
 			service := transportRPCServiceName(event.ServiceID)
 			o.events = append(o.events, managementusecase.NetworkEvent{At: at, Severity: "warn", Kind: "rpc_timeout", TargetNode: key.targetNode, Service: service, Message: fmt.Sprintf("rpc timeout for %s on node %d", service, key.targetNode)})
 		} else if event.Result == "remote_error" {
@@ -427,19 +448,15 @@ func (o *networkObservability) now() time.Time {
 }
 
 func (o *networkObservability) pruneLocked(cutoff time.Time) {
-	o.traffic = pruneTrafficSamples(o.traffic, cutoff)
-	o.dials = pruneDialSamples(o.dials, cutoff)
-	o.enqueues = pruneEnqueueSamples(o.enqueues, cutoff)
-	o.rpcs = pruneRPCSamples(o.rpcs, cutoff)
+	o.pruneTrafficBucketsLocked(cutoff)
+	o.pruneDialBucketsLocked(cutoff)
+	o.pruneEnqueueBucketsLocked(cutoff)
+	o.pruneRPCBucketsLocked(cutoff)
 	o.events = pruneNetworkEvents(o.events, cutoff)
 }
 
 func (o *networkObservability) pruneForWriteLocked(now time.Time) {
 	o.pruneLocked(now.Add(-o.cfg.Window))
-	o.traffic = capTrafficSamples(o.traffic, defaultNetworkObservabilityMaxSamples)
-	o.dials = capDialSamples(o.dials, defaultNetworkObservabilityMaxSamples)
-	o.enqueues = capEnqueueSamples(o.enqueues, defaultNetworkObservabilityMaxSamples)
-	o.rpcs = capRPCSamples(o.rpcs, defaultNetworkObservabilityMaxSamples)
 	o.events = capNetworkEvents(o.events, o.cfg.MaxEvents)
 }
 
@@ -460,46 +477,6 @@ func (o *networkObservability) discoverySnapshotLocked() managementusecase.Netwo
 	return out
 }
 
-func pruneTrafficSamples(samples []networkTrafficSample, cutoff time.Time) []networkTrafficSample {
-	out := samples[:0]
-	for _, sample := range samples {
-		if !sample.at.Before(cutoff) {
-			out = append(out, sample)
-		}
-	}
-	return out
-}
-
-func pruneDialSamples(samples []networkDialSample, cutoff time.Time) []networkDialSample {
-	out := samples[:0]
-	for _, sample := range samples {
-		if !sample.at.Before(cutoff) {
-			out = append(out, sample)
-		}
-	}
-	return out
-}
-
-func pruneEnqueueSamples(samples []networkEnqueueSample, cutoff time.Time) []networkEnqueueSample {
-	out := samples[:0]
-	for _, sample := range samples {
-		if !sample.at.Before(cutoff) {
-			out = append(out, sample)
-		}
-	}
-	return out
-}
-
-func pruneRPCSamples(samples []networkRPCSample, cutoff time.Time) []networkRPCSample {
-	out := samples[:0]
-	for _, sample := range samples {
-		if !sample.at.Before(cutoff) {
-			out = append(out, sample)
-		}
-	}
-	return out
-}
-
 func pruneNetworkEvents(events []managementusecase.NetworkEvent, cutoff time.Time) []managementusecase.NetworkEvent {
 	out := events[:0]
 	for _, event := range events {
@@ -510,34 +487,6 @@ func pruneNetworkEvents(events []managementusecase.NetworkEvent, cutoff time.Tim
 	return out
 }
 
-func capTrafficSamples(samples []networkTrafficSample, limit int) []networkTrafficSample {
-	if limit <= 0 || len(samples) <= limit {
-		return samples
-	}
-	return samples[len(samples)-limit:]
-}
-
-func capDialSamples(samples []networkDialSample, limit int) []networkDialSample {
-	if limit <= 0 || len(samples) <= limit {
-		return samples
-	}
-	return samples[len(samples)-limit:]
-}
-
-func capEnqueueSamples(samples []networkEnqueueSample, limit int) []networkEnqueueSample {
-	if limit <= 0 || len(samples) <= limit {
-		return samples
-	}
-	return samples[len(samples)-limit:]
-}
-
-func capRPCSamples(samples []networkRPCSample, limit int) []networkRPCSample {
-	if limit <= 0 || len(samples) <= limit {
-		return samples
-	}
-	return samples[len(samples)-limit:]
-}
-
 func capNetworkEvents(events []managementusecase.NetworkEvent, limit int) []managementusecase.NetworkEvent {
 	if limit <= 0 || len(events) <= limit {
 		return events
@@ -545,8 +494,44 @@ func capNetworkEvents(events []managementusecase.NetworkEvent, limit int) []mana
 	return events[len(events)-limit:]
 }
 
-func networkRPCExpectedTimeout(serviceID uint8, result string) bool {
-	return result == "timeout" && transportRPCServiceName(serviceID) == "channel_long_poll_fetch"
+func (o *networkObservability) pruneTrafficBucketsLocked(cutoff time.Time) {
+	for key := range o.trafficBuckets {
+		if networkObservabilityBucketExpired(key.bucket, cutoff) {
+			delete(o.trafficBuckets, key)
+		}
+	}
+}
+
+func (o *networkObservability) pruneDialBucketsLocked(cutoff time.Time) {
+	for key := range o.dialBuckets {
+		if networkObservabilityBucketExpired(key.bucket, cutoff) {
+			delete(o.dialBuckets, key)
+		}
+	}
+}
+
+func (o *networkObservability) pruneEnqueueBucketsLocked(cutoff time.Time) {
+	for key := range o.enqueueBuckets {
+		if networkObservabilityBucketExpired(key.bucket, cutoff) {
+			delete(o.enqueueBuckets, key)
+		}
+	}
+}
+
+func (o *networkObservability) pruneRPCBucketsLocked(cutoff time.Time) {
+	for key := range o.rpcBuckets {
+		if networkObservabilityBucketExpired(key.bucket, cutoff) {
+			delete(o.rpcBuckets, key)
+		}
+	}
+}
+
+func networkObservabilityBucket(at time.Time) time.Time {
+	return at.Truncate(networkObservabilityBucketSize)
+}
+
+func networkObservabilityBucketExpired(bucket, cutoff time.Time) bool {
+	return !bucket.Add(networkObservabilityBucketSize).After(cutoff)
 }
 
 func transportRPCServiceGroup(service string) string {

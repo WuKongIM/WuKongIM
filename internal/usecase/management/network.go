@@ -543,22 +543,18 @@ type clusterNodeForNetwork struct {
 func normalizeNetworkServices(in []NetworkRPCService) []NetworkRPCService {
 	out := make([]NetworkRPCService, 0, len(in))
 	for _, service := range in {
-		service = normalizeNetworkServiceExpectedTimeout(service)
+		service = normalizeNetworkServiceIdentity(service)
 		out = append(out, service)
 	}
 	return out
 }
 
-func normalizeNetworkServiceExpectedTimeout(service NetworkRPCService) NetworkRPCService {
+func normalizeNetworkServiceIdentity(service NetworkRPCService) NetworkRPCService {
 	if service.Service == "" {
 		service.Service = networkRPCServiceName(service.ServiceID)
 	}
 	if service.Group == "" {
 		service.Group = networkRPCServiceGroup(service.Service)
-	}
-	if service.Service == "channel_long_poll_fetch" {
-		service.ExpectedTimeout1m += service.Timeout1m
-		service.Timeout1m = 0
 	}
 	return service
 }

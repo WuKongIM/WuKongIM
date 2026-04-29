@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const previousNetworkObservabilitySampleCap = 4096
+
 func TestNetworkObservabilityRecordsTransportAndRPCWindow(t *testing.T) {
 	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	collector := newNetworkObservability(networkObservabilityConfig{
@@ -38,10 +40,10 @@ func TestNetworkObservabilityRecordsTransportAndRPCWindow(t *testing.T) {
 	require.Equal(t, 1, snap.PeerErrors[uint64(2)].QueueFull1m)
 	require.Equal(t, 0, snap.PeerErrors[uint64(2)].Timeout1m)
 	require.Equal(t, "channel_long_poll_fetch", snap.Services[0].Service)
-	require.Equal(t, 1, snap.Services[0].ExpectedTimeout1m)
-	require.Equal(t, 0, snap.Services[0].Timeout1m)
+	require.Equal(t, 0, snap.Services[0].ExpectedTimeout1m)
+	require.Equal(t, 1, snap.Services[0].Timeout1m)
 	require.Equal(t, 0, snap.ChannelReplication.LongPollTimeouts1m)
-	require.False(t, hasNetworkEvent(snap.Events, "rpc_timeout", "channel_long_poll_fetch"))
+	require.True(t, hasNetworkEvent(snap.Events, "rpc_timeout", "channel_long_poll_fetch"))
 	require.NotEmpty(t, snap.Events)
 }
 
@@ -86,14 +88,14 @@ func TestNetworkObservabilityPrunesStoredSamplesAndEventsOnWrite(t *testing.T) {
 
 	collector.mu.Lock()
 	defer collector.mu.Unlock()
-	require.Len(t, collector.traffic, 1)
-	require.Empty(t, collector.dials)
-	require.Empty(t, collector.enqueues)
-	require.Empty(t, collector.rpcs)
+	require.Len(t, collector.trafficBuckets, 1)
+	require.Empty(t, collector.dialBuckets)
+	require.Empty(t, collector.enqueueBuckets)
+	require.Empty(t, collector.rpcBuckets)
 	require.Empty(t, collector.events)
 }
 
-func TestNetworkObservabilityCapsStoredSamplesOnWrite(t *testing.T) {
+func TestNetworkObservabilityKeepsTrafficCountersExactAbovePreviousSampleCap(t *testing.T) {
 	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	collector := newNetworkObservability(networkObservabilityConfig{
 		LocalNodeID: 1,
@@ -102,13 +104,57 @@ func TestNetworkObservabilityCapsStoredSamplesOnWrite(t *testing.T) {
 	})
 	hooks := collector.TransportHooks()
 
-	for i := 0; i < defaultNetworkObservabilityMaxSamples+1; i++ {
+	for i := 0; i < previousNetworkObservabilitySampleCap+123; i++ {
 		hooks.OnSend(1, 1)
 	}
 
-	collector.mu.Lock()
-	defer collector.mu.Unlock()
-	require.Len(t, collector.traffic, defaultNetworkObservabilityMaxSamples)
+	snap := collector.NetworkSnapshot(now)
+	require.Equal(t, int64(previousNetworkObservabilitySampleCap+123), snap.Traffic.TXBytes1m)
+	require.Len(t, snap.Traffic.ByMessageType, 1)
+	require.Equal(t, int64(previousNetworkObservabilitySampleCap+123), snap.Traffic.ByMessageType[0].Bytes1m)
+}
+
+func TestNetworkObservabilityKeepsRPCCountersExactAbovePreviousSampleCap(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		Now:         func() time.Time { return now },
+	})
+	hooks := collector.TransportHooks()
+
+	for i := 0; i < previousNetworkObservabilitySampleCap+321; i++ {
+		hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Result: "timeout", Duration: time.Millisecond})
+	}
+
+	snap := collector.NetworkSnapshot(now)
+	require.Len(t, snap.Services, 1)
+	require.Equal(t, previousNetworkObservabilitySampleCap+321, snap.Services[0].Calls1m)
+	require.Equal(t, previousNetworkObservabilitySampleCap+321, snap.Services[0].Timeout1m)
+}
+
+func TestNetworkObservabilityPrunesOldBucketsAndEventsOnWriteAfterQuietWindow(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		MaxEvents:   50,
+		Now:         func() time.Time { return now },
+	})
+	hooks := collector.TransportHooks()
+
+	for i := 0; i < previousNetworkObservabilitySampleCap+10; i++ {
+		hooks.OnSend(1, 1)
+		hooks.OnDial(transport.DialEvent{TargetNode: 2, Result: "dial_error", Duration: time.Millisecond})
+	}
+
+	now = now.Add(2 * time.Minute)
+	hooks.OnSend(2, 7)
+
+	snap := collector.NetworkSnapshot(now)
+	require.Equal(t, int64(7), snap.Traffic.TXBytes1m)
+	require.Empty(t, snap.PeerErrors)
+	require.Empty(t, snap.Events)
 }
 
 func TestNetworkObservabilityCapsStoredEventsOnWrite(t *testing.T) {
@@ -175,7 +221,7 @@ func TestNetworkObservabilityCallsDataPlanePoolStatsOutsideLock(t *testing.T) {
 	}
 }
 
-func TestNetworkObservabilityLongPollTimeoutCountedOnceInManagementSummary(t *testing.T) {
+func TestNetworkObservabilityRPCDeadlineTimeoutDoesNotIncrementLongPollTimeouts(t *testing.T) {
 	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	collector := newNetworkObservability(networkObservabilityConfig{
 		LocalNodeID: 1,
@@ -204,8 +250,12 @@ func TestNetworkObservabilityLongPollTimeoutCountedOnceInManagementSummary(t *te
 
 	summary, err := manager.ListNetworkSummary(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 1, summary.Services[0].ExpectedTimeout1m)
-	require.Equal(t, 1, summary.ChannelReplication.LongPollTimeouts1m)
+	require.Equal(t, 0, summary.Services[0].ExpectedTimeout1m)
+	require.Equal(t, 1, summary.Services[0].Timeout1m)
+	require.Equal(t, 1, summary.Headline.Timeouts1m)
+	require.Len(t, summary.Peers, 1)
+	require.Equal(t, 1, summary.Peers[0].Errors.Timeout1m)
+	require.Equal(t, 0, summary.ChannelReplication.LongPollTimeouts1m)
 	require.Len(t, summary.ChannelReplication.Services, 1)
 	require.Equal(t, "channel_long_poll_fetch", summary.ChannelReplication.Services[0].Service)
 }
