@@ -68,6 +68,8 @@ type Management interface {
 	ListMessages(ctx context.Context, req managementusecase.ListMessagesRequest) (managementusecase.ListMessagesResponse, error)
 	// GetOverview returns the manager homepage overview DTO.
 	GetOverview(ctx context.Context) (managementusecase.Overview, error)
+	// ListNetworkSummary returns the manager-facing local-node cluster network summary.
+	ListNetworkSummary(ctx context.Context) (managementusecase.NetworkSummary, error)
 	// ListNodeOnboardingCandidates returns nodes eligible for explicit onboarding allocation.
 	ListNodeOnboardingCandidates(ctx context.Context) (managementusecase.NodeOnboardingCandidatesResponse, error)
 	// CreateNodeOnboardingPlan creates a durable planned onboarding job for review.
