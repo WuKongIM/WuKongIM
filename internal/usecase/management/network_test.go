@@ -113,7 +113,7 @@ func TestListNetworkSummaryAggregatesPeersPoolsRPCAndTraffic(t *testing.T) {
 	require.Equal(t, NetworkPoolStats{Active: 2, Idle: 1}, got.Peers[0].Pools.Cluster)
 	require.Equal(t, NetworkPoolStats{Active: 3, Idle: 4}, got.Peers[0].Pools.DataPlane)
 	require.Equal(t, 1, got.Peers[0].RPC.Inflight)
-	require.Equal(t, 3, got.Peers[0].RPC.Calls1m)
+	require.Equal(t, 2, got.Peers[0].RPC.Calls1m)
 	require.Equal(t, 1, got.Peers[0].Errors.Timeout1m)
 	require.Equal(t, uint64(3), got.Peers[1].NodeID)
 	require.Equal(t, "suspect", got.Peers[1].Health)
@@ -235,6 +235,66 @@ func TestListNetworkSummaryUsesNodesWhenRuntimeViewReadFails(t *testing.T) {
 	require.Equal(t, uint64(2), got.Peers[0].NodeID)
 	require.Equal(t, "node-2", got.Peers[0].Name)
 	require.Equal(t, "draining", got.Peers[0].Health)
+}
+
+func TestListNetworkSummaryKeepsExpectedLongPollTimeoutsOutOfPeerRPCRate(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	app := New(Options{
+		LocalNodeID: 1,
+		Cluster: fakeClusterReader{
+			controllerLeaderID: 1,
+			nodes: []controllermeta.ClusterNode{
+				{NodeID: 1, Status: controllermeta.NodeStatusAlive},
+				{NodeID: 2, Status: controllermeta.NodeStatusAlive},
+			},
+		},
+		Network: fakeNetworkSnapshotReader{snapshot: NetworkObservationSnapshot{
+			LocalCollectorAvailable: true,
+			Traffic:                 NetworkTraffic{Scope: "local_total_by_msg_type"},
+			Services: []NetworkRPCService{{
+				ServiceID:  35,
+				Service:    "channel_long_poll_fetch",
+				Group:      "channel_data_plane",
+				TargetNode: 2,
+				Calls1m:    1,
+				Timeout1m:  1,
+			}},
+		}},
+		Now: func() time.Time { return now },
+	})
+
+	got, err := app.ListNetworkSummary(context.Background())
+	require.NoError(t, err)
+	require.Len(t, got.Peers, 1)
+	require.Equal(t, 0, got.Peers[0].RPC.Calls1m)
+	require.Nil(t, got.Peers[0].RPC.SuccessRate)
+	require.Equal(t, 0, got.Peers[0].Errors.Timeout1m)
+	require.Equal(t, 0, got.Headline.Timeouts1m)
+	require.Equal(t, 1, got.Services[0].ExpectedTimeout1m)
+	require.Equal(t, 1, got.ChannelReplication.LongPollTimeouts1m)
+}
+
+func TestListNetworkSummaryMarksNilNetworkCollectorUnavailable(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	app := New(Options{
+		LocalNodeID: 1,
+		Cluster: fakeClusterReader{
+			controllerLeaderID: 1,
+			nodes: []controllermeta.ClusterNode{{
+				NodeID: 1,
+				Status: controllermeta.NodeStatusAlive,
+			}},
+		},
+		Now: func() time.Time { return now },
+	})
+
+	got, err := app.ListNetworkSummary(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "unavailable", got.SourceStatus.LocalCollector)
+	require.Equal(t, "ok", got.SourceStatus.ControllerContext)
+	require.Equal(t, "ok", got.SourceStatus.RuntimeViews)
+	require.Equal(t, "local_total_by_msg_type", got.Traffic.Scope)
+	require.False(t, got.Traffic.PeerBreakdownAvailable)
 }
 
 type fakeNetworkSnapshotReader struct {

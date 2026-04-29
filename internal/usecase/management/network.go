@@ -463,10 +463,14 @@ func (a *App) ListNetworkSummary(ctx context.Context) (NetworkSummary, error) {
 	summary.Services = normalizeNetworkServices(snapshot.Services)
 	peerSuccesses := map[uint64]int{}
 	for _, service := range summary.Services {
+		rateCalls := service.Calls1m - service.ExpectedTimeout1m
+		if rateCalls < 0 {
+			rateCalls = 0
+		}
 		peer := ensurePeer(service.TargetNode)
 		if peer != nil {
 			peer.RPC.Inflight += service.Inflight
-			peer.RPC.Calls1m += service.Calls1m
+			peer.RPC.Calls1m += rateCalls
 			peerSuccesses[service.TargetNode] += service.Success1m
 			if service.P95Ms > peer.RPC.P95Ms {
 				peer.RPC.P95Ms = service.P95Ms
