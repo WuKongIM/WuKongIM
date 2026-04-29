@@ -347,6 +347,7 @@ func TestRegistryExposesMessageMetrics(t *testing.T) {
 	require.NoError(t, err)
 	requireMetricFamily(t, families, "wukongim_message_meta_refresh_total")
 	requireMetricFamily(t, families, "wukongim_message_meta_refresh_duration_seconds")
+	requireMetricFamily(t, families, "wukongim_message_append_total")
 	requireMetricFamily(t, families, "wukongim_message_append_duration_seconds")
 	requireMetricFamily(t, families, "wukongim_message_committed_dispatch_queue_depth")
 	requireMetricFamily(t, families, "wukongim_message_committed_dispatch_enqueue_total")
