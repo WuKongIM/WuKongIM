@@ -26,6 +26,12 @@ type SessionKeys struct {
 	AESIV  []byte
 }
 
+// SessionCrypto caches immutable per-session AES state for repeated packet encryption.
+type SessionCrypto struct {
+	block cipher.Block
+	iv    [aes.BlockSize]byte
+}
+
 type ValueReader interface {
 	Value(string) any
 }
@@ -99,19 +105,49 @@ func DeriveClientSession(private [32]byte, serverKey string, iv string) (Session
 }
 
 func EncryptPayload(payload []byte, keys SessionKeys) ([]byte, error) {
-	key, iv, err := normalizedKeyAndIV(keys)
+	block, iv, err := aesBlockAndIV(keys)
 	if err != nil {
 		return nil, err
 	}
+	return encryptPayloadWithBlock(payload, block, iv)
+}
 
-	block, err := aes.NewCipher(key)
+// NewSessionCrypto builds immutable AES state scoped to one negotiated session.
+func NewSessionCrypto(keys SessionKeys) (*SessionCrypto, error) {
+	block, iv, err := aesBlockAndIV(keys)
 	if err != nil {
 		return nil, err
 	}
+	sessionCrypto := &SessionCrypto{block: block}
+	sessionCrypto.iv = iv
+	return sessionCrypto, nil
+}
 
-	padded := pkcs7Pad(payload, aes.BlockSize)
-	encrypted := make([]byte, len(padded))
-	cipher.NewCBCEncrypter(block, iv).CryptBlocks(encrypted, padded)
+// SessionCryptoFromSession returns the cached crypto context stored on a gateway session.
+func SessionCryptoFromSession(reader ValueReader) (*SessionCrypto, bool) {
+	if reader == nil {
+		return nil, false
+	}
+	sessionCrypto, ok := reader.Value(gatewaytypes.SessionValueCrypto).(*SessionCrypto)
+	return sessionCrypto, ok && sessionCrypto != nil
+}
+
+// EncryptPayloadWithCrypto encrypts a payload using cached per-session AES state.
+func EncryptPayloadWithCrypto(payload []byte, sessionCrypto *SessionCrypto) ([]byte, error) {
+	if sessionCrypto == nil || sessionCrypto.block == nil {
+		return nil, ErrMissingSessionKey
+	}
+	return encryptPayloadWithBlock(payload, sessionCrypto.block, sessionCrypto.iv)
+}
+
+func encryptPayloadWithBlock(payload []byte, block cipher.Block, iv [aes.BlockSize]byte) ([]byte, error) {
+	padding := pkcs7PaddingSize(len(payload), aes.BlockSize)
+	encrypted := make([]byte, len(payload)+padding)
+	copy(encrypted, payload)
+	for i := len(payload); i < len(encrypted); i++ {
+		encrypted[i] = byte(padding)
+	}
+	encryptCBCBlocks(block, iv, encrypted)
 
 	out := make([]byte, base64.StdEncoding.EncodedLen(len(encrypted)))
 	base64.StdEncoding.Encode(out, encrypted)
@@ -119,11 +155,27 @@ func EncryptPayload(payload []byte, keys SessionKeys) ([]byte, error) {
 }
 
 func DecryptPayload(payload []byte, keys SessionKeys) ([]byte, error) {
-	key, iv, err := normalizedKeyAndIV(keys)
+	block, iv, err := aesBlockAndIV(keys)
 	if err != nil {
 		return nil, err
 	}
+	plain, err := decryptPayloadWithBlock(payload, block, iv)
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte(nil), plain...), nil
+}
 
+// DecryptPayloadWithCrypto decrypts a payload using cached per-session AES state.
+func DecryptPayloadWithCrypto(payload []byte, sessionCrypto *SessionCrypto) ([]byte, error) {
+	if sessionCrypto == nil || sessionCrypto.block == nil {
+		return nil, ErrMissingSessionKey
+	}
+	return decryptPayloadWithBlock(payload, sessionCrypto.block, sessionCrypto.iv)
+}
+
+// decryptPayloadWithBlock decrypts in place on the decoded ciphertext buffer.
+func decryptPayloadWithBlock(payload []byte, block cipher.Block, iv [aes.BlockSize]byte) ([]byte, error) {
 	decoded := make([]byte, base64.StdEncoding.DecodedLen(len(payload)))
 	n, err := base64.StdEncoding.Decode(decoded, payload)
 	if err != nil {
@@ -134,24 +186,37 @@ func DecryptPayload(payload []byte, keys SessionKeys) ([]byte, error) {
 		return nil, ErrInvalidPublicKey
 	}
 
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-	plain := make([]byte, len(decoded))
-	cipher.NewCBCDecrypter(block, iv).CryptBlocks(plain, decoded)
-	return pkcs7Unpad(plain, aes.BlockSize)
+	decryptCBCBlocks(block, iv, decoded)
+	return pkcs7UnpadView(decoded, aes.BlockSize)
 }
 
 func SendMsgKey(packet *frame.SendPacket, keys SessionKeys) (string, error) {
+	sessionCrypto, err := NewSessionCrypto(keys)
+	if err != nil {
+		return "", err
+	}
+	return SendMsgKeyWithCrypto(packet, sessionCrypto)
+}
+
+// SendMsgKeyWithCrypto calculates the send packet verification key using cached session crypto.
+func SendMsgKeyWithCrypto(packet *frame.SendPacket, sessionCrypto *SessionCrypto) (string, error) {
 	if packet == nil {
 		return "", ErrMsgKeyMismatch
 	}
-	return msgKey([]byte(packet.VerityString()), keys)
+	return msgKeyWithCrypto([]byte(packet.VerityString()), sessionCrypto)
 }
 
 func ValidateSendPacket(packet *frame.SendPacket, keys SessionKeys) error {
-	expected, err := SendMsgKey(packet, keys)
+	sessionCrypto, err := NewSessionCrypto(keys)
+	if err != nil {
+		return err
+	}
+	return ValidateSendPacketWithCrypto(packet, sessionCrypto)
+}
+
+// ValidateSendPacketWithCrypto validates a send packet verification key using cached session crypto.
+func ValidateSendPacketWithCrypto(packet *frame.SendPacket, sessionCrypto *SessionCrypto) error {
+	expected, err := SendMsgKeyWithCrypto(packet, sessionCrypto)
 	if err != nil {
 		return err
 	}
@@ -162,19 +227,27 @@ func ValidateSendPacket(packet *frame.SendPacket, keys SessionKeys) error {
 }
 
 func SealRecvPacket(packet *frame.RecvPacket, keys SessionKeys) (*frame.RecvPacket, error) {
+	sessionCrypto, err := NewSessionCrypto(keys)
+	if err != nil {
+		return nil, err
+	}
+	return SealRecvPacketWithCrypto(packet, sessionCrypto)
+}
+
+// SealRecvPacketWithCrypto encrypts a recv packet payload and msg key using cached session crypto.
+func SealRecvPacketWithCrypto(packet *frame.RecvPacket, sessionCrypto *SessionCrypto) (*frame.RecvPacket, error) {
 	if packet == nil {
 		return nil, ErrMsgKeyMismatch
 	}
 
 	sealed := *packet
-	sealed.Payload = append([]byte(nil), packet.Payload...)
 
-	encrypted, err := EncryptPayload(sealed.Payload, keys)
+	encrypted, err := EncryptPayloadWithCrypto(packet.Payload, sessionCrypto)
 	if err != nil {
 		return nil, err
 	}
 	sealed.Payload = encrypted
-	sealed.MsgKey, err = recvMsgKey(&sealed, keys)
+	sealed.MsgKey, err = recvMsgKeyWithCrypto(&sealed, sessionCrypto)
 	if err != nil {
 		return nil, err
 	}
@@ -231,17 +304,25 @@ func randomIV() ([]byte, error) {
 	return buf, nil
 }
 
-func normalizedKeyAndIV(keys SessionKeys) ([]byte, []byte, error) {
+func aesBlockAndIV(keys SessionKeys) (cipher.Block, [aes.BlockSize]byte, error) {
 	if len(keys.AESKey) < aes.BlockSize || len(keys.AESIV) < aes.BlockSize {
-		return nil, nil, ErrMissingSessionKey
+		return nil, [aes.BlockSize]byte{}, ErrMissingSessionKey
 	}
-	key := append([]byte(nil), keys.AESKey[:aes.BlockSize]...)
-	iv := append([]byte(nil), keys.AESIV[:aes.BlockSize]...)
-	return key, iv, nil
+
+	var key [aes.BlockSize]byte
+	var iv [aes.BlockSize]byte
+	copy(key[:], keys.AESKey[:aes.BlockSize])
+	copy(iv[:], keys.AESIV[:aes.BlockSize])
+
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return nil, [aes.BlockSize]byte{}, err
+	}
+	return block, iv, nil
 }
 
-func msgKey(sign []byte, keys SessionKeys) (string, error) {
-	encrypted, err := EncryptPayload(sign, keys)
+func msgKeyWithCrypto(sign []byte, sessionCrypto *SessionCrypto) (string, error) {
+	encrypted, err := EncryptPayloadWithCrypto(sign, sessionCrypto)
 	if err != nil {
 		return "", err
 	}
@@ -249,27 +330,52 @@ func msgKey(sign []byte, keys SessionKeys) (string, error) {
 	return string(hexLower(sum[:])), nil
 }
 
-func recvMsgKey(packet *frame.RecvPacket, keys SessionKeys) (string, error) {
+func recvMsgKeyWithCrypto(packet *frame.RecvPacket, sessionCrypto *SessionCrypto) (string, error) {
 	if packet == nil {
 		return "", ErrMsgKeyMismatch
 	}
-	return msgKey([]byte(packet.VerityString()), keys)
+	return msgKeyWithCrypto([]byte(packet.VerityString()), sessionCrypto)
 }
 
-func pkcs7Pad(payload []byte, blockSize int) []byte {
-	padding := blockSize - len(payload)%blockSize
+// encryptCBCBlocks applies CBC without allocating a cipher.BlockMode per message.
+func encryptCBCBlocks(block cipher.Block, iv [aes.BlockSize]byte, data []byte) {
+	previous := iv
+	for offset := 0; offset < len(data); offset += aes.BlockSize {
+		chunk := data[offset : offset+aes.BlockSize]
+		xorBlock(chunk, previous[:])
+		block.Encrypt(chunk, chunk)
+		copy(previous[:], chunk)
+	}
+}
+
+// decryptCBCBlocks applies CBC without allocating a cipher.BlockMode per message.
+func decryptCBCBlocks(block cipher.Block, iv [aes.BlockSize]byte, data []byte) {
+	previous := iv
+	var ciphertext [aes.BlockSize]byte
+	for offset := 0; offset < len(data); offset += aes.BlockSize {
+		chunk := data[offset : offset+aes.BlockSize]
+		copy(ciphertext[:], chunk)
+		block.Decrypt(chunk, chunk)
+		xorBlock(chunk, previous[:])
+		previous = ciphertext
+	}
+}
+
+func xorBlock(dst []byte, mask []byte) {
+	for i := 0; i < aes.BlockSize; i++ {
+		dst[i] ^= mask[i]
+	}
+}
+
+func pkcs7PaddingSize(payloadLen int, blockSize int) int {
+	padding := blockSize - payloadLen%blockSize
 	if padding == 0 {
 		padding = blockSize
 	}
-	out := make([]byte, len(payload)+padding)
-	copy(out, payload)
-	for i := len(payload); i < len(out); i++ {
-		out[i] = byte(padding)
-	}
-	return out
+	return padding
 }
 
-func pkcs7Unpad(payload []byte, blockSize int) ([]byte, error) {
+func pkcs7UnpadView(payload []byte, blockSize int) ([]byte, error) {
 	if len(payload) == 0 || len(payload)%blockSize != 0 {
 		return nil, ErrMissingSessionKey
 	}
@@ -282,7 +388,7 @@ func pkcs7Unpad(payload []byte, blockSize int) ([]byte, error) {
 			return nil, ErrMissingSessionKey
 		}
 	}
-	return append([]byte(nil), payload[:len(payload)-padding]...), nil
+	return payload[:len(payload)-padding], nil
 }
 
 func bytesValue(value any) ([]byte, bool) {

@@ -10,4 +10,5 @@ const (
 	SessionValueEncryptionEnabled = "gateway.encryption_enabled"
 	SessionValueAESKey            = "gateway.aes_key"
 	SessionValueAESIV             = "gateway.aes_iv"
+	SessionValueCrypto            = "gateway.wkproto_crypto"
 )

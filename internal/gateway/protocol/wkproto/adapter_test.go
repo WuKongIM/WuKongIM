@@ -113,10 +113,19 @@ func TestAdapterUsesSessionVersionForOutboundFrames(t *testing.T) {
 func TestAdapterEncryptsOutboundRecvPacketWhenSessionIsEncrypted(t *testing.T) {
 	adapter := adapterpkg.New()
 	sess := testkit.NewProtocolSession()
+	keys := wkprotoenc.SessionKeys{
+		AESKey: []byte("1234567890abcdef"),
+		AESIV:  []byte("abcdef1234567890"),
+	}
+	sessionCrypto, err := wkprotoenc.NewSessionCrypto(keys)
+	if err != nil {
+		t.Fatalf("NewSessionCrypto() error = %v", err)
+	}
 	sess.SetValue(gateway.SessionValueProtocolVersion, uint8(frame.LatestVersion))
 	sess.SetValue(gateway.SessionValueEncryptionEnabled, true)
-	sess.SetValue(gateway.SessionValueAESKey, []byte("1234567890abcdef"))
-	sess.SetValue(gateway.SessionValueAESIV, []byte("abcdef1234567890"))
+	sess.SetValue(gateway.SessionValueAESKey, keys.AESKey)
+	sess.SetValue(gateway.SessionValueAESIV, keys.AESIV)
+	sess.SetValue(gateway.SessionValueCrypto, sessionCrypto)
 
 	original := &frame.RecvPacket{
 		MessageID:   1,
@@ -152,10 +161,7 @@ func TestAdapterEncryptsOutboundRecvPacketWhenSessionIsEncrypted(t *testing.T) {
 		t.Fatal("decoded MsgKey is empty")
 	}
 
-	plain, err := wkprotoenc.DecryptPayload(decoded.Payload, wkprotoenc.SessionKeys{
-		AESKey: []byte("1234567890abcdef"),
-		AESIV:  []byte("abcdef1234567890"),
-	})
+	plain, err := wkprotoenc.DecryptPayload(decoded.Payload, keys)
 	if err != nil {
 		t.Fatalf("DecryptPayload() error = %v", err)
 	}

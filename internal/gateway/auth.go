@@ -21,6 +21,7 @@ const (
 	SessionValueEncryptionEnabled = gatewaytypes.SessionValueEncryptionEnabled
 	SessionValueAESKey            = gatewaytypes.SessionValueAESKey
 	SessionValueAESIV             = gatewaytypes.SessionValueAESIV
+	SessionValueCrypto            = gatewaytypes.SessionValueCrypto
 )
 
 type WKProtoAuthOptions struct {
@@ -117,11 +118,18 @@ func NewWKProtoAuthenticator(opts WKProtoAuthOptions) Authenticator {
 					Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonAuthFail},
 				}, nil
 			}
+			sessionCrypto, err := wkprotoenc.NewSessionCrypto(sessionKeys)
+			if err != nil {
+				return &AuthResult{
+					Connack: &frame.ConnackPacket{ReasonCode: frame.ReasonAuthFail},
+				}, nil
+			}
 			connack.ServerKey = serverKey
 			connack.Salt = string(sessionKeys.AESIV)
 			sessionValues[SessionValueEncryptionEnabled] = true
 			sessionValues[SessionValueAESKey] = sessionKeys.AESKey
 			sessionValues[SessionValueAESIV] = sessionKeys.AESIV
+			sessionValues[SessionValueCrypto] = sessionCrypto
 		}
 
 		return &AuthResult{

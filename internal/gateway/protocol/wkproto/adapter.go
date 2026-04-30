@@ -58,11 +58,7 @@ func (a *Adapter) Encode(sess session.Session, f frame.Frame, _ session.Outbound
 		return nil, nil
 	}
 	if recv, ok := f.(*frame.RecvPacket); ok && !recv.Setting.IsSet(frame.SettingNoEncrypt) && wkprotoenc.SessionEncryptionEnabled(sess) {
-		keys, ok := wkprotoenc.SessionKeysFromSession(sess)
-		if !ok {
-			return nil, wkprotoenc.ErrMissingSessionKey
-		}
-		sealed, err := wkprotoenc.SealRecvPacket(recv, keys)
+		sealed, err := sealRecvPacketForSession(sess, recv)
 		if err != nil {
 			return nil, err
 		}
@@ -73,6 +69,17 @@ func (a *Adapter) Encode(sess session.Session, f frame.Frame, _ session.Outbound
 		version = uint8(frame.LegacyMessageSeqVersion)
 	}
 	return a.codec.EncodeFrame(f, version)
+}
+
+func sealRecvPacketForSession(sess session.Session, recv *frame.RecvPacket) (*frame.RecvPacket, error) {
+	if sessionCrypto, ok := wkprotoenc.SessionCryptoFromSession(sess); ok {
+		return wkprotoenc.SealRecvPacketWithCrypto(recv, sessionCrypto)
+	}
+	keys, ok := wkprotoenc.SessionKeysFromSession(sess)
+	if !ok {
+		return nil, wkprotoenc.ErrMissingSessionKey
+	}
+	return wkprotoenc.SealRecvPacket(recv, keys)
 }
 
 func (a *Adapter) OnOpen(session.Session) error {

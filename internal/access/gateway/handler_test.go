@@ -209,7 +209,7 @@ func TestHandlerOnFrameSendMapsCommandAndWritesSendack(t *testing.T) {
 func TestHandlerOnFrameSendDecryptsEncryptedPayloadBeforeUsecase(t *testing.T) {
 	sender := newOptionRecordingSession(1, "tcp")
 	sender.SetValue(coregateway.SessionValueUID, "u1")
-	setEncryptedSession(sender, wkprotoenc.SessionKeys{
+	setEncryptedSession(t, sender, wkprotoenc.SessionKeys{
 		AESKey: []byte("1234567890abcdef"),
 		AESIV:  []byte("abcdef1234567890"),
 	})
@@ -249,7 +249,7 @@ func TestHandlerOnFrameSendDecryptsEncryptedPayloadBeforeUsecase(t *testing.T) {
 func TestHandlerOnFrameSendRejectsInvalidEncryptedMsgKey(t *testing.T) {
 	sender := newOptionRecordingSession(1, "tcp")
 	sender.SetValue(coregateway.SessionValueUID, "u1")
-	setEncryptedSession(sender, wkprotoenc.SessionKeys{
+	setEncryptedSession(t, sender, wkprotoenc.SessionKeys{
 		AESKey: []byte("1234567890abcdef"),
 		AESIV:  []byte("abcdef1234567890"),
 	})
@@ -285,7 +285,7 @@ func TestHandlerOnFrameSendRejectsInvalidEncryptedMsgKey(t *testing.T) {
 func TestHandlerOnFrameSendRejectsUndecryptableEncryptedPayload(t *testing.T) {
 	sender := newOptionRecordingSession(1, "tcp")
 	sender.SetValue(coregateway.SessionValueUID, "u1")
-	setEncryptedSession(sender, wkprotoenc.SessionKeys{
+	setEncryptedSession(t, sender, wkprotoenc.SessionKeys{
 		AESKey: []byte("1234567890abcdef"),
 		AESIV:  []byte("abcdef1234567890"),
 	})
@@ -327,7 +327,7 @@ func TestHandlerOnFrameSendRejectsUndecryptableEncryptedPayload(t *testing.T) {
 func TestHandlerOnFrameSendBypassesEncryptedSessionWhenPacketDisablesEncryption(t *testing.T) {
 	sender := newOptionRecordingSession(1, "tcp")
 	sender.SetValue(coregateway.SessionValueUID, "u1")
-	setEncryptedSession(sender, wkprotoenc.SessionKeys{
+	setEncryptedSession(t, sender, wkprotoenc.SessionKeys{
 		AESKey: []byte("1234567890abcdef"),
 		AESIV:  []byte("abcdef1234567890"),
 	})
@@ -724,10 +724,15 @@ func requireSendackPacket(t *testing.T, f frame.Frame) *frame.SendackPacket {
 	return ack
 }
 
-func setEncryptedSession(sess gatewaysession.Session, keys wkprotoenc.SessionKeys) {
+func setEncryptedSession(t *testing.T, sess gatewaysession.Session, keys wkprotoenc.SessionKeys) {
+	t.Helper()
+
+	sessionCrypto, err := wkprotoenc.NewSessionCrypto(keys)
+	require.NoError(t, err)
 	sess.SetValue(coregateway.SessionValueEncryptionEnabled, true)
 	sess.SetValue(coregateway.SessionValueAESKey, append([]byte(nil), keys.AESKey...))
 	sess.SetValue(coregateway.SessionValueAESIV, append([]byte(nil), keys.AESIV...))
+	sess.SetValue(coregateway.SessionValueCrypto, sessionCrypto)
 }
 
 func mustEncryptSendPacket(t *testing.T, packet *frame.SendPacket, keys wkprotoenc.SessionKeys) {

@@ -6,9 +6,10 @@ import (
 )
 
 type WKProtoClient struct {
-	private [32]byte
-	public  [32]byte
-	keys    wkprotoenc.SessionKeys
+	private       [32]byte
+	public        [32]byte
+	keys          wkprotoenc.SessionKeys
+	sessionCrypto *wkprotoenc.SessionCrypto
 }
 
 func NewWKProtoClient() (*WKProtoClient, error) {
@@ -38,7 +39,12 @@ func (c *WKProtoClient) ApplyConnack(connack *frame.ConnackPacket) error {
 	if err != nil {
 		return err
 	}
+	sessionCrypto, err := wkprotoenc.NewSessionCrypto(keys)
+	if err != nil {
+		return err
+	}
 	c.keys = keys
+	c.sessionCrypto = sessionCrypto
 	return nil
 }
 
@@ -46,12 +52,12 @@ func (c *WKProtoClient) EncryptSendPacket(packet *frame.SendPacket) error {
 	if c == nil || packet == nil || packet.Setting.IsSet(frame.SettingNoEncrypt) {
 		return nil
 	}
-	encrypted, err := wkprotoenc.EncryptPayload(packet.Payload, c.keys)
+	encrypted, err := wkprotoenc.EncryptPayloadWithCrypto(packet.Payload, c.sessionCrypto)
 	if err != nil {
 		return err
 	}
 	packet.Payload = encrypted
-	packet.MsgKey, err = wkprotoenc.SendMsgKey(packet, c.keys)
+	packet.MsgKey, err = wkprotoenc.SendMsgKeyWithCrypto(packet, c.sessionCrypto)
 	return err
 }
 
@@ -59,7 +65,7 @@ func (c *WKProtoClient) DecryptRecvPacket(packet *frame.RecvPacket) error {
 	if c == nil || packet == nil || packet.Setting.IsSet(frame.SettingNoEncrypt) {
 		return nil
 	}
-	plain, err := wkprotoenc.DecryptPayload(packet.Payload, c.keys)
+	plain, err := wkprotoenc.DecryptPayloadWithCrypto(packet.Payload, c.sessionCrypto)
 	if err != nil {
 		return err
 	}

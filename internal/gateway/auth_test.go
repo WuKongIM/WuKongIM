@@ -65,6 +65,9 @@ func TestAuthenticatorNegotiatesWKProtoEncryption(t *testing.T) {
 	if _, ok := result.SessionValues[gateway.SessionValueAESIV].([]byte); !ok {
 		t.Fatalf("AESIV type = %T, want []byte", result.SessionValues[gateway.SessionValueAESIV])
 	}
+	if _, ok := result.SessionValues[gateway.SessionValueCrypto].(*wkprotoenc.SessionCrypto); !ok {
+		t.Fatalf("SessionCrypto type = %T, want *wkprotoenc.SessionCrypto", result.SessionValues[gateway.SessionValueCrypto])
+	}
 }
 
 func TestAuthenticatorRejectsMissingClientKeyWhenEncryptionEnabled(t *testing.T) {
