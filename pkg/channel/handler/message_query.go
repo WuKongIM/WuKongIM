@@ -22,6 +22,8 @@ type QueryMessagesRequest struct {
 	MessageID uint64
 	// ClientMsgNo filters the result to matching client message numbers when set.
 	ClientMsgNo string
+	// MinAvailableSeq is the first sequence that retention allows clients to read.
+	MinAvailableSeq uint64
 }
 
 // QueryMessagesResult is the matched message page in descending sequence order.
@@ -88,6 +90,9 @@ func queryMessagesFromStore(st messageQueryStore, committedHW uint64, req QueryM
 	if committedHW == 0 {
 		return QueryMessagesResult{}, nil
 	}
+	if committedHW < normalizeMinAvailableSeq(req.MinAvailableSeq) {
+		return QueryMessagesResult{}, nil
+	}
 	if req.MessageID != 0 {
 		return queryMessagesByMessageID(st, committedHW, req)
 	}
@@ -102,7 +107,7 @@ func queryMessagesByMessageID(st messageQueryStore, committedHW uint64, req Quer
 	if err != nil {
 		return QueryMessagesResult{}, err
 	}
-	if !ok || msg.MessageSeq == 0 || msg.MessageSeq > committedHW {
+	if !ok || msg.MessageSeq == 0 || msg.MessageSeq > committedHW || msg.MessageSeq < normalizeMinAvailableSeq(req.MinAvailableSeq) {
 		return QueryMessagesResult{}, nil
 	}
 	if req.BeforeSeq > 0 && msg.MessageSeq >= req.BeforeSeq {
@@ -112,7 +117,8 @@ func queryMessagesByMessageID(st messageQueryStore, committedHW uint64, req Quer
 }
 
 func queryMessagesByClientMsgNo(st messageQueryStore, committedHW uint64, req QueryMessagesRequest) (QueryMessagesResult, error) {
-	if req.BeforeSeq > 0 && req.BeforeSeq <= 1 {
+	minAvailableSeq := normalizeMinAvailableSeq(req.MinAvailableSeq)
+	if req.BeforeSeq > 0 && req.BeforeSeq <= minAvailableSeq {
 		return QueryMessagesResult{}, nil
 	}
 	beforeSeq := req.BeforeSeq
@@ -125,11 +131,20 @@ func queryMessagesByClientMsgNo(st messageQueryStore, committedHW uint64, req Qu
 		return QueryMessagesResult{}, err
 	}
 	filtered := messages[:0]
+	droppedBelowFloor := false
 	for _, msg := range messages {
 		if msg.MessageSeq == 0 || msg.MessageSeq > committedHW {
 			continue
 		}
+		if msg.MessageSeq < minAvailableSeq {
+			droppedBelowFloor = true
+			continue
+		}
 		filtered = append(filtered, msg)
+	}
+	if nextBeforeSeq <= minAvailableSeq || droppedBelowFloor {
+		nextBeforeSeq = 0
+		hasMore = false
 	}
 	return QueryMessagesResult{
 		Messages:      filtered,
@@ -139,9 +154,10 @@ func queryMessagesByClientMsgNo(st messageQueryStore, committedHW uint64, req Qu
 }
 
 func queryLatestMessages(st messageQueryStore, committedHW uint64, req QueryMessagesRequest) (QueryMessagesResult, error) {
+	minAvailableSeq := normalizeMinAvailableSeq(req.MinAvailableSeq)
 	startSeq := committedHW
 	if req.BeforeSeq > 0 {
-		if req.BeforeSeq <= 1 {
+		if req.BeforeSeq <= minAvailableSeq {
 			return QueryMessagesResult{}, nil
 		}
 		startSeq = req.BeforeSeq - 1
@@ -150,6 +166,9 @@ func queryLatestMessages(st messageQueryStore, committedHW uint64, req QueryMess
 		}
 	}
 	if startSeq == 0 {
+		return QueryMessagesResult{}, nil
+	}
+	if startSeq < minAvailableSeq {
 		return QueryMessagesResult{}, nil
 	}
 
@@ -164,6 +183,9 @@ func queryLatestMessages(st messageQueryStore, committedHW uint64, req QueryMess
 		if msg.MessageSeq == 0 || msg.MessageSeq > committedHW {
 			continue
 		}
+		if msg.MessageSeq < minAvailableSeq {
+			break
+		}
 		result.Messages = append(result.Messages, msg)
 	}
 	if len(result.Messages) <= req.Limit {
@@ -171,6 +193,11 @@ func queryLatestMessages(st messageQueryStore, committedHW uint64, req QueryMess
 	}
 	result.HasMore = true
 	result.NextBeforeSeq = result.Messages[req.Limit-1].MessageSeq
+	if result.NextBeforeSeq <= minAvailableSeq {
+		result.HasMore = false
+		result.NextBeforeSeq = 0
+		return result, nil
+	}
 	result.Messages = result.Messages[:req.Limit]
 	return result, nil
 }

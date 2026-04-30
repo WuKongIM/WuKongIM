@@ -33,7 +33,7 @@ func EvaluateLeaderPromotion(meta channel.Meta, local DurableReplicaView, proofs
 		if proof.CheckpointHW > proof.LogEndOffset {
 			continue
 		}
-		matchOffset, err := reconcileProofMatchOffset(local.EpochHistory, local.LogStartOffset, local.HW, local.LEO, proof)
+		matchOffset, err := reconcileProofMatchOffset(local.EpochHistory, durableRetainedThroughOffset(meta, local), local.HW, local.LEO, proof)
 		if err != nil {
 			if errors.Is(err, channel.ErrStaleMeta) || errors.Is(err, channel.ErrSnapshotRequired) {
 				continue
@@ -72,4 +72,11 @@ func hasDurableReplicaState(local DurableReplicaView) bool {
 		local.CheckpointHW > 0 ||
 		local.OffsetEpoch > 0 ||
 		len(local.EpochHistory) > 0
+}
+
+func durableRetainedThroughOffset(meta channel.Meta, local DurableReplicaView) uint64 {
+	if meta.RetentionThroughSeq > local.LogStartOffset {
+		return meta.RetentionThroughSeq
+	}
+	return local.LogStartOffset
 }

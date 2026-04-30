@@ -94,6 +94,28 @@ func TestPromotionEvaluatorIgnoresProofBelowSnapshotBoundary(t *testing.T) {
 	require.False(t, report.CommitReadyNow)
 }
 
+func TestPromotionEvaluatorIgnoresProofBelowRetentionBoundary(t *testing.T) {
+	meta := promotionTestMeta([]channel.NodeID{2, 3}, 2, 9)
+	meta.RetentionThroughSeq = 5
+	local := DurableReplicaView{
+		EpochHistory: []channel.EpochPoint{{Epoch: 9, StartOffset: 0}},
+		LEO:          10,
+		HW:           6,
+		CheckpointHW: 6,
+		OffsetEpoch:  9,
+	}
+
+	report, err := EvaluateLeaderPromotion(meta, local, []channel.ReplicaReconcileProof{
+		{ReplicaID: 3, OffsetEpoch: 9, LogEndOffset: 4, CheckpointHW: 4},
+	})
+
+	require.NoError(t, err)
+	require.True(t, report.CanLead)
+	require.Equal(t, uint64(6), report.ProjectedSafeHW)
+	require.Equal(t, uint64(6), report.ProjectedTruncateTo)
+	require.False(t, report.CommitReadyNow)
+}
+
 func TestPromotionEvaluatorMarksCommitReadyWhenDurablePrefixAlreadyVisible(t *testing.T) {
 	meta := promotionTestMeta([]channel.NodeID{2, 3}, 2, 5)
 	local := DurableReplicaView{

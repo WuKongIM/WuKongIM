@@ -95,6 +95,35 @@ func TestFetchResponseCodecRoundTrip(t *testing.T) {
 	}
 }
 
+func TestFetchResponseCodecRoundTripPreservesRetentionReset(t *testing.T) {
+	resp := runtime.FetchResponseEnvelope{
+		ChannelKey: "g-retention",
+		Epoch:      3,
+		Generation: 7,
+		LeaderHW:   12,
+		RetentionReset: &channel.RetentionReset{
+			RetentionThroughSeq:   5,
+			RetainedThroughOffset: 5,
+			MinAvailableSeq:       6,
+		},
+	}
+
+	data, err := encodeFetchResponse(resp)
+	if err != nil {
+		t.Fatalf("encodeFetchResponse() error = %v", err)
+	}
+	got, err := decodeFetchResponse(data)
+	if err != nil {
+		t.Fatalf("decodeFetchResponse() error = %v", err)
+	}
+	if got.RetentionReset == nil {
+		t.Fatal("RetentionReset = nil, want reset")
+	}
+	if *got.RetentionReset != *resp.RetentionReset {
+		t.Fatalf("RetentionReset = %+v, want %+v", got.RetentionReset, resp.RetentionReset)
+	}
+}
+
 func TestReconcileProbeCodecVersionsIncludeLeaderEpoch(t *testing.T) {
 	req := runtime.ReconcileProbeRequestEnvelope{
 		ChannelKey:  "g1",

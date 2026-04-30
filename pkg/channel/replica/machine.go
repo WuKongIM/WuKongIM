@@ -156,7 +156,7 @@ func (m *replicaMachine) applyCursor(cmd machineCursorCommand) machineResult {
 	if cmd.ReplicaID == 0 {
 		return machineResult{Err: channel.ErrInvalidMeta}
 	}
-	decision := decideLineage(m.state.epochHistory, m.state.replica.LogStartOffset, m.state.replica.HW, m.state.replica.LEO, cmd.MatchOffset, cmd.OffsetEpoch)
+	decision := decideLineage(m.state.epochHistory, retainedThroughOffset(m.state.replica), m.state.replica.HW, m.state.replica.LEO, cmd.MatchOffset, cmd.OffsetEpoch)
 	if decision.err != nil {
 		return machineResult{Err: decision.err}
 	}

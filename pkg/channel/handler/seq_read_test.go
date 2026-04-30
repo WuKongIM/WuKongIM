@@ -55,6 +55,49 @@ func TestLoadNextRangeMsgsCapsByExplicitCommittedHW(t *testing.T) {
 	}
 }
 
+func TestSeqReadWithFloorHidesRetainedMessages(t *testing.T) {
+	id := core.ChannelID{ID: "c1", Type: 1}
+	engine := openTestEngine(t)
+	st := engine.ForChannel(KeyFromChannelID(id), id)
+	mustAppendEncodedMessages(t, st,
+		core.Message{MessageID: 11, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("one")},
+		core.Message{MessageID: 12, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("two")},
+		core.Message{MessageID: 13, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("three")},
+		core.Message{MessageID: 14, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("four")},
+		core.Message{MessageID: 15, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("five")},
+		core.Message{MessageID: 16, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("six")},
+	)
+
+	_, err := LoadMsgWithFloor(st, 6, 4, 3)
+	if !errors.Is(err, core.ErrMessageNotFound) {
+		t.Fatalf("LoadMsgWithFloor below floor error = %v, want ErrMessageNotFound", err)
+	}
+
+	msg, err := LoadMsgWithFloor(st, 6, 4, 4)
+	if err != nil {
+		t.Fatalf("LoadMsgWithFloor at floor error = %v", err)
+	}
+	if msg.MessageSeq != 4 {
+		t.Fatalf("MessageSeq = %d, want 4", msg.MessageSeq)
+	}
+
+	next, err := LoadNextRangeMsgsWithFloor(st, 6, 4, 1, 0, 10)
+	if err != nil {
+		t.Fatalf("LoadNextRangeMsgsWithFloor() error = %v", err)
+	}
+	if got := seqReadMessageSeqs(next); !equalUint64s(got, []uint64{4, 5, 6}) {
+		t.Fatalf("next seqs = %v, want [4 5 6]", got)
+	}
+
+	prev, err := LoadPrevRangeMsgsWithFloor(st, 6, 4, 6, 1, 10)
+	if err != nil {
+		t.Fatalf("LoadPrevRangeMsgsWithFloor() error = %v", err)
+	}
+	if got := seqReadMessageSeqs(prev); !equalUint64s(got, []uint64{4, 5, 6}) {
+		t.Fatalf("prev seqs = %v, want [4 5 6]", got)
+	}
+}
+
 func TestLoadNextRangeMsgsUnlimitedReadsAcrossBatches(t *testing.T) {
 	id := core.ChannelID{ID: "c1", Type: 1}
 	engine := openTestEngine(t)
@@ -158,4 +201,24 @@ func (f *fakeSequenceReadStore) GetMessageBySeq(seq uint64) (core.Message, bool,
 func (f *fakeSequenceReadStore) ListMessagesBySeq(fromSeq uint64, limit int, maxBytes int, reverse bool) ([]core.Message, error) {
 	f.listCalls++
 	return nil, nil
+}
+
+func seqReadMessageSeqs(messages []core.Message) []uint64 {
+	seqs := make([]uint64, 0, len(messages))
+	for _, msg := range messages {
+		seqs = append(seqs, msg.MessageSeq)
+	}
+	return seqs
+}
+
+func equalUint64s(a, b []uint64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

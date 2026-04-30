@@ -700,11 +700,11 @@ func (r *replica) scheduleCheckpointRetry() {
 }
 
 func (r *replica) divergenceStateLocked(fetchOffset, offsetEpoch, leaderLEO uint64) (uint64, *uint64, error) {
-	decision := decideLineage(r.epochHistory, r.state.LogStartOffset, r.state.HW, leaderLEO, fetchOffset, offsetEpoch)
+	decision := decideLineage(r.epochHistory, retainedThroughOffset(r.state), r.state.HW, leaderLEO, fetchOffset, offsetEpoch)
 	return decision.matchOffset, decision.truncateTo, decision.err
 }
 
 func (r *replica) cursorMatchOffsetLocked(matchOffset, offsetEpoch uint64) (uint64, error) {
-	decision := decideLineage(r.epochHistory, r.state.LogStartOffset, r.state.HW, r.state.LEO, matchOffset, offsetEpoch)
+	decision := decideLineage(r.epochHistory, retainedThroughOffset(r.state), r.state.HW, r.state.LEO, matchOffset, offsetEpoch)
 	return decision.matchOffset, decision.err
 }

@@ -88,6 +88,8 @@ type FetchResponseEnvelope struct {
 	TruncateTo *uint64
 	LeaderHW   uint64
 	Records    []core.Record
+	// RetentionReset tells a follower to adopt a retained-away prefix before fetching more records.
+	RetentionReset *core.RetentionReset
 }
 
 type ReconcileProbeRequestEnvelope struct {
@@ -177,6 +179,8 @@ type LaneResponseItem struct {
 	Records      []core.Record
 	LeaderHW     uint64
 	TruncateTo   *uint64
+	// RetentionReset carries the retained-away prefix for this channel lane item.
+	RetentionReset *core.RetentionReset
 }
 
 type LanePollRequestEnvelope struct {

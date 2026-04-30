@@ -247,13 +247,14 @@ func toRuntimeLaneResponseItems(items []LongPollItem) []runtime.LaneResponseItem
 	out := make([]runtime.LaneResponseItem, 0, len(items))
 	for _, item := range items {
 		out = append(out, runtime.LaneResponseItem{
-			ChannelKey:   item.ChannelKey,
-			ChannelEpoch: item.ChannelEpoch,
-			LeaderEpoch:  item.LeaderEpoch,
-			Flags:        runtime.LanePollItemFlags(item.Flags),
-			Records:      item.Records,
-			LeaderHW:     item.LeaderHW,
-			TruncateTo:   item.TruncateTo,
+			ChannelKey:     item.ChannelKey,
+			ChannelEpoch:   item.ChannelEpoch,
+			LeaderEpoch:    item.LeaderEpoch,
+			Flags:          runtime.LanePollItemFlags(item.Flags),
+			Records:        item.Records,
+			LeaderHW:       item.LeaderHW,
+			TruncateTo:     item.TruncateTo,
+			RetentionReset: item.RetentionReset,
 		})
 	}
 	return out

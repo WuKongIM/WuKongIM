@@ -88,6 +88,8 @@ type LongPollItem struct {
 	Records      []channel.Record
 	LeaderHW     uint64
 	TruncateTo   *uint64
+	// RetentionReset carries a retained-away prefix that the follower must adopt.
+	RetentionReset *channel.RetentionReset
 }
 
 type LongPollFetchResponse struct {

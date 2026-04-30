@@ -268,12 +268,23 @@ func (r *replica) clearRetentionEffectFencesLocked() {
 	r.pendingRetentionTrimEffectID = 0
 }
 
+func retainedThroughOffset(state channel.ReplicaState) uint64 {
+	if state.RetentionThroughSeq > state.LogStartOffset {
+		return state.RetentionThroughSeq
+	}
+	return state.LogStartOffset
+}
+
+func retentionDominatesRetainedFloor(state channel.ReplicaState) bool {
+	return state.RetentionThroughSeq > 0 && state.RetentionThroughSeq >= state.LogStartOffset
+}
+
 func retentionResetDominatesFloor(state channel.ReplicaState, fetchOffset uint64) bool {
 	if state.RetentionThroughSeq == 0 {
 		return false
 	}
-	return fetchOffset < state.RetentionThroughSeq &&
-		state.RetentionThroughSeq >= state.LogStartOffset
+	return fetchOffset < retainedThroughOffset(state) &&
+		retentionDominatesRetainedFloor(state)
 }
 
 func (r *replica) minISRRetentionProgressLocked() uint64 {
@@ -309,8 +320,9 @@ func retentionResetResult(state channel.ReplicaState) channel.ReplicaFetchResult
 		Epoch: state.Epoch,
 		HW:    visibleCommittedHW(state),
 		RetentionReset: &channel.RetentionReset{
-			RetentionThroughSeq: state.RetentionThroughSeq,
-			MinAvailableSeq:     minAvailable,
+			RetentionThroughSeq:   state.RetentionThroughSeq,
+			RetainedThroughOffset: retainedThroughOffset(state),
+			MinAvailableSeq:       minAvailable,
 		},
 	}
 }

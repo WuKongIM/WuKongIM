@@ -162,6 +162,90 @@ func TestQueryMessagesFiltersByClientMsgNoViaDirectIndexAcrossPages(t *testing.T
 	require.Zero(t, st.seqCalls)
 }
 
+func TestQueryMessagesFiltersMessageIDBelowMinAvailableSeq(t *testing.T) {
+	id := channel.ChannelID{ID: "room-retention-id", Type: 2}
+	st := &fakeMessageQueryStore{
+		byID: map[uint64]channel.Message{
+			32: {MessageID: 32, MessageSeq: 4, ChannelID: id.ID, ChannelType: id.Type},
+		},
+	}
+
+	result, err := queryMessagesFromStore(st, 8, QueryMessagesRequest{
+		ChannelID:       id,
+		Limit:           1,
+		MessageID:       32,
+		MinAvailableSeq: 5,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, result.Messages)
+	require.Equal(t, 1, st.messageIDCalls)
+}
+
+func TestQueryMessagesFiltersClientMsgNoBelowMinAvailableSeq(t *testing.T) {
+	id := channel.ChannelID{ID: "room-retention-client", Type: 2}
+	st := &fakeMessageQueryStore{
+		clientPages: map[uint64]fakeClientPage{
+			9: {
+				messages: []channel.Message{
+					{MessageID: 36, MessageSeq: 6, ChannelID: id.ID, ChannelType: id.Type, ClientMsgNo: "same"},
+					{MessageID: 34, MessageSeq: 4, ChannelID: id.ID, ChannelType: id.Type, ClientMsgNo: "same"},
+				},
+				nextBeforeSeq: 4,
+				hasMore:       true,
+			},
+		},
+	}
+
+	result, err := queryMessagesFromStore(st, 8, QueryMessagesRequest{
+		ChannelID:       id,
+		Limit:           2,
+		ClientMsgNo:     "same",
+		MinAvailableSeq: 5,
+	})
+
+	require.NoError(t, err)
+	require.False(t, result.HasMore)
+	require.Zero(t, result.NextBeforeSeq)
+	require.Equal(t, []uint64{6}, queryMessageSeqs(result.Messages))
+}
+
+func TestQueryMessagesLatestClampsPaginationToMinAvailableSeq(t *testing.T) {
+	store := openMessageQueryStore(t)
+	id := channel.ChannelID{ID: "room-retention-latest", Type: 2}
+	appendQueryMessages(t, store, id,
+		channel.Message{MessageID: 41, ChannelID: id.ID, ChannelType: id.Type},
+		channel.Message{MessageID: 42, ChannelID: id.ID, ChannelType: id.Type},
+		channel.Message{MessageID: 43, ChannelID: id.ID, ChannelType: id.Type},
+		channel.Message{MessageID: 44, ChannelID: id.ID, ChannelType: id.Type},
+		channel.Message{MessageID: 45, ChannelID: id.ID, ChannelType: id.Type},
+		channel.Message{MessageID: 46, ChannelID: id.ID, ChannelType: id.Type},
+		channel.Message{MessageID: 47, ChannelID: id.ID, ChannelType: id.Type},
+		channel.Message{MessageID: 48, ChannelID: id.ID, ChannelType: id.Type},
+	)
+
+	first, err := QueryMessages(store, 8, QueryMessagesRequest{
+		ChannelID:       id,
+		Limit:           2,
+		MinAvailableSeq: 6,
+	})
+	require.NoError(t, err)
+	require.True(t, first.HasMore)
+	require.Equal(t, uint64(7), first.NextBeforeSeq)
+	require.Equal(t, []uint64{8, 7}, queryMessageSeqs(first.Messages))
+
+	second, err := QueryMessages(store, 8, QueryMessagesRequest{
+		ChannelID:       id,
+		Limit:           2,
+		BeforeSeq:       first.NextBeforeSeq,
+		MinAvailableSeq: 6,
+	})
+	require.NoError(t, err)
+	require.False(t, second.HasMore)
+	require.Zero(t, second.NextBeforeSeq)
+	require.Equal(t, []uint64{6}, queryMessageSeqs(second.Messages))
+}
+
 func openMessageQueryStore(t *testing.T) *channelstore.Engine {
 	t.Helper()
 	store, err := channelstore.Open(t.TempDir())
@@ -218,4 +302,12 @@ func (f *fakeMessageQueryStore) ListMessagesByClientMsgNo(clientMsgNo string, be
 func (f *fakeMessageQueryStore) ListMessagesBySeq(fromSeq uint64, limit int, maxBytes int, reverse bool) ([]channel.Message, error) {
 	f.seqCalls++
 	return nil, nil
+}
+
+func queryMessageSeqs(messages []channel.Message) []uint64 {
+	seqs := make([]uint64, 0, len(messages))
+	for _, msg := range messages {
+		seqs = append(seqs, msg.MessageSeq)
+	}
+	return seqs
 }

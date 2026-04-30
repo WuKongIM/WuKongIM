@@ -318,6 +318,9 @@ func (r *fakeReplica) ApplyRetentionBoundary(_ context.Context, throughSeq uint6
 		r.state.RetentionThroughSeq = throughSeq
 		r.state.MinAvailableSeq = core.EffectiveMinAvailableSeq(throughSeq, r.state.LogStartOffset)
 	}
+	if throughSeq > r.state.LEO {
+		r.state.LEO = throughSeq
+	}
 	return nil
 }
 

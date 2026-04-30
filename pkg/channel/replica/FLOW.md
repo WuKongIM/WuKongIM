@@ -164,11 +164,12 @@ The loop treats follower `FetchOffset`/`OffsetEpoch` as an ACK cursor:
 - unknown or legacy zero offset epoch is capped to current HW when history exists;
 - known epochs cap at the next epoch boundary;
 - future epochs return `ErrStaleMeta`;
-- cursors behind `LogStartOffset` return `ErrSnapshotRequired`;
-- cursors below `RetentionThroughSeq` return a typed `RetentionReset` when logical retention is the dominant floor; cursors exactly at `RetentionThroughSeq` may fetch the next visible record, and when `LogStartOffset` dominates they still return `ErrSnapshotRequired`;
+- cursors behind the retained-through offset `max(RetentionThroughSeq, LogStartOffset)` return a typed `RetentionReset` when logical retention is the dominant floor, including `RetentionThroughSeq`, `RetainedThroughOffset`, and `MinAvailableSeq`;
+- when `LogStartOffset` dominates the retained-through offset, cursors behind it still return `ErrSnapshotRequired`;
+- cursors exactly at the retained-through offset may fetch the next visible record;
 - divergent cursors return `TruncateTo` instead of advancing unsafe progress.
 
-If records are needed, the loop emits a read-log effect with captured leader LEO. The facade reads from `LogStore`, then submits `machineReadLogResultCommand`; the loop rechecks fences and the current retention floor, returning `RetentionReset` if the fetch cursor fell behind a newly applied dominant retention boundary, and clips records so fetch never exposes records above the LEO captured before the read.
+If records are needed, the loop emits a read-log effect with captured leader LEO. The facade reads from `LogStore`, then submits `machineReadLogResultCommand`; the loop rechecks fences and the current retained-through offset, returning `RetentionReset` if the fetch cursor fell behind a newly applied dominant retention boundary, and clips records so fetch never exposes records above the LEO captured before the read.
 
 `ApplyFollowerCursor()` submits the same safe cursor path without reading records. `ApplyProgressAck()` is legacy compatibility; it has no `OffsetEpoch`, so it is handled as a zero-epoch cursor and cannot advance beyond safe lineage rules.
 
@@ -198,7 +199,7 @@ The fenced result publishes LEO, HW, CheckpointHW, OffsetEpoch, and CommitReady.
 
 Leader promotion starts in `finishBecomeLeaderLocked()`. If `LEO > HW` or `CheckpointHW < HW` or `CommitReady=false`, the leader enters reconcile and sets `CommitReady=false`. If the local tail is above HW, peer proofs are required from ISR members; otherwise local checkpoint reconcile can finish without peer probes.
 
-`ApplyReconcileProof()` validates channel key, epoch, leader epoch, lease, and proof lineage, then updates peer progress. Missing ISR members count only as HW, never as local LEO. When enough proof exists, `completeLeaderReconcileLocked()` computes the quorum-safe prefix. It either publishes immediately when no durable work is needed or emits `leaderReconcileDurableEffect` to truncate unsafe tail and/or store checkpoint.
+`ApplyReconcileProof()` validates channel key, epoch, leader epoch, lease, retained-through offset, and proof lineage, then updates peer progress. Proof below `max(RetentionThroughSeq, LogStartOffset)` is rejected/ignored like a snapshot-below-floor proof, so retained-away data cannot prove leadership. Missing ISR members count only as HW, never as local LEO. When enough proof exists, `completeLeaderReconcileLocked()` computes the quorum-safe prefix. It either publishes immediately when no durable work is needed or emits `leaderReconcileDurableEffect` to truncate unsafe tail and/or store checkpoint.
 
 The durable reconcile result is fenced by effect id, channel key, epoch, leader epoch, role generation, and lease. Lease expiry is published by the loop result path as `FencedLeader` with `CommitReady=false`. A successful result publishes safe LEO/HW/CheckpointHW, clears pending reconcile, restores `CommitReady=true`, and notifies HW advance when HW increased.
 
@@ -210,7 +211,7 @@ A successful fenced result publishes follower state with `LogStartOffset == HW =
 
 ### 6.9 Promotion Dry-run
 
-`EvaluateLeaderPromotion()` is a pure helper for app-side leader repair. It evaluates a candidate durable view plus peer proofs using the same epoch-lineage and reconcile quorum rules. It requires local durable state, never projects beyond local LEO, and treats missing ISR proof as current HW only, so absent peers can help preserve already committed prefix but cannot prove the candidate's local tail. The report states whether the candidate can lead plus the safe HW/truncate offset it would publish after real reconcile.
+`EvaluateLeaderPromotion()` is a pure helper for app-side leader repair. It evaluates a candidate durable view plus peer proofs using the same epoch-lineage, retained-through offset, and reconcile quorum rules. It requires local durable state, never projects beyond local LEO, ignores proofs below the authoritative retention floor, and treats missing ISR proof as current HW only, so absent/stale peers can help preserve already committed prefix but cannot prove the candidate's local tail. The report states whether the candidate can lead plus the safe HW/truncate offset it would publish after real reconcile.
 
 ### 6.10 Retention Boundary Apply
 
@@ -250,7 +251,7 @@ After recovery and while the loop is running, transitions must preserve:
 | `ErrInsufficientISR` | Current ISR cannot satisfy `MinISR`. |
 | `ErrStaleMeta` | Channel key, epoch, leader, leader epoch, effect id, or role generation is stale. |
 | `ErrCorruptState` | Durable state, remote proof, store result, truncation, checkpoint, or invariant is impossible/unsafe. |
-| `ErrSnapshotRequired` | Requested cursor/fetch offset is behind `LogStartOffset`. |
+| `ErrSnapshotRequired` | Requested cursor/fetch/proof offset is behind the snapshot-dominated retained-through offset. |
 | `ErrTombstoned` | Replica was tombstoned and rejects mutating operations. |
 
 Context cancellation is returned to append/fetch/apply callers when their own context expires before the loop/effect path completes.
