@@ -190,7 +190,7 @@ function ChartTooltipContent({
                     !hideIndicator && (
                       <div
                         className={cn(
-                          "shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]",
+                          "shrink-0 rounded-[2px] border-[var(--color-border)] bg-[var(--color-bg)]",
                           {
                             "size-2.5": indicator === "dot",
                             "w-1": indicator === "line",
