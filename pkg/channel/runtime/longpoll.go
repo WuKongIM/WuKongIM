@@ -91,7 +91,7 @@ func (r *runtime) ServeLanePoll(ctx context.Context, req LanePollRequestEnvelope
 
 	selectItems := func() (LeaderLanePollResult, *lanePollWaiter) {
 		for _, delta := range req.CursorDelta {
-			if r.cursorBelowDominantRetentionFloor(delta) {
+			if r.cursorNeedsRetentionReady(delta) {
 				session.MarkDataReady(delta.ChannelKey, delta.ChannelEpoch)
 			}
 		}
@@ -258,7 +258,7 @@ func itemToLaneResponse(item LeaderLaneReadyItem) LaneResponseItem {
 	}
 }
 
-func (r *runtime) cursorBelowDominantRetentionFloor(delta LaneCursorDelta) bool {
+func (r *runtime) cursorNeedsRetentionReady(delta LaneCursorDelta) bool {
 	ch, ok := r.lookupChannel(delta.ChannelKey)
 	if !ok {
 		return false
@@ -274,7 +274,10 @@ func (r *runtime) cursorBelowDominantRetentionFloor(delta LaneCursorDelta) bool 
 	if state.LogStartOffset > retainedThrough {
 		retainedThrough = state.LogStartOffset
 	}
-	return delta.MatchOffset < retainedThrough
+	if delta.MatchOffset < retainedThrough {
+		return true
+	}
+	return delta.MatchOffset == retainedThrough && delta.MatchOffset < state.LEO
 }
 
 func laneRecordsSize(records []core.Record) int {

@@ -187,21 +187,22 @@ func (m *PeerLaneManager) ApplyResponse(resp LanePollResponseEnvelope) bool {
 	}
 	lane := &m.lanes[resp.LaneID]
 	lane.inflight = false
-	for _, sent := range lane.inflightCursor {
-		if current, ok := lane.dirtyCursor[sent.ChannelKey]; ok && current == sent {
-			delete(lane.dirtyCursor, sent.ChannelKey)
-		}
-	}
-	lane.inflightCursor = nil
 
 	switch resp.Status {
 	case LanePollStatusNeedReset:
+		lane.inflightCursor = nil
 		lane.sessionID = 0
 		lane.sessionEpoch = 0
 		lane.needOpen = true
 		lane.pending = len(lane.membership) > 0
 		return lane.pending
 	case LanePollStatusOK:
+		for _, sent := range lane.inflightCursor {
+			if current, ok := lane.dirtyCursor[sent.ChannelKey]; ok && current == sent {
+				delete(lane.dirtyCursor, sent.ChannelKey)
+			}
+		}
+		lane.inflightCursor = nil
 		if resp.SessionID != 0 {
 			lane.sessionID = resp.SessionID
 		}
@@ -214,6 +215,7 @@ func (m *PeerLaneManager) ApplyResponse(resp LanePollResponseEnvelope) bool {
 		lane.pending = len(lane.membership) > 0
 		return lane.pending
 	default:
+		lane.inflightCursor = nil
 		lane.pending = false
 		return false
 	}

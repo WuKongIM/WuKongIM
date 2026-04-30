@@ -135,6 +135,85 @@ func TestRuntimeLongPollServeLanePollReturnsRetentionResetImmediately(t *testing
 	require.Equal(t, uint64(5), resp.Items[0].RetentionReset.RetainedThroughOffset)
 }
 
+func TestRuntimeLongPollRetentionResetCursorAtFloorFetchesAvailableRecords(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+	})
+	meta := testMetaLocal(27013, 4, 1, []core.NodeID{1, 2})
+	mustEnsureLocal(t, env.runtime, meta)
+	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	replica.state.LEO = 6
+	replica.state.HW = 6
+	replica.state.RetentionThroughSeq = 5
+	replica.state.MinAvailableSeq = 6
+	replica.fetchResult = core.ReplicaFetchResult{
+		HW: 6,
+		RetentionReset: &core.RetentionReset{
+			RetentionThroughSeq:   5,
+			RetainedThroughOffset: 5,
+			MinAvailableSeq:       6,
+		},
+	}
+	replica.mu.Unlock()
+
+	laneID := testFollowerLaneFor(meta.Key, 4)
+	openResp, err := env.runtime.ServeLanePoll(context.Background(), LanePollRequestEnvelope{
+		ReplicaID:   2,
+		LaneID:      laneID,
+		LaneCount:   4,
+		Op:          LanePollOpOpen,
+		MaxWait:     time.Millisecond,
+		MaxBytes:    64 * 1024,
+		MaxChannels: 64,
+		FullMembership: []LaneMembership{
+			{ChannelKey: meta.Key, ChannelEpoch: meta.Epoch, ChannelGeneration: 1},
+		},
+		CursorDelta: []LaneCursorDelta{
+			{ChannelKey: meta.Key, ChannelEpoch: meta.Epoch, ChannelGeneration: 1, MatchOffset: 1, OffsetEpoch: meta.Epoch},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, LanePollStatusOK, openResp.Status)
+	require.False(t, openResp.TimedOut)
+	require.Len(t, openResp.Items, 1)
+	require.Equal(t, LanePollItemFlagReset, openResp.Items[0].Flags)
+
+	replica.mu.Lock()
+	replica.fetchResult = core.ReplicaFetchResult{
+		HW: 6,
+		Records: []core.Record{
+			{Payload: []byte("after-retention"), SizeBytes: len("after-retention")},
+		},
+	}
+	replica.mu.Unlock()
+
+	resp, err := env.runtime.ServeLanePoll(context.Background(), LanePollRequestEnvelope{
+		ReplicaID:    2,
+		LaneID:       laneID,
+		LaneCount:    4,
+		SessionID:    openResp.SessionID,
+		SessionEpoch: openResp.SessionEpoch,
+		Op:           LanePollOpPoll,
+		MaxWait:      time.Millisecond,
+		MaxBytes:     64 * 1024,
+		MaxChannels:  64,
+		CursorDelta: []LaneCursorDelta{
+			{ChannelKey: meta.Key, ChannelEpoch: meta.Epoch, ChannelGeneration: 1, MatchOffset: 5, OffsetEpoch: meta.Epoch},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, LanePollStatusOK, resp.Status)
+	require.False(t, resp.TimedOut)
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, LanePollItemFlagData, resp.Items[0].Flags)
+	require.Len(t, resp.Items[0].Records, 1)
+	require.Equal(t, []byte("after-retention"), resp.Items[0].Records[0].Payload)
+}
+
 func TestApplyMetaUpdatesLaneTargetsForLeaderChannels(t *testing.T) {
 	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
 		cfg.LongPollLaneCount = 4
