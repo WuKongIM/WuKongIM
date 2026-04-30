@@ -310,11 +310,14 @@ func (w *Worker) validate() error {
 	if w.cfg.Channels == nil || w.cfg.Stores == nil || w.cfg.Runtime == nil || w.cfg.Metadata == nil {
 		return errors.New("channel retention worker requires all ports")
 	}
+	if w.cfg.LocalNodeID == 0 {
+		return channel.ErrInvalidConfig
+	}
 	return nil
 }
 
 func (w *Worker) channelEligible(view channel.RetentionView, now time.Time) bool {
-	if w.cfg.LocalNodeID != 0 && view.Leader != w.cfg.LocalNodeID {
+	if view.Leader != w.cfg.LocalNodeID {
 		return false
 	}
 	if !view.CommitReady {

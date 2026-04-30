@@ -454,3 +454,24 @@ func TestRetentionAdvanceRequestKeepsZeroLeaseFenceAsZero(t *testing.T) {
 		t.Fatalf("ExpectedLeaseUntilMS = %d, want 0 for unset lease", req.ExpectedLeaseUntilMS)
 	}
 }
+
+func TestRunOnceRequiresLocalNodeIDForLeaderGuard(t *testing.T) {
+	ch := testChannel("missing-local-node")
+	worker := NewWorker(Config{
+		Channels: fakeChannelLister{channels: []Channel{ch}},
+		Stores: fakeStoreProvider{stores: map[channel.ChannelKey]Store{
+			ch.Key: &fakeStore{scan: ScanResult{ThroughSeq: 80}, cursor: 80},
+		}},
+		Runtime: &fakeRuntime{views: map[channel.ChannelKey][]channel.RetentionView{
+			ch.Key: {retentionViewWithMeta(10, 100, 100, 100, 7, 8, 2, time.Unix(2000, 0))},
+		}},
+		Metadata: &fakeMetadataStore{},
+		TTL:      time.Hour,
+		Now:      func() time.Time { return time.Unix(1000, 0) },
+	})
+
+	err := worker.RunOnce(context.Background())
+	if !errors.Is(err, channel.ErrInvalidConfig) {
+		t.Fatalf("RunOnce() error = %v, want invalid config", err)
+	}
+}
