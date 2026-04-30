@@ -372,6 +372,76 @@ func (t *messageTable) truncateFromSeq(writeBatch *pebble.Batch, fromSeq uint64)
 	return iter.Error()
 }
 
+// deletePrefixThrough removes every materialized message row at or below throughSeq.
+func (t *messageTable) deletePrefixThrough(writeBatch *pebble.Batch, throughSeq uint64) (uint64, int, error) {
+	if err := t.validate(); err != nil {
+		return 0, 0, err
+	}
+	if writeBatch == nil || throughSeq == 0 {
+		return 0, 0, channel.ErrInvalidArgument
+	}
+
+	prefix := encodeTableStatePrefix(t.channelKey, TableIDMessage)
+	upperBound := keyUpperBound(prefix)
+	if throughSeq < math.MaxUint64 {
+		upperBound = encodeTableStateKey(t.channelKey, TableIDMessage, throughSeq+1, messagePrimaryFamilyID)
+	}
+	iter, err := t.db.NewIter(&pebble.IterOptions{LowerBound: prefix, UpperBound: upperBound})
+	if err != nil {
+		return 0, 0, err
+	}
+	defer iter.Close()
+
+	var (
+		deletedThroughSeq uint64
+		deleted           int
+		skipPayloadSeq    uint64
+	)
+	for valid := iter.First(); valid; valid = iter.Next() {
+		seq, familyID, err := decodeTableStateKey(iter.Key(), t.channelKey, TableIDMessage)
+		if err != nil {
+			return 0, 0, err
+		}
+		processRow, err := consumeForwardMessageFamily(seq, familyID, &skipPayloadSeq)
+		if err != nil {
+			return 0, 0, err
+		}
+		if !processRow {
+			continue
+		}
+		row, err := t.materializeRow(seq, iter.Value())
+		if err != nil {
+			return 0, 0, err
+		}
+		if err := writeBatch.Delete(encodeTableStateKey(t.channelKey, TableIDMessage, row.MessageSeq, messagePrimaryFamilyID), pebble.NoSync); err != nil {
+			return 0, 0, err
+		}
+		if err := writeBatch.Delete(encodeTableStateKey(t.channelKey, TableIDMessage, row.MessageSeq, messagePayloadFamilyID), pebble.NoSync); err != nil {
+			return 0, 0, err
+		}
+		if err := writeBatch.Delete(encodeMessageIDIndexKey(t.channelKey, row.MessageID), pebble.NoSync); err != nil {
+			return 0, 0, err
+		}
+		if row.ClientMsgNo != "" {
+			if err := writeBatch.Delete(encodeMessageClientMsgNoIndexKey(t.channelKey, row.ClientMsgNo, row.MessageSeq), pebble.NoSync); err != nil {
+				return 0, 0, err
+			}
+		}
+		if row.FromUID != "" && row.ClientMsgNo != "" {
+			if err := writeBatch.Delete(encodeMessageIdempotencyIndexKey(t.channelKey, row.FromUID, row.ClientMsgNo), pebble.NoSync); err != nil {
+				return 0, 0, err
+			}
+		}
+		deletedThroughSeq = row.MessageSeq
+		deleted++
+		skipPayloadSeq = seq
+	}
+	if err := iter.Error(); err != nil {
+		return 0, 0, err
+	}
+	return deletedThroughSeq, deleted, nil
+}
+
 func (t *messageTable) lookupIdempotency(fromUID, clientMsgNo string) (messageIndexHit, bool, error) {
 	if err := t.validate(); err != nil {
 		return messageIndexHit{}, false, err
