@@ -28,7 +28,9 @@ func (a *App) Start() error {
 	}
 
 	manager := applifecycle.NewManager(a.startLifecycleComponents()...)
-	if err := manager.Start(context.Background()); err != nil {
+	rollbackCtx, cancel := context.WithTimeout(context.Background(), apiStopTimeout)
+	defer cancel()
+	if err := manager.StartWithRollbackContext(context.Background(), rollbackCtx); err != nil {
 		a.lifecycleMgr = nil
 		a.started.Store(false)
 		return err

@@ -99,6 +99,27 @@ func TestManagerRollbackAggregatesStopErrors(t *testing.T) {
 	}
 }
 
+func TestManagerStartUsesSeparateRollbackContext(t *testing.T) {
+	startErr := errors.New("start failed")
+	var calls []string
+	manager := NewManager(
+		&fakeComponent{name: "one", calls: &calls},
+		&fakeComponent{name: "two", startErr: startErr, calls: &calls},
+	)
+	startCtx := context.WithValue(context.Background(), contextKey("marker"), "start")
+	rollbackCtx := context.WithValue(context.Background(), contextKey("marker"), "rollback")
+
+	err := manager.StartWithRollbackContext(startCtx, rollbackCtx)
+
+	if !errors.Is(err, startErr) {
+		t.Fatalf("start err = %v, want %v", err, startErr)
+	}
+	want := []string{"start:one", "start:two", "stop:one:rollback"}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("calls = %v, want %v", calls, want)
+	}
+}
+
 func TestManagerStopAggregatesErrorsInReverseOrder(t *testing.T) {
 	stopThreeErr := errors.New("stop three failed")
 	stopOneErr := errors.New("stop one failed")

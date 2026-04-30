@@ -1118,6 +1118,44 @@ func TestAppLifecyclePassesBoundedStopContextToCommittedReplayAndDispatcher(t *t
 	require.True(t, dispatcherHasDeadline)
 }
 
+func TestAppLifecycleStartRollbackPassesBoundedStopContext(t *testing.T) {
+	startErr := errors.New("gateway start failed")
+	var replayHasDeadline bool
+	var dispatcherHasDeadline bool
+	app := &App{
+		cluster: &raftcluster.Cluster{},
+		gateway: &gateway.Gateway{},
+		startClusterFn: func() error {
+			return nil
+		},
+		startCommittedDispatcherFn: func() error {
+			return nil
+		},
+		startCommittedReplayFn: func(context.Context) error {
+			return nil
+		},
+		startGatewayFn: func() error {
+			return startErr
+		},
+		stopCommittedReplayFn: func(ctx context.Context) error {
+			_, replayHasDeadline = ctx.Deadline()
+			return nil
+		},
+		stopCommittedDispatcherFn: func(ctx context.Context) error {
+			_, dispatcherHasDeadline = ctx.Deadline()
+			return nil
+		},
+		stopClusterFn: func() {},
+	}
+
+	err := app.Start()
+
+	require.ErrorIs(t, err, startErr)
+	require.True(t, replayHasDeadline)
+	require.True(t, dispatcherHasDeadline)
+	require.False(t, app.started.Load())
+}
+
 func TestStopStopsAPIBeforeGatewayAndClusterClose(t *testing.T) {
 	var calls []string
 

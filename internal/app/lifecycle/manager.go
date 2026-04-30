@@ -23,6 +23,11 @@ func NewManager(components ...Component) *Manager {
 // If a component fails to start, Start stops only the components that already
 // started, in reverse order, and returns the joined start and rollback errors.
 func (m *Manager) Start(ctx context.Context) error {
+	return m.StartWithRollbackContext(ctx, ctx)
+}
+
+// StartWithRollbackContext starts components with startCtx and rolls back with rollbackCtx on failure.
+func (m *Manager) StartWithRollbackContext(startCtx, rollbackCtx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -31,8 +36,8 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 
 	for _, component := range m.components {
-		if err := component.Start(ctx); err != nil {
-			rollbackErrs := m.stopStartedLocked(ctx)
+		if err := component.Start(startCtx); err != nil {
+			rollbackErrs := m.stopStartedLocked(rollbackCtx)
 			return errors.Join(append([]error{err}, rollbackErrs...)...)
 		}
 		m.started = append(m.started, component)
