@@ -10,6 +10,7 @@ import { ConnectionsPage } from "@/pages/connections/page"
 
 const getConnectionsMock = vi.fn()
 const getConnectionMock = vi.fn()
+const getNodesMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -17,6 +18,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     ...actual,
     getConnections: (...args: unknown[]) => getConnectionsMock(...args),
     getConnection: (...args: unknown[]) => getConnectionMock(...args),
+    getNodes: (...args: unknown[]) => getNodesMock(...args),
   }
 })
 
@@ -39,11 +41,33 @@ const connectionDetail = {
   state: "closing",
 }
 
+const nodeRow = {
+  node_id: 1,
+  name: "node-1",
+  addr: "127.0.0.1:7001",
+  status: "alive",
+  last_heartbeat_at: "2026-04-23T08:00:00Z",
+  is_local: false,
+  capacity_weight: 1,
+  controller: { role: "follower", voter: true, leader_id: 2 },
+  slot_stats: { count: 1, leader_count: 0 },
+}
+
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
   getConnectionsMock.mockReset()
   getConnectionMock.mockReset()
+  getNodesMock.mockReset()
+  getNodesMock.mockResolvedValue({
+    generated_at: "2026-04-23T08:00:00Z",
+    controller_leader_id: 2,
+    total: 2,
+    items: [
+      nodeRow,
+      { ...nodeRow, node_id: 2, name: "node-2", is_local: true, controller: { role: "leader", voter: true, leader_id: 2 } },
+    ],
+  })
   useAuthStore.setState({
     ...createAnonymousAuthState(),
     isHydrated: true,
@@ -102,6 +126,27 @@ test("renders connection rows and opens detail from manager APIs", async () => {
   expect(getConnectionMock).toHaveBeenCalledWith(101)
 })
 
+test("defaults connection node filter to the local node and reloads when it changes", async () => {
+  getConnectionsMock.mockResolvedValueOnce({ total: 1, items: [connectionRow] })
+  getConnectionsMock.mockResolvedValueOnce({
+    total: 1,
+    items: [{ ...connectionRow, session_id: 202, uid: "u2" }],
+  })
+
+  const user = userEvent.setup()
+  renderConnectionsPage()
+
+  const filter = await screen.findByLabelText("Node filter")
+  expect(filter).toHaveValue("2")
+  expect(await screen.findByText("u1")).toBeInTheDocument()
+  expect(getConnectionsMock).toHaveBeenCalledWith({ nodeId: 2 })
+
+  await user.selectOptions(filter, "1")
+
+  expect(await screen.findByText("u2")).toBeInTheDocument()
+  expect(getConnectionsMock).toHaveBeenLastCalledWith({ nodeId: 1 })
+})
+
 test("refreshes the connection inventory", async () => {
   getConnectionsMock.mockResolvedValueOnce({ total: 1, items: [connectionRow] })
   getConnectionsMock.mockResolvedValueOnce({ total: 1, items: [connectionRow] })
@@ -113,6 +158,7 @@ test("refreshes the connection inventory", async () => {
   await user.click(screen.getAllByRole("button", { name: "Refresh" })[0]!)
 
   expect(getConnectionsMock).toHaveBeenCalledTimes(2)
+  expect(getConnectionsMock).toHaveBeenLastCalledWith({ nodeId: 2 })
 })
 
 test("renders unavailable state when connection data cannot be loaded", async () => {
@@ -131,5 +177,5 @@ test("renders empty state when there are no local connections", async () => {
   renderConnectionsPage()
 
   expect(await screen.findByRole("heading", { name: "Connections" })).toBeInTheDocument()
-  expect(screen.getByText(/no manager data is available/i)).toBeInTheDocument()
+  expect(await screen.findByText(/no manager data is available/i)).toBeInTheDocument()
 })

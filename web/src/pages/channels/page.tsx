@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom"
 
 import { DetailSheet } from "@/components/manager/detail-sheet"
 import { KeyValueList } from "@/components/manager/key-value-list"
+import { NodeFilter, defaultNodeId, hasNode } from "@/components/manager/node-filter"
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
 import { PageContainer } from "@/components/shell/page-container"
@@ -12,10 +13,12 @@ import {
   ManagerApiError,
   getChannelRuntimeMeta,
   getChannelRuntimeMetaDetail,
+  getNodes,
 } from "@/lib/manager-api"
 import type {
   ManagerChannelRuntimeMetaDetailResponse,
   ManagerChannelRuntimeMetaListResponse,
+  ManagerNodesResponse,
 } from "@/lib/manager-api.types"
 
 type ChannelsState = {
@@ -53,6 +56,8 @@ export function ChannelsPage() {
     loadingMore: false,
     error: null,
   })
+  const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
   const [selectedChannel, setSelectedChannel] = useState<{
     channelId: string
     channelType: number
@@ -61,16 +66,48 @@ export function ChannelsPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<Error | null>(null)
 
-  const loadChannels = useCallback(async (refreshing: boolean) => {
+  const loadNodes = useCallback(async () => {
+    try {
+      const nextNodes = await getNodes()
+      setNodes(nextNodes)
+      setSelectedNodeId((current) => {
+        if (current !== null && hasNode(nextNodes, current)) {
+          return current
+        }
+        return defaultNodeId(nextNodes)
+      })
+      if (nextNodes.items.length === 0) {
+        setState({ channels: null, loading: false, refreshing: false, loadingMore: false, error: null })
+      }
+    } catch (error) {
+      setNodes(null)
+      setSelectedNodeId(null)
+      setState({
+        channels: null,
+        loading: false,
+        refreshing: false,
+        loadingMore: false,
+        error: error instanceof Error ? error : new Error("node request failed"),
+      })
+    }
+  }, [])
+
+  const loadChannels = useCallback(async (refreshing: boolean, nodeId: number | null) => {
+    if (!nodeId) {
+      setState({ channels: null, loading: false, refreshing: false, loadingMore: false, error: null })
+      return
+    }
+
     setState((current) => ({
       ...current,
       loading: refreshing ? current.loading : true,
       refreshing,
+      loadingMore: false,
       error: null,
     }))
 
     try {
-      const channels = await getChannelRuntimeMeta()
+      const channels = await getChannelRuntimeMeta({ nodeId })
       setState({
         channels,
         loading: false,
@@ -91,7 +128,7 @@ export function ChannelsPage() {
 
   const loadMoreChannels = useCallback(async () => {
     const cursor = state.channels?.next_cursor
-    if (!cursor) {
+    if (!cursor || selectedNodeId === null) {
       return
     }
 
@@ -101,7 +138,7 @@ export function ChannelsPage() {
     }))
 
     try {
-      const nextPage = await getChannelRuntimeMeta({ cursor })
+      const nextPage = await getChannelRuntimeMeta({ nodeId: selectedNodeId, cursor })
       setState((current) => ({
         channels: current.channels
           ? {
@@ -122,7 +159,7 @@ export function ChannelsPage() {
         error: error instanceof Error ? error : new Error("channel runtime request failed"),
       }))
     }
-  }, [state.channels?.next_cursor])
+  }, [selectedNodeId, state.channels?.next_cursor])
 
   const loadChannelDetail = useCallback(async (channelType: number, channelId: string) => {
     setDetailLoading(true)
@@ -140,8 +177,14 @@ export function ChannelsPage() {
   }, [])
 
   useEffect(() => {
-    void loadChannels(false)
-  }, [loadChannels])
+    void loadNodes()
+  }, [loadNodes])
+
+  useEffect(() => {
+    if (selectedNodeId !== null) {
+      void loadChannels(false, selectedNodeId)
+    }
+  }, [loadChannels, selectedNodeId])
 
   const openDetail = useCallback(
     async (channelType: number, channelId: string) => {
@@ -180,17 +223,20 @@ export function ChannelsPage() {
               : intl.formatMessage({ id: "channels.loadedPending" })}
           </p>
         </div>
-        <Button
-          onClick={() => {
-            void loadChannels(true)
-          }}
-          size="sm"
-          variant="outline"
-        >
-          {state.refreshing
-            ? intl.formatMessage({ id: "common.refreshing" })
-            : intl.formatMessage({ id: "common.refresh" })}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <NodeFilter nodes={nodes} onNodeChange={setSelectedNodeId} selectedNodeId={selectedNodeId} />
+          <Button
+            onClick={() => {
+              void loadChannels(true, selectedNodeId)
+            }}
+            size="sm"
+            variant="outline"
+          >
+            {state.refreshing
+              ? intl.formatMessage({ id: "common.refreshing" })
+              : intl.formatMessage({ id: "common.refresh" })}
+          </Button>
+        </div>
       </div>
 
       {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nav.channels.title" })} /> : null}
@@ -198,7 +244,7 @@ export function ChannelsPage() {
         <ResourceState
           kind={mapErrorKind(state.error)}
           onRetry={() => {
-            void loadChannels(false)
+            void loadChannels(false, selectedNodeId)
           }}
           title={intl.formatMessage({ id: "nav.channels.title" })}
         />

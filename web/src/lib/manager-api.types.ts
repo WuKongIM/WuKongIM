@@ -737,8 +737,13 @@ export type RecoverSlotInput = {
 }
 
 export type ChannelRuntimeMetaListParams = {
+  nodeId?: number
   limit?: number
   cursor?: string
+}
+
+export type ConnectionListParams = {
+  nodeId?: number
 }
 
 export type MessageListParams = {

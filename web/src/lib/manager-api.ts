@@ -1,6 +1,7 @@
 import { getManagerApiBaseUrl } from "@/lib/env"
 import type {
   ChannelRuntimeMetaListParams,
+  ConnectionListParams,
   ManagerChannelRuntimeMetaDetailResponse,
   ManagerChannelRuntimeMetaListResponse,
   ManagerConnectionDetailResponse,
@@ -116,6 +117,9 @@ async function jsonManagerFetch<T>(path: string, init?: RequestInit): Promise<T>
 
 function buildChannelRuntimeMetaPath(params?: ChannelRuntimeMetaListParams) {
   const search = new URLSearchParams()
+  if (typeof params?.nodeId === "number") {
+    search.set("node_id", String(params.nodeId))
+  }
   if (typeof params?.limit === "number") {
     search.set("limit", String(params.limit))
   }
@@ -125,6 +129,16 @@ function buildChannelRuntimeMetaPath(params?: ChannelRuntimeMetaListParams) {
 
   const query = search.toString()
   return query ? `/manager/channel-runtime-meta?${query}` : "/manager/channel-runtime-meta"
+}
+
+function buildConnectionListPath(params?: ConnectionListParams) {
+  const search = new URLSearchParams()
+  if (typeof params?.nodeId === "number") {
+    search.set("node_id", String(params.nodeId))
+  }
+
+  const query = search.toString()
+  return query ? `/manager/connections?${query}` : "/manager/connections"
 }
 
 function buildNodeOnboardingJobsPath(params?: NodeOnboardingJobsParams) {
@@ -337,8 +351,8 @@ export function getTask(slotId: number) {
   return jsonManagerFetch<ManagerTaskDetailResponse>(`/manager/tasks/${slotId}`)
 }
 
-export function getConnections() {
-  return jsonManagerFetch<ManagerConnectionsResponse>("/manager/connections")
+export function getConnections(params?: ConnectionListParams) {
+  return jsonManagerFetch<ManagerConnectionsResponse>(buildConnectionListPath(params))
 }
 
 export function getConnection(sessionId: number) {

@@ -571,11 +571,11 @@ describe("manager api client", () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(connectionsResponse), { status: 200 }))
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(connectionDetail), { status: 200 }))
 
-    await expect(getConnections()).resolves.toEqual(connectionsResponse)
+    await expect(getConnections({ nodeId: 2 })).resolves.toEqual(connectionsResponse)
     await expect(getConnection(101)).resolves.toEqual(connectionDetail)
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "/manager/connections",
+      "/manager/connections?node_id=2",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -732,9 +732,9 @@ describe("manager api client", () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(listResponse), { status: 200 }))
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(detailResponse), { status: 200 }))
 
-    await expect(getChannelRuntimeMeta({ limit: 100, cursor: "cursor-1" })).resolves.toEqual(listResponse)
+    await expect(getChannelRuntimeMeta({ nodeId: 2, limit: 100, cursor: "cursor-1" })).resolves.toEqual(listResponse)
     await expect(getChannelRuntimeMetaDetail(1, "u1@u2")).resolves.toEqual(detailResponse)
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channel-runtime-meta?limit=100&cursor=cursor-1")
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channel-runtime-meta?node_id=2&limit=100&cursor=cursor-1")
     expect(fetchMock.mock.calls[1]?.[0]).toBe("/manager/channel-runtime-meta/1/u1%40u2")
   })
 

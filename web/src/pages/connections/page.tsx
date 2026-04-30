@@ -3,14 +3,16 @@ import { useIntl, type IntlShape } from "react-intl"
 
 import { DetailSheet } from "@/components/manager/detail-sheet"
 import { KeyValueList } from "@/components/manager/key-value-list"
+import { NodeFilter, defaultNodeId, hasNode } from "@/components/manager/node-filter"
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
 import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/shell/page-container"
-import { ManagerApiError, getConnection, getConnections } from "@/lib/manager-api"
+import { ManagerApiError, getConnection, getConnections, getNodes } from "@/lib/manager-api"
 import type {
   ManagerConnectionDetailResponse,
   ManagerConnectionsResponse,
+  ManagerNodesResponse,
 } from "@/lib/manager-api.types"
 
 type ConnectionsState = {
@@ -56,12 +58,44 @@ export function ConnectionsPage() {
     refreshing: false,
     error: null,
   })
+  const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null)
   const [detail, setDetail] = useState<ManagerConnectionDetailResponse | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<Error | null>(null)
 
-  const loadConnections = useCallback(async (refreshing: boolean) => {
+  const loadNodes = useCallback(async () => {
+    try {
+      const nextNodes = await getNodes()
+      setNodes(nextNodes)
+      setSelectedNodeId((current) => {
+        if (current !== null && hasNode(nextNodes, current)) {
+          return current
+        }
+        return defaultNodeId(nextNodes)
+      })
+      if (nextNodes.items.length === 0) {
+        setState({ connections: null, loading: false, refreshing: false, error: null })
+      }
+    } catch (error) {
+      setNodes(null)
+      setSelectedNodeId(null)
+      setState({
+        connections: null,
+        loading: false,
+        refreshing: false,
+        error: error instanceof Error ? error : new Error("node request failed"),
+      })
+    }
+  }, [])
+
+  const loadConnections = useCallback(async (refreshing: boolean, nodeId: number | null) => {
+    if (!nodeId) {
+      setState({ connections: null, loading: false, refreshing: false, error: null })
+      return
+    }
+
     setState((current) => ({
       ...current,
       loading: refreshing ? current.loading : true,
@@ -70,7 +104,7 @@ export function ConnectionsPage() {
     }))
 
     try {
-      const connections = await getConnections()
+      const connections = await getConnections({ nodeId })
       setState({ connections, loading: false, refreshing: false, error: null })
     } catch (error) {
       setState({
@@ -98,8 +132,14 @@ export function ConnectionsPage() {
   }, [])
 
   useEffect(() => {
-    void loadConnections(false)
-  }, [loadConnections])
+    void loadNodes()
+  }, [loadNodes])
+
+  useEffect(() => {
+    if (selectedNodeId !== null) {
+      void loadConnections(false, selectedNodeId)
+    }
+  }, [loadConnections, selectedNodeId])
 
   const openDetail = useCallback(
     async (sessionId: number) => {
@@ -131,17 +171,20 @@ export function ConnectionsPage() {
               : intl.formatMessage({ id: "connections.totalPending" })}
           </p>
         </div>
-        <Button
-          onClick={() => {
-            void loadConnections(true)
-          }}
-          size="sm"
-          variant="outline"
-        >
-          {state.refreshing
-            ? intl.formatMessage({ id: "common.refreshing" })
-            : intl.formatMessage({ id: "common.refresh" })}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <NodeFilter nodes={nodes} onNodeChange={setSelectedNodeId} selectedNodeId={selectedNodeId} />
+          <Button
+            onClick={() => {
+              void loadConnections(true, selectedNodeId)
+            }}
+            size="sm"
+            variant="outline"
+          >
+            {state.refreshing
+              ? intl.formatMessage({ id: "common.refreshing" })
+              : intl.formatMessage({ id: "common.refresh" })}
+          </Button>
+        </div>
       </div>
 
       {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nav.connections.title" })} /> : null}
@@ -149,7 +192,7 @@ export function ConnectionsPage() {
         <ResourceState
           kind={mapErrorKind(state.error)}
           onRetry={() => {
-            void loadConnections(false)
+            void loadConnections(false, selectedNodeId)
           }}
           title={intl.formatMessage({ id: "nav.connections.title" })}
         />

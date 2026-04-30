@@ -13,6 +13,9 @@ export const enMessages: AppMessages = {
   "common.loadMore": "Load more",
   "common.loading": "Loading...",
   "common.close": "Close",
+  "common.nodeFilter": "Node filter",
+  "common.nodeValue": "Node {id}",
+  "common.localNodeValue": "{label} · local",
   "auth.brand": "WuKongIM Manager",
   "auth.signIn": "Sign in",
   "auth.description":
