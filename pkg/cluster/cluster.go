@@ -16,6 +16,7 @@ import (
 	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -1046,11 +1047,18 @@ func normalizeProposalResult(result multiraft.Result, err error) error {
 	if isHashSlotFencedResult(result.Data) {
 		return ErrHashSlotFenced
 	}
+	if isStaleMetaResult(result.Data) {
+		return metadb.ErrStaleMeta
+	}
 	return nil
 }
 
 func isHashSlotFencedResult(data []byte) bool {
 	return bytes.Equal(data, []byte(metafsm.ApplyResultHashSlotFenced))
+}
+
+func isStaleMetaResult(data []byte) bool {
+	return bytes.Equal(data, []byte(metafsm.ApplyResultStaleMeta))
 }
 
 func observerElapsed(start time.Time) time.Duration {
