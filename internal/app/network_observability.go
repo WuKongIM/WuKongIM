@@ -18,6 +18,7 @@ const (
 	defaultNetworkObservabilityMaxEvents = 50
 	// networkObservabilityBucketSize is the manager collector precision; buckets bound memory and may over-retain by at most one bucket.
 	networkObservabilityBucketSize    = 100 * time.Millisecond
+	networkObservabilityHistoryStep   = 5 * time.Second
 	networkObservabilityPruneInterval = time.Second
 	networkObservabilityMaxDurations  = 256
 	networkSampleDirectionTX          = "tx"
@@ -221,8 +222,12 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 
 	snap := managementusecase.NetworkObservationSnapshot{
 		LocalCollectorAvailable: true,
-		PeerErrors:              map[uint64]managementusecase.NetworkPeerErrors{},
-		Discovery:               o.discoverySnapshotLocked(),
+		History: managementusecase.NetworkHistory{
+			Window: o.cfg.Window,
+			Step:   networkObservabilityHistoryStep,
+		},
+		PeerErrors: map[uint64]managementusecase.NetworkPeerErrors{},
+		Discovery:  o.discoverySnapshotLocked(),
 		ChannelReplication: managementusecase.NetworkChannelReplication{
 			LongPollConfig: managementusecase.NetworkLongPollConfig{
 				LaneCount:   o.cfg.LongPollLaneCount,
@@ -235,6 +240,7 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 	}
 	snap.Traffic.Scope = "local_total_by_msg_type"
 	snap.Traffic.PeerBreakdownAvailable = false
+	snap.History = o.networkHistorySnapshotLocked()
 
 	trafficByType := map[string]managementusecase.NetworkTrafficMessageType{}
 	for key, bytes := range o.trafficBuckets {
@@ -305,6 +311,8 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 		switch key.result {
 		case "ok":
 			acc.service.Success1m += count
+		case "expected_timeout":
+			acc.service.ExpectedTimeout1m += count
 		case "timeout":
 			acc.service.Timeout1m += count
 		case "queue_full":
@@ -343,6 +351,101 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 	}
 	sort.Slice(snap.DataPlanePools, func(i, j int) bool { return snap.DataPlanePools[i].NodeID < snap.DataPlanePools[j].NodeID })
 	return snap
+}
+
+func (o *networkObservability) networkHistorySnapshotLocked() managementusecase.NetworkHistory {
+	history := managementusecase.NetworkHistory{
+		Window: o.cfg.Window,
+		Step:   networkObservabilityHistoryStep,
+	}
+	trafficByStep := map[time.Time]managementusecase.NetworkTrafficHistoryPoint{}
+	rpcByStep := map[time.Time]managementusecase.NetworkRPCHistoryPoint{}
+	errorsByStep := map[time.Time]managementusecase.NetworkErrorHistoryPoint{}
+
+	for key, bytes := range o.trafficBuckets {
+		step := key.bucket.Truncate(networkObservabilityHistoryStep)
+		point := trafficByStep[step]
+		point.At = step
+		if key.direction == networkSampleDirectionTX {
+			point.TXBytes += bytes
+		} else {
+			point.RXBytes += bytes
+		}
+		trafficByStep[step] = point
+	}
+	for key, count := range o.dialBuckets {
+		if key.result != "dial_error" {
+			continue
+		}
+		step := key.bucket.Truncate(networkObservabilityHistoryStep)
+		point := errorsByStep[step]
+		point.At = step
+		point.DialErrors += count
+		errorsByStep[step] = point
+	}
+	for key, count := range o.enqueueBuckets {
+		if key.result != "queue_full" {
+			continue
+		}
+		step := key.bucket.Truncate(networkObservabilityHistoryStep)
+		point := errorsByStep[step]
+		point.At = step
+		point.QueueFull += count
+		errorsByStep[step] = point
+	}
+	for key, aggregate := range o.rpcBuckets {
+		count := aggregate.count
+		if count == 0 {
+			continue
+		}
+		step := key.bucket.Truncate(networkObservabilityHistoryStep)
+		rpcPoint := rpcByStep[step]
+		rpcPoint.At = step
+		rpcPoint.Calls += count
+		errorPoint := errorsByStep[step]
+		errorPoint.At = step
+		switch key.result {
+		case "ok":
+			rpcPoint.Success += count
+		case "expected_timeout":
+			rpcPoint.ExpectedTimeouts += count
+		case "queue_full":
+			rpcPoint.Errors += count
+			errorPoint.QueueFull += count
+		case "timeout":
+			rpcPoint.Errors += count
+			errorPoint.Timeouts += count
+		case "remote_error":
+			rpcPoint.Errors += count
+			errorPoint.RemoteErrors += count
+		default:
+			rpcPoint.Errors += count
+		}
+		rpcByStep[step] = rpcPoint
+		if errorPoint.DialErrors != 0 || errorPoint.QueueFull != 0 || errorPoint.Timeouts != 0 || errorPoint.RemoteErrors != 0 {
+			errorsByStep[step] = errorPoint
+		}
+	}
+
+	for _, point := range trafficByStep {
+		if point.TXBytes != 0 || point.RXBytes != 0 {
+			history.Traffic = append(history.Traffic, point)
+		}
+	}
+	for _, point := range rpcByStep {
+		if point.Calls != 0 || point.Success != 0 || point.Errors != 0 || point.ExpectedTimeouts != 0 {
+			history.RPC = append(history.RPC, point)
+		}
+	}
+	for _, point := range errorsByStep {
+		if point.DialErrors != 0 || point.QueueFull != 0 || point.Timeouts != 0 || point.RemoteErrors != 0 {
+			history.Errors = append(history.Errors, point)
+		}
+	}
+	sort.Slice(history.Traffic, func(i, j int) bool { return history.Traffic[i].At.Before(history.Traffic[j].At) })
+	sort.Slice(history.RPC, func(i, j int) bool { return history.RPC[i].At.Before(history.RPC[j].At) })
+	sort.Slice(history.Errors, func(i, j int) bool { return history.Errors[i].At.Before(history.Errors[j].At) })
+	return history
 }
 
 type networkServiceAccumulator struct {

@@ -13,6 +13,74 @@ import (
 
 const previousNetworkObservabilitySampleCap = 4096
 
+func TestNetworkObservabilityBuildsHistoryFromBuckets(t *testing.T) {
+	base := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	now := base.Add(time.Second)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		Now:         func() time.Time { return now },
+	})
+	hooks := collector.TransportHooks()
+
+	hooks.OnSend(1, 100)
+	hooks.OnReceive(2, 40)
+	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Result: "ok", Duration: time.Millisecond})
+	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Result: "timeout", Duration: time.Millisecond})
+	hooks.OnEnqueue(transport.EnqueueEvent{TargetNode: 2, Kind: "rpc", Result: "queue_full"})
+	hooks.OnDial(transport.DialEvent{TargetNode: 2, Result: "dial_error", Duration: time.Millisecond})
+
+	now = base.Add(6 * time.Second)
+	hooks.OnSend(1, 200)
+	hooks.OnReceive(2, 80)
+	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Result: "ok", Duration: time.Millisecond})
+	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Result: "expected_timeout", Duration: time.Millisecond})
+	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Result: "queue_full", Duration: time.Millisecond})
+	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Result: "remote_error", Duration: time.Millisecond})
+
+	snap := collector.NetworkSnapshot(base.Add(10 * time.Second))
+	require.Equal(t, time.Minute, snap.History.Window)
+	require.Equal(t, 5*time.Second, snap.History.Step)
+	require.Equal(t, []managementusecase.NetworkTrafficHistoryPoint{
+		{At: base, TXBytes: 100, RXBytes: 40},
+		{At: base.Add(5 * time.Second), TXBytes: 200, RXBytes: 80},
+	}, snap.History.Traffic)
+	require.Equal(t, []managementusecase.NetworkRPCHistoryPoint{
+		{At: base, Calls: 2, Success: 1, Errors: 1},
+		{At: base.Add(5 * time.Second), Calls: 4, Success: 1, Errors: 2, ExpectedTimeouts: 1},
+	}, snap.History.RPC)
+	require.Equal(t, []managementusecase.NetworkErrorHistoryPoint{
+		{At: base, DialErrors: 1, QueueFull: 1, Timeouts: 1},
+		{At: base.Add(5 * time.Second), QueueFull: 1, RemoteErrors: 1},
+	}, snap.History.Errors)
+}
+
+func TestNetworkObservabilityExpectedTimeoutIsNeutralServiceSample(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		Now:         func() time.Time { return now },
+	})
+
+	collector.TransportHooks().OnRPCClient(transport.RPCClientEvent{
+		TargetNode: 2,
+		ServiceID:  35,
+		Result:     "expected_timeout",
+		Duration:   200 * time.Millisecond,
+	})
+
+	snap := collector.NetworkSnapshot(now)
+	require.Len(t, snap.Services, 1)
+	require.Equal(t, "channel_long_poll_fetch", snap.Services[0].Service)
+	require.Equal(t, 1, snap.Services[0].Calls1m)
+	require.Equal(t, 1, snap.Services[0].ExpectedTimeout1m)
+	require.Equal(t, 0, snap.Services[0].Success1m)
+	require.Equal(t, 0, snap.Services[0].Timeout1m)
+	require.Equal(t, 0, snap.Services[0].OtherError1m)
+	require.False(t, hasNetworkEvent(snap.Events, "rpc_timeout", "channel_long_poll_fetch"))
+}
+
 func TestNetworkObservabilityRecordsTransportAndRPCWindow(t *testing.T) {
 	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	collector := newNetworkObservability(networkObservabilityConfig{
