@@ -40,13 +40,14 @@ func (r managerMessageReader) QueryMessages(ctx context.Context, req managementu
 	if meta.Leader == 0 {
 		return managementusecase.MessageQueryPage{}, raftcluster.ErrNoLeader
 	}
+	minAvailableSeq := managerMessageMinAvailableSeq(meta)
 	if meta.Leader == r.localNodeID {
-		return r.queryLocal(req)
+		return r.queryLocal(req, minAvailableSeq)
 	}
 	if r.remote == nil {
 		return managementusecase.MessageQueryPage{}, channel.ErrStaleMeta
 	}
-	return r.queryRemote(ctx, meta.Leader, req)
+	return r.queryRemote(ctx, meta.Leader, req, minAvailableSeq)
 }
 
 func (r managerMessageReader) MaxMessageSeq(ctx context.Context, id channel.ChannelID) (uint64, error) {
@@ -77,17 +78,18 @@ func (r managerMessageReader) MaxMessageSeq(ctx context.Context, id channel.Chan
 	return page.MaxMessageSeq, nil
 }
 
-func (r managerMessageReader) queryLocal(req managementusecase.MessageQueryRequest) (managementusecase.MessageQueryPage, error) {
+func (r managerMessageReader) queryLocal(req managementusecase.MessageQueryRequest, minAvailableSeq uint64) (managementusecase.MessageQueryPage, error) {
 	committedHW, err := channelhandler.LoadCommittedHW(r.channelLog, req.ChannelID)
 	if err != nil {
 		return managementusecase.MessageQueryPage{}, err
 	}
 	page, err := channelhandler.QueryMessages(r.channelLog, committedHW, channelhandler.QueryMessagesRequest{
-		ChannelID:   req.ChannelID,
-		BeforeSeq:   req.BeforeSeq,
-		Limit:       req.Limit,
-		MessageID:   req.MessageID,
-		ClientMsgNo: req.ClientMsgNo,
+		ChannelID:       req.ChannelID,
+		BeforeSeq:       req.BeforeSeq,
+		Limit:           req.Limit,
+		MessageID:       req.MessageID,
+		ClientMsgNo:     req.ClientMsgNo,
+		MinAvailableSeq: minAvailableSeq,
 	})
 	if err != nil {
 		return managementusecase.MessageQueryPage{}, err
@@ -111,26 +113,28 @@ func (r managerMessageReader) SyncMessages(ctx context.Context, req messageuseca
 	if meta.Leader == 0 {
 		return messageusecase.ChannelMessagePage{}, raftcluster.ErrNoLeader
 	}
+	minAvailableSeq := managerMessageMinAvailableSeq(meta)
 	if meta.Leader == r.localNodeID {
-		return r.syncLocal(req)
+		return r.syncLocal(req, minAvailableSeq)
 	}
 	if r.remote == nil {
 		return messageusecase.ChannelMessagePage{}, channel.ErrStaleMeta
 	}
-	return r.syncRemote(ctx, meta.Leader, req)
+	return r.syncRemote(ctx, meta.Leader, req, minAvailableSeq)
 }
 
-func (r managerMessageReader) syncLocal(req messageusecase.ChannelMessageQuery) (messageusecase.ChannelMessagePage, error) {
+func (r managerMessageReader) syncLocal(req messageusecase.ChannelMessageQuery, minAvailableSeq uint64) (messageusecase.ChannelMessagePage, error) {
 	committedHW, err := channelhandler.LoadCommittedHW(r.channelLog, req.ChannelID)
 	if err != nil {
 		return messageusecase.ChannelMessagePage{}, err
 	}
 	page, err := channelhandler.SyncMessages(r.channelLog, committedHW, channelhandler.SyncMessagesRequest{
-		ChannelID: req.ChannelID,
-		StartSeq:  req.StartSeq,
-		EndSeq:    req.EndSeq,
-		Limit:     req.Limit,
-		PullMode:  channelhandler.SyncPullMode(req.PullMode),
+		ChannelID:       req.ChannelID,
+		StartSeq:        req.StartSeq,
+		EndSeq:          req.EndSeq,
+		Limit:           req.Limit,
+		PullMode:        channelhandler.SyncPullMode(req.PullMode),
+		MinAvailableSeq: minAvailableSeq,
 	})
 	if err != nil {
 		return messageusecase.ChannelMessagePage{}, err
@@ -141,14 +145,15 @@ func (r managerMessageReader) syncLocal(req messageusecase.ChannelMessageQuery) 
 	}, nil
 }
 
-func (r managerMessageReader) syncRemote(ctx context.Context, nodeID uint64, req messageusecase.ChannelMessageQuery) (messageusecase.ChannelMessagePage, error) {
+func (r managerMessageReader) syncRemote(ctx context.Context, nodeID uint64, req messageusecase.ChannelMessageQuery, minAvailableSeq uint64) (messageusecase.ChannelMessagePage, error) {
 	page, err := r.remote.QueryChannelMessages(ctx, nodeID, accessnode.ChannelMessagesQuery{
-		ChannelID: req.ChannelID,
-		SyncMode:  true,
-		StartSeq:  req.StartSeq,
-		EndSeq:    req.EndSeq,
-		Limit:     req.Limit,
-		PullMode:  uint8(req.PullMode),
+		ChannelID:       req.ChannelID,
+		SyncMode:        true,
+		StartSeq:        req.StartSeq,
+		EndSeq:          req.EndSeq,
+		Limit:           req.Limit,
+		PullMode:        uint8(req.PullMode),
+		MinAvailableSeq: minAvailableSeq,
 	})
 	if err != nil {
 		return messageusecase.ChannelMessagePage{}, err
@@ -159,13 +164,14 @@ func (r managerMessageReader) syncRemote(ctx context.Context, nodeID uint64, req
 	}, nil
 }
 
-func (r managerMessageReader) queryRemote(ctx context.Context, nodeID uint64, req managementusecase.MessageQueryRequest) (managementusecase.MessageQueryPage, error) {
+func (r managerMessageReader) queryRemote(ctx context.Context, nodeID uint64, req managementusecase.MessageQueryRequest, minAvailableSeq uint64) (managementusecase.MessageQueryPage, error) {
 	page, err := r.remote.QueryChannelMessages(ctx, nodeID, accessnode.ChannelMessagesQuery{
-		ChannelID:   req.ChannelID,
-		BeforeSeq:   req.BeforeSeq,
-		Limit:       req.Limit,
-		MessageID:   req.MessageID,
-		ClientMsgNo: req.ClientMsgNo,
+		ChannelID:       req.ChannelID,
+		BeforeSeq:       req.BeforeSeq,
+		Limit:           req.Limit,
+		MessageID:       req.MessageID,
+		ClientMsgNo:     req.ClientMsgNo,
+		MinAvailableSeq: minAvailableSeq,
 	})
 	if err != nil {
 		return managementusecase.MessageQueryPage{}, err
@@ -175,4 +181,8 @@ func (r managerMessageReader) queryRemote(ctx context.Context, nodeID uint64, re
 		HasMore:       page.HasMore,
 		NextBeforeSeq: page.NextBeforeSeq,
 	}, nil
+}
+
+func managerMessageMinAvailableSeq(meta metadb.ChannelRuntimeMeta) uint64 {
+	return channel.EffectiveMinAvailableSeq(meta.RetentionThroughSeq, 0)
 }
