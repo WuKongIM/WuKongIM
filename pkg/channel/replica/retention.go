@@ -272,7 +272,7 @@ func retentionResetDominatesFloor(state channel.ReplicaState, fetchOffset uint64
 	if state.RetentionThroughSeq == 0 {
 		return false
 	}
-	return fetchOffset < channel.EffectiveMinAvailableSeq(state.RetentionThroughSeq, state.LogStartOffset) &&
+	return fetchOffset < state.RetentionThroughSeq &&
 		state.RetentionThroughSeq >= state.LogStartOffset
 }
 
