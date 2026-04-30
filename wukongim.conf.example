@@ -61,6 +61,14 @@ WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]
 # WK_CLUSTER_ADVERTISE_ADDR=wk-node4:7000
 # WK_CLUSTER_JOIN_TOKEN=change-me
 
+# Channel message retention is disabled by default. Set a positive TTL to allow
+# the leader-driven retention worker to hide and trim expired channel message prefixes.
+# The scan interval, channel batch size, and max trim messages are only used while TTL retention is enabled.
+WK_CHANNEL_MESSAGE_RETENTION_TTL=0
+WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL=1h
+WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE=128
+WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES=10000
+
 WK_API_LISTEN_ADDR=0.0.0.0:5001
 # Manager API uses a dedicated HTTP port for backend administration only.
 WK_MANAGER_LISTEN_ADDR=0.0.0.0:5301

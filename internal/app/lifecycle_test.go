@@ -110,6 +110,19 @@ func TestNewBuildsDeliveryRuntimeLifecycle(t *testing.T) {
 	require.NotNil(t, app.deliveryRuntimeLifecycle)
 }
 
+func TestNewBuildsChannelRetentionWorkerWhenTTLEnabled(t *testing.T) {
+	cfg := testConfig(t)
+	setChannelMessageRetentionTTLForTest(t, &cfg, time.Hour)
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	require.NotNil(t, app.channelRetentionWorker)
+}
+
 func TestNewConfiguresISRMaxFetchInflightPeerWithMinimumConcurrency(t *testing.T) {
 	cfg := testConfig(t)
 	cfg.Cluster.PoolSize = 1
@@ -436,6 +449,10 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 			calls = append(calls, "committed_replay.start")
 			return nil
 		},
+		startChannelRetentionFn: func(context.Context) error {
+			calls = append(calls, "channel_retention.start")
+			return nil
+		},
 		startGatewayFn: func() error {
 			calls = append(calls, "gateway.start")
 			return nil
@@ -460,9 +477,50 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 		"delivery_runtime.start",
 		"committed_dispatcher.start",
 		"committed_replay.start",
+		"channel_retention.start",
 		"gateway.start",
 		"api.start",
 		"manager.start",
+	}, calls)
+}
+
+func TestAppLifecycleStopsChannelRetentionBeforeCommittedReplayAndStorage(t *testing.T) {
+	var calls []string
+
+	app := &App{
+		stopChannelRetentionFn: func(ctx context.Context) error {
+			_, hasDeadline := ctx.Deadline()
+			require.True(t, hasDeadline)
+			calls = append(calls, "channel_retention.stop")
+			return nil
+		},
+		stopCommittedReplayFn: func(context.Context) error {
+			calls = append(calls, "committed_replay.stop")
+			return nil
+		},
+		closeChannelLogDBFn: func() error {
+			calls = append(calls, "channellog.close")
+			return nil
+		},
+		closeRaftDBFn: func() error {
+			calls = append(calls, "raft.close")
+			return nil
+		},
+		closeWKDBFn: func() error {
+			calls = append(calls, "metadb.close")
+			return nil
+		},
+	}
+	app.channelRetentionOn.Store(true)
+	app.committedReplayOn.Store(true)
+
+	require.NoError(t, app.Stop())
+	require.Equal(t, []string{
+		"channel_retention.stop",
+		"committed_replay.stop",
+		"channellog.close",
+		"raft.close",
+		"metadb.close",
 	}, calls)
 }
 
@@ -1420,6 +1478,17 @@ func testConfig(t *testing.T) Config {
 	cfg.Cluster.Nodes = []NodeConfigRef{{ID: cfg.Node.ID, Addr: clusterAddr}}
 	cfg.Gateway.Listeners[0].Address = "127.0.0.1:0"
 	return cfg
+}
+
+func setChannelMessageRetentionTTLForTest(t *testing.T, cfg *Config, ttl time.Duration) {
+	t.Helper()
+	value := reflect.ValueOf(cfg).Elem().FieldByName("ChannelMessageRetention")
+	if !value.IsValid() {
+		t.Skip("ChannelMessageRetention config is owned by the config worker and is not available yet")
+	}
+	field := value.FieldByName("TTL")
+	require.True(t, field.IsValid() && field.CanSet(), "ChannelMessageRetention.TTL must be settable")
+	field.SetInt(int64(ttl))
 }
 
 func validManagerConfigForTest() ManagerConfig {

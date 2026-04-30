@@ -40,6 +40,10 @@ func TestConfigExampleDocumentsSupportedWKKeys(t *testing.T) {
 func supportedConfigExampleKeys() []string {
 	return []string{
 		"WK_API_LISTEN_ADDR",
+		"WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL",
+		"WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE",
+		"WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES",
+		"WK_CHANNEL_MESSAGE_RETENTION_TTL",
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_BYTES",
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_RECORDS",
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_WAIT",
@@ -625,6 +629,90 @@ func TestConfigAlwaysAppliesLongPollDefaults(t *testing.T) {
 	require.Equal(t, 200*time.Millisecond, cfg.Cluster.LongPollMaxWait)
 	require.Equal(t, 64*1024, cfg.Cluster.LongPollMaxBytes)
 	require.Equal(t, 64, cfg.Cluster.LongPollMaxChannels)
+}
+
+func TestConfigDefaultsChannelMessageRetentionDisabled(t *testing.T) {
+	cfg := validConfig()
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.Zero(t, cfg.ChannelMessageRetention.TTL)
+	require.Equal(t, time.Hour, cfg.ChannelMessageRetention.ScanInterval)
+	require.Equal(t, 128, cfg.ChannelMessageRetention.ChannelBatchSize)
+	require.Equal(t, 10000, cfg.ChannelMessageRetention.MaxTrimMessages)
+}
+
+func TestConfigValidateRejectsInvalidChannelMessageRetentionWhenEnabled(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*Config)
+		wantErr   string
+	}{
+		{
+			name: "negative ttl",
+			configure: func(cfg *Config) {
+				cfg.ChannelMessageRetention.TTL = -time.Second
+			},
+			wantErr: "channel message retention ttl",
+		},
+		{
+			name: "negative scan interval",
+			configure: func(cfg *Config) {
+				cfg.ChannelMessageRetention.TTL = time.Hour
+				cfg.ChannelMessageRetention.ScanInterval = -time.Second
+			},
+			wantErr: "channel message retention scan interval",
+		},
+		{
+			name: "explicit zero scan interval",
+			configure: func(cfg *Config) {
+				cfg.ChannelMessageRetention.TTL = time.Hour
+				cfg.ChannelMessageRetention.SetExplicitFlags(true, false, false)
+			},
+			wantErr: "channel message retention scan interval",
+		},
+		{
+			name: "negative channel batch size",
+			configure: func(cfg *Config) {
+				cfg.ChannelMessageRetention.TTL = time.Hour
+				cfg.ChannelMessageRetention.ChannelBatchSize = -1
+			},
+			wantErr: "channel message retention channel batch size",
+		},
+		{
+			name: "explicit zero channel batch size",
+			configure: func(cfg *Config) {
+				cfg.ChannelMessageRetention.TTL = time.Hour
+				cfg.ChannelMessageRetention.SetExplicitFlags(false, true, false)
+			},
+			wantErr: "channel message retention channel batch size",
+		},
+		{
+			name: "negative max trim messages",
+			configure: func(cfg *Config) {
+				cfg.ChannelMessageRetention.TTL = time.Hour
+				cfg.ChannelMessageRetention.MaxTrimMessages = -1
+			},
+			wantErr: "channel message retention max trim messages",
+		},
+		{
+			name: "explicit zero max trim messages",
+			configure: func(cfg *Config) {
+				cfg.ChannelMessageRetention.TTL = time.Hour
+				cfg.ChannelMessageRetention.SetExplicitFlags(false, false, true)
+			},
+			wantErr: "channel message retention max trim messages",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validConfig()
+			tt.configure(&cfg)
+
+			require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), tt.wantErr)
+		})
+	}
 }
 
 func TestConfigLongPollPreservesExplicitOverridesWithoutReplicationMode(t *testing.T) {

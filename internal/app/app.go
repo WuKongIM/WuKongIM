@@ -12,6 +12,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	applifecycle "github.com/WuKongIM/WuKongIM/internal/app/lifecycle"
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
+	appretention "github.com/WuKongIM/WuKongIM/internal/runtime/channelretention"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
@@ -53,6 +54,7 @@ type App struct {
 	deliveryAcks             *deliveryruntime.AckIndex
 	committedDispatcher      *asyncCommittedDispatcher
 	committedReplayer        *committedReplayer
+	channelRetentionWorker   *appretention.Worker
 	messageApp               *message.App
 	managementApp            *managementusecase.App
 	conversationProjector    conversationusecase.Projector
@@ -86,6 +88,7 @@ type App struct {
 	deliveryRuntimeOn     atomic.Bool
 	committedDispatcherOn atomic.Bool
 	committedReplayOn     atomic.Bool
+	channelRetentionOn    atomic.Bool
 	apiOn                 atomic.Bool
 	managerOn             atomic.Bool
 	gatewayOn             atomic.Bool
@@ -97,6 +100,7 @@ type App struct {
 	startDeliveryRuntimeFn       func() error
 	startCommittedDispatcherFn   func() error
 	startCommittedReplayFn       func(context.Context) error
+	startChannelRetentionFn      func(context.Context) error
 	startAPIFn                   func() error
 	startManagerFn               func() error
 	startGatewayFn               func() error
@@ -109,6 +113,7 @@ type App struct {
 	stopDeliveryRuntimeFn        func() error
 	stopCommittedDispatcherFn    func(context.Context) error
 	stopCommittedReplayFn        func(context.Context) error
+	stopChannelRetentionFn       func(context.Context) error
 	stopPresenceFn               func() error
 	stopChannelMetaSyncFn        func() error
 	stopClusterFn                func()
