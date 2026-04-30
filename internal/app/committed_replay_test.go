@@ -99,6 +99,95 @@ func TestCommittedReplayerDoesNotAdvanceAcrossMessageSeqGap(t *testing.T) {
 	require.Empty(t, source.cursors)
 }
 
+func TestCommittedReplayStartsAtMinAvailableSeq(t *testing.T) {
+	key := channel.ChannelKey("channel/2/retained")
+	source := &fakeCommittedReplayLog{
+		channels: []committedReplayChannel{{Key: key, ID: channel.ChannelID{ID: "retained", Type: 2}}},
+		cursors:  map[channel.ChannelKey]uint64{key: 2},
+		committed: map[channel.ChannelKey]uint64{
+			key: 8,
+		},
+		minAvailable: map[channel.ChannelKey]uint64{
+			key: 6,
+		},
+		messages: map[channel.ChannelKey][]channel.Message{
+			key: {
+				{MessageID: 16, MessageSeq: 6, ChannelID: "retained", ChannelType: 2, Payload: []byte("six")},
+				{MessageID: 17, MessageSeq: 7, ChannelID: "retained", ChannelType: 2, Payload: []byte("seven")},
+				{MessageID: 18, MessageSeq: 8, ChannelID: "retained", ChannelType: 2, Payload: []byte("eight")},
+			},
+		},
+	}
+	delivery := &fakeCommittedReplayDelivery{}
+	conversation := &fakeCommittedReplayConversation{}
+	replayer := newCommittedReplayer(committedReplayerConfig{
+		Log:          source,
+		Delivery:     delivery,
+		Conversation: conversation,
+		BatchSize:    16,
+	})
+
+	require.NoError(t, replayer.RunOnce(context.Background()))
+
+	require.Equal(t, []uint64{6, 7, 8}, delivery.messageSeqs())
+	require.Equal(t, []uint64{6, 7, 8}, conversation.messageSeqs())
+	require.Equal(t, []uint64{6}, source.loadFromSeqs[key])
+	require.Equal(t, []uint64{5}, source.durableAdvances[key])
+	require.Equal(t, uint64(8), source.cursors[key])
+}
+
+func TestCommittedReplayMissingCursorSkipsRetainedPrefix(t *testing.T) {
+	key := channel.ChannelKey("channel/2/missing-retained")
+	source := &fakeCommittedReplayLog{
+		channels: []committedReplayChannel{{Key: key, ID: channel.ChannelID{ID: "missing-retained", Type: 2}}},
+		committed: map[channel.ChannelKey]uint64{
+			key: 8,
+		},
+		minAvailable: map[channel.ChannelKey]uint64{
+			key: 6,
+		},
+		messages: map[channel.ChannelKey][]channel.Message{
+			key: {
+				{MessageID: 26, MessageSeq: 6, ChannelID: "missing-retained", ChannelType: 2, Payload: []byte("six")},
+				{MessageID: 27, MessageSeq: 7, ChannelID: "missing-retained", ChannelType: 2, Payload: []byte("seven")},
+				{MessageID: 28, MessageSeq: 8, ChannelID: "missing-retained", ChannelType: 2, Payload: []byte("eight")},
+			},
+		},
+	}
+	replayer := newCommittedReplayer(committedReplayerConfig{
+		Log:       source,
+		BatchSize: 16,
+	})
+
+	require.NoError(t, replayer.RunOnce(context.Background()))
+
+	require.Equal(t, []uint64{6}, source.loadFromSeqs[key])
+	require.Equal(t, []uint64{5}, source.durableAdvances[key])
+	require.Equal(t, uint64(8), source.cursors[key])
+}
+
+func TestCommittedReplayMaxCursorDoesNotRegressToRetentionFloor(t *testing.T) {
+	key := channel.ChannelKey("channel/2/max-cursor")
+	maxCursor := ^uint64(0)
+	source := &fakeCommittedReplayLog{
+		channels: []committedReplayChannel{{Key: key, ID: channel.ChannelID{ID: "max-cursor", Type: 2}}},
+		cursors:  map[channel.ChannelKey]uint64{key: maxCursor},
+		committed: map[channel.ChannelKey]uint64{
+			key: maxCursor,
+		},
+	}
+	replayer := newCommittedReplayer(committedReplayerConfig{
+		Log:       source,
+		BatchSize: 16,
+	})
+
+	require.NoError(t, replayer.RunOnce(context.Background()))
+
+	require.Empty(t, source.loadFromSeqs[key])
+	require.Empty(t, source.durableAdvances[key])
+	require.Equal(t, maxCursor, source.cursors[key])
+}
+
 func TestCommittedReplayerRecordsReplayLag(t *testing.T) {
 	key := channel.ChannelKey("channel/2/g1")
 	metrics := &recordingCommittedReplayMetrics{}
@@ -205,12 +294,15 @@ func TestCommittedReplayerStopContextBoundsBlockedPass(t *testing.T) {
 }
 
 type fakeCommittedReplayLog struct {
-	channels       []committedReplayChannel
-	cursors        map[channel.ChannelKey]uint64
-	committed      map[channel.ChannelKey]uint64
-	messages       map[channel.ChannelKey][]channel.Message
-	canStoreCursor func() bool
-	listErr        error
+	channels        []committedReplayChannel
+	cursors         map[channel.ChannelKey]uint64
+	committed       map[channel.ChannelKey]uint64
+	minAvailable    map[channel.ChannelKey]uint64
+	messages        map[channel.ChannelKey][]channel.Message
+	loadFromSeqs    map[channel.ChannelKey][]uint64
+	durableAdvances map[channel.ChannelKey][]uint64
+	canStoreCursor  func() bool
+	listErr         error
 }
 
 type blockingCommittedReplayLog struct {
@@ -240,12 +332,16 @@ func (f *blockingCommittedReplayLog) StoreCommittedDispatchCursor(context.Contex
 	return nil
 }
 
-func (f *blockingCommittedReplayLog) CommittedSeq(context.Context, channel.ChannelKey, channel.ChannelID) (uint64, error) {
-	return 0, nil
-}
-
 func (f *blockingCommittedReplayLog) LoadCommittedMessages(context.Context, channel.ChannelKey, channel.ChannelID, uint64, int, int) ([]channel.Message, error) {
 	return nil, nil
+}
+
+func (f *blockingCommittedReplayLog) AdvanceCommittedDispatchCursorDurable(context.Context, channel.ChannelKey, string, uint64) error {
+	return nil
+}
+
+func (f *blockingCommittedReplayLog) CommittedReplayState(context.Context, channel.ChannelKey, channel.ChannelID) (committedReplayChannelState, error) {
+	return committedReplayChannelState{}, nil
 }
 
 func (f *blockingCommittedReplayLog) WaitEntered(t *testing.T) {
@@ -293,11 +389,30 @@ func (f *fakeCommittedReplayLog) StoreCommittedDispatchCursor(_ context.Context,
 	return nil
 }
 
-func (f *fakeCommittedReplayLog) CommittedSeq(_ context.Context, key channel.ChannelKey, _ channel.ChannelID) (uint64, error) {
-	return f.committed[key], nil
+func (f *fakeCommittedReplayLog) AdvanceCommittedDispatchCursorDurable(_ context.Context, key channel.ChannelKey, _ string, seq uint64) error {
+	if f.cursors == nil {
+		f.cursors = make(map[channel.ChannelKey]uint64)
+	}
+	if f.durableAdvances == nil {
+		f.durableAdvances = make(map[channel.ChannelKey][]uint64)
+	}
+	f.durableAdvances[key] = append(f.durableAdvances[key], seq)
+	f.cursors[key] = seq
+	return nil
+}
+
+func (f *fakeCommittedReplayLog) CommittedReplayState(_ context.Context, key channel.ChannelKey, _ channel.ChannelID) (committedReplayChannelState, error) {
+	return committedReplayChannelState{
+		CommittedSeq:    f.committed[key],
+		MinAvailableSeq: f.minAvailable[key],
+	}, nil
 }
 
 func (f *fakeCommittedReplayLog) LoadCommittedMessages(_ context.Context, key channel.ChannelKey, _ channel.ChannelID, fromSeq uint64, limit int, _ int) ([]channel.Message, error) {
+	if f.loadFromSeqs == nil {
+		f.loadFromSeqs = make(map[channel.ChannelKey][]uint64)
+	}
+	f.loadFromSeqs[key] = append(f.loadFromSeqs[key], fromSeq)
 	var out []channel.Message
 	for _, msg := range f.messages[key] {
 		if msg.MessageSeq < fromSeq {
