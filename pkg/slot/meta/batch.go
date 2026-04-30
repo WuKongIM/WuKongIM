@@ -13,11 +13,18 @@ type WriteBatch struct {
 	batch                  *pebble.Batch
 	writtenUserKeys        map[string]struct{}
 	userConversationStates map[string]userConversationStateBatchEntry
-	channelRuntimeMetas    map[string]ChannelRuntimeMeta
+	channelRuntimeMetas    map[string]channelRuntimeMetaBatchEntry
 }
 
 type userConversationStateBatchEntry struct {
 	state  UserConversationState
+	exists bool
+}
+
+// channelRuntimeMetaBatchEntry records same-batch existence so deletes are
+// visible to later reads before the Pebble batch is committed.
+type channelRuntimeMetaBatchEntry struct {
+	meta   ChannelRuntimeMeta
 	exists bool
 }
 
@@ -154,7 +161,7 @@ func (b *WriteBatch) UpsertChannelRuntimeMeta(hashSlot uint16, meta ChannelRunti
 	if err := b.batch.Set(key, value, nil); err != nil {
 		return err
 	}
-	b.rememberChannelRuntimeMeta(hashSlot, meta)
+	b.rememberChannelRuntimeMeta(hashSlot, meta, true)
 	return nil
 }
 
@@ -179,7 +186,7 @@ func (b *WriteBatch) AdvanceChannelRetentionThroughSeq(hashSlot uint16, req Chan
 	if err := b.batch.Set(key, encodeChannelRuntimeMetaFamilyValue(next, key), nil); err != nil {
 		return err
 	}
-	b.rememberChannelRuntimeMeta(hashSlot, next)
+	b.rememberChannelRuntimeMeta(hashSlot, next, true)
 	return nil
 }
 
@@ -354,7 +361,11 @@ func (b *WriteBatch) DeleteChannelRuntimeMeta(hashSlot uint16, channelID string,
 		return err
 	}
 	key := encodeChannelRuntimeMetaPrimaryKey(hashSlot, channelID, channelType, channelRuntimeMetaPrimaryFamilyID)
-	return b.batch.Delete(key, nil)
+	if err := b.batch.Delete(key, nil); err != nil {
+		return err
+	}
+	b.rememberChannelRuntimeMeta(hashSlot, ChannelRuntimeMeta{ChannelID: channelID, ChannelType: channelType}, false)
+	return nil
 }
 
 // AddSubscribers stages subscriber snapshot rows into the batch.
@@ -437,8 +448,8 @@ func (b *WriteBatch) userKeyWritten(key []byte) bool {
 func (b *WriteBatch) loadChannelRuntimeMeta(hashSlot uint16, key []byte, channelID string, channelType int64) (ChannelRuntimeMeta, bool, error) {
 	batchKey := channelRuntimeMetaBatchKey(hashSlot, channelID, channelType)
 	if b.channelRuntimeMetas != nil {
-		if meta, ok := b.channelRuntimeMetas[batchKey]; ok {
-			return meta, true, nil
+		if entry, ok := b.channelRuntimeMetas[batchKey]; ok {
+			return entry.meta, entry.exists, nil
 		}
 	}
 	value, err := b.db.getValue(key)
@@ -457,11 +468,14 @@ func (b *WriteBatch) loadChannelRuntimeMeta(hashSlot uint16, key []byte, channel
 	return meta, true, nil
 }
 
-func (b *WriteBatch) rememberChannelRuntimeMeta(hashSlot uint16, meta ChannelRuntimeMeta) {
+func (b *WriteBatch) rememberChannelRuntimeMeta(hashSlot uint16, meta ChannelRuntimeMeta, exists bool) {
 	if b.channelRuntimeMetas == nil {
-		b.channelRuntimeMetas = make(map[string]ChannelRuntimeMeta, 1)
+		b.channelRuntimeMetas = make(map[string]channelRuntimeMetaBatchEntry, 1)
 	}
-	b.channelRuntimeMetas[channelRuntimeMetaBatchKey(hashSlot, meta.ChannelID, meta.ChannelType)] = meta
+	b.channelRuntimeMetas[channelRuntimeMetaBatchKey(hashSlot, meta.ChannelID, meta.ChannelType)] = channelRuntimeMetaBatchEntry{
+		meta:   meta,
+		exists: exists,
+	}
 }
 
 func channelRuntimeMetaBatchKey(hashSlot uint16, channelID string, channelType int64) string {
@@ -472,7 +486,11 @@ func (b *WriteBatch) enforceChannelRuntimeMetaMonotonicLocked() error {
 	if len(b.channelRuntimeMetas) == 0 {
 		return nil
 	}
-	for keyString, candidate := range b.channelRuntimeMetas {
+	for keyString, entry := range b.channelRuntimeMetas {
+		if !entry.exists {
+			continue
+		}
+		candidate := entry.meta
 		key := []byte(keyString)
 		existing, exists, err := b.loadChannelRuntimeMetaFromDBLocked(key, candidate.ChannelID, candidate.ChannelType)
 		if err != nil {

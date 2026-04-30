@@ -421,6 +421,49 @@ func TestWriteBatchAdvanceChannelRetentionThroughSeqUpdatesLaterBatchReads(t *te
 	require.Equal(t, normalizeChannelRuntimeMeta(next), got)
 }
 
+func TestWriteBatchAdvanceChannelRetentionThroughSeqAfterDeleteSeesNotFound(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	shard := db.ForSlot(7)
+	base := testRuntimeMeta("retain-batch-delete-first", 2)
+	base.ChannelEpoch = 10
+	base.LeaderEpoch = 20
+	base.Leader = 1
+	base.LeaseUntilMS = 3000
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, base))
+
+	wb := db.NewWriteBatch()
+	defer wb.Close()
+	require.NoError(t, wb.DeleteChannelRuntimeMeta(7, base.ChannelID, base.ChannelType))
+	err := wb.AdvanceChannelRetentionThroughSeq(7, channelRetentionAdvanceRequest(base, 42, 4000))
+	require.ErrorIs(t, err, ErrNotFound)
+	require.NoError(t, wb.Commit())
+
+	_, err = shard.GetChannelRuntimeMeta(ctx, base.ChannelID, base.ChannelType)
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestWriteBatchDeleteChannelRuntimeMetaAfterRetentionAdvanceWins(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	shard := db.ForSlot(7)
+	base := testRuntimeMeta("retain-batch-delete-last", 2)
+	base.ChannelEpoch = 10
+	base.LeaderEpoch = 20
+	base.Leader = 1
+	base.LeaseUntilMS = 3000
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, base))
+
+	wb := db.NewWriteBatch()
+	defer wb.Close()
+	require.NoError(t, wb.AdvanceChannelRetentionThroughSeq(7, channelRetentionAdvanceRequest(base, 42, 4000)))
+	require.NoError(t, wb.DeleteChannelRuntimeMeta(7, base.ChannelID, base.ChannelType))
+	require.NoError(t, wb.Commit())
+
+	_, err := shard.GetChannelRuntimeMeta(ctx, base.ChannelID, base.ChannelType)
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
 func TestShardStoreUpsertChannelRuntimeMetaRejectsInvalidTopology(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
