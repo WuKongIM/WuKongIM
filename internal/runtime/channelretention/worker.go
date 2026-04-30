@@ -7,42 +7,31 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 )
 
-const defaultScanLimit = 1024
+const (
+	defaultCursorName      = "committed"
+	defaultMaxTrimMessages = 1024
+	defaultScanInterval    = time.Minute
+)
 
 // Channel identifies one channel eligible for retention planning.
 type Channel struct {
-	// Key is the channel log key used by the channel runtime.
+	// Key is the channel log key used by the channel store and runtime.
 	Key channel.ChannelKey
-	// ID is the protocol-facing channel identifier.
+	// ID is the protocol-facing channel identifier used for metadata fencing.
 	ID channel.ChannelID
 }
 
-// ExpiredPrefix describes the contiguous message prefix expired by TTL.
-type ExpiredPrefix struct {
+// ScanResult describes the contiguous message prefix expired by TTL.
+type ScanResult struct {
+	// FromSeq is the normalized sequence where the scan started.
+	FromSeq uint64
 	// ThroughSeq is the highest expired message sequence in the contiguous prefix.
 	ThroughSeq uint64
-}
-
-// ExpiredPrefixScanner finds the TTL-expired contiguous prefix for a channel.
-type ExpiredPrefixScanner interface {
-	ScanExpiredPrefix(ctx context.Context, ch Channel, cutoff time.Time, limit int) (ExpiredPrefix, error)
-}
-
-// RuntimeView exposes the channel runtime safety gates used by retention.
-type RuntimeView interface {
-	RetentionView(ctx context.Context, ch Channel) (channel.RetentionView, error)
-}
-
-// ReplayCursor durably confirms committed replay progress before retention advances.
-type ReplayCursor interface {
-	ConfirmCommittedReplayCursor(ctx context.Context, ch Channel, minSeq uint64) (uint64, error)
-}
-
-// MetadataStore advances the authoritative retention boundary in metadata.
-type MetadataStore interface {
-	AdvanceRetention(ctx context.Context, ch Channel, boundary uint64, now time.Time) error
+	// Count is the number of expired rows included in the prefix.
+	Count int
 }
 
 // ChannelLister lists channels that the retention worker should scan.
@@ -50,29 +39,53 @@ type ChannelLister interface {
 	ListRetentionChannels(ctx context.Context) ([]Channel, error)
 }
 
+// Runtime exposes channel runtime state and immediate local retention apply.
+type Runtime interface {
+	RetentionView(ctx context.Context, key channel.ChannelKey) (channel.RetentionView, error)
+	ApplyRetentionBoundary(ctx context.Context, key channel.ChannelKey, throughSeq uint64) error
+}
+
+// StoreProvider maps a channel to its local durable channel store.
+type StoreProvider interface {
+	StoreForChannel(ctx context.Context, ch Channel) (Store, error)
+}
+
+// Store exposes retention scan and durable replay cursor confirmation primitives.
+type Store interface {
+	ScanExpiredMessagePrefix(fromSeq uint64, cutoff time.Time, limit int) (ScanResult, error)
+	ConfirmCommittedDispatchCursorDurable(name string, minSeq uint64) (uint64, error)
+}
+
+// MetadataStore commits authoritative retention boundary advances through cluster metadata.
+type MetadataStore interface {
+	AdvanceChannelRetentionThroughSeq(ctx context.Context, req metadb.ChannelRetentionAdvance) error
+}
+
 // Config controls one retention worker instance.
 type Config struct {
 	// Channels lists channels eligible for retention planning.
 	Channels ChannelLister
-	// Scanner locates contiguous TTL-expired message prefixes.
-	Scanner ExpiredPrefixScanner
-	// Runtime reads current channel runtime safety state.
-	Runtime RuntimeView
-	// Replay confirms committed replay cursors durably before metadata advances.
-	Replay ReplayCursor
+	// Stores maps each channel to its local channel store.
+	Stores StoreProvider
+	// Runtime reads current channel runtime safety state and applies committed boundaries locally.
+	Runtime Runtime
 	// Metadata commits authoritative retention boundary advances.
 	Metadata MetadataStore
+	// LocalNodeID limits planning to channels currently led by this node.
+	LocalNodeID channel.NodeID
 	// TTL disables retention when it is zero or negative.
 	TTL time.Duration
 	// ScanInterval controls the background scan cadence.
 	ScanInterval time.Duration
-	// ScanLimit bounds the number of messages considered per channel scan.
-	ScanLimit int
+	// MaxTrimMessages bounds the number of messages considered per channel scan.
+	MaxTrimMessages int
+	// CursorName selects the committed replay cursor confirmed before metadata advances.
+	CursorName string
 	// Now returns the current time; time.Now is used when nil.
 	Now func() time.Time
 }
 
-// Worker scans channels and advances safe cluster-authoritative retention bounds.
+// Worker scans leader channels and advances safe cluster-authoritative retention bounds.
 type Worker struct {
 	cfg Config
 
@@ -81,47 +94,63 @@ type Worker struct {
 	done   chan struct{}
 }
 
+// BlockedReason explains why a boundary calculation cannot advance retention.
+type BlockedReason uint8
+
+const (
+	BlockedNone BlockedReason = iota
+	BlockedNoExpiredPrefix
+	BlockedExpiredPrefix
+	BlockedReplayCursor
+	BlockedMinISRMatchOffset
+	BlockedHW
+	BlockedCheckpointHW
+)
+
 type boundaryDecision struct {
 	AdvanceThroughSeq uint64
 	ShouldAdvance     bool
+	BlockedReason     BlockedReason
 }
 
-func safeBoundary(expiredThrough, confirmedReplayCursor uint64, view channel.RetentionView) boundaryDecision {
-	current := view.RetentionThroughSeq
+func safeRetentionBoundary(expiredThrough, confirmedReplayCursor uint64, view channel.RetentionView) boundaryDecision {
+	return calculateRetentionBoundary(expiredThrough, view.RetentionThroughSeq, []boundaryGate{
+		{seq: confirmedReplayCursor, reason: BlockedReplayCursor},
+		{seq: view.MinISRMatchOffset, reason: BlockedMinISRMatchOffset},
+		{seq: view.HW, reason: BlockedHW},
+		{seq: view.CheckpointHW, reason: BlockedCheckpointHW},
+	})
+}
+
+func provisionalRetentionBoundary(expiredThrough uint64, view channel.RetentionView) boundaryDecision {
+	return calculateRetentionBoundary(expiredThrough, view.RetentionThroughSeq, []boundaryGate{
+		{seq: view.MinISRMatchOffset, reason: BlockedMinISRMatchOffset},
+		{seq: view.HW, reason: BlockedHW},
+		{seq: view.CheckpointHW, reason: BlockedCheckpointHW},
+	})
+}
+
+type boundaryGate struct {
+	seq    uint64
+	reason BlockedReason
+}
+
+func calculateRetentionBoundary(expiredThrough, current uint64, gates []boundaryGate) boundaryDecision {
 	if expiredThrough == 0 {
-		return boundaryDecision{AdvanceThroughSeq: current}
+		return boundaryDecision{AdvanceThroughSeq: current, BlockedReason: BlockedNoExpiredPrefix}
 	}
-
-	candidate := minUint64(expiredThrough, confirmedReplayCursor)
-	candidate = minUint64(candidate, view.MinISRMatchOffset)
-	candidate = minUint64(candidate, view.HW)
-	candidate = minUint64(candidate, view.CheckpointHW)
+	candidate := expiredThrough
+	blockedBy := BlockedExpiredPrefix
+	for _, gate := range gates {
+		if gate.seq < candidate {
+			candidate = gate.seq
+			blockedBy = gate.reason
+		}
+	}
 	if candidate <= current {
-		return boundaryDecision{AdvanceThroughSeq: current}
+		return boundaryDecision{AdvanceThroughSeq: current, BlockedReason: blockedBy}
 	}
-	return boundaryDecision{AdvanceThroughSeq: candidate, ShouldAdvance: true}
-}
-
-func provisionalBoundary(expiredThrough uint64, view channel.RetentionView) boundaryDecision {
-	current := view.RetentionThroughSeq
-	if expiredThrough == 0 {
-		return boundaryDecision{AdvanceThroughSeq: current}
-	}
-
-	candidate := minUint64(expiredThrough, view.MinISRMatchOffset)
-	candidate = minUint64(candidate, view.HW)
-	candidate = minUint64(candidate, view.CheckpointHW)
-	if candidate <= current {
-		return boundaryDecision{AdvanceThroughSeq: current}
-	}
-	return boundaryDecision{AdvanceThroughSeq: candidate, ShouldAdvance: true}
-}
-
-func minUint64(a, b uint64) uint64 {
-	if a < b {
-		return a
-	}
-	return b
+	return boundaryDecision{AdvanceThroughSeq: candidate, ShouldAdvance: true, BlockedReason: BlockedNone}
 }
 
 // NewWorker creates a retention worker from focused ports.
@@ -133,6 +162,9 @@ func NewWorker(cfg Config) *Worker {
 func (w *Worker) Start(ctx context.Context) error {
 	if w == nil {
 		return errors.New("channel retention worker is nil")
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	w.mu.Lock()
 	if w.cancel != nil {
@@ -157,6 +189,9 @@ func (w *Worker) Start(ctx context.Context) error {
 func (w *Worker) Stop(ctx context.Context) error {
 	if w == nil {
 		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	w.mu.Lock()
 	cancel := w.cancel
@@ -204,60 +239,136 @@ func (w *Worker) RunOnce(ctx context.Context) error {
 	if w.cfg.TTL <= 0 {
 		return nil
 	}
-	if w.cfg.Channels == nil || w.cfg.Scanner == nil || w.cfg.Runtime == nil || w.cfg.Replay == nil || w.cfg.Metadata == nil {
-		return errors.New("channel retention worker requires all ports")
+	if err := w.validate(); err != nil {
+		return err
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
-	now := w.now()
 	channels, err := w.cfg.Channels.ListRetentionChannels(ctx)
 	if err != nil {
 		return err
 	}
 	for _, ch := range channels {
-		if err := w.runChannel(ctx, ch, now); err != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := w.runChannel(ctx, ch); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (w *Worker) runChannel(ctx context.Context, ch Channel, now time.Time) error {
-	view, err := w.cfg.Runtime.RetentionView(ctx, ch)
+func (w *Worker) runChannel(ctx context.Context, ch Channel) error {
+	now := w.now()
+	view, err := w.cfg.Runtime.RetentionView(ctx, ch.Key)
 	if err != nil {
 		return err
 	}
-
-	prefix, err := w.cfg.Scanner.ScanExpiredPrefix(ctx, ch, now.Add(-w.cfg.TTL), w.scanLimit())
-	if err != nil {
-		return err
-	}
-	if !provisionalBoundary(prefix.ThroughSeq, view).ShouldAdvance {
+	if !w.channelEligible(view, now) {
 		return nil
 	}
 
-	confirmedCursor, err := w.cfg.Replay.ConfirmCommittedReplayCursor(ctx, ch, view.RetentionThroughSeq+1)
+	store, err := w.cfg.Stores.StoreForChannel(ctx, ch)
 	if err != nil {
 		return err
 	}
-	decision := safeBoundary(prefix.ThroughSeq, confirmedCursor, view)
+	prefix, err := store.ScanExpiredMessagePrefix(retentionScanFromSeq(view), now.Add(-w.cfg.TTL), w.maxTrimMessages())
+	if err != nil {
+		return err
+	}
+	if !provisionalRetentionBoundary(prefix.ThroughSeq, view).ShouldAdvance {
+		return nil
+	}
+
+	confirmedCursor, err := store.ConfirmCommittedDispatchCursorDurable(w.cursorName(), nextSeq(view.RetentionThroughSeq))
+	if err != nil {
+		return err
+	}
+	latest, err := w.cfg.Runtime.RetentionView(ctx, ch.Key)
+	if err != nil {
+		return err
+	}
+	now = w.now()
+	if !w.channelEligible(latest, now) {
+		return nil
+	}
+	decision := safeRetentionBoundary(prefix.ThroughSeq, confirmedCursor, latest)
 	if !decision.ShouldAdvance {
 		return nil
 	}
-	return w.cfg.Metadata.AdvanceRetention(ctx, ch, decision.AdvanceThroughSeq, now)
+
+	if err := w.cfg.Metadata.AdvanceChannelRetentionThroughSeq(ctx, retentionAdvanceRequest(ch, latest, decision.AdvanceThroughSeq, now)); err != nil {
+		return err
+	}
+	return w.cfg.Runtime.ApplyRetentionBoundary(ctx, ch.Key, decision.AdvanceThroughSeq)
+}
+
+func (w *Worker) validate() error {
+	if w.cfg.Channels == nil || w.cfg.Stores == nil || w.cfg.Runtime == nil || w.cfg.Metadata == nil {
+		return errors.New("channel retention worker requires all ports")
+	}
+	return nil
+}
+
+func (w *Worker) channelEligible(view channel.RetentionView, now time.Time) bool {
+	if w.cfg.LocalNodeID != 0 && view.Leader != w.cfg.LocalNodeID {
+		return false
+	}
+	if !view.CommitReady {
+		return false
+	}
+	return view.LeaseUntil.IsZero() || now.Before(view.LeaseUntil)
+}
+
+func retentionAdvanceRequest(ch Channel, view channel.RetentionView, throughSeq uint64, now time.Time) metadb.ChannelRetentionAdvance {
+	return metadb.ChannelRetentionAdvance{
+		ChannelID:            ch.ID.ID,
+		ChannelType:          int64(ch.ID.Type),
+		ExpectedChannelEpoch: view.Epoch,
+		ExpectedLeaderEpoch:  view.LeaderEpoch,
+		ExpectedLeader:       uint64(view.Leader),
+		ExpectedLeaseUntilMS: view.LeaseUntil.UnixMilli(),
+		RetentionThroughSeq:  throughSeq,
+		RetentionUpdatedAtMS: now.UnixMilli(),
+	}
+}
+
+func retentionScanFromSeq(view channel.RetentionView) uint64 {
+	if view.MinAvailableSeq > 0 {
+		return view.MinAvailableSeq
+	}
+	return nextSeq(view.RetentionThroughSeq)
+}
+
+func nextSeq(seq uint64) uint64 {
+	if seq == ^uint64(0) {
+		return seq
+	}
+	return seq + 1
 }
 
 func (w *Worker) scanInterval() time.Duration {
 	if w.cfg.ScanInterval > 0 {
 		return w.cfg.ScanInterval
 	}
-	return time.Minute
+	return defaultScanInterval
 }
 
-func (w *Worker) scanLimit() int {
-	if w.cfg.ScanLimit > 0 {
-		return w.cfg.ScanLimit
+func (w *Worker) maxTrimMessages() int {
+	if w.cfg.MaxTrimMessages > 0 {
+		return w.cfg.MaxTrimMessages
 	}
-	return defaultScanLimit
+	return defaultMaxTrimMessages
+}
+
+func (w *Worker) cursorName() string {
+	if w.cfg.CursorName != "" {
+		return w.cfg.CursorName
+	}
+	return defaultCursorName
 }
 
 func (w *Worker) now() time.Time {

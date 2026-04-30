@@ -7,100 +7,82 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 )
 
-func TestSafeBoundaryCapsExpiredScanByConfirmedReplayCursor(t *testing.T) {
-	view := channel.RetentionView{
-		RetentionThroughSeq: 10,
-		HW:                  100,
-		CheckpointHW:        100,
-		MinISRMatchOffset:   100,
-	}
+func TestSafeRetentionBoundaryCapsExpiredScanByConfirmedReplayCursor(t *testing.T) {
+	view := retentionView(10, 100, 100, 100)
 
-	got := safeBoundary(80, 50, view)
+	got := safeRetentionBoundary(80, 50, view)
 
-	if got.AdvanceThroughSeq != 50 || !got.ShouldAdvance {
-		t.Fatalf("safeBoundary() = %+v, want advance through 50", got)
+	if got.AdvanceThroughSeq != 50 || !got.ShouldAdvance || got.BlockedReason != BlockedNone {
+		t.Fatalf("safeRetentionBoundary() = %+v, want advance through 50", got)
 	}
 }
 
-func TestSafeBoundaryMissingFollowerRetentionProgressBlocksAdvancement(t *testing.T) {
-	view := channel.RetentionView{
-		RetentionThroughSeq: 40,
-		HW:                  90,
-		CheckpointHW:        90,
-		MinISRMatchOffset:   40,
-	}
+func TestSafeRetentionBoundaryMissingFollowerRetentionProgressBlocksAdvancement(t *testing.T) {
+	view := retentionView(40, 90, 90, 40)
 
-	got := safeBoundary(80, 80, view)
+	got := safeRetentionBoundary(80, 80, view)
 
-	if got.AdvanceThroughSeq != 40 || got.ShouldAdvance {
-		t.Fatalf("safeBoundary() = %+v, want no advance beyond current retention", got)
+	if got.AdvanceThroughSeq != 40 || got.ShouldAdvance || got.BlockedReason != BlockedMinISRMatchOffset {
+		t.Fatalf("safeRetentionBoundary() = %+v, want no advance beyond current retention", got)
 	}
 }
 
-func TestSafeBoundaryNeverDecreasesCurrentRetentionThroughSeq(t *testing.T) {
-	view := channel.RetentionView{
-		RetentionThroughSeq: 60,
-		HW:                  100,
-		CheckpointHW:        100,
-		MinISRMatchOffset:   100,
-	}
+func TestSafeRetentionBoundaryNeverDecreasesCurrentRetentionThroughSeq(t *testing.T) {
+	view := retentionView(60, 100, 100, 100)
 
-	got := safeBoundary(50, 50, view)
+	got := safeRetentionBoundary(50, 50, view)
 
-	if got.AdvanceThroughSeq != 60 || got.ShouldAdvance {
-		t.Fatalf("safeBoundary() = %+v, want no regression below current retention", got)
+	if got.AdvanceThroughSeq != 60 || got.ShouldAdvance || got.BlockedReason != BlockedExpiredPrefix {
+		t.Fatalf("safeRetentionBoundary() = %+v, want no regression below current retention", got)
 	}
 }
 
-func TestSafeBoundaryZeroExpiredScanReturnsNoAdvancement(t *testing.T) {
-	view := channel.RetentionView{
-		RetentionThroughSeq: 20,
-		HW:                  100,
-		CheckpointHW:        100,
-		MinISRMatchOffset:   100,
-	}
+func TestSafeRetentionBoundaryZeroExpiredScanReturnsNoAdvancement(t *testing.T) {
+	view := retentionView(20, 100, 100, 100)
 
-	got := safeBoundary(0, 100, view)
+	got := safeRetentionBoundary(0, 100, view)
 
-	if got.AdvanceThroughSeq != 20 || got.ShouldAdvance {
-		t.Fatalf("safeBoundary() = %+v, want no advancement", got)
+	if got.AdvanceThroughSeq != 20 || got.ShouldAdvance || got.BlockedReason != BlockedNoExpiredPrefix {
+		t.Fatalf("safeRetentionBoundary() = %+v, want no advancement", got)
 	}
 }
 
-func TestSafeBoundaryCapsByRuntimeWatermarks(t *testing.T) {
-	view := channel.RetentionView{
-		RetentionThroughSeq: 10,
-		HW:                  70,
-		CheckpointHW:        55,
-		MinISRMatchOffset:   80,
-	}
+func TestSafeRetentionBoundaryCapsByRuntimeWatermarks(t *testing.T) {
+	view := retentionView(10, 70, 55, 80)
 
-	got := safeBoundary(80, 80, view)
+	got := safeRetentionBoundary(80, 80, view)
 
-	if got.AdvanceThroughSeq != 55 || !got.ShouldAdvance {
-		t.Fatalf("safeBoundary() = %+v, want advance through checkpoint capped boundary 55", got)
+	if got.AdvanceThroughSeq != 55 || !got.ShouldAdvance || got.BlockedReason != BlockedNone {
+		t.Fatalf("safeRetentionBoundary() = %+v, want advance through checkpoint capped boundary 55", got)
 	}
 }
 
-func TestRunOnceConfirmsCursorBeforeMetadataAdvanceAndUsesFinalBoundary(t *testing.T) {
+func TestRunOnceConfirmsCursorBeforeMetadataAdvanceAndAppliesLocalBoundary(t *testing.T) {
 	now := time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)
 	ch := testChannel("alpha")
-	order := make([]string, 0, 4)
+	order := make([]string, 0, 5)
 	metadata := &fakeMetadataStore{order: &order}
-	replay := &fakeReplayCursor{order: &order, cursors: map[channel.ChannelKey]uint64{ch.Key: 45}}
-	scanner := &fakeExpiredScanner{order: &order, prefixes: map[channel.ChannelKey]ExpiredPrefix{ch.Key: {ThroughSeq: 70}}}
+	store := &fakeStore{
+		order:  &order,
+		cursor: 45,
+		scan:   ScanResult{ThroughSeq: 70},
+	}
+	runtime := &fakeRuntime{order: &order, views: map[channel.ChannelKey][]channel.RetentionView{
+		ch.Key: {retentionViewWithMeta(10, 100, 90, 80, 7, 8, 1, now.Add(time.Minute))},
+	}}
 	worker := NewWorker(Config{
-		Channels:     fakeChannelLister{channels: []Channel{ch}},
-		Scanner:      scanner,
-		Runtime:      &fakeRuntimeView{views: map[channel.ChannelKey]channel.RetentionView{ch.Key: retentionView(10, 100, 90, 80)}},
-		Replay:       replay,
-		Metadata:     metadata,
-		TTL:          time.Hour,
-		ScanLimit:    7,
-		Now:          func() time.Time { return now },
-		ScanInterval: time.Minute,
+		Channels:        fakeChannelLister{channels: []Channel{ch}},
+		Stores:          fakeStoreProvider{stores: map[channel.ChannelKey]Store{ch.Key: store}},
+		Runtime:         runtime,
+		Metadata:        metadata,
+		LocalNodeID:     1,
+		TTL:             time.Hour,
+		MaxTrimMessages: 7,
+		Now:             func() time.Time { return now },
+		ScanInterval:    time.Minute,
 	})
 
 	if err := worker.RunOnce(context.Background()); err != nil {
@@ -110,19 +92,60 @@ func TestRunOnceConfirmsCursorBeforeMetadataAdvanceAndUsesFinalBoundary(t *testi
 	if len(metadata.advances) != 1 {
 		t.Fatalf("metadata advances = %+v, want one advance", metadata.advances)
 	}
-	if metadata.advances[0].boundary != 45 {
-		t.Fatalf("advance boundary = %d, want cursor-capped boundary 45", metadata.advances[0].boundary)
+	wantReq := metadb.ChannelRetentionAdvance{
+		ChannelID:            ch.ID.ID,
+		ChannelType:          int64(ch.ID.Type),
+		ExpectedChannelEpoch: 7,
+		ExpectedLeaderEpoch:  8,
+		ExpectedLeader:       1,
+		ExpectedLeaseUntilMS: now.Add(time.Minute).UnixMilli(),
+		RetentionThroughSeq:  45,
+		RetentionUpdatedAtMS: now.UnixMilli(),
 	}
-	if replay.confirmed[0].minSeq != 11 {
-		t.Fatalf("confirm minSeq = %d, want current retention + 1", replay.confirmed[0].minSeq)
+	if metadata.advances[0] != wantReq {
+		t.Fatalf("advance request = %+v, want %+v", metadata.advances[0], wantReq)
 	}
-	if scanner.calls[0].limit != 7 {
-		t.Fatalf("scan limit = %d, want configured limit 7", scanner.calls[0].limit)
+	if len(store.confirms) != 1 || store.confirms[0].name != defaultCursorName || store.confirms[0].minSeq != 11 {
+		t.Fatalf("confirm calls = %+v, want cursor %q minSeq 11", store.confirms, defaultCursorName)
 	}
-	if wantCutoff := now.Add(-time.Hour); !scanner.calls[0].cutoff.Equal(wantCutoff) {
-		t.Fatalf("scan cutoff = %s, want %s", scanner.calls[0].cutoff, wantCutoff)
+	if len(store.scans) != 1 || store.scans[0].fromSeq != 11 || store.scans[0].limit != 7 {
+		t.Fatalf("scan calls = %+v, want fromSeq 11 limit 7", store.scans)
 	}
-	assertOrder(t, order, []string{"scan", "confirm", "advance"})
+	if wantCutoff := now.Add(-time.Hour); !store.scans[0].cutoff.Equal(wantCutoff) {
+		t.Fatalf("scan cutoff = %s, want %s", store.scans[0].cutoff, wantCutoff)
+	}
+	if len(runtime.applied) != 1 || runtime.applied[0].boundary != 45 {
+		t.Fatalf("local apply calls = %+v, want boundary 45", runtime.applied)
+	}
+	assertOrder(t, order, []string{"scan", "confirm", "advance", "apply"})
+}
+
+func TestRunOnceSkipsNonLocalLeaderAndUnreadyChannels(t *testing.T) {
+	now := time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)
+	nonLeader := testChannel("non-leader")
+	unready := testChannel("unready")
+	expiredLease := testChannel("expired-lease")
+	storeProvider := &recordingStoreProvider{}
+	worker := NewWorker(Config{
+		Channels: fakeChannelLister{channels: []Channel{nonLeader, unready, expiredLease}},
+		Stores:   storeProvider,
+		Runtime: &fakeRuntime{views: map[channel.ChannelKey][]channel.RetentionView{
+			nonLeader.Key:    {retentionViewWithMeta(10, 100, 100, 100, 7, 8, 2, now.Add(time.Minute))},
+			unready.Key:      {retentionViewWithMeta(10, 100, 100, 100, 7, 8, 1, now.Add(time.Minute), func(v *channel.RetentionView) { v.CommitReady = false })},
+			expiredLease.Key: {retentionViewWithMeta(10, 100, 100, 100, 7, 8, 1, now.Add(-time.Second))},
+		}},
+		Metadata:    &fakeMetadataStore{},
+		LocalNodeID: 1,
+		TTL:         time.Hour,
+		Now:         func() time.Time { return now },
+	})
+
+	if err := worker.RunOnce(context.Background()); err != nil {
+		t.Fatalf("RunOnce() error = %v, want nil", err)
+	}
+	if len(storeProvider.calls) != 0 {
+		t.Fatalf("StoreForChannel calls = %+v, want none", storeProvider.calls)
+	}
 }
 
 func TestRunOnceReturnsFirstErrorWithoutUnsafeAdvance(t *testing.T) {
@@ -131,48 +154,56 @@ func TestRunOnceReturnsFirstErrorWithoutUnsafeAdvance(t *testing.T) {
 	ch2 := testChannel("second")
 	tests := []struct {
 		name             string
-		scanner          *fakeExpiredScanner
-		replay           *fakeReplayCursor
+		store            *fakeStore
 		metadata         *fakeMetadataStore
+		runtime          *fakeRuntime
 		wantAdvanceCalls int
 	}{
 		{
 			name:             "scan error stops before confirm",
-			scanner:          &fakeExpiredScanner{errs: map[channel.ChannelKey]error{ch1.Key: boom}},
-			replay:           &fakeReplayCursor{cursors: map[channel.ChannelKey]uint64{ch1.Key: 80}},
+			store:            &fakeStore{scanErr: boom},
 			metadata:         &fakeMetadataStore{},
+			runtime:          &fakeRuntime{},
 			wantAdvanceCalls: 0,
 		},
 		{
 			name:             "confirm error stops before metadata advance",
-			scanner:          &fakeExpiredScanner{prefixes: map[channel.ChannelKey]ExpiredPrefix{ch1.Key: {ThroughSeq: 80}}},
-			replay:           &fakeReplayCursor{errs: map[channel.ChannelKey]error{ch1.Key: boom}},
+			store:            &fakeStore{scan: ScanResult{ThroughSeq: 80}, confirmErr: boom},
 			metadata:         &fakeMetadataStore{},
+			runtime:          &fakeRuntime{},
 			wantAdvanceCalls: 0,
 		},
 		{
-			name:             "advance error is returned",
-			scanner:          &fakeExpiredScanner{prefixes: map[channel.ChannelKey]ExpiredPrefix{ch1.Key: {ThroughSeq: 80}}},
-			replay:           &fakeReplayCursor{cursors: map[channel.ChannelKey]uint64{ch1.Key: 80}},
+			name:             "advance error is returned before local apply",
+			store:            &fakeStore{scan: ScanResult{ThroughSeq: 80}, cursor: 80},
 			metadata:         &fakeMetadataStore{err: boom},
+			runtime:          &fakeRuntime{},
+			wantAdvanceCalls: 1,
+		},
+		{
+			name:             "local apply error is returned after metadata advance",
+			store:            &fakeStore{scan: ScanResult{ThroughSeq: 80}, cursor: 80},
+			metadata:         &fakeMetadataStore{},
+			runtime:          &fakeRuntime{applyErr: boom},
 			wantAdvanceCalls: 1,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runtimeView := &fakeRuntimeView{views: map[channel.ChannelKey]channel.RetentionView{
-				ch1.Key: retentionView(10, 100, 100, 100),
-				ch2.Key: retentionView(10, 100, 100, 100),
-			}}
+			if tt.runtime.views == nil {
+				tt.runtime.views = map[channel.ChannelKey][]channel.RetentionView{}
+			}
+			tt.runtime.views[ch1.Key] = []channel.RetentionView{retentionViewWithMeta(10, 100, 100, 100, 7, 8, 1, time.Unix(2000, 0))}
+			tt.runtime.views[ch2.Key] = []channel.RetentionView{retentionViewWithMeta(10, 100, 100, 100, 7, 8, 1, time.Unix(2000, 0))}
 			worker := NewWorker(Config{
-				Channels: fakeChannelLister{channels: []Channel{ch1, ch2}},
-				Scanner:  tt.scanner,
-				Runtime:  runtimeView,
-				Replay:   tt.replay,
-				Metadata: tt.metadata,
-				TTL:      time.Hour,
-				Now:      func() time.Time { return time.Unix(1000, 0) },
+				Channels:    fakeChannelLister{channels: []Channel{ch1, ch2}},
+				Stores:      fakeStoreProvider{stores: map[channel.ChannelKey]Store{ch1.Key: tt.store, ch2.Key: &fakeStore{}}},
+				Runtime:     tt.runtime,
+				Metadata:    tt.metadata,
+				LocalNodeID: 1,
+				TTL:         time.Hour,
+				Now:         func() time.Time { return time.Unix(1000, 0) },
 			})
 
 			err := worker.RunOnce(context.Background())
@@ -182,8 +213,8 @@ func TestRunOnceReturnsFirstErrorWithoutUnsafeAdvance(t *testing.T) {
 			if len(tt.metadata.advances) != tt.wantAdvanceCalls {
 				t.Fatalf("advance calls = %d, want %d", len(tt.metadata.advances), tt.wantAdvanceCalls)
 			}
-			if len(runtimeView.calls) != 1 || runtimeView.calls[0].Key != ch1.Key {
-				t.Fatalf("runtime calls = %+v, want only first channel", runtimeView.calls)
+			if len(tt.runtime.viewCalls) != 1 && tt.name != "advance error is returned before local apply" && tt.name != "local apply error is returned after metadata advance" {
+				t.Fatalf("runtime calls = %+v, want only first channel", tt.runtime.viewCalls)
 			}
 		})
 	}
@@ -205,12 +236,15 @@ func TestWorkerStartRunsUntilStopAndIsIdempotent(t *testing.T) {
 	ch := testChannel("background")
 	worker := NewWorker(Config{
 		Channels: &notifyingLister{channels: []Channel{ch}, called: called},
-		Scanner:  &fakeExpiredScanner{prefixes: map[channel.ChannelKey]ExpiredPrefix{ch.Key: {}}},
-		Runtime:  &fakeRuntimeView{views: map[channel.ChannelKey]channel.RetentionView{ch.Key: retentionView(0, 0, 0, 0)}},
-		Replay:   &fakeReplayCursor{},
-		Metadata: &fakeMetadataStore{},
-		TTL:      time.Hour,
-		Now:      func() time.Time { return time.Unix(1000, 0) },
+		Stores:   fakeStoreProvider{stores: map[channel.ChannelKey]Store{ch.Key: &fakeStore{}}},
+		Runtime: &fakeRuntime{views: map[channel.ChannelKey][]channel.RetentionView{
+			ch.Key: {retentionViewWithMeta(0, 0, 0, 0, 1, 1, 1, time.Unix(2000, 0))},
+		}},
+		Metadata:     &fakeMetadataStore{},
+		LocalNodeID:  1,
+		TTL:          time.Hour,
+		Now:          func() time.Time { return time.Unix(1000, 0) },
+		ScanInterval: time.Hour,
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -263,85 +297,113 @@ func (n *notifyingLister) ListRetentionChannels(ctx context.Context) ([]Channel,
 	return append([]Channel(nil), n.channels...), nil
 }
 
-type fakeRuntimeView struct {
-	views map[channel.ChannelKey]channel.RetentionView
-	errs  map[channel.ChannelKey]error
-	calls []Channel
-}
-
-func (f *fakeRuntimeView) RetentionView(ctx context.Context, ch Channel) (channel.RetentionView, error) {
-	f.calls = append(f.calls, ch)
-	if err := f.errs[ch.Key]; err != nil {
-		return channel.RetentionView{}, err
-	}
-	return f.views[ch.Key], nil
-}
-
-type scanCall struct {
-	ch     Channel
-	cutoff time.Time
-	limit  int
-}
-
-type fakeExpiredScanner struct {
-	prefixes map[channel.ChannelKey]ExpiredPrefix
-	errs     map[channel.ChannelKey]error
-	calls    []scanCall
-	order    *[]string
-}
-
-func (f *fakeExpiredScanner) ScanExpiredPrefix(ctx context.Context, ch Channel, cutoff time.Time, limit int) (ExpiredPrefix, error) {
-	f.calls = append(f.calls, scanCall{ch: ch, cutoff: cutoff, limit: limit})
-	if f.order != nil {
-		*f.order = append(*f.order, "scan")
-	}
-	if err := f.errs[ch.Key]; err != nil {
-		return ExpiredPrefix{}, err
-	}
-	return f.prefixes[ch.Key], nil
-}
-
-type confirmCall struct {
-	ch     Channel
-	minSeq uint64
-}
-
-type fakeReplayCursor struct {
-	cursors   map[channel.ChannelKey]uint64
+type fakeRuntime struct {
+	views     map[channel.ChannelKey][]channel.RetentionView
 	errs      map[channel.ChannelKey]error
-	confirmed []confirmCall
+	viewCalls []channel.ChannelKey
+	applied   []applyCall
+	applyErr  error
 	order     *[]string
 }
 
-func (f *fakeReplayCursor) ConfirmCommittedReplayCursor(ctx context.Context, ch Channel, minSeq uint64) (uint64, error) {
-	f.confirmed = append(f.confirmed, confirmCall{ch: ch, minSeq: minSeq})
+func (f *fakeRuntime) RetentionView(ctx context.Context, key channel.ChannelKey) (channel.RetentionView, error) {
+	f.viewCalls = append(f.viewCalls, key)
+	if err := f.errs[key]; err != nil {
+		return channel.RetentionView{}, err
+	}
+	views := f.views[key]
+	if len(views) == 0 {
+		return channel.RetentionView{}, nil
+	}
+	if len(views) > 1 {
+		f.views[key] = views[1:]
+	}
+	return views[0], nil
+}
+
+func (f *fakeRuntime) ApplyRetentionBoundary(ctx context.Context, key channel.ChannelKey, throughSeq uint64) error {
+	f.applied = append(f.applied, applyCall{key: key, boundary: throughSeq})
+	if f.order != nil {
+		*f.order = append(*f.order, "apply")
+	}
+	return f.applyErr
+}
+
+type scanCall struct {
+	fromSeq uint64
+	cutoff  time.Time
+	limit   int
+}
+
+type confirmCall struct {
+	name   string
+	minSeq uint64
+}
+
+type fakeStore struct {
+	scan       ScanResult
+	scanErr    error
+	cursor     uint64
+	confirmErr error
+	scans      []scanCall
+	confirms   []confirmCall
+	order      *[]string
+}
+
+func (f *fakeStore) ScanExpiredMessagePrefix(fromSeq uint64, cutoff time.Time, limit int) (ScanResult, error) {
+	f.scans = append(f.scans, scanCall{fromSeq: fromSeq, cutoff: cutoff, limit: limit})
+	if f.order != nil {
+		*f.order = append(*f.order, "scan")
+	}
+	return f.scan, f.scanErr
+}
+
+func (f *fakeStore) ConfirmCommittedDispatchCursorDurable(name string, minSeq uint64) (uint64, error) {
+	f.confirms = append(f.confirms, confirmCall{name: name, minSeq: minSeq})
 	if f.order != nil {
 		*f.order = append(*f.order, "confirm")
 	}
-	if err := f.errs[ch.Key]; err != nil {
-		return 0, err
-	}
-	return f.cursors[ch.Key], nil
+	return f.cursor, f.confirmErr
 }
 
-type advanceCall struct {
-	ch       Channel
-	boundary uint64
-	now      time.Time
+type fakeStoreProvider struct {
+	stores map[channel.ChannelKey]Store
+	err    error
+}
+
+func (f fakeStoreProvider) StoreForChannel(ctx context.Context, ch Channel) (Store, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.stores[ch.Key], nil
+}
+
+type recordingStoreProvider struct {
+	calls []Channel
+}
+
+func (r *recordingStoreProvider) StoreForChannel(ctx context.Context, ch Channel) (Store, error) {
+	r.calls = append(r.calls, ch)
+	return &fakeStore{}, nil
 }
 
 type fakeMetadataStore struct {
-	advances []advanceCall
+	advances []metadb.ChannelRetentionAdvance
 	err      error
 	order    *[]string
 }
 
-func (f *fakeMetadataStore) AdvanceRetention(ctx context.Context, ch Channel, boundary uint64, now time.Time) error {
-	f.advances = append(f.advances, advanceCall{ch: ch, boundary: boundary, now: now})
+func (f *fakeMetadataStore) AdvanceChannelRetentionThroughSeq(ctx context.Context, req metadb.ChannelRetentionAdvance) error {
+	f.advances = append(f.advances, req)
 	if f.order != nil {
 		*f.order = append(*f.order, "advance")
 	}
 	return f.err
+}
+
+type applyCall struct {
+	key      channel.ChannelKey
+	boundary uint64
 }
 
 func testChannel(id string) Channel {
@@ -349,12 +411,26 @@ func testChannel(id string) Channel {
 }
 
 func retentionView(current, hw, checkpointHW, minISR uint64) channel.RetentionView {
-	return channel.RetentionView{
-		RetentionThroughSeq: current,
+	return retentionViewWithMeta(current, hw, checkpointHW, minISR, 1, 1, 1, time.Unix(2000, 0))
+}
+
+func retentionViewWithMeta(current, hw, checkpointHW, minISR, epoch, leaderEpoch uint64, leader channel.NodeID, leaseUntil time.Time, opts ...func(*channel.RetentionView)) channel.RetentionView {
+	view := channel.RetentionView{
+		Epoch:               epoch,
+		LeaderEpoch:         leaderEpoch,
+		Leader:              leader,
+		LeaseUntil:          leaseUntil,
 		HW:                  hw,
 		CheckpointHW:        checkpointHW,
+		CommitReady:         true,
+		RetentionThroughSeq: current,
+		MinAvailableSeq:     channel.EffectiveMinAvailableSeq(current, 0),
 		MinISRMatchOffset:   minISR,
 	}
+	for _, opt := range opts {
+		opt(&view)
+	}
+	return view
 }
 
 func assertOrder(t *testing.T, got, want []string) {
