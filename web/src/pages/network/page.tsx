@@ -45,6 +45,11 @@ function mapErrorKind(error: Error | null) {
   return "error" as const
 }
 
+function resourceTitle(intl: IntlShape, error: Error | null) {
+  if (mapErrorKind(error) === "forbidden") return intl.formatMessage({ id: "network.error.forbiddenTitle" })
+  return intl.formatMessage({ id: "network.title" })
+}
+
 function compactNumber(intl: IntlShape, value: number) {
   return new Intl.NumberFormat(intl.locale).format(value)
 }
@@ -77,6 +82,10 @@ function MetricCard({ label, value, detail }: { label: string; value: string | n
 
 function sourceLabel(intl: IntlShape, key: "local_collector" | "controller_context" | "runtime_views", value: string) {
   return intl.formatMessage({ id: `network.source.${key}` }, { status: value.replaceAll("_", " ") })
+}
+
+function isAdvertiseWildcard(addr: string) {
+  return addr.startsWith("0.0.0.0") || addr.startsWith("[::]")
 }
 
 function ServiceRows({ intl, services }: { intl: IntlShape; services: ManagerNetworkRPCService[] }) {
@@ -161,7 +170,7 @@ function DiscoveryList({ intl, discovery, dataPlaneTimeoutMs }: { intl: IntlShap
 
   return (
     <div className="space-y-3">
-      {discovery.advertise_addr.startsWith("0.0.0.0") || discovery.advertise_addr.startsWith("[::]") ? (
+      {isAdvertiseWildcard(discovery.advertise_addr) ? (
         <div className="rounded-lg border border-border bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
           {intl.formatMessage({ id: "network.discovery.advertiseWarning" })}
         </div>
@@ -238,7 +247,7 @@ export function NetworkPage() {
       </PageHeader>
 
       {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "network.title" })} description={intl.formatMessage({ id: "network.loading" })} /> : null}
-      {!state.loading && state.error ? <ResourceState kind={errorKind} onRetry={() => { void loadNetwork(false) }} title={errorKind === "forbidden" ? intl.formatMessage({ id: "network.error.forbiddenTitle" }) : intl.formatMessage({ id: "network.title" })} /> : null}
+      {!state.loading && state.error ? <ResourceState kind={errorKind} onRetry={() => { void loadNetwork(false) }} title={resourceTitle(intl, state.error)} /> : null}
 
       {!state.loading && !state.error && summary ? (
         <>
