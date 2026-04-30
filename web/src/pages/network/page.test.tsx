@@ -279,6 +279,10 @@ test("shows only current long-poll expiries as neutral samples", async () => {
 test("uses current one-minute totals for abnormal failure KPI", async () => {
   getNetworkSummaryMock.mockResolvedValue({
     ...networkSummaryFixture,
+    services: [
+      { ...networkSummaryFixture.services[0], other_error_1m: 2 },
+      networkSummaryFixture.services[1],
+    ],
     history: {
       ...networkSummaryFixture.history,
       errors: [
@@ -291,7 +295,7 @@ test("uses current one-minute totals for abnormal failure KPI", async () => {
   renderNetworkPage()
 
   expect(await screen.findByText("RPC Calls & Errors")).toBeInTheDocument()
-  expectAllMetricCards("Abnormal failures", "10")
+  expectAllMetricCards("Abnormal failures", "12")
 })
 
 test("renders single-node cluster outbound empty state as healthy", async () => {
