@@ -225,6 +225,15 @@ function abnormalServiceFailures(services: ManagerNetworkRPCService[]) {
   return services.reduce((total, service) => total + service.timeout_1m + service.queue_full_1m + service.remote_error_1m + service.other_error_1m, 0)
 }
 
+function abnormalFailureTotal(summary: ManagerNetworkSummaryResponse) {
+  const history = summaryHistory(summary)
+  const latestErrorPoint = history.errors.at(-1)
+  if (latestErrorPoint) {
+    return latestErrorPoint.dial_errors + latestErrorPoint.queue_full + latestErrorPoint.timeouts + latestErrorPoint.remote_errors
+  }
+  return summary.headline.dial_errors_1m + summary.headline.queue_full_1m + summary.headline.timeouts_1m + abnormalServiceFailures(summary.services)
+}
+
 function expectedLongPollExpiries(summary: ManagerNetworkSummaryResponse) {
   return Math.max(
     summary.channel_replication.long_poll_timeouts_1m,
@@ -424,7 +433,7 @@ export function NetworkPage() {
       channelPool: poolData(intl.formatMessage({ id: "network.channel.dataPlanePool" }), summary.channel_replication.pool),
       longPollLimits: longPollLimitData(intl, summary),
       expectedExpiries: expectedLongPollExpiries(summary),
-      abnormalFailures: abnormalServiceFailures(summary.services),
+      abnormalFailures: abnormalFailureTotal(summary),
     }
   }, [intl, summary])
 
