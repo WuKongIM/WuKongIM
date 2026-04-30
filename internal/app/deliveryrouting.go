@@ -499,6 +499,9 @@ func (d *asyncCommittedDispatcher) logCommittedRoute(env deliveryruntime.Committ
 	if d.logger == nil {
 		return
 	}
+	if err == nil && !wklog.DebugEnabled(d.logger) {
+		return
+	}
 	fields := []wklog.Field{
 		wklog.Event("delivery.diag.committed_route"),
 		wklog.String("stage", stage),
@@ -644,7 +647,8 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 			overflow      []deliveryruntime.RouteKey
 		)
 		remaining := limit - len(out)
-		if r.logger != nil {
+		debugEnabled := wklog.DebugEnabled(r.logger)
+		if debugEnabled {
 			missing = make([]string, 0, len(uids))
 		}
 		if resolveToken.channelType == frame.ChannelTypePerson {
@@ -653,7 +657,7 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 				if err != nil {
 					return nil, "", false, err
 				}
-				if len(routes) == 0 && r.logger != nil {
+				if len(routes) == 0 && debugEnabled {
 					missing = append(missing, uid)
 				}
 				expandedCount += len(routes)
@@ -666,14 +670,14 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 			}
 			for _, uid := range uids {
 				routes := endpointsByUID[uid]
-				if len(routes) == 0 && r.logger != nil {
+				if len(routes) == 0 && debugEnabled {
 					missing = append(missing, uid)
 				}
 				expandedCount += len(routes)
 				out, overflow = appendResolvedPresenceRoutes(out, overflow, routes, &remaining)
 			}
 		}
-		if r.logger != nil {
+		if debugEnabled {
 			fields := []wklog.Field{
 				wklog.Event("delivery.diag.resolve_page"),
 				wklog.String("cursor", cursor),
@@ -783,7 +787,7 @@ func (p localDeliveryPush) pushEnvelope(env deliveryruntime.CommittedEnvelope, r
 			result.Accepted = append(result.Accepted, route)
 		}
 	}
-	if p.logger != nil {
+	if wklog.DebugEnabled(p.logger) {
 		p.logger.Debug("local delivery push finished",
 			wklog.Event("delivery.diag.local_push"),
 			wklog.String("channelID", env.ChannelID),
@@ -870,7 +874,7 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 			result.Dropped = append(result.Dropped, legacyResult.Dropped...)
 			continue
 		}
-		if p.logger != nil {
+		if wklog.DebugEnabled(p.logger) {
 			p.logger.Debug("remote delivery push finished",
 				wklog.Event("delivery.diag.remote_push"),
 				wklog.String("channelID", cmd.Envelope.ChannelID),

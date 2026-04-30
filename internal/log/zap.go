@@ -72,6 +72,9 @@ func NewLogger(cfg Config) (wklog.Logger, error) {
 }
 
 func (z *zapLogger) Debug(msg string, fields ...wklog.Field) {
+	if !z.DebugEnabled() {
+		return
+	}
 	z.log.Debug(msg, toZapFields(fields)...)
 }
 
@@ -117,6 +120,14 @@ func (z *zapLogger) Sync() error {
 		return nil
 	}
 	return err
+}
+
+// DebugEnabled reports whether this logger will emit debug records.
+func (z *zapLogger) DebugEnabled() bool {
+	if z == nil || z.log == nil {
+		return false
+	}
+	return z.log.Core().Enabled(zapcore.DebugLevel)
 }
 
 func parseLevel(level string) (zapcore.Level, error) {

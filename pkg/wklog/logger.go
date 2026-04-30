@@ -12,3 +12,18 @@ type Logger interface {
 	With(fields ...Field) Logger
 	Sync() error
 }
+
+type debugEnabledLogger interface {
+	DebugEnabled() bool
+}
+
+// DebugEnabled reports whether debug diagnostics should be built for logger.
+func DebugEnabled(logger Logger) bool {
+	if logger == nil {
+		return false
+	}
+	if checker, ok := logger.(debugEnabledLogger); ok {
+		return checker.DebugEnabled()
+	}
+	return true
+}

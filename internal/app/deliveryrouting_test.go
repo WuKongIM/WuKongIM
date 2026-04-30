@@ -712,6 +712,29 @@ func TestDeliverySuccessDiagnosticsUseDebugLevel(t *testing.T) {
 	requireCapturedLogEntry(t, logger, "DEBUG", "", "delivery.diag.local_push")
 }
 
+func TestLocalDeliveryPushSkipsDiagnosticsWhenDebugDisabled(t *testing.T) {
+	logger := &debugDisabledCapturedLogger{capturedLogger: newCapturedLogger("")}
+	push := localDeliveryPush{
+		online:        online.NewRegistry(),
+		localNodeID:   1,
+		gatewayBootID: 11,
+		logger:        logger,
+	}
+
+	_, err := push.Push(context.Background(), deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				ChannelID:   "g1",
+				ChannelType: 2,
+				MessageID:   102,
+				MessageSeq:  2,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, logger.entries())
+}
+
 func TestDeliveryResolverMissingAuthoritativeEndpointsUseDebugLevel(t *testing.T) {
 	logger := newCapturedLogger("")
 	resolver := localDeliveryResolver{

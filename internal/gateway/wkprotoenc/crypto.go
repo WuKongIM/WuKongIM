@@ -7,9 +7,11 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"strconv"
 
 	gatewaytypes "github.com/WuKongIM/WuKongIM/internal/gateway/types"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/valyala/bytebufferpool"
 	"golang.org/x/crypto/curve25519"
 )
 
@@ -203,7 +205,7 @@ func SendMsgKeyWithCrypto(packet *frame.SendPacket, sessionCrypto *SessionCrypto
 	if packet == nil {
 		return "", ErrMsgKeyMismatch
 	}
-	return msgKeyWithCrypto([]byte(packet.VerityString()), sessionCrypto)
+	return sendMsgKeyWithCrypto(packet, sessionCrypto)
 }
 
 func ValidateSendPacket(packet *frame.SendPacket, keys SessionKeys) error {
@@ -334,7 +336,23 @@ func recvMsgKeyWithCrypto(packet *frame.RecvPacket, sessionCrypto *SessionCrypto
 	if packet == nil {
 		return "", ErrMsgKeyMismatch
 	}
-	return msgKeyWithCrypto([]byte(packet.VerityString()), sessionCrypto)
+	buf := bytebufferpool.Get()
+	defer bytebufferpool.Put(buf)
+	buf.Reset()
+	packet.VerityBytes(buf)
+	return msgKeyWithCrypto(buf.B, sessionCrypto)
+}
+
+func sendMsgKeyWithCrypto(packet *frame.SendPacket, sessionCrypto *SessionCrypto) (string, error) {
+	buf := bytebufferpool.Get()
+	defer bytebufferpool.Put(buf)
+	buf.Reset()
+	buf.B = strconv.AppendUint(buf.B, packet.ClientSeq, 10)
+	buf.B = append(buf.B, packet.ClientMsgNo...)
+	buf.B = append(buf.B, packet.ChannelID...)
+	buf.B = strconv.AppendInt(buf.B, int64(packet.ChannelType), 10)
+	buf.B = append(buf.B, packet.Payload...)
+	return msgKeyWithCrypto(buf.B, sessionCrypto)
 }
 
 // encryptCBCBlocks applies CBC without allocating a cipher.BlockMode per message.

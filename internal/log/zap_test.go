@@ -105,6 +105,21 @@ func TestNewLoggerRoutesLevelsToSeparateFiles(t *testing.T) {
 	require.Contains(t, errorContents, `"error":"boom"`)
 }
 
+func TestDisabledDebugSkipsFieldConversion(t *testing.T) {
+	logger, err := NewLogger(Config{
+		Dir:     t.TempDir(),
+		Level:   "info",
+		Console: false,
+		Format:  "json",
+	})
+	require.NoError(t, err)
+	require.False(t, wklog.DebugEnabled(logger))
+
+	require.NotPanics(t, func() {
+		logger.Debug("skipped", wklog.Field{Key: "bad", Type: wklog.IntType, Value: "not-int"})
+	})
+}
+
 func TestToZapFieldsConvertsAllSupportedTypes(t *testing.T) {
 	errBoom := errors.New("boom")
 	duration := 250 * time.Millisecond

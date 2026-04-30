@@ -39,6 +39,12 @@ type capturedLogger struct {
 	sink   *capturedLoggerSink
 }
 
+type debugDisabledCapturedLogger struct {
+	*capturedLogger
+}
+
+func (l *debugDisabledCapturedLogger) DebugEnabled() bool { return false }
+
 func newCapturedLogger(module string) *capturedLogger {
 	return &capturedLogger{module: module, sink: &capturedLoggerSink{}}
 }

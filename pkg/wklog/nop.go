@@ -12,3 +12,4 @@ func (n *NopLogger) Fatal(string, ...Field) {}
 func (n *NopLogger) Named(string) Logger    { return n }
 func (n *NopLogger) With(...Field) Logger   { return n }
 func (n *NopLogger) Sync() error            { return nil }
+func (n *NopLogger) DebugEnabled() bool     { return false }
