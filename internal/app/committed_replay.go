@@ -65,10 +65,11 @@ type committedReplayerConfig struct {
 
 // committedReplayer repairs missed async side effects from the durable channel log.
 type committedReplayer struct {
-	cfg    committedReplayerConfig
-	mu     sync.Mutex
-	cancel context.CancelFunc
-	done   chan struct{}
+	cfg      committedReplayerConfig
+	mu       sync.Mutex
+	cancel   context.CancelFunc
+	done     chan struct{}
+	stopping bool
 }
 
 func newCommittedReplayer(cfg committedReplayerConfig) *committedReplayer {
@@ -101,6 +102,9 @@ func (r *committedReplayer) Start(ctx context.Context) error {
 	if r.cancel != nil {
 		return nil
 	}
+	if r.stopping {
+		return nil
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -112,21 +116,57 @@ func (r *committedReplayer) Start(ctx context.Context) error {
 }
 
 func (r *committedReplayer) Stop() error {
+	return r.StopContext(context.Background())
+}
+
+// StopContext cancels replay and bounds shutdown with the caller context.
+func (r *committedReplayer) StopContext(ctx context.Context) error {
 	if r == nil {
 		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	r.mu.Lock()
 	cancel := r.cancel
 	done := r.done
+	if cancel == nil && r.stopping && done != nil {
+		r.mu.Unlock()
+		return r.waitStop(ctx, done)
+	}
 	r.cancel = nil
-	r.done = nil
+	if cancel != nil {
+		r.stopping = true
+	}
 	r.mu.Unlock()
 	if cancel == nil {
 		return nil
 	}
 	cancel()
-	<-done
-	return nil
+	return r.waitStop(ctx, done)
+}
+
+func (r *committedReplayer) waitStop(ctx context.Context, done chan struct{}) error {
+	select {
+	case <-done:
+		r.finishStop(done)
+		return nil
+	case <-ctx.Done():
+		go func() {
+			<-done
+			r.finishStop(done)
+		}()
+		return ctx.Err()
+	}
+}
+
+func (r *committedReplayer) finishStop(done chan struct{}) {
+	r.mu.Lock()
+	if r.done == done {
+		r.done = nil
+		r.stopping = false
+	}
+	r.mu.Unlock()
 }
 
 func (r *committedReplayer) run(ctx context.Context, done chan<- struct{}) {

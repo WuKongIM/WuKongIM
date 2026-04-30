@@ -355,6 +355,52 @@ func TestCommittedDispatchQueueStopContextBoundsBlockedWorker(t *testing.T) {
 	require.Eventually(t, func() bool { return dispatcher.isStoppedForTest() }, time.Second, time.Millisecond)
 }
 
+func TestCommittedDispatchQueueStopContextCancelsInFlightRoute(t *testing.T) {
+	delivery := newContextAwareBlockingCommittedSubmitter()
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID: 1,
+		PreferLocal: true,
+		Delivery:    delivery,
+		ShardCount:  1,
+		QueueDepth:  1,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
+	delivery.WaitEntered(t)
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	require.NoError(t, dispatcher.StopContext(stopCtx))
+	require.ErrorIs(t, delivery.Err(), context.Canceled)
+}
+
+func TestCommittedDispatchQueueStopContextCanBeRetriedAfterTimeout(t *testing.T) {
+	delivery := newBlockingCommittedSubmitter()
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID: 1,
+		PreferLocal: true,
+		Delivery:    delivery,
+		ShardCount:  1,
+		QueueDepth:  1,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
+	delivery.WaitEntered(t)
+
+	firstCtx, firstCancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer firstCancel()
+	require.ErrorIs(t, dispatcher.StopContext(firstCtx), context.DeadlineExceeded)
+
+	secondCtx, secondCancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer secondCancel()
+	require.ErrorIs(t, dispatcher.StopContext(secondCtx), context.DeadlineExceeded)
+
+	delivery.Release()
+	require.Eventually(t, func() bool { return dispatcher.isStoppedForTest() }, time.Second, time.Millisecond)
+	require.NoError(t, dispatcher.StopContext(context.Background()))
+}
+
 func TestCommittedDispatchQueueRecordsMetrics(t *testing.T) {
 	metrics := &recordingCommittedDispatchMetrics{}
 	conversation := &recordingFlushingConversationSubmitter{}
@@ -1077,6 +1123,45 @@ func (b *blockingCommittedSubmitter) WaitEntered(t *testing.T) {
 
 func (b *blockingCommittedSubmitter) Release() {
 	close(b.release)
+}
+
+type contextAwareBlockingCommittedSubmitter struct {
+	entered chan struct{}
+	once    sync.Once
+	mu      sync.Mutex
+	err     error
+}
+
+func newContextAwareBlockingCommittedSubmitter() *contextAwareBlockingCommittedSubmitter {
+	return &contextAwareBlockingCommittedSubmitter{entered: make(chan struct{})}
+}
+
+func (b *contextAwareBlockingCommittedSubmitter) SubmitCommitted(ctx context.Context, _ deliveryruntime.CommittedEnvelope) error {
+	b.once.Do(func() { close(b.entered) })
+	err := ctx.Err()
+	if err == nil {
+		<-ctx.Done()
+		err = ctx.Err()
+	}
+	b.mu.Lock()
+	b.err = err
+	b.mu.Unlock()
+	return err
+}
+
+func (b *contextAwareBlockingCommittedSubmitter) WaitEntered(t *testing.T) {
+	t.Helper()
+	select {
+	case <-b.entered:
+	case <-time.After(time.Second):
+		require.FailNow(t, "timed out waiting for context-aware committed submitter")
+	}
+}
+
+func (b *contextAwareBlockingCommittedSubmitter) Err() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.err
 }
 
 func (d *asyncCommittedDispatcher) isStoppedForTest() bool {

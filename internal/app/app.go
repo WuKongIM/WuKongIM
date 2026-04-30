@@ -106,8 +106,8 @@ type App struct {
 	stopGatewayFn                func() error
 	stopConversationProjectorFn  func() error
 	stopDeliveryRuntimeFn        func() error
-	stopCommittedDispatcherFn    func() error
-	stopCommittedReplayFn        func() error
+	stopCommittedDispatcherFn    func(context.Context) error
+	stopCommittedReplayFn        func(context.Context) error
 	stopPresenceFn               func() error
 	stopChannelMetaSyncFn        func() error
 	stopClusterFn                func()

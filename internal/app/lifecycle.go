@@ -240,7 +240,7 @@ func (a *App) stopCommittedDispatcher(ctx context.Context) error {
 		return nil
 	}
 	if a.stopCommittedDispatcherFn != nil {
-		return a.stopCommittedDispatcherFn()
+		return a.stopCommittedDispatcherFn(ctx)
 	}
 	if a.committedDispatcher == nil {
 		return nil
@@ -248,17 +248,17 @@ func (a *App) stopCommittedDispatcher(ctx context.Context) error {
 	return a.committedDispatcher.StopContext(ctx)
 }
 
-func (a *App) stopCommittedReplay() error {
+func (a *App) stopCommittedReplay(ctx context.Context) error {
 	if !a.committedReplayOn.Swap(false) {
 		return nil
 	}
 	if a.stopCommittedReplayFn != nil {
-		return a.stopCommittedReplayFn()
+		return a.stopCommittedReplayFn(ctx)
 	}
 	if a.committedReplayer == nil {
 		return nil
 	}
-	return a.committedReplayer.Stop()
+	return a.committedReplayer.StopContext(ctx)
 }
 
 func (a *App) stopChannelMetaSync() error {

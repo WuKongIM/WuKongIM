@@ -185,8 +185,8 @@ func (a *App) committedReplayLifecycleComponent() applifecycle.Component {
 			a.committedReplayOn.Store(true)
 			return nil
 		},
-		stop: func(context.Context) error {
-			return a.stopCommittedReplay()
+		stop: func(ctx context.Context) error {
+			return a.stopCommittedReplay(ctx)
 		},
 	}
 }

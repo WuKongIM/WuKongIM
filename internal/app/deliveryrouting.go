@@ -179,6 +179,10 @@ func (d *asyncCommittedDispatcher) StopContext(ctx context.Context) error {
 	d.mu.Lock()
 	cancel := d.cancel
 	done := d.done
+	if cancel == nil && d.stopping && done != nil {
+		d.mu.Unlock()
+		return d.waitCommittedDispatchDone(ctx, done)
+	}
 	d.cancel = nil
 	d.running = false
 	if cancel != nil {
@@ -190,6 +194,10 @@ func (d *asyncCommittedDispatcher) StopContext(ctx context.Context) error {
 	}
 	cancel()
 	d.abandonQueuedCommitted()
+	return d.waitCommittedDispatchDone(ctx, done)
+}
+
+func (d *asyncCommittedDispatcher) waitCommittedDispatchDone(ctx context.Context, done chan struct{}) error {
 	select {
 	case <-done:
 		d.finishCommittedDispatchStop(done)
@@ -245,7 +253,7 @@ func (d *asyncCommittedDispatcher) runShard(ctx context.Context, shardName strin
 			default:
 			}
 			d.recordCommittedDispatchDepth(shardName, len(queue))
-			d.routeCommitted(item.ctx, item.env)
+			d.routeCommitted(committedDispatchRouteContext(ctx, item.ctx), item.env)
 		}
 	}
 }
@@ -330,6 +338,40 @@ func (d *asyncCommittedDispatcher) recordAllCommittedDispatchDepths() {
 	}
 }
 
+type committedDispatchValueContext struct {
+	control context.Context
+	values  context.Context
+}
+
+func committedDispatchRouteContext(control, values context.Context) context.Context {
+	if control == nil {
+		control = context.Background()
+	}
+	if values == nil {
+		return control
+	}
+	return committedDispatchValueContext{control: control, values: values}
+}
+
+func (c committedDispatchValueContext) Deadline() (time.Time, bool) {
+	return c.control.Deadline()
+}
+
+func (c committedDispatchValueContext) Done() <-chan struct{} {
+	return c.control.Done()
+}
+
+func (c committedDispatchValueContext) Err() error {
+	return c.control.Err()
+}
+
+func (c committedDispatchValueContext) Value(key any) any {
+	if v := c.values.Value(key); v != nil {
+		return v
+	}
+	return c.control.Value(key)
+}
+
 func committedEnvelopeFromMessageEvent(event messageevents.MessageCommitted) deliveryruntime.CommittedEnvelope {
 	return deliveryruntime.CommittedEnvelope{
 		Message:         event.Message,
@@ -389,11 +431,24 @@ func (d *asyncCommittedDispatcher) routeCommitted(ctx context.Context, env deliv
 			d.logCommittedRoute(env, "status_failed", 0, err)
 		}
 		if attempt < committedRouteRetryAttempts-1 {
-			time.Sleep(time.Duration(attempt+1) * committedRouteRetryBackoff)
+			if !sleepCommittedRouteRetry(ctx, time.Duration(attempt+1)*committedRouteRetryBackoff) {
+				return
+			}
 		}
 	}
 	d.logCommittedRoute(env, "conversation_fallback", 0, nil)
 	d.submitConversationFallback(ctx, env)
+}
+
+func sleepCommittedRouteRetry(ctx context.Context, d time.Duration) bool {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }
 
 func (d *asyncCommittedDispatcher) logCommittedRoute(env deliveryruntime.CommittedEnvelope, stage string, ownerNodeID uint64, err error) {

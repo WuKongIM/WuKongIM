@@ -1083,7 +1083,7 @@ func TestAppLifecycleStopsPresenceWorkerAfterGateway(t *testing.T) {
 		stopCalls = append(stopCalls, "presence.stop")
 		return nil
 	})
-	app.stopCommittedDispatcherFn = func() error {
+	app.stopCommittedDispatcherFn = func(context.Context) error {
 		stopCalls = append(stopCalls, "committed_dispatcher.stop")
 		return nil
 	}
@@ -1093,6 +1093,29 @@ func TestAppLifecycleStopsPresenceWorkerAfterGateway(t *testing.T) {
 
 	require.NoError(t, app.Stop())
 	require.Equal(t, []string{"gateway.stop", "committed_dispatcher.stop", "presence.stop", "cluster.stop", "raft.close", "metadb.close"}, stopCalls)
+}
+
+func TestAppLifecyclePassesBoundedStopContextToCommittedReplayAndDispatcher(t *testing.T) {
+	var replayHasDeadline bool
+	var dispatcherHasDeadline bool
+	app := &App{
+		stopCommittedReplayFn: func(ctx context.Context) error {
+			_, replayHasDeadline = ctx.Deadline()
+			return nil
+		},
+		stopCommittedDispatcherFn: func(ctx context.Context) error {
+			_, dispatcherHasDeadline = ctx.Deadline()
+			return nil
+		},
+		closeRaftDBFn: func() error { return nil },
+		closeWKDBFn:   func() error { return nil },
+	}
+	app.committedReplayOn.Store(true)
+	app.committedDispatcherOn.Store(true)
+
+	require.NoError(t, app.Stop())
+	require.True(t, replayHasDeadline)
+	require.True(t, dispatcherHasDeadline)
 }
 
 func TestStopStopsAPIBeforeGatewayAndClusterClose(t *testing.T) {

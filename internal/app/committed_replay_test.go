@@ -3,7 +3,9 @@ package app
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -96,12 +98,88 @@ func TestCommittedReplayerDoesNotAdvanceAcrossMessageSeqGap(t *testing.T) {
 	require.Empty(t, source.cursors)
 }
 
+func TestCommittedReplayerStopContextBoundsBlockedPass(t *testing.T) {
+	source := newBlockingCommittedReplayLog()
+	replayer := newCommittedReplayer(committedReplayerConfig{
+		Log:      source,
+		Interval: time.Hour,
+	})
+	require.NoError(t, replayer.Start(context.Background()))
+	source.WaitEntered(t)
+
+	firstCtx, firstCancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer firstCancel()
+	require.ErrorIs(t, replayer.StopContext(firstCtx), context.DeadlineExceeded)
+
+	secondCtx, secondCancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer secondCancel()
+	require.ErrorIs(t, replayer.StopContext(secondCtx), context.DeadlineExceeded)
+
+	source.Release()
+	require.Eventually(t, func() bool { return replayerStoppedForTest(replayer) }, time.Second, time.Millisecond)
+	require.NoError(t, replayer.StopContext(context.Background()))
+}
+
 type fakeCommittedReplayLog struct {
 	channels       []committedReplayChannel
 	cursors        map[channel.ChannelKey]uint64
 	committed      map[channel.ChannelKey]uint64
 	messages       map[channel.ChannelKey][]channel.Message
 	canStoreCursor func() bool
+}
+
+type blockingCommittedReplayLog struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newBlockingCommittedReplayLog() *blockingCommittedReplayLog {
+	return &blockingCommittedReplayLog{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (f *blockingCommittedReplayLog) ListCommittedReplayChannels(context.Context) ([]committedReplayChannel, error) {
+	f.once.Do(func() { close(f.entered) })
+	<-f.release
+	return nil, nil
+}
+
+func (f *blockingCommittedReplayLog) LoadCommittedDispatchCursor(context.Context, channel.ChannelKey, string) (uint64, bool, error) {
+	return 0, false, nil
+}
+
+func (f *blockingCommittedReplayLog) StoreCommittedDispatchCursor(context.Context, channel.ChannelKey, string, uint64) error {
+	return nil
+}
+
+func (f *blockingCommittedReplayLog) CommittedSeq(context.Context, channel.ChannelKey, channel.ChannelID) (uint64, error) {
+	return 0, nil
+}
+
+func (f *blockingCommittedReplayLog) LoadCommittedMessages(context.Context, channel.ChannelKey, channel.ChannelID, uint64, int, int) ([]channel.Message, error) {
+	return nil, nil
+}
+
+func (f *blockingCommittedReplayLog) WaitEntered(t *testing.T) {
+	t.Helper()
+	select {
+	case <-f.entered:
+	case <-time.After(time.Second):
+		require.FailNow(t, "timed out waiting for committed replay log")
+	}
+}
+
+func (f *blockingCommittedReplayLog) Release() {
+	close(f.release)
+}
+
+func replayerStoppedForTest(r *committedReplayer) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.cancel == nil && !r.stopping && r.done == nil
 }
 
 func (f *fakeCommittedReplayLog) ListCommittedReplayChannels(context.Context) ([]committedReplayChannel, error) {
