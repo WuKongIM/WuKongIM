@@ -12,6 +12,10 @@
 
 ## File Structure
 
+- Modify: `pkg/transport/client.go`
+  - Add an RPC result-classifier variant so successful RPC responses can be classified before observer emission.
+- Modify: `pkg/channel/transport/transport.go`
+  - Classify decoded long-poll `TimedOut` responses as `expected_timeout`.
 - Modify: `internal/usecase/management/network.go`
   - Add `NetworkHistory`, `NetworkTrafficHistoryPoint`, `NetworkRPCHistoryPoint`, and `NetworkErrorHistoryPoint` structs.
   - Add `History` to `NetworkObservationSnapshot` and `NetworkSummary`.
@@ -43,7 +47,47 @@
 
 ---
 
-### Task 1: Backend History DTOs And Collector Aggregation
+### Task 1: Long-poll Expected Timeout Classification
+
+**Files:**
+- Modify: `pkg/transport/client.go`
+- Test: `pkg/transport/client_test.go`
+- Modify: `pkg/channel/transport/transport.go`
+- Test: `pkg/channel/transport/adapter_test.go` or `pkg/channel/transport/longpoll_session_test.go`
+
+- [ ] **Step 1: Write failing transport classifier test**
+
+Add a test proving a new RPC service classifier can turn a successful response into observer result `expected_timeout` while preserving inflight tracking.
+
+- [ ] **Step 2: Run transport classifier test to verify it fails**
+
+Run: `GOWORK=off go test ./pkg/transport -run 'TestClientRPCServiceClassifierOverridesSuccessfulResult' -count=1`
+Expected: FAIL because the classifier API does not exist.
+
+- [ ] **Step 3: Implement transport classifier method**
+
+Add an English-commented method that wraps `RPCService` behavior and accepts a response classifier callback. Existing `RPCService` should call the new method with nil classifier so current callers keep behavior.
+
+- [ ] **Step 4: Write failing channel long-poll classification test**
+
+Add a channel transport test proving `LongPollFetch` emits `expected_timeout` when the decoded response has `TimedOut == true`, and still emits `timeout` for RPC deadline errors.
+
+- [ ] **Step 5: Implement channel long-poll classifier**
+
+Use the transport classifier method from `Transport.LongPollFetch`. Decode the response in the classifier and return `expected_timeout` only when `TimedOut` is true.
+
+- [ ] **Step 6: Run classification tests**
+
+Run: `GOWORK=off go test ./pkg/transport ./pkg/channel/transport -run 'RPCServiceClassifier|LongPoll' -count=1`
+Expected: PASS.
+
+- [ ] **Step 7: Commit classification work**
+
+Commit: `feat: classify long-poll wait expiries`
+
+---
+
+### Task 2: Backend History DTOs And Collector Aggregation
 
 **Files:**
 - Modify: `internal/usecase/management/network.go`
@@ -80,7 +124,7 @@ In `NetworkSnapshot(now)`, after pruning and before unlocking, build five-second
 - `rpc`: sum calls/success/errors/expected timeouts per step
 - `errors`: sum dial/queue/timeout/remote-error per step
 
-Use expected timeouts only when result is the collector's expected timeout result; keep current abnormal timeout semantics unchanged.
+Use expected timeouts only when the result label is `expected_timeout`, which is emitted from decoded long-poll `TimedOut` responses; keep current abnormal timeout semantics unchanged.
 
 - [ ] **Step 5: Add failing usecase copy test**
 
@@ -101,7 +145,7 @@ Commit: `feat: add manager network history aggregates`
 
 ---
 
-### Task 2: Manager Access DTO And Web Type Contract
+### Task 3: Manager Access DTO And Web Type Contract
 
 **Files:**
 - Modify: `internal/access/manager/network.go`
@@ -142,7 +186,7 @@ Commit: `feat: expose manager network history`
 
 ---
 
-### Task 3: shadcn Chart Infrastructure
+### Task 4: shadcn Chart Infrastructure
 
 **Files:**
 - Create: `web/src/components/ui/chart.tsx`
@@ -169,7 +213,7 @@ Commit: `feat: add shadcn chart primitives`
 
 ---
 
-### Task 4: Chart-First Network Page
+### Task 5: Chart-First Network Page
 
 **Files:**
 - Modify: `web/src/pages/network/page.test.tsx`
@@ -227,7 +271,7 @@ Commit: `feat: redesign manager network page with charts`
 
 ---
 
-### Task 5: Full Verification
+### Task 6: Full Verification
 
 **Files:**
 - No intentional source edits unless verification reveals issues.

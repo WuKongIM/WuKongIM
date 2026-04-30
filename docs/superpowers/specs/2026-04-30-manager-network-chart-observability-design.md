@@ -48,6 +48,20 @@ Extend the existing summary response with:
 
 The app collector builds this from existing bucket maps when `NetworkSnapshot(now)` is called. It should aggregate into fixed five-second steps for the current one-minute window. The usecase copies the history into `NetworkSummary`; the manager access DTO maps it to JSON; web TypeScript types add matching fields.
 
+
+## Expected Long-poll Timeout Classification
+
+The backend must not infer expected long-poll wait expiry from elapsed time or from a generic transport `timeout` result. The safe source is the decoded `LongPollFetchResponse.TimedOut` flag from `pkg/channel/transport`.
+
+Implementation rule:
+
+1. Add a generic transport-client hook that lets a caller classify a successful RPC response before the observer records the final result.
+2. Use that hook only for `LongPollFetch`: after decoding the response, classify `TimedOut == true` as `expected_timeout`; classify non-timeout successful responses as `ok`; keep wire/RPC deadline failures as `timeout`.
+3. The app network collector treats `expected_timeout` as a completed neutral sample: increment `Calls1m` and `ExpectedTimeout1m`, do not increment `Success1m` or abnormal timeout/error counters, and do not emit a warning event.
+4. History uses the same result labels. `history.rpc.expected_timeouts` comes only from `expected_timeout` buckets; `history.rpc.errors` and `history.errors.timeouts` exclude expected wait expiries.
+
+This keeps application-level long-poll expiry separate from transport/RPC deadline failure and preserves current success-rate semantics.
+
 ## Frontend Layout
 
 1. Header
