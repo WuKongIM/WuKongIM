@@ -15,12 +15,24 @@ type seqReadStore interface {
 }
 
 func LoadMsg(st *store.ChannelStore, committedHW, seq uint64) (channel.Message, error) {
-	return loadMsgFromStore(st, committedHW, seq)
+	return LoadMsgWithFloor(st, committedHW, 1, seq)
 }
 
 func loadMsgFromStore(st seqReadStore, committedHW, seq uint64) (channel.Message, error) {
+	return loadMsgFromStoreWithFloor(st, committedHW, 1, seq)
+}
+
+func LoadMsgWithFloor(st *store.ChannelStore, committedHW, minAvailableSeq, seq uint64) (channel.Message, error) {
+	return loadMsgFromStoreWithFloor(st, committedHW, minAvailableSeq, seq)
+}
+
+func loadMsgFromStoreWithFloor(st seqReadStore, committedHW, minAvailableSeq, seq uint64) (channel.Message, error) {
 	if committedHW == 0 || seq == 0 {
 		return channel.Message{}, channel.ErrInvalidArgument
+	}
+	minAvailableSeq = normalizeMinAvailableSeq(minAvailableSeq)
+	if seq < minAvailableSeq {
+		return channel.Message{}, channel.ErrMessageNotFound
 	}
 	if seq > committedHW {
 		return channel.Message{}, channel.ErrMessageNotFound
@@ -36,11 +48,19 @@ func loadMsgFromStore(st seqReadStore, committedHW, seq uint64) (channel.Message
 }
 
 func LoadNextRangeMsgs(st *store.ChannelStore, committedHW, startSeq, endSeq uint64, limit int) ([]channel.Message, error) {
+	return LoadNextRangeMsgsWithFloor(st, committedHW, 1, startSeq, endSeq, limit)
+}
+
+func LoadNextRangeMsgsWithFloor(st *store.ChannelStore, committedHW, minAvailableSeq, startSeq, endSeq uint64, limit int) ([]channel.Message, error) {
 	if limit < 0 {
 		return nil, channel.ErrInvalidArgument
 	}
 	if startSeq == 0 {
 		startSeq = 1
+	}
+	minAvailableSeq = normalizeMinAvailableSeq(minAvailableSeq)
+	if startSeq < minAvailableSeq {
+		startSeq = minAvailableSeq
 	}
 	if committedHW == 0 || startSeq > committedHW {
 		return nil, nil
@@ -56,6 +76,10 @@ func LoadNextRangeMsgs(st *store.ChannelStore, committedHW, startSeq, endSeq uin
 }
 
 func LoadPrevRangeMsgs(st *store.ChannelStore, committedHW, startSeq, endSeq uint64, limit int) ([]channel.Message, error) {
+	return LoadPrevRangeMsgsWithFloor(st, committedHW, 1, startSeq, endSeq, limit)
+}
+
+func LoadPrevRangeMsgsWithFloor(st *store.ChannelStore, committedHW, minAvailableSeq, startSeq, endSeq uint64, limit int) ([]channel.Message, error) {
 	if startSeq == 0 || limit < 0 {
 		return nil, channel.ErrInvalidArgument
 	}
@@ -68,10 +92,17 @@ func LoadPrevRangeMsgs(st *store.ChannelStore, committedHW, startSeq, endSeq uin
 	if startSeq > committedHW {
 		startSeq = committedHW
 	}
+	minAvailableSeq = normalizeMinAvailableSeq(minAvailableSeq)
+	if startSeq < minAvailableSeq {
+		return nil, nil
+	}
 	maxSeq := startSeq
-	minSeq := uint64(1)
+	minSeq := minAvailableSeq
 	if endSeq != 0 {
-		minSeq = endSeq + 1
+		endMin := endSeq + 1
+		if endMin > minSeq {
+			minSeq = endMin
+		}
 	}
 	if limit > 0 {
 		windowMin := uint64(1)

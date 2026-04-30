@@ -43,7 +43,7 @@ func TestFetchFromSeqOneReturnsCommittedMessagesOnly(t *testing.T) {
 	}
 }
 
-func TestFetchReturnsRetentionStateWithoutClampingStart(t *testing.T) {
+func TestFetchClampsStartBelowRetentionFloor(t *testing.T) {
 	id := core.ChannelID{ID: "c1", Type: 1}
 	svc, rt, engine := newAppendService(t, id)
 	st := engine.ForChannel(KeyFromChannelID(id), id)
@@ -51,11 +51,19 @@ func TestFetchReturnsRetentionStateWithoutClampingStart(t *testing.T) {
 	mustAppendEncodedMessages(t, st,
 		core.Message{MessageID: 11, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("one")},
 		core.Message{MessageID: 12, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("two")},
+		core.Message{MessageID: 13, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("three")},
+		core.Message{MessageID: 14, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("four")},
+		core.Message{MessageID: 15, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("five")},
+		core.Message{MessageID: 16, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("six")},
+		core.Message{MessageID: 17, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("seven")},
+		core.Message{MessageID: 18, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("eight")},
+		core.Message{MessageID: 19, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("nine")},
+		core.Message{MessageID: 20, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("ten")},
 	)
 	handle := rt.channels[KeyFromChannelID(id)]
-	handle.status.HW = 2
-	handle.status.RetentionThroughSeq = 7
-	handle.status.MinAvailableSeq = 8
+	handle.status.HW = 10
+	handle.status.RetentionThroughSeq = 5
+	handle.status.MinAvailableSeq = 6
 
 	result, err := svc.Fetch(context.Background(), core.FetchRequest{
 		ChannelID: id,
@@ -66,11 +74,16 @@ func TestFetchReturnsRetentionStateWithoutClampingStart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Fetch() error = %v", err)
 	}
-	if result.RetentionThroughSeq != 7 || result.MinAvailableSeq != 8 {
-		t.Fatalf("retention fields = (%d, %d), want (7, 8)", result.RetentionThroughSeq, result.MinAvailableSeq)
+	if result.RetentionThroughSeq != 5 || result.MinAvailableSeq != 6 {
+		t.Fatalf("retention fields = (%d, %d), want (5, 6)", result.RetentionThroughSeq, result.MinAvailableSeq)
 	}
-	if len(result.Messages) != 2 || result.Messages[0].MessageSeq != 1 {
-		t.Fatalf("Messages = %+v, want unclamped fetch from seq 1", result.Messages)
+	if len(result.Messages) != 5 || result.Messages[0].MessageSeq != 6 {
+		t.Fatalf("Messages = %+v, want clamped fetch from seq 6", result.Messages)
+	}
+	for _, msg := range result.Messages {
+		if msg.MessageSeq < 6 {
+			t.Fatalf("Messages include seq below floor: %+v", result.Messages)
+		}
 	}
 }
 

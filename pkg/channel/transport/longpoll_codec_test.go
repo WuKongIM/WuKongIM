@@ -165,6 +165,18 @@ func TestLongPollFetchResponseMixedItemsRoundTrip(t *testing.T) {
 				Flags:        LongPollItemFlagHWOnly,
 				LeaderHW:     88,
 			},
+			{
+				ChannelKey:   "g-reset",
+				ChannelEpoch: 13,
+				LeaderEpoch:  23,
+				Flags:        LongPollItemFlagReset,
+				LeaderHW:     89,
+				RetentionReset: &channel.RetentionReset{
+					RetentionThroughSeq:   5,
+					RetainedThroughOffset: 5,
+					MinAvailableSeq:       6,
+				},
+			},
 		},
 	}
 
@@ -249,6 +261,12 @@ func assertLongPollItemEqual(t *testing.T, got, want LongPollItem, idx int) {
 	case got.TruncateTo != nil && want.TruncateTo != nil && *got.TruncateTo == *want.TruncateTo:
 	default:
 		t.Fatalf("item[%d].TruncateTo = %v, want %v", idx, got.TruncateTo, want.TruncateTo)
+	}
+	switch {
+	case got.RetentionReset == nil && want.RetentionReset == nil:
+	case got.RetentionReset != nil && want.RetentionReset != nil && *got.RetentionReset == *want.RetentionReset:
+	default:
+		t.Fatalf("item[%d].RetentionReset = %v, want %v", idx, got.RetentionReset, want.RetentionReset)
 	}
 	if len(got.Records) != len(want.Records) {
 		t.Fatalf("item[%d] record len = %d, want %d", idx, len(got.Records), len(want.Records))

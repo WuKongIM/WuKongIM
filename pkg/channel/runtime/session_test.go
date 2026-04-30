@@ -1155,6 +1155,50 @@ func TestSessionNonEmptyFetchResponseQueuesImmediateFollowerRefetch(t *testing.T
 	}
 }
 
+func TestSessionFetchRetentionResetAdoptsBoundaryAndRefetchesFromRetainedOffset(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.FollowerReplicationRetryInterval = time.Hour
+	})
+	key := testChannelKey(2504)
+	mustEnsureLocal(t, env.runtime, testMetaLocal(2504, 4, 2, []core.NodeID{1, 2}))
+
+	session := env.sessions.session(2)
+	env.runtime.runScheduler()
+	require.Equal(t, 1, session.sendCount())
+	require.NotNil(t, session.sent[0].FetchRequest)
+
+	env.transport.deliver(Envelope{
+		Peer:       2,
+		ChannelKey: key,
+		Generation: 1,
+		Epoch:      4,
+		RequestID:  session.sent[0].RequestID,
+		Kind:       MessageKindFetchResponse,
+		FetchResponse: &FetchResponseEnvelope{
+			ChannelKey: key,
+			Epoch:      4,
+			Generation: 1,
+			LeaderHW:   10,
+			RetentionReset: &core.RetentionReset{
+				RetentionThroughSeq:   5,
+				RetainedThroughOffset: 5,
+				MinAvailableSeq:       6,
+			},
+		},
+	})
+
+	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	require.Equal(t, []uint64{5}, replica.retentionCalls)
+	require.Equal(t, 0, replica.applyFetchCalls)
+	require.Equal(t, uint64(5), replica.state.LEO)
+	require.Equal(t, uint64(6), replica.state.MinAvailableSeq)
+	replica.mu.Unlock()
+	require.Equal(t, 2, session.sendCount())
+	require.NotNil(t, session.sent[1].FetchRequest)
+	require.Equal(t, uint64(5), session.sent[1].FetchRequest.FetchOffset)
+}
+
 func TestSessionLongPollTimedOutResponseImmediatelyReissuesPoll(t *testing.T) {
 	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
 		cfg.LongPollLaneCount = 4
@@ -1236,6 +1280,62 @@ func TestSessionLongPollTimedOutResponseImmediatelyReissuesPoll(t *testing.T) {
 	if session.last.LanePollRequest.LaneID != testFollowerLaneFor(key, 4) {
 		t.Fatalf("reissue lane = %d, want %d", session.last.LanePollRequest.LaneID, testFollowerLaneFor(key, 4))
 	}
+}
+
+func TestSessionLongPollRetentionResetItemAdoptsBoundaryAndReissuesFromRetainedOffset(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = 2 * time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+		cfg.FollowerReplicationRetryInterval = time.Hour
+	})
+	key := testChannelKey(2602)
+	mustEnsureLocal(t, env.runtime, testMetaLocal(2602, 4, 2, []core.NodeID{1, 2}))
+
+	env.runtime.runScheduler()
+	session := env.sessions.session(2)
+	waitForSessionSendCount(t, session, 1)
+	first := session.last.LanePollRequest
+	require.NotNil(t, first)
+
+	env.transport.deliver(Envelope{
+		Peer: 2,
+		Kind: MessageKindLanePollResponse,
+		Sync: true,
+		LanePollResponse: &LanePollResponseEnvelope{
+			LaneID:       first.LaneID,
+			Status:       LanePollStatusOK,
+			SessionID:    501,
+			SessionEpoch: 1,
+			Items: []LaneResponseItem{
+				{
+					ChannelKey:   key,
+					ChannelEpoch: 4,
+					LeaderHW:     10,
+					Flags:        LanePollItemFlagReset,
+					RetentionReset: &core.RetentionReset{
+						RetentionThroughSeq:   5,
+						RetainedThroughOffset: 5,
+						MinAvailableSeq:       6,
+					},
+				},
+			},
+		},
+	})
+
+	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	require.Equal(t, []uint64{5}, replica.retentionCalls)
+	require.Equal(t, 0, replica.applyFetchCalls)
+	require.Equal(t, uint64(5), replica.state.LEO)
+	replica.mu.Unlock()
+
+	waitForSessionSendCount(t, session, 2)
+	require.NotNil(t, session.last.LanePollRequest)
+	require.Equal(t, LanePollOpPoll, session.last.LanePollRequest.Op)
+	require.Len(t, session.last.LanePollRequest.CursorDelta, 1)
+	require.Equal(t, uint64(5), session.last.LanePollRequest.CursorDelta[0].MatchOffset)
 }
 
 func laneDispatchHasWork(rt *runtime, peer core.NodeID, lane uint16) bool {
@@ -2784,6 +2884,9 @@ func (r *sessionReplica) ApplyRetentionBoundary(_ context.Context, throughSeq ui
 	if throughSeq > r.state.RetentionThroughSeq {
 		r.state.RetentionThroughSeq = throughSeq
 		r.state.MinAvailableSeq = core.EffectiveMinAvailableSeq(throughSeq, r.state.LogStartOffset)
+	}
+	if throughSeq > r.state.LEO {
+		r.state.LEO = throughSeq
 	}
 	return nil
 }

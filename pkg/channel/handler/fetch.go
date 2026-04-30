@@ -38,18 +38,16 @@ func (s *service) Fetch(_ context.Context, req channel.FetchRequest) (channel.Fe
 		return channel.FetchResult{}, channel.ErrNotReady
 	}
 	committedSeq := state.HW
+	minAvailableSeq := effectiveMinAvailableSeq(state)
 	startSeq := req.FromSeq
-	if startSeq == 0 {
-		startSeq = state.LogStartOffset + 1
-		if startSeq == 0 {
-			startSeq = 1
-		}
+	if startSeq == 0 || startSeq < minAvailableSeq {
+		startSeq = minAvailableSeq
 	}
 	if startSeq > committedSeq {
 		return channel.FetchResult{
 			NextSeq:             startSeq,
 			CommittedSeq:        committedSeq,
-			MinAvailableSeq:     state.MinAvailableSeq,
+			MinAvailableSeq:     minAvailableSeq,
 			RetentionThroughSeq: state.RetentionThroughSeq,
 		}, nil
 	}
@@ -59,7 +57,7 @@ func (s *service) Fetch(_ context.Context, req channel.FetchRequest) (channel.Fe
 	if err != nil {
 		return channel.FetchResult{}, err
 	}
-	result.MinAvailableSeq = state.MinAvailableSeq
+	result.MinAvailableSeq = minAvailableSeq
 	result.RetentionThroughSeq = state.RetentionThroughSeq
 	return result, nil
 }
@@ -93,4 +91,16 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func effectiveMinAvailableSeq(state channel.ReplicaState) uint64 {
+	minAvailable := state.MinAvailableSeq
+	computed := channel.EffectiveMinAvailableSeq(state.RetentionThroughSeq, state.LogStartOffset)
+	if computed > minAvailable {
+		minAvailable = computed
+	}
+	if minAvailable == 0 {
+		return 1
+	}
+	return minAvailable
 }

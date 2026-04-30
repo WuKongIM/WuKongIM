@@ -801,12 +801,13 @@ func (r *runtime) handleLanePollResponse(peer core.NodeID, resp LanePollResponse
 			continue
 		}
 		fetchResp := FetchResponseEnvelope{
-			ChannelKey: item.ChannelKey,
-			Epoch:      item.ChannelEpoch,
-			Generation: ch.gen,
-			LeaderHW:   item.LeaderHW,
-			Records:    item.Records,
-			TruncateTo: item.TruncateTo,
+			ChannelKey:     item.ChannelKey,
+			Epoch:          item.ChannelEpoch,
+			Generation:     ch.gen,
+			LeaderHW:       item.LeaderHW,
+			Records:        item.Records,
+			TruncateTo:     item.TruncateTo,
+			RetentionReset: item.RetentionReset,
 		}
 		_ = r.applyFetchResponseEnvelope(ch, peer, fetchResp)
 	}
@@ -821,6 +822,9 @@ func (r *runtime) reissueLanePoll(peer core.NodeID, laneID uint16) {
 }
 
 func (r *runtime) applyFetchResponseEnvelope(ch *channel, peer core.NodeID, env FetchResponseEnvelope) error {
+	if env.RetentionReset != nil {
+		return r.applyRetentionResetResponse(ch, peer, env)
+	}
 	if err := ch.replica.ApplyFetch(context.Background(), core.ReplicaApplyFetchRequest{
 		ChannelKey: env.ChannelKey,
 		Epoch:      env.Epoch,
@@ -877,6 +881,67 @@ func (r *runtime) applyFetchResponseEnvelope(ch *channel, peer core.NodeID, env 
 	return nil
 }
 
+func (r *runtime) applyRetentionResetResponse(ch *channel, peer core.NodeID, env FetchResponseEnvelope) error {
+	if env.RetentionReset == nil {
+		return nil
+	}
+	if err := ch.replica.ApplyRetentionBoundary(context.Background(), env.RetentionReset.RetentionThroughSeq); err != nil {
+		return err
+	}
+
+	meta := ch.metaSnapshot()
+	if meta.Leader == r.cfg.LocalNode {
+		return nil
+	}
+
+	state := ch.Status()
+	fetchOffset := retentionResetFetchOffset(env.RetentionReset)
+	if fetchOffset > state.LEO {
+		state.LEO = fetchOffset
+	}
+	if r.longPollEnabled() {
+		r.ensureLaneManager(meta.Leader).MarkCursorDelta(LaneCursorDelta{
+			ChannelKey:   ch.key,
+			ChannelEpoch: state.Epoch,
+			MatchOffset:  fetchOffset,
+			OffsetEpoch:  state.OffsetEpoch,
+		})
+		return nil
+	}
+	r.sendOrDeferEnvelope(Envelope{
+		Peer:       meta.Leader,
+		ChannelKey: ch.key,
+		Epoch:      meta.Epoch,
+		Generation: ch.gen,
+		RequestID:  r.requestID.Add(1),
+		Kind:       MessageKindFetchRequest,
+		FetchRequest: &FetchRequestEnvelope{
+			ChannelKey:  ch.key,
+			Epoch:       meta.Epoch,
+			Generation:  ch.gen,
+			ReplicaID:   r.cfg.LocalNode,
+			FetchOffset: fetchOffset,
+			OffsetEpoch: state.OffsetEpoch,
+			MaxBytes:    defaultFetchMaxBytes,
+		},
+	}, func(err error) {
+		if err != nil && !errors.Is(err, ErrBackpressured) {
+			r.retryReplication(ch.key, meta.Leader, true)
+		}
+	})
+	return nil
+}
+
+func retentionResetFetchOffset(reset *core.RetentionReset) uint64 {
+	if reset == nil {
+		return 0
+	}
+	if reset.RetainedThroughOffset != 0 {
+		return reset.RetainedThroughOffset
+	}
+	return reset.RetentionThroughSeq
+}
+
 func (r *runtime) applyReconcileProbeResponseEnvelope(ch *channel, env ReconcileProbeResponseEnvelope) error {
 	return ch.replica.ApplyReconcileProof(context.Background(), core.ReplicaReconcileProof{
 		ChannelKey:   env.ChannelKey,
@@ -918,12 +983,13 @@ func (r *runtime) ServeFetch(ctx context.Context, req FetchRequestEnvelope) (Fet
 			return FetchResponseEnvelope{}, err
 		}
 		resp := FetchResponseEnvelope{
-			ChannelKey: req.ChannelKey,
-			Epoch:      result.Epoch,
-			Generation: req.Generation,
-			TruncateTo: result.TruncateTo,
-			LeaderHW:   result.HW,
-			Records:    result.Records,
+			ChannelKey:     req.ChannelKey,
+			Epoch:          result.Epoch,
+			Generation:     req.Generation,
+			TruncateTo:     result.TruncateTo,
+			LeaderHW:       result.HW,
+			Records:        result.Records,
+			RetentionReset: result.RetentionReset,
 		}
 		if !shouldLongPollFetchResponse(resp) || !FetchLongPollEnabled(ctx) {
 			return resp, nil
@@ -939,7 +1005,7 @@ func (r *runtime) ServeFetch(ctx context.Context, req FetchRequestEnvelope) (Fet
 }
 
 func shouldLongPollFetchResponse(resp FetchResponseEnvelope) bool {
-	return resp.TruncateTo == nil && len(resp.Records) == 0
+	return resp.TruncateTo == nil && resp.RetentionReset == nil && len(resp.Records) == 0
 }
 
 func longPollFetchContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {

@@ -90,6 +90,11 @@ func (r *runtime) ServeLanePoll(ctx context.Context, req LanePollRequestEnvelope
 	}
 
 	selectItems := func() (LeaderLanePollResult, *lanePollWaiter) {
+		for _, delta := range req.CursorDelta {
+			if r.cursorBelowDominantRetentionFloor(delta) {
+				session.MarkDataReady(delta.ChannelKey, delta.ChannelEpoch)
+			}
+		}
 		return session.Poll(req.CursorDelta, func(delta LaneCursorDelta) {
 			r.applyFollowerCursor(delta, req.ReplicaID)
 		}, budget, func(key core.ChannelKey, cursor LaneCursorDelta, mask laneReadyMask) (LeaderLaneReadyItem, bool) {
@@ -197,12 +202,18 @@ func (r *runtime) selectLaneReadyItem(ctx context.Context, cursor LaneCursorDelt
 		}, true
 	}
 
-	flags := LanePollItemFlagHWOnly
+	var flags LanePollItemFlags
+	if fetchResult.RetentionReset != nil {
+		flags |= LanePollItemFlagReset
+	}
 	if len(fetchResult.Records) > 0 {
-		flags = LanePollItemFlagData
+		flags |= LanePollItemFlagData
 	}
 	if fetchResult.TruncateTo != nil {
 		flags |= LanePollItemFlagTruncate
+	}
+	if flags == 0 {
+		flags = LanePollItemFlagHWOnly
 	}
 	item := LeaderLaneReadyItem{
 		ChannelKey:   key,
@@ -210,17 +221,18 @@ func (r *runtime) selectLaneReadyItem(ctx context.Context, cursor LaneCursorDelt
 		ReadyMask:    mask,
 		SizeBytes:    laneRecordsSize(fetchResult.Records),
 		Response: LaneResponseItem{
-			ChannelKey:   key,
-			ChannelEpoch: state.Epoch,
-			LeaderEpoch:  state.Epoch,
-			Flags:        flags,
-			Records:      fetchResult.Records,
-			LeaderHW:     fetchResult.HW,
-			TruncateTo:   fetchResult.TruncateTo,
+			ChannelKey:     key,
+			ChannelEpoch:   state.Epoch,
+			LeaderEpoch:    state.Epoch,
+			Flags:          flags,
+			Records:        fetchResult.Records,
+			LeaderHW:       fetchResult.HW,
+			TruncateTo:     fetchResult.TruncateTo,
+			RetentionReset: fetchResult.RetentionReset,
 		},
 	}
 
-	finished := len(fetchResult.Records) == 0
+	finished := len(fetchResult.Records) == 0 || fetchResult.RetentionReset != nil
 	if len(fetchResult.Records) > 0 && cursor.MatchOffset+uint64(len(fetchResult.Records)) >= state.LEO {
 		finished = true
 	}
@@ -236,6 +248,25 @@ func itemToLaneResponse(item LeaderLaneReadyItem) LaneResponseItem {
 		ChannelEpoch: item.ChannelEpoch,
 		Flags:        LanePollItemFlagHWOnly,
 	}
+}
+
+func (r *runtime) cursorBelowDominantRetentionFloor(delta LaneCursorDelta) bool {
+	ch, ok := r.lookupChannel(delta.ChannelKey)
+	if !ok {
+		return false
+	}
+	state := ch.Status()
+	if state.Epoch != delta.ChannelEpoch {
+		return false
+	}
+	if state.RetentionThroughSeq == 0 || state.RetentionThroughSeq < state.LogStartOffset {
+		return false
+	}
+	retainedThrough := state.RetentionThroughSeq
+	if state.LogStartOffset > retainedThrough {
+		retainedThrough = state.LogStartOffset
+	}
+	return delta.MatchOffset < retainedThrough
 }
 
 func laneRecordsSize(records []core.Record) int {

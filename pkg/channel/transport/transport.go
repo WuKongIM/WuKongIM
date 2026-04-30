@@ -168,13 +168,14 @@ func toTransportLongPollItems(items []runtime.LaneResponseItem) []LongPollItem {
 	out := make([]LongPollItem, 0, len(items))
 	for _, item := range items {
 		out = append(out, LongPollItem{
-			ChannelKey:   item.ChannelKey,
-			ChannelEpoch: item.ChannelEpoch,
-			LeaderEpoch:  item.LeaderEpoch,
-			Flags:        LongPollItemFlags(item.Flags),
-			Records:      item.Records,
-			LeaderHW:     item.LeaderHW,
-			TruncateTo:   item.TruncateTo,
+			ChannelKey:     item.ChannelKey,
+			ChannelEpoch:   item.ChannelEpoch,
+			LeaderEpoch:    item.LeaderEpoch,
+			Flags:          LongPollItemFlags(item.Flags),
+			Records:        item.Records,
+			LeaderHW:       item.LeaderHW,
+			TruncateTo:     item.TruncateTo,
+			RetentionReset: item.RetentionReset,
 		})
 	}
 	return out

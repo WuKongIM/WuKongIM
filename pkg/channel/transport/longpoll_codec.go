@@ -233,6 +233,9 @@ func encodeLongPollFetchResponse(resp LongPollFetchResponse) ([]byte, error) {
 				return nil, err
 			}
 		}
+		if err := writeRetentionReset(buf, item.RetentionReset); err != nil {
+			return nil, err
+		}
 		if err := binary.Write(buf, binary.BigEndian, uint32(len(item.Records))); err != nil {
 			return nil, err
 		}
@@ -314,6 +317,11 @@ func decodeLongPollFetchResponse(data []byte) (LongPollFetchResponse, error) {
 			}
 			item.TruncateTo = &truncateTo
 		}
+		reset, err := readRetentionReset(rd)
+		if err != nil {
+			return LongPollFetchResponse{}, err
+		}
+		item.RetentionReset = reset
 		var recordCount uint32
 		if err := binary.Read(rd, binary.BigEndian, &recordCount); err != nil {
 			return LongPollFetchResponse{}, err

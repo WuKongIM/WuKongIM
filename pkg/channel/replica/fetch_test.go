@@ -149,6 +149,56 @@ func TestFetchReturnsSnapshotRequiredWhenFollowerFallsBehindLogStart(t *testing.
 	require.ErrorIs(t, err, channel.ErrSnapshotRequired)
 }
 
+func TestFetchReturnsRetentionResetWhenFetchOffsetBelowDominantRetentionFloor(t *testing.T) {
+	env := newFetchEnvWithHistory(t)
+	env.replica.state.LogStartOffset = 0
+	env.replica.state.RetentionThroughSeq = 5
+	env.replica.state.MinAvailableSeq = channel.EffectiveMinAvailableSeq(5, 0)
+	env.replica.publishStateLocked()
+
+	result, err := env.replica.Fetch(context.Background(), channel.ReplicaFetchRequest{
+		ChannelKey:  "group-10",
+		Epoch:       7,
+		ReplicaID:   2,
+		FetchOffset: 1,
+		OffsetEpoch: 3,
+		MaxBytes:    1024,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result.RetentionReset)
+	require.Equal(t, uint64(5), result.RetentionReset.RetentionThroughSeq)
+	require.Equal(t, uint64(5), result.RetentionReset.RetainedThroughOffset)
+	require.Equal(t, uint64(6), result.RetentionReset.MinAvailableSeq)
+	require.Empty(t, result.Records)
+	require.Nil(t, result.TruncateTo)
+}
+
+func TestFetchAtRetainedThroughOffsetReturnsNextVisibleRecord(t *testing.T) {
+	env := newFetchEnvWithHistory(t)
+	for i := range env.log.records {
+		env.log.records[i].Index = uint64(i + 1)
+	}
+	env.replica.state.LogStartOffset = 0
+	env.replica.state.RetentionThroughSeq = 5
+	env.replica.state.MinAvailableSeq = channel.EffectiveMinAvailableSeq(5, 0)
+	env.replica.publishStateLocked()
+
+	result, err := env.replica.Fetch(context.Background(), channel.ReplicaFetchRequest{
+		ChannelKey:  "group-10",
+		Epoch:       7,
+		ReplicaID:   2,
+		FetchOffset: 5,
+		OffsetEpoch: env.replica.state.OffsetEpoch,
+		MaxBytes:    1024,
+	})
+
+	require.NoError(t, err)
+	require.Nil(t, result.RetentionReset)
+	require.Len(t, result.Records, 1)
+	require.Equal(t, uint64(6), result.Records[0].Index)
+}
+
 func TestFetchReturnsProvisionalCommittedHWWhenCommitNotReady(t *testing.T) {
 	cases := []struct {
 		name         string

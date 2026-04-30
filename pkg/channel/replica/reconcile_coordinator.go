@@ -52,11 +52,11 @@ func quorumProgressCandidate(isr []channel.NodeID, progress map[channel.NodeID]u
 	return candidate, true, nil
 }
 
-func reconcileProofMatchOffset(history []channel.EpochPoint, logStartOffset, currentHW, leaderLEO uint64, proof channel.ReplicaReconcileProof) (uint64, error) {
+func reconcileProofMatchOffset(history []channel.EpochPoint, retainedThroughOffset, currentHW, leaderLEO uint64, proof channel.ReplicaReconcileProof) (uint64, error) {
 	if proof.CheckpointHW > proof.LogEndOffset {
 		return 0, channel.ErrCorruptState
 	}
-	decision := decideLineage(history, logStartOffset, currentHW, leaderLEO, proof.LogEndOffset, proof.OffsetEpoch)
+	decision := decideLineage(history, retainedThroughOffset, currentHW, leaderLEO, proof.LogEndOffset, proof.OffsetEpoch)
 	if decision.err != nil {
 		return 0, decision.err
 	}
@@ -168,7 +168,7 @@ func (r *replica) localTailFullyProvenLocked() bool {
 }
 
 func (r *replica) reconcileMatchOffsetLocked(proof channel.ReplicaReconcileProof) (uint64, error) {
-	return reconcileProofMatchOffset(r.epochHistory, r.state.LogStartOffset, r.state.HW, r.state.LEO, proof)
+	return reconcileProofMatchOffset(r.epochHistory, retainedThroughOffset(r.state), r.state.HW, r.state.LEO, proof)
 }
 
 func (r *replica) reconcileCandidateLocked() (uint64, error) {

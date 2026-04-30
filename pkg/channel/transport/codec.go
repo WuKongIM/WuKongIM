@@ -17,9 +17,9 @@ const (
 	RPCServiceReconcileProbe uint8 = 34
 
 	fetchRequestCodecVersion  byte = 1
-	fetchResponseCodecVersion byte = 2
+	fetchResponseCodecVersion byte = 3
 	longPollRequestCodecVer   byte = 1
-	longPollResponseCodecVer  byte = 2
+	longPollResponseCodecVer  byte = 3
 	reconcileProbeCodecVer    byte = 2
 	reconcileProbeRespVer     byte = 2
 )
@@ -115,6 +115,9 @@ func encodeFetchResponse(resp runtime.FetchResponseEnvelope) ([]byte, error) {
 	} else {
 		buf.WriteByte(0)
 	}
+	if err := writeRetentionReset(buf, resp.RetentionReset); err != nil {
+		return nil, err
+	}
 	if err := binary.Write(buf, binary.BigEndian, resp.LeaderHW); err != nil {
 		return nil, err
 	}
@@ -161,6 +164,11 @@ func decodeFetchResponse(data []byte) (runtime.FetchResponseEnvelope, error) {
 		}
 		resp.TruncateTo = &truncateTo
 	}
+	reset, err := readRetentionReset(rd)
+	if err != nil {
+		return runtime.FetchResponseEnvelope{}, err
+	}
+	resp.RetentionReset = reset
 	if err := binary.Read(rd, binary.BigEndian, &resp.LeaderHW); err != nil {
 		return runtime.FetchResponseEnvelope{}, err
 	}
@@ -227,6 +235,43 @@ func readRecord(rd *bytes.Reader) (channel.Record, error) {
 	}
 	record.SizeBytes = int(sizeBytes)
 	return record, nil
+}
+
+func writeRetentionReset(buf *bytes.Buffer, reset *channel.RetentionReset) error {
+	if reset == nil {
+		return buf.WriteByte(0)
+	}
+	if err := buf.WriteByte(1); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.BigEndian, reset.RetentionThroughSeq); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.BigEndian, reset.RetainedThroughOffset); err != nil {
+		return err
+	}
+	return binary.Write(buf, binary.BigEndian, reset.MinAvailableSeq)
+}
+
+func readRetentionReset(rd *bytes.Reader) (*channel.RetentionReset, error) {
+	hasReset, err := rd.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+	if hasReset == 0 {
+		return nil, nil
+	}
+	reset := &channel.RetentionReset{}
+	if err := binary.Read(rd, binary.BigEndian, &reset.RetentionThroughSeq); err != nil {
+		return nil, err
+	}
+	if err := binary.Read(rd, binary.BigEndian, &reset.RetainedThroughOffset); err != nil {
+		return nil, err
+	}
+	if err := binary.Read(rd, binary.BigEndian, &reset.MinAvailableSeq); err != nil {
+		return nil, err
+	}
+	return reset, nil
 }
 
 func encodeReconcileProbeRequest(req runtime.ReconcileProbeRequestEnvelope) ([]byte, error) {

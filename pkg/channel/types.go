@@ -222,6 +222,8 @@ type RetentionState struct {
 type RetentionReset struct {
 	// RetentionThroughSeq is the authoritative highest sequence hidden by retention.
 	RetentionThroughSeq uint64
+	// RetainedThroughOffset is the highest log offset the follower must treat as unavailable.
+	RetainedThroughOffset uint64
 	// MinAvailableSeq is the first sequence the follower should fetch next.
 	MinAvailableSeq uint64
 }
