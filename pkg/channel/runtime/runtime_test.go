@@ -22,6 +22,21 @@ func TestChannelLookupUsesReadOnlyPath(t *testing.T) {
 	require.Equal(t, meta.Key, ch.ID())
 }
 
+func TestRetentionEffectiveMinAvailableSeqUsesHighestFence(t *testing.T) {
+	require.Equal(t, uint64(1), core.EffectiveMinAvailableSeq(0, 0))
+	require.Equal(t, uint64(9), core.EffectiveMinAvailableSeq(8, 3))
+	require.Equal(t, uint64(12), core.EffectiveMinAvailableSeq(8, 11))
+	require.Equal(t, ^uint64(0), core.EffectiveMinAvailableSeq(^uint64(0), 11))
+}
+
+func TestRetentionMetaEqualityIncludesRetentionBoundary(t *testing.T) {
+	current := testMeta("room-retention-equality")
+	next := current
+	next.RetentionThroughSeq = 88
+
+	require.False(t, metaEqualExceptLease(current, next))
+}
+
 func TestEnsureChannel(t *testing.T) {
 	rt := newTestRuntime(t)
 	meta := testMeta("room-ensure")

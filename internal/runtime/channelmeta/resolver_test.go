@@ -65,6 +65,16 @@ func TestResolverRefreshProjectsLeaderEpochLeaseAndApply(t *testing.T) {
 	require.Equal(t, map[channel.ChannelKey]struct{}{got.Key: {}}, cloneAppliedLocalSet(syncer.appliedLocal))
 }
 
+func TestProjectChannelMetaIncludesRetentionBoundary(t *testing.T) {
+	meta := metadb.ChannelRuntimeMeta{
+		ChannelID: "g1", ChannelType: 2, ChannelEpoch: 3, LeaderEpoch: 4,
+		Replicas: []uint64{1}, ISR: []uint64{1}, Leader: 1, MinISR: 1,
+		Status: uint8(channel.StatusActive), RetentionThroughSeq: 88,
+	}
+	got := ProjectChannelMeta(meta)
+	require.Equal(t, uint64(88), got.RetentionThroughSeq)
+}
+
 func TestResolverRefreshInvokesInjectedRepairer(t *testing.T) {
 	id := channel.ChannelID{ID: "repair-refresh", Type: 1}
 	authoritative := metadb.ChannelRuntimeMeta{

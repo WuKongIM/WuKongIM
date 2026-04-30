@@ -69,6 +69,22 @@ func TestStatusReturnsRuntimeAndMetaValues(t *testing.T) {
 	}
 }
 
+func TestStatusIncludesRetentionFloor(t *testing.T) {
+	id := core.ChannelID{ID: "c1", Type: 1}
+	svc, rt, _ := newAppendService(t, id)
+	handle := rt.channels[KeyFromChannelID(id)]
+	handle.status.RetentionThroughSeq = 88
+	handle.status.MinAvailableSeq = 89
+
+	status, err := svc.Status(id)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if status.RetentionThroughSeq != 88 || status.MinAvailableSeq != 89 {
+		t.Fatalf("retention status = %+v", status)
+	}
+}
+
 func TestStatusReturnsNotReadyWhenCommitHWIsProvisional(t *testing.T) {
 	id := core.ChannelID{ID: "c1", Type: 1}
 	svc, rt, _ := newAppendService(t, id)

@@ -99,13 +99,15 @@ func (s *service) Status(id channel.ChannelID) (channel.ChannelRuntimeStatus, er
 		return channel.ChannelRuntimeStatus{}, channel.ErrNotReady
 	}
 	return channel.ChannelRuntimeStatus{
-		Key:          key,
-		ID:           meta.ID,
-		Status:       meta.Status,
-		Leader:       meta.Leader,
-		LeaderEpoch:  meta.LeaderEpoch,
-		HW:           state.HW,
-		CommittedSeq: state.HW,
+		Key:                 key,
+		ID:                  meta.ID,
+		Status:              meta.Status,
+		Leader:              meta.Leader,
+		LeaderEpoch:         meta.LeaderEpoch,
+		HW:                  state.HW,
+		CommittedSeq:        state.HW,
+		MinAvailableSeq:     state.MinAvailableSeq,
+		RetentionThroughSeq: state.RetentionThroughSeq,
 	}, nil
 }
 
