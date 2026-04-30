@@ -6,13 +6,28 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
-const stateSnapshotVersion byte = 2
+const (
+	stateSnapshotVersion  byte = 2
+	retentionStateVersion byte = 1
+)
 
 type stateSnapshotEntry struct {
 	FromUID     string
 	ClientMsgNo string
 	Entry       channel.IdempotencyEntry
 	PayloadHash uint64
+}
+
+// retentionState records local durable retention progress for one channel.
+type retentionState struct {
+	// LocalRetentionThroughSeq is the authoritative boundary adopted locally.
+	LocalRetentionThroughSeq uint64
+	// PhysicalRetentionThroughSeq is the durable deletion progress and may lag
+	// the local retention boundary.
+	PhysicalRetentionThroughSeq uint64
+	// RetainedMaxSeq is the durable LEO floor preserved after all message rows
+	// at or below the retained prefix have been physically removed.
+	RetainedMaxSeq uint64
 }
 
 func encodeCheckpoint(checkpoint channel.Checkpoint) []byte {
@@ -72,6 +87,26 @@ func decodeIndexedIdempotencyEntryValue(value []byte) (channel.IdempotencyEntry,
 		MessageSeq: messageSeq,
 		Offset:     messageSeq - 1,
 	}, binary.BigEndian.Uint64(value[16:24]), nil
+}
+
+func encodeRetentionState(state retentionState) []byte {
+	value := make([]byte, 0, 1+24)
+	value = append(value, retentionStateVersion)
+	value = binary.BigEndian.AppendUint64(value, state.LocalRetentionThroughSeq)
+	value = binary.BigEndian.AppendUint64(value, state.PhysicalRetentionThroughSeq)
+	value = binary.BigEndian.AppendUint64(value, state.RetainedMaxSeq)
+	return value
+}
+
+func decodeRetentionState(value []byte) (retentionState, error) {
+	if len(value) != 1+24 || value[0] != retentionStateVersion {
+		return retentionState{}, channel.ErrCorruptValue
+	}
+	return retentionState{
+		LocalRetentionThroughSeq:    binary.BigEndian.Uint64(value[1:9]),
+		PhysicalRetentionThroughSeq: binary.BigEndian.Uint64(value[9:17]),
+		RetainedMaxSeq:              binary.BigEndian.Uint64(value[17:25]),
+	}, nil
 }
 
 func encodeStateSnapshot(entries []stateSnapshotEntry) []byte {
