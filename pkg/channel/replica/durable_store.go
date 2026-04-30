@@ -440,7 +440,14 @@ func (s *splitDurableReplicaStore) InstallSnapshotAtomically(ctx context.Context
 
 func (s *splitDurableReplicaStore) LoadRetentionState() (channel.RetentionState, error) {
 	if store, ok := s.log.(retentionStore); ok {
-		return store.LoadRetentionState()
+		state, err := store.LoadRetentionState()
+		if err != nil {
+			return channel.RetentionState{}, err
+		}
+		if err := validateRetentionState(state); err != nil {
+			return channel.RetentionState{}, err
+		}
+		return state, nil
 	}
 	return channel.RetentionState{}, nil
 }
@@ -481,7 +488,23 @@ func (s *splitDurableReplicaStore) TrimMessagesThrough(ctx context.Context, thro
 	if err != nil {
 		return 0, err
 	}
+	if err := validateRetentionState(state); err != nil {
+		return 0, err
+	}
 	return state.PhysicalRetentionThroughSeq, nil
+}
+
+func validateRetentionState(state channel.RetentionState) error {
+	if state.LocalRetentionThroughSeq == 0 && state.RetainedMaxSeq > 0 {
+		return channel.ErrCorruptValue
+	}
+	if state.PhysicalRetentionThroughSeq > state.LocalRetentionThroughSeq {
+		return channel.ErrCorruptValue
+	}
+	if state.RetainedMaxSeq < state.LocalRetentionThroughSeq {
+		return channel.ErrCorruptValue
+	}
+	return nil
 }
 
 func validateDurableView(checkpoint channel.Checkpoint, history []channel.EpochPoint, leo uint64, snapshot *channel.Snapshot, snapshotKnown bool, snapshotExists bool) error {

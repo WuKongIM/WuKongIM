@@ -97,3 +97,28 @@ func containsNode(ids []channel.NodeID, target channel.NodeID) bool {
 	}
 	return false
 }
+
+func leaderRetentionProgressResetRequired(previous, next channel.Meta) bool {
+	if previous.Epoch != next.Epoch ||
+		previous.LeaderEpoch != next.LeaderEpoch ||
+		previous.Leader != next.Leader {
+		return true
+	}
+	return !sameNodeIDSet(previous.ISR, next.ISR)
+}
+
+func sameNodeIDSet(left, right []channel.NodeID) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	seen := make(map[channel.NodeID]struct{}, len(left))
+	for _, id := range left {
+		seen[id] = struct{}{}
+	}
+	for _, id := range right {
+		if _, ok := seen[id]; !ok {
+			return false
+		}
+	}
+	return true
+}

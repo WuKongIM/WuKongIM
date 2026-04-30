@@ -74,6 +74,7 @@ func (r *replica) applyCursorCommand(cmd machineCursorCommand) machineResult {
 
 	channelKey = r.state.ChannelKey
 	oldProgress = r.progress[cmd.ReplicaID]
+	r.setRetentionProgressLocked(cmd.ReplicaID, matchOffset)
 	if matchOffset <= oldProgress {
 		hw = r.state.HW
 		leo = r.state.LEO
@@ -140,9 +141,7 @@ func (r *replica) applyFetchProgressCommand(cmd machineFetchProgressCommand) mac
 		r.mu.Unlock()
 		return machineResult{Err: channel.ErrStaleMeta}
 	}
-	if r.state.RetentionThroughSeq > 0 &&
-		req.FetchOffset < r.state.MinAvailableSeq &&
-		r.state.RetentionThroughSeq >= r.state.LogStartOffset {
+	if retentionResetDominatesFloor(r.state, req.FetchOffset) {
 		result := retentionResetResult(r.state)
 		r.mu.Unlock()
 		return machineResult{Fetch: &machineFetchProgressResult{
@@ -182,10 +181,10 @@ func (r *replica) applyFetchProgressCommand(cmd machineFetchProgressCommand) mac
 	r.setRetentionProgressLocked(r.localNode, leaderLEO)
 
 	oldProgress := r.progress[req.ReplicaID]
+	r.setRetentionProgressLocked(req.ReplicaID, matchOffset)
 	if matchOffset > oldProgress {
 		needsAdvance = true
 		r.setReplicaProgressLocked(req.ReplicaID, matchOffset)
-		r.setRetentionProgressLocked(req.ReplicaID, matchOffset)
 	}
 	r.publishStateLocked()
 	if needsAdvance {
@@ -592,14 +591,23 @@ func (r *replica) applyCompleteReconcileCommand(cmd machineCompleteReconcileComm
 
 func (r *replica) seedLeaderProgressLocked(isr []channel.NodeID, leaderLEO, committedHW uint64) {
 	r.progress = make(map[channel.NodeID]uint64, len(isr))
-	r.retentionProgress = make(map[channel.NodeID]uint64, len(isr))
 	for _, id := range isr {
 		if id == r.localNode {
 			r.progress[id] = leaderLEO
-			r.retentionProgress[id] = leaderLEO
 			continue
 		}
 		r.progress[id] = committedHW
+	}
+	r.seedLeaderRetentionProgressLocked(isr)
+}
+
+func (r *replica) seedLeaderRetentionProgressLocked(isr []channel.NodeID) {
+	r.retentionProgress = make(map[channel.NodeID]uint64, len(isr))
+	for _, id := range isr {
+		if id == r.localNode {
+			r.retentionProgress[id] = r.state.LEO
+			continue
+		}
 		r.retentionProgress[id] = r.state.RetentionThroughSeq
 	}
 }
@@ -614,6 +622,9 @@ func (r *replica) setReplicaProgressLocked(replicaID channel.NodeID, matchOffset
 func (r *replica) setRetentionProgressLocked(replicaID channel.NodeID, matchOffset uint64) {
 	if r.retentionProgress == nil {
 		r.retentionProgress = make(map[channel.NodeID]uint64)
+	}
+	if matchOffset < r.state.RetentionThroughSeq {
+		matchOffset = r.state.RetentionThroughSeq
 	}
 	if matchOffset > r.retentionProgress[replicaID] {
 		r.retentionProgress[replicaID] = matchOffset

@@ -69,8 +69,10 @@ func (r *replica) applyRetentionCommand(cmd machineApplyRetentionCommand) machin
 
 	var effects []machineEffect
 	if cmd.ThroughSeq > r.state.LocalRetentionThroughSeq {
+		effectID := r.nextLoopEffectID()
+		r.pendingRetentionAdoptEffectID = effectID
 		effects = append(effects, retentionAdoptEffect{
-			EffectID:       r.nextLoopEffectID(),
+			EffectID:       effectID,
 			ChannelKey:     r.state.ChannelKey,
 			Epoch:          r.state.Epoch,
 			RoleGeneration: r.roleGeneration,
@@ -78,8 +80,10 @@ func (r *replica) applyRetentionCommand(cmd machineApplyRetentionCommand) machin
 		})
 	}
 	if r.shouldTrimRetentionLocked(cmd.ThroughSeq) {
+		effectID := r.nextLoopEffectID()
+		r.pendingRetentionTrimEffectID = effectID
 		effects = append(effects, retentionTrimEffect{
-			EffectID:       r.nextLoopEffectID(),
+			EffectID:       effectID,
 			ChannelKey:     r.state.ChannelKey,
 			Epoch:          r.state.Epoch,
 			RoleGeneration: r.roleGeneration,
@@ -122,13 +126,13 @@ func (r *replica) executeRetentionEffects(ctx context.Context, effects []machine
 }
 
 func (r *replica) executeRetentionAdoptEffect(ctx context.Context, effect retentionAdoptEffect) error {
-	fenceErr := r.validateRetentionEffectFence(effect.ChannelKey, effect.Epoch, effect.RoleGeneration)
+	fenceErr := r.validateRetentionAdoptEffectFence(effect)
 	storedLEO := uint64(0)
 	if fenceErr == nil {
 		if err := r.lockDurableMu(ctx); err != nil {
 			fenceErr = err
 		} else {
-			fenceErr = r.validateRetentionEffectFence(effect.ChannelKey, effect.Epoch, effect.RoleGeneration)
+			fenceErr = r.validateRetentionAdoptEffectFence(effect)
 			if fenceErr == nil {
 				storedLEO, fenceErr = r.durable.AdoptRetentionBoundary(ctx, effect.ThroughSeq, retentionReplayCursorName)
 			}
@@ -148,13 +152,13 @@ func (r *replica) executeRetentionAdoptEffect(ctx context.Context, effect retent
 }
 
 func (r *replica) executeRetentionTrimEffect(ctx context.Context, effect retentionTrimEffect) error {
-	fenceErr := r.validateRetentionEffectFence(effect.ChannelKey, effect.Epoch, effect.RoleGeneration)
+	fenceErr := r.validateRetentionTrimEffectFence(effect)
 	physicalThrough := uint64(0)
 	if fenceErr == nil {
 		if err := r.lockDurableMu(ctx); err != nil {
 			fenceErr = err
 		} else {
-			fenceErr = r.validateRetentionEffectFence(effect.ChannelKey, effect.Epoch, effect.RoleGeneration)
+			fenceErr = r.validateRetentionTrimEffectFence(effect)
 			if fenceErr == nil {
 				physicalThrough, fenceErr = r.durable.TrimMessagesThrough(ctx, effect.ThroughSeq)
 			}
@@ -173,9 +177,22 @@ func (r *replica) executeRetentionTrimEffect(ctx context.Context, effect retenti
 	return result.Err
 }
 
-func (r *replica) validateRetentionEffectFence(channelKey channel.ChannelKey, epoch uint64, roleGeneration uint64) error {
+func (r *replica) validateRetentionAdoptEffectFence(effect retentionAdoptEffect) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	return r.validateRetentionEffectFenceLocked(effect.ChannelKey, effect.Epoch, effect.RoleGeneration, effect.EffectID, r.pendingRetentionAdoptEffectID)
+}
+
+func (r *replica) validateRetentionTrimEffectFence(effect retentionTrimEffect) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.validateRetentionEffectFenceLocked(effect.ChannelKey, effect.Epoch, effect.RoleGeneration, effect.EffectID, r.pendingRetentionTrimEffectID)
+}
+
+func (r *replica) validateRetentionEffectFenceLocked(channelKey channel.ChannelKey, epoch uint64, roleGeneration uint64, effectID uint64, pendingEffectID uint64) error {
+	if pendingEffectID == 0 || effectID != pendingEffectID {
+		return channel.ErrStaleMeta
+	}
 	if r.closed {
 		return channel.ErrNotLeader
 	}
@@ -194,6 +211,10 @@ func (r *replica) applyRetentionAdoptedEvent(ev machineRetentionAdoptedEvent) ma
 	if ev.ChannelKey != r.state.ChannelKey || ev.Epoch != r.state.Epoch || ev.RoleGeneration != r.roleGeneration {
 		return machineResult{}
 	}
+	if r.pendingRetentionAdoptEffectID == 0 || ev.EffectID != r.pendingRetentionAdoptEffectID {
+		return machineResult{}
+	}
+	r.pendingRetentionAdoptEffectID = 0
 	if ev.Err != nil {
 		return machineResult{Err: ev.Err}
 	}
@@ -224,6 +245,10 @@ func (r *replica) applyRetentionTrimmedEvent(ev machineRetentionTrimmedEvent) ma
 	if ev.ChannelKey != r.state.ChannelKey || ev.Epoch != r.state.Epoch || ev.RoleGeneration != r.roleGeneration {
 		return machineResult{}
 	}
+	if r.pendingRetentionTrimEffectID == 0 || ev.EffectID != r.pendingRetentionTrimEffectID {
+		return machineResult{}
+	}
+	r.pendingRetentionTrimEffectID = 0
 	if ev.Err != nil {
 		return machineResult{Err: ev.Err}
 	}
@@ -236,6 +261,19 @@ func (r *replica) applyRetentionTrimmedEvent(ev machineRetentionTrimmedEvent) ma
 	r.state.PhysicalRetentionThroughSeq = ev.PhysicalThroughSeq
 	r.publishStateLocked()
 	return machineResult{}
+}
+
+func (r *replica) clearRetentionEffectFencesLocked() {
+	r.pendingRetentionAdoptEffectID = 0
+	r.pendingRetentionTrimEffectID = 0
+}
+
+func retentionResetDominatesFloor(state channel.ReplicaState, fetchOffset uint64) bool {
+	if state.RetentionThroughSeq == 0 {
+		return false
+	}
+	return fetchOffset < channel.EffectiveMinAvailableSeq(state.RetentionThroughSeq, state.LogStartOffset) &&
+		state.RetentionThroughSeq >= state.LogStartOffset
 }
 
 func (r *replica) minISRRetentionProgressLocked() uint64 {
@@ -251,6 +289,9 @@ func (r *replica) minISRRetentionProgressLocked() uint64 {
 			if observed, ok := r.retentionProgress[id]; ok {
 				match = observed
 			}
+		}
+		if match < r.state.RetentionThroughSeq {
+			match = r.state.RetentionThroughSeq
 		}
 		if match < min {
 			min = match
