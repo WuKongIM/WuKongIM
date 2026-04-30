@@ -27,7 +27,7 @@ func TestNetworkObservabilityBuildsHistoryFromBuckets(t *testing.T) {
 	hooks.OnReceive(2, 40)
 	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Result: "ok", Duration: time.Millisecond})
 	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Result: "timeout", Duration: time.Millisecond})
-	hooks.OnEnqueue(transport.EnqueueEvent{TargetNode: 2, Kind: "rpc", Result: "queue_full"})
+	hooks.OnEnqueue(transport.EnqueueEvent{TargetNode: 2, Kind: "send", Result: "queue_full"})
 	hooks.OnDial(transport.DialEvent{TargetNode: 2, Result: "dial_error", Duration: time.Millisecond})
 
 	now = base.Add(6 * time.Second)
@@ -53,6 +53,29 @@ func TestNetworkObservabilityBuildsHistoryFromBuckets(t *testing.T) {
 		{At: base, DialErrors: 1, QueueFull: 1, Timeouts: 1},
 		{At: base.Add(5 * time.Second), QueueFull: 1, RemoteErrors: 1},
 	}, snap.History.Errors)
+}
+
+func TestNetworkObservabilityDoesNotDoubleCountRPCQueueFullHistory(t *testing.T) {
+	base := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	now := base.Add(time.Second)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		Now:         func() time.Time { return now },
+	})
+	hooks := collector.TransportHooks()
+
+	hooks.OnEnqueue(transport.EnqueueEvent{TargetNode: 2, Kind: "rpc", Result: "queue_full"})
+	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33, Result: "queue_full", Duration: time.Millisecond})
+
+	snap := collector.NetworkSnapshot(base.Add(10 * time.Second))
+	require.Equal(t, 0, snap.PeerErrors[uint64(2)].QueueFull1m)
+	require.Len(t, snap.Services, 1)
+	require.Equal(t, 1, snap.Services[0].QueueFull1m)
+	require.Equal(t, []managementusecase.NetworkErrorHistoryPoint{{
+		At:        base,
+		QueueFull: 1,
+	}}, snap.History.Errors)
 }
 
 func TestNetworkObservabilityHistoryStartsAtWindowCutoff(t *testing.T) {
@@ -113,7 +136,7 @@ func TestNetworkObservabilityRecordsTransportAndRPCWindow(t *testing.T) {
 	hooks.OnSend(1, 1024)
 	hooks.OnReceive(2, 512)
 	hooks.OnDial(transport.DialEvent{TargetNode: 2, Result: "dial_error", Duration: 5 * time.Millisecond})
-	hooks.OnEnqueue(transport.EnqueueEvent{TargetNode: 2, Kind: "rpc", Result: "queue_full"})
+	hooks.OnEnqueue(transport.EnqueueEvent{TargetNode: 2, Kind: "send", Result: "queue_full"})
 	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 35, Inflight: 1})
 	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 35, Result: "timeout", Duration: 200 * time.Millisecond, Inflight: 0})
 

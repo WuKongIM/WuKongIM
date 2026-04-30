@@ -283,7 +283,7 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 		snap.PeerErrors[key.targetNode] = errs
 	}
 	for key, count := range o.enqueueBuckets {
-		if key.result != "queue_full" {
+		if key.kind == "rpc" || key.kind == "" || key.result != "queue_full" {
 			continue
 		}
 		errs := snap.PeerErrors[key.targetNode]
@@ -384,7 +384,7 @@ func (o *networkObservability) networkHistorySnapshotLocked(cutoff time.Time) ma
 		errorsByStep[step] = point
 	}
 	for key, count := range o.enqueueBuckets {
-		if key.result != "queue_full" {
+		if key.kind == "rpc" || key.kind == "" || key.result != "queue_full" {
 			continue
 		}
 		step := networkObservabilityHistoryStepAt(cutoff, key.bucket)
