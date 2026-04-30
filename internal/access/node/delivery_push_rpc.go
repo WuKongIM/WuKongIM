@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -52,14 +53,21 @@ func (a *Adapter) handleDeliveryPushRPC(ctx context.Context, body []byte) ([]byt
 		return nil, err
 	}
 	items := req.deliveryPushItems()
-
-	resp := DeliveryPushResponse{Status: rpcStatusOK}
-	for _, item := range items {
+	frames := make([]frame.Frame, len(items))
+	for i, item := range items {
 		f, _, err := a.codec.DecodeFrame(item.Frame, frame.LatestVersion)
 		if err != nil {
 			return nil, err
 		}
-		a.handleDeliveryPushItem(item, req.OwnerNodeID, f, &resp)
+		if f == nil {
+			return nil, fmt.Errorf("access/node: invalid delivery push frame")
+		}
+		frames[i] = f
+	}
+
+	resp := DeliveryPushResponse{Status: rpcStatusOK}
+	for i, item := range items {
+		a.handleDeliveryPushItem(item, req.OwnerNodeID, frames[i], &resp)
 	}
 	if a.logger != nil {
 		a.logger.Info("delivery push rpc finished",

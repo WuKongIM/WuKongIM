@@ -951,6 +951,91 @@ func TestDistributedDeliveryPushBatchesPersonRoutesByRecipientChannelView(t *tes
 	}, viewsByUID)
 }
 
+func TestDistributedDeliveryPushFallsBackToLegacyForUnreportedBatchRoutes(t *testing.T) {
+	client := &recordingDeliveryPushClient{
+		batchResponse: &accessnode.DeliveryPushResponse{},
+	}
+	push := distributedDeliveryPush{
+		localNodeID: 1,
+		client:      client,
+		codec:       codec.New(),
+	}
+
+	result, err := push.Push(context.Background(), deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				MessageID:   103,
+				MessageSeq:  11,
+				ChannelID:   "u1@u2",
+				ChannelType: frame.ChannelTypePerson,
+				FromUID:     "u1",
+				Payload:     []byte("hello legacy"),
+			},
+		},
+		Routes: []deliveryruntime.RouteKey{
+			{UID: "u1", NodeID: 2, BootID: 11, SessionID: 21},
+			{UID: "u2", NodeID: 2, BootID: 11, SessionID: 22},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Accepted, 2)
+	require.Empty(t, result.Retryable)
+	require.Empty(t, result.Dropped)
+
+	require.Len(t, client.batchCalls, 1)
+	require.Len(t, client.singleCalls, 2)
+	viewsByUID := make(map[string]string)
+	for _, call := range client.singleCalls {
+		require.Equal(t, uint64(2), call.nodeID)
+		require.Len(t, call.cmd.Routes, 1)
+		packet := mustDecodeRecvPacket(t, call.cmd.Frame)
+		viewsByUID[call.cmd.Routes[0].UID] = packet.ChannelID
+	}
+	require.Equal(t, map[string]string{
+		"u1": "u2",
+		"u2": "u1",
+	}, viewsByUID)
+}
+
+func TestDistributedDeliveryPushFallsBackToLegacyWhenBatchRejected(t *testing.T) {
+	client := &recordingDeliveryPushClient{
+		batchErr: errors.New("legacy node rejected batch shape"),
+	}
+	push := distributedDeliveryPush{
+		localNodeID: 1,
+		client:      client,
+		codec:       codec.New(),
+	}
+
+	result, err := push.Push(context.Background(), deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				MessageID:   104,
+				MessageSeq:  12,
+				ChannelID:   "g1",
+				ChannelType: frame.ChannelTypeGroup,
+				FromUID:     "u1",
+				Payload:     []byte("hello legacy node"),
+			},
+		},
+		Routes: []deliveryruntime.RouteKey{
+			{UID: "u2", NodeID: 2, BootID: 11, SessionID: 21},
+			{UID: "u3", NodeID: 2, BootID: 11, SessionID: 22},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Accepted, 2)
+	require.Empty(t, result.Retryable)
+	require.Empty(t, result.Dropped)
+
+	require.Len(t, client.batchCalls, 1)
+	require.Len(t, client.singleCalls, 1)
+	require.Equal(t, []deliveryruntime.RouteKey{
+		{UID: "u2", NodeID: 2, BootID: 11, SessionID: 21},
+		{UID: "u3", NodeID: 2, BootID: 11, SessionID: 22},
+	}, client.singleCalls[0].cmd.Routes)
+}
+
 func TestLocalDeliveryResolverSplitsExpandedRoutesAcrossPages(t *testing.T) {
 	store := &resolverSnapshotStore{
 		uids: []string{"u2"},
@@ -1012,8 +1097,10 @@ func (r *recordingDeliveryOwnerNotifier) NotifyOffline(_ context.Context, _ uint
 }
 
 type recordingDeliveryPushClient struct {
-	singleCalls []recordingDeliveryPushSingleCall
-	batchCalls  []recordingDeliveryPushBatchCall
+	singleCalls   []recordingDeliveryPushSingleCall
+	batchCalls    []recordingDeliveryPushBatchCall
+	batchResponse *accessnode.DeliveryPushResponse
+	batchErr      error
 }
 
 type recordingDeliveryPushSingleCall struct {
@@ -1033,6 +1120,12 @@ func (r *recordingDeliveryPushClient) PushBatch(_ context.Context, nodeID uint64
 
 func (r *recordingDeliveryPushClient) PushBatchItems(_ context.Context, nodeID uint64, cmd accessnode.DeliveryPushBatchCommand) (accessnode.DeliveryPushResponse, error) {
 	r.batchCalls = append(r.batchCalls, recordingDeliveryPushBatchCall{nodeID: nodeID, cmd: cmd})
+	if r.batchErr != nil {
+		return accessnode.DeliveryPushResponse{}, r.batchErr
+	}
+	if r.batchResponse != nil {
+		return *r.batchResponse, nil
+	}
 	resp := accessnode.DeliveryPushResponse{}
 	for _, item := range cmd.Items {
 		resp.Accepted = append(resp.Accepted, item.Routes...)

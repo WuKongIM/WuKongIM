@@ -793,7 +793,10 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 					wklog.Error(err),
 				)
 			}
-			result.Retryable = append(result.Retryable, routes...)
+			legacyResult := p.pushLegacyDeliveryItems(ctx, nodeID, items, routes)
+			result.Accepted = append(result.Accepted, legacyResult.Accepted...)
+			result.Retryable = append(result.Retryable, legacyResult.Retryable...)
+			result.Dropped = append(result.Dropped, legacyResult.Dropped...)
 			continue
 		}
 		if p.logger != nil {
@@ -811,9 +814,24 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 				wklog.Int("dropped", len(resp.Dropped)),
 			)
 		}
-		result.Accepted = append(result.Accepted, resp.Accepted...)
-		result.Retryable = append(result.Retryable, resp.Retryable...)
-		result.Dropped = append(result.Dropped, resp.Dropped...)
+		mergeDeliveryPushResponse(&result, resp)
+		if missing := unreportedDeliveryRoutes(routes, resp); len(missing) > 0 {
+			if p.logger != nil {
+				p.logger.Warn("remote delivery push response omitted routes; falling back to legacy push",
+					wklog.Event("delivery.diag.remote_push_legacy_fallback"),
+					wklog.String("channelID", cmd.Envelope.ChannelID),
+					wklog.Int("channelType", int(cmd.Envelope.ChannelType)),
+					wklog.Uint64("messageID", cmd.Envelope.MessageID),
+					wklog.Uint64("messageSeq", cmd.Envelope.MessageSeq),
+					wklog.Uint64("targetNodeID", nodeID),
+					wklog.Int("missingRoutes", len(missing)),
+				)
+			}
+			legacyResult := p.pushLegacyDeliveryItems(ctx, nodeID, items, missing)
+			result.Accepted = append(result.Accepted, legacyResult.Accepted...)
+			result.Retryable = append(result.Retryable, legacyResult.Retryable...)
+			result.Dropped = append(result.Dropped, legacyResult.Dropped...)
+		}
 	}
 	return result, nil
 }
@@ -857,6 +875,78 @@ func (p distributedDeliveryPush) deliveryPushItem(env deliveryruntime.CommittedE
 		Routes:      append([]deliveryruntime.RouteKey(nil), routes...),
 		Frame:       append([]byte(nil), frameBytes...),
 	}, nil
+}
+
+func (p distributedDeliveryPush) pushLegacyDeliveryItems(ctx context.Context, nodeID uint64, items []accessnode.DeliveryPushItem, missing []deliveryruntime.RouteKey) deliveryruntime.PushResult {
+	missingCounts := deliveryRouteCounts(missing)
+	result := deliveryruntime.PushResult{}
+	for _, item := range items {
+		routes := takeDeliveryRoutes(item.Routes, missingCounts)
+		if len(routes) == 0 {
+			continue
+		}
+		resp, err := p.client.PushBatch(ctx, nodeID, accessnode.DeliveryPushCommand{
+			OwnerNodeID: p.localNodeID,
+			ChannelID:   item.ChannelID,
+			ChannelType: item.ChannelType,
+			MessageID:   item.MessageID,
+			MessageSeq:  item.MessageSeq,
+			Routes:      append([]deliveryruntime.RouteKey(nil), routes...),
+			Frame:       append([]byte(nil), item.Frame...),
+		})
+		if err != nil {
+			result.Retryable = append(result.Retryable, routes...)
+			continue
+		}
+		mergeDeliveryPushResponse(&result, resp)
+		result.Retryable = append(result.Retryable, unreportedDeliveryRoutes(routes, resp)...)
+	}
+	return result
+}
+
+func mergeDeliveryPushResponse(result *deliveryruntime.PushResult, resp accessnode.DeliveryPushResponse) {
+	result.Accepted = append(result.Accepted, resp.Accepted...)
+	result.Retryable = append(result.Retryable, resp.Retryable...)
+	result.Dropped = append(result.Dropped, resp.Dropped...)
+}
+
+func unreportedDeliveryRoutes(routes []deliveryruntime.RouteKey, resp accessnode.DeliveryPushResponse) []deliveryruntime.RouteKey {
+	reported := deliveryRouteCounts(resp.Accepted)
+	for _, route := range resp.Retryable {
+		reported[route]++
+	}
+	for _, route := range resp.Dropped {
+		reported[route]++
+	}
+	missing := make([]deliveryruntime.RouteKey, 0)
+	for _, route := range routes {
+		if reported[route] > 0 {
+			reported[route]--
+			continue
+		}
+		missing = append(missing, route)
+	}
+	return missing
+}
+
+func deliveryRouteCounts(routes []deliveryruntime.RouteKey) map[deliveryruntime.RouteKey]int {
+	counts := make(map[deliveryruntime.RouteKey]int, len(routes))
+	for _, route := range routes {
+		counts[route]++
+	}
+	return counts
+}
+
+func takeDeliveryRoutes(routes []deliveryruntime.RouteKey, counts map[deliveryruntime.RouteKey]int) []deliveryruntime.RouteKey {
+	taken := make([]deliveryruntime.RouteKey, 0)
+	for _, route := range routes {
+		if counts[route] == 0 {
+			continue
+		}
+		counts[route]--
+		taken = append(taken, route)
+	}
+	return taken
 }
 
 type ackRouting struct {

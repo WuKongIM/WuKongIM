@@ -152,6 +152,55 @@ func TestPushBatchRPCPreservesPersonItemChannelViews(t *testing.T) {
 	require.Equal(t, "u1", recipientWrites[0].(*frame.RecvPacket).ChannelID)
 }
 
+func TestPushBatchRPCDecodesAllItemsBeforeWriting(t *testing.T) {
+	reg := online.NewRegistry()
+	active := newRecordingSession(10, "tcp")
+	require.NoError(t, reg.Register(online.OnlineConn{
+		SessionID:   10,
+		UID:         "u2",
+		State:       online.LocalRouteStateActive,
+		Listener:    "tcp",
+		DeviceFlag:  frame.APP,
+		DeviceLevel: frame.DeviceLevelMaster,
+		Session:     active,
+	}))
+
+	ackIndex := deliveryruntime.NewAckIndex()
+	adapter := New(Options{
+		Presence:         presence.New(presence.Options{}),
+		GatewayBootID:    7,
+		LocalNodeID:      1,
+		Online:           reg,
+		DeliveryAckIndex: ackIndex,
+	})
+
+	_, err := adapter.handleDeliveryPushRPC(context.Background(), mustMarshal(t, DeliveryPushBatchCommand{
+		OwnerNodeID: 2,
+		Items: []DeliveryPushItem{
+			{
+				ChannelID:   "g1",
+				ChannelType: frame.ChannelTypeGroup,
+				MessageID:   88,
+				MessageSeq:  9,
+				Routes:      []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 7, SessionID: 10}},
+				Frame:       mustEncodeFrame(t, &frame.RecvPacket{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, MessageID: 88, MessageSeq: 9}),
+			},
+			{
+				ChannelID:   "g1",
+				ChannelType: frame.ChannelTypeGroup,
+				MessageID:   89,
+				MessageSeq:  10,
+				Routes:      []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 7, SessionID: 10}},
+				Frame:       []byte{0xff},
+			},
+		},
+	}))
+	require.Error(t, err)
+	require.Empty(t, active.WrittenFrames())
+	_, ok := ackIndex.Lookup(10, 88)
+	require.False(t, ok)
+}
+
 func TestPushBatchRPCRejectsBootMismatchAndClosingRoutes(t *testing.T) {
 	reg := online.NewRegistry()
 	active := newRecordingSession(10, "tcp")
