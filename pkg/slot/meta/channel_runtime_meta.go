@@ -21,6 +21,12 @@ type ChannelRuntimeMeta struct {
 	Status       uint8
 	Features     uint64
 	LeaseUntilMS int64
+	// RetentionThroughSeq is the highest channel message sequence that the
+	// authoritative cluster metadata declares unavailable for future reads.
+	RetentionThroughSeq uint64
+	// RetentionUpdatedAtMS is the wall-clock time in milliseconds when the
+	// authoritative retention boundary was last advanced.
+	RetentionUpdatedAtMS int64
 }
 
 func (s *ShardStore) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (ChannelRuntimeMeta, error) {
@@ -198,10 +204,12 @@ func resolveMonotonicChannelRuntimeMeta(existing ChannelRuntimeMeta, exists bool
 	case candidate.ChannelEpoch < existing.ChannelEpoch:
 		return existing, false
 	case candidate.ChannelEpoch > existing.ChannelEpoch:
+		preserveRetentionBoundary(existing, &candidate)
 		return candidate, true
 	case candidate.LeaderEpoch < existing.LeaderEpoch:
 		return existing, false
 	case candidate.LeaderEpoch > existing.LeaderEpoch:
+		preserveRetentionBoundary(existing, &candidate)
 		return candidate, true
 	case candidate.Leader != existing.Leader:
 		return existing, false
@@ -209,7 +217,19 @@ func resolveMonotonicChannelRuntimeMeta(existing ChannelRuntimeMeta, exists bool
 	if candidate.LeaseUntilMS < existing.LeaseUntilMS {
 		candidate.LeaseUntilMS = existing.LeaseUntilMS
 	}
+	preserveRetentionBoundary(existing, &candidate)
 	return candidate, true
+}
+
+func preserveRetentionBoundary(existing ChannelRuntimeMeta, candidate *ChannelRuntimeMeta) {
+	if candidate.RetentionThroughSeq < existing.RetentionThroughSeq {
+		candidate.RetentionThroughSeq = existing.RetentionThroughSeq
+		candidate.RetentionUpdatedAtMS = existing.RetentionUpdatedAtMS
+		return
+	}
+	if candidate.RetentionThroughSeq == existing.RetentionThroughSeq && candidate.RetentionUpdatedAtMS < existing.RetentionUpdatedAtMS {
+		candidate.RetentionUpdatedAtMS = existing.RetentionUpdatedAtMS
+	}
 }
 
 func normalizeUint64Set(values []uint64) []uint64 {

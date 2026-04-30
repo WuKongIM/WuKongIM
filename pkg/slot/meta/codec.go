@@ -348,7 +348,7 @@ func decodeChannelIndexValue(key, value []byte) (int64, error) {
 }
 
 func encodeChannelRuntimeMetaFamilyValue(meta ChannelRuntimeMeta, key []byte) []byte {
-	payload := make([]byte, 0, 128)
+	payload := make([]byte, 0, 160)
 	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDChannelEpoch, 0, meta.ChannelEpoch)
 	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDLeaderEpoch, channelRuntimeMetaColumnIDChannelEpoch, meta.LeaderEpoch)
 	payload = appendRawBytesValue(payload, channelRuntimeMetaColumnIDReplicas, channelRuntimeMetaColumnIDLeaderEpoch, encodeUint64Slice(meta.Replicas))
@@ -358,6 +358,8 @@ func encodeChannelRuntimeMetaFamilyValue(meta ChannelRuntimeMeta, key []byte) []
 	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDStatus, channelRuntimeMetaColumnIDMinISR, uint64(meta.Status))
 	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDFeatures, channelRuntimeMetaColumnIDStatus, meta.Features)
 	payload = appendIntValue(payload, channelRuntimeMetaColumnIDLeaseUntilMS, channelRuntimeMetaColumnIDFeatures, meta.LeaseUntilMS)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDRetentionThroughSeq, channelRuntimeMetaColumnIDLeaseUntilMS, meta.RetentionThroughSeq)
+	payload = appendIntValue(payload, channelRuntimeMetaColumnIDRetentionUpdatedAtMS, channelRuntimeMetaColumnIDRetentionThroughSeq, meta.RetentionUpdatedAtMS)
 	return wrapFamilyValue(key, payload)
 }
 
@@ -435,6 +437,8 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 			case channelRuntimeMetaColumnIDLeaseUntilMS:
 				meta.LeaseUntilMS = decodeZigZagInt64(raw)
 				haveLeaseUntil = true
+			case channelRuntimeMetaColumnIDRetentionUpdatedAtMS:
+				meta.RetentionUpdatedAtMS = decodeZigZagInt64(raw)
 			default:
 				return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid int column %d", ErrCorruptValue, colID)
 			}
@@ -464,6 +468,8 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 			case channelRuntimeMetaColumnIDFeatures:
 				meta.Features = raw
 				haveFeatures = true
+			case channelRuntimeMetaColumnIDRetentionThroughSeq:
+				meta.RetentionThroughSeq = raw
 			default:
 				return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid uint column %d", ErrCorruptValue, colID)
 			}
