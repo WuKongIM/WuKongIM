@@ -130,6 +130,70 @@ func TestStateMachineEncodeUpsertCommands(t *testing.T) {
 	}
 }
 
+func TestDecodeUpsertChannelRuntimeMetaCommandPreservesRetentionFields(t *testing.T) {
+	meta := metadb.ChannelRuntimeMeta{
+		ChannelID:            "decode-retention",
+		ChannelType:          2,
+		ChannelEpoch:         3,
+		LeaderEpoch:          4,
+		Replicas:             []uint64{2, 1},
+		ISR:                  []uint64{1, 2},
+		Leader:               1,
+		MinISR:               2,
+		Status:               2,
+		Features:             1,
+		LeaseUntilMS:         1700000000000,
+		RetentionThroughSeq:  99,
+		RetentionUpdatedAtMS: 1700000000123,
+	}
+
+	decoded, err := decodeCommand(EncodeUpsertChannelRuntimeMetaCommand(meta))
+	if err != nil {
+		t.Fatalf("decodeCommand(runtime_meta retention) error = %v", err)
+	}
+	cmd, ok := decoded.(*upsertChannelRuntimeMetaCmd)
+	if !ok {
+		t.Fatalf("decodeCommand(runtime_meta retention) type = %T, want *upsertChannelRuntimeMetaCmd", decoded)
+	}
+	if cmd.meta.RetentionThroughSeq != meta.RetentionThroughSeq {
+		t.Fatalf("RetentionThroughSeq = %d, want %d", cmd.meta.RetentionThroughSeq, meta.RetentionThroughSeq)
+	}
+	if cmd.meta.RetentionUpdatedAtMS != meta.RetentionUpdatedAtMS {
+		t.Fatalf("RetentionUpdatedAtMS = %d, want %d", cmd.meta.RetentionUpdatedAtMS, meta.RetentionUpdatedAtMS)
+	}
+}
+
+func TestDecodeUpsertChannelRuntimeMetaCommandDefaultsMissingRetentionFieldsToZero(t *testing.T) {
+	data := make([]byte, 0, headerSize+128)
+	data = append(data, commandVersion, cmdTypeUpsertChannelRuntimeMeta)
+	data = appendStringTLVField(data, tagRuntimeMetaChannelID, "old-runtime-meta")
+	data = appendInt64TLVField(data, tagRuntimeMetaChannelType, 2)
+	data = appendUint64TLVField(data, tagRuntimeMetaChannelEpoch, 3)
+	data = appendUint64TLVField(data, tagRuntimeMetaLeaderEpoch, 4)
+	data = appendBytesTLVField(data, tagRuntimeMetaReplicas, encodeUint64Slice([]uint64{1, 2}))
+	data = appendBytesTLVField(data, tagRuntimeMetaISR, encodeUint64Slice([]uint64{1, 2}))
+	data = appendUint64TLVField(data, tagRuntimeMetaLeader, 1)
+	data = appendInt64TLVField(data, tagRuntimeMetaMinISR, 2)
+	data = appendUint64TLVField(data, tagRuntimeMetaStatus, 2)
+	data = appendUint64TLVField(data, tagRuntimeMetaFeatures, 1)
+	data = appendInt64TLVField(data, tagRuntimeMetaLeaseUntilMS, 1700000000000)
+
+	decoded, err := decodeCommand(data)
+	if err != nil {
+		t.Fatalf("decodeCommand(old runtime_meta) error = %v", err)
+	}
+	cmd, ok := decoded.(*upsertChannelRuntimeMetaCmd)
+	if !ok {
+		t.Fatalf("decodeCommand(old runtime_meta) type = %T, want *upsertChannelRuntimeMetaCmd", decoded)
+	}
+	if cmd.meta.RetentionThroughSeq != 0 {
+		t.Fatalf("RetentionThroughSeq = %d, want 0", cmd.meta.RetentionThroughSeq)
+	}
+	if cmd.meta.RetentionUpdatedAtMS != 0 {
+		t.Fatalf("RetentionUpdatedAtMS = %d, want 0", cmd.meta.RetentionUpdatedAtMS)
+	}
+}
+
 func TestStateMachineApplyUpsertsUserAndChannel(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -247,6 +311,52 @@ func TestStateMachineApplyUpsertsAndDeletesChannelRuntimeMeta(t *testing.T) {
 	_, err = db.ForSlot(11).GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
 	if !errors.Is(err, metadb.ErrNotFound) {
 		t.Fatalf("GetChannelRuntimeMeta() err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestStateMachineApplyUpsertChannelRuntimeMetaPreservesRetentionFields(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+
+	meta := metadb.ChannelRuntimeMeta{
+		ChannelID:            "apply-retention",
+		ChannelType:          4,
+		ChannelEpoch:         7,
+		LeaderEpoch:          5,
+		Replicas:             []uint64{3, 2, 1},
+		ISR:                  []uint64{2, 1},
+		Leader:               2,
+		MinISR:               2,
+		Status:               4,
+		Features:             12,
+		LeaseUntilMS:         1700000001234,
+		RetentionThroughSeq:  123,
+		RetentionUpdatedAtMS: 1700000002345,
+	}
+
+	result, err := sm.Apply(ctx, multiraft.Command{
+		SlotID: 11,
+		Index:  1,
+		Term:   1,
+		Data:   EncodeUpsertChannelRuntimeMetaCommand(meta),
+	})
+	if err != nil {
+		t.Fatalf("Apply(upsert runtime meta retention) error = %v", err)
+	}
+	if string(result) != ApplyResultOK {
+		t.Fatalf("Apply(upsert runtime meta retention) result = %q, want %q", result, ApplyResultOK)
+	}
+
+	got, err := db.ForSlot(11).GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
+	}
+	want := meta
+	want.Replicas = []uint64{1, 2, 3}
+	want.ISR = []uint64{1, 2}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("stored runtime meta = %#v, want %#v", got, want)
 	}
 }
 
