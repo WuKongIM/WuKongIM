@@ -37,6 +37,10 @@ type Writer interface {
 	Len() int
 }
 
+type stringWriter interface {
+	WriteString(string) (int, error)
+}
+
 // Encoder 编码者
 type Encoder struct {
 	w Writer
@@ -135,7 +139,20 @@ func (e *Encoder) WriteUint32(i uint32) {
 
 // WriteString WriteString
 func (e *Encoder) WriteString(str string) {
-	e.WriteBinary([]byte(str))
+	if len(str) == 0 {
+		e.WriteInt16(0)
+		return
+	}
+	bl := len(str)
+	if bl > math.MaxInt16 {
+		panic(fmt.Errorf("WriteString: len(str) > math.MaxInt16, len(str) = %d", bl))
+	}
+	e.WriteInt16(bl)
+	if writer, ok := e.w.(stringWriter); ok {
+		_, _ = writer.WriteString(str)
+		return
+	}
+	_, _ = e.w.Write([]byte(str))
 }
 
 // WriteStringAll WriteStringAll

@@ -144,7 +144,7 @@ func (l *WKProto) DecodeFrame(data []byte, version uint8) (frame.Frame, int, err
 
 // EncodePacket 编码包
 func (l *WKProto) EncodeFrame(f frame.Frame, version uint8) ([]byte, error) {
-	buffer := bytes.NewBuffer([]byte{})
+	buffer := bytes.NewBuffer(make([]byte, 0, encodedFrameSize(f, version)))
 	err := l.encodeFrameWithWriter(buffer, f, version)
 	if err != nil {
 		return nil, err
@@ -214,6 +214,58 @@ func (l *WKProto) encodeFrameWithWriter(w Writer, f frame.Frame, version uint8) 
 		return err
 	}
 	return nil
+}
+
+func encodedFrameSize(f frame.Frame, version uint8) int {
+	frameType := f.GetFrameType()
+	if frameType == frame.PING || frameType == frame.PONG {
+		return 1
+	}
+	bodySize, ok := encodedFrameBodySize(f, version)
+	if !ok {
+		return 0
+	}
+	return 1 + encodedVariableSize(uint32(bodySize)) + bodySize
+}
+
+func encodedFrameBodySize(f frame.Frame, version uint8) (int, bool) {
+	switch f.GetFrameType() {
+	case frame.CONNECT:
+		return encodeConnectSize(f.(*frame.ConnectPacket), version), true
+	case frame.CONNACK:
+		return encodeConnackSize(f.(*frame.ConnackPacket), version), true
+	case frame.SEND:
+		packet := f.(*frame.SendPacket)
+		if len(packet.Payload) > PayloadMaxSize {
+			return 0, false
+		}
+		return encodeSendSize(packet, version), true
+	case frame.SENDACK:
+		return encodeSendackSize(f.(*frame.SendackPacket), version), true
+	case frame.RECV:
+		return encodeRecvSize(f.(*frame.RecvPacket), version), true
+	case frame.RECVACK:
+		return encodeRecvackSize(f.(*frame.RecvackPacket), version), true
+	case frame.DISCONNECT:
+		return encodeDisConnectSize(f.(*frame.DisconnectPacket), version), true
+	case frame.SUB:
+		return encodeSubSize(f.(*frame.SubPacket), version), true
+	case frame.SUBACK:
+		return encodeSubackSize(f.(*frame.SubackPacket), version), true
+	case frame.EVENT:
+		return encodeEventSize(f.(*frame.EventPacket), version), true
+	default:
+		return 0, false
+	}
+}
+
+func encodedVariableSize(size uint32) int {
+	n := 0
+	for size > 0 {
+		n++
+		size /= 0x80
+	}
+	return n
 }
 
 func (l *WKProto) WriteFrame(w Writer, packet frame.Frame, version uint8) error {

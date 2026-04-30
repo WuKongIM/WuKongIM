@@ -72,3 +72,47 @@ func TestRecvEncodeAndDecodeSupportsUint64MessageSeqOnLatestVersion(t *testing.T
 	assert.Equal(t, true, ok)
 	assert.Equal(t, packet.MessageSeq, resultRecvPacket.MessageSeq)
 }
+
+func TestRecvEncodeFramePreallocatesExactCapacity(t *testing.T) {
+	packet := &frame.RecvPacket{
+		MessageID:   1223,
+		Expire:      10,
+		MessageSeq:  9238934,
+		Timestamp:   int32(time.Now().Unix()),
+		ChannelID:   "3434",
+		ChannelType: 2,
+		FromUID:     "123",
+		Payload:     []byte("capacity"),
+	}
+
+	packetBytes, err := New().EncodeFrame(packet, frame.LatestVersion)
+
+	assert.NoError(t, err)
+	assert.Equal(t, len(packetBytes), cap(packetBytes))
+}
+
+func BenchmarkRecvEncodeFrame(b *testing.B) {
+	packet := &frame.RecvPacket{
+		MessageID:   1223,
+		Expire:      10,
+		MessageSeq:  9238934,
+		Timestamp:   int32(time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC).Unix()),
+		ChannelID:   "3434",
+		ChannelType: 2,
+		FromUID:     "123",
+		ClientMsgNo: "bench-client-msg-no",
+		Payload:     []byte("benchmark recv payload"),
+	}
+	proto := New()
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		encoded, err := proto.EncodeFrame(packet, frame.LatestVersion)
+		if err != nil {
+			b.Fatalf("EncodeFrame() error = %v", err)
+		}
+		if len(encoded) == 0 {
+			b.Fatal("empty encoded frame")
+		}
+	}
+}
