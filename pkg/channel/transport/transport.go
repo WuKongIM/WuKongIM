@@ -138,8 +138,9 @@ func toRuntimeLaneMembership(items []LongPollMembership) []runtime.LaneMembershi
 	out := make([]runtime.LaneMembership, 0, len(items))
 	for _, item := range items {
 		out = append(out, runtime.LaneMembership{
-			ChannelKey:   item.ChannelKey,
-			ChannelEpoch: item.ChannelEpoch,
+			ChannelKey:        item.ChannelKey,
+			ChannelEpoch:      item.ChannelEpoch,
+			ChannelGeneration: item.ChannelGeneration,
 		})
 	}
 	return out
@@ -152,10 +153,11 @@ func toRuntimeLaneCursorDelta(items []LongPollCursorDelta) []runtime.LaneCursorD
 	out := make([]runtime.LaneCursorDelta, 0, len(items))
 	for _, item := range items {
 		out = append(out, runtime.LaneCursorDelta{
-			ChannelKey:   item.ChannelKey,
-			ChannelEpoch: item.ChannelEpoch,
-			MatchOffset:  item.MatchOffset,
-			OffsetEpoch:  item.OffsetEpoch,
+			ChannelKey:        item.ChannelKey,
+			ChannelEpoch:      item.ChannelEpoch,
+			ChannelGeneration: item.ChannelGeneration,
+			MatchOffset:       item.MatchOffset,
+			OffsetEpoch:       item.OffsetEpoch,
 		})
 	}
 	return out
@@ -168,14 +170,15 @@ func toTransportLongPollItems(items []runtime.LaneResponseItem) []LongPollItem {
 	out := make([]LongPollItem, 0, len(items))
 	for _, item := range items {
 		out = append(out, LongPollItem{
-			ChannelKey:     item.ChannelKey,
-			ChannelEpoch:   item.ChannelEpoch,
-			LeaderEpoch:    item.LeaderEpoch,
-			Flags:          LongPollItemFlags(item.Flags),
-			Records:        item.Records,
-			LeaderHW:       item.LeaderHW,
-			TruncateTo:     item.TruncateTo,
-			RetentionReset: item.RetentionReset,
+			ChannelKey:        item.ChannelKey,
+			ChannelEpoch:      item.ChannelEpoch,
+			ChannelGeneration: item.ChannelGeneration,
+			LeaderEpoch:       item.LeaderEpoch,
+			Flags:             LongPollItemFlags(item.Flags),
+			Records:           item.Records,
+			LeaderHW:          item.LeaderHW,
+			TruncateTo:        item.TruncateTo,
+			RetentionReset:    item.RetentionReset,
 		})
 	}
 	return out

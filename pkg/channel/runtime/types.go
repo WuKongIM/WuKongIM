@@ -117,10 +117,13 @@ type PeerLaneKey struct {
 }
 
 type LaneCursorDelta struct {
-	ChannelKey   core.ChannelKey
+	ChannelKey core.ChannelKey
+	// ChannelEpoch fences cursor updates to the channel epoch tracked by the leader lane session.
 	ChannelEpoch uint64
-	MatchOffset  uint64
-	OffsetEpoch  uint64
+	// ChannelGeneration is the follower's local channel generation captured when the cursor was sent.
+	ChannelGeneration uint64
+	MatchOffset       uint64
+	OffsetEpoch       uint64
 }
 
 type LanePollBudget struct {
@@ -167,18 +170,24 @@ const (
 )
 
 type LaneMembership struct {
-	ChannelKey   core.ChannelKey
+	ChannelKey core.ChannelKey
+	// ChannelEpoch is the authoritative channel epoch for this lane membership.
 	ChannelEpoch uint64
+	// ChannelGeneration is the follower's local channel generation to echo on lane response items.
+	ChannelGeneration uint64
 }
 
 type LaneResponseItem struct {
-	ChannelKey   core.ChannelKey
+	ChannelKey core.ChannelKey
+	// ChannelEpoch preserves the existing cluster epoch fence for this lane item.
 	ChannelEpoch uint64
-	LeaderEpoch  uint64
-	Flags        LanePollItemFlags
-	Records      []core.Record
-	LeaderHW     uint64
-	TruncateTo   *uint64
+	// ChannelGeneration echoes the follower generation from the request that produced this lane item.
+	ChannelGeneration uint64
+	LeaderEpoch       uint64
+	Flags             LanePollItemFlags
+	Records           []core.Record
+	LeaderHW          uint64
+	TruncateTo        *uint64
 	// RetentionReset carries the retained-away prefix for this channel lane item.
 	RetentionReset *core.RetentionReset
 }

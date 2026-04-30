@@ -52,15 +52,21 @@ const (
 )
 
 type LongPollMembership struct {
-	ChannelKey   channel.ChannelKey
+	ChannelKey channel.ChannelKey
+	// ChannelEpoch is the authoritative channel epoch for this long-poll member.
 	ChannelEpoch uint64
+	// ChannelGeneration is the follower-local channel generation echoed by leader items.
+	ChannelGeneration uint64
 }
 
 type LongPollCursorDelta struct {
-	ChannelKey   channel.ChannelKey
+	ChannelKey channel.ChannelKey
+	// ChannelEpoch fences this cursor update to the matching channel epoch.
 	ChannelEpoch uint64
-	MatchOffset  uint64
-	OffsetEpoch  uint64
+	// ChannelGeneration fences this cursor update to the follower-local channel generation.
+	ChannelGeneration uint64
+	MatchOffset       uint64
+	OffsetEpoch       uint64
 }
 
 type LongPollFetchRequest struct {
@@ -81,13 +87,16 @@ type LongPollFetchRequest struct {
 }
 
 type LongPollItem struct {
-	ChannelKey   channel.ChannelKey
+	ChannelKey channel.ChannelKey
+	// ChannelEpoch preserves the existing cluster epoch fence for this response item.
 	ChannelEpoch uint64
-	LeaderEpoch  uint64
-	Flags        LongPollItemFlags
-	Records      []channel.Record
-	LeaderHW     uint64
-	TruncateTo   *uint64
+	// ChannelGeneration echoes the follower-local generation from the request that produced this item.
+	ChannelGeneration uint64
+	LeaderEpoch       uint64
+	Flags             LongPollItemFlags
+	Records           []channel.Record
+	LeaderHW          uint64
+	TruncateTo        *uint64
 	// RetentionReset carries a retained-away prefix that the follower must adopt.
 	RetentionReset *channel.RetentionReset
 }

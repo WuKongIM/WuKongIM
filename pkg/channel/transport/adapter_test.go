@@ -110,7 +110,7 @@ func TestBindFetchServiceAdaptsRuntimeLanePollService(t *testing.T) {
 		MaxBytes:    4096,
 		MaxChannels: 64,
 		FullMembership: []LongPollMembership{
-			{ChannelKey: "g1", ChannelEpoch: 7},
+			{ChannelKey: "g1", ChannelEpoch: 7, ChannelGeneration: 5},
 		},
 	})
 	if err != nil {
@@ -136,6 +136,9 @@ func TestBindFetchServiceAdaptsRuntimeLanePollService(t *testing.T) {
 	}
 	if resp.Items[0].ChannelKey != "g1" {
 		t.Fatalf("resp.Items[0].ChannelKey = %q, want %q", resp.Items[0].ChannelKey, "g1")
+	}
+	if resp.Items[0].ChannelGeneration != 5 {
+		t.Fatalf("resp.Items[0].ChannelGeneration = %d, want 5", resp.Items[0].ChannelGeneration)
 	}
 }
 
@@ -597,7 +600,7 @@ func TestTransportLongPollModeRegistersLongPollRPC(t *testing.T) {
 		MaxBytes:        64 * 1024,
 		MaxChannels:     64,
 		FullMembership: []LongPollMembership{
-			{ChannelKey: "g1", ChannelEpoch: 11},
+			{ChannelKey: "g1", ChannelEpoch: 11, ChannelGeneration: 3},
 		},
 	})
 	if err != nil {
@@ -620,6 +623,9 @@ func TestTransportLongPollModeRegistersLongPollRPC(t *testing.T) {
 	case req := <-got:
 		if req.LaneID != 4 || req.SessionID != 101 {
 			t.Fatalf("request = %+v, want lane=4 session=101", req)
+		}
+		if len(req.FullMembership) != 1 || req.FullMembership[0].ChannelGeneration != 3 {
+			t.Fatalf("request membership = %+v, want generation 3", req.FullMembership)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for long poll request delivery")
@@ -730,10 +736,11 @@ func (s *lanePollFetchServiceStub) ServeLanePoll(ctx context.Context, req runtim
 		SessionEpoch: 3,
 		Items: []runtime.LaneResponseItem{
 			{
-				ChannelKey:   "g1",
-				ChannelEpoch: 7,
-				LeaderEpoch:  7,
-				Flags:        runtime.LanePollItemFlagData,
+				ChannelKey:        "g1",
+				ChannelEpoch:      7,
+				ChannelGeneration: 5,
+				LeaderEpoch:       7,
+				Flags:             runtime.LanePollItemFlagData,
 				Records: []channel.Record{
 					{Payload: []byte("wake"), SizeBytes: len("wake")},
 				},

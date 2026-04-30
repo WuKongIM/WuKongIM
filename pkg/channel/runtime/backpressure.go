@@ -803,7 +803,7 @@ func (r *runtime) handleLanePollResponse(peer core.NodeID, resp LanePollResponse
 		fetchResp := FetchResponseEnvelope{
 			ChannelKey:     item.ChannelKey,
 			Epoch:          item.ChannelEpoch,
-			Generation:     ch.gen,
+			Generation:     item.ChannelGeneration,
 			LeaderHW:       item.LeaderHW,
 			Records:        item.Records,
 			TruncateTo:     item.TruncateTo,
@@ -846,10 +846,11 @@ func (r *runtime) applyFetchResponseEnvelope(ch *channel, peer core.NodeID, env 
 		if r.longPollEnabled() {
 			if shouldReportProgress {
 				r.ensureLaneManager(meta.Leader).MarkCursorDelta(LaneCursorDelta{
-					ChannelKey:   ch.key,
-					ChannelEpoch: state.Epoch,
-					MatchOffset:  state.LEO,
-					OffsetEpoch:  state.OffsetEpoch,
+					ChannelKey:        ch.key,
+					ChannelEpoch:      state.Epoch,
+					ChannelGeneration: ch.gen,
+					MatchOffset:       state.LEO,
+					OffsetEpoch:       state.OffsetEpoch,
 				})
 			}
 			return nil
@@ -917,10 +918,11 @@ func (r *runtime) applyRetentionResetResponse(ch *channel, peer core.NodeID, env
 	}
 	if r.longPollEnabled() {
 		r.ensureLaneManager(meta.Leader).MarkCursorDelta(LaneCursorDelta{
-			ChannelKey:   ch.key,
-			ChannelEpoch: state.Epoch,
-			MatchOffset:  fetchOffset,
-			OffsetEpoch:  state.OffsetEpoch,
+			ChannelKey:        ch.key,
+			ChannelEpoch:      state.Epoch,
+			ChannelGeneration: ch.gen,
+			MatchOffset:       fetchOffset,
+			OffsetEpoch:       state.OffsetEpoch,
 		})
 		return nil
 	}

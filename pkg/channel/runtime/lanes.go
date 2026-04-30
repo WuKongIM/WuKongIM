@@ -68,13 +68,13 @@ func (m *PeerLaneManager) LaneFor(key core.ChannelKey) uint16 {
 	return uint16(hasher.Sum32() % uint32(m.laneCount))
 }
 
-func (m *PeerLaneManager) UpsertChannel(key core.ChannelKey, epoch uint64) bool {
+func (m *PeerLaneManager) UpsertChannel(key core.ChannelKey, epoch uint64, generation uint64) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	laneID := m.LaneFor(key)
 	lane := &m.lanes[laneID]
-	member := LaneMembership{ChannelKey: key, ChannelEpoch: epoch}
+	member := LaneMembership{ChannelKey: key, ChannelEpoch: epoch, ChannelGeneration: generation}
 	current, ok := lane.membership[key]
 	if ok && current == member {
 		return false
@@ -128,6 +128,15 @@ func (m *PeerLaneManager) MarkCursorDelta(delta LaneCursorDelta) {
 	}
 	if delta.ChannelEpoch != 0 && member.ChannelEpoch != 0 && delta.ChannelEpoch != member.ChannelEpoch {
 		return
+	}
+	if delta.ChannelGeneration != 0 && member.ChannelGeneration != 0 && delta.ChannelGeneration != member.ChannelGeneration {
+		return
+	}
+	if delta.ChannelEpoch == 0 {
+		delta.ChannelEpoch = member.ChannelEpoch
+	}
+	if delta.ChannelGeneration == 0 {
+		delta.ChannelGeneration = member.ChannelGeneration
 	}
 	lane.dirtyCursor[delta.ChannelKey] = delta
 	lane.pending = true
@@ -337,7 +346,7 @@ func (r *runtime) syncFollowerLaneMembership(previous *core.Meta, next core.Meta
 		next.Leader == previous.Leader {
 		manager := r.ensureLaneManager(next.Leader)
 		laneID := manager.LaneFor(next.Key)
-		if manager.UpsertChannel(next.Key, next.Epoch) {
+		if manager.UpsertChannel(next.Key, next.Epoch, r.localChannelGeneration(next.Key)) {
 			r.markFollowerLaneCursor(manager, next.Key)
 			r.scheduleLaneDispatch(next.Leader, laneID)
 		}
@@ -366,7 +375,7 @@ func (r *runtime) syncFollowerLaneMembership(previous *core.Meta, next core.Meta
 	if next.Leader != 0 && next.Leader != r.cfg.LocalNode {
 		manager := r.ensureLaneManager(next.Leader)
 		laneID := manager.LaneFor(next.Key)
-		if manager.UpsertChannel(next.Key, next.Epoch) {
+		if manager.UpsertChannel(next.Key, next.Epoch, r.localChannelGeneration(next.Key)) {
 			r.markFollowerLaneCursor(manager, next.Key)
 			if previous != nil {
 				r.scheduleLaneDispatch(next.Leader, laneID)
@@ -387,11 +396,20 @@ func (r *runtime) markFollowerLaneCursor(manager *PeerLaneManager, key core.Chan
 	}
 	state := ch.Status()
 	manager.MarkCursorDelta(LaneCursorDelta{
-		ChannelKey:   key,
-		ChannelEpoch: state.Epoch,
-		MatchOffset:  state.LEO,
-		OffsetEpoch:  state.OffsetEpoch,
+		ChannelKey:        key,
+		ChannelEpoch:      state.Epoch,
+		ChannelGeneration: ch.gen,
+		MatchOffset:       state.LEO,
+		OffsetEpoch:       state.OffsetEpoch,
 	})
+}
+
+func (r *runtime) localChannelGeneration(key core.ChannelKey) uint64 {
+	ch, ok := r.lookupChannel(key)
+	if !ok {
+		return 0
+	}
+	return ch.gen
 }
 
 func (r *runtime) syncLeaderLaneTargets(ch *channel, previous *core.Meta, next core.Meta) {

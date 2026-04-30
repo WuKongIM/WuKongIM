@@ -17,9 +17,11 @@ const (
 type LeaderLaneReadyItem struct {
 	ChannelKey   core.ChannelKey
 	ChannelEpoch uint64
-	ReadyMask    laneReadyMask
-	SizeBytes    int
-	Response     LaneResponseItem
+	// ChannelGeneration is the follower-local generation echoed back with this ready item.
+	ChannelGeneration uint64
+	ReadyMask         laneReadyMask
+	SizeBytes         int
+	Response          LaneResponseItem
 }
 
 type LeaderLanePollResult struct {
@@ -61,6 +63,7 @@ type LeaderLaneSession struct {
 	readyQueue   []core.ChannelKey
 	parked       *lanePollWaiter
 	channelEpoch map[core.ChannelKey]uint64
+	channelGen   map[core.ChannelKey]uint64
 	cursor       map[core.ChannelKey]LaneCursorDelta
 }
 
@@ -70,20 +73,23 @@ func newLeaderLaneSession(sessionID, sessionEpoch uint64) *LeaderLaneSession {
 		sessionEpoch: sessionEpoch,
 		readyFlags:   make(map[core.ChannelKey]laneReadyMask),
 		channelEpoch: make(map[core.ChannelKey]uint64),
+		channelGen:   make(map[core.ChannelKey]uint64),
 		cursor:       make(map[core.ChannelKey]LaneCursorDelta),
 	}
 }
 
-func (s *LeaderLaneSession) TrackChannel(key core.ChannelKey, epoch uint64) {
+func (s *LeaderLaneSession) TrackChannel(key core.ChannelKey, epoch uint64, generation uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.channelEpoch[key] = epoch
+	s.channelGen[key] = generation
 }
 
 func (s *LeaderLaneSession) ForgetChannel(key core.ChannelKey) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.channelEpoch, key)
+	delete(s.channelGen, key)
 	delete(s.cursor, key)
 	delete(s.readyFlags, key)
 	filtered := s.readyQueue[:0]
@@ -150,6 +156,15 @@ func (s *LeaderLaneSession) Poll(
 		if trackedEpoch, ok := s.channelEpoch[delta.ChannelKey]; ok && trackedEpoch != 0 && delta.ChannelEpoch != 0 && trackedEpoch != delta.ChannelEpoch {
 			continue
 		}
+		if trackedGeneration, ok := s.channelGen[delta.ChannelKey]; ok && trackedGeneration != 0 && delta.ChannelGeneration != 0 && trackedGeneration != delta.ChannelGeneration {
+			continue
+		}
+		if delta.ChannelEpoch == 0 {
+			delta.ChannelEpoch = s.channelEpoch[delta.ChannelKey]
+		}
+		if delta.ChannelGeneration == 0 {
+			delta.ChannelGeneration = s.channelGen[delta.ChannelKey]
+		}
 		s.cursor[delta.ChannelKey] = delta
 		if apply != nil {
 			apply(delta)
@@ -177,7 +192,14 @@ func (s *LeaderLaneSession) Poll(
 		if mask == 0 {
 			continue
 		}
-		item, finished := selector(key, s.cursor[key], mask)
+		cursor := s.cursor[key]
+		if cursor.ChannelEpoch == 0 {
+			cursor.ChannelEpoch = s.channelEpoch[key]
+		}
+		if cursor.ChannelGeneration == 0 {
+			cursor.ChannelGeneration = s.channelGen[key]
+		}
+		item, finished := selector(key, cursor, mask)
 		if budget.MaxBytes > 0 && len(result.Items) > 0 && drainedBytes+item.SizeBytes > budget.MaxBytes {
 			nextQueue = append(nextQueue, key)
 			result.MoreReady = true

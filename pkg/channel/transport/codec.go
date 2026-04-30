@@ -18,8 +18,8 @@ const (
 
 	fetchRequestCodecVersion  byte = 1
 	fetchResponseCodecVersion byte = 3
-	longPollRequestCodecVer   byte = 1
-	longPollResponseCodecVer  byte = 3
+	longPollRequestCodecVer   byte = 2
+	longPollResponseCodecVer  byte = 4
 	reconcileProbeCodecVer    byte = 2
 	reconcileProbeRespVer     byte = 2
 )

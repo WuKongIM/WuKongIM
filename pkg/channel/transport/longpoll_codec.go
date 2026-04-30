@@ -57,6 +57,9 @@ func encodeLongPollFetchRequest(req LongPollFetchRequest) ([]byte, error) {
 		if err := binary.Write(buf, binary.BigEndian, member.ChannelEpoch); err != nil {
 			return nil, err
 		}
+		if err := binary.Write(buf, binary.BigEndian, member.ChannelGeneration); err != nil {
+			return nil, err
+		}
 	}
 	if err := binary.Write(buf, binary.BigEndian, uint32(len(req.CursorDelta))); err != nil {
 		return nil, err
@@ -66,6 +69,9 @@ func encodeLongPollFetchRequest(req LongPollFetchRequest) ([]byte, error) {
 			return nil, err
 		}
 		if err := binary.Write(buf, binary.BigEndian, delta.ChannelEpoch); err != nil {
+			return nil, err
+		}
+		if err := binary.Write(buf, binary.BigEndian, delta.ChannelGeneration); err != nil {
 			return nil, err
 		}
 		if err := binary.Write(buf, binary.BigEndian, delta.MatchOffset); err != nil {
@@ -144,6 +150,9 @@ func decodeLongPollFetchRequest(data []byte) (LongPollFetchRequest, error) {
 		if err := binary.Read(rd, binary.BigEndian, &member.ChannelEpoch); err != nil {
 			return LongPollFetchRequest{}, err
 		}
+		if err := binary.Read(rd, binary.BigEndian, &member.ChannelGeneration); err != nil {
+			return LongPollFetchRequest{}, err
+		}
 		req.FullMembership = append(req.FullMembership, member)
 	}
 	var deltaCount uint32
@@ -158,6 +167,9 @@ func decodeLongPollFetchRequest(data []byte) (LongPollFetchRequest, error) {
 		}
 		delta := LongPollCursorDelta{ChannelKey: channelKey}
 		if err := binary.Read(rd, binary.BigEndian, &delta.ChannelEpoch); err != nil {
+			return LongPollFetchRequest{}, err
+		}
+		if err := binary.Read(rd, binary.BigEndian, &delta.ChannelGeneration); err != nil {
 			return LongPollFetchRequest{}, err
 		}
 		if err := binary.Read(rd, binary.BigEndian, &delta.MatchOffset); err != nil {
@@ -210,6 +222,9 @@ func encodeLongPollFetchResponse(resp LongPollFetchResponse) ([]byte, error) {
 			return nil, err
 		}
 		if err := binary.Write(buf, binary.BigEndian, item.ChannelEpoch); err != nil {
+			return nil, err
+		}
+		if err := binary.Write(buf, binary.BigEndian, item.ChannelGeneration); err != nil {
 			return nil, err
 		}
 		if err := binary.Write(buf, binary.BigEndian, item.LeaderEpoch); err != nil {
@@ -293,6 +308,9 @@ func decodeLongPollFetchResponse(data []byte) (LongPollFetchResponse, error) {
 		}
 		item := LongPollItem{ChannelKey: channelKey}
 		if err := binary.Read(rd, binary.BigEndian, &item.ChannelEpoch); err != nil {
+			return LongPollFetchResponse{}, err
+		}
+		if err := binary.Read(rd, binary.BigEndian, &item.ChannelGeneration); err != nil {
 			return LongPollFetchResponse{}, err
 		}
 		if err := binary.Read(rd, binary.BigEndian, &item.LeaderEpoch); err != nil {

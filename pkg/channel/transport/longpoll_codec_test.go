@@ -20,8 +20,8 @@ func TestLongPollFetchRequestOpenRoundTrip(t *testing.T) {
 		MaxBytes:        64 * 1024,
 		MaxChannels:     64,
 		FullMembership: []LongPollMembership{
-			{ChannelKey: "g1", ChannelEpoch: 11},
-			{ChannelKey: "g2", ChannelEpoch: 12},
+			{ChannelKey: "g1", ChannelEpoch: 11, ChannelGeneration: 1},
+			{ChannelKey: "g2", ChannelEpoch: 12, ChannelGeneration: 2},
 		},
 	}
 
@@ -51,8 +51,8 @@ func TestLongPollFetchRequestPollRoundTrip(t *testing.T) {
 		MaxChannels:           16,
 		MembershipVersionHint: 77,
 		CursorDelta: []LongPollCursorDelta{
-			{ChannelKey: "g-hot", ChannelEpoch: 21, MatchOffset: 100, OffsetEpoch: 3},
-			{ChannelKey: "g-cold", ChannelEpoch: 22, MatchOffset: 9, OffsetEpoch: 2},
+			{ChannelKey: "g-hot", ChannelEpoch: 21, ChannelGeneration: 3, MatchOffset: 100, OffsetEpoch: 3},
+			{ChannelKey: "g-cold", ChannelEpoch: 22, ChannelGeneration: 4, MatchOffset: 9, OffsetEpoch: 2},
 		},
 	}
 
@@ -140,37 +140,41 @@ func TestLongPollFetchResponseMixedItemsRoundTrip(t *testing.T) {
 		MoreReady:    true,
 		Items: []LongPollItem{
 			{
-				ChannelKey:   "g-data",
-				ChannelEpoch: 10,
-				LeaderEpoch:  20,
-				Flags:        LongPollItemFlagData,
-				LeaderHW:     51,
+				ChannelKey:        "g-data",
+				ChannelEpoch:      10,
+				ChannelGeneration: 31,
+				LeaderEpoch:       20,
+				Flags:             LongPollItemFlagData,
+				LeaderHW:          51,
 				Records: []channel.Record{
 					{ID: 201, Index: 50, Epoch: 10, Payload: []byte("one"), SizeBytes: 3},
 					{ID: 202, Index: 51, Epoch: 10, Payload: []byte("two"), SizeBytes: 3},
 				},
 			},
 			{
-				ChannelKey:   "g-truncate",
-				ChannelEpoch: 11,
-				LeaderEpoch:  21,
-				Flags:        LongPollItemFlagTruncate,
-				LeaderHW:     52,
-				TruncateTo:   &truncateTo,
+				ChannelKey:        "g-truncate",
+				ChannelEpoch:      11,
+				ChannelGeneration: 32,
+				LeaderEpoch:       21,
+				Flags:             LongPollItemFlagTruncate,
+				LeaderHW:          52,
+				TruncateTo:        &truncateTo,
 			},
 			{
-				ChannelKey:   "g-hw",
-				ChannelEpoch: 12,
-				LeaderEpoch:  22,
-				Flags:        LongPollItemFlagHWOnly,
-				LeaderHW:     88,
+				ChannelKey:        "g-hw",
+				ChannelEpoch:      12,
+				ChannelGeneration: 33,
+				LeaderEpoch:       22,
+				Flags:             LongPollItemFlagHWOnly,
+				LeaderHW:          88,
 			},
 			{
-				ChannelKey:   "g-reset",
-				ChannelEpoch: 13,
-				LeaderEpoch:  23,
-				Flags:        LongPollItemFlagReset,
-				LeaderHW:     89,
+				ChannelKey:        "g-reset",
+				ChannelEpoch:      13,
+				ChannelGeneration: 34,
+				LeaderEpoch:       23,
+				Flags:             LongPollItemFlagReset,
+				LeaderHW:          89,
 				RetentionReset: &channel.RetentionReset{
 					RetentionThroughSeq:   5,
 					RetainedThroughOffset: 5,
@@ -251,6 +255,7 @@ func assertLongPollItemEqual(t *testing.T, got, want LongPollItem, idx int) {
 
 	if got.ChannelKey != want.ChannelKey ||
 		got.ChannelEpoch != want.ChannelEpoch ||
+		got.ChannelGeneration != want.ChannelGeneration ||
 		got.LeaderEpoch != want.LeaderEpoch ||
 		got.Flags != want.Flags ||
 		got.LeaderHW != want.LeaderHW {

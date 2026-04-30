@@ -45,7 +45,7 @@ func TestFollowerLaneCoalescesCursorDeltaBeforeNextSend(t *testing.T) {
 	})
 
 	key := core.ChannelKey("cursor-room")
-	mgr.UpsertChannel(key, 11)
+	mgr.UpsertChannel(key, 11, 1)
 	laneID := mgr.LaneFor(key)
 
 	openReq, ok := mgr.NextRequest(laneID)
@@ -97,8 +97,8 @@ func TestFollowerLaneMembershipChangeTouchesAffectedLaneOnly(t *testing.T) {
 	firstKey := testChannelKeyForLane(t, 0, 4, "first")
 	secondKey := testChannelKeyForLane(t, 1, 4, "second")
 
-	mgr.UpsertChannel(firstKey, 11)
-	mgr.UpsertChannel(secondKey, 21)
+	mgr.UpsertChannel(firstKey, 11, 1)
+	mgr.UpsertChannel(secondKey, 21, 1)
 
 	firstLane := mgr.LaneFor(firstKey)
 	secondLane := mgr.LaneFor(secondKey)
@@ -125,7 +125,7 @@ func TestFollowerLaneMembershipChangeTouchesAffectedLaneOnly(t *testing.T) {
 		SessionEpoch: 1,
 	})
 
-	mgr.UpsertChannel(firstKey, 12)
+	mgr.UpsertChannel(firstKey, 12, 1)
 
 	req, ok := mgr.NextRequest(firstLane)
 	if !ok {
@@ -160,7 +160,7 @@ func TestFollowerLaneMembershipChangeDuringInflightOpenForcesReopen(t *testing.T
 	}
 
 	laneID := mgr.LaneFor(firstKey)
-	mgr.UpsertChannel(firstKey, 11)
+	mgr.UpsertChannel(firstKey, 11, 1)
 
 	req, ok := mgr.NextRequest(laneID)
 	if !ok {
@@ -173,7 +173,7 @@ func TestFollowerLaneMembershipChangeDuringInflightOpenForcesReopen(t *testing.T
 		t.Fatalf("initial membership = %+v, want only %q", req.FullMembership, firstKey)
 	}
 
-	mgr.UpsertChannel(secondKey, 21)
+	mgr.UpsertChannel(secondKey, 21, 1)
 	if mgr.LaneFor(secondKey) != laneID {
 		t.Fatalf("second key lane = %d, want %d", mgr.LaneFor(secondKey), laneID)
 	}
