@@ -11,6 +11,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -188,6 +190,38 @@ func BenchmarkAsyncCommittedDispatcherSubmitCommitted(b *testing.B) {
 	stopped = true
 }
 
+func BenchmarkLocalDeliveryResolverResolvePagePersonChannel(b *testing.B) {
+	resolver := localDeliveryResolver{
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{}),
+		authority: benchmarkAuthoritative{
+			routes: map[string][]presence.Route{
+				"u2": {{UID: "u2", NodeID: 1, BootID: 11, SessionID: 2}},
+			},
+		},
+		pageSize: 256,
+	}
+	key := deliveryruntime.ChannelKey{
+		ChannelID:   deliveryusecase.EncodePersonChannel("u1", "u2"),
+		ChannelType: frame.ChannelTypePerson,
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		token, err := resolver.BeginResolve(context.Background(), key, deliveryruntime.CommittedEnvelope{})
+		if err != nil {
+			b.Fatalf("begin resolve: %v", err)
+		}
+		routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 256)
+		if err != nil {
+			b.Fatalf("resolve page: %v", err)
+		}
+		if !done || len(routes) != 1 {
+			b.Fatalf("routes=%d done=%v, want one done route", len(routes), done)
+		}
+	}
+}
+
 func benchmarkDeliveryMessage(channelType uint8, channelID string) channel.Message {
 	return channel.Message{
 		MessageID:   101,
@@ -254,6 +288,40 @@ type benchmarkCommittedDeliverySubmitter struct{}
 
 func (benchmarkCommittedDeliverySubmitter) SubmitCommitted(context.Context, deliveryruntime.CommittedEnvelope) error {
 	return nil
+}
+
+type benchmarkAuthoritative struct {
+	routes map[string][]presence.Route
+}
+
+func (a benchmarkAuthoritative) RegisterAuthoritative(context.Context, presence.RegisterAuthoritativeCommand) (presence.RegisterAuthoritativeResult, error) {
+	return presence.RegisterAuthoritativeResult{}, nil
+}
+
+func (a benchmarkAuthoritative) UnregisterAuthoritative(context.Context, presence.UnregisterAuthoritativeCommand) error {
+	return nil
+}
+
+func (a benchmarkAuthoritative) HeartbeatAuthoritative(context.Context, presence.HeartbeatAuthoritativeCommand) (presence.HeartbeatAuthoritativeResult, error) {
+	return presence.HeartbeatAuthoritativeResult{}, nil
+}
+
+func (a benchmarkAuthoritative) ReplayAuthoritative(context.Context, presence.ReplayAuthoritativeCommand) error {
+	return nil
+}
+
+func (a benchmarkAuthoritative) EndpointsByUID(_ context.Context, uid string) ([]presence.Route, error) {
+	return a.routes[uid], nil
+}
+
+func (a benchmarkAuthoritative) EndpointsByUIDs(_ context.Context, uids []string) (map[string][]presence.Route, error) {
+	out := make(map[string][]presence.Route, len(uids))
+	for _, uid := range uids {
+		if routes := a.routes[uid]; len(routes) > 0 {
+			out[uid] = routes
+		}
+	}
+	return out, nil
 }
 
 type benchmarkSession struct {

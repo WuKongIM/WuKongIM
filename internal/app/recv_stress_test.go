@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -329,21 +328,11 @@ func TestRunRecvStressWorkerThroughputUsesConfiguredInflight(t *testing.T) {
 	}
 
 	submitted := make(chan deliveryruntime.CommittedEnvelope, 4)
-	var currentInflight atomic.Int64
-	var maxInflight atomic.Int64
 	submit := func(ctx context.Context, env deliveryruntime.CommittedEnvelope) error {
-		cur := currentInflight.Add(1)
-		for {
-			max := maxInflight.Load()
-			if cur <= max || maxInflight.CompareAndSwap(max, cur) {
-				break
-			}
-		}
 		select {
 		case submitted <- env:
 			return nil
 		case <-ctx.Done():
-			currentInflight.Add(-1)
 			return ctx.Err()
 		}
 	}
@@ -353,6 +342,12 @@ func TestRunRecvStressWorkerThroughputUsesConfiguredInflight(t *testing.T) {
 		for batch := 0; batch < 2; batch++ {
 			first := <-submitted
 			second := <-submitted
+			select {
+			case extra := <-submitted:
+				serverErrCh <- fmt.Errorf("worker submitted %s before earlier throughput attempts completed", extra.ClientMsgNo)
+				return
+			default:
+			}
 			for _, env := range []deliveryruntime.CommittedEnvelope{first, second} {
 				recv := &frame.RecvPacket{
 					MessageID:   int64(env.MessageID),
@@ -376,7 +371,6 @@ func TestRunRecvStressWorkerThroughputUsesConfiguredInflight(t *testing.T) {
 					serverErrCh <- fmt.Errorf("expected *frame.RecvackPacket, got %T", f)
 					return
 				}
-				currentInflight.Add(-1)
 			}
 		}
 		serverErrCh <- nil
@@ -397,7 +391,6 @@ func TestRunRecvStressWorkerThroughputUsesConfiguredInflight(t *testing.T) {
 	require.Zero(t, outcome.Failed)
 	require.Empty(t, failures)
 	require.Len(t, records, 4)
-	require.EqualValues(t, 2, maxInflight.Load())
 }
 
 func clearRecvStressConfigEnv(t *testing.T) {

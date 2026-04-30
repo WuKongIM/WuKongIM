@@ -1176,6 +1176,33 @@ func TestLocalDeliveryResolverSplitsExpandedRoutesAcrossPages(t *testing.T) {
 	require.Equal(t, []string{"group:ok:1:1", "group:ok:0:1"}, metrics.resolves)
 }
 
+func TestLocalDeliveryResolverUsesDirectLookupForPersonChannels(t *testing.T) {
+	authority := &recordingAuthoritative{
+		single: map[string][]presence.Route{
+			"u2": {{UID: "u2", NodeID: 1, BootID: 11, SessionID: 2}},
+		},
+	}
+	resolver := localDeliveryResolver{
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{}),
+		authority:   authority,
+		pageSize:    8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   deliveryusecase.EncodePersonChannel("u1", "u2"),
+		ChannelType: frame.ChannelTypePerson,
+	}, deliveryruntime.CommittedEnvelope{})
+	require.NoError(t, err)
+
+	routes, cursor, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 11, SessionID: 2}}, routes)
+	require.Equal(t, "u1", cursor)
+	require.True(t, done)
+	require.Equal(t, []string{"u2", "u1"}, authority.uidCalls)
+	require.Empty(t, authority.uidBatches)
+}
+
 func TestLocalDeliveryResolverRecordsBeginResolveErrors(t *testing.T) {
 	snapshotErr := errors.New("snapshot failed")
 	metrics := &recordingDeliveryRoutingMetrics{}
@@ -1613,6 +1640,8 @@ func (s *resolverSnapshotStore) ListChannelSubscribers(context.Context, string, 
 
 type recordingAuthoritative struct {
 	uidBatches [][]string
+	uidCalls   []string
+	single     map[string][]presence.Route
 	batches    map[string][]presence.Route
 }
 
@@ -1632,8 +1661,9 @@ func (r *recordingAuthoritative) ReplayAuthoritative(context.Context, presence.R
 	return nil
 }
 
-func (r *recordingAuthoritative) EndpointsByUID(context.Context, string) ([]presence.Route, error) {
-	return nil, nil
+func (r *recordingAuthoritative) EndpointsByUID(_ context.Context, uid string) ([]presence.Route, error) {
+	r.uidCalls = append(r.uidCalls, uid)
+	return append([]presence.Route(nil), r.single[uid]...), nil
 }
 
 func (r *recordingAuthoritative) EndpointsByUIDs(_ context.Context, uids []string) (map[string][]presence.Route, error) {

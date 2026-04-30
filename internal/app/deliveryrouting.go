@@ -601,7 +601,7 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 	}
 	channelType = deliveryChannelTypeLabel(resolveToken.channelType)
 
-	out := make([]deliveryruntime.RouteKey, 0, limit)
+	out := make([]deliveryruntime.RouteKey, 0, localResolveRouteCap(limit, resolveToken.channelType))
 	if len(resolveToken.pending) > 0 {
 		taken := limit
 		if taken > len(resolveToken.pending) {
@@ -638,25 +638,39 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 			continue
 		}
 
-		endpointsByUID, err := r.authority.EndpointsByUIDs(ctx, uids)
-		if err != nil {
-			return nil, "", false, err
+		var (
+			expandedCount int
+			missing       []string
+			overflow      []deliveryruntime.RouteKey
+		)
+		remaining := limit - len(out)
+		if r.logger != nil {
+			missing = make([]string, 0, len(uids))
 		}
-
-		expanded := make([]deliveryruntime.RouteKey, 0, len(uids))
-		missing := make([]string, 0, len(uids))
-		for _, uid := range uids {
-			routes := endpointsByUID[uid]
-			if len(routes) == 0 {
-				missing = append(missing, uid)
+		if resolveToken.channelType == frame.ChannelTypePerson {
+			for _, uid := range uids {
+				routes, err := r.authority.EndpointsByUID(ctx, uid)
+				if err != nil {
+					return nil, "", false, err
+				}
+				if len(routes) == 0 && r.logger != nil {
+					missing = append(missing, uid)
+				}
+				expandedCount += len(routes)
+				out, overflow = appendResolvedPresenceRoutes(out, overflow, routes, &remaining)
 			}
-			for _, route := range routes {
-				expanded = append(expanded, deliveryruntime.RouteKey{
-					UID:       route.UID,
-					NodeID:    route.NodeID,
-					BootID:    route.BootID,
-					SessionID: route.SessionID,
-				})
+		} else {
+			endpointsByUID, err := r.authority.EndpointsByUIDs(ctx, uids)
+			if err != nil {
+				return nil, "", false, err
+			}
+			for _, uid := range uids {
+				routes := endpointsByUID[uid]
+				if len(routes) == 0 && r.logger != nil {
+					missing = append(missing, uid)
+				}
+				expandedCount += len(routes)
+				out, overflow = appendResolvedPresenceRoutes(out, overflow, routes, &remaining)
 			}
 		}
 		if r.logger != nil {
@@ -664,7 +678,7 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 				wklog.Event("delivery.diag.resolve_page"),
 				wklog.String("cursor", cursor),
 				wklog.Int("uids", len(uids)),
-				wklog.Int("routes", len(expanded)),
+				wklog.Int("routes", expandedCount),
 			}
 			if len(missing) > 0 {
 				fields = append(fields, wklog.String("missingUIDs", strings.Join(missing, ",")))
@@ -673,23 +687,49 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 				r.logger.Debug("delivery resolver expanded authoritative endpoints", fields...)
 			}
 		}
-		if len(expanded) == 0 {
+		if expandedCount == 0 {
 			if done {
 				return out, cursor, true, nil
 			}
 			continue
 		}
 
-		remaining := limit - len(out)
-		if len(expanded) <= remaining {
-			out = append(out, expanded...)
-			continue
+		if len(overflow) > 0 {
+			resolveToken.pending = append(resolveToken.pending[:0], overflow...)
+			return out, cursor, false, nil
 		}
-		out = append(out, expanded[:remaining]...)
-		resolveToken.pending = append(resolveToken.pending[:0], expanded[remaining:]...)
-		return out, cursor, false, nil
 	}
 	return out, cursor, false, nil
+}
+
+// appendResolvedPresenceRoutes appends resolved endpoints to the current page and spills excess routes to overflow.
+func appendResolvedPresenceRoutes(out, overflow []deliveryruntime.RouteKey, routes []presence.Route, remaining *int) ([]deliveryruntime.RouteKey, []deliveryruntime.RouteKey) {
+	for _, route := range routes {
+		resolved := deliveryruntime.RouteKey{
+			UID:       route.UID,
+			NodeID:    route.NodeID,
+			BootID:    route.BootID,
+			SessionID: route.SessionID,
+		}
+		if remaining != nil && *remaining > 0 {
+			out = append(out, resolved)
+			*remaining = *remaining - 1
+			continue
+		}
+		overflow = append(overflow, resolved)
+	}
+	return out, overflow
+}
+
+// localResolveRouteCap bounds the optimistic route buffer for common small fanout paths.
+func localResolveRouteCap(limit int, channelType uint8) int {
+	if limit <= 0 {
+		return 0
+	}
+	if channelType == frame.ChannelTypePerson {
+		return min(limit, 2)
+	}
+	return min(limit, 16)
 }
 
 func (r localDeliveryResolver) recordResolveMetric(channelType, result string, dur time.Duration, pages, routes int) {
