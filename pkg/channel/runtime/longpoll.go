@@ -61,7 +61,7 @@ func (r *runtime) ServeLanePoll(ctx context.Context, req LanePollRequestEnvelope
 			if meta.Leader != r.cfg.LocalNode || meta.Epoch != member.ChannelEpoch {
 				continue
 			}
-			session.TrackChannel(member.ChannelKey, member.ChannelEpoch)
+			session.TrackChannel(member.ChannelKey, member.ChannelEpoch, member.ChannelGeneration)
 			if ch.Status().LEO > 0 {
 				session.MarkDataReady(member.ChannelKey, member.ChannelEpoch)
 			}
@@ -182,7 +182,11 @@ func (r *runtime) ServeLanePoll(ctx context.Context, req LanePollRequestEnvelope
 func (r *runtime) selectLaneReadyItem(ctx context.Context, cursor LaneCursorDelta, key core.ChannelKey, replicaID core.NodeID, maxBytes int, mask laneReadyMask) (LeaderLaneReadyItem, bool) {
 	ch, ok := r.lookupChannel(key)
 	if !ok {
-		return LeaderLaneReadyItem{ChannelKey: key}, true
+		return LeaderLaneReadyItem{
+			ChannelKey:        key,
+			ChannelEpoch:      cursor.ChannelEpoch,
+			ChannelGeneration: cursor.ChannelGeneration,
+		}, true
 	}
 	state := ch.Status()
 	fetchResult, err := ch.replica.Fetch(ctx, core.ReplicaFetchRequest{
@@ -195,10 +199,11 @@ func (r *runtime) selectLaneReadyItem(ctx context.Context, cursor LaneCursorDelt
 	})
 	if err != nil {
 		return LeaderLaneReadyItem{
-			ChannelKey:   key,
-			ChannelEpoch: state.Epoch,
-			ReadyMask:    mask,
-			SizeBytes:    0,
+			ChannelKey:        key,
+			ChannelEpoch:      state.Epoch,
+			ChannelGeneration: cursor.ChannelGeneration,
+			ReadyMask:         mask,
+			SizeBytes:         0,
 		}, true
 	}
 
@@ -216,19 +221,21 @@ func (r *runtime) selectLaneReadyItem(ctx context.Context, cursor LaneCursorDelt
 		flags = LanePollItemFlagHWOnly
 	}
 	item := LeaderLaneReadyItem{
-		ChannelKey:   key,
-		ChannelEpoch: state.Epoch,
-		ReadyMask:    mask,
-		SizeBytes:    laneRecordsSize(fetchResult.Records),
+		ChannelKey:        key,
+		ChannelEpoch:      state.Epoch,
+		ChannelGeneration: cursor.ChannelGeneration,
+		ReadyMask:         mask,
+		SizeBytes:         laneRecordsSize(fetchResult.Records),
 		Response: LaneResponseItem{
-			ChannelKey:     key,
-			ChannelEpoch:   state.Epoch,
-			LeaderEpoch:    state.Epoch,
-			Flags:          flags,
-			Records:        fetchResult.Records,
-			LeaderHW:       fetchResult.HW,
-			TruncateTo:     fetchResult.TruncateTo,
-			RetentionReset: fetchResult.RetentionReset,
+			ChannelKey:        key,
+			ChannelEpoch:      state.Epoch,
+			ChannelGeneration: cursor.ChannelGeneration,
+			LeaderEpoch:       state.Epoch,
+			Flags:             flags,
+			Records:           fetchResult.Records,
+			LeaderHW:          fetchResult.HW,
+			TruncateTo:        fetchResult.TruncateTo,
+			RetentionReset:    fetchResult.RetentionReset,
 		},
 	}
 
@@ -244,9 +251,10 @@ func itemToLaneResponse(item LeaderLaneReadyItem) LaneResponseItem {
 		return item.Response
 	}
 	return LaneResponseItem{
-		ChannelKey:   item.ChannelKey,
-		ChannelEpoch: item.ChannelEpoch,
-		Flags:        LanePollItemFlagHWOnly,
+		ChannelKey:        item.ChannelKey,
+		ChannelEpoch:      item.ChannelEpoch,
+		ChannelGeneration: item.ChannelGeneration,
+		Flags:             LanePollItemFlagHWOnly,
 	}
 }
 

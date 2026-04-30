@@ -116,7 +116,7 @@ func TestLeaderLaneSessionParkedRequestWakesOnDataReady(t *testing.T) {
 
 func TestLeaderLaneSessionAppliesCursorDeltaBeforeSelectingItems(t *testing.T) {
 	session := newLeaderLaneSession(1, 1)
-	session.TrackChannel("g-delta", 11)
+	session.TrackChannel("g-delta", 11, 1)
 	session.MarkDataReady("g-ready", 12)
 
 	var steps []string
@@ -146,7 +146,7 @@ func TestLeaderLaneSessionAppliesCursorDeltaBeforeSelectingItems(t *testing.T) {
 
 func TestLeaderLaneSessionIgnoresStaleChannelEpochDeltas(t *testing.T) {
 	session := newLeaderLaneSession(1, 1)
-	session.TrackChannel("g1", 11)
+	session.TrackChannel("g1", 11, 1)
 
 	var applied int
 	_, waiter := session.Poll([]LaneCursorDelta{

@@ -70,7 +70,7 @@ func TestLongPollIntegrationPeerSessionDeliversLanePollResponse(t *testing.T) {
 			MaxBytes:        64 * 1024,
 			MaxChannels:     64,
 			FullMembership: []runtime.LaneMembership{
-				{ChannelKey: "g1", ChannelEpoch: 11},
+				{ChannelKey: "g1", ChannelEpoch: 11, ChannelGeneration: 7},
 			},
 		},
 	})
@@ -82,6 +82,9 @@ func TestLongPollIntegrationPeerSessionDeliversLanePollResponse(t *testing.T) {
 	case req := <-got:
 		if req.LaneID != 4 || req.Op != LanePollOpOpen {
 			t.Fatalf("request = %+v, want open lane=4", req)
+		}
+		if len(req.FullMembership) != 1 || req.FullMembership[0].ChannelGeneration != 7 {
+			t.Fatalf("request membership = %+v, want generation 7", req.FullMembership)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for outbound long poll request")
@@ -122,10 +125,11 @@ func TestLongPollIntegrationPeerSessionDeliversRetentionResetItem(t *testing.T) 
 			SessionEpoch: 2,
 			Items: []LongPollItem{
 				{
-					ChannelKey:   "g-reset",
-					ChannelEpoch: 11,
-					Flags:        LongPollItemFlagReset,
-					LeaderHW:     10,
+					ChannelKey:        "g-reset",
+					ChannelEpoch:      11,
+					ChannelGeneration: 7,
+					Flags:             LongPollItemFlagReset,
+					LeaderHW:          10,
 					RetentionReset: &channel.RetentionReset{
 						RetentionThroughSeq:   5,
 						RetainedThroughOffset: 5,
@@ -171,7 +175,7 @@ func TestLongPollIntegrationPeerSessionDeliversRetentionResetItem(t *testing.T) 
 			MaxBytes:        64 * 1024,
 			MaxChannels:     64,
 			FullMembership: []runtime.LaneMembership{
-				{ChannelKey: "g-reset", ChannelEpoch: 11},
+				{ChannelKey: "g-reset", ChannelEpoch: 11, ChannelGeneration: 7},
 			},
 		},
 	})
@@ -187,6 +191,9 @@ func TestLongPollIntegrationPeerSessionDeliversRetentionResetItem(t *testing.T) 
 		reset := env.LanePollResponse.Items[0].RetentionReset
 		if reset == nil || reset.RetainedThroughOffset != 5 || reset.MinAvailableSeq != 6 {
 			t.Fatalf("RetentionReset = %+v, want retained offset 5 min 6", reset)
+		}
+		if env.LanePollResponse.Items[0].ChannelGeneration != 7 {
+			t.Fatalf("item generation = %d, want 7", env.LanePollResponse.Items[0].ChannelGeneration)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for delivered lane poll response")

@@ -1341,10 +1341,11 @@ func TestSessionLongPollRetentionResetItemAdoptsBoundaryAndReissuesFromRetainedO
 			SessionEpoch: 1,
 			Items: []LaneResponseItem{
 				{
-					ChannelKey:   key,
-					ChannelEpoch: 4,
-					LeaderHW:     10,
-					Flags:        LanePollItemFlagReset,
+					ChannelKey:        key,
+					ChannelEpoch:      4,
+					ChannelGeneration: first.FullMembership[0].ChannelGeneration,
+					LeaderHW:          10,
+					Flags:             LanePollItemFlagReset,
 					RetentionReset: &core.RetentionReset{
 						RetentionThroughSeq:   5,
 						RetainedThroughOffset: 5,
@@ -1412,6 +1413,64 @@ func TestSessionLongPollRetentionResetItemDropsStaleChannelEpoch(t *testing.T) {
 	})
 
 	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	require.Empty(t, replica.retentionCalls)
+	require.Equal(t, uint64(0), replica.state.RetentionThroughSeq)
+	require.Equal(t, uint64(0), replica.state.LEO)
+	replica.mu.Unlock()
+}
+
+func TestSessionLongPollRetentionResetItemDropsStaleGenerationAfterRecreate(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = 2 * time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+		cfg.FollowerReplicationRetryInterval = time.Hour
+	})
+	key := testChannelKey(2604)
+	meta := testMetaLocal(2604, 4, 2, []core.NodeID{1, 2})
+	mustEnsureLocal(t, env.runtime, meta)
+
+	env.runtime.runScheduler()
+	session := env.sessions.session(2)
+	waitForSessionSendCount(t, session, 1)
+	first := session.last.LanePollRequest
+	require.NotNil(t, first)
+
+	require.NoError(t, env.runtime.RemoveChannel(key))
+	mustEnsureLocal(t, env.runtime, meta)
+	current, ok := env.runtime.lookupChannel(key)
+	require.True(t, ok)
+	require.Equal(t, uint64(2), current.gen)
+
+	env.transport.deliver(Envelope{
+		Peer: 2,
+		Kind: MessageKindLanePollResponse,
+		Sync: true,
+		LanePollResponse: &LanePollResponseEnvelope{
+			LaneID:       first.LaneID,
+			Status:       LanePollStatusOK,
+			SessionID:    501,
+			SessionEpoch: 1,
+			Items: []LaneResponseItem{
+				{
+					ChannelKey:        key,
+					ChannelEpoch:      4,
+					ChannelGeneration: first.FullMembership[0].ChannelGeneration,
+					LeaderHW:          10,
+					Flags:             LanePollItemFlagReset,
+					RetentionReset: &core.RetentionReset{
+						RetentionThroughSeq:   5,
+						RetainedThroughOffset: 5,
+						MinAvailableSeq:       6,
+					},
+				},
+			},
+		},
+	})
+
+	replica := env.factory.replicas[1]
 	replica.mu.Lock()
 	require.Empty(t, replica.retentionCalls)
 	require.Equal(t, uint64(0), replica.state.RetentionThroughSeq)
@@ -1767,8 +1826,8 @@ func TestSessionLongPollMembershipChangeSchedulesAffectedLane(t *testing.T) {
 		remove := testChannelKeyForLane(t, 0, 4, "lp-membership-remove")
 
 		manager := env.runtime.ensureLaneManager(peer)
-		manager.UpsertChannel(keep, 11)
-		manager.UpsertChannel(remove, 12)
+		manager.UpsertChannel(keep, 11, 1)
+		manager.UpsertChannel(remove, 12, 1)
 		laneID := manager.LaneFor(keep)
 		env.runtime.laneDispatcher.reset()
 
@@ -1799,7 +1858,7 @@ func TestSessionLongPollMembershipChangeSchedulesAffectedLane(t *testing.T) {
 		const peer core.NodeID = 2
 		key := testChannelKeyForLane(t, 0, 4, "lp-membership-upsert")
 		manager := env.runtime.ensureLaneManager(peer)
-		manager.UpsertChannel(key, 12)
+		manager.UpsertChannel(key, 12, 1)
 		env.runtime.laneDispatcher.reset()
 
 		prev := core.Meta{
@@ -1978,10 +2037,11 @@ func TestSessionLongPollLeaderChangeOpenCarriesFollowerCursor(t *testing.T) {
 	require.Equal(t, LanePollOpOpen, last.LanePollRequest.Op)
 	require.Len(t, last.LanePollRequest.CursorDelta, 1)
 	require.Equal(t, LaneCursorDelta{
-		ChannelKey:   meta.Key,
-		ChannelEpoch: meta.Epoch,
-		MatchOffset:  1,
-		OffsetEpoch:  meta.Epoch,
+		ChannelKey:        meta.Key,
+		ChannelEpoch:      meta.Epoch,
+		ChannelGeneration: 1,
+		MatchOffset:       1,
+		OffsetEpoch:       meta.Epoch,
 	}, last.LanePollRequest.CursorDelta[0])
 }
 
