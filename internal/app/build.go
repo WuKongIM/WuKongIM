@@ -296,6 +296,13 @@ func build(cfg Config) (_ *App, err error) {
 	}
 
 	app.store = metastore.New(app.cluster, app.db)
+	app.channelRetentionWorker = newAppChannelRetentionWorker(
+		resolveAppChannelRetentionConfig(cfg),
+		cfg.Node.ID,
+		app.channelLogDB,
+		app.isrRuntime,
+		app.store,
+	)
 	app.nodeClient = accessnode.NewClient(app.cluster)
 	app.channelLog.remoteAppender = app.nodeClient
 	repairProbeClient, err := channeltransport.NewProbeClient(channeltransport.ProbeClientOptions{

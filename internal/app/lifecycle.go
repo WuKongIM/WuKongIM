@@ -183,6 +183,16 @@ func (a *App) startCommittedReplay(ctx context.Context) error {
 	return a.committedReplayer.Start(ctx)
 }
 
+func (a *App) startChannelRetention(ctx context.Context) error {
+	if a.startChannelRetentionFn != nil {
+		return a.startChannelRetentionFn(ctx)
+	}
+	if a.channelRetentionWorker == nil {
+		return nil
+	}
+	return a.channelRetentionWorker.Start(ctx)
+}
+
 func (a *App) stopGateway() error {
 	if !a.gatewayOn.Swap(false) {
 		return nil
@@ -259,6 +269,19 @@ func (a *App) stopCommittedReplay(ctx context.Context) error {
 		return nil
 	}
 	return a.committedReplayer.StopContext(ctx)
+}
+
+func (a *App) stopChannelRetention(ctx context.Context) error {
+	if !a.channelRetentionOn.Swap(false) {
+		return nil
+	}
+	if a.stopChannelRetentionFn != nil {
+		return a.stopChannelRetentionFn(ctx)
+	}
+	if a.channelRetentionWorker == nil {
+		return nil
+	}
+	return a.channelRetentionWorker.Stop(ctx)
 }
 
 func (a *App) stopChannelMetaSync() error {

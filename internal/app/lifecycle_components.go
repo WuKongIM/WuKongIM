@@ -15,6 +15,7 @@ const (
 	appLifecycleDeliveryRuntime       = "delivery_runtime"
 	appLifecycleCommittedDispatcher   = "committed_dispatcher"
 	appLifecycleCommittedReplay       = "committed_replay"
+	appLifecycleChannelRetention      = "channel_retention"
 	appLifecycleGateway               = "gateway"
 	appLifecycleAPI                   = "api"
 	appLifecycleManager               = "manager"
@@ -73,6 +74,9 @@ func (a *App) lifecycleComponents(includeStopOnly bool) []applifecycle.Component
 	}
 	if a.hasCommittedReplayLifecycle(includeStopOnly) {
 		components = append(components, a.committedReplayLifecycleComponent())
+	}
+	if a.hasChannelRetentionLifecycle(includeStopOnly) {
+		components = append(components, a.channelRetentionLifecycleComponent())
 	}
 
 	components = append(components, a.gatewayLifecycleComponent())
@@ -207,6 +211,22 @@ func (a *App) committedDispatcherLifecycleComponent() applifecycle.Component {
 	}
 }
 
+func (a *App) channelRetentionLifecycleComponent() applifecycle.Component {
+	return appLifecycleComponent{
+		name: appLifecycleChannelRetention,
+		start: func(ctx context.Context) error {
+			if err := a.startChannelRetention(ctx); err != nil {
+				return err
+			}
+			a.channelRetentionOn.Store(true)
+			return nil
+		},
+		stop: func(ctx context.Context) error {
+			return a.stopChannelRetention(ctx)
+		},
+	}
+}
+
 func (a *App) gatewayLifecycleComponent() applifecycle.Component {
 	return appLifecycleComponent{
 		name: appLifecycleGateway,
@@ -289,6 +309,12 @@ func (a *App) hasCommittedDispatcherLifecycle(includeStopOnly bool) bool {
 	return a.committedDispatcher != nil ||
 		a.startCommittedDispatcherFn != nil ||
 		(includeStopOnly && (a.stopCommittedDispatcherFn != nil || a.committedDispatcherOn.Load()))
+}
+
+func (a *App) hasChannelRetentionLifecycle(includeStopOnly bool) bool {
+	return a.channelRetentionWorker != nil ||
+		a.startChannelRetentionFn != nil ||
+		(includeStopOnly && (a.stopChannelRetentionFn != nil || a.channelRetentionOn.Load()))
 }
 
 func (a *App) hasAPILifecycle(includeStopOnly bool) bool {

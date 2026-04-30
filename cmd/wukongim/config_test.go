@@ -388,6 +388,54 @@ func TestLoadConfigRejectsExplicitInvalidSendPathTuning(t *testing.T) {
 	}
 }
 
+func TestLoadConfigParsesChannelMessageRetention(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_CHANNEL_MESSAGE_RETENTION_TTL=168h",
+		"WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL=30m",
+		"WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE=64",
+		"WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES=5000",
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, 168*time.Hour, cfg.ChannelMessageRetention.TTL)
+	require.Equal(t, 30*time.Minute, cfg.ChannelMessageRetention.ScanInterval)
+	require.Equal(t, 64, cfg.ChannelMessageRetention.ChannelBatchSize)
+	require.Equal(t, 5000, cfg.ChannelMessageRetention.MaxTrimMessages)
+}
+
+func TestLoadConfigPrefersEnvironmentVariablesForChannelMessageRetention(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_CHANNEL_MESSAGE_RETENTION_TTL=168h",
+		"WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL=30m",
+		"WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE=64",
+		"WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES=5000",
+	)
+	t.Setenv("WK_CHANNEL_MESSAGE_RETENTION_TTL", "24h")
+	t.Setenv("WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL", "5m")
+	t.Setenv("WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE", "32")
+	t.Setenv("WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES", "2500")
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, 24*time.Hour, cfg.ChannelMessageRetention.TTL)
+	require.Equal(t, 5*time.Minute, cfg.ChannelMessageRetention.ScanInterval)
+	require.Equal(t, 32, cfg.ChannelMessageRetention.ChannelBatchSize)
+	require.Equal(t, 2500, cfg.ChannelMessageRetention.MaxTrimMessages)
+}
+
 func TestLoadConfigUsesDefaultSearchPathsWhenFlagPathIsEmpty(t *testing.T) {
 	dir := t.TempDir()
 	confDir := filepath.Join(dir, "conf")

@@ -21,6 +21,8 @@ type Config struct {
 	Storage StorageConfig
 	// Cluster configures controller, slot, and channel replication runtimes.
 	Cluster ClusterConfig
+	// ChannelMessageRetention configures leader-driven channel message expiry.
+	ChannelMessageRetention ChannelMessageRetentionConfig
 	// API configures the public HTTP API entry point.
 	API APIConfig
 	// Manager configures the administration HTTP API entry point.
@@ -33,6 +35,38 @@ type Config struct {
 	Observability ObservabilityConfig
 	// Log configures application logging output.
 	Log LogConfig
+}
+
+// ChannelMessageRetentionConfig controls cluster-authoritative channel message retention.
+type ChannelMessageRetentionConfig struct {
+	// TTL is the age after which channel messages may be hidden by leader-driven retention.
+	// A zero value disables automatic retention so existing messages remain readable until
+	// another cluster-authoritative retention boundary is advanced by an operator or worker.
+	TTL time.Duration
+	// ScanInterval is the delay between retention worker scans after TTL-based retention is
+	// enabled. It is ignored while TTL is zero, but defaults to a positive value so enabling
+	// TTL without an explicit interval starts a bounded periodic worker.
+	ScanInterval time.Duration
+	// ChannelBatchSize limits how many local channel logs one retention pass scans.
+	// It bounds cross-channel scan work and must be positive when TTL-based retention is enabled.
+	ChannelBatchSize int
+	// MaxTrimMessages limits how many expired messages one channel may include in one retention pass.
+	// It bounds per-channel deletion planning and must be positive when TTL-based retention is enabled.
+	MaxTrimMessages int
+
+	scanIntervalSet     bool
+	channelBatchSizeSet bool
+	maxTrimMessagesSet  bool
+}
+
+// SetExplicitFlags records whether retention tuning values were explicitly configured.
+func (c *ChannelMessageRetentionConfig) SetExplicitFlags(scanIntervalSet, channelBatchSizeSet, maxTrimMessagesSet bool) {
+	if c == nil {
+		return
+	}
+	c.scanIntervalSet = scanIntervalSet
+	c.channelBatchSizeSet = channelBatchSizeSet
+	c.maxTrimMessagesSet = maxTrimMessagesSet
 }
 
 // ObservabilityConfig controls runtime metrics and health response detail.
@@ -403,6 +437,29 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 			}
 		}
 	}
+	if c.ChannelMessageRetention.TTL < 0 {
+		return fmt.Errorf("%w: channel message retention ttl must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMessageRetention.ScanInterval < 0 {
+		return fmt.Errorf("%w: channel message retention scan interval must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMessageRetention.ChannelBatchSize < 0 {
+		return fmt.Errorf("%w: channel message retention channel batch size must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMessageRetention.MaxTrimMessages < 0 {
+		return fmt.Errorf("%w: channel message retention max trim messages must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMessageRetention.TTL > 0 {
+		if c.ChannelMessageRetention.ScanInterval == 0 && c.ChannelMessageRetention.scanIntervalSet {
+			return fmt.Errorf("%w: channel message retention scan interval must be positive when ttl is enabled", ErrInvalidConfig)
+		}
+		if c.ChannelMessageRetention.ChannelBatchSize == 0 && c.ChannelMessageRetention.channelBatchSizeSet {
+			return fmt.Errorf("%w: channel message retention channel batch size must be positive when ttl is enabled", ErrInvalidConfig)
+		}
+		if c.ChannelMessageRetention.MaxTrimMessages == 0 && c.ChannelMessageRetention.maxTrimMessagesSet {
+			return fmt.Errorf("%w: channel message retention max trim messages must be positive when ttl is enabled", ErrInvalidConfig)
+		}
+	}
 	if len(c.Cluster.Slots) > 0 {
 		return fmt.Errorf("%w: Cluster.Slots is no longer supported; remove static slot peers and use Cluster.InitialSlotCount for managed slots", ErrInvalidConfig)
 	}
@@ -603,6 +660,15 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if c.Conversation.SubscriberPageSize <= 0 {
 		c.Conversation.SubscriberPageSize = 512
 	}
+	if c.ChannelMessageRetention.ScanInterval <= 0 {
+		c.ChannelMessageRetention.ScanInterval = defaultChannelMessageRetentionScanInterval
+	}
+	if c.ChannelMessageRetention.ChannelBatchSize <= 0 {
+		c.ChannelMessageRetention.ChannelBatchSize = defaultChannelMessageRetentionChannelBatchSize
+	}
+	if c.ChannelMessageRetention.MaxTrimMessages <= 0 {
+		c.ChannelMessageRetention.MaxTrimMessages = defaultChannelMessageRetentionMaxTrimMessages
+	}
 	if c.Log.Level == "" {
 		c.Log.Level = "info"
 	}
@@ -734,3 +800,9 @@ func effectiveDataPlaneRPCTimeout(configured time.Duration) time.Duration {
 }
 
 const defaultGatewaySendTimeout = 20 * time.Second
+
+const defaultChannelMessageRetentionScanInterval = time.Hour
+
+const defaultChannelMessageRetentionChannelBatchSize = 128
+
+const defaultChannelMessageRetentionMaxTrimMessages = 10000

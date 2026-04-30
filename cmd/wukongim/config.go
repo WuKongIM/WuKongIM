@@ -342,6 +342,22 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	channelMessageRetentionTTL, err := parseDuration(v, "WK_CHANNEL_MESSAGE_RETENTION_TTL")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelMessageRetentionScanInterval, err := parseDuration(v, "WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelMessageRetentionChannelBatchSize, err := parseInt(v, "WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelMessageRetentionMaxTrimMessages, err := parseInt(v, "WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES")
+	if err != nil {
+		return app.Config{}, err
+	}
 
 	cfg := app.Config{
 		Node: app.NodeConfig{
@@ -402,6 +418,12 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			DataPlaneRPCTimeout:       dataPlaneRPCTimeout,
 			DataPlaneMaxFetchInflight: dataPlaneMaxFetchInflight,
 			DataPlaneMaxPendingFetch:  dataPlaneMaxPendingFetch,
+		},
+		ChannelMessageRetention: app.ChannelMessageRetentionConfig{
+			TTL:              channelMessageRetentionTTL,
+			ScanInterval:     channelMessageRetentionScanInterval,
+			ChannelBatchSize: channelMessageRetentionChannelBatchSize,
+			MaxTrimMessages:  channelMessageRetentionMaxTrimMessages,
 		},
 		API: app.APIConfig{
 			ListenAddr:      defaultAPIListenAddr,
@@ -467,6 +489,11 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		stringValue(v, "WK_METRICS_ENABLE") != "",
 		stringValue(v, "WK_HEALTH_DETAIL_ENABLE") != "",
 		stringValue(v, "WK_HEALTH_DEBUG_ENABLE") != "",
+	)
+	cfg.ChannelMessageRetention.SetExplicitFlags(
+		stringValue(v, "WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL") != "",
+		stringValue(v, "WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE") != "",
+		stringValue(v, "WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES") != "",
 	)
 
 	if listenAddr := stringValue(v, "WK_API_LISTEN_ADDR"); listenAddr != "" {
