@@ -29,6 +29,27 @@ type ChannelRuntimeMeta struct {
 	RetentionUpdatedAtMS int64
 }
 
+// ChannelRetentionAdvance describes a fenced request to advance only the
+// authoritative channel retention boundary.
+type ChannelRetentionAdvance struct {
+	// ChannelID identifies the channel whose retention boundary is advanced.
+	ChannelID string
+	// ChannelType identifies the channel namespace for ChannelID.
+	ChannelType int64
+	// ExpectedChannelEpoch fences the advance to a known channel epoch.
+	ExpectedChannelEpoch uint64
+	// ExpectedLeaderEpoch fences the advance to a known leader epoch.
+	ExpectedLeaderEpoch uint64
+	// ExpectedLeader fences the advance to the current authoritative leader.
+	ExpectedLeader uint64
+	// ExpectedLeaseUntilMS fences the advance to the leader lease observed by the caller.
+	ExpectedLeaseUntilMS int64
+	// RetentionThroughSeq is the proposed highest unavailable message sequence.
+	RetentionThroughSeq uint64
+	// RetentionUpdatedAtMS is the wall-clock time in milliseconds for this advance.
+	RetentionUpdatedAtMS int64
+}
+
 func (s *ShardStore) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (ChannelRuntimeMeta, error) {
 	if err := s.validate(); err != nil {
 		return ChannelRuntimeMeta{}, err
@@ -92,6 +113,41 @@ func (s *ShardStore) UpsertChannelRuntimeMeta(ctx context.Context, meta ChannelR
 	batch := s.db.db.NewBatch()
 	defer batch.Close()
 
+	if err := batch.Set(key, value, nil); err != nil {
+		return err
+	}
+	return batch.Commit(pebble.Sync)
+}
+
+// AdvanceChannelRetentionThroughSeq advances only the authoritative retention
+// boundary when the request matches the current runtime metadata fence.
+func (s *ShardStore) AdvanceChannelRetentionThroughSeq(ctx context.Context, req ChannelRetentionAdvance) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	if err := s.db.checkContext(ctx); err != nil {
+		return err
+	}
+	if err := validateChannelRetentionAdvance(req); err != nil {
+		return err
+	}
+
+	s.db.mu.Lock()
+	defer s.db.mu.Unlock()
+
+	key := encodeChannelRuntimeMetaPrimaryKey(s.slot, req.ChannelID, req.ChannelType, channelRuntimeMetaPrimaryFamilyID)
+	existing, exists, err := s.getChannelRuntimeMetaForPrimaryKeyLocked(key, req.ChannelID, req.ChannelType)
+	if err != nil {
+		return err
+	}
+	next, shouldWrite, err := advanceChannelRetentionThroughSeq(existing, exists, req)
+	if err != nil || !shouldWrite {
+		return err
+	}
+
+	value := encodeChannelRuntimeMetaFamilyValue(next, key)
+	batch := s.db.db.NewBatch()
+	defer batch.Close()
 	if err := batch.Set(key, value, nil); err != nil {
 		return err
 	}
@@ -179,6 +235,32 @@ func validateChannelRuntimeMeta(meta ChannelRuntimeMeta) error {
 		}
 	}
 	return nil
+}
+
+func validateChannelRetentionAdvance(req ChannelRetentionAdvance) error {
+	if err := validateChannelRuntimeMetaChannelID(req.ChannelID); err != nil {
+		return err
+	}
+	return nil
+}
+
+func advanceChannelRetentionThroughSeq(existing ChannelRuntimeMeta, exists bool, req ChannelRetentionAdvance) (ChannelRuntimeMeta, bool, error) {
+	if !exists {
+		return ChannelRuntimeMeta{}, false, ErrNotFound
+	}
+	if existing.ChannelEpoch != req.ExpectedChannelEpoch ||
+		existing.LeaderEpoch != req.ExpectedLeaderEpoch ||
+		existing.Leader != req.ExpectedLeader ||
+		existing.LeaseUntilMS != req.ExpectedLeaseUntilMS {
+		return ChannelRuntimeMeta{}, false, ErrStaleMeta
+	}
+	if req.RetentionThroughSeq <= existing.RetentionThroughSeq {
+		return existing, false, nil
+	}
+	next := existing
+	next.RetentionThroughSeq = req.RetentionThroughSeq
+	next.RetentionUpdatedAtMS = req.RetentionUpdatedAtMS
+	return next, true, nil
 }
 
 func validateChannelRuntimeMetaChannelID(channelID string) error {

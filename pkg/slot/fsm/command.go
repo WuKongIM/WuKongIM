@@ -37,6 +37,7 @@ const (
 	cmdTypeClearUserConversationActiveAt uint8 = 12
 	cmdTypeUpsertChannelUpdateLogs       uint8 = 13
 	cmdTypeDeleteChannelUpdateLogs       uint8 = 14
+	cmdTypeAdvanceChannelRetention       uint8 = 15
 
 	// User field tags.
 	tagUserUID         uint8 = 1
@@ -69,6 +70,16 @@ const (
 	tagRuntimeMetaLeaseUntilMS         uint8 = 11
 	tagRuntimeMetaRetentionThroughSeq  uint8 = 12
 	tagRuntimeMetaRetentionUpdatedAtMS uint8 = 13
+
+	// Channel retention advance field tags.
+	tagRetentionAdvanceChannelID            uint8 = 1
+	tagRetentionAdvanceChannelType          uint8 = 2
+	tagRetentionAdvanceExpectedChannelEpoch uint8 = 3
+	tagRetentionAdvanceExpectedLeaderEpoch  uint8 = 4
+	tagRetentionAdvanceExpectedLeader       uint8 = 5
+	tagRetentionAdvanceExpectedLeaseUntilMS uint8 = 6
+	tagRetentionAdvanceThroughSeq           uint8 = 7
+	tagRetentionAdvanceUpdatedAtMS          uint8 = 8
 
 	// Subscriber field tags.
 	tagSubscriberChannelID   uint8 = 1
@@ -145,6 +156,7 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeClearUserConversationActiveAt: decodeClearUserConversationActiveAt,
 	cmdTypeUpsertChannelUpdateLogs:       decodeUpsertChannelUpdateLogs,
 	cmdTypeDeleteChannelUpdateLogs:       decodeDeleteChannelUpdateLogs,
+	cmdTypeAdvanceChannelRetention:       decodeAdvanceChannelRetentionThroughSeq,
 	cmdTypeApplyDelta:                    decodeApplyDelta,
 	cmdTypeEnterFence:                    decodeEnterFence,
 	cmdTypeAckMigrationOutbox:            decodeAckMigrationOutbox,
@@ -221,6 +233,16 @@ type deleteChannelRuntimeMetaCmd struct {
 
 func (c *deleteChannelRuntimeMetaCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
 	return wb.DeleteChannelRuntimeMeta(hashSlot, c.channelID, c.channelType)
+}
+
+// --- AdvanceChannelRetentionThroughSeq ---
+
+type advanceChannelRetentionThroughSeqCmd struct {
+	req metadb.ChannelRetentionAdvance
+}
+
+func (c *advanceChannelRetentionThroughSeqCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
+	return wb.AdvanceChannelRetentionThroughSeq(hashSlot, c.req)
 }
 
 // --- AddSubscribers ---
@@ -436,6 +458,21 @@ func EncodeDeleteChannelRuntimeMetaCommand(channelID string, channelType int64) 
 	buf = append(buf, commandVersion, cmdTypeDeleteChannelRuntimeMeta)
 	buf = appendStringTLVField(buf, tagRuntimeMetaChannelID, channelID)
 	buf = appendInt64TLVField(buf, tagRuntimeMetaChannelType, channelType)
+	return buf
+}
+
+// EncodeAdvanceChannelRetentionThroughSeqCommand encodes a fenced retention-only metadata advance.
+func EncodeAdvanceChannelRetentionThroughSeqCommand(req metadb.ChannelRetentionAdvance) []byte {
+	buf := make([]byte, 0, headerSize+len(req.ChannelID)+96)
+	buf = append(buf, commandVersion, cmdTypeAdvanceChannelRetention)
+	buf = appendStringTLVField(buf, tagRetentionAdvanceChannelID, req.ChannelID)
+	buf = appendInt64TLVField(buf, tagRetentionAdvanceChannelType, req.ChannelType)
+	buf = appendUint64TLVField(buf, tagRetentionAdvanceExpectedChannelEpoch, req.ExpectedChannelEpoch)
+	buf = appendUint64TLVField(buf, tagRetentionAdvanceExpectedLeaderEpoch, req.ExpectedLeaderEpoch)
+	buf = appendUint64TLVField(buf, tagRetentionAdvanceExpectedLeader, req.ExpectedLeader)
+	buf = appendInt64TLVField(buf, tagRetentionAdvanceExpectedLeaseUntilMS, req.ExpectedLeaseUntilMS)
+	buf = appendUint64TLVField(buf, tagRetentionAdvanceThroughSeq, req.RetentionThroughSeq)
+	buf = appendInt64TLVField(buf, tagRetentionAdvanceUpdatedAtMS, req.RetentionUpdatedAtMS)
 	return buf
 }
 
@@ -1209,6 +1246,84 @@ func decodeDeleteChannelRuntimeMeta(data []byte) (command, error) {
 		return nil, fmt.Errorf("%w: incomplete runtime metadata delete command", metadb.ErrCorruptValue)
 	}
 	return &cmd, nil
+}
+
+func decodeAdvanceChannelRetentionThroughSeq(data []byte) (command, error) {
+	var req metadb.ChannelRetentionAdvance
+	var (
+		haveChannelID            bool
+		haveChannelType          bool
+		haveExpectedChannelEpoch bool
+		haveExpectedLeaderEpoch  bool
+		haveExpectedLeader       bool
+		haveExpectedLeaseUntilMS bool
+		haveRetentionThroughSeq  bool
+		haveRetentionUpdatedAtMS bool
+	)
+	off := 0
+	for off < len(data) {
+		tag, value, n, err := readTLV(data[off:])
+		if err != nil {
+			return nil, err
+		}
+		off += n
+
+		switch tag {
+		case tagRetentionAdvanceChannelID:
+			req.ChannelID = string(value)
+			haveChannelID = true
+		case tagRetentionAdvanceChannelType:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad retention advance ChannelType length", metadb.ErrCorruptValue)
+			}
+			req.ChannelType = int64(binary.BigEndian.Uint64(value))
+			haveChannelType = true
+		case tagRetentionAdvanceExpectedChannelEpoch:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad retention advance ExpectedChannelEpoch length", metadb.ErrCorruptValue)
+			}
+			req.ExpectedChannelEpoch = binary.BigEndian.Uint64(value)
+			haveExpectedChannelEpoch = true
+		case tagRetentionAdvanceExpectedLeaderEpoch:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad retention advance ExpectedLeaderEpoch length", metadb.ErrCorruptValue)
+			}
+			req.ExpectedLeaderEpoch = binary.BigEndian.Uint64(value)
+			haveExpectedLeaderEpoch = true
+		case tagRetentionAdvanceExpectedLeader:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad retention advance ExpectedLeader length", metadb.ErrCorruptValue)
+			}
+			req.ExpectedLeader = binary.BigEndian.Uint64(value)
+			haveExpectedLeader = true
+		case tagRetentionAdvanceExpectedLeaseUntilMS:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad retention advance ExpectedLeaseUntilMS length", metadb.ErrCorruptValue)
+			}
+			req.ExpectedLeaseUntilMS = int64(binary.BigEndian.Uint64(value))
+			haveExpectedLeaseUntilMS = true
+		case tagRetentionAdvanceThroughSeq:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad retention advance RetentionThroughSeq length", metadb.ErrCorruptValue)
+			}
+			req.RetentionThroughSeq = binary.BigEndian.Uint64(value)
+			haveRetentionThroughSeq = true
+		case tagRetentionAdvanceUpdatedAtMS:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad retention advance RetentionUpdatedAtMS length", metadb.ErrCorruptValue)
+			}
+			req.RetentionUpdatedAtMS = int64(binary.BigEndian.Uint64(value))
+			haveRetentionUpdatedAtMS = true
+		default:
+			// Unknown tag — skip for forward compatibility.
+		}
+	}
+	if !haveChannelID || !haveChannelType || !haveExpectedChannelEpoch ||
+		!haveExpectedLeaderEpoch || !haveExpectedLeader || !haveExpectedLeaseUntilMS ||
+		!haveRetentionThroughSeq || !haveRetentionUpdatedAtMS {
+		return nil, fmt.Errorf("%w: incomplete retention advance command", metadb.ErrCorruptValue)
+	}
+	return &advanceChannelRetentionThroughSeqCmd{req: req}, nil
 }
 
 func decodeAddSubscribers(data []byte) (command, error) {

@@ -8,4 +8,5 @@ var (
 	ErrChecksumMismatch = errors.New("metadb: checksum mismatch")
 	ErrCorruptValue     = errors.New("metadb: corrupt value")
 	ErrInvalidArgument  = errors.New("metadb: invalid argument")
+	ErrStaleMeta        = errors.New("metadb: stale metadata")
 )

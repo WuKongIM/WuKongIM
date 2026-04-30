@@ -65,6 +65,111 @@ func TestShardStoreChannelRuntimeMetaPersistsRetentionBoundary(t *testing.T) {
 	require.Equal(t, normalizeChannelRuntimeMeta(meta), got)
 }
 
+func TestShardStoreAdvanceChannelRetentionThroughSeqOnlyMutatesRetention(t *testing.T) {
+	shard := newTestShardStore(t, 7)
+	ctx := context.Background()
+	base := testRuntimeMeta("retain-advance", 2)
+	base.ChannelEpoch = 10
+	base.LeaderEpoch = 20
+	base.Leader = 1
+	base.LeaseUntilMS = 3000
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, base))
+
+	req := ChannelRetentionAdvance{
+		ChannelID:            base.ChannelID,
+		ChannelType:          base.ChannelType,
+		ExpectedChannelEpoch: base.ChannelEpoch,
+		ExpectedLeaderEpoch:  base.LeaderEpoch,
+		ExpectedLeader:       base.Leader,
+		ExpectedLeaseUntilMS: base.LeaseUntilMS,
+		RetentionThroughSeq:  42,
+		RetentionUpdatedAtMS: 4000,
+	}
+	require.NoError(t, shard.AdvanceChannelRetentionThroughSeq(ctx, req))
+	got, err := shard.GetChannelRuntimeMeta(ctx, base.ChannelID, base.ChannelType)
+	require.NoError(t, err)
+	base.RetentionThroughSeq = 42
+	base.RetentionUpdatedAtMS = 4000
+	require.Equal(t, normalizeChannelRuntimeMeta(base), got)
+}
+
+func TestShardStoreAdvanceChannelRetentionThroughSeqRejectsStaleFences(t *testing.T) {
+	shard := newTestShardStore(t, 7)
+	ctx := context.Background()
+	base := testRuntimeMeta("retain-stale", 2)
+	base.ChannelEpoch = 10
+	base.LeaderEpoch = 20
+	base.Leader = 1
+	base.LeaseUntilMS = 3000
+	base.RetentionThroughSeq = 30
+	base.RetentionUpdatedAtMS = 3500
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, base))
+
+	tests := []struct {
+		name   string
+		mutate func(*ChannelRetentionAdvance)
+	}{
+		{
+			name: "wrong_channel_epoch",
+			mutate: func(req *ChannelRetentionAdvance) {
+				req.ExpectedChannelEpoch++
+			},
+		},
+		{
+			name: "wrong_leader_epoch",
+			mutate: func(req *ChannelRetentionAdvance) {
+				req.ExpectedLeaderEpoch++
+			},
+		},
+		{
+			name: "wrong_leader",
+			mutate: func(req *ChannelRetentionAdvance) {
+				req.ExpectedLeader = 2
+			},
+		},
+		{
+			name: "wrong_lease",
+			mutate: func(req *ChannelRetentionAdvance) {
+				req.ExpectedLeaseUntilMS++
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := channelRetentionAdvanceRequest(base, 42, 4000)
+			tt.mutate(&req)
+			err := shard.AdvanceChannelRetentionThroughSeq(ctx, req)
+			require.ErrorIs(t, err, ErrStaleMeta)
+
+			got, err := shard.GetChannelRuntimeMeta(ctx, base.ChannelID, base.ChannelType)
+			require.NoError(t, err)
+			require.Equal(t, normalizeChannelRuntimeMeta(base), got)
+		})
+	}
+}
+
+func TestShardStoreAdvanceChannelRetentionThroughSeqNoopsForLowerOrEqualBoundary(t *testing.T) {
+	shard := newTestShardStore(t, 7)
+	ctx := context.Background()
+	base := testRuntimeMeta("retain-noop", 2)
+	base.ChannelEpoch = 10
+	base.LeaderEpoch = 20
+	base.Leader = 1
+	base.LeaseUntilMS = 3000
+	base.RetentionThroughSeq = 42
+	base.RetentionUpdatedAtMS = 4000
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, base))
+
+	for _, seq := range []uint64{41, 42} {
+		req := channelRetentionAdvanceRequest(base, seq, 5000)
+		require.NoError(t, shard.AdvanceChannelRetentionThroughSeq(ctx, req))
+		got, err := shard.GetChannelRuntimeMeta(ctx, base.ChannelID, base.ChannelType)
+		require.NoError(t, err)
+		require.Equal(t, normalizeChannelRuntimeMeta(base), got)
+	}
+}
+
 func TestShardStoreUpsertChannelRuntimeMetaCanonicalizesSets(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -290,6 +395,32 @@ func TestWriteBatchUpsertChannelRuntimeMetaRejectsStaleLeaderEpoch(t *testing.T)
 	require.Equal(t, normalizeChannelRuntimeMeta(current), got)
 }
 
+func TestWriteBatchAdvanceChannelRetentionThroughSeqUpdatesLaterBatchReads(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	shard := db.ForSlot(7)
+	base := testRuntimeMeta("retain-batch", 2)
+	base.ChannelEpoch = 10
+	base.LeaderEpoch = 20
+	base.Leader = 1
+	base.LeaseUntilMS = 3000
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, base))
+
+	wb := db.NewWriteBatch()
+	require.NoError(t, wb.AdvanceChannelRetentionThroughSeq(7, channelRetentionAdvanceRequest(base, 42, 4000)))
+	next := base
+	next.Features = 99
+	require.NoError(t, wb.UpsertChannelRuntimeMeta(7, next))
+	require.NoError(t, wb.Commit())
+	wb.Close()
+
+	got, err := shard.GetChannelRuntimeMeta(ctx, base.ChannelID, base.ChannelType)
+	require.NoError(t, err)
+	next.RetentionThroughSeq = 42
+	next.RetentionUpdatedAtMS = 4000
+	require.Equal(t, normalizeChannelRuntimeMeta(next), got)
+}
+
 func TestShardStoreUpsertChannelRuntimeMetaRejectsInvalidTopology(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -401,5 +532,34 @@ func baseChannelRuntimeMetaForRetentionTest() ChannelRuntimeMeta {
 		Status:       2,
 		Features:     1,
 		LeaseUntilMS: 1000,
+	}
+}
+
+func testRuntimeMeta(channelID string, channelType int64) ChannelRuntimeMeta {
+	return ChannelRuntimeMeta{
+		ChannelID:    channelID,
+		ChannelType:  channelType,
+		ChannelEpoch: 1,
+		LeaderEpoch:  1,
+		Replicas:     []uint64{1, 2},
+		ISR:          []uint64{1, 2},
+		Leader:       1,
+		MinISR:       1,
+		Status:       2,
+		Features:     1,
+		LeaseUntilMS: 1000,
+	}
+}
+
+func channelRetentionAdvanceRequest(meta ChannelRuntimeMeta, seq uint64, updatedAtMS int64) ChannelRetentionAdvance {
+	return ChannelRetentionAdvance{
+		ChannelID:            meta.ChannelID,
+		ChannelType:          meta.ChannelType,
+		ExpectedChannelEpoch: meta.ChannelEpoch,
+		ExpectedLeaderEpoch:  meta.LeaderEpoch,
+		ExpectedLeader:       meta.Leader,
+		ExpectedLeaseUntilMS: meta.LeaseUntilMS,
+		RetentionThroughSeq:  seq,
+		RetentionUpdatedAtMS: updatedAtMS,
 	}
 }

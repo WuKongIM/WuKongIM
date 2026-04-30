@@ -158,6 +158,31 @@ func (b *WriteBatch) UpsertChannelRuntimeMeta(hashSlot uint16, meta ChannelRunti
 	return nil
 }
 
+// AdvanceChannelRetentionThroughSeq stages a fenced retention-only metadata update.
+func (b *WriteBatch) AdvanceChannelRetentionThroughSeq(hashSlot uint16, req ChannelRetentionAdvance) error {
+	if err := validateHashSlot(hashSlot); err != nil {
+		return err
+	}
+	if err := validateChannelRetentionAdvance(req); err != nil {
+		return err
+	}
+
+	key := encodeChannelRuntimeMetaPrimaryKey(hashSlot, req.ChannelID, req.ChannelType, channelRuntimeMetaPrimaryFamilyID)
+	existing, exists, err := b.loadChannelRuntimeMeta(hashSlot, key, req.ChannelID, req.ChannelType)
+	if err != nil {
+		return err
+	}
+	next, shouldWrite, err := advanceChannelRetentionThroughSeq(existing, exists, req)
+	if err != nil || !shouldWrite {
+		return err
+	}
+	if err := b.batch.Set(key, encodeChannelRuntimeMetaFamilyValue(next, key), nil); err != nil {
+		return err
+	}
+	b.rememberChannelRuntimeMeta(hashSlot, next)
+	return nil
+}
+
 // UpsertUserConversationState encodes and stages a user conversation state write.
 func (b *WriteBatch) UpsertUserConversationState(hashSlot uint16, state UserConversationState) error {
 	if err := validateHashSlot(hashSlot); err != nil {

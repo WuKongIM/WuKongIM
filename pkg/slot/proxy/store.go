@@ -108,6 +108,14 @@ func (s *Store) UpsertChannelRuntimeMeta(ctx context.Context, meta metadb.Channe
 	return proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd)
 }
 
+// AdvanceChannelRetentionThroughSeq proposes a fenced retention-only metadata update.
+func (s *Store) AdvanceChannelRetentionThroughSeq(ctx context.Context, req metadb.ChannelRetentionAdvance) error {
+	slotID := s.cluster.SlotForKey(req.ChannelID)
+	hashSlot := hashSlotForKey(s.cluster, req.ChannelID)
+	cmd := metafsm.EncodeAdvanceChannelRetentionThroughSeqCommand(req)
+	return proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd)
+}
+
 // UpsertChannelRuntimeMetaIfLocalLeader persists runtime metadata only when the
 // current slot leader is local to this process.
 func (s *Store) UpsertChannelRuntimeMetaIfLocalLeader(ctx context.Context, meta metadb.ChannelRuntimeMeta) error {
