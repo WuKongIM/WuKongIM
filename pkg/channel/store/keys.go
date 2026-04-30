@@ -12,6 +12,7 @@ const (
 	channelSystemIDHistory         uint16 = 2
 	channelSystemIDSnapshot        uint16 = 3
 	channelSystemIDCommittedCursor uint16 = 4
+	channelSystemIDRetentionState  uint16 = 5
 )
 
 func encodeCheckpointKey(channelKey channel.ChannelKey) []byte {
@@ -39,6 +40,10 @@ func encodeSnapshotKey(channelKey channel.ChannelKey) []byte {
 func encodeCommittedDispatchCursorKey(channelKey channel.ChannelKey, name string) []byte {
 	key := encodeTableSystemPrefix(channelKey, channelSystemTableID, channelSystemIDCommittedCursor)
 	return appendKeyString(key, name)
+}
+
+func encodeRetentionStateKey(channelKey channel.ChannelKey) []byte {
+	return encodeTableSystemKey(channelKey, channelSystemTableID, channelSystemIDRetentionState)
 }
 
 func encodeIdempotencyIndexPrefix(channelKey channel.ChannelKey) []byte {

@@ -39,6 +39,62 @@ func (s *ChannelStore) StoreCommittedDispatchCursor(name string, seq uint64) err
 	return s.engine.db.Set(encodeCommittedDispatchCursorKey(s.key, name), value, pebble.NoSync)
 }
 
+// ConfirmCommittedDispatchCursorDurable syncs an existing replay cursor so it
+// can be used as a retention safety gate when it is at least minSeq.
+func (s *ChannelStore) ConfirmCommittedDispatchCursorDurable(name string, minSeq uint64) (uint64, error) {
+	if err := s.validateCursorName(name); err != nil {
+		return 0, err
+	}
+	seq, ok, err := s.LoadCommittedDispatchCursor(name)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, channel.ErrEmptyState
+	}
+	if seq < minSeq {
+		return 0, channel.ErrCorruptState
+	}
+	value := binary.BigEndian.AppendUint64(nil, seq)
+	if err := s.engine.db.Set(encodeCommittedDispatchCursorKey(s.key, name), value, pebble.Sync); err != nil {
+		return 0, err
+	}
+	s.recordDurableCommit()
+	return seq, nil
+}
+
+// AdvanceCommittedDispatchCursorDurable durably moves a replay cursor forward
+// after authoritative retention already made the skipped prefix unavailable.
+func (s *ChannelStore) AdvanceCommittedDispatchCursorDurable(name string, seq uint64) error {
+	if err := s.validateCursorName(name); err != nil {
+		return err
+	}
+	current, ok, err := s.LoadCommittedDispatchCursor(name)
+	if err != nil {
+		return err
+	}
+	if ok && current > seq {
+		return channel.ErrCorruptState
+	}
+	value := binary.BigEndian.AppendUint64(nil, seq)
+	if err := s.engine.db.Set(encodeCommittedDispatchCursorKey(s.key, name), value, pebble.Sync); err != nil {
+		return err
+	}
+	s.recordDurableCommit()
+	return nil
+}
+
+func (s *ChannelStore) writeCommittedDispatchCursor(batch *pebble.Batch, name string, seq uint64) error {
+	if err := s.validateCursorName(name); err != nil {
+		return err
+	}
+	if batch == nil {
+		return channel.ErrInvalidArgument
+	}
+	value := binary.BigEndian.AppendUint64(nil, seq)
+	return batch.Set(encodeCommittedDispatchCursorKey(s.key, name), value, pebble.NoSync)
+}
+
 func (s *ChannelStore) validateCursorName(name string) error {
 	if err := s.validate(); err != nil {
 		return err

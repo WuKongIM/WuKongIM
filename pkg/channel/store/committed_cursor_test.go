@@ -1,6 +1,7 @@
 package store
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -21,6 +22,84 @@ func TestChannelStoreCommittedDispatchCursorRoundTrips(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, uint64(12), seq)
+}
+
+func TestChannelStoreConfirmCommittedDispatchCursorDurableRejectsMissingCursor(t *testing.T) {
+	st := newTestChannelStore(t)
+
+	_, err := st.ConfirmCommittedDispatchCursorDurable("committed", 1)
+	require.ErrorIs(t, err, channel.ErrEmptyState)
+}
+
+func TestChannelStoreConfirmCommittedDispatchCursorDurableRejectsBelowMinSeq(t *testing.T) {
+	st := newTestChannelStore(t)
+	require.NoError(t, st.StoreCommittedDispatchCursor("committed", 6))
+
+	_, err := st.ConfirmCommittedDispatchCursorDurable("committed", 7)
+	require.ErrorIs(t, err, channel.ErrCorruptState)
+}
+
+func TestChannelStoreConfirmCommittedDispatchCursorDurableSyncsVisibleCursor(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "store")
+	key, id := testChannelStoreIdentity("confirm-cursor")
+
+	engine, err := Open(path)
+	require.NoError(t, err)
+	st := engine.ForChannel(key, id)
+	require.NoError(t, st.StoreCommittedDispatchCursor("committed", 10))
+
+	seq, err := st.ConfirmCommittedDispatchCursorDurable("committed", 7)
+	require.NoError(t, err)
+	require.Equal(t, uint64(10), seq)
+	seq, ok, err := st.LoadCommittedDispatchCursor("committed")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, uint64(10), seq)
+	require.NoError(t, engine.Close())
+
+	reopened, err := Open(path)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, reopened.Close())
+	}()
+	seq, ok, err = reopened.ForChannel(key, id).LoadCommittedDispatchCursor("committed")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, uint64(10), seq)
+}
+
+func TestChannelStoreAdvanceCommittedDispatchCursorDurableWritesMissingCursor(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "store")
+	key, id := testChannelStoreIdentity("advance-cursor")
+
+	engine, err := Open(path)
+	require.NoError(t, err)
+	st := engine.ForChannel(key, id)
+	require.NoError(t, st.AdvanceCommittedDispatchCursorDurable("committed", 7))
+	require.NoError(t, engine.Close())
+
+	reopened, err := Open(path)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, reopened.Close())
+	}()
+	seq, ok, err := reopened.ForChannel(key, id).LoadCommittedDispatchCursor("committed")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, uint64(7), seq)
+}
+
+func TestChannelStoreAdvanceCommittedDispatchCursorDurableRejectsBackwardMove(t *testing.T) {
+	st := newTestChannelStore(t)
+	require.NoError(t, st.StoreCommittedDispatchCursor("committed", 9))
+
+	err := st.AdvanceCommittedDispatchCursorDurable("committed", 8)
+	require.ErrorIs(t, err, channel.ErrCorruptState)
+
+	seq, ok, err := st.LoadCommittedDispatchCursor("committed")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, uint64(9), seq)
 }
 
 func TestEngineListChannelKeysReturnsPersistedChannels(t *testing.T) {

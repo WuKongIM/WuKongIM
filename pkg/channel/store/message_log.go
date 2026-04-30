@@ -192,10 +192,15 @@ func (s *ChannelStore) leoLocked() (uint64, error) {
 		return s.leo.Load(), nil
 	}
 
-	maxSeq, err := s.messageTable().maxSeq()
+	messageMaxSeq, err := s.messageTable().maxSeq()
 	if err != nil {
 		return 0, err
 	}
+	state, err := s.LoadRetentionState()
+	if err != nil {
+		return 0, err
+	}
+	maxSeq := maxUint64(messageMaxSeq, state.RetainedMaxSeq)
 	s.leo.Store(maxSeq)
 	s.loaded.Store(true)
 	return maxSeq, nil
