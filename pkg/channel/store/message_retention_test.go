@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/cockroachdb/pebble/v2"
@@ -20,6 +21,167 @@ type testRetentionState struct {
 	LocalRetentionThroughSeq    uint64
 	PhysicalRetentionThroughSeq uint64
 	RetainedMaxSeq              uint64
+}
+
+func TestChannelStoreScanExpiredMessagePrefixStopsAtFirstUnexpired(t *testing.T) {
+	st := newTestChannelStore(t)
+	appendRetentionMessages(t, st, []retentionTestMessage{
+		{MessageID: 11, ClientMsgNo: "expired-1", Timestamp: 90},
+		{MessageID: 12, ClientMsgNo: "expired-2", Timestamp: 100},
+		{MessageID: 13, ClientMsgNo: "fresh-3", Timestamp: 101},
+	})
+
+	result, err := st.ScanExpiredMessagePrefix(0, time.Unix(100, 0), 10)
+	require.NoError(t, err)
+	require.Equal(t, RetentionScanResult{FromSeq: 1, ThroughSeq: 2, Count: 2}, result)
+}
+
+func TestChannelStoreScanExpiredMessagePrefixStopsAtZeroTimestamp(t *testing.T) {
+	st := newTestChannelStore(t)
+	appendRetentionMessages(t, st, []retentionTestMessage{
+		{MessageID: 21, ClientMsgNo: "expired-1", Timestamp: 90},
+		{MessageID: 22, ClientMsgNo: "zero-2", Timestamp: 0},
+		{MessageID: 23, ClientMsgNo: "expired-3", Timestamp: 80},
+	})
+
+	result, err := st.ScanExpiredMessagePrefix(1, time.Unix(100, 0), 10)
+	require.NoError(t, err)
+	require.Equal(t, RetentionScanResult{FromSeq: 1, ThroughSeq: 1, Count: 1}, result)
+}
+
+func TestChannelStoreScanExpiredMessagePrefixHonorsLimit(t *testing.T) {
+	st := newTestChannelStore(t)
+	appendRetentionMessages(t, st, []retentionTestMessage{
+		{MessageID: 31, ClientMsgNo: "expired-1", Timestamp: 90},
+		{MessageID: 32, ClientMsgNo: "expired-2", Timestamp: 91},
+		{MessageID: 33, ClientMsgNo: "expired-3", Timestamp: 92},
+		{MessageID: 34, ClientMsgNo: "expired-4", Timestamp: 93},
+	})
+
+	result, err := st.ScanExpiredMessagePrefix(1, time.Unix(100, 0), 2)
+	require.NoError(t, err)
+	require.Equal(t, RetentionScanResult{FromSeq: 1, ThroughSeq: 2, Count: 2}, result)
+}
+
+func TestChannelStoreTrimMessagesThroughDeletesRowsPayloadAndIndexes(t *testing.T) {
+	st := newTestChannelStore(t)
+	appendRetentionMessages(t, st, []retentionTestMessage{
+		{MessageID: 101, ClientMsgNo: "trimmed-client-1", Timestamp: 90},
+		{MessageID: 102, ClientMsgNo: "trimmed-client-2", Timestamp: 91},
+		{MessageID: 103, ClientMsgNo: "kept-client-3", Timestamp: 92},
+	})
+	require.NoError(t, st.AdoptRetentionBoundary(context.Background(), 2, "committed"))
+
+	require.NoError(t, st.TrimMessagesThrough(context.Background(), 2))
+
+	_, ok, err := st.GetMessageBySeq(1)
+	require.NoError(t, err)
+	require.False(t, ok)
+	_, ok, err = st.GetMessageByMessageID(101)
+	require.NoError(t, err)
+	require.False(t, ok)
+	_, _, ok, err = st.LookupIdempotency(channel.IdempotencyKey{
+		ChannelID:   st.id,
+		FromUID:     "u1",
+		ClientMsgNo: "trimmed-client-1",
+	})
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	_, ok, err = getDBValue(t, st.engine.db, encodeTableStateKey(st.key, TableIDMessage, 1, messagePayloadFamilyID))
+	require.NoError(t, err)
+	require.False(t, ok)
+	_, ok, err = getStoredClientMsgNoIndexSeq(t, st, "trimmed-client-1", 1)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	state, err := st.LoadRetentionState()
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), state.PhysicalRetentionThroughSeq)
+	require.Equal(t, uint64(3), st.LEO())
+}
+
+func TestChannelStoreTrimMessagesThroughIsIdempotent(t *testing.T) {
+	st := newTestChannelStore(t)
+	appendRetentionMessages(t, st, []retentionTestMessage{
+		{MessageID: 111, ClientMsgNo: "trimmed-client-1", Timestamp: 90},
+		{MessageID: 112, ClientMsgNo: "trimmed-client-2", Timestamp: 91},
+	})
+	require.NoError(t, st.AdoptRetentionBoundary(context.Background(), 2, "committed"))
+
+	require.NoError(t, st.TrimMessagesThrough(context.Background(), 2))
+	require.NoError(t, st.TrimMessagesThrough(context.Background(), 2))
+
+	_, ok, err := st.GetMessageBySeq(1)
+	require.NoError(t, err)
+	require.False(t, ok)
+	_, ok, err = st.GetMessageBySeq(2)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	state, err := st.LoadRetentionState()
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), state.PhysicalRetentionThroughSeq)
+	require.Equal(t, uint64(2), st.LEO())
+}
+
+func TestChannelStoreTrimMessagesThroughDoesNotDeleteAboveBoundary(t *testing.T) {
+	st := newTestChannelStore(t)
+	appendRetentionMessages(t, st, []retentionTestMessage{
+		{MessageID: 121, ClientMsgNo: "trimmed-client-1", Timestamp: 90},
+		{MessageID: 122, ClientMsgNo: "trimmed-client-2", Timestamp: 91},
+		{MessageID: 123, ClientMsgNo: "kept-client-3", Timestamp: 92},
+	})
+	require.NoError(t, st.AdoptRetentionBoundary(context.Background(), 2, "committed"))
+
+	require.NoError(t, st.TrimMessagesThrough(context.Background(), 2))
+
+	msg, ok, err := st.GetMessageBySeq(3)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, uint64(123), msg.MessageID)
+	msg, ok, err = st.GetMessageByMessageID(123)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, uint64(3), msg.MessageSeq)
+	_, _, ok, err = st.LookupIdempotency(channel.IdempotencyKey{
+		ChannelID:   st.id,
+		FromUID:     "u1",
+		ClientMsgNo: "kept-client-3",
+	})
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+func TestChannelStoreTrimMessagesThroughPreservesLEOWhenAllRowsDeleted(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "store")
+	key, id := testChannelStoreIdentity("trim-preserve-leo")
+
+	engine, err := Open(path)
+	require.NoError(t, err)
+	st := engine.ForChannel(key, id)
+	appendRetentionMessages(t, st, []retentionTestMessage{
+		{MessageID: 131, ClientMsgNo: "trimmed-client-1", Timestamp: 90},
+		{MessageID: 132, ClientMsgNo: "trimmed-client-2", Timestamp: 91},
+		{MessageID: 133, ClientMsgNo: "trimmed-client-3", Timestamp: 92},
+	})
+	require.Equal(t, uint64(3), st.LEO())
+	require.NoError(t, st.AdoptRetentionBoundary(context.Background(), 3, "committed"))
+	require.NoError(t, st.TrimMessagesThrough(context.Background(), 3))
+	require.Equal(t, uint64(3), st.LEO())
+	require.NoError(t, engine.Close())
+
+	reopened, err := Open(path)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, reopened.Close())
+	}()
+	st = reopened.ForChannel(key, id)
+	require.Equal(t, uint64(3), st.LEO())
+
+	state, err := st.LoadRetentionState()
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), state.PhysicalRetentionThroughSeq)
 }
 
 func TestChannelStoreRetentionStatePreservesLEOAfterFullPrefixTrim(t *testing.T) {
@@ -271,6 +433,32 @@ func deleteMessageRowsThroughSeqForTest(tb testing.TB, st *ChannelStore, through
 		}
 	}
 	require.NoError(tb, batch.Commit(pebble.Sync))
+}
+
+type retentionTestMessage struct {
+	MessageID   uint64
+	ClientMsgNo string
+	Timestamp   int32
+}
+
+func appendRetentionMessages(tb testing.TB, st *ChannelStore, messages []retentionTestMessage) {
+	tb.Helper()
+
+	records := make([]channel.Record, 0, len(messages))
+	for _, msg := range messages {
+		encoded := mustEncodeStoreMessage(tb, channel.Message{
+			MessageID:   msg.MessageID,
+			ClientMsgNo: msg.ClientMsgNo,
+			FromUID:     "u1",
+			Timestamp:   msg.Timestamp,
+			ChannelID:   st.id.ID,
+			ChannelType: st.id.Type,
+			Payload:     []byte(msg.ClientMsgNo),
+		})
+		records = append(records, channel.Record{Payload: encoded, SizeBytes: len(encoded)})
+	}
+	_, err := st.Append(records)
+	require.NoError(tb, err)
 }
 
 func channelKeysToStrings(keys []channel.ChannelKey) []string {
