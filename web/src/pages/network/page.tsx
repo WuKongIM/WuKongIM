@@ -242,7 +242,7 @@ export function NetworkPage() {
         <>
           <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <MetricCard label={intl.formatMessage({ id: "network.summary.remotePeers" })} value={summary.headline.remote_peers} />
-            <MetricCard label={intl.formatMessage({ id: "network.summary.nodeHealth" })} value={`${summary.headline.alive_nodes}/${summary.headline.suspect_nodes}/${summary.headline.dead_nodes}`} detail={intl.formatMessage({ id: "network.summary.nodeHealthDetail" })} />
+            <MetricCard label={intl.formatMessage({ id: "network.summary.nodeHealth" })} value={`${summary.headline.alive_nodes}/${summary.headline.suspect_nodes}/${summary.headline.dead_nodes}/${summary.headline.draining_nodes}`} detail={intl.formatMessage({ id: "network.summary.nodeHealthDetail" })} />
             <MetricCard label={intl.formatMessage({ id: "network.summary.poolConnections" })} value={`${summary.headline.pool_active}/${summary.headline.pool_idle}`} detail={intl.formatMessage({ id: "network.pool.activeIdle" })} />
             <MetricCard label={intl.formatMessage({ id: "network.summary.rpcInflight" })} value={summary.headline.rpc_inflight} />
             <MetricCard label={intl.formatMessage({ id: "network.summary.errors" })} value={summary.headline.dial_errors_1m + summary.headline.queue_full_1m + summary.headline.timeouts_1m} detail={intl.formatMessage({ id: "network.summary.errorsDetail" })} />
@@ -289,10 +289,12 @@ export function NetworkPage() {
           </SectionCard>
 
           <SectionCard title={intl.formatMessage({ id: "network.channel.title" })} description={intl.formatMessage({ id: "network.channel.description" })}>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
               <MetricCard label={intl.formatMessage({ id: "network.channel.dataPlanePool" })} value={`${summary.channel_replication.pool.active}/${summary.channel_replication.pool.idle}`} detail={intl.formatMessage({ id: "network.pool.activeIdle" })} />
               <MetricCard label={intl.formatMessage({ id: "network.channel.longPollLanes" })} value={summary.channel_replication.long_poll.lane_count} />
               <MetricCard label={intl.formatMessage({ id: "network.channel.longPollWait" })} value={`${compactNumber(intl, summary.channel_replication.long_poll.max_wait_ms)} ms`} />
+              <MetricCard label={intl.formatMessage({ id: "network.channel.longPollMaxBytes" })} value={`${compactNumber(intl, summary.channel_replication.long_poll.max_bytes)} B`} />
+              <MetricCard label={intl.formatMessage({ id: "network.channel.longPollMaxChannels" })} value={compactNumber(intl, summary.channel_replication.long_poll.max_channels)} />
               <MetricCard label={intl.formatMessage({ id: "network.channel.longPollExpiries" })} value={summary.channel_replication.long_poll_timeouts_1m} />
               <MetricCard label={intl.formatMessage({ id: "network.channel.dataPlaneTimeout" })} value={`${compactNumber(intl, summary.channel_replication.data_plane_rpc_timeout_ms)} ms`} />
             </div>

@@ -31,7 +31,7 @@ const networkSummaryFixture = {
     alive_nodes: 2,
     suspect_nodes: 0,
     dead_nodes: 0,
-    draining_nodes: 0,
+    draining_nodes: 1,
     pool_active: 3,
     pool_idle: 4,
     rpc_inflight: 5,
@@ -168,9 +168,12 @@ test("renders loading then local-node network summary", async () => {
   expect(screen.getByText(/local total by message type/i)).toBeInTheDocument()
   expect(screen.queryByText(/not exposed/i)).not.toBeInTheDocument()
   expect(screen.getByText("Remote Peers")).toBeInTheDocument()
+  expect(screen.getByText("2/0/0/1")).toBeInTheDocument()
   expect(screen.getByText("Outbound Peers")).toBeInTheDocument()
   expect(screen.getByText("node-2")).toBeInTheDocument()
   expect(screen.getAllByText("channel_long_poll_fetch").length).toBeGreaterThan(0)
+  expect(screen.getByText("Long-poll Max Bytes")).toBeInTheDocument()
+  expect(screen.getByText("Long-poll Max Channels")).toBeInTheDocument()
 })
 
 test("renders single-node cluster outbound empty state as healthy", async () => {
@@ -222,4 +225,13 @@ test("maps forbidden errors to ResourceState", async () => {
   renderNetworkPage()
 
   expect(await screen.findByText("Forbidden")).toBeInTheDocument()
+})
+
+test("maps unavailable errors to ResourceState", async () => {
+  getNetworkSummaryMock.mockRejectedValue(new ManagerApiError(503, "unavailable", "unavailable"))
+
+  renderNetworkPage()
+
+  expect(await screen.findByText("The manager service is currently unavailable.")).toBeInTheDocument()
+  expect(screen.getByRole("status")).toHaveAttribute("data-kind", "unavailable")
 })
