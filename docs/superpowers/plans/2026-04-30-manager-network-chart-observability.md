@@ -10,6 +10,18 @@
 
 ---
 
+## Repository Instruction Checks
+
+Before changing code, read these flow docs and keep them consistent with the implementation:
+
+- `internal/FLOW.md` if present before changing any `internal/*` package.
+- `pkg/channel/FLOW.md` before changing `pkg/channel/transport`.
+- No `FLOW.md` exists in `pkg/transport` at plan time; verify again before editing.
+
+After implementation, decide whether the new long-poll expected-timeout classification or manager network history changes require updating either flow doc. Update docs in the same task if behavior has diverged.
+
+---
+
 ## File Structure
 
 - Modify: `pkg/transport/client.go`
@@ -53,32 +65,52 @@
 - Modify: `pkg/transport/client.go`
 - Test: `pkg/transport/client_test.go`
 - Modify: `pkg/channel/transport/transport.go`
-- Test: `pkg/channel/transport/adapter_test.go` or `pkg/channel/transport/longpoll_session_test.go`
+- Test: `pkg/channel/transport/longpoll_session_test.go`
 
 - [ ] **Step 1: Write failing transport classifier test**
 
-Add a test proving a new RPC service classifier can turn a successful response into observer result `expected_timeout` while preserving inflight tracking.
+Add `TestClientRPCServiceWithResultClassifierOverridesSuccessfulResult` in `pkg/transport/client_test.go`. It should call the new method:
+
+```go
+RPCServiceWithResultClassifier(ctx, nodeID, shardKey, serviceID, payload, classifier func(resp []byte) string)
+```
+
+Assert observer events include the start event with positive `Inflight` and a completion event with `Result == "expected_timeout"`, `Inflight == 0`, and a non-zero duration. The classifier must receive the response bytes and return `"expected_timeout"`.
 
 - [ ] **Step 2: Run transport classifier test to verify it fails**
 
-Run: `GOWORK=off go test ./pkg/transport -run 'TestClientRPCServiceClassifierOverridesSuccessfulResult' -count=1`
+Run: `GOWORK=off go test ./pkg/transport -run 'TestClientRPCServiceWithResultClassifierOverridesSuccessfulResult' -count=1`
 Expected: FAIL because the classifier API does not exist.
 
 - [ ] **Step 3: Implement transport classifier method**
 
-Add an English-commented method that wraps `RPCService` behavior and accepts a response classifier callback. Existing `RPCService` should call the new method with nil classifier so current callers keep behavior.
+Add an English-commented method with this signature:
+
+```go
+func (c *Client) RPCServiceWithResultClassifier(ctx context.Context, nodeID NodeID, shardKey uint64, serviceID uint8, payload []byte, classifier func([]byte) string) ([]byte, error)
+```
+
+Rules:
+- Existing `RPCService` calls the new method with `nil`.
+- The classifier runs only when the underlying RPC returns `err == nil`.
+- Empty classifier results fall back to `"ok"`.
+- Non-nil errors still use `rpcClientResult(err)`.
+- Observer start/completion inflight behavior stays unchanged.
 
 - [ ] **Step 4: Write failing channel long-poll classification test**
 
-Add a channel transport test proving `LongPollFetch` emits `expected_timeout` when the decoded response has `TimedOut == true`, and still emits `timeout` for RPC deadline errors.
+Add exact tests in `pkg/channel/transport/longpoll_session_test.go`:
+
+- `TestLongPollFetchRecordsExpectedTimeoutFromTimedOutResponse`: handler returns encoded `LongPollFetchResponse{Status: LanePollStatusOK, TimedOut: true}`; observer completion result is `expected_timeout`.
+- `TestLongPollFetchRecordsDeadlineTimeoutAsAbnormalTimeout`: handler blocks until context deadline; observer completion result is `timeout`.
 
 - [ ] **Step 5: Implement channel long-poll classifier**
 
-Use the transport classifier method from `Transport.LongPollFetch`. Decode the response in the classifier and return `expected_timeout` only when `TimedOut` is true.
+Use `RPCServiceWithResultClassifier` from `Transport.LongPollFetch`. Decode the response in the classifier and return `expected_timeout` only when `TimedOut` is true; return empty string for normal successful long-poll responses so they remain `ok`.
 
 - [ ] **Step 6: Run classification tests**
 
-Run: `GOWORK=off go test ./pkg/transport ./pkg/channel/transport -run 'RPCServiceClassifier|LongPoll' -count=1`
+Run: `GOWORK=off go test ./pkg/transport ./pkg/channel/transport -run 'RPCServiceWithResultClassifier|LongPollFetchRecords' -count=1`
 Expected: PASS.
 
 - [ ] **Step 7: Commit classification work**
@@ -97,12 +129,14 @@ Commit: `feat: classify long-poll wait expiries`
 
 - [ ] **Step 1: Write failing app collector history test**
 
-Add a test that records traffic, RPC successes, RPC abnormal timeout, queue full, dial error, and remote error across two five-second windows. Assert `NetworkSnapshot(now).History` contains fixed-step points with tx/rx bytes, calls/success/errors/expected timeouts, and error counters.
+Add `TestNetworkObservabilityBuildsHistoryFromBuckets` that records traffic, RPC successes, RPC abnormal timeout, queue full, dial error, remote error, and an `expected_timeout` RPC across two five-second windows. Assert `NetworkSnapshot(now).History` contains fixed-step points with tx/rx bytes, calls/success/errors/expected timeouts, and error counters.
+
+Also add `TestNetworkObservabilityExpectedTimeoutIsNeutralServiceSample`: record `RPCClientEvent{ServiceID: 35, Result: "expected_timeout"}` and assert the service has `Calls1m == 1`, `ExpectedTimeout1m == 1`, `Success1m == 0`, `Timeout1m == 0`, `OtherError1m == 0`, and no `rpc_timeout` event.
 
 - [ ] **Step 2: Run app collector test to verify it fails**
 
 Run: `GOWORK=off go test ./internal/app -run 'TestNetworkObservabilityBuildsHistoryFromBuckets' -count=1`
-Expected: FAIL because `History` does not exist.
+Expected: FAIL because `History` and `expected_timeout` service handling do not exist.
 
 - [ ] **Step 3: Add usecase history structs and copy helpers**
 
@@ -112,7 +146,7 @@ Add English-commented structs:
 - `NetworkRPCHistoryPoint`
 - `NetworkErrorHistoryPoint`
 
-Add `History NetworkHistory` to `NetworkObservationSnapshot` and `NetworkSummary`.
+Add `History NetworkHistory` to `NetworkObservationSnapshot` and `NetworkSummary`. Add collector switch handling for `result == "expected_timeout"` so it increments `ExpectedTimeout1m` and not abnormal error counters.
 
 - [ ] **Step 4: Implement collector history aggregation**
 
@@ -205,7 +239,7 @@ Create `web/src/components/ui/chart.tsx` using shadcn's Recharts-based `ChartCon
 - [ ] **Step 3: Type-check the wrapper**
 
 Run: `cd web && bun run build`
-Expected: build may fail later because page not yet updated, but chart component itself should type-check once imported; fix component-level type errors before continuing.
+Expected: PASS. Do not commit chart infrastructure if the build fails.
 
 - [ ] **Step 4: Commit chart infrastructure**
 
@@ -233,7 +267,7 @@ Update `networkSummaryFixture` to include history. Add assertions for:
 - `Channel Data-plane`
 - local-total disclaimer remains visible
 
-Preserve existing tests for single-node cluster, source degradation, expected long-poll expiry neutrality, refresh, forbidden, and unavailable.
+Preserve existing tests for single-node cluster, source degradation, expected long-poll expiry neutrality, refresh, forbidden, and unavailable. Add tests for empty history arrays rendering a visible empty state or snapshot-total fallback. Assert key chart values and labels are visible as text outside SVG internals: TX/RX totals, expected long-poll expiries, abnormal failures, and local-total scope.
 
 - [ ] **Step 2: Run page test to verify it fails**
 
@@ -288,15 +322,19 @@ Expected: PASS.
 
 - [ ] **Step 3: Run relevant Go tests**
 
-Run: `GOWORK=off go test ./internal/app ./internal/usecase/management ./internal/access/manager -run 'Network' -count=1`
+Run: `GOWORK=off go test ./pkg/transport ./pkg/channel/transport ./internal/app ./internal/usecase/management ./internal/access/manager -run 'Network|RPCServiceWithResultClassifier|LongPollFetchRecords' -count=1`
 Expected: PASS.
 
-- [ ] **Step 4: Check formatting and diff hygiene**
+- [ ] **Step 4: Check FLOW.md consistency**
 
-Run: `gofmt -w internal/app/network_observability.go internal/app/network_observability_test.go internal/usecase/management/network.go internal/usecase/management/network_test.go internal/access/manager/network.go internal/access/manager/network_test.go`
+Re-read `internal/FLOW.md` if present and `pkg/channel/FLOW.md`. If the final implementation changes documented flow, update the relevant file. If no update is needed, note why in the final summary.
+
+- [ ] **Step 5: Check formatting and diff hygiene**
+
+Run: `gofmt -w pkg/transport/client.go pkg/transport/client_test.go pkg/channel/transport/transport.go pkg/channel/transport/longpoll_session_test.go internal/app/network_observability.go internal/app/network_observability_test.go internal/usecase/management/network.go internal/usecase/management/network_test.go internal/access/manager/network.go internal/access/manager/network_test.go`
 Run: `git diff --check`
 Expected: no whitespace errors.
 
-- [ ] **Step 5: Final commit if any verification fixes were needed**
+- [ ] **Step 6: Final commit if any verification fixes were needed**
 
 Commit any verification-only fixes with a focused message.
