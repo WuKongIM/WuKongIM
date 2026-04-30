@@ -14,15 +14,24 @@ func (s *ChannelStore) LoadRetentionState() (retentionState, error) {
 	if err := s.validate(); err != nil {
 		return retentionState{}, err
 	}
+	state, _, err := s.loadRetentionState()
+	return state, err
+}
+
+func (s *ChannelStore) loadRetentionState() (retentionState, bool, error) {
 	value, closer, err := s.engine.db.Get(encodeRetentionStateKey(s.key))
 	if err != nil {
 		if errors.Is(err, pebble.ErrNotFound) {
-			return retentionState{}, nil
+			return retentionState{}, false, nil
 		}
-		return retentionState{}, err
+		return retentionState{}, false, err
 	}
 	defer closer.Close()
-	return decodeRetentionState(value)
+	state, err := decodeRetentionState(value)
+	if err != nil {
+		return retentionState{}, false, err
+	}
+	return state, true, nil
 }
 
 func (s *ChannelStore) writeRetentionState(batch *pebble.Batch, state retentionState) error {
@@ -31,6 +40,9 @@ func (s *ChannelStore) writeRetentionState(batch *pebble.Batch, state retentionS
 	}
 	if batch == nil {
 		return channel.ErrInvalidArgument
+	}
+	if err := validateRetentionState(state); err != nil {
+		return err
 	}
 	return batch.Set(encodeRetentionStateKey(s.key), encodeRetentionState(state), pebble.NoSync)
 }
@@ -69,7 +81,10 @@ func (s *ChannelStore) AdoptRetentionBoundary(ctx context.Context, throughSeq ui
 	nextState.LocalRetentionThroughSeq = maxUint64(nextState.LocalRetentionThroughSeq, throughSeq)
 	nextState.RetainedMaxSeq = maxUint64(nextState.RetainedMaxSeq, maxUint64(leoBefore, throughSeq))
 
-	cursorSeq, cursorExists, err := s.LoadCommittedDispatchCursor(cursorName)
+	s.cursorMu.Lock()
+	defer s.cursorMu.Unlock()
+
+	cursorSeq, cursorExists, err := s.loadCommittedDispatchCursor(cursorName)
 	if err != nil {
 		return err
 	}
@@ -100,6 +115,24 @@ func (s *ChannelStore) AdoptRetentionBoundary(ctx context.Context, throughSeq ui
 	s.recordDurableCommit()
 	s.publishRetentionLEOFloor(nextState.RetainedMaxSeq)
 	return nil
+}
+
+func (s *ChannelStore) retentionStateAfterTruncate(to uint64) (retentionState, bool, error) {
+	state, exists, err := s.loadRetentionState()
+	if err != nil || !exists {
+		return retentionState{}, false, err
+	}
+	if to < state.LocalRetentionThroughSeq {
+		return retentionState{}, false, channel.ErrCorruptState
+	}
+	next := state
+	if next.RetainedMaxSeq > to {
+		next.RetainedMaxSeq = to
+	}
+	if next == state {
+		return retentionState{}, false, nil
+	}
+	return next, true, nil
 }
 
 func (s *ChannelStore) publishRetentionLEOFloor(retainedMaxSeq uint64) {

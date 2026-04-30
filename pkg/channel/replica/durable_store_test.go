@@ -33,6 +33,16 @@ func TestDurableStoreBeginEpochValidatesLEOAndMonotonicHistory(t *testing.T) {
 	require.Equal(t, []channel.EpochPoint{{Epoch: 7, StartOffset: 0}, point}, env.history.points)
 }
 
+func TestDurableStoreRecoverReturnsErrorFromLEOWithError(t *testing.T) {
+	env := newTestEnv(t)
+	env.log.leoErr = channel.ErrCorruptValue
+	store := newDurableReplicaStore(env.log, env.checkpoints, nil, env.history, env.snapshots)
+
+	_, err := store.Recover(context.Background())
+
+	require.ErrorIs(t, err, channel.ErrCorruptValue)
+}
+
 func TestDurableStoreAppendLeaderBatchSyncsAndReturnsLEORange(t *testing.T) {
 	env := newTestEnv(t)
 	env.log.leo = 2

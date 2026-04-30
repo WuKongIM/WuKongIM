@@ -14,6 +14,10 @@ func (s *ChannelStore) LoadCommittedDispatchCursor(name string) (uint64, bool, e
 	if err := s.validateCursorName(name); err != nil {
 		return 0, false, err
 	}
+	return s.loadCommittedDispatchCursor(name)
+}
+
+func (s *ChannelStore) loadCommittedDispatchCursor(name string) (uint64, bool, error) {
 	value, closer, err := s.engine.db.Get(encodeCommittedDispatchCursorKey(s.key, name))
 	if err != nil {
 		if errors.Is(err, pebble.ErrNotFound) {
@@ -35,8 +39,17 @@ func (s *ChannelStore) StoreCommittedDispatchCursor(name string, seq uint64) err
 	if err := s.validateCursorName(name); err != nil {
 		return err
 	}
-	value := binary.BigEndian.AppendUint64(nil, seq)
-	return s.engine.db.Set(encodeCommittedDispatchCursorKey(s.key, name), value, pebble.NoSync)
+	s.cursorMu.Lock()
+	defer s.cursorMu.Unlock()
+
+	current, ok, err := s.loadCommittedDispatchCursor(name)
+	if err != nil {
+		return err
+	}
+	if ok && current >= seq {
+		return nil
+	}
+	return s.setCommittedDispatchCursor(name, seq, pebble.NoSync)
 }
 
 // ConfirmCommittedDispatchCursorDurable syncs an existing replay cursor so it
@@ -45,7 +58,10 @@ func (s *ChannelStore) ConfirmCommittedDispatchCursorDurable(name string, minSeq
 	if err := s.validateCursorName(name); err != nil {
 		return 0, err
 	}
-	seq, ok, err := s.LoadCommittedDispatchCursor(name)
+	s.cursorMu.Lock()
+	defer s.cursorMu.Unlock()
+
+	seq, ok, err := s.loadCommittedDispatchCursor(name)
 	if err != nil {
 		return 0, err
 	}
@@ -55,8 +71,7 @@ func (s *ChannelStore) ConfirmCommittedDispatchCursorDurable(name string, minSeq
 	if seq < minSeq {
 		return 0, channel.ErrCorruptState
 	}
-	value := binary.BigEndian.AppendUint64(nil, seq)
-	if err := s.engine.db.Set(encodeCommittedDispatchCursorKey(s.key, name), value, pebble.Sync); err != nil {
+	if err := s.setCommittedDispatchCursor(name, seq, pebble.Sync); err != nil {
 		return 0, err
 	}
 	s.recordDurableCommit()
@@ -69,15 +84,17 @@ func (s *ChannelStore) AdvanceCommittedDispatchCursorDurable(name string, seq ui
 	if err := s.validateCursorName(name); err != nil {
 		return err
 	}
-	current, ok, err := s.LoadCommittedDispatchCursor(name)
+	s.cursorMu.Lock()
+	defer s.cursorMu.Unlock()
+
+	current, ok, err := s.loadCommittedDispatchCursor(name)
 	if err != nil {
 		return err
 	}
 	if ok && current > seq {
 		return channel.ErrCorruptState
 	}
-	value := binary.BigEndian.AppendUint64(nil, seq)
-	if err := s.engine.db.Set(encodeCommittedDispatchCursorKey(s.key, name), value, pebble.Sync); err != nil {
+	if err := s.setCommittedDispatchCursor(name, seq, pebble.Sync); err != nil {
 		return err
 	}
 	s.recordDurableCommit()
@@ -93,6 +110,11 @@ func (s *ChannelStore) writeCommittedDispatchCursor(batch *pebble.Batch, name st
 	}
 	value := binary.BigEndian.AppendUint64(nil, seq)
 	return batch.Set(encodeCommittedDispatchCursorKey(s.key, name), value, pebble.NoSync)
+}
+
+func (s *ChannelStore) setCommittedDispatchCursor(name string, seq uint64, opts *pebble.WriteOptions) error {
+	value := binary.BigEndian.AppendUint64(nil, seq)
+	return s.engine.db.Set(encodeCommittedDispatchCursorKey(s.key, name), value, opts)
 }
 
 func (s *ChannelStore) validateCursorName(name string) error {
