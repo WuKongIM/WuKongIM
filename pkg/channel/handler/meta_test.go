@@ -27,6 +27,37 @@ func TestApplyMetaRejectsConflictingReplay(t *testing.T) {
 	}
 }
 
+func TestApplyMetaUpdatesRetentionBoundaryInCache(t *testing.T) {
+	id := core.ChannelID{ID: "c1", Type: 1}
+	svc, _, _ := newAppendService(t, id)
+	key := KeyFromChannelID(id)
+
+	next := core.Meta{
+		Key:                 key,
+		ID:                  id,
+		Epoch:               7,
+		LeaderEpoch:         9,
+		Leader:              1,
+		Replicas:            []core.NodeID{1},
+		ISR:                 []core.NodeID{1},
+		MinISR:              1,
+		Status:              core.StatusActive,
+		Features:            core.Features{MessageSeqFormat: core.MessageSeqFormatU64},
+		RetentionThroughSeq: 88,
+	}
+	if err := svc.ApplyMeta(next); err != nil {
+		t.Fatalf("ApplyMeta() error = %v", err)
+	}
+
+	snapshot, ok := svc.MetaSnapshot(key)
+	if !ok {
+		t.Fatalf("MetaSnapshot() missing key %q", key)
+	}
+	if snapshot.RetentionThroughSeq != 88 {
+		t.Fatalf("RetentionThroughSeq = %d, want 88", snapshot.RetentionThroughSeq)
+	}
+}
+
 func TestStatusReturnsErrStaleMetaWhenCacheMisses(t *testing.T) {
 	svc, err := New(Config{
 		Runtime:    &fakeRuntime{channels: map[core.ChannelKey]*fakeChannelHandle{}},

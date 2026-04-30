@@ -43,6 +43,62 @@ func TestFetchFromSeqOneReturnsCommittedMessagesOnly(t *testing.T) {
 	}
 }
 
+func TestFetchReturnsRetentionStateWithoutClampingStart(t *testing.T) {
+	id := core.ChannelID{ID: "c1", Type: 1}
+	svc, rt, engine := newAppendService(t, id)
+	st := engine.ForChannel(KeyFromChannelID(id), id)
+
+	mustAppendEncodedMessages(t, st,
+		core.Message{MessageID: 11, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("one")},
+		core.Message{MessageID: 12, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("two")},
+	)
+	handle := rt.channels[KeyFromChannelID(id)]
+	handle.status.HW = 2
+	handle.status.RetentionThroughSeq = 7
+	handle.status.MinAvailableSeq = 8
+
+	result, err := svc.Fetch(context.Background(), core.FetchRequest{
+		ChannelID: id,
+		FromSeq:   1,
+		Limit:     10,
+		MaxBytes:  1024,
+	})
+	if err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+	if result.RetentionThroughSeq != 7 || result.MinAvailableSeq != 8 {
+		t.Fatalf("retention fields = (%d, %d), want (7, 8)", result.RetentionThroughSeq, result.MinAvailableSeq)
+	}
+	if len(result.Messages) != 2 || result.Messages[0].MessageSeq != 1 {
+		t.Fatalf("Messages = %+v, want unclamped fetch from seq 1", result.Messages)
+	}
+}
+
+func TestFetchEmptyResultIncludesRetentionState(t *testing.T) {
+	id := core.ChannelID{ID: "c1", Type: 1}
+	svc, rt, _ := newAppendService(t, id)
+	handle := rt.channels[KeyFromChannelID(id)]
+	handle.status.HW = 5
+	handle.status.RetentionThroughSeq = 4
+	handle.status.MinAvailableSeq = 5
+
+	result, err := svc.Fetch(context.Background(), core.FetchRequest{
+		ChannelID: id,
+		FromSeq:   6,
+		Limit:     10,
+		MaxBytes:  1024,
+	})
+	if err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+	if result.NextSeq != 6 || result.CommittedSeq != 5 {
+		t.Fatalf("empty result offsets = %+v, want NextSeq 6 and CommittedSeq 5", result)
+	}
+	if result.RetentionThroughSeq != 4 || result.MinAvailableSeq != 5 {
+		t.Fatalf("retention fields = (%d, %d), want (4, 5)", result.RetentionThroughSeq, result.MinAvailableSeq)
+	}
+}
+
 func TestFetchRejectsInvalidBudget(t *testing.T) {
 	id := core.ChannelID{ID: "c1", Type: 1}
 	svc, _, _ := newAppendService(t, id)
