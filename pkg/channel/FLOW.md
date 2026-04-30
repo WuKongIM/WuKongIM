@@ -12,7 +12,7 @@
 | `handler/` | `handler.New()` → `Service` | 请求校验、幂等去重、兼容 DurableMessage ingress/egress 编解码、基于结构化消息表的读取与查询 |
 | `replica/` | `replica.NewReplica()` → `Replica` | 单 channel ISR 副本状态机：loop-owned Group Commit 追加、HW/Checkpoint 推进、epoch 分歧检测、角色转换、恢复、快照和 leader reconcile；并提供 dry-run leader promotion evaluator |
 | `runtime/` | `runtime.Build()` → `Runtime` | 频道生命周期管理、复制调度（三优先级）、leader/follower lane 状态、 多级背压、墓碑清理 |
-| `store/` | `store.NewEngine()` → `Engine` | Pebble 结构化 `message` 表：主记录、二级索引、Checkpoint/EpochHistory/Snapshot 等系统状态持久化 |
+| `store/` | `store.NewEngine()` → `Engine` | Pebble 结构化 `message` 表：主记录、二级索引、Checkpoint/EpochHistory/Snapshot/RetentionState 等系统状态持久化 |
 | `transport/` | `transport.Build()` | steady-state `LongPollFetch`、辅助 `Fetch`，始终独立保留的 `ReconcileProbe` RPC，以及供控制面 leader-repair 复用的同步 `ProbeClient` |
 
 ## 3. 对外接口
@@ -156,7 +156,7 @@ Tombstone (replica.go:231 → lifecycle_pipeline.go:293):
 ```
   ① 加载 Checkpoint{Epoch, LogStartOffset, HW} → store/checkpoint.go
   ② 加载 Epoch History → store/history.go
-  ③ 校验一致性 (CheckpointHW ≤ LEO，其中 `LEO` 由 `message` 表最大 `message_seq` 恢复；Epoch 匹配)
+  ③ 校验一致性 (CheckpointHW ≤ LEO，其中 `LEO` 由 `message` 表最大 `message_seq` 与 RetentionState.RetainedMaxSeq 的较大值恢复；Epoch 匹配)
   ④ 启动时不再立即把 `LEO > CheckpointHW` 的尾巴截断掉；先保留 local tail，发布 `CommitReady=false`
   ⑤ 若后续 probe 证明尾巴是 quorum-safe，就保留并提升 CommitHW；若只存在于 minority/stale leader，则在 reconcile 中截断
   ⑥ `recovered=true` 在启动恢复成功后设置；reconcile 成功后持久化 fresh checkpoint，推进 `CheckpointHW` 并恢复 `CommitReady=true`
@@ -189,6 +189,7 @@ System (0x17): prefix + key + tableID + systemID + ...
                - Epoch History
                - Snapshot Payload
                - Committed Dispatch Cursor
+               - Retention State
 ```
 
 `channel.Record.Payload` 仍作为复制协议兼容表示存在，但不再是 Pebble 存储真相。详见 `store/keys.go`、`store/table_codec.go`
@@ -202,11 +203,11 @@ System (0x17): prefix + key + tableID + systemID + ...
 - **旧版 messagesync 只读 committed message 表**: `handler/message_sync.go:SyncMessages` 复用 `ListMessagesBySeq()`，按旧版 `start_message_seq` / `end_message_seq` / `pull_mode` 语义裁剪结果，并始终按 `message_seq` 升序返回给 HTTP API。
 - **Group Commit 窗口**: 默认 1ms/64条/64KB，配置在 `replica/replica.go:effectiveAppendGroupCommit*`。调大会增加延迟但提高吞吐。
 - **双水位不要混用**: `HW` 是运行时 CommitHW，驱动 sendack / committed reads / fetch；`CheckpointHW` 是冷恢复安全下界；`CommitReady` 决定 leader 是否已经完成 quorum-safe 收敛。live read path 不能再把 `LoadCheckpoint()` 当作 committed source of truth。
-- **LEO 由最大 `message_seq` 恢复**: 重启后的 `LEO()` 不再依赖旧 offset 日志键，而是扫描 `message` 表最大主键；如果主记录 family 缺失、payload family 孤儿或索引指到不存在行，会按 `ErrCorruptState` 处理。
+- **LEO 由消息表与 RetentionState 共同恢复**: 重启后的 `LEO()` 不再依赖旧 offset 日志键，而是取 `message` 表最大主键与 `RetentionState.RetainedMaxSeq` 的较大值；如果主记录 family 缺失、payload family 孤儿或索引指到不存在行，会按 `ErrCorruptState` 处理。
 - **HW 推进不可回退**: 运行时 `HW(CommitHW)` 只能前进不能后退。`progress_pipeline.go:advanceHWLocked` 会检查 newHW ≥ currentHW。
 - **Lease 过期自动降级**: Leader Lease 过期后自动变为 FencedLeader，拒绝所有写入但不影响读取。见 `replica/append_pipeline.go:appendableLocked` 和 `replica/reconcile_coordinator.go:ensureReconcileLeaseLocked`。
 - **Cross-channel durable batching**: `store/commit.go` 使用 200µs 窗口跨频道合并 Pebble durable 写入；Leader 的 synced Append 和 Follower 的 ApplyFetch 都走同一个 coordinator。单频道的 `writeMu` 仍然串行，且 sync 完成前不会发布新的 LEO。
-- **Committed Dispatch Cursor 不是消息真相**: `store/committed_cursor.go` 的 cursor 只记录异步已提交事件补偿进度，使用 `NoSync` 降低写放大；cursor 丢失只会从结构化 `message` 表重复回放，不能拿它判断消息是否提交。
+- **Committed Dispatch Cursor 不是消息真相**: `store/committed_cursor.go` 的热路径 cursor 只记录异步已提交事件补偿进度，默认使用 `NoSync` 降低写放大；retention 安全门禁必须走 durable confirm/advance 路径，cursor 丢失时仍只能从结构化 `message` 表或已采用的 retention floor 重复回放。
 - **手工 `PutIdempotency()` 只应服务恢复/快照路径**: 追加消息时 `Append()` / `StoreApplyFetch()` 已经维护唯一索引；测试或业务代码再额外覆盖同一索引值，可能把 append 已写入的 `payload_hash` 覆盖掉并制造假性损坏。
 - **Checkpoint 不再阻塞 sendack**: leader 在 quorum commit 后先完成 Append waiter，Checkpoint 持久化走 checkpoint effect worker coalescing；若 checkpoint 写盘失败会临时置 `CommitReady=false` 并重试，当前实现还缺少显式 health / metrics 暴露。
 - **leader reconcile 先区分“需要 peer 证明”与“只差本地 checkpoint”**: 若 leader transfer 后只是 `CheckpointHW < HW`、本地没有 `LEO > HW` 的 provisional tail，则会直接做本地 reconcile，不等待 peer probe；若已经拿到足以证明本地 tail 全量 quorum-safe 的 proof，也不会继续卡在离线 ISR peer 上。
