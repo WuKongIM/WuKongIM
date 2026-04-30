@@ -250,6 +250,10 @@ func (m *stateMachine) ApplyBatch(ctx context.Context, cmds []multiraft.Command)
 			shouldMarkAppliedDelta = true
 		}
 		if err := decoded.apply(wb, hashSlot); err != nil {
+			if isRetentionAdvanceStaleResult(decoded, err) {
+				results[i] = []byte(ApplyResultStaleMeta)
+				continue
+			}
 			return nil, fmt.Errorf("%w: apply command slot=%d hash_slot=%d command_type=%d", err, m.slot, hashSlot, commandTypeForDiagnostics(cmd.Data))
 		}
 		if shouldMarkAppliedDelta {
@@ -275,6 +279,15 @@ func (m *stateMachine) ApplyBatch(ctx context.Context, cmds []multiraft.Command)
 	m.markAppliedDeltas(pendingDeltaKeys)
 	m.forwardCommittedDeltas(ctx, pendingForwardDeltas)
 	return results, nil
+}
+
+func isRetentionAdvanceStaleResult(cmd command, err error) bool {
+	if _, ok := cmd.(*advanceChannelRetentionThroughSeqCmd); !ok {
+		return false
+	}
+	// Missing runtime metadata means the proposal was based on an observation
+	// that is no longer current, so it is reported as the same stale no-op.
+	return errors.Is(err, metadb.ErrStaleMeta) || errors.Is(err, metadb.ErrNotFound)
 }
 
 func commandTypeForDiagnostics(data []byte) uint8 {

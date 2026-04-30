@@ -7,6 +7,8 @@ import (
 	"time"
 
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
@@ -95,5 +97,38 @@ func TestForwardToLeaderHashSlotFencedResult(t *testing.T) {
 	err := c.forwardToLeader(context.Background(), 2, 1, []byte("test"))
 	if !errors.Is(err, ErrHashSlotFenced) {
 		t.Fatalf("forwardToLeader() err = %v, want ErrHashSlotFenced", err)
+	}
+}
+
+func TestForwardToLeaderStaleMetaResult(t *testing.T) {
+	srv := transport.NewServer()
+	mux := transport.NewRPCMux()
+	mux.Handle(rpcServiceForward, func(context.Context, []byte) ([]byte, error) {
+		return encodeForwardResp(errCodeOK, []byte(metafsm.ApplyResultStaleMeta)), nil
+	})
+	srv.HandleRPCMux(mux)
+	if err := srv.Start("127.0.0.1:0"); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Stop()
+
+	d := NewStaticDiscovery([]NodeConfig{{NodeID: 2, Addr: srv.Listener().Addr().String()}})
+	pool := transport.NewPool(d, 2, 5*time.Second)
+	defer pool.Close()
+	client := transport.NewClient(pool)
+	defer client.Stop()
+
+	c := &Cluster{transportResources: transportResources{fwdClient: client}}
+
+	err := c.forwardToLeader(context.Background(), 2, 1, []byte("test"))
+	if !errors.Is(err, metadb.ErrStaleMeta) {
+		t.Fatalf("forwardToLeader() err = %v, want ErrStaleMeta", err)
+	}
+}
+
+func TestNormalizeProposalResultStaleMeta(t *testing.T) {
+	err := normalizeProposalResult(multiraft.Result{Data: []byte(metafsm.ApplyResultStaleMeta)}, nil)
+	if !errors.Is(err, metadb.ErrStaleMeta) {
+		t.Fatalf("normalizeProposalResult() err = %v, want ErrStaleMeta", err)
 	}
 }

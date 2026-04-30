@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
@@ -24,6 +25,9 @@ func (c *Cluster) forwardToLeader(ctx context.Context, leaderID multiraft.NodeID
 	case errCodeOK:
 		if isHashSlotFencedResult(data) {
 			return ErrHashSlotFenced
+		}
+		if isStaleMetaResult(data) {
+			return metadb.ErrStaleMeta
 		}
 		return nil
 	case errCodeNotLeader:

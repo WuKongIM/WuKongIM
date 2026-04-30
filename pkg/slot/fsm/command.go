@@ -121,6 +121,8 @@ const (
 	ApplyResultOK = "ok"
 	// ApplyResultHashSlotFenced reports a committed source write rejected by a migration fence.
 	ApplyResultHashSlotFenced = "hash_slot_fenced"
+	// ApplyResultStaleMeta reports a deterministic stale metadata no-op.
+	ApplyResultStaleMeta = "stale_meta"
 
 	// headerSize is version (1) + cmdType (1).
 	headerSize = 2
