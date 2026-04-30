@@ -958,6 +958,43 @@ func TestDistributedDeliveryPushRecordsPushRouteMetrics(t *testing.T) {
 	require.Equal(t, []string{"2:ok:2"}, metrics.pushRPCs)
 }
 
+func TestDistributedDeliveryPushRecordsPartialPushRouteMetrics(t *testing.T) {
+	routes := []deliveryruntime.RouteKey{
+		{UID: "u2", NodeID: 2, BootID: 11, SessionID: 21},
+		{UID: "u3", NodeID: 2, BootID: 11, SessionID: 22},
+	}
+	metrics := &recordingDeliveryRoutingMetrics{}
+	client := &recordingDeliveryPushClient{
+		batchResponse: &accessnode.DeliveryPushResponse{
+			Accepted: []deliveryruntime.RouteKey{routes[0]},
+			Dropped:  []deliveryruntime.RouteKey{routes[1]},
+		},
+	}
+	push := distributedDeliveryPush{
+		localNodeID: 1,
+		client:      client,
+		codec:       codec.New(),
+		metrics:     metrics,
+	}
+
+	_, err := push.Push(context.Background(), deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				MessageID:   101,
+				MessageSeq:  9,
+				ChannelID:   "g1",
+				ChannelType: frame.ChannelTypeGroup,
+				FromUID:     "u1",
+				Payload:     []byte("hello group"),
+			},
+		},
+		Routes: routes,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"2:partial:2"}, metrics.pushRPCs)
+}
+
 func TestDistributedDeliveryPushBatchesPersonRoutesByRecipientChannelView(t *testing.T) {
 	client := &recordingDeliveryPushClient{}
 	push := distributedDeliveryPush{
@@ -1004,6 +1041,7 @@ func TestDistributedDeliveryPushBatchesPersonRoutesByRecipientChannelView(t *tes
 }
 
 func TestDistributedDeliveryPushFallsBackToLegacyForUnreportedBatchRoutes(t *testing.T) {
+	metrics := &recordingDeliveryRoutingMetrics{}
 	client := &recordingDeliveryPushClient{
 		batchResponse: &accessnode.DeliveryPushResponse{},
 	}
@@ -1011,6 +1049,7 @@ func TestDistributedDeliveryPushFallsBackToLegacyForUnreportedBatchRoutes(t *tes
 		localNodeID: 1,
 		client:      client,
 		codec:       codec.New(),
+		metrics:     metrics,
 	}
 
 	result, err := push.Push(context.Background(), deliveryruntime.PushCommand{
@@ -1036,6 +1075,7 @@ func TestDistributedDeliveryPushFallsBackToLegacyForUnreportedBatchRoutes(t *tes
 
 	require.Len(t, client.batchCalls, 1)
 	require.Len(t, client.singleCalls, 2)
+	require.Equal(t, []string{"2:partial:2"}, metrics.pushRPCs)
 	viewsByUID := make(map[string]string)
 	for _, call := range client.singleCalls {
 		require.Equal(t, uint64(2), call.nodeID)
@@ -1050,6 +1090,7 @@ func TestDistributedDeliveryPushFallsBackToLegacyForUnreportedBatchRoutes(t *tes
 }
 
 func TestDistributedDeliveryPushFallsBackToLegacyWhenBatchRejected(t *testing.T) {
+	metrics := &recordingDeliveryRoutingMetrics{}
 	client := &recordingDeliveryPushClient{
 		batchErr: errors.New("legacy node rejected batch shape"),
 	}
@@ -1057,6 +1098,7 @@ func TestDistributedDeliveryPushFallsBackToLegacyWhenBatchRejected(t *testing.T)
 		localNodeID: 1,
 		client:      client,
 		codec:       codec.New(),
+		metrics:     metrics,
 	}
 
 	result, err := push.Push(context.Background(), deliveryruntime.PushCommand{
@@ -1082,6 +1124,7 @@ func TestDistributedDeliveryPushFallsBackToLegacyWhenBatchRejected(t *testing.T)
 
 	require.Len(t, client.batchCalls, 1)
 	require.Len(t, client.singleCalls, 1)
+	require.Equal(t, []string{"2:error:2"}, metrics.pushRPCs)
 	require.Equal(t, []deliveryruntime.RouteKey{
 		{UID: "u2", NodeID: 2, BootID: 11, SessionID: 21},
 		{UID: "u3", NodeID: 2, BootID: 11, SessionID: 22},
@@ -1131,6 +1174,27 @@ func TestLocalDeliveryResolverSplitsExpandedRoutesAcrossPages(t *testing.T) {
 	require.Equal(t, 1, store.snapshotCalls)
 	require.Equal(t, [][]string{{"u2"}}, authority.uidBatches)
 	require.Equal(t, []string{"group:ok:1:1", "group:ok:0:1"}, metrics.resolves)
+}
+
+func TestLocalDeliveryResolverRecordsBeginResolveErrors(t *testing.T) {
+	snapshotErr := errors.New("snapshot failed")
+	metrics := &recordingDeliveryRoutingMetrics{}
+	resolver := localDeliveryResolver{
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
+			Store: &resolverSnapshotStore{snapshotErr: snapshotErr},
+		}),
+		authority: &recordingAuthoritative{},
+		metrics:   metrics,
+		pageSize:  8,
+	}
+
+	_, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+	}, deliveryruntime.CommittedEnvelope{})
+
+	require.ErrorIs(t, err, snapshotErr)
+	require.Equal(t, []string{"group:error:0:0"}, metrics.resolves)
 }
 
 type recordingDeliveryOwnerNotifier struct {
@@ -1532,10 +1596,14 @@ func (d *asyncCommittedDispatcher) isStoppedForTest() bool {
 type resolverSnapshotStore struct {
 	snapshotCalls int
 	uids          []string
+	snapshotErr   error
 }
 
 func (s *resolverSnapshotStore) SnapshotChannelSubscribers(_ context.Context, _ string, _ int64) ([]string, error) {
 	s.snapshotCalls++
+	if s.snapshotErr != nil {
+		return nil, s.snapshotErr
+	}
 	return append([]string(nil), s.uids...), nil
 }
 

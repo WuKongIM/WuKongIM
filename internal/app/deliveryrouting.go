@@ -562,11 +562,13 @@ func (r localDeliveryResolver) BeginResolve(ctx context.Context, key deliveryrun
 	if r.subscribers == nil {
 		return nil, nil
 	}
+	startedAt := time.Now()
 	snapshot, err := r.subscribers.BeginSnapshot(ctx, channel.ChannelID{
 		ID:   key.ChannelID,
 		Type: key.ChannelType,
 	})
 	if err != nil {
+		r.recordResolveMetric(deliveryChannelTypeLabel(key.ChannelType), "error", time.Since(startedAt), 0, 0)
 		return nil, err
 	}
 	return &localResolveToken{snapshot: snapshot, channelType: key.ChannelType}, nil
@@ -808,7 +810,6 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 			Items:       items,
 		})
 		if err != nil {
-			p.recordPushRPCMetric(nodeID, "error", time.Since(startedAt), len(routes))
 			if p.logger != nil {
 				p.logger.Warn("remote delivery push failed",
 					wklog.Event("delivery.diag.remote_push"),
@@ -823,16 +824,12 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 				)
 			}
 			legacyResult := p.pushLegacyDeliveryItems(ctx, nodeID, items, routes)
+			p.recordPushRPCMetric(nodeID, "error", time.Since(startedAt), len(routes))
 			result.Accepted = append(result.Accepted, legacyResult.Accepted...)
 			result.Retryable = append(result.Retryable, legacyResult.Retryable...)
 			result.Dropped = append(result.Dropped, legacyResult.Dropped...)
 			continue
 		}
-		pushResult := "ok"
-		if len(resp.Retryable) > 0 {
-			pushResult = "partial"
-		}
-		p.recordPushRPCMetric(nodeID, pushResult, time.Since(startedAt), len(routes))
 		if p.logger != nil {
 			p.logger.Debug("remote delivery push finished",
 				wklog.Event("delivery.diag.remote_push"),
@@ -849,7 +846,8 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 			)
 		}
 		mergeDeliveryPushResponse(&result, resp)
-		if missing := unreportedDeliveryRoutes(routes, resp); len(missing) > 0 {
+		missing := unreportedDeliveryRoutes(routes, resp)
+		if len(missing) > 0 {
 			if p.logger != nil {
 				p.logger.Warn("remote delivery push response omitted routes; falling back to legacy push",
 					wklog.Event("delivery.diag.remote_push_legacy_fallback"),
@@ -866,6 +864,7 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 			result.Retryable = append(result.Retryable, legacyResult.Retryable...)
 			result.Dropped = append(result.Dropped, legacyResult.Dropped...)
 		}
+		p.recordPushRPCMetric(nodeID, deliveryPushRPCMetricResult(resp, missing), time.Since(startedAt), len(routes))
 	}
 	return result, nil
 }
@@ -875,6 +874,13 @@ func (p distributedDeliveryPush) recordPushRPCMetric(nodeID uint64, result strin
 		return
 	}
 	p.metrics.ObservePushRPC(strconv.FormatUint(nodeID, 10), result, dur, routes)
+}
+
+func deliveryPushRPCMetricResult(resp accessnode.DeliveryPushResponse, missing []deliveryruntime.RouteKey) string {
+	if len(resp.Retryable) > 0 || len(resp.Dropped) > 0 || len(missing) > 0 {
+		return "partial"
+	}
+	return "ok"
 }
 
 func (p distributedDeliveryPush) deliveryPushItems(env deliveryruntime.CommittedEnvelope, routes []deliveryruntime.RouteKey) ([]accessnode.DeliveryPushItem, error) {

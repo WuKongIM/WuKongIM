@@ -143,8 +143,9 @@ func TestSendWithEnsuredMetaInvalidatesCacheAndRetriesAfterStaleAppend(t *testin
 		},
 	}
 	cluster := &flakyAppendCluster{errs: []error{channel.ErrStaleMeta}, result: channel.AppendResult{MessageID: 7, MessageSeq: 1}}
+	metrics := &recordingMessageAppendMetrics{}
 
-	result, err := sendWithEnsuredMeta(context.Background(), 1, time.Now, wklog.NewNop(), cluster, nil, refresher, nil, channel.AppendRequest{
+	result, err := sendWithEnsuredMeta(context.Background(), 1, time.Now, wklog.NewNop(), cluster, nil, refresher, metrics, channel.AppendRequest{
 		ChannelID: channel.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup},
 		Message:   channel.Message{FromUID: "u1"},
 	})
@@ -154,6 +155,7 @@ func TestSendWithEnsuredMetaInvalidatesCacheAndRetriesAfterStaleAppend(t *testin
 	require.Equal(t, 1, refresher.invalidations)
 	require.Equal(t, 2, refresher.refreshCalls)
 	require.Equal(t, 2, cluster.appendCalls)
+	require.Equal(t, []string{"local:error", "local:ok"}, metrics.observations)
 }
 
 type fakeRemoteAppenderReply struct {

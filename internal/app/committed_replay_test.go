@@ -124,7 +124,7 @@ func TestCommittedReplayerRecordsReplayLag(t *testing.T) {
 
 	require.NoError(t, replayer.RunOnce(context.Background()))
 
-	require.Equal(t, []string{"group:3"}, metrics.lags)
+	require.Equal(t, []string{"group:3", "group:0"}, metrics.lags)
 	require.Equal(t, uint64(5), source.cursors[key])
 }
 

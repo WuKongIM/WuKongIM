@@ -282,6 +282,7 @@ func (r *committedReplayer) replayChannel(ctx context.Context, ch committedRepla
 			return err
 		}
 		cursor = lastSeq
+		r.recordReplayLag(ch.ID.Type, replayLag(cursor, committedSeq))
 		if len(messages) < r.cfg.BatchSize {
 			return nil
 		}
