@@ -156,18 +156,6 @@ func (r *replica) applyFetchProgressCommand(cmd machineFetchProgressCommand) mac
 		r.mu.Unlock()
 		return machineResult{Err: channel.ErrSnapshotRequired}
 	}
-	if r.state.RetentionThroughSeq > 0 && req.FetchOffset < r.state.MinAvailableSeq {
-		result := retentionResetResult(r.state)
-		r.mu.Unlock()
-		return machineResult{Fetch: &machineFetchProgressResult{
-			Result:      result,
-			LeaderLEO:   r.state.LEO,
-			ChannelKey:  r.state.ChannelKey,
-			ReplicaID:   req.ReplicaID,
-			FetchOffset: req.FetchOffset,
-		}}
-	}
-
 	leaderLEO := r.state.LEO
 	matchOffset, truncateTo, err := r.divergenceStateLocked(req.FetchOffset, req.OffsetEpoch, leaderLEO)
 	if err != nil {

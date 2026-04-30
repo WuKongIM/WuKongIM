@@ -161,6 +161,7 @@ func TestReplicaApplyRetentionBoundaryLocalLEOBehindAppliesResetAndStaysNotReady
 
 func TestReplicaFetchBelowRetentionFloorReturnsRetentionResetUnlessSnapshotDominates(t *testing.T) {
 	env := newRetentionRecoveredEnv(t, 10, 10, 10)
+	env.log.records = retentionFetchRecords(10)
 	env.replica = newReplicaFromEnv(t, env)
 	meta := activeMetaWithMinISR(7, 1, 1)
 	meta.RetentionThroughSeq = 5
@@ -187,10 +188,38 @@ func TestReplicaFetchBelowRetentionFloorReturnsRetentionResetUnlessSnapshotDomin
 		ChannelKey:  env.replica.state.ChannelKey,
 		Epoch:       env.replica.state.Epoch,
 		ReplicaID:   2,
-		FetchOffset: 6,
+		FetchOffset: 4,
 		MaxBytes:    1024,
 	})
 	require.ErrorIs(t, err, channel.ErrSnapshotRequired)
+}
+
+func TestReplicaFetchAtRetentionBoundaryReturnsNextVisibleRecord(t *testing.T) {
+	env := newRetentionRecoveredEnv(t, 10, 10, 10)
+	env.log.records = retentionFetchRecords(10)
+	env.replica = newReplicaFromEnv(t, env)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	meta.RetentionThroughSeq = 5
+	require.NoError(t, env.replica.BecomeLeader(meta))
+
+	env.replica.mu.Lock()
+	env.replica.state.HW = 10
+	env.replica.state.CheckpointHW = 10
+	env.replica.publishStateLocked()
+	env.replica.mu.Unlock()
+
+	result, err := env.replica.Fetch(context.Background(), channel.ReplicaFetchRequest{
+		ChannelKey:  env.replica.state.ChannelKey,
+		Epoch:       env.replica.state.Epoch,
+		ReplicaID:   2,
+		FetchOffset: 5,
+		OffsetEpoch: env.replica.state.OffsetEpoch,
+		MaxBytes:    1024,
+	})
+	require.NoError(t, err)
+	require.Nil(t, result.RetentionReset)
+	require.NotEmpty(t, result.Records)
+	require.Equal(t, uint64(6), result.Records[0].Index)
 }
 
 func TestReplicaFetchInFlightReadRechecksRetentionFloor(t *testing.T) {
@@ -209,7 +238,7 @@ func TestReplicaFetchInFlightReadRechecksRetentionFloor(t *testing.T) {
 			ChannelKey:  status.ChannelKey,
 			Epoch:       status.Epoch,
 			ReplicaID:   2,
-			FetchOffset: 5,
+			FetchOffset: 4,
 			OffsetEpoch: status.OffsetEpoch,
 			MaxBytes:    1024,
 		})
@@ -387,4 +416,12 @@ func newRetentionRecoveredEnv(t testing.TB, leo, hw, checkpointHW uint64) *testE
 	env.history.points = []channel.EpochPoint{{Epoch: 7, StartOffset: 0}}
 	_ = hw
 	return env
+}
+
+func retentionFetchRecords(count uint64) []channel.Record {
+	records := make([]channel.Record, 0, count)
+	for seq := uint64(1); seq <= count; seq++ {
+		records = append(records, channel.Record{Index: seq, SizeBytes: 1})
+	}
+	return records
 }

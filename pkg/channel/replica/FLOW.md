@@ -165,10 +165,10 @@ The loop treats follower `FetchOffset`/`OffsetEpoch` as an ACK cursor:
 - known epochs cap at the next epoch boundary;
 - future epochs return `ErrStaleMeta`;
 - cursors behind `LogStartOffset` return `ErrSnapshotRequired`;
-- cursors below `MinAvailableSeq` return a typed `RetentionReset` when logical retention is the dominant floor; when `LogStartOffset` dominates, they still return `ErrSnapshotRequired`;
+- cursors below `RetentionThroughSeq` return a typed `RetentionReset` when logical retention is the dominant floor; cursors exactly at `RetentionThroughSeq` may fetch the next visible record, and when `LogStartOffset` dominates they still return `ErrSnapshotRequired`;
 - divergent cursors return `TruncateTo` instead of advancing unsafe progress.
 
-If records are needed, the loop emits a read-log effect with captured leader LEO. The facade reads from `LogStore`, then submits `machineReadLogResultCommand`; the loop rechecks fences, rechecks the current retention floor, and clips records so fetch never exposes records above the LEO captured before the read or below a retention boundary applied while storage I/O was in flight.
+If records are needed, the loop emits a read-log effect with captured leader LEO. The facade reads from `LogStore`, then submits `machineReadLogResultCommand`; the loop rechecks fences and the current retention floor, returning `RetentionReset` if the fetch cursor fell behind a newly applied dominant retention boundary, and clips records so fetch never exposes records above the LEO captured before the read.
 
 `ApplyFollowerCursor()` submits the same safe cursor path without reading records. `ApplyProgressAck()` is legacy compatibility; it has no `OffsetEpoch`, so it is handled as a zero-epoch cursor and cannot advance beyond safe lineage rules.
 
