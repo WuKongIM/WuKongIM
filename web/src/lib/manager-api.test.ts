@@ -255,6 +255,29 @@ describe("manager api client", () => {
         dial_timeout_ms: 5000,
         controller_observation_interval_ms: 200,
       },
+      history: {
+        window_seconds: 60,
+        step_seconds: 5,
+        traffic: [{
+          at: "2026-04-29T11:59:00Z",
+          tx_bytes: 1024,
+          rx_bytes: 512,
+        }],
+        rpc: [{
+          at: "2026-04-29T11:59:00Z",
+          calls: 10,
+          success: 9,
+          errors: 0,
+          expected_timeouts: 1,
+        }],
+        errors: [{
+          at: "2026-04-29T11:59:00Z",
+          dial_errors: 0,
+          queue_full: 0,
+          timeouts: 1,
+          remote_errors: 0,
+        }],
+      },
       events: [{
         at: "2026-04-29T11:59:59Z",
         severity: "warn",

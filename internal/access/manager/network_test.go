@@ -39,6 +39,7 @@ func TestManagerNetworkSummaryReturnsLocalNodeSnapshot(t *testing.T) {
 	lastHeartbeatAt := time.Date(2026, 4, 29, 11, 59, 0, 0, time.UTC)
 	lastSeenAt := time.Date(2026, 4, 29, 11, 59, 30, 0, time.UTC)
 	eventAt := time.Date(2026, 4, 29, 11, 59, 45, 0, time.UTC)
+	historyAt := time.Date(2026, 4, 29, 11, 59, 0, 0, time.UTC)
 	successRate := 0.75
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
@@ -161,6 +162,29 @@ func TestManagerNetworkSummaryReturnsLocalNodeSnapshot(t *testing.T) {
 				DialTimeout:                   3 * time.Second,
 				ControllerObservationInterval: 4 * time.Second,
 			},
+			History: managementusecase.NetworkHistory{
+				Window: time.Minute,
+				Step:   5 * time.Second,
+				Traffic: []managementusecase.NetworkTrafficHistoryPoint{{
+					At:      historyAt,
+					TXBytes: 300,
+					RXBytes: 150,
+				}},
+				RPC: []managementusecase.NetworkRPCHistoryPoint{{
+					At:               historyAt,
+					Calls:            9,
+					Success:          7,
+					Errors:           1,
+					ExpectedTimeouts: 1,
+				}},
+				Errors: []managementusecase.NetworkErrorHistoryPoint{{
+					At:           historyAt,
+					DialErrors:   1,
+					QueueFull:    2,
+					Timeouts:     3,
+					RemoteErrors: 4,
+				}},
+			},
 			Events: []managementusecase.NetworkEvent{{
 				At:         eventAt,
 				Severity:   "warn",
@@ -279,6 +303,13 @@ func TestManagerNetworkSummaryReturnsLocalNodeSnapshot(t *testing.T) {
 			"data_plane_pool_size": 5,
 			"dial_timeout_ms": 3000,
 			"controller_observation_interval_ms": 4000
+		},
+		"history": {
+			"window_seconds": 60,
+			"step_seconds": 5,
+			"traffic": [{"at": "2026-04-29T11:59:00Z", "tx_bytes": 300, "rx_bytes": 150}],
+			"rpc": [{"at": "2026-04-29T11:59:00Z", "calls": 9, "success": 7, "errors": 1, "expected_timeouts": 1}],
+			"errors": [{"at": "2026-04-29T11:59:00Z", "dial_errors": 1, "queue_full": 2, "timeouts": 3, "remote_errors": 4}]
 		},
 		"events": [{
 			"at": "2026-04-29T11:59:45Z",

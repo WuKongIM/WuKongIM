@@ -93,6 +93,7 @@ export type ManagerNetworkSummaryResponse = {
   services: ManagerNetworkRPCService[]
   channel_replication: ManagerNetworkChannelReplication
   discovery: ManagerNetworkDiscovery
+  history: ManagerNetworkHistory
   events: ManagerNetworkEvent[]
 }
 
@@ -139,6 +140,36 @@ export type ManagerNetworkTrafficMessageType = {
   message_type: string
   bytes_1m: number
   bps: number
+}
+
+export type ManagerNetworkHistory = {
+  window_seconds: number
+  step_seconds: number
+  traffic: ManagerNetworkTrafficHistoryPoint[]
+  rpc: ManagerNetworkRPCHistoryPoint[]
+  errors: ManagerNetworkErrorHistoryPoint[]
+}
+
+export type ManagerNetworkTrafficHistoryPoint = {
+  at: string
+  tx_bytes: number
+  rx_bytes: number
+}
+
+export type ManagerNetworkRPCHistoryPoint = {
+  at: string
+  calls: number
+  success: number
+  errors: number
+  expected_timeouts: number
+}
+
+export type ManagerNetworkErrorHistoryPoint = {
+  at: string
+  dial_errors: number
+  queue_full: number
+  timeouts: number
+  remote_errors: number
 }
 
 export type ManagerNetworkPeer = {

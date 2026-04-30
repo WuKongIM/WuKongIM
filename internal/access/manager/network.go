@@ -28,6 +28,8 @@ type NetworkSummaryResponse struct {
 	ChannelReplication NetworkChannelReplicationDTO `json:"channel_replication"`
 	// Discovery contains network discovery and transport configuration.
 	Discovery NetworkDiscoveryDTO `json:"discovery"`
+	// History contains local network time-series points for charts.
+	History NetworkHistoryDTO `json:"history"`
 	// Events contains recent local network events.
 	Events []NetworkEventDTO `json:"events"`
 }
@@ -110,6 +112,58 @@ type NetworkTrafficMessageTypeDTO struct {
 	Bytes1m int64 `json:"bytes_1m"`
 	// Bps is the current byte rate.
 	Bps float64 `json:"bps"`
+}
+
+// NetworkHistoryDTO contains local network time-series aggregates for charts.
+type NetworkHistoryDTO struct {
+	// WindowSeconds is the recent interval covered by the local collector.
+	WindowSeconds int64 `json:"window_seconds"`
+	// StepSeconds is the chart aggregation interval between points.
+	StepSeconds int64 `json:"step_seconds"`
+	// Traffic contains traffic byte totals grouped by step.
+	Traffic []NetworkTrafficHistoryPointDTO `json:"traffic"`
+	// RPC contains RPC result totals grouped by step.
+	RPC []NetworkRPCHistoryPointDTO `json:"rpc"`
+	// Errors contains network error totals grouped by step.
+	Errors []NetworkErrorHistoryPointDTO `json:"errors"`
+}
+
+// NetworkTrafficHistoryPointDTO contains traffic totals for one chart step.
+type NetworkTrafficHistoryPointDTO struct {
+	// At is the UTC start time of the chart step.
+	At time.Time `json:"at"`
+	// TXBytes counts transmitted bytes in the chart step.
+	TXBytes int64 `json:"tx_bytes"`
+	// RXBytes counts received bytes in the chart step.
+	RXBytes int64 `json:"rx_bytes"`
+}
+
+// NetworkRPCHistoryPointDTO contains RPC result totals for one chart step.
+type NetworkRPCHistoryPointDTO struct {
+	// At is the UTC start time of the chart step.
+	At time.Time `json:"at"`
+	// Calls counts completed RPC calls in the chart step.
+	Calls int `json:"calls"`
+	// Success counts successful RPC calls in the chart step.
+	Success int `json:"success"`
+	// Errors counts abnormal RPC outcomes in the chart step.
+	Errors int `json:"errors"`
+	// ExpectedTimeouts counts neutral service-level timeout outcomes in the chart step.
+	ExpectedTimeouts int `json:"expected_timeouts"`
+}
+
+// NetworkErrorHistoryPointDTO contains network error totals for one chart step.
+type NetworkErrorHistoryPointDTO struct {
+	// At is the UTC start time of the chart step.
+	At time.Time `json:"at"`
+	// DialErrors counts dial failures in the chart step.
+	DialErrors int `json:"dial_errors"`
+	// QueueFull counts enqueue and RPC queue-full outcomes in the chart step.
+	QueueFull int `json:"queue_full"`
+	// Timeouts counts abnormal RPC timeouts in the chart step.
+	Timeouts int `json:"timeouts"`
+	// RemoteErrors counts remote RPC errors in the chart step.
+	RemoteErrors int `json:"remote_errors"`
 }
 
 // NetworkPeerDTO contains local network observations for one remote peer.
@@ -324,6 +378,7 @@ func networkSummaryResponse(item managementusecase.NetworkSummary) NetworkSummar
 		Services:           networkRPCServiceDTOs(item.Services),
 		ChannelReplication: networkChannelReplicationDTO(item.ChannelReplication),
 		Discovery:          networkDiscoveryDTO(item.Discovery),
+		History:            networkHistoryDTO(item.History),
 		Events:             networkEventDTOs(item.Events),
 	}
 }
@@ -348,6 +403,56 @@ func networkTrafficMessageTypeDTOs(items []managementusecase.NetworkTrafficMessa
 			MessageType: item.MessageType,
 			Bytes1m:     item.Bytes1m,
 			Bps:         item.Bps,
+		})
+	}
+	return out
+}
+
+func networkHistoryDTO(item managementusecase.NetworkHistory) NetworkHistoryDTO {
+	return NetworkHistoryDTO{
+		WindowSeconds: int64(item.Window / time.Second),
+		StepSeconds:   int64(item.Step / time.Second),
+		Traffic:       networkTrafficHistoryPointDTOs(item.Traffic),
+		RPC:           networkRPCHistoryPointDTOs(item.RPC),
+		Errors:        networkErrorHistoryPointDTOs(item.Errors),
+	}
+}
+
+func networkTrafficHistoryPointDTOs(items []managementusecase.NetworkTrafficHistoryPoint) []NetworkTrafficHistoryPointDTO {
+	out := make([]NetworkTrafficHistoryPointDTO, 0, len(items))
+	for _, item := range items {
+		out = append(out, NetworkTrafficHistoryPointDTO{
+			At:      item.At,
+			TXBytes: item.TXBytes,
+			RXBytes: item.RXBytes,
+		})
+	}
+	return out
+}
+
+func networkRPCHistoryPointDTOs(items []managementusecase.NetworkRPCHistoryPoint) []NetworkRPCHistoryPointDTO {
+	out := make([]NetworkRPCHistoryPointDTO, 0, len(items))
+	for _, item := range items {
+		out = append(out, NetworkRPCHistoryPointDTO{
+			At:               item.At,
+			Calls:            item.Calls,
+			Success:          item.Success,
+			Errors:           item.Errors,
+			ExpectedTimeouts: item.ExpectedTimeouts,
+		})
+	}
+	return out
+}
+
+func networkErrorHistoryPointDTOs(items []managementusecase.NetworkErrorHistoryPoint) []NetworkErrorHistoryPointDTO {
+	out := make([]NetworkErrorHistoryPointDTO, 0, len(items))
+	for _, item := range items {
+		out = append(out, NetworkErrorHistoryPointDTO{
+			At:           item.At,
+			DialErrors:   item.DialErrors,
+			QueueFull:    item.QueueFull,
+			Timeouts:     item.Timeouts,
+			RemoteErrors: item.RemoteErrors,
 		})
 	}
 	return out
