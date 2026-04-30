@@ -747,6 +747,7 @@ func ProjectChannelMeta(meta metadb.ChannelRuntimeMeta) channel.Meta {
 		Features: channel.Features{
 			MessageSeqFormat: channel.MessageSeqFormat(meta.Features),
 		},
+		RetentionThroughSeq: meta.RetentionThroughSeq,
 	}
 }
 

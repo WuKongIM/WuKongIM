@@ -517,7 +517,8 @@ func metaEqualExceptLease(a, b core.Meta) bool {
 		a.Leader != b.Leader ||
 		a.MinISR != b.MinISR ||
 		a.Status != b.Status ||
-		a.Features != b.Features {
+		a.Features != b.Features ||
+		a.RetentionThroughSeq != b.RetentionThroughSeq {
 		return false
 	}
 	if len(a.Replicas) != len(b.Replicas) || len(a.ISR) != len(b.ISR) {

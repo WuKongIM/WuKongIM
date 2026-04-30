@@ -78,6 +78,8 @@ type Meta struct {
 	LeaseUntil  time.Time
 	Status      Status
 	Features    Features
+	// RetentionThroughSeq is the authoritative highest message sequence hidden by retention.
+	RetentionThroughSeq uint64
 }
 
 type AppendRequest struct {
@@ -109,6 +111,10 @@ type FetchResult struct {
 	Messages     []Message
 	NextSeq      uint64
 	CommittedSeq uint64
+	// MinAvailableSeq is the first message sequence available to clients.
+	MinAvailableSeq uint64
+	// RetentionThroughSeq is the authoritative highest retained-away sequence.
+	RetentionThroughSeq uint64
 }
 
 type ChannelRuntimeStatus struct {
@@ -119,6 +125,10 @@ type ChannelRuntimeStatus struct {
 	LeaderEpoch  uint64
 	HW           uint64
 	CommittedSeq uint64
+	// MinAvailableSeq is the first message sequence available to clients.
+	MinAvailableSeq uint64
+	// RetentionThroughSeq is the authoritative highest retained-away sequence.
+	RetentionThroughSeq uint64
 }
 
 type Record struct {
@@ -187,6 +197,33 @@ type ReplicaState struct {
 	CheckpointHW   uint64
 	CommitReady    bool
 	LEO            uint64
+	// RetentionThroughSeq is the local logical retention fence applied from metadata.
+	RetentionThroughSeq uint64
+	// MinAvailableSeq is the first message sequence that reads may return.
+	MinAvailableSeq uint64
+	// LocalRetentionThroughSeq is the highest authoritative retention boundary durably adopted locally.
+	LocalRetentionThroughSeq uint64
+	// PhysicalRetentionThroughSeq is the highest message sequence physically trimmed locally.
+	PhysicalRetentionThroughSeq uint64
+}
+
+// EffectiveMinAvailableSeq returns the first sequence readable after logical retention and physical trimming.
+func EffectiveMinAvailableSeq(retentionThroughSeq, logStartOffset uint64) uint64 {
+	nextSeq := func(seq uint64) uint64 {
+		if seq == ^uint64(0) {
+			return seq
+		}
+		return seq + 1
+	}
+
+	minSeq := uint64(1)
+	if next := nextSeq(retentionThroughSeq); next > minSeq {
+		minSeq = next
+	}
+	if next := nextSeq(logStartOffset); next > minSeq {
+		minSeq = next
+	}
+	return minSeq
 }
 
 type CommitResult struct {
