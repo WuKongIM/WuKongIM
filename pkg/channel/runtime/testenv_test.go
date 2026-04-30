@@ -133,6 +133,21 @@ func newTestRuntimeWithOptions(t *testing.T, options ...testRuntimeOption) *runt
 	return impl
 }
 
+func (r *runtime) replicaForTest(t testing.TB, key core.ChannelKey) *fakeReplica {
+	t.Helper()
+	factory, ok := r.replicaFactory.(*fakeReplicaFactory)
+	require.True(t, ok)
+	factory.mu.Lock()
+	defer factory.mu.Unlock()
+	for i, cfg := range factory.created {
+		if cfg.ChannelKey == key {
+			return factory.replicas[i]
+		}
+	}
+	t.Fatalf("replica for %s not found", key)
+	return nil
+}
+
 func testMeta(key string) core.Meta {
 	return core.Meta{
 		Key:      core.ChannelKey(key),
@@ -215,6 +230,8 @@ type fakeReplica struct {
 	tombstoneErr        error
 	becomeLeaderErr     error
 	closeCount          int
+	retentionCalls      []uint64
+	retentionView       core.RetentionView
 	onLeaderLocalAppend func()
 	onLeaderHWAdvance   func()
 }
@@ -291,6 +308,32 @@ func (r *fakeReplica) ApplyProgressAck(context.Context, core.ReplicaProgressAckR
 
 func (r *fakeReplica) ApplyReconcileProof(context.Context, core.ReplicaReconcileProof) error {
 	return nil
+}
+
+func (r *fakeReplica) ApplyRetentionBoundary(_ context.Context, throughSeq uint64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.retentionCalls = append(r.retentionCalls, throughSeq)
+	if throughSeq > r.state.RetentionThroughSeq {
+		r.state.RetentionThroughSeq = throughSeq
+		r.state.MinAvailableSeq = core.EffectiveMinAvailableSeq(throughSeq, r.state.LogStartOffset)
+	}
+	return nil
+}
+
+func (r *fakeReplica) RetentionView() (core.RetentionView, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.retentionView.ChannelKey == "" {
+		return core.RetentionView{
+			ChannelKey:          r.state.ChannelKey,
+			Epoch:               r.state.Epoch,
+			Leader:              r.state.Leader,
+			RetentionThroughSeq: r.state.RetentionThroughSeq,
+			MinAvailableSeq:     r.state.MinAvailableSeq,
+		}, nil
+	}
+	return r.retentionView, nil
 }
 
 func (r *fakeReplica) Status() core.ReplicaState {

@@ -36,6 +36,9 @@ func (r *replica) commitMetaLocked(normalized channel.Meta) {
 	r.state.ChannelKey = normalized.Key
 	r.state.Epoch = normalized.Epoch
 	r.state.Leader = normalized.Leader
+	if normalized.RetentionThroughSeq > r.state.RetentionThroughSeq {
+		r.state.RetentionThroughSeq = normalized.RetentionThroughSeq
+	}
 }
 
 func normalizeMeta(meta channel.Meta) (channel.Meta, error) {

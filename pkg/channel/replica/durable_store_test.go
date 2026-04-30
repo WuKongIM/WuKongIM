@@ -606,6 +606,12 @@ type spyDurableStore struct {
 	storedCheckpoint channel.Checkpoint
 	visibleHW        uint64
 	checkpointLEO    uint64
+	retention        channel.RetentionState
+	adoptCalls       int
+	adoptThroughSeq  uint64
+	adoptLEO         uint64
+	trimCalls        int
+	trimThroughSeq   uint64
 }
 
 func (s *spyDurableStore) Recover(context.Context) (durableView, error) {
@@ -655,6 +661,31 @@ func (s *spyDurableStore) InstallSnapshotAtomically(_ context.Context, snap chan
 	s.checkpoint = checkpoint
 	s.epochPoint = epochPoint
 	return 0, s.installErr
+}
+
+func (s *spyDurableStore) LoadRetentionState() (channel.RetentionState, error) {
+	return s.retention, nil
+}
+
+func (s *spyDurableStore) AdoptRetentionBoundary(_ context.Context, throughSeq uint64, _ string) (uint64, error) {
+	s.adoptCalls++
+	s.adoptThroughSeq = throughSeq
+	if throughSeq > s.retention.LocalRetentionThroughSeq {
+		s.retention.LocalRetentionThroughSeq = throughSeq
+	}
+	if s.adoptLEO != 0 {
+		return s.adoptLEO, nil
+	}
+	return throughSeq, nil
+}
+
+func (s *spyDurableStore) TrimMessagesThrough(_ context.Context, throughSeq uint64) (uint64, error) {
+	s.trimCalls++
+	s.trimThroughSeq = throughSeq
+	if throughSeq > s.retention.PhysicalRetentionThroughSeq {
+		s.retention.PhysicalRetentionThroughSeq = throughSeq
+	}
+	return s.retention.PhysicalRetentionThroughSeq, nil
 }
 
 type writeOnlySnapshotApplier struct{}

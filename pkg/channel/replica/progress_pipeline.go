@@ -89,6 +89,7 @@ func (r *replica) applyCursorCommand(cmd machineCursorCommand) machineResult {
 	}
 
 	r.setReplicaProgressLocked(cmd.ReplicaID, matchOffset)
+	r.setRetentionProgressLocked(cmd.ReplicaID, matchOffset)
 	r.publishStateLocked()
 	outcome = r.advanceHWLocked()
 	progress = r.snapshotProgressLocked()
@@ -139,9 +140,33 @@ func (r *replica) applyFetchProgressCommand(cmd machineFetchProgressCommand) mac
 		r.mu.Unlock()
 		return machineResult{Err: channel.ErrStaleMeta}
 	}
+	if r.state.RetentionThroughSeq > 0 &&
+		req.FetchOffset < r.state.MinAvailableSeq &&
+		r.state.RetentionThroughSeq >= r.state.LogStartOffset {
+		result := retentionResetResult(r.state)
+		r.mu.Unlock()
+		return machineResult{Fetch: &machineFetchProgressResult{
+			Result:      result,
+			LeaderLEO:   r.state.LEO,
+			ChannelKey:  r.state.ChannelKey,
+			ReplicaID:   req.ReplicaID,
+			FetchOffset: req.FetchOffset,
+		}}
+	}
 	if req.FetchOffset < r.state.LogStartOffset {
 		r.mu.Unlock()
 		return machineResult{Err: channel.ErrSnapshotRequired}
+	}
+	if r.state.RetentionThroughSeq > 0 && req.FetchOffset < r.state.MinAvailableSeq {
+		result := retentionResetResult(r.state)
+		r.mu.Unlock()
+		return machineResult{Fetch: &machineFetchProgressResult{
+			Result:      result,
+			LeaderLEO:   r.state.LEO,
+			ChannelKey:  r.state.ChannelKey,
+			ReplicaID:   req.ReplicaID,
+			FetchOffset: req.FetchOffset,
+		}}
 	}
 
 	leaderLEO := r.state.LEO
@@ -154,11 +179,13 @@ func (r *replica) applyFetchProgressCommand(cmd machineFetchProgressCommand) mac
 	r.state.OffsetEpoch = offsetEpochForLEO(r.epochHistory, leaderLEO)
 	needsAdvance := r.progress[r.localNode] != leaderLEO
 	r.setReplicaProgressLocked(r.localNode, leaderLEO)
+	r.setRetentionProgressLocked(r.localNode, leaderLEO)
 
 	oldProgress := r.progress[req.ReplicaID]
 	if matchOffset > oldProgress {
 		needsAdvance = true
 		r.setReplicaProgressLocked(req.ReplicaID, matchOffset)
+		r.setRetentionProgressLocked(req.ReplicaID, matchOffset)
 	}
 	r.publishStateLocked()
 	if needsAdvance {
@@ -319,6 +346,7 @@ func (r *replica) applyLeaderAppendCommittedEvent(ev machineLeaderAppendCommitte
 	r.state.LEO = nextLEO
 	r.state.OffsetEpoch = offsetEpochForLEO(r.epochHistory, nextLEO)
 	r.setReplicaProgressLocked(r.localNode, nextLEO)
+	r.setRetentionProgressLocked(r.localNode, nextLEO)
 	r.publishStateLocked()
 	notifyLeaderLocalAppend = r.onLeaderLocalAppend
 	channelKey = r.state.ChannelKey
@@ -564,12 +592,15 @@ func (r *replica) applyCompleteReconcileCommand(cmd machineCompleteReconcileComm
 
 func (r *replica) seedLeaderProgressLocked(isr []channel.NodeID, leaderLEO, committedHW uint64) {
 	r.progress = make(map[channel.NodeID]uint64, len(isr))
+	r.retentionProgress = make(map[channel.NodeID]uint64, len(isr))
 	for _, id := range isr {
 		if id == r.localNode {
 			r.progress[id] = leaderLEO
+			r.retentionProgress[id] = leaderLEO
 			continue
 		}
 		r.progress[id] = committedHW
+		r.retentionProgress[id] = r.state.RetentionThroughSeq
 	}
 }
 
@@ -578,6 +609,15 @@ func (r *replica) setReplicaProgressLocked(replicaID channel.NodeID, matchOffset
 		r.progress = make(map[channel.NodeID]uint64)
 	}
 	r.progress[replicaID] = matchOffset
+}
+
+func (r *replica) setRetentionProgressLocked(replicaID channel.NodeID, matchOffset uint64) {
+	if r.retentionProgress == nil {
+		r.retentionProgress = make(map[channel.NodeID]uint64)
+	}
+	if matchOffset > r.retentionProgress[replicaID] {
+		r.retentionProgress[replicaID] = matchOffset
+	}
 }
 
 func (r *replica) snapshotProgressLocked() map[uint64]uint64 {

@@ -434,10 +434,10 @@ func (f *pressureReplicaFactory) New(cfg ChannelConfig) (replica.Replica, error)
 
 	replica := &pressureReplica{
 		state: core.ReplicaState{
-			ChannelKey: cfg.ChannelKey,
-			Role:       core.ReplicaRoleLeader,
-			Epoch:      cfg.Meta.Epoch,
-			Leader:     cfg.Meta.Leader,
+			ChannelKey:  cfg.ChannelKey,
+			Role:        core.ReplicaRoleLeader,
+			Epoch:       cfg.Meta.Epoch,
+			Leader:      cfg.Meta.Leader,
 			CommitReady: true,
 		},
 	}
@@ -508,6 +508,28 @@ func (r *pressureReplica) ApplyProgressAck(_ context.Context, _ core.ReplicaProg
 
 func (r *pressureReplica) ApplyReconcileProof(_ context.Context, _ core.ReplicaReconcileProof) error {
 	return nil
+}
+
+func (r *pressureReplica) ApplyRetentionBoundary(_ context.Context, throughSeq uint64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if throughSeq > r.state.RetentionThroughSeq {
+		r.state.RetentionThroughSeq = throughSeq
+		r.state.MinAvailableSeq = core.EffectiveMinAvailableSeq(throughSeq, r.state.LogStartOffset)
+	}
+	return nil
+}
+
+func (r *pressureReplica) RetentionView() (core.RetentionView, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return core.RetentionView{
+		ChannelKey:          r.state.ChannelKey,
+		Epoch:               r.state.Epoch,
+		Leader:              r.state.Leader,
+		RetentionThroughSeq: r.state.RetentionThroughSeq,
+		MinAvailableSeq:     r.state.MinAvailableSeq,
+	}, nil
 }
 
 func (r *pressureReplica) Status() core.ReplicaState {

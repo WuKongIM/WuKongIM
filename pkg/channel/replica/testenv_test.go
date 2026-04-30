@@ -16,6 +16,12 @@ type fakeLogStore struct {
 	records       []channel.Record
 	leo           uint64
 	leoErr        error
+	retention     channel.RetentionState
+	retentionErr  error
+	adoptErr      error
+	trimErr       error
+	adoptCalls    []uint64
+	trimCalls     []uint64
 	appendCount   int
 	syncCount     int
 	truncateCalls []uint64
@@ -25,6 +31,56 @@ type fakeLogStore struct {
 	syncStarted   chan struct{}
 	syncContinue  chan struct{}
 	syncCanceled  chan struct{}
+}
+
+func (f *fakeLogStore) LoadRetentionState() (channel.RetentionState, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.retentionErr != nil {
+		return channel.RetentionState{}, f.retentionErr
+	}
+	return f.retention, nil
+}
+
+func (f *fakeLogStore) AdoptRetentionBoundary(_ context.Context, throughSeq uint64, _ string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.adoptCalls = append(f.adoptCalls, throughSeq)
+	if f.adoptErr != nil {
+		return f.adoptErr
+	}
+	if throughSeq > f.retention.LocalRetentionThroughSeq {
+		f.retention.LocalRetentionThroughSeq = throughSeq
+	}
+	if f.leo > f.retention.RetainedMaxSeq {
+		f.retention.RetainedMaxSeq = f.leo
+	}
+	if throughSeq > f.retention.RetainedMaxSeq {
+		f.retention.RetainedMaxSeq = throughSeq
+	}
+	if throughSeq > f.leo {
+		f.leo = throughSeq
+	}
+	return nil
+}
+
+func (f *fakeLogStore) TrimMessagesThrough(_ context.Context, throughSeq uint64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.trimCalls = append(f.trimCalls, throughSeq)
+	if f.trimErr != nil {
+		return f.trimErr
+	}
+	if throughSeq > f.retention.LocalRetentionThroughSeq {
+		return channel.ErrCorruptState
+	}
+	if throughSeq > f.retention.PhysicalRetentionThroughSeq {
+		f.retention.PhysicalRetentionThroughSeq = throughSeq
+	}
+	if throughSeq > f.retention.RetainedMaxSeq {
+		f.retention.RetainedMaxSeq = throughSeq
+	}
+	return nil
 }
 
 func (f *fakeLogStore) LEO() uint64 {

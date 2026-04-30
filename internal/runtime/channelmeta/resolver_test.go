@@ -75,6 +75,23 @@ func TestProjectChannelMetaIncludesRetentionBoundary(t *testing.T) {
 	require.Equal(t, uint64(88), got.RetentionThroughSeq)
 }
 
+func TestApplyAuthoritativeMetaAppliesRetentionBoundaryToLocalRuntime(t *testing.T) {
+	meta := metadb.ChannelRuntimeMeta{
+		ChannelID: "retained", ChannelType: 1, ChannelEpoch: 3, LeaderEpoch: 4,
+		Replicas: []uint64{2}, ISR: []uint64{2}, Leader: 2, MinISR: 1,
+		Status: uint8(channel.StatusActive), RetentionThroughSeq: 12,
+	}
+	runtime := &resolverRuntimeFake{}
+	syncer := NewSync(SyncOptions{Runtime: runtime, LocalNode: 2})
+
+	got, err := syncer.ApplyAuthoritativeMeta(meta)
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(12), got.RetentionThroughSeq)
+	require.Len(t, runtime.runtimeUpserts, 1)
+	require.Equal(t, uint64(12), runtime.runtimeUpserts[0].RetentionThroughSeq)
+}
+
 func TestResolverRefreshInvokesInjectedRepairer(t *testing.T) {
 	id := channel.ChannelID{ID: "repair-refresh", Type: 1}
 	authoritative := metadb.ChannelRuntimeMeta{

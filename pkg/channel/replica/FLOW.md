@@ -9,6 +9,8 @@ The package owns:
 - leader append admission, group commit, quorum waiters, and HW advancement;
 - follower fetch/cursor progress and follower-side `ApplyFetch` persistence;
 - role/meta transitions, leader lease fencing, tombstone/close fencing;
+- logical retention boundary application, local durable adoption/reset, and
+  safe physical prefix trim effects;
 - epoch lineage, divergence detection, leader reconcile, and promotion dry-run safety rules;
 - checkpoint, snapshot, epoch-history, and log durability coordination;
 - immutable `Status()` publication for runtime and transport readers.
@@ -38,6 +40,7 @@ It does not choose channel placement, store control-plane metadata, or route net
 | `reconcile_coordinator.go` | Reconcile quorum rules, pending proof state, durable reconcile effects. |
 | `snapshot_pipeline.go` | Snapshot validation, durable install effect, state publication. |
 | `recovery.go` | Startup durable recovery before loop/effect workers start. |
+| `retention.go` | Logical retention apply facade, durable adoption/trim effects, retention views. |
 | `durable_store.go` | Durable adapter, optional combined store contracts, recovery validation. |
 | `history.go` | In-memory epoch-history append and trim helpers used by loop-owned transitions. |
 | `epoch_lineage.go` | Pure epoch-lineage and divergence decisions. |
@@ -62,6 +65,8 @@ type Replica interface {
     ApplyFetch(ctx context.Context, req channel.ReplicaApplyFetchRequest) error
     ApplyProgressAck(ctx context.Context, req channel.ReplicaProgressAckRequest) error
     ApplyReconcileProof(ctx context.Context, proof channel.ReplicaReconcileProof) error
+    ApplyRetentionBoundary(ctx context.Context, throughSeq uint64) error
+    RetentionView() (channel.RetentionView, error)
     Status() channel.ReplicaState
 }
 ```
@@ -73,6 +78,7 @@ Important optional store extensions are detected by `durable_store.go`:
 - `TruncateLogAndHistory(ctx, to)` truncates records and epoch history in one durable mutation.
 - `StoreCheckpointMonotonic(ctx, checkpoint, visibleHW, leo)` rejects checkpoint regressions at the write boundary.
 - `InstallSnapshotAtomically(ctx, snap, checkpoint, epochPoint)` publishes snapshot payload, checkpoint, and epoch lineage together.
+- `LoadRetentionState`, `AdoptRetentionBoundary`, and `TrimMessagesThrough` keep local retention adoption and physical deletion durable.
 
 Runtime-facing helpers implemented by the concrete replica:
 
@@ -90,6 +96,7 @@ Live mutable fields are owned by the loop/pipeline handlers while holding `r.mu`
 |-------|-------|
 | `meta`, `state`, `roleGeneration`, `closed` | lifecycle loop handlers and fenced effect results. |
 | `progress`, `waiters` | progress/append/reconcile pipelines. |
+| `retentionProgress` | retention view progress for the current leader epoch; local starts at LEO and followers start at `RetentionThroughSeq`. |
 | `appendRequests`, `appendPending`, `appendInFlight*` | append pipeline only. |
 | `pendingCheckpoint`, `checkpointQueued`, `checkpointInFlight`, `pendingCheckpointEffectID` | progress scheduler and checkpoint writer result handler. |
 | `pendingFollowerApplyEffectID`, `pendingSnapshotEffectID`, `pendingLeaderEpochEffectID`, `pendingReconcileEffectID` | corresponding effect pipeline. |
@@ -114,6 +121,7 @@ Durable effects run outside the loop so storage I/O does not block command proce
 - append effects go through `appendEffects` and `startAppendEffectWorker()`;
 - checkpoint effects go through `checkpointEffects` and `startCheckpointEffectWorker()`;
 - begin-epoch, follower apply, snapshot install, and leader reconcile durable effects are executed by the caller path after a loop command returns the effect;
+- retention adoption/reset and physical trim effects are executed by the caller path after a loop command returns them;
 - all log/history/checkpoint/snapshot mutations take `durableMu` so one replica has a single durable mutation lane;
 - read-log effects do not take `durableMu`, but their result is fenced by channel key, epoch, role generation, and captured leader LEO.
 
@@ -125,7 +133,7 @@ Every durable result carries an `EffectID` plus channel/epoch/role-generation fe
 
 `NewReplica()` builds the durable adapter, publishes an initial follower snapshot, then calls `recoverFromStores()` before any loop/effect worker starts.
 
-Recovery loads checkpoint, epoch history, snapshot presence, and LEO through `durable.Recover()`. It rejects corrupt combinations such as checkpoint HW above LEO, incompatible checkpoint epoch, snapshot checkpoint without payload, or history beyond LEO. The recovered runtime state is follower, with `HW == CheckpointHW == checkpoint.HW`, `LEO == durable LEO`, and `CommitReady == (LEO == CheckpointHW)`. A local tail above checkpoint is retained as provisional and must be reconciled before leader appends are accepted.
+Recovery loads checkpoint, epoch history, snapshot presence, local retention state, and LEO through `durable.Recover()`. It rejects corrupt combinations such as checkpoint HW above LEO, incompatible checkpoint epoch, snapshot checkpoint without payload, or history beyond LEO. `LocalRetentionThroughSeq` and `PhysicalRetentionThroughSeq` are restored from local durable state, and `LEO` is raised to at least the retained LEO floor. Recovery does not initialize logical `RetentionThroughSeq` from local retention state; authoritative metadata applies that boundary later. The recovered runtime state is follower, with `HW == CheckpointHW == checkpoint.HW`, `LEO == durable/retained LEO`, and `CommitReady == (LEO == CheckpointHW)`. A local tail above checkpoint is retained as provisional and must be reconciled before leader appends are accepted.
 
 ### 6.2 Apply Meta And Role Changes
 
@@ -157,6 +165,7 @@ The loop treats follower `FetchOffset`/`OffsetEpoch` as an ACK cursor:
 - known epochs cap at the next epoch boundary;
 - future epochs return `ErrStaleMeta`;
 - cursors behind `LogStartOffset` return `ErrSnapshotRequired`;
+- cursors below `MinAvailableSeq` return a typed `RetentionReset` when logical retention is the dominant floor; when `LogStartOffset` dominates, they still return `ErrSnapshotRequired`;
 - divergent cursors return `TruncateTo` instead of advancing unsafe progress.
 
 If records are needed, the loop emits a read-log effect with captured leader LEO. The facade reads from `LogStore`, then submits `machineReadLogResultCommand`; the loop rechecks fences and clips records so fetch never exposes records above the LEO captured before the read.
@@ -203,6 +212,16 @@ A successful fenced result publishes follower state with `LogStartOffset == HW =
 
 `EvaluateLeaderPromotion()` is a pure helper for app-side leader repair. It evaluates a candidate durable view plus peer proofs using the same epoch-lineage and reconcile quorum rules. It requires local durable state, never projects beyond local LEO, and treats missing ISR proof as current HW only, so absent peers can help preserve already committed prefix but cannot prove the candidate's local tail. The report states whether the candidate can lead plus the safe HW/truncate offset it would publish after real reconcile.
 
+### 6.10 Retention Boundary Apply
+
+`ApplyRetentionBoundary()` applies an authoritative retained-through sequence. `throughSeq == 0` is a no-op, and lower boundaries never reduce the logical fence. When the fence advances, the loop publishes `RetentionThroughSeq` and recomputes `MinAvailableSeq = EffectiveMinAvailableSeq(RetentionThroughSeq, LogStartOffset)` immediately, before physical deletion.
+
+Durable adoption/reset is emitted when the boundary is ahead of `LocalRetentionThroughSeq`. The adoption effect calls the store under `durableMu`, advances the committed replay cursor, and may raise runtime `LEO` to the retained boundary when the local log is behind; that reset leaves `CommitReady=false` until normal replication/reconcile catches up. Store failures leave the logical fence published and allow the same boundary to retry.
+
+Physical trim is separate and may lag adoption. A trim effect is emitted only when `CommitReady=true`, `throughSeq <= CheckpointHW`, `throughSeq <= HW`, `throughSeq <= LEO`, and `throughSeq > PhysicalRetentionThroughSeq`. Successful trim publishes the durable physical boundary returned by the store. Retention never mutates checkpoint `LogStartOffset`; snapshots remain the owner of that floor.
+
+`RetentionView()` reports leader/epoch/lease, HW, CheckpointHW, LEO, commit readiness, logical/local/physical retention boundaries, min available sequence, and `MinISRMatchOffset`. The min ISR retention progress is the minimum across current ISR members, not the quorum candidate. Unknown followers in the current leader epoch start at `RetentionThroughSeq`, so they are not treated as caught up until observed fetch/cursor progress advances them.
+
 ## 7. Invariants
 
 After recovery and while the loop is running, transitions must preserve:
@@ -212,6 +231,7 @@ After recovery and while the loop is running, transitions must preserve:
 - Runtime `HW` and `CheckpointHW` never decrease in one process lifetime.
 - Tail truncation never truncates below HW or CheckpointHW.
 - Snapshot install advances `LogStartOffset`, `HW`, and `CheckpointHW` together.
+- `PhysicalRetentionThroughSeq` never exceeds `LocalRetentionThroughSeq`; local retention adoption may be ahead of logical retention after recovery until authoritative metadata is applied.
 - Leader append is accepted only for a valid leader lease, `CommitReady=true`, and sufficient ISR.
 - Fetch/cursor/reconcile/promotion progress never advances beyond a divergence-safe match offset.
 - Tombstone and close fence all mutating operations and complete pending appends exactly once.

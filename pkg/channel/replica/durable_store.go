@@ -14,6 +14,7 @@ type durableView struct {
 	Checkpoint   channel.Checkpoint
 	EpochHistory []channel.EpochPoint
 	LEO          uint64
+	Retention    channel.RetentionState
 }
 
 // durableReplicaStore groups all durable mutations needed by a channel replica.
@@ -29,6 +30,9 @@ type durableReplicaStore interface {
 	TruncateLogAndHistory(ctx context.Context, to uint64) error
 	StoreCheckpointMonotonic(ctx context.Context, checkpoint channel.Checkpoint, visibleHW uint64, leo uint64) error
 	InstallSnapshotAtomically(ctx context.Context, snap channel.Snapshot, checkpoint channel.Checkpoint, epochPoint channel.EpochPoint) (leo uint64, err error)
+	LoadRetentionState() (channel.RetentionState, error)
+	AdoptRetentionBoundary(ctx context.Context, throughSeq uint64, cursorName string) (leo uint64, err error)
+	TrimMessagesThrough(ctx context.Context, throughSeq uint64) (physicalThroughSeq uint64, err error)
 }
 
 type splitDurableReplicaStore struct {
@@ -76,6 +80,14 @@ type combinedCheckpointStore interface {
 // checkpoint, and epoch history in one durable mutation.
 type combinedSnapshotStore interface {
 	InstallSnapshotAtomically(ctx context.Context, snap channel.Snapshot, checkpoint channel.Checkpoint, epochPoint channel.EpochPoint) (leo uint64, err error)
+}
+
+// retentionStore is implemented by stores that keep local retention progress
+// and can advance replay cursors before physical prefix trimming.
+type retentionStore interface {
+	LoadRetentionState() (channel.RetentionState, error)
+	AdoptRetentionBoundary(ctx context.Context, throughSeq uint64, cursorName string) error
+	TrimMessagesThrough(ctx context.Context, throughSeq uint64) error
 }
 
 // snapshotLoader is an optional private extension used to validate that a
@@ -153,6 +165,13 @@ func (s *splitDurableReplicaStore) Recover(ctx context.Context) (durableView, er
 	if err != nil {
 		return durableView{}, err
 	}
+	retention, err := s.LoadRetentionState()
+	if err != nil {
+		return durableView{}, err
+	}
+	if retention.RetainedMaxSeq > leo {
+		leo = retention.RetainedMaxSeq
+	}
 	if err := validateDurableView(checkpoint, history, leo, snapshot, snapshotKnown, snapshotExists); err != nil {
 		return durableView{}, err
 	}
@@ -161,6 +180,7 @@ func (s *splitDurableReplicaStore) Recover(ctx context.Context) (durableView, er
 		Checkpoint:   checkpoint,
 		EpochHistory: append([]channel.EpochPoint(nil), history...),
 		LEO:          leo,
+		Retention:    retention,
 	}, nil
 }
 
@@ -416,6 +436,52 @@ func (s *splitDurableReplicaStore) InstallSnapshotAtomically(ctx context.Context
 		return 0, err
 	}
 	return leo, nil
+}
+
+func (s *splitDurableReplicaStore) LoadRetentionState() (channel.RetentionState, error) {
+	if store, ok := s.log.(retentionStore); ok {
+		return store.LoadRetentionState()
+	}
+	return channel.RetentionState{}, nil
+}
+
+func (s *splitDurableReplicaStore) AdoptRetentionBoundary(ctx context.Context, throughSeq uint64, cursorName string) (uint64, error) {
+	if err := contextError(ctx); err != nil {
+		return 0, err
+	}
+	store, ok := s.log.(retentionStore)
+	if !ok {
+		return recoverLogLEO(s.log)
+	}
+	if err := store.AdoptRetentionBoundary(ctx, throughSeq, cursorName); err != nil {
+		return 0, err
+	}
+	leo, err := recoverLogLEO(s.log)
+	if err != nil {
+		return 0, err
+	}
+	if leo < throughSeq {
+		return 0, fmt.Errorf("%w: retained leo %d < boundary %d", channel.ErrCorruptState, leo, throughSeq)
+	}
+	return leo, nil
+}
+
+func (s *splitDurableReplicaStore) TrimMessagesThrough(ctx context.Context, throughSeq uint64) (uint64, error) {
+	if err := contextError(ctx); err != nil {
+		return 0, err
+	}
+	store, ok := s.log.(retentionStore)
+	if !ok {
+		return 0, nil
+	}
+	if err := store.TrimMessagesThrough(ctx, throughSeq); err != nil {
+		return 0, err
+	}
+	state, err := store.LoadRetentionState()
+	if err != nil {
+		return 0, err
+	}
+	return state.PhysicalRetentionThroughSeq, nil
 }
 
 func validateDurableView(checkpoint channel.Checkpoint, history []channel.EpochPoint, leo uint64, snapshot *channel.Snapshot, snapshotKnown bool, snapshotExists bool) error {

@@ -135,6 +135,42 @@ type machineApplyMetaCommand struct {
 func (machineApplyMetaCommand) isMachineEvent()   {}
 func (machineApplyMetaCommand) isMachineCommand() {}
 
+type machineApplyRetentionCommand struct {
+	// ThroughSeq is the authoritative highest sequence hidden by retention.
+	ThroughSeq uint64
+}
+
+func (machineApplyRetentionCommand) isMachineEvent()   {}
+func (machineApplyRetentionCommand) isMachineCommand() {}
+
+type machineRetentionAdoptedEvent struct {
+	// EffectID fences this durable adoption result to its issuing command.
+	EffectID uint64
+	// ChannelKey, Epoch, and RoleGeneration fence local runtime identity.
+	ChannelKey     channel.ChannelKey
+	Epoch          uint64
+	RoleGeneration uint64
+	ThroughSeq     uint64
+	StoredLEO      uint64
+	Err            error
+}
+
+func (machineRetentionAdoptedEvent) isMachineEvent() {}
+
+type machineRetentionTrimmedEvent struct {
+	// EffectID fences this physical trim result to its issuing command.
+	EffectID uint64
+	// ChannelKey, Epoch, and RoleGeneration fence local runtime identity.
+	ChannelKey         channel.ChannelKey
+	Epoch              uint64
+	RoleGeneration     uint64
+	ThroughSeq         uint64
+	PhysicalThroughSeq uint64
+	Err                error
+}
+
+func (machineRetentionTrimmedEvent) isMachineEvent() {}
+
 type machineBecomeLeaderCommand struct {
 	Meta channel.Meta
 }
@@ -357,6 +393,26 @@ type leaderReconcileDurableEffect struct {
 }
 
 func (leaderReconcileDurableEffect) isMachineEffect() {}
+
+type retentionAdoptEffect struct {
+	EffectID       uint64
+	ChannelKey     channel.ChannelKey
+	Epoch          uint64
+	RoleGeneration uint64
+	ThroughSeq     uint64
+}
+
+func (retentionAdoptEffect) isMachineEffect() {}
+
+type retentionTrimEffect struct {
+	EffectID       uint64
+	ChannelKey     channel.ChannelKey
+	Epoch          uint64
+	RoleGeneration uint64
+	ThroughSeq     uint64
+}
+
+func (retentionTrimEffect) isMachineEffect() {}
 
 type publishStateEffect struct {
 	State channel.ReplicaState

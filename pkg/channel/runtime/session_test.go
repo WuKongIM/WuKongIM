@@ -2666,6 +2666,7 @@ type sessionReplica struct {
 	lastFetch             core.ReplicaFetchRequest
 	fetchResult           core.ReplicaFetchResult
 	fetchErr              error
+	retentionCalls        []uint64
 	applyMetaErr          error
 	becomeLeaderErr       error
 	becomeFollowErr       error
@@ -2775,6 +2776,27 @@ func (r *sessionReplica) ApplyReconcileProof(ctx context.Context, proof core.Rep
 	defer r.mu.Unlock()
 	r.state.OffsetEpoch = proof.OffsetEpoch
 	return nil
+}
+func (r *sessionReplica) ApplyRetentionBoundary(_ context.Context, throughSeq uint64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.retentionCalls = append(r.retentionCalls, throughSeq)
+	if throughSeq > r.state.RetentionThroughSeq {
+		r.state.RetentionThroughSeq = throughSeq
+		r.state.MinAvailableSeq = core.EffectiveMinAvailableSeq(throughSeq, r.state.LogStartOffset)
+	}
+	return nil
+}
+func (r *sessionReplica) RetentionView() (core.RetentionView, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return core.RetentionView{
+		ChannelKey:          r.state.ChannelKey,
+		Epoch:               r.state.Epoch,
+		Leader:              r.state.Leader,
+		RetentionThroughSeq: r.state.RetentionThroughSeq,
+		MinAvailableSeq:     r.state.MinAvailableSeq,
+	}, nil
 }
 func (r *sessionReplica) Status() core.ReplicaState {
 	r.mu.Lock()

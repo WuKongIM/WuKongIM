@@ -223,6 +223,8 @@ type Runtime interface {
 	EnsureChannel(meta core.Meta) error
 	RemoveChannel(key core.ChannelKey) error
 	ApplyMeta(meta core.Meta) error
+	ApplyRetentionBoundary(ctx context.Context, key core.ChannelKey, throughSeq uint64) error
+	RetentionView(key core.ChannelKey) (core.RetentionView, error)
 	Channel(key core.ChannelKey) (ChannelHandle, bool)
 	Close() error
 }
