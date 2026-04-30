@@ -26,7 +26,7 @@ type followerLaneState struct {
 	membershipVer  uint64
 	inflightVer    uint64
 	dirtyCursor    map[core.ChannelKey]LaneCursorDelta
-	inflightCursor []core.ChannelKey
+	inflightCursor []LaneCursorDelta
 	pending        bool
 	needOpen       bool
 	inflight       bool
@@ -187,8 +187,10 @@ func (m *PeerLaneManager) ApplyResponse(resp LanePollResponseEnvelope) bool {
 	}
 	lane := &m.lanes[resp.LaneID]
 	lane.inflight = false
-	for _, key := range lane.inflightCursor {
-		delete(lane.dirtyCursor, key)
+	for _, sent := range lane.inflightCursor {
+		if current, ok := lane.dirtyCursor[sent.ChannelKey]; ok && current == sent {
+			delete(lane.dirtyCursor, sent.ChannelKey)
+		}
 	}
 	lane.inflightCursor = nil
 
@@ -270,7 +272,7 @@ func sortedLaneMembership(members map[core.ChannelKey]LaneMembership) []LaneMemb
 	return out
 }
 
-func sortedLaneCursorDelta(cursor map[core.ChannelKey]LaneCursorDelta) ([]LaneCursorDelta, []core.ChannelKey) {
+func sortedLaneCursorDelta(cursor map[core.ChannelKey]LaneCursorDelta) ([]LaneCursorDelta, []LaneCursorDelta) {
 	if len(cursor) == 0 {
 		return nil, nil
 	}
@@ -280,13 +282,14 @@ func sortedLaneCursorDelta(cursor map[core.ChannelKey]LaneCursorDelta) ([]LaneCu
 	}
 	sort.Strings(keys)
 	out := make([]LaneCursorDelta, 0, len(keys))
-	drained := make([]core.ChannelKey, 0, len(keys))
+	inflight := make([]LaneCursorDelta, 0, len(keys))
 	for _, key := range keys {
 		channelKey := core.ChannelKey(key)
-		out = append(out, cursor[channelKey])
-		drained = append(drained, channelKey)
+		delta := cursor[channelKey]
+		out = append(out, delta)
+		inflight = append(inflight, delta)
 	}
-	return out, drained
+	return out, inflight
 }
 
 func laneIDFor(key core.ChannelKey, laneCount int) uint16 {

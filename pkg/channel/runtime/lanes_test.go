@@ -200,6 +200,70 @@ func TestFollowerLaneMembershipChangeDuringInflightOpenForcesReopen(t *testing.T
 	}
 }
 
+func TestFollowerLaneStaleResponseDoesNotDeleteNewGenerationCursor(t *testing.T) {
+	mgr := newPeerLaneManager(PeerLaneManagerConfig{
+		Peer:      2,
+		LaneCount: 4,
+		MaxWait:   time.Millisecond,
+		Budget: LanePollBudget{
+			MaxBytes:    64 * 1024,
+			MaxChannels: 64,
+		},
+	})
+
+	key := core.ChannelKey("cursor-generation-room")
+	mgr.UpsertChannel(key, 11, 1)
+	laneID := mgr.LaneFor(key)
+
+	if _, ok := mgr.NextRequest(laneID); !ok {
+		t.Fatal("expected initial open request")
+	}
+	mgr.ApplyResponse(LanePollResponseEnvelope{
+		LaneID:       laneID,
+		Status:       LanePollStatusOK,
+		SessionID:    401,
+		SessionEpoch: 1,
+	})
+
+	mgr.MarkCursorDelta(LaneCursorDelta{
+		ChannelKey:        key,
+		ChannelEpoch:      11,
+		ChannelGeneration: 1,
+		MatchOffset:       7,
+		OffsetEpoch:       11,
+	})
+	if _, ok := mgr.NextRequest(laneID); !ok {
+		t.Fatal("expected poll with generation 1 cursor")
+	}
+
+	mgr.UpsertChannel(key, 11, 2)
+	mgr.MarkCursorDelta(LaneCursorDelta{
+		ChannelKey:        key,
+		ChannelEpoch:      11,
+		ChannelGeneration: 2,
+		MatchOffset:       12,
+		OffsetEpoch:       11,
+	})
+	mgr.ApplyResponse(LanePollResponseEnvelope{
+		LaneID:       laneID,
+		Status:       LanePollStatusOK,
+		SessionID:    401,
+		SessionEpoch: 1,
+	})
+
+	req, ok := mgr.NextRequest(laneID)
+	if !ok {
+		t.Fatal("expected reopen after generation change")
+	}
+	if len(req.CursorDelta) != 1 {
+		t.Fatalf("cursor delta len = %d, want 1", len(req.CursorDelta))
+	}
+	got := req.CursorDelta[0]
+	if got.ChannelGeneration != 2 || got.MatchOffset != 12 {
+		t.Fatalf("cursor delta = %+v, want generation 2 offset 12", got)
+	}
+}
+
 func testFollowerLaneFor(key core.ChannelKey, laneCount int) uint16 {
 	hasher := fnv.New32a()
 	_, _ = hasher.Write([]byte(key))

@@ -913,8 +913,8 @@ func (r *runtime) applyRetentionResetResponse(ch *channel, peer core.NodeID, env
 
 	state := ch.Status()
 	fetchOffset := retentionResetFetchOffset(env.RetentionReset)
-	if fetchOffset > state.LEO {
-		state.LEO = fetchOffset
+	if state.LEO > fetchOffset {
+		fetchOffset = state.LEO
 	}
 	if r.longPollEnabled() {
 		r.ensureLaneManager(meta.Leader).MarkCursorDelta(LaneCursorDelta{

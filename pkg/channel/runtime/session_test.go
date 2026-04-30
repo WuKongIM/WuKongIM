@@ -1370,6 +1370,66 @@ func TestSessionLongPollRetentionResetItemAdoptsBoundaryAndReissuesFromRetainedO
 	require.Equal(t, uint64(5), session.last.LanePollRequest.CursorDelta[0].MatchOffset)
 }
 
+func TestSessionLongPollRetentionResetDoesNotRegressFollowerCursor(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = 2 * time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+		cfg.FollowerReplicationRetryInterval = time.Hour
+	})
+	key := testChannelKey(26021)
+	mustEnsureLocal(t, env.runtime, testMetaLocal(26021, 4, 2, []core.NodeID{1, 2}))
+	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	replica.state.LEO = 8
+	replica.state.OffsetEpoch = 4
+	replica.mu.Unlock()
+
+	env.runtime.runScheduler()
+	session := env.sessions.session(2)
+	waitForSessionSendCount(t, session, 1)
+	first := session.last.LanePollRequest
+	require.NotNil(t, first)
+
+	env.transport.deliver(Envelope{
+		Peer: 2,
+		Kind: MessageKindLanePollResponse,
+		Sync: true,
+		LanePollResponse: &LanePollResponseEnvelope{
+			LaneID:       first.LaneID,
+			Status:       LanePollStatusOK,
+			SessionID:    501,
+			SessionEpoch: 1,
+			Items: []LaneResponseItem{
+				{
+					ChannelKey:        key,
+					ChannelEpoch:      4,
+					ChannelGeneration: first.FullMembership[0].ChannelGeneration,
+					LeaderHW:          10,
+					Flags:             LanePollItemFlagReset,
+					RetentionReset: &core.RetentionReset{
+						RetentionThroughSeq:   5,
+						RetainedThroughOffset: 5,
+						MinAvailableSeq:       6,
+					},
+				},
+			},
+		},
+	})
+
+	replica.mu.Lock()
+	require.Equal(t, []uint64{5}, replica.retentionCalls)
+	require.Equal(t, uint64(8), replica.state.LEO)
+	replica.mu.Unlock()
+
+	waitForSessionSendCount(t, session, 2)
+	require.NotNil(t, session.last.LanePollRequest)
+	require.Len(t, session.last.LanePollRequest.CursorDelta, 1)
+	require.Equal(t, uint64(8), session.last.LanePollRequest.CursorDelta[0].MatchOffset)
+	require.Equal(t, uint64(4), session.last.LanePollRequest.CursorDelta[0].OffsetEpoch)
+}
+
 func TestSessionLongPollRetentionResetItemDropsStaleChannelEpoch(t *testing.T) {
 	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
 		cfg.LongPollLaneCount = 4
