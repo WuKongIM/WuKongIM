@@ -89,6 +89,10 @@ type replica struct {
 	pendingFollowerApplyEffectID uint64
 	pendingReconcileEffectID     uint64
 	pendingLeaderEpochEffectID   uint64
+	// pendingRetentionAdoptEffectID fences local durable retention adoption.
+	pendingRetentionAdoptEffectID uint64
+	// pendingRetentionTrimEffectID fences physical retention trim results.
+	pendingRetentionTrimEffectID uint64
 
 	appendGroupCommit      appendGroupCommitConfig
 	appendRequests         map[uint64]*appendRequest

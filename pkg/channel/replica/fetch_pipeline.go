@@ -70,6 +70,14 @@ func (r *replica) applyReadLogResultCommand(cmd machineReadLogResultCommand) mac
 	if r.state.Role != channel.ReplicaRoleLeader && r.state.Role != channel.ReplicaRoleFencedLeader {
 		return machineResult{Err: channel.ErrNotLeader}
 	}
+	if retentionResetDominatesFloor(r.state, effect.FetchOffset) {
+		return machineResult{Fetch: &machineFetchProgressResult{
+			Result:      retentionResetResult(r.state),
+			LeaderLEO:   r.state.LEO,
+			ChannelKey:  r.state.ChannelKey,
+			FetchOffset: effect.FetchOffset,
+		}}
+	}
 	if effect.FetchOffset < r.state.LogStartOffset {
 		return machineResult{Err: channel.ErrSnapshotRequired}
 	}

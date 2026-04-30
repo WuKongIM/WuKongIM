@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/stretchr/testify/require"
@@ -190,6 +191,190 @@ func TestReplicaFetchBelowRetentionFloorReturnsRetentionResetUnlessSnapshotDomin
 		MaxBytes:    1024,
 	})
 	require.ErrorIs(t, err, channel.ErrSnapshotRequired)
+}
+
+func TestReplicaFetchInFlightReadRechecksRetentionFloor(t *testing.T) {
+	env := newFetchEnvWithHistory(t)
+	env.log.readStarted = make(chan struct{}, 1)
+	env.log.readContinue = make(chan struct{})
+	status := env.replica.Status()
+
+	type fetchOutcome struct {
+		result channel.ReplicaFetchResult
+		err    error
+	}
+	done := make(chan fetchOutcome, 1)
+	go func() {
+		result, err := env.replica.Fetch(context.Background(), channel.ReplicaFetchRequest{
+			ChannelKey:  status.ChannelKey,
+			Epoch:       status.Epoch,
+			ReplicaID:   2,
+			FetchOffset: 5,
+			OffsetEpoch: status.OffsetEpoch,
+			MaxBytes:    1024,
+		})
+		done <- fetchOutcome{result: result, err: err}
+	}()
+
+	select {
+	case <-env.log.readStarted:
+	case <-time.After(time.Second):
+		t.Fatal("fetch did not start reading the log")
+	}
+	require.NoError(t, env.replica.ApplyRetentionBoundary(context.Background(), 5))
+	close(env.log.readContinue)
+
+	select {
+	case outcome := <-done:
+		require.NoError(t, outcome.err)
+		require.Empty(t, outcome.result.Records)
+		require.NotNil(t, outcome.result.RetentionReset)
+		require.Equal(t, uint64(5), outcome.result.RetentionReset.RetentionThroughSeq)
+		require.Equal(t, uint64(6), outcome.result.RetentionReset.MinAvailableSeq)
+	case <-time.After(time.Second):
+		t.Fatal("fetch did not return after read was released")
+	}
+}
+
+func TestReplicaRetentionViewResetsFollowerProgressOnLeaderMetaRefresh(t *testing.T) {
+	env := newRetentionRecoveredEnv(t, 10, 4, 4)
+	env.replica = newReplicaFromEnv(t, env)
+	meta := activeMetaWithMinISR(7, 1, 2)
+	meta.LeaderEpoch = 1
+	meta.Replicas = []channel.NodeID{1, 2}
+	meta.ISR = []channel.NodeID{1, 2}
+	meta.RetentionThroughSeq = 4
+	require.NoError(t, env.replica.BecomeLeader(meta))
+	require.NoError(t, env.replica.ApplyFollowerCursor(context.Background(), channel.ReplicaFollowerCursorUpdate{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		ReplicaID:   2,
+		MatchOffset: 9,
+		OffsetEpoch: meta.Epoch,
+	}))
+	view, err := env.replica.RetentionView()
+	require.NoError(t, err)
+	require.Equal(t, uint64(9), view.MinISRMatchOffset)
+
+	refreshed := meta
+	refreshed.LeaderEpoch = 2
+	require.NoError(t, env.replica.ApplyMeta(refreshed))
+	view, err = env.replica.RetentionView()
+	require.NoError(t, err)
+	require.Equal(t, uint64(4), view.MinISRMatchOffset)
+
+	require.NoError(t, env.replica.ApplyFollowerCursor(context.Background(), channel.ReplicaFollowerCursorUpdate{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		ReplicaID:   2,
+		MatchOffset: 9,
+		OffsetEpoch: meta.Epoch,
+	}))
+	view, err = env.replica.RetentionView()
+	require.NoError(t, err)
+	require.Equal(t, uint64(9), view.MinISRMatchOffset)
+}
+
+func TestReplicaRetentionAdoptStaleFailureAfterNewerSuccessIsIgnored(t *testing.T) {
+	env := newTestEnv(t)
+	r := newReplicaFromEnv(t, env)
+
+	oldResult := r.applyLoopEvent(machineApplyRetentionCommand{ThroughSeq: 5})
+	require.Len(t, oldResult.Effects, 1)
+	oldEffect, ok := oldResult.Effects[0].(retentionAdoptEffect)
+	require.True(t, ok)
+
+	newResult := r.applyLoopEvent(machineApplyRetentionCommand{ThroughSeq: 6})
+	require.Len(t, newResult.Effects, 1)
+	newEffect, ok := newResult.Effects[0].(retentionAdoptEffect)
+	require.True(t, ok)
+	require.ErrorIs(t, r.validateRetentionAdoptEffectFence(oldEffect), channel.ErrStaleMeta)
+	require.NoError(t, r.validateRetentionAdoptEffectFence(newEffect))
+
+	result := r.applyLoopEvent(machineRetentionAdoptedEvent{
+		EffectID:       newEffect.EffectID,
+		ChannelKey:     newEffect.ChannelKey,
+		Epoch:          newEffect.Epoch,
+		RoleGeneration: newEffect.RoleGeneration,
+		ThroughSeq:     newEffect.ThroughSeq,
+		StoredLEO:      newEffect.ThroughSeq,
+	})
+	require.NoError(t, result.Err)
+	require.Equal(t, uint64(6), r.Status().LocalRetentionThroughSeq)
+
+	result = r.applyLoopEvent(machineRetentionAdoptedEvent{
+		EffectID:       oldEffect.EffectID,
+		ChannelKey:     oldEffect.ChannelKey,
+		Epoch:          oldEffect.Epoch,
+		RoleGeneration: oldEffect.RoleGeneration,
+		ThroughSeq:     oldEffect.ThroughSeq,
+		Err:            errors.New("old adopt failed"),
+	})
+	require.NoError(t, result.Err)
+	require.Equal(t, uint64(6), r.Status().LocalRetentionThroughSeq)
+}
+
+func TestReplicaRetentionTrimStaleFailureAfterNewerSuccessIsIgnored(t *testing.T) {
+	env := newTestEnv(t)
+	r := newReplicaFromEnv(t, env)
+	r.mu.Lock()
+	r.state.ChannelKey = "group-10"
+	r.state.Epoch = 7
+	r.state.LEO = 10
+	r.state.HW = 10
+	r.state.CheckpointHW = 10
+	r.state.CommitReady = true
+	r.state.LocalRetentionThroughSeq = 10
+	r.publishStateLocked()
+	r.mu.Unlock()
+
+	oldResult := r.applyLoopEvent(machineApplyRetentionCommand{ThroughSeq: 5})
+	require.Len(t, oldResult.Effects, 1)
+	oldEffect, ok := oldResult.Effects[0].(retentionTrimEffect)
+	require.True(t, ok)
+
+	newResult := r.applyLoopEvent(machineApplyRetentionCommand{ThroughSeq: 6})
+	require.Len(t, newResult.Effects, 1)
+	newEffect, ok := newResult.Effects[0].(retentionTrimEffect)
+	require.True(t, ok)
+	require.ErrorIs(t, r.validateRetentionTrimEffectFence(oldEffect), channel.ErrStaleMeta)
+	require.NoError(t, r.validateRetentionTrimEffectFence(newEffect))
+
+	result := r.applyLoopEvent(machineRetentionTrimmedEvent{
+		EffectID:           newEffect.EffectID,
+		ChannelKey:         newEffect.ChannelKey,
+		Epoch:              newEffect.Epoch,
+		RoleGeneration:     newEffect.RoleGeneration,
+		ThroughSeq:         newEffect.ThroughSeq,
+		PhysicalThroughSeq: newEffect.ThroughSeq,
+	})
+	require.NoError(t, result.Err)
+	require.Equal(t, uint64(6), r.Status().PhysicalRetentionThroughSeq)
+
+	result = r.applyLoopEvent(machineRetentionTrimmedEvent{
+		EffectID:       oldEffect.EffectID,
+		ChannelKey:     oldEffect.ChannelKey,
+		Epoch:          oldEffect.Epoch,
+		RoleGeneration: oldEffect.RoleGeneration,
+		ThroughSeq:     oldEffect.ThroughSeq,
+		Err:            errors.New("old trim failed"),
+	})
+	require.NoError(t, result.Err)
+	require.Equal(t, uint64(6), r.Status().PhysicalRetentionThroughSeq)
+}
+
+func TestReplicaDurableAdapterRejectsInvalidRetentionState(t *testing.T) {
+	env := newTestEnv(t)
+	env.log.retention = channel.RetentionState{
+		LocalRetentionThroughSeq:    2,
+		PhysicalRetentionThroughSeq: 3,
+		RetainedMaxSeq:              3,
+	}
+	store := newDurableReplicaStore(env.log, env.checkpoints, env.applyFetch, env.history, env.snapshots)
+
+	_, err := store.LoadRetentionState()
+
+	require.ErrorIs(t, err, channel.ErrCorruptValue)
 }
 
 func newRetentionRecoveredEnv(t testing.TB, leo, hw, checkpointHW uint64) *testEnv {

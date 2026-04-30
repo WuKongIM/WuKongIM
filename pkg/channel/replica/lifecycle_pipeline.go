@@ -77,14 +77,19 @@ func (r *replica) applyMetaCommand(cmd machineApplyMetaCommand) machineResult {
 	if r.state.Role == channel.ReplicaRoleTombstoned {
 		return machineResult{Err: channel.ErrTombstoned}
 	}
+	previousMeta := r.meta
 	if err := r.applyMetaLocked(cmd.Meta); err != nil {
 		return machineResult{Err: err}
 	}
 	r.pendingLeaderEpochEffectID = 0
 	r.pendingReconcileEffectID = 0
+	r.clearRetentionEffectFencesLocked()
 	r.roleGeneration++
 	var effects []machineEffect
 	if r.state.Role == channel.ReplicaRoleLeader || r.state.Role == channel.ReplicaRoleFencedLeader {
+		if leaderRetentionProgressResetRequired(previousMeta, r.meta) {
+			r.seedLeaderRetentionProgressLocked(r.meta.ISR)
+		}
 		r.beginLeaderReconcileLocked()
 		if r.needsLeaderReconcileLocked() {
 			needsLocalReconcile := len(r.reconcilePending) == 0
@@ -173,6 +178,7 @@ func (r *replica) finishBecomeLeaderLocked(normalized channel.Meta, leo uint64) 
 	r.state.OffsetEpoch = offsetEpochForLEO(r.epochHistory, leo)
 	r.pendingLeaderEpochEffectID = 0
 	r.pendingReconcileEffectID = 0
+	r.clearRetentionEffectFencesLocked()
 	r.seedLeaderProgressLocked(normalized.ISR, leo, r.state.HW)
 	needsLeaderReconcile := r.needsLeaderReconcileLocked()
 	r.beginLeaderReconcileLocked()
@@ -308,6 +314,7 @@ func (r *replica) applyBecomeFollowerCommand(cmd machineBecomeFollowerCommand) m
 	r.reconcilePending = nil
 	r.pendingLeaderEpochEffectID = 0
 	r.pendingReconcileEffectID = 0
+	r.clearRetentionEffectFencesLocked()
 	r.failOutstandingAppendWorkLocked(channel.ErrNotLeader)
 	r.roleGeneration++
 	r.publishStateLocked()
@@ -322,6 +329,7 @@ func (r *replica) applyTombstoneCommand() machineResult {
 	r.reconcilePending = nil
 	r.pendingLeaderEpochEffectID = 0
 	r.pendingReconcileEffectID = 0
+	r.clearRetentionEffectFencesLocked()
 	r.failOutstandingAppendWorkLocked(channel.ErrTombstoned)
 	r.roleGeneration++
 	r.publishStateLocked()
@@ -335,6 +343,7 @@ func (r *replica) applyCloseCommand() machineResult {
 	r.closed = true
 	r.pendingLeaderEpochEffectID = 0
 	r.pendingReconcileEffectID = 0
+	r.clearRetentionEffectFencesLocked()
 	r.failOutstandingAppendWorkLocked(channel.ErrNotLeader)
 	r.roleGeneration++
 	r.publishStateLocked()

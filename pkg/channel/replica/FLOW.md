@@ -99,7 +99,7 @@ Live mutable fields are owned by the loop/pipeline handlers while holding `r.mu`
 | `retentionProgress` | retention view progress for the current leader epoch; local starts at LEO and followers start at `RetentionThroughSeq`. |
 | `appendRequests`, `appendPending`, `appendInFlight*` | append pipeline only. |
 | `pendingCheckpoint`, `checkpointQueued`, `checkpointInFlight`, `pendingCheckpointEffectID` | progress scheduler and checkpoint writer result handler. |
-| `pendingFollowerApplyEffectID`, `pendingSnapshotEffectID`, `pendingLeaderEpochEffectID`, `pendingReconcileEffectID` | corresponding effect pipeline. |
+| `pendingFollowerApplyEffectID`, `pendingSnapshotEffectID`, `pendingLeaderEpochEffectID`, `pendingReconcileEffectID`, `pendingRetentionAdoptEffectID`, `pendingRetentionTrimEffectID` | corresponding effect pipeline. |
 | `reconcilePending` | leader reconcile pipeline; tracks ISR proof still needed before CommitReady can be restored. |
 | `epochHistory` | startup recovery before workers, then loop-owned epoch/snapshot/apply/reconcile transitions. |
 | `statePointer` | immutable snapshot publication in `publishStateLocked`; `Status()` reads it lock-free. |
@@ -168,7 +168,7 @@ The loop treats follower `FetchOffset`/`OffsetEpoch` as an ACK cursor:
 - cursors below `MinAvailableSeq` return a typed `RetentionReset` when logical retention is the dominant floor; when `LogStartOffset` dominates, they still return `ErrSnapshotRequired`;
 - divergent cursors return `TruncateTo` instead of advancing unsafe progress.
 
-If records are needed, the loop emits a read-log effect with captured leader LEO. The facade reads from `LogStore`, then submits `machineReadLogResultCommand`; the loop rechecks fences and clips records so fetch never exposes records above the LEO captured before the read.
+If records are needed, the loop emits a read-log effect with captured leader LEO. The facade reads from `LogStore`, then submits `machineReadLogResultCommand`; the loop rechecks fences, rechecks the current retention floor, and clips records so fetch never exposes records above the LEO captured before the read or below a retention boundary applied while storage I/O was in flight.
 
 `ApplyFollowerCursor()` submits the same safe cursor path without reading records. `ApplyProgressAck()` is legacy compatibility; it has no `OffsetEpoch`, so it is handled as a zero-epoch cursor and cannot advance beyond safe lineage rules.
 
@@ -220,7 +220,9 @@ Durable adoption/reset is emitted when the boundary is ahead of `LocalRetentionT
 
 Physical trim is separate and may lag adoption. A trim effect is emitted only when `CommitReady=true`, `throughSeq <= CheckpointHW`, `throughSeq <= HW`, `throughSeq <= LEO`, and `throughSeq > PhysicalRetentionThroughSeq`. Successful trim publishes the durable physical boundary returned by the store. Retention never mutates checkpoint `LogStartOffset`; snapshots remain the owner of that floor.
 
-`RetentionView()` reports leader/epoch/lease, HW, CheckpointHW, LEO, commit readiness, logical/local/physical retention boundaries, min available sequence, and `MinISRMatchOffset`. The min ISR retention progress is the minimum across current ISR members, not the quorum candidate. Unknown followers in the current leader epoch start at `RetentionThroughSeq`, so they are not treated as caught up until observed fetch/cursor progress advances them.
+Adoption and trim effects are fenced by the latest pending retention effect id as well as channel key, epoch, and role generation. Stale results from older retention attempts are ignored, so a delayed failure cannot overwrite or report after a newer success.
+
+`RetentionView()` reports leader/epoch/lease, HW, CheckpointHW, LEO, commit readiness, logical/local/physical retention boundaries, min available sequence, and `MinISRMatchOffset`. The min ISR retention progress is the minimum across current ISR members, not the quorum candidate. Unknown followers in the current leader epoch start at `RetentionThroughSeq`, and leader metadata changes that alter epoch, leader epoch, leader, or ISR reset follower retention progress to that floor. They are not treated as caught up until observed fetch/cursor progress in the current metadata generation advances them.
 
 ## 7. Invariants
 
