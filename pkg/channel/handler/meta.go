@@ -57,6 +57,10 @@ func (s *service) ApplyMeta(meta channel.Meta) error {
 		if metaEqual(local, next) {
 			return nil
 		}
+		if metaEqualExceptRetention(local, next) {
+			s.metas[key] = next
+			return nil
+		}
 		return channel.ErrConflictingMeta
 	default:
 		s.metas[key] = next
@@ -147,6 +151,11 @@ func compatibleWithExpectation(meta channel.Meta, expectedChannelEpoch, expected
 }
 
 func metaEqual(a, b channel.Meta) bool {
+	return metaEqualExceptRetention(a, b) &&
+		a.RetentionThroughSeq == b.RetentionThroughSeq
+}
+
+func metaEqualExceptRetention(a, b channel.Meta) bool {
 	return a.Key == b.Key &&
 		a.ID == b.ID &&
 		a.Epoch == b.Epoch &&

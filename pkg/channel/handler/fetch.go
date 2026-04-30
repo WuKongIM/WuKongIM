@@ -46,11 +46,22 @@ func (s *service) Fetch(_ context.Context, req channel.FetchRequest) (channel.Fe
 		}
 	}
 	if startSeq > committedSeq {
-		return channel.FetchResult{NextSeq: startSeq, CommittedSeq: committedSeq}, nil
+		return channel.FetchResult{
+			NextSeq:             startSeq,
+			CommittedSeq:        committedSeq,
+			MinAvailableSeq:     state.MinAvailableSeq,
+			RetentionThroughSeq: state.RetentionThroughSeq,
+		}, nil
 	}
 
 	st := s.cfg.Store.ForChannel(key, req.ChannelID)
-	return fetchMessagesFromStore(st, committedSeq, startSeq, req.Limit, req.MaxBytes)
+	result, err := fetchMessagesFromStore(st, committedSeq, startSeq, req.Limit, req.MaxBytes)
+	if err != nil {
+		return channel.FetchResult{}, err
+	}
+	result.MinAvailableSeq = state.MinAvailableSeq
+	result.RetentionThroughSeq = state.RetentionThroughSeq
+	return result, nil
 }
 
 type fetchMessageStore interface {
