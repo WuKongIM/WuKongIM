@@ -180,3 +180,114 @@ func TestLongPollPeerSessionUsesConfiguredRPCTimeout(t *testing.T) {
 		t.Fatal("expected configured rpc timeout to abort long poll request")
 	}
 }
+
+func TestLongPollFetchRecordsExpectedTimeoutFromTimedOutResponse(t *testing.T) {
+	server := baseTransport.NewServer()
+	mux := baseTransport.NewRPCMux()
+	mux.Handle(RPCServiceLongPollFetch, func(ctx context.Context, body []byte) ([]byte, error) {
+		return encodeLongPollFetchResponse(LongPollFetchResponse{
+			Status:   LanePollStatusOK,
+			TimedOut: true,
+		})
+	})
+	server.HandleRPCMux(mux)
+	if err := server.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("server.Start() error = %v", err)
+	}
+	defer server.Stop()
+
+	events := make(chan baseTransport.RPCClientEvent, 4)
+	client := baseTransport.NewClient(baseTransport.NewPool(baseTransport.PoolConfig{
+		Discovery:   staticDiscovery{addrs: map[uint64]string{2: server.Listener().Addr().String()}},
+		Size:        1,
+		DialTimeout: time.Second,
+		Observer: baseTransport.ObserverHooks{
+			OnRPCClient: func(event baseTransport.RPCClientEvent) {
+				events <- event
+			},
+		},
+	}))
+	defer client.Stop()
+
+	adapter, err := New(Options{
+		LocalNode: 1,
+		Client:    client,
+		RPCMux:    baseTransport.NewRPCMux(),
+		FetchService: fetchServiceFunc(func(ctx context.Context, req runtime.FetchRequestEnvelope) (runtime.FetchResponseEnvelope, error) {
+			return runtime.FetchResponseEnvelope{}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer adapter.Close()
+
+	resp, err := adapter.LongPollFetch(context.Background(), 2, LongPollFetchRequest{LaneID: 1})
+	if err != nil {
+		t.Fatalf("LongPollFetch() error = %v", err)
+	}
+	if !resp.TimedOut {
+		t.Fatalf("LongPollFetch() timedOut = false, want true")
+	}
+
+	<-events
+	done := <-events
+	if done.Result != "expected_timeout" {
+		t.Fatalf("done result = %q, want expected_timeout", done.Result)
+	}
+}
+
+func TestLongPollFetchRecordsDeadlineTimeoutAsAbnormalTimeout(t *testing.T) {
+	server := baseTransport.NewServer()
+	mux := baseTransport.NewRPCMux()
+	mux.Handle(RPCServiceLongPollFetch, func(ctx context.Context, body []byte) ([]byte, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+	server.HandleRPCMux(mux)
+	if err := server.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("server.Start() error = %v", err)
+	}
+	defer server.Stop()
+
+	events := make(chan baseTransport.RPCClientEvent, 4)
+	client := baseTransport.NewClient(baseTransport.NewPool(baseTransport.PoolConfig{
+		Discovery:   staticDiscovery{addrs: map[uint64]string{2: server.Listener().Addr().String()}},
+		Size:        1,
+		DialTimeout: time.Second,
+		Observer: baseTransport.ObserverHooks{
+			OnRPCClient: func(event baseTransport.RPCClientEvent) {
+				events <- event
+			},
+		},
+	}))
+	defer client.Stop()
+
+	adapter, err := New(Options{
+		LocalNode:  1,
+		Client:     client,
+		RPCMux:     baseTransport.NewRPCMux(),
+		RPCTimeout: 20 * time.Millisecond,
+		FetchService: fetchServiceFunc(func(ctx context.Context, req runtime.FetchRequestEnvelope) (runtime.FetchResponseEnvelope, error) {
+			return runtime.FetchResponseEnvelope{}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer adapter.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	_, err = adapter.LongPollFetch(ctx, 2, LongPollFetchRequest{LaneID: 1})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("LongPollFetch() error = %v, want %v", err, context.DeadlineExceeded)
+	}
+
+	<-events
+	done := <-events
+	if done.Result != "timeout" {
+		t.Fatalf("done result = %q, want timeout", done.Result)
+	}
+}

@@ -36,6 +36,12 @@ func (c *Client) RPC(ctx context.Context, nodeID NodeID, shardKey uint64, payloa
 }
 
 func (c *Client) RPCService(ctx context.Context, nodeID NodeID, shardKey uint64, serviceID uint8, payload []byte) ([]byte, error) {
+	return c.RPCServiceWithResultClassifier(ctx, nodeID, shardKey, serviceID, payload, nil)
+}
+
+// RPCServiceWithResultClassifier sends a service RPC and allows successful
+// responses to override the observer result label.
+func (c *Client) RPCServiceWithResultClassifier(ctx context.Context, nodeID NodeID, shardKey uint64, serviceID uint8, payload []byte, classifier func([]byte) string) ([]byte, error) {
 	startedAt := time.Now()
 	inflight := c.adjustInflight(nodeID, serviceID, 1)
 	c.observeRPCClient(RPCClientEvent{
@@ -45,12 +51,18 @@ func (c *Client) RPCService(ctx context.Context, nodeID NodeID, shardKey uint64,
 	})
 
 	resp, err := c.RPC(ctx, nodeID, shardKey, encodeRPCServicePayload(serviceID, payload))
+	result := rpcClientResult(err)
+	if err == nil && classifier != nil {
+		if classified := classifier(resp); classified != "" {
+			result = classified
+		}
+	}
 
 	inflight = c.adjustInflight(nodeID, serviceID, -1)
 	c.observeRPCClient(RPCClientEvent{
 		TargetNode: nodeID,
 		ServiceID:  serviceID,
-		Result:     rpcClientResult(err),
+		Result:     result,
 		Duration:   time.Since(startedAt),
 		Inflight:   inflight,
 	})
