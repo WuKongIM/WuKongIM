@@ -56,17 +56,19 @@ const (
 	tagChannelBan  uint8 = 3
 
 	// Channel runtime metadata field tags.
-	tagRuntimeMetaChannelID    uint8 = 1
-	tagRuntimeMetaChannelType  uint8 = 2
-	tagRuntimeMetaChannelEpoch uint8 = 3
-	tagRuntimeMetaLeaderEpoch  uint8 = 4
-	tagRuntimeMetaReplicas     uint8 = 5
-	tagRuntimeMetaISR          uint8 = 6
-	tagRuntimeMetaLeader       uint8 = 7
-	tagRuntimeMetaMinISR       uint8 = 8
-	tagRuntimeMetaStatus       uint8 = 9
-	tagRuntimeMetaFeatures     uint8 = 10
-	tagRuntimeMetaLeaseUntilMS uint8 = 11
+	tagRuntimeMetaChannelID            uint8 = 1
+	tagRuntimeMetaChannelType          uint8 = 2
+	tagRuntimeMetaChannelEpoch         uint8 = 3
+	tagRuntimeMetaLeaderEpoch          uint8 = 4
+	tagRuntimeMetaReplicas             uint8 = 5
+	tagRuntimeMetaISR                  uint8 = 6
+	tagRuntimeMetaLeader               uint8 = 7
+	tagRuntimeMetaMinISR               uint8 = 8
+	tagRuntimeMetaStatus               uint8 = 9
+	tagRuntimeMetaFeatures             uint8 = 10
+	tagRuntimeMetaLeaseUntilMS         uint8 = 11
+	tagRuntimeMetaRetentionThroughSeq  uint8 = 12
+	tagRuntimeMetaRetentionUpdatedAtMS uint8 = 13
 
 	// Subscriber field tags.
 	tagSubscriberChannelID   uint8 = 1
@@ -423,6 +425,8 @@ func EncodeUpsertChannelRuntimeMetaCommand(meta metadb.ChannelRuntimeMeta) []byt
 	buf = appendUint64TLVField(buf, tagRuntimeMetaStatus, uint64(meta.Status))
 	buf = appendUint64TLVField(buf, tagRuntimeMetaFeatures, meta.Features)
 	buf = appendInt64TLVField(buf, tagRuntimeMetaLeaseUntilMS, meta.LeaseUntilMS)
+	buf = appendUint64TLVField(buf, tagRuntimeMetaRetentionThroughSeq, meta.RetentionThroughSeq)
+	buf = appendInt64TLVField(buf, tagRuntimeMetaRetentionUpdatedAtMS, meta.RetentionUpdatedAtMS)
 	return buf
 }
 
@@ -1155,6 +1159,16 @@ func decodeUpsertChannelRuntimeMeta(data []byte) (command, error) {
 			}
 			meta.LeaseUntilMS = int64(binary.BigEndian.Uint64(value))
 			haveLeaseUntilMS = true
+		case tagRuntimeMetaRetentionThroughSeq:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad runtime RetentionThroughSeq length", metadb.ErrCorruptValue)
+			}
+			meta.RetentionThroughSeq = binary.BigEndian.Uint64(value)
+		case tagRuntimeMetaRetentionUpdatedAtMS:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad runtime RetentionUpdatedAtMS length", metadb.ErrCorruptValue)
+			}
+			meta.RetentionUpdatedAtMS = int64(binary.BigEndian.Uint64(value))
 		default:
 			// Unknown tag — skip for forward compatibility.
 		}
