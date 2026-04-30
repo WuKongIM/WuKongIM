@@ -28,6 +28,7 @@ import (
 var (
 	errRemoteAckNotifierRequired     = errors.New("app: remote ack notifier required")
 	errRemoteOfflineNotifierRequired = errors.New("app: remote offline notifier required")
+	errCommittedDispatcherStopped    = errors.New("app: committed dispatcher stopped")
 )
 
 const (
@@ -91,6 +92,7 @@ type asyncCommittedDispatcher struct {
 	stopping              bool
 	wg                    sync.WaitGroup
 	shards                []chan committedDispatchItem
+	fallbacks             chan committedDispatchItem
 	disableWorkersForTest bool
 }
 
@@ -128,6 +130,7 @@ func newAsyncCommittedDispatcher(cfg asyncCommittedDispatcherConfig) *asyncCommi
 		nodeClient:            cfg.NodeClient,
 		metrics:               cfg.Metrics,
 		shards:                shards,
+		fallbacks:             make(chan committedDispatchItem, queueDepth),
 		disableWorkersForTest: cfg.DisableWorkersForTest,
 	}
 }
@@ -151,6 +154,10 @@ func (d *asyncCommittedDispatcher) Start(ctx context.Context) error {
 	d.cancel = cancel
 	d.done = make(chan struct{})
 	d.running = true
+	if d.conversation != nil {
+		d.wg.Add(1)
+		go d.runConversationFallback(runCtx, d.fallbacks)
+	}
 	if d.disableWorkersForTest {
 		go d.closeCommittedDispatchDone(d.done)
 		return nil
@@ -238,6 +245,13 @@ func (d *asyncCommittedDispatcher) abandonQueuedCommitted() {
 		}
 	next:
 	}
+	for {
+		select {
+		case <-d.fallbacks:
+		default:
+			return
+		}
+	}
 }
 
 func (d *asyncCommittedDispatcher) runShard(ctx context.Context, shardName string, queue <-chan committedDispatchItem) {
@@ -254,6 +268,23 @@ func (d *asyncCommittedDispatcher) runShard(ctx context.Context, shardName strin
 			}
 			d.recordCommittedDispatchDepth(shardName, len(queue))
 			d.routeCommitted(committedDispatchRouteContext(ctx, item.ctx), item.env)
+		}
+	}
+}
+
+func (d *asyncCommittedDispatcher) runConversationFallback(ctx context.Context, queue <-chan committedDispatchItem) {
+	defer d.wg.Done()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case item := <-queue:
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			d.submitConversationFallback(committedDispatchRouteContext(ctx, item.ctx), item.env)
 		}
 	}
 }
@@ -277,13 +308,13 @@ func (d *asyncCommittedDispatcher) SubmitCommitted(ctx context.Context, event me
 	d.mu.Lock()
 	if !d.running || d.stopping {
 		d.mu.Unlock()
-		d.submitConversationFallback(ctx, env)
-		return nil
+		return errCommittedDispatcherStopped
 	}
 	queue := d.shards[idx]
 	enqueueResult := "ok"
 	var overflow bool
 	var depth int
+	var fallbackScheduled bool
 	select {
 	case queue <- committedDispatchItem{ctx: ctx, env: env}:
 		depth = len(queue)
@@ -291,6 +322,7 @@ func (d *asyncCommittedDispatcher) SubmitCommitted(ctx context.Context, event me
 		enqueueResult = "overflow"
 		overflow = true
 		depth = len(queue)
+		fallbackScheduled = d.enqueueConversationFallbackLocked(ctx, env)
 	}
 	d.mu.Unlock()
 	d.recordCommittedDispatchEnqueue(shardName, enqueueResult)
@@ -298,10 +330,22 @@ func (d *asyncCommittedDispatcher) SubmitCommitted(ctx context.Context, event me
 		d.recordCommittedDispatchOverflow(shardName)
 	}
 	d.recordCommittedDispatchDepth(shardName, depth)
-	if overflow {
-		d.submitConversationFallback(ctx, env)
+	if overflow && !fallbackScheduled {
+		d.logCommittedRoute(env, "conversation_fallback_dropped", 0, nil)
 	}
 	return nil
+}
+
+func (d *asyncCommittedDispatcher) enqueueConversationFallbackLocked(ctx context.Context, env deliveryruntime.CommittedEnvelope) bool {
+	if d.conversation == nil || d.fallbacks == nil {
+		return false
+	}
+	select {
+	case d.fallbacks <- committedDispatchItem{ctx: ctx, env: env}:
+		return true
+	default:
+		return false
+	}
 }
 
 func (d *asyncCommittedDispatcher) committedDispatchShard(msg channel.Message) int {

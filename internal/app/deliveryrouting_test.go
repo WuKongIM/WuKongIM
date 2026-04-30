@@ -296,10 +296,10 @@ func TestCommittedDispatchQueueOverflowDoesNotFailCommittedSubmit(t *testing.T) 
 
 	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
 	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 2}}))
-	require.Equal(t, 1, conversation.FlushCalls())
+	require.Eventually(t, func() bool { return conversation.FlushCalls() == 1 }, time.Second, time.Millisecond)
 }
 
-func TestCommittedDispatchQueueFallsBackBeforeStart(t *testing.T) {
+func TestCommittedDispatchQueueRejectsBeforeStart(t *testing.T) {
 	conversation := &recordingFlushingConversationSubmitter{}
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID:  1,
@@ -309,13 +309,14 @@ func TestCommittedDispatchQueueFallsBackBeforeStart(t *testing.T) {
 		QueueDepth:   1,
 	})
 
-	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
+	err := dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}})
 
-	require.Equal(t, 1, conversation.SubmitCalls())
-	require.Equal(t, 1, conversation.FlushCalls())
+	require.ErrorIs(t, err, errCommittedDispatcherStopped)
+	require.Equal(t, 0, conversation.SubmitCalls())
+	require.Equal(t, 0, conversation.FlushCalls())
 }
 
-func TestCommittedDispatchQueueFallsBackAfterStop(t *testing.T) {
+func TestCommittedDispatchQueueRejectsAfterStop(t *testing.T) {
 	conversation := &recordingFlushingConversationSubmitter{}
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID:  1,
@@ -327,10 +328,11 @@ func TestCommittedDispatchQueueFallsBackAfterStop(t *testing.T) {
 	require.NoError(t, dispatcher.Start(context.Background()))
 	require.NoError(t, dispatcher.Stop())
 
-	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
+	err := dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}})
 
-	require.Equal(t, 1, conversation.SubmitCalls())
-	require.Equal(t, 1, conversation.FlushCalls())
+	require.ErrorIs(t, err, errCommittedDispatcherStopped)
+	require.Equal(t, 0, conversation.SubmitCalls())
+	require.Equal(t, 0, conversation.FlushCalls())
 }
 
 func TestCommittedDispatchQueueStopContextBoundsBlockedWorker(t *testing.T) {
@@ -422,6 +424,37 @@ func TestCommittedDispatchQueueRecordsMetrics(t *testing.T) {
 	require.Equal(t, []string{"0:ok", "0:overflow"}, metrics.enqueues)
 	require.Equal(t, []string{"0"}, metrics.overflows)
 	require.Contains(t, metrics.depths, "0:1")
+}
+
+func TestCommittedDispatchQueueOverflowFallbackDoesNotBlockSubmit(t *testing.T) {
+	conversation := newBlockingFlushingConversationSubmitter()
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID:           1,
+		PreferLocal:           true,
+		Conversation:          conversation,
+		ShardCount:            1,
+		QueueDepth:            1,
+		DisableWorkersForTest: true,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	defer func() {
+		conversation.Release()
+		require.NoError(t, dispatcher.Stop())
+	}()
+
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
+	done := make(chan error, 1)
+	go func() {
+		done <- dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 2}})
+	}()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(100 * time.Millisecond):
+		require.FailNow(t, "overflow fallback blocked SubmitCommitted")
+	}
+	conversation.WaitEntered(t)
 }
 
 func TestCommittedDispatchQueueResetsDepthOnStop(t *testing.T) {
@@ -1060,6 +1093,43 @@ func (r *recordingFlushingConversationSubmitter) FlushCalls() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.flushCalls
+}
+
+type blockingFlushingConversationSubmitter struct {
+	recordingFlushingConversationSubmitter
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newBlockingFlushingConversationSubmitter() *blockingFlushingConversationSubmitter {
+	return &blockingFlushingConversationSubmitter{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (b *blockingFlushingConversationSubmitter) Flush(context.Context) error {
+	b.once.Do(func() { close(b.entered) })
+	<-b.release
+	return b.recordingFlushingConversationSubmitter.Flush(context.Background())
+}
+
+func (b *blockingFlushingConversationSubmitter) WaitEntered(t *testing.T) {
+	t.Helper()
+	select {
+	case <-b.entered:
+	case <-time.After(time.Second):
+		require.FailNow(t, "timed out waiting for blocking conversation flush")
+	}
+}
+
+func (b *blockingFlushingConversationSubmitter) Release() {
+	select {
+	case <-b.release:
+	default:
+		close(b.release)
+	}
 }
 
 type recordingCommittedDispatchMetrics struct {
