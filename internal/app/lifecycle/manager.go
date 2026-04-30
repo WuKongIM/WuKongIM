@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 )
 
 // Manager starts and stops app runtime components as an ordered stack.
@@ -28,6 +29,22 @@ func (m *Manager) Start(ctx context.Context) error {
 
 // StartWithRollbackContext starts components with startCtx and rolls back with rollbackCtx on failure.
 func (m *Manager) StartWithRollbackContext(startCtx, rollbackCtx context.Context) error {
+	return m.startWithRollbackContext(startCtx, func() (context.Context, context.CancelFunc) {
+		return rollbackCtx, func() {}
+	})
+}
+
+// StartWithRollbackTimeout starts components and creates a fresh rollback context only after a start failure.
+func (m *Manager) StartWithRollbackTimeout(startCtx context.Context, timeout time.Duration) error {
+	return m.startWithRollbackContext(startCtx, func() (context.Context, context.CancelFunc) {
+		if timeout <= 0 {
+			return context.Background(), func() {}
+		}
+		return context.WithTimeout(context.Background(), timeout)
+	})
+}
+
+func (m *Manager) startWithRollbackContext(startCtx context.Context, rollbackContext func() (context.Context, context.CancelFunc)) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -37,6 +54,8 @@ func (m *Manager) StartWithRollbackContext(startCtx, rollbackCtx context.Context
 
 	for _, component := range m.components {
 		if err := component.Start(startCtx); err != nil {
+			rollbackCtx, cancel := rollbackContext()
+			defer cancel()
 			rollbackErrs := m.stopStartedLocked(rollbackCtx)
 			return errors.Join(append([]error{err}, rollbackErrs...)...)
 		}

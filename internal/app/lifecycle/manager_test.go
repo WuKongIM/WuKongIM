@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 )
 
 type contextKey string
@@ -14,6 +15,7 @@ type fakeComponent struct {
 	startErr error
 	stopErr  error
 	calls    *[]string
+	stopFn   func(context.Context) error
 }
 
 func (c *fakeComponent) Name() string { return c.name }
@@ -29,6 +31,9 @@ func (c *fakeComponent) Stop(ctx context.Context) error {
 		call += ":" + marker
 	}
 	*c.calls = append(*c.calls, call)
+	if c.stopFn != nil {
+		return c.stopFn(ctx)
+	}
 	return c.stopErr
 }
 
@@ -117,6 +122,28 @@ func TestManagerStartUsesSeparateRollbackContext(t *testing.T) {
 	want := []string{"start:one", "start:two", "stop:one:rollback"}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("calls = %v, want %v", calls, want)
+	}
+}
+
+func TestManagerStartWithRollbackTimeoutCreatesFreshRollbackContextAfterFailure(t *testing.T) {
+	startErr := errors.New("start failed")
+	var rollbackExpired bool
+	var calls []string
+	manager := NewManager(
+		&fakeComponent{name: "one", calls: &calls, stopFn: func(ctx context.Context) error {
+			rollbackExpired = ctx.Err() != nil
+			return nil
+		}},
+		&fakeComponent{name: "two", startErr: startErr, calls: &calls},
+	)
+
+	err := manager.StartWithRollbackTimeout(context.Background(), time.Minute)
+
+	if !errors.Is(err, startErr) {
+		t.Fatalf("start err = %v, want %v", err, startErr)
+	}
+	if rollbackExpired {
+		t.Fatal("rollback context was expired at rollback start")
 	}
 }
 
