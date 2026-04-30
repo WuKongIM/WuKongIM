@@ -2,15 +2,19 @@ package channelmeta
 
 import (
 	"context"
+	"encoding/binary"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/cockroachdb/pebble/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -886,6 +890,37 @@ func TestPromotionProofsRejectMismatchedReplicaID(t *testing.T) {
 	require.Empty(t, proofs)
 }
 
+func TestLeaderPromotionEvaluatorReturnsCorruptRetentionState(t *testing.T) {
+	dir := t.TempDir()
+	meta := metadb.ChannelRuntimeMeta{
+		ChannelID:    "promotion-corrupt-retention",
+		ChannelType:  1,
+		ChannelEpoch: 9,
+		LeaderEpoch:  7,
+		Replicas:     []uint64{2},
+		ISR:          []uint64{2},
+		Leader:       2,
+		MinISR:       1,
+		Status:       uint8(channel.StatusActive),
+		LeaseUntilMS: time.Now().Add(time.Minute).UnixMilli(),
+	}
+	key := channelhandler.KeyFromChannelID(channel.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)})
+	require.NoError(t, writeCorruptRetentionStateForPromotionTest(dir, key))
+	engine, err := channelstore.Open(dir)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, engine.Close())
+	}()
+	evaluator := NewLeaderPromotionEvaluator(LeaderPromotionEvaluatorOptions{
+		DB:        engine,
+		LocalNode: 2,
+	})
+
+	_, err = evaluator.EvaluateChannelLeaderCandidate(context.Background(), LeaderEvaluateRequest{Meta: meta})
+
+	require.ErrorIs(t, err, channel.ErrCorruptValue)
+}
+
 func TestValidPromotionProbeResponseRequiresGenerationMatchWhenPinned(t *testing.T) {
 	req := channelruntime.ReconcileProbeRequestEnvelope{
 		ChannelKey:  channel.ChannelKey("channel/1/cGlubmVk"),
@@ -921,6 +956,34 @@ func TestValidPromotionProbeResponseRequiresGenerationMatchWhenPinned(t *testing
 		Generation:  req.Generation,
 		ReplicaID:   4,
 	}))
+}
+
+func writeCorruptRetentionStateForPromotionTest(dir string, key channel.ChannelKey) error {
+	db, err := pebble.Open(dir, nil)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	value := make([]byte, 0, 25)
+	value = append(value, 1)
+	value = binary.BigEndian.AppendUint64(value, 0)
+	value = binary.BigEndian.AppendUint64(value, 0)
+	value = binary.BigEndian.AppendUint64(value, 1)
+	return db.Set(encodeRetentionStateKeyForPromotionTest(key), value, pebble.Sync)
+}
+
+func encodeRetentionStateKeyForPromotionTest(key channel.ChannelKey) []byte {
+	const (
+		keyspaceTableSystem byte   = 0x17
+		tableIDMessage      uint32 = 1
+		retentionSystemID   uint16 = 5
+	)
+	out := make([]byte, 0, 2+len(key)+6)
+	out = append(out, keyspaceTableSystem)
+	out = binary.AppendUvarint(out, uint64(len(key)))
+	out = append(out, key...)
+	out = binary.BigEndian.AppendUint32(out, tableIDMessage)
+	return binary.BigEndian.AppendUint16(out, retentionSystemID)
 }
 
 type fakeChannelMetaSource struct {

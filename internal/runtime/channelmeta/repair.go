@@ -468,7 +468,10 @@ func loadDurableReplicaView(store *channelstore.ChannelStore) (channelreplica.Du
 	case err != nil:
 		return channelreplica.DurableReplicaView{}, false, err
 	}
-	leo := store.LEO()
+	leo, err := store.LEOWithError()
+	if err != nil {
+		return channelreplica.DurableReplicaView{}, false, err
+	}
 	exists := leo > 0 || checkpoint != (channel.Checkpoint{}) || len(history) > 0
 	view := channelreplica.DurableReplicaView{
 		EpochHistory:   append([]channel.EpochPoint(nil), history...),

@@ -228,6 +228,12 @@ func TestDecodeRetentionStateRejectsImpossibleState(t *testing.T) {
 	})
 	_, err = decodeRetentionState(value)
 	require.ErrorIs(t, err, channel.ErrCorruptValue)
+
+	value = encodeRetentionState(retentionState{
+		RetainedMaxSeq: 1,
+	})
+	_, err = decodeRetentionState(value)
+	require.ErrorIs(t, err, channel.ErrCorruptValue)
 }
 
 func writeRetentionStateForTest(tb testing.TB, st *ChannelStore, state testRetentionState) {
