@@ -444,3 +444,13 @@ func assertOrder(t *testing.T, got, want []string) {
 		}
 	}
 }
+
+func TestRetentionAdvanceRequestKeepsZeroLeaseFenceAsZero(t *testing.T) {
+	ch := testChannel("zero-lease")
+	view := retentionViewWithMeta(10, 100, 100, 100, 7, 8, 1, time.Time{})
+	req := retentionAdvanceRequest(ch, view, 20, time.Unix(1000, 0))
+
+	if req.ExpectedLeaseUntilMS != 0 {
+		t.Fatalf("ExpectedLeaseUntilMS = %d, want 0 for unset lease", req.ExpectedLeaseUntilMS)
+	}
+}
