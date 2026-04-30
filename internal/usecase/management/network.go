@@ -25,6 +25,8 @@ type NetworkSnapshotReader interface {
 type NetworkObservationSnapshot struct {
 	// LocalCollectorAvailable reports whether the local collector supplied the snapshot.
 	LocalCollectorAvailable bool
+	// History contains aligned local collector time-series aggregates.
+	History NetworkHistory
 	// Traffic contains local transport byte counters grouped by message type.
 	Traffic NetworkTraffic
 	// DataPlanePools contains local channel data-plane pool counters by peer.
@@ -59,6 +61,8 @@ type NetworkSummary struct {
 	Scope NetworkScope
 	// SourceStatus reports which local and controller sources were available.
 	SourceStatus NetworkSourceStatus
+	// History contains local collector time-series aggregates for chart views.
+	History NetworkHistory
 	// Headline contains top-level counters for the network page.
 	Headline NetworkHeadline
 	// Traffic contains local transport traffic counters.
@@ -73,6 +77,58 @@ type NetworkSummary struct {
 	Discovery NetworkDiscovery
 	// Events contains recent local network events, newest first.
 	Events []NetworkEvent
+}
+
+// NetworkHistory contains local collector time-series aggregates for manager charts.
+type NetworkHistory struct {
+	// Window is the recent interval covered by the local collector.
+	Window time.Duration
+	// Step is the chart aggregation interval between points.
+	Step time.Duration
+	// Traffic contains traffic byte totals grouped by step.
+	Traffic []NetworkTrafficHistoryPoint
+	// RPC contains RPC result totals grouped by step.
+	RPC []NetworkRPCHistoryPoint
+	// Errors contains network error totals grouped by step.
+	Errors []NetworkErrorHistoryPoint
+}
+
+// NetworkTrafficHistoryPoint contains traffic totals for one chart step.
+type NetworkTrafficHistoryPoint struct {
+	// At is the UTC start time of the chart step.
+	At time.Time
+	// TXBytes counts transmitted bytes in the chart step.
+	TXBytes int64
+	// RXBytes counts received bytes in the chart step.
+	RXBytes int64
+}
+
+// NetworkRPCHistoryPoint contains RPC result totals for one chart step.
+type NetworkRPCHistoryPoint struct {
+	// At is the UTC start time of the chart step.
+	At time.Time
+	// Calls counts completed RPC calls in the chart step.
+	Calls int
+	// Success counts successful RPC calls in the chart step.
+	Success int
+	// Errors counts abnormal RPC outcomes in the chart step.
+	Errors int
+	// ExpectedTimeouts counts neutral service-level timeout outcomes in the chart step.
+	ExpectedTimeouts int
+}
+
+// NetworkErrorHistoryPoint contains network error totals for one chart step.
+type NetworkErrorHistoryPoint struct {
+	// At is the UTC start time of the chart step.
+	At time.Time
+	// DialErrors counts dial failures in the chart step.
+	DialErrors int
+	// QueueFull counts enqueue and RPC queue-full outcomes in the chart step.
+	QueueFull int
+	// Timeouts counts abnormal RPC timeouts in the chart step.
+	Timeouts int
+	// RemoteErrors counts remote RPC errors in the chart step.
+	RemoteErrors int
 }
 
 // NetworkScope describes which node and controller context produced a summary.
@@ -389,6 +445,7 @@ func (a *App) ListNetworkSummary(ctx context.Context) (NetworkSummary, error) {
 		summary.SourceStatus.RuntimeViews = networkSourceUnavailable
 	}
 
+	summary.History = copyNetworkHistory(snapshot.History)
 	summary.Traffic = copyNetworkTraffic(snapshot.Traffic)
 	if summary.Traffic.Scope == "" {
 		summary.Traffic.Scope = networkTrafficScopeLocal
@@ -642,6 +699,13 @@ func itoaUint8(v uint8) string {
 
 func copyNetworkTraffic(in NetworkTraffic) NetworkTraffic {
 	in.ByMessageType = append([]NetworkTrafficMessageType(nil), in.ByMessageType...)
+	return in
+}
+
+func copyNetworkHistory(in NetworkHistory) NetworkHistory {
+	in.Traffic = append([]NetworkTrafficHistoryPoint(nil), in.Traffic...)
+	in.RPC = append([]NetworkRPCHistoryPoint(nil), in.RPC...)
+	in.Errors = append([]NetworkErrorHistoryPoint(nil), in.Errors...)
 	return in
 }
 

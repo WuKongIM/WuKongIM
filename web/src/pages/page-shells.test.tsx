@@ -220,7 +220,7 @@ it.each([
   ["/messages", "Messages", "Channel ID"],
   ["/slots", "Slots", "Slot"],
   ["/onboarding", "Onboarding", "Candidate Nodes"],
-  ["/network", "Network", "Network Summary"],
+  ["/network", "Network", "Node Health Distribution"],
 ])("renders %s shell", async (path, title, section) => {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
 
@@ -275,7 +275,7 @@ it.each([
   ["/messages", "消息", "频道 ID"],
   ["/slots", "槽位", "槽位"],
   ["/onboarding", "扩容", "候选节点"],
-  ["/network", "网络", "网络摘要"],
+  ["/network", "网络", "节点健康分布"],
   ["/topology", "拓扑", "管理 API 覆盖"],
 ])("renders %s in Chinese", async (path, title, section) => {
   localStorage.setItem("wukongim_manager_locale", "zh-CN")

@@ -75,6 +75,71 @@ func TestClientRPCService(t *testing.T) {
 	}
 }
 
+func TestClientRPCServiceWithResultClassifierOverridesSuccessfulResult(t *testing.T) {
+	s := NewServer()
+	mux := NewRPCMux()
+	mux.Handle(7, func(ctx context.Context, body []byte) ([]byte, error) {
+		return append([]byte("ok:"), body...), nil
+	})
+	s.HandleRPCMux(mux)
+	if err := s.Start("127.0.0.1:0"); err != nil {
+		t.Fatal(err)
+	}
+	defer s.Stop()
+
+	events := make(chan RPCClientEvent, 4)
+	pool := NewPool(PoolConfig{
+		Discovery:   staticDiscovery{addrs: map[NodeID]string{2: s.Listener().Addr().String()}},
+		Size:        1,
+		DialTimeout: time.Second,
+		QueueSizes:  [numPriorities]int{4, 4, 4},
+		DefaultPri:  PriorityRPC,
+		Observer: ObserverHooks{
+			OnRPCClient: func(event RPCClientEvent) {
+				events <- event
+			},
+		},
+	})
+	defer pool.Close()
+
+	client := NewClient(pool)
+	classifierCalled := false
+	resp, err := client.RPCServiceWithResultClassifier(context.Background(), 2, 0, 7, []byte("ping"), func(resp []byte) string {
+		classifierCalled = true
+		if string(resp) != "ok:ping" {
+			t.Fatalf("classifier resp = %q, want %q", resp, "ok:ping")
+		}
+		return "expected_timeout"
+	})
+	if err != nil {
+		t.Fatalf("RPCServiceWithResultClassifier() error = %v", err)
+	}
+	if string(resp) != "ok:ping" {
+		t.Fatalf("resp = %q, want %q", resp, "ok:ping")
+	}
+	if !classifierCalled {
+		t.Fatal("classifier was not called")
+	}
+
+	start := <-events
+	if start.TargetNode != 2 || start.ServiceID != 7 || start.Inflight <= 0 {
+		t.Fatalf("start event = %+v, want target=2 service=7 positive inflight", start)
+	}
+	done := <-events
+	if done.TargetNode != 2 || done.ServiceID != 7 {
+		t.Fatalf("done event = %+v, want target=2 service=7", done)
+	}
+	if done.Result != "expected_timeout" {
+		t.Fatalf("done result = %q, want expected_timeout", done.Result)
+	}
+	if done.Inflight != 0 {
+		t.Fatalf("done inflight = %d, want 0", done.Inflight)
+	}
+	if done.Duration <= 0 {
+		t.Fatalf("done duration = %s, want > 0", done.Duration)
+	}
+}
+
 func TestClientRPCServiceTracksObserverEvents(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		s := NewServer()

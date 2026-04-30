@@ -326,9 +326,17 @@ func (t *Transport) LongPollFetch(ctx context.Context, peer channel.NodeID, req 
 	if err != nil {
 		return LongPollFetchResponse{}, err
 	}
-	respBody, err := t.client.RPCService(ctx, uint64(peer), longPollRPCShardKey(req.LaneID), RPCServiceLongPollFetch, body)
+	respBody, err := t.client.RPCServiceWithResultClassifier(ctx, uint64(peer), longPollRPCShardKey(req.LaneID), RPCServiceLongPollFetch, body, classifyLongPollFetchResult)
 	if err != nil {
 		return LongPollFetchResponse{}, err
 	}
 	return decodeLongPollFetchResponse(respBody)
+}
+
+func classifyLongPollFetchResult(respBody []byte) string {
+	resp, err := decodeLongPollFetchResponse(respBody)
+	if err != nil || !resp.TimedOut {
+		return ""
+	}
+	return "expected_timeout"
 }

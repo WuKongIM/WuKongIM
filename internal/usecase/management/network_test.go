@@ -274,6 +274,61 @@ func TestListNetworkSummaryKeepsExpectedLongPollTimeoutsOutOfPeerRPCRate(t *test
 	require.Equal(t, 1, got.ChannelReplication.LongPollTimeouts1m)
 }
 
+func TestListNetworkSummaryCopiesHistoryFromLocalCollector(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	sourceHistory := NetworkHistory{
+		Window: time.Minute,
+		Step:   5 * time.Second,
+		Traffic: []NetworkTrafficHistoryPoint{{
+			At:      now.Add(-5 * time.Second),
+			TXBytes: 10,
+			RXBytes: 20,
+		}},
+		RPC: []NetworkRPCHistoryPoint{{
+			At:               now.Add(-5 * time.Second),
+			Calls:            3,
+			Success:          1,
+			Errors:           1,
+			ExpectedTimeouts: 1,
+		}},
+		Errors: []NetworkErrorHistoryPoint{{
+			At:           now.Add(-5 * time.Second),
+			DialErrors:   1,
+			QueueFull:    2,
+			Timeouts:     3,
+			RemoteErrors: 4,
+		}},
+	}
+	app := New(Options{
+		LocalNodeID: 1,
+		Cluster: fakeClusterReader{
+			controllerLeaderID: 1,
+			nodes: []controllermeta.ClusterNode{{
+				NodeID: 1,
+				Status: controllermeta.NodeStatusAlive,
+			}},
+		},
+		Network: fakeNetworkSnapshotReader{snapshot: NetworkObservationSnapshot{
+			LocalCollectorAvailable: true,
+			Traffic:                 NetworkTraffic{Scope: "local_total_by_msg_type"},
+			History:                 sourceHistory,
+		}},
+		Now: func() time.Time { return now },
+	})
+
+	got, err := app.ListNetworkSummary(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "local_node", got.Scope.View)
+	require.Equal(t, sourceHistory, got.History)
+
+	sourceHistory.Traffic[0].TXBytes = 99
+	sourceHistory.RPC[0].Calls = 99
+	sourceHistory.Errors[0].DialErrors = 99
+	require.Equal(t, int64(10), got.History.Traffic[0].TXBytes)
+	require.Equal(t, 3, got.History.RPC[0].Calls)
+	require.Equal(t, 1, got.History.Errors[0].DialErrors)
+}
+
 func TestListNetworkSummaryMarksNilNetworkCollectorUnavailable(t *testing.T) {
 	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	app := New(Options{

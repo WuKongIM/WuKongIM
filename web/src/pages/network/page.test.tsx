@@ -1,10 +1,11 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
 
 import { I18nProvider } from "@/i18n/provider"
 import { resetLocale } from "@/i18n/locale-store"
 import { ManagerApiError } from "@/lib/manager-api"
+import type { ManagerNetworkSummaryResponse } from "@/lib/manager-api.types"
 import { NetworkPage } from "@/pages/network/page"
 
 const getNetworkSummaryMock = vi.fn()
@@ -17,7 +18,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
   }
 })
 
-const networkSummaryFixture = {
+const networkSummaryFixture: ManagerNetworkSummaryResponse = {
   generated_at: "2026-04-23T08:00:00Z",
   scope: { view: "local_node", local_node_id: 1, controller_leader_id: 2 },
   source_status: {
@@ -49,6 +50,8 @@ const networkSummaryFixture = {
     peer_breakdown_available: false,
     by_message_type: [
       { direction: "tx", message_type: "channel_long_poll_fetch", bytes_1m: 1024, bps: 32 },
+      { direction: "rx", message_type: "channel_long_poll_fetch", bytes_1m: 512, bps: 16 },
+      { direction: "tx", message_type: "controller_ping", bytes_1m: 256, bps: 8 },
     ],
   },
   peers: [{
@@ -133,6 +136,22 @@ const networkSummaryFixture = {
     dial_timeout_ms: 3000,
     controller_observation_interval_ms: 10000,
   },
+  history: {
+    window_seconds: 60,
+    step_seconds: 30,
+    traffic: [
+      { at: "2026-04-23T07:59:30Z", tx_bytes: 1024, rx_bytes: 512 },
+      { at: "2026-04-23T08:00:00Z", tx_bytes: 4096, rx_bytes: 2048 },
+    ],
+    rpc: [
+      { at: "2026-04-23T07:59:30Z", calls: 10, success: 9, errors: 1, expected_timeouts: 2 },
+      { at: "2026-04-23T08:00:00Z", calls: 40, success: 39, errors: 1, expected_timeouts: 6 },
+    ],
+    errors: [
+      { at: "2026-04-23T07:59:30Z", dial_errors: 0, queue_full: 1, timeouts: 1, remote_errors: 0 },
+      { at: "2026-04-23T08:00:00Z", dial_errors: 1, queue_full: 2, timeouts: 3, remote_errors: 4 },
+    ],
+  },
   events: [{
     at: "2026-04-23T08:00:00Z",
     severity: "warning",
@@ -149,6 +168,20 @@ function renderNetworkPage() {
       <NetworkPage />
     </I18nProvider>,
   )
+}
+
+function metricCards(label: string) {
+  return screen.getAllByText(label).map((labelElement) => {
+    const card = labelElement.parentElement
+    if (!card) throw new Error(`Missing metric card for ${label}`)
+    return card
+  })
+}
+
+function expectAllMetricCards(label: string, value: string) {
+  for (const card of metricCards(label)) {
+    expect(within(card).getByText(value)).toBeInTheDocument()
+  }
 }
 
 beforeEach(() => {
@@ -169,11 +202,100 @@ test("renders loading then local-node network summary", async () => {
   expect(screen.queryByText(/not exposed/i)).not.toBeInTheDocument()
   expect(screen.getByText("Remote Peers")).toBeInTheDocument()
   expect(screen.getByText("2/0/0/1")).toBeInTheDocument()
-  expect(screen.getByText("Outbound Peers")).toBeInTheDocument()
+  expect(screen.getByText("Node Health Distribution")).toBeInTheDocument()
+  expect(screen.getByText("Traffic Trend")).toBeInTheDocument()
+  expect(screen.getByText("Traffic by Message Type")).toBeInTheDocument()
+  expect(screen.getByText("RPC Calls & Errors")).toBeInTheDocument()
+  expect(screen.getByText("Peer Pool Balance")).toBeInTheDocument()
+  expect(screen.getByText("Channel Data-plane")).toBeInTheDocument()
   expect(screen.getByText("node-2")).toBeInTheDocument()
   expect(screen.getAllByText("channel_long_poll_fetch").length).toBeGreaterThan(0)
+  expect(screen.getByText("TX Total")).toBeInTheDocument()
+  expect(screen.getByText("4,096 B")).toBeInTheDocument()
+  expect(screen.getByText("RX Total")).toBeInTheDocument()
+  expect(screen.getByText("2,048 B")).toBeInTheDocument()
+  expect(screen.getAllByText("Expected long-poll expiries").length).toBeGreaterThan(0)
+  expectAllMetricCards("Expected long-poll expiries", "6")
+  expect(screen.getAllByText("Abnormal failures").length).toBeGreaterThan(0)
+  expectAllMetricCards("Abnormal failures", "10")
+  expect(screen.getAllByText("channel_long_poll_fetch").length).toBeGreaterThan(0)
+  expect(screen.getByText(/TX 1,024 B/i)).toBeInTheDocument()
+  expect(screen.getByText(/RX 512 B/i)).toBeInTheDocument()
+  expect(screen.getAllByText("controller_ping").length).toBeGreaterThan(0)
+  expect(screen.getByText(/TX 256 B/i)).toBeInTheDocument()
+  expect(screen.getByText(/local totals only/i)).toBeInTheDocument()
   expect(screen.getByText("Long-poll Max Bytes")).toBeInTheDocument()
   expect(screen.getByText("Long-poll Max Channels")).toBeInTheDocument()
+})
+
+test("renders visible fallback values when history arrays are empty", async () => {
+  getNetworkSummaryMock.mockResolvedValue({
+    ...networkSummaryFixture,
+    history: {
+      ...networkSummaryFixture.history,
+      traffic: [],
+      rpc: [],
+      errors: [],
+    },
+  })
+
+  renderNetworkPage()
+
+  expect(await screen.findByText("Traffic Trend")).toBeInTheDocument()
+  expect(screen.getAllByText("No history samples; showing snapshot totals.").length).toBeGreaterThan(0)
+  expect(screen.getByText("TX Total")).toBeInTheDocument()
+  expect(screen.getByText("4,096 B")).toBeInTheDocument()
+  expect(screen.getAllByText("Expected long-poll expiries").length).toBeGreaterThan(0)
+  expect(screen.getAllByText("Abnormal failures").length).toBeGreaterThan(0)
+  expectAllMetricCards("Abnormal failures", "10")
+})
+
+test("shows only current long-poll expiries as neutral samples", async () => {
+  getNetworkSummaryMock.mockResolvedValue({
+    ...networkSummaryFixture,
+    services: [
+      { ...networkSummaryFixture.services[0], expected_timeout_1m: 1 },
+      { ...networkSummaryFixture.services[1], expected_timeout_1m: 99 },
+    ],
+    channel_replication: {
+      ...networkSummaryFixture.channel_replication,
+      long_poll_timeouts_1m: 1,
+    },
+    history: {
+      ...networkSummaryFixture.history,
+      rpc: [
+        ...networkSummaryFixture.history.rpc,
+        { at: "2026-04-23T08:00:30Z", calls: 100, success: 0, errors: 0, expected_timeouts: 100 },
+      ],
+    },
+  })
+
+  renderNetworkPage()
+
+  expect(await screen.findByText("RPC Calls & Errors")).toBeInTheDocument()
+  expectAllMetricCards("Expected long-poll expiries", "1")
+})
+
+test("uses current one-minute totals for abnormal failure KPI", async () => {
+  getNetworkSummaryMock.mockResolvedValue({
+    ...networkSummaryFixture,
+    services: [
+      { ...networkSummaryFixture.services[0], other_error_1m: 2 },
+      networkSummaryFixture.services[1],
+    ],
+    history: {
+      ...networkSummaryFixture.history,
+      errors: [
+        { at: "2026-04-23T07:59:30Z", dial_errors: 3, queue_full: 2, timeouts: 1, remote_errors: 2 },
+        { at: "2026-04-23T08:00:00Z", dial_errors: 0, queue_full: 0, timeouts: 1, remote_errors: 0 },
+      ],
+    },
+  })
+
+  renderNetworkPage()
+
+  expect(await screen.findByText("RPC Calls & Errors")).toBeInTheDocument()
+  expectAllMetricCards("Abnormal failures", "12")
 })
 
 test("renders single-node cluster outbound empty state as healthy", async () => {
@@ -185,7 +307,7 @@ test("renders single-node cluster outbound empty state as healthy", async () => 
 
   renderNetworkPage()
 
-  expect(await screen.findByText("Single-node cluster")).toBeInTheDocument()
+  expect((await screen.findAllByText("Single-node cluster")).length).toBeGreaterThan(0)
   expect(screen.getByText(/no remote node-to-node transport links/i)).toBeInTheDocument()
 })
 
