@@ -264,11 +264,11 @@ message.App.Send(ctx, cmd)
   └─ sendDurable(ctx, cmd)
       ├─ buildDurableMessage
       └─ sendWithEnsuredMeta
-          ├─ cluster.Append(channelID, message)
-          ├─ 失败时 refresher.Refresh
+          ├─ 先通过 ChannelMetaSync 获取健康元数据（可命中业务 fast path cache）
+          ├─ local/remote Append 到当前 Channel Leader
           ├─ 权威元数据缺失时 bootstrap
-          ├─ lease 过期时续租
-          └─ 重试一次 Append
+          ├─ lease 过期时续租或 repair
+          └─ stale / not-leader / lease-expired / reroute 错误时强制刷新并仅重试一次 Append
       ↓
 dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted)
   ├─ committedFanout（fanout 给订阅者）
@@ -280,7 +280,8 @@ dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted)
 committed_replay 后台从已提交 Channel Log 补偿未分发事件
   ├─ 按 committed cursor 扫描 message_seq
   ├─ 重新提交 delivery / conversation
-  └─ conversation.Flush 成功后批量推进 cursor
+  ├─ conversation.Flush 成功后批量推进 cursor
+  └─ 记录 replay lag / pass duration 指标
   ↓
 返回 SendResult{MessageID, MessageSeq}
   ↓
@@ -312,11 +313,14 @@ actorFor(key)（获取或创建 Actor）
   ↓
 Actor 状态机:
   ├─ Resolve 阶段
-  │   └─ Resolver.ResolveEndpoints（获取订阅者在线端点）
+  │   └─ Resolver.ResolvePage（分页获取订阅者在线端点并记录 resolve 指标）
   │
   ├─ Push 阶段
   │   ├─ 本地端点: localDeliveryPush → Session.WriteFrame
-  │   ├─ 远程端点: nodeClient RPC
+  │   ├─ 远程端点: delivery_push RPC 按目标节点批量发送
+  │   │   ├─ Group 频道: 每个目标节点一个 frame item，包含该节点多条 route
+  │   │   ├─ Person 频道: 按 recipient channel view 拆 item，避免收件视图串用
+  │   │   └─ 滚动升级时若对端未返回 route 结果，回退 legacy DeliveryPushCommand
   │   ├─ 过滤 SenderSessionID（跳过发送者连接）
   │   └─ AckIndex.Bind（建立 Ack 映射）
   │
@@ -325,7 +329,13 @@ Actor 状态机:
   │
   ├─ 重试（失败时）
   │   ├─ 指数退避 [500ms, 1s, 2s]
-  │   └─ RetryWheel.Schedule
+  │   ├─ RetryWheel.Schedule
+  │   └─ delivery_runtime lifecycle 周期处理 retry tick 并 sweep idle actor
+  │
+  ├─ 路由过期
+  │   ├─ 最终重试后从 AckIndex 移除绑定
+  │   ├─ 释放节点内 retry state，避免无限 pin route
+  │   └─ 依赖 Channel Log / committed_replay / 客户端同步做 durable catch-up
   │
   └─ 离线处理
       └─ SessionClosed → actor.handleRouteOffline
@@ -437,7 +447,7 @@ handleRecvAck(ctx, pkt)
 | 操作 | 方向 | 文件 | 说明 |
 |------|------|------|------|
 | `delivery_submit` | → remote | `access/node/delivery_submit_rpc.go` | 提交已提交消息到 Leader 节点投递 |
-| `delivery_push` | → remote | `access/node/delivery_push_rpc.go` | 推送消息到目标节点的在线 Session |
+| `delivery_push` | → remote | `access/node/delivery_push_rpc.go` | 批量推送一个 committed message 的多条 route 到目标节点在线 Session，兼容 legacy 单 item |
 | `delivery_ack` | → remote | `access/node/delivery_ack_rpc.go` | 转发 RecvAck 到投递所在节点 |
 | `delivery_offline` | → remote | `access/node/delivery_offline_rpc.go` | 通知离线消息处理 |
 | `presence` | → slot leader | `access/node/presence_rpc.go` | 权威路由注册/注销/心跳 |
@@ -479,13 +489,14 @@ handleRecvAck(ctx, pkt)
 ## 7. 避坑清单
 
 ### 🔴 启动与停止
-- **启动顺序严格**: 按 Cluster → WaitReady → ChannelMetaSync → Presence → Conversation → Gateway → API → Manager 顺序启动，任一步骤失败会按启动逆序停止
+- **启动顺序严格**: 按 Cluster → WaitReady → ChannelMetaSync → Presence → Conversation → DeliveryRuntime → CommittedDispatcher → CommittedReplay → Gateway → API → Manager 顺序启动，任一步骤失败会按启动逆序停止
 - **停止顺序相反**: 先停 Manager/API/Gateway（停止接入新请求），再停业务层，最后停 Cluster 和关闭数据库
 - **stopOnce 保证幂等**: 多次调用 Stop() 只执行一次
 
 ### 🔴 消息发送
 - **Person 频道 ID 规范化**: 必须使用 `NormalizePersonChannel(fromUID, channelID)` 将两个 UID 排序拼接，否则同一对话会产生两个不同的 Channel
-- **sendWithEnsuredMeta 只刷新一次**: 遇到 `ErrStaleMeta`、`ErrNotLeader` 或 `ErrRerouted` 时触发一次刷新重试
+- **sendWithEnsuredMeta 先走健康元数据缓存**: 业务路径只复用 active、epoch/leader epoch 非零、leader lease 足够、leader 非 dead/draining 且 repair policy 健康的 cache entry
+- **sendWithEnsuredMeta 只强制刷新一次**: 遇到 `ErrStaleMeta`、`ErrNotLeader`、`ErrLeaseExpired` 或 `ErrRerouted` 时 invalid cache 并触发一次刷新重试
 - **权威元数据缺失时 bootstrap**: 读到 `ErrNotFound` 时会按 Slot 拓扑 bootstrap 缺失的运行时元数据
 - **lease 过期时续租**: 当前 Channel Leader 所在节点会先尝试权威续租
 - **权威 leader 修复**: 命中 `leader_missing`/`leader_not_replica`/`leader_dead`/`leader_draining`/`leader_lease_expired` 时，由当前 slot leader 选举并持久化新的 channel leader
@@ -494,8 +505,9 @@ handleRecvAck(ctx, pkt)
 - **Actor 按 Channel 隔离**: 每个 Channel 有独立的 Actor，通过 shard 分片减少锁竞争
 - **Actor 空闲回收**: 超过 1 分钟空闲会被回收
 - **不等待全局连续 MessageSeq**: `preferLocal` 下每个节点只能看到该 Channel 全局序列的稀疏子集，按本节点已观察到的提交流推进
-- **投递重试有上限**: 默认重试延迟 [500ms, 1s, 2s]，最大重试次数 = 4 次，超过后进入离线处理
+- **投递重试有上限**: 默认重试延迟 [500ms, 1s, 2s]，最大重试次数 = 4 次，超过后移除 Ack 绑定并依赖 Channel Log catch-up
 - **AckIndex 是关键**: `AckIndex.Bind` 在 Push 时建立 SessionID+MessageID → Channel+Route 的映射
+- **远程实时投递只在单条 committed message 内批量**: 不跨消息聚合；按目标节点合并 RPC，Person 频道按 recipient view 拆分 frame item
 
 ### 🔴 在线状态
 - **权威路由通过 Raft**: `RegisterAuthoritative` 是一次 Raft Propose，写入 Slot Leader 的状态机
@@ -522,6 +534,7 @@ handleRecvAck(ctx, pkt)
 - **committed dispatcher 溢出不影响 durable send**: 队列满只记录指标并触发 conversation fallback/flush，Sendack 仍只由 Channel Log quorum commit 决定。
 - **committed dispatcher 停止依赖 replay 补偿**: 停止时不再接收新队列任务，未启动/停止中的提交返回内部错误供调用方记录；队列内未处理实时投递可被丢弃并由 committed_replay 兜底补发。
 - **committed_replay 是补偿路径，不阻塞 Sendack**: Sendack 仍只等待 Channel Log quorum commit；后台 replayer 以 Channel Log 为真相，用批量 cursor 兜底补发 delivery / conversation，cursor 只在 conversation flush 成功后推进。
+- **性能指标走窄接口注入**: message append、meta refresh、dispatch queue、delivery resolve/push、runtime gauge 和 replay lag 由 `internal/app` 组合根接入 `pkg/metrics`，低层包不直接依赖具体 metrics registry。
 
 ---
 
@@ -548,4 +561,4 @@ GOWORK=off go test ./internal -run TestInternalImportBoundaries -count=1
 ---
 
 **文档版本**: v2.0
-**最后更新**: 2026-04-26
+**最后更新**: 2026-04-30
