@@ -330,10 +330,17 @@ func retentionAdvanceRequest(ch Channel, view channel.RetentionView, throughSeq 
 		ExpectedChannelEpoch: view.Epoch,
 		ExpectedLeaderEpoch:  view.LeaderEpoch,
 		ExpectedLeader:       uint64(view.Leader),
-		ExpectedLeaseUntilMS: view.LeaseUntil.UnixMilli(),
+		ExpectedLeaseUntilMS: retentionLeaseUntilMS(view.LeaseUntil),
 		RetentionThroughSeq:  throughSeq,
 		RetentionUpdatedAtMS: now.UnixMilli(),
 	}
+}
+
+func retentionLeaseUntilMS(leaseUntil time.Time) int64 {
+	if leaseUntil.IsZero() {
+		return 0
+	}
+	return leaseUntil.UnixMilli()
 }
 
 func retentionScanFromSeq(view channel.RetentionView) uint64 {
