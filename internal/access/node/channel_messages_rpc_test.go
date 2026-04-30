@@ -81,6 +81,51 @@ func TestChannelMessagesRPCQueryUsesRetentionFloor(t *testing.T) {
 	require.Equal(t, []uint64{5, 4}, channelMessagesRPCSeqs(resp.Page.Messages))
 }
 
+func TestChannelMessagesRPCQueryUsesAuthoritativeRetentionFloor(t *testing.T) {
+	id := channel.ChannelID{ID: "g-authoritative-retained-query", Type: 2}
+	engine := openChannelMessagesRPCTestEngine(t)
+	appendChannelMessagesRPCTestRows(t, engine, id, 8)
+
+	tests := []struct {
+		name            string
+		minAvailableSeq uint64
+	}{
+		{name: "omitted"},
+		{name: "lowered", minAvailableSeq: 4},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter := New(Options{
+				LocalNodeID:  2,
+				ChannelLogDB: engine,
+				ChannelMeta: &stubNodeMetaRefresher{
+					meta: channel.Meta{
+						ID:                  id,
+						Leader:              2,
+						RetentionThroughSeq: 5,
+					},
+				},
+			})
+
+			body := mustMarshal(t, channelMessagesRequest{
+				Query: ChannelMessagesQuery{
+					ChannelID:       id,
+					Limit:           10,
+					MinAvailableSeq: tt.minAvailableSeq,
+				},
+			})
+			respBody, err := adapter.handleChannelMessagesRPC(context.Background(), body)
+			require.NoError(t, err)
+			resp, err := decodeChannelMessagesResponse(respBody)
+			require.NoError(t, err)
+
+			require.Equal(t, rpcStatusOK, resp.Status)
+			require.Equal(t, []uint64{8, 7, 6}, channelMessagesRPCSeqs(resp.Page.Messages))
+		})
+	}
+}
+
 func TestChannelMessagesRPCSyncUsesRetentionFloor(t *testing.T) {
 	id := channel.ChannelID{ID: "g-retained-sync", Type: 2}
 	engine := openChannelMessagesRPCTestEngine(t)
@@ -115,6 +160,55 @@ func TestChannelMessagesRPCSyncUsesRetentionFloor(t *testing.T) {
 
 	require.Equal(t, rpcStatusOK, resp.Status)
 	require.Equal(t, []uint64{4, 5}, channelMessagesRPCSeqs(resp.Page.Messages))
+}
+
+func TestChannelMessagesRPCSyncUsesAuthoritativeRetentionFloor(t *testing.T) {
+	id := channel.ChannelID{ID: "g-authoritative-retained-sync", Type: 2}
+	engine := openChannelMessagesRPCTestEngine(t)
+	appendChannelMessagesRPCTestRows(t, engine, id, 8)
+
+	tests := []struct {
+		name            string
+		minAvailableSeq uint64
+	}{
+		{name: "omitted"},
+		{name: "lowered", minAvailableSeq: 4},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter := New(Options{
+				LocalNodeID:  2,
+				ChannelLogDB: engine,
+				ChannelMeta: &stubNodeMetaRefresher{
+					meta: channel.Meta{
+						ID:                  id,
+						Leader:              2,
+						RetentionThroughSeq: 5,
+					},
+				},
+			})
+
+			body := mustMarshal(t, channelMessagesRequest{
+				Query: ChannelMessagesQuery{
+					ChannelID:       id,
+					SyncMode:        true,
+					StartSeq:        1,
+					EndSeq:          9,
+					Limit:           10,
+					PullMode:        uint8(channelhandler.SyncPullModeUp),
+					MinAvailableSeq: tt.minAvailableSeq,
+				},
+			})
+			respBody, err := adapter.handleChannelMessagesRPC(context.Background(), body)
+			require.NoError(t, err)
+			resp, err := decodeChannelMessagesResponse(respBody)
+			require.NoError(t, err)
+
+			require.Equal(t, rpcStatusOK, resp.Status)
+			require.Equal(t, []uint64{6, 7, 8}, channelMessagesRPCSeqs(resp.Page.Messages))
+		})
+	}
 }
 
 func openChannelMessagesRPCTestEngine(t *testing.T) *channelstore.Engine {

@@ -106,6 +106,7 @@ func (a *Adapter) handleChannelMessagesRPC(ctx context.Context, body []byte) ([]
 			},
 		})
 	}
+	minAvailableSeq := max(req.Query.MinAvailableSeq, channel.EffectiveMinAvailableSeq(meta.RetentionThroughSeq, 0))
 	if req.Query.SyncMode {
 		page, err := channelhandler.SyncMessages(a.channelLogDB, committedHW, channelhandler.SyncMessagesRequest{
 			ChannelID:       req.Query.ChannelID,
@@ -113,7 +114,7 @@ func (a *Adapter) handleChannelMessagesRPC(ctx context.Context, body []byte) ([]
 			EndSeq:          req.Query.EndSeq,
 			Limit:           req.Query.Limit,
 			PullMode:        channelhandler.SyncPullMode(req.Query.PullMode),
-			MinAvailableSeq: req.Query.MinAvailableSeq,
+			MinAvailableSeq: minAvailableSeq,
 		})
 		if err != nil {
 			return nil, err
@@ -132,7 +133,7 @@ func (a *Adapter) handleChannelMessagesRPC(ctx context.Context, body []byte) ([]
 		Limit:           req.Query.Limit,
 		MessageID:       req.Query.MessageID,
 		ClientMsgNo:     req.Query.ClientMsgNo,
-		MinAvailableSeq: req.Query.MinAvailableSeq,
+		MinAvailableSeq: minAvailableSeq,
 	})
 	if err != nil {
 		return nil, err
