@@ -235,7 +235,7 @@ func (a *App) stopDeliveryRuntime(ctx context.Context) error {
 	return a.deliveryRuntimeLifecycle.StopContext(ctx)
 }
 
-func (a *App) stopCommittedDispatcher() error {
+func (a *App) stopCommittedDispatcher(ctx context.Context) error {
 	if !a.committedDispatcherOn.Swap(false) {
 		return nil
 	}
@@ -245,7 +245,7 @@ func (a *App) stopCommittedDispatcher() error {
 	if a.committedDispatcher == nil {
 		return nil
 	}
-	return a.committedDispatcher.Stop()
+	return a.committedDispatcher.StopContext(ctx)
 }
 
 func (a *App) stopCommittedReplay() error {

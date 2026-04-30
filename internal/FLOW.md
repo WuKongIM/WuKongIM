@@ -520,6 +520,7 @@ handleRecvAck(ctx, pkt)
 ### 🔴 已提交消息分发
 - **committedFanout + asyncCommittedDispatcher 的 preferLocal**: message 用例只发布 `messageevents.MessageCommitted`，`asyncCommittedDispatcher` 用有界分片队列分发，默认把已提交消息进入本地 delivery runtime，避免所有实时投递都绕经 Leader。
 - **committed dispatcher 溢出不影响 durable send**: 队列满只记录指标并触发 conversation fallback/flush，Sendack 仍只由 Channel Log quorum commit 决定。
+- **committed dispatcher 停止依赖 replay 补偿**: 停止时不再接收新队列任务，未启动/停止中的提交走 conversation fallback；队列内未处理实时投递可被丢弃并由 committed_replay 兜底补发。
 - **committed_replay 是补偿路径，不阻塞 Sendack**: Sendack 仍只等待 Channel Log quorum commit；后台 replayer 以 Channel Log 为真相，用批量 cursor 兜底补发 delivery / conversation，cursor 只在 conversation flush 成功后推进。
 
 ---

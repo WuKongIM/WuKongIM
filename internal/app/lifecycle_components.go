@@ -201,8 +201,8 @@ func (a *App) committedDispatcherLifecycleComponent() applifecycle.Component {
 			a.committedDispatcherOn.Store(true)
 			return nil
 		},
-		stop: func(context.Context) error {
-			return a.stopCommittedDispatcher()
+		stop: func(ctx context.Context) error {
+			return a.stopCommittedDispatcher(ctx)
 		},
 	}
 }

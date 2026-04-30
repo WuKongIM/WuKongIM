@@ -86,6 +86,9 @@ type asyncCommittedDispatcher struct {
 
 	mu                    sync.Mutex
 	cancel                context.CancelFunc
+	done                  chan struct{}
+	running               bool
+	stopping              bool
 	wg                    sync.WaitGroup
 	shards                []chan committedDispatchItem
 	disableWorkersForTest bool
@@ -138,12 +141,18 @@ func (d *asyncCommittedDispatcher) Start(ctx context.Context) error {
 	if d.cancel != nil {
 		return nil
 	}
+	if d.running || d.stopping {
+		return nil
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	d.cancel = cancel
+	d.done = make(chan struct{})
+	d.running = true
 	if d.disableWorkersForTest {
+		go d.closeCommittedDispatchDone(d.done)
 		return nil
 	}
 	for i, shard := range d.shards {
@@ -151,23 +160,76 @@ func (d *asyncCommittedDispatcher) Start(ctx context.Context) error {
 		d.wg.Add(1)
 		go d.runShard(runCtx, shardName, shard)
 	}
+	go d.closeCommittedDispatchDone(d.done)
 	return nil
 }
 
 func (d *asyncCommittedDispatcher) Stop() error {
+	return d.StopContext(context.Background())
+}
+
+// StopContext stops workers and bounds shutdown with ctx; queued events are abandoned for committed replay.
+func (d *asyncCommittedDispatcher) StopContext(ctx context.Context) error {
 	if d == nil {
 		return nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	d.mu.Lock()
 	cancel := d.cancel
+	done := d.done
 	d.cancel = nil
+	d.running = false
+	if cancel != nil {
+		d.stopping = true
+	}
 	d.mu.Unlock()
 	if cancel == nil {
 		return nil
 	}
 	cancel()
+	d.abandonQueuedCommitted()
+	select {
+	case <-done:
+		d.finishCommittedDispatchStop(done)
+		return nil
+	case <-ctx.Done():
+		go func() {
+			<-done
+			d.finishCommittedDispatchStop(done)
+		}()
+		return ctx.Err()
+	}
+}
+
+func (d *asyncCommittedDispatcher) closeCommittedDispatchDone(done chan struct{}) {
 	d.wg.Wait()
-	return nil
+	close(done)
+}
+
+func (d *asyncCommittedDispatcher) finishCommittedDispatchStop(done chan struct{}) {
+	d.mu.Lock()
+	if d.done == done {
+		d.done = nil
+		d.stopping = false
+	}
+	d.mu.Unlock()
+	d.recordAllCommittedDispatchDepths()
+}
+
+// abandonQueuedCommitted drops buffered side effects during shutdown; channel log replay is the durable fallback.
+func (d *asyncCommittedDispatcher) abandonQueuedCommitted() {
+	for _, queue := range d.shards {
+		for {
+			select {
+			case <-queue:
+			default:
+				goto next
+			}
+		}
+	next:
+	}
 }
 
 func (d *asyncCommittedDispatcher) runShard(ctx context.Context, shardName string, queue <-chan committedDispatchItem) {
@@ -177,6 +239,11 @@ func (d *asyncCommittedDispatcher) runShard(ctx context.Context, shardName strin
 		case <-ctx.Done():
 			return
 		case item := <-queue:
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			d.recordCommittedDispatchDepth(shardName, len(queue))
 			d.routeCommitted(item.ctx, item.env)
 		}
@@ -199,15 +266,31 @@ func (d *asyncCommittedDispatcher) SubmitCommitted(ctx context.Context, event me
 	env := committedEnvelopeFromMessageEvent(cloned)
 	idx := d.committedDispatchShard(cloned.Message)
 	shardName := strconv.Itoa(idx)
+	d.mu.Lock()
+	if !d.running || d.stopping {
+		d.mu.Unlock()
+		d.submitConversationFallback(ctx, env)
+		return nil
+	}
 	queue := d.shards[idx]
+	enqueueResult := "ok"
+	var overflow bool
+	var depth int
 	select {
 	case queue <- committedDispatchItem{ctx: ctx, env: env}:
-		d.recordCommittedDispatchEnqueue(shardName, "ok")
-		d.recordCommittedDispatchDepth(shardName, len(queue))
+		depth = len(queue)
 	default:
-		d.recordCommittedDispatchEnqueue(shardName, "overflow")
+		enqueueResult = "overflow"
+		overflow = true
+		depth = len(queue)
+	}
+	d.mu.Unlock()
+	d.recordCommittedDispatchEnqueue(shardName, enqueueResult)
+	if overflow {
 		d.recordCommittedDispatchOverflow(shardName)
-		d.recordCommittedDispatchDepth(shardName, len(queue))
+	}
+	d.recordCommittedDispatchDepth(shardName, depth)
+	if overflow {
 		d.submitConversationFallback(ctx, env)
 	}
 	return nil
@@ -238,6 +321,12 @@ func (d *asyncCommittedDispatcher) recordCommittedDispatchEnqueue(shard, result 
 func (d *asyncCommittedDispatcher) recordCommittedDispatchOverflow(shard string) {
 	if d.metrics != nil {
 		d.metrics.ObserveCommittedDispatchOverflow(shard)
+	}
+}
+
+func (d *asyncCommittedDispatcher) recordAllCommittedDispatchDepths() {
+	for i, shard := range d.shards {
+		d.recordCommittedDispatchDepth(strconv.Itoa(i), len(shard))
 	}
 }
 

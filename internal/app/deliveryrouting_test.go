@@ -299,6 +299,62 @@ func TestCommittedDispatchQueueOverflowDoesNotFailCommittedSubmit(t *testing.T) 
 	require.Equal(t, 1, conversation.FlushCalls())
 }
 
+func TestCommittedDispatchQueueFallsBackBeforeStart(t *testing.T) {
+	conversation := &recordingFlushingConversationSubmitter{}
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID:  1,
+		PreferLocal:  true,
+		Conversation: conversation,
+		ShardCount:   1,
+		QueueDepth:   1,
+	})
+
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
+
+	require.Equal(t, 1, conversation.SubmitCalls())
+	require.Equal(t, 1, conversation.FlushCalls())
+}
+
+func TestCommittedDispatchQueueFallsBackAfterStop(t *testing.T) {
+	conversation := &recordingFlushingConversationSubmitter{}
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID:  1,
+		PreferLocal:  true,
+		Conversation: conversation,
+		ShardCount:   1,
+		QueueDepth:   1,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	require.NoError(t, dispatcher.Stop())
+
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
+
+	require.Equal(t, 1, conversation.SubmitCalls())
+	require.Equal(t, 1, conversation.FlushCalls())
+}
+
+func TestCommittedDispatchQueueStopContextBoundsBlockedWorker(t *testing.T) {
+	delivery := newBlockingCommittedSubmitter()
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID: 1,
+		PreferLocal: true,
+		Delivery:    delivery,
+		ShardCount:  1,
+		QueueDepth:  1,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
+	delivery.WaitEntered(t)
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	err := dispatcher.StopContext(stopCtx)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	delivery.Release()
+	require.Eventually(t, func() bool { return dispatcher.isStoppedForTest() }, time.Second, time.Millisecond)
+}
+
 func TestCommittedDispatchQueueRecordsMetrics(t *testing.T) {
 	metrics := &recordingCommittedDispatchMetrics{}
 	conversation := &recordingFlushingConversationSubmitter{}
@@ -320,6 +376,25 @@ func TestCommittedDispatchQueueRecordsMetrics(t *testing.T) {
 	require.Equal(t, []string{"0:ok", "0:overflow"}, metrics.enqueues)
 	require.Equal(t, []string{"0"}, metrics.overflows)
 	require.Contains(t, metrics.depths, "0:1")
+}
+
+func TestCommittedDispatchQueueResetsDepthOnStop(t *testing.T) {
+	metrics := &recordingCommittedDispatchMetrics{}
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID:           1,
+		PreferLocal:           true,
+		Conversation:          &recordingFlushingConversationSubmitter{},
+		Metrics:               metrics,
+		ShardCount:            1,
+		QueueDepth:            1,
+		DisableWorkersForTest: true,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
+
+	require.NoError(t, dispatcher.Stop())
+
+	require.Contains(t, metrics.DepthSnapshots(), "0:0")
 }
 
 func TestAsyncCommittedDispatcherFallsBackToLocalConversationWhenOwnerIsUnknown(t *testing.T) {
@@ -942,21 +1017,72 @@ func (r *recordingFlushingConversationSubmitter) FlushCalls() int {
 }
 
 type recordingCommittedDispatchMetrics struct {
+	mu        sync.Mutex
 	depths    []string
 	enqueues  []string
 	overflows []string
 }
 
 func (m *recordingCommittedDispatchMetrics) SetCommittedDispatchQueueDepth(shard string, depth int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.depths = append(m.depths, shard+":"+strconv.Itoa(depth))
 }
 
 func (m *recordingCommittedDispatchMetrics) ObserveCommittedDispatchEnqueue(shard, result string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.enqueues = append(m.enqueues, shard+":"+result)
 }
 
 func (m *recordingCommittedDispatchMetrics) ObserveCommittedDispatchOverflow(shard string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.overflows = append(m.overflows, shard)
+}
+
+func (m *recordingCommittedDispatchMetrics) DepthSnapshots() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.depths...)
+}
+
+type blockingCommittedSubmitter struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newBlockingCommittedSubmitter() *blockingCommittedSubmitter {
+	return &blockingCommittedSubmitter{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (b *blockingCommittedSubmitter) SubmitCommitted(context.Context, deliveryruntime.CommittedEnvelope) error {
+	b.once.Do(func() { close(b.entered) })
+	<-b.release
+	return nil
+}
+
+func (b *blockingCommittedSubmitter) WaitEntered(t *testing.T) {
+	t.Helper()
+	select {
+	case <-b.entered:
+	case <-time.After(time.Second):
+		require.FailNow(t, "timed out waiting for blocked committed submitter")
+	}
+}
+
+func (b *blockingCommittedSubmitter) Release() {
+	close(b.release)
+}
+
+func (d *asyncCommittedDispatcher) isStoppedForTest() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return !d.running && !d.stopping && d.done == nil
 }
 
 type resolverSnapshotStore struct {
