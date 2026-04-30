@@ -55,6 +55,24 @@ func TestNetworkObservabilityBuildsHistoryFromBuckets(t *testing.T) {
 	}, snap.History.Errors)
 }
 
+func TestNetworkObservabilityHistoryStartsAtWindowCutoff(t *testing.T) {
+	base := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	now := base.Add(3*time.Second + 290*time.Millisecond)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		Now:         func() time.Time { return now },
+	})
+
+	collector.TransportHooks().OnSend(1, 100)
+
+	snapshotAt := base.Add(time.Minute + 3*time.Second + 250*time.Millisecond)
+	snap := collector.NetworkSnapshot(snapshotAt)
+	require.Len(t, snap.History.Traffic, 1)
+	require.Equal(t, snapshotAt.Add(-time.Minute), snap.History.Traffic[0].At)
+	require.Equal(t, int64(100), snap.History.Traffic[0].TXBytes)
+}
+
 func TestNetworkObservabilityExpectedTimeoutIsNeutralServiceSample(t *testing.T) {
 	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	collector := newNetworkObservability(networkObservabilityConfig{

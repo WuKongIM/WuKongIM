@@ -240,7 +240,7 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 	}
 	snap.Traffic.Scope = "local_total_by_msg_type"
 	snap.Traffic.PeerBreakdownAvailable = false
-	snap.History = o.networkHistorySnapshotLocked()
+	snap.History = o.networkHistorySnapshotLocked(cutoff)
 
 	trafficByType := map[string]managementusecase.NetworkTrafficMessageType{}
 	for key, bytes := range o.trafficBuckets {
@@ -353,7 +353,7 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 	return snap
 }
 
-func (o *networkObservability) networkHistorySnapshotLocked() managementusecase.NetworkHistory {
+func (o *networkObservability) networkHistorySnapshotLocked(cutoff time.Time) managementusecase.NetworkHistory {
 	history := managementusecase.NetworkHistory{
 		Window: o.cfg.Window,
 		Step:   networkObservabilityHistoryStep,
@@ -363,7 +363,7 @@ func (o *networkObservability) networkHistorySnapshotLocked() managementusecase.
 	errorsByStep := map[time.Time]managementusecase.NetworkErrorHistoryPoint{}
 
 	for key, bytes := range o.trafficBuckets {
-		step := key.bucket.Truncate(networkObservabilityHistoryStep)
+		step := networkObservabilityHistoryStepAt(cutoff, key.bucket)
 		point := trafficByStep[step]
 		point.At = step
 		if key.direction == networkSampleDirectionTX {
@@ -377,7 +377,7 @@ func (o *networkObservability) networkHistorySnapshotLocked() managementusecase.
 		if key.result != "dial_error" {
 			continue
 		}
-		step := key.bucket.Truncate(networkObservabilityHistoryStep)
+		step := networkObservabilityHistoryStepAt(cutoff, key.bucket)
 		point := errorsByStep[step]
 		point.At = step
 		point.DialErrors += count
@@ -387,7 +387,7 @@ func (o *networkObservability) networkHistorySnapshotLocked() managementusecase.
 		if key.result != "queue_full" {
 			continue
 		}
-		step := key.bucket.Truncate(networkObservabilityHistoryStep)
+		step := networkObservabilityHistoryStepAt(cutoff, key.bucket)
 		point := errorsByStep[step]
 		point.At = step
 		point.QueueFull += count
@@ -398,7 +398,7 @@ func (o *networkObservability) networkHistorySnapshotLocked() managementusecase.
 		if count == 0 {
 			continue
 		}
-		step := key.bucket.Truncate(networkObservabilityHistoryStep)
+		step := networkObservabilityHistoryStepAt(cutoff, key.bucket)
 		rpcPoint := rpcByStep[step]
 		rpcPoint.At = step
 		rpcPoint.Calls += count
@@ -446,6 +446,13 @@ func (o *networkObservability) networkHistorySnapshotLocked() managementusecase.
 	sort.Slice(history.RPC, func(i, j int) bool { return history.RPC[i].At.Before(history.RPC[j].At) })
 	sort.Slice(history.Errors, func(i, j int) bool { return history.Errors[i].At.Before(history.Errors[j].At) })
 	return history
+}
+
+func networkObservabilityHistoryStepAt(cutoff, bucket time.Time) time.Time {
+	if bucket.Before(cutoff) {
+		return cutoff
+	}
+	return cutoff.Add(bucket.Sub(cutoff) / networkObservabilityHistoryStep * networkObservabilityHistoryStep)
 }
 
 type networkServiceAccumulator struct {
