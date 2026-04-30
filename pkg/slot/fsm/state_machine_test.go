@@ -555,6 +555,90 @@ func TestStateMachineApplyMissingRetentionAdvanceReturnsStaleMetaResult(t *testi
 	}
 }
 
+func TestStateMachineApplyBatchDeleteThenRetentionAdvanceReturnsStaleMeta(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+
+	base := metadb.ChannelRuntimeMeta{
+		ChannelID:    "delete-then-retention-advance",
+		ChannelType:  4,
+		ChannelEpoch: 7,
+		LeaderEpoch:  5,
+		Replicas:     []uint64{1, 2},
+		ISR:          []uint64{1, 2},
+		Leader:       1,
+		MinISR:       1,
+		Status:       2,
+		LeaseUntilMS: 1700000001234,
+	}
+	if _, err := sm.Apply(ctx, multiraft.Command{
+		SlotID: 11,
+		Index:  1,
+		Term:   1,
+		Data:   EncodeUpsertChannelRuntimeMetaCommand(base),
+	}); err != nil {
+		t.Fatalf("Apply(upsert runtime meta before delete/advance batch) error = %v", err)
+	}
+
+	batchSM, ok := sm.(multiraft.BatchStateMachine)
+	if !ok {
+		t.Fatalf("state machine does not implement BatchStateMachine")
+	}
+	results, err := batchSM.ApplyBatch(ctx, []multiraft.Command{
+		{
+			SlotID: 11,
+			Index:  2,
+			Term:   1,
+			Data:   EncodeDeleteChannelRuntimeMetaCommand(base.ChannelID, base.ChannelType),
+		},
+		{
+			SlotID: 11,
+			Index:  3,
+			Term:   1,
+			Data: EncodeAdvanceChannelRetentionThroughSeqCommand(metadb.ChannelRetentionAdvance{
+				ChannelID:            base.ChannelID,
+				ChannelType:          base.ChannelType,
+				ExpectedChannelEpoch: base.ChannelEpoch,
+				ExpectedLeaderEpoch:  base.LeaderEpoch,
+				ExpectedLeader:       base.Leader,
+				ExpectedLeaseUntilMS: base.LeaseUntilMS,
+				RetentionThroughSeq:  42,
+				RetentionUpdatedAtMS: 1700000002222,
+			}),
+		},
+		{
+			SlotID: 11,
+			Index:  4,
+			Term:   1,
+			Data:   EncodeUpsertChannelCommand(metadb.Channel{ChannelID: "after-delete-retention", ChannelType: 1, Ban: 1}),
+		},
+	})
+	if err != nil {
+		t.Fatalf("ApplyBatch(delete then retention advance) error = %v", err)
+	}
+	if got := string(results[0]); got != ApplyResultOK {
+		t.Fatalf("delete runtime meta result = %q, want %q", got, ApplyResultOK)
+	}
+	if got := string(results[1]); got != ApplyResultStaleMeta {
+		t.Fatalf("retention advance after delete result = %q, want %q", got, ApplyResultStaleMeta)
+	}
+	if got := string(results[2]); got != ApplyResultOK {
+		t.Fatalf("valid command after stale retention result = %q, want %q", got, ApplyResultOK)
+	}
+
+	if _, err := db.ForSlot(11).GetChannelRuntimeMeta(ctx, base.ChannelID, base.ChannelType); !errors.Is(err, metadb.ErrNotFound) {
+		t.Fatalf("GetChannelRuntimeMeta() after delete/advance err = %v, want ErrNotFound", err)
+	}
+	gotChannel, err := db.ForSlot(11).GetChannel(ctx, "after-delete-retention", 1)
+	if err != nil {
+		t.Fatalf("GetChannel(after delete/advance) error = %v", err)
+	}
+	if gotChannel.Ban != 1 {
+		t.Fatalf("stored channel after delete/advance = %#v", gotChannel)
+	}
+}
+
 func TestStateMachineAppliesAddAndRemoveSubscribers(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
