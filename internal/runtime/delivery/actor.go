@@ -16,6 +16,8 @@ type actor struct {
 	activityCount   int
 	nextDispatchSeq uint64
 	inflight        map[uint64]*InflightMessage
+	resolvable      []resolvableMessageRef
+	pendingRouteCnt int
 	completed       map[uint64]struct{}
 	completedOrder  []uint64
 	expiredEvents   []RouteExpiredEvent
@@ -103,6 +105,7 @@ func (a *actor) dispatch(ctx context.Context, env CommittedEnvelope) error {
 		Routes:         make(map[RouteKey]*RouteDeliveryState),
 	}
 	a.inflight[env.MessageID] = msg
+	a.pushResolvable(msg)
 	return a.resumeResolvable(ctx)
 }
 
@@ -163,22 +166,19 @@ func (a *actor) resumeResolvable(ctx context.Context) error {
 }
 
 func (a *actor) nextResolvableMessage(now time.Time) *InflightMessage {
-	var next *InflightMessage
-	for _, msg := range a.inflight {
-		if msg.ResolveDone {
+	for len(a.resolvable) > 0 {
+		ref := a.resolvable[0]
+		msg := a.inflight[ref.MessageID]
+		if msg == nil || msg.ResolveDone {
+			a.popResolvable()
 			continue
 		}
-		if next == nil || msg.MessageSeq < next.MessageSeq {
-			next = msg
+		if !msg.ResolveRetryAt.IsZero() && msg.ResolveRetryAt.After(now) {
+			return nil
 		}
+		return msg
 	}
-	if next == nil {
-		return nil
-	}
-	if !next.ResolveRetryAt.IsZero() && next.ResolveRetryAt.After(now) {
-		return nil
-	}
-	return next
+	return nil
 }
 
 func (a *actor) hasDueResolveRetry(now time.Time) bool {
@@ -333,6 +333,7 @@ func (a *actor) ensureRouteState(msg *InflightMessage, route RouteKey) *RouteDel
 	state = &RouteDeliveryState{}
 	msg.Routes[route] = state
 	msg.PendingRouteCnt++
+	a.pendingRouteCnt++
 	return state
 }
 
@@ -343,6 +344,9 @@ func (a *actor) finishRoute(_ context.Context, msg *InflightMessage, route Route
 	delete(msg.Routes, route)
 	if msg.PendingRouteCnt > 0 {
 		msg.PendingRouteCnt--
+	}
+	if a.pendingRouteCnt > 0 {
+		a.pendingRouteCnt--
 	}
 	a.shard.manager.ackIdx.Remove(route.SessionID, msg.MessageID)
 	if msg.PendingRouteCnt == 0 && msg.ResolveDone {
@@ -388,15 +392,11 @@ func (a *actor) routeBudgetRemaining() int {
 	if limit <= 0 {
 		return int(^uint(0) >> 1)
 	}
-	return limit - a.inflightRouteCount()
+	return limit - a.pendingRouteCnt
 }
 
 func (a *actor) inflightRouteCount() int {
-	total := 0
-	for _, msg := range a.inflight {
-		total += msg.PendingRouteCnt
-	}
-	return total
+	return a.pendingRouteCnt
 }
 
 func (a *actor) markActivity() {
@@ -431,7 +431,9 @@ func (a *actor) rememberCompleted(messageID uint64) {
 		return
 	}
 	evict := a.completedOrder[0]
-	a.completedOrder = append([]uint64(nil), a.completedOrder[1:]...)
+	copy(a.completedOrder, a.completedOrder[1:])
+	a.completedOrder[len(a.completedOrder)-1] = 0
+	a.completedOrder = a.completedOrder[:len(a.completedOrder)-1]
 	delete(a.completed, evict)
 }
 
@@ -439,4 +441,55 @@ func cloneEnvelope(env CommittedEnvelope) CommittedEnvelope {
 	copied := env
 	copied.Payload = append([]byte(nil), env.Payload...)
 	return copied
+}
+
+type resolvableMessageRef struct {
+	MessageID  uint64
+	MessageSeq uint64
+}
+
+func (a *actor) pushResolvable(msg *InflightMessage) {
+	if msg == nil {
+		return
+	}
+	a.resolvable = append(a.resolvable, resolvableMessageRef{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq})
+	resolvableSiftUp(a.resolvable, len(a.resolvable)-1)
+}
+
+func (a *actor) popResolvable() {
+	last := len(a.resolvable) - 1
+	a.resolvable[0] = a.resolvable[last]
+	a.resolvable[last] = resolvableMessageRef{}
+	a.resolvable = a.resolvable[:last]
+	resolvableSiftDown(a.resolvable, 0)
+}
+
+func resolvableSiftUp(values []resolvableMessageRef, idx int) {
+	for idx > 0 {
+		parent := (idx - 1) / 2
+		if values[parent].MessageSeq <= values[idx].MessageSeq {
+			return
+		}
+		values[idx], values[parent] = values[parent], values[idx]
+		idx = parent
+	}
+}
+
+func resolvableSiftDown(values []resolvableMessageRef, idx int) {
+	for {
+		left := 2*idx + 1
+		if left >= len(values) {
+			return
+		}
+		smallest := left
+		right := left + 1
+		if right < len(values) && values[right].MessageSeq < values[left].MessageSeq {
+			smallest = right
+		}
+		if values[idx].MessageSeq <= values[smallest].MessageSeq {
+			return
+		}
+		values[idx], values[smallest] = values[smallest], values[idx]
+		idx = smallest
+	}
 }
