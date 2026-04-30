@@ -41,6 +41,30 @@ func TestShardStoreUpsertAndGetChannelRuntimeMeta(t *testing.T) {
 	}
 }
 
+func TestShardStoreChannelRuntimeMetaPersistsRetentionBoundary(t *testing.T) {
+	shard := newTestShardStore(t, 7)
+	ctx := context.Background()
+	meta := ChannelRuntimeMeta{
+		ChannelID:            "retention-meta",
+		ChannelType:          2,
+		ChannelEpoch:         3,
+		LeaderEpoch:          4,
+		Replicas:             []uint64{1, 2},
+		ISR:                  []uint64{1, 2},
+		Leader:               1,
+		MinISR:               2,
+		Status:               2,
+		Features:             1,
+		LeaseUntilMS:         1234,
+		RetentionThroughSeq:  99,
+		RetentionUpdatedAtMS: 5678,
+	}
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, meta))
+	got, err := shard.GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	require.NoError(t, err)
+	require.Equal(t, normalizeChannelRuntimeMeta(meta), got)
+}
+
 func TestShardStoreUpsertChannelRuntimeMetaCanonicalizesSets(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -163,6 +187,73 @@ func TestShardStoreUpsertChannelRuntimeMetaPreservesLongerLeaseForSameEpoch(t *t
 	got, err := shard.GetChannelRuntimeMeta(ctx, current.ChannelID, current.ChannelType)
 	require.NoError(t, err)
 	require.Equal(t, int64(5000), got.LeaseUntilMS)
+}
+
+func TestResolveMonotonicChannelRuntimeMetaPreservesRetentionOnSameEpoch(t *testing.T) {
+	existing := baseChannelRuntimeMetaForRetentionTest()
+	existing.RetentionThroughSeq = 80
+	existing.RetentionUpdatedAtMS = 2000
+
+	candidate := existing
+	candidate.RetentionThroughSeq = 40
+	candidate.RetentionUpdatedAtMS = 1000
+	candidate.LeaseUntilMS = existing.LeaseUntilMS + 100
+
+	got, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, true, candidate)
+	require.True(t, shouldWrite)
+	require.Equal(t, uint64(80), got.RetentionThroughSeq)
+	require.Equal(t, int64(2000), got.RetentionUpdatedAtMS)
+}
+
+func TestResolveMonotonicChannelRuntimeMetaPreservesRetentionAcrossHigherChannelEpoch(t *testing.T) {
+	existing := baseChannelRuntimeMetaForRetentionTest()
+	existing.RetentionThroughSeq = 90
+	existing.RetentionUpdatedAtMS = 3000
+
+	candidate := existing
+	candidate.ChannelEpoch = existing.ChannelEpoch + 1
+	candidate.LeaderEpoch = existing.LeaderEpoch + 1
+	candidate.RetentionThroughSeq = 20
+	candidate.RetentionUpdatedAtMS = 1000
+
+	got, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, true, candidate)
+	require.True(t, shouldWrite)
+	require.Equal(t, uint64(90), got.RetentionThroughSeq)
+	require.Equal(t, int64(3000), got.RetentionUpdatedAtMS)
+}
+
+func TestResolveMonotonicChannelRuntimeMetaKeepsNewestRetentionTimestampForEqualBoundary(t *testing.T) {
+	existing := baseChannelRuntimeMetaForRetentionTest()
+	existing.RetentionThroughSeq = 70
+	existing.RetentionUpdatedAtMS = 5000
+
+	candidate := existing
+	candidate.RetentionUpdatedAtMS = 4000
+	candidate.LeaseUntilMS = existing.LeaseUntilMS + 100
+
+	got, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, true, candidate)
+	require.True(t, shouldWrite)
+	require.Equal(t, uint64(70), got.RetentionThroughSeq)
+	require.Equal(t, int64(5000), got.RetentionUpdatedAtMS)
+}
+
+func TestDecodeChannelRuntimeMetaDefaultsMissingRetentionToZero(t *testing.T) {
+	key := encodeChannelRuntimeMetaPrimaryKey(7, "old-retention", 2, channelRuntimeMetaPrimaryFamilyID)
+	payload := make([]byte, 0, 128)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDChannelEpoch, 0, 3)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDLeaderEpoch, channelRuntimeMetaColumnIDChannelEpoch, 4)
+	payload = appendRawBytesValue(payload, channelRuntimeMetaColumnIDReplicas, channelRuntimeMetaColumnIDLeaderEpoch, encodeUint64Slice([]uint64{1, 2}))
+	payload = appendRawBytesValue(payload, channelRuntimeMetaColumnIDISR, channelRuntimeMetaColumnIDReplicas, encodeUint64Slice([]uint64{1, 2}))
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDLeader, channelRuntimeMetaColumnIDISR, 1)
+	payload = appendIntValue(payload, channelRuntimeMetaColumnIDMinISR, channelRuntimeMetaColumnIDLeader, 2)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDStatus, channelRuntimeMetaColumnIDMinISR, 2)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDFeatures, channelRuntimeMetaColumnIDStatus, 1)
+	payload = appendIntValue(payload, channelRuntimeMetaColumnIDLeaseUntilMS, channelRuntimeMetaColumnIDFeatures, 1234)
+
+	got, err := decodeChannelRuntimeMetaFamilyValue(key, wrapFamilyValue(key, payload))
+	require.NoError(t, err)
+	require.Zero(t, got.RetentionThroughSeq)
+	require.Zero(t, got.RetentionUpdatedAtMS)
 }
 
 func TestWriteBatchUpsertChannelRuntimeMetaRejectsStaleLeaderEpoch(t *testing.T) {
@@ -290,4 +381,25 @@ func TestDBListChannelRuntimeMeta(t *testing.T) {
 	got, err := db.ListChannelRuntimeMeta(ctx)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []ChannelRuntimeMeta{first, second}, got)
+}
+
+func newTestShardStore(t *testing.T, slot uint64) *ShardStore {
+	t.Helper()
+	return openTestDB(t).ForSlot(slot)
+}
+
+func baseChannelRuntimeMetaForRetentionTest() ChannelRuntimeMeta {
+	return ChannelRuntimeMeta{
+		ChannelID:    "retention-monotonic",
+		ChannelType:  1,
+		ChannelEpoch: 10,
+		LeaderEpoch:  5,
+		Replicas:     []uint64{1, 2, 3},
+		ISR:          []uint64{1, 2, 3},
+		Leader:       1,
+		MinISR:       2,
+		Status:       2,
+		Features:     1,
+		LeaseUntilMS: 1000,
+	}
 }

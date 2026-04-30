@@ -32,19 +32,21 @@ const (
 )
 
 const (
-	channelRuntimeMetaPrimaryFamilyID      uint16 = 0
-	channelRuntimeMetaPrimaryIndexID       uint16 = 1
-	channelRuntimeMetaColumnIDChannelID    uint16 = 1
-	channelRuntimeMetaColumnIDType         uint16 = 2
-	channelRuntimeMetaColumnIDChannelEpoch uint16 = 3
-	channelRuntimeMetaColumnIDLeaderEpoch  uint16 = 4
-	channelRuntimeMetaColumnIDReplicas     uint16 = 5
-	channelRuntimeMetaColumnIDISR          uint16 = 6
-	channelRuntimeMetaColumnIDLeader       uint16 = 7
-	channelRuntimeMetaColumnIDMinISR       uint16 = 8
-	channelRuntimeMetaColumnIDStatus       uint16 = 9
-	channelRuntimeMetaColumnIDFeatures     uint16 = 10
-	channelRuntimeMetaColumnIDLeaseUntilMS uint16 = 11
+	channelRuntimeMetaPrimaryFamilyID              uint16 = 0
+	channelRuntimeMetaPrimaryIndexID               uint16 = 1
+	channelRuntimeMetaColumnIDChannelID            uint16 = 1
+	channelRuntimeMetaColumnIDType                 uint16 = 2
+	channelRuntimeMetaColumnIDChannelEpoch         uint16 = 3
+	channelRuntimeMetaColumnIDLeaderEpoch          uint16 = 4
+	channelRuntimeMetaColumnIDReplicas             uint16 = 5
+	channelRuntimeMetaColumnIDISR                  uint16 = 6
+	channelRuntimeMetaColumnIDLeader               uint16 = 7
+	channelRuntimeMetaColumnIDMinISR               uint16 = 8
+	channelRuntimeMetaColumnIDStatus               uint16 = 9
+	channelRuntimeMetaColumnIDFeatures             uint16 = 10
+	channelRuntimeMetaColumnIDLeaseUntilMS         uint16 = 11
+	channelRuntimeMetaColumnIDRetentionThroughSeq  uint16 = 12
+	channelRuntimeMetaColumnIDRetentionUpdatedAtMS uint16 = 13
 )
 
 const (
@@ -206,6 +208,8 @@ var ChannelRuntimeMetaTable = &TableDesc{
 		{ID: channelRuntimeMetaColumnIDStatus, Name: "status", Type: ColumnUint64},
 		{ID: channelRuntimeMetaColumnIDFeatures, Name: "features", Type: ColumnUint64},
 		{ID: channelRuntimeMetaColumnIDLeaseUntilMS, Name: "lease_until_ms", Type: ColumnInt64},
+		{ID: channelRuntimeMetaColumnIDRetentionThroughSeq, Name: "retention_through_seq", Type: ColumnUint64},
+		{ID: channelRuntimeMetaColumnIDRetentionUpdatedAtMS, Name: "retention_updated_at_ms", Type: ColumnInt64},
 	},
 	Families: []ColumnFamilyDesc{
 		{
@@ -221,6 +225,8 @@ var ChannelRuntimeMetaTable = &TableDesc{
 				channelRuntimeMetaColumnIDStatus,
 				channelRuntimeMetaColumnIDFeatures,
 				channelRuntimeMetaColumnIDLeaseUntilMS,
+				channelRuntimeMetaColumnIDRetentionThroughSeq,
+				channelRuntimeMetaColumnIDRetentionUpdatedAtMS,
 			},
 			DefaultColumnID: channelRuntimeMetaColumnIDChannelEpoch,
 		},
