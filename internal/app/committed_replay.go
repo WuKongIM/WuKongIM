@@ -27,11 +27,19 @@ type committedReplayChannel struct {
 	ID channel.ChannelID
 }
 
+type committedReplayChannelState struct {
+	// CommittedSeq is the local committed frontier visible for replay.
+	CommittedSeq uint64
+	// MinAvailableSeq is the first sequence that retention allows replay to read.
+	MinAvailableSeq uint64
+}
+
 type committedReplayLog interface {
 	ListCommittedReplayChannels(context.Context) ([]committedReplayChannel, error)
 	LoadCommittedDispatchCursor(context.Context, channel.ChannelKey, string) (uint64, bool, error)
 	StoreCommittedDispatchCursor(context.Context, channel.ChannelKey, string, uint64) error
-	CommittedSeq(context.Context, channel.ChannelKey, channel.ChannelID) (uint64, error)
+	AdvanceCommittedDispatchCursorDurable(context.Context, channel.ChannelKey, string, uint64) error
+	CommittedReplayState(context.Context, channel.ChannelKey, channel.ChannelID) (committedReplayChannelState, error)
 	LoadCommittedMessages(context.Context, channel.ChannelKey, channel.ChannelID, uint64, int, int) ([]channel.Message, error)
 }
 
@@ -243,16 +251,25 @@ func (r *committedReplayer) replayChannel(ctx context.Context, ch committedRepla
 	}
 	lag := uint64(0)
 	for {
-		committedSeq, err := r.cfg.Log.CommittedSeq(ctx, ch.Key, ch.ID)
+		state, err := r.cfg.Log.CommittedReplayState(ctx, ch.Key, ch.ID)
 		if err != nil {
 			return lag, err
 		}
-		lag = replayLag(cursor, committedSeq)
-		if committedSeq == 0 || cursor >= committedSeq {
+		minAvailableSeq := normalizeCommittedReplayMinAvailableSeq(state.MinAvailableSeq)
+		startSeq := nextCommittedReplaySeq(cursor)
+		if startSeq < minAvailableSeq {
+			cursor = minAvailableSeq - 1
+			if err := r.cfg.Log.AdvanceCommittedDispatchCursorDurable(ctx, ch.Key, r.cfg.CursorName, cursor); err != nil {
+				return lag, err
+			}
+			startSeq = minAvailableSeq
+		}
+		lag = replayLag(cursor, state.CommittedSeq)
+		if state.CommittedSeq == 0 || cursor >= state.CommittedSeq {
 			return lag, nil
 		}
 
-		messages, err := r.cfg.Log.LoadCommittedMessages(ctx, ch.Key, ch.ID, cursor+1, r.cfg.BatchSize, r.cfg.MaxBytes)
+		messages, err := r.cfg.Log.LoadCommittedMessages(ctx, ch.Key, ch.ID, startSeq, r.cfg.BatchSize, r.cfg.MaxBytes)
 		if err != nil {
 			return lag, err
 		}
@@ -270,7 +287,7 @@ func (r *committedReplayer) replayChannel(ctx context.Context, ch committedRepla
 			if msg.MessageSeq != lastSeq+1 {
 				return lag, channel.ErrCorruptState
 			}
-			if msg.MessageSeq > committedSeq {
+			if msg.MessageSeq > state.CommittedSeq {
 				break
 			}
 			if err := r.submitMessage(ctx, msg); err != nil {
@@ -290,7 +307,7 @@ func (r *committedReplayer) replayChannel(ctx context.Context, ch committedRepla
 			return lag, err
 		}
 		cursor = lastSeq
-		lag = replayLag(cursor, committedSeq)
+		lag = replayLag(cursor, state.CommittedSeq)
 		if len(messages) < r.cfg.BatchSize {
 			return lag, nil
 		}
@@ -352,6 +369,20 @@ func replayLag(cursor, committedSeq uint64) uint64 {
 	return committedSeq - cursor
 }
 
+func nextCommittedReplaySeq(cursor uint64) uint64 {
+	if cursor == ^uint64(0) {
+		return cursor
+	}
+	return cursor + 1
+}
+
+func normalizeCommittedReplayMinAvailableSeq(seq uint64) uint64 {
+	if seq == 0 {
+		return 1
+	}
+	return seq
+}
+
 type channelStoreCommittedReplayLog struct {
 	// engine owns the durable structured channel message rows and cursors.
 	engine *channelstore.Engine
@@ -398,18 +429,29 @@ func (l channelStoreCommittedReplayLog) StoreCommittedDispatchCursor(_ context.C
 	return l.engine.ForChannel(key, id).StoreCommittedDispatchCursor(name, seq)
 }
 
-func (l channelStoreCommittedReplayLog) CommittedSeq(_ context.Context, _ channel.ChannelKey, id channel.ChannelID) (uint64, error) {
+func (l channelStoreCommittedReplayLog) AdvanceCommittedDispatchCursorDurable(_ context.Context, key channel.ChannelKey, name string, seq uint64) error {
+	id, err := channelhandler.ParseChannelKey(key)
+	if err != nil {
+		return err
+	}
+	return l.engine.ForChannel(key, id).AdvanceCommittedDispatchCursorDurable(name, seq)
+}
+
+func (l channelStoreCommittedReplayLog) CommittedReplayState(_ context.Context, _ channel.ChannelKey, id channel.ChannelID) (committedReplayChannelState, error) {
 	if l.status == nil {
-		return 0, nil
+		return committedReplayChannelState{}, nil
 	}
 	status, err := l.status.Status(id)
 	if err != nil {
-		return 0, nil
+		return committedReplayChannelState{}, nil
 	}
 	if l.localNodeID != 0 && uint64(status.Leader) != l.localNodeID {
-		return 0, nil
+		return committedReplayChannelState{}, nil
 	}
-	return status.CommittedSeq, nil
+	return committedReplayChannelState{
+		CommittedSeq:    status.CommittedSeq,
+		MinAvailableSeq: status.MinAvailableSeq,
+	}, nil
 }
 
 func (l channelStoreCommittedReplayLog) LoadCommittedMessages(_ context.Context, key channel.ChannelKey, id channel.ChannelID, fromSeq uint64, limit int, maxBytes int) ([]channel.Message, error) {
