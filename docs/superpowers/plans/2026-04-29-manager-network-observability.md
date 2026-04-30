@@ -991,7 +991,7 @@ it("fetches network summary from the manager network endpoint", async () => {
 Run:
 
 ```bash
-cd web && bun test --run manager-api
+cd web && bun run test -- --run manager-api
 ```
 
 Expected: FAIL because `getNetworkSummary` and network types do not exist.
@@ -1039,7 +1039,7 @@ Keep imports alphabetized enough to satisfy existing lint/formatter conventions.
 Run:
 
 ```bash
-cd web && bun test --run manager-api
+cd web && bun run test -- --run manager-api
 ```
 
 Expected: PASS.
@@ -1152,7 +1152,7 @@ In `web/src/pages/page-shells.test.tsx`:
 Run:
 
 ```bash
-cd web && bun test --run network page-shells
+cd web && bun run test -- --run network page-shells
 ```
 
 Expected: FAIL because page still renders placeholder and i18n keys are missing.
@@ -1254,7 +1254,7 @@ Keep existing `nav.network.*` keys if navigation already uses them; update obsol
 Run:
 
 ```bash
-cd web && bun test --run network page-shells
+cd web && bun run test -- --run network page-shells
 ```
 
 Expected: PASS.
@@ -1264,7 +1264,7 @@ Expected: PASS.
 Run:
 
 ```bash
-cd web && bun test --run manager-api dashboard nodes
+cd web && bun run test -- --run manager-api dashboard nodes
 ```
 
 Expected: PASS.
@@ -1324,7 +1324,7 @@ Expected: PASS. If these packages were not touched, this step may be skipped wit
 Run:
 
 ```bash
-cd web && bun test --run manager-api network page-shells
+cd web && bun run test -- --run manager-api network page-shells
 ```
 
 Expected: PASS.
@@ -1332,7 +1332,7 @@ Expected: PASS.
 If time allows, also run:
 
 ```bash
-cd web && bun test --run
+cd web && bun run test -- --run
 ```
 
 Expected: PASS.

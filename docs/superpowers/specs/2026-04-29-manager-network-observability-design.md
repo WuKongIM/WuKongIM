@@ -474,13 +474,13 @@ Controller 不可用：
 
 ```bash
 go test ./internal/usecase/management ./internal/access/manager ./internal/app ./pkg/transport ./pkg/cluster
-cd web && bun test --run
+cd web && bun run test -- --run
 ```
 
 如果只改前端页面，可先跑：
 
 ```bash
-cd web && bun test --run network
+cd web && bun run test -- --run network
 ```
 
 ## 7. 分阶段落地
