@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	gatewaysession "github.com/WuKongIM/WuKongIM/internal/gateway/session"
@@ -17,6 +18,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )
@@ -861,6 +863,94 @@ func TestLocalDeliveryPushSkipsOriginSessionButKeepsOtherSenderSessions(t *testi
 	require.Equal(t, "u1", recipientPacket.ChannelID)
 }
 
+func TestDistributedDeliveryPushBatchesGroupRoutesPerTargetNode(t *testing.T) {
+	client := &recordingDeliveryPushClient{}
+	push := distributedDeliveryPush{
+		localNodeID: 1,
+		client:      client,
+		codec:       codec.New(),
+	}
+
+	result, err := push.Push(context.Background(), deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				MessageID:   101,
+				MessageSeq:  9,
+				ChannelID:   "g1",
+				ChannelType: frame.ChannelTypeGroup,
+				FromUID:     "u1",
+				Payload:     []byte("hello group"),
+			},
+		},
+		Routes: []deliveryruntime.RouteKey{
+			{UID: "u2", NodeID: 2, BootID: 11, SessionID: 21},
+			{UID: "u3", NodeID: 2, BootID: 11, SessionID: 22},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Accepted, 2)
+	require.Empty(t, result.Retryable)
+	require.Empty(t, result.Dropped)
+
+	require.Empty(t, client.singleCalls)
+	require.Len(t, client.batchCalls, 1)
+	call := client.batchCalls[0]
+	require.Equal(t, uint64(2), call.nodeID)
+	require.Equal(t, uint64(1), call.cmd.OwnerNodeID)
+	require.Len(t, call.cmd.Items, 1)
+	require.Equal(t, "g1", call.cmd.Items[0].ChannelID)
+	require.Equal(t, frame.ChannelTypeGroup, call.cmd.Items[0].ChannelType)
+	require.Equal(t, []deliveryruntime.RouteKey{
+		{UID: "u2", NodeID: 2, BootID: 11, SessionID: 21},
+		{UID: "u3", NodeID: 2, BootID: 11, SessionID: 22},
+	}, call.cmd.Items[0].Routes)
+}
+
+func TestDistributedDeliveryPushBatchesPersonRoutesByRecipientChannelView(t *testing.T) {
+	client := &recordingDeliveryPushClient{}
+	push := distributedDeliveryPush{
+		localNodeID: 1,
+		client:      client,
+		codec:       codec.New(),
+	}
+
+	result, err := push.Push(context.Background(), deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				MessageID:   102,
+				MessageSeq:  10,
+				ChannelID:   "u1@u2",
+				ChannelType: frame.ChannelTypePerson,
+				FromUID:     "u1",
+				Payload:     []byte("hello person"),
+			},
+		},
+		Routes: []deliveryruntime.RouteKey{
+			{UID: "u1", NodeID: 2, BootID: 11, SessionID: 21},
+			{UID: "u2", NodeID: 2, BootID: 11, SessionID: 22},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Accepted, 2)
+
+	require.Empty(t, client.singleCalls)
+	require.Len(t, client.batchCalls, 1)
+	call := client.batchCalls[0]
+	require.Equal(t, uint64(2), call.nodeID)
+	require.Len(t, call.cmd.Items, 2)
+
+	viewsByUID := make(map[string]string)
+	for _, item := range call.cmd.Items {
+		require.Len(t, item.Routes, 1)
+		packet := mustDecodeRecvPacket(t, item.Frame)
+		viewsByUID[item.Routes[0].UID] = packet.ChannelID
+	}
+	require.Equal(t, map[string]string{
+		"u1": "u2",
+		"u2": "u1",
+	}, viewsByUID)
+}
+
 func TestLocalDeliveryResolverSplitsExpandedRoutesAcrossPages(t *testing.T) {
 	store := &resolverSnapshotStore{
 		uids: []string{"u2"},
@@ -919,6 +1009,44 @@ func (r *recordingDeliveryOwnerNotifier) NotifyAck(_ context.Context, _ uint64, 
 func (r *recordingDeliveryOwnerNotifier) NotifyOffline(_ context.Context, _ uint64, cmd deliveryevents.SessionClosed) error {
 	r.offlines = append(r.offlines, cmd)
 	return r.offlineErr
+}
+
+type recordingDeliveryPushClient struct {
+	singleCalls []recordingDeliveryPushSingleCall
+	batchCalls  []recordingDeliveryPushBatchCall
+}
+
+type recordingDeliveryPushSingleCall struct {
+	nodeID uint64
+	cmd    accessnode.DeliveryPushCommand
+}
+
+type recordingDeliveryPushBatchCall struct {
+	nodeID uint64
+	cmd    accessnode.DeliveryPushBatchCommand
+}
+
+func (r *recordingDeliveryPushClient) PushBatch(_ context.Context, nodeID uint64, cmd accessnode.DeliveryPushCommand) (accessnode.DeliveryPushResponse, error) {
+	r.singleCalls = append(r.singleCalls, recordingDeliveryPushSingleCall{nodeID: nodeID, cmd: cmd})
+	return accessnode.DeliveryPushResponse{Accepted: append([]deliveryruntime.RouteKey(nil), cmd.Routes...)}, nil
+}
+
+func (r *recordingDeliveryPushClient) PushBatchItems(_ context.Context, nodeID uint64, cmd accessnode.DeliveryPushBatchCommand) (accessnode.DeliveryPushResponse, error) {
+	r.batchCalls = append(r.batchCalls, recordingDeliveryPushBatchCall{nodeID: nodeID, cmd: cmd})
+	resp := accessnode.DeliveryPushResponse{}
+	for _, item := range cmd.Items {
+		resp.Accepted = append(resp.Accepted, item.Routes...)
+	}
+	return resp, nil
+}
+
+func mustDecodeRecvPacket(t *testing.T, body []byte) *frame.RecvPacket {
+	t.Helper()
+	f, _, err := codec.New().DecodeFrame(body, frame.LatestVersion)
+	require.NoError(t, err)
+	packet, ok := f.(*frame.RecvPacket)
+	require.True(t, ok)
+	return packet
 }
 
 func remoteAcksHas(idx *deliveryruntime.AckIndex, sessionID, messageID uint64) bool {

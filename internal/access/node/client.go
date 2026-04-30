@@ -121,13 +121,24 @@ func (c *Client) SubmitCommitted(ctx context.Context, nodeID uint64, env deliver
 	return nil
 }
 
-func (c *Client) PushBatch(ctx context.Context, nodeID uint64, cmd DeliveryPushCommand) (deliveryPushResponse, error) {
+func (c *Client) PushBatch(ctx context.Context, nodeID uint64, cmd DeliveryPushCommand) (DeliveryPushResponse, error) {
 	resp, err := callDeliveryDirect(ctx, c, nodeID, deliveryPushRPCServiceID, cmd, decodeDeliveryPushResponse)
 	if err != nil {
-		return deliveryPushResponse{}, err
+		return DeliveryPushResponse{}, err
 	}
 	if resp.Status != rpcStatusOK {
-		return deliveryPushResponse{}, fmt.Errorf("access/node: unexpected delivery push status %q", resp.Status)
+		return DeliveryPushResponse{}, fmt.Errorf("access/node: unexpected delivery push status %q", resp.Status)
+	}
+	return resp, nil
+}
+
+func (c *Client) PushBatchItems(ctx context.Context, nodeID uint64, cmd DeliveryPushBatchCommand) (DeliveryPushResponse, error) {
+	resp, err := callDeliveryDirect(ctx, c, nodeID, deliveryPushRPCServiceID, cmd, decodeDeliveryPushResponse)
+	if err != nil {
+		return DeliveryPushResponse{}, err
+	}
+	if resp.Status != rpcStatusOK {
+		return DeliveryPushResponse{}, fmt.Errorf("access/node: unexpected delivery push status %q", resp.Status)
 	}
 	return resp, nil
 }

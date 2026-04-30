@@ -733,9 +733,14 @@ func (p localDeliveryPush) pushEnvelope(env deliveryruntime.CommittedEnvelope, r
 type distributedDeliveryPush struct {
 	localNodeID uint64
 	local       localDeliveryPush
-	client      *accessnode.Client
+	client      deliveryPushClient
 	codec       codec.Protocol
 	logger      wklog.Logger
+}
+
+type deliveryPushClient interface {
+	PushBatch(ctx context.Context, nodeID uint64, cmd accessnode.DeliveryPushCommand) (accessnode.DeliveryPushResponse, error)
+	PushBatchItems(ctx context.Context, nodeID uint64, cmd accessnode.DeliveryPushBatchCommand) (accessnode.DeliveryPushResponse, error)
 }
 
 func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.PushCommand) (deliveryruntime.PushResult, error) {
@@ -744,16 +749,13 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 	}
 
 	localRoutes := make([]deliveryruntime.RouteKey, 0, len(cmd.Routes))
-	remoteRoutes := make(map[uint64]map[string][]deliveryruntime.RouteKey)
+	remoteRoutes := make(map[uint64][]deliveryruntime.RouteKey)
 	for _, route := range cmd.Routes {
 		if route.NodeID == p.localNodeID {
 			localRoutes = append(localRoutes, route)
 			continue
 		}
-		if remoteRoutes[route.NodeID] == nil {
-			remoteRoutes[route.NodeID] = make(map[string][]deliveryruntime.RouteKey)
-		}
-		remoteRoutes[route.NodeID][route.UID] = append(remoteRoutes[route.NodeID][route.UID], route)
+		remoteRoutes[route.NodeID] = append(remoteRoutes[route.NodeID], route)
 	}
 
 	result := deliveryruntime.PushResult{}
@@ -764,64 +766,97 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 		result.Dropped = append(result.Dropped, localResult.Dropped...)
 	}
 
-	for nodeID, routesByUID := range remoteRoutes {
-		for uid, routes := range routesByUID {
-			if p.client == nil {
-				result.Retryable = append(result.Retryable, routes...)
-				continue
-			}
-			f := buildRealtimeRecvPacket(cmd.Envelope.Message, uid)
-			frameBytes, err := p.codec.EncodeFrame(f, frame.LatestVersion)
-			if err != nil {
-				return deliveryruntime.PushResult{}, err
-			}
-			resp, err := p.client.PushBatch(ctx, nodeID, accessnode.DeliveryPushCommand{
-				OwnerNodeID: p.localNodeID,
-				ChannelID:   cmd.Envelope.ChannelID,
-				ChannelType: cmd.Envelope.ChannelType,
-				MessageID:   cmd.Envelope.MessageID,
-				MessageSeq:  cmd.Envelope.MessageSeq,
-				Routes:      append([]deliveryruntime.RouteKey(nil), routes...),
-				Frame:       append([]byte(nil), frameBytes...),
-			})
-			if err != nil {
-				if p.logger != nil {
-					p.logger.Warn("remote delivery push failed",
-						wklog.Event("delivery.diag.remote_push"),
-						wklog.String("channelID", cmd.Envelope.ChannelID),
-						wklog.Int("channelType", int(cmd.Envelope.ChannelType)),
-						wklog.Uint64("messageID", cmd.Envelope.MessageID),
-						wklog.Uint64("messageSeq", cmd.Envelope.MessageSeq),
-						wklog.Uint64("targetNodeID", nodeID),
-						wklog.String("uid", uid),
-						wklog.Int("routes", len(routes)),
-						wklog.Error(err),
-					)
-				}
-				result.Retryable = append(result.Retryable, routes...)
-				continue
-			}
+	for nodeID, routes := range remoteRoutes {
+		if p.client == nil {
+			result.Retryable = append(result.Retryable, routes...)
+			continue
+		}
+		items, err := p.deliveryPushItems(cmd.Envelope, routes)
+		if err != nil {
+			return deliveryruntime.PushResult{}, err
+		}
+		resp, err := p.client.PushBatchItems(ctx, nodeID, accessnode.DeliveryPushBatchCommand{
+			OwnerNodeID: p.localNodeID,
+			Items:       items,
+		})
+		if err != nil {
 			if p.logger != nil {
-				p.logger.Debug("remote delivery push finished",
+				p.logger.Warn("remote delivery push failed",
 					wklog.Event("delivery.diag.remote_push"),
 					wklog.String("channelID", cmd.Envelope.ChannelID),
 					wklog.Int("channelType", int(cmd.Envelope.ChannelType)),
 					wklog.Uint64("messageID", cmd.Envelope.MessageID),
 					wklog.Uint64("messageSeq", cmd.Envelope.MessageSeq),
 					wklog.Uint64("targetNodeID", nodeID),
-					wklog.String("uid", uid),
+					wklog.Int("items", len(items)),
 					wklog.Int("routes", len(routes)),
-					wklog.Int("accepted", len(resp.Accepted)),
-					wklog.Int("retryable", len(resp.Retryable)),
-					wklog.Int("dropped", len(resp.Dropped)),
+					wklog.Error(err),
 				)
 			}
-			result.Accepted = append(result.Accepted, resp.Accepted...)
-			result.Retryable = append(result.Retryable, resp.Retryable...)
-			result.Dropped = append(result.Dropped, resp.Dropped...)
+			result.Retryable = append(result.Retryable, routes...)
+			continue
 		}
+		if p.logger != nil {
+			p.logger.Debug("remote delivery push finished",
+				wklog.Event("delivery.diag.remote_push"),
+				wklog.String("channelID", cmd.Envelope.ChannelID),
+				wklog.Int("channelType", int(cmd.Envelope.ChannelType)),
+				wklog.Uint64("messageID", cmd.Envelope.MessageID),
+				wklog.Uint64("messageSeq", cmd.Envelope.MessageSeq),
+				wklog.Uint64("targetNodeID", nodeID),
+				wklog.Int("items", len(items)),
+				wklog.Int("routes", len(routes)),
+				wklog.Int("accepted", len(resp.Accepted)),
+				wklog.Int("retryable", len(resp.Retryable)),
+				wklog.Int("dropped", len(resp.Dropped)),
+			)
+		}
+		result.Accepted = append(result.Accepted, resp.Accepted...)
+		result.Retryable = append(result.Retryable, resp.Retryable...)
+		result.Dropped = append(result.Dropped, resp.Dropped...)
 	}
 	return result, nil
+}
+
+func (p distributedDeliveryPush) deliveryPushItems(env deliveryruntime.CommittedEnvelope, routes []deliveryruntime.RouteKey) ([]accessnode.DeliveryPushItem, error) {
+	if env.ChannelType != frame.ChannelTypePerson {
+		item, err := p.deliveryPushItem(env, routes, "")
+		if err != nil {
+			return nil, err
+		}
+		return []accessnode.DeliveryPushItem{item}, nil
+	}
+
+	routesByView := make(map[string][]deliveryruntime.RouteKey)
+	for _, route := range routes {
+		view := recipientChannelView(env.Message, route.UID)
+		routesByView[view] = append(routesByView[view], route)
+	}
+	items := make([]accessnode.DeliveryPushItem, 0, len(routesByView))
+	for _, groupedRoutes := range routesByView {
+		item, err := p.deliveryPushItem(env, groupedRoutes, groupedRoutes[0].UID)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func (p distributedDeliveryPush) deliveryPushItem(env deliveryruntime.CommittedEnvelope, routes []deliveryruntime.RouteKey, recipientUID string) (accessnode.DeliveryPushItem, error) {
+	f := buildRealtimeRecvPacket(env.Message, recipientUID)
+	frameBytes, err := p.codec.EncodeFrame(f, frame.LatestVersion)
+	if err != nil {
+		return accessnode.DeliveryPushItem{}, err
+	}
+	return accessnode.DeliveryPushItem{
+		ChannelID:   env.ChannelID,
+		ChannelType: env.ChannelType,
+		MessageID:   env.MessageID,
+		MessageSeq:  env.MessageSeq,
+		Routes:      append([]deliveryruntime.RouteKey(nil), routes...),
+		Frame:       append([]byte(nil), frameBytes...),
+	}, nil
 }
 
 type ackRouting struct {

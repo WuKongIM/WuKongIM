@@ -12,6 +12,7 @@ import (
 
 type deliveryPushRequest struct {
 	OwnerNodeID uint64                     `json:"owner_node_id"`
+	Items       []DeliveryPushItem         `json:"items"`
 	ChannelID   string                     `json:"channel_id"`
 	ChannelType uint8                      `json:"channel_type"`
 	MessageID   uint64                     `json:"message_id"`
@@ -26,13 +27,49 @@ func (a *Adapter) handleDeliveryPushRPC(ctx context.Context, body []byte) ([]byt
 	if err := json.Unmarshal(body, &req); err != nil {
 		return nil, err
 	}
-	f, _, err := a.codec.DecodeFrame(req.Frame, frame.LatestVersion)
-	if err != nil {
-		return nil, err
-	}
+	items := req.deliveryPushItems()
 
-	resp := deliveryPushResponse{Status: rpcStatusOK}
-	for _, route := range req.Routes {
+	resp := DeliveryPushResponse{Status: rpcStatusOK}
+	for _, item := range items {
+		f, _, err := a.codec.DecodeFrame(item.Frame, frame.LatestVersion)
+		if err != nil {
+			return nil, err
+		}
+		a.handleDeliveryPushItem(item, req.OwnerNodeID, f, &resp)
+	}
+	if a.logger != nil {
+		a.logger.Info("delivery push rpc finished",
+			wklog.Event("delivery.diag.push_rpc"),
+			wklog.Uint64("ownerNodeID", req.OwnerNodeID),
+			wklog.Int("items", len(items)),
+			wklog.Int("routes", deliveryPushRouteCount(items)),
+			wklog.Int("accepted", len(resp.Accepted)),
+			wklog.Int("retryable", len(resp.Retryable)),
+			wklog.Int("dropped", len(resp.Dropped)),
+		)
+	}
+	return encodeDeliveryPushResponse(resp)
+}
+
+func (r deliveryPushRequest) deliveryPushItems() []DeliveryPushItem {
+	if len(r.Items) > 0 {
+		return r.Items
+	}
+	if len(r.Routes) == 0 && len(r.Frame) == 0 {
+		return nil
+	}
+	return []DeliveryPushItem{{
+		ChannelID:   r.ChannelID,
+		ChannelType: r.ChannelType,
+		MessageID:   r.MessageID,
+		MessageSeq:  r.MessageSeq,
+		Routes:      r.Routes,
+		Frame:       r.Frame,
+	}}
+}
+
+func (a *Adapter) handleDeliveryPushItem(item DeliveryPushItem, ownerNodeID uint64, f frame.Frame, resp *DeliveryPushResponse) {
+	for _, route := range item.Routes {
 		switch {
 		case a.localNodeID != 0 && route.NodeID != a.localNodeID:
 			resp.Dropped = append(resp.Dropped, route)
@@ -47,16 +84,16 @@ func (a *Adapter) handleDeliveryPushRPC(ctx context.Context, body []byte) ([]byt
 			if a.deliveryAckIndex != nil {
 				a.deliveryAckIndex.Bind(deliveryruntime.AckBinding{
 					SessionID:   route.SessionID,
-					MessageID:   req.MessageID,
-					ChannelID:   req.ChannelID,
-					ChannelType: req.ChannelType,
-					OwnerNodeID: req.OwnerNodeID,
+					MessageID:   item.MessageID,
+					ChannelID:   item.ChannelID,
+					ChannelType: item.ChannelType,
+					OwnerNodeID: ownerNodeID,
 					Route:       route,
 				})
 			}
 			if err := conn.Session.WriteFrame(f); err != nil {
 				if a.deliveryAckIndex != nil {
-					a.deliveryAckIndex.Remove(route.SessionID, req.MessageID)
+					a.deliveryAckIndex.Remove(route.SessionID, item.MessageID)
 				}
 				resp.Retryable = append(resp.Retryable, route)
 				continue
@@ -64,19 +101,12 @@ func (a *Adapter) handleDeliveryPushRPC(ctx context.Context, body []byte) ([]byt
 			resp.Accepted = append(resp.Accepted, route)
 		}
 	}
-	if a.logger != nil {
-		a.logger.Info("delivery push rpc finished",
-			wklog.Event("delivery.diag.push_rpc"),
-			wklog.String("channelID", req.ChannelID),
-			wklog.Int("channelType", int(req.ChannelType)),
-			wklog.Uint64("messageID", req.MessageID),
-			wklog.Uint64("messageSeq", req.MessageSeq),
-			wklog.Uint64("ownerNodeID", req.OwnerNodeID),
-			wklog.Int("routes", len(req.Routes)),
-			wklog.Int("accepted", len(resp.Accepted)),
-			wklog.Int("retryable", len(resp.Retryable)),
-			wklog.Int("dropped", len(resp.Dropped)),
-		)
+}
+
+func deliveryPushRouteCount(items []DeliveryPushItem) int {
+	total := 0
+	for _, item := range items {
+		total += len(item.Routes)
 	}
-	return encodeDeliveryPushResponse(resp)
+	return total
 }
