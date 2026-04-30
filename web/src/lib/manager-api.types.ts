@@ -83,6 +83,158 @@ export type ManagerOverviewTaskAnomalyItem = {
   last_error: string
 }
 
+export type ManagerNetworkSummaryResponse = {
+  generated_at: string
+  scope: ManagerNetworkScope
+  source_status: ManagerNetworkSourceStatus
+  headline: ManagerNetworkHeadline
+  traffic: ManagerNetworkTraffic
+  peers: ManagerNetworkPeer[]
+  services: ManagerNetworkRPCService[]
+  channel_replication: ManagerNetworkChannelReplication
+  discovery: ManagerNetworkDiscovery
+  events: ManagerNetworkEvent[]
+}
+
+export type ManagerNetworkScope = {
+  view: string
+  local_node_id: number
+  controller_leader_id: number
+}
+
+export type ManagerNetworkSourceStatus = {
+  local_collector: string
+  controller_context: string
+  runtime_views: string
+  errors: Record<string, string>
+}
+
+export type ManagerNetworkHeadline = {
+  remote_peers: number
+  alive_nodes: number
+  suspect_nodes: number
+  dead_nodes: number
+  draining_nodes: number
+  pool_active: number
+  pool_idle: number
+  rpc_inflight: number
+  dial_errors_1m: number
+  queue_full_1m: number
+  timeouts_1m: number
+  stale_observations: number
+}
+
+export type ManagerNetworkTraffic = {
+  scope: string
+  tx_bytes_1m: number
+  rx_bytes_1m: number
+  tx_bps: number
+  rx_bps: number
+  peer_breakdown_available: boolean
+  by_message_type: ManagerNetworkTrafficMessageType[]
+}
+
+export type ManagerNetworkTrafficMessageType = {
+  direction: string
+  message_type: string
+  bytes_1m: number
+  bps: number
+}
+
+export type ManagerNetworkPeer = {
+  node_id: number
+  name: string
+  addr: string
+  health: string
+  last_heartbeat_at: string
+  pools: ManagerNetworkPeerPools
+  rpc: ManagerNetworkPeerRPC
+  errors: ManagerNetworkPeerErrors
+}
+
+export type ManagerNetworkPoolStats = {
+  active: number
+  idle: number
+}
+
+export type ManagerNetworkPeerPools = {
+  cluster: ManagerNetworkPoolStats
+  data_plane: ManagerNetworkPoolStats
+}
+
+export type ManagerNetworkPeerRPC = {
+  inflight: number
+  calls_1m: number
+  p95_ms: number
+  success_rate: number | null
+}
+
+export type ManagerNetworkPeerErrors = {
+  dial_error_1m: number
+  queue_full_1m: number
+  timeout_1m: number
+  remote_error_1m: number
+}
+
+export type ManagerNetworkRPCService = {
+  service_id: number
+  service: string
+  group: string
+  target_node: number
+  inflight: number
+  calls_1m: number
+  success_1m: number
+  expected_timeout_1m: number
+  timeout_1m: number
+  queue_full_1m: number
+  remote_error_1m: number
+  other_error_1m: number
+  p50_ms: number
+  p95_ms: number
+  p99_ms: number
+  last_seen_at: string
+}
+
+export type ManagerNetworkChannelReplication = {
+  pool: ManagerNetworkPoolStats
+  services: ManagerNetworkRPCService[]
+  long_poll: ManagerNetworkLongPollConfig
+  long_poll_timeouts_1m: number
+  data_plane_rpc_timeout_ms: number
+}
+
+export type ManagerNetworkLongPollConfig = {
+  lane_count: number
+  max_wait_ms: number
+  max_bytes: number
+  max_channels: number
+}
+
+export type ManagerNetworkDiscovery = {
+  listen_addr: string
+  advertise_addr: string
+  seeds: string[]
+  static_nodes: ManagerNetworkDiscoveryNode[]
+  pool_size: number
+  data_plane_pool_size: number
+  dial_timeout_ms: number
+  controller_observation_interval_ms: number
+}
+
+export type ManagerNetworkDiscoveryNode = {
+  node_id: number
+  addr: string
+}
+
+export type ManagerNetworkEvent = {
+  at: string
+  severity: string
+  kind: string
+  target_node: number
+  service: string
+  message: string
+}
+
 export type ManagerNode = {
   node_id: number
   name?: string

@@ -10,6 +10,7 @@ import (
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 // ClusterReader exposes the cluster reads needed by manager queries.
@@ -65,6 +66,8 @@ type ClusterReader interface {
 	GetNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
 	// RetryNodeOnboardingJob creates a replacement plan for a failed onboarding job.
 	RetryNodeOnboardingJob(ctx context.Context, jobID string) (controllermeta.NodeOnboardingJob, error)
+	// TransportPoolStats returns local outbound cluster transport pool counters by peer.
+	TransportPoolStats() []transport.PoolPeerStats
 }
 
 // ChannelRuntimeMetaReader exposes authoritative slot-level channel runtime pages.
@@ -133,6 +136,8 @@ type Options struct {
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
 	// Messages provides authoritative channel message pages.
 	Messages MessageReader
+	// Network provides local node network observations for manager network pages.
+	Network NetworkSnapshotReader
 	// Now returns the current time for manager aggregations.
 	Now func() time.Time
 }
@@ -148,6 +153,7 @@ type App struct {
 	runtimeSummary           RuntimeSummaryReader
 	channelRuntimeMeta       ChannelRuntimeMetaReader
 	messages                 MessageReader
+	network                  NetworkSnapshotReader
 	now                      func() time.Time
 }
 
@@ -178,6 +184,7 @@ func New(opts Options) *App {
 		runtimeSummary:           opts.RuntimeSummary,
 		channelRuntimeMeta:       opts.ChannelRuntimeMeta,
 		messages:                 opts.Messages,
+		network:                  opts.Network,
 		now:                      now,
 	}
 }

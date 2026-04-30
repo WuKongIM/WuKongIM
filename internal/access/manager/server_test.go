@@ -2798,6 +2798,8 @@ type managementStub struct {
 	messagesErr                     error
 	overview                        managementusecase.Overview
 	overviewErr                     error
+	networkSummary                  managementusecase.NetworkSummary
+	networkSummaryErr               error
 	nodeOnboardingCandidates        managementusecase.NodeOnboardingCandidatesResponse
 	nodeOnboardingCandidatesErr     error
 	nodeOnboardingJob               managementusecase.NodeOnboardingJobResponse
@@ -2954,6 +2956,10 @@ func (s managementStub) ListMessages(_ context.Context, req managementusecase.Li
 
 func (s managementStub) GetOverview(context.Context) (managementusecase.Overview, error) {
 	return s.overview, s.overviewErr
+}
+
+func (s managementStub) ListNetworkSummary(context.Context) (managementusecase.NetworkSummary, error) {
+	return s.networkSummary, s.networkSummaryErr
 }
 
 func (s managementStub) ListNodeOnboardingCandidates(context.Context) (managementusecase.NodeOnboardingCandidatesResponse, error) {

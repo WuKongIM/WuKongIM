@@ -70,6 +70,7 @@ type App struct {
 	dataPlanePool        *transport.Pool
 	dataPlaneClient      *transport.Client
 	metrics              *obsmetrics.Registry
+	networkObservability *networkObservability
 	observedClusterCache observedClusterStateCache
 	nodeDrainState       *nodeDrainState
 

@@ -7,6 +7,7 @@ import type {
   ManagerConnectionsResponse,
   ManagerLoginResponse,
   ManagerMessagesResponse,
+  ManagerNetworkSummaryResponse,
   ManagerNodeOnboardingCandidatesResponse,
   ManagerNodeOnboardingJob,
   ManagerNodeOnboardingJobsResponse,
@@ -204,6 +205,10 @@ export async function loginManager(credentials: ManagerLoginCredentials): Promis
 
 export function getOverview() {
   return jsonManagerFetch<ManagerOverviewResponse>("/manager/overview")
+}
+
+export function getNetworkSummary() {
+  return jsonManagerFetch<ManagerNetworkSummaryResponse>("/manager/network/summary")
 }
 
 export function getNodes() {

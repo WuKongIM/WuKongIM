@@ -145,6 +145,59 @@ func TestTransportMetricsObserverMapsServiceIDToName(t *testing.T) {
 	}))
 }
 
+func TestTransportRPCServiceNameCoversKnownServices(t *testing.T) {
+	cases := map[uint8]string{
+		1:  "forward",
+		5:  "presence",
+		6:  "delivery_submit",
+		7:  "delivery_push",
+		8:  "delivery_ack",
+		9:  "delivery_offline",
+		13: "conversation_facts",
+		14: "controller",
+		20: "managed_slot",
+		30: "channel_fetch",
+		33: "channel_append",
+		34: "channel_reconcile_probe",
+		35: "channel_long_poll_fetch",
+		36: "channel_messages",
+		37: "channel_leader_repair",
+		38: "channel_leader_evaluate",
+		39: "runtime_summary",
+		99: "service_99",
+	}
+	for serviceID, want := range cases {
+		require.Equal(t, want, transportRPCServiceName(serviceID), "service id %d", serviceID)
+	}
+}
+
+func TestMergeTransportObserverHooksKeepsEmptyHooksEmpty(t *testing.T) {
+	hooks := mergeTransportObserverHooks(transport.ObserverHooks{}, transport.ObserverHooks{})
+	require.False(t, hasTransportObserverHooks(hooks))
+}
+
+func TestMergeTransportObserverHooksCallsBothSides(t *testing.T) {
+	var leftRPC, rightRPC, leftDial, rightDial atomic.Int32
+	hooks := mergeTransportObserverHooks(
+		transport.ObserverHooks{
+			OnRPCClient: func(transport.RPCClientEvent) { leftRPC.Add(1) },
+			OnDial:      func(transport.DialEvent) { leftDial.Add(1) },
+		},
+		transport.ObserverHooks{
+			OnRPCClient: func(transport.RPCClientEvent) { rightRPC.Add(1) },
+			OnDial:      func(transport.DialEvent) { rightDial.Add(1) },
+		},
+	)
+
+	hooks.OnRPCClient(transport.RPCClientEvent{TargetNode: 2, ServiceID: 33})
+	hooks.OnDial(transport.DialEvent{TargetNode: 2, Result: "ok"})
+
+	require.Equal(t, int32(1), leftRPC.Load())
+	require.Equal(t, int32(1), rightRPC.Load())
+	require.Equal(t, int32(1), leftDial.Load())
+	require.Equal(t, int32(1), rightDial.Load())
+}
+
 func TestMetricsHandlerRefreshesTransportPoolMetrics(t *testing.T) {
 	app := &App{
 		cfg: Config{

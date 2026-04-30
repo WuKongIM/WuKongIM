@@ -250,11 +250,84 @@ func transportRPCServiceName(serviceID uint8) string {
 		return "controller"
 	case 20:
 		return "managed_slot"
+	case 30:
+		return "channel_fetch"
 	case 33:
 		return "channel_append"
+	case 34:
+		return "channel_reconcile_probe"
+	case 35:
+		return "channel_long_poll_fetch"
+	case 36:
+		return "channel_messages"
+	case 37:
+		return "channel_leader_repair"
+	case 38:
+		return "channel_leader_evaluate"
+	case 39:
+		return "runtime_summary"
 	default:
 		return "service_" + strconv.FormatUint(uint64(serviceID), 10)
 	}
+}
+
+func mergeTransportObserverHooks(left, right transport.ObserverHooks) transport.ObserverHooks {
+	if !hasTransportObserverHooks(left) {
+		return right
+	}
+	if !hasTransportObserverHooks(right) {
+		return left
+	}
+	return transport.ObserverHooks{
+		OnSend: func(msgType uint8, bytes int) {
+			if left.OnSend != nil {
+				left.OnSend(msgType, bytes)
+			}
+			if right.OnSend != nil {
+				right.OnSend(msgType, bytes)
+			}
+		},
+		OnReceive: func(msgType uint8, bytes int) {
+			if left.OnReceive != nil {
+				left.OnReceive(msgType, bytes)
+			}
+			if right.OnReceive != nil {
+				right.OnReceive(msgType, bytes)
+			}
+		},
+		OnDial: func(event transport.DialEvent) {
+			if left.OnDial != nil {
+				left.OnDial(event)
+			}
+			if right.OnDial != nil {
+				right.OnDial(event)
+			}
+		},
+		OnEnqueue: func(event transport.EnqueueEvent) {
+			if left.OnEnqueue != nil {
+				left.OnEnqueue(event)
+			}
+			if right.OnEnqueue != nil {
+				right.OnEnqueue(event)
+			}
+		},
+		OnRPCClient: func(event transport.RPCClientEvent) {
+			if left.OnRPCClient != nil {
+				left.OnRPCClient(event)
+			}
+			if right.OnRPCClient != nil {
+				right.OnRPCClient(event)
+			}
+		},
+	}
+}
+
+func hasTransportObserverHooks(hooks transport.ObserverHooks) bool {
+	return hooks.OnSend != nil ||
+		hooks.OnReceive != nil ||
+		hooks.OnDial != nil ||
+		hooks.OnEnqueue != nil ||
+		hooks.OnRPCClient != nil
 }
 
 func (a *App) metricsHandler() http.Handler {
