@@ -276,6 +276,24 @@ test("shows only current long-poll expiries as neutral samples", async () => {
   expectAllMetricCards("Expected long-poll expiries", "1")
 })
 
+test("uses current one-minute totals for abnormal failure KPI", async () => {
+  getNetworkSummaryMock.mockResolvedValue({
+    ...networkSummaryFixture,
+    history: {
+      ...networkSummaryFixture.history,
+      errors: [
+        { at: "2026-04-23T07:59:30Z", dial_errors: 3, queue_full: 2, timeouts: 1, remote_errors: 2 },
+        { at: "2026-04-23T08:00:00Z", dial_errors: 0, queue_full: 0, timeouts: 1, remote_errors: 0 },
+      ],
+    },
+  })
+
+  renderNetworkPage()
+
+  expect(await screen.findByText("RPC Calls & Errors")).toBeInTheDocument()
+  expectAllMetricCards("Abnormal failures", "10")
+})
+
 test("renders single-node cluster outbound empty state as healthy", async () => {
   getNetworkSummaryMock.mockResolvedValue({
     ...networkSummaryFixture,

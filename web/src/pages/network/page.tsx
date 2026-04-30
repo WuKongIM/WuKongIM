@@ -232,11 +232,6 @@ function abnormalServiceFailures(services: ManagerNetworkRPCService[]) {
 }
 
 function abnormalFailureTotal(summary: ManagerNetworkSummaryResponse) {
-  const history = summaryHistory(summary)
-  const latestErrorPoint = history.errors.at(-1)
-  if (latestErrorPoint) {
-    return latestErrorPoint.dial_errors + latestErrorPoint.queue_full + latestErrorPoint.timeouts + latestErrorPoint.remote_errors
-  }
   const peerTotal = summary.peers.reduce((total, peer) => total + peer.errors.dial_error_1m + peer.errors.queue_full_1m + peer.errors.timeout_1m + peer.errors.remote_error_1m, 0)
   if (summary.peers.length > 0) return peerTotal
   return summary.headline.dial_errors_1m + summary.headline.queue_full_1m + summary.headline.timeouts_1m
