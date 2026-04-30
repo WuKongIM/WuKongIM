@@ -1,16 +1,28 @@
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { RouterProvider, createMemoryRouter } from "react-router-dom"
-import { beforeEach, expect, test } from "vitest"
+import { beforeEach, expect, test, vi } from "vitest"
 
 import { AppProviders } from "@/app/providers"
 import { routes } from "@/app/router"
 import { useAuthStore } from "@/auth/auth-store"
 import { resetLocale } from "@/i18n/locale-store"
 
+const getNetworkSummaryMock = vi.fn()
+
+vi.mock("@/lib/manager-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/manager-api")>()
+  return {
+    ...actual,
+    getNetworkSummary: (...args: unknown[]) => getNetworkSummaryMock(...args),
+  }
+})
+
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
+  getNetworkSummaryMock.mockReset()
+  getNetworkSummaryMock.mockImplementation(() => new Promise(() => {}))
   useAuthStore.setState({
     status: "authenticated",
     isHydrated: true,
@@ -33,7 +45,7 @@ test("shows the current route title, description, and logged-in username", async
 
   expect(within(screen.getByRole("banner")).getByText("Network")).toBeInTheDocument()
   expect(
-    within(screen.getByRole("banner")).getByText("Transport summary and runtime status."),
+    within(screen.getByRole("banner")).getByText("Local-node transport summary and runtime status."),
   ).toBeInTheDocument()
   expect(within(screen.getByRole("banner")).getByText("admin")).toBeInTheDocument()
 })
@@ -91,5 +103,5 @@ test("reads the translated route title and description from shared metadata", as
   )
 
   expect(await within(screen.getByRole("banner")).findByText("网络")).toBeInTheDocument()
-  expect(within(screen.getByRole("banner")).getByText("尚未暴露的管理面网络覆盖说明。")).toBeInTheDocument()
+  expect(within(screen.getByRole("banner")).getByText("本地节点传输摘要与运行时状态。")).toBeInTheDocument()
 })
