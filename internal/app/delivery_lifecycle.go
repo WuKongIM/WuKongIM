@@ -7,7 +7,6 @@ import (
 	"time"
 
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
-	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
@@ -21,6 +20,12 @@ type deliveryRuntimeMaintenance interface {
 	SweepIdle()
 	InflightRouteCount() int
 	AckBindingCount() int
+}
+
+type deliveryRuntimeMetrics interface {
+	ObserveRouteExpired(channelType string)
+	SetActorInflightRoutes(v int)
+	SetAckBindings(v int)
 }
 
 type deliveryRuntimeLifecycleConfig struct {
@@ -132,7 +137,7 @@ func (l *deliveryRuntimeLifecycle) observeMaintenanceSnapshot() {
 }
 
 type deliveryRuntimeMetricsObserver struct {
-	metrics *obsmetrics.DeliveryMetrics
+	metrics deliveryRuntimeMetrics
 }
 
 func (o deliveryRuntimeMetricsObserver) OnRouteExpired(event deliveryruntime.RouteExpiredEvent) {

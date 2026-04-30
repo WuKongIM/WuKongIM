@@ -44,6 +44,11 @@ type committedReplayConversation interface {
 	Flush(context.Context) error
 }
 
+type committedReplayMetrics interface {
+	SetCommittedReplayLag(channelType string, lag uint64)
+	ObserveCommittedReplayPass(result string, dur time.Duration)
+}
+
 type committedReplayerConfig struct {
 	// Log is the durable source of committed messages and replay cursors.
 	Log committedReplayLog
@@ -61,6 +66,8 @@ type committedReplayerConfig struct {
 	Interval time.Duration
 	// Logger records replay failures without failing the send hot path.
 	Logger wklog.Logger
+	// Metrics observes replay pass duration and per-channel committed lag.
+	Metrics committedReplayMetrics
 }
 
 // committedReplayer repairs missed async side effects from the durable channel log.
@@ -193,7 +200,11 @@ func (r *committedReplayer) runOnceAndLog(ctx context.Context) {
 
 // RunOnce replays committed messages after the persisted cursor and advances the
 // cursor only after all side effects in the batch have been accepted and flushed.
-func (r *committedReplayer) RunOnce(ctx context.Context) error {
+func (r *committedReplayer) RunOnce(ctx context.Context) (err error) {
+	startedAt := time.Now()
+	defer func() {
+		r.recordReplayPass(committedReplayPassResult(err), time.Since(startedAt))
+	}()
 	if r == nil || r.cfg.Log == nil {
 		return channel.ErrInvalidConfig
 	}
@@ -228,6 +239,7 @@ func (r *committedReplayer) replayChannel(ctx context.Context, ch committedRepla
 		if err != nil {
 			return err
 		}
+		r.recordReplayLag(ch.ID.Type, replayLag(cursor, committedSeq))
 		if committedSeq == 0 || cursor >= committedSeq {
 			return nil
 		}
@@ -288,6 +300,38 @@ func (r *committedReplayer) submitMessage(ctx context.Context, msg channel.Messa
 		}
 	}
 	return nil
+}
+
+func (r *committedReplayer) recordReplayLag(channelType uint8, lag uint64) {
+	if r == nil || r.cfg.Metrics == nil {
+		return
+	}
+	r.cfg.Metrics.SetCommittedReplayLag(deliveryChannelTypeLabel(channelType), lag)
+}
+
+func (r *committedReplayer) recordReplayPass(result string, dur time.Duration) {
+	if r == nil || r.cfg.Metrics == nil {
+		return
+	}
+	r.cfg.Metrics.ObserveCommittedReplayPass(result, dur)
+}
+
+func committedReplayPassResult(err error) string {
+	switch {
+	case err == nil:
+		return "ok"
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	default:
+		return "error"
+	}
+}
+
+func replayLag(cursor, committedSeq uint64) uint64 {
+	if committedSeq <= cursor {
+		return 0
+	}
+	return committedSeq - cursor
 }
 
 type channelStoreCommittedReplayLog struct {

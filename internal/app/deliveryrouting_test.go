@@ -428,6 +428,27 @@ func TestCommittedDispatchQueueRecordsMetrics(t *testing.T) {
 	require.Contains(t, metrics.depths, "0:1")
 }
 
+func TestAsyncCommittedDispatcherRecordsQueueMetrics(t *testing.T) {
+	metrics := &recordingCommittedDispatchMetrics{}
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID:           1,
+		PreferLocal:           true,
+		Conversation:          &recordingFlushingConversationSubmitter{},
+		Metrics:               metrics,
+		ShardCount:            1,
+		QueueDepth:            1,
+		DisableWorkersForTest: true,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	defer func() { require.NoError(t, dispatcher.Stop()) }()
+
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
+	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 2}}))
+
+	require.Equal(t, []string{"0:ok", "0:overflow"}, metrics.enqueues)
+	require.NotEmpty(t, metrics.DepthSnapshots())
+}
+
 func TestCommittedDispatchQueueOverflowFallbackDoesNotBlockSubmit(t *testing.T) {
 	conversation := newBlockingFlushingConversationSubmitter()
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
@@ -906,6 +927,37 @@ func TestDistributedDeliveryPushBatchesGroupRoutesPerTargetNode(t *testing.T) {
 	}, call.cmd.Items[0].Routes)
 }
 
+func TestDistributedDeliveryPushRecordsPushRouteMetrics(t *testing.T) {
+	metrics := &recordingDeliveryRoutingMetrics{}
+	client := &recordingDeliveryPushClient{}
+	push := distributedDeliveryPush{
+		localNodeID: 1,
+		client:      client,
+		codec:       codec.New(),
+		metrics:     metrics,
+	}
+
+	_, err := push.Push(context.Background(), deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				MessageID:   101,
+				MessageSeq:  9,
+				ChannelID:   "g1",
+				ChannelType: frame.ChannelTypeGroup,
+				FromUID:     "u1",
+				Payload:     []byte("hello group"),
+			},
+		},
+		Routes: []deliveryruntime.RouteKey{
+			{UID: "u2", NodeID: 2, BootID: 11, SessionID: 21},
+			{UID: "u3", NodeID: 2, BootID: 11, SessionID: 22},
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"2:ok:2"}, metrics.pushRPCs)
+}
+
 func TestDistributedDeliveryPushBatchesPersonRoutesByRecipientChannelView(t *testing.T) {
 	client := &recordingDeliveryPushClient{}
 	push := distributedDeliveryPush{
@@ -1048,11 +1100,13 @@ func TestLocalDeliveryResolverSplitsExpandedRoutesAcrossPages(t *testing.T) {
 			},
 		},
 	}
+	metrics := &recordingDeliveryRoutingMetrics{}
 	resolver := localDeliveryResolver{
 		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
 			Store: store,
 		}),
 		authority: authority,
+		metrics:   metrics,
 		pageSize:  8,
 	}
 
@@ -1076,6 +1130,7 @@ func TestLocalDeliveryResolverSplitsExpandedRoutesAcrossPages(t *testing.T) {
 
 	require.Equal(t, 1, store.snapshotCalls)
 	require.Equal(t, [][]string{{"u2"}}, authority.uidBatches)
+	require.Equal(t, []string{"group:ok:1:1", "group:ok:0:1"}, metrics.resolves)
 }
 
 type recordingDeliveryOwnerNotifier struct {
@@ -1382,6 +1437,19 @@ func (m *recordingCommittedDispatchMetrics) DepthSnapshots() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]string(nil), m.depths...)
+}
+
+type recordingDeliveryRoutingMetrics struct {
+	pushRPCs []string
+	resolves []string
+}
+
+func (m *recordingDeliveryRoutingMetrics) ObserveResolve(channelType, result string, _ time.Duration, pages, routes int) {
+	m.resolves = append(m.resolves, channelType+":"+result+":"+strconv.Itoa(pages)+":"+strconv.Itoa(routes))
+}
+
+func (m *recordingDeliveryRoutingMetrics) ObservePushRPC(targetNode, result string, _ time.Duration, routes int) {
+	m.pushRPCs = append(m.pushRPCs, targetNode+":"+result+":"+strconv.Itoa(routes))
 }
 
 type blockingCommittedSubmitter struct {

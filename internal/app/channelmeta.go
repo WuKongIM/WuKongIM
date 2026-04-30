@@ -18,6 +18,21 @@ type channelMetaSync struct {
 	resolver *runtimechannelmeta.Sync
 }
 
+type channelMetaMetrics interface {
+	ObserveMetaRefresh(result string, dur time.Duration)
+}
+
+type channelMetaMetricsObserver struct {
+	metrics channelMetaMetrics
+}
+
+func (o channelMetaMetricsObserver) OnMetaRefresh(event runtimechannelmeta.MetaRefreshEvent) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ObserveMetaRefresh(string(event.Result), event.Duration)
+}
+
 func (s *channelMetaSync) Start() error {
 	if s == nil || s.resolver == nil {
 		return nil

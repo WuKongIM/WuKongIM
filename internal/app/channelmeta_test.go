@@ -75,6 +75,30 @@ func TestChannelMetaSyncInvalidateChannelMetaForwardsToResolver(t *testing.T) {
 	require.Equal(t, 2, source.getCalls)
 }
 
+func TestChannelMetaSyncObserverRecordsMetaRefreshMetrics(t *testing.T) {
+	metrics := &recordingChannelMetaMetrics{}
+	observer := channelMetaMetricsObserver{metrics: metrics}
+
+	observer.OnMetaRefresh(runtimechannelmeta.MetaRefreshEvent{
+		Result:   runtimechannelmeta.MetaRefreshCacheHit,
+		Duration: time.Millisecond,
+	})
+	observer.OnMetaRefresh(runtimechannelmeta.MetaRefreshEvent{
+		Result:   runtimechannelmeta.MetaRefreshAuthoritativeRead,
+		Duration: 2 * time.Millisecond,
+	})
+
+	require.Equal(t, []string{"cache_hit", "authoritative_read"}, metrics.results)
+}
+
+type recordingChannelMetaMetrics struct {
+	results []string
+}
+
+func (m *recordingChannelMetaMetrics) ObserveMetaRefresh(result string, _ time.Duration) {
+	m.results = append(m.results, result)
+}
+
 type fakeChannelMetaSource struct {
 	get      map[channel.ChannelID]metadb.ChannelRuntimeMeta
 	getCalls int

@@ -35,10 +35,12 @@ type Options struct {
 	CommittedDispatcher CommittedMessageDispatcher
 	DeliveryAck         DeliveryAck
 	DeliveryOffline     DeliveryOffline
-	LocalNodeID         uint64
-	LocalBootID         uint64
-	Now                 func() time.Time
-	Logger              wklog.Logger
+	// AppendMetrics records durable append attempts without coupling usecases to a metrics backend.
+	AppendMetrics messageAppendMetrics
+	LocalNodeID   uint64
+	LocalBootID   uint64
+	Now           func() time.Time
+	Logger        wklog.Logger
 }
 
 type App struct {
@@ -55,6 +57,7 @@ type App struct {
 	dispatcher      CommittedMessageDispatcher
 	deliveryAck     DeliveryAck
 	deliveryOffline DeliveryOffline
+	appendMetrics   messageAppendMetrics
 	localNodeID     uint64
 	localBootID     uint64
 	now             func() time.Time
@@ -89,6 +92,7 @@ func New(opts Options) *App {
 		dispatcher:      opts.CommittedDispatcher,
 		deliveryAck:     opts.DeliveryAck,
 		deliveryOffline: opts.DeliveryOffline,
+		appendMetrics:   opts.AppendMetrics,
 		localNodeID:     opts.LocalNodeID,
 		localBootID:     opts.LocalBootID,
 		now:             opts.Now,

@@ -53,7 +53,7 @@ func (a *App) sendDurable(ctx context.Context, cmd SendCommand) (SendResult, err
 	}
 	startedAt := a.now()
 	result, err := sendWithEnsuredMeta(ctx, a.localNodeID, a.now, a.sendLogger(),
-		a.cluster, a.remoteAppender, a.refresher, channel.AppendRequest{
+		a.cluster, a.remoteAppender, a.refresher, a.appendMetrics, channel.AppendRequest{
 			ChannelID:             channelID,
 			Message:               draft,
 			SupportsMessageSeqU64: supportsMessageSeqU64(cmd.ProtocolVersion),

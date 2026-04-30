@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,6 +54,27 @@ func TestDeliveryRuntimeLifecycleStopContextReturnsContextError(t *testing.T) {
 	cancel()
 	require.ErrorIs(t, lifecycle.StopContext(ctx), context.Canceled)
 }
+
+func TestDeliveryRuntimeObserverRecordsRouteExpiryMetric(t *testing.T) {
+	metrics := &recordingDeliveryLifecycleMetrics{}
+	observer := deliveryRuntimeMetricsObserver{metrics: metrics}
+
+	observer.OnRouteExpired(deliveryruntime.RouteExpiredEvent{ChannelType: frame.ChannelTypeGroup})
+
+	require.Equal(t, []string{"group"}, metrics.expired)
+}
+
+type recordingDeliveryLifecycleMetrics struct {
+	expired []string
+}
+
+func (m *recordingDeliveryLifecycleMetrics) ObserveRouteExpired(channelType string) {
+	m.expired = append(m.expired, channelType)
+}
+
+func (m *recordingDeliveryLifecycleMetrics) SetActorInflightRoutes(int) {}
+
+func (m *recordingDeliveryLifecycleMetrics) SetAckBindings(int) {}
 
 type manualDeliveryLifecycleClock struct {
 	mu      sync.Mutex

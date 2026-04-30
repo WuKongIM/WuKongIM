@@ -15,7 +15,7 @@ import (
 func TestSendWithEnsuredMetaRefresherRequired(t *testing.T) {
 	cluster := &fakeChannelCluster{}
 	_, err := sendWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
-		cluster, nil, nil, channel.AppendRequest{
+		cluster, nil, nil, nil, channel.AppendRequest{
 			ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
 		})
 	require.ErrorIs(t, err, ErrMetaRefresherRequired)
@@ -26,7 +26,7 @@ func TestSendWithEnsuredMetaRefreshFails(t *testing.T) {
 	refresher := &fakeMetaRefresher{errs: []error{refreshErr}}
 	cluster := &fakeChannelCluster{}
 	_, err := sendWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
-		cluster, nil, refresher, channel.AppendRequest{
+		cluster, nil, refresher, nil, channel.AppendRequest{
 			ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
 		})
 	require.ErrorIs(t, err, refreshErr)
@@ -45,7 +45,7 @@ func TestSendWithEnsuredMetaLocalAppend(t *testing.T) {
 		},
 	}
 	result, err := sendWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
-		cluster, nil, refresher, channel.AppendRequest{
+		cluster, nil, refresher, nil, channel.AppendRequest{
 			ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
 		})
 	require.NoError(t, err)
@@ -54,6 +54,28 @@ func TestSendWithEnsuredMetaLocalAppend(t *testing.T) {
 	require.Len(t, cluster.sendRequests, 1)
 	require.Equal(t, uint64(5), cluster.sendRequests[0].ExpectedChannelEpoch)
 	require.Equal(t, uint64(2), cluster.sendRequests[0].ExpectedLeaderEpoch)
+}
+
+func TestSendWithEnsuredMetaRecordsAppendMetrics(t *testing.T) {
+	metrics := &recordingMessageAppendMetrics{}
+	refresher := &fakeMetaRefresher{
+		metas: []channel.Meta{{
+			Leader: 1, Epoch: 5, LeaderEpoch: 2,
+		}},
+	}
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 42, MessageSeq: 3}},
+		},
+	}
+
+	_, err := sendWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
+		cluster, nil, refresher, metrics, channel.AppendRequest{
+			ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
+		})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"local:ok"}, metrics.observations)
 }
 
 func TestSendWithEnsuredMetaForwardsToRemoteLeader(t *testing.T) {
@@ -69,7 +91,7 @@ func TestSendWithEnsuredMetaForwardsToRemoteLeader(t *testing.T) {
 	}
 	cluster := &fakeChannelCluster{}
 	result, err := sendWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
-		cluster, remote, refresher, channel.AppendRequest{
+		cluster, remote, refresher, nil, channel.AppendRequest{
 			ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
 		})
 	require.NoError(t, err)
@@ -88,7 +110,7 @@ func TestSendWithEnsuredMetaRemoteAppenderRequired(t *testing.T) {
 	}
 	cluster := &fakeChannelCluster{}
 	_, err := sendWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
-		cluster, nil, refresher, channel.AppendRequest{
+		cluster, nil, refresher, nil, channel.AppendRequest{
 			ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
 		})
 	require.ErrorIs(t, err, ErrRemoteAppenderRequired)
@@ -105,7 +127,7 @@ func TestSendWithEnsuredMetaLeaderZeroFallsToLocalAppend(t *testing.T) {
 		},
 	}
 	result, err := sendWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
-		cluster, nil, refresher, channel.AppendRequest{
+		cluster, nil, refresher, nil, channel.AppendRequest{
 			ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
 		})
 	require.NoError(t, err)
@@ -122,7 +144,7 @@ func TestSendWithEnsuredMetaInvalidatesCacheAndRetriesAfterStaleAppend(t *testin
 	}
 	cluster := &flakyAppendCluster{errs: []error{channel.ErrStaleMeta}, result: channel.AppendResult{MessageID: 7, MessageSeq: 1}}
 
-	result, err := sendWithEnsuredMeta(context.Background(), 1, time.Now, wklog.NewNop(), cluster, nil, refresher, channel.AppendRequest{
+	result, err := sendWithEnsuredMeta(context.Background(), 1, time.Now, wklog.NewNop(), cluster, nil, refresher, nil, channel.AppendRequest{
 		ChannelID: channel.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup},
 		Message:   channel.Message{FromUID: "u1"},
 	})
@@ -137,6 +159,14 @@ func TestSendWithEnsuredMetaInvalidatesCacheAndRetriesAfterStaleAppend(t *testin
 type fakeRemoteAppenderReply struct {
 	result channel.AppendResult
 	err    error
+}
+
+type recordingMessageAppendMetrics struct {
+	observations []string
+}
+
+func (m *recordingMessageAppendMetrics) ObserveAppend(path, result string, _ time.Duration) {
+	m.observations = append(m.observations, path+":"+result)
 }
 
 type fakeRemoteAppenderCall struct {

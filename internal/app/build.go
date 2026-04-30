@@ -296,6 +296,10 @@ func build(cfg Config) (_ *App, err error) {
 		},
 		RepairPolicy: app.channelMetaSync.needsLeaderRepair,
 	})
+	var channelMetaObserver runtimechannelmeta.MetaRefreshObserver
+	if app.metrics != nil {
+		channelMetaObserver = channelMetaMetricsObserver{metrics: app.metrics.Message}
+	}
 	app.channelMetaSync.resolver = runtimechannelmeta.NewSync(runtimechannelmeta.SyncOptions{
 		Source: app.store,
 		Runtime: channelMetaRuntimeAdapter{
@@ -310,14 +314,15 @@ func build(cfg Config) (_ *App, err error) {
 			Now:           time.Now,
 			Logger:        app.logger,
 		}),
-		Cluster:         app.cluster,
-		Repairer:        channelLeaderRepairer,
-		RepairPolicy:    app.channelMetaSync.needsLeaderRepair,
-		LivenessSource:  app.cluster,
-		LocalNode:       cfg.Node.ID,
-		RefreshInterval: time.Second,
-		Now:             time.Now,
-		AfterLocalApply: app.channelMetaSync.scheduleLeaderRepairForMeta,
+		Cluster:             app.cluster,
+		Repairer:            channelLeaderRepairer,
+		RepairPolicy:        app.channelMetaSync.needsLeaderRepair,
+		LivenessSource:      app.cluster,
+		LocalNode:           cfg.Node.ID,
+		RefreshInterval:     time.Second,
+		Now:                 time.Now,
+		AfterLocalApply:     app.channelMetaSync.scheduleLeaderRepairForMeta,
+		MetaRefreshObserver: channelMetaObserver,
 	})
 	app.conversationProjector = conversationusecase.NewProjector(conversationusecase.ProjectorOptions{
 		Store:              app.store,
@@ -388,6 +393,7 @@ func build(cfg Config) (_ *App, err error) {
 		Resolver: localDeliveryResolver{
 			subscribers: subscriberResolver,
 			authority:   authorityClient,
+			metrics:     deliveryMetrics,
 			logger:      app.logger.Named("delivery.resolve"),
 		},
 		Push: distributedDeliveryPush{
@@ -398,8 +404,9 @@ func build(cfg Config) (_ *App, err error) {
 				gatewayBootID: app.gatewayBootID,
 				logger:        app.logger.Named("delivery.push.local"),
 			},
-			client: app.nodeClient,
-			logger: app.logger.Named("delivery.push.remote"),
+			client:  app.nodeClient,
+			metrics: deliveryMetrics,
+			logger:  app.logger.Named("delivery.push.remote"),
 		},
 		Observer: deliveryObserver,
 	})
@@ -411,7 +418,7 @@ func build(cfg Config) (_ *App, err error) {
 		Runtime: app.deliveryRuntime,
 		Logger:  app.logger.Named("delivery"),
 	})
-	var messageMetrics committedDispatchMetrics
+	var messageMetrics *obsmetrics.MessageMetrics
 	if app.metrics != nil {
 		messageMetrics = app.metrics.Message
 	}
@@ -435,6 +442,7 @@ func build(cfg Config) (_ *App, err error) {
 		Delivery:     app.deliveryApp,
 		Conversation: app.conversationProjector,
 		Logger:       app.logger.Named("committed.replay"),
+		Metrics:      messageMetrics,
 	})
 	app.nodeAccess = accessnode.New(accessnode.Options{
 		Cluster:               app.cluster,
@@ -466,6 +474,7 @@ func build(cfg Config) (_ *App, err error) {
 		},
 		MetaRefresher:       app.channelMetaSync,
 		RemoteAppender:      app.nodeClient,
+		AppendMetrics:       messageMetrics,
 		Online:              onlineRegistry,
 		CommittedDispatcher: committedDispatcher,
 		DeliveryAck: ackRouting{

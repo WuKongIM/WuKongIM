@@ -542,13 +542,20 @@ type localDeliveryResolver struct {
 	subscribers deliveryusecase.SubscriberResolver
 	authority   presence.Authoritative
 	pageSize    int
+	metrics     deliveryRoutingMetrics
 	logger      wklog.Logger
 }
 
 type localResolveToken struct {
-	snapshot deliveryusecase.SnapshotToken
-	pending  []deliveryruntime.RouteKey
-	done     bool
+	snapshot    deliveryusecase.SnapshotToken
+	channelType uint8
+	pending     []deliveryruntime.RouteKey
+	done        bool
+}
+
+type deliveryRoutingMetrics interface {
+	ObserveResolve(channelType, result string, dur time.Duration, pages, routes int)
+	ObservePushRPC(targetNode, result string, dur time.Duration, routes int)
 }
 
 func (r localDeliveryResolver) BeginResolve(ctx context.Context, key deliveryruntime.ChannelKey, _ deliveryruntime.CommittedEnvelope) (any, error) {
@@ -562,10 +569,20 @@ func (r localDeliveryResolver) BeginResolve(ctx context.Context, key deliveryrun
 	if err != nil {
 		return nil, err
 	}
-	return &localResolveToken{snapshot: snapshot}, nil
+	return &localResolveToken{snapshot: snapshot, channelType: key.ChannelType}, nil
 }
 
-func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor string, limit int) ([]deliveryruntime.RouteKey, string, bool, error) {
+func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor string, limit int) (routes []deliveryruntime.RouteKey, nextCursor string, done bool, err error) {
+	startedAt := time.Now()
+	pages := 0
+	channelType := "unknown"
+	defer func() {
+		result := "ok"
+		if err != nil {
+			result = "error"
+		}
+		r.recordResolveMetric(channelType, result, time.Since(startedAt), pages, len(routes))
+	}()
 	if r.subscribers == nil || r.authority == nil {
 		return nil, "", true, nil
 	}
@@ -580,6 +597,7 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 	if !ok {
 		return nil, "", true, nil
 	}
+	channelType = deliveryChannelTypeLabel(resolveToken.channelType)
 
 	out := make([]deliveryruntime.RouteKey, 0, limit)
 	if len(resolveToken.pending) > 0 {
@@ -604,6 +622,7 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 			return out, cursor, true, nil
 		}
 
+		pages++
 		uids, nextCursor, done, err := r.subscribers.NextPage(ctx, resolveToken.snapshot, cursor, pageSize)
 		if err != nil {
 			return nil, "", false, err
@@ -671,6 +690,13 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 	return out, cursor, false, nil
 }
 
+func (r localDeliveryResolver) recordResolveMetric(channelType, result string, dur time.Duration, pages, routes int) {
+	if r.metrics == nil {
+		return
+	}
+	r.metrics.ObserveResolve(channelType, result, dur, pages, routes)
+}
+
 type localDeliveryPush struct {
 	online        online.Registry
 	localNodeID   uint64
@@ -735,6 +761,7 @@ type distributedDeliveryPush struct {
 	local       localDeliveryPush
 	client      deliveryPushClient
 	codec       codec.Protocol
+	metrics     deliveryRoutingMetrics
 	logger      wklog.Logger
 }
 
@@ -775,11 +802,13 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 		if err != nil {
 			return deliveryruntime.PushResult{}, err
 		}
+		startedAt := time.Now()
 		resp, err := p.client.PushBatchItems(ctx, nodeID, accessnode.DeliveryPushBatchCommand{
 			OwnerNodeID: p.localNodeID,
 			Items:       items,
 		})
 		if err != nil {
+			p.recordPushRPCMetric(nodeID, "error", time.Since(startedAt), len(routes))
 			if p.logger != nil {
 				p.logger.Warn("remote delivery push failed",
 					wklog.Event("delivery.diag.remote_push"),
@@ -799,6 +828,11 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 			result.Dropped = append(result.Dropped, legacyResult.Dropped...)
 			continue
 		}
+		pushResult := "ok"
+		if len(resp.Retryable) > 0 {
+			pushResult = "partial"
+		}
+		p.recordPushRPCMetric(nodeID, pushResult, time.Since(startedAt), len(routes))
 		if p.logger != nil {
 			p.logger.Debug("remote delivery push finished",
 				wklog.Event("delivery.diag.remote_push"),
@@ -834,6 +868,13 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 		}
 	}
 	return result, nil
+}
+
+func (p distributedDeliveryPush) recordPushRPCMetric(nodeID uint64, result string, dur time.Duration, routes int) {
+	if p.metrics == nil {
+		return
+	}
+	p.metrics.ObservePushRPC(strconv.FormatUint(nodeID, 10), result, dur, routes)
 }
 
 func (p distributedDeliveryPush) deliveryPushItems(env deliveryruntime.CommittedEnvelope, routes []deliveryruntime.RouteKey) ([]accessnode.DeliveryPushItem, error) {

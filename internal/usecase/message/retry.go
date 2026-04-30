@@ -18,6 +18,7 @@ func sendWithEnsuredMeta(
 	cluster ChannelCluster,
 	remote RemoteAppender,
 	refresher MetaRefresher,
+	metrics messageAppendMetrics,
 	req channel.AppendRequest,
 ) (channel.AppendResult, error) {
 	logFields := func(event string, extra ...wklog.Field) []wklog.Field {
@@ -55,9 +56,12 @@ func sendWithEnsuredMeta(
 		req.ExpectedLeaderEpoch = meta.LeaderEpoch
 
 		if meta.Leader != 0 && uint64(meta.Leader) != localNodeID {
+			startedAt := time.Now()
+			path := "remote"
 			if remote == nil {
 				sendLogger.Error("remote appender required for forwarding", logFields("message.send.remote.required",
 					wklog.LeaderNodeID(uint64(meta.Leader)))...)
+				observeMessageAppend(metrics, path, "error", time.Since(startedAt))
 				return channel.AppendResult{}, ErrRemoteAppenderRequired
 			}
 			result, err := remote.AppendToLeader(ctx, uint64(meta.Leader), req)
@@ -65,13 +69,16 @@ func sendWithEnsuredMeta(
 				sendLogger.Error("forward append to leader failed", logFields("message.send.forward.failed",
 					wklog.LeaderNodeID(uint64(meta.Leader)), wklog.Error(err))...)
 			}
+			observeMessageAppend(metrics, path, appendMetricResult(err), time.Since(startedAt))
 			return result, err
 		}
 
+		startedAt := time.Now()
 		result, err := cluster.Append(ctx, req)
 		if err != nil {
 			sendLogger.Error("local append failed", logFields("message.send.append.failed", wklog.Error(err))...)
 		}
+		observeMessageAppend(metrics, "local", appendMetricResult(err), time.Since(startedAt))
 		return result, err
 	}
 
@@ -92,6 +99,24 @@ func sendWithEnsuredMeta(
 		return channel.AppendResult{}, refreshErr
 	}
 	return appendWithMeta(ctx, meta, req)
+}
+
+type messageAppendMetrics interface {
+	ObserveAppend(path, result string, dur time.Duration)
+}
+
+func observeMessageAppend(metrics messageAppendMetrics, path, result string, dur time.Duration) {
+	if metrics == nil {
+		return
+	}
+	metrics.ObserveAppend(path, result, dur)
+}
+
+func appendMetricResult(err error) string {
+	if err != nil {
+		return "error"
+	}
+	return "ok"
 }
 
 func isRetryableMetaAppendError(err error) bool {

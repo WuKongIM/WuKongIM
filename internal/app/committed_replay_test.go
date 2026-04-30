@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -98,6 +99,56 @@ func TestCommittedReplayerDoesNotAdvanceAcrossMessageSeqGap(t *testing.T) {
 	require.Empty(t, source.cursors)
 }
 
+func TestCommittedReplayerRecordsReplayLag(t *testing.T) {
+	key := channel.ChannelKey("channel/2/g1")
+	metrics := &recordingCommittedReplayMetrics{}
+	source := &fakeCommittedReplayLog{
+		channels: []committedReplayChannel{{Key: key, ID: channel.ChannelID{ID: "g1", Type: 2}}},
+		cursors:  map[channel.ChannelKey]uint64{key: 2},
+		committed: map[channel.ChannelKey]uint64{
+			key: 5,
+		},
+		messages: map[channel.ChannelKey][]channel.Message{
+			key: {
+				{MessageID: 13, MessageSeq: 3, ChannelID: "g1", ChannelType: 2, Payload: []byte("three")},
+				{MessageID: 14, MessageSeq: 4, ChannelID: "g1", ChannelType: 2, Payload: []byte("four")},
+				{MessageID: 15, MessageSeq: 5, ChannelID: "g1", ChannelType: 2, Payload: []byte("five")},
+			},
+		},
+	}
+	replayer := newCommittedReplayer(committedReplayerConfig{
+		Log:       source,
+		BatchSize: 16,
+		Metrics:   metrics,
+	})
+
+	require.NoError(t, replayer.RunOnce(context.Background()))
+
+	require.Equal(t, []string{"group:3"}, metrics.lags)
+	require.Equal(t, uint64(5), source.cursors[key])
+}
+
+func TestCommittedReplayerRecordsPassDuration(t *testing.T) {
+	metrics := &recordingCommittedReplayMetrics{}
+	replayer := newCommittedReplayer(committedReplayerConfig{
+		Log:     &fakeCommittedReplayLog{},
+		Metrics: metrics,
+	})
+	require.NoError(t, replayer.RunOnce(context.Background()))
+
+	errMetrics := &recordingCommittedReplayMetrics{}
+	wantErr := errors.New("list failed")
+	errReplayer := newCommittedReplayer(committedReplayerConfig{
+		Log:     &fakeCommittedReplayLog{listErr: wantErr},
+		Metrics: errMetrics,
+	})
+	err := errReplayer.RunOnce(context.Background())
+
+	require.ErrorIs(t, err, wantErr)
+	require.Equal(t, []string{"ok"}, metrics.passes)
+	require.Equal(t, []string{"error"}, errMetrics.passes)
+}
+
 func TestCommittedReplayerStopContextBoundsBlockedPass(t *testing.T) {
 	source := newBlockingCommittedReplayLog()
 	replayer := newCommittedReplayer(committedReplayerConfig{
@@ -126,6 +177,7 @@ type fakeCommittedReplayLog struct {
 	committed      map[channel.ChannelKey]uint64
 	messages       map[channel.ChannelKey][]channel.Message
 	canStoreCursor func() bool
+	listErr        error
 }
 
 type blockingCommittedReplayLog struct {
@@ -183,6 +235,9 @@ func replayerStoppedForTest(r *committedReplayer) bool {
 }
 
 func (f *fakeCommittedReplayLog) ListCommittedReplayChannels(context.Context) ([]committedReplayChannel, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
 	return append([]committedReplayChannel(nil), f.channels...), nil
 }
 
@@ -244,6 +299,19 @@ type fakeCommittedReplayConversation struct {
 	calls    []channel.Message
 	flushes  int
 	flushErr error
+}
+
+type recordingCommittedReplayMetrics struct {
+	lags   []string
+	passes []string
+}
+
+func (m *recordingCommittedReplayMetrics) SetCommittedReplayLag(channelType string, lag uint64) {
+	m.lags = append(m.lags, channelType+":"+strconv.FormatUint(lag, 10))
+}
+
+func (m *recordingCommittedReplayMetrics) ObserveCommittedReplayPass(result string, _ time.Duration) {
+	m.passes = append(m.passes, result)
 }
 
 func (f *fakeCommittedReplayConversation) SubmitCommitted(_ context.Context, msg channel.Message) error {
