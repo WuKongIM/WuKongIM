@@ -159,6 +159,55 @@ func TestReplicaApplyRetentionBoundaryLocalLEOBehindAppliesResetAndStaysNotReady
 	require.False(t, status.CommitReady)
 }
 
+func TestReplicaRetentionResetOldNonISRReplicaCatchesUpFromBoundary(t *testing.T) {
+	leaderEnv := newRetentionRecoveredEnv(t, 6, 6, 6)
+	leaderEnv.log.records = retentionFetchRecords(6)
+	leaderEnv.replica = newReplicaFromEnv(t, leaderEnv)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	meta.Replicas = []channel.NodeID{1, 2}
+	meta.ISR = []channel.NodeID{1}
+	meta.RetentionThroughSeq = 5
+	require.NoError(t, leaderEnv.replica.BecomeLeader(meta))
+
+	followerEnv := newTestEnv(t)
+	followerEnv.localNode = 2
+	followerEnv.replica = newReplicaFromEnv(t, followerEnv)
+	require.NoError(t, followerEnv.replica.BecomeFollower(meta))
+	require.NoError(t, followerEnv.replica.ApplyRetentionBoundary(context.Background(), 5))
+	resetStatus := followerEnv.replica.Status()
+	require.Equal(t, uint64(5), resetStatus.LocalRetentionThroughSeq)
+	require.Equal(t, uint64(5), resetStatus.LEO)
+	require.False(t, resetStatus.CommitReady)
+
+	result, err := leaderEnv.replica.Fetch(context.Background(), channel.ReplicaFetchRequest{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		ReplicaID:   2,
+		FetchOffset: 5,
+		OffsetEpoch: meta.Epoch,
+		MaxBytes:    1024,
+	})
+	require.NoError(t, err)
+	require.Nil(t, result.RetentionReset)
+	require.NotEmpty(t, result.Records)
+	require.Equal(t, uint64(6), result.Records[0].Index)
+	require.NoError(t, followerEnv.replica.ApplyFetch(context.Background(), channel.ReplicaApplyFetchRequest{
+		ChannelKey: meta.Key,
+		Epoch:      result.Epoch,
+		Leader:     1,
+		Records:    result.Records,
+		LeaderHW:   result.HW,
+	}))
+
+	caughtUp := followerEnv.replica.Status()
+	require.Equal(t, uint64(6), caughtUp.LEO)
+	require.Equal(t, channel.ReplicaRoleFollower, caughtUp.Role)
+	followerEnv.replica.mu.RLock()
+	isr := append([]channel.NodeID(nil), followerEnv.replica.meta.ISR...)
+	followerEnv.replica.mu.RUnlock()
+	require.NotContains(t, isr, channel.NodeID(2))
+}
+
 func TestReplicaFetchBelowRetentionFloorReturnsRetentionResetUnlessSnapshotDominates(t *testing.T) {
 	env := newRetentionRecoveredEnv(t, 10, 10, 10)
 	env.log.records = retentionFetchRecords(10)

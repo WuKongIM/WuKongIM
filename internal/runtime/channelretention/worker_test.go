@@ -475,3 +475,41 @@ func TestRunOnceRequiresLocalNodeIDForLeaderGuard(t *testing.T) {
 		t.Fatalf("RunOnce() error = %v, want invalid config", err)
 	}
 }
+
+func TestRunOnceFollowerLagBlocksThenObservedProgressAllowsAdvance(t *testing.T) {
+	ch := testChannel("follower-lag")
+	metadata := &fakeMetadataStore{}
+	store := &fakeStore{scan: ScanResult{ThroughSeq: 10}, cursor: 10}
+	runtime := &fakeRuntime{views: map[channel.ChannelKey][]channel.RetentionView{
+		ch.Key: {
+			retentionViewWithMeta(5, 10, 10, 5, 7, 8, 1, time.Unix(2000, 0)),
+			retentionViewWithMeta(5, 10, 10, 10, 7, 8, 1, time.Unix(2000, 0)),
+			retentionViewWithMeta(5, 10, 10, 10, 7, 8, 1, time.Unix(2000, 0)),
+		},
+	}}
+	worker := NewWorker(Config{
+		Channels: fakeChannelLister{channels: []Channel{ch}},
+		Stores: fakeStoreProvider{stores: map[channel.ChannelKey]Store{
+			ch.Key: store,
+		}},
+		Runtime:     runtime,
+		Metadata:    metadata,
+		LocalNodeID: 1,
+		TTL:         time.Hour,
+		Now:         func() time.Time { return time.Unix(1000, 0) },
+	})
+
+	if err := worker.RunOnce(context.Background()); err != nil {
+		t.Fatalf("RunOnce() error = %v", err)
+	}
+	if len(metadata.advances) != 0 {
+		t.Fatalf("metadata advances while follower lagged = %+v, want none", metadata.advances)
+	}
+
+	if err := worker.RunOnce(context.Background()); err != nil {
+		t.Fatalf("second RunOnce() error = %v", err)
+	}
+	if len(metadata.advances) != 1 || metadata.advances[0].RetentionThroughSeq != 10 {
+		t.Fatalf("metadata advances after follower progress = %+v, want through 10", metadata.advances)
+	}
+}

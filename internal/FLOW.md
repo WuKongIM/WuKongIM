@@ -188,6 +188,7 @@ online.Registry.Connection(sessionID)
    ├─ Delivery（投递管理器）
    ├─ CommittedDispatcher（有界分片队列，异步分发已提交事件）
    ├─ CommittedReplay（从 Channel Log 补偿已提交事件）
+   ├─ ChannelRetention（按权威元数据推进频道消息保留边界）
    ├─ Message（消息用例）
    └─ Node Access（RPC Handler）
 
@@ -209,9 +210,10 @@ online.Registry.Connection(sessionID)
 6. delivery_runtime
 7. committed_dispatcher
 8. committed_replay
-9. gateway
-10. api
-11. manager
+9. channel_retention
+10. gateway
+11. api
+12. manager
 ```
 
 ### 4.2 停止流程
@@ -223,23 +225,24 @@ online.Registry.Connection(sessionID)
 1. manager
 2. api
 3. gateway
-4. committed_replay
-5. committed_dispatcher
-6. delivery_runtime
-7. conversation_projector
-8. presence
-9. channelmeta（StopWithoutCleanup）
-10. managed_slots_ready（no-op）
-11. cluster
+4. channel_retention
+5. committed_replay
+6. committed_dispatcher
+7. delivery_runtime
+8. conversation_projector
+9. presence
+10. channelmeta（StopWithoutCleanup）
+11. managed_slots_ready（no-op）
+12. cluster
 
 然后关闭资源:
-12. channelLog.Close
-13. dataPlaneClient.Stop
-14. dataPlanePool.Close
-15. channelLogDB.Close
-16. raftDB.Close
-17. metadb.Close
-18. syncLogger
+13. channelLog.Close
+14. dataPlaneClient.Stop
+15. dataPlanePool.Close
+16. channelLogDB.Close
+17. raftDB.Close
+18. metadb.Close
+19. syncLogger
 ```
 
 ### 4.3 消息发送流程
@@ -489,7 +492,7 @@ handleRecvAck(ctx, pkt)
 ## 7. 避坑清单
 
 ### 🔴 启动与停止
-- **启动顺序严格**: 按 Cluster → WaitReady → ChannelMetaSync → Presence → Conversation → DeliveryRuntime → CommittedDispatcher → CommittedReplay → Gateway → API → Manager 顺序启动，任一步骤失败会按启动逆序停止
+- **启动顺序严格**: 按 Cluster → WaitReady → ChannelMetaSync → Presence → Conversation → DeliveryRuntime → CommittedDispatcher → CommittedReplay → ChannelRetention → Gateway → API → Manager 顺序启动，任一步骤失败会按启动逆序停止
 - **停止顺序相反**: 先停 Manager/API/Gateway（停止接入新请求），再停业务层，最后停 Cluster 和关闭数据库
 - **stopOnce 保证幂等**: 多次调用 Stop() 只执行一次
 
