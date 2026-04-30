@@ -207,6 +207,31 @@ test("shows unavailable controller source without hiding local collector data", 
   expect(screen.getByText("node-2")).toBeInTheDocument()
 })
 
+test("treats expected long-poll expiries as neutral service samples", async () => {
+  const expectedLongPollService = {
+    ...networkSummaryFixture.services[0],
+    calls_1m: 1,
+    success_1m: 0,
+    expected_timeout_1m: 1,
+    timeout_1m: 0,
+  }
+  getNetworkSummaryMock.mockResolvedValue({
+    ...networkSummaryFixture,
+    services: [expectedLongPollService],
+    channel_replication: {
+      ...networkSummaryFixture.channel_replication,
+      services: [expectedLongPollService],
+      long_poll_timeouts_1m: 1,
+    },
+  })
+
+  renderNetworkPage()
+
+  expect((await screen.findAllByText("channel_long_poll_fetch")).length).toBeGreaterThan(0)
+  expect(screen.queryByText("0%")).not.toBeInTheDocument()
+  expect(screen.getAllByText("Insufficient samples").length).toBeGreaterThan(0)
+})
+
 test("refreshes network summary", async () => {
   getNetworkSummaryMock.mockResolvedValue(networkSummaryFixture)
 

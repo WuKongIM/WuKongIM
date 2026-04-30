@@ -55,8 +55,10 @@ function latency(intl: IntlShape, value: number) {
 }
 
 function successRate(intl: IntlShape, service: ManagerNetworkRPCService) {
-  if (service.calls_1m <= 0) return intl.formatMessage({ id: "network.latency.insufficientSamples" })
-  return `${Math.round((service.success_1m / service.calls_1m) * 100)}%`
+  const completedCalls = Math.max(service.calls_1m - service.expected_timeout_1m, 0)
+  if (completedCalls <= 0) return intl.formatMessage({ id: "network.latency.insufficientSamples" })
+  const successfulCalls = Math.min(service.success_1m, completedCalls)
+  return `${Math.round((successfulCalls / completedCalls) * 100)}%`
 }
 
 function HeaderBadge({ children }: { children: ReactNode }) {
