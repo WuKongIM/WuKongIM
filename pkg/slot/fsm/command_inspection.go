@@ -47,6 +47,8 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 			"channel_id":   typed.channelID,
 			"channel_type": typed.channelType,
 		}), nil
+	case *advanceChannelRetentionThroughSeqCmd:
+		return retentionAdvanceInspection(typed.req), nil
 	case *addSubscribersCmd:
 		return subscribersInspection("add_subscribers", typed.channelID, typed.channelType, typed.uids), nil
 	case *removeSubscribersCmd:
@@ -131,17 +133,32 @@ func channelInspection(commandType string, channel metadb.Channel) CommandInspec
 
 func runtimeMetaInspection(commandType string, meta metadb.ChannelRuntimeMeta) CommandInspection {
 	return simpleInspection(commandType, map[string]any{
-		"channel_id":     meta.ChannelID,
-		"channel_type":   meta.ChannelType,
-		"channel_epoch":  meta.ChannelEpoch,
-		"leader_epoch":   meta.LeaderEpoch,
-		"replicas":       append([]uint64(nil), meta.Replicas...),
-		"isr":            append([]uint64(nil), meta.ISR...),
-		"leader":         meta.Leader,
-		"min_isr":        meta.MinISR,
-		"status":         meta.Status,
-		"features":       meta.Features,
-		"lease_until_ms": meta.LeaseUntilMS,
+		"channel_id":              meta.ChannelID,
+		"channel_type":            meta.ChannelType,
+		"channel_epoch":           meta.ChannelEpoch,
+		"leader_epoch":            meta.LeaderEpoch,
+		"replicas":                append([]uint64(nil), meta.Replicas...),
+		"isr":                     append([]uint64(nil), meta.ISR...),
+		"leader":                  meta.Leader,
+		"min_isr":                 meta.MinISR,
+		"status":                  meta.Status,
+		"features":                meta.Features,
+		"lease_until_ms":          meta.LeaseUntilMS,
+		"retention_through_seq":   meta.RetentionThroughSeq,
+		"retention_updated_at_ms": meta.RetentionUpdatedAtMS,
+	})
+}
+
+func retentionAdvanceInspection(req metadb.ChannelRetentionAdvance) CommandInspection {
+	return simpleInspection("advance_channel_retention_through_seq", map[string]any{
+		"channel_id":              req.ChannelID,
+		"channel_type":            req.ChannelType,
+		"expected_channel_epoch":  req.ExpectedChannelEpoch,
+		"expected_leader_epoch":   req.ExpectedLeaderEpoch,
+		"expected_leader":         req.ExpectedLeader,
+		"expected_lease_until_ms": req.ExpectedLeaseUntilMS,
+		"retention_through_seq":   req.RetentionThroughSeq,
+		"retention_updated_at_ms": req.RetentionUpdatedAtMS,
 	})
 }
 

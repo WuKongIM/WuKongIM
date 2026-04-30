@@ -194,6 +194,31 @@ func TestDecodeUpsertChannelRuntimeMetaCommandDefaultsMissingRetentionFieldsToZe
 	}
 }
 
+func TestDecodeAdvanceChannelRetentionThroughSeqCommand(t *testing.T) {
+	req := metadb.ChannelRetentionAdvance{
+		ChannelID:            "decode-retention-advance",
+		ChannelType:          2,
+		ExpectedChannelEpoch: 3,
+		ExpectedLeaderEpoch:  4,
+		ExpectedLeader:       1,
+		ExpectedLeaseUntilMS: 1700000000000,
+		RetentionThroughSeq:  99,
+		RetentionUpdatedAtMS: 1700000000123,
+	}
+
+	decoded, err := decodeCommand(EncodeAdvanceChannelRetentionThroughSeqCommand(req))
+	if err != nil {
+		t.Fatalf("decodeCommand(advance retention) error = %v", err)
+	}
+	cmd, ok := decoded.(*advanceChannelRetentionThroughSeqCmd)
+	if !ok {
+		t.Fatalf("decodeCommand(advance retention) type = %T, want *advanceChannelRetentionThroughSeqCmd", decoded)
+	}
+	if !reflect.DeepEqual(cmd.req, req) {
+		t.Fatalf("decoded advance retention = %#v, want %#v", cmd.req, req)
+	}
+}
+
 func TestStateMachineApplyUpsertsUserAndChannel(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -357,6 +382,69 @@ func TestStateMachineApplyUpsertChannelRuntimeMetaPreservesRetentionFields(t *te
 	want.ISR = []uint64{1, 2}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("stored runtime meta = %#v, want %#v", got, want)
+	}
+}
+
+func TestStateMachineApplyAdvanceChannelRetentionThroughSeqPreservesTopology(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+
+	base := metadb.ChannelRuntimeMeta{
+		ChannelID:    "apply-retention-advance",
+		ChannelType:  4,
+		ChannelEpoch: 7,
+		LeaderEpoch:  5,
+		Replicas:     []uint64{3, 2, 1},
+		ISR:          []uint64{2, 1},
+		Leader:       2,
+		MinISR:       2,
+		Status:       4,
+		Features:     12,
+		LeaseUntilMS: 1700000001234,
+	}
+	if _, err := sm.Apply(ctx, multiraft.Command{
+		SlotID: 11,
+		Index:  1,
+		Term:   1,
+		Data:   EncodeUpsertChannelRuntimeMetaCommand(base),
+	}); err != nil {
+		t.Fatalf("Apply(upsert runtime meta before retention advance) error = %v", err)
+	}
+
+	result, err := sm.Apply(ctx, multiraft.Command{
+		SlotID: 11,
+		Index:  2,
+		Term:   1,
+		Data: EncodeAdvanceChannelRetentionThroughSeqCommand(metadb.ChannelRetentionAdvance{
+			ChannelID:            base.ChannelID,
+			ChannelType:          base.ChannelType,
+			ExpectedChannelEpoch: base.ChannelEpoch,
+			ExpectedLeaderEpoch:  base.LeaderEpoch,
+			ExpectedLeader:       base.Leader,
+			ExpectedLeaseUntilMS: base.LeaseUntilMS,
+			RetentionThroughSeq:  42,
+			RetentionUpdatedAtMS: 1700000002222,
+		}),
+	})
+	if err != nil {
+		t.Fatalf("Apply(advance retention) error = %v", err)
+	}
+	if string(result) != ApplyResultOK {
+		t.Fatalf("Apply(advance retention) result = %q, want %q", result, ApplyResultOK)
+	}
+
+	got, err := db.ForSlot(11).GetChannelRuntimeMeta(ctx, base.ChannelID, base.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
+	}
+	want := base
+	want.Replicas = []uint64{1, 2, 3}
+	want.ISR = []uint64{1, 2}
+	want.RetentionThroughSeq = 42
+	want.RetentionUpdatedAtMS = 1700000002222
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("stored runtime meta after advance = %#v, want %#v", got, want)
 	}
 }
 

@@ -20,7 +20,7 @@
 // proxy/store.go — 业务层唯一入口
 Store.CreateChannel / UpdateChannel / DeleteChannel
 Store.AddChannelSubscribers / RemoveChannelSubscribers / ListChannelSubscribers
-Store.UpsertChannelRuntimeMeta / GetChannelRuntimeMeta / ListChannelRuntimeMeta / ScanChannelRuntimeMetaSlotPage
+Store.UpsertChannelRuntimeMeta / AdvanceChannelRetentionThroughSeq / GetChannelRuntimeMeta / ListChannelRuntimeMeta / ScanChannelRuntimeMetaSlotPage
 Store.CreateUser / UpsertUser / GetUser
 Store.UpsertDevice / GetDevice
 Store.GetUserConversationState / UpsertUserConversationStates / ListUserConversationActive / ScanUserConversationStatePage
@@ -171,7 +171,7 @@ Meta  (0x12): [0x12][hashSlot:2][...]                             元信息
 | 6 | UserConversationState | (uid, channel_type, channel_id) | idx_user_conversation_active |
 | 7 | ChannelUpdateLog | (channel_type, channel_id) | - |
 
-## 7. FSM 命令类型（14 种）
+## 7. FSM 命令类型（15 种）
 
 TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 未知 Tag 自动跳过（前向兼容）。详见 `fsm/command.go`。
@@ -184,6 +184,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 10: UpsertUserConversationStates
 11: TouchUserConversationActiveAt               12: ClearUserConversationActiveAt
 13: UpsertChannelUpdateLogs                     14: DeleteChannelUpdateLogs
+15: AdvanceChannelRetentionThroughSeq
 ```
 
 ## 8. RPC Service IDs（proxy 层）

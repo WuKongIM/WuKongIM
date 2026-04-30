@@ -354,6 +354,75 @@ func TestStoreUpsertAndGetChannelRuntimeMeta(t *testing.T) {
 	}
 }
 
+func TestStoreAdvanceChannelRetentionThroughSeqPreservesTopology(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	bizDB := openTestDBAt(t, filepath.Join(root, "biz"))
+	raftDB := openTestRaftDBAt(t, filepath.Join(root, "raft"))
+
+	cluster, err := raftcluster.NewCluster(raftcluster.Config{
+		NodeID:             1,
+		ListenAddr:         "127.0.0.1:0",
+		SlotCount:          1,
+		ControllerReplicaN: 1,
+		SlotReplicaN:       1,
+		NewStorage: func(slotID multiraft.SlotID) (multiraft.Storage, error) {
+			return raftDB.ForSlot(uint64(slotID)), nil
+		},
+		NewStateMachine:              metafsm.NewStateMachineFactory(bizDB),
+		NewStateMachineWithHashSlots: metafsm.NewHashSlotStateMachineFactory(bizDB),
+		Nodes:                        []raftcluster.NodeConfig{{NodeID: 1, Addr: "127.0.0.1:0"}},
+		Slots: []raftcluster.SlotConfig{{
+			SlotID: 1,
+			Peers:  []multiraft.NodeID{1},
+		}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(cluster.Stop)
+	require.NoError(t, cluster.Start())
+
+	waitForCondition(t, func() bool {
+		_, err := cluster.LeaderOf(1)
+		return err == nil
+	}, "cluster leader elected")
+
+	store := New(cluster, bizDB)
+	base := metadb.ChannelRuntimeMeta{
+		ChannelID:    "store-retention-advance",
+		ChannelType:  9,
+		ChannelEpoch: 11,
+		LeaderEpoch:  6,
+		Replicas:     []uint64{3, 1, 2},
+		ISR:          []uint64{2, 1},
+		Leader:       1,
+		MinISR:       2,
+		Status:       5,
+		Features:     33,
+		LeaseUntilMS: 1700000004321,
+	}
+	require.NoError(t, store.UpsertChannelRuntimeMeta(ctx, base))
+
+	require.NoError(t, store.AdvanceChannelRetentionThroughSeq(ctx, metadb.ChannelRetentionAdvance{
+		ChannelID:            base.ChannelID,
+		ChannelType:          base.ChannelType,
+		ExpectedChannelEpoch: base.ChannelEpoch,
+		ExpectedLeaderEpoch:  base.LeaderEpoch,
+		ExpectedLeader:       base.Leader,
+		ExpectedLeaseUntilMS: base.LeaseUntilMS,
+		RetentionThroughSeq:  42,
+		RetentionUpdatedAtMS: 1700000005000,
+	}))
+
+	got, err := store.GetChannelRuntimeMeta(ctx, base.ChannelID, base.ChannelType)
+	require.NoError(t, err)
+	want := base
+	want.Replicas = []uint64{1, 2, 3}
+	want.ISR = []uint64{1, 2}
+	want.RetentionThroughSeq = 42
+	want.RetentionUpdatedAtMS = 1700000005000
+	require.Equal(t, want, got)
+}
+
 func TestStoreCreateUserAndUpsertDevice(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
