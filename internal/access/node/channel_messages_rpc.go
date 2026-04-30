@@ -20,6 +20,8 @@ type ChannelMessagesQuery struct {
 	SyncMode bool `json:"sync_mode,omitempty"`
 	// MaxSeqOnly requests only the maximum committed message sequence.
 	MaxSeqOnly bool `json:"max_seq_only,omitempty"`
+	// MinAvailableSeq is the first sequence that retention allows clients to read.
+	MinAvailableSeq uint64 `json:"min_available_seq,omitempty"`
 	// BeforeSeq is the exclusive upper sequence bound for pagination.
 	BeforeSeq uint64 `json:"before_seq,omitempty"`
 	// StartSeq is the inclusive starting sequence boundary for sync mode.
@@ -106,11 +108,12 @@ func (a *Adapter) handleChannelMessagesRPC(ctx context.Context, body []byte) ([]
 	}
 	if req.Query.SyncMode {
 		page, err := channelhandler.SyncMessages(a.channelLogDB, committedHW, channelhandler.SyncMessagesRequest{
-			ChannelID: req.Query.ChannelID,
-			StartSeq:  req.Query.StartSeq,
-			EndSeq:    req.Query.EndSeq,
-			Limit:     req.Query.Limit,
-			PullMode:  channelhandler.SyncPullMode(req.Query.PullMode),
+			ChannelID:       req.Query.ChannelID,
+			StartSeq:        req.Query.StartSeq,
+			EndSeq:          req.Query.EndSeq,
+			Limit:           req.Query.Limit,
+			PullMode:        channelhandler.SyncPullMode(req.Query.PullMode),
+			MinAvailableSeq: req.Query.MinAvailableSeq,
 		})
 		if err != nil {
 			return nil, err
@@ -124,11 +127,12 @@ func (a *Adapter) handleChannelMessagesRPC(ctx context.Context, body []byte) ([]
 		})
 	}
 	page, err := channelhandler.QueryMessages(a.channelLogDB, committedHW, channelhandler.QueryMessagesRequest{
-		ChannelID:   req.Query.ChannelID,
-		BeforeSeq:   req.Query.BeforeSeq,
-		Limit:       req.Query.Limit,
-		MessageID:   req.Query.MessageID,
-		ClientMsgNo: req.Query.ClientMsgNo,
+		ChannelID:       req.Query.ChannelID,
+		BeforeSeq:       req.Query.BeforeSeq,
+		Limit:           req.Query.Limit,
+		MessageID:       req.Query.MessageID,
+		ClientMsgNo:     req.Query.ClientMsgNo,
+		MinAvailableSeq: req.Query.MinAvailableSeq,
 	})
 	if err != nil {
 		return nil, err
