@@ -822,6 +822,9 @@ func (r *runtime) reissueLanePoll(peer core.NodeID, laneID uint16) {
 }
 
 func (r *runtime) applyFetchResponseEnvelope(ch *channel, peer core.NodeID, env FetchResponseEnvelope) error {
+	if staleFetchResponseEnvelope(ch, env) {
+		return nil
+	}
 	if env.RetentionReset != nil {
 		return r.applyRetentionResetResponse(ch, peer, env)
 	}
@@ -879,6 +882,19 @@ func (r *runtime) applyFetchResponseEnvelope(ch *channel, peer core.NodeID, env 
 		})
 	}
 	return nil
+}
+
+func staleFetchResponseEnvelope(ch *channel, env FetchResponseEnvelope) bool {
+	if env.Generation != 0 && ch.gen != env.Generation {
+		return true
+	}
+	if env.Epoch != 0 {
+		state := ch.Status()
+		if env.Epoch != state.Epoch {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *runtime) applyRetentionResetResponse(ch *channel, peer core.NodeID, env FetchResponseEnvelope) error {

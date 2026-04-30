@@ -1199,6 +1199,37 @@ func TestSessionFetchRetentionResetAdoptsBoundaryAndRefetchesFromRetainedOffset(
 	require.Equal(t, uint64(5), session.sent[1].FetchRequest.FetchOffset)
 }
 
+func TestSessionFetchRetentionResetDropsStaleEpoch(t *testing.T) {
+	env := newSessionTestEnv(t)
+	key := testChannelKey(2505)
+	mustEnsureLocal(t, env.runtime, testMetaLocal(2505, 2, 2, []core.NodeID{1, 2}))
+
+	env.transport.deliver(Envelope{
+		Peer:       2,
+		ChannelKey: key,
+		Generation: 1,
+		Epoch:      1,
+		Kind:       MessageKindFetchResponse,
+		FetchResponse: &FetchResponseEnvelope{
+			ChannelKey: key,
+			Epoch:      1,
+			Generation: 1,
+			LeaderHW:   10,
+			RetentionReset: &core.RetentionReset{
+				RetentionThroughSeq:   9,
+				RetainedThroughOffset: 9,
+				MinAvailableSeq:       10,
+			},
+		},
+	})
+
+	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	require.Empty(t, replica.retentionCalls)
+	require.Equal(t, uint64(0), replica.state.RetentionThroughSeq)
+	replica.mu.Unlock()
+}
+
 func TestSessionLongPollTimedOutResponseImmediatelyReissuesPoll(t *testing.T) {
 	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
 		cfg.LongPollLaneCount = 4
@@ -1336,6 +1367,56 @@ func TestSessionLongPollRetentionResetItemAdoptsBoundaryAndReissuesFromRetainedO
 	require.Equal(t, LanePollOpPoll, session.last.LanePollRequest.Op)
 	require.Len(t, session.last.LanePollRequest.CursorDelta, 1)
 	require.Equal(t, uint64(5), session.last.LanePollRequest.CursorDelta[0].MatchOffset)
+}
+
+func TestSessionLongPollRetentionResetItemDropsStaleChannelEpoch(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = 2 * time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+		cfg.FollowerReplicationRetryInterval = time.Hour
+	})
+	key := testChannelKey(2603)
+	mustEnsureLocal(t, env.runtime, testMetaLocal(2603, 2, 2, []core.NodeID{1, 2}))
+
+	env.runtime.runScheduler()
+	session := env.sessions.session(2)
+	waitForSessionSendCount(t, session, 1)
+	first := session.last.LanePollRequest
+	require.NotNil(t, first)
+
+	env.transport.deliver(Envelope{
+		Peer: 2,
+		Kind: MessageKindLanePollResponse,
+		Sync: true,
+		LanePollResponse: &LanePollResponseEnvelope{
+			LaneID:       first.LaneID,
+			Status:       LanePollStatusOK,
+			SessionID:    501,
+			SessionEpoch: 1,
+			Items: []LaneResponseItem{
+				{
+					ChannelKey:   key,
+					ChannelEpoch: 1,
+					LeaderHW:     10,
+					Flags:        LanePollItemFlagReset,
+					RetentionReset: &core.RetentionReset{
+						RetentionThroughSeq:   9,
+						RetainedThroughOffset: 9,
+						MinAvailableSeq:       10,
+					},
+				},
+			},
+		},
+	})
+
+	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	require.Empty(t, replica.retentionCalls)
+	require.Equal(t, uint64(0), replica.state.RetentionThroughSeq)
+	require.Equal(t, uint64(0), replica.state.LEO)
+	replica.mu.Unlock()
 }
 
 func laneDispatchHasWork(rt *runtime, peer core.NodeID, lane uint16) bool {
