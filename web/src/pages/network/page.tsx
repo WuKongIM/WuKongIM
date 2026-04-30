@@ -4,6 +4,7 @@ import { useIntl, type IntlShape } from "react-intl"
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
 import { Button } from "@/components/ui/button"
+import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
@@ -11,10 +12,14 @@ import { ManagerApiError, getNetworkSummary } from "@/lib/manager-api"
 import type {
   ManagerNetworkDiscovery,
   ManagerNetworkEvent,
+  ManagerNetworkHistory,
   ManagerNetworkPeer,
+  ManagerNetworkPoolStats,
   ManagerNetworkRPCService,
   ManagerNetworkSummaryResponse,
+  ManagerNetworkTrafficMessageType,
 } from "@/lib/manager-api.types"
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, LabelList, Pie, PieChart, XAxis, YAxis } from "recharts"
 
 type NetworkState = {
   summary: ManagerNetworkSummaryResponse | null
@@ -54,6 +59,10 @@ function compactNumber(intl: IntlShape, value: number) {
   return new Intl.NumberFormat(intl.locale).format(value)
 }
 
+function bytes(intl: IntlShape, value: number) {
+  return `${compactNumber(intl, value)} B`
+}
+
 function latency(intl: IntlShape, value: number) {
   if (value <= 0) return intl.formatMessage({ id: "network.latency.insufficientSamples" })
   return `${compactNumber(intl, value)} ms`
@@ -70,12 +79,169 @@ function HeaderBadge({ children }: { children: ReactNode }) {
   return <div className="rounded-md border border-border bg-background px-3 py-2">{children}</div>
 }
 
-function MetricCard({ label, value, detail }: { label: string; value: string | number; detail?: string }) {
+function MetricCard({ label, value, detail, tone = "default" }: { label: string; value: string | number; detail?: string; tone?: "default" | "neutral" | "danger" }) {
+  const toneClass = tone === "danger" ? "border-destructive/30 bg-destructive/5" : tone === "neutral" ? "border-blue-500/25 bg-blue-500/5" : "bg-muted/25"
   return (
-    <div className="rounded-xl border border-border bg-muted/25 px-4 py-4">
+    <div className={`rounded-xl border border-border px-4 py-4 ${toneClass}`}>
       <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
       <div className="mt-2 text-2xl font-semibold text-foreground">{value}</div>
       {detail ? <div className="mt-1 text-xs text-muted-foreground">{detail}</div> : null}
+    </div>
+  )
+}
+
+const chartColors = {
+  alive: "hsl(142 70% 45%)",
+  suspect: "hsl(38 92% 50%)",
+  dead: "hsl(0 72% 51%)",
+  draining: "hsl(217 91% 60%)",
+  active: "hsl(199 89% 48%)",
+  idle: "hsl(210 14% 70%)",
+  tx: "hsl(24 95% 53%)",
+  rx: "hsl(173 80% 40%)",
+  calls: "hsl(221 83% 53%)",
+  success: "hsl(142 70% 45%)",
+  errors: "hsl(0 72% 51%)",
+  expected: "hsl(262 83% 58%)",
+  dial: "hsl(18 92% 48%)",
+  queue: "hsl(38 92% 50%)",
+  timeout: "hsl(0 72% 51%)",
+  remote: "hsl(330 81% 60%)",
+}
+
+function networkChartConfig(intl: IntlShape): ChartConfig {
+  return {
+    alive: { label: intl.formatMessage({ id: "network.legend.alive" }), color: chartColors.alive },
+    suspect: { label: intl.formatMessage({ id: "network.legend.suspect" }), color: chartColors.suspect },
+    dead: { label: intl.formatMessage({ id: "network.legend.dead" }), color: chartColors.dead },
+    draining: { label: intl.formatMessage({ id: "network.legend.draining" }), color: chartColors.draining },
+    active: { label: intl.formatMessage({ id: "network.legend.active" }), color: chartColors.active },
+    idle: { label: intl.formatMessage({ id: "network.legend.idle" }), color: chartColors.idle },
+    tx: { label: intl.formatMessage({ id: "network.legend.tx" }), color: chartColors.tx },
+    rx: { label: intl.formatMessage({ id: "network.legend.rx" }), color: chartColors.rx },
+    calls: { label: intl.formatMessage({ id: "network.legend.calls" }), color: chartColors.calls },
+    success: { label: intl.formatMessage({ id: "network.legend.success" }), color: chartColors.success },
+    errors: { label: intl.formatMessage({ id: "network.rpc.abnormalFailures" }), color: chartColors.errors },
+    expected: { label: intl.formatMessage({ id: "network.rpc.expectedLongPollExpiries" }), color: chartColors.expected },
+    dial: { label: intl.formatMessage({ id: "network.legend.dial" }), color: chartColors.dial },
+    queue: { label: intl.formatMessage({ id: "network.legend.queue" }), color: chartColors.queue },
+    timeout: { label: intl.formatMessage({ id: "network.legend.timeout" }), color: chartColors.timeout },
+    remote: { label: intl.formatMessage({ id: "network.legend.remote" }), color: chartColors.remote },
+  }
+}
+
+function shortTime(intl: IntlShape, value: string) {
+  const date = new Date(value)
+  if (!value || value.startsWith("0001-") || Number.isNaN(date.getTime())) return intl.formatMessage({ id: "network.latency.insufficientSamples" })
+  return new Intl.DateTimeFormat(intl.locale, { hour: "2-digit", minute: "2-digit" }).format(date)
+}
+
+function nodeHealthData(intl: IntlShape, summary: ManagerNetworkSummaryResponse) {
+  return [
+    { key: "alive", name: intl.formatMessage({ id: "network.legend.alive" }), value: summary.headline.alive_nodes, fill: chartColors.alive },
+    { key: "suspect", name: intl.formatMessage({ id: "network.legend.suspect" }), value: summary.headline.suspect_nodes, fill: chartColors.suspect },
+    { key: "dead", name: intl.formatMessage({ id: "network.legend.dead" }), value: summary.headline.dead_nodes, fill: chartColors.dead },
+    { key: "draining", name: intl.formatMessage({ id: "network.legend.draining" }), value: summary.headline.draining_nodes, fill: chartColors.draining },
+  ]
+}
+
+function poolData(label: string, pool: ManagerNetworkPoolStats) {
+  return [{ label, active: pool.active, idle: pool.idle }]
+}
+
+function headlinePoolData(intl: IntlShape, summary: ManagerNetworkSummaryResponse) {
+  return [{ label: intl.formatMessage({ id: "network.chart.transportPool" }), active: summary.headline.pool_active, idle: summary.headline.pool_idle }]
+}
+
+function summaryHistory(summary: ManagerNetworkSummaryResponse): ManagerNetworkHistory {
+  return summary.history ?? { window_seconds: 60, step_seconds: 60, traffic: [], rpc: [], errors: [] }
+}
+
+function errorMixData(intl: IntlShape, summary: ManagerNetworkSummaryResponse) {
+  return [
+    { label: intl.formatMessage({ id: "network.legend.dial" }), dial: summary.headline.dial_errors_1m, fill: chartColors.dial },
+    { label: intl.formatMessage({ id: "network.legend.queue" }), queue: summary.headline.queue_full_1m, fill: chartColors.queue },
+    { label: intl.formatMessage({ id: "network.legend.timeout" }), timeout: summary.headline.timeouts_1m, fill: chartColors.timeout },
+  ]
+}
+
+function trafficHistoryData(intl: IntlShape, summary: ManagerNetworkSummaryResponse) {
+  const history = summaryHistory(summary)
+  if (history.traffic.length > 0) {
+    return history.traffic.map((point) => ({ label: shortTime(intl, point.at), tx: point.tx_bytes, rx: point.rx_bytes }))
+  }
+  return [{ label: intl.formatMessage({ id: "network.chart.snapshot" }), tx: summary.traffic.tx_bytes_1m, rx: summary.traffic.rx_bytes_1m }]
+}
+
+function messageTypeData(items: ManagerNetworkTrafficMessageType[]) {
+  const rows = new Map<string, { label: string; tx: number; rx: number }>()
+  for (const item of items) {
+    const row = rows.get(item.message_type) ?? { label: item.message_type, tx: 0, rx: 0 }
+    if (item.direction === "tx") row.tx += item.bytes_1m
+    if (item.direction === "rx") row.rx += item.bytes_1m
+    rows.set(item.message_type, row)
+  }
+  return Array.from(rows.values())
+}
+
+function rpcHistoryData(intl: IntlShape, summary: ManagerNetworkSummaryResponse) {
+  const history = summaryHistory(summary)
+  if (history.rpc.length > 0) {
+    return history.rpc.map((point) => ({
+      label: shortTime(intl, point.at),
+      calls: point.calls,
+      success: point.success,
+      errors: point.errors,
+      expected: point.expected_timeouts,
+    }))
+  }
+  const calls = summary.services.reduce((total, service) => total + service.calls_1m, 0)
+  const success = summary.services.reduce((total, service) => total + service.success_1m, 0)
+  const expected = summary.services.reduce((total, service) => total + service.expected_timeout_1m, 0)
+  const errors = abnormalServiceFailures(summary.services)
+  return [{ label: intl.formatMessage({ id: "network.chart.snapshot" }), calls, success, errors, expected }]
+}
+
+function peerPoolMiniData(peers: ManagerNetworkPeer[]) {
+  return peers.map((peer) => ({
+    label: peer.name || `node-${peer.node_id}`,
+    clusterActive: peer.pools.cluster.active,
+    clusterIdle: peer.pools.cluster.idle,
+    dataActive: peer.pools.data_plane.active,
+    dataIdle: peer.pools.data_plane.idle,
+  }))
+}
+
+function longPollLimitData(intl: IntlShape, summary: ManagerNetworkSummaryResponse) {
+  return [
+    { label: intl.formatMessage({ id: "network.channel.longPollLanes" }), value: summary.channel_replication.long_poll.lane_count },
+    { label: intl.formatMessage({ id: "network.channel.longPollWait" }), value: summary.channel_replication.long_poll.max_wait_ms },
+    { label: intl.formatMessage({ id: "network.channel.longPollMaxBytes" }), value: summary.channel_replication.long_poll.max_bytes },
+    { label: intl.formatMessage({ id: "network.channel.longPollMaxChannels" }), value: summary.channel_replication.long_poll.max_channels },
+  ]
+}
+
+function abnormalServiceFailures(services: ManagerNetworkRPCService[]) {
+  return services.reduce((total, service) => total + service.timeout_1m + service.queue_full_1m + service.remote_error_1m + service.other_error_1m, 0)
+}
+
+function expectedLongPollExpiries(summary: ManagerNetworkSummaryResponse) {
+  return Math.max(
+    summary.channel_replication.long_poll_timeouts_1m,
+    summary.services.reduce((total, service) => total + service.expected_timeout_1m, 0),
+    summaryHistory(summary).rpc.reduce((total, point) => Math.max(total, point.expected_timeouts), 0),
+  )
+}
+
+function historyFallback(intl: IntlShape, history: ManagerNetworkHistory, key: "traffic" | "rpc" | "errors") {
+  return history[key].length === 0 ? <p className="mt-2 text-xs text-muted-foreground">{intl.formatMessage({ id: "network.chart.noHistorySnapshot" })}</p> : null
+}
+
+function ChartFrame({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-background p-3">
+      <div className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
+      {children}
     </div>
   )
 }
@@ -135,6 +301,10 @@ function ServiceRows({ intl, services }: { intl: IntlShape; services: ManagerNet
 function PeerCard({ intl, peer }: { intl: IntlShape; peer: ManagerNetworkPeer }) {
   const errors = peer.errors.dial_error_1m + peer.errors.queue_full_1m + peer.errors.timeout_1m + peer.errors.remote_error_1m
   const success = peer.rpc.success_rate === null ? intl.formatMessage({ id: "network.latency.insufficientSamples" }) : `${Math.round(peer.rpc.success_rate * 100)}%`
+  const poolRows = [
+    { label: intl.formatMessage({ id: "network.peer.clusterPool" }), active: peer.pools.cluster.active, idle: peer.pools.cluster.idle },
+    { label: intl.formatMessage({ id: "network.peer.dataPlanePool" }), active: peer.pools.data_plane.active, idle: peer.pools.data_plane.idle },
+  ]
 
   return (
     <div className="rounded-xl border border-border bg-background p-4">
@@ -145,6 +315,18 @@ function PeerCard({ intl, peer }: { intl: IntlShape; peer: ManagerNetworkPeer })
         </div>
         <StatusBadge value={peer.health} />
       </div>
+      <ChartContainer className="mt-4 h-36" config={networkChartConfig(intl)}>
+        <BarChart accessibilityLayer data={poolRows} layout="vertical" margin={{ left: 12, right: 28 }}>
+          <CartesianGrid horizontal={false} />
+          <XAxis hide type="number" />
+          <YAxis dataKey="label" tickLine={false} type="category" width={110} />
+          <ChartTooltip content={<ChartTooltipContent />} />
+          <Bar dataKey="active" fill="var(--color-active)" stackId="pool" radius={[4, 0, 0, 4]} />
+          <Bar dataKey="idle" fill="var(--color-idle)" stackId="pool" radius={[0, 4, 4, 0]}>
+            <LabelList dataKey="idle" position="right" />
+          </Bar>
+        </BarChart>
+      </ChartContainer>
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label={intl.formatMessage({ id: "network.peer.clusterPool" })} value={`${peer.pools.cluster.active}/${peer.pools.cluster.idle}`} detail={intl.formatMessage({ id: "network.pool.activeIdle" })} />
         <MetricCard label={intl.formatMessage({ id: "network.peer.dataPlanePool" })} value={`${peer.pools.data_plane.active}/${peer.pools.data_plane.idle}`} detail={intl.formatMessage({ id: "network.pool.activeIdle" })} />
@@ -229,6 +411,22 @@ export function NetworkPage() {
   const summary = state.summary
   const channelServices = useMemo(() => summary?.channel_replication.services.filter((service) => service.group === "channel_data_plane") ?? [], [summary])
   const errorKind = mapErrorKind(state.error)
+  const charts = useMemo(() => {
+    if (!summary) return null
+    return {
+      health: nodeHealthData(intl, summary),
+      pools: headlinePoolData(intl, summary),
+      errors: errorMixData(intl, summary),
+      trafficHistory: trafficHistoryData(intl, summary),
+      messageTypes: messageTypeData(summary.traffic.by_message_type),
+      rpcHistory: rpcHistoryData(intl, summary),
+      peerPools: peerPoolMiniData(summary.peers),
+      channelPool: poolData(intl.formatMessage({ id: "network.channel.dataPlanePool" }), summary.channel_replication.pool),
+      longPollLimits: longPollLimitData(intl, summary),
+      expectedExpiries: expectedLongPollExpiries(summary),
+      abnormalFailures: abnormalServiceFailures(summary.services),
+    }
+  }, [intl, summary])
 
   return (
     <PageContainer>
@@ -249,32 +447,199 @@ export function NetworkPage() {
       {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "network.title" })} description={intl.formatMessage({ id: "network.loading" })} /> : null}
       {!state.loading && state.error ? <ResourceState kind={errorKind} onRetry={() => { void loadNetwork(false) }} title={resourceTitle(intl, state.error)} /> : null}
 
-      {!state.loading && !state.error && summary ? (
+      {!state.loading && !state.error && summary && charts ? (
         <>
           <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <MetricCard label={intl.formatMessage({ id: "network.summary.remotePeers" })} value={summary.headline.remote_peers} />
             <MetricCard label={intl.formatMessage({ id: "network.summary.nodeHealth" })} value={`${summary.headline.alive_nodes}/${summary.headline.suspect_nodes}/${summary.headline.dead_nodes}/${summary.headline.draining_nodes}`} detail={intl.formatMessage({ id: "network.summary.nodeHealthDetail" })} />
             <MetricCard label={intl.formatMessage({ id: "network.summary.poolConnections" })} value={`${summary.headline.pool_active}/${summary.headline.pool_idle}`} detail={intl.formatMessage({ id: "network.pool.activeIdle" })} />
             <MetricCard label={intl.formatMessage({ id: "network.summary.rpcInflight" })} value={summary.headline.rpc_inflight} />
-            <MetricCard label={intl.formatMessage({ id: "network.summary.errors" })} value={summary.headline.dial_errors_1m + summary.headline.queue_full_1m + summary.headline.timeouts_1m} detail={intl.formatMessage({ id: "network.summary.errorsDetail" })} />
+            <MetricCard label={intl.formatMessage({ id: "network.summary.errors" })} value={summary.headline.dial_errors_1m + summary.headline.queue_full_1m + summary.headline.timeouts_1m} detail={intl.formatMessage({ id: "network.summary.errorsDetail" })} tone="danger" />
             <MetricCard label={intl.formatMessage({ id: "network.summary.freshness" })} value={summary.headline.stale_observations} />
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-            <SectionCard title={intl.formatMessage({ id: "network.summary.title" })} description={intl.formatMessage({ id: "network.traffic.localTotal" })}>
-              <div className="grid gap-3 md:grid-cols-2">
-                <MetricCard label="TX" value={`${compactNumber(intl, summary.traffic.tx_bytes_1m)} B`} detail={`${compactNumber(intl, summary.traffic.tx_bps)} bps`} />
-                <MetricCard label="RX" value={`${compactNumber(intl, summary.traffic.rx_bytes_1m)} B`} detail={`${compactNumber(intl, summary.traffic.rx_bps)} bps`} />
+          <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+            <SectionCard title={intl.formatMessage({ id: "network.chart.nodeHealth" })} description={intl.formatMessage({ id: "network.chart.nodeHealthDescription" })}>
+              <ChartFrame label={intl.formatMessage({ id: "network.chart.distribution" })}>
+                <ChartContainer className="mx-auto h-56 max-w-sm" config={networkChartConfig(intl)}>
+                  <PieChart accessibilityLayer>
+                    <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+                    <Pie data={charts.health} dataKey="value" innerRadius={54} nameKey="name" outerRadius={84}>
+                      {charts.health.map((entry) => <Cell fill={entry.fill} key={entry.key} />)}
+                      <LabelList dataKey="value" position="outside" />
+                    </Pie>
+                    <ChartLegend content={<ChartLegendContent nameKey="key" />} />
+                  </PieChart>
+                </ChartContainer>
+              </ChartFrame>
+              <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                {charts.health.map((item) => <MetricCard detail={intl.formatMessage({ id: `network.health.${item.key}` })} key={item.key} label={item.name} value={item.value} />)}
               </div>
-              <div className="mt-4 space-y-2">
-                {summary.traffic.by_message_type.map((item) => (
-                  <div className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm" key={`${item.direction}-${item.message_type}`}>
-                    <span className="font-medium text-foreground">{item.message_type}</span>
-                    <span className="text-muted-foreground">{item.direction} - {compactNumber(intl, item.bytes_1m)} B - {compactNumber(intl, item.bps)} bps</span>
-                  </div>
-                ))}
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <ChartFrame label={intl.formatMessage({ id: "network.chart.poolConnections" })}>
+                  <ChartContainer className="h-40" config={networkChartConfig(intl)}>
+                    <BarChart accessibilityLayer data={charts.pools} layout="vertical" margin={{ left: 12, right: 28 }}>
+                      <CartesianGrid horizontal={false} />
+                      <XAxis hide type="number" />
+                      <YAxis dataKey="label" tickLine={false} type="category" width={90} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="active" fill="var(--color-active)" stackId="pool" radius={[4, 0, 0, 4]} />
+                      <Bar dataKey="idle" fill="var(--color-idle)" stackId="pool" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ChartContainer>
+                </ChartFrame>
+                <ChartFrame label={intl.formatMessage({ id: "network.chart.errorMix" })}>
+                  <ChartContainer className="h-40" config={networkChartConfig(intl)}>
+                    <BarChart accessibilityLayer data={charts.errors} layout="vertical" margin={{ left: 12, right: 28 }}>
+                      <CartesianGrid horizontal={false} />
+                      <XAxis hide type="number" />
+                      <YAxis dataKey="label" tickLine={false} type="category" width={120} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="dial" fill="var(--color-dial)" stackId="errors" />
+                      <Bar dataKey="queue" fill="var(--color-queue)" stackId="errors" />
+                      <Bar dataKey="timeout" fill="var(--color-timeout)" stackId="errors" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ChartContainer>
+                </ChartFrame>
               </div>
             </SectionCard>
+
+            <SectionCard title={intl.formatMessage({ id: "network.chart.trafficTrend" })} description={intl.formatMessage({ id: "network.chart.trafficTrendDescription" })}>
+              <ChartFrame label={intl.formatMessage({ id: "network.chart.bytesOverWindow" }, { seconds: summaryHistory(summary).window_seconds })}>
+                <ChartContainer className="h-64" config={networkChartConfig(intl)}>
+                  <AreaChart accessibilityLayer data={charts.trafficHistory} margin={{ left: 12, right: 12 }}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="label" tickLine={false} />
+                    <YAxis tickFormatter={(value) => compactNumber(intl, Number(value))} tickLine={false} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Area dataKey="tx" fill="var(--color-tx)" fillOpacity={0.25} stroke="var(--color-tx)" type="monotone" />
+                    <Area dataKey="rx" fill="var(--color-rx)" fillOpacity={0.25} stroke="var(--color-rx)" type="monotone" />
+                    <ChartLegend content={<ChartLegendContent />} />
+                  </AreaChart>
+                </ChartContainer>
+              </ChartFrame>
+              {historyFallback(intl, summaryHistory(summary), "traffic")}
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <MetricCard label={intl.formatMessage({ id: "network.traffic.txTotal" })} value={bytes(intl, summary.traffic.tx_bytes_1m)} detail={`${compactNumber(intl, summary.traffic.tx_bps)} bps`} />
+                <MetricCard label={intl.formatMessage({ id: "network.traffic.rxTotal" })} value={bytes(intl, summary.traffic.rx_bytes_1m)} detail={`${compactNumber(intl, summary.traffic.rx_bps)} bps`} />
+              </div>
+            </SectionCard>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <SectionCard title={intl.formatMessage({ id: "network.chart.trafficByMessageType" })} description={intl.formatMessage({ id: "network.traffic.localTotalChart" })}>
+              <ChartFrame label={intl.formatMessage({ id: "network.chart.localMessageBytes" })}>
+                <ChartContainer className="h-72" config={networkChartConfig(intl)}>
+                  <BarChart accessibilityLayer data={charts.messageTypes} layout="vertical" margin={{ left: 18, right: 36 }}>
+                    <CartesianGrid horizontal={false} />
+                    <XAxis type="number" tickFormatter={(value) => compactNumber(intl, Number(value))} />
+                    <YAxis dataKey="label" tickLine={false} type="category" width={150} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="tx" fill="var(--color-tx)" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="rx" fill="var(--color-rx)" radius={[0, 4, 4, 0]}>
+                      <LabelList dataKey="rx" position="right" />
+                    </Bar>
+                    <ChartLegend content={<ChartLegendContent />} />
+                  </BarChart>
+                </ChartContainer>
+              </ChartFrame>
+              <p className="mt-3 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">{intl.formatMessage({ id: "network.traffic.localTotal" })}</p>
+            </SectionCard>
+
+            <SectionCard title={intl.formatMessage({ id: "network.chart.rpcCallsErrors" })} description={intl.formatMessage({ id: "network.rpc.description" })}>
+              <ChartFrame label={intl.formatMessage({ id: "network.chart.rpcWindow" })}>
+                <ChartContainer className="h-72" config={networkChartConfig(intl)}>
+                  <BarChart accessibilityLayer data={charts.rpcHistory}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="label" tickLine={false} />
+                    <YAxis tickFormatter={(value) => compactNumber(intl, Number(value))} tickLine={false} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="success" fill="var(--color-success)" stackId="rpc" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="errors" fill="var(--color-errors)" stackId="rpc" />
+                    <Bar dataKey="expected" fill="var(--color-expected)" radius={[4, 4, 0, 0]} />
+                    <ChartLegend content={<ChartLegendContent />} />
+                  </BarChart>
+                </ChartContainer>
+              </ChartFrame>
+              {historyFallback(intl, summaryHistory(summary), "rpc")}
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <MetricCard label={intl.formatMessage({ id: "network.rpc.expectedLongPollExpiries" })} value={compactNumber(intl, charts.expectedExpiries)} detail={intl.formatMessage({ id: "network.rpc.expectedLongPollExpiriesDetail" })} tone="neutral" />
+                <MetricCard label={intl.formatMessage({ id: "network.rpc.abnormalFailures" })} value={compactNumber(intl, charts.abnormalFailures)} detail={intl.formatMessage({ id: "network.rpc.abnormalFailuresDetail" })} tone="danger" />
+              </div>
+            </SectionCard>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+            <SectionCard title={intl.formatMessage({ id: "network.chart.peerPoolBalance" })} description={intl.formatMessage({ id: "network.outbound.description" })}>
+              {summary.peers.length === 0 ? (
+                <ResourceState kind="empty" title={intl.formatMessage({ id: "network.chart.peerPoolBalance" })} description={intl.formatMessage({ id: "network.outbound.singleNodeEmpty" })} />
+              ) : (
+                <>
+                  <ChartFrame label={intl.formatMessage({ id: "network.chart.peerPools" })}>
+                    <ChartContainer className="h-72" config={networkChartConfig(intl)}>
+                      <BarChart accessibilityLayer data={charts.peerPools} margin={{ left: 12, right: 12 }}>
+                        <CartesianGrid vertical={false} />
+                        <XAxis dataKey="label" tickLine={false} />
+                        <YAxis tickLine={false} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="clusterActive" fill="var(--color-active)" stackId="cluster" />
+                        <Bar dataKey="clusterIdle" fill="var(--color-idle)" stackId="cluster" />
+                        <Bar dataKey="dataActive" fill="var(--color-tx)" stackId="data" />
+                        <Bar dataKey="dataIdle" fill="var(--color-rx)" stackId="data" />
+                      </BarChart>
+                    </ChartContainer>
+                  </ChartFrame>
+                  <div className="mt-4 space-y-3">{summary.peers.map((peer) => <PeerCard intl={intl} key={peer.node_id} peer={peer} />)}</div>
+                </>
+              )}
+            </SectionCard>
+
+            <SectionCard title={intl.formatMessage({ id: "network.chart.channelDataPlane" })} description={intl.formatMessage({ id: "network.channel.description" })}>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ChartFrame label={intl.formatMessage({ id: "network.channel.dataPlanePool" })}>
+                  <ChartContainer className="h-56" config={networkChartConfig(intl)}>
+                    <BarChart accessibilityLayer data={charts.channelPool} layout="vertical" margin={{ left: 12, right: 28 }}>
+                      <CartesianGrid horizontal={false} />
+                      <XAxis hide type="number" />
+                      <YAxis dataKey="label" tickLine={false} type="category" width={130} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="active" fill="var(--color-active)" stackId="pool" radius={[4, 0, 0, 4]} />
+                      <Bar dataKey="idle" fill="var(--color-idle)" stackId="pool" radius={[0, 4, 4, 0]}>
+                        <LabelList dataKey="idle" position="right" />
+                      </Bar>
+                    </BarChart>
+                  </ChartContainer>
+                </ChartFrame>
+                <ChartFrame label={intl.formatMessage({ id: "network.chart.longPollLimits" })}>
+                  <ChartContainer className="h-56" config={{ value: { label: intl.formatMessage({ id: "network.legend.value" }), color: chartColors.calls } }}>
+                    <BarChart accessibilityLayer data={charts.longPollLimits} layout="vertical" margin={{ left: 12, right: 30 }}>
+                      <CartesianGrid horizontal={false} />
+                      <XAxis hide type="number" />
+                      <YAxis dataKey="label" tickLine={false} type="category" width={110} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="value" fill="var(--color-value)" radius={4}>
+                        <LabelList dataKey="value" formatter={(value) => compactNumber(intl, Number(value ?? 0))} position="right" />
+                      </Bar>
+                    </BarChart>
+                  </ChartContainer>
+                </ChartFrame>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <MetricCard label={intl.formatMessage({ id: "network.channel.longPollLanes" })} value={summary.channel_replication.long_poll.lane_count} />
+                <MetricCard label={intl.formatMessage({ id: "network.channel.longPollWait" })} value={`${compactNumber(intl, summary.channel_replication.long_poll.max_wait_ms)} ms`} />
+                <MetricCard label={intl.formatMessage({ id: "network.channel.longPollMaxBytes" })} value={bytes(intl, summary.channel_replication.long_poll.max_bytes)} />
+                <MetricCard label={intl.formatMessage({ id: "network.channel.longPollMaxChannels" })} value={compactNumber(intl, summary.channel_replication.long_poll.max_channels)} />
+                <MetricCard label={intl.formatMessage({ id: "network.channel.dataPlaneTimeout" })} value={`${compactNumber(intl, summary.channel_replication.data_plane_rpc_timeout_ms)} ms`} />
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <MetricCard label={intl.formatMessage({ id: "network.rpc.expectedLongPollExpiries" })} value={compactNumber(intl, charts.expectedExpiries)} detail={intl.formatMessage({ id: "network.rpc.expectedLongPollExpiriesDetail" })} tone="neutral" />
+                <MetricCard label={intl.formatMessage({ id: "network.rpc.abnormalFailures" })} value={compactNumber(intl, charts.abnormalFailures)} detail={intl.formatMessage({ id: "network.rpc.abnormalFailuresDetail" })} tone="danger" />
+              </div>
+              <div className="mt-4"><ServiceRows intl={intl} services={channelServices} /></div>
+            </SectionCard>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
             <SectionCard title={intl.formatMessage({ id: "network.source.title" })}>
               <div className="flex flex-wrap gap-2 text-sm text-foreground">
                 <StatusBadge value={summary.source_status.local_collector} />
@@ -285,32 +650,11 @@ export function NetworkPage() {
                 <span>{sourceLabel(intl, "runtime_views", summary.source_status.runtime_views)}</span>
               </div>
             </SectionCard>
+
+            <SectionCard title={intl.formatMessage({ id: "network.rpc.title" })} description={intl.formatMessage({ id: "network.rpc.description" })}>
+              <ServiceRows intl={intl} services={summary.services} />
+            </SectionCard>
           </section>
-
-          <SectionCard title={intl.formatMessage({ id: "network.outbound.title" })} description={intl.formatMessage({ id: "network.outbound.description" })}>
-            {summary.peers.length === 0 ? (
-              <ResourceState kind="empty" title={intl.formatMessage({ id: "network.outbound.title" })} description={intl.formatMessage({ id: "network.outbound.singleNodeEmpty" })} />
-            ) : (
-              <div className="space-y-3">{summary.peers.map((peer) => <PeerCard intl={intl} key={peer.node_id} peer={peer} />)}</div>
-            )}
-          </SectionCard>
-
-          <SectionCard title={intl.formatMessage({ id: "network.rpc.title" })} description={intl.formatMessage({ id: "network.rpc.description" })}>
-            <ServiceRows intl={intl} services={summary.services} />
-          </SectionCard>
-
-          <SectionCard title={intl.formatMessage({ id: "network.channel.title" })} description={intl.formatMessage({ id: "network.channel.description" })}>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
-              <MetricCard label={intl.formatMessage({ id: "network.channel.dataPlanePool" })} value={`${summary.channel_replication.pool.active}/${summary.channel_replication.pool.idle}`} detail={intl.formatMessage({ id: "network.pool.activeIdle" })} />
-              <MetricCard label={intl.formatMessage({ id: "network.channel.longPollLanes" })} value={summary.channel_replication.long_poll.lane_count} />
-              <MetricCard label={intl.formatMessage({ id: "network.channel.longPollWait" })} value={`${compactNumber(intl, summary.channel_replication.long_poll.max_wait_ms)} ms`} />
-              <MetricCard label={intl.formatMessage({ id: "network.channel.longPollMaxBytes" })} value={`${compactNumber(intl, summary.channel_replication.long_poll.max_bytes)} B`} />
-              <MetricCard label={intl.formatMessage({ id: "network.channel.longPollMaxChannels" })} value={compactNumber(intl, summary.channel_replication.long_poll.max_channels)} />
-              <MetricCard label={intl.formatMessage({ id: "network.channel.longPollExpiries" })} value={summary.channel_replication.long_poll_timeouts_1m} />
-              <MetricCard label={intl.formatMessage({ id: "network.channel.dataPlaneTimeout" })} value={`${compactNumber(intl, summary.channel_replication.data_plane_rpc_timeout_ms)} ms`} />
-            </div>
-            <div className="mt-4"><ServiceRows intl={intl} services={channelServices} /></div>
-          </SectionCard>
 
           <section className="grid gap-4 xl:grid-cols-2">
             <SectionCard title={intl.formatMessage({ id: "network.discovery.title" })} description={intl.formatMessage({ id: "network.discovery.description" })}>
