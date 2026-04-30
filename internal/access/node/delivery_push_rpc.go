@@ -21,6 +21,30 @@ type deliveryPushRequest struct {
 	Frame       []byte                     `json:"frame"`
 }
 
+// DeliveryPushItem carries one encoded realtime frame and the routes that should receive it.
+type DeliveryPushItem struct {
+	// ChannelID is the durable channel identifier used for ack ownership binding.
+	ChannelID string `json:"channel_id"`
+	// ChannelType is the durable channel type used for ack ownership binding.
+	ChannelType uint8 `json:"channel_type"`
+	// MessageID identifies the committed message delivered by this item.
+	MessageID uint64 `json:"message_id"`
+	// MessageSeq is the committed channel sequence delivered by this item.
+	MessageSeq uint64 `json:"message_seq"`
+	// Routes lists the remote sessions that should receive Frame.
+	Routes []deliveryruntime.RouteKey `json:"routes"`
+	// Frame is the protocol-encoded realtime frame for this route group.
+	Frame []byte `json:"frame"`
+}
+
+// DeliveryPushBatchCommand batches one or more realtime delivery frames for a remote node.
+type DeliveryPushBatchCommand struct {
+	// OwnerNodeID identifies the committed owner that should receive downstream acks.
+	OwnerNodeID uint64 `json:"owner_node_id"`
+	// Items groups routes by the frame bytes they should receive.
+	Items []DeliveryPushItem `json:"items"`
+}
+
 func (a *Adapter) handleDeliveryPushRPC(ctx context.Context, body []byte) ([]byte, error) {
 	_ = ctx
 	var req deliveryPushRequest
