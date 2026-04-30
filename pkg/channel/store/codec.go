@@ -102,11 +102,25 @@ func decodeRetentionState(value []byte) (retentionState, error) {
 	if len(value) != 1+24 || value[0] != retentionStateVersion {
 		return retentionState{}, channel.ErrCorruptValue
 	}
-	return retentionState{
+	state := retentionState{
 		LocalRetentionThroughSeq:    binary.BigEndian.Uint64(value[1:9]),
 		PhysicalRetentionThroughSeq: binary.BigEndian.Uint64(value[9:17]),
 		RetainedMaxSeq:              binary.BigEndian.Uint64(value[17:25]),
-	}, nil
+	}
+	if err := validateRetentionState(state); err != nil {
+		return retentionState{}, err
+	}
+	return state, nil
+}
+
+func validateRetentionState(state retentionState) error {
+	if state.PhysicalRetentionThroughSeq > state.LocalRetentionThroughSeq {
+		return channel.ErrCorruptValue
+	}
+	if state.RetainedMaxSeq < state.LocalRetentionThroughSeq {
+		return channel.ErrCorruptValue
+	}
+	return nil
 }
 
 func encodeStateSnapshot(entries []stateSnapshotEntry) []byte {

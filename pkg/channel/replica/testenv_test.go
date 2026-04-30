@@ -15,6 +15,7 @@ type fakeLogStore struct {
 	mu            sync.Mutex
 	records       []channel.Record
 	leo           uint64
+	leoErr        error
 	appendCount   int
 	syncCount     int
 	truncateCalls []uint64
@@ -30,6 +31,15 @@ func (f *fakeLogStore) LEO() uint64 {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.leo
+}
+
+func (f *fakeLogStore) LEOWithError() (uint64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.leoErr != nil {
+		return 0, f.leoErr
+	}
+	return f.leo, nil
 }
 
 func (f *fakeLogStore) Append(records []channel.Record) (uint64, error) {

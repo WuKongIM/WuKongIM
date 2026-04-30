@@ -204,10 +204,11 @@ System (0x17): prefix + key + tableID + systemID + ...
 - **Group Commit 窗口**: 默认 1ms/64条/64KB，配置在 `replica/replica.go:effectiveAppendGroupCommit*`。调大会增加延迟但提高吞吐。
 - **双水位不要混用**: `HW` 是运行时 CommitHW，驱动 sendack / committed reads / fetch；`CheckpointHW` 是冷恢复安全下界；`CommitReady` 决定 leader 是否已经完成 quorum-safe 收敛。live read path 不能再把 `LoadCheckpoint()` 当作 committed source of truth。
 - **LEO 由消息表与 RetentionState 共同恢复**: 重启后的 `LEO()` 不再依赖旧 offset 日志键，而是取 `message` 表最大主键与 `RetentionState.RetainedMaxSeq` 的较大值；如果主记录 family 缺失、payload family 孤儿或索引指到不存在行，会按 `ErrCorruptState` 处理。
+- **RetentionState 与尾部截断同批维护**: `LocalRetentionThroughSeq` 是不可回退的本地采用下界，尾部截断不能低于它；当 reconcile 截断本地 tail 时，`RetainedMaxSeq` 必须在同一个 durable batch 内下调到不超过新的 LEO，避免重启后恢复出已删除的尾巴。
 - **HW 推进不可回退**: 运行时 `HW(CommitHW)` 只能前进不能后退。`progress_pipeline.go:advanceHWLocked` 会检查 newHW ≥ currentHW。
 - **Lease 过期自动降级**: Leader Lease 过期后自动变为 FencedLeader，拒绝所有写入但不影响读取。见 `replica/append_pipeline.go:appendableLocked` 和 `replica/reconcile_coordinator.go:ensureReconcileLeaseLocked`。
 - **Cross-channel durable batching**: `store/commit.go` 使用 200µs 窗口跨频道合并 Pebble durable 写入；Leader 的 synced Append 和 Follower 的 ApplyFetch 都走同一个 coordinator。单频道的 `writeMu` 仍然串行，且 sync 完成前不会发布新的 LEO。
-- **Committed Dispatch Cursor 不是消息真相**: `store/committed_cursor.go` 的热路径 cursor 只记录异步已提交事件补偿进度，默认使用 `NoSync` 降低写放大；retention 安全门禁必须走 durable confirm/advance 路径，cursor 丢失时仍只能从结构化 `message` 表或已采用的 retention floor 重复回放。
+- **Committed Dispatch Cursor 不是消息真相**: `store/committed_cursor.go` 的热路径 cursor 只记录异步已提交事件补偿进度，默认使用 `NoSync` 降低写放大且不能覆盖更高 cursor；retention 安全门禁必须走 durable confirm/advance 路径，cursor 丢失时仍只能从结构化 `message` 表或已采用的 retention floor 重复回放。
 - **手工 `PutIdempotency()` 只应服务恢复/快照路径**: 追加消息时 `Append()` / `StoreApplyFetch()` 已经维护唯一索引；测试或业务代码再额外覆盖同一索引值，可能把 append 已写入的 `payload_hash` 覆盖掉并制造假性损坏。
 - **Checkpoint 不再阻塞 sendack**: leader 在 quorum commit 后先完成 Append waiter，Checkpoint 持久化走 checkpoint effect worker coalescing；若 checkpoint 写盘失败会临时置 `CommitReady=false` 并重试，当前实现还缺少显式 health / metrics 暴露。
 - **leader reconcile 先区分“需要 peer 证明”与“只差本地 checkpoint”**: 若 leader transfer 后只是 `CheckpointHW < HW`、本地没有 `LEO > HW` 的 provisional tail，则会直接做本地 reconcile，不等待 peer probe；若已经拿到足以证明本地 tail 全量 quorum-safe 的 proof，也不会继续卡在离线 ISR peer 上。

@@ -44,6 +44,10 @@ type contextSyncLogStore interface {
 	SyncContext(ctx context.Context) error
 }
 
+type errorLEOLogStore interface {
+	LEOWithError() (uint64, error)
+}
+
 // combinedApplyFetchStore is an optional private extension for stores that can
 // persist fetched records, checkpoint, and epoch history in one durable step.
 type combinedApplyFetchStore interface {
@@ -145,7 +149,10 @@ func (s *splitDurableReplicaStore) Recover(ctx context.Context) (durableView, er
 		}
 	}
 
-	leo := s.log.LEO()
+	leo, err := recoverLogLEO(s.log)
+	if err != nil {
+		return durableView{}, err
+	}
 	if err := validateDurableView(checkpoint, history, leo, snapshot, snapshotKnown, snapshotExists); err != nil {
 		return durableView{}, err
 	}
@@ -155,6 +162,16 @@ func (s *splitDurableReplicaStore) Recover(ctx context.Context) (durableView, er
 		EpochHistory: append([]channel.EpochPoint(nil), history...),
 		LEO:          leo,
 	}, nil
+}
+
+func recoverLogLEO(log LogStore) (uint64, error) {
+	if log == nil {
+		return 0, channel.ErrInvalidArgument
+	}
+	if withError, ok := log.(errorLEOLogStore); ok {
+		return withError.LEOWithError()
+	}
+	return log.LEO(), nil
 }
 
 func (s *splitDurableReplicaStore) BeginEpoch(ctx context.Context, point channel.EpochPoint, expectedLEO uint64) error {

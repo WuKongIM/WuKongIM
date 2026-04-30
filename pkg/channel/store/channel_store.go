@@ -19,9 +19,12 @@ type ChannelStore struct {
 	// checkpointMu serializes monotonic checkpoint writers without queuing them
 	// behind append-only log commits.
 	checkpointMu sync.Mutex
-	mu           sync.Mutex
-	leo          atomic.Uint64
-	loaded       atomic.Bool
+	// cursorMu serializes committed replay cursor writers so durable retention
+	// fast-forwards cannot be overwritten by stale hot-path cursor updates.
+	cursorMu sync.Mutex
+	mu       sync.Mutex
+	leo      atomic.Uint64
+	loaded   atomic.Bool
 
 	writeInProgress    atomic.Bool
 	durableCommitCount atomic.Int64

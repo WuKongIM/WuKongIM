@@ -138,6 +138,98 @@ func TestChannelStoreAdoptRetentionBoundaryFastForwardsCursorToExistingBoundary(
 	require.Equal(t, uint64(10), seq)
 }
 
+func TestChannelStoreRetentionStateTruncateClampsRetainedMaxSeqOnReopen(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "store")
+	key, id := testChannelStoreIdentity("retention-truncate")
+
+	engine, err := Open(path)
+	require.NoError(t, err)
+	st := engine.ForChannel(key, id)
+	mustAppendRecords(t, st, []string{"m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8", "m9", "m10"})
+	require.NoError(t, st.AdoptRetentionBoundary(context.Background(), 5, "committed"))
+
+	require.NoError(t, st.Truncate(7))
+	require.NoError(t, engine.Close())
+
+	reopened, err := Open(path)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, reopened.Close())
+	}()
+	st = reopened.ForChannel(key, id)
+	require.Equal(t, uint64(7), st.LEO())
+	state, err := st.LoadRetentionState()
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), state.LocalRetentionThroughSeq)
+	require.Equal(t, uint64(7), state.RetainedMaxSeq)
+}
+
+func TestChannelStoreRetentionStateTruncateRejectsBelowLocalRetention(t *testing.T) {
+	st := newTestChannelStore(t)
+	require.NoError(t, st.AdoptRetentionBoundary(context.Background(), 5, "committed"))
+
+	err := st.Truncate(4)
+	require.ErrorIs(t, err, channel.ErrCorruptState)
+
+	state, loadErr := st.LoadRetentionState()
+	require.NoError(t, loadErr)
+	require.Equal(t, uint64(5), state.LocalRetentionThroughSeq)
+	require.Equal(t, uint64(5), state.RetainedMaxSeq)
+	require.Equal(t, uint64(5), st.LEO())
+}
+
+func TestChannelStoreRetentionStateTruncateLogAndHistoryClampsRetainedMaxSeqOnReopen(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "store")
+	key, id := testChannelStoreIdentity("retention-truncate-history")
+
+	engine, err := Open(path)
+	require.NoError(t, err)
+	st := engine.ForChannel(key, id)
+	mustAppendRecords(t, st, []string{"m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8", "m9", "m10"})
+	require.NoError(t, st.AdoptRetentionBoundary(context.Background(), 5, "committed"))
+
+	require.NoError(t, st.TruncateLogAndHistory(context.Background(), 7))
+	require.NoError(t, engine.Close())
+
+	reopened, err := Open(path)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, reopened.Close())
+	}()
+	st = reopened.ForChannel(key, id)
+	require.Equal(t, uint64(7), st.LEO())
+	state, err := st.LoadRetentionState()
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), state.LocalRetentionThroughSeq)
+	require.Equal(t, uint64(7), state.RetainedMaxSeq)
+}
+
+func TestChannelStoreLEOWithErrorRejectsCorruptRetentionState(t *testing.T) {
+	st := newTestChannelStore(t)
+	require.NoError(t, st.engine.db.Set(encodeRetentionStateKey(st.key), []byte{retentionStateVersion, 1}, pebble.Sync))
+
+	_, err := st.LEOWithError()
+	require.ErrorIs(t, err, channel.ErrCorruptValue)
+}
+
+func TestDecodeRetentionStateRejectsImpossibleState(t *testing.T) {
+	value := encodeRetentionState(retentionState{
+		LocalRetentionThroughSeq:    5,
+		PhysicalRetentionThroughSeq: 6,
+		RetainedMaxSeq:              5,
+	})
+
+	_, err := decodeRetentionState(value)
+	require.ErrorIs(t, err, channel.ErrCorruptValue)
+
+	value = encodeRetentionState(retentionState{
+		LocalRetentionThroughSeq: 5,
+		RetainedMaxSeq:           4,
+	})
+	_, err = decodeRetentionState(value)
+	require.ErrorIs(t, err, channel.ErrCorruptValue)
+}
+
 func writeRetentionStateForTest(tb testing.TB, st *ChannelStore, state testRetentionState) {
 	tb.Helper()
 

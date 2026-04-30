@@ -176,6 +176,19 @@ func (s *ChannelStore) LEO() uint64 {
 	return leo
 }
 
+// LEOWithError returns the durable log end offset and surfaces corrupt local
+// retention state instead of falling back to the last cached value.
+func (s *ChannelStore) LEOWithError() (uint64, error) {
+	if err := s.validate(); err != nil {
+		return 0, err
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.recoverLEOLocked()
+}
+
 func (s *ChannelStore) leoWithError() (uint64, error) {
 	if err := s.validate(); err != nil {
 		return 0, err
@@ -191,7 +204,10 @@ func (s *ChannelStore) leoLocked() (uint64, error) {
 	if s.loaded.Load() {
 		return s.leo.Load(), nil
 	}
+	return s.recoverLEOLocked()
+}
 
+func (s *ChannelStore) recoverLEOLocked() (uint64, error) {
 	messageMaxSeq, err := s.messageTable().maxSeq()
 	if err != nil {
 		return 0, err
@@ -223,6 +239,11 @@ func (s *ChannelStore) Truncate(to uint64) error {
 		s.mu.Unlock()
 		return nil
 	}
+	nextRetention, writeRetention, err := s.retentionStateAfterTruncate(to)
+	if err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	s.writeInProgress.Store(true)
 	s.mu.Unlock()
 	defer s.writeInProgress.Store(false)
@@ -231,6 +252,11 @@ func (s *ChannelStore) Truncate(to uint64) error {
 	defer batch.Close()
 	if err := s.messageTable().truncateFromSeq(batch, to+1); err != nil {
 		return err
+	}
+	if writeRetention {
+		if err := s.writeRetentionState(batch, nextRetention); err != nil {
+			return err
+		}
 	}
 	if err := batch.Commit(pebble.Sync); err != nil {
 		return err

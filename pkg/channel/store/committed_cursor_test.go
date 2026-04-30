@@ -24,6 +24,18 @@ func TestChannelStoreCommittedDispatchCursorRoundTrips(t *testing.T) {
 	require.Equal(t, uint64(12), seq)
 }
 
+func TestChannelStoreCommittedDispatchCursorHotPathDoesNotMoveBackward(t *testing.T) {
+	st := newTestChannelStore(t)
+	require.NoError(t, st.StoreCommittedDispatchCursor("conversation", 12))
+
+	require.NoError(t, st.StoreCommittedDispatchCursor("conversation", 4))
+
+	seq, ok, err := st.LoadCommittedDispatchCursor("conversation")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, uint64(12), seq)
+}
+
 func TestChannelStoreConfirmCommittedDispatchCursorDurableRejectsMissingCursor(t *testing.T) {
 	st := newTestChannelStore(t)
 
@@ -115,4 +127,28 @@ func TestEngineListChannelKeysReturnsPersistedChannels(t *testing.T) {
 
 	require.NoError(t, err)
 	require.ElementsMatch(t, []channel.ChannelKey{keyA, keyB}, keys)
+}
+
+func TestEngineListChannelKeysIncludesCheckpointOnlyChannel(t *testing.T) {
+	engine := openTestEngine(t)
+	key, id := testChannelStoreIdentity("checkpoint-only")
+	st := engine.ForChannel(key, id)
+	require.NoError(t, st.StoreCheckpoint(channel.Checkpoint{Epoch: 1, HW: 3}))
+
+	keys, err := engine.ListChannelKeys()
+
+	require.NoError(t, err)
+	require.ElementsMatch(t, []channel.ChannelKey{key}, keys)
+}
+
+func TestEngineListChannelKeysIncludesCommittedCursorOnlyChannel(t *testing.T) {
+	engine := openTestEngine(t)
+	key, id := testChannelStoreIdentity("cursor-only")
+	st := engine.ForChannel(key, id)
+	require.NoError(t, st.StoreCommittedDispatchCursor("committed", 3))
+
+	keys, err := engine.ListChannelKeys()
+
+	require.NoError(t, err)
+	require.ElementsMatch(t, []channel.ChannelKey{key}, keys)
 }

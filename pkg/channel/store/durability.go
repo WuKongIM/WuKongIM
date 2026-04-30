@@ -76,6 +76,11 @@ func (s *ChannelStore) TruncateLogAndHistory(ctx context.Context, to uint64) err
 		s.mu.Unlock()
 		return fmt.Errorf("%w: truncate target %d > leo %d", channel.ErrCorruptState, to, leo)
 	}
+	nextRetention, writeRetention, err := s.retentionStateAfterTruncate(to)
+	if err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	s.mu.Unlock()
 
 	nextLEO := leo
@@ -85,6 +90,11 @@ func (s *ChannelStore) TruncateLogAndHistory(ctx context.Context, to uint64) err
 	return s.commitDurableMutation(ctx, to < leo, nextLEO, func(writeBatch *pebble.Batch) error {
 		if to < leo {
 			if err := s.messageTable().truncateFromSeq(writeBatch, to+1); err != nil {
+				return err
+			}
+		}
+		if writeRetention {
+			if err := s.writeRetentionState(writeBatch, nextRetention); err != nil {
 				return err
 			}
 		}
