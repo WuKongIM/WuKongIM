@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -170,6 +170,20 @@ function renderNetworkPage() {
   )
 }
 
+function metricCards(label: string) {
+  return screen.getAllByText(label).map((labelElement) => {
+    const card = labelElement.parentElement
+    if (!card) throw new Error(`Missing metric card for ${label}`)
+    return card
+  })
+}
+
+function expectAllMetricCards(label: string, value: string) {
+  for (const card of metricCards(label)) {
+    expect(within(card).getByText(value)).toBeInTheDocument()
+  }
+}
+
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
@@ -201,9 +215,14 @@ test("renders loading then local-node network summary", async () => {
   expect(screen.getByText("RX Total")).toBeInTheDocument()
   expect(screen.getByText("2,048 B")).toBeInTheDocument()
   expect(screen.getAllByText("Expected long-poll expiries").length).toBeGreaterThan(0)
-  expect(screen.getAllByText("6").length).toBeGreaterThan(0)
+  expectAllMetricCards("Expected long-poll expiries", "6")
   expect(screen.getAllByText("Abnormal failures").length).toBeGreaterThan(0)
-  expect(screen.getAllByText("10").length).toBeGreaterThan(0)
+  expectAllMetricCards("Abnormal failures", "10")
+  expect(screen.getAllByText("channel_long_poll_fetch").length).toBeGreaterThan(0)
+  expect(screen.getByText(/TX 1,024 B/i)).toBeInTheDocument()
+  expect(screen.getByText(/RX 512 B/i)).toBeInTheDocument()
+  expect(screen.getAllByText("controller_ping").length).toBeGreaterThan(0)
+  expect(screen.getByText(/TX 256 B/i)).toBeInTheDocument()
   expect(screen.getByText(/local totals only/i)).toBeInTheDocument()
   expect(screen.getByText("Long-poll Max Bytes")).toBeInTheDocument()
   expect(screen.getByText("Long-poll Max Channels")).toBeInTheDocument()
@@ -228,6 +247,33 @@ test("renders visible fallback values when history arrays are empty", async () =
   expect(screen.getByText("4,096 B")).toBeInTheDocument()
   expect(screen.getAllByText("Expected long-poll expiries").length).toBeGreaterThan(0)
   expect(screen.getAllByText("Abnormal failures").length).toBeGreaterThan(0)
+  expectAllMetricCards("Abnormal failures", "10")
+})
+
+test("shows only current long-poll expiries as neutral samples", async () => {
+  getNetworkSummaryMock.mockResolvedValue({
+    ...networkSummaryFixture,
+    services: [
+      { ...networkSummaryFixture.services[0], expected_timeout_1m: 1 },
+      { ...networkSummaryFixture.services[1], expected_timeout_1m: 99 },
+    ],
+    channel_replication: {
+      ...networkSummaryFixture.channel_replication,
+      long_poll_timeouts_1m: 1,
+    },
+    history: {
+      ...networkSummaryFixture.history,
+      rpc: [
+        ...networkSummaryFixture.history.rpc,
+        { at: "2026-04-23T08:00:30Z", calls: 100, success: 0, errors: 0, expected_timeouts: 100 },
+      ],
+    },
+  })
+
+  renderNetworkPage()
+
+  expect(await screen.findByText("RPC Calls & Errors")).toBeInTheDocument()
+  expectAllMetricCards("Expected long-poll expiries", "1")
 })
 
 test("renders single-node cluster outbound empty state as healthy", async () => {

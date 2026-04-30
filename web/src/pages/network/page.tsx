@@ -174,11 +174,17 @@ function trafficHistoryData(intl: IntlShape, summary: ManagerNetworkSummaryRespo
 }
 
 function messageTypeData(items: ManagerNetworkTrafficMessageType[]) {
-  const rows = new Map<string, { label: string; tx: number; rx: number }>()
+  const rows = new Map<string, { label: string; tx: number; rx: number; txBps: number; rxBps: number }>()
   for (const item of items) {
-    const row = rows.get(item.message_type) ?? { label: item.message_type, tx: 0, rx: 0 }
-    if (item.direction === "tx") row.tx += item.bytes_1m
-    if (item.direction === "rx") row.rx += item.bytes_1m
+    const row = rows.get(item.message_type) ?? { label: item.message_type, tx: 0, rx: 0, txBps: 0, rxBps: 0 }
+    if (item.direction === "tx") {
+      row.tx += item.bytes_1m
+      row.txBps += item.bps
+    }
+    if (item.direction === "rx") {
+      row.rx += item.bytes_1m
+      row.rxBps += item.bps
+    }
     rows.set(item.message_type, row)
   }
   return Array.from(rows.values())
@@ -231,15 +237,13 @@ function abnormalFailureTotal(summary: ManagerNetworkSummaryResponse) {
   if (latestErrorPoint) {
     return latestErrorPoint.dial_errors + latestErrorPoint.queue_full + latestErrorPoint.timeouts + latestErrorPoint.remote_errors
   }
-  return summary.headline.dial_errors_1m + summary.headline.queue_full_1m + summary.headline.timeouts_1m + abnormalServiceFailures(summary.services)
+  const peerTotal = summary.peers.reduce((total, peer) => total + peer.errors.dial_error_1m + peer.errors.queue_full_1m + peer.errors.timeout_1m + peer.errors.remote_error_1m, 0)
+  if (summary.peers.length > 0) return peerTotal
+  return summary.headline.dial_errors_1m + summary.headline.queue_full_1m + summary.headline.timeouts_1m
 }
 
 function expectedLongPollExpiries(summary: ManagerNetworkSummaryResponse) {
-  return Math.max(
-    summary.channel_replication.long_poll_timeouts_1m,
-    summary.services.reduce((total, service) => total + service.expected_timeout_1m, 0),
-    summaryHistory(summary).rpc.reduce((total, point) => Math.max(total, point.expected_timeouts), 0),
-  )
+  return summary.channel_replication.long_poll_timeouts_1m
 }
 
 function historyFallback(intl: IntlShape, history: ManagerNetworkHistory, key: "traffic" | "rpc" | "errors") {
@@ -251,6 +255,25 @@ function ChartFrame({ children, label }: { children: ReactNode; label: string })
     <div className="rounded-xl border border-border bg-background p-3">
       <div className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
       {children}
+    </div>
+  )
+}
+
+function MessageTypeRows({ intl, rows }: { intl: IntlShape; rows: ReturnType<typeof messageTypeData> }) {
+  if (rows.length === 0) {
+    return <p className="mt-3 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">{intl.formatMessage({ id: "network.chart.noHistorySnapshot" })}</p>
+  }
+
+  return (
+    <div className="mt-3 grid gap-2">
+      {rows.map((row) => (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm" key={row.label}>
+          <span className="font-medium text-foreground">{row.label}</span>
+          <span className="text-muted-foreground">
+            TX {bytes(intl, row.tx)} / RX {bytes(intl, row.rx)} - {compactNumber(intl, row.txBps)} / {compactNumber(intl, row.rxBps)} bps
+          </span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -552,6 +575,7 @@ export function NetworkPage() {
                   </BarChart>
                 </ChartContainer>
               </ChartFrame>
+              <MessageTypeRows intl={intl} rows={charts.messageTypes} />
               <p className="mt-3 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">{intl.formatMessage({ id: "network.traffic.localTotal" })}</p>
             </SectionCard>
 
