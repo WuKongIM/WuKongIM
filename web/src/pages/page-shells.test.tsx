@@ -16,6 +16,7 @@ const getMessagesMock = vi.fn()
 const getSlotsMock = vi.fn()
 const getNodeOnboardingCandidatesMock = vi.fn()
 const getNodeOnboardingJobsMock = vi.fn()
+const getNetworkSummaryMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -30,6 +31,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
     getNodeOnboardingCandidates: (...args: unknown[]) => getNodeOnboardingCandidatesMock(...args),
     getNodeOnboardingJobs: (...args: unknown[]) => getNodeOnboardingJobsMock(...args),
+    getNetworkSummary: (...args: unknown[]) => getNetworkSummaryMock(...args),
   }
 })
 
@@ -45,6 +47,7 @@ beforeEach(() => {
   getSlotsMock.mockReset()
   getNodeOnboardingCandidatesMock.mockReset()
   getNodeOnboardingJobsMock.mockReset()
+  getNetworkSummaryMock.mockReset()
 
   getOverviewMock.mockResolvedValue({
     generated_at: "2026-04-23T08:00:00Z",
@@ -149,6 +152,54 @@ beforeEach(() => {
       },
     }],
   })
+  getNetworkSummaryMock.mockResolvedValue({
+    generated_at: "2026-04-23T08:00:00Z",
+    scope: { view: "local_node", local_node_id: 1, controller_leader_id: 1 },
+    source_status: { local_collector: "ok", controller_context: "ok", runtime_views: "ok", errors: {} },
+    headline: {
+      remote_peers: 0,
+      alive_nodes: 1,
+      suspect_nodes: 0,
+      dead_nodes: 0,
+      draining_nodes: 0,
+      pool_active: 0,
+      pool_idle: 0,
+      rpc_inflight: 0,
+      dial_errors_1m: 0,
+      queue_full_1m: 0,
+      timeouts_1m: 0,
+      stale_observations: 0,
+    },
+    traffic: {
+      scope: "local_total_by_msg_type",
+      tx_bytes_1m: 0,
+      rx_bytes_1m: 0,
+      tx_bps: 0,
+      rx_bps: 0,
+      peer_breakdown_available: false,
+      by_message_type: [],
+    },
+    peers: [],
+    services: [],
+    channel_replication: {
+      pool: { active: 0, idle: 0 },
+      services: [],
+      long_poll: { lane_count: 0, max_wait_ms: 0, max_bytes: 0, max_channels: 0 },
+      long_poll_timeouts_1m: 0,
+      data_plane_rpc_timeout_ms: 0,
+    },
+    discovery: {
+      listen_addr: "",
+      advertise_addr: "",
+      seeds: [],
+      static_nodes: [],
+      pool_size: 0,
+      data_plane_pool_size: 0,
+      dial_timeout_ms: 0,
+      controller_observation_interval_ms: 0,
+    },
+    events: [],
+  })
 
   useAuthStore.setState({
     status: "authenticated",
@@ -163,12 +214,13 @@ beforeEach(() => {
 
 it.each([
   ["/dashboard", "Dashboard", "Operations Summary"],
-  ["/nodes", "Nodes", "Node Inventory"],
-  ["/channels", "Channels", "Channel Runtime"],
-  ["/connections", "Connections", "Connection Inventory"],
-  ["/messages", "Messages", "Message Query"],
-  ["/slots", "Slots", "Slot Inventory"],
+  ["/nodes", "Nodes", "Address"],
+  ["/channels", "Channels", "Channel ID"],
+  ["/connections", "Connections", "Session"],
+  ["/messages", "Messages", "Channel ID"],
+  ["/slots", "Slots", "Slot"],
   ["/onboarding", "Onboarding", "Candidate Nodes"],
+  ["/network", "Network", "Network Summary"],
 ])("renders %s shell", async (path, title, section) => {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
 
@@ -179,12 +231,11 @@ it.each([
   )
 
   expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument()
-  expect(screen.getByText(section)).toBeInTheDocument()
+  expect((await screen.findAllByText(section)).length).toBeGreaterThan(0)
   expect(screen.queryByText(/workspace/i)).not.toBeInTheDocument()
 })
 
 it.each([
-  ["/network", "Network", /does not expose transport or throughput endpoints/i],
   ["/topology", "Topology", /does not expose replica topology endpoints/i],
 ])("renders %s unavailable manager scope", async (path, title, message) => {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
@@ -218,13 +269,13 @@ test("dashboard shows monochrome workbench sections", async () => {
 
 it.each([
   ["/dashboard", "仪表盘", "操作摘要"],
-  ["/nodes", "节点", "节点清单"],
-  ["/channels", "频道", "频道运行时"],
-  ["/connections", "连接", "连接清单"],
-  ["/messages", "消息", "消息查询"],
-  ["/slots", "槽位", "槽位清单"],
+  ["/nodes", "节点", "地址"],
+  ["/channels", "频道", "频道 ID"],
+  ["/connections", "连接", "会话"],
+  ["/messages", "消息", "频道 ID"],
+  ["/slots", "槽位", "槽位"],
   ["/onboarding", "扩容", "候选节点"],
-  ["/network", "网络", "管理 API 覆盖"],
+  ["/network", "网络", "网络摘要"],
   ["/topology", "拓扑", "管理 API 覆盖"],
 ])("renders %s in Chinese", async (path, title, section) => {
   localStorage.setItem("wukongim_manager_locale", "zh-CN")
@@ -237,5 +288,5 @@ it.each([
   )
 
   expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument()
-  expect(screen.getByText(section)).toBeInTheDocument()
+  expect((await screen.findAllByText(section)).length).toBeGreaterThan(0)
 })
