@@ -11,6 +11,7 @@
 ### Committed event replay
 - Sendack waits for Channel Log quorum commit; delivery/conversation are async side effects recovered by committed replay from the durable message log.
 - Committed replay cursor is a low-cost progress hint; losing it only causes duplicate replay, not message loss.
+- Channel message retention is cluster-authoritative: leaders advance slot metadata `RetentionThroughSeq`; local stores may lag physically and must not use checkpoint `LogStartOffset` for retention.
 
 ### Long-poll observability
 - `RPCClientEvent{ServiceID:35, Result:"timeout"}` means the RPC deadline/context timed out; it is abnormal and not a normal long-poll wait expiry.

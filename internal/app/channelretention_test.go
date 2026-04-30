@@ -118,6 +118,109 @@ func TestChannelRetentionRuntimeAndMetadataAdaptersDelegate(t *testing.T) {
 	require.Equal(t, req, metadata.advance)
 }
 
+func TestChannelRetentionWorkerSingleNodeClusterFlow(t *testing.T) {
+	now := time.Unix(10_000, 0)
+	engine, err := channelstore.Open(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, engine.Close()) })
+
+	id := channel.ChannelID{ID: "single-node-retention", Type: 1}
+	key := channelhandler.KeyFromChannelID(id)
+	st := engine.ForChannel(key, id)
+	records := []channel.Record{
+		retentionRecord(1, now.Add(-2*time.Hour)),
+		retentionRecord(2, now.Add(-90*time.Minute)),
+		retentionRecord(3, now.Add(-10*time.Minute)),
+	}
+	_, err = st.Append(records)
+	require.NoError(t, err)
+	require.NoError(t, st.StoreCheckpoint(channel.Checkpoint{Epoch: 7, HW: 3}))
+	require.NoError(t, st.StoreCommittedDispatchCursor(appChannelRetentionCursorName, 3))
+
+	metaDB, err := metadb.Open(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, metaDB.Close()) })
+	metaStore := metaDB.ForSlot(1)
+	require.NoError(t, metaStore.UpsertChannelRuntimeMeta(context.Background(), metadb.ChannelRuntimeMeta{
+		ChannelID:    id.ID,
+		ChannelType:  int64(id.Type),
+		ChannelEpoch: 7,
+		LeaderEpoch:  8,
+		Replicas:     []uint64{1},
+		ISR:          []uint64{1},
+		Leader:       1,
+		MinISR:       1,
+		Status:       uint8(channel.StatusActive),
+		LeaseUntilMS: now.Add(time.Minute).UnixMilli(),
+	}))
+
+	runtime := &fakeAppChannelRetentionRuntime{
+		view: channel.RetentionView{
+			ChannelKey:          key,
+			Epoch:               7,
+			LeaderEpoch:         8,
+			Leader:              1,
+			LeaseUntil:          now.Add(time.Minute),
+			HW:                  3,
+			CheckpointHW:        3,
+			CommitReady:         true,
+			RetentionThroughSeq: 0,
+			MinAvailableSeq:     1,
+			MinISRMatchOffset:   3,
+		},
+	}
+	worker := appretention.NewWorker(appretention.Config{
+		Channels: &appChannelRetentionChannels{
+			keys:      engine,
+			batchSize: 128,
+		},
+		Stores:          appChannelRetentionStores{engine: engine},
+		Runtime:         appChannelRetentionRuntime{runtime: runtime},
+		Metadata:        appChannelRetentionMetadata{store: metaStore},
+		LocalNodeID:     1,
+		TTL:             time.Hour,
+		ScanInterval:    time.Hour,
+		MaxTrimMessages: 10,
+		CursorName:      appChannelRetentionCursorName,
+		Now:             func() time.Time { return now },
+	})
+
+	require.NoError(t, worker.RunOnce(context.Background()))
+	gotMeta, err := metaStore.GetChannelRuntimeMeta(context.Background(), id.ID, int64(id.Type))
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), gotMeta.RetentionThroughSeq)
+	require.Equal(t, now.UnixMilli(), gotMeta.RetentionUpdatedAtMS)
+	require.Equal(t, uint64(2), runtime.applied)
+
+	minAvailableSeq := channel.EffectiveMinAvailableSeq(gotMeta.RetentionThroughSeq, 0)
+	retainedOnlyPage, err := channelhandler.SyncMessages(engine, 3, channelhandler.SyncMessagesRequest{
+		ChannelID:       id,
+		StartSeq:        1,
+		EndSeq:          2,
+		Limit:           10,
+		PullMode:        channelhandler.SyncPullModeUp,
+		MinAvailableSeq: minAvailableSeq,
+	})
+	require.NoError(t, err)
+	require.Empty(t, retainedOnlyPage.Messages)
+
+	page, err := channelhandler.SyncMessages(engine, 3, channelhandler.SyncMessagesRequest{
+		ChannelID:       id,
+		StartSeq:        1,
+		EndSeq:          4,
+		Limit:           10,
+		PullMode:        channelhandler.SyncPullModeUp,
+		MinAvailableSeq: minAvailableSeq,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []uint64{3}, channelRetentionMessageSeqs(page.Messages))
+}
+
+func retentionRecord(id uint64, ts time.Time) channel.Record {
+	payload := retentionRecordPayload(id, ts)
+	return channel.Record{ID: id, Payload: payload, SizeBytes: len(payload)}
+}
+
 func retentionRecordPayload(id uint64, ts time.Time) []byte {
 	body := []byte("payload")
 	var buf bytes.Buffer
@@ -151,6 +254,14 @@ func hashRetentionPayload(payload []byte) uint64 {
 	hasher := fnv.New64a()
 	_, _ = hasher.Write(payload)
 	return hasher.Sum64()
+}
+
+func channelRetentionMessageSeqs(messages []channel.Message) []uint64 {
+	seqs := make([]uint64, 0, len(messages))
+	for _, msg := range messages {
+		seqs = append(seqs, msg.MessageSeq)
+	}
+	return seqs
 }
 
 type fakeAppChannelRetentionRuntime struct {

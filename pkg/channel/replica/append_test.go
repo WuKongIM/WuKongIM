@@ -222,49 +222,74 @@ func TestAppendRejectsReplicaThatIsNotLeader(t *testing.T) {
 
 func TestAppendWaitsUntilMinISRReplicasAcknowledgeViaFetch(t *testing.T) {
 	env := newThreeReplicaCluster(t)
-	done := make(chan channel.CommitResult, 1)
+	done := make(chan appendTestResult, 1)
 
 	go func() {
 		res, err := env.leader.Append(context.Background(), []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
-		if err == nil {
-			done <- res
-		}
+		done <- appendTestResult{result: res, err: err}
 	}()
 	waitForLogAppend(t, env.leader.log.(*fakeLogStore), 1)
+	waitForLeaderLEO(t, env.leader, 1)
 
 	env.replicateOnce(t, env.follower2)
 	select {
-	case <-done:
+	case got := <-done:
+		require.NoError(t, got.err)
 		t.Fatal("append returned before MinISR was satisfied")
 	default:
 	}
 
 	env.replicateOnce(t, env.follower3)
-	res := <-done
-	require.Equal(t, uint64(1), res.NextCommitHW)
+	got := receiveAppendResult(t, done, "append did not return after MinISR was satisfied")
+	require.NoError(t, got.err)
+	require.Equal(t, uint64(1), got.result.NextCommitHW)
 }
 
 func TestAppendWaitsUntilMinISRTwoReplicasAcknowledge(t *testing.T) {
 	env := newThreeReplicaClusterWithMinISR(t, 2)
-	done := make(chan channel.CommitResult, 1)
+	done := make(chan appendTestResult, 1)
 
 	go func() {
 		res, err := env.leader.Append(context.Background(), []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
-		if err == nil {
-			done <- res
-		}
+		done <- appendTestResult{result: res, err: err}
 	}()
 	waitForLogAppend(t, env.leader.log.(*fakeLogStore), 1)
+	waitForLeaderLEO(t, env.leader, 1)
 
 	select {
-	case <-done:
+	case got := <-done:
+		require.NoError(t, got.err)
 		t.Fatal("append returned before a follower satisfied MinISR=2")
 	default:
 	}
 
 	env.replicateOnce(t, env.follower2)
-	res := <-done
-	require.Equal(t, uint64(1), res.NextCommitHW)
+	got := receiveAppendResult(t, done, "append did not return after a follower satisfied MinISR=2")
+	require.NoError(t, got.err)
+	require.Equal(t, uint64(1), got.result.NextCommitHW)
+}
+
+type appendTestResult struct {
+	result channel.CommitResult
+	err    error
+}
+
+func waitForLeaderLEO(t testing.TB, r *replica, want uint64) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		return r.Status().LEO == want
+	}, time.Second, 10*time.Millisecond)
+}
+
+func receiveAppendResult(t testing.TB, done <-chan appendTestResult, timeoutMessage string) appendTestResult {
+	t.Helper()
+	select {
+	case got := <-done:
+		return got
+	case <-time.After(time.Second):
+		t.Fatal(timeoutMessage)
+		return appendTestResult{}
+	}
 }
 
 func TestLeaderLeaseExpiryFencesAppend(t *testing.T) {
