@@ -124,8 +124,41 @@ func TestCommittedReplayerRecordsReplayLag(t *testing.T) {
 
 	require.NoError(t, replayer.RunOnce(context.Background()))
 
-	require.Equal(t, []string{"group:3", "group:0"}, metrics.lags)
+	require.Equal(t, []string{"group:0"}, metrics.lags)
 	require.Equal(t, uint64(5), source.cursors[key])
+}
+
+func TestCommittedReplayerRecordsMaxReplayLagByChannelType(t *testing.T) {
+	laggingKey := channel.ChannelKey("channel/2/lagging")
+	caughtUpKey := channel.ChannelKey("channel/2/caught-up")
+	metrics := &recordingCommittedReplayMetrics{}
+	source := &fakeCommittedReplayLog{
+		channels: []committedReplayChannel{
+			{Key: laggingKey, ID: channel.ChannelID{ID: "lagging", Type: 2}},
+			{Key: caughtUpKey, ID: channel.ChannelID{ID: "caught-up", Type: 2}},
+		},
+		cursors: map[channel.ChannelKey]uint64{
+			laggingKey: 2,
+		},
+		committed: map[channel.ChannelKey]uint64{
+			laggingKey:  5,
+			caughtUpKey: 1,
+		},
+		messages: map[channel.ChannelKey][]channel.Message{
+			caughtUpKey: {
+				{MessageID: 16, MessageSeq: 1, ChannelID: "caught-up", ChannelType: 2, Payload: []byte("one")},
+			},
+		},
+	}
+	replayer := newCommittedReplayer(committedReplayerConfig{
+		Log:       source,
+		BatchSize: 16,
+		Metrics:   metrics,
+	})
+
+	require.NoError(t, replayer.RunOnce(context.Background()))
+
+	require.Equal(t, []string{"group:3"}, metrics.lags)
 }
 
 func TestCommittedReplayerRecordsPassDuration(t *testing.T) {

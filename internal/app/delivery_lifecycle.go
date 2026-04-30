@@ -60,6 +60,9 @@ func (l *deliveryRuntimeLifecycle) Start(ctx context.Context) error {
 	if l == nil || l.cfg.Runtime == nil {
 		return nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.cancel != nil {
@@ -80,6 +83,9 @@ func (l *deliveryRuntimeLifecycle) Stop() error {
 func (l *deliveryRuntimeLifecycle) StopContext(ctx context.Context) error {
 	if l == nil {
 		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	l.mu.Lock()
 	cancel := l.cancel

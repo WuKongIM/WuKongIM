@@ -35,7 +35,7 @@ const (
 	committedRouteRetryAttempts = 3
 	committedRouteRetryBackoff  = 20 * time.Millisecond
 
-	committedDispatchDefaultQueueDepth = 4096
+	committedDispatchDefaultQueueDepth = 512
 	committedDispatchMinShards         = 4
 	committedDispatchMaxShards         = 32
 )

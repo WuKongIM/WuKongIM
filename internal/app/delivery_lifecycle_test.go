@@ -55,6 +55,17 @@ func TestDeliveryRuntimeLifecycleStopContextReturnsContextError(t *testing.T) {
 	require.ErrorIs(t, lifecycle.StopContext(ctx), context.Canceled)
 }
 
+func TestDeliveryRuntimeLifecycleAllowsNilContexts(t *testing.T) {
+	lifecycle := newDeliveryRuntimeLifecycle(deliveryRuntimeLifecycleConfig{
+		Runtime: &recordingDeliveryRuntimeMaintenance{},
+	})
+
+	require.NotPanics(t, func() {
+		require.NoError(t, lifecycle.Start(nil))
+		require.NoError(t, lifecycle.StopContext(nil))
+	})
+}
+
 func TestDeliveryRuntimeObserverRecordsRouteExpiryMetric(t *testing.T) {
 	metrics := &recordingDeliveryLifecycleMetrics{}
 	observer := deliveryRuntimeMetricsObserver{metrics: metrics}

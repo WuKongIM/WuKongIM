@@ -202,7 +202,9 @@ func (r *committedReplayer) runOnceAndLog(ctx context.Context) {
 // cursor only after all side effects in the batch have been accepted and flushed.
 func (r *committedReplayer) RunOnce(ctx context.Context) (err error) {
 	startedAt := time.Now()
+	lagByType := map[uint8]uint64(nil)
 	defer func() {
+		r.recordReplayLagSnapshot(lagByType)
 		r.recordReplayPass(committedReplayPassResult(err), time.Since(startedAt))
 	}()
 	if r == nil || r.cfg.Log == nil {
@@ -215,76 +217,82 @@ func (r *committedReplayer) RunOnce(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	lagByType = make(map[uint8]uint64, len(channels))
 	for _, ch := range channels {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := r.replayChannel(ctx, ch); err != nil {
+		lag, err := r.replayChannel(ctx, ch)
+		if current, ok := lagByType[ch.ID.Type]; !ok || lag > current {
+			lagByType[ch.ID.Type] = lag
+		}
+		if err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (r *committedReplayer) replayChannel(ctx context.Context, ch committedReplayChannel) error {
+func (r *committedReplayer) replayChannel(ctx context.Context, ch committedReplayChannel) (uint64, error) {
 	cursor, ok, err := r.cfg.Log.LoadCommittedDispatchCursor(ctx, ch.Key, r.cfg.CursorName)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if !ok {
 		cursor = 0
 	}
+	lag := uint64(0)
 	for {
 		committedSeq, err := r.cfg.Log.CommittedSeq(ctx, ch.Key, ch.ID)
 		if err != nil {
-			return err
+			return lag, err
 		}
-		r.recordReplayLag(ch.ID.Type, replayLag(cursor, committedSeq))
+		lag = replayLag(cursor, committedSeq)
 		if committedSeq == 0 || cursor >= committedSeq {
-			return nil
+			return lag, nil
 		}
 
 		messages, err := r.cfg.Log.LoadCommittedMessages(ctx, ch.Key, ch.ID, cursor+1, r.cfg.BatchSize, r.cfg.MaxBytes)
 		if err != nil {
-			return err
+			return lag, err
 		}
 		if len(messages) == 0 {
-			return nil
+			return lag, nil
 		}
 		lastSeq := cursor
 		for _, msg := range messages {
 			if err := ctx.Err(); err != nil {
-				return err
+				return lag, err
 			}
 			if msg.MessageSeq <= cursor {
 				continue
 			}
 			if msg.MessageSeq != lastSeq+1 {
-				return channel.ErrCorruptState
+				return lag, channel.ErrCorruptState
 			}
 			if msg.MessageSeq > committedSeq {
 				break
 			}
 			if err := r.submitMessage(ctx, msg); err != nil {
-				return err
+				return lag, err
 			}
 			lastSeq = msg.MessageSeq
 		}
 		if lastSeq == cursor {
-			return nil
+			return lag, nil
 		}
 		if r.cfg.Conversation != nil {
 			if err := r.cfg.Conversation.Flush(ctx); err != nil {
-				return err
+				return lag, err
 			}
 		}
 		if err := r.cfg.Log.StoreCommittedDispatchCursor(ctx, ch.Key, r.cfg.CursorName, lastSeq); err != nil {
-			return err
+			return lag, err
 		}
 		cursor = lastSeq
-		r.recordReplayLag(ch.ID.Type, replayLag(cursor, committedSeq))
+		lag = replayLag(cursor, committedSeq)
 		if len(messages) < r.cfg.BatchSize {
-			return nil
+			return lag, nil
 		}
 	}
 }
@@ -308,6 +316,15 @@ func (r *committedReplayer) recordReplayLag(channelType uint8, lag uint64) {
 		return
 	}
 	r.cfg.Metrics.SetCommittedReplayLag(deliveryChannelTypeLabel(channelType), lag)
+}
+
+func (r *committedReplayer) recordReplayLagSnapshot(lagByType map[uint8]uint64) {
+	if r == nil || r.cfg.Metrics == nil {
+		return
+	}
+	for channelType, lag := range lagByType {
+		r.recordReplayLag(channelType, lag)
+	}
 }
 
 func (r *committedReplayer) recordReplayPass(result string, dur time.Duration) {
