@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -35,6 +36,38 @@ func TestRetentionMetaEqualityIncludesRetentionBoundary(t *testing.T) {
 	next.RetentionThroughSeq = 88
 
 	require.False(t, metaEqualExceptLease(current, next))
+}
+
+func TestRuntimeApplyRetentionBoundaryDelegatesToReplica(t *testing.T) {
+	rt := newTestRuntime(t)
+	meta := testMeta("room-retention-apply")
+	require.NoError(t, rt.EnsureChannel(meta))
+
+	require.NoError(t, rt.ApplyRetentionBoundary(context.Background(), meta.Key, 9))
+
+	rep := rt.replicaForTest(t, meta.Key)
+	require.Equal(t, []uint64{9}, rep.retentionCalls)
+	require.Equal(t, uint64(9), rep.Status().RetentionThroughSeq)
+}
+
+func TestRuntimeRetentionViewDelegatesToReplica(t *testing.T) {
+	rt := newTestRuntime(t)
+	meta := testMeta("room-retention-view")
+	require.NoError(t, rt.EnsureChannel(meta))
+	rep := rt.replicaForTest(t, meta.Key)
+	rep.retentionView = core.RetentionView{
+		ChannelKey:          meta.Key,
+		Epoch:               7,
+		Leader:              1,
+		RetentionThroughSeq: 8,
+		MinAvailableSeq:     9,
+		MinISRMatchOffset:   4,
+	}
+
+	view, err := rt.RetentionView(meta.Key)
+
+	require.NoError(t, err)
+	require.Equal(t, rep.retentionView, view)
 }
 
 func TestEnsureChannel(t *testing.T) {

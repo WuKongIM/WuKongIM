@@ -471,6 +471,18 @@ func (s *blockingSnapshotDurableStore) InstallSnapshotAtomically(ctx context.Con
 	return s.view.LEO, nil
 }
 
+func (s *blockingSnapshotDurableStore) LoadRetentionState() (channel.RetentionState, error) {
+	return s.view.Retention, nil
+}
+
+func (s *blockingSnapshotDurableStore) AdoptRetentionBoundary(context.Context, uint64, string) (uint64, error) {
+	return s.view.LEO, channel.ErrInvalidArgument
+}
+
+func (s *blockingSnapshotDurableStore) TrimMessagesThrough(context.Context, uint64) (uint64, error) {
+	return 0, channel.ErrInvalidArgument
+}
+
 func (s *blockingSnapshotDurableStore) writeCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -512,4 +524,16 @@ func (s *cancelAfterSnapshotWriteDurableStore) StoreCheckpointMonotonic(context.
 func (s *cancelAfterSnapshotWriteDurableStore) InstallSnapshotAtomically(context.Context, channel.Snapshot, channel.Checkpoint, channel.EpochPoint) (uint64, error) {
 	s.cancel()
 	return s.view.LEO, nil
+}
+
+func (s *cancelAfterSnapshotWriteDurableStore) LoadRetentionState() (channel.RetentionState, error) {
+	return s.view.Retention, nil
+}
+
+func (s *cancelAfterSnapshotWriteDurableStore) AdoptRetentionBoundary(context.Context, uint64, string) (uint64, error) {
+	return s.view.LEO, channel.ErrInvalidArgument
+}
+
+func (s *cancelAfterSnapshotWriteDurableStore) TrimMessagesThrough(context.Context, uint64) (uint64, error) {
+	return 0, channel.ErrInvalidArgument
 }

@@ -45,6 +45,9 @@ func checkReplicaInvariant(check replicaInvariantCheck) error {
 	if state.HW > state.LEO {
 		return fmt.Errorf("%w: hw %d > leo %d", channel.ErrCorruptState, state.HW, state.LEO)
 	}
+	if state.PhysicalRetentionThroughSeq > state.LocalRetentionThroughSeq {
+		return fmt.Errorf("%w: physical retention %d > local retention %d", channel.ErrCorruptState, state.PhysicalRetentionThroughSeq, state.LocalRetentionThroughSeq)
+	}
 	if err := validateEpochHistory(check.EpochHistory); err != nil {
 		return err
 	}

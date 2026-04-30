@@ -207,6 +207,57 @@ type ReplicaState struct {
 	PhysicalRetentionThroughSeq uint64
 }
 
+// RetentionState records durable local retention progress for one channel.
+type RetentionState struct {
+	// LocalRetentionThroughSeq is the authoritative boundary adopted locally.
+	LocalRetentionThroughSeq uint64
+	// PhysicalRetentionThroughSeq is the highest adopted sequence physically removed locally.
+	PhysicalRetentionThroughSeq uint64
+	// RetainedMaxSeq is the durable LEO floor preserved after retained rows are removed.
+	RetainedMaxSeq uint64
+}
+
+// RetentionReset tells a follower to adopt the authoritative retention floor
+// before continuing replication from MinAvailableSeq.
+type RetentionReset struct {
+	// RetentionThroughSeq is the authoritative highest sequence hidden by retention.
+	RetentionThroughSeq uint64
+	// MinAvailableSeq is the first sequence the follower should fetch next.
+	MinAvailableSeq uint64
+}
+
+// RetentionView exposes replica retention progress for retention planning.
+type RetentionView struct {
+	// ChannelKey identifies the channel this view belongs to.
+	ChannelKey ChannelKey
+	// Epoch is the channel epoch of this local replica view.
+	Epoch uint64
+	// LeaderEpoch is the current metadata leader epoch.
+	LeaderEpoch uint64
+	// Leader is the current metadata leader node.
+	Leader NodeID
+	// LeaseUntil is the current leader lease deadline.
+	LeaseUntil time.Time
+	// HW is the runtime committed high watermark.
+	HW uint64
+	// CheckpointHW is the durable committed high watermark.
+	CheckpointHW uint64
+	// LEO is the local log end offset, including any retained LEO floor.
+	LEO uint64
+	// CommitReady reports whether the replica can safely admit leader appends.
+	CommitReady bool
+	// RetentionThroughSeq is the authoritative logical retention boundary applied locally.
+	RetentionThroughSeq uint64
+	// MinAvailableSeq is the first sequence readable after retention and snapshots.
+	MinAvailableSeq uint64
+	// LocalRetentionThroughSeq is the highest retention boundary durably adopted locally.
+	LocalRetentionThroughSeq uint64
+	// PhysicalRetentionThroughSeq is the highest retention boundary physically trimmed locally.
+	PhysicalRetentionThroughSeq uint64
+	// MinISRMatchOffset is the minimum observed retention progress across current ISR members.
+	MinISRMatchOffset uint64
+}
+
 // EffectiveMinAvailableSeq returns the first sequence readable after logical retention and physical trimming.
 func EffectiveMinAvailableSeq(retentionThroughSeq, logStartOffset uint64) uint64 {
 	nextSeq := func(seq uint64) uint64 {
@@ -249,10 +300,11 @@ type ReplicaFetchRequest struct {
 }
 
 type ReplicaFetchResult struct {
-	Epoch      uint64
-	HW         uint64
-	Records    []Record
-	TruncateTo *uint64
+	Epoch          uint64
+	HW             uint64
+	Records        []Record
+	TruncateTo     *uint64
+	RetentionReset *RetentionReset
 }
 
 type ReplicaApplyFetchRequest struct {

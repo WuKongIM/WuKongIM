@@ -23,6 +23,12 @@ func (r *replica) applyLoopEvent(event machineEvent) machineResult {
 		return r.applyLeaderAppendCommittedEvent(ev)
 	case machineApplyMetaCommand:
 		return r.applyMetaCommand(ev)
+	case machineApplyRetentionCommand:
+		return r.applyRetentionCommand(ev)
+	case machineRetentionAdoptedEvent:
+		return r.applyRetentionAdoptedEvent(ev)
+	case machineRetentionTrimmedEvent:
+		return r.applyRetentionTrimmedEvent(ev)
 	case machineBecomeLeaderCommand:
 		return r.applyBecomeLeaderCommand(ev)
 	case machineBeginLeaderEpochResultCommand:

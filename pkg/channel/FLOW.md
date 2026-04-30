@@ -10,8 +10,8 @@
 | 子包 | 入口/核心类型 | 职责 |
 |------|-------------|------|
 | `handler/` | `handler.New()` → `Service` | 请求校验、幂等去重、兼容 DurableMessage ingress/egress 编解码、基于结构化消息表的读取与查询 |
-| `replica/` | `replica.NewReplica()` → `Replica` | 单 channel ISR 副本状态机：loop-owned Group Commit 追加、HW/Checkpoint 推进、epoch 分歧检测、角色转换、恢复、快照和 leader reconcile；并提供 dry-run leader promotion evaluator |
-| `runtime/` | `runtime.Build()` → `Runtime` | 频道生命周期管理、复制调度（三优先级）、leader/follower lane 状态、 多级背压、墓碑清理 |
+| `replica/` | `replica.NewReplica()` → `Replica` | 单 channel ISR 副本状态机：loop-owned Group Commit 追加、HW/Checkpoint 推进、retention boundary 应用/采用/修剪、epoch 分歧检测、角色转换、恢复、快照和 leader reconcile；并提供 dry-run leader promotion evaluator |
+| `runtime/` | `runtime.Build()` → `Runtime` | 频道生命周期管理、复制调度（三优先级）、leader/follower lane 状态、retention boundary 委托、多级背压、墓碑清理 |
 | `store/` | `store.NewEngine()` → `Engine` | Pebble 结构化 `message` 表：主记录、二级索引、Checkpoint/EpochHistory/Snapshot/RetentionState 等系统状态持久化 |
 | `transport/` | `transport.Build()` | steady-state `LongPollFetch`、辅助 `Fetch`，始终独立保留的 `ReconcileProbe` RPC，以及供控制面 leader-repair 复用的同步 `ProbeClient` |
 
@@ -40,6 +40,7 @@ type Cluster interface {
 | `ReplicaState` | types.go | 副本状态：Role、运行时 CommitHW(`HW`)、持久化 CheckpointHW、`CommitReady`、LEO、Epoch、retention floor |
 | `AppendRequest` | types.go | 追加请求：ChannelID, Message, ExpectedChannelEpoch, ExpectedLeaderEpoch |
 | `Checkpoint` | types.go | 检查点：Epoch + LogStartOffset + HW；用于冷恢复下界与 reconcile 后的持久化提交水位 |
+| `RetentionView` / `RetentionReset` | types.go | retention 规划视图与 follower 低于逻辑 floor 时的 typed reset |
 
 ## 5. 核心流程
 
@@ -96,11 +97,12 @@ steady-state `long_poll`（当前唯一复制主路径）:
   ③ lane 首次发送 `open(full membership + 当前 follower cursorDelta)`，后续 steady-state 只发 `poll(membershipVersionHint + cursorDelta[])`
   ④ leader 侧 Runtime 为每个 `(peer,lane)` 维护 `LeaderLaneSession`；频道把复制事件通过 `replicationTargets` 直达对应 lane
   ⑤ leader 处理 `ServeLanePoll` 时，先应用 `cursorDelta` 推进 follower progress / HW，再从 lane ready queue 挑选可返回的 channel item
-  ⑥ 若 lane 当前无 ready item，则 park 到 `maxWait` 或新事件；空响应是正常 timeout，follower 收到后立即续下一条 poll
-  ⑦ follower 收到 item 后仍走 `ApplyFetch` 落盘；`StoreApplyFetch()` 会按 leader 给出的顺序把兼容 payload
+  ⑥ replica 层在 follower cursor 低于 `RetentionThroughSeq` 主导的 floor 时可返回 typed `RetentionReset`；若 `LogStartOffset` 主导则仍走 snapshot-required。跨 transport / lane 的完整 reset 传播留给后续复制协议任务
+  ⑦ 若 lane 当前无 ready item，则 park 到 `maxWait` 或新事件；空响应是正常 timeout，follower 收到后立即续下一条 poll
+  ⑧ follower 收到 item 后仍走 `ApplyFetch` 落盘；`StoreApplyFetch()` 会按 leader 给出的顺序把兼容 payload
      解成 `messageRow` 并写入同一个结构化 `message` 表；steady-state ACK 通过下一条 lane poll 的 `cursorDelta` 回传
-  ⑧ lane poll 发送失败 / backpressure / RPC timeout 的恢复退避按 `(peer,lane)` 维度计时；steady-state 不再依赖 legacy short-poll / batch-fetch 路径
-  ⑨ 对冷 channel 的 `Fetch` / `ReconcileProbe` ingress 不再要求 runtime 预热：runtime miss 时会通过注入的 activator 按 `ChannelKey` 做一次权威激活，再重试一次本地处理
+  ⑨ lane poll 发送失败 / backpressure / RPC timeout 的恢复退避按 `(peer,lane)` 维度计时；steady-state 不再依赖 legacy short-poll / batch-fetch 路径
+  ⑩ 对冷 channel 的 `Fetch` / `ReconcileProbe` ingress 不再要求 runtime 预热：runtime miss 时会通过注入的 activator 按 `ChannelKey` 做一次权威激活，再重试一次本地处理
 ```
 
 ```
@@ -136,7 +138,7 @@ Promotion Dry-run（供 app 侧权威 leader repair 选主）:
 BecomeLeader (replica.go:219 → lifecycle_pipeline.go:87):
   ① 验证 Meta.Leader 是本节点
   ② 如需新 epoch boundary，先发 `beginLeaderEpochEffect`，由 durable adapter 以 expected LEO fence 写入 EpochPoint
-  ③ 初始化 Progress: 本节点=LEO, 其他ISR=当前安全 committed frontier → progress_pipeline.go:seedLeaderProgressLocked
+  ③ 初始化 Progress: 本节点=LEO, 其他ISR=当前安全 committed frontier；retention progress 本节点=LEO, 其他ISR=`RetentionThroughSeq` → progress_pipeline.go:seedLeaderProgressLocked
   ④ 若本地恢复结果仍是 provisional，则允许完成 leader promotion，但保持 `CommitReady=false`
   ⑤ Runtime 触发 reconcile；只有 `CommitReady=true` 后 leader 才接受新的 Append
   ⑥ BecomeLeader 入场 Lease 已过期会直接返回 ErrLeaseExpired；已发布 leader 在 append/reconcile 中发现 lease 过期才会变为 FencedLeader
@@ -156,10 +158,11 @@ Tombstone (replica.go:231 → lifecycle_pipeline.go:293):
 ```
   ① 加载 Checkpoint{Epoch, LogStartOffset, HW} → store/checkpoint.go
   ② 加载 Epoch History → store/history.go
-  ③ 校验一致性 (CheckpointHW ≤ LEO，其中 `LEO` 由 `message` 表最大 `message_seq` 与 RetentionState.RetainedMaxSeq 的较大值恢复；Epoch 匹配)
-  ④ 启动时不再立即把 `LEO > CheckpointHW` 的尾巴截断掉；先保留 local tail，发布 `CommitReady=false`
-  ⑤ 若后续 probe 证明尾巴是 quorum-safe，就保留并提升 CommitHW；若只存在于 minority/stale leader，则在 reconcile 中截断
-  ⑥ `recovered=true` 在启动恢复成功后设置；reconcile 成功后持久化 fresh checkpoint，推进 `CheckpointHW` 并恢复 `CommitReady=true`
+  ③ 加载 RetentionState；`LocalRetentionThroughSeq` / `PhysicalRetentionThroughSeq` 只表示本地持久化进度，不会初始化逻辑 `RetentionThroughSeq`
+  ④ 校验一致性 (CheckpointHW ≤ LEO，其中 `LEO` 由 `message` 表最大 `message_seq` 与 RetentionState.RetainedMaxSeq 的较大值恢复；Epoch 匹配)
+  ⑤ 启动时不再立即把 `LEO > CheckpointHW` 的尾巴截断掉；先保留 local tail，发布 `CommitReady=false`
+  ⑥ 若后续 probe 证明尾巴是 quorum-safe，就保留并提升 CommitHW；若只存在于 minority/stale leader，则在 reconcile 中截断
+  ⑦ `recovered=true` 在启动恢复成功后设置；reconcile 成功后持久化 fresh checkpoint，推进 `CheckpointHW` 并恢复 `CommitReady=true`
   → Runtime.EnsureChannel(meta) → ApplyMeta → BecomeLeader/BecomeFollower
 ```
 
@@ -205,6 +208,8 @@ System (0x17): prefix + key + tableID + systemID + ...
 - **双水位不要混用**: `HW` 是运行时 CommitHW，驱动 sendack / committed reads / fetch；`CheckpointHW` 是冷恢复安全下界；`CommitReady` 决定 leader 是否已经完成 quorum-safe 收敛。live read path 不能再把 `LoadCheckpoint()` 当作 committed source of truth。
 - **LEO 由消息表与 RetentionState 共同恢复**: 重启后的 `LEO()` 不再依赖旧 offset 日志键，而是取 `message` 表最大主键与 `RetentionState.RetainedMaxSeq` 的较大值；如果主记录 family 缺失、payload family 孤儿或索引指到不存在行，会按 `ErrCorruptState` 处理。
 - **RetentionState 与尾部截断同批维护**: `LocalRetentionThroughSeq` 是不可回退的本地采用下界，尾部截断不能低于它；当 reconcile 截断本地 tail 时，`RetainedMaxSeq` 必须在同一个 durable batch 内下调到不超过新的 LEO，避免重启后恢复出已删除的尾巴。
+- **RetentionThroughSeq 是权威逻辑 floor**: 只来自 slot metadata / `ApplyRetentionBoundary`，本地恢复不会从 RetentionState 反推它；应用后立即更新 `MinAvailableSeq`，但物理删除必须等 `CommitReady`、`CheckpointHW`、`HW`、`LEO` 四个门禁都覆盖 boundary。
+- **Retention 不修改 checkpoint LogStartOffset**: retention reset/trim 只维护 `RetentionThroughSeq`、`LocalRetentionThroughSeq`、`PhysicalRetentionThroughSeq` 和 retained LEO floor；只有 snapshot install 推进 `LogStartOffset`。
 - **HW 推进不可回退**: 运行时 `HW(CommitHW)` 只能前进不能后退。`progress_pipeline.go:advanceHWLocked` 会检查 newHW ≥ currentHW。
 - **Lease 过期自动降级**: Leader Lease 过期后自动变为 FencedLeader，拒绝所有写入但不影响读取。见 `replica/append_pipeline.go:appendableLocked` 和 `replica/reconcile_coordinator.go:ensureReconcileLeaseLocked`。
 - **Cross-channel durable batching**: `store/commit.go` 使用 200µs 窗口跨频道合并 Pebble durable 写入；Leader 的 synced Append 和 Follower 的 ApplyFetch 都走同一个 coordinator。单频道的 `writeMu` 仍然串行，且 sync 完成前不会发布新的 LEO。

@@ -14,6 +14,7 @@ func (r *replica) recoverFromStores() error {
 	checkpoint := view.Checkpoint
 	history := view.EpochHistory
 	leo := view.LEO
+	retention := view.Retention
 
 	r.state.Role = channel.ReplicaRoleFollower
 	r.state.Epoch = checkpoint.Epoch
@@ -23,6 +24,8 @@ func (r *replica) recoverFromStores() error {
 	r.state.CheckpointHW = checkpoint.HW
 	r.state.CommitReady = leo == checkpoint.HW
 	r.state.LEO = leo
+	r.state.LocalRetentionThroughSeq = retention.LocalRetentionThroughSeq
+	r.state.PhysicalRetentionThroughSeq = retention.PhysicalRetentionThroughSeq
 	r.epochHistory = append([]channel.EpochPoint(nil), history...)
 	r.recovered = true
 	r.publishStateLocked()

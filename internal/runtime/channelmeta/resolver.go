@@ -285,6 +285,8 @@ func (s *Sync) ApplyAuthoritativeMeta(meta metadb.ChannelRuntimeMeta) (channel.M
 		return channel.Meta{}, err
 	}
 	if containsUint64(meta.Replicas, s.localNode) {
+		// EnsureLocalRuntime receives the full authoritative meta, including
+		// RetentionThroughSeq, so the local replica applies the logical floor.
 		if err := s.runtime.EnsureLocalRuntime(rootMeta); err != nil {
 			return channel.Meta{}, err
 		}

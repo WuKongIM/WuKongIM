@@ -18,17 +18,7 @@ type stateSnapshotEntry struct {
 	PayloadHash uint64
 }
 
-// retentionState records local durable retention progress for one channel.
-type retentionState struct {
-	// LocalRetentionThroughSeq is the authoritative boundary adopted locally.
-	LocalRetentionThroughSeq uint64
-	// PhysicalRetentionThroughSeq is the durable deletion progress and may lag
-	// the local retention boundary.
-	PhysicalRetentionThroughSeq uint64
-	// RetainedMaxSeq is the durable LEO floor preserved after all message rows
-	// at or below the retained prefix have been physically removed.
-	RetainedMaxSeq uint64
-}
+type retentionState = channel.RetentionState
 
 func encodeCheckpoint(checkpoint channel.Checkpoint) []byte {
 	value := make([]byte, 0, 24)

@@ -75,10 +75,12 @@ type replica struct {
 	state        channel.ReplicaState
 	statePointer atomic.Pointer[channel.ReplicaState]
 	progress     map[channel.NodeID]uint64
-	waiters      []*appendWaiter
-	epochHistory []channel.EpochPoint
-	recovered    bool
-	closed       bool
+	// retentionProgress tracks current-epoch fetch/cursor progress for retention safety views.
+	retentionProgress map[channel.NodeID]uint64
+	waiters           []*appendWaiter
+	epochHistory      []channel.EpochPoint
+	recovered         bool
+	closed            bool
 
 	roleGeneration               uint64
 	nextEffectID                 uint64
@@ -217,7 +219,10 @@ func (r *replica) ApplyMeta(meta channel.Meta) error {
 	if result.Err != nil {
 		return result.Err
 	}
-	return r.executeLeaderReconcileEffects(result.Effects)
+	if err := r.executeLeaderReconcileEffects(result.Effects); err != nil {
+		return err
+	}
+	return r.applyRetentionFromMeta(meta)
 }
 
 func (r *replica) BecomeLeader(meta channel.Meta) error {
@@ -225,11 +230,17 @@ func (r *replica) BecomeLeader(meta channel.Meta) error {
 	if result.Err != nil {
 		return result.Err
 	}
-	return r.executeLeaderReconcileEffects(result.Effects)
+	if err := r.executeLeaderReconcileEffects(result.Effects); err != nil {
+		return err
+	}
+	return r.applyRetentionFromMeta(meta)
 }
 
 func (r *replica) BecomeFollower(meta channel.Meta) error {
-	return r.submitLoopCommand(context.Background(), machineBecomeFollowerCommand{Meta: meta}).Err
+	if err := r.submitLoopCommand(context.Background(), machineBecomeFollowerCommand{Meta: meta}).Err; err != nil {
+		return err
+	}
+	return r.applyRetentionFromMeta(meta)
 }
 
 func (r *replica) Tombstone() error {
@@ -269,7 +280,15 @@ func (r *replica) Status() channel.ReplicaState {
 	return *state
 }
 
+func (r *replica) applyRetentionFromMeta(meta channel.Meta) error {
+	if meta.RetentionThroughSeq == 0 {
+		return nil
+	}
+	return r.ApplyRetentionBoundary(context.Background(), meta.RetentionThroughSeq)
+}
+
 func (r *replica) publishStateLocked() {
+	r.state.MinAvailableSeq = channel.EffectiveMinAvailableSeq(r.state.RetentionThroughSeq, r.state.LogStartOffset)
 	snapshot := r.state
 	r.statePointer.Store(&snapshot)
 	if r.onStateChange != nil {

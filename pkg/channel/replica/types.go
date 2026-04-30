@@ -68,5 +68,7 @@ type Replica interface {
 	ApplyFetch(ctx context.Context, req channel.ReplicaApplyFetchRequest) error
 	ApplyProgressAck(ctx context.Context, req channel.ReplicaProgressAckRequest) error
 	ApplyReconcileProof(ctx context.Context, proof channel.ReplicaReconcileProof) error
+	ApplyRetentionBoundary(ctx context.Context, throughSeq uint64) error
+	RetentionView() (channel.RetentionView, error)
 	Status() channel.ReplicaState
 }
