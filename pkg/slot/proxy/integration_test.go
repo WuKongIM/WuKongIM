@@ -991,6 +991,87 @@ func TestStoreListUserConversationActiveOverlayReactivatesInactiveDeletedStateFo
 	}}, got)
 }
 
+func TestStoreListUserConversationActiveOverlayBlocksZeroSeqDeletedState(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	uid := findUIDForSlot(t, nodes[0].cluster, 1, "zero-seq-overlay")
+	hashSlot := mustHashSlotForKey(t, nodes[0].cluster, uid)
+	require.NoError(t, nodes[0].db.ForHashSlot(hashSlot).UpsertUserConversationState(ctx, metadb.UserConversationState{
+		UID:          uid,
+		ChannelID:    "deleted",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+		ActiveAt:     0,
+	}))
+	overlay := newRecordingUserConversationActiveOverlay()
+	overlay.hot[uid] = []metadb.UserConversationActiveHint{{
+		UID:         uid,
+		ChannelID:   "deleted",
+		ChannelType: 2,
+		ActiveAt:    300,
+		MessageSeq:  0,
+	}}
+	nodes[0].store.RegisterUserConversationActiveOverlay(overlay)
+
+	got, err := nodes[0].store.ListUserConversationActive(ctx, uid, 10)
+	require.NoError(t, err)
+	require.Empty(t, got)
+}
+
+func TestStoreListUserConversationActiveOverlayErrorReturnsPersistedRows(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	uid := findUIDForSlot(t, nodes[0].cluster, 1, "error-overlay")
+	hashSlot := mustHashSlotForKey(t, nodes[0].cluster, uid)
+	persisted := metadb.UserConversationState{
+		UID:         uid,
+		ChannelID:   "persisted",
+		ChannelType: 2,
+		ActiveAt:    100,
+		UpdatedAt:   10,
+	}
+	require.NoError(t, nodes[0].db.ForHashSlot(hashSlot).UpsertUserConversationState(ctx, persisted))
+	overlay := newRecordingUserConversationActiveOverlay()
+	overlay.err = errors.New("overlay unavailable")
+	nodes[0].store.RegisterUserConversationActiveOverlay(overlay)
+
+	got, err := nodes[0].store.ListUserConversationActive(ctx, uid, 10)
+	require.NoError(t, err)
+	require.Equal(t, []metadb.UserConversationState{persisted}, got)
+}
+
+func TestStoreListUserConversationActiveStaleOverlayHintsDoNotConsumeFinalLimit(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	uid := findUIDForSlot(t, nodes[0].cluster, 1, "limit-overlay")
+	hashSlot := mustHashSlotForKey(t, nodes[0].cluster, uid)
+	require.NoError(t, nodes[0].db.ForHashSlot(hashSlot).UpsertUserConversationState(ctx, metadb.UserConversationState{
+		UID:          uid,
+		ChannelID:    "stale",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+		ActiveAt:     0,
+	}))
+	overlay := newRecordingUserConversationActiveOverlay()
+	overlay.hot[uid] = []metadb.UserConversationActiveHint{
+		{UID: uid, ChannelID: "stale", ChannelType: 2, ActiveAt: 300, MessageSeq: 10},
+		{UID: uid, ChannelID: "valid", ChannelType: 2, ActiveAt: 200, MessageSeq: 20},
+	}
+	nodes[0].store.RegisterUserConversationActiveOverlay(overlay)
+
+	got, err := nodes[0].store.ListUserConversationActive(ctx, uid, 1)
+	require.NoError(t, err)
+	require.Equal(t, []metadb.UserConversationState{{
+		UID:         uid,
+		ChannelID:   "valid",
+		ChannelType: 2,
+		ActiveAt:    200,
+	}}, got)
+}
+
 func TestStoreListUserConversationActiveRemoteOwnerMergesOverlay(t *testing.T) {
 	ctx := context.Background()
 	nodes := startTwoNodeShardedStores(t)
@@ -1211,6 +1292,7 @@ func TestStoreRemoveUserConversationActiveHintsRoutesDeleteBarrierToUIDOwnerOver
 type recordingUserConversationActiveOverlay struct {
 	mu       sync.Mutex
 	hot      map[string][]metadb.UserConversationActiveHint
+	err      error
 	hints    []metadb.UserConversationActiveHint
 	barriers []metadb.UserConversationDeleteBarrier
 }
@@ -1221,10 +1303,17 @@ func newRecordingUserConversationActiveOverlay() *recordingUserConversationActiv
 	}
 }
 
-func (o *recordingUserConversationActiveOverlay) ListHotUserConversationActive(_ context.Context, uid string, _ int) ([]metadb.UserConversationActiveHint, error) {
+func (o *recordingUserConversationActiveOverlay) ListHotUserConversationActive(_ context.Context, uid string, limit int) ([]metadb.UserConversationActiveHint, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return append([]metadb.UserConversationActiveHint(nil), o.hot[uid]...), nil
+	if o.err != nil {
+		return nil, o.err
+	}
+	hints := o.hot[uid]
+	if limit > 0 && len(hints) > limit {
+		hints = hints[:limit]
+	}
+	return append([]metadb.UserConversationActiveHint(nil), hints...), nil
 }
 
 func (o *recordingUserConversationActiveOverlay) SubmitHints(_ context.Context, hints []metadb.UserConversationActiveHint) error {
