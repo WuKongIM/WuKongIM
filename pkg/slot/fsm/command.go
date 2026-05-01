@@ -100,6 +100,7 @@ const (
 	tagUserConversationActivePatchEntryChannelID   uint8 = 2
 	tagUserConversationActivePatchEntryChannelType uint8 = 3
 	tagUserConversationActivePatchEntryActiveAt    uint8 = 4
+	tagUserConversationActivePatchEntryMessageSeq  uint8 = 5
 
 	// Clear user conversation active command field tags.
 	tagClearUserConversationActiveUID uint8 = 1
@@ -561,11 +562,12 @@ func encodeUserConversationStateEntry(state metadb.UserConversationState) []byte
 }
 
 func encodeUserConversationActivePatchEntry(patch metadb.UserConversationActivePatch) []byte {
-	buf := make([]byte, 0, 48)
+	buf := make([]byte, 0, 56)
 	buf = appendStringTLVField(buf, tagUserConversationActivePatchEntryUID, patch.UID)
 	buf = appendStringTLVField(buf, tagUserConversationActivePatchEntryChannelID, patch.ChannelID)
 	buf = appendInt64TLVField(buf, tagUserConversationActivePatchEntryChannelType, patch.ChannelType)
 	buf = appendInt64TLVField(buf, tagUserConversationActivePatchEntryActiveAt, patch.ActiveAt)
+	buf = appendUint64TLVField(buf, tagUserConversationActivePatchEntryMessageSeq, patch.MessageSeq)
 	return buf
 }
 
@@ -765,6 +767,11 @@ func decodeUserConversationActivePatchEntry(data []byte) (metadb.UserConversatio
 			}
 			patch.ActiveAt = int64(binary.BigEndian.Uint64(value))
 			haveActiveAt = true
+		case tagUserConversationActivePatchEntryMessageSeq:
+			if len(value) != 8 {
+				return metadb.UserConversationActivePatch{}, fmt.Errorf("%w: bad conversation MessageSeq length", metadb.ErrCorruptValue)
+			}
+			patch.MessageSeq = binary.BigEndian.Uint64(value)
 		default:
 			// Unknown tag — skip for forward compatibility.
 		}

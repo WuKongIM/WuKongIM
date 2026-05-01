@@ -207,6 +207,7 @@ func userConversationActivePatchesPayload(patches []metadb.UserConversationActiv
 			"channel_id":   patch.ChannelID,
 			"channel_type": patch.ChannelType,
 			"active_at":    patch.ActiveAt,
+			"message_seq":  patch.MessageSeq,
 		})
 	}
 	return out
