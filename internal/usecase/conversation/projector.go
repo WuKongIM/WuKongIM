@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	defaultProjectorActiveHintQueueSize          = 1024
-	defaultProjectorGroupActiveFanoutInterval    = 5 * time.Minute
-	defaultProjectorGroupActiveFanoutSubscribers = 1000
+	defaultProjectorActiveHintQueueSize       = 1024
+	defaultProjectorGroupActiveFanoutInterval = 5 * time.Minute
 )
 
 type Projector interface {
@@ -35,7 +34,7 @@ type ProjectorOptions struct {
 	ActiveHintQueueSize int
 	// GroupActiveFanoutInterval throttles subscriber fanout per group channel.
 	GroupActiveFanoutInterval time.Duration
-	// GroupActiveFanoutMaxSubscribers caps subscribers touched per group fanout; negative disables group fanout.
+	// GroupActiveFanoutMaxSubscribers caps subscribers touched per group fanout; zero disables group fanout.
 	GroupActiveFanoutMaxSubscribers int
 	// SubscriberPageSize controls subscriber scan page size in the async worker.
 	SubscriberPageSize int
@@ -82,9 +81,6 @@ func NewProjector(opts ProjectorOptions) Projector {
 	}
 	if opts.GroupActiveFanoutInterval <= 0 {
 		opts.GroupActiveFanoutInterval = defaultProjectorGroupActiveFanoutInterval
-	}
-	if opts.GroupActiveFanoutMaxSubscribers == 0 {
-		opts.GroupActiveFanoutMaxSubscribers = defaultProjectorGroupActiveFanoutSubscribers
 	}
 	if opts.SubscriberPageSize <= 0 {
 		opts.SubscriberPageSize = defaultSubscriberPageSize

@@ -153,6 +153,16 @@ func (a *App) startConversationProjector() error {
 	return a.conversationProjector.Start()
 }
 
+func (a *App) startConversationActiveHints() error {
+	if a.startConversationActiveHintsFn != nil {
+		return a.startConversationActiveHintsFn()
+	}
+	if a.conversationActiveHints == nil {
+		return nil
+	}
+	return a.conversationActiveHints.Start()
+}
+
 func (a *App) startDeliveryRuntime(ctx context.Context) error {
 	if a.startDeliveryRuntimeFn != nil {
 		return a.startDeliveryRuntimeFn()
@@ -230,6 +240,19 @@ func (a *App) stopConversationProjector() error {
 		return nil
 	}
 	return a.conversationProjector.Stop()
+}
+
+func (a *App) stopConversationActiveHints() error {
+	if !a.conversationHintsOn.Swap(false) {
+		return nil
+	}
+	if a.stopConversationActiveHintsFn != nil {
+		return a.stopConversationActiveHintsFn()
+	}
+	if a.conversationActiveHints == nil {
+		return nil
+	}
+	return a.conversationActiveHints.Stop()
 }
 
 func (a *App) stopDeliveryRuntime(ctx context.Context) error {

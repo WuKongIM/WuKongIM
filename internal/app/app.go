@@ -57,6 +57,7 @@ type App struct {
 	channelRetentionWorker   *appretention.Worker
 	messageApp               *message.App
 	managementApp            *managementusecase.App
+	conversationActiveHints  *conversationusecase.ActiveHintCache
 	conversationProjector    conversationusecase.Projector
 	api                      *accessapi.Server
 	manager                  *accessmanager.Server
@@ -84,6 +85,7 @@ type App struct {
 	clusterOn             atomic.Bool
 	channelMetaOn         atomic.Bool
 	presenceOn            atomic.Bool
+	conversationHintsOn   atomic.Bool
 	conversationOn        atomic.Bool
 	deliveryRuntimeOn     atomic.Bool
 	committedDispatcherOn atomic.Bool
@@ -93,33 +95,35 @@ type App struct {
 	managerOn             atomic.Bool
 	gatewayOn             atomic.Bool
 
-	startClusterFn               func() error
-	startChannelMetaSyncFn       func() error
-	startPresenceFn              func() error
-	startConversationProjectorFn func() error
-	startDeliveryRuntimeFn       func() error
-	startCommittedDispatcherFn   func() error
-	startCommittedReplayFn       func(context.Context) error
-	startChannelRetentionFn      func(context.Context) error
-	startAPIFn                   func() error
-	startManagerFn               func() error
-	startGatewayFn               func() error
-	stopAPIWithContextFn         func(context.Context) error
-	stopManagerWithContextFn     func(context.Context) error
-	stopAPIFn                    func() error
-	stopManagerFn                func() error
-	stopGatewayFn                func() error
-	stopConversationProjectorFn  func() error
-	stopDeliveryRuntimeFn        func() error
-	stopCommittedDispatcherFn    func(context.Context) error
-	stopCommittedReplayFn        func(context.Context) error
-	stopChannelRetentionFn       func(context.Context) error
-	stopPresenceFn               func() error
-	stopChannelMetaSyncFn        func() error
-	stopClusterFn                func()
-	closeChannelLogDBFn          func() error
-	closeRaftDBFn                func() error
-	closeWKDBFn                  func() error
+	startClusterFn                 func() error
+	startChannelMetaSyncFn         func() error
+	startPresenceFn                func() error
+	startConversationActiveHintsFn func() error
+	startConversationProjectorFn   func() error
+	startDeliveryRuntimeFn         func() error
+	startCommittedDispatcherFn     func() error
+	startCommittedReplayFn         func(context.Context) error
+	startChannelRetentionFn        func(context.Context) error
+	startAPIFn                     func() error
+	startManagerFn                 func() error
+	startGatewayFn                 func() error
+	stopAPIWithContextFn           func(context.Context) error
+	stopManagerWithContextFn       func(context.Context) error
+	stopAPIFn                      func() error
+	stopManagerFn                  func() error
+	stopGatewayFn                  func() error
+	stopConversationProjectorFn    func() error
+	stopConversationActiveHintsFn  func() error
+	stopDeliveryRuntimeFn          func() error
+	stopCommittedDispatcherFn      func(context.Context) error
+	stopCommittedReplayFn          func(context.Context) error
+	stopChannelRetentionFn         func(context.Context) error
+	stopPresenceFn                 func() error
+	stopChannelMetaSyncFn          func() error
+	stopClusterFn                  func()
+	closeChannelLogDBFn            func() error
+	closeRaftDBFn                  func() error
+	closeWKDBFn                    func() error
 }
 
 func New(cfg Config) (*App, error) {
