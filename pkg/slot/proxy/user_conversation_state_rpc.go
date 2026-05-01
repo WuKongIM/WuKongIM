@@ -399,9 +399,9 @@ func (s *Store) listUserConversationActiveLocal(ctx context.Context, hashSlot ui
 		return persisted, nil
 	}
 
-	hints, err := s.userConversationActiveOverlay.ListHotUserConversationActive(ctx, uid, limit)
+	hints, err := s.userConversationActiveOverlay.ListHotUserConversationActive(ctx, uid, expandedUserConversationActiveOverlayLimit(limit))
 	if err != nil {
-		return nil, err
+		return persisted, nil
 	}
 	if len(hints) == 0 {
 		return persisted, nil
@@ -432,7 +432,7 @@ func (s *Store) listUserConversationActiveLocal(ctx context.Context, hashSlot ui
 				return nil, err
 			}
 		}
-		if hint.MessageSeq > 0 && hint.MessageSeq <= state.DeletedToSeq {
+		if state.DeletedToSeq > 0 && hint.MessageSeq <= state.DeletedToSeq {
 			continue
 		}
 		if hint.ActiveAt > state.ActiveAt {
@@ -462,6 +462,15 @@ func (s *Store) listUserConversationActiveLocal(ctx context.Context, hashSlot ui
 		states = states[:limit]
 	}
 	return states, nil
+}
+
+func expandedUserConversationActiveOverlayLimit(limit int) int {
+	const defaultOverlayPageLimit = 64
+	expanded := limit * 2
+	if expanded < defaultOverlayPageLimit {
+		return defaultOverlayPageLimit
+	}
+	return expanded
 }
 
 func (s *Store) submitUserConversationActiveHintsLocal(ctx context.Context, hints []metadb.UserConversationActiveHint) error {
