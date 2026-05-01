@@ -326,6 +326,28 @@ func TestActiveHintCacheRemoveHintsOnlyDeletesPendingHintsAtOrBelowBarrier(t *te
 	}, hints)
 }
 
+func TestActiveHintCacheRemoveHintsConservativelyDeletesZeroSeqPendingHint(t *testing.T) {
+	cache := NewActiveHintCache(ActiveHintCacheOptions{
+		HintTTL:    time.Hour,
+		BarrierTTL: time.Hour,
+		Now:        func() time.Time { return time.Unix(100, 0) },
+	})
+	require.NoError(t, cache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c0", ChannelType: 2, ActiveAt: 100, MessageSeq: 0},
+	}))
+
+	require.NoError(t, cache.RemoveHints(context.Background(), []metadb.UserConversationDeleteBarrier{{
+		UID:          "u1",
+		ChannelID:    "c0",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+	}}))
+
+	hints, err := cache.ListHotUserConversationActive(context.Background(), "u1", 10)
+	require.NoError(t, err)
+	require.Empty(t, hints)
+}
+
 func TestActiveHintCacheLowerBarrierDoesNotDeleteNewerPendingHint(t *testing.T) {
 	cache := NewActiveHintCache(ActiveHintCacheOptions{
 		HintTTL:    time.Hour,
