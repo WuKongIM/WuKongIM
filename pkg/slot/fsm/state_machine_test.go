@@ -2987,6 +2987,62 @@ func TestApplyBatchTouchUserConversationActiveAtPreservesUpdatedAt(t *testing.T)
 	}
 }
 
+func TestApplyBatchHideUserConversation(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(11)
+	bsm, ok := mustNewStateMachine(t, db, 11).(multiraft.BatchStateMachine)
+	if !ok {
+		t.Fatal("state machine does not implement multiraft.BatchStateMachine")
+	}
+
+	if err := shard.UpsertUserConversationState(ctx, metadb.UserConversationState{
+		UID:          "u1",
+		ChannelID:    "g1",
+		ChannelType:  2,
+		ReadSeq:      5,
+		DeletedToSeq: 3,
+		ActiveAt:     100,
+		UpdatedAt:    10,
+	}); err != nil {
+		t.Fatalf("UpsertUserConversationState() error = %v", err)
+	}
+
+	results, err := bsm.ApplyBatch(ctx, []multiraft.Command{{
+		SlotID: 11,
+		Index:  1,
+		Term:   1,
+		Data: EncodeHideUserConversationsCommand([]metadb.UserConversationDelete{{
+			UID:          "u1",
+			ChannelID:    "g1",
+			ChannelType:  2,
+			DeletedToSeq: 10,
+			UpdatedAt:    20,
+		}}),
+	}})
+	if err != nil {
+		t.Fatalf("ApplyBatch() error = %v", err)
+	}
+	if len(results) != 1 || string(results[0]) != ApplyResultOK {
+		t.Fatalf("ApplyBatch() results = %q", results)
+	}
+
+	got, err := shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	if err != nil {
+		t.Fatalf("GetUserConversationState() error = %v", err)
+	}
+	if got.DeletedToSeq != 10 || got.ActiveAt != 0 || got.UpdatedAt != 20 {
+		t.Fatalf("state = %#v", got)
+	}
+	active, err := shard.ListUserConversationActive(ctx, "u1", 10)
+	if err != nil {
+		t.Fatalf("ListUserConversationActive() error = %v", err)
+	}
+	if len(active) != 0 {
+		t.Fatalf("active = %#v, want empty", active)
+	}
+}
+
 func TestApplyDeprecatedConversationProjectionCommandsAreNoop(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)

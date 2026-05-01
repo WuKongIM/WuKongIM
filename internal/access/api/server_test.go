@@ -768,6 +768,28 @@ func TestConversationSetUnreadMapsLegacyRequestToUsecaseCommand(t *testing.T) {
 	}, conversations.setUnreadCommands)
 }
 
+func TestConversationDeleteMapsLegacyRequestToUsecaseCommand(t *testing.T) {
+	conversations := &recordingConversationUsecase{}
+	srv := New(Options{Conversations: conversations})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/conversations/delete", bytes.NewBufferString(`{"uid":"u1","channel_id":"u2","channel_type":1,"message_seq":12}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"status":200}`, rec.Body.String())
+	require.Equal(t, []conversationusecase.DeleteConversationCommand{
+		{
+			UID:         "u1",
+			ChannelID:   runtimechannelid.EncodePersonChannel("u1", "u2"),
+			ChannelType: frame.ChannelTypePerson,
+			MessageSeq:  12,
+		},
+	}, conversations.deleteCommands)
+}
+
 func TestConversationSetUnreadRejectsInvalidLegacyRequest(t *testing.T) {
 	conversations := &recordingConversationUsecase{}
 	srv := New(Options{Conversations: conversations})
@@ -826,10 +848,12 @@ type recordingConversationUsecase struct {
 	queries             []conversationusecase.SyncQuery
 	clearUnreadCommands []conversationusecase.ClearUnreadCommand
 	setUnreadCommands   []conversationusecase.SetUnreadCommand
+	deleteCommands      []conversationusecase.DeleteConversationCommand
 	result              conversationusecase.SyncResult
 	err                 error
 	clearUnreadErr      error
 	setUnreadErr        error
+	deleteErr           error
 }
 
 func (r *recordingConversationUsecase) Sync(_ context.Context, query conversationusecase.SyncQuery) (conversationusecase.SyncResult, error) {
@@ -845,4 +869,9 @@ func (r *recordingConversationUsecase) ClearUnread(_ context.Context, cmd conver
 func (r *recordingConversationUsecase) SetUnread(_ context.Context, cmd conversationusecase.SetUnreadCommand) error {
 	r.setUnreadCommands = append(r.setUnreadCommands, cmd)
 	return r.setUnreadErr
+}
+
+func (r *recordingConversationUsecase) DeleteConversation(_ context.Context, cmd conversationusecase.DeleteConversationCommand) error {
+	r.deleteCommands = append(r.deleteCommands, cmd)
+	return r.deleteErr
 }

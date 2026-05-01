@@ -13,6 +13,11 @@ type ConversationStateStore interface {
 	ListUserConversationActive(ctx context.Context, uid string, limit int) ([]metadb.UserConversationState, error)
 }
 
+type ConversationDeleteStore interface {
+	HideUserConversations(ctx context.Context, reqs []metadb.UserConversationDelete) error
+	RemoveUserConversationActiveHints(ctx context.Context, barriers []metadb.UserConversationDeleteBarrier) error
+}
+
 type MessageFactsStore interface {
 	LoadLatestMessages(ctx context.Context, keys []ConversationKey) (map[ConversationKey]channel.Message, error)
 	LoadRecentMessages(ctx context.Context, key ConversationKey, limit int) ([]channel.Message, error)

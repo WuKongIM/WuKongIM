@@ -40,6 +40,7 @@ const (
 	// Deprecated: reserved for the removed durable conversation projection. Do not reuse.
 	cmdTypeReservedConversationProjectionDelete uint8 = 14
 	cmdTypeAdvanceChannelRetention              uint8 = 15
+	cmdTypeHideUserConversations                uint8 = 16
 
 	// User field tags.
 	tagUserUID         uint8 = 1
@@ -108,6 +109,13 @@ const (
 	tagClearUserConversationActiveUID uint8 = 1
 	tagClearUserConversationActiveKey uint8 = 2
 
+	// Hide user conversation command field tags.
+	tagUserConversationDeleteEntryUID          uint8 = 1
+	tagUserConversationDeleteEntryChannelID    uint8 = 2
+	tagUserConversationDeleteEntryChannelType  uint8 = 3
+	tagUserConversationDeleteEntryDeletedToSeq uint8 = 4
+	tagUserConversationDeleteEntryUpdatedAt    uint8 = 5
+
 	// Conversation key field tags.
 	tagConversationKeyEntryChannelID   uint8 = 1
 	tagConversationKeyEntryChannelType uint8 = 2
@@ -154,6 +162,7 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeReservedConversationProjectionUpsert: decodeReservedConversationProjection,
 	cmdTypeReservedConversationProjectionDelete: decodeReservedConversationProjection,
 	cmdTypeAdvanceChannelRetention:              decodeAdvanceChannelRetentionThroughSeq,
+	cmdTypeHideUserConversations:                decodeHideUserConversations,
 	cmdTypeApplyDelta:                           decodeApplyDelta,
 	cmdTypeEnterFence:                           decodeEnterFence,
 	cmdTypeAckMigrationOutbox:                   decodeAckMigrationOutbox,
@@ -307,6 +316,21 @@ func (c *clearUserConversationActiveAtCmd) apply(wb *metadb.WriteBatch, hashSlot
 type reservedConversationProjectionCmd struct{}
 
 func (c *reservedConversationProjectionCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
+	return nil
+}
+
+// --- HideUserConversations ---
+
+type hideUserConversationsCmd struct {
+	deletes []metadb.UserConversationDelete
+}
+
+func (c *hideUserConversationsCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
+	for _, req := range c.deletes {
+		if err := wb.HideUserConversation(hashSlot, req); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -497,6 +521,16 @@ func EncodeClearUserConversationActiveAtCommand(uid string, keys []metadb.Conver
 	return buf
 }
 
+// EncodeHideUserConversationsCommand encodes durable user conversation hides.
+func EncodeHideUserConversationsCommand(deletes []metadb.UserConversationDelete) []byte {
+	buf := make([]byte, 0, headerSize+len(deletes)*64)
+	buf = append(buf, commandVersion, cmdTypeHideUserConversations)
+	for _, req := range deletes {
+		buf = appendBytesTLVField(buf, tagUserConversationDeleteEntryUID, encodeUserConversationDeleteEntry(req))
+	}
+	return buf
+}
+
 func encodeSubscribersCommand(cmdType uint8, channelID string, channelType int64, uids []string) []byte {
 	buf := make([]byte, 0, headerSize+len(channelID)+len(uids)*8)
 	buf = append(buf, commandVersion, cmdType)
@@ -532,6 +566,16 @@ func encodeConversationKeyEntry(key metadb.ConversationKey) []byte {
 	buf := make([]byte, 0, 32)
 	buf = appendStringTLVField(buf, tagConversationKeyEntryChannelID, key.ChannelID)
 	buf = appendInt64TLVField(buf, tagConversationKeyEntryChannelType, key.ChannelType)
+	return buf
+}
+
+func encodeUserConversationDeleteEntry(req metadb.UserConversationDelete) []byte {
+	buf := make([]byte, 0, 64)
+	buf = appendStringTLVField(buf, tagUserConversationDeleteEntryUID, req.UID)
+	buf = appendStringTLVField(buf, tagUserConversationDeleteEntryChannelID, req.ChannelID)
+	buf = appendInt64TLVField(buf, tagUserConversationDeleteEntryChannelType, req.ChannelType)
+	buf = appendUint64TLVField(buf, tagUserConversationDeleteEntryDeletedToSeq, req.DeletedToSeq)
+	buf = appendInt64TLVField(buf, tagUserConversationDeleteEntryUpdatedAt, req.UpdatedAt)
 	return buf
 }
 
@@ -579,6 +623,29 @@ func decodeUserConversationActivePatchEntries(data []byte) ([]metadb.UserConvers
 		}
 	}
 	return patches, nil
+}
+
+func decodeUserConversationDeleteEntries(data []byte) ([]metadb.UserConversationDelete, error) {
+	var deletes []metadb.UserConversationDelete
+	off := 0
+	for off < len(data) {
+		tag, value, n, err := readTLV(data[off:])
+		if err != nil {
+			return nil, err
+		}
+		off += n
+		switch tag {
+		case tagUserConversationDeleteEntryUID:
+			req, err := decodeUserConversationDeleteEntry(value)
+			if err != nil {
+				return nil, err
+			}
+			deletes = append(deletes, req)
+		default:
+			// Unknown tag — skip for forward compatibility.
+		}
+	}
+	return deletes, nil
 }
 
 func decodeUserConversationStateEntry(data []byte) (metadb.UserConversationState, error) {
@@ -712,6 +779,51 @@ func decodeConversationKeyEntry(data []byte) (metadb.ConversationKey, error) {
 	return key, nil
 }
 
+func decodeUserConversationDeleteEntry(data []byte) (metadb.UserConversationDelete, error) {
+	var req metadb.UserConversationDelete
+	var haveUID, haveChannelID, haveChannelType, haveDeletedToSeq, haveUpdatedAt bool
+	off := 0
+	for off < len(data) {
+		tag, value, n, err := readTLV(data[off:])
+		if err != nil {
+			return metadb.UserConversationDelete{}, err
+		}
+		off += n
+		switch tag {
+		case tagUserConversationDeleteEntryUID:
+			req.UID = string(value)
+			haveUID = true
+		case tagUserConversationDeleteEntryChannelID:
+			req.ChannelID = string(value)
+			haveChannelID = true
+		case tagUserConversationDeleteEntryChannelType:
+			if len(value) != 8 {
+				return metadb.UserConversationDelete{}, fmt.Errorf("%w: bad conversation delete ChannelType length", metadb.ErrCorruptValue)
+			}
+			req.ChannelType = int64(binary.BigEndian.Uint64(value))
+			haveChannelType = true
+		case tagUserConversationDeleteEntryDeletedToSeq:
+			if len(value) != 8 {
+				return metadb.UserConversationDelete{}, fmt.Errorf("%w: bad conversation delete DeletedToSeq length", metadb.ErrCorruptValue)
+			}
+			req.DeletedToSeq = binary.BigEndian.Uint64(value)
+			haveDeletedToSeq = true
+		case tagUserConversationDeleteEntryUpdatedAt:
+			if len(value) != 8 {
+				return metadb.UserConversationDelete{}, fmt.Errorf("%w: bad conversation delete UpdatedAt length", metadb.ErrCorruptValue)
+			}
+			req.UpdatedAt = int64(binary.BigEndian.Uint64(value))
+			haveUpdatedAt = true
+		default:
+			// Unknown tag — skip for forward compatibility.
+		}
+	}
+	if !haveUID || !haveChannelID || !haveChannelType || !haveDeletedToSeq || !haveUpdatedAt {
+		return metadb.UserConversationDelete{}, fmt.Errorf("%w: incomplete user conversation delete record", metadb.ErrCorruptValue)
+	}
+	return req, nil
+}
+
 func decodeUpsertUserConversationStates(data []byte) (command, error) {
 	states, err := decodeUserConversationStateEntries(data)
 	if err != nil {
@@ -770,6 +882,17 @@ func decodeClearUserConversationActiveAt(data []byte) (command, error) {
 
 func decodeReservedConversationProjection([]byte) (command, error) {
 	return &reservedConversationProjectionCmd{}, nil
+}
+
+func decodeHideUserConversations(data []byte) (command, error) {
+	deletes, err := decodeUserConversationDeleteEntries(data)
+	if err != nil {
+		return nil, err
+	}
+	if len(deletes) == 0 {
+		return nil, fmt.Errorf("%w: empty user conversation delete batch", metadb.ErrInvalidArgument)
+	}
+	return &hideUserConversationsCmd{deletes: deletes}, nil
 }
 
 // decodeCommand parses a binary-encoded command using the decoder registry.

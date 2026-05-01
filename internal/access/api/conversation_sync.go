@@ -129,6 +129,38 @@ func (s *Server) handleConversationSetUnread(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK})
 }
 
+func (s *Server) handleConversationDelete(c *gin.Context) {
+	var req clearConversationUnreadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeLegacyJSONError(c, "数据格式有误！")
+		return
+	}
+	if err := validateClearConversationUnreadRequest(req); err != nil {
+		writeLegacyJSONError(c, err.Error())
+		return
+	}
+	if s == nil || s.conversations == nil {
+		writeLegacyJSONError(c, "conversation usecase not configured")
+		return
+	}
+
+	channelID, err := normalizeLegacyConversationChannelID(req.UID, req.ChannelID, req.ChannelType)
+	if err != nil {
+		writeLegacyJSONError(c, "invalid channel_id")
+		return
+	}
+	if err := s.conversations.DeleteConversation(c.Request.Context(), conversationusecase.DeleteConversationCommand{
+		UID:         req.UID,
+		ChannelID:   channelID,
+		ChannelType: req.ChannelType,
+		MessageSeq:  req.MessageSeq,
+	}); err != nil {
+		writeLegacyJSONError(c, err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK})
+}
+
 func validateClearConversationUnreadRequest(req clearConversationUnreadRequest) error {
 	if req.UID == "" {
 		return errors.New("uid cannot be empty")

@@ -119,6 +119,31 @@ func TestDecodeCommandInspectionMarksReservedConversationProjectionCommand(t *te
 	}, got)
 }
 
+func TestDecodeCommandInspectionIncludesHideUserConversation(t *testing.T) {
+	got, err := DecodeCommandInspection(EncodeHideUserConversationsCommand([]metadb.UserConversationDelete{{
+		UID:          "u1",
+		ChannelID:    "g1",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+		UpdatedAt:    20,
+	}}))
+	require.NoError(t, err)
+
+	require.Equal(t, CommandInspection{
+		Type: "hide_user_conversations",
+		Payload: map[string]any{
+			"command": "hide_user_conversations",
+			"deletes": []map[string]any{{
+				"uid":            "u1",
+				"channel_id":     "g1",
+				"channel_type":   int64(2),
+				"deleted_to_seq": uint64(10),
+				"updated_at":     int64(20),
+			}},
+		},
+	}, got)
+}
+
 func TestDecodeCommandInspectionExpandsApplyDeltaOriginalCommand(t *testing.T) {
 	got, err := DecodeCommandInspection(EncodeApplyDeltaCommand(
 		11,
