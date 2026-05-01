@@ -303,6 +303,58 @@ func TestActiveHintCacheRemoveHintsKeepsHighestDeleteBarrier(t *testing.T) {
 	}, hints)
 }
 
+func TestActiveHintCacheRemoveHintsOnlyDeletesPendingHintsAtOrBelowBarrier(t *testing.T) {
+	cache := NewActiveHintCache(ActiveHintCacheOptions{
+		HintTTL:    time.Hour,
+		BarrierTTL: time.Hour,
+		Now:        func() time.Time { return time.Unix(100, 0) },
+	})
+	require.NoError(t, cache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 110, MessageSeq: 11},
+		{UID: "u1", ChannelID: "c2", ChannelType: 2, ActiveAt: 100, MessageSeq: 10},
+	}))
+
+	require.NoError(t, cache.RemoveHints(context.Background(), []metadb.UserConversationDeleteBarrier{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, DeletedToSeq: 10},
+		{UID: "u1", ChannelID: "c2", ChannelType: 2, DeletedToSeq: 10},
+	}))
+
+	hints, err := cache.ListHotUserConversationActive(context.Background(), "u1", 10)
+	require.NoError(t, err)
+	require.Equal(t, []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 110, MessageSeq: 11},
+	}, hints)
+}
+
+func TestActiveHintCacheLowerBarrierDoesNotDeleteNewerPendingHint(t *testing.T) {
+	cache := NewActiveHintCache(ActiveHintCacheOptions{
+		HintTTL:    time.Hour,
+		BarrierTTL: time.Hour,
+		Now:        func() time.Time { return time.Unix(100, 0) },
+	})
+	require.NoError(t, cache.RemoveHints(context.Background(), []metadb.UserConversationDeleteBarrier{{
+		UID:          "u1",
+		ChannelID:    "c1",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+	}}))
+	require.NoError(t, cache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 110, MessageSeq: 11},
+	}))
+	require.NoError(t, cache.RemoveHints(context.Background(), []metadb.UserConversationDeleteBarrier{{
+		UID:          "u1",
+		ChannelID:    "c1",
+		ChannelType:  2,
+		DeletedToSeq: 5,
+	}}))
+
+	hints, err := cache.ListHotUserConversationActive(context.Background(), "u1", 10)
+	require.NoError(t, err)
+	require.Equal(t, []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 110, MessageSeq: 11},
+	}, hints)
+}
+
 func withHintValues(base metadb.UserConversationActiveHint, activeAt int64, messageSeq uint64) metadb.UserConversationActiveHint {
 	base.ActiveAt = activeAt
 	base.MessageSeq = messageSeq
