@@ -327,6 +327,9 @@ func (s *ShardStore) HideUserConversation(ctx context.Context, req UserConversat
 	default:
 		return err
 	}
+	if req.DeletedToSeq <= current.DeletedToSeq {
+		return nil
+	}
 
 	next := hideUserConversationState(current, req)
 	primaryKey := encodeUserConversationStatePrimaryKey(s.slot, req.UID, req.ChannelType, req.ChannelID, userConversationStatePrimaryFamilyID)

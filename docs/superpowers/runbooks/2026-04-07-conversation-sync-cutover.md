@@ -7,6 +7,7 @@
 ## Preconditions
 
 - 当前部署形态按“单节点集群”或多节点集群统一处理
+- 多节点集群采用 stop-the-world 升级；混合版本集群不得接收会话 delete 写入，因为旧 Slot FSM 不能解码新的 hide command
 - 新版本已经开始写入 / 暴露：
   - `UserConversationState`
   - UID-owner `ActiveHintCache` 覆盖层

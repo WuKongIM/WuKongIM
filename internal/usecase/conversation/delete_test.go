@@ -18,6 +18,7 @@ func TestDeleteConversationHidesStateClearsActiveAtAndRemovesHotHint(t *testing.
 		Deletes: repo,
 		Facts:   repo,
 		Now:     func() time.Time { return now },
+		Async:   func(fn func()) { fn() },
 	})
 
 	err := app.DeleteConversation(context.Background(), DeleteConversationCommand{
@@ -53,6 +54,7 @@ func TestDeleteConversationUsesLatestMessageSeqWhenCommandSeqIsZero(t *testing.T
 		Deletes: repo,
 		Facts:   repo,
 		Now:     func() time.Time { return now },
+		Async:   func(fn func()) { fn() },
 	})
 
 	err := app.DeleteConversation(context.Background(), DeleteConversationCommand{
@@ -85,6 +87,62 @@ func TestDeleteConversationReturnsErrorWhenLatestMessageSeqMissing(t *testing.T)
 	require.Empty(t, repo.removedBarriers)
 }
 
+func TestDeleteConversationDoesNotWaitForHotHintRemoval(t *testing.T) {
+	repo := newConversationDeleteRepoStub()
+	removeStarted := make(chan struct{})
+	removeDone := make(chan struct{})
+	unblock := make(chan struct{})
+	repo.removeFn = func(ctx context.Context, _ []metadb.UserConversationDeleteBarrier) error {
+		close(removeStarted)
+		defer close(removeDone)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-unblock:
+			return nil
+		}
+	}
+	app := New(Options{
+		States:  repo,
+		Deletes: repo,
+		Facts:   repo,
+	})
+
+	done := make(chan error, 1)
+	go func() {
+		done <- app.DeleteConversation(context.Background(), DeleteConversationCommand{
+			UID:         "u1",
+			ChannelID:   "g1",
+			ChannelType: 2,
+			MessageSeq:  10,
+		})
+	}()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(50 * time.Millisecond):
+		close(unblock)
+		t.Fatal("delete waited for best-effort hot hint removal")
+	}
+	require.Eventually(t, func() bool {
+		select {
+		case <-removeStarted:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		select {
+		case <-removeDone:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 10*time.Millisecond)
+}
+
 func TestDeleteConversationAllowsNewerMessageReactivation(t *testing.T) {
 	now := time.Unix(123, 0)
 	repo := newConversationDeleteRepoStub()
@@ -99,6 +157,7 @@ func TestDeleteConversationAllowsNewerMessageReactivation(t *testing.T) {
 		Deletes: repo,
 		Facts:   repo,
 		Now:     func() time.Time { return now },
+		Async:   func(fn func()) { fn() },
 	})
 	require.NoError(t, cache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
 		{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 100, MessageSeq: 10},
@@ -128,6 +187,7 @@ type conversationDeleteRepoStub struct {
 	latest          map[ConversationKey]channel.Message
 	latestLoads     []ConversationKey
 	cache           *ActiveHintCache
+	removeFn        func(context.Context, []metadb.UserConversationDeleteBarrier) error
 }
 
 func newConversationDeleteRepoStub() *conversationDeleteRepoStub {
@@ -143,6 +203,9 @@ func (r *conversationDeleteRepoStub) HideUserConversations(_ context.Context, re
 func (r *conversationDeleteRepoStub) RemoveUserConversationActiveHints(ctx context.Context, barriers []metadb.UserConversationDeleteBarrier) error {
 	r.calls = append(r.calls, "remove_hints")
 	r.removedBarriers = append(r.removedBarriers, barriers...)
+	if r.removeFn != nil {
+		return r.removeFn(ctx, barriers)
+	}
 	if r.cache != nil {
 		return r.cache.RemoveHints(ctx, barriers)
 	}
