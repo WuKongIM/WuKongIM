@@ -221,8 +221,14 @@ func (c *ActiveHintCache) RemoveHints(_ context.Context, barriers []metadb.UserC
 
 	for _, barrier := range barriers {
 		key := keyFromBarrier(barrier)
-		delete(c.hints, key)
 		entry, ok := c.barriers[key]
+		effectiveDeletedToSeq := barrier.DeletedToSeq
+		if ok && entry.barrier.DeletedToSeq > effectiveDeletedToSeq {
+			effectiveDeletedToSeq = entry.barrier.DeletedToSeq
+		}
+		if pending, ok := c.hints[key]; ok && hintBlockedByDeleteBarrier(pending.hint, effectiveDeletedToSeq) {
+			delete(c.hints, key)
+		}
 		if !ok || barrier.DeletedToSeq >= entry.barrier.DeletedToSeq {
 			c.barriers[key] = deleteBarrierEntry{barrier: barrier, expiresAt: now.Add(c.barrierTTL)}
 		}
@@ -365,6 +371,10 @@ func hintNewer(next, current metadb.UserConversationActiveHint) bool {
 		return next.MessageSeq > current.MessageSeq
 	}
 	return next.ActiveAt > current.ActiveAt
+}
+
+func hintBlockedByDeleteBarrier(hint metadb.UserConversationActiveHint, deletedToSeq uint64) bool {
+	return hint.MessageSeq == 0 || hint.MessageSeq <= deletedToSeq
 }
 
 func sameHint(a, b metadb.UserConversationActiveHint) bool {
