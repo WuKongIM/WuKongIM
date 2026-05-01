@@ -283,7 +283,7 @@ func TestCommittedDispatchQueuePreservesPerChannelOrder(t *testing.T) {
 	require.Equal(t, []uint64{1, 2, 3}, delivery.messageSeqs())
 }
 
-func TestCommittedDispatchQueueOverflowDoesNotFailCommittedSubmit(t *testing.T) {
+func TestCommittedDispatchQueueOverflowFallbackDoesNotFlushConversation(t *testing.T) {
 	conversation := &recordingFlushingConversationSubmitter{}
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID:           1,
@@ -298,7 +298,8 @@ func TestCommittedDispatchQueueOverflowDoesNotFailCommittedSubmit(t *testing.T) 
 
 	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 1}}))
 	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: channel.Message{ChannelID: "g1", ChannelType: 2, MessageSeq: 2}}))
-	require.Eventually(t, func() bool { return conversation.FlushCalls() == 1 }, time.Second, time.Millisecond)
+	require.Eventually(t, func() bool { return conversation.SubmitCalls() == 1 }, time.Second, time.Millisecond)
+	require.Equal(t, 0, conversation.FlushCalls())
 }
 
 func TestCommittedDispatchQueueRejectsBeforeStart(t *testing.T) {
@@ -450,7 +451,7 @@ func TestAsyncCommittedDispatcherRecordsQueueMetrics(t *testing.T) {
 }
 
 func TestCommittedDispatchQueueOverflowFallbackDoesNotBlockSubmit(t *testing.T) {
-	conversation := newBlockingFlushingConversationSubmitter()
+	conversation := newBlockingConversationSubmitter()
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID:           1,
 		PreferLocal:           true,
@@ -525,8 +526,9 @@ func TestAsyncCommittedDispatcherFallsBackToLocalConversationWhenOwnerIsUnknown(
 	}))
 
 	require.Eventually(t, func() bool {
-		return delivery.SubmitCalls() == 0 && conversation.SubmitCalls() == 1 && conversation.FlushCalls() == 1
+		return delivery.SubmitCalls() == 0 && conversation.SubmitCalls() == 1
 	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, 0, conversation.FlushCalls())
 }
 
 func TestAsyncCommittedDispatcherSubmitsDurableMessageToLocalDelivery(t *testing.T) {
@@ -1485,36 +1487,36 @@ func (r *recordingFlushingConversationSubmitter) FlushCalls() int {
 	return r.flushCalls
 }
 
-type blockingFlushingConversationSubmitter struct {
-	recordingFlushingConversationSubmitter
+type blockingConversationSubmitter struct {
+	recordingConversationSubmitter
 	entered chan struct{}
 	release chan struct{}
 	once    sync.Once
 }
 
-func newBlockingFlushingConversationSubmitter() *blockingFlushingConversationSubmitter {
-	return &blockingFlushingConversationSubmitter{
+func newBlockingConversationSubmitter() *blockingConversationSubmitter {
+	return &blockingConversationSubmitter{
 		entered: make(chan struct{}),
 		release: make(chan struct{}),
 	}
 }
 
-func (b *blockingFlushingConversationSubmitter) Flush(context.Context) error {
+func (b *blockingConversationSubmitter) SubmitCommitted(ctx context.Context, msg channel.Message) error {
 	b.once.Do(func() { close(b.entered) })
 	<-b.release
-	return b.recordingFlushingConversationSubmitter.Flush(context.Background())
+	return b.recordingConversationSubmitter.SubmitCommitted(ctx, msg)
 }
 
-func (b *blockingFlushingConversationSubmitter) WaitEntered(t *testing.T) {
+func (b *blockingConversationSubmitter) WaitEntered(t *testing.T) {
 	t.Helper()
 	select {
 	case <-b.entered:
 	case <-time.After(time.Second):
-		require.FailNow(t, "timed out waiting for blocking conversation flush")
+		require.FailNow(t, "timed out waiting for blocking conversation submit")
 	}
 }
 
-func (b *blockingFlushingConversationSubmitter) Release() {
+func (b *blockingConversationSubmitter) Release() {
 	select {
 	case <-b.release:
 	default:

@@ -113,7 +113,7 @@ type App struct {
 	stopManagerFn                  func() error
 	stopGatewayFn                  func() error
 	stopConversationProjectorFn    func() error
-	stopConversationActiveHintsFn  func() error
+	stopConversationActiveHintsFn  func(context.Context) error
 	stopDeliveryRuntimeFn          func() error
 	stopCommittedDispatcherFn      func(context.Context) error
 	stopCommittedReplayFn          func(context.Context) error

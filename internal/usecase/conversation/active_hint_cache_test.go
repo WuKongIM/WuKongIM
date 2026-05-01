@@ -223,6 +223,25 @@ func TestActiveHintCacheStartStopLifecycle(t *testing.T) {
 	require.NoError(t, cache.Stop())
 }
 
+func TestActiveHintCacheStopContextBoundsBlockedFlush(t *testing.T) {
+	store := newContextBlockingActiveHintStore()
+	cache := NewActiveHintCache(ActiveHintCacheOptions{
+		Store:         store,
+		FlushInterval: time.Millisecond,
+		HintTTL:       time.Hour,
+		Now:           func() time.Time { return time.Unix(100, 0) },
+	})
+	require.NoError(t, cache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1},
+	}))
+	require.NoError(t, cache.Start())
+	store.waitEntered(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	require.ErrorIs(t, cache.StopContext(ctx), context.DeadlineExceeded)
+}
+
 func TestActiveHintCacheFlushNoopsWithNilStoreOrNoHints(t *testing.T) {
 	nilStoreCache := NewActiveHintCache(ActiveHintCacheOptions{Now: func() time.Time { return time.Unix(100, 0) }})
 	require.NoError(t, nilStoreCache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
@@ -390,6 +409,30 @@ type activeHintStoreStub struct {
 	firstBatchGate chan struct{}
 	failOnBatch    int
 	failErr        error
+}
+
+type contextBlockingActiveHintStore struct {
+	entered chan struct{}
+	once    sync.Once
+}
+
+func newContextBlockingActiveHintStore() *contextBlockingActiveHintStore {
+	return &contextBlockingActiveHintStore{entered: make(chan struct{})}
+}
+
+func (s *contextBlockingActiveHintStore) TouchUserConversationActiveAt(ctx context.Context, _ []metadb.UserConversationActivePatch) error {
+	s.once.Do(func() { close(s.entered) })
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (s *contextBlockingActiveHintStore) waitEntered(t *testing.T) {
+	t.Helper()
+	select {
+	case <-s.entered:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for blocked active hint flush")
+	}
 }
 
 func newActiveHintStoreStub() *activeHintStoreStub {

@@ -536,9 +536,6 @@ func (d *asyncCommittedDispatcher) submitConversation(ctx context.Context, msg c
 
 func (d *asyncCommittedDispatcher) submitConversationFallback(ctx context.Context, env deliveryruntime.CommittedEnvelope) {
 	d.submitConversation(ctx, env.Message)
-	if flusher, ok := d.conversation.(committedConversationSubmitterFlusher); ok {
-		_ = flusher.Flush(ctx)
-	}
 }
 
 type localDeliveryResolver struct {
@@ -1168,11 +1165,6 @@ type committedDeliverySubmitter interface {
 
 type committedConversationSubmitter interface {
 	SubmitCommitted(ctx context.Context, msg channel.Message) error
-}
-
-type committedConversationSubmitterFlusher interface {
-	committedConversationSubmitter
-	Flush(ctx context.Context) error
 }
 
 func buildRealtimeRecvPacket(msg channel.Message, recipientUID string) *frame.RecvPacket {

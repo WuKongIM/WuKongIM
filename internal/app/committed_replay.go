@@ -49,7 +49,6 @@ type committedReplayDelivery interface {
 
 type committedReplayConversation interface {
 	SubmitCommitted(context.Context, channel.Message) error
-	Flush(context.Context) error
 }
 
 type committedReplayMetrics interface {
@@ -62,7 +61,7 @@ type committedReplayerConfig struct {
 	Log committedReplayLog
 	// Delivery receives replayed committed messages for realtime fanout.
 	Delivery committedReplayDelivery
-	// Conversation receives replayed committed messages and must flush before cursor advance.
+	// Conversation receives replayed committed messages as best-effort active hints.
 	Conversation committedReplayConversation
 	// CursorName separates replay lanes in the per-channel cursor keyspace.
 	CursorName string
@@ -207,7 +206,8 @@ func (r *committedReplayer) runOnceAndLog(ctx context.Context) {
 }
 
 // RunOnce replays committed messages after the persisted cursor and advances the
-// cursor only after all side effects in the batch have been accepted and flushed.
+// cursor after delivery side effects have accepted the batch. Conversation active
+// hints are best-effort and do not gate cursor advancement.
 func (r *committedReplayer) RunOnce(ctx context.Context) (err error) {
 	startedAt := time.Now()
 	lagByType := map[uint8]uint64(nil)
@@ -298,11 +298,6 @@ func (r *committedReplayer) replayChannel(ctx context.Context, ch committedRepla
 		if lastSeq == cursor {
 			return lag, nil
 		}
-		if r.cfg.Conversation != nil {
-			if err := r.cfg.Conversation.Flush(ctx); err != nil {
-				return lag, err
-			}
-		}
 		if err := r.cfg.Log.StoreCommittedDispatchCursor(ctx, ch.Key, r.cfg.CursorName, lastSeq); err != nil {
 			return lag, err
 		}
@@ -322,7 +317,13 @@ func (r *committedReplayer) submitMessage(ctx context.Context, msg channel.Messa
 	}
 	if r.cfg.Conversation != nil {
 		if err := r.cfg.Conversation.SubmitCommitted(ctx, msg); err != nil {
-			return err
+			r.cfg.Logger.Warn(
+				"committed replay active hint submit failed",
+				wklog.String("channelID", msg.ChannelID),
+				wklog.Int("channelType", int(msg.ChannelType)),
+				wklog.Uint64("messageSeq", msg.MessageSeq),
+				wklog.Error(err),
+			)
 		}
 	}
 	return nil
