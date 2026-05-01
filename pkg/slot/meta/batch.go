@@ -322,39 +322,6 @@ func (b *WriteBatch) ClearUserConversationActiveAt(hashSlot uint16, uid string, 
 	return nil
 }
 
-// UpsertChannelUpdateLog encodes and stages a channel update log write.
-func (b *WriteBatch) UpsertChannelUpdateLog(hashSlot uint16, entry ChannelUpdateLog) error {
-	if err := validateHashSlot(hashSlot); err != nil {
-		return err
-	}
-	if err := validateChannelUpdateLog(entry); err != nil {
-		return err
-	}
-
-	key := encodeChannelUpdateLogPrimaryKey(hashSlot, entry.ChannelID, entry.ChannelType, channelUpdateLogPrimaryFamilyID)
-	value := encodeChannelUpdateLogFamilyValue(entry, key)
-	return b.batch.Set(key, value, nil)
-}
-
-// DeleteChannelUpdateLogs removes channel update log rows for the provided keys.
-func (b *WriteBatch) DeleteChannelUpdateLogs(hashSlot uint16, keys []ConversationKey) error {
-	if err := validateHashSlot(hashSlot); err != nil {
-		return err
-	}
-
-	normalized, err := normalizeConversationKeys(keys)
-	if err != nil {
-		return err
-	}
-	for _, key := range normalized {
-		primaryKey := encodeChannelUpdateLogPrimaryKey(hashSlot, key.ChannelID, key.ChannelType, channelUpdateLogPrimaryFamilyID)
-		if err := b.batch.Delete(primaryKey, nil); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // DeleteChannelRuntimeMeta removes the runtime metadata record for a channel.
 func (b *WriteBatch) DeleteChannelRuntimeMeta(hashSlot uint16, channelID string, channelType int64) error {
 	if err := validateHashSlot(hashSlot); err != nil {

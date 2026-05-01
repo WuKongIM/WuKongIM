@@ -35,9 +35,11 @@ const (
 	cmdTypeUpsertUserConversationStates  uint8 = 10
 	cmdTypeTouchUserConversationActiveAt uint8 = 11
 	cmdTypeClearUserConversationActiveAt uint8 = 12
-	cmdTypeUpsertChannelUpdateLogs       uint8 = 13
-	cmdTypeDeleteChannelUpdateLogs       uint8 = 14
-	cmdTypeAdvanceChannelRetention       uint8 = 15
+	// Deprecated: reserved for the removed durable conversation projection. Do not reuse.
+	cmdTypeReservedConversationProjectionUpsert uint8 = 13
+	// Deprecated: reserved for the removed durable conversation projection. Do not reuse.
+	cmdTypeReservedConversationProjectionDelete uint8 = 14
+	cmdTypeAdvanceChannelRetention              uint8 = 15
 
 	// User field tags.
 	tagUserUID         uint8 = 1
@@ -110,14 +112,6 @@ const (
 	tagConversationKeyEntryChannelID   uint8 = 1
 	tagConversationKeyEntryChannelType uint8 = 2
 
-	// Channel update log field tags.
-	tagChannelUpdateLogEntryChannelID       uint8 = 1
-	tagChannelUpdateLogEntryChannelType     uint8 = 2
-	tagChannelUpdateLogEntryUpdatedAt       uint8 = 3
-	tagChannelUpdateLogEntryLastMsgSeq      uint8 = 4
-	tagChannelUpdateLogEntryLastClientMsgNo uint8 = 5
-	tagChannelUpdateLogEntryLastMsgAt       uint8 = 6
-
 	// ApplyResultOK is the result returned by Apply/ApplyBatch on success.
 	ApplyResultOK = "ok"
 	// ApplyResultHashSlotFenced reports a committed source write rejected by a migration fence.
@@ -145,25 +139,25 @@ type commandDecoder func(data []byte) (command, error)
 // To add a new command type, create a struct implementing command,
 // a corresponding encode function, a decoder, and register it here.
 var commandDecoders = map[uint8]commandDecoder{
-	cmdTypeUpsertUser:                    decodeUpsertUser,
-	cmdTypeUpsertChannel:                 decodeUpsertChannel,
-	cmdTypeDeleteChannel:                 decodeDeleteChannel,
-	cmdTypeUpsertChannelRuntimeMeta:      decodeUpsertChannelRuntimeMeta,
-	cmdTypeDeleteChannelRuntimeMeta:      decodeDeleteChannelRuntimeMeta,
-	cmdTypeCreateUser:                    decodeCreateUser,
-	cmdTypeUpsertDevice:                  decodeUpsertDevice,
-	cmdTypeAddSubscribers:                decodeAddSubscribers,
-	cmdTypeRemoveSubscribers:             decodeRemoveSubscribers,
-	cmdTypeUpsertUserConversationStates:  decodeUpsertUserConversationStates,
-	cmdTypeTouchUserConversationActiveAt: decodeTouchUserConversationActiveAt,
-	cmdTypeClearUserConversationActiveAt: decodeClearUserConversationActiveAt,
-	cmdTypeUpsertChannelUpdateLogs:       decodeUpsertChannelUpdateLogs,
-	cmdTypeDeleteChannelUpdateLogs:       decodeDeleteChannelUpdateLogs,
-	cmdTypeAdvanceChannelRetention:       decodeAdvanceChannelRetentionThroughSeq,
-	cmdTypeApplyDelta:                    decodeApplyDelta,
-	cmdTypeEnterFence:                    decodeEnterFence,
-	cmdTypeAckMigrationOutbox:            decodeAckMigrationOutbox,
-	cmdTypeCleanupMigrationOutbox:        decodeCleanupMigrationOutbox,
+	cmdTypeUpsertUser:                           decodeUpsertUser,
+	cmdTypeUpsertChannel:                        decodeUpsertChannel,
+	cmdTypeDeleteChannel:                        decodeDeleteChannel,
+	cmdTypeUpsertChannelRuntimeMeta:             decodeUpsertChannelRuntimeMeta,
+	cmdTypeDeleteChannelRuntimeMeta:             decodeDeleteChannelRuntimeMeta,
+	cmdTypeCreateUser:                           decodeCreateUser,
+	cmdTypeUpsertDevice:                         decodeUpsertDevice,
+	cmdTypeAddSubscribers:                       decodeAddSubscribers,
+	cmdTypeRemoveSubscribers:                    decodeRemoveSubscribers,
+	cmdTypeUpsertUserConversationStates:         decodeUpsertUserConversationStates,
+	cmdTypeTouchUserConversationActiveAt:        decodeTouchUserConversationActiveAt,
+	cmdTypeClearUserConversationActiveAt:        decodeClearUserConversationActiveAt,
+	cmdTypeReservedConversationProjectionUpsert: decodeReservedConversationProjection,
+	cmdTypeReservedConversationProjectionDelete: decodeReservedConversationProjection,
+	cmdTypeAdvanceChannelRetention:              decodeAdvanceChannelRetentionThroughSeq,
+	cmdTypeApplyDelta:                           decodeApplyDelta,
+	cmdTypeEnterFence:                           decodeEnterFence,
+	cmdTypeAckMigrationOutbox:                   decodeAckMigrationOutbox,
+	cmdTypeCleanupMigrationOutbox:               decodeCleanupMigrationOutbox,
 }
 
 // --- UpsertUser ---
@@ -308,29 +302,12 @@ func (c *clearUserConversationActiveAtCmd) apply(wb *metadb.WriteBatch, hashSlot
 	return wb.ClearUserConversationActiveAt(hashSlot, c.uid, c.keys)
 }
 
-// --- UpsertChannelUpdateLogs ---
+// --- Reserved conversation projection commands ---
 
-type upsertChannelUpdateLogsCmd struct {
-	entries []metadb.ChannelUpdateLog
-}
+type reservedConversationProjectionCmd struct{}
 
-func (c *upsertChannelUpdateLogsCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
-	for _, entry := range c.entries {
-		if err := wb.UpsertChannelUpdateLog(hashSlot, entry); err != nil {
-			return err
-		}
-	}
+func (c *reservedConversationProjectionCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
 	return nil
-}
-
-// --- DeleteChannelUpdateLogs ---
-
-type deleteChannelUpdateLogsCmd struct {
-	keys []metadb.ConversationKey
-}
-
-func (c *deleteChannelUpdateLogsCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
-	return wb.DeleteChannelUpdateLogs(hashSlot, c.keys)
 }
 
 // EncodeUpsertUserCommand encodes a User into a binary command.
@@ -520,26 +497,6 @@ func EncodeClearUserConversationActiveAtCommand(uid string, keys []metadb.Conver
 	return buf
 }
 
-// EncodeUpsertChannelUpdateLogsCommand encodes a batch of channel update log upserts.
-func EncodeUpsertChannelUpdateLogsCommand(entries []metadb.ChannelUpdateLog) []byte {
-	buf := make([]byte, 0, headerSize+len(entries)*64)
-	buf = append(buf, commandVersion, cmdTypeUpsertChannelUpdateLogs)
-	for _, entry := range entries {
-		buf = appendBytesTLVField(buf, tagChannelUpdateLogEntryChannelID, encodeChannelUpdateLogEntry(entry))
-	}
-	return buf
-}
-
-// EncodeDeleteChannelUpdateLogsCommand encodes a batch of channel update log deletions.
-func EncodeDeleteChannelUpdateLogsCommand(keys []metadb.ConversationKey) []byte {
-	buf := make([]byte, 0, headerSize+len(keys)*32)
-	buf = append(buf, commandVersion, cmdTypeDeleteChannelUpdateLogs)
-	for _, key := range keys {
-		buf = appendBytesTLVField(buf, tagConversationKeyEntryChannelID, encodeConversationKeyEntry(key))
-	}
-	return buf
-}
-
 func encodeSubscribersCommand(cmdType uint8, channelID string, channelType int64, uids []string) []byte {
 	buf := make([]byte, 0, headerSize+len(channelID)+len(uids)*8)
 	buf = append(buf, commandVersion, cmdType)
@@ -575,17 +532,6 @@ func encodeConversationKeyEntry(key metadb.ConversationKey) []byte {
 	buf := make([]byte, 0, 32)
 	buf = appendStringTLVField(buf, tagConversationKeyEntryChannelID, key.ChannelID)
 	buf = appendInt64TLVField(buf, tagConversationKeyEntryChannelType, key.ChannelType)
-	return buf
-}
-
-func encodeChannelUpdateLogEntry(entry metadb.ChannelUpdateLog) []byte {
-	buf := make([]byte, 0, 64)
-	buf = appendStringTLVField(buf, tagChannelUpdateLogEntryChannelID, entry.ChannelID)
-	buf = appendInt64TLVField(buf, tagChannelUpdateLogEntryChannelType, entry.ChannelType)
-	buf = appendInt64TLVField(buf, tagChannelUpdateLogEntryUpdatedAt, entry.UpdatedAt)
-	buf = appendUint64TLVField(buf, tagChannelUpdateLogEntryLastMsgSeq, entry.LastMsgSeq)
-	buf = appendStringTLVField(buf, tagChannelUpdateLogEntryLastClientMsgNo, entry.LastClientMsgNo)
-	buf = appendInt64TLVField(buf, tagChannelUpdateLogEntryLastMsgAt, entry.LastMsgAt)
 	return buf
 }
 
@@ -633,52 +579,6 @@ func decodeUserConversationActivePatchEntries(data []byte) ([]metadb.UserConvers
 		}
 	}
 	return patches, nil
-}
-
-func decodeConversationKeyEntries(data []byte) ([]metadb.ConversationKey, error) {
-	var keys []metadb.ConversationKey
-	off := 0
-	for off < len(data) {
-		tag, value, n, err := readTLV(data[off:])
-		if err != nil {
-			return nil, err
-		}
-		off += n
-		switch tag {
-		case tagConversationKeyEntryChannelID:
-			key, err := decodeConversationKeyEntry(value)
-			if err != nil {
-				return nil, err
-			}
-			keys = append(keys, key)
-		default:
-			// Unknown tag — skip for forward compatibility.
-		}
-	}
-	return keys, nil
-}
-
-func decodeChannelUpdateLogEntries(data []byte) ([]metadb.ChannelUpdateLog, error) {
-	var entries []metadb.ChannelUpdateLog
-	off := 0
-	for off < len(data) {
-		tag, value, n, err := readTLV(data[off:])
-		if err != nil {
-			return nil, err
-		}
-		off += n
-		switch tag {
-		case tagChannelUpdateLogEntryChannelID:
-			entry, err := decodeChannelUpdateLogEntry(value)
-			if err != nil {
-				return nil, err
-			}
-			entries = append(entries, entry)
-		default:
-			// Unknown tag — skip for forward compatibility.
-		}
-	}
-	return entries, nil
 }
 
 func decodeUserConversationStateEntry(data []byte) (metadb.UserConversationState, error) {
@@ -812,57 +712,6 @@ func decodeConversationKeyEntry(data []byte) (metadb.ConversationKey, error) {
 	return key, nil
 }
 
-func decodeChannelUpdateLogEntry(data []byte) (metadb.ChannelUpdateLog, error) {
-	var entry metadb.ChannelUpdateLog
-	var haveChannelID, haveChannelType, haveUpdatedAt, haveLastMsgSeq, haveLastClientMsgNo, haveLastMsgAt bool
-	off := 0
-	for off < len(data) {
-		tag, value, n, err := readTLV(data[off:])
-		if err != nil {
-			return metadb.ChannelUpdateLog{}, err
-		}
-		off += n
-		switch tag {
-		case tagChannelUpdateLogEntryChannelID:
-			entry.ChannelID = string(value)
-			haveChannelID = true
-		case tagChannelUpdateLogEntryChannelType:
-			if len(value) != 8 {
-				return metadb.ChannelUpdateLog{}, fmt.Errorf("%w: bad channel update ChannelType length", metadb.ErrCorruptValue)
-			}
-			entry.ChannelType = int64(binary.BigEndian.Uint64(value))
-			haveChannelType = true
-		case tagChannelUpdateLogEntryUpdatedAt:
-			if len(value) != 8 {
-				return metadb.ChannelUpdateLog{}, fmt.Errorf("%w: bad channel update UpdatedAt length", metadb.ErrCorruptValue)
-			}
-			entry.UpdatedAt = int64(binary.BigEndian.Uint64(value))
-			haveUpdatedAt = true
-		case tagChannelUpdateLogEntryLastMsgSeq:
-			if len(value) != 8 {
-				return metadb.ChannelUpdateLog{}, fmt.Errorf("%w: bad channel update LastMsgSeq length", metadb.ErrCorruptValue)
-			}
-			entry.LastMsgSeq = binary.BigEndian.Uint64(value)
-			haveLastMsgSeq = true
-		case tagChannelUpdateLogEntryLastClientMsgNo:
-			entry.LastClientMsgNo = string(value)
-			haveLastClientMsgNo = true
-		case tagChannelUpdateLogEntryLastMsgAt:
-			if len(value) != 8 {
-				return metadb.ChannelUpdateLog{}, fmt.Errorf("%w: bad channel update LastMsgAt length", metadb.ErrCorruptValue)
-			}
-			entry.LastMsgAt = int64(binary.BigEndian.Uint64(value))
-			haveLastMsgAt = true
-		default:
-			// Unknown tag — skip for forward compatibility.
-		}
-	}
-	if !haveChannelID || !haveChannelType || !haveUpdatedAt || !haveLastMsgSeq || !haveLastClientMsgNo || !haveLastMsgAt {
-		return metadb.ChannelUpdateLog{}, fmt.Errorf("%w: incomplete channel update log record", metadb.ErrCorruptValue)
-	}
-	return entry, nil
-}
-
 func decodeUpsertUserConversationStates(data []byte) (command, error) {
 	states, err := decodeUserConversationStateEntries(data)
 	if err != nil {
@@ -919,41 +768,8 @@ func decodeClearUserConversationActiveAt(data []byte) (command, error) {
 	return &clearUserConversationActiveAtCmd{uid: uid, keys: keys}, nil
 }
 
-func decodeUpsertChannelUpdateLogs(data []byte) (command, error) {
-	entries, err := decodeChannelUpdateLogEntries(data)
-	if err != nil {
-		return nil, err
-	}
-	if len(entries) == 0 {
-		return nil, fmt.Errorf("%w: empty channel update log batch", metadb.ErrInvalidArgument)
-	}
-	return &upsertChannelUpdateLogsCmd{entries: entries}, nil
-}
-
-func decodeDeleteChannelUpdateLogs(data []byte) (command, error) {
-	var keys []metadb.ConversationKey
-	off := 0
-	for off < len(data) {
-		tag, value, n, err := readTLV(data[off:])
-		if err != nil {
-			return nil, err
-		}
-		off += n
-		switch tag {
-		case tagConversationKeyEntryChannelID:
-			key, err := decodeConversationKeyEntry(value)
-			if err != nil {
-				return nil, err
-			}
-			keys = append(keys, key)
-		default:
-			// Unknown tag — skip for forward compatibility.
-		}
-	}
-	if len(keys) == 0 {
-		return nil, fmt.Errorf("%w: empty delete channel update log batch", metadb.ErrInvalidArgument)
-	}
-	return &deleteChannelUpdateLogsCmd{keys: keys}, nil
+func decodeReservedConversationProjection([]byte) (command, error) {
+	return &reservedConversationProjectionCmd{}, nil
 }
 
 // decodeCommand parses a binary-encoded command using the decoder registry.

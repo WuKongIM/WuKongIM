@@ -105,6 +105,20 @@ func TestDecodeCommandInspectionIncludesUserConversationActiveMessageSeq(t *test
 	}, got)
 }
 
+func TestDecodeCommandInspectionMarksReservedConversationProjectionCommand(t *testing.T) {
+	got, err := DecodeCommandInspection([]byte{commandVersion, cmdTypeReservedConversationProjectionUpsert})
+	require.NoError(t, err)
+
+	require.Equal(t, CommandInspection{
+		Type: "reserved_conversation_projection",
+		Payload: map[string]any{
+			"command":    "reserved_conversation_projection",
+			"deprecated": true,
+			"reserved":   true,
+		},
+	}, got)
+}
+
 func TestDecodeCommandInspectionExpandsApplyDeltaOriginalCommand(t *testing.T) {
 	got, err := DecodeCommandInspection(EncodeApplyDeltaCommand(
 		11,

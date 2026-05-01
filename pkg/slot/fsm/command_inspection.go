@@ -66,13 +66,10 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 			"uid":  typed.uid,
 			"keys": conversationKeysPayload(typed.keys),
 		}), nil
-	case *upsertChannelUpdateLogsCmd:
-		return simpleInspection("upsert_channel_update_logs", map[string]any{
-			"entries": channelUpdateLogsPayload(typed.entries),
-		}), nil
-	case *deleteChannelUpdateLogsCmd:
-		return simpleInspection("delete_channel_update_logs", map[string]any{
-			"keys": conversationKeysPayload(typed.keys),
+	case *reservedConversationProjectionCmd:
+		return simpleInspection("reserved_conversation_projection", map[string]any{
+			"deprecated": true,
+			"reserved":   true,
 		}), nil
 	case *applyDeltaCmd:
 		return applyDeltaInspection(typed)
@@ -219,21 +216,6 @@ func conversationKeysPayload(keys []metadb.ConversationKey) []map[string]any {
 		out = append(out, map[string]any{
 			"channel_id":   key.ChannelID,
 			"channel_type": key.ChannelType,
-		})
-	}
-	return out
-}
-
-func channelUpdateLogsPayload(entries []metadb.ChannelUpdateLog) []map[string]any {
-	out := make([]map[string]any, 0, len(entries))
-	for _, entry := range entries {
-		out = append(out, map[string]any{
-			"channel_id":         entry.ChannelID,
-			"channel_type":       entry.ChannelType,
-			"updated_at":         entry.UpdatedAt,
-			"last_msg_seq":       entry.LastMsgSeq,
-			"last_client_msg_no": entry.LastClientMsgNo,
-			"last_msg_at":        entry.LastMsgAt,
 		})
 	}
 	return out
