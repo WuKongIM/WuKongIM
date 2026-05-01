@@ -366,7 +366,6 @@ func build(cfg Config) (_ *App, err error) {
 		SubscriberPageSize: cfg.Conversation.SubscriberPageSize,
 		Logger:             app.logger.Named("conversation.projector"),
 	})
-	app.store.RegisterChannelUpdateOverlay(app.conversationProjector)
 	app.conversationApp = conversationusecase.New(conversationusecase.Options{
 		States:        app.store,
 		ChannelUpdate: app.store,

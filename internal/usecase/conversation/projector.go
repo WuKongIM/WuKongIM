@@ -3,7 +3,6 @@ package conversation
 import (
 	"context"
 	"errors"
-	"sort"
 	"sync"
 	"time"
 
@@ -14,55 +13,75 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
+const (
+	defaultProjectorActiveHintQueueSize          = 1024
+	defaultProjectorGroupActiveFanoutInterval    = 5 * time.Minute
+	defaultProjectorGroupActiveFanoutSubscribers = 1000
+)
+
 type Projector interface {
 	Start() error
 	Stop() error
 	SubmitCommitted(ctx context.Context, msg channel.Message) error
-	BatchGetHotChannelUpdates(ctx context.Context, keys []metadb.ConversationKey) (map[metadb.ConversationKey]metadb.ChannelUpdateLog, error)
 	Flush(ctx context.Context) error
 }
 
+// ProjectorOptions configures best-effort active hint projection from committed messages.
 type ProjectorOptions struct {
-	Store              ProjectorStore
-	FlushInterval      time.Duration
-	DirtyLimit         int
-	ColdThreshold      time.Duration
+	Store ProjectorStore
+	// FlushInterval controls periodic retry flushing for queued active hints.
+	FlushInterval time.Duration
+	// ActiveHintQueueSize bounds pending conversations retained before hints are dropped.
+	ActiveHintQueueSize int
+	// GroupActiveFanoutInterval throttles subscriber fanout per group channel.
+	GroupActiveFanoutInterval time.Duration
+	// GroupActiveFanoutMaxSubscribers caps subscribers touched per group fanout; negative disables group fanout.
+	GroupActiveFanoutMaxSubscribers int
+	// SubscriberPageSize controls subscriber scan page size in the async worker.
 	SubscriberPageSize int
-	Now                func() time.Time
-	Async              func(func())
-	Logger             wklog.Logger
+	// Deprecated: retained for app wiring compatibility while ChannelUpdateLog is removed.
+	DirtyLimit int
+	// Deprecated: retained for app wiring compatibility while ChannelUpdateLog is removed.
+	ColdThreshold time.Duration
+	Now           func() time.Time
+	Async         func(func())
+	Logger        wklog.Logger
 }
 
 type projector struct {
-	store              ProjectorStore
-	flushInterval      time.Duration
-	dirtyLimit         int
-	coldThreshold      time.Duration
-	subscriberPageSize int
-	now                func() time.Time
-	async              func(func())
-	logger             wklog.Logger
-	wakeupFlushMu      sync.Mutex
+	store                           ProjectorStore
+	flushInterval                   time.Duration
+	activeHintQueueSize             int
+	groupActiveFanoutInterval       time.Duration
+	groupActiveFanoutMaxSubscribers int
+	subscriberPageSize              int
+	now                             func() time.Time
+	async                           func(func())
+	logger                          wklog.Logger
 
-	mu            sync.RWMutex
-	hot           map[metadb.ConversationKey]metadb.ChannelUpdateLog
-	dirty         map[metadb.ConversationKey]struct{}
-	wakeups       map[metadb.ConversationKey]channel.Message
-	wakeupRunning bool
-	running       bool
-	stopCh        chan struct{}
-	doneCh        chan struct{}
+	flushMu sync.Mutex
+	mu      sync.Mutex
+	pending map[metadb.ConversationKey]channel.Message
+	// lastGroupFanoutAt tracks the last attempted fanout time per group channel.
+	lastGroupFanoutAt map[metadb.ConversationKey]time.Time
+	workerRunning     bool
+	running           bool
+	stopCh            chan struct{}
+	doneCh            chan struct{}
 }
 
 func NewProjector(opts ProjectorOptions) Projector {
 	if opts.FlushInterval <= 0 {
 		opts.FlushInterval = defaultFlushInterval
 	}
-	if opts.DirtyLimit <= 0 {
-		opts.DirtyLimit = defaultFlushDirtyLimit
+	if opts.ActiveHintQueueSize <= 0 {
+		opts.ActiveHintQueueSize = defaultProjectorActiveHintQueueSize
 	}
-	if opts.ColdThreshold <= 0 {
-		opts.ColdThreshold = defaultColdThreshold
+	if opts.GroupActiveFanoutInterval <= 0 {
+		opts.GroupActiveFanoutInterval = defaultProjectorGroupActiveFanoutInterval
+	}
+	if opts.GroupActiveFanoutMaxSubscribers == 0 {
+		opts.GroupActiveFanoutMaxSubscribers = defaultProjectorGroupActiveFanoutSubscribers
 	}
 	if opts.SubscriberPageSize <= 0 {
 		opts.SubscriberPageSize = defaultSubscriberPageSize
@@ -78,17 +97,17 @@ func NewProjector(opts ProjectorOptions) Projector {
 	}
 
 	return &projector{
-		store:              opts.Store,
-		flushInterval:      opts.FlushInterval,
-		dirtyLimit:         opts.DirtyLimit,
-		coldThreshold:      opts.ColdThreshold,
-		subscriberPageSize: opts.SubscriberPageSize,
-		now:                opts.Now,
-		async:              opts.Async,
-		logger:             opts.Logger,
-		hot:                make(map[metadb.ConversationKey]metadb.ChannelUpdateLog),
-		dirty:              make(map[metadb.ConversationKey]struct{}),
-		wakeups:            make(map[metadb.ConversationKey]channel.Message),
+		store:                           opts.Store,
+		flushInterval:                   opts.FlushInterval,
+		activeHintQueueSize:             opts.ActiveHintQueueSize,
+		groupActiveFanoutInterval:       opts.GroupActiveFanoutInterval,
+		groupActiveFanoutMaxSubscribers: opts.GroupActiveFanoutMaxSubscribers,
+		subscriberPageSize:              opts.SubscriberPageSize,
+		now:                             opts.Now,
+		async:                           opts.Async,
+		logger:                          opts.Logger,
+		pending:                         make(map[metadb.ConversationKey]channel.Message),
+		lastGroupFanoutAt:               make(map[metadb.ConversationKey]time.Time),
 	}
 }
 
@@ -106,7 +125,6 @@ func (p *projector) Start() error {
 	p.stopCh = make(chan struct{})
 	p.doneCh = make(chan struct{})
 	p.running = true
-
 	go p.run(p.stopCh, p.doneCh)
 	return nil
 }
@@ -133,167 +151,161 @@ func (p *projector) Stop() error {
 	return p.Flush(context.Background())
 }
 
-func (p *projector) SubmitCommitted(ctx context.Context, msg channel.Message) error {
-	if p == nil {
+func (p *projector) SubmitCommitted(_ context.Context, msg channel.Message) error {
+	if p == nil || p.store == nil {
 		return nil
 	}
-
-	key := metadb.ConversationKey{ChannelID: msg.ChannelID, ChannelType: int64(msg.ChannelType)}
-	entry := channelUpdateFromMessage(msg)
-
-	needWakeup := false
-	if p.store != nil {
-		p.mu.RLock()
-		_, hot := p.hot[key]
-		p.mu.RUnlock()
-		if !hot && msg.MessageSeq == 1 {
-			needWakeup = true
-		} else if !hot {
-			existing, err := p.store.BatchGetChannelUpdateLogs(ctx, []metadb.ConversationKey{key})
-			if err == nil {
-				current, ok := existing[key]
-				needWakeup = !ok || p.isCold(current.LastMsgAt)
-			}
-		}
+	if !p.enqueuePending(msg) {
+		return nil
 	}
-
-	p.mu.Lock()
-	existing, hot := p.hot[key]
-	if !hot || shouldReplaceHotEntry(existing, entry) {
-		p.hot[key] = entry
-	}
-	p.dirty[key] = struct{}{}
-	if needWakeup {
-		currentWakeup, ok := p.wakeups[key]
-		if !ok || shouldReplaceWakeupMessage(currentWakeup, msg) {
-			p.wakeups[key] = msg
-		}
-	}
-	dirtyCount := len(p.dirty)
-	p.mu.Unlock()
-
-	if needWakeup {
-		p.scheduleWakeupProcessing()
-	}
-	if p.store != nil && dirtyCount >= p.dirtyLimit {
-		p.async(func() {
-			_ = p.Flush(context.Background())
-		})
-	}
+	p.scheduleFlush()
 	return nil
 }
 
-func (p *projector) BatchGetHotChannelUpdates(_ context.Context, keys []metadb.ConversationKey) (map[metadb.ConversationKey]metadb.ChannelUpdateLog, error) {
-	if p == nil || len(keys) == 0 {
-		return map[metadb.ConversationKey]metadb.ChannelUpdateLog{}, nil
-	}
+func (p *projector) enqueuePending(msg channel.Message) bool {
+	key := metadb.ConversationKey{ChannelID: msg.ChannelID, ChannelType: int64(msg.ChannelType)}
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	entries := make(map[metadb.ConversationKey]metadb.ChannelUpdateLog, len(keys))
-	for _, key := range keys {
-		if entry, ok := p.hot[key]; ok {
-			entries[key] = entry
+	if current, ok := p.pending[key]; ok {
+		if messageNewer(msg, current) {
+			p.pending[key] = msg
 		}
+		return true
 	}
-	return entries, nil
+	if len(p.pending) >= p.activeHintQueueSize {
+		return false
+	}
+	p.pending[key] = msg
+	return true
+}
+
+func (p *projector) scheduleFlush() {
+	p.mu.Lock()
+	if p.workerRunning {
+		p.mu.Unlock()
+		return
+	}
+	p.workerRunning = true
+	p.mu.Unlock()
+
+	p.async(func() {
+		defer func() {
+			p.mu.Lock()
+			p.workerRunning = false
+			hasPending := len(p.pending) > 0
+			p.mu.Unlock()
+			if hasPending {
+				p.scheduleFlush()
+			}
+		}()
+		if err := p.Flush(context.Background()); err != nil {
+			p.logger.Warn("conversation active hint flush failed", wklog.Error(err))
+		}
+	})
 }
 
 func (p *projector) Flush(ctx context.Context) error {
 	if p == nil {
 		return nil
 	}
-	var result error
-	if err := p.flushWakeups(ctx); err != nil {
-		result = errors.Join(result, err)
-	}
 	if p.store == nil {
-		return result
+		_ = p.drainPending()
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
-	p.mu.RLock()
-	if len(p.dirty) == 0 {
-		p.mu.RUnlock()
-		return result
-	}
-	entries := make([]metadb.ChannelUpdateLog, 0, len(p.dirty))
-	for key := range p.dirty {
-		if entry, ok := p.hot[key]; ok {
-			entries = append(entries, entry)
-		}
-	}
-	p.mu.RUnlock()
+	p.flushMu.Lock()
+	defer p.flushMu.Unlock()
 
-	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].ChannelType != entries[j].ChannelType {
-			return entries[i].ChannelType < entries[j].ChannelType
-		}
-		return entries[i].ChannelID < entries[j].ChannelID
-	})
-
-	if len(entries) == 0 {
-		return result
-	}
-	if err := p.store.UpsertChannelUpdateLogs(ctx, entries); err != nil {
-		return errors.Join(result, err)
-	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	for _, entry := range entries {
-		key := metadb.ConversationKey{ChannelID: entry.ChannelID, ChannelType: entry.ChannelType}
-		current, ok := p.hot[key]
-		if !ok {
-			delete(p.dirty, key)
-			continue
-		}
-		if !hotEntryNewerThan(current, entry) {
-			delete(p.dirty, key)
+	items := p.drainPending()
+	var result error
+	for _, item := range items {
+		if err := p.flushMessage(ctx, item); err != nil {
+			result = errors.Join(result, err)
 		}
 	}
 	return result
 }
 
-func (p *projector) processWakeups(ctx context.Context) error {
-	return p.flushWakeups(ctx)
-}
-
-func (p *projector) scheduleWakeupProcessing() {
-	if p == nil {
-		return
-	}
-
+func (p *projector) drainPending() []channel.Message {
 	p.mu.Lock()
-	if p.wakeupRunning {
-		p.mu.Unlock()
-		return
+	defer p.mu.Unlock()
+	if len(p.pending) == 0 {
+		return nil
 	}
-	p.wakeupRunning = true
-	p.mu.Unlock()
-
-	p.async(func() {
-		p.runWakeupProcessing(context.Background())
-	})
+	items := make([]channel.Message, 0, len(p.pending))
+	for key, msg := range p.pending {
+		items = append(items, msg)
+		delete(p.pending, key)
+	}
+	return items
 }
 
-func (p *projector) runWakeupProcessing(ctx context.Context) {
-	for {
-		if err := p.processWakeups(ctx); err != nil {
-			p.mu.Lock()
-			p.wakeupRunning = false
-			p.mu.Unlock()
-			return
+func (p *projector) flushMessage(ctx context.Context, msg channel.Message) error {
+	if msg.ChannelType == frame.ChannelTypePerson {
+		hints, ok := personConversationActiveHints(msg)
+		if !ok {
+			return nil
 		}
-
-		p.mu.Lock()
-		if len(p.wakeups) == 0 {
-			p.wakeupRunning = false
-			p.mu.Unlock()
-			return
-		}
-		p.mu.Unlock()
+		return p.store.SubmitUserConversationActiveHints(ctx, hints)
 	}
+	return p.flushGroupMessage(ctx, msg)
+}
+
+func (p *projector) flushGroupMessage(ctx context.Context, msg channel.Message) error {
+	if p.groupActiveFanoutMaxSubscribers <= 0 {
+		return nil
+	}
+	key := metadb.ConversationKey{ChannelID: msg.ChannelID, ChannelType: int64(msg.ChannelType)}
+	now := p.now()
+	if !p.allowGroupFanout(key, now) {
+		return nil
+	}
+
+	remaining := p.groupActiveFanoutMaxSubscribers
+	cursor := ""
+	activeAt := activeAtFromMessage(msg)
+	for remaining > 0 {
+		pageLimit := p.subscriberPageSize
+		if pageLimit > remaining {
+			pageLimit = remaining
+		}
+		uids, nextCursor, done, err := p.store.ListChannelSubscribers(ctx, msg.ChannelID, int64(msg.ChannelType), cursor, pageLimit)
+		if err != nil {
+			return err
+		}
+		if len(uids) > 0 {
+			hints := make([]metadb.UserConversationActiveHint, 0, len(uids))
+			for _, uid := range uids {
+				hints = append(hints, metadb.UserConversationActiveHint{
+					UID: uid, ChannelID: msg.ChannelID, ChannelType: int64(msg.ChannelType), ActiveAt: activeAt, MessageSeq: msg.MessageSeq,
+				})
+			}
+			if err := p.store.SubmitUserConversationActiveHints(ctx, hints); err != nil {
+				return err
+			}
+			remaining -= len(uids)
+		}
+		if done || len(uids) == 0 || remaining <= 0 {
+			return nil
+		}
+		cursor = nextCursor
+	}
+	return nil
+}
+
+func (p *projector) allowGroupFanout(key metadb.ConversationKey, now time.Time) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	last, ok := p.lastGroupFanoutAt[key]
+	if ok && now.Sub(last) < p.groupActiveFanoutInterval {
+		return false
+	}
+	p.lastGroupFanoutAt[key] = now
+	return true
 }
 
 func (p *projector) run(stopCh <-chan struct{}, doneCh chan<- struct{}) {
@@ -301,169 +313,40 @@ func (p *projector) run(stopCh <-chan struct{}, doneCh chan<- struct{}) {
 
 	ticker := time.NewTicker(p.flushInterval)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ticker.C:
-			_ = p.Flush(context.Background())
+			if err := p.Flush(context.Background()); err != nil {
+				p.logger.Warn("conversation active hint flush failed", wklog.Error(err))
+			}
 		case <-stopCh:
 			return
 		}
 	}
 }
 
-func (p *projector) touchConversationActive(ctx context.Context, msg channel.Message) error {
-	if p.store == nil {
-		return nil
-	}
-
-	if msg.ChannelType == frame.ChannelTypePerson {
-		patches, ok := personConversationActivePatches(msg)
-		if !ok {
-			return nil
-		}
-		return p.store.TouchUserConversationActiveAt(ctx, patches)
-	}
-
-	activeAt := time.Unix(int64(msg.Timestamp), 0).UnixNano()
-	cursor := ""
-	for {
-		uids, nextCursor, done, err := p.store.ListChannelSubscribers(ctx, msg.ChannelID, int64(msg.ChannelType), cursor, p.subscriberPageSize)
-		if err != nil {
-			return err
-		}
-		if len(uids) > 0 {
-			patches := make([]metadb.UserConversationActivePatch, 0, len(uids))
-			for _, uid := range uids {
-				patches = append(patches, metadb.UserConversationActivePatch{
-					UID:         uid,
-					ChannelID:   msg.ChannelID,
-					ChannelType: int64(msg.ChannelType),
-					ActiveAt:    activeAt,
-				})
-			}
-			if err := p.store.TouchUserConversationActiveAt(ctx, patches); err != nil {
-				return err
-			}
-		}
-		if done {
-			return nil
-		}
-		cursor = nextCursor
-	}
-}
-
-func (p *projector) flushWakeups(ctx context.Context) error {
-	if p == nil || p.store == nil {
-		return nil
-	}
-
-	p.wakeupFlushMu.Lock()
-	defer p.wakeupFlushMu.Unlock()
-
-	p.mu.RLock()
-	if len(p.wakeups) == 0 {
-		p.mu.RUnlock()
-		return nil
-	}
-	pending := make(map[metadb.ConversationKey]channel.Message, len(p.wakeups))
-	for key, msg := range p.wakeups {
-		pending[key] = msg
-	}
-	p.mu.RUnlock()
-
-	var result error
-	personPatches := make([]metadb.UserConversationActivePatch, 0, len(pending)*2)
-	personKeys := make([]metadb.ConversationKey, 0, len(pending))
-	for key, msg := range pending {
-		if msg.ChannelType == frame.ChannelTypePerson {
-			patches, ok := personConversationActivePatches(msg)
-			if !ok {
-				p.clearWakeupIfNotNewer(key, msg)
-				continue
-			}
-			personKeys = append(personKeys, key)
-			personPatches = append(personPatches, patches...)
-			continue
-		}
-
-		if err := p.touchConversationActive(ctx, msg); err != nil {
-			result = errors.Join(result, err)
-			continue
-		}
-		p.clearWakeupIfNotNewer(key, msg)
-	}
-	if len(personPatches) > 0 {
-		if err := p.store.TouchUserConversationActiveAt(ctx, personPatches); err != nil {
-			result = errors.Join(result, err)
-		} else {
-			for _, key := range personKeys {
-				p.clearWakeupIfNotNewer(key, pending[key])
-			}
-		}
-	}
-	return result
-}
-
-func (p *projector) isCold(lastMsgAt int64) bool {
-	if lastMsgAt == 0 {
-		return true
-	}
-	return lastMsgAt <= p.now().Add(-p.coldThreshold).UnixNano()
-}
-
-func channelUpdateFromMessage(msg channel.Message) metadb.ChannelUpdateLog {
-	updatedAt := time.Unix(int64(msg.Timestamp), 0).UnixNano()
-	return metadb.ChannelUpdateLog{
-		ChannelID:       msg.ChannelID,
-		ChannelType:     int64(msg.ChannelType),
-		UpdatedAt:       updatedAt,
-		LastMsgSeq:      msg.MessageSeq,
-		LastClientMsgNo: msg.ClientMsgNo,
-		LastMsgAt:       updatedAt,
-	}
-}
-
-func shouldReplaceHotEntry(current, next metadb.ChannelUpdateLog) bool {
-	return hotEntryNewerThan(next, current)
-}
-
-func hotEntryNewerThan(left, right metadb.ChannelUpdateLog) bool {
-	if left.LastMsgSeq != 0 && right.LastMsgSeq != left.LastMsgSeq {
-		return left.LastMsgSeq > right.LastMsgSeq
-	}
-	if right.UpdatedAt != left.UpdatedAt {
-		return left.UpdatedAt > right.UpdatedAt
-	}
-	return left.LastClientMsgNo > right.LastClientMsgNo
-}
-
-func shouldReplaceWakeupMessage(current, next channel.Message) bool {
-	return wakeupMessageNewerThan(next, current)
-}
-
-func wakeupMessageNewerThan(left, right channel.Message) bool {
-	return hotEntryNewerThan(channelUpdateFromMessage(left), channelUpdateFromMessage(right))
-}
-
-func personConversationActivePatches(msg channel.Message) ([]metadb.UserConversationActivePatch, bool) {
+func personConversationActiveHints(msg channel.Message) ([]metadb.UserConversationActiveHint, bool) {
 	left, right, err := runtimechannelid.DecodePersonChannel(msg.ChannelID)
 	if err != nil {
 		return nil, false
 	}
-	activeAt := time.Unix(int64(msg.Timestamp), 0).UnixNano()
-	return []metadb.UserConversationActivePatch{
-		{UID: left, ChannelID: msg.ChannelID, ChannelType: int64(msg.ChannelType), ActiveAt: activeAt},
-		{UID: right, ChannelID: msg.ChannelID, ChannelType: int64(msg.ChannelType), ActiveAt: activeAt},
+	activeAt := activeAtFromMessage(msg)
+	return []metadb.UserConversationActiveHint{
+		{UID: left, ChannelID: msg.ChannelID, ChannelType: int64(msg.ChannelType), ActiveAt: activeAt, MessageSeq: msg.MessageSeq},
+		{UID: right, ChannelID: msg.ChannelID, ChannelType: int64(msg.ChannelType), ActiveAt: activeAt, MessageSeq: msg.MessageSeq},
 	}, true
 }
 
-func (p *projector) clearWakeupIfNotNewer(key metadb.ConversationKey, msg channel.Message) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+func activeAtFromMessage(msg channel.Message) int64 {
+	return time.Unix(int64(msg.Timestamp), 0).UnixNano()
+}
 
-	current, ok := p.wakeups[key]
-	if ok && !wakeupMessageNewerThan(current, msg) {
-		delete(p.wakeups, key)
+func messageNewer(left, right channel.Message) bool {
+	if left.MessageSeq != 0 && right.MessageSeq != left.MessageSeq {
+		return left.MessageSeq > right.MessageSeq
 	}
+	if left.Timestamp != right.Timestamp {
+		return left.Timestamp > right.Timestamp
+	}
+	return left.ClientMsgNo > right.ClientMsgNo
 }
