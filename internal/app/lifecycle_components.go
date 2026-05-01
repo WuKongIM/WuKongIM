@@ -177,8 +177,8 @@ func (a *App) conversationActiveHintsLifecycleComponent() applifecycle.Component
 			a.conversationHintsOn.Store(true)
 			return nil
 		},
-		stop: func(context.Context) error {
-			return a.stopConversationActiveHints()
+		stop: func(ctx context.Context) error {
+			return a.stopConversationActiveHints(ctx)
 		},
 	}
 }

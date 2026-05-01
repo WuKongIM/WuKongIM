@@ -783,7 +783,7 @@ func TestStartStopIncludesConversationActiveHintCache(t *testing.T) {
 			calls = append(calls, "projector.stop")
 			return nil
 		},
-		stopConversationActiveHintsFn: func() error {
+		stopConversationActiveHintsFn: func(context.Context) error {
 			calls = append(calls, "active_hints.stop")
 			return nil
 		},
@@ -1214,10 +1214,15 @@ func TestAppLifecycleStopsPresenceWorkerAfterGateway(t *testing.T) {
 	require.Equal(t, []string{"gateway.stop", "committed_dispatcher.stop", "presence.stop", "cluster.stop", "raft.close", "metadb.close"}, stopCalls)
 }
 
-func TestAppLifecyclePassesBoundedStopContextToCommittedReplayAndDispatcher(t *testing.T) {
+func TestAppLifecyclePassesBoundedStopContextToActiveHintsReplayAndDispatcher(t *testing.T) {
+	var activeHintsHasDeadline bool
 	var replayHasDeadline bool
 	var dispatcherHasDeadline bool
 	app := &App{
+		stopConversationActiveHintsFn: func(ctx context.Context) error {
+			_, activeHintsHasDeadline = ctx.Deadline()
+			return nil
+		},
 		stopCommittedReplayFn: func(ctx context.Context) error {
 			_, replayHasDeadline = ctx.Deadline()
 			return nil
@@ -1229,10 +1234,12 @@ func TestAppLifecyclePassesBoundedStopContextToCommittedReplayAndDispatcher(t *t
 		closeRaftDBFn: func() error { return nil },
 		closeWKDBFn:   func() error { return nil },
 	}
+	app.conversationHintsOn.Store(true)
 	app.committedReplayOn.Store(true)
 	app.committedDispatcherOn.Store(true)
 
 	require.NoError(t, app.Stop())
+	require.True(t, activeHintsHasDeadline)
 	require.True(t, replayHasDeadline)
 	require.True(t, dispatcherHasDeadline)
 }

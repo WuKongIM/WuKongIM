@@ -8,12 +8,16 @@ import (
 	"testing"
 	"time"
 
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
 )
 
-func TestCommittedReplayerFlushesConversationBeforeAdvancingCursor(t *testing.T) {
+func TestCommittedReplayerAdvancesCursorWithoutConversationFlush(t *testing.T) {
 	source := &fakeCommittedReplayLog{
 		channels: []committedReplayChannel{{
 			Key: channel.ChannelKey("channel/1/c1"),
@@ -37,17 +41,16 @@ func TestCommittedReplayerFlushesConversationBeforeAdvancingCursor(t *testing.T)
 		Conversation: conversation,
 		BatchSize:    16,
 	})
-	source.canStoreCursor = func() bool { return conversation.flushes == 1 }
 
 	require.NoError(t, replayer.RunOnce(context.Background()))
 
 	require.Equal(t, []uint64{1, 2}, delivery.messageSeqs())
 	require.Equal(t, []uint64{1, 2}, conversation.messageSeqs())
-	require.Equal(t, 1, conversation.flushes)
+	require.Equal(t, 0, conversation.flushes)
 	require.Equal(t, uint64(2), source.cursors[channel.ChannelKey("channel/1/c1")])
 }
 
-func TestCommittedReplayerDoesNotAdvanceCursorWhenConversationFlushFails(t *testing.T) {
+func TestCommittedReplayerAdvancesCursorAfterConversationSubmitAccepted(t *testing.T) {
 	source := &fakeCommittedReplayLog{
 		channels: []committedReplayChannel{{
 			Key: channel.ChannelKey("channel/1/c1"),
@@ -62,7 +65,7 @@ func TestCommittedReplayerDoesNotAdvanceCursorWhenConversationFlushFails(t *test
 			},
 		},
 	}
-	conversation := &fakeCommittedReplayConversation{flushErr: errors.New("flush failed")}
+	conversation := &fakeCommittedReplayConversation{}
 	replayer := newCommittedReplayer(committedReplayerConfig{
 		Log:          source,
 		Conversation: conversation,
@@ -71,8 +74,79 @@ func TestCommittedReplayerDoesNotAdvanceCursorWhenConversationFlushFails(t *test
 
 	err := replayer.RunOnce(context.Background())
 
-	require.ErrorIs(t, err, conversation.flushErr)
-	require.Empty(t, source.cursors)
+	require.NoError(t, err)
+	require.Equal(t, 0, conversation.flushes)
+	require.Equal(t, uint64(1), source.cursors[channel.ChannelKey("channel/1/c1")])
+}
+
+func TestCommittedReplayerDoesNotGateCursorOnConversationSubmitError(t *testing.T) {
+	key := channel.ChannelKey("channel/1/c1")
+	source := &fakeCommittedReplayLog{
+		channels: []committedReplayChannel{{
+			Key: key,
+			ID:  channel.ChannelID{ID: "c1", Type: 1},
+		}},
+		committed: map[channel.ChannelKey]uint64{key: 1},
+		messages: map[channel.ChannelKey][]channel.Message{
+			key: {
+				{MessageID: 11, MessageSeq: 1, ChannelID: "c1", ChannelType: 1, Payload: []byte("one")},
+			},
+		},
+	}
+	conversation := &fakeCommittedReplayConversation{submitErr: errors.New("active hint submit failed")}
+	replayer := newCommittedReplayer(committedReplayerConfig{
+		Log:          source,
+		Conversation: conversation,
+		BatchSize:    16,
+	})
+
+	require.NoError(t, replayer.RunOnce(context.Background()))
+	require.Equal(t, uint64(1), source.cursors[key])
+}
+
+func TestCommittedReplayerWithProjectorAdvancesCursorWhenActiveHintStoreBlocks(t *testing.T) {
+	key := channel.ChannelKey("channel/1/" + runtimechannelid.EncodePersonChannel("u1", "u2"))
+	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
+	source := &fakeCommittedReplayLog{
+		channels: []committedReplayChannel{{
+			Key: key,
+			ID:  channel.ChannelID{ID: channelID, Type: frame.ChannelTypePerson},
+		}},
+		committed: map[channel.ChannelKey]uint64{key: 1},
+		messages: map[channel.ChannelKey][]channel.Message{
+			key: {
+				{MessageID: 11, MessageSeq: 1, ChannelID: channelID, ChannelType: frame.ChannelTypePerson, Timestamp: 100},
+			},
+		},
+	}
+	store := newBlockingProjectorActiveHintStore()
+	projector := conversationusecase.NewProjector(conversationusecase.ProjectorOptions{
+		Store:         store,
+		FlushInterval: time.Hour,
+		Async:         func(fn func()) { fn() },
+	})
+	replayer := newCommittedReplayer(committedReplayerConfig{
+		Log:          source,
+		Conversation: projector,
+		BatchSize:    16,
+	})
+	defer func() {
+		store.Release()
+		require.NoError(t, projector.Stop())
+	}()
+
+	done := make(chan error, 1)
+	go func() { done <- replayer.RunOnce(context.Background()) }()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(200 * time.Millisecond):
+		store.Release()
+		require.NoError(t, <-done)
+		t.Fatalf("committed replay waited for best-effort active hint flush")
+	}
+	require.Equal(t, uint64(1), source.cursors[key])
 }
 
 func TestCommittedReplayerDoesNotAdvanceAcrossMessageSeqGap(t *testing.T) {
@@ -301,7 +375,6 @@ type fakeCommittedReplayLog struct {
 	messages        map[channel.ChannelKey][]channel.Message
 	loadFromSeqs    map[channel.ChannelKey][]uint64
 	durableAdvances map[channel.ChannelKey][]uint64
-	canStoreCursor  func() bool
 	listErr         error
 }
 
@@ -379,9 +452,6 @@ func (f *fakeCommittedReplayLog) LoadCommittedDispatchCursor(_ context.Context, 
 }
 
 func (f *fakeCommittedReplayLog) StoreCommittedDispatchCursor(_ context.Context, key channel.ChannelKey, _ string, seq uint64) error {
-	if f.canStoreCursor != nil && !f.canStoreCursor() {
-		return errors.New("cursor stored before flush")
-	}
 	if f.cursors == nil {
 		f.cursors = make(map[channel.ChannelKey]uint64)
 	}
@@ -444,9 +514,40 @@ func (f *fakeCommittedReplayDelivery) messageSeqs() []uint64 {
 }
 
 type fakeCommittedReplayConversation struct {
-	calls    []channel.Message
-	flushes  int
-	flushErr error
+	calls     []channel.Message
+	flushes   int
+	submitErr error
+}
+
+type blockingProjectorActiveHintStore struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newBlockingProjectorActiveHintStore() *blockingProjectorActiveHintStore {
+	return &blockingProjectorActiveHintStore{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (s *blockingProjectorActiveHintStore) SubmitUserConversationActiveHints(context.Context, []metadb.UserConversationActiveHint) error {
+	s.once.Do(func() { close(s.entered) })
+	<-s.release
+	return nil
+}
+
+func (s *blockingProjectorActiveHintStore) ListChannelSubscribers(context.Context, string, int64, string, int) ([]string, string, bool, error) {
+	return nil, "", true, nil
+}
+
+func (s *blockingProjectorActiveHintStore) Release() {
+	select {
+	case <-s.release:
+	default:
+		close(s.release)
+	}
 }
 
 type recordingCommittedReplayMetrics struct {
@@ -463,13 +564,11 @@ func (m *recordingCommittedReplayMetrics) ObserveCommittedReplayPass(result stri
 }
 
 func (f *fakeCommittedReplayConversation) SubmitCommitted(_ context.Context, msg channel.Message) error {
+	if f.submitErr != nil {
+		return f.submitErr
+	}
 	f.calls = append(f.calls, msg)
 	return nil
-}
-
-func (f *fakeCommittedReplayConversation) Flush(context.Context) error {
-	f.flushes++
-	return f.flushErr
 }
 
 func (f *fakeCommittedReplayConversation) messageSeqs() []uint64 {

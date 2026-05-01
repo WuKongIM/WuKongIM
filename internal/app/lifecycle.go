@@ -242,17 +242,20 @@ func (a *App) stopConversationProjector() error {
 	return a.conversationProjector.Stop()
 }
 
-func (a *App) stopConversationActiveHints() error {
+func (a *App) stopConversationActiveHints(ctx context.Context) error {
 	if !a.conversationHintsOn.Swap(false) {
 		return nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if a.stopConversationActiveHintsFn != nil {
-		return a.stopConversationActiveHintsFn()
+		return a.stopConversationActiveHintsFn(ctx)
 	}
 	if a.conversationActiveHints == nil {
 		return nil
 	}
-	return a.conversationActiveHints.Stop()
+	return a.conversationActiveHints.StopContext(ctx)
 }
 
 func (a *App) stopDeliveryRuntime(ctx context.Context) error {

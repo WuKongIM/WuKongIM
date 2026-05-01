@@ -64,6 +64,7 @@ type ActiveHintCache struct {
 	running  bool
 	stopCh   chan struct{}
 	doneCh   chan struct{}
+	cancel   context.CancelFunc
 }
 
 type activeHintKey struct {
@@ -136,46 +137,67 @@ func (c *ActiveHintCache) Start() error {
 	}
 	stopCh := make(chan struct{})
 	doneCh := make(chan struct{})
+	runCtx, cancel := context.WithCancel(context.Background())
 	c.stopCh = stopCh
 	c.doneCh = doneCh
+	c.cancel = cancel
 	c.running = true
 	interval := c.flushInterval
 	c.mu.Unlock()
 
-	go c.run(stopCh, doneCh, interval)
+	go c.run(runCtx, stopCh, doneCh, interval)
 	return nil
 }
 
 // Stop stops periodic flushing and performs one final Flush.
 func (c *ActiveHintCache) Stop() error {
+	return c.StopContext(context.Background())
+}
+
+// StopContext stops periodic flushing and bounds the final best-effort Flush with ctx.
+func (c *ActiveHintCache) StopContext(ctx context.Context) error {
 	if c == nil {
 		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	c.mu.Lock()
 	if !c.running {
 		c.mu.Unlock()
-		return c.Flush(context.Background())
+		return c.Flush(ctx)
 	}
 	stopCh := c.stopCh
 	doneCh := c.doneCh
+	cancel := c.cancel
 	c.running = false
 	c.stopCh = nil
 	c.doneCh = nil
+	c.cancel = nil
 	c.mu.Unlock()
 
+	if cancel != nil {
+		cancel()
+	}
 	close(stopCh)
-	<-doneCh
-	return c.Flush(context.Background())
+	select {
+	case <-doneCh:
+		return c.Flush(ctx)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
-func (c *ActiveHintCache) run(stopCh <-chan struct{}, doneCh chan<- struct{}, interval time.Duration) {
+func (c *ActiveHintCache) run(ctx context.Context, stopCh <-chan struct{}, doneCh chan<- struct{}, interval time.Duration) {
 	defer close(doneCh)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-ticker.C:
-			if err := c.Flush(context.Background()); err != nil {
+			if err := c.Flush(ctx); err != nil {
 				c.logger.Warn("active hint cache flush failed", wklog.Error(err))
 			}
 		case <-stopCh:
