@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"sync"
@@ -1048,18 +1049,23 @@ func TestStoreListUserConversationActiveStaleOverlayHintsDoNotConsumeFinalLimit(
 
 	uid := findUIDForSlot(t, nodes[0].cluster, 1, "limit-overlay")
 	hashSlot := mustHashSlotForKey(t, nodes[0].cluster, uid)
-	require.NoError(t, nodes[0].db.ForHashSlot(hashSlot).UpsertUserConversationState(ctx, metadb.UserConversationState{
-		UID:          uid,
-		ChannelID:    "stale",
-		ChannelType:  2,
-		DeletedToSeq: 10,
-		ActiveAt:     0,
-	}))
 	overlay := newRecordingUserConversationActiveOverlay()
-	overlay.hot[uid] = []metadb.UserConversationActiveHint{
-		{UID: uid, ChannelID: "stale", ChannelType: 2, ActiveAt: 300, MessageSeq: 10},
-		{UID: uid, ChannelID: "valid", ChannelType: 2, ActiveAt: 200, MessageSeq: 20},
+	for i := 0; i < 65; i++ {
+		channelID := fmt.Sprintf("stale-%02d", i)
+		require.NoError(t, nodes[0].db.ForHashSlot(hashSlot).UpsertUserConversationState(ctx, metadb.UserConversationState{
+			UID:          uid,
+			ChannelID:    channelID,
+			ChannelType:  2,
+			DeletedToSeq: 10,
+			ActiveAt:     0,
+		}))
+		overlay.hot[uid] = append(overlay.hot[uid], metadb.UserConversationActiveHint{
+			UID: uid, ChannelID: channelID, ChannelType: 2, ActiveAt: 300 - int64(i), MessageSeq: 10,
+		})
 	}
+	overlay.hot[uid] = append(overlay.hot[uid], metadb.UserConversationActiveHint{
+		UID: uid, ChannelID: "valid", ChannelType: 2, ActiveAt: 200, MessageSeq: 20,
+	})
 	nodes[0].store.RegisterUserConversationActiveOverlay(overlay)
 
 	got, err := nodes[0].store.ListUserConversationActive(ctx, uid, 1)
@@ -1070,6 +1076,9 @@ func TestStoreListUserConversationActiveStaleOverlayHintsDoNotConsumeFinalLimit(
 		ChannelType: 2,
 		ActiveAt:    200,
 	}}, got)
+	listLimits := overlay.listLimits()
+	require.Len(t, listLimits, 1)
+	require.Negative(t, listLimits[0])
 }
 
 func TestStoreListUserConversationActiveRemoteOwnerMergesOverlay(t *testing.T) {
@@ -1295,6 +1304,7 @@ type recordingUserConversationActiveOverlay struct {
 	err      error
 	hints    []metadb.UserConversationActiveHint
 	barriers []metadb.UserConversationDeleteBarrier
+	limits   []int
 }
 
 func newRecordingUserConversationActiveOverlay() *recordingUserConversationActiveOverlay {
@@ -1309,6 +1319,7 @@ func (o *recordingUserConversationActiveOverlay) ListHotUserConversationActive(_
 	if o.err != nil {
 		return nil, o.err
 	}
+	o.limits = append(o.limits, limit)
 	hints := o.hot[uid]
 	if limit > 0 && len(hints) > limit {
 		hints = hints[:limit]
@@ -1343,6 +1354,12 @@ func (o *recordingUserConversationActiveOverlay) removedBarriers() []metadb.User
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return append([]metadb.UserConversationDeleteBarrier(nil), o.barriers...)
+}
+
+func (o *recordingUserConversationActiveOverlay) listLimits() []int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]int(nil), o.limits...)
 }
 
 func TestPebbleBackedGroupDoesNotRecoverDeletedBusinessStateWithoutSnapshot(t *testing.T) {
