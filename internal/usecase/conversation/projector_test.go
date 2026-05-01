@@ -69,7 +69,7 @@ func TestProjectorSubmitCommittedNeverRoutesActiveHintsInline(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	var once sync.Once
-	store.beforeSubmit = func() {
+	store.beforeSubmit = func(context.Context) {
 		once.Do(func() { close(started) })
 		<-release
 	}
@@ -100,6 +100,38 @@ func TestProjectorSubmitCommittedNeverRoutesActiveHintsInline(t *testing.T) {
 	case <-time.After(200 * time.Millisecond):
 		close(release)
 		t.Fatalf("SubmitCommitted did not return")
+	}
+}
+
+func TestProjectorStopCancelsScheduledFlush(t *testing.T) {
+	store := newProjectorStoreStub()
+	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
+	started := make(chan struct{})
+	store.beforeSubmit = func(ctx context.Context) {
+		close(started)
+		<-ctx.Done()
+	}
+	projector := NewProjector(ProjectorOptions{
+		Store:         store,
+		FlushInterval: time.Hour,
+	})
+	require.NoError(t, projector.Start())
+
+	require.NoError(t, projector.SubmitCommitted(context.Background(), channel.Message{
+		ChannelID:   channelID,
+		ChannelType: frame.ChannelTypePerson,
+		MessageSeq:  1,
+		Timestamp:   100,
+	}))
+	<-started
+
+	done := make(chan error, 1)
+	go func() { done <- projector.Stop() }()
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatalf("Stop did not cancel scheduled active hint flush")
 	}
 }
 
@@ -227,7 +259,7 @@ type projectorStoreStub struct {
 	mu              sync.Mutex
 	hints           []metadb.UserConversationActiveHint
 	submitCount     int
-	beforeSubmit    func()
+	beforeSubmit    func(context.Context)
 	subscribers     map[metadb.ConversationKey][]string
 	subscriberCalls []subscriberListCall
 }
@@ -243,14 +275,14 @@ func newProjectorStoreStub() *projectorStoreStub {
 	return &projectorStoreStub{subscribers: make(map[metadb.ConversationKey][]string)}
 }
 
-func (s *projectorStoreStub) SubmitUserConversationActiveHints(_ context.Context, hints []metadb.UserConversationActiveHint) error {
+func (s *projectorStoreStub) SubmitUserConversationActiveHints(ctx context.Context, hints []metadb.UserConversationActiveHint) error {
 	s.mu.Lock()
 	s.submitCount++
 	hook := s.beforeSubmit
 	s.mu.Unlock()
 
 	if hook != nil {
-		hook()
+		hook(ctx)
 	}
 
 	s.mu.Lock()

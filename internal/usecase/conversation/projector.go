@@ -60,12 +60,15 @@ type projector struct {
 	logger                          wklog.Logger
 
 	flushMu sync.Mutex
+	flushWG sync.WaitGroup
 	mu      sync.Mutex
 	pending map[metadb.ConversationKey]channel.Message
 	// lastGroupFanoutAt tracks the last attempted fanout time per group channel.
 	lastGroupFanoutAt map[metadb.ConversationKey]time.Time
 	workerRunning     bool
 	running           bool
+	flushCtx          context.Context
+	flushCancel       context.CancelFunc
 	stopCh            chan struct{}
 	doneCh            chan struct{}
 }
@@ -136,18 +139,32 @@ func (p *projector) Stop() error {
 
 	p.mu.Lock()
 	if !p.running {
+		cancel := p.flushCancel
+		p.flushCtx = nil
+		p.flushCancel = nil
 		p.mu.Unlock()
+		if cancel != nil {
+			cancel()
+		}
+		p.flushWG.Wait()
 		return p.Flush(context.Background())
 	}
 	stopCh := p.stopCh
 	doneCh := p.doneCh
+	cancel := p.flushCancel
 	p.running = false
+	p.flushCtx = nil
+	p.flushCancel = nil
 	p.stopCh = nil
 	p.doneCh = nil
 	p.mu.Unlock()
 
+	if cancel != nil {
+		cancel()
+	}
 	close(stopCh)
 	<-doneCh
+	p.flushWG.Wait()
 	return p.Flush(context.Background())
 }
 
@@ -186,10 +203,13 @@ func (p *projector) scheduleFlush() {
 		p.mu.Unlock()
 		return
 	}
+	ctx := p.ensureFlushContextLocked()
 	p.workerRunning = true
+	p.flushWG.Add(1)
 	p.mu.Unlock()
 
 	go p.async(func() {
+		defer p.flushWG.Done()
 		defer func() {
 			p.mu.Lock()
 			p.workerRunning = false
@@ -199,10 +219,17 @@ func (p *projector) scheduleFlush() {
 				p.scheduleFlush()
 			}
 		}()
-		if err := p.Flush(context.Background()); err != nil {
+		if err := p.Flush(ctx); err != nil {
 			p.logger.Warn("conversation active hint flush failed", wklog.Error(err))
 		}
 	})
+}
+
+func (p *projector) ensureFlushContextLocked() context.Context {
+	if p.flushCtx == nil || p.flushCancel == nil {
+		p.flushCtx, p.flushCancel = context.WithCancel(context.Background())
+	}
+	return p.flushCtx
 }
 
 func (p *projector) Flush(ctx context.Context) error {
@@ -335,13 +362,19 @@ func (p *projector) run(stopCh <-chan struct{}, doneCh chan<- struct{}) {
 	for {
 		select {
 		case <-ticker.C:
-			if err := p.Flush(context.Background()); err != nil {
+			if err := p.Flush(p.currentFlushContext()); err != nil {
 				p.logger.Warn("conversation active hint flush failed", wklog.Error(err))
 			}
 		case <-stopCh:
 			return
 		}
 	}
+}
+
+func (p *projector) currentFlushContext() context.Context {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.ensureFlushContextLocked()
 }
 
 func personConversationActiveHints(msg channel.Message) ([]metadb.UserConversationActiveHint, bool) {
