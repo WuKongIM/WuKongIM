@@ -1159,60 +1159,6 @@ func TestStoreScanUserConversationStatePageReadsAuthoritativeSlot(t *testing.T) 
 	require.Equal(t, metadb.ConversationCursor{ChannelID: "g3", ChannelType: 2}, cursor)
 }
 
-func TestStoreBatchGetChannelUpdateLogsGroupsByChannelSlot(t *testing.T) {
-	ctx := context.Background()
-	nodes := startTwoNodeShardedStores(t)
-
-	slot1ChannelID := findChannelIDForSlot(t, nodes[0].cluster, 1, "slot1-update")
-	slot2ChannelID := findChannelIDForSlot(t, nodes[0].cluster, 2, "slot2-update")
-
-	require.NoError(t, nodes[0].db.ForHashSlot(mustHashSlotForKey(t, nodes[0].cluster, slot1ChannelID)).UpsertChannelUpdateLog(ctx, metadb.ChannelUpdateLog{
-		ChannelID:       slot1ChannelID,
-		ChannelType:     1,
-		UpdatedAt:       101,
-		LastMsgSeq:      11,
-		LastClientMsgNo: "c1",
-		LastMsgAt:       201,
-	}))
-	require.NoError(t, nodes[1].db.ForHashSlot(mustHashSlotForKey(t, nodes[1].cluster, slot2ChannelID)).UpsertChannelUpdateLog(ctx, metadb.ChannelUpdateLog{
-		ChannelID:       slot2ChannelID,
-		ChannelType:     1,
-		UpdatedAt:       102,
-		LastMsgSeq:      12,
-		LastClientMsgNo: "c2",
-		LastMsgAt:       202,
-	}))
-
-	store, ok := any(nodes[0].store).(interface {
-		BatchGetChannelUpdateLogs(ctx context.Context, keys []metadb.ConversationKey) (map[metadb.ConversationKey]metadb.ChannelUpdateLog, error)
-	})
-	require.True(t, ok, "channel update log store methods missing")
-
-	got, err := store.BatchGetChannelUpdateLogs(ctx, []metadb.ConversationKey{
-		{ChannelID: slot1ChannelID, ChannelType: 1},
-		{ChannelID: slot2ChannelID, ChannelType: 1},
-	})
-	require.NoError(t, err)
-	require.Equal(t, map[metadb.ConversationKey]metadb.ChannelUpdateLog{
-		{ChannelID: slot1ChannelID, ChannelType: 1}: {
-			ChannelID:       slot1ChannelID,
-			ChannelType:     1,
-			UpdatedAt:       101,
-			LastMsgSeq:      11,
-			LastClientMsgNo: "c1",
-			LastMsgAt:       201,
-		},
-		{ChannelID: slot2ChannelID, ChannelType: 1}: {
-			ChannelID:       slot2ChannelID,
-			ChannelType:     1,
-			UpdatedAt:       102,
-			LastMsgSeq:      12,
-			LastClientMsgNo: "c2",
-			LastMsgAt:       202,
-		},
-	}, got)
-}
-
 func TestStoreTouchUserConversationActiveAtGroupsByUIDSlot(t *testing.T) {
 	ctx := context.Background()
 	nodes := startTwoNodeShardedStores(t)

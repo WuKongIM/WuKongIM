@@ -14,9 +14,6 @@ type userConversationShardStore interface {
 	ClearUserConversationActiveAt(ctx context.Context, uid string, keys []ConversationKey) error
 	ListUserConversationActive(ctx context.Context, uid string, limit int) ([]UserConversationState, error)
 	ListUserConversationStatePage(ctx context.Context, uid string, after ConversationCursor, limit int) ([]UserConversationState, ConversationCursor, bool, error)
-	UpsertChannelUpdateLog(ctx context.Context, entry ChannelUpdateLog) error
-	BatchGetChannelUpdateLogs(ctx context.Context, keys []ConversationKey) (map[ConversationKey]ChannelUpdateLog, error)
-	DeleteChannelUpdateLogs(ctx context.Context, keys []ConversationKey) error
 }
 
 func openConversationTestShard(t *testing.T) userConversationShardStore {

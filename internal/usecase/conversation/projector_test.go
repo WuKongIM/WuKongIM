@@ -135,7 +135,7 @@ func TestProjectorStopCancelsScheduledFlush(t *testing.T) {
 	}
 }
 
-func TestProjectorDoesNotFlushChannelUpdateLogs(t *testing.T) {
+func TestProjectorOnlySubmitsActiveHints(t *testing.T) {
 	store := newProjectorStoreStub()
 	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
 	projector := NewProjector(ProjectorOptions{

@@ -38,9 +38,9 @@ type ProjectorOptions struct {
 	GroupActiveFanoutMaxSubscribers int
 	// SubscriberPageSize controls subscriber scan page size in the async worker.
 	SubscriberPageSize int
-	// Deprecated: retained for app wiring compatibility while ChannelUpdateLog is removed.
+	// Deprecated: retained for app wiring compatibility while durable projection tuning is removed.
 	DirtyLimit int
-	// Deprecated: retained for app wiring compatibility while ChannelUpdateLog is removed.
+	// Deprecated: retained for app wiring compatibility while durable projection tuning is removed.
 	ColdThreshold time.Duration
 	Now           func() time.Time
 	Async         func(func())

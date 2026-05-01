@@ -2987,7 +2987,7 @@ func TestApplyBatchTouchUserConversationActiveAtPreservesUpdatedAt(t *testing.T)
 	}
 }
 
-func TestApplyBatchUpsertChannelUpdateLogs(t *testing.T) {
+func TestApplyDeprecatedConversationProjectionCommandsAreNoop(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
 	bsm, ok := mustNewStateMachine(t, db, 11).(multiraft.BatchStateMachine)
@@ -3000,11 +3000,13 @@ func TestApplyBatchUpsertChannelUpdateLogs(t *testing.T) {
 			SlotID: 11,
 			Index:  1,
 			Term:   1,
-			Data: EncodeUpsertChannelUpdateLogsCommand([]metadb.ChannelUpdateLog{
-				{ChannelID: "g1", ChannelType: 2, UpdatedAt: 100, LastMsgSeq: 10, LastClientMsgNo: "c1", LastMsgAt: 200},
-				{ChannelID: "g1", ChannelType: 2, UpdatedAt: 110, LastMsgSeq: 11, LastClientMsgNo: "c2", LastMsgAt: 210},
-				{ChannelID: "g2", ChannelType: 2, UpdatedAt: 120, LastMsgSeq: 20, LastClientMsgNo: "c3", LastMsgAt: 220},
-			}),
+			Data:   []byte{commandVersion, cmdTypeReservedConversationProjectionUpsert},
+		},
+		{
+			SlotID: 11,
+			Index:  2,
+			Term:   1,
+			Data:   []byte{commandVersion, cmdTypeReservedConversationProjectionDelete},
 		},
 	}
 
@@ -3012,38 +3014,8 @@ func TestApplyBatchUpsertChannelUpdateLogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyBatch() error = %v", err)
 	}
-	if len(results) != 1 || string(results[0]) != ApplyResultOK {
+	if len(results) != 2 || string(results[0]) != ApplyResultOK || string(results[1]) != ApplyResultOK {
 		t.Fatalf("ApplyBatch() results = %q", results)
-	}
-
-	got, err := db.ForSlot(11).BatchGetChannelUpdateLogs(ctx, []metadb.ConversationKey{
-		{ChannelID: "g1", ChannelType: 2},
-		{ChannelID: "g2", ChannelType: 2},
-	})
-	if err != nil {
-		t.Fatalf("BatchGetChannelUpdateLogs() error = %v", err)
-	}
-
-	want := map[metadb.ConversationKey]metadb.ChannelUpdateLog{
-		{ChannelID: "g1", ChannelType: 2}: {
-			ChannelID:       "g1",
-			ChannelType:     2,
-			UpdatedAt:       110,
-			LastMsgSeq:      11,
-			LastClientMsgNo: "c2",
-			LastMsgAt:       210,
-		},
-		{ChannelID: "g2", ChannelType: 2}: {
-			ChannelID:       "g2",
-			ChannelType:     2,
-			UpdatedAt:       120,
-			LastMsgSeq:      20,
-			LastClientMsgNo: "c3",
-			LastMsgAt:       220,
-		},
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("BatchGetChannelUpdateLogs() = %#v, want %#v", got, want)
 	}
 }
 

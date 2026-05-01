@@ -15,12 +15,7 @@ import (
 type Store struct {
 	cluster                       raftcluster.API
 	db                            *metadb.DB
-	channelUpdateOverlay          ChannelUpdateOverlay
 	userConversationActiveOverlay UserConversationActiveOverlay
-}
-
-type ChannelUpdateOverlay interface {
-	BatchGetHotChannelUpdates(ctx context.Context, keys []metadb.ConversationKey) (map[metadb.ConversationKey]metadb.ChannelUpdateLog, error)
 }
 
 // UserConversationActiveOverlay exposes hot UID-owned active hints that have
@@ -41,16 +36,8 @@ func New(cluster raftcluster.API, db *metadb.DB) *Store {
 		cluster.RPCMux().Handle(identityRPCServiceID, store.handleIdentityRPC)
 		cluster.RPCMux().Handle(subscriberRPCServiceID, store.handleSubscriberRPC)
 		cluster.RPCMux().Handle(userConversationStateRPCServiceID, store.handleUserConversationStateRPC)
-		cluster.RPCMux().Handle(channelUpdateLogRPCServiceID, store.handleChannelUpdateLogRPC)
 	}
 	return store
-}
-
-func (s *Store) RegisterChannelUpdateOverlay(overlay ChannelUpdateOverlay) {
-	if s == nil {
-		return
-	}
-	s.channelUpdateOverlay = overlay
 }
 
 func (s *Store) RegisterUserConversationActiveOverlay(overlay UserConversationActiveOverlay) {

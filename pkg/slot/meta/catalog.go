@@ -7,7 +7,8 @@ const (
 	TableIDDevice                uint32 = 4
 	TableIDSubscriber            uint32 = 5
 	TableIDUserConversationState uint32 = 6
-	TableIDChannelUpdateLog      uint32 = 7
+	// TableIDReservedConversationProjection is reserved for the removed conversation projection table.
+	TableIDReservedConversationProjection uint32 = 7
 
 	maxKeyStringLen = 1<<16 - 1
 )
@@ -80,18 +81,6 @@ const (
 	userConversationStateColumnIDDeletedToSeq uint16 = 5
 	userConversationStateColumnIDActiveAt     uint16 = 6
 	userConversationStateColumnIDUpdatedAt    uint16 = 7
-)
-
-const (
-	channelUpdateLogPrimaryFamilyID uint16 = 0
-	channelUpdateLogPrimaryIndexID  uint16 = 1
-
-	channelUpdateLogColumnIDChannelID       uint16 = 1
-	channelUpdateLogColumnIDChannelType     uint16 = 2
-	channelUpdateLogColumnIDUpdatedAt       uint16 = 3
-	channelUpdateLogColumnIDLastMsgSeq      uint16 = 4
-	channelUpdateLogColumnIDLastClientMsgNo uint16 = 5
-	channelUpdateLogColumnIDLastMsgAt       uint16 = 6
 )
 
 type ColumnType int
@@ -324,33 +313,5 @@ var UserConversationStateTable = &TableDesc{
 			Unique:    false,
 			ColumnIDs: []uint16{userConversationStateColumnIDUID, userConversationStateColumnIDActiveAt, userConversationStateColumnIDChannelType, userConversationStateColumnIDChannelID},
 		},
-	},
-}
-
-var ChannelUpdateLogTable = &TableDesc{
-	ID:   TableIDChannelUpdateLog,
-	Name: "channel_update_log",
-	Columns: []ColumnDesc{
-		{ID: channelUpdateLogColumnIDChannelType, Name: "channel_type", Type: ColumnInt64},
-		{ID: channelUpdateLogColumnIDChannelID, Name: "channel_id", Type: ColumnString},
-		{ID: channelUpdateLogColumnIDUpdatedAt, Name: "updated_at", Type: ColumnInt64},
-		{ID: channelUpdateLogColumnIDLastMsgSeq, Name: "last_msg_seq", Type: ColumnUint64},
-		{ID: channelUpdateLogColumnIDLastClientMsgNo, Name: "last_client_msg_no", Type: ColumnString},
-		{ID: channelUpdateLogColumnIDLastMsgAt, Name: "last_msg_at", Type: ColumnInt64},
-	},
-	Families: []ColumnFamilyDesc{
-		{
-			ID:              channelUpdateLogPrimaryFamilyID,
-			Name:            "primary",
-			ColumnIDs:       []uint16{channelUpdateLogColumnIDUpdatedAt, channelUpdateLogColumnIDLastMsgSeq, channelUpdateLogColumnIDLastClientMsgNo, channelUpdateLogColumnIDLastMsgAt},
-			DefaultColumnID: channelUpdateLogColumnIDUpdatedAt,
-		},
-	},
-	PrimaryIndex: IndexDesc{
-		ID:        channelUpdateLogPrimaryIndexID,
-		Name:      "pk_channel_update_log",
-		Unique:    true,
-		Primary:   true,
-		ColumnIDs: []uint16{channelUpdateLogColumnIDChannelType, channelUpdateLogColumnIDChannelID},
 	},
 }
