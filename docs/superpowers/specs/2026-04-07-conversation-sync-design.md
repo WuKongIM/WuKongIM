@@ -201,6 +201,7 @@ Clients should continue sending `last_msg_seqs`; server-side candidate discovery
 4. Persist `UserConversationDelete` through `HideUserConversations` before touching hot cache.
 5. Clear `ActiveAt` and active index atomically with `DeletedToSeq` update.
 6. Best-effort remove UID-owner hot hints and install `UserConversationDeleteBarrier`.
+7. Treat duplicate/stale delete barriers (`DeletedToSeq <= current.DeletedToSeq`) as no-ops so old retries cannot hide a conversation reactivated by a newer message.
 
 Visibility rules:
 
@@ -223,6 +224,7 @@ Correctness must always reduce to `UserConversationState + Channel Log` for cand
 
 - Backfill `UserConversationState` before enabling default traffic for migrated users.
 - No separate channel update projection table is required for new messages.
+- Mixed-version Slot replicas must not accept the new durable delete path; use stop-the-world upgrade or a future feature gate before emitting hide command 16.
 - Observe active hint cache drops, flush errors, overlay hit behavior, and sync latency.
 - Verify delete/reappear behavior during rollout.
 

@@ -347,6 +347,9 @@ func (b *WriteBatch) HideUserConversation(hashSlot uint16, req UserConversationD
 			ChannelType: req.ChannelType,
 		}
 	}
+	if req.DeletedToSeq <= current.DeletedToSeq {
+		return nil
+	}
 
 	next := hideUserConversationState(current, req)
 	if exists && current.ActiveAt > 0 {

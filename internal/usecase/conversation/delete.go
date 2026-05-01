@@ -45,11 +45,16 @@ func (a *App) DeleteConversation(ctx context.Context, cmd DeleteConversationComm
 		return fmt.Errorf("conversation: hide conversation: %w", err)
 	}
 
-	_ = a.deletes.RemoveUserConversationActiveHints(context.Background(), []metadb.UserConversationDeleteBarrier{{
+	barriers := []metadb.UserConversationDeleteBarrier{{
 		UID:          cmd.UID,
 		ChannelID:    key.ChannelID,
 		ChannelType:  int64(key.ChannelType),
 		DeletedToSeq: deleteSeq,
-	}})
+	}}
+	a.async(func() {
+		removeCtx, cancel := context.WithTimeout(context.Background(), defaultDeleteHintRemovalTimeout)
+		defer cancel()
+		_ = a.deletes.RemoveUserConversationActiveHints(removeCtx, barriers)
+	})
 	return nil
 }

@@ -142,6 +142,8 @@ presence.App.Deactivate(ctx, DeactivateCommand) error
 // 会话
 conversation.App.Sync(ctx, SyncQuery) (SyncResult, error)
 conversation.App.ClearUnread(ctx, ClearUnreadCommand) error
+conversation.App.SetUnread(ctx, SetUnreadCommand) error
+conversation.App.DeleteConversation(ctx, DeleteConversationCommand) error
 ```
 
 ### 3.4 运行时层

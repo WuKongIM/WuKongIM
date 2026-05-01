@@ -212,7 +212,8 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **ChannelRuntimeMeta 分页边界**: `meta.ShardStore.ListChannelRuntimeMetaPage` 只扫描当前 hash slot 的主键范围，按 `(channel_id, channel_type)` 升序读取并用 `limit+1` 判定是否还有下一页；更高层如果需要物理 Slot / 全局分页，必须基于这个分片原语做增量合并，不能先全量拉取再截页。
 - **ChannelRuntimeMeta 权威分页**: `Store.ScanChannelRuntimeMetaSlotPage` 通过 `runtime_meta scan_page` 在物理 Slot leader 上把多个 hash slot 做增量 k-way merge；任一节点对同一 Slot 发起分页都会路由到同一个权威来源，不允许回退本地全量扫描。
 - **ListUserConversationActive 热覆盖层**: `Store.ListUserConversationActive` 在 UID 所属 Slot leader 合并持久化 active index 与 `UserConversationActiveOverlay` 中的 UID-local 热提示；覆盖层只作为工作集提示，合并时会 point-read 未出现在 active index 的会话状态，用 `DeletedToSeq` 过滤 stale hint，且对覆盖层请求完整的 UID-local 有界热集合，避免已删除 hint 前缀遮挡后续有效 hint。
-- **HideUserConversations 删除语义**: 删除会话必须走独立命令 16，持久化 `DeletedToSeq=max(old,new)` 并在同一批写中清空 `ActiveAt`/删除 active index；随后通过 `RemoveUserConversationActiveHints` 删除 UID-owner hot hint 并安装 stale hint barrier。
+- **HideUserConversations 删除语义**: 删除会话必须走独立命令 16；只有新 `DeletedToSeq` 前进时才持久化屏障并在同一批写中清空 `ActiveAt`/删除 active index，避免旧 delete 重试覆盖后续新消息激活；随后通过 `RemoveUserConversationActiveHints` 删除 UID-owner hot hint 并安装 stale hint barrier。
+- **命令 16 升级约束**: 混合版本 Slot 副本不能安全接收 `HideUserConversations`；发布时需要 stop-the-world 升级或后续 capability gate。
 - **ApplyBatch 原子性**: 一个 ApplyBatch 内所有命令要么全部成功，要么全部失败（WriteBatch 未 Commit 就丢弃）。任何一条失败会导致整个 Raft Slot fail。
 - **Leader 变更自动失败 pending**: `slot.go:refreshStatus` 检测到从 Leader 降级时，立即 fail 所有 submitted/pending 的 proposal/config Future 返回 ErrNotLeader。
 - **Batch Apply 与 ConfChange 穿插**: `slot.go:applyCommittedEntries` 遇到 ConfChange 必须先 flush 累积的 Normal Entry 批次。不能把 ConfChange 塞进批次里。

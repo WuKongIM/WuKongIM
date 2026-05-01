@@ -365,6 +365,84 @@ func TestWriteBatchHideUserConversationMissingZeroSeqDoesNotCreateState(t *testi
 	require.ErrorIs(t, err, ErrNotFound)
 }
 
+func TestHideUserConversationStaleDeleteDoesNotClearReactivatedActiveAt(t *testing.T) {
+	ctx := context.Background()
+	shard := openConversationTestShard(t)
+
+	require.NoError(t, shard.UpsertUserConversationState(ctx, UserConversationState{
+		UID:          "u1",
+		ChannelID:    "g1",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+		UpdatedAt:    50,
+	}))
+	require.NoError(t, shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{
+		UID:         "u1",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		ActiveAt:    200,
+		MessageSeq:  11,
+	}))
+
+	require.NoError(t, shard.HideUserConversation(ctx, UserConversationDelete{
+		UID:          "u1",
+		ChannelID:    "g1",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+		UpdatedAt:    300,
+	}))
+
+	got, err := shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	require.NoError(t, err)
+	require.Equal(t, uint64(10), got.DeletedToSeq)
+	require.Equal(t, int64(200), got.ActiveAt)
+	require.Equal(t, int64(50), got.UpdatedAt)
+	active, err := shard.ListUserConversationActive(ctx, "u1", 10)
+	require.NoError(t, err)
+	require.Len(t, active, 1)
+	require.Equal(t, int64(200), active[0].ActiveAt)
+}
+
+func TestWriteBatchHideUserConversationStaleDeleteDoesNotClearReactivatedActiveAt(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+
+	require.NoError(t, shard.UpsertUserConversationState(ctx, UserConversationState{
+		UID:          "u1",
+		ChannelID:    "g1",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+		UpdatedAt:    50,
+	}))
+	wb := db.NewWriteBatch()
+	require.NoError(t, wb.TouchUserConversationActiveAt(7, []UserConversationActivePatch{{
+		UID:         "u1",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		ActiveAt:    200,
+		MessageSeq:  11,
+	}}))
+	require.NoError(t, wb.HideUserConversation(7, UserConversationDelete{
+		UID:          "u1",
+		ChannelID:    "g1",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+		UpdatedAt:    300,
+	}))
+	require.NoError(t, wb.Commit())
+
+	got, err := shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	require.NoError(t, err)
+	require.Equal(t, uint64(10), got.DeletedToSeq)
+	require.Equal(t, int64(200), got.ActiveAt)
+	require.Equal(t, int64(50), got.UpdatedAt)
+	active, err := shard.ListUserConversationActive(ctx, "u1", 10)
+	require.NoError(t, err)
+	require.Len(t, active, 1)
+	require.Equal(t, int64(200), active[0].ActiveAt)
+}
+
 func TestWriteBatchUpsertUserConversationStateReplacesActiveIndex(t *testing.T) {
 	db := openTestDB(t)
 	shard := db.ForSlot(7)
