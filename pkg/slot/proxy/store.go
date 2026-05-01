@@ -13,13 +13,22 @@ import (
 // Store provides business-level distributed storage APIs
 // built on top of raftcluster's generic Propose mechanism.
 type Store struct {
-	cluster              raftcluster.API
-	db                   *metadb.DB
-	channelUpdateOverlay ChannelUpdateOverlay
+	cluster                       raftcluster.API
+	db                            *metadb.DB
+	channelUpdateOverlay          ChannelUpdateOverlay
+	userConversationActiveOverlay UserConversationActiveOverlay
 }
 
 type ChannelUpdateOverlay interface {
 	BatchGetHotChannelUpdates(ctx context.Context, keys []metadb.ConversationKey) (map[metadb.ConversationKey]metadb.ChannelUpdateLog, error)
+}
+
+// UserConversationActiveOverlay exposes hot UID-owned active hints that have
+// not been durably folded into the slot state yet.
+type UserConversationActiveOverlay interface {
+	ListHotUserConversationActive(ctx context.Context, uid string, limit int) ([]metadb.UserConversationActiveHint, error)
+	SubmitHints(ctx context.Context, hints []metadb.UserConversationActiveHint) error
+	RemoveHints(ctx context.Context, barriers []metadb.UserConversationDeleteBarrier) error
 }
 
 // New creates a Store.
@@ -40,6 +49,13 @@ func (s *Store) RegisterChannelUpdateOverlay(overlay ChannelUpdateOverlay) {
 		return
 	}
 	s.channelUpdateOverlay = overlay
+}
+
+func (s *Store) RegisterUserConversationActiveOverlay(overlay UserConversationActiveOverlay) {
+	if s == nil {
+		return
+	}
+	s.userConversationActiveOverlay = overlay
 }
 
 func (s *Store) HashSlotTableVersion() uint64 {
