@@ -279,18 +279,22 @@ func (c *ActiveHintCache) Flush(ctx context.Context) error {
 		if err := c.store.TouchUserConversationActiveAt(ctx, patches); err != nil {
 			return err
 		}
+		c.removeFlushedEntries(snapshot[start:end])
 	}
 
+	return nil
+}
+
+func (c *ActiveHintCache) removeFlushedEntries(entries []activeHintEntry) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for _, entry := range snapshot {
+	for _, entry := range entries {
 		key := keyFromHint(entry.hint)
 		current, ok := c.hints[key]
 		if ok && sameHint(current.hint, entry.hint) && current.touchedAt.Equal(entry.touchedAt) {
 			delete(c.hints, key)
 		}
 	}
-	return nil
 }
 
 func (c *ActiveHintCache) snapshotHotHints() []activeHintEntry {
