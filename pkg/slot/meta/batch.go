@@ -247,6 +247,9 @@ func (b *WriteBatch) TouchUserConversationActiveAt(hashSlot uint16, patches []Us
 		if err != nil {
 			return err
 		}
+		if exists && patch.MessageSeq > 0 && patch.MessageSeq <= current.DeletedToSeq {
+			continue
+		}
 		if exists && patch.ActiveAt <= current.ActiveAt {
 			continue
 		}

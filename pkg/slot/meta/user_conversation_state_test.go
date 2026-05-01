@@ -10,7 +10,7 @@ import (
 type userConversationShardStore interface {
 	GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (UserConversationState, error)
 	UpsertUserConversationState(ctx context.Context, state UserConversationState) error
-	TouchUserConversationActiveAt(ctx context.Context, uid, channelID string, channelType int64, activeAt int64) error
+	TouchUserConversationActiveAt(ctx context.Context, patch UserConversationActivePatch) error
 	ClearUserConversationActiveAt(ctx context.Context, uid string, keys []ConversationKey) error
 	ListUserConversationActive(ctx context.Context, uid string, limit int) ([]UserConversationState, error)
 	ListUserConversationStatePage(ctx context.Context, uid string, after ConversationCursor, limit int) ([]UserConversationState, ConversationCursor, bool, error)
@@ -66,8 +66,8 @@ func TestShardTouchUserConversationActiveAtPreservesUpdatedAt(t *testing.T) {
 		UpdatedAt:    200,
 	}
 	require.NoError(t, shard.UpsertUserConversationState(ctx, state))
-	require.NoError(t, shard.TouchUserConversationActiveAt(ctx, "u1", "g1", 2, 300))
-	require.NoError(t, shard.TouchUserConversationActiveAt(ctx, "u1", "g1", 2, 250))
+	require.NoError(t, shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 300}))
+	require.NoError(t, shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 250}))
 
 	got, err := shard.GetUserConversationState(ctx, "u1", "g1", 2)
 	require.NoError(t, err)
@@ -90,12 +90,95 @@ func TestShardTouchUserConversationActiveAtAllowsHashSlotZero(t *testing.T) {
 		ActiveAt:    100,
 		UpdatedAt:   10,
 	}))
-	require.NoError(t, shard.TouchUserConversationActiveAt(ctx, "u0", "g0", 2, 300))
+	require.NoError(t, shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{UID: "u0", ChannelID: "g0", ChannelType: 2, ActiveAt: 300}))
 
 	got, err := shard.GetUserConversationState(ctx, "u0", "g0", 2)
 	require.NoError(t, err)
 	require.Equal(t, int64(300), got.ActiveAt)
 	require.Equal(t, int64(10), got.UpdatedAt)
+}
+
+func TestShardTouchUserConversationActiveAtSkipsDeletedMessageSeq(t *testing.T) {
+	shard := openConversationTestShard(t)
+	ctx := context.Background()
+
+	require.NoError(t, shard.UpsertUserConversationState(ctx, UserConversationState{
+		UID:          "u1",
+		ChannelID:    "g1",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+		ActiveAt:     0,
+		UpdatedAt:    50,
+	}))
+
+	require.NoError(t, shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{
+		UID:         "u1",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		ActiveAt:    100,
+		MessageSeq:  10,
+	}))
+
+	got, err := shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), got.ActiveAt)
+
+	require.NoError(t, shard.TouchUserConversationActiveAt(ctx, UserConversationActivePatch{
+		UID:         "u1",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		ActiveAt:    200,
+		MessageSeq:  11,
+	}))
+
+	got, err = shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	require.NoError(t, err)
+	require.Equal(t, int64(200), got.ActiveAt)
+}
+
+func TestWriteBatchTouchUserConversationActiveAtSkipsDeletedMessageSeq(t *testing.T) {
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+	ctx := context.Background()
+
+	require.NoError(t, shard.UpsertUserConversationState(ctx, UserConversationState{
+		UID:          "u1",
+		ChannelID:    "g1",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+		ActiveAt:     0,
+		UpdatedAt:    50,
+	}))
+
+	wb := db.NewWriteBatch()
+	defer wb.Close()
+	require.NoError(t, wb.TouchUserConversationActiveAt(7, []UserConversationActivePatch{{
+		UID:         "u1",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		ActiveAt:    100,
+		MessageSeq:  10,
+	}}))
+	require.NoError(t, wb.Commit())
+
+	got, err := shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), got.ActiveAt)
+
+	wb = db.NewWriteBatch()
+	defer wb.Close()
+	require.NoError(t, wb.TouchUserConversationActiveAt(7, []UserConversationActivePatch{{
+		UID:         "u1",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		ActiveAt:    200,
+		MessageSeq:  11,
+	}}))
+	require.NoError(t, wb.Commit())
+
+	got, err = shard.GetUserConversationState(ctx, "u1", "g1", 2)
+	require.NoError(t, err)
+	require.Equal(t, int64(200), got.ActiveAt)
 }
 
 func TestShardListUserConversationStatePageReturnsStableCursor(t *testing.T) {
