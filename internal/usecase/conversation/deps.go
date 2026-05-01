@@ -25,8 +25,6 @@ type MessageFactsStore interface {
 }
 
 type ProjectorStore interface {
-	BatchGetChannelUpdateLogs(ctx context.Context, keys []metadb.ConversationKey) (map[metadb.ConversationKey]metadb.ChannelUpdateLog, error)
-	UpsertChannelUpdateLogs(ctx context.Context, entries []metadb.ChannelUpdateLog) error
-	TouchUserConversationActiveAt(ctx context.Context, patches []metadb.UserConversationActivePatch) error
+	SubmitUserConversationActiveHints(ctx context.Context, hints []metadb.UserConversationActiveHint) error
 	ListChannelSubscribers(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error)
 }
