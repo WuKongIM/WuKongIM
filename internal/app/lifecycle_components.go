@@ -7,18 +7,19 @@ import (
 )
 
 const (
-	appLifecycleCluster               = "cluster"
-	appLifecycleManagedSlotsReady     = "managed_slots_ready"
-	appLifecycleChannelMeta           = "channelmeta"
-	appLifecyclePresence              = "presence"
-	appLifecycleConversationProjector = "conversation_projector"
-	appLifecycleDeliveryRuntime       = "delivery_runtime"
-	appLifecycleCommittedDispatcher   = "committed_dispatcher"
-	appLifecycleCommittedReplay       = "committed_replay"
-	appLifecycleChannelRetention      = "channel_retention"
-	appLifecycleGateway               = "gateway"
-	appLifecycleAPI                   = "api"
-	appLifecycleManager               = "manager"
+	appLifecycleCluster                 = "cluster"
+	appLifecycleManagedSlotsReady       = "managed_slots_ready"
+	appLifecycleChannelMeta             = "channelmeta"
+	appLifecyclePresence                = "presence"
+	appLifecycleConversationActiveHints = "conversation_active_hints"
+	appLifecycleConversationProjector   = "conversation_projector"
+	appLifecycleDeliveryRuntime         = "delivery_runtime"
+	appLifecycleCommittedDispatcher     = "committed_dispatcher"
+	appLifecycleCommittedReplay         = "committed_replay"
+	appLifecycleChannelRetention        = "channel_retention"
+	appLifecycleGateway                 = "gateway"
+	appLifecycleAPI                     = "api"
+	appLifecycleManager                 = "manager"
 )
 
 type appLifecycleComponent struct {
@@ -62,6 +63,9 @@ func (a *App) lifecycleComponents(includeStopOnly bool) []applifecycle.Component
 	}
 	if a.hasPresenceLifecycle(includeStopOnly) {
 		components = append(components, a.presenceLifecycleComponent())
+	}
+	if a.hasConversationActiveHintsLifecycle(includeStopOnly) {
+		components = append(components, a.conversationActiveHintsLifecycleComponent())
 	}
 	if a.hasConversationProjectorLifecycle(includeStopOnly) {
 		components = append(components, a.conversationProjectorLifecycleComponent())
@@ -159,6 +163,22 @@ func (a *App) conversationProjectorLifecycleComponent() applifecycle.Component {
 		},
 		stop: func(context.Context) error {
 			return a.stopConversationProjector()
+		},
+	}
+}
+
+func (a *App) conversationActiveHintsLifecycleComponent() applifecycle.Component {
+	return appLifecycleComponent{
+		name: appLifecycleConversationActiveHints,
+		start: func(context.Context) error {
+			if err := a.startConversationActiveHints(); err != nil {
+				return err
+			}
+			a.conversationHintsOn.Store(true)
+			return nil
+		},
+		stop: func(context.Context) error {
+			return a.stopConversationActiveHints()
 		},
 	}
 }
@@ -291,6 +311,12 @@ func (a *App) hasConversationProjectorLifecycle(includeStopOnly bool) bool {
 	return a.conversationProjector != nil ||
 		a.startConversationProjectorFn != nil ||
 		(includeStopOnly && (a.stopConversationProjectorFn != nil || a.conversationOn.Load()))
+}
+
+func (a *App) hasConversationActiveHintsLifecycle(includeStopOnly bool) bool {
+	return a.conversationActiveHints != nil ||
+		a.startConversationActiveHintsFn != nil ||
+		(includeStopOnly && (a.stopConversationActiveHintsFn != nil || a.conversationHintsOn.Load()))
 }
 
 func (a *App) hasDeliveryRuntimeLifecycle(includeStopOnly bool) bool {

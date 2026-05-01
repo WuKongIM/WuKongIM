@@ -358,6 +358,38 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	activeHintFlushInterval, err := parseDuration(v, "WK_CONVERSATION_ACTIVE_HINT_FLUSH_INTERVAL")
+	if err != nil {
+		return app.Config{}, err
+	}
+	activeHintTTL, err := parseDuration(v, "WK_CONVERSATION_ACTIVE_HINT_TTL")
+	if err != nil {
+		return app.Config{}, err
+	}
+	activeHintBarrierTTL, err := parseDuration(v, "WK_CONVERSATION_ACTIVE_HINT_BARRIER_TTL")
+	if err != nil {
+		return app.Config{}, err
+	}
+	activeHintMaxHints, err := parseInt(v, "WK_CONVERSATION_ACTIVE_HINT_MAX_HINTS")
+	if err != nil {
+		return app.Config{}, err
+	}
+	activeHintMaxHintsPerUID, err := parseInt(v, "WK_CONVERSATION_ACTIVE_HINT_MAX_HINTS_PER_UID")
+	if err != nil {
+		return app.Config{}, err
+	}
+	activeHintFlushBatchSize, err := parseInt(v, "WK_CONVERSATION_ACTIVE_HINT_FLUSH_BATCH_SIZE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	groupActiveFanoutInterval, err := parseDuration(v, "WK_CONVERSATION_GROUP_ACTIVE_FANOUT_INTERVAL")
+	if err != nil {
+		return app.Config{}, err
+	}
+	groupActiveFanoutMaxSubscribers, err := parseInt(v, "WK_CONVERSATION_GROUP_ACTIVE_FANOUT_MAX_SUBSCRIBERS")
+	if err != nil {
+		return app.Config{}, err
+	}
 
 	cfg := app.Config{
 		Node: app.NodeConfig{
@@ -424,6 +456,16 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			ScanInterval:     channelMessageRetentionScanInterval,
 			ChannelBatchSize: channelMessageRetentionChannelBatchSize,
 			MaxTrimMessages:  channelMessageRetentionMaxTrimMessages,
+		},
+		Conversation: app.ConversationConfig{
+			ActiveHintFlushInterval:         activeHintFlushInterval,
+			ActiveHintTTL:                   activeHintTTL,
+			ActiveHintBarrierTTL:            activeHintBarrierTTL,
+			ActiveHintMaxHints:              activeHintMaxHints,
+			ActiveHintMaxHintsPerUID:        activeHintMaxHintsPerUID,
+			ActiveHintFlushBatchSize:        activeHintFlushBatchSize,
+			GroupActiveFanoutInterval:       groupActiveFanoutInterval,
+			GroupActiveFanoutMaxSubscribers: groupActiveFanoutMaxSubscribers,
 		},
 		API: app.APIConfig{
 			ListenAddr:      defaultAPIListenAddr,

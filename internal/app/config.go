@@ -376,6 +376,22 @@ type ConversationConfig struct {
 	FlushDirtyLimit int
 	// SubscriberPageSize is the page size used when scanning channel subscribers for projection side effects.
 	SubscriberPageSize int
+	// ActiveHintFlushInterval is the background interval for flushing best-effort active hints.
+	ActiveHintFlushInterval time.Duration
+	// ActiveHintTTL controls how long unflushed hot active hints remain visible in memory.
+	ActiveHintTTL time.Duration
+	// ActiveHintBarrierTTL controls how long delete barriers block stale delayed hints in memory.
+	ActiveHintBarrierTTL time.Duration
+	// ActiveHintMaxHints limits total hot active hints held in memory.
+	ActiveHintMaxHints int
+	// ActiveHintMaxHintsPerUID limits hot active hints per UID.
+	ActiveHintMaxHintsPerUID int
+	// ActiveHintFlushBatchSize limits active hints written per flush batch.
+	ActiveHintFlushBatchSize int
+	// GroupActiveFanoutInterval throttles subscriber fanout for group active hints.
+	GroupActiveFanoutInterval time.Duration
+	// GroupActiveFanoutMaxSubscribers caps subscriber fanout for large groups; zero disables group fanout.
+	GroupActiveFanoutMaxSubscribers int
 }
 
 // ApplyDefaultsAndValidate fills default values and validates cross-field constraints.
@@ -659,6 +675,27 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	}
 	if c.Conversation.SubscriberPageSize <= 0 {
 		c.Conversation.SubscriberPageSize = 512
+	}
+	if c.Conversation.ActiveHintFlushInterval <= 0 {
+		c.Conversation.ActiveHintFlushInterval = 2 * time.Second
+	}
+	if c.Conversation.ActiveHintTTL <= 0 {
+		c.Conversation.ActiveHintTTL = 30 * time.Minute
+	}
+	if c.Conversation.ActiveHintBarrierTTL <= 0 {
+		c.Conversation.ActiveHintBarrierTTL = 30 * time.Minute
+	}
+	if c.Conversation.ActiveHintMaxHints <= 0 {
+		c.Conversation.ActiveHintMaxHints = 100000
+	}
+	if c.Conversation.ActiveHintMaxHintsPerUID <= 0 {
+		c.Conversation.ActiveHintMaxHintsPerUID = 1000
+	}
+	if c.Conversation.ActiveHintFlushBatchSize <= 0 {
+		c.Conversation.ActiveHintFlushBatchSize = 1024
+	}
+	if c.Conversation.GroupActiveFanoutInterval <= 0 {
+		c.Conversation.GroupActiveFanoutInterval = 5 * time.Minute
 	}
 	if c.ChannelMessageRetention.ScanInterval <= 0 {
 		c.ChannelMessageRetention.ScanInterval = defaultChannelMessageRetentionScanInterval

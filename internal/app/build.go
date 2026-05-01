@@ -358,13 +358,26 @@ func build(cfg Config) (_ *App, err error) {
 		AfterLocalApply:     app.channelMetaSync.scheduleLeaderRepairForMeta,
 		MetaRefreshObserver: channelMetaObserver,
 	})
+	app.conversationActiveHints = conversationusecase.NewActiveHintCache(conversationusecase.ActiveHintCacheOptions{
+		Store:          app.store,
+		FlushInterval:  cfg.Conversation.ActiveHintFlushInterval,
+		HintTTL:        cfg.Conversation.ActiveHintTTL,
+		BarrierTTL:     cfg.Conversation.ActiveHintBarrierTTL,
+		MaxHints:       cfg.Conversation.ActiveHintMaxHints,
+		MaxHintsPerUID: cfg.Conversation.ActiveHintMaxHintsPerUID,
+		FlushBatchSize: cfg.Conversation.ActiveHintFlushBatchSize,
+		Logger:         app.logger.Named("conversation.active_hint"),
+	})
+	app.store.RegisterUserConversationActiveOverlay(app.conversationActiveHints)
 	app.conversationProjector = conversationusecase.NewProjector(conversationusecase.ProjectorOptions{
-		Store:              app.store,
-		FlushInterval:      cfg.Conversation.FlushInterval,
-		DirtyLimit:         cfg.Conversation.FlushDirtyLimit,
-		ColdThreshold:      cfg.Conversation.ColdThreshold,
-		SubscriberPageSize: cfg.Conversation.SubscriberPageSize,
-		Logger:             app.logger.Named("conversation.projector"),
+		Store:                           app.store,
+		FlushInterval:                   cfg.Conversation.FlushInterval,
+		DirtyLimit:                      cfg.Conversation.FlushDirtyLimit,
+		ColdThreshold:                   cfg.Conversation.ColdThreshold,
+		SubscriberPageSize:              cfg.Conversation.SubscriberPageSize,
+		GroupActiveFanoutInterval:       cfg.Conversation.GroupActiveFanoutInterval,
+		GroupActiveFanoutMaxSubscribers: cfg.Conversation.GroupActiveFanoutMaxSubscribers,
+		Logger:                          app.logger.Named("conversation.projector"),
 	})
 	app.conversationApp = conversationusecase.New(conversationusecase.Options{
 		States: app.store,

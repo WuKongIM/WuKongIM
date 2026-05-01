@@ -37,6 +37,7 @@ func TestNewBuildsDBClusterStoreMessageAndGatewayAdapter(t *testing.T) {
 	require.NotNil(t, app.Cluster())
 	require.NotNil(t, app.Store())
 	require.NotNil(t, app.Message())
+	requireAppFieldNonNil(t, app, "conversationActiveHints")
 	require.NotNil(t, app.GatewayHandler())
 	require.NotNil(t, app.Gateway())
 	require.Nil(t, app.API())
@@ -433,6 +434,10 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 			calls = append(calls, "presence.start")
 			return nil
 		},
+		startConversationActiveHintsFn: func() error {
+			calls = append(calls, "conversation_active_hints.start")
+			return nil
+		},
 		startConversationProjectorFn: func() error {
 			calls = append(calls, "conversation_projector.start")
 			return nil
@@ -473,6 +478,7 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 		"managed_slots_ready.start",
 		"channelmeta.start",
 		"presence.start",
+		"conversation_active_hints.start",
 		"conversation_projector.start",
 		"delivery_runtime.start",
 		"committed_dispatcher.start",
@@ -745,6 +751,61 @@ func TestStartStopIncludesConversationProjector(t *testing.T) {
 
 	require.NoError(t, app.Stop())
 	require.Equal(t, []string{"cluster.start", "conversation.start", "gateway.start", "gateway.stop", "conversation.stop", "cluster.stop"}, calls)
+}
+
+func TestStartStopIncludesConversationActiveHintCache(t *testing.T) {
+	var calls []string
+
+	app := &App{
+		cluster: &raftcluster.Cluster{},
+		gateway: &gateway.Gateway{},
+		startClusterFn: func() error {
+			calls = append(calls, "cluster.start")
+			return nil
+		},
+		startConversationActiveHintsFn: func() error {
+			calls = append(calls, "active_hints.start")
+			return nil
+		},
+		startConversationProjectorFn: func() error {
+			calls = append(calls, "projector.start")
+			return nil
+		},
+		startGatewayFn: func() error {
+			calls = append(calls, "gateway.start")
+			return nil
+		},
+		stopGatewayFn: func() error {
+			calls = append(calls, "gateway.stop")
+			return nil
+		},
+		stopConversationProjectorFn: func() error {
+			calls = append(calls, "projector.stop")
+			return nil
+		},
+		stopConversationActiveHintsFn: func() error {
+			calls = append(calls, "active_hints.stop")
+			return nil
+		},
+		stopClusterFn: func() {
+			calls = append(calls, "cluster.stop")
+		},
+	}
+
+	require.NoError(t, app.Start())
+	require.Equal(t, []string{"cluster.start", "active_hints.start", "projector.start", "gateway.start"}, calls)
+
+	require.NoError(t, app.Stop())
+	require.Equal(t, []string{
+		"cluster.start",
+		"active_hints.start",
+		"projector.start",
+		"gateway.start",
+		"gateway.stop",
+		"projector.stop",
+		"active_hints.stop",
+		"cluster.stop",
+	}, calls)
 }
 
 func TestStartRollsBackClusterWhenGatewayStartFails(t *testing.T) {
