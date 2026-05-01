@@ -39,6 +39,15 @@ type SetUnreadCommand struct {
 	Unread      int
 }
 
+// DeleteConversationCommand hides a conversation through MessageSeq for one user.
+type DeleteConversationCommand struct {
+	UID         string
+	ChannelID   string
+	ChannelType uint8
+	// MessageSeq is the delete barrier. When zero, the latest channel sequence is loaded.
+	MessageSeq uint64
+}
+
 // SyncConversation is the entry returned by conversation sync APIs.
 type SyncConversation struct {
 	ChannelID       string

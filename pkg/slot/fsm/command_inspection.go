@@ -71,6 +71,10 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 			"deprecated": true,
 			"reserved":   true,
 		}), nil
+	case *hideUserConversationsCmd:
+		return simpleInspection("hide_user_conversations", map[string]any{
+			"deletes": userConversationDeletesPayload(typed.deletes),
+		}), nil
 	case *applyDeltaCmd:
 		return applyDeltaInspection(typed)
 	case *enterFenceCmd:
@@ -205,6 +209,20 @@ func userConversationActivePatchesPayload(patches []metadb.UserConversationActiv
 			"channel_type": patch.ChannelType,
 			"active_at":    patch.ActiveAt,
 			"message_seq":  patch.MessageSeq,
+		})
+	}
+	return out
+}
+
+func userConversationDeletesPayload(deletes []metadb.UserConversationDelete) []map[string]any {
+	out := make([]map[string]any, 0, len(deletes))
+	for _, req := range deletes {
+		out = append(out, map[string]any{
+			"uid":            req.UID,
+			"channel_id":     req.ChannelID,
+			"channel_type":   req.ChannelType,
+			"deleted_to_seq": req.DeletedToSeq,
+			"updated_at":     req.UpdatedAt,
 		})
 	}
 	return out

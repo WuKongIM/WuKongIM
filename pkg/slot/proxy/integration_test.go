@@ -1244,6 +1244,40 @@ func TestStoreRemoveUserConversationActiveHintsRoutesDeleteBarrierToUIDOwnerOver
 	require.ErrorIs(t, err, metadb.ErrNotFound)
 }
 
+func TestStoreHideUserConversationsRoutesToUIDOwnerAndClearsActiveAt(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	uid := findUIDForSlot(t, nodes[0].cluster, 2, "hide-conversation")
+	hashSlot := mustHashSlotForKey(t, nodes[1].cluster, uid)
+	require.NoError(t, nodes[1].db.ForHashSlot(hashSlot).UpsertUserConversationState(ctx, metadb.UserConversationState{
+		UID:          uid,
+		ChannelID:    "g1",
+		ChannelType:  2,
+		ReadSeq:      5,
+		DeletedToSeq: 3,
+		ActiveAt:     100,
+		UpdatedAt:    10,
+	}))
+
+	require.NoError(t, nodes[0].store.HideUserConversations(ctx, []metadb.UserConversationDelete{{
+		UID:          uid,
+		ChannelID:    "g1",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+		UpdatedAt:    20,
+	}}))
+
+	got, err := nodes[1].db.ForHashSlot(hashSlot).GetUserConversationState(ctx, uid, "g1", 2)
+	require.NoError(t, err)
+	require.Equal(t, uint64(10), got.DeletedToSeq)
+	require.Equal(t, int64(0), got.ActiveAt)
+	require.Equal(t, int64(20), got.UpdatedAt)
+	active, err := nodes[0].store.ListUserConversationActive(ctx, uid, 10)
+	require.NoError(t, err)
+	require.Empty(t, active)
+}
+
 type recordingUserConversationActiveOverlay struct {
 	mu       sync.Mutex
 	hot      map[string][]metadb.UserConversationActiveHint

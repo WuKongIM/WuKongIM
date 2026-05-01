@@ -59,6 +59,7 @@ func TestHashSlotAPIsUseUint16Signatures(t *testing.T) {
 		"UpsertUserConversationState",
 		"TouchUserConversationActiveAt",
 		"ClearUserConversationActiveAt",
+		"HideUserConversation",
 		"DeleteChannelRuntimeMeta",
 		"AddSubscribers",
 		"RemoveSubscribers",

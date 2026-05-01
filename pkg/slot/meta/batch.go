@@ -322,6 +322,46 @@ func (b *WriteBatch) ClearUserConversationActiveAt(hashSlot uint16, uid string, 
 	return nil
 }
 
+// HideUserConversation hides a user conversation through DeletedToSeq and
+// clears active_at in the same write batch.
+func (b *WriteBatch) HideUserConversation(hashSlot uint16, req UserConversationDelete) error {
+	if err := validateHashSlot(hashSlot); err != nil {
+		return err
+	}
+	if err := validateUserConversationDelete(req); err != nil {
+		return err
+	}
+
+	primaryKey := encodeUserConversationStatePrimaryKey(hashSlot, req.UID, req.ChannelType, req.ChannelID, userConversationStatePrimaryFamilyID)
+	current, exists, err := b.loadUserConversationState(hashSlot, primaryKey, req.UID, req.ChannelID, req.ChannelType)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		if req.DeletedToSeq == 0 {
+			return nil
+		}
+		current = UserConversationState{
+			UID:         req.UID,
+			ChannelID:   req.ChannelID,
+			ChannelType: req.ChannelType,
+		}
+	}
+
+	next := hideUserConversationState(current, req)
+	if exists && current.ActiveAt > 0 {
+		oldIndexKey := encodeUserConversationActiveIndexKey(hashSlot, req.UID, current.ActiveAt, req.ChannelType, req.ChannelID)
+		if err := b.batch.Delete(oldIndexKey, nil); err != nil {
+			return err
+		}
+	}
+	if err := b.batch.Set(primaryKey, encodeUserConversationStateFamilyValue(next, primaryKey), nil); err != nil {
+		return err
+	}
+	b.rememberUserConversationState(primaryKey, next, true)
+	return nil
+}
+
 // DeleteChannelRuntimeMeta removes the runtime metadata record for a channel.
 func (b *WriteBatch) DeleteChannelRuntimeMeta(hashSlot uint16, channelID string, channelType int64) error {
 	if err := validateHashSlot(hashSlot); err != nil {
