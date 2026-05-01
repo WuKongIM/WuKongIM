@@ -9,6 +9,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -868,6 +869,159 @@ func TestStoreListUserConversationActiveReadsAuthoritativeSlot(t *testing.T) {
 	}, got)
 }
 
+func TestStoreListUserConversationActiveMergesLocalOverlay(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	uid := findUIDForSlot(t, nodes[0].cluster, 1, "local-overlay")
+	hashSlot := mustHashSlotForKey(t, nodes[0].cluster, uid)
+	require.NoError(t, nodes[0].db.ForHashSlot(hashSlot).UpsertUserConversationState(ctx, metadb.UserConversationState{
+		UID:         uid,
+		ChannelID:   "persisted",
+		ChannelType: 2,
+		ReadSeq:     7,
+		ActiveAt:    100,
+		UpdatedAt:   10,
+	}))
+	overlay := newRecordingUserConversationActiveOverlay()
+	overlay.hot[uid] = []metadb.UserConversationActiveHint{{
+		UID:         uid,
+		ChannelID:   "hot",
+		ChannelType: 2,
+		ActiveAt:    300,
+		MessageSeq:  30,
+	}}
+	nodes[0].store.RegisterUserConversationActiveOverlay(overlay)
+
+	got, err := nodes[0].store.ListUserConversationActive(ctx, uid, 10)
+	require.NoError(t, err)
+	require.Equal(t, []metadb.UserConversationState{
+		{UID: uid, ChannelID: "hot", ChannelType: 2, ActiveAt: 300},
+		{UID: uid, ChannelID: "persisted", ChannelType: 2, ReadSeq: 7, ActiveAt: 100, UpdatedAt: 10},
+	}, got)
+}
+
+func TestStoreListUserConversationActiveOverlayCanSynthesizeMissingState(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	uid := findUIDForSlot(t, nodes[0].cluster, 1, "synth-overlay")
+	overlay := newRecordingUserConversationActiveOverlay()
+	overlay.hot[uid] = []metadb.UserConversationActiveHint{{
+		UID:         uid,
+		ChannelID:   "hot-only",
+		ChannelType: 2,
+		ActiveAt:    300,
+		MessageSeq:  30,
+	}}
+	nodes[0].store.RegisterUserConversationActiveOverlay(overlay)
+
+	got, err := nodes[0].store.ListUserConversationActive(ctx, uid, 10)
+	require.NoError(t, err)
+	require.Equal(t, []metadb.UserConversationState{
+		{UID: uid, ChannelID: "hot-only", ChannelType: 2, ActiveAt: 300},
+	}, got)
+}
+
+func TestStoreListUserConversationActiveOverlaySkipsInactiveDeletedState(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	uid := findUIDForSlot(t, nodes[0].cluster, 1, "stale-overlay")
+	hashSlot := mustHashSlotForKey(t, nodes[0].cluster, uid)
+	require.NoError(t, nodes[0].db.ForHashSlot(hashSlot).UpsertUserConversationState(ctx, metadb.UserConversationState{
+		UID:          uid,
+		ChannelID:    "deleted",
+		ChannelType:  2,
+		ReadSeq:      7,
+		DeletedToSeq: 10,
+		ActiveAt:     0,
+		UpdatedAt:    99,
+	}))
+	overlay := newRecordingUserConversationActiveOverlay()
+	overlay.hot[uid] = []metadb.UserConversationActiveHint{{
+		UID:         uid,
+		ChannelID:   "deleted",
+		ChannelType: 2,
+		ActiveAt:    300,
+		MessageSeq:  10,
+	}}
+	nodes[0].store.RegisterUserConversationActiveOverlay(overlay)
+
+	got, err := nodes[0].store.ListUserConversationActive(ctx, uid, 10)
+	require.NoError(t, err)
+	require.Empty(t, got)
+}
+
+func TestStoreListUserConversationActiveOverlayReactivatesInactiveDeletedStateForNewerSeq(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	uid := findUIDForSlot(t, nodes[0].cluster, 1, "newer-overlay")
+	hashSlot := mustHashSlotForKey(t, nodes[0].cluster, uid)
+	require.NoError(t, nodes[0].db.ForHashSlot(hashSlot).UpsertUserConversationState(ctx, metadb.UserConversationState{
+		UID:          uid,
+		ChannelID:    "deleted",
+		ChannelType:  2,
+		ReadSeq:      7,
+		DeletedToSeq: 10,
+		ActiveAt:     0,
+		UpdatedAt:    99,
+	}))
+	overlay := newRecordingUserConversationActiveOverlay()
+	overlay.hot[uid] = []metadb.UserConversationActiveHint{{
+		UID:         uid,
+		ChannelID:   "deleted",
+		ChannelType: 2,
+		ActiveAt:    300,
+		MessageSeq:  11,
+	}}
+	nodes[0].store.RegisterUserConversationActiveOverlay(overlay)
+
+	got, err := nodes[0].store.ListUserConversationActive(ctx, uid, 10)
+	require.NoError(t, err)
+	require.Equal(t, []metadb.UserConversationState{{
+		UID:          uid,
+		ChannelID:    "deleted",
+		ChannelType:  2,
+		ReadSeq:      7,
+		DeletedToSeq: 10,
+		ActiveAt:     300,
+		UpdatedAt:    99,
+	}}, got)
+}
+
+func TestStoreListUserConversationActiveRemoteOwnerMergesOverlay(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	uid := findUIDForSlot(t, nodes[0].cluster, 2, "remote-overlay")
+	hashSlot := mustHashSlotForKey(t, nodes[1].cluster, uid)
+	require.NoError(t, nodes[1].db.ForHashSlot(hashSlot).UpsertUserConversationState(ctx, metadb.UserConversationState{
+		UID:         uid,
+		ChannelID:   "persisted",
+		ChannelType: 2,
+		ActiveAt:    100,
+		UpdatedAt:   10,
+	}))
+	overlay := newRecordingUserConversationActiveOverlay()
+	overlay.hot[uid] = []metadb.UserConversationActiveHint{{
+		UID:         uid,
+		ChannelID:   "hot",
+		ChannelType: 2,
+		ActiveAt:    300,
+		MessageSeq:  30,
+	}}
+	nodes[1].store.RegisterUserConversationActiveOverlay(overlay)
+
+	got, err := nodes[0].store.ListUserConversationActive(ctx, uid, 10)
+	require.NoError(t, err)
+	require.Equal(t, []metadb.UserConversationState{
+		{UID: uid, ChannelID: "hot", ChannelType: 2, ActiveAt: 300},
+		{UID: uid, ChannelID: "persisted", ChannelType: 2, ActiveAt: 100, UpdatedAt: 10},
+	}, got)
+}
+
 func TestStoreScanUserConversationStatePageReadsAuthoritativeSlot(t *testing.T) {
 	ctx := context.Background()
 	nodes := startTwoNodeShardedStores(t)
@@ -1011,6 +1165,95 @@ func TestStoreTouchUserConversationActiveAtGroupsByUIDSlot(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(250), got.ActiveAt)
 	require.Equal(t, int64(20), got.UpdatedAt)
+}
+
+func TestStoreSubmitUserConversationActiveHintsRoutesToUIDOwnerOverlay(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	uid := findUIDForSlot(t, nodes[0].cluster, 2, "submit-overlay")
+	overlay := newRecordingUserConversationActiveOverlay()
+	nodes[1].store.RegisterUserConversationActiveOverlay(overlay)
+	hint := metadb.UserConversationActiveHint{
+		UID:         uid,
+		ChannelID:   "hot",
+		ChannelType: 2,
+		ActiveAt:    300,
+		MessageSeq:  30,
+	}
+
+	require.NoError(t, nodes[0].store.SubmitUserConversationActiveHints(ctx, []metadb.UserConversationActiveHint{hint}))
+	require.Equal(t, []metadb.UserConversationActiveHint{hint}, overlay.submittedHints())
+	_, err := nodes[1].db.ForHashSlot(mustHashSlotForKey(t, nodes[1].cluster, uid)).GetUserConversationState(ctx, uid, "hot", 2)
+	require.ErrorIs(t, err, metadb.ErrNotFound)
+}
+
+func TestStoreRemoveUserConversationActiveHintsRoutesDeleteBarrierToUIDOwnerOverlay(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	uid := findUIDForSlot(t, nodes[0].cluster, 2, "remove-overlay")
+	overlay := newRecordingUserConversationActiveOverlay()
+	nodes[1].store.RegisterUserConversationActiveOverlay(overlay)
+	barrier := metadb.UserConversationDeleteBarrier{
+		UID:          uid,
+		ChannelID:    "hot",
+		ChannelType:  2,
+		DeletedToSeq: 30,
+	}
+
+	require.NoError(t, nodes[0].store.RemoveUserConversationActiveHints(ctx, []metadb.UserConversationDeleteBarrier{barrier}))
+	require.Equal(t, []metadb.UserConversationDeleteBarrier{barrier}, overlay.removedBarriers())
+	_, err := nodes[1].db.ForHashSlot(mustHashSlotForKey(t, nodes[1].cluster, uid)).GetUserConversationState(ctx, uid, "hot", 2)
+	require.ErrorIs(t, err, metadb.ErrNotFound)
+}
+
+type recordingUserConversationActiveOverlay struct {
+	mu       sync.Mutex
+	hot      map[string][]metadb.UserConversationActiveHint
+	hints    []metadb.UserConversationActiveHint
+	barriers []metadb.UserConversationDeleteBarrier
+}
+
+func newRecordingUserConversationActiveOverlay() *recordingUserConversationActiveOverlay {
+	return &recordingUserConversationActiveOverlay{
+		hot: make(map[string][]metadb.UserConversationActiveHint),
+	}
+}
+
+func (o *recordingUserConversationActiveOverlay) ListHotUserConversationActive(_ context.Context, uid string, _ int) ([]metadb.UserConversationActiveHint, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]metadb.UserConversationActiveHint(nil), o.hot[uid]...), nil
+}
+
+func (o *recordingUserConversationActiveOverlay) SubmitHints(_ context.Context, hints []metadb.UserConversationActiveHint) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.hints = append(o.hints, hints...)
+	for _, hint := range hints {
+		o.hot[hint.UID] = append(o.hot[hint.UID], hint)
+	}
+	return nil
+}
+
+func (o *recordingUserConversationActiveOverlay) RemoveHints(_ context.Context, barriers []metadb.UserConversationDeleteBarrier) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.barriers = append(o.barriers, barriers...)
+	return nil
+}
+
+func (o *recordingUserConversationActiveOverlay) submittedHints() []metadb.UserConversationActiveHint {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]metadb.UserConversationActiveHint(nil), o.hints...)
+}
+
+func (o *recordingUserConversationActiveOverlay) removedBarriers() []metadb.UserConversationDeleteBarrier {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]metadb.UserConversationDeleteBarrier(nil), o.barriers...)
 }
 
 func TestPebbleBackedGroupDoesNotRecoverDeletedBusinessStateWithoutSnapshot(t *testing.T) {
