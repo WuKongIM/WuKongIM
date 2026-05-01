@@ -399,7 +399,7 @@ func (s *Store) listUserConversationActiveLocal(ctx context.Context, hashSlot ui
 		return persisted, nil
 	}
 
-	hints, err := s.userConversationActiveOverlay.ListHotUserConversationActive(ctx, uid, expandedUserConversationActiveOverlayLimit(limit))
+	hints, err := s.userConversationActiveOverlay.ListHotUserConversationActive(ctx, uid, userConversationActiveOverlayAllHintsLimit)
 	if err != nil {
 		return persisted, nil
 	}
@@ -464,14 +464,9 @@ func (s *Store) listUserConversationActiveLocal(ctx context.Context, hashSlot ui
 	return states, nil
 }
 
-func expandedUserConversationActiveOverlayLimit(limit int) int {
-	const defaultOverlayPageLimit = 64
-	expanded := limit * 2
-	if expanded < defaultOverlayPageLimit {
-		return defaultOverlayPageLimit
-	}
-	return expanded
-}
+// userConversationActiveOverlayAllHintsLimit asks the bounded hot overlay for
+// every UID-local hint so stale front entries cannot hide a later valid one.
+const userConversationActiveOverlayAllHintsLimit = -1
 
 func (s *Store) submitUserConversationActiveHintsLocal(ctx context.Context, hints []metadb.UserConversationActiveHint) error {
 	if s.userConversationActiveOverlay == nil || len(hints) == 0 {

@@ -26,6 +26,8 @@ type ChannelUpdateOverlay interface {
 // UserConversationActiveOverlay exposes hot UID-owned active hints that have
 // not been durably folded into the slot state yet.
 type UserConversationActiveOverlay interface {
+	// ListHotUserConversationActive returns hot hints ordered by active_at.
+	// A negative limit requests the complete bounded hot set for the UID.
 	ListHotUserConversationActive(ctx context.Context, uid string, limit int) ([]metadb.UserConversationActiveHint, error)
 	SubmitHints(ctx context.Context, hints []metadb.UserConversationActiveHint) error
 	RemoveHints(ctx context.Context, barriers []metadb.UserConversationDeleteBarrier) error
