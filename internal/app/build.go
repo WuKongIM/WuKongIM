@@ -367,8 +367,7 @@ func build(cfg Config) (_ *App, err error) {
 		Logger:             app.logger.Named("conversation.projector"),
 	})
 	app.conversationApp = conversationusecase.New(conversationusecase.Options{
-		States:        app.store,
-		ChannelUpdate: app.store,
+		States: app.store,
 		Facts: channelLogConversationFacts{
 			cluster: app.channelLog,
 			metas:   app.store,

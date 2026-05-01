@@ -11,12 +11,6 @@ type ConversationStateStore interface {
 	GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, error)
 	UpsertUserConversationStates(ctx context.Context, states []metadb.UserConversationState) error
 	ListUserConversationActive(ctx context.Context, uid string, limit int) ([]metadb.UserConversationState, error)
-	ScanUserConversationStatePage(ctx context.Context, uid string, after metadb.ConversationCursor, limit int) ([]metadb.UserConversationState, metadb.ConversationCursor, bool, error)
-	ClearUserConversationActiveAt(ctx context.Context, uid string, keys []metadb.ConversationKey) error
-}
-
-type ChannelUpdateStore interface {
-	BatchGetChannelUpdateLogs(ctx context.Context, keys []metadb.ConversationKey) (map[metadb.ConversationKey]metadb.ChannelUpdateLog, error)
 }
 
 type MessageFactsStore interface {

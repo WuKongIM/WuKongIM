@@ -10,7 +10,9 @@ type ConversationKey struct {
 
 // SyncQuery describes a legacy conversation sync request after adapter mapping.
 type SyncQuery struct {
-	UID                 string
+	UID string
+	// Version is kept for legacy clients; sync is now working-set based and
+	// does not use it as a full historical incremental cursor.
 	Version             int64
 	LastMsgSeqs         map[ConversationKey]uint64
 	MsgCount            int
@@ -46,8 +48,10 @@ type SyncConversation struct {
 	LastMsgSeq      uint32
 	LastClientMsgNo string
 	ReadToMsgSeq    uint32
-	Version         int64
-	Recents         []channel.Message
+	// Version is a compatibility timestamp for the returned conversation, not
+	// a complete cursor for discovering all historical conversation changes.
+	Version int64
+	Recents []channel.Message
 }
 
 // SyncResult contains the conversations selected for a sync response.

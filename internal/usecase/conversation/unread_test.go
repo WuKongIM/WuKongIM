@@ -15,10 +15,9 @@ func TestClearUnreadAdvancesReadSeqToLatestMessage(t *testing.T) {
 	repo.latest[key("g1", 2)] = testMessage("g1", 2, 10, "u2", 100, "c1")
 
 	app := New(Options{
-		States:        repo,
-		ChannelUpdate: repo,
-		Facts:         repo,
-		Now:           func() time.Time { return now },
+		States: repo,
+		Facts:  repo,
+		Now:    func() time.Time { return now },
 	})
 
 	err := app.ClearUnread(context.Background(), ClearUnreadCommand{
@@ -44,10 +43,9 @@ func TestClearUnreadUsesClientMessageSeqWhenLatestFactMissing(t *testing.T) {
 	repo := newConversationSyncRepoStub()
 
 	app := New(Options{
-		States:        repo,
-		ChannelUpdate: repo,
-		Facts:         repo,
-		Now:           func() time.Time { return now },
+		States: repo,
+		Facts:  repo,
+		Now:    func() time.Time { return now },
 	})
 
 	err := app.ClearUnread(context.Background(), ClearUnreadCommand{
@@ -84,10 +82,9 @@ func TestSetUnreadAdvancesReadSeqFromLatestMessage(t *testing.T) {
 	repo.latest[key("g1", 2)] = testMessage("g1", 2, 10, "u2", 100, "c1")
 
 	app := New(Options{
-		States:        repo,
-		ChannelUpdate: repo,
-		Facts:         repo,
-		Now:           func() time.Time { return now },
+		States: repo,
+		Facts:  repo,
+		Now:    func() time.Time { return now },
 	})
 
 	err := app.SetUnread(context.Background(), SetUnreadCommand{
@@ -123,9 +120,8 @@ func TestSetUnreadDoesNotMoveReadSeqBackward(t *testing.T) {
 	repo.latest[key("g1", 2)] = testMessage("g1", 2, 10, "u2", 100, "c1")
 
 	app := New(Options{
-		States:        repo,
-		ChannelUpdate: repo,
-		Facts:         repo,
+		States: repo,
+		Facts:  repo,
 	})
 
 	err := app.SetUnread(context.Background(), SetUnreadCommand{
