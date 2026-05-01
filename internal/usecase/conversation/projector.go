@@ -189,7 +189,7 @@ func (p *projector) scheduleFlush() {
 	p.workerRunning = true
 	p.mu.Unlock()
 
-	p.async(func() {
+	go p.async(func() {
 		defer func() {
 			p.mu.Lock()
 			p.workerRunning = false
@@ -304,8 +304,27 @@ func (p *projector) allowGroupFanout(key metadb.ConversationKey, now time.Time) 
 	if ok && now.Sub(last) < p.groupActiveFanoutInterval {
 		return false
 	}
+	if !ok && len(p.lastGroupFanoutAt) >= p.activeHintQueueSize {
+		p.evictOldestGroupFanoutLocked()
+	}
 	p.lastGroupFanoutAt[key] = now
 	return true
+}
+
+func (p *projector) evictOldestGroupFanoutLocked() {
+	var oldestKey metadb.ConversationKey
+	var oldest time.Time
+	set := false
+	for key, at := range p.lastGroupFanoutAt {
+		if !set || at.Before(oldest) {
+			oldestKey = key
+			oldest = at
+			set = true
+		}
+	}
+	if set {
+		delete(p.lastGroupFanoutAt, oldestKey)
+	}
 }
 
 func (p *projector) run(stopCh <-chan struct{}, doneCh chan<- struct{}) {

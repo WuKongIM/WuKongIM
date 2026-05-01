@@ -29,6 +29,7 @@ func TestProjectorSubmitsPersonActiveHints(t *testing.T) {
 		Timestamp:   100,
 	}
 	require.NoError(t, projector.SubmitCommitted(context.Background(), msg))
+	require.NoError(t, projector.Flush(context.Background()))
 
 	activeAt := time.Unix(int64(msg.Timestamp), 0).UnixNano()
 	require.ElementsMatch(t, []metadb.UserConversationActiveHint{
@@ -40,12 +41,12 @@ func TestProjectorSubmitsPersonActiveHints(t *testing.T) {
 func TestProjectorSubmitCommittedDoesNotBlockOnSlowActiveHintRouting(t *testing.T) {
 	store := newProjectorStoreStub()
 	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
-	var asyncFns []func()
+	asyncFns := make(chan func(), 1)
 	projector := NewProjector(ProjectorOptions{
 		Store:         store,
 		FlushInterval: time.Hour,
 		Async: func(fn func()) {
-			asyncFns = append(asyncFns, fn)
+			asyncFns <- fn
 		},
 	})
 
@@ -56,10 +57,50 @@ func TestProjectorSubmitCommittedDoesNotBlockOnSlowActiveHintRouting(t *testing.
 		Timestamp:   100,
 	}))
 
-	require.Len(t, asyncFns, 1)
 	require.Zero(t, store.submitCalls())
-	asyncFns[0]()
+	fn := requireScheduledFlush(t, asyncFns)
+	fn()
 	require.Equal(t, 1, store.submitCalls())
+}
+
+func TestProjectorSubmitCommittedNeverRoutesActiveHintsInline(t *testing.T) {
+	store := newProjectorStoreStub()
+	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	store.beforeSubmit = func() {
+		once.Do(func() { close(started) })
+		<-release
+	}
+	projector := NewProjector(ProjectorOptions{
+		Store:         store,
+		FlushInterval: time.Hour,
+		Async:         func(fn func()) { fn() },
+	})
+
+	done := make(chan error, 1)
+	go func() {
+		done <- projector.SubmitCommitted(context.Background(), channel.Message{
+			ChannelID:   channelID,
+			ChannelType: frame.ChannelTypePerson,
+			MessageSeq:  1,
+			Timestamp:   100,
+		})
+	}()
+
+	select {
+	case err := <-done:
+		close(release)
+		require.NoError(t, err)
+	case <-started:
+		close(release)
+		require.NoError(t, <-done)
+		t.Fatalf("SubmitCommitted routed active hints inline")
+	case <-time.After(200 * time.Millisecond):
+		close(release)
+		t.Fatalf("SubmitCommitted did not return")
+	}
 }
 
 func TestProjectorDoesNotFlushChannelUpdateLogs(t *testing.T) {
@@ -96,10 +137,13 @@ func TestProjectorThrottlesGroupActiveFanout(t *testing.T) {
 	})
 
 	require.NoError(t, projector.SubmitCommitted(context.Background(), groupMessage("g1", 10, int32(now.Unix()))))
+	require.NoError(t, projector.Flush(context.Background()))
 	now = now.Add(30 * time.Minute)
 	require.NoError(t, projector.SubmitCommitted(context.Background(), groupMessage("g1", 11, int32(now.Unix()))))
+	require.NoError(t, projector.Flush(context.Background()))
 	now = now.Add(90 * time.Minute)
 	require.NoError(t, projector.SubmitCommitted(context.Background(), groupMessage("g1", 12, int32(now.Unix()))))
+	require.NoError(t, projector.Flush(context.Background()))
 
 	require.Equal(t, []subscriberListCall{
 		{ChannelID: "g1", ChannelType: 2, AfterUID: "", Limit: 2},
@@ -132,6 +176,7 @@ func TestProjectorDropsGroupFanoutWhenSubscriberBudgetExceeded(t *testing.T) {
 	})
 
 	require.NoError(t, projector.SubmitCommitted(context.Background(), groupMessage("g1", 10, 100)))
+	require.NoError(t, projector.Flush(context.Background()))
 
 	hints := store.submittedHints()
 	require.Len(t, hints, 3)
@@ -140,6 +185,30 @@ func TestProjectorDropsGroupFanoutWhenSubscriberBudgetExceeded(t *testing.T) {
 		{ChannelID: "g1", ChannelType: 2, AfterUID: "", Limit: 2},
 		{ChannelID: "g1", ChannelType: 2, AfterUID: "u2", Limit: 1},
 	}, store.subscriberCallsSnapshot())
+}
+
+func TestProjectorBoundsGroupFanoutThrottleState(t *testing.T) {
+	projector := NewProjector(ProjectorOptions{
+		ActiveHintQueueSize: 2,
+		Now:                 func() time.Time { return time.Unix(100, 0) },
+	}).(*projector)
+
+	for i := 0; i < 5; i++ {
+		key := metadb.ConversationKey{ChannelID: string(rune('a' + i)), ChannelType: 2}
+		require.True(t, projector.allowGroupFanout(key, time.Unix(int64(100+i), 0)))
+	}
+	require.LessOrEqual(t, len(projector.lastGroupFanoutAt), 2)
+}
+
+func requireScheduledFlush(t *testing.T, scheduled <-chan func()) func() {
+	t.Helper()
+	select {
+	case fn := <-scheduled:
+		return fn
+	case <-time.After(time.Second):
+		t.Fatalf("scheduled flush was not queued")
+	}
+	return nil
 }
 
 func groupMessage(channelID string, seq uint64, ts int32) channel.Message {
@@ -158,6 +227,7 @@ type projectorStoreStub struct {
 	mu              sync.Mutex
 	hints           []metadb.UserConversationActiveHint
 	submitCount     int
+	beforeSubmit    func()
 	subscribers     map[metadb.ConversationKey][]string
 	subscriberCalls []subscriberListCall
 }
@@ -175,8 +245,16 @@ func newProjectorStoreStub() *projectorStoreStub {
 
 func (s *projectorStoreStub) SubmitUserConversationActiveHints(_ context.Context, hints []metadb.UserConversationActiveHint) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.submitCount++
+	hook := s.beforeSubmit
+	s.mu.Unlock()
+
+	if hook != nil {
+		hook()
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.hints = append(s.hints, hints...)
 	return nil
 }
