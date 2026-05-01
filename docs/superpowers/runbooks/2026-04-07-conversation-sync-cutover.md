@@ -2,14 +2,15 @@
 
 ## Goal
 
-在默认开放 `/conversation/sync` 之前，先完成 `UserConversationState` backfill、抽样校验，避免未回填用户直接承接同步流量。
+在默认开放 `/conversation/sync` 之前，先完成 `UserConversationState` backfill、抽样校验，并确认 active hint working-set 链路已接入，避免未回填用户直接承接同步流量。
 
 ## Preconditions
 
 - 当前部署形态按“单节点集群”或多节点集群统一处理
-- 新版本已经开始写入：
+- 新版本已经开始写入 / 暴露：
   - `UserConversationState`
-  - `ChannelUpdateLog`
+  - UID-owner `ActiveHintCache` 覆盖层
+  - committed message -> conversation projector -> active hint routing
 - 若是新部署且不存在历史数据，可跳过 backfill，直接进入抽样校验
 
 ## Backfill Source Priority
@@ -51,19 +52,23 @@
 - 重复执行同一批 backfill 不得放大字段值
 - 不得生成重复行
 
-## ChannelUpdateLog Policy
+## Active Hint Policy
 
-- `ChannelUpdateLog` 不要求全历史 backfill
-- 只要求在上线后持续正常累积新消息的频道更新索引
-- 若抽样发现上线后新消息未写入 `ChannelUpdateLog`，必须先修复 projector/flush，再允许对外提供 `/conversation/sync`
+- 不再维护持久化频道更新投影；Channel Log 是最新消息事实源
+- `active_at` 是 best-effort working-set hint，允许丢失、延迟和批量落盘
+- `ListUserConversationActive` 必须在 UID owner 合并持久化 active rows 与 hot active hints
+- 删除会话必须先持久化 `DeletedToSeq` 并清空 `ActiveAt`，再删除 hot hint / 安装 delete barrier
+- 新消息若 `MessageSeq > DeletedToSeq`，会话应重新进入 working set
 
 ## Cutover Gate
+
 只有同时满足以下条件，才允许上线默认开放的 `/conversation/sync`：
 
 1. `UserConversationState` backfill 已完成
 2. 抽样校验通过
-3. `ChannelUpdateLog` 已开始正常累积 cutover 后的新消息
-4. 回滚方案已确认
+3. Active hint cache 已注册到 store overlay
+4. projector 能从 committed message 提交 best-effort active hints
+5. 回滚方案已确认
 
 若任一条件不满足：
 
@@ -84,15 +89,19 @@
    - `last_msg_seqs=""`
    - 验证结果非空且不过量，只落在服务端 working set 窗口内
 5. 对抽样频道发送 cutover 后新消息，确认：
-   - `ChannelUpdateLog` 有新 entry
-   - 冷转热会话能重新推进 `active_at`
+   - `ListUserConversationActive` 可看到未 flush 的 hot hint
+   - `/conversation/sync` 返回值来自 Channel Log 最新消息事实
+6. 对抽样会话执行 delete，确认：
+   - 会话立即从 hot working set 消失
+   - `UserConversationState.deleted_to_seq` 推进且 `active_at=0`
+   - 后续更新消息可让会话重新出现
 
 ## Rollout Steps
 
 1. 部署新版本
 2. 执行 `UserConversationState` backfill
 3. 完成抽样校验
-4. 观察上线后新消息是否正常写入 `ChannelUpdateLog`
+4. 观察 active hint cache 命中、flush 失败率、drop 计数和 sync 延迟
 5. 验证 `/conversation/sync` 错误率、返回量和延迟
 6. 持续观察并确认稳定
 
@@ -103,11 +112,12 @@
 - backfill 未完成
 - 抽样用户 `UserConversationState` 行数明显缺失
 - `active_at` 明显异常，working set 结果大面积为空
-- 上线后 `ChannelUpdateLog` 未正常累积
+- active hint overlay 未接入或 projector 无法提交 hot hints
+- delete 后 stale hint 重新激活旧消息
 - `/conversation/sync` brand-new 请求结果异常为空或异常过量
 
 处理原则：
 
-- 先修复数据或 projector/flush 链路
+- 先修复数据或 active hint/projector 链路
 - 重新执行抽样校验
 - 校验再次通过后才能重新开放 `/conversation/sync`
