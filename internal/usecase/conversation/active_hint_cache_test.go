@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -123,6 +124,185 @@ func TestActiveHintCacheFlushBatchesAndKeepsUpsertSemantics(t *testing.T) {
 	require.Equal(t, []metadb.UserConversationActiveHint{withHintValues(key, 150, 11)}, hints)
 }
 
+func TestActiveHintCacheExpiresHintsAndBarriers(t *testing.T) {
+	now := time.Unix(100, 0)
+	cache := NewActiveHintCache(ActiveHintCacheOptions{
+		HintTTL:    10 * time.Second,
+		BarrierTTL: 10 * time.Second,
+		Now:        func() time.Time { return now },
+	})
+
+	key := metadb.UserConversationActiveHint{UID: "u1", ChannelID: "c1", ChannelType: 2}
+	require.NoError(t, cache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{withHintValues(key, 100, 10)}))
+	now = now.Add(11 * time.Second)
+
+	hints, err := cache.ListHotUserConversationActive(context.Background(), "u1", 10)
+	require.NoError(t, err)
+	require.Empty(t, hints)
+
+	require.NoError(t, cache.RemoveHints(context.Background(), []metadb.UserConversationDeleteBarrier{{
+		UID:          "u1",
+		ChannelID:    "c1",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+	}}))
+	now = now.Add(11 * time.Second)
+	require.NoError(t, cache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{withHintValues(key, 120, 10)}))
+
+	hints, err = cache.ListHotUserConversationActive(context.Background(), "u1", 10)
+	require.NoError(t, err)
+	require.Equal(t, []metadb.UserConversationActiveHint{withHintValues(key, 120, 10)}, hints)
+}
+
+func TestActiveHintCacheEvictsLowestActiveAtWhenOverCapacity(t *testing.T) {
+	now := time.Unix(100, 0)
+	perUIDCache := NewActiveHintCache(ActiveHintCacheOptions{
+		HintTTL:        time.Hour,
+		MaxHints:       10,
+		MaxHintsPerUID: 2,
+		Now:            func() time.Time { return now },
+	})
+	require.NoError(t, perUIDCache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1},
+		{UID: "u1", ChannelID: "c2", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
+		{UID: "u1", ChannelID: "c3", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
+	}))
+	hints, err := perUIDCache.ListHotUserConversationActive(context.Background(), "u1", 10)
+	require.NoError(t, err)
+	require.Equal(t, []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c2", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
+		{UID: "u1", ChannelID: "c3", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
+	}, hints)
+
+	globalCache := NewActiveHintCache(ActiveHintCacheOptions{
+		HintTTL:        time.Hour,
+		MaxHints:       3,
+		MaxHintsPerUID: 10,
+		Now:            func() time.Time { return now },
+	})
+	require.NoError(t, globalCache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1},
+		{UID: "u2", ChannelID: "c2", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
+		{UID: "u3", ChannelID: "c3", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
+		{UID: "u4", ChannelID: "c4", ChannelType: 2, ActiveAt: 400, MessageSeq: 4},
+	}))
+	hints, err = globalCache.ListHotUserConversationActive(context.Background(), "u1", 10)
+	require.NoError(t, err)
+	require.Empty(t, hints)
+}
+
+func TestActiveHintCacheZeroValueOptionsAreSafe(t *testing.T) {
+	cache := NewActiveHintCache(ActiveHintCacheOptions{})
+
+	require.NoError(t, cache.Flush(context.Background()))
+	require.NoError(t, cache.SubmitHints(context.Background(), nil))
+	require.NoError(t, cache.RemoveHints(context.Background(), nil))
+	hints, err := cache.ListHotUserConversationActive(context.Background(), "u1", 10)
+	require.NoError(t, err)
+	require.Empty(t, hints)
+	require.NoError(t, cache.Stop())
+}
+
+func TestActiveHintCacheStartStopLifecycle(t *testing.T) {
+	store := newActiveHintStoreStub()
+	cache := NewActiveHintCache(ActiveHintCacheOptions{
+		Store:          store,
+		FlushInterval:  5 * time.Millisecond,
+		HintTTL:        time.Hour,
+		FlushBatchSize: 1,
+		Now:            func() time.Time { return time.Unix(100, 0) },
+	})
+	require.NoError(t, cache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1},
+	}))
+
+	require.NoError(t, cache.Start())
+	require.NoError(t, cache.Start())
+	store.waitBatchCount(t, 1)
+	require.NoError(t, cache.Stop())
+	require.NoError(t, cache.Stop())
+}
+
+func TestActiveHintCacheFlushNoopsWithNilStoreOrNoHints(t *testing.T) {
+	nilStoreCache := NewActiveHintCache(ActiveHintCacheOptions{Now: func() time.Time { return time.Unix(100, 0) }})
+	require.NoError(t, nilStoreCache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1},
+	}))
+	require.NoError(t, nilStoreCache.Flush(context.Background()))
+	hints, err := nilStoreCache.ListHotUserConversationActive(context.Background(), "u1", 10)
+	require.NoError(t, err)
+	require.Len(t, hints, 1)
+
+	store := newActiveHintStoreStub()
+	emptyCache := NewActiveHintCache(ActiveHintCacheOptions{Store: store})
+	require.NoError(t, emptyCache.Flush(context.Background()))
+	store.requireBatches(t, nil)
+}
+
+func TestActiveHintCacheFlushErrorRemovesSuccessfulBatchesOnly(t *testing.T) {
+	flushErr := errors.New("flush failed")
+	store := newActiveHintStoreStub()
+	store.failBatch(2, flushErr)
+	cache := NewActiveHintCache(ActiveHintCacheOptions{
+		Store:          store,
+		HintTTL:        time.Hour,
+		FlushBatchSize: 2,
+		Now:            func() time.Time { return time.Unix(100, 0) },
+	})
+	require.NoError(t, cache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1},
+		{UID: "u1", ChannelID: "c2", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
+		{UID: "u1", ChannelID: "c3", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
+	}))
+
+	require.ErrorIs(t, cache.Flush(context.Background()), flushErr)
+	store.requireBatches(t, [][]metadb.UserConversationActivePatch{
+		{
+			{UID: "u1", ChannelID: "c3", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
+			{UID: "u1", ChannelID: "c2", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
+		},
+		{
+			{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1},
+		},
+	})
+
+	hints, err := cache.ListHotUserConversationActive(context.Background(), "u1", 10)
+	require.NoError(t, err)
+	require.Equal(t, []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1},
+	}, hints)
+}
+
+func TestActiveHintCacheRemoveHintsKeepsHighestDeleteBarrier(t *testing.T) {
+	cache := NewActiveHintCache(ActiveHintCacheOptions{
+		HintTTL:    time.Hour,
+		BarrierTTL: time.Hour,
+		Now:        func() time.Time { return time.Unix(100, 0) },
+	})
+	require.NoError(t, cache.RemoveHints(context.Background(), []metadb.UserConversationDeleteBarrier{{
+		UID:          "u1",
+		ChannelID:    "c1",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+	}}))
+	require.NoError(t, cache.RemoveHints(context.Background(), []metadb.UserConversationDeleteBarrier{{
+		UID:          "u1",
+		ChannelID:    "c1",
+		ChannelType:  2,
+		DeletedToSeq: 5,
+	}}))
+
+	require.NoError(t, cache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 70, MessageSeq: 7},
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 110, MessageSeq: 11},
+	}))
+	hints, err := cache.ListHotUserConversationActive(context.Background(), "u1", 10)
+	require.NoError(t, err)
+	require.Equal(t, []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 110, MessageSeq: 11},
+	}, hints)
+}
+
 func withHintValues(base metadb.UserConversationActiveHint, activeAt int64, messageSeq uint64) metadb.UserConversationActiveHint {
 	base.ActiveAt = activeAt
 	base.MessageSeq = messageSeq
@@ -134,6 +314,8 @@ type activeHintStoreStub struct {
 	batches        [][]metadb.UserConversationActivePatch
 	firstBatchSeen chan struct{}
 	firstBatchGate chan struct{}
+	failOnBatch    int
+	failErr        error
 }
 
 func newActiveHintStoreStub() *activeHintStoreStub {
@@ -144,6 +326,9 @@ func (s *activeHintStoreStub) TouchUserConversationActiveAt(_ context.Context, p
 	s.mu.Lock()
 	batch := append([]metadb.UserConversationActivePatch(nil), patches...)
 	s.batches = append(s.batches, batch)
+	callCount := len(s.batches)
+	failErr := s.failErr
+	shouldFail := s.failOnBatch == callCount && failErr != nil
 	firstSeen := s.firstBatchSeen
 	firstGate := s.firstBatchGate
 	isFirst := len(s.batches) == 1 && firstGate != nil
@@ -152,6 +337,9 @@ func (s *activeHintStoreStub) TouchUserConversationActiveAt(_ context.Context, p
 	if isFirst {
 		close(firstSeen)
 		<-firstGate
+	}
+	if shouldFail {
+		return failErr
 	}
 	return nil
 }
@@ -177,6 +365,33 @@ func (s *activeHintStoreStub) releaseFirstBatch() {
 	gate := s.firstBatchGate
 	s.mu.Unlock()
 	close(gate)
+}
+
+func (s *activeHintStoreStub) waitBatchCount(t *testing.T, want int) {
+	t.Helper()
+	deadline := time.After(time.Second)
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		s.mu.Lock()
+		got := len(s.batches)
+		s.mu.Unlock()
+		if got >= want {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for %d flush batches, got %d", want, got)
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *activeHintStoreStub) failBatch(batch int, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failOnBatch = batch
+	s.failErr = err
 }
 
 func (s *activeHintStoreStub) requireBatches(t *testing.T, want [][]metadb.UserConversationActivePatch) {
