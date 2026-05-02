@@ -30,11 +30,62 @@ type ConversationCursor struct {
 	ChannelType int64
 }
 
+// UserConversationActivePatch describes a candidate active_at advancement for
+// one user conversation. MessageSeq fences stale hints when it is non-zero.
 type UserConversationActivePatch struct {
-	UID         string
-	ChannelID   string
+	// UID identifies the user that owns the conversation state.
+	UID string
+	// ChannelID identifies the conversation channel.
+	ChannelID string
+	// ChannelType identifies the conversation channel kind.
 	ChannelType int64
-	ActiveAt    int64
+	// ActiveAt is the candidate active timestamp to persist.
+	ActiveAt int64
+	// MessageSeq is the message sequence that produced this activity hint.
+	MessageSeq uint64
+}
+
+// UserConversationActiveHint describes an observed message activity hint for
+// one user conversation before it is converted into a persisted patch.
+type UserConversationActiveHint struct {
+	// UID identifies the user that owns the conversation state.
+	UID string
+	// ChannelID identifies the conversation channel.
+	ChannelID string
+	// ChannelType identifies the conversation channel kind.
+	ChannelType int64
+	// ActiveAt is the observed active timestamp.
+	ActiveAt int64
+	// MessageSeq is the message sequence that produced this hint.
+	MessageSeq uint64
+}
+
+// UserConversationDeleteBarrier records the highest deleted message sequence
+// that should prevent stale active_at hints from reactivating a conversation.
+type UserConversationDeleteBarrier struct {
+	// UID identifies the user that owns the conversation state.
+	UID string
+	// ChannelID identifies the conversation channel.
+	ChannelID string
+	// ChannelType identifies the conversation channel kind.
+	ChannelType int64
+	// DeletedToSeq is the highest message sequence deleted for this conversation.
+	DeletedToSeq uint64
+}
+
+// UserConversationDelete hides a user conversation through DeletedToSeq and
+// clears ActiveAt even though general upserts keep ActiveAt monotonic.
+type UserConversationDelete struct {
+	// UID identifies the user that owns the conversation state.
+	UID string
+	// ChannelID identifies the conversation channel.
+	ChannelID string
+	// ChannelType identifies the conversation channel kind.
+	ChannelType int64
+	// DeletedToSeq is the highest message sequence hidden for this user.
+	DeletedToSeq uint64
+	// UpdatedAt records when the hide/delete operation was requested.
+	UpdatedAt int64
 }
 
 func (s *ShardStore) GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (UserConversationState, error) {
@@ -127,31 +178,31 @@ func (s *ShardStore) UpsertUserConversationState(ctx context.Context, state User
 	return batch.Commit(pebble.Sync)
 }
 
-func (s *ShardStore) TouchUserConversationActiveAt(ctx context.Context, uid, channelID string, channelType int64, activeAt int64) error {
+func (s *ShardStore) TouchUserConversationActiveAt(ctx context.Context, patch UserConversationActivePatch) error {
 	if err := s.validate(); err != nil {
 		return err
 	}
 	if err := s.db.checkContext(ctx); err != nil {
 		return err
 	}
-	if err := validateConversationUID(uid); err != nil {
+	if err := validateConversationUID(patch.UID); err != nil {
 		return err
 	}
-	if err := validateConversationKey(ConversationKey{ChannelID: channelID, ChannelType: channelType}); err != nil {
+	if err := validateConversationKey(ConversationKey{ChannelID: patch.ChannelID, ChannelType: patch.ChannelType}); err != nil {
 		return err
 	}
 
 	s.db.mu.Lock()
 	defer s.db.mu.Unlock()
 
-	current, err := s.getUserConversationStateLocked(uid, channelID, channelType)
+	current, err := s.getUserConversationStateLocked(patch.UID, patch.ChannelID, patch.ChannelType)
 	switch {
 	case err == nil:
 	case err == ErrNotFound:
 		current = UserConversationState{
-			UID:         uid,
-			ChannelID:   channelID,
-			ChannelType: channelType,
+			UID:         patch.UID,
+			ChannelID:   patch.ChannelID,
+			ChannelType: patch.ChannelType,
 		}
 		s.db.runAfterExistenceCheckHook()
 		if err := s.db.checkContext(ctx); err != nil {
@@ -161,21 +212,24 @@ func (s *ShardStore) TouchUserConversationActiveAt(ctx context.Context, uid, cha
 		return err
 	}
 
-	if activeAt <= current.ActiveAt {
+	if patch.MessageSeq > 0 && patch.MessageSeq <= current.DeletedToSeq {
+		return nil
+	}
+	if patch.ActiveAt <= current.ActiveAt {
 		return nil
 	}
 
 	updated := current
-	updated.ActiveAt = activeAt
+	updated.ActiveAt = patch.ActiveAt
 
-	primaryKey := encodeUserConversationStatePrimaryKey(s.slot, uid, channelType, channelID, userConversationStatePrimaryFamilyID)
+	primaryKey := encodeUserConversationStatePrimaryKey(s.slot, patch.UID, patch.ChannelType, patch.ChannelID, userConversationStatePrimaryFamilyID)
 	value := encodeUserConversationStateFamilyValue(updated, primaryKey)
 
 	batch := s.db.db.NewBatch()
 	defer batch.Close()
 
 	if current.ActiveAt > 0 {
-		oldIndexKey := encodeUserConversationActiveIndexKey(s.slot, uid, current.ActiveAt, channelType, channelID)
+		oldIndexKey := encodeUserConversationActiveIndexKey(s.slot, patch.UID, current.ActiveAt, patch.ChannelType, patch.ChannelID)
 		if err := batch.Delete(oldIndexKey, nil); err != nil {
 			return err
 		}
@@ -183,7 +237,7 @@ func (s *ShardStore) TouchUserConversationActiveAt(ctx context.Context, uid, cha
 	if err := batch.Set(primaryKey, value, nil); err != nil {
 		return err
 	}
-	if err := batch.Set(encodeUserConversationActiveIndexKey(s.slot, uid, activeAt, channelType, channelID), nil, nil); err != nil {
+	if err := batch.Set(encodeUserConversationActiveIndexKey(s.slot, patch.UID, patch.ActiveAt, patch.ChannelType, patch.ChannelID), nil, nil); err != nil {
 		return err
 	}
 	return batch.Commit(pebble.Sync)
@@ -236,6 +290,61 @@ func (s *ShardStore) ClearUserConversationActiveAt(ctx context.Context, uid stri
 		if err := batch.Set(primaryKey, encodeUserConversationStateFamilyValue(state, primaryKey), nil); err != nil {
 			return err
 		}
+	}
+	return batch.Commit(pebble.Sync)
+}
+
+func (s *ShardStore) HideUserConversation(ctx context.Context, req UserConversationDelete) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	if err := s.db.checkContext(ctx); err != nil {
+		return err
+	}
+	if err := validateUserConversationDelete(req); err != nil {
+		return err
+	}
+
+	s.db.mu.Lock()
+	defer s.db.mu.Unlock()
+
+	current, err := s.getUserConversationStateLocked(req.UID, req.ChannelID, req.ChannelType)
+	switch {
+	case err == nil:
+	case err == ErrNotFound:
+		if req.DeletedToSeq == 0 {
+			return nil
+		}
+		current = UserConversationState{
+			UID:         req.UID,
+			ChannelID:   req.ChannelID,
+			ChannelType: req.ChannelType,
+		}
+		s.db.runAfterExistenceCheckHook()
+		if err := s.db.checkContext(ctx); err != nil {
+			return err
+		}
+	default:
+		return err
+	}
+	if req.DeletedToSeq <= current.DeletedToSeq {
+		return nil
+	}
+
+	next := hideUserConversationState(current, req)
+	primaryKey := encodeUserConversationStatePrimaryKey(s.slot, req.UID, req.ChannelType, req.ChannelID, userConversationStatePrimaryFamilyID)
+
+	batch := s.db.db.NewBatch()
+	defer batch.Close()
+
+	if current.ActiveAt > 0 {
+		oldIndexKey := encodeUserConversationActiveIndexKey(s.slot, req.UID, current.ActiveAt, req.ChannelType, req.ChannelID)
+		if err := batch.Delete(oldIndexKey, nil); err != nil {
+			return err
+		}
+	}
+	if err := batch.Set(primaryKey, encodeUserConversationStateFamilyValue(next, primaryKey), nil); err != nil {
+		return err
 	}
 	return batch.Commit(pebble.Sync)
 }
@@ -377,6 +486,31 @@ func validateUserConversationState(state UserConversationState) error {
 		return err
 	}
 	return nil
+}
+
+func validateUserConversationDelete(req UserConversationDelete) error {
+	if err := validateConversationUID(req.UID); err != nil {
+		return err
+	}
+	if err := validateConversationKey(ConversationKey{ChannelID: req.ChannelID, ChannelType: req.ChannelType}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func hideUserConversationState(current UserConversationState, req UserConversationDelete) UserConversationState {
+	next := current
+	next.UID = req.UID
+	next.ChannelID = req.ChannelID
+	next.ChannelType = req.ChannelType
+	if req.DeletedToSeq > next.DeletedToSeq {
+		next.DeletedToSeq = req.DeletedToSeq
+	}
+	next.ActiveAt = 0
+	if req.UpdatedAt > next.UpdatedAt {
+		next.UpdatedAt = req.UpdatedAt
+	}
+	return next
 }
 
 func validateConversationUID(uid string) error {

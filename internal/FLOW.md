@@ -142,6 +142,8 @@ presence.App.Deactivate(ctx, DeactivateCommand) error
 // 会话
 conversation.App.Sync(ctx, SyncQuery) (SyncResult, error)
 conversation.App.ClearUnread(ctx, ClearUnreadCommand) error
+conversation.App.SetUnread(ctx, SetUnreadCommand) error
+conversation.App.DeleteConversation(ctx, DeleteConversationCommand) error
 ```
 
 ### 3.4 运行时层
@@ -182,6 +184,7 @@ online.Registry.Connection(sessionID)
 
 5. 创建业务组件
    ├─ Store（元数据存储）
+   ├─ ConversationActiveHintCache（UID-owner active_at 热提示覆盖层）
    ├─ Conversation（会话投影器）
    ├─ ChannelMetaSync（元数据同步）
    ├─ Presence（在线状态 + Worker）
@@ -206,14 +209,15 @@ online.Registry.Connection(sessionID)
 2. managed_slots_ready（等待 Slot 就绪，超时 10s）
 3. channelmeta（启动 active-slot leader watcher）
 4. presence（启动 Worker）
-5. conversation_projector
-6. delivery_runtime
-7. committed_dispatcher
-8. committed_replay
-9. channel_retention
-10. gateway
-11. api
-12. manager
+5. conversation_active_hints
+6. conversation_projector
+7. delivery_runtime
+8. committed_dispatcher
+9. committed_replay
+10. channel_retention
+11. gateway
+12. api
+13. manager
 ```
 
 ### 4.2 停止流程
@@ -230,19 +234,20 @@ online.Registry.Connection(sessionID)
 6. committed_dispatcher
 7. delivery_runtime
 8. conversation_projector
-9. presence
-10. channelmeta（StopWithoutCleanup）
-11. managed_slots_ready（no-op）
-12. cluster
+9. conversation_active_hints
+10. presence
+11. channelmeta（StopWithoutCleanup）
+12. managed_slots_ready（no-op）
+13. cluster
 
 然后关闭资源:
-13. channelLog.Close
-14. dataPlaneClient.Stop
-15. dataPlanePool.Close
-16. channelLogDB.Close
-17. raftDB.Close
-18. metadb.Close
-19. syncLogger
+14. channelLog.Close
+15. dataPlaneClient.Stop
+16. dataPlanePool.Close
+17. channelLogDB.Close
+18. raftDB.Close
+19. metadb.Close
+20. syncLogger
 ```
 
 ### 4.3 消息发送流程
@@ -277,13 +282,13 @@ dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted)
   ├─ committedFanout（fanout 给订阅者）
   └─ asyncCommittedDispatcher
       ├─ 按 ChannelID + ChannelType 选择固定分片队列
-      ├─ 队列满时不失败 Send，改走 conversation fallback + flush
+      ├─ 队列满时不失败 Send，改走 best-effort conversation fallback
       ├─ delivery.Submit（投递）
-      └─ conversation.SubmitCommitted（会话投影）
+      └─ conversation.SubmitCommitted（异步 active hint 投影）
 committed_replay 后台从已提交 Channel Log 补偿未分发事件
   ├─ 按 committed cursor 扫描 message_seq
   ├─ 重新提交 delivery / conversation
-  ├─ conversation.Flush 成功后批量推进 cursor
+  ├─ delivery 接受后批量推进 cursor；active hint 失败只记录告警
   └─ 记录 replay lag / pass duration 指标
   ↓
 返回 SendResult{MessageID, MessageSeq}
@@ -391,28 +396,26 @@ Slot Leader 变化时:
 ### 4.6 会话同步流程
 
 ```
-API: GET /api/conversation/sync?uid=X&version=V&limit=N
+API: POST /conversation/sync
   ↓
 conversation.App.Sync(ctx, query)
   ├─ 1. 加载活跃会话
-  │   ├─ ListUserConversationActive（limit=2000）
-  │   ├─ addActiveCandidates（关联 ChannelUpdateLog）
-  │   └─ 冷会话降级（lastMsgAt > 30天）
+  │   ├─ ListUserConversationActive（limit=activeScanLimit）
+  │   └─ Store 在 UID-owner 合并持久化 active_at 与 active hint cache
   │
   ├─ 2. 加载客户端 overlay 候选
   │   └─ addOverlayCandidates（query.LastMsgSeqs）
   │
-  ├─ 3. 增量收集（version > 0）
-  │   ├─ ScanUserConversationStatePage（分页扫描）
-  │   ├─ BatchGetChannelUpdateLogs（批量查更新）
-  │   └─ incrementalViewRetainer（小顶堆保留 top-N）
+  ├─ 3. 兼容 legacy version
+  │   └─ request version 不再作为完整历史增量发现游标
   │
   ├─ 4. 加载最新消息
-  │   ├─ 本地 Channel: cluster.Status → cluster.Fetch
-  │   └─ 远程 Channel: nodeClient RPC
+  │   ├─ 本地 Channel Log: cluster.Status → cluster.Fetch
+  │   └─ 远程 Channel Log: conversation_facts RPC
   │
   ├─ 5. 构建视图
   │   ├─ 计算 unread = lastMsgSeq - max(readSeq, deletedToSeq)
+  │   ├─ latest.MessageSeq <= deletedToSeq 时隐藏会话
   │   ├─ 自己发的消息: unread=0
   │   └─ onlyUnread 过滤
   │
@@ -420,7 +423,7 @@ conversation.App.Sync(ctx, query)
   │   └─ 按 displayUpdatedAt 降序 → 取 top limit
   │
   └─ 7. 加载最近消息（msgCount > 0）
-      └─ LoadRecentMessagesBatch → filterVisibleRecents
+      └─ LoadRecentMessagesBatch → filterVisibleRecents（message_seq > deleted_to_seq）
   ↓
 返回 SyncResult{Conversations}
 ```
@@ -517,8 +520,9 @@ handleRecvAck(ctx, pkt)
 - **失败回滚顺序**: `Activate` 失败时先 `bestEffortUnregister`（注销权威路由）再 `online.Unregister`（清理本地）
 
 ### 🔴 会话同步
-- **冷热分离**: `coldThreshold`（默认 30 天）之前无消息的会话被标记为冷会话，异步降级 `ClearActiveAt`
-- **增量同步**: `version > 0` 时走增量路径，通过分页扫描 + 小顶堆保留 top-N
+- **工作集同步**: 默认候选来自 `ListUserConversationActive`（持久化 `active_at` + UID-owner hot active hint overlay）和客户端 `last_msg_seqs`，再以 Channel Log 作为最新消息事实源。
+- **Legacy version 兼容**: 请求 `version` 只保留兼容语义，不再触发完整历史增量发现；返回项 `version` 是展示时间与用户状态更新时间的兼容水位。
+- **删除屏障**: DeleteConversation 持久化 `deleted_to_seq`、清空 `active_at` 并删除 hot hint；`message_seq <= deleted_to_seq` 的 hint/recents 不可见，更新消息可重新激活会话。
 
 ### 🔴 网关
 - **空闲断开只看客户端入站**: idle monitor 只根据最近一次客户端入站数据刷新 deadline，服务端持续下发消息不会延长 `IdleTimeout`（默认 3 分钟）
@@ -534,9 +538,9 @@ handleRecvAck(ctx, pkt)
 
 ### 🔴 已提交消息分发
 - **committedFanout + asyncCommittedDispatcher 的 preferLocal**: message 用例只发布 `messageevents.MessageCommitted`，`asyncCommittedDispatcher` 用有界分片队列分发，默认把已提交消息进入本地 delivery runtime，避免所有实时投递都绕经 Leader。
-- **committed dispatcher 溢出不影响 durable send**: 队列满只记录指标并触发 conversation fallback/flush，Sendack 仍只由 Channel Log quorum commit 决定。
+- **committed dispatcher 溢出不影响 durable send**: 队列满只记录指标并触发 best-effort conversation fallback，Sendack 仍只由 Channel Log quorum commit 决定。
 - **committed dispatcher 停止依赖 replay 补偿**: 停止时不再接收新队列任务，未启动/停止中的提交返回内部错误供调用方记录；队列内未处理实时投递可被丢弃并由 committed_replay 兜底补发。
-- **committed_replay 是补偿路径，不阻塞 Sendack**: Sendack 仍只等待 Channel Log quorum commit；后台 replayer 以 Channel Log 为真相，用批量 cursor 兜底补发 delivery / conversation，cursor 只在 conversation flush 成功后推进。
+- **committed_replay 是补偿路径，不阻塞 Sendack**: Sendack 仍只等待 Channel Log quorum commit；后台 replayer 以 Channel Log 为真相，用批量 cursor 兜底补发 delivery / conversation，active hint 是可丢弃的 best-effort 路径。
 - **性能指标走窄接口注入**: message append、meta refresh、dispatch queue、delivery resolve/push、runtime gauge 和 replay lag 由 `internal/app` 组合根接入 `pkg/metrics`，低层包不直接依赖具体 metrics registry。
 
 ---

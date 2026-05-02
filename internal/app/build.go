@@ -358,18 +358,29 @@ func build(cfg Config) (_ *App, err error) {
 		AfterLocalApply:     app.channelMetaSync.scheduleLeaderRepairForMeta,
 		MetaRefreshObserver: channelMetaObserver,
 	})
-	app.conversationProjector = conversationusecase.NewProjector(conversationusecase.ProjectorOptions{
-		Store:              app.store,
-		FlushInterval:      cfg.Conversation.FlushInterval,
-		DirtyLimit:         cfg.Conversation.FlushDirtyLimit,
-		ColdThreshold:      cfg.Conversation.ColdThreshold,
-		SubscriberPageSize: cfg.Conversation.SubscriberPageSize,
-		Logger:             app.logger.Named("conversation.projector"),
+	app.conversationActiveHints = conversationusecase.NewActiveHintCache(conversationusecase.ActiveHintCacheOptions{
+		Store:          app.store,
+		FlushInterval:  cfg.Conversation.ActiveHintFlushInterval,
+		HintTTL:        cfg.Conversation.ActiveHintTTL,
+		BarrierTTL:     cfg.Conversation.ActiveHintBarrierTTL,
+		MaxHints:       cfg.Conversation.ActiveHintMaxHints,
+		MaxHintsPerUID: cfg.Conversation.ActiveHintMaxHintsPerUID,
+		FlushBatchSize: cfg.Conversation.ActiveHintFlushBatchSize,
+		Logger:         app.logger.Named("conversation.active_hint"),
 	})
-	app.store.RegisterChannelUpdateOverlay(app.conversationProjector)
+	app.store.RegisterUserConversationActiveOverlay(app.conversationActiveHints)
+	app.conversationProjector = conversationusecase.NewProjector(conversationusecase.ProjectorOptions{
+		Store:                           app.store,
+		FlushInterval:                   cfg.Conversation.FlushInterval,
+		DirtyLimit:                      cfg.Conversation.FlushDirtyLimit,
+		ColdThreshold:                   cfg.Conversation.ColdThreshold,
+		SubscriberPageSize:              cfg.Conversation.SubscriberPageSize,
+		GroupActiveFanoutInterval:       cfg.Conversation.GroupActiveFanoutInterval,
+		GroupActiveFanoutMaxSubscribers: cfg.Conversation.GroupActiveFanoutMaxSubscribers,
+		Logger:                          app.logger.Named("conversation.projector"),
+	})
 	app.conversationApp = conversationusecase.New(conversationusecase.Options{
-		States:        app.store,
-		ChannelUpdate: app.store,
+		States: app.store,
 		Facts: channelLogConversationFacts{
 			cluster: app.channelLog,
 			metas:   app.store,

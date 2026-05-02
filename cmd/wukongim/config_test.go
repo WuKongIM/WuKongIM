@@ -143,6 +143,36 @@ func TestLoadConfigParsesObservabilityFlags(t *testing.T) {
 	require.True(t, cfg.Observability.HealthDebugEnabled)
 }
 
+func TestLoadConfigParsesConversationActiveHintTuning(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_CONVERSATION_ACTIVE_HINT_FLUSH_INTERVAL=3s",
+		"WK_CONVERSATION_ACTIVE_HINT_TTL=45m",
+		"WK_CONVERSATION_ACTIVE_HINT_BARRIER_TTL=50m",
+		"WK_CONVERSATION_ACTIVE_HINT_MAX_HINTS=12345",
+		"WK_CONVERSATION_ACTIVE_HINT_MAX_HINTS_PER_UID=321",
+		"WK_CONVERSATION_ACTIVE_HINT_FLUSH_BATCH_SIZE=64",
+		"WK_CONVERSATION_GROUP_ACTIVE_FANOUT_INTERVAL=7m",
+		"WK_CONVERSATION_GROUP_ACTIVE_FANOUT_MAX_SUBSCRIBERS=42",
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, 3*time.Second, cfg.Conversation.ActiveHintFlushInterval)
+	require.Equal(t, 45*time.Minute, cfg.Conversation.ActiveHintTTL)
+	require.Equal(t, 50*time.Minute, cfg.Conversation.ActiveHintBarrierTTL)
+	require.Equal(t, 12345, cfg.Conversation.ActiveHintMaxHints)
+	require.Equal(t, 321, cfg.Conversation.ActiveHintMaxHintsPerUID)
+	require.Equal(t, 64, cfg.Conversation.ActiveHintFlushBatchSize)
+	require.Equal(t, 7*time.Minute, cfg.Conversation.GroupActiveFanoutInterval)
+	require.Equal(t, 42, cfg.Conversation.GroupActiveFanoutMaxSubscribers)
+}
+
 func TestLoadConfigParsesChannelBootstrapDefaultMinISR(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",
