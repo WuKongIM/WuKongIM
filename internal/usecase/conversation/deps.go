@@ -11,12 +11,11 @@ type ConversationStateStore interface {
 	GetUserConversationState(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserConversationState, error)
 	UpsertUserConversationStates(ctx context.Context, states []metadb.UserConversationState) error
 	ListUserConversationActive(ctx context.Context, uid string, limit int) ([]metadb.UserConversationState, error)
-	ScanUserConversationStatePage(ctx context.Context, uid string, after metadb.ConversationCursor, limit int) ([]metadb.UserConversationState, metadb.ConversationCursor, bool, error)
-	ClearUserConversationActiveAt(ctx context.Context, uid string, keys []metadb.ConversationKey) error
 }
 
-type ChannelUpdateStore interface {
-	BatchGetChannelUpdateLogs(ctx context.Context, keys []metadb.ConversationKey) (map[metadb.ConversationKey]metadb.ChannelUpdateLog, error)
+type ConversationDeleteStore interface {
+	HideUserConversations(ctx context.Context, reqs []metadb.UserConversationDelete) error
+	RemoveUserConversationActiveHints(ctx context.Context, barriers []metadb.UserConversationDeleteBarrier) error
 }
 
 type MessageFactsStore interface {
@@ -25,8 +24,6 @@ type MessageFactsStore interface {
 }
 
 type ProjectorStore interface {
-	BatchGetChannelUpdateLogs(ctx context.Context, keys []metadb.ConversationKey) (map[metadb.ConversationKey]metadb.ChannelUpdateLog, error)
-	UpsertChannelUpdateLogs(ctx context.Context, entries []metadb.ChannelUpdateLog) error
-	TouchUserConversationActiveAt(ctx context.Context, patches []metadb.UserConversationActivePatch) error
+	SubmitUserConversationActiveHints(ctx context.Context, hints []metadb.UserConversationActiveHint) error
 	ListChannelSubscribers(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error)
 }

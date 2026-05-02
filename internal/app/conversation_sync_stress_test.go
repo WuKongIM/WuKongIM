@@ -545,7 +545,9 @@ func (s *conversationSyncStressUIDState) snapshot(uid string, limit, msgCount in
 	defer s.mu.Unlock()
 
 	req := conversationSyncStressRequest{
-		UID:      uid,
+		UID: uid,
+		// Version is a legacy response watermark; active hints and last_msg_seqs
+		// keep known/new conversations visible under working-set sync.
 		Version:  s.version,
 		MsgCount: msgCount,
 		Limit:    limit,

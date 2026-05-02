@@ -44,6 +44,14 @@ func supportedConfigExampleKeys() []string {
 		"WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE",
 		"WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES",
 		"WK_CHANNEL_MESSAGE_RETENTION_TTL",
+		"WK_CONVERSATION_ACTIVE_HINT_BARRIER_TTL",
+		"WK_CONVERSATION_ACTIVE_HINT_FLUSH_BATCH_SIZE",
+		"WK_CONVERSATION_ACTIVE_HINT_FLUSH_INTERVAL",
+		"WK_CONVERSATION_ACTIVE_HINT_MAX_HINTS",
+		"WK_CONVERSATION_ACTIVE_HINT_MAX_HINTS_PER_UID",
+		"WK_CONVERSATION_ACTIVE_HINT_TTL",
+		"WK_CONVERSATION_GROUP_ACTIVE_FANOUT_INTERVAL",
+		"WK_CONVERSATION_GROUP_ACTIVE_FANOUT_MAX_SUBSCRIBERS",
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_BYTES",
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_RECORDS",
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_WAIT",
@@ -618,6 +626,21 @@ func TestConfigDefaultsSendPathTuning(t *testing.T) {
 	require.Equal(t, 4, cfg.Cluster.DataPlanePoolSize)
 	require.Equal(t, 4, cfg.Cluster.DataPlaneMaxFetchInflight)
 	require.Equal(t, 4, cfg.Cluster.DataPlaneMaxPendingFetch)
+}
+
+func TestConfigDefaultsConversationActiveHints(t *testing.T) {
+	cfg := validConfig()
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.Equal(t, 2*time.Second, cfg.Conversation.ActiveHintFlushInterval)
+	require.Equal(t, 30*time.Minute, cfg.Conversation.ActiveHintTTL)
+	require.Equal(t, 30*time.Minute, cfg.Conversation.ActiveHintBarrierTTL)
+	require.Equal(t, 100000, cfg.Conversation.ActiveHintMaxHints)
+	require.Equal(t, 1000, cfg.Conversation.ActiveHintMaxHintsPerUID)
+	require.Equal(t, 1024, cfg.Conversation.ActiveHintFlushBatchSize)
+	require.Equal(t, 5*time.Minute, cfg.Conversation.GroupActiveFanoutInterval)
+	require.Zero(t, cfg.Conversation.GroupActiveFanoutMaxSubscribers)
 }
 
 func TestConfigAlwaysAppliesLongPollDefaults(t *testing.T) {

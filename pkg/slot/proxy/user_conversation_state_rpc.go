@@ -3,7 +3,9 @@ package proxy
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sort"
 
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -13,26 +15,32 @@ import (
 const userConversationStateRPCServiceID uint8 = 11
 
 const (
-	userConversationStateRPCGet      = "get"
-	userConversationStateRPCList     = "list_active"
-	userConversationStateRPCScanPage = "scan_page"
-	userConversationStateRPCUpsert   = "upsert"
-	userConversationStateRPCTouch    = "touch_active"
-	userConversationStateRPCClear    = "clear_active"
+	userConversationStateRPCGet           = "get"
+	userConversationStateRPCList          = "list_active"
+	userConversationStateRPCScanPage      = "scan_page"
+	userConversationStateRPCUpsert        = "upsert"
+	userConversationStateRPCTouch         = "touch_active"
+	userConversationStateRPCClear         = "clear_active"
+	userConversationStateRPCHide          = "hide"
+	userConversationStateRPCHotHint       = "hot_hint"
+	userConversationStateRPCRemoveHotHint = "remove_hot_hint"
 )
 
 type userConversationStateRPCRequest struct {
-	Op          string                               `json:"op"`
-	SlotID      uint64                               `json:"slot_id"`
-	HashSlot    uint16                               `json:"hash_slot,omitempty"`
-	UID         string                               `json:"uid,omitempty"`
-	ChannelID   string                               `json:"channel_id,omitempty"`
-	ChannelType int64                                `json:"channel_type,omitempty"`
-	After       *metadb.ConversationCursor           `json:"after,omitempty"`
-	Limit       int                                  `json:"limit,omitempty"`
-	States      []metadb.UserConversationState       `json:"states,omitempty"`
-	Patches     []metadb.UserConversationActivePatch `json:"patches,omitempty"`
-	Keys        []metadb.ConversationKey             `json:"keys,omitempty"`
+	Op          string                                 `json:"op"`
+	SlotID      uint64                                 `json:"slot_id"`
+	HashSlot    uint16                                 `json:"hash_slot,omitempty"`
+	UID         string                                 `json:"uid,omitempty"`
+	ChannelID   string                                 `json:"channel_id,omitempty"`
+	ChannelType int64                                  `json:"channel_type,omitempty"`
+	After       *metadb.ConversationCursor             `json:"after,omitempty"`
+	Limit       int                                    `json:"limit,omitempty"`
+	States      []metadb.UserConversationState         `json:"states,omitempty"`
+	Patches     []metadb.UserConversationActivePatch   `json:"patches,omitempty"`
+	Keys        []metadb.ConversationKey               `json:"keys,omitempty"`
+	Deletes     []metadb.UserConversationDelete        `json:"deletes,omitempty"`
+	Hints       []metadb.UserConversationActiveHint    `json:"hints,omitempty"`
+	Barriers    []metadb.UserConversationDeleteBarrier `json:"barriers,omitempty"`
 }
 
 type userConversationStateRPCResponse struct {
@@ -155,6 +163,98 @@ func (s *Store) ClearUserConversationActiveAt(ctx context.Context, uid string, k
 	return err
 }
 
+// HideUserConversations durably hides user conversations and clears active_at on the UID owner.
+func (s *Store) HideUserConversations(ctx context.Context, reqs []metadb.UserConversationDelete) error {
+	if len(reqs) == 0 {
+		return nil
+	}
+
+	grouped, err := s.groupUserConversationDeletesBySlotAndHashSlot(reqs)
+	if err != nil {
+		return err
+	}
+	for slotID, groups := range grouped {
+		for hashSlot, groupReqs := range groups {
+			if s.shouldServeSlotLocally(slotID) {
+				cmd := metafsm.EncodeHideUserConversationsCommand(groupReqs)
+				if err := proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd); err != nil {
+					return err
+				}
+				continue
+			}
+			if _, err := s.callUserConversationStateRPC(ctx, slotID, userConversationStateRPCRequest{
+				Op:       userConversationStateRPCHide,
+				SlotID:   uint64(slotID),
+				HashSlot: hashSlot,
+				Deletes:  groupReqs,
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Store) SubmitUserConversationActiveHints(ctx context.Context, hints []metadb.UserConversationActiveHint) error {
+	if len(hints) == 0 {
+		return nil
+	}
+
+	grouped, err := s.groupUserConversationActiveHintsBySlotAndHashSlot(hints)
+	if err != nil {
+		return err
+	}
+	for slotID, groups := range grouped {
+		for hashSlot, groupHints := range groups {
+			if s.shouldServeSlotLocally(slotID) {
+				if err := s.submitUserConversationActiveHintsLocal(ctx, groupHints); err != nil {
+					return err
+				}
+				continue
+			}
+			if _, err := s.callUserConversationStateRPC(ctx, slotID, userConversationStateRPCRequest{
+				Op:       userConversationStateRPCHotHint,
+				SlotID:   uint64(slotID),
+				HashSlot: hashSlot,
+				Hints:    groupHints,
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Store) RemoveUserConversationActiveHints(ctx context.Context, barriers []metadb.UserConversationDeleteBarrier) error {
+	if len(barriers) == 0 {
+		return nil
+	}
+
+	grouped, err := s.groupUserConversationDeleteBarriersBySlotAndHashSlot(barriers)
+	if err != nil {
+		return err
+	}
+	for slotID, groups := range grouped {
+		for hashSlot, groupBarriers := range groups {
+			if s.shouldServeSlotLocally(slotID) {
+				if err := s.removeUserConversationActiveHintsLocal(ctx, groupBarriers); err != nil {
+					return err
+				}
+				continue
+			}
+			if _, err := s.callUserConversationStateRPC(ctx, slotID, userConversationStateRPCRequest{
+				Op:       userConversationStateRPCRemoveHotHint,
+				SlotID:   uint64(slotID),
+				HashSlot: hashSlot,
+				Barriers: groupBarriers,
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (s *Store) getUserConversationStateAuthoritative(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, uid, channelID string, channelType int64) (metadb.UserConversationState, error) {
 	if s.shouldServeSlotLocally(slotID) {
 		return s.db.ForHashSlot(hashSlot).GetUserConversationState(ctx, uid, channelID, channelType)
@@ -179,7 +279,7 @@ func (s *Store) getUserConversationStateAuthoritative(ctx context.Context, slotI
 
 func (s *Store) listUserConversationActiveAuthoritative(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, uid string, limit int) ([]metadb.UserConversationState, error) {
 	if s.shouldServeSlotLocally(slotID) {
-		return s.db.ForHashSlot(hashSlot).ListUserConversationActive(ctx, uid, limit)
+		return s.listUserConversationActiveLocal(ctx, hashSlot, uid, limit)
 	}
 
 	resp, err := s.callUserConversationStateRPC(ctx, slotID, userConversationStateRPCRequest{
@@ -256,7 +356,7 @@ func (s *Store) handleUserConversationStateRPC(ctx context.Context, body []byte)
 			State:  &state,
 		})
 	case userConversationStateRPCList:
-		states, err := s.db.ForHashSlot(hashSlot).ListUserConversationActive(ctx, req.UID, req.Limit)
+		states, err := s.listUserConversationActiveLocal(ctx, hashSlot, req.UID, req.Limit)
 		if err != nil {
 			return nil, err
 		}
@@ -297,6 +397,22 @@ func (s *Store) handleUserConversationStateRPC(ctx context.Context, body []byte)
 			return nil, err
 		}
 		return encodeUserConversationStateRPCResponse(userConversationStateRPCResponse{Status: rpcStatusOK})
+	case userConversationStateRPCHide:
+		cmd := metafsm.EncodeHideUserConversationsCommand(req.Deletes)
+		if err := proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd); err != nil {
+			return nil, err
+		}
+		return encodeUserConversationStateRPCResponse(userConversationStateRPCResponse{Status: rpcStatusOK})
+	case userConversationStateRPCHotHint:
+		if err := s.submitUserConversationActiveHintsLocal(ctx, req.Hints); err != nil {
+			return nil, err
+		}
+		return encodeUserConversationStateRPCResponse(userConversationStateRPCResponse{Status: rpcStatusOK})
+	case userConversationStateRPCRemoveHotHint:
+		if err := s.removeUserConversationActiveHintsLocal(ctx, req.Barriers); err != nil {
+			return nil, err
+		}
+		return encodeUserConversationStateRPCResponse(userConversationStateRPCResponse{Status: rpcStatusOK})
 	default:
 		return nil, fmt.Errorf("metastore: unknown user conversation state rpc op %q", req.Op)
 	}
@@ -312,6 +428,98 @@ func decodeUserConversationStateRPCResponse(body []byte) (userConversationStateR
 		return userConversationStateRPCResponse{}, err
 	}
 	return resp, nil
+}
+
+func (s *Store) listUserConversationActiveLocal(ctx context.Context, hashSlot uint16, uid string, limit int) ([]metadb.UserConversationState, error) {
+	persisted, err := s.db.ForHashSlot(hashSlot).ListUserConversationActive(ctx, uid, limit)
+	if err != nil {
+		return nil, err
+	}
+	if s.userConversationActiveOverlay == nil {
+		return persisted, nil
+	}
+
+	hints, err := s.userConversationActiveOverlay.ListHotUserConversationActive(ctx, uid, userConversationActiveOverlayAllHintsLimit)
+	if err != nil {
+		return persisted, nil
+	}
+	if len(hints) == 0 {
+		return persisted, nil
+	}
+
+	merged := make(map[metadb.ConversationKey]metadb.UserConversationState, len(persisted)+len(hints))
+	for _, state := range persisted {
+		merged[metadb.ConversationKey{ChannelID: state.ChannelID, ChannelType: state.ChannelType}] = state
+	}
+
+	for _, hint := range hints {
+		if hint.UID != uid || hint.ActiveAt <= 0 {
+			continue
+		}
+		key := metadb.ConversationKey{ChannelID: hint.ChannelID, ChannelType: hint.ChannelType}
+		state, ok := merged[key]
+		if !ok {
+			state, err = s.db.ForHashSlot(hashSlot).GetUserConversationState(ctx, uid, hint.ChannelID, hint.ChannelType)
+			switch {
+			case err == nil:
+			case errors.Is(err, metadb.ErrNotFound):
+				state = metadb.UserConversationState{
+					UID:         uid,
+					ChannelID:   hint.ChannelID,
+					ChannelType: hint.ChannelType,
+				}
+			default:
+				return nil, err
+			}
+		}
+		if state.DeletedToSeq > 0 && hint.MessageSeq <= state.DeletedToSeq {
+			continue
+		}
+		if hint.ActiveAt > state.ActiveAt {
+			state.ActiveAt = hint.ActiveAt
+		}
+		if state.ActiveAt > 0 {
+			merged[key] = state
+		}
+	}
+
+	states := make([]metadb.UserConversationState, 0, len(merged))
+	for _, state := range merged {
+		if state.ActiveAt > 0 {
+			states = append(states, state)
+		}
+	}
+	sort.Slice(states, func(i, j int) bool {
+		if states[i].ActiveAt != states[j].ActiveAt {
+			return states[i].ActiveAt > states[j].ActiveAt
+		}
+		if states[i].ChannelType != states[j].ChannelType {
+			return states[i].ChannelType < states[j].ChannelType
+		}
+		return states[i].ChannelID < states[j].ChannelID
+	})
+	if len(states) > limit {
+		states = states[:limit]
+	}
+	return states, nil
+}
+
+// userConversationActiveOverlayAllHintsLimit asks the bounded hot overlay for
+// every UID-local hint so stale front entries cannot hide a later valid one.
+const userConversationActiveOverlayAllHintsLimit = -1
+
+func (s *Store) submitUserConversationActiveHintsLocal(ctx context.Context, hints []metadb.UserConversationActiveHint) error {
+	if s.userConversationActiveOverlay == nil || len(hints) == 0 {
+		return nil
+	}
+	return s.userConversationActiveOverlay.SubmitHints(ctx, hints)
+}
+
+func (s *Store) removeUserConversationActiveHintsLocal(ctx context.Context, barriers []metadb.UserConversationDeleteBarrier) error {
+	if s.userConversationActiveOverlay == nil || len(barriers) == 0 {
+		return nil
+	}
+	return s.userConversationActiveOverlay.RemoveHints(ctx, barriers)
 }
 
 func (s *Store) groupUserConversationStatesBySlotAndHashSlot(states []metadb.UserConversationState) (map[multiraft.SlotID]map[uint16][]metadb.UserConversationState, error) {
@@ -342,6 +550,54 @@ func (s *Store) groupUserConversationActivePatchesBySlotAndHashSlot(patches []me
 			grouped[slotID] = make(map[uint16][]metadb.UserConversationActivePatch)
 		}
 		grouped[slotID][hashSlot] = append(grouped[slotID][hashSlot], patch)
+	}
+	return grouped, nil
+}
+
+func (s *Store) groupUserConversationDeletesBySlotAndHashSlot(reqs []metadb.UserConversationDelete) (map[multiraft.SlotID]map[uint16][]metadb.UserConversationDelete, error) {
+	grouped := make(map[multiraft.SlotID]map[uint16][]metadb.UserConversationDelete, len(reqs))
+	for _, req := range reqs {
+		if req.UID == "" {
+			return nil, fmt.Errorf("metastore: empty uid in user conversation delete")
+		}
+		slotID := s.cluster.SlotForKey(req.UID)
+		hashSlot := hashSlotForKey(s.cluster, req.UID)
+		if grouped[slotID] == nil {
+			grouped[slotID] = make(map[uint16][]metadb.UserConversationDelete)
+		}
+		grouped[slotID][hashSlot] = append(grouped[slotID][hashSlot], req)
+	}
+	return grouped, nil
+}
+
+func (s *Store) groupUserConversationActiveHintsBySlotAndHashSlot(hints []metadb.UserConversationActiveHint) (map[multiraft.SlotID]map[uint16][]metadb.UserConversationActiveHint, error) {
+	grouped := make(map[multiraft.SlotID]map[uint16][]metadb.UserConversationActiveHint, len(hints))
+	for _, hint := range hints {
+		if hint.UID == "" {
+			return nil, fmt.Errorf("metastore: empty uid in active hint")
+		}
+		slotID := s.cluster.SlotForKey(hint.UID)
+		hashSlot := hashSlotForKey(s.cluster, hint.UID)
+		if grouped[slotID] == nil {
+			grouped[slotID] = make(map[uint16][]metadb.UserConversationActiveHint)
+		}
+		grouped[slotID][hashSlot] = append(grouped[slotID][hashSlot], hint)
+	}
+	return grouped, nil
+}
+
+func (s *Store) groupUserConversationDeleteBarriersBySlotAndHashSlot(barriers []metadb.UserConversationDeleteBarrier) (map[multiraft.SlotID]map[uint16][]metadb.UserConversationDeleteBarrier, error) {
+	grouped := make(map[multiraft.SlotID]map[uint16][]metadb.UserConversationDeleteBarrier, len(barriers))
+	for _, barrier := range barriers {
+		if barrier.UID == "" {
+			return nil, fmt.Errorf("metastore: empty uid in delete barrier")
+		}
+		slotID := s.cluster.SlotForKey(barrier.UID)
+		hashSlot := hashSlotForKey(s.cluster, barrier.UID)
+		if grouped[slotID] == nil {
+			grouped[slotID] = make(map[uint16][]metadb.UserConversationDeleteBarrier)
+		}
+		grouped[slotID][hashSlot] = append(grouped[slotID][hashSlot], barrier)
 	}
 	return grouped, nil
 }

@@ -10,7 +10,9 @@ type ConversationKey struct {
 
 // SyncQuery describes a legacy conversation sync request after adapter mapping.
 type SyncQuery struct {
-	UID                 string
+	UID string
+	// Version is kept for legacy clients; sync is now working-set based and
+	// does not use it as a full historical incremental cursor.
 	Version             int64
 	LastMsgSeqs         map[ConversationKey]uint64
 	MsgCount            int
@@ -37,6 +39,15 @@ type SetUnreadCommand struct {
 	Unread      int
 }
 
+// DeleteConversationCommand hides a conversation through MessageSeq for one user.
+type DeleteConversationCommand struct {
+	UID         string
+	ChannelID   string
+	ChannelType uint8
+	// MessageSeq is the delete barrier. When zero, the latest channel sequence is loaded.
+	MessageSeq uint64
+}
+
 // SyncConversation is the entry returned by conversation sync APIs.
 type SyncConversation struct {
 	ChannelID       string
@@ -46,8 +57,10 @@ type SyncConversation struct {
 	LastMsgSeq      uint32
 	LastClientMsgNo string
 	ReadToMsgSeq    uint32
-	Version         int64
-	Recents         []channel.Message
+	// Version is a compatibility timestamp for the returned conversation, not
+	// a complete cursor for discovering all historical conversation changes.
+	Version int64
+	Recents []channel.Message
 }
 
 // SyncResult contains the conversations selected for a sync response.

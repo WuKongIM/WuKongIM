@@ -13,13 +13,19 @@ import (
 // Store provides business-level distributed storage APIs
 // built on top of raftcluster's generic Propose mechanism.
 type Store struct {
-	cluster              raftcluster.API
-	db                   *metadb.DB
-	channelUpdateOverlay ChannelUpdateOverlay
+	cluster                       raftcluster.API
+	db                            *metadb.DB
+	userConversationActiveOverlay UserConversationActiveOverlay
 }
 
-type ChannelUpdateOverlay interface {
-	BatchGetHotChannelUpdates(ctx context.Context, keys []metadb.ConversationKey) (map[metadb.ConversationKey]metadb.ChannelUpdateLog, error)
+// UserConversationActiveOverlay exposes hot UID-owned active hints that have
+// not been durably folded into the slot state yet.
+type UserConversationActiveOverlay interface {
+	// ListHotUserConversationActive returns hot hints ordered by active_at.
+	// A negative limit requests the complete bounded hot set for the UID.
+	ListHotUserConversationActive(ctx context.Context, uid string, limit int) ([]metadb.UserConversationActiveHint, error)
+	SubmitHints(ctx context.Context, hints []metadb.UserConversationActiveHint) error
+	RemoveHints(ctx context.Context, barriers []metadb.UserConversationDeleteBarrier) error
 }
 
 // New creates a Store.
@@ -30,16 +36,15 @@ func New(cluster raftcluster.API, db *metadb.DB) *Store {
 		cluster.RPCMux().Handle(identityRPCServiceID, store.handleIdentityRPC)
 		cluster.RPCMux().Handle(subscriberRPCServiceID, store.handleSubscriberRPC)
 		cluster.RPCMux().Handle(userConversationStateRPCServiceID, store.handleUserConversationStateRPC)
-		cluster.RPCMux().Handle(channelUpdateLogRPCServiceID, store.handleChannelUpdateLogRPC)
 	}
 	return store
 }
 
-func (s *Store) RegisterChannelUpdateOverlay(overlay ChannelUpdateOverlay) {
+func (s *Store) RegisterUserConversationActiveOverlay(overlay UserConversationActiveOverlay) {
 	if s == nil {
 		return
 	}
-	s.channelUpdateOverlay = overlay
+	s.userConversationActiveOverlay = overlay
 }
 
 func (s *Store) HashSlotTableVersion() uint64 {

@@ -247,6 +247,9 @@ func (b *WriteBatch) TouchUserConversationActiveAt(hashSlot uint16, patches []Us
 		if err != nil {
 			return err
 		}
+		if exists && patch.MessageSeq > 0 && patch.MessageSeq <= current.DeletedToSeq {
+			continue
+		}
 		if exists && patch.ActiveAt <= current.ActiveAt {
 			continue
 		}
@@ -319,36 +322,46 @@ func (b *WriteBatch) ClearUserConversationActiveAt(hashSlot uint16, uid string, 
 	return nil
 }
 
-// UpsertChannelUpdateLog encodes and stages a channel update log write.
-func (b *WriteBatch) UpsertChannelUpdateLog(hashSlot uint16, entry ChannelUpdateLog) error {
+// HideUserConversation hides a user conversation through DeletedToSeq and
+// clears active_at in the same write batch.
+func (b *WriteBatch) HideUserConversation(hashSlot uint16, req UserConversationDelete) error {
 	if err := validateHashSlot(hashSlot); err != nil {
 		return err
 	}
-	if err := validateChannelUpdateLog(entry); err != nil {
+	if err := validateUserConversationDelete(req); err != nil {
 		return err
 	}
 
-	key := encodeChannelUpdateLogPrimaryKey(hashSlot, entry.ChannelID, entry.ChannelType, channelUpdateLogPrimaryFamilyID)
-	value := encodeChannelUpdateLogFamilyValue(entry, key)
-	return b.batch.Set(key, value, nil)
-}
-
-// DeleteChannelUpdateLogs removes channel update log rows for the provided keys.
-func (b *WriteBatch) DeleteChannelUpdateLogs(hashSlot uint16, keys []ConversationKey) error {
-	if err := validateHashSlot(hashSlot); err != nil {
-		return err
-	}
-
-	normalized, err := normalizeConversationKeys(keys)
+	primaryKey := encodeUserConversationStatePrimaryKey(hashSlot, req.UID, req.ChannelType, req.ChannelID, userConversationStatePrimaryFamilyID)
+	current, exists, err := b.loadUserConversationState(hashSlot, primaryKey, req.UID, req.ChannelID, req.ChannelType)
 	if err != nil {
 		return err
 	}
-	for _, key := range normalized {
-		primaryKey := encodeChannelUpdateLogPrimaryKey(hashSlot, key.ChannelID, key.ChannelType, channelUpdateLogPrimaryFamilyID)
-		if err := b.batch.Delete(primaryKey, nil); err != nil {
+	if !exists {
+		if req.DeletedToSeq == 0 {
+			return nil
+		}
+		current = UserConversationState{
+			UID:         req.UID,
+			ChannelID:   req.ChannelID,
+			ChannelType: req.ChannelType,
+		}
+	}
+	if req.DeletedToSeq <= current.DeletedToSeq {
+		return nil
+	}
+
+	next := hideUserConversationState(current, req)
+	if exists && current.ActiveAt > 0 {
+		oldIndexKey := encodeUserConversationActiveIndexKey(hashSlot, req.UID, current.ActiveAt, req.ChannelType, req.ChannelID)
+		if err := b.batch.Delete(oldIndexKey, nil); err != nil {
 			return err
 		}
 	}
+	if err := b.batch.Set(primaryKey, encodeUserConversationStateFamilyValue(next, primaryKey), nil); err != nil {
+		return err
+	}
+	b.rememberUserConversationState(primaryKey, next, true)
 	return nil
 }
 

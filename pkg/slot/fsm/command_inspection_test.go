@@ -80,6 +80,70 @@ func TestDecodeCommandInspectionIncludesAdvanceChannelRetentionThroughSeq(t *tes
 	}, got)
 }
 
+func TestDecodeCommandInspectionIncludesUserConversationActiveMessageSeq(t *testing.T) {
+	got, err := DecodeCommandInspection(EncodeTouchUserConversationActiveAtCommand([]metadb.UserConversationActivePatch{{
+		UID:         "u1",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		ActiveAt:    100,
+		MessageSeq:  11,
+	}}))
+	require.NoError(t, err)
+
+	require.Equal(t, CommandInspection{
+		Type: "touch_user_conversation_active_at",
+		Payload: map[string]any{
+			"command": "touch_user_conversation_active_at",
+			"patches": []map[string]any{{
+				"uid":          "u1",
+				"channel_id":   "g1",
+				"channel_type": int64(2),
+				"active_at":    int64(100),
+				"message_seq":  uint64(11),
+			}},
+		},
+	}, got)
+}
+
+func TestDecodeCommandInspectionMarksReservedConversationProjectionCommand(t *testing.T) {
+	got, err := DecodeCommandInspection([]byte{commandVersion, cmdTypeReservedConversationProjectionUpsert})
+	require.NoError(t, err)
+
+	require.Equal(t, CommandInspection{
+		Type: "reserved_conversation_projection",
+		Payload: map[string]any{
+			"command":    "reserved_conversation_projection",
+			"deprecated": true,
+			"reserved":   true,
+		},
+	}, got)
+}
+
+func TestDecodeCommandInspectionIncludesHideUserConversation(t *testing.T) {
+	got, err := DecodeCommandInspection(EncodeHideUserConversationsCommand([]metadb.UserConversationDelete{{
+		UID:          "u1",
+		ChannelID:    "g1",
+		ChannelType:  2,
+		DeletedToSeq: 10,
+		UpdatedAt:    20,
+	}}))
+	require.NoError(t, err)
+
+	require.Equal(t, CommandInspection{
+		Type: "hide_user_conversations",
+		Payload: map[string]any{
+			"command": "hide_user_conversations",
+			"deletes": []map[string]any{{
+				"uid":            "u1",
+				"channel_id":     "g1",
+				"channel_type":   int64(2),
+				"deleted_to_seq": uint64(10),
+				"updated_at":     int64(20),
+			}},
+		},
+	}, got)
+}
+
 func TestDecodeCommandInspectionExpandsApplyDeltaOriginalCommand(t *testing.T) {
 	got, err := DecodeCommandInspection(EncodeApplyDeltaCommand(
 		11,
