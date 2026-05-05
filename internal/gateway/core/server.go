@@ -829,8 +829,12 @@ func (q *asyncDispatchQueue) submit(task asyncDispatchTask) bool {
 	if q.closed {
 		return false
 	}
-	q.tasks <- task
-	return true
+	select {
+	case q.tasks <- task:
+		return true
+	default:
+		return false
+	}
 }
 
 func (q *asyncDispatchQueue) close() {
