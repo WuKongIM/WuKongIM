@@ -509,6 +509,9 @@ func TestServiceLaggingFollowerRestoresControllerSnapshot(t *testing.T) {
 	env.startNodeWithConfig(t, 3, nil, compactionCfg)
 	leaderID := env.waitForLeader(t, []uint64{1, 2, 3})
 	laggingID := firstNonLeader([]uint64{1, 2, 3}, leaderID)
+	laggingStore := env.nodes[laggingID].logDB.ForController()
+	laggingLastBeforeStop, err := laggingStore.LastIndex(context.Background())
+	require.NoError(t, err)
 
 	env.stopNode(laggingID)
 	activeIDs := removeNodeID([]uint64{1, 2, 3}, laggingID)
@@ -519,8 +522,18 @@ func TestServiceLaggingFollowerRestoresControllerSnapshot(t *testing.T) {
 		require.NoError(t, leader.service.Propose(context.Background(), nodeJoinCommand(nodeID)))
 	}
 	leaderSnap := waitForControllerSnapshotIndex(t, leader.logDB.ForController(), 4)
+	leaderFirst, err := leader.logDB.ForController().FirstIndex(context.Background())
+	require.NoError(t, err)
+	require.Greater(t, leaderFirst, laggingLastBeforeStop)
 
-	env.startNodeWithConfig(t, laggingID, nil, compactionCfg)
+	env.startNodeWithConfig(t, laggingID, nil, func(cfg *Config) {
+		cfg.LogCompaction = LogCompactionConfig{
+			Enabled:        false,
+			EnabledSet:     true,
+			TriggerEntries: 1,
+			CheckInterval:  time.Nanosecond,
+		}
+	})
 	for nodeID := uint64(10); nodeID < 15; nodeID++ {
 		waitForControllerNode(t, env.nodes[laggingID].meta, nodeID)
 	}
