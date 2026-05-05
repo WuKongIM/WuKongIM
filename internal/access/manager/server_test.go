@@ -1936,6 +1936,53 @@ func TestManagerChannelRuntimeMetaRejectsUnsupportedCursorVersion(t *testing.T) 
 	require.JSONEq(t, `{"error":"bad_request","message":"invalid cursor"}`, rec.Body.String())
 }
 
+func TestEncodeChannelRuntimeMetaCursorWritesBinaryPayload(t *testing.T) {
+	cursor := managementusecase.ChannelRuntimeMetaListCursor{SlotID: 1, ChannelID: "g1", ChannelType: 1}
+
+	raw, err := encodeChannelRuntimeMetaCursor(cursor)
+	require.NoError(t, err)
+	payload, err := base64.RawURLEncoding.DecodeString(raw)
+	require.NoError(t, err)
+	require.NotEmpty(t, payload)
+	require.NotEqual(t, byte('{'), payload[0])
+
+	decoded, err := decodeChannelRuntimeMetaCursor(raw)
+	require.NoError(t, err)
+	require.Equal(t, cursor, decoded)
+}
+
+func TestDecodeChannelRuntimeMetaCursorAcceptsLegacyJSONPayload(t *testing.T) {
+	cursor := managementusecase.ChannelRuntimeMetaListCursor{SlotID: 1, ChannelID: "g1", ChannelType: 1}
+
+	decoded, err := decodeChannelRuntimeMetaCursor(mustEncodeLegacyChannelRuntimeMetaCursorForTest(t, cursor))
+	require.NoError(t, err)
+	require.Equal(t, cursor, decoded)
+}
+
+func TestChannelRuntimeMetaCursorBinaryAllocationsStayBounded(t *testing.T) {
+	cursor := managementusecase.ChannelRuntimeMetaListCursor{SlotID: 1, ChannelID: "g1", ChannelType: 1}
+	raw, err := encodeChannelRuntimeMetaCursor(cursor)
+	require.NoError(t, err)
+
+	encodeAllocs := testing.AllocsPerRun(1000, func() {
+		if _, err := encodeChannelRuntimeMetaCursor(cursor); err != nil {
+			t.Fatal(err)
+		}
+	})
+	decodeAllocs := testing.AllocsPerRun(1000, func() {
+		decoded, err := decodeChannelRuntimeMetaCursor(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decoded != cursor {
+			t.Fatalf("decodeChannelRuntimeMetaCursor() = %+v, want %+v", decoded, cursor)
+		}
+	})
+
+	require.LessOrEqual(t, encodeAllocs, float64(1))
+	require.LessOrEqual(t, decodeAllocs, float64(1))
+}
+
 func TestManagerChannelRuntimeMetaReturnsPagedList(t *testing.T) {
 	var received managementusecase.ListChannelRuntimeMetaRequest
 	inputCursor := managementusecase.ChannelRuntimeMetaListCursor{SlotID: 1, ChannelID: "g1", ChannelType: 1}
@@ -2735,6 +2782,13 @@ func mustIssueExpiredTestToken(t *testing.T, srv *Server, username string) strin
 }
 
 func mustEncodeChannelRuntimeMetaCursorForTest(t *testing.T, cursor managementusecase.ChannelRuntimeMetaListCursor) string {
+	t.Helper()
+	raw, err := encodeChannelRuntimeMetaCursor(cursor)
+	require.NoError(t, err)
+	return raw
+}
+
+func mustEncodeLegacyChannelRuntimeMetaCursorForTest(t *testing.T, cursor managementusecase.ChannelRuntimeMetaListCursor) string {
 	t.Helper()
 	payload, err := json.Marshal(channelRuntimeMetaCursorPayload{
 		Version:     1,

@@ -1,8 +1,6 @@
 package manager
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -157,32 +155,11 @@ func encodeMessageCursor(cursor managementusecase.MessageListCursor) (string, er
 	if cursor == (managementusecase.MessageListCursor{}) {
 		return "", nil
 	}
-	payload, err := json.Marshal(messageCursorPayload{
-		Version:   1,
-		BeforeSeq: cursor.BeforeSeq,
-	})
-	if err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(payload), nil
+	return encodeMessageCursorBinary(cursor), nil
 }
 
 func decodeMessageCursor(raw string) (managementusecase.MessageListCursor, error) {
-	if raw == "" {
-		return managementusecase.MessageListCursor{}, nil
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(raw)
-	if err != nil {
-		return managementusecase.MessageListCursor{}, err
-	}
-	var body messageCursorPayload
-	if err := json.Unmarshal(payload, &body); err != nil {
-		return managementusecase.MessageListCursor{}, err
-	}
-	if body.Version != 1 || body.BeforeSeq == 0 {
-		return managementusecase.MessageListCursor{}, strconv.ErrSyntax
-	}
-	return managementusecase.MessageListCursor{BeforeSeq: body.BeforeSeq}, nil
+	return decodeMessageCursorRaw(raw)
 }
 
 func messageDTOs(items []managementusecase.Message) []MessageDTO {

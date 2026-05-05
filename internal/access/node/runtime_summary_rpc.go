@@ -2,7 +2,9 @@ package node
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
+
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 type runtimeSummaryRequest struct {
@@ -15,8 +17,8 @@ type runtimeSummaryResponse struct {
 }
 
 func (a *Adapter) handleRuntimeSummaryRPC(ctx context.Context, body []byte) ([]byte, error) {
-	var req runtimeSummaryRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	req, err := decodeRuntimeSummaryRequest(body)
+	if err != nil {
 		return nil, err
 	}
 	if a == nil || a.runtimeSummary == nil {
@@ -36,7 +38,18 @@ func (a *Adapter) handleRuntimeSummaryRPC(ctx context.Context, body []byte) ([]b
 }
 
 func (c *Client) RuntimeSummary(ctx context.Context, nodeID uint64) (RuntimeSummary, error) {
-	resp, err := callDirectRPC(ctx, c, nodeID, runtimeSummaryRPCServiceID, runtimeSummaryRequest{NodeID: nodeID}, decodeRuntimeSummaryResponse)
+	if c == nil || c.cluster == nil {
+		return RuntimeSummary{}, fmt.Errorf("access/node: cluster not configured")
+	}
+	body, err := encodeRuntimeSummaryRequestBinary(runtimeSummaryRequest{NodeID: nodeID})
+	if err != nil {
+		return RuntimeSummary{}, err
+	}
+	respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(nodeID), 0, runtimeSummaryRPCServiceID, body)
+	if err != nil {
+		return RuntimeSummary{}, err
+	}
+	resp, err := decodeRuntimeSummaryResponse(respBody)
 	if err != nil {
 		return RuntimeSummary{}, err
 	}
@@ -44,11 +57,9 @@ func (c *Client) RuntimeSummary(ctx context.Context, nodeID uint64) (RuntimeSumm
 }
 
 func encodeRuntimeSummaryResponse(resp runtimeSummaryResponse) ([]byte, error) {
-	return json.Marshal(resp)
+	return encodeRuntimeSummaryResponseBinary(resp)
 }
 
 func decodeRuntimeSummaryResponse(body []byte) (runtimeSummaryResponse, error) {
-	var resp runtimeSummaryResponse
-	err := json.Unmarshal(body, &resp)
-	return resp, err
+	return decodeRuntimeSummaryResponseBinary(body)
 }

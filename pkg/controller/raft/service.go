@@ -2,7 +2,6 @@ package raft
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"math"
 	"sync"
@@ -704,6 +703,10 @@ func (s *loadedMemoryStorage) ApplySnapshot(snapshot raftpb.Snapshot) error {
 }
 
 func encodeCommand(cmd slotcontroller.Command) ([]byte, error) {
+	return encodeCommandBinary(cmd)
+}
+
+func commandEnvelopeFromCommand(cmd slotcontroller.Command) commandEnvelope {
 	envelope := commandEnvelope{
 		Kind:   cmd.Kind,
 		Report: cmd.Report,
@@ -753,14 +756,21 @@ func encodeCommand(cmd slotcontroller.Command) ([]byte, error) {
 	if cmd.NodeOnboarding != nil {
 		envelope.NodeOnboarding = nodeOnboardingUpdateEnvelopeFromPlane(cmd.NodeOnboarding)
 	}
-	return json.Marshal(envelope)
+	return envelope
 }
 
 func decodeCommand(data []byte) (slotcontroller.Command, error) {
-	var envelope commandEnvelope
-	if err := json.Unmarshal(data, &envelope); err != nil {
+	if hasCommandEnvelopeBinaryMagic(data) {
+		return decodeCommandBinary(data)
+	}
+	envelope, err := decodeCommandEnvelopeLegacyJSON(data)
+	if err != nil {
 		return slotcontroller.Command{}, err
 	}
+	return commandFromEnvelope(envelope), nil
+}
+
+func commandFromEnvelope(envelope commandEnvelope) slotcontroller.Command {
 	cmd := slotcontroller.Command{
 		Kind:   envelope.Kind,
 		Report: envelope.Report,
@@ -811,7 +821,7 @@ func decodeCommand(data []byte) (slotcontroller.Command, error) {
 	if envelope.NodeOnboarding != nil {
 		cmd.NodeOnboarding = nodeOnboardingUpdateEnvelopeToPlane(envelope.NodeOnboarding)
 	}
-	return cmd, nil
+	return cmd
 }
 
 func assignmentEnvelopeFromMeta(assignment *controllermeta.SlotAssignment) *slotcontrollerAssignmentEnvelope {

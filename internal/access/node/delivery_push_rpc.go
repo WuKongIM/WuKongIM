@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
@@ -48,8 +47,8 @@ type DeliveryPushBatchCommand struct {
 
 func (a *Adapter) handleDeliveryPushRPC(ctx context.Context, body []byte) ([]byte, error) {
 	_ = ctx
-	var req deliveryPushRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	req, _, err := decodeDeliveryPushRequest(body)
+	if err != nil {
 		return nil, err
 	}
 	items := req.deliveryPushItems()
@@ -80,7 +79,7 @@ func (a *Adapter) handleDeliveryPushRPC(ctx context.Context, body []byte) ([]byt
 			wklog.Int("dropped", len(resp.Dropped)),
 		)
 	}
-	return encodeDeliveryPushResponse(resp)
+	return encodeDeliveryPushResponseBinary(resp)
 }
 
 func (r deliveryPushRequest) deliveryPushItems() []DeliveryPushItem {

@@ -1,7 +1,7 @@
 package node
 
 import (
-	"encoding/json"
+	"fmt"
 
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 )
@@ -32,21 +32,16 @@ type DeliveryPushCommand struct {
 }
 
 func encodeDeliveryResponse(resp deliveryResponse) ([]byte, error) {
-	return json.Marshal(resp)
-}
-
-func encodeDeliveryPushResponse(resp DeliveryPushResponse) ([]byte, error) {
-	return json.Marshal(resp)
+	return encodeDeliveryResponseBinary(resp)
 }
 
 func decodeDeliveryResponse(body []byte) (deliveryResponse, error) {
-	var resp deliveryResponse
-	err := json.Unmarshal(body, &resp)
-	return resp, err
+	return decodeDeliveryResponseBinary(body)
 }
 
 func decodeDeliveryPushResponse(body []byte) (DeliveryPushResponse, error) {
-	var resp DeliveryPushResponse
-	err := json.Unmarshal(body, &resp)
-	return resp, err
+	if !isDeliveryPushResponseBinary(body) {
+		return DeliveryPushResponse{}, fmt.Errorf("access/node: invalid delivery push response codec")
+	}
+	return decodeDeliveryPushResponseBinary(body)
 }

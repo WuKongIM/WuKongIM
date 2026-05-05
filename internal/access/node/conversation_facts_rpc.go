@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -46,55 +45,15 @@ func (k conversationFactsChannelKey) channelID() channel.ChannelID {
 	return channel.ChannelID{ID: k.ID, Type: k.Type}
 }
 
-func (k conversationFactsChannelKey) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		ChannelID   string `json:"ChannelID"`
-		ChannelType uint8  `json:"ChannelType"`
-	}{
-		ChannelID:   k.ID,
-		ChannelType: k.Type,
-	})
-}
-
-func (k *conversationFactsChannelKey) UnmarshalJSON(body []byte) error {
-	var payload struct {
-		ChannelID   *string `json:"ChannelID"`
-		ChannelType *uint8  `json:"ChannelType"`
-		ID          *string `json:"ID"`
-		Type        *uint8  `json:"Type"`
-	}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return err
-	}
-	switch {
-	case payload.ChannelID != nil || payload.ChannelType != nil:
-		if payload.ChannelID != nil {
-			k.ID = *payload.ChannelID
-		}
-		if payload.ChannelType != nil {
-			k.Type = *payload.ChannelType
-		}
-	default:
-		if payload.ID != nil {
-			k.ID = *payload.ID
-		}
-		if payload.Type != nil {
-			k.Type = *payload.Type
-		}
-	}
-	return nil
-}
-
 func (a *Adapter) handleConversationFactsRPC(ctx context.Context, body []byte) ([]byte, error) {
-	var req conversationFactsRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	req, err := decodeConversationFactsRequest(body)
+	if err != nil {
 		return nil, err
 	}
 
 	var (
 		messages []channel.Message
 		entries  []conversationFactsEntry
-		err      error
 	)
 	if len(req.Keys) > 0 {
 		entries = make([]conversationFactsEntry, 0, len(req.Keys))
@@ -251,11 +210,9 @@ func loadRecentConversationMessages(ctx context.Context, cluster ChannelLog, id 
 }
 
 func encodeConversationFactsResponse(resp conversationFactsResponse) ([]byte, error) {
-	return json.Marshal(resp)
+	return encodeConversationFactsResponseBinary(resp)
 }
 
 func decodeConversationFactsResponse(body []byte) (conversationFactsResponse, error) {
-	var resp conversationFactsResponse
-	err := json.Unmarshal(body, &resp)
-	return resp, err
+	return decodeConversationFactsResponseBinary(body)
 }

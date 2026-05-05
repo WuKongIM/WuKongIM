@@ -1,11 +1,10 @@
 package cluster
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
+	"sort"
 
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
@@ -24,6 +23,17 @@ const (
 	managedSlotKindChangeConfig
 	managedSlotKindTransferLeader
 	managedSlotKindImportSnapshot
+
+	managedSlotDecodedNil byte = iota
+	managedSlotDecodedString
+	managedSlotDecodedBool
+	managedSlotDecodedInt64
+	managedSlotDecodedUint64
+	managedSlotDecodedMap
+	managedSlotDecodedUint64Slice
+	managedSlotDecodedStringSlice
+	managedSlotDecodedMapSlice
+	managedSlotDecodedAnySlice
 )
 
 func encodeManagedSlotRequest(req managedSlotRPCRequest) ([]byte, error) {
@@ -276,12 +286,9 @@ func appendManagedSlotLogEntriesPayload(dst []byte, resp managedSlotRPCResponse)
 		dst = binary.AppendUvarint(dst, uint64(entry.DataSize))
 		dst = appendString(dst, entry.DecodeStatus)
 		dst = appendString(dst, entry.DecodedType)
-		decoded, err := json.Marshal(entry.Decoded)
+		decoded, err := encodeManagedSlotLogDecoded(entry.Decoded)
 		if err != nil {
 			return nil, err
-		}
-		if entry.Decoded == nil {
-			decoded = nil
 		}
 		dst = appendBytes(dst, decoded)
 	}
@@ -344,13 +351,249 @@ func decodeManagedSlotLogEntriesPayload(resp *managedSlotRPCResponse, src []byte
 	return nil
 }
 
+func encodeManagedSlotLogDecoded(decoded map[string]any) ([]byte, error) {
+	if decoded == nil {
+		return nil, nil
+	}
+	return appendManagedSlotDecodedMap(nil, decoded)
+}
+
 func decodeManagedSlotLogDecoded(src []byte, dst *map[string]any) error {
-	decoder := json.NewDecoder(bytes.NewReader(src))
-	decoder.UseNumber()
-	var decoded map[string]any
-	if err := decoder.Decode(&decoded); err != nil {
+	decoded, rest, err := readManagedSlotDecodedMap(src)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 0 {
 		return ErrInvalidConfig
 	}
 	*dst = decoded
 	return nil
+}
+
+func appendManagedSlotDecodedMap(dst []byte, values map[string]any) ([]byte, error) {
+	dst = binary.AppendUvarint(dst, uint64(len(values)))
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		var err error
+		dst = appendString(dst, key)
+		dst, err = appendManagedSlotDecodedValue(dst, values[key])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return dst, nil
+}
+
+func readManagedSlotDecodedMap(src []byte) (map[string]any, []byte, error) {
+	count, rest, err := readUvarint(src)
+	if err != nil {
+		return nil, nil, err
+	}
+	if count > uint64(len(rest)) && count != 0 {
+		return nil, nil, ErrInvalidConfig
+	}
+	values := make(map[string]any, count)
+	for i := uint64(0); i < count; i++ {
+		var key string
+		key, rest, err = readString(rest)
+		if err != nil {
+			return nil, nil, err
+		}
+		var value any
+		value, rest, err = readManagedSlotDecodedValue(rest)
+		if err != nil {
+			return nil, nil, err
+		}
+		values[key] = value
+	}
+	return values, rest, nil
+}
+
+func appendManagedSlotDecodedValue(dst []byte, value any) ([]byte, error) {
+	switch v := value.(type) {
+	case nil:
+		return append(dst, managedSlotDecodedNil), nil
+	case string:
+		dst = append(dst, managedSlotDecodedString)
+		return appendString(dst, v), nil
+	case bool:
+		dst = append(dst, managedSlotDecodedBool)
+		if v {
+			return append(dst, 1), nil
+		}
+		return append(dst, 0), nil
+	case int:
+		dst = append(dst, managedSlotDecodedInt64)
+		return appendInt64(dst, int64(v)), nil
+	case int8:
+		dst = append(dst, managedSlotDecodedInt64)
+		return appendInt64(dst, int64(v)), nil
+	case int16:
+		dst = append(dst, managedSlotDecodedInt64)
+		return appendInt64(dst, int64(v)), nil
+	case int32:
+		dst = append(dst, managedSlotDecodedInt64)
+		return appendInt64(dst, int64(v)), nil
+	case int64:
+		dst = append(dst, managedSlotDecodedInt64)
+		return appendInt64(dst, v), nil
+	case uint:
+		dst = append(dst, managedSlotDecodedUint64)
+		return binary.BigEndian.AppendUint64(dst, uint64(v)), nil
+	case uint8:
+		dst = append(dst, managedSlotDecodedUint64)
+		return binary.BigEndian.AppendUint64(dst, uint64(v)), nil
+	case uint16:
+		dst = append(dst, managedSlotDecodedUint64)
+		return binary.BigEndian.AppendUint64(dst, uint64(v)), nil
+	case uint32:
+		dst = append(dst, managedSlotDecodedUint64)
+		return binary.BigEndian.AppendUint64(dst, uint64(v)), nil
+	case uint64:
+		dst = append(dst, managedSlotDecodedUint64)
+		return binary.BigEndian.AppendUint64(dst, v), nil
+	case map[string]any:
+		dst = append(dst, managedSlotDecodedMap)
+		return appendManagedSlotDecodedMap(dst, v)
+	case []uint64:
+		dst = append(dst, managedSlotDecodedUint64Slice)
+		return appendUint64Slice(dst, v), nil
+	case []string:
+		dst = append(dst, managedSlotDecodedStringSlice)
+		dst = binary.AppendUvarint(dst, uint64(len(v)))
+		for _, item := range v {
+			dst = appendString(dst, item)
+		}
+		return dst, nil
+	case []map[string]any:
+		dst = append(dst, managedSlotDecodedMapSlice)
+		dst = binary.AppendUvarint(dst, uint64(len(v)))
+		for _, item := range v {
+			var err error
+			dst, err = appendManagedSlotDecodedMap(dst, item)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return dst, nil
+	case []any:
+		dst = append(dst, managedSlotDecodedAnySlice)
+		dst = binary.AppendUvarint(dst, uint64(len(v)))
+		for _, item := range v {
+			var err error
+			dst, err = appendManagedSlotDecodedValue(dst, item)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return dst, nil
+	default:
+		return nil, ErrInvalidConfig
+	}
+}
+
+func readManagedSlotDecodedValue(src []byte) (any, []byte, error) {
+	if len(src) == 0 {
+		return nil, nil, ErrInvalidConfig
+	}
+	tag := src[0]
+	rest := src[1:]
+	switch tag {
+	case managedSlotDecodedNil:
+		return nil, rest, nil
+	case managedSlotDecodedString:
+		return readString(rest)
+	case managedSlotDecodedBool:
+		if len(rest) == 0 {
+			return nil, nil, ErrInvalidConfig
+		}
+		switch rest[0] {
+		case 0:
+			return false, rest[1:], nil
+		case 1:
+			return true, rest[1:], nil
+		default:
+			return nil, nil, ErrInvalidConfig
+		}
+	case managedSlotDecodedInt64:
+		return readInt64(rest)
+	case managedSlotDecodedUint64:
+		return readUint64(rest)
+	case managedSlotDecodedMap:
+		return readManagedSlotDecodedMap(rest)
+	case managedSlotDecodedUint64Slice:
+		return readUint64Slice(rest)
+	case managedSlotDecodedStringSlice:
+		return readManagedSlotDecodedStringSlice(rest)
+	case managedSlotDecodedMapSlice:
+		return readManagedSlotDecodedMapSlice(rest)
+	case managedSlotDecodedAnySlice:
+		return readManagedSlotDecodedAnySlice(rest)
+	default:
+		return nil, nil, ErrInvalidConfig
+	}
+}
+
+func readManagedSlotDecodedStringSlice(src []byte) ([]string, []byte, error) {
+	count, rest, err := readUvarint(src)
+	if err != nil {
+		return nil, nil, err
+	}
+	if count > uint64(len(rest)) && count != 0 {
+		return nil, nil, ErrInvalidConfig
+	}
+	values := make([]string, 0, count)
+	for i := uint64(0); i < count; i++ {
+		var value string
+		value, rest, err = readString(rest)
+		if err != nil {
+			return nil, nil, err
+		}
+		values = append(values, value)
+	}
+	return values, rest, nil
+}
+
+func readManagedSlotDecodedMapSlice(src []byte) ([]map[string]any, []byte, error) {
+	count, rest, err := readUvarint(src)
+	if err != nil {
+		return nil, nil, err
+	}
+	if count > uint64(len(rest)) && count != 0 {
+		return nil, nil, ErrInvalidConfig
+	}
+	values := make([]map[string]any, 0, count)
+	for i := uint64(0); i < count; i++ {
+		var value map[string]any
+		value, rest, err = readManagedSlotDecodedMap(rest)
+		if err != nil {
+			return nil, nil, err
+		}
+		values = append(values, value)
+	}
+	return values, rest, nil
+}
+
+func readManagedSlotDecodedAnySlice(src []byte) ([]any, []byte, error) {
+	count, rest, err := readUvarint(src)
+	if err != nil {
+		return nil, nil, err
+	}
+	if count > uint64(len(rest)) && count != 0 {
+		return nil, nil, ErrInvalidConfig
+	}
+	values := make([]any, 0, count)
+	for i := uint64(0); i < count; i++ {
+		var value any
+		value, rest, err = readManagedSlotDecodedValue(rest)
+		if err != nil {
+			return nil, nil, err
+		}
+		values = append(values, value)
+	}
+	return values, rest, nil
 }

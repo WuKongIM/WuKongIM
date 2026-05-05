@@ -238,6 +238,45 @@ func TestPresenceRPCEndpointsByUIDsRoundTrip(t *testing.T) {
 	require.Equal(t, uint64(200), endpoints["u2"][0].SessionID)
 }
 
+func TestPresenceRPCBinaryCodecRoundTrip(t *testing.T) {
+	req := presenceRPCRequest{
+		Op:    presenceOpHeartbeat,
+		Lease: &presence.GatewayLease{SlotID: 1, GatewayNodeID: 2, GatewayBootID: 3, RouteCount: 4, RouteDigest: 5, LeaseUntilUnix: 6},
+	}
+
+	reqBody, err := encodePresenceRPCRequestBinary(req)
+	require.NoError(t, err)
+	require.True(t, isPresenceRPCRequestBinary(reqBody))
+
+	gotReq, err := decodePresenceRPCRequest(reqBody)
+	require.NoError(t, err)
+	require.Equal(t, req.Op, gotReq.Op)
+	require.Equal(t, req.Lease, gotReq.Lease)
+
+	resp := presenceRPCResponse{
+		Status:    rpcStatusOK,
+		Heartbeat: &presence.HeartbeatAuthoritativeResult{RouteCount: 7, RouteDigest: 8, Mismatch: true},
+	}
+	respBody, err := encodePresenceResponse(resp)
+	require.NoError(t, err)
+	require.True(t, isPresenceRPCResponseBinary(respBody))
+
+	gotResp, err := decodePresenceResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, resp.Status, gotResp.Status)
+	require.Equal(t, resp.Heartbeat, gotResp.Heartbeat)
+}
+
+func TestPresenceRPCRejectsJSONPayload(t *testing.T) {
+	adapter := New(Options{
+		Presence: presence.New(presence.Options{}),
+		Online:   online.NewRegistry(),
+	})
+
+	_, err := adapter.handlePresenceRPC(context.Background(), []byte(`{"op":"heartbeat","lease":{"slot_id":1}}`))
+	require.Error(t, err)
+}
+
 type fakeClusterNetwork struct {
 	mu        sync.Mutex
 	peers     map[uint64][]uint64

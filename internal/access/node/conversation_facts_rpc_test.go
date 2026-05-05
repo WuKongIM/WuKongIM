@@ -2,15 +2,14 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/stretchr/testify/require"
 )
 
-func TestConversationFactsRequestJSONPreservesLegacyChannelKeyFields(t *testing.T) {
-	body := mustMarshal(t, conversationFactsRequest{
+func TestConversationFactsBinaryCodecRoundTrip(t *testing.T) {
+	req := conversationFactsRequest{
 		Op: conversationFactsOpLatest,
 		Key: newConversationFactsChannelKey(channel.ChannelID{
 			ID:   "g1",
@@ -20,84 +19,49 @@ func TestConversationFactsRequestJSONPreservesLegacyChannelKeyFields(t *testing.
 			newConversationFactsChannelKey(channel.ChannelID{ID: "g1", Type: 2}),
 			newConversationFactsChannelKey(channel.ChannelID{ID: "g2", Type: 3}),
 		},
-	})
+		Limit:    5,
+		MaxBytes: 1024,
+	}
+	reqBody, err := encodeConversationFactsRequestBinary(req)
+	require.NoError(t, err)
+	require.True(t, isConversationFactsRequestBinary(reqBody))
 
-	require.JSONEq(t, `{
-		"op":"latest",
-		"key":{"ChannelID":"g1","ChannelType":2},
-		"keys":[
-			{"ChannelID":"g1","ChannelType":2},
-			{"ChannelID":"g2","ChannelType":3}
-		]
-	}`, string(body))
-	require.NotContains(t, string(body), `"ID":"g1"`)
-	require.NotContains(t, string(body), `"Type":2`)
-}
+	gotReq, err := decodeConversationFactsRequest(reqBody)
+	require.NoError(t, err)
+	require.Equal(t, req, gotReq)
 
-func TestConversationFactsRequestJSONDecodesLegacyChannelKeyFields(t *testing.T) {
-	body := []byte(`{
-		"op":"recent",
-		"key":{"ChannelID":"g1","ChannelType":2},
-		"keys":[{"ChannelID":"g2","ChannelType":3}],
-		"limit":5,
-		"max_bytes":1024
-	}`)
-
-	var req conversationFactsRequest
-	require.NoError(t, json.Unmarshal(body, &req))
-	require.Equal(t, channel.ChannelID{ID: "g1", Type: 2}, req.Key.channelID())
-	require.Equal(t, []conversationFactsChannelKey{
-		newConversationFactsChannelKey(channel.ChannelID{ID: "g2", Type: 3}),
-	}, req.Keys)
-	require.Equal(t, 5, req.Limit)
-	require.Equal(t, 1024, req.MaxBytes)
-}
-
-func TestConversationFactsResponseJSONPreservesLegacyBatchEntryKeyFields(t *testing.T) {
-	body, err := encodeConversationFactsResponse(conversationFactsResponse{
+	resp := conversationFactsResponse{
 		Status: rpcStatusOK,
+		Messages: []channel.Message{{
+			ChannelID:   "g0",
+			ChannelType: 1,
+			MessageSeq:  8,
+			Payload:     []byte("latest"),
+		}},
 		Entries: []conversationFactsEntry{{
 			Key: newConversationFactsChannelKey(channel.ChannelID{ID: "g1", Type: 2}),
 			Messages: []channel.Message{{
 				ChannelID:   "g1",
 				ChannelType: 2,
 				MessageSeq:  9,
+				Payload:     []byte("recent"),
 			}},
 		}},
-	})
+	}
+	respBody, err := encodeConversationFactsResponse(resp)
 	require.NoError(t, err)
+	require.True(t, isConversationFactsResponseBinary(respBody))
 
-	var payload map[string]any
-	require.NoError(t, json.Unmarshal(body, &payload))
-	require.Equal(t, rpcStatusOK, payload["status"])
-	entries, ok := payload["entries"].([]any)
-	require.True(t, ok)
-	require.Len(t, entries, 1)
-	entry, ok := entries[0].(map[string]any)
-	require.True(t, ok)
-	require.Equal(t, map[string]any{
-		"ChannelID":   "g1",
-		"ChannelType": float64(2),
-	}, entry["key"])
-	require.NotContains(t, string(body), `"ID":"g1"`)
-	require.NotContains(t, string(body), `"Type":2`)
+	gotResp, err := decodeConversationFactsResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, resp, gotResp)
 }
 
-func TestConversationFactsResponseJSONDecodesLegacyBatchEntryKeyFields(t *testing.T) {
-	body := []byte(`{
-		"status":"ok",
-		"entries":[{
-			"key":{"ChannelID":"g1","ChannelType":2},
-			"messages":[{"ChannelID":"g1","ChannelType":2,"MessageSeq":9}]
-		}]
-	}`)
+func TestConversationFactsRPCRejectsJSONPayload(t *testing.T) {
+	adapter := New(Options{})
 
-	resp, err := decodeConversationFactsResponse(body)
-	require.NoError(t, err)
-	require.Len(t, resp.Entries, 1)
-	require.Equal(t, channel.ChannelID{ID: "g1", Type: 2}, resp.Entries[0].Key.channelID())
-	require.Len(t, resp.Entries[0].Messages, 1)
-	require.Equal(t, uint64(9), resp.Entries[0].Messages[0].MessageSeq)
+	_, err := adapter.handleConversationFactsRPC(context.Background(), []byte(`{"op":"latest","key":{"ChannelID":"g1","ChannelType":2}}`))
+	require.Error(t, err)
 }
 
 func TestLoadLatestConversationMessageTreatsNotReadyAsEmpty(t *testing.T) {
@@ -133,7 +97,7 @@ func TestConversationFactsRPCRefreshesStaleMetaForBatchRecentLoads(t *testing.T)
 		ChannelMeta: refresher,
 	})
 
-	body := mustMarshal(t, conversationFactsRequest{
+	body := mustEncodeConversationFactsRequest(t, conversationFactsRequest{
 		Op: conversationFactsOpRecent,
 		Keys: []conversationFactsChannelKey{
 			newConversationFactsChannelKey(channel.ChannelID{ID: "g1", Type: 2}),
@@ -208,4 +172,11 @@ func (r *refreshingConversationFactsMetaRefresher) RefreshChannelMeta(_ context.
 		r.onRefresh()
 	}
 	return r.meta, r.err
+}
+
+func mustEncodeConversationFactsRequest(t *testing.T, req conversationFactsRequest) []byte {
+	t.Helper()
+	body, err := encodeConversationFactsRequestBinary(req)
+	require.NoError(t, err)
+	return body
 }

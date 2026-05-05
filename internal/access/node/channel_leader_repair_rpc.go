@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -48,8 +47,8 @@ func (r channelLeaderRepairResponse) rpcLeaderID() uint64 {
 }
 
 func (a *Adapter) handleChannelLeaderRepairRPC(ctx context.Context, body []byte) ([]byte, error) {
-	var req ChannelLeaderRepairRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	req, err := decodeChannelLeaderRepairRequest(body)
+	if err != nil {
 		return nil, err
 	}
 	slotID := multiraft.SlotID(0)
@@ -85,7 +84,7 @@ func (c *Client) RepairChannelLeader(ctx context.Context, req channelmeta.Leader
 		return channelmeta.LeaderRepairResult{}, fmt.Errorf("access/node: cluster not configured")
 	}
 	slotID := c.cluster.SlotForKey(req.ChannelID.ID)
-	body, err := json.Marshal(fromChannelmetaLeaderRepairRequest(req))
+	body, err := encodeChannelLeaderRepairRequestBinary(fromChannelmetaLeaderRepairRequest(req))
 	if err != nil {
 		return channelmeta.LeaderRepairResult{}, err
 	}
@@ -150,13 +149,11 @@ func (c *Client) RepairChannelLeader(ctx context.Context, req channelmeta.Leader
 }
 
 func encodeChannelLeaderRepairResponse(resp channelLeaderRepairResponse) ([]byte, error) {
-	return json.Marshal(resp)
+	return encodeChannelLeaderRepairResponseBinary(resp)
 }
 
 func decodeChannelLeaderRepairResponse(body []byte) (channelLeaderRepairResponse, error) {
-	var resp channelLeaderRepairResponse
-	err := json.Unmarshal(body, &resp)
-	return resp, err
+	return decodeChannelLeaderRepairResponseBinary(body)
 }
 
 func toChannelmetaLeaderRepairRequest(req ChannelLeaderRepairRequest) channelmeta.LeaderRepairRequest {

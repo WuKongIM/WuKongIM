@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -13,8 +12,8 @@ type deliverySubmitRequest struct {
 }
 
 func (a *Adapter) handleDeliverySubmitRPC(ctx context.Context, body []byte) ([]byte, error) {
-	var req deliverySubmitRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	req, err := decodeDeliverySubmitRequest(body)
+	if err != nil {
 		return nil, err
 	}
 	if a.logger != nil {

@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 )
@@ -12,8 +11,8 @@ type deliveryOfflineRequest struct {
 }
 
 func (a *Adapter) handleDeliveryOfflineRPC(ctx context.Context, body []byte) ([]byte, error) {
-	var req deliveryOfflineRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	req, err := decodeDeliveryOfflineRequest(body)
+	if err != nil {
 		return nil, err
 	}
 	if a.deliveryOffline != nil {

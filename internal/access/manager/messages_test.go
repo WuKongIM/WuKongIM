@@ -98,7 +98,61 @@ func TestManagerMessagesReturnsPagedList(t *testing.T) {
 	}`, mustEncodeMessageCursorForTest(t, nextCursor)), rec.Body.String())
 }
 
+func TestEncodeMessageCursorWritesBinaryPayload(t *testing.T) {
+	cursor := managementusecase.MessageListCursor{BeforeSeq: 11}
+
+	raw, err := encodeMessageCursor(cursor)
+	require.NoError(t, err)
+	payload, err := base64.RawURLEncoding.DecodeString(raw)
+	require.NoError(t, err)
+	require.NotEmpty(t, payload)
+	require.NotEqual(t, byte('{'), payload[0])
+
+	decoded, err := decodeMessageCursor(raw)
+	require.NoError(t, err)
+	require.Equal(t, cursor, decoded)
+}
+
+func TestDecodeMessageCursorAcceptsLegacyJSONPayload(t *testing.T) {
+	cursor := managementusecase.MessageListCursor{BeforeSeq: 11}
+
+	decoded, err := decodeMessageCursor(mustEncodeLegacyMessageCursorForTest(t, cursor))
+	require.NoError(t, err)
+	require.Equal(t, cursor, decoded)
+}
+
+func TestMessageCursorBinaryAllocationsStayBounded(t *testing.T) {
+	cursor := managementusecase.MessageListCursor{BeforeSeq: 11}
+	raw, err := encodeMessageCursor(cursor)
+	require.NoError(t, err)
+
+	encodeAllocs := testing.AllocsPerRun(1000, func() {
+		if _, err := encodeMessageCursor(cursor); err != nil {
+			t.Fatal(err)
+		}
+	})
+	decodeAllocs := testing.AllocsPerRun(1000, func() {
+		decoded, err := decodeMessageCursor(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decoded != cursor {
+			t.Fatalf("decodeMessageCursor() = %+v, want %+v", decoded, cursor)
+		}
+	})
+
+	require.LessOrEqual(t, encodeAllocs, float64(1))
+	require.Zero(t, decodeAllocs)
+}
+
 func mustEncodeMessageCursorForTest(t *testing.T, cursor managementusecase.MessageListCursor) string {
+	t.Helper()
+	raw, err := encodeMessageCursor(cursor)
+	require.NoError(t, err)
+	return raw
+}
+
+func mustEncodeLegacyMessageCursorForTest(t *testing.T, cursor managementusecase.MessageListCursor) string {
 	t.Helper()
 	payload, err := json.Marshal(messageCursorPayload{
 		Version:   1,

@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -57,8 +56,8 @@ func (r presenceRPCResponse) rpcLeaderID() uint64 {
 }
 
 func (a *Adapter) handlePresenceRPC(ctx context.Context, body []byte) ([]byte, error) {
-	var req presenceRPCRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	req, err := decodePresenceRPCRequest(body)
+	if err != nil {
 		return nil, err
 	}
 
@@ -210,7 +209,7 @@ func (a *Adapter) authoritativeRPCStatus(slotID multiraft.SlotID) (string, uint6
 }
 
 func encodePresenceResponse(resp presenceRPCResponse) ([]byte, error) {
-	return json.Marshal(resp)
+	return encodePresenceRPCResponseBinary(resp)
 }
 
 func derefRoute(route *presence.Route) presence.Route {
