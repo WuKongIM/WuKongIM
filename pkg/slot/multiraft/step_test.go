@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	raft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -103,6 +104,75 @@ func TestRuntimeStatusCurrentVotersSnapshotIsImmutable(t *testing.T) {
 	if got, want := next.CurrentVoters, []NodeID{1}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("second Status().CurrentVoters = %v, want %v", got, want)
 	}
+}
+
+func TestRuntimeRefreshesBasicStatusAfterTick(t *testing.T) {
+	rt := newStartedRuntime(t)
+	slotID := openSingleNodeLeader(t, rt, 108)
+	g := slotFor(rt, slotID)
+	if g == nil {
+		t.Fatal("slotFor() = nil")
+	}
+	beforeBasic, _ := slotStatusRefreshCounts(g)
+
+	g.markTickPending()
+	rt.processSlot(slotID)
+
+	afterBasic, _ := slotStatusRefreshCounts(g)
+	if afterBasic <= beforeBasic {
+		t.Fatalf("basic status refresh count = %d, want > %d", afterBasic, beforeBasic)
+	}
+}
+
+func TestRuntimeRefreshesVotersAfterConfigChange(t *testing.T) {
+	rt := newStartedRuntime(t)
+	slotID := openSingleNodeLeader(t, rt, 109)
+
+	fut, err := rt.ChangeConfig(context.Background(), slotID, ConfigChange{Type: AddVoter, NodeID: 2})
+	if err != nil {
+		t.Fatalf("ChangeConfig() error = %v", err)
+	}
+	if _, err := fut.Wait(context.Background()); err != nil {
+		t.Fatalf("Wait() error = %v", err)
+	}
+
+	st, err := rt.Status(slotID)
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+	if got, want := st.CurrentVoters, []NodeID{1, 2}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Status().CurrentVoters = %v, want %v", got, want)
+	}
+}
+
+func TestRuntimeDoesNotDoubleRefreshAfterReady(t *testing.T) {
+	g, err := newSlot(context.Background(), 1, nil, RaftOptions{ElectionTick: 10, HeartbeatTick: 1}, newInternalSlotOptions(110))
+	if err != nil {
+		t.Fatalf("newSlot() error = %v", err)
+	}
+	if err := g.rawNode.Bootstrap([]raft.Peer{{ID: 1}}); err != nil {
+		t.Fatalf("Bootstrap() error = %v", err)
+	}
+	rt := &Runtime{
+		opts:  Options{Transport: &internalFakeTransport{}},
+		slots: map[SlotID]*slot{110: g},
+	}
+	beforeBasic, beforeFull := slotStatusRefreshCounts(g)
+	before := beforeBasic + beforeFull
+
+	rt.processSlot(110)
+
+	afterBasic, afterFull := slotStatusRefreshCounts(g)
+	after := afterBasic + afterFull
+	if got := after - before; got != 1 {
+		t.Fatalf("status refreshes after ready = %d, want 1", got)
+	}
+}
+
+func slotStatusRefreshCounts(g *slot) (basic int, full int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.basicStatusRefreshCount, g.fullStatusRefreshCount
 }
 
 func TestCloseSlotStopsFurtherProcessing(t *testing.T) {
