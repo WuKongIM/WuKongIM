@@ -212,6 +212,16 @@ AddLearner → CatchUp → Promote → TransferLeader → RemoveOld
 | CheckQuorum / PreVote | true / true | raft/service.go |
 | Bootstrap 触发 | 无持久化状态 + AllowBootstrap + 最小PeerID | raft/service.go:170 |
 | Raft Logger | `wklog` 结构化日志，模块 `controller.raft`，附带 `raftScope=controller` / `nodeID` / `raftEvent`；heartbeat/read-index/probe 类噪声按 Debug 输出 | raft/logging.go |
+| Controller log compaction | 默认开启；按 applied entry 增量导出 controller meta snapshot，写入 Controller Raft snapshot，并裁剪旧本地 entries | raft/service.go |
+
+Controller Raft snapshot compaction:
+```
+  ① apply committed entries and mark applied
+  ② after RawNode.Advance, if applied delta reaches threshold, export meta snapshot
+  ③ persist raft snapshot to raftlog, then compact MemoryStorage
+  ④ startup restores snapshot first, then replays post-snapshot entries
+  ⑤ Ready.Snapshot is restored before marking its index applied
+```
 
 ## 8. 避坑清单
 
@@ -225,6 +235,7 @@ AddLearner → CatchUp → Promote → TransferLeader → RemoveOld
 - **指数退避上限**: `retryDelay` 中 shift 上限为 30，防止溢出。重试延迟 = base × 2^(attempt-1)。
 - **Command 序列化为二进制**: `raft/service.go:encodeCommand` 写入带 magic/version/field mask 的二进制 command envelope；`decodeCommand` 仍能读取 legacy JSON 日志，TaskAdvance.Err 仍按 string 还原为 `errors.New`。
 - **Controller 日志 inspection**: `raft/command_inspection.go:DecodeCommandInspection` 只暴露脱敏、JSON-friendly 的 command 摘要，供 `pkg/cluster` 读取 Controller Raft 日志时展示；管理后台不直接解析 command wire format。
+- **Controller log compaction 恢复边界**: 启动时先导入持久化 snapshot，再以 `snapshot.Metadata.Index` 作为 RawNode applied point，让 snapshot 之后仍存在的 entries 继续 replay；不要用更靠后的 persisted applied index 跳过 replay。
 - **Leader 丢失时清理**: `raft/service.go:failInflightProposalsOnLeaderLoss` 在每次状态检查后清理所有 pending 提案，返回 ErrNotLeader。
 - **Onboarding Apply 冲突必须 no-op**: `NodeOnboardingJobUpdate` 的状态保护、单 running job 保护和竞态保护都不能从 StateMachine.Apply 返回业务错误；调用方必须在 propose 后重新读取 job 判断转换是否真的生效。
 - **Onboarding 与普通 Rebalance 互斥**: running onboarding job 存在时，上层 cluster tick 会暂停普通自动 Rebalance，并锁定当前 onboarding move 的 Slot；Bootstrap/Repair 仍可继续，避免扩容流程阻塞安全修复。
