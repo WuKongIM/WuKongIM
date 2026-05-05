@@ -439,7 +439,7 @@ func TestServiceRestartRestoresSnapshotCreatedByCompaction(t *testing.T) {
 		cfg.LogCompaction = LogCompactionConfig{
 			Enabled:        true,
 			EnabledSet:     true,
-			TriggerEntries: 1,
+			TriggerEntries: 2,
 			CheckInterval:  time.Nanosecond,
 		}
 	}
@@ -447,11 +447,32 @@ func TestServiceRestartRestoresSnapshotCreatedByCompaction(t *testing.T) {
 	env.waitForLeader(t, []uint64{1})
 
 	node := env.nodes[1]
+	store := node.logDB.ForController()
 	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(2)))
-	waitForControllerSnapshotIndex(t, node.logDB.ForController(), 2)
+	snap2 := waitForControllerSnapshotIndex(t, store, 2)
+	require.Equal(t, uint64(2), snap2.Metadata.Index)
+
 	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(3)))
+	require.Eventually(t, func() bool {
+		state, err := store.InitialState(context.Background())
+		return err == nil && state.AppliedIndex >= 3
+	}, 5*time.Second, 10*time.Millisecond)
+
+	snapAfterNode3, err := store.Snapshot(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), snapAfterNode3.Metadata.Index)
+
+	first, err := store.FirstIndex(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), first)
+	last, err := store.LastIndex(context.Background())
+	require.NoError(t, err)
+	entries, err := store.Entries(context.Background(), first, last+1, 0)
+	require.NoError(t, err)
+	require.Contains(t, entryIndexes(entries), uint64(3))
 
 	env.stopNode(1)
+	require.NoError(t, os.RemoveAll(filepath.Join(node.dir, "controller-meta")))
 	env.startNodeWithConfig(t, 1, nil, compactionCfg)
 
 	require.Eventually(t, func() bool {
@@ -1322,6 +1343,14 @@ func mustMarshalRaftMessage(t *testing.T, msg raftpb.Message) []byte {
 	body, err := msg.Marshal()
 	require.NoError(t, err)
 	return body
+}
+
+func entryIndexes(entries []raftpb.Entry) []uint64 {
+	out := make([]uint64, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, entry.Index)
+	}
+	return out
 }
 
 func nodeJoinCommand(nodeID uint64) slotcontroller.Command {

@@ -33,6 +33,7 @@ var (
 		return rawNode.Bootstrap(peers)
 	}
 
+	// compactControllerLogHook is a narrow test hook for injecting local compaction failures; it must remain nil in production.
 	compactControllerLogHook func() error
 )
 
