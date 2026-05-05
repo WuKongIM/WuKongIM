@@ -15,6 +15,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
+var newControllerRaftService = controllerraft.NewService
+
 type controllerHost struct {
 	meta         *controllermeta.Store
 	raftDB       *raftstorage.DB
@@ -136,7 +138,7 @@ func newControllerHost(cfg Config, layer *transportLayer) (*controllerHost, erro
 		loadNodes:      host.meta.ListNodes,
 		loadNode:       host.meta.GetNode,
 	})
-	service := controllerraft.NewService(controllerraft.Config{
+	service := newControllerRaftService(controllerraft.Config{
 		NodeID:         uint64(cfg.NodeID),
 		Peers:          controllerPeers,
 		AllowBootstrap: true,
@@ -146,6 +148,7 @@ func newControllerHost(cfg Config, layer *transportLayer) (*controllerHost, erro
 		RPCMux:         layer.rpcMux,
 		Pool:           layer.raftPool,
 		Logger:         defaultLogger(cfg.Logger).Named("controller"),
+		LogCompaction:  cfg.ControllerLogCompaction,
 		OnLeaderChange: func(from, to uint64) {
 			host.handleLeaderChange(multiraft.NodeID(from), multiraft.NodeID(to))
 		},

@@ -31,6 +31,7 @@ import (
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
@@ -779,8 +780,14 @@ func (c ClusterConfig) runtimeConfig(storage StorageConfig, db *metadb.DB, raftD
 		ElectionTick:                 c.ElectionTick,
 		HeartbeatTick:                c.HeartbeatTick,
 		DialTimeout:                  c.DialTimeout,
-		Timeouts:                     c.Timeouts,
-		Logger:                       logger,
+		ControllerLogCompaction: controllerraft.LogCompactionConfig{
+			Enabled:        c.ControllerLogCompaction.Enabled,
+			EnabledSet:     true,
+			TriggerEntries: c.ControllerLogCompaction.TriggerEntries,
+			CheckInterval:  c.ControllerLogCompaction.CheckInterval,
+		},
+		Timeouts: c.Timeouts,
+		Logger:   logger,
 	}
 }
 
