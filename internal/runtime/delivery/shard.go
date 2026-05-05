@@ -71,34 +71,14 @@ func (s *shard) routeOffline(ctx context.Context, binding AckBinding) error {
 }
 
 func (s *shard) processRetryTicks(ctx context.Context) error {
-	s.mu.Lock()
 	due := s.wheel.PopDue(s.manager.clock.Now())
-	actors := make([]*actor, 0, len(s.actors))
-	for _, act := range s.actors {
-		actors = append(actors, act)
-	}
-	s.mu.Unlock()
 	for _, entry := range due {
 		act := s.actor(ChannelKey{ChannelID: entry.ChannelID, ChannelType: entry.ChannelType})
 		if act == nil {
 			continue
 		}
 		act.mu.Lock()
-		err := act.handleRetryTick(ctx, RetryTick{Entry: entry})
-		events := act.drainExpiredEventsLocked()
-		act.mu.Unlock()
-		s.manager.notifyRouteExpired(events)
-		if err != nil {
-			return err
-		}
-	}
-	now := s.manager.clock.Now()
-	for _, act := range actors {
-		act.mu.Lock()
-		var err error
-		if act.hasDueResolveRetry(now) {
-			err = act.resumeResolvable(ctx)
-		}
+		err := act.handleRetryEntry(ctx, entry)
 		events := act.drainExpiredEventsLocked()
 		act.mu.Unlock()
 		s.manager.notifyRouteExpired(events)

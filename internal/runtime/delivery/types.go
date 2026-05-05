@@ -79,8 +79,19 @@ type Observer interface {
 	OnMaintenanceSnapshot(MaintenanceSnapshot)
 }
 
+// RetryEntryKind identifies the actor retry work carried by a retry-wheel entry.
+type RetryEntryKind uint8
+
+const (
+	// RetryEntryRoute retries a realtime route push.
+	RetryEntryRoute RetryEntryKind = iota
+	// RetryEntryResolve retries subscriber/page resolution for an inflight message.
+	RetryEntryResolve
+)
+
 type RetryEntry struct {
 	When        time.Time
+	Kind        RetryEntryKind
 	ChannelID   string
 	ChannelType uint8
 	MessageID   uint64

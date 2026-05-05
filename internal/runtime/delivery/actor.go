@@ -77,6 +77,15 @@ func (a *actor) handleRouteOffline(ctx context.Context, event RouteOffline) erro
 	return a.resumeResolvable(ctx)
 }
 
+func (a *actor) handleRetryEntry(ctx context.Context, entry RetryEntry) error {
+	switch entry.Kind {
+	case RetryEntryResolve:
+		return a.handleResolveRetryTick(ctx, entry)
+	default:
+		return a.handleRetryTick(ctx, RetryTick{Entry: entry})
+	}
+}
+
 func (a *actor) handleRetryTick(ctx context.Context, event RetryTick) error {
 	a.touch()
 	msg := a.inflight[event.Entry.MessageID]
@@ -92,6 +101,21 @@ func (a *actor) handleRetryTick(ctx context.Context, event RetryTick) error {
 	}
 	if err := a.applyPush(ctx, msg, []RouteKey{event.Entry.Route}, event.Entry.Attempt); err != nil {
 		return err
+	}
+	return a.resumeResolvable(ctx)
+}
+
+func (a *actor) handleResolveRetryTick(ctx context.Context, entry RetryEntry) error {
+	a.touch()
+	msg := a.inflight[entry.MessageID]
+	if msg == nil || msg.ResolveDone {
+		return nil
+	}
+	if entry.Attempt != msg.ResolveAttempt {
+		return nil
+	}
+	if !msg.ResolveRetryAt.IsZero() && msg.ResolveRetryAt.After(a.shard.manager.clock.Now()) {
+		return nil
 	}
 	return a.resumeResolvable(ctx)
 }
@@ -191,11 +215,6 @@ func (a *actor) nextResolvableMessage(now time.Time) *InflightMessage {
 	return nil
 }
 
-func (a *actor) hasDueResolveRetry(now time.Time) bool {
-	msg := a.nextResolvableMessage(now)
-	return msg != nil && !msg.ResolveRetryAt.IsZero() && !msg.ResolveRetryAt.After(now)
-}
-
 func (a *actor) resumeMessage(ctx context.Context, msg *InflightMessage) (bool, error) {
 	if msg.ResolveInProgress {
 		return false, nil
@@ -248,6 +267,7 @@ func (a *actor) handleResolveFailure(_ context.Context, msg *InflightMessage) (b
 	}
 	msg.ResolveAttempt = nextAttempt
 	msg.ResolveRetryAt = a.shard.manager.clock.Now().Add(delay)
+	a.scheduleResolveRetry(msg, nextAttempt)
 	return false, nil
 }
 
@@ -432,6 +452,7 @@ func (a *actor) scheduleRetry(msg *InflightMessage, route RouteKey, attempt int)
 	}
 	a.shard.wheel.Schedule(RetryEntry{
 		When:        a.shard.manager.clock.Now().Add(delay),
+		Kind:        RetryEntryRoute,
 		ChannelID:   a.key.ChannelID,
 		ChannelType: a.key.ChannelType,
 		MessageID:   msg.MessageID,
@@ -439,6 +460,20 @@ func (a *actor) scheduleRetry(msg *InflightMessage, route RouteKey, attempt int)
 		Attempt:     attempt + 1,
 	})
 	return true
+}
+
+func (a *actor) scheduleResolveRetry(msg *InflightMessage, attempt int) {
+	if msg == nil || msg.ResolveRetryAt.IsZero() {
+		return
+	}
+	a.shard.wheel.Schedule(RetryEntry{
+		When:        msg.ResolveRetryAt,
+		Kind:        RetryEntryResolve,
+		ChannelID:   a.key.ChannelID,
+		ChannelType: a.key.ChannelType,
+		MessageID:   msg.MessageID,
+		Attempt:     attempt,
+	})
 }
 
 func (a *actor) completeMessage(messageID uint64) {
