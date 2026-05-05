@@ -414,18 +414,18 @@ func TestServiceCompactionFailureDoesNotFailProposalLoop(t *testing.T) {
 	env.waitForLeader(t, []uint64{1})
 
 	sentinel := errors.New("compact once")
-	compactControllerLogHook = func() error {
+	setCompactControllerLogHookForTest(func() error {
 		return sentinel
-	}
+	})
 	t.Cleanup(func() {
-		compactControllerLogHook = nil
+		setCompactControllerLogHookForTest(nil)
 	})
 
 	node := env.nodes[1]
 	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(2)))
 	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(3)))
 
-	compactControllerLogHook = nil
+	setCompactControllerLogHookForTest(nil)
 	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(4)))
 
 	waitForControllerSnapshotIndex(t, node.logDB.ForController(), 4)
