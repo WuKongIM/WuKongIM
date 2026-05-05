@@ -125,6 +125,72 @@ func TestPebbleControllerStateRoundTripAcrossReopen(t *testing.T) {
 	}
 }
 
+func TestPebbleControllerSnapshotTrimsCoveredEntries(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(filepath.Join(t.TempDir(), "raft"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	store := db.ForController()
+	hs := raftpb.HardState{Term: 3, Vote: 1, Commit: 8}
+	if err := store.Save(ctx, multiraft.PersistentState{
+		HardState: &hs,
+		Entries:   benchEntries(1, 8, 3, 8),
+	}); err != nil {
+		t.Fatalf("Save(entries) error = %v", err)
+	}
+
+	snap := raftpb.Snapshot{
+		Data: []byte("controller-meta"),
+		Metadata: raftpb.SnapshotMetadata{
+			Index: 6,
+			Term:  3,
+			ConfState: raftpb.ConfState{
+				Voters: []uint64{1},
+			},
+		},
+	}
+	if err := store.Save(ctx, multiraft.PersistentState{Snapshot: &snap}); err != nil {
+		t.Fatalf("Save(snapshot) error = %v", err)
+	}
+
+	first, err := store.FirstIndex(ctx)
+	if err != nil {
+		t.Fatalf("FirstIndex() error = %v", err)
+	}
+	if first != 7 {
+		t.Fatalf("FirstIndex() = %d, want 7", first)
+	}
+	last, err := store.LastIndex(ctx)
+	if err != nil {
+		t.Fatalf("LastIndex() error = %v", err)
+	}
+	if last != 8 {
+		t.Fatalf("LastIndex() = %d, want 8", last)
+	}
+	gotSnap, err := store.Snapshot(ctx)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if gotSnap.Metadata.Index != snap.Metadata.Index {
+		t.Fatalf("Snapshot index = %d, want %d", gotSnap.Metadata.Index, snap.Metadata.Index)
+	}
+
+	entries, err := store.Entries(ctx, 7, 9, 0)
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("len(entries) = %d, want 2", len(entries))
+	}
+}
+
 func TestScopeString(t *testing.T) {
 	if got := SlotScope(7).String(); got != "slot/7" {
 		t.Fatalf("SlotScope(7).String() = %q, want slot/7", got)
