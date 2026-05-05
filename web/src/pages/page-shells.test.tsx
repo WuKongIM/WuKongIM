@@ -12,6 +12,7 @@ const getTasksMock = vi.fn()
 const getNodesMock = vi.fn()
 const getChannelRuntimeMetaMock = vi.fn()
 const getConnectionsMock = vi.fn()
+const getControllerLogsMock = vi.fn()
 const getMessagesMock = vi.fn()
 const getSlotsMock = vi.fn()
 const getNodeOnboardingCandidatesMock = vi.fn()
@@ -27,6 +28,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getNodes: (...args: unknown[]) => getNodesMock(...args),
     getChannelRuntimeMeta: (...args: unknown[]) => getChannelRuntimeMetaMock(...args),
     getConnections: (...args: unknown[]) => getConnectionsMock(...args),
+    getControllerLogs: (...args: unknown[]) => getControllerLogsMock(...args),
     getMessages: (...args: unknown[]) => getMessagesMock(...args),
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
     getNodeOnboardingCandidates: (...args: unknown[]) => getNodeOnboardingCandidatesMock(...args),
@@ -43,6 +45,7 @@ beforeEach(() => {
   getNodesMock.mockReset()
   getChannelRuntimeMetaMock.mockReset()
   getConnectionsMock.mockReset()
+  getControllerLogsMock.mockReset()
   getMessagesMock.mockReset()
   getSlotsMock.mockReset()
   getNodeOnboardingCandidatesMock.mockReset()
@@ -105,6 +108,14 @@ beforeEach(() => {
     has_more: false,
   })
   getMessagesMock.mockResolvedValue({ items: [], has_more: false })
+  getControllerLogsMock.mockResolvedValue({
+    node_id: 1,
+    first_index: 1,
+    last_index: 4,
+    commit_index: 4,
+    applied_index: 3,
+    items: [{ index: 4, term: 2, type: "normal", data_size: 12, decode_status: "ok", decoded_type: "add_slot", decoded: { command: "add_slot", new_slot_id: 9 } }],
+  })
   getConnectionsMock.mockResolvedValue({
     total: 1,
     items: [{
@@ -221,6 +232,7 @@ it.each([
   ["/slots", "Slots", "Slot"],
   ["/onboarding", "Onboarding", "Candidate Nodes"],
   ["/network", "Network", "Node Health Distribution"],
+  ["/controller", "Controller Logs", "Log Index"],
 ])("renders %s shell", async (path, title, section) => {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
 
@@ -276,6 +288,7 @@ it.each([
   ["/slots", "槽位", "槽位"],
   ["/onboarding", "扩容", "候选节点"],
   ["/network", "网络", "节点健康分布"],
+  ["/controller", "控制面日志", "日志索引"],
   ["/topology", "拓扑", "管理 API 覆盖"],
 ])("renders %s in Chinese", async (path, title, section) => {
   localStorage.setItem("wukongim_manager_locale", "zh-CN")

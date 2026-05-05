@@ -178,6 +178,53 @@ func TestListChannelRuntimeMetaIncludesMaxMessageSeq(t *testing.T) {
 	}, messages.maxSeqCalls)
 }
 
+func TestListChannelRuntimeMetaFiltersByChannelIDQueryAndLimitsResults(t *testing.T) {
+	reader := &fakeChannelRuntimeMetaReader{
+		pages: map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
+			1: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						testChannelRuntimeMeta("alpha-room", 1, channel.StatusActive),
+						testChannelRuntimeMeta("billing", 1, channel.StatusActive),
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "billing", ChannelType: 1},
+					done:   true,
+				},
+			},
+			2: {
+				{}: {
+					items: []metadb.ChannelRuntimeMeta{
+						testChannelRuntimeMeta("beta-room", 2, channel.StatusActive),
+						testChannelRuntimeMeta("room-zeta", 2, channel.StatusActive),
+					},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "room-zeta", ChannelType: 2},
+					done:   true,
+				},
+			},
+		},
+	}
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			slotIDs: []multiraft.SlotID{1, 2},
+		},
+		ChannelRuntimeMeta: reader,
+	})
+
+	got, err := app.ListChannelRuntimeMeta(context.Background(), ListChannelRuntimeMetaRequest{
+		Limit:          2,
+		ChannelIDQuery: "room",
+	})
+	require.NoError(t, err)
+	require.Equal(t, ListChannelRuntimeMetaResponse{
+		Items: []ChannelRuntimeMeta{
+			{ChannelID: "alpha-room", ChannelType: 1, SlotID: 1, Status: "active"},
+			{ChannelID: "beta-room", ChannelType: 2, SlotID: 2, Status: "active"},
+		},
+		HasMore:    true,
+		NextCursor: ChannelRuntimeMetaListCursor{SlotID: 2, ChannelID: "beta-room", ChannelType: 2},
+	}, summarizeChannelRuntimeMetaResponse(got))
+}
+
 func TestListChannelRuntimeMetaPropagatesAuthoritativeErrors(t *testing.T) {
 	reader := &fakeChannelRuntimeMetaReader{
 		pages: map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{

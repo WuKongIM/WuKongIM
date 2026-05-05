@@ -51,6 +51,25 @@ func (h *controllerHandler) Handle(ctx context.Context, body []byte) ([]byte, er
 	}
 
 	switch req.Kind {
+	case controllerRPCControllerLogs:
+		if req.ControllerLogs == nil {
+			return nil, ErrInvalidConfig
+		}
+		page, err := c.localControllerLogEntries(ctx, uint64(c.NodeID()), ControllerLogEntriesOptions{
+			Limit:  req.ControllerLogs.Limit,
+			Cursor: req.ControllerLogs.Cursor,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{
+			CommitIndex:  page.CommitIndex,
+			AppliedIndex: page.AppliedIndex,
+			FirstIndex:   page.FirstIndex,
+			LastIndex:    page.LastIndex,
+			NextCursor:   page.NextCursor,
+			LogEntries:   managedSlotLogEntriesFromController(page.Items),
+		})
 	case controllerRPCJoinCluster:
 		return h.handleJoinCluster(ctx, req, marshalRedirect, loadHashSlotTable)
 	case controllerRPCHeartbeat:

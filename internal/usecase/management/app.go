@@ -31,6 +31,8 @@ type ClusterReader interface {
 	SlotLogStatusOnNode(ctx context.Context, nodeID uint64, slotID uint32) (raftcluster.SlotLogStatus, error)
 	// SlotLogEntriesOnNode returns one node's local Raft log entries for a managed Slot.
 	SlotLogEntriesOnNode(ctx context.Context, nodeID uint64, slotID uint32, opts raftcluster.SlotLogEntriesOptions) (raftcluster.SlotLogEntries, error)
+	// ControllerLogEntriesOnNode returns one node's local Controller Raft log entries.
+	ControllerLogEntriesOnNode(ctx context.Context, nodeID uint64, opts raftcluster.ControllerLogEntriesOptions) (raftcluster.ControllerLogEntries, error)
 	// ListTasksStrict returns the controller leader's task snapshot without local fallback.
 	ListTasksStrict(ctx context.Context) ([]controllermeta.ReconcileTask, error)
 	// ListActiveMigrationsStrict returns controller-leader active hash-slot migrations.

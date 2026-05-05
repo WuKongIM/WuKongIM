@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
@@ -9,6 +9,7 @@ import { resetLocale } from "@/i18n/locale-store"
 import { MessagesPage } from "@/pages/messages/page"
 
 const getMessagesMock = vi.fn()
+const getChannelRuntimeMetaMock = vi.fn()
 const writeTextMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
@@ -16,6 +17,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
   return {
     ...actual,
     getMessages: (...args: unknown[]) => getMessagesMock(...args),
+    getChannelRuntimeMeta: (...args: unknown[]) => getChannelRuntimeMetaMock(...args),
   }
 })
 
@@ -23,6 +25,8 @@ beforeEach(() => {
   localStorage.clear()
   resetLocale()
   getMessagesMock.mockReset()
+  getChannelRuntimeMetaMock.mockReset()
+  getChannelRuntimeMetaMock.mockResolvedValue({ items: [], has_more: false })
   writeTextMock.mockReset()
   Object.defineProperty(window.navigator, "clipboard", {
     configurable: true,
@@ -148,6 +152,40 @@ test("submits a message query and renders rows", async () => {
   })
   expect(await screen.findByText("c-101")).toBeInTheDocument()
   expect(screen.getByText("hello")).toBeInTheDocument()
+})
+
+test("loads fuzzy channel suggestions from the channel ID input and applies the selection", async () => {
+  getChannelRuntimeMetaMock.mockResolvedValueOnce({
+    items: [
+      {
+        channel_id: "room-alpha",
+        channel_type: 2,
+        slot_id: 9,
+        channel_epoch: 7,
+        leader_epoch: 3,
+        leader: 2,
+        replicas: [1, 2, 3],
+        isr: [2, 3],
+        min_isr: 2,
+        max_message_seq: 12,
+        status: "active",
+      },
+    ],
+    has_more: false,
+  })
+
+  const user = userEvent.setup()
+  renderMessagesPage()
+
+  await user.type(screen.getByLabelText("Channel ID"), "room")
+
+  await waitFor(() => {
+    expect(getChannelRuntimeMetaMock).toHaveBeenLastCalledWith({ channelId: "room", limit: 15 })
+  })
+  await user.click(await screen.findByRole("option", { name: /room-alpha.*Type 2/ }))
+
+  expect(screen.getByLabelText("Channel ID")).toHaveValue("room-alpha")
+  expect(screen.getByLabelText("Channel type")).toHaveValue(2)
 })
 
 test("loads the next page with the same filters", async () => {

@@ -211,6 +211,10 @@ func (f *fakeNodeOperatorCluster) SlotLogEntriesOnNode(context.Context, uint64, 
 	return raftcluster.SlotLogEntries{}, nil
 }
 
+func (f *fakeNodeOperatorCluster) ControllerLogEntriesOnNode(context.Context, uint64, raftcluster.ControllerLogEntriesOptions) (raftcluster.ControllerLogEntries, error) {
+	return raftcluster.ControllerLogEntries{}, nil
+}
+
 func (f *fakeNodeOperatorCluster) ListTasksStrict(context.Context) ([]controllermeta.ReconcileTask, error) {
 	return append([]controllermeta.ReconcileTask(nil), f.tasks...), f.listTasksErr
 }

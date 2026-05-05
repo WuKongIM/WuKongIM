@@ -7,8 +7,8 @@ import { KeyValueList } from "@/components/manager/key-value-list"
 import { ResourceState } from "@/components/manager/resource-state"
 import { PageContainer } from "@/components/shell/page-container"
 import { Button } from "@/components/ui/button"
-import { ManagerApiError, getMessages } from "@/lib/manager-api"
-import type { ManagerMessage, ManagerMessagesResponse } from "@/lib/manager-api.types"
+import { ManagerApiError, getChannelRuntimeMeta, getMessages } from "@/lib/manager-api"
+import type { ManagerChannelRuntimeMeta, ManagerMessage, ManagerMessagesResponse } from "@/lib/manager-api.types"
 
 type QueryForm = {
   channelId: string
@@ -34,6 +34,14 @@ type MessagesState = {
 }
 
 type PayloadFormat = "text" | "base64"
+
+type ChannelSuggestionState = {
+  items: ManagerChannelRuntimeMeta[]
+  loading: boolean
+  error: boolean
+}
+
+const channelSuggestionLimit = 15
 
 const defaultQuery: QueryForm = {
   channelId: "",
@@ -91,7 +99,14 @@ export function MessagesPage() {
   const [validationError, setValidationError] = useState<string | null>(null)
   const [selectedMessage, setSelectedMessage] = useState<ManagerMessage | null>(null)
   const [payloadFormat, setPayloadFormat] = useState<PayloadFormat>("text")
+  const [channelSuggestionsOpen, setChannelSuggestionsOpen] = useState(false)
+  const [channelSuggestions, setChannelSuggestions] = useState<ChannelSuggestionState>({
+    items: [],
+    loading: false,
+    error: false,
+  })
   const autoQueryStartedRef = useRef(false)
+  const channelSuggestionRequestRef = useRef(0)
   const [state, setState] = useState<MessagesState>({
     messages: null,
     loading: false,
@@ -169,6 +184,41 @@ export function MessagesPage() {
     void runQuery(nextQuery, false)
   }, [initialChannelId, initialChannelType, runQuery])
 
+  useEffect(() => {
+    const channelId = query.channelId.trim()
+    const requestID = channelSuggestionRequestRef.current + 1
+    channelSuggestionRequestRef.current = requestID
+
+    if (!channelSuggestionsOpen || !channelId) {
+      setChannelSuggestions({ items: [], loading: false, error: false })
+      return
+    }
+
+    setChannelSuggestions((current) => ({ ...current, loading: true, error: false }))
+    const timeoutID = window.setTimeout(() => {
+      void getChannelRuntimeMeta({ channelId, limit: channelSuggestionLimit })
+        .then((page) => {
+          if (channelSuggestionRequestRef.current !== requestID) {
+            return
+          }
+          setChannelSuggestions({
+            items: page.items.slice(0, channelSuggestionLimit),
+            loading: false,
+            error: false,
+          })
+        })
+        .catch(() => {
+          if (channelSuggestionRequestRef.current !== requestID) {
+            return
+          }
+          setChannelSuggestions({ items: [], loading: false, error: true })
+        })
+    }, 200)
+    return () => {
+      window.clearTimeout(timeoutID)
+    }
+  }, [channelSuggestionsOpen, query.channelId])
+
   const openDetail = useCallback((message: ManagerMessage) => {
     setSelectedMessage(message)
     setPayloadFormat("text")
@@ -209,6 +259,7 @@ export function MessagesPage() {
       ...(messageId ? { messageId } : {}),
     }
     setValidationError(null)
+    setChannelSuggestionsOpen(false)
     setSubmitted(nextQuery)
     await runQuery(nextQuery, false)
   }, [intl, query, runQuery])
@@ -273,16 +324,81 @@ export function MessagesPage() {
 
       <div className="rounded-xl border border-border bg-card p-3 shadow-none">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_10rem_10rem_minmax(0,1fr)_auto] xl:items-end">
-          <label className="grid gap-2 text-sm text-foreground">
+          <label className="relative grid gap-2 text-sm text-foreground">
             <span>{intl.formatMessage({ id: "messages.form.channelId" })}</span>
             <input
+              aria-autocomplete="list"
+              aria-controls="message-channel-suggestions"
+              aria-expanded={channelSuggestionsOpen && query.channelId.trim() !== ""}
               aria-label={intl.formatMessage({ id: "messages.form.channelId" })}
+              autoComplete="off"
               className="min-h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
               onChange={(event) => {
                 setQuery((current) => ({ ...current, channelId: event.target.value }))
               }}
+              onBlur={() => {
+                window.setTimeout(() => {
+                  setChannelSuggestionsOpen(false)
+                }, 100)
+              }}
+              onFocus={() => {
+                setChannelSuggestionsOpen(true)
+              }}
               value={query.channelId}
             />
+            {channelSuggestionsOpen && query.channelId.trim() ? (
+              <div
+                className="absolute top-full right-0 left-0 z-20 mt-1 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg"
+                id="message-channel-suggestions"
+                role="listbox"
+              >
+                {channelSuggestions.loading ? (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                    {intl.formatMessage({ id: "messages.channelSuggestions.loading" })}
+                  </div>
+                ) : null}
+                {!channelSuggestions.loading && channelSuggestions.error ? (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                    {intl.formatMessage({ id: "messages.channelSuggestions.error" })}
+                  </div>
+                ) : null}
+                {!channelSuggestions.loading && !channelSuggestions.error && channelSuggestions.items.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                    {intl.formatMessage({ id: "messages.channelSuggestions.empty" })}
+                  </div>
+                ) : null}
+                {!channelSuggestions.loading && !channelSuggestions.error
+                  ? channelSuggestions.items.map((channel) => (
+                      <button
+                        aria-selected={false}
+                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none"
+                        key={`${channel.channel_type}-${channel.channel_id}`}
+                        onClick={() => {
+                          setQuery((current) => ({
+                            ...current,
+                            channelId: channel.channel_id,
+                            channelType: String(channel.channel_type),
+                          }))
+                          setChannelSuggestionsOpen(false)
+                        }}
+                        onMouseDown={(event) => {
+                          event.preventDefault()
+                        }}
+                        role="option"
+                        type="button"
+                      >
+                        <span className="truncate font-medium text-foreground">{channel.channel_id}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {intl.formatMessage(
+                            { id: "messages.channelSuggestions.type" },
+                            { type: channel.channel_type },
+                          )}
+                        </span>
+                      </button>
+                    ))
+                  : null}
+              </div>
+            ) : null}
           </label>
           <label className="grid gap-2 text-sm text-foreground">
             <span>{intl.formatMessage({ id: "messages.form.channelType" })}</span>

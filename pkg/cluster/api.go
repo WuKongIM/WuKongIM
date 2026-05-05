@@ -41,6 +41,8 @@ type API interface {
 	SlotLogStatusOnNode(ctx context.Context, nodeID uint64, slotID uint32) (SlotLogStatus, error)
 	// SlotLogEntriesOnNode returns one node's local Raft log entries for a managed Slot.
 	SlotLogEntriesOnNode(ctx context.Context, nodeID uint64, slotID uint32, opts SlotLogEntriesOptions) (SlotLogEntries, error)
+	// ControllerLogEntriesOnNode returns one node's local Controller Raft log entries.
+	ControllerLogEntriesOnNode(ctx context.Context, nodeID uint64, opts ControllerLogEntriesOptions) (ControllerLogEntries, error)
 	ListTasks(ctx context.Context) ([]controllermeta.ReconcileTask, error)
 	// ListTasksStrict returns the controller leader's task snapshot without local fallback.
 	ListTasksStrict(ctx context.Context) ([]controllermeta.ReconcileTask, error)

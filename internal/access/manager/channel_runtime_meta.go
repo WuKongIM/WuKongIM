@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -89,8 +90,9 @@ func (s *Server) handleChannelRuntimeMeta(c *gin.Context) {
 	}
 
 	page, err := s.management.ListChannelRuntimeMeta(c.Request.Context(), managementusecase.ListChannelRuntimeMetaRequest{
-		Limit:  limit,
-		Cursor: cursor,
+		Limit:          limit,
+		Cursor:         cursor,
+		ChannelIDQuery: strings.TrimSpace(c.Query("channel_id")),
 	})
 	if err != nil {
 		switch {
