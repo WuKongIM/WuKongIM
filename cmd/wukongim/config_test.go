@@ -601,6 +601,89 @@ func TestLoadConfigParsesClusterTimeoutOverridesFromConf(t *testing.T) {
 	require.Equal(t, 800*time.Millisecond, cfg.Cluster.Timeouts.LeaderTransferRetryBudget)
 }
 
+func TestLoadConfigParsesControllerLogCompaction(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		"WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED=false",
+		"WK_CLUSTER_CONTROLLER_LOG_COMPACTION_TRIGGER_ENTRIES=25",
+		"WK_CLUSTER_CONTROLLER_LOG_COMPACTION_CHECK_INTERVAL=2s",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.False(t, cfg.Cluster.ControllerLogCompaction.Enabled)
+	require.Equal(t, uint64(25), cfg.Cluster.ControllerLogCompaction.TriggerEntries)
+	require.Equal(t, 2*time.Second, cfg.Cluster.ControllerLogCompaction.CheckInterval)
+}
+
+func TestLoadConfigPrefersEnvironmentVariablesForControllerLogCompaction(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		"WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED=true",
+		"WK_CLUSTER_CONTROLLER_LOG_COMPACTION_TRIGGER_ENTRIES=25",
+		"WK_CLUSTER_CONTROLLER_LOG_COMPACTION_CHECK_INTERVAL=2s",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+	)
+	t.Setenv("WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED", "false")
+	t.Setenv("WK_CLUSTER_CONTROLLER_LOG_COMPACTION_TRIGGER_ENTRIES", "50")
+	t.Setenv("WK_CLUSTER_CONTROLLER_LOG_COMPACTION_CHECK_INTERVAL", "5s")
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.False(t, cfg.Cluster.ControllerLogCompaction.Enabled)
+	require.Equal(t, uint64(50), cfg.Cluster.ControllerLogCompaction.TriggerEntries)
+	require.Equal(t, 5*time.Second, cfg.Cluster.ControllerLogCompaction.CheckInterval)
+}
+
+func TestLoadConfigRejectsInvalidControllerLogCompaction(t *testing.T) {
+	tests := []struct {
+		name  string
+		lines []string
+	}{
+		{
+			name: "zero trigger entries",
+			lines: []string{
+				"WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED=true",
+				"WK_CLUSTER_CONTROLLER_LOG_COMPACTION_TRIGGER_ENTRIES=0",
+			},
+		},
+		{
+			name: "negative check interval",
+			lines: []string{
+				"WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED=true",
+				"WK_CLUSTER_CONTROLLER_LOG_COMPACTION_CHECK_INTERVAL=-1s",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			lines := []string{
+				"WK_NODE_ID=1",
+				"WK_NODE_DATA_DIR=" + filepath.Join(dir, "node-1"),
+				"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+				"WK_CLUSTER_SLOT_COUNT=1",
+				`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+			}
+			lines = append(lines, tt.lines...)
+			configPath := writeConf(t, dir, "wukongim.conf", lines...)
+
+			_, err := loadConfig(configPath)
+			require.ErrorContains(t, err, "controller log compaction")
+		})
+	}
+}
+
 func TestLoadConfigParsesObservationCadence(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",
