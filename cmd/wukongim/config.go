@@ -194,6 +194,18 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	controllerLogCompactionEnabled, err := parseBool(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED")
+	if err != nil {
+		return app.Config{}, err
+	}
+	controllerLogCompactionTriggerEntries, err := parseUint64(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_TRIGGER_ENTRIES")
+	if err != nil {
+		return app.Config{}, err
+	}
+	controllerLogCompactionCheckInterval, err := parseDuration(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_CHECK_INTERVAL")
+	if err != nil {
+		return app.Config{}, err
+	}
 	observationHeartbeatInterval, err := parseDuration(v, "WK_CLUSTER_OBSERVATION_HEARTBEAT_INTERVAL")
 	if err != nil {
 		return app.Config{}, err
@@ -432,6 +444,11 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			Seeds:                            seeds,
 			AdvertiseAddr:                    stringValue(v, "WK_CLUSTER_ADVERTISE_ADDR"),
 			JoinToken:                        stringValue(v, "WK_CLUSTER_JOIN_TOKEN"),
+			ControllerLogCompaction: app.ControllerLogCompactionConfig{
+				Enabled:        controllerLogCompactionEnabled,
+				TriggerEntries: controllerLogCompactionTriggerEntries,
+				CheckInterval:  controllerLogCompactionCheckInterval,
+			},
 			Timeouts: raftcluster.Timeouts{
 				ControllerObservation:              controllerObservationInterval,
 				ControllerRequest:                  controllerRequestTimeout,
@@ -524,6 +541,11 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		stringValue(v, "WK_CLUSTER_LONG_POLL_MAX_WAIT") != "",
 		stringValue(v, "WK_CLUSTER_LONG_POLL_MAX_BYTES") != "",
 		stringValue(v, "WK_CLUSTER_LONG_POLL_MAX_CHANNELS") != "",
+	)
+	cfg.Cluster.SetControllerLogCompactionExplicitFlags(
+		stringValue(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED") != "",
+		stringValue(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_TRIGGER_ENTRIES") != "",
+		stringValue(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_CHECK_INTERVAL") != "",
 	)
 	cfg.Gateway.SetExplicitFlags(stringValue(v, "WK_GATEWAY_SEND_TIMEOUT") != "")
 	cfg.Log.SetExplicitFlags(stringValue(v, "WK_LOG_COMPRESS") != "", stringValue(v, "WK_LOG_CONSOLE") != "")
