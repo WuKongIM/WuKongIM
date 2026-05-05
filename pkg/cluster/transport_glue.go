@@ -34,6 +34,7 @@ func newTransportLayer(cfg Config, discovery Discovery, rpcMux *transport.RPCMux
 func (t *transportLayer) Start(
 	listenAddr string,
 	handleRaft func([]byte),
+	handleRaftBatch func([]byte),
 	handleForward func(context.Context, []byte) ([]byte, error),
 	handleController func(context.Context, []byte) ([]byte, error),
 	handleManagedSlot func(context.Context, []byte) ([]byte, error),
@@ -52,6 +53,7 @@ func (t *transportLayer) Start(
 		Logger: defaultLogger(t.cfg.Logger).Named("transport"),
 	})
 	t.server.Handle(msgTypeRaft, handleRaft)
+	t.server.Handle(msgTypeRaftBatch, handleRaftBatch)
 	t.rpcMux.Handle(rpcServiceForward, handleForward)
 	t.rpcMux.Handle(rpcServiceController, handleController)
 	t.rpcMux.Handle(rpcServiceManagedSlot, handleManagedSlot)

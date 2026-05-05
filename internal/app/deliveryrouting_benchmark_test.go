@@ -105,6 +105,46 @@ func BenchmarkLocalDeliveryPushPersonRoutes(b *testing.B) {
 	}
 }
 
+func BenchmarkDistributedDeliveryPushGroupFanoutFrameReuse(b *testing.B) {
+	const routeCount = 256
+	registry := online.NewRegistry()
+	routes := make([]deliveryruntime.RouteKey, 0, routeCount)
+	for i := 0; i < routeCount; i++ {
+		uid := "u" + strconv.Itoa(i)
+		sessionID := uint64(i + 1)
+		routes = append(routes, deliveryruntime.RouteKey{UID: uid, NodeID: 1, BootID: 11, SessionID: sessionID})
+		if err := registry.Register(online.OnlineConn{
+			SessionID: sessionID,
+			UID:       uid,
+			State:     online.LocalRouteStateActive,
+			Session:   benchmarkSession{id: sessionID},
+		}); err != nil {
+			b.Fatalf("register route: %v", err)
+		}
+	}
+	push := distributedDeliveryPush{
+		localNodeID: 1,
+		local:       localDeliveryPush{online: registry, localNodeID: 1, gatewayBootID: 11},
+		codec:       codec.New(),
+	}
+	cmd := deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{Message: benchmarkDeliveryMessage(frame.ChannelTypeGroup, "g1")},
+		Routes:   routes,
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		result, err := push.Push(context.Background(), cmd)
+		if err != nil {
+			b.Fatalf("push distributed delivery: %v", err)
+		}
+		if len(result.Accepted) != routeCount {
+			b.Fatalf("accepted routes = %d, want %d", len(result.Accepted), routeCount)
+		}
+	}
+}
+
 func BenchmarkDistributedDeliveryPushGroupBatchRoutes(b *testing.B) {
 	const routeCount = 256
 	push := distributedDeliveryPush{

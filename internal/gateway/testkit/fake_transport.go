@@ -245,15 +245,16 @@ type FakeConn struct {
 	localAddr  string
 	remoteAddr string
 
-	mu            sync.Mutex
-	writes        [][]byte
-	writeErr      error
-	closeErr      error
-	closed        bool
-	closeCh       chan struct{}
-	blockWrites   bool
-	writeRelease  chan struct{}
-	writeDeadline time.Time
+	mu                           sync.Mutex
+	writes                       [][]byte
+	writeErr                     error
+	closeErr                     error
+	closed                       bool
+	closeCh                      chan struct{}
+	blockWrites                  bool
+	transportManagedWriteTimeout bool
+	writeRelease                 chan struct{}
+	writeDeadline                time.Time
 }
 
 func (c *FakeConn) ID() uint64 {
@@ -437,6 +438,28 @@ func (c *FakeConn) SetWriteDeadline(deadline time.Time) error {
 	c.writeDeadline = deadline
 	c.mu.Unlock()
 	return nil
+}
+
+// TransportManagedWriteTimeout reports the test-configured write timeout policy.
+func (c *FakeConn) TransportManagedWriteTimeout() bool {
+	if c == nil {
+		return false
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.transportManagedWriteTimeout
+}
+
+// SetTransportManagedWriteTimeout toggles the optional write timeout policy for tests.
+func (c *FakeConn) SetTransportManagedWriteTimeout(enabled bool) {
+	if c == nil {
+		return
+	}
+
+	c.mu.Lock()
+	c.transportManagedWriteTimeout = enabled
+	c.mu.Unlock()
 }
 
 type fakeTimeoutError struct{}

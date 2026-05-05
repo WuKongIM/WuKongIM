@@ -6,6 +6,7 @@ import (
 	"hash/fnv"
 	"io"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -753,11 +754,15 @@ func (p localDeliveryPush) Push(_ context.Context, cmd deliveryruntime.PushComma
 
 func (p localDeliveryPush) pushEnvelope(env deliveryruntime.CommittedEnvelope, routes []deliveryruntime.RouteKey) deliveryruntime.PushResult {
 	result := deliveryruntime.PushResult{}
-	frameCacheCap := len(routes)
-	if frameCacheCap > 2 {
-		frameCacheCap = 2
+	var sharedFrame frame.Frame
+	var framesByUID map[string]frame.Frame
+	if env.ChannelType == frame.ChannelTypePerson {
+		frameCacheCap := len(routes)
+		if frameCacheCap > 2 {
+			frameCacheCap = 2
+		}
+		framesByUID = make(map[string]frame.Frame, frameCacheCap)
 	}
-	framesByUID := make(map[string]frame.Frame, frameCacheCap)
 	for _, route := range routes {
 		switch {
 		case env.SenderSessionID != 0 && route.SessionID == env.SenderSessionID:
@@ -772,10 +777,16 @@ func (p localDeliveryPush) pushEnvelope(env deliveryruntime.CommittedEnvelope, r
 				result.Dropped = append(result.Dropped, route)
 				continue
 			}
-			f, ok := framesByUID[route.UID]
-			if !ok {
-				f = buildRealtimeRecvPacket(env.Message, route.UID)
-				framesByUID[route.UID] = f
+			f := sharedFrame
+			if env.ChannelType == frame.ChannelTypePerson {
+				f = framesByUID[route.UID]
+				if f == nil {
+					f = buildRealtimeRecvPacket(env.Message, route.UID)
+					framesByUID[route.UID] = f
+				}
+			} else if f == nil {
+				f = buildRealtimeRecvPacket(env.Message, "")
+				sharedFrame = f
 			}
 			if err := conn.Session.WriteFrame(f); err != nil {
 				result.Retryable = append(result.Retryable, route)
@@ -835,79 +846,156 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 		result.Retryable = append(result.Retryable, localResult.Retryable...)
 		result.Dropped = append(result.Dropped, localResult.Dropped...)
 	}
+	if len(remoteRoutes) == 0 {
+		return result, nil
+	}
 
-	for nodeID, routes := range remoteRoutes {
-		if p.client == nil {
-			result.Retryable = append(result.Retryable, routes...)
-			continue
+	nodeIDs := sortedDeliveryNodeIDs(remoteRoutes)
+	if p.client == nil {
+		for _, nodeID := range nodeIDs {
+			result.Retryable = append(result.Retryable, remoteRoutes[nodeID]...)
 		}
-		items, err := p.deliveryPushItems(cmd.Envelope, routes)
+		return result, nil
+	}
+
+	var sharedFrame []byte
+	if cmd.Envelope.ChannelType != frame.ChannelTypePerson {
+		encoded, err := p.encodeDeliveryFrame(cmd.Envelope, "")
 		if err != nil {
 			return deliveryruntime.PushResult{}, err
 		}
-		startedAt := time.Now()
-		resp, err := p.client.PushBatchItems(ctx, nodeID, accessnode.DeliveryPushBatchCommand{
-			OwnerNodeID: p.localNodeID,
-			Items:       items,
-		})
-		if err != nil {
-			if p.logger != nil {
-				p.logger.Warn("remote delivery push failed",
-					wklog.Event("delivery.diag.remote_push"),
-					wklog.String("channelID", cmd.Envelope.ChannelID),
-					wklog.Int("channelType", int(cmd.Envelope.ChannelType)),
-					wklog.Uint64("messageID", cmd.Envelope.MessageID),
-					wklog.Uint64("messageSeq", cmd.Envelope.MessageSeq),
-					wklog.Uint64("targetNodeID", nodeID),
-					wklog.Int("items", len(items)),
-					wklog.Int("routes", len(routes)),
-					wklog.Error(err),
-				)
+		sharedFrame = encoded
+	}
+
+	remoteResults, err := p.pushRemoteNodes(ctx, cmd.Envelope, remoteRoutes, nodeIDs, sharedFrame)
+	if err != nil {
+		return deliveryruntime.PushResult{}, err
+	}
+	for _, remoteResult := range remoteResults {
+		result.Accepted = append(result.Accepted, remoteResult.Accepted...)
+		result.Retryable = append(result.Retryable, remoteResult.Retryable...)
+		result.Dropped = append(result.Dropped, remoteResult.Dropped...)
+	}
+	return result, nil
+}
+
+type remoteDeliveryPushResult struct {
+	index  int
+	result deliveryruntime.PushResult
+	err    error
+}
+
+func (p distributedDeliveryPush) pushRemoteNodes(ctx context.Context, env deliveryruntime.CommittedEnvelope, remoteRoutes map[uint64][]deliveryruntime.RouteKey, nodeIDs []uint64, sharedFrame []byte) ([]deliveryruntime.PushResult, error) {
+	results := make([]deliveryruntime.PushResult, len(nodeIDs))
+	workers := min(4, len(nodeIDs))
+	jobs := make(chan int)
+	out := make(chan remoteDeliveryPushResult, len(nodeIDs))
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for index := range jobs {
+				nodeID := nodeIDs[index]
+				result, err := p.pushRemoteNode(ctx, env, nodeID, remoteRoutes[nodeID], sharedFrame)
+				out <- remoteDeliveryPushResult{index: index, result: result, err: err}
 			}
-			legacyResult := p.pushLegacyDeliveryItems(ctx, nodeID, items, routes)
-			p.recordPushRPCMetric(nodeID, "error", time.Since(startedAt), len(routes))
-			result.Accepted = append(result.Accepted, legacyResult.Accepted...)
-			result.Retryable = append(result.Retryable, legacyResult.Retryable...)
-			result.Dropped = append(result.Dropped, legacyResult.Dropped...)
-			continue
+		}()
+	}
+	for i := range nodeIDs {
+		jobs <- i
+	}
+	close(jobs)
+	wg.Wait()
+	close(out)
+
+	var firstErr error
+	for item := range out {
+		if item.err != nil && firstErr == nil {
+			firstErr = item.err
 		}
-		if wklog.DebugEnabled(p.logger) {
-			p.logger.Debug("remote delivery push finished",
+		results[item.index] = item.result
+	}
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	return results, nil
+}
+
+func (p distributedDeliveryPush) pushRemoteNode(ctx context.Context, env deliveryruntime.CommittedEnvelope, nodeID uint64, routes []deliveryruntime.RouteKey, sharedFrame []byte) (deliveryruntime.PushResult, error) {
+	items, err := p.deliveryPushItems(env, routes, sharedFrame)
+	if err != nil {
+		return deliveryruntime.PushResult{}, err
+	}
+	startedAt := time.Now()
+	resp, err := p.client.PushBatchItems(ctx, nodeID, accessnode.DeliveryPushBatchCommand{
+		OwnerNodeID: p.localNodeID,
+		Items:       items,
+	})
+	if err != nil {
+		if p.logger != nil {
+			p.logger.Warn("remote delivery push failed",
 				wklog.Event("delivery.diag.remote_push"),
-				wklog.String("channelID", cmd.Envelope.ChannelID),
-				wklog.Int("channelType", int(cmd.Envelope.ChannelType)),
-				wklog.Uint64("messageID", cmd.Envelope.MessageID),
-				wklog.Uint64("messageSeq", cmd.Envelope.MessageSeq),
+				wklog.String("channelID", env.ChannelID),
+				wklog.Int("channelType", int(env.ChannelType)),
+				wklog.Uint64("messageID", env.MessageID),
+				wklog.Uint64("messageSeq", env.MessageSeq),
 				wklog.Uint64("targetNodeID", nodeID),
 				wklog.Int("items", len(items)),
 				wklog.Int("routes", len(routes)),
-				wklog.Int("accepted", len(resp.Accepted)),
-				wklog.Int("retryable", len(resp.Retryable)),
-				wklog.Int("dropped", len(resp.Dropped)),
+				wklog.Error(err),
 			)
 		}
-		mergeDeliveryPushResponse(&result, resp)
-		missing := unreportedDeliveryRoutes(routes, resp)
-		if len(missing) > 0 {
-			if p.logger != nil {
-				p.logger.Warn("remote delivery push response omitted routes; falling back to legacy push",
-					wklog.Event("delivery.diag.remote_push_legacy_fallback"),
-					wklog.String("channelID", cmd.Envelope.ChannelID),
-					wklog.Int("channelType", int(cmd.Envelope.ChannelType)),
-					wklog.Uint64("messageID", cmd.Envelope.MessageID),
-					wklog.Uint64("messageSeq", cmd.Envelope.MessageSeq),
-					wklog.Uint64("targetNodeID", nodeID),
-					wklog.Int("missingRoutes", len(missing)),
-				)
-			}
-			legacyResult := p.pushLegacyDeliveryItems(ctx, nodeID, items, missing)
-			result.Accepted = append(result.Accepted, legacyResult.Accepted...)
-			result.Retryable = append(result.Retryable, legacyResult.Retryable...)
-			result.Dropped = append(result.Dropped, legacyResult.Dropped...)
-		}
-		p.recordPushRPCMetric(nodeID, deliveryPushRPCMetricResult(resp, missing), time.Since(startedAt), len(routes))
+		legacyResult := p.pushLegacyDeliveryItems(ctx, nodeID, items, routes)
+		p.recordPushRPCMetric(nodeID, "error", time.Since(startedAt), len(routes))
+		return legacyResult, nil
 	}
+	if wklog.DebugEnabled(p.logger) {
+		p.logger.Debug("remote delivery push finished",
+			wklog.Event("delivery.diag.remote_push"),
+			wklog.String("channelID", env.ChannelID),
+			wklog.Int("channelType", int(env.ChannelType)),
+			wklog.Uint64("messageID", env.MessageID),
+			wklog.Uint64("messageSeq", env.MessageSeq),
+			wklog.Uint64("targetNodeID", nodeID),
+			wklog.Int("items", len(items)),
+			wklog.Int("routes", len(routes)),
+			wklog.Int("accepted", len(resp.Accepted)),
+			wklog.Int("retryable", len(resp.Retryable)),
+			wklog.Int("dropped", len(resp.Dropped)),
+		)
+	}
+	result := deliveryruntime.PushResult{}
+	mergeDeliveryPushResponse(&result, resp)
+	missing := unreportedDeliveryRoutes(routes, resp)
+	if len(missing) > 0 {
+		if p.logger != nil {
+			p.logger.Warn("remote delivery push response omitted routes; falling back to legacy push",
+				wklog.Event("delivery.diag.remote_push_legacy_fallback"),
+				wklog.String("channelID", env.ChannelID),
+				wklog.Int("channelType", int(env.ChannelType)),
+				wklog.Uint64("messageID", env.MessageID),
+				wklog.Uint64("messageSeq", env.MessageSeq),
+				wklog.Uint64("targetNodeID", nodeID),
+				wklog.Int("missingRoutes", len(missing)),
+			)
+		}
+		legacyResult := p.pushLegacyDeliveryItems(ctx, nodeID, items, missing)
+		result.Accepted = append(result.Accepted, legacyResult.Accepted...)
+		result.Retryable = append(result.Retryable, legacyResult.Retryable...)
+		result.Dropped = append(result.Dropped, legacyResult.Dropped...)
+	}
+	p.recordPushRPCMetric(nodeID, deliveryPushRPCMetricResult(resp, missing), time.Since(startedAt), len(routes))
 	return result, nil
+}
+
+func sortedDeliveryNodeIDs(routes map[uint64][]deliveryruntime.RouteKey) []uint64 {
+	nodeIDs := make([]uint64, 0, len(routes))
+	for nodeID := range routes {
+		nodeIDs = append(nodeIDs, nodeID)
+	}
+	sort.Slice(nodeIDs, func(i, j int) bool { return nodeIDs[i] < nodeIDs[j] })
+	return nodeIDs
 }
 
 func (p distributedDeliveryPush) recordPushRPCMetric(nodeID uint64, result string, dur time.Duration, routes int) {
@@ -924,9 +1012,9 @@ func deliveryPushRPCMetricResult(resp accessnode.DeliveryPushResponse, missing [
 	return "ok"
 }
 
-func (p distributedDeliveryPush) deliveryPushItems(env deliveryruntime.CommittedEnvelope, routes []deliveryruntime.RouteKey) ([]accessnode.DeliveryPushItem, error) {
+func (p distributedDeliveryPush) deliveryPushItems(env deliveryruntime.CommittedEnvelope, routes []deliveryruntime.RouteKey, sharedFrame []byte) ([]accessnode.DeliveryPushItem, error) {
 	if env.ChannelType != frame.ChannelTypePerson {
-		item, err := p.deliveryPushItem(env, routes, "")
+		item, err := p.deliveryPushItemWithFrame(env, routes, sharedFrame)
 		if err != nil {
 			return nil, err
 		}
@@ -950,10 +1038,25 @@ func (p distributedDeliveryPush) deliveryPushItems(env deliveryruntime.Committed
 }
 
 func (p distributedDeliveryPush) deliveryPushItem(env deliveryruntime.CommittedEnvelope, routes []deliveryruntime.RouteKey, recipientUID string) (accessnode.DeliveryPushItem, error) {
-	f := buildRealtimeRecvPacket(env.Message, recipientUID)
-	frameBytes, err := p.codec.EncodeFrame(f, frame.LatestVersion)
+	frameBytes, err := p.encodeDeliveryFrame(env, recipientUID)
 	if err != nil {
 		return accessnode.DeliveryPushItem{}, err
+	}
+	return p.deliveryPushItemWithFrame(env, routes, frameBytes)
+}
+
+func (p distributedDeliveryPush) encodeDeliveryFrame(env deliveryruntime.CommittedEnvelope, recipientUID string) ([]byte, error) {
+	f := buildRealtimeRecvPacket(env.Message, recipientUID)
+	return p.codec.EncodeFrame(f, frame.LatestVersion)
+}
+
+func (p distributedDeliveryPush) deliveryPushItemWithFrame(env deliveryruntime.CommittedEnvelope, routes []deliveryruntime.RouteKey, frameBytes []byte) (accessnode.DeliveryPushItem, error) {
+	if frameBytes == nil {
+		var err error
+		frameBytes, err = p.encodeDeliveryFrame(env, "")
+		if err != nil {
+			return accessnode.DeliveryPushItem{}, err
+		}
 	}
 	return accessnode.DeliveryPushItem{
 		ChannelID:   env.ChannelID,

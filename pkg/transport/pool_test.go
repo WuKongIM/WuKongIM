@@ -535,6 +535,66 @@ func TestPoolRPCRoundTrip(t *testing.T) {
 	}
 }
 
+func TestPoolRPCAlwaysUsesRPCPriority(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		msgType, body, release, err := readFrame(conn)
+		if err != nil {
+			return
+		}
+		release()
+		if msgType != MsgTypeRPCRequest {
+			return
+		}
+		reqID := decodeRequestID(body)
+		var bufs net.Buffers
+		writeFrame(&bufs, MsgTypeRPCResponse, encodeRPCResponse(reqID, 0, []byte("pong")))
+		_, _ = bufs.WriteTo(conn)
+	}()
+
+	events := make(chan EnqueueEvent, 1)
+	pool := NewPool(PoolConfig{
+		Discovery:   staticDiscovery{addrs: map[NodeID]string{2: ln.Addr().String()}},
+		Size:        1,
+		DialTimeout: time.Second,
+		QueueSizes:  [numPriorities]int{4, 4, 4},
+		DefaultPri:  PriorityRaft,
+		Observer: ObserverHooks{
+			OnEnqueue: func(event EnqueueEvent) {
+				events <- event
+			},
+		},
+	})
+	defer pool.Close()
+
+	resp, err := pool.RPC(context.Background(), 2, 0, []byte("ping"))
+	if err != nil {
+		t.Fatalf("RPC() error = %v", err)
+	}
+	if string(resp) != "pong" {
+		t.Fatalf("RPC() response = %q, want %q", resp, "pong")
+	}
+
+	select {
+	case event := <-events:
+		if event.Kind != "rpc" {
+			t.Fatalf("enqueue kind = %q, want rpc", event.Kind)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for enqueue event")
+	}
+}
+
 func TestPoolNodeNotFound(t *testing.T) {
 	pool := NewPool(PoolConfig{
 		Discovery:   staticDiscovery{addrs: map[NodeID]string{}},

@@ -21,6 +21,7 @@ const (
 	networkObservabilityHistoryStep   = 5 * time.Second
 	networkObservabilityPruneInterval = time.Second
 	networkObservabilityMaxDurations  = 256
+	networkObservabilityTrafficShards = 16
 	networkSampleDirectionTX          = "tx"
 	networkSampleDirectionRX          = "rx"
 )
@@ -72,8 +73,8 @@ type networkObservability struct {
 	mu sync.Mutex
 
 	cfg networkObservabilityConfig
-	// trafficBuckets stores byte totals per bounded time bucket, direction, and message type.
-	trafficBuckets map[networkTrafficBucketKey]int64
+	// trafficBuckets stores byte totals behind sharded locks for high-volume transport hooks.
+	trafficBuckets *networkTrafficBucketStore
 	// dialBuckets stores dial outcome counts per bounded time bucket and peer.
 	dialBuckets map[networkDialBucketKey]int
 	// enqueueBuckets stores enqueue outcome counts per bounded time bucket, peer, and queue kind.
@@ -92,6 +93,18 @@ type networkTrafficBucketKey struct {
 	bucket    time.Time
 	direction string
 	msgType   uint8
+}
+
+type networkTrafficBucketStore struct {
+	pruneMu     sync.Mutex
+	lastPruneAt time.Time
+	shards      [networkObservabilityTrafficShards]networkTrafficBucketShard
+}
+
+type networkTrafficBucketShard struct {
+	mu          sync.Mutex
+	buckets     map[networkTrafficBucketKey]int64
+	lastPruneAt time.Time
 }
 
 type networkDialBucketKey struct {
@@ -144,12 +157,99 @@ func newNetworkObservability(cfg networkObservabilityConfig) *networkObservabili
 	cfg.StaticNodes = append([]NodeConfigRef(nil), cfg.StaticNodes...)
 	return &networkObservability{
 		cfg:            cfg,
-		trafficBuckets: map[networkTrafficBucketKey]int64{},
+		trafficBuckets: newNetworkTrafficBucketStore(),
 		dialBuckets:    map[networkDialBucketKey]int{},
 		enqueueBuckets: map[networkEnqueueBucketKey]int{},
 		rpcBuckets:     map[networkRPCBucketKey]networkRPCAggregate{},
 		inflight:       map[networkRPCKey]networkInflightGauge{},
 	}
+}
+
+func newNetworkTrafficBucketStore() *networkTrafficBucketStore {
+	store := &networkTrafficBucketStore{}
+	for i := range store.shards {
+		store.shards[i].buckets = map[networkTrafficBucketKey]int64{}
+	}
+	return store
+}
+
+func (s *networkTrafficBucketStore) add(key networkTrafficBucketKey, bytes int64, cutoff, now time.Time) {
+	if s == nil {
+		return
+	}
+	shard := s.shard(key)
+	shard.mu.Lock()
+	shard.buckets[key] += bytes
+	if shouldPruneNetworkTrafficShard(shard.lastPruneAt, now) {
+		shard.lastPruneAt = now
+		pruneNetworkTrafficBucketMap(shard.buckets, cutoff)
+	}
+	shard.mu.Unlock()
+	s.pruneForWrite(cutoff, now)
+}
+
+func (s *networkTrafficBucketStore) snapshot(cutoff time.Time) map[networkTrafficBucketKey]int64 {
+	out := map[networkTrafficBucketKey]int64{}
+	if s == nil {
+		return out
+	}
+	for i := range s.shards {
+		shard := &s.shards[i]
+		shard.mu.Lock()
+		pruneNetworkTrafficBucketMap(shard.buckets, cutoff)
+		for key, bytes := range shard.buckets {
+			out[key] = bytes
+		}
+		shard.mu.Unlock()
+	}
+	return out
+}
+
+func (s *networkTrafficBucketStore) len() int {
+	if s == nil {
+		return 0
+	}
+	total := 0
+	for i := range s.shards {
+		shard := &s.shards[i]
+		shard.mu.Lock()
+		total += len(shard.buckets)
+		shard.mu.Unlock()
+	}
+	return total
+}
+
+func (s *networkTrafficBucketStore) pruneForWrite(cutoff, now time.Time) {
+	if s == nil || !s.pruneMu.TryLock() {
+		return
+	}
+	defer s.pruneMu.Unlock()
+	if !shouldPruneNetworkTrafficShard(s.lastPruneAt, now) {
+		return
+	}
+	s.lastPruneAt = now
+	for i := range s.shards {
+		shard := &s.shards[i]
+		shard.mu.Lock()
+		pruneNetworkTrafficBucketMap(shard.buckets, cutoff)
+		shard.lastPruneAt = now
+		shard.mu.Unlock()
+	}
+}
+
+func (s *networkTrafficBucketStore) shard(key networkTrafficBucketKey) *networkTrafficBucketShard {
+	idx := uint64(key.msgType) + uint64(key.bucket.UnixNano()/int64(networkObservabilityBucketSize))
+	if key.direction == networkSampleDirectionRX {
+		idx += networkObservabilityTrafficShards / 2
+	}
+	return &s.shards[idx%networkObservabilityTrafficShards]
+}
+
+func shouldPruneNetworkTrafficShard(lastPruneAt, now time.Time) bool {
+	if lastPruneAt.IsZero() || now.Before(lastPruneAt) {
+		return true
+	}
+	return now.Sub(lastPruneAt) >= networkObservabilityPruneInterval
 }
 
 // TransportHooks returns callbacks that record local transport traffic and RPC outcomes.
@@ -214,9 +314,10 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 	if o == nil {
 		return managementusecase.NetworkObservationSnapshot{}
 	}
-	o.mu.Lock()
-
 	cutoff := now.Add(-o.cfg.Window)
+	trafficBuckets := o.trafficBuckets.snapshot(cutoff)
+
+	o.mu.Lock()
 	o.pruneLocked(cutoff)
 	dataPlanePoolStats := o.cfg.DataPlanePoolStats
 
@@ -240,10 +341,10 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 	}
 	snap.Traffic.Scope = "local_total_by_msg_type"
 	snap.Traffic.PeerBreakdownAvailable = false
-	snap.History = o.networkHistorySnapshotLocked(cutoff)
+	snap.History = o.networkHistorySnapshotLocked(cutoff, trafficBuckets)
 
 	trafficByType := map[string]managementusecase.NetworkTrafficMessageType{}
-	for key, bytes := range o.trafficBuckets {
+	for key, bytes := range trafficBuckets {
 		if key.direction == networkSampleDirectionTX {
 			snap.Traffic.TXBytes1m += bytes
 		} else {
@@ -353,7 +454,7 @@ func (o *networkObservability) NetworkSnapshot(now time.Time) managementusecase.
 	return snap
 }
 
-func (o *networkObservability) networkHistorySnapshotLocked(cutoff time.Time) managementusecase.NetworkHistory {
+func (o *networkObservability) networkHistorySnapshotLocked(cutoff time.Time, trafficBuckets map[networkTrafficBucketKey]int64) managementusecase.NetworkHistory {
 	history := managementusecase.NetworkHistory{
 		Window: o.cfg.Window,
 		Step:   networkObservabilityHistoryStep,
@@ -362,7 +463,7 @@ func (o *networkObservability) networkHistorySnapshotLocked(cutoff time.Time) ma
 	rpcByStep := map[time.Time]managementusecase.NetworkRPCHistoryPoint{}
 	errorsByStep := map[time.Time]managementusecase.NetworkErrorHistoryPoint{}
 
-	for key, bytes := range o.trafficBuckets {
+	for key, bytes := range trafficBuckets {
 		step := networkObservabilityHistoryStepAt(cutoff, key.bucket)
 		point := trafficByStep[step]
 		point.At = step
@@ -480,11 +581,9 @@ func (o *networkObservability) recordTraffic(msgType uint8, bytes int, direction
 		return
 	}
 	at := o.now()
-	o.mu.Lock()
 	key := networkTrafficBucketKey{bucket: networkObservabilityBucket(at), direction: direction, msgType: msgType}
-	o.trafficBuckets[key] += int64(bytes)
-	o.pruneForWriteLocked(at)
-	o.mu.Unlock()
+	o.trafficBuckets.add(key, int64(bytes), at.Add(-o.cfg.Window), at)
+	o.pruneGlobalForTrafficWrite(at)
 }
 
 func (o *networkObservability) recordDial(event transport.DialEvent) {
@@ -571,7 +670,6 @@ func (o *networkObservability) now() time.Time {
 }
 
 func (o *networkObservability) pruneLocked(cutoff time.Time) {
-	o.pruneTrafficBucketsLocked(cutoff)
 	o.pruneDialBucketsLocked(cutoff)
 	o.pruneEnqueueBucketsLocked(cutoff)
 	o.pruneRPCBucketsLocked(cutoff)
@@ -587,6 +685,14 @@ func (o *networkObservability) pruneForWriteLocked(now time.Time) {
 	o.lastPruneAt = now
 	o.pruneLocked(now.Add(-o.cfg.Window))
 	o.events = capNetworkEvents(o.events, o.cfg.MaxEvents)
+}
+
+func (o *networkObservability) pruneGlobalForTrafficWrite(now time.Time) {
+	if !o.mu.TryLock() {
+		return
+	}
+	o.pruneForWriteLocked(now)
+	o.mu.Unlock()
 }
 
 func (o *networkObservability) shouldPruneForWriteLocked(now time.Time) bool {
@@ -630,10 +736,10 @@ func capNetworkEvents(events []managementusecase.NetworkEvent, limit int) []mana
 	return events[len(events)-limit:]
 }
 
-func (o *networkObservability) pruneTrafficBucketsLocked(cutoff time.Time) {
-	for key := range o.trafficBuckets {
+func pruneNetworkTrafficBucketMap(buckets map[networkTrafficBucketKey]int64, cutoff time.Time) {
+	for key := range buckets {
 		if networkObservabilityBucketExpired(key.bucket, cutoff) {
-			delete(o.trafficBuckets, key)
+			delete(buckets, key)
 		}
 	}
 }

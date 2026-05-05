@@ -213,7 +213,7 @@ func (c *Cluster) Start() error {
 
 func (c *Cluster) startTransportLayer() error {
 	layer := newTransportLayer(c.cfg, c.discovery, c.rpcMux)
-	if err := layer.Start(c.cfg.ListenAddr, c.handleRaftMessage, c.handleForwardRPC, c.handleControllerRPC, c.handleManagedSlotRPC); err != nil {
+	if err := layer.Start(c.cfg.ListenAddr, c.handleRaftMessage, c.handleRaftBatchMessage, c.handleForwardRPC, c.handleControllerRPC, c.handleManagedSlotRPC); err != nil {
 		return err
 	}
 	layer.server.Handle(msgTypeObservationHint, c.handleObservationHintMessage)
@@ -239,6 +239,7 @@ func (c *Cluster) startServer() error {
 		Logger: c.transportLogger(),
 	})
 	c.server.Handle(msgTypeRaft, c.handleRaftMessage)
+	c.server.Handle(msgTypeRaftBatch, c.handleRaftBatchMessage)
 	c.server.Handle(msgTypeObservationHint, c.handleObservationHintMessage)
 	c.rpcMux.Handle(rpcServiceForward, c.handleForwardRPC)
 	c.rpcMux.Handle(rpcServiceController, c.handleControllerRPC)
@@ -939,6 +940,27 @@ func (c *Cluster) handleRaftMessage(body []byte) {
 		SlotID:  multiraft.SlotID(slotID),
 		Message: msg,
 	})
+}
+
+// handleRaftBatchMessage is the server handler for msgTypeRaftBatch.
+func (c *Cluster) handleRaftBatchMessage(body []byte) {
+	if c.runtime == nil {
+		return
+	}
+	items, err := decodeRaftBatchBody(body)
+	if err != nil {
+		return
+	}
+	for _, item := range items {
+		var msg raftpb.Message
+		if err := msg.Unmarshal(item.data); err != nil {
+			continue
+		}
+		_ = c.runtime.Step(context.Background(), multiraft.Envelope{
+			SlotID:  multiraft.SlotID(item.slotID),
+			Message: msg,
+		})
+	}
 }
 
 // Propose submits a command to the specified slot, automatically handling leader forwarding.

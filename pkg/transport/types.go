@@ -16,8 +16,7 @@ type NodeID = uint64
 type MessageHandler func(body []byte)
 
 // RPCHandler processes an inbound RPC request and returns a response body.
-// The ctx passed by the Server is context.Background(). The handler is responsible
-// for applying its own timeout.
+// The context is canceled when the owning connection closes or the server stops.
 type RPCHandler func(ctx context.Context, body []byte) ([]byte, error)
 
 // Discovery resolves a NodeID to a network address.

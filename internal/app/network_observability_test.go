@@ -156,6 +156,34 @@ func TestNetworkObservabilityRecordsTransportAndRPCWindow(t *testing.T) {
 	require.NotEmpty(t, snap.Events)
 }
 
+func TestNetworkObservabilityTrafficHooksDoNotWaitForGlobalCollectorLock(t *testing.T) {
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	collector := newNetworkObservability(networkObservabilityConfig{
+		LocalNodeID: 1,
+		Window:      time.Minute,
+		Now:         func() time.Time { return now },
+	})
+	hooks := collector.TransportHooks()
+
+	collector.mu.Lock()
+	done := make(chan struct{})
+	go func() {
+		hooks.OnSend(1, 10)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		collector.mu.Unlock()
+		t.Fatal("traffic hook waited for global collector lock")
+	}
+	collector.mu.Unlock()
+
+	snap := collector.NetworkSnapshot(now)
+	require.Equal(t, int64(10), snap.Traffic.TXBytes1m)
+}
+
 func TestNetworkObservabilityPrunesOldEvents(t *testing.T) {
 	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
 	collector := newNetworkObservability(networkObservabilityConfig{
@@ -197,7 +225,7 @@ func TestNetworkObservabilityPrunesStoredSamplesAndEventsOnWrite(t *testing.T) {
 
 	collector.mu.Lock()
 	defer collector.mu.Unlock()
-	require.Len(t, collector.trafficBuckets, 1)
+	require.Equal(t, 1, collector.trafficBuckets.len())
 	require.Empty(t, collector.dialBuckets)
 	require.Empty(t, collector.enqueueBuckets)
 	require.Empty(t, collector.rpcBuckets)
@@ -240,9 +268,7 @@ func TestNetworkObservabilityBoundsTrafficBucketsUnderHighVolume(t *testing.T) {
 
 	snap := collector.NetworkSnapshot(now)
 	require.Equal(t, int64(previousNetworkObservabilitySampleCap+1000), snap.Traffic.TXBytes1m)
-	collector.mu.Lock()
-	defer collector.mu.Unlock()
-	require.LessOrEqual(t, len(collector.trafficBuckets), int(time.Minute/networkObservabilityBucketSize)+1)
+	require.LessOrEqual(t, collector.trafficBuckets.len(), int(time.Minute/networkObservabilityBucketSize)+1)
 }
 
 func TestNetworkObservabilityKeepsRPCCountersExactAbovePreviousSampleCap(t *testing.T) {

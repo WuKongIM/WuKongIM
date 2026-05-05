@@ -143,13 +143,15 @@ func (s *Server) acceptLoop() {
 func (s *Server) serveConn(raw net.Conn) {
 	defer s.wg.Done()
 
+	connCtx, cancelConn := context.WithCancel(context.Background())
 	var mc *MuxConn
 	dispatch := func(msgType uint8, body []byte, release func()) {
-		s.dispatch(mc, msgType, body, release)
+		s.dispatch(connCtx, mc, msgType, body, release)
 	}
 	mc = newMuxConn(raw, dispatch, s.cfg.ConnConfig)
 	s.conns.Store(mc, struct{}{})
 	defer func() {
+		cancelConn()
 		s.conns.Delete(mc)
 		mc.Close()
 	}()
@@ -160,7 +162,7 @@ func (s *Server) serveConn(raw net.Conn) {
 	}
 }
 
-func (s *Server) dispatch(mc *MuxConn, msgType uint8, body []byte, release func()) {
+func (s *Server) dispatch(connCtx context.Context, mc *MuxConn, msgType uint8, body []byte, release func()) {
 	switch msgType {
 	case MsgTypeRPCRequest:
 		holder := s.rpcHandler.Load()
@@ -171,7 +173,7 @@ func (s *Server) dispatch(mc *MuxConn, msgType uint8, body []byte, release func(
 		copied := append([]byte(nil), body...)
 		release()
 		s.wg.Add(1)
-		go s.handleRPCRequest(mc, holder.handler, copied)
+		go s.handleRPCRequest(connCtx, mc, holder.handler, copied)
 	default:
 		h := s.handlers.Load().get(msgType)
 		if h != nil {
@@ -181,7 +183,7 @@ func (s *Server) dispatch(mc *MuxConn, msgType uint8, body []byte, release func(
 	}
 }
 
-func (s *Server) handleRPCRequest(mc *MuxConn, handler RPCHandler, body []byte) {
+func (s *Server) handleRPCRequest(ctx context.Context, mc *MuxConn, handler RPCHandler, body []byte) {
 	defer s.wg.Done()
 	if len(body) < 8 {
 		return
@@ -189,21 +191,7 @@ func (s *Server) handleRPCRequest(mc *MuxConn, handler RPCHandler, body []byte) 
 	requestID := binary.BigEndian.Uint64(body[0:8])
 	payload := body[8:]
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() {
-		select {
-		case <-mc.readerDone:
-		case <-s.stopCh:
-		case <-done:
-			return
-		}
-		cancel()
-	}()
-
 	respData, err := handler(ctx, payload)
-	close(done)
-	cancel()
 	var errCode uint8
 	if err != nil {
 		errCode = 1

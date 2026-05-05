@@ -382,6 +382,11 @@ func (c *stateConn) Write(data []byte) error {
 	return c.state.raw.AsyncWrite(payload, nil)
 }
 
+// TransportManagedWriteTimeout reports that gnet AsyncWrite owns write backpressure.
+func (c *stateConn) TransportManagedWriteTimeout() bool {
+	return true
+}
+
 func (c *stateConn) Close() error {
 	if c.state.runtime != nil && c.state.runtime.opts.Network == "websocket" && c.state.wsCloseSent.CompareAndSwap(false, true) {
 		frame := buildWSCloseFrame(wsCloseNormalClosure, "")

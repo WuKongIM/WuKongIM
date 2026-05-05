@@ -18,6 +18,7 @@ func TestTransportLayerStartInitializesServerAndClients(t *testing.T) {
 	err := layer.Start(
 		cfg.ListenAddr,
 		func([]byte) {},
+		func([]byte) {},
 		func(context.Context, []byte) ([]byte, error) { return nil, nil },
 		func(context.Context, []byte) ([]byte, error) { return nil, nil },
 		func(context.Context, []byte) ([]byte, error) { return nil, nil },
@@ -82,6 +83,7 @@ func TestTransportLayerWiresTransportObserver(t *testing.T) {
 		func(body []byte) {
 			received <- append([]byte(nil), body...)
 		},
+		func([]byte) {},
 		func(context.Context, []byte) ([]byte, error) { return nil, nil },
 		func(context.Context, []byte) ([]byte, error) { return nil, nil },
 		func(context.Context, []byte) ([]byte, error) { return nil, nil },
@@ -130,6 +132,48 @@ func TestTransportLayerWiresTransportObserver(t *testing.T) {
 	}
 	if sentBytes != len(sendPayload) || receivedBytes != len(receivePayload) {
 		t.Fatalf("observer bytes sent=%d received=%d, want %d/%d", sentBytes, receivedBytes, len(sendPayload), len(receivePayload))
+	}
+}
+
+func TestTransportLayerReceivesRaftBatchFrame(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.ListenAddr = "127.0.0.1:0"
+	discovery := NewStaticDiscovery(cfg.Nodes)
+	layer := newTransportLayer(cfg, discovery, nil)
+
+	received := make(chan []byte, 1)
+	err := layer.Start(
+		cfg.ListenAddr,
+		func([]byte) {},
+		func(body []byte) {
+			received <- append([]byte(nil), body...)
+		},
+		func(context.Context, []byte) ([]byte, error) { return nil, nil },
+		func(context.Context, []byte) ([]byte, error) { return nil, nil },
+		func(context.Context, []byte) ([]byte, error) { return nil, nil },
+	)
+	if err != nil {
+		t.Fatalf("transportLayer.Start() error = %v", err)
+	}
+	t.Cleanup(layer.Stop)
+
+	payload := []byte("raft-batch")
+	conn, err := net.Dial("tcp", layer.server.Listener().Addr().String())
+	if err != nil {
+		t.Fatalf("net.Dial() error = %v", err)
+	}
+	defer conn.Close()
+	if err := transport.WriteMessage(conn, msgTypeRaftBatch, payload); err != nil {
+		t.Fatalf("transport.WriteMessage() error = %v", err)
+	}
+
+	select {
+	case got := <-received:
+		if string(got) != string(payload) {
+			t.Fatalf("received payload = %q, want %q", got, payload)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for raft batch receive")
 	}
 }
 
