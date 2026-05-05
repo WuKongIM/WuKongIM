@@ -188,7 +188,9 @@ func TestServiceIncomingReadySnapshotRestoresControllerMeta(t *testing.T) {
 	require.NoError(t, storageView.persistReady(ctx, ready))
 
 	latestConfState := raftpb.ConfState{Voters: []uint64{7}}
-	require.NoError(t, service.applyReadyState(ctx, nil, ready, storageView, &latestConfState, nil))
+	applied, err := service.applyReadyState(ctx, nil, ready, storageView, &latestConfState, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(6), applied)
 
 	_, err = targetStore.GetNode(ctx, 9)
 	require.NoError(t, err)
@@ -338,6 +340,128 @@ func TestServiceProposeAppliesMigrationCommand(t *testing.T) {
 	require.Equal(t, multiraft.SlotID(1), migration.Source)
 	require.Equal(t, multiraft.SlotID(2), migration.Target)
 	require.Equal(t, hashslot.PhaseDelta, migration.Phase)
+}
+
+func TestServiceCompactsControllerLogAfterAppliedThreshold(t *testing.T) {
+	env := newTestEnv(t, []uint64{1})
+	defer env.stopAll()
+
+	env.startNodeWithConfig(t, 1, nil, func(cfg *Config) {
+		cfg.LogCompaction = LogCompactionConfig{
+			Enabled:        true,
+			EnabledSet:     true,
+			TriggerEntries: 1,
+			CheckInterval:  time.Nanosecond,
+		}
+	})
+	env.waitForLeader(t, []uint64{1})
+
+	node := env.nodes[1]
+	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(2)))
+
+	snap := waitForControllerSnapshotIndex(t, node.logDB.ForController(), 2)
+	first, err := node.logDB.ForController().FirstIndex(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, snap.Metadata.Index+1, first)
+}
+
+func TestServiceControllerLogCompactionCanBeDisabled(t *testing.T) {
+	env := newTestEnv(t, []uint64{1})
+	defer env.stopAll()
+
+	env.startNodeWithConfig(t, 1, nil, func(cfg *Config) {
+		cfg.LogCompaction = LogCompactionConfig{
+			Enabled:        false,
+			EnabledSet:     true,
+			TriggerEntries: 1,
+			CheckInterval:  time.Nanosecond,
+		}
+	})
+	env.waitForLeader(t, []uint64{1})
+
+	node := env.nodes[1]
+	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(2)))
+	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(3)))
+
+	require.Never(t, func() bool {
+		snap, err := node.logDB.ForController().Snapshot(context.Background())
+		return err == nil && snap.Metadata.Index > 0
+	}, 300*time.Millisecond, 10*time.Millisecond)
+
+	first, err := node.logDB.ForController().FirstIndex(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), first)
+
+	last, err := node.logDB.ForController().LastIndex(context.Background())
+	require.NoError(t, err)
+	entries, err := node.logDB.ForController().Entries(context.Background(), first, last+1, 0)
+	require.NoError(t, err)
+	require.NotEmpty(t, entries)
+}
+
+func TestServiceCompactionFailureDoesNotFailProposalLoop(t *testing.T) {
+	env := newTestEnv(t, []uint64{1})
+	defer env.stopAll()
+
+	env.startNodeWithConfig(t, 1, nil, func(cfg *Config) {
+		cfg.LogCompaction = LogCompactionConfig{
+			Enabled:        true,
+			EnabledSet:     true,
+			TriggerEntries: 1,
+			CheckInterval:  time.Nanosecond,
+		}
+	})
+	env.waitForLeader(t, []uint64{1})
+
+	sentinel := errors.New("compact once")
+	compactControllerLogHook = func() error {
+		return sentinel
+	}
+	t.Cleanup(func() {
+		compactControllerLogHook = nil
+	})
+
+	node := env.nodes[1]
+	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(2)))
+	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(3)))
+
+	compactControllerLogHook = nil
+	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(4)))
+
+	waitForControllerSnapshotIndex(t, node.logDB.ForController(), 4)
+}
+
+func TestServiceRestartRestoresSnapshotCreatedByCompaction(t *testing.T) {
+	env := newTestEnv(t, []uint64{1})
+	defer env.stopAll()
+
+	compactionCfg := func(cfg *Config) {
+		cfg.LogCompaction = LogCompactionConfig{
+			Enabled:        true,
+			EnabledSet:     true,
+			TriggerEntries: 1,
+			CheckInterval:  time.Nanosecond,
+		}
+	}
+	env.startNodeWithConfig(t, 1, nil, compactionCfg)
+	env.waitForLeader(t, []uint64{1})
+
+	node := env.nodes[1]
+	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(2)))
+	waitForControllerSnapshotIndex(t, node.logDB.ForController(), 2)
+	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(3)))
+
+	env.stopNode(1)
+	env.startNodeWithConfig(t, 1, nil, compactionCfg)
+
+	require.Eventually(t, func() bool {
+		_, err := env.nodes[1].meta.GetNode(context.Background(), 2)
+		return err == nil
+	}, 5*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		_, err := env.nodes[1].meta.GetNode(context.Background(), 3)
+		return err == nil
+	}, 5*time.Second, 10*time.Millisecond)
 }
 
 func TestServiceProposeAppliesAddSlotCommand(t *testing.T) {
@@ -1140,6 +1264,23 @@ func (e *testEnv) mustInitialState(t *testing.T, nodeID uint64) multiraft.Bootst
 	return state
 }
 
+func waitForControllerSnapshotIndex(t *testing.T, store multiraft.Storage, min uint64) raftpb.Snapshot {
+	t.Helper()
+	var snap raftpb.Snapshot
+	require.Eventually(t, func() bool {
+		got, err := store.Snapshot(context.Background())
+		if err != nil {
+			return false
+		}
+		if got.Metadata.Index < min {
+			return false
+		}
+		snap = got
+		return true
+	}, 5*time.Second, 10*time.Millisecond)
+	return snap
+}
+
 func (e *testEnv) addrOf(nodeID uint64) string {
 	return e.addrs[nodeID]
 }
@@ -1181,6 +1322,18 @@ func mustMarshalRaftMessage(t *testing.T, msg raftpb.Message) []byte {
 	body, err := msg.Marshal()
 	require.NoError(t, err)
 	return body
+}
+
+func nodeJoinCommand(nodeID uint64) slotcontroller.Command {
+	return slotcontroller.Command{
+		Kind: slotcontroller.CommandKindNodeJoin,
+		NodeJoin: &slotcontroller.NodeJoinRequest{
+			NodeID:         nodeID,
+			Addr:           fmt.Sprintf("127.0.0.1:%d", 7000+nodeID),
+			JoinedAt:       time.Unix(int64(nodeID), 0),
+			CapacityWeight: 1,
+		},
+	}
 }
 
 func sortedPeers(peers []uint64) []uint64 {

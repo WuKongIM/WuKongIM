@@ -32,6 +32,8 @@ var (
 	rawNodeBootstrap = func(_ uint64, rawNode *raft.RawNode, peers []raft.Peer) error {
 		return rawNode.Bootstrap(peers)
 	}
+
+	compactControllerLogHook func() error
 )
 
 type Service struct {
@@ -72,6 +74,13 @@ type runStartupState struct {
 type storageAdapter struct {
 	storage multiraft.Storage
 	memory  *loadedMemoryStorage
+}
+
+type controllerLogCompactor struct {
+	cfg             LogCompactionConfig
+	lastCheck       time.Time
+	lastSnapshotIdx uint64
+	now             func() time.Time
 }
 
 type loadedMemoryStorage struct {
@@ -465,6 +474,7 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, startu
 	if !raft.IsEmptySnap(startup.Snapshot) {
 		latestConfState = cloneConfState(startup.Snapshot.Metadata.ConfState)
 	}
+	compactor := newControllerLogCompactor(s.cfg.LogCompaction, startup.Snapshot.Metadata.Index)
 
 	processReady := func() error {
 		for rawNode.HasReady() {
@@ -493,7 +503,8 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, startu
 				}
 			}
 
-			if err := s.applyReadyState(context.Background(), rawNode, ready, storageView, &latestConfState, pendingByIndex); err != nil {
+			lastApplied, err := s.applyReadyState(context.Background(), rawNode, ready, storageView, &latestConfState, pendingByIndex)
+			if err != nil {
 				failTracked(pendingQueue, pendingByIndex, err)
 				return err
 			}
@@ -501,6 +512,13 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, startu
 			rawNode.Advance(ready)
 			s.updateLeader(rawNode)
 			failInflightProposalsOnLeaderLoss(rawNode.Status().RaftState, &pendingQueue, pendingByIndex)
+			if compactor.shouldCompact(lastApplied) {
+				if err := s.compactControllerLog(context.Background(), storageView, lastApplied, latestConfState); err != nil {
+					s.logCompactionWarning(err, lastApplied)
+				} else {
+					compactor.recordSnapshot(lastApplied)
+				}
+			}
 		}
 		return nil
 	}
@@ -552,12 +570,12 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, startu
 }
 
 // applyReadyState restores Ready snapshots, applies committed entries, and marks the durable applied index.
-func (s *Service) applyReadyState(ctx context.Context, rawNode *raft.RawNode, ready raft.Ready, storageView *storageAdapter, latestConfState *raftpb.ConfState, pendingByIndex map[uint64]trackedProposal) error {
+func (s *Service) applyReadyState(ctx context.Context, rawNode *raft.RawNode, ready raft.Ready, storageView *storageAdapter, latestConfState *raftpb.ConfState, pendingByIndex map[uint64]trackedProposal) (uint64, error) {
 	lastApplied := uint64(0)
 	if !raft.IsEmptySnap(ready.Snapshot) {
-		applied, err := s.restoreReadySnapshot(ctx, ready.Snapshot, storageView, latestConfState)
+		applied, err := s.restoreReadySnapshot(ctx, ready.Snapshot, latestConfState)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		lastApplied = applied
 	}
@@ -571,7 +589,7 @@ func (s *Service) applyReadyState(ctx context.Context, rawNode *raft.RawNode, re
 			}
 			cmd, err := decodeCommand(entry.Data)
 			if err != nil {
-				return err
+				return 0, err
 			}
 			err = s.cfg.StateMachine.Apply(ctx, cmd)
 			if err == nil && s.cfg.OnCommittedCommand != nil {
@@ -582,19 +600,19 @@ func (s *Service) applyReadyState(ctx context.Context, rawNode *raft.RawNode, re
 				delete(pendingByIndex, entry.Index)
 			}
 			if err != nil {
-				return err
+				return 0, err
 			}
 		case raftpb.EntryConfChange:
 			var cc raftpb.ConfChange
 			if err := cc.Unmarshal(entry.Data); err != nil {
-				return err
+				return 0, err
 			}
 			latest := rawNode.ApplyConfChange(cc)
 			*latestConfState = cloneConfState(*latest)
 		case raftpb.EntryConfChangeV2:
 			var cc raftpb.ConfChangeV2
 			if err := cc.Unmarshal(entry.Data); err != nil {
-				return err
+				return 0, err
 			}
 			latest := rawNode.ApplyConfChange(cc)
 			*latestConfState = cloneConfState(*latest)
@@ -602,13 +620,16 @@ func (s *Service) applyReadyState(ctx context.Context, rawNode *raft.RawNode, re
 	}
 
 	if lastApplied == 0 {
-		return nil
+		return 0, nil
 	}
-	return storageView.storage.MarkApplied(ctx, lastApplied)
+	if err := storageView.storage.MarkApplied(ctx, lastApplied); err != nil {
+		return 0, err
+	}
+	return lastApplied, nil
 }
 
 // restoreReadySnapshot restores Controller metadata from a non-empty Ready snapshot.
-func (s *Service) restoreReadySnapshot(ctx context.Context, snap raftpb.Snapshot, storageView *storageAdapter, latestConfState *raftpb.ConfState) (uint64, error) {
+func (s *Service) restoreReadySnapshot(ctx context.Context, snap raftpb.Snapshot, latestConfState *raftpb.ConfState) (uint64, error) {
 	if raft.IsEmptySnap(snap) {
 		return 0, nil
 	}
@@ -617,6 +638,84 @@ func (s *Service) restoreReadySnapshot(ctx context.Context, snap raftpb.Snapshot
 	}
 	*latestConfState = cloneConfState(snap.Metadata.ConfState)
 	return snap.Metadata.Index, nil
+}
+
+func newControllerLogCompactor(cfg LogCompactionConfig, lastSnapshotIdx uint64) *controllerLogCompactor {
+	return &controllerLogCompactor{
+		cfg:             cfg,
+		lastSnapshotIdx: lastSnapshotIdx,
+		now:             time.Now,
+	}
+}
+
+func (c *controllerLogCompactor) shouldCompact(applied uint64) bool {
+	if c == nil || !c.cfg.Enabled || applied == 0 {
+		return false
+	}
+	if applied < c.lastSnapshotIdx || applied-c.lastSnapshotIdx < c.cfg.TriggerEntries {
+		return false
+	}
+	now := c.now()
+	if !c.lastCheck.IsZero() && now.Sub(c.lastCheck) < c.cfg.CheckInterval {
+		return false
+	}
+	c.lastCheck = now
+	return true
+}
+
+func (c *controllerLogCompactor) recordSnapshot(index uint64) {
+	if c == nil {
+		return
+	}
+	c.lastSnapshotIdx = index
+}
+
+func (s *Service) compactControllerLog(ctx context.Context, storageView *storageAdapter, applied uint64, confState raftpb.ConfState) error {
+	if compactControllerLogHook != nil {
+		if err := compactControllerLogHook(); err != nil {
+			return err
+		}
+	}
+	data, err := s.cfg.StateMachine.Snapshot(ctx)
+	if err != nil {
+		return err
+	}
+	term, err := storageView.memory.Term(applied)
+	if err != nil {
+		return err
+	}
+	snap := raftpb.Snapshot{
+		Data: data,
+		Metadata: raftpb.SnapshotMetadata{
+			Index:     applied,
+			Term:      term,
+			ConfState: cloneConfState(confState),
+		},
+	}
+	if err := storageView.storage.Save(ctx, multiraft.PersistentState{Snapshot: &snap}); err != nil {
+		return err
+	}
+	if _, err := storageView.memory.CreateSnapshot(applied, &snap.Metadata.ConfState, snap.Data); err != nil && !errors.Is(err, raft.ErrSnapOutOfDate) {
+		return err
+	}
+	storageView.memory.confState = cloneConfState(snap.Metadata.ConfState)
+	if err := storageView.memory.Compact(applied); err != nil && !errors.Is(err, raft.ErrCompacted) {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) logCompactionWarning(err error, applied uint64) {
+	if s.cfg.Logger == nil {
+		return
+	}
+	s.cfg.Logger.Named("raft").Warn("controller raft log compaction failed",
+		wklog.RaftScope("controller"),
+		wklog.NodeID(s.cfg.NodeID),
+		wklog.Uint64("appliedIndex", applied),
+		wklog.Error(err),
+		wklog.Event("controller.raft.log_compaction.failed"),
+	)
 }
 
 func (s *Service) setError(err error) {
