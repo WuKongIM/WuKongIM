@@ -131,6 +131,7 @@ beforeEach(() => {
   getConnectionsMock.mockResolvedValue({
     total: 1,
     items: [{
+      node_id: 1,
       session_id: 101,
       uid: "u1",
       device_id: "device-a",

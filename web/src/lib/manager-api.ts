@@ -2,6 +2,7 @@ import { getManagerApiBaseUrl } from "@/lib/env"
 import type {
   ChannelRuntimeMetaListParams,
   ControllerLogListParams,
+  ConnectionDetailParams,
   ConnectionListParams,
   ManagerChannelRuntimeMetaDetailResponse,
   ManagerChannelRuntimeMetaListResponse,
@@ -144,6 +145,16 @@ function buildConnectionListPath(params?: ConnectionListParams) {
 
   const query = search.toString()
   return query ? `/manager/connections?${query}` : "/manager/connections"
+}
+
+function buildConnectionDetailPath(sessionId: number, params?: ConnectionDetailParams) {
+  const search = new URLSearchParams()
+  if (typeof params?.nodeId === "number") {
+    search.set("node_id", String(params.nodeId))
+  }
+
+  const query = search.toString()
+  return query ? `/manager/connections/${sessionId}?${query}` : `/manager/connections/${sessionId}`
 }
 
 function buildNodeOnboardingJobsPath(params?: NodeOnboardingJobsParams) {
@@ -370,8 +381,8 @@ export function getConnections(params?: ConnectionListParams) {
   return jsonManagerFetch<ManagerConnectionsResponse>(buildConnectionListPath(params))
 }
 
-export function getConnection(sessionId: number) {
-  return jsonManagerFetch<ManagerConnectionDetailResponse>(`/manager/connections/${sessionId}`)
+export function getConnection(sessionId: number, params?: ConnectionDetailParams) {
+  return jsonManagerFetch<ManagerConnectionDetailResponse>(buildConnectionDetailPath(sessionId, params))
 }
 
 export function getMessages(params: MessageListParams) {

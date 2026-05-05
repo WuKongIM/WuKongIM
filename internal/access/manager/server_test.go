@@ -2394,6 +2394,7 @@ func TestManagerConnectionsAcceptsGlobalWildcardPermission(t *testing.T) {
 
 func TestManagerConnectionsReturnsList(t *testing.T) {
 	connectedAt := time.Date(2026, 4, 23, 8, 0, 0, 0, time.UTC)
+	var received managementusecase.ListConnectionsRequest
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "admin",
@@ -2404,7 +2405,9 @@ func TestManagerConnectionsReturnsList(t *testing.T) {
 			}},
 		}}),
 		Management: managementStub{
+			listConnectionsReqSink: &received,
 			connections: []managementusecase.Connection{{
+				NodeID:      2,
 				SessionID:   101,
 				UID:         "u1",
 				DeviceID:    "device-a",
@@ -2421,15 +2424,17 @@ func TestManagerConnectionsReturnsList(t *testing.T) {
 	})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/connections", nil)
+	req := httptest.NewRequest(http.MethodGet, "/manager/connections?node_id=2", nil)
 	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
 
 	srv.Engine().ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, managementusecase.ListConnectionsRequest{NodeID: 2}, received)
 	require.JSONEq(t, `{
 		"total": 1,
 		"items": [{
+			"node_id": 2,
 			"session_id": 101,
 			"uid": "u1",
 			"device_id": "device-a",
@@ -2443,6 +2448,29 @@ func TestManagerConnectionsReturnsList(t *testing.T) {
 			"local_addr": "127.0.0.1:7000"
 		}]
 	}`, rec.Body.String())
+}
+
+func TestManagerConnectionsRejectsInvalidNodeID(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.connection",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/connections?node_id=bad", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"error":"bad_request","message":"invalid node_id"}`, rec.Body.String())
 }
 
 func TestManagerConnectionsReturnsServiceUnavailableWhenManagementNotConfigured(t *testing.T) {
@@ -2469,7 +2497,7 @@ func TestManagerConnectionsReturnsServiceUnavailableWhenManagementNotConfigured(
 
 func TestManagerConnectionDetailReturnsItem(t *testing.T) {
 	connectedAt := time.Date(2026, 4, 23, 8, 10, 0, 0, time.UTC)
-	var received uint64
+	var received managementusecase.GetConnectionRequest
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "admin",
@@ -2482,6 +2510,7 @@ func TestManagerConnectionDetailReturnsItem(t *testing.T) {
 		Management: managementStub{
 			connectionDetailReqSink: &received,
 			connectionDetail: managementusecase.ConnectionDetail{
+				NodeID:      2,
 				SessionID:   202,
 				UID:         "u2",
 				DeviceID:    "device-b",
@@ -2498,14 +2527,15 @@ func TestManagerConnectionDetailReturnsItem(t *testing.T) {
 	})
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/manager/connections/202", nil)
+	req := httptest.NewRequest(http.MethodGet, "/manager/connections/202?node_id=2", nil)
 	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
 
 	srv.Engine().ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, uint64(202), received)
+	require.Equal(t, managementusecase.GetConnectionRequest{NodeID: 2, SessionID: 202}, received)
 	require.JSONEq(t, `{
+		"node_id": 2,
 		"session_id": 202,
 		"uid": "u2",
 		"device_id": "device-b",
@@ -2932,7 +2962,8 @@ type managementStub struct {
 	taskErr                         error
 	connections                     []managementusecase.Connection
 	connectionsErr                  error
-	connectionDetailReqSink         *uint64
+	listConnectionsReqSink          *managementusecase.ListConnectionsRequest
+	connectionDetailReqSink         *managementusecase.GetConnectionRequest
 	connectionDetail                managementusecase.ConnectionDetail
 	connectionDetailErr             error
 	channelRuntimeMetaReqSink       *managementusecase.ListChannelRuntimeMetaRequest
@@ -3077,13 +3108,16 @@ func (s managementStub) GetTask(context.Context, uint32) (managementusecase.Task
 	return s.task, s.taskErr
 }
 
-func (s managementStub) ListConnections(context.Context) ([]managementusecase.Connection, error) {
+func (s managementStub) ListConnections(_ context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
+	if s.listConnectionsReqSink != nil {
+		*s.listConnectionsReqSink = req
+	}
 	return append([]managementusecase.Connection(nil), s.connections...), s.connectionsErr
 }
 
-func (s managementStub) GetConnection(_ context.Context, sessionID uint64) (managementusecase.ConnectionDetail, error) {
+func (s managementStub) GetConnection(_ context.Context, req managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error) {
 	if s.connectionDetailReqSink != nil {
-		*s.connectionDetailReqSink = sessionID
+		*s.connectionDetailReqSink = req
 	}
 	return s.connectionDetail, s.connectionDetailErr
 }

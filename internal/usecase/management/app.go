@@ -94,6 +94,14 @@ type RuntimeSummaryReader interface {
 	NodeRuntimeSummary(ctx context.Context, nodeID uint64) (NodeRuntimeSummary, error)
 }
 
+// ConnectionReader reads node-local connection inventory for non-local manager filters.
+type ConnectionReader interface {
+	// NodeConnections returns active connections currently registered on one cluster node.
+	NodeConnections(ctx context.Context, nodeID uint64) ([]Connection, error)
+	// NodeConnection returns one connection currently registered on one cluster node.
+	NodeConnection(ctx context.Context, nodeID uint64, sessionID uint64) (ConnectionDetail, error)
+}
+
 // NodeRuntimeSummary contains target-node connection and gateway admission counters.
 type NodeRuntimeSummary struct {
 	// NodeID identifies the cluster node described by this summary.
@@ -134,6 +142,8 @@ type Options struct {
 	Online online.Registry
 	// RuntimeSummary reads local or remote node runtime counters for scale-in safety.
 	RuntimeSummary RuntimeSummaryReader
+	// Connections reads remote node connection inventory for manager connection filters.
+	Connections ConnectionReader
 	// ChannelRuntimeMeta provides authoritative slot-level runtime meta pages.
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
 	// Messages provides authoritative channel message pages.
@@ -153,6 +163,7 @@ type App struct {
 	cluster                  ClusterReader
 	online                   online.Registry
 	runtimeSummary           RuntimeSummaryReader
+	connections              ConnectionReader
 	channelRuntimeMeta       ChannelRuntimeMetaReader
 	messages                 MessageReader
 	network                  NetworkSnapshotReader
@@ -184,6 +195,7 @@ func New(opts Options) *App {
 		cluster:                  opts.Cluster,
 		online:                   opts.Online,
 		runtimeSummary:           opts.RuntimeSummary,
+		connections:              opts.Connections,
 		channelRuntimeMeta:       opts.ChannelRuntimeMeta,
 		messages:                 opts.Messages,
 		network:                  opts.Network,

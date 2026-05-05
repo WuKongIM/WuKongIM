@@ -600,6 +600,7 @@ export type ManagerChannelRuntimeMetaDetailResponse = ManagerChannelRuntimeMeta 
 }
 
 export type ManagerConnection = {
+  node_id: number
   session_id: number
   uid: string
   device_id: string
@@ -762,6 +763,10 @@ export type ChannelRuntimeMetaListParams = {
 }
 
 export type ConnectionListParams = {
+  nodeId?: number
+}
+
+export type ConnectionDetailParams = {
   nodeId?: number
 }
 

@@ -552,6 +552,7 @@ func build(cfg Config) (_ *App, err error) {
 			Cluster:            app.cluster,
 			Online:             onlineRegistry,
 			RuntimeSummary:     managementRuntimeSummaryReader{collector: runtimeSummaries, nodeClient: app.nodeClient},
+			Connections:        managementConnectionReader{nodeClient: app.nodeClient},
 			ChannelRuntimeMeta: app.store,
 			Network:            app.networkObservability,
 			Messages: managerMessageReader{

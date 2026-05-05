@@ -581,6 +581,7 @@ describe("manager api client", () => {
     const connectionsResponse = {
       total: 1,
       items: [{
+        node_id: 2,
         session_id: 101,
         uid: "u1",
         device_id: "device-a",
@@ -603,7 +604,7 @@ describe("manager api client", () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(connectionDetail), { status: 200 }))
 
     await expect(getConnections({ nodeId: 2 })).resolves.toEqual(connectionsResponse)
-    await expect(getConnection(101)).resolves.toEqual(connectionDetail)
+    await expect(getConnection(101, { nodeId: 2 })).resolves.toEqual(connectionDetail)
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "/manager/connections?node_id=2",
@@ -611,7 +612,7 @@ describe("manager api client", () => {
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "/manager/connections/101",
+      "/manager/connections/101?node_id=2",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
   })

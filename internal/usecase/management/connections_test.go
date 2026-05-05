@@ -84,12 +84,13 @@ func TestListConnectionsReturnsMappedItemsOrderedByConnectedAtDesc(t *testing.T)
 		},
 	}))
 
-	app := New(Options{Online: reg})
+	app := New(Options{LocalNodeID: 2, Online: reg})
 
-	got, err := app.ListConnections(context.Background())
+	got, err := app.ListConnections(context.Background(), ListConnectionsRequest{NodeID: 2})
 	require.NoError(t, err)
 	require.Equal(t, []connectionSummary{
 		{
+			NodeID:      2,
 			SessionID:   3,
 			UID:         "u-2",
 			DeviceID:    "device-b",
@@ -102,6 +103,7 @@ func TestListConnectionsReturnsMappedItemsOrderedByConnectedAtDesc(t *testing.T)
 			LocalAddr:   "127.0.0.1:7100",
 		},
 		{
+			NodeID:      2,
 			SessionID:   8,
 			UID:         "u-3",
 			DeviceID:    "device-c",
@@ -114,6 +116,7 @@ func TestListConnectionsReturnsMappedItemsOrderedByConnectedAtDesc(t *testing.T)
 			LocalAddr:   "127.0.0.1:7200",
 		},
 		{
+			NodeID:      2,
 			SessionID:   5,
 			UID:         "u-1",
 			DeviceID:    "device-a",
@@ -131,6 +134,33 @@ func TestListConnectionsReturnsMappedItemsOrderedByConnectedAtDesc(t *testing.T)
 		base.Add(4 * time.Minute),
 		base.Add(2 * time.Minute),
 	}, connectionTimes(got))
+}
+
+func TestListConnectionsReadsSelectedRemoteNode(t *testing.T) {
+	reader := &connectionReaderStub{
+		connections: []Connection{{
+			NodeID:      3,
+			SessionID:   303,
+			UID:         "remote-user",
+			DeviceID:    "remote-device",
+			DeviceFlag:  "web",
+			DeviceLevel: "master",
+			SlotID:      7,
+			State:       "active",
+			Listener:    "ws",
+			ConnectedAt: time.Unix(300, 0),
+			RemoteAddr:  "10.0.0.3:5000",
+			LocalAddr:   "127.0.0.1:7300",
+		}},
+	}
+	app := New(Options{LocalNodeID: 2, Online: online.NewRegistry(), Connections: reader})
+
+	got, err := app.ListConnections(context.Background(), ListConnectionsRequest{NodeID: 3})
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), reader.listNodeID)
+	require.Equal(t, []uint64{303}, connectionIDs(got))
+	require.Equal(t, uint64(3), got[0].NodeID)
 }
 
 func TestGetConnectionReturnsMappedDetail(t *testing.T) {
@@ -154,11 +184,12 @@ func TestGetConnectionReturnsMappedDetail(t *testing.T) {
 		},
 	}))
 
-	app := New(Options{Online: reg})
+	app := New(Options{LocalNodeID: 2, Online: reg})
 
-	got, err := app.GetConnection(context.Background(), 101)
+	got, err := app.GetConnection(context.Background(), GetConnectionRequest{NodeID: 2, SessionID: 101})
 	require.NoError(t, err)
 	require.Equal(t, ConnectionDetail{
+		NodeID:      2,
 		SessionID:   101,
 		UID:         "user-a",
 		DeviceID:    "device-z",
@@ -173,14 +204,42 @@ func TestGetConnectionReturnsMappedDetail(t *testing.T) {
 	}, got)
 }
 
+func TestGetConnectionReadsSelectedRemoteNode(t *testing.T) {
+	reader := &connectionReaderStub{
+		connection: ConnectionDetail{
+			NodeID:      3,
+			SessionID:   303,
+			UID:         "remote-user",
+			DeviceID:    "remote-device",
+			DeviceFlag:  "web",
+			DeviceLevel: "master",
+			SlotID:      7,
+			State:       "active",
+			Listener:    "ws",
+			ConnectedAt: time.Unix(300, 0),
+			RemoteAddr:  "10.0.0.3:5000",
+			LocalAddr:   "127.0.0.1:7300",
+		},
+	}
+	app := New(Options{LocalNodeID: 2, Online: online.NewRegistry(), Connections: reader})
+
+	got, err := app.GetConnection(context.Background(), GetConnectionRequest{NodeID: 3, SessionID: 303})
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), reader.detailNodeID)
+	require.Equal(t, uint64(303), reader.detailSessionID)
+	require.Equal(t, reader.connection, got)
+}
+
 func TestGetConnectionReturnsNotFoundWhenMissing(t *testing.T) {
 	app := New(Options{Online: online.NewRegistry()})
 
-	_, err := app.GetConnection(context.Background(), 404)
+	_, err := app.GetConnection(context.Background(), GetConnectionRequest{SessionID: 404})
 	require.ErrorIs(t, err, controllermeta.ErrNotFound)
 }
 
 type connectionSummary struct {
+	NodeID      uint64
 	SessionID   uint64
 	UID         string
 	DeviceID    string
@@ -197,6 +256,7 @@ func summarizeConnections(items []Connection) []connectionSummary {
 	out := make([]connectionSummary, 0, len(items))
 	for _, item := range items {
 		out = append(out, connectionSummary{
+			NodeID:      item.NodeID,
 			SessionID:   item.SessionID,
 			UID:         item.UID,
 			DeviceID:    item.DeviceID,
@@ -218,6 +278,33 @@ func connectionTimes(items []Connection) []time.Time {
 		out = append(out, item.ConnectedAt)
 	}
 	return out
+}
+
+func connectionIDs(items []Connection) []uint64 {
+	out := make([]uint64, 0, len(items))
+	for _, item := range items {
+		out = append(out, item.SessionID)
+	}
+	return out
+}
+
+type connectionReaderStub struct {
+	connections     []Connection
+	connection      ConnectionDetail
+	listNodeID      uint64
+	detailNodeID    uint64
+	detailSessionID uint64
+}
+
+func (r *connectionReaderStub) NodeConnections(_ context.Context, nodeID uint64) ([]Connection, error) {
+	r.listNodeID = nodeID
+	return append([]Connection(nil), r.connections...), nil
+}
+
+func (r *connectionReaderStub) NodeConnection(_ context.Context, nodeID uint64, sessionID uint64) (ConnectionDetail, error) {
+	r.detailNodeID = nodeID
+	r.detailSessionID = sessionID
+	return r.connection, nil
 }
 
 type managementTestSession struct {
