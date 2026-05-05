@@ -10,7 +10,6 @@ import { SlotsPage } from "@/pages/slots/page"
 
 const getSlotsMock = vi.fn()
 const getSlotMock = vi.fn()
-const getSlotLogsMock = vi.fn()
 const getNodesMock = vi.fn()
 const addSlotMock = vi.fn()
 const removeSlotMock = vi.fn()
@@ -24,7 +23,6 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     ...actual,
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
     getSlot: (...args: unknown[]) => getSlotMock(...args),
-    getSlotLogs: (...args: unknown[]) => getSlotLogsMock(...args),
     getNodes: (...args: unknown[]) => getNodesMock(...args),
     addSlot: (...args: unknown[]) => addSlotMock(...args),
     removeSlot: (...args: unknown[]) => removeSlotMock(...args),
@@ -80,7 +78,6 @@ beforeEach(() => {
   resetLocale()
   getSlotsMock.mockReset()
   getSlotMock.mockReset()
-  getSlotLogsMock.mockReset()
   getNodesMock.mockReset()
   addSlotMock.mockReset()
   removeSlotMock.mockReset()
@@ -102,15 +99,6 @@ beforeEach(() => {
     controller_leader_id: 1,
     total: 1,
     items: [nodeRow],
-  })
-  getSlotLogsMock.mockResolvedValue({
-    node_id: 1,
-    slot_id: 9,
-    first_index: 1,
-    last_index: 0,
-    commit_index: 0,
-    applied_index: 0,
-    items: [],
   })
 })
 
@@ -229,39 +217,9 @@ test("defaults to the local node filter and shows selected-node log height", asy
   expect(screen.getByText("commit 93 / applied 91")).toBeInTheDocument()
 })
 
-test("opens slot detail and shows selected-node log entries", async () => {
+test("opens slot detail without the moved slot log query", async () => {
   getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
   getSlotMock.mockResolvedValueOnce(slotDetail)
-  getSlotLogsMock.mockResolvedValueOnce({
-    node_id: 1,
-    slot_id: 9,
-    first_index: 1,
-    last_index: 4,
-    commit_index: 4,
-    applied_index: 3,
-    next_cursor: 3,
-    items: [
-      {
-        index: 5,
-        term: 3,
-        type: "normal",
-        data_size: 0,
-        decode_status: "empty",
-        decoded_type: "noop",
-        decoded: { command: "noop" },
-      },
-      {
-        index: 4,
-        term: 2,
-        type: "normal",
-        data_size: 12,
-        decode_status: "ok",
-        decoded_type: "upsert_user",
-        decoded: { command: "upsert_user", uid: "u1", token: "***" },
-      },
-      { index: 3, term: 2, type: "conf_change", data_size: 8 },
-    ],
-  })
 
   const user = userEvent.setup()
   renderSlotsPage()
@@ -269,24 +227,8 @@ test("opens slot detail and shows selected-node log entries", async () => {
   expect(await screen.findByText("Slot 9")).toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Inspect slot 9" }))
 
-  expect(await screen.findByText("Log entries")).toBeInTheDocument()
-  expect(getSlotLogsMock).toHaveBeenCalledWith(9, { nodeId: 1, limit: 50 })
-  expect(screen.getByText("Node 1 · commit 4 / applied 3")).toBeInTheDocument()
-  expect(screen.getAllByText("normal")).toHaveLength(2)
-  expect(screen.getByText("conf_change")).toBeInTheDocument()
-  expect(screen.getByText("Raft no-op")).toBeInTheDocument()
-  expect(screen.getByText("Leader term marker")).toBeInTheDocument()
-  expect(screen.getByText("upsert_user")).toBeInTheDocument()
-  expect(screen.queryByText(/\"uid\": \"u1\"/)).not.toBeInTheDocument()
-  expect(screen.queryByText(/\"command\": \"noop\"/)).not.toBeInTheDocument()
-  expect(screen.queryByText("Decoded JSON")).not.toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Show decoded JSON" }))
-  expect(screen.getByText("Decoded JSON")).toBeInTheDocument()
-  expect(screen.getByText(/\"uid\": \"u1\"/)).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Hide decoded JSON" }))
-  expect(screen.queryByText(/\"uid\": \"u1\"/)).not.toBeInTheDocument()
-  expect(screen.getByText("0 B")).toBeInTheDocument()
-  expect(screen.getByText("12 B")).toBeInTheDocument()
+  expect(await screen.findByText("Desired peers")).toBeInTheDocument()
+  expect(screen.queryByText("Log entries")).not.toBeInTheDocument()
 })
 
 test("opens slot detail and transfers the leader", async () => {
