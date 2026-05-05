@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -489,6 +490,93 @@ func TestServiceRestartRestoresSnapshotCreatedByCompaction(t *testing.T) {
 		_, err := env.nodes[1].meta.GetNode(context.Background(), 3)
 		return err == nil
 	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestServiceLaggingFollowerRestoresControllerSnapshot(t *testing.T) {
+	env := newTestEnv(t, []uint64{1, 2, 3})
+	defer env.stopAll()
+
+	compactionCfg := func(cfg *Config) {
+		cfg.LogCompaction = LogCompactionConfig{
+			Enabled:        true,
+			EnabledSet:     true,
+			TriggerEntries: 1,
+			CheckInterval:  time.Nanosecond,
+		}
+	}
+	env.startNodeWithConfig(t, 1, nil, compactionCfg)
+	env.startNodeWithConfig(t, 2, nil, compactionCfg)
+	env.startNodeWithConfig(t, 3, nil, compactionCfg)
+	leaderID := env.waitForLeader(t, []uint64{1, 2, 3})
+	laggingID := firstNonLeader([]uint64{1, 2, 3}, leaderID)
+
+	env.stopNode(laggingID)
+	activeIDs := removeNodeID([]uint64{1, 2, 3}, laggingID)
+	require.Equal(t, leaderID, env.waitForLeader(t, activeIDs))
+
+	leader := env.nodes[leaderID]
+	for nodeID := uint64(10); nodeID < 15; nodeID++ {
+		require.NoError(t, leader.service.Propose(context.Background(), nodeJoinCommand(nodeID)))
+	}
+	leaderSnap := waitForControllerSnapshotIndex(t, leader.logDB.ForController(), 4)
+
+	env.startNodeWithConfig(t, laggingID, nil, compactionCfg)
+	for nodeID := uint64(10); nodeID < 15; nodeID++ {
+		waitForControllerNode(t, env.nodes[laggingID].meta, nodeID)
+	}
+	followerSnap := waitForControllerSnapshotIndex(t, env.nodes[laggingID].logDB.ForController(), leaderSnap.Metadata.Index)
+	require.GreaterOrEqual(t, followerSnap.Metadata.Index, leaderSnap.Metadata.Index)
+}
+
+func TestServiceCompactionSnapshotUsesConfChangeV2State(t *testing.T) {
+	ctx := context.Background()
+
+	store, err := controllermeta.Open(filepath.Join(t.TempDir(), "meta"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	sm := slotcontroller.NewStateMachine(store, slotcontroller.StateMachineConfig{})
+
+	logDB, err := raftstorage.Open(filepath.Join(t.TempDir(), "raft"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, logDB.Close()) })
+	memory := newLoadedMemoryStorage(raft.NewMemoryStorage(), raftpb.ConfState{Voters: []uint64{1}})
+	storageView := &storageAdapter{
+		storage: logDB.ForController(),
+		memory:  memory,
+	}
+
+	rawNode, err := raft.NewRawNode(&raft.Config{
+		ID:                       1,
+		ElectionTick:             10,
+		HeartbeatTick:            1,
+		Storage:                  memory,
+		MaxSizePerMsg:            math.MaxUint64,
+		MaxCommittedSizePerReady: math.MaxUint64,
+		MaxInflightMsgs:          256,
+	})
+	require.NoError(t, err)
+
+	cc := raftpb.ConfChangeV2{
+		Changes: []raftpb.ConfChangeSingle{
+			{Type: raftpb.ConfChangeAddNode, NodeID: 2},
+		},
+	}
+	data, err := cc.Marshal()
+	require.NoError(t, err)
+	entry := raftpb.Entry{Index: 1, Term: 1, Type: raftpb.EntryConfChangeV2, Data: data}
+	require.NoError(t, memory.Append([]raftpb.Entry{entry}))
+
+	service := &Service{cfg: Config{StateMachine: sm}}
+	latestConfState := raftpb.ConfState{Voters: []uint64{1}}
+	applied, err := service.applyReadyState(ctx, rawNode, raft.Ready{CommittedEntries: []raftpb.Entry{entry}}, storageView, &latestConfState, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), applied)
+	require.Equal(t, []uint64{1, 2}, sortedPeers(latestConfState.Voters))
+
+	require.NoError(t, service.compactControllerLog(ctx, storageView, applied, latestConfState))
+	snap, err := logDB.ForController().Snapshot(ctx)
+	require.NoError(t, err)
+	require.Equal(t, []uint64{1, 2}, sortedPeers(snap.Metadata.ConfState.Voters))
 }
 
 func TestServiceProposeAppliesAddSlotCommand(t *testing.T) {
@@ -1306,6 +1394,33 @@ func waitForControllerSnapshotIndex(t *testing.T, store multiraft.Storage, min u
 		return true
 	}, 5*time.Second, 10*time.Millisecond)
 	return snap
+}
+
+func waitForControllerNode(t *testing.T, store *controllermeta.Store, nodeID uint64) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		_, err := store.GetNode(context.Background(), nodeID)
+		return err == nil
+	}, 10*time.Second, 10*time.Millisecond)
+}
+
+func firstNonLeader(nodeIDs []uint64, leaderID uint64) uint64 {
+	for _, nodeID := range nodeIDs {
+		if nodeID != leaderID {
+			return nodeID
+		}
+	}
+	return 0
+}
+
+func removeNodeID(nodeIDs []uint64, removed uint64) []uint64 {
+	out := make([]uint64, 0, len(nodeIDs))
+	for _, nodeID := range nodeIDs {
+		if nodeID != removed {
+			out = append(out, nodeID)
+		}
+	}
+	return out
 }
 
 func (e *testEnv) addrOf(nodeID uint64) string {
