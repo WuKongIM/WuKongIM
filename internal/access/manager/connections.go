@@ -21,6 +21,8 @@ type ConnectionsResponse struct {
 
 // ConnectionDTO is the manager-facing local connection response item.
 type ConnectionDTO struct {
+	// NodeID identifies the cluster node that owns this local connection.
+	NodeID uint64 `json:"node_id"`
 	// SessionID is the gateway session identifier.
 	SessionID uint64 `json:"session_id"`
 	// UID is the authenticated user identifier.
@@ -51,7 +53,13 @@ func (s *Server) handleConnections(c *gin.Context) {
 		return
 	}
 
-	items, err := s.management.ListConnections(c.Request.Context())
+	req, err := parseListConnectionsRequest(c)
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid node_id")
+		return
+	}
+
+	items, err := s.management.ListConnections(c.Request.Context(), req)
 	if err != nil {
 		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
 		return
@@ -74,8 +82,16 @@ func (s *Server) handleConnection(c *gin.Context) {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid session_id")
 		return
 	}
+	nodeID, err := parseOptionalNodeIDParam(c.Query("node_id"))
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid node_id")
+		return
+	}
 
-	item, err := s.management.GetConnection(c.Request.Context(), sessionID)
+	item, err := s.management.GetConnection(c.Request.Context(), managementusecase.GetConnectionRequest{
+		NodeID:    nodeID,
+		SessionID: sessionID,
+	})
 	if err != nil {
 		if errors.Is(err, controllermeta.ErrNotFound) {
 			jsonError(c, http.StatusNotFound, "not_found", "connection not found")
@@ -98,6 +114,7 @@ func connectionDTOs(items []managementusecase.Connection) []ConnectionDTO {
 
 func connectionDTO(item managementusecase.Connection) ConnectionDTO {
 	return ConnectionDTO{
+		NodeID:      item.NodeID,
 		SessionID:   item.SessionID,
 		UID:         item.UID,
 		DeviceID:    item.DeviceID,
@@ -110,6 +127,21 @@ func connectionDTO(item managementusecase.Connection) ConnectionDTO {
 		RemoteAddr:  item.RemoteAddr,
 		LocalAddr:   item.LocalAddr,
 	}
+}
+
+func parseListConnectionsRequest(c *gin.Context) (managementusecase.ListConnectionsRequest, error) {
+	nodeID, err := parseOptionalNodeIDParam(c.Query("node_id"))
+	if err != nil {
+		return managementusecase.ListConnectionsRequest{}, err
+	}
+	return managementusecase.ListConnectionsRequest{NodeID: nodeID}, nil
+}
+
+func parseOptionalNodeIDParam(raw string) (uint64, error) {
+	if raw == "" {
+		return 0, nil
+	}
+	return parseNodeIDParam(raw)
 }
 
 func parseSessionIDParam(raw string) (uint64, error) {

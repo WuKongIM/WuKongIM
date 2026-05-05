@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
@@ -83,6 +84,34 @@ type RuntimeSummary struct {
 	Draining bool
 	// Unknown means runtime counters could not be read and must fail closed.
 	Unknown bool
+}
+
+// Connection is a node-local connection DTO exposed over node RPC.
+type Connection struct {
+	// NodeID identifies the cluster node that owns this local connection.
+	NodeID uint64
+	// SessionID is the gateway session identifier on the owning node.
+	SessionID uint64
+	// UID is the authenticated user identifier.
+	UID string
+	// DeviceID is the client device identifier.
+	DeviceID string
+	// DeviceFlag is the stable manager-facing device flag string.
+	DeviceFlag string
+	// DeviceLevel is the stable manager-facing device level string.
+	DeviceLevel string
+	// SlotID is the local authoritative slot identifier for the user.
+	SlotID uint64
+	// State is the local runtime connection state string.
+	State string
+	// Listener is the listener name that accepted the connection.
+	Listener string
+	// ConnectedAt is the initial local connection time.
+	ConnectedAt time.Time
+	// RemoteAddr is the client remote address observed by the listener.
+	RemoteAddr string
+	// LocalAddr is the local listener address observed by the listener.
+	LocalAddr string
 }
 
 // RuntimeSummaryProvider provides the local node runtime summary for RPC callers.
@@ -168,6 +197,8 @@ func New(opts Options) *Adapter {
 		opts.Cluster.RPCMux().Handle(channelLeaderRepairRPCServiceID, adapter.handleChannelLeaderRepairRPC)
 		opts.Cluster.RPCMux().Handle(channelLeaderEvaluateRPCServiceID, adapter.handleChannelLeaderEvaluateRPC)
 		opts.Cluster.RPCMux().Handle(runtimeSummaryRPCServiceID, adapter.handleRuntimeSummaryRPC)
+		opts.Cluster.RPCMux().Handle(connectionsRPCServiceID, adapter.handleConnectionsRPC)
+		opts.Cluster.RPCMux().Handle(connectionRPCServiceID, adapter.handleConnectionRPC)
 	}
 	return adapter
 }

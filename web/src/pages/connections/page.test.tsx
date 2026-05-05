@@ -23,6 +23,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
 })
 
 const connectionRow = {
+  node_id: 2,
   session_id: 101,
   uid: "u1",
   device_id: "device-a",
@@ -123,7 +124,7 @@ test("renders connection rows and opens detail from manager APIs", async () => {
   await user.click(screen.getByRole("button", { name: "Inspect connection 101" }))
 
   expect(await screen.findByText("Remote address")).toBeInTheDocument()
-  expect(getConnectionMock).toHaveBeenCalledWith(101)
+  expect(getConnectionMock).toHaveBeenCalledWith(101, { nodeId: 2 })
 })
 
 test("defaults connection node filter to the local node and reloads when it changes", async () => {

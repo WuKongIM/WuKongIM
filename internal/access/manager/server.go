@@ -58,10 +58,10 @@ type Management interface {
 	ListTasks(ctx context.Context) ([]managementusecase.Task, error)
 	// GetTask returns one manager-facing reconcile task detail DTO.
 	GetTask(ctx context.Context, slotID uint32) (managementusecase.TaskDetail, error)
-	// ListConnections returns manager-facing local connection DTOs.
-	ListConnections(ctx context.Context) ([]managementusecase.Connection, error)
-	// GetConnection returns one manager-facing local connection detail DTO.
-	GetConnection(ctx context.Context, sessionID uint64) (managementusecase.ConnectionDetail, error)
+	// ListConnections returns manager-facing node-local connection DTOs.
+	ListConnections(ctx context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error)
+	// GetConnection returns one manager-facing node-local connection detail DTO.
+	GetConnection(ctx context.Context, req managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error)
 	// ListChannelRuntimeMeta returns one manager-facing channel runtime metadata page.
 	ListChannelRuntimeMeta(ctx context.Context, req managementusecase.ListChannelRuntimeMetaRequest) (managementusecase.ListChannelRuntimeMetaResponse, error)
 	// GetChannelRuntimeMeta returns one manager-facing channel runtime metadata detail DTO.

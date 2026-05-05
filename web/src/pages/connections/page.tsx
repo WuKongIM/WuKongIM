@@ -61,6 +61,7 @@ export function ConnectionsPage() {
   const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null)
+  const [selectedDetailNodeId, setSelectedDetailNodeId] = useState<number | null>(null)
   const [detail, setDetail] = useState<ManagerConnectionDetailResponse | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<Error | null>(null)
@@ -116,12 +117,12 @@ export function ConnectionsPage() {
     }
   }, [])
 
-  const loadConnectionDetail = useCallback(async (sessionId: number) => {
+  const loadConnectionDetail = useCallback(async (sessionId: number, nodeId: number | null) => {
     setDetailLoading(true)
     setDetailError(null)
 
     try {
-      const nextDetail = await getConnection(sessionId)
+      const nextDetail = await getConnection(sessionId, nodeId ? { nodeId } : undefined)
       setDetail(nextDetail)
     } catch (error) {
       setDetail(null)
@@ -142,9 +143,10 @@ export function ConnectionsPage() {
   }, [loadConnections, selectedNodeId])
 
   const openDetail = useCallback(
-    async (sessionId: number) => {
+    async (sessionId: number, nodeId: number | null) => {
       setSelectedSessionId(sessionId)
-      await loadConnectionDetail(sessionId)
+      setSelectedDetailNodeId(nodeId)
+      await loadConnectionDetail(sessionId, nodeId)
     },
     [loadConnectionDetail],
   )
@@ -154,6 +156,7 @@ export function ConnectionsPage() {
       return
     }
     setSelectedSessionId(null)
+    setSelectedDetailNodeId(null)
     setDetail(null)
     setDetailError(null)
   }, [])
@@ -243,7 +246,7 @@ export function ConnectionsPage() {
                             { id: connection.session_id },
                           )}
                           onClick={() => {
-                            void openDetail(connection.session_id)
+                            void openDetail(connection.session_id, connection.node_id || selectedNodeId)
                           }}
                           size="sm"
                           variant="outline"
@@ -284,7 +287,7 @@ export function ConnectionsPage() {
             kind={mapErrorKind(detailError)}
             onRetry={() => {
               if (selectedSessionId !== null) {
-                void loadConnectionDetail(selectedSessionId)
+                void loadConnectionDetail(selectedSessionId, selectedDetailNodeId)
               }
             }}
             title={intl.formatMessage({ id: "connections.detailTitleFallback" })}

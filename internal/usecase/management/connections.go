@@ -2,6 +2,7 @@ package management
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
@@ -10,8 +11,24 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
+// ListConnectionsRequest selects the node-local connection inventory to read.
+type ListConnectionsRequest struct {
+	// NodeID identifies the cluster node whose local connections should be listed.
+	NodeID uint64
+}
+
+// GetConnectionRequest selects one node-local connection detail to read.
+type GetConnectionRequest struct {
+	// NodeID identifies the cluster node that owns the local connection.
+	NodeID uint64
+	// SessionID is the gateway session identifier on the selected node.
+	SessionID uint64
+}
+
 // Connection is the manager-facing local connection DTO.
 type Connection struct {
+	// NodeID identifies the cluster node that owns this local connection.
+	NodeID uint64
 	// SessionID is the gateway session identifier.
 	SessionID uint64
 	// UID is the authenticated user identifier.
@@ -39,18 +56,24 @@ type Connection struct {
 // ConnectionDetail is the manager-facing local connection detail DTO.
 type ConnectionDetail = Connection
 
-// ListConnections returns manager-facing local active connections ordered by freshness.
-func (a *App) ListConnections(ctx context.Context) ([]Connection, error) {
-	_ = ctx
+// ListConnections returns manager-facing node-local active connections ordered by freshness.
+func (a *App) ListConnections(ctx context.Context, req ListConnectionsRequest) ([]Connection, error) {
 	if a == nil || a.online == nil {
 		return nil, nil
+	}
+	nodeID := a.connectionRequestNodeID(req.NodeID)
+	if !a.isLocalConnectionNode(nodeID) {
+		if a.connections == nil {
+			return nil, fmt.Errorf("management: connection reader not configured")
+		}
+		return a.connections.NodeConnections(ctx, nodeID)
 	}
 
 	slots := a.online.ActiveSlots()
 	items := make([]Connection, 0)
 	for _, slot := range slots {
 		for _, conn := range a.online.ActiveConnectionsBySlot(slot.SlotID) {
-			items = append(items, managerConnection(conn))
+			items = append(items, managerConnection(nodeID, conn))
 		}
 	}
 
@@ -63,21 +86,38 @@ func (a *App) ListConnections(ctx context.Context) ([]Connection, error) {
 	return items, nil
 }
 
-// GetConnection returns one manager-facing local connection detail DTO.
-func (a *App) GetConnection(ctx context.Context, sessionID uint64) (ConnectionDetail, error) {
-	_ = ctx
+// GetConnection returns one manager-facing node-local connection detail DTO.
+func (a *App) GetConnection(ctx context.Context, req GetConnectionRequest) (ConnectionDetail, error) {
 	if a == nil || a.online == nil {
 		return ConnectionDetail{}, nil
 	}
+	nodeID := a.connectionRequestNodeID(req.NodeID)
+	if !a.isLocalConnectionNode(nodeID) {
+		if a.connections == nil {
+			return ConnectionDetail{}, fmt.Errorf("management: connection reader not configured")
+		}
+		return a.connections.NodeConnection(ctx, nodeID, req.SessionID)
+	}
 
-	conn, ok := a.online.Connection(sessionID)
+	conn, ok := a.online.Connection(req.SessionID)
 	if !ok {
 		return ConnectionDetail{}, controllermeta.ErrNotFound
 	}
-	return managerConnection(conn), nil
+	return managerConnection(nodeID, conn), nil
 }
 
-func managerConnection(conn online.OnlineConn) Connection {
+func (a *App) connectionRequestNodeID(nodeID uint64) uint64 {
+	if nodeID != 0 {
+		return nodeID
+	}
+	return a.localNodeID
+}
+
+func (a *App) isLocalConnectionNode(nodeID uint64) bool {
+	return nodeID == 0 || a.localNodeID == 0 || nodeID == a.localNodeID
+}
+
+func managerConnection(nodeID uint64, conn online.OnlineConn) Connection {
 	remoteAddr := ""
 	localAddr := ""
 	if conn.Session != nil {
@@ -86,6 +126,7 @@ func managerConnection(conn online.OnlineConn) Connection {
 	}
 
 	return Connection{
+		NodeID:      nodeID,
 		SessionID:   conn.SessionID,
 		UID:         conn.UID,
 		DeviceID:    conn.DeviceID,
