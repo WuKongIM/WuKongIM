@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -208,6 +209,36 @@ func TestTransportMetricsTrackRPCClientDialAndEnqueue(t *testing.T) {
 		"node_name":   "node-15",
 		"target_node": "3",
 	})
+}
+
+func TestTransportMetricsCachesStableLabelHandles(t *testing.T) {
+	reg := New(16, "node-16")
+
+	reg.Transport.ObserveRPC("controller_list_nodes", "ok", 7*time.Millisecond)
+	reg.Transport.ObserveRPCClient("3", "channel_append", "timeout", 11*time.Millisecond)
+	reg.Transport.SetRPCInflight("3", "channel_append", 2)
+	reg.Transport.ObserveEnqueue("3", "rpc", "queue_full")
+	reg.Transport.ObserveDial("3", "dial_error", 5*time.Millisecond)
+	reg.Transport.ObserveSentBytes("rpc_request", 64)
+	reg.Transport.ObserveReceivedBytes("rpc_response", 72)
+
+	requireSyncMapEntry(t, &reg.Transport.rpcDurationHandles, "controller_list_nodes")
+	requireSyncMapEntry(t, &reg.Transport.rpcTotalHandles, transportRPCResultKey{service: "controller_list_nodes", result: "ok"})
+	requireSyncMapEntry(t, &reg.Transport.rpcClientDurationHandles, transportRPCClientServiceKey{targetNode: "3", service: "channel_append"})
+	requireSyncMapEntry(t, &reg.Transport.rpcClientTotalHandles, transportRPCClientResultKey{targetNode: "3", service: "channel_append", result: "timeout"})
+	requireSyncMapEntry(t, &reg.Transport.rpcInflightHandles, transportRPCClientServiceKey{targetNode: "3", service: "channel_append"})
+	requireSyncMapEntry(t, &reg.Transport.enqueueTotalHandles, transportEnqueueResultKey{targetNode: "3", kind: "rpc", result: "queue_full"})
+	requireSyncMapEntry(t, &reg.Transport.dialDurationHandles, "3")
+	requireSyncMapEntry(t, &reg.Transport.dialTotalHandles, transportDialResultKey{targetNode: "3", result: "dial_error"})
+	requireSyncMapEntry(t, &reg.Transport.sentBytesHandles, "rpc_request")
+	requireSyncMapEntry(t, &reg.Transport.receivedBytesHandles, "rpc_response")
+}
+
+func requireSyncMapEntry(t *testing.T, m *sync.Map, key any) {
+	t.Helper()
+	if _, ok := m.Load(key); !ok {
+		t.Fatalf("metric handle cache missing key %#v", key)
+	}
 }
 
 func TestControllerMetricsTrackDecisionStateAndTaskCounts(t *testing.T) {

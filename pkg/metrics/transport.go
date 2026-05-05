@@ -22,6 +22,46 @@ type TransportMetrics struct {
 	poolIdle          *prometheus.GaugeVec
 	poolMu            sync.Mutex
 	poolPeers         map[string]struct{}
+	// Handle caches avoid repeated Vec label lookups on stable transport hot paths.
+	rpcDurationHandles       sync.Map
+	rpcTotalHandles          sync.Map
+	rpcClientDurationHandles sync.Map
+	rpcClientTotalHandles    sync.Map
+	rpcInflightHandles       sync.Map
+	enqueueTotalHandles      sync.Map
+	dialDurationHandles      sync.Map
+	dialTotalHandles         sync.Map
+	sentBytesHandles         sync.Map
+	receivedBytesHandles     sync.Map
+	poolActiveHandles        sync.Map
+	poolIdleHandles          sync.Map
+}
+
+type transportRPCResultKey struct {
+	service string
+	result  string
+}
+
+type transportRPCClientServiceKey struct {
+	targetNode string
+	service    string
+}
+
+type transportRPCClientResultKey struct {
+	targetNode string
+	service    string
+	result     string
+}
+
+type transportEnqueueResultKey struct {
+	targetNode string
+	kind       string
+	result     string
+}
+
+type transportDialResultKey struct {
+	targetNode string
+	result     string
 }
 
 func newTransportMetrics(registry prometheus.Registerer, labels prometheus.Labels) *TransportMetrics {
@@ -114,52 +154,52 @@ func (m *TransportMetrics) ObserveRPC(service, result string, dur time.Duration)
 	if m == nil {
 		return
 	}
-	m.rpcDuration.WithLabelValues(service).Observe(dur.Seconds())
-	m.rpcTotal.WithLabelValues(service, result).Inc()
+	m.rpcDurationHandle(service).Observe(dur.Seconds())
+	m.rpcTotalHandle(service, result).Inc()
 }
 
 func (m *TransportMetrics) ObserveRPCClient(targetNode, service, result string, dur time.Duration) {
 	if m == nil {
 		return
 	}
-	m.rpcClientDuration.WithLabelValues(targetNode, service).Observe(dur.Seconds())
-	m.rpcClientTotal.WithLabelValues(targetNode, service, result).Inc()
+	m.rpcClientDurationHandle(targetNode, service).Observe(dur.Seconds())
+	m.rpcClientTotalHandle(targetNode, service, result).Inc()
 }
 
 func (m *TransportMetrics) SetRPCInflight(targetNode, service string, count int) {
 	if m == nil {
 		return
 	}
-	m.rpcInflight.WithLabelValues(targetNode, service).Set(float64(count))
+	m.rpcInflightHandle(targetNode, service).Set(float64(count))
 }
 
 func (m *TransportMetrics) ObserveEnqueue(targetNode, kind, result string) {
 	if m == nil {
 		return
 	}
-	m.enqueueTotal.WithLabelValues(targetNode, kind, result).Inc()
+	m.enqueueTotalHandle(targetNode, kind, result).Inc()
 }
 
 func (m *TransportMetrics) ObserveDial(targetNode, result string, dur time.Duration) {
 	if m == nil {
 		return
 	}
-	m.dialDuration.WithLabelValues(targetNode).Observe(dur.Seconds())
-	m.dialTotal.WithLabelValues(targetNode, result).Inc()
+	m.dialDurationHandle(targetNode).Observe(dur.Seconds())
+	m.dialTotalHandle(targetNode, result).Inc()
 }
 
 func (m *TransportMetrics) ObserveSentBytes(msgType string, bytes int) {
 	if m == nil {
 		return
 	}
-	m.sentBytes.WithLabelValues(msgType).Add(float64(bytes))
+	m.sentBytesHandle(msgType).Add(float64(bytes))
 }
 
 func (m *TransportMetrics) ObserveReceivedBytes(msgType string, bytes int) {
 	if m == nil {
 		return
 	}
-	m.receivedBytes.WithLabelValues(msgType).Add(float64(bytes))
+	m.receivedBytesHandle(msgType).Add(float64(bytes))
 }
 
 func (m *TransportMetrics) SetPoolConnections(activeByPeer, idleByPeer map[string]int) {
@@ -173,19 +213,19 @@ func (m *TransportMetrics) SetPoolConnections(activeByPeer, idleByPeer map[strin
 	currentPeers := make(map[string]struct{}, len(activeByPeer)+len(idleByPeer))
 	for peer, active := range activeByPeer {
 		currentPeers[peer] = struct{}{}
-		m.poolActive.WithLabelValues(peer).Set(float64(active))
+		m.poolActiveHandle(peer).Set(float64(active))
 	}
 	for peer, idle := range idleByPeer {
 		currentPeers[peer] = struct{}{}
-		m.poolIdle.WithLabelValues(peer).Set(float64(idle))
+		m.poolIdleHandle(peer).Set(float64(idle))
 	}
 
 	for peer := range currentPeers {
 		if _, ok := activeByPeer[peer]; !ok {
-			m.poolActive.WithLabelValues(peer).Set(0)
+			m.poolActiveHandle(peer).Set(0)
 		}
 		if _, ok := idleByPeer[peer]; !ok {
-			m.poolIdle.WithLabelValues(peer).Set(0)
+			m.poolIdleHandle(peer).Set(0)
 		}
 	}
 
@@ -193,11 +233,125 @@ func (m *TransportMetrics) SetPoolConnections(activeByPeer, idleByPeer map[strin
 		if _, ok := currentPeers[peer]; ok {
 			continue
 		}
-		m.poolActive.WithLabelValues(peer).Set(0)
-		m.poolIdle.WithLabelValues(peer).Set(0)
+		m.poolActiveHandle(peer).Set(0)
+		m.poolIdleHandle(peer).Set(0)
 		delete(m.poolPeers, peer)
 	}
 	for peer := range currentPeers {
 		m.poolPeers[peer] = struct{}{}
 	}
+}
+
+func (m *TransportMetrics) rpcDurationHandle(service string) prometheus.Observer {
+	if value, ok := m.rpcDurationHandles.Load(service); ok {
+		return value.(prometheus.Observer)
+	}
+	handle := m.rpcDuration.WithLabelValues(service)
+	value, _ := m.rpcDurationHandles.LoadOrStore(service, handle)
+	return value.(prometheus.Observer)
+}
+
+func (m *TransportMetrics) rpcTotalHandle(service, result string) prometheus.Counter {
+	key := transportRPCResultKey{service: service, result: result}
+	if value, ok := m.rpcTotalHandles.Load(key); ok {
+		return value.(prometheus.Counter)
+	}
+	handle := m.rpcTotal.WithLabelValues(service, result)
+	value, _ := m.rpcTotalHandles.LoadOrStore(key, handle)
+	return value.(prometheus.Counter)
+}
+
+func (m *TransportMetrics) rpcClientDurationHandle(targetNode, service string) prometheus.Observer {
+	key := transportRPCClientServiceKey{targetNode: targetNode, service: service}
+	if value, ok := m.rpcClientDurationHandles.Load(key); ok {
+		return value.(prometheus.Observer)
+	}
+	handle := m.rpcClientDuration.WithLabelValues(targetNode, service)
+	value, _ := m.rpcClientDurationHandles.LoadOrStore(key, handle)
+	return value.(prometheus.Observer)
+}
+
+func (m *TransportMetrics) rpcClientTotalHandle(targetNode, service, result string) prometheus.Counter {
+	key := transportRPCClientResultKey{targetNode: targetNode, service: service, result: result}
+	if value, ok := m.rpcClientTotalHandles.Load(key); ok {
+		return value.(prometheus.Counter)
+	}
+	handle := m.rpcClientTotal.WithLabelValues(targetNode, service, result)
+	value, _ := m.rpcClientTotalHandles.LoadOrStore(key, handle)
+	return value.(prometheus.Counter)
+}
+
+func (m *TransportMetrics) rpcInflightHandle(targetNode, service string) prometheus.Gauge {
+	key := transportRPCClientServiceKey{targetNode: targetNode, service: service}
+	if value, ok := m.rpcInflightHandles.Load(key); ok {
+		return value.(prometheus.Gauge)
+	}
+	handle := m.rpcInflight.WithLabelValues(targetNode, service)
+	value, _ := m.rpcInflightHandles.LoadOrStore(key, handle)
+	return value.(prometheus.Gauge)
+}
+
+func (m *TransportMetrics) enqueueTotalHandle(targetNode, kind, result string) prometheus.Counter {
+	key := transportEnqueueResultKey{targetNode: targetNode, kind: kind, result: result}
+	if value, ok := m.enqueueTotalHandles.Load(key); ok {
+		return value.(prometheus.Counter)
+	}
+	handle := m.enqueueTotal.WithLabelValues(targetNode, kind, result)
+	value, _ := m.enqueueTotalHandles.LoadOrStore(key, handle)
+	return value.(prometheus.Counter)
+}
+
+func (m *TransportMetrics) dialDurationHandle(targetNode string) prometheus.Observer {
+	if value, ok := m.dialDurationHandles.Load(targetNode); ok {
+		return value.(prometheus.Observer)
+	}
+	handle := m.dialDuration.WithLabelValues(targetNode)
+	value, _ := m.dialDurationHandles.LoadOrStore(targetNode, handle)
+	return value.(prometheus.Observer)
+}
+
+func (m *TransportMetrics) dialTotalHandle(targetNode, result string) prometheus.Counter {
+	key := transportDialResultKey{targetNode: targetNode, result: result}
+	if value, ok := m.dialTotalHandles.Load(key); ok {
+		return value.(prometheus.Counter)
+	}
+	handle := m.dialTotal.WithLabelValues(targetNode, result)
+	value, _ := m.dialTotalHandles.LoadOrStore(key, handle)
+	return value.(prometheus.Counter)
+}
+
+func (m *TransportMetrics) sentBytesHandle(msgType string) prometheus.Counter {
+	if value, ok := m.sentBytesHandles.Load(msgType); ok {
+		return value.(prometheus.Counter)
+	}
+	handle := m.sentBytes.WithLabelValues(msgType)
+	value, _ := m.sentBytesHandles.LoadOrStore(msgType, handle)
+	return value.(prometheus.Counter)
+}
+
+func (m *TransportMetrics) receivedBytesHandle(msgType string) prometheus.Counter {
+	if value, ok := m.receivedBytesHandles.Load(msgType); ok {
+		return value.(prometheus.Counter)
+	}
+	handle := m.receivedBytes.WithLabelValues(msgType)
+	value, _ := m.receivedBytesHandles.LoadOrStore(msgType, handle)
+	return value.(prometheus.Counter)
+}
+
+func (m *TransportMetrics) poolActiveHandle(peer string) prometheus.Gauge {
+	if value, ok := m.poolActiveHandles.Load(peer); ok {
+		return value.(prometheus.Gauge)
+	}
+	handle := m.poolActive.WithLabelValues(peer)
+	value, _ := m.poolActiveHandles.LoadOrStore(peer, handle)
+	return value.(prometheus.Gauge)
+}
+
+func (m *TransportMetrics) poolIdleHandle(peer string) prometheus.Gauge {
+	if value, ok := m.poolIdleHandles.Load(peer); ok {
+		return value.(prometheus.Gauge)
+	}
+	handle := m.poolIdle.WithLabelValues(peer)
+	value, _ := m.poolIdleHandles.LoadOrStore(peer, handle)
+	return value.(prometheus.Gauge)
 }
