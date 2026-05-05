@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
@@ -76,7 +75,7 @@ func (s *Store) SnapshotChannelSubscribers(ctx context.Context, channelID string
 }
 
 func (s *Store) callSubscriberRPC(ctx context.Context, slotID multiraft.SlotID, req subscriberRPCRequest) (subscriberRPCResponse, error) {
-	payload, err := json.Marshal(req)
+	payload, err := encodeSubscriberRPCRequestBinary(req)
 	if err != nil {
 		return subscriberRPCResponse{}, err
 	}
@@ -84,8 +83,8 @@ func (s *Store) callSubscriberRPC(ctx context.Context, slotID multiraft.SlotID, 
 }
 
 func (s *Store) handleSubscriberRPC(ctx context.Context, body []byte) ([]byte, error) {
-	var req subscriberRPCRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	req, err := decodeSubscriberRPCRequest(body)
+	if err != nil {
 		return nil, err
 	}
 
@@ -128,13 +127,9 @@ func (s *Store) handleSubscriberRPC(ctx context.Context, body []byte) ([]byte, e
 }
 
 func encodeSubscriberRPCResponse(resp subscriberRPCResponse) ([]byte, error) {
-	return json.Marshal(resp)
+	return encodeSubscriberRPCResponseBinary(resp)
 }
 
 func decodeSubscriberRPCResponse(body []byte) (subscriberRPCResponse, error) {
-	var resp subscriberRPCResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return subscriberRPCResponse{}, err
-	}
-	return resp, nil
+	return decodeSubscriberRPCResponseBinary(body)
 }

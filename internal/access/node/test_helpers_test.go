@@ -1,7 +1,6 @@
 package node
 
 import (
-	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -11,13 +10,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )
-
-func mustMarshal(t *testing.T, value any) []byte {
-	t.Helper()
-	body, err := json.Marshal(value)
-	require.NoError(t, err)
-	return body
-}
 
 func mustEncodeFrame(t *testing.T, f frame.Frame) []byte {
 	t.Helper()

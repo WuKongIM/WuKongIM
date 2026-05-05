@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -315,7 +314,7 @@ func (s *Store) scanUserConversationStatePageAuthoritative(ctx context.Context, 
 }
 
 func (s *Store) callUserConversationStateRPC(ctx context.Context, slotID multiraft.SlotID, req userConversationStateRPCRequest) (userConversationStateRPCResponse, error) {
-	payload, err := json.Marshal(req)
+	payload, err := encodeUserConversationStateRPCRequestBinary(req)
 	if err != nil {
 		return userConversationStateRPCResponse{}, err
 	}
@@ -323,8 +322,8 @@ func (s *Store) callUserConversationStateRPC(ctx context.Context, slotID multira
 }
 
 func (s *Store) handleUserConversationStateRPC(ctx context.Context, body []byte) ([]byte, error) {
-	var req userConversationStateRPCRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	req, err := decodeUserConversationStateRPCRequest(body)
+	if err != nil {
 		return nil, err
 	}
 
@@ -419,15 +418,11 @@ func (s *Store) handleUserConversationStateRPC(ctx context.Context, body []byte)
 }
 
 func encodeUserConversationStateRPCResponse(resp userConversationStateRPCResponse) ([]byte, error) {
-	return json.Marshal(resp)
+	return encodeUserConversationStateRPCResponseBinary(resp)
 }
 
 func decodeUserConversationStateRPCResponse(body []byte) (userConversationStateRPCResponse, error) {
-	var resp userConversationStateRPCResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return userConversationStateRPCResponse{}, err
-	}
-	return resp, nil
+	return decodeUserConversationStateRPCResponseBinary(body)
 }
 
 func (s *Store) listUserConversationActiveLocal(ctx context.Context, hashSlot uint16, uid string, limit int) ([]metadb.UserConversationState, error) {

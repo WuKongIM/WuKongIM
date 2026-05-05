@@ -2,6 +2,7 @@ package raft
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -469,6 +470,166 @@ func TestEncodeDecodeCommandAddSlotPreservesPreferredLeader(t *testing.T) {
 	require.Equal(t, cmd.AddSlot.PreferredLeader, decoded.AddSlot.PreferredLeader)
 }
 
+func TestEncodeCommandWritesBinaryEnvelope(t *testing.T) {
+	cmd := slotcontroller.Command{
+		Kind: slotcontroller.CommandKindAddSlot,
+		AddSlot: &slotcontroller.AddSlotRequest{
+			NewSlotID:       4,
+			Peers:           []uint64{1, 2, 3},
+			PreferredLeader: 2,
+		},
+	}
+
+	data, err := encodeCommand(cmd)
+	require.NoError(t, err)
+	require.NotEmpty(t, data)
+	require.NotEqual(t, byte('{'), data[0])
+
+	decoded, err := decodeCommand(data)
+	require.NoError(t, err)
+	require.Equal(t, cmd.Kind, decoded.Kind)
+	require.Equal(t, cmd.AddSlot, decoded.AddSlot)
+}
+
+func TestEncodeCommandBinaryAllocationsStayBounded(t *testing.T) {
+	cmd := sampleRaftOnboardingCommand()
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		data, err := encodeCommand(cmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(data) == 0 || data[0] == '{' {
+			t.Fatalf("encodeCommand() wrote non-binary payload: %q", data)
+		}
+	})
+
+	require.LessOrEqual(t, allocs, float64(4), "encoding should avoid envelope clone allocations")
+}
+
+func TestDecodeCommandBinaryAllocationsStayBounded(t *testing.T) {
+	cmd := sampleRaftOnboardingCommand()
+	data, err := encodeCommand(cmd)
+	require.NoError(t, err)
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		decoded, err := decodeCommand(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if decoded.NodeOnboarding == nil || decoded.NodeOnboarding.Job == nil {
+			t.Fatalf("decodeCommand() lost onboarding payload: %+v", decoded)
+		}
+	})
+
+	require.LessOrEqual(t, allocs, float64(24), "decoding should avoid the intermediate envelope clone path")
+}
+
+func TestDecodeCommandAcceptsLegacyJSONEnvelope(t *testing.T) {
+	legacy, err := json.Marshal(commandEnvelope{
+		Kind: slotcontroller.CommandKindAddSlot,
+		AddSlot: &slotcontroller.AddSlotRequest{
+			NewSlotID:       4,
+			Peers:           []uint64{1, 2, 3},
+			PreferredLeader: 2,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, byte('{'), legacy[0])
+
+	decoded, err := decodeCommand(legacy)
+	require.NoError(t, err)
+	require.Equal(t, slotcontroller.CommandKindAddSlot, decoded.Kind)
+	require.Equal(t, &slotcontroller.AddSlotRequest{
+		NewSlotID:       4,
+		Peers:           []uint64{1, 2, 3},
+		PreferredLeader: 2,
+	}, decoded.AddSlot)
+}
+
+func TestEncodeDecodeCommandBinaryRoundTripsRepresentativePayloads(t *testing.T) {
+	now := time.Date(2026, 5, 4, 10, 30, 0, 123, time.UTC)
+	expectedStatus := controllermeta.NodeStatusSuspect
+	expectedOnboardingStatus := controllermeta.OnboardingJobStatusPlanned
+	job, assignment, task := sampleRaftOnboardingUpdate()
+
+	cases := []struct {
+		name string
+		cmd  slotcontroller.Command
+	}{
+		{
+			name: "agent report",
+			cmd: slotcontroller.Command{
+				Kind: slotcontroller.CommandKindNodeHeartbeat,
+				Report: &slotcontroller.AgentReport{
+					NodeID:               2,
+					Addr:                 "127.0.0.1:12002",
+					ObservedAt:           now,
+					CapacityWeight:       3,
+					HashSlotTableVersion: 9,
+					Runtime: &controllermeta.SlotRuntimeView{
+						SlotID:              7,
+						CurrentPeers:        []uint64{1, 2, 3},
+						CurrentVoters:       []uint64{1, 2},
+						LeaderID:            1,
+						HealthyVoters:       2,
+						HasQuorum:           true,
+						ObservedConfigEpoch: 8,
+						LastReportAt:        now.Add(time.Second),
+					},
+				},
+			},
+		},
+		{
+			name: "task advance",
+			cmd: slotcontroller.Command{
+				Kind:    slotcontroller.CommandKindTaskResult,
+				Advance: &slotcontroller.TaskAdvance{SlotID: 7, Attempt: 2, Now: now, Err: errors.New("catchup failed")},
+			},
+		},
+		{
+			name: "node status update",
+			cmd: slotcontroller.Command{
+				Kind: slotcontroller.CommandKindNodeStatusUpdate,
+				NodeStatusUpdate: &slotcontroller.NodeStatusUpdate{Transitions: []slotcontroller.NodeStatusTransition{{
+					NodeID:         2,
+					NewStatus:      controllermeta.NodeStatusDead,
+					ExpectedStatus: &expectedStatus,
+					EvaluatedAt:    now,
+					Addr:           "127.0.0.1:12002",
+					CapacityWeight: 4,
+				}}},
+			},
+		},
+		{
+			name: "node onboarding",
+			cmd: slotcontroller.Command{
+				Kind: slotcontroller.CommandKindNodeOnboardingJobUpdate,
+				NodeOnboarding: &slotcontroller.NodeOnboardingJobUpdate{
+					Job:            &job,
+					ExpectedStatus: &expectedOnboardingStatus,
+					Assignment:     &assignment,
+					Task:           &task,
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := encodeCommand(tc.cmd)
+			require.NoError(t, err)
+			require.NotEmpty(t, data)
+			require.NotEqual(t, byte('{'), data[0])
+
+			decoded, err := decodeCommand(data)
+			require.NoError(t, err)
+			require.Equal(t, tc.cmd.Kind, decoded.Kind)
+			requireCommandPayloadEqual(t, tc.cmd, decoded)
+		})
+	}
+}
+
 func TestEncodeDecodeCommandRoundTripsNodeOnboardingJobUpdate(t *testing.T) {
 	expected := controllermeta.OnboardingJobStatusPlanned
 	job, assignment, task := sampleRaftOnboardingUpdate()
@@ -527,6 +688,50 @@ func TestFailInflightProposalsOnLeaderLossLeavesLeaderRequestsIntact(t *testing.
 	case err := <-resp:
 		t.Fatalf("unexpected inflight failure: %v", err)
 	default:
+	}
+}
+
+func requireCommandPayloadEqual(t *testing.T, want, got slotcontroller.Command) {
+	t.Helper()
+
+	require.Equal(t, want.Report, got.Report)
+	require.Equal(t, want.Op, got.Op)
+	require.Equal(t, want.Assignment, got.Assignment)
+	require.Equal(t, want.Task, got.Task)
+	require.Equal(t, want.Migration, got.Migration)
+	require.Equal(t, want.AddSlot, got.AddSlot)
+	require.Equal(t, want.RemoveSlot, got.RemoveSlot)
+	require.Equal(t, want.NodeStatusUpdate, got.NodeStatusUpdate)
+	require.Equal(t, want.NodeJoin, got.NodeJoin)
+	require.Equal(t, want.NodeJoinActivate, got.NodeJoinActivate)
+	require.Equal(t, want.NodeOnboarding, got.NodeOnboarding)
+	if want.Advance == nil {
+		require.Nil(t, got.Advance)
+		return
+	}
+	require.NotNil(t, got.Advance)
+	require.Equal(t, want.Advance.SlotID, got.Advance.SlotID)
+	require.Equal(t, want.Advance.Attempt, got.Advance.Attempt)
+	require.Equal(t, want.Advance.Now, got.Advance.Now)
+	if want.Advance.Err == nil {
+		require.NoError(t, got.Advance.Err)
+		return
+	}
+	require.Error(t, got.Advance.Err)
+	require.Equal(t, want.Advance.Err.Error(), got.Advance.Err.Error())
+}
+
+func sampleRaftOnboardingCommand() slotcontroller.Command {
+	expected := controllermeta.OnboardingJobStatusPlanned
+	job, assignment, task := sampleRaftOnboardingUpdate()
+	return slotcontroller.Command{
+		Kind: slotcontroller.CommandKindNodeOnboardingJobUpdate,
+		NodeOnboarding: &slotcontroller.NodeOnboardingJobUpdate{
+			Job:            &job,
+			ExpectedStatus: &expected,
+			Assignment:     &assignment,
+			Task:           &task,
+		},
 	}
 }
 

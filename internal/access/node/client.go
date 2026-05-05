@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
@@ -109,9 +108,20 @@ func (c *Client) ApplyRouteAction(ctx context.Context, action presence.RouteActi
 }
 
 func (c *Client) SubmitCommitted(ctx context.Context, nodeID uint64, env deliveryruntime.CommittedEnvelope) error {
-	resp, err := callDeliveryDirect(ctx, c, nodeID, deliverySubmitRPCServiceID, deliverySubmitRequest{
+	if c == nil || c.cluster == nil {
+		return fmt.Errorf("access/node: cluster not configured")
+	}
+	body, err := encodeDeliverySubmitRequestBinary(deliverySubmitRequest{
 		Envelope: env,
-	}, decodeDeliveryResponse)
+	})
+	if err != nil {
+		return err
+	}
+	respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(nodeID), 0, deliverySubmitRPCServiceID, body)
+	if err != nil {
+		return err
+	}
+	resp, err := decodeDeliveryResponse(respBody)
 	if err != nil {
 		return err
 	}
@@ -122,7 +132,11 @@ func (c *Client) SubmitCommitted(ctx context.Context, nodeID uint64, env deliver
 }
 
 func (c *Client) PushBatch(ctx context.Context, nodeID uint64, cmd DeliveryPushCommand) (DeliveryPushResponse, error) {
-	resp, err := callDeliveryDirect(ctx, c, nodeID, deliveryPushRPCServiceID, cmd, decodeDeliveryPushResponse)
+	body, err := encodeDeliveryPushCommandBinary(cmd)
+	if err != nil {
+		return DeliveryPushResponse{}, err
+	}
+	resp, err := c.callDeliveryPushDirect(ctx, nodeID, body)
 	if err != nil {
 		return DeliveryPushResponse{}, err
 	}
@@ -133,7 +147,11 @@ func (c *Client) PushBatch(ctx context.Context, nodeID uint64, cmd DeliveryPushC
 }
 
 func (c *Client) PushBatchItems(ctx context.Context, nodeID uint64, cmd DeliveryPushBatchCommand) (DeliveryPushResponse, error) {
-	resp, err := callDeliveryDirect(ctx, c, nodeID, deliveryPushRPCServiceID, cmd, decodeDeliveryPushResponse)
+	body, err := encodeDeliveryPushBatchCommandBinary(cmd)
+	if err != nil {
+		return DeliveryPushResponse{}, err
+	}
+	resp, err := c.callDeliveryPushDirect(ctx, nodeID, body)
 	if err != nil {
 		return DeliveryPushResponse{}, err
 	}
@@ -143,10 +161,32 @@ func (c *Client) PushBatchItems(ctx context.Context, nodeID uint64, cmd Delivery
 	return resp, nil
 }
 
+func (c *Client) callDeliveryPushDirect(ctx context.Context, nodeID uint64, body []byte) (DeliveryPushResponse, error) {
+	if c.cluster == nil {
+		return DeliveryPushResponse{}, fmt.Errorf("access/node: cluster not configured")
+	}
+	respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(nodeID), 0, deliveryPushRPCServiceID, body)
+	if err != nil {
+		return DeliveryPushResponse{}, err
+	}
+	return decodeDeliveryPushResponse(respBody)
+}
+
 func (c *Client) NotifyAck(ctx context.Context, nodeID uint64, cmd deliveryevents.RouteAck) error {
-	resp, err := callDeliveryDirect(ctx, c, nodeID, deliveryAckRPCServiceID, deliveryAckRequest{
+	if c == nil || c.cluster == nil {
+		return fmt.Errorf("access/node: cluster not configured")
+	}
+	body, err := encodeDeliveryAckRequestBinary(deliveryAckRequest{
 		Command: cmd,
-	}, decodeDeliveryResponse)
+	})
+	if err != nil {
+		return err
+	}
+	respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(nodeID), 0, deliveryAckRPCServiceID, body)
+	if err != nil {
+		return err
+	}
+	resp, err := decodeDeliveryResponse(respBody)
 	if err != nil {
 		return err
 	}
@@ -157,9 +197,20 @@ func (c *Client) NotifyAck(ctx context.Context, nodeID uint64, cmd deliveryevent
 }
 
 func (c *Client) NotifyOffline(ctx context.Context, nodeID uint64, cmd deliveryevents.SessionClosed) error {
-	resp, err := callDeliveryDirect(ctx, c, nodeID, deliveryOfflineRPCServiceID, deliveryOfflineRequest{
+	if c == nil || c.cluster == nil {
+		return fmt.Errorf("access/node: cluster not configured")
+	}
+	body, err := encodeDeliveryOfflineRequestBinary(deliveryOfflineRequest{
 		Command: cmd,
-	}, decodeDeliveryResponse)
+	})
+	if err != nil {
+		return err
+	}
+	respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(nodeID), 0, deliveryOfflineRPCServiceID, body)
+	if err != nil {
+		return err
+	}
+	resp, err := decodeDeliveryResponse(respBody)
 	if err != nil {
 		return err
 	}
@@ -242,7 +293,7 @@ func conversationFactsChannelKeys(keys []channel.ChannelID) []conversationFactsC
 }
 
 func (c *Client) callPresenceAuthoritative(ctx context.Context, slotID multiraft.SlotID, req presenceRPCRequest) (presenceRPCResponse, error) {
-	body, err := json.Marshal(req)
+	body, err := encodePresenceRPCRequestBinary(req)
 	if err != nil {
 		return presenceRPCResponse{}, err
 	}
@@ -250,7 +301,7 @@ func (c *Client) callPresenceAuthoritative(ctx context.Context, slotID multiraft
 }
 
 func (c *Client) callPresenceDirect(ctx context.Context, nodeID multiraft.NodeID, slotID multiraft.SlotID, req presenceRPCRequest) (presenceRPCResponse, error) {
-	body, err := json.Marshal(req)
+	body, err := encodePresenceRPCRequestBinary(req)
 	if err != nil {
 		return presenceRPCResponse{}, err
 	}
@@ -261,56 +312,19 @@ func (c *Client) callPresenceDirect(ctx context.Context, nodeID multiraft.NodeID
 	return decodePresenceResponse(respBody)
 }
 
-func callDeliveryDirect[T any](
-	ctx context.Context,
-	c *Client,
-	nodeID uint64,
-	serviceID uint8,
-	req any,
-	decode func([]byte) (T, error),
-) (T, error) {
-	var zero T
-
-	if c.cluster == nil {
-		return zero, fmt.Errorf("access/node: cluster not configured")
-	}
-	body, err := json.Marshal(req)
-	if err != nil {
-		return zero, err
-	}
-	respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(nodeID), 0, serviceID, body)
-	if err != nil {
-		return zero, err
-	}
-	return decode(respBody)
-}
-
 func callConversationFactsDirect(ctx context.Context, c *Client, nodeID uint64, req conversationFactsRequest) (conversationFactsResponse, error) {
-	return callDirectRPC(ctx, c, nodeID, conversationFactsRPCServiceID, req, decodeConversationFactsResponse)
-}
-
-func callDirectRPC[T any](
-	ctx context.Context,
-	c *Client,
-	nodeID uint64,
-	serviceID uint8,
-	req any,
-	decode func([]byte) (T, error),
-) (T, error) {
-	var zero T
-
-	if c.cluster == nil {
-		return zero, fmt.Errorf("access/node: cluster not configured")
+	if c == nil || c.cluster == nil {
+		return conversationFactsResponse{}, fmt.Errorf("access/node: cluster not configured")
 	}
-	body, err := json.Marshal(req)
+	body, err := encodeConversationFactsRequestBinary(req)
 	if err != nil {
-		return zero, err
+		return conversationFactsResponse{}, err
 	}
-	respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(nodeID), 0, serviceID, body)
+	respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(nodeID), 0, conversationFactsRPCServiceID, body)
 	if err != nil {
-		return zero, err
+		return conversationFactsResponse{}, err
 	}
-	return decode(respBody)
+	return decodeConversationFactsResponse(respBody)
 }
 
 func callAuthoritativeRPC[T authoritativeRPCResponse](
@@ -384,9 +398,7 @@ func callAuthoritativeRPC[T authoritativeRPCResponse](
 }
 
 func decodePresenceResponse(body []byte) (presenceRPCResponse, error) {
-	var resp presenceRPCResponse
-	err := json.Unmarshal(body, &resp)
-	return resp, err
+	return decodePresenceRPCResponseBinary(body)
 }
 
 var (

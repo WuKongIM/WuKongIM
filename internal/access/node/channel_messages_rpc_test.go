@@ -32,7 +32,7 @@ func TestChannelMessagesRPCReturnsMaxMessageSeq(t *testing.T) {
 		},
 	})
 
-	body := mustMarshal(t, channelMessagesRequest{
+	body := mustEncodeChannelMessagesRequest(t, channelMessagesRequest{
 		Query: ChannelMessagesQuery{
 			ChannelID:  id,
 			MaxSeqOnly: true,
@@ -47,6 +47,62 @@ func TestChannelMessagesRPCReturnsMaxMessageSeq(t *testing.T) {
 	require.Equal(t, uint64(42), resp.Page.MaxMessageSeq)
 	require.Empty(t, resp.Page.Messages)
 	require.False(t, resp.Page.HasMore)
+}
+
+func TestChannelMessagesBinaryCodecRoundTrip(t *testing.T) {
+	req := channelMessagesRequest{Query: ChannelMessagesQuery{
+		ChannelID:       channel.ChannelID{ID: "messages-binary", Type: frame.ChannelTypeGroup},
+		SyncMode:        true,
+		MaxSeqOnly:      true,
+		MinAvailableSeq: 3,
+		BeforeSeq:       10,
+		StartSeq:        2,
+		EndSeq:          9,
+		Limit:           50,
+		PullMode:        uint8(channelhandler.SyncPullModeDown),
+		MessageID:       101,
+		ClientMsgNo:     "client-1",
+	}}
+	reqBody, err := encodeChannelMessagesRequestBinary(req)
+	require.NoError(t, err)
+	require.True(t, isChannelMessagesRequestBinary(reqBody))
+
+	gotReq, err := decodeChannelMessagesRequest(reqBody)
+	require.NoError(t, err)
+	require.Equal(t, req, gotReq)
+
+	resp := channelMessagesResponse{
+		Status:   rpcStatusOK,
+		LeaderID: 2,
+		Page: ChannelMessagesPage{
+			Messages: []channel.Message{{
+				MessageID:   101,
+				MessageSeq:  8,
+				ChannelID:   "messages-binary",
+				ChannelType: frame.ChannelTypeGroup,
+				FromUID:     "u1",
+				ClientMsgNo: "client-1",
+				Payload:     []byte("payload"),
+			}},
+			HasMore:       true,
+			NextBeforeSeq: 7,
+			MaxMessageSeq: 9,
+		},
+	}
+	respBody, err := encodeChannelMessagesResponse(resp)
+	require.NoError(t, err)
+	require.True(t, isChannelMessagesResponseBinary(respBody))
+
+	gotResp, err := decodeChannelMessagesResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, resp, gotResp)
+}
+
+func TestChannelMessagesRPCRejectsJSONPayload(t *testing.T) {
+	adapter := New(Options{ChannelLogDB: openChannelMessagesRPCTestEngine(t)})
+
+	_, err := adapter.handleChannelMessagesRPC(context.Background(), []byte(`{"query":{"channel_id":{"id":"messages-json","type":2}}}`))
+	require.Error(t, err)
 }
 
 func TestChannelMessagesRPCQueryUsesRetentionFloor(t *testing.T) {
@@ -65,7 +121,7 @@ func TestChannelMessagesRPCQueryUsesRetentionFloor(t *testing.T) {
 		},
 	})
 
-	body := mustMarshal(t, channelMessagesRequest{
+	body := mustEncodeChannelMessagesRequest(t, channelMessagesRequest{
 		Query: ChannelMessagesQuery{
 			ChannelID:       id,
 			Limit:           10,
@@ -108,7 +164,7 @@ func TestChannelMessagesRPCQueryUsesAuthoritativeRetentionFloor(t *testing.T) {
 				},
 			})
 
-			body := mustMarshal(t, channelMessagesRequest{
+			body := mustEncodeChannelMessagesRequest(t, channelMessagesRequest{
 				Query: ChannelMessagesQuery{
 					ChannelID:       id,
 					Limit:           10,
@@ -142,7 +198,7 @@ func TestChannelMessagesRPCSyncUsesRetentionFloor(t *testing.T) {
 		},
 	})
 
-	body := mustMarshal(t, channelMessagesRequest{
+	body := mustEncodeChannelMessagesRequest(t, channelMessagesRequest{
 		Query: ChannelMessagesQuery{
 			ChannelID:       id,
 			SyncMode:        true,
@@ -189,7 +245,7 @@ func TestChannelMessagesRPCSyncUsesAuthoritativeRetentionFloor(t *testing.T) {
 				},
 			})
 
-			body := mustMarshal(t, channelMessagesRequest{
+			body := mustEncodeChannelMessagesRequest(t, channelMessagesRequest{
 				Query: ChannelMessagesQuery{
 					ChannelID:       id,
 					SyncMode:        true,
@@ -292,6 +348,13 @@ func hashChannelMessagesRPCTestPayload(payload []byte) uint64 {
 func appendChannelMessagesRPCTestField(dst []byte, value []byte) []byte {
 	dst = binary.BigEndian.AppendUint32(dst, uint32(len(value)))
 	return append(dst, value...)
+}
+
+func mustEncodeChannelMessagesRequest(t *testing.T, req channelMessagesRequest) []byte {
+	t.Helper()
+	body, err := encodeChannelMessagesRequestBinary(req)
+	require.NoError(t, err)
+	return body
 }
 
 func channelMessagesRPCSeqs(messages []channel.Message) []uint64 {

@@ -118,8 +118,13 @@ func TestManagedSlotLogsCodecRoundTrip(t *testing.T) {
 			DecodedType:  "upsert_user",
 			Decoded: map[string]any{
 				"command": "upsert_user",
-				"token":   "***",
-				"uid":     "u1",
+				"epoch":   uint64(12),
+				"isr":     []uint64{1, 2},
+				"nested": map[string]any{
+					"ok": true,
+				},
+				"token": "***",
+				"uid":   "u1",
 			},
 		}},
 	})
@@ -139,8 +144,13 @@ func TestManagedSlotLogsCodecRoundTrip(t *testing.T) {
 		DecodedType:  "upsert_user",
 		Decoded: map[string]any{
 			"command": "upsert_user",
-			"token":   "***",
-			"uid":     "u1",
+			"epoch":   uint64(12),
+			"isr":     []uint64{1, 2},
+			"nested": map[string]any{
+				"ok": true,
+			},
+			"token": "***",
+			"uid":   "u1",
 		},
 	}}
 	if resp.FirstIndex != 1 || resp.LastIndex != 4 || resp.NextCursor != 3 || !reflect.DeepEqual(resp.LogEntries, wantEntries) {

@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
@@ -96,7 +95,7 @@ func TestChannelLeaderEvaluateCandidateRPCReturnsPromotionReport(t *testing.T) {
 }
 
 func TestChannelLeaderEvaluateRPCNilAdapterReturnsErrorInsteadOfPanicking(t *testing.T) {
-	body, err := json.Marshal(channelmeta.LeaderEvaluateRequest{
+	body, err := encodeChannelLeaderEvaluateRequestBinary(fromChannelmetaLeaderEvaluateRequest(channelmeta.LeaderEvaluateRequest{
 		Meta: metadb.ChannelRuntimeMeta{
 			ChannelID:   "evaluate-nil-adapter",
 			ChannelType: 2,
@@ -106,7 +105,7 @@ func TestChannelLeaderEvaluateRPCNilAdapterReturnsErrorInsteadOfPanicking(t *tes
 			MinISR:      2,
 			Status:      uint8(channel.StatusActive),
 		},
-	})
+	}))
 	require.NoError(t, err)
 
 	var adapter *Adapter

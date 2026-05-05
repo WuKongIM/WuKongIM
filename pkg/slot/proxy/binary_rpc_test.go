@@ -1,0 +1,145 @@
+package proxy
+
+import (
+	"context"
+	"testing"
+
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	"github.com/stretchr/testify/require"
+)
+
+func TestIdentityRPCBinaryCodecRoundTrip(t *testing.T) {
+	req := identityRPCRequest{
+		Op:         identityRPCGetDevice,
+		SlotID:     2,
+		UID:        "u1",
+		DeviceFlag: 3,
+	}
+
+	reqBody, err := encodeIdentityRPCRequestBinary(req)
+	require.NoError(t, err)
+	require.True(t, isIdentityRPCRequestBinary(reqBody))
+
+	gotReq, err := decodeIdentityRPCRequest(reqBody)
+	require.NoError(t, err)
+	require.Equal(t, req, gotReq)
+
+	resp := identityRPCResponse{
+		Status:   rpcStatusOK,
+		LeaderID: 2,
+		User:     &metadb.User{UID: "u1", Token: "token", DeviceFlag: 3, DeviceLevel: 1},
+		Device:   &metadb.Device{UID: "u1", DeviceFlag: 3, Token: "device-token", DeviceLevel: 1},
+	}
+	respBody, err := encodeIdentityRPCResponse(resp)
+	require.NoError(t, err)
+	require.True(t, isIdentityRPCResponseBinary(respBody))
+
+	gotResp, err := decodeIdentityRPCResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, resp, gotResp)
+}
+
+func TestSubscriberRPCBinaryCodecRoundTrip(t *testing.T) {
+	req := subscriberRPCRequest{
+		SlotID:      2,
+		HashSlot:    7,
+		ChannelID:   "g1",
+		ChannelType: 2,
+		Snapshot:    true,
+		AfterUID:    "u1",
+		Limit:       128,
+	}
+
+	reqBody, err := encodeSubscriberRPCRequestBinary(req)
+	require.NoError(t, err)
+	require.True(t, isSubscriberRPCRequestBinary(reqBody))
+
+	gotReq, err := decodeSubscriberRPCRequest(reqBody)
+	require.NoError(t, err)
+	require.Equal(t, req, gotReq)
+
+	resp := subscriberRPCResponse{
+		Status:     rpcStatusOK,
+		LeaderID:   2,
+		UIDs:       []string{"u1", "u2"},
+		NextCursor: "u2",
+		Done:       true,
+	}
+	respBody, err := encodeSubscriberRPCResponse(resp)
+	require.NoError(t, err)
+	require.True(t, isSubscriberRPCResponseBinary(respBody))
+
+	gotResp, err := decodeSubscriberRPCResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, resp, gotResp)
+}
+
+func TestUserConversationStateRPCBinaryCodecRoundTrip(t *testing.T) {
+	req := userConversationStateRPCRequest{
+		Op:          userConversationStateRPCHide,
+		SlotID:      2,
+		HashSlot:    7,
+		UID:         "u1",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		After:       &metadb.ConversationCursor{ChannelID: "g0", ChannelType: 2},
+		Limit:       64,
+		States: []metadb.UserConversationState{{
+			UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 4, ActiveAt: 5, UpdatedAt: 6,
+		}},
+		Patches: []metadb.UserConversationActivePatch{{
+			UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 7, MessageSeq: 8,
+		}},
+		Keys: []metadb.ConversationKey{{ChannelID: "g1", ChannelType: 2}},
+		Deletes: []metadb.UserConversationDelete{{
+			UID: "u1", ChannelID: "g1", ChannelType: 2, DeletedToSeq: 9, UpdatedAt: 10,
+		}},
+		Hints: []metadb.UserConversationActiveHint{{
+			UID: "u1", ChannelID: "g1", ChannelType: 2, ActiveAt: 11, MessageSeq: 12,
+		}},
+		Barriers: []metadb.UserConversationDeleteBarrier{{
+			UID: "u1", ChannelID: "g1", ChannelType: 2, DeletedToSeq: 13,
+		}},
+	}
+
+	reqBody, err := encodeUserConversationStateRPCRequestBinary(req)
+	require.NoError(t, err)
+	require.True(t, isUserConversationStateRPCRequestBinary(reqBody))
+
+	gotReq, err := decodeUserConversationStateRPCRequest(reqBody)
+	require.NoError(t, err)
+	require.Equal(t, req, gotReq)
+
+	resp := userConversationStateRPCResponse{
+		Status:   rpcStatusOK,
+		LeaderID: 2,
+		State:    &metadb.UserConversationState{UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 4, ActiveAt: 5, UpdatedAt: 6},
+		States:   []metadb.UserConversationState{{UID: "u2", ChannelID: "g2", ChannelType: 3, ReadSeq: 7, DeletedToSeq: 8, ActiveAt: 9, UpdatedAt: 10}},
+		Cursor:   metadb.ConversationCursor{ChannelID: "g2", ChannelType: 3},
+		Done:     true,
+	}
+	respBody, err := encodeUserConversationStateRPCResponse(resp)
+	require.NoError(t, err)
+	require.True(t, isUserConversationStateRPCResponseBinary(respBody))
+
+	gotResp, err := decodeUserConversationStateRPCResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, resp, gotResp)
+}
+
+func TestRemainingProxyRPCsRejectJSONPayload(t *testing.T) {
+	store := New(nil, openTestDB(t))
+
+	identityBody := []byte(`{"op":"get_user","slot_id":1,"uid":"u1"}`)
+	var err error
+	_, err = store.handleIdentityRPC(context.Background(), identityBody)
+	require.Error(t, err)
+
+	subscriberBody := []byte(`{"slot_id":1,"channel_id":"g1","channel_type":2}`)
+	_, err = store.handleSubscriberRPC(context.Background(), subscriberBody)
+	require.Error(t, err)
+
+	conversationBody := []byte(`{"op":"get","slot_id":1,"uid":"u1"}`)
+	_, err = store.handleUserConversationStateRPC(context.Background(), conversationBody)
+	require.Error(t, err)
+}

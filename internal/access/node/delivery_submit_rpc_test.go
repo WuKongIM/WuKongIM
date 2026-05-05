@@ -59,6 +59,39 @@ func TestSubmitCommittedMessageRPCRoutesToOwnerRuntime(t *testing.T) {
 	}}, recorder.calls)
 }
 
+func TestDeliverySubmitBinaryCodecRoundTrip(t *testing.T) {
+	req := deliverySubmitRequest{Envelope: deliveryruntime.CommittedEnvelope{
+		Message: channel.Message{
+			ChannelID:   "u2",
+			ChannelType: frame.ChannelTypePerson,
+			MessageID:   88,
+			MessageSeq:  9,
+			FromUID:     "u1",
+			ClientMsgNo: "m1",
+			Payload:     []byte("hi"),
+			ClientSeq:   7,
+		},
+		SenderSessionID: 42,
+	}}
+
+	body, err := encodeDeliverySubmitRequestBinary(req)
+	require.NoError(t, err)
+	require.True(t, isDeliverySubmitRequestBinary(body))
+
+	got, err := decodeDeliverySubmitRequest(body)
+	require.NoError(t, err)
+	require.Equal(t, req, got)
+}
+
+func TestDeliverySubmitRPCRejectsJSONPayload(t *testing.T) {
+	recorder := &recordingDeliverySubmit{}
+	adapter := New(Options{DeliverySubmit: recorder})
+
+	_, err := adapter.handleDeliverySubmitRPC(context.Background(), []byte(`{"envelope":{"ChannelID":"u2","ChannelType":1,"MessageID":88}}`))
+	require.Error(t, err)
+	require.Empty(t, recorder.calls)
+}
+
 type recordingDeliverySubmit struct {
 	calls []deliveryruntime.CommittedEnvelope
 }

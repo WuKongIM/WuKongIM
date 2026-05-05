@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -79,7 +78,7 @@ func (s *Store) getDeviceAuthoritative(ctx context.Context, slotID multiraft.Slo
 }
 
 func (s *Store) callIdentityRPC(ctx context.Context, slotID multiraft.SlotID, req identityRPCRequest) (identityRPCResponse, error) {
-	payload, err := json.Marshal(req)
+	payload, err := encodeIdentityRPCRequestBinary(req)
 	if err != nil {
 		return identityRPCResponse{}, err
 	}
@@ -87,8 +86,8 @@ func (s *Store) callIdentityRPC(ctx context.Context, slotID multiraft.SlotID, re
 }
 
 func (s *Store) handleIdentityRPC(ctx context.Context, body []byte) ([]byte, error) {
-	var req identityRPCRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	req, err := decodeIdentityRPCRequest(body)
+	if err != nil {
 		return nil, err
 	}
 
@@ -134,13 +133,9 @@ func (s *Store) handleIdentityRPC(ctx context.Context, body []byte) ([]byte, err
 }
 
 func encodeIdentityRPCResponse(resp identityRPCResponse) ([]byte, error) {
-	return json.Marshal(resp)
+	return encodeIdentityRPCResponseBinary(resp)
 }
 
 func decodeIdentityRPCResponse(body []byte) (identityRPCResponse, error) {
-	var resp identityRPCResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return identityRPCResponse{}, err
-	}
-	return resp, nil
+	return decodeIdentityRPCResponseBinary(body)
 }

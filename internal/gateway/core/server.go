@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -24,6 +25,8 @@ var (
 	ErrInvalidDecodeStep = errors.New("gateway/core: decode consumed invalid byte count")
 )
 
+const asyncDispatchQueuePerWorker = 1024
+
 type Server struct {
 	registry   *Registry
 	options    gatewaytypes.Options
@@ -39,7 +42,11 @@ type Server struct {
 	listeners []*listenerRuntime
 	states    map[connKey]*sessionState
 
-	workerWG sync.WaitGroup
+	// idleMonitorStop stops the shared idle scanner when idle timeouts are enabled.
+	idleMonitorStop chan struct{}
+	// asyncDispatch bounds SEND frame concurrency when AsyncSendDispatch is enabled.
+	asyncDispatch *asyncDispatchQueue
+	workerWG      sync.WaitGroup
 }
 
 type listenerRuntime struct {
@@ -183,6 +190,8 @@ func (s *Server) Start() error {
 		started = append(started, runtime.listener)
 	}
 
+	s.startIdleMonitor()
+	s.startAsyncDispatcher()
 	return nil
 }
 
@@ -262,7 +271,15 @@ func (s *Server) Stop() error {
 	for _, state := range s.states {
 		states = append(states, state)
 	}
+	idleMonitorStop := s.idleMonitorStop
+	s.idleMonitorStop = nil
+	asyncDispatch := s.asyncDispatch
+	s.asyncDispatch = nil
 	s.mu.Unlock()
+
+	if idleMonitorStop != nil {
+		close(idleMonitorStop)
+	}
 
 	var firstErr error
 	for _, listener := range listeners {
@@ -273,6 +290,9 @@ func (s *Server) Stop() error {
 
 	for _, state := range states {
 		state.close(gatewaytypes.CloseReasonServerStop, nil)
+	}
+	if asyncDispatch != nil {
+		asyncDispatch.close()
 	}
 
 	s.workerWG.Wait()
@@ -371,7 +391,6 @@ func (s *Server) onOpen(listener *listenerRuntime, conn transport.Conn) error {
 	}
 
 	s.startWriter(state)
-	s.startIdleMonitor(state)
 	return nil
 }
 
@@ -481,13 +500,14 @@ func (s *Server) dispatchFrameAsync(state *sessionState, replyToken string, f fr
 		return
 	}
 
-	s.workerWG.Add(1)
-	go func() {
-		defer s.workerWG.Done()
-		if err := s.dispatchFrame(state, replyToken, f); err != nil {
-			s.handleHandlerError(state, err)
-		}
-	}()
+	task := asyncDispatchTask{state: state, replyToken: replyToken, frame: f}
+	queue := s.asyncDispatcher()
+	if queue != nil && queue.submit(task) {
+		return
+	}
+	if err := s.dispatchFrame(state, replyToken, f); err != nil {
+		s.handleHandlerError(state, err)
+	}
 }
 
 func (s *Server) dispatchFrame(state *sessionState, replyToken string, f frame.Frame) error {
@@ -672,23 +692,23 @@ func (s *Server) startWriter(state *sessionState) {
 	}()
 }
 
-func (s *Server) startIdleMonitor(state *sessionState) {
-	if state == nil {
-		return
-	}
-
+// startIdleMonitor starts one shared scanner for all sessions on this server.
+func (s *Server) startIdleMonitor() {
 	timeout := s.options.DefaultSession.IdleTimeout
 	if timeout <= 0 {
 		return
 	}
 
-	interval := timeout / 4
-	if interval < time.Millisecond {
-		interval = time.Millisecond
+	s.mu.Lock()
+	if s.stopped || s.idleMonitorStop != nil {
+		s.mu.Unlock()
+		return
 	}
-	if interval > 50*time.Millisecond {
-		interval = 50 * time.Millisecond
-	}
+	stopCh := make(chan struct{})
+	s.idleMonitorStop = stopCh
+	s.mu.Unlock()
+
+	interval := idleMonitorInterval(timeout)
 
 	s.workerWG.Add(1)
 	go func() {
@@ -699,19 +719,143 @@ func (s *Server) startIdleMonitor(state *sessionState) {
 
 		for {
 			select {
-			case <-state.closedCh:
+			case <-stopCh:
 				return
-			case <-ticker.C:
-				if state.isClosed() {
-					return
-				}
-				if time.Since(state.lastSeenReadActivity()) >= timeout {
-					state.close(gatewaytypes.CloseReasonIdleTimeout, gatewaytypes.ErrIdleTimeout)
-					return
-				}
+			case now := <-ticker.C:
+				s.closeIdleSessions(timeout, now)
 			}
 		}
 	}()
+}
+
+func idleMonitorInterval(timeout time.Duration) time.Duration {
+	interval := timeout / 4
+	if interval < time.Millisecond {
+		interval = time.Millisecond
+	}
+	if interval > 50*time.Millisecond {
+		interval = 50 * time.Millisecond
+	}
+	return interval
+}
+
+func (s *Server) closeIdleSessions(timeout time.Duration, now time.Time) {
+	states := s.sessionStateSnapshot()
+	for _, state := range states {
+		if state == nil || state.isClosed() {
+			continue
+		}
+		if now.Sub(state.lastSeenReadActivity()) >= timeout {
+			state.close(gatewaytypes.CloseReasonIdleTimeout, gatewaytypes.ErrIdleTimeout)
+		}
+	}
+}
+
+// startAsyncDispatcher starts a bounded worker pool for async SEND dispatch.
+func (s *Server) startAsyncDispatcher() {
+	if s == nil || !s.options.DefaultSession.AsyncSendDispatch {
+		return
+	}
+
+	workers := runtime.GOMAXPROCS(0)
+	if workers <= 0 {
+		workers = 1
+	}
+	queue := newAsyncDispatchQueue(workers * asyncDispatchQueuePerWorker)
+
+	s.mu.Lock()
+	if s.stopped || s.asyncDispatch != nil {
+		s.mu.Unlock()
+		return
+	}
+	s.asyncDispatch = queue
+	s.mu.Unlock()
+
+	for i := 0; i < workers; i++ {
+		s.workerWG.Add(1)
+		go s.runAsyncDispatchWorker(queue)
+	}
+}
+
+func (s *Server) runAsyncDispatchWorker(queue *asyncDispatchQueue) {
+	defer s.workerWG.Done()
+
+	for task := range queue.tasks {
+		if err := s.dispatchFrame(task.state, task.replyToken, task.frame); err != nil {
+			s.handleHandlerError(task.state, err)
+		}
+	}
+}
+
+func (s *Server) asyncDispatcher() *asyncDispatchQueue {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.asyncDispatch
+}
+
+type asyncDispatchTask struct {
+	state      *sessionState
+	replyToken string
+	frame      frame.Frame
+}
+
+// asyncDispatchQueue provides synchronized close/submit around a bounded task channel.
+type asyncDispatchQueue struct {
+	mu     sync.RWMutex
+	tasks  chan asyncDispatchTask
+	closed bool
+}
+
+func newAsyncDispatchQueue(capacity int) *asyncDispatchQueue {
+	if capacity <= 0 {
+		capacity = asyncDispatchQueuePerWorker
+	}
+	return &asyncDispatchQueue{tasks: make(chan asyncDispatchTask, capacity)}
+}
+
+func (q *asyncDispatchQueue) submit(task asyncDispatchTask) bool {
+	if q == nil {
+		return false
+	}
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	if q.closed {
+		return false
+	}
+	q.tasks <- task
+	return true
+}
+
+func (q *asyncDispatchQueue) close() {
+	if q == nil {
+		return
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.closed {
+		return
+	}
+	q.closed = true
+	close(q.tasks)
+}
+
+func (s *Server) sessionStateSnapshot() []*sessionState {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.states) == 0 {
+		return nil
+	}
+	states := make([]*sessionState, 0, len(s.states))
+	for _, state := range s.states {
+		states = append(states, state)
+	}
+	return states
 }
 
 func (s *Server) replyTokens(listener *listenerRuntime, sess session.Session, count int) []string {

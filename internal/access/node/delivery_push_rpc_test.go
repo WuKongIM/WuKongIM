@@ -9,6 +9,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,7 +46,7 @@ func TestPushBatchRPCProcessesBatchItemsAndAggregatesResults(t *testing.T) {
 		DeliveryAckIndex: ackIndex,
 	})
 
-	body, err := adapter.handleDeliveryPushRPC(context.Background(), mustMarshal(t, DeliveryPushBatchCommand{
+	body, err := adapter.handleDeliveryPushRPC(context.Background(), mustEncodeDeliveryPushBatchCommand(t, DeliveryPushBatchCommand{
 		OwnerNodeID: 2,
 		Items: []DeliveryPushItem{
 			{
@@ -87,6 +89,122 @@ func TestPushBatchRPCProcessesBatchItemsAndAggregatesResults(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestDeliveryPushBinaryCodecRoundTrip(t *testing.T) {
+	cmd := DeliveryPushBatchCommand{
+		OwnerNodeID: 2,
+		Items: []DeliveryPushItem{{
+			ChannelID:   "g1",
+			ChannelType: frame.ChannelTypeGroup,
+			MessageID:   88,
+			MessageSeq:  9,
+			Routes: []deliveryruntime.RouteKey{
+				{UID: "u2", NodeID: 1, BootID: 7, SessionID: 10},
+				{UID: "u3", NodeID: 1, BootID: 7, SessionID: 11},
+			},
+			Frame: mustEncodeFrame(t, &frame.RecvPacket{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, MessageID: 88, MessageSeq: 9}),
+		}},
+	}
+
+	body, err := encodeDeliveryPushBatchCommandBinary(cmd)
+	require.NoError(t, err)
+	require.True(t, isDeliveryPushRequestBinary(body))
+
+	req, binaryRequest, err := decodeDeliveryPushRequest(body)
+	require.NoError(t, err)
+	require.True(t, binaryRequest)
+	require.Equal(t, cmd.OwnerNodeID, req.OwnerNodeID)
+	require.Equal(t, cmd.Items, req.Items)
+
+	respBody, err := encodeDeliveryPushResponseBinary(DeliveryPushResponse{
+		Status:   rpcStatusOK,
+		Accepted: []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 7, SessionID: 10}},
+		Dropped:  []deliveryruntime.RouteKey{{UID: "u3", NodeID: 1, BootID: 7, SessionID: 11}},
+	})
+	require.NoError(t, err)
+	require.True(t, isDeliveryPushResponseBinary(respBody))
+
+	resp, err := decodeDeliveryPushResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, rpcStatusOK, resp.Status)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 7, SessionID: 10}}, resp.Accepted)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u3", NodeID: 1, BootID: 7, SessionID: 11}}, resp.Dropped)
+}
+
+func TestDeliveryPushBinaryCodecRejectsOverflowCounts(t *testing.T) {
+	reqBody := append([]byte{}, deliveryPushRequestMagic[:]...)
+	reqBody = appendUvarint(reqBody, 1)
+	reqBody = appendUvarint(reqBody, uint64(1)<<63)
+
+	var reqErr error
+	require.NotPanics(t, func() {
+		_, _, reqErr = decodeDeliveryPushRequest(reqBody)
+	})
+	require.Error(t, reqErr)
+
+	respBody := append([]byte{}, deliveryPushResponseMagic[:]...)
+	respBody = appendString(respBody, rpcStatusOK)
+	respBody = appendUvarint(respBody, uint64(1)<<63)
+
+	var respErr error
+	require.NotPanics(t, func() {
+		_, respErr = decodeDeliveryPushResponse(respBody)
+	})
+	require.Error(t, respErr)
+}
+
+func TestPushBatchRPCRejectsJSONPayload(t *testing.T) {
+	adapter := New(Options{
+		Presence:      presence.New(presence.Options{}),
+		GatewayBootID: 7,
+		LocalNodeID:   1,
+		Online:        online.NewRegistry(),
+	})
+
+	_, err := adapter.handleDeliveryPushRPC(context.Background(), []byte(`{"owner_node_id":2}`))
+	require.Error(t, err)
+}
+
+func TestPushBatchRPCAcceptsBinaryRequestAndReturnsBinaryResponse(t *testing.T) {
+	reg := online.NewRegistry()
+	active := newRecordingSession(10, "tcp")
+	require.NoError(t, reg.Register(online.OnlineConn{
+		SessionID:   10,
+		UID:         "u2",
+		State:       online.LocalRouteStateActive,
+		Listener:    "tcp",
+		DeviceFlag:  frame.APP,
+		DeviceLevel: frame.DeviceLevelMaster,
+		Session:     active,
+	}))
+
+	adapter := New(Options{
+		Presence:      presence.New(presence.Options{}),
+		GatewayBootID: 7,
+		LocalNodeID:   1,
+		Online:        reg,
+	})
+	reqBody, err := encodeDeliveryPushBatchCommandBinary(DeliveryPushBatchCommand{
+		OwnerNodeID: 2,
+		Items: []DeliveryPushItem{{
+			ChannelID:   "g1",
+			ChannelType: frame.ChannelTypeGroup,
+			MessageID:   88,
+			MessageSeq:  9,
+			Routes:      []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 7, SessionID: 10}},
+			Frame:       mustEncodeFrame(t, &frame.RecvPacket{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, MessageID: 88, MessageSeq: 9}),
+		}},
+	})
+	require.NoError(t, err)
+
+	respBody, err := adapter.handleDeliveryPushRPC(context.Background(), reqBody)
+	require.NoError(t, err)
+	require.True(t, isDeliveryPushResponseBinary(respBody))
+	resp := mustDecodeDeliveryPushResponse(t, respBody)
+	require.Equal(t, rpcStatusOK, resp.Status)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 7, SessionID: 10}}, resp.Accepted)
+	require.Len(t, active.WrittenFrames(), 1)
+}
+
 func TestPushBatchRPCPreservesPersonItemChannelViews(t *testing.T) {
 	reg := online.NewRegistry()
 	sender := newRecordingSession(10, "tcp")
@@ -117,7 +235,7 @@ func TestPushBatchRPCPreservesPersonItemChannelViews(t *testing.T) {
 		Online:        reg,
 	})
 
-	body, err := adapter.handleDeliveryPushRPC(context.Background(), mustMarshal(t, DeliveryPushBatchCommand{
+	body, err := adapter.handleDeliveryPushRPC(context.Background(), mustEncodeDeliveryPushBatchCommand(t, DeliveryPushBatchCommand{
 		OwnerNodeID: 2,
 		Items: []DeliveryPushItem{
 			{
@@ -174,7 +292,7 @@ func TestPushBatchRPCDecodesAllItemsBeforeWriting(t *testing.T) {
 		DeliveryAckIndex: ackIndex,
 	})
 
-	_, err := adapter.handleDeliveryPushRPC(context.Background(), mustMarshal(t, DeliveryPushBatchCommand{
+	_, err := adapter.handleDeliveryPushRPC(context.Background(), mustEncodeDeliveryPushBatchCommand(t, DeliveryPushBatchCommand{
 		OwnerNodeID: 2,
 		Items: []DeliveryPushItem{
 			{
@@ -237,7 +355,7 @@ func TestPushBatchRPCRejectsBootMismatchAndClosingRoutes(t *testing.T) {
 		DeliveryAckIndex: ackIndex,
 	})
 
-	body, err := adapter.handleDeliveryPushRPC(context.Background(), mustMarshal(t, deliveryPushRequest{
+	body, err := adapter.handleDeliveryPushRPC(context.Background(), mustEncodeDeliveryPushRequest(t, deliveryPushRequest{
 		OwnerNodeID: 2,
 		ChannelID:   "u2",
 		ChannelType: frame.ChannelTypePerson,
@@ -295,6 +413,33 @@ func TestDeliveryPushClientPushBatchItemsUsesDeliveryRPCService(t *testing.T) {
 	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 2, BootID: 7, SessionID: 10}}, resp.Dropped)
 }
 
+func TestDeliveryPushClientPushBatchItemsUsesBinaryRPCPayload(t *testing.T) {
+	cluster := &capturingDeliveryPushCluster{
+		response: mustDeliveryPushBinaryResponse(t, DeliveryPushResponse{
+			Status:  rpcStatusOK,
+			Dropped: []deliveryruntime.RouteKey{{UID: "u2", NodeID: 2, BootID: 7, SessionID: 10}},
+		}),
+	}
+	client := NewClient(cluster)
+
+	resp, err := client.PushBatchItems(context.Background(), 2, DeliveryPushBatchCommand{
+		OwnerNodeID: 1,
+		Items: []DeliveryPushItem{{
+			ChannelID:   "g1",
+			ChannelType: frame.ChannelTypeGroup,
+			MessageID:   88,
+			MessageSeq:  9,
+			Routes:      []deliveryruntime.RouteKey{{UID: "u2", NodeID: 2, BootID: 7, SessionID: 10}},
+			Frame:       mustEncodeFrame(t, &frame.RecvPacket{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, MessageID: 88, MessageSeq: 9}),
+		}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, rpcStatusOK, resp.Status)
+	require.True(t, isDeliveryPushRequestBinary(cluster.payload))
+	require.Equal(t, deliveryPushRPCServiceID, cluster.serviceID)
+	require.Equal(t, multiraft.NodeID(2), cluster.nodeID)
+}
+
 type writeErrorSession struct {
 	recordingSession
 	err error
@@ -303,4 +448,51 @@ type writeErrorSession struct {
 func (s *writeErrorSession) WriteFrame(f frame.Frame) error {
 	_ = f
 	return s.err
+}
+
+func mustDeliveryPushBinaryResponse(t *testing.T, resp DeliveryPushResponse) []byte {
+	t.Helper()
+	body, err := encodeDeliveryPushResponseBinary(resp)
+	require.NoError(t, err)
+	return body
+}
+
+func mustEncodeDeliveryPushBatchCommand(t *testing.T, cmd DeliveryPushBatchCommand) []byte {
+	t.Helper()
+	body, err := encodeDeliveryPushBatchCommandBinary(cmd)
+	require.NoError(t, err)
+	return body
+}
+
+func mustEncodeDeliveryPushRequest(t *testing.T, req deliveryPushRequest) []byte {
+	t.Helper()
+	return encodeDeliveryPushRequestBinary(req)
+}
+
+type capturingDeliveryPushCluster struct {
+	nodeID    multiraft.NodeID
+	serviceID uint8
+	payload   []byte
+	response  []byte
+}
+
+func (c *capturingDeliveryPushCluster) RPCMux() *transport.RPCMux { return nil }
+
+func (c *capturingDeliveryPushCluster) LeaderOf(multiraft.SlotID) (multiraft.NodeID, error) {
+	return 0, nil
+}
+
+func (c *capturingDeliveryPushCluster) IsLocal(multiraft.NodeID) bool { return false }
+
+func (c *capturingDeliveryPushCluster) SlotForKey(string) multiraft.SlotID { return 0 }
+
+func (c *capturingDeliveryPushCluster) RPCService(_ context.Context, nodeID multiraft.NodeID, _ multiraft.SlotID, serviceID uint8, payload []byte) ([]byte, error) {
+	c.nodeID = nodeID
+	c.serviceID = serviceID
+	c.payload = append([]byte(nil), payload...)
+	return c.response, nil
+}
+
+func (c *capturingDeliveryPushCluster) PeersForSlot(multiraft.SlotID) []multiraft.NodeID {
+	return nil
 }

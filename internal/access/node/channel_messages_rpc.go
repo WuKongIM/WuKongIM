@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 // ChannelMessagesQuery describes one leader-authoritative channel message page request.
@@ -69,8 +69,8 @@ func (r channelMessagesResponse) rpcLeaderID() uint64 {
 }
 
 func (a *Adapter) handleChannelMessagesRPC(ctx context.Context, body []byte) ([]byte, error) {
-	var req channelMessagesRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	req, err := decodeChannelMessagesRequest(body)
+	if err != nil {
 		return nil, err
 	}
 	if a.channelLogDB == nil {
@@ -156,11 +156,17 @@ func (a *Adapter) refreshMessageQueryMeta(ctx context.Context, id channel.Channe
 }
 
 func (c *Client) QueryChannelMessages(ctx context.Context, nodeID uint64, req ChannelMessagesQuery) (ChannelMessagesPage, error) {
-	if c.cluster == nil {
+	if c == nil || c.cluster == nil {
 		return ChannelMessagesPage{}, fmt.Errorf("access/node: cluster not configured")
 	}
 	if nodeID == 0 {
 		return ChannelMessagesPage{}, channel.ErrNotLeader
+	}
+	body, err := encodeChannelMessagesRequestBinary(channelMessagesRequest{
+		Query: req,
+	})
+	if err != nil {
+		return ChannelMessagesPage{}, err
 	}
 
 	tried := make(map[uint64]struct{}, 2)
@@ -178,26 +184,32 @@ func (c *Client) QueryChannelMessages(ctx context.Context, nodeID uint64, req Ch
 		}
 		tried[target] = struct{}{}
 
-		resp, err := callDirectRPC(ctx, c, target, channelMessagesRPCServiceID, channelMessagesRequest{
-			Query: req,
-		}, decodeChannelMessagesResponse)
+		respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(target), 0, channelMessagesRPCServiceID, body)
+		if err == nil {
+			var resp channelMessagesResponse
+			resp, err = decodeChannelMessagesResponse(respBody)
+			if err == nil {
+				switch resp.Status {
+				case rpcStatusOK:
+					return resp.Page, nil
+				case rpcStatusNotLeader:
+					lastErr = channel.ErrNotLeader
+					if resp.LeaderID != 0 {
+						candidates = append([]uint64{resp.LeaderID}, candidates...)
+					}
+					continue
+				case rpcStatusNoLeader:
+					lastErr = raftcluster.ErrNoLeader
+					continue
+				default:
+					lastErr = fmt.Errorf("access/node: unexpected channel message status %q", resp.Status)
+					continue
+				}
+			}
+		}
 		if err != nil {
 			lastErr = normalizeChannelMessagesRPCError(err)
 			continue
-		}
-
-		switch resp.Status {
-		case rpcStatusOK:
-			return resp.Page, nil
-		case rpcStatusNotLeader:
-			lastErr = channel.ErrNotLeader
-			if resp.LeaderID != 0 {
-				candidates = append([]uint64{resp.LeaderID}, candidates...)
-			}
-		case rpcStatusNoLeader:
-			lastErr = raftcluster.ErrNoLeader
-		default:
-			lastErr = fmt.Errorf("access/node: unexpected channel message status %q", resp.Status)
 		}
 	}
 
@@ -208,13 +220,11 @@ func (c *Client) QueryChannelMessages(ctx context.Context, nodeID uint64, req Ch
 }
 
 func encodeChannelMessagesResponse(resp channelMessagesResponse) ([]byte, error) {
-	return json.Marshal(resp)
+	return encodeChannelMessagesResponseBinary(resp)
 }
 
 func decodeChannelMessagesResponse(body []byte) (channelMessagesResponse, error) {
-	var resp channelMessagesResponse
-	err := json.Unmarshal(body, &resp)
-	return resp, err
+	return decodeChannelMessagesResponseBinary(body)
 }
 
 func normalizeChannelMessagesRPCError(err error) error {

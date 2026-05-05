@@ -2,12 +2,12 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 // ChannelLeaderEvaluateRequest asks a replica to evaluate local promotion safety.
@@ -48,8 +48,8 @@ type channelLeaderEvaluateResponse struct {
 }
 
 func (a *Adapter) handleChannelLeaderEvaluateRPC(ctx context.Context, body []byte) ([]byte, error) {
-	var req ChannelLeaderEvaluateRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	req, err := decodeChannelLeaderEvaluateRequest(body)
+	if err != nil {
 		return nil, err
 	}
 	if a == nil || a.channelLeaderEvaluate == nil {
@@ -74,7 +74,18 @@ func (a *Adapter) handleChannelLeaderEvaluateRPC(ctx context.Context, body []byt
 
 // EvaluateChannelLeaderCandidate asks one replica to dry-run a promotion.
 func (c *Client) EvaluateChannelLeaderCandidate(ctx context.Context, nodeID uint64, req channelmeta.LeaderEvaluateRequest) (channelmeta.LeaderPromotionReport, error) {
-	resp, err := callDirectRPC(ctx, c, nodeID, channelLeaderEvaluateRPCServiceID, fromChannelmetaLeaderEvaluateRequest(req), decodeChannelLeaderEvaluateResponse)
+	if c == nil || c.cluster == nil {
+		return channelmeta.LeaderPromotionReport{}, fmt.Errorf("access/node: cluster not configured")
+	}
+	body, err := encodeChannelLeaderEvaluateRequestBinary(fromChannelmetaLeaderEvaluateRequest(req))
+	if err != nil {
+		return channelmeta.LeaderPromotionReport{}, err
+	}
+	respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(nodeID), 0, channelLeaderEvaluateRPCServiceID, body)
+	if err != nil {
+		return channelmeta.LeaderPromotionReport{}, err
+	}
+	resp, err := decodeChannelLeaderEvaluateResponse(respBody)
 	if err != nil {
 		return channelmeta.LeaderPromotionReport{}, err
 	}
@@ -92,13 +103,11 @@ func (c *Client) EvaluateChannelLeaderCandidate(ctx context.Context, nodeID uint
 }
 
 func encodeChannelLeaderEvaluateResponse(resp channelLeaderEvaluateResponse) ([]byte, error) {
-	return json.Marshal(resp)
+	return encodeChannelLeaderEvaluateResponseBinary(resp)
 }
 
 func decodeChannelLeaderEvaluateResponse(body []byte) (channelLeaderEvaluateResponse, error) {
-	var resp channelLeaderEvaluateResponse
-	err := json.Unmarshal(body, &resp)
-	return resp, err
+	return decodeChannelLeaderEvaluateResponseBinary(body)
 }
 
 func containsUint64(values []uint64, target uint64) bool {

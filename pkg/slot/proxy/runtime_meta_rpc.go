@@ -3,7 +3,6 @@ package proxy
 import (
 	"container/heap"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -138,7 +137,7 @@ func (s *Store) BatchGetChannelRuntimeMetas(ctx context.Context, keys []metadb.C
 }
 
 func (s *Store) callRuntimeMetaRPC(ctx context.Context, slotID multiraft.SlotID, req runtimeMetaRPCRequest) (runtimeMetaRPCResponse, error) {
-	payload, err := json.Marshal(req)
+	payload, err := encodeRuntimeMetaRPCRequestBinary(req)
 	if err != nil {
 		return runtimeMetaRPCResponse{}, err
 	}
@@ -146,8 +145,8 @@ func (s *Store) callRuntimeMetaRPC(ctx context.Context, slotID multiraft.SlotID,
 }
 
 func (s *Store) handleRuntimeMetaRPC(ctx context.Context, body []byte) ([]byte, error) {
-	var req runtimeMetaRPCRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	req, err := decodeRuntimeMetaRPCRequest(body)
+	if err != nil {
 		return nil, err
 	}
 
@@ -342,15 +341,11 @@ func (s *Store) singleLocalPeerSlot(slotID multiraft.SlotID) bool {
 }
 
 func encodeRuntimeMetaRPCResponse(resp runtimeMetaRPCResponse) ([]byte, error) {
-	return json.Marshal(resp)
+	return encodeRuntimeMetaRPCResponseBinary(resp)
 }
 
 func decodeRuntimeMetaRPCResponse(body []byte) (runtimeMetaRPCResponse, error) {
-	var resp runtimeMetaRPCResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return runtimeMetaRPCResponse{}, err
-	}
-	return resp, nil
+	return decodeRuntimeMetaRPCResponseBinary(body)
 }
 
 type runtimeMetaMergeItem struct {

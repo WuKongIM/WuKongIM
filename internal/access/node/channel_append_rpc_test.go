@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
@@ -127,6 +126,77 @@ func requireNodeFieldValue[T any](t *testing.T, entry nodeRecordedLogEntry, key 
 	value, ok := field.Value.(T)
 	require.True(t, ok, "field %q has type %T, want %T", key, field.Value, *new(T))
 	return value
+}
+
+func TestChannelAppendBinaryCodecRoundTrip(t *testing.T) {
+	req := channelAppendRequest{AppendRequest: channel.AppendRequest{
+		ChannelID: channel.ChannelID{ID: "append-binary", Type: frame.ChannelTypeGroup},
+		Message: channel.Message{
+			MessageID:  7,
+			MessageSeq: 8,
+			Framer: frame.Framer{
+				FrameType:        frame.SEND,
+				RemainingLength:  12,
+				NoPersist:        true,
+				RedDot:           true,
+				SyncOnce:         true,
+				DUP:              true,
+				HasServerVersion: true,
+				End:              true,
+				FrameSize:        34,
+			},
+			Setting:     frame.SettingReceiptEnabled | frame.SettingTopic,
+			MsgKey:      "key",
+			Expire:      60,
+			ClientSeq:   9,
+			ClientMsgNo: "client-1",
+			StreamNo:    "stream-1",
+			StreamID:    10,
+			StreamFlag:  frame.StreamFlagIng,
+			Timestamp:   1777777777,
+			ChannelID:   "append-binary",
+			ChannelType: frame.ChannelTypeGroup,
+			Topic:       "topic-1",
+			FromUID:     "u1",
+			Payload:     []byte("hello"),
+		},
+		SupportsMessageSeqU64: true,
+		CommitMode:            channel.CommitModeLocal,
+		ExpectedChannelEpoch:  11,
+		ExpectedLeaderEpoch:   12,
+	}}
+
+	reqBody, err := encodeChannelAppendRequestBinary(req)
+	require.NoError(t, err)
+	require.True(t, isChannelAppendRequestBinary(reqBody))
+
+	gotReq, err := decodeChannelAppendRequest(reqBody)
+	require.NoError(t, err)
+	require.Equal(t, req, gotReq)
+
+	resp := channelAppendResponse{
+		Status:   rpcStatusOK,
+		LeaderID: 2,
+		Result: channel.AppendResult{
+			MessageID:  13,
+			MessageSeq: 14,
+			Message:    req.AppendRequest.Message,
+		},
+	}
+	respBody, err := encodeChannelAppendResponse(resp)
+	require.NoError(t, err)
+	require.True(t, isChannelAppendResponseBinary(respBody))
+
+	gotResp, err := decodeChannelAppendResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, resp, gotResp)
+}
+
+func TestChannelAppendRPCRejectsJSONPayload(t *testing.T) {
+	adapter := New(Options{ChannelLog: &stubNodeChannelLog{}})
+
+	_, err := adapter.handleChannelAppendRPC(context.Background(), []byte(`{"append_request":{"channel_id":{"id":"append-json","type":2}}}`))
+	require.Error(t, err)
 }
 
 func TestAppendToLeaderRPCAppendsOnTargetNode(t *testing.T) {
@@ -278,7 +348,7 @@ func TestAppendToLeaderRPCLogsRefreshDiagnostics(t *testing.T) {
 		ChannelMeta: refresher,
 		Logger:      logger,
 	})
-	reqBody, err := json.Marshal(channelAppendRequest{AppendRequest: req})
+	reqBody, err := encodeChannelAppendRequestBinary(channelAppendRequest{AppendRequest: req})
 	require.NoError(t, err)
 
 	_, err = adapter.handleChannelAppendRPC(context.Background(), reqBody)

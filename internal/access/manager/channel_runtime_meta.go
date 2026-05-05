@@ -2,8 +2,6 @@ package manager
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -174,38 +172,11 @@ func encodeChannelRuntimeMetaCursor(cursor managementusecase.ChannelRuntimeMetaL
 	if cursor == (managementusecase.ChannelRuntimeMetaListCursor{}) {
 		return "", nil
 	}
-	payload, err := json.Marshal(channelRuntimeMetaCursorPayload{
-		Version:     1,
-		SlotID:      cursor.SlotID,
-		ChannelID:   cursor.ChannelID,
-		ChannelType: cursor.ChannelType,
-	})
-	if err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(payload), nil
+	return encodeChannelRuntimeMetaCursorBinary(cursor), nil
 }
 
 func decodeChannelRuntimeMetaCursor(raw string) (managementusecase.ChannelRuntimeMetaListCursor, error) {
-	if raw == "" {
-		return managementusecase.ChannelRuntimeMetaListCursor{}, nil
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(raw)
-	if err != nil {
-		return managementusecase.ChannelRuntimeMetaListCursor{}, err
-	}
-	var body channelRuntimeMetaCursorPayload
-	if err := json.Unmarshal(payload, &body); err != nil {
-		return managementusecase.ChannelRuntimeMetaListCursor{}, err
-	}
-	if err := validateChannelRuntimeMetaCursorPayload(body); err != nil {
-		return managementusecase.ChannelRuntimeMetaListCursor{}, err
-	}
-	return managementusecase.ChannelRuntimeMetaListCursor{
-		SlotID:      body.SlotID,
-		ChannelID:   body.ChannelID,
-		ChannelType: body.ChannelType,
-	}, nil
+	return decodeChannelRuntimeMetaCursorRaw(raw)
 }
 
 func validateChannelRuntimeMetaCursorPayload(payload channelRuntimeMetaCursorPayload) error {

@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -20,7 +19,7 @@ func TestHandleIdentityRPCComputesHashSlotFromUID(t *testing.T) {
 	want := metadb.User{UID: uid, Token: "identity-token"}
 	require.NoError(t, nodes[1].db.ForHashSlot(hashSlot).CreateUser(ctx, want))
 
-	body, err := json.Marshal(identityRPCRequest{
+	body, err := encodeIdentityRPCRequestBinary(identityRPCRequest{
 		Op:     identityRPCGetUser,
 		SlotID: 2,
 		UID:    uid,
@@ -68,7 +67,7 @@ func TestHandleRuntimeMetaRPCComputesHashSlotFromChannelID(t *testing.T) {
 		Status:       1,
 	}))
 
-	body, err := json.Marshal(runtimeMetaRPCRequest{
+	body, err := encodeRuntimeMetaRPCRequestBinary(runtimeMetaRPCRequest{
 		Op:          runtimeMetaRPCGet,
 		SlotID:      2,
 		ChannelID:   channelID,
@@ -96,7 +95,7 @@ func TestHandleSubscriberRPCFallsBackToChannelHashSlot(t *testing.T) {
 
 	require.NoError(t, nodes[1].db.ForHashSlot(hashSlot).AddSubscribers(ctx, channelID, 2, []string{"u3", "u1", "u2"}))
 
-	body, err := json.Marshal(subscriberRPCRequest{
+	body, err := encodeSubscriberRPCRequestBinary(subscriberRPCRequest{
 		SlotID:      2,
 		ChannelID:   channelID,
 		ChannelType: 2,
@@ -123,16 +122,16 @@ func TestHandleUserConversationStateRPCFallsBackToUIDHashSlot(t *testing.T) {
 	require.NotEqual(t, uint16(2), hashSlot)
 
 	want := metadb.UserConversationState{
-		UID:         uid,
-		ChannelID:   "g-fallback",
-		ChannelType: 2,
-		ReadSeq:     9,
+		UID:          uid,
+		ChannelID:    "g-fallback",
+		ChannelType:  2,
+		ReadSeq:      9,
 		DeletedToSeq: 5,
-		ActiveAt:    1234,
+		ActiveAt:     1234,
 	}
 	require.NoError(t, nodes[1].db.ForHashSlot(hashSlot).UpsertUserConversationState(ctx, want))
 
-	body, err := json.Marshal(userConversationStateRPCRequest{
+	body, err := encodeUserConversationStateRPCRequestBinary(userConversationStateRPCRequest{
 		Op:          userConversationStateRPCGet,
 		SlotID:      2,
 		UID:         uid,

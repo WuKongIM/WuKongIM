@@ -2,14 +2,14 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
-)
 
-import "github.com/WuKongIM/WuKongIM/pkg/channel"
-import "github.com/WuKongIM/WuKongIM/pkg/wklog"
+	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+)
 
 type channelAppendRequest struct {
 	AppendRequest channel.AppendRequest `json:"append_request"`
@@ -30,8 +30,8 @@ func (r channelAppendResponse) rpcLeaderID() uint64 {
 }
 
 func (a *Adapter) handleChannelAppendRPC(ctx context.Context, body []byte) ([]byte, error) {
-	var req channelAppendRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	req, err := decodeChannelAppendRequest(body)
+	if err != nil {
 		return nil, err
 	}
 	if a.channelLog == nil {
@@ -122,11 +122,17 @@ func (a *Adapter) refreshChannelAppendMeta(ctx context.Context, id channel.Chann
 }
 
 func (c *Client) AppendToLeader(ctx context.Context, nodeID uint64, req channel.AppendRequest) (channel.AppendResult, error) {
-	if c.cluster == nil {
+	if c == nil || c.cluster == nil {
 		return channel.AppendResult{}, fmt.Errorf("access/node: cluster not configured")
 	}
 	if nodeID == 0 {
 		return channel.AppendResult{}, channel.ErrNotLeader
+	}
+	body, err := encodeChannelAppendRequestBinary(channelAppendRequest{
+		AppendRequest: req,
+	})
+	if err != nil {
+		return channel.AppendResult{}, err
 	}
 
 	tried := make(map[uint64]struct{}, 2)
@@ -144,24 +150,29 @@ func (c *Client) AppendToLeader(ctx context.Context, nodeID uint64, req channel.
 		}
 		tried[target] = struct{}{}
 
-		resp, err := callDirectRPC(ctx, c, target, channelAppendRPCServiceID, channelAppendRequest{
-			AppendRequest: req,
-		}, decodeChannelAppendResponse)
+		respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(target), 0, channelAppendRPCServiceID, body)
+		if err == nil {
+			var resp channelAppendResponse
+			resp, err = decodeChannelAppendResponse(respBody)
+			if err == nil {
+				switch resp.Status {
+				case rpcStatusOK:
+					return resp.Result, nil
+				case rpcStatusNotLeader:
+					lastErr = channel.ErrNotLeader
+					if resp.LeaderID != 0 {
+						candidates = append([]uint64{resp.LeaderID}, candidates...)
+					}
+					continue
+				default:
+					lastErr = fmt.Errorf("access/node: unexpected channel append status %q", resp.Status)
+					continue
+				}
+			}
+		}
 		if err != nil {
 			lastErr = normalizeChannelAppendRPCError(err)
 			continue
-		}
-
-		switch resp.Status {
-		case rpcStatusOK:
-			return resp.Result, nil
-		case rpcStatusNotLeader:
-			lastErr = channel.ErrNotLeader
-			if resp.LeaderID != 0 {
-				candidates = append([]uint64{resp.LeaderID}, candidates...)
-			}
-		default:
-			lastErr = fmt.Errorf("access/node: unexpected channel append status %q", resp.Status)
 		}
 	}
 
@@ -172,13 +183,11 @@ func (c *Client) AppendToLeader(ctx context.Context, nodeID uint64, req channel.
 }
 
 func encodeChannelAppendResponse(resp channelAppendResponse) ([]byte, error) {
-	return json.Marshal(resp)
+	return encodeChannelAppendResponseBinary(resp)
 }
 
 func decodeChannelAppendResponse(body []byte) (channelAppendResponse, error) {
-	var resp channelAppendResponse
-	err := json.Unmarshal(body, &resp)
-	return resp, err
+	return decodeChannelAppendResponseBinary(body)
 }
 
 func normalizeChannelAppendRPCError(err error) error {
