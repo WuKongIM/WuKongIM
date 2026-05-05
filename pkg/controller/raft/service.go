@@ -61,6 +61,14 @@ type trackedProposal struct {
 	resp chan error
 }
 
+// runStartupState carries durable startup indexes into the Raft run loop.
+type runStartupState struct {
+	// State is the persisted Raft bootstrap state loaded before RawNode creation.
+	State multiraft.BootstrapState
+	// Snapshot is the persisted Raft snapshot, if one exists at startup.
+	Snapshot raftpb.Snapshot
+}
+
 type storageAdapter struct {
 	storage multiraft.Storage
 	memory  *loadedMemoryStorage
@@ -207,6 +215,10 @@ func (s *Service) Start(ctx context.Context) error {
 	if err := s.cfg.validateCore(); err != nil {
 		return err
 	}
+	s.cfg.LogCompaction = NormalizeLogCompactionConfig(s.cfg.LogCompaction)
+	if err := ValidateLogCompactionConfig(s.cfg.LogCompaction); err != nil {
+		return err
+	}
 
 	s.mu.Lock()
 	if s.started {
@@ -222,8 +234,10 @@ func (s *Service) Start(ctx context.Context) error {
 		return err
 	}
 	if !raft.IsEmptySnap(snapshot) {
-		s.mu.Unlock()
-		return ErrSnapshotUnsupported
+		if err := s.cfg.StateMachine.Restore(ctx, append([]byte(nil), snapshot.Data...)); err != nil {
+			s.mu.Unlock()
+			return err
+		}
 	}
 	if !hasPersistedState(state) {
 		if err := s.cfg.validateBootstrapPeers(); err != nil {
@@ -232,12 +246,16 @@ func (s *Service) Start(ctx context.Context) error {
 		}
 	}
 
+	appliedIndex := state.AppliedIndex
+	if !raft.IsEmptySnap(snapshot) {
+		appliedIndex = snapshot.Metadata.Index
+	}
 	rawNode, err := raft.NewRawNode(&raft.Config{
 		ID:                       s.cfg.NodeID,
 		ElectionTick:             electionTick,
 		HeartbeatTick:            heartbeatTick,
 		Storage:                  storageView.memory,
-		Applied:                  state.AppliedIndex,
+		Applied:                  appliedIndex,
 		MaxSizePerMsg:            math.MaxUint64,
 		MaxCommittedSizePerReady: math.MaxUint64,
 		MaxInflightMsgs:          256,
@@ -269,7 +287,7 @@ func (s *Service) Start(ctx context.Context) error {
 		s.updateLeader(rawNode)
 	}
 
-	go s.run(rawNode, storageView, s.stopCh, s.doneCh, s.transport)
+	go s.run(rawNode, storageView, runStartupState{State: state, Snapshot: snapshot}, s.stopCh, s.doneCh, s.transport)
 	return nil
 }
 
@@ -435,7 +453,7 @@ func (s *Service) dropInboundRaftMessage(msg raftpb.Message) bool {
 	return true
 }
 
-func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, stopCh <-chan struct{}, doneCh chan struct{}, transport *raftTransport) {
+func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, transport *raftTransport) {
 	defer close(doneCh)
 
 	ticker := time.NewTicker(tickInterval)
@@ -443,6 +461,10 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, stopCh
 
 	pendingQueue := make([]trackedProposal, 0, 8)
 	pendingByIndex := make(map[uint64]trackedProposal)
+	latestConfState := cloneConfState(startup.State.ConfState)
+	if !raft.IsEmptySnap(startup.Snapshot) {
+		latestConfState = cloneConfState(startup.Snapshot.Metadata.ConfState)
+	}
 
 	processReady := func() error {
 		for rawNode.HasReady() {
@@ -473,8 +495,12 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, stopCh
 
 			lastApplied := uint64(0)
 			if !raft.IsEmptySnap(ready.Snapshot) {
-				failTracked(pendingQueue, pendingByIndex, ErrSnapshotUnsupported)
-				return ErrSnapshotUnsupported
+				applied, err := s.restoreReadySnapshot(context.Background(), ready.Snapshot, storageView, &latestConfState)
+				if err != nil {
+					failTracked(pendingQueue, pendingByIndex, err)
+					return err
+				}
+				lastApplied = applied
 			}
 
 			for _, entry := range ready.CommittedEntries {
@@ -507,7 +533,14 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, stopCh
 						failTracked(pendingQueue, pendingByIndex, err)
 						return err
 					}
-					rawNode.ApplyConfChange(cc)
+					latestConfState = cloneConfState(*rawNode.ApplyConfChange(cc))
+				case raftpb.EntryConfChangeV2:
+					var cc raftpb.ConfChangeV2
+					if err := cc.Unmarshal(entry.Data); err != nil {
+						failTracked(pendingQueue, pendingByIndex, err)
+						return err
+					}
+					latestConfState = cloneConfState(*rawNode.ApplyConfChange(cc))
 				}
 			}
 
@@ -571,6 +604,18 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, stopCh
 	}
 }
 
+// restoreReadySnapshot restores Controller metadata from a non-empty Ready snapshot.
+func (s *Service) restoreReadySnapshot(ctx context.Context, snap raftpb.Snapshot, storageView *storageAdapter, latestConfState *raftpb.ConfState) (uint64, error) {
+	if raft.IsEmptySnap(snap) {
+		return 0, nil
+	}
+	if err := s.cfg.StateMachine.Restore(ctx, append([]byte(nil), snap.Data...)); err != nil {
+		return 0, err
+	}
+	*latestConfState = cloneConfState(snap.Metadata.ConfState)
+	return snap.Metadata.Index, nil
+}
+
 func (s *Service) setError(err error) {
 	s.mu.Lock()
 	s.err = err
@@ -632,7 +677,11 @@ func (s *storageAdapter) load(ctx context.Context) (multiraft.BootstrapState, ra
 		}
 	}
 
-	loaded := newLoadedMemoryStorage(memory, state.ConfState)
+	loadedConfState := state.ConfState
+	if !raft.IsEmptySnap(snap) {
+		loadedConfState = snap.Metadata.ConfState
+	}
+	loaded := newLoadedMemoryStorage(memory, loadedConfState)
 	s.memory = loaded
 	return state, snap, loaded, nil
 }
