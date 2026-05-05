@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -414,7 +415,9 @@ func TestServiceCompactionFailureDoesNotFailProposalLoop(t *testing.T) {
 	env.waitForLeader(t, []uint64{1})
 
 	sentinel := errors.New("compact once")
+	var hookCalls atomic.Uint32
 	setCompactControllerLogHookForTest(func() error {
+		hookCalls.Add(1)
 		return sentinel
 	})
 	t.Cleanup(func() {
@@ -424,6 +427,9 @@ func TestServiceCompactionFailureDoesNotFailProposalLoop(t *testing.T) {
 	node := env.nodes[1]
 	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(2)))
 	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(3)))
+	require.Eventually(t, func() bool {
+		return hookCalls.Load() > 0
+	}, 2*time.Second, 10*time.Millisecond)
 
 	setCompactControllerLogHookForTest(nil)
 	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(4)))
