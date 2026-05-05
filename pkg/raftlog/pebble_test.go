@@ -139,9 +139,10 @@ func TestPebbleControllerSnapshotTrimsCoveredEntries(t *testing.T) {
 
 	store := db.ForController()
 	hs := raftpb.HardState{Term: 3, Vote: 1, Commit: 8}
+	initial := benchEntries(1, 8, 3, 8)
 	if err := store.Save(ctx, multiraft.PersistentState{
 		HardState: &hs,
-		Entries:   benchEntries(1, 8, 3, 8),
+		Entries:   initial,
 	}); err != nil {
 		t.Fatalf("Save(entries) error = %v", err)
 	}
@@ -178,16 +179,17 @@ func TestPebbleControllerSnapshotTrimsCoveredEntries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Snapshot() error = %v", err)
 	}
-	if gotSnap.Metadata.Index != snap.Metadata.Index {
-		t.Fatalf("Snapshot index = %d, want %d", gotSnap.Metadata.Index, snap.Metadata.Index)
+	if !reflect.DeepEqual(gotSnap.Metadata, snap.Metadata) {
+		t.Fatalf("Snapshot metadata = %#v, want %#v", gotSnap.Metadata, snap.Metadata)
 	}
 
-	entries, err := store.Entries(ctx, 7, 9, 0)
+	entries, err := store.Entries(ctx, 1, 9, 0)
 	if err != nil {
 		t.Fatalf("Entries() error = %v", err)
 	}
-	if len(entries) != 2 {
-		t.Fatalf("len(entries) = %d, want 2", len(entries))
+	want := []raftpb.Entry{initial[6], initial[7]}
+	if !reflect.DeepEqual(entries, want) {
+		t.Fatalf("Entries(1,9) = %#v, want %#v", entries, want)
 	}
 }
 
