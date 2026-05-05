@@ -179,15 +179,46 @@ func TestConfigApplyDefaultsPreservesControllerLogCompactionDisabled(t *testing.
 }
 
 func TestConfigValidateRejectsInvalidEnabledControllerLogCompaction(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.ControllerLogCompaction = controllerraft.LogCompactionConfig{
-		Enabled:       true,
-		EnabledSet:    true,
-		CheckInterval: time.Second,
+	tests := []struct {
+		name       string
+		compaction controllerraft.LogCompactionConfig
+	}{
+		{
+			name: "missing trigger entries",
+			compaction: controllerraft.LogCompactionConfig{
+				Enabled:       true,
+				EnabledSet:    true,
+				CheckInterval: time.Second,
+			},
+		},
+		{
+			name: "zero check interval",
+			compaction: controllerraft.LogCompactionConfig{
+				Enabled:        true,
+				EnabledSet:     true,
+				TriggerEntries: 1,
+			},
+		},
+		{
+			name: "negative check interval",
+			compaction: controllerraft.LogCompactionConfig{
+				Enabled:        true,
+				EnabledSet:     true,
+				TriggerEntries: 1,
+				CheckInterval:  -time.Second,
+			},
+		},
 	}
 
-	if err := cfg.validate(); !errors.Is(err, controllerraft.ErrInvalidConfig) {
-		t.Fatalf("expected controllerraft.ErrInvalidConfig, got: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validTestConfig()
+			cfg.ControllerLogCompaction = tt.compaction
+
+			if err := cfg.validate(); !errors.Is(err, controllerraft.ErrInvalidConfig) {
+				t.Fatalf("expected controllerraft.ErrInvalidConfig, got: %v", err)
+			}
+		})
 	}
 }
 
