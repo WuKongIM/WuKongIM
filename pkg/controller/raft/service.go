@@ -493,62 +493,9 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, startu
 				}
 			}
 
-			lastApplied := uint64(0)
-			if !raft.IsEmptySnap(ready.Snapshot) {
-				applied, err := s.restoreReadySnapshot(context.Background(), ready.Snapshot, storageView, &latestConfState)
-				if err != nil {
-					failTracked(pendingQueue, pendingByIndex, err)
-					return err
-				}
-				lastApplied = applied
-			}
-
-			for _, entry := range ready.CommittedEntries {
-				lastApplied = entry.Index
-				switch entry.Type {
-				case raftpb.EntryNormal:
-					if len(entry.Data) == 0 {
-						continue
-					}
-					cmd, err := decodeCommand(entry.Data)
-					if err != nil {
-						failTracked(pendingQueue, pendingByIndex, err)
-						return err
-					}
-					err = s.cfg.StateMachine.Apply(context.Background(), cmd)
-					if err == nil && s.cfg.OnCommittedCommand != nil {
-						s.cfg.OnCommittedCommand(cmd)
-					}
-					if tracked, ok := pendingByIndex[entry.Index]; ok {
-						tracked.resp <- err
-						delete(pendingByIndex, entry.Index)
-					}
-					if err != nil {
-						failTracked(pendingQueue, pendingByIndex, err)
-						return err
-					}
-				case raftpb.EntryConfChange:
-					var cc raftpb.ConfChange
-					if err := cc.Unmarshal(entry.Data); err != nil {
-						failTracked(pendingQueue, pendingByIndex, err)
-						return err
-					}
-					latestConfState = cloneConfState(*rawNode.ApplyConfChange(cc))
-				case raftpb.EntryConfChangeV2:
-					var cc raftpb.ConfChangeV2
-					if err := cc.Unmarshal(entry.Data); err != nil {
-						failTracked(pendingQueue, pendingByIndex, err)
-						return err
-					}
-					latestConfState = cloneConfState(*rawNode.ApplyConfChange(cc))
-				}
-			}
-
-			if lastApplied > 0 {
-				if err := storageView.storage.MarkApplied(context.Background(), lastApplied); err != nil {
-					failTracked(pendingQueue, pendingByIndex, err)
-					return err
-				}
+			if err := s.applyReadyState(context.Background(), rawNode, ready, storageView, &latestConfState, pendingByIndex); err != nil {
+				failTracked(pendingQueue, pendingByIndex, err)
+				return err
 			}
 
 			rawNode.Advance(ready)
@@ -602,6 +549,62 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, startu
 			pendingQueue = append(pendingQueue, trackedProposal{resp: req.resp})
 		}
 	}
+}
+
+// applyReadyState restores Ready snapshots, applies committed entries, and marks the durable applied index.
+func (s *Service) applyReadyState(ctx context.Context, rawNode *raft.RawNode, ready raft.Ready, storageView *storageAdapter, latestConfState *raftpb.ConfState, pendingByIndex map[uint64]trackedProposal) error {
+	lastApplied := uint64(0)
+	if !raft.IsEmptySnap(ready.Snapshot) {
+		applied, err := s.restoreReadySnapshot(ctx, ready.Snapshot, storageView, latestConfState)
+		if err != nil {
+			return err
+		}
+		lastApplied = applied
+	}
+
+	for _, entry := range ready.CommittedEntries {
+		lastApplied = entry.Index
+		switch entry.Type {
+		case raftpb.EntryNormal:
+			if len(entry.Data) == 0 {
+				continue
+			}
+			cmd, err := decodeCommand(entry.Data)
+			if err != nil {
+				return err
+			}
+			err = s.cfg.StateMachine.Apply(ctx, cmd)
+			if err == nil && s.cfg.OnCommittedCommand != nil {
+				s.cfg.OnCommittedCommand(cmd)
+			}
+			if tracked, ok := pendingByIndex[entry.Index]; ok {
+				tracked.resp <- err
+				delete(pendingByIndex, entry.Index)
+			}
+			if err != nil {
+				return err
+			}
+		case raftpb.EntryConfChange:
+			var cc raftpb.ConfChange
+			if err := cc.Unmarshal(entry.Data); err != nil {
+				return err
+			}
+			latest := rawNode.ApplyConfChange(cc)
+			*latestConfState = cloneConfState(*latest)
+		case raftpb.EntryConfChangeV2:
+			var cc raftpb.ConfChangeV2
+			if err := cc.Unmarshal(entry.Data); err != nil {
+				return err
+			}
+			latest := rawNode.ApplyConfChange(cc)
+			*latestConfState = cloneConfState(*latest)
+		}
+	}
+
+	if lastApplied == 0 {
+		return nil
+	}
+	return storageView.storage.MarkApplied(ctx, lastApplied)
 }
 
 // restoreReadySnapshot restores Controller metadata from a non-empty Ready snapshot.
