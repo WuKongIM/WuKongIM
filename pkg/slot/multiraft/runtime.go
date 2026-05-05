@@ -102,22 +102,27 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 	}
 	defer g.finishProcessing()
 
-	g.processRequests()
+	worked := g.processRequests()
 	if !g.shouldProcess() {
 		return false
 	}
-	g.processControls()
+	worked = g.processControls() || worked
 	if !g.shouldProcess() {
 		return false
 	}
-	g.processTick()
+	worked = g.processTick() || worked
 	if !g.shouldProcess() {
 		return false
 	}
-	if g.processReady(context.Background(), r.opts.Transport) {
-		g.refreshStatus()
+	readyProcessed, requeue := g.processReady(context.Background(), r.opts.Transport)
+	if requeue {
 		return true
 	}
-	g.refreshStatus()
+	if readyProcessed {
+		return false
+	}
+	if worked {
+		g.refreshStatus()
+	}
 	return false
 }

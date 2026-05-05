@@ -40,6 +40,14 @@ type slot struct {
 	transportBuf       []Envelope
 	tickPending        bool
 	tickCount          int
+	// votersInitialized reports whether CurrentVoters has been populated from a full Raft status.
+	votersInitialized bool
+	// votersDirty requests a full status refresh after applying a config change.
+	votersDirty bool
+	// basicStatusRefreshCount counts allocation-light status refreshes for regression tests.
+	basicStatusRefreshCount int
+	// fullStatusRefreshCount counts full RawNode.Status refreshes for regression tests.
+	fullStatusRefreshCount int
 }
 
 type trackedFuture struct {
@@ -134,13 +142,14 @@ func (g *slot) enqueueRequest(msg raftpb.Message) error {
 	return nil
 }
 
-func (g *slot) processRequests() {
+func (g *slot) processRequests() bool {
 	requests := g.takeRequestBatch()
 	defer g.releaseRequestBatch(requests)
 
 	for _, msg := range requests {
 		_ = g.rawNode.Step(msg)
 	}
+	return len(requests) > 0
 }
 
 func (g *slot) enqueueControl(action controlAction) error {
@@ -162,7 +171,7 @@ func (g *slot) enqueueControl(action controlAction) error {
 	return nil
 }
 
-func (g *slot) processControls() {
+func (g *slot) processControls() bool {
 	controls := g.takeControlBatch()
 	defer g.releaseControlBatch(controls)
 
@@ -195,6 +204,7 @@ func (g *slot) processControls() {
 			g.rawNode.TransferLeader(uint64(action.target))
 		}
 	}
+	return len(controls) > 0
 }
 
 func (g *slot) takeRequestBatch() []raftpb.Message {
@@ -263,27 +273,28 @@ func (g *slot) markTickPending() {
 	g.tickPending = true
 }
 
-func (g *slot) processTick() {
+func (g *slot) processTick() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	if !g.tickPending {
-		return
+		return false
 	}
 	g.tickPending = false
 	g.tickCount++
 	g.rawNode.Tick()
+	return true
 }
 
-func (g *slot) processReady(ctx context.Context, transport Transport) bool {
+func (g *slot) processReady(ctx context.Context, transport Transport) (bool, bool) {
 	if !g.rawNode.HasReady() {
-		return false
+		return false, false
 	}
 
 	ready := g.rawNode.Ready()
 	if err := g.storageView.persistReady(ctx, ready); err != nil {
 		g.failPending(err)
-		return false
+		return true, false
 	}
 	proposalCount, configCount := countTrackedReadyEntries(ready.Entries)
 	g.ensurePendingProposalCapacity(proposalCount)
@@ -308,7 +319,7 @@ func (g *slot) processReady(ctx context.Context, transport Transport) bool {
 			Data:  append([]byte(nil), ready.Snapshot.Data...),
 		}); err != nil {
 			g.fail(err)
-			return false
+			return true, false
 		}
 		lastApplied = ready.Snapshot.Metadata.Index
 	}
@@ -316,20 +327,20 @@ func (g *slot) processReady(ctx context.Context, transport Transport) bool {
 	batchSM, canBatch := g.stateMachine.(BatchStateMachine)
 	resolutions = g.applyCommittedEntries(ctx, ready.CommittedEntries, &lastApplied, resolutions, batchSM, canBatch)
 	if g.fatalErr != nil {
-		return false
+		return true, false
 	}
 
 	if lastApplied > appliedBeforeReady {
 		if err := g.storage.MarkApplied(ctx, lastApplied); err != nil {
 			g.fail(err)
-			return false
+			return true, false
 		}
 	}
 
 	g.rawNode.Advance(ready)
 	g.refreshStatus()
 	g.completeResolutions(resolutions)
-	return g.rawNode.HasReady()
+	return true, g.rawNode.HasReady()
 }
 
 func (g *slot) applyCommittedEntries(
@@ -465,6 +476,7 @@ func (g *slot) applyCommittedEntries(
 				continue
 			}
 			g.rawNode.ApplyConfChange(cc)
+			g.markVotersDirty()
 			resolutions = append(resolutions, futureResolution{
 				kind:  controlConfigChange,
 				index: entry.Index,
@@ -501,12 +513,43 @@ func (g *slot) completeResolutions(resolutions []futureResolution) {
 }
 
 func (g *slot) refreshStatus() {
+	if g.needsFullStatusRefresh() {
+		g.refreshFullStatus()
+		return
+	}
+	g.refreshBasicStatus()
+}
+
+func (g *slot) needsFullStatusRefresh() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return !g.votersInitialized || g.votersDirty
+}
+
+// refreshBasicStatus updates volatile Raft status without cloning tracker progress.
+func (g *slot) refreshBasicStatus() {
+	st := g.rawNode.BasicStatus()
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.basicStatusRefreshCount++
+	g.applyBasicStatusLocked(st)
+}
+
+// refreshFullStatus updates voter membership and basic status from RawNode.Status.
+func (g *slot) refreshFullStatus() {
 	st := g.rawNode.Status()
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.fullStatusRefreshCount++
+	g.votersInitialized = true
+	g.votersDirty = false
+	g.status.CurrentVoters = currentVotersFromRaftStatus(st)
+	g.applyBasicStatusLocked(st.BasicStatus)
+}
+
+func (g *slot) applyBasicStatusLocked(st raft.BasicStatus) {
 	prevRole := g.status.Role
 	g.status.LeaderID = NodeID(st.Lead)
-	g.status.CurrentVoters = currentVotersFromRaftStatus(st)
 	g.status.Term = st.Term
 	g.status.CommitIndex = st.Commit
 	g.status.AppliedIndex = st.Applied
@@ -514,6 +557,12 @@ func (g *slot) refreshStatus() {
 	if prevRole == RoleLeader && g.status.Role != RoleLeader {
 		g.failLeadershipDependentLocked(ErrNotLeader)
 	}
+}
+
+func (g *slot) markVotersDirty() {
+	g.mu.Lock()
+	g.votersDirty = true
+	g.mu.Unlock()
 }
 
 func currentVotersFromRaftStatus(st raft.Status) []NodeID {
