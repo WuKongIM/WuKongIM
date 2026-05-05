@@ -149,6 +149,20 @@ type StorageConfig struct {
 	ControllerRaftPath string
 }
 
+// ControllerLogCompactionConfig controls local Controller Raft snapshot compaction.
+type ControllerLogCompactionConfig struct {
+	// Enabled controls whether this node creates local Controller Raft snapshots.
+	Enabled bool
+	// TriggerEntries is the applied-entry delta required before taking another snapshot.
+	TriggerEntries uint64
+	// CheckInterval is the minimum interval between compaction checks.
+	CheckInterval time.Duration
+
+	enabledSet        bool
+	triggerEntriesSet bool
+	checkIntervalSet  bool
+}
+
 // ClusterConfig defines controller, slot, and channel replication settings for this node's cluster runtime.
 type ClusterConfig struct {
 	// ListenAddr is the node-to-node cluster RPC listen address.
@@ -207,6 +221,8 @@ type ClusterConfig struct {
 	HeartbeatTick int
 	// DialTimeout is the timeout for node-to-node connection dialing.
 	DialTimeout time.Duration
+	// ControllerLogCompaction controls local Controller Raft snapshot compaction.
+	ControllerLogCompaction ControllerLogCompactionConfig
 	// Timeouts configures controller observation, managed slot, and retry budgets.
 	Timeouts raftcluster.Timeouts
 	// DataPlaneRPCTimeout is the timeout for channel data-plane RPCs.
@@ -254,6 +270,16 @@ func (c *ClusterConfig) SetReplicationExplicitFlags(longPollLaneCountSet, longPo
 	c.longPollMaxWaitSet = longPollMaxWaitSet
 	c.longPollMaxBytesSet = longPollMaxBytesSet
 	c.longPollMaxChannelsSet = longPollMaxChannelsSet
+}
+
+// SetControllerLogCompactionExplicitFlags records which Controller log compaction values were explicitly configured.
+func (c *ClusterConfig) SetControllerLogCompactionExplicitFlags(enabledSet, triggerEntriesSet, checkIntervalSet bool) {
+	if c == nil {
+		return
+	}
+	c.ControllerLogCompaction.enabledSet = enabledSet
+	c.ControllerLogCompaction.triggerEntriesSet = triggerEntriesSet
+	c.ControllerLogCompaction.checkIntervalSet = checkIntervalSet
 }
 
 // JoinModeEnabled reports whether any dynamic node join bootstrap setting is configured.
@@ -540,6 +566,26 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	}
 	if staticCluster && c.Cluster.SlotReplicaN > len(c.Cluster.Nodes) {
 		return fmt.Errorf("%w: slot replica count %d exceeds cluster nodes %d", ErrInvalidConfig, c.Cluster.SlotReplicaN, len(c.Cluster.Nodes))
+	}
+	if !c.Cluster.ControllerLogCompaction.enabledSet {
+		c.Cluster.ControllerLogCompaction.Enabled = true
+	}
+	if c.Cluster.ControllerLogCompaction.Enabled {
+		if c.Cluster.ControllerLogCompaction.TriggerEntries == 0 && c.Cluster.ControllerLogCompaction.triggerEntriesSet {
+			return fmt.Errorf("%w: controller log compaction trigger entries must be > 0", ErrInvalidConfig)
+		}
+		if c.Cluster.ControllerLogCompaction.CheckInterval == 0 && c.Cluster.ControllerLogCompaction.checkIntervalSet {
+			return fmt.Errorf("%w: controller log compaction check interval must be > 0", ErrInvalidConfig)
+		}
+		if c.Cluster.ControllerLogCompaction.CheckInterval < 0 {
+			return fmt.Errorf("%w: controller log compaction check interval must be > 0", ErrInvalidConfig)
+		}
+	}
+	if c.Cluster.ControllerLogCompaction.TriggerEntries == 0 {
+		c.Cluster.ControllerLogCompaction.TriggerEntries = 10000
+	}
+	if c.Cluster.ControllerLogCompaction.CheckInterval == 0 {
+		c.Cluster.ControllerLogCompaction.CheckInterval = 30 * time.Second
 	}
 	if c.Cluster.ChannelBootstrapDefaultMinISR <= 0 {
 		if c.Cluster.channelBootstrapDefaultMinISRSet {

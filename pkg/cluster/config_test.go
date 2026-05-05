@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -146,6 +147,47 @@ func TestConfigApplyDefaults(t *testing.T) {
 	}
 	if cfg.Timeouts.LeaderTransferRetryBudget != defaultLeaderTransferRetryBudget {
 		t.Fatalf("expected default LeaderTransferRetryBudget")
+	}
+}
+
+func TestConfigApplyDefaultsEnablesControllerLogCompaction(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.ControllerLogCompaction = controllerraft.LogCompactionConfig{}
+
+	cfg.applyDefaults()
+
+	if !cfg.ControllerLogCompaction.Enabled {
+		t.Fatal("ControllerLogCompaction.Enabled = false, want true")
+	}
+	if cfg.ControllerLogCompaction.TriggerEntries != 10000 {
+		t.Fatalf("ControllerLogCompaction.TriggerEntries = %d, want %d", cfg.ControllerLogCompaction.TriggerEntries, uint64(10000))
+	}
+	if cfg.ControllerLogCompaction.CheckInterval != 30*time.Second {
+		t.Fatalf("ControllerLogCompaction.CheckInterval = %v, want %v", cfg.ControllerLogCompaction.CheckInterval, 30*time.Second)
+	}
+}
+
+func TestConfigApplyDefaultsPreservesControllerLogCompactionDisabled(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.ControllerLogCompaction = controllerraft.LogCompactionConfig{Enabled: false, EnabledSet: true}
+
+	cfg.applyDefaults()
+
+	if cfg.ControllerLogCompaction.Enabled {
+		t.Fatal("ControllerLogCompaction.Enabled = true, want false")
+	}
+}
+
+func TestConfigValidateRejectsInvalidEnabledControllerLogCompaction(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.ControllerLogCompaction = controllerraft.LogCompactionConfig{
+		Enabled:       true,
+		EnabledSet:    true,
+		CheckInterval: time.Second,
+	}
+
+	if err := cfg.validate(); !errors.Is(err, controllerraft.ErrInvalidConfig) {
+		t.Fatalf("expected controllerraft.ErrInvalidConfig, got: %v", err)
 	}
 }
 

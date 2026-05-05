@@ -11,6 +11,7 @@ import (
 
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -53,6 +54,51 @@ func TestControllerHostStartElectsSingleLocalPeer(t *testing.T) {
 	}
 	if !host.IsLeader(cfg.NodeID) {
 		t.Fatal("controllerHost.IsLeader() = false, want true")
+	}
+}
+
+func TestNewControllerHostPassesLogCompactionConfig(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.ControllerReplicaN = 1
+	cfg.Nodes = []NodeConfig{{NodeID: cfg.NodeID, Addr: "127.0.0.1:0"}}
+	cfg.ControllerMetaPath = filepath.Join(t.TempDir(), "controller-meta")
+	cfg.ControllerRaftPath = filepath.Join(t.TempDir(), "controller-raft")
+	cfg.ControllerLogCompaction = controllerraft.LogCompactionConfig{
+		Enabled:        false,
+		EnabledSet:     true,
+		TriggerEntries: 123,
+		CheckInterval:  2 * time.Second,
+	}
+
+	discovery := NewStaticDiscovery(cfg.Nodes)
+	layer := newTransportLayer(cfg, discovery, nil)
+	requireNoErr(t, layer.Start(
+		"127.0.0.1:0",
+		func([]byte) {},
+		func([]byte) {},
+		func(context.Context, []byte) ([]byte, error) { return nil, nil },
+		func(context.Context, []byte) ([]byte, error) { return nil, nil },
+		func(context.Context, []byte) ([]byte, error) { return nil, nil },
+	))
+	t.Cleanup(layer.Stop)
+
+	cfg.Nodes[0].Addr = layer.server.Listener().Addr().String()
+	originalFactory := newControllerRaftService
+	var captured controllerraft.Config
+	newControllerRaftService = func(cfg controllerraft.Config) *controllerraft.Service {
+		captured = cfg
+		return originalFactory(cfg)
+	}
+	t.Cleanup(func() { newControllerRaftService = originalFactory })
+
+	host, err := newControllerHost(cfg, layer)
+	if err != nil {
+		t.Fatalf("newControllerHost() error = %v", err)
+	}
+	t.Cleanup(host.Stop)
+
+	if !reflect.DeepEqual(captured.LogCompaction, cfg.ControllerLogCompaction) {
+		t.Fatalf("captured LogCompaction = %+v, want %+v", captured.LogCompaction, cfg.ControllerLogCompaction)
 	}
 }
 

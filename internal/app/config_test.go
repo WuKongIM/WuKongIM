@@ -11,6 +11,7 @@ import (
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	"github.com/stretchr/testify/require"
 
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
@@ -849,6 +850,55 @@ func TestConfigRejectsExplicitNegativeChannelBootstrapMinISR(t *testing.T) {
 	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "channel bootstrap default min isr")
 }
 
+func TestConfigApplyDefaultsEnablesControllerLogCompaction(t *testing.T) {
+	cfg := validConfig()
+	cfg.Cluster.ControllerLogCompaction = ControllerLogCompactionConfig{}
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.True(t, cfg.Cluster.ControllerLogCompaction.Enabled)
+	require.Equal(t, uint64(10000), cfg.Cluster.ControllerLogCompaction.TriggerEntries)
+	require.Equal(t, 30*time.Second, cfg.Cluster.ControllerLogCompaction.CheckInterval)
+}
+
+func TestConfigApplyDefaultsPreservesControllerLogCompactionDisabled(t *testing.T) {
+	cfg := validConfig()
+	cfg.Cluster.ControllerLogCompaction.Enabled = false
+	cfg.Cluster.SetControllerLogCompactionExplicitFlags(true, false, false)
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.False(t, cfg.Cluster.ControllerLogCompaction.Enabled)
+}
+
+func TestConfigRejectsInvalidEnabledControllerLogCompaction(t *testing.T) {
+	tests := []struct {
+		name           string
+		triggerEntries uint64
+		checkInterval  time.Duration
+		triggerSet     bool
+		checkSet       bool
+	}{
+		{name: "explicit zero trigger entries", triggerEntries: 0, checkInterval: time.Second, triggerSet: true},
+		{name: "explicit zero check interval", triggerEntries: 1, checkInterval: 0, checkSet: true},
+		{name: "explicit negative check interval", triggerEntries: 1, checkInterval: -time.Second, checkSet: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validConfig()
+			cfg.Cluster.ControllerLogCompaction = ControllerLogCompactionConfig{
+				Enabled:        true,
+				TriggerEntries: tt.triggerEntries,
+				CheckInterval:  tt.checkInterval,
+			}
+			cfg.Cluster.SetControllerLogCompactionExplicitFlags(true, tt.triggerSet, tt.checkSet)
+
+			require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "controller log compaction")
+		})
+	}
+}
+
 func TestClusterRuntimeConfigIncludesTimeoutOverrides(t *testing.T) {
 	cfg := validConfig()
 	cfg.Cluster.Timeouts = raftcluster.Timeouts{
@@ -866,6 +916,20 @@ func TestClusterRuntimeConfigIncludesTimeoutOverrides(t *testing.T) {
 	runtimeCfg := cfg.Cluster.runtimeConfig(cfg.Storage, nil, nil, cfg.Node.ID, cfg.Node.Name, nil)
 
 	require.Equal(t, cfg.Cluster.Timeouts, runtimeCfg.Timeouts)
+}
+
+func TestClusterRuntimeConfigIncludesControllerLogCompaction(t *testing.T) {
+	cfg := validConfig()
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	runtimeCfg := cfg.Cluster.runtimeConfig(cfg.Storage, nil, nil, cfg.Node.ID, cfg.Node.Name, nil)
+
+	require.Equal(t, controllerraft.LogCompactionConfig{
+		Enabled:        true,
+		EnabledSet:     true,
+		TriggerEntries: 10000,
+		CheckInterval:  30 * time.Second,
+	}, runtimeCfg.ControllerLogCompaction)
 }
 
 func TestClusterRuntimeConfigIncludesDynamicJoinSettings(t *testing.T) {

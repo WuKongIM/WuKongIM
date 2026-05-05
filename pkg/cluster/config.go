@@ -10,6 +10,7 @@ import (
 	"time"
 
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -52,7 +53,9 @@ type Config struct {
 	// EnableHashSlotMigration allows experimental hash-slot migration workflows.
 	// Keep this disabled unless durable delta forwarding, source fencing, and
 	// recoverable cutover semantics are explicitly accepted.
-	EnableHashSlotMigration      bool
+	EnableHashSlotMigration bool
+	// ControllerLogCompaction controls local Controller Raft snapshot compaction.
+	ControllerLogCompaction      controllerraft.LogCompactionConfig
 	ControllerMetaPath           string
 	ControllerRaftPath           string
 	ControllerReplicaN           int
@@ -167,6 +170,9 @@ func (c *Config) validate() error {
 	}
 	if (c.ControllerMetaPath == "") != (c.ControllerRaftPath == "") {
 		return fmt.Errorf("%w: ControllerMetaPath and ControllerRaftPath must be set together", ErrInvalidConfig)
+	}
+	if err := controllerraft.ValidateLogCompactionConfig(c.ControllerLogCompaction); err != nil {
+		return err
 	}
 
 	staticCluster := len(c.Nodes) > 0
@@ -331,6 +337,7 @@ func (c *Config) applyDefaults() {
 	if c.DialTimeout == 0 {
 		c.DialTimeout = defaultDialTimeout
 	}
+	c.ControllerLogCompaction = controllerraft.NormalizeLogCompactionConfig(c.ControllerLogCompaction)
 	c.Timeouts.applyDefaults()
 }
 
