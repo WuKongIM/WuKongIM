@@ -42,7 +42,9 @@ type Server struct {
 	listeners []*listenerRuntime
 	states    map[connKey]*sessionState
 
-	// idleMonitorStop stops the shared idle scanner when idle timeouts are enabled.
+	// idleTracker schedules read-idle deadlines without scanning all live sessions.
+	idleTracker *idleTracker
+	// idleMonitorStop stops the shared idle monitor when idle timeouts are enabled.
 	idleMonitorStop chan struct{}
 	// asyncDispatch bounds SEND frame concurrency when AsyncSendDispatch is enabled.
 	asyncDispatch *asyncDispatchQueue
@@ -85,6 +87,8 @@ type sessionState struct {
 	requestContext       context.Context
 	cancelRequestContext context.CancelFunc
 
+	// idleSeq identifies the latest idle-tracker deadline for this state.
+	idleSeq          atomic.Uint64
 	lastReadActivity atomic.Int64
 }
 
@@ -143,13 +147,19 @@ func NewServer(registry *Registry, opts *gatewaytypes.Options) (*Server, error) 
 		listeners = append(listeners, runtime)
 	}
 
+	var idleTracker *idleTracker
+	if cfg.DefaultSession.IdleTimeout > 0 {
+		idleTracker = newIdleTracker(cfg.DefaultSession.IdleTimeout)
+	}
+
 	srv := &Server{
-		registry:   registry,
-		options:    cfg,
-		dispatcher: newDispatcher(cfg.Handler),
-		sessions:   session.NewManager(),
-		listeners:  listeners,
-		states:     make(map[connKey]*sessionState),
+		registry:    registry,
+		options:     cfg,
+		dispatcher:  newDispatcher(cfg.Handler),
+		sessions:    session.NewManager(),
+		listeners:   listeners,
+		states:      make(map[connKey]*sessionState),
+		idleTracker: idleTracker,
 	}
 	srv.accepting.Store(true)
 	return srv, nil
@@ -692,7 +702,7 @@ func (s *Server) startWriter(state *sessionState) {
 	}()
 }
 
-// startIdleMonitor starts one shared scanner for all sessions on this server.
+// startIdleMonitor starts one shared deadline monitor for all sessions on this server.
 func (s *Server) startIdleMonitor() {
 	timeout := s.options.DefaultSession.IdleTimeout
 	if timeout <= 0 {
@@ -704,50 +714,44 @@ func (s *Server) startIdleMonitor() {
 		s.mu.Unlock()
 		return
 	}
+	tracker := s.idleTracker
+	if tracker == nil {
+		tracker = newIdleTracker(timeout)
+		s.idleTracker = tracker
+	}
 	stopCh := make(chan struct{})
 	s.idleMonitorStop = stopCh
 	s.mu.Unlock()
-
-	interval := idleMonitorInterval(timeout)
 
 	s.workerWG.Add(1)
 	go func() {
 		defer s.workerWG.Done()
 
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
+		timer := time.NewTimer(tracker.nextWait(time.Now()))
+		defer timer.Stop()
 
 		for {
 			select {
 			case <-stopCh:
 				return
-			case now := <-ticker.C:
-				s.closeIdleSessions(timeout, now)
+			case now := <-timer.C:
+				s.closeIdleSessions(now)
+				timer.Reset(tracker.nextWait(time.Now()))
 			}
 		}
 	}()
 }
 
-func idleMonitorInterval(timeout time.Duration) time.Duration {
-	interval := timeout / 4
-	if interval < time.Millisecond {
-		interval = time.Millisecond
+func (s *Server) closeIdleSessions(now time.Time) {
+	if s == nil || s.idleTracker == nil {
+		return
 	}
-	if interval > 50*time.Millisecond {
-		interval = 50 * time.Millisecond
-	}
-	return interval
-}
 
-func (s *Server) closeIdleSessions(timeout time.Duration, now time.Time) {
-	states := s.sessionStateSnapshot()
-	for _, state := range states {
+	for _, state := range s.idleTracker.popExpired(now) {
 		if state == nil || state.isClosed() {
 			continue
 		}
-		if now.Sub(state.lastSeenReadActivity()) >= timeout {
-			state.close(gatewaytypes.CloseReasonIdleTimeout, gatewaytypes.ErrIdleTimeout)
-		}
+		state.close(gatewaytypes.CloseReasonIdleTimeout, gatewaytypes.ErrIdleTimeout)
 	}
 }
 
@@ -840,22 +844,6 @@ func (q *asyncDispatchQueue) close() {
 	}
 	q.closed = true
 	close(q.tasks)
-}
-
-func (s *Server) sessionStateSnapshot() []*sessionState {
-	if s == nil {
-		return nil
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.states) == 0 {
-		return nil
-	}
-	states := make([]*sessionState, 0, len(s.states))
-	for _, state := range s.states {
-		states = append(states, state)
-	}
-	return states
 }
 
 func (s *Server) replyTokens(listener *listenerRuntime, sess session.Session, count int) []string {
@@ -975,7 +963,13 @@ func (s *Server) registerState(state *sessionState) {
 }
 
 func (s *Server) unregisterState(state *sessionState) {
-	if state == nil || state.session == nil {
+	if state == nil {
+		return
+	}
+	if s.idleTracker != nil {
+		s.idleTracker.remove(state)
+	}
+	if state.session == nil {
 		return
 	}
 
@@ -1211,19 +1205,11 @@ func (st *sessionState) touchReadActivity() {
 	if st == nil {
 		return
 	}
-	st.lastReadActivity.Store(time.Now().UnixNano())
-}
-
-func (st *sessionState) lastSeenReadActivity() time.Time {
-	if st == nil {
-		return time.Time{}
+	now := time.Now()
+	st.lastReadActivity.Store(now.UnixNano())
+	if st.server != nil && st.server.idleTracker != nil {
+		st.server.idleTracker.touch(st, now)
 	}
-
-	last := st.lastReadActivity.Load()
-	if last == 0 {
-		return time.Time{}
-	}
-	return time.Unix(0, last)
 }
 
 func (st *sessionState) setAuthenticated(authenticated bool) {
