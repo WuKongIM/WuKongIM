@@ -899,6 +899,10 @@ func (s *Server) writePayload(state *sessionState, payload []byte) error {
 		return state.conn.Write(payload)
 	}
 
+	if policy, ok := state.conn.(transport.WriteTimeoutPolicy); ok && policy.TransportManagedWriteTimeout() {
+		return state.conn.Write(payload)
+	}
+
 	if deadlineConn, ok := state.conn.(writeDeadlineConn); ok {
 		if err := deadlineConn.SetWriteDeadline(time.Now().Add(timeout)); err != nil {
 			return err

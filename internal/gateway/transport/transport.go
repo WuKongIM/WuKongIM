@@ -23,6 +23,11 @@ type Conn interface {
 	RemoteAddr() string
 }
 
+// WriteTimeoutPolicy lets transports report that Conn.Write owns timeout/backpressure behavior.
+type WriteTimeoutPolicy interface {
+	TransportManagedWriteTimeout() bool
+}
+
 type ConnHandler interface {
 	OnOpen(conn Conn) error
 	OnData(conn Conn, data []byte) error
