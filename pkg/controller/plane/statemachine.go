@@ -144,6 +144,22 @@ func (sm *StateMachine) Apply(ctx context.Context, cmd Command) error {
 	}
 }
 
+// Snapshot exports the durable Controller state represented by this state machine.
+func (sm *StateMachine) Snapshot(ctx context.Context) ([]byte, error) {
+	if sm == nil || sm.store == nil {
+		return nil, controllermeta.ErrClosed
+	}
+	return sm.store.ExportSnapshot(ctx)
+}
+
+// Restore replaces the durable Controller state with a previously exported snapshot.
+func (sm *StateMachine) Restore(ctx context.Context, data []byte) error {
+	if sm == nil || sm.store == nil {
+		return controllermeta.ErrClosed
+	}
+	return sm.store.ImportSnapshot(ctx, data)
+}
+
 func (sm *StateMachine) applyNodeOnboardingJobUpdate(ctx context.Context, update NodeOnboardingJobUpdate) error {
 	if update.Job == nil {
 		return controllermeta.ErrInvalidArgument
