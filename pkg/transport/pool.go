@@ -92,8 +92,8 @@ func (p *Pool) RPC(ctx context.Context, nodeID NodeID, shardKey uint64, payload 
 	}
 	reqID := p.nextID.Add(1)
 	wire := encodeRPCRequest(reqID, payload)
-	resp, err := mc.RPC(ctx, p.cfg.DefaultPri, reqID, wire)
-	p.observeEnqueue(nodeID, p.cfg.DefaultPri, err)
+	resp, err := mc.RPC(ctx, PriorityRPC, reqID, wire)
+	p.observeEnqueue(nodeID, PriorityRPC, err)
 	return resp, err
 }
 

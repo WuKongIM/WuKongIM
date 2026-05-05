@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"net"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -211,6 +212,49 @@ func TestServerHandleRPCCancelsHandlerWhenConnectionCloses(t *testing.T) {
 	case <-canceled:
 	case <-time.After(time.Second):
 		t.Fatal("expected rpc handler context to cancel after client close")
+	}
+}
+
+func TestServerHandleRPCDoesNotStartCancellationWatcherPerRequest(t *testing.T) {
+	const requestCount = 32
+
+	s := NewServer()
+	var started atomic.Int32
+	release := make(chan struct{})
+	defer close(release)
+	s.HandleRPC(func(ctx context.Context, body []byte) ([]byte, error) {
+		started.Add(1)
+		select {
+		case <-release:
+			return []byte("ok"), nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	})
+	if err := s.Start("127.0.0.1:0"); err != nil {
+		t.Fatal(err)
+	}
+	defer s.Stop()
+
+	conn, err := net.Dial("tcp", s.Listener().Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	baseline := runtime.NumGoroutine()
+	var reqs net.Buffers
+	for i := 0; i < requestCount; i++ {
+		writeFrame(&reqs, MsgTypeRPCRequest, encodeRPCRequest(uint64(i+1), []byte("block")))
+	}
+	if _, err := reqs.WriteTo(conn); err != nil {
+		t.Fatalf("WriteTo() error = %v", err)
+	}
+
+	requireEventually(t, func() bool { return started.Load() == requestCount })
+	runtime.Gosched()
+	if delta := runtime.NumGoroutine() - baseline; delta > requestCount+12 {
+		t.Fatalf("goroutine delta = %d, want at most %d for in-flight RPC handlers", delta, requestCount+12)
 	}
 }
 
