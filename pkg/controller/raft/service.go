@@ -34,7 +34,8 @@ var (
 	}
 
 	// compactControllerLogHook is a narrow test hook for injecting local compaction failures; it must remain nil in production.
-	compactControllerLogHook func() error
+	compactControllerLogHookMu sync.RWMutex
+	compactControllerLogHook   func() error
 )
 
 type Service struct {
@@ -672,8 +673,8 @@ func (c *controllerLogCompactor) recordSnapshot(index uint64) {
 }
 
 func (s *Service) compactControllerLog(ctx context.Context, storageView *storageAdapter, applied uint64, confState raftpb.ConfState) error {
-	if compactControllerLogHook != nil {
-		if err := compactControllerLogHook(); err != nil {
+	if hook := currentCompactControllerLogHook(); hook != nil {
+		if err := hook(); err != nil {
 			return err
 		}
 	}
@@ -704,6 +705,18 @@ func (s *Service) compactControllerLog(ctx context.Context, storageView *storage
 		return err
 	}
 	return nil
+}
+
+func currentCompactControllerLogHook() func() error {
+	compactControllerLogHookMu.RLock()
+	defer compactControllerLogHookMu.RUnlock()
+	return compactControllerLogHook
+}
+
+func setCompactControllerLogHookForTest(h func() error) {
+	compactControllerLogHookMu.Lock()
+	defer compactControllerLogHookMu.Unlock()
+	compactControllerLogHook = h
 }
 
 func (s *Service) logCompactionWarning(err error, applied uint64) {
