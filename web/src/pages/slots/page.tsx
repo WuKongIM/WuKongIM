@@ -1,5 +1,5 @@
 import type { FormEvent } from "react"
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useIntl, type IntlShape } from "react-intl"
 
 import { useAuthStore } from "@/auth/auth-store"
@@ -16,7 +16,6 @@ import {
   addSlot,
   getNodes,
   getSlot,
-  getSlotLogs,
   getSlots,
   removeSlot,
   rebalanceSlots,
@@ -27,8 +26,6 @@ import type {
   ManagerNode,
   ManagerNodesResponse,
   ManagerSlotDetailResponse,
-  ManagerSlotLogEntry,
-  ManagerSlotLogsResponse,
   ManagerSlotRebalanceResponse,
   ManagerSlotsResponse,
 } from "@/lib/manager-api.types"
@@ -39,14 +36,6 @@ type SlotsState = {
   refreshing: boolean
   error: Error | null
 }
-
-type SlotLogsState = {
-  page: ManagerSlotLogsResponse | null
-  loading: boolean
-  error: Error | null
-}
-
-const slotLogPageLimit = 50
 
 const recoverStrategyValues = ["latest_live_replica"] as const
 
@@ -119,35 +108,6 @@ function formatNodeLog(intl: IntlShape, slot: ManagerSlotsResponse["items"][numb
   )
 }
 
-function formatDataSize(value: number) {
-  return `${value} B`
-}
-
-function isRaftNoopEntry(entry: ManagerSlotLogEntry) {
-  return entry.data_size === 0 && entry.decoded_type === "noop"
-}
-
-function formatSlotLogCommand(intl: IntlShape, entry: ManagerSlotLogEntry) {
-  if (isRaftNoopEntry(entry)) {
-    return intl.formatMessage({ id: "slots.logs.command.noop" })
-  }
-  return entry.decoded_type || entry.decode_status || "-"
-}
-
-function formatSlotLogCommandHint(intl: IntlShape, entry: ManagerSlotLogEntry) {
-  if (isRaftNoopEntry(entry)) {
-    return intl.formatMessage({ id: "slots.logs.command.noopHint" })
-  }
-  return ""
-}
-
-function formatSlotLogDecoded(entry: ManagerSlotLogEntry) {
-  if (isRaftNoopEntry(entry)) {
-    return ""
-  }
-  return entry.decoded ? JSON.stringify(entry.decoded, null, 2) : ""
-}
-
 export function SlotsPage() {
   const intl = useIntl()
   const recoverStrategies = useMemo(
@@ -176,12 +136,6 @@ export function SlotsPage() {
   const [detail, setDetail] = useState<ManagerSlotDetailResponse | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<Error | null>(null)
-  const [slotLogs, setSlotLogs] = useState<SlotLogsState>({
-    page: null,
-    loading: false,
-    error: null,
-  })
-  const [expandedSlotLogIndexes, setExpandedSlotLogIndexes] = useState<Set<number>>(() => new Set())
   const [transferOpen, setTransferOpen] = useState(false)
   const [transferPending, setTransferPending] = useState(false)
   const [transferError, setTransferError] = useState("")
@@ -266,35 +220,6 @@ export function SlotsPage() {
     }
   }, [])
 
-  const loadSlotLogs = useCallback(async (slotId: number, nodeId: number, cursor?: number) => {
-    const append = typeof cursor === "number"
-    if (!append) {
-      setExpandedSlotLogIndexes(new Set())
-    }
-    setSlotLogs((current) => ({
-      ...current,
-      loading: true,
-      error: null,
-    }))
-
-    try {
-      const page = await getSlotLogs(slotId, { nodeId, limit: slotLogPageLimit, cursor })
-      setSlotLogs((current) => ({
-        page: append && current.page
-          ? { ...page, items: [...current.page.items, ...page.items] }
-          : page,
-        loading: false,
-        error: null,
-      }))
-    } catch (error) {
-      setSlotLogs((current) => ({
-        ...current,
-        loading: false,
-        error: error instanceof Error ? error : new Error("slot log request failed"),
-      }))
-    }
-  }, [])
-
   useEffect(() => {
     void loadNodes()
   }, [loadNodes])
@@ -308,13 +233,9 @@ export function SlotsPage() {
   const openDetail = useCallback(
     async (slotId: number) => {
       setSelectedSlotId(slotId)
-      const logNodeId = selectedNodeId
-      await Promise.all([
-        loadSlotDetail(slotId),
-        logNodeId !== null ? loadSlotLogs(slotId, logNodeId) : Promise.resolve(),
-      ])
+      await loadSlotDetail(slotId)
     },
-    [loadSlotDetail, loadSlotLogs, selectedNodeId],
+    [loadSlotDetail],
   )
 
   const closeDetail = useCallback((open: boolean) => {
@@ -324,8 +245,6 @@ export function SlotsPage() {
     setSelectedSlotId(null)
     setDetail(null)
     setDetailError(null)
-    setSlotLogs({ page: null, loading: false, error: null })
-    setExpandedSlotLogIndexes(new Set())
     setTransferOpen(false)
     setTransferError("")
     setTargetNodeId("")
@@ -339,10 +258,7 @@ export function SlotsPage() {
   const refreshOpenDetail = useCallback(async (slotId: number) => {
     await loadSlots(true, selectedNodeId)
     await loadSlotDetail(slotId)
-    if (selectedNodeId !== null) {
-      await loadSlotLogs(slotId, selectedNodeId)
-    }
-  }, [loadSlotDetail, loadSlotLogs, loadSlots, selectedNodeId])
+  }, [loadSlotDetail, loadSlots, selectedNodeId])
 
   const submitTransfer = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -371,18 +287,6 @@ export function SlotsPage() {
       setTransferPending(false)
     }
   }, [intl, refreshOpenDetail, selectedSlotId, targetNodeId])
-
-  const toggleSlotLogDecoded = useCallback((index: number) => {
-    setExpandedSlotLogIndexes((current) => {
-      const next = new Set(current)
-      if (next.has(index)) {
-        next.delete(index)
-      } else {
-        next.add(index)
-      }
-      return next
-    })
-  }, [])
 
   const submitRecover = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -435,15 +339,12 @@ export function SlotsPage() {
       setSelectedSlotId(nextDetail.slot_id)
       setAddOpen(false)
       await loadSlots(true, selectedNodeId)
-      if (selectedNodeId !== null) {
-        await loadSlotLogs(nextDetail.slot_id, selectedNodeId)
-      }
     } catch (error) {
       setAddError(error instanceof Error ? error.message : "slot add failed")
     } finally {
       setAddPending(false)
     }
-  }, [loadSlotLogs, loadSlots, selectedNodeId])
+  }, [loadSlots, selectedNodeId])
 
   const runRemoveSlot = useCallback(async () => {
     if (!selectedSlotId) {
@@ -459,7 +360,6 @@ export function SlotsPage() {
       setSelectedSlotId(null)
       setDetail(null)
       setDetailError(null)
-      setSlotLogs({ page: null, loading: false, error: null })
       await loadSlots(true, selectedNodeId)
     } catch (error) {
       setRemoveError(error instanceof Error ? error.message : "slot remove failed")
@@ -752,151 +652,6 @@ export function SlotsPage() {
                 },
               ]}
             />
-            <div className="mt-4 rounded-lg border border-border bg-muted/10 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground">
-                    {intl.formatMessage({ id: "slots.logs.title" })}
-                  </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {slotLogs.page
-                      ? intl.formatMessage(
-                        { id: "slots.logs.nodeWatermarkValue" },
-                        {
-                          node: slotLogs.page.node_id,
-                          commit: slotLogs.page.commit_index,
-                          applied: slotLogs.page.applied_index,
-                        },
-                      )
-                      : intl.formatMessage(
-                        { id: "slots.logs.description" },
-                        { node: selectedNodeId ?? "-" },
-                      )}
-                  </p>
-                </div>
-                <Button
-                  disabled={slotLogs.loading || selectedNodeId === null}
-                  onClick={() => {
-                    if (selectedNodeId !== null) {
-                      void loadSlotLogs(detail.slot_id, selectedNodeId)
-                    }
-                  }}
-                  size="sm"
-                  variant="outline"
-                >
-                  {slotLogs.loading
-                    ? intl.formatMessage({ id: "common.refreshing" })
-                    : intl.formatMessage({ id: "common.refresh" })}
-                </Button>
-              </div>
-
-              {slotLogs.loading && !slotLogs.page ? (
-                <ResourceState kind="loading" title={intl.formatMessage({ id: "slots.logs.title" })} />
-              ) : null}
-              {!slotLogs.loading && slotLogs.error ? (
-                <ResourceState
-                  kind={mapErrorKind(slotLogs.error)}
-                  onRetry={() => {
-                    if (selectedNodeId !== null) {
-                      void loadSlotLogs(detail.slot_id, selectedNodeId)
-                    }
-                  }}
-                  title={intl.formatMessage({ id: "slots.logs.title" })}
-                />
-              ) : null}
-              {!slotLogs.error && slotLogs.page ? (
-                slotLogs.page.items.length > 0 ? (
-                  <div className="mt-3 overflow-x-auto rounded-md border border-border">
-                    <table className="w-full border-collapse">
-                      <thead className="bg-background text-left text-[0.7rem] uppercase tracking-[0.14em] text-muted-foreground">
-                        <tr>
-                          <th className="px-3 py-2">{intl.formatMessage({ id: "slots.logs.table.index" })}</th>
-                          <th className="px-3 py-2">{intl.formatMessage({ id: "slots.logs.table.term" })}</th>
-                          <th className="px-3 py-2">{intl.formatMessage({ id: "slots.logs.table.type" })}</th>
-                          <th className="px-3 py-2">{intl.formatMessage({ id: "slots.logs.table.command" })}</th>
-                          <th className="px-3 py-2">{intl.formatMessage({ id: "slots.logs.table.dataSize" })}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {slotLogs.page.items.map((entry) => {
-                          const decoded = formatSlotLogDecoded(entry)
-                          const decodedExpanded = decoded ? expandedSlotLogIndexes.has(entry.index) : false
-                          const commandHint = formatSlotLogCommandHint(intl, entry)
-                          return (
-                            <Fragment key={entry.index}>
-                              <tr className="border-t border-border">
-                                <td className="px-3 py-2 text-sm font-medium text-foreground">{entry.index}</td>
-                                <td className="px-3 py-2 text-sm text-muted-foreground">{entry.term}</td>
-                                <td className="px-3 py-2 text-sm text-muted-foreground">{entry.type}</td>
-                                <td className="px-3 py-2 text-sm text-muted-foreground">
-                                  <div className="flex flex-col gap-0.5">
-                                    <span>{formatSlotLogCommand(intl, entry)}</span>
-                                    {commandHint ? (
-                                      <span className="text-xs text-muted-foreground/75">{commandHint}</span>
-                                    ) : null}
-                                    {decoded ? (
-                                      <Button
-                                        aria-expanded={decodedExpanded}
-                                        className="mt-1 w-fit"
-                                        onClick={() => toggleSlotLogDecoded(entry.index)}
-                                        size="xs"
-                                        type="button"
-                                        variant="outline"
-                                      >
-                                        {intl.formatMessage({
-                                          id: decodedExpanded
-                                            ? "slots.logs.table.hideDecoded"
-                                            : "slots.logs.table.showDecoded",
-                                        })}
-                                      </Button>
-                                    ) : null}
-                                  </div>
-                                </td>
-                                <td className="px-3 py-2 text-sm text-muted-foreground">
-                                  {formatDataSize(entry.data_size)}
-                                </td>
-                              </tr>
-                              {decoded && decodedExpanded ? (
-                                <tr className="border-t border-border/60">
-                                  <td className="px-3 pb-3" colSpan={5}>
-                                    <div className="rounded-md border border-border/80 bg-muted/30 p-3">
-                                      <div className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                                        {intl.formatMessage({ id: "slots.logs.table.decoded" })}
-                                      </div>
-                                      <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-foreground">
-                                        {decoded}
-                                      </pre>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ) : null}
-                            </Fragment>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                    {slotLogs.page.next_cursor ? (
-                      <div className="border-t border-border p-2 text-right">
-                        <Button
-                          disabled={slotLogs.loading}
-                          onClick={() => {
-                            if (slotLogs.page?.next_cursor) {
-                              void loadSlotLogs(detail.slot_id, slotLogs.page.node_id, slotLogs.page.next_cursor)
-                            }
-                          }}
-                          size="sm"
-                          variant="outline"
-                        >
-                          {intl.formatMessage({ id: "slots.logs.loadMore" })}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <ResourceState kind="empty" title={intl.formatMessage({ id: "slots.logs.title" })} />
-                )
-              ) : null}
-            </div>
           </>
         ) : null}
       </DetailSheet>

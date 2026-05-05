@@ -13,6 +13,7 @@ const getNodesMock = vi.fn()
 const getChannelRuntimeMetaMock = vi.fn()
 const getConnectionsMock = vi.fn()
 const getControllerLogsMock = vi.fn()
+const getSlotLogsMock = vi.fn()
 const getMessagesMock = vi.fn()
 const getSlotsMock = vi.fn()
 const getNodeOnboardingCandidatesMock = vi.fn()
@@ -29,6 +30,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getChannelRuntimeMeta: (...args: unknown[]) => getChannelRuntimeMetaMock(...args),
     getConnections: (...args: unknown[]) => getConnectionsMock(...args),
     getControllerLogs: (...args: unknown[]) => getControllerLogsMock(...args),
+    getSlotLogs: (...args: unknown[]) => getSlotLogsMock(...args),
     getMessages: (...args: unknown[]) => getMessagesMock(...args),
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
     getNodeOnboardingCandidates: (...args: unknown[]) => getNodeOnboardingCandidatesMock(...args),
@@ -46,6 +48,7 @@ beforeEach(() => {
   getChannelRuntimeMetaMock.mockReset()
   getConnectionsMock.mockReset()
   getControllerLogsMock.mockReset()
+  getSlotLogsMock.mockReset()
   getMessagesMock.mockReset()
   getSlotsMock.mockReset()
   getNodeOnboardingCandidatesMock.mockReset()
@@ -115,6 +118,15 @@ beforeEach(() => {
     commit_index: 4,
     applied_index: 3,
     items: [{ index: 4, term: 2, type: "normal", data_size: 12, decode_status: "ok", decoded_type: "add_slot", decoded: { command: "add_slot", new_slot_id: 9 } }],
+  })
+  getSlotLogsMock.mockResolvedValue({
+    node_id: 1,
+    slot_id: 9,
+    first_index: 1,
+    last_index: 4,
+    commit_index: 4,
+    applied_index: 3,
+    items: [{ index: 4, term: 2, type: "normal", data_size: 12, decode_status: "ok", decoded_type: "slot_config", decoded: { command: "slot_config", slot_id: 9 } }],
   })
   getConnectionsMock.mockResolvedValue({
     total: 1,
@@ -233,6 +245,7 @@ it.each([
   ["/onboarding", "Onboarding", "Candidate Nodes"],
   ["/network", "Network", "Node Health Distribution"],
   ["/controller", "Controller Logs", "Log Index"],
+  ["/slot-logs", "Slot Logs", "Log Index"],
 ])("renders %s shell", async (path, title, section) => {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
 
@@ -289,6 +302,7 @@ it.each([
   ["/onboarding", "扩容", "候选节点"],
   ["/network", "网络", "节点健康分布"],
   ["/controller", "控制面日志", "日志索引"],
+  ["/slot-logs", "槽位日志", "日志索引"],
   ["/topology", "拓扑", "管理 API 覆盖"],
 ])("renders %s in Chinese", async (path, title, section) => {
   localStorage.setItem("wukongim_manager_locale", "zh-CN")

@@ -11,6 +11,7 @@ import { MessagesPage } from "@/pages/messages/page"
 import { NetworkPage } from "@/pages/network/page"
 import { NodesPage } from "@/pages/nodes/page"
 import { OnboardingPage } from "@/pages/onboarding/page"
+import { SlotLogsPage } from "@/pages/slot-logs/page"
 import { SlotsPage } from "@/pages/slots/page"
 import { TopologyPage } from "@/pages/topology/page"
 
@@ -41,6 +42,7 @@ export const routes: RouteObject[] = [
       { path: "onboarding", element: <OnboardingPage /> },
       { path: "network", element: <NetworkPage /> },
       { path: "controller", element: <ControllerPage /> },
+      { path: "slot-logs", element: <SlotLogsPage /> },
       { path: "topology", element: <TopologyPage /> },
     ],
   },

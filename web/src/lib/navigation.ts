@@ -92,6 +92,12 @@ export const navigationGroups: NavigationGroup[] = [
         icon: ScrollText,
       },
       {
+        href: "/slot-logs",
+        titleMessageId: "nav.slotLogs.title",
+        descriptionMessageId: "nav.slotLogs.description",
+        icon: Database,
+      },
+      {
         href: "/topology",
         titleMessageId: "nav.topology.title",
         descriptionMessageId: "nav.topology.description",
