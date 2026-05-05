@@ -119,17 +119,19 @@ const (
 )
 
 type InflightMessage struct {
-	MessageID       uint64
-	MessageSeq      uint64
-	Envelope        CommittedEnvelope
-	ResolveToken    any
-	ResolveBegun    bool
-	ResolveDone     bool
-	ResolveAttempt  int
-	ResolveRetryAt  time.Time
-	NextCursor      string
-	Routes          map[RouteKey]*RouteDeliveryState
-	PendingRouteCnt int
+	MessageID    uint64
+	MessageSeq   uint64
+	Envelope     CommittedEnvelope
+	ResolveToken any
+	ResolveBegun bool
+	ResolveDone  bool
+	// ResolveInProgress prevents duplicate resolver calls while I/O runs outside the actor lock.
+	ResolveInProgress bool
+	ResolveAttempt    int
+	ResolveRetryAt    time.Time
+	NextCursor        string
+	Routes            map[RouteKey]*RouteDeliveryState
+	PendingRouteCnt   int
 }
 
 type Limits struct {

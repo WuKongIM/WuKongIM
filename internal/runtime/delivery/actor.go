@@ -110,11 +110,10 @@ func (a *actor) dispatch(ctx context.Context, env CommittedEnvelope) error {
 }
 
 func (a *actor) dispatchObserved(ctx context.Context, env CommittedEnvelope) error {
-	if err := a.dispatch(ctx, env); err != nil {
-		return err
+	if next := env.MessageSeq + 1; next > a.nextDispatchSeq {
+		a.nextDispatchSeq = next
 	}
-	a.nextDispatchSeq = env.MessageSeq + 1
-	return nil
+	return a.dispatch(ctx, env)
 }
 
 func (a *actor) resolvePages(ctx context.Context, msg *InflightMessage) error {
@@ -128,13 +127,21 @@ func (a *actor) resolvePages(ctx context.Context, msg *InflightMessage) error {
 			pageLimit = remaining
 		}
 
-		routes, nextCursor, done, err := a.shard.manager.resolver.ResolvePage(ctx, msg.ResolveToken, msg.NextCursor, pageLimit)
+		token := msg.ResolveToken
+		cursor := msg.NextCursor
+		routes, nextCursor, done, err := a.resolvePageOutsideLock(ctx, token, cursor, pageLimit)
+		if a.inflight[msg.MessageID] != msg || msg.ResolveDone {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
 		if len(routes) > 0 {
 			if err := a.applyPush(ctx, msg, routes, 1); err != nil {
 				return err
+			}
+			if a.inflight[msg.MessageID] != msg {
+				return nil
 			}
 		}
 		msg.NextCursor = nextCursor
@@ -173,6 +180,9 @@ func (a *actor) nextResolvableMessage(now time.Time) *InflightMessage {
 			a.popResolvable()
 			continue
 		}
+		if msg.ResolveInProgress {
+			return nil
+		}
 		if !msg.ResolveRetryAt.IsZero() && msg.ResolveRetryAt.After(now) {
 			return nil
 		}
@@ -187,13 +197,25 @@ func (a *actor) hasDueResolveRetry(now time.Time) bool {
 }
 
 func (a *actor) resumeMessage(ctx context.Context, msg *InflightMessage) (bool, error) {
+	if msg.ResolveInProgress {
+		return false, nil
+	}
+	msg.ResolveInProgress = true
+	defer func() {
+		msg.ResolveInProgress = false
+	}()
+
 	beforeBegun := msg.ResolveBegun
 	beforeDone := msg.ResolveDone
 	beforeCursor := msg.NextCursor
 	beforePending := msg.PendingRouteCnt
 
 	if !msg.ResolveBegun {
-		token, err := a.shard.manager.resolver.BeginResolve(ctx, a.key, msg.Envelope)
+		env := cloneEnvelope(msg.Envelope)
+		token, err := a.beginResolveOutsideLock(ctx, env)
+		if a.inflight[msg.MessageID] != msg || msg.ResolveDone {
+			return false, nil
+		}
 		if err != nil {
 			return a.handleResolveFailure(ctx, msg)
 		}
@@ -229,6 +251,40 @@ func (a *actor) handleResolveFailure(_ context.Context, msg *InflightMessage) (b
 	return false, nil
 }
 
+// beginResolveOutsideLock runs resolver setup without holding the actor lock.
+func (a *actor) beginResolveOutsideLock(ctx context.Context, env CommittedEnvelope) (any, error) {
+	a.mu.Unlock()
+	token, err := a.shard.manager.resolver.BeginResolve(ctx, a.key, env)
+	a.mu.Lock()
+	return token, err
+}
+
+// resolvePageOutsideLock resolves one subscriber page without holding the actor lock.
+func (a *actor) resolvePageOutsideLock(ctx context.Context, token any, cursor string, limit int) ([]RouteKey, string, bool, error) {
+	a.mu.Unlock()
+	routes, nextCursor, done, err := a.shard.manager.resolver.ResolvePage(ctx, token, cursor, limit)
+	a.mu.Lock()
+	return routes, nextCursor, done, err
+}
+
+// pushOutsideLock pushes route batches without holding the actor lock.
+func (a *actor) pushOutsideLock(ctx context.Context, cmd PushCommand) (PushResult, error) {
+	a.mu.Unlock()
+	result, err := a.shard.manager.push.Push(ctx, cmd)
+	a.mu.Lock()
+	return result, err
+}
+
+func (a *actor) pushResultStillCurrent(msg *InflightMessage, route RouteKey, attempt int, existedBeforePush bool) bool {
+	if attempt <= 1 {
+		return true
+	}
+	if !existedBeforePush {
+		return false
+	}
+	return msg.Routes[route] != nil
+}
+
 func (a *actor) dispatchLate(ctx context.Context, env CommittedEnvelope) error {
 	// preferLocal routing allows each node to observe only a sparse subset of the
 	// global channel sequence, so a lower seq can legitimately arrive after a
@@ -237,15 +293,26 @@ func (a *actor) dispatchLate(ctx context.Context, env CommittedEnvelope) error {
 }
 
 func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []RouteKey, attempt int) error {
-	result, err := a.shard.manager.push.Push(ctx, PushCommand{
+	pushRoutes := append([]RouteKey(nil), routes...)
+	existingRoutes := make(map[RouteKey]bool, len(pushRoutes))
+	for _, route := range pushRoutes {
+		_, existingRoutes[route] = msg.Routes[route]
+	}
+	result, err := a.pushOutsideLock(ctx, PushCommand{
 		Envelope: cloneEnvelope(msg.Envelope),
-		Routes:   append([]RouteKey(nil), routes...),
+		Routes:   pushRoutes,
 		Attempt:  attempt,
 	})
+	if a.inflight[msg.MessageID] != msg {
+		return nil
+	}
 	if err != nil {
-		result = PushResult{Retryable: append([]RouteKey(nil), routes...)}
+		result = PushResult{Retryable: pushRoutes}
 	}
 	for _, route := range result.Accepted {
+		if !a.pushResultStillCurrent(msg, route, attempt, existingRoutes[route]) {
+			continue
+		}
 		state := a.ensureRouteState(msg, route)
 		state.Attempt = attempt
 		binding := AckBinding{
@@ -273,6 +340,9 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 		}
 	}
 	for _, route := range result.Retryable {
+		if !a.pushResultStillCurrent(msg, route, attempt, existingRoutes[route]) {
+			continue
+		}
 		state := a.ensureRouteState(msg, route)
 		state.Attempt = attempt
 		if !a.scheduleRetry(msg, route, attempt) {
