@@ -90,6 +90,119 @@ func TestServiceRestartTrustsPersistedMembershipWhenConfigOmitsLocalNode(t *test
 	require.Equal(t, map[uint64]int{1: 1}, counts.snapshot())
 }
 
+func TestServiceStartRestoresSnapshotAndReplaysPostSnapshotEntries(t *testing.T) {
+	env := newTestEnv(t, []uint64{1})
+	t.Cleanup(env.stopAll)
+
+	node := env.nodes[1]
+	require.NoError(t, os.MkdirAll(node.dir, 0o755))
+
+	snapStore, err := controllermeta.Open(filepath.Join(t.TempDir(), "snapshot-meta"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, snapStore.Close()) })
+	require.NoError(t, snapStore.UpsertNode(context.Background(), controllermeta.ClusterNode{NodeID: 2, Addr: "127.0.0.1:7002", Status: controllermeta.NodeStatusAlive, JoinedAt: time.Unix(1, 0), LastHeartbeatAt: time.Unix(1, 0), CapacityWeight: 1}))
+	snapData, err := snapStore.ExportSnapshot(context.Background())
+	require.NoError(t, err)
+
+	entryData, err := encodeCommand(slotcontroller.Command{
+		Kind:     slotcontroller.CommandKindNodeJoin,
+		NodeJoin: &slotcontroller.NodeJoinRequest{NodeID: 3, Addr: "127.0.0.1:7003", JoinedAt: time.Unix(2, 0), CapacityWeight: 1},
+	})
+	require.NoError(t, err)
+
+	logDB, err := raftstorage.Open(filepath.Join(node.dir, "controller-raft"))
+	require.NoError(t, err)
+	snap := raftpb.Snapshot{Data: snapData, Metadata: raftpb.SnapshotMetadata{Index: 1, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
+	hs := raftpb.HardState{Term: 1, Vote: 1, Commit: 2}
+	require.NoError(t, logDB.ForController().Save(context.Background(), multiraft.PersistentState{
+		HardState: &hs,
+		Snapshot:  &snap,
+		Entries:   []raftpb.Entry{{Index: 2, Term: 1, Type: raftpb.EntryNormal, Data: entryData}},
+	}))
+	require.NoError(t, logDB.ForController().MarkApplied(context.Background(), 2))
+	require.NoError(t, logDB.Close())
+
+	env.startNode(t, 1, nil)
+	require.Eventually(t, func() bool {
+		_, err := env.nodes[1].meta.GetNode(context.Background(), 3)
+		return err == nil
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestServiceIncomingReadySnapshotRestoresControllerMeta(t *testing.T) {
+	ctx := context.Background()
+
+	sourceStore, err := controllermeta.Open(filepath.Join(t.TempDir(), "source-meta"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sourceStore.Close()) })
+	require.NoError(t, sourceStore.UpsertNode(ctx, controllermeta.ClusterNode{
+		NodeID:          9,
+		Addr:            "127.0.0.1:7009",
+		Status:          controllermeta.NodeStatusAlive,
+		JoinedAt:        time.Unix(9, 0),
+		LastHeartbeatAt: time.Unix(9, 0),
+		CapacityWeight:  1,
+	}))
+	snapData, err := sourceStore.ExportSnapshot(ctx)
+	require.NoError(t, err)
+
+	targetStore, err := controllermeta.Open(filepath.Join(t.TempDir(), "target-meta"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, targetStore.Close()) })
+	targetSM := slotcontroller.NewStateMachine(targetStore, slotcontroller.StateMachineConfig{})
+
+	logDB, err := raftstorage.Open(filepath.Join(t.TempDir(), "controller-raft"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, logDB.Close()) })
+	storage := logDB.ForController()
+	storageView := newStorageAdapter(storage)
+	_, _, _, err = storageView.load(ctx)
+	require.NoError(t, err)
+
+	service := &Service{cfg: Config{StateMachine: targetSM}}
+	snap := raftpb.Snapshot{
+		Data: snapData,
+		Metadata: raftpb.SnapshotMetadata{
+			Index:     5,
+			Term:      2,
+			ConfState: raftpb.ConfState{Voters: []uint64{1, 2}},
+		},
+	}
+	require.NoError(t, storageView.persistReady(ctx, raft.Ready{Snapshot: snap}))
+
+	latestConfState := raftpb.ConfState{Voters: []uint64{7}}
+	lastApplied, err := service.restoreReadySnapshot(ctx, snap, storageView, &latestConfState)
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), lastApplied)
+	require.NoError(t, storage.MarkApplied(ctx, lastApplied))
+
+	entryData, err := encodeCommand(slotcontroller.Command{
+		Kind: slotcontroller.CommandKindNodeJoin,
+		NodeJoin: &slotcontroller.NodeJoinRequest{
+			NodeID:         10,
+			Addr:           "127.0.0.1:7010",
+			JoinedAt:       time.Unix(10, 0),
+			CapacityWeight: 1,
+		},
+	})
+	require.NoError(t, err)
+	entry := raftpb.Entry{Index: 6, Term: 2, Type: raftpb.EntryNormal, Data: entryData}
+	cmd, err := decodeCommand(entry.Data)
+	require.NoError(t, err)
+	require.NoError(t, targetSM.Apply(ctx, cmd))
+	require.NoError(t, storage.MarkApplied(ctx, entry.Index))
+
+	_, err = targetStore.GetNode(ctx, 9)
+	require.NoError(t, err)
+	_, err = targetStore.GetNode(ctx, 10)
+	require.NoError(t, err)
+
+	state, err := storage.InitialState(ctx)
+	require.NoError(t, err)
+	require.Equal(t, uint64(6), state.AppliedIndex)
+	require.Equal(t, []uint64{1, 2}, latestConfState.Voters)
+}
+
 func TestServiceStartReturnsBootstrapFailureWithoutDeadlock(t *testing.T) {
 	env := newTestEnv(t, []uint64{1})
 	defer env.stopAll()
