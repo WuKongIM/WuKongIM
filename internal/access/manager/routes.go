@@ -107,6 +107,12 @@ func (s *Server) registerRoutes() {
 	}
 	network.GET("/network/summary", s.handleNetworkSummary)
 
+	controllerLogs := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		controllerLogs.Use(s.requirePermission("cluster.controller", "r"))
+	}
+	controllerLogs.GET("/controller/logs", s.handleControllerLogs)
+
 	connections := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		connections.Use(s.requirePermission("cluster.connection", "r"))

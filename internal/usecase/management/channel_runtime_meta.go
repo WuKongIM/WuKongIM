@@ -3,6 +3,7 @@ package management
 import (
 	"context"
 	"sort"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -62,6 +63,8 @@ type ListChannelRuntimeMetaRequest struct {
 	Limit int
 	// Cursor is the optional resume position from the previous page.
 	Cursor ChannelRuntimeMetaListCursor
+	// ChannelIDQuery optionally limits results to channel IDs containing this substring.
+	ChannelIDQuery string
 }
 
 // ListChannelRuntimeMetaResponse is the manager channel runtime page result.
@@ -92,6 +95,11 @@ func (a *App) ListChannelRuntimeMeta(ctx context.Context, req ListChannelRuntime
 	startIndex, err := channelRuntimeMetaStartSlotIndex(slotIDs, req.Cursor.SlotID)
 	if err != nil {
 		return ListChannelRuntimeMetaResponse{}, err
+	}
+
+	channelIDQuery := strings.TrimSpace(req.ChannelIDQuery)
+	if channelIDQuery != "" {
+		return a.listChannelRuntimeMetaByChannelIDQuery(ctx, slotIDs, startIndex, req.Cursor, req.Limit, channelIDQuery)
 	}
 
 	resp := ListChannelRuntimeMetaResponse{
@@ -133,6 +141,53 @@ func (a *App) ListChannelRuntimeMeta(ctx context.Context, req ListChannelRuntime
 		}
 	}
 
+	return resp, nil
+}
+
+func (a *App) listChannelRuntimeMetaByChannelIDQuery(
+	ctx context.Context,
+	slotIDs []multiraft.SlotID,
+	startIndex int,
+	cursor ChannelRuntimeMetaListCursor,
+	limit int,
+	channelIDQuery string,
+) (ListChannelRuntimeMetaResponse, error) {
+	resp := ListChannelRuntimeMetaResponse{
+		Items: make([]ChannelRuntimeMeta, 0, limit),
+	}
+	for i := startIndex; i < len(slotIDs); i++ {
+		slotID := slotIDs[i]
+		after := metadb.ChannelRuntimeMetaCursor{}
+		if i == startIndex {
+			after = cursor.shardCursor()
+		}
+
+		for {
+			page, nextCursor, done, err := a.channelRuntimeMeta.ScanChannelRuntimeMetaSlotPage(ctx, slotID, after, channelRuntimeMetaFilteredScanLimit(limit))
+			if err != nil {
+				return ListChannelRuntimeMetaResponse{}, err
+			}
+			items, err := a.managerChannelRuntimeMetaItems(ctx, slotID, page)
+			if err != nil {
+				return ListChannelRuntimeMetaResponse{}, err
+			}
+			for _, item := range items {
+				if !strings.Contains(item.ChannelID, channelIDQuery) {
+					continue
+				}
+				if len(resp.Items) == limit {
+					resp.HasMore = true
+					resp.NextCursor = channelRuntimeMetaListCursorForItem(resp.Items[len(resp.Items)-1])
+					return resp, nil
+				}
+				resp.Items = append(resp.Items, item)
+			}
+			if done {
+				break
+			}
+			after = nextCursor
+		}
+	}
 	return resp, nil
 }
 
@@ -266,11 +321,27 @@ func newChannelRuntimeMetaListCursor(slotID multiraft.SlotID, cursor metadb.Chan
 	}
 }
 
+func channelRuntimeMetaListCursorForItem(item ChannelRuntimeMeta) ChannelRuntimeMetaListCursor {
+	return ChannelRuntimeMetaListCursor{
+		SlotID:      item.SlotID,
+		ChannelID:   item.ChannelID,
+		ChannelType: item.ChannelType,
+	}
+}
+
 func (c ChannelRuntimeMetaListCursor) shardCursor() metadb.ChannelRuntimeMetaCursor {
 	return metadb.ChannelRuntimeMetaCursor{
 		ChannelID:   c.ChannelID,
 		ChannelType: c.ChannelType,
 	}
+}
+
+func channelRuntimeMetaFilteredScanLimit(limit int) int {
+	const minScanLimit = 64
+	if limit > minScanLimit {
+		return limit
+	}
+	return minScanLimit
 }
 
 func min(left, right int) int {

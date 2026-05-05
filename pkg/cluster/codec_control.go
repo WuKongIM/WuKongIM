@@ -36,6 +36,7 @@ const (
 	controllerRPCListOnboardingJobs       string           = "list_onboarding_jobs"
 	controllerRPCGetOnboardingJob         string           = "get_onboarding_job"
 	controllerRPCRetryOnboardingJob       string           = "retry_onboarding_job"
+	controllerRPCControllerLogs           string           = "controller_logs"
 )
 
 const (
@@ -84,6 +85,7 @@ const (
 	controllerKindListOnboardingJobs
 	controllerKindGetOnboardingJob
 	controllerKindRetryOnboardingJob
+	controllerKindControllerLogs
 )
 
 type onboardingErrorCode string
@@ -111,6 +113,7 @@ type controllerRPCRequest struct {
 	OnboardingPlan   *nodeOnboardingPlanRequest
 	OnboardingJob    *nodeOnboardingJobRequest
 	OnboardingJobs   *nodeOnboardingJobsRequest
+	ControllerLogs   *controllerLogEntriesRequest
 }
 
 type controllerTaskAdvance struct {
@@ -150,6 +153,12 @@ type controllerRPCResponse struct {
 	OnboardingHasMore      bool
 	OnboardingErrorCode    onboardingErrorCode
 	OnboardingErrorMessage string
+	CommitIndex            uint64
+	AppliedIndex           uint64
+	FirstIndex             uint64
+	LastIndex              uint64
+	NextCursor             uint64
+	LogEntries             []managedSlotLogEntry
 }
 
 type joinClusterRequest struct {
@@ -181,6 +190,11 @@ type nodeOnboardingJobRequest struct {
 type nodeOnboardingJobsRequest struct {
 	Limit  int
 	Cursor string
+}
+
+type controllerLogEntriesRequest struct {
+	Limit  int
+	Cursor uint64
 }
 
 func encodeControllerRequest(req controllerRPCRequest) ([]byte, error) {
@@ -347,6 +361,11 @@ func encodeControllerRequestPayload(req controllerRPCRequest) ([]byte, error) {
 			return nil, ErrInvalidConfig
 		}
 		return encodeNodeOnboardingJobsRequest(*req.OnboardingJobs), nil
+	case controllerRPCControllerLogs:
+		if req.ControllerLogs == nil {
+			return nil, ErrInvalidConfig
+		}
+		return encodeControllerLogEntriesRequest(*req.ControllerLogs), nil
 	case controllerRPCListAssignments, controllerRPCListNodes, controllerRPCListRuntimeViews, controllerRPCListTasks, controllerRPCGetTask, controllerRPCForceReconcile:
 		return nil, nil
 	case controllerRPCListOnboardingCandidates:
@@ -442,6 +461,13 @@ func decodeControllerRequestPayload(req *controllerRPCRequest, payload []byte) e
 		}
 		req.OnboardingJobs = &jobs
 		return nil
+	case controllerRPCControllerLogs:
+		logs, err := decodeControllerLogEntriesRequest(payload)
+		if err != nil {
+			return err
+		}
+		req.ControllerLogs = &logs
+		return nil
 	case controllerRPCListAssignments, controllerRPCListNodes, controllerRPCListRuntimeViews, controllerRPCListTasks, controllerRPCGetTask, controllerRPCForceReconcile:
 		if len(payload) != 0 {
 			return ErrInvalidConfig
@@ -488,6 +514,8 @@ func encodeControllerResponsePayload(kind string, resp controllerRPCResponse) ([
 	case controllerRPCListOnboardingCandidates, controllerRPCCreateOnboardingPlan, controllerRPCStartOnboardingJob,
 		controllerRPCListOnboardingJobs, controllerRPCGetOnboardingJob, controllerRPCRetryOnboardingJob:
 		return encodeNodeOnboardingResponse(resp), nil
+	case controllerRPCControllerLogs:
+		return encodeControllerLogEntriesResponse(resp)
 	default:
 		return nil, ErrInvalidConfig
 	}
@@ -571,6 +599,8 @@ func decodeControllerResponsePayload(kind string, resp *controllerRPCResponse, p
 	case controllerRPCListOnboardingCandidates, controllerRPCCreateOnboardingPlan, controllerRPCStartOnboardingJob,
 		controllerRPCListOnboardingJobs, controllerRPCGetOnboardingJob, controllerRPCRetryOnboardingJob:
 		return decodeNodeOnboardingResponse(resp, payload)
+	case controllerRPCControllerLogs:
+		return decodeControllerLogEntriesResponse(resp, payload)
 	default:
 		return ErrInvalidConfig
 	}
@@ -626,6 +656,8 @@ func controllerKindCode(kind string) (byte, error) {
 		return controllerKindGetOnboardingJob, nil
 	case controllerRPCRetryOnboardingJob:
 		return controllerKindRetryOnboardingJob, nil
+	case controllerRPCControllerLogs:
+		return controllerKindControllerLogs, nil
 	default:
 		return controllerKindUnknown, ErrInvalidConfig
 	}
@@ -681,9 +713,111 @@ func controllerKindName(kind byte) (string, error) {
 		return controllerRPCGetOnboardingJob, nil
 	case controllerKindRetryOnboardingJob:
 		return controllerRPCRetryOnboardingJob, nil
+	case controllerKindControllerLogs:
+		return controllerRPCControllerLogs, nil
 	default:
 		return "", ErrInvalidConfig
 	}
+}
+
+func encodeControllerLogEntriesRequest(req controllerLogEntriesRequest) []byte {
+	body := binary.AppendUvarint(nil, uint64(req.Limit))
+	body = binary.AppendUvarint(body, req.Cursor)
+	return body
+}
+
+func decodeControllerLogEntriesRequest(body []byte) (controllerLogEntriesRequest, error) {
+	limit, rest, err := readUvarint(body)
+	if err != nil {
+		return controllerLogEntriesRequest{}, err
+	}
+	cursor, rest, err := readUvarint(rest)
+	if err != nil || len(rest) != 0 {
+		return controllerLogEntriesRequest{}, ErrInvalidConfig
+	}
+	return controllerLogEntriesRequest{Limit: int(limit), Cursor: cursor}, nil
+}
+
+func encodeControllerLogEntriesResponse(resp controllerRPCResponse) ([]byte, error) {
+	var fixed [40]byte
+	binary.BigEndian.PutUint64(fixed[0:8], resp.CommitIndex)
+	binary.BigEndian.PutUint64(fixed[8:16], resp.AppliedIndex)
+	binary.BigEndian.PutUint64(fixed[16:24], resp.FirstIndex)
+	binary.BigEndian.PutUint64(fixed[24:32], resp.LastIndex)
+	binary.BigEndian.PutUint64(fixed[32:40], resp.NextCursor)
+	body := append([]byte(nil), fixed[:]...)
+	body = binary.AppendUvarint(body, uint64(len(resp.LogEntries)))
+	for _, entry := range resp.LogEntries {
+		var entryFixed [16]byte
+		binary.BigEndian.PutUint64(entryFixed[0:8], entry.Index)
+		binary.BigEndian.PutUint64(entryFixed[8:16], entry.Term)
+		body = append(body, entryFixed[:]...)
+		body = appendString(body, entry.Type)
+		body = binary.AppendUvarint(body, uint64(entry.DataSize))
+		body = appendString(body, entry.DecodeStatus)
+		body = appendString(body, entry.DecodedType)
+		decoded, err := encodeManagedSlotLogDecoded(entry.Decoded)
+		if err != nil {
+			return nil, err
+		}
+		body = appendBytes(body, decoded)
+	}
+	return body, nil
+}
+
+func decodeControllerLogEntriesResponse(resp *controllerRPCResponse, body []byte) error {
+	if len(body) < 40 {
+		return ErrInvalidConfig
+	}
+	resp.CommitIndex = binary.BigEndian.Uint64(body[0:8])
+	resp.AppliedIndex = binary.BigEndian.Uint64(body[8:16])
+	resp.FirstIndex = binary.BigEndian.Uint64(body[16:24])
+	resp.LastIndex = binary.BigEndian.Uint64(body[24:32])
+	resp.NextCursor = binary.BigEndian.Uint64(body[32:40])
+	count, rest, err := readUvarint(body[40:])
+	if err != nil {
+		return err
+	}
+	entries := make([]managedSlotLogEntry, 0, count)
+	for i := uint64(0); i < count; i++ {
+		if len(rest) < 16 {
+			return ErrInvalidConfig
+		}
+		entry := managedSlotLogEntry{Index: binary.BigEndian.Uint64(rest[0:8]), Term: binary.BigEndian.Uint64(rest[8:16])}
+		entry.Type, rest, err = readString(rest[16:])
+		if err != nil {
+			return err
+		}
+		dataSize, next, err := readUvarint(rest)
+		if err != nil {
+			return err
+		}
+		entry.DataSize = int(dataSize)
+		entry.DecodeStatus, next, err = readString(next)
+		if err != nil {
+			return err
+		}
+		entry.DecodedType, next, err = readString(next)
+		if err != nil {
+			return err
+		}
+		decoded, next, err := readBytes(next)
+		if err != nil {
+			return err
+		}
+		if len(decoded) > 0 {
+			if err := decodeManagedSlotLogDecoded(decoded, &entry.Decoded); err != nil {
+				return err
+			}
+		}
+		entries = append(entries, entry)
+		rest = next
+	}
+	if len(rest) != 0 {
+		return ErrInvalidConfig
+	}
+	resp.LogEntries = entries
+	return nil
 }
 
 func encodeNodeOnboardingPlanRequest(req nodeOnboardingPlanRequest) []byte {

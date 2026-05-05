@@ -877,3 +877,53 @@ func appendLegacyRuntimeViewRecordForTest(dst []byte, slotID uint32, peers []uin
 	dst = binary.BigEndian.AppendUint64(dst, observedConfigEpoch)
 	return appendInt64(dst, lastReportAt.UnixNano())
 }
+
+func TestControllerLogEntriesRPCCodecRoundTrip(t *testing.T) {
+	reqBody, err := encodeControllerRequest(controllerRPCRequest{
+		Kind: controllerRPCControllerLogs,
+		ControllerLogs: &controllerLogEntriesRequest{
+			Limit:  2,
+			Cursor: 5,
+		},
+	})
+	if err != nil {
+		t.Fatalf("encodeControllerRequest() error = %v", err)
+	}
+	req, err := decodeControllerRequest(reqBody)
+	if err != nil {
+		t.Fatalf("decodeControllerRequest() error = %v", err)
+	}
+	if req.Kind != controllerRPCControllerLogs || req.ControllerLogs == nil || req.ControllerLogs.Limit != 2 || req.ControllerLogs.Cursor != 5 {
+		t.Fatalf("decoded request = %+v", req)
+	}
+
+	respBody, err := encodeControllerResponse(controllerRPCControllerLogs, controllerRPCResponse{
+		CommitIndex:  4,
+		AppliedIndex: 3,
+		FirstIndex:   1,
+		LastIndex:    4,
+		NextCursor:   3,
+		LogEntries: []managedSlotLogEntry{{
+			Index:        4,
+			Term:         2,
+			Type:         "normal",
+			DataSize:     12,
+			DecodeStatus: "ok",
+			DecodedType:  "add_slot",
+			Decoded:      map[string]any{"command": "add_slot", "new_slot_id": uint64(9)},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("encodeControllerResponse() error = %v", err)
+	}
+	resp, err := decodeControllerResponse(controllerRPCControllerLogs, respBody)
+	if err != nil {
+		t.Fatalf("decodeControllerResponse() error = %v", err)
+	}
+	if resp.CommitIndex != 4 || resp.AppliedIndex != 3 || resp.FirstIndex != 1 || resp.LastIndex != 4 || resp.NextCursor != 3 || len(resp.LogEntries) != 1 {
+		t.Fatalf("decoded response = %+v", resp)
+	}
+	if resp.LogEntries[0].Decoded["command"] != "add_slot" {
+		t.Fatalf("decoded entry = %+v", resp.LogEntries[0])
+	}
+}

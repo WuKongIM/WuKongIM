@@ -478,6 +478,12 @@ export type SlotLogListParams = {
   cursor?: number
 }
 
+export type ControllerLogListParams = {
+  nodeId: number
+  limit?: number
+  cursor?: number
+}
+
 export type ManagerSlotsResponse = {
   total: number
   items: ManagerSlot[]
@@ -502,6 +508,18 @@ export type ManagerSlotLogsResponse = {
   applied_index: number
   next_cursor?: number
   items: ManagerSlotLogEntry[]
+}
+
+export type ManagerControllerLogEntry = ManagerSlotLogEntry
+
+export type ManagerControllerLogsResponse = {
+  node_id: number
+  first_index: number
+  last_index: number
+  commit_index: number
+  applied_index: number
+  next_cursor?: number
+  items: ManagerControllerLogEntry[]
 }
 
 export type ManagerTask = {
@@ -738,6 +756,7 @@ export type RecoverSlotInput = {
 
 export type ChannelRuntimeMetaListParams = {
   nodeId?: number
+  channelId?: string
   limit?: number
   cursor?: string
 }

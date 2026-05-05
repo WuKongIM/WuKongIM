@@ -1127,6 +1127,70 @@ func TestManagerSlotsFiltersByNodeAndReturnsNodeLogStatus(t *testing.T) {
 	}`, rec.Body.String())
 }
 
+func TestManagerControllerLogsReturnsNodeScopedEntries(t *testing.T) {
+	var reqSink managementusecase.ListControllerLogEntriesRequest
+	stub := managementStub{
+		controllerLogEntriesReqSink: &reqSink,
+		controllerLogEntriesPage: managementusecase.ControllerLogEntriesResponse{
+			NodeID:       2,
+			FirstIndex:   1,
+			LastIndex:    4,
+			CommitIndex:  4,
+			AppliedIndex: 3,
+			NextCursor:   3,
+			Items: []managementusecase.ControllerLogEntry{{
+				Index:        4,
+				Term:         2,
+				Type:         "normal",
+				DataSize:     12,
+				DecodeStatus: "ok",
+				DecodedType:  "add_slot",
+				Decoded: map[string]any{
+					"command":     "add_slot",
+					"new_slot_id": uint64(9),
+				},
+			}},
+		},
+	}
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.controller",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: stub,
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/controller/logs?node_id=2&limit=2&cursor=5", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, managementusecase.ListControllerLogEntriesRequest{NodeID: 2, Limit: 2, Cursor: 5}, reqSink)
+	require.JSONEq(t, `{
+		"node_id": 2,
+		"first_index": 1,
+		"last_index": 4,
+		"commit_index": 4,
+		"applied_index": 3,
+		"next_cursor": 3,
+		"items": [{
+			"index": 4,
+			"term": 2,
+			"type": "normal",
+			"data_size": 12,
+			"decode_status": "ok",
+			"decoded_type": "add_slot",
+			"decoded": {"command": "add_slot", "new_slot_id": 9}
+		}]
+	}`, rec.Body.String())
+}
+
 func TestManagerSlotLogsReturnsNodeScopedEntries(t *testing.T) {
 	var reqSink managementusecase.ListSlotLogEntriesRequest
 	stub := managementStub{
@@ -2049,6 +2113,33 @@ func TestManagerChannelRuntimeMetaReturnsPagedList(t *testing.T) {
 	}`, mustEncodeChannelRuntimeMetaCursorForTest(t, nextCursor)), rec.Body.String())
 }
 
+func TestManagerChannelRuntimeMetaPassesChannelIDQuery(t *testing.T) {
+	var received managementusecase.ListChannelRuntimeMetaRequest
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.channel",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{channelRuntimeMetaReqSink: &received},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta?channel_id=%20room%20&limit=15", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, managementusecase.ListChannelRuntimeMetaRequest{
+		Limit:          15,
+		ChannelIDQuery: "room",
+	}, received)
+}
+
 func TestManagerChannelRuntimeMetaReturnsServiceUnavailableWhenAuthoritativeReadUnavailable(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
@@ -2830,6 +2921,9 @@ type managementStub struct {
 	slotLogEntriesReqSink           *managementusecase.ListSlotLogEntriesRequest
 	slotLogEntriesPage              managementusecase.SlotLogEntriesResponse
 	slotLogEntriesErr               error
+	controllerLogEntriesReqSink     *managementusecase.ListControllerLogEntriesRequest
+	controllerLogEntriesPage        managementusecase.ControllerLogEntriesResponse
+	controllerLogEntriesErr         error
 	slotDetail                      managementusecase.SlotDetail
 	slotDetailErr                   error
 	tasks                           []managementusecase.Task
@@ -2950,6 +3044,13 @@ func (s managementStub) ListSlotLogEntries(_ context.Context, req managementusec
 		*s.slotLogEntriesReqSink = req
 	}
 	return s.slotLogEntriesPage, s.slotLogEntriesErr
+}
+
+func (s managementStub) ListControllerLogEntries(_ context.Context, req managementusecase.ListControllerLogEntriesRequest) (managementusecase.ControllerLogEntriesResponse, error) {
+	if s.controllerLogEntriesReqSink != nil {
+		*s.controllerLogEntriesReqSink = req
+	}
+	return s.controllerLogEntriesPage, s.controllerLogEntriesErr
 }
 
 func (s managementStub) AddSlot(context.Context) (managementusecase.SlotDetail, error) {

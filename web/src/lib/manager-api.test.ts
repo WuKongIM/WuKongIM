@@ -6,6 +6,7 @@ import {
   getChannelRuntimeMetaDetail,
   getConnection,
   getConnections,
+  getControllerLogs,
   getMessages,
   getNetworkSummary,
   createNodeOnboardingPlan,
@@ -490,6 +491,36 @@ describe("manager api client", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(1, "/manager/slots?node_id=2", expect.anything())
   })
 
+  it("fetches node-scoped controller log entries from the manager endpoint", async () => {
+    const logsResponse = {
+      node_id: 2,
+      first_index: 1,
+      last_index: 4,
+      commit_index: 4,
+      applied_index: 3,
+      next_cursor: 3,
+      items: [
+        {
+          index: 4,
+          term: 2,
+          type: "normal",
+          data_size: 12,
+          decode_status: "ok",
+          decoded_type: "add_slot",
+          decoded: { command: "add_slot", new_slot_id: 9 },
+        },
+      ],
+    }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(logsResponse), { status: 200 }))
+
+    await expect(getControllerLogs({ nodeId: 2, limit: 2, cursor: 5 })).resolves.toEqual(logsResponse)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/manager/controller/logs?node_id=2&limit=2&cursor=5",
+      expect.anything(),
+    )
+  })
+
   it("fetches node-scoped slot log entries from the manager endpoint", async () => {
     const logsResponse = {
       node_id: 2,
@@ -736,6 +767,18 @@ describe("manager api client", () => {
     await expect(getChannelRuntimeMetaDetail(1, "u1@u2")).resolves.toEqual(detailResponse)
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channel-runtime-meta?node_id=2&limit=100&cursor=cursor-1")
     expect(fetchMock.mock.calls[1]?.[0]).toBe("/manager/channel-runtime-meta/1/u1%40u2")
+  })
+
+  it("passes the channel ID fuzzy filter to channel runtime meta list requests", async () => {
+    const listResponse = {
+      items: [],
+      has_more: false,
+    }
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(listResponse), { status: 200 }))
+
+    await expect(getChannelRuntimeMeta({ channelId: "room", limit: 15 })).resolves.toEqual(listResponse)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channel-runtime-meta?limit=15&channel_id=room")
   })
 
 

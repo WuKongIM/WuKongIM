@@ -4,6 +4,7 @@ import { AppShell } from "@/app/layout/app-shell"
 import { ProtectedRoute, PublicOnlyRoute } from "@/auth/protected-route"
 import { ChannelsPage } from "@/pages/channels/page"
 import { ConnectionsPage } from "@/pages/connections/page"
+import { ControllerPage } from "@/pages/controller/page"
 import { DashboardPage } from "@/pages/dashboard/page"
 import { LoginPage } from "@/pages/login/page"
 import { MessagesPage } from "@/pages/messages/page"
@@ -39,6 +40,7 @@ export const routes: RouteObject[] = [
       { path: "slots", element: <SlotsPage /> },
       { path: "onboarding", element: <OnboardingPage /> },
       { path: "network", element: <NetworkPage /> },
+      { path: "controller", element: <ControllerPage /> },
       { path: "topology", element: <TopologyPage /> },
     ],
   },

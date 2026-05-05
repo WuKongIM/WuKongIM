@@ -245,6 +245,8 @@ type fakeClusterReader struct {
 	slotLogStatusErr            map[slotLogStatusKey]error
 	slotLogEntries              map[slotLogEntriesKey]raftcluster.SlotLogEntries
 	slotLogEntriesErr           map[slotLogEntriesKey]error
+	controllerLogEntries        map[uint64]raftcluster.ControllerLogEntries
+	controllerLogEntriesErr     map[uint64]error
 	tasks                       []controllermeta.ReconcileTask
 	taskBySlot                  map[uint32]controllermeta.ReconcileTask
 	listTasksErr                error
@@ -328,6 +330,16 @@ func (f fakeClusterReader) SlotLogEntriesOnNode(_ context.Context, nodeID uint64
 		return page, nil
 	}
 	return raftcluster.SlotLogEntries{}, nil
+}
+
+func (f fakeClusterReader) ControllerLogEntriesOnNode(_ context.Context, nodeID uint64, _ raftcluster.ControllerLogEntriesOptions) (raftcluster.ControllerLogEntries, error) {
+	if err := f.controllerLogEntriesErr[nodeID]; err != nil {
+		return raftcluster.ControllerLogEntries{}, err
+	}
+	if page, ok := f.controllerLogEntries[nodeID]; ok {
+		return page, nil
+	}
+	return raftcluster.ControllerLogEntries{}, nil
 }
 
 func (f fakeClusterReader) ListTasksStrict(context.Context) ([]controllermeta.ReconcileTask, error) {

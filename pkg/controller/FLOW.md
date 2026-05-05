@@ -10,7 +10,7 @@
 | 子包 | 入口/核心类型 | 职责 |
 |------|-------------|------|
 | `meta/` | `meta.Store` | Pebble KV 持久化：Node / Assignment / Task / Membership / NodeOnboardingJob 的 CRUD；`RuntimeView` 结构仍保留但 steady-state 读路径已转为 leader 本地 observation |
-| `raft/` | `raft.NewService()` → `Service` | Raft 共识服务：事件循环、提案处理、日志持久化、Leader 选举 |
+| `raft/` | `raft.NewService()` → `Service` | Raft 共识服务：事件循环、提案处理、日志持久化、Leader 选举；提供 Controller Raft command inspection 供管理后台查看本地日志条目 |
 | `plane/` | `plane.NewController()` → `Controller` | 控制面逻辑：StateMachine 命令应用 + Planner 调度决策 + Controller.Tick 编排 |
 
 ## 3. 对外接口
@@ -224,6 +224,7 @@ AddLearner → CatchUp → Promote → TransferLeader → RemoveOld
 - **PreferredLeader 是软意图**: `SlotAssignment.PreferredLeader` 只表达 Controller 的目标 Leader；Raft 当前 Leader 和 CurrentVoters 仍是执行 LeaderTransfer 的权威安全输入。
 - **指数退避上限**: `retryDelay` 中 shift 上限为 30，防止溢出。重试延迟 = base × 2^(attempt-1)。
 - **Command 序列化为二进制**: `raft/service.go:encodeCommand` 写入带 magic/version/field mask 的二进制 command envelope；`decodeCommand` 仍能读取 legacy JSON 日志，TaskAdvance.Err 仍按 string 还原为 `errors.New`。
+- **Controller 日志 inspection**: `raft/command_inspection.go:DecodeCommandInspection` 只暴露脱敏、JSON-friendly 的 command 摘要，供 `pkg/cluster` 读取 Controller Raft 日志时展示；管理后台不直接解析 command wire format。
 - **Leader 丢失时清理**: `raft/service.go:failInflightProposalsOnLeaderLoss` 在每次状态检查后清理所有 pending 提案，返回 ErrNotLeader。
 - **Onboarding Apply 冲突必须 no-op**: `NodeOnboardingJobUpdate` 的状态保护、单 running job 保护和竞态保护都不能从 StateMachine.Apply 返回业务错误；调用方必须在 propose 后重新读取 job 判断转换是否真的生效。
 - **Onboarding 与普通 Rebalance 互斥**: running onboarding job 存在时，上层 cluster tick 会暂停普通自动 Rebalance，并锁定当前 onboarding move 的 Slot；Bootstrap/Repair 仍可继续，避免扩容流程阻塞安全修复。

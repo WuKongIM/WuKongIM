@@ -42,6 +42,8 @@ type Management interface {
 	GetSlot(ctx context.Context, slotID uint32) (managementusecase.SlotDetail, error)
 	// ListSlotLogEntries returns one node-local Slot Raft log page.
 	ListSlotLogEntries(ctx context.Context, req managementusecase.ListSlotLogEntriesRequest) (managementusecase.SlotLogEntriesResponse, error)
+	// ListControllerLogEntries returns one node-local Controller Raft log page.
+	ListControllerLogEntries(ctx context.Context, req managementusecase.ListControllerLogEntriesRequest) (managementusecase.ControllerLogEntriesResponse, error)
 	// AddSlot creates a new physical slot and returns the latest detail DTO.
 	AddSlot(ctx context.Context) (managementusecase.SlotDetail, error)
 	// RemoveSlot starts physical slot removal and returns the accepted outcome DTO.

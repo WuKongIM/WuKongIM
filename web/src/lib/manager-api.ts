@@ -1,10 +1,12 @@
 import { getManagerApiBaseUrl } from "@/lib/env"
 import type {
   ChannelRuntimeMetaListParams,
+  ControllerLogListParams,
   ConnectionListParams,
   ManagerChannelRuntimeMetaDetailResponse,
   ManagerChannelRuntimeMetaListResponse,
   ManagerConnectionDetailResponse,
+  ManagerControllerLogsResponse,
   ManagerConnectionsResponse,
   ManagerLoginResponse,
   ManagerMessagesResponse,
@@ -125,6 +127,9 @@ function buildChannelRuntimeMetaPath(params?: ChannelRuntimeMetaListParams) {
   }
   if (params?.cursor) {
     search.set("cursor", params.cursor)
+  }
+  if (params?.channelId) {
+    search.set("channel_id", params.channelId)
   }
 
   const query = search.toString()
@@ -299,7 +304,7 @@ export function getSlot(slotId: number) {
   return jsonManagerFetch<ManagerSlotDetailResponse>(`/manager/slots/${slotId}`)
 }
 
-export function getSlotLogs(slotId: number, params: SlotLogListParams) {
+function buildLogListSearch(params: { nodeId: number; limit?: number; cursor?: number }) {
   const search = new URLSearchParams()
   search.set("node_id", String(params.nodeId))
   if (typeof params.limit === "number") {
@@ -308,7 +313,17 @@ export function getSlotLogs(slotId: number, params: SlotLogListParams) {
   if (typeof params.cursor === "number") {
     search.set("cursor", String(params.cursor))
   }
+  return search
+}
+
+export function getSlotLogs(slotId: number, params: SlotLogListParams) {
+  const search = buildLogListSearch(params)
   return jsonManagerFetch<ManagerSlotLogsResponse>(`/manager/slots/${slotId}/logs?${search.toString()}`)
+}
+
+export function getControllerLogs(params: ControllerLogListParams) {
+  const search = buildLogListSearch(params)
+  return jsonManagerFetch<ManagerControllerLogsResponse>(`/manager/controller/logs?${search.toString()}`)
 }
 
 export function addSlot() {

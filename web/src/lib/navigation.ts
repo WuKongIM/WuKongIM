@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   Radar,
+  ScrollText,
   Server,
   Waypoints,
 } from "lucide-react"
@@ -83,6 +84,12 @@ export const navigationGroups: NavigationGroup[] = [
         titleMessageId: "nav.network.title",
         descriptionMessageId: "nav.network.description",
         icon: Radar,
+      },
+      {
+        href: "/controller",
+        titleMessageId: "nav.controller.title",
+        descriptionMessageId: "nav.controller.description",
+        icon: ScrollText,
       },
       {
         href: "/topology",
