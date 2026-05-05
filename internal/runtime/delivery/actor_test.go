@@ -692,3 +692,202 @@ func (r *flakyResolver) ResolvePage(_ context.Context, token any, _ string, _ in
 	}
 	return append([]RouteKey(nil), r.routesByChannel[resolveToken.channelID]...), "", true, nil
 }
+
+func TestDeliveryActorDoesNotHoldLockDuringResolveIO(t *testing.T) {
+	clock := &testClock{now: time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)}
+	firstRoute := testRoute("u2", 1, 11, 2)
+	secondRoute := testRoute("u3", 1, 11, 3)
+	resolver := newBlockingSecondPageResolver(firstRoute, secondRoute)
+	pusher := &recordingPusher{}
+	runtime := NewManager(Config{
+		Resolver: resolver,
+		Push:     pusher,
+		Clock:    clock,
+		Limits:   Limits{MaxInflightRoutesPerActor: 2},
+	})
+
+	require.NoError(t, runtime.Submit(context.Background(), testEnvelopeFor("g-resolve-lock", frame.ChannelTypeGroup, 801, 1, "resolve")))
+	require.True(t, runtime.HasAckBinding(firstRoute.SessionID, 801))
+	require.True(t, runtime.HasAckBinding(secondRoute.SessionID, 801))
+
+	firstAckDone := make(chan error, 1)
+	go func() {
+		firstAckDone <- runtime.AckRoute(context.Background(), RouteAck{
+			UID:        firstRoute.UID,
+			SessionID:  firstRoute.SessionID,
+			MessageID:  801,
+			MessageSeq: 1,
+		})
+	}()
+	resolver.WaitForBlockedPage(t)
+
+	secondAckDone := make(chan error, 1)
+	go func() {
+		secondAckDone <- runtime.AckRoute(context.Background(), RouteAck{
+			UID:        secondRoute.UID,
+			SessionID:  secondRoute.SessionID,
+			MessageID:  801,
+			MessageSeq: 1,
+		})
+	}()
+
+	select {
+	case err := <-secondAckDone:
+		require.NoError(t, err)
+	case <-time.After(50 * time.Millisecond):
+		resolver.Unblock()
+		<-firstAckDone
+		<-secondAckDone
+		t.Fatal("second AckRoute blocked behind resolver I/O")
+	}
+
+	resolver.Unblock()
+	require.NoError(t, <-firstAckDone)
+}
+
+func TestDeliveryActorDoesNotHoldLockDuringPushIO(t *testing.T) {
+	clock := &testClock{now: time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)}
+	route := testRoute("u2", 1, 11, 2)
+	pusher := newBlockingRetryPusher(route)
+	t.Cleanup(pusher.Unblock)
+	runtime := NewManager(Config{
+		Resolver:         &stubResolver{routesByChannel: map[string][]RouteKey{"g-push-lock": {route}}},
+		Push:             pusher,
+		Clock:            clock,
+		RetryDelays:      []time.Duration{time.Second},
+		MaxRetryAttempts: 3,
+	})
+
+	require.NoError(t, runtime.Submit(context.Background(), testEnvelopeFor("g-push-lock", frame.ChannelTypeGroup, 901, 1, "push")))
+	require.True(t, runtime.HasAckBinding(route.SessionID, 901))
+
+	clock.Advance(cappedBackoffWithJitter([]time.Duration{time.Second}, 2))
+	retryDone := make(chan error, 1)
+	go func() {
+		retryDone <- runtime.ProcessRetryTicks(context.Background())
+	}()
+	pusher.WaitForRetry(t)
+
+	closedDone := make(chan error, 1)
+	go func() {
+		closedDone <- runtime.SessionClosed(context.Background(), SessionClosed{
+			UID:       route.UID,
+			SessionID: route.SessionID,
+		})
+	}()
+
+	select {
+	case err := <-closedDone:
+		require.NoError(t, err)
+	case <-time.After(50 * time.Millisecond):
+		pusher.Unblock()
+		<-retryDone
+		<-closedDone
+		t.Fatal("SessionClosed blocked behind push I/O")
+	}
+
+	pusher.Unblock()
+	require.NoError(t, <-retryDone)
+}
+
+type blockingSecondPageResolver struct {
+	firstRoutes []RouteKey
+	secondRoute RouteKey
+	started     chan struct{}
+	release     chan struct{}
+	once        sync.Once
+	mu          sync.Mutex
+	pageCalls   int
+}
+
+func newBlockingSecondPageResolver(firstRoute, secondRoute RouteKey) *blockingSecondPageResolver {
+	return &blockingSecondPageResolver{
+		firstRoutes: []RouteKey{firstRoute, secondRoute},
+		secondRoute: secondRoute,
+		started:     make(chan struct{}),
+		release:     make(chan struct{}),
+	}
+}
+
+func (r *blockingSecondPageResolver) BeginResolve(_ context.Context, key ChannelKey, _ CommittedEnvelope) (any, error) {
+	return key.ChannelID, nil
+}
+
+func (r *blockingSecondPageResolver) ResolvePage(_ context.Context, _ any, _ string, _ int) ([]RouteKey, string, bool, error) {
+	r.mu.Lock()
+	call := r.pageCalls
+	r.pageCalls++
+	r.mu.Unlock()
+	if call == 0 {
+		return append([]RouteKey(nil), r.firstRoutes...), "after-first", false, nil
+	}
+	r.once.Do(func() { close(r.started) })
+	<-r.release
+	return []RouteKey{r.secondRoute}, "", true, nil
+}
+
+func (r *blockingSecondPageResolver) WaitForBlockedPage(t *testing.T) {
+	t.Helper()
+	select {
+	case <-r.started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for resolver page")
+	}
+}
+
+func (r *blockingSecondPageResolver) Unblock() {
+	select {
+	case <-r.release:
+	default:
+		close(r.release)
+	}
+}
+
+type blockingRetryPusher struct {
+	route   RouteKey
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+	mu      sync.Mutex
+	calls   []PushCommand
+}
+
+func newBlockingRetryPusher(route RouteKey) *blockingRetryPusher {
+	return &blockingRetryPusher{
+		route:   route,
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (p *blockingRetryPusher) Push(_ context.Context, cmd PushCommand) (PushResult, error) {
+	p.mu.Lock()
+	p.calls = append(p.calls, PushCommand{
+		Envelope: cmd.Envelope,
+		Routes:   append([]RouteKey(nil), cmd.Routes...),
+		Attempt:  cmd.Attempt,
+	})
+	p.mu.Unlock()
+	if cmd.Attempt == 2 {
+		p.once.Do(func() { close(p.started) })
+		<-p.release
+	}
+	return PushResult{Accepted: []RouteKey{p.route}}, nil
+}
+
+func (p *blockingRetryPusher) WaitForRetry(t *testing.T) {
+	t.Helper()
+	select {
+	case <-p.started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for retry push")
+	}
+}
+
+func (p *blockingRetryPusher) Unblock() {
+	select {
+	case <-p.release:
+	default:
+		close(p.release)
+	}
+}
