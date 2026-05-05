@@ -3,11 +3,17 @@ package raft
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+)
+
+const (
+	defaultLogCompactionTriggerEntries = uint64(10000)
+	defaultLogCompactionCheckInterval  = 30 * time.Second
 )
 
 type Peer struct {
@@ -31,6 +37,48 @@ type Config struct {
 	Logger             wklog.Logger
 	OnLeaderChange     LeaderChangeObserver
 	OnCommittedCommand CommittedCommandObserver
+	// LogCompaction controls local Controller Raft snapshot compaction.
+	LogCompaction LogCompactionConfig
+}
+
+// LogCompactionConfig controls local Controller Raft snapshot compaction.
+type LogCompactionConfig struct {
+	// Enabled controls whether this node creates local Controller Raft snapshots.
+	Enabled bool
+	// EnabledSet records whether Enabled was explicitly configured.
+	EnabledSet bool
+	// TriggerEntries is the applied-entry delta required before taking another snapshot.
+	TriggerEntries uint64
+	// CheckInterval is the minimum interval between compaction checks.
+	CheckInterval time.Duration
+}
+
+// NormalizeLogCompactionConfig applies Controller Raft snapshot compaction defaults.
+func NormalizeLogCompactionConfig(cfg LogCompactionConfig) LogCompactionConfig {
+	if !cfg.EnabledSet {
+		cfg.Enabled = true
+	}
+	if cfg.TriggerEntries == 0 {
+		cfg.TriggerEntries = defaultLogCompactionTriggerEntries
+	}
+	if cfg.CheckInterval == 0 {
+		cfg.CheckInterval = defaultLogCompactionCheckInterval
+	}
+	return cfg
+}
+
+// ValidateLogCompactionConfig checks Controller Raft snapshot compaction settings.
+func ValidateLogCompactionConfig(cfg LogCompactionConfig) error {
+	if !cfg.Enabled {
+		return nil
+	}
+	if cfg.TriggerEntries == 0 {
+		return fmt.Errorf("%w: controller log compaction trigger entries must be > 0", ErrInvalidConfig)
+	}
+	if cfg.CheckInterval <= 0 {
+		return fmt.Errorf("%w: controller log compaction check interval must be > 0", ErrInvalidConfig)
+	}
+	return nil
 }
 
 func (c Config) validateCore() error {
