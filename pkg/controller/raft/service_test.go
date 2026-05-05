@@ -124,6 +124,10 @@ func TestServiceStartRestoresSnapshotAndReplaysPostSnapshotEntries(t *testing.T)
 
 	env.startNode(t, 1, nil)
 	require.Eventually(t, func() bool {
+		_, err := env.nodes[1].meta.GetNode(context.Background(), 2)
+		return err == nil
+	}, 5*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
 		_, err := env.nodes[1].meta.GetNode(context.Background(), 3)
 		return err == nil
 	}, 5*time.Second, 10*time.Millisecond)
@@ -168,13 +172,6 @@ func TestServiceIncomingReadySnapshotRestoresControllerMeta(t *testing.T) {
 			ConfState: raftpb.ConfState{Voters: []uint64{1, 2}},
 		},
 	}
-	require.NoError(t, storageView.persistReady(ctx, raft.Ready{Snapshot: snap}))
-
-	latestConfState := raftpb.ConfState{Voters: []uint64{7}}
-	lastApplied, err := service.restoreReadySnapshot(ctx, snap, storageView, &latestConfState)
-	require.NoError(t, err)
-	require.Equal(t, uint64(5), lastApplied)
-	require.NoError(t, storage.MarkApplied(ctx, lastApplied))
 
 	entryData, err := encodeCommand(slotcontroller.Command{
 		Kind: slotcontroller.CommandKindNodeJoin,
@@ -187,10 +184,11 @@ func TestServiceIncomingReadySnapshotRestoresControllerMeta(t *testing.T) {
 	})
 	require.NoError(t, err)
 	entry := raftpb.Entry{Index: 6, Term: 2, Type: raftpb.EntryNormal, Data: entryData}
-	cmd, err := decodeCommand(entry.Data)
-	require.NoError(t, err)
-	require.NoError(t, targetSM.Apply(ctx, cmd))
-	require.NoError(t, storage.MarkApplied(ctx, entry.Index))
+	ready := raft.Ready{Snapshot: snap, CommittedEntries: []raftpb.Entry{entry}}
+	require.NoError(t, storageView.persistReady(ctx, ready))
+
+	latestConfState := raftpb.ConfState{Voters: []uint64{7}}
+	require.NoError(t, service.applyReadyState(ctx, nil, ready, storageView, &latestConfState, nil))
 
 	_, err = targetStore.GetNode(ctx, 9)
 	require.NoError(t, err)
