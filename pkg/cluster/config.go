@@ -172,7 +172,7 @@ func (c *Config) validate() error {
 		return fmt.Errorf("%w: ControllerMetaPath and ControllerRaftPath must be set together", ErrInvalidConfig)
 	}
 	if err := controllerraft.ValidateLogCompactionConfig(c.ControllerLogCompaction); err != nil {
-		return err
+		return fmt.Errorf("%w: controller log compaction: %w", ErrInvalidConfig, err)
 	}
 
 	staticCluster := len(c.Nodes) > 0
