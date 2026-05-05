@@ -1134,6 +1134,7 @@ func newTestLocalControllerCluster(t *testing.T, start bool) (*Cluster, *control
 	requireNoErr(t, layer.Start(
 		"127.0.0.1:0",
 		func([]byte) {},
+		func([]byte) {},
 		func(context.Context, []byte) ([]byte, error) { return nil, nil },
 		func(context.Context, []byte) ([]byte, error) { return nil, nil },
 		func(context.Context, []byte) ([]byte, error) { return nil, nil },

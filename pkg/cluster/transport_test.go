@@ -63,6 +63,64 @@ func TestRaftTransport_Send(t *testing.T) {
 	}
 }
 
+func TestRaftTransportSendBatchesMessagesByTargetNode(t *testing.T) {
+	srv := transport.NewServer()
+	singleFrames := make(chan []byte, 2)
+	batchFrames := make(chan []byte, 1)
+	srv.Handle(msgTypeRaft, func(body []byte) {
+		singleFrames <- append([]byte(nil), body...)
+	})
+	srv.Handle(msgTypeRaftBatch, func(body []byte) {
+		batchFrames <- append([]byte(nil), body...)
+	})
+	if err := srv.Start("127.0.0.1:0"); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Stop()
+
+	d := NewStaticDiscovery([]NodeConfig{{NodeID: 2, Addr: srv.Listener().Addr().String()}})
+	pool := transport.NewPool(d, 2, 5*time.Second)
+	defer pool.Close()
+	client := transport.NewClient(pool)
+	defer client.Stop()
+
+	rt := &raftTransport{client: client}
+	messages := []multiraft.Envelope{
+		{SlotID: 1, Message: raftpb.Message{To: 2, From: 1, Type: raftpb.MsgHeartbeat, Term: 3}},
+		{SlotID: 2, Message: raftpb.Message{To: 2, From: 1, Type: raftpb.MsgApp, Term: 4}},
+	}
+	if err := rt.Send(context.Background(), messages); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case body := <-batchFrames:
+		items, err := decodeRaftBatchBody(body)
+		if err != nil {
+			t.Fatalf("decode raft batch: %v", err)
+		}
+		if len(items) != len(messages) {
+			t.Fatalf("batch item count = %d, want %d", len(items), len(messages))
+		}
+		for i, item := range items {
+			if item.slotID != uint64(messages[i].SlotID) {
+				t.Fatalf("item[%d].slotID = %d, want %d", i, item.slotID, messages[i].SlotID)
+			}
+			var decoded raftpb.Message
+			if err := decoded.Unmarshal(item.data); err != nil {
+				t.Fatalf("unmarshal item[%d]: %v", i, err)
+			}
+			if decoded.To != messages[i].Message.To || decoded.From != messages[i].Message.From || decoded.Type != messages[i].Message.Type {
+				t.Fatalf("item[%d] message = %+v, want %+v", i, decoded, messages[i].Message)
+			}
+		}
+	case <-singleFrames:
+		t.Fatal("sent single raft frame for same-target batch")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for raft batch frame")
+	}
+}
+
 func TestRaftTransport_CtxCancel(t *testing.T) {
 	d := NewStaticDiscovery([]NodeConfig{})
 	pool := transport.NewPool(d, 2, 5*time.Second)

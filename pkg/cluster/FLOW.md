@@ -92,11 +92,13 @@ NewCluster(cfg):
 
 Start():
   ③ startTransportLayer():
-     使用 Cluster-owned DynamicDiscovery → Server → 注册 4 个 Handler:
+     使用 Cluster-owned DynamicDiscovery → Server → 注册 Raft / RPC Handler:
        msgTypeRaft       → handleRaftMessage
+       msgTypeRaftBatch  → handleRaftBatchMessage
        rpcServiceForward → handleForwardRPC
        rpcServiceController → handleControllerRPC
        rpcServiceManagedSlot → handleManagedSlotRPC
+       同一目标节点上的 Slot Raft envelope 会合并成 msgTypeRaftBatch 发送，接收端按 batch item 逐条 Step 到对应 Slot。
      创建 raftPool + rpcPool + controllerPool → raftClient + fwdClient + controllerRPCClient
      Server / Pool 通过 Config.TransportObserver 上报 transport send/receive bytes、dial / enqueue 结果，以及 RPC client 调用结果 / 时延 / inflight
      Cluster.TransportPoolStats() 在观测刷新时聚合 raftPool/rpcPool/controllerPool 的 active/idle 连接数
