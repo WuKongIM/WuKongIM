@@ -512,19 +512,37 @@ func TestServiceLaggingFollowerRestoresControllerSnapshot(t *testing.T) {
 	laggingStore := env.nodes[laggingID].logDB.ForController()
 	laggingLastBeforeStop, err := laggingStore.LastIndex(context.Background())
 	require.NoError(t, err)
+	laggingSnapBeforeStop, err := laggingStore.Snapshot(context.Background())
+	require.NoError(t, err)
 
 	env.stopNode(laggingID)
 	activeIDs := removeNodeID([]uint64{1, 2, 3}, laggingID)
 	require.Equal(t, leaderID, env.waitForLeader(t, activeIDs))
 
 	leader := env.nodes[leaderID]
-	for nodeID := uint64(10); nodeID < 15; nodeID++ {
+	for nodeID := uint64(10); nodeID < 20; nodeID++ {
 		require.NoError(t, leader.service.Propose(context.Background(), nodeJoinCommand(nodeID)))
 	}
-	leaderSnap := waitForControllerSnapshotIndex(t, leader.logDB.ForController(), 4)
-	leaderFirst, err := leader.logDB.ForController().FirstIndex(context.Background())
-	require.NoError(t, err)
-	require.Greater(t, leaderFirst, laggingLastBeforeStop)
+	leaderStore := leader.logDB.ForController()
+	var leaderSnap raftpb.Snapshot
+	require.Eventually(t, func() bool {
+		gotSnap, err := leaderStore.Snapshot(context.Background())
+		if err != nil {
+			return false
+		}
+		first, err := leaderStore.FirstIndex(context.Background())
+		if err != nil {
+			return false
+		}
+		if gotSnap.Metadata.Index <= laggingLastBeforeStop {
+			return false
+		}
+		if first <= laggingLastBeforeStop+1 {
+			return false
+		}
+		leaderSnap = gotSnap
+		return true
+	}, 5*time.Second, 10*time.Millisecond)
 
 	env.startNodeWithConfig(t, laggingID, nil, func(cfg *Config) {
 		cfg.LogCompaction = LogCompactionConfig{
@@ -534,10 +552,11 @@ func TestServiceLaggingFollowerRestoresControllerSnapshot(t *testing.T) {
 			CheckInterval:  time.Nanosecond,
 		}
 	})
-	for nodeID := uint64(10); nodeID < 15; nodeID++ {
+	for nodeID := uint64(10); nodeID < 20; nodeID++ {
 		waitForControllerNode(t, env.nodes[laggingID].meta, nodeID)
 	}
 	followerSnap := waitForControllerSnapshotIndex(t, env.nodes[laggingID].logDB.ForController(), leaderSnap.Metadata.Index)
+	require.Greater(t, followerSnap.Metadata.Index, laggingSnapBeforeStop.Metadata.Index)
 	require.GreaterOrEqual(t, followerSnap.Metadata.Index, leaderSnap.Metadata.Index)
 }
 
