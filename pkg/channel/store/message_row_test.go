@@ -192,6 +192,36 @@ func TestMessageRowToRecordEncodesSharedCompatibilityCodec(t *testing.T) {
 	require.Equal(t, row.PayloadHash, decoded.PayloadHash)
 }
 
+func TestCompatibilityRecordPayloadSizeMatchesEncodedPayload(t *testing.T) {
+	row := messageRow{
+		MessageSeq:  9,
+		MessageID:   42,
+		FramerFlags: 3,
+		Setting:     uint8(frame.SettingReceiptEnabled),
+		StreamFlag:  uint8(frame.StreamFlagIng),
+		MsgKey:      "k-1",
+		Expire:      60,
+		ClientSeq:   7,
+		ClientMsgNo: "c-1",
+		StreamNo:    "s-1",
+		StreamID:    88,
+		Timestamp:   99,
+		ChannelID:   "room",
+		ChannelType: 1,
+		Topic:       "topic",
+		FromUID:     "u1",
+		Payload:     []byte("hello"),
+		PayloadHash: 123,
+	}
+
+	record, err := row.toCompatibilityRecord()
+	require.NoError(t, err)
+	size, err := compatibilityRecordPayloadSize(row)
+	require.NoError(t, err)
+	require.Equal(t, len(record.Payload), size)
+	require.Equal(t, record.SizeBytes, size)
+}
+
 func TestMessageRowToRecordRoundTripPreservesHeaderLayout(t *testing.T) {
 	row := messageRow{
 		MessageID:   42,

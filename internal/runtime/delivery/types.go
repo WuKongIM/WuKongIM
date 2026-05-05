@@ -79,8 +79,19 @@ type Observer interface {
 	OnMaintenanceSnapshot(MaintenanceSnapshot)
 }
 
+// RetryEntryKind identifies the actor retry work carried by a retry-wheel entry.
+type RetryEntryKind uint8
+
+const (
+	// RetryEntryRoute retries a realtime route push.
+	RetryEntryRoute RetryEntryKind = iota
+	// RetryEntryResolve retries subscriber/page resolution for an inflight message.
+	RetryEntryResolve
+)
+
 type RetryEntry struct {
 	When        time.Time
+	Kind        RetryEntryKind
 	ChannelID   string
 	ChannelType uint8
 	MessageID   uint64
@@ -119,17 +130,19 @@ const (
 )
 
 type InflightMessage struct {
-	MessageID       uint64
-	MessageSeq      uint64
-	Envelope        CommittedEnvelope
-	ResolveToken    any
-	ResolveBegun    bool
-	ResolveDone     bool
-	ResolveAttempt  int
-	ResolveRetryAt  time.Time
-	NextCursor      string
-	Routes          map[RouteKey]*RouteDeliveryState
-	PendingRouteCnt int
+	MessageID    uint64
+	MessageSeq   uint64
+	Envelope     CommittedEnvelope
+	ResolveToken any
+	ResolveBegun bool
+	ResolveDone  bool
+	// ResolveInProgress prevents duplicate resolver calls while I/O runs outside the actor lock.
+	ResolveInProgress bool
+	ResolveAttempt    int
+	ResolveRetryAt    time.Time
+	NextCursor        string
+	Routes            map[RouteKey]*RouteDeliveryState
+	PendingRouteCnt   int
 }
 
 type Limits struct {

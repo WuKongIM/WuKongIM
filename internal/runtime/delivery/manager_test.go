@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -274,5 +275,48 @@ func testRoute(uid string, nodeID, bootID, sessionID uint64) RouteKey {
 		NodeID:    nodeID,
 		BootID:    bootID,
 		SessionID: sessionID,
+	}
+}
+
+func TestDeliveryProcessRetryTicksDoesNotScanIdleActors(t *testing.T) {
+	runtime, _, _ := newTestManager()
+	key := ChannelKey{ChannelID: "g-idle-scan", ChannelType: frame.ChannelTypeGroup}
+	shard := runtime.shardFor(key)
+
+	shard.mu.Lock()
+	act := shard.actorFor(key)
+	shard.mu.Unlock()
+	act.mu.Lock()
+	defer act.mu.Unlock()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runtime.ProcessRetryTicks(context.Background())
+	}()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("ProcessRetryTicks blocked on an idle actor with no due retry work")
+	}
+}
+
+func BenchmarkDeliveryProcessRetryTicksManyIdleActors(b *testing.B) {
+	runtime, _, _ := newTestManager()
+	shard := runtime.shards[0]
+	shard.mu.Lock()
+	for i := 0; i < 10_000; i++ {
+		key := ChannelKey{ChannelID: "g-idle-" + strconv.Itoa(i), ChannelType: frame.ChannelTypeGroup}
+		shard.actorFor(key)
+	}
+	shard.mu.Unlock()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := runtime.ProcessRetryTicks(context.Background()); err != nil {
+			b.Fatalf("ProcessRetryTicks() error = %v", err)
+		}
 	}
 }

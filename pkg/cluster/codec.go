@@ -9,7 +9,14 @@ import (
 const (
 	msgTypeRaft            uint8 = 1
 	msgTypeObservationHint uint8 = 2
+	msgTypeRaftBatch       uint8 = 3
 )
+
+// raftBatchItem is one slot-scoped raft message inside a batched transport frame.
+type raftBatchItem struct {
+	slotID uint64
+	data   []byte
+}
 
 // Forward error codes (encoded within RPC payload, not wire-level).
 const (
@@ -35,6 +42,60 @@ func decodeRaftBody(body []byte) (slotID uint64, data []byte, err error) {
 	slotID = binary.BigEndian.Uint64(body[0:8])
 	data = body[8:]
 	return slotID, data, nil
+}
+
+// encodeRaftBatchBody encodes [count:4] repeated [slotID:8][dataLen:4][data:N].
+func encodeRaftBatchBody(items []raftBatchItem) []byte {
+	size := 4
+	for _, item := range items {
+		size += 12 + len(item.data)
+	}
+	buf := make([]byte, size)
+	binary.BigEndian.PutUint32(buf[0:4], uint32(len(items)))
+	offset := 4
+	for _, item := range items {
+		binary.BigEndian.PutUint64(buf[offset:offset+8], item.slotID)
+		offset += 8
+		binary.BigEndian.PutUint32(buf[offset:offset+4], uint32(len(item.data)))
+		offset += 4
+		copy(buf[offset:offset+len(item.data)], item.data)
+		offset += len(item.data)
+	}
+	return buf
+}
+
+// decodeRaftBatchBody decodes [count:4] repeated [slotID:8][dataLen:4][data:N].
+func decodeRaftBatchBody(body []byte) ([]raftBatchItem, error) {
+	if len(body) < 4 {
+		return nil, fmt.Errorf("raft batch body too short: %d", len(body))
+	}
+	count := int(binary.BigEndian.Uint32(body[0:4]))
+	if count > (len(body)-4)/12 {
+		return nil, fmt.Errorf("raft batch item count exceeds body size: count=%d body=%d", count, len(body))
+	}
+	items := make([]raftBatchItem, 0, count)
+	offset := 4
+	for i := 0; i < count; i++ {
+		if len(body)-offset < 12 {
+			return nil, fmt.Errorf("raft batch item %d header truncated", i)
+		}
+		slotID := binary.BigEndian.Uint64(body[offset : offset+8])
+		offset += 8
+		dataLen := int(binary.BigEndian.Uint32(body[offset : offset+4]))
+		offset += 4
+		if dataLen > len(body)-offset {
+			return nil, fmt.Errorf("raft batch item %d data truncated", i)
+		}
+		items = append(items, raftBatchItem{
+			slotID: slotID,
+			data:   body[offset : offset+dataLen],
+		})
+		offset += dataLen
+	}
+	if offset != len(body) {
+		return nil, fmt.Errorf("raft batch body has %d trailing bytes", len(body)-offset)
+	}
+	return items, nil
 }
 
 // encodeProposalPayload encodes [hashSlot:2][cmd:N] for raft proposals.

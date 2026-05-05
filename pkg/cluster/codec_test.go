@@ -17,6 +17,39 @@ func TestRaftBodyRoundTrip(t *testing.T) {
 	}
 }
 
+func TestEncodeDecodeRaftBatchBodyRoundTrip(t *testing.T) {
+	items := []raftBatchItem{
+		{slotID: 7, data: []byte("raft-data-7")},
+		{slotID: 11, data: []byte("raft-data-11")},
+	}
+
+	body := encodeRaftBatchBody(items)
+	decoded, err := decodeRaftBatchBody(body)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(decoded) != len(items) {
+		t.Fatalf("decoded item count = %d, want %d", len(decoded), len(items))
+	}
+	for i := range items {
+		if decoded[i].slotID != items[i].slotID || !bytes.Equal(decoded[i].data, items[i].data) {
+			t.Fatalf("decoded[%d] = {slotID:%d data:%q}, want {slotID:%d data:%q}",
+				i, decoded[i].slotID, decoded[i].data, items[i].slotID, items[i].data)
+		}
+	}
+}
+
+func TestDecodeRaftBatchBodyRejectsTruncatedPayload(t *testing.T) {
+	body := encodeRaftBatchBody([]raftBatchItem{
+		{slotID: 7, data: []byte("raft-data")},
+	})
+	for n := 0; n < len(body); n++ {
+		if _, err := decodeRaftBatchBody(body[:n]); err == nil {
+			t.Fatalf("decodeRaftBatchBody(%d bytes) error = nil, want truncated payload error", n)
+		}
+	}
+}
+
 func TestForwardPayloadRoundTrip(t *testing.T) {
 	cmd := []byte("test-command")
 	payload := encodeForwardPayload(7, cmd)

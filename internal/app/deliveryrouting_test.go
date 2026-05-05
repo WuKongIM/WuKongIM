@@ -843,6 +843,157 @@ func TestLocalDeliveryPushBuildsPersonChannelViewPerRouteUID(t *testing.T) {
 	require.Equal(t, "u1", recipientPacket.ChannelID)
 }
 
+func TestLocalDeliveryPushReusesGroupFrameForAllRoutes(t *testing.T) {
+	first := newOptionRecordingSession(1, "tcp")
+	second := newOptionRecordingSession(2, "tcp")
+	registry := online.NewRegistry()
+	require.NoError(t, registry.Register(online.OnlineConn{
+		SessionID: 1,
+		UID:       "u1",
+		State:     online.LocalRouteStateActive,
+		Session:   first,
+	}))
+	require.NoError(t, registry.Register(online.OnlineConn{
+		SessionID: 2,
+		UID:       "u2",
+		State:     online.LocalRouteStateActive,
+		Session:   second,
+	}))
+	push := localDeliveryPush{online: registry, localNodeID: 1, gatewayBootID: 11}
+
+	result, err := push.Push(context.Background(), deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				MessageID:   120,
+				MessageSeq:  12,
+				ChannelID:   "g-reuse",
+				ChannelType: frame.ChannelTypeGroup,
+				FromUID:     "u1",
+				Payload:     []byte("hello group reuse"),
+			},
+		},
+		Routes: []deliveryruntime.RouteKey{
+			{UID: "u1", NodeID: 1, BootID: 11, SessionID: 1},
+			{UID: "u2", NodeID: 1, BootID: 11, SessionID: 2},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Accepted, 2)
+
+	firstWrites := first.Writes()
+	secondWrites := second.Writes()
+	require.Len(t, firstWrites, 1)
+	require.Len(t, secondWrites, 1)
+	require.Same(t, firstWrites[0].f, secondWrites[0].f)
+}
+
+func TestDistributedDeliveryPushRunsRemoteNodesWithBoundedParallelism(t *testing.T) {
+	client := newBlockingRemoteDeliveryPushClient()
+	push := distributedDeliveryPush{
+		localNodeID: 1,
+		client:      client,
+		codec:       codec.New(),
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := push.Push(context.Background(), deliveryruntime.PushCommand{
+			Envelope: deliveryruntime.CommittedEnvelope{
+				Message: channel.Message{
+					MessageID:   121,
+					MessageSeq:  13,
+					ChannelID:   "g-remote-parallel",
+					ChannelType: frame.ChannelTypeGroup,
+					FromUID:     "u1",
+					Payload:     []byte("hello remote parallel"),
+				},
+			},
+			Routes: []deliveryruntime.RouteKey{
+				{UID: "u2", NodeID: 2, BootID: 11, SessionID: 21},
+				{UID: "u3", NodeID: 3, BootID: 11, SessionID: 31},
+				{UID: "u4", NodeID: 4, BootID: 11, SessionID: 41},
+				{UID: "u5", NodeID: 5, BootID: 11, SessionID: 51},
+				{UID: "u6", NodeID: 6, BootID: 11, SessionID: 61},
+			},
+		})
+		done <- err
+	}()
+	client.WaitForStarted(t, 1)
+
+	select {
+	case <-client.started:
+	case <-time.After(50 * time.Millisecond):
+		client.Release()
+		<-done
+		t.Fatal("remote node pushes ran serially instead of concurrently")
+	}
+	require.Eventually(t, func() bool { return client.MaxActive() >= 2 }, time.Second, time.Millisecond)
+	require.LessOrEqual(t, client.MaxActive(), 4)
+
+	client.Release()
+	require.NoError(t, <-done)
+}
+
+type blockingRemoteDeliveryPushClient struct {
+	started chan uint64
+	release chan struct{}
+	once    sync.Once
+	mu      sync.Mutex
+	active  int
+	max     int
+}
+
+func newBlockingRemoteDeliveryPushClient() *blockingRemoteDeliveryPushClient {
+	return &blockingRemoteDeliveryPushClient{
+		started: make(chan uint64, 16),
+		release: make(chan struct{}),
+	}
+}
+
+func (c *blockingRemoteDeliveryPushClient) PushBatch(_ context.Context, _ uint64, cmd accessnode.DeliveryPushCommand) (accessnode.DeliveryPushResponse, error) {
+	return accessnode.DeliveryPushResponse{Accepted: append([]deliveryruntime.RouteKey(nil), cmd.Routes...)}, nil
+}
+
+func (c *blockingRemoteDeliveryPushClient) PushBatchItems(_ context.Context, nodeID uint64, cmd accessnode.DeliveryPushBatchCommand) (accessnode.DeliveryPushResponse, error) {
+	c.mu.Lock()
+	c.active++
+	if c.active > c.max {
+		c.max = c.active
+	}
+	c.mu.Unlock()
+	c.started <- nodeID
+	<-c.release
+	c.mu.Lock()
+	c.active--
+	c.mu.Unlock()
+	resp := accessnode.DeliveryPushResponse{}
+	for _, item := range cmd.Items {
+		resp.Accepted = append(resp.Accepted, item.Routes...)
+	}
+	return resp, nil
+}
+
+func (c *blockingRemoteDeliveryPushClient) WaitForStarted(t *testing.T, count int) {
+	t.Helper()
+	for i := 0; i < count; i++ {
+		select {
+		case <-c.started:
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for remote push %d", i+1)
+		}
+	}
+}
+
+func (c *blockingRemoteDeliveryPushClient) MaxActive() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.max
+}
+
+func (c *blockingRemoteDeliveryPushClient) Release() {
+	c.once.Do(func() { close(c.release) })
+}
+
 func TestLocalDeliveryPushSkipsOriginSessionButKeepsOtherSenderSessions(t *testing.T) {
 	origin := newOptionRecordingSession(1, "tcp")
 	origin.SetValue("uid", "u1")

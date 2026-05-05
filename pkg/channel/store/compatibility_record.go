@@ -145,6 +145,31 @@ func encodeCompatibilityRecord(row messageRow) (channel.Record, error) {
 	return channel.Record{Payload: payload, SizeBytes: len(payload)}, nil
 }
 
+// compatibilityRecordPayloadSize returns the encoded compatibility payload size without materializing it.
+func compatibilityRecordPayloadSize(row messageRow) (int, error) {
+	if err := row.validate(); err != nil {
+		return 0, err
+	}
+
+	size := channel.DurableMessageHeaderSize
+	fieldSizes := [...]int{
+		len(row.MsgKey),
+		len(row.ClientMsgNo),
+		len(row.StreamNo),
+		len(row.ChannelID),
+		len(row.Topic),
+		len(row.FromUID),
+		len(row.Payload),
+	}
+	for _, fieldSize := range fieldSizes {
+		if fieldSize > math.MaxUint32 {
+			return 0, channel.ErrInvalidArgument
+		}
+		size += 4 + fieldSize
+	}
+	return size, nil
+}
+
 // toCompatibilityRecord encodes the structured row into the compatibility record layout.
 func (r messageRow) toCompatibilityRecord() (channel.Record, error) {
 	return encodeCompatibilityRecord(r)

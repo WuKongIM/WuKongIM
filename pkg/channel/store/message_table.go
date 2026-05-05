@@ -167,36 +167,63 @@ func (t *messageTable) scanBySeq(fromSeq uint64, limit int, maxBytes int) ([]mes
 
 	rows := make([]messageRow, 0, minInt(limit, logScanInitialCapacity))
 	total := 0
-	var skipPayloadSeq uint64
+	table := canonicalMessageTable()
+	primaryFamily := table.Families[0]
+	payloadFamily := table.Families[1]
+	var (
+		pendingSeq  uint64
+		pendingRow  messageRow
+		havePrimary bool
+	)
+scanLoop:
 	for valid := iter.First(); valid && len(rows) < limit; valid = iter.Next() {
 		seq, familyID, err := decodeTableStateKey(iter.Key(), t.channelKey, TableIDMessage)
 		if err != nil {
 			return nil, err
 		}
-		processRow, err := consumeForwardMessageFamily(seq, familyID, &skipPayloadSeq)
-		if err != nil {
-			return nil, err
+		switch familyID {
+		case messagePrimaryFamilyID:
+			if havePrimary {
+				return nil, channel.ErrCorruptState
+			}
+			pendingSeq = seq
+			pendingRow = messageRow{MessageSeq: seq}
+			if err := decodeMessageFamilyInto(&pendingRow, primaryFamily, iter.Value()); err != nil {
+				return nil, err
+			}
+			havePrimary = true
+		case messagePayloadFamilyID:
+			if !havePrimary || pendingSeq != seq {
+				return nil, channel.ErrCorruptState
+			}
+			if err := decodeMessageFamilyInto(&pendingRow, payloadFamily, iter.Value()); err != nil {
+				return nil, err
+			}
+			row := pendingRow
+			pendingSeq = 0
+			pendingRow = messageRow{}
+			havePrimary = false
+			if err := validateMaterializedMessageRow(row); err != nil {
+				return nil, err
+			}
+			size, err := row.compatibilityEncodedRecordSize()
+			if err != nil {
+				return nil, err
+			}
+			if len(rows) > 0 && total+size > maxBytes {
+				break scanLoop
+			}
+			rows = append(rows, row)
+			total += size
+		default:
+			return nil, channel.ErrCorruptState
 		}
-		if !processRow {
-			continue
-		}
-		row, err := t.materializeRow(seq, iter.Value())
-		if err != nil {
-			return nil, err
-		}
-		size, err := row.compatibilityEncodedRecordSize()
-		if err != nil {
-			return nil, err
-		}
-		if len(rows) > 0 && total+size > maxBytes {
-			break
-		}
-		rows = append(rows, row)
-		total += size
-		skipPayloadSeq = seq
 	}
 	if err := iter.Error(); err != nil {
 		return nil, err
+	}
+	if havePrimary {
+		return nil, channel.ErrCorruptState
 	}
 	return rows, nil
 }
@@ -224,37 +251,62 @@ func (t *messageTable) scanBySeqReverse(fromSeq uint64, limit int, maxBytes int)
 
 	rows := make([]messageRow, 0, minInt(limit, logScanInitialCapacity))
 	total := 0
-	var pendingPayloadSeq uint64
+	table := canonicalMessageTable()
+	primaryFamily := table.Families[0]
+	payloadFamily := table.Families[1]
+	var (
+		pendingSeq  uint64
+		pendingRow  messageRow
+		havePayload bool
+	)
+scanLoop:
 	for valid := iter.SeekLT(seekKey); valid && len(rows) < limit; valid = iter.Prev() {
 		seq, familyID, err := decodeTableStateKey(iter.Key(), t.channelKey, TableIDMessage)
 		if err != nil {
 			return nil, err
 		}
-		processRow, err := consumeReverseMessageFamily(seq, familyID, &pendingPayloadSeq)
-		if err != nil {
-			return nil, err
+		switch familyID {
+		case messagePayloadFamilyID:
+			if havePayload {
+				return nil, channel.ErrCorruptState
+			}
+			pendingSeq = seq
+			pendingRow = messageRow{MessageSeq: seq}
+			if err := decodeMessageFamilyInto(&pendingRow, payloadFamily, iter.Value()); err != nil {
+				return nil, err
+			}
+			havePayload = true
+		case messagePrimaryFamilyID:
+			if !havePayload || pendingSeq != seq {
+				return nil, channel.ErrCorruptState
+			}
+			if err := decodeMessageFamilyInto(&pendingRow, primaryFamily, iter.Value()); err != nil {
+				return nil, err
+			}
+			row := pendingRow
+			pendingSeq = 0
+			pendingRow = messageRow{}
+			havePayload = false
+			if err := validateMaterializedMessageRow(row); err != nil {
+				return nil, err
+			}
+			size, err := row.compatibilityEncodedRecordSize()
+			if err != nil {
+				return nil, err
+			}
+			if len(rows) > 0 && total+size > maxBytes {
+				break scanLoop
+			}
+			rows = append(rows, row)
+			total += size
+		default:
+			return nil, channel.ErrCorruptState
 		}
-		if !processRow {
-			continue
-		}
-		row, err := t.materializeRow(seq, iter.Value())
-		if err != nil {
-			return nil, err
-		}
-		size, err := row.compatibilityEncodedRecordSize()
-		if err != nil {
-			return nil, err
-		}
-		if len(rows) > 0 && total+size > maxBytes {
-			break
-		}
-		rows = append(rows, row)
-		total += size
 	}
 	if err := iter.Error(); err != nil {
 		return nil, err
 	}
-	if pendingPayloadSeq != 0 {
+	if havePayload {
 		return nil, channel.ErrCorruptState
 	}
 	return rows, nil
@@ -518,10 +570,20 @@ func (t *messageTable) materializeRow(seq uint64, primary []byte) (messageRow, e
 	if err != nil {
 		return messageRow{}, err
 	}
-	if row.PayloadHash != hashMessagePayload(row.Payload) {
-		return messageRow{}, channel.ErrCorruptState
+	if err := validateMaterializedMessageRow(row); err != nil {
+		return messageRow{}, err
 	}
 	return row, nil
+}
+
+func validateMaterializedMessageRow(row messageRow) error {
+	if row.MessageID == 0 {
+		return channel.ErrCorruptValue
+	}
+	if row.PayloadHash != hashMessagePayload(row.Payload) {
+		return channel.ErrCorruptState
+	}
+	return nil
 }
 
 func (t *messageTable) getValue(key []byte) ([]byte, bool, error) {
@@ -573,11 +635,7 @@ func encodeMessageIdempotencyIndexKey(channelKey channel.ChannelKey, fromUID, cl
 }
 
 func (r messageRow) compatibilityEncodedRecordSize() (int, error) {
-	record, err := r.toCompatibilityRecord()
-	if err != nil {
-		return 0, err
-	}
-	return record.SizeBytes, nil
+	return compatibilityRecordPayloadSize(r)
 }
 
 // consumeForwardMessageFamily validates the expected primary -> payload family order.
