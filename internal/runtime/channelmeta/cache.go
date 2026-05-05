@@ -10,8 +10,10 @@ import (
 )
 
 const (
-	channelMetaPositiveCacheTTL = 5 * time.Second
-	channelMetaNegativeCacheTTL = time.Second
+	channelMetaPositiveCacheTTL          = 5 * time.Second
+	channelMetaNegativeCacheTTL          = time.Second
+	channelMetaActivationCacheShards     = 16
+	channelMetaActivationCacheMaxEntries = 4096
 )
 
 type cachedChannelMeta struct {
@@ -40,12 +42,21 @@ type activationCallKey struct {
 
 // ActivationCache stores short-lived channel activation results and coalesces concurrent loads.
 type ActivationCache struct {
+	// mu protects singleflight calls and global generation changes.
 	mu               sync.Mutex
-	positive         map[channel.ChannelKey]cachedChannelMeta
-	negative         map[channel.ChannelKey]cachedChannelMetaError
 	calls            map[activationCallKey]*activationCall
-	generations      map[channel.ChannelKey]uint64
 	globalGeneration uint64
+	pruneMu          sync.Mutex
+	lastPruneAt      time.Time
+	shards           [channelMetaActivationCacheShards]activationCacheShard
+}
+
+type activationCacheShard struct {
+	mu          sync.Mutex
+	positive    map[channel.ChannelKey]cachedChannelMeta
+	negative    map[channel.ChannelKey]cachedChannelMetaError
+	generations map[channel.ChannelKey]uint64
+	lastPruneAt time.Time
 }
 
 // LoadPositive returns a cached channel metadata result when it has not expired.
@@ -61,14 +72,15 @@ func (c *ActivationCache) loadPositiveEntry(key channel.ChannelKey, now time.Tim
 	if c == nil {
 		return cachedChannelMeta{}, false
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	entry, ok := c.positive[key]
+	shard := c.shard(key)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+	entry, ok := shard.positive[key]
 	if !ok {
 		return cachedChannelMeta{}, false
 	}
 	if now.After(entry.expiresAt) {
-		delete(c.positive, key)
+		delete(shard.positive, key)
 		return cachedChannelMeta{}, false
 	}
 	return entry, true
@@ -96,15 +108,19 @@ func (c *ActivationCache) storePositiveEntry(key channel.ChannelKey, entry cache
 	if c == nil {
 		return
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.positive == nil {
-		c.positive = make(map[channel.ChannelKey]cachedChannelMeta)
+	shard := c.shard(key)
+	shard.mu.Lock()
+	if shard.positive == nil {
+		shard.positive = make(map[channel.ChannelKey]cachedChannelMeta)
 	}
-	if c.negative != nil {
-		delete(c.negative, key)
+	if shard.negative != nil {
+		delete(shard.negative, key)
 	}
-	c.positive[key] = entry
+	shard.positive[key] = entry
+	now := entry.expiresAt.Add(-channelMetaPositiveCacheTTL)
+	c.pruneShardForWriteLocked(shard, now)
+	shard.mu.Unlock()
+	c.pruneForWrite(now)
 }
 
 func (c *ActivationCache) storeAuthoritativePositiveAtGeneration(key channel.ChannelKey, applied channel.Meta, authoritative metadb.ChannelRuntimeMeta, now time.Time, generation ActivationCacheGeneration) {
@@ -122,16 +138,23 @@ func (c *ActivationCache) storePositiveEntryAtGeneration(key channel.ChannelKey,
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !c.isCurrentGenerationLocked(key, generation) {
+	shard := c.shard(key)
+	shard.mu.Lock()
+	if !c.isCurrentGenerationLocked(shard, key, generation) {
+		shard.mu.Unlock()
 		return
 	}
-	if c.positive == nil {
-		c.positive = make(map[channel.ChannelKey]cachedChannelMeta)
+	if shard.positive == nil {
+		shard.positive = make(map[channel.ChannelKey]cachedChannelMeta)
 	}
-	if c.negative != nil {
-		delete(c.negative, key)
+	if shard.negative != nil {
+		delete(shard.negative, key)
 	}
-	c.positive[key] = entry
+	shard.positive[key] = entry
+	now := entry.expiresAt.Add(-channelMetaPositiveCacheTTL)
+	c.pruneShardForWriteLocked(shard, now)
+	shard.mu.Unlock()
+	c.pruneForWrite(now)
 }
 
 // LoadNegative returns a cached not-found activation error when it has not expired.
@@ -139,14 +162,15 @@ func (c *ActivationCache) LoadNegative(key channel.ChannelKey, now time.Time) er
 	if c == nil {
 		return nil
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	entry, ok := c.negative[key]
+	shard := c.shard(key)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+	entry, ok := shard.negative[key]
 	if !ok {
 		return nil
 	}
 	if now.After(entry.expiresAt) {
-		delete(c.negative, key)
+		delete(shard.negative, key)
 		return nil
 	}
 	return entry.err
@@ -160,15 +184,18 @@ func (c *ActivationCache) StoreNegative(key channel.ChannelKey, err error, now t
 	if !errors.Is(err, metadb.ErrNotFound) {
 		return
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.negative == nil {
-		c.negative = make(map[channel.ChannelKey]cachedChannelMetaError)
+	shard := c.shard(key)
+	shard.mu.Lock()
+	if shard.negative == nil {
+		shard.negative = make(map[channel.ChannelKey]cachedChannelMetaError)
 	}
-	if c.positive != nil {
-		delete(c.positive, key)
+	if shard.positive != nil {
+		delete(shard.positive, key)
 	}
-	c.negative[key] = cachedChannelMetaError{err: err, expiresAt: now.Add(channelMetaNegativeCacheTTL)}
+	shard.negative[key] = cachedChannelMetaError{err: err, expiresAt: now.Add(channelMetaNegativeCacheTTL)}
+	c.pruneShardForWriteLocked(shard, now)
+	shard.mu.Unlock()
+	c.pruneForWrite(now)
 }
 
 func (c *ActivationCache) storeNegativeAtGeneration(key channel.ChannelKey, err error, now time.Time, generation ActivationCacheGeneration) {
@@ -180,20 +207,27 @@ func (c *ActivationCache) storeNegativeAtGeneration(key channel.ChannelKey, err 
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !c.isCurrentGenerationLocked(key, generation) {
+	shard := c.shard(key)
+	shard.mu.Lock()
+	if !c.isCurrentGenerationLocked(shard, key, generation) {
+		shard.mu.Unlock()
 		return
 	}
-	if entry, ok := c.positive[key]; ok {
+	if entry, ok := shard.positive[key]; ok {
 		if now.After(entry.expiresAt) {
-			delete(c.positive, key)
+			delete(shard.positive, key)
 		} else {
+			shard.mu.Unlock()
 			return
 		}
 	}
-	if c.negative == nil {
-		c.negative = make(map[channel.ChannelKey]cachedChannelMetaError)
+	if shard.negative == nil {
+		shard.negative = make(map[channel.ChannelKey]cachedChannelMetaError)
 	}
-	c.negative[key] = cachedChannelMetaError{err: err, expiresAt: now.Add(channelMetaNegativeCacheTTL)}
+	shard.negative[key] = cachedChannelMetaError{err: err, expiresAt: now.Add(channelMetaNegativeCacheTTL)}
+	c.pruneShardForWriteLocked(shard, now)
+	shard.mu.Unlock()
+	c.pruneForWrite(now)
 }
 
 // Clear drops cached activation successes and not-found errors.
@@ -202,11 +236,17 @@ func (c *ActivationCache) Clear() {
 		return
 	}
 	c.mu.Lock()
-	c.positive = nil
-	c.negative = nil
-	c.generations = nil
 	c.globalGeneration++
 	c.mu.Unlock()
+	for i := range c.shards {
+		shard := &c.shards[i]
+		shard.mu.Lock()
+		shard.positive = nil
+		shard.negative = nil
+		shard.generations = nil
+		shard.lastPruneAt = time.Time{}
+		shard.mu.Unlock()
+	}
 }
 
 // Invalidate drops cached activation results for a single channel key.
@@ -215,27 +255,158 @@ func (c *ActivationCache) Invalidate(key channel.ChannelKey) {
 		return
 	}
 	c.mu.Lock()
-	if c.positive != nil {
-		delete(c.positive, key)
+	defer c.mu.Unlock()
+	shard := c.shard(key)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+	if shard.positive != nil {
+		delete(shard.positive, key)
 	}
-	if c.negative != nil {
-		delete(c.negative, key)
+	if shard.negative != nil {
+		delete(shard.negative, key)
 	}
-	if c.generations == nil {
-		c.generations = make(map[channel.ChannelKey]uint64)
+	if shard.generations == nil {
+		shard.generations = make(map[channel.ChannelKey]uint64)
 	}
-	c.generations[key]++
-	c.mu.Unlock()
+	shard.generations[key]++
 }
 
 func (c *ActivationCache) currentGenerationLocked(key channel.ChannelKey) ActivationCacheGeneration {
+	shard := c.shard(key)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+	return c.currentGenerationForShardLocked(shard, key)
+}
+
+func (c *ActivationCache) currentGenerationForShardLocked(shard *activationCacheShard, key channel.ChannelKey) ActivationCacheGeneration {
 	var keyGeneration uint64
-	if c.generations != nil {
-		keyGeneration = c.generations[key]
+	if shard.generations != nil {
+		keyGeneration = shard.generations[key]
 	}
 	return ActivationCacheGeneration{global: c.globalGeneration, key: keyGeneration}
 }
 
-func (c *ActivationCache) isCurrentGenerationLocked(key channel.ChannelKey, generation ActivationCacheGeneration) bool {
-	return c.currentGenerationLocked(key) == generation
+func (c *ActivationCache) isCurrentGenerationLocked(shard *activationCacheShard, key channel.ChannelKey, generation ActivationCacheGeneration) bool {
+	return c.currentGenerationForShardLocked(shard, key) == generation
+}
+
+func (c *ActivationCache) shard(key channel.ChannelKey) *activationCacheShard {
+	return &c.shards[activationCacheShardIndex(key)]
+}
+
+func activationCacheShardIndex(key channel.ChannelKey) int {
+	hash := uint32(2166136261)
+	for i := 0; i < len(key); i++ {
+		hash ^= uint32(key[i])
+		hash *= 16777619
+	}
+	return int(hash % channelMetaActivationCacheShards)
+}
+
+func (c *ActivationCache) pruneShardForWriteLocked(shard *activationCacheShard, now time.Time) {
+	if shouldPruneActivationCacheShard(shard.lastPruneAt, now) {
+		shard.lastPruneAt = now
+		pruneActivationCacheShardExpiredLocked(shard, now)
+	}
+	capActivationCacheShardLocked(shard)
+}
+
+func (c *ActivationCache) pruneForWrite(now time.Time) {
+	if c == nil || !c.pruneMu.TryLock() {
+		return
+	}
+	defer c.pruneMu.Unlock()
+	if !shouldPruneActivationCacheShard(c.lastPruneAt, now) {
+		return
+	}
+	c.lastPruneAt = now
+	for i := range c.shards {
+		shard := &c.shards[i]
+		shard.mu.Lock()
+		pruneActivationCacheShardExpiredLocked(shard, now)
+		capActivationCacheShardLocked(shard)
+		shard.lastPruneAt = now
+		shard.mu.Unlock()
+	}
+}
+
+func shouldPruneActivationCacheShard(lastPruneAt, now time.Time) bool {
+	if lastPruneAt.IsZero() || now.Before(lastPruneAt) {
+		return true
+	}
+	return now.Sub(lastPruneAt) >= channelMetaNegativeCacheTTL
+}
+
+func pruneActivationCacheShardExpiredLocked(shard *activationCacheShard, now time.Time) {
+	for key, entry := range shard.positive {
+		if now.After(entry.expiresAt) {
+			delete(shard.positive, key)
+		}
+	}
+	for key, entry := range shard.negative {
+		if now.After(entry.expiresAt) {
+			delete(shard.negative, key)
+		}
+	}
+}
+
+func capActivationCacheShardLocked(shard *activationCacheShard) {
+	maxEntries := channelMetaActivationCacheMaxEntries / channelMetaActivationCacheShards
+	if maxEntries <= 0 {
+		maxEntries = 1
+	}
+	for activationCacheShardEntryCountLocked(shard) > maxEntries {
+		evictOldestActivationCacheEntryLocked(shard)
+	}
+}
+
+func evictOldestActivationCacheEntryLocked(shard *activationCacheShard) {
+	var (
+		oldestKey      channel.ChannelKey
+		oldestExpires  time.Time
+		oldestNegative bool
+		found          bool
+	)
+	for key, entry := range shard.positive {
+		if !found || entry.expiresAt.Before(oldestExpires) {
+			oldestKey = key
+			oldestExpires = entry.expiresAt
+			oldestNegative = false
+			found = true
+		}
+	}
+	for key, entry := range shard.negative {
+		if !found || entry.expiresAt.Before(oldestExpires) {
+			oldestKey = key
+			oldestExpires = entry.expiresAt
+			oldestNegative = true
+			found = true
+		}
+	}
+	if !found {
+		return
+	}
+	if oldestNegative {
+		delete(shard.negative, oldestKey)
+		return
+	}
+	delete(shard.positive, oldestKey)
+}
+
+func activationCacheShardEntryCountLocked(shard *activationCacheShard) int {
+	return len(shard.positive) + len(shard.negative)
+}
+
+func (c *ActivationCache) entryCount() int {
+	if c == nil {
+		return 0
+	}
+	total := 0
+	for i := range c.shards {
+		shard := &c.shards[i]
+		shard.mu.Lock()
+		total += activationCacheShardEntryCountLocked(shard)
+		shard.mu.Unlock()
+	}
+	return total
 }

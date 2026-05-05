@@ -2,6 +2,7 @@ package channelmeta
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -38,6 +39,37 @@ func TestActivationCacheStoresOnlyNotFoundNegativeUntilExpiry(t *testing.T) {
 	cache.StoreNegative(key, metadb.ErrNotFound, now)
 	require.ErrorIs(t, cache.LoadNegative(key, now.Add(500*time.Millisecond)), metadb.ErrNotFound)
 	require.NoError(t, cache.LoadNegative(key, now.Add(2*time.Second)))
+}
+
+func TestActivationCachePrunesExpiredEntriesOnWrite(t *testing.T) {
+	var cache ActivationCache
+	now := time.Unix(250, 0)
+	oldPositive := channel.ChannelKey("1:old-positive")
+	oldNegative := channel.ChannelKey("1:old-negative")
+	fresh := channel.ChannelKey("1:fresh")
+
+	cache.StorePositive(oldPositive, channel.Meta{Key: oldPositive, Leader: 1}, now)
+	cache.StoreNegative(oldNegative, metadb.ErrNotFound, now)
+	cache.StorePositive(fresh, channel.Meta{Key: fresh, Leader: 2}, now.Add(6*time.Second))
+
+	require.LessOrEqual(t, cache.entryCount(), 1)
+	_, ok := cache.LoadPositive(oldPositive, now.Add(6*time.Second))
+	require.False(t, ok)
+	require.NoError(t, cache.LoadNegative(oldNegative, now.Add(6*time.Second)))
+	_, ok = cache.LoadPositive(fresh, now.Add(6*time.Second))
+	require.True(t, ok)
+}
+
+func TestActivationCacheEvictsToCapacity(t *testing.T) {
+	var cache ActivationCache
+	now := time.Unix(260, 0)
+
+	for i := 0; i < channelMetaActivationCacheMaxEntries+128; i++ {
+		key := channel.ChannelKey(fmt.Sprintf("1:capacity/%d", i))
+		cache.StorePositive(key, channel.Meta{Key: key, Leader: 1}, now)
+	}
+
+	require.LessOrEqual(t, cache.entryCount(), channelMetaActivationCacheMaxEntries)
 }
 
 func TestActivationCacheClearDropsPositiveAndNegativeEntries(t *testing.T) {

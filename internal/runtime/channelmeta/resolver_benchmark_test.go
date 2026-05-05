@@ -2,6 +2,8 @@ package channelmeta
 
 import (
 	"context"
+	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -137,6 +139,29 @@ func BenchmarkActivationCacheLoadPositive(b *testing.B) {
 			b.Fatal("positive cache entry missing")
 		}
 	}
+}
+
+func BenchmarkActivationCacheLoadPositiveParallelManyKeys(b *testing.B) {
+	var cache ActivationCache
+	now := time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)
+	keys := make([]channel.ChannelKey, 1024)
+	for i := range keys {
+		key := channel.ChannelKey("channel/2/bench-many/" + strconv.Itoa(i))
+		keys[i] = key
+		cache.StorePositive(key, channel.Meta{Key: key, Leader: 1, Status: channel.StatusActive}, now)
+	}
+
+	var next atomic.Uint64
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			key := keys[int(next.Add(1))%len(keys)]
+			if _, ok := cache.LoadPositive(key, now); !ok {
+				b.Fatal("positive cache entry missing")
+			}
+		}
+	})
 }
 
 func benchmarkChannelMetaSync(id channel.ChannelID, now time.Time, leaseUntil time.Time) *Sync {
