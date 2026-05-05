@@ -219,8 +219,8 @@ func TestConfigValidateRejectsInvalidEnabledControllerLogCompaction(t *testing.T
 			if !errors.Is(err, ErrInvalidConfig) {
 				t.Fatalf("expected ErrInvalidConfig, got: %v", err)
 			}
-			if !errors.Is(err, controllerraft.ErrInvalidConfig) {
-				t.Fatalf("expected controllerraft.ErrInvalidConfig, got: %v", err)
+			if errors.Is(err, controllerraft.ErrInvalidConfig) {
+				t.Fatalf("expected controllerraft.ErrInvalidConfig to remain hidden, got: %v", err)
 			}
 		})
 	}
