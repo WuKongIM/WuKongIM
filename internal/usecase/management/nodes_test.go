@@ -128,6 +128,62 @@ func TestListNodesDoesNotReadDistributedLogStatus(t *testing.T) {
 	require.Zero(t, cluster.logStatusCalls)
 }
 
+func TestListNodesIncludesLocalControllerRaftSummary(t *testing.T) {
+	app := New(Options{
+		LocalNodeID:       1,
+		ControllerPeerIDs: []uint64{1, 2},
+		Cluster: fakeClusterReader{
+			controllerLeaderID: 1,
+			nodes: []controllermeta.ClusterNode{{
+				NodeID:    1,
+				Role:      controllermeta.NodeRoleControllerVoter,
+				JoinState: controllermeta.NodeJoinStateActive,
+				Status:    controllermeta.NodeStatusAlive,
+			}},
+			controllerRaftStatus: map[uint64]raftcluster.ControllerRaftStatus{
+				1: {NodeID: 1, Role: "leader", FirstIndex: 10, AppliedIndex: 20, SnapshotIndex: 9},
+			},
+		},
+	})
+
+	got, err := app.ListNodes(context.Background())
+	require.NoError(t, err)
+	require.Len(t, got.Items, 1)
+	require.Equal(t, ControllerRaftHealthHealthy, got.Items[0].Controller.RaftHealth)
+	require.Equal(t, uint64(10), got.Items[0].Controller.FirstIndex)
+	require.Equal(t, uint64(20), got.Items[0].Controller.AppliedIndex)
+	require.Equal(t, uint64(9), got.Items[0].Controller.SnapshotIndex)
+}
+
+func TestListNodesDoesNotFanOutControllerRaftStatus(t *testing.T) {
+	cluster := &fakeNodeInventoryCluster{fakeClusterReader: fakeClusterReader{
+		controllerLeaderID: 2,
+		nodes: []controllermeta.ClusterNode{{
+			NodeID:    1,
+			Role:      controllermeta.NodeRoleControllerVoter,
+			JoinState: controllermeta.NodeJoinStateActive,
+			Status:    controllermeta.NodeStatusAlive,
+		}, {
+			NodeID:    2,
+			Role:      controllermeta.NodeRoleControllerVoter,
+			JoinState: controllermeta.NodeJoinStateActive,
+			Status:    controllermeta.NodeStatusAlive,
+		}},
+		controllerRaftStatus: map[uint64]raftcluster.ControllerRaftStatus{
+			1: {NodeID: 1, Role: "follower"},
+			2: {NodeID: 2, Role: "leader"},
+		},
+	}}
+	app := New(Options{LocalNodeID: 1, ControllerPeerIDs: []uint64{1, 2}, Cluster: cluster})
+
+	got, err := app.ListNodes(context.Background())
+	require.NoError(t, err)
+	require.Len(t, got.Items, 2)
+	require.Equal(t, 1, cluster.controllerRaftStatusCalls)
+	require.Equal(t, ControllerRaftHealthHealthy, got.Items[0].Controller.RaftHealth)
+	require.Equal(t, ControllerRaftHealthUnknown, got.Items[1].Controller.RaftHealth)
+}
+
 func TestListNodesSortsByNodeIDAndDefaultsCountsToZero(t *testing.T) {
 	app := New(Options{
 		LocalNodeID:       9,
@@ -190,9 +246,10 @@ func TestGetNodeReturnsNodeWithHostedAndLeaderSlots(t *testing.T) {
 				LastHeartbeatAt: now.Add(-2 * time.Second),
 			},
 			Controller: NodeController{
-				Role:     "follower",
-				Voter:    true,
-				LeaderID: 1,
+				Role:       "follower",
+				Voter:      true,
+				LeaderID:   1,
+				RaftHealth: ControllerRaftHealthUnknown,
 			},
 			Slots: NodeSlotSummary{
 				ReplicaCount:  3,
@@ -247,6 +304,8 @@ type fakeClusterReader struct {
 	slotLogEntriesErr           map[slotLogEntriesKey]error
 	controllerLogEntries        map[uint64]raftcluster.ControllerLogEntries
 	controllerLogEntriesErr     map[uint64]error
+	controllerRaftStatus        map[uint64]raftcluster.ControllerRaftStatus
+	controllerRaftStatusErr     map[uint64]error
 	tasks                       []controllermeta.ReconcileTask
 	taskBySlot                  map[uint32]controllermeta.ReconcileTask
 	listTasksErr                error
@@ -278,12 +337,18 @@ type slotLogEntriesKey struct {
 
 type fakeNodeInventoryCluster struct {
 	fakeClusterReader
-	logStatusCalls int
+	logStatusCalls            int
+	controllerRaftStatusCalls int
 }
 
 func (f *fakeNodeInventoryCluster) SlotLogStatusOnNode(context.Context, uint64, uint32) (raftcluster.SlotLogStatus, error) {
 	f.logStatusCalls++
 	return raftcluster.SlotLogStatus{}, nil
+}
+
+func (f *fakeNodeInventoryCluster) ControllerRaftStatusOnNode(ctx context.Context, nodeID uint64) (raftcluster.ControllerRaftStatus, error) {
+	f.controllerRaftStatusCalls++
+	return f.fakeClusterReader.ControllerRaftStatusOnNode(ctx, nodeID)
 }
 
 func (f fakeClusterReader) SlotIDs() []multiraft.SlotID {
@@ -340,6 +405,16 @@ func (f fakeClusterReader) ControllerLogEntriesOnNode(_ context.Context, nodeID 
 		return page, nil
 	}
 	return raftcluster.ControllerLogEntries{}, nil
+}
+
+func (f fakeClusterReader) ControllerRaftStatusOnNode(_ context.Context, nodeID uint64) (raftcluster.ControllerRaftStatus, error) {
+	if err := f.controllerRaftStatusErr[nodeID]; err != nil {
+		return raftcluster.ControllerRaftStatus{}, err
+	}
+	if status, ok := f.controllerRaftStatus[nodeID]; ok {
+		return status, nil
+	}
+	return raftcluster.ControllerRaftStatus{}, nil
 }
 
 func (f fakeClusterReader) ListTasksStrict(context.Context) ([]controllermeta.ReconcileTask, error) {

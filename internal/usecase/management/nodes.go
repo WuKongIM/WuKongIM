@@ -80,6 +80,14 @@ type NodeController struct {
 	Voter bool
 	// LeaderID is the current Controller Raft leader known locally.
 	LeaderID uint64
+	// RaftHealth is the summarized local Controller Raft health state.
+	RaftHealth string
+	// FirstIndex is the first available local Controller Raft log index.
+	FirstIndex uint64
+	// AppliedIndex is the queried node's applied index watermark.
+	AppliedIndex uint64
+	// SnapshotIndex is the latest persisted Controller Raft snapshot index.
+	SnapshotIndex uint64
 }
 
 // NodeSlotSummary contains lightweight Slot placement counts for one node.
@@ -272,6 +280,19 @@ func (a *App) managerNode(ctx context.Context, clusterNode controllermeta.Cluste
 		followerSlotCount = 0
 	}
 	runtime := a.nodeRuntimeSummary(ctx, clusterNode.NodeID)
+	controller := NodeController{
+		Role:       controllerRole,
+		Voter:      a.isControllerPeer(clusterNode.NodeID),
+		LeaderID:   controllerLeaderID,
+		RaftHealth: ControllerRaftHealthUnknown,
+	}
+	controllerSummary := a.localControllerRaftSummary(ctx, clusterNode.NodeID)
+	if controllerSummary.RaftHealth != "" {
+		controller.RaftHealth = controllerSummary.RaftHealth
+	}
+	controller.FirstIndex = controllerSummary.FirstIndex
+	controller.AppliedIndex = controllerSummary.AppliedIndex
+	controller.SnapshotIndex = controllerSummary.SnapshotIndex
 	return Node{
 		NodeID:          clusterNode.NodeID,
 		Name:            clusterNode.Name,
@@ -292,11 +313,7 @@ func (a *App) managerNode(ctx context.Context, clusterNode controllermeta.Cluste
 			Status:          healthStatus,
 			LastHeartbeatAt: clusterNode.LastHeartbeatAt,
 		},
-		Controller: NodeController{
-			Role:     controllerRole,
-			Voter:    a.isControllerPeer(clusterNode.NodeID),
-			LeaderID: controllerLeaderID,
-		},
+		Controller: controller,
 		Slots: NodeSlotSummary{
 			ReplicaCount:    slotCount,
 			LeaderCount:     leaderSlotCount,
@@ -312,6 +329,22 @@ func (a *App) managerNode(ctx context.Context, clusterNode controllermeta.Cluste
 			CanOnboard: clusterNode.Role == controllermeta.NodeRoleData && clusterNode.JoinState == controllermeta.NodeJoinStateActive && clusterNode.Status == controllermeta.NodeStatusAlive && slotCount == 0,
 		},
 	}
+}
+
+func (a *App) localControllerRaftSummary(ctx context.Context, nodeID uint64) NodeController {
+	summary := NodeController{RaftHealth: ControllerRaftHealthUnknown}
+	if a == nil || a.cluster == nil || nodeID == 0 || nodeID != a.localNodeID || !a.isControllerPeer(nodeID) {
+		return summary
+	}
+	status, err := a.cluster.ControllerRaftStatusOnNode(ctx, nodeID)
+	if err != nil {
+		return summary
+	}
+	summary.RaftHealth = controllerRaftHealth(status)
+	summary.FirstIndex = status.FirstIndex
+	summary.AppliedIndex = status.AppliedIndex
+	summary.SnapshotIndex = status.SnapshotIndex
+	return summary
 }
 
 func (a *App) nodeRuntimeSummary(ctx context.Context, nodeID uint64) NodeRuntimeSummary {
