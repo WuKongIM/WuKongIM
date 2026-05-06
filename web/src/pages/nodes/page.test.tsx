@@ -291,6 +291,88 @@ test("renders layered node inventory fields and honors backend action hints", as
   expect(screen.getByRole("button", { name: "Drain" })).toBeDisabled()
 })
 
+test("renders controller raft health summary in the node list and detail", async () => {
+  const controller = {
+    ...nodeRow.controller,
+    raft_health: "snapshot_required",
+    first_index: 10,
+    applied_index: 20,
+    snapshot_index: 9,
+  }
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [{ ...nodeRow, controller }],
+  })
+  getNodeMock.mockResolvedValueOnce({ ...nodeDetail, controller })
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  expect(await screen.findByText("snapshot required")).toBeInTheDocument()
+  expect(screen.getByText("first 10 / applied 20 / snapshot 9")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Inspect node 1" }))
+
+  expect(await screen.findByText("Controller Raft Health")).toBeInTheDocument()
+  expect(screen.getAllByText("snapshot required")).not.toHaveLength(0)
+  expect(screen.getAllByText("first 10 / applied 20 / snapshot 9")).not.toHaveLength(0)
+})
+
+test("renders unavailable controller raft summary without fake zero watermarks", async () => {
+  const controller = {
+    ...nodeRow.controller,
+    raft_health: "unknown",
+    first_index: 0,
+    applied_index: 0,
+    snapshot_index: 0,
+  }
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [{ ...nodeRow, controller }],
+  })
+  getNodeMock.mockResolvedValueOnce({ ...nodeDetail, controller })
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  expect(screen.queryByText("unknown")).not.toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Inspect node 1" }))
+
+  expect(await screen.findByText("Controller Raft Health")).toBeInTheDocument()
+  expect(screen.getAllByText("not reported")).not.toHaveLength(0)
+  expect(screen.queryByText("first 0 / applied 0 / snapshot 0")).not.toBeInTheDocument()
+})
+
+test("requires a complete controller raft watermark before rendering watermark values", async () => {
+  const controller = {
+    ...nodeRow.controller,
+    raft_health: "healthy",
+    applied_index: 20,
+  }
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [{ ...nodeRow, controller }],
+  })
+  getNodeMock.mockResolvedValueOnce({ ...nodeDetail, controller })
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  expect(await screen.findByText("healthy")).toBeInTheDocument()
+  expect(screen.queryByText("first 0 / applied 20 / snapshot 0")).not.toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Inspect node 1" }))
+
+  expect(await screen.findByText("Controller Raft Watermark")).toBeInTheDocument()
+  expect(screen.getByText("not reported")).toBeInTheDocument()
+  expect(screen.queryByText("first 0 / applied 20 / snapshot 0")).not.toBeInTheDocument()
+})
+
 test("uses compact node page chrome without duplicate header actions", async () => {
   getNodesMock.mockResolvedValueOnce({
     generated_at: "2026-04-23T08:00:01Z",

@@ -1,0 +1,287 @@
+import { act, render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { beforeEach, expect, test, vi } from "vitest"
+
+import { I18nProvider } from "@/i18n/provider"
+import { resetLocale } from "@/i18n/locale-store"
+import { ControllerPage } from "@/pages/controller/page"
+
+const getNodesMock = vi.fn()
+const getControllerLogsMock = vi.fn()
+const getControllerRaftStatusMock = vi.fn()
+
+vi.mock("@/lib/manager-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/manager-api")>()
+  return {
+    ...actual,
+    getNodes: (...args: unknown[]) => getNodesMock(...args),
+    getControllerLogs: (...args: unknown[]) => getControllerLogsMock(...args),
+    getControllerRaftStatus: (...args: unknown[]) => getControllerRaftStatusMock(...args),
+  }
+})
+
+beforeEach(() => {
+  localStorage.clear()
+  resetLocale()
+  getNodesMock.mockReset()
+  getControllerLogsMock.mockReset()
+  getControllerRaftStatusMock.mockReset()
+})
+
+function renderControllerPage() {
+  return render(
+    <I18nProvider>
+      <ControllerPage />
+    </I18nProvider>,
+  )
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+  return { promise, resolve }
+}
+
+function controllerLogPage(nodeId: number) {
+  return {
+    node_id: nodeId,
+    first_index: 1,
+    last_index: 2,
+    commit_index: 2,
+    applied_index: 2,
+    items: [],
+  }
+}
+
+function controllerRaftStatus(nodeId: number, health = "healthy") {
+  return {
+    node_id: nodeId,
+    role: nodeId === 1 ? "follower" : "leader",
+    leader_id: 2,
+    term: 7,
+    health,
+    first_index: nodeId * 10,
+    last_index: nodeId * 10 + 5,
+    commit_index: nodeId * 10 + 4,
+    applied_index: nodeId * 10 + 3,
+    snapshot_index: nodeId * 10 - 1,
+    snapshot_term: 3,
+    compaction: {
+      enabled: true,
+      trigger_entries: 100,
+      check_interval_ms: 2000,
+      last_snapshot_index: nodeId * 10 - 1,
+      last_snapshot_at: "2026-05-06T08:01:00Z",
+      last_check_at: "2026-05-06T08:02:00Z",
+      last_error: "",
+      last_error_at: "0001-01-01T00:00:00Z",
+      degraded: false,
+    },
+    restore: {
+      last_snapshot_index: nodeId * 10 - 2,
+      last_snapshot_term: 2,
+      last_restored_at: "2026-05-06T08:04:00Z",
+      last_error: "",
+      last_error_at: "0001-01-01T00:00:00Z",
+      failed: false,
+    },
+    peers: [],
+  }
+}
+
+test("renders controller raft status and peer snapshot progress", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-05-06T08:00:00Z",
+    controller_leader_id: 2,
+    total: 1,
+    items: [{
+      node_id: 2,
+      name: "node-2",
+      addr: "127.0.0.1:7002",
+      status: "alive",
+      last_heartbeat_at: "2026-05-06T07:59:58Z",
+      is_local: true,
+      capacity_weight: 1,
+      controller: { role: "leader", voter: true, leader_id: 2 },
+      slot_stats: { count: 0, leader_count: 0 },
+    }],
+  })
+  getControllerLogsMock.mockResolvedValueOnce({
+    node_id: 2,
+    first_index: 10,
+    last_index: 42,
+    commit_index: 40,
+    applied_index: 39,
+    items: [],
+  })
+  getControllerRaftStatusMock.mockResolvedValueOnce({
+    node_id: 2,
+    role: "leader",
+    leader_id: 2,
+    term: 7,
+    health: "snapshot_transferring",
+    first_index: 10,
+    last_index: 42,
+    commit_index: 40,
+    applied_index: 39,
+    snapshot_index: 9,
+    snapshot_term: 3,
+    compaction: {
+      enabled: true,
+      trigger_entries: 100,
+      check_interval_ms: 2000,
+      last_snapshot_index: 9,
+      last_snapshot_at: "2026-05-06T08:01:00Z",
+      last_check_at: "2026-05-06T08:02:00Z",
+      last_error: "",
+      last_error_at: "0001-01-01T00:00:00Z",
+      degraded: false,
+    },
+    restore: {
+      last_snapshot_index: 8,
+      last_snapshot_term: 2,
+      last_restored_at: "2026-05-06T08:04:00Z",
+      last_error: "",
+      last_error_at: "0001-01-01T00:00:00Z",
+      failed: false,
+    },
+    peers: [{
+      node_id: 3,
+      match: 21,
+      next: 22,
+      state: "snapshot",
+      pending_snapshot: 9,
+      recent_active: true,
+      needs_snapshot: true,
+      snapshot_transferring: true,
+    }],
+  })
+
+  renderControllerPage()
+
+  expect(await screen.findByText("Controller Raft Status")).toBeInTheDocument()
+  expect(getControllerRaftStatusMock).toHaveBeenCalledWith(2)
+  expect(screen.getAllByText("snapshot transferring")).not.toHaveLength(0)
+  expect(screen.getByText("commit 40 / applied 39")).toBeInTheDocument()
+  expect(screen.getByText("snapshot 9 / term 3")).toBeInTheDocument()
+  expect(screen.getByText("Follower Progress")).toBeInTheDocument()
+  expect(screen.getByText("Node 3")).toBeInTheDocument()
+  expect(screen.getByText("match 21 / next 22")).toBeInTheDocument()
+  expect(screen.getByText("needs snapshot")).toBeInTheDocument()
+})
+
+test("keeps the latest selected node status when an older request resolves later", async () => {
+  const user = userEvent.setup()
+  const nodeOneStatus = deferred<ReturnType<typeof controllerRaftStatus>>()
+
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-05-06T08:00:00Z",
+    controller_leader_id: 2,
+    total: 2,
+    items: [
+      {
+        node_id: 1,
+        name: "node-1",
+        addr: "127.0.0.1:7001",
+        status: "alive",
+        last_heartbeat_at: "2026-05-06T07:59:58Z",
+        is_local: true,
+        capacity_weight: 1,
+        controller: { role: "follower", voter: true, leader_id: 2 },
+        slot_stats: { count: 0, leader_count: 0 },
+      },
+      {
+        node_id: 2,
+        name: "node-2",
+        addr: "127.0.0.1:7002",
+        status: "alive",
+        last_heartbeat_at: "2026-05-06T07:59:58Z",
+        is_local: false,
+        capacity_weight: 1,
+        controller: { role: "leader", voter: true, leader_id: 2 },
+        slot_stats: { count: 0, leader_count: 0 },
+      },
+    ],
+  })
+  getControllerLogsMock.mockImplementation(({ nodeId }: { nodeId: number }) => Promise.resolve(controllerLogPage(nodeId)))
+  getControllerRaftStatusMock.mockImplementation((nodeId: number) => {
+    if (nodeId === 1) {
+      return nodeOneStatus.promise
+    }
+    return Promise.resolve(controllerRaftStatus(nodeId, "snapshot_required"))
+  })
+
+  renderControllerPage()
+
+  await waitFor(() => expect(getControllerRaftStatusMock).toHaveBeenCalledWith(1))
+  await user.selectOptions(screen.getByLabelText("Node filter"), "2")
+
+  expect(await screen.findByText("Node 2 local Controller Raft health, compaction, restore, and follower catch-up.")).toBeInTheDocument()
+
+  await act(async () => {
+    nodeOneStatus.resolve(controllerRaftStatus(1, "restore_failed"))
+    await nodeOneStatus.promise
+  })
+
+  expect(screen.getByText("Node 2 local Controller Raft health, compaction, restore, and follower catch-up.")).toBeInTheDocument()
+  expect(screen.queryByText("Node 1 local Controller Raft health, compaction, restore, and follower catch-up.")).not.toBeInTheDocument()
+  expect(screen.queryByText("restore failed")).not.toBeInTheDocument()
+})
+
+test("hides the old node status immediately when the selected node changes", async () => {
+  const user = userEvent.setup()
+  const nodeTwoStatus = deferred<ReturnType<typeof controllerRaftStatus>>()
+
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-05-06T08:00:00Z",
+    controller_leader_id: 2,
+    total: 2,
+    items: [
+      {
+        node_id: 1,
+        name: "node-1",
+        addr: "127.0.0.1:7001",
+        status: "alive",
+        last_heartbeat_at: "2026-05-06T07:59:58Z",
+        is_local: true,
+        capacity_weight: 1,
+        controller: { role: "follower", voter: true, leader_id: 2 },
+        slot_stats: { count: 0, leader_count: 0 },
+      },
+      {
+        node_id: 2,
+        name: "node-2",
+        addr: "127.0.0.1:7002",
+        status: "alive",
+        last_heartbeat_at: "2026-05-06T07:59:58Z",
+        is_local: false,
+        capacity_weight: 1,
+        controller: { role: "leader", voter: true, leader_id: 2 },
+        slot_stats: { count: 0, leader_count: 0 },
+      },
+    ],
+  })
+  getControllerLogsMock.mockImplementation(({ nodeId }: { nodeId: number }) => Promise.resolve(controllerLogPage(nodeId)))
+  getControllerRaftStatusMock.mockImplementation((nodeId: number) => {
+    if (nodeId === 2) {
+      return nodeTwoStatus.promise
+    }
+    return Promise.resolve(controllerRaftStatus(nodeId, "healthy"))
+  })
+
+  renderControllerPage()
+
+  expect(await screen.findByText("Node 1 local Controller Raft health, compaction, restore, and follower catch-up.")).toBeInTheDocument()
+  await user.selectOptions(screen.getByLabelText("Node filter"), "2")
+
+  expect(screen.queryByText("Node 1 local Controller Raft health, compaction, restore, and follower catch-up.")).not.toBeInTheDocument()
+
+  await act(async () => {
+    nodeTwoStatus.resolve(controllerRaftStatus(2, "snapshot_required"))
+    await nodeTwoStatus.promise
+  })
+
+  expect(await screen.findByText("Node 2 local Controller Raft health, compaction, restore, and follower catch-up.")).toBeInTheDocument()
+})
