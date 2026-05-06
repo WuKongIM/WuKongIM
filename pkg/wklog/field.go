@@ -106,6 +106,14 @@ func MessageID(val int64) Field {
 	return Int64("messageID", val)
 }
 
+func ClientMsgNo(val string) Field {
+	return String("clientMsgNo", val)
+}
+
+func MessageSeq(val uint64) Field {
+	return Uint64("messageSeq", val)
+}
+
 func UID(val string) Field {
 	return String("uid", val)
 }
@@ -124,6 +132,18 @@ func RaftEvent(val string) Field {
 
 func ConnID(val uint64) Field {
 	return Uint64("connID", val)
+}
+
+func Service(val string) Field {
+	return String("service", val)
+}
+
+func Result(val string) Field {
+	return String("result", val)
+}
+
+func ErrorCode(val string) Field {
+	return String("errorCode", val)
 }
 
 func Attempt(val int) Field {
