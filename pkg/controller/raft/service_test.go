@@ -165,7 +165,7 @@ func TestServiceIncomingReadySnapshotRestoresControllerMeta(t *testing.T) {
 	_, _, _, err = storageView.load(ctx)
 	require.NoError(t, err)
 
-	service := &Service{cfg: Config{StateMachine: targetSM}}
+	service := NewService(Config{NodeID: 1, StateMachine: targetSM})
 	snap := raftpb.Snapshot{
 		Data: snapData,
 		Metadata: raftpb.SnapshotMetadata{
@@ -203,6 +203,142 @@ func TestServiceIncomingReadySnapshotRestoresControllerMeta(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(6), state.AppliedIndex)
 	require.Equal(t, []uint64{1, 2}, latestConfState.Voters)
+}
+
+func TestServiceStatusBeforeStartAndAfterStartReportsNodeAndRole(t *testing.T) {
+	service := NewService(Config{NodeID: 1})
+	before := service.Status()
+	require.Equal(t, uint64(1), before.NodeID)
+	require.Equal(t, RoleUnknown, before.Role)
+	require.True(t, before.Compaction.Enabled)
+
+	env := newTestEnv(t, []uint64{1})
+	defer env.stopAll()
+	env.startNode(t, 1, nil)
+	env.waitForLeader(t, []uint64{1})
+
+	node := env.nodes[1]
+	require.Eventually(t, func() bool {
+		st := node.service.Status()
+		return st.Role == RoleLeader && st.LeaderID == 1 && st.Term > 0
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
+func TestServiceStatusRecordsStartupSnapshotRestore(t *testing.T) {
+	env := newTestEnv(t, []uint64{1})
+	t.Cleanup(env.stopAll)
+
+	node := env.nodes[1]
+	require.NoError(t, os.MkdirAll(node.dir, 0o755))
+
+	snapStore, err := controllermeta.Open(filepath.Join(t.TempDir(), "snapshot-meta"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, snapStore.Close()) })
+	require.NoError(t, snapStore.UpsertNode(context.Background(), controllermeta.ClusterNode{
+		NodeID:          2,
+		Addr:            "127.0.0.1:7002",
+		Status:          controllermeta.NodeStatusAlive,
+		JoinedAt:        time.Unix(1, 0),
+		LastHeartbeatAt: time.Unix(1, 0),
+		CapacityWeight:  1,
+	}))
+	snapData, err := snapStore.ExportSnapshot(context.Background())
+	require.NoError(t, err)
+
+	logDB, err := raftstorage.Open(filepath.Join(node.dir, "controller-raft"))
+	require.NoError(t, err)
+	snap := raftpb.Snapshot{Data: snapData, Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 2, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
+	require.NoError(t, logDB.ForController().Save(context.Background(), multiraft.PersistentState{Snapshot: &snap}))
+	require.NoError(t, logDB.Close())
+
+	env.startNode(t, 1, nil)
+	st := env.nodes[1].service.Status()
+	require.Equal(t, uint64(5), st.Restore.LastSnapshotIndex)
+	require.Equal(t, uint64(2), st.Restore.LastSnapshotTerm)
+	require.False(t, st.Restore.LastRestoredAt.IsZero())
+	require.False(t, st.Restore.Failed)
+	require.Empty(t, st.Restore.LastError)
+}
+
+func TestServiceStatusRecordsStartupSnapshotRestoreFailure(t *testing.T) {
+	ctx := context.Background()
+	meta, err := controllermeta.Open(filepath.Join(t.TempDir(), "meta"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, meta.Close()) })
+	logDB, err := raftstorage.Open(filepath.Join(t.TempDir(), "raft"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, logDB.Close()) })
+
+	snap := raftpb.Snapshot{Data: []byte("not-a-controller-snapshot"), Metadata: raftpb.SnapshotMetadata{Index: 7, Term: 3, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
+	require.NoError(t, logDB.ForController().Save(ctx, multiraft.PersistentState{Snapshot: &snap}))
+
+	pool := transport.NewPool(testDiscovery{1: "127.0.0.1:1"}, 1, time.Second)
+	t.Cleanup(pool.Close)
+	service := NewService(Config{
+		NodeID:         1,
+		Peers:          []Peer{{NodeID: 1, Addr: "127.0.0.1:1"}},
+		AllowBootstrap: true,
+		LogDB:          logDB,
+		StateMachine:   slotcontroller.NewStateMachine(meta, slotcontroller.StateMachineConfig{}),
+		Server:         transport.NewServer(),
+		RPCMux:         transport.NewRPCMux(),
+		Pool:           pool,
+	})
+
+	require.Error(t, service.Start(ctx))
+	st := service.Status()
+	require.True(t, st.Restore.Failed)
+	require.Equal(t, uint64(7), st.Restore.LastSnapshotIndex)
+	require.Equal(t, uint64(3), st.Restore.LastSnapshotTerm)
+	require.NotEmpty(t, st.Restore.LastError)
+	require.False(t, st.Restore.LastErrorAt.IsZero())
+}
+
+func TestServiceStatusRecordsReadySnapshotRestore(t *testing.T) {
+	ctx := context.Background()
+
+	sourceStore, err := controllermeta.Open(filepath.Join(t.TempDir(), "source-meta"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sourceStore.Close()) })
+	require.NoError(t, sourceStore.UpsertNode(ctx, controllermeta.ClusterNode{NodeID: 9, Addr: "127.0.0.1:7009", Status: controllermeta.NodeStatusAlive, JoinedAt: time.Unix(9, 0), LastHeartbeatAt: time.Unix(9, 0), CapacityWeight: 1}))
+	snapData, err := sourceStore.ExportSnapshot(ctx)
+	require.NoError(t, err)
+
+	targetStore, err := controllermeta.Open(filepath.Join(t.TempDir(), "target-meta"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, targetStore.Close()) })
+	service := NewService(Config{NodeID: 1, StateMachine: slotcontroller.NewStateMachine(targetStore, slotcontroller.StateMachineConfig{})})
+	latestConfState := raftpb.ConfState{Voters: []uint64{7}}
+	snap := raftpb.Snapshot{Data: snapData, Metadata: raftpb.SnapshotMetadata{Index: 11, Term: 4, ConfState: raftpb.ConfState{Voters: []uint64{1, 2}}}}
+
+	applied, err := service.restoreReadySnapshot(ctx, snap, &latestConfState)
+	require.NoError(t, err)
+	require.Equal(t, uint64(11), applied)
+	st := service.Status()
+	require.Equal(t, uint64(11), st.Restore.LastSnapshotIndex)
+	require.Equal(t, uint64(4), st.Restore.LastSnapshotTerm)
+	require.False(t, st.Restore.LastRestoredAt.IsZero())
+	require.False(t, st.Restore.Failed)
+	require.Empty(t, st.Restore.LastError)
+}
+
+func TestServiceStatusRecordsReadySnapshotRestoreFailure(t *testing.T) {
+	ctx := context.Background()
+	targetStore, err := controllermeta.Open(filepath.Join(t.TempDir(), "target-meta"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, targetStore.Close()) })
+	service := NewService(Config{NodeID: 1, StateMachine: slotcontroller.NewStateMachine(targetStore, slotcontroller.StateMachineConfig{})})
+	latestConfState := raftpb.ConfState{Voters: []uint64{7}}
+	snap := raftpb.Snapshot{Data: []byte("not-a-controller-snapshot"), Metadata: raftpb.SnapshotMetadata{Index: 12, Term: 5, ConfState: raftpb.ConfState{Voters: []uint64{1, 2}}}}
+
+	_, err = service.restoreReadySnapshot(ctx, snap, &latestConfState)
+	require.Error(t, err)
+	st := service.Status()
+	require.True(t, st.Restore.Failed)
+	require.Equal(t, uint64(12), st.Restore.LastSnapshotIndex)
+	require.Equal(t, uint64(5), st.Restore.LastSnapshotTerm)
+	require.NotEmpty(t, st.Restore.LastError)
+	require.False(t, st.Restore.LastErrorAt.IsZero())
 }
 
 func TestServiceStartReturnsBootstrapFailureWithoutDeadlock(t *testing.T) {
@@ -438,6 +574,44 @@ func TestServiceCompactionFailureDoesNotFailProposalLoop(t *testing.T) {
 	waitForControllerSnapshotIndex(t, node.logDB.ForController(), 4)
 }
 
+func TestServiceStatusRecordsCompactionFailureAndClearsOnLaterSuccess(t *testing.T) {
+	env := newTestEnv(t, []uint64{1})
+	defer env.stopAll()
+
+	env.startNodeWithConfig(t, 1, nil, func(cfg *Config) {
+		cfg.LogCompaction = LogCompactionConfig{
+			Enabled:        true,
+			EnabledSet:     true,
+			TriggerEntries: 1,
+			CheckInterval:  time.Nanosecond,
+		}
+	})
+	env.waitForLeader(t, []uint64{1})
+
+	sentinel := errors.New("compact once")
+	setCompactControllerLogHookForTest(func() error { return sentinel })
+	t.Cleanup(func() { setCompactControllerLogHookForTest(nil) })
+
+	node := env.nodes[1]
+	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(2)))
+	require.Eventually(t, func() bool {
+		st := node.service.Status()
+		return st.Compaction.Degraded &&
+			st.Compaction.LastError == sentinel.Error() &&
+			!st.Compaction.LastErrorAt.IsZero()
+	}, 2*time.Second, 10*time.Millisecond)
+
+	setCompactControllerLogHookForTest(nil)
+	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(3)))
+	require.Eventually(t, func() bool {
+		st := node.service.Status()
+		return !st.Compaction.Degraded &&
+			st.Compaction.LastError == "" &&
+			st.Compaction.LastSnapshotIndex >= 3 &&
+			!st.Compaction.LastSnapshotAt.IsZero()
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
 func TestServiceRestartRestoresSnapshotCreatedByCompaction(t *testing.T) {
 	env := newTestEnv(t, []uint64{1})
 	defer env.stopAll()
@@ -558,6 +732,32 @@ func TestServiceLaggingFollowerRestoresControllerSnapshot(t *testing.T) {
 	followerSnap := waitForControllerSnapshotIndex(t, env.nodes[laggingID].logDB.ForController(), leaderSnap.Metadata.Index)
 	require.Greater(t, followerSnap.Metadata.Index, laggingSnapBeforeStop.Metadata.Index)
 	require.GreaterOrEqual(t, followerSnap.Metadata.Index, leaderSnap.Metadata.Index)
+}
+
+func TestServiceLeaderStatusIncludesPeerProgress(t *testing.T) {
+	env := newTestEnv(t, []uint64{1, 2, 3})
+	defer env.stopAll()
+
+	env.startNode(t, 1, nil)
+	env.startNode(t, 2, nil)
+	env.startNode(t, 3, nil)
+	leaderID := env.waitForLeader(t, []uint64{1, 2, 3})
+
+	leader := env.nodes[leaderID]
+	require.Eventually(t, func() bool {
+		st := leader.service.Status()
+		if st.Role != RoleLeader || st.LeaderID != leaderID || len(st.Peers) != 2 {
+			return false
+		}
+		seen := map[uint64]bool{}
+		for _, peer := range st.Peers {
+			if peer.NodeID == leaderID || peer.NodeID == 0 || peer.Next == 0 || peer.State == "" {
+				return false
+			}
+			seen[peer.NodeID] = true
+		}
+		return seen[firstNonLeader([]uint64{1, 2, 3}, leaderID)]
+	}, 2*time.Second, 10*time.Millisecond)
 }
 
 func TestServiceCompactionSnapshotUsesConfChangeV2State(t *testing.T) {
@@ -1305,7 +1505,7 @@ func (e *testEnv) startNodeErrWithConfig(t *testing.T, nodeID uint64, peers []Pe
 	if mutate != nil {
 		mutate(&cfg)
 	}
-	node.service = &Service{cfg: cfg}
+	node.service = NewService(cfg)
 	if err := node.service.Start(context.Background()); err != nil {
 		e.stopNode(nodeID)
 		return err
