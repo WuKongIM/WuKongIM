@@ -12,6 +12,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	applifecycle "github.com/WuKongIM/WuKongIM/internal/app/lifecycle"
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
+	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	appretention "github.com/WuKongIM/WuKongIM/internal/runtime/channelretention"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -73,6 +74,8 @@ type App struct {
 	dataPlanePool        *transport.Pool
 	dataPlaneClient      *transport.Client
 	metrics              *obsmetrics.Registry
+	diagnostics          *obsdiagnostics.Store
+	diagnosticsRestore   func()
 	networkObservability *networkObservability
 	observedClusterCache observedClusterStateCache
 	nodeDrainState       *nodeDrainState
