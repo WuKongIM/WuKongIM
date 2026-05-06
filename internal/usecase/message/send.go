@@ -60,8 +60,11 @@ func (a *App) sendDurable(ctx context.Context, cmd SendCommand) (SendResult, err
 			CommitMode:            commitModeOrDefault(cmd.CommitMode),
 			ExpectedChannelEpoch:  cmd.ExpectedChannelEpoch,
 			ExpectedLeaderEpoch:   cmd.ExpectedLeaderEpoch,
+			TraceID:               cmd.TraceID,
+			Attempt:               0,
 		})
 	sendtrace.Record(sendtrace.Event{
+		TraceID:     cmd.TraceID,
 		Stage:       sendtrace.StageMessageSendDurable,
 		At:          startedAt,
 		Duration:    sendtrace.Elapsed(startedAt, a.now()),

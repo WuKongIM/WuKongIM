@@ -1,9 +1,10 @@
 # WuKongIM 分布式追踪方案设计
 
-> 状态：Design Proposal / 待评审
+> 状态：Future Proposal / Phase 4 optional export
 > 范围：全系统（Gateway、Channel 层、Slot 层、Controller 层、Transport 层）
 > 前置依赖：[observability-design.md](./observability-design.md)（指标体系需先落地）
-> 目标：基于 OpenTelemetry 实现跨节点消息全链路追踪，支持从 TraceID 定位一条消息的完整生命周期。
+> 目标：在内部 diagnostics plane 稳定后，可选基于 OpenTelemetry 导出跨节点消息全链路追踪，支持从 TraceID 定位一条消息的完整生命周期。
+> Phase 1 说明：当前 Phase 1 只做节点内 diagnostics 事件与 debug 查询，不修改 transport frame、RPC metadata 或 `channel_append` payload。
 
 ## 1. 背景
 
@@ -17,7 +18,7 @@
 | 跨节点投递失败 | 知道错误率上升 | 不知道请求经过了哪些节点、在哪一跳失败 |
 | ISR 复制异常慢 | 知道复制延迟高 | 不知道是网络、磁盘还是 Follower 自身问题 |
 
-分布式追踪通过 TraceID 将一条消息在多个节点上的处理过程串联成完整的调用链，精确定位瓶颈。
+Phase 1 的节点内 diagnostics 已经可以通过 TraceID 查询本节点事件；后续 OpenTelemetry 导出会把多个节点上的处理过程串联成完整调用链，精确定位跨节点瓶颈。
 
 ### 1.2 为什么选 OpenTelemetry
 
@@ -76,7 +77,7 @@
     │
     ├─── Span: gateway.handle_send
     │       │
-    │       ▼ 通过 RPC 元数据传播 TraceID + SpanID
+    │       ▼ 后续阶段通过 RPC 元数据传播 TraceID + SpanID
     │
     ├─── Span: channel.append
     │       │
@@ -112,9 +113,9 @@ gateway.handle_send      [node-1]  ───────────────
 
 ### 4.1 传播机制
 
-跨节点追踪需要在现有 Transport 层的 RPC 中注入追踪上下文。
+跨节点追踪需要在现有 Transport 层的 RPC 中注入追踪上下文。该能力属于后续阶段；Phase 1 明确不修改 transport frame / RPC metadata。
 
-**方案：在 RPC Payload 头部追加 TraceContext**
+**后续方案：在 RPC Payload 头部追加 TraceContext**
 
 ```go
 // pkg/trace/propagation.go
@@ -162,18 +163,19 @@ func DecodeTraceContext(buf []byte) (context.Context, int) {
 }
 ```
 
-### 4.2 对 RPC 帧格式的改动
+### 4.2 对 RPC 帧格式的后续改动
 
-当前帧格式：`[serviceID:1][payload]`
+当前 Phase 1 帧格式保持不变：`[serviceID:1][payload]`
 
-新帧格式：`[serviceID:1][traceFlag:1][traceContext:0|25][payload]`
+后续候选格式：`[serviceID:1][traceFlag:1][traceContext:0|25][payload]`
 
 - `traceFlag=0` 时无 traceContext，兼容旧版本。
 - 额外开销：未采样请求 +1 字节，采样请求 +26 字节。
 
 ### 4.3 兼容性
 
-- 追踪关闭时（`trace.enable=false`），所有 RPC 帧 `traceFlag=0`，开销仅 +1 字节。
+- Phase 1 不写入 `traceFlag`，也不向 RPC payload 编码 TraceContext。
+- 后续追踪关闭时（`trace.enable=false`），所有 RPC 帧 `traceFlag=0`，开销仅 +1 字节。
 - 滚动升级时新旧节点混合运行，旧节点收到带 TraceContext 的帧会忽略未知前缀——需要在 Transport 层做版本协商或在 traceFlag 位上做前向兼容处理。
 
 ## 5. 关键追踪 Span
@@ -316,7 +318,7 @@ pkg/trace/
 | `internal/usecase/message/send.go` | 改动 | 创建 message.send Span |
 | `pkg/channel/handler/append.go` | 改动 | 创建 channel.append Span |
 | `pkg/channel/replica/replica.go` | 改动 | 创建 channel.replicate Span |
-| `pkg/transport/transport.go` | 改动 | RPC 帧追加 TraceContext 编解码 |
+| `pkg/transport/transport.go` | 后续改动 | RPC 帧追加 TraceContext 编解码，非 Phase 1 |
 | `internal/runtime/delivery/dispatcher.go` | 改动 | 创建 delivery.* Span |
 | `cmd/wukongim/config.go` | 改动 | 新增 Trace 配置项 |
 
@@ -390,7 +392,7 @@ func Shutdown(tp *sdktrace.TracerProvider) {
 
 ```
 ┌────────────────────────────────┐
-│ WuKongIM (单节点)               │
+│ WuKongIM (单节点集群)           │
 │ OTLP → localhost:4317          │
 └──────────────┬─────────────────┘
                │
@@ -448,14 +450,14 @@ func Shutdown(tp *sdktrace.TracerProvider) {
 
 **结论**：
 
-- 追踪关闭时：每个 RPC +1 字节，性能影响为零。
-- 追踪开启、1% 采样率：热路径影响 < 50ns / op（99% 请求只做采样判断）。
-- 追踪开启、100% 采样率（调试场景）：热路径影响 ~200ns / op，Span 导出在后台异步完成。
+- 后续追踪导出关闭时：每个 RPC +1 字节，性能影响为零。
+- 后续追踪导出开启、1% 采样率：热路径影响 < 50ns / op（99% 请求只做采样判断）。
+- 后续追踪导出开启、100% 采样率（调试场景）：热路径影响 ~200ns / op，Span 导出在后台异步完成。
 
 ## 13. 实施步骤
 
 1. **`pkg/trace/` 基础包**：实现 TracerProvider 初始化、CompositeSampler、TraceContext 编解码。
-2. **Transport 层改动**：RPC 帧追加 TraceContext，兼容性处理。
+2. **Transport 层改动（后续阶段）**：RPC 帧追加 TraceContext，兼容性处理。
 3. **Gateway Span**：`gateway.handle_frame`、`gateway.auth`。
 4. **消息链路 Span**：`message.send` → `channel.append` → `channel.replicate` → `storage.write`。
 5. **投递链路 Span**：`delivery.dispatch` → `delivery.push`。

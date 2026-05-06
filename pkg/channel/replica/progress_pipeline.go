@@ -310,6 +310,7 @@ func (r *replica) applyLeaderAppendCommittedEvent(ev machineLeaderAppendCommitte
 			ChannelKey: string(r.state.ChannelKey),
 			RangeStart: rangeStart,
 			RangeEnd:   target,
+			Result:     sendtrace.ResultOK,
 		})
 		sendtrace.Record(sendtrace.Event{
 			Stage:      sendtrace.StageReplicaLeaderLocalDurable,
@@ -319,6 +320,7 @@ func (r *replica) applyLeaderAppendCommittedEvent(ev machineLeaderAppendCommitte
 			ChannelKey: string(r.state.ChannelKey),
 			RangeStart: rangeStart,
 			RangeEnd:   target,
+			Result:     sendtrace.ResultOK,
 		})
 		if req.commitMode == channel.CommitModeLocal {
 			r.completeAppendRequestLocked(req, req.waiter.result, nil)
@@ -662,6 +664,7 @@ func (r *replica) notifyReadyWaitersLocked() {
 				ChannelKey: string(r.state.ChannelKey),
 				RangeStart: waiter.rangeStart,
 				RangeEnd:   waiter.rangeEnd,
+				Result:     sendtrace.ResultOK,
 			})
 			if waiter.request != nil {
 				r.completeAppendRequestLocked(waiter.request, waiter.result, nil)

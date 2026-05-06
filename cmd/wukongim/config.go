@@ -334,6 +334,34 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	diagnosticsEnable, err := parseBool(v, "WK_DIAGNOSTICS_ENABLE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	diagnosticsBufferSize, err := parseInt(v, "WK_DIAGNOSTICS_BUFFER_SIZE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	diagnosticsSampleRate, err := parseFloat(v, "WK_DIAGNOSTICS_SAMPLE_RATE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	diagnosticsSlowThresholdMS, err := parseInt(v, "WK_DIAGNOSTICS_SLOW_THRESHOLD_MS")
+	if err != nil {
+		return app.Config{}, err
+	}
+	diagnosticsErrorSampleRate, err := parseFloat(v, "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	diagnosticsDebugAPIEnable, err := parseBool(v, "WK_DIAGNOSTICS_DEBUG_API_ENABLE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	diagnosticsDebugMatches, err := parseJSONValue[[]app.DiagnosticsDebugMatchConfig](v, "WK_DIAGNOSTICS_DEBUG_MATCHES")
+	if err != nil {
+		return app.Config{}, err
+	}
 	healthDetailEnable, err := parseBool(v, "WK_HEALTH_DETAIL_ENABLE")
 	if err != nil {
 		return app.Config{}, err
@@ -517,6 +545,15 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			MetricsEnabled:      metricsEnable,
 			HealthDetailEnabled: healthDetailEnable,
 			HealthDebugEnabled:  healthDebugEnable,
+			Diagnostics: app.DiagnosticsConfig{
+				Enabled:         diagnosticsEnable,
+				BufferSize:      diagnosticsBufferSize,
+				SampleRate:      diagnosticsSampleRate,
+				SlowThreshold:   time.Duration(diagnosticsSlowThresholdMS) * time.Millisecond,
+				ErrorSampleRate: diagnosticsErrorSampleRate,
+				DebugAPIEnabled: diagnosticsDebugAPIEnable,
+				DebugMatches:    diagnosticsDebugMatches,
+			},
 		},
 		Log: app.LogConfig{
 			Level:      stringValue(v, "WK_LOG_LEVEL"),
@@ -553,6 +590,12 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		stringValue(v, "WK_METRICS_ENABLE") != "",
 		stringValue(v, "WK_HEALTH_DETAIL_ENABLE") != "",
 		stringValue(v, "WK_HEALTH_DEBUG_ENABLE") != "",
+	)
+	cfg.Observability.SetDiagnosticsExplicitFlags(
+		stringValue(v, "WK_DIAGNOSTICS_ENABLE") != "",
+		stringValue(v, "WK_DIAGNOSTICS_SAMPLE_RATE") != "",
+		stringValue(v, "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE") != "",
+		stringValue(v, "WK_DIAGNOSTICS_DEBUG_API_ENABLE") != "",
 	)
 	cfg.ChannelMessageRetention.SetExplicitFlags(
 		stringValue(v, "WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL") != "",
@@ -675,6 +718,19 @@ func parseInt(v *viper.Viper, key string) (int, error) {
 	}
 
 	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", key, err)
+	}
+	return value, nil
+}
+
+func parseFloat(v *viper.Viper, key string) (float64, error) {
+	raw := stringValue(v, key)
+	if raw == "" {
+		return 0, nil
+	}
+
+	value, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
 		return 0, fmt.Errorf("parse %s: %w", key, err)
 	}

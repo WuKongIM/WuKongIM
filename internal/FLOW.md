@@ -263,7 +263,8 @@ Handler.OnFrame(ctx, frame)
   ↓
 handleSend(ctx, pkt)
   ├─ 解密（如需要）
-  ├─ 构建 SendCommand
+  ├─ 确保 diagnostics trace context
+  ├─ 构建 SendCommand（携带 TraceID）
   └─ messages.Send(ctx, cmd)
       ↓
 message.App.Send(ctx, cmd)
@@ -301,6 +302,8 @@ writeSendack(ctx, pkt, result)
 HTTP POST /api/message/send
   ↓
 API Server 解析请求体
+  ├─ 读取/校验 X-WK-Trace-ID 或生成节点内 TraceID
+  └─ 构建 SendCommand（携带 TraceID）
   ↓
 messages.Send(ctx, cmd)
   └─ 同 Gateway 路径
@@ -542,6 +545,7 @@ handleRecvAck(ctx, pkt)
 - **committed dispatcher 停止依赖 replay 补偿**: 停止时不再接收新队列任务，未启动/停止中的提交返回内部错误供调用方记录；队列内未处理实时投递可被丢弃并由 committed_replay 兜底补发。
 - **committed_replay 是补偿路径，不阻塞 Sendack**: Sendack 仍只等待 Channel Log quorum commit；后台 replayer 以 Channel Log 为真相，用批量 cursor 兜底补发 delivery / conversation，active hint 是可丢弃的 best-effort 路径。
 - **性能指标走窄接口注入**: message append、meta refresh、dispatch queue、delivery resolve/push、runtime gauge 和 replay lag 由 `internal/app` 组合根接入 `pkg/metrics`，低层包不直接依赖具体 metrics registry。
+- **诊断 trace 只走窄链路**: access/gateway 与 access/api 负责创建或校验节点内 diagnostics trace context；`message.SendCommand.TraceID` 把它传到 message 用例和 channel append；`internal/app` 组合根负责安装 diagnostics store 的 `sendtrace` sink 并在 Stop 时恢复。
 
 ---
 

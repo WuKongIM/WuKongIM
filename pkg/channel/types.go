@@ -90,6 +90,10 @@ type AppendRequest struct {
 	CommitMode           CommitMode
 	ExpectedChannelEpoch uint64
 	ExpectedLeaderEpoch  uint64
+	// TraceID is the diagnostics trace identifier propagated with this append request.
+	TraceID string
+	// Attempt records the diagnostics-only append attempt number; it is not persisted or encoded.
+	Attempt int
 }
 
 type AppendResult struct {

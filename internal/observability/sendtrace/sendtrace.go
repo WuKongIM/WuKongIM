@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Stage identifies a stable step in the message send path.
 type Stage string
 
 const (
@@ -23,17 +24,53 @@ const (
 	StageRuntimeLaneCursorDeltaSend    Stage = "runtime.lane_cursor_delta_send"
 )
 
+// Result describes the observed outcome of a send trace event.
+type Result string
+
+const (
+	ResultOK       Result = "ok"
+	ResultError    Result = "error"
+	ResultTimeout  Result = "timeout"
+	ResultCanceled Result = "canceled"
+	ResultPartial  Result = "partial"
+	ResultDropped  Result = "dropped"
+	ResultSkipped  Result = "skipped"
+)
+
+// Event describes one low-cost fact observed in the message send path.
 type Event struct {
-	Stage       Stage
-	At          time.Time
-	Duration    time.Duration
-	NodeID      uint64
-	PeerNodeID  uint64
-	ChannelKey  string
+	// TraceID correlates events that belong to the same diagnostics trace.
+	TraceID string
+	// Stage identifies the stable processing step that emitted this event.
+	Stage Stage
+	// At is the local node timestamp when the event was recorded.
+	At time.Time
+	// Duration is the elapsed time observed for this stage.
+	Duration time.Duration
+	// NodeID is the local cluster node that observed the event.
+	NodeID uint64
+	// PeerNodeID is the remote cluster node involved in this event, when any.
+	PeerNodeID uint64
+	// ChannelKey is the diagnostics-safe channel identifier used for lookups.
+	ChannelKey string
+	// ClientMsgNo is the client message number used for idempotency correlation.
 	ClientMsgNo string
-	MessageSeq  uint64
-	RangeStart  uint64
-	RangeEnd    uint64
+	// MessageSeq is the single message sequence associated with this event.
+	MessageSeq uint64
+	// RangeStart is the first message sequence covered by a range event.
+	RangeStart uint64
+	// RangeEnd is the last message sequence covered by a range event.
+	RangeEnd uint64
+	// Service identifies the node-local service or RPC path involved in this event.
+	Service string
+	// Result records the stable outcome token for the event.
+	Result Result
+	// ErrorCode records the stable error classification when Result is not ok.
+	ErrorCode string
+	// Error stores a bounded, non-payload error summary for diagnostics.
+	Error string
+	// Attempt records the retry or delivery attempt associated with the event.
+	Attempt int
 }
 
 func (e Event) ContainsMessageSeq(seq uint64) bool {
@@ -53,6 +90,7 @@ func Elapsed(start, end time.Time) time.Duration {
 	return end.Sub(start)
 }
 
+// Sink receives send trace events from hot-path instrumentation.
 type Sink interface {
 	RecordSendTrace(Event)
 }
