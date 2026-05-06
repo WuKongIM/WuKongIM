@@ -32,7 +32,10 @@ func FromContext(ctx context.Context) (Context, bool) {
 		return Context{}, false
 	}
 	trace, ok := ctx.Value(contextKey{}).(Context)
-	return trace, ok
+	if !ok || trace.TraceID == "" {
+		return Context{}, false
+	}
+	return trace, true
 }
 
 // Ensure returns a context with valid diagnostics trace metadata.
