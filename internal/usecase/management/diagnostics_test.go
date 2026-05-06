@@ -229,7 +229,28 @@ func TestQueryDiagnosticsUsesLocalNodeWhenControllerSnapshotUnavailable(t *testi
 	got, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{})
 	require.NoError(t, err)
 	require.Equal(t, "local_node", got.Scope)
+	require.Equal(t, DiagnosticsStatusPartial, got.Status)
 	require.Equal(t, []uint64{9}, queriedNodeIDs(reader))
+	require.True(t, diagnosticsNotesContain(got.Notes, "controller snapshot is unavailable"), got.Notes)
+}
+
+func TestQueryDiagnosticsKeepsFallbackPartialWhenLocalNodeHasOKEvent(t *testing.T) {
+	now := time.Date(2026, 5, 6, 10, 0, 0, 0, time.UTC)
+	reader := &fakeDiagnosticsReader{results: map[uint64]diagnostics.QueryResult{
+		9: diagnosticsResult(9, diagnostics.StatusOK, diagnosticsEvent(9, now, "gateway", diagnostics.ResultOK)),
+	}}
+	app := New(Options{
+		LocalNodeID: 9,
+		Cluster:     fakeClusterReader{listNodesErr: errors.New("controller unavailable")},
+		Diagnostics: reader,
+		Now:         func() time.Time { return now },
+	})
+
+	got, err := app.QueryDiagnostics(context.Background(), DiagnosticsQueryRequest{})
+	require.NoError(t, err)
+	require.Equal(t, "local_node", got.Scope)
+	require.Equal(t, DiagnosticsStatusPartial, got.Status)
+	require.Len(t, got.Events, 1)
 	require.True(t, diagnosticsNotesContain(got.Notes, "controller snapshot is unavailable"), got.Notes)
 }
 

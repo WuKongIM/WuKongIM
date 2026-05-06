@@ -130,9 +130,13 @@ func (a *App) QueryDiagnostics(ctx context.Context, req DiagnosticsQueryRequest)
 
 	events := truncateDiagnosticsEvents(queryResults.events, query.Limit)
 	summary := managerDiagnosticsSummary(events)
+	status := managerDiagnosticsStatus(events, nodes)
+	if managerDiagnosticsSnapshotUnavailable(notes) && (status == DiagnosticsStatusOK || status == DiagnosticsStatusNotFound) {
+		status = DiagnosticsStatusPartial
+	}
 	return DiagnosticsQueryResponse{
 		Scope:       scope,
-		Status:      managerDiagnosticsStatus(events, nodes),
+		Status:      status,
 		GeneratedAt: a.now(),
 		Query:       query,
 		Summary:     summary,
@@ -280,6 +284,15 @@ func managerDiagnosticsEvent(event diagnostics.Event) DiagnosticsEvent {
 		ReplicaRole:  event.ReplicaRole,
 		SampleReason: event.SampleReason,
 	}
+}
+
+func managerDiagnosticsSnapshotUnavailable(notes []string) bool {
+	for _, note := range notes {
+		if note == "controller snapshot is unavailable; querying local node only" {
+			return true
+		}
+	}
+	return false
 }
 
 func managerDiagnosticsStatus(events []DiagnosticsEvent, nodes []DiagnosticsNodeResult) DiagnosticsStatus {
