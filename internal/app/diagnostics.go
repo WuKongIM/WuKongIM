@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
@@ -32,6 +33,38 @@ func (a *App) diagnosticsQuery(ctx context.Context, query diagnostics.Query) dia
 // QueryDiagnostics returns the local-node diagnostics query result for the supplied lookup.
 func (a *App) QueryDiagnostics(ctx context.Context, query diagnostics.Query) diagnostics.QueryResult {
 	return a.diagnosticsQuery(ctx, query)
+}
+
+type managementDiagnosticsLocal interface {
+	QueryDiagnostics(ctx context.Context, query diagnostics.Query) diagnostics.QueryResult
+}
+
+type managementDiagnosticsRemote interface {
+	QueryDiagnostics(ctx context.Context, nodeID uint64, query diagnostics.Query) (diagnostics.QueryResult, error)
+}
+
+// managementDiagnosticsReader routes manager diagnostics reads to local app state or node RPC.
+type managementDiagnosticsReader struct {
+	// localNodeID identifies the current process for local short-circuiting.
+	localNodeID uint64
+	// local reads the current node's bounded diagnostics store.
+	local managementDiagnosticsLocal
+	// remote reads another node's diagnostics store through node RPC.
+	remote managementDiagnosticsRemote
+}
+
+// QueryNodeDiagnostics queries exactly the requested node without falling back to local data for remote nodes.
+func (r managementDiagnosticsReader) QueryNodeDiagnostics(ctx context.Context, nodeID uint64, query diagnostics.Query) (diagnostics.QueryResult, error) {
+	if nodeID == r.localNodeID {
+		if r.local == nil {
+			return diagnostics.QueryResult{}, fmt.Errorf("app: local diagnostics not configured")
+		}
+		return r.local.QueryDiagnostics(ctx, query), nil
+	}
+	if r.remote == nil {
+		return diagnostics.QueryResult{}, fmt.Errorf("app: diagnostics node client not configured")
+	}
+	return r.remote.QueryDiagnostics(ctx, nodeID, query)
 }
 
 func diagnosticsStoreOptions(cfg Config) diagnostics.StoreOptions {
