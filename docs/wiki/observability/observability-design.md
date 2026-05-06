@@ -125,13 +125,13 @@ unit:      total | seconds | bytes | ratio
 | `wukongim_channel_append_batch_size` | Histogram | — | Group Commit 的批次大小 |
 | `wukongim_channel_fetch_total` | Counter | — | Fetch 请求次数 |
 | `wukongim_channel_fetch_duration_seconds` | Histogram | — | Fetch 延迟 |
-| `wukongim_channel_hw_lag` | Gauge | `channel_key` | Leader 的最新 offset 与 HW 的差值 |
-| `wukongim_channel_isr_size` | Gauge | `channel_key` | 当前 ISR 副本数 |
+| `wukongim_channel_hw_lag_max` | Gauge | — | 当前节点 Channel Leader 的最大 HW lag |
+| `wukongim_channel_isr_size_min` | Gauge | — | 当前节点 Channel 的最小 ISR 副本数 |
 | `wukongim_channel_epoch_changes_total` | Counter | — | Epoch 切换（Leader 变更）次数 |
 | `wukongim_channel_replication_duration_seconds` | Histogram | — | 复制确认延迟（Leader → Follower ack） |
 | `wukongim_channel_active_channels` | Gauge | — | 当前活跃的 Channel 运行时数量 |
 
-> **注意**：`channel_key` 标签仅在 ISR 异常（`isr_size < MinISR`）时才附带，避免高基数标签导致 Prometheus 内存膨胀。常规聚合指标不含此标签。
+> **注意**：Channel 级聚合指标不携带 `channel_key` 标签；具体异常频道通过 diagnostics 查询、节点本地日志或后续受控 debug API 定位，避免高基数标签导致 Prometheus 内存膨胀。
 
 ### 3.4 Slot 元数据层指标
 
@@ -312,7 +312,7 @@ GET /debug/channels      → 活跃 Channel 列表（分页，含 ISR 状态）
 | 告警 | 条件 | 严重度 |
 |------|------|--------|
 | 节点失联 | `wukongim_controller_nodes_dead > 0` 持续 1min | Critical |
-| ISR 不足 | `wukongim_channel_isr_size < MinISR` | Critical |
+| ISR 不足 | `wukongim_channel_isr_size_min < configured MinISR` | Critical |
 | 迁移停滞 | 迁移耗时 > 10min | Warning |
 | 磁盘使用率 | `wukongim_storage_disk_usage_bytes / total > 0.85` | Warning |
 | 连接数异常 | `wukongim_gateway_connections_active` 5min 内增长 > 200% | Warning |
@@ -343,13 +343,13 @@ groups:
           description: "当前 {{ $value }} 个节点标记为 Dead"
 
       - alert: ISRUnderReplicated
-        expr: wukongim_channel_isr_size < 2
+        expr: wukongim_channel_isr_size_min < 2
         for: 30s
         labels:
           severity: critical
         annotations:
           summary: "Channel ISR 副本不足"
-          description: "频道 {{ $labels.channel_key }} ISR 副本数为 {{ $value }}"
+          description: "当前节点存在 Channel ISR 副本不足，最小 ISR 副本数为 {{ $value }}"
 ```
 
 ## 6. Grafana 看板设计
