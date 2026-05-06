@@ -5,6 +5,7 @@ import "fmt"
 type indexes struct {
 	trace       *boundedIndex
 	client      *boundedIndex
+	channel     *boundedIndex
 	channelSeq  *boundedIndex
 	node        *boundedIndex
 	peerNode    *boundedIndex
@@ -22,6 +23,7 @@ func newIndexes(maxEventsPerKey, maxKeys int) *indexes {
 	return &indexes{
 		trace:       newBoundedIndex(maxEventsPerKey, maxKeys),
 		client:      newBoundedIndex(maxEventsPerKey, maxKeys),
+		channel:     newBoundedIndex(maxEventsPerKey, maxKeys),
 		channelSeq:  newBoundedIndex(maxEventsPerKey, maxKeys),
 		node:        newBoundedIndex(maxEventsPerKey, maxKeys),
 		peerNode:    newBoundedIndex(maxEventsPerKey, maxKeys),
@@ -37,8 +39,11 @@ func (i *indexes) add(id uint64, event Event) {
 	if event.ClientMsgNo != "" {
 		i.client.Add(event.ClientMsgNo, id)
 	}
-	if event.ChannelKey != "" && event.MessageSeq > 0 {
-		i.channelSeq.Add(channelSeqKey(event.ChannelKey, event.MessageSeq), id)
+	if event.ChannelKey != "" {
+		i.channel.Add(event.ChannelKey, id)
+		if event.MessageSeq > 0 {
+			i.channelSeq.Add(channelSeqKey(event.ChannelKey, event.MessageSeq), id)
+		}
 	}
 	if event.NodeID > 0 {
 		i.node.Add(fmt.Sprint(event.NodeID), id)
@@ -62,9 +67,13 @@ func (i *indexes) lookup(q Query) []uint64 {
 	if q.ClientMsgNo != "" {
 		ids = append(ids, i.client.Get(q.ClientMsgNo)...)
 	}
-	if q.ChannelKey != "" && q.MessageSeq > 0 {
-		ids = append(ids, i.channelSeq.Get(channelSeqKey(q.ChannelKey, q.MessageSeq))...)
-		ids = append(ids, i.channelSpan.Get(q.ChannelKey, q.MessageSeq)...)
+	if q.ChannelKey != "" {
+		if q.MessageSeq > 0 {
+			ids = append(ids, i.channelSeq.Get(channelSeqKey(q.ChannelKey, q.MessageSeq))...)
+			ids = append(ids, i.channelSpan.Get(q.ChannelKey, q.MessageSeq)...)
+		} else {
+			ids = append(ids, i.channel.Get(q.ChannelKey)...)
+		}
 	}
 	if q.Stage != "" {
 		ids = append(ids, i.stage.Get(string(q.Stage))...)

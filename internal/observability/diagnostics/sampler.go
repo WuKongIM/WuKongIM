@@ -1,6 +1,7 @@
 package diagnostics
 
 import (
+	"math"
 	"sync/atomic"
 	"time"
 )
@@ -57,6 +58,9 @@ func NewSampler(opts SamplerOptions) *Sampler {
 	now := opts.Now()
 	rules := make([]*debugRule, 0, len(opts.DebugMatches))
 	for _, match := range opts.DebugMatches {
+		if match.TTL <= 0 {
+			continue
+		}
 		rules = append(rules, &debugRule{match: match, expiresAt: now.Add(match.TTL)})
 	}
 	return &Sampler{
@@ -74,6 +78,12 @@ func (s *Sampler) Keep(event Event) (bool, string) {
 	if s == nil {
 		return false, ""
 	}
+	if s.keepDebug(event) {
+		return true, "debug"
+	}
+	if s.slowThreshold > 0 && event.Duration >= s.slowThreshold {
+		return true, "slow"
+	}
 	if isErrorResult(event.Result) {
 		if !s.errorSampleRateSet {
 			return true, "error"
@@ -82,12 +92,6 @@ func (s *Sampler) Keep(event Event) (bool, string) {
 			return true, "error"
 		}
 		return false, ""
-	}
-	if s.slowThreshold > 0 && event.Duration >= s.slowThreshold {
-		return true, "slow"
-	}
-	if s.keepDebug(event) {
-		return true, "debug"
 	}
 	if keepByRate(s.sampleRate, &s.counter) {
 		return true, "sample"
@@ -127,6 +131,8 @@ func debugMatches(match DebugMatch, event Event) bool {
 	return match.UID != "" || match.ChannelKey != "" || match.ClientMsgNo != "" || match.TraceID != ""
 }
 
+const sampleRateScale = uint64(1_000_000)
+
 func keepByRate(rate float64, counter *atomic.Uint64) bool {
 	if rate <= 0 {
 		return false
@@ -134,9 +140,11 @@ func keepByRate(rate float64, counter *atomic.Uint64) bool {
 	if rate >= 1 {
 		return true
 	}
-	period := uint64(1 / rate)
-	if period == 0 {
-		period = 1
+	threshold := uint64(math.Round(rate * float64(sampleRateScale)))
+	if threshold == 0 {
+		return false
 	}
-	return counter.Add(1)%period == 0
+	n := counter.Add(1)
+	slot := (n * 2_654_435_761) % sampleRateScale
+	return slot < threshold
 }

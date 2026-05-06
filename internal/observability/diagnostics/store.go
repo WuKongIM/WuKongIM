@@ -41,6 +41,7 @@ type storedEvent struct {
 type Store struct {
 	mu       sync.RWMutex
 	events   []storedEvent
+	byID     map[uint64]Event
 	nextSlot int
 	nextID   uint64
 	index    *indexes
@@ -68,6 +69,7 @@ func NewStore(opts StoreOptions) *Store {
 	}
 	return &Store{
 		events:   make([]storedEvent, opts.Capacity),
+		byID:     make(map[uint64]Event, opts.Capacity),
 		index:    newIndexes(opts.MaxEventsPerKey, opts.MaxKeysPerIndex),
 		nodeID:   opts.NodeID,
 		now:      opts.Now,
@@ -82,9 +84,13 @@ func (s *Store) Record(event Event) {
 	}
 	event = normalizeEvent(event, s.now(), s.maxError)
 	s.mu.Lock()
+	if overwritten := s.events[s.nextSlot]; overwritten.id != 0 {
+		delete(s.byID, overwritten.id)
+	}
 	s.nextID++
 	id := s.nextID
 	s.events[s.nextSlot] = storedEvent{id: id, event: event}
+	s.byID[id] = event
 	s.nextSlot = (s.nextSlot + 1) % len(s.events)
 	s.index.add(id, event)
 	s.mu.Unlock()
@@ -98,17 +104,20 @@ func (s *Store) Query(ctx context.Context, q Query) QueryResult {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if ctx.Err() != nil {
+		return notFoundResult(q, 0, time.Time{}, 0)
+	}
 	started := s.now()
 	limit := normalizeLimit(q.Limit)
 
 	s.mu.RLock()
 	ids := append([]uint64(nil), s.index.lookup(q)...)
-	candidates := s.candidateEventsLocked(ids, limit*4)
+	candidates := s.candidateEventsLocked(ids)
 	if len(ids) == 0 && q.Stage != "" {
-		candidates = s.stageCandidateEventsLocked(q.Stage, limit*4)
+		candidates = s.stageCandidateEventsLocked(q.Stage)
 	}
 	if len(ids) == 0 && q.Stage == "" {
-		candidates = s.recentCandidateEventsLocked(limit * 4)
+		candidates = s.retainedCandidateEventsLocked()
 	}
 	nodeID := s.nodeID
 	s.mu.RUnlock()
@@ -120,16 +129,16 @@ func (s *Store) Query(ctx context.Context, q Query) QueryResult {
 	out := make([]Event, 0, minInt(limit, len(candidates)))
 	for _, event := range candidates {
 		if ctx.Err() != nil {
-			break
+			return notFoundResult(q, nodeID, started, s.now().Sub(started))
 		}
 		if matchesQuery(event, q) {
 			out = append(out, redactEvent(event))
-			if len(out) >= limit {
-				break
-			}
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].At.Before(out[j].At) })
+	if len(out) > limit {
+		out = out[len(out)-limit:]
+	}
 	if len(out) == 0 {
 		return notFoundResult(q, nodeID, started, s.now().Sub(started))
 	}
@@ -146,39 +155,27 @@ func normalizeLimit(limit int) int {
 	return limit
 }
 
-func (s *Store) candidateEventsLocked(ids []uint64, capHint int) []Event {
+func (s *Store) candidateEventsLocked(ids []uint64) []Event {
 	if len(ids) == 0 {
 		return nil
 	}
-	out := make([]Event, 0, minInt(len(ids), capHint))
+	out := make([]Event, 0, len(ids))
 	for _, id := range ids {
-		if event, ok := s.eventByIDLocked(id); ok {
+		if event, ok := s.byID[id]; ok {
 			out = append(out, event)
-			if len(out) >= capHint {
-				break
-			}
 		}
 	}
 	return out
 }
 
-func (s *Store) eventByIDLocked(id uint64) (Event, bool) {
-	for _, stored := range s.events {
-		if stored.id == id {
-			return stored.event, true
-		}
-	}
-	return Event{}, false
+func (s *Store) stageCandidateEventsLocked(stage Stage) []Event {
+	return s.candidateEventsLocked(s.index.stage.Get(string(stage)))
 }
 
-func (s *Store) stageCandidateEventsLocked(stage Stage, capHint int) []Event {
-	return s.candidateEventsLocked(s.index.stage.Get(string(stage)), capHint)
-}
-
-func (s *Store) recentCandidateEventsLocked(capHint int) []Event {
-	out := make([]Event, 0, minInt(capHint, len(s.events)))
-	for i := 0; i < len(s.events) && len(out) < capHint; i++ {
-		slot := (s.nextSlot - 1 - i + len(s.events)) % len(s.events)
+func (s *Store) retainedCandidateEventsLocked() []Event {
+	out := make([]Event, 0, len(s.byID))
+	for i := 0; i < len(s.events); i++ {
+		slot := (s.nextSlot + i) % len(s.events)
 		stored := s.events[slot]
 		if stored.id == 0 {
 			continue
