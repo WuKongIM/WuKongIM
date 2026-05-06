@@ -61,6 +61,29 @@ func TestSendReturnsClusterRequiredWhenClusterNotConfigured(t *testing.T) {
 	require.Equal(t, SendResult{}, result)
 }
 
+func TestSendPassesTraceIDToChannelAppend(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	app := New(Options{
+		Now:           fixedNowFn,
+		Cluster:       cluster,
+		MetaRefresher: &fakeMetaRefresher{},
+	})
+
+	_, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+		ClientMsgNo: "m-trace",
+		TraceID:     "trace-1",
+	})
+
+	require.NoError(t, err)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Equal(t, "trace-1", cluster.sendRequests[0].TraceID)
+	require.Equal(t, 0, cluster.sendRequests[0].Attempt)
+}
+
 func TestSendReturnsSuccessAfterDurableWriteAndSubmitsCommittedMessage(t *testing.T) {
 	dispatcher := &recordingCommittedDispatcher{}
 	cluster := &fakeChannelCluster{

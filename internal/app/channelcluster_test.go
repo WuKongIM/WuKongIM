@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -160,6 +161,70 @@ func TestAppChannelClusterUpdatesObservabilityMetrics(t *testing.T) {
 
 	require.NoError(t, cluster.RemoveLocal(key))
 	require.Equal(t, int64(0), registry.Channel.Snapshot().ActiveChannels)
+}
+
+func TestAppChannelClusterLocalAppendRecordsTraceID(t *testing.T) {
+	sink := &recordingAppSendTraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+
+	service := &stubChannelService{
+		appendResult: channel.AppendResult{MessageID: 9, MessageSeq: 10},
+	}
+	cluster := &appChannelCluster{service: service, localNodeID: 1}
+
+	_, err := cluster.Append(context.Background(), channel.AppendRequest{
+		ChannelID: channel.ChannelID{ID: "room", Type: 2},
+		Message:   channel.Message{ClientMsgNo: "m1"},
+		TraceID:   "trace-1",
+		Attempt:   2,
+	})
+
+	require.NoError(t, err)
+	events := sink.snapshot()
+	require.Len(t, events, 1)
+	require.Equal(t, sendtrace.StageChannelAppendLocal, events[0].Stage)
+	require.Equal(t, "trace-1", events[0].TraceID)
+	require.Equal(t, 2, events[0].Attempt)
+}
+
+func TestAppChannelClusterForwardAppendRecordsTraceID(t *testing.T) {
+	sink := &recordingAppSendTraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+
+	req := channel.AppendRequest{
+		ChannelID: channel.ChannelID{ID: "room", Type: 2},
+		Message:   channel.Message{FromUID: "u1", ClientMsgNo: "m1", Payload: []byte("hi")},
+		TraceID:   "trace-1",
+		Attempt:   3,
+	}
+	service := &stubChannelService{
+		meta: channel.Meta{
+			Key:    channel.ChannelKey("room"),
+			ID:     req.ChannelID,
+			Leader: 2,
+		},
+		appendErr: channel.ErrNotLeader,
+	}
+	remote := &recordingRemoteChannelAppender{
+		result: channel.AppendResult{MessageID: 9, MessageSeq: 10},
+	}
+	cluster := &appChannelCluster{
+		service:        service,
+		localNodeID:    1,
+		remoteAppender: remote,
+	}
+
+	_, err := cluster.Append(context.Background(), req)
+
+	require.NoError(t, err)
+	events := sink.snapshot()
+	require.Len(t, events, 1)
+	require.Equal(t, sendtrace.StageChannelAppendForward, events[0].Stage)
+	require.Equal(t, "trace-1", events[0].TraceID)
+	require.Equal(t, 3, events[0].Attempt)
+	require.Equal(t, "channel_append", events[0].Service)
 }
 
 func TestAppChannelClusterAppendForwardsToLeaderWhenLocalReplicaIsFollower(t *testing.T) {
@@ -332,4 +397,23 @@ func requireMetricFamilyByName(t *testing.T, families []*dto.MetricFamily, name 
 	}
 	t.Fatalf("metric family %q not found", name)
 	return nil
+}
+
+type recordingAppSendTraceSink struct {
+	mu     sync.Mutex
+	events []sendtrace.Event
+}
+
+func (s *recordingAppSendTraceSink) RecordSendTrace(event sendtrace.Event) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events = append(s.events, event)
+}
+
+func (s *recordingAppSendTraceSink) snapshot() []sendtrace.Event {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]sendtrace.Event, len(s.events))
+	copy(out, s.events)
+	return out
 }

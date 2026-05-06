@@ -312,6 +312,40 @@ func TestSendMessageRejectsInvalidPersonChannelID(t *testing.T) {
 	require.Empty(t, msgs.calls)
 }
 
+func TestSendMessagePassesValidTraceHeader(t *testing.T) {
+	msgs := &recordingMessageUsecase{}
+	srv := New(Options{Messages: msgs})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/send", bytes.NewBufferString(`{"sender_uid":"u1","channel_id":"u2","channel_type":1,"payload":"aGk="}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-WK-Trace-ID", "ABCDEF0123456789ABCDEF0123456789")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, msgs.calls, 1)
+	require.Equal(t, "abcdef0123456789abcdef0123456789", msgs.calls[0].TraceID)
+}
+
+func TestSendMessageGeneratesTraceIDForInvalidTraceHeader(t *testing.T) {
+	msgs := &recordingMessageUsecase{}
+	srv := New(Options{Messages: msgs})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/send", bytes.NewBufferString(`{"sender_uid":"u1","channel_id":"u2","channel_type":1,"payload":"aGk="}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-WK-Trace-ID", "not-a-valid-trace")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, msgs.calls, 1)
+	require.NotEmpty(t, msgs.calls[0].TraceID)
+	require.Len(t, msgs.calls[0].TraceID, 32)
+	require.NotEqual(t, "not-a-valid-trace", msgs.calls[0].TraceID)
+}
+
 func TestSendMessagePropagatesHTTPRequestContext(t *testing.T) {
 	type ctxKey string
 
@@ -327,7 +361,7 @@ func TestSendMessagePropagatesHTTPRequestContext(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Len(t, msgs.sendContexts, 1)
-	require.Same(t, reqCtx, msgs.sendContexts[0])
+	require.Equal(t, "api-send", msgs.sendContexts[0].Value(ctxKey("request")))
 }
 
 func TestSendMessageReturnsCanceledRequestContextError(t *testing.T) {
@@ -349,7 +383,7 @@ func TestSendMessageReturnsCanceledRequestContextError(t *testing.T) {
 	require.Equal(t, http.StatusRequestTimeout, rec.Code)
 	require.JSONEq(t, `{"error":"request canceled"}`, rec.Body.String())
 	require.Len(t, msgs.sendContexts, 1)
-	require.Same(t, reqCtx, msgs.sendContexts[0])
+	require.ErrorIs(t, msgs.sendContexts[0].Err(), context.Canceled)
 }
 
 func TestSendMessageRejectsInvalidBase64Payload(t *testing.T) {
