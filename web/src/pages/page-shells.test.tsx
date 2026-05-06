@@ -280,7 +280,7 @@ it.each([
   ["/messages", "Messages", "Channel ID"],
   ["/slots", "Slots", "Slot"],
   ["/onboarding", "Onboarding", "Candidate Nodes"],
-  ["/network", "Network", "Node Health Distribution"],
+  ["/network", "Network", "Node Health Status"],
   ["/controller", "Controller Logs", "Log Index"],
   ["/slot-logs", "Slot Logs", "Log Index"],
 ])("renders %s shell", async (path, title, section) => {
@@ -337,7 +337,7 @@ it.each([
   ["/messages", "消息", "频道 ID"],
   ["/slots", "槽位", "槽位"],
   ["/onboarding", "扩容", "候选节点"],
-  ["/network", "网络", "节点健康分布"],
+  ["/network", "网络", "节点健康状态"],
   ["/controller", "控制面日志", "日志索引"],
   ["/slot-logs", "槽位日志", "日志索引"],
   ["/topology", "拓扑", "管理 API 覆盖"],
