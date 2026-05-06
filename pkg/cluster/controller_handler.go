@@ -70,6 +70,12 @@ func (h *controllerHandler) Handle(ctx context.Context, body []byte) ([]byte, er
 			NextCursor:   page.NextCursor,
 			LogEntries:   managedSlotLogEntriesFromController(page.Items),
 		})
+	case controllerRPCControllerRaftStatus:
+		status, err := c.localControllerRaftStatus(ctx, uint64(c.NodeID()))
+		if err != nil {
+			return nil, err
+		}
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{ControllerRaftStatus: &status})
 	case controllerRPCJoinCluster:
 		return h.handleJoinCluster(ctx, req, marshalRedirect, loadHashSlotTable)
 	case controllerRPCHeartbeat:
