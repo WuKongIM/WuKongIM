@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { MemoryRouter } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
 
 import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
@@ -237,7 +238,9 @@ beforeEach(() => {
 function renderNodesPage() {
   return render(
     <I18nProvider>
-      <NodesPage />
+      <MemoryRouter initialEntries={["/nodes"]}>
+        <NodesPage />
+      </MemoryRouter>
     </I18nProvider>,
   )
 }
@@ -312,11 +315,16 @@ test("renders controller raft health summary in the node list and detail", async
 
   expect(await screen.findByText("snapshot required")).toBeInTheDocument()
   expect(screen.getByText("first 10 / applied 20 / snapshot 9")).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Open Controller Raft for node 1" })).toHaveAttribute(
+    "href",
+    "/controller?node_id=1",
+  )
   await user.click(screen.getByRole("button", { name: "Inspect node 1" }))
 
   expect(await screen.findByText("Controller Raft Health")).toBeInTheDocument()
   expect(screen.getAllByText("snapshot required")).not.toHaveLength(0)
   expect(screen.getAllByText("first 10 / applied 20 / snapshot 9")).not.toHaveLength(0)
+  expect(screen.getAllByRole("link", { name: "Open Controller Raft for node 1" })).not.toHaveLength(0)
 })
 
 test("renders unavailable controller raft summary without fake zero watermarks", async () => {
@@ -340,6 +348,10 @@ test("renders unavailable controller raft summary without fake zero watermarks",
 
   expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
   expect(screen.queryByText("unknown")).not.toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Open Controller Raft for node 1" })).toHaveAttribute(
+    "href",
+    "/controller?node_id=1",
+  )
   await user.click(screen.getByRole("button", { name: "Inspect node 1" }))
 
   expect(await screen.findByText("Controller Raft Health")).toBeInTheDocument()

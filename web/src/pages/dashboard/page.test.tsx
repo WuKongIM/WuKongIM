@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { MemoryRouter } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
 
 import { I18nProvider } from "@/i18n/provider"
@@ -145,7 +146,9 @@ beforeEach(() => {
 function renderDashboard() {
   return render(
     <I18nProvider>
-      <DashboardPage />
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <DashboardPage />
+      </MemoryRouter>
     </I18nProvider>,
   )
 }
@@ -173,6 +176,10 @@ test("renders controller raft health summary from node inventory", async () => {
   expect(screen.getByText("snapshot required")).toBeInTheDocument()
   expect(screen.getByText("reported 1 / voters 2")).toBeInTheDocument()
   expect(screen.getByText("first 10 / applied 20 / snapshot 9")).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Open Controller Raft status for node 1" })).toHaveAttribute(
+    "href",
+    "/controller?node_id=1",
+  )
 })
 
 test("refresh triggers a new overview and task fetch", async () => {
