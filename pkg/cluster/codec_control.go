@@ -37,6 +37,7 @@ const (
 	controllerRPCGetOnboardingJob         string           = "get_onboarding_job"
 	controllerRPCRetryOnboardingJob       string           = "retry_onboarding_job"
 	controllerRPCControllerLogs           string           = "controller_logs"
+	controllerRPCControllerRaftStatus     string           = "controller_raft_status"
 )
 
 const (
@@ -86,6 +87,7 @@ const (
 	controllerKindGetOnboardingJob
 	controllerKindRetryOnboardingJob
 	controllerKindControllerLogs
+	controllerKindControllerRaftStatus
 )
 
 type onboardingErrorCode string
@@ -159,6 +161,7 @@ type controllerRPCResponse struct {
 	LastIndex              uint64
 	NextCursor             uint64
 	LogEntries             []managedSlotLogEntry
+	ControllerRaftStatus   *ControllerRaftStatus
 }
 
 type joinClusterRequest struct {
@@ -366,7 +369,7 @@ func encodeControllerRequestPayload(req controllerRPCRequest) ([]byte, error) {
 			return nil, ErrInvalidConfig
 		}
 		return encodeControllerLogEntriesRequest(*req.ControllerLogs), nil
-	case controllerRPCListAssignments, controllerRPCListNodes, controllerRPCListRuntimeViews, controllerRPCListTasks, controllerRPCGetTask, controllerRPCForceReconcile:
+	case controllerRPCListAssignments, controllerRPCListNodes, controllerRPCListRuntimeViews, controllerRPCListTasks, controllerRPCGetTask, controllerRPCForceReconcile, controllerRPCControllerRaftStatus:
 		return nil, nil
 	case controllerRPCListOnboardingCandidates:
 		return nil, nil
@@ -468,7 +471,7 @@ func decodeControllerRequestPayload(req *controllerRPCRequest, payload []byte) e
 		}
 		req.ControllerLogs = &logs
 		return nil
-	case controllerRPCListAssignments, controllerRPCListNodes, controllerRPCListRuntimeViews, controllerRPCListTasks, controllerRPCGetTask, controllerRPCForceReconcile:
+	case controllerRPCListAssignments, controllerRPCListNodes, controllerRPCListRuntimeViews, controllerRPCListTasks, controllerRPCGetTask, controllerRPCForceReconcile, controllerRPCControllerRaftStatus:
 		if len(payload) != 0 {
 			return ErrInvalidConfig
 		}
@@ -516,6 +519,11 @@ func encodeControllerResponsePayload(kind string, resp controllerRPCResponse) ([
 		return encodeNodeOnboardingResponse(resp), nil
 	case controllerRPCControllerLogs:
 		return encodeControllerLogEntriesResponse(resp)
+	case controllerRPCControllerRaftStatus:
+		if resp.ControllerRaftStatus == nil {
+			return nil, ErrInvalidConfig
+		}
+		return encodeControllerRaftStatusResponse(*resp.ControllerRaftStatus), nil
 	default:
 		return nil, ErrInvalidConfig
 	}
@@ -601,6 +609,13 @@ func decodeControllerResponsePayload(kind string, resp *controllerRPCResponse, p
 		return decodeNodeOnboardingResponse(resp, payload)
 	case controllerRPCControllerLogs:
 		return decodeControllerLogEntriesResponse(resp, payload)
+	case controllerRPCControllerRaftStatus:
+		status, err := decodeControllerRaftStatusResponse(payload)
+		if err != nil {
+			return err
+		}
+		resp.ControllerRaftStatus = &status
+		return nil
 	default:
 		return ErrInvalidConfig
 	}
@@ -658,6 +673,8 @@ func controllerKindCode(kind string) (byte, error) {
 		return controllerKindRetryOnboardingJob, nil
 	case controllerRPCControllerLogs:
 		return controllerKindControllerLogs, nil
+	case controllerRPCControllerRaftStatus:
+		return controllerKindControllerRaftStatus, nil
 	default:
 		return controllerKindUnknown, ErrInvalidConfig
 	}
@@ -715,6 +732,8 @@ func controllerKindName(kind byte) (string, error) {
 		return controllerRPCRetryOnboardingJob, nil
 	case controllerKindControllerLogs:
 		return controllerRPCControllerLogs, nil
+	case controllerKindControllerRaftStatus:
+		return controllerRPCControllerRaftStatus, nil
 	default:
 		return "", ErrInvalidConfig
 	}
@@ -818,6 +837,174 @@ func decodeControllerLogEntriesResponse(resp *controllerRPCResponse, body []byte
 	}
 	resp.LogEntries = entries
 	return nil
+}
+
+func encodeControllerRaftStatusResponse(status ControllerRaftStatus) []byte {
+	body := make([]byte, 0, 128)
+	body = binary.BigEndian.AppendUint64(body, status.NodeID)
+	body = appendString(body, status.Role)
+	body = binary.BigEndian.AppendUint64(body, status.LeaderID)
+	body = binary.BigEndian.AppendUint64(body, status.Term)
+	body = binary.BigEndian.AppendUint64(body, status.FirstIndex)
+	body = binary.BigEndian.AppendUint64(body, status.LastIndex)
+	body = binary.BigEndian.AppendUint64(body, status.CommitIndex)
+	body = binary.BigEndian.AppendUint64(body, status.AppliedIndex)
+	body = binary.BigEndian.AppendUint64(body, status.SnapshotIndex)
+	body = binary.BigEndian.AppendUint64(body, status.SnapshotTerm)
+
+	body = appendBool(body, status.Compaction.Enabled)
+	body = binary.BigEndian.AppendUint64(body, status.Compaction.TriggerEntries)
+	body = appendInt64(body, int64(status.Compaction.CheckInterval))
+	body = binary.BigEndian.AppendUint64(body, status.Compaction.LastSnapshotIndex)
+	body = appendInt64(body, unixNanoOrZero(status.Compaction.LastSnapshotAt))
+	body = appendInt64(body, unixNanoOrZero(status.Compaction.LastCheckAt))
+	body = appendString(body, status.Compaction.LastError)
+	body = appendInt64(body, unixNanoOrZero(status.Compaction.LastErrorAt))
+	body = appendBool(body, status.Compaction.Degraded)
+
+	body = binary.BigEndian.AppendUint64(body, status.Restore.LastSnapshotIndex)
+	body = binary.BigEndian.AppendUint64(body, status.Restore.LastSnapshotTerm)
+	body = appendInt64(body, unixNanoOrZero(status.Restore.LastRestoredAt))
+	body = appendString(body, status.Restore.LastError)
+	body = appendInt64(body, unixNanoOrZero(status.Restore.LastErrorAt))
+	body = appendBool(body, status.Restore.Failed)
+
+	body = binary.AppendUvarint(body, uint64(len(status.Peers)))
+	for _, peer := range status.Peers {
+		body = binary.BigEndian.AppendUint64(body, peer.NodeID)
+		body = binary.BigEndian.AppendUint64(body, peer.Match)
+		body = binary.BigEndian.AppendUint64(body, peer.Next)
+		body = appendString(body, peer.State)
+		body = binary.BigEndian.AppendUint64(body, peer.PendingSnapshot)
+		body = appendBool(body, peer.RecentActive)
+		body = appendBool(body, peer.NeedsSnapshot)
+		body = appendBool(body, peer.SnapshotTransferring)
+	}
+	return body
+}
+
+func decodeControllerRaftStatusResponse(body []byte) (ControllerRaftStatus, error) {
+	var status ControllerRaftStatus
+	var err error
+	if status.NodeID, body, err = readUint64(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.Role, body, err = readString(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.LeaderID, body, err = readUint64(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.Term, body, err = readUint64(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.FirstIndex, body, err = readUint64(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.LastIndex, body, err = readUint64(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.CommitIndex, body, err = readUint64(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.AppliedIndex, body, err = readUint64(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.SnapshotIndex, body, err = readUint64(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.SnapshotTerm, body, err = readUint64(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+
+	if status.Compaction.Enabled, body, err = readBool(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.Compaction.TriggerEntries, body, err = readUint64(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	checkInterval, rest, err := readInt64(body)
+	if err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	status.Compaction.CheckInterval = time.Duration(checkInterval)
+	body = rest
+	if status.Compaction.LastSnapshotIndex, body, err = readUint64(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.Compaction.LastSnapshotAt, body, err = readTimeNanos(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.Compaction.LastCheckAt, body, err = readTimeNanos(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.Compaction.LastError, body, err = readString(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.Compaction.LastErrorAt, body, err = readTimeNanos(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.Compaction.Degraded, body, err = readBool(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+
+	if status.Restore.LastSnapshotIndex, body, err = readUint64(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.Restore.LastSnapshotTerm, body, err = readUint64(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.Restore.LastRestoredAt, body, err = readTimeNanos(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.Restore.LastError, body, err = readString(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.Restore.LastErrorAt, body, err = readTimeNanos(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	if status.Restore.Failed, body, err = readBool(body); err != nil {
+		return ControllerRaftStatus{}, err
+	}
+
+	count, rest, err := readUvarint(body)
+	if err != nil {
+		return ControllerRaftStatus{}, err
+	}
+	status.Peers = make([]ControllerRaftPeerProgress, 0, count)
+	body = rest
+	for i := uint64(0); i < count; i++ {
+		var peer ControllerRaftPeerProgress
+		if peer.NodeID, body, err = readUint64(body); err != nil {
+			return ControllerRaftStatus{}, err
+		}
+		if peer.Match, body, err = readUint64(body); err != nil {
+			return ControllerRaftStatus{}, err
+		}
+		if peer.Next, body, err = readUint64(body); err != nil {
+			return ControllerRaftStatus{}, err
+		}
+		if peer.State, body, err = readString(body); err != nil {
+			return ControllerRaftStatus{}, err
+		}
+		if peer.PendingSnapshot, body, err = readUint64(body); err != nil {
+			return ControllerRaftStatus{}, err
+		}
+		if peer.RecentActive, body, err = readBool(body); err != nil {
+			return ControllerRaftStatus{}, err
+		}
+		if peer.NeedsSnapshot, body, err = readBool(body); err != nil {
+			return ControllerRaftStatus{}, err
+		}
+		if peer.SnapshotTransferring, body, err = readBool(body); err != nil {
+			return ControllerRaftStatus{}, err
+		}
+		status.Peers = append(status.Peers, peer)
+	}
+	if len(body) != 0 {
+		return ControllerRaftStatus{}, ErrInvalidConfig
+	}
+	return status, nil
 }
 
 func encodeNodeOnboardingPlanRequest(req nodeOnboardingPlanRequest) []byte {
@@ -2521,6 +2708,13 @@ func appendBytes(dst []byte, value []byte) []byte {
 	return append(dst, value...)
 }
 
+func appendBool(dst []byte, value bool) []byte {
+	if value {
+		return append(dst, 1)
+	}
+	return append(dst, 0)
+}
+
 func readString(src []byte) (string, []byte, error) {
 	length, rest, err := readUvarint(src)
 	if err != nil {
@@ -2541,6 +2735,20 @@ func readBytes(src []byte) ([]byte, []byte, error) {
 		return nil, nil, ErrInvalidConfig
 	}
 	return append([]byte(nil), rest[:length]...), rest[length:], nil
+}
+
+func readBool(src []byte) (bool, []byte, error) {
+	if len(src) < 1 {
+		return false, nil, ErrInvalidConfig
+	}
+	switch src[0] {
+	case 0:
+		return false, src[1:], nil
+	case 1:
+		return true, src[1:], nil
+	default:
+		return false, nil, ErrInvalidConfig
+	}
 }
 
 func appendUint64Slice(dst []byte, values []uint64) []byte {

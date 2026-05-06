@@ -927,3 +927,83 @@ func TestControllerLogEntriesRPCCodecRoundTrip(t *testing.T) {
 		t.Fatalf("decoded entry = %+v", resp.LogEntries[0])
 	}
 }
+
+func TestControllerRaftStatusRPCCodecRoundTrip(t *testing.T) {
+	reqBody, err := encodeControllerRequest(controllerRPCRequest{Kind: controllerRPCControllerRaftStatus})
+	if err != nil {
+		t.Fatalf("encodeControllerRequest() error = %v", err)
+	}
+	req, err := decodeControllerRequest(reqBody)
+	if err != nil {
+		t.Fatalf("decodeControllerRequest() error = %v", err)
+	}
+	if req.Kind != controllerRPCControllerRaftStatus {
+		t.Fatalf("decoded request = %+v", req)
+	}
+
+	now := time.Unix(1715000000, 123).UTC()
+	want := ControllerRaftStatus{
+		NodeID:        2,
+		Role:          "leader",
+		LeaderID:      2,
+		Term:          4,
+		FirstIndex:    10,
+		LastIndex:     30,
+		CommitIndex:   29,
+		AppliedIndex:  28,
+		SnapshotIndex: 9,
+		SnapshotTerm:  3,
+		Compaction: ControllerRaftCompactionStatus{
+			Enabled:           true,
+			TriggerEntries:    100,
+			CheckInterval:     time.Second,
+			LastSnapshotIndex: 9,
+			LastSnapshotAt:    now,
+			LastCheckAt:       now.Add(time.Second),
+			LastError:         "compact failed",
+			LastErrorAt:       now.Add(2 * time.Second),
+			Degraded:          true,
+		},
+		Restore: ControllerRaftRestoreStatus{
+			LastSnapshotIndex: 9,
+			LastSnapshotTerm:  3,
+			LastRestoredAt:    now.Add(3 * time.Second),
+			LastError:         "restore failed",
+			LastErrorAt:       now.Add(4 * time.Second),
+			Failed:            true,
+		},
+		Peers: []ControllerRaftPeerProgress{{
+			NodeID:               3,
+			Match:                20,
+			Next:                 21,
+			State:                "StateReplicate",
+			PendingSnapshot:      12,
+			RecentActive:         true,
+			NeedsSnapshot:        true,
+			SnapshotTransferring: true,
+		}},
+	}
+	respBody, err := encodeControllerResponse(controllerRPCControllerRaftStatus, controllerRPCResponse{ControllerRaftStatus: &want})
+	if err != nil {
+		t.Fatalf("encodeControllerResponse() error = %v", err)
+	}
+	resp, err := decodeControllerResponse(controllerRPCControllerRaftStatus, respBody)
+	if err != nil {
+		t.Fatalf("decodeControllerResponse() error = %v", err)
+	}
+	normalizeControllerRaftStatusTimes(resp.ControllerRaftStatus)
+	if resp.ControllerRaftStatus == nil || !reflect.DeepEqual(*resp.ControllerRaftStatus, want) {
+		t.Fatalf("decoded status = %+v, want %+v", resp.ControllerRaftStatus, want)
+	}
+}
+
+func normalizeControllerRaftStatusTimes(status *ControllerRaftStatus) {
+	if status == nil {
+		return
+	}
+	status.Compaction.LastSnapshotAt = status.Compaction.LastSnapshotAt.UTC()
+	status.Compaction.LastCheckAt = status.Compaction.LastCheckAt.UTC()
+	status.Compaction.LastErrorAt = status.Compaction.LastErrorAt.UTC()
+	status.Restore.LastRestoredAt = status.Restore.LastRestoredAt.UTC()
+	status.Restore.LastErrorAt = status.Restore.LastErrorAt.UTC()
+}
