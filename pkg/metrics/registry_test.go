@@ -408,6 +408,20 @@ func TestRegistryExposesDeliveryMetrics(t *testing.T) {
 	requireMetricFamily(t, families, "wukongim_delivery_route_expired_total")
 }
 
+func TestRegistryIncludesDiagnosticsMetrics(t *testing.T) {
+	reg := New(1, "node-1")
+	reg.Diagnostics.RecordEvent("message.send_durable", "ok")
+	reg.Diagnostics.RecordDropped("sampled_out")
+	reg.Diagnostics.SetBufferUsageRatio(0.5)
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	requireMetricFamily(t, families, "wukongim_diagnostics_events_recorded_total")
+	requireMetricFamily(t, families, "wukongim_diagnostics_events_dropped_total")
+	requireMetricFamily(t, families, "wukongim_diagnostics_buffer_usage_ratio")
+}
+
 func requireMetricFamily(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
 	t.Helper()
 	for _, family := range families {
