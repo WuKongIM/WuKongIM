@@ -604,6 +604,8 @@ func build(cfg Config) (_ *App, err error) {
 			DebugEnabled:             cfg.Observability.HealthDebugEnabled,
 			DebugConfig:              app.debugConfigSnapshot,
 			DebugCluster:             app.debugClusterSnapshot,
+			DiagnosticsDebugEnabled:  cfg.Observability.Diagnostics.Enabled && cfg.Observability.Diagnostics.DebugAPIEnabled,
+			Diagnostics:              app,
 			LegacyRouteExternal:      legacyRouteExternal,
 			LegacyRouteIntranet:      legacyRouteIntranet,
 			Logger:                   app.logger.Named("access.api"),

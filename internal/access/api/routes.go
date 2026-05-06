@@ -24,6 +24,9 @@ func (s *Server) registerRoutes() {
 	}
 	s.engine.GET("/route", s.handleRoute)
 	s.engine.POST("/route/batch", s.handleRouteBatch)
+	if s.diagnosticsDebugEnabled && s.diagnostics != nil {
+		s.registerDiagnosticsRoutes()
+	}
 	if s.debugEnabled {
 		if s.debugConfig != nil {
 			s.engine.GET("/debug/config", s.handleDebugConfig)
