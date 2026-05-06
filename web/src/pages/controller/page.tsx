@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useIntl, type IntlShape } from "react-intl"
+import { useSearchParams } from "react-router-dom"
 
 import { NodeFilter, defaultNodeId, hasNode } from "@/components/manager/node-filter"
 import { ResourceState } from "@/components/manager/resource-state"
@@ -45,6 +46,11 @@ function mapErrorKind(error: Error | null) {
 
 function formatDataSize(value: number) {
   return `${value} B`
+}
+
+function requestedNodeId(searchParams: URLSearchParams) {
+  const value = Number(searchParams.get("node_id"))
+  return Number.isInteger(value) && value > 0 ? value : null
 }
 
 function isRaftNoopEntry(entry: ManagerControllerLogEntry) {
@@ -209,6 +215,8 @@ function ControllerRaftStatusPanel({
 
 export function ControllerPage() {
   const intl = useIntl()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const queryNodeId = useMemo(() => requestedNodeId(searchParams), [searchParams])
   const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
   const [state, setState] = useState<ControllerLogsState>({ page: null, loading: true, error: null })
@@ -280,10 +288,17 @@ export function ControllerPage() {
     logsRequestSeq.current += 1
     statusRequestSeq.current += 1
     setSelectedNodeId(nodeId)
+    const nextParams = new URLSearchParams(searchParams)
+    if (nodeId === null) {
+      nextParams.delete("node_id")
+    } else {
+      nextParams.set("node_id", String(nodeId))
+    }
+    setSearchParams(nextParams, { replace: true })
     setState({ page: null, loading: false, error: null })
     setStatusState({ status: null, loading: false, error: null })
     setExpandedIndexes(new Set())
-  }, [])
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     let cancelled = false
@@ -294,12 +309,6 @@ export function ControllerPage() {
           return
         }
         setNodes(nextNodes)
-        setSelectedNodeId((current) => {
-          if (current !== null && hasNode(nextNodes, current)) {
-            return current
-          }
-          return defaultNodeId(nextNodes)
-        })
       } catch (error) {
         if (cancelled) {
           return
@@ -319,6 +328,21 @@ export function ControllerPage() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!nodes) {
+      return
+    }
+    setSelectedNodeId((current) => {
+      if (queryNodeId !== null && hasNode(nodes, queryNodeId)) {
+        return queryNodeId
+      }
+      if (current !== null && hasNode(nodes, current)) {
+        return current
+      }
+      return defaultNodeId(nodes)
+    })
+  }, [nodes, queryNodeId])
 
   useEffect(() => {
     if (selectedNodeId === null) {

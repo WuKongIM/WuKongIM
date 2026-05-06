@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useIntl, type IntlShape } from "react-intl"
+import { Link } from "react-router-dom"
 
 import { useAuthStore } from "@/auth/auth-store"
 import { ConfirmDialog } from "@/components/manager/confirm-dialog"
@@ -191,6 +192,23 @@ function nodeControllerRaftWatermark(intl: IntlShape, node: ManagerNode) {
       applied: node.controller.applied_index ?? 0,
       snapshot: node.controller.snapshot_index ?? 0,
     },
+  )
+}
+
+function controllerRaftPath(nodeId: number) {
+  return `/controller?node_id=${nodeId}`
+}
+
+function controllerRaftLink(intl: IntlShape, nodeId: number) {
+  return (
+    <Button asChild className="h-auto px-0" size="xs" variant="link">
+      <Link
+        aria-label={intl.formatMessage({ id: "nodes.controllerRaftOpenForNode" }, { id: nodeId })}
+        to={controllerRaftPath(nodeId)}
+      >
+        {intl.formatMessage({ id: "nodes.controllerRaftOpen" })}
+      </Link>
+    </Button>
   )
 }
 
@@ -640,6 +658,7 @@ export function NodesPage() {
                           {hasControllerRaftWatermark(node) ? (
                             <div className="mt-1 text-xs">{nodeControllerRaftWatermark(intl, node)}</div>
                           ) : null}
+                          <div className="mt-1">{controllerRaftLink(intl, node.node_id)}</div>
                         </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">
                           {nodeSlotSummaryText(intl, node)}
@@ -860,6 +879,10 @@ export function NodesPage() {
                 {
                   label: intl.formatMessage({ id: "nodes.detail.controllerRaftWatermark" }),
                   value: nodeControllerRaftWatermark(intl, detail),
+                },
+                {
+                  label: intl.formatMessage({ id: "nodes.detail.controllerRaftLink" }),
+                  value: controllerRaftLink(intl, detail.node_id),
                 },
                 {
                   label: intl.formatMessage({ id: "nodes.detail.lastHeartbeat" }),

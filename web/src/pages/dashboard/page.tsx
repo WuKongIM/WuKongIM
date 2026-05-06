@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useIntl, type IntlShape } from "react-intl"
+import { Link } from "react-router-dom"
 
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
@@ -134,6 +135,10 @@ function formatControllerRaftWatermark(intl: IntlShape, node: ManagerNode | null
       snapshot: node.controller.snapshot_index,
     },
   )
+}
+
+function controllerRaftPath(nodeId: number) {
+  return `/controller?node_id=${nodeId}`
 }
 
 function renderTaskRow(intl: IntlShape, task: ManagerTask) {
@@ -284,6 +289,19 @@ export function DashboardPage() {
                 <div className="text-xs text-muted-foreground">
                   {formatControllerRaftWatermark(intl, controllerRaftSummary.watermarkNode)}
                 </div>
+                {controllerRaftSummary.watermarkNode ? (
+                  <Button asChild size="sm" variant="outline">
+                    <Link
+                      aria-label={intl.formatMessage(
+                        { id: "dashboard.controllerRaftOpenForNode" },
+                        { id: controllerRaftSummary.watermarkNode.node_id },
+                      )}
+                      to={controllerRaftPath(controllerRaftSummary.watermarkNode.node_id)}
+                    >
+                      {intl.formatMessage({ id: "dashboard.controllerRaftOpen" })}
+                    </Link>
+                  </Button>
+                ) : null}
               </div>
             </SectionCard>
             <SectionCard
