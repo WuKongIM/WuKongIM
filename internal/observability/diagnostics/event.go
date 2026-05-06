@@ -11,6 +11,20 @@ type Result string
 // ErrorCode classifies common diagnostics failures with stable tokens.
 type ErrorCode string
 
+// Status summarizes the outcome of a diagnostics query.
+type Status string
+
+const (
+	// StatusOK indicates the query found only successful events.
+	StatusOK Status = "ok"
+	// StatusError indicates the query found at least one failed event.
+	StatusError Status = "error"
+	// StatusPartial indicates the query found at least one partial event.
+	StatusPartial Status = "partial"
+	// StatusNotFound indicates the query matched no retained local events.
+	StatusNotFound Status = "not_found"
+)
+
 const (
 	// ResultOK indicates the observed stage completed successfully.
 	ResultOK Result = "ok"
@@ -87,6 +101,41 @@ type Event struct {
 	ReplicaRole string `json:"replica_role,omitempty"`
 	// SampleReason explains why this event was retained by diagnostics sampling.
 	SampleReason string `json:"sample_reason,omitempty"`
+}
+
+// Query describes the supported node-local diagnostics lookup keys.
+type Query struct {
+	TraceID     string `json:"trace_id,omitempty"`
+	ClientMsgNo string `json:"client_msg_no,omitempty"`
+	ChannelKey  string `json:"channel_key,omitempty"`
+	MessageSeq  uint64 `json:"message_seq,omitempty"`
+	Stage       Stage  `json:"stage,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+}
+
+// QuerySummary contains compact aggregate hints for matched diagnostics events.
+type QuerySummary struct {
+	SlowestStage      string `json:"slowest_stage,omitempty"`
+	SlowestDurationMS int64  `json:"slowest_duration_ms,omitempty"`
+	ErrorStage        string `json:"error_stage,omitempty"`
+	ErrorCode         string `json:"error_code,omitempty"`
+}
+
+// QueryResult is the stable JSON response envelope for diagnostics queries.
+type QueryResult struct {
+	Scope       string       `json:"scope"`
+	NodeID      uint64       `json:"node_id"`
+	TraceID     string       `json:"trace_id,omitempty"`
+	ClientMsgNo string       `json:"client_msg_no,omitempty"`
+	ChannelKey  string       `json:"channel_key,omitempty"`
+	MessageSeq  uint64       `json:"message_seq,omitempty"`
+	Query       Query        `json:"query"`
+	Status      Status       `json:"status"`
+	StartedAt   time.Time    `json:"started_at,omitempty"`
+	DurationMS  int64        `json:"duration_ms,omitempty"`
+	Summary     QuerySummary `json:"summary,omitempty"`
+	Events      []Event      `json:"events"`
+	Notes       []string     `json:"notes,omitempty"`
 }
 
 // ContainsMessageSeq reports whether this event directly or range-wise references seq.

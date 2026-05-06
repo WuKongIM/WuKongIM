@@ -1,8 +1,12 @@
 package diagnostics
 
 import (
+	"context"
+	"fmt"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestEventContainsMessageSeq(t *testing.T) {
@@ -38,5 +42,107 @@ func TestRedactEventRemovesSensitiveFieldsFromResponses(t *testing.T) {
 	}
 	if event.Error != "boom" {
 		t.Fatalf("expected Error to be preserved, got %q", event.Error)
+	}
+}
+
+func TestStoreQueriesByTraceAndClientMsgNo(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 4, MaxEventsPerKey: 4, MaxKeysPerIndex: 8, Now: func() time.Time { return time.Unix(1, 0) }})
+	store.Record(Event{TraceID: "trace-1", ClientMsgNo: "c1", Stage: "gateway.messages_send", Result: ResultOK})
+	store.Record(Event{TraceID: "trace-1", ClientMsgNo: "c1", Stage: "message.send_durable", MessageSeq: 9, Result: ResultOK})
+
+	byTrace := store.Query(context.Background(), Query{TraceID: "trace-1", Limit: 10})
+	require.Equal(t, StatusOK, byTrace.Status)
+	require.Len(t, byTrace.Events, 2)
+
+	byClient := store.Query(context.Background(), Query{ClientMsgNo: "c1", Limit: 10})
+	require.Equal(t, StatusOK, byClient.Status)
+	require.Len(t, byClient.Events, 2)
+}
+
+func TestStoreReturnsStableNotFound(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 4})
+	result := store.Query(context.Background(), Query{TraceID: "missing"})
+	require.Equal(t, StatusNotFound, result.Status)
+	require.Empty(t, result.Events)
+	require.NotEmpty(t, result.Notes)
+}
+
+func TestStoreMatchesRangeEventsWithoutPerSeqExpansion(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 4, MaxEventsPerKey: 4, MaxKeysPerIndex: 8})
+	store.Record(Event{ChannelKey: "person:u1@u2", RangeStart: 10, RangeEnd: 20, Stage: "replica.follower.apply_durable", Result: ResultOK})
+
+	result := store.Query(context.Background(), Query{ChannelKey: "person:u1@u2", MessageSeq: 15, Limit: 10})
+	require.Equal(t, StatusOK, result.Status)
+	require.Len(t, result.Events, 1)
+}
+
+func TestStoreBoundsIndexKeys(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 16, MaxEventsPerKey: 2, MaxKeysPerIndex: 2})
+	store.Record(Event{TraceID: "trace-1", Stage: "s1"})
+	store.Record(Event{TraceID: "trace-2", Stage: "s1"})
+	store.Record(Event{TraceID: "trace-3", Stage: "s1"})
+
+	require.LessOrEqual(t, store.index.trace.Len(), 2)
+}
+
+func TestStoreOverwritesOldEventsAndLazyCleanupSkipsTombstones(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 2, MaxEventsPerKey: 4, MaxKeysPerIndex: 8})
+	store.Record(Event{TraceID: "old", Stage: "s1"})
+	store.Record(Event{TraceID: "new-1", Stage: "s1"})
+	store.Record(Event{TraceID: "new-2", Stage: "s1"})
+
+	oldResult := store.Query(context.Background(), Query{TraceID: "old"})
+	require.Equal(t, StatusNotFound, oldResult.Status)
+}
+
+func TestStoreMatchesExactChannelSeq(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 4})
+	store.Record(Event{ChannelKey: "person:u1@u2", MessageSeq: 9, Stage: "message.send_durable"})
+
+	result := store.Query(context.Background(), Query{ChannelKey: "person:u1@u2", MessageSeq: 9})
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Len(t, result.Events, 1)
+}
+
+func TestStoreQueryHonorsCanceledContext(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 4})
+	store.Record(Event{TraceID: "trace-1", Stage: "s1"})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result := store.Query(ctx, Query{TraceID: "trace-1"})
+
+	require.Equal(t, StatusNotFound, result.Status)
+}
+
+func TestStoreConcurrentRecordAndQuery(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 1024})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 1000; i++ {
+			store.Record(Event{TraceID: fmt.Sprintf("trace-%d", i), Stage: "s1"})
+		}
+	}()
+	for i := 0; i < 1000; i++ {
+		_ = store.Query(context.Background(), Query{Stage: "s1", Limit: 10})
+	}
+	<-done
+}
+
+func BenchmarkStoreRecord(b *testing.B) {
+	store := NewStore(StoreOptions{Capacity: 50000})
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		store.Record(Event{TraceID: "trace-1", Stage: "message.send_durable", Result: ResultOK})
+	}
+}
+
+func BenchmarkStoreOverwrite(b *testing.B) {
+	store := NewStore(StoreOptions{Capacity: 128})
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		store.Record(Event{TraceID: fmt.Sprintf("trace-%d", i), Stage: "message.send_durable", Result: ResultOK})
 	}
 }
