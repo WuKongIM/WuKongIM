@@ -138,6 +138,10 @@ func (s *peerSession) sendLongPollRequest(env runtime.Envelope) error {
 		NodeID:     uint64(s.adapter.localNode),
 		PeerNodeID: uint64(s.peer),
 		ChannelKey: string(env.ChannelKey),
+		Service:    "long_poll_fetch",
+		Result:     sendTraceResultFromError(err),
+		ErrorCode:  sendTraceErrorCode(err),
+		Error:      shortTraceError(err),
 	})
 	if len(req.CursorDelta) > 0 {
 		channelKey := ""
@@ -151,6 +155,10 @@ func (s *peerSession) sendLongPollRequest(env runtime.Envelope) error {
 			NodeID:     uint64(s.adapter.localNode),
 			PeerNodeID: uint64(s.peer),
 			ChannelKey: channelKey,
+			Service:    "lane_cursor_delta",
+			Result:     sendTraceResultFromError(err),
+			ErrorCode:  sendTraceErrorCode(err),
+			Error:      shortTraceError(err),
 		})
 	}
 	if err != nil {
