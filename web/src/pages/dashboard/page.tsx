@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
-import { ManagerApiError, getOverview, getTasks } from "@/lib/manager-api"
+import { ManagerApiError, getNodes, getOverview, getTasks } from "@/lib/manager-api"
 import type {
+  ManagerNode,
+  ManagerNodesResponse,
   ManagerOverviewResponse,
   ManagerTask,
   ManagerTasksResponse,
@@ -17,9 +19,17 @@ import type {
 type DashboardState = {
   overview: ManagerOverviewResponse | null
   tasks: ManagerTasksResponse | null
+  nodes: ManagerNodesResponse | null
   loading: boolean
   refreshing: boolean
   error: Error | null
+}
+
+type ControllerRaftSummary = {
+  health: string
+  reported: number
+  voters: number
+  watermarkNode: ManagerNode | null
 }
 
 function formatTimestamp(intl: IntlShape, value: string) {
@@ -63,6 +73,69 @@ function buildAlertItems(intl: IntlShape, overview: ManagerOverviewResponse) {
   ]
 }
 
+function hasControllerRaftSummary(node: ManagerNode) {
+  return Boolean(node.controller.raft_health && node.controller.raft_health !== "unknown")
+}
+
+function hasControllerRaftWatermark(node: ManagerNode) {
+  return hasControllerRaftSummary(node) &&
+    node.controller.first_index !== undefined &&
+    node.controller.applied_index !== undefined &&
+    node.controller.snapshot_index !== undefined
+}
+
+function controllerRaftHealthRank(health: string) {
+  switch (health) {
+    case "restore_failed":
+      return 60
+    case "compaction_degraded":
+      return 50
+    case "snapshot_transferring":
+      return 40
+    case "snapshot_required":
+      return 30
+    case "append_catchup":
+      return 20
+    case "healthy":
+      return 10
+    default:
+      return 0
+  }
+}
+
+function buildControllerRaftSummary(nodes: ManagerNodesResponse): ControllerRaftSummary {
+  const voters = nodes.items.filter((node) => node.controller.voter).length
+  const reportedNodes = nodes.items.filter(hasControllerRaftSummary)
+  const health = reportedNodes.reduce((current, node) => {
+    const next = node.controller.raft_health || "unknown"
+    return controllerRaftHealthRank(next) > controllerRaftHealthRank(current) ? next : current
+  }, "unknown")
+  const watermarkNode = reportedNodes.find((node) => node.controller.role === "leader" && hasControllerRaftWatermark(node)) ??
+    reportedNodes.find(hasControllerRaftWatermark) ??
+    null
+
+  return {
+    health,
+    reported: reportedNodes.length,
+    voters,
+    watermarkNode,
+  }
+}
+
+function formatControllerRaftWatermark(intl: IntlShape, node: ManagerNode | null) {
+  if (!node) {
+    return intl.formatMessage({ id: "dashboard.controllerRaftWatermarkUnavailable" })
+  }
+  return intl.formatMessage(
+    { id: "dashboard.controllerRaftWatermark" },
+    {
+      first: node.controller.first_index,
+      applied: node.controller.applied_index,
+      snapshot: node.controller.snapshot_index,
+    },
+  )
+}
+
 function renderTaskRow(intl: IntlShape, task: ManagerTask) {
   return (
     <tr className="border-t border-border" key={`${task.slot_id}-${task.kind}-${task.step}`}>
@@ -84,6 +157,7 @@ export function DashboardPage() {
   const [state, setState] = useState<DashboardState>({
     overview: null,
     tasks: null,
+    nodes: null,
     loading: true,
     refreshing: false,
     error: null,
@@ -98,12 +172,13 @@ export function DashboardPage() {
     }))
 
     try {
-      const [overview, tasks] = await Promise.all([getOverview(), getTasks()])
-      setState({ overview, tasks, loading: false, refreshing: false, error: null })
+      const [overview, tasks, nodes] = await Promise.all([getOverview(), getTasks(), getNodes()])
+      setState({ overview, tasks, nodes, loading: false, refreshing: false, error: null })
     } catch (error) {
       setState({
         overview: null,
         tasks: null,
+        nodes: null,
         loading: false,
         refreshing: false,
         error: error instanceof Error ? error : new Error("dashboard request failed"),
@@ -118,6 +193,10 @@ export function DashboardPage() {
   const alertItems = useMemo(
     () => (state.overview ? buildAlertItems(intl, state.overview) : []),
     [intl, state.overview],
+  )
+  const controllerRaftSummary = useMemo(
+    () => (state.nodes ? buildControllerRaftSummary(state.nodes) : null),
+    [state.nodes],
   )
 
   return (
@@ -179,15 +258,32 @@ export function DashboardPage() {
           title={intl.formatMessage({ id: "dashboard.title" })}
         />
       ) : null}
-      {!state.loading && !state.error && state.overview && state.tasks ? (
+      {!state.loading && !state.error && state.overview && state.tasks && controllerRaftSummary ? (
         <>
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <SectionCard
               description={intl.formatMessage({ id: "dashboard.controllerLeaderCardDescription" })}
               title={intl.formatMessage({ id: "dashboard.controllerLeaderCardTitle" })}
             >
               <div className="text-3xl font-semibold text-foreground">
                 {state.overview.cluster.controller_leader_id}
+              </div>
+            </SectionCard>
+            <SectionCard
+              description={intl.formatMessage({ id: "dashboard.controllerRaftCardDescription" })}
+              title={intl.formatMessage({ id: "dashboard.controllerRaftCardTitle" })}
+            >
+              <div className="flex flex-col gap-3">
+                <StatusBadge value={controllerRaftSummary.health} />
+                <div className="text-sm text-muted-foreground">
+                  {intl.formatMessage(
+                    { id: "dashboard.controllerRaftReported" },
+                    { reported: controllerRaftSummary.reported, voters: controllerRaftSummary.voters },
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {formatControllerRaftWatermark(intl, controllerRaftSummary.watermarkNode)}
+                </div>
               </div>
             </SectionCard>
             <SectionCard
