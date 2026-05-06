@@ -41,11 +41,15 @@ var (
 type Service struct {
 	cfg Config
 
-	mu      sync.Mutex
-	started bool
-	stopCh  chan struct{}
-	doneCh  chan struct{}
-	err     error
+	mu       sync.Mutex
+	started  bool
+	starting bool
+	stopCh   chan struct{}
+	doneCh   chan struct{}
+	err      error
+
+	statusMu sync.RWMutex
+	status   Status
 
 	leaderID atomic.Uint64
 
@@ -219,7 +223,7 @@ type nodeOnboardingResultCountsEnvelope struct {
 }
 
 func NewService(cfg Config) *Service {
-	return &Service{cfg: cfg}
+	return &Service{cfg: cfg, status: initialStatus(cfg)}
 }
 
 func (s *Service) Start(ctx context.Context) error {
@@ -230,29 +234,34 @@ func (s *Service) Start(ctx context.Context) error {
 	if err := ValidateLogCompactionConfig(s.cfg.LogCompaction); err != nil {
 		return err
 	}
+	s.recordCompactionConfig(s.cfg.LogCompaction)
 
 	s.mu.Lock()
-	if s.started {
+	if s.started || s.starting {
 		s.mu.Unlock()
 		return nil
 	}
+	s.starting = true
+	s.mu.Unlock()
 
 	store := s.cfg.LogDB.ForController()
 	storageView := newStorageAdapter(store)
 	state, snapshot, _, err := storageView.load(ctx)
 	if err != nil {
-		s.mu.Unlock()
+		s.clearStarting()
 		return err
 	}
 	if !raft.IsEmptySnap(snapshot) {
 		if err := s.cfg.StateMachine.Restore(ctx, append([]byte(nil), snapshot.Data...)); err != nil {
-			s.mu.Unlock()
+			s.recordRestoreFailure(snapshot, err)
+			s.clearStarting()
 			return err
 		}
+		s.recordStartupRestoreSuccess(snapshot)
 	}
 	if !hasPersistedState(state) {
 		if err := s.cfg.validateBootstrapPeers(); err != nil {
-			s.mu.Unlock()
+			s.clearStarting()
 			return err
 		}
 	}
@@ -275,19 +284,33 @@ func (s *Service) Start(ctx context.Context) error {
 		Logger:                   newEtcdRaftLogger(s.cfg.Logger, s.cfg.NodeID),
 	})
 	if err != nil {
-		s.mu.Unlock()
+		s.clearStarting()
 		return err
 	}
 
-	s.transport = newTransport(s.cfg.Pool, s.cfg.NodeID)
-	s.stopCh = make(chan struct{})
-	s.doneCh = make(chan struct{})
-	s.stepCh = make(chan raftpb.Message, 1024)
-	s.proposeCh = make(chan proposalRequest)
+	transport := newTransport(s.cfg.Pool, s.cfg.NodeID)
+	stopCh := make(chan struct{})
+	doneCh := make(chan struct{})
+	stepCh := make(chan raftpb.Message, 1024)
+	proposeCh := make(chan proposalRequest)
+
+	s.mu.Lock()
+	if s.started {
+		s.starting = false
+		s.mu.Unlock()
+		transport.Close()
+		return nil
+	}
+	s.transport = transport
+	s.stopCh = stopCh
+	s.doneCh = doneCh
+	s.stepCh = stepCh
+	s.proposeCh = proposeCh
 	s.err = nil
 
 	s.cfg.Server.Handle(msgTypeControllerRaft, s.handleMessage)
 	s.started = true
+	s.starting = false
 	s.mu.Unlock()
 
 	if !hasPersistedState(state) && s.cfg.AllowBootstrap && isSmallestPeer(s.cfg.NodeID, s.cfg.Peers) {
@@ -298,7 +321,7 @@ func (s *Service) Start(ctx context.Context) error {
 		s.updateLeader(rawNode)
 	}
 
-	go s.run(rawNode, storageView, runStartupState{State: state, Snapshot: snapshot}, s.stopCh, s.doneCh, s.transport)
+	go s.run(rawNode, storageView, runStartupState{State: state, Snapshot: snapshot}, stopCh, doneCh, transport)
 	return nil
 }
 
@@ -332,6 +355,23 @@ func (s *Service) Stop() error {
 
 func (s *Service) LeaderID() uint64 {
 	return s.leaderID.Load()
+}
+
+// Status returns a read-only snapshot of local Controller Raft status.
+func (s *Service) Status() Status {
+	if s == nil {
+		return Status{Role: RoleUnknown}
+	}
+	s.statusMu.RLock()
+	st := cloneStatus(s.status)
+	s.statusMu.RUnlock()
+	if st.NodeID == 0 && s.cfg.NodeID != 0 {
+		return initialStatus(s.cfg)
+	}
+	if st.Role == "" {
+		st.Role = RoleUnknown
+	}
+	return st
 }
 
 func (s *Service) Propose(ctx context.Context, cmd slotcontroller.Command) error {
@@ -377,6 +417,7 @@ func (s *Service) cleanupFailedStart() {
 	s.mu.Lock()
 	transport := s.transport
 	s.started = false
+	s.starting = false
 	s.stopCh = nil
 	s.doneCh = nil
 	s.stepCh = nil
@@ -391,6 +432,12 @@ func (s *Service) cleanupFailedStart() {
 	s.leaderID.Store(0)
 }
 
+func (s *Service) clearStarting() {
+	s.mu.Lock()
+	s.starting = false
+	s.mu.Unlock()
+}
+
 func (s *Service) currentError() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -399,6 +446,114 @@ func (s *Service) currentError() error {
 		return s.err
 	}
 	return ErrStopped
+}
+
+func (s *Service) recordCompactionConfig(cfg LogCompactionConfig) {
+	s.statusMu.Lock()
+	s.status.NodeID = s.cfg.NodeID
+	if s.status.Role == "" {
+		s.status.Role = RoleUnknown
+	}
+	s.status.Compaction.Enabled = cfg.Enabled
+	s.status.Compaction.TriggerEntries = cfg.TriggerEntries
+	s.status.Compaction.CheckInterval = cfg.CheckInterval
+	s.statusMu.Unlock()
+}
+
+func (s *Service) recordRaftStatus(rawNode *raft.RawNode) {
+	if rawNode == nil {
+		return
+	}
+	st := rawNode.Status()
+	cached := Status{
+		NodeID:       s.cfg.NodeID,
+		Role:         raftRoleName(st.RaftState),
+		LeaderID:     st.Lead,
+		Term:         st.Term,
+		CommitIndex:  st.Commit,
+		AppliedIndex: st.Applied,
+		Peers:        peerProgressFromRaft(s.cfg.NodeID, 0, st.Progress),
+	}
+	s.statusMu.Lock()
+	cached.Compaction = s.status.Compaction
+	cached.Restore = s.status.Restore
+	s.status = cached
+	s.statusMu.Unlock()
+}
+
+func (s *Service) recordStartupRestoreSuccess(snap raftpb.Snapshot) {
+	s.recordRestoreSuccess(snap)
+}
+
+func (s *Service) recordReadyRestoreSuccess(snap raftpb.Snapshot) {
+	s.recordRestoreSuccess(snap)
+}
+
+func (s *Service) recordRestoreSuccess(snap raftpb.Snapshot) {
+	if raft.IsEmptySnap(snap) {
+		return
+	}
+	s.statusMu.Lock()
+	s.status.NodeID = s.cfg.NodeID
+	if s.status.Role == "" {
+		s.status.Role = RoleUnknown
+	}
+	s.status.Restore.LastSnapshotIndex = snap.Metadata.Index
+	s.status.Restore.LastSnapshotTerm = snap.Metadata.Term
+	s.status.Restore.LastRestoredAt = time.Now()
+	s.status.Restore.LastError = ""
+	s.status.Restore.LastErrorAt = time.Time{}
+	s.status.Restore.Failed = false
+	s.statusMu.Unlock()
+}
+
+func (s *Service) recordRestoreFailure(snap raftpb.Snapshot, err error) {
+	if err == nil {
+		return
+	}
+	s.statusMu.Lock()
+	s.status.NodeID = s.cfg.NodeID
+	if s.status.Role == "" {
+		s.status.Role = RoleUnknown
+	}
+	s.status.Restore.LastSnapshotIndex = snap.Metadata.Index
+	s.status.Restore.LastSnapshotTerm = snap.Metadata.Term
+	s.status.Restore.LastError = err.Error()
+	s.status.Restore.LastErrorAt = time.Now()
+	s.status.Restore.Failed = true
+	s.statusMu.Unlock()
+}
+
+func (s *Service) recordCompactionFailure(err error, applied uint64, at time.Time) {
+	if err == nil {
+		return
+	}
+	_ = applied
+	s.statusMu.Lock()
+	s.status.NodeID = s.cfg.NodeID
+	if s.status.Role == "" {
+		s.status.Role = RoleUnknown
+	}
+	s.status.Compaction.LastCheckAt = at
+	s.status.Compaction.LastError = err.Error()
+	s.status.Compaction.LastErrorAt = at
+	s.status.Compaction.Degraded = true
+	s.statusMu.Unlock()
+}
+
+func (s *Service) recordCompactionSuccess(index uint64, at time.Time) {
+	s.statusMu.Lock()
+	s.status.NodeID = s.cfg.NodeID
+	if s.status.Role == "" {
+		s.status.Role = RoleUnknown
+	}
+	s.status.Compaction.LastSnapshotIndex = index
+	s.status.Compaction.LastSnapshotAt = at
+	s.status.Compaction.LastCheckAt = at
+	s.status.Compaction.LastError = ""
+	s.status.Compaction.LastErrorAt = time.Time{}
+	s.status.Compaction.Degraded = false
+	s.statusMu.Unlock()
 }
 
 func (s *Service) handleMessage(body []byte) {
@@ -516,8 +671,10 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, startu
 			failInflightProposalsOnLeaderLoss(rawNode.Status().RaftState, &pendingQueue, pendingByIndex)
 			if compactor.shouldCompact(lastApplied) {
 				if err := s.compactControllerLog(context.Background(), storageView, lastApplied, latestConfState); err != nil {
+					s.recordCompactionFailure(err, lastApplied, time.Now())
 					s.logCompactionWarning(err, lastApplied)
 				} else {
+					s.recordCompactionSuccess(lastApplied, time.Now())
 					compactor.recordSnapshot(lastApplied)
 				}
 			}
@@ -636,9 +793,11 @@ func (s *Service) restoreReadySnapshot(ctx context.Context, snap raftpb.Snapshot
 		return 0, nil
 	}
 	if err := s.cfg.StateMachine.Restore(ctx, append([]byte(nil), snap.Data...)); err != nil {
+		s.recordRestoreFailure(snap, err)
 		return 0, err
 	}
 	*latestConfState = cloneConfState(snap.Metadata.ConfState)
+	s.recordReadyRestoreSuccess(snap)
 	return snap.Metadata.Index, nil
 }
 
@@ -739,6 +898,7 @@ func (s *Service) setError(err error) {
 }
 
 func (s *Service) updateLeader(rawNode *raft.RawNode) {
+	s.recordRaftStatus(rawNode)
 	newLeader := rawNode.Status().Lead
 	oldLeader := s.leaderID.Swap(newLeader)
 	if oldLeader != newLeader && s.cfg.OnLeaderChange != nil {
