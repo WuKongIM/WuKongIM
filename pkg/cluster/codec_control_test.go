@@ -997,6 +997,20 @@ func TestControllerRaftStatusRPCCodecRoundTrip(t *testing.T) {
 	}
 }
 
+func TestControllerRaftStatusCodecRejectsOversizedPeerCount(t *testing.T) {
+	body := encodeControllerRaftStatusResponse(ControllerRaftStatus{})
+	body = append(body[:len(body)-1], binary.AppendUvarint(nil, ^uint64(0))...)
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("decodeControllerRaftStatusResponse() panic = %v", recovered)
+		}
+	}()
+	if _, err := decodeControllerRaftStatusResponse(body); err == nil {
+		t.Fatal("decodeControllerRaftStatusResponse() error = nil, want error")
+	}
+}
+
 func normalizeControllerRaftStatusTimes(status *ControllerRaftStatus) {
 	if status == nil {
 		return

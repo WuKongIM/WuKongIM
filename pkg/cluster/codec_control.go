@@ -971,8 +971,12 @@ func decodeControllerRaftStatusResponse(body []byte) (ControllerRaftStatus, erro
 	if err != nil {
 		return ControllerRaftStatus{}, err
 	}
-	status.Peers = make([]ControllerRaftPeerProgress, 0, count)
 	body = rest
+	const minControllerRaftPeerProgressWireSize = 8 + 8 + 8 + 1 + 8 + 1 + 1 + 1
+	if count > uint64(len(body)/minControllerRaftPeerProgressWireSize) {
+		return ControllerRaftStatus{}, ErrInvalidConfig
+	}
+	status.Peers = make([]ControllerRaftPeerProgress, 0, int(count))
 	for i := uint64(0); i < count; i++ {
 		var peer ControllerRaftPeerProgress
 		if peer.NodeID, body, err = readUint64(body); err != nil {
