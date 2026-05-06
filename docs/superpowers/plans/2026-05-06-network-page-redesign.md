@@ -556,11 +556,62 @@ This implementation plan provides the foundation tasks for the network page rede
 
 **Completed Foundation Tasks**: 4 tasks covering hooks, utilities, and base components
 
-**Remaining Tasks** (to be added as implementation progresses):
-- Task 5-12: Individual metric card components (8 cards)
-- Task 13: FilterBar component
-- Task 14: Main page integration
-- Task 15: Integration tests
+**Remaining Tasks** (to be implemented following the same TDD pattern):
+
+**Task 5: Node Health Card** - Display node health distribution with donut chart
+- Files: `components/node-health-card.tsx`, test file
+- Data: `summary.headline.{alive_nodes, suspect_nodes, dead_nodes, draining_nodes}`
+- Chart: Donut chart with color-coded segments
+
+**Task 6: Connection Pool Card** - Show connection pool utilization
+- Files: `components/connection-pool-card.tsx`, test file
+- Data: `summary.headline.{pool_active, pool_idle}` or aggregated from peers
+- Chart: Stacked horizontal bar (cluster + data plane pools)
+
+**Task 7: RPC Latency Card** - Monitor RPC performance
+- Files: `components/rpc-latency-card.tsx`, test file
+- Data: Aggregate P95 from `summary.services[]` or `summary.peers[].rpc.p95_ms`
+- Chart: Line chart showing P95 trend
+
+**Task 8: RPC Success Card** - Show RPC reliability
+- Files: `components/rpc-success-card.tsx`, test file
+- Data: Calculate from `summary.services[]` or `summary.peers[].rpc`
+- Chart: Stacked area chart (success/errors/timeouts)
+
+**Task 9: Traffic Card** - Monitor bandwidth
+- Files: `components/traffic-card.tsx`, test file
+- Data: `summary.traffic` and `summary.history.traffic[]`
+- Chart: Dual-line area chart (TX/RX)
+
+**Task 10: Errors Card** - Identify error patterns
+- Files: `components/errors-card.tsx`, test file
+- Data: `summary.headline.{dial_errors_1m, queue_full_1m, timeouts_1m}`
+- Chart: Stacked bar chart by error type
+
+**Task 11: Message Types Card** - Traffic composition
+- Files: `components/message-types-card.tsx`, test file
+- Data: `summary.traffic.by_message_type[]`
+- Chart: Horizontal bar chart (Top 5 types)
+
+**Task 12: Events Card** - Recent network events
+- Files: `components/events-card.tsx`, test file
+- Data: `summary.events[]`
+- Display: Latest 3 events with severity badges
+
+**Task 13: FilterBar Component** - Top filter controls
+- Files: `components/filter-bar.tsx`, test file
+- Features: Node selector (multi-select), time range selector, refresh button
+- Integration: Uses `useNodeFilter` hook
+
+**Task 14: Network Data Hook** - Data fetching and aggregation
+- Files: `hooks/use-network-data.ts`, test file
+- Responsibilities: Fetch from API, apply filtering, aggregate metrics
+- Integration: Uses `useNodeFilter` and aggregation utilities
+
+**Task 15: Main Page Integration** - Assemble all components
+- Files: Modify `page.tsx`, update `page.test.tsx`
+- Layout: FilterBar + 8 metric cards in responsive grid
+- Integration: Wire up all hooks and components
 
 The pattern established in Tasks 1-4 should be followed for all remaining tasks: TDD with failing tests first, minimal implementations, verification, and frequent commits.
 
