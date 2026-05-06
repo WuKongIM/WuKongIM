@@ -316,6 +316,70 @@ func TestServiceConcurrentStartWaitsForStartupFailure(t *testing.T) {
 	require.ErrorIs(t, <-secondErr, sentinel)
 }
 
+func TestServiceStartWaitsForStopToFinish(t *testing.T) {
+	service := NewService(Config{NodeID: 1})
+	stopCh := make(chan struct{})
+	doneCh := make(chan struct{})
+	service.mu.Lock()
+	service.started = true
+	service.stopCh = stopCh
+	service.doneCh = doneCh
+	service.mu.Unlock()
+
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- service.Stop()
+	}()
+
+	select {
+	case <-stopCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop did not begin stopping the service")
+	}
+
+	startDone := make(chan error, 1)
+	go func() {
+		startDone <- service.Start(context.Background())
+	}()
+
+	select {
+	case err := <-startDone:
+		t.Fatalf("Start returned before Stop finished: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(doneCh)
+	require.NoError(t, <-stopDone)
+	require.ErrorIs(t, <-startDone, ErrInvalidConfig)
+}
+
+func TestServiceRunErrorClearsStartedLifecycle(t *testing.T) {
+	service := NewService(Config{NodeID: 1})
+	sentinel := errors.New("run failed")
+	service.mu.Lock()
+	service.started = true
+	service.stopCh = make(chan struct{})
+	service.doneCh = make(chan struct{})
+	service.stepCh = make(chan raftpb.Message)
+	service.proposeCh = make(chan proposalRequest)
+	service.mu.Unlock()
+
+	service.setError(sentinel)
+
+	service.mu.Lock()
+	started := service.started
+	stepCh := service.stepCh
+	proposeCh := service.proposeCh
+	err := service.err
+	service.mu.Unlock()
+	require.False(t, started)
+	require.Nil(t, stepCh)
+	require.Nil(t, proposeCh)
+	require.ErrorIs(t, err, sentinel)
+	require.Equal(t, RoleUnknown, service.Status().Role)
+	require.Equal(t, uint64(0), service.LeaderID())
+}
+
 func TestServiceStatusAfterStopClearsVolatileRaftState(t *testing.T) {
 	env := newTestEnv(t, []uint64{1})
 	defer env.stopAll()
