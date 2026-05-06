@@ -86,6 +86,8 @@ type Management interface {
 	GetNodeOnboardingJob(ctx context.Context, jobID string) (managementusecase.NodeOnboardingJobResponse, error)
 	// RetryNodeOnboardingJob creates a new plan from a failed onboarding job.
 	RetryNodeOnboardingJob(ctx context.Context, jobID string) (managementusecase.NodeOnboardingJobResponse, error)
+	// QueryDiagnostics returns a manager-facing diagnostics aggregate query result.
+	QueryDiagnostics(ctx context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error)
 }
 
 // PermissionConfig binds a resource to allowed actions.

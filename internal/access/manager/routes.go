@@ -114,6 +114,14 @@ func (s *Server) registerRoutes() {
 	}
 	network.GET("/network/summary", s.handleNetworkSummary)
 
+	diagnostics := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		diagnostics.Use(s.requirePermission("cluster.diagnostics", "r"))
+	}
+	diagnostics.GET("/diagnostics/trace/:trace_id", s.handleDiagnosticsTrace)
+	diagnostics.GET("/diagnostics/message", s.handleDiagnosticsMessage)
+	diagnostics.GET("/diagnostics/events", s.handleDiagnosticsEvents)
+
 	controllerLogs := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		controllerLogs.Use(s.requirePermission("cluster.controller", "r"))
