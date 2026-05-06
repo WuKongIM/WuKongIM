@@ -67,6 +67,7 @@ func TestStoreQueryFiltersByResultBeforeLimit(t *testing.T) {
 	store.Record(Event{TraceID: "tr-err-1", Stage: Stage("channel_append"), Result: ResultError, ErrorCode: ErrorCodeUnknown, At: now.Add(2 * time.Second)})
 	store.Record(Event{TraceID: "tr-ok-2", Stage: Stage("delivery"), Result: ResultOK, At: now.Add(3 * time.Second)})
 	store.Record(Event{TraceID: "tr-err-2", Stage: Stage("replica_quorum"), Result: ResultError, ErrorCode: ErrorCodeUnknown, At: now.Add(4 * time.Second)})
+	store.Record(Event{TraceID: "tr-ok-3", Stage: Stage("ack"), Result: ResultOK, At: now.Add(5 * time.Second)})
 
 	got := store.Query(context.Background(), Query{Result: ResultError, Limit: 1})
 
