@@ -76,3 +76,11 @@ func TestEnsureCreatesAndPreservesTraceContext(t *testing.T) {
 		t.Fatal("expected replaced context to be sampled")
 	}
 }
+
+func TestFromContextRejectsEmptyTraceID(t *testing.T) {
+	ctx := WithContext(context.Background(), Context{})
+	trace, ok := FromContext(ctx)
+	if ok {
+		t.Fatalf("expected empty trace id to be absent, got %+v", trace)
+	}
+}
