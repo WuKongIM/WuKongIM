@@ -939,5 +939,8 @@ export type ManagerDiagnosticsResponse = {
 }
 
 export type DiagnosticsCommonParams = { nodeId?: number; limit?: number }
-export type DiagnosticsMessageParams = DiagnosticsCommonParams & { clientMsgNo?: string; channelKey?: string; messageSeq?: number }
+export type DiagnosticsMessageParams = DiagnosticsCommonParams & (
+  | { clientMsgNo: string; channelKey?: never; messageSeq?: never }
+  | { clientMsgNo?: never; channelKey: string; messageSeq: number }
+)
 export type DiagnosticsEventsParams = DiagnosticsCommonParams & { stage?: string; result?: string }
