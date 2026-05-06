@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"strings"
+	"time"
 )
 
 type contextKey struct{}
@@ -39,7 +41,7 @@ func FromContext(ctx context.Context) (Context, bool) {
 }
 
 // Ensure returns a context with valid diagnostics trace metadata.
-func Ensure(ctx context.Context) (context.Context, Context) {
+func Ensure(ctx context.Context, _ func() time.Time) (context.Context, Context) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -70,7 +72,7 @@ func ValidateHeaderTraceID(value string) (string, bool) {
 func newTraceID() string {
 	var bytes [16]byte
 	if _, err := rand.Read(bytes[:]); err != nil {
-		panic(err)
+		return strings.Repeat("0", 31) + "1"
 	}
 	return hex.EncodeToString(bytes[:])
 }

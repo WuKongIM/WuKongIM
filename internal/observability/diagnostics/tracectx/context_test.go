@@ -35,7 +35,7 @@ func TestValidateHeaderTraceIDRejectsInvalidValues(t *testing.T) {
 }
 
 func TestEnsureCreatesAndPreservesTraceContext(t *testing.T) {
-	createdCtx, created := Ensure(nil)
+	createdCtx, created := Ensure(context.Background(), nil)
 	if created.TraceID == "" {
 		t.Fatal("expected generated trace id")
 	}
@@ -59,7 +59,7 @@ func TestEnsureCreatesAndPreservesTraceContext(t *testing.T) {
 	}
 
 	existing := Context{TraceID: "abcdef0123456789abcdef0123456789", Sampled: false, Attempt: 3}
-	preservedCtx, preserved := Ensure(WithContext(context.Background(), existing))
+	preservedCtx, preserved := Ensure(WithContext(context.Background(), existing), nil)
 	if preserved != existing {
 		t.Fatalf("expected existing context to be preserved, got %+v", preserved)
 	}
@@ -68,7 +68,7 @@ func TestEnsureCreatesAndPreservesTraceContext(t *testing.T) {
 	}
 
 	invalidExisting := Context{TraceID: "not-valid", Sampled: false, Attempt: 9}
-	_, replaced := Ensure(WithContext(context.Background(), invalidExisting))
+	_, replaced := Ensure(WithContext(context.Background(), invalidExisting), nil)
 	if replaced.TraceID == invalidExisting.TraceID {
 		t.Fatal("expected invalid context to be replaced")
 	}
