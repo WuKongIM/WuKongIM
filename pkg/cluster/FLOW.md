@@ -39,6 +39,7 @@ API.ListSlotAssignments(ctx) / ListSlotAssignmentsStrict(ctx) / ListActiveMigrat
 API.ListObservedRuntimeViews(ctx) / ListObservedRuntimeViewsStrict(ctx)
 API.SlotLogStatusOnNode(ctx, nodeID, slotID)  // 读取某节点某 Slot 的 Raft commit/applied watermark；本地走 runtime.Status，远程走 managed-slot status RPC
 API.SlotLogEntriesOnNode(ctx, nodeID, slotID, opts)  // 读取某节点某 Slot 的本地 Raft log entry 摘要页；本地读 Slot storage，远程走 managed-slot logs RPC
+API.ControllerRaftStatusOnNode(ctx, nodeID)  // 读取目标节点本地 Controller Raft 状态；本地合并 Service.Status 与 durable raftlog indexes，远程直连目标节点 Controller RPC
 API.GetReconcileTask(ctx, slotID) / GetReconcileTaskStrict(ctx, slotID) / ForceReconcile(ctx, slotID)
 API.MarkNodeDraining(ctx, nodeID) / ResumeNode(ctx, nodeID)
 API.TransferSlotLeader(ctx, slotID, nodeID) / RecoverSlot(ctx, slotID, strategy) / RecoverSlotStrict(ctx, slotID, strategy)
@@ -575,6 +576,7 @@ SlotIDs()/planner/readiness:
 - **Controller 观测读语义**: `ListObservedRuntimeViews` 在 leader 上优先读本地 `observationCache`；只有 leader 不可达时才允许降级到本地 `controllerMeta`，且结果可能滞后。
 - **Manager 严格一致读语义**: `ListNodesStrict`、`ListSlotAssignmentsStrict`、`ListObservedRuntimeViewsStrict`、`ListTasksStrict`、`GetReconcileTaskStrict` 只接受 controller leader 结果；本地节点若自身就是 leader 可直接读 leader 本地数据，否则必须经 controller client 读取，禁止降级到本地 `controllerMeta`。
 - **Manager Slot 日志读语义**: `SlotLogStatusOnNode` 只读取目标节点当前 Slot Raft 运行时的 commit/applied watermark；`SlotLogEntriesOnNode` 只读取目标节点本地 Slot storage 的 Raft log entry 摘要页（index/term/type/data_size），并对普通 Slot FSM command payload 生成脱敏 JSON inspection（如 command/uid/channel_id，token 固定为 `***`）。二者都用于运维排查，不能替代 controller leader strict-read 拓扑来源。
+- **Controller Raft 状态读语义**: `ControllerRaftStatusOnNode` 是节点本地诊断读；远程读取必须直连请求中的目标节点 Controller RPC，禁止走 leader-centric controller client 路由，否则会误读 leader 节点状态而不是目标节点状态。
 - **Manager recover 必须走 strict assignments**: `RecoverSlotStrict` 使用 `ListSlotAssignmentsStrict` 作为唯一 assignment 来源，避免 manager 写接口因为 fallback 到本地 assignment 状态而在不同节点上看到不同恢复结论。
 - **Controller HashSlot 读快路径**: leader 处理 `heartbeat` / `list_assignments` 时优先读 `controllerHost` 持有的 HashSlot snapshot；只有 snapshot cold miss 才会回落到 `controllerMeta.LoadHashSlotTable()`，回填后再继续返回。
 - **Controller metadata 读快路径**: leader-local `controllerMetadataSnapshot` 缓存 Nodes / Assignments / Tasks。planner、调和器本地 leader helper、以及 leader 侧 `list_assignments` / `list_nodes` / `list_tasks` / `get_task` 都优先读 clean snapshot；只要 snapshot dirty / cold 就必须回落到 Pebble-backed `controllerMeta`。

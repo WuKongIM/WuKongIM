@@ -45,6 +45,7 @@
 
 ### Controller Raft transport
 - Manager Controller log views read node-local Controller Raft entries through `pkg/cluster`; UI/API must describe them as local node logs, not a global authoritative log.
+- Controller Raft status/log diagnostics are node-local reads; remote reads must target the requested node directly instead of using leader-centric Controller client routing.
 - Controller Raft shares the cluster transport server, so its wire message type must stay distinct from slot Raft and observation-hint message types.
 - Inbound Controller Raft frames must be addressed to the local node and originate from a different node; drop looped or misrouted frames before calling `RawNode.Step`.
 - Controller read RPCs can see `not leader` while Raft elects or fails over; keep those retryable read failures out of ERROR logs.

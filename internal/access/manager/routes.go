@@ -24,6 +24,13 @@ func (s *Server) registerRoutes() {
 	nodes.GET("/nodes", s.handleNodes)
 	nodes.GET("/nodes/:node_id", s.handleNode)
 
+	nodeControllerRaft := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		nodeControllerRaft.Use(s.requirePermission("cluster.node", "r"))
+		nodeControllerRaft.Use(s.requirePermission("cluster.controller", "r"))
+	}
+	nodeControllerRaft.GET("/nodes/:node_id/controller-raft", s.handleNodeControllerRaft)
+
 	nodeWrites := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		nodeWrites.Use(s.requirePermission("cluster.node", "w"))

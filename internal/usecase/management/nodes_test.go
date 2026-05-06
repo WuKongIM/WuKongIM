@@ -271,6 +271,58 @@ func TestGetNodeReturnsNodeWithHostedAndLeaderSlots(t *testing.T) {
 	}, got)
 }
 
+func TestGetNodeIncludesLocalControllerRaftSummary(t *testing.T) {
+	cluster := &fakeNodeInventoryCluster{fakeClusterReader: fakeClusterReader{
+		controllerLeaderID: 1,
+		nodes: []controllermeta.ClusterNode{{
+			NodeID:    1,
+			Role:      controllermeta.NodeRoleControllerVoter,
+			JoinState: controllermeta.NodeJoinStateActive,
+			Status:    controllermeta.NodeStatusAlive,
+		}},
+		controllerRaftStatus: map[uint64]raftcluster.ControllerRaftStatus{
+			1: {NodeID: 1, Role: "leader", FirstIndex: 10, AppliedIndex: 20, SnapshotIndex: 9},
+		},
+	}}
+	app := New(Options{LocalNodeID: 1, ControllerPeerIDs: []uint64{1}, Cluster: cluster})
+
+	got, err := app.GetNode(context.Background(), 1)
+	require.NoError(t, err)
+	require.Equal(t, 1, cluster.controllerRaftStatusCalls)
+	require.Equal(t, ControllerRaftHealthHealthy, got.Controller.RaftHealth)
+	require.Equal(t, uint64(10), got.Controller.FirstIndex)
+	require.Equal(t, uint64(20), got.Controller.AppliedIndex)
+	require.Equal(t, uint64(9), got.Controller.SnapshotIndex)
+}
+
+func TestGetNodeDoesNotFanOutControllerRaftStatus(t *testing.T) {
+	cluster := &fakeNodeInventoryCluster{fakeClusterReader: fakeClusterReader{
+		controllerLeaderID: 2,
+		nodes: []controllermeta.ClusterNode{{
+			NodeID:    1,
+			Role:      controllermeta.NodeRoleControllerVoter,
+			JoinState: controllermeta.NodeJoinStateActive,
+			Status:    controllermeta.NodeStatusAlive,
+		}, {
+			NodeID:    2,
+			Role:      controllermeta.NodeRoleControllerVoter,
+			JoinState: controllermeta.NodeJoinStateActive,
+			Status:    controllermeta.NodeStatusAlive,
+		}},
+		controllerRaftStatus: map[uint64]raftcluster.ControllerRaftStatus{
+			1: {NodeID: 1, Role: "follower"},
+			2: {NodeID: 2, Role: "leader", FirstIndex: 10},
+		},
+	}}
+	app := New(Options{LocalNodeID: 1, ControllerPeerIDs: []uint64{1, 2}, Cluster: cluster})
+
+	got, err := app.GetNode(context.Background(), 2)
+	require.NoError(t, err)
+	require.Zero(t, cluster.controllerRaftStatusCalls)
+	require.Equal(t, ControllerRaftHealthUnknown, got.Controller.RaftHealth)
+	require.Zero(t, got.Controller.FirstIndex)
+}
+
 func TestGetNodeReturnsNotFound(t *testing.T) {
 	app := New(Options{
 		LocalNodeID:       1,

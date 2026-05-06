@@ -39,6 +39,16 @@ func TestControllerRaftHealthDerivesHealthy(t *testing.T) {
 	require.Equal(t, ControllerRaftHealthHealthy, controllerRaftHealth(status))
 }
 
+func TestControllerRaftHealthDerivesUnknownForMissingIdentity(t *testing.T) {
+	for _, status := range []raftcluster.ControllerRaftStatus{
+		{},
+		{NodeID: 1},
+		{NodeID: 1, Role: "unknown", Restore: raftcluster.ControllerRaftRestoreStatus{Failed: true}},
+	} {
+		require.Equal(t, ControllerRaftHealthUnknown, controllerRaftHealth(status))
+	}
+}
+
 func TestControllerRaftHealthDerivesAppendCatchup(t *testing.T) {
 	status := raftcluster.ControllerRaftStatus{NodeID: 1, Role: "leader", CommitIndex: 10, Peers: []raftcluster.ControllerRaftPeerProgress{{NodeID: 2, Match: 8, Next: 9}}}
 	require.Equal(t, ControllerRaftHealthAppendCatchup, controllerRaftHealth(status))

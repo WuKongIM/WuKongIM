@@ -118,9 +118,13 @@ func nodeDTO(item managementusecase.Node) NodeDTO {
 			LastHeartbeatAt: health.LastHeartbeatAt,
 		},
 		Controller: NodeControllerDTO{
-			Role:     controller.Role,
-			Voter:    controller.Voter,
-			LeaderID: controller.LeaderID,
+			Role:          controller.Role,
+			Voter:         controller.Voter,
+			LeaderID:      controller.LeaderID,
+			RaftHealth:    controller.RaftHealth,
+			FirstIndex:    controller.FirstIndex,
+			AppliedIndex:  controller.AppliedIndex,
+			SnapshotIndex: controller.SnapshotIndex,
 		},
 		SlotStats: NodeSlotStatsDTO{
 			Count:       item.SlotCount,

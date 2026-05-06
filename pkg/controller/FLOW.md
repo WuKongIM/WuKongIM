@@ -10,15 +10,16 @@
 | 子包 | 入口/核心类型 | 职责 |
 |------|-------------|------|
 | `meta/` | `meta.Store` | Pebble KV 持久化：Node / Assignment / Task / Membership / NodeOnboardingJob 的 CRUD；`RuntimeView` 结构仍保留但 steady-state 读路径已转为 leader 本地 observation |
-| `raft/` | `raft.NewService()` → `Service` | Raft 共识服务：事件循环、提案处理、日志持久化、Leader 选举；提供 Controller Raft command inspection 供管理后台查看本地日志条目 |
+| `raft/` | `raft.NewService()` → `Service` | Raft 共识服务：事件循环、提案处理、日志持久化、Leader 选举；提供 Controller Raft command inspection 和缓存状态，供管理后台查看本地日志条目与快照追赶状态 |
 | `plane/` | `plane.NewController()` → `Controller` | 控制面逻辑：StateMachine 命令应用 + Planner 调度决策 + Controller.Tick 编排 |
 
 ## 3. 对外接口
 
 ```go
-// raft/service.go — Raft 提案入口
+// raft/service.go — Raft 提案与本地诊断入口
 Service.Propose(ctx, Command) error   // 提交命令到 Raft（仅 Leader 可执行）
 Service.LeaderID() uint64             // 当前 Leader
+Service.Status() Status               // 读取缓存的节点本地 Controller Raft 状态；不跨 goroutine 访问 RawNode
 Service.Start(ctx) / Stop()           // 生命周期
 
 // plane/controller.go — 调度入口
@@ -221,6 +222,15 @@ Controller Raft snapshot compaction:
   ③ persist raft snapshot to raftlog, then compact MemoryStorage
   ④ startup restores snapshot first, then replays post-snapshot entries
   ⑤ Ready.Snapshot is restored before marking its index applied
+```
+
+Controller Raft status diagnostics:
+```
+  ① run loop records raft role / leader / term into a cached Status snapshot
+  ② compaction checks record enabled / trigger / last snapshot / degraded error state
+  ③ startup and Ready snapshot restore paths record last restored snapshot or restore failure
+  ④ leader records follower progress, pending snapshots, and recent activity for catch-up diagnosis
+  ⑤ external readers use Service.Status(); RawNode remains confined to the run loop
 ```
 
 ## 8. 避坑清单
