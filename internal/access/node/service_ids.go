@@ -14,4 +14,5 @@ const (
 	runtimeSummaryRPCServiceID        uint8 = 39
 	connectionsRPCServiceID           uint8 = 40
 	connectionRPCServiceID            uint8 = 41
+	diagnosticsRPCServiceID           uint8 = 42
 )
