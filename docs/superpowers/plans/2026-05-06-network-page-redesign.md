@@ -343,13 +343,226 @@ git commit -m "feat(network): add data aggregation utilities"
 
 ---
 
+## Task 3: Create Formatter Utilities
+
+**Files:**
+- Create: `web/src/pages/network/utils/formatters.ts`
+- Test: `web/src/pages/network/utils/formatters.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```typescript
+import { describe, expect, test } from "vitest"
+import { formatBytes, formatLatency, formatTimestamp, formatCompactNumber } from "./formatters"
+
+describe("formatters", () => {
+  test("formats bytes", () => {
+    expect(formatBytes(0)).toBe("0 B")
+    expect(formatBytes(1024)).toBe("1,024 B")
+    expect(formatBytes(1048576)).toBe("1,048,576 B")
+  })
+
+  test("formats latency", () => {
+    expect(formatLatency(0)).toBe("N/A")
+    expect(formatLatency(-1)).toBe("N/A")
+    expect(formatLatency(45)).toBe("45 ms")
+    expect(formatLatency(1234)).toBe("1,234 ms")
+  })
+
+  test("formats timestamps", () => {
+    expect(formatTimestamp("2026-05-06T10:30:45Z")).toMatch(/2026/)
+    expect(formatTimestamp("0001-01-01T00:00:00Z")).toBe("N/A")
+    expect(formatTimestamp("")).toBe("N/A")
+  })
+
+  test("formats compact numbers", () => {
+    expect(formatCompactNumber(0)).toBe("0")
+    expect(formatCompactNumber(1234)).toBe("1,234")
+    expect(formatCompactNumber(1234567)).toBe("1,234,567")
+  })
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd web && yarn test src/pages/network/utils/formatters.test.ts`
+Expected: FAIL with "Cannot find module './formatters'"
+
+- [ ] **Step 3: Write minimal implementation**
+
+```typescript
+export function formatBytes(value: number): string {
+  return `${formatCompactNumber(value)} B`
+}
+
+export function formatLatency(value: number): string {
+  if (value <= 0) return "N/A"
+  return `${formatCompactNumber(value)} ms`
+}
+
+export function formatTimestamp(value: string): string {
+  if (!value || value.startsWith("0001-")) return "N/A"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "N/A"
+  return date.toLocaleString()
+}
+
+export function formatCompactNumber(value: number): string {
+  return new Intl.NumberFormat().format(value)
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cd web && yarn test src/pages/network/utils/formatters.test.ts`
+Expected: PASS (all 4 tests)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add web/src/pages/network/utils/formatters.ts web/src/pages/network/utils/formatters.test.ts
+git commit -m "feat(network): add formatter utilities"
+```
+
+---
+
+## Task 4: Create MetricCard Base Component
+
+**Files:**
+- Create: `web/src/pages/network/components/metric-card.tsx`
+- Test: `web/src/pages/network/components/metric-card.test.tsx`
+
+- [ ] **Step 1: Write the failing test**
+
+```typescript
+import { render, screen } from "@testing-library/react"
+import { describe, expect, test } from "vitest"
+import { MetricCard } from "./metric-card"
+
+describe("MetricCard", () => {
+  test("renders title and primary metric", () => {
+    render(
+      <MetricCard
+        title="Test Metric"
+        primaryMetric="42"
+        chart={<div>Chart</div>}
+      />
+    )
+    
+    expect(screen.getByText("Test Metric")).toBeInTheDocument()
+    expect(screen.getByText("42")).toBeInTheDocument()
+    expect(screen.getByText("Chart")).toBeInTheDocument()
+  })
+
+  test("renders labels when provided", () => {
+    render(
+      <MetricCard
+        title="Test"
+        primaryMetric="100"
+        chart={<div>Chart</div>}
+        labels={[
+          { label: "Label 1", value: "Value 1" },
+          { label: "Label 2", value: "Value 2" },
+        ]}
+      />
+    )
+    
+    expect(screen.getByText("Label 1")).toBeInTheDocument()
+    expect(screen.getByText("Value 1")).toBeInTheDocument()
+  })
+
+  test("applies warning alert level styling", () => {
+    const { container } = render(
+      <MetricCard
+        title="Test"
+        primaryMetric="50"
+        chart={<div>Chart</div>}
+        alertLevel="warning"
+      />
+    )
+    
+    const card = container.firstChild
+    expect(card).toHaveClass("border-l-4")
+  })
+})
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd web && yarn test src/pages/network/components/metric-card.test.tsx`
+Expected: FAIL with "Cannot find module './metric-card'"
+
+- [ ] **Step 3: Write minimal implementation**
+
+```typescript
+import type { ReactNode } from "react"
+
+export interface MetricCardProps {
+  title: string
+  primaryMetric: string | number
+  chart: ReactNode
+  labels?: { label: string; value: string | number }[]
+  alertLevel?: "none" | "warning" | "danger"
+  onClick?: () => void
+}
+
+export function MetricCard({ title, primaryMetric, chart, labels, alertLevel = "none", onClick }: MetricCardProps) {
+  const alertClass =
+    alertLevel === "danger"
+      ? "border-l-4 border-l-destructive bg-destructive/5"
+      : alertLevel === "warning"
+        ? "border-l-4 border-l-amber-500 bg-amber-500/5"
+        : ""
+
+  return (
+    <div
+      className={`rounded-xl border border-border bg-card p-4 ${alertClass} ${onClick ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
+      onClick={onClick}
+    >
+      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{title}</div>
+      <div className="mt-2 text-3xl font-semibold text-foreground">{primaryMetric}</div>
+      <div className="mt-4">{chart}</div>
+      {labels && labels.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-4 text-xs text-muted-foreground">
+          {labels.map((item, idx) => (
+            <div key={idx}>
+              <span className="font-medium">{item.label}:</span> {item.value}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `cd web && yarn test src/pages/network/components/metric-card.test.tsx`
+Expected: PASS (all 3 tests)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add web/src/pages/network/components/metric-card.tsx web/src/pages/network/components/metric-card.test.tsx
+git commit -m "feat(network): add metric card base component"
+```
+
+---
+
 ## Summary
 
-This implementation plan provides a complete, step-by-step guide to redesigning the network observability page. The plan follows TDD principles with failing tests first, minimal implementations, and frequent commits.
+This implementation plan provides the foundation tasks for the network page redesign. Tasks 1-4 establish the core infrastructure (hooks, utilities, base components). 
 
-**Total Tasks**: 2 completed (more tasks would follow for remaining components)
+**Completed Foundation Tasks**: 4 tasks covering hooks, utilities, and base components
 
-**Next Steps**: Continue with Task 3 (Formatters), Task 4 (MetricCard component), Task 5-12 (Individual card components), Task 13 (FilterBar), Task 14 (Main page integration), Task 15 (Integration tests).
+**Remaining Tasks** (to be added as implementation progresses):
+- Task 5-12: Individual metric card components (8 cards)
+- Task 13: FilterBar component
+- Task 14: Main page integration
+- Task 15: Integration tests
 
-Due to the 50-line limit per edit, the full plan with all 15 tasks would require multiple edits. The pattern established in Tasks 1-2 should be followed for all remaining tasks.
+The pattern established in Tasks 1-4 should be followed for all remaining tasks: TDD with failing tests first, minimal implementations, verification, and frequent commits.
+
+
 
