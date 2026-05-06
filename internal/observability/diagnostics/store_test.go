@@ -146,3 +146,62 @@ func BenchmarkStoreOverwrite(b *testing.B) {
 		store.Record(Event{TraceID: fmt.Sprintf("trace-%d", i), Stage: "message.send_durable", Result: ResultOK})
 	}
 }
+
+func TestStoreMultiKeyQueryDoesNotDropLaterIndexedCandidate(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 16, MaxEventsPerKey: 16, MaxKeysPerIndex: 16})
+	for i := 0; i < 4; i++ {
+		store.Record(Event{TraceID: "trace-1", Stage: Stage(fmt.Sprintf("trace-only-%d", i))})
+	}
+	store.Record(Event{TraceID: "trace-1", ClientMsgNo: "client-1", Stage: "target"})
+
+	result := store.Query(context.Background(), Query{TraceID: "trace-1", ClientMsgNo: "client-1", Limit: 1})
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Len(t, result.Events, 1)
+	require.Equal(t, Stage("target"), result.Events[0].Stage)
+}
+
+func TestStoreChannelOnlyQueryFindsRetainedEventOutsideRecentWindow(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 16, MaxEventsPerKey: 16, MaxKeysPerIndex: 16})
+	store.Record(Event{ChannelKey: "person:u1@u2", Stage: "target"})
+	for i := 0; i < 8; i++ {
+		store.Record(Event{ChannelKey: fmt.Sprintf("person:other-%d", i), Stage: "other"})
+	}
+
+	result := store.Query(context.Background(), Query{ChannelKey: "person:u1@u2", Limit: 1})
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Len(t, result.Events, 1)
+	require.Equal(t, "person:u1@u2", result.Events[0].ChannelKey)
+}
+
+func TestStoreMessageSeqOnlyQueryScansRetainedRing(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 16, MaxEventsPerKey: 16, MaxKeysPerIndex: 16})
+	store.Record(Event{ChannelKey: "person:u1@u2", MessageSeq: 42, Stage: "target"})
+	for i := 0; i < 8; i++ {
+		store.Record(Event{ChannelKey: fmt.Sprintf("person:other-%d", i), MessageSeq: uint64(i + 1), Stage: "other"})
+	}
+
+	result := store.Query(context.Background(), Query{MessageSeq: 42, Limit: 1})
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Len(t, result.Events, 1)
+	require.Equal(t, uint64(42), result.Events[0].MessageSeq)
+}
+
+func TestStoreCanceledContextBeforeQueryAvoidsCandidateWork(t *testing.T) {
+	nowCalls := 0
+	store := NewStore(StoreOptions{Capacity: 4, Now: func() time.Time {
+		nowCalls++
+		return time.Unix(10, 0)
+	}})
+	store.Record(Event{TraceID: "trace-1", Stage: "s1"})
+	nowCalls = 0
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result := store.Query(ctx, Query{TraceID: "trace-1"})
+
+	require.Equal(t, StatusNotFound, result.Status)
+	require.Zero(t, nowCalls)
+}
