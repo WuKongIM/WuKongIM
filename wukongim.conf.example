@@ -102,6 +102,20 @@ WK_MANAGER_USERS=[{"username":"admin","password":"a1234567","permissions":[{"res
 # WK_EXTERNAL_WSADDR=ws://im.example.com:5200
 # WK_EXTERNAL_WSSADDR=wss://im.example.com:5210
 WK_METRICS_ENABLE=true
+# Enables the bounded local diagnostics event store for send-path tracing.
+WK_DIAGNOSTICS_ENABLE=true
+# Sets the maximum number of diagnostics events retained in the in-memory ring buffer.
+WK_DIAGNOSTICS_BUFFER_SIZE=50000
+# Sets the baseline keep probability for successful diagnostics events.
+WK_DIAGNOSTICS_SAMPLE_RATE=0.01
+# Retains successful diagnostics events whose duration meets or exceeds this millisecond threshold.
+WK_DIAGNOSTICS_SLOW_THRESHOLD_MS=500
+# Sets the keep probability for diagnostics events with non-ok results.
+WK_DIAGNOSTICS_ERROR_SAMPLE_RATE=1.0
+# Enables debug-only diagnostics HTTP endpoints when implemented.
+WK_DIAGNOSTICS_DEBUG_API_ENABLE=false
+# Configures temporary high-priority diagnostics sampling matches as a JSON array.
+WK_DIAGNOSTICS_DEBUG_MATCHES=[]
 WK_HEALTH_DETAIL_ENABLE=true
 WK_HEALTH_DEBUG_ENABLE=false
 

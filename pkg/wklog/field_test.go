@@ -145,3 +145,23 @@ func TestSemanticHelpersUseStableKeys(t *testing.T) {
 		})
 	}
 }
+
+func TestDiagnosticFieldHelpersUseCanonicalKeys(t *testing.T) {
+	tests := []struct {
+		name string
+		got  Field
+		key  string
+	}{
+		{name: "client message number", got: ClientMsgNo("c1"), key: "clientMsgNo"},
+		{name: "message sequence", got: MessageSeq(9), key: "messageSeq"},
+		{name: "service", got: Service("channel_append"), key: "service"},
+		{name: "result", got: Result("ok"), key: "result"},
+		{name: "error code", got: ErrorCode("rpc_timeout"), key: "errorCode"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.key, tt.got.Key)
+		})
+	}
+}

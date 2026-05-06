@@ -23,6 +23,7 @@
 ### Long-poll observability
 - `RPCClientEvent{ServiceID:35, Result:"timeout"}` means the RPC deadline/context timed out; it is abnormal and not a normal long-poll wait expiry.
 - Normal channel long-poll wait expiry is a successful long-poll response with `TimedOut:true`, and needs an explicit response observer before counting expected timeouts.
+- Diagnostics hot-path events go through `internal/observability/diagnostics` via `sendtrace`; recording must be bounded, non-blocking, and must not add high-cardinality Prometheus labels.
 
 ## Cluster Membership
 

@@ -11,6 +11,7 @@ import (
 	coregateway "github.com/WuKongIM/WuKongIM/internal/gateway"
 	gatewaysession "github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/gateway/wkprotoenc"
+	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
@@ -441,6 +442,48 @@ func TestHandlerOnFrameSendPropagatesRequestContext(t *testing.T) {
 	require.Equal(t, "gateway-send", msgs.sendContexts[0].Value(ctxKey("request")))
 	_, ok := msgs.sendContexts[0].Deadline()
 	require.True(t, ok)
+}
+
+func TestHandleSendAssignsTraceIDToCommandAndSendTrace(t *testing.T) {
+	sender := newOptionRecordingSession(1, "tcp")
+	sender.SetValue(coregateway.SessionValueUID, "u1")
+	msgs := &fakeMessageUsecase{
+		sendResult: message.SendResult{MessageID: 99, MessageSeq: 7, Reason: frame.ReasonSuccess},
+	}
+	handler := New(Options{Messages: msgs})
+	sink := &recordingSendTraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+
+	ctx := &coregateway.Context{
+		Session:        sender,
+		Listener:       "tcp",
+		ReplyToken:     "reply-trace",
+		RequestContext: context.Background(),
+	}
+	pkt := &frame.SendPacket{
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		ClientSeq:   36,
+		ClientMsgNo: "trace-msg",
+		Payload:     []byte("hi"),
+	}
+
+	require.NoError(t, handler.handleSend(ctx, pkt))
+
+	require.Len(t, msgs.sendCommands, 1)
+	traceID := msgs.sendCommands[0].TraceID
+	require.Len(t, traceID, 32)
+	events := sink.snapshot()
+	require.NotEmpty(t, events)
+	var sendEvent sendtrace.Event
+	for _, event := range events {
+		if event.Stage == sendtrace.StageGatewayMessagesSend {
+			sendEvent = event
+			break
+		}
+	}
+	require.Equal(t, traceID, sendEvent.TraceID)
 }
 
 func TestHandlerOnFrameSendMapsCanceledRequestContextToSendack(t *testing.T) {
@@ -879,3 +922,22 @@ func (*fakeMetaRefresher) RefreshChannelMeta(context.Context, channel.ChannelID)
 }
 
 var _ online.Registry = (*online.MemoryRegistry)(nil)
+
+type recordingSendTraceSink struct {
+	mu     sync.Mutex
+	events []sendtrace.Event
+}
+
+func (s *recordingSendTraceSink) RecordSendTrace(event sendtrace.Event) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events = append(s.events, event)
+}
+
+func (s *recordingSendTraceSink) snapshot() []sendtrace.Event {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]sendtrace.Event, len(s.events))
+	copy(out, s.events)
+	return out
+}

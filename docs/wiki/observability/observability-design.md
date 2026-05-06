@@ -1,17 +1,19 @@
 # WuKongIM 可观测性方案设计
 
-> 状态：Design Proposal / 待评审
+> 状态：Historical design + implementation notes
 > 范围：全系统（Gateway、Channel 层、Slot 层、Controller 层、Transport 层、存储层）
 > 目标：为 WuKongIM v3.1 建立指标 + 健康检查的可观测性体系，使系统从黑盒变为白盒。
+> 当前落地：`pkg/metrics`、`/metrics`、`/healthz`、`/healthz/details`、`/readyz` 已存在；节点内 diagnostics plane 通过 `sendtrace` 记录有界事件并提供可选 debug API。
 
 ## 1. 背景与问题
 
 ### 1.1 现状
 
 1. **日志**：基于 Zap 的结构化日志已就位（`pkg/wklog/` + `internal/log/zap.go`），支持 JSON/console 格式、日志分级、日志轮转。最近已设计标准化日志规则（module → event → object fields → outcome）。
-2. **指标**：`go.mod` 中已引入 `prometheus/client_golang v1.16.0`，但**未实际使用**——无 Counter、Histogram、Gauge，无 `/metrics` 端点。
-3. **追踪**：无分布式追踪基础设施，无 Trace/Span 上下文传播，无跨节点请求关联。
-4. **健康检查**：仅 `GET /healthz` 返回 200，无组件级健康状态、无就绪探针。
+2. **指标**：`pkg/metrics` 已提供 Prometheus Registry、Counter、Histogram、Gauge，API Server 可注册 `/metrics` 端点。
+3. **节点内诊断**：`internal/observability/diagnostics` 通过 `sendtrace` 接收有界事件，支持按 `trace_id`、`client_msg_no` 或 `channel_key + message_seq` 查询节点内消息链路。
+4. **分布式追踪**：OpenTelemetry 导出与跨节点 Trace/Span 上下文传播仍是后续阶段；Phase 1 不修改 transport frame / RPC metadata。
+5. **健康检查**：`GET /healthz` 已存在，`/healthz/details` 与 `/readyz` 可由组合根注入。
 
 ### 1.2 痛点
 
@@ -66,7 +68,13 @@
                     └──────────────────┘
 ```
 
-> 分布式追踪（OpenTelemetry）作为独立方案设计，详见 [distributed-tracing-design.md](./distributed-tracing-design.md)。
+> 分布式追踪（OpenTelemetry）作为内部 diagnostics plane 之后的可选导出方案，详见 [distributed-tracing-design.md](./distributed-tracing-design.md)。
+
+### 2.1 Metrics 与 Diagnostics 的边界
+
+- **Metrics** 用低基数标签回答聚合问题：哪个 subsystem 的 QPS、错误率、P99、队列深度或 buffer 使用率异常。
+- **Diagnostics** 用有界节点内事件回答单条消息问题：这个 `trace_id` / `client_msg_no` 经过了哪些阶段、哪次 append attempt 慢、哪个阶段返回了稳定 error code。
+- **边界要求**：`trace_id`、`client_msg_no`、`channel_key`、`uid` 等高基数字段只进入 diagnostics 查询索引和日志字段，不作为 Prometheus label。
 
 ## 3. 指标体系（Prometheus）
 
@@ -117,13 +125,13 @@ unit:      total | seconds | bytes | ratio
 | `wukongim_channel_append_batch_size` | Histogram | — | Group Commit 的批次大小 |
 | `wukongim_channel_fetch_total` | Counter | — | Fetch 请求次数 |
 | `wukongim_channel_fetch_duration_seconds` | Histogram | — | Fetch 延迟 |
-| `wukongim_channel_hw_lag` | Gauge | `channel_key` | Leader 的最新 offset 与 HW 的差值 |
-| `wukongim_channel_isr_size` | Gauge | `channel_key` | 当前 ISR 副本数 |
+| `wukongim_channel_hw_lag_max` | Gauge | — | 当前节点 Channel Leader 的最大 HW lag |
+| `wukongim_channel_isr_size_min` | Gauge | — | 当前节点 Channel 的最小 ISR 副本数 |
 | `wukongim_channel_epoch_changes_total` | Counter | — | Epoch 切换（Leader 变更）次数 |
 | `wukongim_channel_replication_duration_seconds` | Histogram | — | 复制确认延迟（Leader → Follower ack） |
 | `wukongim_channel_active_channels` | Gauge | — | 当前活跃的 Channel 运行时数量 |
 
-> **注意**：`channel_key` 标签仅在 ISR 异常（`isr_size < MinISR`）时才附带，避免高基数标签导致 Prometheus 内存膨胀。常规聚合指标不含此标签。
+> **注意**：Channel 级聚合指标不携带 `channel_key` 标签；具体异常频道通过 diagnostics 查询、节点本地日志或后续受控 debug API 定位，避免高基数标签导致 Prometheus 内存膨胀。
 
 ### 3.4 Slot 元数据层指标
 
@@ -304,7 +312,7 @@ GET /debug/channels      → 活跃 Channel 列表（分页，含 ISR 状态）
 | 告警 | 条件 | 严重度 |
 |------|------|--------|
 | 节点失联 | `wukongim_controller_nodes_dead > 0` 持续 1min | Critical |
-| ISR 不足 | `wukongim_channel_isr_size < MinISR` | Critical |
+| ISR 不足 | `wukongim_channel_isr_size_min < configured MinISR` | Critical |
 | 迁移停滞 | 迁移耗时 > 10min | Warning |
 | 磁盘使用率 | `wukongim_storage_disk_usage_bytes / total > 0.85` | Warning |
 | 连接数异常 | `wukongim_gateway_connections_active` 5min 内增长 > 200% | Warning |
@@ -335,13 +343,13 @@ groups:
           description: "当前 {{ $value }} 个节点标记为 Dead"
 
       - alert: ISRUnderReplicated
-        expr: wukongim_channel_isr_size < 2
+        expr: wukongim_channel_isr_size_min < 2
         for: 30s
         labels:
           severity: critical
         annotations:
           summary: "Channel ISR 副本不足"
-          description: "频道 {{ $labels.channel_key }} ISR 副本数为 {{ $value }}"
+          description: "当前节点存在 Channel ISR 副本不足，最小 ISR 副本数为 {{ $value }}"
 ```
 
 ## 6. Grafana 看板设计
@@ -498,13 +506,13 @@ WK_HEALTH_DEBUG_ENABLE=false
 
 ```
 ┌────────────────────────────────┐
-│ WuKongIM (单节点)               │
+│ WuKongIM (单节点集群)           │
 │ :5001/metrics ──────────────┐  │
 │ :5001/healthz               │  │
 └─────────────────────────────┼──┘
                               │
                     ┌─────────▼──────────┐
-                    │ Prometheus (单机)   │
+                    │ Prometheus          │
                     │ + Grafana           │
                     └────────────────────┘
 ```
@@ -532,7 +540,7 @@ WK_HEALTH_DEBUG_ENABLE=false
 
 ## 10. 实施计划
 
-### Phase 1：指标基础 + /metrics 端点（优先级最高）
+### Phase 1：指标基础 + /metrics 端点（已落地基础能力）
 
 **目标**：暴露核心指标，接入 Prometheus + Grafana。
 

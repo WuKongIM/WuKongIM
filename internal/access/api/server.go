@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sync"
 
+	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/user"
@@ -23,6 +24,11 @@ type MessageUsecase interface {
 
 type UserUsecase interface {
 	UpdateToken(ctx context.Context, cmd user.UpdateTokenCommand) error
+}
+
+// DiagnosticsReader queries node-local diagnostics events for debug API routes.
+type DiagnosticsReader interface {
+	QueryDiagnostics(ctx context.Context, query obsdiagnostics.Query) obsdiagnostics.QueryResult
 }
 
 type ConversationUsecase interface {
@@ -52,6 +58,8 @@ type Options struct {
 	DebugEnabled             bool
 	DebugConfig              func() any
 	DebugCluster             func() any
+	DiagnosticsDebugEnabled  bool
+	Diagnostics              DiagnosticsReader
 	LegacyRouteExternal      LegacyRouteAddresses
 	LegacyRouteIntranet      LegacyRouteAddresses
 	Logger                   wklog.Logger
@@ -76,6 +84,8 @@ type Server struct {
 	debugEnabled             bool
 	debugConfig              func() any
 	debugCluster             func() any
+	diagnosticsDebugEnabled  bool
+	diagnostics              DiagnosticsReader
 	legacyRouteExternal      LegacyRouteAddresses
 	legacyRouteIntranet      LegacyRouteAddresses
 	logger                   wklog.Logger
@@ -107,6 +117,8 @@ func New(opts Options) *Server {
 		debugEnabled:             opts.DebugEnabled,
 		debugConfig:              opts.DebugConfig,
 		debugCluster:             opts.DebugCluster,
+		diagnosticsDebugEnabled:  opts.DiagnosticsDebugEnabled,
+		diagnostics:              opts.Diagnostics,
 		legacyRouteExternal:      opts.LegacyRouteExternal,
 		legacyRouteIntranet:      opts.LegacyRouteIntranet,
 		logger:                   opts.Logger,

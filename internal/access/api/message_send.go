@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"net/http"
 
+	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -58,7 +59,14 @@ func (s *Server) handleSendMessage(c *gin.Context) {
 		}
 	}
 
-	result, err := s.messages.Send(c.Request.Context(), message.SendCommand{
+	reqCtx := c.Request.Context()
+	if traceID, ok := tracectx.ValidateHeaderTraceID(c.GetHeader("X-WK-Trace-ID")); ok {
+		reqCtx = tracectx.WithContext(reqCtx, tracectx.Context{TraceID: traceID, Sampled: true})
+	}
+	reqCtx, traceCtx := tracectx.Ensure(reqCtx, nil)
+
+	result, err := s.messages.Send(reqCtx, message.SendCommand{
+		TraceID:         traceCtx.TraceID,
 		FromUID:         req.FromUID,
 		ChannelID:       channelID,
 		ChannelType:     req.ChannelType,

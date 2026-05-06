@@ -23,11 +23,11 @@ func TestNewBuildsClusterWithRuntimeHandlerAndTransport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open() error = %v", err)
 	}
-	defer func() {
+	t.Cleanup(func() {
 		if err := engine.Close(); err != nil {
 			t.Fatalf("engine.Close() error = %v", err)
 		}
-	}()
+	})
 
 	client := wktransport.NewClient(wktransport.NewPool(channelTestDiscovery{addrs: map[uint64]string{}}, 1, time.Second))
 	defer client.Stop()
@@ -143,11 +143,11 @@ func TestChannelAPIFetchReportsRuntimeCommittedSeq(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store.Open() error = %v", err)
 	}
-	defer func() {
+	t.Cleanup(func() {
 		if err := engine.Close(); err != nil {
 			t.Fatalf("engine.Close() error = %v", err)
 		}
-	}()
+	})
 
 	rt := newStubHandlerBackedRuntime(engine)
 	cluster := mustBuildRuntimeBackedCluster(t, engine, rt)

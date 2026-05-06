@@ -212,7 +212,11 @@ func (r *replica) executeFollowerApplyEffect(ctx context.Context, effect applyFo
 		EpochPoint:     cloneEpochPointPointer(effect.EpochPoint),
 		Err:            err,
 	})
-	if result.Err == nil && len(effect.Records) > 0 {
+	traceErr := err
+	if traceErr == nil {
+		traceErr = result.Err
+	}
+	if len(effect.Records) > 0 {
 		sendtrace.Record(sendtrace.Event{
 			Stage:      sendtrace.StageReplicaFollowerApplyDurable,
 			At:         effect.StartedAt,
@@ -222,6 +226,9 @@ func (r *replica) executeFollowerApplyEffect(ctx context.Context, effect applyFo
 			ChannelKey: string(effect.ChannelKey),
 			RangeStart: effect.BaseLEO + 1,
 			RangeEnd:   effect.NewLEO,
+			Result:     sendTraceResultFromError(traceErr),
+			ErrorCode:  sendTraceErrorCode(traceErr),
+			Error:      shortTraceError(traceErr),
 		})
 	}
 	return result.Err
