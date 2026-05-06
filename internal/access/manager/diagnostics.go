@@ -280,8 +280,8 @@ func diagnosticsSummaryDTO(summary managementusecase.DiagnosticsSummary) Diagnos
 		FirstFailureErrorCode: summary.FirstFailureErrorCode,
 		SlowestStage:          summary.SlowestStage,
 		SlowestDurationMS:     summary.SlowestDurationMS,
-		InvolvedNodes:         append([]uint64(nil), summary.InvolvedNodes...),
-		PeerNodes:             append([]uint64(nil), summary.PeerNodes...),
+		InvolvedNodes:         diagnosticsUint64SliceDTO(summary.InvolvedNodes),
+		PeerNodes:             diagnosticsUint64SliceDTO(summary.PeerNodes),
 		SlotID:                summary.SlotID,
 		ChannelKey:            summary.ChannelKey,
 		ClientMsgNo:           summary.ClientMsgNo,
@@ -340,4 +340,11 @@ func diagnosticsStringSliceDTO(values []string) []string {
 		return []string{}
 	}
 	return append([]string(nil), values...)
+}
+
+func diagnosticsUint64SliceDTO(values []uint64) []uint64 {
+	if len(values) == 0 {
+		return []uint64{}
+	}
+	return append([]uint64(nil), values...)
 }
