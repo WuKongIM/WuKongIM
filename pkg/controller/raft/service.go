@@ -44,9 +44,15 @@ type Service struct {
 	mu       sync.Mutex
 	started  bool
 	starting bool
-	stopCh   chan struct{}
-	doneCh   chan struct{}
-	err      error
+	// startDone closes when the in-flight startup attempt has published a result.
+	startDone chan struct{}
+	// startErr is the result observed by concurrent Start callers waiting on startDone.
+	startErr error
+	// stopRequested marks a Stop call that arrived before startup finished.
+	stopRequested bool
+	stopCh        chan struct{}
+	doneCh        chan struct{}
+	err           error
 
 	statusMu sync.RWMutex
 	status   Status
@@ -227,65 +233,63 @@ func NewService(cfg Config) *Service {
 }
 
 func (s *Service) Start(ctx context.Context) error {
+	for {
+		s.mu.Lock()
+		if s.started {
+			s.mu.Unlock()
+			return nil
+		}
+		if !s.starting {
+			s.starting = true
+			s.stopRequested = false
+			s.startErr = nil
+			s.startDone = make(chan struct{})
+			s.mu.Unlock()
+			break
+		}
+		startDone := s.startDone
+		s.mu.Unlock()
+
+		if startDone != nil {
+			<-startDone
+		}
+		s.mu.Lock()
+		err := s.startErr
+		s.mu.Unlock()
+		return err
+	}
+
 	if err := s.cfg.validateCore(); err != nil {
+		s.finishStart(err)
 		return err
 	}
 	s.cfg.LogCompaction = NormalizeLogCompactionConfig(s.cfg.LogCompaction)
 	if err := ValidateLogCompactionConfig(s.cfg.LogCompaction); err != nil {
+		s.finishStart(err)
 		return err
 	}
 	s.recordCompactionConfig(s.cfg.LogCompaction)
-
-	s.mu.Lock()
-	if s.started || s.starting {
-		s.mu.Unlock()
-		return nil
-	}
-	s.starting = true
-	s.mu.Unlock()
 
 	store := s.cfg.LogDB.ForController()
 	storageView := newStorageAdapter(store)
 	state, snapshot, _, err := storageView.load(ctx)
 	if err != nil {
-		s.clearStarting()
+		s.finishStart(err)
 		return err
 	}
 	if !raft.IsEmptySnap(snapshot) {
 		if err := s.cfg.StateMachine.Restore(ctx, append([]byte(nil), snapshot.Data...)); err != nil {
 			s.recordRestoreFailure(snapshot, err)
-			s.clearStarting()
+			s.finishStart(err)
 			return err
 		}
 		s.recordStartupRestoreSuccess(snapshot)
 	}
 	if !hasPersistedState(state) {
 		if err := s.cfg.validateBootstrapPeers(); err != nil {
-			s.clearStarting()
+			s.finishStart(err)
 			return err
 		}
-	}
-
-	appliedIndex := state.AppliedIndex
-	if !raft.IsEmptySnap(snapshot) {
-		appliedIndex = snapshot.Metadata.Index
-	}
-	rawNode, err := raft.NewRawNode(&raft.Config{
-		ID:                       s.cfg.NodeID,
-		ElectionTick:             electionTick,
-		HeartbeatTick:            heartbeatTick,
-		Storage:                  storageView.memory,
-		Applied:                  appliedIndex,
-		MaxSizePerMsg:            math.MaxUint64,
-		MaxCommittedSizePerReady: math.MaxUint64,
-		MaxInflightMsgs:          256,
-		CheckQuorum:              true,
-		PreVote:                  true,
-		Logger:                   newEtcdRaftLogger(s.cfg.Logger, s.cfg.NodeID),
-	})
-	if err != nil {
-		s.clearStarting()
-		return err
 	}
 
 	transport := newTransport(s.cfg.Pool, s.cfg.NodeID)
@@ -293,13 +297,28 @@ func (s *Service) Start(ctx context.Context) error {
 	doneCh := make(chan struct{})
 	stepCh := make(chan raftpb.Message, 1024)
 	proposeCh := make(chan proposalRequest)
+	initCh := make(chan error, 1)
+
+	go s.run(storageView, runStartupState{State: state, Snapshot: snapshot}, stopCh, doneCh, stepCh, proposeCh, transport, initCh)
+	if err := <-initCh; err != nil {
+		s.finishStart(err)
+		<-doneCh
+		transport.Close()
+		s.leaderID.Store(0)
+		s.recordStoppedStatus()
+		return err
+	}
 
 	s.mu.Lock()
-	if s.started {
-		s.starting = false
+	if s.stopRequested {
+		s.finishStartLocked(ErrStopped)
 		s.mu.Unlock()
+		close(stopCh)
+		<-doneCh
 		transport.Close()
-		return nil
+		s.leaderID.Store(0)
+		s.recordStoppedStatus()
+		return ErrStopped
 	}
 	s.transport = transport
 	s.stopCh = stopCh
@@ -310,23 +329,25 @@ func (s *Service) Start(ctx context.Context) error {
 
 	s.cfg.Server.Handle(msgTypeControllerRaft, s.handleMessage)
 	s.started = true
-	s.starting = false
+	s.finishStartLocked(nil)
 	s.mu.Unlock()
 
-	if !hasPersistedState(state) && s.cfg.AllowBootstrap && isSmallestPeer(s.cfg.NodeID, s.cfg.Peers) {
-		if err := rawNodeBootstrap(s.cfg.NodeID, rawNode, raftPeers(normalizePeers(s.cfg.Peers))); err != nil {
-			s.cleanupFailedStart()
-			return err
-		}
-		s.updateLeader(rawNode)
-	}
-
-	go s.run(rawNode, storageView, runStartupState{State: state, Snapshot: snapshot}, stopCh, doneCh, transport)
 	return nil
 }
 
 func (s *Service) Stop() error {
 	s.mu.Lock()
+	if s.starting {
+		s.stopRequested = true
+		startDone := s.startDone
+		s.mu.Unlock()
+		if startDone != nil {
+			<-startDone
+		}
+		s.leaderID.Store(0)
+		s.recordStoppedStatus()
+		return nil
+	}
 	if !s.started {
 		s.mu.Unlock()
 		return nil
@@ -350,6 +371,7 @@ func (s *Service) Stop() error {
 	s.mu.Unlock()
 
 	s.leaderID.Store(0)
+	s.recordStoppedStatus()
 	return nil
 }
 
@@ -413,29 +435,21 @@ func (s *Service) Propose(ctx context.Context, cmd slotcontroller.Command) error
 	}
 }
 
-func (s *Service) cleanupFailedStart() {
+func (s *Service) finishStart(err error) {
 	s.mu.Lock()
-	transport := s.transport
-	s.started = false
-	s.starting = false
-	s.stopCh = nil
-	s.doneCh = nil
-	s.stepCh = nil
-	s.proposeCh = nil
-	s.transport = nil
-	s.err = nil
+	s.finishStartLocked(err)
 	s.mu.Unlock()
-
-	if transport != nil {
-		transport.Close()
-	}
-	s.leaderID.Store(0)
 }
 
-func (s *Service) clearStarting() {
-	s.mu.Lock()
+func (s *Service) finishStartLocked(err error) {
+	s.startErr = err
 	s.starting = false
-	s.mu.Unlock()
+	s.stopRequested = false
+	startDone := s.startDone
+	s.startDone = nil
+	if startDone != nil {
+		close(startDone)
+	}
 }
 
 func (s *Service) currentError() error {
@@ -464,7 +478,10 @@ func (s *Service) recordRaftStatus(rawNode *raft.RawNode) {
 	if rawNode == nil {
 		return
 	}
-	st := rawNode.Status()
+	s.recordRaftStatusSnapshot(rawNode.Status())
+}
+
+func (s *Service) recordRaftStatusSnapshot(st raft.Status) {
 	cached := Status{
 		NodeID:       s.cfg.NodeID,
 		Role:         raftRoleName(st.RaftState),
@@ -472,12 +489,25 @@ func (s *Service) recordRaftStatus(rawNode *raft.RawNode) {
 		Term:         st.Term,
 		CommitIndex:  st.Commit,
 		AppliedIndex: st.Applied,
-		Peers:        peerProgressFromRaft(s.cfg.NodeID, 0, st.Progress),
+		Peers:        peerProgressFromRaft(s.cfg.NodeID, st.Progress),
 	}
 	s.statusMu.Lock()
 	cached.Compaction = s.status.Compaction
 	cached.Restore = s.status.Restore
 	s.status = cached
+	s.statusMu.Unlock()
+}
+
+func (s *Service) recordStoppedStatus() {
+	s.statusMu.Lock()
+	compaction := s.status.Compaction
+	restore := s.status.Restore
+	s.status = Status{
+		NodeID:     s.cfg.NodeID,
+		Role:       RoleUnknown,
+		Compaction: compaction,
+		Restore:    restore,
+	}
 	s.statusMu.Unlock()
 }
 
@@ -524,11 +554,10 @@ func (s *Service) recordRestoreFailure(snap raftpb.Snapshot, err error) {
 	s.statusMu.Unlock()
 }
 
-func (s *Service) recordCompactionFailure(err error, applied uint64, at time.Time) {
+func (s *Service) recordCompactionFailure(err error, at time.Time) {
 	if err == nil {
 		return
 	}
-	_ = applied
 	s.statusMu.Lock()
 	s.status.NodeID = s.cfg.NodeID
 	if s.status.Role == "" {
@@ -619,8 +648,49 @@ func (s *Service) dropInboundRaftMessage(msg raftpb.Message) bool {
 	return true
 }
 
-func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, transport *raftTransport) {
+func (s *Service) newRawNode(storageView *storageAdapter, startup runStartupState) (*raft.RawNode, error) {
+	appliedIndex := startup.State.AppliedIndex
+	if !raft.IsEmptySnap(startup.Snapshot) {
+		appliedIndex = startup.Snapshot.Metadata.Index
+	}
+	return raft.NewRawNode(&raft.Config{
+		ID:                       s.cfg.NodeID,
+		ElectionTick:             electionTick,
+		HeartbeatTick:            heartbeatTick,
+		Storage:                  storageView.memory,
+		Applied:                  appliedIndex,
+		MaxSizePerMsg:            math.MaxUint64,
+		MaxCommittedSizePerReady: math.MaxUint64,
+		MaxInflightMsgs:          256,
+		CheckQuorum:              true,
+		PreVote:                  true,
+		Logger:                   newEtcdRaftLogger(s.cfg.Logger, s.cfg.NodeID),
+	})
+}
+
+func notifyRunInit(initCh chan<- error, err error) {
+	if initCh == nil {
+		return
+	}
+	initCh <- err
+}
+
+func (s *Service) run(storageView *storageAdapter, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, stepCh <-chan raftpb.Message, proposeCh <-chan proposalRequest, transport *raftTransport, initCh chan<- error) {
 	defer close(doneCh)
+
+	rawNode, err := s.newRawNode(storageView, startup)
+	if err != nil {
+		notifyRunInit(initCh, err)
+		return
+	}
+	if !hasPersistedState(startup.State) && s.cfg.AllowBootstrap && isSmallestPeer(s.cfg.NodeID, s.cfg.Peers) {
+		if err := rawNodeBootstrap(s.cfg.NodeID, rawNode, raftPeers(normalizePeers(s.cfg.Peers))); err != nil {
+			notifyRunInit(initCh, err)
+			return
+		}
+	}
+	s.updateLeader(rawNode)
+	notifyRunInit(initCh, nil)
 
 	ticker := time.NewTicker(tickInterval)
 	defer ticker.Stop()
@@ -671,7 +741,7 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, startu
 			failInflightProposalsOnLeaderLoss(rawNode.Status().RaftState, &pendingQueue, pendingByIndex)
 			if compactor.shouldCompact(lastApplied) {
 				if err := s.compactControllerLog(context.Background(), storageView, lastApplied, latestConfState); err != nil {
-					s.recordCompactionFailure(err, lastApplied, time.Now())
+					s.recordCompactionFailure(err, time.Now())
 					s.logCompactionWarning(err, lastApplied)
 				} else {
 					s.recordCompactionSuccess(lastApplied, time.Now())
@@ -682,7 +752,6 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, startu
 		return nil
 	}
 
-	s.updateLeader(rawNode)
 	for {
 		if err := processReady(); err != nil {
 			s.setError(err)
@@ -697,7 +766,7 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, startu
 			rawNode.Tick()
 			s.updateLeader(rawNode)
 			failInflightProposalsOnLeaderLoss(rawNode.Status().RaftState, &pendingQueue, pendingByIndex)
-		case msg := <-s.stepCh:
+		case msg := <-stepCh:
 			if err := rawNode.Step(msg); err != nil && !errors.Is(err, raft.ErrStepLocalMsg) {
 				s.setError(err)
 				failTracked(pendingQueue, pendingByIndex, err)
@@ -705,7 +774,7 @@ func (s *Service) run(rawNode *raft.RawNode, storageView *storageAdapter, startu
 			}
 			s.updateLeader(rawNode)
 			failInflightProposalsOnLeaderLoss(rawNode.Status().RaftState, &pendingQueue, pendingByIndex)
-		case req := <-s.proposeCh:
+		case req := <-proposeCh:
 			if err := req.ctx.Err(); err != nil {
 				req.resp <- err
 				continue
@@ -895,11 +964,14 @@ func (s *Service) setError(err error) {
 	s.mu.Lock()
 	s.err = err
 	s.mu.Unlock()
+	s.leaderID.Store(0)
+	s.recordStoppedStatus()
 }
 
 func (s *Service) updateLeader(rawNode *raft.RawNode) {
-	s.recordRaftStatus(rawNode)
-	newLeader := rawNode.Status().Lead
+	status := rawNode.Status()
+	s.recordRaftStatusSnapshot(status)
+	newLeader := status.Lead
 	oldLeader := s.leaderID.Swap(newLeader)
 	if oldLeader != newLeader && s.cfg.OnLeaderChange != nil {
 		s.cfg.OnLeaderChange(oldLeader, newLeader)

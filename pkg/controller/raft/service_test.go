@@ -224,6 +224,123 @@ func TestServiceStatusBeforeStartAndAfterStartReportsNodeAndRole(t *testing.T) {
 	}, 2*time.Second, 10*time.Millisecond)
 }
 
+func TestServiceStopDuringStartupPreventsLateStart(t *testing.T) {
+	env := newTestEnv(t, []uint64{1})
+	t.Cleanup(env.stopAll)
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	original := rawNodeBootstrap
+	rawNodeBootstrap = func(_ uint64, _ *raft.RawNode, _ []raft.Peer) error {
+		close(entered)
+		<-release
+		return nil
+	}
+	t.Cleanup(func() {
+		rawNodeBootstrap = original
+		closeIfOpen(release)
+	})
+
+	startErr := make(chan error, 1)
+	go func() {
+		startErr <- env.startNodeErr(t, 1, nil)
+	}()
+
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("bootstrap hook was not reached")
+	}
+	service := env.nodes[1].service
+
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- service.Stop()
+	}()
+	require.Eventually(t, func() bool {
+		service.mu.Lock()
+		defer service.mu.Unlock()
+		return service.stopRequested
+	}, 2*time.Second, 10*time.Millisecond)
+
+	close(release)
+
+	require.ErrorIs(t, <-startErr, ErrStopped)
+	require.NoError(t, <-stopDone)
+	require.False(t, service.Status().Role == RoleLeader)
+	require.Equal(t, uint64(0), service.LeaderID())
+}
+
+func TestServiceConcurrentStartWaitsForStartupFailure(t *testing.T) {
+	env := newTestEnv(t, []uint64{1})
+	t.Cleanup(env.stopAll)
+
+	sentinel := errors.New("bootstrap failed")
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	original := rawNodeBootstrap
+	rawNodeBootstrap = func(_ uint64, _ *raft.RawNode, _ []raft.Peer) error {
+		close(entered)
+		<-release
+		return sentinel
+	}
+	t.Cleanup(func() {
+		rawNodeBootstrap = original
+		closeIfOpen(release)
+	})
+
+	firstErr := make(chan error, 1)
+	go func() {
+		firstErr <- env.startNodeErr(t, 1, nil)
+	}()
+
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("bootstrap hook was not reached")
+	}
+
+	secondErr := make(chan error, 1)
+	go func() {
+		secondErr <- env.nodes[1].service.Start(context.Background())
+	}()
+
+	select {
+	case err := <-secondErr:
+		t.Fatalf("second Start returned before first startup completed: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(release)
+	require.ErrorIs(t, <-firstErr, sentinel)
+	require.ErrorIs(t, <-secondErr, sentinel)
+}
+
+func TestServiceStatusAfterStopClearsVolatileRaftState(t *testing.T) {
+	env := newTestEnv(t, []uint64{1})
+	defer env.stopAll()
+
+	env.startNode(t, 1, nil)
+	env.waitForLeader(t, []uint64{1})
+	require.Equal(t, RoleLeader, env.nodes[1].service.Status().Role)
+	sentinel := errors.New("preserve diagnostic")
+	env.nodes[1].service.recordCompactionFailure(sentinel, time.Unix(100, 0))
+	env.nodes[1].service.recordRestoreFailure(raftpb.Snapshot{
+		Metadata: raftpb.SnapshotMetadata{Index: 9, Term: 3},
+	}, sentinel)
+
+	require.NoError(t, env.nodes[1].service.Stop())
+	st := env.nodes[1].service.Status()
+	require.Equal(t, RoleUnknown, st.Role)
+	require.Equal(t, uint64(0), st.LeaderID)
+	require.Equal(t, uint64(0), st.Term)
+	require.Empty(t, st.Peers)
+	require.True(t, st.Compaction.Degraded)
+	require.Equal(t, sentinel.Error(), st.Compaction.LastError)
+	require.True(t, st.Restore.Failed)
+	require.Equal(t, uint64(9), st.Restore.LastSnapshotIndex)
+}
+
 func TestServiceStatusRecordsStartupSnapshotRestore(t *testing.T) {
 	env := newTestEnv(t, []uint64{1})
 	t.Cleanup(env.stopAll)
@@ -1653,6 +1770,11 @@ func removeNodeID(nodeIDs []uint64, removed uint64) []uint64 {
 		}
 	}
 	return out
+}
+
+func closeIfOpen(ch chan struct{}) {
+	defer func() { _ = recover() }()
+	close(ch)
 }
 
 func (e *testEnv) addrOf(nodeID uint64) string {
