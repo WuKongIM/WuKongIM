@@ -48,6 +48,7 @@ func (a *App) Stop() error {
 	var err error
 	a.stopOnce.Do(func() {
 		a.started.Store(false)
+		a.restoreDiagnosticsSink()
 		stopCtx, cancel := context.WithTimeout(context.Background(), apiStopTimeout)
 		defer cancel()
 		err = errors.Join(
