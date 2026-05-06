@@ -59,6 +59,39 @@ func TestStoreQueriesByTraceAndClientMsgNo(t *testing.T) {
 	require.Len(t, byClient.Events, 2)
 }
 
+func TestStoreQueryFiltersByResultBeforeLimit(t *testing.T) {
+	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
+	store := NewStore(StoreOptions{NodeID: 1, Capacity: 16, Now: func() time.Time { return now }})
+
+	store.Record(Event{TraceID: "tr-ok-1", Stage: Stage("gateway_send"), Result: ResultOK, At: now.Add(time.Second)})
+	store.Record(Event{TraceID: "tr-err-1", Stage: Stage("channel_append"), Result: ResultError, ErrorCode: ErrorCodeUnknown, At: now.Add(2 * time.Second)})
+	store.Record(Event{TraceID: "tr-ok-2", Stage: Stage("delivery"), Result: ResultOK, At: now.Add(3 * time.Second)})
+	store.Record(Event{TraceID: "tr-err-2", Stage: Stage("replica_quorum"), Result: ResultError, ErrorCode: ErrorCodeUnknown, At: now.Add(4 * time.Second)})
+
+	got := store.Query(context.Background(), Query{Result: ResultError, Limit: 1})
+
+	require.Equal(t, StatusError, got.Status)
+	require.Len(t, got.Events, 1)
+	require.Equal(t, "tr-err-2", got.Events[0].TraceID)
+	require.Equal(t, ResultError, got.Events[0].Result)
+}
+
+func TestStoreQueryFiltersByStageAndResult(t *testing.T) {
+	now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
+	store := NewStore(StoreOptions{NodeID: 1, Capacity: 16, Now: func() time.Time { return now }})
+
+	store.Record(Event{Stage: Stage("channel_append"), Result: ResultOK, At: now.Add(time.Second)})
+	store.Record(Event{Stage: Stage("channel_append"), Result: ResultTimeout, At: now.Add(2 * time.Second)})
+	store.Record(Event{Stage: Stage("delivery"), Result: ResultTimeout, At: now.Add(3 * time.Second)})
+
+	got := store.Query(context.Background(), Query{Stage: Stage("channel_append"), Result: ResultTimeout, Limit: 10})
+
+	require.Equal(t, StatusError, got.Status)
+	require.Len(t, got.Events, 1)
+	require.Equal(t, Stage("channel_append"), got.Events[0].Stage)
+	require.Equal(t, ResultTimeout, got.Events[0].Result)
+}
+
 func TestStoreReturnsStableNotFound(t *testing.T) {
 	store := NewStore(StoreOptions{Capacity: 4})
 	result := store.Query(context.Background(), Query{TraceID: "missing"})
