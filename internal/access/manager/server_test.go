@@ -15,6 +15,7 @@ import (
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )
 
@@ -161,9 +162,13 @@ func TestManagerNodesReturnsAggregatedInventory(t *testing.T) {
 					LastHeartbeatAt: lastHeartbeatAt,
 				},
 				Controller: managementusecase.NodeController{
-					Role:     "leader",
-					Voter:    true,
-					LeaderID: 1,
+					Role:          "leader",
+					Voter:         true,
+					LeaderID:      1,
+					RaftHealth:    managementusecase.ControllerRaftHealthHealthy,
+					FirstIndex:    10,
+					AppliedIndex:  20,
+					SnapshotIndex: 9,
 				},
 				Slots: managementusecase.NodeSlotSummary{
 					ReplicaCount:  3,
@@ -218,7 +223,11 @@ func TestManagerNodesReturnsAggregatedInventory(t *testing.T) {
 			"controller": {
 				"role": "leader",
 				"voter": true,
-				"leader_id": 1
+				"leader_id": 1,
+				"raft_health": "healthy",
+				"first_index": 10,
+				"applied_index": 20,
+				"snapshot_index": 9
 			},
 			"slot_stats": {
 				"count": 3,
@@ -355,9 +364,13 @@ func TestManagerNodeDetailReturnsAggregatedDetail(t *testing.T) {
 						LastHeartbeatAt: lastHeartbeatAt,
 					},
 					Controller: managementusecase.NodeController{
-						Role:     "follower",
-						Voter:    true,
-						LeaderID: 1,
+						Role:          "follower",
+						Voter:         true,
+						LeaderID:      1,
+						RaftHealth:    managementusecase.ControllerRaftHealthAppendCatchup,
+						FirstIndex:    12,
+						AppliedIndex:  18,
+						SnapshotIndex: 11,
 					},
 					Slots: managementusecase.NodeSlotSummary{
 						ReplicaCount:    3,
@@ -412,7 +425,11 @@ func TestManagerNodeDetailReturnsAggregatedDetail(t *testing.T) {
 		"controller": {
 			"role": "follower",
 			"voter": true,
-			"leader_id": 1
+			"leader_id": 1,
+			"raft_health": "append_catchup",
+			"first_index": 12,
+			"applied_index": 18,
+			"snapshot_index": 11
 		},
 		"slot_stats": {
 			"count": 3,
@@ -663,7 +680,11 @@ func TestManagerNodeDrainingReturnsUpdatedNodeDetail(t *testing.T) {
 		"controller": {
 			"role": "follower",
 			"voter": true,
-			"leader_id": 1
+			"leader_id": 1,
+			"raft_health": "",
+			"first_index": 0,
+			"applied_index": 0,
+			"snapshot_index": 0
 		},
 		"slot_stats": {
 			"count": 3,
@@ -892,7 +913,11 @@ func TestManagerNodeResumeReturnsUpdatedNodeDetail(t *testing.T) {
 		"controller": {
 			"role": "follower",
 			"voter": true,
-			"leader_id": 1
+			"leader_id": 1,
+			"raft_health": "",
+			"first_index": 0,
+			"applied_index": 0,
+			"snapshot_index": 0
 		},
 		"slot_stats": {
 			"count": 3,
@@ -1189,6 +1214,235 @@ func TestManagerControllerLogsReturnsNodeScopedEntries(t *testing.T) {
 			"decoded": {"command": "add_slot", "new_slot_id": 9}
 		}]
 	}`, rec.Body.String())
+}
+
+func TestManagerNodeControllerRaftReturnsStatus(t *testing.T) {
+	compactedAt := time.Date(2026, 5, 6, 8, 1, 0, 0, time.UTC)
+	checkedAt := time.Date(2026, 5, 6, 8, 2, 0, 0, time.UTC)
+	compactionErrorAt := time.Date(2026, 5, 6, 8, 3, 0, 0, time.UTC)
+	restoredAt := time.Date(2026, 5, 6, 8, 4, 0, 0, time.UTC)
+	restoreErrorAt := time.Date(2026, 5, 6, 8, 5, 0, 0, time.UTC)
+	var nodeIDSink uint64
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.node",
+				Actions:  []string{"r"},
+			}, {
+				Resource: "cluster.controller",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{
+			controllerRaftStatusNodeIDSink: &nodeIDSink,
+			controllerRaftStatus: managementusecase.ControllerRaftStatusResponse{
+				NodeID:        2,
+				Role:          "leader",
+				LeaderID:      2,
+				Term:          7,
+				Health:        managementusecase.ControllerRaftHealthRestoreFailed,
+				FirstIndex:    10,
+				LastIndex:     42,
+				CommitIndex:   40,
+				AppliedIndex:  39,
+				SnapshotIndex: 9,
+				SnapshotTerm:  3,
+				Compaction: managementusecase.ControllerRaftCompactionStatus{
+					Enabled:           true,
+					TriggerEntries:    100,
+					CheckInterval:     2 * time.Second,
+					LastSnapshotIndex: 9,
+					LastSnapshotAt:    compactedAt,
+					LastCheckAt:       checkedAt,
+					LastError:         "disk full",
+					LastErrorAt:       compactionErrorAt,
+					Degraded:          true,
+				},
+				Restore: managementusecase.ControllerRaftRestoreStatus{
+					LastSnapshotIndex: 8,
+					LastSnapshotTerm:  2,
+					LastRestoredAt:    restoredAt,
+					LastError:         "crc mismatch",
+					LastErrorAt:       restoreErrorAt,
+					Failed:            true,
+				},
+				Peers: []managementusecase.ControllerRaftPeerProgress{{
+					NodeID:               3,
+					Match:                21,
+					Next:                 22,
+					State:                "snapshot",
+					PendingSnapshot:      9,
+					RecentActive:         true,
+					NeedsSnapshot:        true,
+					SnapshotTransferring: true,
+				}},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/nodes/2/controller-raft", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, uint64(2), nodeIDSink)
+	require.JSONEq(t, `{
+		"node_id": 2,
+		"role": "leader",
+		"leader_id": 2,
+		"term": 7,
+		"health": "restore_failed",
+		"first_index": 10,
+		"last_index": 42,
+		"commit_index": 40,
+		"applied_index": 39,
+		"snapshot_index": 9,
+		"snapshot_term": 3,
+		"compaction": {
+			"enabled": true,
+			"trigger_entries": 100,
+			"check_interval_ms": 2000,
+			"last_snapshot_index": 9,
+			"last_snapshot_at": "2026-05-06T08:01:00Z",
+			"last_check_at": "2026-05-06T08:02:00Z",
+			"last_error": "disk full",
+			"last_error_at": "2026-05-06T08:03:00Z",
+			"degraded": true
+		},
+		"restore": {
+			"last_snapshot_index": 8,
+			"last_snapshot_term": 2,
+			"last_restored_at": "2026-05-06T08:04:00Z",
+			"last_error": "crc mismatch",
+			"last_error_at": "2026-05-06T08:05:00Z",
+			"failed": true
+		},
+		"peers": [{
+			"node_id": 3,
+			"match": 21,
+			"next": 22,
+			"state": "snapshot",
+			"pending_snapshot": 9,
+			"recent_active": true,
+			"needs_snapshot": true,
+			"snapshot_transferring": true
+		}]
+	}`, rec.Body.String())
+}
+
+func TestManagerNodeControllerRaftRejectsInvalidNodeID(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.node",
+				Actions:  []string{"r"},
+			}, {
+				Resource: "cluster.controller",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/nodes/bad/controller-raft", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"error":"bad_request","message":"invalid node_id"}`, rec.Body.String())
+}
+
+func TestManagerNodeControllerRaftReturnsServiceUnavailableWhenManagementMissing(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.node",
+				Actions:  []string{"r"},
+			}, {
+				Resource: "cluster.controller",
+				Actions:  []string{"r"},
+			}},
+		}}),
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/nodes/2/controller-raft", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	require.JSONEq(t, `{"error":"service_unavailable","message":"management not configured"}`, rec.Body.String())
+}
+
+func TestManagerNodeControllerRaftReturnsServiceUnavailableWhenStatusUnavailable(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{name: "no leader", err: raftcluster.ErrNoLeader},
+		{name: "target not found", err: transport.ErrNodeNotFound},
+		{name: "target stopped", err: transport.ErrStopped},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := New(Options{
+				Auth: testAuthConfig([]UserConfig{{
+					Username: "admin",
+					Password: "secret",
+					Permissions: []PermissionConfig{{
+						Resource: "cluster.node",
+						Actions:  []string{"r"},
+					}, {
+						Resource: "cluster.controller",
+						Actions:  []string{"r"},
+					}},
+				}}),
+				Management: managementStub{controllerRaftStatusErr: tc.err},
+			})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/manager/nodes/2/controller-raft", nil)
+			req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+			require.JSONEq(t, `{"error":"service_unavailable","message":"controller raft status unavailable"}`, rec.Body.String())
+		})
+	}
+}
+
+func TestManagerNodeControllerRaftRejectsInsufficientPermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "viewer",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.node",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/nodes/2/controller-raft", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
 }
 
 func TestManagerSlotLogsReturnsNodeScopedEntries(t *testing.T) {
@@ -2954,6 +3208,9 @@ type managementStub struct {
 	controllerLogEntriesReqSink     *managementusecase.ListControllerLogEntriesRequest
 	controllerLogEntriesPage        managementusecase.ControllerLogEntriesResponse
 	controllerLogEntriesErr         error
+	controllerRaftStatusNodeIDSink  *uint64
+	controllerRaftStatus            managementusecase.ControllerRaftStatusResponse
+	controllerRaftStatusErr         error
 	slotDetail                      managementusecase.SlotDetail
 	slotDetailErr                   error
 	tasks                           []managementusecase.Task
@@ -3082,6 +3339,13 @@ func (s managementStub) ListControllerLogEntries(_ context.Context, req manageme
 		*s.controllerLogEntriesReqSink = req
 	}
 	return s.controllerLogEntriesPage, s.controllerLogEntriesErr
+}
+
+func (s managementStub) GetControllerRaftStatus(_ context.Context, nodeID uint64) (managementusecase.ControllerRaftStatusResponse, error) {
+	if s.controllerRaftStatusNodeIDSink != nil {
+		*s.controllerRaftStatusNodeIDSink = nodeID
+	}
+	return s.controllerRaftStatus, s.controllerRaftStatusErr
 }
 
 func (s managementStub) AddSlot(context.Context) (managementusecase.SlotDetail, error) {

@@ -81,6 +81,14 @@ type NodeControllerDTO struct {
 	Voter bool `json:"voter"`
 	// LeaderID is the current Controller Raft leader known locally.
 	LeaderID uint64 `json:"leader_id"`
+	// RaftHealth is the summarized local Controller Raft health state.
+	RaftHealth string `json:"raft_health"`
+	// FirstIndex is the first available local Controller Raft log index.
+	FirstIndex uint64 `json:"first_index"`
+	// AppliedIndex is the queried node's applied Controller Raft index watermark.
+	AppliedIndex uint64 `json:"applied_index"`
+	// SnapshotIndex is the latest persisted Controller Raft snapshot index.
+	SnapshotIndex uint64 `json:"snapshot_index"`
 }
 
 // NodeSlotStatsDTO contains slot placement summary fields.
