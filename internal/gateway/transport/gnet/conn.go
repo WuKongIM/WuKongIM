@@ -305,7 +305,7 @@ func (s *connState) nextWSResult() (wsTrafficResult, bool) {
 					closeErr:   err,
 				}, true
 			}
-			return wsTrafficResult{payload: append([]byte(nil), frame.payload...), opcode: frame.opcode}, true
+			return wsTrafficResult{payload: frame.payload, opcode: frame.opcode}, true
 		case wsOpcodePing:
 			pong, err := encodeWSFrame(wsFrame{
 				final:   true,
