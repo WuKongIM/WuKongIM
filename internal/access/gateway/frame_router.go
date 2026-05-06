@@ -4,6 +4,7 @@ import (
 	"context"
 
 	coregateway "github.com/WuKongIM/WuKongIM/internal/gateway"
+	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx"
 	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -51,10 +52,13 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 	}
 	reqCtx, cancel := context.WithTimeout(ctx.RequestContext, h.sendTimeout)
 	defer cancel()
+	reqCtx, traceCtx := tracectx.Ensure(reqCtx, h.now)
+	cmd.TraceID = traceCtx.TraceID
 
 	sendStartedAt := h.now()
 	result, err := h.messages.Send(reqCtx, cmd)
 	sendtrace.Record(sendtrace.Event{
+		TraceID:     cmd.TraceID,
 		Stage:       sendtrace.StageGatewayMessagesSend,
 		At:          sendStartedAt,
 		Duration:    sendtrace.Elapsed(sendStartedAt, h.now()),
@@ -71,12 +75,12 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 		h.frameLogger().Warn("send request failed", fields...)
 		if reason, ok := mapSendErrorReason(err); ok {
 			result.Reason = reason
-			return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, result)
+			return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, cmd.TraceID, result)
 		}
 		return err
 	}
 
-	return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, result)
+	return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, cmd.TraceID, result)
 }
 
 func (h *Handler) handleRecvAck(ctx *coregateway.Context, pkt *frame.RecvackPacket) error {
@@ -91,10 +95,11 @@ func (h *Handler) handlePing(ctx *coregateway.Context) error {
 	return writePong(ctx)
 }
 
-func (h *Handler) writeSendackWithTrace(ctx *coregateway.Context, pkt *frame.SendPacket, clientMsgNo string, result message.SendResult) error {
+func (h *Handler) writeSendackWithTrace(ctx *coregateway.Context, pkt *frame.SendPacket, clientMsgNo, traceID string, result message.SendResult) error {
 	startedAt := h.now()
 	err := writeSendack(ctx, pkt, result)
 	sendtrace.Record(sendtrace.Event{
+		TraceID:     traceID,
 		Stage:       sendtrace.StageGatewayWriteSendack,
 		At:          startedAt,
 		Duration:    sendtrace.Elapsed(startedAt, h.now()),

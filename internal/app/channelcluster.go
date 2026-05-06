@@ -147,6 +147,7 @@ func (c *appChannelCluster) Append(ctx context.Context, req channel.AppendReques
 	result, err := c.service.Append(ctx, req)
 	if err == nil {
 		sendtrace.Record(sendtrace.Event{
+			TraceID:     req.TraceID,
 			Stage:       sendtrace.StageChannelAppendLocal,
 			At:          start,
 			Duration:    sendtrace.Elapsed(start, time.Now()),
@@ -154,6 +155,7 @@ func (c *appChannelCluster) Append(ctx context.Context, req channel.AppendReques
 			ChannelKey:  string(channelhandler.KeyFromChannelID(req.ChannelID)),
 			ClientMsgNo: req.Message.ClientMsgNo,
 			MessageSeq:  result.MessageSeq,
+			Attempt:     req.Attempt,
 		})
 	}
 	if errors.Is(err, channel.ErrNotLeader) || errors.Is(err, channel.ErrStaleMeta) {
@@ -357,6 +359,7 @@ func (c *appChannelCluster) forwardAppendToLeader(ctx context.Context, req chann
 	c.appendLogger().Debug("completed forwarded channel append", completedFields...)
 	if err == nil {
 		sendtrace.Record(sendtrace.Event{
+			TraceID:     req.TraceID,
 			Stage:       sendtrace.StageChannelAppendForward,
 			At:          startedAt,
 			Duration:    sendtrace.Elapsed(startedAt, time.Now()),
@@ -365,6 +368,8 @@ func (c *appChannelCluster) forwardAppendToLeader(ctx context.Context, req chann
 			ChannelKey:  string(meta.Key),
 			ClientMsgNo: req.Message.ClientMsgNo,
 			MessageSeq:  result.MessageSeq,
+			Service:     "channel_append",
+			Attempt:     req.Attempt,
 		})
 	}
 	return result, err, true

@@ -6,6 +6,8 @@ import (
 )
 
 type SendCommand struct {
+	// TraceID is the diagnostics trace identifier propagated through the send path.
+	TraceID              string
 	Framer               frame.Framer
 	Setting              frame.Setting
 	MsgKey               string
