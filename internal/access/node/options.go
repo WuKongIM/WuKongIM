@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
+	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -119,6 +120,11 @@ type RuntimeSummaryProvider interface {
 	LocalRuntimeSummary(ctx context.Context) (RuntimeSummary, error)
 }
 
+// DiagnosticsProvider queries retained node-local diagnostics events.
+type DiagnosticsProvider interface {
+	QueryDiagnostics(ctx context.Context, query diagnostics.Query) diagnostics.QueryResult
+}
+
 type Options struct {
 	Cluster               Cluster
 	Presence              Presence
@@ -135,6 +141,7 @@ type Options struct {
 	ChannelLeaderEvaluate ChannelLeaderEvaluator
 	DeliveryAckIndex      *deliveryruntime.AckIndex
 	RuntimeSummary        RuntimeSummaryProvider
+	Diagnostics           DiagnosticsProvider
 	Codec                 codec.Protocol
 	Logger                wklog.Logger
 }
@@ -155,6 +162,7 @@ type Adapter struct {
 	channelLeaderEvaluate ChannelLeaderEvaluator
 	deliveryAckIndex      *deliveryruntime.AckIndex
 	runtimeSummary        RuntimeSummaryProvider
+	diagnostics           DiagnosticsProvider
 	codec                 codec.Protocol
 	logger                wklog.Logger
 }
@@ -182,6 +190,7 @@ func New(opts Options) *Adapter {
 		channelLeaderEvaluate: opts.ChannelLeaderEvaluate,
 		deliveryAckIndex:      opts.DeliveryAckIndex,
 		runtimeSummary:        opts.RuntimeSummary,
+		diagnostics:           opts.Diagnostics,
 		codec:                 opts.Codec,
 		logger:                opts.Logger,
 	}
@@ -199,6 +208,7 @@ func New(opts Options) *Adapter {
 		opts.Cluster.RPCMux().Handle(runtimeSummaryRPCServiceID, adapter.handleRuntimeSummaryRPC)
 		opts.Cluster.RPCMux().Handle(connectionsRPCServiceID, adapter.handleConnectionsRPC)
 		opts.Cluster.RPCMux().Handle(connectionRPCServiceID, adapter.handleConnectionRPC)
+		opts.Cluster.RPCMux().Handle(diagnosticsRPCServiceID, adapter.handleDiagnosticsRPC)
 	}
 	return adapter
 }
