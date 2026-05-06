@@ -230,14 +230,14 @@ func TestServiceStopDuringStartupPreventsLateStart(t *testing.T) {
 
 	entered := make(chan struct{})
 	release := make(chan struct{})
-	original := rawNodeBootstrap
-	rawNodeBootstrap = func(_ uint64, _ *raft.RawNode, _ []raft.Peer) error {
+	original := currentRawNodeBootstrap()
+	setRawNodeBootstrapForTest(func(_ uint64, _ *raft.RawNode, _ []raft.Peer) error {
 		close(entered)
 		<-release
 		return nil
-	}
+	})
 	t.Cleanup(func() {
-		rawNodeBootstrap = original
+		setRawNodeBootstrapForTest(original)
 		closeIfOpen(release)
 	})
 
@@ -274,18 +274,19 @@ func TestServiceStopDuringStartupPreventsLateStart(t *testing.T) {
 func TestServiceConcurrentStartWaitsForStartupFailure(t *testing.T) {
 	env := newTestEnv(t, []uint64{1})
 	t.Cleanup(env.stopAll)
+	waitCh := observeLifecycleWaits(t)
 
 	sentinel := errors.New("bootstrap failed")
 	entered := make(chan struct{})
 	release := make(chan struct{})
-	original := rawNodeBootstrap
-	rawNodeBootstrap = func(_ uint64, _ *raft.RawNode, _ []raft.Peer) error {
+	original := currentRawNodeBootstrap()
+	setRawNodeBootstrapForTest(func(_ uint64, _ *raft.RawNode, _ []raft.Peer) error {
 		close(entered)
 		<-release
 		return sentinel
-	}
+	})
 	t.Cleanup(func() {
-		rawNodeBootstrap = original
+		setRawNodeBootstrapForTest(original)
 		closeIfOpen(release)
 	})
 
@@ -304,12 +305,7 @@ func TestServiceConcurrentStartWaitsForStartupFailure(t *testing.T) {
 	go func() {
 		secondErr <- env.nodes[1].service.Start(context.Background())
 	}()
-
-	select {
-	case err := <-secondErr:
-		t.Fatalf("second Start returned before first startup completed: %v", err)
-	case <-time.After(100 * time.Millisecond):
-	}
+	requireLifecycleWait(t, waitCh, "start")
 
 	close(release)
 	require.ErrorIs(t, <-firstErr, sentinel)
@@ -318,6 +314,7 @@ func TestServiceConcurrentStartWaitsForStartupFailure(t *testing.T) {
 
 func TestServiceStartWaitsForStopToFinish(t *testing.T) {
 	service := NewService(Config{NodeID: 1})
+	waitCh := observeLifecycleWaits(t)
 	stopCh := make(chan struct{})
 	doneCh := make(chan struct{})
 	service.mu.Lock()
@@ -341,12 +338,7 @@ func TestServiceStartWaitsForStopToFinish(t *testing.T) {
 	go func() {
 		startDone <- service.Start(context.Background())
 	}()
-
-	select {
-	case err := <-startDone:
-		t.Fatalf("Start returned before Stop finished: %v", err)
-	case <-time.After(100 * time.Millisecond):
-	}
+	requireLifecycleWait(t, waitCh, "stop")
 
 	close(doneCh)
 	require.NoError(t, <-stopDone)
@@ -527,12 +519,12 @@ func TestServiceStartReturnsBootstrapFailureWithoutDeadlock(t *testing.T) {
 	defer env.stopAll()
 
 	sentinel := errors.New("bootstrap failed")
-	original := rawNodeBootstrap
-	rawNodeBootstrap = func(_ uint64, _ *raft.RawNode, _ []raft.Peer) error {
+	original := currentRawNodeBootstrap()
+	setRawNodeBootstrapForTest(func(_ uint64, _ *raft.RawNode, _ []raft.Peer) error {
 		return sentinel
-	}
+	})
 	t.Cleanup(func() {
-		rawNodeBootstrap = original
+		setRawNodeBootstrapForTest(original)
 	})
 
 	errCh := make(chan error, 1)
@@ -1841,6 +1833,33 @@ func closeIfOpen(ch chan struct{}) {
 	close(ch)
 }
 
+func observeLifecycleWaits(t *testing.T) <-chan string {
+	t.Helper()
+	waitCh := make(chan string, 8)
+	setLifecycleWaitHookForTest(func(reason string) {
+		waitCh <- reason
+	})
+	t.Cleanup(func() {
+		setLifecycleWaitHookForTest(nil)
+	})
+	return waitCh
+}
+
+func requireLifecycleWait(t *testing.T, waitCh <-chan string, want string) {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case got := <-waitCh:
+			if got == want {
+				return
+			}
+		case <-deadline:
+			t.Fatalf("timed out waiting for lifecycle wait %q", want)
+		}
+	}
+}
+
 func (e *testEnv) addrOf(nodeID uint64) string {
 	return e.addrs[nodeID]
 }
@@ -1849,13 +1868,13 @@ func (e *testEnv) captureBootstrapCalls(t *testing.T) *bootstrapCounts {
 	t.Helper()
 
 	counts := &bootstrapCounts{counts: make(map[uint64]int)}
-	original := rawNodeBootstrap
-	rawNodeBootstrap = func(nodeID uint64, rawNode *raft.RawNode, peers []raft.Peer) error {
+	original := currentRawNodeBootstrap()
+	setRawNodeBootstrapForTest(func(nodeID uint64, rawNode *raft.RawNode, peers []raft.Peer) error {
 		counts.record(nodeID)
 		return original(nodeID, rawNode, peers)
-	}
+	})
 	t.Cleanup(func() {
-		rawNodeBootstrap = original
+		setRawNodeBootstrapForTest(original)
 	})
 	return counts
 }

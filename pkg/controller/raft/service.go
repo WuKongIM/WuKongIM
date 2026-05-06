@@ -29,13 +29,18 @@ var (
 	ErrNotLeader           = errors.New("controllerraft: not leader")
 	ErrSnapshotUnsupported = errors.New("controllerraft: snapshot unsupported")
 
-	rawNodeBootstrap = func(_ uint64, rawNode *raft.RawNode, peers []raft.Peer) error {
+	rawNodeBootstrapMu sync.RWMutex
+	rawNodeBootstrap   = func(_ uint64, rawNode *raft.RawNode, peers []raft.Peer) error {
 		return rawNode.Bootstrap(peers)
 	}
 
 	// compactControllerLogHook is a narrow test hook for injecting local compaction failures; it must remain nil in production.
 	compactControllerLogHookMu sync.RWMutex
 	compactControllerLogHook   func() error
+
+	// lifecycleWaitHook is a narrow test hook for observing Start waits; it must remain nil in production.
+	lifecycleWaitHookMu sync.RWMutex
+	lifecycleWaitHook   func(reason string)
 )
 
 type Service struct {
@@ -243,6 +248,7 @@ func (s *Service) Start(ctx context.Context) error {
 				stopDone := s.stopDone
 				s.mu.Unlock()
 				if stopDone != nil {
+					notifyLifecycleWait("stop")
 					<-stopDone
 				}
 				continue
@@ -254,6 +260,7 @@ func (s *Service) Start(ctx context.Context) error {
 			stopDone := s.stopDone
 			s.mu.Unlock()
 			if stopDone != nil {
+				notifyLifecycleWait("stop")
 				<-stopDone
 			}
 			continue
@@ -270,6 +277,7 @@ func (s *Service) Start(ctx context.Context) error {
 		s.mu.Unlock()
 
 		if startDone != nil {
+			notifyLifecycleWait("start")
 			<-startDone
 		}
 		s.mu.Lock()
@@ -317,8 +325,9 @@ func (s *Service) Start(ctx context.Context) error {
 	stepCh := make(chan raftpb.Message, 1024)
 	proposeCh := make(chan proposalRequest)
 	initCh := make(chan error, 1)
+	startGate := make(chan struct{})
 
-	go s.run(storageView, runStartupState{State: state, Snapshot: snapshot}, stopCh, doneCh, stepCh, proposeCh, transport, initCh)
+	go s.run(storageView, runStartupState{State: state, Snapshot: snapshot}, stopCh, doneCh, stepCh, proposeCh, transport, initCh, startGate)
 	if err := <-initCh; err != nil {
 		s.finishStart(err)
 		<-doneCh
@@ -349,6 +358,7 @@ func (s *Service) Start(ctx context.Context) error {
 	s.cfg.Server.Handle(msgTypeControllerRaft, s.handleMessage)
 	s.started = true
 	s.finishStartLocked(nil)
+	close(startGate)
 	s.mu.Unlock()
 
 	return nil
@@ -721,7 +731,22 @@ func notifyRunInit(initCh chan<- error, err error) {
 	initCh <- err
 }
 
-func (s *Service) run(storageView *storageAdapter, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, stepCh <-chan raftpb.Message, proposeCh <-chan proposalRequest, transport *raftTransport, initCh chan<- error) {
+func notifyLifecycleWait(reason string) {
+	lifecycleWaitHookMu.RLock()
+	hook := lifecycleWaitHook
+	lifecycleWaitHookMu.RUnlock()
+	if hook != nil {
+		hook(reason)
+	}
+}
+
+func setLifecycleWaitHookForTest(h func(reason string)) {
+	lifecycleWaitHookMu.Lock()
+	defer lifecycleWaitHookMu.Unlock()
+	lifecycleWaitHook = h
+}
+
+func (s *Service) run(storageView *storageAdapter, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, stepCh <-chan raftpb.Message, proposeCh <-chan proposalRequest, transport *raftTransport, initCh chan<- error, startGate <-chan struct{}) {
 	defer close(doneCh)
 
 	rawNode, err := s.newRawNode(storageView, startup)
@@ -730,13 +755,18 @@ func (s *Service) run(storageView *storageAdapter, startup runStartupState, stop
 		return
 	}
 	if !hasPersistedState(startup.State) && s.cfg.AllowBootstrap && isSmallestPeer(s.cfg.NodeID, s.cfg.Peers) {
-		if err := rawNodeBootstrap(s.cfg.NodeID, rawNode, raftPeers(normalizePeers(s.cfg.Peers))); err != nil {
+		if err := currentRawNodeBootstrap()(s.cfg.NodeID, rawNode, raftPeers(normalizePeers(s.cfg.Peers))); err != nil {
 			notifyRunInit(initCh, err)
 			return
 		}
 	}
 	s.updateLeader(rawNode)
 	notifyRunInit(initCh, nil)
+	select {
+	case <-startGate:
+	case <-stopCh:
+		return
+	}
 
 	ticker := time.NewTicker(tickInterval)
 	defer ticker.Stop()
@@ -991,6 +1021,18 @@ func setCompactControllerLogHookForTest(h func() error) {
 	compactControllerLogHookMu.Lock()
 	defer compactControllerLogHookMu.Unlock()
 	compactControllerLogHook = h
+}
+
+func currentRawNodeBootstrap() func(uint64, *raft.RawNode, []raft.Peer) error {
+	rawNodeBootstrapMu.RLock()
+	defer rawNodeBootstrapMu.RUnlock()
+	return rawNodeBootstrap
+}
+
+func setRawNodeBootstrapForTest(h func(uint64, *raft.RawNode, []raft.Peer) error) {
+	rawNodeBootstrapMu.Lock()
+	defer rawNodeBootstrapMu.Unlock()
+	rawNodeBootstrap = h
 }
 
 func (s *Service) logCompactionWarning(err error, applied uint64) {
