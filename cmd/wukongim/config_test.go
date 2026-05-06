@@ -121,6 +121,12 @@ func TestLoadConfigUsesBuiltInDefaultsWhenOptionalConfKeysAreMissing(t *testing.
 	require.True(t, cfg.Observability.MetricsEnabled)
 	require.True(t, cfg.Observability.HealthDetailEnabled)
 	require.False(t, cfg.Observability.HealthDebugEnabled)
+	require.True(t, cfg.Observability.Diagnostics.Enabled)
+	require.Equal(t, 50000, cfg.Observability.Diagnostics.BufferSize)
+	require.Equal(t, 0.01, cfg.Observability.Diagnostics.SampleRate)
+	require.Equal(t, 500*time.Millisecond, cfg.Observability.Diagnostics.SlowThreshold)
+	require.Equal(t, 1.0, cfg.Observability.Diagnostics.ErrorSampleRate)
+	require.False(t, cfg.Observability.Diagnostics.DebugAPIEnabled)
 }
 
 func TestLoadConfigParsesObservabilityFlags(t *testing.T) {
@@ -141,6 +147,37 @@ func TestLoadConfigParsesObservabilityFlags(t *testing.T) {
 	require.False(t, cfg.Observability.MetricsEnabled)
 	require.False(t, cfg.Observability.HealthDetailEnabled)
 	require.True(t, cfg.Observability.HealthDebugEnabled)
+}
+
+func TestLoadConfigParsesDiagnosticsConfig(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_DIAGNOSTICS_ENABLE=false",
+		"WK_DIAGNOSTICS_BUFFER_SIZE=1234",
+		"WK_DIAGNOSTICS_SAMPLE_RATE=0.25",
+		"WK_DIAGNOSTICS_SLOW_THRESHOLD_MS=750",
+		"WK_DIAGNOSTICS_ERROR_SAMPLE_RATE=0.5",
+		"WK_DIAGNOSTICS_DEBUG_API_ENABLE=true",
+		`WK_DIAGNOSTICS_DEBUG_MATCHES=[{"client_msg_no":"c1","ttl_seconds":60,"sample_rate":1.0}]`,
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.False(t, cfg.Observability.Diagnostics.Enabled)
+	require.Equal(t, 1234, cfg.Observability.Diagnostics.BufferSize)
+	require.Equal(t, 0.25, cfg.Observability.Diagnostics.SampleRate)
+	require.Equal(t, 750*time.Millisecond, cfg.Observability.Diagnostics.SlowThreshold)
+	require.Equal(t, 0.5, cfg.Observability.Diagnostics.ErrorSampleRate)
+	require.True(t, cfg.Observability.Diagnostics.DebugAPIEnabled)
+	require.Len(t, cfg.Observability.Diagnostics.DebugMatches, 1)
+	require.Equal(t, "c1", cfg.Observability.Diagnostics.DebugMatches[0].ClientMsgNo)
+	require.Equal(t, 60, cfg.Observability.Diagnostics.DebugMatches[0].TTLSeconds)
+	require.Equal(t, 1.0, cfg.Observability.Diagnostics.DebugMatches[0].SampleRate)
 }
 
 func TestLoadConfigParsesConversationActiveHintTuning(t *testing.T) {

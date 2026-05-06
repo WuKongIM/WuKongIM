@@ -15,6 +15,8 @@ import (
 	applifecycle "github.com/WuKongIM/WuKongIM/internal/app/lifecycle"
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
+	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/messageid"
@@ -76,6 +78,21 @@ func build(cfg Config) (_ *App, err error) {
 	if cfg.Observability.MetricsEnabled {
 		app.metrics = obsmetrics.New(cfg.Node.ID, cfg.Node.Name)
 	}
+	if cfg.Observability.Diagnostics.Enabled {
+		app.diagnostics = obsdiagnostics.NewStore(diagnosticsStoreOptions(cfg))
+		sink := obsdiagnostics.NewSendTraceSink(app.diagnostics, obsdiagnostics.NewSampler(diagnosticsSamplerOptions(cfg)))
+		if app.metrics != nil {
+			sink = sink.WithMetrics(app.metrics.Diagnostics)
+		}
+		app.diagnosticsRestore = sendtrace.SetSink(sink)
+		cleanup.Push("diagnostics sendtrace sink", func() error {
+			if app.diagnosticsRestore != nil {
+				app.diagnosticsRestore()
+				app.diagnosticsRestore = nil
+			}
+			return nil
+		})
+	}
 
 	app.db, err = metadb.Open(cfg.Storage.DBPath)
 	if err != nil {
@@ -87,6 +104,16 @@ func build(cfg Config) (_ *App, err error) {
 		}
 		return app.db.Close()
 	})
+	if app.diagnosticsRestore != nil {
+		app.closeWKDBFn = func() error {
+			app.diagnosticsRestore()
+			app.diagnosticsRestore = nil
+			if app.db == nil {
+				return nil
+			}
+			return app.db.Close()
+		}
+	}
 
 	app.raftDB, err = raftstorage.Open(cfg.Storage.RaftPath)
 	if err != nil {

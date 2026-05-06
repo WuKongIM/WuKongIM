@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
@@ -41,6 +43,74 @@ func TestBuildWiresObservabilityIntoAPIAndChannelCluster(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), "wukongim_channel_active_channels")
+}
+
+func TestBuildWiresDiagnosticsStoreAndSink(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.API.ListenAddr = "127.0.0.1:0"
+	cfg.Observability.Diagnostics.Enabled = true
+	cfg.Observability.Diagnostics.SampleRate = 1
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	require.NotNil(t, app.diagnostics)
+
+	sendtrace.Record(sendtrace.Event{
+		TraceID: "trace-1",
+		Stage:   sendtrace.StageMessageSendDurable,
+		Result:  sendtrace.ResultOK,
+	})
+
+	result := app.diagnostics.Query(context.Background(), diagnostics.Query{TraceID: "trace-1"})
+	require.Equal(t, diagnostics.StatusOK, result.Status)
+	require.Len(t, result.Events, 1)
+	require.Equal(t, "trace-1", result.Events[0].TraceID)
+}
+
+func TestStopRestoresDiagnosticsSendTraceSink(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Observability.Diagnostics.Enabled = true
+	cfg.Observability.Diagnostics.SampleRate = 1
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, app.diagnostics)
+
+	require.NoError(t, app.Stop())
+
+	sendtrace.Record(sendtrace.Event{
+		TraceID: "trace-after-stop",
+		Stage:   sendtrace.StageMessageSendDurable,
+		Result:  sendtrace.ResultOK,
+	})
+
+	result := app.diagnostics.Query(context.Background(), diagnostics.Query{TraceID: "trace-after-stop"})
+	require.Equal(t, diagnostics.StatusNotFound, result.Status)
+}
+
+func TestBuildDoesNotExposeDiagnosticsDebugWhenStoreDisabled(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.API.ListenAddr = "127.0.0.1:0"
+	cfg.Observability.Diagnostics.Enabled = false
+	cfg.Observability.Diagnostics.DebugAPIEnabled = true
+	cfg.Observability.SetDiagnosticsExplicitFlags(true, false, false, true)
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	require.Nil(t, app.diagnostics)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/debug/diagnostics/events", nil)
+	app.API().Engine().ServeHTTP(rec, req)
+	require.Equal(t, http.StatusNotFound, rec.Code)
 }
 
 func TestClusterMetricsObserverHooksRecordSlotAndTransportMetrics(t *testing.T) {

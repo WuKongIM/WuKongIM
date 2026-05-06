@@ -77,6 +77,8 @@ type ObservabilityConfig struct {
 	HealthDetailEnabled bool
 	// HealthDebugEnabled includes debug-oriented health diagnostics.
 	HealthDebugEnabled bool
+	// Diagnostics configures the bounded local diagnostics event store and sampling policy.
+	Diagnostics DiagnosticsConfig
 
 	metricsEnabledSet      bool
 	healthDetailEnabledSet bool
@@ -91,6 +93,56 @@ func (c *ObservabilityConfig) SetExplicitFlags(metricsSet, detailSet, debugSet b
 	c.metricsEnabledSet = metricsSet
 	c.healthDetailEnabledSet = detailSet
 	c.healthDebugEnabledSet = debugSet
+}
+
+// SetDiagnosticsExplicitFlags records which diagnostics values were explicitly configured.
+func (c *ObservabilityConfig) SetDiagnosticsExplicitFlags(enabledSet, sampleRateSet, errorSampleRateSet, debugAPIEnabledSet bool) {
+	if c == nil {
+		return
+	}
+	c.Diagnostics.enabledSet = enabledSet
+	c.Diagnostics.sampleRateSet = sampleRateSet
+	c.Diagnostics.errorSampleRateSet = errorSampleRateSet
+	c.Diagnostics.debugAPIEnabledSet = debugAPIEnabledSet
+}
+
+// DiagnosticsConfig controls local diagnostics event retention and debug query exposure.
+type DiagnosticsConfig struct {
+	// Enabled turns local diagnostics event capture on or off.
+	Enabled bool
+	// BufferSize is the maximum number of diagnostics events retained in memory.
+	BufferSize int
+	// SampleRate is the baseline keep probability for successful diagnostics events.
+	SampleRate float64
+	// SlowThreshold keeps successful events whose duration is at least this threshold.
+	SlowThreshold time.Duration
+	// ErrorSampleRate is the keep probability for diagnostics events with non-ok results.
+	ErrorSampleRate float64
+	// DebugAPIEnabled enables debug HTTP endpoints backed by the local diagnostics store.
+	DebugAPIEnabled bool
+	// DebugMatches configures temporary high-priority sampling rules.
+	DebugMatches []DiagnosticsDebugMatchConfig
+
+	enabledSet         bool
+	sampleRateSet      bool
+	errorSampleRateSet bool
+	debugAPIEnabledSet bool
+}
+
+// DiagnosticsDebugMatchConfig defines one temporary diagnostics sampling override rule.
+type DiagnosticsDebugMatchConfig struct {
+	// UID matches the sender UID when it is set.
+	UID string `json:"uid,omitempty"`
+	// ChannelKey matches the diagnostics-safe channel identifier when it is set.
+	ChannelKey string `json:"channel_key,omitempty"`
+	// ClientMsgNo matches the client message number when it is set.
+	ClientMsgNo string `json:"client_msg_no,omitempty"`
+	// TraceID matches the trace identifier when it is set.
+	TraceID string `json:"trace_id,omitempty"`
+	// TTLSeconds controls how long the temporary debug sampling rule stays active.
+	TTLSeconds int `json:"ttl_seconds,omitempty"`
+	// SampleRate is the keep probability applied when the rule matches.
+	SampleRate float64 `json:"sample_rate,omitempty"`
 }
 
 // LogConfig defines zap and lumberjack logging settings.
@@ -703,6 +755,38 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	}
 	if !c.Observability.healthDebugEnabledSet {
 		c.Observability.HealthDebugEnabled = false
+	}
+	if !c.Observability.Diagnostics.enabledSet {
+		c.Observability.Diagnostics.Enabled = true
+	}
+	if c.Observability.Diagnostics.BufferSize <= 0 {
+		c.Observability.Diagnostics.BufferSize = 50000
+	}
+	if c.Observability.Diagnostics.SampleRate < 0 || c.Observability.Diagnostics.SampleRate > 1 {
+		return fmt.Errorf("%w: diagnostics sample rate must be between 0 and 1", ErrInvalidConfig)
+	}
+	if c.Observability.Diagnostics.SampleRate == 0 && !c.Observability.Diagnostics.sampleRateSet {
+		c.Observability.Diagnostics.SampleRate = 0.01
+	}
+	if c.Observability.Diagnostics.SlowThreshold <= 0 {
+		c.Observability.Diagnostics.SlowThreshold = 500 * time.Millisecond
+	}
+	if c.Observability.Diagnostics.ErrorSampleRate < 0 || c.Observability.Diagnostics.ErrorSampleRate > 1 {
+		return fmt.Errorf("%w: diagnostics error sample rate must be between 0 and 1", ErrInvalidConfig)
+	}
+	if c.Observability.Diagnostics.ErrorSampleRate == 0 && !c.Observability.Diagnostics.errorSampleRateSet {
+		c.Observability.Diagnostics.ErrorSampleRate = 1.0
+	}
+	if !c.Observability.Diagnostics.debugAPIEnabledSet {
+		c.Observability.Diagnostics.DebugAPIEnabled = false
+	}
+	for _, match := range c.Observability.Diagnostics.DebugMatches {
+		if match.SampleRate < 0 || match.SampleRate > 1 {
+			return fmt.Errorf("%w: diagnostics debug match sample rate must be between 0 and 1", ErrInvalidConfig)
+		}
+		if match.TTLSeconds < 0 {
+			return fmt.Errorf("%w: diagnostics debug match ttl seconds must be >= 0", ErrInvalidConfig)
+		}
 	}
 	if c.Conversation.SyncDefaultLimit <= 0 {
 		c.Conversation.SyncDefaultLimit = 200
