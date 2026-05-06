@@ -8,6 +8,9 @@ import {
   getConnections,
   getControllerLogs,
   getControllerRaftStatus,
+  getDiagnosticsEvents,
+  getDiagnosticsMessage,
+  getDiagnosticsTrace,
   getMessages,
   getNetworkSummary,
   createNodeOnboardingPlan,
@@ -44,6 +47,23 @@ import {
 
 describe("manager api client", () => {
   const fetchMock = vi.fn()
+
+  function emptyDiagnosticsResponse() {
+    return {
+      scope: "cluster",
+      status: "not_found",
+      generated_at: "2026-05-06T00:00:00Z",
+      query: {},
+      summary: {
+        involved_nodes: [],
+        peer_nodes: [],
+        event_count: 0,
+      },
+      nodes: [],
+      events: [],
+      notes: [],
+    }
+  }
 
   beforeEach(() => {
     fetchMock.mockReset()
@@ -628,6 +648,39 @@ describe("manager api client", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/manager/messages?channel_id=room-1&channel_type=2&limit=20&cursor=cursor-1&client_msg_no=dup-1",
       expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
+  it("builds diagnostics trace query URLs", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(emptyDiagnosticsResponse()), { status: 200 }))
+
+    await getDiagnosticsTrace("tr 1", { nodeId: 2, limit: 50 })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/diagnostics/trace/tr%201?node_id=2&limit=50",
+      expect.any(Object),
+    )
+  })
+
+  it("builds diagnostics message query URLs", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(emptyDiagnosticsResponse()), { status: 200 }))
+
+    await getDiagnosticsMessage({ clientMsgNo: "c-1", limit: 25 })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/diagnostics/message?client_msg_no=c-1&limit=25",
+      expect.any(Object),
+    )
+  })
+
+  it("builds diagnostics events query URLs", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(emptyDiagnosticsResponse()), { status: 200 }))
+
+    await getDiagnosticsEvents({ stage: "channel_append", result: "error", nodeId: 3 })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/diagnostics/events?node_id=3&stage=channel_append&result=error",
+      expect.any(Object),
     )
   })
 

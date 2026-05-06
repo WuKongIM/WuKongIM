@@ -876,3 +876,68 @@ export type MessageListParams = {
   messageId?: number
   clientMsgNo?: string
 }
+
+export type ManagerDiagnosticsStatus = "ok" | "error" | "timeout" | "partial" | "not_found"
+
+export type ManagerDiagnosticsEvent = {
+  trace_id?: string
+  span_id?: string
+  parent_span_id?: string
+  stage: string
+  at: string
+  duration_ms?: number
+  node_id?: number
+  peer_node_id?: number
+  slot_id?: number
+  channel_key?: string
+  client_msg_no?: string
+  message_seq?: number
+  range_start?: number
+  range_end?: number
+  service?: string
+  result: string
+  error_code?: string
+  error?: string
+  attempt?: number
+  queue_depth?: number
+  replica_role?: string
+  sample_reason?: string
+}
+
+export type ManagerDiagnosticsSummary = {
+  first_failure_stage?: string
+  first_failure_result?: string
+  first_failure_error_code?: string
+  slowest_stage?: string
+  slowest_duration_ms?: number
+  involved_nodes: number[]
+  peer_nodes: number[]
+  slot_id?: number
+  channel_key?: string
+  client_msg_no?: string
+  message_seq?: number
+  event_count: number
+}
+
+export type ManagerDiagnosticsNodeResult = {
+  node_id: number
+  status: "ok" | "not_found" | "unavailable" | "skipped"
+  duration_ms: number
+  event_count: number
+  notes: string[]
+}
+
+export type ManagerDiagnosticsResponse = {
+  scope: "cluster" | "local_node"
+  status: ManagerDiagnosticsStatus
+  generated_at: string
+  query: Record<string, unknown>
+  summary: ManagerDiagnosticsSummary
+  nodes: ManagerDiagnosticsNodeResult[]
+  events: ManagerDiagnosticsEvent[]
+  notes: string[]
+}
+
+export type DiagnosticsCommonParams = { nodeId?: number; limit?: number }
+export type DiagnosticsMessageParams = DiagnosticsCommonParams & { clientMsgNo?: string; channelKey?: string; messageSeq?: number }
+export type DiagnosticsEventsParams = DiagnosticsCommonParams & { stage?: string; result?: string }
