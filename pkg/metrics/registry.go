@@ -13,14 +13,15 @@ import (
 type Registry struct {
 	registry *prometheus.Registry
 
-	Gateway    *GatewayMetrics
-	Channel    *ChannelMetrics
-	Slot       *SlotMetrics
-	Controller *ControllerMetrics
-	Transport  *TransportMetrics
-	Storage    *StorageMetrics
-	Message    *MessageMetrics
-	Delivery   *DeliveryMetrics
+	Gateway     *GatewayMetrics
+	Channel     *ChannelMetrics
+	Slot        *SlotMetrics
+	Controller  *ControllerMetrics
+	Transport   *TransportMetrics
+	Storage     *StorageMetrics
+	Message     *MessageMetrics
+	Delivery    *DeliveryMetrics
+	Diagnostics *DiagnosticsMetrics
 }
 
 func New(nodeID uint64, nodeName string) *Registry {
@@ -34,15 +35,16 @@ func New(nodeID uint64, nodeName string) *Registry {
 	}
 
 	return &Registry{
-		registry:   registry,
-		Gateway:    newGatewayMetrics(registry, labels),
-		Channel:    newChannelMetrics(registry, labels),
-		Slot:       newSlotMetrics(registry, labels),
-		Controller: newControllerMetrics(registry, labels),
-		Transport:  newTransportMetrics(registry, labels),
-		Storage:    newStorageMetrics(registry, labels),
-		Message:    newMessageMetrics(registry, labels),
-		Delivery:   newDeliveryMetrics(registry, labels),
+		registry:    registry,
+		Gateway:     newGatewayMetrics(registry, labels),
+		Channel:     newChannelMetrics(registry, labels),
+		Slot:        newSlotMetrics(registry, labels),
+		Controller:  newControllerMetrics(registry, labels),
+		Transport:   newTransportMetrics(registry, labels),
+		Storage:     newStorageMetrics(registry, labels),
+		Message:     newMessageMetrics(registry, labels),
+		Delivery:    newDeliveryMetrics(registry, labels),
+		Diagnostics: newDiagnosticsMetrics(registry, labels),
 	}
 }
 

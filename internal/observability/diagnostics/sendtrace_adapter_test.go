@@ -61,3 +61,51 @@ func BenchmarkSendTraceAdapterUnsampled(b *testing.B) {
 		adapter.RecordSendTrace(event)
 	}
 }
+
+type fakeMetrics struct {
+	recorded []recordedMetric
+	dropped  []string
+	usage    []float64
+}
+
+type recordedMetric struct {
+	stage  string
+	result string
+}
+
+func (m *fakeMetrics) RecordEvent(stage, result string) {
+	m.recorded = append(m.recorded, recordedMetric{stage: stage, result: result})
+}
+
+func (m *fakeMetrics) RecordDropped(reason string) {
+	m.dropped = append(m.dropped, reason)
+}
+
+func (m *fakeMetrics) SetBufferUsageRatio(v float64) {
+	m.usage = append(m.usage, v)
+}
+
+func TestSendTraceAdapterMetricsRecordsSampledOutDrop(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 8})
+	metrics := &fakeMetrics{}
+	adapter := NewSendTraceSink(store, NewSampler(SamplerOptions{SampleRate: 0, SlowThreshold: time.Hour})).WithMetrics(metrics)
+
+	adapter.RecordSendTrace(sendtrace.Event{TraceID: "trace-dropped", Stage: sendtrace.StageMessageSendDurable, Result: sendtrace.ResultOK})
+
+	require.Equal(t, []string{"sampled_out"}, metrics.dropped)
+	require.Empty(t, metrics.recorded)
+	require.Empty(t, metrics.usage)
+}
+
+func TestSendTraceAdapterMetricsRecordsEventAndBufferUsage(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 8})
+	metrics := &fakeMetrics{}
+	adapter := NewSendTraceSink(store, NewSampler(SamplerOptions{SampleRate: 1})).WithMetrics(metrics)
+
+	adapter.RecordSendTrace(sendtrace.Event{TraceID: "trace-recorded", Stage: sendtrace.StageMessageSendDurable, Result: sendtrace.ResultOK})
+
+	require.Equal(t, []recordedMetric{{stage: string(Stage(sendtrace.StageMessageSendDurable)), result: string(ResultOK)}}, metrics.recorded)
+	require.Empty(t, metrics.dropped)
+	require.NotEmpty(t, metrics.usage)
+	require.Greater(t, metrics.usage[len(metrics.usage)-1], float64(0))
+}

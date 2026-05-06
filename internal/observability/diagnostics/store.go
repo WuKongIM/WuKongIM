@@ -96,6 +96,19 @@ func (s *Store) Record(event Event) {
 	s.mu.Unlock()
 }
 
+// UsageRatio returns the retained-event share of the ring buffer capacity.
+func (s *Store) UsageRatio() float64 {
+	if s == nil {
+		return 0
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.events) == 0 {
+		return 0
+	}
+	return float64(len(s.byID)) / float64(len(s.events))
+}
+
 // Query returns a redacted, sorted snapshot of retained events matching q.
 func (s *Store) Query(ctx context.Context, q Query) QueryResult {
 	if s == nil {
