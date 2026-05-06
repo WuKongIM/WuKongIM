@@ -2,7 +2,7 @@
 
 ## 1. Responsibilities
 
-`pkg/channel/replica` implements the per-channel ISR replica state machine used by the channel package. It is used for both multi-node clusters and a single-node cluster; there is no separate standalone write path.
+`pkg/channel/replica` implements the per-channel ISR replica state machine used by the channel package. It is used for both multi-node clusters and a single-node cluster; there is no separate non-cluster write path.
 
 The package owns:
 
@@ -147,13 +147,15 @@ Recovery loads checkpoint, epoch history, snapshot presence, local retention sta
 
 ### 6.3 Leader Append
 
-`Append()` clones records, records commit mode from context, and submits `machineAppendRequestCommand`.
+`Append()` clones records, records commit mode from context, keeps diagnostics-only trace metadata on the append request, and submits `machineAppendRequestCommand`.
 
 Loop admission requires leader role, non-expired lease, `CommitReady=true`, and `len(ISR) >= MinISR`. Empty batches complete immediately. Non-empty batches enter `appendPending` and are flushed by size/count or the group-commit timer.
 
 A flush emits one `appendLeaderBatchEffect`. The append worker serializes durable mutation with `durableMu`, calls `AppendLeaderBatch`, syncs the log, verifies the returned LEO range, and sends `machineLeaderAppendCommittedEvent` back to the loop.
 
 On a matching result the loop verifies all fences, publishes the new LEO and local progress, and wakes the runtime via `onLeaderLocalAppend`. `CommitModeLocal` callers complete after durable append. Quorum callers become waiters and complete only after HW reaches their target. Context cancellation removes queued or waiting requests and completes the waiter once; in-flight durable appends are fenced when their result returns.
+
+Leader append sendtrace events are emitted for queue wait, local durable, and quorum wait stages. Each event carries stable result/error metadata and the relevant range so diagnostics queries can distinguish normal success, cancellation, timeout, and durable/commit errors without inspecting payload bytes.
 
 ### 6.4 Leader Fetch And Cursor Progress
 
@@ -194,6 +196,8 @@ Checkpoint writes are coalesced. A newer pending checkpoint replaces an older qu
 Record batches may create a new epoch point, append records, and optionally persist a checkpoint up to `min(LeaderHW, newLEO)`. Heartbeats may only move LEO/HW safely and can store a checkpoint without records. Durable work runs under `durableMu` through `ApplyFollowerBatch`, `TruncateLogAndHistory`, or `StoreCheckpointMonotonic`.
 
 The fenced result publishes LEO, HW, CheckpointHW, OffsetEpoch, and CommitReady. If a durable truncate committed before the result became stale, the loop still reflects that truncation so runtime LEO does not remain above local durable log.
+
+Follower apply sendtrace records include result/error metadata for durable apply/truncate/checkpoint work, including bounded error summaries and stable error codes for diagnostics.
 
 ### 6.7 Leader Reconcile
 
