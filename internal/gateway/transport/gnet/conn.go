@@ -360,25 +360,26 @@ func (c *stateConn) ID() uint64 {
 }
 
 func (c *stateConn) Write(data []byte) error {
-	payload := append([]byte(nil), data...)
 	if c.state.runtime != nil && c.state.runtime.opts.Network == "websocket" {
 		opcode := c.state.wsWriteOp
 		if opcode != wsOpcodeText && opcode != wsOpcodeBinary {
 			opcode = byte(wsOpcodeBinary)
-			if utf8.Valid(payload) {
+			if utf8.Valid(data) {
 				opcode = wsOpcodeText
 			}
 		}
 		framed, err := encodeWSFrame(wsFrame{
 			final:   true,
 			opcode:  opcode,
-			payload: payload,
+			payload: data,
 		})
 		if err != nil {
 			return err
 		}
-		payload = framed
+		return c.state.raw.AsyncWrite(framed, nil)
 	}
+
+	payload := append([]byte(nil), data...)
 	return c.state.raw.AsyncWrite(payload, nil)
 }
 

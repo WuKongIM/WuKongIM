@@ -51,8 +51,9 @@ func TestHandleWSTrafficCopiesInboundBufferOnlyOnce(t *testing.T) {
 }
 
 type allocTestGnetConn struct {
-	next []byte
-	ctx  any
+	next           []byte
+	ctx            any
+	lastAsyncWrite []byte
 }
 
 func (c *allocTestGnetConn) Read(p []byte) (int, error)         { return 0, io.EOF }
@@ -67,16 +68,19 @@ func (c *allocTestGnetConn) Next(n int) ([]byte, error) {
 	c.next = c.next[n:]
 	return buf, nil
 }
-func (c *allocTestGnetConn) Peek(n int) ([]byte, error)                                   { return c.next, nil }
-func (c *allocTestGnetConn) Discard(n int) (int, error)                                   { return n, nil }
-func (c *allocTestGnetConn) InboundBuffered() int                                         { return len(c.next) }
-func (c *allocTestGnetConn) Write(p []byte) (int, error)                                  { return len(p), nil }
-func (c *allocTestGnetConn) ReadFrom(r io.Reader) (int64, error)                          { return 0, nil }
-func (c *allocTestGnetConn) SendTo(buf []byte, addr net.Addr) (int, error)                { return len(buf), nil }
-func (c *allocTestGnetConn) Writev(bs [][]byte) (int, error)                              { return 0, nil }
-func (c *allocTestGnetConn) Flush() error                                                 { return nil }
-func (c *allocTestGnetConn) OutboundBuffered() int                                        { return 0 }
-func (c *allocTestGnetConn) AsyncWrite(buf []byte, callback gnetv2.AsyncCallback) error   { return nil }
+func (c *allocTestGnetConn) Peek(n int) ([]byte, error)                    { return c.next, nil }
+func (c *allocTestGnetConn) Discard(n int) (int, error)                    { return n, nil }
+func (c *allocTestGnetConn) InboundBuffered() int                          { return len(c.next) }
+func (c *allocTestGnetConn) Write(p []byte) (int, error)                   { return len(p), nil }
+func (c *allocTestGnetConn) ReadFrom(r io.Reader) (int64, error)           { return 0, nil }
+func (c *allocTestGnetConn) SendTo(buf []byte, addr net.Addr) (int, error) { return len(buf), nil }
+func (c *allocTestGnetConn) Writev(bs [][]byte) (int, error)               { return 0, nil }
+func (c *allocTestGnetConn) Flush() error                                  { return nil }
+func (c *allocTestGnetConn) OutboundBuffered() int                         { return 0 }
+func (c *allocTestGnetConn) AsyncWrite(buf []byte, callback gnetv2.AsyncCallback) error {
+	c.lastAsyncWrite = buf
+	return nil
+}
 func (c *allocTestGnetConn) AsyncWritev(bs [][]byte, callback gnetv2.AsyncCallback) error { return nil }
 func (c *allocTestGnetConn) Fd() int                                                      { return 0 }
 func (c *allocTestGnetConn) Dup() (int, error)                                            { return 0, nil }
