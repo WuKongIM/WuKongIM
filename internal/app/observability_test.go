@@ -92,6 +92,25 @@ func TestStopRestoresDiagnosticsSendTraceSink(t *testing.T) {
 	require.Equal(t, diagnostics.StatusNotFound, result.Status)
 }
 
+func TestStopRestoresDiagnosticsSinkBeforeClosingResources(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Observability.Diagnostics.Enabled = true
+	cfg.Observability.Diagnostics.SampleRate = 1
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, app.diagnostics)
+
+	app.closeChannelLogDBFn = func() error {
+		sendtrace.Record(sendtrace.Event{TraceID: "trace-during-stop", Stage: sendtrace.StageMessageSendDurable, Result: sendtrace.ResultOK})
+		return nil
+	}
+
+	require.NoError(t, app.Stop())
+	result := app.diagnostics.Query(context.Background(), diagnostics.Query{TraceID: "trace-during-stop"})
+	require.Equal(t, diagnostics.StatusNotFound, result.Status)
+}
+
 func TestBuildDoesNotExposeDiagnosticsDebugWhenStoreDisabled(t *testing.T) {
 	cfg := testConfig(t)
 	cfg.API.ListenAddr = "127.0.0.1:0"

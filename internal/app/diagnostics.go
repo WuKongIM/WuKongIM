@@ -61,3 +61,11 @@ func diagnosticsSamplerOptions(cfg Config) diagnostics.SamplerOptions {
 		DebugMatches:       debugMatches,
 	}
 }
+
+func (a *App) restoreDiagnosticsSink() {
+	if a == nil || a.diagnosticsRestore == nil {
+		return
+	}
+	a.diagnosticsRestore()
+	a.diagnosticsRestore = nil
+}

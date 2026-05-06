@@ -86,10 +86,7 @@ func build(cfg Config) (_ *App, err error) {
 		}
 		app.diagnosticsRestore = sendtrace.SetSink(sink)
 		cleanup.Push("diagnostics sendtrace sink", func() error {
-			if app.diagnosticsRestore != nil {
-				app.diagnosticsRestore()
-				app.diagnosticsRestore = nil
-			}
+			app.restoreDiagnosticsSink()
 			return nil
 		})
 	}
@@ -104,17 +101,6 @@ func build(cfg Config) (_ *App, err error) {
 		}
 		return app.db.Close()
 	})
-	if app.diagnosticsRestore != nil {
-		app.closeWKDBFn = func() error {
-			app.diagnosticsRestore()
-			app.diagnosticsRestore = nil
-			if app.db == nil {
-				return nil
-			}
-			return app.db.Close()
-		}
-	}
-
 	app.raftDB, err = raftstorage.Open(cfg.Storage.RaftPath)
 	if err != nil {
 		return nil, fmt.Errorf("app: open raftstorage: %w", err)
