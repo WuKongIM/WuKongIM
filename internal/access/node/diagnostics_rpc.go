@@ -40,6 +40,7 @@ func (a *Adapter) handleDiagnosticsRPC(ctx context.Context, body []byte) ([]byte
 	})
 }
 
+// QueryDiagnostics queries retained diagnostics events from a remote cluster node.
 func (c *Client) QueryDiagnostics(ctx context.Context, nodeID uint64, query diagnostics.Query) (diagnostics.QueryResult, error) {
 	if c == nil || c.cluster == nil {
 		return diagnostics.QueryResult{}, fmt.Errorf("access/node: cluster not configured")

@@ -7,6 +7,13 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 )
 
+const (
+	maxDiagnosticsEvents      = 500
+	maxDiagnosticsNotes       = 64
+	maxDiagnosticsStringBytes = 4096
+	maxDiagnosticsBodyBytes   = 4 << 20
+)
+
 var (
 	diagnosticsRequestMagic  = [...]byte{'W', 'K', 'D', 'Q', 1}
 	diagnosticsResponseMagic = [...]byte{'W', 'K', 'D', 'R', 1}
@@ -21,6 +28,9 @@ func encodeDiagnosticsRequestBinary(req diagnosticsRequest) ([]byte, error) {
 }
 
 func decodeDiagnosticsRequest(body []byte) (diagnosticsRequest, error) {
+	if len(body) > maxDiagnosticsBodyBytes {
+		return diagnosticsRequest{}, fmt.Errorf("access/node: diagnostics request body too large")
+	}
 	if !isDiagnosticsRequestBinary(body) {
 		return diagnosticsRequest{}, fmt.Errorf("access/node: invalid diagnostics request codec")
 	}
@@ -44,13 +54,16 @@ func encodeDiagnosticsResponse(resp diagnosticsResponse) ([]byte, error) {
 }
 
 func decodeDiagnosticsResponse(body []byte) (diagnosticsResponse, error) {
+	if len(body) > maxDiagnosticsBodyBytes {
+		return diagnosticsResponse{}, fmt.Errorf("access/node: diagnostics response body too large")
+	}
 	if !isDiagnosticsResponseBinary(body) {
 		return diagnosticsResponse{}, fmt.Errorf("access/node: invalid diagnostics response codec")
 	}
 	offset := len(diagnosticsResponseMagic)
 	var resp diagnosticsResponse
 	var err error
-	if resp.Status, offset, err = readString(body, offset); err != nil {
+	if resp.Status, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnosticsResponse{}, err
 	}
 	if resp.Result, offset, err = readDiagnosticsQueryResult(body, offset); err != nil {
@@ -86,22 +99,22 @@ func readDiagnosticsQuery(body []byte, offset int) (diagnostics.Query, int, erro
 	var stage string
 	var result string
 	var err error
-	if query.TraceID, offset, err = readString(body, offset); err != nil {
+	if query.TraceID, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Query{}, offset, err
 	}
-	if query.ClientMsgNo, offset, err = readString(body, offset); err != nil {
+	if query.ClientMsgNo, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Query{}, offset, err
 	}
-	if query.ChannelKey, offset, err = readString(body, offset); err != nil {
+	if query.ChannelKey, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Query{}, offset, err
 	}
 	if query.MessageSeq, offset, err = readUvarint(body, offset); err != nil {
 		return diagnostics.Query{}, offset, err
 	}
-	if stage, offset, err = readString(body, offset); err != nil {
+	if stage, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Query{}, offset, err
 	}
-	if result, offset, err = readString(body, offset); err != nil {
+	if result, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Query{}, offset, err
 	}
 	if query.Limit, offset, err = readNodeInt(body, offset, "diagnostics query limit"); err != nil {
@@ -133,19 +146,19 @@ func readDiagnosticsQueryResult(body []byte, offset int) (diagnostics.QueryResul
 	var result diagnostics.QueryResult
 	var status string
 	var err error
-	if result.Scope, offset, err = readString(body, offset); err != nil {
+	if result.Scope, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.QueryResult{}, offset, err
 	}
 	if result.NodeID, offset, err = readUvarint(body, offset); err != nil {
 		return diagnostics.QueryResult{}, offset, err
 	}
-	if result.TraceID, offset, err = readString(body, offset); err != nil {
+	if result.TraceID, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.QueryResult{}, offset, err
 	}
-	if result.ClientMsgNo, offset, err = readString(body, offset); err != nil {
+	if result.ClientMsgNo, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.QueryResult{}, offset, err
 	}
-	if result.ChannelKey, offset, err = readString(body, offset); err != nil {
+	if result.ChannelKey, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.QueryResult{}, offset, err
 	}
 	if result.MessageSeq, offset, err = readUvarint(body, offset); err != nil {
@@ -154,7 +167,7 @@ func readDiagnosticsQueryResult(body []byte, offset int) (diagnostics.QueryResul
 	if result.Query, offset, err = readDiagnosticsQuery(body, offset); err != nil {
 		return diagnostics.QueryResult{}, offset, err
 	}
-	if status, offset, err = readString(body, offset); err != nil {
+	if status, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.QueryResult{}, offset, err
 	}
 	if result.StartedAt, offset, err = readDiagnosticsTime(body, offset); err != nil {
@@ -187,16 +200,16 @@ func appendDiagnosticsSummary(dst []byte, summary diagnostics.QuerySummary) []by
 func readDiagnosticsSummary(body []byte, offset int) (diagnostics.QuerySummary, int, error) {
 	var summary diagnostics.QuerySummary
 	var err error
-	if summary.SlowestStage, offset, err = readString(body, offset); err != nil {
+	if summary.SlowestStage, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.QuerySummary{}, offset, err
 	}
 	if summary.SlowestDurationMS, offset, err = readNodeVarint(body, offset); err != nil {
 		return diagnostics.QuerySummary{}, offset, err
 	}
-	if summary.ErrorStage, offset, err = readString(body, offset); err != nil {
+	if summary.ErrorStage, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.QuerySummary{}, offset, err
 	}
-	if summary.ErrorCode, offset, err = readString(body, offset); err != nil {
+	if summary.ErrorCode, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.QuerySummary{}, offset, err
 	}
 	return summary, offset, nil
@@ -222,6 +235,9 @@ func readDiagnosticsEvents(body []byte, offset int) ([]diagnostics.Event, int, e
 	count, next, err := readUvarint(body, next)
 	if err != nil {
 		return nil, offset, err
+	}
+	if count > maxDiagnosticsEvents {
+		return nil, offset, fmt.Errorf("access/node: diagnostics events exceeds limit")
 	}
 	offset = next
 	eventsLen, err := readCollectionLen(count, len(body)-offset, "diagnostics events")
@@ -270,16 +286,16 @@ func readDiagnosticsEvent(body []byte, offset int) (diagnostics.Event, int, erro
 	var errorCode string
 	var slotID uint64
 	var err error
-	if event.TraceID, offset, err = readString(body, offset); err != nil {
+	if event.TraceID, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
-	if event.SpanID, offset, err = readString(body, offset); err != nil {
+	if event.SpanID, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
-	if event.ParentSpanID, offset, err = readString(body, offset); err != nil {
+	if event.ParentSpanID, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
-	if stage, offset, err = readString(body, offset); err != nil {
+	if stage, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
 	if event.At, offset, err = readDiagnosticsTime(body, offset); err != nil {
@@ -301,10 +317,10 @@ func readDiagnosticsEvent(body []byte, offset int) (diagnostics.Event, int, erro
 	if slotID > uint64(^uint32(0)) {
 		return diagnostics.Event{}, offset, fmt.Errorf("access/node: diagnostics slot id overflows uint32")
 	}
-	if event.ChannelKey, offset, err = readString(body, offset); err != nil {
+	if event.ChannelKey, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
-	if event.ClientMsgNo, offset, err = readString(body, offset); err != nil {
+	if event.ClientMsgNo, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
 	if event.MessageSeq, offset, err = readUvarint(body, offset); err != nil {
@@ -316,16 +332,16 @@ func readDiagnosticsEvent(body []byte, offset int) (diagnostics.Event, int, erro
 	if event.RangeEnd, offset, err = readUvarint(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
-	if event.Service, offset, err = readString(body, offset); err != nil {
+	if event.Service, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
-	if result, offset, err = readString(body, offset); err != nil {
+	if result, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
-	if errorCode, offset, err = readString(body, offset); err != nil {
+	if errorCode, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
-	if event.Error, offset, err = readString(body, offset); err != nil {
+	if event.Error, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
 	if event.Attempt, offset, err = readNodeInt(body, offset, "diagnostics attempt"); err != nil {
@@ -334,10 +350,10 @@ func readDiagnosticsEvent(body []byte, offset int) (diagnostics.Event, int, erro
 	if event.QueueDepth, offset, err = readNodeInt(body, offset, "diagnostics queue depth"); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
-	if event.ReplicaRole, offset, err = readString(body, offset); err != nil {
+	if event.ReplicaRole, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
-	if event.SampleReason, offset, err = readString(body, offset); err != nil {
+	if event.SampleReason, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Event{}, offset, err
 	}
 	event.Stage = diagnostics.Stage(stage)
@@ -369,6 +385,9 @@ func readDiagnosticsStringSlice(body []byte, offset int, label string) ([]string
 	if err != nil {
 		return nil, offset, err
 	}
+	if count > maxDiagnosticsNotes {
+		return nil, offset, fmt.Errorf("access/node: %s exceeds limit", label)
+	}
 	offset = next
 	valuesLen, err := readCollectionLen(count, len(body)-offset, label)
 	if err != nil {
@@ -376,11 +395,27 @@ func readDiagnosticsStringSlice(body []byte, offset int, label string) ([]string
 	}
 	values := make([]string, valuesLen)
 	for i := range values {
-		if values[i], offset, err = readString(body, offset); err != nil {
+		if values[i], offset, err = readDiagnosticsString(body, offset); err != nil {
 			return nil, offset, err
 		}
 	}
 	return values, offset, nil
+}
+
+func readDiagnosticsString(body []byte, offset int) (string, int, error) {
+	length, next, err := readUvarint(body, offset)
+	if err != nil {
+		return "", offset, err
+	}
+	if length > maxDiagnosticsStringBytes {
+		return "", offset, fmt.Errorf("access/node: diagnostics string exceeds limit")
+	}
+	offset = next
+	end := offset + int(length)
+	if end < offset || end > len(body) {
+		return "", offset, fmt.Errorf("access/node: short diagnostics string")
+	}
+	return string(body[offset:end]), end, nil
 }
 
 func appendDiagnosticsTime(dst []byte, value time.Time) []byte {
