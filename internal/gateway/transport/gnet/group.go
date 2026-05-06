@@ -456,7 +456,7 @@ func (g *engineGroup) handleWSTraffic(c gnetv2.Conn, state *connState) gnetv2.Ac
 		return gnetv2.None
 	}
 
-	state.appendWSInbound(append([]byte(nil), buf...))
+	state.appendWSInbound(buf)
 
 	for {
 		switch state.currentMode() {
