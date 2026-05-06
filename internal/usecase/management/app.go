@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -104,6 +105,12 @@ type ConnectionReader interface {
 	NodeConnection(ctx context.Context, nodeID uint64, sessionID uint64) (ConnectionDetail, error)
 }
 
+// DiagnosticsReader reads node-local diagnostics events through an entry-agnostic adapter.
+type DiagnosticsReader interface {
+	// QueryNodeDiagnostics returns retained diagnostics events from one cluster node.
+	QueryNodeDiagnostics(ctx context.Context, nodeID uint64, query diagnostics.Query) (diagnostics.QueryResult, error)
+}
+
 // NodeRuntimeSummary contains target-node connection and gateway admission counters.
 type NodeRuntimeSummary struct {
 	// NodeID identifies the cluster node described by this summary.
@@ -146,6 +153,8 @@ type Options struct {
 	RuntimeSummary RuntimeSummaryReader
 	// Connections reads remote node connection inventory for manager connection filters.
 	Connections ConnectionReader
+	// Diagnostics reads local or remote node diagnostics events for manager aggregations.
+	Diagnostics DiagnosticsReader
 	// ChannelRuntimeMeta provides authoritative slot-level runtime meta pages.
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
 	// Messages provides authoritative channel message pages.
@@ -166,6 +175,7 @@ type App struct {
 	online                   online.Registry
 	runtimeSummary           RuntimeSummaryReader
 	connections              ConnectionReader
+	diagnostics              DiagnosticsReader
 	channelRuntimeMeta       ChannelRuntimeMetaReader
 	messages                 MessageReader
 	network                  NetworkSnapshotReader
@@ -198,6 +208,7 @@ func New(opts Options) *App {
 		online:                   opts.Online,
 		runtimeSummary:           opts.RuntimeSummary,
 		connections:              opts.Connections,
+		diagnostics:              opts.Diagnostics,
 		channelRuntimeMeta:       opts.ChannelRuntimeMeta,
 		messages:                 opts.Messages,
 		network:                  opts.Network,
