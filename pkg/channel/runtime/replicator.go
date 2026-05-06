@@ -104,6 +104,10 @@ func (r *runtime) processReplication(key core.ChannelKey) {
 				NodeID:     uint64(r.cfg.LocalNode),
 				PeerNodeID: uint64(peer),
 				ChannelKey: string(key),
+				Service:    "fetch_request",
+				Result:     sendTraceResultFromError(err),
+				ErrorCode:  sendTraceErrorCode(err),
+				Error:      shortTraceError(err),
 			})
 		}
 		if err == nil {
@@ -325,6 +329,7 @@ func (r *runtime) scheduleFollowerReplication(key core.ChannelKey, leader core.N
 		NodeID:     uint64(r.cfg.LocalNode),
 		PeerNodeID: uint64(leader),
 		ChannelKey: string(key),
+		Result:     sendtrace.ResultOK,
 	})
 }
 
