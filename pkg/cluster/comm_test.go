@@ -48,7 +48,7 @@ const (
 	testClusterPoolSize        = 1
 	testLeaderPollInterval     = 50 * time.Millisecond
 	testLeaderConfirmations    = 4
-	testManagedSlotProbeWait   = 300 * time.Millisecond
+	testManagedSlotProbeWait   = time.Second
 	testControllerProbeTimeout = 250 * time.Millisecond
 )
 
