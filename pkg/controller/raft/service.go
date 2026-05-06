@@ -44,15 +44,18 @@ type Service struct {
 	mu       sync.Mutex
 	started  bool
 	starting bool
+	stopping bool
 	// startDone closes when the in-flight startup attempt has published a result.
 	startDone chan struct{}
 	// startErr is the result observed by concurrent Start callers waiting on startDone.
 	startErr error
 	// stopRequested marks a Stop call that arrived before startup finished.
 	stopRequested bool
-	stopCh        chan struct{}
-	doneCh        chan struct{}
-	err           error
+	// stopDone closes after an in-flight Stop has released run-loop resources.
+	stopDone chan struct{}
+	stopCh   chan struct{}
+	doneCh   chan struct{}
+	err      error
 
 	statusMu sync.RWMutex
 	status   Status
@@ -236,8 +239,24 @@ func (s *Service) Start(ctx context.Context) error {
 	for {
 		s.mu.Lock()
 		if s.started {
+			if s.stopping {
+				stopDone := s.stopDone
+				s.mu.Unlock()
+				if stopDone != nil {
+					<-stopDone
+				}
+				continue
+			}
 			s.mu.Unlock()
 			return nil
+		}
+		if s.stopping {
+			stopDone := s.stopDone
+			s.mu.Unlock()
+			if stopDone != nil {
+				<-stopDone
+			}
+			continue
 		}
 		if !s.starting {
 			s.starting = true
@@ -348,6 +367,14 @@ func (s *Service) Stop() error {
 		s.recordStoppedStatus()
 		return nil
 	}
+	if s.stopping {
+		stopDone := s.stopDone
+		s.mu.Unlock()
+		if stopDone != nil {
+			<-stopDone
+		}
+		return nil
+	}
 	if !s.started {
 		s.mu.Unlock()
 		return nil
@@ -355,7 +382,8 @@ func (s *Service) Stop() error {
 	stopCh := s.stopCh
 	doneCh := s.doneCh
 	transport := s.transport
-	s.started = false
+	s.stopping = true
+	s.stopDone = make(chan struct{})
 	s.mu.Unlock()
 
 	close(stopCh)
@@ -364,14 +392,20 @@ func (s *Service) Stop() error {
 		transport.Close()
 	}
 
-	s.mu.Lock()
-	s.stopCh = nil
-	s.doneCh = nil
-	s.transport = nil
-	s.mu.Unlock()
-
 	s.leaderID.Store(0)
 	s.recordStoppedStatus()
+
+	s.mu.Lock()
+	s.started = false
+	s.stopping = false
+	s.stopCh = nil
+	s.doneCh = nil
+	s.stepCh = nil
+	s.proposeCh = nil
+	s.transport = nil
+	s.finishStopLocked()
+	s.mu.Unlock()
+
 	return nil
 }
 
@@ -401,6 +435,10 @@ func (s *Service) Propose(ctx context.Context, cmd slotcontroller.Command) error
 	if !s.started {
 		s.mu.Unlock()
 		return ErrNotStarted
+	}
+	if s.stopping {
+		s.mu.Unlock()
+		return ErrStopped
 	}
 	proposeCh := s.proposeCh
 	stopCh := s.stopCh
@@ -449,6 +487,14 @@ func (s *Service) finishStartLocked(err error) {
 	s.startDone = nil
 	if startDone != nil {
 		close(startDone)
+	}
+}
+
+func (s *Service) finishStopLocked() {
+	stopDone := s.stopDone
+	s.stopDone = nil
+	if stopDone != nil {
+		close(stopDone)
 	}
 }
 
@@ -595,7 +641,7 @@ func (s *Service) handleMessage(body []byte) {
 	}
 
 	s.mu.Lock()
-	started := s.started
+	started := s.started && !s.stopping
 	stepCh := s.stepCh
 	stopCh := s.stopCh
 	s.mu.Unlock()
@@ -961,9 +1007,22 @@ func (s *Service) logCompactionWarning(err error, applied uint64) {
 }
 
 func (s *Service) setError(err error) {
+	var transport *raftTransport
 	s.mu.Lock()
 	s.err = err
+	if !s.stopping {
+		transport = s.transport
+		s.started = false
+		s.stopCh = nil
+		s.doneCh = nil
+		s.stepCh = nil
+		s.proposeCh = nil
+		s.transport = nil
+	}
 	s.mu.Unlock()
+	if transport != nil {
+		transport.Close()
+	}
 	s.leaderID.Store(0)
 	s.recordStoppedStatus()
 }
