@@ -162,6 +162,38 @@ function nodeControllerVoterText(intl: IntlShape, node: ManagerNode) {
   })
 }
 
+function hasControllerRaftSummary(node: ManagerNode) {
+  return Boolean(node.controller.raft_health && node.controller.raft_health !== "unknown")
+}
+
+function hasControllerRaftWatermark(node: ManagerNode) {
+  return hasControllerRaftSummary(node) && (
+    node.controller.first_index !== undefined &&
+    node.controller.applied_index !== undefined &&
+    node.controller.snapshot_index !== undefined
+  )
+}
+
+function nodeControllerRaftHealth(intl: IntlShape, node: ManagerNode) {
+  return hasControllerRaftSummary(node)
+    ? <StatusBadge value={node.controller.raft_health!} />
+    : intl.formatMessage({ id: "nodes.controllerRaftUnavailable" })
+}
+
+function nodeControllerRaftWatermark(intl: IntlShape, node: ManagerNode) {
+  if (!hasControllerRaftWatermark(node)) {
+    return intl.formatMessage({ id: "nodes.controllerRaftUnavailable" })
+  }
+  return intl.formatMessage(
+    { id: "nodes.controllerRaftWatermark" },
+    {
+      first: node.controller.first_index ?? 0,
+      applied: node.controller.applied_index ?? 0,
+      snapshot: node.controller.snapshot_index ?? 0,
+    },
+  )
+}
+
 function canDrainNode(node: ManagerNode, canWriteNodes: boolean) {
   return canWriteNodes && (node.actions?.can_drain ?? true)
 }
@@ -600,6 +632,14 @@ export function NodesPage() {
                         <td className="px-3 py-3 text-sm text-muted-foreground">
                           <div className="font-medium text-foreground">{node.controller.role}</div>
                           <div className="mt-1 text-xs">{nodeControllerVoterText(intl, node)}</div>
+                          {hasControllerRaftSummary(node) ? (
+                            <div className="mt-2">
+                              <StatusBadge value={node.controller.raft_health!} />
+                            </div>
+                          ) : null}
+                          {hasControllerRaftWatermark(node) ? (
+                            <div className="mt-1 text-xs">{nodeControllerRaftWatermark(intl, node)}</div>
+                          ) : null}
                         </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">
                           {nodeSlotSummaryText(intl, node)}
@@ -812,6 +852,14 @@ export function NodesPage() {
                 {
                   label: intl.formatMessage({ id: "nodes.detail.controllerVoter" }),
                   value: nodeControllerVoterText(intl, detail),
+                },
+                {
+                  label: intl.formatMessage({ id: "nodes.detail.controllerRaftHealth" }),
+                  value: nodeControllerRaftHealth(intl, detail),
+                },
+                {
+                  label: intl.formatMessage({ id: "nodes.detail.controllerRaftWatermark" }),
+                  value: nodeControllerRaftWatermark(intl, detail),
                 },
                 {
                   label: intl.formatMessage({ id: "nodes.detail.lastHeartbeat" }),

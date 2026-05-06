@@ -10,16 +10,23 @@ function resolveVariant(value: string) {
     case "ready":
     case "in_sync":
     case "active":
+    case "healthy":
       return "success"
     case "quorum_lost":
     case "leader_missing":
     case "draining":
     case "retrying":
     case "suspect":
+    case "append_catchup":
+    case "needs_snapshot":
+    case "snapshot_required":
+    case "snapshot_transferring":
+    case "compaction_degraded":
       return "warning"
     case "failed":
     case "dead":
     case "service_unavailable":
+    case "restore_failed":
       return "danger"
     default:
       return "neutral"

@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useIntl, type IntlShape } from "react-intl"
 
 import { NodeFilter, defaultNodeId, hasNode } from "@/components/manager/node-filter"
 import { ResourceState } from "@/components/manager/resource-state"
+import { StatusBadge } from "@/components/manager/status-badge"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
+import { SectionCard } from "@/components/shell/section-card"
 import { Button } from "@/components/ui/button"
-import { getControllerLogs, getNodes, ManagerApiError } from "@/lib/manager-api"
+import { getControllerLogs, getControllerRaftStatus, getNodes, ManagerApiError } from "@/lib/manager-api"
 import type {
   ManagerControllerLogEntry,
   ManagerControllerLogsResponse,
+  ManagerControllerRaftStatusResponse,
   ManagerNodesResponse,
 } from "@/lib/manager-api.types"
 
@@ -17,6 +20,12 @@ const controllerLogPageLimit = 50
 
 type ControllerLogsState = {
   page: ManagerControllerLogsResponse | null
+  loading: boolean
+  error: Error | null
+}
+
+type ControllerRaftStatusState = {
+  status: ManagerControllerRaftStatusResponse | null
   loading: boolean
   error: Error | null
 }
@@ -56,14 +65,161 @@ function formatControllerLogDecoded(entry: ManagerControllerLogEntry) {
   return entry.decoded ? JSON.stringify(entry.decoded, null, 2) : ""
 }
 
+function formatRoleTerm(intl: IntlShape, status: ManagerControllerRaftStatusResponse) {
+  return intl.formatMessage({ id: "controller.status.roleTerm" }, { role: status.role, term: status.term })
+}
+
+function formatCommitApplied(intl: IntlShape, status: ManagerControllerRaftStatusResponse) {
+  return intl.formatMessage(
+    { id: "controller.status.commitApplied" },
+    { commit: status.commit_index, applied: status.applied_index },
+  )
+}
+
+function formatSnapshot(intl: IntlShape, status: ManagerControllerRaftStatusResponse) {
+  return intl.formatMessage(
+    { id: "controller.status.snapshot" },
+    { index: status.snapshot_index, term: status.snapshot_term },
+  )
+}
+
+function formatPeerProgress(intl: IntlShape, match: number, next: number) {
+  return intl.formatMessage({ id: "controller.status.peerProgress" }, { match, next })
+}
+
+function ControllerRaftStatusPanel({
+  intl,
+  status,
+}: {
+  intl: IntlShape
+  status: ManagerControllerRaftStatusResponse
+}) {
+  return (
+    <SectionCard
+      description={intl.formatMessage({ id: "controller.status.description" }, { node: status.node_id })}
+      title={intl.formatMessage({ id: "controller.status.title" })}
+    >
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-lg border border-border bg-background p-3">
+          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+            {intl.formatMessage({ id: "controller.status.health" })}
+          </div>
+          <div className="mt-2">
+            <StatusBadge value={status.health} />
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-background p-3">
+          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+            {intl.formatMessage({ id: "controller.status.role" })}
+          </div>
+          <div className="mt-2 text-sm font-medium text-foreground">{formatRoleTerm(intl, status)}</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {intl.formatMessage({ id: "controller.status.leader" }, { id: status.leader_id })}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-background p-3">
+          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+            {intl.formatMessage({ id: "controller.status.watermark" })}
+          </div>
+          <div className="mt-2 text-sm font-medium text-foreground">{formatCommitApplied(intl, status)}</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {intl.formatMessage({ id: "controller.logs.range" }, { first: status.first_index, last: status.last_index })}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-background p-3">
+          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+            {intl.formatMessage({ id: "controller.status.snapshotLabel" })}
+          </div>
+          <div className="mt-2 text-sm font-medium text-foreground">{formatSnapshot(intl, status)}</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {intl.formatMessage(
+              { id: status.restore.failed ? "controller.status.restoreFailed" : "controller.status.restoreOk" },
+              { index: status.restore.last_snapshot_index },
+            )}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-background p-3">
+          <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+            {intl.formatMessage({ id: "controller.status.compaction" })}
+          </div>
+          <div className="mt-2">
+            <StatusBadge value={status.compaction.degraded ? "compaction_degraded" : "healthy"} />
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {intl.formatMessage({ id: "controller.status.compactionTrigger" }, { entries: status.compaction.trigger_entries })}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-lg border border-border">
+        <div className="border-b border-border bg-muted/40 px-3 py-2 text-sm font-semibold text-foreground">
+          {intl.formatMessage({ id: "controller.status.followers" })}
+        </div>
+        {status.peers.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-muted/30 text-left text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">{intl.formatMessage({ id: "controller.status.table.node" })}</th>
+                  <th className="px-3 py-2">{intl.formatMessage({ id: "controller.status.table.progress" })}</th>
+                  <th className="px-3 py-2">{intl.formatMessage({ id: "controller.status.table.state" })}</th>
+                  <th className="px-3 py-2">{intl.formatMessage({ id: "controller.status.table.snapshot" })}</th>
+                  <th className="px-3 py-2">{intl.formatMessage({ id: "controller.status.table.activity" })}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {status.peers.map((peer) => (
+                  <tr key={peer.node_id}>
+                    <td className="px-3 py-3 font-medium text-foreground">
+                      {intl.formatMessage({ id: "common.nodeValue" }, { id: peer.node_id })}
+                    </td>
+                    <td className="px-3 py-3 text-muted-foreground">{formatPeerProgress(intl, peer.match, peer.next)}</td>
+                    <td className="px-3 py-3 text-muted-foreground">{peer.state || "-"}</td>
+                    <td className="px-3 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        {peer.needs_snapshot ? <StatusBadge value="needs_snapshot" /> : null}
+                        {peer.snapshot_transferring ? <StatusBadge value="snapshot_transferring" /> : null}
+                        {peer.pending_snapshot ? (
+                          <span className="text-xs text-muted-foreground">
+                            {intl.formatMessage({ id: "controller.status.pendingSnapshot" }, { index: peer.pending_snapshot })}
+                          </span>
+                        ) : null}
+                        {!peer.needs_snapshot && !peer.snapshot_transferring && !peer.pending_snapshot ? (
+                          <span className="text-muted-foreground">-</span>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-muted-foreground">
+                      {intl.formatMessage({ id: peer.recent_active ? "controller.status.recentActive" : "controller.status.inactive" })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="px-3 py-4 text-sm text-muted-foreground">
+            {intl.formatMessage({ id: "controller.status.noFollowers" })}
+          </div>
+        )}
+      </div>
+    </SectionCard>
+  )
+}
+
 export function ControllerPage() {
   const intl = useIntl()
   const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
   const [state, setState] = useState<ControllerLogsState>({ page: null, loading: true, error: null })
+  const [statusState, setStatusState] = useState<ControllerRaftStatusState>({ status: null, loading: false, error: null })
   const [expandedIndexes, setExpandedIndexes] = useState<Set<number>>(() => new Set())
+  const logsRequestSeq = useRef(0)
+  const statusRequestSeq = useRef(0)
 
   const loadControllerLogs = useCallback(async (nodeId: number, cursor?: number) => {
+    const requestSeq = logsRequestSeq.current + 1
+    logsRequestSeq.current = requestSeq
     setState((current) => ({
       ...current,
       loading: true,
@@ -76,6 +232,9 @@ export function ControllerPage() {
 
     try {
       const page = await getControllerLogs({ nodeId, limit: controllerLogPageLimit, cursor })
+      if (logsRequestSeq.current !== requestSeq) {
+        return
+      }
       setState((current) => ({
         page: cursor && current.page
           ? { ...page, items: [...current.page.items, ...page.items] }
@@ -84,12 +243,46 @@ export function ControllerPage() {
         error: null,
       }))
     } catch (error) {
+      if (logsRequestSeq.current !== requestSeq) {
+        return
+      }
       setState((current) => ({
         ...current,
         loading: false,
         error: error instanceof Error ? error : new Error("controller log request failed"),
       }))
     }
+  }, [])
+
+  const loadControllerStatus = useCallback(async (nodeId: number) => {
+    const requestSeq = statusRequestSeq.current + 1
+    statusRequestSeq.current = requestSeq
+    setStatusState({ status: null, loading: true, error: null })
+    try {
+      const status = await getControllerRaftStatus(nodeId)
+      if (statusRequestSeq.current !== requestSeq) {
+        return
+      }
+      setStatusState({ status, loading: false, error: null })
+    } catch (error) {
+      if (statusRequestSeq.current !== requestSeq) {
+        return
+      }
+      setStatusState({
+        status: null,
+        loading: false,
+        error: error instanceof Error ? error : new Error("controller raft status request failed"),
+      })
+    }
+  }, [])
+
+  const handleNodeChange = useCallback((nodeId: number | null) => {
+    logsRequestSeq.current += 1
+    statusRequestSeq.current += 1
+    setSelectedNodeId(nodeId)
+    setState({ page: null, loading: false, error: null })
+    setStatusState({ status: null, loading: false, error: null })
+    setExpandedIndexes(new Set())
   }, [])
 
   useEffect(() => {
@@ -113,6 +306,7 @@ export function ControllerPage() {
         }
         setNodes(null)
         setSelectedNodeId(null)
+        setStatusState({ status: null, loading: false, error: null })
         setState({
           page: null,
           loading: false,
@@ -130,11 +324,13 @@ export function ControllerPage() {
     if (selectedNodeId === null) {
       if (nodes && nodes.items.length === 0) {
         setState({ page: null, loading: false, error: null })
+        setStatusState({ status: null, loading: false, error: null })
       }
       return
     }
     void loadControllerLogs(selectedNodeId)
-  }, [loadControllerLogs, nodes, selectedNodeId])
+    void loadControllerStatus(selectedNodeId)
+  }, [loadControllerLogs, loadControllerStatus, nodes, selectedNodeId])
 
   const toggleDecoded = useCallback((index: number) => {
     setExpandedIndexes((current) => {
@@ -148,23 +344,27 @@ export function ControllerPage() {
     })
   }, [])
 
+  const visibleStatus = statusState.status?.node_id === selectedNodeId ? statusState.status : null
+  const visiblePage = state.page?.node_id === selectedNodeId ? state.page : null
+
   return (
     <PageContainer>
       <PageHeader
         actions={(
           <div className="flex flex-wrap items-center gap-2">
-            <NodeFilter nodes={nodes} selectedNodeId={selectedNodeId} onNodeChange={setSelectedNodeId} />
+            <NodeFilter nodes={nodes} selectedNodeId={selectedNodeId} onNodeChange={handleNodeChange} />
             <Button
-              disabled={state.loading || selectedNodeId === null}
+              disabled={state.loading || statusState.loading || selectedNodeId === null}
               onClick={() => {
                 if (selectedNodeId !== null) {
                   void loadControllerLogs(selectedNodeId)
+                  void loadControllerStatus(selectedNodeId)
                 }
               }}
               size="sm"
               variant="outline"
             >
-              {state.loading ? intl.formatMessage({ id: "common.refreshing" }) : intl.formatMessage({ id: "common.refresh" })}
+              {state.loading || statusState.loading ? intl.formatMessage({ id: "common.refreshing" }) : intl.formatMessage({ id: "common.refresh" })}
             </Button>
           </div>
         )}
@@ -173,7 +373,20 @@ export function ControllerPage() {
         title={intl.formatMessage({ id: "controller.title" })}
       />
 
-      {state.loading && !state.page ? (
+      {statusState.loading ? (
+        <ResourceState kind="loading" title={intl.formatMessage({ id: "controller.status.title" })} />
+      ) : statusState.error ? (
+        <ResourceState
+          kind={mapErrorKind(statusState.error)}
+          onRetry={selectedNodeId !== null ? () => void loadControllerStatus(selectedNodeId) : undefined}
+          retryLabel={intl.formatMessage({ id: "common.retry" })}
+          title={intl.formatMessage({ id: "controller.status.title" })}
+        />
+      ) : visibleStatus ? (
+        <ControllerRaftStatusPanel intl={intl} status={visibleStatus} />
+      ) : null}
+
+      {state.loading && !visiblePage ? (
         <ResourceState kind="loading" title={intl.formatMessage({ id: "controller.logs.title" })} />
       ) : state.error ? (
         <ResourceState
@@ -182,7 +395,7 @@ export function ControllerPage() {
           retryLabel={intl.formatMessage({ id: "common.retry" })}
           title={intl.formatMessage({ id: "controller.logs.title" })}
         />
-      ) : state.page && state.page.items.length > 0 ? (
+      ) : visiblePage && visiblePage.items.length > 0 ? (
         <section className="overflow-hidden rounded-lg border border-border bg-card">
           <div className="flex flex-col gap-2 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -192,14 +405,14 @@ export function ControllerPage() {
               <p className="mt-1 text-sm text-muted-foreground">
                 {intl.formatMessage(
                   { id: "controller.logs.watermark" },
-                  { node: state.page.node_id, commit: state.page.commit_index, applied: state.page.applied_index },
+                  { node: visiblePage.node_id, commit: visiblePage.commit_index, applied: visiblePage.applied_index },
                 )}
               </p>
             </div>
             <div className="text-xs text-muted-foreground">
               {intl.formatMessage(
                 { id: "controller.logs.range" },
-                { first: state.page.first_index, last: state.page.last_index },
+                { first: visiblePage.first_index, last: visiblePage.last_index },
               )}
             </div>
           </div>
@@ -215,7 +428,7 @@ export function ControllerPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {state.page.items.map((entry) => {
+                {visiblePage.items.map((entry) => {
                   const decoded = formatControllerLogDecoded(entry)
                   const expanded = decoded ? expandedIndexes.has(entry.index) : false
                   return (
@@ -245,11 +458,11 @@ export function ControllerPage() {
               </tbody>
             </table>
           </div>
-          {state.page.next_cursor ? (
+          {visiblePage.next_cursor ? (
             <div className="border-t border-border p-4">
               <Button
                 disabled={state.loading}
-                onClick={() => void loadControllerLogs(state.page!.node_id, state.page!.next_cursor)}
+                onClick={() => void loadControllerLogs(visiblePage.node_id, visiblePage.next_cursor)}
                 variant="outline"
               >
                 {intl.formatMessage({ id: "common.loadMore" })}

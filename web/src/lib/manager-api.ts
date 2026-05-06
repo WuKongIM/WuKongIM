@@ -8,6 +8,7 @@ import type {
   ManagerChannelRuntimeMetaListResponse,
   ManagerConnectionDetailResponse,
   ManagerControllerLogsResponse,
+  ManagerControllerRaftStatusResponse,
   ManagerConnectionsResponse,
   ManagerLoginResponse,
   ManagerMessagesResponse,
@@ -335,6 +336,10 @@ export function getSlotLogs(slotId: number, params: SlotLogListParams) {
 export function getControllerLogs(params: ControllerLogListParams) {
   const search = buildLogListSearch(params)
   return jsonManagerFetch<ManagerControllerLogsResponse>(`/manager/controller/logs?${search.toString()}`)
+}
+
+export function getControllerRaftStatus(nodeId: number) {
+  return jsonManagerFetch<ManagerControllerRaftStatusResponse>(`/manager/nodes/${nodeId}/controller-raft`)
 }
 
 export function addSlot() {

@@ -7,6 +7,7 @@ import {
   getConnection,
   getConnections,
   getControllerLogs,
+  getControllerRaftStatus,
   getMessages,
   getNetworkSummary,
   createNodeOnboardingPlan,
@@ -517,6 +518,59 @@ describe("manager api client", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "/manager/controller/logs?node_id=2&limit=2&cursor=5",
+      expect.anything(),
+    )
+  })
+
+  it("fetches node-scoped controller raft status from the manager endpoint", async () => {
+    const statusResponse = {
+      node_id: 2,
+      role: "leader",
+      leader_id: 2,
+      term: 7,
+      health: "snapshot_transferring",
+      first_index: 10,
+      last_index: 42,
+      commit_index: 40,
+      applied_index: 39,
+      snapshot_index: 9,
+      snapshot_term: 3,
+      compaction: {
+        enabled: true,
+        trigger_entries: 100,
+        check_interval_ms: 2000,
+        last_snapshot_index: 9,
+        last_snapshot_at: "2026-05-06T08:01:00Z",
+        last_check_at: "2026-05-06T08:02:00Z",
+        last_error: "",
+        last_error_at: "0001-01-01T00:00:00Z",
+        degraded: false,
+      },
+      restore: {
+        last_snapshot_index: 8,
+        last_snapshot_term: 2,
+        last_restored_at: "2026-05-06T08:04:00Z",
+        last_error: "",
+        last_error_at: "0001-01-01T00:00:00Z",
+        failed: false,
+      },
+      peers: [{
+        node_id: 3,
+        match: 21,
+        next: 22,
+        state: "snapshot",
+        pending_snapshot: 9,
+        recent_active: true,
+        needs_snapshot: true,
+        snapshot_transferring: true,
+      }],
+    }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(statusResponse), { status: 200 }))
+
+    await expect(getControllerRaftStatus(2)).resolves.toEqual(statusResponse)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/manager/nodes/2/controller-raft",
       expect.anything(),
     )
   })

@@ -13,6 +13,7 @@ const getNodesMock = vi.fn()
 const getChannelRuntimeMetaMock = vi.fn()
 const getConnectionsMock = vi.fn()
 const getControllerLogsMock = vi.fn()
+const getControllerRaftStatusMock = vi.fn()
 const getSlotLogsMock = vi.fn()
 const getMessagesMock = vi.fn()
 const getSlotsMock = vi.fn()
@@ -30,6 +31,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getChannelRuntimeMeta: (...args: unknown[]) => getChannelRuntimeMetaMock(...args),
     getConnections: (...args: unknown[]) => getConnectionsMock(...args),
     getControllerLogs: (...args: unknown[]) => getControllerLogsMock(...args),
+    getControllerRaftStatus: (...args: unknown[]) => getControllerRaftStatusMock(...args),
     getSlotLogs: (...args: unknown[]) => getSlotLogsMock(...args),
     getMessages: (...args: unknown[]) => getMessagesMock(...args),
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
@@ -48,6 +50,7 @@ beforeEach(() => {
   getChannelRuntimeMetaMock.mockReset()
   getConnectionsMock.mockReset()
   getControllerLogsMock.mockReset()
+  getControllerRaftStatusMock.mockReset()
   getSlotLogsMock.mockReset()
   getMessagesMock.mockReset()
   getSlotsMock.mockReset()
@@ -118,6 +121,39 @@ beforeEach(() => {
     commit_index: 4,
     applied_index: 3,
     items: [{ index: 4, term: 2, type: "normal", data_size: 12, decode_status: "ok", decoded_type: "add_slot", decoded: { command: "add_slot", new_slot_id: 9 } }],
+  })
+  getControllerRaftStatusMock.mockResolvedValue({
+    node_id: 1,
+    role: "leader",
+    leader_id: 1,
+    term: 2,
+    health: "healthy",
+    first_index: 1,
+    last_index: 4,
+    commit_index: 4,
+    applied_index: 3,
+    snapshot_index: 0,
+    snapshot_term: 0,
+    compaction: {
+      enabled: true,
+      trigger_entries: 100,
+      check_interval_ms: 1000,
+      last_snapshot_index: 0,
+      last_snapshot_at: "0001-01-01T00:00:00Z",
+      last_check_at: "0001-01-01T00:00:00Z",
+      last_error: "",
+      last_error_at: "0001-01-01T00:00:00Z",
+      degraded: false,
+    },
+    restore: {
+      last_snapshot_index: 0,
+      last_snapshot_term: 0,
+      last_restored_at: "0001-01-01T00:00:00Z",
+      last_error: "",
+      last_error_at: "0001-01-01T00:00:00Z",
+      failed: false,
+    },
+    peers: [],
   })
   getSlotLogsMock.mockResolvedValue({
     node_id: 1,

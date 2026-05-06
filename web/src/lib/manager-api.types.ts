@@ -301,6 +301,14 @@ export type ManagerNodeController = {
   role: string
   voter?: boolean
   leader_id?: number
+  // raft_health is the manager-facing Controller Raft health bucket for this node.
+  raft_health?: string
+  // first_index is the first available Controller Raft log index on this node.
+  first_index?: number
+  // applied_index is the Controller Raft applied watermark on this node.
+  applied_index?: number
+  // snapshot_index is the latest Controller Raft snapshot index on this node.
+  snapshot_index?: number
 }
 
 export type ManagerNodeSlotsSummary = {
@@ -520,6 +528,96 @@ export type ManagerControllerLogsResponse = {
   applied_index: number
   next_cursor?: number
   items: ManagerControllerLogEntry[]
+}
+
+// ManagerControllerRaftCompaction describes Controller Raft log compaction state on one node.
+export type ManagerControllerRaftCompaction = {
+  // enabled reports whether Controller Raft snapshot compaction is enabled.
+  enabled: boolean
+  // trigger_entries is the applied-entry delta required before taking another snapshot.
+  trigger_entries: number
+  // check_interval_ms is the minimum interval between compaction checks.
+  check_interval_ms: number
+  // last_snapshot_index is the latest snapshot index created by compaction.
+  last_snapshot_index: number
+  // last_snapshot_at records when the latest snapshot was created.
+  last_snapshot_at: string
+  // last_check_at records the latest compaction check attempt.
+  last_check_at: string
+  // last_error is the latest compaction error, when present.
+  last_error: string
+  // last_error_at records when last_error was observed.
+  last_error_at: string
+  // degraded reports whether the latest compaction attempt failed.
+  degraded: boolean
+}
+
+// ManagerControllerRaftRestore describes Controller metadata snapshot restore state.
+export type ManagerControllerRaftRestore = {
+  // last_snapshot_index is the index of the latest restored snapshot.
+  last_snapshot_index: number
+  // last_snapshot_term is the term of the latest restored snapshot.
+  last_snapshot_term: number
+  // last_restored_at records when the latest snapshot restore succeeded.
+  last_restored_at: string
+  // last_error is the latest restore error, when present.
+  last_error: string
+  // last_error_at records when last_error was observed.
+  last_error_at: string
+  // failed reports whether the latest restore attempt failed.
+  failed: boolean
+}
+
+// ManagerControllerRaftPeer describes one follower from the Controller Raft leader's view.
+export type ManagerControllerRaftPeer = {
+  // node_id is the follower node ID.
+  node_id: number
+  // match is the highest log index known to match on the follower.
+  match: number
+  // next is the next log index the leader will send to the follower.
+  next: number
+  // state is the raft progress state.
+  state: string
+  // pending_snapshot is the snapshot index currently pending for the follower.
+  pending_snapshot: number
+  // recent_active reports whether the follower was recently active.
+  recent_active: boolean
+  // needs_snapshot reports whether the follower has fallen behind the local first index.
+  needs_snapshot: boolean
+  // snapshot_transferring reports whether raft is currently transferring a snapshot.
+  snapshot_transferring: boolean
+}
+
+// ManagerControllerRaftStatusResponse is a node-scoped Controller Raft status snapshot.
+export type ManagerControllerRaftStatusResponse = {
+  // node_id is the node whose Controller Raft status was read.
+  node_id: number
+  // role is leader, follower, candidate, or unknown.
+  role: string
+  // leader_id is the Controller Raft leader known to the queried node.
+  leader_id: number
+  // term is the queried node's current Controller Raft term.
+  term: number
+  // health is the derived manager-facing status bucket.
+  health: string
+  // first_index is the first available Controller Raft log index.
+  first_index: number
+  // last_index is the last available Controller Raft log index.
+  last_index: number
+  // commit_index is the queried node's committed Controller Raft watermark.
+  commit_index: number
+  // applied_index is the queried node's applied Controller Raft watermark.
+  applied_index: number
+  // snapshot_index is the latest persisted Controller Raft snapshot index.
+  snapshot_index: number
+  // snapshot_term is the latest persisted Controller Raft snapshot term.
+  snapshot_term: number
+  // compaction describes Controller Raft log compaction state.
+  compaction: ManagerControllerRaftCompaction
+  // restore describes Controller metadata snapshot restore state.
+  restore: ManagerControllerRaftRestore
+  // peers contains leader-side follower progress.
+  peers: ManagerControllerRaftPeer[]
 }
 
 export type ManagerTask = {
