@@ -673,6 +673,16 @@ describe("manager api client", () => {
     )
   })
 
+  it("rejects invalid diagnostics message selectors before fetching", async () => {
+    await expect(getDiagnosticsMessage({} as never)).rejects.toThrow("diagnostics message selector")
+    await expect(getDiagnosticsMessage({ channelKey: "2:g1" } as never)).rejects.toThrow("diagnostics message selector")
+    await expect(
+      getDiagnosticsMessage({ clientMsgNo: "c-1", channelKey: "2:g1", messageSeq: 9 } as never),
+    ).rejects.toThrow("diagnostics message selector")
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it("builds diagnostics events query URLs", async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(emptyDiagnosticsResponse()), { status: 200 }))
 

@@ -416,6 +416,12 @@ export function getDiagnosticsTrace(traceId: string, params?: DiagnosticsCommonP
 }
 
 export function getDiagnosticsMessage(params: DiagnosticsMessageParams) {
+  const hasClientSelector = Boolean(params.clientMsgNo)
+  const hasChannelSelector = Boolean(params.channelKey) || typeof params.messageSeq === "number"
+  if (hasClientSelector === hasChannelSelector || (hasChannelSelector && (!params.channelKey || typeof params.messageSeq !== "number"))) {
+    return Promise.reject(new Error("diagnostics message selector must be either clientMsgNo or channelKey plus messageSeq"))
+  }
+
   const search = new URLSearchParams()
   if (params.clientMsgNo) {
     search.set("client_msg_no", params.clientMsgNo)
