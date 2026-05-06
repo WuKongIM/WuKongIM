@@ -128,7 +128,7 @@ func raftRoleName(state etcdraft.StateType) string {
 	}
 }
 
-func peerProgressFromRaft(self uint64, _ uint64, progress map[uint64]tracker.Progress) []PeerProgress {
+func peerProgressFromRaft(self uint64, progress map[uint64]tracker.Progress) []PeerProgress {
 	if len(progress) == 0 {
 		return nil
 	}
