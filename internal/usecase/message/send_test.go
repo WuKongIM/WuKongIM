@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
+	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -82,6 +84,40 @@ func TestSendPassesTraceIDToChannelAppend(t *testing.T) {
 	require.Len(t, cluster.sendRequests, 1)
 	require.Equal(t, "trace-1", cluster.sendRequests[0].TraceID)
 	require.Equal(t, 0, cluster.sendRequests[0].Attempt)
+}
+
+func TestSendRecordsDurableTraceWithChannelKey(t *testing.T) {
+	sink := &recordingMessageSendTraceSink{}
+	restore := sendtrace.SetSink(sink)
+	t.Cleanup(restore)
+	cluster := &fakeChannelCluster{sendReplies: []fakeChannelClusterSendReply{{result: channel.AppendResult{MessageID: 99, MessageSeq: 9}}}}
+	app := New(Options{
+		Now:           fixedNowFn,
+		Cluster:       cluster,
+		MetaRefresher: &fakeMetaRefresher{},
+	})
+
+	_, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+		ClientMsgNo: "m-channel",
+		TraceID:     "trace-1",
+	})
+
+	require.NoError(t, err)
+	var durable sendtrace.Event
+	for _, event := range sink.events {
+		if event.Stage == sendtrace.StageMessageSendDurable {
+			durable = event
+			break
+		}
+	}
+	require.Equal(t, "trace-1", durable.TraceID)
+	require.Equal(t, "m-channel", durable.ClientMsgNo)
+	require.Equal(t, uint64(9), durable.MessageSeq)
+	require.Equal(t, string(channelhandler.KeyFromChannelID(channel.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup})), durable.ChannelKey)
 }
 
 func TestSendReturnsSuccessAfterDurableWriteAndSubmitsCommittedMessage(t *testing.T) {
@@ -935,4 +971,13 @@ func (f *fakeMetaRefresher) RefreshChannelMeta(ctx context.Context, key channel.
 	meta := f.metas[0]
 	f.metas = f.metas[1:]
 	return meta, nil
+}
+
+// recordingMessageSendTraceSink captures synchronous sendtrace events emitted by message tests.
+type recordingMessageSendTraceSink struct {
+	events []sendtrace.Event
+}
+
+func (s *recordingMessageSendTraceSink) RecordSendTrace(event sendtrace.Event) {
+	s.events = append(s.events, event)
 }
