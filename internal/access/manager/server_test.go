@@ -1445,6 +1445,176 @@ func TestManagerNodeControllerRaftRejectsInsufficientPermission(t *testing.T) {
 	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
 }
 
+func TestManagerControllerRaftCompactReturnsFanoutResult(t *testing.T) {
+	generatedAt := time.Date(2026, 5, 7, 10, 0, 0, 0, time.UTC)
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.controller",
+				Actions:  []string{"w"},
+			}},
+		}}),
+		Management: managementStub{
+			controllerRaftCompaction: managementusecase.CompactControllerRaftLogsResponse{
+				GeneratedAt: generatedAt,
+				Total:       2,
+				Succeeded:   1,
+				Failed:      1,
+				Items: []managementusecase.ControllerRaftCompactionNodeResult{{
+					NodeID:              1,
+					Success:             true,
+					AppliedIndex:        42,
+					BeforeSnapshotIndex: 30,
+					AfterSnapshotIndex:  42,
+					Compacted:           true,
+				}, {
+					NodeID:  2,
+					Success: false,
+					Error:   "node stopped",
+				}},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/controller-raft/compact", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{
+		"generated_at": "2026-05-07T10:00:00Z",
+		"total": 2,
+		"succeeded": 1,
+		"failed": 1,
+		"items": [{
+			"node_id": 1,
+			"success": true,
+			"applied_index": 42,
+			"before_snapshot_index": 30,
+			"after_snapshot_index": 42,
+			"compacted": true,
+			"skipped_reason": "",
+			"error": ""
+		}, {
+			"node_id": 2,
+			"success": false,
+			"applied_index": 0,
+			"before_snapshot_index": 0,
+			"after_snapshot_index": 0,
+			"compacted": false,
+			"skipped_reason": "",
+			"error": "node stopped"
+		}]
+	}`, rec.Body.String())
+}
+
+func TestManagerControllerRaftCompactRejectsInsufficientPermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "viewer",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.controller",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/controller-raft/compact", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
+}
+
+func TestManagerNodeControllerRaftCompactReturnsNodeResult(t *testing.T) {
+	generatedAt := time.Date(2026, 5, 7, 10, 3, 0, 0, time.UTC)
+	var gotNodeID uint64
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.controller",
+				Actions:  []string{"w"},
+			}},
+		}}),
+		Management: managementStub{
+			controllerRaftCompactionNodeIDSink: &gotNodeID,
+			controllerRaftNodeCompaction: managementusecase.CompactControllerRaftLogsResponse{
+				GeneratedAt: generatedAt,
+				Total:       1,
+				Succeeded:   1,
+				Failed:      0,
+				Items: []managementusecase.ControllerRaftCompactionNodeResult{{
+					NodeID:              2,
+					Success:             true,
+					AppliedIndex:        50,
+					BeforeSnapshotIndex: 40,
+					AfterSnapshotIndex:  50,
+					Compacted:           true,
+				}},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/controller-raft/compact", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, uint64(2), gotNodeID)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{
+		"generated_at": "2026-05-07T10:03:00Z",
+		"total": 1,
+		"succeeded": 1,
+		"failed": 0,
+		"items": [{
+			"node_id": 2,
+			"success": true,
+			"applied_index": 50,
+			"before_snapshot_index": 40,
+			"after_snapshot_index": 50,
+			"compacted": true,
+			"skipped_reason": "",
+			"error": ""
+		}]
+	}`, rec.Body.String())
+}
+
+func TestManagerNodeControllerRaftCompactRejectsInsufficientPermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "viewer",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.controller",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/controller-raft/compact", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
+}
+
 func TestManagerSlotLogsReturnsNodeScopedEntries(t *testing.T) {
 	var reqSink managementusecase.ListSlotLogEntriesRequest
 	stub := managementStub{
@@ -3176,75 +3346,80 @@ func mustEncodeLegacyChannelRuntimeMetaCursorForTest(t *testing.T, cursor manage
 }
 
 type managementStub struct {
-	nodes                           managementusecase.NodeList
-	nodesErr                        error
-	nodeDetail                      managementusecase.NodeDetail
-	nodeDetailErr                   error
-	nodeDraining                    managementusecase.NodeDetail
-	nodeDrainingErr                 error
-	nodeResume                      managementusecase.NodeDetail
-	nodeResumeErr                   error
-	nodeScaleInReport               managementusecase.NodeScaleInReport
-	nodeScaleInErr                  error
-	nodeScaleInNodeIDSink           *uint64
-	nodeScaleInPlanReqSink          *managementusecase.NodeScaleInPlanRequest
-	nodeScaleInAdvanceReqSink       *managementusecase.AdvanceNodeScaleInRequest
-	slotLeaderTransfer              managementusecase.SlotDetail
-	slotLeaderTransferErr           error
-	slotAdd                         managementusecase.SlotDetail
-	slotAddErr                      error
-	slotRemove                      managementusecase.SlotRemoveResult
-	slotRemoveErr                   error
-	slotRecover                     managementusecase.SlotRecoverResult
-	slotRecoverErr                  error
-	slotRebalance                   managementusecase.SlotRebalanceResult
-	slotRebalanceErr                error
-	slots                           []managementusecase.Slot
-	slotsErr                        error
-	listSlotsOptionsSink            *managementusecase.ListSlotsOptions
-	slotLogEntriesReqSink           *managementusecase.ListSlotLogEntriesRequest
-	slotLogEntriesPage              managementusecase.SlotLogEntriesResponse
-	slotLogEntriesErr               error
-	controllerLogEntriesReqSink     *managementusecase.ListControllerLogEntriesRequest
-	controllerLogEntriesPage        managementusecase.ControllerLogEntriesResponse
-	controllerLogEntriesErr         error
-	controllerRaftStatusNodeIDSink  *uint64
-	controllerRaftStatus            managementusecase.ControllerRaftStatusResponse
-	controllerRaftStatusErr         error
-	slotDetail                      managementusecase.SlotDetail
-	slotDetailErr                   error
-	tasks                           []managementusecase.Task
-	tasksErr                        error
-	task                            managementusecase.TaskDetail
-	taskErr                         error
-	connections                     []managementusecase.Connection
-	connectionsErr                  error
-	listConnectionsReqSink          *managementusecase.ListConnectionsRequest
-	connectionDetailReqSink         *managementusecase.GetConnectionRequest
-	connectionDetail                managementusecase.ConnectionDetail
-	connectionDetailErr             error
-	channelRuntimeMetaReqSink       *managementusecase.ListChannelRuntimeMetaRequest
-	channelRuntimeMetaPage          managementusecase.ListChannelRuntimeMetaResponse
-	channelRuntimeMetaErr           error
-	channelRuntimeMetaDetailReqSink *channelRuntimeMetaDetailCall
-	channelRuntimeMetaDetail        managementusecase.ChannelRuntimeMetaDetail
-	channelRuntimeMetaDetailErr     error
-	messagesReqSink                 *managementusecase.ListMessagesRequest
-	messagesPage                    managementusecase.ListMessagesResponse
-	messagesErr                     error
-	overview                        managementusecase.Overview
-	overviewErr                     error
-	networkSummary                  managementusecase.NetworkSummary
-	networkSummaryErr               error
-	nodeOnboardingCandidates        managementusecase.NodeOnboardingCandidatesResponse
-	nodeOnboardingCandidatesErr     error
-	nodeOnboardingJob               managementusecase.NodeOnboardingJobResponse
-	nodeOnboardingJobs              managementusecase.NodeOnboardingJobsResponse
-	nodeOnboardingPlanReqSink       *managementusecase.CreateNodeOnboardingPlanRequest
-	nodeOnboardingJobErr            error
-	diagnosticsReqSink              *managementusecase.DiagnosticsQueryRequest
-	diagnosticsResponse             managementusecase.DiagnosticsQueryResponse
-	diagnosticsErr                  error
+	nodes                              managementusecase.NodeList
+	nodesErr                           error
+	nodeDetail                         managementusecase.NodeDetail
+	nodeDetailErr                      error
+	nodeDraining                       managementusecase.NodeDetail
+	nodeDrainingErr                    error
+	nodeResume                         managementusecase.NodeDetail
+	nodeResumeErr                      error
+	nodeScaleInReport                  managementusecase.NodeScaleInReport
+	nodeScaleInErr                     error
+	nodeScaleInNodeIDSink              *uint64
+	nodeScaleInPlanReqSink             *managementusecase.NodeScaleInPlanRequest
+	nodeScaleInAdvanceReqSink          *managementusecase.AdvanceNodeScaleInRequest
+	slotLeaderTransfer                 managementusecase.SlotDetail
+	slotLeaderTransferErr              error
+	slotAdd                            managementusecase.SlotDetail
+	slotAddErr                         error
+	slotRemove                         managementusecase.SlotRemoveResult
+	slotRemoveErr                      error
+	slotRecover                        managementusecase.SlotRecoverResult
+	slotRecoverErr                     error
+	slotRebalance                      managementusecase.SlotRebalanceResult
+	slotRebalanceErr                   error
+	slots                              []managementusecase.Slot
+	slotsErr                           error
+	listSlotsOptionsSink               *managementusecase.ListSlotsOptions
+	slotLogEntriesReqSink              *managementusecase.ListSlotLogEntriesRequest
+	slotLogEntriesPage                 managementusecase.SlotLogEntriesResponse
+	slotLogEntriesErr                  error
+	controllerLogEntriesReqSink        *managementusecase.ListControllerLogEntriesRequest
+	controllerLogEntriesPage           managementusecase.ControllerLogEntriesResponse
+	controllerLogEntriesErr            error
+	controllerRaftStatusNodeIDSink     *uint64
+	controllerRaftStatus               managementusecase.ControllerRaftStatusResponse
+	controllerRaftStatusErr            error
+	controllerRaftCompaction           managementusecase.CompactControllerRaftLogsResponse
+	controllerRaftCompactionErr        error
+	controllerRaftCompactionNodeIDSink *uint64
+	controllerRaftNodeCompaction       managementusecase.CompactControllerRaftLogsResponse
+	controllerRaftNodeCompactionErr    error
+	slotDetail                         managementusecase.SlotDetail
+	slotDetailErr                      error
+	tasks                              []managementusecase.Task
+	tasksErr                           error
+	task                               managementusecase.TaskDetail
+	taskErr                            error
+	connections                        []managementusecase.Connection
+	connectionsErr                     error
+	listConnectionsReqSink             *managementusecase.ListConnectionsRequest
+	connectionDetailReqSink            *managementusecase.GetConnectionRequest
+	connectionDetail                   managementusecase.ConnectionDetail
+	connectionDetailErr                error
+	channelRuntimeMetaReqSink          *managementusecase.ListChannelRuntimeMetaRequest
+	channelRuntimeMetaPage             managementusecase.ListChannelRuntimeMetaResponse
+	channelRuntimeMetaErr              error
+	channelRuntimeMetaDetailReqSink    *channelRuntimeMetaDetailCall
+	channelRuntimeMetaDetail           managementusecase.ChannelRuntimeMetaDetail
+	channelRuntimeMetaDetailErr        error
+	messagesReqSink                    *managementusecase.ListMessagesRequest
+	messagesPage                       managementusecase.ListMessagesResponse
+	messagesErr                        error
+	overview                           managementusecase.Overview
+	overviewErr                        error
+	networkSummary                     managementusecase.NetworkSummary
+	networkSummaryErr                  error
+	nodeOnboardingCandidates           managementusecase.NodeOnboardingCandidatesResponse
+	nodeOnboardingCandidatesErr        error
+	nodeOnboardingJob                  managementusecase.NodeOnboardingJobResponse
+	nodeOnboardingJobs                 managementusecase.NodeOnboardingJobsResponse
+	nodeOnboardingPlanReqSink          *managementusecase.CreateNodeOnboardingPlanRequest
+	nodeOnboardingJobErr               error
+	diagnosticsReqSink                 *managementusecase.DiagnosticsQueryRequest
+	diagnosticsResponse                managementusecase.DiagnosticsQueryResponse
+	diagnosticsErr                     error
 }
 
 func nodeListAt(t time.Time, leader uint64, items ...managementusecase.Node) managementusecase.NodeList {
@@ -3349,6 +3524,17 @@ func (s managementStub) GetControllerRaftStatus(_ context.Context, nodeID uint64
 		*s.controllerRaftStatusNodeIDSink = nodeID
 	}
 	return s.controllerRaftStatus, s.controllerRaftStatusErr
+}
+
+func (s managementStub) CompactControllerRaftLogs(context.Context) (managementusecase.CompactControllerRaftLogsResponse, error) {
+	return s.controllerRaftCompaction, s.controllerRaftCompactionErr
+}
+
+func (s managementStub) CompactControllerRaftLog(_ context.Context, nodeID uint64) (managementusecase.CompactControllerRaftLogsResponse, error) {
+	if s.controllerRaftCompactionNodeIDSink != nil {
+		*s.controllerRaftCompactionNodeIDSink = nodeID
+	}
+	return s.controllerRaftNodeCompaction, s.controllerRaftNodeCompactionErr
 }
 
 func (s managementStub) AddSlot(context.Context) (managementusecase.SlotDetail, error) {

@@ -43,6 +43,31 @@ var (
 	lifecycleWaitHook   func(reason string)
 )
 
+const (
+	// LogCompactionSkippedDisabled reports that local Controller Raft compaction is disabled.
+	LogCompactionSkippedDisabled = "disabled"
+	// LogCompactionSkippedNoAppliedIndex reports that no local applied entry can be snapshotted yet.
+	LogCompactionSkippedNoAppliedIndex = "no_applied_index"
+	// LogCompactionSkippedUpToDate reports that the latest local snapshot already covers applied entries.
+	LogCompactionSkippedUpToDate = "up_to_date"
+)
+
+// LogCompactionResult describes one manual Controller Raft log compaction attempt.
+type LogCompactionResult struct {
+	// NodeID is the local Controller Raft node ID that handled the attempt.
+	NodeID uint64
+	// AppliedIndex is the applied index used as the manual compaction target.
+	AppliedIndex uint64
+	// BeforeSnapshotIndex is the persisted snapshot index before the attempt.
+	BeforeSnapshotIndex uint64
+	// AfterSnapshotIndex is the persisted snapshot index after the attempt.
+	AfterSnapshotIndex uint64
+	// Compacted reports whether a new snapshot was created and local entries were compacted.
+	Compacted bool
+	// SkippedReason explains why no new snapshot was created when Compacted is false.
+	SkippedReason string
+}
+
 type Service struct {
 	cfg Config
 
@@ -69,6 +94,7 @@ type Service struct {
 
 	stepCh    chan raftpb.Message
 	proposeCh chan proposalRequest
+	compactCh chan logCompactionRequest
 
 	transport *raftTransport
 }
@@ -81,6 +107,16 @@ type proposalRequest struct {
 
 type trackedProposal struct {
 	resp chan error
+}
+
+type logCompactionRequest struct {
+	ctx  context.Context
+	resp chan logCompactionResponse
+}
+
+type logCompactionResponse struct {
+	result LogCompactionResult
+	err    error
 }
 
 // runStartupState carries durable startup indexes into the Raft run loop.
@@ -324,10 +360,11 @@ func (s *Service) Start(ctx context.Context) error {
 	doneCh := make(chan struct{})
 	stepCh := make(chan raftpb.Message, 1024)
 	proposeCh := make(chan proposalRequest)
+	compactCh := make(chan logCompactionRequest)
 	initCh := make(chan error, 1)
 	startGate := make(chan struct{})
 
-	go s.run(storageView, runStartupState{State: state, Snapshot: snapshot}, stopCh, doneCh, stepCh, proposeCh, transport, initCh, startGate)
+	go s.run(storageView, runStartupState{State: state, Snapshot: snapshot}, stopCh, doneCh, stepCh, proposeCh, compactCh, transport, initCh, startGate)
 	if err := <-initCh; err != nil {
 		s.finishStart(err)
 		<-doneCh
@@ -353,6 +390,7 @@ func (s *Service) Start(ctx context.Context) error {
 	s.doneCh = doneCh
 	s.stepCh = stepCh
 	s.proposeCh = proposeCh
+	s.compactCh = compactCh
 	s.err = nil
 
 	s.cfg.Server.Handle(msgTypeControllerRaft, s.handleMessage)
@@ -412,6 +450,7 @@ func (s *Service) Stop() error {
 	s.doneCh = nil
 	s.stepCh = nil
 	s.proposeCh = nil
+	s.compactCh = nil
 	s.transport = nil
 	s.finishStopLocked()
 	s.mu.Unlock()
@@ -480,6 +519,52 @@ func (s *Service) Propose(ctx context.Context, cmd slotcontroller.Command) error
 		return s.currentError()
 	case <-stopCh:
 		return ErrStopped
+	}
+}
+
+// CompactLog manually snapshots the local Controller metadata and compacts applied Raft log entries.
+func (s *Service) CompactLog(ctx context.Context) (LogCompactionResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	s.mu.Lock()
+	if !s.started {
+		s.mu.Unlock()
+		return LogCompactionResult{}, ErrNotStarted
+	}
+	if s.stopping {
+		s.mu.Unlock()
+		return LogCompactionResult{}, ErrStopped
+	}
+	compactCh := s.compactCh
+	stopCh := s.stopCh
+	doneCh := s.doneCh
+	s.mu.Unlock()
+
+	req := logCompactionRequest{
+		ctx:  ctx,
+		resp: make(chan logCompactionResponse, 1),
+	}
+
+	select {
+	case compactCh <- req:
+	case <-ctx.Done():
+		return LogCompactionResult{}, ctx.Err()
+	case <-doneCh:
+		return LogCompactionResult{}, s.currentError()
+	case <-stopCh:
+		return LogCompactionResult{}, ErrStopped
+	}
+
+	select {
+	case resp := <-req.resp:
+		return resp.result, resp.err
+	case <-ctx.Done():
+		return LogCompactionResult{}, ctx.Err()
+	case <-doneCh:
+		return LogCompactionResult{}, s.currentError()
+	case <-stopCh:
+		return LogCompactionResult{}, ErrStopped
 	}
 }
 
@@ -746,7 +831,7 @@ func setLifecycleWaitHookForTest(h func(reason string)) {
 	lifecycleWaitHook = h
 }
 
-func (s *Service) run(storageView *storageAdapter, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, stepCh <-chan raftpb.Message, proposeCh <-chan proposalRequest, transport *raftTransport, initCh chan<- error, startGate <-chan struct{}) {
+func (s *Service) run(storageView *storageAdapter, startup runStartupState, stopCh <-chan struct{}, doneCh chan struct{}, stepCh <-chan raftpb.Message, proposeCh <-chan proposalRequest, compactCh <-chan logCompactionRequest, transport *raftTransport, initCh chan<- error, startGate <-chan struct{}) {
 	defer close(doneCh)
 
 	rawNode, err := s.newRawNode(storageView, startup)
@@ -869,6 +954,16 @@ func (s *Service) run(storageView *storageAdapter, startup runStartupState, stop
 				continue
 			}
 			pendingQueue = append(pendingQueue, trackedProposal{resp: req.resp})
+		case req := <-compactCh:
+			result, err := s.compactControllerLogManually(req.ctx, storageView, rawNode.Status().Applied, latestConfState)
+			if err != nil {
+				s.recordCompactionFailure(err, time.Now())
+				s.logCompactionWarning(err, result.AppliedIndex)
+			} else if result.Compacted {
+				s.recordCompactionSuccess(result.AfterSnapshotIndex, time.Now())
+				compactor.recordSnapshot(result.AfterSnapshotIndex)
+			}
+			req.resp <- logCompactionResponse{result: result, err: err}
 		}
 	}
 }
@@ -976,6 +1071,42 @@ func (c *controllerLogCompactor) recordSnapshot(index uint64) {
 	c.lastSnapshotIdx = index
 }
 
+func (s *Service) compactControllerLogManually(ctx context.Context, storageView *storageAdapter, applied uint64, confState raftpb.ConfState) (LogCompactionResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	result := LogCompactionResult{
+		NodeID:       s.cfg.NodeID,
+		AppliedIndex: applied,
+	}
+	snap, err := storageView.storage.Snapshot(ctx)
+	if err != nil {
+		return result, err
+	}
+	if !raft.IsEmptySnap(snap) {
+		result.BeforeSnapshotIndex = snap.Metadata.Index
+		result.AfterSnapshotIndex = snap.Metadata.Index
+	}
+	if !s.cfg.LogCompaction.Enabled {
+		result.SkippedReason = LogCompactionSkippedDisabled
+		return result, nil
+	}
+	if applied == 0 {
+		result.SkippedReason = LogCompactionSkippedNoAppliedIndex
+		return result, nil
+	}
+	if applied <= result.BeforeSnapshotIndex {
+		result.SkippedReason = LogCompactionSkippedUpToDate
+		return result, nil
+	}
+	if err := s.compactControllerLog(ctx, storageView, applied, confState); err != nil {
+		return result, err
+	}
+	result.AfterSnapshotIndex = applied
+	result.Compacted = true
+	return result, nil
+}
+
 func (s *Service) compactControllerLog(ctx context.Context, storageView *storageAdapter, applied uint64, confState raftpb.ConfState) error {
 	if hook := currentCompactControllerLogHook(); hook != nil {
 		if err := hook(); err != nil {
@@ -1059,6 +1190,7 @@ func (s *Service) setError(err error) {
 		s.doneCh = nil
 		s.stepCh = nil
 		s.proposeCh = nil
+		s.compactCh = nil
 		s.transport = nil
 	}
 	s.mu.Unlock()

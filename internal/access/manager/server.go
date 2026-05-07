@@ -46,6 +46,10 @@ type Management interface {
 	ListControllerLogEntries(ctx context.Context, req managementusecase.ListControllerLogEntriesRequest) (managementusecase.ControllerLogEntriesResponse, error)
 	// GetControllerRaftStatus returns one node-local Controller Raft status snapshot.
 	GetControllerRaftStatus(ctx context.Context, nodeID uint64) (managementusecase.ControllerRaftStatusResponse, error)
+	// CompactControllerRaftLogs triggers node-local Controller Raft log compaction on all Controller voters.
+	CompactControllerRaftLogs(ctx context.Context) (managementusecase.CompactControllerRaftLogsResponse, error)
+	// CompactControllerRaftLog triggers node-local Controller Raft log compaction on one selected node.
+	CompactControllerRaftLog(ctx context.Context, nodeID uint64) (managementusecase.CompactControllerRaftLogsResponse, error)
 	// AddSlot creates a new physical slot and returns the latest detail DTO.
 	AddSlot(ctx context.Context) (managementusecase.SlotDetail, error)
 	// RemoveSlot starts physical slot removal and returns the accepted outcome DTO.

@@ -11,6 +11,7 @@ import type {
   ManagerChannelRuntimeMetaListResponse,
   ManagerConnectionDetailResponse,
   ManagerControllerLogsResponse,
+  ManagerControllerRaftCompactResponse,
   ManagerControllerRaftStatusResponse,
   ManagerConnectionsResponse,
   ManagerDiagnosticsResponse,
@@ -353,6 +354,18 @@ export function getControllerLogs(params: ControllerLogListParams) {
 
 export function getControllerRaftStatus(nodeId: number) {
   return jsonManagerFetch<ManagerControllerRaftStatusResponse>(`/manager/nodes/${nodeId}/controller-raft`)
+}
+
+export function compactControllerRaftLogs() {
+  return jsonManagerFetch<ManagerControllerRaftCompactResponse>("/manager/controller-raft/compact", {
+    method: "POST",
+  })
+}
+
+export function compactControllerRaftLogOnNode(nodeId: number) {
+  return jsonManagerFetch<ManagerControllerRaftCompactResponse>(`/manager/nodes/${nodeId}/controller-raft/compact`, {
+    method: "POST",
+  })
 }
 
 export function addSlot() {

@@ -2,6 +2,7 @@ package management
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
@@ -36,6 +37,8 @@ type ClusterReader interface {
 	ControllerLogEntriesOnNode(ctx context.Context, nodeID uint64, opts raftcluster.ControllerLogEntriesOptions) (raftcluster.ControllerLogEntries, error)
 	// ControllerRaftStatusOnNode returns one node's local Controller Raft status.
 	ControllerRaftStatusOnNode(ctx context.Context, nodeID uint64) (raftcluster.ControllerRaftStatus, error)
+	// CompactControllerRaftLogOnNode triggers one node's local Controller Raft log compaction.
+	CompactControllerRaftLogOnNode(ctx context.Context, nodeID uint64) (raftcluster.ControllerRaftCompactionResult, error)
 	// ListTasksStrict returns the controller leader's task snapshot without local fallback.
 	ListTasksStrict(ctx context.Context) ([]controllermeta.ReconcileTask, error)
 	// ListActiveMigrationsStrict returns controller-leader active hash-slot migrations.
@@ -169,6 +172,7 @@ type Options struct {
 type App struct {
 	localNodeID              uint64
 	controllerPeerIDs        map[uint64]struct{}
+	controllerPeerIDList     []uint64
 	slotReplicaN             int
 	scaleInRuntimeViewMaxAge time.Duration
 	cluster                  ClusterReader
@@ -184,13 +188,7 @@ type App struct {
 
 // New constructs the management usecase app.
 func New(opts Options) *App {
-	peers := make(map[uint64]struct{}, len(opts.ControllerPeerIDs))
-	for _, nodeID := range opts.ControllerPeerIDs {
-		if nodeID == 0 {
-			continue
-		}
-		peers[nodeID] = struct{}{}
-	}
+	peerList, peers := normalizeControllerPeerIDs(opts.ControllerPeerIDs)
 	now := opts.Now
 	if now == nil {
 		now = time.Now
@@ -202,6 +200,7 @@ func New(opts Options) *App {
 	return &App{
 		localNodeID:              opts.LocalNodeID,
 		controllerPeerIDs:        peers,
+		controllerPeerIDList:     peerList,
 		slotReplicaN:             opts.SlotReplicaN,
 		scaleInRuntimeViewMaxAge: scaleInRuntimeViewMaxAge,
 		cluster:                  opts.Cluster,
@@ -214,4 +213,20 @@ func New(opts Options) *App {
 		network:                  opts.Network,
 		now:                      now,
 	}
+}
+
+func normalizeControllerPeerIDs(ids []uint64) ([]uint64, map[uint64]struct{}) {
+	peers := make(map[uint64]struct{}, len(ids))
+	for _, nodeID := range ids {
+		if nodeID == 0 {
+			continue
+		}
+		peers[nodeID] = struct{}{}
+	}
+	list := make([]uint64, 0, len(peers))
+	for nodeID := range peers {
+		list = append(list, nodeID)
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i] < list[j] })
+	return list, peers
 }

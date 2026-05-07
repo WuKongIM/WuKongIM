@@ -38,6 +38,7 @@ const (
 	controllerRPCRetryOnboardingJob       string           = "retry_onboarding_job"
 	controllerRPCControllerLogs           string           = "controller_logs"
 	controllerRPCControllerRaftStatus     string           = "controller_raft_status"
+	controllerRPCControllerRaftCompact    string           = "controller_raft_compact"
 )
 
 const (
@@ -88,6 +89,7 @@ const (
 	controllerKindRetryOnboardingJob
 	controllerKindControllerLogs
 	controllerKindControllerRaftStatus
+	controllerKindControllerRaftCompact
 )
 
 type onboardingErrorCode string
@@ -134,34 +136,35 @@ type runtimeObservationReport struct {
 }
 
 type controllerRPCResponse struct {
-	NotLeader              bool
-	NotFound               bool
-	ObservationNotReady    bool
-	LeaderID               uint64
-	LeaderAddr             string
-	Nodes                  []controllermeta.ClusterNode
-	Assignments            []controllermeta.SlotAssignment
-	RuntimeViews           []controllermeta.SlotRuntimeView
-	Tasks                  []controllermeta.ReconcileTask
-	ObservationDelta       *observationDeltaResponse
-	Task                   *controllermeta.ReconcileTask
-	HashSlotTableVersion   uint64
-	HashSlotTable          []byte
-	Join                   *joinClusterResponse
-	OnboardingCandidates   []NodeOnboardingCandidate
-	OnboardingJob          *controllermeta.NodeOnboardingJob
-	OnboardingJobs         []controllermeta.NodeOnboardingJob
-	OnboardingCursor       string
-	OnboardingHasMore      bool
-	OnboardingErrorCode    onboardingErrorCode
-	OnboardingErrorMessage string
-	CommitIndex            uint64
-	AppliedIndex           uint64
-	FirstIndex             uint64
-	LastIndex              uint64
-	NextCursor             uint64
-	LogEntries             []managedSlotLogEntry
-	ControllerRaftStatus   *ControllerRaftStatus
+	NotLeader                bool
+	NotFound                 bool
+	ObservationNotReady      bool
+	LeaderID                 uint64
+	LeaderAddr               string
+	Nodes                    []controllermeta.ClusterNode
+	Assignments              []controllermeta.SlotAssignment
+	RuntimeViews             []controllermeta.SlotRuntimeView
+	Tasks                    []controllermeta.ReconcileTask
+	ObservationDelta         *observationDeltaResponse
+	Task                     *controllermeta.ReconcileTask
+	HashSlotTableVersion     uint64
+	HashSlotTable            []byte
+	Join                     *joinClusterResponse
+	OnboardingCandidates     []NodeOnboardingCandidate
+	OnboardingJob            *controllermeta.NodeOnboardingJob
+	OnboardingJobs           []controllermeta.NodeOnboardingJob
+	OnboardingCursor         string
+	OnboardingHasMore        bool
+	OnboardingErrorCode      onboardingErrorCode
+	OnboardingErrorMessage   string
+	CommitIndex              uint64
+	AppliedIndex             uint64
+	FirstIndex               uint64
+	LastIndex                uint64
+	NextCursor               uint64
+	LogEntries               []managedSlotLogEntry
+	ControllerRaftStatus     *ControllerRaftStatus
+	ControllerRaftCompaction *ControllerRaftCompactionResult
 }
 
 type joinClusterRequest struct {
@@ -369,7 +372,7 @@ func encodeControllerRequestPayload(req controllerRPCRequest) ([]byte, error) {
 			return nil, ErrInvalidConfig
 		}
 		return encodeControllerLogEntriesRequest(*req.ControllerLogs), nil
-	case controllerRPCListAssignments, controllerRPCListNodes, controllerRPCListRuntimeViews, controllerRPCListTasks, controllerRPCGetTask, controllerRPCForceReconcile, controllerRPCControllerRaftStatus:
+	case controllerRPCListAssignments, controllerRPCListNodes, controllerRPCListRuntimeViews, controllerRPCListTasks, controllerRPCGetTask, controllerRPCForceReconcile, controllerRPCControllerRaftStatus, controllerRPCControllerRaftCompact:
 		return nil, nil
 	case controllerRPCListOnboardingCandidates:
 		return nil, nil
@@ -471,7 +474,7 @@ func decodeControllerRequestPayload(req *controllerRPCRequest, payload []byte) e
 		}
 		req.ControllerLogs = &logs
 		return nil
-	case controllerRPCListAssignments, controllerRPCListNodes, controllerRPCListRuntimeViews, controllerRPCListTasks, controllerRPCGetTask, controllerRPCForceReconcile, controllerRPCControllerRaftStatus:
+	case controllerRPCListAssignments, controllerRPCListNodes, controllerRPCListRuntimeViews, controllerRPCListTasks, controllerRPCGetTask, controllerRPCForceReconcile, controllerRPCControllerRaftStatus, controllerRPCControllerRaftCompact:
 		if len(payload) != 0 {
 			return ErrInvalidConfig
 		}
@@ -524,6 +527,11 @@ func encodeControllerResponsePayload(kind string, resp controllerRPCResponse) ([
 			return nil, ErrInvalidConfig
 		}
 		return encodeControllerRaftStatusResponse(*resp.ControllerRaftStatus), nil
+	case controllerRPCControllerRaftCompact:
+		if resp.ControllerRaftCompaction == nil {
+			return nil, ErrInvalidConfig
+		}
+		return encodeControllerRaftCompactionResponse(*resp.ControllerRaftCompaction), nil
 	default:
 		return nil, ErrInvalidConfig
 	}
@@ -616,6 +624,13 @@ func decodeControllerResponsePayload(kind string, resp *controllerRPCResponse, p
 		}
 		resp.ControllerRaftStatus = &status
 		return nil
+	case controllerRPCControllerRaftCompact:
+		result, err := decodeControllerRaftCompactionResponse(payload)
+		if err != nil {
+			return err
+		}
+		resp.ControllerRaftCompaction = &result
+		return nil
 	default:
 		return ErrInvalidConfig
 	}
@@ -675,6 +690,8 @@ func controllerKindCode(kind string) (byte, error) {
 		return controllerKindControllerLogs, nil
 	case controllerRPCControllerRaftStatus:
 		return controllerKindControllerRaftStatus, nil
+	case controllerRPCControllerRaftCompact:
+		return controllerKindControllerRaftCompact, nil
 	default:
 		return controllerKindUnknown, ErrInvalidConfig
 	}
@@ -734,6 +751,8 @@ func controllerKindName(kind byte) (string, error) {
 		return controllerRPCControllerLogs, nil
 	case controllerKindControllerRaftStatus:
 		return controllerRPCControllerRaftStatus, nil
+	case controllerKindControllerRaftCompact:
+		return controllerRPCControllerRaftCompact, nil
 	default:
 		return "", ErrInvalidConfig
 	}
@@ -1009,6 +1028,44 @@ func decodeControllerRaftStatusResponse(body []byte) (ControllerRaftStatus, erro
 		return ControllerRaftStatus{}, ErrInvalidConfig
 	}
 	return status, nil
+}
+
+func encodeControllerRaftCompactionResponse(result ControllerRaftCompactionResult) []byte {
+	body := make([]byte, 0, 48+len(result.SkippedReason))
+	body = binary.BigEndian.AppendUint64(body, result.NodeID)
+	body = binary.BigEndian.AppendUint64(body, result.AppliedIndex)
+	body = binary.BigEndian.AppendUint64(body, result.BeforeSnapshotIndex)
+	body = binary.BigEndian.AppendUint64(body, result.AfterSnapshotIndex)
+	body = appendBool(body, result.Compacted)
+	body = appendString(body, result.SkippedReason)
+	return body
+}
+
+func decodeControllerRaftCompactionResponse(body []byte) (ControllerRaftCompactionResult, error) {
+	var result ControllerRaftCompactionResult
+	var err error
+	if result.NodeID, body, err = readUint64(body); err != nil {
+		return ControllerRaftCompactionResult{}, err
+	}
+	if result.AppliedIndex, body, err = readUint64(body); err != nil {
+		return ControllerRaftCompactionResult{}, err
+	}
+	if result.BeforeSnapshotIndex, body, err = readUint64(body); err != nil {
+		return ControllerRaftCompactionResult{}, err
+	}
+	if result.AfterSnapshotIndex, body, err = readUint64(body); err != nil {
+		return ControllerRaftCompactionResult{}, err
+	}
+	if result.Compacted, body, err = readBool(body); err != nil {
+		return ControllerRaftCompactionResult{}, err
+	}
+	if result.SkippedReason, body, err = readString(body); err != nil {
+		return ControllerRaftCompactionResult{}, err
+	}
+	if len(body) != 0 {
+		return ControllerRaftCompactionResult{}, ErrInvalidConfig
+	}
+	return result, nil
 }
 
 func encodeNodeOnboardingPlanRequest(req nodeOnboardingPlanRequest) []byte {

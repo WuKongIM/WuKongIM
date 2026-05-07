@@ -51,6 +51,12 @@ func (h *controllerHandler) Handle(ctx context.Context, body []byte) ([]byte, er
 	}
 
 	switch req.Kind {
+	case controllerRPCControllerRaftCompact:
+		result, err := c.localCompactControllerRaftLog(ctx, uint64(c.NodeID()))
+		if err != nil {
+			return nil, err
+		}
+		return encodeControllerResponse(req.Kind, controllerRPCResponse{ControllerRaftCompaction: &result})
 	case controllerRPCControllerLogs:
 		if req.ControllerLogs == nil {
 			return nil, ErrInvalidConfig
