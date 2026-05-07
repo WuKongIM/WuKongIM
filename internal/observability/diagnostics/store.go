@@ -214,6 +214,9 @@ func matchesQuery(event Event, q Query) bool {
 	if q.Stage != "" && event.Stage != q.Stage {
 		return false
 	}
+	if q.Result != "" && event.Result != q.Result {
+		return false
+	}
 	return true
 }
 

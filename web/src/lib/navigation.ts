@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   Radar,
+  SearchCode,
   ScrollText,
   Server,
   Waypoints,
@@ -79,6 +80,12 @@ export const navigationGroups: NavigationGroup[] = [
   {
     labelMessageId: "nav.group.observability",
     items: [
+      {
+        href: "/diagnostics",
+        titleMessageId: "nav.diagnostics.title",
+        descriptionMessageId: "nav.diagnostics.description",
+        icon: SearchCode,
+      },
       {
         href: "/network",
         titleMessageId: "nav.network.title",
