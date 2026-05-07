@@ -35,6 +35,10 @@ type transportResources struct {
 	fwdClient           *transport.Client
 	controllerRPCClient *transport.Client
 	discovery           Discovery
+	// raftSnapshotAssemblerMu protects lazy assembler initialization in tests.
+	raftSnapshotAssemblerMu sync.Mutex
+	// raftSnapshotAssembler reassembles oversized Slot Raft snapshots from transport chunks.
+	raftSnapshotAssembler *raftSnapshotAssembler
 }
 
 type controllerResources struct {
@@ -137,8 +141,9 @@ func NewCluster(cfg Config) (*Cluster, error) {
 		logger: defaultLogger(cfg.Logger),
 		obs:    cfg.Observer,
 		transportResources: transportResources{
-			rpcMux:    transport.NewRPCMux(),
-			discovery: NewDynamicDiscovery(cfg.Seeds, cfg.Nodes),
+			rpcMux:                transport.NewRPCMux(),
+			discovery:             NewDynamicDiscovery(cfg.Seeds, cfg.Nodes),
+			raftSnapshotAssembler: newRaftSnapshotAssembler(defaultRaftSnapshotChunkTTL, time.Now),
 		},
 		router:   NewRouter(NewHashSlotTable(cfg.effectiveHashSlotCount(), int(cfg.effectiveInitialSlotCount())), cfg.NodeID, nil),
 		runState: newRuntimeState(),
@@ -216,6 +221,7 @@ func (c *Cluster) startTransportLayer() error {
 	if err := layer.Start(c.cfg.ListenAddr, c.handleRaftMessage, c.handleRaftBatchMessage, c.handleForwardRPC, c.handleControllerRPC, c.handleManagedSlotRPC); err != nil {
 		return err
 	}
+	layer.server.Handle(msgTypeRaftSnapshotChunk, c.handleRaftSnapshotChunkMessage)
 	layer.server.Handle(msgTypeObservationHint, c.handleObservationHintMessage)
 
 	c.transportLayer = layer
@@ -240,6 +246,7 @@ func (c *Cluster) startServer() error {
 	})
 	c.server.Handle(msgTypeRaft, c.handleRaftMessage)
 	c.server.Handle(msgTypeRaftBatch, c.handleRaftBatchMessage)
+	c.server.Handle(msgTypeRaftSnapshotChunk, c.handleRaftSnapshotChunkMessage)
 	c.server.Handle(msgTypeObservationHint, c.handleObservationHintMessage)
 	c.rpcMux.Handle(rpcServiceForward, c.handleForwardRPC)
 	c.rpcMux.Handle(rpcServiceController, c.handleControllerRPC)
@@ -327,6 +334,7 @@ func (c *Cluster) startMultiraftRuntime() error {
 		Raft: multiraft.RaftOptions{
 			ElectionTick:  c.cfg.ElectionTick,
 			HeartbeatTick: c.cfg.HeartbeatTick,
+			LogCompaction: c.cfg.SlotLogCompaction,
 		},
 	})
 	if err != nil {
@@ -961,6 +969,34 @@ func (c *Cluster) handleRaftBatchMessage(body []byte) {
 			Message: msg,
 		})
 	}
+}
+
+// handleRaftSnapshotChunkMessage reassembles chunked MsgSnap frames before handing them to Raft.
+func (c *Cluster) handleRaftSnapshotChunkMessage(body []byte) {
+	if c.runtime == nil {
+		return
+	}
+	chunk, err := decodeRaftSnapshotChunkBody(body)
+	if err != nil {
+		return
+	}
+	assembled, ok, err := c.getRaftSnapshotAssembler().add(chunk)
+	if err != nil || !ok {
+		return
+	}
+	_ = c.runtime.Step(context.Background(), multiraft.Envelope{
+		SlotID:  multiraft.SlotID(assembled.slotID),
+		Message: assembled.message,
+	})
+}
+
+func (c *Cluster) getRaftSnapshotAssembler() *raftSnapshotAssembler {
+	c.raftSnapshotAssemblerMu.Lock()
+	defer c.raftSnapshotAssemblerMu.Unlock()
+	if c.raftSnapshotAssembler == nil {
+		c.raftSnapshotAssembler = newRaftSnapshotAssembler(defaultRaftSnapshotChunkTTL, time.Now)
+	}
+	return c.raftSnapshotAssembler
 }
 
 // Propose submits a command to the specified slot, automatically handling leader forwarding.

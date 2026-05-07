@@ -16,6 +16,7 @@ import (
 type slot struct {
 	mu                 sync.Mutex
 	id                 SlotID
+	logger             wklog.Logger
 	storage            Storage
 	stateMachine       StateMachine
 	status             Status
@@ -44,6 +45,8 @@ type slot struct {
 	votersInitialized bool
 	// votersDirty requests a full status refresh after applying a config change.
 	votersDirty bool
+	// compactor creates local snapshots and trims applied log entries for this Slot.
+	compactor *logCompactor
 	// basicStatusRefreshCount counts allocation-light status refreshes for regression tests.
 	basicStatusRefreshCount int
 	// fullStatusRefreshCount counts full RawNode.Status refreshes for regression tests.
@@ -70,14 +73,26 @@ const (
 	controlCampaign
 	controlConfigChange
 	controlTransferLeader
+	controlCompactLog
 )
 
 type controlAction struct {
-	kind   controlKind
-	data   []byte
-	future *future
-	target NodeID
-	change ConfigChange
+	kind    controlKind
+	data    []byte
+	future  *future
+	target  NodeID
+	change  ConfigChange
+	compact *logCompactionRequest
+}
+
+type logCompactionRequest struct {
+	ctx  context.Context
+	resp chan logCompactionResponse
+}
+
+type logCompactionResponse struct {
+	result LogCompactionResult
+	err    error
 }
 
 func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts RaftOptions, opts SlotOptions) (*slot, error) {
@@ -86,12 +101,16 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 		return nil, err
 	}
 
+	appliedIndex := state.AppliedIndex
+	if !raft.IsEmptySnap(snapshot) {
+		appliedIndex = snapshot.Metadata.Index
+	}
 	rawNode, err := raft.NewRawNode(&raft.Config{
 		ID:              uint64(nodeID),
 		ElectionTick:    raftOpts.ElectionTick,
 		HeartbeatTick:   raftOpts.HeartbeatTick,
 		Storage:         memory,
-		Applied:         state.AppliedIndex,
+		Applied:         appliedIndex,
 		MaxSizePerMsg:   maxSizePerMsg(raftOpts.MaxSizePerMsg),
 		MaxInflightMsgs: maxInflight(raftOpts.MaxInflight),
 		CheckQuorum:     raftOpts.CheckQuorum,
@@ -111,10 +130,12 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 			NodeID:       nodeID,
 			LeaderID:     NodeID(state.HardState.Vote),
 			CommitIndex:  state.HardState.Commit,
-			AppliedIndex: state.AppliedIndex,
+			AppliedIndex: appliedIndex,
 		},
+		logger:      logger,
 		storageView: newStorageAdapter(opts.Storage),
 		rawNode:     rawNode,
+		compactor:   newLogCompactor(raftOpts.LogCompaction, snapshot.Metadata.Index),
 	}
 	g.cond = sync.NewCond(&g.mu)
 	g.storageView.memory = memory
@@ -171,7 +192,7 @@ func (g *slot) enqueueControl(action controlAction) error {
 	return nil
 }
 
-func (g *slot) processControls() bool {
+func (g *slot) processControls(ctx context.Context) bool {
 	controls := g.takeControlBatch()
 	defer g.releaseControlBatch(controls)
 
@@ -202,6 +223,17 @@ func (g *slot) processControls() bool {
 			_ = g.rawNode.Campaign()
 		case controlTransferLeader:
 			g.rawNode.TransferLeader(uint64(action.target))
+		case controlCompactLog:
+			if action.compact == nil {
+				continue
+			}
+			if err := action.compact.ctx.Err(); err != nil {
+				action.compact.resp <- logCompactionResponse{err: err}
+				continue
+			}
+			applied := g.rawNode.BasicStatus().Applied
+			result, err := g.compactLogManually(action.compact.ctx, applied)
+			action.compact.resp <- logCompactionResponse{result: result, err: err}
 		}
 	}
 	return len(controls) > 0
@@ -325,7 +357,8 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 	}
 
 	batchSM, canBatch := g.stateMachine.(BatchStateMachine)
-	resolutions = g.applyCommittedEntries(ctx, ready.CommittedEntries, &lastApplied, resolutions, batchSM, canBatch)
+	var configChanged bool
+	resolutions, configChanged = g.applyCommittedEntries(ctx, ready.CommittedEntries, &lastApplied, resolutions, batchSM, canBatch)
 	if g.fatalErr != nil {
 		return true, false
 	}
@@ -340,7 +373,27 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 	g.rawNode.Advance(ready)
 	g.refreshStatus()
 	g.completeResolutions(resolutions)
+	// Refresh snapshots after membership changes so future learners can restore
+	// a snapshot whose ConfState includes the latest peer set.
+	if g.compactor.shouldCompact(lastApplied) || (configChanged && g.compactor.shouldRefreshAfterConfigChange(lastApplied)) {
+		if err := g.compactLog(ctx, lastApplied); err != nil {
+			g.logCompactionWarning(err, lastApplied)
+		} else {
+			g.compactor.recordSnapshot(lastApplied)
+		}
+	}
 	return true, g.rawNode.HasReady()
+}
+
+func (g *slot) logCompactionWarning(err error, applied uint64) {
+	if g == nil || g.logger == nil || err == nil {
+		return
+	}
+	g.logger.Warn("slot raft log compaction failed",
+		wklog.SlotID(uint64(g.id)),
+		wklog.Uint64("appliedIndex", applied),
+		wklog.Error(err),
+	)
 }
 
 func (g *slot) applyCommittedEntries(
@@ -350,9 +403,10 @@ func (g *slot) applyCommittedEntries(
 	resolutions []futureResolution,
 	batchSM BatchStateMachine,
 	canBatch bool,
-) []futureResolution {
+) ([]futureResolution, bool) {
 	// Collect contiguous normal entries for batched apply.
 	var batchEntries []raftpb.Entry
+	var configChanged bool
 
 	flushBatch := func() bool {
 		if len(batchEntries) == 0 {
@@ -463,7 +517,7 @@ func (g *slot) applyCommittedEntries(
 		case raftpb.EntryConfChange:
 			// Flush pending normal entries before processing conf change.
 			if !flushBatch() {
-				return resolutions
+				return resolutions, configChanged
 			}
 			var cc raftpb.ConfChange
 			if err := cc.Unmarshal(entry.Data); err != nil {
@@ -475,7 +529,9 @@ func (g *slot) applyCommittedEntries(
 				})
 				continue
 			}
-			g.rawNode.ApplyConfChange(cc)
+			latest := g.rawNode.ApplyConfChange(cc)
+			g.storageView.memory.confState = cloneConfState(*latest)
+			configChanged = true
 			g.markVotersDirty()
 			resolutions = append(resolutions, futureResolution{
 				kind:  controlConfigChange,
@@ -491,7 +547,7 @@ func (g *slot) applyCommittedEntries(
 
 	// Flush any remaining normal entries.
 	flushBatch()
-	return resolutions
+	return resolutions, configChanged
 }
 
 func decodeProposalPayload(data []byte) (uint16, []byte, error) {
@@ -584,6 +640,12 @@ func (g *slot) appliedIndex() uint64 {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.status.AppliedIndex
+}
+
+func (g *slot) nodeID() NodeID {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.status.NodeID
 }
 
 func (g *slot) statusSnapshot() (Status, error) {

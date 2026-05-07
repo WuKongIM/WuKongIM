@@ -82,7 +82,7 @@ func (r *reconciler) Tick(ctx context.Context) error {
 		hasLiveView := liveRuntimeViews && hasView
 		if ok && r.sourceSlotShouldRemainOpen(task, view, hasLiveView) {
 			if hasLiveView {
-				a.cluster.setRuntimePeers(multiraft.SlotID(assignment.SlotID), nodeIDsFromUint64s(view.CurrentPeers))
+				a.cluster.setRuntimePeers(multiraft.SlotID(assignment.SlotID), r.sourceSlotRuntimePeers(view))
 			}
 			protectedSourceSlots[assignment.SlotID] = struct{}{}
 			if err := a.cluster.ensureManagedSlotLocal(
@@ -390,10 +390,21 @@ func (r *reconciler) sourceSlotShouldRemainOpen(task controllermeta.ReconcileTas
 	}
 	localNodeID := uint64(r.agent.cluster.cfg.NodeID)
 	if hasView {
-		return assignmentContainsPeer(view.CurrentPeers, localNodeID)
+		return nodeIDsContain(r.sourceSlotRuntimePeers(view), multiraft.NodeID(localNodeID))
 	}
 	if peers, ok := r.agent.cluster.getRuntimePeers(multiraft.SlotID(task.SlotID)); ok {
 		return nodeIDsContain(peers, multiraft.NodeID(localNodeID))
 	}
 	return false
+}
+
+func (r *reconciler) sourceSlotRuntimePeers(view controllermeta.SlotRuntimeView) []multiraft.NodeID {
+	if r == nil || r.agent == nil || r.agent.cluster == nil {
+		return nil
+	}
+	localNodeID := uint64(r.agent.cluster.cfg.NodeID)
+	if assignmentContainsPeer(view.CurrentVoters, localNodeID) {
+		return nodeIDsFromUint64s(view.CurrentVoters)
+	}
+	return nodeIDsFromUint64s(view.CurrentPeers)
 }

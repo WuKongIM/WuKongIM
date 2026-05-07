@@ -156,7 +156,7 @@ func (e *slotExecutor) Execute(ctx context.Context, assignment assignmentTaskSta
 			if err := e.changeSlotConfig(ctx, slotID, multiraft.ConfigChange{
 				Type:   multiraft.RemoveVoter,
 				NodeID: multiraft.NodeID(assignment.task.SourceNode),
-			}); err != nil {
+			}); err != nil && !e.localSourceRemovalClosedSlot(err, assignment.task.SourceNode) {
 				return err
 			}
 		}
@@ -166,6 +166,18 @@ func (e *slotExecutor) Execute(ctx context.Context, assignment assignmentTaskSta
 	default:
 		return nil
 	}
+}
+
+func (e *slotExecutor) localSourceRemovalClosedSlot(err error, sourceNode uint64) bool {
+	if err == nil || e == nil || e.cluster == nil || sourceNode == 0 {
+		return false
+	}
+	if uint64(e.cluster.cfg.NodeID) != sourceNode {
+		return false
+	}
+	// Removing the local source voter can close its runtime before the waiter
+	// observes the committed config change; that is the expected terminal state.
+	return errors.Is(err, ErrSlotNotFound) || errors.Is(err, multiraft.ErrSlotNotFound)
 }
 
 func (e *slotExecutor) executeLeaderTransfer(ctx context.Context, assignment assignmentTaskState, slotID multiraft.SlotID) error {

@@ -223,6 +223,10 @@ func (f *fakeNodeOperatorCluster) CompactControllerRaftLogOnNode(context.Context
 	return raftcluster.ControllerRaftCompactionResult{}, nil
 }
 
+func (f *fakeNodeOperatorCluster) CompactSlotRaftLogOnNode(context.Context, uint64, uint32) (raftcluster.SlotRaftCompactionResult, error) {
+	return raftcluster.SlotRaftCompactionResult{}, nil
+}
+
 func (f *fakeNodeOperatorCluster) ListTasksStrict(context.Context) ([]controllermeta.ReconcileTask, error) {
 	return append([]controllermeta.ReconcileTask(nil), f.tasks...), f.listTasksErr
 }

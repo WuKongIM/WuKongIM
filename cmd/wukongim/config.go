@@ -206,6 +206,18 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	slotLogCompactionEnabled, err := parseBool(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED")
+	if err != nil {
+		return app.Config{}, err
+	}
+	slotLogCompactionTriggerEntries, err := parseUint64(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES")
+	if err != nil {
+		return app.Config{}, err
+	}
+	slotLogCompactionCheckInterval, err := parseDuration(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL")
+	if err != nil {
+		return app.Config{}, err
+	}
 	observationHeartbeatInterval, err := parseDuration(v, "WK_CLUSTER_OBSERVATION_HEARTBEAT_INTERVAL")
 	if err != nil {
 		return app.Config{}, err
@@ -255,6 +267,10 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		return app.Config{}, err
 	}
 	tokenAuthOn, err := parseBool(v, "WK_GATEWAY_TOKEN_AUTH_ON")
+	if err != nil {
+		return app.Config{}, err
+	}
+	testMode, err := parseBool(v, "WK_TEST_MODE")
 	if err != nil {
 		return app.Config{}, err
 	}
@@ -432,6 +448,7 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	}
 
 	cfg := app.Config{
+		TestMode: testMode,
 		Node: app.NodeConfig{
 			ID:      nodeID,
 			Name:    stringValue(v, "WK_NODE_NAME"),
@@ -476,6 +493,11 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 				Enabled:        controllerLogCompactionEnabled,
 				TriggerEntries: controllerLogCompactionTriggerEntries,
 				CheckInterval:  controllerLogCompactionCheckInterval,
+			},
+			SlotLogCompaction: app.SlotLogCompactionConfig{
+				Enabled:        slotLogCompactionEnabled,
+				TriggerEntries: slotLogCompactionTriggerEntries,
+				CheckInterval:  slotLogCompactionCheckInterval,
 			},
 			Timeouts: raftcluster.Timeouts{
 				ControllerObservation:              controllerObservationInterval,
@@ -583,6 +605,11 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		stringValue(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED") != "",
 		stringValue(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_TRIGGER_ENTRIES") != "",
 		stringValue(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_CHECK_INTERVAL") != "",
+	)
+	cfg.Cluster.SetSlotLogCompactionExplicitFlags(
+		stringValue(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED") != "",
+		stringValue(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES") != "",
+		stringValue(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL") != "",
 	)
 	cfg.Gateway.SetExplicitFlags(stringValue(v, "WK_GATEWAY_SEND_TIMEOUT") != "")
 	cfg.Log.SetExplicitFlags(stringValue(v, "WK_LOG_COMPRESS") != "", stringValue(v, "WK_LOG_CONSOLE") != "")

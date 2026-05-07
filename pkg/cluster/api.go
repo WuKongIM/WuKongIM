@@ -47,6 +47,8 @@ type API interface {
 	ControllerRaftStatusOnNode(ctx context.Context, nodeID uint64) (ControllerRaftStatus, error)
 	// CompactControllerRaftLogOnNode triggers one node's local Controller Raft log compaction.
 	CompactControllerRaftLogOnNode(ctx context.Context, nodeID uint64) (ControllerRaftCompactionResult, error)
+	// CompactSlotRaftLogOnNode triggers one node's local Slot Raft log compaction.
+	CompactSlotRaftLogOnNode(ctx context.Context, nodeID uint64, slotID uint32) (SlotRaftCompactionResult, error)
 	ListTasks(ctx context.Context) ([]controllermeta.ReconcileTask, error)
 	// ListTasksStrict returns the controller leader's task snapshot without local fallback.
 	ListTasksStrict(ctx context.Context) ([]controllermeta.ReconcileTask, error)

@@ -39,6 +39,8 @@ type ClusterReader interface {
 	ControllerRaftStatusOnNode(ctx context.Context, nodeID uint64) (raftcluster.ControllerRaftStatus, error)
 	// CompactControllerRaftLogOnNode triggers one node's local Controller Raft log compaction.
 	CompactControllerRaftLogOnNode(ctx context.Context, nodeID uint64) (raftcluster.ControllerRaftCompactionResult, error)
+	// CompactSlotRaftLogOnNode triggers one node's local Slot Raft log compaction.
+	CompactSlotRaftLogOnNode(ctx context.Context, nodeID uint64, slotID uint32) (raftcluster.SlotRaftCompactionResult, error)
 	// ListTasksStrict returns the controller leader's task snapshot without local fallback.
 	ListTasksStrict(ctx context.Context) ([]controllermeta.ReconcileTask, error)
 	// ListActiveMigrationsStrict returns controller-leader active hash-slot migrations.

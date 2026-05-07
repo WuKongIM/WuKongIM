@@ -73,6 +73,27 @@ type ManagerNodeSlotStats struct {
 	LeaderCount int `json:"leader_count"`
 }
 
+// ManagerSlotRaftCompactionResponse mirrors the manager Slot compaction response.
+type ManagerSlotRaftCompactionResponse struct {
+	Total     int                             `json:"total"`
+	Succeeded int                             `json:"succeeded"`
+	Failed    int                             `json:"failed"`
+	Items     []ManagerSlotRaftCompactionItem `json:"items"`
+}
+
+// ManagerSlotRaftCompactionItem mirrors one node-local Slot compaction result.
+type ManagerSlotRaftCompactionItem struct {
+	NodeID              uint64 `json:"node_id"`
+	SlotID              uint32 `json:"slot_id"`
+	Success             bool   `json:"success"`
+	AppliedIndex        uint64 `json:"applied_index"`
+	BeforeSnapshotIndex uint64 `json:"before_snapshot_index"`
+	AfterSnapshotIndex  uint64 `json:"after_snapshot_index"`
+	Compacted           bool   `json:"compacted"`
+	SkippedReason       string `json:"skipped_reason"`
+	Error               string `json:"error"`
+}
+
 // ManagerNodeOnboardingCandidatesResponse mirrors the manager onboarding candidate list.
 type ManagerNodeOnboardingCandidatesResponse struct {
 	Total int                              `json:"total"`
@@ -258,6 +279,28 @@ func decodeNodeOnboardingJobResponse(body []byte) (ManagerNodeOnboardingJob, err
 		return ManagerNodeOnboardingJob{}, err
 	}
 	return job, nil
+}
+
+// CompactSlotRaftLog triggers node-local Slot Raft compaction through manager API.
+func CompactSlotRaftLog(ctx context.Context, node StartedNode, targetNodeID uint64, slotID uint32) (ManagerSlotRaftCompactionResponse, []byte, error) {
+	body, err := postHTTPJSONBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/nodes/%d/slots/%d/compact", targetNodeID, slotID), nil)
+	if err != nil {
+		return ManagerSlotRaftCompactionResponse{}, nil, err
+	}
+
+	resp, err := decodeSlotRaftCompactionResponse(body)
+	if err != nil {
+		return ManagerSlotRaftCompactionResponse{}, body, err
+	}
+	return resp, body, nil
+}
+
+func decodeSlotRaftCompactionResponse(body []byte) (ManagerSlotRaftCompactionResponse, error) {
+	var resp ManagerSlotRaftCompactionResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return ManagerSlotRaftCompactionResponse{}, err
+	}
+	return resp, nil
 }
 
 // FetchSlotDetail fetches one manager slot detail from the started node.

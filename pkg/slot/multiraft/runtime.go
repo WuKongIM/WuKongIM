@@ -18,6 +18,7 @@ type Runtime struct {
 }
 
 func New(opts Options) (*Runtime, error) {
+	opts.Raft.LogCompaction = NormalizeLogCompactionConfig(opts.Raft.LogCompaction)
 	if opts.NodeID == 0 ||
 		opts.TickInterval <= 0 ||
 		opts.Workers <= 0 ||
@@ -26,6 +27,9 @@ func New(opts Options) (*Runtime, error) {
 		opts.Raft.HeartbeatTick <= 0 ||
 		opts.Raft.ElectionTick <= opts.Raft.HeartbeatTick {
 		return nil, ErrInvalidOptions
+	}
+	if err := ValidateLogCompactionConfig(opts.Raft.LogCompaction); err != nil {
+		return nil, err
 	}
 
 	rt := &Runtime{
@@ -106,7 +110,7 @@ func (r *Runtime) processSlot(slotID SlotID) bool {
 	if !g.shouldProcess() {
 		return false
 	}
-	worked = g.processControls() || worked
+	worked = g.processControls(context.Background()) || worked
 	if !g.shouldProcess() {
 		return false
 	}

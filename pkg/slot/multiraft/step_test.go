@@ -702,6 +702,9 @@ func (f *internalFakeStorage) FirstIndex(ctx context.Context) (uint64, error) {
 	defer f.mu.Unlock()
 
 	if len(f.entries) == 0 {
+		if !raft.IsEmptySnap(f.snapshot) {
+			return f.snapshot.Metadata.Index + 1, nil
+		}
 		return 1, nil
 	}
 	return f.entries[0].Index, nil
@@ -738,11 +741,25 @@ func (f *internalFakeStorage) Save(ctx context.Context, st PersistentState) erro
 		}
 	}
 	if len(st.Entries) > 0 {
-		f.entries = append([]raftpb.Entry(nil), st.Entries...)
+		first := st.Entries[0].Index
+		kept := f.entries[:0]
+		for _, entry := range f.entries {
+			if entry.Index < first {
+				kept = append(kept, entry)
+			}
+		}
+		f.entries = append(append([]raftpb.Entry(nil), kept...), st.Entries...)
 		f.lastSavedIndex = st.Entries[len(st.Entries)-1].Index
 	}
 	if st.Snapshot != nil {
 		f.snapshot = *st.Snapshot
+		kept := f.entries[:0]
+		for _, entry := range f.entries {
+			if entry.Index > st.Snapshot.Metadata.Index {
+				kept = append(kept, entry)
+			}
+		}
+		f.entries = append([]raftpb.Entry(nil), kept...)
 		f.lastSavedIndex = st.Snapshot.Metadata.Index
 	}
 	return nil

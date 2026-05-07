@@ -10,6 +10,7 @@ import (
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	testdatausecase "github.com/WuKongIM/WuKongIM/internal/usecase/testdata"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-gonic/gin"
@@ -24,6 +25,11 @@ type MessageUsecase interface {
 
 type UserUsecase interface {
 	UpdateToken(ctx context.Context, cmd user.UpdateTokenCommand) error
+}
+
+// TestDataUsecase generates deterministic datasets for process-level e2e tests.
+type TestDataUsecase interface {
+	GenerateSlotSnapshotUsers(ctx context.Context, cmd testdatausecase.GenerateSlotSnapshotUsersCommand) (testdatausecase.GenerateSlotSnapshotUsersResult, error)
 }
 
 // DiagnosticsReader queries node-local diagnostics events for debug API routes.
@@ -48,6 +54,8 @@ type Options struct {
 	ListenAddr               string
 	Messages                 MessageUsecase
 	Users                    UserUsecase
+	TestMode                 bool
+	TestData                 TestDataUsecase
 	Conversations            ConversationUsecase
 	ConversationDefaultLimit int
 	ConversationMaxLimit     int
@@ -74,6 +82,8 @@ type Server struct {
 	addr                     string
 	messages                 MessageUsecase
 	users                    UserUsecase
+	testMode                 bool
+	testData                 TestDataUsecase
 	conversations            ConversationUsecase
 	conversationDefaultLimit int
 	conversationMaxLimit     int
@@ -107,6 +117,8 @@ func New(opts Options) *Server {
 		listenAddr:               opts.ListenAddr,
 		messages:                 opts.Messages,
 		users:                    opts.Users,
+		testMode:                 opts.TestMode,
+		testData:                 opts.TestData,
 		conversations:            opts.Conversations,
 		conversationDefaultLimit: defaultLimit,
 		conversationMaxLimit:     maxLimit,

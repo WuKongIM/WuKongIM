@@ -14,6 +14,7 @@ import (
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	testdatausecase "github.com/WuKongIM/WuKongIM/internal/usecase/testdata"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -155,6 +156,53 @@ func TestDebugClusterRouteRequiresDebugEnable(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code)
 		require.JSONEq(t, `{"hash_slot_table_version":7}`, rec.Body.String())
 	})
+}
+
+func TestE2ETestDataRoutesRequireTestMode(t *testing.T) {
+	testData := &recordingTestDataUsecase{}
+	srv := New(Options{TestData: testData})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/testdata/e2e/cluster/slot-snapshot-users", bytes.NewBufferString(`{"prefix":"snap","count":1,"payload_bytes":8}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusNotFound, rec.Code)
+	require.Empty(t, testData.slotSnapshotUserCommands)
+}
+
+func TestE2ETestDataSlotSnapshotUsersMapsJSONToUsecaseCommand(t *testing.T) {
+	testData := &recordingTestDataUsecase{
+		slotSnapshotUsersResult: testdatausecase.GenerateSlotSnapshotUsersResult{
+			Dataset:      "cluster/slot-snapshot-users",
+			Prefix:       "snap",
+			Count:        2,
+			PayloadBytes: 32,
+			FirstUID:     "snap-000000",
+			LastUID:      "snap-000001",
+		},
+	}
+	srv := New(Options{TestMode: true, TestData: testData})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/testdata/e2e/cluster/slot-snapshot-users", bytes.NewBufferString(`{"prefix":"snap","count":2,"payload_bytes":32,"seed":"abc","device_flag":1,"device_level":1}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"dataset":"cluster/slot-snapshot-users","prefix":"snap","count":2,"payload_bytes":32,"first_uid":"snap-000000","last_uid":"snap-000001"}`, rec.Body.String())
+	require.Equal(t, []testdatausecase.GenerateSlotSnapshotUsersCommand{
+		{
+			Prefix:       "snap",
+			Count:        2,
+			PayloadBytes: 32,
+			Seed:         "abc",
+			DeviceFlag:   1,
+			DeviceLevel:  1,
+		},
+	}, testData.slotSnapshotUserCommands)
 }
 
 func TestRouteReturnsLegacyExternalAddresses(t *testing.T) {
@@ -878,6 +926,17 @@ type recordingUserUsecase struct {
 func (r *recordingUserUsecase) UpdateToken(_ context.Context, cmd user.UpdateTokenCommand) error {
 	r.calls = append(r.calls, cmd)
 	return r.err
+}
+
+type recordingTestDataUsecase struct {
+	slotSnapshotUserCommands []testdatausecase.GenerateSlotSnapshotUsersCommand
+	slotSnapshotUsersResult  testdatausecase.GenerateSlotSnapshotUsersResult
+	slotSnapshotUsersErr     error
+}
+
+func (r *recordingTestDataUsecase) GenerateSlotSnapshotUsers(_ context.Context, cmd testdatausecase.GenerateSlotSnapshotUsersCommand) (testdatausecase.GenerateSlotSnapshotUsersResult, error) {
+	r.slotSnapshotUserCommands = append(r.slotSnapshotUserCommands, cmd)
+	return r.slotSnapshotUsersResult, r.slotSnapshotUsersErr
 }
 
 type recordingConversationUsecase struct {

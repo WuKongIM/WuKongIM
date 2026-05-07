@@ -15,6 +15,8 @@ import (
 
 // Config contains all application configuration loaded for one WuKongIM node.
 type Config struct {
+	// TestMode enables e2e-only guest test-data endpoints. Never enable it in production.
+	TestMode bool
 	// Node configures this process identity and local data root.
 	Node NodeConfig
 	// Storage configures local durable storage paths.
@@ -215,6 +217,20 @@ type ControllerLogCompactionConfig struct {
 	checkIntervalSet  bool
 }
 
+// SlotLogCompactionConfig controls local Slot Raft snapshot compaction.
+type SlotLogCompactionConfig struct {
+	// Enabled controls whether this node creates local Slot Raft snapshots.
+	Enabled bool
+	// TriggerEntries is the applied-entry delta required before taking another snapshot.
+	TriggerEntries uint64
+	// CheckInterval is the minimum interval between compaction checks.
+	CheckInterval time.Duration
+
+	enabledSet        bool
+	triggerEntriesSet bool
+	checkIntervalSet  bool
+}
+
 // ClusterConfig defines controller, slot, and channel replication settings for this node's cluster runtime.
 type ClusterConfig struct {
 	// ListenAddr is the node-to-node cluster RPC listen address.
@@ -275,6 +291,8 @@ type ClusterConfig struct {
 	DialTimeout time.Duration
 	// ControllerLogCompaction controls local Controller Raft snapshot compaction.
 	ControllerLogCompaction ControllerLogCompactionConfig
+	// SlotLogCompaction controls local Slot Raft snapshot compaction.
+	SlotLogCompaction SlotLogCompactionConfig
 	// Timeouts configures controller observation, managed slot, and retry budgets.
 	Timeouts raftcluster.Timeouts
 	// DataPlaneRPCTimeout is the timeout for channel data-plane RPCs.
@@ -332,6 +350,16 @@ func (c *ClusterConfig) SetControllerLogCompactionExplicitFlags(enabledSet, trig
 	c.ControllerLogCompaction.enabledSet = enabledSet
 	c.ControllerLogCompaction.triggerEntriesSet = triggerEntriesSet
 	c.ControllerLogCompaction.checkIntervalSet = checkIntervalSet
+}
+
+// SetSlotLogCompactionExplicitFlags records which Slot log compaction values were explicitly configured.
+func (c *ClusterConfig) SetSlotLogCompactionExplicitFlags(enabledSet, triggerEntriesSet, checkIntervalSet bool) {
+	if c == nil {
+		return
+	}
+	c.SlotLogCompaction.enabledSet = enabledSet
+	c.SlotLogCompaction.triggerEntriesSet = triggerEntriesSet
+	c.SlotLogCompaction.checkIntervalSet = checkIntervalSet
 }
 
 // JoinModeEnabled reports whether any dynamic node join bootstrap setting is configured.
@@ -638,6 +666,26 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	}
 	if c.Cluster.ControllerLogCompaction.CheckInterval == 0 {
 		c.Cluster.ControllerLogCompaction.CheckInterval = 30 * time.Second
+	}
+	if !c.Cluster.SlotLogCompaction.enabledSet {
+		c.Cluster.SlotLogCompaction.Enabled = true
+	}
+	if c.Cluster.SlotLogCompaction.Enabled {
+		if c.Cluster.SlotLogCompaction.TriggerEntries == 0 && c.Cluster.SlotLogCompaction.triggerEntriesSet {
+			return fmt.Errorf("%w: slot log compaction trigger entries must be > 0", ErrInvalidConfig)
+		}
+		if c.Cluster.SlotLogCompaction.CheckInterval == 0 && c.Cluster.SlotLogCompaction.checkIntervalSet {
+			return fmt.Errorf("%w: slot log compaction check interval must be > 0", ErrInvalidConfig)
+		}
+		if c.Cluster.SlotLogCompaction.CheckInterval < 0 {
+			return fmt.Errorf("%w: slot log compaction check interval must be > 0", ErrInvalidConfig)
+		}
+	}
+	if c.Cluster.SlotLogCompaction.TriggerEntries == 0 {
+		c.Cluster.SlotLogCompaction.TriggerEntries = 10000
+	}
+	if c.Cluster.SlotLogCompaction.CheckInterval == 0 {
+		c.Cluster.SlotLogCompaction.CheckInterval = 30 * time.Second
 	}
 	if c.Cluster.ChannelBootstrapDefaultMinISR <= 0 {
 		if c.Cluster.channelBootstrapDefaultMinISRSet {

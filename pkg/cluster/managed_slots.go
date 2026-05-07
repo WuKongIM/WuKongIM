@@ -15,6 +15,7 @@ const (
 	rpcServiceManagedSlot        uint8  = 20
 	managedSlotRPCStatus         string = "status"
 	managedSlotRPCLogs           string = "logs"
+	managedSlotRPCCompact        string = "compact"
 	managedSlotRPCChangeConfig   string = "change_config"
 	managedSlotRPCImportSnapshot string = "import_snapshot"
 	managedSlotRPCTransferLeader string = "transfer_leader"
@@ -45,6 +46,7 @@ type managedSlotRPCResponse struct {
 	LastIndex     uint64   `json:"last_index,omitempty"`
 	NextCursor    uint64   `json:"next_cursor,omitempty"`
 	LogEntries    []managedSlotLogEntry
+	Compaction    *SlotRaftCompactionResult
 }
 
 type managedSlotLogEntry struct {

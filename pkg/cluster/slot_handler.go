@@ -70,6 +70,18 @@ func (h *slotHandler) Handle(ctx context.Context, body []byte) ([]byte, error) {
 	case managedSlotRPCTransferLeader:
 		err := h.cluster.managedSlots().transferLeaderLocal(ctx, multiraft.SlotID(req.SlotID), multiraft.NodeID(req.TargetNode))
 		return marshalManagedSlotError(err)
+	case managedSlotRPCCompact:
+		result, err := h.cluster.localCompactSlotRaftLog(ctx, uint64(h.cluster.NodeID()), req.SlotID)
+		switch {
+		case err == nil:
+			return encodeManagedSlotResponse(managedSlotRPCResponse{Compaction: &result})
+		case errors.Is(err, ErrSlotNotFound), errors.Is(err, multiraft.ErrSlotNotFound):
+			return encodeManagedSlotResponse(managedSlotRPCResponse{NotFound: true})
+		case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+			return encodeManagedSlotResponse(managedSlotRPCResponse{Timeout: true})
+		default:
+			return encodeManagedSlotResponse(managedSlotRPCResponse{Message: err.Error()})
+		}
 	case managedSlotRPCImportSnapshot:
 		leaderID, err := h.cluster.managedSlots().currentLeader(multiraft.SlotID(req.SlotID))
 		if err != nil {
