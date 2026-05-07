@@ -3,6 +3,9 @@
 WK_NODE_ID=1
 WK_NODE_NAME=node-1
 WK_NODE_DATA_DIR=./data/node-1
+# Enables e2e-only test mode. Keep false in production; when true, guest
+# callers may use /testdata/e2e routes to generate deterministic test data.
+WK_TEST_MODE=false
 # Optional: override storage paths. Defaults are derived from WK_NODE_DATA_DIR.
 # WK_STORAGE_DB_PATH=./data/node-1/data
 # WK_STORAGE_RAFT_PATH=./data/node-1/raft
@@ -46,6 +49,12 @@ WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED=true
 WK_CLUSTER_CONTROLLER_LOG_COMPACTION_TRIGGER_ENTRIES=10000
 # Minimum interval between Controller Raft compaction checks.
 WK_CLUSTER_CONTROLLER_LOG_COMPACTION_CHECK_INTERVAL=30s
+# Enables local Slot Raft log snapshot compaction. Enabled by default.
+WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED=true
+# Number of newly applied Slot Raft entries after the last snapshot before creating a new snapshot.
+WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES=10000
+# Minimum interval between Slot Raft compaction checks.
+WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL=30s
 WK_CLUSTER_OBSERVATION_HEARTBEAT_INTERVAL=2s
 WK_CLUSTER_OBSERVATION_RUNTIME_SCAN_INTERVAL=1s
 WK_CLUSTER_OBSERVATION_RUNTIME_FLUSH_DEBOUNCE=200ms

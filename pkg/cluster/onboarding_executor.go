@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
@@ -47,6 +48,9 @@ func (c *Cluster) advanceNodeOnboardingOnce(ctx context.Context, state slotcontr
 		if action.LeaderTransferRequired {
 			err = c.TransferSlotLeader(ctx, action.Move.SlotID, multiraft.NodeID(action.Move.TargetNodeID))
 			if err != nil {
+				if onboardingLeaderTransferRetryable(err) {
+					return true, false
+				}
 				failed := failClusterOnboardingJob(state, job, action.MoveIndex, err.Error())
 				_ = c.proposeNodeOnboardingJobUpdate(ctx, slotcontroller.NodeOnboardingJobUpdate{
 					Job:            &failed,
@@ -60,6 +64,15 @@ func (c *Cluster) advanceNodeOnboardingOnce(ctx context.Context, state slotcontr
 		return true, false
 	}
 	return true, err == nil
+}
+
+func onboardingLeaderTransferRetryable(err error) bool {
+	return errors.Is(err, ErrNoLeader) ||
+		errors.Is(err, ErrNotLeader) ||
+		errors.Is(err, ErrSlotNotFound) ||
+		errors.Is(err, multiraft.ErrSlotNotFound) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, context.Canceled)
 }
 
 func (c *Cluster) currentOnboardingLockedSlots(ctx context.Context) map[uint32]struct{} {

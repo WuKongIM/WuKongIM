@@ -178,6 +178,82 @@ func TestConfigApplyDefaultsPreservesControllerLogCompactionDisabled(t *testing.
 	}
 }
 
+func TestConfigApplyDefaultsEnablesSlotLogCompaction(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.SlotLogCompaction = multiraft.LogCompactionConfig{}
+
+	cfg.applyDefaults()
+
+	if !cfg.SlotLogCompaction.Enabled {
+		t.Fatal("SlotLogCompaction.Enabled = false, want true")
+	}
+	if cfg.SlotLogCompaction.TriggerEntries != 10000 {
+		t.Fatalf("SlotLogCompaction.TriggerEntries = %d, want %d", cfg.SlotLogCompaction.TriggerEntries, uint64(10000))
+	}
+	if cfg.SlotLogCompaction.CheckInterval != 30*time.Second {
+		t.Fatalf("SlotLogCompaction.CheckInterval = %v, want %v", cfg.SlotLogCompaction.CheckInterval, 30*time.Second)
+	}
+}
+
+func TestConfigApplyDefaultsPreservesSlotLogCompactionDisabled(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.SlotLogCompaction = multiraft.LogCompactionConfig{Enabled: false, EnabledSet: true}
+
+	cfg.applyDefaults()
+
+	if cfg.SlotLogCompaction.Enabled {
+		t.Fatal("SlotLogCompaction.Enabled = true, want false")
+	}
+}
+
+func TestConfigValidateRejectsInvalidEnabledSlotLogCompaction(t *testing.T) {
+	tests := []struct {
+		name       string
+		compaction multiraft.LogCompactionConfig
+	}{
+		{
+			name: "missing trigger entries",
+			compaction: multiraft.LogCompactionConfig{
+				Enabled:       true,
+				EnabledSet:    true,
+				CheckInterval: time.Second,
+			},
+		},
+		{
+			name: "zero check interval",
+			compaction: multiraft.LogCompactionConfig{
+				Enabled:        true,
+				EnabledSet:     true,
+				TriggerEntries: 1,
+			},
+		},
+		{
+			name: "negative check interval",
+			compaction: multiraft.LogCompactionConfig{
+				Enabled:        true,
+				EnabledSet:     true,
+				TriggerEntries: 1,
+				CheckInterval:  -time.Second,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validTestConfig()
+			cfg.SlotLogCompaction = tt.compaction
+
+			err := cfg.validate()
+			if !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+			}
+			if errors.Is(err, multiraft.ErrInvalidOptions) {
+				t.Fatalf("expected multiraft.ErrInvalidOptions to remain hidden, got: %v", err)
+			}
+		})
+	}
+}
+
 func TestConfigValidateRejectsInvalidEnabledControllerLogCompaction(t *testing.T) {
 	tests := []struct {
 		name       string

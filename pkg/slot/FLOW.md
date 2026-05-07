@@ -32,7 +32,7 @@ Store.SubmitUserConversationActiveHints / RemoveUserConversationActiveHints
 Runtime.OpenSlot / BootstrapSlot / CloseSlot
 Runtime.Step(ctx, Envelope)                  // 接收远端 Raft 消息
 Runtime.Propose(ctx, slotID, data) → Future  // 提交提案
-Runtime.ChangeConfig / TransferLeadership / Status
+Runtime.ChangeConfig / TransferLeadership / CompactLog / Status
 ```
 
 ## 4. 关键类型
@@ -117,6 +117,7 @@ Worker 循环:
                                 遇到 ConfChange 先 flush 再 ApplyConfChange
        - when `lastApplied` advances, `storage.MarkApplied(lastApplied)`
        - rawNode.Advance(ready)
+       - 若 applied 增量达到 Slot log compaction 阈值，导出 Slot meta snapshot，写入 Raft snapshot，并裁剪旧本地 entries
        - 通过 Future 通知提案者
     ⑥ refreshStatus → 刷新 Leader / CurrentVoters 观测，检测 Leader 丢失并清理 pending 提案
     ⑦ finishProcessing
@@ -146,9 +147,20 @@ Worker 循环:
   遍历 State/Index/Meta 三个键空间 → 编码为 binary
 
 传输: Raft InstallSnapshot RPC
+  - 小快照仍作为普通 `msgTypeRaft` / `MsgSnap` 发送
+  - 超过 transport 单帧预算的 Slot `MsgSnap` 会在 `pkg/cluster` 的 raftTransport 层拆成 `msgTypeRaftSnapshotChunk`
+  - 接收端按 snapshot chunk 重组成原始 `MsgSnap` 后再调用 Runtime.Step，状态机 Restore 语义不变
 
 恢复: fsm/statemachine.go:Restore → meta/snapshot.go:ImportSlotSnapshot
   删除旧键空间范围 → 原子写入所有新 KV → 单次 Commit
+
+本地日志压缩:
+  ① processReady apply + MarkApplied + RawNode.Advance 之后检查 applied delta
+  ② 达到阈值时调用 StateMachine.Snapshot 导出当前物理 Slot 拥有的 hash slot 数据
+  ③ 用当前 applied index/term/conf state 写入 Raft snapshot，并通过 raftlog 裁剪 snapshot 覆盖的 entries
+  ④ 发生 Raft membership change 且已有 snapshot 时，会刷新 snapshot 到最新 conf state，保证后续新 learner 可以安装 snapshot 追赶
+  ⑤ Runtime.CompactLog 可由运维入口手动触发同一节点本地压缩，忽略自动阈值但仍遵守 compaction enabled 配置
+  ⑥ 启动时先 Restore snapshot，再从 snapshot index 之后 replay committed entries
 ```
 
 ## 6. Meta DB 键空间与表
@@ -217,6 +229,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **ApplyBatch 原子性**: 一个 ApplyBatch 内所有命令要么全部成功，要么全部失败（WriteBatch 未 Commit 就丢弃）。任何一条失败会导致整个 Raft Slot fail。
 - **Leader 变更自动失败 pending**: `slot.go:refreshStatus` 检测到从 Leader 降级时，立即 fail 所有 submitted/pending 的 proposal/config Future 返回 ErrNotLeader。
 - **Batch Apply 与 ConfChange 穿插**: `slot.go:applyCommittedEntries` 遇到 ConfChange 必须先 flush 累积的 Normal Entry 批次。不能把 ConfChange 塞进批次里。
+- **Slot log compaction 恢复边界**: 启动时只把持久化 snapshot index 作为 RawNode applied point，然后 replay snapshot 之后仍存在的 entries；不能用更靠后的 persisted applied index 跳过 replay。
 - **RPC Handler 注册**: `proxy.New` 在构造时调用 `cluster.RPCMux().Handle(...)` 注册 4 个 handler，漏任一个该类远端查询会全部失败。
 - **写入 Key 路由**: `HashSlotForKey(key)` 先算逻辑 hash slot，再通过 `SlotForKey(key)` 查表定位物理 Slot；**同一实体必须使用同一 Key**（User 用 uid，Channel 用 channelID，Device 用 uid 而非 deviceFlag）。用错 Key 会写到不同 hash slot / Slot，读不到。
 - **值 CRC 校验失败**: Pebble 存储值带 CRC32，校验失败返回 `ErrCorruptValue`。表明磁盘损坏或编解码器版本不兼容。

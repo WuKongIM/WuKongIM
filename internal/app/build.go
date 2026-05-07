@@ -27,6 +27,7 @@ import (
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
+	testdatausecase "github.com/WuKongIM/WuKongIM/internal/usecase/testdata"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
@@ -597,10 +598,13 @@ func build(cfg Config) (_ *App, err error) {
 	}
 	if cfg.API.ListenAddr != "" {
 		legacyRouteExternal, legacyRouteIntranet := legacyRouteAddresses(cfg.API, cfg.Gateway.Listeners)
+		testDataApp := testdatausecase.New(testdatausecase.AppOptions{SlotSnapshotUsers: app.store})
 		app.api = accessapi.New(accessapi.Options{
 			ListenAddr:               cfg.API.ListenAddr,
 			Messages:                 app.messageApp,
 			Users:                    userApp,
+			TestMode:                 cfg.TestMode,
+			TestData:                 testDataApp,
 			Conversations:            app.conversationApp,
 			ConversationDefaultLimit: cfg.Conversation.SyncDefaultLimit,
 			ConversationMaxLimit:     cfg.Conversation.SyncMaxLimit,
@@ -825,6 +829,12 @@ func (c ClusterConfig) runtimeConfig(storage StorageConfig, db *metadb.DB, raftD
 			EnabledSet:     true,
 			TriggerEntries: c.ControllerLogCompaction.TriggerEntries,
 			CheckInterval:  c.ControllerLogCompaction.CheckInterval,
+		},
+		SlotLogCompaction: multiraft.LogCompactionConfig{
+			Enabled:        c.SlotLogCompaction.Enabled,
+			EnabledSet:     true,
+			TriggerEntries: c.SlotLogCompaction.TriggerEntries,
+			CheckInterval:  c.SlotLogCompaction.CheckInterval,
 		},
 		Timeouts: c.Timeouts,
 		Logger:   logger,

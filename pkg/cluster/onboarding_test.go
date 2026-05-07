@@ -8,6 +8,7 @@ import (
 
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	slotcontroller "github.com/WuKongIM/WuKongIM/pkg/controller/plane"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 )
 
@@ -162,6 +163,59 @@ func TestControllerTickCompletesOnboardingJob(t *testing.T) {
 	got, err := c.controllerMeta.GetOnboardingJob(context.Background(), job.JobID)
 	require.NoError(t, err)
 	require.Equal(t, controllermeta.OnboardingJobStatusCompleted, got.Status)
+}
+
+func TestAdvanceNodeOnboardingRetriesTransientLeaderTransferSlotNotFound(t *testing.T) {
+	c := newOnboardingControllerLeaderCluster(t)
+	c.cfg.Timeouts.LeaderTransferRetryBudget = time.Millisecond
+	seedOnboardingPlannerState(t, c)
+	job := sampleClusterOnboardingJob("running", controllermeta.OnboardingJobStatusRunning)
+	job.Moves[0].Status = controllermeta.OnboardingMoveStatusRunning
+	job.Moves[0].LeaderTransferRequired = true
+	job.CurrentMoveIndex = 0
+	job.ResultCounts = controllermeta.OnboardingResultCounts{Running: 1}
+	require.NoError(t, c.controllerMeta.UpsertOnboardingJob(context.Background(), job))
+	restoreLeader := c.setManagedSlotLeaderTestHook(func(_ *Cluster, slotID multiraft.SlotID) (multiraft.NodeID, error, bool) {
+		require.Equal(t, multiraft.SlotID(1), slotID)
+		return 0, ErrSlotNotFound, true
+	})
+	defer restoreLeader()
+
+	state := slotcontroller.PlannerState{
+		Now: time.Date(2026, 4, 26, 12, 3, 0, 0, time.UTC),
+		Nodes: map[uint64]controllermeta.ClusterNode{
+			1: clusterOnboardingNode(1),
+			2: clusterOnboardingNode(2),
+			3: clusterOnboardingNode(3),
+			4: clusterOnboardingNode(4),
+		},
+		Assignments: map[uint32]controllermeta.SlotAssignment{
+			1: {SlotID: 1, DesiredPeers: []uint64{2, 3, 4}, ConfigEpoch: 2, BalanceVersion: 2},
+		},
+		Runtime: map[uint32]controllermeta.SlotRuntimeView{
+			1: {
+				SlotID:              1,
+				CurrentPeers:        []uint64{2, 3, 4},
+				CurrentVoters:       []uint64{2, 3, 4},
+				LeaderID:            2,
+				HealthyVoters:       3,
+				HasQuorum:           true,
+				ObservedConfigEpoch: 2,
+				LastReportAt:        time.Date(2026, 4, 26, 12, 3, 0, 0, time.UTC),
+			},
+		},
+		Tasks:          map[uint32]controllermeta.ReconcileTask{},
+		MigratingSlots: map[uint32]struct{}{},
+	}
+
+	running, advanced := c.advanceNodeOnboardingOnce(context.Background(), state)
+
+	require.True(t, running)
+	require.False(t, advanced)
+	got, err := c.controllerMeta.GetOnboardingJob(context.Background(), job.JobID)
+	require.NoError(t, err)
+	require.Equal(t, controllermeta.OnboardingJobStatusRunning, got.Status)
+	require.Empty(t, got.LastError)
 }
 
 func newOnboardingControllerLeaderCluster(t *testing.T) *Cluster {

@@ -677,6 +677,10 @@ func (f fakeObservabilityCluster) CompactControllerRaftLogOnNode(context.Context
 	return raftcluster.ControllerRaftCompactionResult{}, nil
 }
 
+func (f fakeObservabilityCluster) CompactSlotRaftLogOnNode(context.Context, uint64, uint32) (raftcluster.SlotRaftCompactionResult, error) {
+	return raftcluster.SlotRaftCompactionResult{}, nil
+}
+
 func (f fakeObservabilityCluster) Propose(context.Context, multiraft.SlotID, []byte) error {
 	return nil
 }

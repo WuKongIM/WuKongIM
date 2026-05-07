@@ -51,7 +51,11 @@ func (s *storageAdapter) load(ctx context.Context) (BootstrapState, raftpb.Snaps
 		}
 	}
 
-	return state, snap, newLoadedMemoryStorage(memory, state.ConfState), nil
+	loadedConfState := state.ConfState
+	if !raft.IsEmptySnap(snap) {
+		loadedConfState = snap.Metadata.ConfState
+	}
+	return state, snap, newLoadedMemoryStorage(memory, loadedConfState), nil
 }
 
 func (s *storageAdapter) persistReady(ctx context.Context, ready raft.Ready) error {

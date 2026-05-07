@@ -12,6 +12,7 @@ import (
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
@@ -97,6 +98,9 @@ func supportedConfigExampleKeys() []string {
 		"WK_CLUSTER_RAFT_WORKERS",
 		"WK_CLUSTER_SEEDS",
 		"WK_CLUSTER_SLOT_COUNT",
+		"WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL",
+		"WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED",
+		"WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES",
 		"WK_CLUSTER_SLOT_REPLICA_N",
 		"WK_CLUSTER_TICK_INTERVAL",
 		"WK_EXTERNAL_TCPADDR",
@@ -138,6 +142,7 @@ func supportedConfigExampleKeys() []string {
 		"WK_STORAGE_CONTROLLER_RAFT_PATH",
 		"WK_STORAGE_DB_PATH",
 		"WK_STORAGE_RAFT_PATH",
+		"WK_TEST_MODE",
 	}
 }
 
@@ -196,6 +201,13 @@ func TestConfigApplyDefaultsDerivesStoragePathsFromDataDir(t *testing.T) {
 	require.Equal(t, "/tmp/wukong-node-1/channellog", cfg.Storage.ChannelLogPath)
 	require.Equal(t, "/tmp/wukong-node-1/controller-meta", cfg.Storage.ControllerMetaPath)
 	require.Equal(t, "/tmp/wukong-node-1/controller-raft", cfg.Storage.ControllerRaftPath)
+}
+
+func TestConfigApplyDefaultsKeepsTestModeDisabledByDefault(t *testing.T) {
+	cfg := validConfig()
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	require.False(t, cfg.TestMode)
 }
 
 func TestConfigRejectsNodeIDSnowflakeOverflow(t *testing.T) {
@@ -874,6 +886,55 @@ func TestConfigApplyDefaultsPreservesControllerLogCompactionDisabled(t *testing.
 	require.False(t, cfg.Cluster.ControllerLogCompaction.Enabled)
 }
 
+func TestConfigApplyDefaultsEnablesSlotLogCompaction(t *testing.T) {
+	cfg := validConfig()
+	cfg.Cluster.SlotLogCompaction = SlotLogCompactionConfig{}
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.True(t, cfg.Cluster.SlotLogCompaction.Enabled)
+	require.Equal(t, uint64(10000), cfg.Cluster.SlotLogCompaction.TriggerEntries)
+	require.Equal(t, 30*time.Second, cfg.Cluster.SlotLogCompaction.CheckInterval)
+}
+
+func TestConfigApplyDefaultsPreservesSlotLogCompactionDisabled(t *testing.T) {
+	cfg := validConfig()
+	cfg.Cluster.SlotLogCompaction.Enabled = false
+	cfg.Cluster.SetSlotLogCompactionExplicitFlags(true, false, false)
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.False(t, cfg.Cluster.SlotLogCompaction.Enabled)
+}
+
+func TestConfigRejectsInvalidEnabledSlotLogCompaction(t *testing.T) {
+	tests := []struct {
+		name           string
+		triggerEntries uint64
+		checkInterval  time.Duration
+		triggerSet     bool
+		checkSet       bool
+	}{
+		{name: "explicit zero trigger entries", triggerEntries: 0, checkInterval: time.Second, triggerSet: true},
+		{name: "explicit zero check interval", triggerEntries: 1, checkInterval: 0, checkSet: true},
+		{name: "explicit negative check interval", triggerEntries: 1, checkInterval: -time.Second, checkSet: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validConfig()
+			cfg.Cluster.SlotLogCompaction = SlotLogCompactionConfig{
+				Enabled:        true,
+				TriggerEntries: tt.triggerEntries,
+				CheckInterval:  tt.checkInterval,
+			}
+			cfg.Cluster.SetSlotLogCompactionExplicitFlags(true, tt.triggerSet, tt.checkSet)
+
+			require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "slot log compaction")
+		})
+	}
+}
+
 func TestConfigRejectsInvalidEnabledControllerLogCompaction(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -933,6 +994,20 @@ func TestClusterRuntimeConfigIncludesControllerLogCompaction(t *testing.T) {
 		TriggerEntries: 10000,
 		CheckInterval:  30 * time.Second,
 	}, runtimeCfg.ControllerLogCompaction)
+}
+
+func TestClusterRuntimeConfigIncludesSlotLogCompaction(t *testing.T) {
+	cfg := validConfig()
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	runtimeCfg := cfg.Cluster.runtimeConfig(cfg.Storage, nil, nil, cfg.Node.ID, cfg.Node.Name, nil)
+
+	require.Equal(t, multiraft.LogCompactionConfig{
+		Enabled:        true,
+		EnabledSet:     true,
+		TriggerEntries: 10000,
+		CheckInterval:  30 * time.Second,
+	}, runtimeCfg.SlotLogCompaction)
 }
 
 func TestClusterRuntimeConfigIncludesDynamicJoinSettings(t *testing.T) {

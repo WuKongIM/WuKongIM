@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -23,6 +24,7 @@ const (
 	managedSlotKindChangeConfig
 	managedSlotKindTransferLeader
 	managedSlotKindImportSnapshot
+	managedSlotKindCompact
 
 	managedSlotDecodedNil byte = iota
 	managedSlotDecodedString
@@ -35,6 +37,8 @@ const (
 	managedSlotDecodedMapSlice
 	managedSlotDecodedAnySlice
 )
+
+var managedSlotCompactionPayloadMagic = []byte("WKSC")
 
 func encodeManagedSlotRequest(req managedSlotRPCRequest) ([]byte, error) {
 	kind, err := managedSlotKindCode(req.Kind)
@@ -96,7 +100,7 @@ func decodeManagedSlotRequest(body []byte) (managedSlotRPCRequest, error) {
 
 func encodeManagedSlotRequestPayload(req managedSlotRPCRequest) ([]byte, error) {
 	switch req.Kind {
-	case managedSlotRPCStatus, managedSlotRPCChangeConfig, managedSlotRPCTransferLeader:
+	case managedSlotRPCStatus, managedSlotRPCChangeConfig, managedSlotRPCTransferLeader, managedSlotRPCCompact:
 		return nil, nil
 	case managedSlotRPCLogs:
 		body := make([]byte, 0, binary.MaxVarintLen64*2)
@@ -115,7 +119,7 @@ func encodeManagedSlotRequestPayload(req managedSlotRPCRequest) ([]byte, error) 
 
 func decodeManagedSlotRequestPayload(req *managedSlotRPCRequest, payload []byte) error {
 	switch req.Kind {
-	case managedSlotRPCStatus, managedSlotRPCChangeConfig, managedSlotRPCTransferLeader:
+	case managedSlotRPCStatus, managedSlotRPCChangeConfig, managedSlotRPCTransferLeader, managedSlotRPCCompact:
 		if len(payload) != 0 {
 			return ErrInvalidConfig
 		}
@@ -171,12 +175,19 @@ func encodeManagedSlotResponse(resp managedSlotRPCResponse) ([]byte, error) {
 	body = binary.AppendUvarint(body, uint64(len(message)))
 	body = append(body, message...)
 	body = appendUint64Slice(body, resp.CurrentVoters)
-	if resp.FirstIndex != 0 || resp.LastIndex != 0 || resp.NextCursor != 0 || len(resp.LogEntries) > 0 {
+	hasLogPayload := resp.FirstIndex != 0 || resp.LastIndex != 0 || resp.NextCursor != 0 || len(resp.LogEntries) > 0
+	if hasLogPayload && resp.Compaction != nil {
+		return nil, ErrInvalidConfig
+	}
+	if hasLogPayload {
 		var err error
 		body, err = appendManagedSlotLogEntriesPayload(body, resp)
 		if err != nil {
 			return nil, err
 		}
+	}
+	if resp.Compaction != nil {
+		body = appendManagedSlotCompactionPayload(body, *resp.Compaction)
 	}
 	return body, nil
 }
@@ -216,6 +227,14 @@ func decodeManagedSlotResponse(body []byte) (managedSlotRPCResponse, error) {
 		resp.CurrentVoters = currentVoters
 		rest = next
 	}
+	if len(rest) > 0 && bytes.HasPrefix(rest, managedSlotCompactionPayloadMagic) {
+		result, err := decodeManagedSlotCompactionPayload(rest)
+		if err != nil {
+			return managedSlotRPCResponse{}, err
+		}
+		resp.Compaction = &result
+		rest = nil
+	}
 	if len(rest) > 0 {
 		if err := decodeManagedSlotLogEntriesPayload(&resp, rest); err != nil {
 			return managedSlotRPCResponse{}, err
@@ -248,6 +267,8 @@ func managedSlotKindCode(kind string) (byte, error) {
 		return managedSlotKindTransferLeader, nil
 	case managedSlotRPCImportSnapshot:
 		return managedSlotKindImportSnapshot, nil
+	case managedSlotRPCCompact:
+		return managedSlotKindCompact, nil
 	default:
 		return managedSlotKindUnknown, ErrInvalidConfig
 	}
@@ -265,9 +286,56 @@ func managedSlotKindName(kind byte) (string, error) {
 		return managedSlotRPCTransferLeader, nil
 	case managedSlotKindImportSnapshot:
 		return managedSlotRPCImportSnapshot, nil
+	case managedSlotKindCompact:
+		return managedSlotRPCCompact, nil
 	default:
 		return "", ErrInvalidConfig
 	}
+}
+
+func appendManagedSlotCompactionPayload(dst []byte, result SlotRaftCompactionResult) []byte {
+	dst = append(dst, managedSlotCompactionPayloadMagic...)
+	dst = binary.BigEndian.AppendUint64(dst, result.NodeID)
+	dst = binary.BigEndian.AppendUint32(dst, result.SlotID)
+	dst = binary.BigEndian.AppendUint64(dst, result.AppliedIndex)
+	dst = binary.BigEndian.AppendUint64(dst, result.BeforeSnapshotIndex)
+	dst = binary.BigEndian.AppendUint64(dst, result.AfterSnapshotIndex)
+	dst = appendBool(dst, result.Compacted)
+	return appendString(dst, result.SkippedReason)
+}
+
+func decodeManagedSlotCompactionPayload(src []byte) (SlotRaftCompactionResult, error) {
+	if !bytes.HasPrefix(src, managedSlotCompactionPayloadMagic) {
+		return SlotRaftCompactionResult{}, ErrInvalidConfig
+	}
+	var result SlotRaftCompactionResult
+	var err error
+	rest := src[len(managedSlotCompactionPayloadMagic):]
+	if result.NodeID, rest, err = readUint64(rest); err != nil {
+		return SlotRaftCompactionResult{}, err
+	}
+	if result.SlotID, rest, err = readUint32(rest); err != nil {
+		return SlotRaftCompactionResult{}, err
+	}
+	if result.AppliedIndex, rest, err = readUint64(rest); err != nil {
+		return SlotRaftCompactionResult{}, err
+	}
+	if result.BeforeSnapshotIndex, rest, err = readUint64(rest); err != nil {
+		return SlotRaftCompactionResult{}, err
+	}
+	if result.AfterSnapshotIndex, rest, err = readUint64(rest); err != nil {
+		return SlotRaftCompactionResult{}, err
+	}
+	if result.Compacted, rest, err = readBool(rest); err != nil {
+		return SlotRaftCompactionResult{}, err
+	}
+	if result.SkippedReason, rest, err = readString(rest); err != nil {
+		return SlotRaftCompactionResult{}, err
+	}
+	if len(rest) != 0 {
+		return SlotRaftCompactionResult{}, ErrInvalidConfig
+	}
+	return result, nil
 }
 
 func appendManagedSlotLogEntriesPayload(dst []byte, resp managedSlotRPCResponse) ([]byte, error) {

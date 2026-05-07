@@ -1615,6 +1615,93 @@ func TestManagerNodeControllerRaftCompactRejectsInsufficientPermission(t *testin
 	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
 }
 
+func TestManagerNodeSlotRaftCompactReturnsNodeSlotResult(t *testing.T) {
+	generatedAt := time.Date(2026, 5, 7, 11, 3, 0, 0, time.UTC)
+	var gotNodeID uint64
+	var gotSlotID uint32
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.node",
+				Actions:  []string{"w"},
+			}, {
+				Resource: "cluster.slot",
+				Actions:  []string{"w"},
+			}},
+		}}),
+		Management: managementStub{
+			slotRaftCompactionNodeIDSink: &gotNodeID,
+			slotRaftCompactionSlotIDSink: &gotSlotID,
+			slotRaftCompaction: managementusecase.CompactSlotRaftLogResponse{
+				GeneratedAt: generatedAt,
+				Total:       1,
+				Succeeded:   1,
+				Items: []managementusecase.SlotRaftCompactionNodeResult{{
+					NodeID:              2,
+					SlotID:              9,
+					Success:             true,
+					AppliedIndex:        50,
+					BeforeSnapshotIndex: 40,
+					AfterSnapshotIndex:  50,
+					Compacted:           true,
+				}},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/slots/9/compact", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, uint64(2), gotNodeID)
+	require.Equal(t, uint32(9), gotSlotID)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{
+		"generated_at": "2026-05-07T11:03:00Z",
+		"total": 1,
+		"succeeded": 1,
+		"failed": 0,
+		"items": [{
+			"node_id": 2,
+			"slot_id": 9,
+			"success": true,
+			"applied_index": 50,
+			"before_snapshot_index": 40,
+			"after_snapshot_index": 50,
+			"compacted": true,
+			"skipped_reason": "",
+			"error": ""
+		}]
+	}`, rec.Body.String())
+}
+
+func TestManagerNodeSlotRaftCompactRejectsInsufficientPermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "viewer",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.slot",
+				Actions:  []string{"w"},
+			}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/2/slots/9/compact", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
+}
+
 func TestManagerSlotLogsReturnsNodeScopedEntries(t *testing.T) {
 	var reqSink managementusecase.ListSlotLogEntriesRequest
 	stub := managementStub{
@@ -3386,6 +3473,10 @@ type managementStub struct {
 	controllerRaftCompactionNodeIDSink *uint64
 	controllerRaftNodeCompaction       managementusecase.CompactControllerRaftLogsResponse
 	controllerRaftNodeCompactionErr    error
+	slotRaftCompactionNodeIDSink       *uint64
+	slotRaftCompactionSlotIDSink       *uint32
+	slotRaftCompaction                 managementusecase.CompactSlotRaftLogResponse
+	slotRaftCompactionErr              error
 	slotDetail                         managementusecase.SlotDetail
 	slotDetailErr                      error
 	tasks                              []managementusecase.Task
@@ -3535,6 +3626,16 @@ func (s managementStub) CompactControllerRaftLog(_ context.Context, nodeID uint6
 		*s.controllerRaftCompactionNodeIDSink = nodeID
 	}
 	return s.controllerRaftNodeCompaction, s.controllerRaftNodeCompactionErr
+}
+
+func (s managementStub) CompactSlotRaftLog(_ context.Context, nodeID uint64, slotID uint32) (managementusecase.CompactSlotRaftLogResponse, error) {
+	if s.slotRaftCompactionNodeIDSink != nil {
+		*s.slotRaftCompactionNodeIDSink = nodeID
+	}
+	if s.slotRaftCompactionSlotIDSink != nil {
+		*s.slotRaftCompactionSlotIDSink = slotID
+	}
+	return s.slotRaftCompaction, s.slotRaftCompactionErr
 }
 
 func (s managementStub) AddSlot(context.Context) (managementusecase.SlotDetail, error) {

@@ -27,6 +27,8 @@ type RaftOptions struct {
 	CheckQuorum   bool
 	MaxSizePerMsg uint64
 	MaxInflight   int
+	// LogCompaction controls local Slot Raft snapshot compaction.
+	LogCompaction LogCompactionConfig
 }
 
 type SlotOptions struct {

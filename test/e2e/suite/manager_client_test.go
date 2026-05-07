@@ -152,3 +152,31 @@ func TestDecodeNodeOnboardingResponses(t *testing.T) {
 	require.Len(t, job.Plan.Moves, 1)
 	require.Equal(t, []uint64{2, 3, 4}, job.Plan.Moves[0].DesiredPeersAfter)
 }
+
+func TestDecodeSlotRaftCompactionResponse(t *testing.T) {
+	body := []byte(`{
+		"total": 1,
+		"succeeded": 1,
+		"failed": 0,
+		"items": [{
+			"node_id": 2,
+			"slot_id": 1,
+			"success": true,
+			"applied_index": 12,
+			"before_snapshot_index": 3,
+			"after_snapshot_index": 12,
+			"compacted": true
+		}]
+	}`)
+
+	resp, err := decodeSlotRaftCompactionResponse(body)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, resp.Total)
+	require.Equal(t, 1, resp.Succeeded)
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, uint64(2), resp.Items[0].NodeID)
+	require.Equal(t, uint32(1), resp.Items[0].SlotID)
+	require.True(t, resp.Items[0].Compacted)
+	require.Equal(t, uint64(12), resp.Items[0].AfterSnapshotIndex)
+}

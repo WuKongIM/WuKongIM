@@ -116,6 +116,93 @@ func TestSlotExecutorExecuteRepairAndRebalanceStepOrder(t *testing.T) {
 	}
 }
 
+func TestSlotExecutorExecuteTreatsLocalSourceRemovalSlotNotFoundAsSuccess(t *testing.T) {
+	cluster := &Cluster{cfg: Config{NodeID: 3}}
+	var calls []string
+	executor := newSlotExecutorWithFuncs(cluster, slotExecutorFuncs{
+		prepareSlot: func(multiraft.SlotID, []uint64) {
+			calls = append(calls, "PrepareSlot")
+		},
+		changeSlotConfig: func(_ context.Context, _ multiraft.SlotID, change multiraft.ConfigChange) error {
+			calls = append(calls, configChangeStepName(change.Type))
+			if change.Type == multiraft.RemoveVoter && change.NodeID == 3 {
+				return ErrSlotNotFound
+			}
+			return nil
+		},
+		waitForCatchUp: func(context.Context, multiraft.SlotID, multiraft.NodeID) error {
+			calls = append(calls, "CatchUp")
+			return nil
+		},
+		ensureLeaderMovedOffSource: func(context.Context, multiraft.SlotID, multiraft.NodeID, multiraft.NodeID) error {
+			calls = append(calls, "MoveLeaderOffSource")
+			return nil
+		},
+	})
+
+	err := executor.Execute(context.Background(), assignmentTaskState{
+		assignment: controllermeta.SlotAssignment{SlotID: 1, DesiredPeers: []uint64{2, 3, 4}},
+		task: controllermeta.ReconcileTask{
+			SlotID:     1,
+			Kind:       controllermeta.TaskKindRebalance,
+			TargetNode: 4,
+			SourceNode: 3,
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("slotExecutor.Execute() error = %v, want nil", err)
+	}
+	want := []string{
+		"PrepareSlot",
+		"AddLearner",
+		"CatchUp",
+		"PromoteLearner",
+		"CatchUp",
+		"MoveLeaderOffSource",
+		"RemoveVoter",
+	}
+	if !slices.Equal(calls, want) {
+		t.Fatalf("slotExecutor.Execute() calls = %v, want %v", calls, want)
+	}
+}
+
+func TestSlotManagerCurrentLeaderFallsBackToControllerRuntimeView(t *testing.T) {
+	cluster, _, _ := newTestLocalControllerCluster(t, true)
+	rt, err := multiraft.New(multiraft.Options{
+		NodeID:       cluster.cfg.NodeID,
+		TickInterval: 10,
+		Workers:      1,
+		Transport:    observerTestTransport{},
+		Raft: multiraft.RaftOptions{
+			ElectionTick:  3,
+			HeartbeatTick: 1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("multiraft.New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = rt.Close() })
+	cluster.runtime = rt
+	cluster.router = NewRouter(NewHashSlotTable(1, 1), cluster.cfg.NodeID, rt)
+
+	view := clusterOnboardingRuntime(1, 2)
+	view.CurrentPeers = []uint64{2, 3, 4}
+	view.CurrentVoters = []uint64{2, 3, 4}
+	if err := cluster.controllerMeta.UpsertRuntimeView(context.Background(), view); err != nil {
+		t.Fatalf("UpsertRuntimeView() error = %v", err)
+	}
+
+	leaderID, err := cluster.managedSlots().currentLeader(1)
+
+	if err != nil {
+		t.Fatalf("currentLeader() error = %v, want nil", err)
+	}
+	if leaderID != 2 {
+		t.Fatalf("currentLeader() leader = %d, want 2", leaderID)
+	}
+}
+
 func TestSlotExecutorExecuteBootstrapTransfersLeaderToTarget(t *testing.T) {
 	cluster := &Cluster{}
 	var calls []string

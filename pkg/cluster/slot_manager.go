@@ -319,7 +319,28 @@ func (m *slotManager) currentLeader(slotID multiraft.SlotID) (multiraft.NodeID, 
 			return leaderID, err
 		}
 	}
-	return c.LeaderOf(slotID)
+	leaderID, err := c.LeaderOf(slotID)
+	if err == nil {
+		return leaderID, nil
+	}
+	if observed, ok := m.controllerObservedLeader(slotID); ok {
+		return observed, nil
+	}
+	return 0, err
+}
+
+func (m *slotManager) controllerObservedLeader(slotID multiraft.SlotID) (multiraft.NodeID, bool) {
+	if m == nil || m.cluster == nil || m.cluster.controllerMeta == nil || !m.cluster.isLocalControllerLeader() {
+		return 0, false
+	}
+	if slotID == 0 || uint64(uint32(slotID)) != uint64(slotID) {
+		return 0, false
+	}
+	view, err := m.cluster.controllerMeta.GetRuntimeView(context.Background(), uint32(slotID))
+	if err != nil || view.LeaderID == 0 || !view.HasQuorum {
+		return 0, false
+	}
+	return multiraft.NodeID(view.LeaderID), true
 }
 
 func (m *slotManager) ensureLeaderMovedOffSource(ctx context.Context, slotID multiraft.SlotID, sourceNode, targetNode multiraft.NodeID) error {

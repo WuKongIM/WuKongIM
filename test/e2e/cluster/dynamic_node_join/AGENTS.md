@@ -35,9 +35,20 @@ One real three-node static cluster that accepts a fourth seed-join data node. Co
 8. Poll `/manager/node-onboarding/jobs/<job_id>` until it completes.
 9. Poll `/manager/nodes` until node 4 has at least one assigned Slot.
 
+### Large Slot Snapshot Onboarding
+
+This opt-in scenario only runs when `WK_E2E_LARGE_SNAPSHOT=1`.
+
+1. Start a real three-node cluster with `WK_TEST_MODE=true` and a shared join token.
+2. Generate deterministic Slot metadata in bounded batches through `POST /testdata/e2e/cluster/slot-snapshot-users`.
+3. Resolve slot `1` topology and trigger `POST /manager/nodes/:node_id/slots/1/compact` for current Slot peers.
+4. Start node 4 with seed-join config and no static `WK_CLUSTER_NODES` list.
+5. Run the manager onboarding plan and wait for completion.
+6. Poll `/manager/nodes` until node 4 has at least one assigned Slot, proving large snapshot catch-up works through the black-box cluster path.
+
 ## Observable Outcome
 
-Node 4 appears in manager node membership with the advertised address and `controller.role=none`, both cross-node message closures complete through public WKProto gateways, and the onboarding job completes with node 4 receiving Slot resources.
+Node 4 appears in manager node membership with the advertised address and `controller.role=none`, both cross-node message closures complete through public WKProto gateways, the normal onboarding job completes with node 4 receiving Slot resources, and the opt-in large snapshot onboarding scenario completes after generating and compacting a payload-heavy Slot snapshot.
 
 ## Failure Diagnostics
 
@@ -45,13 +56,19 @@ Node 4 appears in manager node membership with the advertised address and `contr
 - last `/readyz` observations stored by the suite
 - last `/manager/nodes` body observed by membership or allocation polling
 - last `/manager/node-onboarding/**` response body observed by onboarding polling
+- last `/testdata/e2e/**` response body observed by test-data generation
+- last `/manager/nodes/:node_id/slots/:slot_id/compact` response body observed by Slot compaction
 - local `/manager/connections` observations for both connected users
 
 ## Run
 
 `go test -tags=e2e ./test/e2e/cluster/dynamic_node_join -count=1`
 
+Opt-in large snapshot run:
+
+`WK_E2E_LARGE_SNAPSHOT=1 WK_E2E_SNAPSHOT_ROWS=1200 WK_E2E_SNAPSHOT_PAYLOAD_BYTES=65536 WK_E2E_SNAPSHOT_BATCH_ROWS=100 go test -timeout=20m -tags=e2e ./test/e2e/cluster/dynamic_node_join -run TestDynamicNodeJoinLargeSlotSnapshotOnboarding -count=1 -v`
+
 ## Maintenance Rules
 
-- If seed-join config keys, manager node observations, message proof steps, onboarding proof steps, run command, or diagnostics change, update this file in the same change.
+- If seed-join config keys, manager node observations, message proof steps, onboarding proof steps, test-data generation steps, run command, or diagnostics change, update this file in the same change.
 - If this scenario adds local helpers, keep them in this directory and keep them consistent with the behavior described here.

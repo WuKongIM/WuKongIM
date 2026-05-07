@@ -73,6 +73,13 @@ func (s *Server) registerRoutes() {
 	slotWrites.POST("/slots/:slot_id/recover", s.handleSlotRecover)
 	slotWrites.POST("/slots/rebalance", s.handleSlotRebalance)
 
+	nodeSlotWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		nodeSlotWrites.Use(s.requirePermission("cluster.node", "w"))
+		nodeSlotWrites.Use(s.requirePermission("cluster.slot", "w"))
+	}
+	nodeSlotWrites.POST("/nodes/:node_id/slots/:slot_id/compact", s.handleNodeSlotRaftCompact)
+
 	onboardingCandidates := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		onboardingCandidates.Use(s.requirePermission("cluster.node", "r"))

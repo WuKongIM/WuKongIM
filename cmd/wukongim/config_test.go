@@ -81,6 +81,23 @@ func TestLoadConfigParsesConfFileIntoAppConfig(t *testing.T) {
 	require.Len(t, cfg.Gateway.Listeners, 1)
 }
 
+func TestLoadConfigParsesTestMode(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"stdnet","protocol":"wkproto"}]`,
+		"WK_TEST_MODE=true",
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.True(t, cfg.TestMode)
+}
+
 func TestLoadConfigParsesClusterSeedJoinKeys(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",
@@ -658,6 +675,26 @@ func TestLoadConfigParsesControllerLogCompaction(t *testing.T) {
 	require.Equal(t, 2*time.Second, cfg.Cluster.ControllerLogCompaction.CheckInterval)
 }
 
+func TestLoadConfigParsesSlotLogCompaction(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		"WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED=false",
+		"WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES=25",
+		"WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL=2s",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.False(t, cfg.Cluster.SlotLogCompaction.Enabled)
+	require.Equal(t, uint64(25), cfg.Cluster.SlotLogCompaction.TriggerEntries)
+	require.Equal(t, 2*time.Second, cfg.Cluster.SlotLogCompaction.CheckInterval)
+}
+
 func TestLoadConfigPrefersEnvironmentVariablesForControllerLogCompaction(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",
@@ -679,6 +716,29 @@ func TestLoadConfigPrefersEnvironmentVariablesForControllerLogCompaction(t *test
 	require.False(t, cfg.Cluster.ControllerLogCompaction.Enabled)
 	require.Equal(t, uint64(50), cfg.Cluster.ControllerLogCompaction.TriggerEntries)
 	require.Equal(t, 5*time.Second, cfg.Cluster.ControllerLogCompaction.CheckInterval)
+}
+
+func TestLoadConfigPrefersEnvironmentVariablesForSlotLogCompaction(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		"WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED=true",
+		"WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES=25",
+		"WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL=2s",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+	)
+	t.Setenv("WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED", "false")
+	t.Setenv("WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES", "50")
+	t.Setenv("WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL", "5s")
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.False(t, cfg.Cluster.SlotLogCompaction.Enabled)
+	require.Equal(t, uint64(50), cfg.Cluster.SlotLogCompaction.TriggerEntries)
+	require.Equal(t, 5*time.Second, cfg.Cluster.SlotLogCompaction.CheckInterval)
 }
 
 func TestLoadConfigRejectsInvalidControllerLogCompaction(t *testing.T) {
@@ -717,6 +777,46 @@ func TestLoadConfigRejectsInvalidControllerLogCompaction(t *testing.T) {
 
 			_, err := loadConfig(configPath)
 			require.ErrorContains(t, err, "controller log compaction")
+		})
+	}
+}
+
+func TestLoadConfigRejectsInvalidSlotLogCompaction(t *testing.T) {
+	tests := []struct {
+		name  string
+		lines []string
+	}{
+		{
+			name: "zero trigger entries",
+			lines: []string{
+				"WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED=true",
+				"WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES=0",
+			},
+		},
+		{
+			name: "negative check interval",
+			lines: []string{
+				"WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED=true",
+				"WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL=-1s",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			lines := []string{
+				"WK_NODE_ID=1",
+				"WK_NODE_DATA_DIR=" + filepath.Join(dir, "node-1"),
+				"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+				"WK_CLUSTER_SLOT_COUNT=1",
+				`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+			}
+			lines = append(lines, tt.lines...)
+			configPath := writeConf(t, dir, "wukongim.conf", lines...)
+
+			_, err := loadConfig(configPath)
+			require.ErrorContains(t, err, "slot log compaction")
 		})
 	}
 }

@@ -39,6 +39,7 @@ API.ListSlotAssignments(ctx) / ListSlotAssignmentsStrict(ctx) / ListActiveMigrat
 API.ListObservedRuntimeViews(ctx) / ListObservedRuntimeViewsStrict(ctx)
 API.SlotLogStatusOnNode(ctx, nodeID, slotID)  // 读取某节点某 Slot 的 Raft commit/applied watermark；本地走 runtime.Status，远程走 managed-slot status RPC
 API.SlotLogEntriesOnNode(ctx, nodeID, slotID, opts)  // 读取某节点某 Slot 的本地 Raft log entry 摘要页；本地读 Slot storage，远程走 managed-slot logs RPC
+API.CompactSlotRaftLogOnNode(ctx, nodeID, slotID)  // 触发某节点某 Slot 的本地 Raft log compaction；本地走 Runtime.CompactLog，远程走 managed-slot compact RPC
 API.ControllerRaftStatusOnNode(ctx, nodeID)  // 读取目标节点本地 Controller Raft 状态；本地合并 Service.Status 与 durable raftlog indexes，远程直连目标节点 Controller RPC
 API.GetReconcileTask(ctx, slotID) / GetReconcileTaskStrict(ctx, slotID) / ForceReconcile(ctx, slotID)
 API.MarkNodeDraining(ctx, nodeID) / ResumeNode(ctx, nodeID)
@@ -96,10 +97,12 @@ Start():
      使用 Cluster-owned DynamicDiscovery → Server → 注册 Raft / RPC Handler:
        msgTypeRaft       → handleRaftMessage
        msgTypeRaftBatch  → handleRaftBatchMessage
+       msgTypeRaftSnapshotChunk → handleRaftSnapshotChunkMessage
        rpcServiceForward → handleForwardRPC
        rpcServiceController → handleControllerRPC
        rpcServiceManagedSlot → handleManagedSlotRPC
        同一目标节点上的 Slot Raft envelope 会合并成 msgTypeRaftBatch 发送，接收端按 batch item 逐条 Step 到对应 Slot。
+       超过单帧预算的 Slot Raft MsgSnap 不进入 batch；发送端拆成 msgTypeRaftSnapshotChunk，接收端重组成原始 MsgSnap 后再 Step。
      创建 raftPool + rpcPool + controllerPool → raftClient + fwdClient + controllerRPCClient
      Server / Pool 通过 Config.TransportObserver 上报 transport send/receive bytes、dial / enqueue 结果，以及 RPC client 调用结果 / 时延 / inflight
      Cluster.TransportPoolStats() 在观测刷新时聚合 raftPool/rpcPool/controllerPool 的 active/idle 连接数
@@ -114,7 +117,7 @@ Start():
        Controller Raft 使用独立的 transport message type，必须避免与 Slot Raft / observation hint 冲突；
        入站 Controller Raft frame 只接受 To=local 且 From!=local 的消息，避免 stale discovery / loopback 帧进入 RawNode。
   ⑤ startMultiraftRuntime():
-     → multiraft.New(nodeID, tickInterval, workers, raftTransport)
+     → multiraft.New(nodeID, tickInterval, workers, raftTransport, SlotLogCompaction)
      → 绑定 Router.runtime
   ⑥ startControllerClient():
      条件: ControllerEnabled()
@@ -547,7 +550,9 @@ SlotIDs()/planner/readiness:
 
 **Controller RPC 操作** (23 种): `heartbeat` / `runtime_report` / `join_cluster` / `list_assignments` / `list_nodes` / `list_runtime_views` / `fetch_observation_delta` / `operator` / `get_task` / `force_reconcile` / `task_result` / `start_migration` / `advance_migration` / `finalize_migration` / `abort_migration` / `add_slot` / `remove_slot` / `list_onboarding_candidates` / `create_onboarding_plan` / `start_onboarding_job` / `list_onboarding_jobs` / `get_onboarding_job` / `retry_onboarding_job`
 
-**Managed Slot RPC 操作** (5 种): `status` / `logs` / `change_config` / `import_snapshot` / `transfer_leader`
+**Managed Slot RPC 操作** (6 种): `status` / `logs` / `compact` / `change_config` / `import_snapshot` / `transfer_leader`
+
+**Transport message types**: `msgTypeRaft(1)` / `msgTypeObservationHint(2)` / `msgTypeRaftBatch(3)` / `msgTypeRaftSnapshotChunk(4)`。
 
 **Forward 响应码**: `OK(0)` / `NotLeader(1)` / `Timeout(2)` / `NoSlot(3)`
 
@@ -576,6 +581,8 @@ SlotIDs()/planner/readiness:
 - **Controller 观测读语义**: `ListObservedRuntimeViews` 在 leader 上优先读本地 `observationCache`；只有 leader 不可达时才允许降级到本地 `controllerMeta`，且结果可能滞后。
 - **Manager 严格一致读语义**: `ListNodesStrict`、`ListSlotAssignmentsStrict`、`ListObservedRuntimeViewsStrict`、`ListTasksStrict`、`GetReconcileTaskStrict` 只接受 controller leader 结果；本地节点若自身就是 leader 可直接读 leader 本地数据，否则必须经 controller client 读取，禁止降级到本地 `controllerMeta`。
 - **Manager Slot 日志读语义**: `SlotLogStatusOnNode` 只读取目标节点当前 Slot Raft 运行时的 commit/applied watermark；`SlotLogEntriesOnNode` 只读取目标节点本地 Slot storage 的 Raft log entry 摘要页（index/term/type/data_size），并对普通 Slot FSM command payload 生成脱敏 JSON inspection（如 command/uid/channel_id，token 固定为 `***`）。二者都用于运维排查，不能替代 controller leader strict-read 拓扑来源。
+- **Manager Slot 压缩语义**: `CompactSlotRaftLogOnNode` 是节点本地运维写，目标节点按当前 applied index 生成 Slot snapshot 并裁剪本地 entries；该入口不走 Slot leader 路由，也不替代 Controller assignment / runtime strict read。
+- **Slot Raft 大快照传输**: Slot `MsgSnap` 超过 transport 单帧预算时只在 cluster raft transport 层分片；接收端必须完整重组后再调用 `Runtime.Step`，不能把 chunk 直接交给 multiraft/FSM。
 - **Controller Raft 状态读语义**: `ControllerRaftStatusOnNode` 是节点本地诊断读；远程读取必须直连请求中的目标节点 Controller RPC，禁止走 leader-centric controller client 路由，否则会误读 leader 节点状态而不是目标节点状态。
 - **Manager recover 必须走 strict assignments**: `RecoverSlotStrict` 使用 `ListSlotAssignmentsStrict` 作为唯一 assignment 来源，避免 manager 写接口因为 fallback 到本地 assignment 状态而在不同节点上看到不同恢复结论。
 - **Controller HashSlot 读快路径**: leader 处理 `heartbeat` / `list_assignments` 时优先读 `controllerHost` 持有的 HashSlot snapshot；只有 snapshot cold miss 才会回落到 `controllerMeta.LoadHashSlotTable()`，回填后再继续返回。

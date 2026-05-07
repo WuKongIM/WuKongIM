@@ -20,6 +20,28 @@ directory tree.
 - When an e2e test needs extra observability, prefer existing `/manager/`
   APIs. If the current APIs are insufficient and a new `/manager/` endpoint is
   required, ask the developer for confirmation before implementing it.
+- When an e2e test needs large or specialized seed data, prefer adding a
+  dedicated test-data generation API over direct store/database access. The API
+  must be disabled by default, must only allow guest access when an explicit
+  test mode is enabled, and should be reusable for later e2e scenarios with
+  similar data-generation needs.
+
+## Test Data API Router Rules
+
+- Put e2e-only data generation endpoints under the dedicated prefix
+  `/testdata/e2e`; do not add them under production business routes such as
+  `/user/**`, `/channel/**`, or `/message/**`.
+- Use `POST /testdata/e2e/<domain>/<dataset>` for data generation. The
+  `<domain>` segment should match the owning e2e domain when possible
+  (`cluster`, `message`, etc.), and `<dataset>` should describe the reusable
+  dataset shape, not one narrow test function.
+- Return `404` or do not register the route when explicit test mode is
+  disabled. Guest access is only allowed after that test-mode guard has passed.
+- Keep route inputs in JSON request bodies, include deterministic fields such
+  as `prefix`, `count`, `seed`, or `payload_bytes`, and make generation
+  idempotent where practical so failed e2e runs can be retried safely.
+- Add reusable client helpers for these routes in `test/e2e/suite`; scenario
+  tests should call those helpers instead of constructing raw test-data URLs.
 
 ## Structure Contract
 
@@ -55,7 +77,7 @@ directory tree.
 
 | Domain | Scenario path | Purpose | Run |
 | --- | --- | --- | --- |
-| `cluster` | `test/e2e/cluster/dynamic_node_join` | Prove a fourth data node can join a running three-node cluster through seed config, exchange WKProto person messages with an existing node, and receive Slot resources through manager onboarding. | `go test -tags=e2e ./test/e2e/cluster/dynamic_node_join -count=1` |
+| `cluster` | `test/e2e/cluster/dynamic_node_join` | Prove a fourth data node can join a running three-node cluster through seed config, exchange WKProto person messages with an existing node, receive Slot resources through manager onboarding, and optionally catch up from a large Slot snapshot. | `go test -tags=e2e ./test/e2e/cluster/dynamic_node_join -count=1` |
 | `message` | `test/e2e/message/single_node_send_message` | Prove one fresh single-node cluster can complete a real WKProto `Send -> SendAck -> Recv -> RecvAck` closure. | `go test -tags=e2e ./test/e2e/message/single_node_send_message -count=1` |
 | `message` | `test/e2e/message/cross_node_closure` | Prove a three-node cluster can deliver one person-channel message when sender and recipient are connected to different follower nodes. | `go test -tags=e2e ./test/e2e/message/cross_node_closure -count=1` |
 | `message` | `test/e2e/message/slot_leader_failover` | Prove cross-node delivery survives a slot leader failover after both clients are already connected on follower nodes. | `go test -tags=e2e ./test/e2e/message/slot_leader_failover -count=1` |

@@ -211,6 +211,39 @@ func (r *Runtime) TransferLeadership(ctx context.Context, slotID SlotID, target 
 	return nil
 }
 
+// CompactLog manually snapshots one local Slot and compacts its applied Raft entries.
+func (r *Runtime) CompactLog(ctx context.Context, slotID SlotID) (LogCompactionResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	r.mu.RLock()
+	if r.closed {
+		r.mu.RUnlock()
+		return LogCompactionResult{}, ErrRuntimeClosed
+	}
+	g, ok := r.slots[slotID]
+	r.mu.RUnlock()
+	if !ok {
+		return LogCompactionResult{}, ErrSlotNotFound
+	}
+
+	req := logCompactionRequest{
+		ctx:  ctx,
+		resp: make(chan logCompactionResponse, 1),
+	}
+	if err := g.enqueueControl(controlAction{kind: controlCompactLog, compact: &req}); err != nil {
+		return LogCompactionResult{}, err
+	}
+	r.scheduler.enqueue(slotID)
+
+	select {
+	case resp := <-req.resp:
+		return resp.result, resp.err
+	case <-ctx.Done():
+		return LogCompactionResult{}, ctx.Err()
+	}
+}
+
 func (r *Runtime) Status(slotID SlotID) (Status, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

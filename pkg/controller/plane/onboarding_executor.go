@@ -139,7 +139,7 @@ func NextNodeOnboardingAction(input OnboardingPlanInput, job controllermeta.Node
 		case peersEqual(currentPeers, after):
 			view, hasView := input.Runtime[move.SlotID]
 			if move.LeaderTransferRequired && (!hasView || !view.HasQuorum) {
-				return failOnboardingJob(input, job, index, "slot runtime view is not available for leader transfer")
+				return OnboardingAction{Kind: OnboardingActionNone, Job: cloneOnboardingJob(job), Move: move, MoveIndex: index}
 			}
 			if move.LeaderTransferRequired && view.LeaderID != move.TargetNodeID {
 				return OnboardingAction{

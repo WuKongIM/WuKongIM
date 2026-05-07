@@ -36,6 +36,9 @@ func (s *Server) registerRoutes() {
 		}
 		s.registerDebugRoutes()
 	}
+	if s.testMode && s.testData != nil {
+		s.registerTestDataRoutes()
+	}
 	s.engine.POST("/user/token", s.handleUpdateToken)
 	s.engine.POST("/message/send", s.handleSendMessage)
 	s.engine.POST("/channel/messagesync", s.handleChannelMessageSync)

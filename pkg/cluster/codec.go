@@ -3,19 +3,47 @@ package cluster
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 )
 
 // Raft message types used when registering with transport.Server.
 const (
-	msgTypeRaft            uint8 = 1
-	msgTypeObservationHint uint8 = 2
-	msgTypeRaftBatch       uint8 = 3
+	msgTypeRaft              uint8 = 1
+	msgTypeObservationHint   uint8 = 2
+	msgTypeRaftBatch         uint8 = 3
+	msgTypeRaftSnapshotChunk uint8 = 4
 )
 
 // raftBatchItem is one slot-scoped raft message inside a batched transport frame.
 type raftBatchItem struct {
 	slotID uint64
 	data   []byte
+}
+
+const raftSnapshotChunkHeaderSize = 80
+
+// raftSnapshotChunk is one bounded wire fragment of a Slot Raft MsgSnap.
+type raftSnapshotChunk struct {
+	// slotID identifies the Slot Raft group that owns this snapshot.
+	slotID uint64
+	// chunkID groups all chunks produced for one outbound MsgSnap send attempt.
+	chunkID uint64
+	// from is the Raft sender node ID.
+	from uint64
+	// to is the Raft target node ID.
+	to uint64
+	// index is the snapshot metadata index.
+	index uint64
+	// term is the snapshot metadata term.
+	term uint64
+	// total is the full snapshot data length.
+	total uint64
+	// offset is the starting byte of data within the full snapshot.
+	offset uint64
+	// message is the marshaled MsgSnap with Snapshot.Data cleared.
+	message []byte
+	// data is the chunk payload for [offset, offset+len(data)).
+	data []byte
 }
 
 // Forward error codes (encoded within RPC payload, not wire-level).
@@ -96,6 +124,62 @@ func decodeRaftBatchBody(body []byte) ([]raftBatchItem, error) {
 		return nil, fmt.Errorf("raft batch body has %d trailing bytes", len(body)-offset)
 	}
 	return items, nil
+}
+
+// encodeRaftSnapshotChunkBody encodes a snapshot chunk as:
+// [slotID:8][chunkID:8][from:8][to:8][index:8][term:8][total:8][offset:8][msgLen:8][dataLen:8][msg:N][data:N].
+func encodeRaftSnapshotChunkBody(chunk raftSnapshotChunk) []byte {
+	size := raftSnapshotChunkHeaderSize + len(chunk.message) + len(chunk.data)
+	buf := make([]byte, size)
+	binary.BigEndian.PutUint64(buf[0:8], chunk.slotID)
+	binary.BigEndian.PutUint64(buf[8:16], chunk.chunkID)
+	binary.BigEndian.PutUint64(buf[16:24], chunk.from)
+	binary.BigEndian.PutUint64(buf[24:32], chunk.to)
+	binary.BigEndian.PutUint64(buf[32:40], chunk.index)
+	binary.BigEndian.PutUint64(buf[40:48], chunk.term)
+	binary.BigEndian.PutUint64(buf[48:56], chunk.total)
+	binary.BigEndian.PutUint64(buf[56:64], chunk.offset)
+	binary.BigEndian.PutUint64(buf[64:72], uint64(len(chunk.message)))
+	binary.BigEndian.PutUint64(buf[72:80], uint64(len(chunk.data)))
+	offset := raftSnapshotChunkHeaderSize
+	copy(buf[offset:offset+len(chunk.message)], chunk.message)
+	offset += len(chunk.message)
+	copy(buf[offset:offset+len(chunk.data)], chunk.data)
+	return buf
+}
+
+// decodeRaftSnapshotChunkBody decodes a bounded Slot Raft snapshot chunk.
+func decodeRaftSnapshotChunkBody(body []byte) (raftSnapshotChunk, error) {
+	if len(body) < raftSnapshotChunkHeaderSize {
+		return raftSnapshotChunk{}, fmt.Errorf("raft snapshot chunk body too short: %d", len(body))
+	}
+	chunk := raftSnapshotChunk{
+		slotID:  binary.BigEndian.Uint64(body[0:8]),
+		chunkID: binary.BigEndian.Uint64(body[8:16]),
+		from:    binary.BigEndian.Uint64(body[16:24]),
+		to:      binary.BigEndian.Uint64(body[24:32]),
+		index:   binary.BigEndian.Uint64(body[32:40]),
+		term:    binary.BigEndian.Uint64(body[40:48]),
+		total:   binary.BigEndian.Uint64(body[48:56]),
+		offset:  binary.BigEndian.Uint64(body[56:64]),
+	}
+	msgLen := binary.BigEndian.Uint64(body[64:72])
+	dataLen := binary.BigEndian.Uint64(body[72:80])
+	if msgLen > uint64(math.MaxInt) || dataLen > uint64(math.MaxInt) {
+		return raftSnapshotChunk{}, fmt.Errorf("raft snapshot chunk length overflows int")
+	}
+	want := raftSnapshotChunkHeaderSize + int(msgLen) + int(dataLen)
+	if want != len(body) {
+		return raftSnapshotChunk{}, fmt.Errorf("raft snapshot chunk body size mismatch: got=%d want=%d", len(body), want)
+	}
+	offset := raftSnapshotChunkHeaderSize
+	chunk.message = body[offset : offset+int(msgLen)]
+	offset += int(msgLen)
+	chunk.data = body[offset : offset+int(dataLen)]
+	if chunk.offset > chunk.total || uint64(len(chunk.data)) > chunk.total-chunk.offset {
+		return raftSnapshotChunk{}, fmt.Errorf("raft snapshot chunk range out of bounds: offset=%d len=%d total=%d", chunk.offset, len(chunk.data), chunk.total)
+	}
+	return chunk, nil
 }
 
 // encodeProposalPayload encodes [hashSlot:2][cmd:N] for raft proposals.

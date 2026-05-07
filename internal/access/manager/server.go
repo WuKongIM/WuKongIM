@@ -50,6 +50,8 @@ type Management interface {
 	CompactControllerRaftLogs(ctx context.Context) (managementusecase.CompactControllerRaftLogsResponse, error)
 	// CompactControllerRaftLog triggers node-local Controller Raft log compaction on one selected node.
 	CompactControllerRaftLog(ctx context.Context, nodeID uint64) (managementusecase.CompactControllerRaftLogsResponse, error)
+	// CompactSlotRaftLog triggers node-local Slot Raft log compaction on one selected node and Slot.
+	CompactSlotRaftLog(ctx context.Context, nodeID uint64, slotID uint32) (managementusecase.CompactSlotRaftLogResponse, error)
 	// AddSlot creates a new physical slot and returns the latest detail DTO.
 	AddSlot(ctx context.Context) (managementusecase.SlotDetail, error)
 	// RemoveSlot starts physical slot removal and returns the accepted outcome DTO.

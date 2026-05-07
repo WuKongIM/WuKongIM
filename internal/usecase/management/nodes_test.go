@@ -360,6 +360,8 @@ type fakeClusterReader struct {
 	controllerRaftStatusErr     map[uint64]error
 	controllerRaftCompactions   map[uint64]raftcluster.ControllerRaftCompactionResult
 	controllerRaftCompactErr    map[uint64]error
+	slotRaftCompactions         map[slotRaftCompactionKey]raftcluster.SlotRaftCompactionResult
+	slotRaftCompactionErrs      map[slotRaftCompactionKey]error
 	tasks                       []controllermeta.ReconcileTask
 	taskBySlot                  map[uint32]controllermeta.ReconcileTask
 	listTasksErr                error
@@ -385,6 +387,11 @@ type slotLogStatusKey struct {
 }
 
 type slotLogEntriesKey struct {
+	nodeID uint64
+	slotID uint32
+}
+
+type slotRaftCompactionKey struct {
 	nodeID uint64
 	slotID uint32
 }
@@ -479,6 +486,17 @@ func (f fakeClusterReader) CompactControllerRaftLogOnNode(_ context.Context, nod
 		return result, nil
 	}
 	return raftcluster.ControllerRaftCompactionResult{NodeID: nodeID}, nil
+}
+
+func (f fakeClusterReader) CompactSlotRaftLogOnNode(_ context.Context, nodeID uint64, slotID uint32) (raftcluster.SlotRaftCompactionResult, error) {
+	key := slotRaftCompactionKey{nodeID: nodeID, slotID: slotID}
+	if err := f.slotRaftCompactionErrs[key]; err != nil {
+		return raftcluster.SlotRaftCompactionResult{}, err
+	}
+	if result, ok := f.slotRaftCompactions[key]; ok {
+		return result, nil
+	}
+	return raftcluster.SlotRaftCompactionResult{NodeID: nodeID, SlotID: slotID}, nil
 }
 
 func (f fakeClusterReader) ListTasksStrict(context.Context) ([]controllermeta.ReconcileTask, error) {

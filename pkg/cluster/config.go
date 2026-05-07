@@ -55,7 +55,9 @@ type Config struct {
 	// recoverable cutover semantics are explicitly accepted.
 	EnableHashSlotMigration bool
 	// ControllerLogCompaction controls local Controller Raft snapshot compaction.
-	ControllerLogCompaction      controllerraft.LogCompactionConfig
+	ControllerLogCompaction controllerraft.LogCompactionConfig
+	// SlotLogCompaction controls local Slot Raft snapshot compaction.
+	SlotLogCompaction            multiraft.LogCompactionConfig
 	ControllerMetaPath           string
 	ControllerRaftPath           string
 	ControllerReplicaN           int
@@ -173,6 +175,9 @@ func (c *Config) validate() error {
 	}
 	if err := controllerraft.ValidateLogCompactionConfig(c.ControllerLogCompaction); err != nil {
 		return fmt.Errorf("%w: controller log compaction: %v", ErrInvalidConfig, err)
+	}
+	if err := multiraft.ValidateLogCompactionConfig(c.SlotLogCompaction); err != nil {
+		return fmt.Errorf("%w: slot log compaction: %v", ErrInvalidConfig, err)
 	}
 
 	staticCluster := len(c.Nodes) > 0
@@ -338,6 +343,7 @@ func (c *Config) applyDefaults() {
 		c.DialTimeout = defaultDialTimeout
 	}
 	c.ControllerLogCompaction = controllerraft.NormalizeLogCompactionConfig(c.ControllerLogCompaction)
+	c.SlotLogCompaction = multiraft.NormalizeLogCompactionConfig(c.SlotLogCompaction)
 	c.Timeouts.applyDefaults()
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -241,6 +242,31 @@ func TestReconcilerTickDoesNotBootstrapRemoteTarget(t *testing.T) {
 	}
 	if _, err := cluster.runtime.Status(1); !errors.Is(err, multiraft.ErrSlotNotFound) {
 		t.Fatalf("runtime.Status() error = %v, want %v", err, multiraft.ErrSlotNotFound)
+	}
+}
+
+func TestReconcilerSourceSlotShouldRemainOpenWhenCurrentVotersContainSource(t *testing.T) {
+	cluster := &Cluster{cfg: Config{NodeID: 1}}
+	r := &reconciler{agent: &slotAgent{cluster: cluster}}
+	task := controllermeta.ReconcileTask{
+		SlotID:     1,
+		Kind:       controllermeta.TaskKindRebalance,
+		SourceNode: 1,
+		TargetNode: 4,
+	}
+	view := controllermeta.SlotRuntimeView{
+		SlotID:        1,
+		CurrentPeers:  []uint64{2, 3, 4},
+		CurrentVoters: []uint64{1, 2, 3},
+	}
+
+	if !r.sourceSlotShouldRemainOpen(task, view, true) {
+		t.Fatal("sourceSlotShouldRemainOpen() = false, want true while current voters still include source")
+	}
+	peers := r.sourceSlotRuntimePeers(view)
+	want := []multiraft.NodeID{1, 2, 3}
+	if !slices.Equal(peers, want) {
+		t.Fatalf("sourceSlotRuntimePeers() = %v, want %v", peers, want)
 	}
 }
 

@@ -99,6 +99,49 @@ func TestNextNodeOnboardingActionRequestsLeaderTransferBeforeCompleting(t *testi
 	require.Equal(t, job.Moves[0].SlotID, action.Move.SlotID)
 }
 
+func TestNextNodeOnboardingActionWaitsForRuntimeViewBeforeLeaderTransfer(t *testing.T) {
+	testCases := []struct {
+		name   string
+		mutate func(OnboardingPlanInput, controllermeta.NodeOnboardingJob) OnboardingPlanInput
+	}{
+		{
+			name: "missing view",
+			mutate: func(input OnboardingPlanInput, job controllermeta.NodeOnboardingJob) OnboardingPlanInput {
+				delete(input.Runtime, job.Moves[0].SlotID)
+				return input
+			},
+		},
+		{
+			name: "quorum unavailable",
+			mutate: func(input OnboardingPlanInput, job controllermeta.NodeOnboardingJob) OnboardingPlanInput {
+				view := input.Runtime[job.Moves[0].SlotID]
+				view.HasQuorum = false
+				view.LeaderID = 0
+				input.Runtime[job.Moves[0].SlotID] = view
+				return input
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			job := runningOnboardingJobWithActiveMoveForExecutor()
+			job.Moves[0].LeaderTransferRequired = true
+			input := executableOnboardingInputForJob(job)
+			assignment := input.Assignments[job.Moves[0].SlotID]
+			assignment.DesiredPeers = append([]uint64(nil), job.Moves[0].DesiredPeersAfter...)
+			input.Assignments[job.Moves[0].SlotID] = assignment
+			input = tc.mutate(input, job)
+
+			action := NextNodeOnboardingAction(input, job)
+
+			require.Equal(t, OnboardingActionNone, action.Kind)
+			require.False(t, action.LeaderTransferRequired)
+			require.Equal(t, controllermeta.OnboardingJobStatusRunning, action.Job.Status)
+			require.Equal(t, controllermeta.OnboardingMoveStatusRunning, action.Job.Moves[0].Status)
+		})
+	}
+}
+
 func TestNextNodeOnboardingActionFailsWhenAssignmentIsUnexpected(t *testing.T) {
 	job := runningOnboardingJobWithActiveMoveForExecutor()
 	input := executableOnboardingInputForJob(job)
