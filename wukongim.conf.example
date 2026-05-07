@@ -115,6 +115,8 @@ WK_DIAGNOSTICS_ERROR_SAMPLE_RATE=1.0
 # Enables debug-only diagnostics HTTP endpoints when implemented.
 WK_DIAGNOSTICS_DEBUG_API_ENABLE=false
 # Configures temporary high-priority diagnostics sampling matches as a JSON array.
+# channel_key uses channel/<channel_type>/<base64url(channel_id without padding)>; for example g1 group is channel/2/ZzE.
+# Example: WK_DIAGNOSTICS_DEBUG_MATCHES=[{"channel_key":"channel/2/ZzE","ttl_seconds":3600,"sample_rate":1.0}]
 WK_DIAGNOSTICS_DEBUG_MATCHES=[]
 WK_HEALTH_DETAIL_ENABLE=true
 WK_HEALTH_DEBUG_ENABLE=false

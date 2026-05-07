@@ -7,6 +7,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx"
 	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -54,6 +56,7 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 	defer cancel()
 	reqCtx, traceCtx := tracectx.Ensure(reqCtx, h.now)
 	cmd.TraceID = traceCtx.TraceID
+	channelKey := string(channelhandler.KeyFromChannelID(channel.ChannelID{ID: cmd.ChannelID, Type: cmd.ChannelType}))
 
 	sendStartedAt := h.now()
 	result, err := h.messages.Send(reqCtx, cmd)
@@ -63,6 +66,7 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 		At:          sendStartedAt,
 		Duration:    sendtrace.Elapsed(sendStartedAt, h.now()),
 		NodeID:      h.localNodeID,
+		ChannelKey:  channelKey,
 		ClientMsgNo: cmd.ClientMsgNo,
 		MessageSeq:  result.MessageSeq,
 	})
@@ -75,12 +79,12 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 		h.frameLogger().Warn("send request failed", fields...)
 		if reason, ok := mapSendErrorReason(err); ok {
 			result.Reason = reason
-			return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, cmd.TraceID, result)
+			return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, cmd.TraceID, channelKey, result)
 		}
 		return err
 	}
 
-	return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, cmd.TraceID, result)
+	return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, cmd.TraceID, channelKey, result)
 }
 
 func (h *Handler) handleRecvAck(ctx *coregateway.Context, pkt *frame.RecvackPacket) error {
@@ -95,7 +99,7 @@ func (h *Handler) handlePing(ctx *coregateway.Context) error {
 	return writePong(ctx)
 }
 
-func (h *Handler) writeSendackWithTrace(ctx *coregateway.Context, pkt *frame.SendPacket, clientMsgNo, traceID string, result message.SendResult) error {
+func (h *Handler) writeSendackWithTrace(ctx *coregateway.Context, pkt *frame.SendPacket, clientMsgNo, traceID, channelKey string, result message.SendResult) error {
 	startedAt := h.now()
 	err := writeSendack(ctx, pkt, result)
 	sendtrace.Record(sendtrace.Event{
@@ -104,6 +108,7 @@ func (h *Handler) writeSendackWithTrace(ctx *coregateway.Context, pkt *frame.Sen
 		At:          startedAt,
 		Duration:    sendtrace.Elapsed(startedAt, h.now()),
 		NodeID:      h.localNodeID,
+		ChannelKey:  channelKey,
 		ClientMsgNo: clientMsgNo,
 		MessageSeq:  result.MessageSeq,
 	})

@@ -16,6 +16,7 @@ type sendMessageRequest struct {
 	LegacyFromUID string `json:"sender_uid"`
 	ChannelID     string `json:"channel_id"`
 	ChannelType   uint8  `json:"channel_type"`
+	ClientMsgNo   string `json:"client_msg_no"`
 	Payload       string `json:"payload"`
 }
 
@@ -70,6 +71,7 @@ func (s *Server) handleSendMessage(c *gin.Context) {
 		FromUID:         req.FromUID,
 		ChannelID:       channelID,
 		ChannelType:     req.ChannelType,
+		ClientMsgNo:     req.ClientMsgNo,
 		Payload:         payload,
 		ProtocolVersion: frame.LatestVersion,
 	})
