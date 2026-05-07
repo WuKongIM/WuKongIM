@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useIntl, type IntlShape } from "react-intl"
 import { useSearchParams } from "react-router-dom"
 
+import { ActionFormDialog } from "@/components/manager/action-form-dialog"
 import { NodeFilter, defaultNodeId, hasNode } from "@/components/manager/node-filter"
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
@@ -9,8 +10,10 @@ import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
 import { Button } from "@/components/ui/button"
-import { getControllerLogs, getControllerRaftStatus, getNodes, ManagerApiError } from "@/lib/manager-api"
+import { compactControllerRaftLogOnNode, compactControllerRaftLogs, getControllerLogs, getControllerRaftStatus, getNodes, ManagerApiError } from "@/lib/manager-api"
 import type {
+  ManagerControllerRaftCompactNodeResult,
+  ManagerControllerRaftCompactResponse,
   ManagerControllerLogEntry,
   ManagerControllerLogsResponse,
   ManagerControllerRaftStatusResponse,
@@ -30,6 +33,14 @@ type ControllerRaftStatusState = {
   loading: boolean
   error: Error | null
 }
+
+type ControllerCompactionState = {
+  result: ManagerControllerRaftCompactResponse | null
+  loading: boolean
+  error: Error | null
+}
+
+type ControllerCompactionScope = "node" | "all"
 
 function mapErrorKind(error: Error | null) {
   if (!(error instanceof ManagerApiError)) {
@@ -91,6 +102,73 @@ function formatSnapshot(intl: IntlShape, status: ManagerControllerRaftStatusResp
 
 function formatPeerProgress(intl: IntlShape, match: number, next: number) {
   return intl.formatMessage({ id: "controller.status.peerProgress" }, { match, next })
+}
+
+function formatCompactionResult(intl: IntlShape, item: ManagerControllerRaftCompactNodeResult) {
+  if (!item.success) {
+    return item.error || intl.formatMessage({ id: "controller.compaction.result.failed" })
+  }
+  if (item.compacted) {
+    return intl.formatMessage(
+      { id: "controller.compaction.result.compacted" },
+      { before: item.before_snapshot_index, after: item.after_snapshot_index, applied: item.applied_index },
+    )
+  }
+  if (item.skipped_reason) {
+    return intl.formatMessage({ id: "controller.compaction.result.skipped" }, { reason: item.skipped_reason })
+  }
+  return intl.formatMessage({ id: "controller.compaction.result.noChange" })
+}
+
+function ControllerCompactionResultPanel({
+  intl,
+  result,
+}: {
+  intl: IntlShape
+  result: ManagerControllerRaftCompactResponse
+}) {
+  return (
+    <SectionCard
+      description={intl.formatMessage({ id: "controller.compaction.description" })}
+      title={intl.formatMessage({ id: "controller.compaction.title" })}
+    >
+      <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+        <span className="font-medium text-foreground">
+          {intl.formatMessage(
+            { id: "controller.compaction.summary" },
+            { succeeded: result.succeeded, failed: result.failed },
+          )}
+        </span>
+        <span className="text-muted-foreground">
+          {intl.formatMessage({ id: "controller.compaction.total" }, { total: result.total })}
+        </span>
+      </div>
+      <div className="overflow-hidden rounded-lg border border-border">
+        <table className="min-w-full divide-y divide-border text-sm">
+          <thead className="bg-muted/30 text-left text-xs uppercase tracking-[0.16em] text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2">{intl.formatMessage({ id: "controller.status.table.node" })}</th>
+              <th className="px-3 py-2">{intl.formatMessage({ id: "controller.compaction.table.outcome" })}</th>
+              <th className="px-3 py-2">{intl.formatMessage({ id: "controller.status.snapshotLabel" })}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {result.items.map((item) => (
+              <tr key={item.node_id}>
+                <td className="px-3 py-3 font-medium text-foreground">
+                  {intl.formatMessage({ id: "common.nodeValue" }, { id: item.node_id })}
+                </td>
+                <td className="px-3 py-3">
+                  <StatusBadge value={item.success ? (item.compacted ? "compacted" : "skipped") : "failed"} />
+                </td>
+                <td className="px-3 py-3 text-muted-foreground">{formatCompactionResult(intl, item)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
+  )
 }
 
 function ControllerRaftStatusPanel({
@@ -221,6 +299,9 @@ export function ControllerPage() {
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
   const [state, setState] = useState<ControllerLogsState>({ page: null, loading: true, error: null })
   const [statusState, setStatusState] = useState<ControllerRaftStatusState>({ status: null, loading: false, error: null })
+  const [compactionState, setCompactionState] = useState<ControllerCompactionState>({ result: null, loading: false, error: null })
+  const [compactionDialogOpen, setCompactionDialogOpen] = useState(false)
+  const [compactionScope, setCompactionScope] = useState<ControllerCompactionScope>("all")
   const [expandedIndexes, setExpandedIndexes] = useState<Set<number>>(() => new Set())
   const logsRequestSeq = useRef(0)
   const statusRequestSeq = useRef(0)
@@ -300,6 +381,40 @@ export function ControllerPage() {
     setExpandedIndexes(new Set())
   }, [searchParams, setSearchParams])
 
+  const openControllerCompactionDialog = useCallback(() => {
+    setCompactionScope(selectedNodeId === null ? "all" : "node")
+    setCompactionDialogOpen(true)
+  }, [selectedNodeId])
+
+  const handleControllerCompaction = useCallback(async (scope: ControllerCompactionScope) => {
+    const targetNodeId = selectedNodeId
+    let runCompaction: () => Promise<ManagerControllerRaftCompactResponse>
+    if (scope === "node") {
+      if (targetNodeId === null) {
+        return
+      }
+      runCompaction = () => compactControllerRaftLogOnNode(targetNodeId)
+    } else {
+      runCompaction = compactControllerRaftLogs
+    }
+    setCompactionDialogOpen(false)
+    setCompactionState({ result: null, loading: true, error: null })
+    try {
+      const result = await runCompaction()
+      setCompactionState({ result, loading: false, error: null })
+      if (selectedNodeId !== null) {
+        void loadControllerLogs(selectedNodeId)
+        void loadControllerStatus(selectedNodeId)
+      }
+    } catch (error) {
+      setCompactionState({
+        result: null,
+        loading: false,
+        error: error instanceof Error ? error : new Error("controller raft compaction request failed"),
+      })
+    }
+  }, [loadControllerLogs, loadControllerStatus, selectedNodeId])
+
   useEffect(() => {
     let cancelled = false
     async function loadNodes() {
@@ -378,6 +493,14 @@ export function ControllerPage() {
           <div className="flex flex-wrap items-center gap-2">
             <NodeFilter nodes={nodes} selectedNodeId={selectedNodeId} onNodeChange={handleNodeChange} />
             <Button
+              disabled={compactionState.loading}
+              onClick={openControllerCompactionDialog}
+              size="sm"
+              variant="outline"
+            >
+              {compactionState.loading ? intl.formatMessage({ id: "controller.compaction.triggering" }) : intl.formatMessage({ id: "controller.compaction.trigger" })}
+            </Button>
+            <Button
               disabled={state.loading || statusState.loading || selectedNodeId === null}
               onClick={() => {
                 if (selectedNodeId !== null) {
@@ -396,6 +519,17 @@ export function ControllerPage() {
         eyebrow={intl.formatMessage({ id: "controller.eyebrow" })}
         title={intl.formatMessage({ id: "controller.title" })}
       />
+
+      {compactionState.error ? (
+        <ResourceState
+          kind={mapErrorKind(compactionState.error)}
+          onRetry={openControllerCompactionDialog}
+          retryLabel={intl.formatMessage({ id: "common.retry" })}
+          title={intl.formatMessage({ id: "controller.compaction.title" })}
+        />
+      ) : compactionState.result ? (
+        <ControllerCompactionResultPanel intl={intl} result={compactionState.result} />
+      ) : null}
 
       {statusState.loading ? (
         <ResourceState kind="loading" title={intl.formatMessage({ id: "controller.status.title" })} />
@@ -497,6 +631,62 @@ export function ControllerPage() {
       ) : (
         <ResourceState kind="empty" title={intl.formatMessage({ id: "controller.logs.title" })} />
       )}
+
+      <ActionFormDialog
+        description={intl.formatMessage({ id: "controller.compaction.dialog.description" })}
+        onOpenChange={setCompactionDialogOpen}
+        onSubmit={(event) => {
+          event.preventDefault()
+          void handleControllerCompaction(compactionScope)
+        }}
+        open={compactionDialogOpen}
+        pending={compactionState.loading}
+        submitLabel={intl.formatMessage({ id: "controller.compaction.trigger" })}
+        title={intl.formatMessage({ id: "controller.compaction.dialog.title" })}
+      >
+        <fieldset className="space-y-3">
+          <legend className="sr-only">{intl.formatMessage({ id: "controller.compaction.dialog.scope" })}</legend>
+          <label className="flex cursor-pointer gap-3 rounded-lg border border-border bg-background p-3 text-sm">
+            <input
+              aria-label={intl.formatMessage({ id: "controller.compaction.scope.current" }, { node: selectedNodeId ?? "-" })}
+              checked={compactionScope === "node"}
+              className="mt-1"
+              disabled={selectedNodeId === null}
+              name="controller-compaction-scope"
+              onChange={() => setCompactionScope("node")}
+              type="radio"
+              value="node"
+            />
+            <span>
+              <span className="block font-medium text-foreground">
+                {intl.formatMessage({ id: "controller.compaction.scope.current" }, { node: selectedNodeId ?? "-" })}
+              </span>
+              <span className="mt-1 block text-muted-foreground">
+                {intl.formatMessage({ id: "controller.compaction.scope.currentDescription" })}
+              </span>
+            </span>
+          </label>
+          <label className="flex cursor-pointer gap-3 rounded-lg border border-border bg-background p-3 text-sm">
+            <input
+              aria-label={intl.formatMessage({ id: "controller.compaction.scope.all" })}
+              checked={compactionScope === "all"}
+              className="mt-1"
+              name="controller-compaction-scope"
+              onChange={() => setCompactionScope("all")}
+              type="radio"
+              value="all"
+            />
+            <span>
+              <span className="block font-medium text-foreground">
+                {intl.formatMessage({ id: "controller.compaction.scope.all" })}
+              </span>
+              <span className="mt-1 block text-muted-foreground">
+                {intl.formatMessage({ id: "controller.compaction.scope.allDescription" })}
+              </span>
+            </span>
+          </label>
+        </fieldset>
+      </ActionFormDialog>
     </PageContainer>
   )
 }

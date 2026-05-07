@@ -17,6 +17,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestControllerPeerIDsIncludesStaticControllerNodesAndSeeds(t *testing.T) {
+	got := controllerPeerIDs(
+		[]NodeConfigRef{{ID: 3}, {ID: 1}, {ID: 0}},
+		[]raftcluster.SeedConfig{{ID: 9002}, {ID: 3}, {ID: 9001}},
+	)
+
+	require.Equal(t, []uint64{1, 3, 9001, 9002}, got)
+}
+
 func TestChannelLogConversationFactsLoadLatestMessagesBatchesRemoteLoadsByOwner(t *testing.T) {
 	remote := &recordingConversationFactsRemote{
 		latestByNode: map[uint64]map[channel.ChannelID]channel.Message{

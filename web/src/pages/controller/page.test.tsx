@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
@@ -10,6 +10,8 @@ import { ControllerPage } from "@/pages/controller/page"
 const getNodesMock = vi.fn()
 const getControllerLogsMock = vi.fn()
 const getControllerRaftStatusMock = vi.fn()
+const compactControllerRaftLogOnNodeMock = vi.fn()
+const compactControllerRaftLogsMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -18,6 +20,8 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getNodes: (...args: unknown[]) => getNodesMock(...args),
     getControllerLogs: (...args: unknown[]) => getControllerLogsMock(...args),
     getControllerRaftStatus: (...args: unknown[]) => getControllerRaftStatusMock(...args),
+    compactControllerRaftLogOnNode: (...args: unknown[]) => compactControllerRaftLogOnNodeMock(...args),
+    compactControllerRaftLogs: (...args: unknown[]) => compactControllerRaftLogsMock(...args),
   }
 })
 
@@ -27,6 +31,8 @@ beforeEach(() => {
   getNodesMock.mockReset()
   getControllerLogsMock.mockReset()
   getControllerRaftStatusMock.mockReset()
+  compactControllerRaftLogOnNodeMock.mockReset()
+  compactControllerRaftLogsMock.mockReset()
 })
 
 function LocationProbe() {
@@ -344,4 +350,124 @@ test("hides the old node status immediately when the selected node changes", asy
   })
 
   expect(await screen.findByText("Node 2 local Controller Raft health, compaction, restore, and follower catch-up.")).toBeInTheDocument()
+})
+
+test("prompts for control-plane-wide compaction and refreshes the selected node view", async () => {
+  const user = userEvent.setup()
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-05-06T08:00:00Z",
+    controller_leader_id: 2,
+    total: 1,
+    items: [{
+      node_id: 2,
+      name: "node-2",
+      addr: "127.0.0.1:7002",
+      status: "alive",
+      last_heartbeat_at: "2026-05-06T07:59:58Z",
+      is_local: true,
+      capacity_weight: 1,
+      controller: { role: "leader", voter: true, leader_id: 2 },
+      slot_stats: { count: 0, leader_count: 0 },
+    }],
+  })
+  getControllerLogsMock.mockImplementation(({ nodeId }: { nodeId: number }) => Promise.resolve(controllerLogPage(nodeId)))
+  getControllerRaftStatusMock.mockImplementation((nodeId: number) => Promise.resolve(controllerRaftStatus(nodeId)))
+  compactControllerRaftLogsMock.mockResolvedValueOnce({
+    generated_at: "2026-05-07T10:00:00Z",
+    total: 2,
+    succeeded: 1,
+    failed: 1,
+    items: [{
+      node_id: 1,
+      success: true,
+      applied_index: 42,
+      before_snapshot_index: 30,
+      after_snapshot_index: 42,
+      compacted: true,
+      skipped_reason: "",
+      error: "",
+    }, {
+      node_id: 2,
+      success: false,
+      applied_index: 0,
+      before_snapshot_index: 0,
+      after_snapshot_index: 0,
+      compacted: false,
+      skipped_reason: "",
+      error: "node stopped",
+    }],
+  })
+
+  renderControllerPage("/controller?node_id=2")
+
+  expect(await screen.findByText("Node 2 local Controller Raft health, compaction, restore, and follower catch-up.")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Trigger compaction" }))
+  const dialog = screen.getByRole("dialog")
+  await user.click(within(dialog).getByRole("radio", { name: "All Controller nodes" }))
+  await user.click(within(dialog).getByRole("button", { name: "Trigger compaction" }))
+
+  await waitFor(() => expect(compactControllerRaftLogsMock).toHaveBeenCalledTimes(1))
+  expect(compactControllerRaftLogOnNodeMock).not.toHaveBeenCalled()
+  expect(await screen.findByText("Compaction Result")).toBeInTheDocument()
+  expect(screen.getByText("1 succeeded / 1 failed")).toBeInTheDocument()
+  expect(screen.getByText("Node 1")).toBeInTheDocument()
+  expect(screen.getByText("Node 2")).toBeInTheDocument()
+  expect(screen.getByText("node stopped")).toBeInTheDocument()
+  expect(getControllerRaftStatusMock).toHaveBeenCalledTimes(2)
+  expect(getControllerRaftStatusMock).toHaveBeenLastCalledWith(2)
+  expect(getControllerLogsMock).toHaveBeenCalledTimes(2)
+})
+
+test("prompts for current-node compaction and posts the selected node", async () => {
+  const user = userEvent.setup()
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-05-06T08:00:00Z",
+    controller_leader_id: 2,
+    total: 1,
+    items: [{
+      node_id: 2,
+      name: "node-2",
+      addr: "127.0.0.1:7002",
+      status: "alive",
+      last_heartbeat_at: "2026-05-06T07:59:58Z",
+      is_local: true,
+      capacity_weight: 1,
+      controller: { role: "leader", voter: true, leader_id: 2 },
+      slot_stats: { count: 0, leader_count: 0 },
+    }],
+  })
+  getControllerLogsMock.mockImplementation(({ nodeId }: { nodeId: number }) => Promise.resolve(controllerLogPage(nodeId)))
+  getControllerRaftStatusMock.mockImplementation((nodeId: number) => Promise.resolve(controllerRaftStatus(nodeId)))
+  compactControllerRaftLogOnNodeMock.mockResolvedValueOnce({
+    generated_at: "2026-05-07T10:03:00Z",
+    total: 1,
+    succeeded: 1,
+    failed: 0,
+    items: [{
+      node_id: 2,
+      success: true,
+      applied_index: 50,
+      before_snapshot_index: 40,
+      after_snapshot_index: 50,
+      compacted: true,
+      skipped_reason: "",
+      error: "",
+    }],
+  })
+
+  renderControllerPage("/controller?node_id=2")
+
+  expect(await screen.findByText("Node 2 local Controller Raft health, compaction, restore, and follower catch-up.")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Trigger compaction" }))
+  const dialog = screen.getByRole("dialog")
+  expect(within(dialog).getByRole("radio", { name: "Current node 2" })).toBeChecked()
+  await user.click(within(dialog).getByRole("button", { name: "Trigger compaction" }))
+
+  await waitFor(() => expect(compactControllerRaftLogOnNodeMock).toHaveBeenCalledWith(2))
+  expect(compactControllerRaftLogsMock).not.toHaveBeenCalled()
+  expect(await screen.findByText("Compaction Result")).toBeInTheDocument()
+  expect(screen.getByText("1 succeeded / 0 failed")).toBeInTheDocument()
+  expect(screen.getByText("snapshot 40 → 50 at applied 50")).toBeInTheDocument()
+  expect(getControllerRaftStatusMock).toHaveBeenCalledTimes(2)
+  expect(getControllerLogsMock).toHaveBeenCalledTimes(2)
 })

@@ -8,6 +8,8 @@ import {
   getConnections,
   getControllerLogs,
   getControllerRaftStatus,
+  compactControllerRaftLogOnNode,
+  compactControllerRaftLogs,
   getDiagnosticsEvents,
   getDiagnosticsMessage,
   getDiagnosticsTrace,
@@ -592,6 +594,72 @@ describe("manager api client", () => {
       1,
       "/manager/nodes/2/controller-raft",
       expect.anything(),
+    )
+  })
+
+  it("posts control-plane-wide controller raft compaction", async () => {
+    const compactResponse = {
+      generated_at: "2026-05-07T10:00:00Z",
+      total: 2,
+      succeeded: 1,
+      failed: 1,
+      items: [
+        {
+          node_id: 1,
+          success: true,
+          applied_index: 42,
+          before_snapshot_index: 30,
+          after_snapshot_index: 42,
+          compacted: true,
+          skipped_reason: "",
+          error: "",
+        },
+        {
+          node_id: 2,
+          success: false,
+          applied_index: 0,
+          before_snapshot_index: 0,
+          after_snapshot_index: 0,
+          compacted: false,
+          skipped_reason: "",
+          error: "node stopped",
+        },
+      ],
+    }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(compactResponse), { status: 200 }))
+
+    await expect(compactControllerRaftLogs()).resolves.toEqual(compactResponse)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/manager/controller-raft/compact",
+      expect.objectContaining({ method: "POST" }),
+    )
+  })
+
+  it("posts node-scoped controller raft compaction", async () => {
+    const compactResponse = {
+      generated_at: "2026-05-07T10:03:00Z",
+      total: 1,
+      succeeded: 1,
+      failed: 0,
+      items: [{
+        node_id: 2,
+        success: true,
+        applied_index: 50,
+        before_snapshot_index: 40,
+        after_snapshot_index: 50,
+        compacted: true,
+        skipped_reason: "",
+        error: "",
+      }],
+    }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(compactResponse), { status: 200 }))
+
+    await expect(compactControllerRaftLogOnNode(2)).resolves.toEqual(compactResponse)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/manager/nodes/2/controller-raft/compact",
+      expect.objectContaining({ method: "POST" }),
     )
   })
 

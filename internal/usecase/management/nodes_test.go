@@ -358,6 +358,8 @@ type fakeClusterReader struct {
 	controllerLogEntriesErr     map[uint64]error
 	controllerRaftStatus        map[uint64]raftcluster.ControllerRaftStatus
 	controllerRaftStatusErr     map[uint64]error
+	controllerRaftCompactions   map[uint64]raftcluster.ControllerRaftCompactionResult
+	controllerRaftCompactErr    map[uint64]error
 	tasks                       []controllermeta.ReconcileTask
 	taskBySlot                  map[uint32]controllermeta.ReconcileTask
 	listTasksErr                error
@@ -467,6 +469,16 @@ func (f fakeClusterReader) ControllerRaftStatusOnNode(_ context.Context, nodeID 
 		return status, nil
 	}
 	return raftcluster.ControllerRaftStatus{}, nil
+}
+
+func (f fakeClusterReader) CompactControllerRaftLogOnNode(_ context.Context, nodeID uint64) (raftcluster.ControllerRaftCompactionResult, error) {
+	if err := f.controllerRaftCompactErr[nodeID]; err != nil {
+		return raftcluster.ControllerRaftCompactionResult{}, err
+	}
+	if result, ok := f.controllerRaftCompactions[nodeID]; ok {
+		return result, nil
+	}
+	return raftcluster.ControllerRaftCompactionResult{NodeID: nodeID}, nil
 }
 
 func (f fakeClusterReader) ListTasksStrict(context.Context) ([]controllermeta.ReconcileTask, error) {

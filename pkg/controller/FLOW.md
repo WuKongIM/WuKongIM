@@ -20,6 +20,7 @@
 Service.Propose(ctx, Command) error   // 提交命令到 Raft（仅 Leader 可执行）
 Service.LeaderID() uint64             // 当前 Leader
 Service.Status() Status               // 读取缓存的节点本地 Controller Raft 状态；不跨 goroutine 访问 RawNode
+Service.CompactLog(ctx) (LogCompactionResult, error) // 在 Raft run loop 内手动压缩本节点已 applied 的 Controller 日志
 Service.Start(ctx) / Stop()           // 生命周期
 
 // plane/controller.go — 调度入口
@@ -222,6 +223,7 @@ Controller Raft snapshot compaction:
   ③ persist raft snapshot to raftlog, then compact MemoryStorage
   ④ startup restores snapshot first, then replays post-snapshot entries
   ⑤ Ready.Snapshot is restored before marking its index applied
+  ⑥ manual compaction uses the same snapshot/export path inside the run loop, bypasses threshold/interval checks, and still operates per node-local Controller Raft log
 ```
 
 Controller Raft status diagnostics:

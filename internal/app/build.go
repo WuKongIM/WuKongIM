@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -561,7 +562,7 @@ func build(cfg Config) (_ *App, err error) {
 	if cfg.Manager.ListenAddr != "" {
 		app.managementApp = managementusecase.New(managementusecase.Options{
 			LocalNodeID:       cfg.Node.ID,
-			ControllerPeerIDs: controllerPeerIDs(cfg.Cluster.DerivedControllerNodes()),
+			ControllerPeerIDs: controllerPeerIDs(cfg.Cluster.DerivedControllerNodes(), cfg.Cluster.runtimeSeeds()),
 			SlotReplicaN:      cfg.Cluster.SlotReplicaN,
 			Cluster:           app.cluster,
 			Online:            onlineRegistry,
@@ -678,14 +679,31 @@ func effectiveDataPlaneMaxFetchInflight(clusterPoolSize, configured int) int {
 	return dataPlaneMaxFetchInflightPeer(clusterPoolSize)
 }
 
-func controllerPeerIDs(nodes []NodeConfigRef) []uint64 {
-	peerIDs := make([]uint64, 0, len(nodes))
+func controllerPeerIDs(nodes []NodeConfigRef, seeds []raftcluster.SeedConfig) []uint64 {
+	seen := make(map[uint64]struct{}, len(nodes)+len(seeds))
+	peerIDs := make([]uint64, 0, len(nodes)+len(seeds))
 	for _, node := range nodes {
 		if node.ID == 0 {
 			continue
 		}
+		if _, ok := seen[node.ID]; ok {
+			continue
+		}
+		seen[node.ID] = struct{}{}
 		peerIDs = append(peerIDs, node.ID)
 	}
+	for _, seed := range seeds {
+		nodeID := uint64(seed.ID)
+		if nodeID == 0 {
+			continue
+		}
+		if _, ok := seen[nodeID]; ok {
+			continue
+		}
+		seen[nodeID] = struct{}{}
+		peerIDs = append(peerIDs, nodeID)
+	}
+	sort.Slice(peerIDs, func(i, j int) bool { return peerIDs[i] < peerIDs[j] })
 	return peerIDs
 }
 

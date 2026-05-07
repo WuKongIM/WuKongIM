@@ -128,6 +128,13 @@ func (s *Server) registerRoutes() {
 	}
 	controllerLogs.GET("/controller/logs", s.handleControllerLogs)
 
+	controllerRaftWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		controllerRaftWrites.Use(s.requirePermission("cluster.controller", "w"))
+	}
+	controllerRaftWrites.POST("/controller-raft/compact", s.handleControllerRaftCompact)
+	controllerRaftWrites.POST("/nodes/:node_id/controller-raft/compact", s.handleNodeControllerRaftCompact)
+
 	connections := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		connections.Use(s.requirePermission("cluster.connection", "r"))

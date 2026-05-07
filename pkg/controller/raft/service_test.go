@@ -785,6 +785,69 @@ func TestServiceStatusRecordsCompactionFailureAndClearsOnLaterSuccess(t *testing
 	}, 2*time.Second, 10*time.Millisecond)
 }
 
+func TestServiceManualCompactionForcesSnapshotBelowAutomaticThreshold(t *testing.T) {
+	env := newTestEnv(t, []uint64{1})
+	defer env.stopAll()
+
+	env.startNodeWithConfig(t, 1, nil, func(cfg *Config) {
+		cfg.LogCompaction = LogCompactionConfig{
+			Enabled:        true,
+			EnabledSet:     true,
+			TriggerEntries: 1000,
+			CheckInterval:  time.Hour,
+		}
+	})
+	env.waitForLeader(t, []uint64{1})
+
+	node := env.nodes[1]
+	store := node.logDB.ForController()
+	require.NoError(t, node.service.Propose(context.Background(), nodeJoinCommand(2)))
+	require.Eventually(t, func() bool {
+		state, err := store.InitialState(context.Background())
+		return err == nil && state.AppliedIndex >= 2
+	}, 2*time.Second, 10*time.Millisecond)
+
+	firstBefore, err := store.FirstIndex(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), firstBefore)
+
+	result, err := node.service.CompactLog(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), result.NodeID)
+	require.True(t, result.Compacted)
+	require.Empty(t, result.SkippedReason)
+	require.Zero(t, result.BeforeSnapshotIndex)
+	require.GreaterOrEqual(t, result.AppliedIndex, uint64(2))
+	require.Equal(t, result.AppliedIndex, result.AfterSnapshotIndex)
+
+	snap := waitForControllerSnapshotIndex(t, store, result.AppliedIndex)
+	require.Equal(t, result.AfterSnapshotIndex, snap.Metadata.Index)
+	firstAfter, err := store.FirstIndex(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, result.AfterSnapshotIndex+1, firstAfter)
+}
+
+func TestServiceManualCompactionSkipsWhenDisabled(t *testing.T) {
+	env := newTestEnv(t, []uint64{1})
+	defer env.stopAll()
+
+	env.startNodeWithConfig(t, 1, nil, func(cfg *Config) {
+		cfg.LogCompaction = LogCompactionConfig{
+			Enabled:        false,
+			EnabledSet:     true,
+			TriggerEntries: 1000,
+			CheckInterval:  time.Hour,
+		}
+	})
+	env.waitForLeader(t, []uint64{1})
+
+	result, err := env.nodes[1].service.CompactLog(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), result.NodeID)
+	require.False(t, result.Compacted)
+	require.Equal(t, LogCompactionSkippedDisabled, result.SkippedReason)
+}
+
 func TestServiceRestartRestoresSnapshotCreatedByCompaction(t *testing.T) {
 	env := newTestEnv(t, []uint64{1})
 	defer env.stopAll()
