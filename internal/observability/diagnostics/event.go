@@ -110,6 +110,7 @@ type Query struct {
 	ChannelKey  string `json:"channel_key,omitempty"`
 	MessageSeq  uint64 `json:"message_seq,omitempty"`
 	Stage       Stage  `json:"stage,omitempty"`
+	Result      Result `json:"result,omitempty"`
 	Limit       int    `json:"limit,omitempty"`
 }
 

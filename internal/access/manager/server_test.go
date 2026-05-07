@@ -3242,6 +3242,9 @@ type managementStub struct {
 	nodeOnboardingJobs              managementusecase.NodeOnboardingJobsResponse
 	nodeOnboardingPlanReqSink       *managementusecase.CreateNodeOnboardingPlanRequest
 	nodeOnboardingJobErr            error
+	diagnosticsReqSink              *managementusecase.DiagnosticsQueryRequest
+	diagnosticsResponse             managementusecase.DiagnosticsQueryResponse
+	diagnosticsErr                  error
 }
 
 func nodeListAt(t time.Time, leader uint64, items ...managementusecase.Node) managementusecase.NodeList {
@@ -3440,6 +3443,13 @@ func (s managementStub) GetNodeOnboardingJob(context.Context, string) (managemen
 
 func (s managementStub) RetryNodeOnboardingJob(context.Context, string) (managementusecase.NodeOnboardingJobResponse, error) {
 	return s.nodeOnboardingJob, s.nodeOnboardingJobErr
+}
+
+func (s managementStub) QueryDiagnostics(_ context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error) {
+	if s.diagnosticsReqSink != nil {
+		*s.diagnosticsReqSink = req
+	}
+	return s.diagnosticsResponse, s.diagnosticsErr
 }
 
 type channelRuntimeMetaDetailCall struct {

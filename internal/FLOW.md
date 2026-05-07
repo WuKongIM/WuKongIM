@@ -465,6 +465,7 @@ handleRecvAck(ctx, pkt)
 | `channel_messages` | → channel leader | `access/node/channel_messages_rpc.go` | 管理端消息查询与频道消息同步 |
 | `channel_leader_repair` | → slot leader | `access/node/channel_leader_repair_rpc.go` | 请求权威修复 ChannelRuntimeMeta.Leader |
 | `channel_leader_evaluate` | → candidate replica | `access/node/channel_leader_evaluate_rpc.go` | 评估副本是否可安全接任 channel leader |
+| `diagnostics` | → target node | `access/node/diagnostics_rpc.go` | 管理端跨节点查询目标节点的 node-local diagnostics store |
 
 ---
 

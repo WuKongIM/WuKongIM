@@ -20,6 +20,9 @@ const getSlotsMock = vi.fn()
 const getNodeOnboardingCandidatesMock = vi.fn()
 const getNodeOnboardingJobsMock = vi.fn()
 const getNetworkSummaryMock = vi.fn()
+const getDiagnosticsTraceMock = vi.fn()
+const getDiagnosticsMessageMock = vi.fn()
+const getDiagnosticsEventsMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -38,6 +41,9 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getNodeOnboardingCandidates: (...args: unknown[]) => getNodeOnboardingCandidatesMock(...args),
     getNodeOnboardingJobs: (...args: unknown[]) => getNodeOnboardingJobsMock(...args),
     getNetworkSummary: (...args: unknown[]) => getNetworkSummaryMock(...args),
+    getDiagnosticsTrace: (...args: unknown[]) => getDiagnosticsTraceMock(...args),
+    getDiagnosticsMessage: (...args: unknown[]) => getDiagnosticsMessageMock(...args),
+    getDiagnosticsEvents: (...args: unknown[]) => getDiagnosticsEventsMock(...args),
   }
 })
 
@@ -57,6 +63,9 @@ beforeEach(() => {
   getNodeOnboardingCandidatesMock.mockReset()
   getNodeOnboardingJobsMock.mockReset()
   getNetworkSummaryMock.mockReset()
+  getDiagnosticsTraceMock.mockReset()
+  getDiagnosticsMessageMock.mockReset()
+  getDiagnosticsEventsMock.mockReset()
 
   getOverviewMock.mockResolvedValue({
     generated_at: "2026-04-23T08:00:00Z",
@@ -280,6 +289,7 @@ it.each([
   ["/messages", "Messages", "Channel ID"],
   ["/slots", "Slots", "Slot"],
   ["/onboarding", "Onboarding", "Candidate Nodes"],
+  ["/diagnostics", "Message Diagnostics", "Query"],
   ["/network", "Network", "Node Health Status"],
   ["/controller", "Controller Logs", "Log Index"],
   ["/slot-logs", "Slot Logs", "Log Index"],
@@ -337,6 +347,7 @@ it.each([
   ["/messages", "消息", "频道 ID"],
   ["/slots", "槽位", "槽位"],
   ["/onboarding", "扩容", "候选节点"],
+  ["/diagnostics", "消息诊断", "查询"],
   ["/network", "网络", "节点健康状态"],
   ["/controller", "控制面日志", "日志索引"],
   ["/slot-logs", "槽位日志", "日志索引"],

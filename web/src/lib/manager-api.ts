@@ -4,12 +4,16 @@ import type {
   ControllerLogListParams,
   ConnectionDetailParams,
   ConnectionListParams,
+  DiagnosticsCommonParams,
+  DiagnosticsEventsParams,
+  DiagnosticsMessageParams,
   ManagerChannelRuntimeMetaDetailResponse,
   ManagerChannelRuntimeMetaListResponse,
   ManagerConnectionDetailResponse,
   ManagerControllerLogsResponse,
   ManagerControllerRaftStatusResponse,
   ManagerConnectionsResponse,
+  ManagerDiagnosticsResponse,
   ManagerLoginResponse,
   ManagerMessagesResponse,
   ManagerNetworkSummaryResponse,
@@ -188,6 +192,15 @@ function buildMessageListPath(params: MessageListParams) {
     search.set("client_msg_no", params.clientMsgNo)
   }
   return `/manager/messages?${search.toString()}`
+}
+
+function applyDiagnosticsCommonParams(search: URLSearchParams, params?: DiagnosticsCommonParams) {
+  if (typeof params?.nodeId === "number") {
+    search.set("node_id", String(params.nodeId))
+  }
+  if (typeof params?.limit === "number") {
+    search.set("limit", String(params.limit))
+  }
 }
 
 export async function managerFetch(path: string, init?: RequestInit) {
@@ -392,6 +405,48 @@ export function getConnection(sessionId: number, params?: ConnectionDetailParams
 
 export function getMessages(params: MessageListParams) {
   return jsonManagerFetch<ManagerMessagesResponse>(buildMessageListPath(params))
+}
+
+export function getDiagnosticsTrace(traceId: string, params?: DiagnosticsCommonParams) {
+  const search = new URLSearchParams()
+  applyDiagnosticsCommonParams(search, params)
+  const query = search.toString()
+  const path = `/manager/diagnostics/trace/${encodeURIComponent(traceId)}`
+  return jsonManagerFetch<ManagerDiagnosticsResponse>(query ? `${path}?${query}` : path)
+}
+
+export function getDiagnosticsMessage(params: DiagnosticsMessageParams) {
+  const hasClientSelector = Boolean(params.clientMsgNo)
+  const hasChannelSelector = Boolean(params.channelKey) || typeof params.messageSeq === "number"
+  if (hasClientSelector === hasChannelSelector || (hasChannelSelector && (!params.channelKey || typeof params.messageSeq !== "number"))) {
+    return Promise.reject(new Error("diagnostics message selector must be either clientMsgNo or channelKey plus messageSeq"))
+  }
+
+  const search = new URLSearchParams()
+  if (params.clientMsgNo) {
+    search.set("client_msg_no", params.clientMsgNo)
+  }
+  if (params.channelKey) {
+    search.set("channel_key", params.channelKey)
+  }
+  if (typeof params.messageSeq === "number") {
+    search.set("message_seq", String(params.messageSeq))
+  }
+  applyDiagnosticsCommonParams(search, params)
+  return jsonManagerFetch<ManagerDiagnosticsResponse>(`/manager/diagnostics/message?${search.toString()}`)
+}
+
+export function getDiagnosticsEvents(params?: DiagnosticsEventsParams) {
+  const search = new URLSearchParams()
+  applyDiagnosticsCommonParams(search, params)
+  if (params?.stage) {
+    search.set("stage", params.stage)
+  }
+  if (params?.result) {
+    search.set("result", params.result)
+  }
+  const query = search.toString()
+  return jsonManagerFetch<ManagerDiagnosticsResponse>(query ? `/manager/diagnostics/events?${query}` : "/manager/diagnostics/events")
 }
 
 export function getChannelRuntimeMeta(params?: ChannelRuntimeMetaListParams) {
