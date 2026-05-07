@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -69,6 +70,7 @@ func (a *App) sendDurable(ctx context.Context, cmd SendCommand) (SendResult, err
 		At:          startedAt,
 		Duration:    sendtrace.Elapsed(startedAt, a.now()),
 		NodeID:      a.localNodeID,
+		ChannelKey:  string(channelhandler.KeyFromChannelID(channelID)),
 		ClientMsgNo: cmd.ClientMsgNo,
 		MessageSeq:  result.MessageSeq,
 	})
