@@ -16,6 +16,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
@@ -477,13 +478,20 @@ func TestHandleSendAssignsTraceIDToCommandAndSendTrace(t *testing.T) {
 	events := sink.snapshot()
 	require.NotEmpty(t, events)
 	var sendEvent sendtrace.Event
+	var ackEvent sendtrace.Event
 	for _, event := range events {
 		if event.Stage == sendtrace.StageGatewayMessagesSend {
 			sendEvent = event
-			break
+		}
+		if event.Stage == sendtrace.StageGatewayWriteSendack {
+			ackEvent = event
 		}
 	}
 	require.Equal(t, traceID, sendEvent.TraceID)
+	wantKey := string(channelhandler.KeyFromChannelID(channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson}))
+	require.Equal(t, wantKey, sendEvent.ChannelKey)
+	require.Equal(t, traceID, ackEvent.TraceID)
+	require.Equal(t, wantKey, ackEvent.ChannelKey)
 }
 
 func TestHandlerOnFrameSendMapsCanceledRequestContextToSendack(t *testing.T) {
