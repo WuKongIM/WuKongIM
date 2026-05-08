@@ -77,7 +77,7 @@ func newControllerHost(cfg Config, layer *transportLayer) (*controllerHost, erro
 	if err != nil {
 		return nil, fmt.Errorf("open controller meta: %w", err)
 	}
-	logDB, err := raftstorage.Open(cfg.ControllerRaftPath)
+	logDB, err := raftstorage.Open(cfg.ControllerRaftPath, raftstorage.Options{})
 	if err != nil {
 		_ = meta.Close()
 		return nil, fmt.Errorf("open controller raft: %w", err)

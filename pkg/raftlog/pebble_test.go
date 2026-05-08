@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -13,8 +14,35 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
+func TestPebbleOpenOptionsDefaultExternalSnapshotRoot(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "raft")
+	db, err := Open(path, Options{})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	if db.options.SnapshotPath != path+"-snapshots" {
+		t.Fatalf("SnapshotPath = %q, want %q", db.options.SnapshotPath, path+"-snapshots")
+	}
+	if db.options.SnapshotChunkSize != uint64(8<<20) {
+		t.Fatalf("SnapshotChunkSize = %d, want %d", db.options.SnapshotChunkSize, uint64(8<<20))
+	}
+}
+
+func TestPebbleOpenRejectsNegativeSnapshotGCGrace(t *testing.T) {
+	_, err := Open(filepath.Join(t.TempDir(), "raft"), Options{SnapshotGCGrace: -time.Second})
+	if err == nil {
+		t.Fatal("Open() error = nil, want error")
+	}
+}
+
 func TestPebbleOpenForSlotReturnsStorage(t *testing.T) {
-	db, err := Open(filepath.Join(t.TempDir(), "raft"))
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -30,7 +58,7 @@ func TestPebbleOpenForSlotReturnsStorage(t *testing.T) {
 }
 
 func TestPebbleForControllerReturnsStorage(t *testing.T) {
-	db, err := Open(filepath.Join(t.TempDir(), "raft"))
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -46,7 +74,7 @@ func TestPebbleForControllerReturnsStorage(t *testing.T) {
 }
 
 func TestPebbleOpenInitializesManifest(t *testing.T) {
-	db, err := Open(filepath.Join(t.TempDir(), "raft"))
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -83,7 +111,7 @@ func TestScopeEntryKeysSortByVersionScopeAndIndex(t *testing.T) {
 func TestPebbleControllerStateRoundTripAcrossReopen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "raft")
 
-	db, err := Open(path)
+	db, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -103,7 +131,7 @@ func TestPebbleControllerStateRoundTripAcrossReopen(t *testing.T) {
 		t.Fatalf("Close() error = %v", err)
 	}
 
-	reopened, err := Open(path)
+	reopened, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("reopen Open() error = %v", err)
 	}
@@ -127,7 +155,7 @@ func TestPebbleControllerStateRoundTripAcrossReopen(t *testing.T) {
 
 func TestPebbleControllerSnapshotTrimsCoveredEntries(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(filepath.Join(t.TempDir(), "raft"))
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -205,7 +233,7 @@ func TestScopeString(t *testing.T) {
 func TestPebbleStateRoundTripAcrossReopen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "raft")
 
-	db, err := Open(path)
+	db, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -235,7 +263,7 @@ func TestPebbleStateRoundTripAcrossReopen(t *testing.T) {
 		t.Fatalf("Close() error = %v", err)
 	}
 
-	reopened, err := Open(path)
+	reopened, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("reopen Open() error = %v", err)
 	}
@@ -261,7 +289,7 @@ func TestPebbleStateRoundTripAcrossReopen(t *testing.T) {
 }
 
 func TestPebbleSnapshotRoundTrip(t *testing.T) {
-	db, err := Open(filepath.Join(t.TempDir(), "raft"))
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -298,7 +326,7 @@ func TestPebbleSnapshotRoundTrip(t *testing.T) {
 }
 
 func TestPebbleGroupsAreIndependent(t *testing.T) {
-	db, err := Open(filepath.Join(t.TempDir(), "raft"))
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -345,7 +373,7 @@ func TestPebbleGroupsAreIndependent(t *testing.T) {
 }
 
 func TestPebbleSlotAndControllerAreIndependent(t *testing.T) {
-	db, err := Open(filepath.Join(t.TempDir(), "raft"))
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -526,7 +554,7 @@ func TestPebbleEntriesRoundTripAcrossReopen(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "raft")
 
-	db, err := Open(path)
+	db, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -543,7 +571,7 @@ func TestPebbleEntriesRoundTripAcrossReopen(t *testing.T) {
 		t.Fatalf("Close() error = %v", err)
 	}
 
-	reopened, err := Open(path)
+	reopened, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("reopen Open() error = %v", err)
 	}
@@ -655,7 +683,7 @@ func TestPebbleInitialStateReopenUsesPersistedMetadata(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "raft")
 
-	db, err := Open(path)
+	db, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -695,7 +723,7 @@ func TestPebbleInitialStateReopenUsesPersistedMetadata(t *testing.T) {
 		t.Fatalf("Close() error = %v", err)
 	}
 
-	reopened, err := Open(path)
+	reopened, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("reopen Open() error = %v", err)
 	}
@@ -783,7 +811,7 @@ func TestPebbleInitialStateReopenBackfillsLegacyStoreMetadata(t *testing.T) {
 		},
 	})
 
-	db, err := Open(path)
+	db, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -808,7 +836,7 @@ func TestPebbleInitialStateReopenBackfillsLegacyStoreMetadata(t *testing.T) {
 
 func TestPebbleCloseDrainsConcurrentWritesBeforeClosingDB(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "raft")
-	db, err := Open(path)
+	db, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -839,7 +867,7 @@ func TestPebbleCloseDrainsConcurrentWritesBeforeClosingDB(t *testing.T) {
 		}
 	}
 
-	reopened, err := Open(path)
+	reopened, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("reopen Open() error = %v", err)
 	}
@@ -862,7 +890,7 @@ func TestPebbleCloseDrainsConcurrentWritesBeforeClosingDB(t *testing.T) {
 
 func TestPebbleConcurrentSaveAndMarkAppliedAreDurableAcrossReopen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "raft")
-	db, err := Open(path)
+	db, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -893,7 +921,7 @@ func TestPebbleConcurrentSaveAndMarkAppliedAreDurableAcrossReopen(t *testing.T) 
 		t.Fatalf("Close() error = %v", err)
 	}
 
-	reopened, err := Open(path)
+	reopened, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("reopen Open() error = %v", err)
 	}
@@ -917,7 +945,7 @@ func TestPebbleConcurrentSaveAndMarkAppliedAreDurableAcrossReopen(t *testing.T) 
 func TestPebbleSameGroupSaveThenMarkAppliedPreservesOrder(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "raft")
-	db, err := Open(path)
+	db, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -937,7 +965,7 @@ func TestPebbleSameGroupSaveThenMarkAppliedPreservesOrder(t *testing.T) {
 		t.Fatalf("Close() error = %v", err)
 	}
 
-	reopened, err := Open(path)
+	reopened, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("reopen Open() error = %v", err)
 	}
@@ -959,7 +987,7 @@ func TestPebbleSameGroupSaveThenMarkAppliedPreservesOrder(t *testing.T) {
 func TestPebbleMarkAppliedMetadataWriteKeepsCachedEntriesBacking(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "raft")
-	db, err := Open(path)
+	db, err := Open(path, Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -1131,7 +1159,7 @@ func TestGroupMetaUnmarshalRejectsTruncatedData(t *testing.T) {
 }
 
 func TestLoadAppliedIndexRejectsInvalidEncoding(t *testing.T) {
-	db, err := Open(filepath.Join(t.TempDir(), "raft"))
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -1157,7 +1185,7 @@ func TestLoadAppliedIndexRejectsInvalidEncoding(t *testing.T) {
 func openTestPebbleStore(t *testing.T, group uint64) multiraft.Storage {
 	t.Helper()
 
-	db, err := Open(filepath.Join(t.TempDir(), "raft"))
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}

@@ -3,13 +3,28 @@ package raftlog
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/cockroachdb/pebble/v2"
 )
 
+const defaultSnapshotChunkSize uint64 = 8 << 20
+
+// Options configures durable raft log storage.
+type Options struct {
+	// SnapshotPath is the external root for snapshot chunk directories.
+	SnapshotPath string
+	// SnapshotChunkSize controls the maximum bytes written to each snapshot chunk file.
+	SnapshotChunkSize uint64
+	// SnapshotGCGrace is how long orphan snapshot directories remain before GC can remove them.
+	SnapshotGCGrace time.Duration
+}
+
 type DB struct {
 	db *pebble.DB
+
+	options Options
 
 	mu      sync.Mutex
 	closing bool
@@ -20,7 +35,12 @@ type DB struct {
 	stateCache map[Scope]scopeWriteState
 }
 
-func Open(path string) (*DB, error) {
+func Open(path string, opts Options) (*DB, error) {
+	normalized, err := normalizeOptions(path, opts)
+	if err != nil {
+		return nil, err
+	}
+
 	pdb, err := pebble.Open(path, &pebble.Options{})
 	if err != nil {
 		return nil, err
@@ -28,6 +48,7 @@ func Open(path string) (*DB, error) {
 
 	db := &DB{
 		db:         pdb,
+		options:    normalized,
 		writeCh:    make(chan *writeRequest, defaultWriteChSize),
 		stateCache: make(map[Scope]scopeWriteState),
 	}
@@ -39,6 +60,19 @@ func Open(path string) (*DB, error) {
 	db.workerWG.Add(1)
 	go db.runWriteWorker()
 	return db, nil
+}
+
+func normalizeOptions(path string, opts Options) (Options, error) {
+	if opts.SnapshotPath == "" {
+		opts.SnapshotPath = path + "-snapshots"
+	}
+	if opts.SnapshotChunkSize == 0 {
+		opts.SnapshotChunkSize = defaultSnapshotChunkSize
+	}
+	if opts.SnapshotGCGrace < 0 {
+		return Options{}, errors.New("raftstorage: snapshot GC grace must be non-negative")
+	}
+	return opts, nil
 }
 
 func (db *DB) ensureManifest() error {
