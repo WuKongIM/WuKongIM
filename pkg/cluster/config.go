@@ -417,7 +417,26 @@ func normalizeClusterStoragePath(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Clean(absPath), nil
+	cleanPath := filepath.Clean(absPath)
+	if resolved, ok := resolveExistingClusterStoragePathPrefix(cleanPath); ok {
+		return resolved, nil
+	}
+	return cleanPath, nil
+}
+
+func resolveExistingClusterStoragePathPrefix(path string) (string, bool) {
+	var suffix []string
+	for current := path; ; current = filepath.Dir(current) {
+		if resolved, err := filepath.EvalSymlinks(current); err == nil {
+			parts := append([]string{filepath.Clean(resolved)}, suffix...)
+			return filepath.Clean(filepath.Join(parts...)), true
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", false
+		}
+		suffix = append([]string{filepath.Base(current)}, suffix...)
+	}
 }
 
 func clusterStoragePathsOverlap(left, right string) bool {
