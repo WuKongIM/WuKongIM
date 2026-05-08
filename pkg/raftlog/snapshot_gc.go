@@ -58,11 +58,7 @@ func (db *DB) liveSnapshotPathsLocked() (map[string]struct{}, error) {
 		value := iter.Value()
 		manifest, err := decodeSnapshotManifest(scope, value)
 		if err != nil {
-			if hasSnapshotManifestMagic(value) {
-				return nil, err
-			}
-			// Task 4 still coexists with legacy inline raftpb.Snapshot values.
-			continue
+			return nil, err
 		}
 		live[normalizeSnapshotLifecyclePath(filepath.Join(db.snapshotStore.scopeDir(scope), manifest.SnapshotID))] = struct{}{}
 	}

@@ -1,6 +1,8 @@
 package raftlog
 
 import (
+	"reflect"
+
 	raft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/confchange"
 	"go.etcd.io/raft/v3/raftpb"
@@ -39,6 +41,20 @@ func cloneConfState(state raftpb.ConfState) raftpb.ConfState {
 		cloned.LearnersNext = append([]uint64(nil), state.LearnersNext...)
 	}
 	return cloned
+}
+
+func snapshotFromManifest(manifest SnapshotManifest) raftpb.Snapshot {
+	return raftpb.Snapshot{
+		Metadata: raftpb.SnapshotMetadata{
+			ConfState: cloneConfState(manifest.ConfState),
+			Index:     manifest.Index,
+			Term:      manifest.Term,
+		},
+	}
+}
+
+func confStateEqual(a, b raftpb.ConfState) bool {
+	return reflect.DeepEqual(a, b)
 }
 
 func replaceEntriesFromIndex(existing []raftpb.Entry, first uint64, incoming []raftpb.Entry) []raftpb.Entry {

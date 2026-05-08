@@ -284,6 +284,56 @@ func mustInitialState(tb testing.TB, store multiraft.Storage) multiraft.Bootstra
 	return state
 }
 
+func mustGetRawPebbleValue(tb testing.TB, db *pebble.DB, key []byte) []byte {
+	tb.Helper()
+
+	value, closer, err := db.Get(key)
+	if err != nil {
+		tb.Fatalf("Get(%x) error = %v", key, err)
+	}
+	defer closer.Close()
+	return append([]byte(nil), value...)
+}
+
+func mustSetRawPebbleValue(tb testing.TB, db *pebble.DB, key, value []byte) {
+	tb.Helper()
+
+	if err := db.Set(key, value, pebble.Sync); err != nil {
+		tb.Fatalf("Set(%x) error = %v", key, err)
+	}
+}
+
+func mustSetPebbleManifest(tb testing.TB, db *pebble.DB, scope Scope, manifest SnapshotManifest) {
+	tb.Helper()
+
+	value, err := encodeSnapshotManifest(scope, manifest)
+	if err != nil {
+		tb.Fatalf("encodeSnapshotManifest() error = %v", err)
+	}
+	mustSetRawPebbleValue(tb, db, encodeSnapshotKey(scope), value)
+}
+
+func mustSetPebbleMeta(tb testing.TB, db *pebble.DB, scope Scope, meta logMeta) {
+	tb.Helper()
+
+	value, err := meta.Marshal()
+	if err != nil {
+		tb.Fatalf("logMeta.Marshal() error = %v", err)
+	}
+	mustSetRawPebbleValue(tb, db, encodeGroupStateKey(scope), value)
+}
+
+func mustLoadPebbleManifest(tb testing.TB, db *DB, scope Scope) SnapshotManifest {
+	tb.Helper()
+
+	value := mustGetRawPebbleValue(tb, db.db, encodeSnapshotKey(scope))
+	manifest, err := decodeSnapshotManifest(scope, value)
+	if err != nil {
+		tb.Fatalf("decodeSnapshotManifest() error = %v", err)
+	}
+	return manifest
+}
+
 func mustWriteLegacyPebbleState(tb testing.TB, path string, scope Scope, state legacyPebbleState) {
 	tb.Helper()
 

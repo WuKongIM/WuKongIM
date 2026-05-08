@@ -37,6 +37,8 @@ type stagedSnapshot struct {
 	tmpDir string
 	// finalDir is the durable snapshot directory after publication.
 	finalDir string
+	// tmpRegistered records whether DB GC protection currently covers tmpDir.
+	tmpRegistered bool
 }
 
 // newSnapshotStore creates an external chunk store rooted at root.

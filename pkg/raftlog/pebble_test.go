@@ -3,6 +3,8 @@ package raftlog
 import (
 	"bytes"
 	"context"
+	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/cockroachdb/pebble/v2"
+	raft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -322,6 +325,273 @@ func TestPebbleSnapshotRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, snap) {
 		t.Fatalf("Snapshot() = %#v, want %#v", got, snap)
+	}
+}
+
+func TestPebbleSaveSnapshotWritesExternalChunksOnly(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "raft")
+	db, err := Open(path, Options{SnapshotPath: filepath.Join(t.TempDir(), "snapshots"), SnapshotChunkSize: 16})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	db.snapshotStore.nonce = func() (string, error) { return "0000000000000001", nil }
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	payload := append([]byte("large-snapshot-payload-marker"), bytes.Repeat([]byte("x"), 128)...)
+	snap := raftpb.Snapshot{
+		Data: payload,
+		Metadata: raftpb.SnapshotMetadata{
+			Index:     7,
+			Term:      2,
+			ConfState: raftpb.ConfState{Voters: []uint64{1, 2}},
+		},
+	}
+	if err := db.ForSlot(9).Save(context.Background(), multiraft.PersistentState{Snapshot: &snap}); err != nil {
+		t.Fatalf("Save(snapshot) error = %v", err)
+	}
+
+	value := mustGetRawPebbleValue(t, db.db, encodeSnapshotKey(SlotScope(9)))
+	if bytes.Contains(value, []byte("large-snapshot-payload-marker")) {
+		t.Fatalf("snapshot Pebble value contains inline payload marker")
+	}
+	manifest := mustLoadPebbleManifest(t, db, SlotScope(9))
+	if manifest.TotalSize != uint64(len(payload)) || manifest.ChunkCount == 0 {
+		t.Fatalf("manifest size/chunks = %d/%d, want %d/non-zero", manifest.TotalSize, manifest.ChunkCount, len(payload))
+	}
+	if _, err := os.Stat(filepath.Join(db.snapshotStore.scopeDir(SlotScope(9)), manifest.SnapshotID, chunkFileName(0))); err != nil {
+		t.Fatalf("external chunk missing: %v", err)
+	}
+}
+
+func TestPebbleSnapshotRoundTripFromExternalChunks(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{SnapshotPath: filepath.Join(t.TempDir(), "snapshots"), SnapshotChunkSize: 5})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	snap := raftpb.Snapshot{
+		Data:     []byte("external-round-trip"),
+		Metadata: raftpb.SnapshotMetadata{Index: 11, Term: 4, ConfState: raftpb.ConfState{Voters: []uint64{3, 4}}},
+	}
+	store := db.ForSlot(9)
+	if err := store.Save(context.Background(), multiraft.PersistentState{Snapshot: &snap}); err != nil {
+		t.Fatalf("Save(snapshot) error = %v", err)
+	}
+
+	got, err := store.Snapshot(context.Background())
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, snap) {
+		t.Fatalf("Snapshot() = %#v, want %#v", got, snap)
+	}
+
+	manifest := mustLoadPebbleManifest(t, db, SlotScope(9))
+	chunkPath := filepath.Join(db.snapshotStore.scopeDir(SlotScope(9)), manifest.SnapshotID, chunkFileName(0))
+	if err := os.WriteFile(chunkPath, []byte("corrupt"), 0o600); err != nil {
+		t.Fatalf("corrupt external chunk: %v", err)
+	}
+	if _, err := store.Snapshot(context.Background()); err == nil {
+		t.Fatal("Snapshot() error = nil, want checksum error from external chunk")
+	}
+}
+
+func TestPebbleTermAtSnapshotIndexUsesManifest(t *testing.T) {
+	db, store := openPebbleDBForSnapshotTest(t, 9)
+	snap := raftpb.Snapshot{Data: []byte("payload"), Metadata: raftpb.SnapshotMetadata{Index: 6, Term: 3, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
+	mustSave(t, store, multiraft.PersistentState{Snapshot: &snap})
+	manifest := mustLoadPebbleManifest(t, db, SlotScope(9))
+	if err := os.RemoveAll(filepath.Join(db.snapshotStore.scopeDir(SlotScope(9)), manifest.SnapshotID)); err != nil {
+		t.Fatalf("RemoveAll(snapshot dir) error = %v", err)
+	}
+	if got := mustTerm(t, store, 6); got != 3 {
+		t.Fatalf("Term(snapshot index) = %d, want 3", got)
+	}
+}
+
+func TestPebbleSaveSnapshotTrimsCoveredEntriesWithManifest(t *testing.T) {
+	ctx := context.Background()
+	db, store := openPebbleDBForSnapshotTest(t, 10)
+	entries := []raftpb.Entry{{Index: 5, Term: 1, Data: []byte("a")}, {Index: 6, Term: 2, Data: []byte("b")}, {Index: 7, Term: 2, Data: []byte("c")}}
+	mustSave(t, store, multiraft.PersistentState{Entries: entries})
+	snap := raftpb.Snapshot{Data: []byte("payload"), Metadata: raftpb.SnapshotMetadata{Index: 6, Term: 2, ConfState: raftpb.ConfState{Voters: []uint64{1, 2}}}}
+	mustSave(t, store, multiraft.PersistentState{Snapshot: &snap})
+	if value := mustGetRawPebbleValue(t, db.db, encodeSnapshotKey(SlotScope(10))); bytes.Contains(value, []byte("payload")) {
+		t.Fatalf("snapshot Pebble value contains inline payload")
+	}
+	if got := mustEntries(t, store, 5, 8, 0); !reflect.DeepEqual(got, []raftpb.Entry{entries[2]}) {
+		t.Fatalf("Entries() = %#v, want only uncovered entry", got)
+	}
+	if first, err := store.FirstIndex(ctx); err != nil || first != 7 {
+		t.Fatalf("FirstIndex() = %d, %v; want 7, nil", first, err)
+	}
+}
+
+func TestPebbleInitialStateUsesSnapshotManifestConfState(t *testing.T) {
+	db, store := openPebbleDBForSnapshotTest(t, 11)
+	snap := raftpb.Snapshot{Data: []byte("payload"), Metadata: raftpb.SnapshotMetadata{Index: 8, Term: 2, ConfState: raftpb.ConfState{Voters: []uint64{4, 5}}}}
+	mustSave(t, store, multiraft.PersistentState{Snapshot: &snap})
+	manifest := mustLoadPebbleManifest(t, db, SlotScope(11))
+	if err := os.RemoveAll(filepath.Join(db.snapshotStore.scopeDir(SlotScope(11)), manifest.SnapshotID)); err != nil {
+		t.Fatalf("RemoveAll(snapshot dir) error = %v", err)
+	}
+	state := mustInitialState(t, store)
+	if !reflect.DeepEqual(state.ConfState, snap.Metadata.ConfState) {
+		t.Fatalf("ConfState = %#v, want %#v", state.ConfState, snap.Metadata.ConfState)
+	}
+}
+
+func TestPebbleEntryOnlySaveDoesNotReadSnapshotChunks(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "raft")
+	snapshotPath := filepath.Join(t.TempDir(), "snapshots")
+	db, err := Open(path, Options{SnapshotPath: snapshotPath, SnapshotChunkSize: 8})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	store := db.ForSlot(12)
+	snap := raftpb.Snapshot{Data: []byte("payload"), Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
+	mustSave(t, store, multiraft.PersistentState{Snapshot: &snap})
+	manifest := mustLoadPebbleManifest(t, db, SlotScope(12))
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	db, err = Open(path, Options{SnapshotPath: snapshotPath, SnapshotChunkSize: 8})
+	if err != nil {
+		t.Fatalf("reopen Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := os.RemoveAll(filepath.Join(db.snapshotStore.scopeDir(SlotScope(12)), manifest.SnapshotID)); err != nil {
+		t.Fatalf("RemoveAll(snapshot dir) error = %v", err)
+	}
+	mustSave(t, db.ForSlot(12), multiraft.PersistentState{Entries: []raftpb.Entry{{Index: 6, Term: 2}}})
+}
+
+func TestPebbleMarkAppliedDoesNotReadSnapshotChunks(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "raft")
+	snapshotPath := filepath.Join(t.TempDir(), "snapshots")
+	db, err := Open(path, Options{SnapshotPath: snapshotPath, SnapshotChunkSize: 8})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	store := db.ForSlot(13)
+	snap := raftpb.Snapshot{Data: []byte("payload"), Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
+	mustSave(t, store, multiraft.PersistentState{Snapshot: &snap})
+	manifest := mustLoadPebbleManifest(t, db, SlotScope(13))
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	db, err = Open(path, Options{SnapshotPath: snapshotPath, SnapshotChunkSize: 8})
+	if err != nil {
+		t.Fatalf("reopen Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := os.RemoveAll(filepath.Join(db.snapshotStore.scopeDir(SlotScope(13)), manifest.SnapshotID)); err != nil {
+		t.Fatalf("RemoveAll(snapshot dir) error = %v", err)
+	}
+	mustMarkApplied(t, db.ForSlot(13), 5)
+}
+
+func TestPebbleSaveSnapshotWorkerRequestDoesNotCarrySnapshotData(t *testing.T) {
+	snap := raftpb.Snapshot{Data: []byte("must-not-enter-worker"), Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 1}}
+	st := withoutSnapshotData(multiraft.PersistentState{Snapshot: &snap})
+	if st.Snapshot == nil || st.Snapshot.Index != snap.Metadata.Index || st.Snapshot.Term != snap.Metadata.Term {
+		t.Fatalf("worker state snapshot metadata = %#v, want %#v", st.Snapshot, snap.Metadata)
+	}
+	if len(st.Entries) != 0 || st.HardState != nil {
+		t.Fatalf("worker state carried unexpected non-snapshot fields: %#v", st)
+	}
+}
+
+func TestPebbleRejectsStaleSnapshotWithoutMutatingState(t *testing.T) {
+	db, store := openPebbleDBForSnapshotTest(t, 14)
+	initial := raftpb.Snapshot{Data: []byte("initial"), Metadata: raftpb.SnapshotMetadata{Index: 10, Term: 3, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
+	mustSave(t, store, multiraft.PersistentState{Snapshot: &initial})
+	before := mustGetRawPebbleValue(t, db.db, encodeSnapshotKey(SlotScope(14)))
+	stale := raftpb.Snapshot{Data: []byte("stale"), Metadata: raftpb.SnapshotMetadata{Index: 9, Term: 3, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
+	err := store.Save(context.Background(), multiraft.PersistentState{Snapshot: &stale})
+	if !errors.Is(err, raft.ErrSnapOutOfDate) {
+		t.Fatalf("Save(stale snapshot) error = %v, want ErrSnapOutOfDate", err)
+	}
+	after := mustGetRawPebbleValue(t, db.db, encodeSnapshotKey(SlotScope(14)))
+	if !bytes.Equal(after, before) {
+		t.Fatalf("snapshot manifest mutated after stale save")
+	}
+}
+
+func TestPebbleSameIndexSnapshotIsIdempotentOnlyWhenManifestMatches(t *testing.T) {
+	db, store := openPebbleDBForSnapshotTest(t, 15)
+	snap := raftpb.Snapshot{Data: []byte("same"), Metadata: raftpb.SnapshotMetadata{Index: 7, Term: 2, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
+	mustSave(t, store, multiraft.PersistentState{Snapshot: &snap})
+	before := mustGetRawPebbleValue(t, db.db, encodeSnapshotKey(SlotScope(15)))
+	if err := store.Save(context.Background(), multiraft.PersistentState{Snapshot: &snap}); err != nil {
+		t.Fatalf("Save(same snapshot) error = %v", err)
+	}
+	if after := mustGetRawPebbleValue(t, db.db, encodeSnapshotKey(SlotScope(15))); !bytes.Equal(after, before) {
+		t.Fatalf("same-index identical snapshot changed manifest")
+	}
+	different := snap
+	different.Data = []byte("different")
+	if err := store.Save(context.Background(), multiraft.PersistentState{Snapshot: &different}); err == nil {
+		t.Fatalf("Save(same-index different snapshot) error = nil, want mismatch")
+	}
+	if after := mustGetRawPebbleValue(t, db.db, encodeSnapshotKey(SlotScope(15))); !bytes.Equal(after, before) {
+		t.Fatalf("same-index mismatched snapshot mutated manifest")
+	}
+}
+
+func TestPebbleSnapshotAndEntriesSameSaveDropsCompactedEntryPrefix(t *testing.T) {
+	_, store := openPebbleDBForSnapshotTest(t, 16)
+	snap := raftpb.Snapshot{Data: []byte("payload"), Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
+	entries := []raftpb.Entry{{Index: 4, Term: 1}, {Index: 5, Term: 1}, {Index: 6, Term: 2, Data: []byte("six")}, {Index: 7, Term: 2, Data: []byte("seven")}}
+	mustSave(t, store, multiraft.PersistentState{Snapshot: &snap, Entries: entries})
+	got := mustEntries(t, store, 1, 8, 0)
+	want := []raftpb.Entry{entries[2], entries[3]}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Entries() = %#v, want %#v", got, want)
+	}
+}
+
+func TestPebbleManifestAndMetaMismatchIsCorruption(t *testing.T) {
+	db, store := openPebbleDBForSnapshotTest(t, 17)
+	scope := SlotScope(17)
+	manifest := validSnapshotManifest(scope)
+	manifest.Index = 8
+	manifest.Term = 2
+	manifest.SnapshotID = "snap-0000000000000008-0000000000000002-0000000000000001"
+	mustSetPebbleManifest(t, db.db, scope, manifest)
+	mustSetPebbleMeta(t, db.db, scope, logMeta{FirstIndex: 9, LastIndex: 8, SnapshotIndex: 8, SnapshotTerm: 3, ConfState: manifest.ConfState})
+	if _, err := store.InitialState(context.Background()); err == nil {
+		t.Fatal("InitialState() error = nil, want manifest/meta mismatch corruption")
+	}
+}
+
+func TestPebbleMissingManifestWithSnapshotMetaIsCorruption(t *testing.T) {
+	db, store := openPebbleDBForSnapshotTest(t, 18)
+	mustSetPebbleMeta(t, db.db, SlotScope(18), logMeta{FirstIndex: 7, LastIndex: 6, SnapshotIndex: 6, SnapshotTerm: 2, ConfState: raftpb.ConfState{Voters: []uint64{1}}})
+	if _, err := store.InitialState(context.Background()); err == nil {
+		t.Fatal("InitialState() error = nil, want missing manifest corruption")
+	}
+}
+
+func TestPebbleOldInlineSnapshotValueIsMalformedManifest(t *testing.T) {
+	db, store := openPebbleDBForSnapshotTest(t, 19)
+	snap := raftpb.Snapshot{Data: []byte("legacy-inline"), Metadata: raftpb.SnapshotMetadata{Index: 6, Term: 2, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
+	data, err := snap.Marshal()
+	if err != nil {
+		t.Fatalf("Snapshot.Marshal() error = %v", err)
+	}
+	mustSetRawPebbleValue(t, db.db, encodeSnapshotKey(SlotScope(19)), data)
+	if _, err := store.Snapshot(context.Background()); err == nil {
+		t.Fatal("Snapshot() error = nil, want malformed manifest")
 	}
 }
 
@@ -847,10 +1117,10 @@ func TestPebbleCloseDrainsConcurrentWritesBeforeClosingDB(t *testing.T) {
 		hs := raftpb.HardState{Term: 1, Commit: 16}
 		req := &writeRequest{
 			scope: SlotScope(uint64(i + 1)),
-			op: saveOp{state: multiraft.PersistentState{
+			op: saveOp{state: withoutSnapshotData(multiraft.PersistentState{
 				HardState: &hs,
 				Entries:   benchEntries(1, 16, 1, 1024),
-			}},
+			})},
 			done: make(chan error, 1),
 		}
 		db.writeCh <- req
@@ -1180,6 +1450,24 @@ func TestLoadAppliedIndexRejectsInvalidEncoding(t *testing.T) {
 	if err == nil {
 		t.Fatal("loadAppliedIndex() error = nil, want invalid encoding error")
 	}
+}
+
+func openPebbleDBForSnapshotTest(t *testing.T, group uint64) (*DB, multiraft.Storage) {
+	t.Helper()
+
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{
+		SnapshotPath:      filepath.Join(t.TempDir(), "snapshots"),
+		SnapshotChunkSize: 8,
+	})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+	return db, db.ForSlot(group)
 }
 
 func openTestPebbleStore(t *testing.T, group uint64) multiraft.Storage {
