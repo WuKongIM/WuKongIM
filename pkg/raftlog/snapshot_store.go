@@ -199,13 +199,10 @@ func (s *snapshotStore) read(ctx context.Context, scope Scope, manifest Snapshot
 		if err := ctx.Err(); err != nil {
 			return raftpb.Snapshot{}, err
 		}
-		chunk, err := os.ReadFile(filepath.Join(finalDir, chunkFileName(int(i))))
+		expectedSize := expectedChunkSize(manifest, i)
+		chunk, err := readSnapshotChunkFile(filepath.Join(finalDir, chunkFileName(int(i))), expectedSize)
 		if err != nil {
 			return raftpb.Snapshot{}, err
-		}
-		expectedSize := expectedChunkSize(manifest, i)
-		if uint64(len(chunk)) != expectedSize {
-			return raftpb.Snapshot{}, errors.New("raftstorage: invalid snapshot chunk size")
 		}
 		if !checksumEqual(snapshotChecksum(chunk), manifest.ChunkChecksums[i]) {
 			return raftpb.Snapshot{}, errors.New("raftstorage: invalid snapshot chunk checksum")
@@ -291,6 +288,35 @@ func writeSyncedFile(path string, data []byte) error {
 		return syncErr
 	}
 	return closeErr
+}
+
+func readSnapshotChunkFile(path string, expectedSize uint64) ([]byte, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() < 0 || uint64(info.Size()) != expectedSize {
+		return nil, errors.New("raftstorage: invalid snapshot chunk size")
+	}
+	chunk := make([]byte, int(expectedSize))
+	if _, err := io.ReadFull(file, chunk); err != nil {
+		return nil, err
+	}
+	var extra [1]byte
+	n, err := file.Read(extra[:])
+	if n != 0 {
+		return nil, errors.New("raftstorage: invalid snapshot chunk size")
+	}
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+	return chunk, nil
 }
 
 func fsyncDir(path string) error {
