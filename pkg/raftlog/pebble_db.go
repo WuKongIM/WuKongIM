@@ -62,6 +62,8 @@ type DB struct {
 	snapshotReadBeforeChunksHook func(scope Scope, manifest SnapshotManifest)
 	// snapshotAfterPublishTestHook injects failures after final directory publication in tests.
 	snapshotAfterPublishTestHook func(staged *stagedSnapshot) error
+	// writeCommitTestHook injects write batch commit failures in tests.
+	writeCommitTestHook func() error
 }
 
 func Open(path string, opts Options) (*DB, error) {

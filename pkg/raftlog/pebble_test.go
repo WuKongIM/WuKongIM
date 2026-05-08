@@ -406,6 +406,157 @@ func TestPebbleSnapshotRoundTripFromExternalChunks(t *testing.T) {
 	}
 }
 
+func TestSnapshotManifestWithMissingChunkFailsSnapshotRead(t *testing.T) {
+	db, store := openPebbleDBForSnapshotTest(t, 30)
+	snap := raftpb.Snapshot{
+		Data:     []byte("payload stored outside pebble"),
+		Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}},
+	}
+	mustSave(t, store, multiraft.PersistentState{Snapshot: &snap})
+
+	manifest := mustLoadPebbleManifest(t, db, SlotScope(30))
+	chunkPath := filepath.Join(db.snapshotStore.scopeDir(SlotScope(30)), manifest.SnapshotID, chunkFileName(0))
+	if err := os.Remove(chunkPath); err != nil {
+		t.Fatalf("Remove(%q) error = %v", chunkPath, err)
+	}
+
+	if got, err := store.Snapshot(context.Background()); err == nil {
+		t.Fatalf("Snapshot() = %#v, nil error; want missing external chunk error", got)
+	}
+}
+
+func TestSnapshotSaveFailureDoesNotWriteManifestOrTrimEntries(t *testing.T) {
+	db, store := openPebbleDBForSnapshotTest(t, 31)
+	entries := []raftpb.Entry{
+		{Index: 1, Term: 1, Data: []byte("one")},
+		{Index: 2, Term: 1, Data: []byte("two")},
+		{Index: 3, Term: 1, Data: []byte("three")},
+	}
+	mustSave(t, store, multiraft.PersistentState{Entries: entries})
+	db.snapshotStore.nonce = func() (string, error) { return "0000000000000031", nil }
+
+	injected := errors.New("injected chunk write failure")
+	originalWriteFile := snapshotWriteFile
+	snapshotWriteFile = func(path string, data []byte) error { return injected }
+	defer func() { snapshotWriteFile = originalWriteFile }()
+
+	snap := raftpb.Snapshot{
+		Data:     []byte("snapshot that fails before pebble commit"),
+		Metadata: raftpb.SnapshotMetadata{Index: 2, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}},
+	}
+	err := store.Save(context.Background(), multiraft.PersistentState{Snapshot: &snap})
+	if !errors.Is(err, injected) {
+		t.Fatalf("Save(snapshot) error = %v, want injected chunk write failure", err)
+	}
+
+	if _, closer, err := db.db.Get(encodeSnapshotKey(SlotScope(31))); err == nil {
+		closer.Close()
+		t.Fatal("snapshot manifest exists after chunk write failure")
+	} else if !errors.Is(err, pebble.ErrNotFound) {
+		t.Fatalf("snapshot manifest Get() error = %v, want not found", err)
+	}
+	if got := mustEntries(t, store, 1, 4, 0); !reflect.DeepEqual(got, entries) {
+		t.Fatalf("Entries() = %#v, want untrimmed entries %#v", got, entries)
+	}
+	tmpDir := filepath.Join(db.snapshotStore.scopeDir(SlotScope(31)), ".tmp-snap-0000000000000002-0000000000000001-0000000000000031")
+	assertPathMissing(t, tmpDir)
+	if db.isActiveSnapshotPath(tmpDir) {
+		t.Fatalf("tmp snapshot path %q is still active after failed save", tmpDir)
+	}
+}
+
+func TestSnapshotPebbleCommitFailureLeavesRetryableOrphanDir(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{
+		SnapshotPath:      filepath.Join(t.TempDir(), "snapshots"),
+		SnapshotChunkSize: 8,
+		SnapshotGCGrace:   0,
+	})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	db.snapshotStore.nonce = func() (string, error) { return "0000000000000032", nil }
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	injected := errors.New("injected pebble commit failure")
+	db.writeCommitTestHook = func() error { return injected }
+	snap := raftpb.Snapshot{
+		Data:     []byte("payload"),
+		Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}},
+	}
+	err = db.ForSlot(32).Save(context.Background(), multiraft.PersistentState{Snapshot: &snap})
+	if !errors.Is(err, injected) {
+		t.Fatalf("Save(snapshot) error = %v, want injected commit failure", err)
+	}
+
+	finalDir := filepath.Join(db.snapshotStore.scopeDir(SlotScope(32)), "snap-0000000000000005-0000000000000001-0000000000000032")
+	assertPathExists(t, finalDir)
+	if db.isActiveSnapshotPath(finalDir) {
+		t.Fatalf("final snapshot path %q is still active after failed commit", finalDir)
+	}
+	if _, closer, err := db.db.Get(encodeSnapshotKey(SlotScope(32))); err == nil {
+		closer.Close()
+		t.Fatal("snapshot manifest exists after failed commit")
+	} else if !errors.Is(err, pebble.ErrNotFound) {
+		t.Fatalf("snapshot manifest Get() error = %v, want not found", err)
+	}
+	if err := db.runSnapshotGC(context.Background()); err != nil {
+		t.Fatalf("runSnapshotGC() error = %v", err)
+	}
+	assertPathMissing(t, finalDir)
+}
+
+func TestSnapshotRetryBeforeGCSucceedsAfterCommitFailure(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{
+		SnapshotPath:      filepath.Join(t.TempDir(), "snapshots"),
+		SnapshotChunkSize: 8,
+		SnapshotGCGrace:   time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	nonces := []string{"0000000000000033", "0000000000000034"}
+	db.snapshotStore.nonce = func() (string, error) {
+		if len(nonces) == 0 {
+			t.Fatal("snapshot nonce requested too many times")
+		}
+		nonce := nonces[0]
+		nonces = nonces[1:]
+		return nonce, nil
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	injected := errors.New("injected pebble commit failure")
+	db.writeCommitTestHook = func() error { return injected }
+	snap := raftpb.Snapshot{
+		Data:     []byte("retry payload"),
+		Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}},
+	}
+	if err := db.ForSlot(33).Save(context.Background(), multiraft.PersistentState{Snapshot: &snap}); !errors.Is(err, injected) {
+		t.Fatalf("first Save(snapshot) error = %v, want injected commit failure", err)
+	}
+	orphanDir := filepath.Join(db.snapshotStore.scopeDir(SlotScope(33)), "snap-0000000000000005-0000000000000001-0000000000000033")
+	assertPathExists(t, orphanDir)
+
+	db.writeCommitTestHook = nil
+	if err := db.ForSlot(33).Save(context.Background(), multiraft.PersistentState{Snapshot: &snap}); err != nil {
+		t.Fatalf("retry Save(snapshot) error = %v", err)
+	}
+	manifest := mustLoadPebbleManifest(t, db, SlotScope(33))
+	if manifest.SnapshotID != "snap-0000000000000005-0000000000000001-0000000000000034" {
+		t.Fatalf("manifest SnapshotID = %q, want retry to use a new snapshot ID", manifest.SnapshotID)
+	}
+	assertPathExists(t, orphanDir)
+	assertPathExists(t, filepath.Join(db.snapshotStore.scopeDir(SlotScope(33)), manifest.SnapshotID))
+}
+
 func TestPebbleCurrentMetaUsesAtomicManifestView(t *testing.T) {
 	ctx := context.Background()
 	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{

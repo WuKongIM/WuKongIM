@@ -123,6 +123,11 @@ func (db *DB) flushWriteRequests(reqs []*writeRequest) error {
 		}
 	}
 
+	if db.writeCommitTestHook != nil {
+		if err := db.writeCommitTestHook(); err != nil {
+			return err
+		}
+	}
 	if err := batch.Commit(pebble.Sync); err != nil {
 		return err
 	}

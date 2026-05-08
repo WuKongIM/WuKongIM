@@ -36,6 +36,19 @@ func TestSnapshotGCRemovesUnreferencedFinalDirs(t *testing.T) {
 	assertPathMissing(t, finalDir)
 }
 
+func TestSnapshotGCRemovesPebbleCommitFailureOrphanDir(t *testing.T) {
+	db := openSnapshotGCTestDB(t)
+	defer db.Close()
+
+	finalDir := filepath.Join(db.snapshotStore.scopeDir(SlotScope(15)), "snap-0000000000000005-0000000000000001-0000000000000015")
+	mustCreateOldDir(t, finalDir)
+
+	if err := db.runSnapshotGC(context.Background()); err != nil {
+		t.Fatalf("runSnapshotGC() error = %v", err)
+	}
+	assertPathMissing(t, finalDir)
+}
+
 func TestSnapshotGCKeepsManifestReferencedSnapshot(t *testing.T) {
 	db := openSnapshotGCTestDB(t)
 	defer db.Close()

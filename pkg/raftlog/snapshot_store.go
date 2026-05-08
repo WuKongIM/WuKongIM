@@ -21,6 +21,9 @@ var errSnapshotNoOverwriteRenameUnsupported = errors.New("raftstorage: atomic no
 
 var snapshotFsyncDir = fsyncDir
 
+// snapshotWriteFile writes one durable snapshot chunk and is injectable by package tests.
+var snapshotWriteFile = writeSyncedFile
+
 // snapshotStore persists snapshot payload bytes in external chunk directories.
 type snapshotStore struct {
 	// root is the external snapshot directory root.
@@ -140,7 +143,7 @@ func (s *snapshotStore) write(ctx context.Context, staged *stagedSnapshot, data 
 			chunkLen = remaining
 		}
 		chunk := data[int(offset):int(offset+chunkLen)]
-		if err := writeSyncedFile(filepath.Join(staged.tmpDir, chunkFileName(i)), chunk); err != nil {
+		if err := snapshotWriteFile(filepath.Join(staged.tmpDir, chunkFileName(i)), chunk); err != nil {
 			return err
 		}
 		staged.manifest.ChunkChecksums = append(staged.manifest.ChunkChecksums, snapshotChecksum(chunk))
