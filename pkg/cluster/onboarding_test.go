@@ -258,6 +258,9 @@ func seedOnboardingPlannerState(t *testing.T, c *Cluster) {
 				},
 			})
 		}
+		if c.controllerHost.IsLeader(c.cfg.NodeID) {
+			require.NoError(t, c.controllerHost.reloadMetadataSnapshot(ctx))
+		}
 	}
 }
 
