@@ -781,7 +781,7 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if c.Storage.RaftSnapshotGCGrace < 0 {
 		return fmt.Errorf("%w: raft snapshot gc grace must be non-negative", ErrInvalidConfig)
 	}
-	if c.Storage.RaftSnapshotGCGrace == 0 {
+	if c.Storage.RaftSnapshotGCGrace == 0 && !c.Storage.raftSnapshotGCGraceSet {
 		c.Storage.RaftSnapshotGCGrace = 30 * time.Minute
 	}
 
@@ -1021,6 +1021,28 @@ func normalizeStoragePath(path string) (string, error) {
 	return cleanPath, nil
 }
 
+func normalizeStoragePathForOverlap(path string) string {
+	if resolved, ok := resolveExistingPathPrefix(path); ok {
+		return resolved
+	}
+	return path
+}
+
+func resolveExistingPathPrefix(path string) (string, bool) {
+	var suffix []string
+	for current := path; ; current = filepath.Dir(current) {
+		if resolved, err := filepath.EvalSymlinks(current); err == nil {
+			parts := append([]string{filepath.Clean(resolved)}, suffix...)
+			return filepath.Clean(filepath.Join(parts...)), true
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", false
+		}
+		suffix = append([]string{filepath.Base(current)}, suffix...)
+	}
+}
+
 type namedStoragePath struct {
 	name string
 	path string
@@ -1029,7 +1051,8 @@ type namedStoragePath struct {
 func validateStoragePathIsolation(paths []namedStoragePath) error {
 	for i := range paths {
 		for j := i + 1; j < len(paths); j++ {
-			if storagePathsOverlap(paths[i].path, paths[j].path) {
+			if storagePathsOverlap(paths[i].path, paths[j].path) ||
+				storagePathsOverlap(normalizeStoragePathForOverlap(paths[i].path), normalizeStoragePathForOverlap(paths[j].path)) {
 				return fmt.Errorf("%s and %s must not overlap", paths[i].name, paths[j].name)
 			}
 		}
