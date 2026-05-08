@@ -156,6 +156,12 @@ func (s *Server) registerRoutes() {
 	channelRuntimeMeta.GET("/channel-runtime-meta", s.handleChannelRuntimeMeta)
 	channelRuntimeMeta.GET("/channel-runtime-meta/:channel_type/:channel_id", s.handleChannelRuntimeMetaDetail)
 	channelRuntimeMeta.GET("/messages", s.handleMessages)
+
+	messageWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		messageWrites.Use(s.requirePermission("cluster.channel", "w"))
+	}
+	messageWrites.POST("/messages/retention", s.handleAdvanceMessageRetention)
 }
 
 func openCORSMiddleware() gin.HandlerFunc {

@@ -505,6 +505,15 @@ func build(cfg Config) (_ *App, err error) {
 		Logger:       app.logger.Named("committed.replay"),
 		Metrics:      messageMetrics,
 	})
+	managerRetention := &managerMessageRetentionOperator{
+		localNodeID: cfg.Node.ID,
+		metas:       app.store,
+		runtime:     app.isrRuntime,
+		stores:      managerMessageRetentionStores{engine: app.channelLogDB},
+		metadata:    app.store,
+		remote:      app.nodeClient,
+		now:         time.Now,
+	}
 	app.nodeAccess = accessnode.New(accessnode.Options{
 		Cluster:               app.cluster,
 		Presence:              app.presenceApp,
@@ -522,6 +531,7 @@ func build(cfg Config) (_ *App, err error) {
 		ChannelLeaderEvaluate: channelLeaderEvaluator,
 		RuntimeSummary:        nodeRuntimeSummaryProvider{collector: runtimeSummaries},
 		Diagnostics:           app,
+		ChannelRetention:      managerMessageRetentionNodeProvider{target: managerRetention},
 		Logger:                app.logger.Named("access.node"),
 	})
 	app.messageApp = message.New(message.Options{
@@ -576,6 +586,7 @@ func build(cfg Config) (_ *App, err error) {
 			},
 			ChannelRuntimeMeta: app.store,
 			Network:            app.networkObservability,
+			MessageRetention:   managerRetention,
 			Messages: managerMessageReader{
 				localNodeID: cfg.Node.ID,
 				channelLog:  app.channelLogDB,

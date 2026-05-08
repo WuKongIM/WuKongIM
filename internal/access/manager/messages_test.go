@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
@@ -96,6 +97,128 @@ func TestManagerMessagesReturnsPagedList(t *testing.T) {
 		"has_more": true,
 		"next_cursor": %q
 	}`, mustEncodeMessageCursorForTest(t, nextCursor)), rec.Body.String())
+}
+
+func TestManagerMessageRetentionRequiresWritePermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.channel",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/messages/retention", strings.NewReader(`{"channel_id":"room-1","channel_type":2,"through_seq":9}`))
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+func TestManagerMessageRetentionRejectsInvalidRequest(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.channel",
+				Actions:  []string{"w"},
+			}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/messages/retention", strings.NewReader(`{"channel_id":"room-1","channel_type":2}`))
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"error":"bad_request","message":"invalid message retention request"}`, rec.Body.String())
+}
+
+func TestManagerMessageRetentionAdvancesBoundary(t *testing.T) {
+	var received managementusecase.AdvanceMessageRetentionRequest
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.channel",
+				Actions:  []string{"w"},
+			}},
+		}}),
+		Management: managementStub{
+			retentionReqSink: &received,
+			retentionResult: managementusecase.AdvanceMessageRetentionResponse{
+				ChannelID:           "room-1",
+				ChannelType:         2,
+				RequestedThroughSeq: 10,
+				AdvancedThroughSeq:  8,
+				MinAvailableSeq:     9,
+				Status:              managementusecase.MessageRetentionStatusAdvanced,
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/messages/retention", strings.NewReader(`{"channel_id":"room-1","channel_type":2,"through_seq":10,"dry_run":true}`))
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, managementusecase.AdvanceMessageRetentionRequest{
+		ChannelID:   "room-1",
+		ChannelType: 2,
+		ThroughSeq:  10,
+		DryRun:      true,
+	}, received)
+	require.JSONEq(t, `{"channel_id":"room-1","channel_type":2,"requested_through_seq":10,"advanced_through_seq":8,"min_available_seq":9,"status":"advanced"}`, rec.Body.String())
+}
+
+func TestManagerMessageRetentionReturnsBlockedStatus(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.channel",
+				Actions:  []string{"w"},
+			}},
+		}}),
+		Management: managementStub{
+			retentionResult: managementusecase.AdvanceMessageRetentionResponse{
+				ChannelID:           "room-1",
+				ChannelType:         2,
+				RequestedThroughSeq: 10,
+				AdvancedThroughSeq:  4,
+				MinAvailableSeq:     5,
+				Status:              managementusecase.MessageRetentionStatusBlocked,
+				BlockedReason:       managementusecase.MessageRetentionBlockedReasonReplayCursor,
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/messages/retention", strings.NewReader(`{"channel_id":"room-1","channel_type":2,"through_seq":10}`))
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"channel_id":"room-1","channel_type":2,"requested_through_seq":10,"advanced_through_seq":4,"min_available_seq":5,"status":"blocked","blocked_reason":"replay_cursor"}`, rec.Body.String())
 }
 
 func TestEncodeMessageCursorWritesBinaryPayload(t *testing.T) {

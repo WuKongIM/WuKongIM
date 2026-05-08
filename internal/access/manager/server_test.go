@@ -3498,6 +3498,9 @@ type managementStub struct {
 	messagesReqSink                    *managementusecase.ListMessagesRequest
 	messagesPage                       managementusecase.ListMessagesResponse
 	messagesErr                        error
+	retentionReqSink                   *managementusecase.AdvanceMessageRetentionRequest
+	retentionResult                    managementusecase.AdvanceMessageRetentionResponse
+	retentionErr                       error
 	overview                           managementusecase.Overview
 	overviewErr                        error
 	networkSummary                     managementusecase.NetworkSummary
@@ -3695,6 +3698,13 @@ func (s managementStub) ListMessages(_ context.Context, req managementusecase.Li
 		*s.messagesReqSink = req
 	}
 	return s.messagesPage, s.messagesErr
+}
+
+func (s managementStub) AdvanceMessageRetention(_ context.Context, req managementusecase.AdvanceMessageRetentionRequest) (managementusecase.AdvanceMessageRetentionResponse, error) {
+	if s.retentionReqSink != nil {
+		*s.retentionReqSink = req
+	}
+	return s.retentionResult, s.retentionErr
 }
 
 func (s managementStub) GetOverview(context.Context) (managementusecase.Overview, error) {
