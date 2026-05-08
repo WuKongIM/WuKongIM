@@ -1,12 +1,15 @@
 package raftlog
 
 import (
+	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"math"
 
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/cockroachdb/pebble/v2"
+	raft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -20,8 +23,20 @@ type writeOp interface {
 	apply(batch *pebble.Batch, state *scopeWriteState, store *pebbleStore) error
 }
 
+// persistentWriteState is the worker-safe form of a raft write request.
+type persistentWriteState struct {
+	// HardState is the optional raft hard state to persist.
+	HardState *raftpb.HardState
+	// Entries are log entries retained after snapshot compaction filtering.
+	Entries []raftpb.Entry
+	// Snapshot is metadata-only snapshot state; payload bytes are never carried here.
+	Snapshot *raftpb.SnapshotMetadata
+	// SnapshotManifest is the final external payload manifest written to Pebble.
+	SnapshotManifest *SnapshotManifest
+}
+
 type saveOp struct {
-	state multiraft.PersistentState
+	state persistentWriteState
 }
 
 type markAppliedOp struct {
@@ -29,10 +44,11 @@ type markAppliedOp struct {
 }
 
 type scopeWriteState struct {
-	hardState raftpb.HardState
-	snapshot  raftpb.Snapshot
-	entries   []raftpb.Entry
-	meta      logMeta
+	hardState        raftpb.HardState
+	snapshot         raftpb.Snapshot
+	snapshotManifest *SnapshotManifest
+	entries          []raftpb.Entry
+	meta             logMeta
 }
 
 func (db *DB) submitWrite(req *writeRequest) error {
@@ -132,7 +148,7 @@ func (db *DB) loadScopeWriteState(cache map[Scope]*scopeWriteState, scope Scope,
 	if err != nil {
 		return nil, err
 	}
-	snapshot, err := store.loadSnapshot()
+	manifest, hasManifest, err := store.loadSnapshotManifest(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -147,12 +163,34 @@ func (db *DB) loadScopeWriteState(cache map[Scope]*scopeWriteState, scope Scope,
 
 	state := &scopeWriteState{
 		hardState: hardState,
-		snapshot:  snapshot,
 		entries:   entries,
 		meta:      meta,
 	}
+	if hasManifest {
+		state.snapshot = snapshotFromManifest(manifest)
+		state.snapshotManifest = cloneSnapshotManifestPtr(&manifest)
+	}
 	cache[scope] = state
 	return state, nil
+}
+
+func cloneScopeWriteState(state scopeWriteState, cloneEntries bool) scopeWriteState {
+	cloned := scopeWriteState{
+		hardState:        state.hardState,
+		snapshot:         cloneSnapshot(state.snapshot),
+		snapshotManifest: cloneSnapshotManifestPtr(state.snapshotManifest),
+		meta:             state.meta,
+	}
+	cloned.meta.ConfState = cloneConfState(state.meta.ConfState)
+	if cloneEntries {
+		cloned.entries = make([]raftpb.Entry, 0, len(state.entries))
+		for _, entry := range state.entries {
+			cloned.entries = append(cloned.entries, cloneEntry(entry))
+		}
+	} else {
+		cloned.entries = state.entries
+	}
+	return cloned
 }
 
 func writeOpTouchesEntries(op writeOp) bool {
@@ -176,48 +214,52 @@ func (op saveOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbl
 		persistHardState = true
 	}
 
+	snapshotIndex := uint64(0)
 	if st.Snapshot != nil {
-		data, err := st.Snapshot.Marshal()
+		if st.SnapshotManifest == nil {
+			return errors.New("raftstorage: snapshot save missing manifest")
+		}
+		if st.Snapshot.Index < state.snapshot.Metadata.Index {
+			return raft.ErrSnapOutOfDate
+		}
+		if st.Snapshot.Index == state.snapshot.Metadata.Index && state.snapshotManifest != nil && !snapshotManifestEquivalent(*state.snapshotManifest, *st.SnapshotManifest) {
+			return errors.New("raftstorage: same-index snapshot manifest mismatch")
+		}
+		encoded, err := encodeSnapshotManifest(scope, *st.SnapshotManifest)
 		if err != nil {
 			return err
 		}
-		if err := batch.Set(encodeSnapshotKey(scope), data, nil); err != nil {
+		if err := batch.Set(encodeSnapshotKey(scope), encoded, nil); err != nil {
 			return err
 		}
-		if st.Snapshot.Metadata.Index < math.MaxUint64 {
-			if err := batch.DeleteRange(
-				encodeEntryPrefix(scope),
-				encodeEntryKey(scope, st.Snapshot.Metadata.Index+1),
-				nil,
-			); err != nil {
+		if st.Snapshot.Index < math.MaxUint64 {
+			if err := batch.DeleteRange(encodeEntryPrefix(scope), encodeEntryKey(scope, st.Snapshot.Index+1), nil); err != nil {
 				return err
 			}
 		} else {
-			if err := batch.DeleteRange(
-				encodeEntryPrefix(scope),
-				encodeEntryPrefixEnd(scope),
-				nil,
-			); err != nil {
+			if err := batch.DeleteRange(encodeEntryPrefix(scope), encodeEntryPrefixEnd(scope), nil); err != nil {
 				return err
 			}
 		}
-		if hs.Commit < st.Snapshot.Metadata.Index {
-			hs.Commit = st.Snapshot.Metadata.Index
+		if hs.Commit < st.Snapshot.Index {
+			hs.Commit = st.Snapshot.Index
 		}
-		state.snapshot = cloneSnapshot(*st.Snapshot)
-		state.entries = trimEntriesAfterSnapshot(state.entries, st.Snapshot.Metadata.Index)
+		state.snapshot = raftpb.Snapshot{Metadata: cloneSnapshotMetadata(*st.Snapshot)}
+		state.snapshotManifest = cloneSnapshotManifestPtr(st.SnapshotManifest)
+		state.entries = trimEntriesAfterSnapshot(state.entries, st.Snapshot.Index)
+		snapshotIndex = st.Snapshot.Index
 	}
 
-	if len(st.Entries) > 0 {
-		first := st.Entries[0].Index
-		if err := batch.DeleteRange(
-			encodeEntryKey(scope, first),
-			encodeEntryPrefixEnd(scope),
-			nil,
-		); err != nil {
+	entries := st.Entries
+	if snapshotIndex > 0 {
+		entries = filterEntriesAfterSnapshot(entries, snapshotIndex)
+	}
+	if len(entries) > 0 {
+		first := entries[0].Index
+		if err := batch.DeleteRange(encodeEntryKey(scope, first), encodeEntryPrefixEnd(scope), nil); err != nil {
 			return err
 		}
-		for _, entry := range st.Entries {
+		for _, entry := range entries {
 			data, err := entry.Marshal()
 			if err != nil {
 				return err
@@ -226,7 +268,7 @@ func (op saveOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbl
 				return err
 			}
 		}
-		state.entries = replaceEntriesFromIndex(state.entries, first, st.Entries)
+		state.entries = replaceEntriesFromIndex(state.entries, first, entries)
 	}
 
 	if persistHardState {
@@ -258,28 +300,64 @@ func (op markAppliedOp) apply(batch *pebble.Batch, state *scopeWriteState, store
 	return store.setMeta(batch, state.meta)
 }
 
-func cloneScopeWriteState(state scopeWriteState, cloneEntries bool) scopeWriteState {
-	cloned := scopeWriteState{
-		hardState: state.hardState,
-		snapshot:  cloneSnapshot(state.snapshot),
-		meta: logMeta{
-			FirstIndex:    state.meta.FirstIndex,
-			LastIndex:     state.meta.LastIndex,
-			AppliedIndex:  state.meta.AppliedIndex,
-			SnapshotIndex: state.meta.SnapshotIndex,
-			SnapshotTerm:  state.meta.SnapshotTerm,
-			ConfState:     cloneConfState(state.meta.ConfState),
-		},
+func withoutSnapshotData(st multiraft.PersistentState) persistentWriteState {
+	out := persistentWriteState{}
+	if st.HardState != nil {
+		hs := *st.HardState
+		out.HardState = &hs
 	}
-	if len(state.entries) > 0 {
-		if cloneEntries {
-			cloned.entries = make([]raftpb.Entry, len(state.entries))
-			for i, entry := range state.entries {
-				cloned.entries[i] = cloneEntry(entry)
-			}
-		} else {
-			cloned.entries = state.entries
+	if len(st.Entries) > 0 {
+		out.Entries = make([]raftpb.Entry, 0, len(st.Entries))
+		for _, entry := range st.Entries {
+			out.Entries = append(out.Entries, cloneEntry(entry))
 		}
 	}
-	return cloned
+	if st.Snapshot != nil {
+		metadata := cloneSnapshotMetadata(st.Snapshot.Metadata)
+		out.Snapshot = &metadata
+	}
+	return out
+}
+
+func filterEntriesAfterSnapshot(entries []raftpb.Entry, snapshotIndex uint64) []raftpb.Entry {
+	if len(entries) == 0 {
+		return nil
+	}
+	retained := make([]raftpb.Entry, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Index <= snapshotIndex {
+			continue
+		}
+		retained = append(retained, cloneEntry(entry))
+	}
+	return retained
+}
+
+func snapshotManifestEquivalent(a, b SnapshotManifest) bool {
+	return a.Index == b.Index &&
+		a.Term == b.Term &&
+		a.TotalSize == b.TotalSize &&
+		bytes.Equal(a.WholeChecksum, b.WholeChecksum) &&
+		confStateEqual(a.ConfState, b.ConfState)
+}
+
+func cloneSnapshotMetadata(metadata raftpb.SnapshotMetadata) raftpb.SnapshotMetadata {
+	metadata.ConfState = cloneConfState(metadata.ConfState)
+	return metadata
+}
+
+func cloneSnapshotManifestPtr(manifest *SnapshotManifest) *SnapshotManifest {
+	if manifest == nil {
+		return nil
+	}
+	cloned := *manifest
+	cloned.ConfState = cloneConfState(manifest.ConfState)
+	cloned.WholeChecksum = append([]byte(nil), manifest.WholeChecksum...)
+	if len(manifest.ChunkChecksums) > 0 {
+		cloned.ChunkChecksums = make([][]byte, len(manifest.ChunkChecksums))
+		for i := range manifest.ChunkChecksums {
+			cloned.ChunkChecksums[i] = append([]byte(nil), manifest.ChunkChecksums[i]...)
+		}
+	}
+	return &cloned
 }

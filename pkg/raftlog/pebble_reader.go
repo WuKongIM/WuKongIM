@@ -1,6 +1,7 @@
 package raftlog
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 
@@ -20,12 +21,35 @@ func (s *pebbleStore) loadHardState() (raftpb.HardState, error) {
 	return hs, nil
 }
 
-func (s *pebbleStore) loadSnapshot() (raftpb.Snapshot, error) {
-	var snap raftpb.Snapshot
-	if err := s.loadProto(encodeSnapshotKey(s.scope), &snap); err != nil {
+// loadSnapshotManifest decodes the snapshot manifest stored in Pebble without reading chunk files.
+func (s *pebbleStore) loadSnapshotManifest(ctx context.Context) (SnapshotManifest, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return SnapshotManifest{}, false, err
+	}
+	value, err := s.getValue(encodeSnapshotKey(s.scope))
+	if err != nil {
+		if errors.Is(err, pebble.ErrNotFound) {
+			return SnapshotManifest{}, false, nil
+		}
+		return SnapshotManifest{}, false, err
+	}
+	manifest, err := decodeSnapshotManifest(s.scope, value)
+	if err != nil {
+		return SnapshotManifest{}, false, err
+	}
+	return manifest, true, nil
+}
+
+// loadSnapshot reads the external snapshot payload described by the Pebble manifest.
+func (s *pebbleStore) loadSnapshot(ctx context.Context) (raftpb.Snapshot, error) {
+	manifest, ok, err := s.loadConsistentSnapshotManifest(ctx)
+	if err != nil {
 		return raftpb.Snapshot{}, err
 	}
-	return cloneSnapshot(snap), nil
+	if !ok {
+		return raftpb.Snapshot{}, nil
+	}
+	return s.db.snapshotStore.read(ctx, s.scope, manifest)
 }
 
 func (s *pebbleStore) loadAppliedIndex() (uint64, error) {
@@ -79,18 +103,21 @@ func (s *pebbleStore) loadMeta() (logMeta, bool, error) {
 }
 
 func (s *pebbleStore) currentMeta() (logMeta, bool, error) {
-	meta, ok, err := s.loadMeta()
+	meta, hasMeta, err := s.loadMeta()
 	if err != nil {
 		return logMeta{}, false, err
 	}
-	if ok {
+	manifest, hasManifest, err := s.loadSnapshotManifest(context.Background())
+	if err != nil {
+		return logMeta{}, false, err
+	}
+	if err := validateManifestMetaConsistency(manifest, hasManifest, meta, hasMeta); err != nil {
+		return logMeta{}, false, err
+	}
+	if hasMeta {
 		return meta, true, nil
 	}
 
-	snap, err := s.loadSnapshot()
-	if err != nil {
-		return logMeta{}, false, err
-	}
 	hs, err := s.loadHardState()
 	if err != nil {
 		return logMeta{}, false, err
@@ -105,7 +132,7 @@ func (s *pebbleStore) currentMeta() (logMeta, bool, error) {
 	}
 
 	meta = logMeta{AppliedIndex: appliedIndex}
-	if err := updateLogMeta(&meta, snap, entries, hs.Commit); err != nil {
+	if err := updateLogMeta(&meta, raftpb.Snapshot{}, entries, hs.Commit); err != nil {
 		return logMeta{}, false, err
 	}
 	return meta, false, nil
@@ -172,6 +199,40 @@ func (s *pebbleStore) loadEntries(lo, hi uint64) ([]raftpb.Entry, error) {
 		return nil, err
 	}
 	return entries, nil
+}
+
+func (s *pebbleStore) loadConsistentSnapshotManifest(ctx context.Context) (SnapshotManifest, bool, error) {
+	meta, hasMeta, err := s.loadMeta()
+	if err != nil {
+		return SnapshotManifest{}, false, err
+	}
+	manifest, hasManifest, err := s.loadSnapshotManifest(ctx)
+	if err != nil {
+		return SnapshotManifest{}, false, err
+	}
+	if err := validateManifestMetaConsistency(manifest, hasManifest, meta, hasMeta); err != nil {
+		return SnapshotManifest{}, false, err
+	}
+	return manifest, hasManifest, nil
+}
+
+func validateManifestMetaConsistency(manifest SnapshotManifest, hasManifest bool, meta logMeta, hasMeta bool) error {
+	if hasManifest && !hasMeta {
+		return errors.New("raftstorage: snapshot manifest missing log metadata")
+	}
+	if !hasManifest && hasMeta && meta.SnapshotIndex > 0 {
+		return errors.New("raftstorage: snapshot metadata missing manifest")
+	}
+	if !hasManifest {
+		return nil
+	}
+	if meta.SnapshotIndex != manifest.Index || meta.SnapshotTerm != manifest.Term {
+		return errors.New("raftstorage: snapshot manifest and metadata mismatch")
+	}
+	if meta.LastIndex <= meta.SnapshotIndex && !confStateEqual(meta.ConfState, manifest.ConfState) {
+		return errors.New("raftstorage: snapshot manifest and metadata mismatch")
+	}
+	return nil
 }
 
 type iterValueReader interface {
