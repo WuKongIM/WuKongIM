@@ -2,13 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useIntl } from "react-intl"
 import { useSearchParams } from "react-router-dom"
 
+import { ConfirmDialog } from "@/components/manager/confirm-dialog"
 import { DetailSheet } from "@/components/manager/detail-sheet"
 import { KeyValueList } from "@/components/manager/key-value-list"
 import { ResourceState } from "@/components/manager/resource-state"
 import { PageContainer } from "@/components/shell/page-container"
 import { Button } from "@/components/ui/button"
-import { ManagerApiError, getChannelRuntimeMeta, getMessages } from "@/lib/manager-api"
-import type { ManagerChannelRuntimeMeta, ManagerMessage, ManagerMessagesResponse } from "@/lib/manager-api.types"
+import { ManagerApiError, advanceMessageRetention, getChannelRuntimeMeta, getMessages } from "@/lib/manager-api"
+import type {
+  AdvanceMessageRetentionResponse,
+  ManagerChannelRuntimeMeta,
+  ManagerMessage,
+  ManagerMessagesResponse,
+} from "@/lib/manager-api.types"
 
 type QueryForm = {
   channelId: string
@@ -39,6 +45,13 @@ type ChannelSuggestionState = {
   items: ManagerChannelRuntimeMeta[]
   loading: boolean
   error: boolean
+}
+
+type RetentionActionState = {
+  message: ManagerMessage | null
+  pending: boolean
+  error: string | null
+  result: AdvanceMessageRetentionResponse | null
 }
 
 const channelSuggestionLimit = 15
@@ -98,6 +111,12 @@ export function MessagesPage() {
   const [submitted, setSubmitted] = useState<SubmittedQuery | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [selectedMessage, setSelectedMessage] = useState<ManagerMessage | null>(null)
+  const [retention, setRetention] = useState<RetentionActionState>({
+    message: null,
+    pending: false,
+    error: null,
+    result: null,
+  })
   const [payloadFormat, setPayloadFormat] = useState<PayloadFormat>("text")
   const [channelSuggestionsOpen, setChannelSuggestionsOpen] = useState(false)
   const [channelSuggestions, setChannelSuggestions] = useState<ChannelSuggestionState>({
@@ -231,6 +250,31 @@ export function MessagesPage() {
     }
   }, [])
 
+  const openRetentionDialog = useCallback((message: ManagerMessage) => {
+    setRetention((current) => ({
+      ...current,
+      message,
+      pending: false,
+      error: null,
+    }))
+  }, [])
+
+  const closeRetentionDialog = useCallback((open: boolean) => {
+    if (open) {
+      return
+    }
+    setRetention((current) => {
+      if (current.pending) {
+        return current
+      }
+      return {
+        ...current,
+        message: null,
+        error: null,
+      }
+    })
+  }, [])
+
   const submit = useCallback(async () => {
     const channelId = query.channelId.trim()
     if (!channelId) {
@@ -277,6 +321,50 @@ export function MessagesPage() {
     }
     await runQuery(submitted, true)
   }, [runQuery, submitted])
+
+  const confirmRetentionDelete = useCallback(async () => {
+    const message = retention.message
+    if (!message || retention.pending) {
+      return
+    }
+
+    setRetention((current) => ({ ...current, pending: true, error: null }))
+    try {
+      const result = await advanceMessageRetention({
+        channelId: message.channel_id,
+        channelType: message.channel_type,
+        throughSeq: message.message_seq,
+      })
+
+      if (result.status === "blocked") {
+        setRetention((current) => ({
+          ...current,
+          pending: false,
+          error: intl.formatMessage(
+            { id: "messages.retentionBlocked" },
+            { reason: result.blocked_reason || result.status },
+          ),
+          result,
+        }))
+        return
+      }
+
+      setRetention((current) => ({
+        ...current,
+        message: null,
+        pending: false,
+        error: null,
+        result,
+      }))
+      await refresh()
+    } catch (error) {
+      setRetention((current) => ({
+        ...current,
+        pending: false,
+        error: error instanceof Error ? error.message : "message retention failed",
+      }))
+    }
+  }, [intl, refresh, retention.message, retention.pending])
 
   const visiblePayload = useMemo(() => {
     if (!selectedMessage) {
@@ -449,6 +537,14 @@ export function MessagesPage() {
       </div>
 
       <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+        {retention.result && retention.result.status !== "blocked" ? (
+          <div className="mb-3 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
+            {intl.formatMessage(
+              { id: "messages.retentionSuccess" },
+              { seq: retention.result.min_available_seq },
+            )}
+          </div>
+        ) : null}
         {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nav.messages.title" })} /> : null}
         {!state.loading && state.error ? (
           <ResourceState
@@ -488,19 +584,34 @@ export function MessagesPage() {
                         <td className="px-3 py-3 text-sm text-muted-foreground">{formatTimestamp(message.timestamp)}</td>
                         <td className="max-w-[24rem] px-3 py-3 text-sm text-foreground">{decodePayload(message.payload) || "-"}</td>
                         <td className="px-3 py-3 text-sm text-foreground">
-                          <Button
-                            aria-label={intl.formatMessage(
-                              { id: "messages.inspectMessage" },
-                              { id: message.message_id },
-                            )}
-                            onClick={() => {
-                              openDetail(message)
-                            }}
-                            size="sm"
-                            variant="outline"
-                          >
-                            {intl.formatMessage({ id: "common.inspect" })}
-                          </Button>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              aria-label={intl.formatMessage(
+                                { id: "messages.deleteThroughSeqAction" },
+                                { seq: message.message_seq },
+                              )}
+                              onClick={() => {
+                                openRetentionDialog(message)
+                              }}
+                              size="sm"
+                              variant="destructive"
+                            >
+                              {intl.formatMessage({ id: "messages.deleteThroughSeq" })}
+                            </Button>
+                            <Button
+                              aria-label={intl.formatMessage(
+                                { id: "messages.inspectMessage" },
+                                { id: message.message_id },
+                              )}
+                              onClick={() => {
+                                openDetail(message)
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {intl.formatMessage({ id: "common.inspect" })}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -628,6 +739,27 @@ export function MessagesPage() {
           </div>
         ) : null}
       </DetailSheet>
+      <ConfirmDialog
+        confirmLabel={intl.formatMessage({ id: "common.confirm" })}
+        description={retention.message
+          ? intl.formatMessage(
+              { id: "messages.deleteConfirmDescription" },
+              {
+                channel: retention.message.channel_id,
+                type: retention.message.channel_type,
+                seq: retention.message.message_seq,
+              },
+            )
+          : undefined}
+        error={retention.error ?? undefined}
+        onConfirm={() => {
+          void confirmRetentionDelete()
+        }}
+        onOpenChange={closeRetentionDialog}
+        open={retention.message !== null}
+        pending={retention.pending}
+        title={intl.formatMessage({ id: "messages.deleteConfirmTitle" })}
+      />
     </PageContainer>
   )
 }
