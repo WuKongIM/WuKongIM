@@ -12,6 +12,14 @@ WK_TEST_MODE=false
 # WK_STORAGE_CHANNEL_LOG_PATH=./data/node-1/channellog
 WK_STORAGE_CONTROLLER_META_PATH=./data/node-1/controller-meta
 WK_STORAGE_CONTROLLER_RAFT_PATH=./data/node-1/controller-raft
+# External Raft snapshot chunk directories store snapshot payload bytes outside Pebble.
+# Keep them separate from DB, Raft log, channel log, controller meta, and controller Raft paths; overlapping paths are rejected.
+WK_STORAGE_RAFT_SNAPSHOT_PATH=./data/node-1/raft-snapshots
+WK_STORAGE_CONTROLLER_RAFT_SNAPSHOT_PATH=./data/node-1/controller-raft-snapshots
+# Snapshot chunk size accepts decimal bytes or B, KiB, MiB, GiB units.
+WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE=8MiB
+# Snapshot GC waits 30m by default; an explicit 0 runs eligible GC immediately.
+WK_STORAGE_RAFT_SNAPSHOT_GC_GRACE=30m
 
 WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000
 # Optional legacy alias for WK_CLUSTER_INITIAL_SLOT_COUNT; keep equal when both are set.
