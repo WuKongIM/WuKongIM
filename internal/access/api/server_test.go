@@ -162,14 +162,20 @@ func TestE2ETestDataRoutesRequireTestMode(t *testing.T) {
 	testData := &recordingTestDataUsecase{}
 	srv := New(Options{TestData: testData})
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/testdata/e2e/cluster/slot-snapshot-users", bytes.NewBufferString(`{"prefix":"snap","count":1,"payload_bytes":8}`))
-	req.Header.Set("Content-Type", "application/json")
+	for _, path := range []string{
+		"/testdata/e2e/cluster/slot-snapshot-users",
+		"/testdata/e2e/cluster/controller-snapshot-jobs",
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(`{"prefix":"snap","target_node_id":1,"count":1,"payload_bytes":8}`))
+		req.Header.Set("Content-Type", "application/json")
 
-	srv.Engine().ServeHTTP(rec, req)
+		srv.Engine().ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusNotFound, rec.Code)
+		require.Equal(t, http.StatusNotFound, rec.Code)
+	}
 	require.Empty(t, testData.slotSnapshotUserCommands)
+	require.Empty(t, testData.controllerSnapshotJobCommands)
 }
 
 func TestE2ETestDataSlotSnapshotUsersMapsJSONToUsecaseCommand(t *testing.T) {
@@ -203,6 +209,37 @@ func TestE2ETestDataSlotSnapshotUsersMapsJSONToUsecaseCommand(t *testing.T) {
 			DeviceLevel:  1,
 		},
 	}, testData.slotSnapshotUserCommands)
+}
+
+func TestE2ETestDataControllerSnapshotJobsMapsJSONToUsecaseCommand(t *testing.T) {
+	testData := &recordingTestDataUsecase{
+		controllerSnapshotJobsResult: testdatausecase.GenerateControllerSnapshotJobsResult{
+			Dataset:      "cluster/controller-snapshot-jobs",
+			Prefix:       "snap-job",
+			TargetNodeID: 2,
+			Count:        3,
+			PayloadBytes: 64,
+			FirstJobID:   "job-000001",
+			LastJobID:    "job-000003",
+		},
+	}
+	srv := New(Options{TestMode: true, TestData: testData})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/testdata/e2e/cluster/controller-snapshot-jobs", bytes.NewBufferString(`{"prefix":"snap-job","target_node_id":2,"count":3,"payload_bytes":64,"seed":"abc"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"dataset":"cluster/controller-snapshot-jobs","prefix":"snap-job","target_node_id":2,"count":3,"payload_bytes":64,"first_job_id":"job-000001","last_job_id":"job-000003"}`, rec.Body.String())
+	require.Equal(t, []testdatausecase.GenerateControllerSnapshotJobsCommand{{
+		Prefix:       "snap-job",
+		TargetNodeID: 2,
+		Count:        3,
+		PayloadBytes: 64,
+		Seed:         "abc",
+	}}, testData.controllerSnapshotJobCommands)
 }
 
 func TestRouteReturnsLegacyExternalAddresses(t *testing.T) {
@@ -932,11 +969,20 @@ type recordingTestDataUsecase struct {
 	slotSnapshotUserCommands []testdatausecase.GenerateSlotSnapshotUsersCommand
 	slotSnapshotUsersResult  testdatausecase.GenerateSlotSnapshotUsersResult
 	slotSnapshotUsersErr     error
+
+	controllerSnapshotJobCommands []testdatausecase.GenerateControllerSnapshotJobsCommand
+	controllerSnapshotJobsResult  testdatausecase.GenerateControllerSnapshotJobsResult
+	controllerSnapshotJobsErr     error
 }
 
 func (r *recordingTestDataUsecase) GenerateSlotSnapshotUsers(_ context.Context, cmd testdatausecase.GenerateSlotSnapshotUsersCommand) (testdatausecase.GenerateSlotSnapshotUsersResult, error) {
 	r.slotSnapshotUserCommands = append(r.slotSnapshotUserCommands, cmd)
 	return r.slotSnapshotUsersResult, r.slotSnapshotUsersErr
+}
+
+func (r *recordingTestDataUsecase) GenerateControllerSnapshotJobs(_ context.Context, cmd testdatausecase.GenerateControllerSnapshotJobsCommand) (testdatausecase.GenerateControllerSnapshotJobsResult, error) {
+	r.controllerSnapshotJobCommands = append(r.controllerSnapshotJobCommands, cmd)
+	return r.controllerSnapshotJobsResult, r.controllerSnapshotJobsErr
 }
 
 type recordingConversationUsecase struct {

@@ -180,3 +180,40 @@ func TestDecodeSlotRaftCompactionResponse(t *testing.T) {
 	require.True(t, resp.Items[0].Compacted)
 	require.Equal(t, uint64(12), resp.Items[0].AfterSnapshotIndex)
 }
+
+func TestDecodeControllerRaftResponses(t *testing.T) {
+	statusBody := []byte(`{
+		"node_id": 2,
+		"role": "follower",
+		"leader_id": 1,
+		"health": "healthy",
+		"applied_index": 42,
+		"snapshot_index": 40,
+		"restore": {"last_snapshot_index": 40, "last_snapshot_term": 3},
+		"peers": []
+	}`)
+	status, err := decodeControllerRaftStatusResponse(statusBody)
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), status.NodeID)
+	require.Equal(t, "follower", status.Role)
+	require.Equal(t, uint64(40), status.Restore.LastSnapshotIndex)
+
+	compactBody := []byte(`{
+		"total": 1,
+		"succeeded": 1,
+		"failed": 0,
+		"items": [{
+			"node_id": 1,
+			"success": true,
+			"applied_index": 45,
+			"before_snapshot_index": 12,
+			"after_snapshot_index": 45,
+			"compacted": true
+		}]
+	}`)
+	compacted, err := decodeControllerRaftCompactionResponse(compactBody)
+	require.NoError(t, err)
+	require.Equal(t, 1, compacted.Total)
+	require.Len(t, compacted.Items, 1)
+	require.Equal(t, uint64(45), compacted.Items[0].AfterSnapshotIndex)
+}

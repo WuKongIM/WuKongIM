@@ -231,6 +231,17 @@ func (s *Suite) StartDynamicJoinNode(cluster *StartedCluster, nodeID uint64, joi
 	return &cluster.Nodes[len(cluster.Nodes)-1]
 }
 
+// RestartNode starts a stopped node again with its existing config and data directory.
+func (s *Suite) RestartNode(node *StartedNode) {
+	s.t.Helper()
+	require.NotNil(s.t, node)
+	require.Nil(s.t, node.Process, "node %d is already running", node.Spec.ID)
+
+	process := &NodeProcess{Spec: node.Spec, BinaryPath: s.binaryPath}
+	require.NoError(s.t, process.Start())
+	node.Process = process
+}
+
 // WaitClusterReady waits until every node satisfies the node-ready contract.
 func (c *StartedCluster) WaitClusterReady(ctx context.Context) error {
 	if c == nil {

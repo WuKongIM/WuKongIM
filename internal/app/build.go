@@ -598,7 +598,10 @@ func build(cfg Config) (_ *App, err error) {
 	}
 	if cfg.API.ListenAddr != "" {
 		legacyRouteExternal, legacyRouteIntranet := legacyRouteAddresses(cfg.API, cfg.Gateway.Listeners)
-		testDataApp := testdatausecase.New(testdatausecase.AppOptions{SlotSnapshotUsers: app.store})
+		testDataApp := testdatausecase.New(testdatausecase.AppOptions{
+			SlotSnapshotUsers:      app.store,
+			ControllerSnapshotJobs: app.cluster,
+		})
 		app.api = accessapi.New(accessapi.Options{
 			ListenAddr:               cfg.API.ListenAddr,
 			Messages:                 app.messageApp,

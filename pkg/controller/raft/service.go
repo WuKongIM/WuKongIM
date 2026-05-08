@@ -97,6 +97,7 @@ type Service struct {
 	compactCh chan logCompactionRequest
 
 	transport *raftTransport
+	assembler *controllerRaftSnapshotAssembler
 }
 
 type proposalRequest struct {
@@ -273,7 +274,11 @@ type nodeOnboardingResultCountsEnvelope struct {
 }
 
 func NewService(cfg Config) *Service {
-	return &Service{cfg: cfg, status: initialStatus(cfg)}
+	return &Service{
+		cfg:       cfg,
+		status:    initialStatus(cfg),
+		assembler: newControllerRaftSnapshotAssembler(defaultControllerRaftSnapshotChunkTTL, time.Now),
+	}
 }
 
 func (s *Service) Start(ctx context.Context) error {
@@ -393,7 +398,9 @@ func (s *Service) Start(ctx context.Context) error {
 	s.compactCh = compactCh
 	s.err = nil
 
+	s.assembler = newControllerRaftSnapshotAssembler(defaultControllerRaftSnapshotChunkTTL, time.Now)
 	s.cfg.Server.Handle(msgTypeControllerRaft, s.handleMessage)
+	s.cfg.Server.Handle(msgTypeControllerRaftSnapshotChunk, s.handleSnapshotChunkMessage)
 	s.started = true
 	s.finishStartLocked(nil)
 	close(startGate)
@@ -731,6 +738,25 @@ func (s *Service) handleMessage(body []byte) {
 	if err := msg.Unmarshal(body); err != nil {
 		return
 	}
+	s.stepMessage(msg)
+}
+
+func (s *Service) handleSnapshotChunkMessage(body []byte) {
+	chunk, err := decodeControllerRaftSnapshotChunkBody(body)
+	if err != nil {
+		return
+	}
+	if s.assembler == nil {
+		s.assembler = newControllerRaftSnapshotAssembler(defaultControllerRaftSnapshotChunkTTL, time.Now)
+	}
+	msg, ok, err := s.assembler.add(chunk)
+	if err != nil || !ok {
+		return
+	}
+	s.stepMessage(msg)
+}
+
+func (s *Service) stepMessage(msg raftpb.Message) {
 	if s.dropInboundRaftMessage(msg) {
 		return
 	}

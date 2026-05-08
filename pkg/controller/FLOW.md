@@ -224,6 +224,7 @@ Controller Raft snapshot compaction:
   ④ startup restores snapshot first, then replays post-snapshot entries
   ⑤ Ready.Snapshot is restored before marking its index applied
   ⑥ manual compaction uses the same snapshot/export path inside the run loop, bypasses threshold/interval checks, and still operates per node-local Controller Raft log
+  ⑦ large MsgSnap payloads are split on the Controller Raft transport and reassembled before RawNode.Step, so Controller snapshots are not limited to one transport frame
 ```
 
 Controller Raft status diagnostics:
@@ -248,6 +249,7 @@ Controller Raft status diagnostics:
 - **Command 序列化为二进制**: `raft/service.go:encodeCommand` 写入带 magic/version/field mask 的二进制 command envelope；`decodeCommand` 仍能读取 legacy JSON 日志，TaskAdvance.Err 仍按 string 还原为 `errors.New`。
 - **Controller 日志 inspection**: `raft/command_inspection.go:DecodeCommandInspection` 只暴露脱敏、JSON-friendly 的 command 摘要，供 `pkg/cluster` 读取 Controller Raft 日志时展示；管理后台不直接解析 command wire format。
 - **Controller log compaction 恢复边界**: 启动时先导入持久化 snapshot，再以 `snapshot.Metadata.Index` 作为 RawNode applied point，让 snapshot 之后仍存在的 entries 继续 replay；不要用更靠后的 persisted applied index 跳过 replay。
+- **Controller Raft 大快照传输**: Controller `MsgSnap` 超过 transport 单帧预算时使用 `msgTypeControllerRaftSnapshotChunk` 分片；接收端必须完整重组后再进入 Controller Raft `Step`。
 - **Leader 丢失时清理**: `raft/service.go:failInflightProposalsOnLeaderLoss` 在每次状态检查后清理所有 pending 提案，返回 ErrNotLeader。
 - **Onboarding Apply 冲突必须 no-op**: `NodeOnboardingJobUpdate` 的状态保护、单 running job 保护和竞态保护都不能从 StateMachine.Apply 返回业务错误；调用方必须在 propose 后重新读取 job 判断转换是否真的生效。
 - **Onboarding 与普通 Rebalance 互斥**: running onboarding job 存在时，上层 cluster tick 会暂停普通自动 Rebalance，并锁定当前 onboarding move 的 Slot；Bootstrap/Repair 仍可继续，避免扩容流程阻塞安全修复。

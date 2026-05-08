@@ -94,6 +94,79 @@ type ManagerSlotRaftCompactionItem struct {
 	Error               string `json:"error"`
 }
 
+// ManagerControllerRaftStatus mirrors the manager Controller Raft status response.
+type ManagerControllerRaftStatus struct {
+	NodeID        uint64                              `json:"node_id"`
+	Role          string                              `json:"role"`
+	LeaderID      uint64                              `json:"leader_id"`
+	Term          uint64                              `json:"term"`
+	Health        string                              `json:"health"`
+	FirstIndex    uint64                              `json:"first_index"`
+	LastIndex     uint64                              `json:"last_index"`
+	CommitIndex   uint64                              `json:"commit_index"`
+	AppliedIndex  uint64                              `json:"applied_index"`
+	SnapshotIndex uint64                              `json:"snapshot_index"`
+	SnapshotTerm  uint64                              `json:"snapshot_term"`
+	Compaction    ManagerControllerRaftCompactionInfo `json:"compaction"`
+	Restore       ManagerControllerRaftRestoreInfo    `json:"restore"`
+	Peers         []ManagerControllerRaftPeer         `json:"peers"`
+}
+
+// ManagerControllerRaftCompactionInfo mirrors local Controller Raft compaction status.
+type ManagerControllerRaftCompactionInfo struct {
+	Enabled           bool      `json:"enabled"`
+	TriggerEntries    uint64    `json:"trigger_entries"`
+	CheckIntervalMs   int64     `json:"check_interval_ms"`
+	LastSnapshotIndex uint64    `json:"last_snapshot_index"`
+	LastSnapshotAt    time.Time `json:"last_snapshot_at"`
+	LastCheckAt       time.Time `json:"last_check_at"`
+	LastError         string    `json:"last_error"`
+	LastErrorAt       time.Time `json:"last_error_at"`
+	Degraded          bool      `json:"degraded"`
+}
+
+// ManagerControllerRaftRestoreInfo mirrors local Controller snapshot restore status.
+type ManagerControllerRaftRestoreInfo struct {
+	LastSnapshotIndex uint64    `json:"last_snapshot_index"`
+	LastSnapshotTerm  uint64    `json:"last_snapshot_term"`
+	LastRestoredAt    time.Time `json:"last_restored_at"`
+	LastError         string    `json:"last_error"`
+	LastErrorAt       time.Time `json:"last_error_at"`
+	Failed            bool      `json:"failed"`
+}
+
+// ManagerControllerRaftPeer mirrors one leader-side Controller follower progress row.
+type ManagerControllerRaftPeer struct {
+	NodeID               uint64 `json:"node_id"`
+	Match                uint64 `json:"match"`
+	Next                 uint64 `json:"next"`
+	State                string `json:"state"`
+	PendingSnapshot      uint64 `json:"pending_snapshot"`
+	RecentActive         bool   `json:"recent_active"`
+	NeedsSnapshot        bool   `json:"needs_snapshot"`
+	SnapshotTransferring bool   `json:"snapshot_transferring"`
+}
+
+// ManagerControllerRaftCompactionResponse mirrors the manager Controller compaction response.
+type ManagerControllerRaftCompactionResponse struct {
+	Total     int                                   `json:"total"`
+	Succeeded int                                   `json:"succeeded"`
+	Failed    int                                   `json:"failed"`
+	Items     []ManagerControllerRaftCompactionItem `json:"items"`
+}
+
+// ManagerControllerRaftCompactionItem mirrors one node-local Controller compaction result.
+type ManagerControllerRaftCompactionItem struct {
+	NodeID              uint64 `json:"node_id"`
+	Success             bool   `json:"success"`
+	AppliedIndex        uint64 `json:"applied_index"`
+	BeforeSnapshotIndex uint64 `json:"before_snapshot_index"`
+	AfterSnapshotIndex  uint64 `json:"after_snapshot_index"`
+	Compacted           bool   `json:"compacted"`
+	SkippedReason       string `json:"skipped_reason"`
+	Error               string `json:"error"`
+}
+
 // ManagerNodeOnboardingCandidatesResponse mirrors the manager onboarding candidate list.
 type ManagerNodeOnboardingCandidatesResponse struct {
 	Total int                              `json:"total"`
@@ -303,6 +376,50 @@ func decodeSlotRaftCompactionResponse(body []byte) (ManagerSlotRaftCompactionRes
 	return resp, nil
 }
 
+// FetchControllerRaftStatus fetches one node-local Controller Raft status through manager API.
+func FetchControllerRaftStatus(ctx context.Context, node StartedNode, targetNodeID uint64) (ManagerControllerRaftStatus, []byte, error) {
+	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/nodes/%d/controller-raft", targetNodeID))
+	if err != nil {
+		return ManagerControllerRaftStatus{}, nil, err
+	}
+
+	resp, err := decodeControllerRaftStatusResponse(body)
+	if err != nil {
+		return ManagerControllerRaftStatus{}, body, err
+	}
+	return resp, body, nil
+}
+
+func decodeControllerRaftStatusResponse(body []byte) (ManagerControllerRaftStatus, error) {
+	var resp ManagerControllerRaftStatus
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return ManagerControllerRaftStatus{}, err
+	}
+	return resp, nil
+}
+
+// CompactControllerRaftLog triggers node-local Controller Raft compaction through manager API.
+func CompactControllerRaftLog(ctx context.Context, node StartedNode, targetNodeID uint64) (ManagerControllerRaftCompactionResponse, []byte, error) {
+	body, err := postHTTPJSONBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/nodes/%d/controller-raft/compact", targetNodeID), nil)
+	if err != nil {
+		return ManagerControllerRaftCompactionResponse{}, nil, err
+	}
+
+	resp, err := decodeControllerRaftCompactionResponse(body)
+	if err != nil {
+		return ManagerControllerRaftCompactionResponse{}, body, err
+	}
+	return resp, body, nil
+}
+
+func decodeControllerRaftCompactionResponse(body []byte) (ManagerControllerRaftCompactionResponse, error) {
+	var resp ManagerControllerRaftCompactionResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return ManagerControllerRaftCompactionResponse{}, err
+	}
+	return resp, nil
+}
+
 // FetchSlotDetail fetches one manager slot detail from the started node.
 func FetchSlotDetail(ctx context.Context, node StartedNode, slotID uint32) (ManagerSlotDetail, []byte, error) {
 	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/slots/%d", slotID))
@@ -394,6 +511,72 @@ func WaitForManagerNode(ctx context.Context, node StartedNode, nodeID uint64, ac
 				return ManagerNode{}, lastBody, lastErr
 			}
 			return ManagerNode{}, lastBody, ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+// WaitForControllerRaftLeader waits until one of the target nodes reports itself as Controller Raft leader.
+func WaitForControllerRaftLeader(ctx context.Context, node StartedNode, nodeIDs []uint64) (ManagerControllerRaftStatus, []byte, error) {
+	ticker := time.NewTicker(readyPollInterval)
+	defer ticker.Stop()
+
+	var (
+		lastErr  error
+		lastBody []byte
+	)
+	for {
+		for _, nodeID := range nodeIDs {
+			status, body, err := FetchControllerRaftStatus(ctx, node, nodeID)
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			lastBody = body
+			if status.Role == "leader" && status.NodeID == nodeID && status.LeaderID == nodeID {
+				return status, body, nil
+			}
+			lastErr = fmt.Errorf("controller node %d role=%s leader=%d", nodeID, status.Role, status.LeaderID)
+		}
+
+		select {
+		case <-ctx.Done():
+			if lastErr != nil {
+				return ManagerControllerRaftStatus{}, lastBody, lastErr
+			}
+			return ManagerControllerRaftStatus{}, lastBody, ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+// WaitForControllerRaftStatus waits until one node-local Controller Raft status satisfies accept.
+func WaitForControllerRaftStatus(ctx context.Context, node StartedNode, targetNodeID uint64, accept func(ManagerControllerRaftStatus) bool) (ManagerControllerRaftStatus, []byte, error) {
+	ticker := time.NewTicker(readyPollInterval)
+	defer ticker.Stop()
+
+	var (
+		lastErr  error
+		lastBody []byte
+	)
+	for {
+		status, body, err := FetchControllerRaftStatus(ctx, node, targetNodeID)
+		if err == nil {
+			lastBody = body
+			if accept == nil || accept(status) {
+				return status, body, nil
+			}
+			lastErr = fmt.Errorf("controller node %d did not satisfy expected state", targetNodeID)
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			if lastErr != nil {
+				return ManagerControllerRaftStatus{}, lastBody, lastErr
+			}
+			return ManagerControllerRaftStatus{}, lastBody, ctx.Err()
 		case <-ticker.C:
 		}
 	}
