@@ -838,6 +838,35 @@ func TestServiceManualCompactionForcesSnapshotBelowAutomaticThreshold(t *testing
 	require.Equal(t, result.AfterSnapshotIndex+1, firstAfter)
 }
 
+func TestControllerManualCompactionReadsSnapshotMetadataWithoutPayload(t *testing.T) {
+	sentinel := errors.New("snapshot payload unavailable")
+	store := &controllerSnapshotMetadataOnlyStorage{
+		firstIndex:  11,
+		lastIndex:   12,
+		snapshotErr: sentinel,
+		terms:       map[uint64]uint64{10: 7},
+	}
+	service := &Service{cfg: Config{
+		NodeID: 1,
+		LogCompaction: LogCompactionConfig{
+			Enabled:        true,
+			EnabledSet:     true,
+			TriggerEntries: 1000,
+			CheckInterval:  time.Hour,
+		},
+	}}
+
+	result, err := service.compactControllerLogManually(context.Background(), &storageAdapter{storage: store}, 10, raftpb.ConfState{Voters: []uint64{1}})
+	require.NoError(t, err)
+	require.False(t, result.Compacted)
+	require.Equal(t, LogCompactionSkippedUpToDate, result.SkippedReason)
+	require.Equal(t, uint64(10), result.BeforeSnapshotIndex)
+	require.Equal(t, uint64(10), result.AfterSnapshotIndex)
+	require.Zero(t, store.snapshotCalls)
+	require.NotZero(t, store.firstIndexCalls)
+	require.NotZero(t, store.termCalls)
+}
+
 func TestServiceManualCompactionSkipsWhenDisabled(t *testing.T) {
 	env := newTestEnv(t, []uint64{1})
 	defer env.stopAll()
@@ -1995,6 +2024,54 @@ func nodeJoinCommand(nodeID uint64) slotcontroller.Command {
 			CapacityWeight: 1,
 		},
 	}
+}
+
+type controllerSnapshotMetadataOnlyStorage struct {
+	state multiraft.BootstrapState
+
+	firstIndex uint64
+	lastIndex  uint64
+	terms      map[uint64]uint64
+
+	snapshotErr     error
+	firstIndexCalls int
+	termCalls       int
+	snapshotCalls   int
+}
+
+func (s *controllerSnapshotMetadataOnlyStorage) InitialState(context.Context) (multiraft.BootstrapState, error) {
+	return s.state, nil
+}
+
+func (s *controllerSnapshotMetadataOnlyStorage) Entries(context.Context, uint64, uint64, uint64) ([]raftpb.Entry, error) {
+	return nil, nil
+}
+
+func (s *controllerSnapshotMetadataOnlyStorage) Term(_ context.Context, index uint64) (uint64, error) {
+	s.termCalls++
+	return s.terms[index], nil
+}
+
+func (s *controllerSnapshotMetadataOnlyStorage) FirstIndex(context.Context) (uint64, error) {
+	s.firstIndexCalls++
+	return s.firstIndex, nil
+}
+
+func (s *controllerSnapshotMetadataOnlyStorage) LastIndex(context.Context) (uint64, error) {
+	return s.lastIndex, nil
+}
+
+func (s *controllerSnapshotMetadataOnlyStorage) Snapshot(context.Context) (raftpb.Snapshot, error) {
+	s.snapshotCalls++
+	return raftpb.Snapshot{}, s.snapshotErr
+}
+
+func (s *controllerSnapshotMetadataOnlyStorage) Save(context.Context, multiraft.PersistentState) error {
+	return nil
+}
+
+func (s *controllerSnapshotMetadataOnlyStorage) MarkApplied(context.Context, uint64) error {
+	return nil
 }
 
 func sortedPeers(peers []uint64) []uint64 {

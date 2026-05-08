@@ -187,6 +187,47 @@ func TestRuntimeManualLogCompactionForcesSnapshotBelowAutomaticThreshold(t *test
 	}
 }
 
+func TestRuntimeManualCompactionReadsSnapshotMetadataWithoutPayload(t *testing.T) {
+	sentinel := errors.New("snapshot payload unavailable")
+	store := &slotSnapshotMetadataOnlyStorage{
+		firstIndex:  11,
+		lastIndex:   12,
+		snapshotErr: sentinel,
+		terms:       map[uint64]uint64{10: 7},
+	}
+	g := &slot{
+		id:      SlotID(196),
+		storage: store,
+		status:  Status{NodeID: 1},
+		compactor: newLogCompactor(LogCompactionConfig{
+			Enabled:        true,
+			EnabledSet:     true,
+			TriggerEntries: 1000,
+			CheckInterval:  time.Hour,
+		}, 0),
+	}
+
+	result, err := g.compactLogManually(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("compactLogManually() error = %v", err)
+	}
+	if result.Compacted {
+		t.Fatalf("compactLogManually().Compacted = true, want false")
+	}
+	if result.SkippedReason != LogCompactionSkippedUpToDate {
+		t.Fatalf("compactLogManually().SkippedReason = %q, want %q", result.SkippedReason, LogCompactionSkippedUpToDate)
+	}
+	if result.BeforeSnapshotIndex != 10 || result.AfterSnapshotIndex != 10 {
+		t.Fatalf("compactLogManually() snapshot indexes = before:%d after:%d, want 10", result.BeforeSnapshotIndex, result.AfterSnapshotIndex)
+	}
+	if store.snapshotCalls != 0 {
+		t.Fatalf("Snapshot() calls = %d, want 0", store.snapshotCalls)
+	}
+	if store.firstIndexCalls == 0 || store.termCalls == 0 {
+		t.Fatalf("metadata calls = FirstIndex:%d Term:%d, want both used", store.firstIndexCalls, store.termCalls)
+	}
+}
+
 func TestRuntimeCompactedLeaderSendsSnapshotToNewLearner(t *testing.T) {
 	cluster := newAsyncTestCluster(t, []NodeID{1, 2, 3}, asyncNetworkConfig{
 		MaxDelay: time.Millisecond,
@@ -387,4 +428,52 @@ func (s *snapshottingStateMachine) Snapshot(context.Context) (Snapshot, error) {
 	}
 	last := s.commands[len(s.commands)-1]
 	return Snapshot{Data: []byte(fmt.Sprintf("idx=%d data=%s", last.Index, last.Data))}, nil
+}
+
+type slotSnapshotMetadataOnlyStorage struct {
+	state BootstrapState
+
+	firstIndex uint64
+	lastIndex  uint64
+	terms      map[uint64]uint64
+
+	snapshotErr     error
+	firstIndexCalls int
+	termCalls       int
+	snapshotCalls   int
+}
+
+func (s *slotSnapshotMetadataOnlyStorage) InitialState(context.Context) (BootstrapState, error) {
+	return s.state, nil
+}
+
+func (s *slotSnapshotMetadataOnlyStorage) Entries(context.Context, uint64, uint64, uint64) ([]raftpb.Entry, error) {
+	return nil, nil
+}
+
+func (s *slotSnapshotMetadataOnlyStorage) Term(_ context.Context, index uint64) (uint64, error) {
+	s.termCalls++
+	return s.terms[index], nil
+}
+
+func (s *slotSnapshotMetadataOnlyStorage) FirstIndex(context.Context) (uint64, error) {
+	s.firstIndexCalls++
+	return s.firstIndex, nil
+}
+
+func (s *slotSnapshotMetadataOnlyStorage) LastIndex(context.Context) (uint64, error) {
+	return s.lastIndex, nil
+}
+
+func (s *slotSnapshotMetadataOnlyStorage) Snapshot(context.Context) (raftpb.Snapshot, error) {
+	s.snapshotCalls++
+	return raftpb.Snapshot{}, s.snapshotErr
+}
+
+func (s *slotSnapshotMetadataOnlyStorage) Save(context.Context, PersistentState) error {
+	return nil
+}
+
+func (s *slotSnapshotMetadataOnlyStorage) MarkApplied(context.Context, uint64) error {
+	return nil
 }

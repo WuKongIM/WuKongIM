@@ -1105,13 +1105,13 @@ func (s *Service) compactControllerLogManually(ctx context.Context, storageView 
 		NodeID:       s.cfg.NodeID,
 		AppliedIndex: applied,
 	}
-	snap, err := storageView.storage.Snapshot(ctx)
+	snapshotIndex, _, err := storageSnapshotBoundary(ctx, storageView.storage)
 	if err != nil {
 		return result, err
 	}
-	if !raft.IsEmptySnap(snap) {
-		result.BeforeSnapshotIndex = snap.Metadata.Index
-		result.AfterSnapshotIndex = snap.Metadata.Index
+	if snapshotIndex > 0 {
+		result.BeforeSnapshotIndex = snapshotIndex
+		result.AfterSnapshotIndex = snapshotIndex
 	}
 	if !s.cfg.LogCompaction.Enabled {
 		result.SkippedReason = LogCompactionSkippedDisabled
@@ -1166,6 +1166,22 @@ func (s *Service) compactControllerLog(ctx context.Context, storageView *storage
 		return err
 	}
 	return nil
+}
+
+func storageSnapshotBoundary(ctx context.Context, storage multiraft.Storage) (uint64, uint64, error) {
+	first, err := storage.FirstIndex(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	if first <= 1 {
+		return 0, 0, nil
+	}
+	snapshotIndex := first - 1
+	snapshotTerm, err := storage.Term(ctx, snapshotIndex)
+	if err != nil {
+		return 0, 0, err
+	}
+	return snapshotIndex, snapshotTerm, nil
 }
 
 func currentCompactControllerLogHook() func() error {
