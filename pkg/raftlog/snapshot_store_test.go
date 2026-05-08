@@ -80,6 +80,24 @@ func TestSnapshotStoreReadRejectsMissingChunk(t *testing.T) {
 	}
 }
 
+func TestSnapshotStoreReadRejectsMissingChunkBeforeTotalPreallocation(t *testing.T) {
+	store := testSnapshotStore(t, 4, "000000000000000d")
+	scope := SlotScope(21)
+	manifest := validManifestForRead(scope, 27, 19, 16<<20, 16<<20)
+
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	_, err := store.read(context.Background(), scope, manifest)
+	runtime.ReadMemStats(&after)
+	if err == nil {
+		t.Fatal("read succeeded, want missing chunk error")
+	}
+	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 2<<20 {
+		t.Fatalf("read allocated %d bytes before validating chunks, want bounded allocation", allocated)
+	}
+}
+
 func TestSnapshotStoreReadRejectsCorruptChunk(t *testing.T) {
 	store := testSnapshotStore(t, 4, "0000000000000004")
 	staged, err := store.stage(context.Background(), SlotScope(10), testSnapshot(13, 5, []byte("corrupt chunk")))

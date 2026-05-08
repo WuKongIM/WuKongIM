@@ -194,7 +194,7 @@ func (s *snapshotStore) read(ctx context.Context, scope Scope, manifest Snapshot
 		return raftpb.Snapshot{}, errors.New("raftstorage: snapshot total size exceeds memory limit")
 	}
 	finalDir := filepath.Join(s.scopeDir(scope), manifest.SnapshotID)
-	data := make([]byte, 0, int(manifest.TotalSize))
+	var data []byte
 	for i := uint32(0); i < manifest.ChunkCount; i++ {
 		if err := ctx.Err(); err != nil {
 			return raftpb.Snapshot{}, err
