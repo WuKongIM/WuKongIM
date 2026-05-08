@@ -144,14 +144,13 @@ func (db *DB) loadScopeWriteState(cache map[Scope]*scopeWriteState, scope Scope,
 	}
 
 	store := &pebbleStore{db: db, scope: scope}
-	meta, _, err := store.currentMeta()
+	view, err := store.loadSnapshotMetaView(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	manifest, hasManifest, err := store.loadSnapshotManifest(context.Background())
-	if err != nil {
-		return nil, err
-	}
+	meta := view.meta
+	manifest := view.manifest
+	hasManifest := view.hasManifest
 	hardState, err := store.loadHardState()
 	if err != nil {
 		return nil, err

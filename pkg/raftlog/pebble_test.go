@@ -405,6 +405,55 @@ func TestPebbleSnapshotRoundTripFromExternalChunks(t *testing.T) {
 	}
 }
 
+func TestPebbleCurrentMetaUsesAtomicManifestView(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{
+		SnapshotPath:      filepath.Join(t.TempDir(), "snapshots"),
+		SnapshotChunkSize: 4,
+	})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	store := db.ForSlot(22)
+	oldSnap := raftpb.Snapshot{
+		Data:     []byte("old"),
+		Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}},
+	}
+	mustSave(t, store, multiraft.PersistentState{Snapshot: &oldSnap})
+
+	var hookRan bool
+	db.currentMetaAfterMetaLoadHook = func(scope Scope) {
+		if hookRan || scope != SlotScope(22) {
+			return
+		}
+		hookRan = true
+		newSnap := raftpb.Snapshot{
+			Data:     []byte("new"),
+			Metadata: raftpb.SnapshotMetadata{Index: 6, Term: 2, ConfState: raftpb.ConfState{Voters: []uint64{1}}},
+		}
+		if err := store.Save(ctx, multiraft.PersistentState{Snapshot: &newSnap}); err != nil {
+			t.Fatalf("Save(new snapshot) error = %v", err)
+		}
+	}
+
+	first, err := store.FirstIndex(ctx)
+	if err != nil {
+		t.Fatalf("FirstIndex() error = %v", err)
+	}
+	if first != 5+1 && first != 6+1 {
+		t.Fatalf("FirstIndex() = %d, want old or new snapshot first index", first)
+	}
+	if !hookRan {
+		t.Fatal("currentMeta hook did not run")
+	}
+}
+
 func TestPebbleSnapshotReadRegistersBeforeNewerSnapshotGC(t *testing.T) {
 	ctx := context.Background()
 	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{
