@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -269,6 +270,50 @@ func TestConfigValidateRejectsControllerRaftSnapshotPathEqualToRaftPath(t *testi
 func TestConfigValidateRejectsControllerRaftSnapshotPathUnderRaftPath(t *testing.T) {
 	cfg := validTestConfig()
 	cfg.ControllerRaftSnapshotPath = filepath.Join(cfg.ControllerRaftPath, "snapshots")
+
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+	}
+}
+
+func TestConfigValidateRejectsControllerRaftSnapshotPathUnderRaftPathViaSymlinkParent(t *testing.T) {
+	root := t.TempDir()
+	realRoot := filepath.Join(root, "real")
+	linkRoot := filepath.Join(root, "link")
+	raftPath := filepath.Join(realRoot, "controller-raft")
+	if err := os.MkdirAll(raftPath, 0o755); err != nil {
+		t.Fatalf("mkdir raft path: %v", err)
+	}
+	if err := os.Symlink(realRoot, linkRoot); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	cfg := validTestConfig()
+	cfg.ControllerMetaPath = filepath.Join(root, "controller-meta")
+	cfg.ControllerRaftPath = raftPath
+	cfg.ControllerRaftSnapshotPath = filepath.Join(linkRoot, "controller-raft", "snapshots")
+
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+	}
+}
+
+func TestConfigValidateRejectsControllerRaftSnapshotPathUnderMetaPathViaSymlinkParent(t *testing.T) {
+	root := t.TempDir()
+	realRoot := filepath.Join(root, "real")
+	linkRoot := filepath.Join(root, "link")
+	metaPath := filepath.Join(realRoot, "controller-meta")
+	if err := os.MkdirAll(metaPath, 0o755); err != nil {
+		t.Fatalf("mkdir meta path: %v", err)
+	}
+	if err := os.Symlink(realRoot, linkRoot); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	cfg := validTestConfig()
+	cfg.ControllerMetaPath = metaPath
+	cfg.ControllerRaftPath = filepath.Join(root, "controller-raft")
+	cfg.ControllerRaftSnapshotPath = filepath.Join(linkRoot, "controller-meta", "snapshots")
 
 	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
 		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
