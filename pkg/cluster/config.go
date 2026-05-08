@@ -5,6 +5,7 @@ import (
 	"math"
 	"net"
 	"net/netip"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -67,6 +68,7 @@ type Config struct {
 	// RaftSnapshotGCGrace controls when orphan Controller Raft snapshot directories become GC-eligible.
 	RaftSnapshotGCGrace          time.Duration
 	raftSnapshotChunkSizeSet     bool
+	raftSnapshotGCGraceSet       bool
 	ControllerReplicaN           int
 	SlotReplicaN                 int
 	NewStorage                   func(slotID multiraft.SlotID) (multiraft.Storage, error)
@@ -91,6 +93,15 @@ type Config struct {
 	AdvertiseAddr string
 	// JoinToken authenticates JoinCluster requests; it must be identical across nodes that accept joiners.
 	JoinToken string
+}
+
+// SetRaftSnapshotExplicitFlags records which scalar snapshot options were explicitly configured by direct callers.
+func (c *Config) SetRaftSnapshotExplicitFlags(chunkSizeSet, gcGraceSet bool) {
+	if c == nil {
+		return
+	}
+	c.raftSnapshotChunkSizeSet = chunkSizeSet
+	c.raftSnapshotGCGraceSet = gcGraceSet
 }
 
 type Timeouts struct {
@@ -185,6 +196,9 @@ func (c *Config) validate() error {
 	}
 	if c.RaftSnapshotGCGrace < 0 {
 		return fmt.Errorf("%w: RaftSnapshotGCGrace must be >= 0", ErrInvalidConfig)
+	}
+	if err := c.validateControllerSnapshotPathIsolation(); err != nil {
+		return err
 	}
 	if err := controllerraft.ValidateLogCompactionConfig(c.ControllerLogCompaction); err != nil {
 		return fmt.Errorf("%w: controller log compaction: %v", ErrInvalidConfig, err)
@@ -361,12 +375,78 @@ func (c *Config) applyDefaults() {
 	if c.RaftSnapshotChunkSize == 0 && !c.raftSnapshotChunkSizeSet {
 		c.RaftSnapshotChunkSize = 8 << 20
 	}
-	if c.RaftSnapshotGCGrace == 0 {
+	if c.RaftSnapshotGCGrace == 0 && !c.raftSnapshotGCGraceSet {
 		c.RaftSnapshotGCGrace = 30 * time.Minute
 	}
 	c.ControllerLogCompaction = controllerraft.NormalizeLogCompactionConfig(c.ControllerLogCompaction)
 	c.SlotLogCompaction = multiraft.NormalizeLogCompactionConfig(c.SlotLogCompaction)
 	c.Timeouts.applyDefaults()
+}
+
+func (c *Config) validateControllerSnapshotPathIsolation() error {
+	if c.ControllerRaftSnapshotPath == "" {
+		return nil
+	}
+	snapshotPath, err := normalizeClusterStoragePath(c.ControllerRaftSnapshotPath)
+	if err != nil {
+		return fmt.Errorf("%w: normalize ControllerRaftSnapshotPath: %v", ErrInvalidConfig, err)
+	}
+	for _, item := range []struct {
+		name string
+		path string
+	}{
+		{name: "ControllerRaftPath", path: c.ControllerRaftPath},
+		{name: "ControllerMetaPath", path: c.ControllerMetaPath},
+	} {
+		if item.path == "" {
+			continue
+		}
+		normalized, err := normalizeClusterStoragePath(item.path)
+		if err != nil {
+			return fmt.Errorf("%w: normalize %s: %v", ErrInvalidConfig, item.name, err)
+		}
+		if clusterStoragePathsOverlap(snapshotPath, normalized) {
+			return fmt.Errorf("%w: ControllerRaftSnapshotPath and %s must not overlap", ErrInvalidConfig, item.name)
+		}
+	}
+	return nil
+}
+
+func normalizeClusterStoragePath(path string) (string, error) {
+	absPath, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return "", err
+	}
+	return filepath.Clean(absPath), nil
+}
+
+func clusterStoragePathsOverlap(left, right string) bool {
+	leftVolume := filepath.VolumeName(left)
+	rightVolume := filepath.VolumeName(right)
+	if leftVolume != rightVolume {
+		return false
+	}
+	leftParts := clusterStoragePathSegments(strings.TrimPrefix(left, leftVolume))
+	rightParts := clusterStoragePathSegments(strings.TrimPrefix(right, rightVolume))
+	minLen := len(leftParts)
+	if len(rightParts) < minLen {
+		minLen = len(rightParts)
+	}
+	for i := 0; i < minLen; i++ {
+		if leftParts[i] != rightParts[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func clusterStoragePathSegments(path string) []string {
+	cleaned := filepath.Clean(path)
+	trimmed := strings.Trim(cleaned, string(filepath.Separator))
+	if trimmed == "" {
+		return nil
+	}
+	return strings.Split(trimmed, string(filepath.Separator))
 }
 
 func (t *Timeouts) applyDefaults() {

@@ -820,7 +820,7 @@ func effectiveDataPlaneMaxPendingFetch(clusterPoolSize, configured int) int {
 }
 
 func (c ClusterConfig) runtimeConfig(storage StorageConfig, db *metadb.DB, raftDB *raftstorage.DB, nodeID uint64, nodeName string, logger wklog.Logger) raftcluster.Config {
-	return raftcluster.Config{
+	cfg := raftcluster.Config{
 		NodeID:                       multiraft.NodeID(nodeID),
 		Name:                         nodeName,
 		ListenAddr:                   c.ListenAddr,
@@ -863,6 +863,8 @@ func (c ClusterConfig) runtimeConfig(storage StorageConfig, db *metadb.DB, raftD
 		Timeouts: c.Timeouts,
 		Logger:   logger,
 	}
+	cfg.SetRaftSnapshotExplicitFlags(storage.raftSnapshotChunkSizeSet, storage.raftSnapshotGCGraceSet)
+	return cfg
 }
 
 func (c ClusterConfig) replicationConfig() channel.Config {

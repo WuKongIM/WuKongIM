@@ -227,6 +227,17 @@ func TestConfigApplyDefaultsPreservesRaftSnapshotOptions(t *testing.T) {
 	}
 }
 
+func TestConfigApplyDefaultsPreservesExplicitZeroRaftSnapshotGCGrace(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.SetRaftSnapshotExplicitFlags(false, true)
+
+	cfg.applyDefaults()
+
+	if cfg.RaftSnapshotGCGrace != 0 {
+		t.Fatalf("RaftSnapshotGCGrace = %v, want 0", cfg.RaftSnapshotGCGrace)
+	}
+}
+
 func TestConfigValidateRejectsZeroRaftSnapshotChunkSize(t *testing.T) {
 	cfg := validTestConfig()
 	cfg.RaftSnapshotChunkSize = 0
@@ -240,6 +251,24 @@ func TestConfigValidateRejectsZeroRaftSnapshotChunkSize(t *testing.T) {
 func TestConfigValidateRejectsNegativeRaftSnapshotGCGrace(t *testing.T) {
 	cfg := validTestConfig()
 	cfg.RaftSnapshotGCGrace = -time.Second
+
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+	}
+}
+
+func TestConfigValidateRejectsControllerRaftSnapshotPathEqualToRaftPath(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.ControllerRaftSnapshotPath = cfg.ControllerRaftPath
+
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+	}
+}
+
+func TestConfigValidateRejectsControllerRaftSnapshotPathUnderRaftPath(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.ControllerRaftSnapshotPath = filepath.Join(cfg.ControllerRaftPath, "snapshots")
 
 	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
 		t.Fatalf("expected ErrInvalidConfig, got: %v", err)

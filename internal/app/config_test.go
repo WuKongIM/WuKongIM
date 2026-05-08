@@ -171,6 +171,17 @@ func clusterConfigIntField(t *testing.T, cfg *ClusterConfig, name string) int {
 	return int(value.Int())
 }
 
+func raftClusterConfigBoolField(t *testing.T, cfg *raftcluster.Config, name string) bool {
+	t.Helper()
+
+	field := reflect.ValueOf(cfg).Elem().FieldByName(name)
+	if !field.IsValid() {
+		t.Fatalf("cluster.Config is missing field %s", name)
+	}
+	value := reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem()
+	return value.Bool()
+}
+
 func TestConfigValidateRequiresNodeAndClusterIdentity(t *testing.T) {
 	t.Run("missing node id", func(t *testing.T) {
 		cfg := validConfig()
@@ -232,6 +243,15 @@ func TestConfigUsesConfiguredRaftSnapshotPaths(t *testing.T) {
 	require.Equal(t, time.Hour, cfg.Storage.RaftSnapshotGCGrace)
 }
 
+func TestConfigUsesExplicitZeroRaftSnapshotGCGrace(t *testing.T) {
+	cfg := validConfig()
+	cfg.Storage.RaftSnapshotGCGrace = 0
+	cfg.Storage.SetRaftSnapshotExplicitFlags(false, true)
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	require.Equal(t, time.Duration(0), cfg.Storage.RaftSnapshotGCGrace)
+}
+
 func TestConfigValidateRejectsSnapshotPathOverlappingStoragePaths(t *testing.T) {
 	cfg := validConfig()
 	cfg.Storage.RaftSnapshotPath = "/tmp/wukong-node-1/data"
@@ -261,6 +281,27 @@ func TestConfigValidateRejectsSymlinkSnapshotPathOverlap(t *testing.T) {
 	cfg.Storage.ControllerMetaPath = filepath.Join(dir, "controller-meta")
 	cfg.Storage.ControllerRaftPath = filepath.Join(dir, "controller-raft")
 	cfg.Storage.RaftSnapshotPath = snapshotPath
+	cfg.Storage.ControllerRaftSnapshotPath = filepath.Join(dir, "controller-snapshots")
+
+	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "overlap")
+}
+
+func TestConfigValidateRejectsSymlinkParentSnapshotPathOverlap(t *testing.T) {
+	dir := t.TempDir()
+	realRoot := filepath.Join(dir, "real")
+	linkRoot := filepath.Join(dir, "link")
+	dataPath := filepath.Join(realRoot, "data")
+	require.NoError(t, os.MkdirAll(dataPath, 0o755))
+	require.NoError(t, os.Symlink(realRoot, linkRoot))
+
+	cfg := validConfig()
+	cfg.Node.DataDir = dir
+	cfg.Storage.DBPath = dataPath
+	cfg.Storage.RaftPath = filepath.Join(dir, "raft")
+	cfg.Storage.ChannelLogPath = filepath.Join(dir, "channel")
+	cfg.Storage.ControllerMetaPath = filepath.Join(dir, "controller-meta")
+	cfg.Storage.ControllerRaftPath = filepath.Join(dir, "controller-raft")
+	cfg.Storage.RaftSnapshotPath = filepath.Join(linkRoot, "data", "snapshots")
 	cfg.Storage.ControllerRaftSnapshotPath = filepath.Join(dir, "controller-snapshots")
 
 	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "overlap")
@@ -1129,6 +1170,18 @@ func TestClusterRuntimeConfigIncludesControllerSnapshotStorage(t *testing.T) {
 	require.Equal(t, "/tmp/wukong-node-1/controller-snapshots", runtimeCfg.ControllerRaftSnapshotPath)
 	require.Equal(t, uint64(4<<20), runtimeCfg.RaftSnapshotChunkSize)
 	require.Equal(t, 45*time.Minute, runtimeCfg.RaftSnapshotGCGrace)
+}
+
+func TestClusterRuntimeConfigPreservesExplicitZeroSnapshotGCGrace(t *testing.T) {
+	cfg := validConfig()
+	cfg.Storage.RaftSnapshotGCGrace = 0
+	cfg.Storage.SetRaftSnapshotExplicitFlags(false, true)
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	runtimeCfg := cfg.Cluster.runtimeConfig(cfg.Storage, nil, nil, cfg.Node.ID, cfg.Node.Name, nil)
+
+	require.Equal(t, time.Duration(0), runtimeCfg.RaftSnapshotGCGrace)
+	require.True(t, raftClusterConfigBoolField(t, &runtimeCfg, "raftSnapshotGCGraceSet"))
 }
 
 func TestBuildPassesSnapshotOptionsToSlotAndControllerRaftlog(t *testing.T) {
