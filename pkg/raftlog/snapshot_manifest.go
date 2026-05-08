@@ -1,6 +1,7 @@
 package raftlog
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"hash/crc32"
@@ -18,6 +19,7 @@ const (
 )
 
 var snapshotIDPattern = regexp.MustCompile(`^snap-[0-9a-f]{16}-[0-9a-f]{16}-[0-9a-f]{16}$`)
+var snapshotCRC32CTable = crc32.MakeTable(crc32.Castagnoli)
 
 // SnapshotManifest describes externally chunked Raft snapshot payload bytes.
 type SnapshotManifest struct {
@@ -87,6 +89,9 @@ func (m SnapshotManifest) Validate(scope Scope) error {
 	if len(m.WholeChecksum) != 4 {
 		return errors.New("raftstorage: invalid whole snapshot checksum length")
 	}
+	if m.TotalSize == 0 && !bytes.Equal(m.WholeChecksum, snapshotChecksum(nil)) {
+		return errors.New("raftstorage: invalid empty snapshot checksum")
+	}
 	if len(m.ChunkChecksums) != int(m.ChunkCount) {
 		return errors.New("raftstorage: invalid snapshot chunk checksum count")
 	}
@@ -129,7 +134,7 @@ func manifestChunkCount(totalSize, chunkSize uint64) (uint32, error) {
 }
 
 func snapshotChecksum(data []byte) []byte {
-	sum := crc32.Checksum(data, crc32.MakeTable(crc32.Castagnoli))
+	sum := crc32.Checksum(data, snapshotCRC32CTable)
 	checksum := make([]byte, 4)
 	binary.BigEndian.PutUint32(checksum, sum)
 	return checksum

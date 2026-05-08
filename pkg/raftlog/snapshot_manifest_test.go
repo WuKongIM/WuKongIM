@@ -101,6 +101,32 @@ func TestSnapshotManifestRejectsMalformedShapeAndOverflowingSizes(t *testing.T) 
 	}
 }
 
+func TestSnapshotManifestValidatesEmptyPayloadChecksum(t *testing.T) {
+	scope := SlotScope(9)
+	manifest := validSnapshotManifest(scope)
+	manifest.TotalSize = 0
+	manifest.ChunkCount = 0
+	manifest.ChunkChecksums = nil
+	manifest.WholeChecksum = snapshotChecksum(nil)
+
+	if err := manifest.Validate(scope); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}
+
+func TestSnapshotManifestRejectsInvalidEmptyPayloadChecksum(t *testing.T) {
+	scope := SlotScope(9)
+	manifest := validSnapshotManifest(scope)
+	manifest.TotalSize = 0
+	manifest.ChunkCount = 0
+	manifest.ChunkChecksums = nil
+	manifest.WholeChecksum = []byte{0xde, 0xad, 0xbe, 0xef}
+
+	if err := manifest.Validate(scope); err == nil {
+		t.Fatalf("Validate() error = nil, want empty payload checksum error")
+	}
+}
+
 func TestSnapshotManifestUsesCRC32CCastagnoliBigEndian(t *testing.T) {
 	data := []byte("snapshot chunk bytes")
 	want := make([]byte, 4)
