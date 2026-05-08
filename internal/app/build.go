@@ -49,6 +49,8 @@ import (
 // buildAfterChannelRuntimeHook is a narrow test hook for late build failures.
 var buildAfterChannelRuntimeHook func(*App) error
 
+var openRaftLogDB = raftstorage.Open
+
 func build(cfg Config) (_ *App, err error) {
 	if err := cfg.ApplyDefaultsAndValidate(); err != nil {
 		return nil, err
@@ -103,7 +105,11 @@ func build(cfg Config) (_ *App, err error) {
 		}
 		return app.db.Close()
 	})
-	app.raftDB, err = raftstorage.Open(cfg.Storage.RaftPath, raftstorage.Options{})
+	app.raftDB, err = openRaftLogDB(cfg.Storage.RaftPath, raftstorage.Options{
+		SnapshotPath:      cfg.Storage.RaftSnapshotPath,
+		SnapshotChunkSize: cfg.Storage.RaftSnapshotChunkSize,
+		SnapshotGCGrace:   cfg.Storage.RaftSnapshotGCGrace,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("app: open raftstorage: %w", err)
 	}
@@ -823,6 +829,9 @@ func (c ClusterConfig) runtimeConfig(storage StorageConfig, db *metadb.DB, raftD
 		InitialSlotCount:             c.InitialSlotCount,
 		ControllerMetaPath:           storage.ControllerMetaPath,
 		ControllerRaftPath:           storage.ControllerRaftPath,
+		ControllerRaftSnapshotPath:   storage.ControllerRaftSnapshotPath,
+		RaftSnapshotChunkSize:        storage.RaftSnapshotChunkSize,
+		RaftSnapshotGCGrace:          storage.RaftSnapshotGCGrace,
 		ControllerReplicaN:           c.ControllerReplicaN,
 		SlotReplicaN:                 c.SlotReplicaN,
 		NewStorage:                   newStorageFactory(raftDB),

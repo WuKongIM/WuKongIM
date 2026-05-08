@@ -1,7 +1,9 @@
 package app
 
 import (
+	"errors"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"sort"
@@ -12,6 +14,7 @@ import (
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
+	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 
@@ -201,6 +204,108 @@ func TestConfigApplyDefaultsDerivesStoragePathsFromDataDir(t *testing.T) {
 	require.Equal(t, "/tmp/wukong-node-1/channellog", cfg.Storage.ChannelLogPath)
 	require.Equal(t, "/tmp/wukong-node-1/controller-meta", cfg.Storage.ControllerMetaPath)
 	require.Equal(t, "/tmp/wukong-node-1/controller-raft", cfg.Storage.ControllerRaftPath)
+}
+
+func TestConfigApplyDefaultsDerivesRaftSnapshotPathsFromDataDir(t *testing.T) {
+	cfg := validConfig()
+	cfg.Storage = StorageConfig{}
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	require.Equal(t, "/tmp/wukong-node-1/raft-snapshots", cfg.Storage.RaftSnapshotPath)
+	require.Equal(t, "/tmp/wukong-node-1/controller-raft-snapshots", cfg.Storage.ControllerRaftSnapshotPath)
+	require.Equal(t, uint64(8<<20), cfg.Storage.RaftSnapshotChunkSize)
+	require.Equal(t, 30*time.Minute, cfg.Storage.RaftSnapshotGCGrace)
+}
+
+func TestConfigUsesConfiguredRaftSnapshotPaths(t *testing.T) {
+	cfg := validConfig()
+	cfg.Storage.RaftSnapshotPath = "/tmp/wukong-node-1/custom-slot-snapshots"
+	cfg.Storage.ControllerRaftSnapshotPath = "/tmp/wukong-node-1/custom-controller-snapshots"
+	cfg.Storage.RaftSnapshotChunkSize = 16 << 20
+	cfg.Storage.RaftSnapshotGCGrace = time.Hour
+	cfg.Storage.SetRaftSnapshotExplicitFlags(true, true)
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	require.Equal(t, "/tmp/wukong-node-1/custom-slot-snapshots", cfg.Storage.RaftSnapshotPath)
+	require.Equal(t, "/tmp/wukong-node-1/custom-controller-snapshots", cfg.Storage.ControllerRaftSnapshotPath)
+	require.Equal(t, uint64(16<<20), cfg.Storage.RaftSnapshotChunkSize)
+	require.Equal(t, time.Hour, cfg.Storage.RaftSnapshotGCGrace)
+}
+
+func TestConfigValidateRejectsSnapshotPathOverlappingStoragePaths(t *testing.T) {
+	cfg := validConfig()
+	cfg.Storage.RaftSnapshotPath = "/tmp/wukong-node-1/data"
+
+	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "snapshot")
+}
+
+func TestConfigValidateRejectsSnapshotPathAncestorDescendantOverlap(t *testing.T) {
+	cfg := validConfig()
+	cfg.Storage.RaftSnapshotPath = "/tmp/wukong-node-1/raft/snapshots"
+
+	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "overlap")
+}
+
+func TestConfigValidateRejectsSymlinkSnapshotPathOverlap(t *testing.T) {
+	dir := t.TempDir()
+	dataPath := filepath.Join(dir, "data")
+	require.NoError(t, os.MkdirAll(dataPath, 0o755))
+	snapshotPath := filepath.Join(dir, "slot-snapshots")
+	require.NoError(t, os.Symlink(dataPath, snapshotPath))
+
+	cfg := validConfig()
+	cfg.Node.DataDir = dir
+	cfg.Storage.DBPath = dataPath
+	cfg.Storage.RaftPath = filepath.Join(dir, "raft")
+	cfg.Storage.ChannelLogPath = filepath.Join(dir, "channel")
+	cfg.Storage.ControllerMetaPath = filepath.Join(dir, "controller-meta")
+	cfg.Storage.ControllerRaftPath = filepath.Join(dir, "controller-raft")
+	cfg.Storage.RaftSnapshotPath = snapshotPath
+	cfg.Storage.ControllerRaftSnapshotPath = filepath.Join(dir, "controller-snapshots")
+
+	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "overlap")
+}
+
+func TestConfigValidateAcceptsRaftSnapshotChunkSizeUnits(t *testing.T) {
+	tests := map[string]uint64{
+		"8MiB":     8 << 20,
+		"8192KiB":  8 << 20,
+		"1GiB":     1 << 30,
+		"8388608B": 8 << 20,
+		"8388608":  8 << 20,
+	}
+	for raw, want := range tests {
+		t.Run(raw, func(t *testing.T) {
+			got, err := ParseRaftSnapshotChunkSize(raw)
+			require.NoError(t, err)
+			require.Equal(t, want, got)
+		})
+	}
+}
+
+func TestConfigValidateRejectsInvalidRaftSnapshotChunkSizeUnits(t *testing.T) {
+	for _, raw := range []string{"8MB", "8M", "1.5MiB", "MiB", "-1KiB"} {
+		t.Run(raw, func(t *testing.T) {
+			_, err := ParseRaftSnapshotChunkSize(raw)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestConfigValidateRejectsZeroRaftSnapshotChunkSize(t *testing.T) {
+	cfg := validConfig()
+	cfg.Storage.RaftSnapshotChunkSize = 0
+	cfg.Storage.SetRaftSnapshotExplicitFlags(true, false)
+
+	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "snapshot chunk size")
+}
+
+func TestConfigValidateRejectsNegativeRaftSnapshotGCGrace(t *testing.T) {
+	cfg := validConfig()
+	cfg.Storage.RaftSnapshotGCGrace = -time.Second
+	cfg.Storage.SetRaftSnapshotExplicitFlags(false, true)
+
+	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "snapshot gc grace")
 }
 
 func TestConfigApplyDefaultsKeepsTestModeDisabledByDefault(t *testing.T) {
@@ -1008,6 +1113,64 @@ func TestClusterRuntimeConfigIncludesSlotLogCompaction(t *testing.T) {
 		TriggerEntries: 10000,
 		CheckInterval:  30 * time.Second,
 	}, runtimeCfg.SlotLogCompaction)
+}
+
+func TestClusterRuntimeConfigIncludesControllerSnapshotStorage(t *testing.T) {
+	cfg := validConfig()
+	cfg.Storage.RaftSnapshotPath = "/tmp/wukong-node-1/slot-snapshots"
+	cfg.Storage.ControllerRaftSnapshotPath = "/tmp/wukong-node-1/controller-snapshots"
+	cfg.Storage.RaftSnapshotChunkSize = 4 << 20
+	cfg.Storage.RaftSnapshotGCGrace = 45 * time.Minute
+	cfg.Storage.SetRaftSnapshotExplicitFlags(true, true)
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	runtimeCfg := cfg.Cluster.runtimeConfig(cfg.Storage, nil, nil, cfg.Node.ID, cfg.Node.Name, nil)
+
+	require.Equal(t, "/tmp/wukong-node-1/controller-snapshots", runtimeCfg.ControllerRaftSnapshotPath)
+	require.Equal(t, uint64(4<<20), runtimeCfg.RaftSnapshotChunkSize)
+	require.Equal(t, 45*time.Minute, runtimeCfg.RaftSnapshotGCGrace)
+}
+
+func TestBuildPassesSnapshotOptionsToSlotAndControllerRaftlog(t *testing.T) {
+	cfg := validConfig()
+	cfg.Node.DataDir = t.TempDir()
+	cfg.Storage = StorageConfig{
+		DBPath:                     filepath.Join(cfg.Node.DataDir, "data"),
+		RaftPath:                   filepath.Join(cfg.Node.DataDir, "raft"),
+		ChannelLogPath:             filepath.Join(cfg.Node.DataDir, "channel"),
+		ControllerMetaPath:         filepath.Join(cfg.Node.DataDir, "controller-meta"),
+		ControllerRaftPath:         filepath.Join(cfg.Node.DataDir, "controller-raft"),
+		RaftSnapshotPath:           filepath.Join(cfg.Node.DataDir, "slot-snapshots"),
+		ControllerRaftSnapshotPath: filepath.Join(cfg.Node.DataDir, "controller-snapshots"),
+		RaftSnapshotChunkSize:      2 << 20,
+		RaftSnapshotGCGrace:        10 * time.Minute,
+	}
+	cfg.Storage.SetRaftSnapshotExplicitFlags(true, true)
+
+	stopErr := errors.New("stop after raft open")
+	var capturedPath string
+	var capturedOptions raftstorage.Options
+	originalOpen := openRaftLogDB
+	openRaftLogDB = func(path string, opts raftstorage.Options) (*raftstorage.DB, error) {
+		capturedPath = path
+		capturedOptions = opts
+		return nil, stopErr
+	}
+	t.Cleanup(func() { openRaftLogDB = originalOpen })
+
+	_, err := build(cfg)
+	require.ErrorIs(t, err, stopErr)
+	require.Equal(t, cfg.Storage.RaftPath, capturedPath)
+	require.Equal(t, raftstorage.Options{
+		SnapshotPath:      cfg.Storage.RaftSnapshotPath,
+		SnapshotChunkSize: cfg.Storage.RaftSnapshotChunkSize,
+		SnapshotGCGrace:   cfg.Storage.RaftSnapshotGCGrace,
+	}, capturedOptions)
+
+	runtimeCfg := cfg.Cluster.runtimeConfig(cfg.Storage, nil, nil, cfg.Node.ID, cfg.Node.Name, nil)
+	require.Equal(t, cfg.Storage.ControllerRaftSnapshotPath, runtimeCfg.ControllerRaftSnapshotPath)
+	require.Equal(t, cfg.Storage.RaftSnapshotChunkSize, runtimeCfg.RaftSnapshotChunkSize)
+	require.Equal(t, cfg.Storage.RaftSnapshotGCGrace, runtimeCfg.RaftSnapshotGCGrace)
 }
 
 func TestClusterRuntimeConfigIncludesDynamicJoinSettings(t *testing.T) {

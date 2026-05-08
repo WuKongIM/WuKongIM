@@ -290,6 +290,143 @@ func TestLoadConfigPrefersEnvironmentVariablesOverConfValues(t *testing.T) {
 	require.Equal(t, "127.0.0.1:9090", cfg.API.ListenAddr)
 }
 
+func TestLoadConfigParsesRaftSnapshotStoragePaths(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_STORAGE_RAFT_SNAPSHOT_PATH="+filepath.Join(dir, "slot-snapshots"),
+		"WK_STORAGE_CONTROLLER_RAFT_SNAPSHOT_PATH="+filepath.Join(dir, "controller-snapshots"),
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(dir, "slot-snapshots"), cfg.Storage.RaftSnapshotPath)
+	require.Equal(t, filepath.Join(dir, "controller-snapshots"), cfg.Storage.ControllerRaftSnapshotPath)
+}
+
+func TestLoadConfigParsesRaftSnapshotChunkSizeAsMiB(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE=8MiB",
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, uint64(8<<20), cfg.Storage.RaftSnapshotChunkSize)
+}
+
+func TestLoadConfigParsesRaftSnapshotChunkSizeAsDecimalBytes(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE=8388608",
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, uint64(8<<20), cfg.Storage.RaftSnapshotChunkSize)
+}
+
+func TestLoadConfigRejectsZeroRaftSnapshotChunkSize(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE=0",
+	)
+
+	_, err := loadConfig(configPath)
+	require.ErrorContains(t, err, "WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE")
+}
+
+func TestLoadConfigRejectsInvalidRaftSnapshotChunkSizeUnits(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE=8MB",
+	)
+
+	_, err := loadConfig(configPath)
+	require.ErrorContains(t, err, "WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE")
+}
+
+func TestLoadConfigParsesRaftSnapshotGCGrace(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_STORAGE_RAFT_SNAPSHOT_GC_GRACE=45m",
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, 45*time.Minute, cfg.Storage.RaftSnapshotGCGrace)
+}
+
+func TestLoadConfigRejectsNegativeRaftSnapshotGCGrace(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_STORAGE_RAFT_SNAPSHOT_GC_GRACE=-1s",
+	)
+
+	_, err := loadConfig(configPath)
+	require.ErrorContains(t, err, "snapshot gc grace")
+}
+
+func TestLoadConfigPrefersEnvironmentVariablesForRaftSnapshotStorage(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_STORAGE_RAFT_SNAPSHOT_PATH="+filepath.Join(dir, "file-slot-snapshots"),
+		"WK_STORAGE_CONTROLLER_RAFT_SNAPSHOT_PATH="+filepath.Join(dir, "file-controller-snapshots"),
+		"WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE=4MiB",
+		"WK_STORAGE_RAFT_SNAPSHOT_GC_GRACE=15m",
+	)
+	t.Setenv("WK_STORAGE_RAFT_SNAPSHOT_PATH", filepath.Join(dir, "env-slot-snapshots"))
+	t.Setenv("WK_STORAGE_CONTROLLER_RAFT_SNAPSHOT_PATH", filepath.Join(dir, "env-controller-snapshots"))
+	t.Setenv("WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE", "16777216")
+	t.Setenv("WK_STORAGE_RAFT_SNAPSHOT_GC_GRACE", "1h")
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(dir, "env-slot-snapshots"), cfg.Storage.RaftSnapshotPath)
+	require.Equal(t, filepath.Join(dir, "env-controller-snapshots"), cfg.Storage.ControllerRaftSnapshotPath)
+	require.Equal(t, uint64(16<<20), cfg.Storage.RaftSnapshotChunkSize)
+	require.Equal(t, time.Hour, cfg.Storage.RaftSnapshotGCGrace)
+}
+
 func TestLoadConfigParsesExternalRouteAddresses(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",

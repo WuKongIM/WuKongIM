@@ -218,6 +218,14 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	raftSnapshotChunkSize, err := parseRaftSnapshotChunkSize(v, "WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	raftSnapshotGCGrace, err := parseDuration(v, "WK_STORAGE_RAFT_SNAPSHOT_GC_GRACE")
+	if err != nil {
+		return app.Config{}, err
+	}
 	observationHeartbeatInterval, err := parseDuration(v, "WK_CLUSTER_OBSERVATION_HEARTBEAT_INTERVAL")
 	if err != nil {
 		return app.Config{}, err
@@ -455,11 +463,15 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			DataDir: stringValue(v, "WK_NODE_DATA_DIR"),
 		},
 		Storage: app.StorageConfig{
-			DBPath:             stringValue(v, "WK_STORAGE_DB_PATH"),
-			RaftPath:           stringValue(v, "WK_STORAGE_RAFT_PATH"),
-			ChannelLogPath:     stringValue(v, "WK_STORAGE_CHANNEL_LOG_PATH"),
-			ControllerMetaPath: stringValue(v, "WK_STORAGE_CONTROLLER_META_PATH"),
-			ControllerRaftPath: stringValue(v, "WK_STORAGE_CONTROLLER_RAFT_PATH"),
+			DBPath:                     stringValue(v, "WK_STORAGE_DB_PATH"),
+			RaftPath:                   stringValue(v, "WK_STORAGE_RAFT_PATH"),
+			ChannelLogPath:             stringValue(v, "WK_STORAGE_CHANNEL_LOG_PATH"),
+			ControllerMetaPath:         stringValue(v, "WK_STORAGE_CONTROLLER_META_PATH"),
+			ControllerRaftPath:         stringValue(v, "WK_STORAGE_CONTROLLER_RAFT_PATH"),
+			RaftSnapshotPath:           stringValue(v, "WK_STORAGE_RAFT_SNAPSHOT_PATH"),
+			ControllerRaftSnapshotPath: stringValue(v, "WK_STORAGE_CONTROLLER_RAFT_SNAPSHOT_PATH"),
+			RaftSnapshotChunkSize:      raftSnapshotChunkSize,
+			RaftSnapshotGCGrace:        raftSnapshotGCGrace,
 		},
 		Cluster: app.ClusterConfig{
 			ListenAddr:                       stringValue(v, "WK_CLUSTER_LISTEN_ADDR"),
@@ -610,6 +622,10 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		stringValue(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED") != "",
 		stringValue(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES") != "",
 		stringValue(v, "WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL") != "",
+	)
+	cfg.Storage.SetRaftSnapshotExplicitFlags(
+		stringValue(v, "WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE") != "",
+		stringValue(v, "WK_STORAGE_RAFT_SNAPSHOT_GC_GRACE") != "",
 	)
 	cfg.Gateway.SetExplicitFlags(stringValue(v, "WK_GATEWAY_SEND_TIMEOUT") != "")
 	cfg.Log.SetExplicitFlags(stringValue(v, "WK_LOG_COMPRESS") != "", stringValue(v, "WK_LOG_CONSOLE") != "")
@@ -797,6 +813,19 @@ func parseDuration(v *viper.Viper, key string) (time.Duration, error) {
 	}
 
 	value, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", key, err)
+	}
+	return value, nil
+}
+
+func parseRaftSnapshotChunkSize(v *viper.Viper, key string) (uint64, error) {
+	raw := stringValue(v, key)
+	if raw == "" {
+		return 0, nil
+	}
+
+	value, err := app.ParseRaftSnapshotChunkSize(raw)
 	if err != nil {
 		return 0, fmt.Errorf("parse %s: %w", key, err)
 	}
