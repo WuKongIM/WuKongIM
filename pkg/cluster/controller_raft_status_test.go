@@ -67,6 +67,41 @@ func TestControllerRaftStatusOnNodeMergesLocalServiceStatusAndDurableIndexes(t *
 	}
 }
 
+func TestControllerRaftStatusReadsSnapshotMetadataWithoutPayload(t *testing.T) {
+	sentinel := errors.New("snapshot payload unavailable")
+	store := &controllerStatusMetadataOnlyStorage{
+		state: multiraft.BootstrapState{
+			HardState:    raftpb.HardState{Commit: 12},
+			AppliedIndex: 11,
+		},
+		firstIndex:  11,
+		lastIndex:   12,
+		snapshotErr: sentinel,
+		terms:       map[uint64]uint64{10: 7},
+	}
+	base := ControllerRaftStatus{
+		NodeID: 1,
+		Peers:  []ControllerRaftPeerProgress{{NodeID: 2, Next: 9}},
+	}
+
+	got, err := controllerRaftStatusWithDurableIndexes(context.Background(), base, store)
+	if err != nil {
+		t.Fatalf("controllerRaftStatusWithDurableIndexes() error = %v", err)
+	}
+	if got.FirstIndex != 11 || got.LastIndex != 12 || got.CommitIndex != 12 || got.AppliedIndex != 11 || got.SnapshotIndex != 10 || got.SnapshotTerm != 7 {
+		t.Fatalf("controllerRaftStatusWithDurableIndexes() = %+v", got)
+	}
+	if !got.Peers[0].NeedsSnapshot {
+		t.Fatalf("peer NeedsSnapshot = false, want true")
+	}
+	if store.snapshotCalls != 0 {
+		t.Fatalf("Snapshot() calls = %d, want 0", store.snapshotCalls)
+	}
+	if store.firstIndexCalls == 0 || store.termCalls == 0 {
+		t.Fatalf("metadata calls = FirstIndex:%d Term:%d, want both used", store.firstIndexCalls, store.termCalls)
+	}
+}
+
 func TestControllerRaftStatusDerivesPeerSnapshotFlags(t *testing.T) {
 	st := ControllerRaftStatus{
 		FirstIndex: 10,
@@ -127,4 +162,52 @@ func TestControllerRaftStatusOnNodeReturnsRemoteTargetError(t *testing.T) {
 	if !errors.Is(err, transport.ErrStopped) {
 		t.Fatalf("ControllerRaftStatusOnNode() error = %v, want %v", err, transport.ErrStopped)
 	}
+}
+
+type controllerStatusMetadataOnlyStorage struct {
+	state multiraft.BootstrapState
+
+	firstIndex uint64
+	lastIndex  uint64
+	terms      map[uint64]uint64
+
+	snapshotErr     error
+	firstIndexCalls int
+	termCalls       int
+	snapshotCalls   int
+}
+
+func (s *controllerStatusMetadataOnlyStorage) InitialState(context.Context) (multiraft.BootstrapState, error) {
+	return s.state, nil
+}
+
+func (s *controllerStatusMetadataOnlyStorage) Entries(context.Context, uint64, uint64, uint64) ([]raftpb.Entry, error) {
+	return nil, nil
+}
+
+func (s *controllerStatusMetadataOnlyStorage) Term(_ context.Context, index uint64) (uint64, error) {
+	s.termCalls++
+	return s.terms[index], nil
+}
+
+func (s *controllerStatusMetadataOnlyStorage) FirstIndex(context.Context) (uint64, error) {
+	s.firstIndexCalls++
+	return s.firstIndex, nil
+}
+
+func (s *controllerStatusMetadataOnlyStorage) LastIndex(context.Context) (uint64, error) {
+	return s.lastIndex, nil
+}
+
+func (s *controllerStatusMetadataOnlyStorage) Snapshot(context.Context) (raftpb.Snapshot, error) {
+	s.snapshotCalls++
+	return raftpb.Snapshot{}, s.snapshotErr
+}
+
+func (s *controllerStatusMetadataOnlyStorage) Save(context.Context, multiraft.PersistentState) error {
+	return nil
+}
+
+func (s *controllerStatusMetadataOnlyStorage) MarkApplied(context.Context, uint64) error {
+	return nil
 }

@@ -123,13 +123,13 @@ func (g *slot) compactLogManually(ctx context.Context, applied uint64) (LogCompa
 		SlotID:       g.id,
 		AppliedIndex: applied,
 	}
-	snap, err := g.storage.Snapshot(ctx)
+	snapshotIndex, _, err := storageSnapshotBoundary(ctx, g.storage)
 	if err != nil {
 		return result, err
 	}
-	if !raft.IsEmptySnap(snap) {
-		result.BeforeSnapshotIndex = snap.Metadata.Index
-		result.AfterSnapshotIndex = snap.Metadata.Index
+	if snapshotIndex > 0 {
+		result.BeforeSnapshotIndex = snapshotIndex
+		result.AfterSnapshotIndex = snapshotIndex
 	}
 	if g.compactor == nil || !g.compactor.cfg.Enabled {
 		result.SkippedReason = LogCompactionSkippedDisabled
@@ -150,4 +150,20 @@ func (g *slot) compactLogManually(ctx context.Context, applied uint64) (LogCompa
 	result.Compacted = true
 	g.compactor.recordSnapshot(applied)
 	return result, nil
+}
+
+func storageSnapshotBoundary(ctx context.Context, storage Storage) (uint64, uint64, error) {
+	first, err := storage.FirstIndex(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	if first <= 1 {
+		return 0, 0, nil
+	}
+	snapshotIndex := first - 1
+	snapshotTerm, err := storage.Term(ctx, snapshotIndex)
+	if err != nil {
+		return 0, 0, err
+	}
+	return snapshotIndex, snapshotTerm, nil
 }

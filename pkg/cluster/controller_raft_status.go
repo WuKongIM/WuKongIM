@@ -6,7 +6,6 @@ import (
 
 	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
-	raft "go.etcd.io/raft/v3"
 )
 
 // ControllerRaftStatus is a manager-facing read-only status snapshot for one Controller Raft node.
@@ -118,6 +117,10 @@ func (c *Cluster) localControllerRaftStatus(ctx context.Context, nodeID uint64) 
 	}
 
 	storage := c.controllerHost.raftDB.ForController()
+	return controllerRaftStatusWithDurableIndexes(ctx, status, storage)
+}
+
+func controllerRaftStatusWithDurableIndexes(ctx context.Context, status ControllerRaftStatus, storage multiraft.Storage) (ControllerRaftStatus, error) {
 	state, err := storage.InitialState(ctx)
 	if err != nil {
 		return ControllerRaftStatus{}, err
@@ -130,19 +133,22 @@ func (c *Cluster) localControllerRaftStatus(ctx context.Context, nodeID uint64) 
 	if err != nil {
 		return ControllerRaftStatus{}, err
 	}
-	snap, err := storage.Snapshot(ctx)
-	if err != nil {
-		return ControllerRaftStatus{}, err
+	var snapshotTerm uint64
+	snapshotIndex := uint64(0)
+	if first > 1 {
+		snapshotIndex = first - 1
+		snapshotTerm, err = storage.Term(ctx, snapshotIndex)
+		if err != nil {
+			return ControllerRaftStatus{}, err
+		}
 	}
 
 	status.FirstIndex = first
 	status.LastIndex = last
 	status.CommitIndex = state.HardState.Commit
 	status.AppliedIndex = state.AppliedIndex
-	if !raft.IsEmptySnap(snap) {
-		status.SnapshotIndex = snap.Metadata.Index
-		status.SnapshotTerm = snap.Metadata.Term
-	}
+	status.SnapshotIndex = snapshotIndex
+	status.SnapshotTerm = snapshotTerm
 	deriveControllerRaftPeerStatus(&status)
 	return status, nil
 }
