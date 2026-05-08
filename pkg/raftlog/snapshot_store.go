@@ -19,6 +19,8 @@ var snapshotNoncePattern = regexp.MustCompile(`^[0-9a-f]{16}$`)
 
 var errSnapshotNoOverwriteRenameUnsupported = errors.New("raftstorage: atomic no-overwrite snapshot rename is unsupported on this platform")
 
+var snapshotFsyncDir = fsyncDir
+
 // snapshotStore persists snapshot payload bytes in external chunk directories.
 type snapshotStore struct {
 	// root is the external snapshot directory root.
@@ -115,7 +117,7 @@ func (s *snapshotStore) write(ctx context.Context, staged *stagedSnapshot, data 
 			err = cleanupStagedTmpPreservingError(staged, err)
 		}
 	}()
-	if err := fsyncDir(filepath.Dir(staged.tmpDir)); err != nil {
+	if err := snapshotFsyncDir(filepath.Dir(staged.tmpDir)); err != nil {
 		return err
 	}
 
@@ -144,7 +146,7 @@ func (s *snapshotStore) write(ctx context.Context, staged *stagedSnapshot, data 
 		staged.manifest.ChunkChecksums = append(staged.manifest.ChunkChecksums, snapshotChecksum(chunk))
 		offset += chunkLen
 	}
-	if err := fsyncDir(staged.tmpDir); err != nil {
+	if err := snapshotFsyncDir(staged.tmpDir); err != nil {
 		return err
 	}
 	return staged.manifest.Validate(Scope{Kind: ScopeKind(staged.manifest.ScopeKind), ID: staged.manifest.ScopeID})
@@ -158,7 +160,7 @@ func (s *snapshotStore) publishFinal(staged *stagedSnapshot) error {
 	if err := renameNoOverwrite(staged.tmpDir, staged.finalDir); err != nil {
 		return err
 	}
-	return fsyncDir(filepath.Dir(staged.finalDir))
+	return snapshotFsyncDir(filepath.Dir(staged.finalDir))
 }
 
 // stage prepares, writes, and publishes a snapshot, retrying existing final ID collisions.

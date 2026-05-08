@@ -254,11 +254,12 @@ func (db *DB) publishSnapshotAndCommit(staged *stagedSnapshot, req *writeRequest
 		db.removeActiveSnapshotPathLocked(staged.finalDir)
 		db.snapshotLifecycleMu.Unlock()
 		if retErr != nil && published {
-			db.removeUnreferencedPublishedSnapshotDir(staged)
+			db.removePublishedSnapshotDir(staged)
 		}
 	}()
 
 	if err := db.snapshotStore.publishFinal(staged); err != nil {
+		db.removePublishedSnapshotDirIfRenamed(staged)
 		return cleanupStagedTmpPreservingError(staged, err)
 	}
 	published = true
@@ -270,19 +271,23 @@ func (db *DB) publishSnapshotAndCommit(staged *stagedSnapshot, req *writeRequest
 	return db.submitWrite(req)
 }
 
-func (db *DB) removeUnreferencedPublishedSnapshotDir(staged *stagedSnapshot) {
-	if db == nil || staged == nil {
-		return
-	}
-	scope := Scope{Kind: ScopeKind(staged.manifest.ScopeKind), ID: staged.manifest.ScopeID}
-	manifest, ok, err := (&pebbleStore{db: db, scope: scope}).loadSnapshotManifest(context.Background())
-	if err != nil {
-		return
-	}
-	if ok && manifest.SnapshotID == staged.manifest.SnapshotID {
+func (db *DB) removePublishedSnapshotDir(staged *stagedSnapshot) {
+	if staged == nil || staged.finalDir == "" {
 		return
 	}
 	_ = os.RemoveAll(staged.finalDir)
+}
+
+func (db *DB) removePublishedSnapshotDirIfRenamed(staged *stagedSnapshot) {
+	if staged == nil || staged.tmpDir == "" || staged.finalDir == "" {
+		return
+	}
+	if _, err := os.Stat(staged.tmpDir); !os.IsNotExist(err) {
+		return
+	}
+	if _, err := os.Stat(staged.finalDir); err == nil {
+		db.removePublishedSnapshotDir(staged)
+	}
 }
 
 func (db *DB) addActiveSnapshotPathLocked(path string) {
