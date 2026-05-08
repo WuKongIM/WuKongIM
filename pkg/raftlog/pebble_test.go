@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -520,6 +521,83 @@ func TestPebbleSnapshotReadRegistersBeforeNewerSnapshotGC(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("new snapshot save/GC did not finish")
+	}
+}
+
+func TestPebbleSaveSnapshotCleansPublishedDirWhenCloseWinsAfterPublish(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{
+		SnapshotPath:      filepath.Join(t.TempDir(), "snapshots"),
+		SnapshotChunkSize: 4,
+		SnapshotGCGrace:   0,
+	})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	db.snapshotStore.nonce = func() (string, error) { return "00000000000000ab", nil }
+
+	finalDir := filepath.Join(db.snapshotStore.scopeDir(SlotScope(23)), "snap-0000000000000005-0000000000000001-00000000000000ab")
+	db.snapshotAfterPublishTestHook = func(staged *stagedSnapshot) error {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+		return nil
+	}
+
+	snap := raftpb.Snapshot{
+		Data:     []byte("payload"),
+		Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}},
+	}
+	err = db.ForSlot(23).Save(context.Background(), multiraft.PersistentState{Snapshot: &snap})
+	if err == nil || !strings.Contains(err.Error(), "db closing") {
+		t.Fatalf("Save(snapshot) error = %v, want db closing", err)
+	}
+	if _, err := os.Stat(finalDir); !os.IsNotExist(err) {
+		t.Fatalf("published snapshot dir stat error = %v, want not exist", err)
+	}
+}
+
+func TestPebbleSaveSnapshotCleansFinalDirWhenPublishFsyncFails(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{
+		SnapshotPath:      filepath.Join(t.TempDir(), "snapshots"),
+		SnapshotChunkSize: 4,
+		SnapshotGCGrace:   0,
+	})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	db.snapshotStore.nonce = func() (string, error) { return "00000000000000ac", nil }
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	finalDir := filepath.Join(db.snapshotStore.scopeDir(SlotScope(24)), "snap-0000000000000005-0000000000000001-00000000000000ac")
+	publishParent := filepath.Dir(finalDir)
+	fsyncErr := errors.New("injected publish parent fsync failure")
+	originalFsync := snapshotFsyncDir
+	var finalParentFsyncs int
+	snapshotFsyncDir = func(path string) error {
+		if sameCleanPath(path, publishParent) {
+			finalParentFsyncs++
+			if finalParentFsyncs == 2 {
+				return fsyncErr
+			}
+		}
+		return originalFsync(path)
+	}
+	defer func() { snapshotFsyncDir = originalFsync }()
+
+	snap := raftpb.Snapshot{
+		Data:     []byte("payload"),
+		Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}},
+	}
+	err = db.ForSlot(24).Save(context.Background(), multiraft.PersistentState{Snapshot: &snap})
+	if !errors.Is(err, fsyncErr) {
+		t.Fatalf("Save(snapshot) error = %v, want injected fsync error", err)
+	}
+	if _, err := os.Stat(finalDir); !os.IsNotExist(err) {
+		t.Fatalf("published snapshot dir stat error = %v, want not exist", err)
 	}
 }
 
