@@ -78,6 +78,7 @@ directory tree.
 | Domain | Scenario path | Purpose | Run |
 | --- | --- | --- | --- |
 | `cluster` | `test/e2e/cluster/dynamic_node_join` | Prove a fourth data node can join a running three-node cluster through seed config, exchange WKProto person messages with an existing node, receive Slot resources through manager onboarding, and optionally catch up from a large Slot snapshot. | `go test -tags=e2e ./test/e2e/cluster/dynamic_node_join -count=1` |
+| `cluster` | `test/e2e/cluster/controller_snapshot` | Prove a stopped Controller follower can rejoin after leader compaction by restoring a large Controller Raft snapshot generated through the test-data API. | `go test -tags=e2e ./test/e2e/cluster/controller_snapshot -count=1` |
 | `message` | `test/e2e/message/single_node_send_message` | Prove one fresh single-node cluster can complete a real WKProto `Send -> SendAck -> Recv -> RecvAck` closure. | `go test -tags=e2e ./test/e2e/message/single_node_send_message -count=1` |
 | `message` | `test/e2e/message/cross_node_closure` | Prove a three-node cluster can deliver one person-channel message when sender and recipient are connected to different follower nodes. | `go test -tags=e2e ./test/e2e/message/cross_node_closure -count=1` |
 | `message` | `test/e2e/message/slot_leader_failover` | Prove cross-node delivery survives a slot leader failover after both clients are already connected on follower nodes. | `go test -tags=e2e ./test/e2e/message/slot_leader_failover -count=1` |

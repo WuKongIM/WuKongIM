@@ -593,12 +593,23 @@ func TestControllerRaftMessageTypeAvoidsClusterTransportTypes(t *testing.T) {
 	const (
 		clusterRaftMessageType            uint8 = 1
 		clusterObservationHintMessageType uint8 = 2
+		clusterRaftBatchMessageType       uint8 = 3
+		clusterRaftSnapshotChunkType      uint8 = 4
 	)
 
 	require.NotContains(t, []uint8{
 		clusterRaftMessageType,
 		clusterObservationHintMessageType,
+		clusterRaftBatchMessageType,
+		clusterRaftSnapshotChunkType,
 	}, msgTypeControllerRaft)
+	require.NotContains(t, []uint8{
+		clusterRaftMessageType,
+		clusterObservationHintMessageType,
+		clusterRaftBatchMessageType,
+		clusterRaftSnapshotChunkType,
+		msgTypeControllerRaft,
+	}, msgTypeControllerRaftSnapshotChunk)
 }
 
 func TestRaftTransportSkipsLocalMessages(t *testing.T) {

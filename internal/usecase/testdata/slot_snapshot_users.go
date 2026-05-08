@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 )
 
@@ -25,20 +26,31 @@ type SlotSnapshotUserStore interface {
 	UpsertDevice(ctx context.Context, d metadb.Device) error
 }
 
+// ControllerSnapshotJobCluster persists generated controller metadata through Controller Raft.
+type ControllerSnapshotJobCluster interface {
+	CreateNodeOnboardingPlan(ctx context.Context, targetNodeID uint64, retryOfJobID string) (controllermeta.NodeOnboardingJob, error)
+}
+
 // AppOptions configures the e2e test-data usecase.
 type AppOptions struct {
 	// SlotSnapshotUsers writes user/device rows used to inflate Slot snapshots.
 	SlotSnapshotUsers SlotSnapshotUserStore
+	// ControllerSnapshotJobs writes payload-heavy onboarding jobs used to inflate Controller snapshots.
+	ControllerSnapshotJobs ControllerSnapshotJobCluster
 }
 
 // App generates deterministic e2e test data through normal storage usecases.
 type App struct {
-	slotSnapshotUsers SlotSnapshotUserStore
+	slotSnapshotUsers      SlotSnapshotUserStore
+	controllerSnapshotJobs ControllerSnapshotJobCluster
 }
 
 // New creates a test-data generation usecase.
 func New(opts AppOptions) *App {
-	return &App{slotSnapshotUsers: opts.SlotSnapshotUsers}
+	return &App{
+		slotSnapshotUsers:      opts.SlotSnapshotUsers,
+		controllerSnapshotJobs: opts.ControllerSnapshotJobs,
+	}
 }
 
 // GenerateSlotSnapshotUsersCommand describes deterministic user/device rows for a large Slot snapshot.

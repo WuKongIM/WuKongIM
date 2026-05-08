@@ -552,7 +552,7 @@ SlotIDs()/planner/readiness:
 
 **Managed Slot RPC 操作** (6 种): `status` / `logs` / `compact` / `change_config` / `import_snapshot` / `transfer_leader`
 
-**Transport message types**: `msgTypeRaft(1)` / `msgTypeObservationHint(2)` / `msgTypeRaftBatch(3)` / `msgTypeRaftSnapshotChunk(4)`。
+**Transport message types**: `msgTypeRaft(1)` / `msgTypeObservationHint(2)` / `msgTypeRaftBatch(3)` / `msgTypeRaftSnapshotChunk(4)`；Controller Raft 使用 `msgTypeControllerRaft(5)` / `msgTypeControllerRaftSnapshotChunk(6)`。
 
 **Forward 响应码**: `OK(0)` / `NotLeader(1)` / `Timeout(2)` / `NoSlot(3)`
 
@@ -583,6 +583,7 @@ SlotIDs()/planner/readiness:
 - **Manager Slot 日志读语义**: `SlotLogStatusOnNode` 只读取目标节点当前 Slot Raft 运行时的 commit/applied watermark；`SlotLogEntriesOnNode` 只读取目标节点本地 Slot storage 的 Raft log entry 摘要页（index/term/type/data_size），并对普通 Slot FSM command payload 生成脱敏 JSON inspection（如 command/uid/channel_id，token 固定为 `***`）。二者都用于运维排查，不能替代 controller leader strict-read 拓扑来源。
 - **Manager Slot 压缩语义**: `CompactSlotRaftLogOnNode` 是节点本地运维写，目标节点按当前 applied index 生成 Slot snapshot 并裁剪本地 entries；该入口不走 Slot leader 路由，也不替代 Controller assignment / runtime strict read。
 - **Slot Raft 大快照传输**: Slot `MsgSnap` 超过 transport 单帧预算时只在 cluster raft transport 层分片；接收端必须完整重组后再调用 `Runtime.Step`，不能把 chunk 直接交给 multiraft/FSM。
+- **Controller Raft 大快照传输**: Controller `MsgSnap` 超过 transport 单帧预算时在 controller raft transport 层分片；接收端必须完整重组后再调用 Controller Raft `Step`，并且消息类型不能与 cluster raft/batch/chunk 类型冲突。
 - **Controller Raft 状态读语义**: `ControllerRaftStatusOnNode` 是节点本地诊断读；远程读取必须直连请求中的目标节点 Controller RPC，禁止走 leader-centric controller client 路由，否则会误读 leader 节点状态而不是目标节点状态。
 - **Manager recover 必须走 strict assignments**: `RecoverSlotStrict` 使用 `ListSlotAssignmentsStrict` 作为唯一 assignment 来源，避免 manager 写接口因为 fallback 到本地 assignment 状态而在不同节点上看到不同恢复结论。
 - **Controller HashSlot 读快路径**: leader 处理 `heartbeat` / `list_assignments` 时优先读 `controllerHost` 持有的 HashSlot snapshot；只有 snapshot cold miss 才会回落到 `controllerMeta.LoadHashSlotTable()`，回填后再继续返回。

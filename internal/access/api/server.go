@@ -30,6 +30,7 @@ type UserUsecase interface {
 // TestDataUsecase generates deterministic datasets for process-level e2e tests.
 type TestDataUsecase interface {
 	GenerateSlotSnapshotUsers(ctx context.Context, cmd testdatausecase.GenerateSlotSnapshotUsersCommand) (testdatausecase.GenerateSlotSnapshotUsersResult, error)
+	GenerateControllerSnapshotJobs(ctx context.Context, cmd testdatausecase.GenerateControllerSnapshotJobsCommand) (testdatausecase.GenerateControllerSnapshotJobsResult, error)
 }
 
 // DiagnosticsReader queries node-local diagnostics events for debug API routes.
