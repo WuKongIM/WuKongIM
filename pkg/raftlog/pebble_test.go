@@ -405,7 +405,7 @@ func TestPebbleSnapshotRoundTripFromExternalChunks(t *testing.T) {
 	}
 }
 
-func TestPebbleSnapshotReadProtectsOldChunksFromConcurrentGC(t *testing.T) {
+func TestPebbleSnapshotReadRegistersBeforeNewerSnapshotGC(t *testing.T) {
 	ctx := context.Background()
 	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{
 		SnapshotPath:      filepath.Join(t.TempDir(), "snapshots"),
@@ -430,55 +430,47 @@ func TestPebbleSnapshotReadProtectsOldChunksFromConcurrentGC(t *testing.T) {
 	oldManifest := mustLoadPebbleManifest(t, db, SlotScope(20))
 	oldDir := filepath.Join(db.snapshotStore.scopeDir(SlotScope(20)), oldManifest.SnapshotID)
 
-	readPaused := make(chan struct{})
-	releaseRead := make(chan struct{})
-	db.snapshotReadBeforeChunksHook = func(scope Scope, manifest SnapshotManifest) {
+	mutationDone := make(chan error, 1)
+	db.snapshotReadAfterManifestHook = func(scope Scope, manifest SnapshotManifest) {
 		if scope != SlotScope(20) || manifest.SnapshotID != oldManifest.SnapshotID {
 			return
 		}
-		close(readPaused)
-		<-releaseRead
+		newSnap := raftpb.Snapshot{
+			Data:     []byte("new-snapshot-payload"),
+			Metadata: raftpb.SnapshotMetadata{Index: 6, Term: 2, ConfState: raftpb.ConfState{Voters: []uint64{1}}},
+		}
+		go func() {
+			if err := store.Save(ctx, multiraft.PersistentState{Snapshot: &newSnap}); err != nil {
+				mutationDone <- err
+				return
+			}
+			mutationDone <- db.runSnapshotGC(ctx)
+		}()
+		select {
+		case err := <-mutationDone:
+			if err != nil {
+				t.Fatalf("new snapshot save/GC error = %v", err)
+			}
+			t.Fatalf("new snapshot save and GC completed before old read registered %s active", oldDir)
+		case <-time.After(200 * time.Millisecond):
+		}
 	}
 
-	type snapshotResult struct {
-		snapshot raftpb.Snapshot
-		err      error
+	got, err := store.Snapshot(ctx)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
 	}
-	resultCh := make(chan snapshotResult, 1)
-	go func() {
-		snapshot, err := store.Snapshot(ctx)
-		resultCh <- snapshotResult{snapshot: snapshot, err: err}
-	}()
+	if !reflect.DeepEqual(got, oldSnap) {
+		t.Fatalf("Snapshot() = %#v, want %#v", got, oldSnap)
+	}
 
 	select {
-	case <-readPaused:
-	case <-time.After(5 * time.Second):
-		t.Fatal("Snapshot() did not pause before reading chunks")
-	}
-
-	newSnap := raftpb.Snapshot{
-		Data:     []byte("new-snapshot-payload"),
-		Metadata: raftpb.SnapshotMetadata{Index: 6, Term: 2, ConfState: raftpb.ConfState{Voters: []uint64{1}}},
-	}
-	mustSave(t, store, multiraft.PersistentState{Snapshot: &newSnap})
-	if err := db.runSnapshotGC(ctx); err != nil {
-		t.Fatalf("runSnapshotGC() error = %v", err)
-	}
-	if _, err := os.Stat(oldDir); err != nil {
-		t.Fatalf("old snapshot dir removed while read was active: %v", err)
-	}
-
-	close(releaseRead)
-	select {
-	case result := <-resultCh:
-		if result.err != nil {
-			t.Fatalf("Snapshot() error = %v", result.err)
-		}
-		if !reflect.DeepEqual(result.snapshot, oldSnap) {
-			t.Fatalf("Snapshot() = %#v, want %#v", result.snapshot, oldSnap)
+	case err := <-mutationDone:
+		if err != nil {
+			t.Fatalf("new snapshot save/GC error = %v", err)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("Snapshot() did not finish")
+		t.Fatal("new snapshot save/GC did not finish")
 	}
 }
 
