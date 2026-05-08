@@ -8,6 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 const (
@@ -15,6 +16,10 @@ const (
 	defaultMaxTrimMessages = 1024
 	defaultScanInterval    = time.Minute
 )
+
+// ErrChannelUnavailable marks a channel that cannot currently provide a
+// retention view. The worker skips it so one cold channel does not block a pass.
+var ErrChannelUnavailable = errors.New("channel retention: channel unavailable")
 
 // Channel identifies one channel eligible for retention planning.
 type Channel struct {
@@ -83,6 +88,8 @@ type Config struct {
 	CursorName string
 	// Now returns the current time; time.Now is used when nil.
 	Now func() time.Time
+	// Logger records background pass failures and skipped channel diagnostics.
+	Logger wklog.Logger
 }
 
 // Worker scans leader channels and advances safe cluster-authoritative retention bounds.
@@ -218,7 +225,12 @@ func (w *Worker) Stop(ctx context.Context) error {
 }
 
 func (w *Worker) runBackground(ctx context.Context, interval time.Duration) {
-	_ = w.RunOnce(ctx)
+	if err := w.RunOnce(ctx); err != nil && ctx.Err() == nil {
+		w.logger().Warn("channel retention pass failed",
+			wklog.Event("channel_retention.pass.failed"),
+			wklog.Error(err),
+		)
+	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -226,7 +238,12 @@ func (w *Worker) runBackground(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			_ = w.RunOnce(ctx)
+			if err := w.RunOnce(ctx); err != nil && ctx.Err() == nil {
+				w.logger().Warn("channel retention pass failed",
+					wklog.Event("channel_retention.pass.failed"),
+					wklog.Error(err),
+				)
+			}
 		}
 	}
 }
@@ -255,6 +272,17 @@ func (w *Worker) RunOnce(ctx context.Context) error {
 			return err
 		}
 		if err := w.runChannel(ctx, ch); err != nil {
+			if errors.Is(err, ErrChannelUnavailable) {
+				w.logger().Warn("channel retention channel skipped",
+					wklog.Event("channel_retention.channel.skipped"),
+					wklog.ChannelID(ch.ID.ID),
+					wklog.ChannelType(int64(ch.ID.Type)),
+					wklog.String("channelKey", string(ch.Key)),
+					wklog.Reason("unavailable"),
+					wklog.Error(err),
+				)
+				continue
+			}
 			return err
 		}
 	}
@@ -269,6 +297,11 @@ func (w *Worker) runChannel(ctx context.Context, ch Channel) error {
 	}
 	if !w.channelEligible(view, now) {
 		return nil
+	}
+	if w.needsExistingBoundaryApply(view) {
+		if err := w.cfg.Runtime.ApplyRetentionBoundary(ctx, ch.Key, view.RetentionThroughSeq); err != nil {
+			return err
+		}
 	}
 
 	store, err := w.cfg.Stores.StoreForChannel(ctx, ch)
@@ -324,6 +357,14 @@ func (w *Worker) channelEligible(view channel.RetentionView, now time.Time) bool
 		return false
 	}
 	return view.LeaseUntil.IsZero() || now.Before(view.LeaseUntil)
+}
+
+func (w *Worker) needsExistingBoundaryApply(view channel.RetentionView) bool {
+	if view.RetentionThroughSeq == 0 {
+		return false
+	}
+	return view.LocalRetentionThroughSeq < view.RetentionThroughSeq ||
+		view.PhysicalRetentionThroughSeq < view.RetentionThroughSeq
 }
 
 func retentionAdvanceRequest(ch Channel, view channel.RetentionView, throughSeq uint64, now time.Time) metadb.ChannelRetentionAdvance {
@@ -386,4 +427,11 @@ func (w *Worker) now() time.Time {
 		return w.cfg.Now()
 	}
 	return time.Now()
+}
+
+func (w *Worker) logger() wklog.Logger {
+	if w != nil && w.cfg.Logger != nil {
+		return w.cfg.Logger
+	}
+	return wklog.NewNop()
 }

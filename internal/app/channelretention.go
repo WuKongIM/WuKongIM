@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 const appChannelRetentionCursorName = "committed"
@@ -136,7 +138,14 @@ func (r appChannelRetentionRuntime) RetentionView(ctx context.Context, key chann
 	if r.runtime == nil {
 		return channel.RetentionView{}, channel.ErrInvalidConfig
 	}
-	return r.runtime.RetentionView(key)
+	view, err := r.runtime.RetentionView(key)
+	if err != nil {
+		if errors.Is(err, channel.ErrChannelNotFound) {
+			return channel.RetentionView{}, appretention.ErrChannelUnavailable
+		}
+		return channel.RetentionView{}, err
+	}
+	return view, nil
 }
 
 func (r appChannelRetentionRuntime) ApplyRetentionBoundary(ctx context.Context, key channel.ChannelKey, throughSeq uint64) error {
@@ -183,9 +192,12 @@ func resolveAppChannelRetentionConfig(cfg Config) appChannelRetentionConfig {
 	}
 }
 
-func newAppChannelRetentionWorker(cfg appChannelRetentionConfig, localNodeID uint64, engine *channelstore.Engine, runtime appChannelRetentionRuntimePort, metadata appChannelRetentionMetadataStore) *appretention.Worker {
+func newAppChannelRetentionWorker(cfg appChannelRetentionConfig, localNodeID uint64, engine *channelstore.Engine, runtime appChannelRetentionRuntimePort, metadata appChannelRetentionMetadataStore, logger wklog.Logger) *appretention.Worker {
 	if cfg.ttl <= 0 {
 		return nil
+	}
+	if logger == nil {
+		logger = wklog.NewNop()
 	}
 	return appretention.NewWorker(appretention.Config{
 		Channels: &appChannelRetentionChannels{
@@ -201,6 +213,7 @@ func newAppChannelRetentionWorker(cfg appChannelRetentionConfig, localNodeID uin
 		MaxTrimMessages: appChannelRetentionMaxTrimMessages(cfg),
 		CursorName:      appChannelRetentionCursorName,
 		Now:             time.Now,
+		Logger:          logger,
 	})
 }
 

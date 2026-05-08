@@ -318,6 +318,7 @@ func build(cfg Config) (_ *App, err error) {
 		app.channelLogDB,
 		app.isrRuntime,
 		app.store,
+		app.logger.Named("channel.retention"),
 	)
 	app.nodeClient = accessnode.NewClient(app.cluster)
 	app.channelLog.remoteAppender = app.nodeClient

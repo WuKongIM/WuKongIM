@@ -8,6 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 func TestSafeRetentionBoundaryCapsExpiredScanByConfirmedReplayCursor(t *testing.T) {
@@ -148,6 +149,79 @@ func TestRunOnceSkipsNonLocalLeaderAndUnreadyChannels(t *testing.T) {
 	}
 }
 
+func TestRunOnceSkipsUnavailableChannelAndContinuesBatch(t *testing.T) {
+	now := time.Date(2026, 5, 8, 12, 0, 0, 0, time.UTC)
+	unavailable := testChannel("unavailable")
+	eligible := testChannel("eligible")
+	metadata := &fakeMetadataStore{}
+	runtime := &fakeRuntime{
+		errs: map[channel.ChannelKey]error{
+			unavailable.Key: ErrChannelUnavailable,
+		},
+		views: map[channel.ChannelKey][]channel.RetentionView{
+			eligible.Key: {
+				retentionViewWithMeta(2, 10, 10, 10, 7, 8, 1, now.Add(time.Minute)),
+				retentionViewWithMeta(2, 10, 10, 10, 7, 8, 1, now.Add(time.Minute)),
+			},
+		},
+	}
+	store := &fakeStore{scan: ScanResult{ThroughSeq: 8}, cursor: 8}
+	worker := NewWorker(Config{
+		Channels: fakeChannelLister{channels: []Channel{unavailable, eligible}},
+		Stores: fakeStoreProvider{stores: map[channel.ChannelKey]Store{
+			eligible.Key: store,
+		}},
+		Runtime:     runtime,
+		Metadata:    metadata,
+		LocalNodeID: 1,
+		TTL:         time.Hour,
+		Now:         func() time.Time { return now },
+	})
+
+	if err := worker.RunOnce(context.Background()); err != nil {
+		t.Fatalf("RunOnce() error = %v, want nil after skipping unavailable channel", err)
+	}
+	if len(metadata.advances) != 1 || metadata.advances[0].RetentionThroughSeq != 8 {
+		t.Fatalf("metadata advances = %+v, want eligible channel through 8", metadata.advances)
+	}
+	if len(runtime.viewCalls) < 2 || runtime.viewCalls[0] != unavailable.Key || runtime.viewCalls[1] != eligible.Key {
+		t.Fatalf("runtime view calls = %+v, want unavailable then eligible", runtime.viewCalls)
+	}
+}
+
+func TestRunOnceRetriesExistingRetentionBoundaryBeforeNewExpiredPrefix(t *testing.T) {
+	now := time.Date(2026, 5, 8, 12, 0, 0, 0, time.UTC)
+	ch := testChannel("retry-existing-boundary")
+	runtime := &fakeRuntime{views: map[channel.ChannelKey][]channel.RetentionView{
+		ch.Key: {retentionViewWithMeta(10, 10, 10, 10, 7, 8, 1, now.Add(time.Minute), func(v *channel.RetentionView) {
+			v.LocalRetentionThroughSeq = 10
+			v.PhysicalRetentionThroughSeq = 5
+		})},
+	}}
+	store := &fakeStore{scan: ScanResult{}}
+	worker := NewWorker(Config{
+		Channels: fakeChannelLister{channels: []Channel{ch}},
+		Stores: fakeStoreProvider{stores: map[channel.ChannelKey]Store{
+			ch.Key: store,
+		}},
+		Runtime:     runtime,
+		Metadata:    &fakeMetadataStore{},
+		LocalNodeID: 1,
+		TTL:         time.Hour,
+		Now:         func() time.Time { return now },
+	})
+
+	if err := worker.RunOnce(context.Background()); err != nil {
+		t.Fatalf("RunOnce() error = %v", err)
+	}
+	if len(runtime.applied) != 1 || runtime.applied[0].boundary != 10 {
+		t.Fatalf("applied boundaries = %+v, want retry through 10", runtime.applied)
+	}
+	if len(store.confirms) != 0 {
+		t.Fatalf("confirm calls = %+v, want none without new expired prefix", store.confirms)
+	}
+}
+
 func TestRunOnceReturnsFirstErrorWithoutUnsafeAdvance(t *testing.T) {
 	boom := errors.New("boom")
 	ch1 := testChannel("first")
@@ -269,6 +343,40 @@ func TestWorkerStartRunsUntilStopAndIsIdempotent(t *testing.T) {
 	}
 	if err := worker.Stop(stopCtx); err != nil {
 		t.Fatalf("second Stop() error = %v", err)
+	}
+}
+
+func TestWorkerStartLogsBackgroundRunOnceError(t *testing.T) {
+	logger := newFakeLogger()
+	worker := NewWorker(Config{
+		Channels:     fakeChannelLister{err: errors.New("list failed")},
+		Stores:       fakeStoreProvider{},
+		Runtime:      &fakeRuntime{},
+		Metadata:     &fakeMetadataStore{},
+		LocalNodeID:  1,
+		TTL:          time.Hour,
+		ScanInterval: time.Hour,
+		Logger:       logger,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := worker.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer func() {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), time.Second)
+		defer stopCancel()
+		_ = worker.Stop(stopCtx)
+	}()
+
+	select {
+	case entry := <-logger.warns:
+		if entry.message != "channel retention pass failed" {
+			t.Fatalf("warn message = %q, want retention pass failure", entry.message)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("worker did not log background RunOnce error before timeout")
 	}
 }
 
@@ -406,6 +514,32 @@ type applyCall struct {
 	boundary uint64
 }
 
+type fakeLogEntry struct {
+	message string
+	fields  []wklog.Field
+}
+
+type fakeLogger struct {
+	warns chan fakeLogEntry
+}
+
+func newFakeLogger() *fakeLogger {
+	return &fakeLogger{warns: make(chan fakeLogEntry, 10)}
+}
+
+func (f *fakeLogger) Debug(string, ...wklog.Field) {}
+func (f *fakeLogger) Info(string, ...wklog.Field)  {}
+func (f *fakeLogger) Warn(msg string, fields ...wklog.Field) {
+	f.warns <- fakeLogEntry{message: msg, fields: append([]wklog.Field(nil), fields...)}
+}
+func (f *fakeLogger) Error(string, ...wklog.Field) {}
+func (f *fakeLogger) Fatal(string, ...wklog.Field) {}
+func (f *fakeLogger) Named(string) wklog.Logger    { return f }
+func (f *fakeLogger) With(...wklog.Field) wklog.Logger {
+	return f
+}
+func (f *fakeLogger) Sync() error { return nil }
+
 func testChannel(id string) Channel {
 	return Channel{Key: channel.ChannelKey("channel/1/" + id), ID: channel.ChannelID{ID: id, Type: 1}}
 }
@@ -416,16 +550,18 @@ func retentionView(current, hw, checkpointHW, minISR uint64) channel.RetentionVi
 
 func retentionViewWithMeta(current, hw, checkpointHW, minISR, epoch, leaderEpoch uint64, leader channel.NodeID, leaseUntil time.Time, opts ...func(*channel.RetentionView)) channel.RetentionView {
 	view := channel.RetentionView{
-		Epoch:               epoch,
-		LeaderEpoch:         leaderEpoch,
-		Leader:              leader,
-		LeaseUntil:          leaseUntil,
-		HW:                  hw,
-		CheckpointHW:        checkpointHW,
-		CommitReady:         true,
-		RetentionThroughSeq: current,
-		MinAvailableSeq:     channel.EffectiveMinAvailableSeq(current, 0),
-		MinISRMatchOffset:   minISR,
+		Epoch:                       epoch,
+		LeaderEpoch:                 leaderEpoch,
+		Leader:                      leader,
+		LeaseUntil:                  leaseUntil,
+		HW:                          hw,
+		CheckpointHW:                checkpointHW,
+		CommitReady:                 true,
+		RetentionThroughSeq:         current,
+		MinAvailableSeq:             channel.EffectiveMinAvailableSeq(current, 0),
+		LocalRetentionThroughSeq:    current,
+		PhysicalRetentionThroughSeq: current,
+		MinISRMatchOffset:           minISR,
 	}
 	for _, opt := range opts {
 		opt(&view)
