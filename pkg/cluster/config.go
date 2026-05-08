@@ -57,9 +57,16 @@ type Config struct {
 	// ControllerLogCompaction controls local Controller Raft snapshot compaction.
 	ControllerLogCompaction controllerraft.LogCompactionConfig
 	// SlotLogCompaction controls local Slot Raft snapshot compaction.
-	SlotLogCompaction            multiraft.LogCompactionConfig
-	ControllerMetaPath           string
-	ControllerRaftPath           string
+	SlotLogCompaction  multiraft.LogCompactionConfig
+	ControllerMetaPath string
+	ControllerRaftPath string
+	// ControllerRaftSnapshotPath stores external Controller Raft snapshot chunks.
+	ControllerRaftSnapshotPath string
+	// RaftSnapshotChunkSize is the maximum external snapshot chunk size in bytes shared by Controller Raft storage.
+	RaftSnapshotChunkSize uint64
+	// RaftSnapshotGCGrace controls when orphan Controller Raft snapshot directories become GC-eligible.
+	RaftSnapshotGCGrace          time.Duration
+	raftSnapshotChunkSizeSet     bool
 	ControllerReplicaN           int
 	SlotReplicaN                 int
 	NewStorage                   func(slotID multiraft.SlotID) (multiraft.Storage, error)
@@ -172,6 +179,12 @@ func (c *Config) validate() error {
 	}
 	if (c.ControllerMetaPath == "") != (c.ControllerRaftPath == "") {
 		return fmt.Errorf("%w: ControllerMetaPath and ControllerRaftPath must be set together", ErrInvalidConfig)
+	}
+	if c.RaftSnapshotChunkSize == 0 && c.raftSnapshotChunkSizeSet {
+		return fmt.Errorf("%w: RaftSnapshotChunkSize must be > 0", ErrInvalidConfig)
+	}
+	if c.RaftSnapshotGCGrace < 0 {
+		return fmt.Errorf("%w: RaftSnapshotGCGrace must be >= 0", ErrInvalidConfig)
 	}
 	if err := controllerraft.ValidateLogCompactionConfig(c.ControllerLogCompaction); err != nil {
 		return fmt.Errorf("%w: controller log compaction: %v", ErrInvalidConfig, err)
@@ -341,6 +354,15 @@ func (c *Config) applyDefaults() {
 	}
 	if c.DialTimeout == 0 {
 		c.DialTimeout = defaultDialTimeout
+	}
+	if c.ControllerRaftSnapshotPath == "" && c.ControllerRaftPath != "" {
+		c.ControllerRaftSnapshotPath = c.ControllerRaftPath + "-snapshots"
+	}
+	if c.RaftSnapshotChunkSize == 0 && !c.raftSnapshotChunkSizeSet {
+		c.RaftSnapshotChunkSize = 8 << 20
+	}
+	if c.RaftSnapshotGCGrace == 0 {
+		c.RaftSnapshotGCGrace = 30 * time.Minute
 	}
 	c.ControllerLogCompaction = controllerraft.NormalizeLogCompactionConfig(c.ControllerLogCompaction)
 	c.SlotLogCompaction = multiraft.NormalizeLogCompactionConfig(c.SlotLogCompaction)

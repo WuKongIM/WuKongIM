@@ -2,10 +2,12 @@ package cluster
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
 	controllerraft "github.com/WuKongIM/WuKongIM/pkg/controller/raft"
+	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -203,6 +205,82 @@ func TestConfigApplyDefaultsPreservesSlotLogCompactionDisabled(t *testing.T) {
 
 	if cfg.SlotLogCompaction.Enabled {
 		t.Fatal("SlotLogCompaction.Enabled = true, want false")
+	}
+}
+
+func TestConfigApplyDefaultsPreservesRaftSnapshotOptions(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.ControllerRaftSnapshotPath = "/tmp/controller-snapshots"
+	cfg.RaftSnapshotChunkSize = 4 << 20
+	cfg.RaftSnapshotGCGrace = 15 * time.Minute
+
+	cfg.applyDefaults()
+
+	if cfg.ControllerRaftSnapshotPath != "/tmp/controller-snapshots" {
+		t.Fatalf("ControllerRaftSnapshotPath = %q", cfg.ControllerRaftSnapshotPath)
+	}
+	if cfg.RaftSnapshotChunkSize != 4<<20 {
+		t.Fatalf("RaftSnapshotChunkSize = %d", cfg.RaftSnapshotChunkSize)
+	}
+	if cfg.RaftSnapshotGCGrace != 15*time.Minute {
+		t.Fatalf("RaftSnapshotGCGrace = %v", cfg.RaftSnapshotGCGrace)
+	}
+}
+
+func TestConfigValidateRejectsZeroRaftSnapshotChunkSize(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.RaftSnapshotChunkSize = 0
+	cfg.raftSnapshotChunkSizeSet = true
+
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+	}
+}
+
+func TestConfigValidateRejectsNegativeRaftSnapshotGCGrace(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.RaftSnapshotGCGrace = -time.Second
+
+	if err := cfg.validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got: %v", err)
+	}
+}
+
+func TestNewControllerHostPassesSnapshotStorageOptions(t *testing.T) {
+	cfg := validTestConfig()
+	cfg.ControllerReplicaN = 1
+	cfg.Nodes = []NodeConfig{{NodeID: cfg.NodeID, Addr: "127.0.0.1:0"}}
+	cfg.ControllerMetaPath = filepath.Join(t.TempDir(), "controller-meta")
+	cfg.ControllerRaftPath = filepath.Join(t.TempDir(), "controller-raft")
+	cfg.ControllerRaftSnapshotPath = filepath.Join(t.TempDir(), "controller-snapshots")
+	cfg.RaftSnapshotChunkSize = 2 << 20
+	cfg.RaftSnapshotGCGrace = 10 * time.Minute
+
+	stopErr := errors.New("stop after controller raft open")
+	var capturedPath string
+	var capturedOptions raftstorage.Options
+	originalOpen := openControllerRaftLogDB
+	openControllerRaftLogDB = func(path string, opts raftstorage.Options) (*raftstorage.DB, error) {
+		capturedPath = path
+		capturedOptions = opts
+		return nil, stopErr
+	}
+	t.Cleanup(func() { openControllerRaftLogDB = originalOpen })
+
+	_, err := newControllerHost(cfg, &transportLayer{})
+	if !errors.Is(err, stopErr) {
+		t.Fatalf("expected stopErr, got: %v", err)
+	}
+	if capturedPath != cfg.ControllerRaftPath {
+		t.Fatalf("captured path = %q, want %q", capturedPath, cfg.ControllerRaftPath)
+	}
+	want := raftstorage.Options{
+		SnapshotPath:      cfg.ControllerRaftSnapshotPath,
+		SnapshotChunkSize: cfg.RaftSnapshotChunkSize,
+		SnapshotGCGrace:   cfg.RaftSnapshotGCGrace,
+	}
+	if capturedOptions != want {
+		t.Fatalf("captured options = %+v, want %+v", capturedOptions, want)
 	}
 }
 

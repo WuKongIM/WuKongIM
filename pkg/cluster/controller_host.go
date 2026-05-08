@@ -17,6 +17,8 @@ import (
 
 var newControllerRaftService = controllerraft.NewService
 
+var openControllerRaftLogDB = raftstorage.Open
+
 type controllerHost struct {
 	meta         *controllermeta.Store
 	raftDB       *raftstorage.DB
@@ -77,7 +79,11 @@ func newControllerHost(cfg Config, layer *transportLayer) (*controllerHost, erro
 	if err != nil {
 		return nil, fmt.Errorf("open controller meta: %w", err)
 	}
-	logDB, err := raftstorage.Open(cfg.ControllerRaftPath, raftstorage.Options{})
+	logDB, err := openControllerRaftLogDB(cfg.ControllerRaftPath, raftstorage.Options{
+		SnapshotPath:      cfg.ControllerRaftSnapshotPath,
+		SnapshotChunkSize: cfg.RaftSnapshotChunkSize,
+		SnapshotGCGrace:   cfg.RaftSnapshotGCGrace,
+	})
 	if err != nil {
 		_ = meta.Close()
 		return nil, fmt.Errorf("open controller raft: %w", err)

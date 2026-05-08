@@ -5,6 +5,7 @@ import (
 	"math"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -201,6 +202,26 @@ type StorageConfig struct {
 	ControllerMetaPath string
 	// ControllerRaftPath is the local controller Raft log path.
 	ControllerRaftPath string
+	// RaftSnapshotPath stores external Slot Raft snapshot chunks outside the Slot Raft log database.
+	RaftSnapshotPath string
+	// ControllerRaftSnapshotPath stores external Controller Raft snapshot chunks outside the Controller Raft log database.
+	ControllerRaftSnapshotPath string
+	// RaftSnapshotChunkSize is the maximum external snapshot chunk size in bytes before a snapshot is split into another chunk file.
+	RaftSnapshotChunkSize uint64
+	// RaftSnapshotGCGrace controls how long orphan external snapshot directories remain on disk before they become eligible for cleanup.
+	RaftSnapshotGCGrace time.Duration
+
+	raftSnapshotChunkSizeSet bool
+	raftSnapshotGCGraceSet   bool
+}
+
+// SetRaftSnapshotExplicitFlags records which scalar snapshot settings were explicitly configured.
+func (c *StorageConfig) SetRaftSnapshotExplicitFlags(chunkSizeSet, gcGraceSet bool) {
+	if c == nil {
+		return
+	}
+	c.raftSnapshotChunkSizeSet = chunkSizeSet
+	c.raftSnapshotGCGraceSet = gcGraceSet
 }
 
 // ControllerLogCompactionConfig controls local Controller Raft snapshot compaction.
@@ -745,6 +766,24 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if c.Storage.ControllerRaftPath == "" {
 		c.Storage.ControllerRaftPath = filepath.Join(c.Node.DataDir, "controller-raft")
 	}
+	if c.Storage.RaftSnapshotPath == "" {
+		c.Storage.RaftSnapshotPath = filepath.Join(c.Node.DataDir, "raft-snapshots")
+	}
+	if c.Storage.ControllerRaftSnapshotPath == "" {
+		c.Storage.ControllerRaftSnapshotPath = filepath.Join(c.Node.DataDir, "controller-raft-snapshots")
+	}
+	if c.Storage.RaftSnapshotChunkSize == 0 {
+		if c.Storage.raftSnapshotChunkSizeSet {
+			return fmt.Errorf("%w: raft snapshot chunk size must be > 0", ErrInvalidConfig)
+		}
+		c.Storage.RaftSnapshotChunkSize = 8 << 20
+	}
+	if c.Storage.RaftSnapshotGCGrace < 0 {
+		return fmt.Errorf("%w: raft snapshot gc grace must be non-negative", ErrInvalidConfig)
+	}
+	if c.Storage.RaftSnapshotGCGrace == 0 {
+		c.Storage.RaftSnapshotGCGrace = 30 * time.Minute
+	}
 
 	dbPath, err := normalizeStoragePath(c.Storage.DBPath)
 	if err != nil {
@@ -766,20 +805,31 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if err != nil {
 		return fmt.Errorf("%w: normalize controller raft path: %v", ErrInvalidConfig, err)
 	}
-	if dbPath == raftPath {
-		return fmt.Errorf("%w: storage db path and raft path must differ", ErrInvalidConfig)
+	raftSnapshotPath, err := normalizeStoragePath(c.Storage.RaftSnapshotPath)
+	if err != nil {
+		return fmt.Errorf("%w: normalize raft snapshot path: %v", ErrInvalidConfig, err)
 	}
-	if dbPath == channelLogPath || raftPath == channelLogPath {
-		return fmt.Errorf("%w: channel log path must differ from db and raft paths", ErrInvalidConfig)
+	controllerRaftSnapshotPath, err := normalizeStoragePath(c.Storage.ControllerRaftSnapshotPath)
+	if err != nil {
+		return fmt.Errorf("%w: normalize controller raft snapshot path: %v", ErrInvalidConfig, err)
 	}
-	if controllerMetaPath == dbPath || controllerMetaPath == raftPath || controllerMetaPath == channelLogPath {
-		return fmt.Errorf("%w: controller meta path must differ from db, raft and channel log paths", ErrInvalidConfig)
-	}
-	if controllerRaftPath == dbPath || controllerRaftPath == raftPath || controllerRaftPath == channelLogPath {
-		return fmt.Errorf("%w: controller raft path must differ from db, raft and channel log paths", ErrInvalidConfig)
-	}
-	if controllerMetaPath == controllerRaftPath {
-		return fmt.Errorf("%w: controller meta path and controller raft path must differ", ErrInvalidConfig)
+	c.Storage.DBPath = dbPath
+	c.Storage.RaftPath = raftPath
+	c.Storage.ChannelLogPath = channelLogPath
+	c.Storage.ControllerMetaPath = controllerMetaPath
+	c.Storage.ControllerRaftPath = controllerRaftPath
+	c.Storage.RaftSnapshotPath = raftSnapshotPath
+	c.Storage.ControllerRaftSnapshotPath = controllerRaftSnapshotPath
+	if err := validateStoragePathIsolation([]namedStoragePath{
+		{name: "storage db path", path: dbPath},
+		{name: "slot raft path", path: raftPath},
+		{name: "channel log path", path: channelLogPath},
+		{name: "controller meta path", path: controllerMetaPath},
+		{name: "controller raft path", path: controllerRaftPath},
+		{name: "slot raft snapshot path", path: raftSnapshotPath},
+		{name: "controller raft snapshot path", path: controllerRaftSnapshotPath},
+	}); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidConfig, err)
 	}
 
 	c.Gateway.DefaultSession = gateway.NormalizeSessionOptions(c.Gateway.DefaultSession)
@@ -960,7 +1010,101 @@ func validateClusterSeeds(seeds []string) error {
 }
 
 func normalizeStoragePath(path string) (string, error) {
-	return filepath.Abs(filepath.Clean(path))
+	absPath, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return "", err
+	}
+	cleanPath := filepath.Clean(absPath)
+	if resolved, err := filepath.EvalSymlinks(cleanPath); err == nil {
+		cleanPath = filepath.Clean(resolved)
+	}
+	return cleanPath, nil
+}
+
+type namedStoragePath struct {
+	name string
+	path string
+}
+
+func validateStoragePathIsolation(paths []namedStoragePath) error {
+	for i := range paths {
+		for j := i + 1; j < len(paths); j++ {
+			if storagePathsOverlap(paths[i].path, paths[j].path) {
+				return fmt.Errorf("%s and %s must not overlap", paths[i].name, paths[j].name)
+			}
+		}
+	}
+	return nil
+}
+
+func storagePathsOverlap(left, right string) bool {
+	leftVolume := filepath.VolumeName(left)
+	rightVolume := filepath.VolumeName(right)
+	if leftVolume != rightVolume {
+		return false
+	}
+	leftParts := storagePathSegments(strings.TrimPrefix(left, leftVolume))
+	rightParts := storagePathSegments(strings.TrimPrefix(right, rightVolume))
+	minLen := len(leftParts)
+	if len(rightParts) < minLen {
+		minLen = len(rightParts)
+	}
+	for i := 0; i < minLen; i++ {
+		if leftParts[i] != rightParts[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func storagePathSegments(path string) []string {
+	cleaned := filepath.Clean(path)
+	trimmed := strings.Trim(cleaned, string(filepath.Separator))
+	if trimmed == "" {
+		return nil
+	}
+	return strings.Split(trimmed, string(filepath.Separator))
+}
+
+// ParseRaftSnapshotChunkSize parses a strict byte size with optional B, KiB, MiB, or GiB suffix.
+func ParseRaftSnapshotChunkSize(raw string) (uint64, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return 0, fmt.Errorf("raft snapshot chunk size is empty")
+	}
+
+	multiplier := uint64(1)
+	number := value
+	for _, unit := range []struct {
+		suffix     string
+		multiplier uint64
+	}{
+		{suffix: "KiB", multiplier: 1 << 10},
+		{suffix: "MiB", multiplier: 1 << 20},
+		{suffix: "GiB", multiplier: 1 << 30},
+		{suffix: "B", multiplier: 1},
+	} {
+		if strings.HasSuffix(value, unit.suffix) {
+			multiplier = unit.multiplier
+			number = strings.TrimSuffix(value, unit.suffix)
+			break
+		}
+	}
+
+	if number == "" || strings.TrimSpace(number) != number {
+		return 0, fmt.Errorf("raft snapshot chunk size %q is invalid", raw)
+	}
+	bytes, err := strconv.ParseUint(number, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("raft snapshot chunk size %q is invalid: %w", raw, err)
+	}
+	if bytes == 0 {
+		return 0, fmt.Errorf("raft snapshot chunk size must be > 0")
+	}
+	if bytes > math.MaxUint64/multiplier {
+		return 0, fmt.Errorf("raft snapshot chunk size %q overflows uint64", raw)
+	}
+	return bytes * multiplier, nil
 }
 
 func validManagerPermissionAction(action string) bool {
