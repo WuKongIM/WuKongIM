@@ -43,20 +43,38 @@ func (s *pebbleStore) loadSnapshotManifest(ctx context.Context) (SnapshotManifes
 
 // loadSnapshot reads the external snapshot payload described by the Pebble manifest.
 func (s *pebbleStore) loadSnapshot(ctx context.Context) (raftpb.Snapshot, error) {
-	manifest, ok, err := s.loadConsistentSnapshotManifest(ctx)
+	manifest, ok, unregister, err := s.loadSnapshotManifestAndRegisterActive(ctx)
 	if err != nil {
 		return raftpb.Snapshot{}, err
 	}
 	if !ok {
 		return raftpb.Snapshot{}, nil
 	}
-	finalDir := filepath.Join(s.db.snapshotStore.scopeDir(s.scope), manifest.SnapshotID)
-	unregister := s.db.registerActiveSnapshotPath(finalDir)
 	defer unregister()
 	if s.db.snapshotReadBeforeChunksHook != nil {
 		s.db.snapshotReadBeforeChunksHook(s.scope, manifest)
 	}
 	return s.db.snapshotStore.read(ctx, s.scope, manifest)
+}
+
+func (s *pebbleStore) loadSnapshotManifestAndRegisterActive(ctx context.Context) (SnapshotManifest, bool, func(), error) {
+	s.db.snapshotLifecycleMu.Lock()
+	defer s.db.snapshotLifecycleMu.Unlock()
+
+	manifest, ok, err := s.loadConsistentSnapshotManifest(ctx)
+	if err != nil || !ok {
+		return manifest, ok, func() {}, err
+	}
+	if s.db.snapshotReadAfterManifestHook != nil {
+		s.db.snapshotReadAfterManifestHook(s.scope, manifest)
+	}
+	finalDir := filepath.Join(s.db.snapshotStore.scopeDir(s.scope), manifest.SnapshotID)
+	s.db.addActiveSnapshotPathLocked(finalDir)
+	return manifest, true, func() {
+		s.db.snapshotLifecycleMu.Lock()
+		s.db.removeActiveSnapshotPathLocked(finalDir)
+		s.db.snapshotLifecycleMu.Unlock()
+	}, nil
 }
 
 func (s *pebbleStore) loadAppliedIndex() (uint64, error) {
