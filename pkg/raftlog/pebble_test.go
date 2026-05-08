@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -691,6 +690,7 @@ func TestPebbleSaveSnapshotCleansPublishedDirWhenCloseWinsAfterPublish(t *testin
 		if err := db.Close(); err != nil {
 			t.Fatalf("Close() error = %v", err)
 		}
+		db.snapshotAfterPublishTestHook = nil
 		return nil
 	}
 
@@ -699,7 +699,7 @@ func TestPebbleSaveSnapshotCleansPublishedDirWhenCloseWinsAfterPublish(t *testin
 		Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}},
 	}
 	err = db.ForSlot(23).Save(context.Background(), multiraft.PersistentState{Snapshot: &snap})
-	if err == nil || !strings.Contains(err.Error(), "db closing") {
+	if !errors.Is(err, errDBClosing) || err.Error() != errDBClosing.Error() {
 		t.Fatalf("Save(snapshot) error = %v, want db closing", err)
 	}
 	if _, err := os.Stat(finalDir); !os.IsNotExist(err) {
