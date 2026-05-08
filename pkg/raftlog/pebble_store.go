@@ -248,7 +248,8 @@ func (db *DB) prepareAndWriteSnapshot(ctx context.Context, scope Scope, snap raf
 	}
 }
 
-func (db *DB) publishSnapshotAndCommit(staged *stagedSnapshot, req *writeRequest) error {
+func (db *DB) publishSnapshotAndCommit(staged *stagedSnapshot, req *writeRequest) (retErr error) {
+	published := false
 	db.snapshotLifecycleMu.Lock()
 	if staged.tmpRegistered {
 		db.removeActiveSnapshotPathLocked(staged.tmpDir)
@@ -258,12 +259,36 @@ func (db *DB) publishSnapshotAndCommit(staged *stagedSnapshot, req *writeRequest
 	defer func() {
 		db.removeActiveSnapshotPathLocked(staged.finalDir)
 		db.snapshotLifecycleMu.Unlock()
+		if retErr != nil && published {
+			db.removeUnreferencedPublishedSnapshotDir(staged)
+		}
 	}()
 
 	if err := db.snapshotStore.publishFinal(staged); err != nil {
 		return cleanupStagedTmpPreservingError(staged, err)
 	}
+	published = true
+	if db.snapshotAfterPublishTestHook != nil {
+		if err := db.snapshotAfterPublishTestHook(staged); err != nil {
+			return err
+		}
+	}
 	return db.submitWrite(req)
+}
+
+func (db *DB) removeUnreferencedPublishedSnapshotDir(staged *stagedSnapshot) {
+	if db == nil || staged == nil {
+		return
+	}
+	scope := Scope{Kind: ScopeKind(staged.manifest.ScopeKind), ID: staged.manifest.ScopeID}
+	manifest, ok, err := (&pebbleStore{db: db, scope: scope}).loadSnapshotManifest(context.Background())
+	if err != nil {
+		return
+	}
+	if ok && manifest.SnapshotID == staged.manifest.SnapshotID {
+		return
+	}
+	_ = os.RemoveAll(staged.finalDir)
 }
 
 func (db *DB) addActiveSnapshotPathLocked(path string) {

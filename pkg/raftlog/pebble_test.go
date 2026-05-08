@@ -405,6 +405,127 @@ func TestPebbleSnapshotRoundTripFromExternalChunks(t *testing.T) {
 	}
 }
 
+func TestPebbleSnapshotReadProtectsOldChunksFromConcurrentGC(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{
+		SnapshotPath:      filepath.Join(t.TempDir(), "snapshots"),
+		SnapshotChunkSize: 4,
+		SnapshotGCGrace:   0,
+	})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	store := db.ForSlot(20)
+	oldSnap := raftpb.Snapshot{
+		Data:     []byte("old-snapshot-payload"),
+		Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}},
+	}
+	mustSave(t, store, multiraft.PersistentState{Snapshot: &oldSnap})
+	oldManifest := mustLoadPebbleManifest(t, db, SlotScope(20))
+	oldDir := filepath.Join(db.snapshotStore.scopeDir(SlotScope(20)), oldManifest.SnapshotID)
+
+	readPaused := make(chan struct{})
+	releaseRead := make(chan struct{})
+	db.snapshotReadBeforeChunksHook = func(scope Scope, manifest SnapshotManifest) {
+		if scope != SlotScope(20) || manifest.SnapshotID != oldManifest.SnapshotID {
+			return
+		}
+		close(readPaused)
+		<-releaseRead
+	}
+
+	type snapshotResult struct {
+		snapshot raftpb.Snapshot
+		err      error
+	}
+	resultCh := make(chan snapshotResult, 1)
+	go func() {
+		snapshot, err := store.Snapshot(ctx)
+		resultCh <- snapshotResult{snapshot: snapshot, err: err}
+	}()
+
+	select {
+	case <-readPaused:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Snapshot() did not pause before reading chunks")
+	}
+
+	newSnap := raftpb.Snapshot{
+		Data:     []byte("new-snapshot-payload"),
+		Metadata: raftpb.SnapshotMetadata{Index: 6, Term: 2, ConfState: raftpb.ConfState{Voters: []uint64{1}}},
+	}
+	mustSave(t, store, multiraft.PersistentState{Snapshot: &newSnap})
+	if err := db.runSnapshotGC(ctx); err != nil {
+		t.Fatalf("runSnapshotGC() error = %v", err)
+	}
+	if _, err := os.Stat(oldDir); err != nil {
+		t.Fatalf("old snapshot dir removed while read was active: %v", err)
+	}
+
+	close(releaseRead)
+	select {
+	case result := <-resultCh:
+		if result.err != nil {
+			t.Fatalf("Snapshot() error = %v", result.err)
+		}
+		if !reflect.DeepEqual(result.snapshot, oldSnap) {
+			t.Fatalf("Snapshot() = %#v, want %#v", result.snapshot, oldSnap)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Snapshot() did not finish")
+	}
+}
+
+func TestPebbleSaveSnapshotCleansPublishedDirWhenCommitFails(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{
+		SnapshotPath:      filepath.Join(t.TempDir(), "snapshots"),
+		SnapshotChunkSize: 4,
+		SnapshotGCGrace:   0,
+	})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	db.snapshotStore.nonce = func() (string, error) { return "00000000000000aa", nil }
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	injected := errors.New("injected post-publish failure")
+	db.snapshotAfterPublishTestHook = func(staged *stagedSnapshot) error {
+		return injected
+	}
+
+	snap := raftpb.Snapshot{
+		Data:     []byte("payload"),
+		Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}},
+	}
+	err = db.ForSlot(21).Save(context.Background(), multiraft.PersistentState{Snapshot: &snap})
+	if !errors.Is(err, injected) {
+		t.Fatalf("Save(snapshot) error = %v, want injected error", err)
+	}
+
+	finalDir := filepath.Join(db.snapshotStore.scopeDir(SlotScope(21)), "snap-0000000000000005-0000000000000001-00000000000000aa")
+	if _, err := os.Stat(finalDir); !os.IsNotExist(err) {
+		t.Fatalf("published snapshot dir stat error = %v, want not exist", err)
+	}
+	value, closer, err := db.db.Get(encodeSnapshotKey(SlotScope(21)))
+	if err == nil {
+		closer.Close()
+		t.Fatalf("snapshot manifest value = %x, want missing", value)
+	}
+	if !errors.Is(err, pebble.ErrNotFound) {
+		t.Fatalf("snapshot manifest Get() error = %v, want not found", err)
+	}
+}
+
 func TestPebbleTermAtSnapshotIndexUsesManifest(t *testing.T) {
 	db, store := openPebbleDBForSnapshotTest(t, 9)
 	snap := raftpb.Snapshot{Data: []byte("payload"), Metadata: raftpb.SnapshotMetadata{Index: 6, Term: 3, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}

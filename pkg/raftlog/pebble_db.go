@@ -54,6 +54,10 @@ type DB struct {
 
 	// snapshotGCTestHook blocks a GC pass at a deterministic point in tests.
 	snapshotGCTestHook func()
+	// snapshotReadBeforeChunksHook blocks a snapshot read after active path registration in tests.
+	snapshotReadBeforeChunksHook func(scope Scope, manifest SnapshotManifest)
+	// snapshotAfterPublishTestHook injects failures after final directory publication in tests.
+	snapshotAfterPublishTestHook func(staged *stagedSnapshot) error
 }
 
 func Open(path string, opts Options) (*DB, error) {
