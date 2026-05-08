@@ -193,20 +193,14 @@ func (db *DB) planSnapshotSave(ctx context.Context, scope Scope, snap raftpb.Sna
 		return snapshotSavePlan{}, err
 	}
 	store := &pebbleStore{db: db, scope: scope}
-	manifest, hasManifest, err := store.loadSnapshotManifest(ctx)
+	view, err := store.loadSnapshotMetaView(ctx)
 	if err != nil {
 		return snapshotSavePlan{}, err
 	}
-	meta, hasMeta, err := store.loadMeta()
-	if err != nil {
-		return snapshotSavePlan{}, err
-	}
-	if err := validateManifestMetaConsistency(manifest, hasManifest, meta, hasMeta); err != nil {
-		return snapshotSavePlan{}, err
-	}
+	manifest := view.manifest
 
 	plan := snapshotSavePlan{Metadata: cloneSnapshotMetadata(snap.Metadata)}
-	if !hasManifest {
+	if !view.hasManifest {
 		plan.NeedsExternalWrite = true
 		return plan, nil
 	}

@@ -54,6 +54,8 @@ type DB struct {
 
 	// snapshotGCTestHook blocks a GC pass at a deterministic point in tests.
 	snapshotGCTestHook func()
+	// currentMetaAfterMetaLoadHook blocks currentMeta after log metadata is read in tests.
+	currentMetaAfterMetaLoadHook func(scope Scope)
 	// snapshotReadAfterManifestHook blocks a snapshot read after manifest load and before active registration in tests.
 	snapshotReadAfterManifestHook func(scope Scope, manifest SnapshotManifest)
 	// snapshotReadBeforeChunksHook blocks a snapshot read after active path registration in tests.

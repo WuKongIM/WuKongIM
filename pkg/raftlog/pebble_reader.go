@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"io"
 	"path/filepath"
 
 	"github.com/cockroachdb/pebble/v2"
@@ -14,9 +15,28 @@ type unmarshaler interface {
 	Unmarshal(data []byte) error
 }
 
+type pebbleGetReader interface {
+	Get(key []byte) ([]byte, io.Closer, error)
+}
+
+type pebbleIterReader interface {
+	NewIter(*pebble.IterOptions) (*pebble.Iterator, error)
+}
+
+type snapshotMetaView struct {
+	meta        logMeta
+	hasMeta     bool
+	manifest    SnapshotManifest
+	hasManifest bool
+}
+
 func (s *pebbleStore) loadHardState() (raftpb.HardState, error) {
+	return s.loadHardStateFrom(s.db.db)
+}
+
+func (s *pebbleStore) loadHardStateFrom(reader pebbleGetReader) (raftpb.HardState, error) {
 	var hs raftpb.HardState
-	if err := s.loadProto(encodeHardStateKey(s.scope), &hs); err != nil {
+	if err := s.loadProtoFrom(reader, encodeHardStateKey(s.scope), &hs); err != nil {
 		return raftpb.HardState{}, err
 	}
 	return hs, nil
@@ -24,10 +44,14 @@ func (s *pebbleStore) loadHardState() (raftpb.HardState, error) {
 
 // loadSnapshotManifest decodes the snapshot manifest stored in Pebble without reading chunk files.
 func (s *pebbleStore) loadSnapshotManifest(ctx context.Context) (SnapshotManifest, bool, error) {
+	return s.loadSnapshotManifestFrom(ctx, s.db.db)
+}
+
+func (s *pebbleStore) loadSnapshotManifestFrom(ctx context.Context, reader pebbleGetReader) (SnapshotManifest, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return SnapshotManifest{}, false, err
 	}
-	value, err := s.getValue(encodeSnapshotKey(s.scope))
+	value, err := s.getValueFrom(reader, encodeSnapshotKey(s.scope))
 	if err != nil {
 		if errors.Is(err, pebble.ErrNotFound) {
 			return SnapshotManifest{}, false, nil
@@ -78,7 +102,11 @@ func (s *pebbleStore) loadSnapshotManifestAndRegisterActive(ctx context.Context)
 }
 
 func (s *pebbleStore) loadAppliedIndex() (uint64, error) {
-	value, err := s.getValue(encodeAppliedIndexKey(s.scope))
+	return s.loadAppliedIndexFrom(s.db.db)
+}
+
+func (s *pebbleStore) loadAppliedIndexFrom(reader pebbleGetReader) (uint64, error) {
+	value, err := s.getValueFrom(reader, encodeAppliedIndexKey(s.scope))
 	if err != nil {
 		if errors.Is(err, pebble.ErrNotFound) {
 			return 0, nil
@@ -92,7 +120,11 @@ func (s *pebbleStore) loadAppliedIndex() (uint64, error) {
 }
 
 func (s *pebbleStore) loadProto(key []byte, msg unmarshaler) error {
-	value, err := s.getValue(key)
+	return s.loadProtoFrom(s.db.db, key, msg)
+}
+
+func (s *pebbleStore) loadProtoFrom(reader pebbleGetReader, key []byte, msg unmarshaler) error {
+	value, err := s.getValueFrom(reader, key)
 	if err != nil {
 		if errors.Is(err, pebble.ErrNotFound) {
 			return nil
@@ -103,7 +135,11 @@ func (s *pebbleStore) loadProto(key []byte, msg unmarshaler) error {
 }
 
 func (s *pebbleStore) getValue(key []byte) ([]byte, error) {
-	value, closer, err := s.db.db.Get(key)
+	return s.getValueFrom(s.db.db, key)
+}
+
+func (s *pebbleStore) getValueFrom(reader pebbleGetReader, key []byte) ([]byte, error) {
+	value, closer, err := reader.Get(key)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +148,11 @@ func (s *pebbleStore) getValue(key []byte) ([]byte, error) {
 }
 
 func (s *pebbleStore) loadMeta() (logMeta, bool, error) {
-	value, err := s.getValue(encodeGroupStateKey(s.scope))
+	return s.loadMetaFrom(s.db.db)
+}
+
+func (s *pebbleStore) loadMetaFrom(reader pebbleGetReader) (logMeta, bool, error) {
+	value, err := s.getValueFrom(reader, encodeGroupStateKey(s.scope))
 	if err != nil {
 		if errors.Is(err, pebble.ErrNotFound) {
 			return logMeta{}, false, nil
@@ -128,35 +168,31 @@ func (s *pebbleStore) loadMeta() (logMeta, bool, error) {
 }
 
 func (s *pebbleStore) currentMeta() (logMeta, bool, error) {
-	meta, hasMeta, err := s.loadMeta()
+	readState := s.db.db.NewSnapshot()
+	defer readState.Close()
+
+	view, err := s.loadSnapshotMetaViewFrom(context.Background(), readState)
 	if err != nil {
 		return logMeta{}, false, err
 	}
-	manifest, hasManifest, err := s.loadSnapshotManifest(context.Background())
-	if err != nil {
-		return logMeta{}, false, err
-	}
-	if err := validateManifestMetaConsistency(manifest, hasManifest, meta, hasMeta); err != nil {
-		return logMeta{}, false, err
-	}
-	if hasMeta {
-		return meta, true, nil
+	if view.hasMeta {
+		return view.meta, true, nil
 	}
 
-	hs, err := s.loadHardState()
+	hs, err := s.loadHardStateFrom(readState)
 	if err != nil {
 		return logMeta{}, false, err
 	}
-	appliedIndex, err := s.loadAppliedIndex()
+	appliedIndex, err := s.loadAppliedIndexFrom(readState)
 	if err != nil {
 		return logMeta{}, false, err
 	}
-	entries, err := s.loadEntries(0, 0)
+	entries, err := s.loadEntriesFrom(readState, 0, 0)
 	if err != nil {
 		return logMeta{}, false, err
 	}
 
-	meta = logMeta{AppliedIndex: appliedIndex}
+	meta := logMeta{AppliedIndex: appliedIndex}
 	if err := updateLogMeta(&meta, raftpb.Snapshot{}, entries, hs.Commit); err != nil {
 		return logMeta{}, false, err
 	}
@@ -194,6 +230,10 @@ func (s *pebbleStore) persistMeta(meta logMeta) error {
 }
 
 func (s *pebbleStore) loadEntries(lo, hi uint64) ([]raftpb.Entry, error) {
+	return s.loadEntriesFrom(s.db.db, lo, hi)
+}
+
+func (s *pebbleStore) loadEntriesFrom(reader pebbleIterReader, lo, hi uint64) ([]raftpb.Entry, error) {
 	lower := encodeEntryPrefix(s.scope)
 	upper := encodeEntryPrefixEnd(s.scope)
 	if lo > 0 {
@@ -203,7 +243,7 @@ func (s *pebbleStore) loadEntries(lo, hi uint64) ([]raftpb.Entry, error) {
 		upper = encodeEntryKey(s.scope, hi)
 	}
 
-	iter, err := s.db.db.NewIter(&pebble.IterOptions{
+	iter, err := reader.NewIter(&pebble.IterOptions{
 		LowerBound: lower,
 		UpperBound: upper,
 	})
@@ -227,18 +267,38 @@ func (s *pebbleStore) loadEntries(lo, hi uint64) ([]raftpb.Entry, error) {
 }
 
 func (s *pebbleStore) loadConsistentSnapshotManifest(ctx context.Context) (SnapshotManifest, bool, error) {
-	meta, hasMeta, err := s.loadMeta()
+	view, err := s.loadSnapshotMetaView(ctx)
 	if err != nil {
 		return SnapshotManifest{}, false, err
 	}
-	manifest, hasManifest, err := s.loadSnapshotManifest(ctx)
+	return view.manifest, view.hasManifest, nil
+}
+
+func (s *pebbleStore) loadSnapshotMetaView(ctx context.Context) (snapshotMetaView, error) {
+	if err := ctx.Err(); err != nil {
+		return snapshotMetaView{}, err
+	}
+	readState := s.db.db.NewSnapshot()
+	defer readState.Close()
+	return s.loadSnapshotMetaViewFrom(ctx, readState)
+}
+
+func (s *pebbleStore) loadSnapshotMetaViewFrom(ctx context.Context, reader pebbleGetReader) (snapshotMetaView, error) {
+	meta, hasMeta, err := s.loadMetaFrom(reader)
 	if err != nil {
-		return SnapshotManifest{}, false, err
+		return snapshotMetaView{}, err
+	}
+	if s.db.currentMetaAfterMetaLoadHook != nil {
+		s.db.currentMetaAfterMetaLoadHook(s.scope)
+	}
+	manifest, hasManifest, err := s.loadSnapshotManifestFrom(ctx, reader)
+	if err != nil {
+		return snapshotMetaView{}, err
 	}
 	if err := validateManifestMetaConsistency(manifest, hasManifest, meta, hasMeta); err != nil {
-		return SnapshotManifest{}, false, err
+		return snapshotMetaView{}, err
 	}
-	return manifest, hasManifest, nil
+	return snapshotMetaView{meta: meta, hasMeta: hasMeta, manifest: manifest, hasManifest: hasManifest}, nil
 }
 
 func validateManifestMetaConsistency(manifest SnapshotManifest, hasManifest bool, meta logMeta, hasMeta bool) error {
