@@ -59,6 +59,23 @@ func TestSnapshotGCKeepsManifestReferencedSnapshot(t *testing.T) {
 	assertPathExists(t, finalDir)
 }
 
+func TestSnapshotGCStopsOnCorruptExternalManifestValue(t *testing.T) {
+	db := openSnapshotGCTestDB(t)
+	defer db.Close()
+
+	scope := SlotScope(14)
+	finalDir := filepath.Join(db.snapshotStore.scopeDir(scope), "snap-0000000000000012-000000000000000a-0000000000000009")
+	mustCreateOldDir(t, finalDir)
+	if err := db.db.Set(encodeSnapshotKey(scope), []byte(snapshotManifestMagic), pebble.Sync); err != nil {
+		t.Fatalf("write corrupt manifest value error = %v", err)
+	}
+
+	if err := db.runSnapshotGC(context.Background()); err == nil {
+		t.Fatal("runSnapshotGC() error = nil, want corrupt manifest error")
+	}
+	assertPathExists(t, finalDir)
+}
+
 func TestSnapshotGCDoesNotCrossIndependentRaftLogDBRoots(t *testing.T) {
 	parent := t.TempDir()
 	dbA := openSnapshotGCTestDBAt(t, filepath.Join(parent, "db-a"), filepath.Join(parent, "snap-a"))
@@ -97,6 +114,28 @@ func TestSnapshotGCSkipsInFlightSnapshotFinalization(t *testing.T) {
 	assertPathMissing(t, finalDir)
 }
 
+func TestSnapshotGCKeepsDoubleRegisteredActiveFinalPath(t *testing.T) {
+	db := openSnapshotGCTestDB(t)
+	defer db.Close()
+
+	finalDir := filepath.Join(db.snapshotStore.scopeDir(SlotScope(13)), "snap-0000000000000011-0000000000000009-0000000000000008")
+	mustCreateOldDir(t, finalDir)
+	unregisterFirst := db.registerActiveSnapshotPath(finalDir)
+	unregisterSecond := db.registerActiveSnapshotPath(finalDir)
+
+	unregisterFirst()
+	if err := db.runSnapshotGC(context.Background()); err != nil {
+		t.Fatalf("runSnapshotGC(first active ref) error = %v", err)
+	}
+	assertPathExists(t, finalDir)
+
+	unregisterSecond()
+	if err := db.runSnapshotGC(context.Background()); err != nil {
+		t.Fatalf("runSnapshotGC(inactive) error = %v", err)
+	}
+	assertPathMissing(t, finalDir)
+}
+
 func TestSnapshotGCSkipsInFlightTmpStaging(t *testing.T) {
 	db := openSnapshotGCTestDB(t)
 	defer db.Close()
@@ -127,11 +166,9 @@ func TestSnapshotCloseWaitsForRunningGC(t *testing.T) {
 		<-release
 	}
 
-	db.gcWG.Add(1)
-	go func() {
-		defer db.gcWG.Done()
-		_ = db.runSnapshotGC(db.gcCtx)
-	}()
+	if !db.startSnapshotGC() {
+		t.Fatal("startSnapshotGC() = false, want running GC")
+	}
 	<-started
 
 	closed := make(chan error, 1)
