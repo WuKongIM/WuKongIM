@@ -112,7 +112,7 @@ func TestServiceStartRestoresSnapshotAndReplaysPostSnapshotEntries(t *testing.T)
 	})
 	require.NoError(t, err)
 
-	logDB, err := raftstorage.Open(filepath.Join(node.dir, "controller-raft"))
+	logDB, err := raftstorage.Open(filepath.Join(node.dir, "controller-raft"), raftstorage.Options{})
 	require.NoError(t, err)
 	snap := raftpb.Snapshot{Data: snapData, Metadata: raftpb.SnapshotMetadata{Index: 1, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
 	hs := raftpb.HardState{Term: 1, Vote: 1, Commit: 2}
@@ -157,7 +157,7 @@ func TestServiceIncomingReadySnapshotRestoresControllerMeta(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, targetStore.Close()) })
 	targetSM := slotcontroller.NewStateMachine(targetStore, slotcontroller.StateMachineConfig{})
 
-	logDB, err := raftstorage.Open(filepath.Join(t.TempDir(), "controller-raft"))
+	logDB, err := raftstorage.Open(filepath.Join(t.TempDir(), "controller-raft"), raftstorage.Options{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, logDB.Close()) })
 	storage := logDB.ForController()
@@ -418,7 +418,7 @@ func TestServiceStatusRecordsStartupSnapshotRestore(t *testing.T) {
 	snapData, err := snapStore.ExportSnapshot(context.Background())
 	require.NoError(t, err)
 
-	logDB, err := raftstorage.Open(filepath.Join(node.dir, "controller-raft"))
+	logDB, err := raftstorage.Open(filepath.Join(node.dir, "controller-raft"), raftstorage.Options{})
 	require.NoError(t, err)
 	snap := raftpb.Snapshot{Data: snapData, Metadata: raftpb.SnapshotMetadata{Index: 5, Term: 2, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}
 	require.NoError(t, logDB.ForController().Save(context.Background(), multiraft.PersistentState{Snapshot: &snap}))
@@ -438,7 +438,7 @@ func TestServiceStatusRecordsStartupSnapshotRestoreFailure(t *testing.T) {
 	meta, err := controllermeta.Open(filepath.Join(t.TempDir(), "meta"))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, meta.Close()) })
-	logDB, err := raftstorage.Open(filepath.Join(t.TempDir(), "raft"))
+	logDB, err := raftstorage.Open(filepath.Join(t.TempDir(), "raft"), raftstorage.Options{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, logDB.Close()) })
 
@@ -1015,7 +1015,7 @@ func TestServiceCompactionSnapshotUsesConfChangeV2State(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
 	sm := slotcontroller.NewStateMachine(store, slotcontroller.StateMachineConfig{})
 
-	logDB, err := raftstorage.Open(filepath.Join(t.TempDir(), "raft"))
+	logDB, err := raftstorage.Open(filepath.Join(t.TempDir(), "raft"), raftstorage.Options{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, logDB.Close()) })
 	memory := newLoadedMemoryStorage(raft.NewMemoryStorage(), raftpb.ConfState{Voters: []uint64{1}})
@@ -1733,7 +1733,7 @@ func (e *testEnv) startNodeErrWithConfig(t *testing.T, nodeID uint64, peers []Pe
 	node.pool = transport.NewPool(discoveryPeers, 2, 5*time.Second)
 
 	var err error
-	node.logDB, err = raftstorage.Open(filepath.Join(node.dir, "controller-raft"))
+	node.logDB, err = raftstorage.Open(filepath.Join(node.dir, "controller-raft"), raftstorage.Options{})
 	require.NoError(t, err)
 	node.meta, err = controllermeta.Open(filepath.Join(node.dir, "controller-meta"))
 	require.NoError(t, err)

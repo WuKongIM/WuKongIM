@@ -1126,7 +1126,7 @@ func newStandaloneAgentTestCluster(t *testing.T) *standaloneAgentTestCluster {
 	if err != nil {
 		t.Fatalf("open metadb: %v", err)
 	}
-	raftDB, err := raftstorage.Open(filepath.Join(dir, "raft"))
+	raftDB, err := raftstorage.Open(filepath.Join(dir, "raft"), raftstorage.Options{})
 	if err != nil {
 		_ = metaDB.Close()
 		t.Fatalf("open raftstorage: %v", err)

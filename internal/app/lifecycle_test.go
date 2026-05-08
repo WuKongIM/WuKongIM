@@ -1582,7 +1582,7 @@ func openWKDBForTest(path string) (interface{ Close() error }, error) {
 }
 
 func openRaftDBForTest(path string) (interface{ Close() error }, error) {
-	return raftstorage.Open(path)
+	return raftstorage.Open(path, raftstorage.Options{})
 }
 
 type recordingLogger struct {

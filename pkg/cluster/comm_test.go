@@ -146,7 +146,7 @@ func newStartedTestNodeWithHashSlotsMutate(
 	if err != nil {
 		t.Fatalf("open metadb node %d: %v", nodeID, err)
 	}
-	raftDB, err := raftstorage.Open(filepath.Join(dir, "raft"))
+	raftDB, err := raftstorage.Open(filepath.Join(dir, "raft"), raftstorage.Options{})
 	if err != nil {
 		_ = db.Close()
 		t.Fatalf("open raftstorage node %d: %v", nodeID, err)

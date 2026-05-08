@@ -54,7 +54,7 @@ func openTestDBAt(t testing.TB, path string) *metadb.DB {
 func openTestRaftDBAt(t testing.TB, path string) *raftstorage.DB {
 	t.Helper()
 
-	db, err := raftstorage.Open(path)
+	db, err := raftstorage.Open(path, raftstorage.Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}

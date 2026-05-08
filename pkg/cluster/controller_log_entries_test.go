@@ -12,7 +12,7 @@ import (
 )
 
 func TestControllerLogEntriesOnNodeReadsLocalControllerLogDescending(t *testing.T) {
-	db, err := raftstorage.Open(filepath.Join(t.TempDir(), "controller-raft"))
+	db, err := raftstorage.Open(filepath.Join(t.TempDir(), "controller-raft"), raftstorage.Options{})
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}

@@ -103,7 +103,7 @@ func build(cfg Config) (_ *App, err error) {
 		}
 		return app.db.Close()
 	})
-	app.raftDB, err = raftstorage.Open(cfg.Storage.RaftPath)
+	app.raftDB, err = raftstorage.Open(cfg.Storage.RaftPath, raftstorage.Options{})
 	if err != nil {
 		return nil, fmt.Errorf("app: open raftstorage: %w", err)
 	}

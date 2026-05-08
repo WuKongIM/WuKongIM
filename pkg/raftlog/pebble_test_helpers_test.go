@@ -148,7 +148,7 @@ func openBenchDB(tb testing.TB) (*DB, string) {
 	tb.Helper()
 
 	path := filepath.Join(tb.TempDir(), "raft")
-	db, err := Open(path)
+	db, err := Open(path, Options{})
 	if err != nil {
 		tb.Fatalf("Open(%q) error = %v", path, err)
 	}
@@ -158,7 +158,7 @@ func openBenchDB(tb testing.TB) (*DB, string) {
 func mustOpenPebbleDB(tb testing.TB, path string) *DB {
 	tb.Helper()
 
-	db, err := Open(path)
+	db, err := Open(path, Options{})
 	if err != nil {
 		tb.Fatalf("Open(%q) error = %v", path, err)
 	}
