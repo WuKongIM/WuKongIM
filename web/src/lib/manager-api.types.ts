@@ -518,6 +518,42 @@ export type ManagerSlotLogsResponse = {
   items: ManagerSlotLogEntry[]
 }
 
+// ManagerSlotRaftCompactNodeResult describes one node-local Slot Raft compaction attempt.
+export type ManagerSlotRaftCompactNodeResult = {
+  // node_id is the node that handled the local compaction attempt.
+  node_id: number
+  // slot_id is the physical slot whose local Raft log was compacted.
+  slot_id: number
+  // success reports whether the node accepted and completed the attempt.
+  success: boolean
+  // applied_index is the node-local applied index used as the compaction target.
+  applied_index: number
+  // before_snapshot_index is the persisted snapshot index before the attempt.
+  before_snapshot_index: number
+  // after_snapshot_index is the persisted snapshot index after the attempt.
+  after_snapshot_index: number
+  // compacted reports whether this attempt created a new snapshot and compacted entries.
+  compacted: boolean
+  // skipped_reason explains why no new snapshot was created when compacted is false.
+  skipped_reason: string
+  // error is the failure message when success is false.
+  error: string
+}
+
+// ManagerSlotRaftCompactResponse is returned after triggering node-local Slot Raft compaction.
+export type ManagerSlotRaftCompactResponse = {
+  // generated_at records when the compaction result was assembled.
+  generated_at: string
+  // total is the number of target attempts included in the response.
+  total: number
+  // succeeded is the number of attempts that completed.
+  succeeded: number
+  // failed is the number of attempts that returned an error.
+  failed: number
+  // items contains per-node Slot Raft compaction results.
+  items: ManagerSlotRaftCompactNodeResult[]
+}
+
 export type ManagerControllerLogEntry = ManagerSlotLogEntry
 
 export type ManagerControllerLogsResponse = {

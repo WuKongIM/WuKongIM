@@ -1,16 +1,22 @@
 import { Fragment, useCallback, useEffect, useState } from "react"
 import { useIntl, type IntlShape } from "react-intl"
 
+import { useAuthStore } from "@/auth/auth-store"
+import { ConfirmDialog } from "@/components/manager/confirm-dialog"
 import { NodeFilter, defaultNodeId, hasNode } from "@/components/manager/node-filter"
 import { ResourceState } from "@/components/manager/resource-state"
+import { StatusBadge } from "@/components/manager/status-badge"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
+import { SectionCard } from "@/components/shell/section-card"
 import { Button } from "@/components/ui/button"
-import { getNodes, getSlotLogs, getSlots, ManagerApiError } from "@/lib/manager-api"
+import { compactSlotRaftLogOnNode, getNodes, getSlotLogs, getSlots, ManagerApiError } from "@/lib/manager-api"
 import type {
   ManagerNodesResponse,
   ManagerSlotLogEntry,
   ManagerSlotLogsResponse,
+  ManagerSlotRaftCompactNodeResult,
+  ManagerSlotRaftCompactResponse,
   ManagerSlotsResponse,
 } from "@/lib/manager-api.types"
 
@@ -28,6 +34,12 @@ type SlotListState = {
   error: Error | null
 }
 
+type SlotCompactionState = {
+  result: ManagerSlotRaftCompactResponse | null
+  loading: boolean
+  error: Error | null
+}
+
 function mapErrorKind(error: Error | null) {
   if (!(error instanceof ManagerApiError)) {
     return "error" as const
@@ -39,6 +51,19 @@ function mapErrorKind(error: Error | null) {
     return "unavailable" as const
   }
   return "error" as const
+}
+
+function hasPermission(
+  permissions: { resource: string; actions: string[] }[],
+  resource: string,
+  action: string,
+) {
+  return permissions.some((permission) => {
+    if (permission.resource !== resource && permission.resource !== "*") {
+      return false
+    }
+    return permission.actions.includes(action) || permission.actions.includes("*")
+  })
 }
 
 function formatDataSize(value: number) {
@@ -78,8 +103,80 @@ function defaultSlotId(slots: ManagerSlotsResponse | null) {
   return slots?.items[0]?.slot_id ?? null
 }
 
+function formatSlotCompactionResult(intl: IntlShape, item: ManagerSlotRaftCompactNodeResult) {
+  if (!item.success) {
+    return item.error || intl.formatMessage({ id: "slotLogs.compaction.result.failed" })
+  }
+  if (item.compacted) {
+    return intl.formatMessage(
+      { id: "slotLogs.compaction.result.compacted" },
+      { before: item.before_snapshot_index, after: item.after_snapshot_index, applied: item.applied_index },
+    )
+  }
+  if (item.skipped_reason) {
+    return intl.formatMessage({ id: "slotLogs.compaction.result.skipped" }, { reason: item.skipped_reason })
+  }
+  return intl.formatMessage({ id: "slotLogs.compaction.result.noChange" })
+}
+
+function SlotCompactionResultPanel({
+  intl,
+  result,
+}: {
+  intl: IntlShape
+  result: ManagerSlotRaftCompactResponse
+}) {
+  return (
+    <SectionCard
+      description={intl.formatMessage({ id: "slotLogs.compaction.description" })}
+      title={intl.formatMessage({ id: "slotLogs.compaction.title" })}
+    >
+      <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+        <span className="font-medium text-foreground">
+          {intl.formatMessage(
+            { id: "slotLogs.compaction.summary" },
+            { succeeded: result.succeeded, failed: result.failed },
+          )}
+        </span>
+        <span className="text-muted-foreground">
+          {intl.formatMessage({ id: "slotLogs.compaction.total" }, { total: result.total })}
+        </span>
+      </div>
+      <div className="overflow-hidden rounded-lg border border-border">
+        <table className="min-w-full divide-y divide-border text-sm">
+          <thead className="bg-muted/30 text-left text-xs uppercase tracking-[0.16em] text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2">{intl.formatMessage({ id: "slotLogs.compaction.table.node" })}</th>
+              <th className="px-3 py-2">{intl.formatMessage({ id: "slotLogs.compaction.table.slot" })}</th>
+              <th className="px-3 py-2">{intl.formatMessage({ id: "slotLogs.compaction.table.outcome" })}</th>
+              <th className="px-3 py-2">{intl.formatMessage({ id: "slotLogs.compaction.table.snapshot" })}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {result.items.map((item) => (
+              <tr key={`${item.node_id}-${item.slot_id}`}>
+                <td className="px-3 py-3 font-medium text-foreground">
+                  {intl.formatMessage({ id: "common.nodeValue" }, { id: item.node_id })}
+                </td>
+                <td className="px-3 py-3 font-medium text-foreground">
+                  {intl.formatMessage({ id: "slotLogs.slotValue" }, { id: item.slot_id })}
+                </td>
+                <td className="px-3 py-3">
+                  <StatusBadge value={item.success ? (item.compacted ? "compacted" : "skipped") : "failed"} />
+                </td>
+                <td className="px-3 py-3 text-muted-foreground">{formatSlotCompactionResult(intl, item)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
+  )
+}
+
 export function SlotLogsPage() {
   const intl = useIntl()
+  const permissions = useAuthStore((authState) => authState.permissions)
   const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
   const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null)
@@ -93,6 +190,12 @@ export function SlotLogsPage() {
     loading: false,
     error: null,
   })
+  const [compactionState, setCompactionState] = useState<SlotCompactionState>({
+    result: null,
+    loading: false,
+    error: null,
+  })
+  const [compactionDialogOpen, setCompactionDialogOpen] = useState(false)
   const [expandedIndexes, setExpandedIndexes] = useState<Set<number>>(() => new Set())
   const [slotReloadKey, setSlotReloadKey] = useState(0)
 
@@ -222,6 +325,29 @@ export function SlotLogsPage() {
   }, [])
 
   const canRefresh = selectedNodeId !== null && selectedSlotId !== null && !state.loading && !slotsState.loading
+  const hasSlotCompactionPermission = hasPermission(permissions, "cluster.node", "w") && hasPermission(permissions, "cluster.slot", "w")
+  const canCompactSlotLogs = hasSlotCompactionPermission && selectedNodeId !== null && selectedSlotId !== null && !compactionState.loading
+
+  const handleSlotCompaction = useCallback(async () => {
+    if (!canCompactSlotLogs || selectedNodeId === null || selectedSlotId === null) {
+      return
+    }
+    const targetNodeId = selectedNodeId
+    const targetSlotId = selectedSlotId
+    setCompactionDialogOpen(false)
+    setCompactionState({ result: null, loading: true, error: null })
+    try {
+      const result = await compactSlotRaftLogOnNode(targetNodeId, targetSlotId)
+      setCompactionState({ result, loading: false, error: null })
+      void loadSlotLogs(targetNodeId, targetSlotId)
+    } catch (error) {
+      setCompactionState({
+        result: null,
+        loading: false,
+        error: error instanceof Error ? error : new Error("slot raft compaction request failed"),
+      })
+    }
+  }, [canCompactSlotLogs, loadSlotLogs, selectedNodeId, selectedSlotId])
 
   return (
     <PageContainer>
@@ -249,6 +375,19 @@ export function SlotLogsPage() {
               </select>
             </label>
             <Button
+              disabled={!canCompactSlotLogs}
+              onClick={() => setCompactionDialogOpen(true)}
+              size="sm"
+              variant="outline"
+            >
+              {compactionState.loading ? intl.formatMessage({ id: "slotLogs.compaction.triggering" }) : intl.formatMessage({ id: "slotLogs.compaction.trigger" })}
+            </Button>
+            {!hasSlotCompactionPermission ? (
+              <span className="text-xs text-muted-foreground">
+                {intl.formatMessage({ id: "slotLogs.compaction.permissionRequired" })}
+              </span>
+            ) : null}
+            <Button
               disabled={!canRefresh}
               onClick={() => {
                 if (selectedNodeId !== null && selectedSlotId !== null) {
@@ -266,6 +405,17 @@ export function SlotLogsPage() {
         eyebrow={intl.formatMessage({ id: "slotLogs.eyebrow" })}
         title={intl.formatMessage({ id: "slotLogs.title" })}
       />
+
+      {compactionState.error ? (
+        <ResourceState
+          kind={mapErrorKind(compactionState.error)}
+          onRetry={() => setCompactionDialogOpen(true)}
+          retryLabel={intl.formatMessage({ id: "common.retry" })}
+          title={intl.formatMessage({ id: "slotLogs.compaction.title" })}
+        />
+      ) : compactionState.result ? (
+        <SlotCompactionResultPanel intl={intl} result={compactionState.result} />
+      ) : null}
 
       {slotsState.loading ? (
         <ResourceState kind="loading" title={intl.formatMessage({ id: "slotLogs.logs.title" })} />
@@ -374,6 +524,19 @@ export function SlotLogsPage() {
       ) : (
         <ResourceState kind="empty" title={intl.formatMessage({ id: "slotLogs.logs.title" })} />
       )}
+
+      <ConfirmDialog
+        confirmLabel={intl.formatMessage({ id: "slotLogs.compaction.trigger" })}
+        description={intl.formatMessage(
+          { id: "slotLogs.compaction.dialog.description" },
+          { node: selectedNodeId ?? "-", slot: selectedSlotId ?? "-" },
+        )}
+        onConfirm={() => void handleSlotCompaction()}
+        onOpenChange={setCompactionDialogOpen}
+        open={compactionDialogOpen}
+        pending={compactionState.loading}
+        title={intl.formatMessage({ id: "slotLogs.compaction.dialog.title" })}
+      />
     </PageContainer>
   )
 }
