@@ -95,7 +95,7 @@ func (s *snapshotStore) prepare(ctx context.Context, scope Scope, snapshot raftp
 }
 
 // write creates the temporary chunk directory and writes all payload chunks.
-func (s *snapshotStore) write(ctx context.Context, staged *stagedSnapshot, data []byte) error {
+func (s *snapshotStore) write(ctx context.Context, staged *stagedSnapshot, data []byte) (err error) {
 	if staged == nil {
 		return errors.New("raftstorage: nil staged snapshot")
 	}
@@ -108,6 +108,11 @@ func (s *snapshotStore) write(ctx context.Context, staged *stagedSnapshot, data 
 	if err := os.Mkdir(staged.tmpDir, 0o700); err != nil {
 		return err
 	}
+	defer func() {
+		if err != nil {
+			err = cleanupStagedTmpPreservingError(staged, err)
+		}
+	}()
 	if err := fsyncDir(filepath.Dir(staged.tmpDir)); err != nil {
 		return err
 	}
@@ -167,13 +172,14 @@ func (s *snapshotStore) stage(ctx context.Context, scope Scope, snapshot raftpb.
 			return nil, err
 		}
 		if err := s.write(ctx, staged, snapshot.Data); err != nil {
-			return nil, err
+			return nil, cleanupStagedTmpPreservingError(staged, err)
 		}
 		if err := s.publishFinal(staged); err != nil {
+			cleanupErr := cleanupStagedTmpPreservingError(staged, err)
 			if errors.Is(err, os.ErrExist) {
 				continue
 			}
-			return nil, err
+			return nil, cleanupErr
 		}
 		return staged, nil
 	}
@@ -308,4 +314,12 @@ func normalizeNoOverwriteRenameError(err error) error {
 		return fmt.Errorf("raftstorage: snapshot final directory already exists: %w", os.ErrExist)
 	}
 	return err
+}
+
+func cleanupStagedTmpPreservingError(staged *stagedSnapshot, original error) error {
+	if staged == nil || staged.tmpDir == "" {
+		return original
+	}
+	_ = os.RemoveAll(staged.tmpDir)
+	return original
 }

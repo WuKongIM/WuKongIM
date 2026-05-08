@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -307,6 +308,63 @@ func TestSnapshotStoreAtomicNoOverwriteRenameRejectsExistingEmptyDirectory(t *te
 	}
 	if len(entries) != 0 {
 		t.Fatalf("final dir entry count = %d, want 0", len(entries))
+	}
+}
+
+func TestSnapshotStoreWriteCleansTmpDirOnValidationFailure(t *testing.T) {
+	store := testSnapshotStore(t, 4, "000000000000000b")
+	staged, err := store.prepare(context.Background(), SlotScope(18), testSnapshot(24, 16, []byte("cleanup")))
+	if err != nil {
+		t.Fatalf("prepare failed: %v", err)
+	}
+	staged.manifest.ChunkSize = 0
+
+	if err := store.write(context.Background(), staged, []byte("cleanup")); err == nil {
+		t.Fatal("write succeeded, want validation error")
+	}
+	if _, err := os.Stat(staged.tmpDir); !os.IsNotExist(err) {
+		t.Fatalf("tmp dir exists after failed write or unexpected stat error: %v", err)
+	}
+}
+
+func TestSnapshotStoreStageCleansTmpDirOnPublishCollisionRetry(t *testing.T) {
+	store := testSnapshotStore(t, 1024, "3333333333333333", "4444444444444444")
+	scope := SlotScope(19)
+	snapshot := testSnapshot(25, 17, bytes.Repeat([]byte("x"), 256*1024))
+	firstID := "snap-0000000000000019-0000000000000011-3333333333333333"
+	firstTmpDir := filepath.Join(store.scopeDir(scope), ".tmp-"+firstID)
+	firstFinalDir := filepath.Join(store.scopeDir(scope), firstID)
+	marker := filepath.Join(firstFinalDir, "marker")
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			if _, err := os.Stat(firstTmpDir); err == nil {
+				if err := os.Mkdir(firstFinalDir, 0o755); err == nil {
+					_ = os.WriteFile(marker, []byte("keep"), 0o600)
+				}
+				return
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	staged, err := store.stage(context.Background(), scope, snapshot)
+	<-done
+	if err != nil {
+		t.Fatalf("stage failed: %v", err)
+	}
+	if !strings.HasSuffix(staged.manifest.SnapshotID, "4444444444444444") {
+		t.Fatalf("stage snapshot ID = %q, want retry nonce", staged.manifest.SnapshotID)
+	}
+	if _, err := os.Stat(firstTmpDir); !os.IsNotExist(err) {
+		t.Fatalf("old tmp dir exists after publish collision retry or unexpected stat error: %v", err)
+	}
+	gotMarker, err := os.ReadFile(marker)
+	if err != nil || string(gotMarker) != "keep" {
+		t.Fatalf("colliding final dir changed: data=%q err=%v", gotMarker, err)
 	}
 }
 
