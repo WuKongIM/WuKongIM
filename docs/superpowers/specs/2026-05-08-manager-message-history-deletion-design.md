@@ -67,7 +67,7 @@ Add request and response DTOs in `internal/access/manager/messages.go`:
 - `channel_id` is required and non-empty.
 - `channel_type` is required and positive.
 - `through_seq` is required and positive.
-- `dry_run` is optional. When true, the backend calculates the outcome without committing metadata or applying runtime effects.
+- `dry_run` is optional. When true, the backend calculates the outcome without committing metadata or applying runtime effects. Dry-run uses read-only replay cursor state and is advisory; the real request still durably confirms the cursor before advancing metadata.
 
 Add a write route in `internal/access/manager/routes.go` under `cluster.channel:w` permission:
 
@@ -84,7 +84,7 @@ The existing read route remains under `cluster.channel:r`.
 - `400 bad_request`: invalid channel selector, invalid `through_seq`, or invalid request body.
 - `403 forbidden`: manager auth lacks `cluster.channel:w`.
 - `404 not_found`: channel runtime metadata does not exist.
-- `409 conflict`: request is valid but cannot currently advance because safety gates block it.
+- `200 OK` with `status: "blocked"`: request is valid but cannot currently advance because safety gates block it. This keeps blocked safety status available to the web client without treating it as a transport failure.
 - `503 service_unavailable`: no channel leader, stale leader metadata, or remote leader unavailable.
 - `500 internal_error`: unexpected storage, metadata, or runtime errors.
 
@@ -171,7 +171,7 @@ Backend tests:
   - rejects invalid request bodies and invalid `through_seq`;
   - requires `cluster.channel:w`;
   - returns success JSON;
-  - maps blocked, not found, leader unavailable, and stale metadata errors.
+  - maps blocked status responses, not found, leader unavailable, and stale metadata errors.
 - `internal/usecase/management/messages_test.go`
   - validates request shape;
   - passes the request to the retention port;
