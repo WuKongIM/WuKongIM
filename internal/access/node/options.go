@@ -125,6 +125,12 @@ type DiagnosticsProvider interface {
 	QueryDiagnostics(ctx context.Context, query diagnostics.Query) diagnostics.QueryResult
 }
 
+// ChannelRetentionProvider advances local channel retention boundaries for leader-authoritative RPCs.
+type ChannelRetentionProvider interface {
+	// AdvanceChannelRetention advances one channel's history retention boundary on the channel leader.
+	AdvanceChannelRetention(ctx context.Context, req ChannelRetentionAdvanceRequest) (ChannelRetentionAdvanceResult, error)
+}
+
 type Options struct {
 	Cluster               Cluster
 	Presence              Presence
@@ -142,6 +148,7 @@ type Options struct {
 	DeliveryAckIndex      *deliveryruntime.AckIndex
 	RuntimeSummary        RuntimeSummaryProvider
 	Diagnostics           DiagnosticsProvider
+	ChannelRetention      ChannelRetentionProvider
 	Codec                 codec.Protocol
 	Logger                wklog.Logger
 }
@@ -163,6 +170,7 @@ type Adapter struct {
 	deliveryAckIndex      *deliveryruntime.AckIndex
 	runtimeSummary        RuntimeSummaryProvider
 	diagnostics           DiagnosticsProvider
+	channelRetention      ChannelRetentionProvider
 	codec                 codec.Protocol
 	logger                wklog.Logger
 }
@@ -191,6 +199,7 @@ func New(opts Options) *Adapter {
 		deliveryAckIndex:      opts.DeliveryAckIndex,
 		runtimeSummary:        opts.RuntimeSummary,
 		diagnostics:           opts.Diagnostics,
+		channelRetention:      opts.ChannelRetention,
 		codec:                 opts.Codec,
 		logger:                opts.Logger,
 	}
@@ -209,6 +218,7 @@ func New(opts Options) *Adapter {
 		opts.Cluster.RPCMux().Handle(connectionsRPCServiceID, adapter.handleConnectionsRPC)
 		opts.Cluster.RPCMux().Handle(connectionRPCServiceID, adapter.handleConnectionRPC)
 		opts.Cluster.RPCMux().Handle(diagnosticsRPCServiceID, adapter.handleDiagnosticsRPC)
+		opts.Cluster.RPCMux().Handle(channelRetentionRPCServiceID, adapter.handleChannelRetentionRPC)
 	}
 	return adapter
 }

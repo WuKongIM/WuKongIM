@@ -947,6 +947,28 @@ export type MessageListParams = {
   clientMsgNo?: string
 }
 
+
+export type ManagerMessageRetentionStatus = "advanced" | "would_advance" | "noop" | "blocked"
+
+export type ManagerMessageRetentionBlockedReason = "" | "replay_cursor" | "min_isr_match_offset" | "hw" | "checkpoint_hw" | "current_boundary"
+
+export type AdvanceMessageRetentionInput = {
+  channelId: string
+  channelType: number
+  throughSeq: number
+  dryRun?: boolean
+}
+
+export type AdvanceMessageRetentionResponse = {
+  channel_id: string
+  channel_type: number
+  requested_through_seq: number
+  advanced_through_seq: number
+  min_available_seq: number
+  status: ManagerMessageRetentionStatus
+  blocked_reason?: ManagerMessageRetentionBlockedReason
+}
+
 export type ManagerDiagnosticsStatus = "ok" | "error" | "timeout" | "partial" | "not_found"
 
 export type ManagerDiagnosticsEvent = {

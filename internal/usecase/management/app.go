@@ -96,6 +96,12 @@ type MessageReader interface {
 	MaxMessageSeq(ctx context.Context, id channel.ChannelID) (uint64, error)
 }
 
+// MessageRetentionOperator exposes destructive channel message retention operations.
+type MessageRetentionOperator interface {
+	// AdvanceMessageRetention advances one channel's history retention boundary.
+	AdvanceMessageRetention(ctx context.Context, req AdvanceMessageRetentionRequest) (AdvanceMessageRetentionResponse, error)
+}
+
 // RuntimeSummaryReader reads local or remote node runtime state needed by scale-in safety checks.
 type RuntimeSummaryReader interface {
 	// NodeRuntimeSummary returns online and gateway counters for one cluster node.
@@ -164,6 +170,8 @@ type Options struct {
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
 	// Messages provides authoritative channel message pages.
 	Messages MessageReader
+	// MessageRetention provides destructive channel message retention operations.
+	MessageRetention MessageRetentionOperator
 	// Network provides local node network observations for manager network pages.
 	Network NetworkSnapshotReader
 	// Now returns the current time for manager aggregations.
@@ -184,6 +192,7 @@ type App struct {
 	diagnostics              DiagnosticsReader
 	channelRuntimeMeta       ChannelRuntimeMetaReader
 	messages                 MessageReader
+	messageRetention         MessageRetentionOperator
 	network                  NetworkSnapshotReader
 	now                      func() time.Time
 }
@@ -212,6 +221,7 @@ func New(opts Options) *App {
 		diagnostics:              opts.Diagnostics,
 		channelRuntimeMeta:       opts.ChannelRuntimeMeta,
 		messages:                 opts.Messages,
+		messageRetention:         opts.MessageRetention,
 		network:                  opts.Network,
 		now:                      now,
 	}

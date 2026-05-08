@@ -86,6 +86,60 @@ func TestListMessagesPropagatesReaderErrors(t *testing.T) {
 	require.EqualError(t, err, "boom")
 }
 
+func TestAdvanceMessageRetentionRejectsInvalidRequest(t *testing.T) {
+	app := New(Options{})
+
+	_, err := app.AdvanceMessageRetention(context.Background(), AdvanceMessageRetentionRequest{
+		ChannelID:   "room-1",
+		ChannelType: 2,
+	})
+
+	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+}
+
+func TestAdvanceMessageRetentionDelegatesToPort(t *testing.T) {
+	operator := &fakeMessageRetentionOperator{
+		result: AdvanceMessageRetentionResponse{
+			ChannelID:           "room-1",
+			ChannelType:         2,
+			RequestedThroughSeq: 10,
+			AdvancedThroughSeq:  8,
+			MinAvailableSeq:     9,
+			Status:              MessageRetentionStatusAdvanced,
+			BlockedReason:       MessageRetentionBlockedReasonNone,
+		},
+	}
+	app := New(Options{MessageRetention: operator})
+
+	got, err := app.AdvanceMessageRetention(context.Background(), AdvanceMessageRetentionRequest{
+		ChannelID:   "room-1",
+		ChannelType: 2,
+		ThroughSeq:  10,
+		DryRun:      true,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, AdvanceMessageRetentionRequest{
+		ChannelID:   "room-1",
+		ChannelType: 2,
+		ThroughSeq:  10,
+		DryRun:      true,
+	}, operator.lastReq)
+	require.Equal(t, operator.result, got)
+}
+
+func TestAdvanceMessageRetentionPropagatesOperatorErrors(t *testing.T) {
+	app := New(Options{MessageRetention: &fakeMessageRetentionOperator{err: errors.New("boom")}})
+
+	_, err := app.AdvanceMessageRetention(context.Background(), AdvanceMessageRetentionRequest{
+		ChannelID:   "room-1",
+		ChannelType: 2,
+		ThroughSeq:  10,
+	})
+
+	require.EqualError(t, err, "boom")
+}
+
 type fakeMessageReader struct {
 	lastReq         MessageQueryRequest
 	result          MessageQueryPage
@@ -102,4 +156,15 @@ func (f *fakeMessageReader) QueryMessages(_ context.Context, req MessageQueryReq
 func (f *fakeMessageReader) MaxMessageSeq(_ context.Context, id channel.ChannelID) (uint64, error) {
 	f.maxSeqCalls = append(f.maxSeqCalls, id)
 	return f.maxSeqByChannel[id], f.err
+}
+
+type fakeMessageRetentionOperator struct {
+	lastReq AdvanceMessageRetentionRequest
+	result  AdvanceMessageRetentionResponse
+	err     error
+}
+
+func (f *fakeMessageRetentionOperator) AdvanceMessageRetention(_ context.Context, req AdvanceMessageRetentionRequest) (AdvanceMessageRetentionResponse, error) {
+	f.lastReq = req
+	return f.result, f.err
 }

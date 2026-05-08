@@ -44,6 +44,8 @@ import type {
   CreateNodeOnboardingPlanInput,
   CreateNodeScaleInPlanInput,
   AdvanceNodeScaleInInput,
+  AdvanceMessageRetentionInput,
+  AdvanceMessageRetentionResponse,
 } from "@/lib/manager-api.types"
 
 export type ManagerAuthConfig = {
@@ -425,6 +427,18 @@ export function getConnection(sessionId: number, params?: ConnectionDetailParams
 
 export function getMessages(params: MessageListParams) {
   return jsonManagerFetch<ManagerMessagesResponse>(buildMessageListPath(params))
+}
+
+export function advanceMessageRetention(input: AdvanceMessageRetentionInput) {
+  return jsonManagerFetch<AdvanceMessageRetentionResponse>("/manager/messages/retention", {
+    method: "POST",
+    body: JSON.stringify({
+      channel_id: input.channelId,
+      channel_type: input.channelType,
+      through_seq: input.throughSeq,
+      dry_run: input.dryRun,
+    }),
+  })
 }
 
 export function getDiagnosticsTrace(traceId: string, params?: DiagnosticsCommonParams) {

@@ -46,6 +46,7 @@ import {
   cancelNodeScaleIn,
   startNodeOnboardingJob,
   transferSlotLeader,
+  advanceMessageRetention,
 } from "@/lib/manager-api"
 
 describe("manager api client", () => {
@@ -745,6 +746,29 @@ describe("manager api client", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/manager/messages?channel_id=room-1&channel_type=2&limit=20&cursor=cursor-1&client_msg_no=dup-1",
       expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
+
+  it("advances message retention through the manager endpoint", async () => {
+    const response = {
+      channel_id: "room-1",
+      channel_type: 2,
+      requested_through_seq: 10,
+      advanced_through_seq: 8,
+      min_available_seq: 9,
+      status: "advanced",
+    }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
+
+    await expect(advanceMessageRetention({ channelId: "room-1", channelType: 2, throughSeq: 10, dryRun: true })).resolves.toEqual(response)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/messages/retention",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ channel_id: "room-1", channel_type: 2, through_seq: 10, dry_run: true }),
+      }),
     )
   })
 
