@@ -110,6 +110,7 @@ Start():
   ④ startControllerRaftIfLocalPeer():
      条件: ControllerEnabled() && HasLocalControllerPeer()
      → newControllerHost(cfg, transport)
+       Controller Raft log opens with `ControllerRaftSnapshotPath` plus shared snapshot chunk size / GC grace so snapshot payload bytes live in external chunk files, not the Pebble log DB.
      → ensureControllerHashSlotTable → 加载或创建默认 HashSlotTable
      → host.storeHashSlotTableSnapshot(table) 预热 leader-local HashSlot snapshot
      → router.UpdateHashSlotTable

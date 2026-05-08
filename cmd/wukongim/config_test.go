@@ -308,6 +308,17 @@ func TestLoadConfigParsesRaftSnapshotStoragePaths(t *testing.T) {
 	require.Equal(t, filepath.Join(dir, "controller-snapshots"), cfg.Storage.ControllerRaftSnapshotPath)
 }
 
+func TestConfigExampleDocumentsRaftSnapshotStorageKeys(t *testing.T) {
+	content, err := os.ReadFile("../../wukongim.conf.example")
+	require.NoError(t, err)
+
+	example := string(content)
+	require.Contains(t, example, "WK_STORAGE_RAFT_SNAPSHOT_PATH")
+	require.Contains(t, example, "WK_STORAGE_CONTROLLER_RAFT_SNAPSHOT_PATH")
+	require.Contains(t, example, "WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE=8MiB")
+	require.Contains(t, example, "WK_STORAGE_RAFT_SNAPSHOT_GC_GRACE=30m")
+}
+
 func TestLoadConfigParsesRaftSnapshotChunkSizeAsMiB(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",
