@@ -10,6 +10,7 @@ import { MessagesPage } from "@/pages/messages/page"
 
 const getMessagesMock = vi.fn()
 const getChannelRuntimeMetaMock = vi.fn()
+const advanceMessageRetentionMock = vi.fn()
 const writeTextMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
@@ -18,6 +19,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     ...actual,
     getMessages: (...args: unknown[]) => getMessagesMock(...args),
     getChannelRuntimeMeta: (...args: unknown[]) => getChannelRuntimeMetaMock(...args),
+    advanceMessageRetention: (...args: unknown[]) => advanceMessageRetentionMock(...args),
   }
 })
 
@@ -27,6 +29,7 @@ beforeEach(() => {
   getMessagesMock.mockReset()
   getChannelRuntimeMetaMock.mockReset()
   getChannelRuntimeMetaMock.mockResolvedValue({ items: [], has_more: false })
+  advanceMessageRetentionMock.mockReset()
   writeTextMock.mockReset()
   Object.defineProperty(window.navigator, "clipboard", {
     configurable: true,
@@ -276,4 +279,79 @@ test("opens message detail, toggles payload format, and copies the visible paylo
 
   await user.click(within(updatedDetail).getByRole("button", { name: "Copy payload" }))
   expect(writeTextSpy).toHaveBeenCalledWith("aGVsbG8=")
+})
+
+test("deletes message history through a selected sequence after confirmation", async () => {
+  getMessagesMock.mockResolvedValueOnce({
+    items: [{
+      message_id: 101,
+      message_seq: 9,
+      client_msg_no: "c-101",
+      channel_id: "room-1",
+      channel_type: 2,
+      from_uid: "u1",
+      timestamp: 1713859200,
+      payload: "aGVsbG8=",
+    }],
+    has_more: false,
+  })
+  advanceMessageRetentionMock.mockResolvedValueOnce({
+    channel_id: "room-1",
+    channel_type: 2,
+    requested_through_seq: 9,
+    advanced_through_seq: 9,
+    min_available_seq: 10,
+    status: "advanced",
+  })
+  getMessagesMock.mockResolvedValueOnce({ items: [], has_more: false })
+
+  const user = userEvent.setup()
+  renderMessagesPage("/messages?channel_id=room-1&channel_type=2")
+
+  expect(await screen.findByText("c-101")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Delete history through seq 9" }))
+  const dialog = await screen.findByRole("dialog")
+  await user.click(within(dialog).getByRole("button", { name: "Confirm" }))
+
+  await waitFor(() => {
+    expect(advanceMessageRetentionMock).toHaveBeenCalledWith({ channelId: "room-1", channelType: 2, throughSeq: 9 })
+  })
+  expect(await screen.findByText(/Min available seq: 10/)).toBeInTheDocument()
+  expect(getMessagesMock).toHaveBeenCalledTimes(2)
+})
+
+test("keeps delete dialog open when message retention is blocked", async () => {
+  getMessagesMock.mockResolvedValueOnce({
+    items: [{
+      message_id: 101,
+      message_seq: 9,
+      client_msg_no: "c-101",
+      channel_id: "room-1",
+      channel_type: 2,
+      from_uid: "u1",
+      timestamp: 1713859200,
+      payload: "aGVsbG8=",
+    }],
+    has_more: false,
+  })
+  advanceMessageRetentionMock.mockResolvedValueOnce({
+    channel_id: "room-1",
+    channel_type: 2,
+    requested_through_seq: 9,
+    advanced_through_seq: 8,
+    min_available_seq: 9,
+    status: "blocked",
+    blocked_reason: "replay_cursor",
+  })
+
+  const user = userEvent.setup()
+  renderMessagesPage("/messages?channel_id=room-1&channel_type=2")
+
+  expect(await screen.findByText("c-101")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Delete history through seq 9" }))
+  const dialog = await screen.findByRole("dialog")
+  await user.click(within(dialog).getByRole("button", { name: "Confirm" }))
+
+  expect(await within(dialog).findByText("History retention is blocked: replay_cursor")).toBeInTheDocument()
+  expect(getMessagesMock).toHaveBeenCalledTimes(1)
 })
