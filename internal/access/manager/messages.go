@@ -47,6 +47,36 @@ type MessageDTO struct {
 	Payload []byte `json:"payload"`
 }
 
+// AdvanceMessageRetentionRequestDTO is the manager message retention request body.
+type AdvanceMessageRetentionRequestDTO struct {
+	// ChannelID identifies the channel whose history prefix should be retained.
+	ChannelID string `json:"channel_id"`
+	// ChannelType identifies the channel namespace for ChannelID.
+	ChannelType int64 `json:"channel_type"`
+	// ThroughSeq is the requested highest unavailable message sequence.
+	ThroughSeq uint64 `json:"through_seq"`
+	// DryRun reports the calculated outcome without mutating metadata or runtime state.
+	DryRun bool `json:"dry_run"`
+}
+
+// AdvanceMessageRetentionResponseDTO is the manager message retention response body.
+type AdvanceMessageRetentionResponseDTO struct {
+	// ChannelID identifies the channel whose history prefix was evaluated.
+	ChannelID string `json:"channel_id"`
+	// ChannelType identifies the channel namespace for ChannelID.
+	ChannelType int64 `json:"channel_type"`
+	// RequestedThroughSeq is the operator-requested highest unavailable sequence.
+	RequestedThroughSeq uint64 `json:"requested_through_seq"`
+	// AdvancedThroughSeq is the safe boundary that was or would be advanced.
+	AdvancedThroughSeq uint64 `json:"advanced_through_seq"`
+	// MinAvailableSeq is the first sequence visible after the resulting boundary.
+	MinAvailableSeq uint64 `json:"min_available_seq"`
+	// Status is the manager-visible retention request outcome.
+	Status managementusecase.MessageRetentionStatus `json:"status"`
+	// BlockedReason explains why status is blocked.
+	BlockedReason managementusecase.MessageRetentionBlockedReason `json:"blocked_reason,omitempty"`
+}
+
 type messageCursorPayload struct {
 	Version   int    `json:"v"`
 	BeforeSeq uint64 `json:"before_seq"`
@@ -118,6 +148,45 @@ func (s *Server) handleMessages(c *gin.Context) {
 	})
 }
 
+func (s *Server) handleAdvanceMessageRetention(c *gin.Context) {
+	if s.management == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
+		return
+	}
+
+	var body AdvanceMessageRetentionRequestDTO
+	if err := c.ShouldBindJSON(&body); err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid message retention request")
+		return
+	}
+	if body.ChannelID == "" || body.ChannelType <= 0 || body.ThroughSeq == 0 {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid message retention request")
+		return
+	}
+
+	resp, err := s.management.AdvanceMessageRetention(c.Request.Context(), managementusecase.AdvanceMessageRetentionRequest{
+		ChannelID:   body.ChannelID,
+		ChannelType: body.ChannelType,
+		ThroughSeq:  body.ThroughSeq,
+		DryRun:      body.DryRun,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, metadb.ErrInvalidArgument):
+			jsonError(c, http.StatusBadRequest, "bad_request", "invalid message retention request")
+		case errors.Is(err, metadb.ErrNotFound):
+			jsonError(c, http.StatusNotFound, "not_found", "channel not found")
+		case channelLeaderUnavailable(err):
+			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "channel leader unavailable")
+		default:
+			jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, advanceMessageRetentionDTO(resp))
+}
+
 func parseMessageChannelType(raw string) (int64, error) {
 	if raw == "" {
 		return 0, strconv.ErrSyntax
@@ -160,6 +229,18 @@ func encodeMessageCursor(cursor managementusecase.MessageListCursor) (string, er
 
 func decodeMessageCursor(raw string) (managementusecase.MessageListCursor, error) {
 	return decodeMessageCursorRaw(raw)
+}
+
+func advanceMessageRetentionDTO(resp managementusecase.AdvanceMessageRetentionResponse) AdvanceMessageRetentionResponseDTO {
+	return AdvanceMessageRetentionResponseDTO{
+		ChannelID:           resp.ChannelID,
+		ChannelType:         resp.ChannelType,
+		RequestedThroughSeq: resp.RequestedThroughSeq,
+		AdvancedThroughSeq:  resp.AdvancedThroughSeq,
+		MinAvailableSeq:     resp.MinAvailableSeq,
+		Status:              resp.Status,
+		BlockedReason:       resp.BlockedReason,
+	}
 }
 
 func messageDTOs(items []managementusecase.Message) []MessageDTO {
