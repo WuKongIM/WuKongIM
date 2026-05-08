@@ -17,6 +17,8 @@ import (
 
 var snapshotNoncePattern = regexp.MustCompile(`^[0-9a-f]{16}$`)
 
+var errSnapshotNoOverwriteRenameUnsupported = errors.New("raftstorage: atomic no-overwrite snapshot rename is unsupported on this platform")
+
 // snapshotStore persists snapshot payload bytes in external chunk directories.
 type snapshotStore struct {
 	// root is the external snapshot directory root.
@@ -146,12 +148,7 @@ func (s *snapshotStore) publishFinal(staged *stagedSnapshot) error {
 	if staged == nil {
 		return errors.New("raftstorage: nil staged snapshot")
 	}
-	if _, err := os.Stat(staged.finalDir); err == nil {
-		return fmt.Errorf("raftstorage: snapshot final directory already exists: %w", os.ErrExist)
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-	if err := os.Rename(staged.tmpDir, staged.finalDir); err != nil {
+	if err := renameNoOverwrite(staged.tmpDir, staged.finalDir); err != nil {
 		return err
 	}
 	return fsyncDir(filepath.Dir(staged.finalDir))
@@ -301,4 +298,14 @@ func fsyncDir(path string) error {
 		return syncErr
 	}
 	return closeErr
+}
+
+func normalizeNoOverwriteRenameError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if os.IsExist(err) {
+		return fmt.Errorf("raftstorage: snapshot final directory already exists: %w", os.ErrExist)
+	}
+	return err
 }
