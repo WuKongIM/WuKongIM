@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
@@ -194,6 +195,38 @@ func TestManagerMessageRetentionRequiresLeader(t *testing.T) {
 	require.ErrorIs(t, err, raftcluster.ErrNoLeader)
 }
 
+func TestManagerMessageRetentionForwardsRemoteLeader(t *testing.T) {
+	id := channel.ChannelID{ID: "retain-remote", Type: 2}
+	remote := &fakeManagerRetentionRemote{result: accessnode.ChannelRetentionAdvanceResult{
+		ChannelID:           id,
+		RequestedThroughSeq: 10,
+		AdvancedThroughSeq:  8,
+		MinAvailableSeq:     9,
+		Status:              string(managementusecase.MessageRetentionStatusAdvanced),
+	}}
+	op := managerMessageRetentionOperator{
+		localNodeID: 1,
+		metas: managerMessageMetasFake{meta: metadb.ChannelRuntimeMeta{
+			ChannelID:   id.ID,
+			ChannelType: int64(id.Type),
+			Leader:      9,
+		}},
+		remote: remote,
+	}
+
+	got, err := op.AdvanceMessageRetention(context.Background(), managementusecase.AdvanceMessageRetentionRequest{
+		ChannelID:   id.ID,
+		ChannelType: int64(id.Type),
+		ThroughSeq:  10,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(9), remote.nodeID)
+	require.Equal(t, accessnode.ChannelRetentionAdvanceRequest{ChannelID: id, ThroughSeq: 10}, remote.lastReq)
+	require.Equal(t, managementusecase.MessageRetentionStatusAdvanced, got.Status)
+	require.Equal(t, uint64(8), got.AdvancedThroughSeq)
+}
+
 func managerRetentionView(key channel.ChannelKey, current, hw, checkpointHW, minISR uint64, now time.Time) channel.RetentionView {
 	return channel.RetentionView{
 		ChannelKey:          key,
@@ -257,4 +290,17 @@ func (f *fakeManagerRetentionMetadata) AdvanceChannelRetentionThroughSeq(_ conte
 	f.calls++
 	f.lastReq = req
 	return nil
+}
+
+type fakeManagerRetentionRemote struct {
+	nodeID  uint64
+	lastReq accessnode.ChannelRetentionAdvanceRequest
+	result  accessnode.ChannelRetentionAdvanceResult
+	err     error
+}
+
+func (f *fakeManagerRetentionRemote) AdvanceChannelRetention(_ context.Context, nodeID uint64, req accessnode.ChannelRetentionAdvanceRequest) (accessnode.ChannelRetentionAdvanceResult, error) {
+	f.nodeID = nodeID
+	f.lastReq = req
+	return f.result, f.err
 }

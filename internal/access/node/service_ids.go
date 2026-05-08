@@ -15,4 +15,5 @@ const (
 	connectionsRPCServiceID           uint8 = 40
 	connectionRPCServiceID            uint8 = 41
 	diagnosticsRPCServiceID           uint8 = 42
+	channelRetentionRPCServiceID      uint8 = 43
 )

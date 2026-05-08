@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
@@ -33,12 +34,17 @@ type managerMessageRetentionMetadata interface {
 	AdvanceChannelRetentionThroughSeq(ctx context.Context, req metadb.ChannelRetentionAdvance) error
 }
 
+type managerMessageRetentionRemote interface {
+	AdvanceChannelRetention(ctx context.Context, nodeID uint64, req accessnode.ChannelRetentionAdvanceRequest) (accessnode.ChannelRetentionAdvanceResult, error)
+}
+
 type managerMessageRetentionOperator struct {
 	localNodeID uint64
 	metas       managerMessageRetentionMetas
 	runtime     managerMessageRetentionRuntime
 	stores      managerMessageRetentionStoreProvider
 	metadata    managerMessageRetentionMetadata
+	remote      managerMessageRetentionRemote
 	now         func() time.Time
 }
 
@@ -59,7 +65,18 @@ func (o managerMessageRetentionOperator) AdvanceMessageRetention(ctx context.Con
 		return managementusecase.AdvanceMessageRetentionResponse{}, raftcluster.ErrNoLeader
 	}
 	if meta.Leader != o.localNodeID {
-		return managementusecase.AdvanceMessageRetentionResponse{}, channel.ErrStaleMeta
+		if o.remote == nil {
+			return managementusecase.AdvanceMessageRetentionResponse{}, channel.ErrStaleMeta
+		}
+		result, err := o.remote.AdvanceChannelRetention(ctx, meta.Leader, accessnode.ChannelRetentionAdvanceRequest{
+			ChannelID:  id,
+			ThroughSeq: req.ThroughSeq,
+			DryRun:     req.DryRun,
+		})
+		if err != nil {
+			return managementusecase.AdvanceMessageRetentionResponse{}, err
+		}
+		return managerRetentionFromAccessNode(result), nil
 	}
 	return o.advanceLocal(ctx, id, req)
 }
@@ -246,4 +263,51 @@ func (s managerMessageRetentionStores) ConfirmCommittedDispatchCursorDurable(ctx
 	}
 	st := s.engine.ForChannel(channelhandler.KeyFromChannelID(id), id)
 	return st.ConfirmCommittedDispatchCursorDurable(cursorName, minSeq)
+}
+
+// managerMessageRetentionNodeProvider adapts the app retention operator to node RPC.
+type managerMessageRetentionNodeProvider struct {
+	target *managerMessageRetentionOperator
+}
+
+func (p managerMessageRetentionNodeProvider) AdvanceChannelRetention(ctx context.Context, req accessnode.ChannelRetentionAdvanceRequest) (accessnode.ChannelRetentionAdvanceResult, error) {
+	if p.target == nil {
+		return accessnode.ChannelRetentionAdvanceResult{}, channel.ErrInvalidConfig
+	}
+	result, err := p.target.AdvanceMessageRetention(ctx, managementusecase.AdvanceMessageRetentionRequest{
+		ChannelID:   req.ChannelID.ID,
+		ChannelType: int64(req.ChannelID.Type),
+		ThroughSeq:  req.ThroughSeq,
+		DryRun:      req.DryRun,
+	})
+	if err != nil {
+		return accessnode.ChannelRetentionAdvanceResult{}, err
+	}
+	return managerRetentionToAccessNode(result), nil
+}
+
+func managerRetentionToAccessNode(resp managementusecase.AdvanceMessageRetentionResponse) accessnode.ChannelRetentionAdvanceResult {
+	return accessnode.ChannelRetentionAdvanceResult{
+		ChannelID: channel.ChannelID{
+			ID:   resp.ChannelID,
+			Type: uint8(resp.ChannelType),
+		},
+		RequestedThroughSeq: resp.RequestedThroughSeq,
+		AdvancedThroughSeq:  resp.AdvancedThroughSeq,
+		MinAvailableSeq:     resp.MinAvailableSeq,
+		Status:              string(resp.Status),
+		BlockedReason:       string(resp.BlockedReason),
+	}
+}
+
+func managerRetentionFromAccessNode(result accessnode.ChannelRetentionAdvanceResult) managementusecase.AdvanceMessageRetentionResponse {
+	return managementusecase.AdvanceMessageRetentionResponse{
+		ChannelID:           result.ChannelID.ID,
+		ChannelType:         int64(result.ChannelID.Type),
+		RequestedThroughSeq: result.RequestedThroughSeq,
+		AdvancedThroughSeq:  result.AdvancedThroughSeq,
+		MinAvailableSeq:     result.MinAvailableSeq,
+		Status:              managementusecase.MessageRetentionStatus(result.Status),
+		BlockedReason:       managementusecase.MessageRetentionBlockedReason(result.BlockedReason),
+	}
 }
