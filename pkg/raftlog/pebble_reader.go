@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"path/filepath"
 
 	"github.com/cockroachdb/pebble/v2"
 	"go.etcd.io/raft/v3/raftpb"
@@ -48,6 +49,12 @@ func (s *pebbleStore) loadSnapshot(ctx context.Context) (raftpb.Snapshot, error)
 	}
 	if !ok {
 		return raftpb.Snapshot{}, nil
+	}
+	finalDir := filepath.Join(s.db.snapshotStore.scopeDir(s.scope), manifest.SnapshotID)
+	unregister := s.db.registerActiveSnapshotPath(finalDir)
+	defer unregister()
+	if s.db.snapshotReadBeforeChunksHook != nil {
+		s.db.snapshotReadBeforeChunksHook(s.scope, manifest)
 	}
 	return s.db.snapshotStore.read(ctx, s.scope, manifest)
 }
