@@ -28,6 +28,7 @@ import type {
   ManagerPermission,
   ManagerSlotDetailResponse,
   ManagerSlotLogsResponse,
+  ManagerSlotRaftCompactResponse,
   ManagerSlotRemoveResponse,
   ManagerSlotRecoverResponse,
   ManagerSlotRebalanceResponse,
@@ -345,6 +346,12 @@ function buildLogListSearch(params: { nodeId: number; limit?: number; cursor?: n
 export function getSlotLogs(slotId: number, params: SlotLogListParams) {
   const search = buildLogListSearch(params)
   return jsonManagerFetch<ManagerSlotLogsResponse>(`/manager/slots/${slotId}/logs?${search.toString()}`)
+}
+
+export function compactSlotRaftLogOnNode(nodeId: number, slotId: number) {
+  return jsonManagerFetch<ManagerSlotRaftCompactResponse>(`/manager/nodes/${nodeId}/slots/${slotId}/compact`, {
+    method: "POST",
+  })
 }
 
 export function getControllerLogs(params: ControllerLogListParams) {

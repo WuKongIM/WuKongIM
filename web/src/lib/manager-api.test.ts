@@ -10,6 +10,7 @@ import {
   getControllerRaftStatus,
   compactControllerRaftLogOnNode,
   compactControllerRaftLogs,
+  compactSlotRaftLogOnNode,
   getDiagnosticsEvents,
   getDiagnosticsMessage,
   getDiagnosticsTrace,
@@ -692,6 +693,34 @@ describe("manager api client", () => {
       1,
       "/manager/slots/9/logs?node_id=2&limit=2&cursor=5",
       expect.anything(),
+    )
+  })
+
+  it("posts node-scoped slot raft compaction", async () => {
+    const compactResponse = {
+      generated_at: "2026-05-08T10:03:00Z",
+      total: 1,
+      succeeded: 1,
+      failed: 0,
+      items: [{
+        node_id: 2,
+        slot_id: 9,
+        success: true,
+        applied_index: 50,
+        before_snapshot_index: 40,
+        after_snapshot_index: 50,
+        compacted: true,
+        skipped_reason: "",
+        error: "",
+      }],
+    }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(compactResponse), { status: 200 }))
+
+    await expect(compactSlotRaftLogOnNode(2, 9)).resolves.toEqual(compactResponse)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/manager/nodes/2/slots/9/compact",
+      expect.objectContaining({ method: "POST" }),
     )
   })
 
