@@ -232,12 +232,18 @@ func (db *DB) prepareAndWriteSnapshot(ctx context.Context, scope Scope, snap raf
 		}
 
 		unregisterTmp := db.registerActiveSnapshotPath(staged.tmpDir)
+		keepTmpActive := false
+		defer func() {
+			if !keepTmpActive {
+				unregisterTmp()
+			}
+		}()
 		err = db.snapshotStore.write(ctx, staged, snap.Data)
 		if err != nil {
-			unregisterTmp()
 			return nil, cleanupStagedTmpPreservingError(staged, err)
 		}
 		staged.tmpRegistered = true
+		keepTmpActive = true
 		return staged, nil
 	}
 }
@@ -253,7 +259,8 @@ func (db *DB) publishSnapshotAndCommit(staged *stagedSnapshot, req *writeRequest
 	defer func() {
 		db.removeActiveSnapshotPathLocked(staged.finalDir)
 		db.snapshotLifecycleMu.Unlock()
-		if retErr != nil && published {
+		// Worker commit failures leave the unreferenced final directory for retry/GC.
+		if retErr != nil && published && db.snapshotAfterPublishTestHook != nil {
 			db.removePublishedSnapshotDir(staged)
 		}
 	}()
