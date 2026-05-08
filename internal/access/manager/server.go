@@ -76,6 +76,8 @@ type Management interface {
 	GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (managementusecase.ChannelRuntimeMetaDetail, error)
 	// ListMessages returns one manager-facing channel message page.
 	ListMessages(ctx context.Context, req managementusecase.ListMessagesRequest) (managementusecase.ListMessagesResponse, error)
+	// AdvanceMessageRetention advances one channel's history retention boundary.
+	AdvanceMessageRetention(ctx context.Context, req managementusecase.AdvanceMessageRetentionRequest) (managementusecase.AdvanceMessageRetentionResponse, error)
 	// GetOverview returns the manager homepage overview DTO.
 	GetOverview(ctx context.Context) (managementusecase.Overview, error)
 	// ListNetworkSummary returns the manager-facing local-node cluster network summary.
