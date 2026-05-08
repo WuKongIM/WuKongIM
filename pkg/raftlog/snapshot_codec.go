@@ -9,11 +9,10 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-var snapshotManifestMagic = [...]byte{'W', 'K', 'S', 'M'}
+const snapshotManifestMagic = "WKSM"
 
 // encodeSnapshotManifest serializes a snapshot manifest into the Pebble value format.
-func encodeSnapshotManifest(manifest SnapshotManifest) ([]byte, error) {
-	scope := Scope{Kind: ScopeKind(manifest.ScopeKind), ID: manifest.ScopeID}
+func encodeSnapshotManifest(scope Scope, manifest SnapshotManifest) ([]byte, error) {
 	if err := manifest.Validate(scope); err != nil {
 		return nil, err
 	}
@@ -34,7 +33,7 @@ func encodeSnapshotManifest(manifest SnapshotManifest) ([]byte, error) {
 	}
 
 	buf := make([]byte, 0, 128+len(confState)+len(manifest.SnapshotID)+len(manifest.ChecksumType))
-	buf = append(buf, snapshotManifestMagic[:]...)
+	buf = append(buf, snapshotManifestMagic...)
 	buf = binary.BigEndian.AppendUint16(buf, manifest.Version)
 	buf = append(buf, manifest.ScopeKind)
 	buf = binary.BigEndian.AppendUint64(buf, manifest.ScopeID)
@@ -60,7 +59,7 @@ func decodeSnapshotManifest(scope Scope, data []byte) (SnapshotManifest, error) 
 	decoder := manifestDecoder{data: data}
 	if magic, err := decoder.read(4); err != nil {
 		return SnapshotManifest{}, err
-	} else if string(magic) != string(snapshotManifestMagic[:]) {
+	} else if string(magic) != snapshotManifestMagic {
 		return SnapshotManifest{}, errors.New("raftstorage: invalid snapshot manifest magic")
 	}
 

@@ -31,7 +31,7 @@ func TestSnapshotManifestRoundTrip(t *testing.T) {
 		CreatedAtUnixNano: 1710000000123456789,
 	}
 
-	encoded, err := encodeSnapshotManifest(manifest)
+	encoded, err := encodeSnapshotManifest(scope, manifest)
 	if err != nil {
 		t.Fatalf("encodeSnapshotManifest() error = %v", err)
 	}
@@ -101,6 +101,49 @@ func TestSnapshotManifestRejectsMalformedShapeAndOverflowingSizes(t *testing.T) 
 	}
 }
 
+func TestSnapshotManifestRejectsUnknownScopeKind(t *testing.T) {
+	cases := []struct {
+		name  string
+		scope Scope
+		edit  func(*SnapshotManifest)
+	}{
+		{
+			name:  "zero manifest scope kind",
+			scope: Scope{Kind: 0, ID: 9},
+			edit:  func(m *SnapshotManifest) { m.ScopeKind = 0 },
+		},
+		{
+			name:  "unknown manifest scope kind",
+			scope: Scope{Kind: ScopeKind(99), ID: 9},
+			edit:  func(m *SnapshotManifest) { m.ScopeKind = 99 },
+		},
+		{
+			name:  "invalid requested scope kind",
+			scope: Scope{Kind: ScopeKind(99), ID: 9},
+			edit:  func(m *SnapshotManifest) {},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			manifest := validSnapshotManifest(SlotScope(9))
+			tc.edit(&manifest)
+			if err := manifest.Validate(tc.scope); err == nil {
+				t.Fatalf("Validate() error = nil, want invalid scope kind error")
+			}
+			if _, err := encodeSnapshotManifest(tc.scope, manifest); err == nil {
+				t.Fatalf("encodeSnapshotManifest() error = nil, want invalid scope kind error")
+			}
+		})
+	}
+}
+
+func TestSnapshotCodecEncodeRejectsCallerScopeMismatch(t *testing.T) {
+	manifest := validSnapshotManifest(SlotScope(9))
+	if _, err := encodeSnapshotManifest(SlotScope(10), manifest); err == nil {
+		t.Fatalf("encodeSnapshotManifest() error = nil, want scope mismatch error")
+	}
+}
+
 func TestSnapshotManifestValidatesEmptyPayloadChecksum(t *testing.T) {
 	scope := SlotScope(9)
 	manifest := validSnapshotManifest(scope)
@@ -139,7 +182,7 @@ func TestSnapshotManifestUsesCRC32CCastagnoliBigEndian(t *testing.T) {
 
 func TestSnapshotCodecRejectsTrailingAndShortData(t *testing.T) {
 	manifest := validSnapshotManifest(SlotScope(9))
-	encoded, err := encodeSnapshotManifest(manifest)
+	encoded, err := encodeSnapshotManifest(SlotScope(9), manifest)
 	if err != nil {
 		t.Fatalf("encodeSnapshotManifest() error = %v", err)
 	}

@@ -58,6 +58,9 @@ func (m SnapshotManifest) Validate(scope Scope) error {
 	if m.Version != snapshotManifestVersion {
 		return errors.New("raftstorage: invalid snapshot manifest version")
 	}
+	if !isValidScopeKind(ScopeKind(m.ScopeKind)) || !isValidScopeKind(scope.Kind) {
+		return errors.New("raftstorage: invalid snapshot manifest scope kind")
+	}
 	if ScopeKind(m.ScopeKind) != scope.Kind || m.ScopeID != scope.ID {
 		return errors.New("raftstorage: snapshot manifest scope mismatch")
 	}
@@ -101,6 +104,15 @@ func (m SnapshotManifest) Validate(scope Scope) error {
 		}
 	}
 	return nil
+}
+
+func isValidScopeKind(kind ScopeKind) bool {
+	switch kind {
+	case ScopeSlot, ScopeController:
+		return true
+	default:
+		return false
+	}
 }
 
 func validateSnapshotID(snapshotID string) error {
