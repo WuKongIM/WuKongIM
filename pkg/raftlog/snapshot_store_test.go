@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"hash/crc32"
 	"math"
 	"os"
@@ -275,6 +276,37 @@ func TestSnapshotStorePublishFinalDoesNotOverwriteExistingDirectory(t *testing.T
 	gotMarker, err := os.ReadFile(marker)
 	if err != nil || string(gotMarker) != "keep" {
 		t.Fatalf("final dir marker changed: data=%q err=%v", gotMarker, err)
+	}
+}
+
+func TestSnapshotStoreAtomicNoOverwriteRenameRejectsExistingEmptyDirectory(t *testing.T) {
+	root := t.TempDir()
+	tmpDir := filepath.Join(root, "tmp")
+	finalDir := filepath.Join(root, "final")
+	if err := os.Mkdir(tmpDir, 0o700); err != nil {
+		t.Fatalf("create tmp dir: %v", err)
+	}
+	tmpMarker := filepath.Join(tmpDir, "marker")
+	if err := os.WriteFile(tmpMarker, []byte("tmp"), 0o600); err != nil {
+		t.Fatalf("write tmp marker: %v", err)
+	}
+	if err := os.Mkdir(finalDir, 0o755); err != nil {
+		t.Fatalf("create final dir: %v", err)
+	}
+
+	err := renameNoOverwrite(tmpDir, finalDir)
+	if !errors.Is(err, os.ErrExist) {
+		t.Fatalf("renameNoOverwrite error = %v, want os.ErrExist", err)
+	}
+	if _, err := os.Stat(tmpMarker); err != nil {
+		t.Fatalf("tmp marker missing after failed rename: %v", err)
+	}
+	entries, err := os.ReadDir(finalDir)
+	if err != nil {
+		t.Fatalf("read final dir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("final dir entry count = %d, want 0", len(entries))
 	}
 }
 
