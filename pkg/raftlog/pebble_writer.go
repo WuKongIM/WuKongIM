@@ -19,6 +19,27 @@ type writeRequest struct {
 	done  chan error
 }
 
+var errDBClosing = errors.New("raftstorage: db closing")
+
+var errWriteNotEnqueued = errors.New("raftstorage: write request not enqueued")
+
+// writeNotEnqueuedError preserves the user-visible cause while classifying pre-worker failures.
+type writeNotEnqueuedError struct {
+	cause error
+}
+
+func (e writeNotEnqueuedError) Error() string {
+	return e.cause.Error()
+}
+
+func (e writeNotEnqueuedError) Unwrap() error {
+	return e.cause
+}
+
+func (e writeNotEnqueuedError) Is(target error) bool {
+	return target == errWriteNotEnqueued
+}
+
 type writeOp interface {
 	apply(batch *pebble.Batch, state *scopeWriteState, store *pebbleStore) error
 }
@@ -55,7 +76,7 @@ func (db *DB) submitWrite(req *writeRequest) error {
 	db.mu.Lock()
 	if db.closing {
 		db.mu.Unlock()
-		return errors.New("raftstorage: db closing")
+		return writeNotEnqueuedError{cause: errDBClosing}
 	}
 	db.writeCh <- req
 	db.mu.Unlock()

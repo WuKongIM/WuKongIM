@@ -250,6 +250,7 @@ func (db *DB) prepareAndWriteSnapshot(ctx context.Context, scope Scope, snap raf
 
 func (db *DB) publishSnapshotAndCommit(staged *stagedSnapshot, req *writeRequest) (retErr error) {
 	published := false
+	cleanupPublishedOnFailure := false
 	db.snapshotLifecycleMu.Lock()
 	if staged.tmpRegistered {
 		db.removeActiveSnapshotPathLocked(staged.tmpDir)
@@ -259,8 +260,8 @@ func (db *DB) publishSnapshotAndCommit(staged *stagedSnapshot, req *writeRequest
 	defer func() {
 		db.removeActiveSnapshotPathLocked(staged.finalDir)
 		db.snapshotLifecycleMu.Unlock()
-		// Worker commit failures leave the unreferenced final directory for retry/GC.
-		if retErr != nil && published && db.snapshotAfterPublishTestHook != nil {
+		// Worker failures leave unreferenced final dirs for retry/GC; pre-worker failures are cleaned.
+		if retErr != nil && published && cleanupPublishedOnFailure {
 			db.removePublishedSnapshotDir(staged)
 		}
 	}()
@@ -270,12 +271,17 @@ func (db *DB) publishSnapshotAndCommit(staged *stagedSnapshot, req *writeRequest
 		return cleanupStagedTmpPreservingError(staged, err)
 	}
 	published = true
+	cleanupPublishedOnFailure = true
 	if db.snapshotAfterPublishTestHook != nil {
 		if err := db.snapshotAfterPublishTestHook(staged); err != nil {
 			return err
 		}
 	}
-	return db.submitWrite(req)
+	err := db.submitWrite(req)
+	if err == nil || !errors.Is(err, errWriteNotEnqueued) {
+		cleanupPublishedOnFailure = false
+	}
+	return err
 }
 
 func (db *DB) removePublishedSnapshotDir(staged *stagedSnapshot) {
