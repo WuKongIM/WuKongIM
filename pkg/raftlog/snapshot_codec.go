@@ -11,6 +11,11 @@ import (
 
 const snapshotManifestMagic = "WKSM"
 
+// hasSnapshotManifestMagic reports whether data is an external snapshot manifest candidate.
+func hasSnapshotManifestMagic(data []byte) bool {
+	return len(data) >= len(snapshotManifestMagic) && string(data[:len(snapshotManifestMagic)]) == snapshotManifestMagic
+}
+
 // encodeSnapshotManifest serializes a snapshot manifest into the Pebble value format.
 func encodeSnapshotManifest(scope Scope, manifest SnapshotManifest) ([]byte, error) {
 	if err := manifest.Validate(scope); err != nil {

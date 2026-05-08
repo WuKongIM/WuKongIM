@@ -43,8 +43,8 @@ type DB struct {
 	scopeMutationLocks   map[Scope]*sync.Mutex
 	// snapshotLifecycleMu coordinates snapshot staging/finalization with GC scans.
 	snapshotLifecycleMu sync.Mutex
-	// activeSnapshotPaths contains temporary or final snapshot paths in use.
-	activeSnapshotPaths map[string]struct{}
+	// activeSnapshotPaths counts temporary or final snapshot paths in use.
+	activeSnapshotPaths map[string]int
 	// gcCtx is canceled during Close to stop background snapshot cleanup work.
 	gcCtx context.Context
 	// gcCancel cancels gcCtx.
@@ -75,7 +75,7 @@ func Open(path string, opts Options) (*DB, error) {
 		writeCh:             make(chan *writeRequest, defaultWriteChSize),
 		stateCache:          make(map[Scope]scopeWriteState),
 		scopeMutationLocks:  make(map[Scope]*sync.Mutex),
-		activeSnapshotPaths: make(map[string]struct{}),
+		activeSnapshotPaths: make(map[string]int),
 		gcCtx:               gcCtx,
 		gcCancel:            gcCancel,
 	}
@@ -160,6 +160,28 @@ func (db *DB) ForController() multiraft.Storage {
 	return db.For(ControllerScope())
 }
 
+// startSnapshotGC starts a tracked best-effort GC pass unless the DB is closing.
+func (db *DB) startSnapshotGC() bool {
+	if db == nil {
+		return false
+	}
+
+	db.mu.Lock()
+	if db.closing || db.gcCtx == nil {
+		db.mu.Unlock()
+		return false
+	}
+	ctx := db.gcCtx
+	db.gcWG.Add(1)
+	db.mu.Unlock()
+
+	go func() {
+		defer db.gcWG.Done()
+		_ = db.runSnapshotGC(ctx)
+	}()
+	return true
+}
+
 func (db *DB) lockScopeMutation(scope Scope) func() {
 	db.scopeMutationLocksMu.Lock()
 	if db.scopeMutationLocks == nil {
@@ -184,16 +206,20 @@ func (db *DB) registerActiveSnapshotPath(path string) func() {
 
 	db.snapshotLifecycleMu.Lock()
 	if db.activeSnapshotPaths == nil {
-		db.activeSnapshotPaths = make(map[string]struct{})
+		db.activeSnapshotPaths = make(map[string]int)
 	}
-	db.activeSnapshotPaths[path] = struct{}{}
+	db.activeSnapshotPaths[path]++
 	db.snapshotLifecycleMu.Unlock()
 
 	var once sync.Once
 	return func() {
 		once.Do(func() {
 			db.snapshotLifecycleMu.Lock()
-			delete(db.activeSnapshotPaths, path)
+			if count := db.activeSnapshotPaths[path]; count <= 1 {
+				delete(db.activeSnapshotPaths, path)
+			} else {
+				db.activeSnapshotPaths[path] = count - 1
+			}
 			db.snapshotLifecycleMu.Unlock()
 		})
 	}
@@ -202,7 +228,7 @@ func (db *DB) registerActiveSnapshotPath(path string) func() {
 func (db *DB) isActiveSnapshotPath(path string) bool {
 	path = normalizeSnapshotLifecyclePath(path)
 	db.snapshotLifecycleMu.Lock()
-	_, ok := db.activeSnapshotPaths[path]
+	count := db.activeSnapshotPaths[path]
 	db.snapshotLifecycleMu.Unlock()
-	return ok
+	return count > 0
 }

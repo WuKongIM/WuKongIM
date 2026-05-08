@@ -55,8 +55,12 @@ func (db *DB) liveSnapshotPathsLocked() (map[string]struct{}, error) {
 			continue
 		}
 		scope := Scope{Kind: ScopeKind(key[1]), ID: binary.BigEndian.Uint64(key[2:10])}
-		manifest, err := decodeSnapshotManifest(scope, iter.Value())
+		value := iter.Value()
+		manifest, err := decodeSnapshotManifest(scope, value)
 		if err != nil {
+			if hasSnapshotManifestMagic(value) {
+				return nil, err
+			}
 			// Task 4 still coexists with legacy inline raftpb.Snapshot values.
 			continue
 		}
@@ -124,7 +128,7 @@ func (db *DB) collectSnapshotScopeGarbageLocked(ctx context.Context, root, scope
 		if !db.shouldDeleteSnapshotDirLocked(name, path, live) {
 			continue
 		}
-		if _, active := db.activeSnapshotPaths[path]; active {
+		if db.activeSnapshotPaths[path] > 0 {
 			continue
 		}
 		info, err := entry.Info()
