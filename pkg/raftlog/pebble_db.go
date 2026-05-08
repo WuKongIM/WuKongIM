@@ -1,7 +1,9 @@
 package raftlog
 
 import (
+	"context"
 	"errors"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -25,6 +27,8 @@ type DB struct {
 	db *pebble.DB
 
 	options Options
+	// snapshotStore manages external snapshot chunk directories for this DB.
+	snapshotStore *snapshotStore
 
 	mu      sync.Mutex
 	closing bool
@@ -33,6 +37,23 @@ type DB struct {
 	workerWG sync.WaitGroup
 
 	stateCache map[Scope]scopeWriteState
+
+	// scopeMutationLocks serialize future per-scope snapshot/metadata mutations.
+	scopeMutationLocksMu sync.Mutex
+	scopeMutationLocks   map[Scope]*sync.Mutex
+	// snapshotLifecycleMu coordinates snapshot staging/finalization with GC scans.
+	snapshotLifecycleMu sync.Mutex
+	// activeSnapshotPaths contains temporary or final snapshot paths in use.
+	activeSnapshotPaths map[string]struct{}
+	// gcCtx is canceled during Close to stop background snapshot cleanup work.
+	gcCtx context.Context
+	// gcCancel cancels gcCtx.
+	gcCancel context.CancelFunc
+	// gcWG tracks running snapshot GC passes so Close can wait for them.
+	gcWG sync.WaitGroup
+
+	// snapshotGCTestHook blocks a GC pass at a deterministic point in tests.
+	snapshotGCTestHook func()
 }
 
 func Open(path string, opts Options) (*DB, error) {
@@ -45,14 +66,21 @@ func Open(path string, opts Options) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	gcCtx, gcCancel := context.WithCancel(context.Background())
 
 	db := &DB{
-		db:         pdb,
-		options:    normalized,
-		writeCh:    make(chan *writeRequest, defaultWriteChSize),
-		stateCache: make(map[Scope]scopeWriteState),
+		db:                  pdb,
+		options:             normalized,
+		snapshotStore:       newSnapshotStore(normalized.SnapshotPath, normalized.SnapshotChunkSize),
+		writeCh:             make(chan *writeRequest, defaultWriteChSize),
+		stateCache:          make(map[Scope]scopeWriteState),
+		scopeMutationLocks:  make(map[Scope]*sync.Mutex),
+		activeSnapshotPaths: make(map[string]struct{}),
+		gcCtx:               gcCtx,
+		gcCancel:            gcCancel,
 	}
 	if err := db.ensureManifest(); err != nil {
+		gcCancel()
 		_ = pdb.Close()
 		return nil, err
 	}
@@ -66,6 +94,11 @@ func normalizeOptions(path string, opts Options) (Options, error) {
 	if opts.SnapshotPath == "" {
 		opts.SnapshotPath = path + "-snapshots"
 	}
+	snapshotPath, err := filepath.Abs(opts.SnapshotPath)
+	if err != nil {
+		return Options{}, err
+	}
+	opts.SnapshotPath = filepath.Clean(snapshotPath)
 	if opts.SnapshotChunkSize == 0 {
 		opts.SnapshotChunkSize = defaultSnapshotChunkSize
 	}
@@ -102,9 +135,13 @@ func (db *DB) Close() error {
 	}
 	db.closing = true
 	close(db.writeCh)
+	if db.gcCancel != nil {
+		db.gcCancel()
+	}
 	db.mu.Unlock()
 
 	db.workerWG.Wait()
+	db.gcWG.Wait()
 
 	err := db.db.Close()
 	db.db = nil
@@ -121,4 +158,51 @@ func (db *DB) ForSlot(slot uint64) multiraft.Storage {
 
 func (db *DB) ForController() multiraft.Storage {
 	return db.For(ControllerScope())
+}
+
+func (db *DB) lockScopeMutation(scope Scope) func() {
+	db.scopeMutationLocksMu.Lock()
+	if db.scopeMutationLocks == nil {
+		db.scopeMutationLocks = make(map[Scope]*sync.Mutex)
+	}
+	lock := db.scopeMutationLocks[scope]
+	if lock == nil {
+		lock = &sync.Mutex{}
+		db.scopeMutationLocks[scope] = lock
+	}
+	db.scopeMutationLocksMu.Unlock()
+
+	lock.Lock()
+	return lock.Unlock
+}
+
+func (db *DB) registerActiveSnapshotPath(path string) func() {
+	path = normalizeSnapshotLifecyclePath(path)
+	if path == "" {
+		return func() {}
+	}
+
+	db.snapshotLifecycleMu.Lock()
+	if db.activeSnapshotPaths == nil {
+		db.activeSnapshotPaths = make(map[string]struct{})
+	}
+	db.activeSnapshotPaths[path] = struct{}{}
+	db.snapshotLifecycleMu.Unlock()
+
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			db.snapshotLifecycleMu.Lock()
+			delete(db.activeSnapshotPaths, path)
+			db.snapshotLifecycleMu.Unlock()
+		})
+	}
+}
+
+func (db *DB) isActiveSnapshotPath(path string) bool {
+	path = normalizeSnapshotLifecyclePath(path)
+	db.snapshotLifecycleMu.Lock()
+	_, ok := db.activeSnapshotPaths[path]
+	db.snapshotLifecycleMu.Unlock()
+	return ok
 }
