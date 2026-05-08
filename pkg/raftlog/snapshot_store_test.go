@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -91,6 +92,38 @@ func TestSnapshotStoreReadRejectsCorruptChunk(t *testing.T) {
 
 	if _, err := store.read(context.Background(), SlotScope(10), staged.manifest); err == nil {
 		t.Fatal("read succeeded, want checksum error")
+	}
+}
+
+func TestSnapshotStoreReadRejectsOversizedChunkBeforeAllocation(t *testing.T) {
+	store := testSnapshotStore(t, 4, "000000000000000c")
+	staged, err := store.stage(context.Background(), SlotScope(20), testSnapshot(26, 18, []byte("data")))
+	if err != nil {
+		t.Fatalf("stage failed: %v", err)
+	}
+	chunkPath := filepath.Join(staged.finalDir, chunkFileName(0))
+	file, err := os.OpenFile(chunkPath, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatalf("open chunk: %v", err)
+	}
+	if err := file.Truncate(16 << 20); err != nil {
+		_ = file.Close()
+		t.Fatalf("truncate chunk: %v", err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close chunk: %v", err)
+	}
+
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	_, err = store.read(context.Background(), SlotScope(20), staged.manifest)
+	runtime.ReadMemStats(&after)
+	if err == nil || !strings.Contains(err.Error(), "invalid snapshot chunk size") {
+		t.Fatalf("read error = %v, want invalid chunk size", err)
+	}
+	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 2<<20 {
+		t.Fatalf("read allocated %d bytes for oversized chunk, want bounded allocation", allocated)
 	}
 }
 
