@@ -26,6 +26,7 @@ import type {
   ManagerNode,
   ManagerNodesResponse,
   ManagerSlotDetailResponse,
+  ManagerSlotHashSlots,
   ManagerSlotRebalanceResponse,
   ManagerSlotsResponse,
 } from "@/lib/manager-api.types"
@@ -105,6 +106,62 @@ function formatNodeLog(intl: IntlShape, slot: ManagerSlotsResponse["items"][numb
   return intl.formatMessage(
     { id: "slots.logHeightValue" },
     { commit: slot.node_log.commit_index, applied: slot.node_log.applied_index },
+  )
+}
+
+function sortedHashSlotItems(ownership: ManagerSlotHashSlots) {
+  const items = Array.isArray(ownership.items) ? ownership.items : []
+  return Array.from(new Set(items)).sort((left, right) => left - right)
+}
+
+function formatHashSlotRanges(items: number[]) {
+  if (items.length === 0) {
+    return "-"
+  }
+
+  const ranges: string[] = []
+  let start = items[0]
+  let previous = items[0]
+
+  for (const item of items.slice(1)) {
+    if (item === previous + 1) {
+      previous = item
+      continue
+    }
+    ranges.push(start === previous ? `${start}` : `${start}-${previous}`)
+    start = item
+    previous = item
+  }
+  ranges.push(start === previous ? `${start}` : `${start}-${previous}`)
+
+  return ranges.join(", ")
+}
+
+function formatHashSlotCount(intl: IntlShape, ownership: ManagerSlotHashSlots) {
+  return intl.formatMessage({ id: "slots.hashSlotCountValue" }, { count: ownership.count })
+}
+
+function HashSlotOwnershipValue({
+  intl,
+  ownership,
+}: {
+  intl: IntlShape
+  ownership?: ManagerSlotHashSlots | null
+}) {
+  if (!ownership) {
+    return <span className="text-muted-foreground">-</span>
+  }
+
+  const items = sortedHashSlotItems(ownership)
+  const ranges = formatHashSlotRanges(items)
+
+  return (
+    <div className="max-w-64">
+      <div className="text-sm font-medium text-foreground">{formatHashSlotCount(intl, ownership)}</div>
+      <div className="mt-1 truncate font-mono text-xs text-muted-foreground" title={ranges}>
+        {ranges}
+      </div>
+    </div>
   )
 }
 
@@ -458,6 +515,7 @@ export function SlotsPage() {
                   <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.slot" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.hashSlots" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.quorum" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.sync" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.desiredPeerSet" })}</th>
@@ -472,6 +530,9 @@ export function SlotsPage() {
                       <tr className="border-t border-border" key={slot.slot_id}>
                         <td className="px-3 py-3 text-sm font-medium text-foreground">
                           {intl.formatMessage({ id: "slots.slotValue" }, { id: slot.slot_id })}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          <HashSlotOwnershipValue intl={intl} ownership={slot.hash_slots} />
                         </td>
                         <td className="px-3 py-3 text-sm text-foreground">
                           <StatusBadge value={slot.state.quorum} />
@@ -612,6 +673,10 @@ export function SlotsPage() {
                 {
                   label: intl.formatMessage({ id: "slots.detail.currentPeers" }),
                   value: formatNodeList(detail.runtime.current_peers),
+                },
+                {
+                  label: intl.formatMessage({ id: "slots.detail.hashSlots" }),
+                  value: <HashSlotOwnershipValue intl={intl} ownership={detail.hash_slots} />,
                 },
                 {
                   label: intl.formatMessage({ id: "slots.detail.taskStatus" }),

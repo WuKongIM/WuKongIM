@@ -448,6 +448,7 @@ export type AdvanceNodeScaleInInput = {
 
 export type ManagerSlot = {
   slot_id: number
+  hash_slots?: ManagerSlotHashSlots | null
   state: {
     quorum: string
     sync: string
@@ -467,6 +468,11 @@ export type ManagerSlot = {
     last_report_at: string
   }
   node_log?: ManagerSlotNodeLog | null
+}
+
+export type ManagerSlotHashSlots = {
+  count: number
+  items: number[]
 }
 
 export type ManagerSlotNodeLog = {
