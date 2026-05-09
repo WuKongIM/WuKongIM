@@ -24,6 +24,8 @@ type SlotsResponse struct {
 type SlotDTO struct {
 	// SlotID is the physical slot identifier.
 	SlotID uint32 `json:"slot_id"`
+	// HashSlots contains the logical hash-slot ownership when known.
+	HashSlots *SlotHashSlotsDTO `json:"hash_slots,omitempty"`
 	// State contains lightweight derived slot summaries.
 	State SlotStateDTO `json:"state"`
 	// Assignment contains the desired slot placement view.
@@ -32,6 +34,14 @@ type SlotDTO struct {
 	Runtime SlotRuntimeDTO `json:"runtime"`
 	// NodeLog contains the selected node's local log watermark when requested.
 	NodeLog *SlotNodeLogDTO `json:"node_log,omitempty"`
+}
+
+// SlotHashSlotsDTO contains the logical hash-slot ownership for one physical slot.
+type SlotHashSlotsDTO struct {
+	// Count is the number of logical hash slots owned by the physical slot.
+	Count int `json:"count"`
+	// Items contains the logical hash slot IDs in ascending order.
+	Items []uint16 `json:"items"`
 }
 
 // SlotDetailDTO is the manager-facing slot detail response body.
@@ -277,7 +287,8 @@ func slotDTOs(items []managementusecase.Slot) []SlotDTO {
 
 func slotDTO(item managementusecase.Slot) SlotDTO {
 	return SlotDTO{
-		SlotID: item.SlotID,
+		SlotID:    item.SlotID,
+		HashSlots: slotHashSlotsDTO(item.HashSlots),
 		State: SlotStateDTO{
 			Quorum:                item.State.Quorum,
 			Sync:                  item.State.Sync,
@@ -300,6 +311,16 @@ func slotDTO(item managementusecase.Slot) SlotDTO {
 			LastReportAt:        item.Runtime.LastReportAt,
 		},
 		NodeLog: slotNodeLogDTO(item.NodeLog),
+	}
+}
+
+func slotHashSlotsDTO(item *managementusecase.SlotHashSlots) *SlotHashSlotsDTO {
+	if item == nil {
+		return nil
+	}
+	return &SlotHashSlotsDTO{
+		Count: item.Count,
+		Items: append([]uint16{}, item.Items...),
 	}
 }
 

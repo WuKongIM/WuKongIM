@@ -5,13 +5,17 @@ import (
 	"sort"
 	"time"
 
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 // Slot is the manager-facing slot DTO.
 type Slot struct {
 	// SlotID is the physical slot identifier.
 	SlotID uint32
+	// HashSlots contains the logical hash slots currently owned by this physical slot.
+	HashSlots *SlotHashSlots
 	// State contains lightweight derived health summaries for list rendering.
 	State SlotState
 	// Assignment contains the desired slot placement view.
@@ -20,6 +24,14 @@ type Slot struct {
 	Runtime SlotRuntime
 	// NodeLog contains the selected node's local Raft log watermark when requested.
 	NodeLog *SlotNodeLogStatus
+}
+
+// SlotHashSlots contains the current logical hash-slot ownership for one physical slot.
+type SlotHashSlots struct {
+	// Count is the number of logical hash slots currently assigned to this slot.
+	Count int
+	// Items contains the sorted logical hash slot identifiers currently assigned to this slot.
+	Items []uint16
 }
 
 // ListSlotsOptions contains optional filters for manager slot inventory reads.
@@ -103,11 +115,13 @@ func (a *App) ListSlots(ctx context.Context, opts ListSlotsOptions) ([]Slot, err
 
 	viewsBySlot := runtimeViewsBySlot(views)
 	tasksBySlot := reconcileTasksBySlot(tasks)
+	hashSlotTable := hashSlotTableFromCluster(a.cluster)
 
 	slots := make([]Slot, 0, len(assignments))
 	for _, assignment := range assignments {
 		view, ok := viewsBySlot[assignment.SlotID]
 		slot := slotFromAssignmentView(assignment, view, ok)
+		slot.HashSlots = slotHashSlotsFromTable(hashSlotTable, slot.SlotID)
 		if opts.NodeID != 0 && !slotMatchesNode(slot, opts.NodeID) {
 			continue
 		}
@@ -131,6 +145,29 @@ func (a *App) ListSlots(ctx context.Context, opts ListSlotsOptions) ([]Slot, err
 		return slots[i].SlotID < slots[j].SlotID
 	})
 	return slots, nil
+}
+
+type hashSlotTableReader interface {
+	GetHashSlotTable() *raftcluster.HashSlotTable
+}
+
+func hashSlotTableFromCluster(cluster ClusterReader) *raftcluster.HashSlotTable {
+	reader, ok := cluster.(hashSlotTableReader)
+	if !ok {
+		return nil
+	}
+	return reader.GetHashSlotTable()
+}
+
+func slotHashSlotsFromTable(table *raftcluster.HashSlotTable, slotID uint32) *SlotHashSlots {
+	if table == nil {
+		return nil
+	}
+	items := table.HashSlotsOf(multiraft.SlotID(slotID))
+	return &SlotHashSlots{
+		Count: len(items),
+		Items: append([]uint16{}, items...),
+	}
 }
 
 func slotMatchesNode(slot Slot, nodeID uint64) bool {

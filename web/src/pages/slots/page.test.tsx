@@ -34,6 +34,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
 
 const slotRow = {
   slot_id: 9,
+  hash_slots: { count: 4, items: [0, 1, 2, 7] },
   state: { quorum: "ready", sync: "in_sync" },
   assignment: { desired_peers: [1, 2, 3], config_epoch: 7, balance_version: 4 },
   runtime: {
@@ -189,6 +190,16 @@ test("uses compact slot page chrome without summary cards", async () => {
   expect(screen.queryByText("Current assignment and runtime state from the manager slot endpoints.")).not.toBeInTheDocument()
   expect(screen.queryByText("Cluster slots")).not.toBeInTheDocument()
   expect(screen.queryByText("Inspect one slot to view task state or run operator actions.")).not.toBeInTheDocument()
+})
+
+test("shows hash slot ownership as a compact count and range summary", async () => {
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+
+  renderSlotsPage()
+
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+  expect(screen.getByText("4 hash slots")).toBeInTheDocument()
+  expect(screen.getByText("0-2, 7")).toBeInTheDocument()
 })
 
 test("defaults to the local node filter and shows selected-node log height", async () => {

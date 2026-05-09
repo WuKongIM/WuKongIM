@@ -33,6 +33,7 @@ func (a *App) GetSlot(ctx context.Context, slotID uint32) (SlotDetail, error) {
 	if !ok {
 		return SlotDetail{}, controllermeta.ErrNotFound
 	}
+	slot.HashSlots = slotHashSlotsFromTable(hashSlotTableFromCluster(a.cluster), slot.SlotID)
 
 	detail := SlotDetail{Slot: slot}
 	task, err := a.cluster.GetReconcileTaskStrict(ctx, slotID)

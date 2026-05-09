@@ -1004,6 +1004,10 @@ func TestManagerSlotsReturnsAggregatedList(t *testing.T) {
 		Management: managementStub{
 			slots: []managementusecase.Slot{{
 				SlotID: 2,
+				HashSlots: &managementusecase.SlotHashSlots{
+					Count: 4,
+					Items: []uint16{4, 5, 6, 7},
+				},
 				State: managementusecase.SlotState{
 					Quorum:                "ready",
 					Sync:                  "matched",
@@ -1040,6 +1044,10 @@ func TestManagerSlotsReturnsAggregatedList(t *testing.T) {
 		"total": 1,
 		"items": [{
 			"slot_id": 2,
+			"hash_slots": {
+				"count": 4,
+				"items": [4, 5, 6, 7]
+			},
 			"state": {
 				"quorum": "ready",
 				"sync": "matched",

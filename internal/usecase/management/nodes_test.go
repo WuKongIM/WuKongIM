@@ -344,6 +344,7 @@ type fakeClusterReader struct {
 	slotIDs                     []multiraft.SlotID
 	slotForKey                  map[string]multiraft.SlotID
 	hashSlotForKey              map[string]uint16
+	hashSlotTable               *raftcluster.HashSlotTable
 	nodes                       []controllermeta.ClusterNode
 	listNodesErr                error
 	assignments                 []controllermeta.SlotAssignment
@@ -422,6 +423,13 @@ func (f fakeClusterReader) SlotForKey(key string) multiraft.SlotID {
 
 func (f fakeClusterReader) HashSlotForKey(key string) uint16 {
 	return f.hashSlotForKey[key]
+}
+
+func (f fakeClusterReader) GetHashSlotTable() *raftcluster.HashSlotTable {
+	if f.hashSlotTable == nil {
+		return nil
+	}
+	return f.hashSlotTable.Clone()
 }
 
 func (f fakeClusterReader) ListNodesStrict(context.Context) ([]controllermeta.ClusterNode, error) {

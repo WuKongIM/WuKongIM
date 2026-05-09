@@ -12,8 +12,10 @@ import (
 
 func TestListSlotsAggregatesAssignmentRuntimeAndDerivedState(t *testing.T) {
 	now := time.Unix(1713686400, 0).UTC()
+	hashSlotTable := raftcluster.NewHashSlotTable(8, 2)
 	app := New(Options{
 		Cluster: fakeClusterReader{
+			hashSlotTable: hashSlotTable,
 			assignments: []controllermeta.SlotAssignment{{
 				SlotID:          2,
 				DesiredPeers:    []uint64{1, 2, 3},
@@ -43,6 +45,10 @@ func TestListSlotsAggregatesAssignmentRuntimeAndDerivedState(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []Slot{{
 		SlotID: 2,
+		HashSlots: &SlotHashSlots{
+			Count: 4,
+			Items: []uint16{4, 5, 6, 7},
+		},
 		State: SlotState{
 			Quorum:                "ready",
 			Sync:                  "matched",
@@ -65,6 +71,26 @@ func TestListSlotsAggregatesAssignmentRuntimeAndDerivedState(t *testing.T) {
 			LastReportAt:        now,
 		},
 	}}, got)
+}
+
+func TestGetSlotIncludesHashSlotsFromCurrentTable(t *testing.T) {
+	hashSlotTable := raftcluster.NewHashSlotTable(8, 2)
+	app := New(Options{
+		Cluster: fakeClusterReader{
+			hashSlotTable: hashSlotTable,
+			assignments: []controllermeta.SlotAssignment{{
+				SlotID:       1,
+				DesiredPeers: []uint64{1, 2, 3},
+			}},
+		},
+	})
+
+	got, err := app.GetSlot(context.Background(), 1)
+	require.NoError(t, err)
+	require.Equal(t, &SlotHashSlots{
+		Count: 4,
+		Items: []uint16{0, 1, 2, 3},
+	}, got.HashSlots)
 }
 
 func TestSlotFromAssignmentViewMarksLeaderMatchWhenPreferredLeaderLeads(t *testing.T) {
