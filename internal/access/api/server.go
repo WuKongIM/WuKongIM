@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	testdatausecase "github.com/WuKongIM/WuKongIM/internal/usecase/testdata"
@@ -25,6 +26,32 @@ type MessageUsecase interface {
 
 type UserUsecase interface {
 	UpdateToken(ctx context.Context, cmd user.UpdateTokenCommand) error
+	DeviceQuit(ctx context.Context, cmd user.DeviceQuitCommand) error
+	OnlineStatus(ctx context.Context, uids []string) ([]user.OnlineStatus, error)
+	AddSystemUIDs(ctx context.Context, uids []string) error
+	RemoveSystemUIDs(ctx context.Context, uids []string) error
+	ListSystemUIDs(ctx context.Context) ([]string, error)
+	AddSystemUIDsToCache(uids []string) error
+	RemoveSystemUIDsFromCache(uids []string) error
+}
+
+type ChannelUsecase interface {
+	Upsert(ctx context.Context, cmd channelusecase.UpsertCommand) error
+	UpdateInfo(ctx context.Context, info channelusecase.Info) error
+	Delete(ctx context.Context, key channelusecase.ChannelKey) error
+	AddSubscribers(ctx context.Context, cmd channelusecase.SubscriberCommand) error
+	RemoveSubscribers(ctx context.Context, cmd channelusecase.SubscriberCommand) error
+	RemoveAllSubscribers(ctx context.Context, key channelusecase.ChannelKey) error
+	SetTempSubscribers(ctx context.Context, cmd channelusecase.TempSubscriberCommand) error
+	AddDenylist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	SetDenylist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	RemoveDenylist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	RemoveAllDenylist(ctx context.Context, key channelusecase.ChannelKey) error
+	AddAllowlist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	SetAllowlist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	RemoveAllowlist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	RemoveAllAllowlist(ctx context.Context, key channelusecase.ChannelKey) error
+	ListAllowlist(ctx context.Context, key channelusecase.ChannelKey) (channelusecase.MemberListResult, error)
 }
 
 // TestDataUsecase generates deterministic datasets for process-level e2e tests.
@@ -55,6 +82,7 @@ type Options struct {
 	ListenAddr               string
 	Messages                 MessageUsecase
 	Users                    UserUsecase
+	Channels                 ChannelUsecase
 	TestMode                 bool
 	TestData                 TestDataUsecase
 	Conversations            ConversationUsecase
@@ -83,6 +111,7 @@ type Server struct {
 	addr                     string
 	messages                 MessageUsecase
 	users                    UserUsecase
+	channels                 ChannelUsecase
 	testMode                 bool
 	testData                 TestDataUsecase
 	conversations            ConversationUsecase
@@ -118,6 +147,7 @@ func New(opts Options) *Server {
 		listenAddr:               opts.ListenAddr,
 		messages:                 opts.Messages,
 		users:                    opts.Users,
+		channels:                 opts.Channels,
 		testMode:                 opts.TestMode,
 		testData:                 opts.TestData,
 		conversations:            opts.Conversations,

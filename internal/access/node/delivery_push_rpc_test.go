@@ -76,7 +76,9 @@ func TestPushBatchRPCProcessesBatchItemsAndAggregatesResults(t *testing.T) {
 
 	resp := mustDecodeDeliveryPushResponse(t, body)
 	require.Equal(t, rpcStatusOK, resp.Status)
-	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 7, SessionID: 10}}, resp.Accepted)
+	require.True(t, resp.AcceptedCountSet)
+	require.Equal(t, uint64(1), resp.AcceptedCount)
+	require.Empty(t, resp.Accepted)
 	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u3", NodeID: 1, BootID: 7, SessionID: 11}}, resp.Retryable)
 	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u-mismatch", NodeID: 99, BootID: 7, SessionID: 12}}, resp.Dropped)
 	require.Len(t, active.WrittenFrames(), 1)
@@ -112,13 +114,15 @@ func TestDeliveryPushBinaryCodecRoundTrip(t *testing.T) {
 	req, binaryRequest, err := decodeDeliveryPushRequest(body)
 	require.NoError(t, err)
 	require.True(t, binaryRequest)
+	require.True(t, req.acceptsAcceptedCount)
 	require.Equal(t, cmd.OwnerNodeID, req.OwnerNodeID)
 	require.Equal(t, cmd.Items, req.Items)
 
 	respBody, err := encodeDeliveryPushResponseBinary(DeliveryPushResponse{
-		Status:   rpcStatusOK,
-		Accepted: []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 7, SessionID: 10}},
-		Dropped:  []deliveryruntime.RouteKey{{UID: "u3", NodeID: 1, BootID: 7, SessionID: 11}},
+		Status:           rpcStatusOK,
+		AcceptedCount:    1,
+		AcceptedCountSet: true,
+		Dropped:          []deliveryruntime.RouteKey{{UID: "u3", NodeID: 1, BootID: 7, SessionID: 11}},
 	})
 	require.NoError(t, err)
 	require.True(t, isDeliveryPushResponseBinary(respBody))
@@ -126,7 +130,9 @@ func TestDeliveryPushBinaryCodecRoundTrip(t *testing.T) {
 	resp, err := decodeDeliveryPushResponse(respBody)
 	require.NoError(t, err)
 	require.Equal(t, rpcStatusOK, resp.Status)
-	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 7, SessionID: 10}}, resp.Accepted)
+	require.True(t, resp.AcceptedCountSet)
+	require.Equal(t, uint64(1), resp.AcceptedCount)
+	require.Empty(t, resp.Accepted)
 	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u3", NodeID: 1, BootID: 7, SessionID: 11}}, resp.Dropped)
 }
 
@@ -201,7 +207,9 @@ func TestPushBatchRPCAcceptsBinaryRequestAndReturnsBinaryResponse(t *testing.T) 
 	require.True(t, isDeliveryPushResponseBinary(respBody))
 	resp := mustDecodeDeliveryPushResponse(t, respBody)
 	require.Equal(t, rpcStatusOK, resp.Status)
-	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 7, SessionID: 10}}, resp.Accepted)
+	require.True(t, resp.AcceptedCountSet)
+	require.Equal(t, uint64(1), resp.AcceptedCount)
+	require.Empty(t, resp.Accepted)
 	require.Len(t, active.WrittenFrames(), 1)
 }
 
@@ -260,7 +268,9 @@ func TestPushBatchRPCPreservesPersonItemChannelViews(t *testing.T) {
 
 	resp := mustDecodeDeliveryPushResponse(t, body)
 	require.Equal(t, rpcStatusOK, resp.Status)
-	require.Len(t, resp.Accepted, 2)
+	require.True(t, resp.AcceptedCountSet)
+	require.Equal(t, uint64(2), resp.AcceptedCount)
+	require.Empty(t, resp.Accepted)
 
 	senderWrites := sender.WrittenFrames()
 	recipientWrites := recipient.WrittenFrames()
@@ -410,14 +420,18 @@ func TestDeliveryPushClientPushBatchItemsUsesDeliveryRPCService(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, rpcStatusOK, resp.Status)
+	require.True(t, resp.AcceptedCountSet)
+	require.Equal(t, uint64(0), resp.AcceptedCount)
+	require.Empty(t, resp.Accepted)
 	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 2, BootID: 7, SessionID: 10}}, resp.Dropped)
 }
 
 func TestDeliveryPushClientPushBatchItemsUsesBinaryRPCPayload(t *testing.T) {
 	cluster := &capturingDeliveryPushCluster{
 		response: mustDeliveryPushBinaryResponse(t, DeliveryPushResponse{
-			Status:  rpcStatusOK,
-			Dropped: []deliveryruntime.RouteKey{{UID: "u2", NodeID: 2, BootID: 7, SessionID: 10}},
+			Status:           rpcStatusOK,
+			AcceptedCount:    1,
+			AcceptedCountSet: true,
 		}),
 	}
 	client := NewClient(cluster)
@@ -435,9 +449,45 @@ func TestDeliveryPushClientPushBatchItemsUsesBinaryRPCPayload(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, rpcStatusOK, resp.Status)
+	require.True(t, resp.AcceptedCountSet)
+	require.Equal(t, uint64(1), resp.AcceptedCount)
+	require.Empty(t, resp.Accepted)
 	require.True(t, isDeliveryPushRequestBinary(cluster.payload))
 	require.Equal(t, deliveryPushRPCServiceID, cluster.serviceID)
 	require.Equal(t, multiraft.NodeID(2), cluster.nodeID)
+	req, _, err := decodeDeliveryPushRequest(cluster.payload)
+	require.NoError(t, err)
+	require.True(t, req.acceptsAcceptedCount)
+}
+
+func TestDeliveryPushClientPushBatchItemsFallsBackToLegacyRequestWhenPeerRejectsV2(t *testing.T) {
+	route := deliveryruntime.RouteKey{UID: "u2", NodeID: 2, BootID: 7, SessionID: 10}
+	cluster := &legacyOnlyDeliveryPushCluster{
+		response: mustDeliveryPushBinaryResponse(t, DeliveryPushResponse{
+			Status:   rpcStatusOK,
+			Accepted: []deliveryruntime.RouteKey{route},
+		}),
+	}
+	client := NewClient(cluster)
+
+	resp, err := client.PushBatchItems(context.Background(), 2, DeliveryPushBatchCommand{
+		OwnerNodeID: 1,
+		Items: []DeliveryPushItem{{
+			ChannelID:   "g1",
+			ChannelType: frame.ChannelTypeGroup,
+			MessageID:   88,
+			MessageSeq:  9,
+			Routes:      []deliveryruntime.RouteKey{route},
+			Frame:       mustEncodeFrame(t, &frame.RecvPacket{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, MessageID: 88, MessageSeq: 9}),
+		}},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []deliveryruntime.RouteKey{route}, resp.Accepted)
+	require.False(t, resp.AcceptedCountSet)
+	require.Len(t, cluster.payloads, 2)
+	require.True(t, hasMagic(cluster.payloads[0], deliveryPushRequestMagicV2[:]))
+	require.True(t, hasMagic(cluster.payloads[1], deliveryPushRequestMagicV1[:]))
 }
 
 type writeErrorSession struct {
@@ -494,5 +544,32 @@ func (c *capturingDeliveryPushCluster) RPCService(_ context.Context, nodeID mult
 }
 
 func (c *capturingDeliveryPushCluster) PeersForSlot(multiraft.SlotID) []multiraft.NodeID {
+	return nil
+}
+
+type legacyOnlyDeliveryPushCluster struct {
+	payloads [][]byte
+	response []byte
+}
+
+func (c *legacyOnlyDeliveryPushCluster) RPCMux() *transport.RPCMux { return nil }
+
+func (c *legacyOnlyDeliveryPushCluster) LeaderOf(multiraft.SlotID) (multiraft.NodeID, error) {
+	return 0, nil
+}
+
+func (c *legacyOnlyDeliveryPushCluster) IsLocal(multiraft.NodeID) bool { return false }
+
+func (c *legacyOnlyDeliveryPushCluster) SlotForKey(string) multiraft.SlotID { return 0 }
+
+func (c *legacyOnlyDeliveryPushCluster) RPCService(_ context.Context, _ multiraft.NodeID, _ multiraft.SlotID, _ uint8, payload []byte) ([]byte, error) {
+	c.payloads = append(c.payloads, append([]byte(nil), payload...))
+	if hasMagic(payload, deliveryPushRequestMagicV2[:]) {
+		return nil, errors.New("access/node: invalid delivery push request codec")
+	}
+	return c.response, nil
+}
+
+func (c *legacyOnlyDeliveryPushCluster) PeersForSlot(multiraft.SlotID) []multiraft.NodeID {
 	return nil
 }

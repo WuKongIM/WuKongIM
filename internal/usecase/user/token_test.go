@@ -271,6 +271,7 @@ func (f *fakeUserStore) CreateUser(_ context.Context, u metadb.User) error {
 type fakeDeviceStore struct {
 	upsertErr error
 	upserted  []metadb.Device
+	devices   map[deviceKey]metadb.Device
 }
 
 func (f *fakeDeviceStore) UpsertDevice(_ context.Context, d metadb.Device) error {
@@ -278,7 +279,26 @@ func (f *fakeDeviceStore) UpsertDevice(_ context.Context, d metadb.Device) error
 		return f.upsertErr
 	}
 	f.upserted = append(f.upserted, d)
+	if f.devices != nil {
+		f.devices[deviceKey{uid: d.UID, flag: d.DeviceFlag}] = d
+	}
 	return nil
+}
+
+func (f *fakeDeviceStore) GetDevice(_ context.Context, uid string, deviceFlag int64) (metadb.Device, error) {
+	if f.devices == nil {
+		return metadb.Device{}, metadb.ErrNotFound
+	}
+	device, ok := f.devices[deviceKey{uid: uid, flag: deviceFlag}]
+	if !ok {
+		return metadb.Device{}, metadb.ErrNotFound
+	}
+	return device, nil
+}
+
+type deviceKey struct {
+	uid  string
+	flag int64
 }
 
 type recordingSession struct {

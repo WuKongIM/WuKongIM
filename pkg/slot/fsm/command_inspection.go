@@ -50,9 +50,9 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 	case *advanceChannelRetentionThroughSeqCmd:
 		return retentionAdvanceInspection(typed.req), nil
 	case *addSubscribersCmd:
-		return subscribersInspection("add_subscribers", typed.channelID, typed.channelType, typed.uids), nil
+		return subscribersInspection("add_subscribers", typed.channelID, typed.channelType, typed.uids, typed.subscriberMutationVersion), nil
 	case *removeSubscribersCmd:
-		return subscribersInspection("remove_subscribers", typed.channelID, typed.channelType, typed.uids), nil
+		return subscribersInspection("remove_subscribers", typed.channelID, typed.channelType, typed.uids, typed.subscriberMutationVersion), nil
 	case *upsertUserConversationStatesCmd:
 		return simpleInspection("upsert_user_conversation_states", map[string]any{
 			"states": userConversationStatesPayload(typed.states),
@@ -163,12 +163,16 @@ func retentionAdvanceInspection(req metadb.ChannelRetentionAdvance) CommandInspe
 	})
 }
 
-func subscribersInspection(commandType, channelID string, channelType int64, uids []string) CommandInspection {
-	return simpleInspection(commandType, map[string]any{
+func subscribersInspection(commandType, channelID string, channelType int64, uids []string, subscriberMutationVersion uint64) CommandInspection {
+	payload := map[string]any{
 		"channel_id":   channelID,
 		"channel_type": channelType,
 		"uids":         append([]string(nil), uids...),
-	})
+	}
+	if subscriberMutationVersion > 0 {
+		payload["subscriber_mutation_version"] = subscriberMutationVersion
+	}
+	return simpleInspection(commandType, payload)
 }
 
 func applyDeltaInspection(cmd *applyDeltaCmd) (CommandInspection, error) {

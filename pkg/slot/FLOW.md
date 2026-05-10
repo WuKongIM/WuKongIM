@@ -227,6 +227,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **HideUserConversations 删除语义**: 删除会话必须走独立命令 16；只有新 `DeletedToSeq` 前进时才持久化屏障并在同一批写中清空 `ActiveAt`/删除 active index，避免旧 delete 重试覆盖后续新消息激活；随后通过 `RemoveUserConversationActiveHints` 删除 UID-owner hot hint 并安装 stale hint barrier。
 - **命令 16 升级约束**: 混合版本 Slot 副本不能安全接收 `HideUserConversations`；发布时需要 stop-the-world 升级或后续 capability gate。
 - **ApplyBatch 原子性**: 一个 ApplyBatch 内所有命令要么全部成功，要么全部失败（WriteBatch 未 Commit 就丢弃）。任何一条失败会导致整个 Raft Slot fail。
+- **Subscriber 命令硬上限**: `AddSubscribers` / `RemoveSubscribers` 单条 Raft command 最多 1000 个 UID，编码后的 UID 字节最多 64KB；proxy 在提案前校验，FSM decode 仍兜底拒绝超限命令。
 - **Leader 变更自动失败 pending**: `slot.go:refreshStatus` 检测到从 Leader 降级时，立即 fail 所有 submitted/pending 的 proposal/config Future 返回 ErrNotLeader。
 - **Batch Apply 与 ConfChange 穿插**: `slot.go:applyCommittedEntries` 遇到 ConfChange 必须先 flush 累积的 Normal Entry 批次。不能把 ConfChange 塞进批次里。
 - **Slot log compaction 恢复边界**: 启动时只把持久化 snapshot index 作为 RawNode applied point，然后 replay snapshot 之后仍存在的 entries；不能用更靠后的 persisted applied index 跳过 replay。

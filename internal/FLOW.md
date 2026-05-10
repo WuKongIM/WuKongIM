@@ -88,6 +88,7 @@
 | 组件 | 文件 | 职责 |
 |------|------|------|
 | `delivery.Manager` | `runtime/delivery/manager.go` | 投递运行时：分片 Actor 模型、重试轮、Ack 索引 |
+| `deliverytag.Manager` | `runtime/deliverytag/manager.go` | 投递标签缓存：按频道保存 leader 构建的订阅者分区快照 |
 | `online.MemoryRegistry` | `runtime/online/registry.go` | 在线注册表：按 SessionID/UID/SlotID 索引 |
 | `channelmeta` | `runtime/channelmeta/` | Channel 元数据：resolver、缓存、lease、repair |
 | `messageid` | `runtime/messageid/` | Snowflake 分布式 ID 生成 |
@@ -325,14 +326,16 @@ actorFor(key)（获取或创建 Actor）
   ↓
 Actor 状态机:
   ├─ Resolve 阶段
-  │   └─ Resolver.ResolvePage（分页获取订阅者在线端点并记录 resolve 指标）
+  │   ├─ Channel Leader 使用 deliverytag.Manager 构建/刷新订阅者分区 tag
+  │   ├─ 非 Leader 通过 delivery_tag RPC 获取本节点分区并本地缓存
+  │   └─ Resolver.ResolvePage 只展开当前 tag 分区内的在线端点并记录 resolve 指标
   │
   ├─ Push 阶段
   │   ├─ 本地端点: localDeliveryPush → Session.WriteFrame
   │   ├─ 远程端点: delivery_push RPC 按目标节点批量发送
-  │   │   ├─ Group 频道: 每个目标节点一个 frame item，包含该节点多条 route
+  │   │   ├─ Group 频道: 按目标节点聚合 route，超过单 RPC 上限时按 route chunk 拆分
   │   │   ├─ Person 频道: 按 recipient channel view 拆 item，避免收件视图串用
-  │   │   └─ 滚动升级时若对端未返回 route 结果，回退 legacy DeliveryPushCommand
+  │   │   └─ v2 响应只返回 accepted count + retryable/dropped 精确 route，legacy 响应仍回显 accepted route
   │   ├─ 过滤 SenderSessionID（跳过发送者连接）
   │   └─ AckIndex.Bind（建立 Ack 映射）
   │
@@ -457,6 +460,7 @@ handleRecvAck(ctx, pkt)
 | 操作 | 方向 | 文件 | 说明 |
 |------|------|------|------|
 | `delivery_submit` | → remote | `access/node/delivery_submit_rpc.go` | 提交已提交消息到 Leader 节点投递 |
+| `delivery_tag` | → channel leader | `access/node/delivery_tag_rpc.go` | 获取/刷新 Leader 权威 delivery tag，本地节点只接收自己的订阅者分区 |
 | `delivery_push` | → remote | `access/node/delivery_push_rpc.go` | 批量推送一个 committed message 的多条 route 到目标节点在线 Session，兼容 legacy 单 item |
 | `delivery_ack` | → remote | `access/node/delivery_ack_rpc.go` | 转发 RecvAck 到投递所在节点 |
 | `delivery_offline` | → remote | `access/node/delivery_offline_rpc.go` | 通知离线消息处理 |
@@ -518,7 +522,8 @@ handleRecvAck(ctx, pkt)
 - **不等待全局连续 MessageSeq**: `preferLocal` 下每个节点只能看到该 Channel 全局序列的稀疏子集，按本节点已观察到的提交流推进
 - **投递重试有上限**: 默认重试延迟 [500ms, 1s, 2s]，最大重试次数 = 4 次，超过后移除 Ack 绑定并依赖 Channel Log catch-up
 - **AckIndex 是关键**: `AckIndex.Bind` 在 Push 时建立 SessionID+MessageID → Channel+Route 的映射
-- **远程实时投递只在单条 committed message 内批量**: 不跨消息聚合；按目标节点合并 RPC，Person 频道按 recipient view 拆分 frame item
+- **DeliveryTag 是 Leader 权威分区快照**: Leader 构建全频道订阅者分区，Follower 仅缓存本节点分区；普通订阅者变更保持 `tagKey`、递增 `tagVersion`，陈旧 tag 响应只触发重试/刷新，不能覆盖新缓存
+- **远程实时投递只在单条 committed message 内批量**: 不跨消息聚合；按目标节点合并 RPC，Group 频道大 route 集会按 chunk 拆分，Person 频道按 recipient view 拆分 frame item；delivery push v2 响应用 accepted count 避免回显所有成功 route，滚动升级时可回退 legacy 请求/响应
 
 ### 🔴 在线状态
 - **权威路由通过 Raft**: `RegisterAuthoritative` 是一次 Raft Propose，写入 Slot Leader 的状态机

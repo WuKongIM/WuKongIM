@@ -128,10 +128,31 @@ func TestUserValueEncodingMatchesDoc(t *testing.T) {
 
 func TestChannelValueEncodingMatchesDoc(t *testing.T) {
 	key := encodeChannelPrimaryKey(7, "group-001", 1, 0)
-	got := encodeChannelFamilyValue(0, key)
-	want := mustHex(t, "6a f6 c5 9d 0a 33 00")
+	got := encodeChannelFamilyValue(0, 0, key)
+	want := mustHex(t, "40 96 6d 34 0a 33 00 14 00")
 	if !bytes.Equal(got, want) {
 		t.Fatalf("unexpected value:\n got: %x\nwant: %x", got, want)
+	}
+
+	ban, version, err := decodeChannelFamilyValue(key, got)
+	if err != nil {
+		t.Fatalf("decodeChannelFamilyValue(): %v", err)
+	}
+	if ban != 0 || version != 0 {
+		t.Fatalf("decoded channel value = (%d, %d), want (0, 0)", ban, version)
+	}
+}
+
+func TestChannelValueEncodingCarriesSubscriberMutationVersion(t *testing.T) {
+	key := encodeChannelPrimaryKey(7, "group-001", 1, 0)
+	got := encodeChannelFamilyValue(9, 7, key)
+
+	ban, version, err := decodeChannelFamilyValue(key, got)
+	if err != nil {
+		t.Fatalf("decodeChannelFamilyValue(): %v", err)
+	}
+	if ban != 9 || version != 7 {
+		t.Fatalf("decoded channel value = (%d, %d), want (9, 7)", ban, version)
 	}
 }
 
@@ -153,7 +174,7 @@ func TestChannelIndexValueEncodingIsCompact(t *testing.T) {
 
 func TestDecodeChannelIndexValueAcceptsLegacyWrappedValue(t *testing.T) {
 	key := encodeChannelIDIndexKey(7, "group-001", 1)
-	legacy := encodeChannelFamilyValue(9, key)
+	legacy := encodeLegacyChannelFamilyValue(9, key)
 
 	decoded, err := decodeChannelIndexValue(key, legacy)
 	if err != nil {
@@ -202,7 +223,7 @@ func TestDecodeChannelFamilyValueRejectsMissingBan(t *testing.T) {
 	key := encodeChannelPrimaryKey(7, "group-001", 1, 0)
 	value := wrapFamilyValue(key, nil)
 
-	_, err := decodeChannelFamilyValue(key, value)
+	_, _, err := decodeChannelFamilyValue(key, value)
 	if !errors.Is(err, ErrCorruptValue) {
 		t.Fatalf("expected ErrCorruptValue, got %v", err)
 	}
@@ -213,10 +234,16 @@ func TestDecodeChannelFamilyValueRejectsWrongType(t *testing.T) {
 	payload := appendBytesValue(nil, channelColumnIDBan, 0, "bad")
 	value := wrapFamilyValue(key, payload)
 
-	_, err := decodeChannelFamilyValue(key, value)
+	_, _, err := decodeChannelFamilyValue(key, value)
 	if !errors.Is(err, ErrCorruptValue) {
 		t.Fatalf("expected ErrCorruptValue, got %v", err)
 	}
+}
+
+func encodeLegacyChannelFamilyValue(ban int64, key []byte) []byte {
+	payload := make([]byte, 0, 8)
+	payload = appendIntValue(payload, channelColumnIDBan, 0, ban)
+	return wrapFamilyValue(key, payload)
 }
 
 func mustHex(t *testing.T, s string) []byte {

@@ -15,7 +15,7 @@ type Subscriber struct {
 	UID         string
 }
 
-func (s *ShardStore) AddSubscribers(ctx context.Context, channelID string, channelType int64, uids []string) error {
+func (s *ShardStore) AddSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error {
 	if err := s.validate(); err != nil {
 		return err
 	}
@@ -36,6 +36,27 @@ func (s *ShardStore) AddSubscribers(ctx context.Context, channelID string, chann
 
 	s.db.mu.Lock()
 	defer s.db.mu.Unlock()
+
+	version := uint64(0)
+	if len(subscriberMutationVersion) > 0 {
+		version = subscriberMutationVersion[0]
+	}
+	var channel Channel
+	if version > 0 {
+		primaryKey := encodeChannelPrimaryKey(s.slot, channelID, channelType, channelPrimaryFamilyID)
+		existing, exists, err := s.getChannelForPrimaryKeyLocked(primaryKey, channelID, channelType)
+		if err != nil {
+			return err
+		}
+		if exists && existing.SubscriberMutationVersion > version {
+			return ErrStaleMeta
+		}
+		channel = existing
+		if !exists {
+			channel = Channel{ChannelID: channelID, ChannelType: channelType}
+		}
+		channel.SubscriberMutationVersion = version
+	}
 
 	batch := s.db.db.NewBatch()
 	defer batch.Close()
@@ -46,10 +67,17 @@ func (s *ShardStore) AddSubscribers(ctx context.Context, channelID string, chann
 			return err
 		}
 	}
+	if version > 0 {
+		primaryKey := encodeChannelPrimaryKey(s.slot, channelID, channelType, channelPrimaryFamilyID)
+		value := encodeChannelFamilyValue(channel.Ban, channel.SubscriberMutationVersion, primaryKey)
+		if err := batch.Set(primaryKey, value, nil); err != nil {
+			return err
+		}
+	}
 	return batch.Commit(pebble.Sync)
 }
 
-func (s *ShardStore) RemoveSubscribers(ctx context.Context, channelID string, channelType int64, uids []string) error {
+func (s *ShardStore) RemoveSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error {
 	if err := s.validate(); err != nil {
 		return err
 	}
@@ -71,12 +99,40 @@ func (s *ShardStore) RemoveSubscribers(ctx context.Context, channelID string, ch
 	s.db.mu.Lock()
 	defer s.db.mu.Unlock()
 
+	version := uint64(0)
+	if len(subscriberMutationVersion) > 0 {
+		version = subscriberMutationVersion[0]
+	}
+	var channel Channel
+	if version > 0 {
+		primaryKey := encodeChannelPrimaryKey(s.slot, channelID, channelType, channelPrimaryFamilyID)
+		existing, exists, err := s.getChannelForPrimaryKeyLocked(primaryKey, channelID, channelType)
+		if err != nil {
+			return err
+		}
+		if exists && existing.SubscriberMutationVersion > version {
+			return ErrStaleMeta
+		}
+		channel = existing
+		if !exists {
+			channel = Channel{ChannelID: channelID, ChannelType: channelType}
+		}
+		channel.SubscriberMutationVersion = version
+	}
+
 	batch := s.db.db.NewBatch()
 	defer batch.Close()
 
 	for _, uid := range normalized {
 		key := encodeSubscriberPrimaryKey(s.slot, channelID, channelType, uid, subscriberPrimaryFamilyID)
 		if err := batch.Delete(key, nil); err != nil {
+			return err
+		}
+	}
+	if version > 0 {
+		primaryKey := encodeChannelPrimaryKey(s.slot, channelID, channelType, channelPrimaryFamilyID)
+		value := encodeChannelFamilyValue(channel.Ban, channel.SubscriberMutationVersion, primaryKey)
+		if err := batch.Set(primaryKey, value, nil); err != nil {
 			return err
 		}
 	}

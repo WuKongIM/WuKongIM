@@ -8,12 +8,30 @@
 - Deleting a conversation clears current active visibility through `DeletedToSeq`; a later message with a larger sequence must be allowed to reactivate it.
 - Delete without an explicit message sequence must first resolve the latest Channel Log sequence; if no sequence is available, do not install a zero delete barrier.
 - Duplicate/stale delete barriers must not clear an `ActiveAt` written by a newer message.
+- Legacy channel allowlist, denylist, and temporary-subscriber APIs are backed by namespaced slot subscriber lists until dedicated metadata tables exist.
+- Legacy system UID APIs are backed by the namespaced slot subscriber list `__wk_internal_system_uids__`.
+- Persisted system UID add/remove APIs must refresh node-local caches on peer nodes through node RPC.
 
 ### Long-poll leader lease refresh
 - A channel leader metadata refresh that only renews `LeaseUntil` must preserve existing leader-side lane sessions and follower cursors.
 - Clearing the lane cursor on a lease-only refresh can make the next replication fetch start from offset `0`, preventing follower progress and HW from advancing for the next append.
 - Expired remote channel leader leases must be repaired by evaluating the current leader first; only renew the lease if that leader can still prove it is safe.
 - ChannelRuntimeMeta upserts must be monotonic: stale channel/leader epochs or shorter same-epoch leases are no-ops.
+
+### Delivery tag
+- Delivery tags are the unified subscriber-partition snapshot mechanism for all channel delivery paths; large channels are only the highest-pressure case.
+- Channel delivery tags are channel-leader authoritative: only the channel leader may create or update them; other nodes may only fetch leader-built partitions and cache them locally.
+- Non-leader delivery tag caches contain only the local node partition, never the full channel subscriber set.
+- Delivery tags cache subscriber partitions, not online routes; normal membership changes keep tagKey stable and invalidate caches by incrementing tagVersion.
+- Delivery tag ordinary membership changes keep tagKey stable and increment tagVersion; leader incarnation changes may create a new tagKey to avoid stale-cache collisions.
+- Delivery tag cache hits require both tagKey and tagVersion to match the current channel ref; older stale requests must never evict a newer local tag ref, and newer mismatches force a refetch from the channel leader.
+- Delivery tag route ACK/retry ownership belongs to the target partition node after tag handoff, not to the channel leader.
+- Delivery tags use PartitionTopologyVersion checks and TTL cleanup for topology changes and cold-cache cleanup.
+- Delivery tag cache eviction must be stale-safe: an older request must never evict a newer local tag ref.
+- Delivery tag invalidation must be fenced by a durable subscriber mutation version in the authoritative slot store; pending invalidate is only a hint.
+- Delivery tag topology checks use the cluster hash-slot table version plus exact per-UID-slot authority refs `{slotID, leaderNodeID, configEpoch, balanceVersion}`; never collapse multi-slot refs to a max version.
+- Delivery tag subscriber mutation versions are generated only by the authoritative subscriber store in the same Raft command/transaction as the subscriber rows, not by the tag cache.
+- Channel management chunked subscriber writes must share one durable subscriber mutation version per logical operation; chunk boundaries do not create extra fences.
 
 ### Committed event replay
 - Sendack waits for Channel Log quorum commit; delivery/conversation are async side effects recovered by committed replay from the durable message log.

@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
@@ -152,6 +153,13 @@ func (c *Client) PushBatchItems(ctx context.Context, nodeID uint64, cmd Delivery
 		return DeliveryPushResponse{}, err
 	}
 	resp, err := c.callDeliveryPushDirect(ctx, nodeID, body)
+	if err != nil && isDeliveryPushCodecUnsupported(err) {
+		legacyBody, encodeErr := encodeDeliveryPushBatchCommandLegacyBinary(cmd)
+		if encodeErr != nil {
+			return DeliveryPushResponse{}, encodeErr
+		}
+		resp, err = c.callDeliveryPushDirect(ctx, nodeID, legacyBody)
+	}
 	if err != nil {
 		return DeliveryPushResponse{}, err
 	}
@@ -159,6 +167,10 @@ func (c *Client) PushBatchItems(ctx context.Context, nodeID uint64, cmd Delivery
 		return DeliveryPushResponse{}, fmt.Errorf("access/node: unexpected delivery push status %q", resp.Status)
 	}
 	return resp, nil
+}
+
+func isDeliveryPushCodecUnsupported(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "invalid delivery push request codec")
 }
 
 func (c *Client) callDeliveryPushDirect(ctx context.Context, nodeID uint64, body []byte) (DeliveryPushResponse, error) {

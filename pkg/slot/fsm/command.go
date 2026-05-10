@@ -85,9 +85,10 @@ const (
 	tagRetentionAdvanceUpdatedAtMS          uint8 = 8
 
 	// Subscriber field tags.
-	tagSubscriberChannelID   uint8 = 1
-	tagSubscriberChannelType uint8 = 2
-	tagSubscriberUIDs        uint8 = 3
+	tagSubscriberChannelID       uint8 = 1
+	tagSubscriberChannelType     uint8 = 2
+	tagSubscriberUIDs            uint8 = 3
+	tagSubscriberMutationVersion uint8 = 4
 
 	// User conversation state field tags.
 	tagUserConversationStateEntryUID          uint8 = 1
@@ -131,6 +132,11 @@ const (
 	headerSize = 2
 	// tlvOverhead is tag (1) + length (4).
 	tlvOverhead = 5
+
+	// MaxSubscriberCommandUIDs bounds one subscriber Raft command by UID count.
+	MaxSubscriberCommandUIDs = 1000
+	// MaxSubscriberCommandUIDBytes bounds one subscriber Raft command by encoded UID bytes.
+	MaxSubscriberCommandUIDBytes = 64 * 1024
 )
 
 // command is the decoded representation of a state machine command.
@@ -254,25 +260,27 @@ func (c *advanceChannelRetentionThroughSeqCmd) apply(wb *metadb.WriteBatch, hash
 // --- AddSubscribers ---
 
 type addSubscribersCmd struct {
-	channelID   string
-	channelType int64
-	uids        []string
+	channelID                 string
+	channelType               int64
+	uids                      []string
+	subscriberMutationVersion uint64
 }
 
 func (c *addSubscribersCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
-	return wb.AddSubscribers(hashSlot, c.channelID, c.channelType, c.uids)
+	return wb.AddSubscribers(hashSlot, c.channelID, c.channelType, c.uids, c.subscriberMutationVersion)
 }
 
 // --- RemoveSubscribers ---
 
 type removeSubscribersCmd struct {
-	channelID   string
-	channelType int64
-	uids        []string
+	channelID                 string
+	channelType               int64
+	uids                      []string
+	subscriberMutationVersion uint64
 }
 
 func (c *removeSubscribersCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
-	return wb.RemoveSubscribers(hashSlot, c.channelID, c.channelType, c.uids)
+	return wb.RemoveSubscribers(hashSlot, c.channelID, c.channelType, c.uids, c.subscriberMutationVersion)
 }
 
 // --- UpsertUserConversationStates ---
@@ -481,13 +489,37 @@ func EncodeAdvanceChannelRetentionThroughSeqCommand(req metadb.ChannelRetentionA
 }
 
 // EncodeAddSubscribersCommand encodes a subscriber add command.
-func EncodeAddSubscribersCommand(channelID string, channelType int64, uids []string) []byte {
-	return encodeSubscribersCommand(cmdTypeAddSubscribers, channelID, channelType, uids)
+func EncodeAddSubscribersCommand(channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) []byte {
+	return encodeSubscribersCommand(cmdTypeAddSubscribers, channelID, channelType, uids, subscriberMutationVersion...)
+}
+
+// EncodeAddSubscribersCommandChecked validates and encodes a bounded subscriber add command.
+func EncodeAddSubscribersCommandChecked(channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) ([]byte, error) {
+	if err := ValidateSubscriberCommandLimits(uids); err != nil {
+		return nil, err
+	}
+	return EncodeAddSubscribersCommand(channelID, channelType, uids, subscriberMutationVersion...), nil
 }
 
 // EncodeRemoveSubscribersCommand encodes a subscriber removal command.
-func EncodeRemoveSubscribersCommand(channelID string, channelType int64, uids []string) []byte {
-	return encodeSubscribersCommand(cmdTypeRemoveSubscribers, channelID, channelType, uids)
+func EncodeRemoveSubscribersCommand(channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) []byte {
+	return encodeSubscribersCommand(cmdTypeRemoveSubscribers, channelID, channelType, uids, subscriberMutationVersion...)
+}
+
+// EncodeRemoveSubscribersCommandChecked validates and encodes a bounded subscriber removal command.
+func EncodeRemoveSubscribersCommandChecked(channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) ([]byte, error) {
+	if err := ValidateSubscriberCommandLimits(uids); err != nil {
+		return nil, err
+	}
+	return EncodeRemoveSubscribersCommand(channelID, channelType, uids, subscriberMutationVersion...), nil
+}
+
+// ValidateSubscriberCommandLimits rejects subscriber mutations that would create oversized Raft entries.
+func ValidateSubscriberCommandLimits(uids []string) error {
+	if err := validateSubscriberCommandUIDCount(len(uids)); err != nil {
+		return err
+	}
+	return validateSubscriberCommandUIDBytes(len(encodeStringSet(uids)))
 }
 
 // EncodeUpsertUserConversationStatesCommand encodes a batch of user conversation state upserts.
@@ -531,11 +563,14 @@ func EncodeHideUserConversationsCommand(deletes []metadb.UserConversationDelete)
 	return buf
 }
 
-func encodeSubscribersCommand(cmdType uint8, channelID string, channelType int64, uids []string) []byte {
-	buf := make([]byte, 0, headerSize+len(channelID)+len(uids)*8)
+func encodeSubscribersCommand(cmdType uint8, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) []byte {
+	buf := make([]byte, 0, headerSize+len(channelID)+len(uids)*8+16)
 	buf = append(buf, commandVersion, cmdType)
 	buf = appendStringTLVField(buf, tagSubscriberChannelID, channelID)
 	buf = appendInt64TLVField(buf, tagSubscriberChannelType, channelType)
+	if len(subscriberMutationVersion) > 0 && subscriberMutationVersion[0] > 0 {
+		buf = appendUint64TLVField(buf, tagSubscriberMutationVersion, subscriberMutationVersion[0])
+	}
 	buf = appendBytesTLVField(buf, tagSubscriberUIDs, encodeStringSet(uids))
 	return buf
 }
@@ -1296,12 +1331,13 @@ func decodeRemoveSubscribers(data []byte) (command, error) {
 
 func decodeSubscribersCommand(data []byte, build func(channelID string, channelType int64, uids []string) command) (command, error) {
 	var (
-		channelID       string
-		channelType     int64
-		uids            []string
-		haveChannelID   bool
-		haveChannelType bool
-		haveUIDs        bool
+		channelID                 string
+		channelType               int64
+		uids                      []string
+		subscriberMutationVersion uint64
+		haveChannelID             bool
+		haveChannelType           bool
+		haveUIDs                  bool
 	)
 
 	off := 0
@@ -1323,8 +1359,19 @@ func decodeSubscribersCommand(data []byte, build func(channelID string, channelT
 			channelType = int64(binary.BigEndian.Uint64(value))
 			haveChannelType = true
 		case tagSubscriberUIDs:
+			if err := validateSubscriberCommandUIDBytes(len(value)); err != nil {
+				return nil, err
+			}
 			uids = decodeStringSet(value)
+			if err := validateSubscriberCommandUIDCount(len(uids)); err != nil {
+				return nil, err
+			}
 			haveUIDs = true
+		case tagSubscriberMutationVersion:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad subscriber mutation version length", metadb.ErrCorruptValue)
+			}
+			subscriberMutationVersion = binary.BigEndian.Uint64(value)
 		default:
 			// Unknown tag — skip for forward compatibility.
 		}
@@ -1333,7 +1380,31 @@ func decodeSubscribersCommand(data []byte, build func(channelID string, channelT
 	if !haveChannelID || !haveChannelType || !haveUIDs {
 		return nil, fmt.Errorf("%w: incomplete subscriber command", metadb.ErrCorruptValue)
 	}
-	return build(channelID, channelType, uids), nil
+	built := build(channelID, channelType, uids)
+	switch cmd := built.(type) {
+	case *addSubscribersCmd:
+		cmd.subscriberMutationVersion = subscriberMutationVersion
+		return cmd, nil
+	case *removeSubscribersCmd:
+		cmd.subscriberMutationVersion = subscriberMutationVersion
+		return cmd, nil
+	default:
+		return built, nil
+	}
+}
+
+func validateSubscriberCommandUIDCount(count int) error {
+	if count > MaxSubscriberCommandUIDs {
+		return fmt.Errorf("%w: subscriber command uid count %d exceeds limit %d", metadb.ErrInvalidArgument, count, MaxSubscriberCommandUIDs)
+	}
+	return nil
+}
+
+func validateSubscriberCommandUIDBytes(size int) error {
+	if size > MaxSubscriberCommandUIDBytes {
+		return fmt.Errorf("%w: subscriber command uid bytes %d exceeds limit %d", metadb.ErrInvalidArgument, size, MaxSubscriberCommandUIDBytes)
+	}
+	return nil
 }
 
 // ---------- TLV helpers ----------

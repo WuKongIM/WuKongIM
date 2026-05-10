@@ -18,6 +18,9 @@ func (a *App) UpdateToken(ctx context.Context, cmd UpdateTokenCommand) error {
 	if err := cmd.Validate(); err != nil {
 		return err
 	}
+	if a != nil && a.systemUID != "" && cmd.UID == a.systemUID {
+		return errors.New("系统账号不允许更新token！")
+	}
 	if a.users == nil {
 		return ErrUserStoreRequired
 	}

@@ -8,8 +8,8 @@ import (
 )
 
 type subscriberShardStore interface {
-	AddSubscribers(ctx context.Context, channelID string, channelType int64, uids []string) error
-	RemoveSubscribers(ctx context.Context, channelID string, channelType int64, uids []string) error
+	AddSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error
+	RemoveSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error
 	ListSubscribersPage(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error)
 	ListSubscribersSnapshot(ctx context.Context, channelID string, channelType int64) ([]string, error)
 }

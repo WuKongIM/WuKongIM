@@ -16,11 +16,13 @@ import (
 	appretention "github.com/WuKongIM/WuKongIM/internal/runtime/channelretention"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
+	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
@@ -48,6 +50,8 @@ type App struct {
 	channelMetaSync          *channelMetaSync
 	store                    *metastore.Store
 	presenceApp              *presence.App
+	channelApp               *channelusecase.App
+	userApp                  *userusecase.App
 	deliveryApp              *deliveryusecase.App
 	conversationApp          *conversationusecase.App
 	deliveryRuntime          *deliveryruntime.Manager
