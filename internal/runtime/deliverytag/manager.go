@@ -125,6 +125,18 @@ func (m *Manager) StoreFollowerPartition(tag DeliveryTag) (DeliveryTag, bool) {
 	return local.clone(), true
 }
 
+// LookupLocalPartitionRef checks the local partition fence without cloning the cached UID slices.
+// The returned DeliveryTag shares storage with the cache and must be treated as read-only.
+func (m *Manager) LookupLocalPartitionRef(request TagRef) (DeliveryTag, bool, LookupReason) {
+	if m == nil {
+		return DeliveryTag{}, false, LookupMissingRef
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.lookupLocalPartitionLocked(request)
+}
+
 // LookupLocalPartition checks whether a requested tag fence can reuse the local partition.
 func (m *Manager) LookupLocalPartition(request TagRef) (DeliveryTag, bool, LookupReason) {
 	if m == nil {
@@ -133,6 +145,14 @@ func (m *Manager) LookupLocalPartition(request TagRef) (DeliveryTag, bool, Looku
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	tag, hit, reason := m.lookupLocalPartitionLocked(request)
+	if hit {
+		return tag.clone(), true, reason
+	}
+	return tag.clone(), false, reason
+}
+
+func (m *Manager) lookupLocalPartitionLocked(request TagRef) (DeliveryTag, bool, LookupReason) {
 	current, ok := m.cache.channelRef[request.ChannelKey]
 	if !ok {
 		return DeliveryTag{}, false, LookupMissingRef
@@ -142,39 +162,39 @@ func (m *Manager) LookupLocalPartition(request TagRef) (DeliveryTag, bool, Looku
 		return DeliveryTag{}, false, LookupMissingTag
 	}
 	if current.TagKey != request.TagKey {
-		return tag.clone(), false, LookupTagKeyMismatch
+		return tag, false, LookupTagKeyMismatch
 	}
 	if request.TagVersion < current.TagVersion {
-		return tag.clone(), false, LookupStaleRequest
+		return tag, false, LookupStaleRequest
 	}
 	if request.TagVersion > current.TagVersion {
-		return tag.clone(), false, LookupNewerRequest
+		return tag, false, LookupNewerRequest
 	}
 	if request.SubscriberMutationVersion != 0 {
 		if request.SubscriberMutationVersion < current.SubscriberMutationVersion {
-			return tag.clone(), false, LookupStaleRequest
+			return tag, false, LookupStaleRequest
 		}
 		if request.SubscriberMutationVersion > current.SubscriberMutationVersion {
-			return tag.clone(), false, LookupNewerRequest
+			return tag, false, LookupNewerRequest
 		}
 	}
 	if request.SourceChannelKey != "" && request.SourceChannelKey != current.SourceChannelKey {
-		return tag.clone(), false, LookupStaleRequest
+		return tag, false, LookupStaleRequest
 	}
 	if request.SourceSubscriberMutationVersion != 0 {
 		if request.SourceSubscriberMutationVersion < current.SourceSubscriberMutationVersion {
-			return tag.clone(), false, LookupStaleRequest
+			return tag, false, LookupStaleRequest
 		}
 		if request.SourceSubscriberMutationVersion > current.SourceSubscriberMutationVersion {
-			return tag.clone(), false, LookupNewerRequest
+			return tag, false, LookupNewerRequest
 		}
 	}
 	if !current.Topology.Equal(request.Topology) {
-		return tag.clone(), false, LookupTopologyMismatch
+		return tag, false, LookupTopologyMismatch
 	}
 	tag.LastAccess = m.now()
 	m.cache.tags[current.TagKey] = tag
-	return tag.clone(), true, LookupHit
+	return tag, true, LookupHit
 }
 
 // LookupTag returns a cached tag body by tag key.

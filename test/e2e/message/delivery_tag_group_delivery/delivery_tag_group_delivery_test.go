@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -169,6 +170,96 @@ func TestDeliveryTagLargeGroupDeliveryUsesPagedSubscribers(t *testing.T) {
 	requireNoRecv(t, recipientLatePage, "tag-large-recipient-1001", cluster)
 }
 
+func TestDeliveryTagHundredKGroupSubscriberStress(t *testing.T) {
+	if os.Getenv("WK_E2E_100K_GROUP") != "1" {
+		t.Skip("set WK_E2E_100K_GROUP=1 to run the 100k subscriber delivery-tag stress test")
+	}
+
+	s := suite.New(t)
+	cluster := s.StartThreeNodeCluster()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+
+	node1 := cluster.MustNode(1)
+	node2 := cluster.MustNode(2)
+	node3 := cluster.MustNode(3)
+
+	sender := connectClient(t, node1, "tag-100k-sender", "tag-100k-sender-device", cluster)
+	defer func() { _ = sender.Close() }()
+	recipientHeadA := connectClient(t, node1, hundredKSubscriberUID(0), hundredKSubscriberUID(0)+"-device", cluster)
+	defer func() { _ = recipientHeadA.Close() }()
+	recipientHeadB := connectClient(t, node2, hundredKSubscriberUID(1), hundredKSubscriberUID(1)+"-device", cluster)
+	defer func() { _ = recipientHeadB.Close() }()
+	recipientHeadC := connectClient(t, node3, hundredKSubscriberUID(2), hundredKSubscriberUID(2)+"-device", cluster)
+	defer func() { _ = recipientHeadC.Close() }()
+	recipientMiddle := connectClient(t, node2, hundredKSubscriberUID(50000), hundredKSubscriberUID(50000)+"-device", cluster)
+	defer func() { _ = recipientMiddle.Close() }()
+	recipientTail := connectClient(t, node3, hundredKSubscriberUID(99999), hundredKSubscriberUID(99999)+"-device", cluster)
+	defer func() { _ = recipientTail.Close() }()
+	addedRecipient := connectClient(t, node1, "tag-100k-recipient-added", "tag-100k-recipient-added-device", cluster)
+	defer func() { _ = addedRecipient.Close() }()
+	outsider := connectClient(t, node2, "tag-100k-outsider", "tag-100k-outsider-device", cluster)
+	defer func() { _ = outsider.Close() }()
+
+	for _, item := range []struct {
+		node *suite.StartedNode
+		uid  string
+	}{
+		{node1, "tag-100k-sender"},
+		{node1, hundredKSubscriberUID(0)},
+		{node2, hundredKSubscriberUID(1)},
+		{node3, hundredKSubscriberUID(2)},
+		{node2, hundredKSubscriberUID(50000)},
+		{node3, hundredKSubscriberUID(99999)},
+		{node1, "tag-100k-recipient-added"},
+		{node2, "tag-100k-outsider"},
+	} {
+		requireConnection(t, ctx, item.node, item.uid, cluster)
+	}
+
+	apiBaseURL := "http://" + node1.Spec.APIAddr
+	channelID := "e2e-delivery-tag-100k-group"
+	postLegacyJSON(t, ctx, apiBaseURL+"/channel", map[string]any{
+		"channel_id":   channelID,
+		"channel_type": frame.ChannelTypeGroup,
+		"subscribers":  hundredKGroupSubscribers(),
+	})
+
+	initialRecipients := map[string]*suite.WKProtoClient{
+		hundredKSubscriberUID(0):     recipientHeadA,
+		hundredKSubscriberUID(1):     recipientHeadB,
+		hundredKSubscriberUID(2):     recipientHeadC,
+		hundredKSubscriberUID(50000): recipientMiddle,
+		hundredKSubscriberUID(99999): recipientTail,
+	}
+	sendGroupAndRequireRecipientsFrom(t, cluster, sender, "tag-100k-sender", channelID, 1, "delivery-tag-100k-group-1", []byte("delivery tag 100k group first"), initialRecipients)
+	requireNoRecv(t, outsider, "tag-100k-outsider", cluster)
+
+	postLegacyJSON(t, ctx, apiBaseURL+"/channel/subscriber_add", map[string]any{
+		"channel_id":   channelID,
+		"channel_type": frame.ChannelTypeGroup,
+		"subscribers":  []string{"tag-100k-recipient-added"},
+	})
+
+	afterAddRecipients := cloneRecipientMap(initialRecipients)
+	afterAddRecipients["tag-100k-recipient-added"] = addedRecipient
+	sendGroupAndRequireRecipientsFrom(t, cluster, sender, "tag-100k-sender", channelID, 2, "delivery-tag-100k-group-2", []byte("delivery tag 100k group after add"), afterAddRecipients)
+
+	postLegacyJSON(t, ctx, apiBaseURL+"/channel/subscriber_remove", map[string]any{
+		"channel_id":   channelID,
+		"channel_type": frame.ChannelTypeGroup,
+		"subscribers":  []string{hundredKSubscriberUID(50000)},
+	})
+
+	afterRemoveRecipients := cloneRecipientMap(afterAddRecipients)
+	delete(afterRemoveRecipients, hundredKSubscriberUID(50000))
+	sendGroupAndRequireRecipientsFrom(t, cluster, sender, "tag-100k-sender", channelID, 3, "delivery-tag-100k-group-3", []byte("delivery tag 100k group after remove"), afterRemoveRecipients)
+	requireNoRecv(t, recipientMiddle, hundredKSubscriberUID(50000), cluster)
+}
+
 func connectClient(t *testing.T, node *suite.StartedNode, uid, deviceID string, cluster *suite.StartedCluster) *suite.WKProtoClient {
 	t.Helper()
 
@@ -287,6 +378,19 @@ func largeGroupSubscribers(count int) []string {
 		subscribers[i] = fmt.Sprintf("tag-large-recipient-%04d", i)
 	}
 	return subscribers
+}
+
+func hundredKGroupSubscribers() []string {
+	const count = 100000
+	subscribers := make([]string, count)
+	for i := range subscribers {
+		subscribers[i] = hundredKSubscriberUID(i)
+	}
+	return subscribers
+}
+
+func hundredKSubscriberUID(index int) string {
+	return fmt.Sprintf("tag-100k-recipient-%06d", index)
 }
 
 func cloneRecipientMap(in map[string]*suite.WKProtoClient) map[string]*suite.WKProtoClient {

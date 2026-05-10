@@ -823,6 +823,138 @@ func TestDeliveryRoutingUsesTagPartition(t *testing.T) {
 	}, tag.Partitions)
 }
 
+func TestNextDeliveryTagUIDPageAtUsesOffsetWithoutAllocating(t *testing.T) {
+	uids := []string{"u1", "u2", "u3", "u4"}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		page, nextIndex, done := nextDeliveryTagUIDPageAt(uids, 1, 2)
+		_, _, _ = page, nextIndex, done
+	})
+	require.Zero(t, allocs)
+
+	page, nextIndex, done := nextDeliveryTagUIDPageAt(uids, 1, 2)
+	require.Equal(t, []string{"u2", "u3"}, page)
+	require.Equal(t, 3, nextIndex)
+	require.False(t, done)
+
+	page[0] = "changed"
+	require.Equal(t, "changed", uids[1])
+}
+
+func TestDeliveryRoutingUsesCachedTagWithoutListingSubscribers(t *testing.T) {
+	topology := deliverytagruntime.PartitionTopologyVersion{
+		HashSlotTableVersion: 9,
+		SlotAuthorityRefs: []deliverytagruntime.SlotAuthorityRef{
+			{SlotID: 1, LeaderNodeID: 1, ConfigEpoch: 2, BalanceVersion: 3},
+			{SlotID: 2, LeaderNodeID: 2, ConfigEpoch: 2, BalanceVersion: 3},
+		},
+	}
+	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{
+		LocalNodeID: 1,
+		NewTagKey:   func() string { return "tag-cached" },
+	})
+	_, created := manager.BuildLeaderTag(deliverytagruntime.BuildRequest{
+		ChannelKey:                      "2:g-cached",
+		SubscriberMutationVersion:       4,
+		SourceChannelKey:                "2:g-cached",
+		SourceSubscriberMutationVersion: 4,
+		Topology:                        topology,
+		Partitions: []deliverytagruntime.NodePartition{
+			{NodeID: 1, UIDs: []string{"u1", "u3"}},
+			{NodeID: 2, UIDs: []string{"u2"}},
+		},
+	})
+	require.True(t, created)
+
+	store := &resolverVersionStore{
+		uids:    []string{"u1", "u2", "u3"},
+		version: 4,
+	}
+	resolver := tagDeliveryResolver{
+		localNodeID: 1,
+		tags:        manager,
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{Store: store}),
+		authority: &recordingAuthoritative{
+			batches: map[string][]presence.Route{
+				"u1": {{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101}},
+				"u3": {{UID: "u3", NodeID: 1, BootID: 11, SessionID: 103}},
+			},
+		},
+		topology: staticDeliveryTagTopology{version: topology},
+		pageSize: 8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   "g-cached",
+		ChannelType: frame.ChannelTypeGroup,
+	}, deliveryruntime.CommittedEnvelope{})
+	require.NoError(t, err)
+	require.Zero(t, store.pageCalls)
+
+	routes, cursor, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.Equal(t, []deliveryruntime.RouteKey{
+		{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101},
+		{UID: "u3", NodeID: 1, BootID: 11, SessionID: 103},
+	}, routes)
+	require.Equal(t, "u3", cursor)
+	require.True(t, done)
+	require.Zero(t, store.pageCalls)
+}
+
+func TestDeliveryRoutingSkipsCachedTagFastPathWithoutVersionFence(t *testing.T) {
+	topology := deliverytagruntime.PartitionTopologyVersion{
+		HashSlotTableVersion: 9,
+		SlotAuthorityRefs: []deliverytagruntime.SlotAuthorityRef{
+			{SlotID: 1, LeaderNodeID: 1, ConfigEpoch: 2, BalanceVersion: 3},
+			{SlotID: 2, LeaderNodeID: 2, ConfigEpoch: 2, BalanceVersion: 3},
+		},
+	}
+	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{
+		LocalNodeID: 1,
+		NewTagKey:   func() string { return "tag-unversioned" },
+	})
+	_, created := manager.BuildLeaderTag(deliverytagruntime.BuildRequest{
+		ChannelKey: "2:g-unversioned",
+		Topology:   topology,
+		Partitions: []deliverytagruntime.NodePartition{
+			{NodeID: 1, UIDs: []string{"u1", "u3"}},
+			{NodeID: 2, UIDs: []string{"u2"}},
+		},
+	})
+	require.True(t, created)
+
+	store := &resolverVersionStore{
+		uids:    []string{"u1", "u2", "u3"},
+		version: 0,
+	}
+	resolver := tagDeliveryResolver{
+		localNodeID: 1,
+		tags:        manager,
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{Store: store}),
+		authority: &recordingAuthoritative{
+			batches: map[string][]presence.Route{
+				"u1": {{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101}},
+				"u3": {{UID: "u3", NodeID: 1, BootID: 11, SessionID: 103}},
+			},
+		},
+		topology: staticDeliveryTagTopology{version: topology},
+		pageSize: 8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   "g-unversioned",
+		ChannelType: frame.ChannelTypeGroup,
+	}, deliveryruntime.CommittedEnvelope{})
+	require.NoError(t, err)
+	require.NotZero(t, store.pageCalls)
+
+	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.Len(t, routes, 2)
+	require.True(t, done)
+}
+
 func TestDeliveryRoutingRejectsStaleTagResponse(t *testing.T) {
 	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{LocalNodeID: 1})
 	_, stored := manager.StoreFollowerPartition(deliverytagruntime.DeliveryTag{
@@ -1992,6 +2124,7 @@ func (d *asyncCommittedDispatcher) isStoppedForTest() bool {
 
 type resolverSnapshotStore struct {
 	snapshotCalls int
+	pageCalls     int
 	uids          []string
 	snapshotErr   error
 	pageErr       error
@@ -2006,6 +2139,7 @@ func (s *resolverSnapshotStore) SnapshotChannelSubscribers(_ context.Context, _ 
 }
 
 func (s *resolverSnapshotStore) ListChannelSubscribers(_ context.Context, _ string, _ int64, afterUID string, limit int) ([]string, string, bool, error) {
+	s.pageCalls++
 	if s.pageErr != nil {
 		return nil, "", false, s.pageErr
 	}
@@ -2051,13 +2185,43 @@ func (s *resolverVersionStore) GetChannel(_ context.Context, channelID string, c
 }
 
 func (s *resolverVersionStore) SnapshotChannelSubscribers(ctx context.Context, channelID string, channelType int64) ([]string, error) {
-	store := resolverSnapshotStore{uids: s.uids}
-	return store.SnapshotChannelSubscribers(ctx, channelID, channelType)
+	s.snapshotCalls++
+	if s.snapshotErr != nil {
+		return nil, s.snapshotErr
+	}
+	return append([]string(nil), s.uids...), nil
 }
 
 func (s *resolverVersionStore) ListChannelSubscribers(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {
-	store := resolverSnapshotStore{uids: s.uids}
-	return store.ListChannelSubscribers(ctx, channelID, channelType, afterUID, limit)
+	s.pageCalls++
+	if s.pageErr != nil {
+		return nil, "", false, s.pageErr
+	}
+	if limit <= 0 {
+		return nil, afterUID, true, nil
+	}
+	start := 0
+	if afterUID != "" {
+		for i, uid := range s.uids {
+			if uid == afterUID {
+				start = i + 1
+				break
+			}
+		}
+	}
+	if start >= len(s.uids) {
+		return nil, afterUID, true, nil
+	}
+	end := start + limit
+	if end > len(s.uids) {
+		end = len(s.uids)
+	}
+	page := append([]string(nil), s.uids[start:end]...)
+	cursor := afterUID
+	if len(page) > 0 {
+		cursor = page[len(page)-1]
+	}
+	return page, cursor, end >= len(s.uids), nil
 }
 
 type staticDeliveryTagTopology struct {
@@ -2066,6 +2230,10 @@ type staticDeliveryTagTopology struct {
 
 func (s staticDeliveryTagTopology) CurrentDeliveryTagTopology(context.Context, []string) (deliverytagruntime.PartitionTopologyVersion, error) {
 	return s.version.Clone(), nil
+}
+
+func (s staticDeliveryTagTopology) ValidateCurrentDeliveryTagTopology(_ context.Context, topology deliverytagruntime.PartitionTopologyVersion) (bool, error) {
+	return s.version.Equal(topology), nil
 }
 
 func testDeliveryTagTopology(version uint64) deliverytagruntime.PartitionTopologyVersion {
