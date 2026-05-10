@@ -163,6 +163,38 @@ func TestLookupLocalPartitionRejectsSubscriberAndSourceFenceMismatch(t *testing.
 	require.Equal(t, LookupStaleRequest, reason)
 }
 
+func TestLookupLocalPartitionRefReturnsSharedTagWithoutAllocating(t *testing.T) {
+	manager := NewManager(Options{LocalNodeID: 2, TTL: time.Minute, Now: time.Now, NewTagKey: newSequenceKeyGen("unused").Next})
+	current := DeliveryTag{
+		Key:                       "tag-ref",
+		ChannelKey:                "group:ref",
+		TagVersion:                5,
+		SubscriberMutationVersion: 9,
+		Topology:                  testTopology(10, 1, 2),
+		Partitions:                []NodePartition{{NodeID: 2, UIDs: []string{"u1", "u2"}}},
+	}
+	require.True(t, mustStoreFollower(t, manager, current))
+
+	ref := TagRef{
+		ChannelKey:                current.ChannelKey,
+		TagKey:                    current.Key,
+		TagVersion:                current.TagVersion,
+		SubscriberMutationVersion: current.SubscriberMutationVersion,
+		Topology:                  current.Topology,
+	}
+
+	var tag DeliveryTag
+	var hit bool
+	var reason LookupReason
+	allocs := testing.AllocsPerRun(100, func() {
+		tag, hit, reason = manager.LookupLocalPartitionRef(ref)
+	})
+	require.Zero(t, allocs)
+	require.True(t, hit)
+	require.Equal(t, LookupHit, reason)
+	require.Equal(t, []string{"u1", "u2"}, tag.Partitions[0].UIDs)
+}
+
 func TestPartitionTopologyMismatchForcesRefetch(t *testing.T) {
 	manager := NewManager(Options{LocalNodeID: 2, TTL: time.Minute, Now: time.Now, NewTagKey: newSequenceKeyGen("unused").Next})
 	storedTopology := testTopology(10, 1, 2)

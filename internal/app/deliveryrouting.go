@@ -563,6 +563,10 @@ type deliveryTagTopologyReader interface {
 	CurrentDeliveryTagTopology(ctx context.Context, uids []string) (deliverytagruntime.PartitionTopologyVersion, error)
 }
 
+type deliveryTagTopologyValidator interface {
+	ValidateCurrentDeliveryTagTopology(ctx context.Context, topology deliverytagruntime.PartitionTopologyVersion) (bool, error)
+}
+
 type deliveryTagCluster interface {
 	SlotForKey(key string) multiraft.SlotID
 	HashSlotTableVersion() uint64
@@ -650,6 +654,37 @@ func (r deliveryTagTopologyReaderAdapter) CurrentDeliveryTagTopology(ctx context
 	}, nil
 }
 
+func (r deliveryTagTopologyReaderAdapter) ValidateCurrentDeliveryTagTopology(ctx context.Context, topology deliverytagruntime.PartitionTopologyVersion) (bool, error) {
+	if r.cluster == nil {
+		return true, nil
+	}
+	if topology.HashSlotTableVersion != r.cluster.HashSlotTableVersion() {
+		return false, nil
+	}
+	if len(topology.SlotAuthorityRefs) == 0 {
+		return true, nil
+	}
+	assignments, _ := r.cluster.ListSlotAssignments(ctx)
+	assignmentBySlot := make(map[uint32]controllermeta.SlotAssignment, len(assignments))
+	for _, assignment := range assignments {
+		assignmentBySlot[assignment.SlotID] = assignment
+	}
+	for _, ref := range topology.SlotAuthorityRefs {
+		leaderID, err := r.cluster.LeaderOf(multiraft.SlotID(ref.SlotID))
+		if err != nil {
+			return false, err
+		}
+		assignment, ok := assignmentBySlot[ref.SlotID]
+		if !ok {
+			return false, nil
+		}
+		if uint64(leaderID) != ref.LeaderNodeID || assignment.ConfigEpoch != ref.ConfigEpoch || assignment.BalanceVersion != ref.BalanceVersion {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 type localResolveToken struct {
 	snapshot    deliveryusecase.SnapshotToken
 	channelType uint8
@@ -660,6 +695,7 @@ type localResolveToken struct {
 type tagResolveToken struct {
 	tag         deliverytagruntime.DeliveryTag
 	localUIDs   []string
+	nextIndex   int
 	channelType uint8
 	pending     []deliveryruntime.RouteKey
 	done        bool
@@ -876,7 +912,7 @@ func (r tagDeliveryResolver) BeginResolve(ctx context.Context, key deliveryrunti
 	}
 	return &tagResolveToken{
 		tag:         tag,
-		localUIDs:   tag.PartitionForNode(r.localNodeID).UIDs,
+		localUIDs:   deliveryTagLocalUIDs(tag, r.localNodeID),
 		channelType: key.ChannelType,
 	}, nil
 }
@@ -906,7 +942,7 @@ func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor 
 		return nil, "", true, nil
 	}
 	channelType = deliveryChannelTypeLabel(resolveToken.channelType)
-	if refreshed, _, reason := r.tags.LookupLocalPartition(deliverytagruntime.TagRef{
+	if refreshed, hit, reason := r.tags.LookupLocalPartitionRef(deliverytagruntime.TagRef{
 		ChannelKey:                      resolveToken.tag.ChannelKey,
 		TagKey:                          resolveToken.tag.Key,
 		TagVersion:                      resolveToken.tag.TagVersion,
@@ -914,9 +950,12 @@ func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor 
 		SourceChannelKey:                resolveToken.tag.SourceChannelKey,
 		SourceSubscriberMutationVersion: resolveToken.tag.SourceSubscriberMutationVersion,
 		Topology:                        resolveToken.tag.Topology,
-	}); reason == deliverytagruntime.LookupStaleRequest || reason == deliverytagruntime.LookupTagKeyMismatch {
+	}); hit {
 		resolveToken.tag = refreshed
-		resolveToken.localUIDs = refreshed.PartitionForNode(r.localNodeID).UIDs
+	} else if reason == deliverytagruntime.LookupStaleRequest || reason == deliverytagruntime.LookupTagKeyMismatch {
+		resolveToken.tag = refreshed
+		resolveToken.localUIDs = deliveryTagLocalUIDs(refreshed, r.localNodeID)
+		resolveToken.nextIndex = deliveryTagIndexAfterCursor(resolveToken.localUIDs, cursor)
 	}
 	if resolveToken.done {
 		return nil, cursor, true, nil
@@ -939,9 +978,12 @@ func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor 
 		pageSize = 128
 	}
 	for len(out) < limit {
-		uids, next, pageDone := nextDeliveryTagUIDPage(resolveToken.localUIDs, cursor, minInt(pageSize, limit-len(out)))
+		uids, nextIndex, pageDone := nextDeliveryTagUIDPageAt(resolveToken.localUIDs, resolveToken.nextIndex, minInt(pageSize, limit-len(out)))
 		pages++
-		cursor = next
+		resolveToken.nextIndex = nextIndex
+		if len(uids) > 0 {
+			cursor = uids[len(uids)-1]
+		}
 		if len(uids) == 0 {
 			resolveToken.done = pageDone
 			return out, cursor, pageDone && len(resolveToken.pending) == 0, nil
@@ -968,6 +1010,26 @@ func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor 
 
 func (r tagDeliveryResolver) leaderTagFromSnapshot(ctx context.Context, key deliveryruntime.ChannelKey, channelKey string, snapshot deliveryusecase.SnapshotToken) (deliverytagruntime.DeliveryTag, error) {
 	source := snapshot.Source()
+	if deliveryTagCanUseCachedTagFastPath(source) {
+		if ref, ok := r.tags.CurrentRef(channelKey); ok {
+			if validator, ok := r.topology.(deliveryTagTopologyValidator); ok {
+				valid, err := validator.ValidateCurrentDeliveryTagTopology(ctx, ref.Topology)
+				if err == nil && valid {
+					if tag, hit, reason := r.tags.LookupLocalPartitionRef(deliverytagruntime.TagRef{
+						ChannelKey:                      channelKey,
+						TagKey:                          ref.TagKey,
+						TagVersion:                      ref.TagVersion,
+						SubscriberMutationVersion:       source.SubscriberMutationVersion,
+						SourceChannelKey:                deliveryTagSourceChannelKey(source),
+						SourceSubscriberMutationVersion: source.SourceSubscriberMutationVersion,
+						Topology:                        ref.Topology,
+					}); hit || reason == deliverytagruntime.LookupStaleRequest {
+						return tag, nil
+					}
+				}
+			}
+		}
+	}
 	uids, err := r.collectSnapshotUIDs(ctx, snapshot)
 	if err != nil {
 		return deliverytagruntime.DeliveryTag{}, err
@@ -977,7 +1039,7 @@ func (r tagDeliveryResolver) leaderTagFromSnapshot(ctx context.Context, key deli
 		return deliverytagruntime.DeliveryTag{}, err
 	}
 	if ref, ok := r.tags.CurrentRef(channelKey); ok {
-		if tag, hit, reason := r.tags.LookupLocalPartition(deliverytagruntime.TagRef{
+		if tag, hit, reason := r.tags.LookupLocalPartitionRef(deliverytagruntime.TagRef{
 			ChannelKey:                      channelKey,
 			TagKey:                          ref.TagKey,
 			TagVersion:                      ref.TagVersion,
@@ -1000,6 +1062,16 @@ func (r tagDeliveryResolver) leaderTagFromSnapshot(ctx context.Context, key deli
 		Partitions:                      r.partitionDeliveryTagUIDs(ctx, uids, topology),
 	})
 	return tag, nil
+}
+
+func deliveryTagCanUseCachedTagFastPath(source deliveryusecase.SubscriberSource) bool {
+	if !source.ReusableTagState {
+		return false
+	}
+	if source.Kind == deliveryusecase.SubscriberSourceKindDerived {
+		return true
+	}
+	return source.SubscriberMutationVersion != 0 || source.SourceSubscriberMutationVersion != 0
 }
 
 func (r tagDeliveryResolver) collectSnapshotUIDs(ctx context.Context, snapshot deliveryusecase.SnapshotToken) ([]string, error) {
@@ -1090,32 +1162,42 @@ func (r tagDeliveryResolver) recordResolveMetric(channelType, result string, dur
 	r.metrics.ObserveResolve(channelType, result, dur, pages, routes)
 }
 
-func nextDeliveryTagUIDPage(uids []string, cursor string, limit int) ([]string, string, bool) {
+func nextDeliveryTagUIDPageAt(uids []string, start int, limit int) ([]string, int, bool) {
 	if limit <= 0 {
-		return nil, cursor, false
+		return nil, start, false
 	}
-	start := 0
-	if cursor != "" {
-		for i, uid := range uids {
-			if uid == cursor {
-				start = i + 1
-				break
-			}
-		}
+	if start < 0 {
+		start = 0
 	}
 	if start >= len(uids) {
-		return nil, cursor, true
+		return nil, len(uids), true
 	}
 	end := start + limit
 	if end > len(uids) {
 		end = len(uids)
 	}
-	page := append([]string(nil), uids[start:end]...)
-	next := cursor
-	if len(page) > 0 {
-		next = page[len(page)-1]
+	return uids[start:end], end, end >= len(uids)
+}
+
+func deliveryTagLocalUIDs(tag deliverytagruntime.DeliveryTag, nodeID uint64) []string {
+	for _, partition := range tag.Partitions {
+		if partition.NodeID == nodeID {
+			return partition.UIDs
+		}
 	}
-	return page, next, end >= len(uids)
+	return nil
+}
+
+func deliveryTagIndexAfterCursor(uids []string, cursor string) int {
+	if cursor == "" {
+		return 0
+	}
+	for i, uid := range uids {
+		if uid == cursor {
+			return i + 1
+		}
+	}
+	return 0
 }
 
 func deliveryTagChannelKey(key deliveryruntime.ChannelKey) string {
