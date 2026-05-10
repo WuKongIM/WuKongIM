@@ -1619,7 +1619,7 @@ type ackRouting struct {
 func (r ackRouting) AckRoute(ctx context.Context, cmd message.RouteAckCommand) error {
 	event := deliveryRouteAckFromMessage(cmd)
 	if r.remoteAcks != nil {
-		if binding, ok := r.remoteAcks.Lookup(event.SessionID, event.MessageID); ok {
+		if binding, ok := r.remoteAcks.LookupRoute(event.UID, event.SessionID, event.MessageID); ok {
 			if binding.OwnerNodeID != 0 && binding.OwnerNodeID != r.localNodeID {
 				if r.notifier == nil {
 					return errRemoteAckNotifierRequired
@@ -1627,17 +1627,17 @@ func (r ackRouting) AckRoute(ctx context.Context, cmd message.RouteAckCommand) e
 				if err := r.notifier.NotifyAck(ctx, binding.OwnerNodeID, event); err != nil {
 					return err
 				}
-				r.remoteAcks.Remove(event.SessionID, event.MessageID)
+				r.remoteAcks.RemoveRoute(binding.Route.UID, event.SessionID, event.MessageID)
 				return nil
 			}
 			if r.local == nil {
-				r.remoteAcks.Remove(event.SessionID, event.MessageID)
+				r.remoteAcks.RemoveRoute(binding.Route.UID, event.SessionID, event.MessageID)
 				return nil
 			}
 			if err := r.local.AckRoute(ctx, event); err != nil {
 				return err
 			}
-			r.remoteAcks.Remove(event.SessionID, event.MessageID)
+			r.remoteAcks.RemoveRoute(binding.Route.UID, event.SessionID, event.MessageID)
 			return nil
 		}
 	}
@@ -1660,7 +1660,7 @@ func (r offlineRouting) SessionClosed(ctx context.Context, cmd message.SessionCl
 	localBindings := make([]deliveryruntime.AckBinding, 0)
 	if r.remoteAcks != nil {
 		ownerBindings := make(map[uint64][]deliveryruntime.AckBinding)
-		for _, binding := range r.remoteAcks.LookupSession(event.SessionID) {
+		for _, binding := range r.remoteAcks.LookupSessionRoute(event.UID, event.SessionID) {
 			if binding.OwnerNodeID == 0 || binding.OwnerNodeID == r.localNodeID {
 				localBindings = append(localBindings, binding)
 				continue
@@ -1678,7 +1678,7 @@ func (r offlineRouting) SessionClosed(ctx context.Context, cmd message.SessionCl
 				continue
 			}
 			for _, binding := range bindings {
-				r.remoteAcks.Remove(binding.SessionID, binding.MessageID)
+				r.remoteAcks.RemoveRoute(binding.Route.UID, binding.SessionID, binding.MessageID)
 			}
 		}
 	}
@@ -1687,12 +1687,12 @@ func (r offlineRouting) SessionClosed(ctx context.Context, cmd message.SessionCl
 		err = errors.Join(err, localErr)
 		if localErr == nil && r.remoteAcks != nil {
 			for _, binding := range localBindings {
-				r.remoteAcks.Remove(binding.SessionID, binding.MessageID)
+				r.remoteAcks.RemoveRoute(binding.Route.UID, binding.SessionID, binding.MessageID)
 			}
 		}
 	} else if r.remoteAcks != nil {
 		for _, binding := range localBindings {
-			r.remoteAcks.Remove(binding.SessionID, binding.MessageID)
+			r.remoteAcks.RemoveRoute(binding.Route.UID, binding.SessionID, binding.MessageID)
 		}
 	}
 	return err

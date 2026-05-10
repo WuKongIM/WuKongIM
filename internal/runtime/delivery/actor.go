@@ -295,13 +295,7 @@ func (a *actor) pushOutsideLock(ctx context.Context, cmd PushCommand) (PushResul
 	return result, err
 }
 
-func (a *actor) pushResultStillCurrent(msg *InflightMessage, route RouteKey, attempt int, existedBeforePush bool) bool {
-	if attempt <= 1 {
-		return true
-	}
-	if !existedBeforePush {
-		return false
-	}
+func (a *actor) pushResultStillCurrent(msg *InflightMessage, route RouteKey) bool {
 	return msg.Routes[route] != nil
 }
 
@@ -314,9 +308,10 @@ func (a *actor) dispatchLate(ctx context.Context, env CommittedEnvelope) error {
 
 func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []RouteKey, attempt int) error {
 	pushRoutes := append([]RouteKey(nil), routes...)
-	existingRoutes := make(map[RouteKey]bool, len(pushRoutes))
 	for _, route := range pushRoutes {
-		_, existingRoutes[route] = msg.Routes[route]
+		// Bind before I/O so a fast receiver ack cannot beat the owner-side index update.
+		a.ensureRouteState(msg, route)
+		a.shard.manager.ackIdx.Bind(a.ackBinding(msg, route))
 	}
 	result, err := a.pushOutsideLock(ctx, PushCommand{
 		Envelope: cloneEnvelope(msg.Envelope),
@@ -330,18 +325,12 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 		result = PushResult{Retryable: pushRoutes}
 	}
 	for _, route := range result.Accepted {
-		if !a.pushResultStillCurrent(msg, route, attempt, existingRoutes[route]) {
+		if !a.pushResultStillCurrent(msg, route) {
 			continue
 		}
-		state := a.ensureRouteState(msg, route)
+		state := msg.Routes[route]
 		state.Attempt = attempt
-		binding := AckBinding{
-			SessionID:   route.SessionID,
-			MessageID:   msg.MessageID,
-			ChannelID:   a.key.ChannelID,
-			ChannelType: a.key.ChannelType,
-			Route:       route,
-		}
+		binding := a.ackBinding(msg, route)
 		if state.Accepted {
 			if !a.shard.manager.ackIdx.refresh(binding) {
 				if err := a.finishRoute(ctx, msg, route); err != nil {
@@ -351,7 +340,9 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 			}
 		} else {
 			state.Accepted = true
-			a.shard.manager.ackIdx.Bind(binding)
+			if !a.shard.manager.ackIdx.refresh(binding) {
+				a.shard.manager.ackIdx.Bind(binding)
+			}
 		}
 		if !a.scheduleRetry(msg, route, attempt) {
 			if err := a.expireRoute(ctx, msg, route, attempt); err != nil {
@@ -360,11 +351,14 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 		}
 	}
 	for _, route := range result.Retryable {
-		if !a.pushResultStillCurrent(msg, route, attempt, existingRoutes[route]) {
+		if !a.pushResultStillCurrent(msg, route) {
 			continue
 		}
-		state := a.ensureRouteState(msg, route)
+		state := msg.Routes[route]
 		state.Attempt = attempt
+		if !state.Accepted {
+			a.shard.manager.ackIdx.RemoveRoute(route.UID, route.SessionID, msg.MessageID)
+		}
 		if !a.scheduleRetry(msg, route, attempt) {
 			if err := a.expireRoute(ctx, msg, route, attempt); err != nil {
 				return err
@@ -379,6 +373,16 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 	return nil
 }
 
+func (a *actor) ackBinding(msg *InflightMessage, route RouteKey) AckBinding {
+	return AckBinding{
+		SessionID:   route.SessionID,
+		MessageID:   msg.MessageID,
+		ChannelID:   a.key.ChannelID,
+		ChannelType: a.key.ChannelType,
+		Route:       route,
+	}
+}
+
 func (a *actor) expireRoute(ctx context.Context, msg *InflightMessage, route RouteKey, attempt int) error {
 	state, ok := msg.Routes[route]
 	if !ok {
@@ -386,7 +390,7 @@ func (a *actor) expireRoute(ctx context.Context, msg *InflightMessage, route Rou
 	}
 	notify := true
 	if state.Accepted {
-		if _, ok := a.shard.manager.ackIdx.Take(route.SessionID, msg.MessageID); !ok {
+		if _, ok := a.shard.manager.ackIdx.TakeRoute(route.UID, route.SessionID, msg.MessageID); !ok {
 			notify = false
 		}
 	}
@@ -438,7 +442,7 @@ func (a *actor) finishRoute(_ context.Context, msg *InflightMessage, route Route
 	if a.pendingRouteCnt > 0 {
 		a.pendingRouteCnt--
 	}
-	a.shard.manager.ackIdx.Remove(route.SessionID, msg.MessageID)
+	a.shard.manager.ackIdx.RemoveRoute(route.UID, route.SessionID, msg.MessageID)
 	if msg.PendingRouteCnt == 0 && msg.ResolveDone {
 		a.completeMessage(msg.MessageID)
 	}

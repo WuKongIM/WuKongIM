@@ -80,7 +80,7 @@ func (m *Manager) Submit(ctx context.Context, env CommittedEnvelope) error {
 }
 
 func (m *Manager) AckRoute(ctx context.Context, cmd RouteAck) error {
-	binding, ok := m.ackIdx.Take(cmd.SessionID, cmd.MessageID)
+	binding, ok := m.ackIdx.TakeRoute(cmd.UID, cmd.SessionID, cmd.MessageID)
 	if !ok {
 		return nil
 	}
@@ -88,7 +88,7 @@ func (m *Manager) AckRoute(ctx context.Context, cmd RouteAck) error {
 }
 
 func (m *Manager) SessionClosed(ctx context.Context, cmd SessionClosed) error {
-	bindings := m.ackIdx.TakeSession(cmd.SessionID)
+	bindings := m.ackIdx.TakeSessionRoute(cmd.UID, cmd.SessionID)
 	for _, binding := range bindings {
 		if err := m.shardFor(ChannelKey{ChannelID: binding.ChannelID, ChannelType: binding.ChannelType}).routeOffline(ctx, binding); err != nil {
 			return err
