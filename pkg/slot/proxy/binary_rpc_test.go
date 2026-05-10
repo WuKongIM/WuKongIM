@@ -74,6 +74,29 @@ func TestSubscriberRPCBinaryCodecRoundTrip(t *testing.T) {
 	require.Equal(t, resp, gotResp)
 }
 
+func TestSubscriberRPCBinaryCodecRoundTripsPointLookupFields(t *testing.T) {
+	req := subscriberRPCRequest{
+		SlotID:      3,
+		HashSlot:    7,
+		ChannelID:   "g1",
+		ChannelType: 2,
+		ContainsUID: "u1",
+		HasAny:      true,
+	}
+	body, err := encodeSubscriberRPCRequestBinary(req)
+	require.NoError(t, err)
+	got, err := decodeSubscriberRPCRequest(body)
+	require.NoError(t, err)
+	require.Equal(t, req, got)
+
+	resp := subscriberRPCResponse{Status: rpcStatusOK, UIDs: []string{}, Contains: true, HasAny: true}
+	body, err = encodeSubscriberRPCResponseBinary(resp)
+	require.NoError(t, err)
+	gotResp, err := decodeSubscriberRPCResponseBinary(body)
+	require.NoError(t, err)
+	require.Equal(t, resp, gotResp)
+}
+
 func TestUserConversationStateRPCBinaryCodecRoundTrip(t *testing.T) {
 	req := userConversationStateRPCRequest{
 		Op:          userConversationStateRPCHide,

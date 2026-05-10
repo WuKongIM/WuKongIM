@@ -209,6 +209,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 | `identityRPCServiceID` | User / Device 查询 | proxy/identity_rpc.go |
 | `subscriberRPCServiceID` | 订阅者列表（分页/快照） | proxy/subscriber_rpc.go |
 | `userConversationStateRPCServiceID` | 会话状态查询、active_at 热提示提交/删除 | proxy/user_conversation_state_rpc.go |
+| `channelRPCServiceID` | Channel 权限元数据查询 | proxy/channel_rpc.go |
 
 **RPC 状态码** (authoritative_rpc.go): `ok` / `not_found` / `not_leader` / `no_leader` / `no_slot`
 

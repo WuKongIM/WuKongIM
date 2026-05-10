@@ -34,6 +34,14 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 		cmd.ChannelID = channelID
 	}
 
+	reason, err := a.checkSendPermission(ctx, cmd)
+	if err != nil {
+		return SendResult{}, err
+	}
+	if reason != frame.ReasonSuccess {
+		return SendResult{Reason: reason}, nil
+	}
+
 	if a.cluster == nil {
 		fields := append([]wklog.Field{
 			wklog.Event("message.send.cluster.required"),

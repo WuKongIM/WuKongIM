@@ -791,7 +791,8 @@ func TestThreeNodeAppGroupChannelRealtimeDeliveryUsesStoredSubscribers(t *testin
 		LeaseUntilMS: time.Now().Add(time.Minute).UnixMilli(),
 	}
 	require.NoError(t, owner.Store().UpsertChannelRuntimeMeta(context.Background(), meta))
-	require.NoError(t, owner.Store().AddChannelSubscribers(context.Background(), id.ID, int64(id.Type), []string{"slot-user-a", "slot-user-b"}))
+	require.NoError(t, owner.Store().CreateChannel(context.Background(), id.ID, int64(id.Type)))
+	require.NoError(t, owner.Store().AddChannelSubscribers(context.Background(), id.ID, int64(id.Type), []string{"slot-sender", "slot-user-a", "slot-user-b"}))
 
 	for _, app := range harness.appsWithLeaderFirst(ownerID) {
 		_, err := app.channelMetaSync.RefreshChannelMeta(context.Background(), id)

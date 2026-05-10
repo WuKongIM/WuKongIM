@@ -35,6 +35,8 @@ type Options struct {
 	CommittedDispatcher CommittedMessageDispatcher
 	DeliveryAck         DeliveryAck
 	DeliveryOffline     DeliveryOffline
+	PermissionStore     PermissionStore
+	SystemUIDs          SystemUIDChecker
 	// AppendMetrics records durable append attempts without coupling usecases to a metrics backend.
 	AppendMetrics messageAppendMetrics
 	LocalNodeID   uint64
@@ -57,6 +59,8 @@ type App struct {
 	dispatcher      CommittedMessageDispatcher
 	deliveryAck     DeliveryAck
 	deliveryOffline DeliveryOffline
+	permissions     PermissionStore
+	systemUIDs      SystemUIDChecker
 	appendMetrics   messageAppendMetrics
 	localNodeID     uint64
 	localBootID     uint64
@@ -92,6 +96,8 @@ func New(opts Options) *App {
 		dispatcher:      opts.CommittedDispatcher,
 		deliveryAck:     opts.DeliveryAck,
 		deliveryOffline: opts.DeliveryOffline,
+		permissions:     opts.PermissionStore,
+		systemUIDs:      opts.SystemUIDs,
 		appendMetrics:   opts.AppendMetrics,
 		localNodeID:     opts.LocalNodeID,
 		localBootID:     opts.LocalBootID,
@@ -120,4 +126,16 @@ type IdentityStore interface {
 
 type ChannelStore interface {
 	GetChannel(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error)
+}
+
+// PermissionStore provides authoritative membership and channel reads for send authorization.
+type PermissionStore interface {
+	GetChannelForPermission(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error)
+	ContainsChannelSubscriber(ctx context.Context, channelID string, channelType int64, uid string) (bool, error)
+	HasChannelSubscribers(ctx context.Context, channelID string, channelType int64) (bool, error)
+}
+
+// SystemUIDChecker identifies internal system senders that bypass business permissions.
+type SystemUIDChecker interface {
+	IsSystemUID(uid string) bool
 }

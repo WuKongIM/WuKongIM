@@ -237,6 +237,61 @@ func (s *ShardStore) ListSubscribersSnapshot(ctx context.Context, channelID stri
 	return uids, nil
 }
 
+// ContainsSubscriber reports whether uid is present in the channel subscriber set.
+func (s *ShardStore) ContainsSubscriber(ctx context.Context, channelID string, channelType int64, uid string) (bool, error) {
+	if err := s.validate(); err != nil {
+		return false, err
+	}
+	if err := s.db.checkContext(ctx); err != nil {
+		return false, err
+	}
+	if err := validateSubscriberChannel(channelID); err != nil {
+		return false, err
+	}
+	if uid == "" {
+		return false, ErrInvalidArgument
+	}
+
+	s.db.mu.RLock()
+	defer s.db.mu.RUnlock()
+
+	key := encodeSubscriberPrimaryKey(s.slot, channelID, channelType, uid, subscriberPrimaryFamilyID)
+	return s.db.hasKey(key)
+}
+
+// HasSubscribers reports whether the channel subscriber set contains at least one UID.
+func (s *ShardStore) HasSubscribers(ctx context.Context, channelID string, channelType int64) (bool, error) {
+	if err := s.validate(); err != nil {
+		return false, err
+	}
+	if err := s.db.checkContext(ctx); err != nil {
+		return false, err
+	}
+	if err := validateSubscriberChannel(channelID); err != nil {
+		return false, err
+	}
+
+	channelPrefix := encodeSubscriberChannelPrefix(s.slot, channelID, channelType)
+
+	s.db.mu.RLock()
+	defer s.db.mu.RUnlock()
+
+	iter, err := s.db.db.NewIter(&pebble.IterOptions{
+		LowerBound: channelPrefix,
+		UpperBound: nextPrefix(channelPrefix),
+	})
+	if err != nil {
+		return false, err
+	}
+	defer iter.Close()
+
+	ok := iter.First()
+	if err := iter.Error(); err != nil {
+		return false, err
+	}
+	return ok, nil
+}
+
 func encodeSubscriberChannelPrefix(hashSlot uint16, channelID string, channelType int64) []byte {
 	key := make([]byte, 0, 56)
 	key = encodeStatePrefix(hashSlot, SubscriberTable.ID)

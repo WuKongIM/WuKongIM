@@ -35,6 +35,7 @@ func New(cluster raftcluster.API, db *metadb.DB) *Store {
 		cluster.RPCMux().Handle(runtimeMetaRPCServiceID, store.handleRuntimeMetaRPC)
 		cluster.RPCMux().Handle(identityRPCServiceID, store.handleIdentityRPC)
 		cluster.RPCMux().Handle(subscriberRPCServiceID, store.handleSubscriberRPC)
+		cluster.RPCMux().Handle(channelRPCServiceID, store.handleChannelRPC)
 		cluster.RPCMux().Handle(userConversationStateRPCServiceID, store.handleUserConversationStateRPC)
 	}
 	return store
@@ -85,6 +86,16 @@ func (s *Store) DeleteChannel(ctx context.Context, channelID string, channelType
 func (s *Store) GetChannel(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {
 	hashSlot := hashSlotForKey(s.cluster, channelID)
 	return s.db.ForHashSlot(hashSlot).GetChannel(ctx, channelID, channelType)
+}
+
+// GetChannelForPermission reads channel metadata from the authoritative slot owner.
+func (s *Store) GetChannelForPermission(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	slotID := s.cluster.SlotForKey(channelID)
+	hashSlot := hashSlotForKey(s.cluster, channelID)
+	if s.shouldServeSlotLocally(slotID) {
+		return s.db.ForHashSlot(hashSlot).GetChannel(ctx, channelID, channelType)
+	}
+	return s.getChannelForPermissionAuthoritative(ctx, slotID, hashSlot, channelID, channelType)
 }
 
 func (s *Store) AddChannelSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error {

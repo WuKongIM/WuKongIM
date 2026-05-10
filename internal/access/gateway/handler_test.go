@@ -208,6 +208,38 @@ func TestHandlerOnFrameSendMapsCommandAndWritesSendack(t *testing.T) {
 	require.Equal(t, "reply-1", write.meta.ReplyToken)
 }
 
+func TestHandlerOnFrameSendPreservesBusinessDenialReason(t *testing.T) {
+	sender := newOptionRecordingSession(1, "tcp")
+	sender.SetValue(coregateway.SessionValueUID, "u1")
+	handler := New(Options{
+		Messages: &fakeMessageUsecase{
+			sendResult: message.SendResult{Reason: frame.ReasonInBlacklist},
+		},
+	})
+
+	ctx := &coregateway.Context{
+		Session:        sender,
+		Listener:       "tcp",
+		RequestContext: context.Background(),
+	}
+	pkt := &frame.SendPacket{
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+		ClientSeq:   14,
+		ClientMsgNo: "denied-1",
+	}
+
+	require.NoError(t, handler.OnFrame(ctx, pkt))
+	require.Len(t, sender.Writes(), 1)
+	ack := requireSendackPacket(t, sender.Writes()[0].f)
+	require.Equal(t, frame.ReasonInBlacklist, ack.ReasonCode)
+	require.Zero(t, ack.MessageID)
+	require.Zero(t, ack.MessageSeq)
+	require.Equal(t, uint64(14), ack.ClientSeq)
+	require.Equal(t, "denied-1", ack.ClientMsgNo)
+}
+
 func TestHandlerOnFrameSendDecryptsEncryptedPayloadBeforeUsecase(t *testing.T) {
 	sender := newOptionRecordingSession(1, "tcp")
 	sender.SetValue(coregateway.SessionValueUID, "u1")
