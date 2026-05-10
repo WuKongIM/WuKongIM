@@ -691,7 +691,7 @@ func TestStoreListChannelSubscribersReadsAuthoritativeSlot(t *testing.T) {
 	channelID := findChannelIDForSlot(t, nodes[0].cluster, 2, "remote-subscribers")
 
 	remoteShard, ok := any(nodes[1].db.ForHashSlot(mustHashSlotForKey(t, nodes[1].cluster, channelID))).(interface {
-		AddSubscribers(ctx context.Context, channelID string, channelType int64, uids []string) error
+		AddSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error
 	})
 	require.True(t, ok, "subscriber shard store methods missing")
 	require.NoError(t, remoteShard.AddSubscribers(ctx, channelID, 2, []string{"u3", "u1", "u2"}))
@@ -721,7 +721,7 @@ func TestStoreSnapshotChannelSubscribersReadsAuthoritativeSlot(t *testing.T) {
 	channelID := findChannelIDForSlot(t, nodes[0].cluster, 2, "remote-subscriber-snapshot")
 
 	remoteShard, ok := any(nodes[1].db.ForHashSlot(mustHashSlotForKey(t, nodes[1].cluster, channelID))).(interface {
-		AddSubscribers(ctx context.Context, channelID string, channelType int64, uids []string) error
+		AddSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error
 	})
 	require.True(t, ok, "subscriber shard store methods missing")
 	require.NoError(t, remoteShard.AddSubscribers(ctx, channelID, 2, []string{"u3", "u1", "u2"}))

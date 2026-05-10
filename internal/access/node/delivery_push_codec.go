@@ -8,8 +8,13 @@ import (
 )
 
 var (
-	deliveryPushRequestMagic  = [...]byte{'W', 'K', 'D', 'P', 1}
-	deliveryPushResponseMagic = [...]byte{'W', 'K', 'D', 'R', 1}
+	deliveryPushRequestMagicV1  = [...]byte{'W', 'K', 'D', 'P', 1}
+	deliveryPushRequestMagicV2  = [...]byte{'W', 'K', 'D', 'P', 2}
+	deliveryPushResponseMagicV1 = [...]byte{'W', 'K', 'D', 'R', 1}
+	deliveryPushResponseMagicV2 = [...]byte{'W', 'K', 'D', 'R', 2}
+
+	deliveryPushRequestMagic  = deliveryPushRequestMagicV1
+	deliveryPushResponseMagic = deliveryPushResponseMagicV1
 )
 
 // encodeDeliveryPushCommandBinary encodes the legacy single-item push shape as binary.
@@ -28,6 +33,14 @@ func encodeDeliveryPushCommandBinary(cmd DeliveryPushCommand) ([]byte, error) {
 // encodeDeliveryPushBatchCommandBinary encodes batched delivery push RPCs as binary.
 func encodeDeliveryPushBatchCommandBinary(cmd DeliveryPushBatchCommand) ([]byte, error) {
 	return encodeDeliveryPushRequestBinary(deliveryPushRequest{
+		OwnerNodeID:          cmd.OwnerNodeID,
+		Items:                cmd.Items,
+		acceptsAcceptedCount: true,
+	}), nil
+}
+
+func encodeDeliveryPushBatchCommandLegacyBinary(cmd DeliveryPushBatchCommand) ([]byte, error) {
+	return encodeDeliveryPushRequestBinary(deliveryPushRequest{
 		OwnerNodeID: cmd.OwnerNodeID,
 		Items:       cmd.Items,
 	}), nil
@@ -36,7 +49,11 @@ func encodeDeliveryPushBatchCommandBinary(cmd DeliveryPushBatchCommand) ([]byte,
 func encodeDeliveryPushRequestBinary(req deliveryPushRequest) []byte {
 	items := req.deliveryPushItems()
 	dst := make([]byte, 0, estimateDeliveryPushRequestBinarySize(req.OwnerNodeID, items))
-	dst = append(dst, deliveryPushRequestMagic[:]...)
+	if req.acceptsAcceptedCount {
+		dst = append(dst, deliveryPushRequestMagicV2[:]...)
+	} else {
+		dst = append(dst, deliveryPushRequestMagicV1[:]...)
+	}
 	dst = appendUvarint(dst, req.OwnerNodeID)
 	dst = appendUvarint(dst, uint64(len(items)))
 	for _, item := range items {
@@ -49,7 +66,10 @@ func decodeDeliveryPushRequest(body []byte) (deliveryPushRequest, bool, error) {
 	if !isDeliveryPushRequestBinary(body) {
 		return deliveryPushRequest{}, false, fmt.Errorf("access/node: invalid delivery push request codec")
 	}
-	req, err := decodeDeliveryPushRequestBinary(body[len(deliveryPushRequestMagic):])
+	req, err := decodeDeliveryPushRequestBinary(body[len(deliveryPushRequestMagicV1):])
+	if hasMagic(body, deliveryPushRequestMagicV2[:]) {
+		req.acceptsAcceptedCount = true
+	}
 	return req, true, err
 }
 
@@ -83,23 +103,39 @@ func decodeDeliveryPushRequestBinary(body []byte) (deliveryPushRequest, error) {
 
 func encodeDeliveryPushResponseBinary(resp DeliveryPushResponse) ([]byte, error) {
 	dst := make([]byte, 0, estimateDeliveryPushResponseBinarySize(resp))
-	dst = append(dst, deliveryPushResponseMagic[:]...)
+	if resp.AcceptedCountSet {
+		dst = append(dst, deliveryPushResponseMagicV2[:]...)
+	} else {
+		dst = append(dst, deliveryPushResponseMagicV1[:]...)
+	}
 	dst = appendString(dst, resp.Status)
-	dst = appendRouteKeys(dst, resp.Accepted)
+	if resp.AcceptedCountSet {
+		dst = appendUvarint(dst, resp.AcceptedCount)
+	} else {
+		dst = appendRouteKeys(dst, resp.Accepted)
+	}
 	dst = appendRouteKeys(dst, resp.Retryable)
 	dst = appendRouteKeys(dst, resp.Dropped)
 	return dst, nil
 }
 
 func decodeDeliveryPushResponseBinary(body []byte) (DeliveryPushResponse, error) {
-	offset := len(deliveryPushResponseMagic)
+	responseV2 := hasMagic(body, deliveryPushResponseMagicV2[:])
+	offset := len(deliveryPushResponseMagicV1)
 	var resp DeliveryPushResponse
 	var err error
 	if resp.Status, offset, err = readString(body, offset); err != nil {
 		return DeliveryPushResponse{}, err
 	}
-	if resp.Accepted, offset, err = readRouteKeys(body, offset); err != nil {
-		return DeliveryPushResponse{}, err
+	if responseV2 {
+		if resp.AcceptedCount, offset, err = readUvarint(body, offset); err != nil {
+			return DeliveryPushResponse{}, err
+		}
+		resp.AcceptedCountSet = true
+	} else {
+		if resp.Accepted, offset, err = readRouteKeys(body, offset); err != nil {
+			return DeliveryPushResponse{}, err
+		}
 	}
 	if resp.Retryable, offset, err = readRouteKeys(body, offset); err != nil {
 		return DeliveryPushResponse{}, err
@@ -114,11 +150,11 @@ func decodeDeliveryPushResponseBinary(body []byte) (DeliveryPushResponse, error)
 }
 
 func isDeliveryPushRequestBinary(body []byte) bool {
-	return hasMagic(body, deliveryPushRequestMagic[:])
+	return hasMagic(body, deliveryPushRequestMagicV1[:]) || hasMagic(body, deliveryPushRequestMagicV2[:])
 }
 
 func isDeliveryPushResponseBinary(body []byte) bool {
-	return hasMagic(body, deliveryPushResponseMagic[:])
+	return hasMagic(body, deliveryPushResponseMagicV1[:]) || hasMagic(body, deliveryPushResponseMagicV2[:])
 }
 
 func appendDeliveryPushItem(dst []byte, item DeliveryPushItem) []byte {
@@ -268,7 +304,7 @@ func hasMagic(body []byte, magic []byte) bool {
 }
 
 func estimateDeliveryPushRequestBinarySize(ownerNodeID uint64, items []DeliveryPushItem) int {
-	size := len(deliveryPushRequestMagic) + binary.MaxVarintLen64 + binary.MaxVarintLen64
+	size := len(deliveryPushRequestMagicV1) + binary.MaxVarintLen64 + binary.MaxVarintLen64
 	_ = ownerNodeID
 	for _, item := range items {
 		size += len(item.ChannelID) + 1 + 1 + binary.MaxVarintLen64*3 + len(item.Frame)
@@ -278,10 +314,13 @@ func estimateDeliveryPushRequestBinarySize(ownerNodeID uint64, items []DeliveryP
 }
 
 func estimateDeliveryPushResponseBinarySize(resp DeliveryPushResponse) int {
-	return len(deliveryPushResponseMagic) + len(resp.Status) + 1 +
-		estimateRouteKeysBinarySize(resp.Accepted) +
+	size := len(deliveryPushResponseMagicV1) + len(resp.Status) + 1 +
 		estimateRouteKeysBinarySize(resp.Retryable) +
 		estimateRouteKeysBinarySize(resp.Dropped)
+	if resp.AcceptedCountSet {
+		return size + binary.MaxVarintLen64
+	}
+	return size + estimateRouteKeysBinarySize(resp.Accepted)
 }
 
 func estimateRouteKeysBinarySize(routes []deliveryruntime.RouteKey) int {

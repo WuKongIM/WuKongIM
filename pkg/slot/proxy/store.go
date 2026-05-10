@@ -87,17 +87,23 @@ func (s *Store) GetChannel(ctx context.Context, channelID string, channelType in
 	return s.db.ForHashSlot(hashSlot).GetChannel(ctx, channelID, channelType)
 }
 
-func (s *Store) AddChannelSubscribers(ctx context.Context, channelID string, channelType int64, uids []string) error {
+func (s *Store) AddChannelSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error {
 	slotID := s.cluster.SlotForKey(channelID)
 	hashSlot := hashSlotForKey(s.cluster, channelID)
-	cmd := metafsm.EncodeAddSubscribersCommand(channelID, channelType, uids)
+	cmd, err := metafsm.EncodeAddSubscribersCommandChecked(channelID, channelType, uids, subscriberMutationVersion...)
+	if err != nil {
+		return err
+	}
 	return proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd)
 }
 
-func (s *Store) RemoveChannelSubscribers(ctx context.Context, channelID string, channelType int64, uids []string) error {
+func (s *Store) RemoveChannelSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error {
 	slotID := s.cluster.SlotForKey(channelID)
 	hashSlot := hashSlotForKey(s.cluster, channelID)
-	cmd := metafsm.EncodeRemoveSubscribersCommand(channelID, channelType, uids)
+	cmd, err := metafsm.EncodeRemoveSubscribersCommandChecked(channelID, channelType, uids, subscriberMutationVersion...)
+	if err != nil {
+		return err
+	}
 	return proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd)
 }
 

@@ -250,7 +250,7 @@ func (m *stateMachine) ApplyBatch(ctx context.Context, cmds []multiraft.Command)
 			shouldMarkAppliedDelta = true
 		}
 		if err := decoded.apply(wb, hashSlot); err != nil {
-			if isRetentionAdvanceStaleResult(decoded, err) {
+			if isStaleMetaResult(decoded, err) {
 				results[i] = []byte(ApplyResultStaleMeta)
 				continue
 			}
@@ -281,13 +281,17 @@ func (m *stateMachine) ApplyBatch(ctx context.Context, cmds []multiraft.Command)
 	return results, nil
 }
 
-func isRetentionAdvanceStaleResult(cmd command, err error) bool {
-	if _, ok := cmd.(*advanceChannelRetentionThroughSeqCmd); !ok {
+func isStaleMetaResult(cmd command, err error) bool {
+	switch cmd.(type) {
+	case *advanceChannelRetentionThroughSeqCmd:
+		// Missing runtime metadata means the proposal was based on an observation
+		// that is no longer current, so it is reported as the same stale no-op.
+		return errors.Is(err, metadb.ErrStaleMeta) || errors.Is(err, metadb.ErrNotFound)
+	case *addSubscribersCmd, *removeSubscribersCmd:
+		return errors.Is(err, metadb.ErrStaleMeta)
+	default:
 		return false
 	}
-	// Missing runtime metadata means the proposal was based on an observation
-	// that is no longer current, so it is reported as the same stale no-op.
-	return errors.Is(err, metadb.ErrStaleMeta) || errors.Is(err, metadb.ErrNotFound)
 }
 
 func commandTypeForDiagnostics(data []byte) uint8 {

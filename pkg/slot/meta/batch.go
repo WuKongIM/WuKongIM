@@ -12,8 +12,14 @@ type WriteBatch struct {
 	db                     *DB
 	batch                  *pebble.Batch
 	writtenUserKeys        map[string]struct{}
+	channels               map[string]channelBatchEntry
 	userConversationStates map[string]userConversationStateBatchEntry
 	channelRuntimeMetas    map[string]channelRuntimeMetaBatchEntry
+}
+
+type channelBatchEntry struct {
+	channel Channel
+	exists  bool
 }
 
 type userConversationStateBatchEntry struct {
@@ -113,13 +119,21 @@ func (b *WriteBatch) UpsertChannel(hashSlot uint16, ch Channel) error {
 	}
 
 	primaryKey := encodeChannelPrimaryKey(hashSlot, ch.ChannelID, ch.ChannelType, channelPrimaryFamilyID)
-	value := encodeChannelFamilyValue(ch.Ban, primaryKey)
+	existing, exists, err := b.loadChannel(hashSlot, primaryKey, ch.ChannelID, ch.ChannelType)
+	if err != nil {
+		return err
+	}
+	if exists && ch.SubscriberMutationVersion == 0 {
+		ch.SubscriberMutationVersion = existing.SubscriberMutationVersion
+	}
+	value := encodeChannelFamilyValue(ch.Ban, ch.SubscriberMutationVersion, primaryKey)
 	indexKey := encodeChannelIDIndexKey(hashSlot, ch.ChannelID, ch.ChannelType)
 	indexValue := encodeChannelIndexValue(ch.Ban)
 
 	if err := b.batch.Set(primaryKey, value, nil); err != nil {
 		return err
 	}
+	b.rememberChannel(hashSlot, ch, true)
 	return b.batch.Set(indexKey, indexValue, nil)
 }
 
@@ -382,7 +396,7 @@ func (b *WriteBatch) DeleteChannelRuntimeMeta(hashSlot uint16, channelID string,
 }
 
 // AddSubscribers stages subscriber snapshot rows into the batch.
-func (b *WriteBatch) AddSubscribers(hashSlot uint16, channelID string, channelType int64, uids []string) error {
+func (b *WriteBatch) AddSubscribers(hashSlot uint16, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error {
 	if err := validateHashSlot(hashSlot); err != nil {
 		return err
 	}
@@ -393,6 +407,26 @@ func (b *WriteBatch) AddSubscribers(hashSlot uint16, channelID string, channelTy
 	normalized, err := normalizeSubscriberUIDs(uids)
 	if err != nil {
 		return err
+	}
+	version := uint64(0)
+	if len(subscriberMutationVersion) > 0 {
+		version = subscriberMutationVersion[0]
+	}
+	var channel Channel
+	var exists bool
+	if version > 0 {
+		channelKey := encodeChannelPrimaryKey(hashSlot, channelID, channelType, channelPrimaryFamilyID)
+		channel, exists, err = b.loadChannel(hashSlot, channelKey, channelID, channelType)
+		if err != nil {
+			return err
+		}
+		if exists && channel.SubscriberMutationVersion > version {
+			return ErrStaleMeta
+		}
+		if !exists {
+			channel = Channel{ChannelID: channelID, ChannelType: channelType}
+		}
+		channel.SubscriberMutationVersion = version
 	}
 	for _, uid := range normalized {
 		key := encodeSubscriberPrimaryKey(hashSlot, channelID, channelType, uid, subscriberPrimaryFamilyID)
@@ -400,11 +434,19 @@ func (b *WriteBatch) AddSubscribers(hashSlot uint16, channelID string, channelTy
 			return err
 		}
 	}
+	if version > 0 {
+		channelKey := encodeChannelPrimaryKey(hashSlot, channelID, channelType, channelPrimaryFamilyID)
+		value := encodeChannelFamilyValue(channel.Ban, channel.SubscriberMutationVersion, channelKey)
+		if err := b.batch.Set(channelKey, value, nil); err != nil {
+			return err
+		}
+		b.rememberChannel(hashSlot, channel, true)
+	}
 	return nil
 }
 
 // RemoveSubscribers stages subscriber snapshot row deletions into the batch.
-func (b *WriteBatch) RemoveSubscribers(hashSlot uint16, channelID string, channelType int64, uids []string) error {
+func (b *WriteBatch) RemoveSubscribers(hashSlot uint16, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error {
 	if err := validateHashSlot(hashSlot); err != nil {
 		return err
 	}
@@ -416,11 +458,39 @@ func (b *WriteBatch) RemoveSubscribers(hashSlot uint16, channelID string, channe
 	if err != nil {
 		return err
 	}
+	version := uint64(0)
+	if len(subscriberMutationVersion) > 0 {
+		version = subscriberMutationVersion[0]
+	}
+	var channel Channel
+	var exists bool
+	if version > 0 {
+		channelKey := encodeChannelPrimaryKey(hashSlot, channelID, channelType, channelPrimaryFamilyID)
+		channel, exists, err = b.loadChannel(hashSlot, channelKey, channelID, channelType)
+		if err != nil {
+			return err
+		}
+		if exists && channel.SubscriberMutationVersion > version {
+			return ErrStaleMeta
+		}
+		if !exists {
+			channel = Channel{ChannelID: channelID, ChannelType: channelType}
+		}
+		channel.SubscriberMutationVersion = version
+	}
 	for _, uid := range normalized {
 		key := encodeSubscriberPrimaryKey(hashSlot, channelID, channelType, uid, subscriberPrimaryFamilyID)
 		if err := b.batch.Delete(key, nil); err != nil {
 			return err
 		}
+	}
+	if version > 0 {
+		channelKey := encodeChannelPrimaryKey(hashSlot, channelID, channelType, channelPrimaryFamilyID)
+		value := encodeChannelFamilyValue(channel.Ban, channel.SubscriberMutationVersion, channelKey)
+		if err := b.batch.Set(channelKey, value, nil); err != nil {
+			return err
+		}
+		b.rememberChannel(hashSlot, channel, true)
 	}
 	return nil
 }
@@ -489,6 +559,48 @@ func (b *WriteBatch) rememberChannelRuntimeMeta(hashSlot uint16, meta ChannelRun
 		meta:   meta,
 		exists: exists,
 	}
+}
+
+func (b *WriteBatch) loadChannel(hashSlot uint16, key []byte, channelID string, channelType int64) (Channel, bool, error) {
+	batchKey := channelBatchKey(hashSlot, channelID, channelType)
+	if b.channels != nil {
+		if entry, ok := b.channels[batchKey]; ok {
+			return entry.channel, entry.exists, nil
+		}
+	}
+
+	value, err := b.db.getValue(key)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return Channel{}, false, nil
+		}
+		return Channel{}, false, err
+	}
+
+	ban, version, err := decodeChannelFamilyValue(key, value)
+	if err != nil {
+		return Channel{}, false, err
+	}
+	return Channel{
+		ChannelID:                 channelID,
+		ChannelType:               channelType,
+		Ban:                       ban,
+		SubscriberMutationVersion: version,
+	}, true, nil
+}
+
+func (b *WriteBatch) rememberChannel(hashSlot uint16, ch Channel, exists bool) {
+	if b.channels == nil {
+		b.channels = make(map[string]channelBatchEntry, 1)
+	}
+	b.channels[channelBatchKey(hashSlot, ch.ChannelID, ch.ChannelType)] = channelBatchEntry{
+		channel: ch,
+		exists:  exists,
+	}
+}
+
+func channelBatchKey(hashSlot uint16, channelID string, channelType int64) string {
+	return string(encodeChannelPrimaryKey(hashSlot, channelID, channelType, channelPrimaryFamilyID))
 }
 
 func channelRuntimeMetaBatchKey(hashSlot uint16, channelID string, channelType int64) string {

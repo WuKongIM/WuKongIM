@@ -728,6 +728,124 @@ func TestUpdateTokenReturnsLegacyMissingUserUsecaseEnvelope(t *testing.T) {
 	require.JSONEq(t, `{"msg":"user usecase not configured","status":400}`, rec.Body.String())
 }
 
+func TestDeviceQuitMapsLegacyRequestToUsecaseCommand(t *testing.T) {
+	users := &recordingUserUsecase{}
+	srv := New(Options{Users: users})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/user/device_quit", bytes.NewBufferString(`{"uid":"u1","device_flag":-1}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"status":200}`, rec.Body.String())
+	require.Equal(t, []user.DeviceQuitCommand{{UID: "u1", DeviceFlag: -1}}, users.deviceQuitCommands)
+}
+
+func TestOnlineStatusReturnsLegacyArrayResponse(t *testing.T) {
+	users := &recordingUserUsecase{
+		onlineStatuses: []user.OnlineStatus{
+			{UID: "u1", DeviceFlag: uint8(frame.APP), Online: 1},
+			{UID: "u2", DeviceFlag: uint8(frame.WEB), Online: 1},
+		},
+	}
+	srv := New(Options{Users: users})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/user/onlinestatus", bytes.NewBufferString(`["u1","u2"]`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `[{"uid":"u1","device_flag":0,"online":1},{"uid":"u2","device_flag":1,"online":1}]`, rec.Body.String())
+	require.Equal(t, [][]string{{"u1", "u2"}}, users.onlineStatusQueries)
+}
+
+func TestOnlineStatusEmptyRequestReturnsLegacyOKEnvelope(t *testing.T) {
+	users := &recordingUserUsecase{}
+	srv := New(Options{Users: users})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/user/onlinestatus", bytes.NewBufferString(`[]`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"status":200}`, rec.Body.String())
+	require.Empty(t, users.onlineStatusQueries)
+}
+
+func TestSystemUIDRoutesKeepLegacyContracts(t *testing.T) {
+	users := &recordingUserUsecase{
+		systemUIDs: []string{"sys1", "sys2"},
+	}
+	srv := New(Options{Users: users})
+
+	for _, tt := range []struct {
+		name   string
+		path   string
+		body   string
+		assert func(t *testing.T)
+	}{
+		{
+			name: "add",
+			path: "/user/systemuids_add",
+			body: `{"uids":["sys1","sys2"]}`,
+			assert: func(t *testing.T) {
+				require.Equal(t, [][]string{{"sys1", "sys2"}}, users.systemUIDAdds)
+			},
+		},
+		{
+			name: "remove",
+			path: "/user/systemuids_remove",
+			body: `{"uids":["sys1"]}`,
+			assert: func(t *testing.T) {
+				require.Equal(t, [][]string{{"sys1"}}, users.systemUIDRemoves)
+			},
+		},
+		{
+			name: "cache add",
+			path: "/user/systemuids_add_to_cache",
+			body: `{"uids":["sys1"]}`,
+			assert: func(t *testing.T) {
+				require.Equal(t, [][]string{{"sys1"}}, users.systemUIDCacheAdds)
+			},
+		},
+		{
+			name: "cache remove",
+			path: "/user/systemuids_remove_from_cache",
+			body: `{"uids":["sys1"]}`,
+			assert: func(t *testing.T) {
+				require.Equal(t, [][]string{{"sys1"}}, users.systemUIDCacheRemoves)
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, tt.path, bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			require.JSONEq(t, `{"status":200}`, rec.Body.String())
+			tt.assert(t)
+		})
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/user/systemuids", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `["sys1","sys2"]`, rec.Body.String())
+	require.Equal(t, 1, users.systemUIDListCalls)
+}
+
 func TestConversationSyncMapsLegacyRequestToUsecaseQuery(t *testing.T) {
 	conversations := &recordingConversationUsecase{
 		result: conversationusecase.SyncResult{
@@ -956,13 +1074,62 @@ func (r *recordingMessageUsecase) SyncChannelMessages(ctx context.Context, query
 }
 
 type recordingUserUsecase struct {
-	calls []user.UpdateTokenCommand
-	err   error
+	calls                 []user.UpdateTokenCommand
+	deviceQuitCommands    []user.DeviceQuitCommand
+	onlineStatusQueries   [][]string
+	onlineStatuses        []user.OnlineStatus
+	systemUIDAdds         [][]string
+	systemUIDRemoves      [][]string
+	systemUIDCacheAdds    [][]string
+	systemUIDCacheRemoves [][]string
+	systemUIDs            []string
+	systemUIDListCalls    int
+	err                   error
+	deviceQuitErr         error
+	onlineStatusErr       error
+	systemUIDErr          error
+	systemUIDCacheErr     error
+	systemUIDListErr      error
 }
 
 func (r *recordingUserUsecase) UpdateToken(_ context.Context, cmd user.UpdateTokenCommand) error {
 	r.calls = append(r.calls, cmd)
 	return r.err
+}
+
+func (r *recordingUserUsecase) DeviceQuit(_ context.Context, cmd user.DeviceQuitCommand) error {
+	r.deviceQuitCommands = append(r.deviceQuitCommands, cmd)
+	return r.deviceQuitErr
+}
+
+func (r *recordingUserUsecase) OnlineStatus(_ context.Context, uids []string) ([]user.OnlineStatus, error) {
+	r.onlineStatusQueries = append(r.onlineStatusQueries, append([]string(nil), uids...))
+	return append([]user.OnlineStatus(nil), r.onlineStatuses...), r.onlineStatusErr
+}
+
+func (r *recordingUserUsecase) AddSystemUIDs(_ context.Context, uids []string) error {
+	r.systemUIDAdds = append(r.systemUIDAdds, append([]string(nil), uids...))
+	return r.systemUIDErr
+}
+
+func (r *recordingUserUsecase) RemoveSystemUIDs(_ context.Context, uids []string) error {
+	r.systemUIDRemoves = append(r.systemUIDRemoves, append([]string(nil), uids...))
+	return r.systemUIDErr
+}
+
+func (r *recordingUserUsecase) ListSystemUIDs(context.Context) ([]string, error) {
+	r.systemUIDListCalls++
+	return append([]string(nil), r.systemUIDs...), r.systemUIDListErr
+}
+
+func (r *recordingUserUsecase) AddSystemUIDsToCache(uids []string) error {
+	r.systemUIDCacheAdds = append(r.systemUIDCacheAdds, append([]string(nil), uids...))
+	return r.systemUIDCacheErr
+}
+
+func (r *recordingUserUsecase) RemoveSystemUIDsFromCache(uids []string) error {
+	r.systemUIDCacheRemoves = append(r.systemUIDCacheRemoves, append([]string(nil), uids...))
+	return r.systemUIDCacheErr
 }
 
 type recordingTestDataUsecase struct {

@@ -43,7 +43,10 @@ func TestSubscriberResolverReturnsTwoUIDsForPersonChannel(t *testing.T) {
 
 func TestSubscriberResolverPagesGroupSubscribersFromMetastore(t *testing.T) {
 	store := &fakeSubscriberStore{
-		snapshotUIDs: []string{"u2", "u3", "u4"},
+		pageResults: []subscriberListResult{
+			{uids: []string{"u2", "u3"}, cursor: "u3", done: false},
+			{uids: []string{"u4"}, cursor: "u4", done: true},
+		},
 	}
 	resolver := NewSubscriberResolver(SubscriberResolverOptions{Store: store})
 
@@ -65,16 +68,18 @@ func TestSubscriberResolverPagesGroupSubscribersFromMetastore(t *testing.T) {
 	require.Equal(t, "u4", cursor)
 	require.True(t, done)
 
-	require.Equal(t, []subscriberSnapshotCall{
-		{channelID: "g1", channelType: int64(frame.ChannelTypeGroup)},
-	}, store.snapshotCalls)
-	require.Empty(t, store.pageCalls)
+	require.Empty(t, store.snapshotCalls)
+	require.Equal(t, []subscriberListCall{
+		{channelID: "g1", channelType: int64(frame.ChannelTypeGroup), afterUID: "", limit: 2},
+		{channelID: "g1", channelType: int64(frame.ChannelTypeGroup), afterUID: "u3", limit: 2},
+	}, store.pageCalls)
 }
 
 type fakeSubscriberStore struct {
 	snapshotCalls []subscriberSnapshotCall
 	pageCalls     []subscriberListCall
 	snapshotUIDs  []string
+	pageResults   []subscriberListResult
 }
 
 type subscriberSnapshotCall struct {
@@ -87,6 +92,12 @@ type subscriberListCall struct {
 	channelType int64
 	afterUID    string
 	limit       int
+}
+
+type subscriberListResult struct {
+	uids   []string
+	cursor string
+	done   bool
 }
 
 func (f *fakeSubscriberStore) SnapshotChannelSubscribers(_ context.Context, channelID string, channelType int64) ([]string, error) {
@@ -104,5 +115,10 @@ func (f *fakeSubscriberStore) ListChannelSubscribers(_ context.Context, channelI
 		afterUID:    afterUID,
 		limit:       limit,
 	})
-	return nil, "", true, nil
+	if len(f.pageResults) == 0 {
+		return nil, afterUID, true, nil
+	}
+	result := f.pageResults[0]
+	f.pageResults = f.pageResults[1:]
+	return append([]string(nil), result.uids...), result.cursor, result.done, nil
 }

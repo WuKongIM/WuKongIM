@@ -224,6 +224,80 @@ func TestChannelIndexValueTracksListPayload(t *testing.T) {
 	}
 }
 
+func TestChannelSubscriberMutationVersionRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+
+	ch := Channel{ChannelID: "group-version", ChannelType: 4, Ban: 1, SubscriberMutationVersion: 11}
+	if err := shard.CreateChannel(ctx, ch); err != nil {
+		t.Fatalf("CreateChannel(): %v", err)
+	}
+
+	got, err := shard.GetChannel(ctx, ch.ChannelID, ch.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannel(): %v", err)
+	}
+	if got.SubscriberMutationVersion != ch.SubscriberMutationVersion || got.Ban != ch.Ban {
+		t.Fatalf("unexpected channel after create: %#v", got)
+	}
+
+	updated := Channel{ChannelID: ch.ChannelID, ChannelType: ch.ChannelType, Ban: 9}
+	if err := shard.UpdateChannel(ctx, updated); err != nil {
+		t.Fatalf("UpdateChannel(): %v", err)
+	}
+
+	got, err = shard.GetChannel(ctx, ch.ChannelID, ch.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannel() after update: %v", err)
+	}
+	if got.SubscriberMutationVersion != ch.SubscriberMutationVersion {
+		t.Fatalf("subscriber mutation version after update = %d, want %d", got.SubscriberMutationVersion, ch.SubscriberMutationVersion)
+	}
+	if got.Ban != updated.Ban {
+		t.Fatalf("ban after update = %d, want %d", got.Ban, updated.Ban)
+	}
+}
+
+func TestSubscriberMutationVersionAdvancesMonotonically(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(8)
+
+	ch := Channel{ChannelID: "group-monotonic", ChannelType: 2, Ban: 0, SubscriberMutationVersion: 1}
+	if err := shard.CreateChannel(ctx, ch); err != nil {
+		t.Fatalf("CreateChannel(): %v", err)
+	}
+
+	if err := shard.AddSubscribers(ctx, ch.ChannelID, ch.ChannelType, []string{"u1", "u2"}, 2); err != nil {
+		t.Fatalf("AddSubscribers(version 2): %v", err)
+	}
+
+	got, err := shard.GetChannel(ctx, ch.ChannelID, ch.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannel() after add: %v", err)
+	}
+	if got.SubscriberMutationVersion != 2 {
+		t.Fatalf("subscriber mutation version after add = %d, want 2", got.SubscriberMutationVersion)
+	}
+
+	if err := shard.RemoveSubscribers(ctx, ch.ChannelID, ch.ChannelType, []string{"u1"}, 1); !errors.Is(err, ErrStaleMeta) {
+		t.Fatalf("RemoveSubscribers(version 1) error = %v, want ErrStaleMeta", err)
+	}
+
+	if err := shard.RemoveSubscribers(ctx, ch.ChannelID, ch.ChannelType, []string{"u1"}, 3); err != nil {
+		t.Fatalf("RemoveSubscribers(version 3): %v", err)
+	}
+
+	got, err = shard.GetChannel(ctx, ch.ChannelID, ch.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannel() after remove: %v", err)
+	}
+	if got.SubscriberMutationVersion != 3 {
+		t.Fatalf("subscriber mutation version after remove = %d, want 3", got.SubscriberMutationVersion)
+	}
+}
+
 func TestListChannelsByChannelIDHonorsCanceledContext(t *testing.T) {
 	db := openTestDB(t)
 	shard := db.ForSlot(1)

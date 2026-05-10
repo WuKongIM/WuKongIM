@@ -65,6 +65,12 @@ type DeliveryOffline interface {
 	SessionClosed(ctx context.Context, cmd deliveryevents.SessionClosed) error
 }
 
+// DeliveryTagAuthority serves leader-authoritative delivery tag reads and updates.
+type DeliveryTagAuthority interface {
+	GetDeliveryTag(ctx context.Context, req DeliveryTagRequest) (DeliveryTagResponse, error)
+	UpdateDeliveryTag(ctx context.Context, req DeliveryTagRequest) (DeliveryTagResponse, error)
+}
+
 // RuntimeSummary contains local node runtime counters exposed over node RPC.
 type RuntimeSummary struct {
 	// NodeID identifies the cluster node described by this summary.
@@ -131,6 +137,12 @@ type ChannelRetentionProvider interface {
 	AdvanceChannelRetention(ctx context.Context, req ChannelRetentionAdvanceRequest) (ChannelRetentionAdvanceResult, error)
 }
 
+// SystemUIDCache mutates the node-local system account UID cache.
+type SystemUIDCache interface {
+	AddSystemUIDsToCache(uids []string) error
+	RemoveSystemUIDsFromCache(uids []string) error
+}
+
 type Options struct {
 	Cluster               Cluster
 	Presence              Presence
@@ -142,6 +154,7 @@ type Options struct {
 	DeliverySubmit        DeliverySubmit
 	DeliveryAck           DeliveryAck
 	DeliveryOffline       DeliveryOffline
+	DeliveryTag           DeliveryTagAuthority
 	ChannelMeta           ChannelMetaRefresher
 	ChannelLeaderRepair   ChannelLeaderRepairer
 	ChannelLeaderEvaluate ChannelLeaderEvaluator
@@ -149,6 +162,7 @@ type Options struct {
 	RuntimeSummary        RuntimeSummaryProvider
 	Diagnostics           DiagnosticsProvider
 	ChannelRetention      ChannelRetentionProvider
+	SystemUIDCache        SystemUIDCache
 	Codec                 codec.Protocol
 	Logger                wklog.Logger
 }
@@ -164,6 +178,7 @@ type Adapter struct {
 	deliverySubmit        DeliverySubmit
 	deliveryAck           DeliveryAck
 	deliveryOffline       DeliveryOffline
+	deliveryTag           DeliveryTagAuthority
 	channelMeta           ChannelMetaRefresher
 	channelLeaderRepair   ChannelLeaderRepairer
 	channelLeaderEvaluate ChannelLeaderEvaluator
@@ -171,6 +186,7 @@ type Adapter struct {
 	runtimeSummary        RuntimeSummaryProvider
 	diagnostics           DiagnosticsProvider
 	channelRetention      ChannelRetentionProvider
+	systemUIDCache        SystemUIDCache
 	codec                 codec.Protocol
 	logger                wklog.Logger
 }
@@ -193,6 +209,7 @@ func New(opts Options) *Adapter {
 		deliverySubmit:        opts.DeliverySubmit,
 		deliveryAck:           opts.DeliveryAck,
 		deliveryOffline:       opts.DeliveryOffline,
+		deliveryTag:           opts.DeliveryTag,
 		channelMeta:           opts.ChannelMeta,
 		channelLeaderRepair:   opts.ChannelLeaderRepair,
 		channelLeaderEvaluate: opts.ChannelLeaderEvaluate,
@@ -200,6 +217,7 @@ func New(opts Options) *Adapter {
 		runtimeSummary:        opts.RuntimeSummary,
 		diagnostics:           opts.Diagnostics,
 		channelRetention:      opts.ChannelRetention,
+		systemUIDCache:        opts.SystemUIDCache,
 		codec:                 opts.Codec,
 		logger:                opts.Logger,
 	}
@@ -209,6 +227,7 @@ func New(opts Options) *Adapter {
 		opts.Cluster.RPCMux().Handle(deliveryPushRPCServiceID, adapter.handleDeliveryPushRPC)
 		opts.Cluster.RPCMux().Handle(deliveryAckRPCServiceID, adapter.handleDeliveryAckRPC)
 		opts.Cluster.RPCMux().Handle(deliveryOfflineRPCServiceID, adapter.handleDeliveryOfflineRPC)
+		opts.Cluster.RPCMux().Handle(deliveryTagRPCServiceID, adapter.handleDeliveryTagRPC)
 		opts.Cluster.RPCMux().Handle(conversationFactsRPCServiceID, adapter.handleConversationFactsRPC)
 		opts.Cluster.RPCMux().Handle(channelAppendRPCServiceID, adapter.handleChannelAppendRPC)
 		opts.Cluster.RPCMux().Handle(channelMessagesRPCServiceID, adapter.handleChannelMessagesRPC)
@@ -219,6 +238,7 @@ func New(opts Options) *Adapter {
 		opts.Cluster.RPCMux().Handle(connectionRPCServiceID, adapter.handleConnectionRPC)
 		opts.Cluster.RPCMux().Handle(diagnosticsRPCServiceID, adapter.handleDiagnosticsRPC)
 		opts.Cluster.RPCMux().Handle(channelRetentionRPCServiceID, adapter.handleChannelRetentionRPC)
+		opts.Cluster.RPCMux().Handle(systemUIDCacheRPCServiceID, adapter.handleSystemUIDCacheRPC)
 	}
 	return adapter
 }

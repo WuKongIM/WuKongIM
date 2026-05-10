@@ -24,12 +24,13 @@ const (
 )
 
 const (
-	channelPrimaryFamilyID   uint16 = 0
-	channelPrimaryIndexID    uint16 = 1
-	channelIndexIDChannelID  uint16 = 2
-	channelColumnIDChannelID uint16 = 1
-	channelColumnIDType      uint16 = 2
-	channelColumnIDBan       uint16 = 3
+	channelPrimaryFamilyID                   uint16 = 0
+	channelPrimaryIndexID                    uint16 = 1
+	channelIndexIDChannelID                  uint16 = 2
+	channelColumnIDChannelID                 uint16 = 1
+	channelColumnIDType                      uint16 = 2
+	channelColumnIDBan                       uint16 = 3
+	channelColumnIDSubscriberMutationVersion uint16 = 4
 )
 
 const (
@@ -156,12 +157,13 @@ var ChannelTable = &TableDesc{
 		{ID: channelColumnIDChannelID, Name: "channel_id", Type: ColumnString},
 		{ID: channelColumnIDType, Name: "channel_type", Type: ColumnInt64},
 		{ID: channelColumnIDBan, Name: "ban", Type: ColumnInt64},
+		{ID: channelColumnIDSubscriberMutationVersion, Name: "subscriber_mutation_version", Type: ColumnUint64},
 	},
 	Families: []ColumnFamilyDesc{
 		{
 			ID:              channelPrimaryFamilyID,
 			Name:            "primary",
-			ColumnIDs:       []uint16{channelColumnIDBan},
+			ColumnIDs:       []uint16{channelColumnIDBan, channelColumnIDSubscriberMutationVersion},
 			DefaultColumnID: channelColumnIDBan,
 		},
 	},

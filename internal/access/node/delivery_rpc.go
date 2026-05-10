@@ -12,10 +12,15 @@ type deliveryResponse struct {
 
 // DeliveryPushResponse reports per-route results from a realtime delivery push RPC.
 type DeliveryPushResponse struct {
-	Status    string                     `json:"status"`
-	Accepted  []deliveryruntime.RouteKey `json:"accepted,omitempty"`
-	Retryable []deliveryruntime.RouteKey `json:"retryable,omitempty"`
-	Dropped   []deliveryruntime.RouteKey `json:"dropped,omitempty"`
+	Status string `json:"status"`
+	// Accepted carries accepted routes for legacy v1 delivery push responses.
+	Accepted []deliveryruntime.RouteKey `json:"accepted,omitempty"`
+	// AcceptedCount carries the accepted route count for v2 responses without echoing every route.
+	AcceptedCount uint64 `json:"accepted_count,omitempty"`
+	// AcceptedCountSet is true when AcceptedCount is authoritative for this response.
+	AcceptedCountSet bool                       `json:"-"`
+	Retryable        []deliveryruntime.RouteKey `json:"retryable,omitempty"`
+	Dropped          []deliveryruntime.RouteKey `json:"dropped,omitempty"`
 }
 
 type deliveryPushResponse = DeliveryPushResponse

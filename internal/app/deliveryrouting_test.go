@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"sync"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	gatewaysession "github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	deliverytagruntime "github.com/WuKongIM/WuKongIM/internal/runtime/deliverytag"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
@@ -20,6 +22,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
 )
 
@@ -761,6 +764,114 @@ func TestDeliveryResolverMissingAuthoritativeEndpointsUseDebugLevel(t *testing.T
 	require.Equal(t, "offline-u2", requireCapturedFieldValue[string](t, entry, "missingUIDs"))
 }
 
+func TestDeliveryRoutingUsesTagPartition(t *testing.T) {
+	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{
+		LocalNodeID: 1,
+		NewTagKey:   func() string { return "tag-1" },
+	})
+	resolver := tagDeliveryResolver{
+		localNodeID: 1,
+		tags:        manager,
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
+			Store: &resolverVersionStore{
+				uids:    []string{"u1", "u2", "u3"},
+				version: 4,
+			},
+		}),
+		authority: &recordingAuthoritative{
+			batches: map[string][]presence.Route{
+				"u1": {{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101}},
+				"u3": {{UID: "u3", NodeID: 1, BootID: 11, SessionID: 103}},
+			},
+		},
+		topology: staticDeliveryTagTopology{version: deliverytagruntime.PartitionTopologyVersion{
+			HashSlotTableVersion: 9,
+			SlotAuthorityRefs: []deliverytagruntime.SlotAuthorityRef{
+				{SlotID: 1, LeaderNodeID: 1, ConfigEpoch: 2, BalanceVersion: 3},
+				{SlotID: 2, LeaderNodeID: 2, ConfigEpoch: 2, BalanceVersion: 3},
+			},
+		}},
+		pageSize: 8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+	}, deliveryruntime.CommittedEnvelope{})
+	require.NoError(t, err)
+
+	routes, cursor, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.Equal(t, []deliveryruntime.RouteKey{
+		{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101},
+		{UID: "u3", NodeID: 1, BootID: 11, SessionID: 103},
+	}, routes)
+	require.Equal(t, "u3", cursor)
+	require.True(t, done)
+	require.Equal(t, [][]string{{"u1", "u3"}}, resolver.authority.(*recordingAuthoritative).uidBatches)
+
+	ref, ok := manager.CurrentRef("2:g1")
+	require.True(t, ok)
+	require.Equal(t, "tag-1", ref.TagKey)
+	require.Equal(t, uint64(1), ref.TagVersion)
+	require.Equal(t, uint64(4), ref.SubscriberMutationVersion)
+	tag, ok := manager.LookupTag("tag-1")
+	require.True(t, ok)
+	require.Equal(t, []deliverytagruntime.NodePartition{
+		{NodeID: 1, UIDs: []string{"u1", "u3"}},
+		{NodeID: 2, UIDs: []string{"u2"}},
+	}, tag.Partitions)
+}
+
+func TestDeliveryRoutingRejectsStaleTagResponse(t *testing.T) {
+	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{LocalNodeID: 1})
+	_, stored := manager.StoreFollowerPartition(deliverytagruntime.DeliveryTag{
+		Key:                       "tag-1",
+		ChannelKey:                "2:g1",
+		TagVersion:                2,
+		SubscriberMutationVersion: 2,
+		Topology:                  testDeliveryTagTopology(1),
+		Partitions: []deliverytagruntime.NodePartition{
+			{NodeID: 1, UIDs: []string{"fresh"}},
+		},
+	})
+	require.True(t, stored)
+	resolver := tagDeliveryResolver{
+		localNodeID: 1,
+		tags:        manager,
+		authority: &recordingAuthoritative{
+			batches: map[string][]presence.Route{
+				"fresh": {{UID: "fresh", NodeID: 1, BootID: 11, SessionID: 22}},
+			},
+		},
+	}
+	token := &tagResolveToken{
+		tag: deliverytagruntime.DeliveryTag{
+			Key:                       "tag-1",
+			ChannelKey:                "2:g1",
+			TagVersion:                1,
+			SubscriberMutationVersion: 1,
+			Topology:                  testDeliveryTagTopology(1),
+			Partitions: []deliverytagruntime.NodePartition{
+				{NodeID: 1, UIDs: []string{"stale"}},
+			},
+		},
+		localUIDs: []string{"stale"},
+	}
+
+	routes, cursor, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "fresh", NodeID: 1, BootID: 11, SessionID: 22}}, routes)
+	require.Equal(t, "fresh", cursor)
+	require.True(t, done)
+	require.Equal(t, [][]string{{"fresh"}}, resolver.authority.(*recordingAuthoritative).uidBatches)
+
+	tag, ok := manager.LookupTag("tag-1")
+	require.True(t, ok)
+	require.Equal(t, uint64(2), tag.TagVersion)
+	require.Equal(t, []deliverytagruntime.NodePartition{{NodeID: 1, UIDs: []string{"fresh"}}}, tag.Partitions)
+}
+
 func TestBuildRealtimeRecvPacketUsesDurableTimestampAndPersonChannelView(t *testing.T) {
 	packet := buildRealtimeRecvPacket(channel.Message{
 		MessageID:   88,
@@ -1103,6 +1214,44 @@ func TestDistributedDeliveryPushBatchesGroupRoutesPerTargetNode(t *testing.T) {
 	}, call.cmd.Items[0].Routes)
 }
 
+func TestDistributedDeliveryPushChunksGroupRoutesPerTargetNode(t *testing.T) {
+	client := &recordingDeliveryPushClient{}
+	push := distributedDeliveryPush{
+		localNodeID: 1,
+		client:      client,
+		codec:       codec.New(),
+	}
+	routes := make([]deliveryruntime.RouteKey, 1001)
+	for i := range routes {
+		routes[i] = deliveryruntime.RouteKey{UID: fmt.Sprintf("u%d", i), NodeID: 2, BootID: 11, SessionID: uint64(i + 1)}
+	}
+
+	result, err := push.Push(context.Background(), deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				MessageID:   101,
+				MessageSeq:  9,
+				ChannelID:   "g1",
+				ChannelType: frame.ChannelTypeGroup,
+				FromUID:     "u1",
+				Payload:     []byte("hello group"),
+			},
+		},
+		Routes: routes,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Accepted, len(routes))
+
+	require.Empty(t, client.singleCalls)
+	require.Len(t, client.batchCalls, 2)
+	require.Len(t, client.batchCalls[0].cmd.Items, 1)
+	require.Len(t, client.batchCalls[0].cmd.Items[0].Routes, 1000)
+	require.Len(t, client.batchCalls[1].cmd.Items, 1)
+	require.Len(t, client.batchCalls[1].cmd.Items[0].Routes, 1)
+	require.Equal(t, routes[:1000], client.batchCalls[0].cmd.Items[0].Routes)
+	require.Equal(t, routes[1000:], client.batchCalls[1].cmd.Items[0].Routes)
+}
+
 func TestDistributedDeliveryPushRecordsPushRouteMetrics(t *testing.T) {
 	metrics := &recordingDeliveryRoutingMetrics{}
 	client := &recordingDeliveryPushClient{}
@@ -1132,6 +1281,48 @@ func TestDistributedDeliveryPushRecordsPushRouteMetrics(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, []string{"2:ok:2"}, metrics.pushRPCs)
+}
+
+func TestDistributedDeliveryPushReconstructsAcceptedRoutesFromAcceptedCount(t *testing.T) {
+	routes := []deliveryruntime.RouteKey{
+		{UID: "u2", NodeID: 2, BootID: 11, SessionID: 21},
+		{UID: "u3", NodeID: 2, BootID: 11, SessionID: 22},
+		{UID: "u4", NodeID: 2, BootID: 11, SessionID: 23},
+	}
+	client := &recordingDeliveryPushClient{
+		batchResponse: &accessnode.DeliveryPushResponse{
+			Status:           "ok",
+			AcceptedCount:    1,
+			AcceptedCountSet: true,
+			Retryable:        []deliveryruntime.RouteKey{routes[1]},
+			Dropped:          []deliveryruntime.RouteKey{routes[2]},
+		},
+	}
+	push := distributedDeliveryPush{
+		localNodeID: 1,
+		client:      client,
+		codec:       codec.New(),
+	}
+
+	result, err := push.Push(context.Background(), deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				MessageID:   101,
+				MessageSeq:  9,
+				ChannelID:   "g1",
+				ChannelType: frame.ChannelTypeGroup,
+				FromUID:     "u1",
+				Payload:     []byte("hello group"),
+			},
+		},
+		Routes: routes,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []deliveryruntime.RouteKey{routes[0]}, result.Accepted)
+	require.Equal(t, []deliveryruntime.RouteKey{routes[1]}, result.Retryable)
+	require.Equal(t, []deliveryruntime.RouteKey{routes[2]}, result.Dropped)
+	require.Empty(t, client.singleCalls)
 }
 
 func TestDistributedDeliveryPushRecordsPartialPushRouteMetrics(t *testing.T) {
@@ -1347,7 +1538,7 @@ func TestLocalDeliveryResolverSplitsExpandedRoutesAcrossPages(t *testing.T) {
 	require.Equal(t, "u2", cursor)
 	require.True(t, done)
 
-	require.Equal(t, 1, store.snapshotCalls)
+	require.Equal(t, 0, store.snapshotCalls)
 	require.Equal(t, [][]string{{"u2"}}, authority.uidBatches)
 	require.Equal(t, []string{"group:ok:1:1", "group:ok:0:1"}, metrics.resolves)
 }
@@ -1379,25 +1570,28 @@ func TestLocalDeliveryResolverUsesDirectLookupForPersonChannels(t *testing.T) {
 	require.Empty(t, authority.uidBatches)
 }
 
-func TestLocalDeliveryResolverRecordsBeginResolveErrors(t *testing.T) {
-	snapshotErr := errors.New("snapshot failed")
+func TestLocalDeliveryResolverRecordsResolvePageErrors(t *testing.T) {
+	pageErr := errors.New("subscriber page failed")
 	metrics := &recordingDeliveryRoutingMetrics{}
 	resolver := localDeliveryResolver{
 		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
-			Store: &resolverSnapshotStore{snapshotErr: snapshotErr},
+			Store: &resolverSnapshotStore{pageErr: pageErr},
 		}),
 		authority: &recordingAuthoritative{},
 		metrics:   metrics,
 		pageSize:  8,
 	}
 
-	_, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
 		ChannelID:   "g1",
 		ChannelType: frame.ChannelTypeGroup,
 	}, deliveryruntime.CommittedEnvelope{})
 
-	require.ErrorIs(t, err, snapshotErr)
-	require.Equal(t, []string{"group:error:0:0"}, metrics.resolves)
+	require.NoError(t, err)
+
+	_, _, _, err = resolver.ResolvePage(context.Background(), token, "", 8)
+	require.ErrorIs(t, err, pageErr)
+	require.Equal(t, []string{"group:error:1:0"}, metrics.resolves)
 }
 
 type recordingDeliveryOwnerNotifier struct {
@@ -1800,6 +1994,7 @@ type resolverSnapshotStore struct {
 	snapshotCalls int
 	uids          []string
 	snapshotErr   error
+	pageErr       error
 }
 
 func (s *resolverSnapshotStore) SnapshotChannelSubscribers(_ context.Context, _ string, _ int64) ([]string, error) {
@@ -1810,8 +2005,76 @@ func (s *resolverSnapshotStore) SnapshotChannelSubscribers(_ context.Context, _ 
 	return append([]string(nil), s.uids...), nil
 }
 
-func (s *resolverSnapshotStore) ListChannelSubscribers(context.Context, string, int64, string, int) ([]string, string, bool, error) {
-	return nil, "", true, nil
+func (s *resolverSnapshotStore) ListChannelSubscribers(_ context.Context, _ string, _ int64, afterUID string, limit int) ([]string, string, bool, error) {
+	if s.pageErr != nil {
+		return nil, "", false, s.pageErr
+	}
+	if limit <= 0 {
+		return nil, afterUID, true, nil
+	}
+	start := 0
+	if afterUID != "" {
+		for i, uid := range s.uids {
+			if uid == afterUID {
+				start = i + 1
+				break
+			}
+		}
+	}
+	if start >= len(s.uids) {
+		return nil, afterUID, true, nil
+	}
+	end := start + limit
+	if end > len(s.uids) {
+		end = len(s.uids)
+	}
+	page := append([]string(nil), s.uids[start:end]...)
+	cursor := afterUID
+	if len(page) > 0 {
+		cursor = page[len(page)-1]
+	}
+	return page, cursor, end >= len(s.uids), nil
+}
+
+type resolverVersionStore struct {
+	resolverSnapshotStore
+	uids    []string
+	version uint64
+}
+
+func (s *resolverVersionStore) GetChannel(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	return metadb.Channel{
+		ChannelID:                 channelID,
+		ChannelType:               channelType,
+		SubscriberMutationVersion: s.version,
+	}, nil
+}
+
+func (s *resolverVersionStore) SnapshotChannelSubscribers(ctx context.Context, channelID string, channelType int64) ([]string, error) {
+	store := resolverSnapshotStore{uids: s.uids}
+	return store.SnapshotChannelSubscribers(ctx, channelID, channelType)
+}
+
+func (s *resolverVersionStore) ListChannelSubscribers(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {
+	store := resolverSnapshotStore{uids: s.uids}
+	return store.ListChannelSubscribers(ctx, channelID, channelType, afterUID, limit)
+}
+
+type staticDeliveryTagTopology struct {
+	version deliverytagruntime.PartitionTopologyVersion
+}
+
+func (s staticDeliveryTagTopology) CurrentDeliveryTagTopology(context.Context, []string) (deliverytagruntime.PartitionTopologyVersion, error) {
+	return s.version.Clone(), nil
+}
+
+func testDeliveryTagTopology(version uint64) deliverytagruntime.PartitionTopologyVersion {
+	return deliverytagruntime.PartitionTopologyVersion{
+		HashSlotTableVersion: version,
+		SlotAuthorityRefs: []deliverytagruntime.SlotAuthorityRef{
+			{SlotID: 1, LeaderNodeID: 1, ConfigEpoch: version, BalanceVersion: version},
+		},
+	}
 }
 
 type recordingAuthoritative struct {

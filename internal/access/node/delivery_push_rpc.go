@@ -19,6 +19,8 @@ type deliveryPushRequest struct {
 	MessageSeq  uint64                     `json:"message_seq"`
 	Routes      []deliveryruntime.RouteKey `json:"routes"`
 	Frame       []byte                     `json:"frame"`
+
+	acceptsAcceptedCount bool
 }
 
 // DeliveryPushItem carries one encoded realtime frame and the routes that should receive it.
@@ -64,7 +66,10 @@ func (a *Adapter) handleDeliveryPushRPC(ctx context.Context, body []byte) ([]byt
 		frames[i] = f
 	}
 
-	resp := DeliveryPushResponse{Status: rpcStatusOK}
+	resp := DeliveryPushResponse{
+		Status:           rpcStatusOK,
+		AcceptedCountSet: req.acceptsAcceptedCount,
+	}
 	for i, item := range items {
 		a.handleDeliveryPushItem(item, req.OwnerNodeID, frames[i], &resp)
 	}
@@ -74,7 +79,7 @@ func (a *Adapter) handleDeliveryPushRPC(ctx context.Context, body []byte) ([]byt
 			wklog.Uint64("ownerNodeID", req.OwnerNodeID),
 			wklog.Int("items", len(items)),
 			wklog.Int("routes", deliveryPushRouteCount(items)),
-			wklog.Int("accepted", len(resp.Accepted)),
+			wklog.Int("accepted", deliveryPushAcceptedCount(resp)),
 			wklog.Int("retryable", len(resp.Retryable)),
 			wklog.Int("dropped", len(resp.Dropped)),
 		)
@@ -129,9 +134,20 @@ func (a *Adapter) handleDeliveryPushItem(item DeliveryPushItem, ownerNodeID uint
 				resp.Retryable = append(resp.Retryable, route)
 				continue
 			}
-			resp.Accepted = append(resp.Accepted, route)
+			if resp.AcceptedCountSet {
+				resp.AcceptedCount++
+			} else {
+				resp.Accepted = append(resp.Accepted, route)
+			}
 		}
 	}
+}
+
+func deliveryPushAcceptedCount(resp DeliveryPushResponse) int {
+	if resp.AcceptedCountSet {
+		return int(resp.AcceptedCount)
+	}
+	return len(resp.Accepted)
 }
 
 func deliveryPushRouteCount(items []DeliveryPushItem) int {

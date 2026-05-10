@@ -14,6 +14,19 @@ type UpdateTokenCommand struct {
 	DeviceLevel frame.DeviceLevel
 }
 
+// DeviceQuitCommand requests that a user's device token be cleared.
+type DeviceQuitCommand struct {
+	UID        string
+	DeviceFlag int
+}
+
+// OnlineStatus describes one device-level online entry returned by the legacy API.
+type OnlineStatus struct {
+	UID        string `json:"uid"`
+	DeviceFlag uint8  `json:"device_flag"`
+	Online     int    `json:"online"`
+}
+
 func (c UpdateTokenCommand) Validate() error {
 	switch {
 	case c.UID == "":

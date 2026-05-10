@@ -20,8 +20,10 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	deliverytagruntime "github.com/WuKongIM/WuKongIM/internal/runtime/deliverytag"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/messageid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
@@ -318,6 +320,7 @@ func build(cfg Config) (_ *App, err error) {
 	}
 
 	app.store = metastore.New(app.cluster, app.db)
+	app.channelApp = channelusecase.New(channelusecase.Options{Store: app.store})
 	app.channelRetentionWorker = newAppChannelRetentionWorker(
 		resolveAppChannelRetentionConfig(cfg),
 		cfg.Node.ID,
@@ -447,6 +450,10 @@ func build(cfg Config) (_ *App, err error) {
 		return uint64(leaderID), err
 	}
 	app.deliveryAcks = deliveryruntime.NewAckIndex()
+	deliveryTagManager := deliverytagruntime.NewManager(deliverytagruntime.Options{
+		LocalNodeID: cfg.Node.ID,
+		TTL:         time.Minute,
+	})
 	subscriberResolver := deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
 		Store: app.store,
 	})
@@ -458,9 +465,12 @@ func build(cfg Config) (_ *App, err error) {
 	}
 	app.deliveryRuntime = deliveryruntime.NewManager(deliveryruntime.Config{
 		ShardCount: deliveryShardCountForParallelism(runtime.GOMAXPROCS(0)),
-		Resolver: localDeliveryResolver{
+		Resolver: tagDeliveryResolver{
+			localNodeID: cfg.Node.ID,
+			tags:        deliveryTagManager,
 			subscribers: subscriberResolver,
 			authority:   authorityClient,
+			topology:    deliveryTagTopologyReaderAdapter{cluster: app.cluster},
 			metrics:     deliveryMetrics,
 			logger:      app.logger.Named("delivery.resolve"),
 		},
@@ -521,6 +531,15 @@ func build(cfg Config) (_ *App, err error) {
 		remote:      app.nodeClient,
 		now:         time.Now,
 	}
+	userApp := userusecase.New(userusecase.Options{
+		Users:      app.store,
+		Devices:    app.store,
+		Presence:   authorityClient,
+		SystemUIDs: app.store,
+		Online:     onlineRegistry,
+		Logger:     app.logger.Named("user"),
+	})
+	app.userApp = userApp
 	app.nodeAccess = accessnode.New(accessnode.Options{
 		Cluster:               app.cluster,
 		Presence:              app.presenceApp,
@@ -533,12 +552,14 @@ func build(cfg Config) (_ *App, err error) {
 		DeliverySubmit:        deliveryRuntimeCommittedSubmitter{target: committedDispatcher},
 		DeliveryAck:           app.deliveryApp,
 		DeliveryOffline:       app.deliveryApp,
+		DeliveryTag:           deliveryTagAuthority{tags: deliveryTagManager},
 		DeliveryAckIndex:      app.deliveryAcks,
 		ChannelLeaderRepair:   channelLeaderRepairer,
 		ChannelLeaderEvaluate: channelLeaderEvaluator,
 		RuntimeSummary:        nodeRuntimeSummaryProvider{collector: runtimeSummaries},
 		Diagnostics:           app,
 		ChannelRetention:      managerMessageRetentionNodeProvider{target: managerRetention},
+		SystemUIDCache:        userApp,
 		Logger:                app.logger.Named("access.node"),
 	})
 	app.messageApp = message.New(message.Options{
@@ -570,12 +591,6 @@ func build(cfg Config) (_ *App, err error) {
 		},
 		LocalNodeID: cfg.Node.ID,
 		Logger:      app.logger.Named("message"),
-	})
-	userApp := userusecase.New(userusecase.Options{
-		Users:   app.store,
-		Devices: app.store,
-		Online:  onlineRegistry,
-		Logger:  app.logger.Named("user"),
 	})
 	if cfg.Manager.ListenAddr != "" {
 		app.managementApp = managementusecase.New(managementusecase.Options{
@@ -620,10 +635,17 @@ func build(cfg Config) (_ *App, err error) {
 			SlotSnapshotUsers:      app.store,
 			ControllerSnapshotJobs: app.cluster,
 		})
+		userAPI := &clusterUserUsecase{
+			local:       userApp,
+			remote:      app.nodeClient,
+			localNodeID: cfg.Node.ID,
+			peerNodeIDs: controllerPeerIDs(cfg.Cluster.DerivedControllerNodes(), cfg.Cluster.runtimeSeeds()),
+		}
 		app.api = accessapi.New(accessapi.Options{
 			ListenAddr:               cfg.API.ListenAddr,
 			Messages:                 app.messageApp,
-			Users:                    userApp,
+			Users:                    userAPI,
+			Channels:                 app.channelApp,
 			TestMode:                 cfg.TestMode,
 			TestData:                 testDataApp,
 			Conversations:            app.conversationApp,

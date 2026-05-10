@@ -16,13 +16,16 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	deliverytagruntime "github.com/WuKongIM/WuKongIM/internal/runtime/deliverytag"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -39,6 +42,14 @@ const (
 	committedDispatchDefaultQueueDepth = 512
 	committedDispatchMinShards         = 4
 	committedDispatchMaxShards         = 32
+
+	// deliveryPushRouteChunkSize bounds the route list carried by one remote push RPC.
+	deliveryPushRouteChunkSize = 1000
+
+	deliveryTagRPCStatusOK              = "ok"
+	deliveryTagRPCStatusRetryable       = "retryable"
+	deliveryTagRPCResultTagNotCurrent   = "tag_not_current"
+	deliveryTagRPCResultVersionMismatch = "tag_version_mismatch"
 )
 
 type asyncCommittedDispatcherConfig struct {
@@ -547,8 +558,108 @@ type localDeliveryResolver struct {
 	logger      wklog.Logger
 }
 
+// deliveryTagTopologyReader reads the authority shape that affects tag UID partitioning.
+type deliveryTagTopologyReader interface {
+	CurrentDeliveryTagTopology(ctx context.Context, uids []string) (deliverytagruntime.PartitionTopologyVersion, error)
+}
+
+type deliveryTagCluster interface {
+	SlotForKey(key string) multiraft.SlotID
+	HashSlotTableVersion() uint64
+	LeaderOf(slotID multiraft.SlotID) (multiraft.NodeID, error)
+	ListSlotAssignments(ctx context.Context) ([]controllermeta.SlotAssignment, error)
+}
+
+// tagDeliveryResolver resolves routes from leader-built delivery tag partitions.
+type tagDeliveryResolver struct {
+	localNodeID uint64
+	tags        *deliverytagruntime.Manager
+	subscribers deliveryusecase.SubscriberResolver
+	authority   presence.Authoritative
+	topology    deliveryTagTopologyReader
+	pageSize    int
+	metrics     deliveryRoutingMetrics
+	logger      wklog.Logger
+}
+
+type deliveryTagAuthority struct {
+	tags *deliverytagruntime.Manager
+}
+
+func (a deliveryTagAuthority) GetDeliveryTag(_ context.Context, req accessnode.DeliveryTagRequest) (accessnode.DeliveryTagResponse, error) {
+	if a.tags == nil {
+		return accessnode.DeliveryTagResponse{Status: deliveryTagRPCStatusRetryable}, nil
+	}
+	tag, ok := a.tags.LookupTag(req.TagKey)
+	if !ok {
+		return accessnode.DeliveryTagResponse{Status: deliveryTagRPCStatusRetryable, Result: deliveryTagRPCResultTagNotCurrent}, nil
+	}
+	return accessnode.DeliveryTagResponse{Status: deliveryTagRPCStatusOK, Tag: tag}, nil
+}
+
+func (a deliveryTagAuthority) UpdateDeliveryTag(_ context.Context, req accessnode.DeliveryTagRequest) (accessnode.DeliveryTagResponse, error) {
+	if a.tags == nil {
+		return accessnode.DeliveryTagResponse{Status: deliveryTagRPCStatusRetryable}, nil
+	}
+	tag, _ := a.tags.StoreFollowerPartition(req.Tag)
+	if tag.Key == "" {
+		tag = req.Tag
+	}
+	return accessnode.DeliveryTagResponse{Status: deliveryTagRPCStatusOK, Tag: tag}, nil
+}
+
+type deliveryTagTopologyReaderAdapter struct {
+	cluster deliveryTagCluster
+}
+
+func (r deliveryTagTopologyReaderAdapter) CurrentDeliveryTagTopology(ctx context.Context, uids []string) (deliverytagruntime.PartitionTopologyVersion, error) {
+	if r.cluster == nil {
+		return deliverytagruntime.PartitionTopologyVersion{}, nil
+	}
+	slotSet := make(map[uint32]struct{})
+	for _, uid := range uids {
+		slotSet[uint32(r.cluster.SlotForKey(uid))] = struct{}{}
+	}
+	slotIDs := make([]uint32, 0, len(slotSet))
+	for slotID := range slotSet {
+		slotIDs = append(slotIDs, slotID)
+	}
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	assignments, _ := r.cluster.ListSlotAssignments(ctx)
+	assignmentBySlot := make(map[uint32]controllermeta.SlotAssignment, len(assignments))
+	for _, assignment := range assignments {
+		assignmentBySlot[assignment.SlotID] = assignment
+	}
+	refs := make([]deliverytagruntime.SlotAuthorityRef, 0, len(slotIDs))
+	for _, slotID := range slotIDs {
+		leaderID, err := r.cluster.LeaderOf(multiraft.SlotID(slotID))
+		if err != nil {
+			return deliverytagruntime.PartitionTopologyVersion{}, err
+		}
+		assignment := assignmentBySlot[slotID]
+		refs = append(refs, deliverytagruntime.SlotAuthorityRef{
+			SlotID:         slotID,
+			LeaderNodeID:   uint64(leaderID),
+			ConfigEpoch:    assignment.ConfigEpoch,
+			BalanceVersion: assignment.BalanceVersion,
+		})
+	}
+	return deliverytagruntime.PartitionTopologyVersion{
+		HashSlotTableVersion: r.cluster.HashSlotTableVersion(),
+		SlotAuthorityRefs:    refs,
+	}, nil
+}
+
 type localResolveToken struct {
 	snapshot    deliveryusecase.SnapshotToken
+	channelType uint8
+	pending     []deliveryruntime.RouteKey
+	done        bool
+}
+
+type tagResolveToken struct {
+	tag         deliverytagruntime.DeliveryTag
+	localUIDs   []string
 	channelType uint8
 	pending     []deliveryruntime.RouteKey
 	done        bool
@@ -741,6 +852,309 @@ func (r localDeliveryResolver) recordResolveMetric(channelType, result string, d
 	r.metrics.ObserveResolve(channelType, result, dur, pages, routes)
 }
 
+func (r tagDeliveryResolver) BeginResolve(ctx context.Context, key deliveryruntime.ChannelKey, env deliveryruntime.CommittedEnvelope) (any, error) {
+	if r.tags == nil || r.subscribers == nil {
+		return localDeliveryResolver{
+			subscribers: r.subscribers,
+			authority:   r.authority,
+			pageSize:    r.pageSize,
+			metrics:     r.metrics,
+			logger:      r.logger,
+		}.BeginResolve(ctx, key, env)
+	}
+	startedAt := time.Now()
+	channelKey := deliveryTagChannelKey(key)
+	snapshot, err := r.subscribers.BeginSnapshot(ctx, channel.ChannelID{ID: key.ChannelID, Type: key.ChannelType})
+	if err != nil {
+		r.recordResolveMetric(deliveryChannelTypeLabel(key.ChannelType), "error", time.Since(startedAt), 0, 0)
+		return nil, err
+	}
+	tag, err := r.leaderTagFromSnapshot(ctx, key, channelKey, snapshot)
+	if err != nil {
+		r.recordResolveMetric(deliveryChannelTypeLabel(key.ChannelType), "error", time.Since(startedAt), 0, 0)
+		return nil, err
+	}
+	return &tagResolveToken{
+		tag:         tag,
+		localUIDs:   tag.PartitionForNode(r.localNodeID).UIDs,
+		channelType: key.ChannelType,
+	}, nil
+}
+
+func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor string, limit int) (routes []deliveryruntime.RouteKey, nextCursor string, done bool, err error) {
+	startedAt := time.Now()
+	pages := 0
+	channelType := "unknown"
+	defer func() {
+		result := "ok"
+		if err != nil {
+			result = "error"
+		}
+		r.recordResolveMetric(channelType, result, time.Since(startedAt), pages, len(routes))
+	}()
+	if r.authority == nil {
+		return nil, "", true, nil
+	}
+	if limit <= 0 {
+		limit = r.pageSize
+	}
+	if limit <= 0 {
+		limit = 128
+	}
+	resolveToken, ok := token.(*tagResolveToken)
+	if !ok {
+		return nil, "", true, nil
+	}
+	channelType = deliveryChannelTypeLabel(resolveToken.channelType)
+	if refreshed, _, reason := r.tags.LookupLocalPartition(deliverytagruntime.TagRef{
+		ChannelKey:                      resolveToken.tag.ChannelKey,
+		TagKey:                          resolveToken.tag.Key,
+		TagVersion:                      resolveToken.tag.TagVersion,
+		SubscriberMutationVersion:       resolveToken.tag.SubscriberMutationVersion,
+		SourceChannelKey:                resolveToken.tag.SourceChannelKey,
+		SourceSubscriberMutationVersion: resolveToken.tag.SourceSubscriberMutationVersion,
+		Topology:                        resolveToken.tag.Topology,
+	}); reason == deliverytagruntime.LookupStaleRequest || reason == deliverytagruntime.LookupTagKeyMismatch {
+		resolveToken.tag = refreshed
+		resolveToken.localUIDs = refreshed.PartitionForNode(r.localNodeID).UIDs
+	}
+	if resolveToken.done {
+		return nil, cursor, true, nil
+	}
+	out := make([]deliveryruntime.RouteKey, 0, localResolveRouteCap(limit, resolveToken.channelType))
+	if len(resolveToken.pending) > 0 {
+		taken := limit
+		if taken > len(resolveToken.pending) {
+			taken = len(resolveToken.pending)
+		}
+		out = append(out, resolveToken.pending[:taken]...)
+		resolveToken.pending = resolveToken.pending[taken:]
+		if len(out) == limit || len(resolveToken.pending) > 0 {
+			return out, cursor, false, nil
+		}
+	}
+
+	pageSize := r.pageSize
+	if pageSize <= 0 {
+		pageSize = 128
+	}
+	for len(out) < limit {
+		uids, next, pageDone := nextDeliveryTagUIDPage(resolveToken.localUIDs, cursor, minInt(pageSize, limit-len(out)))
+		pages++
+		cursor = next
+		if len(uids) == 0 {
+			resolveToken.done = pageDone
+			return out, cursor, pageDone && len(resolveToken.pending) == 0, nil
+		}
+		expanded, overflow, err := r.expandTagUIDs(ctx, uids, limit-len(out), resolveToken.channelType)
+		if err != nil {
+			return nil, "", false, err
+		}
+		out = append(out, expanded...)
+		if len(overflow) > 0 {
+			resolveToken.pending = append(resolveToken.pending[:0], overflow...)
+			return out, cursor, false, nil
+		}
+		if pageDone {
+			resolveToken.done = true
+			return out, cursor, true, nil
+		}
+		if len(expanded) == 0 {
+			continue
+		}
+	}
+	return out, cursor, false, nil
+}
+
+func (r tagDeliveryResolver) leaderTagFromSnapshot(ctx context.Context, key deliveryruntime.ChannelKey, channelKey string, snapshot deliveryusecase.SnapshotToken) (deliverytagruntime.DeliveryTag, error) {
+	source := snapshot.Source()
+	uids, err := r.collectSnapshotUIDs(ctx, snapshot)
+	if err != nil {
+		return deliverytagruntime.DeliveryTag{}, err
+	}
+	topology, err := r.currentTagTopology(ctx, uids)
+	if err != nil {
+		return deliverytagruntime.DeliveryTag{}, err
+	}
+	if ref, ok := r.tags.CurrentRef(channelKey); ok {
+		if tag, hit, reason := r.tags.LookupLocalPartition(deliverytagruntime.TagRef{
+			ChannelKey:                      channelKey,
+			TagKey:                          ref.TagKey,
+			TagVersion:                      ref.TagVersion,
+			SubscriberMutationVersion:       source.SubscriberMutationVersion,
+			SourceChannelKey:                deliveryTagSourceChannelKey(source),
+			SourceSubscriberMutationVersion: source.SourceSubscriberMutationVersion,
+			Topology:                        topology,
+		}); hit {
+			return tag, nil
+		} else if reason == deliverytagruntime.LookupStaleRequest {
+			return tag, nil
+		}
+	}
+	tag, _ := r.tags.BuildLeaderTag(deliverytagruntime.BuildRequest{
+		ChannelKey:                      channelKey,
+		SubscriberMutationVersion:       source.SubscriberMutationVersion,
+		SourceChannelKey:                deliveryTagSourceChannelKey(source),
+		SourceSubscriberMutationVersion: source.SourceSubscriberMutationVersion,
+		Topology:                        topology,
+		Partitions:                      r.partitionDeliveryTagUIDs(ctx, uids, topology),
+	})
+	return tag, nil
+}
+
+func (r tagDeliveryResolver) collectSnapshotUIDs(ctx context.Context, snapshot deliveryusecase.SnapshotToken) ([]string, error) {
+	pageSize := r.pageSize
+	if pageSize <= 0 {
+		pageSize = 128
+	}
+	cursor := ""
+	uids := make([]string, 0, pageSize)
+	for {
+		page, next, done, err := r.subscribers.NextPage(ctx, snapshot, cursor, pageSize)
+		if err != nil {
+			return nil, err
+		}
+		uids = append(uids, page...)
+		if done {
+			return uniqueStringsForDeliveryTag(uids), nil
+		}
+		if next == "" || next == cursor {
+			return uniqueStringsForDeliveryTag(uids), nil
+		}
+		cursor = next
+	}
+}
+
+func (r tagDeliveryResolver) currentTagTopology(ctx context.Context, uids []string) (deliverytagruntime.PartitionTopologyVersion, error) {
+	if r.topology == nil {
+		return deliverytagruntime.PartitionTopologyVersion{}, nil
+	}
+	return r.topology.CurrentDeliveryTagTopology(ctx, uids)
+}
+
+func (r tagDeliveryResolver) partitionDeliveryTagUIDs(_ context.Context, uids []string, topology deliverytagruntime.PartitionTopologyVersion) []deliverytagruntime.NodePartition {
+	byNode := make(map[uint64][]string)
+	for index, uid := range uids {
+		nodeID := r.localNodeID
+		if len(topology.SlotAuthorityRefs) > 0 {
+			nodeID = topology.SlotAuthorityRefs[index%len(topology.SlotAuthorityRefs)].LeaderNodeID
+		}
+		if nodeID == 0 {
+			nodeID = r.localNodeID
+		}
+		byNode[nodeID] = append(byNode[nodeID], uid)
+	}
+	nodeIDs := make([]uint64, 0, len(byNode))
+	for nodeID := range byNode {
+		nodeIDs = append(nodeIDs, nodeID)
+	}
+	sort.Slice(nodeIDs, func(i, j int) bool { return nodeIDs[i] < nodeIDs[j] })
+	out := make([]deliverytagruntime.NodePartition, 0, len(nodeIDs))
+	for _, nodeID := range nodeIDs {
+		out = append(out, deliverytagruntime.NodePartition{NodeID: nodeID, UIDs: byNode[nodeID]})
+	}
+	return out
+}
+
+func (r tagDeliveryResolver) expandTagUIDs(ctx context.Context, uids []string, limit int, channelType uint8) ([]deliveryruntime.RouteKey, []deliveryruntime.RouteKey, error) {
+	if len(uids) == 0 || limit <= 0 {
+		return nil, nil, nil
+	}
+	remaining := limit
+	out := make([]deliveryruntime.RouteKey, 0, localResolveRouteCap(limit, channelType))
+	var overflow []deliveryruntime.RouteKey
+	if channelType == frame.ChannelTypePerson {
+		for _, uid := range uids {
+			routes, err := r.authority.EndpointsByUID(ctx, uid)
+			if err != nil {
+				return nil, nil, err
+			}
+			out, overflow = appendResolvedPresenceRoutes(out, overflow, routes, &remaining)
+		}
+		return out, overflow, nil
+	}
+	endpointsByUID, err := r.authority.EndpointsByUIDs(ctx, uids)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, uid := range uids {
+		out, overflow = appendResolvedPresenceRoutes(out, overflow, endpointsByUID[uid], &remaining)
+	}
+	return out, overflow, nil
+}
+
+func (r tagDeliveryResolver) recordResolveMetric(channelType, result string, dur time.Duration, pages, routes int) {
+	if r.metrics == nil {
+		return
+	}
+	r.metrics.ObserveResolve(channelType, result, dur, pages, routes)
+}
+
+func nextDeliveryTagUIDPage(uids []string, cursor string, limit int) ([]string, string, bool) {
+	if limit <= 0 {
+		return nil, cursor, false
+	}
+	start := 0
+	if cursor != "" {
+		for i, uid := range uids {
+			if uid == cursor {
+				start = i + 1
+				break
+			}
+		}
+	}
+	if start >= len(uids) {
+		return nil, cursor, true
+	}
+	end := start + limit
+	if end > len(uids) {
+		end = len(uids)
+	}
+	page := append([]string(nil), uids[start:end]...)
+	next := cursor
+	if len(page) > 0 {
+		next = page[len(page)-1]
+	}
+	return page, next, end >= len(uids)
+}
+
+func deliveryTagChannelKey(key deliveryruntime.ChannelKey) string {
+	return strconv.Itoa(int(key.ChannelType)) + ":" + key.ChannelID
+}
+
+func deliveryTagSourceChannelKey(source deliveryusecase.SubscriberSource) string {
+	if source.SourceChannelID == "" {
+		return ""
+	}
+	return strconv.Itoa(int(source.SourceChannelType)) + ":" + source.SourceChannelID
+}
+
+func uniqueStringsForDeliveryTag(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func minInt(left, right int) int {
+	if left < right {
+		return left
+	}
+	return right
+}
+
 type localDeliveryPush struct {
 	online        online.Registry
 	localNodeID   uint64
@@ -923,6 +1337,28 @@ func (p distributedDeliveryPush) pushRemoteNodes(ctx context.Context, env delive
 }
 
 func (p distributedDeliveryPush) pushRemoteNode(ctx context.Context, env deliveryruntime.CommittedEnvelope, nodeID uint64, routes []deliveryruntime.RouteKey, sharedFrame []byte) (deliveryruntime.PushResult, error) {
+	if env.ChannelType == frame.ChannelTypePerson || len(routes) <= deliveryPushRouteChunkSize {
+		return p.pushRemoteNodeChunk(ctx, env, nodeID, routes, sharedFrame)
+	}
+
+	result := deliveryruntime.PushResult{}
+	for start := 0; start < len(routes); start += deliveryPushRouteChunkSize {
+		end := start + deliveryPushRouteChunkSize
+		if end > len(routes) {
+			end = len(routes)
+		}
+		chunkResult, err := p.pushRemoteNodeChunk(ctx, env, nodeID, routes[start:end], sharedFrame)
+		if err != nil {
+			return deliveryruntime.PushResult{}, err
+		}
+		result.Accepted = append(result.Accepted, chunkResult.Accepted...)
+		result.Retryable = append(result.Retryable, chunkResult.Retryable...)
+		result.Dropped = append(result.Dropped, chunkResult.Dropped...)
+	}
+	return result, nil
+}
+
+func (p distributedDeliveryPush) pushRemoteNodeChunk(ctx context.Context, env deliveryruntime.CommittedEnvelope, nodeID uint64, routes []deliveryruntime.RouteKey, sharedFrame []byte) (deliveryruntime.PushResult, error) {
 	items, err := p.deliveryPushItems(env, routes, sharedFrame)
 	if err != nil {
 		return deliveryruntime.PushResult{}, err
@@ -960,13 +1396,13 @@ func (p distributedDeliveryPush) pushRemoteNode(ctx context.Context, env deliver
 			wklog.Uint64("targetNodeID", nodeID),
 			wklog.Int("items", len(items)),
 			wklog.Int("routes", len(routes)),
-			wklog.Int("accepted", len(resp.Accepted)),
+			wklog.Int("accepted", deliveryPushResponseAcceptedCount(resp)),
 			wklog.Int("retryable", len(resp.Retryable)),
 			wklog.Int("dropped", len(resp.Dropped)),
 		)
 	}
 	result := deliveryruntime.PushResult{}
-	mergeDeliveryPushResponse(&result, resp)
+	mergeDeliveryPushResponse(&result, routes, resp)
 	missing := unreportedDeliveryRoutes(routes, resp)
 	if len(missing) > 0 {
 		if p.logger != nil {
@@ -1010,6 +1446,13 @@ func deliveryPushRPCMetricResult(resp accessnode.DeliveryPushResponse, missing [
 		return "partial"
 	}
 	return "ok"
+}
+
+func deliveryPushResponseAcceptedCount(resp accessnode.DeliveryPushResponse) int {
+	if resp.AcceptedCountSet {
+		return int(resp.AcceptedCount)
+	}
+	return len(resp.Accepted)
 }
 
 func (p distributedDeliveryPush) deliveryPushItems(env deliveryruntime.CommittedEnvelope, routes []deliveryruntime.RouteKey, sharedFrame []byte) ([]accessnode.DeliveryPushItem, error) {
@@ -1089,19 +1532,45 @@ func (p distributedDeliveryPush) pushLegacyDeliveryItems(ctx context.Context, no
 			result.Retryable = append(result.Retryable, routes...)
 			continue
 		}
-		mergeDeliveryPushResponse(&result, resp)
+		mergeDeliveryPushResponse(&result, routes, resp)
 		result.Retryable = append(result.Retryable, unreportedDeliveryRoutes(routes, resp)...)
 	}
 	return result
 }
 
-func mergeDeliveryPushResponse(result *deliveryruntime.PushResult, resp accessnode.DeliveryPushResponse) {
-	result.Accepted = append(result.Accepted, resp.Accepted...)
+func mergeDeliveryPushResponse(result *deliveryruntime.PushResult, routes []deliveryruntime.RouteKey, resp accessnode.DeliveryPushResponse) {
+	accepted, _ := acceptedAndUnreportedDeliveryRoutes(routes, resp)
+	result.Accepted = append(result.Accepted, accepted...)
 	result.Retryable = append(result.Retryable, resp.Retryable...)
 	result.Dropped = append(result.Dropped, resp.Dropped...)
 }
 
 func unreportedDeliveryRoutes(routes []deliveryruntime.RouteKey, resp accessnode.DeliveryPushResponse) []deliveryruntime.RouteKey {
+	_, missing := acceptedAndUnreportedDeliveryRoutes(routes, resp)
+	return missing
+}
+
+func acceptedAndUnreportedDeliveryRoutes(routes []deliveryruntime.RouteKey, resp accessnode.DeliveryPushResponse) ([]deliveryruntime.RouteKey, []deliveryruntime.RouteKey) {
+	if resp.AcceptedCountSet {
+		rejected := deliveryRouteCounts(resp.Retryable)
+		for _, route := range resp.Dropped {
+			rejected[route]++
+		}
+		candidates := make([]deliveryruntime.RouteKey, 0, len(routes))
+		for _, route := range routes {
+			if rejected[route] > 0 {
+				rejected[route]--
+				continue
+			}
+			candidates = append(candidates, route)
+		}
+		if resp.AcceptedCount > uint64(len(candidates)) {
+			return candidates, nil
+		}
+		acceptedCount := int(resp.AcceptedCount)
+		return candidates[:acceptedCount], candidates[acceptedCount:]
+	}
+
 	reported := deliveryRouteCounts(resp.Accepted)
 	for _, route := range resp.Retryable {
 		reported[route]++
@@ -1117,7 +1586,7 @@ func unreportedDeliveryRoutes(routes []deliveryruntime.RouteKey, resp accessnode
 		}
 		missing = append(missing, route)
 	}
-	return missing
+	return resp.Accepted, missing
 }
 
 func deliveryRouteCounts(routes []deliveryruntime.RouteKey) map[deliveryruntime.RouteKey]int {

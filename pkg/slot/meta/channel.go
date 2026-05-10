@@ -12,6 +12,8 @@ type Channel struct {
 	ChannelID   string
 	ChannelType int64
 	Ban         int64
+	// SubscriberMutationVersion is the durable version fence for subscriber mutations.
+	SubscriberMutationVersion uint64
 }
 
 func (s *ShardStore) CreateChannel(ctx context.Context, ch Channel) error {
@@ -41,7 +43,7 @@ func (s *ShardStore) CreateChannel(ctx context.Context, ch Channel) error {
 		return err
 	}
 
-	value := encodeChannelFamilyValue(ch.Ban, primaryKey)
+	value := encodeChannelFamilyValue(ch.Ban, ch.SubscriberMutationVersion, primaryKey)
 	indexKey := encodeChannelIDIndexKey(s.slot, ch.ChannelID, ch.ChannelType)
 	indexValue := encodeChannelIndexValue(ch.Ban)
 
@@ -76,21 +78,35 @@ func (s *ShardStore) GetChannel(ctx context.Context, channelID string, channelTy
 
 func (s *ShardStore) getChannelLocked(channelID string, channelType int64) (Channel, error) {
 	primaryKey := encodeChannelPrimaryKey(s.slot, channelID, channelType, channelPrimaryFamilyID)
+	ch, exists, err := s.getChannelForPrimaryKeyLocked(primaryKey, channelID, channelType)
+	if err != nil {
+		return Channel{}, err
+	}
+	if !exists {
+		return Channel{}, ErrNotFound
+	}
+	return ch, nil
+}
+
+func (s *ShardStore) getChannelForPrimaryKeyLocked(primaryKey []byte, channelID string, channelType int64) (Channel, bool, error) {
 	value, err := s.db.getValue(primaryKey)
 	if err != nil {
-		return Channel{}, err
+		if err == ErrNotFound {
+			return Channel{}, false, nil
+		}
+		return Channel{}, false, err
 	}
 
-	ban, err := decodeChannelFamilyValue(primaryKey, value)
+	ban, version, err := decodeChannelFamilyValue(primaryKey, value)
 	if err != nil {
-		return Channel{}, err
+		return Channel{}, false, err
 	}
-
 	return Channel{
-		ChannelID:   channelID,
-		ChannelType: channelType,
-		Ban:         ban,
-	}, nil
+		ChannelID:                 channelID,
+		ChannelType:               channelType,
+		Ban:                       ban,
+		SubscriberMutationVersion: version,
+	}, true, nil
 }
 
 func (s *ShardStore) ListChannelsByChannelID(ctx context.Context, channelID string) ([]Channel, error) {
@@ -136,15 +152,14 @@ func (s *ShardStore) ListChannelsByChannelID(ctx context.Context, channelID stri
 		if err != nil {
 			return nil, err
 		}
-		ban, err := decodeChannelIndexValue(indexKey, indexValue)
+		if _, err := decodeChannelIndexValue(indexKey, indexValue); err != nil {
+			return nil, err
+		}
+		channel, err := s.getChannelLocked(channelID, channelType)
 		if err != nil {
 			return nil, err
 		}
-		channels = append(channels, Channel{
-			ChannelID:   channelID,
-			ChannelType: channelType,
-			Ban:         ban,
-		})
+		channels = append(channels, channel)
 	}
 
 	if err := iter.Error(); err != nil {
@@ -179,7 +194,17 @@ func (s *ShardStore) UpdateChannel(ctx context.Context, ch Channel) error {
 		return err
 	}
 
-	value := encodeChannelFamilyValue(ch.Ban, primaryKey)
+	existing, exists, err := s.getChannelForPrimaryKeyLocked(primaryKey, ch.ChannelID, ch.ChannelType)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrNotFound
+	}
+	if ch.SubscriberMutationVersion == 0 {
+		ch.SubscriberMutationVersion = existing.SubscriberMutationVersion
+	}
+	value := encodeChannelFamilyValue(ch.Ban, ch.SubscriberMutationVersion, primaryKey)
 	indexKey := encodeChannelIDIndexKey(s.slot, ch.ChannelID, ch.ChannelType)
 	indexValue := encodeChannelIndexValue(ch.Ban)
 
@@ -210,7 +235,14 @@ func (s *ShardStore) UpsertChannel(ctx context.Context, ch Channel) error {
 	defer s.db.mu.Unlock()
 
 	primaryKey := encodeChannelPrimaryKey(s.slot, ch.ChannelID, ch.ChannelType, channelPrimaryFamilyID)
-	value := encodeChannelFamilyValue(ch.Ban, primaryKey)
+	existing, exists, err := s.getChannelForPrimaryKeyLocked(primaryKey, ch.ChannelID, ch.ChannelType)
+	if err != nil {
+		return err
+	}
+	if exists && ch.SubscriberMutationVersion == 0 {
+		ch.SubscriberMutationVersion = existing.SubscriberMutationVersion
+	}
+	value := encodeChannelFamilyValue(ch.Ban, ch.SubscriberMutationVersion, primaryKey)
 	indexKey := encodeChannelIDIndexKey(s.slot, ch.ChannelID, ch.ChannelType)
 	indexValue := encodeChannelIndexValue(ch.Ban)
 
