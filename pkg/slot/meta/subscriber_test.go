@@ -57,3 +57,35 @@ func TestShardSnapshotChannelSubscribersReturnsSortedFullList(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"u1", "u2", "u3"}, snapshot)
 }
+
+func TestShardContainsSubscriberUsesPrimaryKey(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(1)
+
+	require.NoError(t, shard.AddSubscribers(ctx, "g1", 2, []string{"u1", "u2"}))
+
+	ok, err := shard.ContainsSubscriber(ctx, "g1", 2, "u1")
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = shard.ContainsSubscriber(ctx, "g1", 2, "missing")
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestShardHasSubscribersDetectsNonEmptyChannelList(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(1)
+
+	ok, err := shard.HasSubscribers(ctx, "g1", 2)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	require.NoError(t, shard.AddSubscribers(ctx, "g1", 2, []string{"u1"}))
+
+	ok, err = shard.HasSubscribers(ctx, "g1", 2)
+	require.NoError(t, err)
+	require.True(t, ok)
+}

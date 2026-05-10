@@ -1,9 +1,6 @@
 package channel
 
-import (
-	"encoding/base64"
-	"fmt"
-)
+import channelmembers "github.com/WuKongIM/WuKongIM/internal/contracts/channelmembers"
 
 const tempChannelType uint8 = 8
 
@@ -93,6 +90,15 @@ type MemberListResult struct {
 }
 
 func namespacedListChannelID(kind memberListKind, key ChannelKey) string {
-	encoded := base64.RawURLEncoding.EncodeToString([]byte(key.ChannelID))
-	return fmt.Sprintf("__wk_internal_memberlist__/%s/%d/%s", kind, key.ChannelType, encoded)
+	contractKey := channelmembers.ChannelKey{ChannelID: key.ChannelID, ChannelType: key.ChannelType}
+	switch kind {
+	case allowListKind:
+		return channelmembers.AllowlistChannelID(contractKey)
+	case denyListKind:
+		return channelmembers.DenylistChannelID(contractKey)
+	case tempListKind:
+		return channelmembers.TempListChannelID(key.ChannelID)
+	default:
+		return ""
+	}
 }

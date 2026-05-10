@@ -205,6 +205,8 @@ func encodeSubscriberRPCRequestBinary(req subscriberRPCRequest) ([]byte, error) 
 	dst = runtimeMetaAppendBool(dst, req.Snapshot)
 	dst = runtimeMetaAppendString(dst, req.AfterUID)
 	dst = runtimeMetaAppendVarint(dst, int64(req.Limit))
+	dst = runtimeMetaAppendString(dst, req.ContainsUID)
+	dst = runtimeMetaAppendBool(dst, req.HasAny)
 	return dst, nil
 }
 
@@ -242,6 +244,12 @@ func decodeSubscriberRPCRequest(body []byte) (subscriberRPCRequest, error) {
 	if req.Limit, offset, err = runtimeMetaReadInt(body, offset, "subscriber limit"); err != nil {
 		return subscriberRPCRequest{}, err
 	}
+	if req.ContainsUID, offset, err = runtimeMetaReadString(body, offset); err != nil {
+		return subscriberRPCRequest{}, err
+	}
+	if req.HasAny, offset, err = runtimeMetaReadBool(body, offset); err != nil {
+		return subscriberRPCRequest{}, err
+	}
 	if offset != len(body) {
 		return subscriberRPCRequest{}, fmt.Errorf("metastore: trailing subscriber request bytes")
 	}
@@ -256,6 +264,8 @@ func encodeSubscriberRPCResponseBinary(resp subscriberRPCResponse) ([]byte, erro
 	dst = appendProxyStrings(dst, resp.UIDs)
 	dst = runtimeMetaAppendString(dst, resp.NextCursor)
 	dst = runtimeMetaAppendBool(dst, resp.Done)
+	dst = runtimeMetaAppendBool(dst, resp.Contains)
+	dst = runtimeMetaAppendBool(dst, resp.HasAny)
 	return dst, nil
 }
 
@@ -279,6 +289,12 @@ func decodeSubscriberRPCResponseBinary(body []byte) (subscriberRPCResponse, erro
 		return subscriberRPCResponse{}, err
 	}
 	if resp.Done, offset, err = runtimeMetaReadBool(body, offset); err != nil {
+		return subscriberRPCResponse{}, err
+	}
+	if resp.Contains, offset, err = runtimeMetaReadBool(body, offset); err != nil {
+		return subscriberRPCResponse{}, err
+	}
+	if resp.HasAny, offset, err = runtimeMetaReadBool(body, offset); err != nil {
 		return subscriberRPCResponse{}, err
 	}
 	if offset != len(body) {

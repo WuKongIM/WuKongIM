@@ -177,6 +177,19 @@ func TestBuildLongPollForwardsReplicationSettingsIntoChannelConfigs(t *testing.T
 	require.Equal(t, 32, appTransportIntField(t, app.isrTransport, "longPollMaxChannels"))
 }
 
+func TestBuildWiresMessagePermissionDependencies(t *testing.T) {
+	cfg := testConfig(t)
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	requireMessageAppFieldNonNil(t, app, "permissions")
+	requireMessageAppFieldNonNil(t, app, "systemUIDs")
+}
+
 func TestBuildWiresDataPlanePoolToClusterDiscovery(t *testing.T) {
 	cfg := testConfig(t)
 

@@ -3,9 +3,11 @@ package message
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
+	channelmembers "github.com/WuKongIM/WuKongIM/internal/contracts/channelmembers"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -61,6 +63,233 @@ func TestSendReturnsClusterRequiredWhenClusterNotConfigured(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrClusterRequired)
 	require.Equal(t, SendResult{}, result)
+}
+
+func TestSendRejectsBannedGroupBeforeDurableAppend(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
+		ChannelID:   "g1",
+		ChannelType: int64(frame.ChannelTypeGroup),
+		Ban:         1,
+	}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonBan, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+}
+
+func TestSendRejectsGroupSenderInDenylistBeforeDurableAppend(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
+		ChannelID:   "g1",
+		ChannelType: int64(frame.ChannelTypeGroup),
+	}
+	denyID := channelmembers.DenylistChannelID(channelmembers.ChannelKey{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup})
+	permissions.members[permissionKey(denyID, int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonInBlacklist, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+}
+
+func TestSendRejectsGroupSenderThatIsNotSubscriberBeforeDurableAppend(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
+		ChannelID:   "g1",
+		ChannelType: int64(frame.ChannelTypeGroup),
+	}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSubscriberNotExist, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+}
+
+func TestSendRejectsGroupSenderNotInNonEmptyAllowlistBeforeDurableAppend(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
+		ChannelID:   "g1",
+		ChannelType: int64(frame.ChannelTypeGroup),
+	}
+	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
+	allowID := channelmembers.AllowlistChannelID(channelmembers.ChannelKey{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup})
+	permissions.hasAny[permissionKey(allowID, int64(frame.ChannelTypeGroup))] = true
+	permissions.members[permissionKey(allowID, int64(frame.ChannelTypeGroup))] = map[string]bool{"u2": true}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonNotInWhitelist, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+}
+
+func TestSendAllowsGroupSenderWhenSubscriberAndAllowlistEmpty(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 701, MessageSeq: 31}},
+		},
+	}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
+		ChannelID:   "g1",
+		ChannelType: int64(frame.ChannelTypeGroup),
+	}
+	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		MetaRefresher:   &fakeMetaRefresher{},
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(701), result.MessageID)
+	require.Equal(t, uint64(31), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+}
+
+func TestSendRejectsPersonSenderInReceiverDenylistBeforeDurableAppend(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	permissions := newFakePermissionStore()
+	denyID := channelmembers.DenylistChannelID(channelmembers.ChannelKey{ChannelID: "u2", ChannelType: frame.ChannelTypePerson})
+	permissions.members[permissionKey(denyID, int64(frame.ChannelTypePerson))] = map[string]bool{"u1": true}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonInBlacklist, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+}
+
+func TestSendAllowsPersonSenderWhenReceiverDenylistMisses(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 702, MessageSeq: 32}},
+		},
+	}
+	permissions := newFakePermissionStore()
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		MetaRefresher:   &fakeMetaRefresher{},
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(702), result.MessageID)
+	require.Equal(t, uint64(32), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+}
+
+func TestSendSystemUIDBypassesPermissionChecks(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 703, MessageSeq: 33}},
+		},
+	}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
+		ChannelID:   "g1",
+		ChannelType: int64(frame.ChannelTypeGroup),
+		Ban:         1,
+	}
+	denyID := channelmembers.DenylistChannelID(channelmembers.ChannelKey{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup})
+	permissions.members[permissionKey(denyID, int64(frame.ChannelTypeGroup))] = map[string]bool{"sys": true}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		MetaRefresher:   &fakeMetaRefresher{},
+		PermissionStore: permissions,
+		SystemUIDs:      fakeSystemUIDChecker{"sys": true},
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "sys",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(703), result.MessageID)
+	require.Equal(t, uint64(33), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
 }
 
 func TestSendPassesTraceIDToChannelAppend(t *testing.T) {
@@ -742,10 +971,14 @@ func TestNewPreservesInjectedCollaborators(t *testing.T) {
 	dispatcher := &recordingCommittedDispatcher{}
 	acks := &recordingDeliveryAck{}
 	offline := &recordingDeliveryOffline{}
+	permissions := newFakePermissionStore()
+	systemUIDs := fakeSystemUIDChecker{"system": true}
 
 	app := New(Options{
 		IdentityStore:       identities,
 		ChannelStore:        channels,
+		PermissionStore:     permissions,
+		SystemUIDs:          systemUIDs,
 		Cluster:             cluster,
 		MetaRefresher:       refresher,
 		RemoteAppender:      remoteApp,
@@ -760,6 +993,8 @@ func TestNewPreservesInjectedCollaborators(t *testing.T) {
 
 	require.Same(t, identities, app.identities)
 	require.Same(t, channels, app.channels)
+	require.Same(t, permissions, app.permissions)
+	require.Equal(t, systemUIDs, app.systemUIDs)
 	require.Same(t, cluster, app.cluster)
 	require.Same(t, refresher, app.refresher)
 	require.Same(t, remoteApp, app.remoteAppender)
@@ -914,6 +1149,44 @@ type fakeChannelStore struct{}
 func (*fakeChannelStore) GetChannel(context.Context, string, int64) (metadb.Channel, error) {
 	return metadb.Channel{}, nil
 }
+
+type fakePermissionStore struct {
+	channels map[string]metadb.Channel
+	members  map[string]map[string]bool
+	hasAny   map[string]bool
+}
+
+func newFakePermissionStore() *fakePermissionStore {
+	return &fakePermissionStore{
+		channels: make(map[string]metadb.Channel),
+		members:  make(map[string]map[string]bool),
+		hasAny:   make(map[string]bool),
+	}
+}
+
+func permissionKey(channelID string, channelType int64) string {
+	return channelID + "#" + strconv.FormatInt(channelType, 10)
+}
+
+func (s *fakePermissionStore) GetChannelForPermission(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	ch, ok := s.channels[permissionKey(channelID, channelType)]
+	if !ok {
+		return metadb.Channel{}, metadb.ErrNotFound
+	}
+	return ch, nil
+}
+
+func (s *fakePermissionStore) ContainsChannelSubscriber(_ context.Context, channelID string, channelType int64, uid string) (bool, error) {
+	return s.members[permissionKey(channelID, channelType)][uid], nil
+}
+
+func (s *fakePermissionStore) HasChannelSubscribers(_ context.Context, channelID string, channelType int64) (bool, error) {
+	return s.hasAny[permissionKey(channelID, channelType)], nil
+}
+
+type fakeSystemUIDChecker map[string]bool
+
+func (f fakeSystemUIDChecker) IsSystemUID(uid string) bool { return f[uid] }
 
 type fakeChannelClusterSendReply struct {
 	result channel.AppendResult

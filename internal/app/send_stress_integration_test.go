@@ -198,6 +198,24 @@ func preloadSendStressTargets(t *testing.T, harness *threeNodeAppHarness, leader
 			require.NoError(t, err)
 		}
 	}
+	ensureGroupPermissions := func(channelID string, members []string) {
+		t.Helper()
+
+		seen := make(map[string]struct{}, len(members))
+		unique := make([]string, 0, len(members))
+		for _, member := range members {
+			if member == "" {
+				continue
+			}
+			if _, ok := seen[member]; ok {
+				continue
+			}
+			seen[member] = struct{}{}
+			unique = append(unique, member)
+		}
+		require.NoError(t, leader.Store().CreateChannel(context.Background(), channelID, int64(frame.ChannelTypeGroup)))
+		require.NoError(t, leader.Store().AddChannelSubscribers(context.Background(), channelID, int64(frame.ChannelTypeGroup), unique))
+	}
 	switch scenario {
 	case "", sendStressScenarioMultiTarget:
 		for idx := 0; idx < cfg.Senders; idx++ {
@@ -223,9 +241,11 @@ func preloadSendStressTargets(t *testing.T, harness *threeNodeAppHarness, leader
 		channelEpoch := uint64(5000)
 		upsertMeta(channelID, channelType, channelEpoch)
 
+		members := make([]string, 0, cfg.Senders*2)
 		for idx := 0; idx < cfg.Senders; idx++ {
 			senderUID := fmt.Sprintf("stress-sender-%03d", idx)
 			recipientUID := fmt.Sprintf("stress-group-member-%03d", idx)
+			members = append(members, senderUID, recipientUID)
 			targets = append(targets, sendStressTarget{
 				SenderUID:     senderUID,
 				RecipientUID:  recipientUID,
@@ -235,6 +255,7 @@ func preloadSendStressTargets(t *testing.T, harness *threeNodeAppHarness, leader
 				ConnectNodeID: leaderID,
 			})
 		}
+		ensureGroupPermissions(channelID, members)
 	case sendStressScenarioHotColdSkew:
 		hotChannelID := "stress-hot-group-channel"
 		upsertMeta(hotChannelID, frame.ChannelTypeGroup, 5000)
@@ -243,10 +264,12 @@ func preloadSendStressTargets(t *testing.T, harness *threeNodeAppHarness, leader
 		if hotSenders > 8 {
 			hotSenders = 8
 		}
+		hotMembers := make([]string, 0, hotSenders*2)
 		for idx := 0; idx < cfg.Senders; idx++ {
 			senderUID := fmt.Sprintf("stress-sender-%03d", idx)
 			if idx < hotSenders {
 				recipientUID := fmt.Sprintf("stress-hot-member-%03d", idx)
+				hotMembers = append(hotMembers, senderUID, recipientUID)
 				targets = append(targets, sendStressTarget{
 					SenderUID:     senderUID,
 					RecipientUID:  recipientUID,
@@ -270,6 +293,7 @@ func preloadSendStressTargets(t *testing.T, harness *threeNodeAppHarness, leader
 				ConnectNodeID: leaderID,
 			})
 		}
+		ensureGroupPermissions(hotChannelID, hotMembers)
 	default:
 		t.Fatalf("unknown send stress scenario %q", scenario)
 	}

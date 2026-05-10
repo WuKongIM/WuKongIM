@@ -563,9 +563,11 @@ func build(cfg Config) (_ *App, err error) {
 		Logger:                app.logger.Named("access.node"),
 	})
 	app.messageApp = message.New(message.Options{
-		IdentityStore: app.store,
-		ChannelStore:  app.store,
-		Cluster:       app.channelLog,
+		IdentityStore:   app.store,
+		ChannelStore:    app.store,
+		PermissionStore: app.store,
+		SystemUIDs:      userApp,
+		Cluster:         app.channelLog,
 		MessageReader: managerMessageReader{
 			localNodeID: cfg.Node.ID,
 			channelLog:  app.channelLogDB,

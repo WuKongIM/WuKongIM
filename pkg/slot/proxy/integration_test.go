@@ -684,6 +684,19 @@ func TestStoreGetChannelRuntimeMetaReadsAuthoritativeRemoteSlot(t *testing.T) {
 	require.Equal(t, meta, got)
 }
 
+func TestStoreGetChannelForPermissionReadsAuthoritativeSlot(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	channelID := findChannelIDForSlot(t, nodes[0].cluster, 2, "remote-channel-permission")
+	ch := metadb.Channel{ChannelID: channelID, ChannelType: 2, Ban: 1}
+	require.NoError(t, nodes[1].db.ForHashSlot(mustHashSlotForKey(t, nodes[1].cluster, channelID)).UpsertChannel(ctx, ch))
+
+	got, err := nodes[0].store.GetChannelForPermission(ctx, channelID, 2)
+	require.NoError(t, err)
+	require.Equal(t, ch, got)
+}
+
 func TestStoreListChannelSubscribersReadsAuthoritativeSlot(t *testing.T) {
 	ctx := context.Background()
 	nodes := startTwoNodeShardedStores(t)
@@ -734,6 +747,48 @@ func TestStoreSnapshotChannelSubscribersReadsAuthoritativeSlot(t *testing.T) {
 	snapshot, err := store.SnapshotChannelSubscribers(ctx, channelID, 2)
 	require.NoError(t, err)
 	require.Equal(t, []string{"u1", "u2", "u3"}, snapshot)
+}
+
+func TestStoreContainsChannelSubscriberReadsAuthoritativeSlot(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	channelID := findChannelIDForSlot(t, nodes[0].cluster, 2, "remote-subscriber-contains")
+
+	remoteShard, ok := any(nodes[1].db.ForHashSlot(mustHashSlotForKey(t, nodes[1].cluster, channelID))).(interface {
+		AddSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error
+	})
+	require.True(t, ok, "subscriber shard store methods missing")
+	require.NoError(t, remoteShard.AddSubscribers(ctx, channelID, 2, []string{"u1"}))
+
+	ok, err := nodes[0].store.ContainsChannelSubscriber(ctx, channelID, 2, "u1")
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = nodes[0].store.ContainsChannelSubscriber(ctx, channelID, 2, "missing")
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestStoreHasChannelSubscribersReadsAuthoritativeSlot(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	channelID := findChannelIDForSlot(t, nodes[0].cluster, 2, "remote-subscriber-has-any")
+
+	ok, err := nodes[0].store.HasChannelSubscribers(ctx, channelID, 2)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	remoteShard, ok := any(nodes[1].db.ForHashSlot(mustHashSlotForKey(t, nodes[1].cluster, channelID))).(interface {
+		AddSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error
+	})
+	require.True(t, ok, "subscriber shard store methods missing")
+	require.NoError(t, remoteShard.AddSubscribers(ctx, channelID, 2, []string{"u1"}))
+
+	ok, err = nodes[0].store.HasChannelSubscribers(ctx, channelID, 2)
+	require.NoError(t, err)
+	require.True(t, ok)
 }
 
 func TestStoreGetUserReadsAuthoritativeRemoteSlot(t *testing.T) {

@@ -1630,6 +1630,22 @@ func requireAppFieldNonNil(t *testing.T, app *App, name string) {
 	}
 }
 
+func requireMessageAppFieldNonNil(t *testing.T, app *App, name string) {
+	t.Helper()
+
+	require.NotNil(t, app.messageApp)
+	field := reflect.ValueOf(app.messageApp).Elem().FieldByName(name)
+	if !field.IsValid() {
+		t.Fatalf("message.App is missing field %s", name)
+	}
+	switch field.Kind() {
+	case reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice, reflect.Func:
+		require.Falsef(t, field.IsNil(), "message.App field %s should not be nil", name)
+	default:
+		t.Fatalf("message.App field %s is %s; expected a nil-able field", name, field.Kind())
+	}
+}
+
 func setAppFuncField(t *testing.T, app *App, name string, fn any) {
 	t.Helper()
 

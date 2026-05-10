@@ -384,6 +384,44 @@ func TestSendMessageMapsJSONToUsecaseCommand(t *testing.T) {
 	require.Equal(t, []byte("hi"), msgs.calls[0].Payload)
 }
 
+func TestSendMessagePreservesBusinessDenialReason(t *testing.T) {
+	msgs := &recordingMessageUsecase{
+		result: message.SendResult{Reason: frame.ReasonSubscriberNotExist},
+	}
+	srv := New(Options{Messages: msgs})
+
+	body := map[string]any{
+		"from_uid":      "u1",
+		"channel_id":    "g1",
+		"channel_type":  float64(frame.ChannelTypeGroup),
+		"client_msg_no": "api-denied-1",
+		"payload":       base64.StdEncoding.EncodeToString([]byte("hi")),
+	}
+	payload, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/send", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got struct {
+		MessageID  int64  `json:"message_id"`
+		MessageSeq uint64 `json:"message_seq"`
+		Reason     uint8  `json:"reason"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Equal(t, int64(0), got.MessageID)
+	require.Equal(t, uint64(0), got.MessageSeq)
+	require.Equal(t, uint8(frame.ReasonSubscriberNotExist), got.Reason)
+	require.Len(t, msgs.calls, 1)
+	require.Equal(t, "u1", msgs.calls[0].FromUID)
+	require.Equal(t, "g1", msgs.calls[0].ChannelID)
+	require.Equal(t, uint8(frame.ChannelTypeGroup), msgs.calls[0].ChannelType)
+}
+
 func TestSendMessageRejectsInvalidPersonChannelID(t *testing.T) {
 	msgs := &recordingMessageUsecase{}
 	srv := New(Options{Messages: msgs})

@@ -16,6 +16,8 @@ type subscriberRPCRequest struct {
 	Snapshot    bool   `json:"snapshot,omitempty"`
 	AfterUID    string `json:"after_uid,omitempty"`
 	Limit       int    `json:"limit"`
+	ContainsUID string `json:"contains_uid,omitempty"`
+	HasAny      bool   `json:"has_any,omitempty"`
 }
 
 type subscriberRPCResponse struct {
@@ -24,6 +26,8 @@ type subscriberRPCResponse struct {
 	UIDs       []string `json:"uids,omitempty"`
 	NextCursor string   `json:"next_cursor,omitempty"`
 	Done       bool     `json:"done"`
+	Contains   bool     `json:"contains,omitempty"`
+	HasAny     bool     `json:"has_any,omitempty"`
 }
 
 func (r subscriberRPCResponse) rpcStatus() string {
@@ -74,6 +78,56 @@ func (s *Store) SnapshotChannelSubscribers(ctx context.Context, channelID string
 	return append([]string(nil), resp.UIDs...), nil
 }
 
+// ContainsChannelSubscriber reads a subscriber point lookup from the authoritative slot owner.
+func (s *Store) ContainsChannelSubscriber(ctx context.Context, channelID string, channelType int64, uid string) (bool, error) {
+	slotID := s.cluster.SlotForKey(channelID)
+	return s.containsChannelSubscriberAuthoritative(ctx, slotID, channelID, channelType, uid)
+}
+
+// HasChannelSubscribers reads subscriber-set non-emptiness from the authoritative slot owner.
+func (s *Store) HasChannelSubscribers(ctx context.Context, channelID string, channelType int64) (bool, error) {
+	slotID := s.cluster.SlotForKey(channelID)
+	return s.hasChannelSubscribersAuthoritative(ctx, slotID, channelID, channelType)
+}
+
+func (s *Store) containsChannelSubscriberAuthoritative(ctx context.Context, slotID multiraft.SlotID, channelID string, channelType int64, uid string) (bool, error) {
+	hashSlot := hashSlotForKey(s.cluster, channelID)
+	if s.shouldServeSlotLocally(slotID) {
+		return s.db.ForHashSlot(hashSlot).ContainsSubscriber(ctx, channelID, channelType, uid)
+	}
+
+	resp, err := s.callSubscriberRPC(ctx, slotID, subscriberRPCRequest{
+		SlotID:      uint64(slotID),
+		HashSlot:    hashSlot,
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		ContainsUID: uid,
+	})
+	if err != nil {
+		return false, err
+	}
+	return resp.Contains, nil
+}
+
+func (s *Store) hasChannelSubscribersAuthoritative(ctx context.Context, slotID multiraft.SlotID, channelID string, channelType int64) (bool, error) {
+	hashSlot := hashSlotForKey(s.cluster, channelID)
+	if s.shouldServeSlotLocally(slotID) {
+		return s.db.ForHashSlot(hashSlot).HasSubscribers(ctx, channelID, channelType)
+	}
+
+	resp, err := s.callSubscriberRPC(ctx, slotID, subscriberRPCRequest{
+		SlotID:      uint64(slotID),
+		HashSlot:    hashSlot,
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		HasAny:      true,
+	})
+	if err != nil {
+		return false, err
+	}
+	return resp.HasAny, nil
+}
+
 func (s *Store) callSubscriberRPC(ctx context.Context, slotID multiraft.SlotID, req subscriberRPCRequest) (subscriberRPCResponse, error) {
 	payload, err := encodeSubscriberRPCRequestBinary(req)
 	if err != nil {
@@ -101,6 +155,26 @@ func (s *Store) handleSubscriberRPC(ctx context.Context, body []byte) ([]byte, e
 	hashSlot := req.HashSlot
 	if hashSlot == 0 {
 		hashSlot = hashSlotForKey(s.cluster, req.ChannelID)
+	}
+	if req.ContainsUID != "" {
+		ok, err := s.db.ForHashSlot(hashSlot).ContainsSubscriber(ctx, req.ChannelID, req.ChannelType, req.ContainsUID)
+		if err != nil {
+			return nil, err
+		}
+		return encodeSubscriberRPCResponse(subscriberRPCResponse{
+			Status:   rpcStatusOK,
+			Contains: ok,
+		})
+	}
+	if req.HasAny {
+		ok, err := s.db.ForHashSlot(hashSlot).HasSubscribers(ctx, req.ChannelID, req.ChannelType)
+		if err != nil {
+			return nil, err
+		}
+		return encodeSubscriberRPCResponse(subscriberRPCResponse{
+			Status: rpcStatusOK,
+			HasAny: ok,
+		})
 	}
 	if req.Snapshot {
 		uids, err := s.db.ForHashSlot(hashSlot).ListSubscribersSnapshot(ctx, req.ChannelID, req.ChannelType)
