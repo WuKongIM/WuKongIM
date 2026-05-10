@@ -68,3 +68,38 @@ func TestAckIndexTakeSessionRemovesAllSessionBindings(t *testing.T) {
 	require.False(t, ok)
 	require.Equal(t, []AckBinding{otherSessionBinding}, index.LookupSession(3))
 }
+
+func TestAckIndexScopesSameSessionAndMessageByUID(t *testing.T) {
+	index := NewAckIndex()
+	bindingA := AckBinding{
+		SessionID:   2,
+		MessageID:   101,
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Route:       testRoute("u2", 2, 21, 2),
+	}
+	bindingB := AckBinding{
+		SessionID:   2,
+		MessageID:   101,
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Route:       testRoute("u3", 3, 31, 2),
+	}
+	index.Bind(bindingA)
+	index.Bind(bindingB)
+
+	gotA, ok := index.LookupRoute("u2", 2, 101)
+	require.True(t, ok)
+	require.Equal(t, bindingA, gotA)
+	gotB, ok := index.LookupRoute("u3", 2, 101)
+	require.True(t, ok)
+	require.Equal(t, bindingB, gotB)
+	require.Equal(t, 2, index.Len())
+
+	takenA, ok := index.TakeRoute("u2", 2, 101)
+	require.True(t, ok)
+	require.Equal(t, bindingA, takenA)
+	_, ok = index.LookupRoute("u2", 2, 101)
+	require.False(t, ok)
+	require.Equal(t, []AckBinding{bindingB}, index.LookupSessionRoute("u3", 2))
+}

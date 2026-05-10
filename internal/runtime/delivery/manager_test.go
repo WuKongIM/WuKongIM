@@ -248,6 +248,29 @@ func (p *recordingPusher) acceptedSessionIDs(messageID uint64) []uint64 {
 	return out
 }
 
+type ackDuringPushPusher struct {
+	recordingPusher
+	runtime *Manager
+}
+
+func (p *ackDuringPushPusher) Push(ctx context.Context, cmd PushCommand) (PushResult, error) {
+	result, err := p.recordingPusher.Push(ctx, cmd)
+	if len(cmd.Routes) == 0 || p.runtime == nil {
+		return result, err
+	}
+	route := cmd.Routes[0]
+	ackErr := p.runtime.AckRoute(ctx, RouteAck{
+		UID:        route.UID,
+		SessionID:  route.SessionID,
+		MessageID:  cmd.Envelope.MessageID,
+		MessageSeq: cmd.Envelope.MessageSeq,
+	})
+	if ackErr != nil {
+		return PushResult{}, ackErr
+	}
+	return result, err
+}
+
 const testChannelID = "u1@u2"
 
 func testEnvelope(messageID, messageSeq uint64) CommittedEnvelope {

@@ -75,6 +75,62 @@ func TestActorRetryTickRetriesPendingRoutesUntilAcked(t *testing.T) {
 	require.Equal(t, 2, pusher.attemptsFor(101))
 }
 
+func TestActorHonorsAckArrivingBeforePushReturns(t *testing.T) {
+	route := testRoute("u2", 1, 11, 2)
+	resolver := &stubResolver{routesByChannel: map[string][]RouteKey{testChannelID: {route}}}
+	clock := &testClock{now: time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)}
+	pusher := &ackDuringPushPusher{}
+	runtime := NewManager(Config{
+		Resolver:         resolver,
+		Push:             pusher,
+		Clock:            clock,
+		RetryDelays:      []time.Duration{time.Second},
+		MaxRetryAttempts: 3,
+	})
+	pusher.runtime = runtime
+
+	require.NoError(t, runtime.Submit(context.Background(), testEnvelope(101, 1)))
+	require.False(t, runtime.HasAckBinding(route.SessionID, 101))
+
+	clock.Advance(cappedBackoffWithJitter([]time.Duration{time.Second}, 2))
+	require.NoError(t, runtime.ProcessRetryTicks(context.Background()))
+	require.Equal(t, 1, pusher.attemptsFor(101))
+}
+
+func TestActorAcksSameSessionMessageOnDifferentNodesIndependently(t *testing.T) {
+	clock := &testClock{now: time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)}
+	routeA := testRoute("u2", 2, 21, 2)
+	routeB := testRoute("u3", 3, 31, 2)
+	pusher := &recordingPusher{}
+	runtime := NewManager(Config{
+		Resolver: &stubResolver{routesByChannel: map[string][]RouteKey{
+			testChannelID: {routeA, routeB},
+		}},
+		Push:             pusher,
+		Clock:            clock,
+		RetryDelays:      []time.Duration{time.Second},
+		MaxRetryAttempts: 3,
+	})
+
+	require.NoError(t, runtime.Submit(context.Background(), testEnvelope(101, 1)))
+	require.NoError(t, runtime.AckRoute(context.Background(), RouteAck{
+		UID:        routeA.UID,
+		SessionID:  routeA.SessionID,
+		MessageID:  101,
+		MessageSeq: 1,
+	}))
+	require.NoError(t, runtime.AckRoute(context.Background(), RouteAck{
+		UID:        routeB.UID,
+		SessionID:  routeB.SessionID,
+		MessageID:  101,
+		MessageSeq: 1,
+	}))
+
+	clock.Advance(cappedBackoffWithJitter([]time.Duration{time.Second}, 2))
+	require.NoError(t, runtime.ProcessRetryTicks(context.Background()))
+	require.Equal(t, 1, pusher.attemptsFor(101))
+}
+
 func TestActorExpiresAcceptedRouteAfterFinalRetryAttempt(t *testing.T) {
 	clock := &testClock{now: time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)}
 	route := testRoute("u2", 1, 11, 2)

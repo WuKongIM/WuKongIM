@@ -3,6 +3,7 @@ package delivery
 import "sync"
 
 type ackKey struct {
+	uid       string
 	sessionID uint64
 	messageID uint64
 }
@@ -24,7 +25,7 @@ func (i *AckIndex) Bind(binding AckBinding) {
 	if i == nil {
 		return
 	}
-	key := ackKey{sessionID: binding.SessionID, messageID: binding.MessageID}
+	key := ackKeyFromBinding(binding)
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.entries[key] = binding
@@ -40,7 +41,7 @@ func (i *AckIndex) refresh(binding AckBinding) bool {
 	if i == nil {
 		return false
 	}
-	key := ackKey{sessionID: binding.SessionID, messageID: binding.MessageID}
+	key := ackKeyFromBinding(binding)
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	if _, ok := i.entries[key]; !ok {
@@ -62,8 +63,17 @@ func (i *AckIndex) Lookup(sessionID, messageID uint64) (AckBinding, bool) {
 	}
 	i.mu.RLock()
 	defer i.mu.RUnlock()
-	binding, ok := i.entries[ackKey{sessionID: sessionID, messageID: messageID}]
-	return binding, ok
+	return i.lookupLocked("", sessionID, messageID, false)
+}
+
+// LookupRoute returns the binding for one UID-scoped session/message pair.
+func (i *AckIndex) LookupRoute(uid string, sessionID, messageID uint64) (AckBinding, bool) {
+	if i == nil {
+		return AckBinding{}, false
+	}
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.lookupLocked(uid, sessionID, messageID, true)
 }
 
 // Take atomically returns and removes an acknowledgement binding.
@@ -71,10 +81,24 @@ func (i *AckIndex) Take(sessionID, messageID uint64) (AckBinding, bool) {
 	if i == nil {
 		return AckBinding{}, false
 	}
-	key := ackKey{sessionID: sessionID, messageID: messageID}
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	binding, ok := i.entries[key]
+	key, binding, ok := i.lookupKeyLocked("", sessionID, messageID, false)
+	if !ok {
+		return AckBinding{}, false
+	}
+	i.removeLocked(key)
+	return binding, true
+}
+
+// TakeRoute atomically returns and removes one UID-scoped route binding.
+func (i *AckIndex) TakeRoute(uid string, sessionID, messageID uint64) (AckBinding, bool) {
+	if i == nil {
+		return AckBinding{}, false
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	key, binding, ok := i.lookupKeyLocked(uid, sessionID, messageID, true)
 	if !ok {
 		return AckBinding{}, false
 	}
@@ -104,6 +128,30 @@ func (i *AckIndex) TakeSession(sessionID uint64) []AckBinding {
 	return out
 }
 
+// TakeSessionRoute atomically returns and removes all bindings for one UID-scoped session.
+func (i *AckIndex) TakeSessionRoute(uid string, sessionID uint64) []AckBinding {
+	if i == nil {
+		return nil
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	keys := i.reverse[sessionID]
+	if len(keys) == 0 {
+		return nil
+	}
+	out := make([]AckBinding, 0, len(keys))
+	for key := range keys {
+		if key.uid != uid {
+			continue
+		}
+		if binding, ok := i.entries[key]; ok {
+			out = append(out, binding)
+			i.removeLocked(key)
+		}
+	}
+	return out
+}
+
 func (i *AckIndex) LookupSession(sessionID uint64) []AckBinding {
 	if i == nil {
 		return nil
@@ -116,7 +164,32 @@ func (i *AckIndex) LookupSession(sessionID uint64) []AckBinding {
 	}
 	out := make([]AckBinding, 0, len(keys))
 	for key := range keys {
-		out = append(out, i.entries[key])
+		if binding, ok := i.entries[key]; ok {
+			out = append(out, binding)
+		}
+	}
+	return out
+}
+
+// LookupSessionRoute returns all bindings for one UID-scoped session.
+func (i *AckIndex) LookupSessionRoute(uid string, sessionID uint64) []AckBinding {
+	if i == nil {
+		return nil
+	}
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	keys := i.reverse[sessionID]
+	if len(keys) == 0 {
+		return nil
+	}
+	out := make([]AckBinding, 0, len(keys))
+	for key := range keys {
+		if key.uid != uid {
+			continue
+		}
+		if binding, ok := i.entries[key]; ok {
+			out = append(out, binding)
+		}
 	}
 	return out
 }
@@ -135,9 +208,26 @@ func (i *AckIndex) Remove(sessionID, messageID uint64) {
 	if i == nil {
 		return
 	}
-	key := ackKey{sessionID: sessionID, messageID: messageID}
 	i.mu.Lock()
 	defer i.mu.Unlock()
+	key, _, ok := i.lookupKeyLocked("", sessionID, messageID, false)
+	if !ok {
+		return
+	}
+	i.removeLocked(key)
+}
+
+// RemoveRoute removes one UID-scoped route binding.
+func (i *AckIndex) RemoveRoute(uid string, sessionID, messageID uint64) {
+	if i == nil {
+		return
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	key, _, ok := i.lookupKeyLocked(uid, sessionID, messageID, true)
+	if !ok {
+		return
+	}
 	i.removeLocked(key)
 }
 
@@ -153,4 +243,34 @@ func (i *AckIndex) removeLocked(key ackKey) {
 			delete(i.reverse, binding.SessionID)
 		}
 	}
+}
+
+func ackKeyFromBinding(binding AckBinding) ackKey {
+	return ackKey{
+		uid:       binding.Route.UID,
+		sessionID: binding.SessionID,
+		messageID: binding.MessageID,
+	}
+}
+
+func (i *AckIndex) lookupLocked(uid string, sessionID, messageID uint64, exactUID bool) (AckBinding, bool) {
+	_, binding, ok := i.lookupKeyLocked(uid, sessionID, messageID, exactUID)
+	return binding, ok
+}
+
+func (i *AckIndex) lookupKeyLocked(uid string, sessionID, messageID uint64, exactUID bool) (ackKey, AckBinding, bool) {
+	if exactUID {
+		key := ackKey{uid: uid, sessionID: sessionID, messageID: messageID}
+		binding, ok := i.entries[key]
+		return key, binding, ok
+	}
+	keys := i.reverse[sessionID]
+	for key := range keys {
+		if key.messageID != messageID {
+			continue
+		}
+		binding, ok := i.entries[key]
+		return key, binding, ok
+	}
+	return ackKey{}, AckBinding{}, false
 }

@@ -129,7 +129,7 @@ func (a *Adapter) handleDeliveryPushItem(item DeliveryPushItem, ownerNodeID uint
 			}
 			if err := conn.Session.WriteFrame(f); err != nil {
 				if a.deliveryAckIndex != nil {
-					a.deliveryAckIndex.Remove(route.SessionID, item.MessageID)
+					a.deliveryAckIndex.RemoveRoute(route.UID, route.SessionID, item.MessageID)
 				}
 				resp.Retryable = append(resp.Retryable, route)
 				continue
