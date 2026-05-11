@@ -249,11 +249,15 @@ func validateChannelRuntimeMeta(meta ChannelRuntimeMeta) error {
 }
 
 func validateChannelRuntimeMetaWriteFence(meta ChannelRuntimeMeta) error {
-	if meta.WriteFenceVersion == 0 &&
-		(meta.WriteFenceToken != "" || meta.WriteFenceReason != 0 || meta.WriteFenceUntilMS != 0) {
+	if hasIncompleteChannelRuntimeMetaWriteFence(meta) {
 		return ErrInvalidArgument
 	}
 	return nil
+}
+
+func hasIncompleteChannelRuntimeMetaWriteFence(meta ChannelRuntimeMeta) bool {
+	return meta.WriteFenceVersion == 0 &&
+		(meta.WriteFenceToken != "" || meta.WriteFenceReason != 0 || meta.WriteFenceUntilMS != 0)
 }
 
 func validateChannelRetentionAdvance(req ChannelRetentionAdvance) error {
