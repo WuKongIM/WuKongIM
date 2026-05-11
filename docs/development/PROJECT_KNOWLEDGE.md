@@ -15,7 +15,9 @@
 - Channel status permissions currently include group `Ban`/`Disband` and sender person-channel `SendBan`.
 - `NoPersist` sends still pass validation and send permissions, then skip durable append/committed events and return success with zero message ID/seq.
 - `SyncOnce` 持久化发送写入原频道派生的 `____cmd`，但发送权限仍基于原始频道检查。
-- `NoPersist + SyncOnce` 本阶段仍成功返回，不写 durable channel log，也不做实时投递。
+- `/message/send` request-scoped `subscribers` 要求 `sync_once=1` 且 `channel_id` 为空；`channel_type` 被忽略，内部派生 temp `____cmd` channel。
+- Durable request-scoped subscriber sends write the derived temp cmd channel and carry exact `MessageScopedUIDs`; NoPersist request-scoped sends use a transient message ID and realtime delivery.
+- Message-scoped delivery tags are ephemeral: they must not replace reusable channel-level delivery tag refs, and their exact subscriber snapshot is not recoverable from durable log replay alone.
 
 ### Long-poll leader lease refresh
 - A channel leader metadata refresh that only renews `LeaseUntil` must preserve existing leader-side lane sessions and follower cursors.
