@@ -76,6 +76,55 @@ func TestAPIServerSendMessageWithRealMessageApp(t *testing.T) {
 	require.Equal(t, uint8(frame.ReasonSuccess), got.Reason)
 }
 
+func TestAPIServerSendMessageNoPersistHeaderSkipsClusterRequirement(t *testing.T) {
+	msgApp := message.New(message.Options{})
+	srv := New(Options{
+		ListenAddr: "127.0.0.1:0",
+		Messages:   msgApp,
+	})
+	require.NoError(t, srv.Start())
+	t.Cleanup(func() {
+		require.NoError(t, srv.Stop(context.Background()))
+	})
+
+	require.Eventually(t, func() bool {
+		resp, err := http.Get("http://" + srv.Addr() + "/healthz")
+		if err != nil {
+			return false
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, 2*time.Second, 20*time.Millisecond)
+
+	body := map[string]any{
+		"from_uid":     "u1",
+		"channel_id":   "u2",
+		"channel_type": float64(frame.ChannelTypePerson),
+		"payload":      base64.StdEncoding.EncodeToString([]byte("hi")),
+		"header": map[string]any{
+			"no_persist": float64(1),
+		},
+	}
+	payload, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	resp, err := http.Post("http://"+srv.Addr()+"/message/send", "application/json", bytes.NewReader(payload))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got struct {
+		MessageID  int64  `json:"message_id"`
+		MessageSeq uint64 `json:"message_seq"`
+		Reason     uint8  `json:"reason"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+	require.Zero(t, got.MessageID)
+	require.Zero(t, got.MessageSeq)
+	require.Equal(t, uint8(frame.ReasonSuccess), got.Reason)
+}
+
 type apiTestSession struct {
 	id       uint64
 	listener string
