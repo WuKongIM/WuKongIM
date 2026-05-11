@@ -8,6 +8,8 @@ import (
 
 var deliverySubmitRequestMagic = [...]byte{'W', 'K', 'D', 'C', 1}
 
+const maxDeliverySubmitMessageScopedUIDs = 10000
+
 // encodeDeliverySubmitRequestBinary encodes committed delivery envelopes without JSON reflection.
 func encodeDeliverySubmitRequestBinary(req deliverySubmitRequest) ([]byte, error) {
 	dst := make([]byte, 0, len(deliverySubmitRequestMagic)+128+len(req.Envelope.Payload))
@@ -38,6 +40,7 @@ func isDeliverySubmitRequestBinary(body []byte) bool {
 func appendCommittedEnvelope(dst []byte, envelope deliveryruntime.CommittedEnvelope) []byte {
 	dst = appendChannelMessage(dst, envelope.Message)
 	dst = appendUvarint(dst, envelope.SenderSessionID)
+	dst = appendStrings(dst, envelope.MessageScopedUIDs)
 	return dst
 }
 
@@ -50,5 +53,30 @@ func readCommittedEnvelope(body []byte, offset int) (deliveryruntime.CommittedEn
 	if envelope.SenderSessionID, offset, err = readUvarint(body, offset); err != nil {
 		return deliveryruntime.CommittedEnvelope{}, offset, err
 	}
+	if envelope.MessageScopedUIDs, offset, err = readDeliverySubmitMessageScopedUIDs(body, offset); err != nil {
+		return deliveryruntime.CommittedEnvelope{}, offset, err
+	}
 	return envelope, offset, nil
+}
+
+func readDeliverySubmitMessageScopedUIDs(body []byte, offset int) ([]string, int, error) {
+	count, next, err := readUvarint(body, offset)
+	if err != nil {
+		return nil, offset, err
+	}
+	if count > maxDeliverySubmitMessageScopedUIDs {
+		return nil, offset, fmt.Errorf("access/node: message scoped uids exceeds limit")
+	}
+	offset = next
+	valuesLen, err := readCollectionLen(count, len(body)-offset, "message scoped uids")
+	if err != nil {
+		return nil, offset, err
+	}
+	values := make([]string, valuesLen)
+	for i := range values {
+		if values[i], offset, err = readString(body, offset); err != nil {
+			return nil, offset, err
+		}
+	}
+	return values, offset, nil
 }

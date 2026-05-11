@@ -765,6 +765,31 @@ func TestDeliveryResolverMissingAuthoritativeEndpointsUseDebugLevel(t *testing.T
 	require.Equal(t, "offline-u2", requireCapturedFieldValue[string](t, entry, "missingUIDs"))
 }
 
+func TestLocalDeliveryResolverUsesMessageScopedSubscribers(t *testing.T) {
+	resolver := localDeliveryResolver{
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{}),
+		authority: &recordingAuthoritative{batches: map[string][]presence.Route{
+			"u1": {{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101}},
+			"u2": {{UID: "u2", NodeID: 2, BootID: 22, SessionID: 202}},
+		}},
+		pageSize: 8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   "tmp1____cmd",
+		ChannelType: frame.ChannelTypeTemp,
+	}, deliveryruntime.CommittedEnvelope{MessageScopedUIDs: []string{"u1", "u2"}})
+	require.NoError(t, err)
+
+	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Equal(t, []deliveryruntime.RouteKey{
+		{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101},
+		{UID: "u2", NodeID: 2, BootID: 22, SessionID: 202},
+	}, routes)
+}
+
 func TestDeliveryRoutingUsesTagPartition(t *testing.T) {
 	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{
 		LocalNodeID: 1,
@@ -1900,6 +1925,7 @@ func (r *recordingCommittedSubmitter) SubmitCommitted(_ context.Context, env del
 	r.submitCalls++
 	copied := env
 	copied.Payload = append([]byte(nil), env.Payload...)
+	copied.MessageScopedUIDs = append([]string(nil), env.MessageScopedUIDs...)
 	r.calls = append(r.calls, copied)
 	return nil
 }
@@ -1923,6 +1949,7 @@ func (r *recordingCommittedSubmitter) Calls() []deliveryruntime.CommittedEnvelop
 	for i, call := range r.calls {
 		copied := call
 		copied.Payload = append([]byte(nil), call.Payload...)
+		copied.MessageScopedUIDs = append([]string(nil), call.MessageScopedUIDs...)
 		out[i] = copied
 	}
 	return out
