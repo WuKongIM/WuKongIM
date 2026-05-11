@@ -43,9 +43,11 @@ func TestApplyMetaSerializesConcurrentWriteFenceUpdates(t *testing.T) {
 	meta := testMeta("room-fence-serialize")
 	require.NoError(t, rt.EnsureChannel(meta))
 	rep := rt.replicaForTest(t, meta.Key)
+	applyEntered := make(chan struct{})
+	releaseApply := make(chan struct{})
 	rep.blockApplyMetaFenceVersion = 1
-	rep.applyMetaEntered = make(chan struct{})
-	rep.releaseApplyMeta = make(chan struct{})
+	rep.applyMetaEntered = applyEntered
+	rep.releaseApplyMeta = releaseApply
 
 	older := meta
 	older.WriteFence = core.WriteFence{
@@ -66,7 +68,7 @@ func TestApplyMetaSerializesConcurrentWriteFenceUpdates(t *testing.T) {
 	go func() {
 		olderDone <- rt.ApplyMeta(older)
 	}()
-	<-rep.applyMetaEntered
+	<-applyEntered
 
 	newerDone := make(chan error, 1)
 	go func() {
@@ -80,7 +82,7 @@ func TestApplyMetaSerializesConcurrentWriteFenceUpdates(t *testing.T) {
 	case <-time.After(25 * time.Millisecond):
 	}
 
-	close(rep.releaseApplyMeta)
+	close(releaseApply)
 	require.NoError(t, <-olderDone)
 	if !newerFinished {
 		select {

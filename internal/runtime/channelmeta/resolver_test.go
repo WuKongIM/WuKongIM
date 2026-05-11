@@ -486,18 +486,20 @@ func TestApplyAuthoritativeMetaInvalidatesWriteFenceCacheBeforeRuntimeApply(t *t
 	syncer := NewSync(SyncOptions{Source: source, Runtime: runtime, LocalNode: 1, Now: func() time.Time { return now }})
 	_, err := syncer.RefreshChannelMeta(context.Background(), id)
 	require.NoError(t, err)
-	runtime.applyEntered = make(chan struct{})
-	runtime.releaseApply = make(chan struct{})
+	applyEntered := make(chan struct{})
+	releaseApply := make(chan struct{})
+	runtime.applyEntered = applyEntered
+	runtime.releaseApply = releaseApply
 
 	done := make(chan error, 1)
 	go func() {
 		_, err := syncer.ApplyAuthoritativeMeta(fenced)
 		done <- err
 	}()
-	<-runtime.applyEntered
+	<-applyEntered
 	_, ok := syncer.cache.LoadPositive(key, now)
 	require.False(t, ok, "write-fence change must invalidate cache before runtime apply can block")
-	close(runtime.releaseApply)
+	close(releaseApply)
 	require.NoError(t, <-done)
 }
 
