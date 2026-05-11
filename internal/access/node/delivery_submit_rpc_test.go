@@ -41,7 +41,8 @@ func TestSubmitCommittedMessageRPCRoutesToOwnerRuntime(t *testing.T) {
 			Payload:     []byte("hi"),
 			ClientSeq:   7,
 		},
-		SenderSessionID: 42,
+		SenderSessionID:   42,
+		MessageScopedUIDs: []string{"u1", "u2"},
 	})
 	require.NoError(t, err)
 	require.Equal(t, []deliveryruntime.CommittedEnvelope{{
@@ -55,7 +56,8 @@ func TestSubmitCommittedMessageRPCRoutesToOwnerRuntime(t *testing.T) {
 			Payload:     []byte("hi"),
 			ClientSeq:   7,
 		},
-		SenderSessionID: 42,
+		SenderSessionID:   42,
+		MessageScopedUIDs: []string{"u1", "u2"},
 	}}, recorder.calls)
 }
 
@@ -71,7 +73,8 @@ func TestDeliverySubmitBinaryCodecRoundTrip(t *testing.T) {
 			Payload:     []byte("hi"),
 			ClientSeq:   7,
 		},
-		SenderSessionID: 42,
+		SenderSessionID:   42,
+		MessageScopedUIDs: []string{"u1", "u2"},
 	}}
 
 	body, err := encodeDeliverySubmitRequestBinary(req)
@@ -81,6 +84,16 @@ func TestDeliverySubmitBinaryCodecRoundTrip(t *testing.T) {
 	got, err := decodeDeliverySubmitRequest(body)
 	require.NoError(t, err)
 	require.Equal(t, req, got)
+}
+
+func TestDeliverySubmitBinaryCodecRejectsTooManyMessageScopedUIDs(t *testing.T) {
+	body := append([]byte{}, deliverySubmitRequestMagic[:]...)
+	body = appendChannelMessage(body, channel.Message{})
+	body = appendUvarint(body, 0)
+	body = appendUvarint(body, uint64(maxDeliverySubmitMessageScopedUIDs+1))
+
+	_, err := decodeDeliverySubmitRequest(body)
+	require.ErrorContains(t, err, "message scoped uids exceeds limit")
 }
 
 func TestDeliverySubmitRPCRejectsJSONPayload(t *testing.T) {
@@ -99,6 +112,7 @@ type recordingDeliverySubmit struct {
 func (r *recordingDeliverySubmit) SubmitCommitted(_ context.Context, env deliveryruntime.CommittedEnvelope) error {
 	copied := env
 	copied.Payload = append([]byte(nil), env.Payload...)
+	copied.MessageScopedUIDs = append([]string(nil), env.MessageScopedUIDs...)
 	r.calls = append(r.calls, copied)
 	return nil
 }

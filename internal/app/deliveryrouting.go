@@ -431,8 +431,9 @@ func (c committedDispatchValueContext) Value(key any) any {
 
 func committedEnvelopeFromMessageEvent(event messageevents.MessageCommitted) deliveryruntime.CommittedEnvelope {
 	return deliveryruntime.CommittedEnvelope{
-		Message:         event.Message,
-		SenderSessionID: event.SenderSessionID,
+		Message:           event.Message,
+		SenderSessionID:   event.SenderSessionID,
+		MessageScopedUIDs: append([]string(nil), event.MessageScopedUIDs...),
 	}
 }
 
@@ -447,8 +448,9 @@ func (s deliveryRuntimeCommittedSubmitter) SubmitCommitted(ctx context.Context, 
 		return nil
 	}
 	return s.target.SubmitCommitted(ctx, messageevents.MessageCommitted{
-		Message:         env.Message,
-		SenderSessionID: env.SenderSessionID,
+		Message:           env.Message,
+		SenderSessionID:   env.SenderSessionID,
+		MessageScopedUIDs: append([]string(nil), env.MessageScopedUIDs...),
 	})
 }
 
@@ -707,15 +709,24 @@ type deliveryRoutingMetrics interface {
 	ObservePushRPC(targetNode, result string, dur time.Duration, routes int)
 }
 
-func (r localDeliveryResolver) BeginResolve(ctx context.Context, key deliveryruntime.ChannelKey, _ deliveryruntime.CommittedEnvelope) (any, error) {
+func beginSubscriberSnapshot(ctx context.Context, resolver deliveryusecase.SubscriberResolver, id channel.ChannelID, messageScopedUIDs []string) (deliveryusecase.SnapshotToken, error) {
+	if len(messageScopedUIDs) == 0 {
+		return resolver.BeginSnapshot(ctx, id)
+	}
+	return resolver.BeginSnapshotWithRequest(ctx, id, deliveryusecase.SubscriberSnapshotRequest{
+		MessageScopedUIDs: append([]string(nil), messageScopedUIDs...),
+	})
+}
+
+func (r localDeliveryResolver) BeginResolve(ctx context.Context, key deliveryruntime.ChannelKey, env deliveryruntime.CommittedEnvelope) (any, error) {
 	if r.subscribers == nil {
 		return nil, nil
 	}
 	startedAt := time.Now()
-	snapshot, err := r.subscribers.BeginSnapshot(ctx, channel.ChannelID{
+	snapshot, err := beginSubscriberSnapshot(ctx, r.subscribers, channel.ChannelID{
 		ID:   key.ChannelID,
 		Type: key.ChannelType,
-	})
+	}, env.MessageScopedUIDs)
 	if err != nil {
 		r.recordResolveMetric(deliveryChannelTypeLabel(key.ChannelType), "error", time.Since(startedAt), 0, 0)
 		return nil, err
@@ -901,7 +912,7 @@ func (r tagDeliveryResolver) BeginResolve(ctx context.Context, key deliveryrunti
 	}
 	startedAt := time.Now()
 	channelKey := deliveryTagChannelKey(key)
-	snapshot, err := r.subscribers.BeginSnapshot(ctx, channel.ChannelID{ID: key.ChannelID, Type: key.ChannelType})
+	snapshot, err := beginSubscriberSnapshot(ctx, r.subscribers, channel.ChannelID{ID: key.ChannelID, Type: key.ChannelType}, env.MessageScopedUIDs)
 	if err != nil {
 		r.recordResolveMetric(deliveryChannelTypeLabel(key.ChannelType), "error", time.Since(startedAt), 0, 0)
 		return nil, err

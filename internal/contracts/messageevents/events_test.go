@@ -25,3 +25,13 @@ func TestMessageCommittedCloneDeepCopiesPayload(t *testing.T) {
 	require.Equal(t, event.Message.MessageID, clone.Message.MessageID)
 	require.Equal(t, event.SenderSessionID, clone.SenderSessionID)
 }
+
+func TestMessageCommittedCloneDeepCopiesMessageScopedUIDs(t *testing.T) {
+	event := MessageCommitted{MessageScopedUIDs: []string{"u1", "u2"}}
+
+	clone := event.Clone()
+	clone.MessageScopedUIDs[0] = "changed"
+
+	require.Equal(t, []string{"u1", "u2"}, event.MessageScopedUIDs)
+	require.Equal(t, []string{"changed", "u2"}, clone.MessageScopedUIDs)
+}
