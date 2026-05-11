@@ -42,6 +42,10 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 		return SendResult{Reason: reason}, nil
 	}
 
+	if cmd.Framer.NoPersist {
+		return SendResult{Reason: frame.ReasonSuccess}, nil
+	}
+
 	if a.cluster == nil {
 		fields := append([]wklog.Field{
 			wklog.Event("message.send.cluster.required"),
