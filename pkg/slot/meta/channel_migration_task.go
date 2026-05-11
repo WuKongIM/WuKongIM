@@ -498,7 +498,7 @@ func validateChannelMigrationTask(task ChannelMigrationTask) error {
 	}
 	switch task.Kind {
 	case ChannelMigrationKindLeaderTransfer:
-		if task.SourceNode == 0 || task.TargetNode == 0 || task.DesiredLeader == 0 || task.SourceNode == task.TargetNode {
+		if task.SourceNode == 0 || task.TargetNode == 0 || task.DesiredLeader == 0 || task.SourceNode == task.TargetNode || task.DesiredLeader != task.TargetNode {
 			return ErrInvalidArgument
 		}
 	case ChannelMigrationKindReplicaReplace:
