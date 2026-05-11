@@ -65,8 +65,8 @@ access adapter
 
 P2b should keep this layering and add cmd semantics at explicit boundaries:
 
-1. Access adapters map protocol/API flags to `SendCommand.Framer` only.
-2. `message.App.Send` normalizes and checks permissions against the original channel.
+1. Access adapters map protocol/API flags to `SendCommand.Framer` and must not perform irreversible person-channel normalization before the usecase can strip a cmd suffix.
+2. `message.App.Send` strips an incoming cmd suffix first, then normalizes and checks permissions against the original source channel.
 3. `message.App.Send` derives the durable append channel only after permissions and after the `NoPersist` shortcut.
 4. Delivery subscriber resolution strips the cmd suffix and reads subscribers from the original channel.
 5. Realtime packet construction strips the cmd suffix before presenting channel IDs to clients.
@@ -133,15 +133,18 @@ HTTP remains an adapter. It must not perform cmd-channel derivation itself.
 
 ### Gateway
 
-Gateway send packets already carry `pkt.Framer`, including `SyncOnce`; no gateway business branch is needed. The gateway should continue to normalize person channel IDs before calling the usecase.
+Gateway send packets already carry `pkt.Framer`, including `SyncOnce`; no gateway business branch is needed. P2b should avoid rejecting an already-derived person cmd channel such as `u2@u1____cmd` before the usecase can strip `____cmd`.
+
+The preferred P2b direction is to let `message.App.Send` be the canonical send-channel normalizer and have gateway/API adapters pass the request channel ID through. If an adapter keeps any local validation for compatibility, that validation must be command-aware and must not lose whether the input was already derived.
 
 ### Message Usecase
 
-`message.App.Send` should keep two identities conceptually:
+`message.App.Send` should keep three identities conceptually:
 
 ```text
-permission/original channel = cmd.ChannelID after existing normalization
-append channel = original channel unless SyncOnce requires a cmd channel
+input channel = cmd.ChannelID as received from access
+source/original channel = input channel with optional cmd suffix stripped, then person-normalized
+append channel = source channel unless SyncOnce or derived input requires a cmd channel
 ```
 
 Proposed flow:
@@ -149,23 +152,31 @@ Proposed flow:
 ```text
 1. Reject empty sender.
 2. Reject unsupported channel type.
-3. Normalize person channel.
-4. Check send permissions on normalized original channel.
-5. If permission denied, return reason.
-6. If NoPersist, return success with zero message ID/seq.
-7. If SyncOnce and channel should derive, set durable append channel to ToCommandChannel(original).
-8. Require cluster and sendDurable using append channel.
+3. Strip an optional cmd suffix from `cmd.ChannelID`, recording `inputDerived`.
+4. Normalize the stripped source channel for person channels.
+5. Check send permissions on the normalized source channel.
+6. If permission denied, return reason.
+7. If NoPersist, return success with zero message ID/seq.
+8. If `SyncOnce` or `inputDerived` requires a cmd channel, set durable append channel to `ToCommandChannel(source)`.
+9. Require cluster and sendDurable using append channel.
 ```
 
-Cmd derivation condition in P2b:
+Cmd append condition in P2b:
 
 ```text
-cmd.Framer.SyncOnce == true
-AND channel type != ChannelTypeTemp
-AND channelID is not already a command channel
+(cmd.Framer.SyncOnce == true OR inputDerived == true)
+AND current send usecase supports the channel type
 ```
 
-The current project does not have a configured `systemcmdonline` channel. P2b therefore only avoids double-deriving already-derived command channels and temp channels.
+The current `message.App.Send` supports only person and group channels. P2b must not expand the supported send channel types. Mentions of temp or other store-backed channel types in this design describe delivery resolver compatibility and future phases, not new send-type support in P2b.
+
+For already-derived input, permissions still use the source channel:
+
+- `g1____cmd` checks metadata/subscribers for `g1`.
+- `u2@u1____cmd` strips to `u2@u1` before person normalization/permission checks, so sender `u1` is still valid.
+- The durable append target remains `ToCommandChannel(source)`, preventing double suffixes.
+
+The current project does not have a configured `systemcmdonline` channel. P2b therefore does not implement online-cmd special handling.
 
 Important ordering:
 
@@ -221,6 +232,8 @@ Expected behavior:
   - source: `<source>` with the same type
   - subscribers come from the normal resolver path for that type
 
+The other store-backed channel behavior is delivery-resolver compatibility only. P2b does not make `message.App.Send` accept those channel types.
+
 For group and store-backed channels, `pkg/slot/proxy.Store.ListChannelSubscribers` already finds the authoritative slot owner using `cluster.SlotForKey(sourceChannelID)`. Therefore P2b should not add a legacy-style `RequestSubscribers` RPC.
 
 Delivery tag cache fences should be based on the source channel mutation version where possible. Existing `SubscriberSource.SourceChannelID`, `SourceChannelType`, and `SourceSubscriberMutationVersion` are the right model for cmd channels.
@@ -260,6 +273,13 @@ P2b delivery presentation rule:
 packetChannelID = FromCommandChannel(msg.ChannelID) before person-channel view calculation
 ```
 
+This rule must apply in every realtime push path:
+
+- `buildRealtimeRecvPacket` must build packets from a client-facing view channel ID, not blindly from the durable `msg.ChannelID`.
+- `recipientChannelView` or its caller must strip the cmd suffix before decoding person channels.
+- `distributedDeliveryPush.deliveryPushItems` groups person routes by recipient view, so its grouping key must also use the stripped source channel.
+- Remote `DeliveryPushItem.ChannelID` must remain the durable cmd channel for ack ownership binding; only the encoded `RecvPacket.ChannelID` is presented as the original channel.
+
 Examples:
 
 - Stored message:
@@ -276,7 +296,11 @@ Person example:
 - Sender's other device `u1` receives:
   - `ChannelID="u2"`, `ChannelType=person`, `Header.SyncOnce=1`
 
-Implementation should keep the storage message unchanged and only adjust the packet-building view.
+Implementation should keep the storage/ack identity unchanged and only adjust the packet-building view:
+
+- Durable message and delivery actor key: `g1____cmd`.
+- Remote `DeliveryPushItem.ChannelID`: `g1____cmd`.
+- Encoded `RecvPacket.ChannelID`: `g1`.
 
 ## Conversation Projection
 
@@ -334,6 +358,8 @@ This is intentionally incomplete versus legacy online-only cmd delivery. That mi
 - `SyncOnce` durable send appends to `original____cmd` after permission checks.
 - Group permissions read the original channel and subscribers, not `original____cmd`.
 - Person channel is normalized before cmd derivation: `u2` from `u1` appends to `u2@u1____cmd`.
+- Already-derived group input `g1____cmd` checks permissions on `g1` and appends to `g1____cmd`.
+- Already-derived person input `u2@u1____cmd` strips before normalization/permission checks and appends to `u2@u1____cmd`.
 - Already-derived cmd channel is not double-suffixed.
 - `NoPersist + SyncOnce` still skips durable append and returns zero IDs/seq.
 - Durable non-SyncOnce sends remain unchanged.
@@ -354,6 +380,8 @@ This is intentionally incomplete versus legacy online-only cmd delivery. That mi
 
 - Realtime delivery strips cmd suffix from group recv packets.
 - Realtime delivery strips cmd suffix before person recipient view calculation.
+- Distributed person delivery groups remote routes by stripped recipient view, not by `u1____cmd`-style derived views.
+- Remote push keeps `DeliveryPushItem.ChannelID` as the durable cmd channel for ack ownership while the encoded `RecvPacket.ChannelID` shows the original channel view.
 - Committed dispatcher does not submit `SyncOnce` / cmd-channel messages to ordinary conversation projection.
 - Delivery still receives cmd-channel committed envelopes.
 
