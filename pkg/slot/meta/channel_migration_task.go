@@ -95,6 +95,44 @@ type ChannelMigrationTaskGuard struct {
 	ExpectedUpdatedAtMS int64
 }
 
+// ChannelMigrationRuntimeGuard fences a migration metadata mutation to one
+// observed ChannelRuntimeMeta state.
+type ChannelMigrationRuntimeGuard struct {
+	// ChannelID identifies the guarded channel runtime metadata.
+	ChannelID string
+	// ChannelType identifies the guarded channel namespace.
+	ChannelType int64
+	// ExpectedChannelEpoch is the channel epoch observed by the caller.
+	ExpectedChannelEpoch uint64
+	// ExpectedLeaderEpoch is the leader epoch observed by the caller.
+	ExpectedLeaderEpoch uint64
+	// ExpectedLeader is the current leader observed by the caller.
+	ExpectedLeader uint64
+	// ExpectedFenceToken is the write-fence token observed by the caller.
+	ExpectedFenceToken string
+	// ExpectedFenceVersion is the write-fence version observed by the caller.
+	ExpectedFenceVersion uint64
+}
+
+// ChannelMigrationCutoverProof stores the durable proof produced by a fenced
+// leader drain before a final catch-up or cutover command.
+type ChannelMigrationCutoverProof struct {
+	// CutoverLEO is the leader log end offset recorded at drain time.
+	CutoverLEO uint64
+	// CutoverHW is the high watermark recorded at drain time.
+	CutoverHW uint64
+	// DrainedLeaderNode is the leader node that produced this proof.
+	DrainedLeaderNode uint64
+	// DrainedRuntimeGeneration identifies the drained leader runtime instance.
+	DrainedRuntimeGeneration uint64
+	// DrainedChannelEpoch is the channel epoch included in the proof.
+	DrainedChannelEpoch uint64
+	// DrainedLeaderEpoch is the leader epoch included in the proof.
+	DrainedLeaderEpoch uint64
+	// DrainedFenceVersion is the write-fence version included in the proof.
+	DrainedFenceVersion uint64
+}
+
 // ChannelMigrationTaskClaim describes a compare-and-set owner claim or renewal.
 type ChannelMigrationTaskClaim struct {
 	// Guard is the expected current task state.
@@ -136,6 +174,138 @@ type ChannelMigrationTaskAdvance struct {
 	CompletedAtMS int64
 	// Progress stores executor observations after the advance.
 	Progress ChannelMigrationProgress
+	// CutoverProof optionally records a fenced drain proof for later cutover commands.
+	CutoverProof ChannelMigrationCutoverProof
+}
+
+// ChannelMigrationFenceRequest sets or renews a channel write fence and
+// advances the task in the same write batch.
+type ChannelMigrationFenceRequest struct {
+	// Guard is the expected current task state.
+	Guard ChannelMigrationTaskGuard
+	// RuntimeGuard is the expected current ChannelRuntimeMeta state.
+	RuntimeGuard ChannelMigrationRuntimeGuard
+	// Status is the task status after the fence is persisted.
+	Status ChannelMigrationStatus
+	// Phase is the task phase after the fence is persisted.
+	Phase ChannelMigrationPhase
+	// FenceReason explains why writes are fenced.
+	FenceReason uint8
+	// FenceUntilMS is the new fence lease deadline in milliseconds.
+	FenceUntilMS int64
+	// UpdatedAtMS is the task update timestamp.
+	UpdatedAtMS int64
+}
+
+// ChannelMigrationResetFenceRequest clears an expired matching fence and
+// returns the task to a pre-cutover phase.
+type ChannelMigrationResetFenceRequest struct {
+	// Guard is the expected current task state.
+	Guard ChannelMigrationTaskGuard
+	// RuntimeGuard is the expected current ChannelRuntimeMeta state.
+	RuntimeGuard ChannelMigrationRuntimeGuard
+	// Status is the task status after reset.
+	Status ChannelMigrationStatus
+	// Phase is the pre-cutover task phase after reset.
+	Phase ChannelMigrationPhase
+	// UpdatedAtMS is the task update timestamp.
+	UpdatedAtMS int64
+}
+
+// ChannelMigrationLeaderTransferRequest commits a fenced leader change and
+// advances the task atomically.
+type ChannelMigrationLeaderTransferRequest struct {
+	// Guard is the expected current task state.
+	Guard ChannelMigrationTaskGuard
+	// RuntimeGuard is the expected current ChannelRuntimeMeta state.
+	RuntimeGuard ChannelMigrationRuntimeGuard
+	// Status is the task status after the leader change.
+	Status ChannelMigrationStatus
+	// Phase is the task phase after the leader change.
+	Phase ChannelMigrationPhase
+	// DesiredLeader is the leader to persist.
+	DesiredLeader uint64
+	// NextLeaderEpoch is the leader epoch after transfer.
+	NextLeaderEpoch uint64
+	// LeaseUntilMS is the new leader lease deadline.
+	LeaseUntilMS int64
+	// NowMS is the wall-clock time used to reject expired fences.
+	NowMS int64
+	// UpdatedAtMS is the task update timestamp.
+	UpdatedAtMS int64
+}
+
+// ChannelMigrationAddLearnerRequest adds a learner replica and advances the task.
+type ChannelMigrationAddLearnerRequest struct {
+	// Guard is the expected current task state.
+	Guard ChannelMigrationTaskGuard
+	// RuntimeGuard is the expected current ChannelRuntimeMeta state.
+	RuntimeGuard ChannelMigrationRuntimeGuard
+	// Status is the task status after adding the learner.
+	Status ChannelMigrationStatus
+	// Phase is the task phase after adding the learner.
+	Phase ChannelMigrationPhase
+	// TargetNode is the learner replica to add to Replicas.
+	TargetNode uint64
+	// UpdatedAtMS is the task update timestamp.
+	UpdatedAtMS int64
+}
+
+// ChannelMigrationPromoteLearnerRequest promotes a caught-up learner and
+// removes the replaced source replica atomically with task advancement.
+type ChannelMigrationPromoteLearnerRequest struct {
+	// Guard is the expected current task state.
+	Guard ChannelMigrationTaskGuard
+	// RuntimeGuard is the expected current ChannelRuntimeMeta state.
+	RuntimeGuard ChannelMigrationRuntimeGuard
+	// Status is the task status after promotion.
+	Status ChannelMigrationStatus
+	// Phase is the task phase after promotion.
+	Phase ChannelMigrationPhase
+	// SourceNode is the ISR replica being removed.
+	SourceNode uint64
+	// TargetNode is the learner being promoted.
+	TargetNode uint64
+	// NowMS is the wall-clock time used to reject expired fences.
+	NowMS int64
+	// UpdatedAtMS is the task update timestamp.
+	UpdatedAtMS int64
+}
+
+// ChannelMigrationClearFenceRequest clears a matching write fence and advances
+// or completes the task atomically.
+type ChannelMigrationClearFenceRequest struct {
+	// Guard is the expected current task state.
+	Guard ChannelMigrationTaskGuard
+	// RuntimeGuard is the expected current ChannelRuntimeMeta state.
+	RuntimeGuard ChannelMigrationRuntimeGuard
+	// Status is the task status after clearing the fence.
+	Status ChannelMigrationStatus
+	// Phase is the task phase after clearing the fence.
+	Phase ChannelMigrationPhase
+	// UpdatedAtMS is the task update timestamp.
+	UpdatedAtMS int64
+	// CompletedAtMS is set when the clear command completes the task.
+	CompletedAtMS int64
+}
+
+// ChannelMigrationAbortRequest marks a task aborted and removes an unpromoted
+// learner/fence when those side effects are still present.
+type ChannelMigrationAbortRequest struct {
+	// Guard is the expected current task state.
+	Guard ChannelMigrationTaskGuard
+	// RuntimeGuard is the expected current ChannelRuntimeMeta state.
+	RuntimeGuard ChannelMigrationRuntimeGuard
+	// Status is the terminal abort status.
+	Status ChannelMigrationStatus
+	// Phase is the task phase recorded for the abort.
+	Phase ChannelMigrationPhase
+	// UpdatedAtMS is the task update timestamp.
+	UpdatedAtMS int64
+	// CompletedAtMS records when the abort became terminal.
+	CompletedAtMS int64
+	// LastError stores the operator or executor abort reason.
+	LastError string
 }
 
 // ChannelMigrationTask is the authoritative durable state for one channel
@@ -662,6 +832,9 @@ func validateChannelMigrationTaskAdvance(req ChannelMigrationTaskAdvance) error 
 	if req.UpdatedAtMS <= req.Guard.ExpectedUpdatedAtMS {
 		return ErrInvalidArgument
 	}
+	if req.CutoverProof.hasPartial() {
+		return ErrInvalidArgument
+	}
 	return nil
 }
 
@@ -772,6 +945,15 @@ func applyChannelMigrationTaskAdvance(existing ChannelMigrationTask, req Channel
 	next.UpdatedAtMS = req.UpdatedAtMS
 	next.CompletedAtMS = req.CompletedAtMS
 	next.Progress = req.Progress
+	if req.CutoverProof.hasAny() {
+		next.CutoverLEO = req.CutoverProof.CutoverLEO
+		next.CutoverHW = req.CutoverProof.CutoverHW
+		next.DrainedLeaderNode = req.CutoverProof.DrainedLeaderNode
+		next.DrainedRuntimeGeneration = req.CutoverProof.DrainedRuntimeGeneration
+		next.DrainedChannelEpoch = req.CutoverProof.DrainedChannelEpoch
+		next.DrainedLeaderEpoch = req.CutoverProof.DrainedLeaderEpoch
+		next.DrainedFenceVersion = req.CutoverProof.DrainedFenceVersion
+	}
 	return next
 }
 
@@ -1032,6 +1214,28 @@ func canBlockChannelMigrationAtPhase(phase ChannelMigrationPhase) bool {
 	default:
 		return false
 	}
+}
+
+func (proof ChannelMigrationCutoverProof) hasAny() bool {
+	return proof.CutoverLEO != 0 ||
+		proof.CutoverHW != 0 ||
+		proof.DrainedLeaderNode != 0 ||
+		proof.DrainedRuntimeGeneration != 0 ||
+		proof.DrainedChannelEpoch != 0 ||
+		proof.DrainedLeaderEpoch != 0 ||
+		proof.DrainedFenceVersion != 0
+}
+
+func (proof ChannelMigrationCutoverProof) hasPartial() bool {
+	if !proof.hasAny() {
+		return false
+	}
+	return proof.DrainedLeaderNode == 0 ||
+		proof.DrainedRuntimeGeneration == 0 ||
+		proof.DrainedChannelEpoch == 0 ||
+		proof.DrainedLeaderEpoch == 0 ||
+		proof.DrainedFenceVersion == 0 ||
+		proof.CutoverHW > proof.CutoverLEO
 }
 
 func encodeChannelMigrationTaskPrimaryKey(hashSlot uint16, channelID string, channelType int64, taskID string, familyID uint16) []byte {
