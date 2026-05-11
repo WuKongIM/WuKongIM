@@ -360,6 +360,50 @@ func TestChannelMigrationTaskValidationRejectsWorkflowInconsistentPhase(t *testi
 	}
 }
 
+func TestChannelMigrationTaskValidationRejectsInvalidTimestamps(t *testing.T) {
+	tests := []struct {
+		name string
+		task ChannelMigrationTask
+	}{
+		{
+			name: "updated_before_created",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-updated-before-created", "channel-invalid-updated-before-created")
+				task.UpdatedAtMS = task.CreatedAtMS - 1
+				return task
+			}(),
+		},
+		{
+			name: "completed_before_created",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-completed-before-created", "channel-invalid-completed-before-created")
+				task.Status = ChannelMigrationStatusCompleted
+				task.Phase = ChannelMigrationPhaseVerifyMembership
+				task.UpdatedAtMS = task.CreatedAtMS + 100
+				task.CompletedAtMS = task.CreatedAtMS - 1
+				return task
+			}(),
+		},
+		{
+			name: "completed_after_updated",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-completed-after-updated", "channel-invalid-completed-after-updated")
+				task.Status = ChannelMigrationStatusCompleted
+				task.Phase = ChannelMigrationPhaseVerifyMembership
+				task.UpdatedAtMS = task.CreatedAtMS + 100
+				task.CompletedAtMS = task.UpdatedAtMS + 1
+				return task
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.ErrorIs(t, validateChannelMigrationTask(tt.task), ErrInvalidArgument)
+		})
+	}
+}
+
 func TestChannelMigrationTaskValidationRejectsPartialFenceState(t *testing.T) {
 	tests := []struct {
 		name string
@@ -800,6 +844,58 @@ func TestWriteBatchAdvanceChannelMigrationTaskIsIdempotentForDuplicateCommand(t 
 	require.Equal(t, advanced.Status, got.Status)
 	require.Equal(t, advanced.Phase, got.Phase)
 	require.Equal(t, advanced.Attempt, got.Attempt)
+}
+
+func TestWriteBatchAdvanceChannelMigrationTaskRejectsNonMonotonicUpdatedAt(t *testing.T) {
+	db := openTestDB(t)
+	task := testChannelMigrationTask("task-advance-non-monotonic", "channel-advance-non-monotonic")
+
+	wb := db.NewWriteBatch()
+	defer wb.Close()
+	require.NoError(t, wb.CreateChannelMigrationTask(7, task))
+
+	advanced := task
+	advanced.Status = ChannelMigrationStatusRunning
+	advanced.Phase = ChannelMigrationPhaseWarmCatchUp
+	advanced.Attempt = 1
+
+	err := wb.AdvanceChannelMigrationTask(7, channelMigrationTaskAdvanceRequest(task, advanced))
+	require.ErrorIs(t, err, ErrInvalidArgument)
+}
+
+func TestChannelMigrationTaskAdvanceRejectsTerminalMutation(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+	task := testChannelMigrationTask("task-terminal-mutation", "channel-terminal-mutation")
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, task))
+
+	completed := task
+	completed.Status = ChannelMigrationStatusCompleted
+	completed.Phase = ChannelMigrationPhaseVerifyMembership
+	completed.CompletedAtMS = 1750000010000
+	completed.UpdatedAtMS = 1750000010000
+	require.NoError(t, shard.AdvanceChannelMigrationTask(ctx, channelMigrationTaskAdvanceRequest(task, completed)))
+
+	resurrected := completed
+	resurrected.Status = ChannelMigrationStatusRunning
+	resurrected.Phase = ChannelMigrationPhaseWarmCatchUp
+	resurrected.CompletedAtMS = 0
+	resurrected.UpdatedAtMS = 1750000011000
+	err := shard.AdvanceChannelMigrationTask(ctx, channelMigrationTaskAdvanceRequest(completed, resurrected))
+	require.ErrorIs(t, err, ErrStaleMeta)
+
+	retitledTerminal := completed
+	retitledTerminal.Status = ChannelMigrationStatusFailed
+	retitledTerminal.Phase = ChannelMigrationPhaseWarmCatchUp
+	retitledTerminal.LastError = "changed after terminal"
+	retitledTerminal.CompletedAtMS = 1750000011000
+	retitledTerminal.UpdatedAtMS = 1750000011000
+	err = shard.AdvanceChannelMigrationTask(ctx, channelMigrationTaskAdvanceRequest(completed, retitledTerminal))
+	require.ErrorIs(t, err, ErrStaleMeta)
+
+	got, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, completed, got)
 }
 
 func TestChannelMigrationTaskBlockedNeedsSnapshotBootstrap(t *testing.T) {

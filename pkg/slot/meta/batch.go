@@ -252,6 +252,9 @@ func (b *WriteBatch) ClaimChannelMigrationTask(hashSlot uint16, req ChannelMigra
 		return ErrNotFound
 	}
 	next := applyChannelMigrationTaskClaim(existing, req)
+	if existing.IsTerminal() && existing != next {
+		return ErrStaleMeta
+	}
 	if !req.Guard.matches(existing) {
 		if existing == next {
 			return nil
@@ -286,6 +289,9 @@ func (b *WriteBatch) AdvanceChannelMigrationTask(hashSlot uint16, req ChannelMig
 		return ErrNotFound
 	}
 	next := applyChannelMigrationTaskAdvance(existing, req)
+	if existing.IsTerminal() && existing != next {
+		return ErrStaleMeta
+	}
 	if !req.Guard.matches(existing) {
 		if existing == next {
 			return nil
