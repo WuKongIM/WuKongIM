@@ -496,6 +496,9 @@ func validateChannelMigrationTask(task ChannelMigrationTask) error {
 	if !isValidChannelMigrationKind(task.Kind) || !isValidChannelMigrationStatus(task.Status) || !isValidChannelMigrationPhase(task.Phase) {
 		return ErrInvalidArgument
 	}
+	if !isChannelMigrationPhaseAllowedForTask(task) {
+		return ErrInvalidArgument
+	}
 	switch task.Kind {
 	case ChannelMigrationKindLeaderTransfer:
 		if task.SourceNode == 0 || task.TargetNode == 0 || task.DesiredLeader == 0 || task.SourceNode == task.TargetNode || task.DesiredLeader != task.TargetNode {
@@ -525,10 +528,16 @@ func validateChannelMigrationTask(task ChannelMigrationTask) error {
 		if task.CompletedAtMS <= 0 {
 			return ErrInvalidArgument
 		}
+		if task.Status == ChannelMigrationStatusCompleted && !canCompleteChannelMigrationAtPhase(task.Phase) {
+			return ErrInvalidArgument
+		}
 	} else if task.CompletedAtMS != 0 {
 		return ErrInvalidArgument
 	}
 	if task.Status == ChannelMigrationStatusBlocked && task.BlockerCode == "" {
+		return ErrInvalidArgument
+	}
+	if task.Status == ChannelMigrationStatusBlocked && !canBlockChannelMigrationAtPhase(task.Phase) {
 		return ErrInvalidArgument
 	}
 	if task.BlockerCode == ChannelMigrationBlockerNeedsSnapshotBootstrap && task.Phase == 0 {
@@ -590,6 +599,76 @@ func isValidChannelMigrationPhase(phase ChannelMigrationPhase) bool {
 		ChannelMigrationPhasePromoteAndRemove,
 		ChannelMigrationPhaseVerifyMembership,
 		ChannelMigrationPhaseClearFence:
+		return true
+	default:
+		return false
+	}
+}
+
+func isChannelMigrationPhaseAllowedForTask(task ChannelMigrationTask) bool {
+	switch task.Kind {
+	case ChannelMigrationKindLeaderTransfer:
+		return isLeaderTransferPhase(task.Phase)
+	case ChannelMigrationKindReplicaReplace:
+		if isReplicaReplacePhase(task.Phase) {
+			return true
+		}
+		return task.EmbeddedLeaderTransfer && isLeaderTransferPhase(task.Phase)
+	default:
+		return false
+	}
+}
+
+func isLeaderTransferPhase(phase ChannelMigrationPhase) bool {
+	switch phase {
+	case ChannelMigrationPhaseValidate,
+		ChannelMigrationPhaseProbeTarget,
+		ChannelMigrationPhaseWriteFence,
+		ChannelMigrationPhaseDrainLeader,
+		ChannelMigrationPhaseFinalTargetCatchUp,
+		ChannelMigrationPhaseCommitLeaderMeta,
+		ChannelMigrationPhaseVerifyNewLeader,
+		ChannelMigrationPhaseClearFence:
+		return true
+	default:
+		return false
+	}
+}
+
+func isReplicaReplacePhase(phase ChannelMigrationPhase) bool {
+	switch phase {
+	case ChannelMigrationPhaseValidate,
+		ChannelMigrationPhaseAddLearner,
+		ChannelMigrationPhaseBootstrapTarget,
+		ChannelMigrationPhaseWarmCatchUp,
+		ChannelMigrationPhaseCutoverFence,
+		ChannelMigrationPhaseFinalTargetCatchUp,
+		ChannelMigrationPhasePromoteAndRemove,
+		ChannelMigrationPhaseVerifyMembership,
+		ChannelMigrationPhaseClearFence:
+		return true
+	default:
+		return false
+	}
+}
+
+func canCompleteChannelMigrationAtPhase(phase ChannelMigrationPhase) bool {
+	switch phase {
+	case ChannelMigrationPhaseValidate,
+		ChannelMigrationPhaseProbeTarget,
+		ChannelMigrationPhaseAddLearner,
+		ChannelMigrationPhaseBootstrapTarget:
+		return false
+	default:
+		return true
+	}
+}
+
+func canBlockChannelMigrationAtPhase(phase ChannelMigrationPhase) bool {
+	switch phase {
+	case ChannelMigrationPhaseBootstrapTarget,
+		ChannelMigrationPhaseWarmCatchUp,
+		ChannelMigrationPhaseFinalTargetCatchUp:
 		return true
 	default:
 		return false

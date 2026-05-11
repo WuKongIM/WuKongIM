@@ -15,6 +15,8 @@ type WriteBatch struct {
 	channels               map[string]channelBatchEntry
 	userConversationStates map[string]userConversationStateBatchEntry
 	channelRuntimeMetas    map[string]channelRuntimeMetaBatchEntry
+	channelMigrationTasks  map[string]channelMigrationTaskBatchEntry
+	channelMigrationActive map[string]channelMigrationTaskActiveBatchEntry
 }
 
 type channelBatchEntry struct {
@@ -31,6 +33,20 @@ type userConversationStateBatchEntry struct {
 // visible to later reads before the Pebble batch is committed.
 type channelRuntimeMetaBatchEntry struct {
 	meta   ChannelRuntimeMeta
+	exists bool
+}
+
+// channelMigrationTaskBatchEntry records same-batch migration task writes so
+// create/upsert validation sees staged primary rows before commit.
+type channelMigrationTaskBatchEntry struct {
+	task   ChannelMigrationTask
+	exists bool
+}
+
+// channelMigrationTaskActiveBatchEntry records same-batch active-index writes
+// so active uniqueness checks include staged creates and terminal transitions.
+type channelMigrationTaskActiveBatchEntry struct {
+	taskID string
 	exists bool
 }
 
@@ -177,6 +193,37 @@ func (b *WriteBatch) UpsertChannelRuntimeMeta(hashSlot uint16, meta ChannelRunti
 	}
 	b.rememberChannelRuntimeMeta(hashSlot, meta, true)
 	return nil
+}
+
+// CreateChannelMigrationTask stages a create-only migration task write.
+// The primary row, active index, and terminal index are committed atomically
+// with other writes already staged in this batch.
+func (b *WriteBatch) CreateChannelMigrationTask(hashSlot uint16, task ChannelMigrationTask) error {
+	if err := validateHashSlot(hashSlot); err != nil {
+		return err
+	}
+	if err := validateChannelMigrationTask(task); err != nil {
+		return err
+	}
+
+	primaryKey := encodeChannelMigrationTaskPrimaryKey(hashSlot, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationTaskPrimaryFamilyID)
+	_, exists, err := b.loadChannelMigrationTask(hashSlot, primaryKey, task.ChannelID, task.ChannelType, task.TaskID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrAlreadyExists
+	}
+	return b.upsertChannelMigrationTask(hashSlot, task)
+}
+
+// UpsertChannelMigrationTask stages a migration task write, replacing the
+// same task primary row and maintaining active/terminal indexes in this batch.
+func (b *WriteBatch) UpsertChannelMigrationTask(hashSlot uint16, task ChannelMigrationTask) error {
+	if err := validateHashSlot(hashSlot); err != nil {
+		return err
+	}
+	return b.upsertChannelMigrationTask(hashSlot, task)
 }
 
 // AdvanceChannelRetentionThroughSeq stages a fenced retention-only metadata update.
@@ -607,6 +654,141 @@ func channelBatchKey(hashSlot uint16, channelID string, channelType int64) strin
 
 func channelRuntimeMetaBatchKey(hashSlot uint16, channelID string, channelType int64) string {
 	return string(encodeChannelRuntimeMetaPrimaryKey(hashSlot, channelID, channelType, channelRuntimeMetaPrimaryFamilyID))
+}
+
+func (b *WriteBatch) upsertChannelMigrationTask(hashSlot uint16, task ChannelMigrationTask) error {
+	if err := validateChannelMigrationTask(task); err != nil {
+		return err
+	}
+
+	primaryKey := encodeChannelMigrationTaskPrimaryKey(hashSlot, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationTaskPrimaryFamilyID)
+	existing, exists, err := b.loadChannelMigrationTask(hashSlot, primaryKey, task.ChannelID, task.ChannelType, task.TaskID)
+	if err != nil {
+		return err
+	}
+
+	activeIndexKey := encodeChannelMigrationTaskActiveIndexKey(hashSlot, task.ChannelID, task.ChannelType)
+	if task.IsActive() {
+		if err := b.ensureChannelMigrationTaskActiveSlotAvailable(hashSlot, task); err != nil {
+			return err
+		}
+		if err := b.batch.Set(activeIndexKey, []byte(task.TaskID), nil); err != nil {
+			return err
+		}
+		b.rememberChannelMigrationActiveIndex(activeIndexKey, task.TaskID, true)
+	} else if exists && existing.IsActive() {
+		if err := b.batch.Delete(activeIndexKey, nil); err != nil {
+			return err
+		}
+		b.rememberChannelMigrationActiveIndex(activeIndexKey, "", false)
+	}
+
+	if exists && existing.IsTerminal() {
+		oldTerminalIndexKey := encodeChannelMigrationTaskTerminalIndexKey(hashSlot, existing.CompletedAtMS, existing.ChannelID, existing.ChannelType, existing.TaskID)
+		if !task.IsTerminal() || existing.CompletedAtMS != task.CompletedAtMS {
+			if err := b.batch.Delete(oldTerminalIndexKey, nil); err != nil {
+				return err
+			}
+		}
+	}
+	if task.IsTerminal() {
+		terminalIndexKey := encodeChannelMigrationTaskTerminalIndexKey(hashSlot, task.CompletedAtMS, task.ChannelID, task.ChannelType, task.TaskID)
+		if err := b.batch.Set(terminalIndexKey, nil, nil); err != nil {
+			return err
+		}
+	}
+
+	if err := b.batch.Set(primaryKey, encodeChannelMigrationTaskFamilyValue(task, primaryKey), nil); err != nil {
+		return err
+	}
+	b.rememberChannelMigrationTask(primaryKey, task, true)
+	return nil
+}
+
+func (b *WriteBatch) ensureChannelMigrationTaskActiveSlotAvailable(hashSlot uint16, task ChannelMigrationTask) error {
+	activeIndexKey := encodeChannelMigrationTaskActiveIndexKey(hashSlot, task.ChannelID, task.ChannelType)
+	existingTaskID, exists, err := b.loadChannelMigrationActiveIndex(activeIndexKey)
+	if err != nil || !exists {
+		return err
+	}
+	if existingTaskID == task.TaskID {
+		return nil
+	}
+
+	primaryKey := encodeChannelMigrationTaskPrimaryKey(hashSlot, task.ChannelID, task.ChannelType, existingTaskID, channelMigrationTaskPrimaryFamilyID)
+	existing, exists, err := b.loadChannelMigrationTask(hashSlot, primaryKey, task.ChannelID, task.ChannelType, existingTaskID)
+	if err != nil || !exists {
+		return err
+	}
+	if existing.IsActive() {
+		return ErrAlreadyExists
+	}
+	return nil
+}
+
+func (b *WriteBatch) loadChannelMigrationTask(hashSlot uint16, primaryKey []byte, channelID string, channelType int64, taskID string) (ChannelMigrationTask, bool, error) {
+	if b.channelMigrationTasks != nil {
+		if entry, ok := b.channelMigrationTasks[string(primaryKey)]; ok {
+			return entry.task, entry.exists, nil
+		}
+	}
+
+	value, err := b.db.getValue(primaryKey)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			b.rememberChannelMigrationTask(primaryKey, ChannelMigrationTask{}, false)
+			return ChannelMigrationTask{}, false, nil
+		}
+		return ChannelMigrationTask{}, false, err
+	}
+	task, err := decodeChannelMigrationTaskFamilyValue(primaryKey, value)
+	if err != nil {
+		return ChannelMigrationTask{}, false, err
+	}
+	task.ChannelID = channelID
+	task.ChannelType = channelType
+	task.TaskID = taskID
+	b.rememberChannelMigrationTask(primaryKey, task, true)
+	return task, true, nil
+}
+
+func (b *WriteBatch) rememberChannelMigrationTask(primaryKey []byte, task ChannelMigrationTask, exists bool) {
+	if b.channelMigrationTasks == nil {
+		b.channelMigrationTasks = make(map[string]channelMigrationTaskBatchEntry, 1)
+	}
+	b.channelMigrationTasks[string(primaryKey)] = channelMigrationTaskBatchEntry{
+		task:   task,
+		exists: exists,
+	}
+}
+
+func (b *WriteBatch) loadChannelMigrationActiveIndex(activeIndexKey []byte) (string, bool, error) {
+	if b.channelMigrationActive != nil {
+		if entry, ok := b.channelMigrationActive[string(activeIndexKey)]; ok {
+			return entry.taskID, entry.exists, nil
+		}
+	}
+
+	taskID, err := decodeChannelMigrationTaskIDIndexValue(b.db.getValue(activeIndexKey))
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			b.rememberChannelMigrationActiveIndex(activeIndexKey, "", false)
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	b.rememberChannelMigrationActiveIndex(activeIndexKey, taskID, true)
+	return taskID, true, nil
+}
+
+func (b *WriteBatch) rememberChannelMigrationActiveIndex(activeIndexKey []byte, taskID string, exists bool) {
+	if b.channelMigrationActive == nil {
+		b.channelMigrationActive = make(map[string]channelMigrationTaskActiveBatchEntry, 1)
+	}
+	b.channelMigrationActive[string(activeIndexKey)] = channelMigrationTaskActiveBatchEntry{
+		taskID: taskID,
+		exists: exists,
+	}
 }
 
 func (b *WriteBatch) enforceChannelRuntimeMetaMonotonicLocked() error {

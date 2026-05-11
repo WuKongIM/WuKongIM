@@ -56,6 +56,8 @@ func TestHashSlotAPIsUseUint16Signatures(t *testing.T) {
 		"UpsertChannel",
 		"DeleteChannel",
 		"UpsertChannelRuntimeMeta",
+		"CreateChannelMigrationTask",
+		"UpsertChannelMigrationTask",
 		"UpsertUserConversationState",
 		"TouchUserConversationActiveAt",
 		"ClearUserConversationActiveAt",
