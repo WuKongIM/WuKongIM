@@ -18,7 +18,7 @@
 
 ```go
 // proxy/store.go — 业务层唯一入口
-Store.CreateChannel / UpdateChannel / DeleteChannel
+Store.CreateChannel / UpdateChannel / UpsertChannel / DeleteChannel
 Store.AddChannelSubscribers / RemoveChannelSubscribers / ListChannelSubscribers
 Store.UpsertChannelRuntimeMeta / AdvanceChannelRetentionThroughSeq / GetChannelRuntimeMeta / ListChannelRuntimeMeta / ScanChannelRuntimeMetaSlotPage
 Store.CreateUser / UpsertUser / GetUser
@@ -45,7 +45,7 @@ Runtime.ChangeConfig / TransferLeadership / CompactLog / Status
 | `ConfigChange` | multiraft/types.go | 成员变更：AddVoter / RemoveVoter / AddLearner / PromoteLearner |
 | `Status` | multiraft/types.go | Runtime 观测：Leader、Peers、CurrentVoters、Term/Index 等；CurrentVoters 来自当前 Raft conf state |
 | `Storage` interface | multiraft/types.go | Raft 日志存储抽象：InitialState / Entries / Save / MarkApplied |
-| `User` / `Channel` / `Device` | meta/*.go | 业务数据模型 |
+| `User` / `Channel` / `Device` | meta/*.go | 业务数据模型；`Channel` 现在持久化 `Ban` / `Disband` / `SendBan` / `SubscriberMutationVersion` |
 | `ChannelRuntimeMeta` | meta/channel_runtime_meta.go | Leader/ISR/Epoch 与权威保留边界运行时元数据 |
 | `Raft Logger` | multiraft/logging.go | `wklog` 结构化日志，模块 `slot.raft`，附带 `raftScope=slot` / `nodeID` / `slotID` / `raftEvent`；heartbeat/read-index/probe 类噪声按 Debug 输出 |
 
@@ -58,7 +58,7 @@ Runtime.ChangeConfig / TransferLeadership / CompactLog / Status
 ```
   ① hashSlot := cluster.HashSlotForKey(channelID)       // CRC32(key) % HashSlotCount
   ② slotID := cluster.SlotForKey(channelID)             // hashSlot 查表定位物理 Slot
-  ③ cmd := fsm.EncodeUpsertChannelCommand(channel)      // TLV 编码
+  ③ cmd := fsm.EncodeUpsertChannelCommand(channel)      // TLV 编码，包含 channel status flags
   ④ cluster.ProposeWithHashSlot(ctx, slotID, hashSlot, cmd) // 提交带 hashSlot 信封的提案
      ↓
 multiraft/slot.go:
@@ -209,7 +209,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 | `identityRPCServiceID` | User / Device 查询 | proxy/identity_rpc.go |
 | `subscriberRPCServiceID` | 订阅者列表（分页/快照） | proxy/subscriber_rpc.go |
 | `userConversationStateRPCServiceID` | 会话状态查询、active_at 热提示提交/删除 | proxy/user_conversation_state_rpc.go |
-| `channelRPCServiceID` | Channel 权限元数据查询 | proxy/channel_rpc.go |
+| `channelRPCServiceID` | Channel 权限元数据查询（Ban / Disband / SendBan / SubscriberMutationVersion） | proxy/channel_rpc.go |
 
 **RPC 状态码** (authoritative_rpc.go): `ok` / `not_found` / `not_leader` / `no_leader` / `no_slot`
 
@@ -232,6 +232,6 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **Leader 变更自动失败 pending**: `slot.go:refreshStatus` 检测到从 Leader 降级时，立即 fail 所有 submitted/pending 的 proposal/config Future 返回 ErrNotLeader。
 - **Batch Apply 与 ConfChange 穿插**: `slot.go:applyCommittedEntries` 遇到 ConfChange 必须先 flush 累积的 Normal Entry 批次。不能把 ConfChange 塞进批次里。
 - **Slot log compaction 恢复边界**: 启动时只把持久化 snapshot index 作为 RawNode applied point，然后 replay snapshot 之后仍存在的 entries；不能用更靠后的 persisted applied index 跳过 replay。
-- **RPC Handler 注册**: `proxy.New` 在构造时调用 `cluster.RPCMux().Handle(...)` 注册 4 个 handler，漏任一个该类远端查询会全部失败。
+- **RPC Handler 注册**: `proxy.New` 在构造时调用 `cluster.RPCMux().Handle(...)` 注册 5 个 handler，漏任一个该类远端查询会全部失败。
 - **写入 Key 路由**: `HashSlotForKey(key)` 先算逻辑 hash slot，再通过 `SlotForKey(key)` 查表定位物理 Slot；**同一实体必须使用同一 Key**（User 用 uid，Channel 用 channelID，Device 用 uid 而非 deviceFlag）。用错 Key 会写到不同 hash slot / Slot，读不到。
 - **值 CRC 校验失败**: Pebble 存储值带 CRC32，校验失败返回 `ErrCorruptValue`。表明磁盘损坏或编解码器版本不兼容。

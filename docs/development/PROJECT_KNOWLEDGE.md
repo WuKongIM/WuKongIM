@@ -11,7 +11,8 @@
 - Legacy channel allowlist, denylist, and temporary-subscriber APIs are backed by namespaced slot subscriber lists until dedicated metadata tables exist.
 - Legacy system UID APIs are backed by the namespaced slot subscriber list `__wk_internal_system_uids__`.
 - Persisted system UID add/remove APIs must refresh node-local caches on peer nodes through node RPC.
-- Message send P0 permission checks live in `internal/usecase/message` before durable append; `pkg/channel` remains business-rule free.
+- Message send permission checks live in `internal/usecase/message` before durable append; `pkg/channel` remains business-rule free.
+- Channel status permissions currently include group `Ban`/`Disband` and sender person-channel `SendBan`.
 
 ### Long-poll leader lease refresh
 - A channel leader metadata refresh that only renews `LeaseUntil` must preserve existing leader-side lane sessions and follower cursors.
