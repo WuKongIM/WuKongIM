@@ -126,7 +126,7 @@ func runMixedStressWorkload(t *testing.T, db *DB, model *stressModel, cfg stress
 					default:
 					}
 					cancel()
-					break
+					return
 				}
 			}
 
@@ -332,7 +332,7 @@ func runChannelIndexStress(t *testing.T, db *DB, model *stressModel, cfg stressC
 					default:
 					}
 					cancel()
-					break
+					return
 				case 1:
 					channel := stressChannelRecord(channelID, channelType, worker, opIndex)
 					err := shard.UpdateChannel(ctx, channel)
@@ -352,7 +352,7 @@ func runChannelIndexStress(t *testing.T, db *DB, model *stressModel, cfg stressC
 					default:
 					}
 					cancel()
-					break
+					return
 				case 2:
 					err := shard.DeleteChannel(ctx, channelID, channelType)
 					if err == nil {
@@ -371,7 +371,7 @@ func runChannelIndexStress(t *testing.T, db *DB, model *stressModel, cfg stressC
 					default:
 					}
 					cancel()
-					break
+					return
 				case 3:
 					_, err := shard.GetChannel(ctx, channelID, channelType)
 					if err = normalizeStressErr(ctx, err); err == nil {
@@ -387,7 +387,7 @@ func runChannelIndexStress(t *testing.T, db *DB, model *stressModel, cfg stressC
 					default:
 					}
 					cancel()
-					break
+					return
 				default:
 					got, err := shard.ListChannelsByChannelID(ctx, channelID)
 					if err = normalizeStressErr(ctx, err); err == nil {
@@ -400,7 +400,7 @@ func runChannelIndexStress(t *testing.T, db *DB, model *stressModel, cfg stressC
 						default:
 						}
 						cancel()
-						break
+						return
 					}
 					want := model.listChannels(slot, channelID)
 					if !reflect.DeepEqual(got, want) {
@@ -409,7 +409,7 @@ func runChannelIndexStress(t *testing.T, db *DB, model *stressModel, cfg stressC
 						default:
 						}
 						cancel()
-						break
+						return
 					}
 					local.ChannelLists++
 				}

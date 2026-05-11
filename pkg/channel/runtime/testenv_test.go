@@ -125,8 +125,7 @@ func newTestRuntimeWithOptions(t *testing.T, options ...testRuntimeOption) *runt
 
 	impl, ok := rt.(*runtime)
 	require.True(t, ok)
-	impl.tombstones.beforeAdd = opts.beforeTombstoneAdd
-	impl.tombstones.onDrop = opts.tombstoneDropHook
+	impl.tombstones.setHooks(opts.beforeTombstoneAdd, opts.tombstoneDropHook)
 	t.Cleanup(func() {
 		impl.stopTombstoneCleanup()
 	})

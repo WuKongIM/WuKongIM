@@ -9,7 +9,7 @@ type StaticDiscovery struct {
 func NewStaticDiscovery(configs []NodeConfig) *StaticDiscovery {
 	nodes := make(map[uint64]NodeInfo, len(configs))
 	for _, c := range configs {
-		nodes[uint64(c.NodeID)] = NodeInfo{NodeID: c.NodeID, Addr: c.Addr}
+		nodes[uint64(c.NodeID)] = NodeInfo(c)
 	}
 	return &StaticDiscovery{nodes: nodes}
 }

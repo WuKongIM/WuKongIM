@@ -166,7 +166,14 @@ func (s *Server) registerRoutes() {
 
 func openCORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		allowOrigin := "*"
+		if c.Request != nil {
+			if origin := c.Request.Header.Get("Origin"); origin != "" {
+				allowOrigin = origin
+				c.Writer.Header().Add("Vary", "Origin")
+			}
+		}
+		c.Header("Access-Control-Allow-Origin", allowOrigin)
 		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept, Authorization, Token, X-Requested-With")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		c.Header("Access-Control-Expose-Headers", "Content-Length, Content-Type")

@@ -36,7 +36,7 @@ func TestClusterGetReconcileTaskFallsThroughSlowStaleLeaderToCurrentLeader(t *te
 		require.NoError(t, err)
 		require.Equal(t, controllerRPCGetTask, req.Kind)
 
-		time.Sleep(defaultControllerRequestTimeout + 250*time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 		return encodeControllerResponse(req.Kind, controllerRPCResponse{
 			NotLeader: true,
 			LeaderID:  2,
@@ -81,9 +81,18 @@ func TestClusterGetReconcileTaskFallsThroughSlowStaleLeaderToCurrentLeader(t *te
 	t.Cleanup(client.Stop)
 
 	cluster := &Cluster{
-		cfg: Config{NodeID: 3},
+		cfg: Config{
+			NodeID: 3,
+			Timeouts: Timeouts{
+				ControllerRequest:    20 * time.Millisecond,
+				ControllerLeaderWait: 80 * time.Millisecond,
+			},
+		},
 		transportResources: transportResources{
 			fwdClient: client,
+		},
+		controllerResources: controllerResources{
+			controllerLeaderWaitTimeout: 80 * time.Millisecond,
 		},
 	}
 	controllerClient := newControllerClient(cluster, []NodeConfig{
@@ -93,7 +102,7 @@ func TestClusterGetReconcileTaskFallsThroughSlowStaleLeaderToCurrentLeader(t *te
 	controllerClient.setLeader(1)
 	cluster.controllerClient = controllerClient
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultControllerLeaderWaitTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
 	defer cancel()
 
 	task, err := cluster.GetReconcileTask(ctx, 9)

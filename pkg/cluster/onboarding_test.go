@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -370,11 +369,4 @@ func clusterOnboardingJobIDs(jobs []controllermeta.NodeOnboardingJob) []string {
 		out = append(out, job.JobID)
 	}
 	return out
-}
-
-func requireErrorIs(t *testing.T, err error, target error) {
-	t.Helper()
-	if !errors.Is(err, target) {
-		require.ErrorIs(t, err, target)
-	}
 }

@@ -26,10 +26,21 @@ func newTombstoneManager() *tombstoneManager {
 	}
 }
 
+func (m *tombstoneManager) setHooks(beforeAdd, onDrop func()) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.beforeAdd = beforeAdd
+	m.onDrop = onDrop
+}
+
 func (m *tombstoneManager) add(key core.ChannelKey, generation uint64, expiresAt time.Time) {
-	if m.beforeAdd != nil {
-		m.beforeAdd()
+	m.mu.RLock()
+	beforeAdd := m.beforeAdd
+	m.mu.RUnlock()
+	if beforeAdd != nil {
+		beforeAdd()
 	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -54,9 +65,13 @@ func (m *tombstoneManager) contains(key core.ChannelKey, generation uint64) bool
 }
 
 func (m *tombstoneManager) dropExpired(now time.Time) {
-	if m.onDrop != nil {
-		m.onDrop()
+	m.mu.RLock()
+	onDrop := m.onDrop
+	m.mu.RUnlock()
+	if onDrop != nil {
+		onDrop()
 	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

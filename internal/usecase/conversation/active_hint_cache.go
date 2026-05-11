@@ -412,13 +412,7 @@ func keyFromBarrier(barrier metadb.UserConversationDeleteBarrier) activeHintKey 
 }
 
 func patchFromHint(hint metadb.UserConversationActiveHint) metadb.UserConversationActivePatch {
-	return metadb.UserConversationActivePatch{
-		UID:         hint.UID,
-		ChannelID:   hint.ChannelID,
-		ChannelType: hint.ChannelType,
-		ActiveAt:    hint.ActiveAt,
-		MessageSeq:  hint.MessageSeq,
-	}
+	return metadb.UserConversationActivePatch(hint)
 }
 
 func sortActiveHints(hints []metadb.UserConversationActiveHint) {

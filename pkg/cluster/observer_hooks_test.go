@@ -953,6 +953,8 @@ func newObserverTestCluster(t *testing.T, hooks ObserverHooks) *Cluster {
 			return observerTestStateMachine{}, nil
 		},
 		Timeouts: Timeouts{
+			ControllerRequest:     25 * time.Millisecond,
+			ControllerLeaderWait:  25 * time.Millisecond,
 			ManagedSlotLeaderWait: 200 * time.Millisecond,
 		},
 	})

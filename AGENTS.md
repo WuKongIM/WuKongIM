@@ -95,6 +95,8 @@ pkg/
     meta/                控制面元数据存储
     plane/               控制面 planner / reconcile 编排
     raft/                控制器单组 Raft 服务
+  observability/         可被 pkg 与 internal 复用的可观测性轻量合约
+    sendtrace/           消息发送链路 trace 事件与全局窄 sink
   protocol/              协议对象与编解码
     codec/               WuKong 二进制协议编解码
     frame/               WuKong frame/object 模型

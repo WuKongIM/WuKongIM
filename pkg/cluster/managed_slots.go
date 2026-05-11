@@ -241,28 +241,8 @@ func (c *Cluster) executeReconcileTask(ctx context.Context, assignment assignmen
 	return executor.Execute(ctx, assignment)
 }
 
-func (c *Cluster) changeSlotConfig(ctx context.Context, slotID multiraft.SlotID, change multiraft.ConfigChange) error {
-	return c.managedSlots().changeConfig(ctx, slotID, change)
-}
-
-func (c *Cluster) changeSlotConfigLocal(ctx context.Context, slotID multiraft.SlotID, change multiraft.ConfigChange) error {
-	return c.managedSlots().changeConfigLocal(ctx, slotID, change)
-}
-
-func (c *Cluster) changeSlotConfigRemote(ctx context.Context, leaderID multiraft.NodeID, slotID multiraft.SlotID, change multiraft.ConfigChange) error {
-	return c.managedSlots().changeConfigRemote(ctx, leaderID, slotID, change)
-}
-
 func (c *Cluster) transferSlotLeadership(ctx context.Context, slotID multiraft.SlotID, target multiraft.NodeID) error {
 	return c.managedSlots().transferLeadership(ctx, slotID, target)
-}
-
-func (c *Cluster) transferSlotLeaderLocal(ctx context.Context, slotID multiraft.SlotID, target multiraft.NodeID) error {
-	return c.managedSlots().transferLeaderLocal(ctx, slotID, target)
-}
-
-func (c *Cluster) transferSlotLeaderRemote(ctx context.Context, leaderID multiraft.NodeID, slotID multiraft.SlotID, target multiraft.NodeID) error {
-	return c.managedSlots().transferLeaderRemote(ctx, leaderID, slotID, target)
 }
 
 func (c *Cluster) waitForManagedSlotLeader(ctx context.Context, slotID multiraft.SlotID) error {
@@ -283,10 +263,6 @@ func (c *Cluster) ensureLeaderMovedOffSource(ctx context.Context, slotID multira
 
 func (c *Cluster) managedSlotStatusOnNode(ctx context.Context, nodeID multiraft.NodeID, slotID multiraft.SlotID) (managedSlotStatus, error) {
 	return c.managedSlots().statusOnNode(ctx, nodeID, slotID)
-}
-
-func (c *Cluster) localManagedSlotStatus(slotID multiraft.SlotID) (managedSlotStatus, error) {
-	return c.managedSlots().localStatus(slotID)
 }
 
 // SlotLogStatusOnNode returns one node's local Raft log watermark for a managed Slot.

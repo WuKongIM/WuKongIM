@@ -161,15 +161,7 @@ func inspectControllerLogEntryPayload(item *ControllerLogEntry, entry raftpb.Ent
 func controllerLogEntriesFromManaged(entries []managedSlotLogEntry) []ControllerLogEntry {
 	out := make([]ControllerLogEntry, 0, len(entries))
 	for _, entry := range entries {
-		out = append(out, ControllerLogEntry{
-			Index:        entry.Index,
-			Term:         entry.Term,
-			Type:         entry.Type,
-			DataSize:     entry.DataSize,
-			DecodeStatus: entry.DecodeStatus,
-			DecodedType:  entry.DecodedType,
-			Decoded:      entry.Decoded,
-		})
+		out = append(out, ControllerLogEntry(entry))
 	}
 	return out
 }
@@ -177,15 +169,7 @@ func controllerLogEntriesFromManaged(entries []managedSlotLogEntry) []Controller
 func managedSlotLogEntriesFromController(entries []ControllerLogEntry) []managedSlotLogEntry {
 	out := make([]managedSlotLogEntry, 0, len(entries))
 	for _, entry := range entries {
-		out = append(out, managedSlotLogEntry{
-			Index:        entry.Index,
-			Term:         entry.Term,
-			Type:         entry.Type,
-			DataSize:     entry.DataSize,
-			DecodeStatus: entry.DecodeStatus,
-			DecodedType:  entry.DecodedType,
-			Decoded:      entry.Decoded,
-		})
+		out = append(out, managedSlotLogEntry(entry))
 	}
 	return out
 }

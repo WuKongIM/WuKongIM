@@ -5598,30 +5598,6 @@ func TestGroupAgentShouldExecuteRepairTaskOnCurrentGroupLeaderWhenSourceUnavaila
 	}
 }
 
-type standaloneAgentTestCluster struct {
-	cluster *Cluster
-	raftDB  *raftstorage.DB
-	metaDB  *metadb.DB
-}
-
-func (c *standaloneAgentTestCluster) Close() {
-	if c == nil {
-		return
-	}
-	if c.cluster != nil {
-		c.cluster.Stop()
-		c.cluster = nil
-	}
-	if c.raftDB != nil {
-		_ = c.raftDB.Close()
-		c.raftDB = nil
-	}
-	if c.metaDB != nil {
-		_ = c.metaDB.Close()
-		c.metaDB = nil
-	}
-}
-
 func TestWaitForManagedSlotCatchUpRequiresTargetToReachLeaderCommit(t *testing.T) {
 	cluster := &Cluster{}
 	restoreLeader := cluster.setManagedSlotLeaderTestHook(func(_ *Cluster, slotID multiraft.SlotID) (multiraft.NodeID, error, bool) {
@@ -5657,7 +5633,13 @@ func TestWaitForManagedSlotCatchUpRequiresTargetToReachLeaderCommit(t *testing.T
 }
 
 func TestWaitForManagedSlotCatchUpAllowsSlowLearnerCatchUp(t *testing.T) {
-	cluster := &Cluster{}
+	cluster := &Cluster{
+		cfg: Config{
+			Timeouts: Timeouts{
+				ManagedSlotCatchUp: 80 * time.Millisecond,
+			},
+		},
+	}
 	restoreLeader := cluster.setManagedSlotLeaderTestHook(func(_ *Cluster, slotID multiraft.SlotID) (multiraft.NodeID, error, bool) {
 		if slotID != 1 {
 			return 0, nil, false
@@ -5666,7 +5648,7 @@ func TestWaitForManagedSlotCatchUpAllowsSlowLearnerCatchUp(t *testing.T) {
 	})
 	defer restoreLeader()
 
-	start := time.Now()
+	var targetChecks int
 	restore := cluster.setManagedSlotStatusTestHook(func(_ *Cluster, nodeID multiraft.NodeID, slotID multiraft.SlotID) (managedSlotStatus, error, bool) {
 		if slotID != 1 {
 			return managedSlotStatus{}, nil, false
@@ -5675,8 +5657,9 @@ func TestWaitForManagedSlotCatchUpAllowsSlowLearnerCatchUp(t *testing.T) {
 		case 1:
 			return managedSlotStatus{LeaderID: 1, CommitIndex: 9, AppliedIndex: 9}, nil, true
 		case 4:
+			targetChecks++
 			applied := uint64(3)
-			if time.Since(start) >= 2300*time.Millisecond {
+			if targetChecks >= 3 {
 				applied = 9
 			}
 			return managedSlotStatus{LeaderID: 1, CommitIndex: 9, AppliedIndex: applied}, nil, true
@@ -5686,7 +5669,7 @@ func TestWaitForManagedSlotCatchUpAllowsSlowLearnerCatchUp(t *testing.T) {
 	})
 	defer restore()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
 	if err := cluster.waitForManagedSlotCatchUp(ctx, 1, 4); err != nil {

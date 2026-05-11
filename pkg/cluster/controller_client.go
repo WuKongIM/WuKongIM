@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -539,10 +538,6 @@ func (c *controllerClient) clearLeader() {
 		return
 	}
 	c.leader.Store(0)
-}
-
-func isControllerRedirect(err error) bool {
-	return errors.Is(err, ErrNotLeader)
 }
 
 func (c *controllerClient) logRetry(req controllerRPCRequest, target multiraft.NodeID, err error, msg string) {

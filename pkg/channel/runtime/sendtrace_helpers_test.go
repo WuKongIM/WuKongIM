@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/stretchr/testify/require"
 )
 

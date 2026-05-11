@@ -161,6 +161,9 @@ func (s *Server) authenticateRequest(authorization string) (string, error) {
 	if claims.Username == "" {
 		return "", fmt.Errorf("username claim required")
 	}
+	if _, ok := s.auth.users[claims.Username]; !ok {
+		return "", fmt.Errorf("unknown user")
+	}
 	return claims.Username, nil
 }
 

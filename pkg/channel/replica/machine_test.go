@@ -1,7 +1,6 @@
 package replica
 
 import (
-	"errors"
 	"testing"
 	"time"
 
@@ -753,10 +752,4 @@ func requireEffectTypes(t *testing.T, effects []machineEffect, want ...machineEf
 	for i := range want {
 		require.IsType(t, want[i], effects[i])
 	}
-}
-
-func requireCompletionError(t *testing.T, completions []machineCompletion, want error) {
-	t.Helper()
-	require.Len(t, completions, 1)
-	require.True(t, errors.Is(completions[0].Err, want))
 }

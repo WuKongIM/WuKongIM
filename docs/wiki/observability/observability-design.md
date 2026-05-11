@@ -11,7 +11,7 @@
 
 1. **日志**：基于 Zap 的结构化日志已就位（`pkg/wklog/` + `internal/log/zap.go`），支持 JSON/console 格式、日志分级、日志轮转。最近已设计标准化日志规则（module → event → object fields → outcome）。
 2. **指标**：`pkg/metrics` 已提供 Prometheus Registry、Counter、Histogram、Gauge，API Server 可注册 `/metrics` 端点。
-3. **节点内诊断**：`internal/observability/diagnostics` 通过 `sendtrace` 接收有界事件，支持按 `trace_id`、`client_msg_no` 或 `channel_key + message_seq` 查询节点内消息链路。
+3. **节点内诊断**：`internal/observability/diagnostics` 通过 `pkg/observability/sendtrace` 接收有界事件，支持按 `trace_id`、`client_msg_no` 或 `channel_key + message_seq` 查询节点内消息链路。
 4. **分布式追踪**：OpenTelemetry 导出与跨节点 Trace/Span 上下文传播仍是后续阶段；Phase 1 不修改 transport frame / RPC metadata。
 5. **健康检查**：`GET /healthz` 已存在，`/healthz/details` 与 `/readyz` 可由组合根注入。
 

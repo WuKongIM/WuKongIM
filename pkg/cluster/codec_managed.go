@@ -12,7 +12,7 @@ import (
 
 const (
 	managedSlotCodecVersion      byte = 1
-	managedSlotRequestHeaderSize      = 23
+	managedSlotRequestHeaderSize int  = 23
 
 	managedSlotFlagNotLeader byte = 1 << iota
 	managedSlotFlagNotFound

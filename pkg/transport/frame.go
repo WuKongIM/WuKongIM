@@ -22,7 +22,8 @@ func newSlabPool(sizes []int) *slabPool {
 		size := size
 		sp.pools[i] = sync.Pool{
 			New: func() any {
-				return make([]byte, size)
+				buf := make([]byte, size)
+				return &buf
 			},
 		}
 	}
@@ -32,9 +33,11 @@ func newSlabPool(sizes []int) *slabPool {
 func (sp *slabPool) get(n int) ([]byte, func()) {
 	for i, size := range sp.sizes {
 		if n <= size {
-			buf := sp.pools[i].Get().([]byte)
+			bufPtr := sp.pools[i].Get().(*[]byte)
+			buf := *bufPtr
 			return buf[:size], func() {
-				sp.pools[i].Put(buf[:size])
+				*bufPtr = buf[:size]
+				sp.pools[i].Put(bufPtr)
 			}
 		}
 	}

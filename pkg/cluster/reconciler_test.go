@@ -680,6 +680,8 @@ func newReconcilerLeaderTransferCluster(t *testing.T, nodeID uint64) *Cluster {
 			return observerTestStateMachine{}, nil
 		},
 		Timeouts: Timeouts{
+			ControllerRequest:     25 * time.Millisecond,
+			ControllerLeaderWait:  25 * time.Millisecond,
 			ManagedSlotLeaderWait: 200 * time.Millisecond,
 		},
 	})

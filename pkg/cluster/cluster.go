@@ -237,57 +237,6 @@ func (c *Cluster) startTransportLayer() error {
 	return nil
 }
 
-func (c *Cluster) startServer() error {
-	c.server = transport.NewServerWithConfig(transport.ServerConfig{
-		ConnConfig: transport.ConnConfig{
-			Observer: c.cfg.TransportObserver,
-		},
-		Logger: c.transportLogger(),
-	})
-	c.server.Handle(msgTypeRaft, c.handleRaftMessage)
-	c.server.Handle(msgTypeRaftBatch, c.handleRaftBatchMessage)
-	c.server.Handle(msgTypeRaftSnapshotChunk, c.handleRaftSnapshotChunkMessage)
-	c.server.Handle(msgTypeObservationHint, c.handleObservationHintMessage)
-	c.rpcMux.Handle(rpcServiceForward, c.handleForwardRPC)
-	c.rpcMux.Handle(rpcServiceController, c.handleControllerRPC)
-	c.rpcMux.Handle(rpcServiceManagedSlot, c.handleManagedSlotRPC)
-	c.server.HandleRPCMux(c.rpcMux)
-	if err := c.server.Start(c.cfg.ListenAddr); err != nil {
-		return fmt.Errorf("start server: %w", err)
-	}
-	return nil
-}
-
-func (c *Cluster) startPools() {
-	c.raftPool = transport.NewPool(transport.PoolConfig{
-		Discovery:   c.discovery,
-		Size:        c.cfg.PoolSize,
-		DialTimeout: c.cfg.DialTimeout,
-		QueueSizes:  [3]int{2048, 0, 0},
-		DefaultPri:  transport.PriorityRaft,
-		Observer:    c.cfg.TransportObserver,
-	})
-	c.rpcPool = transport.NewPool(transport.PoolConfig{
-		Discovery:   c.discovery,
-		Size:        c.cfg.PoolSize,
-		DialTimeout: c.cfg.DialTimeout,
-		QueueSizes:  [3]int{0, 1024, 256},
-		DefaultPri:  transport.PriorityRPC,
-		Observer:    c.cfg.TransportObserver,
-	})
-	c.controllerPool = transport.NewPool(transport.PoolConfig{
-		Discovery:   c.discovery,
-		Size:        c.cfg.PoolSize,
-		DialTimeout: c.cfg.DialTimeout,
-		QueueSizes:  [3]int{0, 256, 0},
-		DefaultPri:  transport.PriorityRPC,
-		Observer:    c.cfg.TransportObserver,
-	})
-	c.raftClient = transport.NewClient(c.raftPool)
-	c.fwdClient = transport.NewClient(c.rpcPool)
-	c.controllerRPCClient = transport.NewClient(c.controllerPool)
-}
-
 func (c *Cluster) startControllerRaftIfLocalPeer() error {
 	if !c.cfg.ControllerEnabled() {
 		return nil

@@ -24,10 +24,4 @@ const (
 
 	// HeaderSize is [msgType:1][bodyLen:4].
 	HeaderSize = 5
-
-	// maxPooledBufCap prevents the buffer pool from retaining huge slices.
-	maxPooledBufCap = 64 * 1024
-
-	// msgHeaderSize is [msgType:1][bodyLen:4].
-	msgHeaderSize = HeaderSize
 )

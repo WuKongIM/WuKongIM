@@ -326,7 +326,8 @@ func TestCORSHeadersAddedToNormalResponses(t *testing.T) {
 	srv.Engine().ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+	require.Equal(t, "http://localhost:5175", rec.Header().Get("Access-Control-Allow-Origin"))
+	require.Contains(t, rec.Header().Values("Vary"), "Origin")
 	require.Contains(t, rec.Header().Get("Access-Control-Allow-Methods"), http.MethodGet)
 }
 
@@ -342,7 +343,8 @@ func TestCORSPreflightHandlesUserTokenRoute(t *testing.T) {
 	srv.Engine().ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusNoContent, rec.Code)
-	require.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+	require.Equal(t, "http://localhost:5175", rec.Header().Get("Access-Control-Allow-Origin"))
+	require.Contains(t, rec.Header().Values("Vary"), "Origin")
 	require.Contains(t, rec.Header().Get("Access-Control-Allow-Methods"), http.MethodPost)
 	require.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), "Content-Type")
 	require.Contains(t, rec.Header().Get("Access-Control-Allow-Headers"), "Authorization")

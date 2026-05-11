@@ -271,10 +271,6 @@ func (a *App) managerChannelRuntimeMetaItems(ctx context.Context, slotID multira
 	return out, nil
 }
 
-func managerChannelRuntimeMeta(slotID multiraft.SlotID, meta metadb.ChannelRuntimeMeta) ChannelRuntimeMeta {
-	return managerChannelRuntimeMetaWithMaxSeq(slotID, meta, 0)
-}
-
 func managerChannelRuntimeMetaWithMaxSeq(slotID multiraft.SlotID, meta metadb.ChannelRuntimeMeta, maxMessageSeq uint64) ChannelRuntimeMeta {
 	return ChannelRuntimeMeta{
 		ChannelID:     meta.ChannelID,

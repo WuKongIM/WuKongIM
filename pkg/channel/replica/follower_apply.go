@@ -3,8 +3,8 @@ package replica
 import (
 	"context"
 
-	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 func (r *replica) ApplyFetch(ctx context.Context, req channel.ReplicaApplyFetchRequest) error {
