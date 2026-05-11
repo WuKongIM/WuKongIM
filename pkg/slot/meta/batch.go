@@ -20,6 +20,7 @@ type WriteBatch struct {
 	channelMigrationActive  map[string]channelMigrationTaskActiveBatchEntry
 	channelMigrationCreates map[string]struct{}
 	channelMigrationGuards  map[string]channelMigrationTaskGuardBatchEntry
+	channelMigrationRuntime map[string]channelMigrationRuntimeGuardBatchEntry
 }
 
 type channelBatchEntry struct {
@@ -60,6 +61,13 @@ type channelMigrationTaskActiveBatchEntry struct {
 type channelMigrationTaskGuardBatchEntry struct {
 	guard   ChannelMigrationTaskGuard
 	desired ChannelMigrationTask
+}
+
+// channelMigrationRuntimeGuardBatchEntry records runtime metadata expected by
+// a migration command and the idempotent target state it stages.
+type channelMigrationRuntimeGuardBatchEntry struct {
+	guard   ChannelMigrationRuntimeGuard
+	desired ChannelRuntimeMeta
 }
 
 // NewWriteBatch creates a new WriteBatch. The caller must call Close
@@ -637,6 +645,9 @@ func (b *WriteBatch) Commit() error {
 	if err := b.enforceChannelMigrationGuardedWritesLocked(); err != nil {
 		return err
 	}
+	if err := b.enforceChannelMigrationRuntimeGuardsLocked(); err != nil {
+		return err
+	}
 	if err := b.enforceChannelMigrationActiveUniqueLocked(); err != nil {
 		return err
 	}
@@ -895,6 +906,16 @@ func (b *WriteBatch) rememberChannelMigrationTaskGuard(primaryKey []byte, guard 
 	}
 }
 
+func (b *WriteBatch) rememberChannelMigrationRuntimeGuard(primaryKey []byte, guard ChannelMigrationRuntimeGuard, desired ChannelRuntimeMeta) {
+	if b.channelMigrationRuntime == nil {
+		b.channelMigrationRuntime = make(map[string]channelMigrationRuntimeGuardBatchEntry, 1)
+	}
+	b.channelMigrationRuntime[string(primaryKey)] = channelMigrationRuntimeGuardBatchEntry{
+		guard:   guard,
+		desired: normalizeChannelRuntimeMeta(desired),
+	}
+}
+
 func (b *WriteBatch) rememberChannelMigrationTaskCreate(primaryKey []byte) {
 	if b.channelMigrationCreates == nil {
 		b.channelMigrationCreates = make(map[string]struct{}, 1)
@@ -977,6 +998,29 @@ func (b *WriteBatch) enforceChannelMigrationGuardedWritesLocked() error {
 			return ErrStaleMeta
 		}
 		if entry.guard.matches(current) || current == entry.desired {
+			continue
+		}
+		return ErrStaleMeta
+	}
+	return nil
+}
+
+// enforceChannelMigrationRuntimeGuardsLocked rechecks runtime metadata guards
+// for migration commands after db.mu is held.
+func (b *WriteBatch) enforceChannelMigrationRuntimeGuardsLocked() error {
+	if len(b.channelMigrationRuntime) == 0 {
+		return nil
+	}
+	for primaryKeyString, entry := range b.channelMigrationRuntime {
+		primaryKey := []byte(primaryKeyString)
+		current, exists, err := b.loadChannelRuntimeMetaFromDBLocked(primaryKey, entry.guard.ChannelID, entry.guard.ChannelType)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return ErrStaleMeta
+		}
+		if entry.guard.matches(current) || channelRuntimeMetaEqual(current, entry.desired) {
 			continue
 		}
 		return ErrStaleMeta

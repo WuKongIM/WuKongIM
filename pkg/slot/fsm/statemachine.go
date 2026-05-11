@@ -287,6 +287,16 @@ func isStaleMetaResult(cmd command, err error) bool {
 		// Missing runtime metadata means the proposal was based on an observation
 		// that is no longer current, so it is reported as the same stale no-op.
 		return errors.Is(err, metadb.ErrStaleMeta) || errors.Is(err, metadb.ErrNotFound)
+	case *claimChannelMigrationTaskCmd,
+		*advanceChannelMigrationTaskCmd,
+		*setChannelWriteFenceCmd,
+		*resetChannelWriteFenceToPreCutoverCmd,
+		*commitChannelLeaderTransferCmd,
+		*addChannelLearnerCmd,
+		*promoteLearnerAndRemoveReplicaCmd,
+		*clearChannelWriteFenceCmd,
+		*abortChannelMigrationCmd:
+		return errors.Is(err, metadb.ErrStaleMeta) || errors.Is(err, metadb.ErrNotFound)
 	case *addSubscribersCmd, *removeSubscribersCmd:
 		return errors.Is(err, metadb.ErrStaleMeta)
 	default:

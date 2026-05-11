@@ -75,6 +75,10 @@ const (
 	tagRuntimeMetaLeaseUntilMS         uint8 = 11
 	tagRuntimeMetaRetentionThroughSeq  uint8 = 12
 	tagRuntimeMetaRetentionUpdatedAtMS uint8 = 13
+	tagRuntimeMetaWriteFenceToken      uint8 = 14
+	tagRuntimeMetaWriteFenceVersion    uint8 = 15
+	tagRuntimeMetaWriteFenceReason     uint8 = 16
+	tagRuntimeMetaWriteFenceUntilMS    uint8 = 17
 
 	// Channel retention advance field tags.
 	tagRetentionAdvanceChannelID            uint8 = 1
@@ -175,6 +179,16 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeEnterFence:                           decodeEnterFence,
 	cmdTypeAckMigrationOutbox:                   decodeAckMigrationOutbox,
 	cmdTypeCleanupMigrationOutbox:               decodeCleanupMigrationOutbox,
+	cmdTypeCreateChannelMigrationTask:           decodeCreateChannelMigrationTask,
+	cmdTypeClaimChannelMigrationTask:            decodeClaimChannelMigrationTask,
+	cmdTypeAdvanceChannelMigrationTask:          decodeAdvanceChannelMigrationTask,
+	cmdTypeSetChannelWriteFence:                 decodeSetChannelWriteFence,
+	cmdTypeResetChannelWriteFence:               decodeResetChannelWriteFence,
+	cmdTypeCommitChannelLeaderTransfer:          decodeCommitChannelLeaderTransfer,
+	cmdTypeAddChannelLearner:                    decodeAddChannelLearner,
+	cmdTypePromoteLearnerAndRemoveReplica:       decodePromoteLearnerAndRemoveReplica,
+	cmdTypeClearChannelWriteFence:               decodeClearChannelWriteFence,
+	cmdTypeAbortChannelMigration:                decodeAbortChannelMigration,
 }
 
 // --- UpsertUser ---
@@ -467,6 +481,12 @@ func EncodeUpsertChannelRuntimeMetaCommand(meta metadb.ChannelRuntimeMeta) []byt
 	buf = appendInt64TLVField(buf, tagRuntimeMetaLeaseUntilMS, meta.LeaseUntilMS)
 	buf = appendUint64TLVField(buf, tagRuntimeMetaRetentionThroughSeq, meta.RetentionThroughSeq)
 	buf = appendInt64TLVField(buf, tagRuntimeMetaRetentionUpdatedAtMS, meta.RetentionUpdatedAtMS)
+	if meta.WriteFenceToken != "" {
+		buf = appendStringTLVField(buf, tagRuntimeMetaWriteFenceToken, meta.WriteFenceToken)
+	}
+	buf = appendUint64TLVField(buf, tagRuntimeMetaWriteFenceVersion, meta.WriteFenceVersion)
+	buf = appendUint64TLVField(buf, tagRuntimeMetaWriteFenceReason, uint64(meta.WriteFenceReason))
+	buf = appendInt64TLVField(buf, tagRuntimeMetaWriteFenceUntilMS, meta.WriteFenceUntilMS)
 	return buf
 }
 
@@ -1205,6 +1225,27 @@ func decodeUpsertChannelRuntimeMeta(data []byte) (command, error) {
 				return nil, fmt.Errorf("%w: bad runtime RetentionUpdatedAtMS length", metadb.ErrCorruptValue)
 			}
 			meta.RetentionUpdatedAtMS = int64(binary.BigEndian.Uint64(value))
+		case tagRuntimeMetaWriteFenceToken:
+			meta.WriteFenceToken = string(value)
+		case tagRuntimeMetaWriteFenceVersion:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad runtime WriteFenceVersion length", metadb.ErrCorruptValue)
+			}
+			meta.WriteFenceVersion = binary.BigEndian.Uint64(value)
+		case tagRuntimeMetaWriteFenceReason:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad runtime WriteFenceReason length", metadb.ErrCorruptValue)
+			}
+			raw := binary.BigEndian.Uint64(value)
+			if raw > uint64(^uint8(0)) {
+				return nil, fmt.Errorf("%w: bad runtime WriteFenceReason value %d", metadb.ErrCorruptValue, raw)
+			}
+			meta.WriteFenceReason = uint8(raw)
+		case tagRuntimeMetaWriteFenceUntilMS:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad runtime WriteFenceUntilMS length", metadb.ErrCorruptValue)
+			}
+			meta.WriteFenceUntilMS = int64(binary.BigEndian.Uint64(value))
 		default:
 			// Unknown tag — skip for forward compatibility.
 		}

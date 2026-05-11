@@ -28,8 +28,9 @@ Store.TouchUserConversationActiveAt / ClearUserConversationActiveAt / HideUserCo
 Store.RegisterUserConversationActiveOverlay(overlay)  // 注册 UID-owner active_at 热提示覆盖层
 Store.SubmitUserConversationActiveHints / RemoveUserConversationActiveHints
 
-// meta/channel_migration_task.go — 当前 Task 2 仅提供本地 ShardStore helper
+// meta/channel_migration_task.go — 当前 Task 2/3 提供本地 ShardStore / WriteBatch helper
 ShardStore.CreateChannelMigrationTask / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / GetChannelMigrationTask / GetActiveChannelMigrationTask / ListChannelMigrationTasks / DeleteTerminalChannelMigrationTasksBefore
+WriteBatch.SetChannelWriteFence / ResetChannelWriteFenceToPreCutover / CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration
 
 // multiraft/api.go — Raft Runtime 底层 API
 Runtime.OpenSlot / BootstrapSlot / CloseSlot
@@ -189,7 +190,7 @@ Meta  (0x12): [0x12][hashSlot:2][...]                             元信息
 | 7 | ReservedConversationProjection | 已移除，不再读写 | - |
 | 8 | ChannelMigrationTask | (channel_id, channel_type, task_id) | idx_channel_migration_active, idx_channel_migration_terminal |
 
-## 7. FSM 命令类型（14 种 + 2 个保留 ID）
+## 7. FSM 命令类型（26 种 + 2 个保留 ID）
 
 TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 未知 Tag 自动跳过（前向兼容）。详见 `fsm/command.go`。
@@ -204,6 +205,13 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 13: ReservedConversationProjectionUpsert        14: ReservedConversationProjectionDelete
 15: AdvanceChannelRetentionThroughSeq
 16: HideUserConversations
+20: ApplyDelta                         21: EnterFence
+22: AckMigrationOutbox                 23: CleanupMigrationOutbox
+30: CreateChannelMigrationTask         31: ClaimChannelMigrationTask
+32: AdvanceChannelMigrationTask        33: SetChannelWriteFence
+34: ResetChannelWriteFenceToPreCutover 35: CommitChannelLeaderTransfer
+36: AddChannelLearner                  37: PromoteLearnerAndRemoveReplica
+38: ClearChannelWriteFence             39: AbortChannelMigration
 ```
 
 ## 8. RPC Service IDs（proxy 层）
