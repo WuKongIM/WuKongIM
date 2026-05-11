@@ -224,6 +224,7 @@ func (b *WriteBatch) AbortChannelMigration(hashSlot uint16, req ChannelMigration
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, ErrStaleMeta
 		}
 		if task.Kind == ChannelMigrationKindReplicaReplace &&
+			canAbortRemoveUnpromotedChannelMigrationLearner(task) &&
 			containsUint64(nextMeta.Replicas, task.TargetNode) &&
 			!containsUint64(nextMeta.ISR, task.TargetNode) {
 			nextMeta.Replicas = removeUint64Member(nextMeta.Replicas, task.TargetNode)
@@ -492,6 +493,19 @@ func requireChannelMigrationAbortTransition(task ChannelMigrationTask) error {
 		}
 	}
 	return ErrStaleMeta
+}
+
+func canAbortRemoveUnpromotedChannelMigrationLearner(task ChannelMigrationTask) bool {
+	switch task.Phase {
+	case ChannelMigrationPhaseBootstrapTarget,
+		ChannelMigrationPhaseWarmCatchUp,
+		ChannelMigrationPhaseCutoverFence,
+		ChannelMigrationPhaseFinalTargetCatchUp,
+		ChannelMigrationPhasePromoteAndRemove:
+		return true
+	default:
+		return false
+	}
 }
 
 func isLeaderTransferAbortPhase(phase ChannelMigrationPhase) bool {

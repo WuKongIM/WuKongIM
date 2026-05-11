@@ -125,6 +125,10 @@ func TestChannelMigrationCommandRejectsAmbiguousJSONPayload(t *testing.T) {
 			name:    "duplicate_key",
 			payload: `{"TaskID":"task-json","TaskID":"task-json-2"}`,
 		},
+		{
+			name:    "trailing_value",
+			payload: `{"TaskID":"task-json"} {}`,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -760,6 +764,40 @@ func TestStateMachineChannelAbortLeaderTransferDoesNotRemoveNonISRReplica(t *tes
 	}
 	if gotMeta.ChannelEpoch != meta.ChannelEpoch || !reflect.DeepEqual(gotMeta.Replicas, []uint64{1, 2, 3}) {
 		t.Fatalf("meta after leader-transfer abort = %#v", gotMeta)
+	}
+}
+
+func TestStateMachineChannelAbortBeforeLearnerAddedKeepsExistingLearner(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+	task := fsmTestChannelMigrationTask("task-abort-pre-add-learner", "channel-abort-pre-add-learner")
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseAddLearner
+	task.UpdatedAtMS = 1750000001000
+	meta := fsmTestRuntimeMeta(task.ChannelID, task.ChannelType)
+	meta.ChannelEpoch = task.BaseChannelEpoch
+	meta.LeaderEpoch = task.BaseLeaderEpoch
+	meta.Replicas = []uint64{1, 2, 3}
+	meta.ISR = []uint64{1, 2}
+
+	fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
+	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
+	fsmApplyOK(t, ctx, sm, 3, EncodeAbortChannelMigrationCommand(fsmTestAbortRequest(task, meta, 1750000002000)))
+
+	gotTask, err := db.ForSlot(11).GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	if err != nil {
+		t.Fatalf("GetChannelMigrationTask() error = %v", err)
+	}
+	if gotTask.Status != metadb.ChannelMigrationStatusAborted {
+		t.Fatalf("task after pre-add abort = %#v", gotTask)
+	}
+	gotMeta, err := db.ForSlot(11).GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
+	}
+	if gotMeta.ChannelEpoch != meta.ChannelEpoch || !reflect.DeepEqual(gotMeta.Replicas, []uint64{1, 2, 3}) {
+		t.Fatalf("meta after pre-add abort = %#v", gotMeta)
 	}
 }
 
