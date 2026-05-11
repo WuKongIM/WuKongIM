@@ -646,7 +646,7 @@ func validateChannelMigrationTaskClaim(req ChannelMigrationTaskClaim) error {
 	if req.OwnerNodeID == 0 || req.OwnerLeaseUntilMS <= 0 || req.UpdatedAtMS <= 0 {
 		return ErrInvalidArgument
 	}
-	if req.UpdatedAtMS < req.Guard.ExpectedUpdatedAtMS {
+	if req.UpdatedAtMS <= req.Guard.ExpectedUpdatedAtMS {
 		return ErrInvalidArgument
 	}
 	return nil
@@ -659,7 +659,7 @@ func validateChannelMigrationTaskAdvance(req ChannelMigrationTaskAdvance) error 
 	if !isValidChannelMigrationStatus(req.Status) || !isValidChannelMigrationPhase(req.Phase) || req.UpdatedAtMS <= 0 {
 		return ErrInvalidArgument
 	}
-	if req.UpdatedAtMS < req.Guard.ExpectedUpdatedAtMS {
+	if req.UpdatedAtMS <= req.Guard.ExpectedUpdatedAtMS {
 		return ErrInvalidArgument
 	}
 	return nil
@@ -713,11 +713,11 @@ func validateChannelMigrationTask(task ChannelMigrationTask) error {
 	if task.OwnerNodeID != 0 && task.OwnerLeaseUntilMS <= 0 {
 		return ErrInvalidArgument
 	}
-	if task.CreatedAtMS <= 0 || task.UpdatedAtMS <= 0 {
+	if task.CreatedAtMS <= 0 || task.UpdatedAtMS <= 0 || task.UpdatedAtMS < task.CreatedAtMS {
 		return ErrInvalidArgument
 	}
 	if task.IsTerminal() {
-		if task.CompletedAtMS <= 0 {
+		if task.CompletedAtMS <= 0 || task.CompletedAtMS < task.CreatedAtMS || task.CompletedAtMS > task.UpdatedAtMS {
 			return ErrInvalidArgument
 		}
 	} else if task.CompletedAtMS != 0 {
