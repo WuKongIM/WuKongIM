@@ -18,6 +18,9 @@ func (s *service) Append(ctx context.Context, req channel.AppendRequest) (channe
 	if err := compatibleWithExpectation(meta, req.ExpectedChannelEpoch, req.ExpectedLeaderEpoch); err != nil {
 		return channel.AppendResult{}, err
 	}
+	if meta.WriteFence.BlocksAppend() {
+		return channel.AppendResult{}, channel.ErrWriteFenced
+	}
 	switch meta.Status {
 	case channel.StatusDeleting:
 		return channel.AppendResult{}, channel.ErrChannelDeleting

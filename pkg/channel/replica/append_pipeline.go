@@ -242,6 +242,9 @@ func (r *replica) validateAppendEffectFenceLocked(effect appendLeaderBatchEffect
 	if !r.now().Before(r.meta.LeaseUntil) || !r.now().Before(effect.LeaseUntil) {
 		return channel.ErrLeaseExpired
 	}
+	if r.meta.WriteFence.BlocksAppend() {
+		return channel.ErrWriteFenced
+	}
 	if len(r.meta.ISR) < r.meta.MinISR {
 		return channel.ErrInsufficientISR
 	}
@@ -347,6 +350,9 @@ func (r *replica) appendableLocked() error {
 		r.roleGeneration++
 		r.publishStateLocked()
 		return channel.ErrLeaseExpired
+	}
+	if r.meta.WriteFence.BlocksAppend() {
+		return channel.ErrWriteFenced
 	}
 	if len(r.meta.ISR) < r.meta.MinISR {
 		return channel.ErrInsufficientISR

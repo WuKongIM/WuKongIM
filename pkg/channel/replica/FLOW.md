@@ -149,7 +149,7 @@ Recovery loads checkpoint, epoch history, snapshot presence, local retention sta
 
 `Append()` clones records, records commit mode from context, keeps diagnostics-only trace metadata on the append request, and submits `machineAppendRequestCommand`.
 
-Loop admission requires leader role, non-expired lease, `CommitReady=true`, and `len(ISR) >= MinISR`. Empty batches complete immediately. Non-empty batches enter `appendPending` and are flushed by size/count or the group-commit timer.
+Loop admission requires leader role, non-expired lease, `CommitReady=true`, no local `WriteFence` token, and `len(ISR) >= MinISR`. A present write-fence token returns `ErrWriteFenced` even after its wall-clock TTL; the channel only reopens after authoritative metadata clears or supersedes the fence. Empty batches complete immediately. Non-empty batches enter `appendPending` and are flushed by size/count or the group-commit timer.
 
 A flush emits one `appendLeaderBatchEffect`. The append worker serializes durable mutation with `durableMu`, calls `AppendLeaderBatch`, syncs the log, verifies the returned LEO range, and sends `machineLeaderAppendCommittedEvent` back to the loop.
 
@@ -252,6 +252,7 @@ After recovery and while the loop is running, transitions must preserve:
 | `ErrNotLeader` | Operation requires an active leader/follower role but the replica is closed, follower for leader-only APIs, or otherwise fenced. |
 | `ErrLeaseExpired` | Leader lease expired; write/reconcile paths fence the role as `FencedLeader`. |
 | `ErrNotReady` | A required single in-flight effect is already running, or leader reconcile/checkpoint safety has not made appends safe. |
+| `ErrWriteFenced` | Authoritative migration metadata has fenced new appends until a newer clear/reset/superseding fence is applied. |
 | `ErrInsufficientISR` | Current ISR cannot satisfy `MinISR`. |
 | `ErrStaleMeta` | Channel key, epoch, leader, leader epoch, effect id, or role generation is stale. |
 | `ErrCorruptState` | Durable state, remote proof, store result, truncation, checkpoint, or invariant is impossible/unsafe. |

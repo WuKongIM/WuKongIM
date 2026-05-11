@@ -123,6 +123,7 @@ func isRetryableMetaAppendError(err error) bool {
 	return errors.Is(err, channel.ErrStaleMeta) ||
 		errors.Is(err, channel.ErrNotLeader) ||
 		errors.Is(err, channel.ErrLeaseExpired) ||
+		errors.Is(err, channel.ErrWriteFenced) ||
 		errors.Is(err, raftcluster.ErrNotLeader) ||
 		errors.Is(err, raftcluster.ErrRerouted)
 }

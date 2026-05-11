@@ -220,6 +220,21 @@ func TestAppendRejectsReplicaThatIsNotLeader(t *testing.T) {
 	require.ErrorIs(t, err, channel.ErrNotLeader)
 }
 
+func TestReplicaFenceRejectsAppendDespiteStaleHandlerMeta(t *testing.T) {
+	r := newLeaderReplica(t)
+	fenced := activeMetaWithMinISR(7, 1, 1)
+	fenced.WriteFence = channel.WriteFence{
+		Token:   "task-replica-fence",
+		Version: 1,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	require.NoError(t, r.ApplyMeta(fenced))
+
+	_, err := r.Append(context.Background(), []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
+	require.ErrorIs(t, err, channel.ErrWriteFenced)
+}
+
 func TestAppendWaitsUntilMinISRReplicasAcknowledgeViaFetch(t *testing.T) {
 	env := newThreeReplicaCluster(t)
 	done := make(chan appendTestResult, 1)
