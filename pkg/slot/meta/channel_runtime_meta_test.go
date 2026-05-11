@@ -543,18 +543,56 @@ func TestChannelRuntimeMetaWriteFenceEncodingSkipsZeroFenceColumns(t *testing.T)
 	require.NotContains(t, columns, channelRuntimeMetaColumnIDWriteFenceUntilMS)
 }
 
+func TestDecodeChannelRuntimeMetaRejectsKnownWriteFenceWrongType(t *testing.T) {
+	key := encodeChannelRuntimeMetaPrimaryKey(7, "wrong-fence-type", 2, channelRuntimeMetaPrimaryFamilyID)
+
+	tests := []struct {
+		name       string
+		appendWire func([]byte) []byte
+	}{
+		{
+			name: "token_as_uint",
+			appendWire: func(payload []byte) []byte {
+				return appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceToken, channelRuntimeMetaColumnIDLeaseUntilMS, 1)
+			},
+		},
+		{
+			name: "version_as_bytes",
+			appendWire: func(payload []byte) []byte {
+				return appendRawBytesValue(payload, channelRuntimeMetaColumnIDWriteFenceVersion, channelRuntimeMetaColumnIDLeaseUntilMS, []byte("bad"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := channelRuntimeMetaRequiredPayload()
+			payload = tt.appendWire(payload)
+
+			_, err := decodeChannelRuntimeMetaFamilyValue(key, wrapFamilyValue(key, payload))
+			require.ErrorIs(t, err, ErrCorruptValue)
+		})
+	}
+}
+
+func TestDecodeChannelRuntimeMetaSkipsUnknownFutureFenceColumn(t *testing.T) {
+	key := encodeChannelRuntimeMetaPrimaryKey(7, "future-fence-column", 2, channelRuntimeMetaPrimaryFamilyID)
+	payload := channelRuntimeMetaRequiredPayload()
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceUntilMS+1, channelRuntimeMetaColumnIDLeaseUntilMS, 99)
+
+	got, err := decodeChannelRuntimeMetaFamilyValue(key, wrapFamilyValue(key, payload))
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), got.ChannelEpoch)
+	require.Equal(t, uint64(4), got.LeaderEpoch)
+	require.Empty(t, got.WriteFenceToken)
+	require.Zero(t, got.WriteFenceVersion)
+	require.Zero(t, got.WriteFenceReason)
+	require.Zero(t, got.WriteFenceUntilMS)
+}
+
 func TestDecodeChannelRuntimeMetaDefaultsMissingRetentionToZero(t *testing.T) {
 	key := encodeChannelRuntimeMetaPrimaryKey(7, "old-retention", 2, channelRuntimeMetaPrimaryFamilyID)
-	payload := make([]byte, 0, 128)
-	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDChannelEpoch, 0, 3)
-	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDLeaderEpoch, channelRuntimeMetaColumnIDChannelEpoch, 4)
-	payload = appendRawBytesValue(payload, channelRuntimeMetaColumnIDReplicas, channelRuntimeMetaColumnIDLeaderEpoch, encodeUint64Slice([]uint64{1, 2}))
-	payload = appendRawBytesValue(payload, channelRuntimeMetaColumnIDISR, channelRuntimeMetaColumnIDReplicas, encodeUint64Slice([]uint64{1, 2}))
-	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDLeader, channelRuntimeMetaColumnIDISR, 1)
-	payload = appendIntValue(payload, channelRuntimeMetaColumnIDMinISR, channelRuntimeMetaColumnIDLeader, 2)
-	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDStatus, channelRuntimeMetaColumnIDMinISR, 2)
-	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDFeatures, channelRuntimeMetaColumnIDStatus, 1)
-	payload = appendIntValue(payload, channelRuntimeMetaColumnIDLeaseUntilMS, channelRuntimeMetaColumnIDFeatures, 1234)
+	payload := channelRuntimeMetaRequiredPayload()
 
 	got, err := decodeChannelRuntimeMetaFamilyValue(key, wrapFamilyValue(key, payload))
 	require.NoError(t, err)
@@ -723,6 +761,45 @@ func TestShardStoreUpsertChannelRuntimeMetaRejectsInvalidTopology(t *testing.T) 
 	}
 }
 
+func TestShardStoreUpsertChannelRuntimeMetaRejectsInvalidWriteFence(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+
+	tests := []struct {
+		name   string
+		mutate func(*ChannelRuntimeMeta)
+	}{
+		{
+			name: "token_without_version",
+			mutate: func(meta *ChannelRuntimeMeta) {
+				meta.WriteFenceToken = "task-1"
+			},
+		},
+		{
+			name: "reason_without_version",
+			mutate: func(meta *ChannelRuntimeMeta) {
+				meta.WriteFenceReason = 1
+			},
+		},
+		{
+			name: "until_without_version",
+			mutate: func(meta *ChannelRuntimeMeta) {
+				meta.WriteFenceUntilMS = 1710000000000
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			meta := testRuntimeMeta("invalid-write-fence-"+tt.name, 1)
+			tt.mutate(&meta)
+
+			err := shard.UpsertChannelRuntimeMeta(ctx, meta)
+			require.ErrorIs(t, err, ErrInvalidArgument)
+		})
+	}
+}
+
 func TestDBListChannelRuntimeMeta(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -794,6 +871,20 @@ func decodeTestColumnIDs(payload []byte) ([]uint16, error) {
 		}
 	}
 	return columns, nil
+}
+
+func channelRuntimeMetaRequiredPayload() []byte {
+	payload := make([]byte, 0, 128)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDChannelEpoch, 0, 3)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDLeaderEpoch, channelRuntimeMetaColumnIDChannelEpoch, 4)
+	payload = appendRawBytesValue(payload, channelRuntimeMetaColumnIDReplicas, channelRuntimeMetaColumnIDLeaderEpoch, encodeUint64Slice([]uint64{1, 2}))
+	payload = appendRawBytesValue(payload, channelRuntimeMetaColumnIDISR, channelRuntimeMetaColumnIDReplicas, encodeUint64Slice([]uint64{1, 2}))
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDLeader, channelRuntimeMetaColumnIDISR, 1)
+	payload = appendIntValue(payload, channelRuntimeMetaColumnIDMinISR, channelRuntimeMetaColumnIDLeader, 2)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDStatus, channelRuntimeMetaColumnIDMinISR, 2)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDFeatures, channelRuntimeMetaColumnIDStatus, 1)
+	payload = appendIntValue(payload, channelRuntimeMetaColumnIDLeaseUntilMS, channelRuntimeMetaColumnIDFeatures, 1234)
+	return payload
 }
 
 func newTestShardStore(t *testing.T, slot uint64) *ShardStore {
