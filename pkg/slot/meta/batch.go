@@ -48,8 +48,9 @@ type channelMigrationTaskBatchEntry struct {
 // channelMigrationTaskActiveBatchEntry records same-batch active-index writes
 // so active uniqueness checks include staged creates and terminal transitions.
 type channelMigrationTaskActiveBatchEntry struct {
-	taskID string
-	exists bool
+	taskID         string
+	exists         bool
+	deleteIfTaskID string
 }
 
 // NewWriteBatch creates a new WriteBatch. The caller must call Close
@@ -562,6 +563,9 @@ func (b *WriteBatch) Commit() error {
 	if err := b.enforceChannelMigrationActiveUniqueLocked(); err != nil {
 		return err
 	}
+	if err := b.applyChannelMigrationActiveIndexWritesLocked(); err != nil {
+		return err
+	}
 	return b.batch.Commit(pebble.Sync)
 }
 
@@ -684,15 +688,9 @@ func (b *WriteBatch) upsertChannelMigrationTask(hashSlot uint16, task ChannelMig
 		if err := b.ensureChannelMigrationTaskActiveSlotAvailable(hashSlot, task); err != nil {
 			return err
 		}
-		if err := b.batch.Set(activeIndexKey, []byte(task.TaskID), nil); err != nil {
-			return err
-		}
 		b.rememberChannelMigrationActiveIndex(activeIndexKey, task.TaskID, true)
 	} else if exists && existing.IsActive() {
-		if err := b.batch.Delete(activeIndexKey, nil); err != nil {
-			return err
-		}
-		b.rememberChannelMigrationActiveIndex(activeIndexKey, "", false)
+		b.rememberChannelMigrationActiveIndexDelete(activeIndexKey, existing.TaskID)
 	}
 
 	if exists && existing.IsTerminal() {
@@ -813,6 +811,16 @@ func (b *WriteBatch) rememberChannelMigrationActiveIndex(activeIndexKey []byte, 
 	}
 }
 
+func (b *WriteBatch) rememberChannelMigrationActiveIndexDelete(activeIndexKey []byte, taskID string) {
+	if b.channelMigrationActive == nil {
+		b.channelMigrationActive = make(map[string]channelMigrationTaskActiveBatchEntry, 1)
+	}
+	b.channelMigrationActive[string(activeIndexKey)] = channelMigrationTaskActiveBatchEntry{
+		exists:         false,
+		deleteIfTaskID: taskID,
+	}
+}
+
 // enforceChannelMigrationCreatePrimaryUniqueLocked rechecks create-only
 // primary keys after this batch has acquired db.mu so concurrent batches cannot
 // overwrite a task that was created after staging.
@@ -868,6 +876,41 @@ func (b *WriteBatch) enforceChannelMigrationActiveUniqueLocked() error {
 		}
 		if existing.IsActive() {
 			return ErrAlreadyExists
+		}
+	}
+	return nil
+}
+
+// applyChannelMigrationActiveIndexWritesLocked applies active-index updates
+// after commit-time revalidation. Terminal transitions delete the active index
+// only when it still points at the terminal task staged by this batch.
+func (b *WriteBatch) applyChannelMigrationActiveIndexWritesLocked() error {
+	if len(b.channelMigrationActive) == 0 {
+		return nil
+	}
+	for activeIndexKeyString, entry := range b.channelMigrationActive {
+		activeIndexKey := []byte(activeIndexKeyString)
+		if entry.exists {
+			if err := b.batch.Set(activeIndexKey, []byte(entry.taskID), nil); err != nil {
+				return err
+			}
+			continue
+		}
+		if entry.deleteIfTaskID == "" {
+			continue
+		}
+		existingTaskID, err := decodeChannelMigrationTaskIDIndexValue(b.db.getValue(activeIndexKey))
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				continue
+			}
+			return err
+		}
+		if existingTaskID != entry.deleteIfTaskID {
+			continue
+		}
+		if err := b.batch.Delete(activeIndexKey, nil); err != nil {
+			return err
 		}
 	}
 	return nil
