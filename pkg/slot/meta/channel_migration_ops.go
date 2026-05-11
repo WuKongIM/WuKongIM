@@ -462,7 +462,17 @@ func requireChannelMigrationClearFenceTransition(task ChannelMigrationTask, req 
 		return ErrStaleMeta
 	}
 	if req.Status == ChannelMigrationStatusCompleted && req.Phase == ChannelMigrationPhaseClearFence && req.CompletedAtMS > 0 {
-		return nil
+		switch task.Kind {
+		case ChannelMigrationKindLeaderTransfer:
+			if task.Phase == ChannelMigrationPhaseVerifyNewLeader || (task.IsTerminal() && task.Phase == ChannelMigrationPhaseClearFence) {
+				return nil
+			}
+		case ChannelMigrationKindReplicaReplace:
+			if task.Phase == ChannelMigrationPhaseVerifyMembership || (task.IsTerminal() && task.Phase == ChannelMigrationPhaseClearFence) {
+				return nil
+			}
+		}
+		return ErrStaleMeta
 	}
 	if task.Kind == ChannelMigrationKindReplicaReplace &&
 		task.EmbeddedLeaderTransfer &&

@@ -169,6 +169,10 @@ func runtimeMetaInspection(commandType string, meta metadb.ChannelRuntimeMeta) C
 		"lease_until_ms":          meta.LeaseUntilMS,
 		"retention_through_seq":   meta.RetentionThroughSeq,
 		"retention_updated_at_ms": meta.RetentionUpdatedAtMS,
+		"write_fence_token":       meta.WriteFenceToken,
+		"write_fence_version":     meta.WriteFenceVersion,
+		"write_fence_reason":      meta.WriteFenceReason,
+		"write_fence_until_ms":    meta.WriteFenceUntilMS,
 	})
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 )
@@ -315,10 +316,11 @@ func rejectDuplicateJSONObjectKeys(payload []byte) error {
 			if len(stack) > 0 {
 				top := &stack[len(stack)-1]
 				if top.object && top.expectKey {
-					if _, exists := top.keys[value]; exists {
+					key := strings.ToLower(value)
+					if _, exists := top.keys[key]; exists {
 						return fmt.Errorf("duplicate JSON key %q", value)
 					}
-					top.keys[value] = struct{}{}
+					top.keys[key] = struct{}{}
 					top.expectKey = false
 					continue
 				}
