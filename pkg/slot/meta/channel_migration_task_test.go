@@ -380,6 +380,182 @@ func TestChannelMigrationTaskValidationRejectsPartialFenceState(t *testing.T) {
 	}
 }
 
+func TestChannelMigrationTaskValidationRejectsIllegalFenceAndDrainStates(t *testing.T) {
+	tests := []struct {
+		name string
+		task ChannelMigrationTask
+	}{
+		{
+			name: "fence_before_fence_phase",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-fence-before-phase", "channel-invalid-fence-before-phase")
+				task.Status = ChannelMigrationStatusRunning
+				task.Phase = ChannelMigrationPhaseWarmCatchUp
+				setChannelMigrationTaskFence(&task, 7)
+				return task
+			}(),
+		},
+		{
+			name: "pending_validate_with_fence",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-pending-fence", "channel-invalid-pending-fence")
+				setChannelMigrationTaskFence(&task, 7)
+				return task
+			}(),
+		},
+		{
+			name: "drain_proof_without_fence",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-proof-without-fence", "channel-invalid-proof-without-fence")
+				task.Status = ChannelMigrationStatusRunning
+				task.Phase = ChannelMigrationPhaseFinalTargetCatchUp
+				setChannelMigrationTaskDrainProof(&task, 7)
+				return task
+			}(),
+		},
+		{
+			name: "partial_drain_tuple",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-partial-proof", "channel-invalid-partial-proof")
+				task.Status = ChannelMigrationStatusRunning
+				task.Phase = ChannelMigrationPhaseFinalTargetCatchUp
+				setChannelMigrationTaskFence(&task, 7)
+				task.CutoverLEO = 10
+				return task
+			}(),
+		},
+		{
+			name: "drained_fence_version_mismatch",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-proof-fence-version", "channel-invalid-proof-fence-version")
+				task.Status = ChannelMigrationStatusRunning
+				task.Phase = ChannelMigrationPhaseFinalTargetCatchUp
+				setChannelMigrationTaskFence(&task, 7)
+				setChannelMigrationTaskDrainProof(&task, 8)
+				return task
+			}(),
+		},
+		{
+			name: "cutover_hw_after_leo",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-proof-hw", "channel-invalid-proof-hw")
+				task.Status = ChannelMigrationStatusRunning
+				task.Phase = ChannelMigrationPhaseFinalTargetCatchUp
+				setChannelMigrationTaskFence(&task, 7)
+				setChannelMigrationTaskDrainProof(&task, 7)
+				task.CutoverLEO = 10
+				task.CutoverHW = 11
+				return task
+			}(),
+		},
+		{
+			name: "completed_with_active_fence",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-completed-fence", "channel-invalid-completed-fence")
+				task.Status = ChannelMigrationStatusCompleted
+				task.Phase = ChannelMigrationPhaseVerifyMembership
+				task.CompletedAtMS = 1750000010000
+				task.UpdatedAtMS = 1750000010000
+				setChannelMigrationTaskFence(&task, 7)
+				return task
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.ErrorIs(t, validateChannelMigrationTask(tt.task), ErrInvalidArgument)
+		})
+	}
+}
+
+func TestChannelMigrationTaskValidationAcceptsLegalFenceAndDrainStates(t *testing.T) {
+	tests := []struct {
+		name string
+		task ChannelMigrationTask
+	}{
+		{
+			name: "active_fence_at_allowed_phase",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-valid-fence", "channel-valid-fence")
+				task.Status = ChannelMigrationStatusRunning
+				task.Phase = ChannelMigrationPhaseCutoverFence
+				setChannelMigrationTaskFence(&task, 7)
+				return task
+			}(),
+		},
+		{
+			name: "complete_drain_proof_at_allowed_phase",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-valid-proof", "channel-valid-proof")
+				task.Status = ChannelMigrationStatusRunning
+				task.Phase = ChannelMigrationPhaseFinalTargetCatchUp
+				setChannelMigrationTaskFence(&task, 7)
+				setChannelMigrationTaskDrainProof(&task, 7)
+				return task
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NoError(t, validateChannelMigrationTask(tt.task))
+		})
+	}
+}
+
+func TestChannelMigrationTaskValidationRejectsIllegalEmbeddedLeaderTransfer(t *testing.T) {
+	tests := []struct {
+		name string
+		task ChannelMigrationTask
+	}{
+		{
+			name: "standalone_leader_transfer_with_embedded_transfer",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-lt-embedded", "channel-invalid-lt-embedded")
+				task.Kind = ChannelMigrationKindLeaderTransfer
+				task.TargetNode = 2
+				task.DesiredLeader = 2
+				task.EmbeddedLeaderTransfer = true
+				task.EmbeddedDesiredLeader = 3
+				return task
+			}(),
+		},
+		{
+			name: "embedded_desired_leader_equals_source",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-embedded-source", "channel-invalid-embedded-source")
+				task.EmbeddedLeaderTransfer = true
+				task.EmbeddedDesiredLeader = task.SourceNode
+				return task
+			}(),
+		},
+		{
+			name: "embedded_desired_leader_equals_target",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-embedded-target", "channel-invalid-embedded-target")
+				task.EmbeddedLeaderTransfer = true
+				task.EmbeddedDesiredLeader = task.TargetNode
+				return task
+			}(),
+		},
+		{
+			name: "embedded_desired_leader_without_embedded_transfer",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-embedded-desired-without-flag", "channel-invalid-embedded-desired-without-flag")
+				task.EmbeddedDesiredLeader = 3
+				return task
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.ErrorIs(t, validateChannelMigrationTask(tt.task), ErrInvalidArgument)
+		})
+	}
+}
+
 func TestChannelMigrationTaskValidationRejectsInconsistentBlockerState(t *testing.T) {
 	tests := []struct {
 		name string
@@ -418,6 +594,28 @@ func TestChannelMigrationTaskValidationRejectsInconsistentBlockerState(t *testin
 				task.Status = ChannelMigrationStatusBlocked
 				task.Phase = ChannelMigrationPhaseBootstrapTarget
 				task.BlockerCode = ChannelMigrationBlockerNeedsSnapshotBootstrap
+				return task
+			}(),
+		},
+		{
+			name: "blocked_unsupported_code",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-blocked-code-unsupported", "channel-invalid-blocked-code-unsupported")
+				task.Status = ChannelMigrationStatusBlocked
+				task.Phase = ChannelMigrationPhaseBootstrapTarget
+				task.BlockerCode = "RetryPaused"
+				task.BlockerMessage = "blocked by an unsupported reason"
+				return task
+			}(),
+		},
+		{
+			name: "needs_snapshot_bootstrap_at_unsupported_phase",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-blocked-phase", "channel-invalid-blocked-phase")
+				task.Status = ChannelMigrationStatusBlocked
+				task.Phase = ChannelMigrationPhaseValidate
+				task.BlockerCode = ChannelMigrationBlockerNeedsSnapshotBootstrap
+				task.BlockerMessage = "target requires a channel snapshot before catch-up"
 				return task
 			}(),
 		},
@@ -613,7 +811,7 @@ func TestChannelMigrationTaskEncodeDecodeFullFields(t *testing.T) {
 	task := testChannelMigrationTask("task-codec", "channel-codec")
 	task.Kind = ChannelMigrationKindReplicaReplace
 	task.Status = ChannelMigrationStatusBlocked
-	task.Phase = ChannelMigrationPhaseWarmCatchUp
+	task.Phase = ChannelMigrationPhaseFinalTargetCatchUp
 	task.SourceNode = 11
 	task.TargetNode = 12
 	task.DesiredLeader = 13
@@ -632,7 +830,7 @@ func TestChannelMigrationTaskEncodeDecodeFullFields(t *testing.T) {
 	task.DrainedRuntimeGeneration = 16
 	task.DrainedChannelEpoch = 17
 	task.DrainedLeaderEpoch = 18
-	task.DrainedFenceVersion = 19
+	task.DrainedFenceVersion = task.FenceVersion
 	task.Attempt = 4
 	task.NextRunAtMS = 1750000012000
 	task.BlockerCode = ChannelMigrationBlockerNeedsSnapshotBootstrap
@@ -671,6 +869,22 @@ func testChannelMigrationTask(taskID, channelID string) ChannelMigrationTask {
 		CreatedAtMS:      1750000000000,
 		UpdatedAtMS:      1750000000000,
 	}
+}
+
+func setChannelMigrationTaskFence(task *ChannelMigrationTask, version uint64) {
+	task.FenceToken = "fence-token"
+	task.FenceVersion = version
+	task.FenceUntilMS = 1750000010000
+}
+
+func setChannelMigrationTaskDrainProof(task *ChannelMigrationTask, fenceVersion uint64) {
+	task.CutoverLEO = 10
+	task.CutoverHW = 9
+	task.DrainedLeaderNode = 1
+	task.DrainedRuntimeGeneration = 2
+	task.DrainedChannelEpoch = 3
+	task.DrainedLeaderEpoch = 4
+	task.DrainedFenceVersion = fenceVersion
 }
 
 func upsertChannelMigrationTaskForTest(shard *ShardStore, task ChannelMigrationTask) error {
