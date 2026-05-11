@@ -18,6 +18,13 @@ type sendMessageRequest struct {
 	ChannelType   uint8  `json:"channel_type"`
 	ClientMsgNo   string `json:"client_msg_no"`
 	Payload       string `json:"payload"`
+	Header        sendMessageHeaderRequest `json:"header"`
+	NoPersist     int                      `json:"no_persist"`
+}
+
+type sendMessageHeaderRequest struct {
+	// NoPersist marks the send as non-durable when non-zero.
+	NoPersist int `json:"no_persist"`
 }
 
 type sendMessageResponse struct {
@@ -65,9 +72,11 @@ func (s *Server) handleSendMessage(c *gin.Context) {
 		reqCtx = tracectx.WithContext(reqCtx, tracectx.Context{TraceID: traceID, Sampled: true})
 	}
 	reqCtx, traceCtx := tracectx.Ensure(reqCtx, nil)
+	noPersist := req.Header.NoPersist != 0 || req.NoPersist != 0
 
 	result, err := s.messages.Send(reqCtx, message.SendCommand{
 		TraceID:         traceCtx.TraceID,
+		Framer:          frame.Framer{NoPersist: noPersist},
 		FromUID:         req.FromUID,
 		ChannelID:       channelID,
 		ChannelType:     req.ChannelType,
