@@ -13,6 +13,7 @@
 - Persisted system UID add/remove APIs must refresh node-local caches on peer nodes through node RPC.
 - Message send permission checks live in `internal/usecase/message` before durable append; `pkg/channel` remains business-rule free.
 - Channel status permissions currently include group `Ban`/`Disband` and sender person-channel `SendBan`.
+- `NoPersist` sends still pass validation and send permissions, then skip durable append/committed events and return success with zero message ID/seq.
 
 ### Long-poll leader lease refresh
 - A channel leader metadata refresh that only renews `LeaseUntil` must preserve existing leader-side lane sessions and follower cursors.
