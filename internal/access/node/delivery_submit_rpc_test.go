@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
@@ -9,6 +10,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )
 
@@ -59,6 +62,37 @@ func TestSubmitCommittedMessageRPCRoutesToOwnerRuntime(t *testing.T) {
 		SenderSessionID:   42,
 		MessageScopedUIDs: []string{"u1", "u2"},
 	}}, recorder.calls)
+}
+
+func TestSubmitCommittedMessageScopedFailsWhenPeerDoesNotSupportProbe(t *testing.T) {
+	cluster := &legacyDeliverySubmitCapabilityCluster{}
+	client := NewClient(cluster)
+
+	err := client.SubmitCommitted(context.Background(), 2, deliveryruntime.CommittedEnvelope{
+		Message: channel.Message{
+			ChannelID:   "u2",
+			ChannelType: frame.ChannelTypePerson,
+			MessageID:   88,
+			MessageSeq:  9,
+		},
+		MessageScopedUIDs: []string{"u1"},
+	})
+
+	require.ErrorIs(t, err, ErrMessageScopedDeliverySubmitUnsupported)
+	require.Equal(t, 1, cluster.calls)
+	require.Equal(t, deliverySubmitRPCServiceID, cluster.serviceID)
+}
+
+func TestDeliverySubmitCapabilityProbeReturnsOKWithoutSubmitting(t *testing.T) {
+	recorder := &recordingDeliverySubmit{}
+	adapter := New(Options{DeliverySubmit: recorder})
+
+	respBody, err := adapter.handleDeliverySubmitRPC(context.Background(), encodeDeliverySubmitCapabilityProbe())
+	require.NoError(t, err)
+	resp, err := decodeDeliveryResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, rpcStatusOK, resp.Status)
+	require.Empty(t, recorder.calls)
 }
 
 func TestDeliverySubmitBinaryCodecRoundTrip(t *testing.T) {
@@ -157,6 +191,31 @@ func TestDeliverySubmitRPCRejectsJSONPayload(t *testing.T) {
 
 type recordingDeliverySubmit struct {
 	calls []deliveryruntime.CommittedEnvelope
+}
+
+type legacyDeliverySubmitCapabilityCluster struct {
+	calls     int
+	serviceID uint8
+}
+
+func (c *legacyDeliverySubmitCapabilityCluster) RPCMux() *transport.RPCMux { return nil }
+
+func (c *legacyDeliverySubmitCapabilityCluster) LeaderOf(multiraft.SlotID) (multiraft.NodeID, error) {
+	return 0, nil
+}
+
+func (c *legacyDeliverySubmitCapabilityCluster) IsLocal(multiraft.NodeID) bool { return false }
+
+func (c *legacyDeliverySubmitCapabilityCluster) SlotForKey(string) multiraft.SlotID { return 0 }
+
+func (c *legacyDeliverySubmitCapabilityCluster) RPCService(_ context.Context, _ multiraft.NodeID, _ multiraft.SlotID, serviceID uint8, _ []byte) ([]byte, error) {
+	c.calls++
+	c.serviceID = serviceID
+	return nil, errors.New("access/node: invalid delivery submit request codec")
+}
+
+func (c *legacyDeliverySubmitCapabilityCluster) PeersForSlot(multiraft.SlotID) []multiraft.NodeID {
+	return nil
 }
 
 func (r *recordingDeliverySubmit) SubmitCommitted(_ context.Context, env deliveryruntime.CommittedEnvelope) error {

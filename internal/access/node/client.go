@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -12,6 +13,9 @@ import (
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
+
+// ErrMessageScopedDeliverySubmitUnsupported means the target node cannot decode scoped delivery-submit payloads.
+var ErrMessageScopedDeliverySubmitUnsupported = errors.New("access/node: message scoped delivery submit unsupported")
 
 type authoritativeRPCResponse interface {
 	rpcStatus() string
@@ -112,6 +116,15 @@ func (c *Client) SubmitCommitted(ctx context.Context, nodeID uint64, env deliver
 	if c == nil || c.cluster == nil {
 		return fmt.Errorf("access/node: cluster not configured")
 	}
+	if len(env.MessageScopedUIDs) > 0 {
+		supported, err := c.SupportsMessageScopedDeliverySubmit(ctx, nodeID)
+		if err != nil {
+			return err
+		}
+		if !supported {
+			return ErrMessageScopedDeliverySubmitUnsupported
+		}
+	}
 	body, err := encodeDeliverySubmitRequestBinary(deliverySubmitRequest{
 		Envelope: env,
 	})
@@ -130,6 +143,56 @@ func (c *Client) SubmitCommitted(ctx context.Context, nodeID uint64, env deliver
 		return fmt.Errorf("access/node: unexpected delivery submit status %q", resp.Status)
 	}
 	return nil
+}
+
+// SupportsMessageScopedDeliverySubmit probes whether a node supports delivery-submit v2 scoped subscribers.
+func (c *Client) SupportsMessageScopedDeliverySubmit(ctx context.Context, nodeID uint64) (bool, error) {
+	if c == nil || c.cluster == nil {
+		return false, fmt.Errorf("access/node: cluster not configured")
+	}
+	if c.hasMessageScopedDeliverySubmitSupport(nodeID) {
+		return true, nil
+	}
+	respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(nodeID), 0, deliverySubmitRPCServiceID, encodeDeliverySubmitCapabilityProbe())
+	if err != nil {
+		if isDeliverySubmitCodecUnsupported(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	resp, err := decodeDeliveryResponse(respBody)
+	if err != nil {
+		return false, err
+	}
+	if resp.Status != rpcStatusOK {
+		return false, fmt.Errorf("access/node: unexpected delivery submit capability status %q", resp.Status)
+	}
+	c.rememberMessageScopedDeliverySubmitSupport(nodeID)
+	return true, nil
+}
+
+func (c *Client) hasMessageScopedDeliverySubmitSupport(nodeID uint64) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.messageScopedDeliverySubmitSupport[nodeID]
+}
+
+func (c *Client) rememberMessageScopedDeliverySubmitSupport(nodeID uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.messageScopedDeliverySubmitSupport == nil {
+		c.messageScopedDeliverySubmitSupport = make(map[uint64]bool)
+	}
+	c.messageScopedDeliverySubmitSupport[nodeID] = true
+}
+
+func isDeliverySubmitCodecUnsupported(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "invalid delivery submit request codec") ||
+		strings.Contains(msg, "unknown rpc service")
 }
 
 func (c *Client) PushBatch(ctx context.Context, nodeID uint64, cmd DeliveryPushCommand) (DeliveryPushResponse, error) {

@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
@@ -246,6 +247,9 @@ func New(opts Options) *Adapter {
 type Client struct {
 	cluster Cluster
 	codec   codec.Protocol
+
+	mu                                 sync.RWMutex
+	messageScopedDeliverySubmitSupport map[uint64]bool
 }
 
 func NewClient(cluster Cluster) *Client {
