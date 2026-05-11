@@ -96,6 +96,31 @@ func (m *Manager) BuildLeaderTag(request BuildRequest) (DeliveryTag, bool) {
 	return tag.clone(), true
 }
 
+// BuildEphemeralTag stores a one-message tag body without replacing the reusable channel ref.
+func (m *Manager) BuildEphemeralTag(request BuildRequest) (DeliveryTag, bool) {
+	if m == nil {
+		return DeliveryTag{}, false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	now := m.now()
+	tag := DeliveryTag{
+		Key:                             m.newTagKey(),
+		ChannelKey:                      request.ChannelKey,
+		TagVersion:                      1,
+		SubscriberMutationVersion:       request.SubscriberMutationVersion,
+		SourceChannelKey:                request.SourceChannelKey,
+		SourceSubscriberMutationVersion: request.SourceSubscriberMutationVersion,
+		Topology:                        request.Topology.Clone(),
+		Partitions:                      clonePartitions(request.Partitions),
+		CreatedAt:                       now,
+		LastAccess:                      now,
+	}
+	m.cache.tags[tag.Key] = tag.clone()
+	return tag.clone(), true
+}
+
 // StoreFollowerPartition stores only this node's subscriber partition from a leader tag.
 func (m *Manager) StoreFollowerPartition(tag DeliveryTag) (DeliveryTag, bool) {
 	if m == nil {
