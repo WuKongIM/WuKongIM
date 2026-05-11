@@ -326,25 +326,8 @@ func preserveRetentionBoundary(existing ChannelRuntimeMeta, candidate *ChannelRu
 }
 
 func preserveWriteFence(existing ChannelRuntimeMeta, candidate *ChannelRuntimeMeta) {
-	if candidate.WriteFenceVersion < existing.WriteFenceVersion {
+	if candidate.WriteFenceVersion <= existing.WriteFenceVersion {
 		restoreWriteFence(existing, candidate)
-		return
-	}
-	if candidate.WriteFenceVersion != existing.WriteFenceVersion {
-		return
-	}
-	if existing.WriteFenceToken == "" {
-		if candidate.WriteFenceToken != "" {
-			restoreWriteFence(existing, candidate)
-		}
-		return
-	}
-	if candidate.WriteFenceToken != existing.WriteFenceToken || candidate.WriteFenceReason != existing.WriteFenceReason {
-		restoreWriteFence(existing, candidate)
-		return
-	}
-	if candidate.WriteFenceUntilMS < existing.WriteFenceUntilMS {
-		candidate.WriteFenceUntilMS = existing.WriteFenceUntilMS
 	}
 }
 
