@@ -189,6 +189,7 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypePromoteLearnerAndRemoveReplica:       decodePromoteLearnerAndRemoveReplica,
 	cmdTypeClearChannelWriteFence:               decodeClearChannelWriteFence,
 	cmdTypeAbortChannelMigration:                decodeAbortChannelMigration,
+	cmdTypeGarbageCollectMigrationTasks:         decodeGarbageCollectMigrationTasks,
 }
 
 // --- UpsertUser ---

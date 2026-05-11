@@ -196,18 +196,23 @@ func (s *Store) GarbageCollectTerminalChannelMigrationTasks(ctx context.Context,
 		if !s.cluster.IsLocal(leaderID) {
 			continue
 		}
-		// Terminal task GC currently deletes local metadata directly. Limit it
-		// to single-peer slot groups so replicated slots never diverge.
-		if !s.singleLocalPeerSlot(slotID) {
-			continue
-		}
 		for _, hashSlot := range s.cluster.HashSlotsOf(slotID) {
 			remaining := limit - deleted
 			if remaining <= 0 {
 				return deleted, nil
 			}
-			n, err := s.db.ForHashSlot(hashSlot).DeleteTerminalChannelMigrationTasksBefore(ctx, beforeMS, remaining)
+			n, err := s.db.ForHashSlot(hashSlot).CountTerminalChannelMigrationTasksBefore(ctx, beforeMS, remaining)
 			if err != nil {
+				return deleted, err
+			}
+			if n == 0 {
+				continue
+			}
+			cmd := metafsm.EncodeGarbageCollectTerminalChannelMigrationTasksCommand(metadb.ChannelMigrationTaskGCRequest{
+				BeforeMS: beforeMS,
+				Limit:    n,
+			})
+			if err := proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd); err != nil {
 				return deleted, err
 			}
 			deleted += n

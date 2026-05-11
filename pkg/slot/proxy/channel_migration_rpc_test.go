@@ -275,7 +275,7 @@ func TestChannelMigrationGarbageCollectsTerminalTasksForLocalLeaderSlots(t *test
 	require.Equal(t, remote.TaskID, gotRemote.TaskID)
 }
 
-func TestChannelMigrationGarbageCollectSkipsReplicatedSlots(t *testing.T) {
+func TestChannelMigrationGarbageCollectProposesForReplicatedSlots(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
 	hashSlot := uint16(7)
@@ -295,7 +295,8 @@ func TestChannelMigrationGarbageCollectSkipsReplicatedSlots(t *testing.T) {
 
 	deleted, err := store.GarbageCollectTerminalChannelMigrationTasks(ctx, 1750000020000, 10)
 	require.NoError(t, err)
-	require.Zero(t, deleted)
+	require.Equal(t, 1, deleted)
+	require.Equal(t, 1, cluster.proposals)
 
 	got, err := db.ForHashSlot(hashSlot).GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
 	require.NoError(t, err)

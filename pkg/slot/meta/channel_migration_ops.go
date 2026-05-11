@@ -373,6 +373,13 @@ func validateChannelMigrationAbortRequest(req ChannelMigrationAbortRequest) erro
 	return validateChannelMigrationTaskRuntimeTransition(req.Guard, req.RuntimeGuard, req.Status, req.Phase, req.UpdatedAtMS, req.CompletedAtMS)
 }
 
+func validateChannelMigrationTaskGCRequest(req ChannelMigrationTaskGCRequest) error {
+	if req.BeforeMS <= 0 || req.Limit <= 0 {
+		return ErrInvalidArgument
+	}
+	return nil
+}
+
 func validateChannelMigrationTaskRuntimeTransition(guard ChannelMigrationTaskGuard, runtimeGuard ChannelMigrationRuntimeGuard, status ChannelMigrationStatus, phase ChannelMigrationPhase, updatedAtMS, completedAtMS int64) error {
 	if err := validateChannelMigrationTaskGuard(guard); err != nil {
 		return err
