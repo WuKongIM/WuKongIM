@@ -3182,6 +3182,21 @@ func TestApplyBatch_DeleteChannel(t *testing.T) {
 	}
 }
 
+func TestEncodeDecodeChannelStatusFlags(t *testing.T) {
+	want := metadb.Channel{ChannelID: "c-status", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1}
+	decoded, err := decodeCommand(EncodeUpsertChannelCommand(want))
+	if err != nil {
+		t.Fatalf("decodeCommand(): %v", err)
+	}
+	cmd, ok := decoded.(*upsertChannelCmd)
+	if !ok {
+		t.Fatalf("type = %T, want *upsertChannelCmd", decoded)
+	}
+	if cmd.channel != want {
+		t.Fatalf("decoded channel = %#v, want %#v", cmd.channel, want)
+	}
+}
+
 func TestEncodeDecodeChannelEdgeCases(t *testing.T) {
 	tests := []struct {
 		name    string
