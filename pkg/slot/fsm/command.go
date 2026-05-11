@@ -152,6 +152,10 @@ type command interface {
 	apply(wb *metadb.WriteBatch, hashSlot uint16) error
 }
 
+type resultCommand interface {
+	applyResult() []byte
+}
+
 // commandDecoder parses TLV fields after the header into a typed command.
 type commandDecoder func(data []byte) (command, error)
 

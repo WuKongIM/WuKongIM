@@ -2,6 +2,7 @@ package fsm
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,6 +25,8 @@ const (
 	cmdTypeGarbageCollectMigrationTasks   uint8 = 40
 	tagChannelMigrationCommandPayload     uint8 = 1
 )
+
+var channelMigrationGCResultMagic = [...]byte{'W', 'K', 'M', 'G', 1}
 
 type createChannelMigrationTaskCmd struct {
 	task metadb.ChannelMigrationTask
@@ -106,11 +109,21 @@ func (c *abortChannelMigrationCmd) apply(wb *metadb.WriteBatch, hashSlot uint16)
 }
 
 type garbageCollectMigrationTasksCmd struct {
-	req metadb.ChannelMigrationTaskGCRequest
+	req     metadb.ChannelMigrationTaskGCRequest
+	deleted int
 }
 
 func (c *garbageCollectMigrationTasksCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
-	return wb.DeleteTerminalChannelMigrationTasksBefore(hashSlot, c.req)
+	deleted, err := wb.DeleteTerminalChannelMigrationTasksBefore(hashSlot, c.req)
+	if err != nil {
+		return err
+	}
+	c.deleted = deleted
+	return nil
+}
+
+func (c *garbageCollectMigrationTasksCmd) applyResult() []byte {
+	return EncodeGarbageCollectTerminalChannelMigrationTasksResult(c.deleted)
 }
 
 // EncodeCreateChannelMigrationTaskCommand encodes a durable migration task create command.
@@ -166,6 +179,34 @@ func EncodeAbortChannelMigrationCommand(req metadb.ChannelMigrationAbortRequest)
 // EncodeGarbageCollectTerminalChannelMigrationTasksCommand encodes terminal task retention cleanup.
 func EncodeGarbageCollectTerminalChannelMigrationTasksCommand(req metadb.ChannelMigrationTaskGCRequest) []byte {
 	return encodeChannelMigrationJSONCommand(cmdTypeGarbageCollectMigrationTasks, req)
+}
+
+// EncodeGarbageCollectTerminalChannelMigrationTasksResult encodes how many
+// terminal task primary rows the applied cleanup command actually removed.
+func EncodeGarbageCollectTerminalChannelMigrationTasksResult(deleted int) []byte {
+	dst := make([]byte, 0, len(channelMigrationGCResultMagic)+binary.MaxVarintLen64)
+	dst = append(dst, channelMigrationGCResultMagic[:]...)
+	return binary.AppendUvarint(dst, uint64(deleted))
+}
+
+// DecodeGarbageCollectTerminalChannelMigrationTasksResult decodes a cleanup
+// apply result. The ok return is false for ordinary non-GC apply results.
+func DecodeGarbageCollectTerminalChannelMigrationTasksResult(data []byte) (deleted int, ok bool, err error) {
+	if len(data) == 0 {
+		return 0, false, nil
+	}
+	if !bytes.HasPrefix(data, channelMigrationGCResultMagic[:]) {
+		return 0, false, nil
+	}
+	value, n := binary.Uvarint(data[len(channelMigrationGCResultMagic):])
+	if n <= 0 || len(channelMigrationGCResultMagic)+n != len(data) {
+		return 0, true, fmt.Errorf("slot fsm: invalid channel migration gc result")
+	}
+	maxInt := uint64(int(^uint(0) >> 1))
+	if value > maxInt {
+		return 0, true, fmt.Errorf("slot fsm: channel migration gc result overflows int")
+	}
+	return int(value), true, nil
 }
 
 func encodeChannelMigrationJSONCommand(cmdType uint8, payload any) []byte {

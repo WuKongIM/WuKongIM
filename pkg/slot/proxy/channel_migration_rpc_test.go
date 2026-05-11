@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
@@ -292,15 +293,19 @@ func TestChannelMigrationGarbageCollectProposesForReplicatedSlots(t *testing.T) 
 	store := &Store{cluster: cluster, db: db}
 	task := proxyTestCompletedChannelMigrationTask("task-gc-replicated", "channel-gc-replicated", 1750000010000)
 	require.NoError(t, db.ForHashSlot(hashSlot).CreateChannelMigrationTask(ctx, task))
+	sm, err := metafsm.NewStateMachineWithHashSlots(db, 1, []uint16{hashSlot})
+	require.NoError(t, err)
+	cluster.proposeResult = func(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, cmd []byte) ([]byte, error) {
+		return sm.Apply(ctx, multiraft.Command{SlotID: slotID, HashSlot: hashSlot, Data: cmd})
+	}
 
 	deleted, err := store.GarbageCollectTerminalChannelMigrationTasks(ctx, 1750000020000, 10)
 	require.NoError(t, err)
 	require.Equal(t, 1, deleted)
 	require.Equal(t, 1, cluster.proposals)
 
-	got, err := db.ForHashSlot(hashSlot).GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
-	require.NoError(t, err)
-	require.Equal(t, task.TaskID, got.TaskID)
+	_, err = db.ForHashSlot(hashSlot).GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.ErrorIs(t, err, metadb.ErrNotFound)
 }
 
 func TestChannelMigrationProposeRejectsStaleRouteBeforeRaftApply(t *testing.T) {
@@ -331,6 +336,33 @@ func TestChannelMigrationProposeRejectsStaleRouteBeforeRaftApply(t *testing.T) {
 	require.Equal(t, rpcStatusNotLeader, resp.Status)
 	require.Equal(t, uint64(1), resp.LeaderID)
 	require.Zero(t, cluster.proposals)
+}
+
+func TestChannelMigrationGetActiveRejectsStaleRoute(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	cluster := &proxyTestMigrationCluster{
+		nodeID:         2,
+		localNodeID:    2,
+		slotForKey:     1,
+		hashSlotForKey: 1,
+		leaders:        map[multiraft.SlotID]multiraft.NodeID{1: 1, 2: 2},
+	}
+	store := &Store{cluster: cluster, db: db}
+	body, err := encodeChannelMigrationRPCRequestBinary(channelMigrationRPCRequest{
+		Op:          channelMigrationRPCGetActive,
+		SlotID:      2,
+		ChannelID:   "channel-stale-get-active-route",
+		ChannelType: 1,
+	})
+	require.NoError(t, err)
+
+	respBody, err := store.handleChannelMigrationRPC(ctx, body)
+	require.NoError(t, err)
+	resp, err := decodeChannelMigrationRPCResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, rpcStatusNotLeader, resp.Status)
+	require.Equal(t, uint64(1), resp.LeaderID)
 }
 
 func TestChannelMigrationReadDoesNotHideStaleMetaStatus(t *testing.T) {
@@ -500,6 +532,7 @@ type proxyTestMigrationCluster struct {
 	leaders        map[multiraft.SlotID]multiraft.NodeID
 	peers          map[multiraft.SlotID][]multiraft.NodeID
 	rpcResponse    []byte
+	proposeResult  func(context.Context, multiraft.SlotID, uint16, []byte) ([]byte, error)
 	proposals      int
 }
 
@@ -542,6 +575,14 @@ func (c *proxyTestMigrationCluster) PeersForSlot(slotID multiraft.SlotID) []mult
 func (c *proxyTestMigrationCluster) ProposeWithHashSlot(context.Context, multiraft.SlotID, uint16, []byte) error {
 	c.proposals++
 	return nil
+}
+
+func (c *proxyTestMigrationCluster) ProposeWithHashSlotResult(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, cmd []byte) ([]byte, error) {
+	c.proposals++
+	if c.proposeResult != nil {
+		return c.proposeResult(ctx, slotID, hashSlot, cmd)
+	}
+	return nil, nil
 }
 
 func (c *proxyTestMigrationCluster) RPCService(context.Context, multiraft.NodeID, multiraft.SlotID, uint8, []byte) ([]byte, error) {

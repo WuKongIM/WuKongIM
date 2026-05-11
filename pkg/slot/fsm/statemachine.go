@@ -270,7 +270,7 @@ func (m *stateMachine) ApplyBatch(ctx context.Context, cmds []multiraft.Command)
 		if ok {
 			pendingForwardDeltas = append(pendingForwardDeltas, pendingForward)
 		}
-		results[i] = []byte(ApplyResultOK)
+		results[i] = commandApplyResult(decoded)
 	}
 
 	if err := wb.Commit(); err != nil {
@@ -285,6 +285,13 @@ func (m *stateMachine) ApplyBatch(ctx context.Context, cmds []multiraft.Command)
 	m.markAppliedDeltas(pendingDeltaKeys)
 	m.forwardCommittedDeltas(ctx, pendingForwardDeltas)
 	return results, nil
+}
+
+func commandApplyResult(decoded command) []byte {
+	if result, ok := decoded.(resultCommand); ok {
+		return result.applyResult()
+	}
+	return []byte(ApplyResultOK)
 }
 
 func (m *stateMachine) applyCommandsIndividuallyAfterStaleCommit(ctx context.Context, cmds []multiraft.Command) ([][]byte, error) {

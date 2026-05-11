@@ -21,6 +21,7 @@ type WriteBatch struct {
 	channelMigrationCreates map[string]struct{}
 	channelMigrationGuards  map[string]channelMigrationTaskGuardBatchEntry
 	channelMigrationRuntime map[string]channelMigrationRuntimeGuardBatchEntry
+	channelMigrationGCKeys  map[string]struct{}
 }
 
 type channelBatchEntry struct {

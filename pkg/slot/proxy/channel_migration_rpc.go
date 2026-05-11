@@ -201,19 +201,27 @@ func (s *Store) GarbageCollectTerminalChannelMigrationTasks(ctx context.Context,
 			if remaining <= 0 {
 				return deleted, nil
 			}
-			n, err := s.db.ForHashSlot(hashSlot).CountTerminalChannelMigrationTasksBefore(ctx, beforeMS, remaining)
+			plan, err := s.db.ForHashSlot(hashSlot).PlanTerminalChannelMigrationTaskGC(ctx, beforeMS, remaining)
 			if err != nil {
 				return deleted, err
 			}
-			if n == 0 {
+			if plan.EntryCount == 0 {
 				continue
 			}
 			cmd := metafsm.EncodeGarbageCollectTerminalChannelMigrationTasksCommand(metadb.ChannelMigrationTaskGCRequest{
 				BeforeMS: beforeMS,
-				Limit:    n,
+				Limit:    plan.EntryCount,
 			})
-			if err := proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd); err != nil {
+			result, err := proposeWithHashSlotResult(ctx, s.cluster, slotID, hashSlot, cmd)
+			if err != nil {
 				return deleted, err
+			}
+			n, ok, err := metafsm.DecodeGarbageCollectTerminalChannelMigrationTasksResult(result)
+			if err != nil {
+				return deleted, err
+			}
+			if !ok {
+				n = plan.TaskCount
 			}
 			deleted += n
 		}
@@ -281,7 +289,10 @@ func (s *Store) handleChannelMigrationRPC(ctx context.Context, body []byte) ([]b
 
 	switch req.Op {
 	case channelMigrationRPCGetActive:
-		hashSlot := hashSlotForKey(s.cluster, req.ChannelID)
+		hashSlot, redirected, err := s.resolveChannelMigrationRPCRoute(req.ChannelID, slotID)
+		if err != nil || redirected != nil {
+			return redirected, err
+		}
 		task, ok, err := s.db.ForHashSlot(hashSlot).GetActiveChannelMigrationTask(ctx, req.ChannelID, req.ChannelType)
 		if err != nil {
 			return nil, err
@@ -296,18 +307,11 @@ func (s *Store) handleChannelMigrationRPC(ctx context.Context, body []byte) ([]b
 	case channelMigrationRPCPropose:
 		hashSlot := req.HashSlot
 		if req.ChannelID != "" {
-			actualSlotID := s.cluster.SlotForKey(req.ChannelID)
-			if actualSlotID != slotID {
-				leaderID, err := s.cluster.LeaderOf(actualSlotID)
-				if err != nil {
-					return encodeChannelMigrationRPCResponse(channelMigrationRPCResponse{Status: rpcStatusNoLeader})
-				}
-				return encodeChannelMigrationRPCResponse(channelMigrationRPCResponse{
-					Status:   rpcStatusNotLeader,
-					LeaderID: uint64(leaderID),
-				})
+			routedHashSlot, redirected, err := s.resolveChannelMigrationRPCRoute(req.ChannelID, slotID)
+			if err != nil || redirected != nil {
+				return redirected, err
 			}
-			hashSlot = hashSlotForKey(s.cluster, req.ChannelID)
+			hashSlot = routedHashSlot
 		}
 		if len(req.Command) == 0 {
 			return nil, fmt.Errorf("metastore: empty channel migration proposal")
@@ -322,6 +326,23 @@ func (s *Store) handleChannelMigrationRPC(ctx context.Context, body []byte) ([]b
 	default:
 		return nil, fmt.Errorf("metastore: unknown channel migration rpc op %q", req.Op)
 	}
+}
+
+func (s *Store) resolveChannelMigrationRPCRoute(channelID string, slotID multiraft.SlotID) (uint16, []byte, error) {
+	actualSlotID := s.cluster.SlotForKey(channelID)
+	if actualSlotID == slotID {
+		return hashSlotForKey(s.cluster, channelID), nil, nil
+	}
+	leaderID, err := s.cluster.LeaderOf(actualSlotID)
+	if err != nil {
+		body, encodeErr := encodeChannelMigrationRPCResponse(channelMigrationRPCResponse{Status: rpcStatusNoLeader})
+		return 0, body, encodeErr
+	}
+	body, err := encodeChannelMigrationRPCResponse(channelMigrationRPCResponse{
+		Status:   rpcStatusNotLeader,
+		LeaderID: uint64(leaderID),
+	})
+	return 0, body, err
 }
 
 func isRunnableChannelMigrationTaskForLocalLeader(task metadb.ChannelMigrationTask, nowMS int64, localNodeID uint64) bool {
