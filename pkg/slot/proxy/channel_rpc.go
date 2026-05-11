@@ -179,6 +179,8 @@ func appendChannelPtr(dst []byte, ch *metadb.Channel) []byte {
 	dst = runtimeMetaAppendString(dst, ch.ChannelID)
 	dst = runtimeMetaAppendVarint(dst, ch.ChannelType)
 	dst = runtimeMetaAppendVarint(dst, ch.Ban)
+	dst = runtimeMetaAppendVarint(dst, ch.Disband)
+	dst = runtimeMetaAppendVarint(dst, ch.SendBan)
 	dst = runtimeMetaAppendUvarint(dst, ch.SubscriberMutationVersion)
 	return dst
 }
@@ -196,6 +198,12 @@ func readChannelPtr(body []byte, offset int) (*metadb.Channel, int, error) {
 		return nil, offset, err
 	}
 	if ch.Ban, next, err = runtimeMetaReadVarint(body, next); err != nil {
+		return nil, offset, err
+	}
+	if ch.Disband, next, err = runtimeMetaReadVarint(body, next); err != nil {
+		return nil, offset, err
+	}
+	if ch.SendBan, next, err = runtimeMetaReadVarint(body, next); err != nil {
 		return nil, offset, err
 	}
 	if ch.SubscriberMutationVersion, next, err = runtimeMetaReadUvarint(body, next); err != nil {

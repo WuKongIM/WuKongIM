@@ -56,23 +56,25 @@ func (s *Store) HashSlotTableVersion() uint64 {
 }
 
 func (s *Store) CreateChannel(ctx context.Context, channelID string, channelType int64) error {
-	slotID := s.cluster.SlotForKey(channelID)
-	hashSlot := hashSlotForKey(s.cluster, channelID)
-	cmd := metafsm.EncodeUpsertChannelCommand(metadb.Channel{
+	return s.UpsertChannel(ctx, metadb.Channel{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 	})
-	return proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd)
 }
 
 func (s *Store) UpdateChannel(ctx context.Context, channelID string, channelType int64, ban int64) error {
-	slotID := s.cluster.SlotForKey(channelID)
-	hashSlot := hashSlotForKey(s.cluster, channelID)
-	cmd := metafsm.EncodeUpsertChannelCommand(metadb.Channel{
+	return s.UpsertChannel(ctx, metadb.Channel{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Ban:         ban,
 	})
+}
+
+// UpsertChannel persists all supported channel metadata flags through the authoritative slot.
+func (s *Store) UpsertChannel(ctx context.Context, ch metadb.Channel) error {
+	slotID := s.cluster.SlotForKey(ch.ChannelID)
+	hashSlot := hashSlotForKey(s.cluster, ch.ChannelID)
+	cmd := metafsm.EncodeUpsertChannelCommand(ch)
 	return proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd)
 }
 

@@ -150,6 +150,18 @@ func TestUserConversationStateRPCBinaryCodecRoundTrip(t *testing.T) {
 	require.Equal(t, resp, gotResp)
 }
 
+func TestChannelRPCBinaryCodecRoundTripsStatusFlags(t *testing.T) {
+	resp := channelRPCResponse{
+		Status:   rpcStatusOK,
+		LeaderID: 2,
+		Channel:  &metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, SubscriberMutationVersion: 7},
+	}
+	body := encodeChannelRPCResponseBinary(resp)
+	got, err := decodeChannelRPCResponseBinary(body)
+	require.NoError(t, err)
+	require.Equal(t, resp, got)
+}
+
 func TestRemainingProxyRPCsRejectJSONPayload(t *testing.T) {
 	store := New(nil, openTestDB(t))
 
