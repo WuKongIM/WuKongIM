@@ -93,7 +93,7 @@ func (a *App) sendRequestScoped(ctx context.Context, cmd SendCommand) (SendResul
 	scopedCmd.ChannelType = scoped.ChannelType
 	scopedCmd.RequestSubscribers = scoped.Subscribers
 	if scopedCmd.Framer.NoPersist {
-		return SendResult{Reason: frame.ReasonSuccess}, nil
+		return a.sendRequestScopedRealtime(ctx, scopedCmd)
 	}
 
 	if a.cluster == nil {
@@ -107,6 +107,31 @@ func (a *App) sendRequestScoped(ctx context.Context, cmd SendCommand) (SendResul
 	}
 
 	return a.sendDurable(ctx, scopedCmd)
+}
+
+// sendRequestScopedRealtime dispatches a transient message without writing the channel log.
+func (a *App) sendRequestScopedRealtime(ctx context.Context, cmd SendCommand) (SendResult, error) {
+	if a.messageIDs == nil {
+		return SendResult{}, ErrMessageIDGeneratorRequired
+	}
+	if a.realtime == nil {
+		return SendResult{}, ErrRealtimeDispatcherRequired
+	}
+	msg := buildDurableMessage(cmd, a.now())
+	msg.MessageID = a.messageIDs.Next()
+	msg.MessageSeq = 0
+	if err := a.realtime.SubmitRealtime(ctx, messageevents.MessageRealtime{
+		Message:           msg,
+		SenderSessionID:   cmd.SenderSessionID,
+		MessageScopedUIDs: append([]string(nil), cmd.RequestSubscribers...),
+	}); err != nil {
+		return SendResult{}, err
+	}
+	return SendResult{
+		MessageID:  int64(msg.MessageID),
+		MessageSeq: 0,
+		Reason:     frame.ReasonSuccess,
+	}, nil
 }
 
 func (a *App) sendDurable(ctx context.Context, cmd SendCommand) (SendResult, error) {

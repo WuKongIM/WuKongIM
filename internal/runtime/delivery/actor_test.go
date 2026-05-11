@@ -20,6 +20,18 @@ func TestActorDeliversHigherObservedSequenceImmediatelyAndLaterLowerSequenceAsLa
 	require.Equal(t, []uint64{1, 3, 2}, pusher.pushedSeqs())
 }
 
+func TestActorDispatchesRealtimeScopedZeroSeqMessagesByMessageID(t *testing.T) {
+	runtime, _, pusher := newTestManager()
+
+	require.NoError(t, runtime.Submit(context.Background(), testEnvelope(101, 0)))
+	require.NoError(t, runtime.Submit(context.Background(), testEnvelope(102, 0)))
+
+	require.Len(t, pusher.calls, 2)
+	require.Equal(t, uint64(101), pusher.calls[0].envelope.MessageID)
+	require.Equal(t, uint64(102), pusher.calls[1].envelope.MessageID)
+	require.Equal(t, []uint64{0, 0}, pusher.pushedSeqs())
+}
+
 func TestActorBindsAckIndexOnlyForAcceptedRoutes(t *testing.T) {
 	runtime, _, pusher := newTestManager()
 	accepted := testRoute("u2", 1, 11, 2)
