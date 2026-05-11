@@ -287,6 +287,9 @@ func validateChannelMigrationClearFenceRequest(req ChannelMigrationClearFenceReq
 }
 
 func validateChannelMigrationAbortRequest(req ChannelMigrationAbortRequest) error {
+	if req.Status != ChannelMigrationStatusAborted {
+		return ErrInvalidArgument
+	}
 	return validateChannelMigrationTaskRuntimeTransition(req.Guard, req.RuntimeGuard, req.Status, req.Phase, req.UpdatedAtMS, req.CompletedAtMS)
 }
 
