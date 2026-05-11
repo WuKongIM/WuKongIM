@@ -700,6 +700,7 @@ type tagResolveToken struct {
 	localUIDs   []string
 	nextIndex   int
 	channelType uint8
+	ephemeral   bool
 	pending     []deliveryruntime.RouteKey
 	done        bool
 }
@@ -917,6 +918,7 @@ func (r tagDeliveryResolver) BeginResolve(ctx context.Context, key deliveryrunti
 		r.recordResolveMetric(deliveryChannelTypeLabel(key.ChannelType), "error", time.Since(startedAt), 0, 0)
 		return nil, err
 	}
+	source := snapshot.Source()
 	tag, err := r.leaderTagFromSnapshot(ctx, key, channelKey, snapshot)
 	if err != nil {
 		r.recordResolveMetric(deliveryChannelTypeLabel(key.ChannelType), "error", time.Since(startedAt), 0, 0)
@@ -926,6 +928,7 @@ func (r tagDeliveryResolver) BeginResolve(ctx context.Context, key deliveryrunti
 		tag:         tag,
 		localUIDs:   deliveryTagLocalUIDs(tag, r.localNodeID),
 		channelType: key.ChannelType,
+		ephemeral:   !source.ReusableTagState,
 	}, nil
 }
 
@@ -954,20 +957,22 @@ func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor 
 		return nil, "", true, nil
 	}
 	channelType = deliveryChannelTypeLabel(resolveToken.channelType)
-	if refreshed, hit, reason := r.tags.LookupLocalPartitionRef(deliverytagruntime.TagRef{
-		ChannelKey:                      resolveToken.tag.ChannelKey,
-		TagKey:                          resolveToken.tag.Key,
-		TagVersion:                      resolveToken.tag.TagVersion,
-		SubscriberMutationVersion:       resolveToken.tag.SubscriberMutationVersion,
-		SourceChannelKey:                resolveToken.tag.SourceChannelKey,
-		SourceSubscriberMutationVersion: resolveToken.tag.SourceSubscriberMutationVersion,
-		Topology:                        resolveToken.tag.Topology,
-	}); hit {
-		resolveToken.tag = refreshed
-	} else if reason == deliverytagruntime.LookupStaleRequest || reason == deliverytagruntime.LookupTagKeyMismatch {
-		resolveToken.tag = refreshed
-		resolveToken.localUIDs = deliveryTagLocalUIDs(refreshed, r.localNodeID)
-		resolveToken.nextIndex = deliveryTagIndexAfterCursor(resolveToken.localUIDs, cursor)
+	if !resolveToken.ephemeral {
+		if refreshed, hit, reason := r.tags.LookupLocalPartitionRef(deliverytagruntime.TagRef{
+			ChannelKey:                      resolveToken.tag.ChannelKey,
+			TagKey:                          resolveToken.tag.Key,
+			TagVersion:                      resolveToken.tag.TagVersion,
+			SubscriberMutationVersion:       resolveToken.tag.SubscriberMutationVersion,
+			SourceChannelKey:                resolveToken.tag.SourceChannelKey,
+			SourceSubscriberMutationVersion: resolveToken.tag.SourceSubscriberMutationVersion,
+			Topology:                        resolveToken.tag.Topology,
+		}); hit {
+			resolveToken.tag = refreshed
+		} else if reason == deliverytagruntime.LookupStaleRequest || reason == deliverytagruntime.LookupTagKeyMismatch {
+			resolveToken.tag = refreshed
+			resolveToken.localUIDs = deliveryTagLocalUIDs(refreshed, r.localNodeID)
+			resolveToken.nextIndex = deliveryTagIndexAfterCursor(resolveToken.localUIDs, cursor)
+		}
 	}
 	if resolveToken.done {
 		return nil, cursor, true, nil
@@ -1049,6 +1054,17 @@ func (r tagDeliveryResolver) leaderTagFromSnapshot(ctx context.Context, key deli
 	topology, err := r.currentTagTopology(ctx, uids)
 	if err != nil {
 		return deliverytagruntime.DeliveryTag{}, err
+	}
+	if !source.ReusableTagState {
+		tag, _ := r.tags.BuildEphemeralTag(deliverytagruntime.BuildRequest{
+			ChannelKey:                      channelKey,
+			SubscriberMutationVersion:       source.SubscriberMutationVersion,
+			SourceChannelKey:                deliveryTagSourceChannelKey(source),
+			SourceSubscriberMutationVersion: source.SourceSubscriberMutationVersion,
+			Topology:                        topology,
+			Partitions:                      r.partitionDeliveryTagUIDs(ctx, uids, topology),
+		})
+		return tag, nil
 	}
 	if ref, ok := r.tags.CurrentRef(channelKey); ok {
 		if tag, hit, reason := r.tags.LookupLocalPartitionRef(deliverytagruntime.TagRef{

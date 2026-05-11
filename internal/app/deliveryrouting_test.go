@@ -849,6 +849,55 @@ func TestDeliveryRoutingUsesTagPartition(t *testing.T) {
 	}, tag.Partitions)
 }
 
+func TestDeliveryRoutingMessageScopedTagDoesNotReplaceReusableRef(t *testing.T) {
+	var tagSeq int
+	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{
+		LocalNodeID: 1,
+		NewTagKey: func() string {
+			tagSeq++
+			return fmt.Sprintf("tag-scoped-%d", tagSeq)
+		},
+	})
+	topology := deliverytagruntime.PartitionTopologyVersion{
+		HashSlotTableVersion: 9,
+		SlotAuthorityRefs: []deliverytagruntime.SlotAuthorityRef{
+			{SlotID: 1, LeaderNodeID: 1, ConfigEpoch: 2, BalanceVersion: 3},
+		},
+	}
+	reusable, created := manager.BuildLeaderTag(deliverytagruntime.BuildRequest{
+		ChannelKey:                "8:tmp1____cmd",
+		SubscriberMutationVersion: 7,
+		Topology:                  topology,
+		Partitions:                []deliverytagruntime.NodePartition{{NodeID: 1, UIDs: []string{"ordinary"}}},
+	})
+	require.True(t, created)
+
+	resolver := tagDeliveryResolver{
+		localNodeID: 1,
+		tags:        manager,
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{}),
+		authority: &recordingAuthoritative{batches: map[string][]presence.Route{
+			"scoped": {{UID: "scoped", NodeID: 1, BootID: 11, SessionID: 101}},
+		}},
+		topology: staticDeliveryTagTopology{version: topology},
+		pageSize: 8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   "tmp1____cmd",
+		ChannelType: frame.ChannelTypeTemp,
+	}, deliveryruntime.CommittedEnvelope{MessageScopedUIDs: []string{"scoped"}})
+	require.NoError(t, err)
+	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "scoped", NodeID: 1, BootID: 11, SessionID: 101}}, routes)
+
+	ref, ok := manager.CurrentRef("8:tmp1____cmd")
+	require.True(t, ok)
+	require.Equal(t, reusable.Key, ref.TagKey)
+}
+
 func TestNextDeliveryTagUIDPageAtUsesOffsetWithoutAllocating(t *testing.T) {
 	uids := []string{"u1", "u2", "u3", "u4"}
 
