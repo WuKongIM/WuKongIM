@@ -1131,6 +1131,23 @@ func TestBuildRealtimeRecvPacketStripsCommandSuffixFromClientChannelView(t *test
 		require.Equal(t, "u1", packet.ChannelID)
 		require.Equal(t, frame.ChannelTypePerson, packet.ChannelType)
 	})
+
+	t.Run("temp", func(t *testing.T) {
+		packet := buildRealtimeRecvPacket(channel.Message{
+			MessageID:   91,
+			MessageSeq:  0,
+			Framer:      frame.Framer{SyncOnce: true, NoPersist: true},
+			ChannelID:   channelid.ToCommandChannel("tmp1"),
+			ChannelType: frame.ChannelTypeTemp,
+			FromUID:     "system",
+			Payload:     []byte("hello temp cmd"),
+		}, "")
+
+		require.Equal(t, "tmp1", packet.ChannelID)
+		require.Equal(t, frame.ChannelTypeTemp, packet.ChannelType)
+		require.True(t, packet.Framer.SyncOnce)
+		require.True(t, packet.Framer.NoPersist)
+	})
 }
 
 func TestLocalDeliveryPushBuildsPersonChannelViewPerRouteUID(t *testing.T) {
