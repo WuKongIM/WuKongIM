@@ -24,6 +24,7 @@ var (
 	ErrRequestSubscribersRequired        = errors.New("usecase/message: request subscribers required")
 	ErrMessageIDGeneratorRequired        = errors.New("usecase/message: message id generator required")
 	ErrRealtimeDispatcherRequired        = errors.New("usecase/message: realtime dispatcher required")
+	ErrCommittedDispatcherRequired       = errors.New("usecase/message: committed dispatcher required")
 )
 
 type Options struct {

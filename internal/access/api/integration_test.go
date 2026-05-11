@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
@@ -135,9 +136,11 @@ func TestAPIServerSendMessageSubscribersWithRealMessageApp(t *testing.T) {
 	cluster := &fakeChannelCluster{
 		result: channel.AppendResult{MessageID: 77, MessageSeq: 0},
 	}
+	dispatcher := &apiRecordingCommittedDispatcher{}
 	msgApp := message.New(message.Options{
-		MetaRefresher: &fakeMetaRefresher{},
-		Cluster:       cluster,
+		MetaRefresher:       &fakeMetaRefresher{},
+		Cluster:             cluster,
+		CommittedDispatcher: dispatcher,
 	})
 	srv := New(Options{
 		ListenAddr: "127.0.0.1:0",
@@ -189,6 +192,8 @@ func TestAPIServerSendMessageSubscribersWithRealMessageApp(t *testing.T) {
 	require.Equal(t, frame.ChannelTypeTemp, cluster.appendRequests[0].Message.ChannelType)
 	require.True(t, cluster.appendRequests[0].Message.Framer.SyncOnce)
 	require.Equal(t, []byte("cmd"), cluster.appendRequests[0].Message.Payload)
+	require.Len(t, dispatcher.calls, 1)
+	require.Equal(t, []string{"u1", "u2"}, dispatcher.calls[0].MessageScopedUIDs)
 }
 
 type apiTestSession struct {
@@ -223,6 +228,10 @@ type fakeChannelCluster struct {
 	err            error
 }
 
+type apiRecordingCommittedDispatcher struct {
+	calls []messageevents.MessageCommitted
+}
+
 type fakeMetaRefresher struct{}
 
 func (*fakeChannelCluster) ApplyMeta(channel.Meta) error {
@@ -232,6 +241,12 @@ func (*fakeChannelCluster) ApplyMeta(channel.Meta) error {
 func (f *fakeChannelCluster) Append(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
 	f.appendRequests = append(f.appendRequests, req)
 	return f.result, f.err
+}
+
+func (d *apiRecordingCommittedDispatcher) SubmitCommitted(_ context.Context, event messageevents.MessageCommitted) error {
+	copied := event.Clone()
+	d.calls = append(d.calls, copied)
+	return nil
 }
 
 func (*fakeMetaRefresher) RefreshChannelMeta(context.Context, channel.ChannelID) (channel.Meta, error) {

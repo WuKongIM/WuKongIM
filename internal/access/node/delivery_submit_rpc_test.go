@@ -86,8 +86,58 @@ func TestDeliverySubmitBinaryCodecRoundTrip(t *testing.T) {
 	require.Equal(t, req, got)
 }
 
+func TestDeliverySubmitBinaryCodecDecodesLegacyV1WithoutMessageScopedUIDs(t *testing.T) {
+	envelope := deliveryruntime.CommittedEnvelope{
+		Message: channel.Message{
+			ChannelID:   "u2",
+			ChannelType: frame.ChannelTypePerson,
+			MessageID:   88,
+			MessageSeq:  9,
+			FromUID:     "u1",
+			ClientMsgNo: "m1",
+			Payload:     []byte("hi"),
+			ClientSeq:   7,
+		},
+		SenderSessionID: 42,
+	}
+	body := append([]byte{}, deliverySubmitRequestMagicV1[:]...)
+	body = appendChannelMessage(body, envelope.Message)
+	body = appendUvarint(body, envelope.SenderSessionID)
+
+	got, err := decodeDeliverySubmitRequest(body)
+	require.NoError(t, err)
+	require.Equal(t, envelope, got.Envelope)
+	require.Empty(t, got.Envelope.MessageScopedUIDs)
+}
+
+func TestDeliverySubmitBinaryCodecEncodesUnscopedAsLegacyV1(t *testing.T) {
+	req := deliverySubmitRequest{Envelope: deliveryruntime.CommittedEnvelope{
+		Message: channel.Message{
+			ChannelID:   "u2",
+			ChannelType: frame.ChannelTypePerson,
+			MessageID:   88,
+			MessageSeq:  9,
+			FromUID:     "u1",
+			ClientMsgNo: "m1",
+			Payload:     []byte("hi"),
+			ClientSeq:   7,
+		},
+		SenderSessionID: 42,
+	}}
+
+	body, err := encodeDeliverySubmitRequestBinary(req)
+	require.NoError(t, err)
+	require.True(t, hasMagic(body, deliverySubmitRequestMagicV1[:]))
+	require.False(t, hasMagic(body, deliverySubmitRequestMagicV2[:]))
+
+	envelope, next, err := readLegacyCommittedEnvelope(body, len(deliverySubmitRequestMagicV1))
+	require.NoError(t, err)
+	require.Equal(t, len(body), next)
+	require.Equal(t, req.Envelope, envelope)
+}
+
 func TestDeliverySubmitBinaryCodecRejectsTooManyMessageScopedUIDs(t *testing.T) {
-	body := append([]byte{}, deliverySubmitRequestMagic[:]...)
+	body := append([]byte{}, deliverySubmitRequestMagicV2[:]...)
 	body = appendChannelMessage(body, channel.Message{})
 	body = appendUvarint(body, 0)
 	body = appendUvarint(body, uint64(maxDeliverySubmitMessageScopedUIDs+1))
