@@ -34,7 +34,7 @@ Store.GarbageCollectTerminalChannelMigrationTasks
 
 // meta/channel_migration_task.go — 当前 Task 2/3 提供本地 ShardStore / WriteBatch helper
 ShardStore.CreateChannelMigrationTask / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / GetChannelMigrationTask / GetActiveChannelMigrationTask / ListChannelMigrationTasks / DeleteTerminalChannelMigrationTasksBefore
-WriteBatch.CreateChannelMigrationTask / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteFence / ResetChannelWriteFenceToPreCutover / CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration
+WriteBatch.CreateChannelMigrationTask / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteFence / ResetChannelWriteFenceToPreCutover / CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration / DeleteTerminalChannelMigrationTasksBefore
 
 // multiraft/api.go — Raft Runtime 底层 API
 Runtime.OpenSlot / BootstrapSlot / CloseSlot
@@ -194,7 +194,7 @@ Meta  (0x12): [0x12][hashSlot:2][...]                             元信息
 | 7 | ReservedConversationProjection | 已移除，不再读写 | - |
 | 8 | ChannelMigrationTask | (channel_id, channel_type, task_id) | idx_channel_migration_active, idx_channel_migration_terminal |
 
-## 7. FSM 命令类型（28 种 + 2 个保留 ID）
+## 7. FSM 命令类型（29 种 + 2 个保留 ID）
 
 TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 未知 Tag 自动跳过（前向兼容）。详见 `fsm/command.go`。
@@ -216,6 +216,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 34: ResetChannelWriteFenceToPreCutover 35: CommitChannelLeaderTransfer
 36: AddChannelLearner                  37: PromoteLearnerAndRemoveReplica
 38: ClearChannelWriteFence             39: AbortChannelMigration
+40: GarbageCollectTerminalChannelMigrationTasks
 ```
 
 ## 8. RPC Service IDs（proxy 层）

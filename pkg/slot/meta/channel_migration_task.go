@@ -310,6 +310,15 @@ type ChannelMigrationAbortRequest struct {
 	LastError string
 }
 
+// ChannelMigrationTaskGCRequest removes terminal migration tasks that have
+// exceeded the configured retention window.
+type ChannelMigrationTaskGCRequest struct {
+	// BeforeMS is the exclusive completed_at cutoff in milliseconds.
+	BeforeMS int64
+	// Limit bounds how many terminal tasks one Raft command may remove.
+	Limit int
+}
+
 // ChannelMigrationTask is the authoritative durable state for one channel
 // leader-transfer or replica-replacement attempt.
 type ChannelMigrationTask struct {
@@ -570,55 +579,8 @@ func (s *ShardStore) DeleteTerminalChannelMigrationTasksBefore(ctx context.Conte
 	s.db.mu.Lock()
 	defer s.db.mu.Unlock()
 
-	prefix := encodeChannelMigrationTaskTerminalIndexPrefix(s.slot)
-	iter, err := s.db.db.NewIter(&pebble.IterOptions{
-		LowerBound: prefix,
-		UpperBound: nextPrefix(prefix),
-	})
+	deletions, err := s.collectTerminalChannelMigrationTaskDeletions(ctx, beforeMS, limit)
 	if err != nil {
-		return 0, err
-	}
-	defer iter.Close()
-
-	type deleteKeys struct {
-		primary  []byte
-		terminal []byte
-		count    bool
-	}
-	deletions := make([]deleteKeys, 0, limit)
-	for ok := iter.First(); ok && len(deletions) < limit; ok = iter.Next() {
-		if err := s.db.checkContext(ctx); err != nil {
-			return 0, err
-		}
-		key := append([]byte(nil), iter.Key()...)
-		completedAtMS, channelID, channelType, taskID, err := decodeChannelMigrationTaskTerminalIndexKey(key)
-		if err != nil {
-			return 0, err
-		}
-		if completedAtMS >= beforeMS {
-			break
-		}
-
-		primaryKey := encodeChannelMigrationTaskPrimaryKey(s.slot, channelID, channelType, taskID, channelMigrationTaskPrimaryFamilyID)
-		task, err := s.getChannelMigrationTaskByPrimaryKeyLocked(primaryKey, channelID, channelType, taskID)
-		if err != nil {
-			if errors.Is(err, ErrNotFound) {
-				deletions = append(deletions, deleteKeys{terminal: key})
-				continue
-			}
-			return 0, err
-		}
-		if !task.IsTerminal() || task.CompletedAtMS != completedAtMS {
-			deletions = append(deletions, deleteKeys{terminal: key})
-			continue
-		}
-		deletions = append(deletions, deleteKeys{
-			primary:  primaryKey,
-			terminal: key,
-			count:    true,
-		})
-	}
-	if err := iter.Error(); err != nil {
 		return 0, err
 	}
 	if len(deletions) == 0 {
@@ -642,6 +604,125 @@ func (s *ShardStore) DeleteTerminalChannelMigrationTasksBefore(ctx context.Conte
 		}
 	}
 	return deleted, batch.Commit(pebble.Sync)
+}
+
+type channelMigrationTaskDeleteKeys struct {
+	primary  []byte
+	terminal []byte
+	count    bool
+}
+
+func (s *ShardStore) collectTerminalChannelMigrationTaskDeletions(ctx context.Context, beforeMS int64, limit int) ([]channelMigrationTaskDeleteKeys, error) {
+	prefix := encodeChannelMigrationTaskTerminalIndexPrefix(s.slot)
+	iter, err := s.db.db.NewIter(&pebble.IterOptions{
+		LowerBound: prefix,
+		UpperBound: nextPrefix(prefix),
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+
+	deletions := make([]channelMigrationTaskDeleteKeys, 0, limit)
+	for ok := iter.First(); ok && len(deletions) < limit; ok = iter.Next() {
+		if err := s.db.checkContext(ctx); err != nil {
+			return nil, err
+		}
+		key := append([]byte(nil), iter.Key()...)
+		completedAtMS, channelID, channelType, taskID, err := decodeChannelMigrationTaskTerminalIndexKey(key)
+		if err != nil {
+			return nil, err
+		}
+		if completedAtMS >= beforeMS {
+			break
+		}
+
+		primaryKey := encodeChannelMigrationTaskPrimaryKey(s.slot, channelID, channelType, taskID, channelMigrationTaskPrimaryFamilyID)
+		task, err := s.getChannelMigrationTaskByPrimaryKeyLocked(primaryKey, channelID, channelType, taskID)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				deletions = append(deletions, channelMigrationTaskDeleteKeys{terminal: key})
+				continue
+			}
+			return nil, err
+		}
+		if !task.IsTerminal() || task.CompletedAtMS != completedAtMS {
+			deletions = append(deletions, channelMigrationTaskDeleteKeys{terminal: key})
+			continue
+		}
+		deletions = append(deletions, channelMigrationTaskDeleteKeys{
+			primary:  primaryKey,
+			terminal: key,
+			count:    true,
+		})
+	}
+	if err := iter.Error(); err != nil {
+		return nil, err
+	}
+	return deletions, nil
+}
+
+func (s *ShardStore) countTerminalChannelMigrationTasksBeforeLocked(ctx context.Context, beforeMS int64, limit int) (int, error) {
+	deletions, err := s.collectTerminalChannelMigrationTaskDeletions(ctx, beforeMS, limit)
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, deletion := range deletions {
+		if deletion.count {
+			count++
+		}
+	}
+	return count, nil
+}
+
+// CountTerminalChannelMigrationTasksBefore counts terminal tasks eligible for
+// retention cleanup without mutating the shard.
+func (s *ShardStore) CountTerminalChannelMigrationTasksBefore(ctx context.Context, beforeMS int64, limit int) (int, error) {
+	if err := s.validate(); err != nil {
+		return 0, err
+	}
+	if err := s.db.checkContext(ctx); err != nil {
+		return 0, err
+	}
+	if beforeMS <= 0 {
+		return 0, ErrInvalidArgument
+	}
+	if limit <= 0 {
+		return 0, nil
+	}
+
+	s.db.mu.RLock()
+	defer s.db.mu.RUnlock()
+	return s.countTerminalChannelMigrationTasksBeforeLocked(ctx, beforeMS, limit)
+}
+
+// DeleteTerminalChannelMigrationTasksBefore stages retention cleanup for a
+// terminal-task GC Raft command.
+func (b *WriteBatch) DeleteTerminalChannelMigrationTasksBefore(hashSlot uint16, req ChannelMigrationTaskGCRequest) error {
+	if err := validateHashSlot(hashSlot); err != nil {
+		return err
+	}
+	if err := validateChannelMigrationTaskGCRequest(req); err != nil {
+		return err
+	}
+
+	shard := b.db.ForHashSlot(hashSlot)
+	deletions, err := shard.collectTerminalChannelMigrationTaskDeletions(context.Background(), req.BeforeMS, req.Limit)
+	if err != nil {
+		return err
+	}
+	for _, deletion := range deletions {
+		if len(deletion.primary) > 0 {
+			if err := b.batch.Delete(deletion.primary, nil); err != nil {
+				return err
+			}
+		}
+		if err := b.batch.Delete(deletion.terminal, nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // IsActive reports whether the task should block another task for the same channel.

@@ -83,6 +83,11 @@ func TestChannelMigrationCommandCodecRoundTrip(t *testing.T) {
 			data: EncodeAbortChannelMigrationCommand(fsmTestAbortRequest(task, fsmTestRuntimeMeta(task.ChannelID, task.ChannelType), 1750000003000)),
 			want: &abortChannelMigrationCmd{req: fsmTestAbortRequest(task, fsmTestRuntimeMeta(task.ChannelID, task.ChannelType), 1750000003000)},
 		},
+		{
+			name: "garbage_collect",
+			data: EncodeGarbageCollectTerminalChannelMigrationTasksCommand(metadb.ChannelMigrationTaskGCRequest{BeforeMS: 1750000010000, Limit: 10}),
+			want: &garbageCollectMigrationTasksCmd{req: metadb.ChannelMigrationTaskGCRequest{BeforeMS: 1750000010000, Limit: 10}},
+		},
 	}
 
 	for _, tc := range cases {
@@ -1450,6 +1455,42 @@ func fsmApplyOK(t *testing.T, ctx context.Context, sm multiraft.StateMachine, in
 	}
 	if got := string(result); got != ApplyResultOK {
 		t.Fatalf("Apply(index=%d) result = %q, want %q", index, got, ApplyResultOK)
+	}
+}
+
+func TestStateMachineChannelMigrationGarbageCollectDeletesTerminalTasks(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+	oldTask := fsmTestChannelMigrationTask("task-gc-old", "channel-gc-old")
+	oldTask.Status = metadb.ChannelMigrationStatusCompleted
+	oldTask.Phase = metadb.ChannelMigrationPhaseVerifyMembership
+	oldTask.UpdatedAtMS = 1750000010000
+	oldTask.CompletedAtMS = 1750000010000
+	newTask := fsmTestChannelMigrationTask("task-gc-new", "channel-gc-new")
+	newTask.Status = metadb.ChannelMigrationStatusCompleted
+	newTask.Phase = metadb.ChannelMigrationPhaseVerifyMembership
+	newTask.UpdatedAtMS = 1750000030000
+	newTask.CompletedAtMS = 1750000030000
+
+	fsmApplyOK(t, ctx, sm, 1, EncodeCreateChannelMigrationTaskCommand(oldTask))
+	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(newTask))
+	fsmApplyOK(t, ctx, sm, 3, EncodeGarbageCollectTerminalChannelMigrationTasksCommand(metadb.ChannelMigrationTaskGCRequest{
+		BeforeMS: 1750000020000,
+		Limit:    10,
+	}))
+
+	_, err := db.ForSlot(11).GetChannelMigrationTask(ctx, oldTask.ChannelID, oldTask.ChannelType, oldTask.TaskID)
+	if !errors.Is(err, metadb.ErrNotFound) {
+		t.Fatalf("GetChannelMigrationTask(old) error = %v, want ErrNotFound", err)
+	}
+
+	gotNew, err := db.ForSlot(11).GetChannelMigrationTask(ctx, newTask.ChannelID, newTask.ChannelType, newTask.TaskID)
+	if err != nil {
+		t.Fatalf("GetChannelMigrationTask(new) error = %v", err)
+	}
+	if gotNew.TaskID != newTask.TaskID {
+		t.Fatalf("new task id = %q, want %q", gotNew.TaskID, newTask.TaskID)
 	}
 }
 

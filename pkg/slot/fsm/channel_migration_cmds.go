@@ -21,6 +21,7 @@ const (
 	cmdTypePromoteLearnerAndRemoveReplica uint8 = 37
 	cmdTypeClearChannelWriteFence         uint8 = 38
 	cmdTypeAbortChannelMigration          uint8 = 39
+	cmdTypeGarbageCollectMigrationTasks   uint8 = 40
 	tagChannelMigrationCommandPayload     uint8 = 1
 )
 
@@ -104,6 +105,14 @@ func (c *abortChannelMigrationCmd) apply(wb *metadb.WriteBatch, hashSlot uint16)
 	return wb.AbortChannelMigration(hashSlot, c.req)
 }
 
+type garbageCollectMigrationTasksCmd struct {
+	req metadb.ChannelMigrationTaskGCRequest
+}
+
+func (c *garbageCollectMigrationTasksCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
+	return wb.DeleteTerminalChannelMigrationTasksBefore(hashSlot, c.req)
+}
+
 // EncodeCreateChannelMigrationTaskCommand encodes a durable migration task create command.
 func EncodeCreateChannelMigrationTaskCommand(task metadb.ChannelMigrationTask) []byte {
 	return encodeChannelMigrationJSONCommand(cmdTypeCreateChannelMigrationTask, task)
@@ -152,6 +161,11 @@ func EncodeClearChannelWriteFenceCommand(req metadb.ChannelMigrationClearFenceRe
 // EncodeAbortChannelMigrationCommand encodes an atomic migration abort command.
 func EncodeAbortChannelMigrationCommand(req metadb.ChannelMigrationAbortRequest) []byte {
 	return encodeChannelMigrationJSONCommand(cmdTypeAbortChannelMigration, req)
+}
+
+// EncodeGarbageCollectTerminalChannelMigrationTasksCommand encodes terminal task retention cleanup.
+func EncodeGarbageCollectTerminalChannelMigrationTasksCommand(req metadb.ChannelMigrationTaskGCRequest) []byte {
+	return encodeChannelMigrationJSONCommand(cmdTypeGarbageCollectMigrationTasks, req)
 }
 
 func encodeChannelMigrationJSONCommand(cmdType uint8, payload any) []byte {
@@ -241,6 +255,14 @@ func decodeAbortChannelMigration(data []byte) (command, error) {
 		return nil, err
 	}
 	return &abortChannelMigrationCmd{req: req}, nil
+}
+
+func decodeGarbageCollectMigrationTasks(data []byte) (command, error) {
+	var req metadb.ChannelMigrationTaskGCRequest
+	if err := decodeChannelMigrationJSONPayload(data, &req); err != nil {
+		return nil, err
+	}
+	return &garbageCollectMigrationTasksCmd{req: req}, nil
 }
 
 func decodeChannelMigrationJSONPayload(data []byte, dst any) error {
