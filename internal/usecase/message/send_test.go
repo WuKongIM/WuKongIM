@@ -65,6 +65,72 @@ func TestSendReturnsClusterRequiredWhenClusterNotConfigured(t *testing.T) {
 	require.Equal(t, SendResult{}, result)
 }
 
+func TestSendNoPersistReturnsSuccessWithoutCluster(t *testing.T) {
+	app := New(Options{Now: fixedNowFn})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:      frame.Framer{NoPersist: true},
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Zero(t, result.MessageID)
+	require.Zero(t, result.MessageSeq)
+}
+
+func TestSendNoPersistSkipsDurableAppendAndCommittedDispatch(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	dispatcher := &recordingCommittedDispatcher{}
+	app := New(Options{
+		Now:                 fixedNowFn,
+		Cluster:             cluster,
+		CommittedDispatcher: dispatcher,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:      frame.Framer{NoPersist: true},
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Zero(t, result.MessageID)
+	require.Zero(t, result.MessageSeq)
+	require.Empty(t, cluster.sendRequests)
+	require.Empty(t, dispatcher.calls)
+}
+
+func TestSendNoPersistStillChecksPermissions(t *testing.T) {
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("u1", int64(frame.ChannelTypePerson))] = metadb.Channel{
+		ChannelID:   "u1",
+		ChannelType: int64(frame.ChannelTypePerson),
+		SendBan:     1,
+	}
+	app := New(Options{
+		Now:             fixedNowFn,
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:      frame.Framer{NoPersist: true},
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSendBan, result.Reason)
+}
+
 func TestSendRejectsBannedGroupBeforeDurableAppend(t *testing.T) {
 	cluster := &fakeChannelCluster{}
 	permissions := newFakePermissionStore()
@@ -417,7 +483,7 @@ func TestSendReturnsSuccessAfterDurableWriteAndSubmitsCommittedMessage(t *testin
 				Message: channel.Message{
 					MessageID:   99,
 					MessageSeq:  7,
-					Framer:      frame.Framer{NoPersist: true, RedDot: true, SyncOnce: true},
+					Framer:      frame.Framer{RedDot: true, SyncOnce: true},
 					Setting:     frame.SettingReceiptEnabled,
 					MsgKey:      "k1",
 					Expire:      60,
@@ -442,7 +508,7 @@ func TestSendReturnsSuccessAfterDurableWriteAndSubmitsCommittedMessage(t *testin
 	})
 
 	result, err := app.Send(context.Background(), SendCommand{
-		Framer:          frame.Framer{NoPersist: true, RedDot: true, SyncOnce: true},
+		Framer:          frame.Framer{RedDot: true, SyncOnce: true},
 		Setting:         frame.SettingReceiptEnabled,
 		MsgKey:          "k1",
 		Expire:          60,
@@ -463,7 +529,7 @@ func TestSendReturnsSuccessAfterDurableWriteAndSubmitsCommittedMessage(t *testin
 	require.Equal(t, uint64(7), result.MessageSeq)
 	require.Len(t, cluster.sendRequests, 1)
 	require.Equal(t, channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson}, cluster.sendRequests[0].ChannelID)
-	require.Equal(t, frame.Framer{NoPersist: true, RedDot: true, SyncOnce: true}, cluster.sendRequests[0].Message.Framer)
+	require.Equal(t, frame.Framer{RedDot: true, SyncOnce: true}, cluster.sendRequests[0].Message.Framer)
 	require.Equal(t, frame.SettingReceiptEnabled, cluster.sendRequests[0].Message.Setting)
 	require.Equal(t, "k1", cluster.sendRequests[0].Message.MsgKey)
 	require.Equal(t, uint32(60), cluster.sendRequests[0].Message.Expire)
@@ -480,7 +546,7 @@ func TestSendReturnsSuccessAfterDurableWriteAndSubmitsCommittedMessage(t *testin
 	require.Equal(t, channel.Message{
 		MessageID:   99,
 		MessageSeq:  7,
-		Framer:      frame.Framer{NoPersist: true, RedDot: true, SyncOnce: true},
+		Framer:      frame.Framer{RedDot: true, SyncOnce: true},
 		Setting:     frame.SettingReceiptEnabled,
 		MsgKey:      "k1",
 		Expire:      60,
