@@ -2,13 +2,16 @@ package presence
 
 import (
 	"encoding/binary"
-	"hash"
-	"hash/fnv"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+)
+
+const (
+	fnv64aOffset = 14695981039346656037
+	fnv64aPrime  = 1099511628211
 )
 
 type routeKey struct {
@@ -338,25 +341,36 @@ func digestRoutes(routes map[routeKey]Route) uint64 {
 // Keep this fingerprint aligned with online.SlotSnapshot.Digest. The owner set
 // already scopes routes by gateway node/boot, so those fields are excluded.
 func routeFingerprint(route Route) uint64 {
-	h := fnv.New64a()
-	writeUint64(h, route.SessionID)
-	writeString(h, route.UID)
-	writeString(h, route.DeviceID)
-	writeUint64(h, uint64(route.DeviceFlag))
-	writeUint64(h, uint64(route.DeviceLevel))
-	writeString(h, route.Listener)
-	return h.Sum64()
+	h := uint64(fnv64aOffset)
+	h = writeUint64(h, route.SessionID)
+	h = writeString(h, route.UID)
+	h = writeString(h, route.DeviceID)
+	h = writeUint64(h, uint64(route.DeviceFlag))
+	h = writeUint64(h, uint64(route.DeviceLevel))
+	h = writeString(h, route.Listener)
+	return h
 }
 
-func writeUint64(h hash.Hash64, value uint64) {
+func writeUint64(h uint64, value uint64) uint64 {
 	var buf [8]byte
 	binary.BigEndian.PutUint64(buf[:], value)
-	_, _ = h.Write(buf[:])
+	for _, b := range buf {
+		h = writeByte(h, b)
+	}
+	return h
 }
 
-func writeString(h hash.Hash64, value string) {
-	_, _ = h.Write([]byte(value))
-	_, _ = h.Write([]byte{0})
+func writeString(h uint64, value string) uint64 {
+	for i := 0; i < len(value); i++ {
+		h = writeByte(h, value[i])
+	}
+	return writeByte(h, 0)
+}
+
+func writeByte(h uint64, value byte) uint64 {
+	h ^= uint64(value)
+	h *= fnv64aPrime
+	return h
 }
 
 func keepLaterLeaseUntil(current, next int64) int64 {
