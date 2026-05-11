@@ -35,7 +35,7 @@ type Cluster interface {
 
 | 类型 | 文件 | 说明 |
 |------|------|------|
-| `Meta` | types.go | 频道元数据：Key, Epoch, Leader, Replicas, ISR, MinISR, LeaseUntil, Status, RetentionThroughSeq |
+| `Meta` | types.go | 频道元数据：Key, Epoch, Leader, Replicas, ISR, MinISR, LeaseUntil, Status, RetentionThroughSeq, WriteFence |
 | `Message` | types.go | 消息：MessageID, MessageSeq, FromUID, ClientMsgNo, Payload |
 | `ReplicaState` | types.go | 副本状态：Role、运行时 CommitHW(`HW`)、持久化 CheckpointHW、`CommitReady`、LEO、Epoch、retention floor |
 | `AppendRequest` | types.go | 追加请求：ChannelID, Message, ExpectedChannelEpoch, ExpectedLeaderEpoch；`TraceID` / `Attempt` 仅用于节点内 diagnostics |
@@ -51,7 +51,7 @@ type Cluster interface {
 ```
 Handler 层:
   ① 解码 ChannelKey → handler/key.go:KeyFromChannelID
-  ② 加载 Meta，校验 Epoch → handler/meta.go:metaForKey
+  ② 加载 Meta，校验 Epoch → handler/meta.go:metaForKey；Meta 缓存会保留 slot 投影下来的 WriteFence
   ③ 若 `FromUID` 和 `ClientMsgNo` 同时存在，则通过 `LookupIdempotency()` 命中
      `uidx_from_uid_client_msg_no`，再用 `GetMessageBySeq()` 取回已落盘消息
      命中且 PayloadHash 匹配 → 返回旧结果；Hash 不匹配 → ErrIdempotencyConflict

@@ -135,6 +135,76 @@ func TestChannelLeaderRepairerSelectsCandidateWithHighestProjectedSafeHW(t *test
 	require.Equal(t, now.Add(BootstrapLease).UnixMilli(), source.upserts[0].LeaseUntilMS)
 }
 
+func TestLeaderRepairPreservesWriteFenceFields(t *testing.T) {
+	now := time.UnixMilli(1_700_001_000_000).UTC()
+	id := channel.ChannelID{ID: "repair-preserve-fence", Type: 1}
+	expired := metadb.ChannelRuntimeMeta{
+		ChannelID:         id.ID,
+		ChannelType:       int64(id.Type),
+		ChannelEpoch:      11,
+		LeaderEpoch:       7,
+		Replicas:          []uint64{2, 4},
+		ISR:               []uint64{2, 4},
+		Leader:            2,
+		MinISR:            2,
+		Status:            uint8(channel.StatusActive),
+		WriteFenceToken:   "task-repair-fence",
+		WriteFenceVersion: 5,
+		WriteFenceReason:  1,
+		WriteFenceUntilMS: now.Add(time.Minute).UnixMilli(),
+	}
+	repaired := expired
+	repaired.Leader = 4
+	repaired.LeaderEpoch = 8
+	repaired.LeaseUntilMS = now.Add(BootstrapLease).UnixMilli()
+	source := &fakeChannelMetaSource{
+		getResults: []fakeChannelMetaGetResult{
+			{meta: expired},
+			{meta: repaired},
+		},
+	}
+	remote := &stubChannelLeaderRepairRemote{
+		evaluateByNode: map[uint64]LeaderPromotionReport{
+			4: {
+				NodeID:              4,
+				Exists:              true,
+				ChannelEpoch:        expired.ChannelEpoch,
+				LocalLEO:            12,
+				LocalCheckpointHW:   9,
+				LocalOffsetEpoch:    4,
+				ProjectedSafeHW:     9,
+				ProjectedTruncateTo: 9,
+				CanLead:             true,
+			},
+		},
+	}
+	repairer := &LeaderRepairer{
+		store:     source,
+		localNode: 9,
+		now:       func() time.Time { return now },
+		needsRepair: func(meta metadb.ChannelRuntimeMeta) (bool, string) {
+			return meta.Leader == 2, "leader_dead"
+		},
+		remote: remote,
+	}
+
+	got, err := repairer.RepairChannelLeaderAuthoritative(context.Background(), LeaderRepairRequest{
+		ChannelID:            id,
+		ObservedChannelEpoch: expired.ChannelEpoch,
+		ObservedLeaderEpoch:  expired.LeaderEpoch,
+		Reason:               "leader_dead",
+	})
+
+	require.NoError(t, err)
+	require.True(t, got.Changed)
+	require.Len(t, source.upserts, 1)
+	require.Equal(t, expired.WriteFenceToken, source.upserts[0].WriteFenceToken)
+	require.Equal(t, expired.WriteFenceVersion, source.upserts[0].WriteFenceVersion)
+	require.Equal(t, expired.WriteFenceReason, source.upserts[0].WriteFenceReason)
+	require.Equal(t, expired.WriteFenceUntilMS, source.upserts[0].WriteFenceUntilMS)
+	require.Equal(t, expired.WriteFenceToken, got.Meta.WriteFenceToken)
+}
+
 func TestChannelLeaderRepairerKeepsExpiredLeaderCandidateDuringRepair(t *testing.T) {
 	now := time.UnixMilli(1_700_001_111_000).UTC()
 	id := channel.ChannelID{ID: "repair-expired-skip", Type: 1}
