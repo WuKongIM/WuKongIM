@@ -74,6 +74,70 @@ type ChannelMigrationProgress struct {
 	StableSinceMS int64 `json:"stable_since_ms,omitempty"`
 }
 
+// ChannelMigrationTaskGuard fences a task mutation to one observed durable
+// state, preventing stale executors from overwriting newer progress.
+type ChannelMigrationTaskGuard struct {
+	// ChannelID identifies the guarded channel task.
+	ChannelID string
+	// ChannelType identifies the guarded channel namespace.
+	ChannelType int64
+	// TaskID identifies the guarded migration task.
+	TaskID string
+	// ExpectedStatus is the task status observed by the caller.
+	ExpectedStatus ChannelMigrationStatus
+	// ExpectedPhase is the task phase observed by the caller.
+	ExpectedPhase ChannelMigrationPhase
+	// ExpectedOwnerNodeID is the owner node observed by the caller.
+	ExpectedOwnerNodeID uint64
+	// ExpectedOwnerLeaseUntilMS is the owner lease observed by the caller.
+	ExpectedOwnerLeaseUntilMS int64
+	// ExpectedUpdatedAtMS is the task update timestamp observed by the caller.
+	ExpectedUpdatedAtMS int64
+}
+
+// ChannelMigrationTaskClaim describes a compare-and-set owner claim or renewal.
+type ChannelMigrationTaskClaim struct {
+	// Guard is the expected current task state.
+	Guard ChannelMigrationTaskGuard
+	// Status is the lifecycle state after the claim is applied.
+	Status ChannelMigrationStatus
+	// Phase is the phase after the claim is applied.
+	Phase ChannelMigrationPhase
+	// OwnerNodeID is the node that will own executor side effects.
+	OwnerNodeID uint64
+	// OwnerLeaseUntilMS is the new owner lease deadline in milliseconds.
+	OwnerLeaseUntilMS int64
+	// UpdatedAtMS is the durable update timestamp for the claim.
+	UpdatedAtMS int64
+}
+
+// ChannelMigrationTaskAdvance describes a guarded phase/progress update that
+// does not directly mutate ChannelRuntimeMeta.
+type ChannelMigrationTaskAdvance struct {
+	// Guard is the expected current task state.
+	Guard ChannelMigrationTaskGuard
+	// Status is the lifecycle state after the advance is applied.
+	Status ChannelMigrationStatus
+	// Phase is the phase after the advance is applied.
+	Phase ChannelMigrationPhase
+	// Attempt is the durable retry counter after the advance.
+	Attempt uint32
+	// NextRunAtMS is the next executor wake-up timestamp.
+	NextRunAtMS int64
+	// BlockerCode is the stable blocker code when Status is Blocked.
+	BlockerCode string
+	// BlockerMessage is the human-readable blocker detail when blocked.
+	BlockerMessage string
+	// LastError is the latest retryable or terminal error.
+	LastError string
+	// UpdatedAtMS is the durable update timestamp for the advance.
+	UpdatedAtMS int64
+	// CompletedAtMS is set when the advance reaches a terminal status.
+	CompletedAtMS int64
+	// Progress stores executor observations after the advance.
+	Progress ChannelMigrationProgress
+}
+
 // ChannelMigrationTask is the authoritative durable state for one channel
 // leader-transfer or replica-replacement attempt.
 type ChannelMigrationTask struct {
@@ -178,6 +242,46 @@ func (s *ShardStore) CreateChannelMigrationTask(ctx context.Context, task Channe
 		return err
 	}
 	return batch.Commit(pebble.Sync)
+}
+
+// ClaimChannelMigrationTask applies a guarded owner claim or renewal.
+func (s *ShardStore) ClaimChannelMigrationTask(ctx context.Context, req ChannelMigrationTaskClaim) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	if err := s.db.checkContext(ctx); err != nil {
+		return err
+	}
+	if err := validateChannelMigrationTaskClaim(req); err != nil {
+		return err
+	}
+
+	wb := s.db.NewWriteBatch()
+	defer wb.Close()
+	if err := wb.ClaimChannelMigrationTask(s.slot, req); err != nil {
+		return err
+	}
+	return wb.Commit()
+}
+
+// AdvanceChannelMigrationTask applies a guarded phase/progress update.
+func (s *ShardStore) AdvanceChannelMigrationTask(ctx context.Context, req ChannelMigrationTaskAdvance) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	if err := s.db.checkContext(ctx); err != nil {
+		return err
+	}
+	if err := validateChannelMigrationTaskAdvance(req); err != nil {
+		return err
+	}
+
+	wb := s.db.NewWriteBatch()
+	defer wb.Close()
+	if err := wb.AdvanceChannelMigrationTask(s.slot, req); err != nil {
+		return err
+	}
+	return wb.Commit()
 }
 
 // GetChannelMigrationTask loads one migration task by its channel and task id.
@@ -513,6 +617,54 @@ func validateDecodedChannelMigrationTask(task ChannelMigrationTask) error {
 	return nil
 }
 
+func validateChannelMigrationTaskGuard(guard ChannelMigrationTaskGuard) error {
+	if err := validateChannelMigrationTaskKey(guard.ChannelID, guard.TaskID); err != nil {
+		return err
+	}
+	if !isValidChannelMigrationStatus(guard.ExpectedStatus) || !isValidChannelMigrationPhase(guard.ExpectedPhase) {
+		return ErrInvalidArgument
+	}
+	if guard.ExpectedOwnerNodeID == 0 && guard.ExpectedOwnerLeaseUntilMS != 0 {
+		return ErrInvalidArgument
+	}
+	if guard.ExpectedOwnerNodeID != 0 && guard.ExpectedOwnerLeaseUntilMS <= 0 {
+		return ErrInvalidArgument
+	}
+	if guard.ExpectedUpdatedAtMS <= 0 {
+		return ErrInvalidArgument
+	}
+	return nil
+}
+
+func validateChannelMigrationTaskClaim(req ChannelMigrationTaskClaim) error {
+	if err := validateChannelMigrationTaskGuard(req.Guard); err != nil {
+		return err
+	}
+	if !isValidChannelMigrationStatus(req.Status) || !isValidChannelMigrationPhase(req.Phase) {
+		return ErrInvalidArgument
+	}
+	if req.OwnerNodeID == 0 || req.OwnerLeaseUntilMS <= 0 || req.UpdatedAtMS <= 0 {
+		return ErrInvalidArgument
+	}
+	if req.UpdatedAtMS < req.Guard.ExpectedUpdatedAtMS {
+		return ErrInvalidArgument
+	}
+	return nil
+}
+
+func validateChannelMigrationTaskAdvance(req ChannelMigrationTaskAdvance) error {
+	if err := validateChannelMigrationTaskGuard(req.Guard); err != nil {
+		return err
+	}
+	if !isValidChannelMigrationStatus(req.Status) || !isValidChannelMigrationPhase(req.Phase) || req.UpdatedAtMS <= 0 {
+		return ErrInvalidArgument
+	}
+	if req.UpdatedAtMS < req.Guard.ExpectedUpdatedAtMS {
+		return ErrInvalidArgument
+	}
+	return nil
+}
+
 func validateChannelMigrationTask(task ChannelMigrationTask) error {
 	if err := validateChannelMigrationTaskKey(task.ChannelID, task.TaskID); err != nil {
 		return err
@@ -585,6 +737,42 @@ func validateChannelMigrationTask(task ChannelMigrationTask) error {
 		return ErrInvalidArgument
 	}
 	return nil
+}
+
+func (guard ChannelMigrationTaskGuard) matches(task ChannelMigrationTask) bool {
+	return task.ChannelID == guard.ChannelID &&
+		task.ChannelType == guard.ChannelType &&
+		task.TaskID == guard.TaskID &&
+		task.Status == guard.ExpectedStatus &&
+		task.Phase == guard.ExpectedPhase &&
+		task.OwnerNodeID == guard.ExpectedOwnerNodeID &&
+		task.OwnerLeaseUntilMS == guard.ExpectedOwnerLeaseUntilMS &&
+		task.UpdatedAtMS == guard.ExpectedUpdatedAtMS
+}
+
+func applyChannelMigrationTaskClaim(existing ChannelMigrationTask, req ChannelMigrationTaskClaim) ChannelMigrationTask {
+	next := existing
+	next.Status = req.Status
+	next.Phase = req.Phase
+	next.OwnerNodeID = req.OwnerNodeID
+	next.OwnerLeaseUntilMS = req.OwnerLeaseUntilMS
+	next.UpdatedAtMS = req.UpdatedAtMS
+	return next
+}
+
+func applyChannelMigrationTaskAdvance(existing ChannelMigrationTask, req ChannelMigrationTaskAdvance) ChannelMigrationTask {
+	next := existing
+	next.Status = req.Status
+	next.Phase = req.Phase
+	next.Attempt = req.Attempt
+	next.NextRunAtMS = req.NextRunAtMS
+	next.BlockerCode = req.BlockerCode
+	next.BlockerMessage = req.BlockerMessage
+	next.LastError = req.LastError
+	next.UpdatedAtMS = req.UpdatedAtMS
+	next.CompletedAtMS = req.CompletedAtMS
+	next.Progress = req.Progress
+	return next
 }
 
 func validateChannelMigrationTaskDrainProof(task ChannelMigrationTask, hasActiveFence bool) error {

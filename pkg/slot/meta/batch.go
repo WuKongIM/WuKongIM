@@ -19,6 +19,7 @@ type WriteBatch struct {
 	channelMigrationTasks   map[string]channelMigrationTaskBatchEntry
 	channelMigrationActive  map[string]channelMigrationTaskActiveBatchEntry
 	channelMigrationCreates map[string]struct{}
+	channelMigrationGuards  map[string]channelMigrationTaskGuardBatchEntry
 }
 
 type channelBatchEntry struct {
@@ -41,8 +42,9 @@ type channelRuntimeMetaBatchEntry struct {
 // channelMigrationTaskBatchEntry records same-batch migration task writes so
 // create/upsert validation sees staged primary rows before commit.
 type channelMigrationTaskBatchEntry struct {
-	task   ChannelMigrationTask
-	exists bool
+	task    ChannelMigrationTask
+	exists  bool
+	written bool
 }
 
 // channelMigrationTaskActiveBatchEntry records same-batch active-index writes
@@ -51,6 +53,13 @@ type channelMigrationTaskActiveBatchEntry struct {
 	taskID         string
 	exists         bool
 	deleteIfTaskID string
+}
+
+// channelMigrationTaskGuardBatchEntry records the first observed state for a
+// guarded task mutation and the final idempotent target staged by the batch.
+type channelMigrationTaskGuardBatchEntry struct {
+	guard   ChannelMigrationTaskGuard
+	desired ChannelMigrationTask
 }
 
 // NewWriteBatch creates a new WriteBatch. The caller must call Close
@@ -224,13 +233,72 @@ func (b *WriteBatch) CreateChannelMigrationTask(hashSlot uint16, task ChannelMig
 	return nil
 }
 
-// UpsertChannelMigrationTask stages a migration task write, replacing the
-// same task primary row and maintaining active/terminal indexes in this batch.
-func (b *WriteBatch) UpsertChannelMigrationTask(hashSlot uint16, task ChannelMigrationTask) error {
+// ClaimChannelMigrationTask stages a compare-and-set owner claim or renewal.
+func (b *WriteBatch) ClaimChannelMigrationTask(hashSlot uint16, req ChannelMigrationTaskClaim) error {
 	if err := validateHashSlot(hashSlot); err != nil {
 		return err
 	}
-	return b.upsertChannelMigrationTask(hashSlot, task)
+	if err := validateChannelMigrationTaskClaim(req); err != nil {
+		return err
+	}
+
+	primaryKey := encodeChannelMigrationTaskPrimaryKey(hashSlot, req.Guard.ChannelID, req.Guard.ChannelType, req.Guard.TaskID, channelMigrationTaskPrimaryFamilyID)
+	guardDBState := !b.isChannelMigrationTaskWritten(primaryKey)
+	existing, exists, err := b.loadChannelMigrationTask(hashSlot, primaryKey, req.Guard.ChannelID, req.Guard.ChannelType, req.Guard.TaskID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrNotFound
+	}
+	next := applyChannelMigrationTaskClaim(existing, req)
+	if !req.Guard.matches(existing) {
+		if existing == next {
+			return nil
+		}
+		return ErrStaleMeta
+	}
+	if err := validateChannelMigrationTask(next); err != nil {
+		return err
+	}
+	if guardDBState {
+		b.rememberChannelMigrationTaskGuard(primaryKey, req.Guard, next)
+	}
+	return b.upsertChannelMigrationTask(hashSlot, next)
+}
+
+// AdvanceChannelMigrationTask stages a guarded phase/progress update.
+func (b *WriteBatch) AdvanceChannelMigrationTask(hashSlot uint16, req ChannelMigrationTaskAdvance) error {
+	if err := validateHashSlot(hashSlot); err != nil {
+		return err
+	}
+	if err := validateChannelMigrationTaskAdvance(req); err != nil {
+		return err
+	}
+
+	primaryKey := encodeChannelMigrationTaskPrimaryKey(hashSlot, req.Guard.ChannelID, req.Guard.ChannelType, req.Guard.TaskID, channelMigrationTaskPrimaryFamilyID)
+	guardDBState := !b.isChannelMigrationTaskWritten(primaryKey)
+	existing, exists, err := b.loadChannelMigrationTask(hashSlot, primaryKey, req.Guard.ChannelID, req.Guard.ChannelType, req.Guard.TaskID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrNotFound
+	}
+	next := applyChannelMigrationTaskAdvance(existing, req)
+	if !req.Guard.matches(existing) {
+		if existing == next {
+			return nil
+		}
+		return ErrStaleMeta
+	}
+	if err := validateChannelMigrationTask(next); err != nil {
+		return err
+	}
+	if guardDBState {
+		b.rememberChannelMigrationTaskGuard(primaryKey, req.Guard, next)
+	}
+	return b.upsertChannelMigrationTask(hashSlot, next)
 }
 
 // AdvanceChannelRetentionThroughSeq stages a fenced retention-only metadata update.
@@ -560,6 +628,9 @@ func (b *WriteBatch) Commit() error {
 	if err := b.enforceChannelMigrationCreatePrimaryUniqueLocked(); err != nil {
 		return err
 	}
+	if err := b.enforceChannelMigrationGuardedWritesLocked(); err != nil {
+		return err
+	}
 	if err := b.enforceChannelMigrationActiveUniqueLocked(); err != nil {
 		return err
 	}
@@ -711,7 +782,7 @@ func (b *WriteBatch) upsertChannelMigrationTask(hashSlot uint16, task ChannelMig
 	if err := b.batch.Set(primaryKey, encodeChannelMigrationTaskFamilyValue(task, primaryKey), nil); err != nil {
 		return err
 	}
-	b.rememberChannelMigrationTask(primaryKey, task, true)
+	b.rememberChannelMigrationTaskWrite(primaryKey, task)
 	return nil
 }
 
@@ -743,10 +814,18 @@ func (b *WriteBatch) loadChannelMigrationTask(hashSlot uint16, primaryKey []byte
 		}
 	}
 
+	task, exists, err := b.loadChannelMigrationTaskFromDB(primaryKey, channelID, channelType, taskID)
+	if err != nil {
+		return ChannelMigrationTask{}, false, err
+	}
+	b.rememberChannelMigrationTask(primaryKey, task, exists)
+	return task, exists, nil
+}
+
+func (b *WriteBatch) loadChannelMigrationTaskFromDB(primaryKey []byte, channelID string, channelType int64, taskID string) (ChannelMigrationTask, bool, error) {
 	value, err := b.db.getValue(primaryKey)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			b.rememberChannelMigrationTask(primaryKey, ChannelMigrationTask{}, false)
 			return ChannelMigrationTask{}, false, nil
 		}
 		return ChannelMigrationTask{}, false, err
@@ -761,7 +840,6 @@ func (b *WriteBatch) loadChannelMigrationTask(hashSlot uint16, primaryKey []byte
 	if err := validateDecodedChannelMigrationTask(task); err != nil {
 		return ChannelMigrationTask{}, false, err
 	}
-	b.rememberChannelMigrationTask(primaryKey, task, true)
 	return task, true, nil
 }
 
@@ -770,8 +848,44 @@ func (b *WriteBatch) rememberChannelMigrationTask(primaryKey []byte, task Channe
 		b.channelMigrationTasks = make(map[string]channelMigrationTaskBatchEntry, 1)
 	}
 	b.channelMigrationTasks[string(primaryKey)] = channelMigrationTaskBatchEntry{
-		task:   task,
-		exists: exists,
+		task:    task,
+		exists:  exists,
+		written: false,
+	}
+}
+
+func (b *WriteBatch) rememberChannelMigrationTaskWrite(primaryKey []byte, task ChannelMigrationTask) {
+	if b.channelMigrationTasks == nil {
+		b.channelMigrationTasks = make(map[string]channelMigrationTaskBatchEntry, 1)
+	}
+	b.channelMigrationTasks[string(primaryKey)] = channelMigrationTaskBatchEntry{
+		task:    task,
+		exists:  true,
+		written: true,
+	}
+}
+
+func (b *WriteBatch) isChannelMigrationTaskWritten(primaryKey []byte) bool {
+	if b.channelMigrationTasks == nil {
+		return false
+	}
+	entry, ok := b.channelMigrationTasks[string(primaryKey)]
+	return ok && entry.written
+}
+
+func (b *WriteBatch) rememberChannelMigrationTaskGuard(primaryKey []byte, guard ChannelMigrationTaskGuard, desired ChannelMigrationTask) {
+	if b.channelMigrationGuards == nil {
+		b.channelMigrationGuards = make(map[string]channelMigrationTaskGuardBatchEntry, 1)
+	}
+	key := string(primaryKey)
+	if existing, ok := b.channelMigrationGuards[key]; ok {
+		existing.desired = desired
+		b.channelMigrationGuards[key] = existing
+		return
+	}
+	b.channelMigrationGuards[key] = channelMigrationTaskGuardBatchEntry{
+		guard:   guard,
+		desired: desired,
 	}
 }
 
@@ -836,6 +950,30 @@ func (b *WriteBatch) enforceChannelMigrationCreatePrimaryUniqueLocked() error {
 		if exists {
 			return ErrAlreadyExists
 		}
+	}
+	return nil
+}
+
+// enforceChannelMigrationGuardedWritesLocked rechecks compare-and-set task
+// mutations after db.mu is held. Duplicate commands whose desired task state
+// is already durable are accepted as idempotent no-ops.
+func (b *WriteBatch) enforceChannelMigrationGuardedWritesLocked() error {
+	if len(b.channelMigrationGuards) == 0 {
+		return nil
+	}
+	for primaryKeyString, entry := range b.channelMigrationGuards {
+		primaryKey := []byte(primaryKeyString)
+		current, exists, err := b.loadChannelMigrationTaskFromDB(primaryKey, entry.guard.ChannelID, entry.guard.ChannelType, entry.guard.TaskID)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return ErrStaleMeta
+		}
+		if entry.guard.matches(current) || current == entry.desired {
+			continue
+		}
+		return ErrStaleMeta
 	}
 	return nil
 }
