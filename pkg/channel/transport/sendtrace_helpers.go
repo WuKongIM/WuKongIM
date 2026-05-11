@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 const maxTraceErrorBytes = 256

@@ -219,12 +219,6 @@ func filterAssignmentsByScope(assignments []controllermeta.SlotAssignment, scope
 	return filtered
 }
 
-type reconcileTaskLoadResult struct {
-	slotID uint32
-	task   controllermeta.ReconcileTask
-	err    error
-}
-
 func (r *reconciler) loadTasks(ctx context.Context, assignments []controllermeta.SlotAssignment) (map[uint32]controllermeta.ReconcileTask, error) {
 	taskByGroup := make(map[uint32]controllermeta.ReconcileTask, len(assignments))
 	if r == nil || r.agent == nil {

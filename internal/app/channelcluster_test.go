@@ -5,9 +5,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"

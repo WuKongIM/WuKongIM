@@ -531,10 +531,7 @@ func validateConversationCursor(cursor ConversationCursor) error {
 	if cursor == (ConversationCursor{}) {
 		return nil
 	}
-	return validateConversationKey(ConversationKey{
-		ChannelID:   cursor.ChannelID,
-		ChannelType: cursor.ChannelType,
-	})
+	return validateConversationKey(ConversationKey(cursor))
 }
 
 func validateConversationLimit(limit int) error {
@@ -585,8 +582,7 @@ func stateToCursor(state UserConversationState) ConversationCursor {
 }
 
 func encodeUserConversationStatePrimaryPrefix(hashSlot uint16, uid string) []byte {
-	key := make([]byte, 0, 48)
-	key = encodeStatePrefix(hashSlot, UserConversationStateTable.ID)
+	key := encodeStatePrefix(hashSlot, UserConversationStateTable.ID)
 	key = appendKeyString(key, uid)
 	return key
 }
@@ -630,8 +626,7 @@ func decodeUserConversationStateRecord(key, value, prefix []byte) (UserConversat
 }
 
 func encodeUserConversationActiveIndexPrefix(hashSlot uint16, uid string) []byte {
-	key := make([]byte, 0, 48)
-	key = encodeIndexPrefix(hashSlot, UserConversationStateTable.ID, userConversationStateActiveIndexID)
+	key := encodeIndexPrefix(hashSlot, UserConversationStateTable.ID, userConversationStateActiveIndexID)
 	key = appendKeyString(key, uid)
 	return key
 }

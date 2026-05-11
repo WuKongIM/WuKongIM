@@ -22,7 +22,6 @@ var managerDiagnosticsNodeTimeout = 2 * time.Second
 
 type diagnosticsTarget struct {
 	nodeID  uint64
-	status  string
 	skipped bool
 	notes   []string
 }

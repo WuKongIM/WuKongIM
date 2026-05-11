@@ -581,7 +581,7 @@ func clampScaleInLeaderTransfers(limit int) int {
 
 func selectScaleInLeaderCandidate(nodes []controllermeta.ClusterNode, assignments []controllermeta.SlotAssignment, view controllermeta.SlotRuntimeView, target uint64) (uint64, bool) {
 	eligible := scaleInEligibleLeaderCandidates(nodes, target)
-	assignment, _ := scaleInAssignmentBySlot(assignments)[view.SlotID]
+	assignment := scaleInAssignmentBySlot(assignments)[view.SlotID]
 	for _, peer := range assignment.DesiredPeers {
 		if _, ok := eligible[peer]; ok {
 			return peer, true

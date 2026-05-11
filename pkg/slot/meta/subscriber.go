@@ -293,8 +293,7 @@ func (s *ShardStore) HasSubscribers(ctx context.Context, channelID string, chann
 }
 
 func encodeSubscriberChannelPrefix(hashSlot uint16, channelID string, channelType int64) []byte {
-	key := make([]byte, 0, 56)
-	key = encodeStatePrefix(hashSlot, SubscriberTable.ID)
+	key := encodeStatePrefix(hashSlot, SubscriberTable.ID)
 	key = appendKeyString(key, channelID)
 	key = appendKeyInt64Ordered(key, channelType)
 	return key

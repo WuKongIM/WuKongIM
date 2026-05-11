@@ -3280,18 +3280,6 @@ func (s *trackingPeerSession) sendCount() int {
 	return s.sends
 }
 
-func (s *trackingPeerSession) batchCount() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.batched)
-}
-
-func (s *trackingPeerSession) flushCount() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.flushes
-}
-
 func (s *trackingPeerSession) closeCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -3304,12 +3292,6 @@ func (s *trackingPeerSession) setBackpressure(state BackpressureState) {
 	s.backpressure = state
 }
 
-func (s *trackingPeerSession) setTryBatch(v bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.tryBatch = v
-}
-
 func (s *trackingPeerSession) setSendErr(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -3320,10 +3302,4 @@ func (s *trackingPeerSession) enqueueSendErrors(errs ...error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sendErrs = append(s.sendErrs, errs...)
-}
-
-func (s *trackingPeerSession) setFlushErr(err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.flushErr = err
 }

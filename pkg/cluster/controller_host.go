@@ -438,19 +438,6 @@ func (h *controllerHost) loadNodeMirror(ctx context.Context) ([]controllermeta.C
 	return fn(ctx)
 }
 
-func (h *controllerHost) reloadHashSlotTableSnapshot(ctx context.Context) error {
-	if h == nil || h.meta == nil {
-		return nil
-	}
-	table, err := h.meta.LoadHashSlotTable(ctx)
-	if err != nil {
-		h.clearHashSlotTableSnapshot()
-		return err
-	}
-	h.storeHashSlotTableSnapshot(table)
-	return nil
-}
-
 func (h *controllerHost) metadataSnapshot() (controllerMetadataSnapshot, bool) {
 	if h == nil {
 		return controllerMetadataSnapshot{}, false

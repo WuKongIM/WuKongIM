@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 type sessionManager struct {
@@ -282,22 +282,6 @@ func (s *peerSession) deliverFetchResponse(requestID uint64, resp runtime.FetchR
 		Sync:          true,
 		FetchResponse: &resp,
 	})
-}
-
-func (s *peerSession) deliverFetchFailure(env runtime.Envelope, err error) {
-	failed := runtime.Envelope{
-		Peer:       s.peer,
-		ChannelKey: env.ChannelKey,
-		Epoch:      env.Epoch,
-		Generation: env.Generation,
-		RequestID:  env.RequestID,
-		Kind:       runtime.MessageKindFetchFailure,
-		Sync:       true,
-	}
-	if err != nil {
-		failed.Payload = []byte(err.Error())
-	}
-	s.adapter.deliver(failed)
 }
 
 func (s *peerSession) deliverReconcileProbeResponse(requestID uint64, resp runtime.ReconcileProbeResponseEnvelope) {

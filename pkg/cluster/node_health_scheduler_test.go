@@ -410,9 +410,3 @@ func (t *recordingHealthTimer) Stop() bool {
 	t.stopCalls++
 	return true
 }
-
-func (t *recordingHealthTimer) fire() {
-	if t.fn != nil {
-		t.fn()
-	}
-}

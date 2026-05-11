@@ -7,22 +7,6 @@ type Span struct {
 	End   []byte
 }
 
-func slotStateSpan(slot uint64) Span {
-	return hashSlotStateSpan(uint16(slot))
-}
-
-func slotIndexSpan(slot uint64) Span {
-	return hashSlotIndexSpan(uint16(slot))
-}
-
-func slotMetaSpan(slot uint64) Span {
-	return hashSlotMetaSpan(uint16(slot))
-}
-
-func slotAllDataSpans(slot uint64) []Span {
-	return hashSlotAllDataSpans(uint16(slot))
-}
-
 func hashSlotStateSpan(hashSlot uint16) Span {
 	return newPrefixSpan(encodeHashSlotKeyspacePrefix(keyspaceState, hashSlot))
 }
@@ -41,10 +25,6 @@ func hashSlotAllDataSpans(hashSlot uint16) []Span {
 		hashSlotIndexSpan(hashSlot),
 		hashSlotMetaSpan(hashSlot),
 	}
-}
-
-func encodeSlotKeyspacePrefix(kind byte, slot uint64) []byte {
-	return encodeHashSlotKeyspacePrefix(kind, uint16(slot))
 }
 
 func encodeHashSlotKeyspacePrefix(kind byte, hashSlot uint16) []byte {

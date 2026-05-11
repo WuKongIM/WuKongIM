@@ -45,16 +45,14 @@ func encodeMetaPrefix(hashSlot uint16) []byte {
 }
 
 func encodeUserPrimaryKey(hashSlot uint16, uid string, familyID uint16) []byte {
-	key := make([]byte, 0, 32)
-	key = encodeStatePrefix(hashSlot, UserTable.ID)
+	key := encodeStatePrefix(hashSlot, UserTable.ID)
 	key = appendKeyString(key, uid)
 	key = binary.AppendUvarint(key, uint64(familyID))
 	return key
 }
 
 func encodeChannelPrimaryKey(hashSlot uint16, channelID string, channelType int64, familyID uint16) []byte {
-	key := make([]byte, 0, 48)
-	key = encodeStatePrefix(hashSlot, ChannelTable.ID)
+	key := encodeStatePrefix(hashSlot, ChannelTable.ID)
 	key = appendKeyString(key, channelID)
 	key = appendKeyInt64Ordered(key, channelType)
 	key = binary.AppendUvarint(key, uint64(familyID))
@@ -68,15 +66,13 @@ func encodeChannelIDIndexKey(hashSlot uint16, channelID string, channelType int6
 }
 
 func encodeChannelIDIndexPrefix(hashSlot uint16, channelID string) []byte {
-	key := make([]byte, 0, 40)
-	key = encodeIndexPrefix(hashSlot, ChannelTable.ID, channelIndexIDChannelID)
+	key := encodeIndexPrefix(hashSlot, ChannelTable.ID, channelIndexIDChannelID)
 	key = appendKeyString(key, channelID)
 	return key
 }
 
 func encodeChannelRuntimeMetaPrimaryKey(hashSlot uint16, channelID string, channelType int64, familyID uint16) []byte {
-	key := make([]byte, 0, 64)
-	key = encodeStatePrefix(hashSlot, ChannelRuntimeMetaTable.ID)
+	key := encodeStatePrefix(hashSlot, ChannelRuntimeMetaTable.ID)
 	key = appendKeyString(key, channelID)
 	key = appendKeyInt64Ordered(key, channelType)
 	key = binary.AppendUvarint(key, uint64(familyID))
@@ -84,8 +80,7 @@ func encodeChannelRuntimeMetaPrimaryKey(hashSlot uint16, channelID string, chann
 }
 
 func encodeDevicePrimaryKey(hashSlot uint16, uid string, deviceFlag int64, familyID uint16) []byte {
-	key := make([]byte, 0, 48)
-	key = encodeStatePrefix(hashSlot, DeviceTable.ID)
+	key := encodeStatePrefix(hashSlot, DeviceTable.ID)
 	key = appendKeyString(key, uid)
 	key = appendKeyInt64Ordered(key, deviceFlag)
 	key = binary.AppendUvarint(key, uint64(familyID))
@@ -568,72 +563,6 @@ func decodeWrappedValue(key, value []byte) (byte, []byte, error) {
 	return body[0], body[1:], nil
 }
 
-func decodeFamilyPayload(payload []byte) (map[uint16]any, error) {
-	result := make(map[uint16]any)
-	var colID uint16
-
-	for len(payload) > 0 {
-		tag := payload[0]
-		payload = payload[1:]
-
-		delta := uint16(tag >> 4)
-		valueType := tag & 0x0f
-		if delta == 0 {
-			return nil, fmt.Errorf("%w: zero column delta", ErrCorruptValue)
-		}
-		colID += delta
-
-		switch valueType {
-		case valueTypeBytes:
-			length, n := binary.Uvarint(payload)
-			if n <= 0 {
-				return nil, fmt.Errorf("metadb: invalid bytes length")
-			}
-			payload = payload[n:]
-			if uint64(len(payload)) < length {
-				return nil, fmt.Errorf("metadb: bytes payload truncated")
-			}
-			result[colID] = string(payload[:length])
-			payload = payload[length:]
-		case valueTypeInt:
-			raw, n := binary.Uvarint(payload)
-			if n <= 0 {
-				return nil, fmt.Errorf("metadb: invalid int payload")
-			}
-			payload = payload[n:]
-			result[colID] = decodeZigZagInt64(raw)
-		default:
-			return nil, fmt.Errorf("metadb: unsupported value type %d", valueType)
-		}
-	}
-
-	return result, nil
-}
-
-func requireStringColumn(cols map[uint16]any, columnID uint16) (string, error) {
-	value, ok := cols[columnID]
-	if !ok {
-		return "", fmt.Errorf("%w: missing string column %d", ErrCorruptValue, columnID)
-	}
-	typed, ok := value.(string)
-	if !ok {
-		return "", fmt.Errorf("%w: invalid string column %d", ErrCorruptValue, columnID)
-	}
-	return typed, nil
-}
-
-func requireInt64Column(cols map[uint16]any, columnID uint16) (int64, error) {
-	value, ok := cols[columnID]
-	if !ok {
-		return 0, fmt.Errorf("%w: missing int column %d", ErrCorruptValue, columnID)
-	}
-	typed, ok := value.(int64)
-	if !ok {
-		return 0, fmt.Errorf("%w: invalid int column %d", ErrCorruptValue, columnID)
-	}
-	return typed, nil
-}
-
 func appendBytesValue(dst []byte, columnID, prevColumnID uint16, value string) []byte {
 	delta := columnID - prevColumnID
 	dst = append(dst, encodeValueTag(delta, valueTypeBytes))
@@ -666,13 +595,6 @@ func appendUint64Value(dst []byte, columnID, prevColumnID uint16, value uint64) 
 
 func encodeValueTag(delta uint16, typ byte) byte {
 	return byte(delta<<4) | typ
-}
-
-func appendTableIndexPrefix(dst []byte, kind byte, tableID uint32, indexID uint16) []byte {
-	dst = append(dst, kind)
-	dst = binary.BigEndian.AppendUint32(dst, tableID)
-	dst = binary.BigEndian.AppendUint16(dst, indexID)
-	return dst
 }
 
 func appendKeyString(dst []byte, value string) []byte {

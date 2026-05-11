@@ -1,6 +1,6 @@
 package diagnostics
 
-import "github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
+import "github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 
 // Metrics records low-cardinality diagnostics sink outcomes.
 type Metrics interface {

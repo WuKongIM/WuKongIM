@@ -128,14 +128,6 @@ func decodeSlotSnapshotPayload(data []byte) (decodedSlotSnapshot, error) {
 	}, nil
 }
 
-func readSlotSnapshotMeta(data []byte) (slotSnapshotMeta, error) {
-	meta, _, err := parseSlotSnapshotPayload(data)
-	if err != nil {
-		return slotSnapshotMeta{}, err
-	}
-	return meta, nil
-}
-
 func parseSlotSnapshotPayload(data []byte) (slotSnapshotMeta, []byte, error) {
 	const minHeaderSize = 4 + 2 + 2 + 8 + 4
 	if len(data) < minHeaderSize {

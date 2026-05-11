@@ -202,15 +202,7 @@ func raftEntryTypeName(entryType raftpb.EntryType) string {
 func slotLogEntriesFromManaged(entries []managedSlotLogEntry) []SlotLogEntry {
 	out := make([]SlotLogEntry, 0, len(entries))
 	for _, entry := range entries {
-		out = append(out, SlotLogEntry{
-			Index:        entry.Index,
-			Term:         entry.Term,
-			Type:         entry.Type,
-			DataSize:     entry.DataSize,
-			DecodeStatus: entry.DecodeStatus,
-			DecodedType:  entry.DecodedType,
-			Decoded:      entry.Decoded,
-		})
+		out = append(out, SlotLogEntry(entry))
 	}
 	return out
 }
@@ -218,15 +210,7 @@ func slotLogEntriesFromManaged(entries []managedSlotLogEntry) []SlotLogEntry {
 func managedSlotLogEntriesFromSlot(entries []SlotLogEntry) []managedSlotLogEntry {
 	out := make([]managedSlotLogEntry, 0, len(entries))
 	for _, entry := range entries {
-		out = append(out, managedSlotLogEntry{
-			Index:        entry.Index,
-			Term:         entry.Term,
-			Type:         entry.Type,
-			DataSize:     entry.DataSize,
-			DecodeStatus: entry.DecodeStatus,
-			DecodedType:  entry.DecodedType,
-			Decoded:      entry.Decoded,
-		})
+		out = append(out, managedSlotLogEntry(entry))
 	}
 	return out
 }

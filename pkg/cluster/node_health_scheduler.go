@@ -249,30 +249,6 @@ func (s *nodeHealthScheduler) refreshNodeFromStore(ctx context.Context, nodeID u
 	s.mirrorNode(node)
 }
 
-func (s *nodeHealthScheduler) reloadAllNodes(ctx context.Context) error {
-	if s == nil || s.cfg.loadNodes == nil {
-		return nil
-	}
-
-	nodes, err := s.cfg.loadNodes(ctx)
-	if err != nil {
-		return err
-	}
-
-	nodeMirror := make(map[uint64]controllermeta.ClusterNode, len(nodes))
-	for _, node := range nodes {
-		if node.NodeID == 0 {
-			continue
-		}
-		nodeMirror[node.NodeID] = node
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.nodeMirror = nodeMirror
-	return nil
-}
-
 type healthDeadlineSpec struct {
 	nodeID     uint64
 	generation uint64

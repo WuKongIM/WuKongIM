@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -89,14 +90,15 @@ func TestSnapshotWaitingQueueIsFIFO(t *testing.T) {
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
 		env.runtime.runScheduler()
-		if len(env.throttle.values) == 3 {
+		if len(env.throttle.Values()) == 3 {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
 
-	if len(env.throttle.values) != 3 || env.throttle.values[0] != 101 || env.throttle.values[1] != 102 || env.throttle.values[2] != 103 {
-		t.Fatalf("expected FIFO throttle trace [101 102 103], got %v", env.throttle.values)
+	values := env.throttle.Values()
+	if len(values) != 3 || values[0] != 101 || values[1] != 102 || values[2] != 103 {
+		t.Fatalf("expected FIFO throttle trace [101 102 103], got %v", values)
 	}
 }
 
@@ -324,6 +326,7 @@ func newSnapshotTestEnv(t *testing.T, mutate func(*Config)) *snapshotTestEnv {
 }
 
 type snapshotManualClock struct {
+	mu  sync.Mutex
 	now time.Time
 }
 
@@ -332,28 +335,43 @@ func newSnapshotManualClock(now time.Time) *snapshotManualClock {
 }
 
 func (c *snapshotManualClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.now
 }
 
 func (c *snapshotManualClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.now = c.now.Add(d)
 }
 
 type fakeSnapshotThrottle struct {
+	mu      sync.Mutex
 	advance func(time.Duration)
 	values  []int64
 	rate    int64
 }
 
 func (t *fakeSnapshotThrottle) Wait(bytes int64) {
+	t.mu.Lock()
 	t.values = append(t.values, bytes)
-	if t.advance != nil && bytes > 0 {
-		rate := t.rate
+	advance := t.advance
+	rate := t.rate
+	t.mu.Unlock()
+
+	if advance != nil && bytes > 0 {
 		if rate <= 0 {
 			return
 		}
-		t.advance(time.Duration(bytes) * time.Second / time.Duration(rate))
+		advance(time.Duration(bytes) * time.Second / time.Duration(rate))
 	}
+}
+
+func (t *fakeSnapshotThrottle) Values() []int64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return append([]int64(nil), t.values...)
 }
 
 type blockingSnapshotThrottle struct {

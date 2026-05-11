@@ -46,7 +46,7 @@ func NewDynamicDiscovery(seeds []SeedConfig, nodes []NodeConfig) *DynamicDiscove
 		d.seeds[uint64(seed.ID)] = NodeInfo{NodeID: seed.ID, Addr: seed.Addr}
 	}
 	for _, node := range nodes {
-		d.nodes[uint64(node.NodeID)] = NodeInfo{NodeID: node.NodeID, Addr: node.Addr}
+		d.nodes[uint64(node.NodeID)] = NodeInfo(node)
 	}
 	return d
 }
@@ -112,7 +112,7 @@ func (d *DynamicDiscovery) UpsertSeed(seed SeedConfig) {
 func (d *DynamicDiscovery) UpdateNodes(nodes []NodeConfig) (changed []uint64) {
 	next := make(map[uint64]NodeInfo, len(nodes))
 	for _, node := range nodes {
-		next[uint64(node.NodeID)] = NodeInfo{NodeID: node.NodeID, Addr: node.Addr}
+		next[uint64(node.NodeID)] = NodeInfo(node)
 	}
 
 	var changes []discoveryAddressChange

@@ -121,9 +121,7 @@ func (b *boundedIndex) evictKeys() {
 	for len(b.values) > b.maxKeys && len(b.order) > 0 {
 		key := b.order[0]
 		b.order = b.order[1:]
-		if _, ok := b.values[key]; ok {
-			delete(b.values, key)
-		}
+		delete(b.values, key)
 	}
 }
 
@@ -171,9 +169,7 @@ func (b *boundedRangeIndex) evictKeys() {
 	for len(b.values) > b.maxKeys && len(b.order) > 0 {
 		key := b.order[0]
 		b.order = b.order[1:]
-		if _, ok := b.values[key]; ok {
-			delete(b.values, key)
-		}
+		delete(b.values, key)
 	}
 }
 

@@ -87,12 +87,6 @@ func (s *scheduler) popReady() (schedulerEntry, bool) {
 	return schedulerEntry{}, false
 }
 
-func (s *scheduler) begin(key core.ChannelKey) {
-	s.mu.Lock()
-	s.processing[key] = struct{}{}
-	s.mu.Unlock()
-}
-
 func (s *scheduler) done(key core.ChannelKey) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -116,13 +110,6 @@ func (s *scheduler) requeue(key core.ChannelKey) {
 	}
 	s.queued[key] = priority
 	s.queues[priority].enqueue(key)
-}
-
-func (s *scheduler) isDirty(key core.ChannelKey) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, ok := s.dirty[key]
-	return ok
 }
 
 func (s *scheduler) hasReady() bool {

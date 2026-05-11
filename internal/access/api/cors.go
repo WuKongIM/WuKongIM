@@ -12,7 +12,14 @@ const openCORSExposeHeaders = "Content-Length, Content-Type"
 
 func openCORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		allowOrigin := "*"
+		if c.Request != nil {
+			if origin := c.Request.Header.Get("Origin"); origin != "" {
+				allowOrigin = origin
+				c.Writer.Header().Add("Vary", "Origin")
+			}
+		}
+		c.Header("Access-Control-Allow-Origin", allowOrigin)
 		c.Header("Access-Control-Allow-Headers", openCORSAllowHeaders)
 		c.Header("Access-Control-Allow-Methods", openCORSAllowMethods)
 		c.Header("Access-Control-Expose-Headers", openCORSExposeHeaders)

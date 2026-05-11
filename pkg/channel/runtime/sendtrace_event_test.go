@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	core "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/stretchr/testify/require"
 )
 

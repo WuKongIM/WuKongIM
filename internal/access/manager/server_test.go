@@ -74,6 +74,22 @@ func TestManagerLoginRejectsInvalidCredentials(t *testing.T) {
 	require.JSONEq(t, `{"error":"invalid_credentials","message":"invalid credentials"}`, rec.Body.String())
 }
 
+func TestManagerCORSEchoesRequestOrigin(t *testing.T) {
+	srv := New(Options{})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodOptions, "/manager/nodes", nil)
+	req.Header.Set("Origin", "http://localhost:5175")
+	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusNoContent, rec.Code)
+	require.Equal(t, "http://localhost:5175", rec.Header().Get("Access-Control-Allow-Origin"))
+	require.Contains(t, rec.Header().Values("Vary"), "Origin")
+	require.Contains(t, rec.Header().Get("Access-Control-Allow-Methods"), http.MethodGet)
+}
+
 func TestManagerNodesRejectsMissingToken(t *testing.T) {
 	srv := New(Options{
 		Auth:       testAuthConfig(nil),
@@ -98,6 +114,29 @@ func TestManagerNodesRejectsExpiredToken(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/manager/nodes", nil)
 	req.Header.Set("Authorization", "Bearer "+mustIssueExpiredTestToken(t, srv, "ghost"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	require.JSONEq(t, `{"error":"unauthorized","message":"unauthorized"}`, rec.Body.String())
+}
+
+func TestManagerLoginRejectsUnknownUserEvenWithValidToken(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.node",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/nodes", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "ghost"))
 
 	srv.Engine().ServeHTTP(rec, req)
 

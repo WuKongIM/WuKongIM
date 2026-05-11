@@ -2,7 +2,6 @@ package replica
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -702,21 +701,6 @@ func cloneApplyFetchStoreRequest(req channel.ApplyFetchStoreRequest) channel.App
 		cloned.Checkpoint = &value
 	}
 	return cloned
-}
-
-func setReplicaConfigFieldIfPresent(cfg *ReplicaConfig, field string, value any) {
-	switch field {
-	case "AppendGroupCommitMaxWait":
-		cfg.AppendGroupCommitMaxWait = value.(time.Duration)
-	case "AppendGroupCommitMaxRecords":
-		cfg.AppendGroupCommitMaxRecords = value.(int)
-	case "AppendGroupCommitMaxBytes":
-		cfg.AppendGroupCommitMaxBytes = value.(int)
-	case "ApplyFetchStore":
-		cfg.ApplyFetchStore = value.(*fakeApplyFetchStore)
-	default:
-		panic(fmt.Sprintf("unsupported field %s", field))
-	}
 }
 
 func newReplicaFromEnvWithGroupCommit(t testing.TB, env *testEnv, maxWait time.Duration, maxRecords, maxBytes int) *replica {

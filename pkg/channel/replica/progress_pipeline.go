@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -76,8 +76,6 @@ func (r *replica) applyCursorCommand(cmd machineCursorCommand) machineResult {
 	oldProgress = r.progress[cmd.ReplicaID]
 	r.setRetentionProgressLocked(cmd.ReplicaID, matchOffset)
 	if matchOffset <= oldProgress {
-		hw = r.state.HW
-		leo = r.state.LEO
 		r.mu.Unlock()
 		r.appendLogger().Debug("follower cursor stale, skipped",
 			wklog.Event("repl.diag.cursor_stale"),

@@ -5,11 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
-
-	"github.com/valyala/bytebufferpool"
 )
-
-var pool = bytebufferpool.Pool{}
 
 type EncodeOptions struct {
 	Cap int
