@@ -523,7 +523,7 @@ func TestHandleSendAssignsTraceIDToCommandAndSendTrace(t *testing.T) {
 		}
 	}
 	require.Equal(t, traceID, sendEvent.TraceID)
-	wantKey := string(channelhandler.KeyFromChannelID(channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson}))
+	wantKey := string(channelhandler.KeyFromChannelID(channel.ChannelID{ID: "u2", Type: frame.ChannelTypePerson}))
 	require.Equal(t, wantKey, sendEvent.ChannelKey)
 	require.Equal(t, traceID, ackEvent.TraceID)
 	require.Equal(t, wantKey, ackEvent.ChannelKey)
