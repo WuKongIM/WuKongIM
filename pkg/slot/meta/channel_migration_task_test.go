@@ -213,6 +213,40 @@ func TestWriteBatchChannelMigrationTaskTerminalTransitionClearsActiveIndexForSam
 	require.Equal(t, next.TaskID, got.TaskID)
 }
 
+func TestWriteBatchChannelMigrationTaskStaleTerminalTransitionDoesNotClearNewActiveIndex(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+	active := testChannelMigrationTask("task-batch-stale-terminal-1", "channel-batch-stale-terminal")
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, active))
+
+	completed := active
+	completed.Status = ChannelMigrationStatusCompleted
+	completed.Phase = ChannelMigrationPhaseVerifyMembership
+	completed.CompletedAtMS = 1750000010000
+	completed.UpdatedAtMS = 1750000010000
+	next := testChannelMigrationTask("task-batch-stale-terminal-2", "channel-batch-stale-terminal")
+	next.CreatedAtMS = 1750000011000
+	next.UpdatedAtMS = 1750000011000
+
+	staleBatch := db.NewWriteBatch()
+	defer staleBatch.Close()
+	require.NoError(t, staleBatch.UpsertChannelMigrationTask(7, completed))
+
+	newActiveBatch := db.NewWriteBatch()
+	defer newActiveBatch.Close()
+	require.NoError(t, newActiveBatch.UpsertChannelMigrationTask(7, completed))
+	require.NoError(t, newActiveBatch.CreateChannelMigrationTask(7, next))
+	require.NoError(t, newActiveBatch.Commit())
+
+	require.NoError(t, staleBatch.Commit())
+
+	got, ok, err := shard.GetActiveChannelMigrationTask(ctx, next.ChannelID, next.ChannelType)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, next.TaskID, got.TaskID)
+}
+
 func TestChannelMigrationTaskValidationRejectsWorkflowInconsistentPhase(t *testing.T) {
 	tests := []struct {
 		name string
@@ -286,6 +320,104 @@ func TestChannelMigrationTaskValidationRejectsWorkflowInconsistentPhase(t *testi
 				task.EmbeddedDesiredLeader = task.DesiredLeader
 				task.CompletedAtMS = 1750000010000
 				task.UpdatedAtMS = 1750000010000
+				return task
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.ErrorIs(t, validateChannelMigrationTask(tt.task), ErrInvalidArgument)
+		})
+	}
+}
+
+func TestChannelMigrationTaskValidationRejectsPartialFenceState(t *testing.T) {
+	tests := []struct {
+		name string
+		task ChannelMigrationTask
+	}{
+		{
+			name: "version_without_token",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-fence-version", "channel-invalid-fence-version")
+				task.FenceVersion = 1
+				return task
+			}(),
+		},
+		{
+			name: "until_without_token",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-fence-until", "channel-invalid-fence-until")
+				task.FenceUntilMS = 1750000010000
+				return task
+			}(),
+		},
+		{
+			name: "token_without_version",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-fence-token-version", "channel-invalid-fence-token-version")
+				task.FenceToken = "fence-token"
+				task.FenceUntilMS = 1750000010000
+				return task
+			}(),
+		},
+		{
+			name: "token_without_until",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-fence-token-until", "channel-invalid-fence-token-until")
+				task.FenceToken = "fence-token"
+				task.FenceVersion = 1
+				return task
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.ErrorIs(t, validateChannelMigrationTask(tt.task), ErrInvalidArgument)
+		})
+	}
+}
+
+func TestChannelMigrationTaskValidationRejectsInconsistentBlockerState(t *testing.T) {
+	tests := []struct {
+		name string
+		task ChannelMigrationTask
+	}{
+		{
+			name: "non_blocked_with_code",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-blocker-code", "channel-invalid-blocker-code")
+				task.BlockerCode = "RetryPaused"
+				return task
+			}(),
+		},
+		{
+			name: "non_blocked_with_message",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-blocker-message", "channel-invalid-blocker-message")
+				task.BlockerMessage = "blocked details without blocked status"
+				return task
+			}(),
+		},
+		{
+			name: "blocked_missing_code",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-blocked-code", "channel-invalid-blocked-code")
+				task.Status = ChannelMigrationStatusBlocked
+				task.Phase = ChannelMigrationPhaseBootstrapTarget
+				task.BlockerMessage = "target requires a channel snapshot before catch-up"
+				return task
+			}(),
+		},
+		{
+			name: "blocked_missing_message",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-blocked-message", "channel-invalid-blocked-message")
+				task.Status = ChannelMigrationStatusBlocked
+				task.Phase = ChannelMigrationPhaseBootstrapTarget
+				task.BlockerCode = ChannelMigrationBlockerNeedsSnapshotBootstrap
 				return task
 			}(),
 		},
@@ -476,13 +608,15 @@ func TestChannelMigrationTaskGarbageCollectsTerminalAfterRetention(t *testing.T)
 }
 
 func TestChannelMigrationTaskEncodeDecodeFullFields(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
 	task := testChannelMigrationTask("task-codec", "channel-codec")
-	task.Kind = ChannelMigrationKindLeaderTransfer
+	task.Kind = ChannelMigrationKindReplicaReplace
 	task.Status = ChannelMigrationStatusBlocked
-	task.Phase = ChannelMigrationPhaseDrainLeader
+	task.Phase = ChannelMigrationPhaseWarmCatchUp
 	task.SourceNode = 11
 	task.TargetNode = 12
-	task.DesiredLeader = 12
+	task.DesiredLeader = 13
 	task.BaseChannelEpoch = 21
 	task.BaseLeaderEpoch = 22
 	task.FenceToken = "task-codec"
@@ -515,13 +649,9 @@ func TestChannelMigrationTaskEncodeDecodeFullFields(t *testing.T) {
 		StableSinceMS:      1750000007000,
 	}
 
-	key := encodeChannelMigrationTaskPrimaryKey(7, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationTaskPrimaryFamilyID)
-	value := encodeChannelMigrationTaskFamilyValue(task, key)
-	got, err := decodeChannelMigrationTaskFamilyValue(key, value)
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, task))
+	got, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
 	require.NoError(t, err)
-	got.ChannelID = task.ChannelID
-	got.ChannelType = task.ChannelType
-	got.TaskID = task.TaskID
 	require.Equal(t, task, got)
 }
 

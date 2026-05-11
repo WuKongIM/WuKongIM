@@ -406,7 +406,7 @@ func (s *ShardStore) upsertChannelMigrationTaskLocked(batch *pebble.Batch, task 
 			return err
 		}
 	} else if exists && existing.IsActive() {
-		if err := batch.Delete(activeIndexKey, nil); err != nil {
+		if err := s.deleteChannelMigrationTaskActiveIndexIfMatchesLocked(batch, activeIndexKey, existing.TaskID); err != nil {
 			return err
 		}
 	}
@@ -427,6 +427,20 @@ func (s *ShardStore) upsertChannelMigrationTaskLocked(batch *pebble.Batch, task 
 	}
 
 	return batch.Set(primaryKey, encodeChannelMigrationTaskFamilyValue(task, primaryKey), nil)
+}
+
+func (s *ShardStore) deleteChannelMigrationTaskActiveIndexIfMatchesLocked(batch *pebble.Batch, activeIndexKey []byte, taskID string) error {
+	existingTaskID, err := decodeChannelMigrationTaskIDIndexValue(s.db.getValue(activeIndexKey))
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+	if existingTaskID != taskID {
+		return nil
+	}
+	return batch.Delete(activeIndexKey, nil)
 }
 
 func (s *ShardStore) ensureChannelMigrationTaskActiveSlotAvailableLocked(activeIndexKey []byte, task ChannelMigrationTask) error {
@@ -522,7 +536,8 @@ func validateChannelMigrationTask(task ChannelMigrationTask) error {
 			return ErrInvalidArgument
 		}
 	}
-	if task.FenceToken != "" && (task.FenceVersion == 0 || task.FenceUntilMS <= 0) {
+	hasFence := task.FenceToken != "" || task.FenceVersion != 0 || task.FenceUntilMS != 0
+	if hasFence && (task.FenceToken == "" || task.FenceVersion == 0 || task.FenceUntilMS <= 0) {
 		return ErrInvalidArgument
 	}
 	if task.EmbeddedLeaderTransfer && task.EmbeddedDesiredLeader == 0 {
@@ -544,10 +559,14 @@ func validateChannelMigrationTask(task ChannelMigrationTask) error {
 	} else if task.CompletedAtMS != 0 {
 		return ErrInvalidArgument
 	}
-	if task.Status == ChannelMigrationStatusBlocked && task.BlockerCode == "" {
+	if task.Status == ChannelMigrationStatusBlocked {
+		if task.BlockerCode == "" || task.BlockerMessage == "" {
+			return ErrInvalidArgument
+		}
+	} else if task.BlockerCode != "" || task.BlockerMessage != "" {
 		return ErrInvalidArgument
 	}
-	if task.BlockerCode == ChannelMigrationBlockerNeedsSnapshotBootstrap && task.Phase == 0 {
+	if task.BlockerCode == ChannelMigrationBlockerNeedsSnapshotBootstrap && (task.Status != ChannelMigrationStatusBlocked || !canBlockChannelMigrationAtPhase(task.Phase)) {
 		return ErrInvalidArgument
 	}
 	return nil
