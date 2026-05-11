@@ -14,7 +14,7 @@
 
 1. 必要时解密 send packet。
 2. 从 session 读取发送者 UID。
-3. 将个人频道规范化。
+3. 将原始频道 ID、频道类型和 header 标志映射到 `SendCommand`。
 4. 调用 `message.App.Send`。
 5. 写回 sendack。
 
@@ -25,6 +25,7 @@
 - `internal/access/gateway/error_map.go:12`
 
 网关入口目前不承载频道业务权限。
+个人频道规范化、cmd 后缀剥离和发送权限判断统一在 `message.App.Send` 中完成，避免入口提前拒绝已派生的 cmd 个人频道。
 
 ### HTTP 入口
 
@@ -45,21 +46,26 @@
 
 ### message usecase
 
-当前 `message.App.Send` 只做以下业务校验：
+当前 `message.App.Send` 负责发送业务边界：
 
 - `FromUID` 不能为空。
 - 只支持个人频道和群频道。
-- 个人频道做规范化。
-- 必须配置 channel cluster。
+- 先剥离可选的 cmd 后缀，再对个人频道做规范化。
+- 在原始频道上检查发送权限，包括发送者 `SendBan`、群 `Ban` / `Disband`、群黑白名单和订阅者资格、个人接收方黑名单。
+- `NoPersist` 在权限通过后直接返回成功，不要求 channel cluster。
+- `SyncOnce` 或已派生 cmd 输入会把 durable append 目标切换到原频道派生的 `____cmd`。
+- 持久化发送必须配置 channel cluster。
 
-随后直接进入 durable append。
+随后进入 durable append，`pkg/channel` 仍只负责日志和复制语义。
 
 关键代码：
 
 - `internal/usecase/message/send.go:16`
 - `internal/usecase/message/send.go:26`
-- `internal/usecase/message/send.go:37`
-- `internal/usecase/message/send.go:46`
+- `internal/usecase/message/send.go:30`
+- `internal/usecase/message/send.go:41`
+- `internal/usecase/message/send.go:49`
+- `internal/usecase/message/send.go:53`
 
 ### channel log append
 
@@ -85,7 +91,7 @@
 
 关键代码：
 
-- `internal/usecase/message/send.go:87`
+- `internal/usecase/message/send.go:108`
 - `internal/app/committed_events.go:18`
 - `internal/app/deliveryrouting.go:304`
 
@@ -396,7 +402,8 @@ P2b 状态（2026-05-11）：
 关键代码：
 
 - `internal/usecase/message/command.go:8`
-- `internal/usecase/message/send.go:102`
+- `internal/usecase/message/send.go:30`
+- `internal/usecase/message/send.go:53`
 
 影响：持久化 `SyncOnce` 的核心 cmd channel 写入、权限、订阅者解析、实时展示和普通会话过滤已恢复；在线 cmd 投递、CMD 会话 / 离线 cmd 同步、request-scoped subscribers、临时频道和 sendbatch 仍未恢复。
 
