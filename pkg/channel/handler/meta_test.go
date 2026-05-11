@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"testing"
+	"time"
 
 	core "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
@@ -55,6 +56,38 @@ func TestApplyMetaUpdatesRetentionBoundaryInCache(t *testing.T) {
 	}
 	if snapshot.RetentionThroughSeq != 88 {
 		t.Fatalf("RetentionThroughSeq = %d, want 88", snapshot.RetentionThroughSeq)
+	}
+}
+
+func TestApplyMetaUpdatesWriteFenceInCache(t *testing.T) {
+	id := core.ChannelID{ID: "c1", Type: 1}
+	svc, _, _ := newAppendService(t, id)
+	key := KeyFromChannelID(id)
+	until := time.UnixMilli(1_700_000_000_000).UTC()
+
+	next := core.Meta{
+		Key:         key,
+		ID:          id,
+		Epoch:       7,
+		LeaderEpoch: 9,
+		Leader:      1,
+		Replicas:    []core.NodeID{1},
+		ISR:         []core.NodeID{1},
+		MinISR:      1,
+		Status:      core.StatusActive,
+		Features:    core.Features{MessageSeqFormat: core.MessageSeqFormatU64},
+		WriteFence:  core.WriteFence{Token: "task-1", Version: 2, Reason: core.WriteFenceReasonMigration, Until: until},
+	}
+	if err := svc.ApplyMeta(next); err != nil {
+		t.Fatalf("ApplyMeta() error = %v", err)
+	}
+
+	snapshot, ok := svc.MetaSnapshot(key)
+	if !ok {
+		t.Fatalf("MetaSnapshot() missing key %q", key)
+	}
+	if snapshot.WriteFence != next.WriteFence {
+		t.Fatalf("WriteFence = %+v, want %+v", snapshot.WriteFence, next.WriteFence)
 	}
 }
 

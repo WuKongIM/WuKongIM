@@ -280,6 +280,7 @@ func (s *Sync) ApplyAuthoritativeMeta(meta metadb.ChannelRuntimeMeta) (channel.M
 		return channel.Meta{}, channel.ErrInvalidConfig
 	}
 	rootMeta := ProjectChannelMeta(meta)
+	defer s.cache.invalidateIfWriteFenceChanged(rootMeta.Key, meta, s.Now())
 	notifyAfterLocalApply := s.shouldNotifyAfterLocalApply(meta)
 	if err := s.runtime.ApplyRoutingMeta(rootMeta); err != nil {
 		return channel.Meta{}, err
@@ -406,6 +407,10 @@ func (s *Sync) cachedHealthyBusinessMeta(key channel.ChannelKey) (channel.Meta, 
 		return channel.Meta{}, false
 	}
 	if meta.Leader == 0 || meta.Epoch == 0 || meta.LeaderEpoch == 0 {
+		return channel.Meta{}, false
+	}
+	if meta.WriteFence.Active(now) {
+		s.cache.Invalidate(key)
 		return channel.Meta{}, false
 	}
 	if !meta.LeaseUntil.After(now.Add(channelMetaBusinessCacheRefreshLeadTime)) {
@@ -735,6 +740,10 @@ func ProjectChannelMeta(meta metadb.ChannelRuntimeMeta) channel.Meta {
 	if meta.LeaseUntilMS > 0 {
 		leaseUntil = time.UnixMilli(meta.LeaseUntilMS).UTC()
 	}
+	var fenceUntil time.Time
+	if meta.WriteFenceUntilMS > 0 {
+		fenceUntil = time.UnixMilli(meta.WriteFenceUntilMS).UTC()
+	}
 	return channel.Meta{
 		Key:         channelhandler.KeyFromChannelID(id),
 		ID:          id,
@@ -750,6 +759,12 @@ func ProjectChannelMeta(meta metadb.ChannelRuntimeMeta) channel.Meta {
 			MessageSeqFormat: channel.MessageSeqFormat(meta.Features),
 		},
 		RetentionThroughSeq: meta.RetentionThroughSeq,
+		WriteFence: channel.WriteFence{
+			Token:   meta.WriteFenceToken,
+			Version: meta.WriteFenceVersion,
+			Reason:  channel.WriteFenceReason(meta.WriteFenceReason),
+			Until:   fenceUntil,
+		},
 	}
 }
 

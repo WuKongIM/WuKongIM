@@ -152,7 +152,8 @@ func compatibleWithExpectation(meta channel.Meta, expectedChannelEpoch, expected
 
 func metaEqual(a, b channel.Meta) bool {
 	return metaEqualExceptRetention(a, b) &&
-		a.RetentionThroughSeq == b.RetentionThroughSeq
+		a.RetentionThroughSeq == b.RetentionThroughSeq &&
+		a.WriteFence == b.WriteFence
 }
 
 func metaEqualExceptRetention(a, b channel.Meta) bool {

@@ -3,21 +3,26 @@ package channel
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMetaCarriesRuntimeAndBusinessFields(t *testing.T) {
+	until := time.UnixMilli(1_700_000_000_000).UTC()
 	meta := Meta{
-		Key:      ChannelKey("channel/1/dTE="),
-		ID:       ChannelID{ID: "u1", Type: 1},
-		Leader:   100,
-		Status:   StatusActive,
-		Features: Features{MessageSeqFormat: MessageSeqFormatU64},
+		Key:        ChannelKey("channel/1/dTE="),
+		ID:         ChannelID{ID: "u1", Type: 1},
+		Leader:     100,
+		Status:     StatusActive,
+		Features:   Features{MessageSeqFormat: MessageSeqFormatU64},
+		WriteFence: WriteFence{Token: "task-1", Version: 3, Reason: WriteFenceReasonMigration, Until: until},
 	}
 	require.Equal(t, ChannelID{ID: "u1", Type: 1}, meta.ID)
 	require.Equal(t, StatusActive, meta.Status)
+	require.True(t, meta.WriteFence.Active(until.Add(-time.Millisecond)))
+	require.False(t, meta.WriteFence.Active(until))
 }
 
 func TestAppendRequestCarriesBusinessChannelID(t *testing.T) {

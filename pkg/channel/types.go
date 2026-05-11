@@ -80,6 +80,33 @@ type Meta struct {
 	Features    Features
 	// RetentionThroughSeq is the authoritative highest message sequence hidden by retention.
 	RetentionThroughSeq uint64
+	// WriteFence rejects new appends while a migration owns the channel cutover.
+	WriteFence WriteFence
+}
+
+// WriteFenceReason explains why channel writes are currently fenced.
+type WriteFenceReason uint8
+
+const (
+	// WriteFenceReasonMigration indicates writes are fenced by channel migration.
+	WriteFenceReasonMigration WriteFenceReason = 1
+)
+
+// WriteFence is the channel runtime projection of an authoritative write fence.
+type WriteFence struct {
+	// Token identifies the task that owns the current write fence.
+	Token string
+	// Version is the monotonic fence generation applied from authoritative metadata.
+	Version uint64
+	// Reason explains why writes are currently fenced.
+	Reason WriteFenceReason
+	// Until is the fence lease deadline from authoritative metadata.
+	Until time.Time
+}
+
+// Active reports whether the fence currently rejects new writes.
+func (f WriteFence) Active(now time.Time) bool {
+	return f.Token != "" && now.Before(f.Until)
 }
 
 type AppendRequest struct {

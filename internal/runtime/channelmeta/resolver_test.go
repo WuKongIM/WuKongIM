@@ -75,6 +75,25 @@ func TestProjectChannelMetaIncludesRetentionBoundary(t *testing.T) {
 	require.Equal(t, uint64(88), got.RetentionThroughSeq)
 }
 
+func TestProjectChannelMetaIncludesWriteFence(t *testing.T) {
+	until := time.UnixMilli(1_700_000_123_000).UTC()
+	meta := metadb.ChannelRuntimeMeta{
+		ChannelID: "g-fence", ChannelType: 2, ChannelEpoch: 3, LeaderEpoch: 4,
+		Replicas: []uint64{1}, ISR: []uint64{1}, Leader: 1, MinISR: 1,
+		Status:          uint8(channel.StatusActive),
+		WriteFenceToken: "task-fence", WriteFenceVersion: 9, WriteFenceReason: 1, WriteFenceUntilMS: until.UnixMilli(),
+	}
+
+	got := ProjectChannelMeta(meta)
+
+	require.Equal(t, channel.WriteFence{
+		Token:   "task-fence",
+		Version: 9,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   until,
+	}, got.WriteFence)
+}
+
 func TestApplyAuthoritativeMetaAppliesRetentionBoundaryToLocalRuntime(t *testing.T) {
 	meta := metadb.ChannelRuntimeMeta{
 		ChannelID: "retained", ChannelType: 1, ChannelEpoch: 3, LeaderEpoch: 4,
@@ -378,6 +397,54 @@ func TestRefreshChannelMetaUsesHealthyBusinessCache(t *testing.T) {
 	_, err = syncer.RefreshChannelMeta(context.Background(), id)
 	require.NoError(t, err)
 	require.Equal(t, 1, source.getCalls)
+}
+
+func TestRefreshChannelMetaDoesNotReuseActiveWriteFenceCache(t *testing.T) {
+	id := channel.ChannelID{ID: "g-fenced-cache", Type: 2}
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	source := &resolverSourceFake{get: map[channel.ChannelID]metadb.ChannelRuntimeMeta{id: {
+		ChannelID: id.ID, ChannelType: int64(id.Type), ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
+		Status: uint8(channel.StatusActive), LeaseUntilMS: now.Add(time.Minute).UnixMilli(),
+		WriteFenceToken: "task-fenced-cache", WriteFenceVersion: 3, WriteFenceReason: 1, WriteFenceUntilMS: now.Add(time.Minute).UnixMilli(),
+	}}}
+	syncer := NewSync(SyncOptions{Source: source, Runtime: &resolverRuntimeFake{}, LocalNode: 1, Now: func() time.Time { return now }})
+
+	first, err := syncer.RefreshChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+	require.True(t, first.WriteFence.Active(now))
+	second, err := syncer.RefreshChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+	require.True(t, second.WriteFence.Active(now))
+	require.Equal(t, 2, source.getCalls)
+}
+
+func TestRefreshChannelMetaCacheInvalidatesOnFenceVersionChange(t *testing.T) {
+	id := channel.ChannelID{ID: "g-fence-version", Type: 2}
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	unfenced := metadb.ChannelRuntimeMeta{
+		ChannelID: id.ID, ChannelType: int64(id.Type), ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
+		Status: uint8(channel.StatusActive), LeaseUntilMS: now.Add(time.Minute).UnixMilli(),
+	}
+	fenced := unfenced
+	fenced.WriteFenceToken = "task-fence-version"
+	fenced.WriteFenceVersion = 7
+	fenced.WriteFenceReason = 1
+	fenced.WriteFenceUntilMS = now.Add(time.Minute).UnixMilli()
+	source := &resolverSourceFake{get: map[channel.ChannelID]metadb.ChannelRuntimeMeta{id: unfenced}}
+	syncer := NewSync(SyncOptions{Source: source, Runtime: &resolverRuntimeFake{}, LocalNode: 1, Now: func() time.Time { return now }})
+
+	first, err := syncer.RefreshChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+	require.Zero(t, first.WriteFence.Version)
+	source.get[id] = fenced
+	_, err = syncer.ApplyAuthoritativeMeta(fenced)
+	require.NoError(t, err)
+	second, err := syncer.RefreshChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+	require.Equal(t, uint64(7), second.WriteFence.Version)
+	require.Equal(t, 2, source.getCalls)
 }
 
 func TestRefreshChannelMetaReportsCacheHitAndRefreshOutcomes(t *testing.T) {
