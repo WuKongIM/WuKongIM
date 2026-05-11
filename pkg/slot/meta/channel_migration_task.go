@@ -208,6 +208,8 @@ type ChannelMigrationResetFenceRequest struct {
 	Status ChannelMigrationStatus
 	// Phase is the pre-cutover task phase after reset.
 	Phase ChannelMigrationPhase
+	// NowMS is the wall-clock time used to ensure the matching fence expired.
+	NowMS int64
 	// UpdatedAtMS is the task update timestamp.
 	UpdatedAtMS int64
 }
