@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -19,6 +20,11 @@ type ChannelSubscriberStore interface {
 // ChannelSubscriberMetadataStore exposes durable channel metadata for subscriber version fences.
 type ChannelSubscriberMetadataStore interface {
 	GetChannel(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error)
+}
+
+// ChannelSubscriberPermissionMetadataStore exposes authoritative channel metadata for permission-sensitive reads.
+type ChannelSubscriberPermissionMetadataStore interface {
+	GetChannelForPermission(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error)
 }
 
 // TemporarySubscriberSource exposes message-scoped temporary subscriber overlays.
@@ -69,8 +75,6 @@ type subscriberSourceState struct {
 	snapshotFallbackTried bool
 }
 
-const derivedCommandSuffix = "____cmd"
-
 var errInvalidSubscriberPageLimit = errors.New("delivery: invalid subscriber page limit")
 
 // NewSubscriberResolver creates a subscriber resolver for delivery routing.
@@ -101,7 +105,7 @@ func (r *subscriberResolver) BeginSnapshot(ctx context.Context, id channel.Chann
 
 // BeginSnapshotWithRequest resolves the subscriber source for a channel and request-scoped overlays.
 func (r *subscriberResolver) BeginSnapshotWithRequest(ctx context.Context, id channel.ChannelID, req SubscriberSnapshotRequest) (SnapshotToken, error) {
-	sourceID, derived := stripDerivedChannelSuffix(id.ID)
+	sourceID, derived := channelid.FromCommandChannel(id.ID)
 	resolvedID := id
 	if derived {
 		resolvedID.ID = sourceID
@@ -358,13 +362,6 @@ func hasMoreFilteredSnapshotUIDs(uids []string, start int, seen map[string]struc
 	return false
 }
 
-func stripDerivedChannelSuffix(channelID string) (string, bool) {
-	if strings.HasSuffix(channelID, derivedCommandSuffix) {
-		return strings.TrimSuffix(channelID, derivedCommandSuffix), true
-	}
-	return channelID, false
-}
-
 func decodeAgentChannel(channelID string) (string, string, error) {
 	parts := strings.SplitN(channelID, "@", 2)
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
@@ -402,6 +399,12 @@ func uniqueStrings(values []string) []string {
 func (r *subscriberResolver) channelMutationVersion(ctx context.Context, id channel.ChannelID) uint64 {
 	if r == nil || r.metadata == nil {
 		return 0
+	}
+	if authoritative, ok := r.metadata.(ChannelSubscriberPermissionMetadataStore); ok {
+		ch, err := authoritative.GetChannelForPermission(ctx, id.ID, int64(id.Type))
+		if err == nil {
+			return ch.SubscriberMutationVersion
+		}
 	}
 	ch, err := r.metadata.GetChannel(ctx, id.ID, int64(id.Type))
 	if err != nil {
