@@ -112,6 +112,17 @@ func TestChannelMigrationCommandRejectsDuplicatePayload(t *testing.T) {
 	}
 }
 
+func TestStateMachineStaleCommitErrorsAreDeterministicResults(t *testing.T) {
+	for _, err := range []error{metadb.ErrStaleMeta, metadb.ErrNotFound, metadb.ErrAlreadyExists} {
+		if !isStaleMetaCommitError(err) {
+			t.Fatalf("isStaleMetaCommitError(%v) = false, want true", err)
+		}
+	}
+	if isStaleMetaCommitError(metadb.ErrInvalidArgument) {
+		t.Fatal("isStaleMetaCommitError(ErrInvalidArgument) = true, want false")
+	}
+}
+
 func TestStateMachineChannelApplyBatchRuntimeMetaCreateThenAddLearner(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -155,6 +166,24 @@ func TestStateMachineChannelApplyBatchRuntimeMetaCreateThenAddLearner(t *testing
 	}
 }
 
+func TestStateMachineChannelSetFenceRejectsForeignRuntimeFence(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+	task := fsmTestChannelMigrationTask("task-set-foreign-fence", "channel-set-foreign-fence")
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseWarmCatchUp
+	task.UpdatedAtMS = 1750000001000
+	meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, "foreign-task", 7)
+	meta.ChannelEpoch = task.BaseChannelEpoch
+	meta.LeaderEpoch = task.BaseLeaderEpoch
+
+	fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
+	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
+	result, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, Index: 3, Term: 1, Data: EncodeSetChannelWriteFenceCommand(fsmTestSetFenceRequest(task, meta, 1750000009000, 1750000002000))})
+	requireFSMStaleResult(t, result, err)
+}
+
 func TestStateMachineAddChannelLearnerUpdatesTaskAndMetaAtomically(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -186,6 +215,46 @@ func TestStateMachineAddChannelLearnerUpdatesTaskAndMetaAtomically(t *testing.T)
 	}
 	if gotMeta.ChannelEpoch != meta.ChannelEpoch+1 || !reflect.DeepEqual(gotMeta.Replicas, []uint64{1, 2, 3}) || !reflect.DeepEqual(gotMeta.ISR, []uint64{1, 2}) {
 		t.Fatalf("meta after add learner = %#v", gotMeta)
+	}
+}
+
+func TestStateMachineChannelAddLearnerRejectsInvalidSourceTargetRoles(t *testing.T) {
+	tests := []struct {
+		name     string
+		replicas []uint64
+		isr      []uint64
+	}{
+		{
+			name:     "source_not_isr",
+			replicas: []uint64{1, 2},
+			isr:      []uint64{1},
+		},
+		{
+			name:     "target_already_learner",
+			replicas: []uint64{1, 2, 3},
+			isr:      []uint64{1, 2},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			db := openTestDB(t)
+			sm := mustNewStateMachine(t, db, 11)
+			task := fsmTestChannelMigrationTask("task-add-invalid-"+tc.name, "channel-add-invalid-"+tc.name)
+			task.Status = metadb.ChannelMigrationStatusRunning
+			task.Phase = metadb.ChannelMigrationPhaseAddLearner
+			task.UpdatedAtMS = 1750000001000
+			meta := fsmTestRuntimeMeta(task.ChannelID, task.ChannelType)
+			meta.ChannelEpoch = task.BaseChannelEpoch
+			meta.LeaderEpoch = task.BaseLeaderEpoch
+			meta.Replicas = tc.replicas
+			meta.ISR = tc.isr
+
+			fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
+			fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
+			result, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, Index: 3, Term: 1, Data: EncodeAddChannelLearnerCommand(fsmTestAddLearnerRequest(task, meta, 1750000002000))})
+			requireFSMStaleResult(t, result, err)
+		})
 	}
 }
 
@@ -304,6 +373,76 @@ func TestStateMachineChannelPromoteRequiresMatchingCutoverProof(t *testing.T) {
 			result, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, Index: 3, Term: 1, Data: EncodePromoteLearnerAndRemoveReplicaCommand(fsmTestPromoteRequest(task, meta, 1750000002000))})
 			requireFSMStaleResult(t, result, err)
 		})
+	}
+}
+
+func TestStateMachineChannelClearRejectsTaskRuntimeFenceMismatch(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+	task := fsmTestChannelMigrationTask("task-clear-foreign-fence", "channel-clear-foreign-fence")
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseVerifyMembership
+	task.UpdatedAtMS = 1750000001000
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 7
+	task.FenceUntilMS = 1750000009000
+	meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, "foreign-task", 7)
+	meta.ChannelEpoch = task.BaseChannelEpoch
+	meta.LeaderEpoch = task.BaseLeaderEpoch
+
+	fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
+	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
+	result, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, Index: 3, Term: 1, Data: EncodeClearChannelWriteFenceCommand(fsmTestClearFenceRequest(task, meta, 1750000002000))})
+	requireFSMStaleResult(t, result, err)
+}
+
+func TestStateMachineChannelClearEmbeddedLeaderTransferAdvancesToAddLearner(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+	task := fsmTestChannelMigrationTask("task-clear-embedded", "channel-clear-embedded")
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseVerifyNewLeader
+	task.UpdatedAtMS = 1750000001000
+	task.EmbeddedLeaderTransfer = true
+	task.EmbeddedDesiredLeader = task.DesiredLeader
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 7
+	task.FenceUntilMS = 1750000009000
+	setFSMTestDrainProof(&task, 7)
+	meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, task.TaskID, 7)
+	meta.ChannelEpoch = task.BaseChannelEpoch
+	meta.LeaderEpoch = task.BaseLeaderEpoch
+	meta.Leader = task.EmbeddedDesiredLeader
+	meta.Replicas = []uint64{1, 2}
+	meta.ISR = []uint64{1, 2}
+
+	fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
+	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
+	req := fsmTestClearFenceRequest(task, meta, 1750000002000)
+	req.Status = metadb.ChannelMigrationStatusRunning
+	req.Phase = metadb.ChannelMigrationPhaseAddLearner
+	req.CompletedAtMS = 0
+	fsmApplyOK(t, ctx, sm, 3, EncodeClearChannelWriteFenceCommand(req))
+
+	gotTask, err := db.ForSlot(11).GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	if err != nil {
+		t.Fatalf("GetChannelMigrationTask() error = %v", err)
+	}
+	if gotTask.Status != metadb.ChannelMigrationStatusRunning ||
+		gotTask.Phase != metadb.ChannelMigrationPhaseAddLearner ||
+		gotTask.FenceToken != "" ||
+		gotTask.DrainedFenceVersion != 0 ||
+		gotTask.CompletedAtMS != 0 {
+		t.Fatalf("task after embedded clear = %#v", gotTask)
+	}
+	gotMeta, err := db.ForSlot(11).GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
+	}
+	if gotMeta.WriteFenceToken != "" || gotMeta.WriteFenceVersion != 8 {
+		t.Fatalf("meta after embedded clear = %#v", gotMeta)
 	}
 }
 

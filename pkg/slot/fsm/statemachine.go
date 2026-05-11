@@ -274,10 +274,32 @@ func (m *stateMachine) ApplyBatch(ctx context.Context, cmds []multiraft.Command)
 	}
 
 	if err := wb.Commit(); err != nil {
+		if isStaleMetaCommitError(err) {
+			if len(cmds) == 1 {
+				return [][]byte{[]byte(ApplyResultStaleMeta)}, nil
+			}
+			return m.applyCommandsIndividuallyAfterStaleCommit(ctx, cmds)
+		}
 		return nil, err
 	}
 	m.markAppliedDeltas(pendingDeltaKeys)
 	m.forwardCommittedDeltas(ctx, pendingForwardDeltas)
+	return results, nil
+}
+
+func (m *stateMachine) applyCommandsIndividuallyAfterStaleCommit(ctx context.Context, cmds []multiraft.Command) ([][]byte, error) {
+	results := make([][]byte, len(cmds))
+	for i, cmd := range cmds {
+		result, err := m.ApplyBatch(ctx, []multiraft.Command{cmd})
+		if err != nil {
+			if isStaleMetaCommitError(err) {
+				results[i] = []byte(ApplyResultStaleMeta)
+				continue
+			}
+			return nil, err
+		}
+		results[i] = result[0]
+	}
 	return results, nil
 }
 
@@ -304,6 +326,12 @@ func isStaleMetaResult(cmd command, err error) bool {
 	default:
 		return false
 	}
+}
+
+func isStaleMetaCommitError(err error) bool {
+	return errors.Is(err, metadb.ErrStaleMeta) ||
+		errors.Is(err, metadb.ErrNotFound) ||
+		errors.Is(err, metadb.ErrAlreadyExists)
 }
 
 func commandTypeForDiagnostics(data []byte) uint8 {
