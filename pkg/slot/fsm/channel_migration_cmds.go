@@ -1,8 +1,10 @@
 package fsm
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 )
@@ -248,8 +250,86 @@ func decodeChannelMigrationJSONPayload(data []byte, dst any) error {
 	if !ok {
 		return fmt.Errorf("%w: missing channel migration payload", metadb.ErrCorruptValue)
 	}
-	if err := json.Unmarshal(payload, dst); err != nil {
+	if err := rejectDuplicateJSONObjectKeys(payload); err != nil {
 		return fmt.Errorf("%w: invalid channel migration payload: %v", metadb.ErrCorruptValue, err)
+	}
+	dec := json.NewDecoder(bytes.NewReader(payload))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		return fmt.Errorf("%w: invalid channel migration payload: %v", metadb.ErrCorruptValue, err)
+	}
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			err = fmt.Errorf("multiple JSON values")
+		}
+		return fmt.Errorf("%w: invalid channel migration payload: %v", metadb.ErrCorruptValue, err)
+	}
+	return nil
+}
+
+type jsonObjectScope struct {
+	object    bool
+	expectKey bool
+	keys      map[string]struct{}
+}
+
+func rejectDuplicateJSONObjectKeys(payload []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(payload))
+	var stack []jsonObjectScope
+	markValueConsumed := func() {
+		if len(stack) == 0 {
+			return
+		}
+		top := &stack[len(stack)-1]
+		if top.object && !top.expectKey {
+			top.expectKey = true
+		}
+	}
+	for {
+		tok, err := dec.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		switch value := tok.(type) {
+		case json.Delim:
+			switch value {
+			case '{':
+				stack = append(stack, jsonObjectScope{
+					object:    true,
+					expectKey: true,
+					keys:      make(map[string]struct{}),
+				})
+			case '[':
+				stack = append(stack, jsonObjectScope{})
+			case '}', ']':
+				if len(stack) == 0 {
+					return fmt.Errorf("unexpected JSON delimiter %q", value)
+				}
+				stack = stack[:len(stack)-1]
+				markValueConsumed()
+			}
+		case string:
+			if len(stack) > 0 {
+				top := &stack[len(stack)-1]
+				if top.object && top.expectKey {
+					if _, exists := top.keys[value]; exists {
+						return fmt.Errorf("duplicate JSON key %q", value)
+					}
+					top.keys[value] = struct{}{}
+					top.expectKey = false
+					continue
+				}
+			}
+			markValueConsumed()
+		default:
+			markValueConsumed()
+		}
+	}
+	if len(stack) != 0 {
+		return fmt.Errorf("unterminated JSON object")
 	}
 	return nil
 }
