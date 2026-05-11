@@ -378,10 +378,58 @@ func TestSendMessageMapsJSONToUsecaseCommand(t *testing.T) {
 	require.JSONEq(t, `{"message_id":99,"message_seq":4294967302,"reason":1}`, rec.Body.String())
 	require.Len(t, msgs.calls, 1)
 	require.Equal(t, "u1", msgs.calls[0].FromUID)
-	require.Equal(t, "u2@u1", msgs.calls[0].ChannelID)
+	require.Equal(t, "u2", msgs.calls[0].ChannelID)
 	require.Equal(t, uint8(frame.ChannelTypePerson), msgs.calls[0].ChannelType)
 	require.Equal(t, "api-client-1", msgs.calls[0].ClientMsgNo)
 	require.Equal(t, []byte("hi"), msgs.calls[0].Payload)
+}
+
+func TestSendMessageMapsSyncOnceAliasesToUsecaseCommand(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "header sync once",
+			body: `{"sender_uid":"u1","channel_id":"g1","channel_type":2,"payload":"aGk=","header":{"sync_once":1}}`,
+		},
+		{
+			name: "top level sync once",
+			body: `{"sender_uid":"u1","channel_id":"g1","channel_type":2,"payload":"aGk=","sync_once":1}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msgs := &recordingMessageUsecase{}
+			srv := New(Options{Messages: msgs})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/message/send", bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			require.Len(t, msgs.calls, 1)
+			require.True(t, msgs.calls[0].Framer.SyncOnce)
+		})
+	}
+}
+
+func TestSendMessagePassesPrecomposedPersonChannelToUsecase(t *testing.T) {
+	msgs := &recordingMessageUsecase{}
+	srv := New(Options{Messages: msgs})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/send", bytes.NewBufferString(`{"sender_uid":"u1","channel_id":"u1@u2","channel_type":1,"payload":"aGk="}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, msgs.calls, 1)
+	require.Equal(t, "u1@u2", msgs.calls[0].ChannelID)
 }
 
 func TestSendMessagePreservesBusinessDenialReason(t *testing.T) {
@@ -422,8 +470,8 @@ func TestSendMessagePreservesBusinessDenialReason(t *testing.T) {
 	require.Equal(t, uint8(frame.ChannelTypeGroup), msgs.calls[0].ChannelType)
 }
 
-func TestSendMessageRejectsInvalidPersonChannelID(t *testing.T) {
-	msgs := &recordingMessageUsecase{}
+func TestSendMessageMapsUsecaseInvalidPersonChannelError(t *testing.T) {
+	msgs := &recordingMessageUsecase{err: runtimechannelid.ErrInvalidPersonChannel}
 	srv := New(Options{Messages: msgs})
 
 	rec := httptest.NewRecorder()
@@ -434,7 +482,8 @@ func TestSendMessageRejectsInvalidPersonChannelID(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.JSONEq(t, `{"error":"invalid channel id"}`, rec.Body.String())
-	require.Empty(t, msgs.calls)
+	require.Len(t, msgs.calls, 1)
+	require.Equal(t, "u3@u4", msgs.calls[0].ChannelID)
 }
 
 func TestSendMessagePassesValidTraceHeader(t *testing.T) {

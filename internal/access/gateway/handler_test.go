@@ -12,6 +12,7 @@ import (
 	gatewaysession "github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/gateway/wkprotoenc"
 	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
@@ -169,7 +170,7 @@ func TestHandlerOnFrameSendMapsCommandAndWritesSendack(t *testing.T) {
 		RequestContext: context.Background(),
 	}
 	pkt := &frame.SendPacket{
-		Framer:      frame.Framer{RedDot: true},
+		Framer:      frame.Framer{RedDot: true, SyncOnce: true},
 		Setting:     1,
 		MsgKey:      "key-1",
 		Expire:      10,
@@ -189,7 +190,7 @@ func TestHandlerOnFrameSendMapsCommandAndWritesSendack(t *testing.T) {
 	require.Len(t, msgs.sendCommands, 1)
 	require.Equal(t, "u1", msgs.sendCommands[0].FromUID)
 	require.Equal(t, uint64(1), msgs.sendCommands[0].SenderSessionID)
-	require.Equal(t, "u2@u1", msgs.sendCommands[0].ChannelID)
+	require.Equal(t, "u2", msgs.sendCommands[0].ChannelID)
 	require.Equal(t, frame.ChannelTypePerson, msgs.sendCommands[0].ChannelType)
 	require.Equal(t, uint64(13), msgs.sendCommands[0].ClientSeq)
 	require.Equal(t, "m4", msgs.sendCommands[0].ClientMsgNo)
@@ -197,6 +198,7 @@ func TestHandlerOnFrameSendMapsCommandAndWritesSendack(t *testing.T) {
 	require.Equal(t, "chat", msgs.sendCommands[0].Topic)
 	require.Equal(t, []byte("hi"), msgs.sendCommands[0].Payload)
 	require.True(t, msgs.sendCommands[0].Framer.RedDot)
+	require.True(t, msgs.sendCommands[0].Framer.SyncOnce)
 
 	write := sender.Writes()[0]
 	ack := requireSendackPacket(t, write.f)
@@ -390,7 +392,7 @@ func TestHandlerOnFrameSendBypassesEncryptedSessionWhenPacketDisablesEncryption(
 	require.Equal(t, []byte("plain"), msgs.sendCommands[0].Payload)
 }
 
-func TestHandlerOnFrameSendRecanonicalizesPrecomposedPersonChannel(t *testing.T) {
+func TestHandlerOnFrameSendPassesPrecomposedPersonChannelToUsecase(t *testing.T) {
 	sender := newOptionRecordingSession(1, "tcp")
 	sender.SetValue(coregateway.SessionValueUID, "u1")
 	msgs := &fakeMessageUsecase{
@@ -417,13 +419,13 @@ func TestHandlerOnFrameSendRecanonicalizesPrecomposedPersonChannel(t *testing.T)
 	}))
 
 	require.Len(t, msgs.sendCommands, 1)
-	require.Equal(t, "u2@u1", msgs.sendCommands[0].ChannelID)
+	require.Equal(t, "u1@u2", msgs.sendCommands[0].ChannelID)
 }
 
-func TestHandlerOnFrameSendRejectsInvalidPersonChannelID(t *testing.T) {
+func TestHandlerOnFrameSendMapsUsecaseInvalidPersonChannelError(t *testing.T) {
 	sender := newOptionRecordingSession(1, "tcp")
 	sender.SetValue(coregateway.SessionValueUID, "u1")
-	msgs := &fakeMessageUsecase{}
+	msgs := &fakeMessageUsecase{sendErr: runtimechannelid.ErrInvalidPersonChannel}
 	handler := New(Options{Messages: msgs})
 
 	ctx := &coregateway.Context{
@@ -440,7 +442,8 @@ func TestHandlerOnFrameSendRejectsInvalidPersonChannelID(t *testing.T) {
 		ClientMsgNo: "m-invalid",
 	}))
 
-	require.Empty(t, msgs.sendCommands)
+	require.Len(t, msgs.sendCommands, 1)
+	require.Equal(t, "u3@u4", msgs.sendCommands[0].ChannelID)
 	require.Len(t, sender.Writes(), 1)
 	ack := requireSendackPacket(t, sender.Writes()[0].f)
 	require.Equal(t, frame.ReasonChannelIDError, ack.ReasonCode)

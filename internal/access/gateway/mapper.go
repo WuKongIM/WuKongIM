@@ -2,7 +2,6 @@ package gateway
 
 import (
 	coregateway "github.com/WuKongIM/WuKongIM/internal/gateway"
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
@@ -30,15 +29,6 @@ func mapSendCommand(ctx *coregateway.Context, pkt *frame.SendPacket) (message.Se
 		}, nil
 	}
 
-	channelID := pkt.ChannelID
-	if pkt.ChannelType == frame.ChannelTypePerson && senderUID != "" && channelID != "" {
-		var err error
-		channelID, err = runtimechannelid.NormalizePersonChannel(senderUID, channelID)
-		if err != nil {
-			return message.SendCommand{}, err
-		}
-	}
-
 	return message.SendCommand{
 		Framer:          pkt.Framer,
 		Setting:         pkt.Setting,
@@ -49,7 +39,7 @@ func mapSendCommand(ctx *coregateway.Context, pkt *frame.SendPacket) (message.Se
 		ClientSeq:       pkt.ClientSeq,
 		ClientMsgNo:     pkt.ClientMsgNo,
 		StreamNo:        pkt.StreamNo,
-		ChannelID:       channelID,
+		ChannelID:       pkt.ChannelID,
 		ChannelType:     pkt.ChannelType,
 		Topic:           pkt.Topic,
 		Payload:         pkt.Payload,

@@ -5,26 +5,28 @@ import (
 	"net/http"
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx"
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/gin-gonic/gin"
 )
 
 type sendMessageRequest struct {
-	FromUID       string `json:"from_uid"`
-	LegacyFromUID string `json:"sender_uid"`
-	ChannelID     string `json:"channel_id"`
-	ChannelType   uint8  `json:"channel_type"`
-	ClientMsgNo   string `json:"client_msg_no"`
-	Payload       string `json:"payload"`
+	FromUID       string                   `json:"from_uid"`
+	LegacyFromUID string                   `json:"sender_uid"`
+	ChannelID     string                   `json:"channel_id"`
+	ChannelType   uint8                    `json:"channel_type"`
+	ClientMsgNo   string                   `json:"client_msg_no"`
+	Payload       string                   `json:"payload"`
 	Header        sendMessageHeaderRequest `json:"header"`
 	NoPersist     int                      `json:"no_persist"`
+	SyncOnce      int                      `json:"sync_once"`
 }
 
 type sendMessageHeaderRequest struct {
 	// NoPersist marks the send as non-durable when non-zero.
 	NoPersist int `json:"no_persist"`
+	// SyncOnce marks the send as a one-shot command-channel message when non-zero.
+	SyncOnce int `json:"sync_once"`
 }
 
 type sendMessageResponse struct {
@@ -58,27 +60,19 @@ func (s *Server) handleSendMessage(c *gin.Context) {
 		return
 	}
 
-	channelID := req.ChannelID
-	if req.ChannelType == frame.ChannelTypePerson {
-		channelID, err = runtimechannelid.NormalizePersonChannel(req.FromUID, req.ChannelID)
-		if err != nil {
-			writeJSONError(c, http.StatusBadRequest, "invalid channel id")
-			return
-		}
-	}
-
 	reqCtx := c.Request.Context()
 	if traceID, ok := tracectx.ValidateHeaderTraceID(c.GetHeader("X-WK-Trace-ID")); ok {
 		reqCtx = tracectx.WithContext(reqCtx, tracectx.Context{TraceID: traceID, Sampled: true})
 	}
 	reqCtx, traceCtx := tracectx.Ensure(reqCtx, nil)
 	noPersist := req.Header.NoPersist != 0 || req.NoPersist != 0
+	syncOnce := req.Header.SyncOnce != 0 || req.SyncOnce != 0
 
 	result, err := s.messages.Send(reqCtx, message.SendCommand{
 		TraceID:         traceCtx.TraceID,
-		Framer:          frame.Framer{NoPersist: noPersist},
+		Framer:          frame.Framer{NoPersist: noPersist, SyncOnce: syncOnce},
 		FromUID:         req.FromUID,
-		ChannelID:       channelID,
+		ChannelID:       req.ChannelID,
 		ChannelType:     req.ChannelType,
 		ClientMsgNo:     req.ClientMsgNo,
 		Payload:         payload,
