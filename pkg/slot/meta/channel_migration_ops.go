@@ -175,6 +175,9 @@ func (b *WriteBatch) ClearChannelWriteFence(hashSlot uint16, req ChannelMigratio
 		if err := requireChannelMigrationClearFenceTransition(task, req); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
+		if isChannelMigrationClearFenceIdempotent(task, meta, req) {
+			return task, meta, nil
+		}
 		if err := requireActiveChannelMigrationTaskFence(task, meta, req.RuntimeGuard.ExpectedFenceVersion); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
@@ -483,6 +486,40 @@ func requireChannelMigrationClearFenceTransition(task ChannelMigrationTask, req 
 		return nil
 	}
 	return ErrStaleMeta
+}
+
+func isChannelMigrationClearFenceIdempotent(task ChannelMigrationTask, meta ChannelRuntimeMeta, req ChannelMigrationClearFenceRequest) bool {
+	if req.Status != ChannelMigrationStatusCompleted ||
+		req.Phase != ChannelMigrationPhaseClearFence ||
+		req.CompletedAtMS <= 0 ||
+		!task.IsTerminal() ||
+		task.Status != ChannelMigrationStatusCompleted ||
+		task.Phase != ChannelMigrationPhaseClearFence ||
+		task.UpdatedAtMS != req.UpdatedAtMS ||
+		task.CompletedAtMS != req.CompletedAtMS {
+		return false
+	}
+	if task.FenceToken != "" ||
+		task.FenceVersion != 0 ||
+		task.FenceUntilMS != 0 ||
+		task.CutoverLEO != 0 ||
+		task.CutoverHW != 0 ||
+		task.DrainedLeaderNode != 0 ||
+		task.DrainedRuntimeGeneration != 0 ||
+		task.DrainedChannelEpoch != 0 ||
+		task.DrainedLeaderEpoch != 0 ||
+		task.DrainedFenceVersion != 0 {
+		return false
+	}
+	return meta.ChannelID == req.RuntimeGuard.ChannelID &&
+		meta.ChannelType == req.RuntimeGuard.ChannelType &&
+		meta.ChannelEpoch == req.RuntimeGuard.ExpectedChannelEpoch &&
+		meta.LeaderEpoch == req.RuntimeGuard.ExpectedLeaderEpoch &&
+		meta.Leader == req.RuntimeGuard.ExpectedLeader &&
+		meta.WriteFenceToken == "" &&
+		meta.WriteFenceVersion == req.RuntimeGuard.ExpectedFenceVersion+1 &&
+		meta.WriteFenceReason == 0 &&
+		meta.WriteFenceUntilMS == 0
 }
 
 func requireChannelMigrationAbortTransition(task ChannelMigrationTask) error {

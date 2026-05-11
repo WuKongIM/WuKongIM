@@ -820,6 +820,49 @@ func TestStateMachineChannelSetAndClearFenceSameBatch(t *testing.T) {
 	}
 }
 
+func TestStateMachineChannelClearFenceDuplicateTerminalNoOp(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+	task := fsmTestChannelMigrationTask("task-clear-duplicate", "channel-clear-duplicate")
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseVerifyMembership
+	task.UpdatedAtMS = 1750000001000
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 7
+	task.FenceUntilMS = 1750000009000
+	setFSMTestDrainProof(&task, 7)
+	meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, task.TaskID, 7)
+	meta.ChannelEpoch = task.BaseChannelEpoch
+	meta.LeaderEpoch = task.BaseLeaderEpoch
+	meta.Replicas = []uint64{1, 3}
+	meta.ISR = []uint64{1, 3}
+
+	fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
+	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
+	req := fsmTestClearFenceRequest(task, meta, 1750000002000)
+	fsmApplyOK(t, ctx, sm, 3, EncodeClearChannelWriteFenceCommand(req))
+	fsmApplyOK(t, ctx, sm, 4, EncodeClearChannelWriteFenceCommand(req))
+
+	gotTask, err := db.ForSlot(11).GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	if err != nil {
+		t.Fatalf("GetChannelMigrationTask() error = %v", err)
+	}
+	if gotTask.Status != metadb.ChannelMigrationStatusCompleted ||
+		gotTask.Phase != metadb.ChannelMigrationPhaseClearFence ||
+		gotTask.FenceToken != "" ||
+		gotTask.CompletedAtMS != req.CompletedAtMS {
+		t.Fatalf("task after duplicate clear = %#v", gotTask)
+	}
+	gotMeta, err := db.ForSlot(11).GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
+	}
+	if gotMeta.WriteFenceToken != "" || gotMeta.WriteFenceVersion != meta.WriteFenceVersion+1 {
+		t.Fatalf("meta after duplicate clear = %#v", gotMeta)
+	}
+}
+
 func TestStateMachineChannelPromoteRejectsTargetAlreadyInISR(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
