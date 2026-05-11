@@ -1,0 +1,278 @@
+package meta
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"testing"
+
+	"github.com/cockroachdb/pebble/v2"
+	"github.com/stretchr/testify/require"
+)
+
+func TestChannelMigrationTaskCreateAndGet(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+	task := testChannelMigrationTask("task-create", "channel-create")
+
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, task))
+
+	got, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, task, got)
+
+	active, ok, err := shard.GetActiveChannelMigrationTask(ctx, task.ChannelID, task.ChannelType)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, task, active)
+
+	list, err := shard.ListChannelMigrationTasks(ctx)
+	require.NoError(t, err)
+	require.Equal(t, []ChannelMigrationTask{task}, list)
+}
+
+func TestChannelMigrationTaskRejectsSecondActiveTaskForChannel(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+	first := testChannelMigrationTask("task-active-1", "channel-active")
+	second := testChannelMigrationTask("task-active-2", "channel-active")
+
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, first))
+	err := shard.CreateChannelMigrationTask(ctx, second)
+	require.ErrorIs(t, err, ErrAlreadyExists)
+
+	active, ok, err := shard.GetActiveChannelMigrationTask(ctx, first.ChannelID, first.ChannelType)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, first.TaskID, active.TaskID)
+}
+
+func TestChannelMigrationTaskClaimOwnerLease(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+	task := testChannelMigrationTask("task-claim", "channel-claim")
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, task))
+
+	claimed := task
+	claimed.Status = ChannelMigrationStatusRunning
+	claimed.OwnerNodeID = 3
+	claimed.OwnerLeaseUntilMS = 1750000005000
+	claimed.UpdatedAtMS = 1750000001000
+	require.NoError(t, upsertChannelMigrationTaskForTest(shard, claimed))
+
+	got, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, claimed.OwnerNodeID, got.OwnerNodeID)
+	require.Equal(t, claimed.OwnerLeaseUntilMS, got.OwnerLeaseUntilMS)
+	require.Equal(t, ChannelMigrationStatusRunning, got.Status)
+}
+
+func TestChannelMigrationTaskAdvancePersistsProgressAndRetry(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+	task := testChannelMigrationTask("task-advance", "channel-advance")
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, task))
+
+	advanced := task
+	advanced.Status = ChannelMigrationStatusRunning
+	advanced.Phase = ChannelMigrationPhaseWarmCatchUp
+	advanced.Attempt = 2
+	advanced.NextRunAtMS = 1750000009000
+	advanced.LastError = "target lagging"
+	advanced.UpdatedAtMS = 1750000002000
+	advanced.Progress = ChannelMigrationProgress{
+		LeaderLEO:          100,
+		LeaderHW:           98,
+		TargetLEO:          91,
+		TargetCheckpointHW: 90,
+		LagRecords:         9,
+		StableSinceMS:      1750000003000,
+	}
+	require.NoError(t, upsertChannelMigrationTaskForTest(shard, advanced))
+
+	got, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, advanced.Phase, got.Phase)
+	require.Equal(t, advanced.Attempt, got.Attempt)
+	require.Equal(t, advanced.NextRunAtMS, got.NextRunAtMS)
+	require.Equal(t, advanced.LastError, got.LastError)
+	require.Equal(t, advanced.Progress, got.Progress)
+}
+
+func TestChannelMigrationTaskBlockedNeedsSnapshotBootstrap(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+	task := testChannelMigrationTask("task-blocked", "channel-blocked")
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, task))
+
+	blocked := task
+	blocked.Status = ChannelMigrationStatusBlocked
+	blocked.Phase = ChannelMigrationPhaseBootstrapTarget
+	blocked.BlockerCode = ChannelMigrationBlockerNeedsSnapshotBootstrap
+	blocked.BlockerMessage = "target requires a channel snapshot before catch-up"
+	blocked.NextRunAtMS = 1750000010000
+	blocked.UpdatedAtMS = 1750000003000
+	require.NoError(t, upsertChannelMigrationTaskForTest(shard, blocked))
+
+	got, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, ChannelMigrationStatusBlocked, got.Status)
+	require.Equal(t, ChannelMigrationBlockerNeedsSnapshotBootstrap, got.BlockerCode)
+	require.Equal(t, blocked.BlockerMessage, got.BlockerMessage)
+	require.Equal(t, blocked.NextRunAtMS, got.NextRunAtMS)
+}
+
+func TestChannelMigrationTaskTerminalAllowsNewTask(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+	completed := testChannelMigrationTask("task-terminal-1", "channel-terminal")
+	completed.Status = ChannelMigrationStatusCompleted
+	completed.Phase = ChannelMigrationPhaseVerifyMembership
+	completed.CompletedAtMS = 1750000010000
+	completed.UpdatedAtMS = 1750000010000
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, completed))
+
+	next := testChannelMigrationTask("task-terminal-2", "channel-terminal")
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, next))
+
+	active, ok, err := shard.GetActiveChannelMigrationTask(ctx, next.ChannelID, next.ChannelType)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, next.TaskID, active.TaskID)
+}
+
+func TestChannelMigrationTaskGarbageCollectsTerminalAfterRetention(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+	oldTerminal := testChannelMigrationTask("task-gc-old", "channel-gc-old")
+	oldTerminal.Status = ChannelMigrationStatusCompleted
+	oldTerminal.CompletedAtMS = 1750000000000
+	oldTerminal.UpdatedAtMS = oldTerminal.CompletedAtMS
+	newTerminal := testChannelMigrationTask("task-gc-new", "channel-gc-new")
+	newTerminal.Status = ChannelMigrationStatusFailed
+	newTerminal.CompletedAtMS = 1750000005000
+	newTerminal.UpdatedAtMS = newTerminal.CompletedAtMS
+	active := testChannelMigrationTask("task-gc-active", "channel-gc-active")
+	replacedTerminal := testChannelMigrationTask("task-gc-replaced-old", "channel-gc-replaced")
+	replacedTerminal.Status = ChannelMigrationStatusCompleted
+	replacedTerminal.CompletedAtMS = 1750000000001
+	replacedTerminal.UpdatedAtMS = replacedTerminal.CompletedAtMS
+	replacementActive := testChannelMigrationTask("task-gc-replaced-active", "channel-gc-replaced")
+
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, oldTerminal))
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, newTerminal))
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, active))
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, replacedTerminal))
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, replacementActive))
+
+	deleted, err := shard.DeleteTerminalChannelMigrationTasksBefore(ctx, 1750000004000, 10)
+	require.NoError(t, err)
+	require.Equal(t, 2, deleted)
+
+	_, err = shard.GetChannelMigrationTask(ctx, oldTerminal.ChannelID, oldTerminal.ChannelType, oldTerminal.TaskID)
+	require.ErrorIs(t, err, ErrNotFound)
+	gotNew, err := shard.GetChannelMigrationTask(ctx, newTerminal.ChannelID, newTerminal.ChannelType, newTerminal.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, newTerminal.TaskID, gotNew.TaskID)
+	gotActive, err := shard.GetChannelMigrationTask(ctx, active.ChannelID, active.ChannelType, active.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, active.TaskID, gotActive.TaskID)
+	gotReplacementActive, ok, err := shard.GetActiveChannelMigrationTask(ctx, replacementActive.ChannelID, replacementActive.ChannelType)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, replacementActive.TaskID, gotReplacementActive.TaskID)
+}
+
+func TestChannelMigrationTaskEncodeDecodeFullFields(t *testing.T) {
+	task := testChannelMigrationTask("task-codec", "channel-codec")
+	task.Kind = ChannelMigrationKindLeaderTransfer
+	task.Status = ChannelMigrationStatusBlocked
+	task.Phase = ChannelMigrationPhaseDrainLeader
+	task.SourceNode = 11
+	task.TargetNode = 12
+	task.DesiredLeader = 12
+	task.BaseChannelEpoch = 21
+	task.BaseLeaderEpoch = 22
+	task.FenceToken = "task-codec"
+	task.FenceVersion = 23
+	task.FenceUntilMS = 1750000010000
+	task.EmbeddedLeaderTransfer = true
+	task.EmbeddedDesiredLeader = 13
+	task.OwnerNodeID = 14
+	task.OwnerLeaseUntilMS = 1750000011000
+	task.CutoverLEO = 1000
+	task.CutoverHW = 990
+	task.DrainedLeaderNode = 15
+	task.DrainedRuntimeGeneration = 16
+	task.DrainedChannelEpoch = 17
+	task.DrainedLeaderEpoch = 18
+	task.DrainedFenceVersion = 19
+	task.Attempt = 4
+	task.NextRunAtMS = 1750000012000
+	task.BlockerCode = ChannelMigrationBlockerNeedsSnapshotBootstrap
+	task.BlockerMessage = "snapshot bootstrap required"
+	task.LastError = "snapshot missing"
+	task.CreatedAtMS = 1750000000000
+	task.UpdatedAtMS = 1750000009000
+	task.Progress = ChannelMigrationProgress{
+		LeaderLEO:          2000,
+		LeaderHW:           1990,
+		TargetLEO:          1800,
+		TargetCheckpointHW: 1790,
+		LagRecords:         200,
+		StableSinceMS:      1750000007000,
+	}
+
+	key := encodeChannelMigrationTaskPrimaryKey(7, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationTaskPrimaryFamilyID)
+	value := encodeChannelMigrationTaskFamilyValue(task, key)
+	got, err := decodeChannelMigrationTaskFamilyValue(key, value)
+	require.NoError(t, err)
+	got.ChannelID = task.ChannelID
+	got.ChannelType = task.ChannelType
+	got.TaskID = task.TaskID
+	require.Equal(t, task, got)
+}
+
+func testChannelMigrationTask(taskID, channelID string) ChannelMigrationTask {
+	return ChannelMigrationTask{
+		TaskID:           taskID,
+		Kind:             ChannelMigrationKindReplicaReplace,
+		Status:           ChannelMigrationStatusPending,
+		Phase:            ChannelMigrationPhaseValidate,
+		ChannelID:        channelID,
+		ChannelType:      1,
+		SourceNode:       1,
+		TargetNode:       2,
+		DesiredLeader:    1,
+		BaseChannelEpoch: 3,
+		BaseLeaderEpoch:  4,
+		CreatedAtMS:      1750000000000,
+		UpdatedAtMS:      1750000000000,
+	}
+}
+
+func upsertChannelMigrationTaskForTest(shard *ShardStore, task ChannelMigrationTask) error {
+	shard.db.mu.Lock()
+	defer shard.db.mu.Unlock()
+
+	batch := shard.db.db.NewBatch()
+	defer batch.Close()
+	if err := shard.upsertChannelMigrationTaskLocked(batch, task); err != nil {
+		return err
+	}
+	return batch.Commit(pebble.Sync)
+}
+
+func requireChannelMigrationTasksEqual(t *testing.T, want, got ChannelMigrationTask) {
+	t.Helper()
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ChannelMigrationTask mismatch:\n got: %#v\nwant: %#v", got, want)
+	}
+}
+
+func requireChannelMigrationTaskNotFound(t *testing.T, err error) {
+	t.Helper()
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("err = %v, want ErrNotFound", err)
+	}
+}
