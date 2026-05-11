@@ -464,6 +464,18 @@ func TestChannelMigrationTaskValidationRejectsIllegalFenceAndDrainStates(t *test
 			}(),
 		},
 		{
+			name: "missing_runtime_generation",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-proof-runtime-generation", "channel-invalid-proof-runtime-generation")
+				task.Status = ChannelMigrationStatusRunning
+				task.Phase = ChannelMigrationPhaseFinalTargetCatchUp
+				setChannelMigrationTaskFence(&task, 7)
+				setChannelMigrationTaskDrainProof(&task, 7)
+				task.DrainedRuntimeGeneration = 0
+				return task
+			}(),
+		},
+		{
 			name: "cutover_hw_after_leo",
 			task: func() ChannelMigrationTask {
 				task := testChannelMigrationTask("task-invalid-proof-hw", "channel-invalid-proof-hw")

@@ -790,6 +790,7 @@ func validateChannelMigrationTaskDrainProof(task ChannelMigrationTask, hasActive
 		return ErrInvalidArgument
 	}
 	if task.DrainedLeaderNode == 0 ||
+		task.DrainedRuntimeGeneration == 0 ||
 		task.DrainedChannelEpoch == 0 ||
 		task.DrainedLeaderEpoch == 0 ||
 		task.DrainedFenceVersion != task.FenceVersion ||
