@@ -99,6 +99,26 @@ func TestApplyMetaSerializesConcurrentWriteFenceUpdates(t *testing.T) {
 	require.Equal(t, "task-2", ch.Meta().WriteFence.Token)
 }
 
+func TestChannelAppendRejectsLocalWriteFence(t *testing.T) {
+	rt := newTestRuntime(t)
+	meta := testMeta("room-runtime-fence")
+	require.NoError(t, rt.EnsureChannel(meta))
+	fenced := meta
+	fenced.WriteFence = core.WriteFence{
+		Token:   "task-runtime-fence",
+		Version: 1,
+		Reason:  core.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	require.NoError(t, rt.ApplyMeta(fenced))
+
+	ch, ok := rt.Channel(meta.Key)
+	require.True(t, ok)
+	_, err := ch.Append(context.Background(), []core.Record{{Payload: []byte("x"), SizeBytes: 1}})
+	require.ErrorIs(t, err, core.ErrWriteFenced)
+	require.Equal(t, 0, rt.replicaForTest(t, meta.Key).appendCalls)
+}
+
 func TestRuntimeApplyRetentionBoundaryDelegatesToReplica(t *testing.T) {
 	rt := newTestRuntime(t)
 	meta := testMeta("room-retention-apply")

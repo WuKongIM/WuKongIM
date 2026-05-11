@@ -230,6 +230,7 @@ type fakeReplica struct {
 	tombstoneErr               error
 	becomeLeaderErr            error
 	closeCount                 int
+	appendCalls                int
 	retentionCalls             []uint64
 	retentionView              core.RetentionView
 	onLeaderLocalAppend        func()
@@ -305,6 +306,9 @@ func (r *fakeReplica) InstallSnapshot(context.Context, core.Snapshot) error {
 }
 
 func (r *fakeReplica) Append(context.Context, []core.Record) (core.CommitResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.appendCalls++
 	return core.CommitResult{}, nil
 }
 

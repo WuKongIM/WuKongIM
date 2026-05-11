@@ -52,6 +52,7 @@ type Cluster interface {
 Handler 层:
   ① 解码 ChannelKey → handler/key.go:KeyFromChannelID
   ② 加载 Meta，校验 Epoch → handler/meta.go:metaForKey；Meta 缓存会保留 slot 投影下来的 WriteFence
+     若 WriteFence 仍带 token，则本地写入准入 fail-closed 返回 ErrWriteFenced；即使 wall-clock TTL 已过，也必须等权威 meta 清除/升级 fence 后才重新放行
   ③ 若 `FromUID` 和 `ClientMsgNo` 同时存在，则通过 `LookupIdempotency()` 命中
      `uidx_from_uid_client_msg_no`，再用 `GetMessageBySeq()` 取回已落盘消息
      命中且 PayloadHash 匹配 → 返回旧结果；Hash 不匹配 → ErrIdempotencyConflict
@@ -62,7 +63,7 @@ Handler 层:
      这份 `[]byte` 只作为 replica/transport 仍在使用的 ingress 表示；磁盘真相已是结构化 `message` 行
 
 Replica 层 (replica/append.go + replica/append_pipeline.go):
-  ⑥ 先检查 leader 是否 `CommitReady=true`；若刚启动/刚完成 leader transfer 但尚未完成 reconcile，则直接返回 ErrNotReady
+  ⑥ 先检查 leader 是否 `CommitReady=true` 且本地 meta 不带 WriteFence token；若刚启动/刚完成 leader transfer 但尚未完成 reconcile，则直接返回 ErrNotReady；若 migration fence 尚未被权威清除/升级，则返回 ErrWriteFenced
   ⑦ facade 将 append request 提交到 replica loop；loop-owned append pipeline 按 1ms/64条/64KB 做 Group Commit
   ⑧ append effect worker 在 `durableMu` 下执行 Leader LogStore append/sync；底层 store 在单 channel `writeMu` 下先 prepare 记录，再把 synced append 提交给 `store/commit.go`
      的跨频道 coordinator，用 200µs 窗口合并 Pebble Sync；sync 完成前不发布新的 LEO

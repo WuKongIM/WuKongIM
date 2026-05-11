@@ -109,6 +109,11 @@ func (f WriteFence) Active(now time.Time) bool {
 	return f.Token != "" && !now.After(f.Until)
 }
 
+// BlocksAppend reports whether local append admission must fail closed until authoritative metadata clears the fence.
+func (f WriteFence) BlocksAppend() bool {
+	return f.Token != ""
+}
+
 type AppendRequest struct {
 	ChannelID             ChannelID
 	Message               Message
