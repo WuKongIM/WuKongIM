@@ -47,6 +47,18 @@ func TestChannelMigrationTaskRejectsSecondActiveTaskForChannel(t *testing.T) {
 	require.Equal(t, first.TaskID, active.TaskID)
 }
 
+func TestChannelMigrationTaskRejectsLeaderTransferDesiredLeaderDifferentFromTarget(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+	task := testChannelMigrationTask("task-leader-desired-mismatch", "channel-leader-desired-mismatch")
+	task.Kind = ChannelMigrationKindLeaderTransfer
+	task.TargetNode = 2
+	task.DesiredLeader = 3
+
+	err := shard.CreateChannelMigrationTask(ctx, task)
+	require.ErrorIs(t, err, ErrInvalidArgument)
+}
+
 func TestChannelMigrationTaskClaimOwnerLease(t *testing.T) {
 	ctx := context.Background()
 	shard := newTestShardStore(t, 7)
