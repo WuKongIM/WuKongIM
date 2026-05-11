@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -129,6 +130,12 @@ func TestManagerSlotAddMapsConflictsAndUnavailableErrors(t *testing.T) {
 			err:  raftcluster.ErrNoLeader,
 			code: http.StatusServiceUnavailable,
 			body: `{"error":"service_unavailable","message":"slot add unavailable"}`,
+		},
+		{
+			name: "hash slot migration disabled",
+			err:  fmt.Errorf("%w: %w", raftcluster.ErrInvalidConfig, raftcluster.ErrHashSlotMigrationDisabled),
+			code: http.StatusBadRequest,
+			body: `{"error":"bad_request","message":"hash slot migration disabled"}`,
 		},
 		{
 			name: "invalid operation",

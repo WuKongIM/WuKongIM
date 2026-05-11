@@ -384,7 +384,7 @@ Execute(ctx, assignment):
 
 入口: `hashslot_migration.go:105 observeHashSlotMigrations`
 
-对外创建入口 `StartHashSlotMigration`、`AddSlot`、`RemoveSlot` 受 `Config.EnableHashSlotMigration` 保护；默认关闭时返回 `ErrInvalidConfig`，避免在 durable delta forwarding、source fencing、recoverable cutover 语义明确接受前启用实验性迁移。已存在迁移的内部观测、推进、完成和中止流程不受该开关影响。
+对外创建入口 `StartHashSlotMigration`、`AddSlot`、`RemoveSlot` 受 `Config.EnableHashSlotMigration` 保护；默认关闭时返回同时匹配 `ErrInvalidConfig` 和 `ErrHashSlotMigrationDisabled` 的错误，避免在 durable delta forwarding、source fencing、recoverable cutover 语义明确接受前启用实验性迁移。二进制入口通过 `WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED` 显式打开。已存在迁移的内部观测、推进、完成和中止流程不受该开关影响。
 
 ```
 迁移阶段: Snapshot → Delta → Switching → Done
@@ -505,7 +505,7 @@ Delta 转发 (运行时):
 
 ```
 AddSlot(ctx):
-  ① 若 `EnableHashSlotMigration=false` → ErrInvalidConfig（该入口会创建 hash-slot 迁移）
+  ① 若 `EnableHashSlotMigration=false` → ErrInvalidConfig + ErrHashSlotMigrationDisabled（该入口会创建 hash-slot 迁移）
   ② 严格读取 Controller Leader 的 SlotAssignment 和 RuntimeViews；观测未 ready 时返回 ErrObservationNotReady，不回退本地缓存
   ③ 若 HashSlotTable 存在活跃迁移 → ErrInvalidConfig（管理层映射为迁移冲突）
   ④ 选择 max(assignment.SlotID)+1 作为新物理 Slot，复用当前最小 Slot 的 DesiredPeers
@@ -513,7 +513,7 @@ AddSlot(ctx):
   ⑥ 提案 AddSlot（携带 PreferredLeader）；Controller 持久化新 Assignment + Bootstrap task，并生成迁入新 Slot 的 hash-slot migration
 
 RemoveSlot(ctx, slotID):
-  ① 若 `EnableHashSlotMigration=false` → ErrInvalidConfig（该入口会创建 hash-slot 迁移）
+  ① 若 `EnableHashSlotMigration=false` → ErrInvalidConfig + ErrHashSlotMigrationDisabled（该入口会创建 hash-slot 迁移）
   ② 若 HashSlotTable 缺失 / slotID 不存在 / 存在任意活跃迁移 / 将移除最后一个物理 Slot → 拒绝
   ③ 提案 RemoveSlot；Controller 生成迁出该 Slot 的 hash-slot migration
   ④ 被移除 Slot 的 Assignment 暂时保留；最后一个迁移 Finalize 后由 Controller 删除 Assignment/Task

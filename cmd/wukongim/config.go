@@ -119,6 +119,10 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	hashSlotMigrationEnabled, err := parseBool(v, "WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED")
+	if err != nil {
+		return app.Config{}, err
+	}
 	if initialSlotCount == 0 {
 		initialSlotCount = slotCount
 	}
@@ -477,6 +481,7 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			ListenAddr:                       stringValue(v, "WK_CLUSTER_LISTEN_ADDR"),
 			SlotCount:                        slotCount,
 			HashSlotCount:                    hashSlotCount,
+			EnableHashSlotMigration:          hashSlotMigrationEnabled,
 			InitialSlotCount:                 initialSlotCount,
 			ChannelBootstrapDefaultMinISR:    channelBootstrapDefaultMinISR,
 			LongPollLaneCount:                longPollLaneCount,

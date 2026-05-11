@@ -63,6 +63,9 @@
 
 ## Controller
 
+### Hash-slot migration gate
+- Dynamic physical Slot add/remove/rebalance creates hash-slot migrations and requires `WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED=true`; the default is disabled and manager add-slot reports `hash slot migration disabled`.
+
 ### Planning writes
 - Slot preferred leaders are controller soft intent. Raft remains authoritative; leader-transfer tasks must target observed current voters only.
 - Production controller planning writes must go through Controller Raft proposals; direct Store writes are only for local tests or tools.
@@ -89,6 +92,9 @@
 - Scale-in manager reads require `cluster.node:r` and `cluster.slot:r`; start/advance/cancel require `cluster.node:w` and `cluster.slot:w`.
 
 ## Development Workflow
+
+### E2E profiling
+- API debug pprof routes are exposed only when `WK_HEALTH_DEBUG_ENABLE=true`; e2e profile scenarios should enable it with node config overrides and fetch `/debug/pprof/*` through the real API listener.
 
 ### Worktree testing
 - When using project-local `.worktrees/*`, run Go tests with `GOWORK=off`; the parent `go.work` points at the main checkout and otherwise makes packages resolve under `.worktrees` incorrectly.

@@ -204,6 +204,7 @@ func TestAddSlotDisabledReturnsInvalidConfigWithoutControllerCall(t *testing.T) 
 	_, err := cluster.AddSlot(context.Background())
 
 	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.ErrorIs(t, err, ErrHashSlotMigrationDisabled)
 	require.False(t, called)
 }
 
@@ -321,6 +322,7 @@ func TestRemoveSlotDisabledReturnsInvalidConfigWithoutControllerCall(t *testing.
 	err := cluster.RemoveSlot(context.Background(), 2)
 
 	require.ErrorIs(t, err, ErrInvalidConfig)
+	require.ErrorIs(t, err, ErrHashSlotMigrationDisabled)
 	require.False(t, called)
 }
 
