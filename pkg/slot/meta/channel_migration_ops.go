@@ -42,6 +42,9 @@ func (b *WriteBatch) ResetChannelWriteFenceToPreCutover(hashSlot uint16, req Cha
 		if err := requireMatchingFence(meta, req.RuntimeGuard.ExpectedFenceToken, req.RuntimeGuard.ExpectedFenceVersion, 0, true); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
+		if req.NowMS <= meta.WriteFenceUntilMS {
+			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, ErrStaleMeta
+		}
 		nextTask := clearChannelMigrationTaskFenceAndProof(task)
 		nextTask.Status = req.Status
 		nextTask.Phase = req.Phase
@@ -126,7 +129,11 @@ func (b *WriteBatch) PromoteLearnerAndRemoveReplica(hashSlot uint16, req Channel
 		if err := requireChannelMigrationCutoverProof(task, meta, req.RuntimeGuard.ExpectedFenceVersion); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
-		if req.SourceNode != task.SourceNode || req.TargetNode != task.TargetNode || !containsUint64(meta.Replicas, req.TargetNode) || !containsUint64(meta.ISR, req.SourceNode) {
+		if req.SourceNode != task.SourceNode ||
+			req.TargetNode != task.TargetNode ||
+			!containsUint64(meta.Replicas, req.TargetNode) ||
+			!containsUint64(meta.ISR, req.SourceNode) ||
+			containsUint64(meta.ISR, req.TargetNode) {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, ErrStaleMeta
 		}
 		nextTask := task
@@ -188,7 +195,9 @@ func (b *WriteBatch) AbortChannelMigration(hashSlot uint16, req ChannelMigration
 			}
 			nextMeta = clearChannelRuntimeMetaFence(nextMeta)
 		}
-		if containsUint64(nextMeta.Replicas, task.TargetNode) && !containsUint64(nextMeta.ISR, task.TargetNode) {
+		if task.Kind == ChannelMigrationKindReplicaReplace &&
+			containsUint64(nextMeta.Replicas, task.TargetNode) &&
+			!containsUint64(nextMeta.ISR, task.TargetNode) {
 			nextMeta.Replicas = removeUint64Member(nextMeta.Replicas, task.TargetNode)
 			nextMeta.ChannelEpoch++
 		}
@@ -282,7 +291,13 @@ func validateChannelMigrationFenceRequest(req ChannelMigrationFenceRequest) erro
 }
 
 func validateChannelMigrationResetFenceRequest(req ChannelMigrationResetFenceRequest) error {
-	return validateChannelMigrationTaskRuntimeTransition(req.Guard, req.RuntimeGuard, req.Status, req.Phase, req.UpdatedAtMS, 0)
+	if err := validateChannelMigrationTaskRuntimeTransition(req.Guard, req.RuntimeGuard, req.Status, req.Phase, req.UpdatedAtMS, 0); err != nil {
+		return err
+	}
+	if req.NowMS <= 0 {
+		return ErrInvalidArgument
+	}
+	return nil
 }
 
 func validateChannelMigrationLeaderTransferRequest(req ChannelMigrationLeaderTransferRequest) error {
