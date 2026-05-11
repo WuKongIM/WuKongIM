@@ -36,8 +36,9 @@ type userConversationStateBatchEntry struct {
 // channelRuntimeMetaBatchEntry records same-batch existence so deletes are
 // visible to later reads before the Pebble batch is committed.
 type channelRuntimeMetaBatchEntry struct {
-	meta   ChannelRuntimeMeta
-	exists bool
+	meta    ChannelRuntimeMeta
+	exists  bool
+	written bool
 }
 
 // channelMigrationTaskBatchEntry records same-batch migration task writes so
@@ -227,11 +228,14 @@ func (b *WriteBatch) CreateChannelMigrationTask(hashSlot uint16, task ChannelMig
 	}
 
 	primaryKey := encodeChannelMigrationTaskPrimaryKey(hashSlot, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationTaskPrimaryFamilyID)
-	_, exists, err := b.loadChannelMigrationTask(hashSlot, primaryKey, task.ChannelID, task.ChannelType, task.TaskID)
+	existing, exists, err := b.loadChannelMigrationTask(hashSlot, primaryKey, task.ChannelID, task.ChannelType, task.TaskID)
 	if err != nil {
 		return err
 	}
 	if exists {
+		if existing == task {
+			return nil
+		}
 		return ErrAlreadyExists
 	}
 	if err := b.upsertChannelMigrationTask(hashSlot, task); err != nil {
@@ -272,7 +276,7 @@ func (b *WriteBatch) ClaimChannelMigrationTask(hashSlot uint16, req ChannelMigra
 	if err := validateChannelMigrationTask(next); err != nil {
 		return err
 	}
-	if guardDBState {
+	if guardDBState || b.hasChannelMigrationTaskGuard(primaryKey) {
 		b.rememberChannelMigrationTaskGuard(primaryKey, req.Guard, next)
 	}
 	return b.upsertChannelMigrationTask(hashSlot, next)
@@ -309,7 +313,7 @@ func (b *WriteBatch) AdvanceChannelMigrationTask(hashSlot uint16, req ChannelMig
 	if err := validateChannelMigrationTask(next); err != nil {
 		return err
 	}
-	if guardDBState {
+	if guardDBState || b.hasChannelMigrationTaskGuard(primaryKey) {
 		b.rememberChannelMigrationTaskGuard(primaryKey, req.Guard, next)
 	}
 	return b.upsertChannelMigrationTask(hashSlot, next)
@@ -707,8 +711,9 @@ func (b *WriteBatch) rememberChannelRuntimeMeta(hashSlot uint16, meta ChannelRun
 		b.channelRuntimeMetas = make(map[string]channelRuntimeMetaBatchEntry, 1)
 	}
 	b.channelRuntimeMetas[channelRuntimeMetaBatchKey(hashSlot, meta.ChannelID, meta.ChannelType)] = channelRuntimeMetaBatchEntry{
-		meta:   meta,
-		exists: exists,
+		meta:    meta,
+		exists:  exists,
+		written: true,
 	}
 }
 
@@ -890,6 +895,14 @@ func (b *WriteBatch) isChannelMigrationTaskWritten(primaryKey []byte) bool {
 	return ok && entry.written
 }
 
+func (b *WriteBatch) hasChannelMigrationTaskGuard(primaryKey []byte) bool {
+	if b.channelMigrationGuards == nil {
+		return false
+	}
+	_, ok := b.channelMigrationGuards[string(primaryKey)]
+	return ok
+}
+
 func (b *WriteBatch) rememberChannelMigrationTaskGuard(primaryKey []byte, guard ChannelMigrationTaskGuard, desired ChannelMigrationTask) {
 	if b.channelMigrationGuards == nil {
 		b.channelMigrationGuards = make(map[string]channelMigrationTaskGuardBatchEntry, 1)
@@ -904,6 +917,22 @@ func (b *WriteBatch) rememberChannelMigrationTaskGuard(primaryKey []byte, guard 
 		guard:   guard,
 		desired: desired,
 	}
+}
+
+func (b *WriteBatch) isChannelRuntimeMetaWritten(hashSlot uint16, channelID string, channelType int64) bool {
+	if b.channelRuntimeMetas == nil {
+		return false
+	}
+	entry, ok := b.channelRuntimeMetas[channelRuntimeMetaBatchKey(hashSlot, channelID, channelType)]
+	return ok && entry.written
+}
+
+func (b *WriteBatch) hasChannelMigrationRuntimeGuard(primaryKey []byte) bool {
+	if b.channelMigrationRuntime == nil {
+		return false
+	}
+	_, ok := b.channelMigrationRuntime[string(primaryKey)]
+	return ok
 }
 
 func (b *WriteBatch) rememberChannelMigrationRuntimeGuard(primaryKey []byte, guard ChannelMigrationRuntimeGuard, desired ChannelRuntimeMeta) {
