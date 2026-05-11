@@ -32,6 +32,16 @@ func TestActorDispatchesRealtimeScopedZeroSeqMessagesByMessageID(t *testing.T) {
 	require.Equal(t, []uint64{0, 0}, pusher.pushedSeqs())
 }
 
+func TestCloneEnvelopeDeepCopiesMessageScopedUIDs(t *testing.T) {
+	env := testEnvelope(101, 1)
+	env.MessageScopedUIDs = []string{"u1", "u2"}
+
+	copied := cloneEnvelope(env)
+	copied.MessageScopedUIDs[0] = "changed"
+
+	require.Equal(t, []string{"u1", "u2"}, env.MessageScopedUIDs)
+}
+
 func TestActorBindsAckIndexOnlyForAcceptedRoutes(t *testing.T) {
 	runtime, _, pusher := newTestManager()
 	accepted := testRoute("u2", 1, 11, 2)

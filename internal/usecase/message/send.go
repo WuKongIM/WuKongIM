@@ -96,6 +96,9 @@ func (a *App) sendRequestScoped(ctx context.Context, cmd SendCommand) (SendResul
 		return a.sendRequestScopedRealtime(ctx, scopedCmd)
 	}
 
+	if a.dispatcher == nil {
+		return SendResult{}, ErrCommittedDispatcherRequired
+	}
 	if a.cluster == nil {
 		channelID := channel.ChannelID{ID: scopedCmd.ChannelID, Type: scopedCmd.ChannelType}
 		fields := append([]wklog.Field{
@@ -183,6 +186,9 @@ func (a *App) sendDurable(ctx context.Context, cmd SendCommand) (SendResult, err
 			}, messageLogFields(channelID, cmd.FromUID)...)
 			fields = append(fields, wklog.Error(err))
 			a.sendLogger().Warn("submit committed message failed", fields...)
+			if len(cmd.RequestSubscribers) > 0 {
+				return SendResult{}, err
+			}
 		}
 	}
 	return sendResult, nil

@@ -222,6 +222,54 @@ func TestSendRequestScopedDurableAppendsTempCommandAndDispatchesSubscribers(t *t
 	require.Equal(t, frame.ChannelTypeTemp, dispatcher.calls[0].Message.ChannelType)
 }
 
+func TestSendRequestScopedDurableRequiresCommittedDispatcherBeforeAppend(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	app := New(Options{
+		Now:           fixedNowFn,
+		Cluster:       cluster,
+		MetaRefresher: &fakeMetaRefresher{},
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:             frame.Framer{SyncOnce: true},
+		FromUID:            "system",
+		RequestSubscribers: []string{"u1"},
+		Payload:            []byte("cmd"),
+	})
+
+	require.ErrorIs(t, err, ErrCommittedDispatcherRequired)
+	require.Equal(t, SendResult{}, result)
+	require.Empty(t, cluster.sendRequests)
+}
+
+func TestSendRequestScopedDurableReturnsDispatchError(t *testing.T) {
+	dispatchErr := errors.New("dispatcher stopped")
+	dispatcher := &recordingCommittedDispatcher{err: dispatchErr}
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 810, MessageSeq: 20}},
+		},
+	}
+	app := New(Options{
+		Now:                 fixedNowFn,
+		Cluster:             cluster,
+		MetaRefresher:       &fakeMetaRefresher{},
+		CommittedDispatcher: dispatcher,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:             frame.Framer{SyncOnce: true},
+		FromUID:            "system",
+		RequestSubscribers: []string{"u1"},
+		Payload:            []byte("cmd"),
+	})
+
+	require.ErrorIs(t, err, dispatchErr)
+	require.Equal(t, SendResult{}, result)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Len(t, dispatcher.calls, 1)
+}
+
 func TestSendRequestScopedNoPersistDispatchesRealtimeScopedEnvelope(t *testing.T) {
 	cluster := &fakeChannelCluster{}
 	realtime := &recordingRealtimeDispatcher{}
