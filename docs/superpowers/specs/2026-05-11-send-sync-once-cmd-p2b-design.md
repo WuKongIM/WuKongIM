@@ -70,7 +70,7 @@ P2b should keep this layering and add cmd semantics at explicit boundaries:
 3. `message.App.Send` derives the durable append channel only after permissions and after the `NoPersist` shortcut.
 4. Delivery subscriber resolution strips the cmd suffix and reads subscribers from the original channel.
 5. Realtime packet construction strips the cmd suffix before presenting channel IDs to clients.
-6. Conversation projection skips cmd/sync-once messages in P2b.
+6. Conversation projection rejects cmd/sync-once messages at the projector boundary so both live dispatch and committed replay inherit the same rule.
 
 ## Cmd Channel Identity
 
@@ -238,6 +238,8 @@ For group and store-backed channels, `pkg/slot/proxy.Store.ListChannelSubscriber
 
 Delivery tag cache fences should be based on the source channel mutation version where possible. Existing `SubscriberSource.SourceChannelID`, `SourceChannelType`, and `SourceSubscriberMutationVersion` are the right model for cmd channels.
 
+For cmd channels, the source mutation version used by delivery tags should come from the same authoritative metadata path used for send-time permission checks, so tag reuse is fenced by the source channel's durable state rather than by a stale view of the derived cmd channel.
+
 ## Cmd Channel Delivery
 
 After durable append, cmd messages use the existing committed-event path:
@@ -308,15 +310,17 @@ Current committed dispatch submits every durable message to both delivery and co
 
 P2b should use a conservative rule:
 
-- Do not submit cmd-channel / `SyncOnce` messages to the ordinary conversation projector.
+- The ordinary conversation projector is the canonical gate for cmd / `SyncOnce` filtering.
+- `Projector.SubmitCommitted` must reject messages whose durable channel ID is derived with `____cmd` or whose `Framer.SyncOnce` is true.
+- `asyncCommittedDispatcher.submitConversation`, `submitConversationFallback`, and committed replay should continue calling the projector normally; they should not need their own duplicate filters if the projector gate is correct.
 - Continue realtime delivery for those messages.
 - Leave full CMD conversation/offline cmd sync semantics for a later phase.
 
-The cleanest location is the committed dispatcher boundary before `submitConversation`, for example:
+The cleanest location is the conversation projector entrypoint, for example:
 
 ```go
 if isCommandOrSyncOnce(msg) {
-    return
+    return nil
 }
 ```
 
@@ -382,7 +386,7 @@ This is intentionally incomplete versus legacy online-only cmd delivery. That mi
 - Realtime delivery strips cmd suffix before person recipient view calculation.
 - Distributed person delivery groups remote routes by stripped recipient view, not by `u1____cmd`-style derived views.
 - Remote push keeps `DeliveryPushItem.ChannelID` as the durable cmd channel for ack ownership while the encoded `RecvPacket.ChannelID` shows the original channel view.
-- Committed dispatcher does not submit `SyncOnce` / cmd-channel messages to ordinary conversation projection.
+- Committed replay and live committed dispatch both rely on the conversation projector to reject `SyncOnce` / cmd-channel messages.
 - Delivery still receives cmd-channel committed envelopes.
 
 ### Integration or focused app tests
