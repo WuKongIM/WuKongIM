@@ -15,6 +15,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	deliverytagruntime "github.com/WuKongIM/WuKongIM/internal/runtime/deliverytag"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -1824,6 +1825,7 @@ type committedConversationSubmitter interface {
 func buildRealtimeRecvPacket(msg channel.Message, recipientUID string) *frame.RecvPacket {
 	framer := msg.Framer
 	framer.FrameType = frame.RECV
+	sourceChannelID, _ := channelid.FromCommandChannel(msg.ChannelID)
 
 	packet := &frame.RecvPacket{
 		Framer:      framer,
@@ -1837,7 +1839,7 @@ func buildRealtimeRecvPacket(msg channel.Message, recipientUID string) *frame.Re
 		StreamId:    msg.StreamID,
 		StreamFlag:  msg.StreamFlag,
 		Timestamp:   msg.Timestamp,
-		ChannelID:   msg.ChannelID,
+		ChannelID:   sourceChannelID,
 		ChannelType: msg.ChannelType,
 		Topic:       msg.Topic,
 		FromUID:     msg.FromUID,
@@ -1852,10 +1854,11 @@ func buildRealtimeRecvPacket(msg channel.Message, recipientUID string) *frame.Re
 }
 
 func recipientChannelView(msg channel.Message, recipientUID string) string {
+	sourceChannelID, _ := channelid.FromCommandChannel(msg.ChannelID)
 	if recipientUID == "" {
-		return msg.ChannelID
+		return sourceChannelID
 	}
-	left, right, err := deliveryusecase.DecodePersonChannel(msg.ChannelID)
+	left, right, err := deliveryusecase.DecodePersonChannel(sourceChannelID)
 	if err != nil {
 		return msg.FromUID
 	}

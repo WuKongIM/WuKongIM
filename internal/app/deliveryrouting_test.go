@@ -13,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	gatewaysession "github.com/WuKongIM/WuKongIM/internal/gateway/session"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	deliverytagruntime "github.com/WuKongIM/WuKongIM/internal/runtime/deliverytag"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -1028,6 +1029,36 @@ func TestBuildRealtimeRecvPacketUsesDurableTimestampAndPersonChannelView(t *test
 	require.Equal(t, []byte("hello"), packet.Payload)
 }
 
+func TestBuildRealtimeRecvPacketStripsCommandSuffixFromClientChannelView(t *testing.T) {
+	t.Run("group", func(t *testing.T) {
+		packet := buildRealtimeRecvPacket(channel.Message{
+			MessageID:   89,
+			MessageSeq:  8,
+			ChannelID:   channelid.ToCommandChannel("g1"),
+			ChannelType: frame.ChannelTypeGroup,
+			FromUID:     "u1",
+			Payload:     []byte("hello group cmd"),
+		}, "")
+
+		require.Equal(t, "g1", packet.ChannelID)
+		require.Equal(t, frame.ChannelTypeGroup, packet.ChannelType)
+	})
+
+	t.Run("person", func(t *testing.T) {
+		packet := buildRealtimeRecvPacket(channel.Message{
+			MessageID:   90,
+			MessageSeq:  9,
+			ChannelID:   channelid.ToCommandChannel("u1@u2"),
+			ChannelType: frame.ChannelTypePerson,
+			FromUID:     "u1",
+			Payload:     []byte("hello person cmd"),
+		}, "u2")
+
+		require.Equal(t, "u1", packet.ChannelID)
+		require.Equal(t, frame.ChannelTypePerson, packet.ChannelType)
+	})
+}
+
 func TestLocalDeliveryPushBuildsPersonChannelViewPerRouteUID(t *testing.T) {
 	sender := newOptionRecordingSession(1, "tcp")
 	sender.SetValue("uid", "u1")
@@ -1058,7 +1089,7 @@ func TestLocalDeliveryPushBuildsPersonChannelViewPerRouteUID(t *testing.T) {
 			Message: channel.Message{
 				MessageID:   88,
 				MessageSeq:  7,
-				ChannelID:   "u1@u2",
+				ChannelID:   channelid.ToCommandChannel("u1@u2"),
 				ChannelType: frame.ChannelTypePerson,
 				FromUID:     "u1",
 				Payload:     []byte("hello"),
@@ -1507,7 +1538,7 @@ func TestDistributedDeliveryPushBatchesPersonRoutesByRecipientChannelView(t *tes
 			Message: channel.Message{
 				MessageID:   102,
 				MessageSeq:  10,
-				ChannelID:   "u1@u2",
+				ChannelID:   channelid.ToCommandChannel("u1@u2"),
 				ChannelType: frame.ChannelTypePerson,
 				FromUID:     "u1",
 				Payload:     []byte("hello person"),
@@ -1529,6 +1560,7 @@ func TestDistributedDeliveryPushBatchesPersonRoutesByRecipientChannelView(t *tes
 
 	viewsByUID := make(map[string]string)
 	for _, item := range call.cmd.Items {
+		require.Equal(t, channelid.ToCommandChannel("u1@u2"), item.ChannelID)
 		require.Len(t, item.Routes, 1)
 		packet := mustDecodeRecvPacket(t, item.Frame)
 		viewsByUID[item.Routes[0].UID] = packet.ChannelID

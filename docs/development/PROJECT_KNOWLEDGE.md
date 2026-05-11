@@ -14,6 +14,8 @@
 - Message send permission checks live in `internal/usecase/message` before durable append; `pkg/channel` remains business-rule free.
 - Channel status permissions currently include group `Ban`/`Disband` and sender person-channel `SendBan`.
 - `NoPersist` sends still pass validation and send permissions, then skip durable append/committed events and return success with zero message ID/seq.
+- `SyncOnce` 持久化发送写入原频道派生的 `____cmd`，但发送权限仍基于原始频道检查。
+- `NoPersist + SyncOnce` 本阶段仍成功返回，不写 durable channel log，也不做实时投递。
 
 ### Long-poll leader lease refresh
 - A channel leader metadata refresh that only renews `LeaseUntil` must preserve existing leader-side lane sessions and follower cursors.
