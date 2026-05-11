@@ -7,18 +7,20 @@ import (
 
 type SendCommand struct {
 	// TraceID is the diagnostics trace identifier propagated through the send path.
-	TraceID              string
-	Framer               frame.Framer
-	Setting              frame.Setting
-	MsgKey               string
-	Expire               uint32
-	FromUID              string
-	SenderSessionID      uint64
-	ClientSeq            uint64
-	ClientMsgNo          string
-	StreamNo             string
-	ChannelID            string
-	ChannelType          uint8
+	TraceID         string
+	Framer          frame.Framer
+	Setting         frame.Setting
+	MsgKey          string
+	Expire          uint32
+	FromUID         string
+	SenderSessionID uint64
+	ClientSeq       uint64
+	ClientMsgNo     string
+	StreamNo        string
+	ChannelID       string
+	ChannelType     uint8
+	// RequestSubscribers carries a one-message subscriber snapshot for command-style directed delivery.
+	RequestSubscribers   []string
 	Topic                string
 	Payload              []byte
 	CommitMode           channel.CommitMode

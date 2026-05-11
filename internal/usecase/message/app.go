@@ -11,14 +11,17 @@ import (
 )
 
 var (
-	ErrUnauthenticatedSender   = errors.New("usecase/message: unauthenticated sender")
-	ErrClusterRequired         = errors.New("usecase/message: channel cluster required")
-	ErrMetaRefresherRequired   = errors.New("usecase/message: meta refresher required")
-	ErrRemoteAppenderRequired  = errors.New("usecase/message: remote appender required")
-	ErrSyncLoginUIDRequired    = errors.New("login_uid不能为空！")
-	ErrSyncChannelIDRequired   = errors.New("channel_id不能为空！")
-	ErrSyncChannelTypeRequired = errors.New("channel_type不能为空！")
-	ErrMessageReaderRequired   = errors.New("usecase/message: message reader required")
+	ErrUnauthenticatedSender             = errors.New("usecase/message: unauthenticated sender")
+	ErrClusterRequired                   = errors.New("usecase/message: channel cluster required")
+	ErrMetaRefresherRequired             = errors.New("usecase/message: meta refresher required")
+	ErrRemoteAppenderRequired            = errors.New("usecase/message: remote appender required")
+	ErrSyncLoginUIDRequired              = errors.New("login_uid不能为空！")
+	ErrSyncChannelIDRequired             = errors.New("channel_id不能为空！")
+	ErrSyncChannelTypeRequired           = errors.New("channel_type不能为空！")
+	ErrMessageReaderRequired             = errors.New("usecase/message: message reader required")
+	ErrRequestSubscribersRequireSyncOnce = errors.New("usecase/message: request subscribers require sync_once")
+	ErrRequestSubscribersConflictChannel = errors.New("usecase/message: request subscribers cannot include channel_id")
+	ErrRequestSubscribersRequired        = errors.New("usecase/message: request subscribers required")
 )
 
 type Options struct {

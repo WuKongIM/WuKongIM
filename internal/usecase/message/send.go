@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
@@ -21,6 +22,10 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 		fields = append(fields, wklog.Error(ErrUnauthenticatedSender))
 		a.sendLogger().Warn("reject unauthenticated sender", fields...)
 		return SendResult{}, ErrUnauthenticatedSender
+	}
+
+	if len(cmd.RequestSubscribers) > 0 {
+		return a.sendRequestScoped(ctx, cmd)
 	}
 
 	if cmd.ChannelType != frame.ChannelTypePerson && cmd.ChannelType != frame.ChannelTypeGroup {
@@ -67,6 +72,43 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	return a.sendDurable(ctx, appendCmd)
 }
 
+// sendRequestScoped routes a one-shot subscriber list through an internal temp command channel.
+func (a *App) sendRequestScoped(ctx context.Context, cmd SendCommand) (SendResult, error) {
+	if !cmd.Framer.SyncOnce {
+		return SendResult{}, ErrRequestSubscribersRequireSyncOnce
+	}
+	if cmd.ChannelID != "" {
+		return SendResult{}, ErrRequestSubscribersConflictChannel
+	}
+	scoped, err := runtimechannelid.RequestSubscriberChannelFor(cmd.RequestSubscribers)
+	if err != nil {
+		if errors.Is(err, runtimechannelid.ErrRequestSubscribersRequired) {
+			return SendResult{}, ErrRequestSubscribersRequired
+		}
+		return SendResult{}, err
+	}
+
+	scopedCmd := cmd
+	scopedCmd.ChannelID = scoped.CommandChannelID
+	scopedCmd.ChannelType = scoped.ChannelType
+	scopedCmd.RequestSubscribers = scoped.Subscribers
+	if scopedCmd.Framer.NoPersist {
+		return SendResult{Reason: frame.ReasonSuccess}, nil
+	}
+
+	if a.cluster == nil {
+		channelID := channel.ChannelID{ID: scopedCmd.ChannelID, Type: scopedCmd.ChannelType}
+		fields := append([]wklog.Field{
+			wklog.Event("message.send.cluster.required"),
+		}, messageLogFields(channelID, scopedCmd.FromUID)...)
+		fields = append(fields, wklog.Error(ErrClusterRequired))
+		a.sendLogger().Error("message cluster is required", fields...)
+		return SendResult{}, ErrClusterRequired
+	}
+
+	return a.sendDurable(ctx, scopedCmd)
+}
+
 func (a *App) sendDurable(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	draft := buildDurableMessage(cmd, a.now())
 	channelID := channel.ChannelID{
@@ -107,8 +149,9 @@ func (a *App) sendDurable(ctx context.Context, cmd SendCommand) (SendResult, err
 
 	if a.dispatcher != nil {
 		if err := a.dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted{
-			Message:         result.Message,
-			SenderSessionID: cmd.SenderSessionID,
+			Message:           result.Message,
+			SenderSessionID:   cmd.SenderSessionID,
+			MessageScopedUIDs: append([]string(nil), cmd.RequestSubscribers...),
 		}); err != nil {
 			fields := append([]wklog.Field{
 				wklog.Event("message.send.dispatch_submit.failed"),
