@@ -723,6 +723,57 @@ func TestStateMachineChannelResetAcceptsExpiredMatchingFenceAndBumpsVersion(t *t
 	}
 }
 
+func TestStateMachineChannelSetFenceAfterResetClearMarker(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+	task := fsmTestChannelMigrationTask("task-set-after-reset", "channel-set-after-reset")
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhasePromoteAndRemove
+	task.UpdatedAtMS = 1750000001000
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 7
+	task.FenceUntilMS = 1750000002000
+	setFSMTestDrainProof(&task, 7)
+	meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, task.TaskID, 7)
+	meta.WriteFenceUntilMS = task.FenceUntilMS
+	meta.ChannelEpoch = task.BaseChannelEpoch
+	meta.LeaderEpoch = task.BaseLeaderEpoch
+	meta.Replicas = []uint64{1, 2, 3}
+	meta.ISR = []uint64{1, 2}
+
+	fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
+	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
+	resetReq := fsmTestResetFenceRequest(task, meta, metadb.ChannelMigrationPhaseWarmCatchUp, 1750000003000)
+	fsmApplyOK(t, ctx, sm, 3, EncodeResetChannelWriteFenceToPreCutoverCommand(resetReq))
+
+	resetTask, err := db.ForSlot(11).GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	if err != nil {
+		t.Fatalf("GetChannelMigrationTask(reset) error = %v", err)
+	}
+	resetMeta, err := db.ForSlot(11).GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta(reset) error = %v", err)
+	}
+	setReq := fsmTestSetFenceRequest(resetTask, resetMeta, 1750000010000, 1750000004000)
+	fsmApplyOK(t, ctx, sm, 4, EncodeSetChannelWriteFenceCommand(setReq))
+
+	gotTask, err := db.ForSlot(11).GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	if err != nil {
+		t.Fatalf("GetChannelMigrationTask(set) error = %v", err)
+	}
+	if gotTask.Phase != metadb.ChannelMigrationPhaseCutoverFence || gotTask.FenceVersion != 9 {
+		t.Fatalf("task after set on reset marker = %#v", gotTask)
+	}
+	gotMeta, err := db.ForSlot(11).GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta(set) error = %v", err)
+	}
+	if gotMeta.WriteFenceToken != task.TaskID || gotMeta.WriteFenceVersion != 9 {
+		t.Fatalf("meta after set on reset marker = %#v", gotMeta)
+	}
+}
+
 func TestStateMachineChannelResetRejectsLiveMatchingFence(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -860,6 +911,58 @@ func TestStateMachineChannelClearFenceDuplicateTerminalNoOp(t *testing.T) {
 	}
 	if gotMeta.WriteFenceToken != "" || gotMeta.WriteFenceVersion != meta.WriteFenceVersion+1 {
 		t.Fatalf("meta after duplicate clear = %#v", gotMeta)
+	}
+}
+
+func TestStateMachineChannelSetFenceForNewTaskAfterTerminalClear(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+	task := fsmTestChannelMigrationTask("task-clear-then-new", "channel-clear-then-new")
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseVerifyMembership
+	task.UpdatedAtMS = 1750000001000
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 7
+	task.FenceUntilMS = 1750000009000
+	setFSMTestDrainProof(&task, 7)
+	meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, task.TaskID, 7)
+	meta.ChannelEpoch = task.BaseChannelEpoch
+	meta.LeaderEpoch = task.BaseLeaderEpoch
+	meta.Replicas = []uint64{1, 3}
+	meta.ISR = []uint64{1, 3}
+
+	fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
+	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
+	fsmApplyOK(t, ctx, sm, 3, EncodeClearChannelWriteFenceCommand(fsmTestClearFenceRequest(task, meta, 1750000002000)))
+
+	clearedMeta, err := db.ForSlot(11).GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta(clear) error = %v", err)
+	}
+	nextTask := fsmTestChannelMigrationTask("task-after-clear-marker", task.ChannelID)
+	nextTask.Status = metadb.ChannelMigrationStatusRunning
+	nextTask.Phase = metadb.ChannelMigrationPhaseWarmCatchUp
+	nextTask.UpdatedAtMS = 1750000003000
+	nextTask.CreatedAtMS = 1750000003000
+	nextTask.BaseChannelEpoch = clearedMeta.ChannelEpoch
+	nextTask.BaseLeaderEpoch = clearedMeta.LeaderEpoch
+	fsmApplyOK(t, ctx, sm, 4, EncodeCreateChannelMigrationTaskCommand(nextTask))
+	fsmApplyOK(t, ctx, sm, 5, EncodeSetChannelWriteFenceCommand(fsmTestSetFenceRequest(nextTask, clearedMeta, 1750000010000, 1750000004000)))
+
+	gotTask, err := db.ForSlot(11).GetChannelMigrationTask(ctx, nextTask.ChannelID, nextTask.ChannelType, nextTask.TaskID)
+	if err != nil {
+		t.Fatalf("GetChannelMigrationTask(next) error = %v", err)
+	}
+	if gotTask.FenceToken != nextTask.TaskID || gotTask.FenceVersion != clearedMeta.WriteFenceVersion+1 {
+		t.Fatalf("new task after clear marker = %#v", gotTask)
+	}
+	gotMeta, err := db.ForSlot(11).GetChannelRuntimeMeta(ctx, clearedMeta.ChannelID, clearedMeta.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta(next set) error = %v", err)
+	}
+	if gotMeta.WriteFenceToken != nextTask.TaskID || gotMeta.WriteFenceVersion != clearedMeta.WriteFenceVersion+1 {
+		t.Fatalf("meta after new task set = %#v", gotMeta)
 	}
 }
 

@@ -606,7 +606,7 @@ func requireMatchingFence(meta ChannelRuntimeMeta, token string, version uint64,
 
 func requireNoForeignChannelMigrationFence(task ChannelMigrationTask, meta ChannelRuntimeMeta) error {
 	taskHasFence := task.FenceToken != "" || task.FenceVersion != 0 || task.FenceUntilMS != 0
-	metaHasFence := meta.WriteFenceToken != "" || meta.WriteFenceVersion != 0 || meta.WriteFenceUntilMS != 0
+	metaHasFence := meta.WriteFenceToken != ""
 	if !taskHasFence && !metaHasFence {
 		return nil
 	}
