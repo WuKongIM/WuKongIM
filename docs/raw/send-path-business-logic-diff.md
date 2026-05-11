@@ -140,6 +140,8 @@ user.onSend
 - `message.Send` 没有全局发送封禁检查。
 - 当前 `/channel/info` 接收 `send_ban`，但只是 compatibility 字段，未持久化。
 
+P1 状态（2026-05-11）：当前项目已在 slot channel metadata 中持久化 `SendBan`，并在 `internal/usecase/message` 的 durable append 前检查发送者个人频道 `SendBan`，命中时返回 `ReasonSendBan`。缺失个人频道元数据时按未封禁处理，避免阻断旧数据中没有个人频道记录的用户。
+
 关键代码：
 
 - `pkg/slot/meta/channel.go:11`
@@ -168,6 +170,8 @@ user.onSend
 - `metadb.Channel` 只持久化 `Ban`。
 - `Disband` 目前只是兼容字段，不持久化。
 - 发送链路不读取 `Ban`，因此即使后台写了 `ban=1`，当前发送也不会被业务层拦截。
+
+P1 状态（2026-05-11）：当前项目已在 slot channel metadata 中持久化 `Disband` 和 `SendBan`；群/频道发送会在 durable append 前读取 channel metadata，先按 `Ban -> ReasonBan`、再按 `Disband -> ReasonDisband` 拦截，之后才继续黑名单、订阅者和白名单检查。
 
 关键代码：
 
@@ -707,4 +711,13 @@ user.onSend
 - `pkg/slot/meta` subscriber 点查与非空查询。
 - `pkg/slot/proxy` authoritative subscriber lookup RPC 与 channel permission metadata RPC。
 
-仍未恢复的旧版差异包括：`SendBan`、`Disband`、`AllowStranger`、`NoPersist` 非持久化分支、`SyncOnce`/cmd 频道转换、request-scoped subscribers、sendbatch、plugin/webhook/AI 钩子以及特殊频道发送支持。
+## P1 实施后状态（2026-05-11）
+
+本轮 P1 已恢复以下发送前频道状态权限，并继续放在 `internal/usecase/message` 的 durable append 之前：
+
+- 发送者个人频道 `SendBan`：命中返回 `ReasonSendBan`。
+- 群/频道 `Disband`：命中返回 `ReasonDisband`。
+- `/channel/info` 传入的 `ban` / `disband` / `send_ban` 会通过 channel usecase 持久化到 slot channel metadata。
+- `pkg/slot/meta`、`pkg/slot/fsm`、`pkg/slot/proxy` 均保留 `Disband` / `SendBan` 字段，authoritative permission read 可读取完整状态。
+
+仍未恢复的旧版差异包括：`AllowStranger`、`NoPersist` 非持久化分支、`SyncOnce`/cmd 频道转换、request-scoped subscribers、sendbatch、plugin/webhook/AI 钩子以及特殊频道发送支持。
