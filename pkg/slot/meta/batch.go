@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"encoding/binary"
 	"errors"
 
 	"github.com/cockroachdb/pebble/v2"
@@ -550,6 +551,9 @@ func (b *WriteBatch) Commit() error {
 	if err := b.enforceChannelRuntimeMetaMonotonicLocked(); err != nil {
 		return err
 	}
+	if err := b.enforceChannelMigrationActiveUniqueLocked(); err != nil {
+		return err
+	}
 	return b.batch.Commit(pebble.Sync)
 }
 
@@ -789,6 +793,74 @@ func (b *WriteBatch) rememberChannelMigrationActiveIndex(activeIndexKey []byte, 
 		taskID: taskID,
 		exists: exists,
 	}
+}
+
+// enforceChannelMigrationActiveUniqueLocked rechecks staged active writes after
+// this batch has acquired db.mu so concurrent batches cannot race uniqueness.
+func (b *WriteBatch) enforceChannelMigrationActiveUniqueLocked() error {
+	if len(b.channelMigrationActive) == 0 {
+		return nil
+	}
+	for activeIndexKeyString, entry := range b.channelMigrationActive {
+		if !entry.exists {
+			continue
+		}
+		activeIndexKey := []byte(activeIndexKeyString)
+		hashSlot, channelID, channelType, err := decodeChannelMigrationTaskActiveIndexKey(activeIndexKey)
+		if err != nil {
+			return err
+		}
+		existingTaskID, err := decodeChannelMigrationTaskIDIndexValue(b.db.getValue(activeIndexKey))
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				continue
+			}
+			return err
+		}
+		if existingTaskID == entry.taskID {
+			continue
+		}
+
+		primaryKey := encodeChannelMigrationTaskPrimaryKey(hashSlot, channelID, channelType, existingTaskID, channelMigrationTaskPrimaryFamilyID)
+		existing, exists, err := b.loadChannelMigrationTask(hashSlot, primaryKey, channelID, channelType, existingTaskID)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			continue
+		}
+		if existing.IsActive() {
+			return ErrAlreadyExists
+		}
+	}
+	return nil
+}
+
+func decodeChannelMigrationTaskActiveIndexKey(key []byte) (uint16, string, int64, error) {
+	prefixLen := 1 + 2 + 4 + 2
+	if len(key) < prefixLen || key[0] != keyspaceIndex {
+		return 0, "", 0, ErrCorruptValue
+	}
+	if binary.BigEndian.Uint32(key[1+2:1+2+4]) != TableIDChannelMigrationTask {
+		return 0, "", 0, ErrCorruptValue
+	}
+	if binary.BigEndian.Uint16(key[1+2+4:prefixLen]) != channelMigrationTaskActiveIndexID {
+		return 0, "", 0, ErrCorruptValue
+	}
+	hashSlot := binary.BigEndian.Uint16(key[1 : 1+2])
+	rest := key[prefixLen:]
+	channelID, rest, err := decodeKeyString(rest)
+	if err != nil {
+		return 0, "", 0, err
+	}
+	channelType, rest, err := decodeOrderedInt64(rest)
+	if err != nil {
+		return 0, "", 0, err
+	}
+	if len(rest) != 0 {
+		return 0, "", 0, ErrCorruptValue
+	}
+	return hashSlot, channelID, channelType, nil
 }
 
 func (b *WriteBatch) enforceChannelRuntimeMetaMonotonicLocked() error {

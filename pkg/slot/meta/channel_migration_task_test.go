@@ -110,6 +110,31 @@ func TestWriteBatchCreateChannelMigrationTaskRejectsSameBatchActiveDuplicate(t *
 	require.ErrorIs(t, wb.CreateChannelMigrationTask(7, second), ErrAlreadyExists)
 }
 
+func TestWriteBatchCreateChannelMigrationTaskRevalidatesActiveDuplicateAtCommit(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+	first := testChannelMigrationTask("task-batch-race-1", "channel-batch-race")
+	second := testChannelMigrationTask("task-batch-race-2", "channel-batch-race")
+
+	firstBatch := db.NewWriteBatch()
+	defer firstBatch.Close()
+	secondBatch := db.NewWriteBatch()
+	defer secondBatch.Close()
+	require.NoError(t, firstBatch.CreateChannelMigrationTask(7, first))
+	require.NoError(t, secondBatch.CreateChannelMigrationTask(7, second))
+
+	require.NoError(t, firstBatch.Commit())
+	require.ErrorIs(t, secondBatch.Commit(), ErrAlreadyExists)
+
+	active, ok, err := shard.GetActiveChannelMigrationTask(ctx, first.ChannelID, first.ChannelType)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, first.TaskID, active.TaskID)
+	_, err = shard.GetChannelMigrationTask(ctx, second.ChannelID, second.ChannelType, second.TaskID)
+	requireChannelMigrationTaskNotFound(t, err)
+}
+
 func TestWriteBatchChannelMigrationTaskTerminalTransitionClearsActiveIndexForSameBatchCreate(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
