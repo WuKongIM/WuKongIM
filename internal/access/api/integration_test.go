@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -18,13 +19,14 @@ import (
 )
 
 func TestAPIServerSendMessageWithRealMessageApp(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		result: channel.AppendResult{MessageID: 66, MessageSeq: 7},
+	}
 	msgApp := message.New(message.Options{
 		IdentityStore: &fakeIdentityStore{},
 		ChannelStore:  &fakeChannelStore{},
 		MetaRefresher: &fakeMetaRefresher{},
-		Cluster: &fakeChannelCluster{
-			result: channel.AppendResult{MessageID: 66, MessageSeq: 7},
-		},
+		Cluster:       cluster,
 	})
 	require.NoError(t, msgApp.OnlineRegistry().Register(online.OnlineConn{
 		SessionID: 2,
@@ -55,6 +57,7 @@ func TestAPIServerSendMessageWithRealMessageApp(t *testing.T) {
 		"channel_id":   "u2",
 		"channel_type": float64(frame.ChannelTypePerson),
 		"payload":      base64.StdEncoding.EncodeToString([]byte("hi")),
+		"sync_once":    float64(1),
 	}
 	payload, err := json.Marshal(body)
 	require.NoError(t, err)
@@ -74,6 +77,9 @@ func TestAPIServerSendMessageWithRealMessageApp(t *testing.T) {
 	require.Equal(t, int64(66), got.MessageID)
 	require.Equal(t, uint64(7), got.MessageSeq)
 	require.Equal(t, uint8(frame.ReasonSuccess), got.Reason)
+	require.Len(t, cluster.appendRequests, 1)
+	require.Equal(t, runtimechannelid.ToCommandChannel(runtimechannelid.EncodePersonChannel("u1", "u2")), cluster.appendRequests[0].ChannelID.ID)
+	require.True(t, cluster.appendRequests[0].Message.Framer.SyncOnce)
 }
 
 func TestAPIServerSendMessageNoPersistHeaderSkipsClusterRequirement(t *testing.T) {
@@ -152,8 +158,9 @@ func (*fakeChannelStore) GetChannel(context.Context, string, int64) (metadb.Chan
 }
 
 type fakeChannelCluster struct {
-	result channel.AppendResult
-	err    error
+	appendRequests []channel.AppendRequest
+	result         channel.AppendResult
+	err            error
 }
 
 type fakeMetaRefresher struct{}
@@ -162,7 +169,8 @@ func (*fakeChannelCluster) ApplyMeta(channel.Meta) error {
 	return nil
 }
 
-func (f *fakeChannelCluster) Append(context.Context, channel.AppendRequest) (channel.AppendResult, error) {
+func (f *fakeChannelCluster) Append(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
+	f.appendRequests = append(f.appendRequests, req)
 	return f.result, f.err
 }
 

@@ -103,6 +103,63 @@ func TestProjectorSubmitCommittedNeverRoutesActiveHintsInline(t *testing.T) {
 	}
 }
 
+func TestProjectorSubmitCommittedIgnoresCommandChannels(t *testing.T) {
+	store := newProjectorStoreStub()
+	asyncFns := make(chan func(), 1)
+	projector := NewProjector(ProjectorOptions{
+		Store:         store,
+		FlushInterval: time.Hour,
+		Async: func(fn func()) {
+			asyncFns <- fn
+		},
+	})
+
+	require.NoError(t, projector.SubmitCommitted(context.Background(), channel.Message{
+		ChannelID:   runtimechannelid.ToCommandChannel("u1|u2"),
+		ChannelType: frame.ChannelTypePerson,
+		MessageSeq:  8,
+		Timestamp:   100,
+	}))
+
+	select {
+	case fn := <-asyncFns:
+		fn()
+		t.Fatalf("SubmitCommitted scheduled a flush for command channel messages")
+	case <-time.After(50 * time.Millisecond):
+	}
+	require.NoError(t, projector.Flush(context.Background()))
+	require.Empty(t, store.submittedHints())
+}
+
+func TestProjectorSubmitCommittedIgnoresSyncOnceMessages(t *testing.T) {
+	store := newProjectorStoreStub()
+	asyncFns := make(chan func(), 1)
+	projector := NewProjector(ProjectorOptions{
+		Store:         store,
+		FlushInterval: time.Hour,
+		Async: func(fn func()) {
+			asyncFns <- fn
+		},
+	})
+
+	require.NoError(t, projector.SubmitCommitted(context.Background(), channel.Message{
+		ChannelID:   runtimechannelid.EncodePersonChannel("u1", "u2"),
+		ChannelType: frame.ChannelTypePerson,
+		Framer:      frame.Framer{SyncOnce: true},
+		MessageSeq:  9,
+		Timestamp:   100,
+	}))
+
+	select {
+	case fn := <-asyncFns:
+		fn()
+		t.Fatalf("SubmitCommitted scheduled a flush for SyncOnce messages")
+	case <-time.After(50 * time.Millisecond):
+	}
+	require.NoError(t, projector.Flush(context.Background()))
+	require.Empty(t, store.submittedHints())
+}
+
 func TestProjectorStopCancelsScheduledFlush(t *testing.T) {
 	store := newProjectorStoreStub()
 	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")

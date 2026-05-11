@@ -14,7 +14,7 @@
 
 1. 必要时解密 send packet。
 2. 从 session 读取发送者 UID。
-3. 将个人频道规范化。
+3. 将原始频道 ID、频道类型和 header 标志映射到 `SendCommand`。
 4. 调用 `message.App.Send`。
 5. 写回 sendack。
 
@@ -25,6 +25,7 @@
 - `internal/access/gateway/error_map.go:12`
 
 网关入口目前不承载频道业务权限。
+个人频道规范化、cmd 后缀剥离和发送权限判断统一在 `message.App.Send` 中完成，避免入口提前拒绝已派生的 cmd 个人频道。
 
 ### HTTP 入口
 
@@ -41,25 +42,30 @@
 - `internal/access/api/message_send.go:14`
 - `internal/access/api/routes.go:66`
 
-相比旧版，当前 HTTP send 不支持 `header`、`expire`、`subscribers`、`sync_once` 临时投递、`sendbatch`、流消息等旧接口语义。
+相比旧版，当前 HTTP send 已恢复 `header.no_persist` / `header.sync_once` 的部分兼容语义，但仍不支持 `expire`、`subscribers`、临时频道投递、`sendbatch`、流消息等旧接口语义。
 
 ### message usecase
 
-当前 `message.App.Send` 只做以下业务校验：
+当前 `message.App.Send` 负责发送业务边界：
 
 - `FromUID` 不能为空。
 - 只支持个人频道和群频道。
-- 个人频道做规范化。
-- 必须配置 channel cluster。
+- 先剥离可选的 cmd 后缀，再对个人频道做规范化。
+- 在原始频道上检查发送权限，包括发送者 `SendBan`、群 `Ban` / `Disband`、群黑白名单和订阅者资格、个人接收方黑名单。
+- `NoPersist` 在权限通过后直接返回成功，不要求 channel cluster。
+- `SyncOnce` 或已派生 cmd 输入会把 durable append 目标切换到原频道派生的 `____cmd`。
+- 持久化发送必须配置 channel cluster。
 
-随后直接进入 durable append。
+随后进入 durable append，`pkg/channel` 仍只负责日志和复制语义。
 
 关键代码：
 
 - `internal/usecase/message/send.go:16`
 - `internal/usecase/message/send.go:26`
-- `internal/usecase/message/send.go:37`
-- `internal/usecase/message/send.go:46`
+- `internal/usecase/message/send.go:30`
+- `internal/usecase/message/send.go:41`
+- `internal/usecase/message/send.go:49`
+- `internal/usecase/message/send.go:53`
 
 ### channel log append
 
@@ -85,7 +91,7 @@
 
 关键代码：
 
-- `internal/usecase/message/send.go:87`
+- `internal/usecase/message/send.go:108`
 - `internal/app/committed_events.go:18`
 - `internal/app/deliveryrouting.go:304`
 
@@ -366,7 +372,9 @@ P2a 前：
 
 P2a 状态（2026-05-11）：当前项目已在 `internal/usecase/message` 的 P0/P1 权限检查之后恢复 `NoPersist` 非持久化边界。`Framer.NoPersist=true` 且权限通过时，发送返回 `ReasonSuccess`，`MessageID=0`，`MessageSeq=0`，不要求 channel cluster，不写入 durable channel log，也不提交 committed-message event。`/message/send` 已支持 `header.no_persist` 映射，并兼容顶层 `no_persist` 别名。
 
-仍未恢复：`SyncOnce` cmd channel 转换、request-scoped subscribers、临时频道投递、sendbatch、plugin/webhook/AI 钩子，以及非持久化消息的完整在线临时投递链路。
+P2b 状态（2026-05-11）：`NoPersist + SyncOnce` 仍沿用 P2a 非持久化边界，成功返回但不做 durable append，也不做实时投递。
+
+仍未恢复：request-scoped subscribers、临时频道投递、在线 cmd 投递 / `systemcmdonline`、CMD 会话 / 离线 cmd 同步、sendbatch、plugin/webhook/AI 钩子，以及非持久化消息的完整在线临时投递链路。
 
 ### 2. SyncOnce / cmd channel
 
@@ -382,18 +390,22 @@ P2a 状态（2026-05-11）：当前项目已在 `internal/usecase/message` 的 P
 - `learn_project/WuKongIM/internal/api/message.go:107`
 - `learn_project/WuKongIM/internal/api/message.go:256`
 
-当前：
+P2b 状态（2026-05-11）：
 
-- `SyncOnce` 只是 `Framer` bit。
-- 不做 cmd channel 转换。
-- `SendCommand` 没有 subscribers 字段。
+- 持久化 `SyncOnce` 发送会把 durable append 目标转换为原频道派生的 cmd channel，即 `source____cmd`。
+- 发送权限仍在原始频道上检查，不用 cmd channel 重新判断黑白名单、订阅者和频道状态。
+- 投递订阅者仍从原始频道解析，避免 cmd 派生频道缺少普通订阅者导致投递目标为空。
+- 实时投递的 `RecvPacket` 对客户端展示原始频道，不暴露内部 cmd channel。
+- 普通会话投影会过滤 cmd 派生频道和 `SyncOnce` 消息，避免一次性同步消息进入普通会话列表。
+- `SendCommand` 仍没有 request-scoped subscribers 字段。
 
 关键代码：
 
 - `internal/usecase/message/command.go:8`
-- `internal/usecase/message/send.go:102`
+- `internal/usecase/message/send.go:30`
+- `internal/usecase/message/send.go:53`
 
-影响：旧版一次性同步消息和 cmd 消息语义未恢复。
+影响：持久化 `SyncOnce` 的核心 cmd channel 写入、权限、订阅者解析、实时展示和普通会话过滤已恢复；在线 cmd 投递、CMD 会话 / 离线 cmd 同步、request-scoped subscribers、临时频道和 sendbatch 仍未恢复。
 
 ### 3. request-scoped subscribers / 临时频道
 
@@ -664,9 +676,10 @@ P2a 状态（2026-05-11）：当前项目已在 `internal/usecase/message` 的 P
 范围：
 
 - `NoPersist` 不写 channel log（P2a 已恢复核心非持久化边界，但尚未恢复完整临时在线投递语义）。
-- `SyncOnce` cmd channel 转换。
+- `SyncOnce` cmd channel 转换（P2b 已恢复持久化 `SyncOnce` 写入 `____cmd` 的核心路径）。
 - `/message/send` request-scoped `subscribers`。
 - 临时频道 / message-scoped subscriber source 接入 send path。
+- 在线 cmd 投递 / `systemcmdonline` 与 CMD 会话 / 离线 cmd 同步。
 
 ### P3：恢复特殊频道、sendbatch、插件和 Webhook
 
@@ -724,7 +737,7 @@ P2a 状态（2026-05-11）：当前项目已在 `internal/usecase/message` 的 P
 - `/channel/info` 传入的 `ban` / `disband` / `send_ban` 会通过 channel usecase 持久化到 slot channel metadata。
 - `pkg/slot/meta`、`pkg/slot/fsm`、`pkg/slot/proxy` 均保留 `Disband` / `SendBan` 字段，authoritative permission read 可读取完整状态。
 
-仍未恢复的旧版差异包括：`AllowStranger`、`NoPersist` 完整在线临时投递语义、`SyncOnce`/cmd 频道转换、request-scoped subscribers、sendbatch、plugin/webhook/AI 钩子以及特殊频道发送支持。
+仍未恢复的旧版差异包括：`AllowStranger`、`NoPersist` 完整在线临时投递语义、request-scoped subscribers、临时频道投递、在线 cmd 投递 / `systemcmdonline`、CMD 会话 / 离线 cmd 同步、sendbatch、plugin/webhook/AI 钩子以及特殊频道发送支持。
 
 ## P2a 实施后状态（2026-05-11）
 
@@ -736,4 +749,18 @@ P2a 状态（2026-05-11）：当前项目已在 `internal/usecase/message` 的 P
 - NoPersist 成功不提交 committed-message event，避免把不存在的 durable commit 分发给后续副作用。
 - `/message/send` 已支持旧版兼容字段 `header.no_persist`，并兼容顶层 `no_persist` 别名。
 
-仍未恢复的旧版差异包括：`AllowStranger`、`SyncOnce`/cmd 频道转换、request-scoped subscribers、临时频道投递、sendbatch、plugin/webhook/AI 钩子、特殊频道发送支持，以及非持久化消息的完整在线临时投递链路。
+仍未恢复的旧版差异包括：`AllowStranger`、request-scoped subscribers、临时频道投递、在线 cmd 投递 / `systemcmdonline`、CMD 会话 / 离线 cmd 同步、sendbatch、plugin/webhook/AI 钩子、特殊频道发送支持，以及非持久化消息的完整在线临时投递链路。
+
+## P2b 实施后状态（2026-05-11）
+
+本轮 P2b 已恢复持久化 `SyncOnce` 的核心 cmd channel 发送语义：
+
+- 持久化 `SyncOnce` 发送写入原频道派生的 `____cmd` channel。
+- 发送权限继续基于原始频道检查。
+- 投递订阅者继续从原始频道解析。
+- 实时投递给客户端时展示原始频道视图。
+- 普通会话投影过滤 cmd 派生频道和 `SyncOnce` 消息。
+
+`NoPersist + SyncOnce` 本阶段仍返回成功，但不写 durable channel log，也不做实时投递。
+
+仍未恢复的旧版差异包括：`AllowStranger`、request-scoped subscribers、临时频道投递、在线 cmd 投递 / `systemcmdonline`、CMD 会话 / 离线 cmd 同步、sendbatch、plugin/webhook/AI 钩子、特殊频道发送支持，以及非持久化消息的完整在线临时投递链路。

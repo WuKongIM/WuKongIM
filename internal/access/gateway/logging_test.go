@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	coregateway "github.com/WuKongIM/WuKongIM/internal/gateway"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/stretchr/testify/require"
@@ -130,11 +131,11 @@ func TestHandlerOnSessionActivateLogsAuthFailure(t *testing.T) {
 	require.EqualError(t, requireFieldValue[error](t, entry, "error"), ErrUnauthenticatedSession.Error())
 }
 
-func TestHandleSendLogsRejectedRequest(t *testing.T) {
+func TestHandleSendLogsUsecaseInvalidPersonChannel(t *testing.T) {
 	logger := newRecordingLogger("access.gateway")
 	sender := newOptionRecordingSession(1, "tcp")
 	sender.SetValue(coregateway.SessionValueUID, "u1")
-	handler := New(Options{Logger: logger, Messages: &fakeMessageUsecase{}})
+	handler := New(Options{Logger: logger, Messages: &fakeMessageUsecase{sendErr: runtimechannelid.ErrInvalidPersonChannel}})
 
 	err := handler.OnFrame(newSendContext(sender), &frame.SendPacket{
 		ChannelID:   "u3@u4",
@@ -143,11 +144,16 @@ func TestHandleSendLogsRejectedRequest(t *testing.T) {
 		ClientMsgNo: "m-invalid",
 	})
 	require.NoError(t, err)
+	require.Len(t, sender.Writes(), 1)
+	ack := requireSendackPacket(t, sender.Writes()[0].f)
+	require.Equal(t, frame.ReasonChannelIDError, ack.ReasonCode)
 
-	entry := requireLogEntry(t, logger, "WARN", "access.gateway.frame", "access.gateway.frame.send_rejected")
-	require.Equal(t, "reject send request", entry.msg)
+	entry := requireLogEntry(t, logger, "WARN", "access.gateway.frame", "access.gateway.frame.send_failed")
+	require.Equal(t, "send request failed", entry.msg)
+	require.Equal(t, "message.send", requireFieldValue[string](t, entry, "sourceModule"))
 	require.Equal(t, uint64(1), requireFieldValue[uint64](t, entry, "sessionID"))
 	require.Equal(t, "u1", requireFieldValue[string](t, entry, "uid"))
+	require.Equal(t, "u3@u4", requireFieldValue[string](t, entry, "channelID"))
 	require.EqualError(t, requireFieldValue[error](t, entry, "error"), "runtime/channelid: invalid person channel")
 }
 
@@ -171,7 +177,7 @@ func TestHandleSendLogsContextualWarnWithSourceModule(t *testing.T) {
 	require.Equal(t, "message.send", requireFieldValue[string](t, entry, "sourceModule"))
 	require.Equal(t, uint64(1), requireFieldValue[uint64](t, entry, "sessionID"))
 	require.Equal(t, "u1", requireFieldValue[string](t, entry, "uid"))
-	require.Equal(t, "u2@u1", requireFieldValue[string](t, entry, "channelID"))
+	require.Equal(t, "u2", requireFieldValue[string](t, entry, "channelID"))
 	require.EqualError(t, requireFieldValue[error](t, entry, "error"), "raft quorum unavailable")
 }
 
