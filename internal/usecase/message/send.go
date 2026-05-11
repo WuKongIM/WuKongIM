@@ -26,6 +26,10 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	if cmd.ChannelType != frame.ChannelTypePerson && cmd.ChannelType != frame.ChannelTypeGroup {
 		return SendResult{Reason: frame.ReasonNotSupportChannelType}, nil
 	}
+
+	sourceChannelID, alreadyCommandChannel := runtimechannelid.FromCommandChannel(cmd.ChannelID)
+	cmd.ChannelID = sourceChannelID
+
 	if cmd.ChannelType == frame.ChannelTypePerson {
 		channelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
 		if err != nil {
@@ -46,16 +50,21 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 		return SendResult{Reason: frame.ReasonSuccess}, nil
 	}
 
+	appendCmd := cmd
+	if cmd.Framer.SyncOnce || alreadyCommandChannel {
+		appendCmd.ChannelID = runtimechannelid.ToCommandChannel(cmd.ChannelID)
+	}
+
 	if a.cluster == nil {
 		fields := append([]wklog.Field{
 			wklog.Event("message.send.cluster.required"),
-		}, messageLogFields(channel.ChannelID{ID: cmd.ChannelID, Type: cmd.ChannelType}, cmd.FromUID)...)
+		}, messageLogFields(channel.ChannelID{ID: appendCmd.ChannelID, Type: appendCmd.ChannelType}, appendCmd.FromUID)...)
 		fields = append(fields, wklog.Error(ErrClusterRequired))
 		a.sendLogger().Error("message cluster is required", fields...)
 		return SendResult{}, ErrClusterRequired
 	}
 
-	return a.sendDurable(ctx, cmd)
+	return a.sendDurable(ctx, appendCmd)
 }
 
 func (a *App) sendDurable(ctx context.Context, cmd SendCommand) (SendResult, error) {

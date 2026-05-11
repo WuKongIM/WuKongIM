@@ -10,6 +10,7 @@ import (
 	channelmembers "github.com/WuKongIM/WuKongIM/internal/contracts/channelmembers"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	"github.com/WuKongIM/WuKongIM/internal/observability/sendtrace"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
@@ -375,6 +376,166 @@ func TestSendAllowsPersonSenderWhenReceiverDenylistMisses(t *testing.T) {
 	require.Len(t, cluster.sendRequests, 1)
 }
 
+func TestSendSyncOncePlainDurablePersonStillCanonicalizesAndAppendsOnce(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 704, MessageSeq: 34}},
+		},
+	}
+	app := New(Options{
+		Now:           fixedNowFn,
+		Cluster:       cluster,
+		MetaRefresher: &fakeMetaRefresher{},
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(704), result.MessageID)
+	require.Equal(t, uint64(34), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Equal(t, channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson}, cluster.sendRequests[0].ChannelID)
+	require.Equal(t, "u2@u1", cluster.sendRequests[0].Message.ChannelID)
+}
+
+func TestSendSyncOnceNormalGroupAppendsToCommandChannelAfterPermissionChecks(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 705, MessageSeq: 35}},
+		},
+	}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
+		ChannelID:   "g1",
+		ChannelType: int64(frame.ChannelTypeGroup),
+	}
+	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		MetaRefresher:   &fakeMetaRefresher{},
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:      frame.Framer{SyncOnce: true},
+		FromUID:     "u1",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(705), result.MessageID)
+	require.Equal(t, uint64(35), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Equal(t, channel.ChannelID{ID: runtimechannelid.ToCommandChannel("g1"), Type: frame.ChannelTypeGroup}, cluster.sendRequests[0].ChannelID)
+	require.Equal(t, runtimechannelid.ToCommandChannel("g1"), cluster.sendRequests[0].Message.ChannelID)
+}
+
+func TestSendAlreadyDerivedGroupChecksSourceAndAppendsWithoutDoubleCommandSuffix(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 706, MessageSeq: 36}},
+		},
+	}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
+		ChannelID:   "g1",
+		ChannelType: int64(frame.ChannelTypeGroup),
+	}
+	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		MetaRefresher:   &fakeMetaRefresher{},
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   runtimechannelid.ToCommandChannel("g1"),
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(706), result.MessageID)
+	require.Equal(t, uint64(36), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Equal(t, channel.ChannelID{ID: runtimechannelid.ToCommandChannel("g1"), Type: frame.ChannelTypeGroup}, cluster.sendRequests[0].ChannelID)
+	require.NotContains(t, cluster.sendRequests[0].ChannelID.ID, runtimechannelid.CommandChannelSuffix+runtimechannelid.CommandChannelSuffix)
+}
+
+func TestSendAlreadyDerivedPersonStripsBeforeNormalizeAndRestoresCommandSuffixOnce(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 707, MessageSeq: 37}},
+		},
+	}
+	app := New(Options{
+		Now:           fixedNowFn,
+		Cluster:       cluster,
+		MetaRefresher: &fakeMetaRefresher{},
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   runtimechannelid.ToCommandChannel("u1@u2"),
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(707), result.MessageID)
+	require.Equal(t, uint64(37), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Equal(t, channel.ChannelID{ID: runtimechannelid.ToCommandChannel("u2@u1"), Type: frame.ChannelTypePerson}, cluster.sendRequests[0].ChannelID)
+	require.Equal(t, runtimechannelid.ToCommandChannel("u2@u1"), cluster.sendRequests[0].Message.ChannelID)
+	require.NotContains(t, cluster.sendRequests[0].ChannelID.ID, runtimechannelid.CommandChannelSuffix+runtimechannelid.CommandChannelSuffix)
+}
+
+func TestSendNoPersistWithSyncOnceReturnsSuccessWithoutDurableAppend(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	dispatcher := &recordingCommittedDispatcher{}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
+		ChannelID:   "g1",
+		ChannelType: int64(frame.ChannelTypeGroup),
+	}
+	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
+	app := New(Options{
+		Now:                 fixedNowFn,
+		Cluster:             cluster,
+		CommittedDispatcher: dispatcher,
+		PermissionStore:     permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:      frame.Framer{NoPersist: true, SyncOnce: true},
+		FromUID:     "u1",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Zero(t, result.MessageID)
+	require.Zero(t, result.MessageSeq)
+	require.Empty(t, cluster.sendRequests)
+	require.Empty(t, dispatcher.calls)
+}
+
 func TestSendSystemUIDBypassesPermissionChecks(t *testing.T) {
 	cluster := &fakeChannelCluster{
 		sendReplies: []fakeChannelClusterSendReply{
@@ -491,7 +652,7 @@ func TestSendReturnsSuccessAfterDurableWriteAndSubmitsCommittedMessage(t *testin
 					ClientMsgNo: "m1",
 					StreamNo:    "stream-1",
 					Timestamp:   int32(fixedSendNow.Unix()),
-					ChannelID:   "u2@u1",
+					ChannelID:   runtimechannelid.ToCommandChannel("u2@u1"),
 					ChannelType: frame.ChannelTypePerson,
 					Topic:       "chat",
 					FromUID:     "u1",
@@ -528,7 +689,7 @@ func TestSendReturnsSuccessAfterDurableWriteAndSubmitsCommittedMessage(t *testin
 	require.Equal(t, int64(99), result.MessageID)
 	require.Equal(t, uint64(7), result.MessageSeq)
 	require.Len(t, cluster.sendRequests, 1)
-	require.Equal(t, channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson}, cluster.sendRequests[0].ChannelID)
+	require.Equal(t, channel.ChannelID{ID: runtimechannelid.ToCommandChannel("u2@u1"), Type: frame.ChannelTypePerson}, cluster.sendRequests[0].ChannelID)
 	require.Equal(t, frame.Framer{RedDot: true, SyncOnce: true}, cluster.sendRequests[0].Message.Framer)
 	require.Equal(t, frame.SettingReceiptEnabled, cluster.sendRequests[0].Message.Setting)
 	require.Equal(t, "k1", cluster.sendRequests[0].Message.MsgKey)
@@ -537,6 +698,7 @@ func TestSendReturnsSuccessAfterDurableWriteAndSubmitsCommittedMessage(t *testin
 	require.Equal(t, "m1", cluster.sendRequests[0].Message.ClientMsgNo)
 	require.Equal(t, "stream-1", cluster.sendRequests[0].Message.StreamNo)
 	require.Equal(t, int32(fixedSendNow.Unix()), cluster.sendRequests[0].Message.Timestamp)
+	require.Equal(t, runtimechannelid.ToCommandChannel("u2@u1"), cluster.sendRequests[0].Message.ChannelID)
 	require.Equal(t, "chat", cluster.sendRequests[0].Message.Topic)
 	require.Equal(t, "u1", cluster.sendRequests[0].Message.FromUID)
 	require.Equal(t, []byte("hi"), cluster.sendRequests[0].Message.Payload)
@@ -554,7 +716,7 @@ func TestSendReturnsSuccessAfterDurableWriteAndSubmitsCommittedMessage(t *testin
 		ClientMsgNo: "m1",
 		StreamNo:    "stream-1",
 		Timestamp:   int32(fixedSendNow.Unix()),
-		ChannelID:   "u2@u1",
+		ChannelID:   runtimechannelid.ToCommandChannel("u2@u1"),
 		ChannelType: frame.ChannelTypePerson,
 		Topic:       "chat",
 		FromUID:     "u1",
