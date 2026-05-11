@@ -568,8 +568,8 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 	if !haveLeaseUntil {
 		return ChannelRuntimeMeta{}, fmt.Errorf("%w: missing int column %d", ErrCorruptValue, channelRuntimeMetaColumnIDLeaseUntilMS)
 	}
-	if hasIncompleteChannelRuntimeMetaWriteFence(meta) {
-		return ChannelRuntimeMeta{}, fmt.Errorf("%w: write fence fields require version", ErrCorruptValue)
+	if hasInvalidChannelRuntimeMetaWriteFence(meta) {
+		return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid write fence state", ErrCorruptValue)
 	}
 	return normalizeChannelRuntimeMeta(meta), nil
 }
