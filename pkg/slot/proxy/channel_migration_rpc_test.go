@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -274,6 +275,97 @@ func TestChannelMigrationGarbageCollectsTerminalTasksForLocalLeaderSlots(t *test
 	require.Equal(t, remote.TaskID, gotRemote.TaskID)
 }
 
+func TestChannelMigrationGarbageCollectSkipsReplicatedSlots(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	hashSlot := uint16(7)
+	cluster := &proxyTestMigrationCluster{
+		nodeID:         1,
+		localNodeID:    1,
+		slotForKey:     1,
+		hashSlotForKey: hashSlot,
+		slotIDs:        []multiraft.SlotID{1},
+		hashSlots:      map[multiraft.SlotID][]uint16{1: {hashSlot}},
+		leaders:        map[multiraft.SlotID]multiraft.NodeID{1: 1},
+		peers:          map[multiraft.SlotID][]multiraft.NodeID{1: {1, 2}},
+	}
+	store := &Store{cluster: cluster, db: db}
+	task := proxyTestCompletedChannelMigrationTask("task-gc-replicated", "channel-gc-replicated", 1750000010000)
+	require.NoError(t, db.ForHashSlot(hashSlot).CreateChannelMigrationTask(ctx, task))
+
+	deleted, err := store.GarbageCollectTerminalChannelMigrationTasks(ctx, 1750000020000, 10)
+	require.NoError(t, err)
+	require.Zero(t, deleted)
+
+	got, err := db.ForHashSlot(hashSlot).GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, task.TaskID, got.TaskID)
+}
+
+func TestChannelMigrationProposeRejectsStaleRouteBeforeRaftApply(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	cluster := &proxyTestMigrationCluster{
+		nodeID:         2,
+		localNodeID:    2,
+		slotForKey:     1,
+		hashSlotForKey: 1,
+		leaders:        map[multiraft.SlotID]multiraft.NodeID{1: 1, 2: 2},
+	}
+	store := &Store{cluster: cluster, db: db}
+	task := proxyTestChannelMigrationTask("task-stale-route", "channel-stale-route")
+	body, err := encodeChannelMigrationRPCRequestBinary(channelMigrationRPCRequest{
+		Op:        channelMigrationRPCPropose,
+		SlotID:    2,
+		HashSlot:  2,
+		ChannelID: task.ChannelID,
+		Command:   []byte{1, 30},
+	})
+	require.NoError(t, err)
+
+	respBody, err := store.handleChannelMigrationRPC(ctx, body)
+	require.NoError(t, err)
+	resp, err := decodeChannelMigrationRPCResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, rpcStatusNotLeader, resp.Status)
+	require.Equal(t, uint64(1), resp.LeaderID)
+	require.Zero(t, cluster.proposals)
+}
+
+func TestChannelMigrationReadDoesNotHideStaleMetaStatus(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	cluster := &proxyTestMigrationCluster{
+		slotForKey:     2,
+		hashSlotForKey: 1,
+		leaders:        map[multiraft.SlotID]multiraft.NodeID{2: 2},
+		peers:          map[multiraft.SlotID][]multiraft.NodeID{2: {2}},
+		rpcResponse: func() []byte {
+			body, err := encodeChannelMigrationRPCResponse(channelMigrationRPCResponse{Status: rpcStatusStaleMeta})
+			require.NoError(t, err)
+			return body
+		}(),
+	}
+	store := &Store{cluster: cluster, db: db}
+
+	_, ok, err := store.GetActiveChannelMigrationTask(ctx, "channel-stale-read", 1)
+	require.ErrorContains(t, err, "unexpected rpc status")
+	require.False(t, ok)
+}
+
+func TestChannelMigrationRPCCodecRejectsInvalidTaskEnums(t *testing.T) {
+	task := proxyTestChannelMigrationTask("task-invalid-enum", "channel-invalid-enum")
+	task.Kind = metadb.ChannelMigrationKind(99)
+	body, err := encodeChannelMigrationRPCResponse(channelMigrationRPCResponse{
+		Status: rpcStatusOK,
+		Task:   &task,
+	})
+	require.NoError(t, err)
+
+	_, err = decodeChannelMigrationRPCResponse(body)
+	require.Error(t, err)
+}
+
 func proxyTestChannelMigrationTask(taskID, channelID string) metadb.ChannelMigrationTask {
 	return metadb.ChannelMigrationTask{
 		TaskID:           taskID,
@@ -394,4 +486,66 @@ func proxyTestSetDrainProof(task *metadb.ChannelMigrationTask, fenceVersion uint
 	task.DrainedChannelEpoch = task.BaseChannelEpoch
 	task.DrainedLeaderEpoch = task.BaseLeaderEpoch
 	task.DrainedFenceVersion = fenceVersion
+}
+
+type proxyTestMigrationCluster struct {
+	raftcluster.API
+	nodeID         multiraft.NodeID
+	localNodeID    multiraft.NodeID
+	slotForKey     multiraft.SlotID
+	hashSlotForKey uint16
+	slotIDs        []multiraft.SlotID
+	hashSlots      map[multiraft.SlotID][]uint16
+	leaders        map[multiraft.SlotID]multiraft.NodeID
+	peers          map[multiraft.SlotID][]multiraft.NodeID
+	rpcResponse    []byte
+	proposals      int
+}
+
+func (c *proxyTestMigrationCluster) NodeID() multiraft.NodeID {
+	return c.nodeID
+}
+
+func (c *proxyTestMigrationCluster) SlotForKey(string) multiraft.SlotID {
+	return c.slotForKey
+}
+
+func (c *proxyTestMigrationCluster) HashSlotForKey(string) uint16 {
+	return c.hashSlotForKey
+}
+
+func (c *proxyTestMigrationCluster) HashSlotsOf(slotID multiraft.SlotID) []uint16 {
+	return append([]uint16(nil), c.hashSlots[slotID]...)
+}
+
+func (c *proxyTestMigrationCluster) SlotIDs() []multiraft.SlotID {
+	return append([]multiraft.SlotID(nil), c.slotIDs...)
+}
+
+func (c *proxyTestMigrationCluster) LeaderOf(slotID multiraft.SlotID) (multiraft.NodeID, error) {
+	leaderID, ok := c.leaders[slotID]
+	if !ok {
+		return 0, raftcluster.ErrNoLeader
+	}
+	return leaderID, nil
+}
+
+func (c *proxyTestMigrationCluster) IsLocal(nodeID multiraft.NodeID) bool {
+	return nodeID == c.localNodeID
+}
+
+func (c *proxyTestMigrationCluster) PeersForSlot(slotID multiraft.SlotID) []multiraft.NodeID {
+	return append([]multiraft.NodeID(nil), c.peers[slotID]...)
+}
+
+func (c *proxyTestMigrationCluster) ProposeWithHashSlot(context.Context, multiraft.SlotID, uint16, []byte) error {
+	c.proposals++
+	return nil
+}
+
+func (c *proxyTestMigrationCluster) RPCService(context.Context, multiraft.NodeID, multiraft.SlotID, uint8, []byte) ([]byte, error) {
+	if c.rpcResponse == nil {
+		return nil, fmt.Errorf("missing rpc response")
+	}
+	return c.rpcResponse, nil
 }

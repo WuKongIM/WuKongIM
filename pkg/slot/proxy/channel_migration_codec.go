@@ -214,18 +214,27 @@ func readChannelMigrationTask(body []byte, offset int) (metadb.ChannelMigrationT
 		return metadb.ChannelMigrationTask{}, offset, err
 	}
 	task.Kind = metadb.ChannelMigrationKind(kind)
+	if !isValidChannelMigrationKindForRPC(task.Kind) {
+		return metadb.ChannelMigrationTask{}, offset, fmt.Errorf("metastore: invalid channel migration kind %d", kind)
+	}
 	offset = next
 	status, next, err := runtimeMetaReadUvarint(body, offset)
 	if err != nil {
 		return metadb.ChannelMigrationTask{}, offset, err
 	}
 	task.Status = metadb.ChannelMigrationStatus(status)
+	if !isValidChannelMigrationStatusForRPC(task.Status) {
+		return metadb.ChannelMigrationTask{}, offset, fmt.Errorf("metastore: invalid channel migration status %d", status)
+	}
 	offset = next
 	phase, next, err := runtimeMetaReadUvarint(body, offset)
 	if err != nil {
 		return metadb.ChannelMigrationTask{}, offset, err
 	}
 	task.Phase = metadb.ChannelMigrationPhase(phase)
+	if !isValidChannelMigrationPhaseForRPC(task.Phase) {
+		return metadb.ChannelMigrationTask{}, offset, fmt.Errorf("metastore: invalid channel migration phase %d", phase)
+	}
 	offset = next
 	if task.ChannelID, offset, err = runtimeMetaReadString(body, offset); err != nil {
 		return metadb.ChannelMigrationTask{}, offset, err
@@ -357,4 +366,49 @@ func readChannelMigrationProgress(body []byte, offset int) (metadb.ChannelMigrat
 		return metadb.ChannelMigrationProgress{}, offset, err
 	}
 	return progress, offset, nil
+}
+
+func isValidChannelMigrationKindForRPC(kind metadb.ChannelMigrationKind) bool {
+	switch kind {
+	case metadb.ChannelMigrationKindLeaderTransfer, metadb.ChannelMigrationKindReplicaReplace:
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidChannelMigrationStatusForRPC(status metadb.ChannelMigrationStatus) bool {
+	switch status {
+	case metadb.ChannelMigrationStatusPending,
+		metadb.ChannelMigrationStatusRunning,
+		metadb.ChannelMigrationStatusBlocked,
+		metadb.ChannelMigrationStatusCompleted,
+		metadb.ChannelMigrationStatusFailed,
+		metadb.ChannelMigrationStatusAborted:
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidChannelMigrationPhaseForRPC(phase metadb.ChannelMigrationPhase) bool {
+	switch phase {
+	case metadb.ChannelMigrationPhaseValidate,
+		metadb.ChannelMigrationPhaseProbeTarget,
+		metadb.ChannelMigrationPhaseWriteFence,
+		metadb.ChannelMigrationPhaseDrainLeader,
+		metadb.ChannelMigrationPhaseFinalTargetCatchUp,
+		metadb.ChannelMigrationPhaseCommitLeaderMeta,
+		metadb.ChannelMigrationPhaseVerifyNewLeader,
+		metadb.ChannelMigrationPhaseAddLearner,
+		metadb.ChannelMigrationPhaseBootstrapTarget,
+		metadb.ChannelMigrationPhaseWarmCatchUp,
+		metadb.ChannelMigrationPhaseCutoverFence,
+		metadb.ChannelMigrationPhasePromoteAndRemove,
+		metadb.ChannelMigrationPhaseVerifyMembership,
+		metadb.ChannelMigrationPhaseClearFence:
+		return true
+	default:
+		return false
+	}
 }
