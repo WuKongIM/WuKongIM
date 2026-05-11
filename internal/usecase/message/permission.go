@@ -18,6 +18,10 @@ func (a *App) checkSendPermission(ctx context.Context, cmd SendCommand) (frame.R
 		return frame.ReasonSuccess, nil
 	}
 
+	if reason, err := a.checkSenderSendPermission(ctx, cmd.FromUID); reason != frame.ReasonSuccess || err != nil {
+		return reason, err
+	}
+
 	switch cmd.ChannelType {
 	case frame.ChannelTypePerson:
 		return a.checkPersonSendPermission(ctx, cmd)
@@ -26,6 +30,20 @@ func (a *App) checkSendPermission(ctx context.Context, cmd SendCommand) (frame.R
 	default:
 		return frame.ReasonSuccess, nil
 	}
+}
+
+func (a *App) checkSenderSendPermission(ctx context.Context, fromUID string) (frame.ReasonCode, error) {
+	ch, err := a.permissions.GetChannelForPermission(ctx, fromUID, int64(frame.ChannelTypePerson))
+	if errors.Is(err, metadb.ErrNotFound) {
+		return frame.ReasonSuccess, nil
+	}
+	if err != nil {
+		return frame.ReasonSystemError, err
+	}
+	if ch.SendBan != 0 {
+		return frame.ReasonSendBan, nil
+	}
+	return frame.ReasonSuccess, nil
 }
 
 func (a *App) checkGroupSendPermission(ctx context.Context, cmd SendCommand) (frame.ReasonCode, error) {
@@ -38,6 +56,9 @@ func (a *App) checkGroupSendPermission(ctx context.Context, cmd SendCommand) (fr
 	}
 	if ch.Ban != 0 {
 		return frame.ReasonBan, nil
+	}
+	if ch.Disband != 0 {
+		return frame.ReasonDisband, nil
 	}
 
 	key := channelmembers.ChannelKey{ChannelID: cmd.ChannelID, ChannelType: cmd.ChannelType}

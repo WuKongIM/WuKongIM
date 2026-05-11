@@ -91,6 +91,59 @@ func TestSendRejectsBannedGroupBeforeDurableAppend(t *testing.T) {
 	require.Empty(t, cluster.sendRequests)
 }
 
+func TestSendRejectsSenderSendBanBeforeDurableAppend(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("u1", int64(frame.ChannelTypePerson))] = metadb.Channel{
+		ChannelID:   "u1",
+		ChannelType: int64(frame.ChannelTypePerson),
+		SendBan:     1,
+	}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSendBan, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+}
+
+func TestSendRejectsGroupDisbandBeforeDurableAppend(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
+		ChannelID:   "g1",
+		ChannelType: int64(frame.ChannelTypeGroup),
+		Disband:     1,
+	}
+	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonDisband, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+}
+
 func TestSendRejectsGroupSenderInDenylistBeforeDurableAppend(t *testing.T) {
 	cluster := &fakeChannelCluster{}
 	permissions := newFakePermissionStore()
@@ -263,10 +316,15 @@ func TestSendSystemUIDBypassesPermissionChecks(t *testing.T) {
 		},
 	}
 	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("sys", int64(frame.ChannelTypePerson))] = metadb.Channel{
+		ChannelID:   "sys",
+		ChannelType: int64(frame.ChannelTypePerson),
+		SendBan:     1,
+	}
 	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
 		ChannelID:   "g1",
 		ChannelType: int64(frame.ChannelTypeGroup),
-		Ban:         1,
+		Disband:     1,
 	}
 	denyID := channelmembers.DenylistChannelID(channelmembers.ChannelKey{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup})
 	permissions.members[permissionKey(denyID, int64(frame.ChannelTypeGroup))] = map[string]bool{"sys": true}
