@@ -222,6 +222,59 @@ func TestSendRequestScopedDurableAppendsTempCommandAndDispatchesSubscribers(t *t
 	require.Equal(t, frame.ChannelTypeTemp, dispatcher.calls[0].Message.ChannelType)
 }
 
+func TestSendRequestScopedNoPersistDispatchesRealtimeScopedEnvelope(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	realtime := &recordingRealtimeDispatcher{}
+	ids := &sequenceMessageIDGenerator{next: 909}
+	app := New(Options{
+		Now:                fixedNowFn,
+		Cluster:            cluster,
+		MessageIDs:         ids,
+		RealtimeDispatcher: realtime,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:             frame.Framer{NoPersist: true, SyncOnce: true},
+		Setting:            frame.SettingReceiptEnabled,
+		MsgKey:             "k-realtime",
+		Expire:             30,
+		FromUID:            "system",
+		SenderSessionID:    77,
+		RequestSubscribers: []string{"u1", "u2", "u1"},
+		Payload:            []byte("cmd realtime"),
+		ClientSeq:          11,
+		ClientMsgNo:        "request-scoped-realtime-1",
+		Topic:              "realtime-topic",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(909), result.MessageID)
+	require.Zero(t, result.MessageSeq)
+	require.Empty(t, cluster.sendRequests)
+
+	scoped, err := runtimechannelid.RequestSubscriberChannelFor([]string{"u1", "u2"})
+	require.NoError(t, err)
+	require.Len(t, realtime.calls, 1)
+	call := realtime.calls[0]
+	require.Equal(t, uint64(77), call.SenderSessionID)
+	require.Equal(t, []string{"u1", "u2"}, call.MessageScopedUIDs)
+	require.Equal(t, uint64(909), call.Message.MessageID)
+	require.Zero(t, call.Message.MessageSeq)
+	require.Equal(t, scoped.CommandChannelID, call.Message.ChannelID)
+	require.Equal(t, frame.ChannelTypeTemp, call.Message.ChannelType)
+	require.Equal(t, frame.Framer{NoPersist: true, SyncOnce: true}, call.Message.Framer)
+	require.Equal(t, frame.SettingReceiptEnabled, call.Message.Setting)
+	require.Equal(t, "k-realtime", call.Message.MsgKey)
+	require.Equal(t, uint32(30), call.Message.Expire)
+	require.Equal(t, uint64(11), call.Message.ClientSeq)
+	require.Equal(t, "request-scoped-realtime-1", call.Message.ClientMsgNo)
+	require.Equal(t, "realtime-topic", call.Message.Topic)
+	require.Equal(t, "system", call.Message.FromUID)
+	require.Equal(t, []byte("cmd realtime"), call.Message.Payload)
+	require.Equal(t, int32(fixedSendNow.Unix()), call.Message.Timestamp)
+}
+
 func TestSendRejectsBannedGroupBeforeDurableAppend(t *testing.T) {
 	cluster := &fakeChannelCluster{}
 	permissions := newFakePermissionStore()
@@ -1345,6 +1398,8 @@ func TestNewPreservesInjectedCollaborators(t *testing.T) {
 	reg := &fakeRegistry{}
 	delivery := &recordingDelivery{}
 	dispatcher := &recordingCommittedDispatcher{}
+	realtime := &recordingRealtimeDispatcher{}
+	messageIDs := &sequenceMessageIDGenerator{next: 1001}
 	acks := &recordingDeliveryAck{}
 	offline := &recordingDeliveryOffline{}
 	permissions := newFakePermissionStore()
@@ -1361,6 +1416,8 @@ func TestNewPreservesInjectedCollaborators(t *testing.T) {
 		Online:              reg,
 		Delivery:            delivery,
 		CommittedDispatcher: dispatcher,
+		RealtimeDispatcher:  realtime,
+		MessageIDs:          messageIDs,
 		DeliveryAck:         acks,
 		DeliveryOffline:     offline,
 		LocalBootID:         9,
@@ -1377,6 +1434,8 @@ func TestNewPreservesInjectedCollaborators(t *testing.T) {
 	require.Same(t, reg, app.online)
 	require.Same(t, delivery, app.delivery)
 	require.Same(t, dispatcher, app.dispatcher)
+	require.Same(t, realtime, app.realtime)
+	require.Same(t, messageIDs, app.messageIDs)
 	require.Same(t, acks, app.deliveryAck)
 	require.Same(t, offline, app.deliveryOffline)
 	require.Equal(t, uint64(9), app.localBootID)
@@ -1513,6 +1572,27 @@ func (d *recordingCommittedDispatcher) SubmitCommitted(_ context.Context, env me
 }
 
 type deliveryEnvelopeRecord = messageevents.MessageCommitted
+
+type recordingRealtimeDispatcher struct {
+	calls []messageevents.MessageRealtime
+	err   error
+}
+
+func (d *recordingRealtimeDispatcher) SubmitRealtime(_ context.Context, event messageevents.MessageRealtime) error {
+	copied := event.Clone()
+	d.calls = append(d.calls, copied)
+	return d.err
+}
+
+type sequenceMessageIDGenerator struct {
+	next uint64
+}
+
+func (g *sequenceMessageIDGenerator) Next() uint64 {
+	id := g.next
+	g.next++
+	return id
+}
 
 type fakeIdentityStore struct{}
 

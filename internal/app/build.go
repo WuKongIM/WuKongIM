@@ -579,6 +579,8 @@ func build(cfg Config) (_ *App, err error) {
 		AppendMetrics:       messageMetrics,
 		Online:              onlineRegistry,
 		CommittedDispatcher: committedDispatcher,
+		RealtimeDispatcher:  app.deliveryApp,
+		MessageIDs:          messageIDs,
 		DeliveryAck: ackRouting{
 			localNodeID: cfg.Node.ID,
 			local:       app.deliveryApp,

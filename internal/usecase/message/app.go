@@ -22,6 +22,8 @@ var (
 	ErrRequestSubscribersRequireSyncOnce = errors.New("usecase/message: request subscribers require sync_once")
 	ErrRequestSubscribersConflictChannel = errors.New("usecase/message: request subscribers cannot include channel_id")
 	ErrRequestSubscribersRequired        = errors.New("usecase/message: request subscribers required")
+	ErrMessageIDGeneratorRequired        = errors.New("usecase/message: message id generator required")
+	ErrRealtimeDispatcherRequired        = errors.New("usecase/message: realtime dispatcher required")
 )
 
 type Options struct {
@@ -36,6 +38,8 @@ type Options struct {
 	Recipients          RecipientDirectory
 	RemoteDelivery      RemoteDelivery
 	CommittedDispatcher CommittedMessageDispatcher
+	RealtimeDispatcher  RealtimeDispatcher
+	MessageIDs          MessageIDGenerator
 	DeliveryAck         DeliveryAck
 	DeliveryOffline     DeliveryOffline
 	PermissionStore     PermissionStore
@@ -60,6 +64,8 @@ type App struct {
 	recipients      RecipientDirectory
 	remote          RemoteDelivery
 	dispatcher      CommittedMessageDispatcher
+	realtime        RealtimeDispatcher
+	messageIDs      MessageIDGenerator
 	deliveryAck     DeliveryAck
 	deliveryOffline DeliveryOffline
 	permissions     PermissionStore
@@ -97,6 +103,8 @@ func New(opts Options) *App {
 		recipients:      opts.Recipients,
 		remote:          opts.RemoteDelivery,
 		dispatcher:      opts.CommittedDispatcher,
+		realtime:        opts.RealtimeDispatcher,
+		messageIDs:      opts.MessageIDs,
 		deliveryAck:     opts.DeliveryAck,
 		deliveryOffline: opts.DeliveryOffline,
 		permissions:     opts.PermissionStore,
