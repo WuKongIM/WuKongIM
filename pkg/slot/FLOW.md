@@ -46,7 +46,7 @@ Runtime.ChangeConfig / TransferLeadership / CompactLog / Status
 | `Status` | multiraft/types.go | Runtime 观测：Leader、Peers、CurrentVoters、Term/Index 等；CurrentVoters 来自当前 Raft conf state |
 | `Storage` interface | multiraft/types.go | Raft 日志存储抽象：InitialState / Entries / Save / MarkApplied |
 | `User` / `Channel` / `Device` | meta/*.go | 业务数据模型；`Channel` 现在持久化 `Ban` / `Disband` / `SendBan` / `SubscriberMutationVersion` |
-| `ChannelRuntimeMeta` | meta/channel_runtime_meta.go | Leader/ISR/Epoch 与权威保留边界运行时元数据 |
+| `ChannelRuntimeMeta` | meta/channel_runtime_meta.go | Leader/ISR/Epoch、write-fence 与权威保留边界运行时元数据 |
 | `Raft Logger` | multiraft/logging.go | `wklog` 结构化日志，模块 `slot.raft`，附带 `raftScope=slot` / `nodeID` / `slotID` / `raftEvent`；heartbeat/read-index/probe 类噪声按 Debug 输出 |
 
 ## 5. 核心流程
@@ -220,7 +220,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **迁移期 Delta 是受限例外**: Controller 把迁移推进到 `PhaseDelta` 后，源 Slot 的 `fsm.stateMachine` 会由 `cluster` 注入 delta forwarder，把 live write 包装成 `apply_delta` 转发到目标 Slot；目标 Slot 只对这类 `apply_delta` 放开迁移中的 hash slot，普通命令仍按最终归属校验拒绝。
 - **CreateUser 幂等**: `Store.CreateUser` 先权威 RPC 查询避免重复，但 Raft Apply 层的 `CreateUser` 仍需是幂等的（并发场景下已存在时跳过，不能 fail Slot）。见 `meta/batch.go:CreateUser`。
 - **ListChannelRuntimeMeta 扇出**: `store.go:102` 遍历所有 SlotID 发 RPC，N 个 Slot 就是 N 次 RPC，慎用。
-- **ChannelRuntimeMeta 写入单调保护**: `UpsertChannelRuntimeMeta` 会拒绝更旧的 `ChannelEpoch` / `LeaderEpoch`，同一 epoch 下也不会切换到不同 leader 或缩短 leader lease；已接受的写入不会降低 `RetentionThroughSeq`，相同边界下不会回退 `RetentionUpdatedAtMS`；repair / bootstrap 必须通过更高 epoch 或更长 lease 表达有效更新。
+- **ChannelRuntimeMeta 写入单调保护**: `UpsertChannelRuntimeMeta` 会拒绝更旧的 `ChannelEpoch` / `LeaderEpoch`，同一 epoch 下也不会切换到不同 leader 或缩短 leader lease；已接受的写入不会降低 `RetentionThroughSeq`，相同边界下不会回退 `RetentionUpdatedAtMS`；write-fence 字段是同一通道的权威 fence 状态，`set/renew/reset/clear` 必须通过更高的 `WriteFenceVersion` 表达有效更新，单调写入不能清空或回退已有 fence；repair / bootstrap 必须通过更高 epoch 或更长 lease 表达有效更新。
 - **Retention 窄更新是可失败提案**: `AdvanceChannelRetentionThroughSeq` 直接调用 meta store 时会返回 `ErrStaleMeta` / `ErrNotFound`，但 FSM apply 会把 stale 或缺失 runtime meta 转成确定性的 `stale_meta` 结果，避免正常竞态让 Slot fatal；proxy/cluster 再把该结果归一化为调用方可见的 `ErrStaleMeta`。
 - **ChannelRuntimeMeta 分页边界**: `meta.ShardStore.ListChannelRuntimeMetaPage` 只扫描当前 hash slot 的主键范围，按 `(channel_id, channel_type)` 升序读取并用 `limit+1` 判定是否还有下一页；更高层如果需要物理 Slot / 全局分页，必须基于这个分片原语做增量合并，不能先全量拉取再截页。
 - **ChannelRuntimeMeta 权威分页**: `Store.ScanChannelRuntimeMetaSlotPage` 通过 `runtime_meta scan_page` 在物理 Slot leader 上把多个 hash slot 做增量 k-way merge；任一节点对同一 Slot 发起分页都会路由到同一个权威来源，不允许回退本地全量扫描。
