@@ -241,6 +241,8 @@ func (r *runtime) ApplyMeta(meta core.Meta) error {
 	if !ok {
 		return ErrChannelNotFound
 	}
+	ch.applyMu.Lock()
+	defer ch.applyMu.Unlock()
 	previousMeta := ch.metaSnapshot()
 	if staleWriteFence(previousMeta.WriteFence, meta.WriteFence) {
 		return core.ErrStaleMeta

@@ -501,6 +501,53 @@ func TestApplyAuthoritativeMetaInvalidatesWriteFenceCacheBeforeRuntimeApply(t *t
 	require.NoError(t, <-done)
 }
 
+func TestApplyAuthoritativeMetaInvalidatesInflightRefreshWithoutCachedEntry(t *testing.T) {
+	id := channel.ChannelID{ID: "g-fence-inflight-no-cache", Type: 2}
+	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+	unfenced := metadb.ChannelRuntimeMeta{
+		ChannelID: id.ID, ChannelType: int64(id.Type), ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
+		Status: uint8(channel.StatusActive), LeaseUntilMS: now.Add(time.Minute).UnixMilli(),
+	}
+	fenced := unfenced
+	fenced.WriteFenceToken = "task-fence-inflight"
+	fenced.WriteFenceVersion = 8
+	fenced.WriteFenceReason = 1
+	fenced.WriteFenceUntilMS = now.Add(time.Minute).UnixMilli()
+	source := &invalidationSourceFake{
+		stale:        unfenced,
+		fresh:        fenced,
+		firstEntered: make(chan struct{}),
+		releaseFirst: make(chan struct{}),
+	}
+	syncer := NewSync(SyncOptions{Source: source, Runtime: &resolverRuntimeFake{}, LocalNode: 1, Now: func() time.Time { return now }})
+
+	type activationResult struct {
+		meta channel.Meta
+		err  error
+	}
+	firstDone := make(chan activationResult, 1)
+	go func() {
+		got, err := syncer.RefreshChannelMeta(context.Background(), id)
+		firstDone <- activationResult{meta: got, err: err}
+	}()
+	<-source.firstEntered
+
+	_, err := syncer.ApplyAuthoritativeMeta(fenced)
+	require.NoError(t, err)
+	close(source.releaseFirst)
+
+	first := <-firstDone
+	require.ErrorIs(t, first.err, channel.ErrStaleMeta)
+	require.Zero(t, first.meta.WriteFence.Version)
+
+	second, err := syncer.RefreshChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+	require.Equal(t, uint64(8), second.WriteFence.Version)
+	require.Equal(t, "task-fence-inflight", second.WriteFence.Token)
+	require.Equal(t, 2, source.calls)
+}
+
 func TestRefreshChannelMetaReportsCacheHitAndRefreshOutcomes(t *testing.T) {
 	id := channel.ChannelID{ID: "g-observe", Type: 2}
 	now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)

@@ -302,16 +302,24 @@ func (c *ActivationCache) invalidateIfWriteFenceChanged(key channel.ChannelKey, 
 	shard := c.shard(key)
 	shard.mu.Lock()
 	entry, ok := shard.positive[key]
-	changed := ok && (!entry.hasAuthoritative ||
+	changed := !ok && hasAuthoritativeWriteFence(authoritative)
+	changed = changed || (ok && (!entry.hasAuthoritative ||
 		entry.authoritative.WriteFenceVersion != authoritative.WriteFenceVersion ||
 		entry.authoritative.WriteFenceToken != authoritative.WriteFenceToken ||
 		entry.authoritative.WriteFenceReason != authoritative.WriteFenceReason ||
 		entry.authoritative.WriteFenceUntilMS != authoritative.WriteFenceUntilMS ||
-		entry.meta.WriteFence.Token != "")
+		entry.meta.WriteFence.Token != ""))
 	shard.mu.Unlock()
 	if changed {
 		c.Invalidate(key)
 	}
+}
+
+func hasAuthoritativeWriteFence(meta metadb.ChannelRuntimeMeta) bool {
+	return meta.WriteFenceVersion != 0 ||
+		meta.WriteFenceToken != "" ||
+		meta.WriteFenceReason != 0 ||
+		meta.WriteFenceUntilMS != 0
 }
 
 func (c *ActivationCache) currentGenerationLocked(key channel.ChannelKey) ActivationCacheGeneration {
