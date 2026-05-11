@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
@@ -25,6 +26,12 @@ func mapSendError(err error) (int, string, bool) {
 		return http.StatusServiceUnavailable, "retry required", true
 	case errors.Is(err, runtimechannelid.ErrInvalidPersonChannel):
 		return http.StatusBadRequest, "invalid channel id", true
+	case errors.Is(err, message.ErrRequestSubscribersRequireSyncOnce):
+		return http.StatusBadRequest, "request subscribers require sync_once", true
+	case errors.Is(err, message.ErrRequestSubscribersConflictChannel):
+		return http.StatusBadRequest, "request subscribers cannot include channel_id", true
+	case errors.Is(err, message.ErrRequestSubscribersRequired):
+		return http.StatusBadRequest, "request subscribers required", true
 	case errors.Is(err, context.Canceled):
 		return http.StatusRequestTimeout, "request canceled", true
 	case errors.Is(err, context.DeadlineExceeded):
