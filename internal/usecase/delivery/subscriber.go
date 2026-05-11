@@ -114,7 +114,7 @@ func (r *subscriberResolver) BeginSnapshotWithRequest(ctx context.Context, id ch
 	currentVersion := r.channelMutationVersion(ctx, id)
 	sourceVersion := currentVersion
 	if derived {
-		sourceVersion = r.channelMutationVersion(ctx, resolvedID)
+		sourceVersion = r.commandSourceMutationVersion(ctx, resolvedID)
 	}
 
 	token := SnapshotToken{
@@ -160,10 +160,14 @@ func (r *subscriberResolver) BeginSnapshotWithRequest(ctx context.Context, id ch
 		token.source.Kind = SubscriberSourceKindOverlayStore
 		token.source.SourceChannelID = resolvedID.ID
 		token.source.SourceChannelType = frame.ChannelTypeCustomerService
-		token.source.SourceSubscriberMutationVersion = r.channelMutationVersion(ctx, channel.ChannelID{
+		visitorSourceID := channel.ChannelID{
 			ID:   resolvedID.ID,
 			Type: frame.ChannelTypeCustomerService,
-		})
+		}
+		token.source.SourceSubscriberMutationVersion = r.channelMutationVersion(ctx, visitorSourceID)
+		if derived {
+			token.source.SourceSubscriberMutationVersion = r.commandSourceMutationVersion(ctx, visitorSourceID)
+		}
 		token.state.storeChannelID = resolvedID.ID
 		token.state.storeChannelType = int64(frame.ChannelTypeCustomerService)
 		token.state.overlayUIDs = uniqueStrings([]string{resolvedID.ID})
@@ -400,15 +404,22 @@ func (r *subscriberResolver) channelMutationVersion(ctx context.Context, id chan
 	if r == nil || r.metadata == nil {
 		return 0
 	}
+	ch, err := r.metadata.GetChannel(ctx, id.ID, int64(id.Type))
+	if err != nil {
+		return 0
+	}
+	return ch.SubscriberMutationVersion
+}
+
+func (r *subscriberResolver) commandSourceMutationVersion(ctx context.Context, id channel.ChannelID) uint64 {
+	if r == nil || r.metadata == nil {
+		return 0
+	}
 	if authoritative, ok := r.metadata.(ChannelSubscriberPermissionMetadataStore); ok {
 		ch, err := authoritative.GetChannelForPermission(ctx, id.ID, int64(id.Type))
 		if err == nil {
 			return ch.SubscriberMutationVersion
 		}
 	}
-	ch, err := r.metadata.GetChannel(ctx, id.ID, int64(id.Type))
-	if err != nil {
-		return 0
-	}
-	return ch.SubscriberMutationVersion
+	return r.channelMutationVersion(ctx, id)
 }
