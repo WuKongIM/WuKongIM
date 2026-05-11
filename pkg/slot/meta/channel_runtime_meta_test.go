@@ -575,6 +575,51 @@ func TestDecodeChannelRuntimeMetaRejectsKnownWriteFenceWrongType(t *testing.T) {
 	}
 }
 
+func TestDecodeChannelRuntimeMetaRejectsMalformedWriteFenceMissingVersion(t *testing.T) {
+	key := encodeChannelRuntimeMetaPrimaryKey(7, "missing-fence-version", 2, channelRuntimeMetaPrimaryFamilyID)
+
+	tests := []struct {
+		name       string
+		appendWire func([]byte) []byte
+	}{
+		{
+			name: "token_without_version",
+			appendWire: func(payload []byte) []byte {
+				return appendBytesValue(payload, channelRuntimeMetaColumnIDWriteFenceToken, channelRuntimeMetaColumnIDLeaseUntilMS, "task-1")
+			},
+		},
+		{
+			name: "reason_without_version",
+			appendWire: func(payload []byte) []byte {
+				return appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceReason, channelRuntimeMetaColumnIDLeaseUntilMS, 1)
+			},
+		},
+		{
+			name: "until_without_version",
+			appendWire: func(payload []byte) []byte {
+				return appendIntValue(payload, channelRuntimeMetaColumnIDWriteFenceUntilMS, channelRuntimeMetaColumnIDLeaseUntilMS, 1710000000000)
+			},
+		},
+		{
+			name: "explicit_zero_version_with_token",
+			appendWire: func(payload []byte) []byte {
+				payload = appendBytesValue(payload, channelRuntimeMetaColumnIDWriteFenceToken, channelRuntimeMetaColumnIDLeaseUntilMS, "task-1")
+				return appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceVersion, channelRuntimeMetaColumnIDWriteFenceToken, 0)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := channelRuntimeMetaRequiredPayload()
+			payload = tt.appendWire(payload)
+
+			_, err := decodeChannelRuntimeMetaFamilyValue(key, wrapFamilyValue(key, payload))
+			require.ErrorIs(t, err, ErrCorruptValue)
+		})
+	}
+}
+
 func TestDecodeChannelRuntimeMetaSkipsUnknownFutureFenceColumn(t *testing.T) {
 	key := encodeChannelRuntimeMetaPrimaryKey(7, "future-fence-column", 2, channelRuntimeMetaPrimaryFamilyID)
 	payload := channelRuntimeMetaRequiredPayload()
