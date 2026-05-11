@@ -18,7 +18,31 @@ import (
 	"go.etcd.io/raft/v3/raftpb"
 )
 
-func TestGroupAgentApplyAssignmentsReturnsTimeoutWhenControllerTaskReadTimesOut(t *testing.T) {
+type standaloneAgentTestCluster struct {
+	cluster *Cluster
+	raftDB  *raftstorage.DB
+	metaDB  *metadb.DB
+}
+
+func (h *standaloneAgentTestCluster) Close() {
+	if h == nil {
+		return
+	}
+	if h.cluster != nil {
+		h.cluster.Stop()
+		h.cluster = nil
+	}
+	if h.raftDB != nil {
+		_ = h.raftDB.Close()
+		h.raftDB = nil
+	}
+	if h.metaDB != nil {
+		_ = h.metaDB.Close()
+		h.metaDB = nil
+	}
+}
+
+func TestGroupAgentApplyAssignmentsFallsBackToLocalControllerTaskWhenControllerReadTimesOut(t *testing.T) {
 	harness := newStandaloneAgentTestCluster(t)
 
 	dir := t.TempDir()
@@ -53,25 +77,24 @@ func TestGroupAgentApplyAssignmentsReturnsTimeoutWhenControllerTaskReadTimesOut(
 		client: fakeControllerClient{
 			listNodesErr:        context.DeadlineExceeded,
 			listRuntimeViewsErr: context.DeadlineExceeded,
+			listTasksErr:        context.DeadlineExceeded,
 			getTaskErr:          context.DeadlineExceeded,
 		},
 		cache: harness.cluster.assignments,
 	}
 
-	err = harness.cluster.agent.ApplyAssignments(context.Background())
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("ApplyAssignments() error = %v, want %v", err, context.DeadlineExceeded)
+	if err := harness.cluster.agent.ApplyAssignments(context.Background()); err != nil {
+		t.Fatalf("ApplyAssignments() error = %v", err)
 	}
 
-	deadline := time.Now().Add(500 * time.Millisecond)
+	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		_, statusErr := harness.cluster.runtime.Status(1)
-		if errors.Is(statusErr, multiraft.ErrSlotNotFound) {
+		if _, err := harness.cluster.runtime.Status(1); err == nil {
 			return
 		}
 		time.Sleep(25 * time.Millisecond)
 	}
-	t.Fatal("slot 1 should remain unopened when task read times out")
+	t.Fatal("slot 1 was not bootstrapped from local controller task fallback")
 }
 
 func TestObserveOnceAppliesCachedAssignmentsWhenSyncAssignmentsTimesOut(t *testing.T) {
@@ -181,8 +204,8 @@ func TestGroupAgentReopensPersistedGroupBeforeTaskFetch(t *testing.T) {
 		ConfigEpoch:  1,
 	}
 	client := fakeControllerClient{
-		assignments: []controllermeta.SlotAssignment{assignment},
-		getTaskErr:  taskErr,
+		assignments:  []controllermeta.SlotAssignment{assignment},
+		listTasksErr: taskErr,
 	}
 	harness.cluster.assignments.SetAssignments(client.assignments)
 	harness.cluster.agent = &slotAgent{
@@ -975,7 +998,7 @@ func TestGroupAgentRetriesPendingTaskReportWithoutRefreshingTask(t *testing.T) {
 			}
 			return controllermeta.ReconcileTask{}, context.DeadlineExceeded
 		},
-		reportTaskResultFn: func(_ context.Context, got controllermeta.ReconcileTask, taskErr error) error {
+		reportTaskResultFn: func(ctx context.Context, got controllermeta.ReconcileTask, taskErr error) error {
 			reportCalls++
 			if got.SlotID != 1 {
 				t.Fatalf("ReportTaskResult() slotID = %d, want 1", got.SlotID)
@@ -987,7 +1010,8 @@ func TestGroupAgentRetriesPendingTaskReportWithoutRefreshingTask(t *testing.T) {
 				t.Fatalf("ReportTaskResult() err = %v, want %v", taskErr, execErr)
 			}
 			if reportCalls == 1 {
-				return context.DeadlineExceeded
+				<-ctx.Done()
+				return ctx.Err()
 			}
 			return nil
 		},
@@ -1139,6 +1163,10 @@ func newStandaloneAgentTestCluster(t *testing.T) *standaloneAgentTestCluster {
 		SlotReplicaN: 1,
 		Nodes: []NodeConfig{
 			{NodeID: 1, Addr: "127.0.0.1:0"},
+		},
+		Timeouts: Timeouts{
+			ControllerRequest:    25 * time.Millisecond,
+			ControllerLeaderWait: 25 * time.Millisecond,
 		},
 		NewStorage: func(slotID multiraft.SlotID) (multiraft.Storage, error) {
 			return raftDB.ForSlot(uint64(slotID)), nil
