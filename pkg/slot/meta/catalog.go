@@ -9,6 +9,7 @@ const (
 	TableIDUserConversationState uint32 = 6
 	// TableIDReservedConversationProjection is reserved for the removed conversation projection table.
 	TableIDReservedConversationProjection uint32 = 7
+	TableIDChannelMigrationTask           uint32 = 8
 
 	maxKeyStringLen = 1<<16 - 1
 )
@@ -88,6 +89,48 @@ const (
 	userConversationStateColumnIDDeletedToSeq uint16 = 5
 	userConversationStateColumnIDActiveAt     uint16 = 6
 	userConversationStateColumnIDUpdatedAt    uint16 = 7
+)
+
+const (
+	channelMigrationTaskPrimaryFamilyID    uint16 = 0
+	channelMigrationTaskPrimaryIndexID     uint16 = 1
+	channelMigrationTaskActiveIndexID      uint16 = 2
+	channelMigrationTaskTerminalIndexID    uint16 = 3
+	channelMigrationTaskColumnIDChannelID  uint16 = 1
+	channelMigrationTaskColumnIDType       uint16 = 2
+	channelMigrationTaskColumnIDTaskID     uint16 = 3
+	channelMigrationTaskColumnIDKind       uint16 = 4
+	channelMigrationTaskColumnIDStatus     uint16 = 5
+	channelMigrationTaskColumnIDPhase      uint16 = 6
+	channelMigrationTaskColumnIDSourceNode uint16 = 7
+	channelMigrationTaskColumnIDTargetNode uint16 = 8
+
+	channelMigrationTaskColumnIDDesiredLeader            uint16 = 9
+	channelMigrationTaskColumnIDBaseChannelEpoch         uint16 = 10
+	channelMigrationTaskColumnIDBaseLeaderEpoch          uint16 = 11
+	channelMigrationTaskColumnIDFenceToken               uint16 = 12
+	channelMigrationTaskColumnIDFenceVersion             uint16 = 13
+	channelMigrationTaskColumnIDFenceUntilMS             uint16 = 14
+	channelMigrationTaskColumnIDEmbeddedLeaderTransfer   uint16 = 15
+	channelMigrationTaskColumnIDEmbeddedDesiredLeader    uint16 = 16
+	channelMigrationTaskColumnIDOwnerNodeID              uint16 = 17
+	channelMigrationTaskColumnIDOwnerLeaseUntilMS        uint16 = 18
+	channelMigrationTaskColumnIDCutoverLEO               uint16 = 19
+	channelMigrationTaskColumnIDCutoverHW                uint16 = 20
+	channelMigrationTaskColumnIDDrainedLeaderNode        uint16 = 21
+	channelMigrationTaskColumnIDDrainedRuntimeGeneration uint16 = 22
+	channelMigrationTaskColumnIDDrainedChannelEpoch      uint16 = 23
+	channelMigrationTaskColumnIDDrainedLeaderEpoch       uint16 = 24
+	channelMigrationTaskColumnIDDrainedFenceVersion      uint16 = 25
+	channelMigrationTaskColumnIDAttempt                  uint16 = 26
+	channelMigrationTaskColumnIDNextRunAtMS              uint16 = 27
+	channelMigrationTaskColumnIDBlockerCode              uint16 = 28
+	channelMigrationTaskColumnIDBlockerMessage           uint16 = 29
+	channelMigrationTaskColumnIDLastError                uint16 = 30
+	channelMigrationTaskColumnIDCreatedAtMS              uint16 = 31
+	channelMigrationTaskColumnIDUpdatedAtMS              uint16 = 32
+	channelMigrationTaskColumnIDCompletedAtMS            uint16 = 33
+	channelMigrationTaskColumnIDProgress                 uint16 = 34
 )
 
 type ColumnType int
@@ -330,6 +373,108 @@ var UserConversationStateTable = &TableDesc{
 			Name:      "idx_user_conversation_active",
 			Unique:    false,
 			ColumnIDs: []uint16{userConversationStateColumnIDUID, userConversationStateColumnIDActiveAt, userConversationStateColumnIDChannelType, userConversationStateColumnIDChannelID},
+		},
+	},
+}
+
+var ChannelMigrationTaskTable = &TableDesc{
+	ID:   TableIDChannelMigrationTask,
+	Name: "channel_migration_task",
+	Columns: []ColumnDesc{
+		{ID: channelMigrationTaskColumnIDChannelID, Name: "channel_id", Type: ColumnString},
+		{ID: channelMigrationTaskColumnIDType, Name: "channel_type", Type: ColumnInt64},
+		{ID: channelMigrationTaskColumnIDTaskID, Name: "task_id", Type: ColumnString},
+		{ID: channelMigrationTaskColumnIDKind, Name: "kind", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDStatus, Name: "status", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDPhase, Name: "phase", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDSourceNode, Name: "source_node", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDTargetNode, Name: "target_node", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDDesiredLeader, Name: "desired_leader", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDBaseChannelEpoch, Name: "base_channel_epoch", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDBaseLeaderEpoch, Name: "base_leader_epoch", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDFenceToken, Name: "fence_token", Type: ColumnString, Nullable: true},
+		{ID: channelMigrationTaskColumnIDFenceVersion, Name: "fence_version", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDFenceUntilMS, Name: "fence_until_ms", Type: ColumnInt64},
+		{ID: channelMigrationTaskColumnIDEmbeddedLeaderTransfer, Name: "embedded_leader_transfer", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDEmbeddedDesiredLeader, Name: "embedded_desired_leader", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDOwnerNodeID, Name: "owner_node_id", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDOwnerLeaseUntilMS, Name: "owner_lease_until_ms", Type: ColumnInt64},
+		{ID: channelMigrationTaskColumnIDCutoverLEO, Name: "cutover_leo", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDCutoverHW, Name: "cutover_hw", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDDrainedLeaderNode, Name: "drained_leader_node", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDDrainedRuntimeGeneration, Name: "drained_runtime_generation", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDDrainedChannelEpoch, Name: "drained_channel_epoch", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDDrainedLeaderEpoch, Name: "drained_leader_epoch", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDDrainedFenceVersion, Name: "drained_fence_version", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDAttempt, Name: "attempt", Type: ColumnUint64},
+		{ID: channelMigrationTaskColumnIDNextRunAtMS, Name: "next_run_at_ms", Type: ColumnInt64},
+		{ID: channelMigrationTaskColumnIDBlockerCode, Name: "blocker_code", Type: ColumnString, Nullable: true},
+		{ID: channelMigrationTaskColumnIDBlockerMessage, Name: "blocker_message", Type: ColumnString, Nullable: true},
+		{ID: channelMigrationTaskColumnIDLastError, Name: "last_error", Type: ColumnString, Nullable: true},
+		{ID: channelMigrationTaskColumnIDCreatedAtMS, Name: "created_at_ms", Type: ColumnInt64},
+		{ID: channelMigrationTaskColumnIDUpdatedAtMS, Name: "updated_at_ms", Type: ColumnInt64},
+		{ID: channelMigrationTaskColumnIDCompletedAtMS, Name: "completed_at_ms", Type: ColumnInt64},
+		{ID: channelMigrationTaskColumnIDProgress, Name: "progress", Type: ColumnBytes, Nullable: true},
+	},
+	Families: []ColumnFamilyDesc{
+		{
+			ID:   channelMigrationTaskPrimaryFamilyID,
+			Name: "primary",
+			ColumnIDs: []uint16{
+				channelMigrationTaskColumnIDKind,
+				channelMigrationTaskColumnIDStatus,
+				channelMigrationTaskColumnIDPhase,
+				channelMigrationTaskColumnIDSourceNode,
+				channelMigrationTaskColumnIDTargetNode,
+				channelMigrationTaskColumnIDDesiredLeader,
+				channelMigrationTaskColumnIDBaseChannelEpoch,
+				channelMigrationTaskColumnIDBaseLeaderEpoch,
+				channelMigrationTaskColumnIDFenceToken,
+				channelMigrationTaskColumnIDFenceVersion,
+				channelMigrationTaskColumnIDFenceUntilMS,
+				channelMigrationTaskColumnIDEmbeddedLeaderTransfer,
+				channelMigrationTaskColumnIDEmbeddedDesiredLeader,
+				channelMigrationTaskColumnIDOwnerNodeID,
+				channelMigrationTaskColumnIDOwnerLeaseUntilMS,
+				channelMigrationTaskColumnIDCutoverLEO,
+				channelMigrationTaskColumnIDCutoverHW,
+				channelMigrationTaskColumnIDDrainedLeaderNode,
+				channelMigrationTaskColumnIDDrainedRuntimeGeneration,
+				channelMigrationTaskColumnIDDrainedChannelEpoch,
+				channelMigrationTaskColumnIDDrainedLeaderEpoch,
+				channelMigrationTaskColumnIDDrainedFenceVersion,
+				channelMigrationTaskColumnIDAttempt,
+				channelMigrationTaskColumnIDNextRunAtMS,
+				channelMigrationTaskColumnIDBlockerCode,
+				channelMigrationTaskColumnIDBlockerMessage,
+				channelMigrationTaskColumnIDLastError,
+				channelMigrationTaskColumnIDCreatedAtMS,
+				channelMigrationTaskColumnIDUpdatedAtMS,
+				channelMigrationTaskColumnIDCompletedAtMS,
+				channelMigrationTaskColumnIDProgress,
+			},
+			DefaultColumnID: channelMigrationTaskColumnIDKind,
+		},
+	},
+	PrimaryIndex: IndexDesc{
+		ID:        channelMigrationTaskPrimaryIndexID,
+		Name:      "pk_channel_migration_task",
+		Unique:    true,
+		Primary:   true,
+		ColumnIDs: []uint16{channelMigrationTaskColumnIDChannelID, channelMigrationTaskColumnIDType, channelMigrationTaskColumnIDTaskID},
+	},
+	SecondaryIndexes: []IndexDesc{
+		{
+			ID:        channelMigrationTaskActiveIndexID,
+			Name:      "idx_channel_migration_active",
+			Unique:    true,
+			ColumnIDs: []uint16{channelMigrationTaskColumnIDChannelID, channelMigrationTaskColumnIDType},
+		},
+		{
+			ID:        channelMigrationTaskTerminalIndexID,
+			Name:      "idx_channel_migration_terminal",
+			Unique:    true,
+			ColumnIDs: []uint16{channelMigrationTaskColumnIDCompletedAtMS, channelMigrationTaskColumnIDChannelID, channelMigrationTaskColumnIDType, channelMigrationTaskColumnIDTaskID},
 		},
 	},
 }
