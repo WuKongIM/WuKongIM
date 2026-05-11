@@ -984,6 +984,39 @@ func TestChannelMigrationTaskGarbageCollectsTerminalAfterRetention(t *testing.T)
 	require.Equal(t, replacementActive.TaskID, gotReplacementActive.TaskID)
 }
 
+func TestChannelMigrationTaskGCPlanIncludesStaleTerminalIndexRows(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+	staleIndex := encodeChannelMigrationTaskTerminalIndexKey(7, 1750000000000, "channel-gc-stale-index", 1, "task-gc-stale-index")
+	require.NoError(t, db.db.Set(staleIndex, nil, nil))
+
+	task := testChannelMigrationTask("task-gc-after-stale-index", "channel-gc-after-stale-index")
+	task.Status = ChannelMigrationStatusCompleted
+	task.Phase = ChannelMigrationPhaseVerifyMembership
+	task.CompletedAtMS = 1750000001000
+	task.UpdatedAtMS = task.CompletedAtMS
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, task))
+
+	plan, err := shard.PlanTerminalChannelMigrationTaskGC(ctx, 1750000002000, 1)
+	require.NoError(t, err)
+	require.Equal(t, ChannelMigrationTaskGCPlan{EntryCount: 1}, plan)
+
+	wb := db.NewWriteBatch()
+	defer wb.Close()
+	deleted, err := wb.DeleteTerminalChannelMigrationTasksBefore(7, ChannelMigrationTaskGCRequest{
+		BeforeMS: 1750000002000,
+		Limit:    plan.EntryCount,
+	})
+	require.NoError(t, err)
+	require.Zero(t, deleted)
+	require.NoError(t, wb.Commit())
+
+	plan, err = shard.PlanTerminalChannelMigrationTaskGC(ctx, 1750000002000, 1)
+	require.NoError(t, err)
+	require.Equal(t, ChannelMigrationTaskGCPlan{TaskCount: 1, EntryCount: 1}, plan)
+}
+
 func TestChannelMigrationTaskEncodeDecodeFullFields(t *testing.T) {
 	ctx := context.Background()
 	shard := newTestShardStore(t, 7)

@@ -315,8 +315,17 @@ type ChannelMigrationAbortRequest struct {
 type ChannelMigrationTaskGCRequest struct {
 	// BeforeMS is the exclusive completed_at cutoff in milliseconds.
 	BeforeMS int64
-	// Limit bounds how many terminal tasks one Raft command may remove.
+	// Limit bounds how many terminal-index rows one Raft command may inspect and clean.
 	Limit int
+}
+
+// ChannelMigrationTaskGCPlan describes local work available for a terminal-task
+// cleanup command before the command is proposed through Raft.
+type ChannelMigrationTaskGCPlan struct {
+	// TaskCount is the number of valid terminal task primary rows in the plan.
+	TaskCount int
+	// EntryCount is the number of terminal-index rows the cleanup command can remove.
+	EntryCount int
 }
 
 // ChannelMigrationTask is the authoritative durable state for one channel
@@ -697,32 +706,86 @@ func (s *ShardStore) CountTerminalChannelMigrationTasksBefore(ctx context.Contex
 	return s.countTerminalChannelMigrationTasksBeforeLocked(ctx, beforeMS, limit)
 }
 
+// PlanTerminalChannelMigrationTaskGC reports whether a Raft cleanup command has
+// work to do, including orphan terminal-index rows that do not count as tasks.
+func (s *ShardStore) PlanTerminalChannelMigrationTaskGC(ctx context.Context, beforeMS int64, limit int) (ChannelMigrationTaskGCPlan, error) {
+	if err := s.validate(); err != nil {
+		return ChannelMigrationTaskGCPlan{}, err
+	}
+	if err := s.db.checkContext(ctx); err != nil {
+		return ChannelMigrationTaskGCPlan{}, err
+	}
+	if beforeMS <= 0 {
+		return ChannelMigrationTaskGCPlan{}, ErrInvalidArgument
+	}
+	if limit <= 0 {
+		return ChannelMigrationTaskGCPlan{}, nil
+	}
+
+	s.db.mu.RLock()
+	defer s.db.mu.RUnlock()
+	deletions, err := s.collectTerminalChannelMigrationTaskDeletions(ctx, beforeMS, limit)
+	if err != nil {
+		return ChannelMigrationTaskGCPlan{}, err
+	}
+	plan := ChannelMigrationTaskGCPlan{EntryCount: len(deletions)}
+	for _, deletion := range deletions {
+		if deletion.count {
+			plan.TaskCount++
+		}
+	}
+	return plan, nil
+}
+
 // DeleteTerminalChannelMigrationTasksBefore stages retention cleanup for a
 // terminal-task GC Raft command.
-func (b *WriteBatch) DeleteTerminalChannelMigrationTasksBefore(hashSlot uint16, req ChannelMigrationTaskGCRequest) error {
+func (b *WriteBatch) DeleteTerminalChannelMigrationTasksBefore(hashSlot uint16, req ChannelMigrationTaskGCRequest) (int, error) {
 	if err := validateHashSlot(hashSlot); err != nil {
-		return err
+		return 0, err
 	}
 	if err := validateChannelMigrationTaskGCRequest(req); err != nil {
-		return err
+		return 0, err
 	}
 
 	shard := b.db.ForHashSlot(hashSlot)
 	deletions, err := shard.collectTerminalChannelMigrationTaskDeletions(context.Background(), req.BeforeMS, req.Limit)
 	if err != nil {
-		return err
+		return 0, err
 	}
+	deleted := 0
 	for _, deletion := range deletions {
+		if b.channelMigrationTaskGCKeyWritten(deletion.terminal) {
+			continue
+		}
 		if len(deletion.primary) > 0 {
 			if err := b.batch.Delete(deletion.primary, nil); err != nil {
-				return err
+				return 0, err
 			}
 		}
 		if err := b.batch.Delete(deletion.terminal, nil); err != nil {
-			return err
+			return 0, err
 		}
+		if deletion.count {
+			deleted++
+		}
+		b.markChannelMigrationTaskGCKeyWritten(deletion.terminal)
 	}
-	return nil
+	return deleted, nil
+}
+
+func (b *WriteBatch) markChannelMigrationTaskGCKeyWritten(key []byte) {
+	if b.channelMigrationGCKeys == nil {
+		b.channelMigrationGCKeys = make(map[string]struct{}, 1)
+	}
+	b.channelMigrationGCKeys[string(key)] = struct{}{}
+}
+
+func (b *WriteBatch) channelMigrationTaskGCKeyWritten(key []byte) bool {
+	if b.channelMigrationGCKeys == nil {
+		return false
+	}
+	_, ok := b.channelMigrationGCKeys[string(key)]
+	return ok
 }
 
 // IsActive reports whether the task should block another task for the same channel.

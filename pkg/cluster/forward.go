@@ -12,32 +12,37 @@ import (
 const rpcServiceForward uint8 = 1
 
 func (c *Cluster) forwardToLeader(ctx context.Context, leaderID multiraft.NodeID, slotID multiraft.SlotID, cmd []byte) error {
+	_, err := c.forwardToLeaderResult(ctx, leaderID, slotID, cmd)
+	return err
+}
+
+func (c *Cluster) forwardToLeaderResult(ctx context.Context, leaderID multiraft.NodeID, slotID multiraft.SlotID, cmd []byte) ([]byte, error) {
 	payload := encodeForwardPayload(uint64(slotID), cmd)
 	resp, err := c.fwdClient.RPCService(ctx, uint64(leaderID), uint64(slotID), rpcServiceForward, payload)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	errCode, data, decodeErr := decodeForwardResp(resp)
 	if decodeErr != nil {
-		return fmt.Errorf("decode forward response: %w", decodeErr)
+		return nil, fmt.Errorf("decode forward response: %w", decodeErr)
 	}
 	switch errCode {
 	case errCodeOK:
 		if isHashSlotFencedResult(data) {
-			return ErrHashSlotFenced
+			return nil, ErrHashSlotFenced
 		}
 		if isStaleMetaResult(data) {
-			return metadb.ErrStaleMeta
+			return nil, metadb.ErrStaleMeta
 		}
-		return nil
+		return data, nil
 	case errCodeNotLeader:
-		return ErrNotLeader
+		return nil, ErrNotLeader
 	case errCodeTimeout:
-		return transport.ErrTimeout
+		return nil, transport.ErrTimeout
 	case errCodeNoSlot:
-		return ErrSlotNotFound
+		return nil, ErrSlotNotFound
 	default:
-		return fmt.Errorf("unknown forward error code: %d", errCode)
+		return nil, fmt.Errorf("unknown forward error code: %d", errCode)
 	}
 }
 

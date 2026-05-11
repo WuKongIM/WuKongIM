@@ -1475,12 +1475,27 @@ func TestStateMachineChannelMigrationGarbageCollectDeletesTerminalTasks(t *testi
 
 	fsmApplyOK(t, ctx, sm, 1, EncodeCreateChannelMigrationTaskCommand(oldTask))
 	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(newTask))
-	fsmApplyOK(t, ctx, sm, 3, EncodeGarbageCollectTerminalChannelMigrationTasksCommand(metadb.ChannelMigrationTaskGCRequest{
-		BeforeMS: 1750000020000,
-		Limit:    10,
-	}))
+	result, err := sm.Apply(ctx, multiraft.Command{
+		SlotID:   11,
+		HashSlot: 11,
+		Index:    3,
+		Data: EncodeGarbageCollectTerminalChannelMigrationTasksCommand(metadb.ChannelMigrationTaskGCRequest{
+			BeforeMS: 1750000020000,
+			Limit:    10,
+		}),
+	})
+	if err != nil {
+		t.Fatalf("Apply(gc) error = %v", err)
+	}
+	deleted, ok, err := DecodeGarbageCollectTerminalChannelMigrationTasksResult(result)
+	if err != nil {
+		t.Fatalf("DecodeGarbageCollectTerminalChannelMigrationTasksResult() error = %v", err)
+	}
+	if !ok || deleted != 1 {
+		t.Fatalf("gc result ok=%v deleted=%d, want ok=true deleted=1", ok, deleted)
+	}
 
-	_, err := db.ForSlot(11).GetChannelMigrationTask(ctx, oldTask.ChannelID, oldTask.ChannelType, oldTask.TaskID)
+	_, err = db.ForSlot(11).GetChannelMigrationTask(ctx, oldTask.ChannelID, oldTask.ChannelType, oldTask.TaskID)
 	if !errors.Is(err, metadb.ErrNotFound) {
 		t.Fatalf("GetChannelMigrationTask(old) error = %v, want ErrNotFound", err)
 	}

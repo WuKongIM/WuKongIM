@@ -1012,6 +1012,13 @@ func (c *Cluster) Propose(ctx context.Context, slotID multiraft.SlotID, cmd []by
 
 // ProposeWithHashSlot submits a command envelope carrying the logical hash slot.
 func (c *Cluster) ProposeWithHashSlot(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, cmd []byte) error {
+	_, err := c.ProposeWithHashSlotResult(ctx, slotID, hashSlot, cmd)
+	return err
+}
+
+// ProposeWithHashSlotResult submits a hash-slot-aware command and returns the
+// state-machine apply result when the proposal commits successfully.
+func (c *Cluster) ProposeWithHashSlotResult(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, cmd []byte) ([]byte, error) {
 	start := time.Now()
 	attempts := 0
 	var proposeErr error
@@ -1023,11 +1030,11 @@ func (c *Cluster) ProposeWithHashSlot(ctx context.Context, slotID multiraft.Slot
 
 	if c.stopped.Load() {
 		proposeErr = transport.ErrStopped
-		return proposeErr
+		return nil, proposeErr
 	}
 	if c.router == nil || c.runtime == nil {
 		proposeErr = ErrNotStarted
-		return proposeErr
+		return nil, proposeErr
 	}
 	retry := Retry{
 		Interval: c.forwardRetryInterval(),
@@ -1036,6 +1043,7 @@ func (c *Cluster) ProposeWithHashSlot(ctx context.Context, slotID multiraft.Slot
 			return errors.Is(err, ErrNotLeader)
 		},
 	}
+	var data []byte
 	proposeErr = retry.Do(ctx, func(attemptCtx context.Context) error {
 		attempts++
 		payload := encodeProposalPayload(hashSlot, cmd)
@@ -1053,11 +1061,23 @@ func (c *Cluster) ProposeWithHashSlot(ctx context.Context, slotID multiraft.Slot
 			result, err := future.Wait(attemptCtx)
 			err = normalizeProposeError(err)
 			c.notifyProposeLocalErrorForTest(err)
-			return normalizeProposalResult(result, err)
+			if err := normalizeProposalResult(result, err); err != nil {
+				return err
+			}
+			data = append(data[:0], result.Data...)
+			return nil
 		}
-		return c.forwardToLeader(attemptCtx, leaderID, slotID, payload)
+		result, err := c.forwardToLeaderResult(attemptCtx, leaderID, slotID, payload)
+		if err != nil {
+			return err
+		}
+		data = append(data[:0], result...)
+		return nil
 	})
-	return proposeErr
+	if proposeErr != nil {
+		return nil, proposeErr
+	}
+	return append([]byte(nil), data...), nil
 }
 
 // ProposeLocalWithHashSlot submits a command only when the current slot leader is local.
