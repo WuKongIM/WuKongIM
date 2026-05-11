@@ -144,6 +144,25 @@ func TestChannelMigrationTaskValidationRejectsWorkflowInconsistentPhase(t *testi
 		task ChannelMigrationTask
 	}{
 		{
+			name: "pending_warm_catch_up",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-pending-warm", "channel-invalid-pending-warm")
+				task.Phase = ChannelMigrationPhaseWarmCatchUp
+				return task
+			}(),
+		},
+		{
+			name: "blocked_validate",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-blocked-validate", "channel-invalid-blocked-validate")
+				task.Status = ChannelMigrationStatusBlocked
+				task.Phase = ChannelMigrationPhaseValidate
+				task.BlockerCode = ChannelMigrationBlockerNeedsSnapshotBootstrap
+				task.BlockerMessage = "target requires a channel snapshot before catch-up"
+				return task
+			}(),
+		},
+		{
 			name: "leader_transfer_add_learner",
 			task: func() ChannelMigrationTask {
 				task := testChannelMigrationTask("task-invalid-lt-add", "channel-invalid-lt-add")
@@ -182,11 +201,83 @@ func TestChannelMigrationTaskValidationRejectsWorkflowInconsistentPhase(t *testi
 				return task
 			}(),
 		},
+		{
+			name: "embedded_replica_replace_completed_verify_new_leader",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-completed-embedded-leader", "channel-invalid-completed-embedded-leader")
+				task.Status = ChannelMigrationStatusCompleted
+				task.Phase = ChannelMigrationPhaseVerifyNewLeader
+				task.EmbeddedLeaderTransfer = true
+				task.EmbeddedDesiredLeader = task.DesiredLeader
+				task.CompletedAtMS = 1750000010000
+				task.UpdatedAtMS = 1750000010000
+				return task
+			}(),
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.ErrorIs(t, validateChannelMigrationTask(tt.task), ErrInvalidArgument)
+		})
+	}
+}
+
+func TestChannelMigrationTaskValidationAcceptsWorkflowConsistentTerminalPhase(t *testing.T) {
+	tests := []struct {
+		name string
+		task ChannelMigrationTask
+	}{
+		{
+			name: "completed_leader_transfer_verify_new_leader",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-completed-lt-verify", "channel-completed-lt-verify")
+				task.Kind = ChannelMigrationKindLeaderTransfer
+				task.Phase = ChannelMigrationPhaseVerifyNewLeader
+				task.DesiredLeader = task.TargetNode
+				task.Status = ChannelMigrationStatusCompleted
+				task.CompletedAtMS = 1750000010000
+				task.UpdatedAtMS = 1750000010000
+				return task
+			}(),
+		},
+		{
+			name: "completed_replica_replace_verify_membership",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-completed-rr-verify", "channel-completed-rr-verify")
+				task.Phase = ChannelMigrationPhaseVerifyMembership
+				task.Status = ChannelMigrationStatusCompleted
+				task.CompletedAtMS = 1750000010000
+				task.UpdatedAtMS = 1750000010000
+				return task
+			}(),
+		},
+		{
+			name: "failed_validate",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-failed-validate", "channel-failed-validate")
+				task.Status = ChannelMigrationStatusFailed
+				task.CompletedAtMS = 1750000010000
+				task.UpdatedAtMS = 1750000010000
+				task.LastError = "validation failed"
+				return task
+			}(),
+		},
+		{
+			name: "aborted_validate",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-aborted-validate", "channel-aborted-validate")
+				task.Status = ChannelMigrationStatusAborted
+				task.CompletedAtMS = 1750000010000
+				task.UpdatedAtMS = 1750000010000
+				return task
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NoError(t, validateChannelMigrationTask(tt.task))
 		})
 	}
 }

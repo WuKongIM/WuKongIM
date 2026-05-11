@@ -499,6 +499,9 @@ func validateChannelMigrationTask(task ChannelMigrationTask) error {
 	if !isChannelMigrationPhaseAllowedForTask(task) {
 		return ErrInvalidArgument
 	}
+	if !isChannelMigrationStatusPhaseConsistent(task) {
+		return ErrInvalidArgument
+	}
 	switch task.Kind {
 	case ChannelMigrationKindLeaderTransfer:
 		if task.SourceNode == 0 || task.TargetNode == 0 || task.DesiredLeader == 0 || task.SourceNode == task.TargetNode || task.DesiredLeader != task.TargetNode {
@@ -528,16 +531,10 @@ func validateChannelMigrationTask(task ChannelMigrationTask) error {
 		if task.CompletedAtMS <= 0 {
 			return ErrInvalidArgument
 		}
-		if task.Status == ChannelMigrationStatusCompleted && !canCompleteChannelMigrationAtPhase(task.Phase) {
-			return ErrInvalidArgument
-		}
 	} else if task.CompletedAtMS != 0 {
 		return ErrInvalidArgument
 	}
 	if task.Status == ChannelMigrationStatusBlocked && task.BlockerCode == "" {
-		return ErrInvalidArgument
-	}
-	if task.Status == ChannelMigrationStatusBlocked && !canBlockChannelMigrationAtPhase(task.Phase) {
 		return ErrInvalidArgument
 	}
 	if task.BlockerCode == ChannelMigrationBlockerNeedsSnapshotBootstrap && task.Phase == 0 {
@@ -652,15 +649,41 @@ func isReplicaReplacePhase(phase ChannelMigrationPhase) bool {
 	}
 }
 
-func canCompleteChannelMigrationAtPhase(phase ChannelMigrationPhase) bool {
-	switch phase {
-	case ChannelMigrationPhaseValidate,
-		ChannelMigrationPhaseProbeTarget,
-		ChannelMigrationPhaseAddLearner,
-		ChannelMigrationPhaseBootstrapTarget:
-		return false
-	default:
+func isChannelMigrationStatusPhaseConsistent(task ChannelMigrationTask) bool {
+	switch task.Status {
+	case ChannelMigrationStatusPending:
+		return task.Phase == ChannelMigrationPhaseValidate
+	case ChannelMigrationStatusRunning:
 		return true
+	case ChannelMigrationStatusBlocked:
+		return canBlockChannelMigrationAtPhase(task.Phase)
+	case ChannelMigrationStatusCompleted:
+		return canCompleteChannelMigrationAtPhase(task.Kind, task.Phase)
+	case ChannelMigrationStatusFailed, ChannelMigrationStatusAborted:
+		return true
+	default:
+		return false
+	}
+}
+
+func canCompleteChannelMigrationAtPhase(kind ChannelMigrationKind, phase ChannelMigrationPhase) bool {
+	switch kind {
+	case ChannelMigrationKindLeaderTransfer:
+		switch phase {
+		case ChannelMigrationPhaseVerifyNewLeader, ChannelMigrationPhaseClearFence:
+			return true
+		default:
+			return false
+		}
+	case ChannelMigrationKindReplicaReplace:
+		switch phase {
+		case ChannelMigrationPhaseVerifyMembership, ChannelMigrationPhaseClearFence:
+			return true
+		default:
+			return false
+		}
+	default:
+		return false
 	}
 }
 
