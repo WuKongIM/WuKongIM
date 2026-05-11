@@ -267,6 +267,9 @@ func findSingleChannelMigrationJSONPayload(data []byte) ([]byte, bool, error) {
 		if tag != tagChannelMigrationCommandPayload {
 			continue
 		}
+		if found {
+			return nil, false, fmt.Errorf("%w: duplicate channel migration payload", metadb.ErrCorruptValue)
+		}
 		payload = append([]byte(nil), value...)
 		found = true
 	}

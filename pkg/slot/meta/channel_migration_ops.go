@@ -9,6 +9,9 @@ func (b *WriteBatch) SetChannelWriteFence(hashSlot uint16, req ChannelMigrationF
 		return err
 	}
 	return b.stageChannelMigrationTaskAndMeta(hashSlot, req.Guard, req.RuntimeGuard, func(task ChannelMigrationTask, meta ChannelRuntimeMeta) (ChannelMigrationTask, ChannelRuntimeMeta, error) {
+		if err := requireChannelMigrationSetFenceTransition(task, req); err != nil {
+			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
+		}
 		nextTask := task
 		nextTask.Status = req.Status
 		nextTask.Phase = req.Phase
@@ -33,6 +36,9 @@ func (b *WriteBatch) ResetChannelWriteFenceToPreCutover(hashSlot uint16, req Cha
 		return err
 	}
 	return b.stageChannelMigrationTaskAndMeta(hashSlot, req.Guard, req.RuntimeGuard, func(task ChannelMigrationTask, meta ChannelRuntimeMeta) (ChannelMigrationTask, ChannelRuntimeMeta, error) {
+		if err := requireChannelMigrationResetFenceTransition(task, req); err != nil {
+			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
+		}
 		if err := requireMatchingFence(meta, req.RuntimeGuard.ExpectedFenceToken, req.RuntimeGuard.ExpectedFenceVersion, 0, true); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
@@ -53,7 +59,13 @@ func (b *WriteBatch) CommitChannelLeaderTransfer(hashSlot uint16, req ChannelMig
 		return err
 	}
 	return b.stageChannelMigrationTaskAndMeta(hashSlot, req.Guard, req.RuntimeGuard, func(task ChannelMigrationTask, meta ChannelRuntimeMeta) (ChannelMigrationTask, ChannelRuntimeMeta, error) {
+		if err := requireChannelMigrationLeaderTransferTransition(task, req); err != nil {
+			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
+		}
 		if err := requireMatchingFence(meta, req.RuntimeGuard.ExpectedFenceToken, req.RuntimeGuard.ExpectedFenceVersion, req.NowMS, false); err != nil {
+			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
+		}
+		if err := requireChannelMigrationCutoverProof(task, meta, req.RuntimeGuard.ExpectedFenceVersion); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
 		if req.DesiredLeader != channelMigrationTaskDesiredLeader(task) || !containsUint64(meta.ISR, req.DesiredLeader) || req.NextLeaderEpoch <= meta.LeaderEpoch {
@@ -79,6 +91,9 @@ func (b *WriteBatch) AddChannelLearner(hashSlot uint16, req ChannelMigrationAddL
 		return err
 	}
 	return b.stageChannelMigrationTaskAndMeta(hashSlot, req.Guard, req.RuntimeGuard, func(task ChannelMigrationTask, meta ChannelRuntimeMeta) (ChannelMigrationTask, ChannelRuntimeMeta, error) {
+		if err := requireChannelMigrationAddLearnerTransition(task, req); err != nil {
+			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
+		}
 		if req.TargetNode != task.TargetNode || containsUint64(meta.ISR, req.TargetNode) {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, ErrStaleMeta
 		}
@@ -102,7 +117,13 @@ func (b *WriteBatch) PromoteLearnerAndRemoveReplica(hashSlot uint16, req Channel
 		return err
 	}
 	return b.stageChannelMigrationTaskAndMeta(hashSlot, req.Guard, req.RuntimeGuard, func(task ChannelMigrationTask, meta ChannelRuntimeMeta) (ChannelMigrationTask, ChannelRuntimeMeta, error) {
+		if err := requireChannelMigrationPromoteLearnerTransition(task, req); err != nil {
+			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
+		}
 		if err := requireMatchingFence(meta, req.RuntimeGuard.ExpectedFenceToken, req.RuntimeGuard.ExpectedFenceVersion, req.NowMS, false); err != nil {
+			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
+		}
+		if err := requireChannelMigrationCutoverProof(task, meta, req.RuntimeGuard.ExpectedFenceVersion); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
 		if req.SourceNode != task.SourceNode || req.TargetNode != task.TargetNode || !containsUint64(meta.Replicas, req.TargetNode) || !containsUint64(meta.ISR, req.SourceNode) {
@@ -127,6 +148,9 @@ func (b *WriteBatch) ClearChannelWriteFence(hashSlot uint16, req ChannelMigratio
 		return err
 	}
 	return b.stageChannelMigrationTaskAndMeta(hashSlot, req.Guard, req.RuntimeGuard, func(task ChannelMigrationTask, meta ChannelRuntimeMeta) (ChannelMigrationTask, ChannelRuntimeMeta, error) {
+		if err := requireChannelMigrationClearFenceTransition(task, req); err != nil {
+			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
+		}
 		if err := requireMatchingFence(meta, req.RuntimeGuard.ExpectedFenceToken, req.RuntimeGuard.ExpectedFenceVersion, 0, true); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
@@ -147,6 +171,9 @@ func (b *WriteBatch) AbortChannelMigration(hashSlot uint16, req ChannelMigration
 		return err
 	}
 	return b.stageChannelMigrationTaskAndMeta(hashSlot, req.Guard, req.RuntimeGuard, func(task ChannelMigrationTask, meta ChannelRuntimeMeta) (ChannelMigrationTask, ChannelRuntimeMeta, error) {
+		if task.IsTerminal() {
+			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, ErrStaleMeta
+		}
 		nextTask := clearChannelMigrationTaskFenceAndProof(task)
 		nextTask.Status = req.Status
 		nextTask.Phase = req.Phase
@@ -185,6 +212,7 @@ func (b *WriteBatch) stageChannelMigrationTaskAndMeta(hashSlot uint16, guard Cha
 		return ErrInvalidArgument
 	}
 	taskKey := encodeChannelMigrationTaskPrimaryKey(hashSlot, guard.ChannelID, guard.ChannelType, guard.TaskID, channelMigrationTaskPrimaryFamilyID)
+	taskGuardDBState := !b.isChannelMigrationTaskWritten(taskKey)
 	task, exists, err := b.loadChannelMigrationTask(hashSlot, taskKey, guard.ChannelID, guard.ChannelType, guard.TaskID)
 	if err != nil {
 		return err
@@ -193,6 +221,7 @@ func (b *WriteBatch) stageChannelMigrationTaskAndMeta(hashSlot uint16, guard Cha
 		return ErrNotFound
 	}
 	metaKey := encodeChannelRuntimeMetaPrimaryKey(hashSlot, runtimeGuard.ChannelID, runtimeGuard.ChannelType, channelRuntimeMetaPrimaryFamilyID)
+	runtimeGuardDBState := !b.isChannelRuntimeMetaWritten(hashSlot, runtimeGuard.ChannelID, runtimeGuard.ChannelType)
 	meta, exists, err := b.loadChannelRuntimeMeta(hashSlot, metaKey, runtimeGuard.ChannelID, runtimeGuard.ChannelType)
 	if err != nil {
 		return err
@@ -220,8 +249,12 @@ func (b *WriteBatch) stageChannelMigrationTaskAndMeta(hashSlot uint16, guard Cha
 	if err := validateChannelRuntimeMeta(nextMeta); err != nil {
 		return err
 	}
-	b.rememberChannelMigrationTaskGuard(taskKey, guard, nextTask)
-	b.rememberChannelMigrationRuntimeGuard(metaKey, runtimeGuard, nextMeta)
+	if taskGuardDBState || b.hasChannelMigrationTaskGuard(taskKey) {
+		b.rememberChannelMigrationTaskGuard(taskKey, guard, nextTask)
+	}
+	if runtimeGuardDBState || b.hasChannelMigrationRuntimeGuard(metaKey) {
+		b.rememberChannelMigrationRuntimeGuard(metaKey, runtimeGuard, nextMeta)
+	}
 	if err := b.upsertChannelMigrationTask(hashSlot, nextTask); err != nil {
 		return err
 	}
@@ -311,6 +344,82 @@ func validateChannelMigrationTaskRuntimeTransition(guard ChannelMigrationTaskGua
 	return nil
 }
 
+func requireChannelMigrationSetFenceTransition(task ChannelMigrationTask, req ChannelMigrationFenceRequest) error {
+	if req.Status != ChannelMigrationStatusRunning {
+		return ErrStaleMeta
+	}
+	if task.Kind == ChannelMigrationKindLeaderTransfer || (task.Kind == ChannelMigrationKindReplicaReplace && task.EmbeddedLeaderTransfer && isLeaderTransferPhase(task.Phase)) {
+		if (task.Phase == ChannelMigrationPhaseWriteFence && req.Phase == ChannelMigrationPhaseDrainLeader) ||
+			(isLeaderTransferFencePhase(task.Phase) && req.Phase == task.Phase) {
+			return nil
+		}
+		return ErrStaleMeta
+	}
+	if task.Kind == ChannelMigrationKindReplicaReplace {
+		if (task.Phase == ChannelMigrationPhaseWarmCatchUp && req.Phase == ChannelMigrationPhaseCutoverFence) ||
+			(isReplicaReplaceFencePhase(task.Phase) && req.Phase == task.Phase) {
+			return nil
+		}
+	}
+	return ErrStaleMeta
+}
+
+func requireChannelMigrationResetFenceTransition(task ChannelMigrationTask, req ChannelMigrationResetFenceRequest) error {
+	if req.Status != ChannelMigrationStatusRunning || !isChannelMigrationFencePhaseAllowed(task) {
+		return ErrStaleMeta
+	}
+	if task.Kind == ChannelMigrationKindLeaderTransfer || (task.Kind == ChannelMigrationKindReplicaReplace && task.EmbeddedLeaderTransfer && isLeaderTransferFencePhase(task.Phase)) {
+		if req.Phase == ChannelMigrationPhaseProbeTarget || req.Phase == ChannelMigrationPhaseWriteFence {
+			return nil
+		}
+		return ErrStaleMeta
+	}
+	if task.Kind == ChannelMigrationKindReplicaReplace && req.Phase == ChannelMigrationPhaseWarmCatchUp {
+		return nil
+	}
+	return ErrStaleMeta
+}
+
+func requireChannelMigrationLeaderTransferTransition(task ChannelMigrationTask, req ChannelMigrationLeaderTransferRequest) error {
+	if req.Status != ChannelMigrationStatusRunning || task.Phase != ChannelMigrationPhaseCommitLeaderMeta || req.Phase != ChannelMigrationPhaseVerifyNewLeader {
+		return ErrStaleMeta
+	}
+	if task.Kind == ChannelMigrationKindLeaderTransfer {
+		return nil
+	}
+	if task.Kind == ChannelMigrationKindReplicaReplace && task.EmbeddedLeaderTransfer {
+		return nil
+	}
+	return ErrStaleMeta
+}
+
+func requireChannelMigrationAddLearnerTransition(task ChannelMigrationTask, req ChannelMigrationAddLearnerRequest) error {
+	if task.Kind != ChannelMigrationKindReplicaReplace ||
+		task.Phase != ChannelMigrationPhaseAddLearner ||
+		req.Status != ChannelMigrationStatusRunning ||
+		req.Phase != ChannelMigrationPhaseBootstrapTarget {
+		return ErrStaleMeta
+	}
+	return nil
+}
+
+func requireChannelMigrationPromoteLearnerTransition(task ChannelMigrationTask, req ChannelMigrationPromoteLearnerRequest) error {
+	if task.Kind != ChannelMigrationKindReplicaReplace ||
+		task.Phase != ChannelMigrationPhasePromoteAndRemove ||
+		req.Status != ChannelMigrationStatusRunning ||
+		req.Phase != ChannelMigrationPhaseVerifyMembership {
+		return ErrStaleMeta
+	}
+	return nil
+}
+
+func requireChannelMigrationClearFenceTransition(task ChannelMigrationTask, req ChannelMigrationClearFenceRequest) error {
+	if !isChannelMigrationFencePhaseAllowed(task) || req.Status != ChannelMigrationStatusCompleted || req.Phase != ChannelMigrationPhaseClearFence || req.CompletedAtMS <= 0 {
+		return ErrStaleMeta
+	}
+	return nil
+}
+
 func (guard ChannelMigrationRuntimeGuard) matches(meta ChannelRuntimeMeta) bool {
 	return meta.ChannelID == guard.ChannelID &&
 		meta.ChannelType == guard.ChannelType &&
@@ -326,6 +435,30 @@ func requireMatchingFence(meta ChannelRuntimeMeta, token string, version uint64,
 		return ErrStaleMeta
 	}
 	if !allowExpired && nowMS > meta.WriteFenceUntilMS {
+		return ErrStaleMeta
+	}
+	return nil
+}
+
+func requireChannelMigrationCutoverProof(task ChannelMigrationTask, meta ChannelRuntimeMeta, expectedFenceVersion uint64) error {
+	proof := ChannelMigrationCutoverProof{
+		CutoverLEO:               task.CutoverLEO,
+		CutoverHW:                task.CutoverHW,
+		DrainedLeaderNode:        task.DrainedLeaderNode,
+		DrainedRuntimeGeneration: task.DrainedRuntimeGeneration,
+		DrainedChannelEpoch:      task.DrainedChannelEpoch,
+		DrainedLeaderEpoch:       task.DrainedLeaderEpoch,
+		DrainedFenceVersion:      task.DrainedFenceVersion,
+	}
+	if expectedFenceVersion == 0 || !proof.hasAny() || proof.hasPartial() {
+		return ErrStaleMeta
+	}
+	if task.DrainedFenceVersion != expectedFenceVersion ||
+		meta.WriteFenceVersion != expectedFenceVersion ||
+		task.DrainedChannelEpoch != meta.ChannelEpoch ||
+		task.DrainedLeaderEpoch != meta.LeaderEpoch ||
+		task.DrainedLeaderNode != meta.Leader ||
+		task.CutoverHW > task.CutoverLEO {
 		return ErrStaleMeta
 	}
 	return nil
