@@ -27,6 +27,10 @@ Store.GetUserConversationState / UpsertUserConversationStates / ListUserConversa
 Store.TouchUserConversationActiveAt / ClearUserConversationActiveAt / HideUserConversations
 Store.RegisterUserConversationActiveOverlay(overlay)  // 注册 UID-owner active_at 热提示覆盖层
 Store.SubmitUserConversationActiveHints / RemoveUserConversationActiveHints
+Store.CreateChannelMigrationTask / GetActiveChannelMigrationTask / ListRunnableChannelMigrationTasksForLocalLeaderSlots
+Store.ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteFence / ResetChannelWriteFenceToPreCutover
+Store.CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration
+Store.GarbageCollectTerminalChannelMigrationTasks
 
 // meta/channel_migration_task.go — 当前 Task 2/3 提供本地 ShardStore / WriteBatch helper
 ShardStore.CreateChannelMigrationTask / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / GetChannelMigrationTask / GetActiveChannelMigrationTask / ListChannelMigrationTasks / DeleteTerminalChannelMigrationTasksBefore
@@ -223,8 +227,9 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 | `subscriberRPCServiceID` | 订阅者列表（分页/快照） | proxy/subscriber_rpc.go |
 | `userConversationStateRPCServiceID` | 会话状态查询、active_at 热提示提交/删除 | proxy/user_conversation_state_rpc.go |
 | `channelRPCServiceID` | Channel 权限元数据查询（Ban / Disband / SendBan / SubscriberMutationVersion） | proxy/channel_rpc.go |
+| `channelMigrationRPCServiceID` | Channel migration active-task 查询与远端 slot-leader 提案转发 | proxy/channel_migration_rpc.go |
 
-**RPC 状态码** (authoritative_rpc.go): `ok` / `not_found` / `not_leader` / `no_leader` / `no_slot`
+**RPC 状态码** (authoritative_rpc.go): `ok` / `not_found` / `not_leader` / `no_leader` / `no_slot` / `stale_meta`
 
 ## 9. 避坑清单
 

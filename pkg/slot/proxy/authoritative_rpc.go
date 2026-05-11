@@ -15,6 +15,7 @@ const (
 	rpcStatusNoLeader  = "no_leader"
 	rpcStatusNoSlot    = "no_slot"
 	rpcStatusNotFound  = "not_found"
+	rpcStatusStaleMeta = "stale_meta"
 )
 
 type authoritativeRPCResponse interface {
@@ -76,7 +77,7 @@ func callAuthoritativeRPC[T authoritativeRPCResponse](
 		}
 
 		switch resp.rpcStatus() {
-		case rpcStatusOK, rpcStatusNotFound:
+		case rpcStatusOK, rpcStatusNotFound, rpcStatusStaleMeta:
 			return resp, nil
 		case rpcStatusNotLeader:
 			if leaderID := multiraft.NodeID(resp.rpcLeaderID()); leaderID != 0 {
