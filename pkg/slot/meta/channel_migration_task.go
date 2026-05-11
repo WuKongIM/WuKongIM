@@ -540,7 +540,19 @@ func validateChannelMigrationTask(task ChannelMigrationTask) error {
 	if hasFence && (task.FenceToken == "" || task.FenceVersion == 0 || task.FenceUntilMS <= 0) {
 		return ErrInvalidArgument
 	}
-	if task.EmbeddedLeaderTransfer && task.EmbeddedDesiredLeader == 0 {
+	if hasFence && (task.IsTerminal() || !isChannelMigrationFencePhaseAllowed(task)) {
+		return ErrInvalidArgument
+	}
+	if err := validateChannelMigrationTaskDrainProof(task, hasFence); err != nil {
+		return err
+	}
+	if task.EmbeddedLeaderTransfer && task.Kind != ChannelMigrationKindReplicaReplace {
+		return ErrInvalidArgument
+	}
+	if !task.EmbeddedLeaderTransfer && task.EmbeddedDesiredLeader != 0 {
+		return ErrInvalidArgument
+	}
+	if task.EmbeddedLeaderTransfer && (task.EmbeddedDesiredLeader == 0 || task.EmbeddedDesiredLeader == task.SourceNode || task.EmbeddedDesiredLeader == task.TargetNode) {
 		return ErrInvalidArgument
 	}
 	if task.OwnerNodeID == 0 && task.OwnerLeaseUntilMS != 0 {
@@ -563,10 +575,37 @@ func validateChannelMigrationTask(task ChannelMigrationTask) error {
 		if task.BlockerCode == "" || task.BlockerMessage == "" {
 			return ErrInvalidArgument
 		}
+		if task.BlockerCode != ChannelMigrationBlockerNeedsSnapshotBootstrap {
+			return ErrInvalidArgument
+		}
 	} else if task.BlockerCode != "" || task.BlockerMessage != "" {
 		return ErrInvalidArgument
 	}
 	if task.BlockerCode == ChannelMigrationBlockerNeedsSnapshotBootstrap && (task.Status != ChannelMigrationStatusBlocked || !canBlockChannelMigrationAtPhase(task.Phase)) {
+		return ErrInvalidArgument
+	}
+	return nil
+}
+
+func validateChannelMigrationTaskDrainProof(task ChannelMigrationTask, hasActiveFence bool) error {
+	hasProof := task.CutoverLEO != 0 ||
+		task.CutoverHW != 0 ||
+		task.DrainedLeaderNode != 0 ||
+		task.DrainedRuntimeGeneration != 0 ||
+		task.DrainedChannelEpoch != 0 ||
+		task.DrainedLeaderEpoch != 0 ||
+		task.DrainedFenceVersion != 0
+	if !hasProof {
+		return nil
+	}
+	if !hasActiveFence || !isChannelMigrationPostDrainProofPhase(task) {
+		return ErrInvalidArgument
+	}
+	if task.DrainedLeaderNode == 0 ||
+		task.DrainedChannelEpoch == 0 ||
+		task.DrainedLeaderEpoch == 0 ||
+		task.DrainedFenceVersion != task.FenceVersion ||
+		task.CutoverHW > task.CutoverLEO {
 		return ErrInvalidArgument
 	}
 	return nil
@@ -669,6 +708,85 @@ func isReplicaReplacePhase(phase ChannelMigrationPhase) bool {
 		ChannelMigrationPhaseWarmCatchUp,
 		ChannelMigrationPhaseCutoverFence,
 		ChannelMigrationPhaseFinalTargetCatchUp,
+		ChannelMigrationPhasePromoteAndRemove,
+		ChannelMigrationPhaseVerifyMembership,
+		ChannelMigrationPhaseClearFence:
+		return true
+	default:
+		return false
+	}
+}
+
+func isChannelMigrationFencePhaseAllowed(task ChannelMigrationTask) bool {
+	switch task.Kind {
+	case ChannelMigrationKindLeaderTransfer:
+		return isLeaderTransferFencePhase(task.Phase)
+	case ChannelMigrationKindReplicaReplace:
+		if isReplicaReplaceFencePhase(task.Phase) {
+			return true
+		}
+		return task.EmbeddedLeaderTransfer && isLeaderTransferFencePhase(task.Phase)
+	default:
+		return false
+	}
+}
+
+func isLeaderTransferFencePhase(phase ChannelMigrationPhase) bool {
+	switch phase {
+	case ChannelMigrationPhaseWriteFence,
+		ChannelMigrationPhaseDrainLeader,
+		ChannelMigrationPhaseFinalTargetCatchUp,
+		ChannelMigrationPhaseCommitLeaderMeta,
+		ChannelMigrationPhaseVerifyNewLeader,
+		ChannelMigrationPhaseClearFence:
+		return true
+	default:
+		return false
+	}
+}
+
+func isReplicaReplaceFencePhase(phase ChannelMigrationPhase) bool {
+	switch phase {
+	case ChannelMigrationPhaseCutoverFence,
+		ChannelMigrationPhaseFinalTargetCatchUp,
+		ChannelMigrationPhasePromoteAndRemove,
+		ChannelMigrationPhaseVerifyMembership,
+		ChannelMigrationPhaseClearFence:
+		return true
+	default:
+		return false
+	}
+}
+
+func isChannelMigrationPostDrainProofPhase(task ChannelMigrationTask) bool {
+	switch task.Kind {
+	case ChannelMigrationKindLeaderTransfer:
+		return isLeaderTransferPostDrainProofPhase(task.Phase)
+	case ChannelMigrationKindReplicaReplace:
+		if isReplicaReplacePostDrainProofPhase(task.Phase) {
+			return true
+		}
+		return task.EmbeddedLeaderTransfer && isLeaderTransferPostDrainProofPhase(task.Phase)
+	default:
+		return false
+	}
+}
+
+func isLeaderTransferPostDrainProofPhase(phase ChannelMigrationPhase) bool {
+	switch phase {
+	case ChannelMigrationPhaseFinalTargetCatchUp,
+		ChannelMigrationPhaseCommitLeaderMeta,
+		ChannelMigrationPhaseVerifyNewLeader,
+		ChannelMigrationPhaseClearFence:
+		return true
+	default:
+		return false
+	}
+}
+
+func isReplicaReplacePostDrainProofPhase(phase ChannelMigrationPhase) bool {
+	switch phase {
+	case ChannelMigrationPhaseFinalTargetCatchUp,
 		ChannelMigrationPhasePromoteAndRemove,
 		ChannelMigrationPhaseVerifyMembership,
 		ChannelMigrationPhaseClearFence:
