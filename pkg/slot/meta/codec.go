@@ -441,6 +441,9 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 			return ChannelRuntimeMeta{}, fmt.Errorf("%w: zero column delta", ErrCorruptValue)
 		}
 		colID += delta
+		if expectedType, ok := channelRuntimeMetaValueColumnType(colID); ok && expectedType != valueType {
+			return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid column %d type %d", ErrCorruptValue, colID, valueType)
+		}
 
 		switch valueType {
 		case valueTypeBytes:
@@ -566,6 +569,31 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 		return ChannelRuntimeMeta{}, fmt.Errorf("%w: missing int column %d", ErrCorruptValue, channelRuntimeMetaColumnIDLeaseUntilMS)
 	}
 	return normalizeChannelRuntimeMeta(meta), nil
+}
+
+func channelRuntimeMetaValueColumnType(columnID uint16) (byte, bool) {
+	switch columnID {
+	case channelRuntimeMetaColumnIDReplicas,
+		channelRuntimeMetaColumnIDISR,
+		channelRuntimeMetaColumnIDWriteFenceToken:
+		return valueTypeBytes, true
+	case channelRuntimeMetaColumnIDMinISR,
+		channelRuntimeMetaColumnIDLeaseUntilMS,
+		channelRuntimeMetaColumnIDRetentionUpdatedAtMS,
+		channelRuntimeMetaColumnIDWriteFenceUntilMS:
+		return valueTypeInt, true
+	case channelRuntimeMetaColumnIDChannelEpoch,
+		channelRuntimeMetaColumnIDLeaderEpoch,
+		channelRuntimeMetaColumnIDLeader,
+		channelRuntimeMetaColumnIDStatus,
+		channelRuntimeMetaColumnIDFeatures,
+		channelRuntimeMetaColumnIDRetentionThroughSeq,
+		channelRuntimeMetaColumnIDWriteFenceVersion,
+		channelRuntimeMetaColumnIDWriteFenceReason:
+		return valueTypeUint, true
+	default:
+		return 0, false
+	}
 }
 
 func wrapFamilyValue(key, payload []byte) []byte {

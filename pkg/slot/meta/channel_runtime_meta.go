@@ -242,6 +242,17 @@ func validateChannelRuntimeMeta(meta ChannelRuntimeMeta) error {
 			return ErrInvalidArgument
 		}
 	}
+	if err := validateChannelRuntimeMetaWriteFence(meta); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateChannelRuntimeMetaWriteFence(meta ChannelRuntimeMeta) error {
+	if meta.WriteFenceVersion == 0 &&
+		(meta.WriteFenceToken != "" || meta.WriteFenceReason != 0 || meta.WriteFenceUntilMS != 0) {
+		return ErrInvalidArgument
+	}
 	return nil
 }
 
