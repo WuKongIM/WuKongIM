@@ -389,6 +389,33 @@ func TestStateMachineChannelCommandsRejectTaskNodeMismatch(t *testing.T) {
 	})
 }
 
+func TestStateMachineChannelAbortRejectsNonTerminalStatus(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+	task := fsmTestChannelMigrationTask("task-abort-non-terminal", "channel-abort-non-terminal")
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhaseWarmCatchUp
+	task.UpdatedAtMS = 1750000001000
+	meta := fsmTestRuntimeMeta(task.ChannelID, task.ChannelType)
+	meta.ChannelEpoch = task.BaseChannelEpoch
+	meta.LeaderEpoch = task.BaseLeaderEpoch
+
+	fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
+	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
+	req := fsmTestAbortRequest(task, meta, 1750000002000)
+	req.Status = metadb.ChannelMigrationStatusRunning
+	req.CompletedAtMS = 0
+
+	_, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, Index: 3, Term: 1, Data: EncodeAbortChannelMigrationCommand(req)})
+	if err == nil {
+		t.Fatal("Apply(abort non-terminal) error = nil, want error")
+	}
+	if !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("Apply(abort non-terminal) error = %v, want ErrInvalidArgument", err)
+	}
+}
+
 func TestStateMachineChannelAdvancePersistsProgressWithoutMetaMutation(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
