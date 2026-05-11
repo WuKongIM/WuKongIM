@@ -389,6 +389,12 @@ This is intentionally incomplete versus legacy online-only cmd delivery. That mi
 - Committed replay and live committed dispatch both rely on the conversation projector to reject `SyncOnce` / cmd-channel messages.
 - Delivery still receives cmd-channel committed envelopes.
 
+### Unit tests: `internal/usecase/conversation`
+
+- `SubmitCommitted` rejects messages whose durable channel ID ends with `____cmd`.
+- `SubmitCommitted` rejects messages whose `Framer.SyncOnce` is true.
+- Committed replay and live dispatch both depend on the same projector gate.
+
 ### Integration or focused app tests
 
 If cheap with existing harnesses:
