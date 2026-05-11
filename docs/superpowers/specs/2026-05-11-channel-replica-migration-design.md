@@ -114,10 +114,23 @@ type ChannelMigrationTask struct {
     BaseLeaderEpoch  uint64
 
     FenceToken   string
+    FenceVersion uint64
     FenceUntilMS int64
+
+    EmbeddedLeaderTransfer bool
+    EmbeddedDesiredLeader  uint64
+
+    OwnerNodeID       uint64
+    OwnerLeaseUntilMS int64
 
     CutoverLEO uint64
     CutoverHW  uint64
+
+    DrainedLeaderNode        uint64
+    DrainedRuntimeGeneration uint64
+    DrainedChannelEpoch      uint64
+    DrainedLeaderEpoch       uint64
+    DrainedFenceVersion      uint64
 
     Attempt     uint32
     NextRunAtMS int64
@@ -153,6 +166,46 @@ Core invariants:
 - Duplicate phase advances are idempotent no-ops.
 - Stale phase advances must not overwrite newer task or metadata state.
 - Completed/failed/aborted tasks are retained for a TTL, then garbage collected.
+- Task and `ChannelRuntimeMeta` changes that must become visible together are committed by one slot Raft command and one slot meta write batch.
+
+### Executor Ownership
+
+Only the current slot leader should drive active channel migration tasks for channels owned by that slot. Non-owner nodes only serve local RPC primitives such as probe, target bootstrap, and leader drain.
+
+Task claiming uses `OwnerNodeID` and `OwnerLeaseUntilMS`:
+
+- The slot leader claims a runnable task before performing non-idempotent local side effects.
+- Claim/renewal is a slot Raft command guarded by `TaskID`, expected phase, and expected owner lease.
+- If the owner crashes or slot leadership changes, the task becomes runnable after the owner lease expires.
+- A new owner must reread authoritative task and `ChannelRuntimeMeta`, then reconcile the observed meta/task pair before continuing.
+- Owner lease expiry and fence TTL expiry never clear a write fence or release write admission. TTL expiry only makes the task eligible to commit a matching-token recovery command that increments `WriteFenceVersion`.
+
+### Combined Task And Metadata Commands
+
+The implementation must not rely on independent task updates plus independent meta upserts for phase transitions that affect routing or write admission. Introduce explicit slot FSM commands that mutate task and meta atomically when needed:
+
+- `CreateChannelMigrationTask`: create the task if no active task exists for the channel.
+- `ClaimChannelMigrationTask`: set or renew `OwnerNodeID` / `OwnerLeaseUntilMS`.
+- `AdvanceChannelMigrationTask`: advance phases that have no metadata side effect.
+- `SetChannelWriteFence`: set or renew the fence, increment `WriteFenceVersion`, and advance the task to the fenced phase in the same batch.
+- `ResetChannelWriteFenceToPreCutover`: clear or supersede an expired cutover fence, increment `WriteFenceVersion`, clear `CutoverLEO`, `CutoverHW`, and all `Drained*` fields, and return the task to the task-kind-specific pre-cutover phase in the same batch. Standalone leader transfer returns to `ProbeTarget` or `WriteFence`; replica replacement returns to `WarmCatchUp`; embedded leader transfer returns to its embedded pre-fence phase.
+- `CommitChannelLeaderTransfer`: update `Leader` / `LeaderEpoch` / lease and advance the task in the same batch.
+- `AddChannelLearner`: add target to `Replicas`, increment `ChannelEpoch`, and advance the task in the same batch.
+- `PromoteLearnerAndRemoveReplica`: replace source with target in `Replicas` and `ISR`, increment `ChannelEpoch`, and advance the task in the same batch.
+- `ClearChannelWriteFence`: clear only the matching fence token, increment `WriteFenceVersion`, and complete/advance the task in the same batch.
+- `AbortChannelMigration`: mark the task aborted and, when safe, remove an unpromoted learner, increment `ChannelEpoch`, clear the matching fence, and advance the task in the same batch.
+
+Every command carries expected values for `TaskID`, status, phase, `ChannelEpoch`, `LeaderEpoch`, leader, replicas/ISR role of source and target, owner lease, and fence token as applicable. A command that observes the target state already applied must be an idempotent no-op or an idempotent phase advance; it must not return a fatal apply error merely because a previous owner committed the same transition.
+
+### Metadata Epoch Boundary
+
+`ChannelEpoch` remains the structural channel replication metadata version, so `AddLearner` and `PromoteAndRemove` increment it. Because current channel epoch also participates in durable epoch lineage and `OffsetEpoch` proofs, any same-leader `ChannelEpoch` increase that can be followed by appends must create a durable epoch boundary before the leader admits new appends or migration proofs under the new epoch.
+
+Required channel-layer primitive:
+
+- When a current leader applies a higher `ChannelEpoch` without changing leader, it gates appends, writes `EpochPoint{Epoch: newEpoch, StartOffset: currentLEO}` durably, publishes the new epoch only after that write succeeds, then reopens appends if no write fence is active.
+- Followers and learners must be able to persist an epoch boundary even when no records are fetched after the metadata change; heartbeat-only epoch boundary propagation is required for proofs on idle channels.
+- If durable epoch boundary persistence fails, the local runtime stays `CommitReady=false` / not appendable until retry or fresh metadata resolves the state.
 
 ## ChannelRuntimeMeta Write Fence
 
@@ -160,6 +213,7 @@ Add a narrow write fence to `ChannelRuntimeMeta`:
 
 ```go
 WriteFenceToken   string
+WriteFenceVersion uint64
 WriteFenceReason  uint8
 WriteFenceUntilMS int64
 ```
@@ -169,24 +223,38 @@ Projection to `channel.Meta` includes the same fields, ideally wrapped as a smal
 ```go
 type WriteFence struct {
     Token   string
+    Version uint64
     Reason  WriteFenceReason
     Until   time.Time
 }
 ```
 
-Append behavior:
+Append behavior before cutover drain:
 
 - No fence: normal append.
 - Fence exists and has not expired: return a retryable error, preferably `channel.ErrWriteFenced`.
-- Fence exists but is expired: local append treats it as inactive; executor later clears or renews the authoritative fence.
+- Fence exists but is expired: local append must perform or request an authoritative refresh and an authoritative task-state check before treating it as inactive. It may reopen only after applying authoritative metadata that proves the fence is absent or superseded by a newer inactive version, or after confirming no active task has a matching `DrainedFenceVersion` / cutover proof for the same token and version.
+
+Append behavior after a successful `FenceAndDrain`:
+
+- The local runtime is fail-closed for that channel and rejects appends regardless of wall-clock fence expiry.
+- Same-version TTL expiry never releases fail-closed mode.
+- Only applying authoritative metadata from a committed clear/reset/superseding fence command with a newer `WriteFenceVersion` may leave fail-closed mode.
+- A process restart must refresh authoritative metadata and check authoritative task state before serving the channel as appendable if the last observed state had an active or recently drained fence. Metadata alone is insufficient when an active task may still hold a matching `DrainedFenceVersion` / cutover proof.
 
 Fence rules:
 
 - Fence token is normally `TaskID`.
+- `WriteFenceVersion` is monotonic per channel and changes on every set, renew, or clear.
 - Only the task that set a fence may clear it.
-- Fence has a short TTL, for example 10-30 seconds.
-- Executor renews the fence while in cutover phases.
-- `PromoteAndRemove` must require a still-valid matching fence token.
+- Fence has a short TTL, for example 10-30 seconds, but TTL expiry is a recovery signal, not permission to reuse an old drain proof.
+- Executor renews the fence while in cutover phases by incrementing `WriteFenceVersion`.
+- Any renewal after `FenceAndDrain` invalidates the stored drain proof and requires a fresh authoritative fenced-meta apply plus a new `FenceAndDrain` before final commit.
+- `CommitLeaderMeta` and `PromoteAndRemove` must require a still-valid matching fence token and `WriteFenceVersion == DrainedFenceVersion`.
+- Set/renew/clear fence commands invalidate channel meta activation caches for that channel.
+- Cutover phases must verify the current channel leader has applied the authoritative fenced meta and has executed `FenceAndDrain` for the same token, fence version, and local runtime generation.
+
+Fence enforcement must happen in both handler admission and replica-loop admission. A stale handler meta cache must not be sufficient to append if the replica has an active local fence or a drained fail-closed fence, and a stale local runtime must not be allowed to proceed into cutover without a fresh authoritative fenced meta apply.
 
 ## Leader Transfer State Machine
 
@@ -198,6 +266,7 @@ Pending
   -> ProbeTarget
   -> WriteFence
   -> DrainLeader
+  -> FinalTargetCatchUp
   -> CommitLeaderMeta
   -> VerifyNewLeader
   -> ClearFence
@@ -242,8 +311,24 @@ Required semantics:
 - Only current channel leader can drain.
 - Prevent new append requests from entering the pipeline.
 - Wait for already accepted append work to complete or fail.
-- Return stable `LEO`, `HW`, `CheckpointHW`, `ChannelEpoch`, and `LeaderEpoch`.
+- Return stable `LEO`, `HW`, `CheckpointHW`, `ChannelEpoch`, `LeaderEpoch`, `WriteFenceVersion`, and local runtime generation.
 - Fail on lease expiration, meta change, role change, or context timeout.
+
+The drain result is stored in the task as the cutover proof seed. Later metadata commits must verify the same fence token, fence version, leader epoch, and drained runtime generation. If the authoritative fence is renewed or otherwise changes version after drain, the old drain proof is invalid and the task must reapply the fence locally and drain again.
+
+### FinalTargetCatchUp
+
+After drain, writes are fenced and the old leader has captured `CutoverHW` / `CutoverLEO`. The executor must re-evaluate the desired target under the same authoritative `ChannelEpoch` and `LeaderEpoch` before committing the leader change.
+
+The target proof must show:
+
+- `CheckpointHW >= CutoverHW`.
+- The target's epoch lineage is compatible with the current leader at `CutoverHW` and does not require truncation below `CutoverHW`.
+- No pending `TruncateTo` or `ErrSnapshotRequired` blocks the target from serving the committed prefix.
+- If the target is behind but can still catch up through normal fetch, keep the fence and wait.
+- If the target requires snapshot bootstrap and snapshot bootstrap is unavailable, fail closed before `CommitLeaderMeta`.
+
+This phase prevents a lagging target from becoming leader and reconciling away writes that were acknowledged by the old leader after the initial `ProbeTarget` phase.
 
 ### CommitLeaderMeta
 
@@ -258,6 +343,8 @@ Replicas unchanged
 ISR unchanged
 WriteFence remains set
 ```
+
+The same slot Raft command also advances the task phase. It must verify the post-drain target proof and the still-valid matching fence token/version.
 
 ### VerifyNewLeader
 
@@ -305,18 +392,21 @@ V1 keeps `MinISR` unchanged and does not change replica count after completion.
 
 If source is not the current leader, skip.
 
-If source is current leader:
+If source is current leader, the `ReplicaReplace` task uses embedded leader-transfer subphases in the same durable task. It must not create a nested `LeaderTransfer` task because V1 allows only one active task per channel.
 
-- choose a desired leader from existing `ISR - source`.
-- run the leader transfer state machine internally.
-- reread authoritative meta after transfer.
-- continue only if source is no longer leader.
+Embedded behavior:
+
+- choose a desired leader from existing `ISR - source`;
+- set `EmbeddedLeaderTransfer=true` and `EmbeddedDesiredLeader` on the same task;
+- execute the same validation, write-fence, drain, final target proof, and `CommitLeaderMeta` safety rules as standalone leader transfer;
+- after the new leader is verified and the embedded fence is cleared, advance the same `ReplicaReplace` task back to `AddLearner` rather than completing a separate task;
+- reread authoritative meta after transfer and continue only if source is no longer leader.
 
 V1 deliberately avoids direct source-leader-to-target-learner cutover because target is not yet an ISR member.
 
 ### AddLearner
 
-Commit authoritative metadata update:
+Commit authoritative metadata update and task phase advance in one slot Raft command:
 
 ```text
 Replicas = Replicas + target
@@ -335,7 +425,7 @@ Target activation may be one of two forms:
 1. **Fetch catch-up**: target starts from an offset that the leader can still serve.
 2. **Snapshot bootstrap**: target needs a channel snapshot because leader has trimmed the needed prefix.
 
-The design should include snapshot bootstrap as the long-term correct path. Implementation can be phased, but production-safe migration must not silently promote a target that cannot catch up.
+The state machine must make this gate deterministic. If snapshot bootstrap is not implemented or is disabled for V1, any migration that reaches `ErrSnapshotRequired` fails or remains blocked with a `NeedsSnapshotBootstrap` reason before promotion. It must never promote a target that cannot prove the committed prefix.
 
 Snapshot payload must cover the durable channel state needed for recovery and idempotency:
 
@@ -365,22 +455,22 @@ When lag is below threshold for a stable window, continue to cutover.
 
 Set `WriteFenceToken=TaskID`, then ask the current leader to `FenceAndDrain`.
 
-Store returned `CutoverLEO` and `CutoverHW` in the task. If the fence expires before final catch-up completes, the task must discard the old cutover point and return to `WarmCatchUp`.
+Store returned `CutoverLEO` and `CutoverHW` in the task. If the fence expires before final catch-up completes, the task must not locally discard the old cutover point or reopen writes. The task owner must commit `ResetChannelWriteFenceToPreCutover`, which increments `WriteFenceVersion`, clears `CutoverLEO`, `CutoverHW`, and all `Drained*` fields, and returns the task to the correct pre-cutover phase for its kind: standalone leader transfer returns to `ProbeTarget` or `WriteFence`, replica replacement returns to `WarmCatchUp`, and embedded leader transfer returns to its embedded pre-fence phase. The old leader leaves fail-closed mode only after applying that newer-version authoritative reset.
 
 ### FinalCatchUp
 
-Because writes are fenced, target must reach:
+Because writes are fenced, target must produce a final proof under the current authoritative `ChannelEpoch` and `LeaderEpoch`:
 
 ```text
 target LEO >= CutoverLEO
 target CheckpointHW >= CutoverHW
 ```
 
-This proves target has all records that were committed before cutover.
+Watermarks alone are not enough. The proof must also show compatible epoch lineage at the cutover point, no pending truncation below `CutoverHW`, and no `ErrSnapshotRequired`. If the target has a divergent local tail, it must reconcile/truncate safely before this phase succeeds. If it needs a snapshot and snapshot bootstrap is unavailable, fail closed before promotion.
 
 ### PromoteAndRemove
 
-Commit authoritative metadata update atomically:
+Commit authoritative metadata update and task phase advance atomically:
 
 ```text
 Replicas = Replicas + target - source
@@ -397,7 +487,8 @@ Preconditions:
 - task phase is `PromoteAndRemove`,
 - current meta still contains source and target in the expected roles,
 - source is not leader,
-- target final catch-up condition is satisfied.
+- target final catch-up proof is satisfied, including compatible epoch lineage and no pending truncation/snapshot requirement.
+- the stored drain result still matches the current leader epoch, fence version, and runtime generation observed by the leader.
 
 ### VerifyMembership
 
@@ -412,6 +503,16 @@ Verify:
 
 Clear the matching fence token and complete the task.
 
+## Leader Repair And Lease Renewal Interaction
+
+Leader repair and lease renewal must be fence-aware:
+
+- Repair commands must preserve `WriteFenceToken`, `WriteFenceVersion`, `WriteFenceReason`, and `WriteFenceUntilMS` unless they are the matching migration task command that clears the fence.
+- Lease renewal must not clear or shorten an active migration fence.
+- If an active cutover fence exists, repair may change `Leader` only through a command that preserves the fence and records that the migration task must revalidate its phase.
+- Migration executor must reread task and meta after any `LeaderEpoch` change.
+- `resolveMonotonicChannelRuntimeMeta` and repair-specific store commands must preserve fence fields in the same way retention fields are preserved today.
+
 ## Failure Recovery
 
 Recovery strategy is retry-oriented before cutover and forward-only after promote.
@@ -419,8 +520,8 @@ Recovery strategy is retry-oriented before cutover and forward-only after promot
 | Phase | Recovery behavior |
 | --- | --- |
 | Before `AddLearner` | No membership side effect; retry or fail task. |
-| After `AddLearner`, before `PromoteAndRemove` | Target is learner only; continue, or abort by removing target from `Replicas`. |
-| During fence phases | Renew valid fence and continue, or if expired return to `WarmCatchUp`. |
+| After `AddLearner`, before `PromoteAndRemove` | Target is learner only; continue, or abort by removing target from `Replicas` with `ChannelEpoch++` and the same durable epoch-boundary gate. |
+| During fence phases | Renew valid fence and continue, or if expired commit `ResetChannelWriteFenceToPreCutover` with `WriteFenceVersion++`, clear cutover/drain proofs, and only then return to the task-kind-specific pre-cutover phase. |
 | After `PromoteAndRemove` | Continue `VerifyMembership` / `ClearFence`; do not auto-roll back. |
 | Clear fence failure | Keep retrying; TTL is only a safety net, not the normal completion path. |
 
@@ -428,6 +529,7 @@ Node failure behavior:
 
 - source dead before promote: continue only if current leader and target safety can still be proven; otherwise fail closed.
 - source leader dead: rely on existing leader repair/transfer safety; if no safe leader exists, fail closed.
+- abort after learner add: removing the learner is a structural metadata change and must increment `ChannelEpoch`, preserve/clear only matching fence fields, and trigger same-leader epoch boundary persistence before appends reopen.
 - target dead before promote: abort learner and fail/abort task.
 - target dead after promote: target is already ISR; rely on repair or a new reverse migration task.
 
@@ -437,9 +539,23 @@ Node failure behavior:
 - Global and per-target concurrency limits in `channelmigration` executor.
 - Draining workflows may create many tasks, but executor advances them under limits.
 - All writes to task and meta go through slot Raft commands with expected task/phase/epoch fences.
-- Leader repair may run while migration exists, but it must not clear migration fences.
+- Only the claimed owner may perform local side effects for a task; other nodes serve local RPC primitives.
+- Leader repair may run while migration exists, but it must preserve migration fences and force the task owner to revalidate.
 - If leader repair changes `LeaderEpoch`, migration executor must reread meta and revalidate before continuing.
 - `channelMetaSync` only applies authoritative meta; it does not decide migration phase.
+
+## Configuration
+
+If implementation adds tunables, they must use `WK_` keys, include detailed English comments on config fields, and update `wukongim.conf.example` in the same change.
+
+Expected V1 tunables:
+
+- channel migration fence TTL,
+- target catch-up stable window and lag threshold,
+- global active channel migration concurrency,
+- per-source and per-target migration concurrency,
+- task owner lease TTL,
+- completed task retention TTL.
 
 ## Manager API
 
@@ -491,31 +607,42 @@ Logs should include structured events for every phase transition and every fence
 
 - encode/decode `ChannelMigrationTask`.
 - enforce one active task per channel.
-- create/advance/complete/abort idempotency.
-- fenced meta update rejects stale task, stale phase, stale epoch, expired or mismatched fence token.
-- `ChannelRuntimeMeta` monotonic rules preserve retention and do not let stale migrations regress epochs.
+- create/claim/advance/complete/abort idempotency.
+- combined task+meta commands are atomic and recoverable after a crash at every phase.
+- commit commands such as `CommitChannelLeaderTransfer` and `PromoteLearnerAndRemoveReplica` reject stale task, stale phase, stale epoch, expired fence, or mismatched fence token/version.
+- recovery commands such as `ResetChannelWriteFenceToPreCutover`, `ClearChannelWriteFence`, and safe abort accept an expired matching fence only with expected task/phase and `WriteFenceVersion++`.
+- repair and lease renewal preserve active write fence fields, including `WriteFenceVersion`.
+- `ChannelRuntimeMeta` monotonic rules preserve retention and write fence fields and do not let stale migrations regress epochs or fence versions.
 
 `pkg/channel/handler`:
 
 - append returns retryable write-fenced error when active fence exists.
-- expired fence is ignored locally.
+- expired pre-drain fence triggers authoritative refresh and task-state check before append admission.
+- drained/fail-closed runtime keeps rejecting appends until it applies a committed no-fence or newer-version reset/clear and no active task has a matching drain proof.
 - status/fetch remain readable under write fence.
 
 `pkg/channel/runtime` / `pkg/channel/replica`:
 
 - `Replicas - ISR` learner receives replication but does not affect HW quorum.
 - adding learner does not reduce write availability.
+- same-leader `ChannelEpoch` increase persists an epoch boundary before reopening appends.
+- heartbeat-only epoch boundary propagation works for idle channels.
 - promoting learner into ISR after catch-up keeps HW monotonic.
 - `FenceAndDrain` rejects new appends and waits for in-flight append work.
+- replica-loop fence prevents stale handler metadata from admitting appends.
 - `FenceAndDrain` fails on role change, lease expiration, or meta epoch mismatch.
 
 `internal/runtime/channelmigration`:
 
-- leader transfer phase sequence.
+- leader transfer phase sequence, including post-drain `FinalTargetCatchUp`.
+- fence renewal after drain invalidates old drain proof and forces re-drain.
+- lagging-target leader transfer does not lose a write committed by old leader and another ISR replica.
 - replica replacement phase sequence.
-- source-is-leader path runs transfer before add learner.
-- fence expiry returns task to `WarmCatchUp`.
-- abort after `AddLearner` removes learner.
+- source-is-leader path uses embedded transfer subphases in the same `ReplicaReplace` task before add learner.
+- duplicate executor claim race is resolved by owner lease CAS.
+- stale cached append during active fence is rejected.
+- fence expiry returns task to its kind-specific pre-cutover phase only through committed `ResetChannelWriteFenceToPreCutover` with `WriteFenceVersion++`.
+- abort after `AddLearner` removes learner with `ChannelEpoch++` and epoch-boundary persistence.
 - after `PromoteAndRemove`, executor does not auto-roll back.
 
 ### Integration Tests
@@ -525,8 +652,14 @@ Logs should include structured events for every phase transition and every fence
 - three-node replica replacement where source is leader.
 - target catch-up under concurrent writes, with short cutover freeze.
 - executor restart during `WarmCatchUp` and `CutoverFence`.
-- slot leader change during active task.
+- crash/restart after every combined task+meta Raft command.
+- slot leader change during active task and owner handoff after owner lease expiry.
 - target failure before promote.
+- leader restart while write fence is active or while local drained fail-closed mode was active.
+- concurrent leader repair/lease renewal during active migration preserves fence and forces revalidation.
+- `ChannelEpoch` boundary and `OffsetEpoch` proofs remain correct across AddLearner, abort-after-learner, and PromoteAndRemove.
+- snapshot-required migration is rejected or blocked before promotion when snapshot bootstrap is unavailable.
+- single-node cluster operations return deterministic no-op or validation errors without a separate non-cluster branch.
 - source removal after promote and stale source traffic ignored.
 
 Integration tests that need real timing, multiple processes, or long catch-up should use `go test -tags=integration ./...` and stay out of normal unit test runs.
@@ -535,20 +668,21 @@ Integration tests that need real timing, multiple processes, or long catch-up sh
 
 A safe implementation sequence:
 
-1. Add write fence fields and projection to `channel.Meta`.
-2. Add append write-fence handling and tests.
-3. Add `ChannelMigrationTask` metadata, codec, and slot FSM commands.
-4. Add management dry-run and task create/query/abort use cases.
-5. Add leader transfer executor.
-6. Add learner semantics tests and replica replacement executor without snapshot bootstrap.
-7. Add snapshot bootstrap support or explicitly gate migrations that require snapshot.
-8. Add manager API routes and UI-ready DTOs.
-9. Add integration tests and operational metrics.
+1. Add write fence fields and projection to `channel.Meta`, including cache invalidation on set/clear.
+2. Add append write-fence handling in handler and replica loop, plus `FenceAndDrain` tests.
+3. Add same-leader channel epoch boundary persistence and heartbeat-only boundary propagation.
+4. Add `ChannelMigrationTask` metadata, codec, owner lease, and combined task+meta slot FSM commands.
+5. Add management dry-run and task create/query/abort use cases.
+6. Add leader transfer executor with post-drain final target proof.
+7. Add learner semantics tests and replica replacement executor with final lineage proof.
+8. Add snapshot bootstrap support or explicitly gate migrations that require snapshot.
+9. Add manager API routes and UI-ready DTOs.
+10. Add integration tests and operational metrics.
 
 ## Open Questions
 
-- Should V1 ship without snapshot bootstrap by rejecting target catch-up that requires a snapshot, or should snapshot bootstrap be part of the first production cut?
-- What default fence TTL and catch-up stable-window values should be configured?
+- Should the first production cut include snapshot bootstrap, or should it ship with a hard `NeedsSnapshotBootstrap` gate that blocks affected migrations before promotion?
+- What default fence TTL, owner lease TTL, and catch-up stable-window values should be configured?
 - Should `ErrWriteFenced` be surfaced to clients distinctly, or mapped to `ErrNotReady` at external protocol boundaries?
 - How long should completed tasks be retained before GC?
 
