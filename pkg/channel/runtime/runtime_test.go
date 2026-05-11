@@ -38,6 +38,65 @@ func TestRetentionMetaEqualityIncludesRetentionBoundary(t *testing.T) {
 	require.False(t, metaEqualExceptLease(current, next))
 }
 
+func TestApplyMetaSerializesConcurrentWriteFenceUpdates(t *testing.T) {
+	rt := newTestRuntime(t)
+	meta := testMeta("room-fence-serialize")
+	require.NoError(t, rt.EnsureChannel(meta))
+	rep := rt.replicaForTest(t, meta.Key)
+	rep.blockApplyMetaFenceVersion = 1
+	rep.applyMetaEntered = make(chan struct{})
+	rep.releaseApplyMeta = make(chan struct{})
+
+	older := meta
+	older.WriteFence = core.WriteFence{
+		Token:   "task-1",
+		Version: 1,
+		Reason:  core.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	newer := meta
+	newer.WriteFence = core.WriteFence{
+		Token:   "task-2",
+		Version: 2,
+		Reason:  core.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+
+	olderDone := make(chan error, 1)
+	go func() {
+		olderDone <- rt.ApplyMeta(older)
+	}()
+	<-rep.applyMetaEntered
+
+	newerDone := make(chan error, 1)
+	go func() {
+		newerDone <- rt.ApplyMeta(newer)
+	}()
+	newerFinished := false
+	select {
+	case err := <-newerDone:
+		require.NoError(t, err)
+		newerFinished = true
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	close(rep.releaseApplyMeta)
+	require.NoError(t, <-olderDone)
+	if !newerFinished {
+		select {
+		case err := <-newerDone:
+			require.NoError(t, err)
+		case <-time.After(time.Second):
+			t.Fatal("newer ApplyMeta did not finish")
+		}
+	}
+
+	ch, ok := rt.Channel(meta.Key)
+	require.True(t, ok)
+	require.Equal(t, uint64(2), ch.Meta().WriteFence.Version)
+	require.Equal(t, "task-2", ch.Meta().WriteFence.Token)
+}
+
 func TestRuntimeApplyRetentionBoundaryDelegatesToReplica(t *testing.T) {
 	rt := newTestRuntime(t)
 	meta := testMeta("room-retention-apply")

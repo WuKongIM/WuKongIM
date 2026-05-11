@@ -31,8 +31,10 @@ type channel struct {
 	onAppend func(core.ChannelKey)
 	changes  *replicaChangeNotifier
 	meta     atomic.Pointer[core.Meta]
-	mu       sync.Mutex
-	pending  taskMask
+	// applyMu serializes metadata application so older fence generations cannot publish after newer ones.
+	applyMu sync.Mutex
+	mu      sync.Mutex
+	pending taskMask
 
 	replicationPeers   nodeIDQueue
 	replicationTargets []PeerLaneKey

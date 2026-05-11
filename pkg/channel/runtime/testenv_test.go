@@ -224,20 +224,34 @@ func (f *fakeReplicaFactory) New(cfg ChannelConfig) (replica.Replica, error) {
 }
 
 type fakeReplica struct {
-	mu                  sync.Mutex
-	state               core.ReplicaState
-	tombstone           int
-	tombstoneErr        error
-	becomeLeaderErr     error
-	closeCount          int
-	retentionCalls      []uint64
-	retentionView       core.RetentionView
-	onLeaderLocalAppend func()
-	onLeaderHWAdvance   func()
+	mu                         sync.Mutex
+	state                      core.ReplicaState
+	tombstone                  int
+	tombstoneErr               error
+	becomeLeaderErr            error
+	closeCount                 int
+	retentionCalls             []uint64
+	retentionView              core.RetentionView
+	onLeaderLocalAppend        func()
+	onLeaderHWAdvance          func()
+	blockApplyMetaFenceVersion uint64
+	applyMetaEntered           chan struct{}
+	releaseApplyMeta           chan struct{}
 }
 
 func (r *fakeReplica) ApplyMeta(meta core.Meta) error {
 	r.mu.Lock()
+	entered := r.applyMetaEntered
+	release := r.releaseApplyMeta
+	if r.blockApplyMetaFenceVersion != 0 && meta.WriteFence.Version == r.blockApplyMetaFenceVersion && entered != nil {
+		r.applyMetaEntered = nil
+		r.mu.Unlock()
+		close(entered)
+		if release != nil {
+			<-release
+		}
+		r.mu.Lock()
+	}
 	defer r.mu.Unlock()
 	r.state.ChannelKey = meta.Key
 	r.state.Epoch = meta.Epoch
