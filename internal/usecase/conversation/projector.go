@@ -168,6 +168,9 @@ func (p *projector) SubmitCommitted(_ context.Context, msg channel.Message) erro
 	if p == nil || p.store == nil {
 		return nil
 	}
+	if runtimechannelid.IsCommandChannel(msg.ChannelID) || msg.Framer.SyncOnce {
+		return nil
+	}
 	if !p.enqueuePending(msg) {
 		return nil
 	}
