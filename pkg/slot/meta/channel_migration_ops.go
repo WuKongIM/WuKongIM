@@ -15,7 +15,7 @@ func (b *WriteBatch) SetChannelWriteFence(hashSlot uint16, req ChannelMigrationF
 		if err := requireNoForeignChannelMigrationFence(task, meta); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
-		nextTask := task
+		nextTask := clearChannelMigrationTaskProof(task)
 		nextTask.Status = req.Status
 		nextTask.Phase = req.Phase
 		nextTask.FenceToken = task.TaskID
@@ -200,6 +200,9 @@ func (b *WriteBatch) AbortChannelMigration(hashSlot uint16, req ChannelMigration
 	return b.stageChannelMigrationTaskAndMeta(hashSlot, req.Guard, req.RuntimeGuard, func(task ChannelMigrationTask, meta ChannelRuntimeMeta) (ChannelMigrationTask, ChannelRuntimeMeta, error) {
 		if task.IsTerminal() {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, ErrStaleMeta
+		}
+		if err := requireChannelMigrationAbortTransition(task); err != nil {
+			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
 		nextTask := clearChannelMigrationTaskFenceAndProof(task)
 		nextTask.Status = req.Status
@@ -471,6 +474,55 @@ func requireChannelMigrationClearFenceTransition(task ChannelMigrationTask, req 
 	return ErrStaleMeta
 }
 
+func requireChannelMigrationAbortTransition(task ChannelMigrationTask) error {
+	switch task.Kind {
+	case ChannelMigrationKindLeaderTransfer:
+		if isLeaderTransferAbortPhase(task.Phase) {
+			return nil
+		}
+	case ChannelMigrationKindReplicaReplace:
+		if task.EmbeddedLeaderTransfer && isLeaderTransferPhase(task.Phase) {
+			if isLeaderTransferAbortPhase(task.Phase) {
+				return nil
+			}
+			return ErrStaleMeta
+		}
+		if isReplicaReplaceAbortPhase(task.Phase) {
+			return nil
+		}
+	}
+	return ErrStaleMeta
+}
+
+func isLeaderTransferAbortPhase(phase ChannelMigrationPhase) bool {
+	switch phase {
+	case ChannelMigrationPhaseValidate,
+		ChannelMigrationPhaseProbeTarget,
+		ChannelMigrationPhaseWriteFence,
+		ChannelMigrationPhaseDrainLeader,
+		ChannelMigrationPhaseFinalTargetCatchUp,
+		ChannelMigrationPhaseCommitLeaderMeta:
+		return true
+	default:
+		return false
+	}
+}
+
+func isReplicaReplaceAbortPhase(phase ChannelMigrationPhase) bool {
+	switch phase {
+	case ChannelMigrationPhaseValidate,
+		ChannelMigrationPhaseAddLearner,
+		ChannelMigrationPhaseBootstrapTarget,
+		ChannelMigrationPhaseWarmCatchUp,
+		ChannelMigrationPhaseCutoverFence,
+		ChannelMigrationPhaseFinalTargetCatchUp,
+		ChannelMigrationPhasePromoteAndRemove:
+		return true
+	default:
+		return false
+	}
+}
+
 func (guard ChannelMigrationRuntimeGuard) matches(meta ChannelRuntimeMeta) bool {
 	return meta.ChannelID == guard.ChannelID &&
 		meta.ChannelType == guard.ChannelType &&
@@ -559,6 +611,10 @@ func clearChannelMigrationTaskFenceAndProof(task ChannelMigrationTask) ChannelMi
 	task.FenceToken = ""
 	task.FenceVersion = 0
 	task.FenceUntilMS = 0
+	return clearChannelMigrationTaskProof(task)
+}
+
+func clearChannelMigrationTaskProof(task ChannelMigrationTask) ChannelMigrationTask {
 	task.CutoverLEO = 0
 	task.CutoverHW = 0
 	task.DrainedLeaderNode = 0

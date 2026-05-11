@@ -112,6 +112,36 @@ func TestChannelMigrationCommandRejectsDuplicatePayload(t *testing.T) {
 	}
 }
 
+func TestChannelMigrationCommandRejectsAmbiguousJSONPayload(t *testing.T) {
+	tests := []struct {
+		name    string
+		payload string
+	}{
+		{
+			name:    "unknown_field",
+			payload: `{"TaskID":"task-json","UnknownField":true}`,
+		},
+		{
+			name:    "duplicate_key",
+			payload: `{"TaskID":"task-json","TaskID":"task-json-2"}`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			data := []byte{commandVersion, cmdTypeCreateChannelMigrationTask}
+			data = appendBytesTLVField(data, tagChannelMigrationCommandPayload, []byte(tc.payload))
+
+			_, err := decodeCommand(data)
+			if err == nil {
+				t.Fatalf("decodeCommand(%s) error = nil, want error", tc.name)
+			}
+			if !errors.Is(err, metadb.ErrCorruptValue) {
+				t.Fatalf("decodeCommand(%s) error = %v, want ErrCorruptValue", tc.name, err)
+			}
+		})
+	}
+}
+
 func TestStateMachineStaleCommitErrorsAreDeterministicResults(t *testing.T) {
 	for _, err := range []error{metadb.ErrStaleMeta, metadb.ErrNotFound, metadb.ErrAlreadyExists} {
 		if !isStaleMetaCommitError(err) {
@@ -182,6 +212,50 @@ func TestStateMachineChannelSetFenceRejectsForeignRuntimeFence(t *testing.T) {
 	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
 	result, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, Index: 3, Term: 1, Data: EncodeSetChannelWriteFenceCommand(fsmTestSetFenceRequest(task, meta, 1750000009000, 1750000002000))})
 	requireFSMStaleResult(t, result, err)
+}
+
+func TestStateMachineChannelSetFenceRenewalClearsDrainProof(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+	task := fsmTestChannelMigrationTask("task-renew-proof", "channel-renew-proof")
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhasePromoteAndRemove
+	task.UpdatedAtMS = 1750000001000
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 7
+	task.FenceUntilMS = 1750000009000
+	setFSMTestDrainProof(&task, 7)
+	meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, task.TaskID, 7)
+	meta.ChannelEpoch = task.BaseChannelEpoch
+	meta.LeaderEpoch = task.BaseLeaderEpoch
+	meta.Replicas = []uint64{1, 2, 3}
+	meta.ISR = []uint64{1, 2}
+
+	fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
+	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
+	req := fsmTestSetFenceRequest(task, meta, 1750000010000, 1750000002000)
+	req.Phase = task.Phase
+	fsmApplyOK(t, ctx, sm, 3, EncodeSetChannelWriteFenceCommand(req))
+
+	gotTask, err := db.ForSlot(11).GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	if err != nil {
+		t.Fatalf("GetChannelMigrationTask() error = %v", err)
+	}
+	if gotTask.FenceVersion != 8 ||
+		gotTask.CutoverLEO != 0 ||
+		gotTask.CutoverHW != 0 ||
+		gotTask.DrainedFenceVersion != 0 ||
+		gotTask.DrainedRuntimeGeneration != 0 {
+		t.Fatalf("task after fence renewal = %#v", gotTask)
+	}
+	gotMeta, err := db.ForSlot(11).GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
+	}
+	if gotMeta.WriteFenceVersion != 8 || gotMeta.WriteFenceToken != task.TaskID {
+		t.Fatalf("meta after fence renewal = %#v", gotMeta)
+	}
 }
 
 func TestStateMachineAddChannelLearnerUpdatesTaskAndMetaAtomically(t *testing.T) {
@@ -686,6 +760,66 @@ func TestStateMachineChannelAbortLeaderTransferDoesNotRemoveNonISRReplica(t *tes
 	}
 	if gotMeta.ChannelEpoch != meta.ChannelEpoch || !reflect.DeepEqual(gotMeta.Replicas, []uint64{1, 2, 3}) {
 		t.Fatalf("meta after leader-transfer abort = %#v", gotMeta)
+	}
+}
+
+func TestStateMachineChannelAbortRejectsAfterIrreversiblePhases(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func() (metadb.ChannelMigrationTask, metadb.ChannelRuntimeMeta)
+	}{
+		{
+			name: "after_leader_commit",
+			setup: func() (metadb.ChannelMigrationTask, metadb.ChannelRuntimeMeta) {
+				task := fsmTestLeaderTransferTask("task-abort-after-leader", "channel-abort-after-leader")
+				task.Phase = metadb.ChannelMigrationPhaseVerifyNewLeader
+				task.FenceToken = task.TaskID
+				task.FenceVersion = 7
+				task.FenceUntilMS = 1750000009000
+				setFSMTestDrainProof(&task, 7)
+				meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, task.TaskID, 7)
+				meta.ChannelEpoch = task.BaseChannelEpoch
+				meta.LeaderEpoch = task.BaseLeaderEpoch + 1
+				meta.Leader = task.TargetNode
+				meta.Replicas = []uint64{1, 2, 3}
+				meta.ISR = []uint64{1, 2, 3}
+				task.DrainedLeaderEpoch = meta.LeaderEpoch
+				task.DrainedLeaderNode = meta.Leader
+				return task, meta
+			},
+		},
+		{
+			name: "after_promote",
+			setup: func() (metadb.ChannelMigrationTask, metadb.ChannelRuntimeMeta) {
+				task := fsmTestChannelMigrationTask("task-abort-after-promote", "channel-abort-after-promote")
+				task.Status = metadb.ChannelMigrationStatusRunning
+				task.Phase = metadb.ChannelMigrationPhaseVerifyMembership
+				task.UpdatedAtMS = 1750000001000
+				task.FenceToken = task.TaskID
+				task.FenceVersion = 7
+				task.FenceUntilMS = 1750000009000
+				setFSMTestDrainProof(&task, 7)
+				meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, task.TaskID, 7)
+				meta.ChannelEpoch = task.BaseChannelEpoch
+				meta.LeaderEpoch = task.BaseLeaderEpoch
+				meta.Replicas = []uint64{1, 3}
+				meta.ISR = []uint64{1, 3}
+				return task, meta
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			db := openTestDB(t)
+			sm := mustNewStateMachine(t, db, 11)
+			task, meta := tc.setup()
+
+			fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
+			fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
+			result, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, Index: 3, Term: 1, Data: EncodeAbortChannelMigrationCommand(fsmTestAbortRequest(task, meta, 1750000002000))})
+			requireFSMStaleResult(t, result, err)
+		})
 	}
 }
 
