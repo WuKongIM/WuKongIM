@@ -5024,6 +5024,9 @@ func TestStartHashSlotMigrationDisabledReturnsInvalidConfigWithoutControllerCall
 	if !errors.Is(err, ErrInvalidConfig) {
 		t.Fatalf("StartHashSlotMigration() error = %v, want %v", err, ErrInvalidConfig)
 	}
+	if !errors.Is(err, ErrHashSlotMigrationDisabled) {
+		t.Fatalf("StartHashSlotMigration() error = %v, want %v", err, ErrHashSlotMigrationDisabled)
+	}
 	if called {
 		t.Fatal("StartHashSlotMigration() called controller client while migration gate was disabled")
 	}

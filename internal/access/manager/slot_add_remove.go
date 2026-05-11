@@ -30,6 +30,9 @@ func (s *Server) handleSlotAdd(c *gin.Context) {
 		case leaderConsistentReadUnavailable(err):
 			jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "slot add unavailable")
 			return
+		case errors.Is(err, raftcluster.ErrHashSlotMigrationDisabled):
+			jsonError(c, http.StatusBadRequest, "bad_request", "hash slot migration disabled")
+			return
 		case errors.Is(err, raftcluster.ErrInvalidConfig), errors.Is(err, controllermeta.ErrInvalidArgument):
 			jsonError(c, http.StatusBadRequest, "bad_request", "invalid slot operation")
 			return

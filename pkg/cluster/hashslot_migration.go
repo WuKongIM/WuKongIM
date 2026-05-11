@@ -686,7 +686,7 @@ func (c *Cluster) StartHashSlotMigration(ctx context.Context, hashSlot uint16, t
 		return ErrNotStarted
 	}
 	if !c.cfg.EnableHashSlotMigration {
-		return ErrInvalidConfig
+		return hashSlotMigrationDisabledConfigError()
 	}
 	source := table.Lookup(hashSlot)
 	if source == 0 || target == 0 || source == target {

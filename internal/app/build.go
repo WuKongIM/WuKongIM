@@ -850,6 +850,7 @@ func (c ClusterConfig) runtimeConfig(storage StorageConfig, db *metadb.DB, raftD
 		ListenAddr:                   c.ListenAddr,
 		SlotCount:                    c.SlotCount,
 		HashSlotCount:                c.HashSlotCount,
+		EnableHashSlotMigration:      c.EnableHashSlotMigration,
 		InitialSlotCount:             c.InitialSlotCount,
 		ControllerMetaPath:           storage.ControllerMetaPath,
 		ControllerRaftPath:           storage.ControllerRaftPath,

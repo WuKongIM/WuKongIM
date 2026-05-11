@@ -201,7 +201,7 @@ func (c *Cluster) AddSlot(ctx context.Context) (multiraft.SlotID, error) {
 		return 0, ErrNotStarted
 	}
 	if !c.cfg.EnableHashSlotMigration {
-		return 0, ErrInvalidConfig
+		return 0, hashSlotMigrationDisabledConfigError()
 	}
 	assignments, err := c.ListSlotAssignmentsStrict(ctx)
 	if err != nil {
@@ -240,7 +240,7 @@ func (c *Cluster) RemoveSlot(ctx context.Context, slotID multiraft.SlotID) error
 		return ErrNotStarted
 	}
 	if !c.cfg.EnableHashSlotMigration {
-		return ErrInvalidConfig
+		return hashSlotMigrationDisabledConfigError()
 	}
 	if len(table.ActiveMigrations()) > 0 {
 		return ErrInvalidConfig

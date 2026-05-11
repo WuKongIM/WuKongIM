@@ -25,6 +25,9 @@ WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000
 # Optional legacy alias for WK_CLUSTER_INITIAL_SLOT_COUNT; keep equal when both are set.
 # WK_CLUSTER_SLOT_COUNT=1
 WK_CLUSTER_HASH_SLOT_COUNT=256
+# Enables experimental hash-slot migration workflows used by dynamic physical slot add/remove/rebalance APIs.
+# Keep false unless the operator explicitly accepts durable delta forwarding, source fencing, and recoverable cutover semantics.
+WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED=false
 WK_CLUSTER_INITIAL_SLOT_COUNT=1
 WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR=2
 WK_CLUSTER_LONG_POLL_LANE_COUNT=8

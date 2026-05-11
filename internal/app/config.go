@@ -260,6 +260,10 @@ type ClusterConfig struct {
 	SlotCount uint32
 	// HashSlotCount is the number of hash slots used to map keys to managed physical slots.
 	HashSlotCount uint16
+	// EnableHashSlotMigration allows experimental hash-slot migration workflows.
+	// Keep this disabled unless durable delta forwarding, source fencing, and
+	// recoverable cutover semantics are explicitly accepted by the operator.
+	EnableHashSlotMigration bool
 	// InitialSlotCount is the number of managed physical slots to create at bootstrap.
 	InitialSlotCount uint32
 	// ChannelBootstrapDefaultMinISR is the default MinISR for newly bootstrapped channel metadata.

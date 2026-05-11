@@ -1160,6 +1160,15 @@ func TestClusterRuntimeConfigIncludesSlotLogCompaction(t *testing.T) {
 	}, runtimeCfg.SlotLogCompaction)
 }
 
+func TestClusterRuntimeConfigIncludesHashSlotMigrationGate(t *testing.T) {
+	cfg := validConfig()
+	cfg.Cluster.EnableHashSlotMigration = true
+
+	runtimeCfg := cfg.Cluster.runtimeConfig(cfg.Storage, nil, nil, cfg.Node.ID, cfg.Node.Name, nil)
+
+	require.True(t, runtimeCfg.EnableHashSlotMigration)
+}
+
 func TestClusterRuntimeConfigIncludesControllerSnapshotStorage(t *testing.T) {
 	cfg := validConfig()
 	cfg.Storage.RaftSnapshotPath = "/tmp/wukong-node-1/slot-snapshots"
