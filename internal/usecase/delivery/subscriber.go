@@ -153,6 +153,9 @@ func (r *subscriberResolver) BeginSnapshotWithRequest(ctx context.Context, id ch
 		return token, nil
 	case frame.ChannelTypeTemp:
 		token.source.Kind = SubscriberSourceKindMessageScoped
+		token.source.SourceChannelID = resolvedID.ID
+		token.source.SourceChannelType = resolvedID.Type
+		token.source.SourceSubscriberMutationVersion = sourceVersion
 		token.source.ReusableTagState = false
 		token.state.staticSnapshot = uniqueStrings(req.MessageScopedUIDs)
 		return token, nil
