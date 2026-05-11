@@ -31,9 +31,12 @@ import (
 )
 
 var (
-	errRemoteAckNotifierRequired     = errors.New("app: remote ack notifier required")
-	errRemoteOfflineNotifierRequired = errors.New("app: remote offline notifier required")
-	errCommittedDispatcherStopped    = errors.New("app: committed dispatcher stopped")
+	errRemoteAckNotifierRequired       = errors.New("app: remote ack notifier required")
+	errRemoteOfflineNotifierRequired   = errors.New("app: remote offline notifier required")
+	errCommittedDispatcherStopped      = errors.New("app: committed dispatcher stopped")
+	errMessageScopedDeliveryRequired   = errors.New("app: message scoped committed delivery required")
+	errMessageScopedOwnerRequired      = errors.New("app: message scoped committed owner required")
+	errMessageScopedNodeClientRequired = errors.New("app: message scoped committed node client required")
 )
 
 const (
@@ -311,11 +314,21 @@ func (d *asyncCommittedDispatcher) SubmitCommitted(ctx context.Context, event me
 	}
 	if ctx == nil {
 		ctx = context.Background()
-	} else {
-		ctx = context.WithoutCancel(ctx)
 	}
 	cloned := event.Clone()
 	env := committedEnvelopeFromMessageEvent(cloned)
+	if len(env.MessageScopedUIDs) > 0 {
+		d.mu.Lock()
+		if !d.running || d.stopping {
+			d.mu.Unlock()
+			return errCommittedDispatcherStopped
+		}
+		d.wg.Add(1)
+		d.mu.Unlock()
+		defer d.wg.Done()
+		return d.routeMessageScopedCommitted(ctx, env)
+	}
+	ctx = context.WithoutCancel(ctx)
 	idx := d.committedDispatchShard(cloned.Message)
 	shardName := strconv.Itoa(idx)
 	d.mu.Lock()
@@ -347,6 +360,67 @@ func (d *asyncCommittedDispatcher) SubmitCommitted(ctx context.Context, event me
 		d.logCommittedRoute(env, "conversation_fallback_dropped", 0, nil)
 	}
 	return nil
+}
+
+func (d *asyncCommittedDispatcher) routeMessageScopedCommitted(ctx context.Context, env deliveryruntime.CommittedEnvelope) error {
+	if d.delivery == nil {
+		d.logCommittedRoute(env, "message_scoped_delivery_required", 0, errMessageScopedDeliveryRequired)
+		return errMessageScopedDeliveryRequired
+	}
+	if d.preferLocal {
+		d.logCommittedRoute(env, "message_scoped_prefer_local", d.localNodeID, nil)
+		return d.submitLocalStrict(ctx, env)
+	}
+	if d.channelLog == nil {
+		d.logCommittedRoute(env, "message_scoped_no_channel_log", 0, errMessageScopedOwnerRequired)
+		return errMessageScopedOwnerRequired
+	}
+
+	var lastErr error
+	for attempt := 0; attempt < committedRouteRetryAttempts; attempt++ {
+		status, err := d.channelLog.Status(channel.ChannelID{
+			ID:   env.ChannelID,
+			Type: env.ChannelType,
+		})
+		if err == nil && status.Leader != 0 {
+			ownerNodeID := uint64(status.Leader)
+			if ownerNodeID == d.localNodeID {
+				d.logCommittedRoute(env, "message_scoped_local_owner", ownerNodeID, nil)
+				return d.submitLocalStrict(ctx, env)
+			}
+			if d.nodeClient == nil {
+				d.logCommittedRoute(env, "message_scoped_node_client_required", ownerNodeID, errMessageScopedNodeClientRequired)
+				return errMessageScopedNodeClientRequired
+			}
+			if err := d.nodeClient.SubmitCommitted(ctx, ownerNodeID, env); err == nil {
+				d.logCommittedRoute(env, "message_scoped_remote_owner", ownerNodeID, nil)
+				return nil
+			} else {
+				lastErr = err
+				d.logCommittedRoute(env, "message_scoped_remote_owner_submit_failed", ownerNodeID, err)
+				if errors.Is(err, accessnode.ErrMessageScopedDeliverySubmitUnsupported) {
+					return err
+				}
+			}
+		} else {
+			if err != nil {
+				lastErr = err
+				d.logCommittedRoute(env, "message_scoped_status_failed", 0, err)
+			} else {
+				lastErr = errMessageScopedOwnerRequired
+				d.logCommittedRoute(env, "message_scoped_no_owner", 0, lastErr)
+			}
+		}
+		if attempt < committedRouteRetryAttempts-1 {
+			if !sleepCommittedRouteRetry(ctx, time.Duration(attempt+1)*committedRouteRetryBackoff) {
+				return ctx.Err()
+			}
+		}
+	}
+	if lastErr == nil {
+		lastErr = errMessageScopedOwnerRequired
+	}
+	return lastErr
 }
 
 func (d *asyncCommittedDispatcher) enqueueConversationFallbackLocked(ctx context.Context, env deliveryruntime.CommittedEnvelope) bool {
@@ -541,6 +615,17 @@ func (d *asyncCommittedDispatcher) submitLocal(ctx context.Context, env delivery
 		_ = d.delivery.SubmitCommitted(ctx, env)
 	}
 	d.submitConversation(ctx, env.Message)
+}
+
+func (d *asyncCommittedDispatcher) submitLocalStrict(ctx context.Context, env deliveryruntime.CommittedEnvelope) error {
+	if d.delivery == nil {
+		return errMessageScopedDeliveryRequired
+	}
+	if err := d.delivery.SubmitCommitted(ctx, env); err != nil {
+		return err
+	}
+	d.submitConversation(ctx, env.Message)
+	return nil
 }
 
 func (d *asyncCommittedDispatcher) submitConversation(ctx context.Context, msg channel.Message) {

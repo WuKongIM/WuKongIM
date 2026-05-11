@@ -535,6 +535,44 @@ func TestAsyncCommittedDispatcherFallsBackToLocalConversationWhenOwnerIsUnknown(
 	require.Equal(t, 0, conversation.FlushCalls())
 }
 
+func TestAsyncCommittedDispatcherReturnsScopedRemoteSubmitError(t *testing.T) {
+	delivery := &recordingCommittedSubmitter{}
+	conversation := &recordingConversationSubmitter{}
+	nodeClient := &recordingCommittedNodeSubmitter{err: accessnode.ErrMessageScopedDeliverySubmitUnsupported}
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID: 1,
+		ChannelLog: &stubChannelLogCluster{
+			status: channel.ChannelRuntimeStatus{
+				Leader: 2,
+			},
+		},
+		Delivery:     delivery,
+		Conversation: conversation,
+		NodeClient:   nodeClient,
+		ShardCount:   1,
+		QueueDepth:   8,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	defer func() { require.NoError(t, dispatcher.Stop()) }()
+
+	err := dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
+		Message: channel.Message{
+			ChannelID:   "g1",
+			ChannelType: frame.ChannelTypeGroup,
+			MessageID:   101,
+			MessageSeq:  1,
+		},
+		MessageScopedUIDs: []string{"u1"},
+	})
+
+	require.ErrorIs(t, err, accessnode.ErrMessageScopedDeliverySubmitUnsupported)
+	require.Equal(t, 0, delivery.SubmitCalls())
+	require.Equal(t, 0, conversation.Len())
+	require.Len(t, nodeClient.calls, 1)
+	require.Equal(t, uint64(2), nodeClient.calls[0].nodeID)
+	require.Equal(t, []string{"u1"}, nodeClient.calls[0].env.MessageScopedUIDs)
+}
+
 func TestAsyncCommittedDispatcherSubmitsDurableMessageToLocalDelivery(t *testing.T) {
 	delivery := &recordingCommittedSubmitter{}
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
@@ -1983,6 +2021,24 @@ type recordingCommittedSubmitter struct {
 	mu          sync.Mutex
 	submitCalls int
 	calls       []deliveryruntime.CommittedEnvelope
+}
+
+type recordingCommittedNodeSubmitter struct {
+	calls []recordingCommittedNodeSubmitCall
+	err   error
+}
+
+type recordingCommittedNodeSubmitCall struct {
+	nodeID uint64
+	env    deliveryruntime.CommittedEnvelope
+}
+
+func (r *recordingCommittedNodeSubmitter) SubmitCommitted(_ context.Context, nodeID uint64, env deliveryruntime.CommittedEnvelope) error {
+	copied := env
+	copied.Payload = append([]byte(nil), env.Payload...)
+	copied.MessageScopedUIDs = append([]string(nil), env.MessageScopedUIDs...)
+	r.calls = append(r.calls, recordingCommittedNodeSubmitCall{nodeID: nodeID, env: copied})
+	return r.err
 }
 
 func (r *recordingCommittedSubmitter) SubmitCommitted(_ context.Context, env deliveryruntime.CommittedEnvelope) error {

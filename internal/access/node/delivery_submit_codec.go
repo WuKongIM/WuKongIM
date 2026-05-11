@@ -7,8 +7,9 @@ import (
 )
 
 var (
-	deliverySubmitRequestMagicV1 = [...]byte{'W', 'K', 'D', 'C', 1}
-	deliverySubmitRequestMagicV2 = [...]byte{'W', 'K', 'D', 'C', 2}
+	deliverySubmitRequestMagicV1  = [...]byte{'W', 'K', 'D', 'C', 1}
+	deliverySubmitRequestMagicV2  = [...]byte{'W', 'K', 'D', 'C', 2}
+	deliverySubmitCapabilityMagic = [...]byte{'W', 'K', 'D', 'Q', 1}
 	// deliverySubmitRequestMagic preserves the original v1 magic for legacy binary payload helpers.
 	deliverySubmitRequestMagic = deliverySubmitRequestMagicV1
 )
@@ -64,6 +65,14 @@ func decodeDeliverySubmitRequest(body []byte) (deliverySubmitRequest, error) {
 
 func isDeliverySubmitRequestBinary(body []byte) bool {
 	return hasMagic(body, deliverySubmitRequestMagicV1[:]) || hasMagic(body, deliverySubmitRequestMagicV2[:])
+}
+
+func encodeDeliverySubmitCapabilityProbe() []byte {
+	return append([]byte(nil), deliverySubmitCapabilityMagic[:]...)
+}
+
+func isDeliverySubmitCapabilityProbe(body []byte) bool {
+	return hasMagic(body, deliverySubmitCapabilityMagic[:]) && len(body) == len(deliverySubmitCapabilityMagic)
 }
 
 func appendCommittedEnvelope(dst []byte, envelope deliveryruntime.CommittedEnvelope, includeScoped bool) []byte {
