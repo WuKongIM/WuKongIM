@@ -18,6 +18,11 @@ const (
 	channelMigrationRPCPropose   = "propose"
 )
 
+var channelMigrationProposalRPCStatuses = map[string]struct{}{
+	rpcStatusOK:        {},
+	rpcStatusStaleMeta: {},
+}
+
 type channelMigrationRPCRequest struct {
 	Op          string `json:"op"`
 	SlotID      uint64 `json:"slot_id"`
@@ -191,6 +196,11 @@ func (s *Store) GarbageCollectTerminalChannelMigrationTasks(ctx context.Context,
 		if !s.cluster.IsLocal(leaderID) {
 			continue
 		}
+		// Terminal task GC currently deletes local metadata directly. Limit it
+		// to single-peer slot groups so replicated slots never diverge.
+		if !s.singleLocalPeerSlot(slotID) {
+			continue
+		}
 		for _, hashSlot := range s.cluster.HashSlotsOf(slotID) {
 			remaining := limit - deleted
 			if remaining <= 0 {
@@ -212,7 +222,7 @@ func (s *Store) proposeChannelMigrationCommand(ctx context.Context, channelID st
 	if s.shouldServeSlotLocally(slotID) {
 		return proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd)
 	}
-	resp, err := s.callChannelMigrationRPC(ctx, slotID, channelMigrationRPCRequest{
+	resp, err := s.callChannelMigrationProposalRPC(ctx, slotID, channelMigrationRPCRequest{
 		Op:        channelMigrationRPCPropose,
 		SlotID:    uint64(slotID),
 		HashSlot:  hashSlot,
@@ -238,6 +248,14 @@ func (s *Store) callChannelMigrationRPC(ctx context.Context, slotID multiraft.Sl
 		return channelMigrationRPCResponse{}, err
 	}
 	return callAuthoritativeRPC(ctx, s, slotID, channelMigrationRPCServiceID, payload, decodeChannelMigrationRPCResponse)
+}
+
+func (s *Store) callChannelMigrationProposalRPC(ctx context.Context, slotID multiraft.SlotID, req channelMigrationRPCRequest) (channelMigrationRPCResponse, error) {
+	payload, err := encodeChannelMigrationRPCRequestBinary(req)
+	if err != nil {
+		return channelMigrationRPCResponse{}, err
+	}
+	return callAuthoritativeRPCWithStatuses(ctx, s, slotID, channelMigrationRPCServiceID, payload, decodeChannelMigrationRPCResponse, channelMigrationProposalRPCStatuses)
 }
 
 func (s *Store) handleChannelMigrationRPC(ctx context.Context, body []byte) ([]byte, error) {
@@ -273,6 +291,17 @@ func (s *Store) handleChannelMigrationRPC(ctx context.Context, body []byte) ([]b
 	case channelMigrationRPCPropose:
 		hashSlot := req.HashSlot
 		if req.ChannelID != "" {
+			actualSlotID := s.cluster.SlotForKey(req.ChannelID)
+			if actualSlotID != slotID {
+				leaderID, err := s.cluster.LeaderOf(actualSlotID)
+				if err != nil {
+					return encodeChannelMigrationRPCResponse(channelMigrationRPCResponse{Status: rpcStatusNoLeader})
+				}
+				return encodeChannelMigrationRPCResponse(channelMigrationRPCResponse{
+					Status:   rpcStatusNotLeader,
+					LeaderID: uint64(leaderID),
+				})
+			}
 			hashSlot = hashSlotForKey(s.cluster, req.ChannelID)
 		}
 		if len(req.Command) == 0 {
