@@ -91,6 +91,44 @@ func TestApplyMetaUpdatesWriteFenceInCache(t *testing.T) {
 	}
 }
 
+func TestApplyMetaRejectsStaleWriteFenceVersion(t *testing.T) {
+	id := core.ChannelID{ID: "c1", Type: 1}
+	svc, _, _ := newAppendService(t, id)
+	key := KeyFromChannelID(id)
+	until := time.UnixMilli(1_700_000_000_000).UTC()
+
+	newer := core.Meta{
+		Key:         key,
+		ID:          id,
+		Epoch:       7,
+		LeaderEpoch: 9,
+		Leader:      1,
+		Replicas:    []core.NodeID{1},
+		ISR:         []core.NodeID{1},
+		MinISR:      1,
+		Status:      core.StatusActive,
+		Features:    core.Features{MessageSeqFormat: core.MessageSeqFormatU64},
+		WriteFence:  core.WriteFence{Token: "task-2", Version: 2, Reason: core.WriteFenceReasonMigration, Until: until},
+	}
+	if err := svc.ApplyMeta(newer); err != nil {
+		t.Fatalf("ApplyMeta(newer) error = %v", err)
+	}
+	stale := newer
+	stale.WriteFence = core.WriteFence{Token: "task-1", Version: 1, Reason: core.WriteFenceReasonMigration, Until: until}
+
+	err := svc.ApplyMeta(stale)
+	if !errors.Is(err, core.ErrStaleMeta) {
+		t.Fatalf("ApplyMeta(stale) error = %v, want ErrStaleMeta", err)
+	}
+	snapshot, ok := svc.MetaSnapshot(key)
+	if !ok {
+		t.Fatalf("MetaSnapshot() missing key %q", key)
+	}
+	if snapshot.WriteFence != newer.WriteFence {
+		t.Fatalf("WriteFence = %+v, want newer %+v", snapshot.WriteFence, newer.WriteFence)
+	}
+}
+
 func TestStatusReturnsErrStaleMetaWhenCacheMisses(t *testing.T) {
 	svc, err := New(Config{
 		Runtime:    &fakeRuntime{channels: map[core.ChannelKey]*fakeChannelHandle{}},

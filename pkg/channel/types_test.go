@@ -22,7 +22,8 @@ func TestMetaCarriesRuntimeAndBusinessFields(t *testing.T) {
 	require.Equal(t, ChannelID{ID: "u1", Type: 1}, meta.ID)
 	require.Equal(t, StatusActive, meta.Status)
 	require.True(t, meta.WriteFence.Active(until.Add(-time.Millisecond)))
-	require.False(t, meta.WriteFence.Active(until))
+	require.True(t, meta.WriteFence.Active(until))
+	require.False(t, meta.WriteFence.Active(until.Add(time.Nanosecond)))
 }
 
 func TestAppendRequestCarriesBusinessChannelID(t *testing.T) {
