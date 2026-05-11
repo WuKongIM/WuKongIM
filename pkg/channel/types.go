@@ -106,7 +106,7 @@ type WriteFence struct {
 
 // Active reports whether the fence currently rejects new writes.
 func (f WriteFence) Active(now time.Time) bool {
-	return f.Token != "" && now.Before(f.Until)
+	return f.Token != "" && !now.After(f.Until)
 }
 
 type AppendRequest struct {

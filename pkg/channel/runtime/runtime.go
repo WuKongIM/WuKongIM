@@ -242,6 +242,9 @@ func (r *runtime) ApplyMeta(meta core.Meta) error {
 		return ErrChannelNotFound
 	}
 	previousMeta := ch.metaSnapshot()
+	if staleWriteFence(previousMeta.WriteFence, meta.WriteFence) {
+		return core.ErrStaleMeta
+	}
 	queueLeaderProbe := false
 	if shouldSkipReplicaApplyMeta(ch, r.cfg.LocalNode, meta) {
 		r.sendCoordMu.Lock()
@@ -518,6 +521,7 @@ func metaEqualExceptLease(a, b core.Meta) bool {
 		a.MinISR != b.MinISR ||
 		a.Status != b.Status ||
 		a.Features != b.Features ||
+		a.WriteFence != b.WriteFence ||
 		a.RetentionThroughSeq != b.RetentionThroughSeq {
 		return false
 	}
@@ -535,6 +539,13 @@ func metaEqualExceptLease(a, b core.Meta) bool {
 		}
 	}
 	return true
+}
+
+func staleWriteFence(current, next core.WriteFence) bool {
+	if next.Version < current.Version {
+		return true
+	}
+	return next.Version == current.Version && next != current
 }
 
 func snapshotWorkInvalidated(previous, next core.Meta) bool {

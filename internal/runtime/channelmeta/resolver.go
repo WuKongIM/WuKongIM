@@ -280,7 +280,7 @@ func (s *Sync) ApplyAuthoritativeMeta(meta metadb.ChannelRuntimeMeta) (channel.M
 		return channel.Meta{}, channel.ErrInvalidConfig
 	}
 	rootMeta := ProjectChannelMeta(meta)
-	defer s.cache.invalidateIfWriteFenceChanged(rootMeta.Key, meta, s.Now())
+	s.cache.invalidateIfWriteFenceChanged(rootMeta.Key, meta, s.Now())
 	notifyAfterLocalApply := s.shouldNotifyAfterLocalApply(meta)
 	if err := s.runtime.ApplyRoutingMeta(rootMeta); err != nil {
 		return channel.Meta{}, err
@@ -409,7 +409,7 @@ func (s *Sync) cachedHealthyBusinessMeta(key channel.ChannelKey) (channel.Meta, 
 	if meta.Leader == 0 || meta.Epoch == 0 || meta.LeaderEpoch == 0 {
 		return channel.Meta{}, false
 	}
-	if meta.WriteFence.Active(now) {
+	if meta.WriteFence.Token != "" {
 		s.cache.Invalidate(key)
 		return channel.Meta{}, false
 	}
@@ -546,6 +546,12 @@ func (s *Sync) activate(ctx context.Context, key channel.ChannelKey, source chan
 		if err != nil {
 			s.cache.storeNegativeAtGeneration(key, err, s.Now(), generation)
 			return channel.Meta{}, MetaRefreshError, err
+		}
+		if !s.cache.isCurrentGeneration(key, generation) {
+			if meta, ok := s.cache.LoadPositive(key, s.Now()); ok {
+				return meta, MetaRefreshCacheHit, nil
+			}
+			return channel.Meta{}, MetaRefreshError, channel.ErrStaleMeta
 		}
 		applied, err := s.ApplyAuthoritativeMeta(loaded)
 		if err != nil {
