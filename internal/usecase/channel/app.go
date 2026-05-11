@@ -16,7 +16,7 @@ const defaultSubscriberPageLimit = 1000
 // cluster-authoritative slot store.
 type Store interface {
 	GetChannel(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error)
-	UpdateChannel(ctx context.Context, channelID string, channelType int64, ban int64) error
+	UpsertChannel(ctx context.Context, ch metadb.Channel) error
 	DeleteChannel(ctx context.Context, channelID string, channelType int64) error
 	AddChannelSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error
 	RemoveChannelSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error
@@ -77,7 +77,13 @@ func (a *App) UpdateInfo(ctx context.Context, info Info) error {
 	if err := a.requireStore(); err != nil {
 		return err
 	}
-	return a.store.UpdateChannel(ctx, info.ChannelID, int64(info.ChannelType), boolToInt64(info.Ban))
+	return a.store.UpsertChannel(ctx, metadb.Channel{
+		ChannelID:   info.ChannelID,
+		ChannelType: int64(info.ChannelType),
+		Ban:         boolToInt64(info.Ban),
+		Disband:     boolToInt64(info.Disband),
+		SendBan:     boolToInt64(info.SendBan),
+	})
 }
 
 // Delete removes channel metadata and the ordinary subscriber list.
@@ -326,7 +332,7 @@ func (a *App) ensureChannelExists(ctx context.Context, channelID string, channel
 	if !errors.Is(err, metadb.ErrNotFound) {
 		return err
 	}
-	return a.store.UpdateChannel(ctx, channelID, channelType, 0)
+	return a.store.UpsertChannel(ctx, metadb.Channel{ChannelID: channelID, ChannelType: channelType})
 }
 
 func (a *App) subscriberMutationVersionFor(ctx context.Context, channelID string, channelType int64) (uint64, error) {
