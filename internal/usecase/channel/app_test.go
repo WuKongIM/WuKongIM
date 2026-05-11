@@ -25,9 +25,19 @@ func TestUpsertResetsSubscribersBeforeAddingReplacement(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, []updateChannelCall{{channelID: "g1", channelType: 2, ban: 1}}, store.updateChannels)
+	require.Equal(t, []metadb.Channel{{ChannelID: "g1", ChannelType: 2, Ban: 1}}, store.upsertChannels)
 	require.Equal(t, []subscriberCall{{channelID: "g1", channelType: 2, uids: []string{"old1", "old2"}, version: 1}}, store.removeSubscribers)
 	require.Equal(t, []subscriberCall{{channelID: "g1", channelType: 2, uids: []string{"u1", "u2"}, version: 1}}, store.addSubscribers)
+}
+
+func TestUpdateInfoPersistsStatusFlags(t *testing.T) {
+	store := &recordingStore{}
+	app := New(Options{Store: store})
+
+	err := app.UpdateInfo(context.Background(), Info{ChannelID: "g1", ChannelType: 2, Ban: true, Disband: true, SendBan: true})
+	require.NoError(t, err)
+	require.Len(t, store.upsertChannels, 1)
+	require.Equal(t, metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1}, store.upsertChannels[0])
 }
 
 func TestRemoveAllSubscribersDeletesEachPageWithoutAccumulating(t *testing.T) {
@@ -164,7 +174,7 @@ func TestAddSubscribersCreatesChannelWhenMissing(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, []updateChannelCall{{channelID: "g1", channelType: 2}}, store.updateChannels)
+	require.Equal(t, []metadb.Channel{{ChannelID: "g1", ChannelType: 2}}, store.upsertChannels)
 	require.Equal(t, []subscriberCall{{channelID: "g1", channelType: 2, uids: []string{"u1"}, version: 1}}, store.addSubscribers)
 }
 
@@ -179,7 +189,7 @@ func TestAddSubscribersKeepsExistingChannelFlags(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Empty(t, store.updateChannels)
+	require.Empty(t, store.upsertChannels)
 	require.Equal(t, []subscriberCall{{channelID: "g1", channelType: 2, uids: []string{"u1"}, version: 1}}, store.addSubscribers)
 }
 
@@ -194,7 +204,7 @@ func TestAddSubscribersReturnsLookupErrorBeforeMutating(t *testing.T) {
 	})
 
 	require.EqualError(t, err, "lookup failed")
-	require.Empty(t, store.updateChannels)
+	require.Empty(t, store.upsertChannels)
 	require.Empty(t, store.addSubscribers)
 }
 
@@ -217,7 +227,7 @@ func TestListAllowlistReturnsLegacyMembers(t *testing.T) {
 }
 
 type recordingStore struct {
-	updateChannels    []updateChannelCall
+	upsertChannels    []metadb.Channel
 	deleteChannels    []channelKeyCall
 	addSubscribers    []subscriberCall
 	removeSubscribers []subscriberCall
@@ -225,12 +235,6 @@ type recordingStore struct {
 	listPages         []listPage
 	channels          map[string]metadb.Channel
 	getChannelErr     error
-}
-
-type updateChannelCall struct {
-	channelID   string
-	channelType int64
-	ban         int64
 }
 
 type channelKeyCall struct {
@@ -258,8 +262,12 @@ type listPage struct {
 	done   bool
 }
 
-func (r *recordingStore) UpdateChannel(ctx context.Context, channelID string, channelType int64, ban int64) error {
-	r.updateChannels = append(r.updateChannels, updateChannelCall{channelID: channelID, channelType: channelType, ban: ban})
+func (r *recordingStore) UpsertChannel(ctx context.Context, ch metadb.Channel) error {
+	r.upsertChannels = append(r.upsertChannels, ch)
+	if r.channels == nil {
+		r.channels = make(map[string]metadb.Channel)
+	}
+	r.channels[recordingChannelKey(ch.ChannelID, ch.ChannelType)] = ch
 	return nil
 }
 
