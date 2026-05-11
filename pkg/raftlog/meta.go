@@ -63,7 +63,9 @@ func replaceEntriesFromIndex(existing []raftpb.Entry, first uint64, incoming []r
 		if entry.Index >= first {
 			break
 		}
-		result = append(result, cloneEntry(entry))
+		// Existing entries are already owned by the store; keep their payloads
+		// instead of deep-copying the retained prefix on every append.
+		result = append(result, entry)
 	}
 	for _, entry := range incoming {
 		result = append(result, cloneEntry(entry))

@@ -123,17 +123,9 @@ func (db *DB) flushWriteRequests(reqs []*writeRequest) error {
 	batch := db.db.NewBatch()
 	defer batch.Close()
 
-	scopeCloneEntries := make(map[Scope]bool, len(reqs))
-	for _, req := range reqs {
-		if req == nil || req.op == nil {
-			continue
-		}
-		scopeCloneEntries[req.scope] = scopeCloneEntries[req.scope] || writeOpTouchesEntries(req.op)
-	}
-
 	stateCache := make(map[Scope]*scopeWriteState, len(reqs))
 	for _, req := range reqs {
-		state, err := db.loadScopeWriteState(stateCache, req.scope, scopeCloneEntries[req.scope])
+		state, err := db.loadScopeWriteState(stateCache, req.scope)
 		if err != nil {
 			return err
 		}
@@ -158,13 +150,15 @@ func (db *DB) flushWriteRequests(reqs []*writeRequest) error {
 	return nil
 }
 
-func (db *DB) loadScopeWriteState(cache map[Scope]*scopeWriteState, scope Scope, cloneEntries bool) (*scopeWriteState, error) {
+func (db *DB) loadScopeWriteState(cache map[Scope]*scopeWriteState, scope Scope) (*scopeWriteState, error) {
 	if state, ok := cache[scope]; ok {
 		return state, nil
 	}
 
 	if cached, ok := db.stateCache[scope]; ok {
-		state := cloneScopeWriteState(cached, cloneEntries)
+		// Save operations replace the entries slice copy-on-write, so cached
+		// entry payloads can be retained without deep-copying every append.
+		state := cloneScopeWriteState(cached, false)
 		cache[scope] = &state
 		return &state, nil
 	}
@@ -216,15 +210,6 @@ func cloneScopeWriteState(state scopeWriteState, cloneEntries bool) scopeWriteSt
 		cloned.entries = state.entries
 	}
 	return cloned
-}
-
-func writeOpTouchesEntries(op writeOp) bool {
-	switch typed := op.(type) {
-	case saveOp:
-		return len(typed.state.Entries) > 0 || typed.state.Snapshot != nil
-	default:
-		return false
-	}
 }
 
 func (op saveOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbleStore) error {

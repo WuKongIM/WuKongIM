@@ -1683,6 +1683,44 @@ func TestPebbleMarkAppliedMetadataWriteKeepsCachedEntriesBacking(t *testing.T) {
 	}
 }
 
+func TestPebbleAppendKeepsCachedRetainedEntryPayloads(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "raft")
+	db, err := Open(path, Options{})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	store := db.ForSlot(53)
+	if err := store.Save(ctx, multiraft.PersistentState{
+		Entries: benchEntries(1, 4, 2, 16),
+	}); err != nil {
+		t.Fatalf("Save(initial) error = %v", err)
+	}
+
+	scope := SlotScope(53)
+	before := cachedEntryDataPtr(db.stateCache[scope].entries, 0)
+	if before == 0 {
+		t.Fatal("cached entry data pointer = 0")
+	}
+
+	if err := store.Save(ctx, multiraft.PersistentState{
+		Entries: benchEntries(5, 1, 2, 16),
+	}); err != nil {
+		t.Fatalf("Save(append) error = %v", err)
+	}
+
+	after := cachedEntryDataPtr(db.stateCache[scope].entries, 0)
+	if after != before {
+		t.Fatalf("retained cached entry payload was cloned during append: got %x want %x", after, before)
+	}
+}
+
 func TestPebbleMetadataTracksTailReplaceAndSnapshotTrim(t *testing.T) {
 	ctx := context.Background()
 	store := openTestPebbleStore(t, 52)
@@ -1724,6 +1762,13 @@ func cachedEntriesBackingPtr(entries []raftpb.Entry) uintptr {
 		return 0
 	}
 	return uintptr(unsafe.Pointer(unsafe.SliceData(entries)))
+}
+
+func cachedEntryDataPtr(entries []raftpb.Entry, index int) uintptr {
+	if index < 0 || index >= len(entries) || len(entries[index].Data) == 0 {
+		return 0
+	}
+	return uintptr(unsafe.Pointer(unsafe.SliceData(entries[index].Data)))
 }
 
 func TestPebbleReturnsClonedData(t *testing.T) {
