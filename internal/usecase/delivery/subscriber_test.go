@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
@@ -138,7 +139,8 @@ func TestSubscriberResolverUsesAuthoritativeMetadataForCommandSourceVersion(t *t
 			},
 		},
 		getChannelVersions: map[subscriberSnapshotCall]uint64{
-			{channelID: "g1", channelType: int64(frame.ChannelTypeGroup)}: 3,
+			{channelID: channelid.ToCommandChannel("g1"), channelType: int64(frame.ChannelTypeGroup)}: 4,
+			{channelID: "g1", channelType: int64(frame.ChannelTypeGroup)}:                             3,
 		},
 		permissionVersions: map[subscriberSnapshotCall]uint64{
 			{channelID: "g1", channelType: int64(frame.ChannelTypeGroup)}: 9,
@@ -155,12 +157,84 @@ func TestSubscriberResolverUsesAuthoritativeMetadataForCommandSourceVersion(t *t
 	source := token.Source()
 	require.Equal(t, channelid.ToCommandChannel("g1"), source.ChannelID)
 	require.Equal(t, "g1", source.SourceChannelID)
+	require.Equal(t, uint64(4), source.SubscriberMutationVersion)
 	require.Equal(t, uint64(9), source.SourceSubscriberMutationVersion)
 	require.Contains(t, store.permissionCalls, subscriberSnapshotCall{
 		channelID:   "g1",
 		channelType: int64(frame.ChannelTypeGroup),
 	})
+	require.Contains(t, store.getChannelCalls, subscriberSnapshotCall{
+		channelID:   channelid.ToCommandChannel("g1"),
+		channelType: int64(frame.ChannelTypeGroup),
+	})
 	require.NotContains(t, store.getChannelCalls, subscriberSnapshotCall{
+		channelID:   "g1",
+		channelType: int64(frame.ChannelTypeGroup),
+	})
+}
+
+func TestSubscriberResolverUsesOrdinaryMetadataForNonCommandChannels(t *testing.T) {
+	store := &fakeAuthoritativeSubscriberStore{
+		fakeSubscriberStore: fakeSubscriberStore{
+			pageResults: []subscriberListResult{
+				{uids: []string{"u2"}, cursor: "u2", done: true},
+			},
+		},
+		getChannelVersions: map[subscriberSnapshotCall]uint64{
+			{channelID: "g1", channelType: int64(frame.ChannelTypeGroup)}: 3,
+		},
+		permissionVersions: map[subscriberSnapshotCall]uint64{
+			{channelID: "g1", channelType: int64(frame.ChannelTypeGroup)}: 9,
+		},
+	}
+	resolver := NewSubscriberResolver(SubscriberResolverOptions{Store: store})
+
+	token, err := resolver.BeginSnapshot(context.Background(), channel.ChannelID{
+		ID:   "g1",
+		Type: frame.ChannelTypeGroup,
+	})
+	require.NoError(t, err)
+
+	source := token.Source()
+	require.Equal(t, uint64(3), source.SubscriberMutationVersion)
+	require.Equal(t, uint64(3), source.SourceSubscriberMutationVersion)
+	require.Equal(t, []subscriberSnapshotCall{
+		{channelID: "g1", channelType: int64(frame.ChannelTypeGroup)},
+	}, store.getChannelCalls)
+	require.Empty(t, store.permissionCalls)
+}
+
+func TestSubscriberResolverFallsBackToOrdinaryMetadataWhenCommandSourcePermissionReadFails(t *testing.T) {
+	store := &fakeAuthoritativeSubscriberStore{
+		fakeSubscriberStore: fakeSubscriberStore{
+			pageResults: []subscriberListResult{
+				{uids: []string{"u2"}, cursor: "u2", done: true},
+			},
+		},
+		getChannelVersions: map[subscriberSnapshotCall]uint64{
+			{channelID: channelid.ToCommandChannel("g1"), channelType: int64(frame.ChannelTypeGroup)}: 4,
+			{channelID: "g1", channelType: int64(frame.ChannelTypeGroup)}:                             7,
+		},
+		permissionErrors: map[subscriberSnapshotCall]error{
+			{channelID: "g1", channelType: int64(frame.ChannelTypeGroup)}: errors.New("permission metadata unavailable"),
+		},
+	}
+	resolver := NewSubscriberResolver(SubscriberResolverOptions{Store: store})
+
+	token, err := resolver.BeginSnapshot(context.Background(), channel.ChannelID{
+		ID:   channelid.ToCommandChannel("g1"),
+		Type: frame.ChannelTypeGroup,
+	})
+	require.NoError(t, err)
+
+	source := token.Source()
+	require.Equal(t, uint64(4), source.SubscriberMutationVersion)
+	require.Equal(t, uint64(7), source.SourceSubscriberMutationVersion)
+	require.Contains(t, store.permissionCalls, subscriberSnapshotCall{
+		channelID:   "g1",
+		channelType: int64(frame.ChannelTypeGroup),
+	})
+	require.Contains(t, store.getChannelCalls, subscriberSnapshotCall{
 		channelID:   "g1",
 		channelType: int64(frame.ChannelTypeGroup),
 	})
@@ -177,6 +251,7 @@ type fakeAuthoritativeSubscriberStore struct {
 	fakeSubscriberStore
 	getChannelVersions map[subscriberSnapshotCall]uint64
 	permissionVersions map[subscriberSnapshotCall]uint64
+	permissionErrors   map[subscriberSnapshotCall]error
 	getChannelCalls    []subscriberSnapshotCall
 	permissionCalls    []subscriberSnapshotCall
 }
@@ -235,6 +310,9 @@ func (f *fakeAuthoritativeSubscriberStore) GetChannel(_ context.Context, channel
 func (f *fakeAuthoritativeSubscriberStore) GetChannelForPermission(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {
 	call := subscriberSnapshotCall{channelID: channelID, channelType: channelType}
 	f.permissionCalls = append(f.permissionCalls, call)
+	if err := f.permissionErrors[call]; err != nil {
+		return metadb.Channel{}, err
+	}
 	return metadb.Channel{
 		ChannelID:                 channelID,
 		ChannelType:               channelType,
