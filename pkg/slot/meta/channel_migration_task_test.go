@@ -135,6 +135,56 @@ func TestWriteBatchCreateChannelMigrationTaskRevalidatesActiveDuplicateAtCommit(
 	requireChannelMigrationTaskNotFound(t, err)
 }
 
+func TestWriteBatchCreateChannelMigrationTaskRevalidatesPrimaryDuplicateAtCommit(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+	first := testChannelMigrationTask("task-batch-primary-race", "channel-batch-primary-race")
+	second := first
+	second.SourceNode = 3
+	second.TargetNode = 4
+	second.DesiredLeader = 3
+	second.BaseChannelEpoch = 30
+	second.BaseLeaderEpoch = 40
+	second.UpdatedAtMS = 1750000001000
+
+	firstBatch := db.NewWriteBatch()
+	defer firstBatch.Close()
+	secondBatch := db.NewWriteBatch()
+	defer secondBatch.Close()
+	require.NoError(t, firstBatch.CreateChannelMigrationTask(7, first))
+	require.NoError(t, secondBatch.CreateChannelMigrationTask(7, second))
+
+	require.NoError(t, firstBatch.Commit())
+	require.ErrorIs(t, secondBatch.Commit(), ErrAlreadyExists)
+
+	got, err := shard.GetChannelMigrationTask(ctx, first.ChannelID, first.ChannelType, first.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, first, got)
+}
+
+func TestChannelMigrationTaskGetReturnsCorruptValueForMalformedWorkflow(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+	task := testChannelMigrationTask("task-corrupt-workflow", "channel-corrupt-workflow")
+	task.Phase = ChannelMigrationPhaseWarmCatchUp
+	key := encodeChannelMigrationTaskPrimaryKey(7, task.ChannelID, task.ChannelType, task.TaskID, channelMigrationTaskPrimaryFamilyID)
+	value := encodeChannelMigrationTaskFamilyValue(task, key)
+
+	func() {
+		db.mu.Lock()
+		defer db.mu.Unlock()
+		batch := db.db.NewBatch()
+		defer batch.Close()
+		require.NoError(t, batch.Set(key, value, nil))
+		require.NoError(t, batch.Commit(nil))
+	}()
+
+	_, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.ErrorIs(t, err, ErrCorruptValue)
+}
+
 func TestWriteBatchChannelMigrationTaskTerminalTransitionClearsActiveIndexForSameBatchCreate(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)

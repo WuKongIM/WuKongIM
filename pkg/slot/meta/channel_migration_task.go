@@ -486,7 +486,17 @@ func (s *ShardStore) getChannelMigrationTaskByPrimaryKeyLocked(key []byte, chann
 	task.ChannelID = channelID
 	task.ChannelType = channelType
 	task.TaskID = taskID
+	if err := validateDecodedChannelMigrationTask(task); err != nil {
+		return ChannelMigrationTask{}, err
+	}
 	return task, nil
+}
+
+func validateDecodedChannelMigrationTask(task ChannelMigrationTask) error {
+	if err := validateChannelMigrationTask(task); err != nil {
+		return fmt.Errorf("%w: invalid channel migration task: %v", ErrCorruptValue, err)
+	}
+	return nil
 }
 
 func validateChannelMigrationTask(task ChannelMigrationTask) error {
@@ -776,6 +786,11 @@ func decodeChannelMigrationTaskRecord(key, value []byte) (ChannelMigrationTask, 
 	task.ChannelID = channelID
 	task.ChannelType = channelType
 	task.TaskID = taskID
+	if familyID == channelMigrationTaskPrimaryFamilyID {
+		if err := validateDecodedChannelMigrationTask(task); err != nil {
+			return ChannelMigrationTask{}, 0, err
+		}
+	}
 	return task, familyID, nil
 }
 

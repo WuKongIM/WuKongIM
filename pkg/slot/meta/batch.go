@@ -10,14 +10,15 @@ import (
 // WriteBatch accumulates multiple writes into a single pebble batch,
 // committing them atomically with one fsync in Commit.
 type WriteBatch struct {
-	db                     *DB
-	batch                  *pebble.Batch
-	writtenUserKeys        map[string]struct{}
-	channels               map[string]channelBatchEntry
-	userConversationStates map[string]userConversationStateBatchEntry
-	channelRuntimeMetas    map[string]channelRuntimeMetaBatchEntry
-	channelMigrationTasks  map[string]channelMigrationTaskBatchEntry
-	channelMigrationActive map[string]channelMigrationTaskActiveBatchEntry
+	db                      *DB
+	batch                   *pebble.Batch
+	writtenUserKeys         map[string]struct{}
+	channels                map[string]channelBatchEntry
+	userConversationStates  map[string]userConversationStateBatchEntry
+	channelRuntimeMetas     map[string]channelRuntimeMetaBatchEntry
+	channelMigrationTasks   map[string]channelMigrationTaskBatchEntry
+	channelMigrationActive  map[string]channelMigrationTaskActiveBatchEntry
+	channelMigrationCreates map[string]struct{}
 }
 
 type channelBatchEntry struct {
@@ -215,7 +216,11 @@ func (b *WriteBatch) CreateChannelMigrationTask(hashSlot uint16, task ChannelMig
 	if exists {
 		return ErrAlreadyExists
 	}
-	return b.upsertChannelMigrationTask(hashSlot, task)
+	if err := b.upsertChannelMigrationTask(hashSlot, task); err != nil {
+		return err
+	}
+	b.rememberChannelMigrationTaskCreate(primaryKey)
+	return nil
 }
 
 // UpsertChannelMigrationTask stages a migration task write, replacing the
@@ -551,6 +556,9 @@ func (b *WriteBatch) Commit() error {
 	if err := b.enforceChannelRuntimeMetaMonotonicLocked(); err != nil {
 		return err
 	}
+	if err := b.enforceChannelMigrationCreatePrimaryUniqueLocked(); err != nil {
+		return err
+	}
 	if err := b.enforceChannelMigrationActiveUniqueLocked(); err != nil {
 		return err
 	}
@@ -752,6 +760,9 @@ func (b *WriteBatch) loadChannelMigrationTask(hashSlot uint16, primaryKey []byte
 	task.ChannelID = channelID
 	task.ChannelType = channelType
 	task.TaskID = taskID
+	if err := validateDecodedChannelMigrationTask(task); err != nil {
+		return ChannelMigrationTask{}, false, err
+	}
 	b.rememberChannelMigrationTask(primaryKey, task, true)
 	return task, true, nil
 }
@@ -764,6 +775,13 @@ func (b *WriteBatch) rememberChannelMigrationTask(primaryKey []byte, task Channe
 		task:   task,
 		exists: exists,
 	}
+}
+
+func (b *WriteBatch) rememberChannelMigrationTaskCreate(primaryKey []byte) {
+	if b.channelMigrationCreates == nil {
+		b.channelMigrationCreates = make(map[string]struct{}, 1)
+	}
+	b.channelMigrationCreates[string(primaryKey)] = struct{}{}
 }
 
 func (b *WriteBatch) loadChannelMigrationActiveIndex(activeIndexKey []byte) (string, bool, error) {
@@ -793,6 +811,25 @@ func (b *WriteBatch) rememberChannelMigrationActiveIndex(activeIndexKey []byte, 
 		taskID: taskID,
 		exists: exists,
 	}
+}
+
+// enforceChannelMigrationCreatePrimaryUniqueLocked rechecks create-only
+// primary keys after this batch has acquired db.mu so concurrent batches cannot
+// overwrite a task that was created after staging.
+func (b *WriteBatch) enforceChannelMigrationCreatePrimaryUniqueLocked() error {
+	if len(b.channelMigrationCreates) == 0 {
+		return nil
+	}
+	for primaryKeyString := range b.channelMigrationCreates {
+		exists, err := b.db.hasKey([]byte(primaryKeyString))
+		if err != nil {
+			return err
+		}
+		if exists {
+			return ErrAlreadyExists
+		}
+	}
+	return nil
 }
 
 // enforceChannelMigrationActiveUniqueLocked rechecks staged active writes after
