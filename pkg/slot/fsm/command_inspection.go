@@ -129,6 +129,8 @@ func channelInspection(commandType string, channel metadb.Channel) CommandInspec
 		"channel_id":   channel.ChannelID,
 		"channel_type": channel.ChannelType,
 		"ban":          channel.Ban,
+		"disband":      channel.Disband,
+		"send_ban":     channel.SendBan,
 	})
 }
 
