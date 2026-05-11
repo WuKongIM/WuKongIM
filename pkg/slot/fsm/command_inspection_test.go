@@ -55,11 +55,19 @@ func TestDecodeCommandInspectionIncludesRuntimeMetaRetention(t *testing.T) {
 		LeaseUntilMS:         1700000000000,
 		RetentionThroughSeq:  99,
 		RetentionUpdatedAtMS: 1700000000123,
+		WriteFenceToken:      "task-inspect",
+		WriteFenceVersion:    7,
+		WriteFenceReason:     2,
+		WriteFenceUntilMS:    1700000000456,
 	}))
 	require.NoError(t, err)
 
 	require.Equal(t, uint64(99), got.Payload["retention_through_seq"])
 	require.Equal(t, int64(1700000000123), got.Payload["retention_updated_at_ms"])
+	require.Equal(t, "task-inspect", got.Payload["write_fence_token"])
+	require.Equal(t, uint64(7), got.Payload["write_fence_version"])
+	require.Equal(t, uint8(2), got.Payload["write_fence_reason"])
+	require.Equal(t, int64(1700000000456), got.Payload["write_fence_until_ms"])
 }
 
 func TestDecodeCommandInspectionIncludesAdvanceChannelRetentionThroughSeq(t *testing.T) {

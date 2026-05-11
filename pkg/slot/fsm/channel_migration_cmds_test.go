@@ -129,6 +129,10 @@ func TestChannelMigrationCommandRejectsAmbiguousJSONPayload(t *testing.T) {
 			name:    "trailing_value",
 			payload: `{"TaskID":"task-json"} {}`,
 		},
+		{
+			name:    "case_insensitive_duplicate_key",
+			payload: `{"TaskID":"task-json","taskid":"task-json-2"}`,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -475,6 +479,127 @@ func TestStateMachineChannelClearRejectsTaskRuntimeFenceMismatch(t *testing.T) {
 	requireFSMStaleResult(t, result, err)
 }
 
+func TestStateMachineChannelClearRejectsPrematureCompletion(t *testing.T) {
+	tests := []struct {
+		name     string
+		task     metadb.ChannelMigrationTask
+		meta     metadb.ChannelRuntimeMeta
+		reqPhase metadb.ChannelMigrationPhase
+	}{
+		func() struct {
+			name     string
+			task     metadb.ChannelMigrationTask
+			meta     metadb.ChannelRuntimeMeta
+			reqPhase metadb.ChannelMigrationPhase
+		} {
+			task := fsmTestLeaderTransferTask("task-clear-lt-write-fence", "channel-clear-lt-write-fence")
+			task.Phase = metadb.ChannelMigrationPhaseWriteFence
+			task.FenceToken = task.TaskID
+			task.FenceVersion = 7
+			task.FenceUntilMS = 1750000009000
+			meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, task.TaskID, 7)
+			meta.ChannelEpoch = task.BaseChannelEpoch
+			meta.LeaderEpoch = task.BaseLeaderEpoch
+			meta.Leader = task.SourceNode
+			meta.Replicas = []uint64{1, 2, 3}
+			meta.ISR = []uint64{1, 2, 3}
+			return struct {
+				name     string
+				task     metadb.ChannelMigrationTask
+				meta     metadb.ChannelRuntimeMeta
+				reqPhase metadb.ChannelMigrationPhase
+			}{name: "leader_transfer_write_fence", task: task, meta: meta}
+		}(),
+		func() struct {
+			name     string
+			task     metadb.ChannelMigrationTask
+			meta     metadb.ChannelRuntimeMeta
+			reqPhase metadb.ChannelMigrationPhase
+		} {
+			task := fsmTestLeaderTransferTask("task-clear-lt-commit", "channel-clear-lt-commit")
+			task.Phase = metadb.ChannelMigrationPhaseCommitLeaderMeta
+			task.FenceToken = task.TaskID
+			task.FenceVersion = 7
+			task.FenceUntilMS = 1750000009000
+			setFSMTestDrainProof(&task, 7)
+			meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, task.TaskID, 7)
+			meta.ChannelEpoch = task.BaseChannelEpoch
+			meta.LeaderEpoch = task.BaseLeaderEpoch
+			meta.Leader = task.SourceNode
+			meta.Replicas = []uint64{1, 2, 3}
+			meta.ISR = []uint64{1, 2, 3}
+			return struct {
+				name     string
+				task     metadb.ChannelMigrationTask
+				meta     metadb.ChannelRuntimeMeta
+				reqPhase metadb.ChannelMigrationPhase
+			}{name: "leader_transfer_commit_meta", task: task, meta: meta}
+		}(),
+		func() struct {
+			name     string
+			task     metadb.ChannelMigrationTask
+			meta     metadb.ChannelRuntimeMeta
+			reqPhase metadb.ChannelMigrationPhase
+		} {
+			task := fsmTestChannelMigrationTask("task-clear-rr-cutover", "channel-clear-rr-cutover")
+			task.Status = metadb.ChannelMigrationStatusRunning
+			task.Phase = metadb.ChannelMigrationPhaseCutoverFence
+			task.UpdatedAtMS = 1750000001000
+			task.FenceToken = task.TaskID
+			task.FenceVersion = 7
+			task.FenceUntilMS = 1750000009000
+			meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, task.TaskID, 7)
+			meta.ChannelEpoch = task.BaseChannelEpoch
+			meta.LeaderEpoch = task.BaseLeaderEpoch
+			meta.Replicas = []uint64{1, 2, 3}
+			meta.ISR = []uint64{1, 2}
+			return struct {
+				name     string
+				task     metadb.ChannelMigrationTask
+				meta     metadb.ChannelRuntimeMeta
+				reqPhase metadb.ChannelMigrationPhase
+			}{name: "replica_replace_cutover", task: task, meta: meta}
+		}(),
+		func() struct {
+			name     string
+			task     metadb.ChannelMigrationTask
+			meta     metadb.ChannelRuntimeMeta
+			reqPhase metadb.ChannelMigrationPhase
+		} {
+			task := fsmTestChannelMigrationTask("task-clear-rr-promote", "channel-clear-rr-promote")
+			task.Status = metadb.ChannelMigrationStatusRunning
+			task.Phase = metadb.ChannelMigrationPhasePromoteAndRemove
+			task.UpdatedAtMS = 1750000001000
+			task.FenceToken = task.TaskID
+			task.FenceVersion = 7
+			task.FenceUntilMS = 1750000009000
+			setFSMTestDrainProof(&task, 7)
+			meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, task.TaskID, 7)
+			meta.ChannelEpoch = task.BaseChannelEpoch
+			meta.LeaderEpoch = task.BaseLeaderEpoch
+			meta.Replicas = []uint64{1, 2, 3}
+			meta.ISR = []uint64{1, 2}
+			return struct {
+				name     string
+				task     metadb.ChannelMigrationTask
+				meta     metadb.ChannelRuntimeMeta
+				reqPhase metadb.ChannelMigrationPhase
+			}{name: "replica_replace_promote", task: task, meta: meta}
+		}(),
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			db := openTestDB(t)
+			sm := mustNewStateMachine(t, db, 11)
+			fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(tc.meta))
+			fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(tc.task))
+			result, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, Index: 3, Term: 1, Data: EncodeClearChannelWriteFenceCommand(fsmTestClearFenceRequest(tc.task, tc.meta, 1750000002000))})
+			requireFSMStaleResult(t, result, err)
+		})
+	}
+}
+
 func TestStateMachineChannelClearEmbeddedLeaderTransferAdvancesToAddLearner(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -629,26 +754,40 @@ func TestStateMachineChannelSetAndClearFenceSameBatch(t *testing.T) {
 	sm := mustNewStateMachine(t, db, 11)
 	task := fsmTestChannelMigrationTask("task-set-clear-same-batch", "channel-set-clear-same-batch")
 	task.Status = metadb.ChannelMigrationStatusRunning
-	task.Phase = metadb.ChannelMigrationPhaseWarmCatchUp
+	task.Phase = metadb.ChannelMigrationPhaseVerifyMembership
 	task.UpdatedAtMS = 1750000001000
-	meta := fsmTestRuntimeMeta(task.ChannelID, task.ChannelType)
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 7
+	task.FenceUntilMS = 1750000009000
+	setFSMTestDrainProof(&task, 7)
+	meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, task.TaskID, 7)
 	meta.ChannelEpoch = task.BaseChannelEpoch
 	meta.LeaderEpoch = task.BaseLeaderEpoch
+	meta.Replicas = []uint64{1, 3}
+	meta.ISR = []uint64{1, 3}
 
 	fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
 	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
 
 	setReq := fsmTestSetFenceRequest(task, meta, 1750000009000, 1750000002000)
+	setReq.Phase = task.Phase
 	fencedTask := task
 	fencedTask.Status = setReq.Status
 	fencedTask.Phase = setReq.Phase
 	fencedTask.FenceToken = task.TaskID
-	fencedTask.FenceVersion = 1
+	fencedTask.FenceVersion = 8
 	fencedTask.FenceUntilMS = setReq.FenceUntilMS
 	fencedTask.UpdatedAtMS = setReq.UpdatedAtMS
+	fencedTask.CutoverLEO = 0
+	fencedTask.CutoverHW = 0
+	fencedTask.DrainedLeaderNode = 0
+	fencedTask.DrainedRuntimeGeneration = 0
+	fencedTask.DrainedChannelEpoch = 0
+	fencedTask.DrainedLeaderEpoch = 0
+	fencedTask.DrainedFenceVersion = 0
 	fencedMeta := meta
 	fencedMeta.WriteFenceToken = task.TaskID
-	fencedMeta.WriteFenceVersion = 1
+	fencedMeta.WriteFenceVersion = 8
 	fencedMeta.WriteFenceReason = setReq.FenceReason
 	fencedMeta.WriteFenceUntilMS = setReq.FenceUntilMS
 	clearReq := fsmTestClearFenceRequest(fencedTask, fencedMeta, 1750000003000)
@@ -676,7 +815,7 @@ func TestStateMachineChannelSetAndClearFenceSameBatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
 	}
-	if gotMeta.WriteFenceToken != "" || gotMeta.WriteFenceVersion != 2 {
+	if gotMeta.WriteFenceToken != "" || gotMeta.WriteFenceVersion != 9 {
 		t.Fatalf("meta after set+clear = %#v", gotMeta)
 	}
 }
