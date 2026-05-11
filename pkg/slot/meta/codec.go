@@ -261,10 +261,18 @@ func decodeDeviceFamilyValue(key, value []byte) (string, int64, error) {
 	return token, deviceLevel, nil
 }
 
-func encodeChannelFamilyValue(ban int64, subscriberMutationVersion uint64, key []byte) []byte {
-	payload := make([]byte, 0, 16)
+func encodeChannelFamilyValue(ban, disband, sendBan int64, subscriberMutationVersion uint64, key []byte) []byte {
+	payload := make([]byte, 0, 32)
 	payload = appendIntValue(payload, channelColumnIDBan, 0, ban)
 	payload = appendUint64Value(payload, channelColumnIDSubscriberMutationVersion, channelColumnIDBan, subscriberMutationVersion)
+	previousColumnID := channelColumnIDSubscriberMutationVersion
+	if disband != 0 {
+		payload = appendIntValue(payload, channelColumnIDDisband, previousColumnID, disband)
+		previousColumnID = channelColumnIDDisband
+	}
+	if sendBan != 0 {
+		payload = appendIntValue(payload, channelColumnIDSendBan, previousColumnID, sendBan)
+	}
 	return wrapFamilyValue(key, payload)
 }
 
@@ -272,15 +280,13 @@ func encodeChannelIndexValue(ban int64) []byte {
 	return binary.AppendUvarint(make([]byte, 0, binary.MaxVarintLen64), encodeZigZagInt64(ban))
 }
 
-func decodeChannelFamilyValue(key, value []byte) (int64, uint64, error) {
+func decodeChannelFamilyValue(key, value []byte) (ban, disband, sendBan int64, subscriberMutationVersion uint64, err error) {
 	_, payload, err := decodeWrappedValue(key, value)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, 0, err
 	}
 
 	var (
-		ban     int64
-		version uint64
 		colID   uint16
 		haveBan bool
 	)
@@ -292,7 +298,7 @@ func decodeChannelFamilyValue(key, value []byte) (int64, uint64, error) {
 		delta := uint16(tag >> 4)
 		valueType := tag & 0x0f
 		if delta == 0 {
-			return 0, 0, fmt.Errorf("%w: zero column delta", ErrCorruptValue)
+			return 0, 0, 0, 0, fmt.Errorf("%w: zero column delta", ErrCorruptValue)
 		}
 		colID += delta
 
@@ -300,7 +306,7 @@ func decodeChannelFamilyValue(key, value []byte) (int64, uint64, error) {
 		case valueTypeInt:
 			raw, n := binary.Uvarint(payload)
 			if n <= 0 {
-				return 0, 0, fmt.Errorf("metadb: invalid int payload")
+				return 0, 0, 0, 0, fmt.Errorf("metadb: invalid int payload")
 			}
 			payload = payload[n:]
 
@@ -308,43 +314,47 @@ func decodeChannelFamilyValue(key, value []byte) (int64, uint64, error) {
 			case channelColumnIDBan:
 				ban = decodeZigZagInt64(raw)
 				haveBan = true
+			case channelColumnIDDisband:
+				disband = decodeZigZagInt64(raw)
+			case channelColumnIDSendBan:
+				sendBan = decodeZigZagInt64(raw)
 			case channelColumnIDSubscriberMutationVersion:
-				version = raw
+				subscriberMutationVersion = raw
 			}
 		case valueTypeUint:
 			raw, n := binary.Uvarint(payload)
 			if n <= 0 {
-				return 0, 0, fmt.Errorf("metadb: invalid uint payload")
+				return 0, 0, 0, 0, fmt.Errorf("metadb: invalid uint payload")
 			}
 			payload = payload[n:]
 			switch colID {
 			case channelColumnIDSubscriberMutationVersion:
-				version = raw
-			case channelColumnIDBan:
-				return 0, 0, fmt.Errorf("%w: invalid uint column %d", ErrCorruptValue, colID)
+				subscriberMutationVersion = raw
+			case channelColumnIDBan, channelColumnIDDisband, channelColumnIDSendBan:
+				return 0, 0, 0, 0, fmt.Errorf("%w: invalid uint column %d", ErrCorruptValue, colID)
 			}
 		case valueTypeBytes:
-			if colID == channelColumnIDBan {
-				return 0, 0, fmt.Errorf("%w: invalid int column %d", ErrCorruptValue, colID)
+			if colID == channelColumnIDBan || colID == channelColumnIDDisband || colID == channelColumnIDSendBan {
+				return 0, 0, 0, 0, fmt.Errorf("%w: invalid int column %d", ErrCorruptValue, colID)
 			}
 			length, n := binary.Uvarint(payload)
 			if n <= 0 {
-				return 0, 0, fmt.Errorf("metadb: invalid bytes length")
+				return 0, 0, 0, 0, fmt.Errorf("metadb: invalid bytes length")
 			}
 			payload = payload[n:]
 			if uint64(len(payload)) < length {
-				return 0, 0, fmt.Errorf("metadb: bytes payload truncated")
+				return 0, 0, 0, 0, fmt.Errorf("metadb: bytes payload truncated")
 			}
 			payload = payload[length:]
 		default:
-			return 0, 0, fmt.Errorf("metadb: unsupported value type %d", valueType)
+			return 0, 0, 0, 0, fmt.Errorf("metadb: unsupported value type %d", valueType)
 		}
 	}
 
 	if !haveBan {
-		return 0, 0, fmt.Errorf("%w: missing int column %d", ErrCorruptValue, channelColumnIDBan)
+		return 0, 0, 0, 0, fmt.Errorf("%w: missing int column %d", ErrCorruptValue, channelColumnIDBan)
 	}
-	return ban, version, nil
+	return ban, disband, sendBan, subscriberMutationVersion, nil
 }
 
 func decodeChannelIndexValue(key, value []byte) (int64, error) {
@@ -352,7 +362,7 @@ func decodeChannelIndexValue(key, value []byte) (int64, error) {
 		return 0, ErrCorruptValue
 	}
 	if len(value) >= 5 {
-		if decoded, _, err := decodeChannelFamilyValue(key, value); err == nil {
+		if decoded, _, _, _, err := decodeChannelFamilyValue(key, value); err == nil {
 			return decoded, nil
 		}
 	}

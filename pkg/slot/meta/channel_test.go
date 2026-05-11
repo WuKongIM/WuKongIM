@@ -224,6 +224,39 @@ func TestChannelIndexValueTracksListPayload(t *testing.T) {
 	}
 }
 
+func TestChannelStatusFlagsRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+
+	ch := Channel{ChannelID: "group-status", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, SubscriberMutationVersion: 5}
+	if err := shard.CreateChannel(ctx, ch); err != nil {
+		t.Fatalf("CreateChannel(): %v", err)
+	}
+
+	got, err := shard.GetChannel(ctx, ch.ChannelID, ch.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannel(): %v", err)
+	}
+	if !reflect.DeepEqual(got, ch) {
+		t.Fatalf("unexpected channel after create:\n got: %#v\nwant: %#v", got, ch)
+	}
+
+	updated := Channel{ChannelID: ch.ChannelID, ChannelType: ch.ChannelType, Ban: 0, Disband: 1, SendBan: 0}
+	if err := shard.UpdateChannel(ctx, updated); err != nil {
+		t.Fatalf("UpdateChannel(): %v", err)
+	}
+
+	got, err = shard.GetChannel(ctx, ch.ChannelID, ch.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannel() after update: %v", err)
+	}
+	updated.SubscriberMutationVersion = ch.SubscriberMutationVersion
+	if !reflect.DeepEqual(got, updated) {
+		t.Fatalf("unexpected channel after update:\n got: %#v\nwant: %#v", got, updated)
+	}
+}
+
 func TestChannelSubscriberMutationVersionRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
