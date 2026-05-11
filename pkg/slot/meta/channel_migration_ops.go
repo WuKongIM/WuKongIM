@@ -56,7 +56,7 @@ func (b *WriteBatch) CommitChannelLeaderTransfer(hashSlot uint16, req ChannelMig
 		if err := requireMatchingFence(meta, req.RuntimeGuard.ExpectedFenceToken, req.RuntimeGuard.ExpectedFenceVersion, req.NowMS, false); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
-		if !containsUint64(meta.ISR, req.DesiredLeader) || req.NextLeaderEpoch <= meta.LeaderEpoch {
+		if req.DesiredLeader != channelMigrationTaskDesiredLeader(task) || !containsUint64(meta.ISR, req.DesiredLeader) || req.NextLeaderEpoch <= meta.LeaderEpoch {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, ErrStaleMeta
 		}
 		nextTask := task
@@ -79,7 +79,7 @@ func (b *WriteBatch) AddChannelLearner(hashSlot uint16, req ChannelMigrationAddL
 		return err
 	}
 	return b.stageChannelMigrationTaskAndMeta(hashSlot, req.Guard, req.RuntimeGuard, func(task ChannelMigrationTask, meta ChannelRuntimeMeta) (ChannelMigrationTask, ChannelRuntimeMeta, error) {
-		if containsUint64(meta.ISR, req.TargetNode) {
+		if req.TargetNode != task.TargetNode || containsUint64(meta.ISR, req.TargetNode) {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, ErrStaleMeta
 		}
 		nextTask := task
@@ -105,7 +105,7 @@ func (b *WriteBatch) PromoteLearnerAndRemoveReplica(hashSlot uint16, req Channel
 		if err := requireMatchingFence(meta, req.RuntimeGuard.ExpectedFenceToken, req.RuntimeGuard.ExpectedFenceVersion, req.NowMS, false); err != nil {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
-		if !containsUint64(meta.Replicas, req.TargetNode) || !containsUint64(meta.ISR, req.SourceNode) {
+		if req.SourceNode != task.SourceNode || req.TargetNode != task.TargetNode || !containsUint64(meta.Replicas, req.TargetNode) || !containsUint64(meta.ISR, req.SourceNode) {
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, ErrStaleMeta
 		}
 		nextTask := task
@@ -326,6 +326,13 @@ func requireMatchingFence(meta ChannelRuntimeMeta, token string, version uint64,
 		return ErrStaleMeta
 	}
 	return nil
+}
+
+func channelMigrationTaskDesiredLeader(task ChannelMigrationTask) uint64 {
+	if task.EmbeddedLeaderTransfer && task.EmbeddedDesiredLeader != 0 {
+		return task.EmbeddedDesiredLeader
+	}
+	return task.DesiredLeader
 }
 
 func clearChannelRuntimeMetaFence(meta ChannelRuntimeMeta) ChannelRuntimeMeta {

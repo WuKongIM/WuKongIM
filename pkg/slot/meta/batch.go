@@ -910,7 +910,13 @@ func (b *WriteBatch) rememberChannelMigrationRuntimeGuard(primaryKey []byte, gua
 	if b.channelMigrationRuntime == nil {
 		b.channelMigrationRuntime = make(map[string]channelMigrationRuntimeGuardBatchEntry, 1)
 	}
-	b.channelMigrationRuntime[string(primaryKey)] = channelMigrationRuntimeGuardBatchEntry{
+	key := string(primaryKey)
+	if existing, ok := b.channelMigrationRuntime[key]; ok {
+		existing.desired = normalizeChannelRuntimeMeta(desired)
+		b.channelMigrationRuntime[key] = existing
+		return
+	}
+	b.channelMigrationRuntime[key] = channelMigrationRuntimeGuardBatchEntry{
 		guard:   guard,
 		desired: normalizeChannelRuntimeMeta(desired),
 	}
