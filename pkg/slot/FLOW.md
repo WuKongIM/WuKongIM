@@ -29,7 +29,7 @@ Store.RegisterUserConversationActiveOverlay(overlay)  // 注册 UID-owner active
 Store.SubmitUserConversationActiveHints / RemoveUserConversationActiveHints
 
 // meta/channel_migration_task.go — 当前 Task 2 仅提供本地 ShardStore helper
-ShardStore.CreateChannelMigrationTask / GetChannelMigrationTask / GetActiveChannelMigrationTask / ListChannelMigrationTasks / DeleteTerminalChannelMigrationTasksBefore
+ShardStore.CreateChannelMigrationTask / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / GetChannelMigrationTask / GetActiveChannelMigrationTask / ListChannelMigrationTasks / DeleteTerminalChannelMigrationTasksBefore
 
 // multiraft/api.go — Raft Runtime 底层 API
 Runtime.OpenSlot / BootstrapSlot / CloseSlot

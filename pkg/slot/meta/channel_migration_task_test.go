@@ -58,24 +58,52 @@ func TestChannelMigrationTaskRejectsLeaderTransferDesiredLeaderDifferentFromTarg
 	require.ErrorIs(t, err, ErrInvalidArgument)
 }
 
-func TestChannelMigrationTaskBatchUpsertPersistsOwnerLeaseFields(t *testing.T) {
+func TestChannelMigrationTaskClaimOwnerLeaseUsesExpectedOwnerLease(t *testing.T) {
 	ctx := context.Background()
 	shard := newTestShardStore(t, 7)
 	task := testChannelMigrationTask("task-claim", "channel-claim")
 	require.NoError(t, shard.CreateChannelMigrationTask(ctx, task))
 
-	claimed := task
-	claimed.Status = ChannelMigrationStatusRunning
-	claimed.OwnerNodeID = 3
-	claimed.OwnerLeaseUntilMS = 1750000005000
-	claimed.UpdatedAtMS = 1750000001000
-	require.NoError(t, upsertChannelMigrationTaskForTest(shard, claimed))
+	claim := channelMigrationTaskClaimRequest(task, 3, 1750000005000, 1750000001000)
+	require.NoError(t, shard.ClaimChannelMigrationTask(ctx, claim))
 
 	got, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
 	require.NoError(t, err)
-	require.Equal(t, claimed.OwnerNodeID, got.OwnerNodeID)
-	require.Equal(t, claimed.OwnerLeaseUntilMS, got.OwnerLeaseUntilMS)
+	require.Equal(t, claim.OwnerNodeID, got.OwnerNodeID)
+	require.Equal(t, claim.OwnerLeaseUntilMS, got.OwnerLeaseUntilMS)
 	require.Equal(t, ChannelMigrationStatusRunning, got.Status)
+
+	stale := channelMigrationTaskClaimRequest(task, 4, 1750000006000, 1750000002000)
+	err = shard.ClaimChannelMigrationTask(ctx, stale)
+	require.ErrorIs(t, err, ErrStaleMeta)
+
+	got, err = shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, claim.OwnerNodeID, got.OwnerNodeID)
+	require.Equal(t, claim.OwnerLeaseUntilMS, got.OwnerLeaseUntilMS)
+}
+
+func TestWriteBatchClaimChannelMigrationTaskRevalidatesOwnerLeaseAtCommit(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+	task := testChannelMigrationTask("task-claim-race", "channel-claim-race")
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, task))
+
+	first := db.NewWriteBatch()
+	defer first.Close()
+	second := db.NewWriteBatch()
+	defer second.Close()
+	require.NoError(t, first.ClaimChannelMigrationTask(7, channelMigrationTaskClaimRequest(task, 3, 1750000005000, 1750000001000)))
+	require.NoError(t, second.ClaimChannelMigrationTask(7, channelMigrationTaskClaimRequest(task, 4, 1750000006000, 1750000002000)))
+
+	require.NoError(t, first.Commit())
+	require.ErrorIs(t, second.Commit(), ErrStaleMeta)
+
+	got, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), got.OwnerNodeID)
+	require.Equal(t, int64(1750000005000), got.OwnerLeaseUntilMS)
 }
 
 func TestWriteBatchCreateChannelMigrationTaskWithRuntimeMetaCommitsAtomically(t *testing.T) {
@@ -203,7 +231,7 @@ func TestWriteBatchChannelMigrationTaskTerminalTransitionClearsActiveIndexForSam
 
 	wb := db.NewWriteBatch()
 	defer wb.Close()
-	require.NoError(t, wb.UpsertChannelMigrationTask(7, completed))
+	require.NoError(t, wb.AdvanceChannelMigrationTask(7, channelMigrationTaskAdvanceRequest(active, completed)))
 	require.NoError(t, wb.CreateChannelMigrationTask(7, next))
 	require.NoError(t, wb.Commit())
 
@@ -231,11 +259,11 @@ func TestWriteBatchChannelMigrationTaskStaleTerminalTransitionDoesNotClearNewAct
 
 	staleBatch := db.NewWriteBatch()
 	defer staleBatch.Close()
-	require.NoError(t, staleBatch.UpsertChannelMigrationTask(7, completed))
+	require.NoError(t, staleBatch.AdvanceChannelMigrationTask(7, channelMigrationTaskAdvanceRequest(active, completed)))
 
 	newActiveBatch := db.NewWriteBatch()
 	defer newActiveBatch.Close()
-	require.NoError(t, newActiveBatch.UpsertChannelMigrationTask(7, completed))
+	require.NoError(t, newActiveBatch.AdvanceChannelMigrationTask(7, channelMigrationTaskAdvanceRequest(active, completed)))
 	require.NoError(t, newActiveBatch.CreateChannelMigrationTask(7, next))
 	require.NoError(t, newActiveBatch.Commit())
 
@@ -708,7 +736,7 @@ func TestChannelMigrationTaskAdvancePersistsProgressAndRetry(t *testing.T) {
 		LagRecords:         9,
 		StableSinceMS:      1750000003000,
 	}
-	require.NoError(t, upsertChannelMigrationTaskForTest(shard, advanced))
+	require.NoError(t, shard.AdvanceChannelMigrationTask(ctx, channelMigrationTaskAdvanceRequest(task, advanced)))
 
 	got, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
 	require.NoError(t, err)
@@ -717,6 +745,49 @@ func TestChannelMigrationTaskAdvancePersistsProgressAndRetry(t *testing.T) {
 	require.Equal(t, advanced.NextRunAtMS, got.NextRunAtMS)
 	require.Equal(t, advanced.LastError, got.LastError)
 	require.Equal(t, advanced.Progress, got.Progress)
+
+	stale := task
+	stale.Status = ChannelMigrationStatusRunning
+	stale.Phase = ChannelMigrationPhaseAddLearner
+	stale.UpdatedAtMS = 1750000003000
+	err = shard.AdvanceChannelMigrationTask(ctx, channelMigrationTaskAdvanceRequest(task, stale))
+	require.ErrorIs(t, err, ErrStaleMeta)
+
+	got, err = shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, advanced.Phase, got.Phase)
+	require.Equal(t, advanced.Progress, got.Progress)
+}
+
+func TestWriteBatchAdvanceChannelMigrationTaskIsIdempotentForDuplicateCommand(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+	task := testChannelMigrationTask("task-advance-idempotent", "channel-advance-idempotent")
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, task))
+
+	advanced := task
+	advanced.Status = ChannelMigrationStatusRunning
+	advanced.Phase = ChannelMigrationPhaseWarmCatchUp
+	advanced.Attempt = 1
+	advanced.UpdatedAtMS = 1750000001000
+	req := channelMigrationTaskAdvanceRequest(task, advanced)
+
+	first := db.NewWriteBatch()
+	defer first.Close()
+	duplicate := db.NewWriteBatch()
+	defer duplicate.Close()
+	require.NoError(t, first.AdvanceChannelMigrationTask(7, req))
+	require.NoError(t, duplicate.AdvanceChannelMigrationTask(7, req))
+
+	require.NoError(t, first.Commit())
+	require.NoError(t, duplicate.Commit())
+
+	got, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, advanced.Status, got.Status)
+	require.Equal(t, advanced.Phase, got.Phase)
+	require.Equal(t, advanced.Attempt, got.Attempt)
 }
 
 func TestChannelMigrationTaskBlockedNeedsSnapshotBootstrap(t *testing.T) {
@@ -732,7 +803,7 @@ func TestChannelMigrationTaskBlockedNeedsSnapshotBootstrap(t *testing.T) {
 	blocked.BlockerMessage = "target requires a channel snapshot before catch-up"
 	blocked.NextRunAtMS = 1750000010000
 	blocked.UpdatedAtMS = 1750000003000
-	require.NoError(t, upsertChannelMigrationTaskForTest(shard, blocked))
+	require.NoError(t, shard.AdvanceChannelMigrationTask(ctx, channelMigrationTaskAdvanceRequest(task, blocked)))
 
 	got, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
 	require.NoError(t, err)
@@ -887,13 +958,49 @@ func setChannelMigrationTaskDrainProof(task *ChannelMigrationTask, fenceVersion 
 	task.DrainedFenceVersion = fenceVersion
 }
 
-func upsertChannelMigrationTaskForTest(shard *ShardStore, task ChannelMigrationTask) error {
-	wb := shard.db.NewWriteBatch()
-	defer wb.Close()
-	if err := wb.UpsertChannelMigrationTask(shard.slot, task); err != nil {
-		return err
+func channelMigrationTaskClaimRequest(existing ChannelMigrationTask, ownerNodeID uint64, ownerLeaseUntilMS, updatedAtMS int64) ChannelMigrationTaskClaim {
+	return ChannelMigrationTaskClaim{
+		Guard: ChannelMigrationTaskGuard{
+			ChannelID:                 existing.ChannelID,
+			ChannelType:               existing.ChannelType,
+			TaskID:                    existing.TaskID,
+			ExpectedStatus:            existing.Status,
+			ExpectedPhase:             existing.Phase,
+			ExpectedOwnerNodeID:       existing.OwnerNodeID,
+			ExpectedOwnerLeaseUntilMS: existing.OwnerLeaseUntilMS,
+			ExpectedUpdatedAtMS:       existing.UpdatedAtMS,
+		},
+		Status:            ChannelMigrationStatusRunning,
+		Phase:             existing.Phase,
+		OwnerNodeID:       ownerNodeID,
+		OwnerLeaseUntilMS: ownerLeaseUntilMS,
+		UpdatedAtMS:       updatedAtMS,
 	}
-	return wb.Commit()
+}
+
+func channelMigrationTaskAdvanceRequest(existing, next ChannelMigrationTask) ChannelMigrationTaskAdvance {
+	return ChannelMigrationTaskAdvance{
+		Guard: ChannelMigrationTaskGuard{
+			ChannelID:                 existing.ChannelID,
+			ChannelType:               existing.ChannelType,
+			TaskID:                    existing.TaskID,
+			ExpectedStatus:            existing.Status,
+			ExpectedPhase:             existing.Phase,
+			ExpectedOwnerNodeID:       existing.OwnerNodeID,
+			ExpectedOwnerLeaseUntilMS: existing.OwnerLeaseUntilMS,
+			ExpectedUpdatedAtMS:       existing.UpdatedAtMS,
+		},
+		Status:         next.Status,
+		Phase:          next.Phase,
+		Attempt:        next.Attempt,
+		NextRunAtMS:    next.NextRunAtMS,
+		BlockerCode:    next.BlockerCode,
+		BlockerMessage: next.BlockerMessage,
+		LastError:      next.LastError,
+		UpdatedAtMS:    next.UpdatedAtMS,
+		CompletedAtMS:  next.CompletedAtMS,
+		Progress:       next.Progress,
+	}
 }
 
 func requireChannelMigrationTasksEqual(t *testing.T, want, got ChannelMigrationTask) {
