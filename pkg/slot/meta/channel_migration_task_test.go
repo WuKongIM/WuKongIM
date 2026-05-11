@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/cockroachdb/pebble/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -59,7 +58,7 @@ func TestChannelMigrationTaskRejectsLeaderTransferDesiredLeaderDifferentFromTarg
 	require.ErrorIs(t, err, ErrInvalidArgument)
 }
 
-func TestChannelMigrationTaskClaimOwnerLease(t *testing.T) {
+func TestChannelMigrationTaskBatchUpsertPersistsOwnerLeaseFields(t *testing.T) {
 	ctx := context.Background()
 	shard := newTestShardStore(t, 7)
 	task := testChannelMigrationTask("task-claim", "channel-claim")
@@ -77,6 +76,119 @@ func TestChannelMigrationTaskClaimOwnerLease(t *testing.T) {
 	require.Equal(t, claimed.OwnerNodeID, got.OwnerNodeID)
 	require.Equal(t, claimed.OwnerLeaseUntilMS, got.OwnerLeaseUntilMS)
 	require.Equal(t, ChannelMigrationStatusRunning, got.Status)
+}
+
+func TestWriteBatchCreateChannelMigrationTaskWithRuntimeMetaCommitsAtomically(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+	task := testChannelMigrationTask("task-batch-create", "channel-batch-create")
+	meta := testRuntimeMeta(task.ChannelID, task.ChannelType)
+
+	wb := db.NewWriteBatch()
+	defer wb.Close()
+	require.NoError(t, wb.CreateChannelMigrationTask(7, task))
+	require.NoError(t, wb.UpsertChannelRuntimeMeta(7, meta))
+	require.NoError(t, wb.Commit())
+
+	gotTask, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, task, gotTask)
+	gotMeta, err := shard.GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	require.NoError(t, err)
+	require.Equal(t, normalizeChannelRuntimeMeta(meta), gotMeta)
+}
+
+func TestWriteBatchCreateChannelMigrationTaskRejectsSameBatchActiveDuplicate(t *testing.T) {
+	db := openTestDB(t)
+	first := testChannelMigrationTask("task-batch-duplicate-1", "channel-batch-duplicate")
+	second := testChannelMigrationTask("task-batch-duplicate-2", "channel-batch-duplicate")
+
+	wb := db.NewWriteBatch()
+	defer wb.Close()
+	require.NoError(t, wb.CreateChannelMigrationTask(7, first))
+	require.ErrorIs(t, wb.CreateChannelMigrationTask(7, second), ErrAlreadyExists)
+}
+
+func TestWriteBatchChannelMigrationTaskTerminalTransitionClearsActiveIndexForSameBatchCreate(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+	active := testChannelMigrationTask("task-batch-terminal-1", "channel-batch-terminal")
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, active))
+
+	completed := active
+	completed.Status = ChannelMigrationStatusCompleted
+	completed.Phase = ChannelMigrationPhaseVerifyMembership
+	completed.CompletedAtMS = 1750000010000
+	completed.UpdatedAtMS = 1750000010000
+	next := testChannelMigrationTask("task-batch-terminal-2", "channel-batch-terminal")
+	next.CreatedAtMS = 1750000011000
+	next.UpdatedAtMS = 1750000011000
+
+	wb := db.NewWriteBatch()
+	defer wb.Close()
+	require.NoError(t, wb.UpsertChannelMigrationTask(7, completed))
+	require.NoError(t, wb.CreateChannelMigrationTask(7, next))
+	require.NoError(t, wb.Commit())
+
+	got, ok, err := shard.GetActiveChannelMigrationTask(ctx, next.ChannelID, next.ChannelType)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, next.TaskID, got.TaskID)
+}
+
+func TestChannelMigrationTaskValidationRejectsWorkflowInconsistentPhase(t *testing.T) {
+	tests := []struct {
+		name string
+		task ChannelMigrationTask
+	}{
+		{
+			name: "leader_transfer_add_learner",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-lt-add", "channel-invalid-lt-add")
+				task.Kind = ChannelMigrationKindLeaderTransfer
+				task.DesiredLeader = task.TargetNode
+				task.Phase = ChannelMigrationPhaseAddLearner
+				return task
+			}(),
+		},
+		{
+			name: "leader_transfer_promote_and_remove",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-lt-promote", "channel-invalid-lt-promote")
+				task.Kind = ChannelMigrationKindLeaderTransfer
+				task.DesiredLeader = task.TargetNode
+				task.Phase = ChannelMigrationPhasePromoteAndRemove
+				return task
+			}(),
+		},
+		{
+			name: "replica_replace_commit_leader_meta_without_embedded_transfer",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-rr-commit", "channel-invalid-rr-commit")
+				task.Phase = ChannelMigrationPhaseCommitLeaderMeta
+				return task
+			}(),
+		},
+		{
+			name: "completed_validate",
+			task: func() ChannelMigrationTask {
+				task := testChannelMigrationTask("task-invalid-completed", "channel-invalid-completed")
+				task.Status = ChannelMigrationStatusCompleted
+				task.Phase = ChannelMigrationPhaseValidate
+				task.CompletedAtMS = 1750000010000
+				task.UpdatedAtMS = 1750000010000
+				return task
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.ErrorIs(t, validateChannelMigrationTask(tt.task), ErrInvalidArgument)
+		})
+	}
 }
 
 func TestChannelMigrationTaskAdvancePersistsProgressAndRetry(t *testing.T) {
@@ -158,6 +270,7 @@ func TestChannelMigrationTaskGarbageCollectsTerminalAfterRetention(t *testing.T)
 	shard := newTestShardStore(t, 7)
 	oldTerminal := testChannelMigrationTask("task-gc-old", "channel-gc-old")
 	oldTerminal.Status = ChannelMigrationStatusCompleted
+	oldTerminal.Phase = ChannelMigrationPhaseVerifyMembership
 	oldTerminal.CompletedAtMS = 1750000000000
 	oldTerminal.UpdatedAtMS = oldTerminal.CompletedAtMS
 	newTerminal := testChannelMigrationTask("task-gc-new", "channel-gc-new")
@@ -167,6 +280,7 @@ func TestChannelMigrationTaskGarbageCollectsTerminalAfterRetention(t *testing.T)
 	active := testChannelMigrationTask("task-gc-active", "channel-gc-active")
 	replacedTerminal := testChannelMigrationTask("task-gc-replaced-old", "channel-gc-replaced")
 	replacedTerminal.Status = ChannelMigrationStatusCompleted
+	replacedTerminal.Phase = ChannelMigrationPhaseVerifyMembership
 	replacedTerminal.CompletedAtMS = 1750000000001
 	replacedTerminal.UpdatedAtMS = replacedTerminal.CompletedAtMS
 	replacementActive := testChannelMigrationTask("task-gc-replaced-active", "channel-gc-replaced")
@@ -264,15 +378,12 @@ func testChannelMigrationTask(taskID, channelID string) ChannelMigrationTask {
 }
 
 func upsertChannelMigrationTaskForTest(shard *ShardStore, task ChannelMigrationTask) error {
-	shard.db.mu.Lock()
-	defer shard.db.mu.Unlock()
-
-	batch := shard.db.db.NewBatch()
-	defer batch.Close()
-	if err := shard.upsertChannelMigrationTaskLocked(batch, task); err != nil {
+	wb := shard.db.NewWriteBatch()
+	defer wb.Close()
+	if err := wb.UpsertChannelMigrationTask(shard.slot, task); err != nil {
 		return err
 	}
-	return batch.Commit(pebble.Sync)
+	return wb.Commit()
 }
 
 func requireChannelMigrationTasksEqual(t *testing.T, want, got ChannelMigrationTask) {
