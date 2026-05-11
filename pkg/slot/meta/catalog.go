@@ -51,6 +51,10 @@ const (
 	channelRuntimeMetaColumnIDLeaseUntilMS         uint16 = 11
 	channelRuntimeMetaColumnIDRetentionThroughSeq  uint16 = 12
 	channelRuntimeMetaColumnIDRetentionUpdatedAtMS uint16 = 13
+	channelRuntimeMetaColumnIDWriteFenceToken      uint16 = 14
+	channelRuntimeMetaColumnIDWriteFenceVersion    uint16 = 15
+	channelRuntimeMetaColumnIDWriteFenceReason     uint16 = 16
+	channelRuntimeMetaColumnIDWriteFenceUntilMS    uint16 = 17
 )
 
 const (
@@ -205,6 +209,10 @@ var ChannelRuntimeMetaTable = &TableDesc{
 		{ID: channelRuntimeMetaColumnIDLeaseUntilMS, Name: "lease_until_ms", Type: ColumnInt64},
 		{ID: channelRuntimeMetaColumnIDRetentionThroughSeq, Name: "retention_through_seq", Type: ColumnUint64},
 		{ID: channelRuntimeMetaColumnIDRetentionUpdatedAtMS, Name: "retention_updated_at_ms", Type: ColumnInt64},
+		{ID: channelRuntimeMetaColumnIDWriteFenceToken, Name: "write_fence_token", Type: ColumnString},
+		{ID: channelRuntimeMetaColumnIDWriteFenceVersion, Name: "write_fence_version", Type: ColumnUint64},
+		{ID: channelRuntimeMetaColumnIDWriteFenceReason, Name: "write_fence_reason", Type: ColumnUint64},
+		{ID: channelRuntimeMetaColumnIDWriteFenceUntilMS, Name: "write_fence_until_ms", Type: ColumnInt64},
 	},
 	Families: []ColumnFamilyDesc{
 		{
@@ -222,6 +230,10 @@ var ChannelRuntimeMetaTable = &TableDesc{
 				channelRuntimeMetaColumnIDLeaseUntilMS,
 				channelRuntimeMetaColumnIDRetentionThroughSeq,
 				channelRuntimeMetaColumnIDRetentionUpdatedAtMS,
+				channelRuntimeMetaColumnIDWriteFenceToken,
+				channelRuntimeMetaColumnIDWriteFenceVersion,
+				channelRuntimeMetaColumnIDWriteFenceReason,
+				channelRuntimeMetaColumnIDWriteFenceUntilMS,
 			},
 			DefaultColumnID: channelRuntimeMetaColumnIDChannelEpoch,
 		},

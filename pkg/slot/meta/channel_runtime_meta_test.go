@@ -65,6 +65,24 @@ func TestShardStoreChannelRuntimeMetaPersistsRetentionBoundary(t *testing.T) {
 	require.Equal(t, normalizeChannelRuntimeMeta(meta), got)
 }
 
+func TestChannelRuntimeMetaWriteFenceRoundTrip(t *testing.T) {
+	shard := newTestShardStore(t, 7)
+	ctx := context.Background()
+	meta := testRuntimeMeta("write-fence-round-trip", 1)
+	meta.WriteFenceToken = "task-1"
+	meta.WriteFenceVersion = 3
+	meta.WriteFenceReason = 1
+	meta.WriteFenceUntilMS = 1710000000000
+
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, meta))
+	got, err := shard.GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	require.NoError(t, err)
+	require.Equal(t, meta.WriteFenceToken, got.WriteFenceToken)
+	require.Equal(t, meta.WriteFenceVersion, got.WriteFenceVersion)
+	require.Equal(t, meta.WriteFenceReason, got.WriteFenceReason)
+	require.Equal(t, meta.WriteFenceUntilMS, got.WriteFenceUntilMS)
+}
+
 func TestShardStoreAdvanceChannelRetentionThroughSeqOnlyMutatesRetention(t *testing.T) {
 	shard := newTestShardStore(t, 7)
 	ctx := context.Background()
@@ -340,6 +358,144 @@ func TestResolveMonotonicChannelRuntimeMetaKeepsNewestRetentionTimestampForEqual
 	require.True(t, shouldWrite)
 	require.Equal(t, uint64(70), got.RetentionThroughSeq)
 	require.Equal(t, int64(5000), got.RetentionUpdatedAtMS)
+}
+
+func TestChannelRuntimeMetaMonotonicPreservesWriteFence(t *testing.T) {
+	existing := testRuntimeMeta("write-fence-monotonic", 1)
+	existing.ChannelEpoch = 5
+	existing.LeaderEpoch = 7
+	existing.WriteFenceToken = "task-1"
+	existing.WriteFenceVersion = 9
+	existing.WriteFenceReason = 2
+	existing.WriteFenceUntilMS = 1710000000000
+
+	candidate := existing
+	candidate.ChannelEpoch = existing.ChannelEpoch + 1
+	candidate.WriteFenceToken = ""
+	candidate.WriteFenceVersion = 0
+	candidate.WriteFenceReason = 0
+	candidate.WriteFenceUntilMS = 0
+
+	got, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, true, candidate)
+	require.True(t, shouldWrite)
+	require.Equal(t, existing.WriteFenceToken, got.WriteFenceToken)
+	require.Equal(t, existing.WriteFenceVersion, got.WriteFenceVersion)
+	require.Equal(t, existing.WriteFenceReason, got.WriteFenceReason)
+	require.Equal(t, existing.WriteFenceUntilMS, got.WriteFenceUntilMS)
+}
+
+func TestChannelRuntimeMetaWriteFenceMonotonicPreservesSameVersionRegressions(t *testing.T) {
+	existing := testRuntimeMeta("write-fence-same-version", 1)
+	existing.ChannelEpoch = 5
+	existing.LeaderEpoch = 7
+	existing.WriteFenceToken = "task-1"
+	existing.WriteFenceVersion = 9
+	existing.WriteFenceReason = 2
+	existing.WriteFenceUntilMS = 1710000000000
+
+	tests := []struct {
+		name   string
+		mutate func(*ChannelRuntimeMeta)
+	}{
+		{
+			name: "changed_token",
+			mutate: func(candidate *ChannelRuntimeMeta) {
+				candidate.WriteFenceToken = "task-2"
+				candidate.WriteFenceUntilMS = existing.WriteFenceUntilMS + 1000
+			},
+		},
+		{
+			name: "changed_reason",
+			mutate: func(candidate *ChannelRuntimeMeta) {
+				candidate.WriteFenceReason = existing.WriteFenceReason + 1
+				candidate.WriteFenceUntilMS = existing.WriteFenceUntilMS + 1000
+			},
+		},
+		{
+			name: "shorter_until",
+			mutate: func(candidate *ChannelRuntimeMeta) {
+				candidate.WriteFenceUntilMS = existing.WriteFenceUntilMS - 1000
+			},
+		},
+		{
+			name: "zero_until",
+			mutate: func(candidate *ChannelRuntimeMeta) {
+				candidate.WriteFenceUntilMS = 0
+			},
+		},
+		{
+			name: "clear",
+			mutate: func(candidate *ChannelRuntimeMeta) {
+				candidate.WriteFenceToken = ""
+				candidate.WriteFenceReason = 0
+				candidate.WriteFenceUntilMS = 0
+			},
+		},
+		{
+			name: "replacement",
+			mutate: func(candidate *ChannelRuntimeMeta) {
+				candidate.WriteFenceToken = "task-2"
+				candidate.WriteFenceReason = existing.WriteFenceReason + 1
+				candidate.WriteFenceUntilMS = existing.WriteFenceUntilMS + 1000
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			candidate := existing
+			candidate.ChannelEpoch = existing.ChannelEpoch + 1
+			tt.mutate(&candidate)
+
+			got, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, true, candidate)
+			require.True(t, shouldWrite)
+			require.Equal(t, existing.WriteFenceToken, got.WriteFenceToken)
+			require.Equal(t, existing.WriteFenceVersion, got.WriteFenceVersion)
+			require.Equal(t, existing.WriteFenceReason, got.WriteFenceReason)
+			require.Equal(t, existing.WriteFenceUntilMS, got.WriteFenceUntilMS)
+		})
+	}
+}
+
+func TestChannelRuntimeMetaWriteFenceMonotonicAllowsSameVersionLeaseExtension(t *testing.T) {
+	existing := testRuntimeMeta("write-fence-same-version-extend", 1)
+	existing.ChannelEpoch = 5
+	existing.LeaderEpoch = 7
+	existing.WriteFenceToken = "task-1"
+	existing.WriteFenceVersion = 9
+	existing.WriteFenceReason = 2
+	existing.WriteFenceUntilMS = 1710000000000
+
+	candidate := existing
+	candidate.ChannelEpoch = existing.ChannelEpoch + 1
+	candidate.WriteFenceUntilMS = existing.WriteFenceUntilMS + 1000
+
+	got, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, true, candidate)
+	require.True(t, shouldWrite)
+	require.Equal(t, existing.WriteFenceToken, got.WriteFenceToken)
+	require.Equal(t, existing.WriteFenceVersion, got.WriteFenceVersion)
+	require.Equal(t, existing.WriteFenceReason, got.WriteFenceReason)
+	require.Equal(t, existing.WriteFenceUntilMS+1000, got.WriteFenceUntilMS)
+}
+
+func TestChannelRuntimeMetaWriteFenceMonotonicDoesNotFabricateSameVersionFence(t *testing.T) {
+	existing := testRuntimeMeta("write-fence-no-fabricate", 1)
+	existing.ChannelEpoch = 5
+	existing.LeaderEpoch = 7
+	existing.WriteFenceVersion = 9
+
+	candidate := existing
+	candidate.ChannelEpoch = existing.ChannelEpoch + 1
+	candidate.WriteFenceToken = "task-1"
+	candidate.WriteFenceReason = 2
+	candidate.WriteFenceUntilMS = 1710000000000
+
+	got, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, true, candidate)
+	require.True(t, shouldWrite)
+	require.Empty(t, got.WriteFenceToken)
+	require.Equal(t, existing.WriteFenceVersion, got.WriteFenceVersion)
+	require.Zero(t, got.WriteFenceReason)
+	require.Zero(t, got.WriteFenceUntilMS)
 }
 
 func TestDecodeChannelRuntimeMetaDefaultsMissingRetentionToZero(t *testing.T) {

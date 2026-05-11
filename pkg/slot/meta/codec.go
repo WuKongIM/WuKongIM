@@ -386,6 +386,10 @@ func encodeChannelRuntimeMetaFamilyValue(meta ChannelRuntimeMeta, key []byte) []
 	payload = appendIntValue(payload, channelRuntimeMetaColumnIDLeaseUntilMS, channelRuntimeMetaColumnIDFeatures, meta.LeaseUntilMS)
 	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDRetentionThroughSeq, channelRuntimeMetaColumnIDLeaseUntilMS, meta.RetentionThroughSeq)
 	payload = appendIntValue(payload, channelRuntimeMetaColumnIDRetentionUpdatedAtMS, channelRuntimeMetaColumnIDRetentionThroughSeq, meta.RetentionUpdatedAtMS)
+	payload = appendBytesValue(payload, channelRuntimeMetaColumnIDWriteFenceToken, channelRuntimeMetaColumnIDRetentionUpdatedAtMS, meta.WriteFenceToken)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceVersion, channelRuntimeMetaColumnIDWriteFenceToken, meta.WriteFenceVersion)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceReason, channelRuntimeMetaColumnIDWriteFenceVersion, uint64(meta.WriteFenceReason))
+	payload = appendIntValue(payload, channelRuntimeMetaColumnIDWriteFenceUntilMS, channelRuntimeMetaColumnIDWriteFenceReason, meta.WriteFenceUntilMS)
 	return wrapFamilyValue(key, payload)
 }
 
@@ -434,6 +438,8 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 			payload = payload[length:]
 
 			switch colID {
+			case channelRuntimeMetaColumnIDWriteFenceToken:
+				meta.WriteFenceToken = string(raw)
 			case channelRuntimeMetaColumnIDReplicas:
 				meta.Replicas, err = decodeUint64Slice(raw)
 				if err != nil {
@@ -465,6 +471,8 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 				haveLeaseUntil = true
 			case channelRuntimeMetaColumnIDRetentionUpdatedAtMS:
 				meta.RetentionUpdatedAtMS = decodeZigZagInt64(raw)
+			case channelRuntimeMetaColumnIDWriteFenceUntilMS:
+				meta.WriteFenceUntilMS = decodeZigZagInt64(raw)
 			default:
 				return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid int column %d", ErrCorruptValue, colID)
 			}
@@ -496,6 +504,13 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 				haveFeatures = true
 			case channelRuntimeMetaColumnIDRetentionThroughSeq:
 				meta.RetentionThroughSeq = raw
+			case channelRuntimeMetaColumnIDWriteFenceVersion:
+				meta.WriteFenceVersion = raw
+			case channelRuntimeMetaColumnIDWriteFenceReason:
+				if raw > uint64(^uint8(0)) {
+					return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid write fence reason %d", ErrCorruptValue, raw)
+				}
+				meta.WriteFenceReason = uint8(raw)
 			default:
 				return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid uint column %d", ErrCorruptValue, colID)
 			}
