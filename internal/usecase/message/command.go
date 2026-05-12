@@ -14,11 +14,15 @@ type SendCommand struct {
 	Expire          uint32
 	FromUID         string
 	SenderSessionID uint64
-	ClientSeq       uint64
-	ClientMsgNo     string
-	StreamNo        string
-	ChannelID       string
-	ChannelType     uint8
+	// DeviceID is the trusted gateway session device ID used for legacy system-device permission bypass.
+	DeviceID string
+	// DeviceFlag is the trusted gateway session device flag. It is pass-through for future device-aware rules.
+	DeviceFlag  frame.DeviceFlag
+	ClientSeq   uint64
+	ClientMsgNo string
+	StreamNo    string
+	ChannelID   string
+	ChannelType uint8
 	// RequestSubscribers carries a one-message subscriber snapshot for command-style directed delivery.
 	RequestSubscribers   []string
 	Topic                string

@@ -392,6 +392,31 @@ func TestHandlerOnFrameSendBypassesEncryptedSessionWhenPacketDisablesEncryption(
 	require.Equal(t, []byte("plain"), msgs.sendCommands[0].Payload)
 }
 
+func TestHandlerOnFrameSendMapsDeviceIdentityToUsecase(t *testing.T) {
+	sender := newOptionRecordingSession(1, "tcp")
+	sender.SetValue(coregateway.SessionValueUID, "u1")
+	sender.SetValue(coregateway.SessionValueDeviceID, "system-device")
+	sender.SetValue(coregateway.SessionValueDeviceFlag, frame.SYSTEM)
+	msgs := &fakeMessageUsecase{
+		sendResult: message.SendResult{Reason: frame.ReasonSuccess},
+	}
+	handler := New(Options{Messages: msgs})
+
+	ctx := &coregateway.Context{
+		Session:        sender,
+		Listener:       "tcp",
+		RequestContext: context.Background(),
+	}
+	require.NoError(t, handler.OnFrame(ctx, &frame.SendPacket{
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+	}))
+
+	require.Len(t, msgs.sendCommands, 1)
+	require.Equal(t, "system-device", msgs.sendCommands[0].DeviceID)
+	require.Equal(t, frame.DeviceFlag(frame.SYSTEM), msgs.sendCommands[0].DeviceFlag)
+}
+
 func TestHandlerOnFrameSendPassesPrecomposedPersonChannelToUsecase(t *testing.T) {
 	sender := newOptionRecordingSession(1, "tcp")
 	sender.SetValue(coregateway.SessionValueUID, "u1")
