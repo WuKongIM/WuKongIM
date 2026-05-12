@@ -3,6 +3,7 @@ package channelmigration
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -288,14 +289,13 @@ func newExecutorTestHarness(store *fakeExecutorStore, slots *fakeSlotLeadership,
 func executorTestTask(taskID, channelID string, status slotmeta.ChannelMigrationStatus, updatedAt time.Time) Task {
 	return Task{
 		TaskID:           taskID,
-		Kind:             slotmeta.ChannelMigrationKindLeaderTransfer,
+		Kind:             slotmeta.ChannelMigrationKindReplicaReplace,
 		Status:           status,
 		Phase:            slotmeta.ChannelMigrationPhaseValidate,
 		ChannelID:        channelID,
 		ChannelType:      1,
 		SourceNode:       1,
 		TargetNode:       2,
-		DesiredLeader:    2,
 		BaseChannelEpoch: 3,
 		BaseLeaderEpoch:  4,
 		CreatedAtMS:      updatedAt.Add(-time.Second).UnixMilli(),
@@ -338,15 +338,20 @@ func withNodes(task Task, source, target uint64) Task {
 }
 
 type fakeExecutorStore struct {
-	mu         sync.Mutex
-	tasks      []Task
-	claims     []ClaimRequest
-	claimErrs  []error
-	advances   []AdvanceRequest
-	gcCalls    []fakeGCCall
-	gcDeleted  int
-	advanceErr error
-	onList     func()
+	mu                    sync.Mutex
+	tasks                 []Task
+	runtimeMetas          map[string]slotmeta.ChannelRuntimeMeta
+	claims                []ClaimRequest
+	claimErrs             []error
+	advances              []AdvanceRequest
+	setFenceRequests      []slotmeta.ChannelMigrationFenceRequest
+	resetFenceRequests    []slotmeta.ChannelMigrationResetFenceRequest
+	leaderTransferCommits []slotmeta.ChannelMigrationLeaderTransferRequest
+	clearFenceRequests    []slotmeta.ChannelMigrationClearFenceRequest
+	gcCalls               []fakeGCCall
+	gcDeleted             int
+	advanceErr            error
+	onList                func()
 }
 
 type fakeGCCall struct {
@@ -355,7 +360,21 @@ type fakeGCCall struct {
 }
 
 func newFakeExecutorStore(tasks ...Task) *fakeExecutorStore {
-	return &fakeExecutorStore{tasks: append([]Task(nil), tasks...)}
+	return &fakeExecutorStore{
+		tasks:        append([]Task(nil), tasks...),
+		runtimeMetas: make(map[string]slotmeta.ChannelRuntimeMeta),
+	}
+}
+
+func (s *fakeExecutorStore) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (slotmeta.ChannelRuntimeMeta, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	meta, ok := s.runtimeMetas[runtimeMetaFakeKey(channelID, channelType)]
+	if !ok {
+		return slotmeta.ChannelRuntimeMeta{}, slotmeta.ErrNotFound
+	}
+	return meta, nil
 }
 
 func (s *fakeExecutorStore) ListRunnableTasksForLocalLeaderSlots(ctx context.Context, nowMS int64, limit int) ([]Task, error) {
@@ -423,6 +442,139 @@ func (s *fakeExecutorStore) AdvanceChannelMigrationTask(ctx context.Context, req
 	s.tasks[idx].UpdatedAtMS = req.UpdatedAtMS
 	s.tasks[idx].CompletedAtMS = req.CompletedAtMS
 	s.tasks[idx].Progress = req.Progress
+	if req.CutoverProof.CutoverLEO != 0 ||
+		req.CutoverProof.CutoverHW != 0 ||
+		req.CutoverProof.DrainedLeaderNode != 0 ||
+		req.CutoverProof.DrainedRuntimeGeneration != 0 ||
+		req.CutoverProof.DrainedChannelEpoch != 0 ||
+		req.CutoverProof.DrainedLeaderEpoch != 0 ||
+		req.CutoverProof.DrainedFenceVersion != 0 {
+		s.tasks[idx].CutoverLEO = req.CutoverProof.CutoverLEO
+		s.tasks[idx].CutoverHW = req.CutoverProof.CutoverHW
+		s.tasks[idx].DrainedLeaderNode = req.CutoverProof.DrainedLeaderNode
+		s.tasks[idx].DrainedRuntimeGeneration = req.CutoverProof.DrainedRuntimeGeneration
+		s.tasks[idx].DrainedChannelEpoch = req.CutoverProof.DrainedChannelEpoch
+		s.tasks[idx].DrainedLeaderEpoch = req.CutoverProof.DrainedLeaderEpoch
+		s.tasks[idx].DrainedFenceVersion = req.CutoverProof.DrainedFenceVersion
+	}
+	return nil
+}
+
+func (s *fakeExecutorStore) SetChannelWriteFence(ctx context.Context, req slotmeta.ChannelMigrationFenceRequest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	idx, meta, err := s.guardedTaskAndMetaLocked(req.Guard, req.RuntimeGuard)
+	if err != nil {
+		return err
+	}
+	s.setFenceRequests = append(s.setFenceRequests, req)
+	nextVersion := meta.WriteFenceVersion + 1
+	s.tasks[idx].Status = req.Status
+	s.tasks[idx].Phase = req.Phase
+	s.tasks[idx].FenceToken = req.Guard.TaskID
+	s.tasks[idx].FenceVersion = nextVersion
+	s.tasks[idx].FenceUntilMS = req.FenceUntilMS
+	s.tasks[idx].UpdatedAtMS = req.UpdatedAtMS
+
+	meta.WriteFenceToken = req.Guard.TaskID
+	meta.WriteFenceVersion = nextVersion
+	meta.WriteFenceReason = req.FenceReason
+	meta.WriteFenceUntilMS = req.FenceUntilMS
+	s.runtimeMetas[runtimeMetaFakeKey(meta.ChannelID, meta.ChannelType)] = meta
+	return nil
+}
+
+func (s *fakeExecutorStore) ResetChannelWriteFenceToPreCutover(ctx context.Context, req slotmeta.ChannelMigrationResetFenceRequest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	idx, meta, err := s.guardedTaskAndMetaLocked(req.Guard, req.RuntimeGuard)
+	if err != nil {
+		return err
+	}
+	if req.NowMS <= meta.WriteFenceUntilMS {
+		return slotmeta.ErrStaleMeta
+	}
+	s.resetFenceRequests = append(s.resetFenceRequests, req)
+	s.tasks[idx].Status = req.Status
+	s.tasks[idx].Phase = req.Phase
+	s.tasks[idx].FenceToken = ""
+	s.tasks[idx].FenceVersion = 0
+	s.tasks[idx].FenceUntilMS = 0
+	s.tasks[idx].CutoverLEO = 0
+	s.tasks[idx].CutoverHW = 0
+	s.tasks[idx].DrainedLeaderNode = 0
+	s.tasks[idx].DrainedRuntimeGeneration = 0
+	s.tasks[idx].DrainedChannelEpoch = 0
+	s.tasks[idx].DrainedLeaderEpoch = 0
+	s.tasks[idx].DrainedFenceVersion = 0
+	s.tasks[idx].UpdatedAtMS = req.UpdatedAtMS
+
+	meta.WriteFenceToken = ""
+	meta.WriteFenceVersion++
+	meta.WriteFenceReason = 0
+	meta.WriteFenceUntilMS = 0
+	s.runtimeMetas[runtimeMetaFakeKey(meta.ChannelID, meta.ChannelType)] = meta
+	return nil
+}
+
+func (s *fakeExecutorStore) CommitChannelLeaderTransfer(ctx context.Context, req slotmeta.ChannelMigrationLeaderTransferRequest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	idx, meta, err := s.guardedTaskAndMetaLocked(req.Guard, req.RuntimeGuard)
+	if err != nil {
+		return err
+	}
+	task := s.tasks[idx]
+	if task.FenceToken != meta.WriteFenceToken ||
+		task.FenceVersion != meta.WriteFenceVersion ||
+		task.DrainedFenceVersion != meta.WriteFenceVersion ||
+		req.NowMS > meta.WriteFenceUntilMS {
+		return slotmeta.ErrStaleMeta
+	}
+	s.leaderTransferCommits = append(s.leaderTransferCommits, req)
+	s.tasks[idx].Status = req.Status
+	s.tasks[idx].Phase = req.Phase
+	s.tasks[idx].UpdatedAtMS = req.UpdatedAtMS
+
+	meta.Leader = req.DesiredLeader
+	meta.LeaderEpoch = req.NextLeaderEpoch
+	meta.LeaseUntilMS = req.LeaseUntilMS
+	s.runtimeMetas[runtimeMetaFakeKey(meta.ChannelID, meta.ChannelType)] = meta
+	return nil
+}
+
+func (s *fakeExecutorStore) ClearChannelWriteFence(ctx context.Context, req slotmeta.ChannelMigrationClearFenceRequest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	idx, meta, err := s.guardedTaskAndMetaLocked(req.Guard, req.RuntimeGuard)
+	if err != nil {
+		return err
+	}
+	s.clearFenceRequests = append(s.clearFenceRequests, req)
+	s.tasks[idx].Status = req.Status
+	s.tasks[idx].Phase = req.Phase
+	s.tasks[idx].FenceToken = ""
+	s.tasks[idx].FenceVersion = 0
+	s.tasks[idx].FenceUntilMS = 0
+	s.tasks[idx].CutoverLEO = 0
+	s.tasks[idx].CutoverHW = 0
+	s.tasks[idx].DrainedLeaderNode = 0
+	s.tasks[idx].DrainedRuntimeGeneration = 0
+	s.tasks[idx].DrainedChannelEpoch = 0
+	s.tasks[idx].DrainedLeaderEpoch = 0
+	s.tasks[idx].DrainedFenceVersion = 0
+	s.tasks[idx].UpdatedAtMS = req.UpdatedAtMS
+	s.tasks[idx].CompletedAtMS = req.CompletedAtMS
+
+	meta.WriteFenceToken = ""
+	meta.WriteFenceVersion++
+	meta.WriteFenceReason = 0
+	meta.WriteFenceUntilMS = 0
+	s.runtimeMetas[runtimeMetaFakeKey(meta.ChannelID, meta.ChannelType)] = meta
 	return nil
 }
 
@@ -506,6 +658,24 @@ func (s *fakeExecutorStore) taskIndex(taskID string) int {
 	return -1
 }
 
+func (s *fakeExecutorStore) guardedTaskAndMetaLocked(guard slotmeta.ChannelMigrationTaskGuard, runtimeGuard slotmeta.ChannelMigrationRuntimeGuard) (int, slotmeta.ChannelRuntimeMeta, error) {
+	idx := s.taskIndex(guard.TaskID)
+	if idx < 0 {
+		return -1, slotmeta.ChannelRuntimeMeta{}, slotmeta.ErrNotFound
+	}
+	if !guardMatches(guard, s.tasks[idx]) {
+		return -1, slotmeta.ChannelRuntimeMeta{}, slotmeta.ErrStaleMeta
+	}
+	meta, ok := s.runtimeMetas[runtimeMetaFakeKey(runtimeGuard.ChannelID, runtimeGuard.ChannelType)]
+	if !ok {
+		return -1, slotmeta.ChannelRuntimeMeta{}, slotmeta.ErrNotFound
+	}
+	if !runtimeGuardMatches(runtimeGuard, meta) {
+		return -1, slotmeta.ChannelRuntimeMeta{}, slotmeta.ErrStaleMeta
+	}
+	return idx, meta, nil
+}
+
 func guardMatches(guard slotmeta.ChannelMigrationTaskGuard, task Task) bool {
 	return task.ChannelID == guard.ChannelID &&
 		task.ChannelType == guard.ChannelType &&
@@ -515,6 +685,20 @@ func guardMatches(guard slotmeta.ChannelMigrationTaskGuard, task Task) bool {
 		task.OwnerNodeID == guard.ExpectedOwnerNodeID &&
 		task.OwnerLeaseUntilMS == guard.ExpectedOwnerLeaseUntilMS &&
 		task.UpdatedAtMS == guard.ExpectedUpdatedAtMS
+}
+
+func runtimeGuardMatches(guard slotmeta.ChannelMigrationRuntimeGuard, meta slotmeta.ChannelRuntimeMeta) bool {
+	return meta.ChannelID == guard.ChannelID &&
+		meta.ChannelType == guard.ChannelType &&
+		meta.ChannelEpoch == guard.ExpectedChannelEpoch &&
+		meta.LeaderEpoch == guard.ExpectedLeaderEpoch &&
+		meta.Leader == guard.ExpectedLeader &&
+		meta.WriteFenceToken == guard.ExpectedFenceToken &&
+		meta.WriteFenceVersion == guard.ExpectedFenceVersion
+}
+
+func runtimeMetaFakeKey(channelID string, channelType int64) string {
+	return fmt.Sprintf("%s\x00%d", channelID, channelType)
 }
 
 type fakeSlotLeadership struct {

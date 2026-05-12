@@ -28,12 +28,22 @@ type SlotLeadership interface {
 
 // Store persists migration task ownership, progress, and retention cleanup.
 type Store interface {
+	// GetChannelRuntimeMeta reads the authoritative channel runtime metadata.
+	GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (slotmeta.ChannelRuntimeMeta, error)
 	// ListRunnableTasksForLocalLeaderSlots returns candidate tasks; the executor still re-checks readiness and leadership.
 	ListRunnableTasksForLocalLeaderSlots(ctx context.Context, nowMS int64, limit int) ([]Task, error)
 	// ClaimChannelMigrationTask compares and swaps the executor owner lease.
 	ClaimChannelMigrationTask(ctx context.Context, req ClaimRequest) error
 	// AdvanceChannelMigrationTask compares and swaps durable phase or progress state.
 	AdvanceChannelMigrationTask(ctx context.Context, req AdvanceRequest) error
+	// SetChannelWriteFence persists a task-owned channel write fence.
+	SetChannelWriteFence(ctx context.Context, req slotmeta.ChannelMigrationFenceRequest) error
+	// ResetChannelWriteFenceToPreCutover clears an expired pre-commit fence and rewinds task phase.
+	ResetChannelWriteFenceToPreCutover(ctx context.Context, req slotmeta.ChannelMigrationResetFenceRequest) error
+	// CommitChannelLeaderTransfer commits the fenced leader metadata change.
+	CommitChannelLeaderTransfer(ctx context.Context, req slotmeta.ChannelMigrationLeaderTransferRequest) error
+	// ClearChannelWriteFence clears a matching migration fence and completes or advances the task.
+	ClearChannelWriteFence(ctx context.Context, req slotmeta.ChannelMigrationClearFenceRequest) error
 	// GarbageCollectTerminalTasks removes terminal tasks older than beforeMS.
 	GarbageCollectTerminalTasks(ctx context.Context, beforeMS int64, limit int) (int, error)
 }
@@ -46,6 +56,10 @@ type Config struct {
 	OwnerLease time.Duration
 	// RetryBackoff delays the next attempt after an unimplemented or retryable phase.
 	RetryBackoff time.Duration
+	// FenceLease is the write-fence lease duration used by migration cutover phases.
+	FenceLease time.Duration
+	// LeaderLease is the metadata leader lease duration written after leader transfer.
+	LeaderLease time.Duration
 	// GCRetention keeps terminal tasks visible for operators before cleanup.
 	GCRetention time.Duration
 	// GCLimit bounds terminal-task cleanup work in one tick.
@@ -64,6 +78,10 @@ type ExecutorOptions struct {
 	Slots SlotLeadership
 	// Metrics records executor observations; nil installs a no-op implementation.
 	Metrics Metrics
+	// ProbeClient reads target replica proof reports for catch-up decisions.
+	ProbeClient ProbeClient
+	// MigrationControl sends drain commands to current channel leader nodes.
+	MigrationControl channel.MigrationControlClient
 	// LocalNode is the node ID that will own claimed task leases.
 	LocalNode channel.NodeID
 	// Now supplies wall-clock time for deterministic tests and lease math.
