@@ -826,6 +826,15 @@ export type ManagerChannelClusterRepairResponse = {
   channel: ManagerChannelRuntimeMetaDetailResponse
 }
 
+export type TransferChannelClusterLeaderInput = {
+  target_node_id: number
+}
+
+export type ManagerChannelClusterLeaderTransferResponse = {
+  changed: boolean
+  channel: ManagerChannelRuntimeMetaDetailResponse
+}
+
 export type ManagerConnection = {
   node_id: number
   session_id: number
