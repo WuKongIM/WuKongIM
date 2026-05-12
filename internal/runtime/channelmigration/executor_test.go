@@ -603,6 +603,7 @@ func (s *fakeExecutorStore) AddChannelLearner(ctx context.Context, req slotmeta.
 	}
 	task := s.tasks[idx]
 	if req.TargetNode != task.TargetNode ||
+		meta.Leader == task.SourceNode ||
 		!containsUint64(meta.Replicas, task.SourceNode) ||
 		!containsUint64(meta.ISR, task.SourceNode) ||
 		containsUint64(meta.Replicas, req.TargetNode) ||
@@ -638,6 +639,7 @@ func (s *fakeExecutorStore) PromoteLearnerAndRemoveReplica(ctx context.Context, 
 		req.NowMS > meta.WriteFenceUntilMS ||
 		req.SourceNode != task.SourceNode ||
 		req.TargetNode != task.TargetNode ||
+		meta.Leader == req.SourceNode ||
 		!containsUint64(meta.Replicas, req.SourceNode) ||
 		!containsUint64(meta.Replicas, req.TargetNode) ||
 		!containsUint64(meta.ISR, req.SourceNode) ||

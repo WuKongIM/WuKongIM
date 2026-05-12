@@ -67,6 +67,15 @@ func (e *Executor) replicaReplaceAddLearner(ctx context.Context, task Task, nowM
 		return err
 	}
 	afterReadMS := e.freshNowMS(nowMS)
+	if meta.Leader == task.SourceNode {
+		desired, ok := selectEmbeddedDesiredLeader(task, meta)
+		if !ok {
+			return e.failTask(ctx, task, afterReadMS, "no eligible embedded transfer target")
+		}
+		return e.advanceTask(ctx, task, afterReadMS, task.Status, slotmeta.ChannelMigrationPhaseProbeTarget, advanceTaskOptions{
+			EmbeddedDesiredLeader: desired,
+		})
+	}
 	if err := e.ensureTaskOwnership(ctx, task, afterReadMS); err != nil {
 		return err
 	}
