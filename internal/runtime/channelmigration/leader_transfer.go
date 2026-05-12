@@ -134,12 +134,12 @@ func (e *Executor) leaderTransferDrainLeader(ctx context.Context, task Task, now
 		ExpectedLeaderEpoch:  meta.LeaderEpoch,
 		ExpectedLeader:       channel.NodeID(meta.Leader),
 	})
-	if err != nil {
-		return e.retryTask(ctx, task, nowMS, err, task.Progress)
-	}
 	afterDrainMS := e.now().UnixMilli()
 	if afterDrainMS < nowMS {
 		afterDrainMS = nowMS
+	}
+	if err != nil {
+		return e.retryTask(ctx, task, afterDrainMS, err, task.Progress)
 	}
 	if err := validateDrainProof(projected, task, meta, drain); err != nil {
 		return e.retryTask(ctx, task, afterDrainMS, err, task.Progress)
@@ -251,24 +251,31 @@ func (e *Executor) leaderTransferVerifyNewLeader(ctx context.Context, task Task,
 	}
 	projected := channelmeta.ProjectChannelMeta(meta)
 	report, err := e.probeClient.ProbeChannel(ctx, channel.NodeID(task.TargetNode), projected)
+	afterProbeMS := e.now().UnixMilli()
+	if afterProbeMS < nowMS {
+		afterProbeMS = nowMS
+	}
 	if err != nil {
-		return e.retryTask(ctx, task, nowMS, err, task.Progress)
+		return e.retryTask(ctx, task, afterProbeMS, err, task.Progress)
 	}
 	if err := validateTargetReportFence(projected, channel.NodeID(task.TargetNode), report); err != nil {
-		return e.retryTask(ctx, task, nowMS, err, task.Progress)
+		return e.retryTask(ctx, task, afterProbeMS, err, task.Progress)
 	}
 	if report.Leader != channel.NodeID(channelMigrationDesiredLeader(task)) ||
 		report.Role != channel.ReplicaRoleLeader ||
 		!report.CommitReady {
-		return e.retryTask(ctx, task, nowMS, channel.ErrNotReady, task.Progress)
+		return e.retryTask(ctx, task, afterProbeMS, channel.ErrNotReady, task.Progress)
+	}
+	if err := e.ensureTaskOwnership(ctx, task, afterProbeMS); err != nil {
+		return err
 	}
 	req := slotmeta.ChannelMigrationClearFenceRequest{
 		Guard:         guardFromTask(task),
 		RuntimeGuard:  runtimeGuardFromMeta(meta),
 		Status:        slotmeta.ChannelMigrationStatusCompleted,
 		Phase:         slotmeta.ChannelMigrationPhaseClearFence,
-		UpdatedAtMS:   nextUpdatedAtMS(nowMS, task.UpdatedAtMS),
-		CompletedAtMS: nextUpdatedAtMS(nowMS, task.UpdatedAtMS),
+		UpdatedAtMS:   nextUpdatedAtMS(afterProbeMS, task.UpdatedAtMS),
+		CompletedAtMS: nextUpdatedAtMS(afterProbeMS, task.UpdatedAtMS),
 	}
 	if err := e.store.ClearChannelWriteFence(ctx, req); err != nil {
 		return err
