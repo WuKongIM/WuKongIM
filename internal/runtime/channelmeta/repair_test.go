@@ -1025,6 +1025,9 @@ type stubChannelLeaderRepairRemote struct {
 	repairCalls       []LeaderRepairRequest
 	repairResult      LeaderRepairResult
 	repairErr         error
+	transferCalls     []LeaderTransferRequest
+	transferResult    LeaderTransferResult
+	transferErr       error
 	evaluateCalls     []stubChannelLeaderEvaluateCall
 	evaluateByNode    map[uint64]LeaderPromotionReport
 	evaluateErrByNode map[uint64]error
@@ -1046,6 +1049,11 @@ func evaluatedNodeIDs(calls []stubChannelLeaderEvaluateCall) []uint64 {
 func (s *stubChannelLeaderRepairRemote) RepairChannelLeader(_ context.Context, req LeaderRepairRequest) (LeaderRepairResult, error) {
 	s.repairCalls = append(s.repairCalls, req)
 	return s.repairResult, s.repairErr
+}
+
+func (s *stubChannelLeaderRepairRemote) TransferChannelLeader(_ context.Context, req LeaderTransferRequest) (LeaderTransferResult, error) {
+	s.transferCalls = append(s.transferCalls, req)
+	return s.transferResult, s.transferErr
 }
 
 func (s *stubChannelLeaderRepairRemote) EvaluateChannelLeaderCandidate(_ context.Context, nodeID uint64, req LeaderEvaluateRequest) (LeaderPromotionReport, error) {

@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,6 +39,34 @@ func TestLeaderEvaluateDTOFieldsAreTransportNeutral(t *testing.T) {
 		"CanLead",
 		"Reason",
 	})
+}
+
+func TestLeaderTransferDTOFieldsAreTransportNeutral(t *testing.T) {
+	requireTransportNeutralFields(t, LeaderTransferRequest{}, []string{
+		"ChannelID",
+		"ObservedChannelEpoch",
+		"ObservedLeaderEpoch",
+		"TargetNodeID",
+	})
+	requireTransportNeutralFields(t, LeaderTransferResult{}, []string{
+		"Meta",
+		"Changed",
+	})
+
+	req := LeaderTransferRequest{
+		ChannelID:            channel.ChannelID{ID: "room-1", Type: 2},
+		ObservedChannelEpoch: 7,
+		ObservedLeaderEpoch:  3,
+		TargetNodeID:         2,
+	}
+	result := LeaderTransferResult{
+		Meta:    metadb.ChannelRuntimeMeta{ChannelID: "room-1", ChannelType: 2, Leader: 2},
+		Changed: true,
+	}
+
+	require.Equal(t, uint64(2), req.TargetNodeID)
+	require.True(t, result.Changed)
+	require.Equal(t, uint64(2), result.Meta.Leader)
 }
 
 func requireTransportNeutralFields(t *testing.T, value any, want []string) {
