@@ -155,6 +155,56 @@ func TestDecodeCommandInspectionIncludesHideUserConversation(t *testing.T) {
 	}, got)
 }
 
+func TestDecodeCommandInspectionIncludesCMDConversationStateCommands(t *testing.T) {
+	got, err := DecodeCommandInspection(EncodeUpsertCMDConversationStatesCommand([]metadb.CMDConversationState{{
+		UID:          "u1",
+		ChannelID:    "g1____cmd",
+		ChannelType:  2,
+		ReadSeq:      3,
+		DeletedToSeq: 4,
+		ActiveAt:     5,
+		UpdatedAt:    6,
+	}}))
+	require.NoError(t, err)
+	require.Equal(t, CommandInspection{
+		Type: "upsert_cmd_conversation_states",
+		Payload: map[string]any{
+			"command": "upsert_cmd_conversation_states",
+			"states": []map[string]any{{
+				"uid":            "u1",
+				"channel_id":     "g1____cmd",
+				"channel_type":   int64(2),
+				"read_seq":       uint64(3),
+				"deleted_to_seq": uint64(4),
+				"active_at":      int64(5),
+				"updated_at":     int64(6),
+			}},
+		},
+	}, got)
+
+	got, err = DecodeCommandInspection(EncodeAdvanceCMDConversationReadSeqCommand([]metadb.CMDConversationReadPatch{{
+		UID:         "u1",
+		ChannelID:   "g1____cmd",
+		ChannelType: 2,
+		ReadSeq:     9,
+		UpdatedAt:   10,
+	}}))
+	require.NoError(t, err)
+	require.Equal(t, CommandInspection{
+		Type: "advance_cmd_conversation_read_seq",
+		Payload: map[string]any{
+			"command": "advance_cmd_conversation_read_seq",
+			"patches": []map[string]any{{
+				"uid":          "u1",
+				"channel_id":   "g1____cmd",
+				"channel_type": int64(2),
+				"read_seq":     uint64(9),
+				"updated_at":   int64(10),
+			}},
+		},
+	}, got)
+}
+
 func TestDecodeCommandInspectionExpandsApplyDeltaOriginalCommand(t *testing.T) {
 	got, err := DecodeCommandInspection(EncodeApplyDeltaCommand(
 		11,
