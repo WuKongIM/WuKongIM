@@ -172,6 +172,29 @@ Worker 循环:
   ⑥ 启动时先 Restore snapshot，再从 snapshot index 之后 replay committed entries
 ```
 
+### 5.6 Channel Migration Task Flow
+
+```
+创建:
+  ① 管理入口通过 dry-run 读取 `ChannelRuntimeMeta`，再用 `CreateChannelMigrationTaskWithRuntimeGuard` 把 epoch/leader/fence guard 带入 Slot Raft
+  ② FSM 在同一个 `WriteBatch` 中创建 `ChannelMigrationTask`，并在 commit-time 复核 pre-batch runtime guard
+
+Replica replace:
+  ① `AddChannelLearner` 原子更新 task 阶段与 `ChannelRuntimeMeta.Replicas`，只把 target 加进 `Replicas`
+  ② `learner = Replicas - ISR`；learner 可以接收 channel 复制和 catch-up probe，但不参与 HW quorum、MinISR 写可用性或 leader promotion 候选
+  ③ catch-up 必须证明 target 在当前 leader/epoch 下追到阈值；V1 遇到 snapshot-required gate 时不能 promote，必须等待 snapshot 支持或人工恢复
+  ④ `SetChannelWriteFence` 原子推进 task 与权威 `WriteFenceVersion`，channel leader drain 期间写入 fail-closed
+  ⑤ `PromoteLearnerAndRemoveReplica` 在同一 Slot Raft `WriteBatch` 中验证 drain proof、把 target 加入 `ISR`、移除 source，并推进同 leader `ChannelEpoch`
+
+Leader transfer:
+  ① `SetChannelWriteFence` 后由旧 leader `FenceAndDrain` 生成 cutover proof
+  ② `CommitChannelLeaderTransfer` 原子验证 task/fence/proof，写入新 leader、递增 `LeaderEpoch`/`ChannelEpoch`，并保留后续 verify/clear 所需阶段
+
+清理/回滚:
+  ① `ClearChannelWriteFence` 只能在 verify 阶段用更高 `WriteFenceVersion` 清除权威 fence
+  ② `ResetChannelWriteFenceToPreCutover` / `AbortChannelMigration` 仍通过 Slot Raft 命令更新 task 与 runtime meta；不能靠 channel 节点本地 TTL 重新开写
+```
+
 ## 6. Meta DB 键空间与表
 
 **3 个键空间:**
@@ -222,14 +245,14 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 
 ## 8. RPC Service IDs（proxy 层）
 
-| Service ID 常量 | 用途 | 文件 |
-|---|---|---|
-| `runtimeMetaRPCServiceID` | ChannelRuntimeMeta 查询 | proxy/runtime_meta_rpc.go |
-| `identityRPCServiceID` | User / Device 查询 | proxy/identity_rpc.go |
-| `subscriberRPCServiceID` | 订阅者列表（分页/快照） | proxy/subscriber_rpc.go |
-| `userConversationStateRPCServiceID` | 会话状态查询、active_at 热提示提交/删除 | proxy/user_conversation_state_rpc.go |
-| `channelRPCServiceID` | Channel 权限元数据查询（Ban / Disband / SendBan / SubscriberMutationVersion） | proxy/channel_rpc.go |
-| `channelMigrationRPCServiceID` | Channel migration active-task 查询与远端 slot-leader 提案转发 | proxy/channel_migration_rpc.go |
+| Service ID 常量 | 值 | 用途 | 文件 |
+|---|---:|---|---|
+| `runtimeMetaRPCServiceID` | 3 | ChannelRuntimeMeta 查询 | proxy/runtime_meta_rpc.go |
+| `identityRPCServiceID` | 4 | User / Device 查询 | proxy/identity_rpc.go |
+| `subscriberRPCServiceID` | 10 | 订阅者列表（分页/快照） | proxy/subscriber_rpc.go |
+| `userConversationStateRPCServiceID` | 11 | 会话状态查询、active_at 热提示提交/删除 | proxy/user_conversation_state_rpc.go |
+| `channelRPCServiceID` | 12 | Channel 权限元数据查询（Ban / Disband / SendBan / SubscriberMutationVersion） | proxy/channel_rpc.go |
+| `channelMigrationRPCServiceID` | 47 | Channel migration active-task 查询与远端 slot-leader 提案转发，避免与 conversation facts service ID 13 冲突 | proxy/channel_migration_rpc.go |
 
 **RPC 状态码** (authoritative_rpc.go): `ok` / `not_found` / `not_leader` / `no_leader` / `no_slot` / `stale_meta`
 

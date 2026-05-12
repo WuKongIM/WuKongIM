@@ -178,6 +178,18 @@ Tombstone (replica.go:231 → lifecycle_pipeline.go:293):
   ⑥ drain 后即使同版本 fence TTL 过期或同版本空 fence 被误应用，append 仍返回 ErrWriteFenced；只有更高 WriteFenceVersion 的 clear/reset/superseding meta 可退出 drained fail-closed 状态
 ```
 
+### 5.4.2 Channel Migration Control Plane Contract
+
+```
+  ① Slot `ChannelMigrationTask` 是迁移阶段、owner lease、fence token 和 cutover proof 的权威来源；channel runtime 只应用 slot 投影下来的 `Meta`
+  ② Replica replace 的 `AddChannelLearner` 阶段只把 target 加入 `Replicas`，不加入 `ISR`；因此 `learner = Replicas - ISR`
+  ③ learner 会接收 steady-state 复制和 catch-up probe，但在 `PromoteLearnerAndRemoveReplica` 把它写入 `ISR` 前，不参与 HW quorum、MinISR 写可用性或 leader promotion 候选
+  ④ 同 leader 的迁移成员变更必须跨一个 durable same-leader `ChannelEpoch` boundary：先持久化 `EpochPoint{Epoch:newEpoch, StartOffset:currentLEO}`，再发布新 epoch 和 readiness
+  ⑤ cutover 必须先通过权威 `WriteFence` fail-closed 停写，再用 `FenceAndDrain` 证明同一 leader/epoch/fence 下 LEO、HW、CheckpointHW 已收敛
+  ⑥ Slot 迁移命令通过同一个 Slot Raft `WriteBatch` 原子更新 task 与 `ChannelRuntimeMeta`，不能由 channel 节点本地推断迁移阶段
+  ⑦ V1 不自动安装 channel snapshot；最终 proof 若发现 target `LogStartOffset > CutoverHW`，executor 会按 `ErrSnapshotRequired` 把目标视为未满足 promotion gate，等待后续 snapshot 支持或人工恢复
+```
+
 ### 5.5 故障恢复
 
 入口: `replica/recovery.go recoverFromStores`
@@ -244,6 +256,7 @@ System (0x17): prefix + key + tableID + systemID + ...
 - **Committed Dispatch Cursor 不是消息真相**: `store/committed_cursor.go` 的热路径 cursor 只记录异步已提交事件补偿进度，默认使用 `NoSync` 降低写放大且不能覆盖更高 cursor；retention 安全门禁必须走 durable confirm/advance 路径，cursor 丢失时仍只能从结构化 `message` 表或已采用的 retention floor 重复回放。
 - **手工 `PutIdempotency()` 只应服务恢复/快照路径**: 追加消息时 `Append()` / `StoreApplyFetch()` 已经维护唯一索引；测试或业务代码再额外覆盖同一索引值，可能把 append 已写入的 `payload_hash` 覆盖掉并制造假性损坏。
 - **Checkpoint 不再阻塞 sendack**: leader 在 quorum commit 后先完成 Append waiter，Checkpoint 持久化走 checkpoint effect worker coalescing；若 checkpoint 写盘失败会临时置 `CommitReady=false` 并重试。health / metrics 暴露应通过上层观测性窄接口接入，不改变 sendack 语义。
+- **Learner 语义**: `learner = Replicas - ISR`。learner 会接收 steady-state 复制和 catch-up probe，但在进入 `ISR` 前不参与 HW quorum、MinISR 写可用性或 leader promotion 候选。
 - **Append diagnostics 不改变协议语义**: `AppendRequest.TraceID` 和 `Attempt` 是 Phase 1 节点内诊断字段，只服务 sendtrace/diagnostics 查询；不要把它们写入 message payload/store codec/idempotency key，也不要编码进 `channel_append` 节点 RPC payload。
 - **leader reconcile 先区分“需要 peer 证明”与“只差本地 checkpoint”**: 若 leader transfer 后只是 `CheckpointHW < HW`、本地没有 `LEO > HW` 的 provisional tail，则会直接做本地 reconcile，不等待 peer probe；若已经拿到足以证明本地 tail 全量 quorum-safe 的 proof，也不会继续卡在离线 ISR peer 上。
 - **Transport RPC 分片**: steady-state lane poll 按 `laneID` 路由，保证同一 `(peer,lane)` 有序；辅助 `Fetch` / `ReconcileProbe` 继续按 FNV-64a(ChannelKey) 路由；app 侧同步 `ProbeClient` 也复用同一个 `ReconcileProbe` service。`ReconcileProbe` request 默认保持 v2 以兼容滚动升级，只有 channel migration 显式请求 v3 时服务端才返回扩展 readiness 字段。见 `transport/session.go` / `transport/probe_client.go`。
