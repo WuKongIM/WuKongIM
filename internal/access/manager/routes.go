@@ -170,6 +170,7 @@ func (s *Server) registerRoutes() {
 		channelClusterWrites.Use(s.requirePermission("cluster.channel", "w"))
 	}
 	channelClusterWrites.POST("/channel-cluster/:channel_type/:channel_id/repair", s.handleChannelClusterRepair)
+	channelClusterWrites.POST("/channel-cluster/:channel_type/:channel_id/leader/transfer", s.handleChannelClusterLeaderTransfer)
 
 	messageWrites := s.engine.Group("/manager")
 	if s.auth.enabled() {
