@@ -131,11 +131,18 @@ Consequences:
 
 ### Business Authority
 
-Permissions and subscribers use the source channel:
+Permissions and subscribers use the source channel by default:
 
 ```text
 permission target  = channel.ChannelID{ID: source, Type: originalType}
 subscriber target  = channel.ChannelID{ID: source, Type: originalType}
+```
+
+Visitors is the explicit exception. A visitors CMD channel keeps `source` as the visitor ID, but permission, subscriber storage, and reusable tag fences use the customer-service authority dimension:
+
+```text
+visitors permission target  = channel.ChannelID{ID: source, Type: customer_service}
+visitors subscriber target  = channel.ChannelID{ID: source, Type: customer_service}
 ```
 
 Examples:
@@ -518,6 +525,7 @@ Acceptance criteria:
 
 - All CMD suffix logic uses `internal/runtime/channelid` helpers.
 - Tests prove send permissions run on source channels for already-addressed CMD input.
+- Tests prove visitors CMD non-self permission checks use `(source, customer_service)`, not `(source, visitors)`.
 - Tests prove subscriber resolver reads source-channel subscribers for group CMD channels.
 - Tests prove person/agent CMD subscribers are derived from the source identity.
 - Tests prove visitors/customer-service/info CMD overlays use source identities.
