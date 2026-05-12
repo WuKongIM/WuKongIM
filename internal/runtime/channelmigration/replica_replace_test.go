@@ -57,6 +57,22 @@ func TestReplicaReplaceSourceLeaderUsesEmbeddedTransfer(t *testing.T) {
 	require.ElementsMatch(t, []uint64{2, 3}, gotMeta.ISR)
 }
 
+func TestReplicaReplaceRejectsBaseEpochChanged(t *testing.T) {
+	now := time.UnixMilli(31500)
+	task := replicaReplaceTask("task-base-changed", "channel-base-changed", 2, 3, now)
+	store := newFakeExecutorStore(task)
+	meta := replicaReplaceRuntimeMeta(task.ChannelID, 1, []uint64{1, 2}, []uint64{1, 2}, now)
+	meta.ChannelEpoch = task.BaseChannelEpoch + 1
+	store.putRuntimeMeta(meta)
+	executor := newLeaderTransferExecutorHarness(store, &leaderTransferClock{now: now}, &recordingMigrationControl{}, &recordingProbeClient{}, 9)
+
+	require.NoError(t, executor.Tick(context.Background()))
+
+	gotTask := store.task(task.TaskID)
+	require.Equal(t, slotmeta.ChannelMigrationStatusFailed, gotTask.Status)
+	require.Contains(t, gotTask.LastError, slotmeta.ErrStaleMeta.Error())
+}
+
 func TestReplicaReplaceAddLearnerKeepsISRUnchanged(t *testing.T) {
 	now := time.UnixMilli(32000)
 	task := replicaReplaceTask("task-add-learner", "channel-add-learner", 2, 3, now)
@@ -178,6 +194,25 @@ func TestReplicaReplaceDoesNotPromoteAfterRuntimeMetaReadExpiresOwnerLease(t *te
 	require.Equal(t, slotmeta.ChannelMigrationPhasePromoteAndRemove, gotTask.Phase)
 	require.Empty(t, store.promoteLearnerRequests)
 	gotMeta := store.runtimeMeta(task.ChannelID, task.ChannelType)
+	require.ElementsMatch(t, []uint64{1, 2, 3}, gotMeta.Replicas)
+	require.ElementsMatch(t, []uint64{1, 2}, gotMeta.ISR)
+}
+
+func TestReplicaReplaceDoesNotPromoteWhenSourceIsStillLeader(t *testing.T) {
+	now := time.UnixMilli(34750)
+	task := replicaReplaceDrainedTask("task-promote-source-leader", "channel-promote-source-leader", 1, 3, now, slotmeta.ChannelMigrationPhasePromoteAndRemove)
+	store := newFakeExecutorStore(task)
+	store.putRuntimeMeta(replicaReplaceFencedRuntimeMeta(task, 1, []uint64{1, 2, 3}, []uint64{1, 2}, now))
+	executor := newLeaderTransferExecutorHarness(store, &leaderTransferClock{now: now}, &recordingMigrationControl{}, &recordingProbeClient{}, 9)
+
+	require.NoError(t, executor.Tick(context.Background()))
+
+	gotTask := store.task(task.TaskID)
+	require.Equal(t, slotmeta.ChannelMigrationPhasePromoteAndRemove, gotTask.Phase)
+	require.Contains(t, gotTask.LastError, slotmeta.ErrStaleMeta.Error())
+	require.Empty(t, store.promoteLearnerRequests)
+	gotMeta := store.runtimeMeta(task.ChannelID, task.ChannelType)
+	require.Equal(t, uint64(1), gotMeta.Leader)
 	require.ElementsMatch(t, []uint64{1, 2, 3}, gotMeta.Replicas)
 	require.ElementsMatch(t, []uint64{1, 2}, gotMeta.ISR)
 }
