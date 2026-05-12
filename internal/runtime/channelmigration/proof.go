@@ -31,6 +31,9 @@ func (ProofEvaluator) EvaluateFinalTargetProof(req FinalTargetProofRequest) (Fin
 	if target.LogEndOffset < req.CutoverLEO || target.CheckpointHW < req.CutoverHW {
 		return FinalTargetProof{}, channel.ErrNotReady
 	}
+	if !target.CommitReady {
+		return FinalTargetProof{}, channel.ErrNotReady
+	}
 
 	offsetEpoch, err := targetOffsetEpochAt(target, req.CutoverHW)
 	if err != nil {

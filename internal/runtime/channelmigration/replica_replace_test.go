@@ -17,6 +17,7 @@ func TestReplicaReplaceFollowerSourceHappyPath(t *testing.T) {
 	store := newFakeExecutorStore(task)
 	store.putRuntimeMeta(replicaReplaceRuntimeMeta(task.ChannelID, 1, []uint64{1, 2}, []uint64{1, 2}, now))
 	executor := newLeaderTransferExecutorHarness(store, clock, &recordingMigrationControl{}, &recordingProbeClient{}, 9)
+	executor.cfg.CatchUpStableWindow = 100 * time.Millisecond
 
 	for i := 0; i < 11; i++ {
 		require.NoError(t, executor.Tick(context.Background()))
@@ -40,6 +41,7 @@ func TestReplicaReplaceSourceLeaderUsesEmbeddedTransfer(t *testing.T) {
 	store := newFakeExecutorStore(task)
 	store.putRuntimeMeta(replicaReplaceRuntimeMeta(task.ChannelID, 1, []uint64{1, 2}, []uint64{1, 2}, now))
 	executor := newLeaderTransferExecutorHarness(store, clock, &recordingMigrationControl{}, &recordingProbeClient{}, 9)
+	executor.cfg.CatchUpStableWindow = 100 * time.Millisecond
 
 	for i := 0; i < 18; i++ {
 		err := executor.Tick(context.Background())
@@ -164,12 +166,39 @@ func TestReplicaReplaceWarmCatchUpProgressSurvivesExecutorRestart(t *testing.T) 
 	require.NoError(t, restarted.Tick(context.Background()))
 	require.Equal(t, slotmeta.ChannelMigrationPhaseWarmCatchUp, store.task(task.TaskID).Phase)
 
-	clock.advance(time.Millisecond)
+	clock.advance(time.Second)
 	require.NoError(t, restarted.Tick(context.Background()))
 
 	gotTask = store.task(task.TaskID)
 	require.Equal(t, slotmeta.ChannelMigrationPhaseCutoverFence, gotTask.Phase)
 	require.Equal(t, uint64(50), gotTask.Progress.TargetLEO)
+}
+
+func TestReplicaReplaceWarmCatchUpAllowsConfiguredStableLag(t *testing.T) {
+	now := time.UnixMilli(33500)
+	clock := &leaderTransferClock{now: now}
+	task := replicaReplaceTask("task-warm-lag", "channel-warm-lag", 2, 3, now)
+	task.Status = slotmeta.ChannelMigrationStatusRunning
+	task.Phase = slotmeta.ChannelMigrationPhaseWarmCatchUp
+	store := newFakeExecutorStore(task)
+	store.putRuntimeMeta(replicaReplaceRuntimeMeta(task.ChannelID, 1, []uint64{1, 2, 3}, []uint64{1, 2}, now))
+	probes := &recordingProbeClient{reports: map[channel.NodeID]ProbeReport{
+		1: replicaReplaceProbeReport(task.ChannelID, 1, 5, 7, 50, 45),
+		3: replicaReplaceProbeReport(task.ChannelID, 3, 5, 7, 48, 45),
+	}}
+	executor := newLeaderTransferExecutorHarness(store, clock, &recordingMigrationControl{}, probes, 9)
+	executor.cfg.CatchUpLagThreshold = 2
+	executor.cfg.CatchUpStableWindow = time.Second
+
+	require.NoError(t, executor.Tick(context.Background()))
+	require.Equal(t, slotmeta.ChannelMigrationPhaseWarmCatchUp, store.task(task.TaskID).Phase)
+
+	clock.advance(time.Second)
+	require.NoError(t, executor.Tick(context.Background()))
+
+	gotTask := store.task(task.TaskID)
+	require.Equal(t, slotmeta.ChannelMigrationPhaseCutoverFence, gotTask.Phase)
+	require.Equal(t, uint64(2), gotTask.Progress.LagRecords)
 }
 
 func TestReplicaReplaceFinalCatchUpRequiresLineageProof(t *testing.T) {
@@ -185,6 +214,7 @@ func TestReplicaReplaceFinalCatchUpRequiresLineageProof(t *testing.T) {
 		OffsetEpoch:  4,
 		LogEndOffset: 20,
 		CheckpointHW: 18,
+		CommitReady:  true,
 	}}
 	executor := newLeaderTransferExecutorHarness(store, &leaderTransferClock{now: now}, &recordingMigrationControl{}, probes, 9)
 
@@ -215,6 +245,7 @@ func TestReplicaReplaceFinalCatchUpAfterLearnerIgnoresEmbeddedTransferFlag(t *te
 			OffsetEpoch:  task.DrainedChannelEpoch,
 			LogEndOffset: 20,
 			CheckpointHW: 18,
+			CommitReady:  true,
 		},
 	}}
 	executor := newLeaderTransferExecutorHarness(store, &leaderTransferClock{now: now}, &recordingMigrationControl{}, probes, 9)

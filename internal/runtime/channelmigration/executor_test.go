@@ -169,6 +169,23 @@ func TestExecutorHonorsGlobalSourceAndTargetConcurrencyLimits(t *testing.T) {
 	require.Equal(t, []string{"first", "independent"}, store.advancedTaskIDs())
 }
 
+func TestExecutorHonorsGlobalConcurrencyLimit(t *testing.T) {
+	now := time.UnixMilli(9100)
+	store := newFakeExecutorStore(
+		withNodes(executorTestTask("first", "ch-first", slotmeta.ChannelMigrationStatusPending, now.Add(-time.Second)), 1, 2),
+		withNodes(executorTestTask("second", "ch-second", slotmeta.ChannelMigrationStatusPending, now.Add(-time.Second)), 3, 4),
+		withNodes(executorTestTask("third", "ch-third", slotmeta.ChannelMigrationStatusPending, now.Add(-time.Second)), 5, 6),
+	)
+	executor := newExecutorTestHarness(store, newFakeSlotLeadership().withDefault(true), now, 9)
+	executor.cfg.MaxConcurrent = 2
+
+	err := executor.Tick(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"first", "second"}, store.claimedTaskIDs())
+	require.Equal(t, []string{"first", "second"}, store.advancedTaskIDs())
+}
+
 func TestExecutorUsesFreshTimePerTaskAfterSlowPriorTask(t *testing.T) {
 	now := time.UnixMilli(9500)
 	clock := &leaderTransferClock{now: now}

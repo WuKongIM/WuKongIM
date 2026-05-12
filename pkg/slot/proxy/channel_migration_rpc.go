@@ -11,7 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
-const channelMigrationRPCServiceID uint8 = 13
+const channelMigrationRPCServiceID uint8 = 47
 
 const (
 	channelMigrationRPCGetActive = "get_active"

@@ -290,6 +290,7 @@ func normalizeConfig(cfg Config) Config {
 	cfg.RetryBackoff = normalizeDuration(cfg.RetryBackoff, defaultRetryBackoff)
 	cfg.FenceLease = normalizeDuration(cfg.FenceLease, time.Minute)
 	cfg.LeaderLease = normalizeDuration(cfg.LeaderLease, time.Minute)
+	cfg.CatchUpStableWindow = normalizeDuration(cfg.CatchUpStableWindow, time.Second)
 	if cfg.GCLimit <= 0 {
 		cfg.GCLimit = 128
 	}
@@ -307,14 +308,17 @@ func normalizeDuration(value, fallback time.Duration) time.Duration {
 }
 
 type concurrencyLimits struct {
+	maxTotal   int
 	maxSources int
 	maxTargets int
+	total      int
 	sources    map[uint64]int
 	targets    map[uint64]int
 }
 
 func newConcurrencyLimits(cfg Config) *concurrencyLimits {
 	return &concurrencyLimits{
+		maxTotal:   cfg.MaxConcurrent,
 		maxSources: cfg.MaxConcurrentSources,
 		maxTargets: cfg.MaxConcurrentTargets,
 		sources:    make(map[uint64]int),
@@ -323,6 +327,9 @@ func newConcurrencyLimits(cfg Config) *concurrencyLimits {
 }
 
 func (l *concurrencyLimits) Allow(task Task) bool {
+	if l.maxTotal > 0 && l.total >= l.maxTotal {
+		return false
+	}
 	if l.maxSources > 0 && l.sources[task.SourceNode] >= l.maxSources {
 		return false
 	}
@@ -331,5 +338,6 @@ func (l *concurrencyLimits) Allow(task Task) bool {
 	}
 	l.sources[task.SourceNode]++
 	l.targets[task.TargetNode]++
+	l.total++
 	return true
 }

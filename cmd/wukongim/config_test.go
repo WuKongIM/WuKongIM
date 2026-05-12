@@ -684,6 +684,59 @@ func TestLoadConfigPrefersEnvironmentVariablesForChannelMessageRetention(t *test
 	require.Equal(t, 2500, cfg.ChannelMessageRetention.MaxTrimMessages)
 }
 
+func TestChannelMigrationConfigFromEnv(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_CHANNEL_MIGRATION_SCAN_INTERVAL=1s",
+		"WK_CHANNEL_MIGRATION_SCAN_LIMIT=64",
+		"WK_CHANNEL_MIGRATION_OWNER_LEASE_TTL=30s",
+		"WK_CHANNEL_MIGRATION_RETRY_BACKOFF=1m",
+		"WK_CHANNEL_MIGRATION_FENCE_TTL=1m",
+		"WK_CHANNEL_MIGRATION_LEADER_LEASE_TTL=1m",
+		"WK_CHANNEL_MIGRATION_CATCH_UP_STABLE_WINDOW=1s",
+		"WK_CHANNEL_MIGRATION_CATCH_UP_LAG_THRESHOLD=0",
+		"WK_CHANNEL_MIGRATION_MAX_CONCURRENT=4",
+		"WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_SOURCE=1",
+		"WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_TARGET=1",
+		"WK_CHANNEL_MIGRATION_COMPLETED_RETENTION_TTL=24h",
+		"WK_CHANNEL_MIGRATION_GC_LIMIT=128",
+	)
+	t.Setenv("WK_CHANNEL_MIGRATION_SCAN_INTERVAL", "250ms")
+	t.Setenv("WK_CHANNEL_MIGRATION_SCAN_LIMIT", "17")
+	t.Setenv("WK_CHANNEL_MIGRATION_OWNER_LEASE_TTL", "45s")
+	t.Setenv("WK_CHANNEL_MIGRATION_RETRY_BACKOFF", "3s")
+	t.Setenv("WK_CHANNEL_MIGRATION_FENCE_TTL", "90s")
+	t.Setenv("WK_CHANNEL_MIGRATION_LEADER_LEASE_TTL", "2m")
+	t.Setenv("WK_CHANNEL_MIGRATION_CATCH_UP_STABLE_WINDOW", "5s")
+	t.Setenv("WK_CHANNEL_MIGRATION_CATCH_UP_LAG_THRESHOLD", "4")
+	t.Setenv("WK_CHANNEL_MIGRATION_MAX_CONCURRENT", "8")
+	t.Setenv("WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_SOURCE", "2")
+	t.Setenv("WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_TARGET", "3")
+	t.Setenv("WK_CHANNEL_MIGRATION_COMPLETED_RETENTION_TTL", "72h")
+	t.Setenv("WK_CHANNEL_MIGRATION_GC_LIMIT", "9")
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, 250*time.Millisecond, cfg.ChannelMigration.ScanInterval)
+	require.Equal(t, 17, cfg.ChannelMigration.ScanLimit)
+	require.Equal(t, 45*time.Second, cfg.ChannelMigration.OwnerLeaseTTL)
+	require.Equal(t, 3*time.Second, cfg.ChannelMigration.RetryBackoff)
+	require.Equal(t, 90*time.Second, cfg.ChannelMigration.FenceTTL)
+	require.Equal(t, 2*time.Minute, cfg.ChannelMigration.LeaderLeaseTTL)
+	require.Equal(t, 5*time.Second, cfg.ChannelMigration.CatchUpStableWindow)
+	require.Equal(t, uint64(4), cfg.ChannelMigration.CatchUpLagThreshold)
+	require.Equal(t, 8, cfg.ChannelMigration.MaxConcurrent)
+	require.Equal(t, 2, cfg.ChannelMigration.MaxConcurrentPerSource)
+	require.Equal(t, 3, cfg.ChannelMigration.MaxConcurrentPerTarget)
+	require.Equal(t, 72*time.Hour, cfg.ChannelMigration.CompletedRetentionTTL)
+	require.Equal(t, 9, cfg.ChannelMigration.GCLimit)
+}
+
 func TestLoadConfigUsesDefaultSearchPathsWhenFlagPathIsEmpty(t *testing.T) {
 	dir := t.TempDir()
 	confDir := filepath.Join(dir, "conf")

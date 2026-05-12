@@ -194,6 +194,16 @@ func (a *App) startCommittedReplay(ctx context.Context) error {
 	return a.committedReplayer.Start(ctx)
 }
 
+func (a *App) startChannelMigration(ctx context.Context) error {
+	if a.startChannelMigrationFn != nil {
+		return a.startChannelMigrationFn(ctx)
+	}
+	if a.channelMigrationLifecycle == nil {
+		return nil
+	}
+	return a.channelMigrationLifecycle.Start(ctx)
+}
+
 func (a *App) startChannelRetention(ctx context.Context) error {
 	if a.startChannelRetentionFn != nil {
 		return a.startChannelRetentionFn(ctx)
@@ -296,6 +306,19 @@ func (a *App) stopCommittedReplay(ctx context.Context) error {
 		return nil
 	}
 	return a.committedReplayer.StopContext(ctx)
+}
+
+func (a *App) stopChannelMigration(ctx context.Context) error {
+	if !a.channelMigrationOn.Swap(false) {
+		return nil
+	}
+	if a.stopChannelMigrationFn != nil {
+		return a.stopChannelMigrationFn(ctx)
+	}
+	if a.channelMigrationLifecycle == nil {
+		return nil
+	}
+	return a.channelMigrationLifecycle.Stop(ctx)
 }
 
 func (a *App) stopChannelRetention(ctx context.Context) error {

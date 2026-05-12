@@ -16,6 +16,7 @@ const (
 	appLifecycleDeliveryRuntime         = "delivery_runtime"
 	appLifecycleCommittedDispatcher     = "committed_dispatcher"
 	appLifecycleCommittedReplay         = "committed_replay"
+	appLifecycleChannelMigration        = "channel_migration"
 	appLifecycleChannelRetention        = "channel_retention"
 	appLifecycleGateway                 = "gateway"
 	appLifecycleAPI                     = "api"
@@ -78,6 +79,9 @@ func (a *App) lifecycleComponents(includeStopOnly bool) []applifecycle.Component
 	}
 	if a.hasCommittedReplayLifecycle(includeStopOnly) {
 		components = append(components, a.committedReplayLifecycleComponent())
+	}
+	if a.hasChannelMigrationLifecycle(includeStopOnly) {
+		components = append(components, a.channelMigrationLifecycleComponent())
 	}
 	if a.hasChannelRetentionLifecycle(includeStopOnly) {
 		components = append(components, a.channelRetentionLifecycleComponent())
@@ -247,6 +251,22 @@ func (a *App) channelRetentionLifecycleComponent() applifecycle.Component {
 	}
 }
 
+func (a *App) channelMigrationLifecycleComponent() applifecycle.Component {
+	return appLifecycleComponent{
+		name: appLifecycleChannelMigration,
+		start: func(ctx context.Context) error {
+			if err := a.startChannelMigration(ctx); err != nil {
+				return err
+			}
+			a.channelMigrationOn.Store(true)
+			return nil
+		},
+		stop: func(ctx context.Context) error {
+			return a.stopChannelMigration(ctx)
+		},
+	}
+}
+
 func (a *App) gatewayLifecycleComponent() applifecycle.Component {
 	return appLifecycleComponent{
 		name: appLifecycleGateway,
@@ -335,6 +355,12 @@ func (a *App) hasCommittedDispatcherLifecycle(includeStopOnly bool) bool {
 	return a.committedDispatcher != nil ||
 		a.startCommittedDispatcherFn != nil ||
 		(includeStopOnly && (a.stopCommittedDispatcherFn != nil || a.committedDispatcherOn.Load()))
+}
+
+func (a *App) hasChannelMigrationLifecycle(includeStopOnly bool) bool {
+	return a.channelMigrationLifecycle != nil ||
+		a.startChannelMigrationFn != nil ||
+		(includeStopOnly && (a.stopChannelMigrationFn != nil || a.channelMigrationOn.Load()))
 }
 
 func (a *App) hasChannelRetentionLifecycle(includeStopOnly bool) bool {

@@ -53,10 +53,30 @@ func TestFinalTargetProofRejectsSnapshotRequired(t *testing.T) {
 	require.False(t, proof.Ready)
 }
 
+func TestFinalTargetProofRejectsLogStartPastCutoverHW(t *testing.T) {
+	req := finalTargetProofTestRequest()
+	req.Target.LogStartOffset = req.CutoverHW + 1
+
+	proof, err := (ProofEvaluator{}).EvaluateFinalTargetProof(req)
+
+	require.ErrorIs(t, err, channel.ErrSnapshotRequired)
+	require.False(t, proof.Ready)
+}
+
 func TestFinalTargetProofRejectsPendingTruncate(t *testing.T) {
 	req := finalTargetProofTestRequest()
 	truncateTo := uint64(9)
 	req.Target.TruncateTo = &truncateTo
+
+	proof, err := (ProofEvaluator{}).EvaluateFinalTargetProof(req)
+
+	require.ErrorIs(t, err, channel.ErrNotReady)
+	require.False(t, proof.Ready)
+}
+
+func TestFinalTargetProofRejectsCommitNotReady(t *testing.T) {
+	req := finalTargetProofTestRequest()
+	req.Target.CommitReady = false
 
 	proof, err := (ProofEvaluator{}).EvaluateFinalTargetProof(req)
 
@@ -124,6 +144,7 @@ func finalTargetProofTestRequest() FinalTargetProofRequest {
 			OffsetEpoch:  7,
 			LogEndOffset: 12,
 			CheckpointHW: 10,
+			CommitReady:  true,
 		},
 	}
 }

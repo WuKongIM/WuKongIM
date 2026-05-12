@@ -1052,14 +1052,18 @@ func (r *runtime) ServeReconcileProbe(ctx context.Context, req ReconcileProbeReq
 
 	state := ch.Status()
 	return ReconcileProbeResponseEnvelope{
-		ChannelKey:   req.ChannelKey,
-		Epoch:        state.Epoch,
-		LeaderEpoch:  meta.LeaderEpoch,
-		Generation:   ch.gen,
-		ReplicaID:    r.cfg.LocalNode,
-		OffsetEpoch:  state.OffsetEpoch,
-		LogEndOffset: state.LEO,
-		CheckpointHW: state.CheckpointHW,
+		ChannelKey:     req.ChannelKey,
+		Epoch:          state.Epoch,
+		LeaderEpoch:    meta.LeaderEpoch,
+		Generation:     ch.gen,
+		ReplicaID:      r.cfg.LocalNode,
+		Leader:         state.Leader,
+		Role:           state.Role,
+		OffsetEpoch:    state.OffsetEpoch,
+		LogStartOffset: state.LogStartOffset,
+		LogEndOffset:   state.LEO,
+		CheckpointHW:   state.CheckpointHW,
+		CommitReady:    state.CommitReady,
 	}, nil
 }
 
