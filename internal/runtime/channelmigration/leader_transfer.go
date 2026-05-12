@@ -100,14 +100,18 @@ func (e *Executor) leaderTransferWriteFence(ctx context.Context, task Task, nowM
 	if err != nil {
 		return err
 	}
+	afterReadMS := e.freshNowMS(nowMS)
+	if err := e.ensureTaskOwnership(ctx, task, afterReadMS); err != nil {
+		return err
+	}
 	req := slotmeta.ChannelMigrationFenceRequest{
 		Guard:        guardFromTask(task),
 		RuntimeGuard: runtimeGuardFromMeta(meta),
 		Status:       slotmeta.ChannelMigrationStatusRunning,
 		Phase:        slotmeta.ChannelMigrationPhaseDrainLeader,
 		FenceReason:  uint8(channel.WriteFenceReasonMigration),
-		FenceUntilMS: nowMS + e.cfg.FenceLease.Milliseconds(),
-		UpdatedAtMS:  nextUpdatedAtMS(nowMS, task.UpdatedAtMS),
+		FenceUntilMS: afterReadMS + e.cfg.FenceLease.Milliseconds(),
+		UpdatedAtMS:  nextUpdatedAtMS(afterReadMS, task.UpdatedAtMS),
 	}
 	if err := e.store.SetChannelWriteFence(ctx, req); err != nil {
 		return err
@@ -227,8 +231,12 @@ func (e *Executor) leaderTransferCommitLeaderMeta(ctx context.Context, task Task
 	if err != nil {
 		return err
 	}
-	if e.fenceExpired(task, meta, nowMS) {
-		return e.resetExpiredLeaderTransferFence(ctx, task, meta, nowMS)
+	afterReadMS := e.freshNowMS(nowMS)
+	if e.fenceExpired(task, meta, afterReadMS) {
+		return e.resetExpiredLeaderTransferFence(ctx, task, meta, afterReadMS)
+	}
+	if err := e.ensureTaskOwnership(ctx, task, afterReadMS); err != nil {
+		return err
 	}
 	req := slotmeta.ChannelMigrationLeaderTransferRequest{
 		Guard:           guardFromTask(task),
@@ -237,9 +245,9 @@ func (e *Executor) leaderTransferCommitLeaderMeta(ctx context.Context, task Task
 		Phase:           slotmeta.ChannelMigrationPhaseVerifyNewLeader,
 		DesiredLeader:   channelMigrationDesiredLeader(task),
 		NextLeaderEpoch: meta.LeaderEpoch + 1,
-		LeaseUntilMS:    nowMS + e.cfg.LeaderLease.Milliseconds(),
-		NowMS:           nowMS,
-		UpdatedAtMS:     nextUpdatedAtMS(nowMS, task.UpdatedAtMS),
+		LeaseUntilMS:    afterReadMS + e.cfg.LeaderLease.Milliseconds(),
+		NowMS:           afterReadMS,
+		UpdatedAtMS:     nextUpdatedAtMS(afterReadMS, task.UpdatedAtMS),
 	}
 	if err := e.store.CommitChannelLeaderTransfer(ctx, req); err != nil {
 		return err

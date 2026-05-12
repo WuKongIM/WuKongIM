@@ -87,7 +87,8 @@ func (e *Executor) Tick(ctx context.Context) error {
 
 	limits := newConcurrencyLimits(e.cfg)
 	for _, task := range tasks {
-		if !e.isRunnableTask(task, nowMS) {
+		taskNowMS := e.freshNowMS(nowMS)
+		if !e.isRunnableTask(task, taskNowMS) {
 			continue
 		}
 		if ok := e.confirmLocalSlotLeader(ctx, task); !ok {
@@ -96,11 +97,11 @@ func (e *Executor) Tick(ctx context.Context) error {
 		if !limits.Allow(task) {
 			continue
 		}
-		if err := e.runOne(ctx, task, nowMS); err != nil {
+		if err := e.runOne(ctx, task, taskNowMS); err != nil {
 			return err
 		}
 	}
-	return e.gcTerminalTasks(ctx, now)
+	return e.gcTerminalTasks(ctx, e.now())
 }
 
 func (e *Executor) runOne(ctx context.Context, task Task, nowMS int64) error {
@@ -268,6 +269,14 @@ func nextUpdatedAtMS(nowMS, observedMS int64) int64 {
 		return nowMS
 	}
 	return observedMS + 1
+}
+
+func (e *Executor) freshNowMS(floorMS int64) int64 {
+	nowMS := e.now().UnixMilli()
+	if nowMS < floorMS {
+		return floorMS
+	}
+	return nowMS
 }
 
 func normalizeConfig(cfg Config) Config {
