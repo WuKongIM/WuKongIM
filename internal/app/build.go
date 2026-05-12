@@ -612,9 +612,14 @@ func build(cfg Config) (_ *App, err error) {
 				local:       app,
 				remote:      app.nodeClient,
 			},
-			ChannelRuntimeMeta: app.store,
-			Network:            app.networkObservability,
-			MessageRetention:   managerRetention,
+			ChannelRuntimeMeta:   app.store,
+			ChannelReplicaStatus: managerChannelReplicaStatusReader{channelLog: app.channelLog},
+			ChannelLeaderRepair: managerChannelLeaderRepairOperator{
+				metas:    app.store,
+				repairer: channelLeaderRepairer,
+			},
+			Network:          app.networkObservability,
+			MessageRetention: managerRetention,
 			Messages: managerMessageReader{
 				localNodeID: cfg.Node.ID,
 				channelLog:  app.channelLogDB,
