@@ -216,3 +216,150 @@ func (f *fakeChannelLeaderRepairOperator) RepairChannelLeader(_ context.Context,
 	}
 	return f.result, nil
 }
+
+func TestTransferChannelClusterLeaderValidatesTarget(t *testing.T) {
+	app := New(Options{})
+
+	tests := []TransferChannelClusterLeaderRequest{
+		{ChannelType: 2, TargetNodeID: 2},
+		{ChannelID: "room-1", TargetNodeID: 2},
+		{ChannelID: "room-1", ChannelType: 2},
+	}
+	for _, req := range tests {
+		_, err := app.TransferChannelClusterLeader(context.Background(), req)
+		require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+	}
+}
+
+func TestTransferChannelClusterLeaderRejectsTargetOutsideReplicas(t *testing.T) {
+	transfer := &fakeChannelLeaderTransferOperator{}
+	app := newTransferTestApp(transfer, transferTestMeta("room-1", 2))
+
+	_, err := app.TransferChannelClusterLeader(context.Background(), TransferChannelClusterLeaderRequest{
+		ChannelID:    "room-1",
+		ChannelType:  2,
+		TargetNodeID: 5,
+	})
+
+	require.ErrorIs(t, err, ErrChannelLeaderTransferTargetNotReplica)
+	require.Empty(t, transfer.calls)
+}
+
+func TestTransferChannelClusterLeaderRejectsTargetOutsideISR(t *testing.T) {
+	meta := transferTestMeta("room-1", 2)
+	meta.ISR = []uint64{1, 2}
+	transfer := &fakeChannelLeaderTransferOperator{}
+	app := newTransferTestApp(transfer, meta)
+
+	_, err := app.TransferChannelClusterLeader(context.Background(), TransferChannelClusterLeaderRequest{
+		ChannelID:    "room-1",
+		ChannelType:  2,
+		TargetNodeID: 3,
+	})
+
+	require.ErrorIs(t, err, ErrChannelLeaderTransferTargetNotISR)
+	require.Empty(t, transfer.calls)
+}
+
+func TestTransferChannelClusterLeaderRejectsInactiveChannel(t *testing.T) {
+	meta := transferTestMeta("room-1", 2)
+	meta.Status = uint8(channel.StatusDeleting)
+	transfer := &fakeChannelLeaderTransferOperator{}
+	app := newTransferTestApp(transfer, meta)
+
+	_, err := app.TransferChannelClusterLeader(context.Background(), TransferChannelClusterLeaderRequest{
+		ChannelID:    "room-1",
+		ChannelType:  2,
+		TargetNodeID: 2,
+	})
+
+	require.ErrorIs(t, err, ErrChannelLeaderTransferInactiveChannel)
+	require.Empty(t, transfer.calls)
+}
+
+func TestTransferChannelClusterLeaderReturnsUnchangedWhenTargetAlreadyLeads(t *testing.T) {
+	meta := transferTestMeta("room-1", 2)
+	meta.Leader = 2
+	transfer := &fakeChannelLeaderTransferOperator{}
+	app := newTransferTestApp(transfer, meta)
+
+	got, err := app.TransferChannelClusterLeader(context.Background(), TransferChannelClusterLeaderRequest{
+		ChannelID:    "room-1",
+		ChannelType:  2,
+		TargetNodeID: 2,
+	})
+
+	require.NoError(t, err)
+	require.False(t, got.Changed)
+	require.Equal(t, uint64(2), got.Channel.Leader)
+	require.Empty(t, transfer.calls)
+}
+
+func TestTransferChannelClusterLeaderDelegatesSafeTransfer(t *testing.T) {
+	meta := transferTestMeta("room-1", 2)
+	transferred := meta
+	transferred.Leader = 2
+	transferred.LeaderEpoch++
+	transfer := &fakeChannelLeaderTransferOperator{
+		result: TransferChannelClusterLeaderResult{Changed: true, Meta: transferred},
+	}
+	app := newTransferTestApp(transfer, meta)
+
+	got, err := app.TransferChannelClusterLeader(context.Background(), TransferChannelClusterLeaderRequest{
+		ChannelID:    "room-1",
+		ChannelType:  2,
+		TargetNodeID: 2,
+	})
+
+	require.NoError(t, err)
+	require.True(t, got.Changed)
+	require.Equal(t, uint64(2), got.Channel.Leader)
+	require.Equal(t, []TransferChannelClusterLeaderRequest{{
+		ChannelID:    "room-1",
+		ChannelType:  2,
+		TargetNodeID: 2,
+	}}, transfer.calls)
+}
+
+type fakeChannelLeaderTransferOperator struct {
+	result TransferChannelClusterLeaderResult
+	err    error
+	calls  []TransferChannelClusterLeaderRequest
+}
+
+func (f *fakeChannelLeaderTransferOperator) TransferChannelLeader(_ context.Context, req TransferChannelClusterLeaderRequest) (TransferChannelClusterLeaderResult, error) {
+	f.calls = append(f.calls, req)
+	if f.err != nil {
+		return TransferChannelClusterLeaderResult{}, f.err
+	}
+	return f.result, nil
+}
+
+func newTransferTestApp(transfer ChannelLeaderTransferOperator, meta metadb.ChannelRuntimeMeta) *App {
+	return New(Options{
+		Cluster: fakeClusterReader{
+			slotForKey:     map[string]multiraft.SlotID{meta.ChannelID: 9},
+			hashSlotForKey: map[string]uint16{meta.ChannelID: 123},
+		},
+		ChannelRuntimeMeta: &fakeChannelRuntimeMetaReader{
+			metaByKey: map[metadb.ConversationKey]metadb.ChannelRuntimeMeta{
+				{ChannelID: meta.ChannelID, ChannelType: meta.ChannelType}: meta,
+			},
+		},
+		ChannelLeaderTransfer: transfer,
+	})
+}
+
+func transferTestMeta(channelID string, channelType int64) metadb.ChannelRuntimeMeta {
+	return metadb.ChannelRuntimeMeta{
+		ChannelID:    channelID,
+		ChannelType:  channelType,
+		ChannelEpoch: 7,
+		LeaderEpoch:  3,
+		Leader:       1,
+		Replicas:     []uint64{1, 2, 3},
+		ISR:          []uint64{1, 2, 3},
+		MinISR:       2,
+		Status:       uint8(channel.StatusActive),
+	}
+}

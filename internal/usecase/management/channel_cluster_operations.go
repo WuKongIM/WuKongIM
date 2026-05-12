@@ -12,6 +12,12 @@ import (
 var (
 	// ErrUnsupportedChannelClusterRepairReason means the requested manager reason is not handled by safe leader repair.
 	ErrUnsupportedChannelClusterRepairReason = errors.New("management: unsupported channel cluster repair reason")
+	// ErrChannelLeaderTransferTargetNotReplica means the requested node is not configured as a replica.
+	ErrChannelLeaderTransferTargetNotReplica = errors.New("management: channel leader transfer target is not a replica")
+	// ErrChannelLeaderTransferTargetNotISR means the requested node is not in the authoritative ISR set.
+	ErrChannelLeaderTransferTargetNotISR = errors.New("management: channel leader transfer target is not in isr")
+	// ErrChannelLeaderTransferInactiveChannel means the channel is not active.
+	ErrChannelLeaderTransferInactiveChannel = errors.New("management: channel leader transfer requires active channel")
 )
 
 // ChannelClusterReplicaStatus is a manager-facing per-replica status row.
@@ -75,6 +81,32 @@ type RepairChannelClusterLeaderResponse struct {
 	// Changed reports whether authoritative metadata changed.
 	Changed bool
 	// Channel is authoritative manager metadata after repair or validation.
+	Channel ChannelRuntimeMetaDetail
+}
+
+// TransferChannelClusterLeaderRequest requests explicit safe channel leader transfer.
+type TransferChannelClusterLeaderRequest struct {
+	// ChannelID identifies the channel whose leader should move.
+	ChannelID string
+	// ChannelType identifies the channel type.
+	ChannelType int64
+	// TargetNodeID is the replica node that should become leader.
+	TargetNodeID uint64
+}
+
+// TransferChannelClusterLeaderResult is returned by the transfer operator port.
+type TransferChannelClusterLeaderResult struct {
+	// Changed reports whether authoritative metadata changed.
+	Changed bool
+	// Meta is authoritative metadata after transfer or validation.
+	Meta metadb.ChannelRuntimeMeta
+}
+
+// TransferChannelClusterLeaderResponse is the manager-facing transfer response.
+type TransferChannelClusterLeaderResponse struct {
+	// Changed reports whether authoritative metadata changed.
+	Changed bool
+	// Channel is authoritative manager metadata after transfer or validation.
 	Channel ChannelRuntimeMetaDetail
 }
 
@@ -187,6 +219,40 @@ func (a *App) RepairChannelClusterLeader(ctx context.Context, req RepairChannelC
 	}, nil
 }
 
+// TransferChannelClusterLeader runs explicit safe channel leader transfer.
+func (a *App) TransferChannelClusterLeader(ctx context.Context, req TransferChannelClusterLeaderRequest) (TransferChannelClusterLeaderResponse, error) {
+	if req.ChannelID == "" || req.ChannelType <= 0 || req.TargetNodeID == 0 {
+		return TransferChannelClusterLeaderResponse{}, metadb.ErrInvalidArgument
+	}
+	current, err := a.GetChannelRuntimeMeta(ctx, req.ChannelID, req.ChannelType)
+	if err != nil {
+		return TransferChannelClusterLeaderResponse{}, err
+	}
+	if current.Status != "active" {
+		return TransferChannelClusterLeaderResponse{}, ErrChannelLeaderTransferInactiveChannel
+	}
+	if !containsManagementUint64(current.Replicas, req.TargetNodeID) {
+		return TransferChannelClusterLeaderResponse{}, ErrChannelLeaderTransferTargetNotReplica
+	}
+	if !containsManagementUint64(current.ISR, req.TargetNodeID) {
+		return TransferChannelClusterLeaderResponse{}, ErrChannelLeaderTransferTargetNotISR
+	}
+	if current.Leader == req.TargetNodeID {
+		return TransferChannelClusterLeaderResponse{Changed: false, Channel: current}, nil
+	}
+	if a == nil || a.channelLeaderTransfer == nil {
+		return TransferChannelClusterLeaderResponse{}, channel.ErrInvalidConfig
+	}
+	result, err := a.channelLeaderTransfer.TransferChannelLeader(ctx, req)
+	if err != nil {
+		return TransferChannelClusterLeaderResponse{}, err
+	}
+	return TransferChannelClusterLeaderResponse{
+		Changed: result.Changed,
+		Channel: a.channelRuntimeMetaDetailFromMeta(ctx, result.Meta),
+	}, nil
+}
+
 func channelClusterLeaderRepairReason(reason string, leader uint64) (string, error) {
 	switch reason {
 	case "":
@@ -217,4 +283,13 @@ func (a *App) channelRuntimeMetaDetailFromMeta(ctx context.Context, meta metadb.
 		Features:           meta.Features,
 		LeaseUntilMS:       meta.LeaseUntilMS,
 	}
+}
+
+func containsManagementUint64(values []uint64, target uint64) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

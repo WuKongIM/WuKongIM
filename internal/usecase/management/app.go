@@ -100,6 +100,12 @@ type ChannelLeaderRepairOperator interface {
 	RepairChannelLeader(ctx context.Context, req RepairChannelClusterLeaderRequest) (RepairChannelClusterLeaderResult, error)
 }
 
+// ChannelLeaderTransferOperator exposes explicit safe channel leader transfer.
+type ChannelLeaderTransferOperator interface {
+	// TransferChannelLeader safely transfers authoritative channel leadership.
+	TransferChannelLeader(ctx context.Context, req TransferChannelClusterLeaderRequest) (TransferChannelClusterLeaderResult, error)
+}
+
 // MessageReader exposes authoritative channel message page reads.
 type MessageReader interface {
 	// QueryMessages returns one authoritative message page for a channel.
@@ -184,6 +190,8 @@ type Options struct {
 	ChannelReplicaStatus ChannelReplicaStatusReader
 	// ChannelLeaderRepair provides policy-driven channel leader repair.
 	ChannelLeaderRepair ChannelLeaderRepairOperator
+	// ChannelLeaderTransfer provides explicit safe channel leader transfer.
+	ChannelLeaderTransfer ChannelLeaderTransferOperator
 	// Messages provides authoritative channel message pages.
 	Messages MessageReader
 	// MessageRetention provides destructive channel message retention operations.
@@ -209,6 +217,7 @@ type App struct {
 	channelRuntimeMeta       ChannelRuntimeMetaReader
 	channelReplicaStatus     ChannelReplicaStatusReader
 	channelLeaderRepair      ChannelLeaderRepairOperator
+	channelLeaderTransfer    ChannelLeaderTransferOperator
 	messages                 MessageReader
 	messageRetention         MessageRetentionOperator
 	network                  NetworkSnapshotReader
@@ -240,6 +249,7 @@ func New(opts Options) *App {
 		channelRuntimeMeta:       opts.ChannelRuntimeMeta,
 		channelReplicaStatus:     opts.ChannelReplicaStatus,
 		channelLeaderRepair:      opts.ChannelLeaderRepair,
+		channelLeaderTransfer:    opts.ChannelLeaderTransfer,
 		messages:                 opts.Messages,
 		messageRetention:         opts.MessageRetention,
 		network:                  opts.Network,
