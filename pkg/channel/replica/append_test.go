@@ -308,6 +308,61 @@ func TestFenceAndDrainWaitsForInflightAppend(t *testing.T) {
 	require.NoError(t, <-drainDone)
 }
 
+func TestFenceAndDrainWaitsForQuorumWaitersAndCheckpoint(t *testing.T) {
+	env := newThreeReplicaCluster(t)
+	appendDone := make(chan appendTestResult, 1)
+	go func() {
+		res, err := env.leader.Append(context.Background(), []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
+		appendDone <- appendTestResult{result: res, err: err}
+	}()
+	waitForLogAppend(t, env.leader.log.(*fakeLogStore), 1)
+	waitForLeaderLEO(t, env.leader, 1)
+	env.replicateOnce(t, env.follower2)
+
+	fenced := activeMetaWithMinISR(7, 1, 3)
+	fenced.WriteFence = channel.WriteFence{
+		Token:   "task-quorum-drain",
+		Version: 1,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	require.NoError(t, env.leader.ApplyMeta(fenced))
+
+	drainDone := make(chan channel.DrainResult, 1)
+	drainErr := make(chan error, 1)
+	go func() {
+		drain, err := env.leader.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+			ChannelKey:           fenced.Key,
+			WriteFenceToken:      "task-quorum-drain",
+			WriteFenceVersion:    1,
+			ExpectedChannelEpoch: 7,
+			ExpectedLeaderEpoch:  fenced.LeaderEpoch,
+			ExpectedLeader:       1,
+		})
+		if err != nil {
+			drainErr <- err
+			return
+		}
+		drainDone <- drain
+	}()
+
+	select {
+	case drain := <-drainDone:
+		t.Fatalf("FenceAndDrain returned before quorum waiter completed: %+v", drain)
+	case err := <-drainErr:
+		t.Fatalf("FenceAndDrain failed before quorum waiter completed: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	env.replicateOnce(t, env.follower3)
+	gotAppend := receiveAppendResult(t, appendDone, "append did not complete after final follower replication")
+	require.NoError(t, gotAppend.err)
+	gotDrain := receiveDrainResult(t, drainDone, drainErr, "drain did not complete after quorum waiter and checkpoint settled")
+	require.Equal(t, uint64(1), gotDrain.LEO)
+	require.Equal(t, uint64(1), gotDrain.HW)
+	require.Equal(t, gotDrain.HW, gotDrain.CheckpointHW)
+}
+
 func TestFenceAndDrainRejectsNonLeaderOrFenceMismatch(t *testing.T) {
 	follower := newFollowerReplica(t)
 	_, err := follower.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
@@ -511,6 +566,20 @@ func receiveAppendResult(t testing.TB, done <-chan appendTestResult, timeoutMess
 	case <-time.After(time.Second):
 		t.Fatal(timeoutMessage)
 		return appendTestResult{}
+	}
+}
+
+func receiveDrainResult(t testing.TB, done <-chan channel.DrainResult, errs <-chan error, timeoutMessage string) channel.DrainResult {
+	t.Helper()
+	select {
+	case got := <-done:
+		return got
+	case err := <-errs:
+		t.Fatalf("FenceAndDrain() error = %v", err)
+		return channel.DrainResult{}
+	case <-time.After(time.Second):
+		t.Fatal(timeoutMessage)
+		return channel.DrainResult{}
 	}
 }
 
