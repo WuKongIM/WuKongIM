@@ -18,4 +18,5 @@ const (
 	channelRetentionRPCServiceID      uint8 = 43
 	deliveryTagRPCServiceID           uint8 = 44
 	systemUIDCacheRPCServiceID        uint8 = 45
+	channelLeaderTransferRPCServiceID uint8 = 46
 )

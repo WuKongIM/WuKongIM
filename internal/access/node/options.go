@@ -53,6 +53,12 @@ type ChannelLeaderRepairer interface {
 	RepairChannelLeaderAuthoritative(ctx context.Context, req channelmeta.LeaderRepairRequest) (channelmeta.LeaderRepairResult, error)
 }
 
+// ChannelLeaderTransferer transfers a channel leader on the authoritative slot leader.
+type ChannelLeaderTransferer interface {
+	// TransferChannelLeaderAuthoritative safely transfers channel leadership from the authoritative slot leader.
+	TransferChannelLeaderAuthoritative(ctx context.Context, req channelmeta.LeaderTransferRequest) (channelmeta.LeaderTransferResult, error)
+}
+
 // ChannelLeaderEvaluator evaluates whether the local replica can safely lead.
 type ChannelLeaderEvaluator interface {
 	EvaluateChannelLeaderCandidate(ctx context.Context, req channelmeta.LeaderEvaluateRequest) (channelmeta.LeaderPromotionReport, error)
@@ -158,6 +164,7 @@ type Options struct {
 	DeliveryTag           DeliveryTagAuthority
 	ChannelMeta           ChannelMetaRefresher
 	ChannelLeaderRepair   ChannelLeaderRepairer
+	ChannelLeaderTransfer ChannelLeaderTransferer
 	ChannelLeaderEvaluate ChannelLeaderEvaluator
 	DeliveryAckIndex      *deliveryruntime.AckIndex
 	RuntimeSummary        RuntimeSummaryProvider
@@ -182,6 +189,7 @@ type Adapter struct {
 	deliveryTag           DeliveryTagAuthority
 	channelMeta           ChannelMetaRefresher
 	channelLeaderRepair   ChannelLeaderRepairer
+	channelLeaderTransfer ChannelLeaderTransferer
 	channelLeaderEvaluate ChannelLeaderEvaluator
 	deliveryAckIndex      *deliveryruntime.AckIndex
 	runtimeSummary        RuntimeSummaryProvider
@@ -213,6 +221,7 @@ func New(opts Options) *Adapter {
 		deliveryTag:           opts.DeliveryTag,
 		channelMeta:           opts.ChannelMeta,
 		channelLeaderRepair:   opts.ChannelLeaderRepair,
+		channelLeaderTransfer: opts.ChannelLeaderTransfer,
 		channelLeaderEvaluate: opts.ChannelLeaderEvaluate,
 		deliveryAckIndex:      opts.DeliveryAckIndex,
 		runtimeSummary:        opts.RuntimeSummary,
@@ -233,6 +242,7 @@ func New(opts Options) *Adapter {
 		opts.Cluster.RPCMux().Handle(channelAppendRPCServiceID, adapter.handleChannelAppendRPC)
 		opts.Cluster.RPCMux().Handle(channelMessagesRPCServiceID, adapter.handleChannelMessagesRPC)
 		opts.Cluster.RPCMux().Handle(channelLeaderRepairRPCServiceID, adapter.handleChannelLeaderRepairRPC)
+		opts.Cluster.RPCMux().Handle(channelLeaderTransferRPCServiceID, adapter.handleChannelLeaderTransferRPC)
 		opts.Cluster.RPCMux().Handle(channelLeaderEvaluateRPCServiceID, adapter.handleChannelLeaderEvaluateRPC)
 		opts.Cluster.RPCMux().Handle(runtimeSummaryRPCServiceID, adapter.handleRuntimeSummaryRPC)
 		opts.Cluster.RPCMux().Handle(connectionsRPCServiceID, adapter.handleConnectionsRPC)
