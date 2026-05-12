@@ -26,7 +26,7 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 | `/dashboard` | `GET /manager/overview`, `GET /manager/tasks`, `GET /manager/nodes`, `GET /manager/channel-cluster/summary` | Implemented |
 | `/channel-cluster` | `GET /manager/channel-cluster/summary` | Implemented |
 | `/channel-cluster/list` | `GET /manager/channel-runtime-meta`, `GET /manager/channel-runtime-meta/:type/:id` | Implemented |
-| `/channel-cluster/unhealthy` | `GET /manager/channel-cluster/unhealthy`, `GET /manager/channel-cluster/:type/:id/replicas`, `POST /manager/channel-cluster/:type/:id/repair` | Implemented |
+| `/channel-cluster/unhealthy` | `GET /manager/channel-cluster/unhealthy`, `GET /manager/channel-cluster/:type/:id/replicas`, `POST /manager/channel-cluster/:type/:id/repair`, `POST /manager/channel-cluster/:type/:id/leader/transfer` | Implemented |
 | `/nodes`, `/slots`, `/onboarding`, `/controller` | Existing cluster manager endpoints | Implemented |
 | `/messages`, `/diagnostics`, `/network`, `/connections`, `/slot-logs` | Existing diagnostics and message endpoints | Implemented |
 | `/users`, `/channels-biz`, `/system-users` | Requires manager-scoped business APIs | Placeholder |
@@ -36,5 +36,6 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 
 - P0 read path is implemented for summary, unhealthy pagination, and dashboard health.
 - P0.5 safe operations are implemented for replica inspection and `no_leader` repair.
+- P0.6 single-channel explicit leader transfer is implemented for active non-leader ISR replicas.
 - Replica detail only displays proven runtime values; unknown follower commit/lag values stay `-`.
-- Explicit target leader transfer and batch leader drain remain hidden until safe runtime support exists.
+- Batch leader drain remains hidden until follow-up batch orchestration exists.
