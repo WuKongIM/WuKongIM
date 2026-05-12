@@ -773,6 +773,29 @@ export type ManagerChannelRuntimeMetaDetailResponse = ManagerChannelRuntimeMeta 
   lease_until_ms: number
 }
 
+export type ManagerChannelClusterSummaryResponse = {
+  total: number
+  healthy: number
+  isr_insufficient: number
+  no_leader: number
+  avg_replicas: number
+  avg_isr: number
+  leader_distribution: Array<{
+    node_id: number
+    count: number
+  }>
+}
+
+export type ManagerChannelClusterUnhealthyItem = ManagerChannelRuntimeMeta & {
+  reasons: string[]
+}
+
+export type ManagerChannelClusterUnhealthyResponse = {
+  items: ManagerChannelClusterUnhealthyItem[]
+  has_more: boolean
+  next_cursor?: string
+}
+
 export type ManagerConnection = {
   node_id: number
   session_id: number
@@ -932,6 +955,11 @@ export type RecoverSlotInput = {
 export type ChannelRuntimeMetaListParams = {
   nodeId?: number
   channelId?: string
+  limit?: number
+  cursor?: string
+}
+
+export type ChannelClusterUnhealthyParams = {
   limit?: number
   cursor?: string
 }
