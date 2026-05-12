@@ -88,10 +88,12 @@ Person and agent channels still normalize after stripping the CMD suffix:
 
 ```text
 input:   u2@u1____cmd / person
-source:  u2@u1 / person
+source:  NormalizePersonChannel(senderUID, "u2@u1") / person
 view:    recipient-specific peer UID
-append:  u1@u2____cmd or canonical-person-source____cmd after normalization
+append:  ToCommandChannel(source)
 ```
+
+`NormalizePersonChannel` is deterministic: it returns `runtime/channelid.EncodePersonChannel(left, right)`, which orders the pair by CRC32 and then lexicographic tie-break. The append key for person CMD messages is always `ToCommandChannel(normalizedPersonSource)`, never a sender-oriented ad hoc key.
 
 Agent bare-channel normalization also happens on the source identity. A bare agent UID from sender `u1` becomes `u1@agentUID`, then durable `SyncOnce` appends to `u1@agentUID____cmd`.
 
@@ -141,6 +143,7 @@ Examples:
 - Sending to `g1____cmd` checks denylist/allowlist/subscriber state for `g1`.
 - Sending to `u2@u1____cmd` checks person-channel rules for the normalized person source.
 - Sending to `visitorA____cmd` with visitors type resolves visitor/customer-service overlays from the source visitors/customer-service model.
+- For visitors CMD permission, the visitor self sender is allowed by the existing visitors rule; non-self senders check denylist, subscriber, and allowlist state with `ChannelID=source` and `ChannelType=customer_service`, matching the current P2 permission convergence.
 
 ### Delivery Routing Authority
 
@@ -197,6 +200,12 @@ uids:      source subscribers plus visitor overlay when the visitor UID is encod
 
 The visitor overlay follows the current resolver behavior. The command suffix must not hide the visitor UID extraction.
 
+Reusable tag fence:
+
+- `SubscriberMutationVersion` may describe the requested command channel for diagnostics.
+- `SourceSubscriberMutationVersion` must be read from `(source, customer_service)`.
+- The visitor UID overlay is derived from the source channel ID and does not need a separate mutation fence.
+
 ### Visitors
 
 ```text
@@ -208,6 +217,13 @@ uids:      customer-service subscribers plus visitorA overlay
 
 This matches the restored visitors permission model, where non-self sends check the customer-service dimension for the visitor source.
 
+Reusable tag fence:
+
+- `SourceChannelID = source`.
+- `SourceChannelType = customer_service`.
+- `SourceSubscriberMutationVersion` must be read from `(source, customer_service)`, not `(source, visitors)`.
+- The visitor self UID overlay is derived from the source channel ID and does not need a separate mutation fence.
+
 ### Info
 
 ```text
@@ -217,6 +233,11 @@ uids:      info subscribers plus temporary overlay when available
 ```
 
 The resolver keeps the existing info-channel temporary overlay behavior.
+
+Reusable tag fence:
+
+- Without a temporary overlay, `SourceSubscriberMutationVersion` is read from `(source, info)` and the tag can be reusable.
+- With a temporary overlay, the snapshot is not safely fenced by `(source, info)` alone. The resolver must either mark the snapshot non-reusable or provide an explicit temp-overlay mutation fence before reusing tag state. P2d-a should prefer non-reusable tags for info snapshots that include temporary overlay UIDs.
 
 ### Temp / Request-Scoped
 
@@ -243,12 +264,14 @@ Rules:
 3. The usecase strips an optional ____cmd suffix from cmd.ChannelID.
 4. The usecase normalizes person/agent source channel IDs.
 5. The usecase checks send permissions on the source channel.
-6. If Framer.SyncOnce or the input was already a CMD channel, append to ToCommandChannel(source).
+6. If Framer.NoPersist is false and Framer.SyncOnce or the input was already a CMD channel, append to ToCommandChannel(source).
 7. sendDurable appends through the command channel log.
 8. The committed dispatcher submits delivery and best-effort conversation side effects.
 9. The conversation projector drops the message because it is CMD or SyncOnce.
 10. Realtime packets sent to clients show the source channel view.
 ```
+
+`NoPersist` takes precedence over durable `SyncOnce` append. A command-style `NoPersist` send follows the non-durable online CMD flow instead of this durable flow.
 
 ### Already-Addressed CMD Input
 
@@ -364,7 +387,7 @@ message.App.Send
   -> build transient message with command channel identity
   -> messageevents.MessageRealtime
     -> app realtime dispatcher
-      -> delivery.App.SubmitCommitted or equivalent realtime adapter
+      -> delivery.App.SubmitRealtime
         -> delivery runtime actor keyed by command channel
           -> resolve source subscribers or MessageScopedUIDs
           -> push online packets
@@ -396,8 +419,8 @@ This keeps the business outcome of legacy `systemcmdonline` without adding a glo
 Normal CMD channel delivery may reuse channel-level tag state only when the subscriber source is reusable:
 
 ```text
-reusable source = person / agent derived set, group store, customer-service store, visitors overlay, info store
-non-reusable source = request-scoped MessageScopedUIDs
+reusable source = person / agent derived set, group store, customer-service store, visitors/customer-service deterministic overlay, info store without temp overlay
+non-reusable source = request-scoped MessageScopedUIDs, info snapshots with temp overlay unless a temp-overlay mutation fence is added
 ```
 
 For `MessageScopedUIDs`:
