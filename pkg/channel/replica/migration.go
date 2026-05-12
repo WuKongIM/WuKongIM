@@ -68,7 +68,7 @@ func (r *replica) applyFenceAndDrainCommand(cmd machineFenceAndDrainCommand) mac
 	if len(r.appendPending) > 0 {
 		r.failPendingAppendRequestsLocked(channel.ErrWriteFenced)
 	}
-	if len(r.appendInFlightIDs) > 0 {
+	if r.hasUnsettledDrainWorkLocked() {
 		return machineResult{Err: channel.ErrNotReady}
 	}
 	r.drainedFence = drainedFenceState{
@@ -90,4 +90,12 @@ func (r *replica) applyFenceAndDrainCommand(cmd machineFenceAndDrainCommand) mac
 
 func (r *replica) drainedFenceBlocksAppendLocked() bool {
 	return r.drainedFence.active && r.meta.WriteFence.Version <= r.drainedFence.version
+}
+
+func (r *replica) hasUnsettledDrainWorkLocked() bool {
+	return len(r.appendInFlightIDs) > 0 ||
+		len(r.waiters) > 0 ||
+		r.checkpointQueued ||
+		r.checkpointInFlight ||
+		r.state.CheckpointHW < r.state.HW
 }
