@@ -156,12 +156,16 @@ func (s *Server) registerRoutes() {
 	channelRuntimeMeta.GET("/channel-runtime-meta", s.handleChannelRuntimeMeta)
 	channelRuntimeMeta.GET("/channel-runtime-meta/:channel_type/:channel_id", s.handleChannelRuntimeMetaDetail)
 	channelRuntimeMeta.GET("/messages", s.handleMessages)
+	channelRuntimeMeta.GET("/channels/:channel_type/:channel_id/migration", s.handleChannelMigration)
 
 	messageWrites := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		messageWrites.Use(s.requirePermission("cluster.channel", "w"))
 	}
 	messageWrites.POST("/messages/retention", s.handleAdvanceMessageRetention)
+	messageWrites.POST("/channels/:channel_type/:channel_id/leader/transfer", s.handleChannelLeaderTransfer)
+	messageWrites.POST("/channels/:channel_type/:channel_id/replicas/migrate", s.handleChannelReplicaMigrate)
+	messageWrites.POST("/channels/:channel_type/:channel_id/migration/:task_id/abort", s.handleChannelMigrationAbort)
 }
 
 func openCORSMiddleware() gin.HandlerFunc {
