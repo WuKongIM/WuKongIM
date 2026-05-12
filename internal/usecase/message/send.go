@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
@@ -28,7 +29,7 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 		return a.sendRequestScoped(ctx, cmd)
 	}
 
-	if cmd.ChannelType != frame.ChannelTypePerson && cmd.ChannelType != frame.ChannelTypeGroup {
+	if !isSupportedSendChannelType(cmd.ChannelType) {
 		return SendResult{Reason: frame.ReasonNotSupportChannelType}, nil
 	}
 
@@ -37,6 +38,12 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 
 	if cmd.ChannelType == frame.ChannelTypePerson {
 		channelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
+		if err != nil {
+			return SendResult{}, err
+		}
+		cmd.ChannelID = channelID
+	} else if cmd.ChannelType == frame.ChannelTypeAgent {
+		channelID, err := normalizeAgentSendChannel(cmd.FromUID, cmd.ChannelID)
 		if err != nil {
 			return SendResult{}, err
 		}
@@ -221,6 +228,34 @@ func commitModeOrDefault(mode channel.CommitMode) channel.CommitMode {
 		return channel.CommitModeQuorum
 	}
 	return mode
+}
+
+func isSupportedSendChannelType(channelType uint8) bool {
+	switch channelType {
+	case frame.ChannelTypePerson,
+		frame.ChannelTypeGroup,
+		frame.ChannelTypeCustomerService,
+		frame.ChannelTypeInfo,
+		frame.ChannelTypeVisitors,
+		frame.ChannelTypeAgent:
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeAgentSendChannel(senderUID, channelID string) (string, error) {
+	if senderUID == "" || channelID == "" {
+		return "", runtimechannelid.ErrInvalidAgentChannel
+	}
+	if !strings.Contains(channelID, "@") {
+		return runtimechannelid.EncodeAgentChannel(senderUID, channelID), nil
+	}
+	uid, agentUID, err := runtimechannelid.DecodeAgentChannel(channelID)
+	if err != nil {
+		return "", err
+	}
+	return runtimechannelid.EncodeAgentChannel(uid, agentUID), nil
 }
 
 func messageLogFields(channelID channel.ChannelID, uid string) []wklog.Field {

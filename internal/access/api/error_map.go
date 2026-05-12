@@ -24,7 +24,7 @@ func mapSendError(err error) (int, string, bool) {
 		return http.StatusConflict, "message seq exhausted", true
 	case errors.Is(err, channel.ErrStaleMeta), errors.Is(err, channel.ErrNotLeader):
 		return http.StatusServiceUnavailable, "retry required", true
-	case errors.Is(err, runtimechannelid.ErrInvalidPersonChannel):
+	case errors.Is(err, runtimechannelid.ErrInvalidPersonChannel), errors.Is(err, runtimechannelid.ErrInvalidAgentChannel):
 		return http.StatusBadRequest, "invalid channel id", true
 	case errors.Is(err, message.ErrRequestSubscribersRequireSyncOnce):
 		return http.StatusBadRequest, "request subscribers require sync_once", true

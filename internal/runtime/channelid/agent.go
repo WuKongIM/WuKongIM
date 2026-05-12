@@ -15,7 +15,7 @@ func EncodeAgentChannel(uid, agentUID string) string {
 
 // DecodeAgentChannel splits a legacy agent channel ID into user and agent UIDs.
 func DecodeAgentChannel(channelID string) (string, string, error) {
-	parts := strings.SplitN(channelID, "@", 2)
+	parts := strings.Split(channelID, "@")
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return "", "", ErrInvalidAgentChannel
 	}

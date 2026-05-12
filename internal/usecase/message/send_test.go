@@ -954,6 +954,172 @@ func TestSendSystemDeviceDoesNotBypassSenderSendBan(t *testing.T) {
 	require.Empty(t, cluster.sendRequests)
 }
 
+func TestSendAllowsInfoChannel(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 708, MessageSeq: 38}},
+		},
+	}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		MetaRefresher:   &fakeMetaRefresher{},
+		PermissionStore: newFakePermissionStore(),
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "info-1",
+		ChannelType: frame.ChannelTypeInfo,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(708), result.MessageID)
+	require.Equal(t, uint64(38), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Equal(t, channel.ChannelID{ID: "info-1", Type: frame.ChannelTypeInfo}, cluster.sendRequests[0].ChannelID)
+}
+
+func TestSendAllowsCustomerServiceChannel(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 709, MessageSeq: 39}},
+		},
+	}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		MetaRefresher:   &fakeMetaRefresher{},
+		PermissionStore: newFakePermissionStore(),
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "visitor-1",
+		ChannelType: frame.ChannelTypeCustomerService,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(709), result.MessageID)
+	require.Equal(t, uint64(39), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Equal(t, channel.ChannelID{ID: "visitor-1", Type: frame.ChannelTypeCustomerService}, cluster.sendRequests[0].ChannelID)
+}
+
+func TestSendAllowsAgentChannelParticipantAndNormalizesBareAgentID(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 710, MessageSeq: 40}},
+		},
+	}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		MetaRefresher:   &fakeMetaRefresher{},
+		PermissionStore: newFakePermissionStore(),
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "agent-a",
+		ChannelType: frame.ChannelTypeAgent,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(710), result.MessageID)
+	require.Equal(t, uint64(40), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Equal(t, channel.ChannelID{ID: "u1@agent-a", Type: frame.ChannelTypeAgent}, cluster.sendRequests[0].ChannelID)
+}
+
+func TestSendRejectsAgentChannelNonParticipant(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		PermissionStore: newFakePermissionStore(),
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u3",
+		ChannelID:   "u1@agent-a",
+		ChannelType: frame.ChannelTypeAgent,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonNotAllowSend, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+}
+
+func TestSendAllowsVisitorsSelfSender(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 711, MessageSeq: 41}},
+		},
+	}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		MetaRefresher:   &fakeMetaRefresher{},
+		PermissionStore: newFakePermissionStore(),
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "visitor-1",
+		ChannelID:   "visitor-1",
+		ChannelType: frame.ChannelTypeVisitors,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(711), result.MessageID)
+	require.Equal(t, uint64(41), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+}
+
+func TestSendVisitorsNonSelfUsesCustomerServicePermissionLists(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 712, MessageSeq: 42}},
+		},
+	}
+	permissions := newFakePermissionStore()
+	permissions.members[permissionKey("visitor-1", int64(frame.ChannelTypeCustomerService))] = map[string]bool{"cs1": true}
+	allowID := channelmembers.AllowlistChannelID(channelmembers.ChannelKey{
+		ChannelID:   "visitor-1",
+		ChannelType: frame.ChannelTypeCustomerService,
+	})
+	permissions.hasAny[permissionKey(allowID, int64(frame.ChannelTypeCustomerService))] = true
+	permissions.members[permissionKey(allowID, int64(frame.ChannelTypeCustomerService))] = map[string]bool{"cs1": true}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		MetaRefresher:   &fakeMetaRefresher{},
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "cs1",
+		ChannelID:   "visitor-1",
+		ChannelType: frame.ChannelTypeVisitors,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(712), result.MessageID)
+	require.Equal(t, uint64(42), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+}
+
 func TestSendPassesTraceIDToChannelAppend(t *testing.T) {
 	cluster := &fakeChannelCluster{}
 	app := New(Options{
