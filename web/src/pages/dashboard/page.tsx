@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
-import { ManagerApiError, getNodes, getOverview, getTasks } from "@/lib/manager-api"
+import { ManagerApiError, getChannelClusterSummary, getNodes, getOverview, getTasks } from "@/lib/manager-api"
 import type {
+  ManagerChannelClusterSummaryResponse,
   ManagerNode,
   ManagerNodesResponse,
   ManagerOverviewResponse,
@@ -21,6 +22,7 @@ type DashboardState = {
   overview: ManagerOverviewResponse | null
   tasks: ManagerTasksResponse | null
   nodes: ManagerNodesResponse | null
+  channelCluster: ManagerChannelClusterSummaryResponse | null
   loading: boolean
   refreshing: boolean
   error: Error | null
@@ -163,6 +165,7 @@ export function DashboardPage() {
     overview: null,
     tasks: null,
     nodes: null,
+    channelCluster: null,
     loading: true,
     refreshing: false,
     error: null,
@@ -177,13 +180,19 @@ export function DashboardPage() {
     }))
 
     try {
-      const [overview, tasks, nodes] = await Promise.all([getOverview(), getTasks(), getNodes()])
-      setState({ overview, tasks, nodes, loading: false, refreshing: false, error: null })
+      const [overview, tasks, nodes, channelCluster] = await Promise.all([
+        getOverview(),
+        getTasks(),
+        getNodes(),
+        getChannelClusterSummary(),
+      ])
+      setState({ overview, tasks, nodes, channelCluster, loading: false, refreshing: false, error: null })
     } catch (error) {
       setState({
         overview: null,
         tasks: null,
         nodes: null,
+        channelCluster: null,
         loading: false,
         refreshing: false,
         error: error instanceof Error ? error : new Error("dashboard request failed"),
@@ -263,7 +272,7 @@ export function DashboardPage() {
           title={intl.formatMessage({ id: "dashboard.title" })}
         />
       ) : null}
-      {!state.loading && !state.error && state.overview && state.tasks && controllerRaftSummary ? (
+      {!state.loading && !state.error && state.overview && state.tasks && state.channelCluster && controllerRaftSummary ? (
         <>
           <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <SectionCard
@@ -375,6 +384,46 @@ export function DashboardPage() {
                   </div>
                   <div className="mt-2 text-sm text-foreground">
                     {formatTimestamp(intl, state.overview.generated_at)}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 md:col-span-2">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                        {intl.formatMessage({ id: "dashboard.channelHealthTitle" })}
+                      </div>
+                      <div className="mt-2 text-sm text-foreground">
+                        {intl.formatMessage(
+                          { id: "dashboard.channelHealthTotal" },
+                          { count: state.channelCluster.total },
+                        )}
+                      </div>
+                    </div>
+                    <Button asChild size="sm" variant="outline">
+                      <Link aria-label={intl.formatMessage({ id: "dashboard.channelHealthOpen" })} to="/channel-cluster">
+                        {intl.formatMessage({ id: "common.inspect" })}
+                      </Link>
+                    </Button>
+                  </div>
+                  <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
+                    <div>
+                      {intl.formatMessage(
+                        { id: "dashboard.channelHealthHealthy" },
+                        { count: state.channelCluster.healthy },
+                      )}
+                    </div>
+                    <div>
+                      {intl.formatMessage(
+                        { id: "dashboard.channelHealthIsrInsufficient" },
+                        { count: state.channelCluster.isr_insufficient },
+                      )}
+                    </div>
+                    <div>
+                      {intl.formatMessage(
+                        { id: "dashboard.channelHealthNoLeader" },
+                        { count: state.channelCluster.no_leader },
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

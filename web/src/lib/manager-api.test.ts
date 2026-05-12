@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   configureManagerAuth,
+  getChannelClusterSummary,
+  getChannelClusterUnhealthy,
   getChannelRuntimeMeta,
   getChannelRuntimeMetaDetail,
   getConnection,
@@ -1018,6 +1020,50 @@ describe("manager api client", () => {
 
     await expect(getChannelRuntimeMeta({ channelId: "room", limit: 15 })).resolves.toEqual(listResponse)
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channel-runtime-meta?limit=15&channel_id=room")
+  })
+
+  it("fetches channel cluster summary from the manager endpoint", async () => {
+    const summaryResponse = {
+      total: 4,
+      healthy: 1,
+      isr_insufficient: 2,
+      no_leader: 1,
+      avg_replicas: 2,
+      avg_isr: 1.5,
+      leader_distribution: [
+        { node_id: 1, count: 3 },
+        { node_id: 2, count: 1 },
+      ],
+    }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(summaryResponse), { status: 200 }))
+
+    await expect(getChannelClusterSummary()).resolves.toEqual(summaryResponse)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channel-cluster/summary")
+  })
+
+  it("fetches unhealthy channel cluster rows with pagination query", async () => {
+    const unhealthyResponse = {
+      items: [{
+        channel_id: "room-1",
+        channel_type: 2,
+        slot_id: 9,
+        channel_epoch: 7,
+        leader_epoch: 3,
+        leader: 0,
+        replicas: [1, 2, 3],
+        isr: [2],
+        min_isr: 2,
+        max_message_seq: 42,
+        status: "active",
+        reasons: ["isr_insufficient", "no_leader"],
+      }],
+      has_more: true,
+      next_cursor: "cursor-2",
+    }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(unhealthyResponse), { status: 200 }))
+
+    await expect(getChannelClusterUnhealthy({ limit: 50, cursor: "cursor-1" })).resolves.toEqual(unhealthyResponse)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channel-cluster/unhealthy?limit=50&cursor=cursor-1")
   })
 
 

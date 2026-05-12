@@ -1,6 +1,7 @@
 import { getManagerApiBaseUrl } from "@/lib/env"
 import type {
   ChannelRuntimeMetaListParams,
+  ChannelClusterUnhealthyParams,
   ControllerLogListParams,
   ConnectionDetailParams,
   ConnectionListParams,
@@ -9,6 +10,8 @@ import type {
   DiagnosticsMessageParams,
   ManagerChannelRuntimeMetaDetailResponse,
   ManagerChannelRuntimeMetaListResponse,
+  ManagerChannelClusterSummaryResponse,
+  ManagerChannelClusterUnhealthyResponse,
   ManagerConnectionDetailResponse,
   ManagerControllerLogsResponse,
   ManagerControllerRaftCompactResponse,
@@ -144,6 +147,19 @@ function buildChannelRuntimeMetaPath(params?: ChannelRuntimeMetaListParams) {
 
   const query = search.toString()
   return query ? `/manager/channel-runtime-meta?${query}` : "/manager/channel-runtime-meta"
+}
+
+function buildChannelClusterUnhealthyPath(params?: ChannelClusterUnhealthyParams) {
+  const search = new URLSearchParams()
+  if (typeof params?.limit === "number") {
+    search.set("limit", String(params.limit))
+  }
+  if (params?.cursor) {
+    search.set("cursor", params.cursor)
+  }
+
+  const query = search.toString()
+  return query ? `/manager/channel-cluster/unhealthy?${query}` : "/manager/channel-cluster/unhealthy"
 }
 
 function buildConnectionListPath(params?: ConnectionListParams) {
@@ -491,6 +507,14 @@ export function getChannelRuntimeMetaDetail(channelType: number, channelId: stri
   return jsonManagerFetch<ManagerChannelRuntimeMetaDetailResponse>(
     `/manager/channel-runtime-meta/${channelType}/${encodeURIComponent(channelId)}`,
   )
+}
+
+export function getChannelClusterSummary() {
+  return jsonManagerFetch<ManagerChannelClusterSummaryResponse>("/manager/channel-cluster/summary")
+}
+
+export function getChannelClusterUnhealthy(params?: ChannelClusterUnhealthyParams) {
+  return jsonManagerFetch<ManagerChannelClusterUnhealthyResponse>(buildChannelClusterUnhealthyPath(params))
 }
 
 export function getNodeOnboardingCandidates() {
