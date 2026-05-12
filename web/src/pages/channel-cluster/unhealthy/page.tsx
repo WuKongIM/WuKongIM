@@ -8,8 +8,16 @@ import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
 import { Button } from "@/components/ui/button"
-import { ManagerApiError, getChannelClusterUnhealthy } from "@/lib/manager-api"
-import type { ManagerChannelClusterUnhealthyItem } from "@/lib/manager-api.types"
+import {
+  ManagerApiError,
+  getChannelClusterReplicas,
+  getChannelClusterUnhealthy,
+  repairChannelClusterLeader,
+} from "@/lib/manager-api"
+import type {
+  ManagerChannelClusterReplicaDetailResponse,
+  ManagerChannelClusterUnhealthyItem,
+} from "@/lib/manager-api.types"
 
 type ChannelClusterUnhealthyState = {
   items: ManagerChannelClusterUnhealthyItem[]
@@ -19,6 +27,23 @@ type ChannelClusterUnhealthyState = {
   refreshing: boolean
   loadingMore: boolean
   error: Error | null
+}
+
+type ReplicaDetailState = {
+  channel: ManagerChannelClusterUnhealthyItem | null
+  detail: ManagerChannelClusterReplicaDetailResponse | null
+  loading: boolean
+  error: Error | null
+}
+
+type RepairNotice = {
+  kind: "success" | "conflict" | "error"
+  message: string
+}
+
+type RepairState = {
+  loadingKey: string | null
+  notice: RepairNotice | null
 }
 
 function mapErrorKind(error: Error | null) {
@@ -40,6 +65,18 @@ function formatNodeList(nodeIds: number[]) {
 
 function channelInspectPath(channel: ManagerChannelClusterUnhealthyItem) {
   return `/channel-cluster/list?channel_id=${encodeURIComponent(channel.channel_id)}&channel_type=${channel.channel_type}`
+}
+
+function channelKey(channel: ManagerChannelClusterUnhealthyItem) {
+  return `${channel.channel_type}:${channel.channel_id}`
+}
+
+function canRepairLeader(channel: ManagerChannelClusterUnhealthyItem) {
+  return channel.reasons.includes("no_leader")
+}
+
+function formatUnknownNumber(value?: number | null) {
+  return typeof value === "number" ? String(value) : "-"
 }
 
 function reasonMessageId(reason: string) {
@@ -64,6 +101,16 @@ export function ChannelClusterUnhealthyPage() {
     refreshing: false,
     loadingMore: false,
     error: null,
+  })
+  const [detailState, setDetailState] = useState<ReplicaDetailState>({
+    channel: null,
+    detail: null,
+    loading: false,
+    error: null,
+  })
+  const [repairState, setRepairState] = useState<RepairState>({
+    loadingKey: null,
+    notice: null,
   })
 
   const loadFirstPage = useCallback(async (refreshing: boolean) => {
@@ -129,6 +176,69 @@ export function ChannelClusterUnhealthyPage() {
     }
   }, [state.nextCursor])
 
+  const loadReplicaDetail = useCallback(async (channel: ManagerChannelClusterUnhealthyItem) => {
+    setDetailState({
+      channel,
+      detail: null,
+      loading: true,
+      error: null,
+    })
+
+    try {
+      const detail = await getChannelClusterReplicas(channel.channel_type, channel.channel_id)
+      setDetailState({
+        channel,
+        detail,
+        loading: false,
+        error: null,
+      })
+    } catch (error) {
+      setDetailState({
+        channel,
+        detail: null,
+        loading: false,
+        error: error instanceof Error ? error : new Error("channel cluster replica detail request failed"),
+      })
+    }
+  }, [])
+
+  const repairLeader = useCallback(async (channel: ManagerChannelClusterUnhealthyItem) => {
+    const key = channelKey(channel)
+    setRepairState({ loadingKey: key, notice: null })
+
+    try {
+      const result = await repairChannelClusterLeader(channel.channel_type, channel.channel_id, { reason: "no_leader" })
+      setRepairState({
+        loadingKey: null,
+        notice: {
+          kind: "success",
+          message: intl.formatMessage(
+            {
+              id: result.changed
+                ? "channelCluster.unhealthy.repairSuccessChanged"
+                : "channelCluster.unhealthy.repairSuccessUnchanged",
+            },
+            { leader: result.channel.leader },
+          ),
+        },
+      })
+      await loadFirstPage(true)
+    } catch (error) {
+      const isConflict = error instanceof ManagerApiError && error.status === 409
+      setRepairState({
+        loadingKey: null,
+        notice: {
+          kind: isConflict ? "conflict" : "error",
+          message: intl.formatMessage({
+            id: isConflict
+              ? "channelCluster.unhealthy.repairConflict"
+              : "channelCluster.unhealthy.repairError",
+          }),
+        },
+      })
+    }
+  }, [intl, loadFirstPage])
+
   useEffect(() => {
     void loadFirstPage(false)
   }, [loadFirstPage])
@@ -163,6 +273,14 @@ export function ChannelClusterUnhealthyPage() {
           }}
           title={intl.formatMessage({ id: "channelCluster.unhealthy.title" })}
         />
+      ) : null}
+      {repairState.notice ? (
+        <div
+          className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground"
+          role="status"
+        >
+          {repairState.notice.message}
+        </div>
       ) : null}
       {!state.loading && !state.error ? (
         <SectionCard
@@ -223,17 +341,42 @@ export function ChannelClusterUnhealthyPage() {
                           </div>
                         </td>
                         <td className="px-3 py-3 text-sm text-foreground">
-                          <Button asChild size="sm" variant="outline">
-                            <Link
-                              aria-label={intl.formatMessage(
-                                { id: "channels.inspectChannel" },
-                                { id: channel.channel_id },
-                              )}
-                              to={channelInspectPath(channel)}
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              onClick={() => {
+                                void loadReplicaDetail(channel)
+                              }}
+                              size="sm"
+                              variant="outline"
                             >
-                              {intl.formatMessage({ id: "common.inspect" })}
-                            </Link>
-                          </Button>
+                              {intl.formatMessage({ id: "channelCluster.unhealthy.inspectReplicas" })}
+                            </Button>
+                            {canRepairLeader(channel) ? (
+                              <Button
+                                disabled={repairState.loadingKey === channelKey(channel)}
+                                onClick={() => {
+                                  void repairLeader(channel)
+                                }}
+                                size="sm"
+                                variant="outline"
+                              >
+                                {repairState.loadingKey === channelKey(channel)
+                                  ? intl.formatMessage({ id: "common.loading" })
+                                  : intl.formatMessage({ id: "channelCluster.unhealthy.repairLeader" })}
+                              </Button>
+                            ) : null}
+                            <Button asChild size="sm" variant="outline">
+                              <Link
+                                aria-label={intl.formatMessage(
+                                  { id: "channels.inspectChannel" },
+                                  { id: channel.channel_id },
+                                )}
+                                to={channelInspectPath(channel)}
+                              >
+                                {intl.formatMessage({ id: "common.inspect" })}
+                              </Link>
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -263,6 +406,75 @@ export function ChannelClusterUnhealthyPage() {
               title={intl.formatMessage({ id: "channelCluster.unhealthy.emptyTitle" })}
             />
           )}
+        </SectionCard>
+      ) : null}
+      {detailState.channel ? (
+        <SectionCard
+          description={`${detailState.channel.channel_id} / ${detailState.channel.channel_type}`}
+          title={intl.formatMessage({ id: "channelCluster.replicaDetail.title" })}
+        >
+          {detailState.loading ? (
+            <ResourceState kind="loading" title={intl.formatMessage({ id: "channelCluster.replicaDetail.title" })} />
+          ) : null}
+          {!detailState.loading && detailState.error ? (
+            <ResourceState
+              kind={mapErrorKind(detailState.error)}
+              onRetry={() => {
+                if (detailState.channel) {
+                  void loadReplicaDetail(detailState.channel)
+                }
+              }}
+              title={intl.formatMessage({ id: "channelCluster.replicaDetail.title" })}
+            />
+          ) : null}
+          {!detailState.loading && !detailState.error && detailState.detail ? (
+            <>
+              <div className="mb-3 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
+                {detailState.detail.runtime_reported
+                  ? intl.formatMessage({ id: "channelCluster.replicaDetail.runtimeReported" })
+                  : intl.formatMessage({ id: "channelCluster.replicaDetail.runtimeUnreported" })}
+                {typeof detailState.detail.commit_seq === "number"
+                  ? ` · ${intl.formatMessage({ id: "channelCluster.replicaDetail.commitSeq" })}: ${detailState.detail.commit_seq}`
+                  : ""}
+              </div>
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="w-full border-collapse">
+                  <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "channelCluster.table.node" })}</th>
+                      <th className="px-3 py-3">Role</th>
+                      <th className="px-3 py-3">ISR</th>
+                      <th className="px-3 py-3">Status</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "channelCluster.replicaDetail.commitSeq" })}</th>
+                      <th className="px-3 py-3">LEO</th>
+                      <th className="px-3 py-3">Checkpoint HW</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "channelCluster.replicaDetail.lag" })}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detailState.detail.replicas.map((replica) => (
+                      <tr className="border-t border-border" key={replica.node_id}>
+                        <td className="px-3 py-3 text-sm font-medium text-foreground">
+                          {intl.formatMessage({ id: "channelCluster.nodeValue" }, { id: replica.node_id })}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{replica.role}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{replica.in_isr ? "yes" : "no"}</td>
+                        <td className="px-3 py-3 text-sm text-foreground">
+                          {replica.reported
+                            ? intl.formatMessage({ id: "channelCluster.replicaDetail.reported" })
+                            : intl.formatMessage({ id: "channelCluster.replicaDetail.notReported" })}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatUnknownNumber(replica.commit_seq)}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatUnknownNumber(replica.leo)}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatUnknownNumber(replica.checkpoint_hw)}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatUnknownNumber(replica.lag)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : null}
         </SectionCard>
       ) : null}
     </PageContainer>

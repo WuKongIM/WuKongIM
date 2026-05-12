@@ -9,12 +9,16 @@ import { ManagerApiError } from "@/lib/manager-api"
 import { ChannelClusterUnhealthyPage } from "@/pages/channel-cluster/unhealthy/page"
 
 const getChannelClusterUnhealthyMock = vi.fn()
+const getChannelClusterReplicasMock = vi.fn()
+const repairChannelClusterLeaderMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
   return {
     ...actual,
     getChannelClusterUnhealthy: (...args: unknown[]) => getChannelClusterUnhealthyMock(...args),
+    getChannelClusterReplicas: (...args: unknown[]) => getChannelClusterReplicasMock(...args),
+    repairChannelClusterLeader: (...args: unknown[]) => repairChannelClusterLeaderMock(...args),
   }
 })
 
@@ -47,6 +51,8 @@ beforeEach(() => {
   localStorage.clear()
   resetLocale()
   getChannelClusterUnhealthyMock.mockReset()
+  getChannelClusterReplicasMock.mockReset()
+  repairChannelClusterLeaderMock.mockReset()
 })
 
 function LocationProbe() {
@@ -152,6 +158,98 @@ test("renders unavailable state when unhealthy channels cannot be loaded", async
   getChannelClusterUnhealthyMock.mockRejectedValueOnce(new ManagerApiError(503, "service_unavailable", "unavailable"))
 
   renderUnhealthyPage()
+
+  expect(await screen.findByText(/currently unavailable/i)).toBeInTheDocument()
+})
+
+
+test("inspects replica detail with reported and unknown values", async () => {
+  getChannelClusterUnhealthyMock.mockResolvedValueOnce({ items: [unhealthyRow], has_more: false })
+  getChannelClusterReplicasMock.mockResolvedValueOnce({
+    channel: { ...unhealthyRow, hash_slot: 123, features: 0, lease_until_ms: 0 },
+    runtime_reported: true,
+    commit_seq: 42,
+    min_available_seq: 1,
+    retention_through_seq: 0,
+    replicas: [
+      { node_id: 1, role: "leader", is_leader: true, in_isr: true, reported: true, commit_seq: 42, leo: null, checkpoint_hw: null, lag: 0 },
+      { node_id: 2, role: "follower", is_leader: false, in_isr: false, reported: false, commit_seq: null, leo: null, checkpoint_hw: null, lag: null },
+    ],
+  })
+
+  const user = userEvent.setup()
+  renderUnhealthyPage()
+
+  const row = await screen.findByRole("row", { name: /room-1/ })
+  await user.click(within(row).getByRole("button", { name: "Inspect replicas" }))
+
+  expect(getChannelClusterReplicasMock).toHaveBeenCalledWith(2, "room-1")
+  expect(await screen.findByText(/Runtime reported/)).toBeInTheDocument()
+  const leaderRow = screen.getByRole("row", { name: /Node 1/ })
+  expect(within(leaderRow).getByText("leader")).toBeInTheDocument()
+  expect(within(leaderRow).getByText("Reported")).toBeInTheDocument()
+  expect(within(leaderRow).getByText("42")).toBeInTheDocument()
+  expect(within(leaderRow).getByText("0")).toBeInTheDocument()
+  const followerRow = screen.getByRole("row", { name: /Node 2/ })
+  expect(within(followerRow).getByText("follower")).toBeInTheDocument()
+  expect(within(followerRow).getByText("Not reported")).toBeInTheDocument()
+  expect(within(followerRow).getAllByText("-").length).toBeGreaterThan(0)
+})
+
+test("shows repair leader only for no leader rows", async () => {
+  getChannelClusterUnhealthyMock.mockResolvedValueOnce({
+    items: [unhealthyRow, { ...secondUnhealthyRow, reasons: ["isr_insufficient"] }],
+    has_more: false,
+  })
+
+  renderUnhealthyPage()
+
+  const noLeaderRow = await screen.findByRole("row", { name: /room-1/ })
+  expect(within(noLeaderRow).getByRole("button", { name: "Repair leader" })).toBeInTheDocument()
+  const isrOnlyRow = screen.getByRole("row", { name: /room-2/ })
+  expect(within(isrOnlyRow).queryByRole("button", { name: "Repair leader" })).not.toBeInTheDocument()
+})
+
+test("repairs no leader rows and refreshes the first page", async () => {
+  getChannelClusterUnhealthyMock.mockResolvedValueOnce({ items: [unhealthyRow], has_more: false })
+  repairChannelClusterLeaderMock.mockResolvedValueOnce({
+    changed: true,
+    channel: { ...unhealthyRow, hash_slot: 123, features: 0, lease_until_ms: 0, leader: 2 },
+  })
+  getChannelClusterUnhealthyMock.mockResolvedValueOnce({ items: [secondUnhealthyRow], has_more: false })
+
+  const user = userEvent.setup()
+  renderUnhealthyPage()
+
+  await user.click(within(await screen.findByRole("row", { name: /room-1/ })).getByRole("button", { name: "Repair leader" }))
+
+  expect(repairChannelClusterLeaderMock).toHaveBeenCalledWith(2, "room-1", { reason: "no_leader" })
+  expect(await screen.findByText("Leader repaired to node 2." )).toBeInTheDocument()
+  expect(getChannelClusterUnhealthyMock).toHaveBeenNthCalledWith(2, {})
+  expect(await screen.findByText("room-2")).toBeInTheDocument()
+})
+
+test("keeps row visible when repair finds no safe candidate", async () => {
+  getChannelClusterUnhealthyMock.mockResolvedValueOnce({ items: [unhealthyRow], has_more: false })
+  repairChannelClusterLeaderMock.mockRejectedValueOnce(new ManagerApiError(409, "conflict", "no safe candidate"))
+
+  const user = userEvent.setup()
+  renderUnhealthyPage()
+
+  await user.click(within(await screen.findByRole("row", { name: /room-1/ })).getByRole("button", { name: "Repair leader" }))
+
+  expect(await screen.findByText("No safe leader candidate." )).toBeInTheDocument()
+  expect(screen.getByText("room-1")).toBeInTheDocument()
+})
+
+test("renders replica detail unavailable state", async () => {
+  getChannelClusterUnhealthyMock.mockResolvedValueOnce({ items: [unhealthyRow], has_more: false })
+  getChannelClusterReplicasMock.mockRejectedValueOnce(new ManagerApiError(503, "service_unavailable", "unavailable"))
+
+  const user = userEvent.setup()
+  renderUnhealthyPage()
+
+  await user.click(within(await screen.findByRole("row", { name: /room-1/ })).getByRole("button", { name: "Inspect replicas" }))
 
   expect(await screen.findByText(/currently unavailable/i)).toBeInTheDocument()
 })
