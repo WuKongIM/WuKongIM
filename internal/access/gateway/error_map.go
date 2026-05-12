@@ -23,7 +23,7 @@ func mapSendErrorReason(err error) (frame.ReasonCode, bool) {
 		return frame.ReasonMessageSeqExhausted, true
 	case errors.Is(err, channel.ErrStaleMeta), errors.Is(err, channel.ErrNotLeader):
 		return frame.ReasonNodeNotMatch, true
-	case errors.Is(err, runtimechannelid.ErrInvalidPersonChannel):
+	case errors.Is(err, runtimechannelid.ErrInvalidPersonChannel), errors.Is(err, runtimechannelid.ErrInvalidAgentChannel):
 		return frame.ReasonChannelIDError, true
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return frame.ReasonSystemError, true

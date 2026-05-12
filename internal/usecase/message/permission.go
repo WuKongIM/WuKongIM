@@ -30,6 +30,12 @@ func (a *App) checkSendPermission(ctx context.Context, cmd SendCommand) (frame.R
 		return a.checkPersonSendPermission(ctx, cmd)
 	case frame.ChannelTypeGroup:
 		return a.checkGroupSendPermission(ctx, cmd)
+	case frame.ChannelTypeInfo, frame.ChannelTypeCustomerService:
+		return frame.ReasonSuccess, nil
+	case frame.ChannelTypeAgent:
+		return a.checkAgentSendPermission(cmd)
+	case frame.ChannelTypeVisitors:
+		return a.checkVisitorsSendPermission(ctx, cmd)
 	default:
 		return frame.ReasonSuccess, nil
 	}
@@ -64,8 +70,12 @@ func (a *App) checkGroupSendPermission(ctx context.Context, cmd SendCommand) (fr
 		return frame.ReasonDisband, nil
 	}
 
-	key := channelmembers.ChannelKey{ChannelID: cmd.ChannelID, ChannelType: cmd.ChannelType}
-	denied, err := a.permissions.ContainsChannelSubscriber(ctx, channelmembers.DenylistChannelID(key), int64(cmd.ChannelType), cmd.FromUID)
+	return a.checkCommonMemberPermission(ctx, channelmembers.ChannelKey{ChannelID: cmd.ChannelID, ChannelType: cmd.ChannelType}, cmd.FromUID)
+}
+
+func (a *App) checkCommonMemberPermission(ctx context.Context, key channelmembers.ChannelKey, fromUID string) (frame.ReasonCode, error) {
+	channelType := int64(key.ChannelType)
+	denied, err := a.permissions.ContainsChannelSubscriber(ctx, channelmembers.DenylistChannelID(key), channelType, fromUID)
 	if err != nil {
 		return frame.ReasonSystemError, err
 	}
@@ -73,7 +83,7 @@ func (a *App) checkGroupSendPermission(ctx context.Context, cmd SendCommand) (fr
 		return frame.ReasonInBlacklist, nil
 	}
 
-	subscriber, err := a.permissions.ContainsChannelSubscriber(ctx, cmd.ChannelID, int64(cmd.ChannelType), cmd.FromUID)
+	subscriber, err := a.permissions.ContainsChannelSubscriber(ctx, key.ChannelID, channelType, fromUID)
 	if err != nil {
 		return frame.ReasonSystemError, err
 	}
@@ -82,14 +92,14 @@ func (a *App) checkGroupSendPermission(ctx context.Context, cmd SendCommand) (fr
 	}
 
 	allowID := channelmembers.AllowlistChannelID(key)
-	hasAllowlist, err := a.permissions.HasChannelSubscribers(ctx, allowID, int64(cmd.ChannelType))
+	hasAllowlist, err := a.permissions.HasChannelSubscribers(ctx, allowID, channelType)
 	if err != nil {
 		return frame.ReasonSystemError, err
 	}
 	if !hasAllowlist {
 		return frame.ReasonSuccess, nil
 	}
-	allowed, err := a.permissions.ContainsChannelSubscriber(ctx, allowID, int64(cmd.ChannelType), cmd.FromUID)
+	allowed, err := a.permissions.ContainsChannelSubscriber(ctx, allowID, channelType, fromUID)
 	if err != nil {
 		return frame.ReasonSystemError, err
 	}
@@ -97,6 +107,25 @@ func (a *App) checkGroupSendPermission(ctx context.Context, cmd SendCommand) (fr
 		return frame.ReasonNotInWhitelist, nil
 	}
 	return frame.ReasonSuccess, nil
+}
+
+func (a *App) checkAgentSendPermission(cmd SendCommand) (frame.ReasonCode, error) {
+	uid, agentUID, err := runtimechannelid.DecodeAgentChannel(cmd.ChannelID)
+	if err != nil {
+		return 0, err
+	}
+	if cmd.FromUID == uid || cmd.FromUID == agentUID {
+		return frame.ReasonSuccess, nil
+	}
+	return frame.ReasonNotAllowSend, nil
+}
+
+func (a *App) checkVisitorsSendPermission(ctx context.Context, cmd SendCommand) (frame.ReasonCode, error) {
+	if cmd.FromUID == cmd.ChannelID {
+		return frame.ReasonSuccess, nil
+	}
+	key := channelmembers.ChannelKey{ChannelID: cmd.ChannelID, ChannelType: frame.ChannelTypeCustomerService}
+	return a.checkCommonMemberPermission(ctx, key, cmd.FromUID)
 }
 
 func (a *App) checkPersonSendPermission(ctx context.Context, cmd SendCommand) (frame.ReasonCode, error) {

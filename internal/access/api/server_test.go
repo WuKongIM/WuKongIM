@@ -747,6 +747,12 @@ func TestSendMessageMapsSemanticErrorsToHTTPStatus(t *testing.T) {
 			body:   `{"error":"retry required"}`,
 		},
 		{
+			name:   "invalid agent channel",
+			err:    runtimechannelid.ErrInvalidAgentChannel,
+			status: http.StatusBadRequest,
+			body:   `{"error":"invalid channel id"}`,
+		},
+		{
 			name:   "request subscribers require sync_once",
 			err:    message.ErrRequestSubscribersRequireSyncOnce,
 			status: http.StatusBadRequest,

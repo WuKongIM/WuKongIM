@@ -663,6 +663,11 @@ func TestHandlerOnFrameSendMapsChannelclusterErrorsToSendack(t *testing.T) {
 			err:    channel.ErrNotLeader,
 			reason: frame.ReasonNodeNotMatch,
 		},
+		{
+			name:   "invalid agent channel",
+			err:    runtimechannelid.ErrInvalidAgentChannel,
+			reason: frame.ReasonChannelIDError,
+		},
 	}
 
 	for _, tt := range tests {

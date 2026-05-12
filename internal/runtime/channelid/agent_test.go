@@ -23,4 +23,7 @@ func TestDecodeAgentChannelRejectsInvalidShape(t *testing.T) {
 
 	_, _, err = DecodeAgentChannel("u1@")
 	require.ErrorIs(t, err, ErrInvalidAgentChannel)
+
+	_, _, err = DecodeAgentChannel("u1@agent-a@extra")
+	require.ErrorIs(t, err, ErrInvalidAgentChannel)
 }
