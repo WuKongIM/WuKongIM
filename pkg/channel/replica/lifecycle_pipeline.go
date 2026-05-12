@@ -79,10 +79,18 @@ func (r *replica) applyMetaCommand(cmd machineApplyMetaCommand) machineResult {
 	if r.state.Role == channel.ReplicaRoleTombstoned {
 		return machineResult{Err: channel.ErrTombstoned}
 	}
-	previousMeta := r.meta
-	if err := r.applyMetaLocked(cmd.Meta); err != nil {
+	normalized, err := normalizeMeta(cmd.Meta)
+	if err != nil {
 		return machineResult{Err: err}
 	}
+	if err := r.validateMetaLocked(normalized); err != nil {
+		return machineResult{Err: err}
+	}
+	if r.needsSameLeaderEpochBoundaryLocked(normalized) {
+		return r.prepareSameLeaderEpochBoundaryLocked(normalized)
+	}
+	previousMeta := r.meta
+	r.commitMetaLocked(normalized)
 	r.pendingLeaderEpochEffectID = 0
 	r.pendingReconcileEffectID = 0
 	r.clearRetentionEffectFencesLocked()
@@ -108,6 +116,48 @@ func (r *replica) applyMetaCommand(cmd machineApplyMetaCommand) machineResult {
 	}
 	r.publishStateLocked()
 	return machineResult{Effects: effects}
+}
+
+func (r *replica) needsSameLeaderEpochBoundaryLocked(normalized channel.Meta) bool {
+	if r.state.Role != channel.ReplicaRoleLeader {
+		return false
+	}
+	if r.state.Leader != r.localNode || normalized.Leader != r.localNode {
+		return false
+	}
+	if normalized.Epoch <= r.state.Epoch {
+		return false
+	}
+	return len(r.epochHistory) == 0 || r.epochHistory[len(r.epochHistory)-1].Epoch != normalized.Epoch
+}
+
+func (r *replica) prepareSameLeaderEpochBoundaryLocked(normalized channel.Meta) machineResult {
+	if r.pendingLeaderEpochEffectID != 0 || len(r.appendPending) != 0 || r.appendInFlightEffectID != 0 {
+		return machineResult{Err: channel.ErrNotReady}
+	}
+	if !r.now().Before(normalized.LeaseUntil) {
+		return machineResult{Err: channel.ErrLeaseExpired}
+	}
+	leo := r.state.LEO
+	point := channel.EpochPoint{Epoch: normalized.Epoch, StartOffset: leo}
+	if _, err := appendEpochPointInMemory(r.epochHistory, point); err != nil {
+		return machineResult{Err: err}
+	}
+
+	effectID := r.nextLoopEffectID()
+	commitReadyBeforeBoundary := r.state.CommitReady
+	r.pendingLeaderEpochEffectID = effectID
+	r.state.CommitReady = false
+	r.publishStateLocked()
+	return machineResult{Effects: []machineEffect{beginLeaderEpochEffect{
+		EffectID:                  effectID,
+		Meta:                      normalized,
+		RoleGeneration:            r.roleGeneration,
+		LEO:                       leo,
+		EpochPoint:                point,
+		RestoreCommitReady:        true,
+		CommitReadyBeforeBoundary: commitReadyBeforeBoundary,
+	}}}
 }
 
 func (r *replica) applyBecomeLeaderCommand(cmd machineBecomeLeaderCommand) machineResult {
@@ -235,6 +285,9 @@ func (r *replica) applyBeginLeaderEpochResultCommand(cmd machineBeginLeaderEpoch
 		return machineResult{Err: err}
 	}
 	r.epochHistory = nextHistory
+	if cmd.RestoreCommitReady {
+		r.state.CommitReady = cmd.CommitReadyBeforeBoundary
+	}
 	return r.finishBecomeLeaderLocked(cmd.Meta, cmd.LEO)
 }
 
@@ -261,12 +314,14 @@ func (r *replica) executeBeginLeaderEpochEffect(ctx context.Context, effect begi
 	}
 
 	result := r.submitLoopCommand(context.Background(), machineBeginLeaderEpochResultCommand{
-		EffectID:       effect.EffectID,
-		Meta:           effect.Meta,
-		RoleGeneration: effect.RoleGeneration,
-		LEO:            effect.LEO,
-		EpochPoint:     effect.EpochPoint,
-		Err:            fenceErr,
+		EffectID:                  effect.EffectID,
+		Meta:                      effect.Meta,
+		RoleGeneration:            effect.RoleGeneration,
+		LEO:                       effect.LEO,
+		EpochPoint:                effect.EpochPoint,
+		RestoreCommitReady:        effect.RestoreCommitReady,
+		CommitReadyBeforeBoundary: effect.CommitReadyBeforeBoundary,
+		Err:                       fenceErr,
 	})
 	if result.Err != nil {
 		return result.Err

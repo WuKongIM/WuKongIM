@@ -632,6 +632,68 @@ func TestAppendWaitsUntilMinISRTwoReplicasAcknowledge(t *testing.T) {
 	require.Equal(t, uint64(1), got.result.NextCommitHW)
 }
 
+func TestLearnerInReplicasReceivesReplicationButNotHWQuorum(t *testing.T) {
+	meta := activeMetaWithMinISR(7, 1, 3)
+	meta.Replicas = []channel.NodeID{1, 2, 3, 4}
+	meta.ISR = []channel.NodeID{1, 2, 3}
+
+	env := newThreeReplicaClusterWithMeta(t, meta)
+	learner := newFollowerEnvWithMeta(t, 4, meta)
+	done := make(chan appendTestResult, 1)
+
+	go func() {
+		res, err := env.leader.Append(context.Background(), []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
+		done <- appendTestResult{result: res, err: err}
+	}()
+	waitForLogAppend(t, env.leader.log.(*fakeLogStore), 1)
+	waitForLeaderLEO(t, env.leader, 1)
+
+	env.replicateOnce(t, learner)
+	require.Equal(t, uint64(1), learner.Status().LEO, "learner should receive replicated records")
+	require.Equal(t, uint64(0), env.leader.Status().HW, "learner progress must not advance ISR quorum HW")
+	select {
+	case got := <-done:
+		require.NoError(t, got.err)
+		t.Fatal("append returned after learner ack but before ISR quorum")
+	default:
+	}
+
+	env.replicateOnce(t, env.follower2)
+	env.replicateOnce(t, env.follower3)
+	got := receiveAppendResult(t, done, "append did not return after ISR quorum was satisfied")
+	require.NoError(t, got.err)
+	require.Equal(t, uint64(1), got.result.NextCommitHW)
+}
+
+func TestAddLearnerDoesNotReduceWriteAvailability(t *testing.T) {
+	initial := activeMetaWithMinISR(7, 1, 2)
+	env := newThreeReplicaClusterWithMeta(t, initial)
+	withLearner := initial
+	withLearner.Replicas = []channel.NodeID{1, 2, 3, 4}
+
+	require.NoError(t, env.leader.ApplyMeta(withLearner))
+	done := make(chan appendTestResult, 1)
+	go func() {
+		res, err := env.leader.Append(context.Background(), []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
+		done <- appendTestResult{result: res, err: err}
+	}()
+	waitForLogAppend(t, env.leader.log.(*fakeLogStore), 1)
+	waitForLeaderLEO(t, env.leader, 1)
+
+	select {
+	case got := <-done:
+		require.NoError(t, got.err)
+		t.Fatal("append returned before an ISR follower acknowledged")
+	default:
+	}
+
+	env.replicateOnce(t, env.follower2)
+	got := receiveAppendResult(t, done, "append did not return after unchanged ISR quorum was satisfied")
+	require.NoError(t, got.err)
+	require.Equal(t, uint64(1), got.result.NextCommitHW)
+	require.Equal(t, uint64(1), env.leader.Status().HW)
+}
+
 type appendTestResult struct {
 	result channel.CommitResult
 	err    error
