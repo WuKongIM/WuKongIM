@@ -204,6 +204,68 @@ func TestProgressLoopAppendCommitPublishesLocalProgress(t *testing.T) {
 	}
 }
 
+func TestProgressLoopPublishesDurableAppendAfterSameLeaderFenceMeta(t *testing.T) {
+	r := newLeaderReplica(t)
+	st := r.Status()
+	waiter := &appendWaiter{ch: make(chan appendCompletion, 1)}
+	req := &appendRequest{
+		requestID:  1,
+		ctx:        channel.WithCommitMode(context.Background(), channel.CommitModeLocal),
+		batch:      []channel.Record{{Payload: []byte("a"), SizeBytes: 1}},
+		commitMode: channel.CommitModeLocal,
+		waiter:     waiter,
+		stage:      appendRequestDurable,
+	}
+	waiter.request = req
+	r.mu.Lock()
+	oldRoleGeneration := r.roleGeneration
+	r.appendRequests = map[uint64]*appendRequest{req.requestID: req}
+	r.appendInFlightIDs = []uint64{req.requestID}
+	r.appendInFlightEffectID = 10
+	r.mu.Unlock()
+
+	fenced := activeMetaWithMinISR(st.Epoch, st.Leader, 1)
+	fenced.LeaderEpoch = r.meta.LeaderEpoch
+	fenced.WriteFence = channel.WriteFence{
+		Token:   "task-after-durable",
+		Version: 1,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	require.NoError(t, r.ApplyMeta(fenced))
+
+	result := r.applyLoopEvent(machineLeaderAppendCommittedEvent{
+		EffectID:       10,
+		ChannelKey:     st.ChannelKey,
+		Epoch:          st.Epoch,
+		LeaderEpoch:    fenced.LeaderEpoch,
+		RoleGeneration: oldRoleGeneration,
+		RequestIDs:     []uint64{req.requestID},
+		BaseOffset:     0,
+		DoneAt:         time.Now(),
+	})
+	require.NoError(t, result.Err)
+	require.Equal(t, uint64(1), r.Status().LEO)
+	select {
+	case completion := <-waiter.ch:
+		require.NoError(t, completion.err)
+		require.Equal(t, uint64(0), completion.result.BaseOffset)
+	default:
+		t.Fatal("local append waiter was not completed")
+	}
+
+	drain, err := r.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+		ChannelKey:           fenced.Key,
+		WriteFenceToken:      "task-after-durable",
+		WriteFenceVersion:    1,
+		ExpectedChannelEpoch: st.Epoch,
+		ExpectedLeaderEpoch:  fenced.LeaderEpoch,
+		ExpectedLeader:       st.Leader,
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), drain.LEO)
+}
+
 func TestProgressLoopStaleAppendCommitAfterCloseDoesNotPublishProgress(t *testing.T) {
 	r := newLeaderReplica(t)
 	st := r.Status()

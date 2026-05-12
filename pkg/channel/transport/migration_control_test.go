@@ -106,6 +106,10 @@ func TestMigrationControlRejectsDrainOnNonLeaderOrFenceMismatch(t *testing.T) {
 func TestMigrationControlClientNormalizesRemoteDrainErrors(t *testing.T) {
 	err := normalizeMigrationControlError(fmt.Errorf("remote error: %s", channel.ErrStaleMeta))
 	require.ErrorIs(t, err, channel.ErrStaleMeta)
+	err = normalizeMigrationControlError(fmt.Errorf("remote error: %s", channel.ErrLeaseExpired))
+	require.ErrorIs(t, err, channel.ErrLeaseExpired)
+	err = normalizeMigrationControlError(fmt.Errorf("remote error: %s", channel.ErrChannelNotFound))
+	require.ErrorIs(t, err, channel.ErrChannelNotFound)
 }
 
 func mustEncodeFenceAndDrainRequest(t *testing.T, req channel.FenceAndDrainRequest) []byte {

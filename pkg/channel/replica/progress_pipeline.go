@@ -252,15 +252,17 @@ func (r *replica) applyLeaderAppendCommittedEvent(ev machineLeaderAppendCommitte
 		r.mu.Unlock()
 		return machineResult{}
 	}
-	if ev.ChannelKey != r.state.ChannelKey || ev.Epoch != r.state.Epoch ||
-		ev.LeaderEpoch != r.meta.LeaderEpoch || ev.RoleGeneration != r.roleGeneration {
+	if !r.canPublishDurableAppendLocked(ev) {
 		r.failDurableAppendRequestsLocked(requests, channel.ErrNotLeader)
 		r.maybeFlushAppendLocked()
 		r.mu.Unlock()
 		return machineResult{}
 	}
-	if err := r.appendableLocked(); err != nil {
-		err = appendFailureForState(err)
+	if !r.now().Before(r.meta.LeaseUntil) {
+		err := appendFailureForState(r.appendableLocked())
+		if err == nil {
+			err = channel.ErrLeaseExpired
+		}
 		r.failDurableAppendRequestsLocked(requests, err)
 		r.maybeFlushAppendLocked()
 		r.mu.Unlock()
@@ -361,6 +363,28 @@ func (r *replica) applyLeaderAppendCommittedEvent(ev machineLeaderAppendCommitte
 	r.maybeFlushAppendLocked()
 	r.mu.Unlock()
 	return machineResult{Err: outcome.err}
+}
+
+// canPublishDurableAppendLocked accepts already-synced appends after same-leader fence meta changes.
+func (r *replica) canPublishDurableAppendLocked(ev machineLeaderAppendCommittedEvent) bool {
+	if r.closed || r.state.Role == channel.ReplicaRoleTombstoned {
+		return false
+	}
+	if r.state.Role != channel.ReplicaRoleLeader && r.state.Role != channel.ReplicaRoleFencedLeader {
+		return false
+	}
+	if r.state.Leader != r.localNode {
+		return false
+	}
+	if ev.ChannelKey != r.state.ChannelKey ||
+		ev.Epoch != r.state.Epoch ||
+		ev.LeaderEpoch != r.meta.LeaderEpoch {
+		return false
+	}
+	if ev.RoleGeneration == r.roleGeneration {
+		return true
+	}
+	return r.meta.WriteFence.BlocksAppend()
 }
 
 func (r *replica) takeAppendInFlightResultLocked(ev machineLeaderAppendCommittedEvent) ([]*appendRequest, bool, error) {
