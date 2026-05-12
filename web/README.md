@@ -26,14 +26,15 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 | `/dashboard` | `GET /manager/overview`, `GET /manager/tasks`, `GET /manager/nodes`, `GET /manager/channel-cluster/summary` | Implemented |
 | `/channel-cluster` | `GET /manager/channel-cluster/summary` | Implemented |
 | `/channel-cluster/list` | `GET /manager/channel-runtime-meta`, `GET /manager/channel-runtime-meta/:type/:id` | Implemented |
-| `/channel-cluster/unhealthy` | `GET /manager/channel-cluster/unhealthy` | Implemented |
+| `/channel-cluster/unhealthy` | `GET /manager/channel-cluster/unhealthy`, `GET /manager/channel-cluster/:type/:id/replicas`, `POST /manager/channel-cluster/:type/:id/repair` | Implemented |
 | `/nodes`, `/slots`, `/onboarding`, `/controller` | Existing cluster manager endpoints | Implemented |
 | `/messages`, `/diagnostics`, `/network`, `/connections`, `/slot-logs` | Existing diagnostics and message endpoints | Implemented |
 | `/users`, `/channels-biz`, `/system-users` | Requires manager-scoped business APIs | Placeholder |
 | `/monitor`, `/settings/permissions`, `/settings/webhooks`, `/topology` | Requires follow-up read/write API design | Placeholder |
 
-## Channel Cluster P0 Notes
+## Channel Cluster Notes
 
 - P0 read path is implemented for summary, unhealthy pagination, and dashboard health.
-- Channel repair, explicit leader transfer, leader drain, and per-replica lag are intentionally not shown as active actions yet.
-- Those operations need a manager-safe runtime write/read port before UI buttons or API wrappers are added.
+- P0.5 safe operations are implemented for replica inspection and `no_leader` repair.
+- Replica detail only displays proven runtime values; unknown follower commit/lag values stay `-`.
+- Explicit target leader transfer and batch leader drain remain hidden until safe runtime support exists.
