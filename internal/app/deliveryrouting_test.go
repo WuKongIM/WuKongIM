@@ -828,6 +828,40 @@ func TestLocalDeliveryResolverUsesMessageScopedSubscribers(t *testing.T) {
 	}, routes)
 }
 
+func TestLocalDeliveryResolverRoutesNonDurableCommandGroupToRemoteSessions(t *testing.T) {
+	store := &resolverSnapshotStore{
+		uids: []string{"u-local", "u-remote"},
+	}
+	resolver := localDeliveryResolver{
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{Store: store}),
+		authority: &recordingAuthoritative{batches: map[string][]presence.Route{
+			"u-local":  {{UID: "u-local", NodeID: 1, BootID: 11, SessionID: 101}},
+			"u-remote": {{UID: "u-remote", NodeID: 2, BootID: 22, SessionID: 202}},
+		}},
+		pageSize: 8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   channelid.ToCommandChannel("g1"),
+		ChannelType: frame.ChannelTypeGroup,
+	}, deliveryruntime.CommittedEnvelope{Message: channel.Message{
+		ChannelID:   channelid.ToCommandChannel("g1"),
+		ChannelType: frame.ChannelTypeGroup,
+		Framer:      frame.Framer{NoPersist: true, SyncOnce: true},
+		MessageID:   950,
+		MessageSeq:  0,
+	}})
+	require.NoError(t, err)
+
+	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Equal(t, []deliveryruntime.RouteKey{
+		{UID: "u-local", NodeID: 1, BootID: 11, SessionID: 101},
+		{UID: "u-remote", NodeID: 2, BootID: 22, SessionID: 202},
+	}, routes)
+}
+
 func TestDeliveryRoutingUsesTagPartition(t *testing.T) {
 	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{
 		LocalNodeID: 1,
@@ -1186,6 +1220,24 @@ func TestBuildRealtimeRecvPacketStripsCommandSuffixFromClientChannelView(t *test
 		require.True(t, packet.Framer.SyncOnce)
 		require.True(t, packet.Framer.NoPersist)
 	})
+}
+
+func TestBuildRealtimeRecvPacketStripsCommandSuffixForNonDurableCommandGroup(t *testing.T) {
+	packet := buildRealtimeRecvPacket(channel.Message{
+		MessageID:   950,
+		MessageSeq:  0,
+		Framer:      frame.Framer{NoPersist: true, SyncOnce: true},
+		ChannelID:   channelid.ToCommandChannel("g1"),
+		ChannelType: frame.ChannelTypeGroup,
+		FromUID:     "u1",
+		Payload:     []byte("online cmd"),
+	}, "")
+
+	require.Equal(t, "g1", packet.ChannelID)
+	require.Equal(t, frame.ChannelTypeGroup, packet.ChannelType)
+	require.True(t, packet.Framer.NoPersist)
+	require.True(t, packet.Framer.SyncOnce)
+	require.Zero(t, packet.MessageSeq)
 }
 
 func TestLocalDeliveryPushBuildsPersonChannelViewPerRouteUID(t *testing.T) {
