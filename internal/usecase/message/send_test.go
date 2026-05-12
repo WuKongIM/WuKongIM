@@ -889,6 +889,71 @@ func TestSendSystemUIDBypassesPermissionChecks(t *testing.T) {
 	require.Len(t, cluster.sendRequests, 1)
 }
 
+func TestSendSystemDeviceBypassesChannelPermissionChecks(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 707, MessageSeq: 37}},
+		},
+	}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
+		ChannelID:   "g1",
+		ChannelType: int64(frame.ChannelTypeGroup),
+		Disband:     1,
+	}
+	denyID := channelmembers.DenylistChannelID(channelmembers.ChannelKey{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup})
+	permissions.members[permissionKey(denyID, int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		MetaRefresher:   &fakeMetaRefresher{},
+		PermissionStore: permissions,
+		SystemDeviceID:  "____device",
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		DeviceID:    "____device",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(707), result.MessageID)
+	require.Equal(t, uint64(37), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+}
+
+func TestSendSystemDeviceDoesNotBypassSenderSendBan(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("u1", int64(frame.ChannelTypePerson))] = metadb.Channel{
+		ChannelID:   "u1",
+		ChannelType: int64(frame.ChannelTypePerson),
+		SendBan:     1,
+	}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		PermissionStore: permissions,
+		SystemDeviceID:  "____device",
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		DeviceID:    "____device",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSendBan, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+}
+
 func TestSendPassesTraceIDToChannelAppend(t *testing.T) {
 	cluster := &fakeChannelCluster{}
 	app := New(Options{
