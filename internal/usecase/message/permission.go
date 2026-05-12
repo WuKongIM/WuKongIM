@@ -105,6 +105,9 @@ func (a *App) checkPersonSendPermission(ctx context.Context, cmd SendCommand) (f
 	if cmd.FromUID == right {
 		receiver = left
 	}
+	if a.systemUIDs != nil && a.systemUIDs.IsSystemUID(receiver) {
+		return frame.ReasonSuccess, nil
+	}
 	key := channelmembers.ChannelKey{ChannelID: receiver, ChannelType: frame.ChannelTypePerson}
 	denied, err := a.permissions.ContainsChannelSubscriber(ctx, channelmembers.DenylistChannelID(key), int64(frame.ChannelTypePerson), cmd.FromUID)
 	if err != nil {
@@ -112,6 +115,16 @@ func (a *App) checkPersonSendPermission(ctx context.Context, cmd SendCommand) (f
 	}
 	if denied {
 		return frame.ReasonInBlacklist, nil
+	}
+	if !a.personWhitelistEnabled {
+		return frame.ReasonSuccess, nil
+	}
+	allowed, err := a.permissions.ContainsChannelSubscriber(ctx, channelmembers.AllowlistChannelID(key), int64(frame.ChannelTypePerson), cmd.FromUID)
+	if err != nil {
+		return frame.ReasonSystemError, err
+	}
+	if !allowed {
+		return frame.ReasonNotInWhitelist, nil
 	}
 	return frame.ReasonSuccess, nil
 }

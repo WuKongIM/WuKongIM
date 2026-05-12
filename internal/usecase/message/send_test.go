@@ -567,6 +567,127 @@ func TestSendAllowsPersonSenderWhenReceiverDenylistMisses(t *testing.T) {
 	require.Len(t, cluster.sendRequests, 1)
 }
 
+func TestSendAllowsPersonSenderWhenPersonWhitelistDisabledByDefault(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 704, MessageSeq: 34}},
+		},
+	}
+	permissions := newFakePermissionStore()
+	allowID := channelmembers.AllowlistChannelID(channelmembers.ChannelKey{ChannelID: "u2", ChannelType: frame.ChannelTypePerson})
+	permissions.hasAny[permissionKey(allowID, int64(frame.ChannelTypePerson))] = true
+	permissions.members[permissionKey(allowID, int64(frame.ChannelTypePerson))] = map[string]bool{"u3": true}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		MetaRefresher:   &fakeMetaRefresher{},
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(704), result.MessageID)
+	require.Equal(t, uint64(34), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+}
+
+func TestSendRejectsPersonSenderNotInReceiverAllowlistWhenPersonWhitelistEnabled(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	permissions := newFakePermissionStore()
+	allowID := channelmembers.AllowlistChannelID(channelmembers.ChannelKey{ChannelID: "u2", ChannelType: frame.ChannelTypePerson})
+	permissions.hasAny[permissionKey(allowID, int64(frame.ChannelTypePerson))] = true
+	permissions.members[permissionKey(allowID, int64(frame.ChannelTypePerson))] = map[string]bool{"u3": true}
+	app := New(Options{
+		Now:                    fixedNowFn,
+		Cluster:                cluster,
+		MetaRefresher:          &fakeMetaRefresher{},
+		PermissionStore:        permissions,
+		PersonWhitelistEnabled: true,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonNotInWhitelist, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+}
+
+func TestSendAllowsPersonSenderInReceiverAllowlistWhenPersonWhitelistEnabled(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 705, MessageSeq: 35}},
+		},
+	}
+	permissions := newFakePermissionStore()
+	allowID := channelmembers.AllowlistChannelID(channelmembers.ChannelKey{ChannelID: "u2", ChannelType: frame.ChannelTypePerson})
+	permissions.hasAny[permissionKey(allowID, int64(frame.ChannelTypePerson))] = true
+	permissions.members[permissionKey(allowID, int64(frame.ChannelTypePerson))] = map[string]bool{"u1": true}
+	app := New(Options{
+		Now:                    fixedNowFn,
+		Cluster:                cluster,
+		MetaRefresher:          &fakeMetaRefresher{},
+		PermissionStore:        permissions,
+		PersonWhitelistEnabled: true,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(705), result.MessageID)
+	require.Equal(t, uint64(35), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+}
+
+func TestSendAllowsPersonWhenReceiverIsSystemUID(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 706, MessageSeq: 36}},
+		},
+	}
+	permissions := newFakePermissionStore()
+	denyID := channelmembers.DenylistChannelID(channelmembers.ChannelKey{ChannelID: "sys", ChannelType: frame.ChannelTypePerson})
+	permissions.members[permissionKey(denyID, int64(frame.ChannelTypePerson))] = map[string]bool{"u1": true}
+	app := New(Options{
+		Now:                    fixedNowFn,
+		Cluster:                cluster,
+		MetaRefresher:          &fakeMetaRefresher{},
+		PermissionStore:        permissions,
+		SystemUIDs:             fakeSystemUIDChecker{"sys": true},
+		PersonWhitelistEnabled: true,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "sys",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(706), result.MessageID)
+	require.Equal(t, uint64(36), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+}
+
 func TestSendSyncOncePlainDurablePersonStillCanonicalizesAndAppendsOnce(t *testing.T) {
 	cluster := &fakeChannelCluster{
 		sendReplies: []fakeChannelClusterSendReply{
