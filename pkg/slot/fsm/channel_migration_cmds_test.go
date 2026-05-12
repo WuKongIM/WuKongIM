@@ -39,6 +39,17 @@ func TestChannelMigrationCommandCodecRoundTrip(t *testing.T) {
 			want: &createChannelMigrationTaskCmd{task: fsmTestChannelMigrationTask("task-create", "channel-create")},
 		},
 		{
+			name: "create_with_runtime_guard",
+			data: EncodeCreateChannelMigrationTaskWithRuntimeGuardCommand(metadb.ChannelMigrationTaskCreate{
+				Task:         fsmTestChannelMigrationTask("task-create-guard", "channel-create-guard"),
+				RuntimeGuard: fsmTestRuntimeGuard(fsmTestRuntimeMeta("channel-create-guard", 1)),
+			}),
+			want: &createChannelMigrationTaskWithRuntimeGuardCmd{req: metadb.ChannelMigrationTaskCreate{
+				Task:         fsmTestChannelMigrationTask("task-create-guard", "channel-create-guard"),
+				RuntimeGuard: fsmTestRuntimeGuard(fsmTestRuntimeMeta("channel-create-guard", 1)),
+			}},
+		},
+		{
 			name: "claim",
 			data: EncodeClaimChannelMigrationTaskCommand(fsmTestChannelMigrationClaim(task, 2, 1750000006000, 1750000002000)),
 			want: &claimChannelMigrationTaskCmd{req: fsmTestChannelMigrationClaim(task, 2, 1750000006000, 1750000002000)},
@@ -206,6 +217,34 @@ func TestStateMachineChannelApplyBatchRuntimeMetaCreateThenAddLearner(t *testing
 	}
 	if gotMeta.ChannelEpoch != meta.ChannelEpoch+1 || !reflect.DeepEqual(gotMeta.Replicas, []uint64{1, 2, 3}) {
 		t.Fatalf("meta after same-batch add learner = %#v", gotMeta)
+	}
+}
+
+func TestStateMachineCreateChannelMigrationTaskWithRuntimeGuardRejectsStaleMeta(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+	task := fsmTestChannelMigrationTask("task-create-stale-runtime-guard", "channel-create-stale-runtime-guard")
+	meta := fsmTestRuntimeMeta(task.ChannelID, task.ChannelType)
+	fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
+	changed := meta
+	changed.LeaderEpoch++
+	fsmApplyOK(t, ctx, sm, 2, EncodeUpsertChannelRuntimeMetaCommand(changed))
+
+	result, err := sm.Apply(ctx, multiraft.Command{
+		SlotID: 11,
+		Index:  3,
+		Term:   1,
+		Data: EncodeCreateChannelMigrationTaskWithRuntimeGuardCommand(metadb.ChannelMigrationTaskCreate{
+			Task:         task,
+			RuntimeGuard: fsmTestRuntimeGuard(meta),
+		}),
+	})
+	if err != nil {
+		t.Fatalf("Apply(create with runtime guard) error = %v", err)
+	}
+	if got := string(result); got != ApplyResultStaleMeta {
+		t.Fatalf("create with stale runtime guard result = %q, want %q", got, ApplyResultStaleMeta)
 	}
 }
 

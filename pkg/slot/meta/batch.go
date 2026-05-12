@@ -246,6 +246,80 @@ func (b *WriteBatch) CreateChannelMigrationTask(hashSlot uint16, task ChannelMig
 	return nil
 }
 
+// CreateChannelMigrationTaskWithRuntimeGuard stages a create-only migration
+// task write fenced to the observed channel runtime metadata.
+func (b *WriteBatch) CreateChannelMigrationTaskWithRuntimeGuard(hashSlot uint16, req ChannelMigrationTaskCreate) error {
+	if err := validateHashSlot(hashSlot); err != nil {
+		return err
+	}
+	if err := validateChannelMigrationTaskCreate(req); err != nil {
+		return err
+	}
+
+	primaryKey := encodeChannelMigrationTaskPrimaryKey(hashSlot, req.Task.ChannelID, req.Task.ChannelType, req.Task.TaskID, channelMigrationTaskPrimaryFamilyID)
+	existing, exists, err := b.loadChannelMigrationTask(hashSlot, primaryKey, req.Task.ChannelID, req.Task.ChannelType, req.Task.TaskID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		if existing == req.Task {
+			return nil
+		}
+		return ErrAlreadyExists
+	}
+
+	metaKey := encodeChannelRuntimeMetaPrimaryKey(hashSlot, req.RuntimeGuard.ChannelID, req.RuntimeGuard.ChannelType, channelRuntimeMetaPrimaryFamilyID)
+	runtimeMetaWritten := b.isChannelRuntimeMetaWritten(hashSlot, req.RuntimeGuard.ChannelID, req.RuntimeGuard.ChannelType)
+	meta, exists, err := b.loadChannelRuntimeMeta(hashSlot, metaKey, req.RuntimeGuard.ChannelID, req.RuntimeGuard.ChannelType)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrNotFound
+	}
+	if !req.RuntimeGuard.matches(meta) {
+		return ErrStaleMeta
+	}
+	commitGuard := req.RuntimeGuard
+	if runtimeMetaWritten {
+		preBatchMeta, preBatchExists, err := b.loadChannelRuntimeMetaFromDBLocked(metaKey, req.RuntimeGuard.ChannelID, req.RuntimeGuard.ChannelType)
+		if err != nil {
+			return err
+		}
+		if !preBatchExists {
+			return ErrNotFound
+		}
+		commitGuard = channelMigrationRuntimeGuardFromMeta(preBatchMeta)
+	}
+	b.rememberChannelMigrationRuntimeGuard(metaKey, commitGuard, meta)
+	return b.CreateChannelMigrationTask(hashSlot, req.Task)
+}
+
+func validateChannelMigrationTaskCreate(req ChannelMigrationTaskCreate) error {
+	if err := validateChannelMigrationTask(req.Task); err != nil {
+		return err
+	}
+	if err := validateChannelMigrationRuntimeGuard(req.RuntimeGuard); err != nil {
+		return err
+	}
+	if req.Task.ChannelID != req.RuntimeGuard.ChannelID || req.Task.ChannelType != req.RuntimeGuard.ChannelType {
+		return ErrInvalidArgument
+	}
+	return nil
+}
+
+func channelMigrationRuntimeGuardFromMeta(meta ChannelRuntimeMeta) ChannelMigrationRuntimeGuard {
+	return ChannelMigrationRuntimeGuard{
+		ChannelID:            meta.ChannelID,
+		ChannelType:          meta.ChannelType,
+		ExpectedChannelEpoch: meta.ChannelEpoch,
+		ExpectedLeaderEpoch:  meta.LeaderEpoch,
+		ExpectedLeader:       meta.Leader,
+		ExpectedFenceToken:   meta.WriteFenceToken,
+		ExpectedFenceVersion: meta.WriteFenceVersion,
+	}
+}
+
 // ClaimChannelMigrationTask stages a compare-and-set owner claim or renewal.
 func (b *WriteBatch) ClaimChannelMigrationTask(hashSlot uint16, req ChannelMigrationTaskClaim) error {
 	if err := validateHashSlot(hashSlot); err != nil {

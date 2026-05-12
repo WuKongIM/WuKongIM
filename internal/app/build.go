@@ -609,6 +609,7 @@ func build(cfg Config) (_ *App, err error) {
 				remote:      app.nodeClient,
 			},
 			ChannelRuntimeMeta: app.store,
+			ChannelMigration:   app.store,
 			Network:            app.networkObservability,
 			MessageRetention:   managerRetention,
 			Messages: managerMessageReader{

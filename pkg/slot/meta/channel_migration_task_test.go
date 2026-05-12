@@ -127,6 +127,100 @@ func TestWriteBatchCreateChannelMigrationTaskWithRuntimeMetaCommitsAtomically(t 
 	require.Equal(t, normalizeChannelRuntimeMeta(meta), gotMeta)
 }
 
+func TestWriteBatchCreateChannelMigrationTaskWithRuntimeGuard(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+	task := testChannelMigrationTask("task-batch-create-guard", "channel-batch-create-guard")
+	meta := testRuntimeMeta(task.ChannelID, task.ChannelType)
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, meta))
+
+	wb := db.NewWriteBatch()
+	defer wb.Close()
+	require.NoError(t, wb.CreateChannelMigrationTaskWithRuntimeGuard(7, ChannelMigrationTaskCreate{
+		Task:         task,
+		RuntimeGuard: channelMigrationTaskTestRuntimeGuard(meta),
+	}))
+	require.NoError(t, wb.Commit())
+
+	gotTask, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, task, gotTask)
+}
+
+func TestWriteBatchCreateChannelMigrationTaskWithRuntimeGuardRevalidatesAtCommit(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+	task := testChannelMigrationTask("task-batch-create-stale-guard", "channel-batch-create-stale-guard")
+	meta := testRuntimeMeta(task.ChannelID, task.ChannelType)
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, meta))
+
+	wb := db.NewWriteBatch()
+	defer wb.Close()
+	require.NoError(t, wb.CreateChannelMigrationTaskWithRuntimeGuard(7, ChannelMigrationTaskCreate{
+		Task:         task,
+		RuntimeGuard: channelMigrationTaskTestRuntimeGuard(meta),
+	}))
+	changed := meta
+	changed.LeaderEpoch++
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, changed))
+
+	require.ErrorIs(t, wb.Commit(), ErrStaleMeta)
+	_, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	requireChannelMigrationTaskNotFound(t, err)
+}
+
+func TestWriteBatchCreateChannelMigrationTaskWithRuntimeGuardRevalidatesAfterSameBatchRuntimeMetaWrite(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+	task := testChannelMigrationTask("task-batch-create-staged-stale-guard", "channel-batch-create-staged-stale-guard")
+	meta := testRuntimeMeta(task.ChannelID, task.ChannelType)
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, meta))
+	planned := meta
+	planned.LeaderEpoch++
+
+	wb := db.NewWriteBatch()
+	defer wb.Close()
+	require.NoError(t, wb.UpsertChannelRuntimeMeta(7, planned))
+	require.NoError(t, wb.CreateChannelMigrationTaskWithRuntimeGuard(7, ChannelMigrationTaskCreate{
+		Task:         task,
+		RuntimeGuard: channelMigrationTaskTestRuntimeGuard(planned),
+	}))
+	changed := planned
+	changed.ChannelEpoch++
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, changed))
+
+	require.ErrorIs(t, wb.Commit(), ErrStaleMeta)
+	_, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	requireChannelMigrationTaskNotFound(t, err)
+}
+
+func TestWriteBatchCreateChannelMigrationTaskWithRuntimeGuardAllowsSameBatchRuntimeMetaWrite(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+	task := testChannelMigrationTask("task-batch-create-staged-guard", "channel-batch-create-staged-guard")
+	meta := testRuntimeMeta(task.ChannelID, task.ChannelType)
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, meta))
+	planned := meta
+	planned.LeaderEpoch++
+
+	wb := db.NewWriteBatch()
+	defer wb.Close()
+	require.NoError(t, wb.UpsertChannelRuntimeMeta(7, planned))
+	require.NoError(t, wb.CreateChannelMigrationTaskWithRuntimeGuard(7, ChannelMigrationTaskCreate{
+		Task:         task,
+		RuntimeGuard: channelMigrationTaskTestRuntimeGuard(planned),
+	}))
+	require.NoError(t, wb.Commit())
+
+	gotTask, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.Equal(t, task, gotTask)
+}
+
 func TestWriteBatchCreateChannelMigrationTaskRejectsSameBatchActiveDuplicate(t *testing.T) {
 	db := openTestDB(t)
 	first := testChannelMigrationTask("task-batch-duplicate-1", "channel-batch-duplicate")
@@ -1164,6 +1258,18 @@ func channelMigrationTaskClaimRequest(existing ChannelMigrationTask, ownerNodeID
 		OwnerNodeID:       ownerNodeID,
 		OwnerLeaseUntilMS: ownerLeaseUntilMS,
 		UpdatedAtMS:       updatedAtMS,
+	}
+}
+
+func channelMigrationTaskTestRuntimeGuard(meta ChannelRuntimeMeta) ChannelMigrationRuntimeGuard {
+	return ChannelMigrationRuntimeGuard{
+		ChannelID:            meta.ChannelID,
+		ChannelType:          meta.ChannelType,
+		ExpectedChannelEpoch: meta.ChannelEpoch,
+		ExpectedLeaderEpoch:  meta.LeaderEpoch,
+		ExpectedLeader:       meta.Leader,
+		ExpectedFenceToken:   meta.WriteFenceToken,
+		ExpectedFenceVersion: meta.WriteFenceVersion,
 	}
 }
 

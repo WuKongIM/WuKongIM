@@ -318,6 +318,8 @@ func isStaleMetaResult(cmd command, err error) bool {
 		return errors.Is(err, metadb.ErrStaleMeta) || errors.Is(err, metadb.ErrNotFound)
 	case *createChannelMigrationTaskCmd:
 		return errors.Is(err, metadb.ErrAlreadyExists)
+	case *createChannelMigrationTaskWithRuntimeGuardCmd:
+		return errors.Is(err, metadb.ErrStaleMeta) || errors.Is(err, metadb.ErrNotFound) || errors.Is(err, metadb.ErrAlreadyExists)
 	case *claimChannelMigrationTaskCmd,
 		*advanceChannelMigrationTaskCmd,
 		*setChannelWriteFenceCmd,
