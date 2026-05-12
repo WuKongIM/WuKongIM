@@ -332,3 +332,34 @@ func mustStoreFollower(t *testing.T, manager *Manager, tag DeliveryTag) bool {
 	_, ok := manager.StoreFollowerPartition(tag)
 	return ok
 }
+
+func TestBuildEphemeralTagDoesNotReplaceCurrentRef(t *testing.T) {
+	keys := newSequenceKeyGen("tag")
+	manager := NewManager(Options{LocalNodeID: 1, TTL: time.Minute, Now: time.Now, NewTagKey: keys.Next})
+	topology := testTopology(10, 1, 2)
+
+	reusable, created := manager.BuildLeaderTag(BuildRequest{
+		ChannelKey:                "group:ephemeral",
+		SubscriberMutationVersion: 1,
+		Topology:                  topology,
+		Partitions:                []NodePartition{{NodeID: 1, UIDs: []string{"u1"}}},
+	})
+	require.True(t, created)
+
+	ephemeral, created := manager.BuildEphemeralTag(BuildRequest{
+		ChannelKey:                "group:ephemeral",
+		SubscriberMutationVersion: 99,
+		Topology:                  topology,
+		Partitions:                []NodePartition{{NodeID: 1, UIDs: []string{"scoped"}}},
+	})
+	require.True(t, created)
+	require.NotEqual(t, reusable.Key, ephemeral.Key)
+
+	ref, ok := manager.CurrentRef("group:ephemeral")
+	require.True(t, ok)
+	require.Equal(t, reusable.Key, ref.TagKey)
+
+	cached, ok := manager.LookupTag(ephemeral.Key)
+	require.True(t, ok)
+	require.Equal(t, []string{"scoped"}, cached.PartitionForNode(1).UIDs)
+}

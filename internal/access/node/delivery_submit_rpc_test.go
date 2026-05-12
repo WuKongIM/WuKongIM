@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
@@ -9,6 +10,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,7 +44,8 @@ func TestSubmitCommittedMessageRPCRoutesToOwnerRuntime(t *testing.T) {
 			Payload:     []byte("hi"),
 			ClientSeq:   7,
 		},
-		SenderSessionID: 42,
+		SenderSessionID:   42,
+		MessageScopedUIDs: []string{"u1", "u2"},
 	})
 	require.NoError(t, err)
 	require.Equal(t, []deliveryruntime.CommittedEnvelope{{
@@ -55,11 +59,92 @@ func TestSubmitCommittedMessageRPCRoutesToOwnerRuntime(t *testing.T) {
 			Payload:     []byte("hi"),
 			ClientSeq:   7,
 		},
-		SenderSessionID: 42,
+		SenderSessionID:   42,
+		MessageScopedUIDs: []string{"u1", "u2"},
 	}}, recorder.calls)
 }
 
+func TestSubmitCommittedMessageScopedFailsWhenPeerDoesNotSupportProbe(t *testing.T) {
+	cluster := &legacyDeliverySubmitCapabilityCluster{}
+	client := NewClient(cluster)
+
+	err := client.SubmitCommitted(context.Background(), 2, deliveryruntime.CommittedEnvelope{
+		Message: channel.Message{
+			ChannelID:   "u2",
+			ChannelType: frame.ChannelTypePerson,
+			MessageID:   88,
+			MessageSeq:  9,
+		},
+		MessageScopedUIDs: []string{"u1"},
+	})
+
+	require.ErrorIs(t, err, ErrMessageScopedDeliverySubmitUnsupported)
+	require.Equal(t, 1, cluster.calls)
+	require.Equal(t, deliverySubmitRPCServiceID, cluster.serviceID)
+}
+
+func TestDeliverySubmitCapabilityProbeReturnsOKWithoutSubmitting(t *testing.T) {
+	recorder := &recordingDeliverySubmit{}
+	adapter := New(Options{DeliverySubmit: recorder})
+
+	respBody, err := adapter.handleDeliverySubmitRPC(context.Background(), encodeDeliverySubmitCapabilityProbe())
+	require.NoError(t, err)
+	resp, err := decodeDeliveryResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, rpcStatusOK, resp.Status)
+	require.Empty(t, recorder.calls)
+}
+
 func TestDeliverySubmitBinaryCodecRoundTrip(t *testing.T) {
+	req := deliverySubmitRequest{Envelope: deliveryruntime.CommittedEnvelope{
+		Message: channel.Message{
+			ChannelID:   "u2",
+			ChannelType: frame.ChannelTypePerson,
+			MessageID:   88,
+			MessageSeq:  9,
+			FromUID:     "u1",
+			ClientMsgNo: "m1",
+			Payload:     []byte("hi"),
+			ClientSeq:   7,
+		},
+		SenderSessionID:   42,
+		MessageScopedUIDs: []string{"u1", "u2"},
+	}}
+
+	body, err := encodeDeliverySubmitRequestBinary(req)
+	require.NoError(t, err)
+	require.True(t, isDeliverySubmitRequestBinary(body))
+
+	got, err := decodeDeliverySubmitRequest(body)
+	require.NoError(t, err)
+	require.Equal(t, req, got)
+}
+
+func TestDeliverySubmitBinaryCodecDecodesLegacyV1WithoutMessageScopedUIDs(t *testing.T) {
+	envelope := deliveryruntime.CommittedEnvelope{
+		Message: channel.Message{
+			ChannelID:   "u2",
+			ChannelType: frame.ChannelTypePerson,
+			MessageID:   88,
+			MessageSeq:  9,
+			FromUID:     "u1",
+			ClientMsgNo: "m1",
+			Payload:     []byte("hi"),
+			ClientSeq:   7,
+		},
+		SenderSessionID: 42,
+	}
+	body := append([]byte{}, deliverySubmitRequestMagicV1[:]...)
+	body = appendChannelMessage(body, envelope.Message)
+	body = appendUvarint(body, envelope.SenderSessionID)
+
+	got, err := decodeDeliverySubmitRequest(body)
+	require.NoError(t, err)
+	require.Equal(t, envelope, got.Envelope)
+	require.Empty(t, got.Envelope.MessageScopedUIDs)
+}
+
+func TestDeliverySubmitBinaryCodecEncodesUnscopedAsLegacyV1(t *testing.T) {
 	req := deliverySubmitRequest{Envelope: deliveryruntime.CommittedEnvelope{
 		Message: channel.Message{
 			ChannelID:   "u2",
@@ -76,11 +161,23 @@ func TestDeliverySubmitBinaryCodecRoundTrip(t *testing.T) {
 
 	body, err := encodeDeliverySubmitRequestBinary(req)
 	require.NoError(t, err)
-	require.True(t, isDeliverySubmitRequestBinary(body))
+	require.True(t, hasMagic(body, deliverySubmitRequestMagicV1[:]))
+	require.False(t, hasMagic(body, deliverySubmitRequestMagicV2[:]))
 
-	got, err := decodeDeliverySubmitRequest(body)
+	envelope, next, err := readLegacyCommittedEnvelope(body, len(deliverySubmitRequestMagicV1))
 	require.NoError(t, err)
-	require.Equal(t, req, got)
+	require.Equal(t, len(body), next)
+	require.Equal(t, req.Envelope, envelope)
+}
+
+func TestDeliverySubmitBinaryCodecRejectsTooManyMessageScopedUIDs(t *testing.T) {
+	body := append([]byte{}, deliverySubmitRequestMagicV2[:]...)
+	body = appendChannelMessage(body, channel.Message{})
+	body = appendUvarint(body, 0)
+	body = appendUvarint(body, uint64(maxDeliverySubmitMessageScopedUIDs+1))
+
+	_, err := decodeDeliverySubmitRequest(body)
+	require.ErrorContains(t, err, "message scoped uids exceeds limit")
 }
 
 func TestDeliverySubmitRPCRejectsJSONPayload(t *testing.T) {
@@ -96,9 +193,35 @@ type recordingDeliverySubmit struct {
 	calls []deliveryruntime.CommittedEnvelope
 }
 
+type legacyDeliverySubmitCapabilityCluster struct {
+	calls     int
+	serviceID uint8
+}
+
+func (c *legacyDeliverySubmitCapabilityCluster) RPCMux() *transport.RPCMux { return nil }
+
+func (c *legacyDeliverySubmitCapabilityCluster) LeaderOf(multiraft.SlotID) (multiraft.NodeID, error) {
+	return 0, nil
+}
+
+func (c *legacyDeliverySubmitCapabilityCluster) IsLocal(multiraft.NodeID) bool { return false }
+
+func (c *legacyDeliverySubmitCapabilityCluster) SlotForKey(string) multiraft.SlotID { return 0 }
+
+func (c *legacyDeliverySubmitCapabilityCluster) RPCService(_ context.Context, _ multiraft.NodeID, _ multiraft.SlotID, serviceID uint8, _ []byte) ([]byte, error) {
+	c.calls++
+	c.serviceID = serviceID
+	return nil, errors.New("access/node: invalid delivery submit request codec")
+}
+
+func (c *legacyDeliverySubmitCapabilityCluster) PeersForSlot(multiraft.SlotID) []multiraft.NodeID {
+	return nil
+}
+
 func (r *recordingDeliverySubmit) SubmitCommitted(_ context.Context, env deliveryruntime.CommittedEnvelope) error {
 	copied := env
 	copied.Payload = append([]byte(nil), env.Payload...)
+	copied.MessageScopedUIDs = append([]string(nil), env.MessageScopedUIDs...)
 	r.calls = append(r.calls, copied)
 	return nil
 }

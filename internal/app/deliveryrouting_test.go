@@ -535,6 +535,44 @@ func TestAsyncCommittedDispatcherFallsBackToLocalConversationWhenOwnerIsUnknown(
 	require.Equal(t, 0, conversation.FlushCalls())
 }
 
+func TestAsyncCommittedDispatcherReturnsScopedRemoteSubmitError(t *testing.T) {
+	delivery := &recordingCommittedSubmitter{}
+	conversation := &recordingConversationSubmitter{}
+	nodeClient := &recordingCommittedNodeSubmitter{err: accessnode.ErrMessageScopedDeliverySubmitUnsupported}
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID: 1,
+		ChannelLog: &stubChannelLogCluster{
+			status: channel.ChannelRuntimeStatus{
+				Leader: 2,
+			},
+		},
+		Delivery:     delivery,
+		Conversation: conversation,
+		NodeClient:   nodeClient,
+		ShardCount:   1,
+		QueueDepth:   8,
+	})
+	require.NoError(t, dispatcher.Start(context.Background()))
+	defer func() { require.NoError(t, dispatcher.Stop()) }()
+
+	err := dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
+		Message: channel.Message{
+			ChannelID:   "g1",
+			ChannelType: frame.ChannelTypeGroup,
+			MessageID:   101,
+			MessageSeq:  1,
+		},
+		MessageScopedUIDs: []string{"u1"},
+	})
+
+	require.ErrorIs(t, err, accessnode.ErrMessageScopedDeliverySubmitUnsupported)
+	require.Equal(t, 0, delivery.SubmitCalls())
+	require.Equal(t, 0, conversation.Len())
+	require.Len(t, nodeClient.calls, 1)
+	require.Equal(t, uint64(2), nodeClient.calls[0].nodeID)
+	require.Equal(t, []string{"u1"}, nodeClient.calls[0].env.MessageScopedUIDs)
+}
+
 func TestAsyncCommittedDispatcherSubmitsDurableMessageToLocalDelivery(t *testing.T) {
 	delivery := &recordingCommittedSubmitter{}
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
@@ -765,6 +803,31 @@ func TestDeliveryResolverMissingAuthoritativeEndpointsUseDebugLevel(t *testing.T
 	require.Equal(t, "offline-u2", requireCapturedFieldValue[string](t, entry, "missingUIDs"))
 }
 
+func TestLocalDeliveryResolverUsesMessageScopedSubscribers(t *testing.T) {
+	resolver := localDeliveryResolver{
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{}),
+		authority: &recordingAuthoritative{batches: map[string][]presence.Route{
+			"u1": {{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101}},
+			"u2": {{UID: "u2", NodeID: 2, BootID: 22, SessionID: 202}},
+		}},
+		pageSize: 8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   "tmp1____cmd",
+		ChannelType: frame.ChannelTypeTemp,
+	}, deliveryruntime.CommittedEnvelope{MessageScopedUIDs: []string{"u1", "u2"}})
+	require.NoError(t, err)
+
+	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Equal(t, []deliveryruntime.RouteKey{
+		{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101},
+		{UID: "u2", NodeID: 2, BootID: 22, SessionID: 202},
+	}, routes)
+}
+
 func TestDeliveryRoutingUsesTagPartition(t *testing.T) {
 	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{
 		LocalNodeID: 1,
@@ -822,6 +885,55 @@ func TestDeliveryRoutingUsesTagPartition(t *testing.T) {
 		{NodeID: 1, UIDs: []string{"u1", "u3"}},
 		{NodeID: 2, UIDs: []string{"u2"}},
 	}, tag.Partitions)
+}
+
+func TestDeliveryRoutingMessageScopedTagDoesNotReplaceReusableRef(t *testing.T) {
+	var tagSeq int
+	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{
+		LocalNodeID: 1,
+		NewTagKey: func() string {
+			tagSeq++
+			return fmt.Sprintf("tag-scoped-%d", tagSeq)
+		},
+	})
+	topology := deliverytagruntime.PartitionTopologyVersion{
+		HashSlotTableVersion: 9,
+		SlotAuthorityRefs: []deliverytagruntime.SlotAuthorityRef{
+			{SlotID: 1, LeaderNodeID: 1, ConfigEpoch: 2, BalanceVersion: 3},
+		},
+	}
+	reusable, created := manager.BuildLeaderTag(deliverytagruntime.BuildRequest{
+		ChannelKey:                "8:tmp1____cmd",
+		SubscriberMutationVersion: 7,
+		Topology:                  topology,
+		Partitions:                []deliverytagruntime.NodePartition{{NodeID: 1, UIDs: []string{"ordinary"}}},
+	})
+	require.True(t, created)
+
+	resolver := tagDeliveryResolver{
+		localNodeID: 1,
+		tags:        manager,
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{}),
+		authority: &recordingAuthoritative{batches: map[string][]presence.Route{
+			"scoped": {{UID: "scoped", NodeID: 1, BootID: 11, SessionID: 101}},
+		}},
+		topology: staticDeliveryTagTopology{version: topology},
+		pageSize: 8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   "tmp1____cmd",
+		ChannelType: frame.ChannelTypeTemp,
+	}, deliveryruntime.CommittedEnvelope{MessageScopedUIDs: []string{"scoped"}})
+	require.NoError(t, err)
+	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "scoped", NodeID: 1, BootID: 11, SessionID: 101}}, routes)
+
+	ref, ok := manager.CurrentRef("8:tmp1____cmd")
+	require.True(t, ok)
+	require.Equal(t, reusable.Key, ref.TagKey)
 }
 
 func TestNextDeliveryTagUIDPageAtUsesOffsetWithoutAllocating(t *testing.T) {
@@ -1056,6 +1168,23 @@ func TestBuildRealtimeRecvPacketStripsCommandSuffixFromClientChannelView(t *test
 
 		require.Equal(t, "u1", packet.ChannelID)
 		require.Equal(t, frame.ChannelTypePerson, packet.ChannelType)
+	})
+
+	t.Run("temp", func(t *testing.T) {
+		packet := buildRealtimeRecvPacket(channel.Message{
+			MessageID:   91,
+			MessageSeq:  0,
+			Framer:      frame.Framer{SyncOnce: true, NoPersist: true},
+			ChannelID:   channelid.ToCommandChannel("tmp1"),
+			ChannelType: frame.ChannelTypeTemp,
+			FromUID:     "system",
+			Payload:     []byte("hello temp cmd"),
+		}, "")
+
+		require.Equal(t, "tmp1", packet.ChannelID)
+		require.Equal(t, frame.ChannelTypeTemp, packet.ChannelType)
+		require.True(t, packet.Framer.SyncOnce)
+		require.True(t, packet.Framer.NoPersist)
 	})
 }
 
@@ -1894,12 +2023,31 @@ type recordingCommittedSubmitter struct {
 	calls       []deliveryruntime.CommittedEnvelope
 }
 
+type recordingCommittedNodeSubmitter struct {
+	calls []recordingCommittedNodeSubmitCall
+	err   error
+}
+
+type recordingCommittedNodeSubmitCall struct {
+	nodeID uint64
+	env    deliveryruntime.CommittedEnvelope
+}
+
+func (r *recordingCommittedNodeSubmitter) SubmitCommitted(_ context.Context, nodeID uint64, env deliveryruntime.CommittedEnvelope) error {
+	copied := env
+	copied.Payload = append([]byte(nil), env.Payload...)
+	copied.MessageScopedUIDs = append([]string(nil), env.MessageScopedUIDs...)
+	r.calls = append(r.calls, recordingCommittedNodeSubmitCall{nodeID: nodeID, env: copied})
+	return r.err
+}
+
 func (r *recordingCommittedSubmitter) SubmitCommitted(_ context.Context, env deliveryruntime.CommittedEnvelope) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.submitCalls++
 	copied := env
 	copied.Payload = append([]byte(nil), env.Payload...)
+	copied.MessageScopedUIDs = append([]string(nil), env.MessageScopedUIDs...)
 	r.calls = append(r.calls, copied)
 	return nil
 }
@@ -1923,6 +2071,7 @@ func (r *recordingCommittedSubmitter) Calls() []deliveryruntime.CommittedEnvelop
 	for i, call := range r.calls {
 		copied := call
 		copied.Payload = append([]byte(nil), call.Payload...)
+		copied.MessageScopedUIDs = append([]string(nil), call.MessageScopedUIDs...)
 		out[i] = copied
 	}
 	return out

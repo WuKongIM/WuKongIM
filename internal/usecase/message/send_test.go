@@ -132,6 +132,197 @@ func TestSendNoPersistStillChecksPermissions(t *testing.T) {
 	require.Equal(t, frame.ReasonSendBan, result.Reason)
 }
 
+func TestSendRequestScopedRejectsWithoutSyncOnce(t *testing.T) {
+	app := New(Options{Now: fixedNowFn})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:            "system",
+		RequestSubscribers: []string{"u1"},
+		Payload:            []byte("cmd"),
+	})
+
+	require.ErrorIs(t, err, ErrRequestSubscribersRequireSyncOnce)
+	require.Equal(t, SendResult{}, result)
+}
+
+func TestSendRequestScopedRejectsChannelIDConflict(t *testing.T) {
+	app := New(Options{Now: fixedNowFn})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:             frame.Framer{SyncOnce: true},
+		FromUID:            "system",
+		ChannelID:          "g1",
+		ChannelType:        frame.ChannelTypeGroup,
+		RequestSubscribers: []string{"u1"},
+		Payload:            []byte("cmd"),
+	})
+
+	require.ErrorIs(t, err, ErrRequestSubscribersConflictChannel)
+	require.Equal(t, SendResult{}, result)
+}
+
+func TestSendRequestScopedRejectsEmptySubscribers(t *testing.T) {
+	app := New(Options{Now: fixedNowFn})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:             frame.Framer{SyncOnce: true},
+		FromUID:            "system",
+		RequestSubscribers: []string{" ", ""},
+		Payload:            []byte("cmd"),
+	})
+
+	require.ErrorIs(t, err, ErrRequestSubscribersRequired)
+	require.Equal(t, SendResult{}, result)
+}
+
+func TestSendRequestScopedDurableAppendsTempCommandAndDispatchesSubscribers(t *testing.T) {
+	dispatcher := &recordingCommittedDispatcher{}
+	cluster := &fakeChannelCluster{
+		sendFn: func(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
+			msg := req.Message
+			msg.MessageID = 808
+			msg.MessageSeq = 18
+			return channel.AppendResult{MessageID: 808, MessageSeq: 18, Message: msg}, nil
+		},
+	}
+	app := New(Options{
+		Now:                 fixedNowFn,
+		Cluster:             cluster,
+		MetaRefresher:       &fakeMetaRefresher{},
+		CommittedDispatcher: dispatcher,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:             frame.Framer{SyncOnce: true},
+		FromUID:            "system",
+		ChannelType:        frame.ChannelTypeGroup,
+		RequestSubscribers: []string{"u1", "u2", "u1"},
+		Payload:            []byte("cmd"),
+		ClientMsgNo:        "request-scoped-1",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(808), result.MessageID)
+	require.Equal(t, uint64(18), result.MessageSeq)
+
+	scoped, err := runtimechannelid.RequestSubscriberChannelFor([]string{"u1", "u2"})
+	require.NoError(t, err)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Equal(t, channel.ChannelID{ID: scoped.CommandChannelID, Type: frame.ChannelTypeTemp}, cluster.sendRequests[0].ChannelID)
+	require.Equal(t, scoped.CommandChannelID, cluster.sendRequests[0].Message.ChannelID)
+	require.Equal(t, frame.ChannelTypeTemp, cluster.sendRequests[0].Message.ChannelType)
+	require.Equal(t, frame.Framer{SyncOnce: true}, cluster.sendRequests[0].Message.Framer)
+	require.Equal(t, "system", cluster.sendRequests[0].Message.FromUID)
+	require.Equal(t, []byte("cmd"), cluster.sendRequests[0].Message.Payload)
+
+	require.Len(t, dispatcher.calls, 1)
+	require.Equal(t, []string{"u1", "u2"}, dispatcher.calls[0].MessageScopedUIDs)
+	require.Equal(t, scoped.CommandChannelID, dispatcher.calls[0].Message.ChannelID)
+	require.Equal(t, frame.ChannelTypeTemp, dispatcher.calls[0].Message.ChannelType)
+}
+
+func TestSendRequestScopedDurableRequiresCommittedDispatcherBeforeAppend(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	app := New(Options{
+		Now:           fixedNowFn,
+		Cluster:       cluster,
+		MetaRefresher: &fakeMetaRefresher{},
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:             frame.Framer{SyncOnce: true},
+		FromUID:            "system",
+		RequestSubscribers: []string{"u1"},
+		Payload:            []byte("cmd"),
+	})
+
+	require.ErrorIs(t, err, ErrCommittedDispatcherRequired)
+	require.Equal(t, SendResult{}, result)
+	require.Empty(t, cluster.sendRequests)
+}
+
+func TestSendRequestScopedDurableReturnsDispatchError(t *testing.T) {
+	dispatchErr := errors.New("dispatcher stopped")
+	dispatcher := &recordingCommittedDispatcher{err: dispatchErr}
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 810, MessageSeq: 20}},
+		},
+	}
+	app := New(Options{
+		Now:                 fixedNowFn,
+		Cluster:             cluster,
+		MetaRefresher:       &fakeMetaRefresher{},
+		CommittedDispatcher: dispatcher,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:             frame.Framer{SyncOnce: true},
+		FromUID:            "system",
+		RequestSubscribers: []string{"u1"},
+		Payload:            []byte("cmd"),
+	})
+
+	require.ErrorIs(t, err, dispatchErr)
+	require.Equal(t, SendResult{}, result)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Len(t, dispatcher.calls, 1)
+}
+
+func TestSendRequestScopedNoPersistDispatchesRealtimeScopedEnvelope(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	realtime := &recordingRealtimeDispatcher{}
+	ids := &sequenceMessageIDGenerator{next: 909}
+	app := New(Options{
+		Now:                fixedNowFn,
+		Cluster:            cluster,
+		MessageIDs:         ids,
+		RealtimeDispatcher: realtime,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:             frame.Framer{NoPersist: true, SyncOnce: true},
+		Setting:            frame.SettingReceiptEnabled,
+		MsgKey:             "k-realtime",
+		Expire:             30,
+		FromUID:            "system",
+		SenderSessionID:    77,
+		RequestSubscribers: []string{"u1", "u2", "u1"},
+		Payload:            []byte("cmd realtime"),
+		ClientSeq:          11,
+		ClientMsgNo:        "request-scoped-realtime-1",
+		Topic:              "realtime-topic",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(909), result.MessageID)
+	require.Zero(t, result.MessageSeq)
+	require.Empty(t, cluster.sendRequests)
+
+	scoped, err := runtimechannelid.RequestSubscriberChannelFor([]string{"u1", "u2"})
+	require.NoError(t, err)
+	require.Len(t, realtime.calls, 1)
+	call := realtime.calls[0]
+	require.Equal(t, uint64(77), call.SenderSessionID)
+	require.Equal(t, []string{"u1", "u2"}, call.MessageScopedUIDs)
+	require.Equal(t, uint64(909), call.Message.MessageID)
+	require.Zero(t, call.Message.MessageSeq)
+	require.Equal(t, scoped.CommandChannelID, call.Message.ChannelID)
+	require.Equal(t, frame.ChannelTypeTemp, call.Message.ChannelType)
+	require.Equal(t, frame.Framer{NoPersist: true, SyncOnce: true}, call.Message.Framer)
+	require.Equal(t, frame.SettingReceiptEnabled, call.Message.Setting)
+	require.Equal(t, "k-realtime", call.Message.MsgKey)
+	require.Equal(t, uint32(30), call.Message.Expire)
+	require.Equal(t, uint64(11), call.Message.ClientSeq)
+	require.Equal(t, "request-scoped-realtime-1", call.Message.ClientMsgNo)
+	require.Equal(t, "realtime-topic", call.Message.Topic)
+	require.Equal(t, "system", call.Message.FromUID)
+	require.Equal(t, []byte("cmd realtime"), call.Message.Payload)
+	require.Equal(t, int32(fixedSendNow.Unix()), call.Message.Timestamp)
+}
+
 func TestSendRejectsBannedGroupBeforeDurableAppend(t *testing.T) {
 	cluster := &fakeChannelCluster{}
 	permissions := newFakePermissionStore()
@@ -1255,6 +1446,8 @@ func TestNewPreservesInjectedCollaborators(t *testing.T) {
 	reg := &fakeRegistry{}
 	delivery := &recordingDelivery{}
 	dispatcher := &recordingCommittedDispatcher{}
+	realtime := &recordingRealtimeDispatcher{}
+	messageIDs := &sequenceMessageIDGenerator{next: 1001}
 	acks := &recordingDeliveryAck{}
 	offline := &recordingDeliveryOffline{}
 	permissions := newFakePermissionStore()
@@ -1271,6 +1464,8 @@ func TestNewPreservesInjectedCollaborators(t *testing.T) {
 		Online:              reg,
 		Delivery:            delivery,
 		CommittedDispatcher: dispatcher,
+		RealtimeDispatcher:  realtime,
+		MessageIDs:          messageIDs,
 		DeliveryAck:         acks,
 		DeliveryOffline:     offline,
 		LocalBootID:         9,
@@ -1287,6 +1482,8 @@ func TestNewPreservesInjectedCollaborators(t *testing.T) {
 	require.Same(t, reg, app.online)
 	require.Same(t, delivery, app.delivery)
 	require.Same(t, dispatcher, app.dispatcher)
+	require.Same(t, realtime, app.realtime)
+	require.Same(t, messageIDs, app.messageIDs)
 	require.Same(t, acks, app.deliveryAck)
 	require.Same(t, offline, app.deliveryOffline)
 	require.Equal(t, uint64(9), app.localBootID)
@@ -1423,6 +1620,27 @@ func (d *recordingCommittedDispatcher) SubmitCommitted(_ context.Context, env me
 }
 
 type deliveryEnvelopeRecord = messageevents.MessageCommitted
+
+type recordingRealtimeDispatcher struct {
+	calls []messageevents.MessageRealtime
+	err   error
+}
+
+func (d *recordingRealtimeDispatcher) SubmitRealtime(_ context.Context, event messageevents.MessageRealtime) error {
+	copied := event.Clone()
+	d.calls = append(d.calls, copied)
+	return d.err
+}
+
+type sequenceMessageIDGenerator struct {
+	next uint64
+}
+
+func (g *sequenceMessageIDGenerator) Next() uint64 {
+	id := g.next
+	g.next++
+	return id
+}
 
 type fakeIdentityStore struct{}
 

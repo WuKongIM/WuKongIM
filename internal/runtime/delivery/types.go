@@ -15,6 +15,8 @@ type ChannelKey struct {
 type CommittedEnvelope struct {
 	channel.Message
 	SenderSessionID uint64
+	// MessageScopedUIDs contains request-scoped subscribers used only for this delivery envelope.
+	MessageScopedUIDs []string
 }
 
 type RouteKey struct {

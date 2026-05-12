@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
@@ -131,6 +132,70 @@ func TestAPIServerSendMessageNoPersistHeaderSkipsClusterRequirement(t *testing.T
 	require.Equal(t, uint8(frame.ReasonSuccess), got.Reason)
 }
 
+func TestAPIServerSendMessageSubscribersWithRealMessageApp(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		result: channel.AppendResult{MessageID: 77, MessageSeq: 0},
+	}
+	dispatcher := &apiRecordingCommittedDispatcher{}
+	msgApp := message.New(message.Options{
+		MetaRefresher:       &fakeMetaRefresher{},
+		Cluster:             cluster,
+		CommittedDispatcher: dispatcher,
+	})
+	srv := New(Options{
+		ListenAddr: "127.0.0.1:0",
+		Messages:   msgApp,
+	})
+	require.NoError(t, srv.Start())
+	t.Cleanup(func() {
+		require.NoError(t, srv.Stop(context.Background()))
+	})
+
+	require.Eventually(t, func() bool {
+		resp, err := http.Get("http://" + srv.Addr() + "/healthz")
+		if err != nil {
+			return false
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, 2*time.Second, 20*time.Millisecond)
+
+	body := map[string]any{
+		"from_uid":    "system",
+		"payload":     base64.StdEncoding.EncodeToString([]byte("cmd")),
+		"subscribers": []string{"u1", "u2", "u1"},
+		"header": map[string]any{
+			"sync_once": float64(1),
+		},
+	}
+	payload, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	resp, err := http.Post("http://"+srv.Addr()+"/message/send", "application/json", bytes.NewReader(payload))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got struct {
+		MessageID  int64  `json:"message_id"`
+		MessageSeq uint64 `json:"message_seq"`
+		Reason     uint8  `json:"reason"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+	require.Equal(t, int64(77), got.MessageID)
+	require.Equal(t, uint8(frame.ReasonSuccess), got.Reason)
+	require.Len(t, cluster.appendRequests, 1)
+	require.True(t, runtimechannelid.IsCommandChannel(cluster.appendRequests[0].ChannelID.ID))
+	require.Equal(t, frame.ChannelTypeTemp, cluster.appendRequests[0].ChannelID.Type)
+	require.Equal(t, cluster.appendRequests[0].ChannelID.ID, cluster.appendRequests[0].Message.ChannelID)
+	require.Equal(t, frame.ChannelTypeTemp, cluster.appendRequests[0].Message.ChannelType)
+	require.True(t, cluster.appendRequests[0].Message.Framer.SyncOnce)
+	require.Equal(t, []byte("cmd"), cluster.appendRequests[0].Message.Payload)
+	require.Len(t, dispatcher.calls, 1)
+	require.Equal(t, []string{"u1", "u2"}, dispatcher.calls[0].MessageScopedUIDs)
+}
+
 type apiTestSession struct {
 	id       uint64
 	listener string
@@ -163,6 +228,10 @@ type fakeChannelCluster struct {
 	err            error
 }
 
+type apiRecordingCommittedDispatcher struct {
+	calls []messageevents.MessageCommitted
+}
+
 type fakeMetaRefresher struct{}
 
 func (*fakeChannelCluster) ApplyMeta(channel.Meta) error {
@@ -172,6 +241,12 @@ func (*fakeChannelCluster) ApplyMeta(channel.Meta) error {
 func (f *fakeChannelCluster) Append(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
 	f.appendRequests = append(f.appendRequests, req)
 	return f.result, f.err
+}
+
+func (d *apiRecordingCommittedDispatcher) SubmitCommitted(_ context.Context, event messageevents.MessageCommitted) error {
+	copied := event.Clone()
+	d.calls = append(d.calls, copied)
+	return nil
 }
 
 func (*fakeMetaRefresher) RefreshChannelMeta(context.Context, channel.ChannelID) (channel.Meta, error) {
