@@ -131,6 +131,132 @@ func TestSubscriberResolverResolvesCommandPersonFromOriginalChannel(t *testing.T
 	require.True(t, done)
 }
 
+func TestSubscriberResolverResolvesCommandAgentFromSourceChannel(t *testing.T) {
+	resolver := NewSubscriberResolver(SubscriberResolverOptions{})
+	requestedID := channelid.ToCommandChannel("userA@agentB")
+
+	token, err := resolver.BeginSnapshot(context.Background(), channel.ChannelID{
+		ID:   requestedID,
+		Type: frame.ChannelTypeAgent,
+	})
+	require.NoError(t, err)
+
+	source := token.Source()
+	require.Equal(t, SubscriberSourceKindDerived, source.Kind)
+	require.Equal(t, requestedID, source.ChannelID)
+	require.Equal(t, frame.ChannelTypeAgent, source.ChannelType)
+	require.Equal(t, "userA@agentB", source.SourceChannelID)
+	require.Equal(t, frame.ChannelTypeAgent, source.SourceChannelType)
+
+	page, cursor, done, err := resolver.NextPage(context.Background(), token, "", 10)
+	require.NoError(t, err)
+	require.Equal(t, []string{"userA", "agentB"}, page)
+	require.Equal(t, "agentB", cursor)
+	require.True(t, done)
+}
+
+func TestSubscriberResolverUsesCustomerServiceSourceVersionForCommandVisitors(t *testing.T) {
+	store := &fakeAuthoritativeSubscriberStore{
+		fakeSubscriberStore: fakeSubscriberStore{
+			pageResults: []subscriberListResult{{uids: []string{"agent1"}, cursor: "agent1", done: true}},
+		},
+		getChannelVersions: map[subscriberSnapshotCall]uint64{
+			{channelID: channelid.ToCommandChannel("visitor1"), channelType: int64(frame.ChannelTypeVisitors)}: 4,
+			{channelID: "visitor1", channelType: int64(frame.ChannelTypeCustomerService)}:                      5,
+		},
+		permissionVersions: map[subscriberSnapshotCall]uint64{
+			{channelID: "visitor1", channelType: int64(frame.ChannelTypeCustomerService)}: 9,
+		},
+	}
+	resolver := NewSubscriberResolver(SubscriberResolverOptions{Store: store})
+
+	token, err := resolver.BeginSnapshot(context.Background(), channel.ChannelID{
+		ID:   channelid.ToCommandChannel("visitor1"),
+		Type: frame.ChannelTypeVisitors,
+	})
+	require.NoError(t, err)
+
+	source := token.Source()
+	require.Equal(t, SubscriberSourceKindOverlayStore, source.Kind)
+	require.Equal(t, channelid.ToCommandChannel("visitor1"), source.ChannelID)
+	require.Equal(t, frame.ChannelTypeVisitors, source.ChannelType)
+	require.Equal(t, "visitor1", source.SourceChannelID)
+	require.Equal(t, frame.ChannelTypeCustomerService, source.SourceChannelType)
+	require.Equal(t, uint64(4), source.SubscriberMutationVersion)
+	require.Equal(t, uint64(9), source.SourceSubscriberMutationVersion)
+	require.True(t, source.ReusableTagState)
+	require.Contains(t, store.permissionCalls, subscriberSnapshotCall{channelID: "visitor1", channelType: int64(frame.ChannelTypeCustomerService)})
+	require.NotContains(t, store.permissionCalls, subscriberSnapshotCall{channelID: "visitor1", channelType: int64(frame.ChannelTypeVisitors)})
+
+	page, _, done, err := resolver.NextPage(context.Background(), token, "", 10)
+	require.NoError(t, err)
+	require.True(t, done)
+	require.ElementsMatch(t, []string{"visitor1", "agent1"}, page)
+	require.Equal(t, []subscriberListCall{{channelID: "visitor1", channelType: int64(frame.ChannelTypeCustomerService), afterUID: "", limit: 9}}, store.pageCalls)
+}
+
+func TestSubscriberResolverMarksCommandInfoWithTemporaryOverlayNonReusable(t *testing.T) {
+	store := &fakeAuthoritativeSubscriberStore{
+		fakeSubscriberStore: fakeSubscriberStore{
+			temporaryUIDs: []string{"temp1"},
+			pageResults:   []subscriberListResult{{uids: []string{"info1"}, cursor: "info1", done: true}},
+		},
+		getChannelVersions: map[subscriberSnapshotCall]uint64{
+			{channelID: channelid.ToCommandChannel("infoA"), channelType: int64(frame.ChannelTypeInfo)}: 6,
+			{channelID: "infoA", channelType: int64(frame.ChannelTypeInfo)}:                             7,
+		},
+		permissionVersions: map[subscriberSnapshotCall]uint64{
+			{channelID: "infoA", channelType: int64(frame.ChannelTypeInfo)}: 8,
+		},
+	}
+	resolver := NewSubscriberResolver(SubscriberResolverOptions{Store: store})
+
+	token, err := resolver.BeginSnapshot(context.Background(), channel.ChannelID{
+		ID:   channelid.ToCommandChannel("infoA"),
+		Type: frame.ChannelTypeInfo,
+	})
+	require.NoError(t, err)
+
+	source := token.Source()
+	require.Equal(t, SubscriberSourceKindOverlayStore, source.Kind)
+	require.Equal(t, "infoA", source.SourceChannelID)
+	require.Equal(t, frame.ChannelTypeInfo, source.SourceChannelType)
+	require.Equal(t, uint64(8), source.SourceSubscriberMutationVersion)
+	require.False(t, source.ReusableTagState)
+	require.Equal(t, []subscriberSnapshotCall{{channelID: "infoA", channelType: int64(frame.ChannelTypeInfo)}}, store.temporaryCalls)
+
+	page, _, done, err := resolver.NextPage(context.Background(), token, "", 10)
+	require.NoError(t, err)
+	require.True(t, done)
+	require.ElementsMatch(t, []string{"temp1", "info1"}, page)
+}
+
+func TestSubscriberResolverKeepsCommandInfoWithoutTemporaryOverlayReusable(t *testing.T) {
+	store := &fakeAuthoritativeSubscriberStore{
+		fakeSubscriberStore: fakeSubscriberStore{
+			pageResults: []subscriberListResult{{uids: []string{"info1"}, cursor: "info1", done: true}},
+		},
+		getChannelVersions: map[subscriberSnapshotCall]uint64{
+			{channelID: channelid.ToCommandChannel("infoA"), channelType: int64(frame.ChannelTypeInfo)}: 6,
+		},
+		permissionVersions: map[subscriberSnapshotCall]uint64{
+			{channelID: "infoA", channelType: int64(frame.ChannelTypeInfo)}: 8,
+		},
+	}
+	resolver := NewSubscriberResolver(SubscriberResolverOptions{Store: store})
+
+	token, err := resolver.BeginSnapshot(context.Background(), channel.ChannelID{
+		ID:   channelid.ToCommandChannel("infoA"),
+		Type: frame.ChannelTypeInfo,
+	})
+	require.NoError(t, err)
+
+	source := token.Source()
+	require.Equal(t, SubscriberSourceKindPagedStore, source.Kind)
+	require.True(t, source.ReusableTagState)
+	require.Equal(t, uint64(8), source.SourceSubscriberMutationVersion)
+}
+
 func TestSubscriberResolverMessageScopedTempCommandSource(t *testing.T) {
 	resolver := NewSubscriberResolver(SubscriberResolverOptions{})
 	requestedID := channelid.ToCommandChannel("tmp1")
@@ -266,10 +392,12 @@ func TestSubscriberResolverFallsBackToOrdinaryMetadataWhenCommandSourcePermissio
 }
 
 type fakeSubscriberStore struct {
-	snapshotCalls []subscriberSnapshotCall
-	pageCalls     []subscriberListCall
-	snapshotUIDs  []string
-	pageResults   []subscriberListResult
+	snapshotCalls  []subscriberSnapshotCall
+	pageCalls      []subscriberListCall
+	temporaryCalls []subscriberSnapshotCall
+	snapshotUIDs   []string
+	temporaryUIDs  []string
+	pageResults    []subscriberListResult
 }
 
 type fakeAuthoritativeSubscriberStore struct {
@@ -305,6 +433,14 @@ func (f *fakeSubscriberStore) SnapshotChannelSubscribers(_ context.Context, chan
 		channelType: channelType,
 	})
 	return append([]string(nil), f.snapshotUIDs...), nil
+}
+
+func (f *fakeSubscriberStore) SnapshotTemporarySubscribers(_ context.Context, channelID string, channelType int64) ([]string, error) {
+	f.temporaryCalls = append(f.temporaryCalls, subscriberSnapshotCall{
+		channelID:   channelID,
+		channelType: channelType,
+	})
+	return append([]string(nil), f.temporaryUIDs...), nil
 }
 
 func (f *fakeSubscriberStore) ListChannelSubscribers(_ context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {
