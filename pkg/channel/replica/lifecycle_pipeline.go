@@ -147,6 +147,8 @@ func (r *replica) prepareSameLeaderEpochBoundaryLocked(normalized channel.Meta) 
 	effectID := r.nextLoopEffectID()
 	commitReadyBeforeBoundary := r.state.CommitReady
 	r.pendingLeaderEpochEffectID = effectID
+	r.pendingReconcileEffectID = 0
+	r.reconcilePending = nil
 	r.state.CommitReady = false
 	r.publishStateLocked()
 	return machineResult{Effects: []machineEffect{beginLeaderEpochEffect{

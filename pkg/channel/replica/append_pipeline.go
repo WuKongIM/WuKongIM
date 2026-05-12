@@ -236,6 +236,9 @@ func (r *replica) validateAppendEffectFenceLocked(effect appendLeaderBatchEffect
 	if r.state.Role != channel.ReplicaRoleLeader {
 		return channel.ErrNotLeader
 	}
+	if r.pendingLeaderEpochEffectID != 0 {
+		return channel.ErrNotReady
+	}
 	if !r.state.CommitReady {
 		return channel.ErrNotReady
 	}
@@ -344,6 +347,9 @@ func (r *replica) appendableLocked() error {
 	}
 	if r.state.Role != channel.ReplicaRoleLeader {
 		return channel.ErrNotLeader
+	}
+	if r.pendingLeaderEpochEffectID != 0 {
+		return channel.ErrNotReady
 	}
 	if !r.state.CommitReady {
 		return channel.ErrNotReady
