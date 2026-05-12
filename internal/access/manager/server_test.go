@@ -12,6 +12,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -3713,6 +3714,22 @@ func (s managementStub) AdvanceMessageRetention(_ context.Context, req managemen
 		*s.retentionReqSink = req
 	}
 	return s.retentionResult, s.retentionErr
+}
+
+func (s managementStub) TransferChannelLeader(context.Context, channel.ChannelID, managementusecase.TransferChannelLeaderRequest) (managementusecase.ChannelMigrationResult, error) {
+	return managementusecase.ChannelMigrationResult{}, nil
+}
+
+func (s managementStub) MigrateChannelReplica(context.Context, channel.ChannelID, managementusecase.MigrateChannelReplicaRequest) (managementusecase.ChannelMigrationResult, error) {
+	return managementusecase.ChannelMigrationResult{}, nil
+}
+
+func (s managementStub) GetChannelMigration(context.Context, channel.ChannelID) (managementusecase.ChannelMigrationDetail, error) {
+	return managementusecase.ChannelMigrationDetail{}, nil
+}
+
+func (s managementStub) AbortChannelMigration(context.Context, channel.ChannelID, string) (managementusecase.ChannelMigrationDetail, error) {
+	return managementusecase.ChannelMigrationDetail{}, nil
 }
 
 func (s managementStub) GetOverview(context.Context) (managementusecase.Overview, error) {
