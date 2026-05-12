@@ -63,6 +63,20 @@ type RepairChannelClusterLeaderResponseDTO struct {
 	Channel ChannelRuntimeMetaDetailDTO `json:"channel"`
 }
 
+// TransferChannelClusterLeaderRequestDTO is the manager leader transfer request body.
+type TransferChannelClusterLeaderRequestDTO struct {
+	// TargetNodeID is the requested new leader.
+	TargetNodeID uint64 `json:"target_node_id"`
+}
+
+// TransferChannelClusterLeaderResponseDTO is the manager leader transfer response body.
+type TransferChannelClusterLeaderResponseDTO struct {
+	// Changed reports whether authoritative metadata changed.
+	Changed bool `json:"changed"`
+	// Channel is authoritative channel metadata after transfer or validation.
+	Channel ChannelRuntimeMetaDetailDTO `json:"channel"`
+}
+
 func (s *Server) handleChannelClusterReplicas(c *gin.Context) {
 	if s.management == nil {
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
@@ -116,14 +130,59 @@ func (s *Server) handleChannelClusterRepair(c *gin.Context) {
 	})
 }
 
+func (s *Server) handleChannelClusterLeaderTransfer(c *gin.Context) {
+	if s.management == nil {
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "management not configured")
+		return
+	}
+
+	channelType, err := parseChannelRuntimeMetaChannelTypeParam(c.Param("channel_type"))
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid channel_type")
+		return
+	}
+
+	var body TransferChannelClusterLeaderRequestDTO
+	if err := c.ShouldBindJSON(&body); err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	if body.TargetNodeID == 0 {
+		jsonError(c, http.StatusBadRequest, "bad_request", "target_node_id required")
+		return
+	}
+
+	result, err := s.management.TransferChannelClusterLeader(c.Request.Context(), managementusecase.TransferChannelClusterLeaderRequest{
+		ChannelID:    c.Param("channel_id"),
+		ChannelType:  channelType,
+		TargetNodeID: body.TargetNodeID,
+	})
+	if err != nil {
+		handleChannelClusterOperationError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, TransferChannelClusterLeaderResponseDTO{
+		Changed: result.Changed,
+		Channel: channelRuntimeMetaDetailDTO(result.Channel),
+	})
+}
+
 func handleChannelClusterOperationError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, metadb.ErrInvalidArgument), errors.Is(err, managementusecase.ErrUnsupportedChannelClusterRepairReason):
+	case errors.Is(err, metadb.ErrInvalidArgument),
+		errors.Is(err, managementusecase.ErrUnsupportedChannelClusterRepairReason),
+		errors.Is(err, managementusecase.ErrChannelLeaderTransferTargetNotReplica):
 		jsonError(c, http.StatusBadRequest, "bad_request", err.Error())
 	case errors.Is(err, metadb.ErrNotFound):
 		jsonError(c, http.StatusNotFound, "not_found", "channel runtime meta not found")
-	case errors.Is(err, channel.ErrNoSafeChannelLeader):
-		jsonError(c, http.StatusConflict, "conflict", "no safe channel leader candidate")
+	case errors.Is(err, channel.ErrNoSafeChannelLeader),
+		errors.Is(err, managementusecase.ErrChannelLeaderTransferTargetNotISR),
+		errors.Is(err, managementusecase.ErrChannelLeaderTransferInactiveChannel):
+		message := err.Error()
+		if errors.Is(err, channel.ErrNoSafeChannelLeader) {
+			message = "no safe channel leader candidate"
+		}
+		jsonError(c, http.StatusConflict, "conflict", message)
 	case slotLeaderAuthoritativeReadUnavailable(err), leaderConsistentReadUnavailable(err):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "slot leader authoritative read unavailable")
 	default:

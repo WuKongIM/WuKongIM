@@ -82,6 +82,8 @@ type Management interface {
 	GetChannelClusterReplicaDetail(ctx context.Context, channelID string, channelType int64) (managementusecase.ChannelClusterReplicaDetail, error)
 	// RepairChannelClusterLeader runs policy-driven safe leader repair for one channel.
 	RepairChannelClusterLeader(ctx context.Context, req managementusecase.RepairChannelClusterLeaderRequest) (managementusecase.RepairChannelClusterLeaderResponse, error)
+	// TransferChannelClusterLeader safely transfers one channel leader to an explicit replica.
+	TransferChannelClusterLeader(ctx context.Context, req managementusecase.TransferChannelClusterLeaderRequest) (managementusecase.TransferChannelClusterLeaderResponse, error)
 	// ListMessages returns one manager-facing channel message page.
 	ListMessages(ctx context.Context, req managementusecase.ListMessagesRequest) (managementusecase.ListMessagesResponse, error)
 	// AdvanceMessageRetention advances one channel's history retention boundary.

@@ -3060,6 +3060,79 @@ func TestManagerChannelClusterRepairRequiresWritePermission(t *testing.T) {
 	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
 }
 
+func TestManagerChannelClusterLeaderTransferReturnsChangedChannel(t *testing.T) {
+	var received managementusecase.TransferChannelClusterLeaderRequest
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username:    "admin",
+			Password:    "secret",
+			Permissions: []PermissionConfig{{Resource: "cluster.channel", Actions: []string{"w"}}},
+		}}),
+		Management: managementStub{
+			channelClusterTransferReqSink: &received,
+			channelClusterTransfer: managementusecase.TransferChannelClusterLeaderResponse{
+				Changed: true,
+				Channel: managementusecase.ChannelRuntimeMetaDetail{
+					ChannelRuntimeMeta: managementusecase.ChannelRuntimeMeta{
+						ChannelID: "room-1", ChannelType: 2, SlotID: 9, Leader: 2, Replicas: []uint64{1, 2}, ISR: []uint64{1, 2}, MinISR: 1, Status: "active",
+					},
+					HashSlot: 123,
+				},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/channel-cluster/2/room-1/leader/transfer", bytes.NewBufferString(`{"target_node_id":2}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, managementusecase.TransferChannelClusterLeaderRequest{ChannelID: "room-1", ChannelType: 2, TargetNodeID: 2}, received)
+	require.JSONEq(t, `{
+		"changed": true,
+		"channel": {
+			"channel_id": "room-1",
+			"channel_type": 2,
+			"slot_id": 9,
+			"hash_slot": 123,
+			"channel_epoch": 0,
+			"leader_epoch": 0,
+			"leader": 2,
+			"replicas": [1, 2],
+			"isr": [1, 2],
+			"min_isr": 1,
+			"max_message_seq": 0,
+			"status": "active",
+			"features": 0,
+			"lease_until_ms": 0
+		}
+	}`, rec.Body.String())
+}
+
+func TestManagerChannelClusterLeaderTransferRequiresWritePermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username:    "viewer",
+			Password:    "secret",
+			Permissions: []PermissionConfig{{Resource: "cluster.channel", Actions: []string{"r"}}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/channel-cluster/2/room-1/leader/transfer", bytes.NewBufferString(`{"target_node_id":2}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
+}
+
 func TestManagerChannelClusterOperationsMapErrors(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -3073,6 +3146,15 @@ func TestManagerChannelClusterOperationsMapErrors(t *testing.T) {
 		{name: "replicas not found", method: http.MethodGet, path: "/manager/channel-cluster/2/room-1/replicas", stub: managementStub{channelClusterReplicaDetailErr: metadb.ErrNotFound}, want: http.StatusNotFound},
 		{name: "repair no safe candidate", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/repair", body: `{"reason":"no_leader"}`, stub: managementStub{channelClusterRepairErr: channel.ErrNoSafeChannelLeader}, want: http.StatusConflict},
 		{name: "repair leader unavailable", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/repair", body: `{"reason":"no_leader"}`, stub: managementStub{channelClusterRepairErr: raftcluster.ErrNoLeader}, want: http.StatusServiceUnavailable},
+		{name: "transfer invalid channel type", method: http.MethodPost, path: "/manager/channel-cluster/0/room-1/leader/transfer", body: `{"target_node_id":2}`, want: http.StatusBadRequest},
+		{name: "transfer invalid body", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{`, want: http.StatusBadRequest},
+		{name: "transfer missing target", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{}`, want: http.StatusBadRequest},
+		{name: "transfer target not replica", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{"target_node_id":3}`, stub: managementStub{channelClusterTransferErr: managementusecase.ErrChannelLeaderTransferTargetNotReplica}, want: http.StatusBadRequest},
+		{name: "transfer target not isr", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{"target_node_id":3}`, stub: managementStub{channelClusterTransferErr: managementusecase.ErrChannelLeaderTransferTargetNotISR}, want: http.StatusConflict},
+		{name: "transfer inactive", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{"target_node_id":3}`, stub: managementStub{channelClusterTransferErr: managementusecase.ErrChannelLeaderTransferInactiveChannel}, want: http.StatusConflict},
+		{name: "transfer not found", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{"target_node_id":3}`, stub: managementStub{channelClusterTransferErr: metadb.ErrNotFound}, want: http.StatusNotFound},
+		{name: "transfer no safe candidate", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{"target_node_id":3}`, stub: managementStub{channelClusterTransferErr: channel.ErrNoSafeChannelLeader}, want: http.StatusConflict},
+		{name: "transfer leader unavailable", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/leader/transfer", body: `{"target_node_id":3}`, stub: managementStub{channelClusterTransferErr: raftcluster.ErrNoLeader}, want: http.StatusServiceUnavailable},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -3922,6 +4004,9 @@ type managementStub struct {
 	channelClusterRepairReqSink        *managementusecase.RepairChannelClusterLeaderRequest
 	channelClusterRepair               managementusecase.RepairChannelClusterLeaderResponse
 	channelClusterRepairErr            error
+	channelClusterTransferReqSink      *managementusecase.TransferChannelClusterLeaderRequest
+	channelClusterTransfer             managementusecase.TransferChannelClusterLeaderResponse
+	channelClusterTransferErr          error
 	messagesReqSink                    *managementusecase.ListMessagesRequest
 	messagesPage                       managementusecase.ListMessagesResponse
 	messagesErr                        error
@@ -4143,6 +4228,13 @@ func (s managementStub) RepairChannelClusterLeader(_ context.Context, req manage
 		*s.channelClusterRepairReqSink = req
 	}
 	return s.channelClusterRepair, s.channelClusterRepairErr
+}
+
+func (s managementStub) TransferChannelClusterLeader(_ context.Context, req managementusecase.TransferChannelClusterLeaderRequest) (managementusecase.TransferChannelClusterLeaderResponse, error) {
+	if s.channelClusterTransferReqSink != nil {
+		*s.channelClusterTransferReqSink = req
+	}
+	return s.channelClusterTransfer, s.channelClusterTransferErr
 }
 
 func (s managementStub) ListMessages(_ context.Context, req managementusecase.ListMessagesRequest) (managementusecase.ListMessagesResponse, error) {
