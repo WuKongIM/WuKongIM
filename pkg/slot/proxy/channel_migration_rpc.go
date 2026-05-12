@@ -52,6 +52,13 @@ func (s *Store) CreateChannelMigrationTask(ctx context.Context, task metadb.Chan
 	return s.proposeChannelMigrationCommand(ctx, task.ChannelID, cmd)
 }
 
+// CreateChannelMigrationTaskWithRuntimeGuard creates one authoritative migration task
+// while fencing creation to the caller's observed channel runtime metadata.
+func (s *Store) CreateChannelMigrationTaskWithRuntimeGuard(ctx context.Context, req metadb.ChannelMigrationTaskCreate) error {
+	cmd := metafsm.EncodeCreateChannelMigrationTaskWithRuntimeGuardCommand(req)
+	return s.proposeChannelMigrationCommand(ctx, req.Task.ChannelID, cmd)
+}
+
 // GetActiveChannelMigrationTask reads the active task from the authoritative slot leader.
 func (s *Store) GetActiveChannelMigrationTask(ctx context.Context, channelID string, channelType int64) (metadb.ChannelMigrationTask, bool, error) {
 	slotID := s.cluster.SlotForKey(channelID)

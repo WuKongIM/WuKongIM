@@ -149,6 +149,15 @@ type ChannelMigrationTaskClaim struct {
 	UpdatedAtMS int64
 }
 
+// ChannelMigrationTaskCreate describes a task create fenced to one observed
+// ChannelRuntimeMeta state.
+type ChannelMigrationTaskCreate struct {
+	// Task is the migration task to create.
+	Task ChannelMigrationTask
+	// RuntimeGuard is the expected current ChannelRuntimeMeta state.
+	RuntimeGuard ChannelMigrationRuntimeGuard
+}
+
 // ChannelMigrationTaskAdvance describes a guarded phase/progress update that
 // does not directly mutate ChannelRuntimeMeta.
 type ChannelMigrationTaskAdvance struct {
@@ -401,6 +410,24 @@ type ChannelMigrationTask struct {
 	CompletedAtMS int64
 	// Progress stores durable executor observations for recovery and APIs.
 	Progress ChannelMigrationProgress
+}
+
+// CreateChannelMigrationTaskWithRuntimeGuard creates a task only when the
+// channel runtime metadata still matches the caller's observed guard.
+func (s *ShardStore) CreateChannelMigrationTaskWithRuntimeGuard(ctx context.Context, req ChannelMigrationTaskCreate) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	if err := s.db.checkContext(ctx); err != nil {
+		return err
+	}
+
+	wb := s.db.NewWriteBatch()
+	defer wb.Close()
+	if err := wb.CreateChannelMigrationTaskWithRuntimeGuard(s.slot, req); err != nil {
+		return err
+	}
+	return wb.Commit()
 }
 
 // CreateChannelMigrationTask creates task if no active task exists for the

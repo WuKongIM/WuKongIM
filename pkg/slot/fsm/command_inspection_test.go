@@ -99,6 +99,36 @@ func TestDecodeCommandInspectionIncludesAdvanceChannelRetentionThroughSeq(t *tes
 	}, got)
 }
 
+func TestDecodeCommandInspectionIncludesGuardedChannelMigrationCreate(t *testing.T) {
+	task := metadb.ChannelMigrationTask{
+		TaskID:      "task-inspect-create-guard",
+		Kind:        metadb.ChannelMigrationKindReplicaReplace,
+		Status:      metadb.ChannelMigrationStatusPending,
+		Phase:       metadb.ChannelMigrationPhaseValidate,
+		ChannelID:   "inspect-create-guard",
+		ChannelType: 2,
+		SourceNode:  1,
+		TargetNode:  3,
+		CreatedAtMS: 1700000000000,
+		UpdatedAtMS: 1700000000000,
+	}
+	got, err := DecodeCommandInspection(EncodeCreateChannelMigrationTaskWithRuntimeGuardCommand(metadb.ChannelMigrationTaskCreate{
+		Task: task,
+		RuntimeGuard: metadb.ChannelMigrationRuntimeGuard{
+			ChannelID:            task.ChannelID,
+			ChannelType:          task.ChannelType,
+			ExpectedChannelEpoch: 7,
+			ExpectedLeaderEpoch:  9,
+			ExpectedLeader:       1,
+		},
+	}))
+	require.NoError(t, err)
+
+	require.Equal(t, "create_channel_migration_task_with_runtime_guard", got.Type)
+	require.Equal(t, task.TaskID, got.Payload["task_id"])
+	require.Equal(t, task.ChannelID, got.Payload["channel_id"])
+}
+
 func TestDecodeCommandInspectionIncludesUserConversationActiveMessageSeq(t *testing.T) {
 	got, err := DecodeCommandInspection(EncodeTouchUserConversationActiveAtCommand([]metadb.UserConversationActivePatch{{
 		UID:         "u1",

@@ -88,6 +88,16 @@ type ChannelRuntimeMetaReader interface {
 	GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error)
 }
 
+// ChannelMigrationStore exposes authoritative channel migration task mutations.
+type ChannelMigrationStore interface {
+	// CreateChannelMigrationTaskWithRuntimeGuard creates a new active migration task fenced to observed runtime metadata.
+	CreateChannelMigrationTaskWithRuntimeGuard(ctx context.Context, req metadb.ChannelMigrationTaskCreate) error
+	// GetActiveChannelMigrationTask returns the active task for one channel when present.
+	GetActiveChannelMigrationTask(ctx context.Context, channelID string, channelType int64) (metadb.ChannelMigrationTask, bool, error)
+	// AbortChannelMigration marks an active migration task aborted.
+	AbortChannelMigration(ctx context.Context, req metadb.ChannelMigrationAbortRequest) error
+}
+
 // MessageReader exposes authoritative channel message page reads.
 type MessageReader interface {
 	// QueryMessages returns one authoritative message page for a channel.
@@ -168,6 +178,8 @@ type Options struct {
 	Diagnostics DiagnosticsReader
 	// ChannelRuntimeMeta provides authoritative slot-level runtime meta pages.
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
+	// ChannelMigration provides authoritative channel migration task mutations.
+	ChannelMigration ChannelMigrationStore
 	// Messages provides authoritative channel message pages.
 	Messages MessageReader
 	// MessageRetention provides destructive channel message retention operations.
@@ -191,6 +203,7 @@ type App struct {
 	connections              ConnectionReader
 	diagnostics              DiagnosticsReader
 	channelRuntimeMeta       ChannelRuntimeMetaReader
+	channelMigration         ChannelMigrationStore
 	messages                 MessageReader
 	messageRetention         MessageRetentionOperator
 	network                  NetworkSnapshotReader
@@ -220,6 +233,7 @@ func New(opts Options) *App {
 		connections:              opts.Connections,
 		diagnostics:              opts.Diagnostics,
 		channelRuntimeMeta:       opts.ChannelRuntimeMeta,
+		channelMigration:         opts.ChannelMigration,
 		messages:                 opts.Messages,
 		messageRetention:         opts.MessageRetention,
 		network:                  opts.Network,

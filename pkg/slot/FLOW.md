@@ -27,14 +27,14 @@ Store.GetUserConversationState / UpsertUserConversationStates / ListUserConversa
 Store.TouchUserConversationActiveAt / ClearUserConversationActiveAt / HideUserConversations
 Store.RegisterUserConversationActiveOverlay(overlay)  // 注册 UID-owner active_at 热提示覆盖层
 Store.SubmitUserConversationActiveHints / RemoveUserConversationActiveHints
-Store.CreateChannelMigrationTask / GetActiveChannelMigrationTask / ListRunnableChannelMigrationTasksForLocalLeaderSlots
+Store.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / GetActiveChannelMigrationTask / ListRunnableChannelMigrationTasksForLocalLeaderSlots
 Store.ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteFence / ResetChannelWriteFenceToPreCutover
 Store.CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration
 Store.GarbageCollectTerminalChannelMigrationTasks
 
 // meta/channel_migration_task.go — 当前 Task 2/3 提供本地 ShardStore / WriteBatch helper
-ShardStore.CreateChannelMigrationTask / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / GetChannelMigrationTask / GetActiveChannelMigrationTask / ListChannelMigrationTasks / DeleteTerminalChannelMigrationTasksBefore
-WriteBatch.CreateChannelMigrationTask / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteFence / ResetChannelWriteFenceToPreCutover / CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration / DeleteTerminalChannelMigrationTasksBefore
+ShardStore.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / GetChannelMigrationTask / GetActiveChannelMigrationTask / ListChannelMigrationTasks / DeleteTerminalChannelMigrationTasksBefore
+WriteBatch.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteFence / ResetChannelWriteFenceToPreCutover / CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration / DeleteTerminalChannelMigrationTasksBefore
 
 // multiraft/api.go — Raft Runtime 底层 API
 Runtime.OpenSlot / BootstrapSlot / CloseSlot
@@ -194,7 +194,7 @@ Meta  (0x12): [0x12][hashSlot:2][...]                             元信息
 | 7 | ReservedConversationProjection | 已移除，不再读写 | - |
 | 8 | ChannelMigrationTask | (channel_id, channel_type, task_id) | idx_channel_migration_active, idx_channel_migration_terminal |
 
-## 7. FSM 命令类型（29 种 + 2 个保留 ID）
+## 7. FSM 命令类型（30 种 + 2 个保留 ID）
 
 TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 未知 Tag 自动跳过（前向兼容）。详见 `fsm/command.go`。
@@ -217,6 +217,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 36: AddChannelLearner                  37: PromoteLearnerAndRemoveReplica
 38: ClearChannelWriteFence             39: AbortChannelMigration
 40: GarbageCollectTerminalChannelMigrationTasks
+41: CreateChannelMigrationTaskWithRuntimeGuard
 ```
 
 ## 8. RPC Service IDs（proxy 层）
@@ -246,7 +247,8 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **Replica replace 嵌入式 leader transfer**: 当 source 是当前 channel leader 时，executor 通过 `AdvanceChannelMigrationTask.EmbeddedDesiredLeader` 在同一任务中持久化 embedded transfer 决策；后续 leader-transfer 子阶段不能创建第二个 active task，embedded clear 只清 fence/proof 并回到 `AddLearner`；`AddLearner` 会重新读取权威 meta，若 source 又成为 leader 则重新回到 embedded transfer。
 - **Channel 迁移 fence/task 一致性**: set/renew/reset/commit/promote/clear/abort 不允许覆盖或清理 foreign fence；涉及已存在 fence 的命令必须让 task fence 与 runtime meta fence 的 token/version 指向同一 task。source/target 角色校验采用 fail-closed 语义，例如 add learner 时 source 必须仍在 `Replicas` 和 `ISR` 且不能是当前 leader、target 必须尚未进入 `Replicas`/`ISR`。
 - **Channel 迁移 clear marker**: token 为空但 `WriteFenceVersion > 0` 是合法的已清 fence generation marker，不算 active/foreign fence；同任务 reset 后重设 fence 或后续新任务 set fence 必须基于该 marker 继续递增版本。
-- **Channel 迁移同批写保护**: `UpsertChannelRuntimeMeta` / `CreateChannelMigrationTask` 如果已经在同一个 `ApplyBatch` 里写入，后续迁移命令会复用同批 staged state，不再按 DB 旧值做 commit-time 重新校验；这样 `runtime meta -> create task -> add learner` 这类合法同批命令不会被误判为 stale。
+- **Channel 迁移任务创建防竞态**: 管理入口创建任务应使用 `CreateChannelMigrationTaskWithRuntimeGuard`，把 dry-run 读取到的 `ChannelRuntimeMeta` epoch/leader/fence 状态带进 Raft apply；如果创建前 runtime meta 已变化，FSM 返回确定性的 `stale_meta`，避免创建出必然失败的陈旧任务；若同批前序命令已 staged runtime meta，guarded create 会记录 pre-batch DB guard 并在 commit-time 复核，防止同批 staging 期间 DB 被更新后仍创建陈旧任务。
+- **Channel 迁移同批写保护**: `UpsertChannelRuntimeMeta` / `CreateChannelMigrationTask` 如果已经在同一个 `ApplyBatch` 里写入，后续迁移命令会复用同批 staged state，不再按 DB 旧值做 commit-time 重新校验；这样 `runtime meta -> create task -> add learner` 这类合法同批命令不会被误判为 stale。`CreateChannelMigrationTaskWithRuntimeGuard` 是例外：它可读取同批 staged runtime meta 做语义校验，但仍会记录 pre-batch runtime guard 用于 commit-time 防竞态。
 - **Channel 迁移提交期竞态**: commit-time guard 如果发现 `ErrStaleMeta` / `ErrNotFound` / `ErrAlreadyExists`，FSM 会把该 Raft entry 归一化为确定性的 `stale_meta` 结果；批量提交遇到这类提交期竞态会拆成单条重放，避免正常迁移竞态让 Slot fatal。
 - **Channel 迁移编码健壮性**: 迁移命令只接受单个 JSON payload TLV，重复 payload、重复 JSON key 或未知 JSON 字段视为 `ErrCorruptValue`，避免歧义编码。
 - **Retention 窄更新是可失败提案**: `AdvanceChannelRetentionThroughSeq` 直接调用 meta store 时会返回 `ErrStaleMeta` / `ErrNotFound`，但 FSM apply 会把 stale 或缺失 runtime meta 转成确定性的 `stale_meta` 结果，避免正常竞态让 Slot fatal；proxy/cluster 再把该结果归一化为调用方可见的 `ErrStaleMeta`。

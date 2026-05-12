@@ -194,6 +194,7 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeClearChannelWriteFence:               decodeClearChannelWriteFence,
 	cmdTypeAbortChannelMigration:                decodeAbortChannelMigration,
 	cmdTypeGarbageCollectMigrationTasks:         decodeGarbageCollectMigrationTasks,
+	cmdTypeCreateChannelMigrationGuarded:        decodeCreateChannelMigrationTaskWithRuntimeGuard,
 }
 
 // --- UpsertUser ---

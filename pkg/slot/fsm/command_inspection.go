@@ -98,6 +98,8 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 		}), nil
 	case *createChannelMigrationTaskCmd:
 		return channelMigrationTaskInspection("create_channel_migration_task", typed.task), nil
+	case *createChannelMigrationTaskWithRuntimeGuardCmd:
+		return channelMigrationTaskInspection("create_channel_migration_task_with_runtime_guard", typed.req.Task), nil
 	case *claimChannelMigrationTaskCmd:
 		return channelMigrationGuardInspection("claim_channel_migration_task", typed.req.Guard), nil
 	case *advanceChannelMigrationTaskCmd:

@@ -23,6 +23,7 @@ const (
 	cmdTypeClearChannelWriteFence         uint8 = 38
 	cmdTypeAbortChannelMigration          uint8 = 39
 	cmdTypeGarbageCollectMigrationTasks   uint8 = 40
+	cmdTypeCreateChannelMigrationGuarded  uint8 = 41
 	tagChannelMigrationCommandPayload     uint8 = 1
 )
 
@@ -34,6 +35,14 @@ type createChannelMigrationTaskCmd struct {
 
 func (c *createChannelMigrationTaskCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
 	return wb.CreateChannelMigrationTask(hashSlot, c.task)
+}
+
+type createChannelMigrationTaskWithRuntimeGuardCmd struct {
+	req metadb.ChannelMigrationTaskCreate
+}
+
+func (c *createChannelMigrationTaskWithRuntimeGuardCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
+	return wb.CreateChannelMigrationTaskWithRuntimeGuard(hashSlot, c.req)
 }
 
 type claimChannelMigrationTaskCmd struct {
@@ -131,6 +140,12 @@ func EncodeCreateChannelMigrationTaskCommand(task metadb.ChannelMigrationTask) [
 	return encodeChannelMigrationJSONCommand(cmdTypeCreateChannelMigrationTask, task)
 }
 
+// EncodeCreateChannelMigrationTaskWithRuntimeGuardCommand encodes a task create
+// fenced to one observed channel runtime metadata state.
+func EncodeCreateChannelMigrationTaskWithRuntimeGuardCommand(req metadb.ChannelMigrationTaskCreate) []byte {
+	return encodeChannelMigrationJSONCommand(cmdTypeCreateChannelMigrationGuarded, req)
+}
+
 // EncodeClaimChannelMigrationTaskCommand encodes a guarded owner-claim command.
 func EncodeClaimChannelMigrationTaskCommand(req metadb.ChannelMigrationTaskClaim) []byte {
 	return encodeChannelMigrationJSONCommand(cmdTypeClaimChannelMigrationTask, req)
@@ -224,6 +239,14 @@ func decodeCreateChannelMigrationTask(data []byte) (command, error) {
 		return nil, err
 	}
 	return &createChannelMigrationTaskCmd{task: task}, nil
+}
+
+func decodeCreateChannelMigrationTaskWithRuntimeGuard(data []byte) (command, error) {
+	var req metadb.ChannelMigrationTaskCreate
+	if err := decodeChannelMigrationJSONPayload(data, &req); err != nil {
+		return nil, err
+	}
+	return &createChannelMigrationTaskWithRuntimeGuardCmd{req: req}, nil
 }
 
 func decodeClaimChannelMigrationTask(data []byte) (command, error) {

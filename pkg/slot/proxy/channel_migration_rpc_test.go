@@ -33,6 +33,46 @@ func TestChannelMigrationCreateTaskRoutesToAuthoritativeSlotLeader(t *testing.T)
 	require.False(t, ok)
 }
 
+func TestChannelMigrationCreateTaskWithRuntimeGuardRoutesToAuthoritativeSlotLeader(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeHashSlotStores(t, 8)
+
+	channelID := findChannelIDForSlotWithDifferentHashSlot(t, nodes[0].cluster, 2, 2, "migration-create-guard")
+	hashSlot := mustHashSlotForKey(t, nodes[0].cluster, channelID)
+	task := proxyTestChannelMigrationTask("task-create-guard", channelID)
+	meta := proxyTestRuntimeMeta(channelID, task.ChannelType)
+	require.NoError(t, nodes[1].db.ForHashSlot(hashSlot).UpsertChannelRuntimeMeta(ctx, meta))
+
+	require.NoError(t, nodes[0].store.CreateChannelMigrationTaskWithRuntimeGuard(ctx, metadb.ChannelMigrationTaskCreate{
+		Task:         task,
+		RuntimeGuard: proxyTestRuntimeGuard(meta),
+	}))
+
+	got, ok, err := nodes[1].db.ForHashSlot(hashSlot).GetActiveChannelMigrationTask(ctx, channelID, task.ChannelType)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, task, got)
+}
+
+func TestChannelMigrationCreateTaskWithRuntimeGuardRejectsStaleRemoteMeta(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeHashSlotStores(t, 8)
+
+	channelID := findChannelIDForSlotWithDifferentHashSlot(t, nodes[0].cluster, 2, 2, "migration-create-guard-stale")
+	hashSlot := mustHashSlotForKey(t, nodes[0].cluster, channelID)
+	task := proxyTestChannelMigrationTask("task-create-guard-stale", channelID)
+	meta := proxyTestRuntimeMeta(channelID, task.ChannelType)
+	changed := meta
+	changed.LeaderEpoch++
+	require.NoError(t, nodes[1].db.ForHashSlot(hashSlot).UpsertChannelRuntimeMeta(ctx, changed))
+
+	err := nodes[0].store.CreateChannelMigrationTaskWithRuntimeGuard(ctx, metadb.ChannelMigrationTaskCreate{
+		Task:         task,
+		RuntimeGuard: proxyTestRuntimeGuard(meta),
+	})
+	require.ErrorIs(t, err, metadb.ErrStaleMeta)
+}
+
 func TestChannelMigrationGetActiveTaskReadsLocalAndRemoteAuthoritativeSlot(t *testing.T) {
 	ctx := context.Background()
 	nodes := startTwoNodeShardedStores(t)
