@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -67,7 +68,7 @@ func TestMigrationControlClientDrainsRemoteLeader(t *testing.T) {
 	got, err := adapter.FenceAndDrain(context.Background(), 2, req)
 	require.NoError(t, err)
 	require.Equal(t, service.result, got)
-	require.Equal(t, []channel.FenceAndDrainRequest{req}, service.calls)
+	require.Equal(t, []channel.FenceAndDrainRequest{req}, service.callSnapshot())
 }
 
 func TestMigrationControlRejectsDrainOnNonLeaderOrFenceMismatch(t *testing.T) {
@@ -120,6 +121,7 @@ func mustEncodeFenceAndDrainRequest(t *testing.T, req channel.FenceAndDrainReque
 }
 
 type migrationRuntimeStub struct {
+	mu     sync.Mutex
 	calls  []channel.FenceAndDrainRequest
 	result channel.DrainResult
 	err    error
@@ -130,6 +132,14 @@ func (s *migrationRuntimeStub) ServeFetch(context.Context, runtime.FetchRequestE
 }
 
 func (s *migrationRuntimeStub) FenceAndDrain(_ context.Context, req channel.FenceAndDrainRequest) (channel.DrainResult, error) {
+	s.mu.Lock()
 	s.calls = append(s.calls, req)
+	s.mu.Unlock()
 	return s.result, s.err
+}
+
+func (s *migrationRuntimeStub) callSnapshot() []channel.FenceAndDrainRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]channel.FenceAndDrainRequest(nil), s.calls...)
 }

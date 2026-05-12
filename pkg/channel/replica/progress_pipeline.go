@@ -258,6 +258,15 @@ func (r *replica) applyLeaderAppendCommittedEvent(ev machineLeaderAppendCommitte
 		r.mu.Unlock()
 		return machineResult{}
 	}
+	if !ev.LeaseUntil.IsZero() && !r.now().Before(ev.LeaseUntil) {
+		if !r.now().Before(r.meta.LeaseUntil) {
+			_ = r.appendableLocked()
+		}
+		r.failDurableAppendRequestsLocked(requests, channel.ErrLeaseExpired)
+		r.maybeFlushAppendLocked()
+		r.mu.Unlock()
+		return machineResult{}
+	}
 	if !r.now().Before(r.meta.LeaseUntil) {
 		err := appendFailureForState(r.appendableLocked())
 		if err == nil {
@@ -370,7 +379,7 @@ func (r *replica) canPublishDurableAppendLocked(ev machineLeaderAppendCommittedE
 	if r.closed || r.state.Role == channel.ReplicaRoleTombstoned {
 		return false
 	}
-	if r.state.Role != channel.ReplicaRoleLeader && r.state.Role != channel.ReplicaRoleFencedLeader {
+	if r.state.Role != channel.ReplicaRoleLeader {
 		return false
 	}
 	if r.state.Leader != r.localNode {

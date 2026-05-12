@@ -266,6 +266,64 @@ func TestProgressLoopPublishesDurableAppendAfterSameLeaderFenceMeta(t *testing.T
 	require.Equal(t, uint64(1), drain.LEO)
 }
 
+func TestProgressLoopStaleAppendCommitAfterFenceMetaKeepsEffectLeaseFence(t *testing.T) {
+	env := newTestEnv(t)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	meta.LeaseUntil = env.clock.Now().Add(time.Second)
+	env.replica = newReplicaFromEnv(t, env)
+	env.replica.mustApplyMeta(t, meta)
+	require.NoError(t, env.replica.BecomeLeader(meta))
+	r := env.replica
+	st := r.Status()
+	waiter := &appendWaiter{ch: make(chan appendCompletion, 1)}
+	req := &appendRequest{
+		requestID:  1,
+		ctx:        channel.WithCommitMode(context.Background(), channel.CommitModeLocal),
+		batch:      []channel.Record{{Payload: []byte("a"), SizeBytes: 1}},
+		commitMode: channel.CommitModeLocal,
+		waiter:     waiter,
+		stage:      appendRequestDurable,
+	}
+	waiter.request = req
+	r.mu.Lock()
+	oldRoleGeneration := r.roleGeneration
+	r.appendRequests = map[uint64]*appendRequest{req.requestID: req}
+	r.appendInFlightIDs = []uint64{req.requestID}
+	r.appendInFlightEffectID = 10
+	r.mu.Unlock()
+
+	env.clock.Advance(2 * time.Second)
+	fenced := meta
+	fenced.LeaseUntil = env.clock.Now().Add(time.Minute)
+	fenced.WriteFence = channel.WriteFence{
+		Token:   "task-expired-effect-lease",
+		Version: 1,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	require.NoError(t, r.ApplyMeta(fenced))
+
+	result := r.applyLoopEvent(machineLeaderAppendCommittedEvent{
+		EffectID:       10,
+		ChannelKey:     st.ChannelKey,
+		Epoch:          st.Epoch,
+		LeaderEpoch:    fenced.LeaderEpoch,
+		RoleGeneration: oldRoleGeneration,
+		LeaseUntil:     meta.LeaseUntil,
+		RequestIDs:     []uint64{req.requestID},
+		BaseOffset:     0,
+		DoneAt:         time.Now(),
+	})
+	require.NoError(t, result.Err)
+	require.Equal(t, uint64(0), r.Status().LEO)
+	select {
+	case completion := <-waiter.ch:
+		require.ErrorIs(t, completion.err, channel.ErrLeaseExpired)
+	default:
+		t.Fatal("expired effect lease append waiter was not failed")
+	}
+}
+
 func TestProgressLoopStaleAppendCommitAfterCloseDoesNotPublishProgress(t *testing.T) {
 	r := newLeaderReplica(t)
 	st := r.Status()
