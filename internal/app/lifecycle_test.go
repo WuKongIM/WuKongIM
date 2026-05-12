@@ -459,6 +459,10 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 			calls = append(calls, "conversation_projector.start")
 			return nil
 		},
+		startCMDSyncProjectorFn: func() error {
+			calls = append(calls, "cmdsync_projector.start")
+			return nil
+		},
 		startDeliveryRuntimeFn: func() error {
 			calls = append(calls, "delivery_runtime.start")
 			return nil
@@ -497,6 +501,7 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 		"presence.start",
 		"conversation_active_hints.start",
 		"conversation_projector.start",
+		"cmdsync_projector.start",
 		"delivery_runtime.start",
 		"committed_dispatcher.start",
 		"committed_replay.start",
@@ -768,6 +773,52 @@ func TestStartStopIncludesConversationProjector(t *testing.T) {
 
 	require.NoError(t, app.Stop())
 	require.Equal(t, []string{"cluster.start", "conversation.start", "gateway.start", "gateway.stop", "conversation.stop", "cluster.stop"}, calls)
+}
+
+func TestStartStopIncludesCMDSyncProjectorAfterConversation(t *testing.T) {
+	var calls []string
+
+	app := &App{
+		cluster: &raftcluster.Cluster{},
+		gateway: &gateway.Gateway{},
+		startClusterFn: func() error {
+			calls = append(calls, "cluster.start")
+			return nil
+		},
+		startConversationProjectorFn: func() error {
+			calls = append(calls, "conversation.start")
+			return nil
+		},
+		startCMDSyncProjectorFn: func() error {
+			calls = append(calls, "cmdsync.start")
+			return nil
+		},
+		startGatewayFn: func() error {
+			calls = append(calls, "gateway.start")
+			return nil
+		},
+		stopGatewayFn: func() error {
+			calls = append(calls, "gateway.stop")
+			return nil
+		},
+		stopCMDSyncProjectorFn: func() error {
+			calls = append(calls, "cmdsync.stop")
+			return nil
+		},
+		stopConversationProjectorFn: func() error {
+			calls = append(calls, "conversation.stop")
+			return nil
+		},
+		stopClusterFn: func() {
+			calls = append(calls, "cluster.stop")
+		},
+	}
+
+	require.NoError(t, app.Start())
+	require.Equal(t, []string{"cluster.start", "conversation.start", "cmdsync.start", "gateway.start"}, calls)
+
+	require.NoError(t, app.Stop())
+	require.Equal(t, []string{"cluster.start", "conversation.start", "cmdsync.start", "gateway.start", "gateway.stop", "cmdsync.stop", "conversation.stop", "cluster.stop"}, calls)
 }
 
 func TestStartStopIncludesConversationActiveHintCache(t *testing.T) {

@@ -8,9 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -48,6 +51,95 @@ func TestCommittedReplayerAdvancesCursorWithoutConversationFlush(t *testing.T) {
 	require.Equal(t, []uint64{1, 2}, conversation.messageSeqs())
 	require.Equal(t, 0, conversation.flushes)
 	require.Equal(t, uint64(2), source.cursors[channel.ChannelKey("channel/1/c1")])
+}
+
+func TestCommittedReplayerSubmitsDurableCommandMessagesToCMDSync(t *testing.T) {
+	key := channel.ChannelKey("channel/2/g1____cmd")
+	source := &fakeCommittedReplayLog{
+		channels: []committedReplayChannel{{
+			Key: key,
+			ID:  channel.ChannelID{ID: "g1____cmd", Type: frame.ChannelTypeGroup},
+		}},
+		committed: map[channel.ChannelKey]uint64{key: 1},
+		messages: map[channel.ChannelKey][]channel.Message{
+			key: {
+				{MessageID: 11, MessageSeq: 1, ChannelID: "g1____cmd", ChannelType: frame.ChannelTypeGroup, Payload: []byte("cmd")},
+			},
+		},
+	}
+	cmdsyncSink := &fakeCommittedReplayCMDSync{}
+	replayer := newCommittedReplayer(committedReplayerConfig{
+		Log:       source,
+		CMDSync:   cmdsyncSink,
+		BatchSize: 16,
+	})
+
+	require.NoError(t, replayer.RunOnce(context.Background()))
+
+	require.Len(t, cmdsyncSink.calls, 1)
+	require.Equal(t, uint64(1), cmdsyncSink.calls[0].Message.MessageSeq)
+	require.Equal(t, "g1____cmd", cmdsyncSink.calls[0].Message.ChannelID)
+	require.Empty(t, cmdsyncSink.calls[0].MessageScopedUIDs)
+}
+
+func TestCommittedReplayerDoesNotAdvanceCursorWhenCMDSyncProjectionFails(t *testing.T) {
+	key := channel.ChannelKey("channel/2/g1____cmd")
+	projectionErr := errors.New("cmd projection failed")
+	source := &fakeCommittedReplayLog{
+		channels: []committedReplayChannel{{
+			Key: key,
+			ID:  channel.ChannelID{ID: "g1____cmd", Type: frame.ChannelTypeGroup},
+		}},
+		committed: map[channel.ChannelKey]uint64{key: 1},
+		messages: map[channel.ChannelKey][]channel.Message{
+			key: {
+				{MessageID: 11, MessageSeq: 1, ChannelID: "g1____cmd", ChannelType: frame.ChannelTypeGroup, Payload: []byte("cmd")},
+			},
+		},
+	}
+	projector := cmdsync.NewProjector(cmdsync.ProjectorOptions{
+		Store:       &fakeCommittedReplayCMDStateStore{},
+		Subscribers: failingCommittedReplaySubscribers{err: projectionErr},
+	})
+	replayer := newCommittedReplayer(committedReplayerConfig{
+		Log:       source,
+		CMDSync:   projector,
+		BatchSize: 16,
+	})
+
+	err := replayer.RunOnce(context.Background())
+
+	require.ErrorIs(t, err, projectionErr)
+	require.Empty(t, source.cursors)
+}
+
+func TestCommittedReplayTempCommandWithoutScopedUIDsDoesNotCreateCMDState(t *testing.T) {
+	key := channel.ChannelKey("channel/3/tmp1____cmd")
+	source := &fakeCommittedReplayLog{
+		channels: []committedReplayChannel{{
+			Key: key,
+			ID:  channel.ChannelID{ID: "tmp1____cmd", Type: frame.ChannelTypeTemp},
+		}},
+		committed: map[channel.ChannelKey]uint64{key: 1},
+		messages: map[channel.ChannelKey][]channel.Message{
+			key: {
+				{MessageID: 12, MessageSeq: 1, ChannelID: "tmp1____cmd", ChannelType: frame.ChannelTypeTemp, Payload: []byte("cmd")},
+			},
+		},
+	}
+	store := &fakeCommittedReplayCMDStateStore{}
+	projector := cmdsync.NewProjector(cmdsync.ProjectorOptions{Store: store})
+	replayer := newCommittedReplayer(committedReplayerConfig{
+		Log:       source,
+		CMDSync:   projector,
+		BatchSize: 16,
+	})
+
+	require.NoError(t, replayer.RunOnce(context.Background()))
+	require.NoError(t, projector.Flush(context.Background()))
+
+	require.Empty(t, store.states)
+	require.Equal(t, uint64(1), source.cursors[key])
 }
 
 func TestCommittedReplayerAdvancesCursorAfterConversationSubmitAccepted(t *testing.T) {
@@ -511,6 +603,44 @@ func (f *fakeCommittedReplayDelivery) messageSeqs() []uint64 {
 		seqs = append(seqs, call.MessageSeq)
 	}
 	return seqs
+}
+
+type fakeCommittedReplayCMDSync struct {
+	calls []messageevents.MessageCommitted
+}
+
+func (f *fakeCommittedReplayCMDSync) SubmitCommitted(_ context.Context, event messageevents.MessageCommitted) error {
+	f.calls = append(f.calls, event)
+	return nil
+}
+
+func (f *fakeCommittedReplayCMDSync) ProjectCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
+	return f.SubmitCommitted(ctx, event)
+}
+
+type fakeCommittedReplayCMDStateStore struct {
+	states []metadb.CMDConversationState
+}
+
+func (s *fakeCommittedReplayCMDStateStore) UpsertCMDConversationStates(_ context.Context, states []metadb.CMDConversationState) error {
+	s.states = append(s.states, states...)
+	return nil
+}
+
+type failingCommittedReplaySubscribers struct {
+	err error
+}
+
+func (s failingCommittedReplaySubscribers) BeginSnapshot(context.Context, channel.ChannelID) (delivery.SnapshotToken, error) {
+	return delivery.SnapshotToken{}, s.err
+}
+
+func (s failingCommittedReplaySubscribers) BeginSnapshotWithRequest(context.Context, channel.ChannelID, delivery.SubscriberSnapshotRequest) (delivery.SnapshotToken, error) {
+	return delivery.SnapshotToken{}, s.err
+}
+
+func (s failingCommittedReplaySubscribers) NextPage(context.Context, delivery.SnapshotToken, string, int) ([]string, string, bool, error) {
+	return nil, "", true, s.err
 }
 
 type fakeCommittedReplayConversation struct {

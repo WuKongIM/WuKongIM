@@ -27,6 +27,7 @@ type Projector interface {
 	Stop() error
 	Flush(ctx context.Context) error
 	SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error
+	ProjectCommitted(ctx context.Context, event messageevents.MessageCommitted) error
 }
 
 // ProjectorStore persists projected CMD conversation state.
@@ -170,6 +171,14 @@ func (p *cmdProjector) SubmitCommitted(_ context.Context, event messageevents.Me
 		p.logger.Warn("cmd sync projection queue full; dropping event")
 	}
 	return nil
+}
+
+// ProjectCommitted synchronously persists one committed CMD projection.
+func (p *cmdProjector) ProjectCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
+	if p == nil || p.store == nil {
+		return nil
+	}
+	return p.project(ctx, event.Clone())
 }
 
 // Flush drains queued projection work synchronously.
