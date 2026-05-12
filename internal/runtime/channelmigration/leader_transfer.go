@@ -68,7 +68,8 @@ func (e *Executor) leaderTransferProbeTarget(ctx context.Context, task Task, now
 		return err
 	}
 	projected := channelmeta.ProjectChannelMeta(meta)
-	report, err := e.probeClient.ProbeChannel(ctx, channel.NodeID(task.TargetNode), projected)
+	targetNode := leaderTransferTargetNode(task)
+	report, err := e.probeClient.ProbeChannel(ctx, targetNode, projected)
 	afterProbeMS := e.now().UnixMilli()
 	if afterProbeMS < nowMS {
 		afterProbeMS = nowMS
@@ -76,7 +77,7 @@ func (e *Executor) leaderTransferProbeTarget(ctx context.Context, task Task, now
 	if err != nil {
 		return e.retryTask(ctx, task, afterProbeMS, err, task.Progress)
 	}
-	if err := validateTargetReportFence(projected, channel.NodeID(task.TargetNode), report); err != nil {
+	if err := validateTargetReportFence(projected, targetNode, report); err != nil {
 		return e.retryTask(ctx, task, afterProbeMS, err, task.Progress)
 	}
 	if err := e.ensureTaskOwnership(ctx, task, afterProbeMS); err != nil {
@@ -190,7 +191,8 @@ func (e *Executor) leaderTransferFinalTargetCatchUp(ctx context.Context, task Ta
 		return e.retryTask(ctx, task, afterReadMS, slotmeta.ErrStaleMeta, task.Progress)
 	}
 	projected := channelmeta.ProjectChannelMeta(meta)
-	report, err := e.probeClient.ProbeChannel(ctx, channel.NodeID(task.TargetNode), projected)
+	targetNode := leaderTransferTargetNode(task)
+	report, err := e.probeClient.ProbeChannel(ctx, targetNode, projected)
 	afterProbeMS := e.freshNowMS(afterReadMS)
 	if err != nil {
 		return e.retryTask(ctx, task, afterProbeMS, err, task.Progress)
@@ -203,7 +205,7 @@ func (e *Executor) leaderTransferFinalTargetCatchUp(ctx context.Context, task Ta
 	progress.TargetCheckpointHW = report.CheckpointHW
 	proof, err := (ProofEvaluator{}).EvaluateFinalTargetProof(FinalTargetProofRequest{
 		Meta:               projected,
-		TargetNode:         channel.NodeID(task.TargetNode),
+		TargetNode:         targetNode,
 		CutoverLEO:         task.CutoverLEO,
 		CutoverHW:          task.CutoverHW,
 		CutoverOffsetEpoch: task.DrainedChannelEpoch,
@@ -270,12 +272,13 @@ func (e *Executor) leaderTransferVerifyNewLeader(ctx context.Context, task Task,
 		return fmt.Errorf("%w: probe client", ErrMissingDependency)
 	}
 	projected := channelmeta.ProjectChannelMeta(meta)
-	report, err := e.probeClient.ProbeChannel(ctx, channel.NodeID(task.TargetNode), projected)
+	targetNode := leaderTransferTargetNode(task)
+	report, err := e.probeClient.ProbeChannel(ctx, targetNode, projected)
 	afterProbeMS := e.freshNowMS(afterReadMS)
 	if err != nil {
 		return e.retryTask(ctx, task, afterProbeMS, err, task.Progress)
 	}
-	if err := validateTargetReportFence(projected, channel.NodeID(task.TargetNode), report); err != nil {
+	if err := validateTargetReportFence(projected, targetNode, report); err != nil {
 		return e.retryTask(ctx, task, afterProbeMS, err, task.Progress)
 	}
 	if report.Leader != channel.NodeID(channelMigrationDesiredLeader(task)) ||
@@ -286,13 +289,21 @@ func (e *Executor) leaderTransferVerifyNewLeader(ctx context.Context, task Task,
 	if err := e.ensureTaskOwnership(ctx, task, afterProbeMS); err != nil {
 		return err
 	}
+	status := slotmeta.ChannelMigrationStatusCompleted
+	phase := slotmeta.ChannelMigrationPhaseClearFence
+	completedAtMS := nextUpdatedAtMS(afterProbeMS, task.UpdatedAtMS)
+	if task.Kind == slotmeta.ChannelMigrationKindReplicaReplace && task.EmbeddedLeaderTransfer {
+		status = slotmeta.ChannelMigrationStatusRunning
+		phase = slotmeta.ChannelMigrationPhaseAddLearner
+		completedAtMS = 0
+	}
 	req := slotmeta.ChannelMigrationClearFenceRequest{
 		Guard:         guardFromTask(task),
 		RuntimeGuard:  runtimeGuardFromMeta(meta),
-		Status:        slotmeta.ChannelMigrationStatusCompleted,
-		Phase:         slotmeta.ChannelMigrationPhaseClearFence,
+		Status:        status,
+		Phase:         phase,
 		UpdatedAtMS:   nextUpdatedAtMS(afterProbeMS, task.UpdatedAtMS),
-		CompletedAtMS: nextUpdatedAtMS(afterProbeMS, task.UpdatedAtMS),
+		CompletedAtMS: completedAtMS,
 	}
 	if err := e.store.ClearChannelWriteFence(ctx, req); err != nil {
 		return err
@@ -323,13 +334,14 @@ func (e *Executor) resetExpiredLeaderTransferFence(ctx context.Context, task Tas
 }
 
 type advanceTaskOptions struct {
-	Progress     slotmeta.ChannelMigrationProgress
-	CutoverProof slotmeta.ChannelMigrationCutoverProof
-	LastError    string
-	BlockerCode  string
-	BlockerMsg   string
-	NextRunAtMS  int64
-	CompletedAt  int64
+	Progress              slotmeta.ChannelMigrationProgress
+	CutoverProof          slotmeta.ChannelMigrationCutoverProof
+	EmbeddedDesiredLeader uint64
+	LastError             string
+	BlockerCode           string
+	BlockerMsg            string
+	NextRunAtMS           int64
+	CompletedAt           int64
 }
 
 func (e *Executor) advanceTask(ctx context.Context, task Task, nowMS int64, status slotmeta.ChannelMigrationStatus, phase slotmeta.ChannelMigrationPhase, opts advanceTaskOptions) error {
@@ -341,18 +353,19 @@ func (e *Executor) advanceTask(ctx context.Context, task Task, nowMS int64, stat
 		progress = task.Progress
 	}
 	req := AdvanceRequest{
-		Guard:          guardFromTask(task),
-		Status:         status,
-		Phase:          phase,
-		Attempt:        task.Attempt + 1,
-		NextRunAtMS:    opts.NextRunAtMS,
-		BlockerCode:    opts.BlockerCode,
-		BlockerMessage: opts.BlockerMsg,
-		LastError:      opts.LastError,
-		UpdatedAtMS:    nextUpdatedAtMS(nowMS, task.UpdatedAtMS),
-		CompletedAtMS:  opts.CompletedAt,
-		Progress:       progress,
-		CutoverProof:   opts.CutoverProof,
+		Guard:                 guardFromTask(task),
+		Status:                status,
+		Phase:                 phase,
+		Attempt:               task.Attempt + 1,
+		NextRunAtMS:           opts.NextRunAtMS,
+		BlockerCode:           opts.BlockerCode,
+		BlockerMessage:        opts.BlockerMsg,
+		LastError:             opts.LastError,
+		UpdatedAtMS:           nextUpdatedAtMS(nowMS, task.UpdatedAtMS),
+		CompletedAtMS:         opts.CompletedAt,
+		Progress:              progress,
+		CutoverProof:          opts.CutoverProof,
+		EmbeddedDesiredLeader: opts.EmbeddedDesiredLeader,
 	}
 	if err := e.store.AdvanceChannelMigrationTask(ctx, req); err != nil {
 		return err
@@ -519,6 +532,13 @@ func channelMigrationDesiredLeader(task Task) uint64 {
 		return task.EmbeddedDesiredLeader
 	}
 	return task.DesiredLeader
+}
+
+func leaderTransferTargetNode(task Task) channel.NodeID {
+	if task.EmbeddedLeaderTransfer && task.EmbeddedDesiredLeader != 0 {
+		return channel.NodeID(task.EmbeddedDesiredLeader)
+	}
+	return channel.NodeID(task.TargetNode)
 }
 
 func containsUint64(values []uint64, target uint64) bool {

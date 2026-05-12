@@ -327,7 +327,7 @@ func newExecutorTestHarness(store *fakeExecutorStore, slots *fakeSlotLeadership,
 func executorTestTask(taskID, channelID string, status slotmeta.ChannelMigrationStatus, updatedAt time.Time) Task {
 	return Task{
 		TaskID:           taskID,
-		Kind:             slotmeta.ChannelMigrationKindReplicaReplace,
+		Kind:             slotmeta.ChannelMigrationKind(255),
 		Status:           status,
 		Phase:            slotmeta.ChannelMigrationPhaseValidate,
 		ChannelID:        channelID,
@@ -376,21 +376,23 @@ func withNodes(task Task, source, target uint64) Task {
 }
 
 type fakeExecutorStore struct {
-	mu                    sync.Mutex
-	tasks                 []Task
-	runtimeMetas          map[string]slotmeta.ChannelRuntimeMeta
-	claims                []ClaimRequest
-	claimErrs             []error
-	advances              []AdvanceRequest
-	setFenceRequests      []slotmeta.ChannelMigrationFenceRequest
-	resetFenceRequests    []slotmeta.ChannelMigrationResetFenceRequest
-	leaderTransferCommits []slotmeta.ChannelMigrationLeaderTransferRequest
-	clearFenceRequests    []slotmeta.ChannelMigrationClearFenceRequest
-	gcCalls               []fakeGCCall
-	gcDeleted             int
-	advanceErr            error
-	onList                func()
-	onGetRuntimeMeta      func()
+	mu                     sync.Mutex
+	tasks                  []Task
+	runtimeMetas           map[string]slotmeta.ChannelRuntimeMeta
+	claims                 []ClaimRequest
+	claimErrs              []error
+	advances               []AdvanceRequest
+	setFenceRequests       []slotmeta.ChannelMigrationFenceRequest
+	resetFenceRequests     []slotmeta.ChannelMigrationResetFenceRequest
+	leaderTransferCommits  []slotmeta.ChannelMigrationLeaderTransferRequest
+	addLearnerRequests     []slotmeta.ChannelMigrationAddLearnerRequest
+	promoteLearnerRequests []slotmeta.ChannelMigrationPromoteLearnerRequest
+	clearFenceRequests     []slotmeta.ChannelMigrationClearFenceRequest
+	gcCalls                []fakeGCCall
+	gcDeleted              int
+	advanceErr             error
+	onList                 func()
+	onGetRuntimeMeta       func()
 }
 
 type fakeGCCall struct {
@@ -483,6 +485,10 @@ func (s *fakeExecutorStore) AdvanceChannelMigrationTask(ctx context.Context, req
 	s.tasks[idx].UpdatedAtMS = req.UpdatedAtMS
 	s.tasks[idx].CompletedAtMS = req.CompletedAtMS
 	s.tasks[idx].Progress = req.Progress
+	if req.EmbeddedDesiredLeader != 0 {
+		s.tasks[idx].EmbeddedLeaderTransfer = true
+		s.tasks[idx].EmbeddedDesiredLeader = req.EmbeddedDesiredLeader
+	}
 	if req.CutoverProof.CutoverLEO != 0 ||
 		req.CutoverProof.CutoverHW != 0 ||
 		req.CutoverProof.DrainedLeaderNode != 0 ||
@@ -583,6 +589,69 @@ func (s *fakeExecutorStore) CommitChannelLeaderTransfer(ctx context.Context, req
 	meta.Leader = req.DesiredLeader
 	meta.LeaderEpoch = req.NextLeaderEpoch
 	meta.LeaseUntilMS = req.LeaseUntilMS
+	s.runtimeMetas[runtimeMetaFakeKey(meta.ChannelID, meta.ChannelType)] = meta
+	return nil
+}
+
+func (s *fakeExecutorStore) AddChannelLearner(ctx context.Context, req slotmeta.ChannelMigrationAddLearnerRequest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	idx, meta, err := s.guardedTaskAndMetaLocked(req.Guard, req.RuntimeGuard)
+	if err != nil {
+		return err
+	}
+	task := s.tasks[idx]
+	if req.TargetNode != task.TargetNode ||
+		!containsUint64(meta.Replicas, task.SourceNode) ||
+		!containsUint64(meta.ISR, task.SourceNode) ||
+		containsUint64(meta.Replicas, req.TargetNode) ||
+		containsUint64(meta.ISR, req.TargetNode) {
+		return slotmeta.ErrStaleMeta
+	}
+	s.addLearnerRequests = append(s.addLearnerRequests, req)
+	s.tasks[idx].Status = req.Status
+	s.tasks[idx].Phase = req.Phase
+	s.tasks[idx].UpdatedAtMS = req.UpdatedAtMS
+
+	meta.Replicas = append(meta.Replicas, req.TargetNode)
+	meta.ChannelEpoch++
+	s.runtimeMetas[runtimeMetaFakeKey(meta.ChannelID, meta.ChannelType)] = meta
+	return nil
+}
+
+func (s *fakeExecutorStore) PromoteLearnerAndRemoveReplica(ctx context.Context, req slotmeta.ChannelMigrationPromoteLearnerRequest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	idx, meta, err := s.guardedTaskAndMetaLocked(req.Guard, req.RuntimeGuard)
+	if err != nil {
+		return err
+	}
+	task := s.tasks[idx]
+	if task.FenceToken != meta.WriteFenceToken ||
+		task.FenceVersion != meta.WriteFenceVersion ||
+		task.DrainedFenceVersion != meta.WriteFenceVersion ||
+		task.DrainedChannelEpoch != meta.ChannelEpoch ||
+		task.DrainedLeaderEpoch != meta.LeaderEpoch ||
+		task.DrainedLeaderNode != meta.Leader ||
+		req.NowMS > meta.WriteFenceUntilMS ||
+		req.SourceNode != task.SourceNode ||
+		req.TargetNode != task.TargetNode ||
+		!containsUint64(meta.Replicas, req.SourceNode) ||
+		!containsUint64(meta.Replicas, req.TargetNode) ||
+		!containsUint64(meta.ISR, req.SourceNode) ||
+		containsUint64(meta.ISR, req.TargetNode) {
+		return slotmeta.ErrStaleMeta
+	}
+	s.promoteLearnerRequests = append(s.promoteLearnerRequests, req)
+	s.tasks[idx].Status = req.Status
+	s.tasks[idx].Phase = req.Phase
+	s.tasks[idx].UpdatedAtMS = req.UpdatedAtMS
+
+	meta.Replicas = replaceFakeUint64Member(meta.Replicas, req.SourceNode, req.TargetNode)
+	meta.ISR = replaceFakeUint64Member(meta.ISR, req.SourceNode, req.TargetNode)
+	meta.ChannelEpoch++
 	s.runtimeMetas[runtimeMetaFakeKey(meta.ChannelID, meta.ChannelType)] = meta
 	return nil
 }
@@ -740,6 +809,22 @@ func runtimeGuardMatches(guard slotmeta.ChannelMigrationRuntimeGuard, meta slotm
 
 func runtimeMetaFakeKey(channelID string, channelType int64) string {
 	return fmt.Sprintf("%s\x00%d", channelID, channelType)
+}
+
+func replaceFakeUint64Member(values []uint64, oldValue, newValue uint64) []uint64 {
+	out := make([]uint64, 0, len(values))
+	seen := make(map[uint64]struct{}, len(values))
+	for _, value := range values {
+		if value == oldValue {
+			value = newValue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
 
 type fakeSlotLeadership struct {

@@ -42,6 +42,10 @@ type Store interface {
 	ResetChannelWriteFenceToPreCutover(ctx context.Context, req slotmeta.ChannelMigrationResetFenceRequest) error
 	// CommitChannelLeaderTransfer commits the fenced leader metadata change.
 	CommitChannelLeaderTransfer(ctx context.Context, req slotmeta.ChannelMigrationLeaderTransferRequest) error
+	// AddChannelLearner adds the replacement target as a learner and advances the task.
+	AddChannelLearner(ctx context.Context, req slotmeta.ChannelMigrationAddLearnerRequest) error
+	// PromoteLearnerAndRemoveReplica promotes a proven learner and removes the source replica.
+	PromoteLearnerAndRemoveReplica(ctx context.Context, req slotmeta.ChannelMigrationPromoteLearnerRequest) error
 	// ClearChannelWriteFence clears a matching migration fence and completes or advances the task.
 	ClearChannelWriteFence(ctx context.Context, req slotmeta.ChannelMigrationClearFenceRequest) error
 	// GarbageCollectTerminalTasks removes terminal tasks older than beforeMS.

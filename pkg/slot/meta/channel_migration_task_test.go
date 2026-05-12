@@ -815,6 +815,29 @@ func TestChannelMigrationTaskAdvancePersistsProgressAndRetry(t *testing.T) {
 	require.Equal(t, advanced.Progress, got.Progress)
 }
 
+func TestChannelMigrationTaskAdvancePersistsEmbeddedLeaderTransferDecision(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+	task := testChannelMigrationTask("task-advance-embedded", "channel-advance-embedded")
+	task.SourceNode = 1
+	task.TargetNode = 3
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, task))
+
+	advanced := task
+	advanced.Status = ChannelMigrationStatusRunning
+	advanced.Phase = ChannelMigrationPhaseProbeTarget
+	advanced.UpdatedAtMS = 1750000002000
+	advanced.EmbeddedLeaderTransfer = true
+	advanced.EmbeddedDesiredLeader = 2
+	require.NoError(t, shard.AdvanceChannelMigrationTask(ctx, channelMigrationTaskAdvanceRequest(task, advanced)))
+
+	got, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.True(t, got.EmbeddedLeaderTransfer)
+	require.Equal(t, uint64(2), got.EmbeddedDesiredLeader)
+	require.Equal(t, ChannelMigrationPhaseProbeTarget, got.Phase)
+}
+
 func TestWriteBatchAdvanceChannelMigrationTaskIsIdempotentForDuplicateCommand(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -1120,7 +1143,7 @@ func channelMigrationTaskClaimRequest(existing ChannelMigrationTask, ownerNodeID
 }
 
 func channelMigrationTaskAdvanceRequest(existing, next ChannelMigrationTask) ChannelMigrationTaskAdvance {
-	return ChannelMigrationTaskAdvance{
+	req := ChannelMigrationTaskAdvance{
 		Guard: ChannelMigrationTaskGuard{
 			ChannelID:                 existing.ChannelID,
 			ChannelType:               existing.ChannelType,
@@ -1142,6 +1165,10 @@ func channelMigrationTaskAdvanceRequest(existing, next ChannelMigrationTask) Cha
 		CompletedAtMS:  next.CompletedAtMS,
 		Progress:       next.Progress,
 	}
+	if next.EmbeddedLeaderTransfer && next.EmbeddedDesiredLeader != 0 && next.EmbeddedDesiredLeader != existing.EmbeddedDesiredLeader {
+		req.EmbeddedDesiredLeader = next.EmbeddedDesiredLeader
+	}
+	return req
 }
 
 func requireChannelMigrationTasksEqual(t *testing.T, want, got ChannelMigrationTask) {
