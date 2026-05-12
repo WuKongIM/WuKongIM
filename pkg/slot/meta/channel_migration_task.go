@@ -983,8 +983,12 @@ func validateChannelMigrationTaskAdvance(req ChannelMigrationTaskAdvance) error 
 	if req.CutoverProof.hasPartial() {
 		return ErrInvalidArgument
 	}
-	if req.EmbeddedDesiredLeader != 0 && req.Status != ChannelMigrationStatusRunning {
-		return ErrInvalidArgument
+	if req.EmbeddedDesiredLeader != 0 {
+		if req.Status != ChannelMigrationStatusRunning ||
+			req.Guard.ExpectedPhase != ChannelMigrationPhaseValidate ||
+			req.Phase != ChannelMigrationPhaseProbeTarget {
+			return ErrInvalidArgument
+		}
 	}
 	return nil
 }
