@@ -363,6 +363,92 @@ func TestFenceAndDrainWaitsForQuorumWaitersAndCheckpoint(t *testing.T) {
 	require.Equal(t, gotDrain.HW, gotDrain.CheckpointHW)
 }
 
+func TestFenceAndDrainWaitsForLocalCommitTailToBecomeStable(t *testing.T) {
+	env := newThreeReplicaCluster(t)
+	appendDone := make(chan appendTestResult, 1)
+	go func() {
+		res, err := env.leader.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
+		appendDone <- appendTestResult{result: res, err: err}
+	}()
+	gotAppend := receiveAppendResult(t, appendDone, "local commit append did not complete")
+	require.NoError(t, gotAppend.err)
+	require.Equal(t, uint64(0), gotAppend.result.BaseOffset)
+	require.Equal(t, uint64(1), env.leader.Status().LEO)
+	require.Equal(t, uint64(0), env.leader.Status().HW)
+
+	fenced := activeMetaWithMinISR(7, 1, 3)
+	fenced.WriteFence = channel.WriteFence{
+		Token:   "task-local-tail-drain",
+		Version: 1,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	require.NoError(t, env.leader.ApplyMeta(fenced))
+
+	drainDone := make(chan channel.DrainResult, 1)
+	drainErr := make(chan error, 1)
+	go func() {
+		drain, err := env.leader.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+			ChannelKey:           fenced.Key,
+			WriteFenceToken:      "task-local-tail-drain",
+			WriteFenceVersion:    1,
+			ExpectedChannelEpoch: 7,
+			ExpectedLeaderEpoch:  fenced.LeaderEpoch,
+			ExpectedLeader:       1,
+		})
+		if err != nil {
+			drainErr <- err
+			return
+		}
+		drainDone <- drain
+	}()
+
+	select {
+	case drain := <-drainDone:
+		t.Fatalf("FenceAndDrain returned before local tail became quorum-stable: %+v", drain)
+	case err := <-drainErr:
+		t.Fatalf("FenceAndDrain failed before local tail became quorum-stable: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	env.replicateOnce(t, env.follower2)
+	env.replicateOnce(t, env.follower3)
+	gotDrain := receiveDrainResult(t, drainDone, drainErr, "drain did not complete after local tail became stable")
+	require.Equal(t, uint64(1), gotDrain.LEO)
+	require.Equal(t, uint64(1), gotDrain.HW)
+	require.Equal(t, gotDrain.HW, gotDrain.CheckpointHW)
+}
+
+func TestFenceAndDrainReturnsLeaseExpiredForFencedLeader(t *testing.T) {
+	env := newTestEnv(t)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	meta.LeaseUntil = env.clock.Now().Add(time.Second)
+	env.replica = newReplicaFromEnv(t, env)
+	env.replica.mustApplyMeta(t, meta)
+	require.NoError(t, env.replica.BecomeLeader(meta))
+	env.clock.Advance(2 * time.Second)
+	_, err := env.replica.Append(context.Background(), []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
+	require.ErrorIs(t, err, channel.ErrLeaseExpired)
+
+	fenced := meta
+	fenced.WriteFence = channel.WriteFence{
+		Token:   "task-fenced-leader-drain",
+		Version: 1,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	require.NoError(t, env.replica.ApplyMeta(fenced))
+	_, err = env.replica.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+		ChannelKey:           fenced.Key,
+		WriteFenceToken:      "task-fenced-leader-drain",
+		WriteFenceVersion:    1,
+		ExpectedChannelEpoch: 7,
+		ExpectedLeaderEpoch:  fenced.LeaderEpoch,
+		ExpectedLeader:       1,
+	})
+	require.ErrorIs(t, err, channel.ErrLeaseExpired)
+}
+
 func TestFenceAndDrainRejectsNonLeaderOrFenceMismatch(t *testing.T) {
 	follower := newFollowerReplica(t)
 	_, err := follower.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{

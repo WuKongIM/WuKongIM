@@ -44,6 +44,9 @@ func (r *replica) applyFenceAndDrainCommand(cmd machineFenceAndDrainCommand) mac
 	if req.ChannelKey == "" || req.ChannelKey != r.state.ChannelKey {
 		return machineResult{Err: channel.ErrStaleMeta}
 	}
+	if r.state.Role == channel.ReplicaRoleFencedLeader {
+		return machineResult{Err: channel.ErrLeaseExpired}
+	}
 	if r.state.Role != channel.ReplicaRoleLeader {
 		return machineResult{Err: channel.ErrNotLeader}
 	}
@@ -97,5 +100,7 @@ func (r *replica) hasUnsettledDrainWorkLocked() bool {
 		len(r.waiters) > 0 ||
 		r.checkpointQueued ||
 		r.checkpointInFlight ||
+		r.pendingReconcileEffectID != 0 ||
+		r.state.LEO > r.state.HW ||
 		r.state.CheckpointHW < r.state.HW
 }
