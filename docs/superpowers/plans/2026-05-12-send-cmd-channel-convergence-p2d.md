@@ -633,17 +633,43 @@ func TestLocalDeliveryResolverRoutesNonDurableCommandGroupToRemoteSessions(t *te
 
 If `resolverSnapshotStore` cannot provide paged subscribers in the needed order, use the existing store fake in `internal/app/deliveryrouting_test.go` that supports `ListChannelSubscribers`, or extend the local test fake with a minimal paged implementation.
 
-- [ ] **Step 2: Run the routing regression test**
+- [ ] **Step 2: Add a realtime packet-view regression for non-durable CMD**
+
+Add this test near `TestBuildRealtimeRecvPacketStripsCommandSuffixFromClientChannelView` in `internal/app/deliveryrouting_test.go`.
+
+```go
+func TestBuildRealtimeRecvPacketStripsCommandSuffixForNonDurableCommandGroup(t *testing.T) {
+	packet := buildRealtimeRecvPacket(channel.Message{
+		MessageID:   950,
+		MessageSeq:  0,
+		Framer:      frame.Framer{NoPersist: true, SyncOnce: true},
+		ChannelID:   channelid.ToCommandChannel("g1"),
+		ChannelType: frame.ChannelTypeGroup,
+		FromUID:     "u1",
+		Payload:     []byte("online cmd"),
+	}, "")
+
+	require.Equal(t, "g1", packet.ChannelID)
+	require.Equal(t, frame.ChannelTypeGroup, packet.ChannelType)
+	require.True(t, packet.Framer.NoPersist)
+	require.True(t, packet.Framer.SyncOnce)
+	require.Zero(t, packet.MessageSeq)
+}
+```
+
+This test must exercise the actual client-view conversion path, not just the delivery envelope.
+
+- [ ] **Step 3: Run the routing and packet-view regression tests**
 
 Run:
 
 ```bash
-GOWORK=off go test ./internal/app -run TestLocalDeliveryResolverRoutesNonDurableCommandGroupToRemoteSessions -count=1
+GOWORK=off go test ./internal/app -run 'TestLocalDeliveryResolverRoutesNonDurableCommandGroupToRemoteSessions|TestBuildRealtimeRecvPacketStripsCommandSuffixForNonDurableCommandGroup' -count=1
 ```
 
-Expected: PASS if current delivery routing already treats transient envelopes the same as committed envelopes for online route resolution. If it fails, fix the app-level realtime adapter or resolver wiring so `delivery.App.SubmitRealtime` reaches the same delivery runtime routing path as committed delivery.
+Expected: PASS if current delivery routing already treats transient envelopes the same as committed envelopes for online route resolution and client packet views already strip CMD suffixes. If it fails, fix the app-level realtime adapter, resolver wiring, or `buildRealtimeRecvPacket` so `delivery.App.SubmitRealtime` reaches the same routing path and clients see the source channel view.
 
-- [ ] **Step 3: Add or verify `delivery.App.SubmitRealtime` coverage**
+- [ ] **Step 4: Add or verify `delivery.App.SubmitRealtime` coverage**
 
 Check `internal/usecase/delivery/app_test.go`. If `TestSubmitRealtimeScopedEnvelopeDelegatesToRuntime` already verifies `SubmitRealtime` preserves `MessageScopedUIDs`, `MessageSeq=0`, `NoPersist`, and `SyncOnce`, no new test is required.
 
@@ -656,17 +682,17 @@ require.Zero(t, runtime.submits[0].MessageSeq)
 require.Equal(t, []string{"u1", "u2"}, runtime.submits[0].MessageScopedUIDs)
 ```
 
-- [ ] **Step 4: Run app and delivery app tests for this task**
+- [ ] **Step 5: Run app and delivery app tests for this task**
 
 Run:
 
 ```bash
-GOWORK=off go test ./internal/app ./internal/usecase/delivery -run 'TestLocalDeliveryResolverRoutesNonDurableCommandGroupToRemoteSessions|TestSubmitRealtimeScopedEnvelopeDelegatesToRuntime' -count=1
+GOWORK=off go test ./internal/app ./internal/usecase/delivery -run 'TestLocalDeliveryResolverRoutesNonDurableCommandGroupToRemoteSessions|TestBuildRealtimeRecvPacketStripsCommandSuffixForNonDurableCommandGroup|TestSubmitRealtimeScopedEnvelopeDelegatesToRuntime' -count=1
 ```
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 4**
+- [ ] **Step 6: Commit Task 4**
 
 ```bash
 git add internal/app/deliveryrouting_test.go internal/usecase/delivery/app_test.go
