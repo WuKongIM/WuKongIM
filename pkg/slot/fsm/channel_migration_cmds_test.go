@@ -642,6 +642,8 @@ func TestStateMachineChannelClearEmbeddedLeaderTransferAdvancesToAddLearner(t *t
 		gotTask.Phase != metadb.ChannelMigrationPhaseAddLearner ||
 		gotTask.FenceToken != "" ||
 		gotTask.DrainedFenceVersion != 0 ||
+		gotTask.EmbeddedLeaderTransfer ||
+		gotTask.EmbeddedDesiredLeader != 0 ||
 		gotTask.CompletedAtMS != 0 {
 		t.Fatalf("task after embedded clear = %#v", gotTask)
 	}
@@ -993,6 +995,41 @@ func TestStateMachineChannelPromoteRejectsTargetAlreadyInISR(t *testing.T) {
 	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
 	result, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, Index: 3, Term: 1, Data: EncodePromoteLearnerAndRemoveReplicaCommand(fsmTestPromoteRequest(task, meta, 1750000002000))})
 	requireFSMStaleResult(t, result, err)
+}
+
+func TestStateMachineChannelPromoteRejectsSourceStillLeader(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 11)
+	task := fsmTestChannelMigrationTask("task-promote-source-leader", "channel-promote-source-leader")
+	task.SourceNode = 1
+	task.TargetNode = 3
+	task.Status = metadb.ChannelMigrationStatusRunning
+	task.Phase = metadb.ChannelMigrationPhasePromoteAndRemove
+	task.UpdatedAtMS = 1750000001000
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 7
+	task.FenceUntilMS = 1750000009000
+	setFSMTestDrainProof(&task, 7)
+	meta := fsmTestFencedRuntimeMeta(task.ChannelID, task.ChannelType, task.TaskID, 7)
+	meta.ChannelEpoch = task.BaseChannelEpoch
+	meta.LeaderEpoch = task.BaseLeaderEpoch
+	meta.Leader = task.SourceNode
+	meta.Replicas = []uint64{1, 2, 3}
+	meta.ISR = []uint64{1, 2}
+
+	fsmApplyOK(t, ctx, sm, 1, EncodeUpsertChannelRuntimeMetaCommand(meta))
+	fsmApplyOK(t, ctx, sm, 2, EncodeCreateChannelMigrationTaskCommand(task))
+	result, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, Index: 3, Term: 1, Data: EncodePromoteLearnerAndRemoveReplicaCommand(fsmTestPromoteRequest(task, meta, 1750000002000))})
+	requireFSMStaleResult(t, result, err)
+
+	got, err := db.ForSlot(11).GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
+	}
+	if got.Leader != meta.Leader || !reflect.DeepEqual(got.Replicas, meta.Replicas) || !reflect.DeepEqual(got.ISR, meta.ISR) {
+		t.Fatalf("meta after stale promote = %#v, want %#v", got, meta)
+	}
 }
 
 func TestStateMachineChannelAbortAfterLearnerIncrementsChannelEpoch(t *testing.T) {

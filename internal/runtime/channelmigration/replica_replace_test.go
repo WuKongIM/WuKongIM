@@ -49,8 +49,10 @@ func TestReplicaReplaceSourceLeaderUsesEmbeddedTransfer(t *testing.T) {
 
 	gotTask := store.task(task.TaskID)
 	require.Equal(t, slotmeta.ChannelMigrationStatusCompleted, gotTask.Status)
-	require.True(t, gotTask.EmbeddedLeaderTransfer)
-	require.Equal(t, uint64(2), gotTask.EmbeddedDesiredLeader)
+	require.False(t, gotTask.EmbeddedLeaderTransfer)
+	require.Zero(t, gotTask.EmbeddedDesiredLeader)
+	require.Len(t, store.leaderTransferCommits, 1)
+	require.Equal(t, uint64(2), store.leaderTransferCommits[0].DesiredLeader)
 	gotMeta := store.runtimeMeta(task.ChannelID, task.ChannelType)
 	require.Equal(t, uint64(2), gotMeta.Leader)
 	require.ElementsMatch(t, []uint64{2, 3}, gotMeta.Replicas)
@@ -174,6 +176,37 @@ func TestReplicaReplaceFinalCatchUpRequiresLineageProof(t *testing.T) {
 	require.Equal(t, slotmeta.ChannelMigrationPhaseFinalTargetCatchUp, gotTask.Phase)
 	require.Contains(t, gotTask.LastError, channel.ErrStaleMeta.Error())
 	require.Empty(t, store.promoteLearnerRequests)
+}
+
+func TestReplicaReplaceFinalCatchUpAfterLearnerIgnoresEmbeddedTransferFlag(t *testing.T) {
+	now := time.UnixMilli(34200)
+	task := replicaReplaceDrainedTask("task-embedded-final-replica", "channel-embedded-final-replica", 1, 3, now, slotmeta.ChannelMigrationPhaseFinalTargetCatchUp)
+	task.EmbeddedLeaderTransfer = true
+	task.EmbeddedDesiredLeader = 2
+	task.DrainedChannelEpoch = task.BaseChannelEpoch + 1
+	store := newFakeExecutorStore(task)
+	meta := replicaReplaceFencedRuntimeMeta(task, 1, []uint64{1, 2, 3}, []uint64{1, 2}, now)
+	meta.ChannelEpoch = task.DrainedChannelEpoch
+	store.putRuntimeMeta(meta)
+	probes := &recordingProbeClient{reports: map[channel.NodeID]ProbeReport{
+		3: {
+			ChannelKey:   leaderTransferChannelKey(task.ChannelID),
+			ChannelEpoch: task.DrainedChannelEpoch,
+			LeaderEpoch:  7,
+			ReplicaID:    3,
+			OffsetEpoch:  task.DrainedChannelEpoch,
+			LogEndOffset: 20,
+			CheckpointHW: 18,
+		},
+	}}
+	executor := newLeaderTransferExecutorHarness(store, &leaderTransferClock{now: now}, &recordingMigrationControl{}, probes, 9)
+
+	require.NoError(t, executor.Tick(context.Background()))
+
+	gotTask := store.task(task.TaskID)
+	require.Equal(t, slotmeta.ChannelMigrationPhasePromoteAndRemove, gotTask.Phase)
+	require.Equal(t, []channel.NodeID{3}, probes.calledNodes())
+	require.Empty(t, store.leaderTransferCommits)
 }
 
 func TestReplicaReplaceDoesNotPromoteAfterRuntimeMetaReadExpiresOwnerLease(t *testing.T) {

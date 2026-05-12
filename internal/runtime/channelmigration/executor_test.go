@@ -679,6 +679,13 @@ func (s *fakeExecutorStore) ClearChannelWriteFence(ctx context.Context, req slot
 	s.tasks[idx].DrainedFenceVersion = 0
 	s.tasks[idx].UpdatedAtMS = req.UpdatedAtMS
 	s.tasks[idx].CompletedAtMS = req.CompletedAtMS
+	if req.Status == slotmeta.ChannelMigrationStatusRunning &&
+		req.Phase == slotmeta.ChannelMigrationPhaseAddLearner &&
+		s.tasks[idx].Kind == slotmeta.ChannelMigrationKindReplicaReplace &&
+		s.tasks[idx].EmbeddedLeaderTransfer {
+		s.tasks[idx].EmbeddedLeaderTransfer = false
+		s.tasks[idx].EmbeddedDesiredLeader = 0
+	}
 
 	meta.WriteFenceToken = ""
 	meta.WriteFenceVersion++
