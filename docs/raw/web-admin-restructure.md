@@ -90,7 +90,7 @@ WuKongIM 是一个高性能分布式即时通讯引擎，采用自研的 ISR（I
 
 在现有基础上增加：
 - 在线用户数、消息 TPS 指标卡片
-- 频道集群健康度摘要（健康/ISR 不足/无 Leader）
+- 频道集群健康度摘要（健康/ISR 不足/无 Leader）— **已完成**
 - 最近 24h 消息量趋势图
 
 #### 实时监控 `/monitor`（新增）
@@ -115,12 +115,12 @@ WuKongIM 是一个高性能分布式即时通讯引擎，采用自研的 ISR（I
 #### 集群总览 `/channel-cluster`
 
 健康度面板：
-- 频道总数
-- 健康频道数（ISR >= MinISR 且有 Leader）
-- ISR 不足频道数
-- 无 Leader 频道数
-- 平均副本数 / 平均 ISR 数
-- 按节点的 Leader 分布饼图
+- 频道总数 — **已完成**
+- 健康频道数（ISR >= MinISR 且有 Leader）— **已完成**
+- ISR 不足频道数 — **已完成**
+- 无 Leader 频道数 — **已完成**
+- 平均副本数 / 平均 ISR 数 — **已完成**
+- 按节点的 Leader 分布 — **已完成**
 
 #### 频道列表 `/channel-cluster/list`（迁移自原 /channels）
 
@@ -148,30 +148,36 @@ WuKongIM 是一个高性能分布式即时通讯引擎，采用自研的 ISR（I
 - Leader == 0（无 Leader）
 
 展示：
-- 异常原因标签
-- 持续时间
-- 建议操作（修复/转移 Leader）
+- 异常原因标签 — **已完成**
+- 持续时间 — 待补充，需要 runtime 暴露异常起始时间
+- 建议操作（修复/转移 Leader）— P0.5 待实现，需要安全的 manager 写操作端口
 
 #### 需要新增的后端 API
 
 ```
 GET  /manager/channel-cluster/summary
      返回：total, healthy, isr_insufficient, no_leader, avg_replicas, avg_isr
+     状态：已完成
 
 GET  /manager/channel-cluster/unhealthy?limit=50&cursor=xxx
      返回：异常频道列表（含异常原因）
+     状态：已完成
 
 GET  /manager/channel-cluster/:type/:id/replicas
      返回：各副本同步进度（commit_seq, lag）
+     状态：待实现（P0.5）
 
 POST /manager/channel-cluster/:type/:id/leader/transfer
      Body: { target_node_id: uint64 }
+     状态：待实现（P0.5）
 
 POST /manager/channel-cluster/:type/:id/repair
      触发副本修复流程
+     状态：待实现（P0.5）
 
 POST /manager/channel-cluster/batch/leader-drain/:node_id
      批量迁移某节点上所有频道的 Leader
+     状态：待实现（P0.5）
 ```
 
 ### 4.4 业务管理模块（新增）
@@ -277,11 +283,17 @@ POST /user/systemuids_remove
 
 ## 6. 实现优先级
 
-### P0 — 核心缺失（建议首批实现）
+### P0 — 核心缺失（已完成 read path）
 
-1. **频道集群总览** — 有现成 `channel-runtime-meta` API，聚合即可
-2. **异常频道** — 基于现有数据过滤，前端即可实现
-3. **Dashboard 增强** — 加入频道集群健康度卡片
+1. **频道集群总览** — 已新增 `/manager/channel-cluster/summary` 聚合 API 与页面
+2. **异常频道** — 已新增 `/manager/channel-cluster/unhealthy` 分页 API 与页面
+3. **Dashboard 增强** — 已加入频道集群健康度卡片
+
+### P0.5 — 频道集群操作（待设计）
+
+- 副本同步进度读取：需要 runtime 暴露 manager-safe per-replica lag/commit_seq 读端口
+- 修复：需要通过 `internal/usecase/management` 接入安全 repair 端口
+- Leader 转移：需要 runtime 支持显式安全 target transfer 后再暴露 API/UI
 
 ### P1 — 运营必需
 
@@ -297,19 +309,19 @@ POST /user/systemuids_remove
 
 ## 7. 当前实现状态
 
-框架搭建已完成：
+已完成：
 
 - [x] 导航结构重组为 6 组
 - [x] 路由注册（含 `/channels` → `/channel-cluster/list` 重定向）
-- [x] 新模块占位页面
+- [x] 新模块占位页面与 P0 频道集群实页面
 - [x] 中英文 i18n 消息
-- [x] 构建通过 (`tsc -b && vite build`)
-- [x] 测试通过 (187/187)
+- [x] 后端新增 channel-cluster read API：summary / unhealthy
+- [x] 频道集群总览页面（聚合 channel runtime meta 数据）
+- [x] 异常频道页面（后端过滤，前端分页展示）
+- [x] Dashboard 频道集群健康度卡片
 
 待实现：
-- [ ] 频道集群总览页面（聚合 channel-runtime-meta 数据）
-- [ ] 异常频道页面（过滤逻辑）
-- [ ] 后端新增 channel-cluster 管理 API
+- [ ] 频道集群操作 API（副本进度、repair、Leader transfer、leader drain）
 - [ ] 用户管理后端 API + 前端页面
 - [ ] 频道业务管理后端 API + 前端页面
 - [ ] 权限管理页面
