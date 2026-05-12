@@ -36,7 +36,7 @@ func TestLeaderTransferHappyPath(t *testing.T) {
 	require.Equal(t, uint64(8), gotMeta.LeaderEpoch)
 	require.Zero(t, gotMeta.WriteFenceToken)
 	require.Equal(t, []channel.NodeID{1}, drainer.calledNodes())
-	require.Equal(t, []channel.NodeID{2, 2}, probes.calledNodes())
+	require.Equal(t, []channel.NodeID{2, 2, 2}, probes.calledNodes())
 }
 
 func TestLeaderTransferRejectsTargetOutsideISR(t *testing.T) {
@@ -107,6 +107,36 @@ func TestLeaderTransferLaggingTargetWaitsAfterDrain(t *testing.T) {
 	require.Contains(t, gotTask.LastError, channel.ErrNotReady.Error())
 }
 
+func TestLeaderTransferBlocksWhenFinalCatchUpNeedsSnapshot(t *testing.T) {
+	now := time.UnixMilli(22500)
+	task := leaderTransferDrainedTask("task-snapshot", "channel-snapshot", 1, 2, now, slotmeta.ChannelMigrationPhaseFinalTargetCatchUp)
+	store := newFakeExecutorStore(task)
+	meta := leaderTransferFencedRuntimeMeta(task, 1, 2, now)
+	store.putRuntimeMeta(meta)
+	probes := &recordingProbeClient{
+		report: ProbeReport{
+			ChannelKey:       leaderTransferChannelKey(task.ChannelID),
+			ChannelEpoch:     5,
+			LeaderEpoch:      7,
+			ReplicaID:        2,
+			SnapshotRequired: true,
+		},
+	}
+	metrics := &recordingExecutorMetrics{}
+	executor := newLeaderTransferExecutorHarness(store, &leaderTransferClock{now: now}, &recordingMigrationControl{}, probes, 9)
+	executor.metrics = metrics
+
+	err := executor.Tick(context.Background())
+
+	require.NoError(t, err)
+	gotTask := store.task(task.TaskID)
+	require.Equal(t, slotmeta.ChannelMigrationStatusBlocked, gotTask.Status)
+	require.Equal(t, slotmeta.ChannelMigrationPhaseFinalTargetCatchUp, gotTask.Phase)
+	require.Equal(t, slotmeta.ChannelMigrationBlockerNeedsSnapshotBootstrap, gotTask.BlockerCode)
+	require.NotEmpty(t, gotTask.BlockerMessage)
+	require.Equal(t, []string{slotmeta.ChannelMigrationBlockerNeedsSnapshotBootstrap}, metrics.blockers)
+}
+
 func TestLeaderTransferDrainsRemoteCurrentLeaderThroughMigrationControlClient(t *testing.T) {
 	now := time.UnixMilli(23000)
 	task := leaderTransferTask("task-remote-drain", "channel-remote-drain", 3, 2, now)
@@ -131,6 +161,65 @@ func TestLeaderTransferDrainsRemoteCurrentLeaderThroughMigrationControlClient(t 
 	require.Equal(t, []channel.NodeID{3}, drainer.calledNodes())
 	require.Len(t, store.advances, 1)
 	require.Equal(t, uint64(6), store.advances[0].CutoverProof.DrainedFenceVersion)
+}
+
+func TestLeaderTransferDoesNotPersistDrainProofAfterOwnerLeaseExpires(t *testing.T) {
+	now := time.UnixMilli(23500)
+	clock := &leaderTransferClock{now: now}
+	task := leaderTransferTask("task-drain-expired-owner", "channel-drain-expired-owner", 1, 2, now)
+	task.Status = slotmeta.ChannelMigrationStatusRunning
+	task.Phase = slotmeta.ChannelMigrationPhaseDrainLeader
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 6
+	task.FenceUntilMS = now.Add(time.Minute).UnixMilli()
+	store := newFakeExecutorStore(task)
+	store.putRuntimeMeta(leaderTransferFencedRuntimeMeta(task, 1, 2, now))
+	drainer := &recordingMigrationControl{
+		onDrain: func() {
+			clock.advance(10 * time.Millisecond)
+		},
+	}
+	executor := newLeaderTransferExecutorHarness(store, clock, drainer, &recordingProbeClient{}, 9)
+	executor.cfg.OwnerLease = 5 * time.Millisecond
+
+	err := executor.Tick(context.Background())
+
+	require.NoError(t, err)
+	gotTask := store.task(task.TaskID)
+	require.Equal(t, slotmeta.ChannelMigrationPhaseDrainLeader, gotTask.Phase)
+	require.Zero(t, gotTask.CutoverHW)
+	require.Empty(t, store.advancedTaskIDs())
+}
+
+func TestLeaderTransferRecordsRetryOnInvalidDrainProof(t *testing.T) {
+	now := time.UnixMilli(23600)
+	task := leaderTransferTask("task-invalid-drain", "channel-invalid-drain", 1, 2, now)
+	task.Status = slotmeta.ChannelMigrationStatusRunning
+	task.Phase = slotmeta.ChannelMigrationPhaseDrainLeader
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 6
+	task.FenceUntilMS = now.Add(time.Minute).UnixMilli()
+	store := newFakeExecutorStore(task)
+	store.putRuntimeMeta(leaderTransferFencedRuntimeMeta(task, 1, 2, now))
+	badDrain := channel.DrainResult{
+		ChannelKey:        leaderTransferChannelKey(task.ChannelID),
+		LEO:               20,
+		HW:                18,
+		ChannelEpoch:      99,
+		LeaderEpoch:       7,
+		WriteFenceVersion: 6,
+		RuntimeGeneration: 90,
+	}
+	drainer := &recordingMigrationControl{result: &badDrain}
+	executor := newLeaderTransferExecutorHarness(store, &leaderTransferClock{now: now}, drainer, &recordingProbeClient{}, 9)
+
+	err := executor.Tick(context.Background())
+
+	require.NoError(t, err)
+	gotTask := store.task(task.TaskID)
+	require.Equal(t, slotmeta.ChannelMigrationPhaseDrainLeader, gotTask.Phase)
+	require.Contains(t, gotTask.LastError, channel.ErrStaleMeta.Error())
+	require.Greater(t, gotTask.NextRunAtMS, now.UnixMilli())
 }
 
 func TestLeaderTransferPersistsProgressBetweenPhaseOnlySteps(t *testing.T) {
@@ -196,6 +285,26 @@ func TestLeaderTransferRejectsCommitWhenFenceVersionChanged(t *testing.T) {
 	require.Empty(t, store.clearFenceRequests)
 }
 
+func TestLeaderTransferCommitExpiredFenceResetsToPreCutover(t *testing.T) {
+	now := time.UnixMilli(25500)
+	task := leaderTransferDrainedTask("task-expired-commit", "channel-expired-commit", 1, 2, now, slotmeta.ChannelMigrationPhaseCommitLeaderMeta)
+	task.FenceUntilMS = now.Add(-time.Millisecond).UnixMilli()
+	store := newFakeExecutorStore(task)
+	meta := leaderTransferFencedRuntimeMeta(task, 1, 2, now)
+	meta.WriteFenceUntilMS = task.FenceUntilMS
+	store.putRuntimeMeta(meta)
+	executor := newLeaderTransferExecutorHarness(store, &leaderTransferClock{now: now}, &recordingMigrationControl{}, &recordingProbeClient{}, 9)
+
+	err := executor.Tick(context.Background())
+
+	require.NoError(t, err)
+	gotTask := store.task(task.TaskID)
+	require.Equal(t, slotmeta.ChannelMigrationPhaseWriteFence, gotTask.Phase)
+	require.Zero(t, gotTask.FenceToken)
+	require.Empty(t, store.leaderTransferCommits)
+	require.Len(t, store.resetFenceRequests, 1)
+}
+
 func TestLeaderTransferFenceExpiryResetsToPreCutoverWithVersionBump(t *testing.T) {
 	now := time.UnixMilli(26000)
 	task := leaderTransferTask("task-expired-fence", "channel-expired-fence", 1, 2, now)
@@ -233,6 +342,36 @@ func TestLeaderTransferFenceExpiryResetsToPreCutoverWithVersionBump(t *testing.T
 	require.Len(t, store.resetFenceRequests, 1)
 }
 
+func TestLeaderTransferVerifyNewLeaderWaitsForTargetCommitReady(t *testing.T) {
+	now := time.UnixMilli(27000)
+	task := leaderTransferDrainedTask("task-verify-waits", "channel-verify-waits", 1, 2, now, slotmeta.ChannelMigrationPhaseVerifyNewLeader)
+	store := newFakeExecutorStore(task)
+	meta := leaderTransferFencedRuntimeMeta(task, 2, 2, now)
+	meta.LeaderEpoch = 8
+	store.putRuntimeMeta(meta)
+	probes := &recordingProbeClient{
+		report: ProbeReport{
+			ChannelKey:   leaderTransferChannelKey(task.ChannelID),
+			ChannelEpoch: 5,
+			LeaderEpoch:  8,
+			ReplicaID:    2,
+			Leader:       2,
+			Role:         channel.ReplicaRoleFollower,
+			CommitReady:  false,
+		},
+	}
+	executor := newLeaderTransferExecutorHarness(store, &leaderTransferClock{now: now}, &recordingMigrationControl{}, probes, 9)
+
+	err := executor.Tick(context.Background())
+
+	require.NoError(t, err)
+	gotTask := store.task(task.TaskID)
+	require.Equal(t, slotmeta.ChannelMigrationStatusRunning, gotTask.Status)
+	require.Equal(t, slotmeta.ChannelMigrationPhaseVerifyNewLeader, gotTask.Phase)
+	require.Contains(t, gotTask.LastError, channel.ErrNotReady.Error())
+	require.Empty(t, store.clearFenceRequests)
+}
+
 func newLeaderTransferExecutorHarness(store *fakeExecutorStore, clock *leaderTransferClock, drainer *recordingMigrationControl, probes *recordingProbeClient, localNode channel.NodeID) *Executor {
 	return NewExecutor(ExecutorOptions{
 		Store:            store,
@@ -267,8 +406,10 @@ func (c *leaderTransferClock) advance(d time.Duration) {
 }
 
 type recordingMigrationControl struct {
-	calls []migrationDrainCall
-	err   error
+	calls   []migrationDrainCall
+	err     error
+	result  *channel.DrainResult
+	onDrain func()
 }
 
 type migrationDrainCall struct {
@@ -278,8 +419,14 @@ type migrationDrainCall struct {
 
 func (c *recordingMigrationControl) FenceAndDrain(ctx context.Context, nodeID channel.NodeID, req channel.FenceAndDrainRequest) (channel.DrainResult, error) {
 	c.calls = append(c.calls, migrationDrainCall{nodeID: nodeID, req: req})
+	if c.onDrain != nil {
+		c.onDrain()
+	}
 	if c.err != nil {
 		return channel.DrainResult{}, c.err
+	}
+	if c.result != nil {
+		return *c.result, nil
 	}
 	return channel.DrainResult{
 		ChannelKey:        req.ChannelKey,
@@ -325,10 +472,20 @@ func (c *recordingProbeClient) ProbeChannel(ctx context.Context, nodeID channel.
 		ChannelEpoch: meta.Epoch,
 		LeaderEpoch:  meta.LeaderEpoch,
 		ReplicaID:    nodeID,
+		Leader:       meta.Leader,
+		Role:         probeRoleForNode(nodeID, meta.Leader),
+		CommitReady:  true,
 		OffsetEpoch:  meta.Epoch,
 		LogEndOffset: 20,
 		CheckpointHW: 18,
 	}, nil
+}
+
+func probeRoleForNode(nodeID, leader channel.NodeID) channel.ReplicaRole {
+	if nodeID == leader {
+		return channel.ReplicaRoleLeader
+	}
+	return channel.ReplicaRoleFollower
 }
 
 func (c *recordingProbeClient) calledNodes() []channel.NodeID {
@@ -363,6 +520,32 @@ func leaderTransferRuntimeMeta(channelID string, leader, target uint64, now time
 		Status:       uint8(channel.StatusActive),
 		LeaseUntilMS: now.Add(time.Minute).UnixMilli(),
 	}
+}
+
+func leaderTransferDrainedTask(taskID, channelID string, source, target uint64, now time.Time, phase slotmeta.ChannelMigrationPhase) Task {
+	task := leaderTransferTask(taskID, channelID, source, target, now)
+	task.Status = slotmeta.ChannelMigrationStatusRunning
+	task.Phase = phase
+	task.FenceToken = task.TaskID
+	task.FenceVersion = 4
+	task.FenceUntilMS = now.Add(time.Minute).UnixMilli()
+	task.CutoverLEO = 20
+	task.CutoverHW = 18
+	task.DrainedLeaderNode = source
+	task.DrainedRuntimeGeneration = 90
+	task.DrainedChannelEpoch = 5
+	task.DrainedLeaderEpoch = 7
+	task.DrainedFenceVersion = 4
+	return task
+}
+
+func leaderTransferFencedRuntimeMeta(task Task, leader, target uint64, now time.Time) slotmeta.ChannelRuntimeMeta {
+	meta := leaderTransferRuntimeMeta(task.ChannelID, leader, target, now)
+	meta.WriteFenceToken = task.TaskID
+	meta.WriteFenceVersion = task.FenceVersion
+	meta.WriteFenceReason = uint8(channel.WriteFenceReasonMigration)
+	meta.WriteFenceUntilMS = task.FenceUntilMS
+	return meta
 }
 
 func leaderTransferChannelKey(channelID string) channel.ChannelKey {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	slotmeta "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -136,16 +137,20 @@ func (e *Executor) leaderTransferDrainLeader(ctx context.Context, task Task, now
 	if err != nil {
 		return e.retryTask(ctx, task, nowMS, err, task.Progress)
 	}
-	if err := validateDrainProof(projected, task, meta, drain); err != nil {
-		return err
+	afterDrainMS := e.now().UnixMilli()
+	if afterDrainMS < nowMS {
+		afterDrainMS = nowMS
 	}
-	if err := e.ensureTaskOwnership(ctx, task, nowMS); err != nil {
+	if err := validateDrainProof(projected, task, meta, drain); err != nil {
+		return e.retryTask(ctx, task, afterDrainMS, err, task.Progress)
+	}
+	if err := e.ensureTaskOwnership(ctx, task, afterDrainMS); err != nil {
 		return err
 	}
 	progress := task.Progress
 	progress.LeaderLEO = drain.LEO
 	progress.LeaderHW = drain.HW
-	return e.advanceTask(ctx, task, nowMS, task.Status, slotmeta.ChannelMigrationPhaseFinalTargetCatchUp, advanceTaskOptions{
+	return e.advanceTask(ctx, task, afterDrainMS, task.Status, slotmeta.ChannelMigrationPhaseFinalTargetCatchUp, advanceTaskOptions{
 		Progress: progress,
 		CutoverProof: slotmeta.ChannelMigrationCutoverProof{
 			CutoverLEO:               drain.LEO,
@@ -171,7 +176,7 @@ func (e *Executor) leaderTransferFinalTargetCatchUp(ctx context.Context, task Ta
 		return e.resetExpiredLeaderTransferFence(ctx, task, meta, nowMS)
 	}
 	if task.DrainedFenceVersion != meta.WriteFenceVersion {
-		return slotmeta.ErrStaleMeta
+		return e.retryTask(ctx, task, nowMS, slotmeta.ErrStaleMeta, task.Progress)
 	}
 	projected := channelmeta.ProjectChannelMeta(meta)
 	report, err := e.probeClient.ProbeChannel(ctx, channel.NodeID(task.TargetNode), projected)
@@ -190,6 +195,9 @@ func (e *Executor) leaderTransferFinalTargetCatchUp(ctx context.Context, task Ta
 		Target:             report,
 	})
 	if err != nil {
+		if errors.Is(err, channel.ErrSnapshotRequired) {
+			return e.blockTask(ctx, task, nowMS, slotmeta.ChannelMigrationBlockerNeedsSnapshotBootstrap, channel.ErrSnapshotRequired.Error(), progress)
+		}
 		return e.retryTask(ctx, task, nowMS, err, progress)
 	}
 	progress.TargetLEO = proof.TargetLEO
@@ -204,6 +212,9 @@ func (e *Executor) leaderTransferCommitLeaderMeta(ctx context.Context, task Task
 	meta, err := e.store.GetChannelRuntimeMeta(ctx, task.ChannelID, task.ChannelType)
 	if err != nil {
 		return err
+	}
+	if e.fenceExpired(task, meta, nowMS) {
+		return e.resetExpiredLeaderTransferFence(ctx, task, meta, nowMS)
 	}
 	req := slotmeta.ChannelMigrationLeaderTransferRequest{
 		Guard:           guardFromTask(task),
@@ -233,6 +244,22 @@ func (e *Executor) leaderTransferVerifyNewLeader(ctx context.Context, task Task,
 		return err
 	}
 	if meta.Leader != channelMigrationDesiredLeader(task) {
+		return e.retryTask(ctx, task, nowMS, channel.ErrNotReady, task.Progress)
+	}
+	if e.probeClient == nil {
+		return fmt.Errorf("%w: probe client", ErrMissingDependency)
+	}
+	projected := channelmeta.ProjectChannelMeta(meta)
+	report, err := e.probeClient.ProbeChannel(ctx, channel.NodeID(task.TargetNode), projected)
+	if err != nil {
+		return e.retryTask(ctx, task, nowMS, err, task.Progress)
+	}
+	if err := validateTargetReportFence(projected, channel.NodeID(task.TargetNode), report); err != nil {
+		return e.retryTask(ctx, task, nowMS, err, task.Progress)
+	}
+	if report.Leader != channel.NodeID(channelMigrationDesiredLeader(task)) ||
+		report.Role != channel.ReplicaRoleLeader ||
+		!report.CommitReady {
 		return e.retryTask(ctx, task, nowMS, channel.ErrNotReady, task.Progress)
 	}
 	req := slotmeta.ChannelMigrationClearFenceRequest{
@@ -275,6 +302,8 @@ type advanceTaskOptions struct {
 	Progress     slotmeta.ChannelMigrationProgress
 	CutoverProof slotmeta.ChannelMigrationCutoverProof
 	LastError    string
+	BlockerCode  string
+	BlockerMsg   string
 	NextRunAtMS  int64
 	CompletedAt  int64
 }
@@ -288,16 +317,18 @@ func (e *Executor) advanceTask(ctx context.Context, task Task, nowMS int64, stat
 		progress = task.Progress
 	}
 	req := AdvanceRequest{
-		Guard:         guardFromTask(task),
-		Status:        status,
-		Phase:         phase,
-		Attempt:       task.Attempt + 1,
-		NextRunAtMS:   opts.NextRunAtMS,
-		LastError:     opts.LastError,
-		UpdatedAtMS:   nextUpdatedAtMS(nowMS, task.UpdatedAtMS),
-		CompletedAtMS: opts.CompletedAt,
-		Progress:      progress,
-		CutoverProof:  opts.CutoverProof,
+		Guard:          guardFromTask(task),
+		Status:         status,
+		Phase:          phase,
+		Attempt:        task.Attempt + 1,
+		NextRunAtMS:    opts.NextRunAtMS,
+		BlockerCode:    opts.BlockerCode,
+		BlockerMessage: opts.BlockerMsg,
+		LastError:      opts.LastError,
+		UpdatedAtMS:    nextUpdatedAtMS(nowMS, task.UpdatedAtMS),
+		CompletedAtMS:  opts.CompletedAt,
+		Progress:       progress,
+		CutoverProof:   opts.CutoverProof,
 	}
 	if err := e.store.AdvanceChannelMigrationTask(ctx, req); err != nil {
 		return err
@@ -313,6 +344,17 @@ func (e *Executor) retryTask(ctx context.Context, task Task, nowMS int64, cause 
 	return e.advanceTask(ctx, task, nowMS, slotmeta.ChannelMigrationStatusRunning, task.Phase, advanceTaskOptions{
 		Progress:    progress,
 		LastError:   cause.Error(),
+		NextRunAtMS: nowMS + e.cfg.RetryBackoff.Milliseconds(),
+	})
+}
+
+func (e *Executor) blockTask(ctx context.Context, task Task, nowMS int64, code, message string, progress slotmeta.ChannelMigrationProgress) error {
+	e.metrics.RecordBlocker(task, code)
+	return e.advanceTask(ctx, task, nowMS, slotmeta.ChannelMigrationStatusBlocked, task.Phase, advanceTaskOptions{
+		Progress:    progress,
+		BlockerCode: code,
+		BlockerMsg:  message,
+		LastError:   message,
 		NextRunAtMS: nowMS + e.cfg.RetryBackoff.Milliseconds(),
 	})
 }
@@ -351,18 +393,78 @@ func (e *Executor) recordPhaseTransition(task Task, status slotmeta.ChannelMigra
 		FromPhase:  task.Phase,
 		ToPhase:    phase,
 	})
+	e.log.Info("channel migration phase transition",
+		wklog.String("taskID", task.TaskID),
+		wklog.String("channelKey", string(channelKeyFromTask(task))),
+		wklog.ChannelID(task.ChannelID),
+		wklog.ChannelType(task.ChannelType),
+		wklog.Uint64("ownerNodeID", task.OwnerNodeID),
+		wklog.String("fenceToken", task.FenceToken),
+		wklog.Uint64("fenceVersion", task.FenceVersion),
+		wklog.String("fromPhase", migrationPhaseString(task.Phase)),
+		wklog.String("toPhase", migrationPhaseString(phase)),
+		wklog.Uint64("baseChannelEpoch", task.BaseChannelEpoch),
+		wklog.Uint64("baseLeaderEpoch", task.BaseLeaderEpoch),
+		wklog.Uint64("drainedChannelEpoch", task.DrainedChannelEpoch),
+		wklog.Uint64("drainedLeaderEpoch", task.DrainedLeaderEpoch),
+	)
 }
 
 func (e *Executor) recordLeaderTransferCommand(message string, task Task, phase slotmeta.ChannelMigrationPhase, fenceVersion uint64) {
 	e.log.Info(message,
 		wklog.String("taskID", task.TaskID),
+		wklog.String("channelKey", string(channelKeyFromTask(task))),
 		wklog.ChannelID(task.ChannelID),
 		wklog.ChannelType(task.ChannelType),
 		wklog.Uint64("ownerNodeID", task.OwnerNodeID),
+		wklog.String("fenceToken", task.FenceToken),
 		wklog.Uint64("fenceVersion", fenceVersion),
-		wklog.Uint64("fromPhase", uint64(task.Phase)),
-		wklog.Uint64("toPhase", uint64(phase)),
+		wklog.String("fromPhase", migrationPhaseString(task.Phase)),
+		wklog.String("toPhase", migrationPhaseString(phase)),
+		wklog.Uint64("baseChannelEpoch", task.BaseChannelEpoch),
+		wklog.Uint64("baseLeaderEpoch", task.BaseLeaderEpoch),
+		wklog.Uint64("drainedChannelEpoch", task.DrainedChannelEpoch),
+		wklog.Uint64("drainedLeaderEpoch", task.DrainedLeaderEpoch),
 	)
+}
+
+func channelKeyFromTask(task Task) channel.ChannelKey {
+	return channelhandler.KeyFromChannelID(channel.ChannelID{ID: task.ChannelID, Type: uint8(task.ChannelType)})
+}
+
+func migrationPhaseString(phase slotmeta.ChannelMigrationPhase) string {
+	switch phase {
+	case slotmeta.ChannelMigrationPhaseValidate:
+		return "Validate"
+	case slotmeta.ChannelMigrationPhaseProbeTarget:
+		return "ProbeTarget"
+	case slotmeta.ChannelMigrationPhaseWriteFence:
+		return "WriteFence"
+	case slotmeta.ChannelMigrationPhaseDrainLeader:
+		return "DrainLeader"
+	case slotmeta.ChannelMigrationPhaseFinalTargetCatchUp:
+		return "FinalTargetCatchUp"
+	case slotmeta.ChannelMigrationPhaseCommitLeaderMeta:
+		return "CommitLeaderMeta"
+	case slotmeta.ChannelMigrationPhaseVerifyNewLeader:
+		return "VerifyNewLeader"
+	case slotmeta.ChannelMigrationPhaseClearFence:
+		return "ClearFence"
+	case slotmeta.ChannelMigrationPhaseAddLearner:
+		return "AddLearner"
+	case slotmeta.ChannelMigrationPhaseBootstrapTarget:
+		return "BootstrapTarget"
+	case slotmeta.ChannelMigrationPhaseWarmCatchUp:
+		return "WarmCatchUp"
+	case slotmeta.ChannelMigrationPhaseCutoverFence:
+		return "CutoverFence"
+	case slotmeta.ChannelMigrationPhasePromoteAndRemove:
+		return "PromoteAndRemove"
+	case slotmeta.ChannelMigrationPhaseVerifyMembership:
+		return "VerifyMembership"
+	default:
+		return fmt.Sprintf("Unknown(%d)", phase)
+	}
 }
 
 func runtimeGuardFromMeta(meta slotmeta.ChannelRuntimeMeta) slotmeta.ChannelMigrationRuntimeGuard {

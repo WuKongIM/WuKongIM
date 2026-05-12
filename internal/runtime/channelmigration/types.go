@@ -108,6 +108,12 @@ type ProbeReport struct {
 	LeaderEpoch uint64
 	// ReplicaID is the reporting replica node.
 	ReplicaID channel.NodeID
+	// Leader is the reporting replica's applied leader node.
+	Leader channel.NodeID
+	// Role is the reporting replica's local role after applying metadata.
+	Role channel.ReplicaRole
+	// CommitReady reports whether the replica can safely serve as writable leader now.
+	CommitReady bool
 	// OffsetEpoch is the epoch that owns LogEndOffset when EpochHistory is unavailable.
 	OffsetEpoch uint64
 	// LogStartOffset is the first local offset available without snapshot bootstrap.
