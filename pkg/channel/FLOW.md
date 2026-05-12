@@ -115,7 +115,9 @@ steady-state `long_poll`（当前唯一复制主路径）:
 ```
 Reconcile Probe（启动 / leader transfer 后的 provisional 收敛）:
   ① leader promotion 或 recover 后若 `CommitReady=false`，runtime 触发 peer probe；leader 本地 append 也会给未建立 steady-state lane 视图的冷 follower 排一个轻量 wake-up probe
-  ② transport/session.go 发送 ReconcileProbe RPC，收集 follower 的 {OffsetEpoch, LogEndOffset, CheckpointHW}
+  ② transport/session.go 发送 ReconcileProbe RPC；普通复制/leader-repair 继续使用 v2 响应收集
+     {OffsetEpoch, LogEndOffset, CheckpointHW}，channel migration 可通过 v3 request 显式要求
+     {Leader, Role, LogStartOffset, CommitReady} 等扩展 readiness 字段
   ③ replica/reconcile_coordinator.go 基于 epoch lineage + quorum proofs 计算 quorum-safe prefix
   ④ 保留 quorum-safe tail，必要时截断 minority-only suffix
   ⑤ 持久化新的 Checkpoint，推进 `CheckpointHW`，最后把 `CommitReady` 置为 true
@@ -244,7 +246,7 @@ System (0x17): prefix + key + tableID + systemID + ...
 - **Checkpoint 不再阻塞 sendack**: leader 在 quorum commit 后先完成 Append waiter，Checkpoint 持久化走 checkpoint effect worker coalescing；若 checkpoint 写盘失败会临时置 `CommitReady=false` 并重试。health / metrics 暴露应通过上层观测性窄接口接入，不改变 sendack 语义。
 - **Append diagnostics 不改变协议语义**: `AppendRequest.TraceID` 和 `Attempt` 是 Phase 1 节点内诊断字段，只服务 sendtrace/diagnostics 查询；不要把它们写入 message payload/store codec/idempotency key，也不要编码进 `channel_append` 节点 RPC payload。
 - **leader reconcile 先区分“需要 peer 证明”与“只差本地 checkpoint”**: 若 leader transfer 后只是 `CheckpointHW < HW`、本地没有 `LEO > HW` 的 provisional tail，则会直接做本地 reconcile，不等待 peer probe；若已经拿到足以证明本地 tail 全量 quorum-safe 的 proof，也不会继续卡在离线 ISR peer 上。
-- **Transport RPC 分片**: steady-state lane poll 按 `laneID` 路由，保证同一 `(peer,lane)` 有序；辅助 `Fetch` / `ReconcileProbe` 继续按 FNV-64a(ChannelKey) 路由；app 侧同步 `ProbeClient` 也复用同一个 `ReconcileProbe` service。见 `transport/session.go` / `transport/probe_client.go`。
+- **Transport RPC 分片**: steady-state lane poll 按 `laneID` 路由，保证同一 `(peer,lane)` 有序；辅助 `Fetch` / `ReconcileProbe` 继续按 FNV-64a(ChannelKey) 路由；app 侧同步 `ProbeClient` 也复用同一个 `ReconcileProbe` service。`ReconcileProbe` request 默认保持 v2 以兼容滚动升级，只有 channel migration 显式请求 v3 时服务端才返回扩展 readiness 字段。见 `transport/session.go` / `transport/probe_client.go`。
 - **Leader lane session 是固定规模资源**: ready queue / parked waiter 的规模与 `peer * laneCount` 成正比，不会退化成 per-channel timer / goroutine。
 - **复制 ingress 允许一次按 key 激活重试**: `ServeFetch` / `ServeReconcileProbe` 遇到 runtime miss 时会先走 activator 按 `ChannelKey` 拉权威 meta、确保本地 runtime，再重试一次；它不是后台全量预热。
 - **`ServeReconcileProbe` 允许外部 `Generation=0` 探测**: runtime 内部 steady-state / reconcile session 仍会携带具体 generation 做匹配；而 app 侧 leader-repair dry-run 走同步 `ProbeClient` 时允许 `Generation=0`，服务端返回当前 generation，避免因为本地 runtime 代次未知而拿不到 proof。

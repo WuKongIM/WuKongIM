@@ -294,7 +294,7 @@ func (t *Transport) handleReconcileProbeRPC(ctx context.Context, body []byte) ([
 	if err != nil {
 		return nil, err
 	}
-	return encodeReconcileProbeResponse(resp)
+	return encodeReconcileProbeResponseForRequest(resp, req)
 }
 
 func (t *Transport) deliver(env runtime.Envelope) {

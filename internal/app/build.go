@@ -338,6 +338,15 @@ func build(cfg Config) (_ *App, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: create channel repair probe client: %w", err)
 	}
+	app.channelMigrationExecutor, app.channelMigrationLifecycle = newAppChannelMigrationExecutor(
+		cfg,
+		cfg.Node.ID,
+		appChannelMigrationStore{Store: app.store},
+		appChannelMigrationSlots{cluster: app.cluster},
+		appChannelMigrationProbeClient{client: repairProbeClient, localNode: channel.NodeID(cfg.Node.ID)},
+		app.isrTransport,
+		app.logger,
+	)
 	channelLeaderEvaluator := runtimechannelmeta.NewLeaderPromotionEvaluator(runtimechannelmeta.LeaderPromotionEvaluatorOptions{
 		DB:        app.channelLogDB,
 		LocalNode: cfg.Node.ID,

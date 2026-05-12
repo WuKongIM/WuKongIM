@@ -276,6 +276,8 @@ func transportRPCServiceName(serviceID uint8) string {
 		return "channel_retention"
 	case 44:
 		return "system_uid_cache"
+	case 47:
+		return "channel_migration"
 	default:
 		return "service_" + strconv.FormatUint(uint64(serviceID), 10)
 	}

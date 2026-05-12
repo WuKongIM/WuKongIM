@@ -21,8 +21,10 @@ const (
 	fetchResponseCodecVersion byte = 3
 	longPollRequestCodecVer   byte = 2
 	longPollResponseCodecVer  byte = 4
-	reconcileProbeCodecVer    byte = 2
-	reconcileProbeRespVer     byte = 2
+	reconcileProbeCodecVerV2  byte = 2
+	reconcileProbeCodecVer    byte = 3
+	reconcileProbeRespVerV2   byte = 2
+	reconcileProbeRespVer     byte = 3
 	fenceAndDrainReqVer       byte = 1
 	fenceAndDrainRespVer      byte = 1
 )
@@ -279,7 +281,11 @@ func readRetentionReset(rd *bytes.Reader) (*channel.RetentionReset, error) {
 
 func encodeReconcileProbeRequest(req runtime.ReconcileProbeRequestEnvelope) ([]byte, error) {
 	buf := bytes.NewBuffer(make([]byte, 0, 48))
-	buf.WriteByte(reconcileProbeCodecVer)
+	version := reconcileProbeCodecVerV2
+	if req.RequireExtendedResponse {
+		version = reconcileProbeCodecVer
+	}
+	buf.WriteByte(version)
 	if err := writeChannelKey(buf, req.ChannelKey); err != nil {
 		return nil, err
 	}
@@ -304,7 +310,7 @@ func decodeReconcileProbeRequest(data []byte) (runtime.ReconcileProbeRequestEnve
 	if err != nil {
 		return runtime.ReconcileProbeRequestEnvelope{}, err
 	}
-	if version != reconcileProbeCodecVer {
+	if version != reconcileProbeCodecVerV2 && version != reconcileProbeCodecVer {
 		return runtime.ReconcileProbeRequestEnvelope{}, fmt.Errorf("channeltransport: unknown reconcile probe codec version %d", version)
 	}
 
@@ -327,6 +333,7 @@ func decodeReconcileProbeRequest(data []byte) (runtime.ReconcileProbeRequestEnve
 		return runtime.ReconcileProbeRequestEnvelope{}, err
 	}
 	req.ReplicaID = channel.NodeID(replicaID)
+	req.RequireExtendedResponse = version == reconcileProbeCodecVer
 	if rd.Len() != 0 {
 		return runtime.ReconcileProbeRequestEnvelope{}, fmt.Errorf("channeltransport: trailing reconcile probe payload bytes")
 	}
@@ -334,8 +341,19 @@ func decodeReconcileProbeRequest(data []byte) (runtime.ReconcileProbeRequestEnve
 }
 
 func encodeReconcileProbeResponse(resp runtime.ReconcileProbeResponseEnvelope) ([]byte, error) {
-	buf := bytes.NewBuffer(make([]byte, 0, 64))
-	buf.WriteByte(reconcileProbeRespVer)
+	return encodeReconcileProbeResponseVersion(resp, reconcileProbeRespVer)
+}
+
+func encodeReconcileProbeResponseForRequest(resp runtime.ReconcileProbeResponseEnvelope, req runtime.ReconcileProbeRequestEnvelope) ([]byte, error) {
+	if req.RequireExtendedResponse {
+		return encodeReconcileProbeResponseVersion(resp, reconcileProbeRespVer)
+	}
+	return encodeReconcileProbeResponseVersion(resp, reconcileProbeRespVerV2)
+}
+
+func encodeReconcileProbeResponseVersion(resp runtime.ReconcileProbeResponseEnvelope, version byte) ([]byte, error) {
+	buf := bytes.NewBuffer(make([]byte, 0, 96))
+	buf.WriteByte(version)
 	if err := writeChannelKey(buf, resp.ChannelKey); err != nil {
 		return nil, err
 	}
@@ -351,7 +369,31 @@ func encodeReconcileProbeResponse(resp runtime.ReconcileProbeResponseEnvelope) (
 	if err := binary.Write(buf, binary.BigEndian, uint64(resp.ReplicaID)); err != nil {
 		return nil, err
 	}
+	if version == reconcileProbeRespVerV2 {
+		if err := binary.Write(buf, binary.BigEndian, resp.OffsetEpoch); err != nil {
+			return nil, err
+		}
+		if err := binary.Write(buf, binary.BigEndian, resp.LogEndOffset); err != nil {
+			return nil, err
+		}
+		if err := binary.Write(buf, binary.BigEndian, resp.CheckpointHW); err != nil {
+			return nil, err
+		}
+		return buf.Bytes(), nil
+	}
+	if version != reconcileProbeRespVer {
+		return nil, fmt.Errorf("channeltransport: unknown reconcile probe response codec version %d", version)
+	}
+	if err := binary.Write(buf, binary.BigEndian, uint64(resp.Leader)); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(buf, binary.BigEndian, uint64(resp.Role)); err != nil {
+		return nil, err
+	}
 	if err := binary.Write(buf, binary.BigEndian, resp.OffsetEpoch); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(buf, binary.BigEndian, resp.LogStartOffset); err != nil {
 		return nil, err
 	}
 	if err := binary.Write(buf, binary.BigEndian, resp.LogEndOffset); err != nil {
@@ -359,6 +401,11 @@ func encodeReconcileProbeResponse(resp runtime.ReconcileProbeResponseEnvelope) (
 	}
 	if err := binary.Write(buf, binary.BigEndian, resp.CheckpointHW); err != nil {
 		return nil, err
+	}
+	if resp.CommitReady {
+		buf.WriteByte(1)
+	} else {
+		buf.WriteByte(0)
 	}
 	return buf.Bytes(), nil
 }
@@ -369,7 +416,7 @@ func decodeReconcileProbeResponse(data []byte) (runtime.ReconcileProbeResponseEn
 	if err != nil {
 		return runtime.ReconcileProbeResponseEnvelope{}, err
 	}
-	if version != reconcileProbeRespVer {
+	if version != reconcileProbeRespVerV2 && version != reconcileProbeRespVer {
 		return runtime.ReconcileProbeResponseEnvelope{}, fmt.Errorf("channeltransport: unknown reconcile probe response codec version %d", version)
 	}
 
@@ -392,7 +439,35 @@ func decodeReconcileProbeResponse(data []byte) (runtime.ReconcileProbeResponseEn
 		return runtime.ReconcileProbeResponseEnvelope{}, err
 	}
 	resp.ReplicaID = channel.NodeID(replicaID)
+	if version == reconcileProbeRespVerV2 {
+		if err := binary.Read(rd, binary.BigEndian, &resp.OffsetEpoch); err != nil {
+			return runtime.ReconcileProbeResponseEnvelope{}, err
+		}
+		if err := binary.Read(rd, binary.BigEndian, &resp.LogEndOffset); err != nil {
+			return runtime.ReconcileProbeResponseEnvelope{}, err
+		}
+		if err := binary.Read(rd, binary.BigEndian, &resp.CheckpointHW); err != nil {
+			return runtime.ReconcileProbeResponseEnvelope{}, err
+		}
+		if rd.Len() != 0 {
+			return runtime.ReconcileProbeResponseEnvelope{}, fmt.Errorf("channeltransport: trailing reconcile probe response payload bytes")
+		}
+		return resp, nil
+	}
+	var leader uint64
+	if err := binary.Read(rd, binary.BigEndian, &leader); err != nil {
+		return runtime.ReconcileProbeResponseEnvelope{}, err
+	}
+	resp.Leader = channel.NodeID(leader)
+	var role uint64
+	if err := binary.Read(rd, binary.BigEndian, &role); err != nil {
+		return runtime.ReconcileProbeResponseEnvelope{}, err
+	}
+	resp.Role = channel.ReplicaRole(role)
 	if err := binary.Read(rd, binary.BigEndian, &resp.OffsetEpoch); err != nil {
+		return runtime.ReconcileProbeResponseEnvelope{}, err
+	}
+	if err := binary.Read(rd, binary.BigEndian, &resp.LogStartOffset); err != nil {
 		return runtime.ReconcileProbeResponseEnvelope{}, err
 	}
 	if err := binary.Read(rd, binary.BigEndian, &resp.LogEndOffset); err != nil {
@@ -400,6 +475,18 @@ func decodeReconcileProbeResponse(data []byte) (runtime.ReconcileProbeResponseEn
 	}
 	if err := binary.Read(rd, binary.BigEndian, &resp.CheckpointHW); err != nil {
 		return runtime.ReconcileProbeResponseEnvelope{}, err
+	}
+	commitReady, err := rd.ReadByte()
+	if err != nil {
+		return runtime.ReconcileProbeResponseEnvelope{}, err
+	}
+	switch commitReady {
+	case 0:
+		resp.CommitReady = false
+	case 1:
+		resp.CommitReady = true
+	default:
+		return runtime.ReconcileProbeResponseEnvelope{}, fmt.Errorf("channeltransport: invalid reconcile probe commit-ready flag %d", commitReady)
 	}
 	if rd.Len() != 0 {
 		return runtime.ReconcileProbeResponseEnvelope{}, fmt.Errorf("channeltransport: trailing reconcile probe response payload bytes")

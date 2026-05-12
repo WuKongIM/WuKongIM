@@ -13,6 +13,40 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestChannelMigrationRPCServiceIDDoesNotCollideWithSharedRPCServices(t *testing.T) {
+	occupied := map[uint8]string{
+		3:  "slot-runtime-meta",
+		4:  "slot-identity",
+		5:  "node-presence",
+		6:  "node-delivery-submit",
+		7:  "node-delivery-push",
+		8:  "node-delivery-ack",
+		9:  "node-delivery-offline",
+		10: "slot-subscriber",
+		11: "slot-user-conversation-state",
+		12: "slot-channel",
+		13: "node-conversation-facts",
+		30: "channel-fetch",
+		33: "node-channel-append",
+		34: "channel-reconcile-probe",
+		35: "channel-long-poll-fetch",
+		36: "node-channel-messages",
+		37: "node-channel-leader-repair",
+		38: "node-channel-leader-evaluate",
+		39: "node-runtime-summary",
+		40: "node-connections",
+		41: "node-connection",
+		42: "node-diagnostics",
+		43: "node-channel-retention",
+		44: "node-delivery-tag",
+		45: "node-system-uid-cache",
+		46: "channel-fence-and-drain",
+	}
+	if name, exists := occupied[channelMigrationRPCServiceID]; exists {
+		t.Fatalf("channelMigrationRPCServiceID = %d collides with %s", channelMigrationRPCServiceID, name)
+	}
+}
+
 func TestChannelMigrationCreateTaskRoutesToAuthoritativeSlotLeader(t *testing.T) {
 	ctx := context.Background()
 	nodes := startTwoNodeHashSlotStores(t, 8)

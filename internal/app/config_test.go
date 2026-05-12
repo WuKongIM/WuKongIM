@@ -45,6 +45,19 @@ func TestConfigExampleDocumentsSupportedWKKeys(t *testing.T) {
 func supportedConfigExampleKeys() []string {
 	return []string{
 		"WK_API_LISTEN_ADDR",
+		"WK_CHANNEL_MIGRATION_COMPLETED_RETENTION_TTL",
+		"WK_CHANNEL_MIGRATION_FENCE_TTL",
+		"WK_CHANNEL_MIGRATION_GC_LIMIT",
+		"WK_CHANNEL_MIGRATION_LEADER_LEASE_TTL",
+		"WK_CHANNEL_MIGRATION_CATCH_UP_STABLE_WINDOW",
+		"WK_CHANNEL_MIGRATION_CATCH_UP_LAG_THRESHOLD",
+		"WK_CHANNEL_MIGRATION_MAX_CONCURRENT",
+		"WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_SOURCE",
+		"WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_TARGET",
+		"WK_CHANNEL_MIGRATION_OWNER_LEASE_TTL",
+		"WK_CHANNEL_MIGRATION_RETRY_BACKOFF",
+		"WK_CHANNEL_MIGRATION_SCAN_INTERVAL",
+		"WK_CHANNEL_MIGRATION_SCAN_LIMIT",
 		"WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL",
 		"WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE",
 		"WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES",
@@ -829,6 +842,59 @@ func TestConfigDefaultsChannelMessageRetentionDisabled(t *testing.T) {
 	require.Equal(t, time.Hour, cfg.ChannelMessageRetention.ScanInterval)
 	require.Equal(t, 128, cfg.ChannelMessageRetention.ChannelBatchSize)
 	require.Equal(t, 10000, cfg.ChannelMessageRetention.MaxTrimMessages)
+}
+
+func TestChannelMigrationConfigDefaults(t *testing.T) {
+	cfg := validConfig()
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.Equal(t, time.Second, cfg.ChannelMigration.ScanInterval)
+	require.Equal(t, 64, cfg.ChannelMigration.ScanLimit)
+	require.Equal(t, 30*time.Second, cfg.ChannelMigration.OwnerLeaseTTL)
+	require.Equal(t, time.Minute, cfg.ChannelMigration.RetryBackoff)
+	require.Equal(t, time.Minute, cfg.ChannelMigration.FenceTTL)
+	require.Equal(t, time.Minute, cfg.ChannelMigration.LeaderLeaseTTL)
+	require.Equal(t, time.Second, cfg.ChannelMigration.CatchUpStableWindow)
+	require.Equal(t, uint64(0), cfg.ChannelMigration.CatchUpLagThreshold)
+	require.Equal(t, 64, cfg.ChannelMigration.MaxConcurrent)
+	require.Equal(t, 1, cfg.ChannelMigration.MaxConcurrentPerSource)
+	require.Equal(t, 1, cfg.ChannelMigration.MaxConcurrentPerTarget)
+	require.Equal(t, 24*time.Hour, cfg.ChannelMigration.CompletedRetentionTTL)
+	require.Equal(t, 128, cfg.ChannelMigration.GCLimit)
+}
+
+func TestChannelMigrationConfigIncludesSourceTargetLimitsAndRetention(t *testing.T) {
+	cfg := validConfig()
+	cfg.ChannelMigration.ScanInterval = 250 * time.Millisecond
+	cfg.ChannelMigration.ScanLimit = 17
+	cfg.ChannelMigration.OwnerLeaseTTL = 45 * time.Second
+	cfg.ChannelMigration.RetryBackoff = 3 * time.Second
+	cfg.ChannelMigration.FenceTTL = 90 * time.Second
+	cfg.ChannelMigration.LeaderLeaseTTL = 2 * time.Minute
+	cfg.ChannelMigration.CatchUpStableWindow = 5 * time.Second
+	cfg.ChannelMigration.CatchUpLagThreshold = 4
+	cfg.ChannelMigration.MaxConcurrent = 8
+	cfg.ChannelMigration.MaxConcurrentPerSource = 2
+	cfg.ChannelMigration.MaxConcurrentPerTarget = 3
+	cfg.ChannelMigration.CompletedRetentionTTL = 72 * time.Hour
+	cfg.ChannelMigration.GCLimit = 9
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.Equal(t, 250*time.Millisecond, cfg.ChannelMigration.ScanInterval)
+	require.Equal(t, 17, cfg.ChannelMigration.ScanLimit)
+	require.Equal(t, 45*time.Second, cfg.ChannelMigration.OwnerLeaseTTL)
+	require.Equal(t, 3*time.Second, cfg.ChannelMigration.RetryBackoff)
+	require.Equal(t, 90*time.Second, cfg.ChannelMigration.FenceTTL)
+	require.Equal(t, 2*time.Minute, cfg.ChannelMigration.LeaderLeaseTTL)
+	require.Equal(t, 5*time.Second, cfg.ChannelMigration.CatchUpStableWindow)
+	require.Equal(t, uint64(4), cfg.ChannelMigration.CatchUpLagThreshold)
+	require.Equal(t, 8, cfg.ChannelMigration.MaxConcurrent)
+	require.Equal(t, 2, cfg.ChannelMigration.MaxConcurrentPerSource)
+	require.Equal(t, 3, cfg.ChannelMigration.MaxConcurrentPerTarget)
+	require.Equal(t, 72*time.Hour, cfg.ChannelMigration.CompletedRetentionTTL)
+	require.Equal(t, 9, cfg.ChannelMigration.GCLimit)
 }
 
 func TestConfigValidateRejectsInvalidChannelMessageRetentionWhenEnabled(t *testing.T) {

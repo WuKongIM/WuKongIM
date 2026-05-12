@@ -135,12 +135,15 @@ func (e *Executor) replicaReplaceWarmCatchUp(ctx context.Context, task Task, now
 		return e.retryTask(ctx, task, afterProbeMS, err, task.Progress)
 	}
 	progress := replicaReplaceProgressFromReports(task.Progress, leader, target)
-	if !replicaReplaceCaughtUp(leader, target) {
+	if !replicaReplaceWithinCatchUpThreshold(leader, target, e.cfg.CatchUpLagThreshold) {
 		progress.StableSinceMS = 0
 		return e.retryTask(ctx, task, afterProbeMS, channel.ErrNotReady, progress)
 	}
 	if progress.StableSinceMS == 0 {
 		progress.StableSinceMS = afterProbeMS
+		return e.advanceTask(ctx, task, afterProbeMS, task.Status, task.Phase, advanceTaskOptions{Progress: progress})
+	}
+	if afterProbeMS-progress.StableSinceMS < e.cfg.CatchUpStableWindow.Milliseconds() {
 		return e.advanceTask(ctx, task, afterProbeMS, task.Status, task.Phase, advanceTaskOptions{Progress: progress})
 	}
 	return e.advanceTask(ctx, task, afterProbeMS, task.Status, slotmeta.ChannelMigrationPhaseCutoverFence, advanceTaskOptions{Progress: progress})
@@ -437,6 +440,16 @@ func replicaReplaceProgressFromReports(progress slotmeta.ChannelMigrationProgres
 
 func replicaReplaceCaughtUp(leader, target ProbeReport) bool {
 	return target.LogEndOffset >= leader.LogEndOffset && target.CheckpointHW >= leader.CheckpointHW
+}
+
+func replicaReplaceWithinCatchUpThreshold(leader, target ProbeReport, lagThreshold uint64) bool {
+	if target.CheckpointHW < leader.CheckpointHW {
+		return false
+	}
+	if target.LogEndOffset >= leader.LogEndOffset {
+		return true
+	}
+	return leader.LogEndOffset-target.LogEndOffset <= lagThreshold
 }
 
 func replicaReplaceMembershipCommitted(task Task, meta slotmeta.ChannelRuntimeMeta) bool {

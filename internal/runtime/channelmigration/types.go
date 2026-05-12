@@ -64,10 +64,16 @@ type Config struct {
 	FenceLease time.Duration
 	// LeaderLease is the metadata leader lease duration written after leader transfer.
 	LeaderLease time.Duration
+	// CatchUpStableWindow is how long warm catch-up lag must stay within threshold before cutover.
+	CatchUpStableWindow time.Duration
+	// CatchUpLagThreshold is the maximum leader-to-target record lag accepted during warm catch-up.
+	CatchUpLagThreshold uint64
 	// GCRetention keeps terminal tasks visible for operators before cleanup.
 	GCRetention time.Duration
 	// GCLimit bounds terminal-task cleanup work in one tick.
 	GCLimit int
+	// MaxConcurrent limits how many migration tasks this node advances in one tick; zero disables the limit.
+	MaxConcurrent int
 	// MaxConcurrentSources limits how many tasks per source node may run in one tick; zero disables the limit.
 	MaxConcurrentSources int
 	// MaxConcurrentTargets limits how many tasks per target node may run in one tick; zero disables the limit.

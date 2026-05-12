@@ -410,6 +410,61 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	channelMigrationScanInterval, err := parseDuration(v, "WK_CHANNEL_MIGRATION_SCAN_INTERVAL")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelMigrationScanLimit, err := parseInt(v, "WK_CHANNEL_MIGRATION_SCAN_LIMIT")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelMigrationOwnerLeaseTTL, err := parseDuration(v, "WK_CHANNEL_MIGRATION_OWNER_LEASE_TTL")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelMigrationRetryBackoff, err := parseDuration(v, "WK_CHANNEL_MIGRATION_RETRY_BACKOFF")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelMigrationFenceTTL, err := parseDuration(v, "WK_CHANNEL_MIGRATION_FENCE_TTL")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelMigrationLeaderLeaseTTL, err := parseDuration(v, "WK_CHANNEL_MIGRATION_LEADER_LEASE_TTL")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelMigrationCatchUpStableWindow, err := parseDuration(v, "WK_CHANNEL_MIGRATION_CATCH_UP_STABLE_WINDOW")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelMigrationCatchUpLagThreshold, err := parseInt(v, "WK_CHANNEL_MIGRATION_CATCH_UP_LAG_THRESHOLD")
+	if err != nil {
+		return app.Config{}, err
+	}
+	if channelMigrationCatchUpLagThreshold < 0 {
+		return app.Config{}, fmt.Errorf("%w: channel migration catch-up lag threshold must be >= 0", app.ErrInvalidConfig)
+	}
+	channelMigrationMaxConcurrent, err := parseInt(v, "WK_CHANNEL_MIGRATION_MAX_CONCURRENT")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelMigrationMaxConcurrentPerSource, err := parseInt(v, "WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_SOURCE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelMigrationMaxConcurrentPerTarget, err := parseInt(v, "WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_TARGET")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelMigrationCompletedRetentionTTL, err := parseDuration(v, "WK_CHANNEL_MIGRATION_COMPLETED_RETENTION_TTL")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelMigrationGCLimit, err := parseInt(v, "WK_CHANNEL_MIGRATION_GC_LIMIT")
+	if err != nil {
+		return app.Config{}, err
+	}
 	channelMessageRetentionTTL, err := parseDuration(v, "WK_CHANNEL_MESSAGE_RETENTION_TTL")
 	if err != nil {
 		return app.Config{}, err
@@ -535,6 +590,21 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			DataPlaneMaxFetchInflight: dataPlaneMaxFetchInflight,
 			DataPlaneMaxPendingFetch:  dataPlaneMaxPendingFetch,
 		},
+		ChannelMigration: app.ChannelMigrationConfig{
+			ScanInterval:           channelMigrationScanInterval,
+			ScanLimit:              channelMigrationScanLimit,
+			OwnerLeaseTTL:          channelMigrationOwnerLeaseTTL,
+			RetryBackoff:           channelMigrationRetryBackoff,
+			FenceTTL:               channelMigrationFenceTTL,
+			LeaderLeaseTTL:         channelMigrationLeaderLeaseTTL,
+			CatchUpStableWindow:    channelMigrationCatchUpStableWindow,
+			CatchUpLagThreshold:    uint64(channelMigrationCatchUpLagThreshold),
+			MaxConcurrent:          channelMigrationMaxConcurrent,
+			MaxConcurrentPerSource: channelMigrationMaxConcurrentPerSource,
+			MaxConcurrentPerTarget: channelMigrationMaxConcurrentPerTarget,
+			CompletedRetentionTTL:  channelMigrationCompletedRetentionTTL,
+			GCLimit:                channelMigrationGCLimit,
+		},
 		ChannelMessageRetention: app.ChannelMessageRetentionConfig{
 			TTL:              channelMessageRetentionTTL,
 			ScanInterval:     channelMessageRetentionScanInterval,
@@ -644,6 +714,21 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		stringValue(v, "WK_DIAGNOSTICS_SAMPLE_RATE") != "",
 		stringValue(v, "WK_DIAGNOSTICS_ERROR_SAMPLE_RATE") != "",
 		stringValue(v, "WK_DIAGNOSTICS_DEBUG_API_ENABLE") != "",
+	)
+	cfg.ChannelMigration.SetExplicitFlags(
+		stringValue(v, "WK_CHANNEL_MIGRATION_SCAN_INTERVAL") != "",
+		stringValue(v, "WK_CHANNEL_MIGRATION_SCAN_LIMIT") != "",
+		stringValue(v, "WK_CHANNEL_MIGRATION_OWNER_LEASE_TTL") != "",
+		stringValue(v, "WK_CHANNEL_MIGRATION_RETRY_BACKOFF") != "",
+		stringValue(v, "WK_CHANNEL_MIGRATION_FENCE_TTL") != "",
+		stringValue(v, "WK_CHANNEL_MIGRATION_LEADER_LEASE_TTL") != "",
+		stringValue(v, "WK_CHANNEL_MIGRATION_CATCH_UP_STABLE_WINDOW") != "",
+		stringValue(v, "WK_CHANNEL_MIGRATION_CATCH_UP_LAG_THRESHOLD") != "",
+		stringValue(v, "WK_CHANNEL_MIGRATION_MAX_CONCURRENT") != "",
+		stringValue(v, "WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_SOURCE") != "",
+		stringValue(v, "WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_TARGET") != "",
+		stringValue(v, "WK_CHANNEL_MIGRATION_COMPLETED_RETENTION_TTL") != "",
+		stringValue(v, "WK_CHANNEL_MIGRATION_GC_LIMIT") != "",
 	)
 	cfg.ChannelMessageRetention.SetExplicitFlags(
 		stringValue(v, "WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL") != "",

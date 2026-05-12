@@ -1,6 +1,8 @@
 package transport
 
 import (
+	"bytes"
+	"encoding/binary"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -175,7 +177,79 @@ func TestReconcileProbeCodecVersionsIncludeLeaderEpoch(t *testing.T) {
 	}
 
 	resp := runtime.ReconcileProbeResponseEnvelope{
-		ChannelKey:   "g1",
+		ChannelKey:     "g1",
+		Epoch:          3,
+		LeaderEpoch:    9,
+		Generation:     8,
+		ReplicaID:      4,
+		Leader:         2,
+		Role:           channel.ReplicaRoleFollower,
+		OffsetEpoch:    3,
+		LogStartOffset: 5,
+		LogEndOffset:   12,
+		CheckpointHW:   11,
+		CommitReady:    true,
+	}
+	respData, err := encodeReconcileProbeResponse(resp)
+	if err != nil {
+		t.Fatalf("encodeReconcileProbeResponse() error = %v", err)
+	}
+	if respData[0] != 3 {
+		t.Fatalf("reconcile probe response version = %d, want 3", respData[0])
+	}
+	gotResp, err := decodeReconcileProbeResponse(respData)
+	if err != nil {
+		t.Fatalf("decodeReconcileProbeResponse() error = %v", err)
+	}
+	if gotResp != resp {
+		t.Fatalf("response = %+v, want %+v", gotResp, resp)
+	}
+}
+
+func TestReconcileProbeRequestCodecCanRequestExtendedResponse(t *testing.T) {
+	req := runtime.ReconcileProbeRequestEnvelope{
+		ChannelKey:              "g1",
+		Epoch:                   3,
+		LeaderEpoch:             9,
+		Generation:              7,
+		ReplicaID:               2,
+		RequireExtendedResponse: true,
+	}
+
+	data, err := encodeReconcileProbeRequest(req)
+	if err != nil {
+		t.Fatalf("encodeReconcileProbeRequest() error = %v", err)
+	}
+	if data[0] != 3 {
+		t.Fatalf("reconcile probe request version = %d, want 3", data[0])
+	}
+	got, err := decodeReconcileProbeRequest(data)
+	if err != nil {
+		t.Fatalf("decodeReconcileProbeRequest() error = %v", err)
+	}
+	if got != req {
+		t.Fatalf("request = %+v, want %+v", got, req)
+	}
+}
+
+func TestReconcileProbeResponseDecoderAcceptsVersion2LegacyPayload(t *testing.T) {
+	buf := bytes.NewBuffer(nil)
+	buf.WriteByte(2)
+	if err := writeChannelKey(buf, "g-legacy"); err != nil {
+		t.Fatalf("writeChannelKey() error = %v", err)
+	}
+	for _, value := range []uint64{3, 9, 8, 4, 3, 12, 11} {
+		if err := binary.Write(buf, binary.BigEndian, value); err != nil {
+			t.Fatalf("binary.Write() error = %v", err)
+		}
+	}
+
+	got, err := decodeReconcileProbeResponse(buf.Bytes())
+	if err != nil {
+		t.Fatalf("decodeReconcileProbeResponse() error = %v", err)
+	}
+	want := runtime.ReconcileProbeResponseEnvelope{
+		ChannelKey:   "g-legacy",
 		Epoch:        3,
 		LeaderEpoch:  9,
 		Generation:   8,
@@ -184,18 +258,49 @@ func TestReconcileProbeCodecVersionsIncludeLeaderEpoch(t *testing.T) {
 		LogEndOffset: 12,
 		CheckpointHW: 11,
 	}
-	respData, err := encodeReconcileProbeResponse(resp)
+	if got != want {
+		t.Fatalf("response = %+v, want %+v", got, want)
+	}
+}
+
+func TestReconcileProbeResponseEncoderDowngradesForVersion2Request(t *testing.T) {
+	resp := runtime.ReconcileProbeResponseEnvelope{
+		ChannelKey:     "g1",
+		Epoch:          3,
+		LeaderEpoch:    9,
+		Generation:     8,
+		ReplicaID:      4,
+		Leader:         2,
+		Role:           channel.ReplicaRoleFollower,
+		OffsetEpoch:    3,
+		LogStartOffset: 5,
+		LogEndOffset:   12,
+		CheckpointHW:   11,
+		CommitReady:    true,
+	}
+
+	data, err := encodeReconcileProbeResponseForRequest(resp, runtime.ReconcileProbeRequestEnvelope{})
 	if err != nil {
-		t.Fatalf("encodeReconcileProbeResponse() error = %v", err)
+		t.Fatalf("encodeReconcileProbeResponseForRequest() error = %v", err)
 	}
-	if respData[0] != 2 {
-		t.Fatalf("reconcile probe response version = %d, want 2", respData[0])
+	if data[0] != 2 {
+		t.Fatalf("legacy reconcile probe response version = %d, want 2", data[0])
 	}
-	gotResp, err := decodeReconcileProbeResponse(respData)
+	got, err := decodeReconcileProbeResponse(data)
 	if err != nil {
 		t.Fatalf("decodeReconcileProbeResponse() error = %v", err)
 	}
-	if gotResp != resp {
-		t.Fatalf("response = %+v, want %+v", gotResp, resp)
+	want := runtime.ReconcileProbeResponseEnvelope{
+		ChannelKey:   resp.ChannelKey,
+		Epoch:        resp.Epoch,
+		LeaderEpoch:  resp.LeaderEpoch,
+		Generation:   resp.Generation,
+		ReplicaID:    resp.ReplicaID,
+		OffsetEpoch:  resp.OffsetEpoch,
+		LogEndOffset: resp.LogEndOffset,
+		CheckpointHW: resp.CheckpointHW,
+	}
+	if got != want {
+		t.Fatalf("response = %+v, want %+v", got, want)
 	}
 }

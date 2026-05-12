@@ -13,6 +13,7 @@ import (
 	applifecycle "github.com/WuKongIM/WuKongIM/internal/app/lifecycle"
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	channelmigrationruntime "github.com/WuKongIM/WuKongIM/internal/runtime/channelmigration"
 	appretention "github.com/WuKongIM/WuKongIM/internal/runtime/channelretention"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -41,38 +42,40 @@ type App struct {
 	logger    wklog.Logger
 	createdAt time.Time
 
-	db                       *metadb.DB
-	raftDB                   *raftstorage.DB
-	channelLogDB             *channelstore.Engine
-	cluster                  raftcluster.API
-	isrRuntime               channelruntime.Runtime
-	channelLog               *appChannelCluster
-	channelMetaSync          *channelMetaSync
-	store                    *metastore.Store
-	presenceApp              *presence.App
-	channelApp               *channelusecase.App
-	userApp                  *userusecase.App
-	deliveryApp              *deliveryusecase.App
-	conversationApp          *conversationusecase.App
-	deliveryRuntime          *deliveryruntime.Manager
-	deliveryRuntimeLifecycle *deliveryRuntimeLifecycle
-	deliveryAcks             *deliveryruntime.AckIndex
-	committedDispatcher      *asyncCommittedDispatcher
-	committedReplayer        *committedReplayer
-	channelRetentionWorker   *appretention.Worker
-	messageApp               *message.App
-	managementApp            *managementusecase.App
-	conversationActiveHints  *conversationusecase.ActiveHintCache
-	conversationProjector    conversationusecase.Projector
-	api                      *accessapi.Server
-	manager                  *accessmanager.Server
-	nodeClient               *accessnode.Client
-	nodeAccess               *accessnode.Adapter
-	presenceWorker           *presenceWorker
-	gatewayHandler           *accessgateway.Handler
-	gateway                  *gateway.Gateway
-	gatewayBootID            uint64
-	onlineRegistry           online.Registry
+	db                        *metadb.DB
+	raftDB                    *raftstorage.DB
+	channelLogDB              *channelstore.Engine
+	cluster                   raftcluster.API
+	isrRuntime                channelruntime.Runtime
+	channelLog                *appChannelCluster
+	channelMetaSync           *channelMetaSync
+	store                     *metastore.Store
+	presenceApp               *presence.App
+	channelApp                *channelusecase.App
+	userApp                   *userusecase.App
+	deliveryApp               *deliveryusecase.App
+	conversationApp           *conversationusecase.App
+	deliveryRuntime           *deliveryruntime.Manager
+	deliveryRuntimeLifecycle  *deliveryRuntimeLifecycle
+	deliveryAcks              *deliveryruntime.AckIndex
+	committedDispatcher       *asyncCommittedDispatcher
+	committedReplayer         *committedReplayer
+	channelMigrationExecutor  *channelmigrationruntime.Executor
+	channelMigrationLifecycle *channelMigrationLifecycle
+	channelRetentionWorker    *appretention.Worker
+	messageApp                *message.App
+	managementApp             *managementusecase.App
+	conversationActiveHints   *conversationusecase.ActiveHintCache
+	conversationProjector     conversationusecase.Projector
+	api                       *accessapi.Server
+	manager                   *accessmanager.Server
+	nodeClient                *accessnode.Client
+	nodeAccess                *accessnode.Adapter
+	presenceWorker            *presenceWorker
+	gatewayHandler            *accessgateway.Handler
+	gateway                   *gateway.Gateway
+	gatewayBootID             uint64
+	onlineRegistry            online.Registry
 
 	isrTransport         *channeltransport.Transport
 	dataPlanePool        *transport.Pool
@@ -97,6 +100,7 @@ type App struct {
 	deliveryRuntimeOn     atomic.Bool
 	committedDispatcherOn atomic.Bool
 	committedReplayOn     atomic.Bool
+	channelMigrationOn    atomic.Bool
 	channelRetentionOn    atomic.Bool
 	apiOn                 atomic.Bool
 	managerOn             atomic.Bool
@@ -110,6 +114,7 @@ type App struct {
 	startDeliveryRuntimeFn         func() error
 	startCommittedDispatcherFn     func() error
 	startCommittedReplayFn         func(context.Context) error
+	startChannelMigrationFn        func(context.Context) error
 	startChannelRetentionFn        func(context.Context) error
 	startAPIFn                     func() error
 	startManagerFn                 func() error
@@ -124,6 +129,7 @@ type App struct {
 	stopDeliveryRuntimeFn          func() error
 	stopCommittedDispatcherFn      func(context.Context) error
 	stopCommittedReplayFn          func(context.Context) error
+	stopChannelMigrationFn         func(context.Context) error
 	stopChannelRetentionFn         func(context.Context) error
 	stopPresenceFn                 func() error
 	stopChannelMetaSyncFn          func() error
