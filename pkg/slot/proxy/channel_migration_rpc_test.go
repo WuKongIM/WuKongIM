@@ -10,6 +10,7 @@ import (
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/stretchr/testify/require"
 )
 
@@ -606,12 +607,17 @@ type proxyTestMigrationCluster struct {
 	leaders        map[multiraft.SlotID]multiraft.NodeID
 	peers          map[multiraft.SlotID][]multiraft.NodeID
 	rpcResponse    []byte
+	rpcService     func(context.Context, multiraft.NodeID, multiraft.SlotID, uint8, []byte) ([]byte, error)
 	proposeResult  func(context.Context, multiraft.SlotID, uint16, []byte) ([]byte, error)
 	proposals      int
 }
 
 func (c *proxyTestMigrationCluster) NodeID() multiraft.NodeID {
 	return c.nodeID
+}
+
+func (c *proxyTestMigrationCluster) RPCMux() *transport.RPCMux {
+	return nil
 }
 
 func (c *proxyTestMigrationCluster) SlotForKey(string) multiraft.SlotID {
@@ -659,7 +665,10 @@ func (c *proxyTestMigrationCluster) ProposeWithHashSlotResult(ctx context.Contex
 	return nil, nil
 }
 
-func (c *proxyTestMigrationCluster) RPCService(context.Context, multiraft.NodeID, multiraft.SlotID, uint8, []byte) ([]byte, error) {
+func (c *proxyTestMigrationCluster) RPCService(ctx context.Context, nodeID multiraft.NodeID, slotID multiraft.SlotID, serviceID uint8, payload []byte) ([]byte, error) {
+	if c.rpcService != nil {
+		return c.rpcService(ctx, nodeID, slotID, serviceID, payload)
+	}
 	if c.rpcResponse == nil {
 		return nil, fmt.Errorf("missing rpc response")
 	}
