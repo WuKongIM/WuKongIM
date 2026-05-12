@@ -277,6 +277,9 @@ func (e *Executor) replicaReplacePromoteAndRemove(ctx context.Context, task Task
 	if e.fenceExpired(task, meta, afterReadMS) {
 		return e.resetExpiredReplicaReplaceFence(ctx, task, meta, afterReadMS)
 	}
+	if meta.Leader == task.SourceNode {
+		return e.retryTask(ctx, task, afterReadMS, slotmeta.ErrStaleMeta, task.Progress)
+	}
 	if err := e.ensureTaskOwnership(ctx, task, afterReadMS); err != nil {
 		return err
 	}
@@ -385,6 +388,9 @@ func (e *Executor) probeLeaderAndTarget(ctx context.Context, meta channel.Meta, 
 func validateReplicaReplaceMeta(task Task, meta slotmeta.ChannelRuntimeMeta) error {
 	if task.SourceNode == 0 || task.TargetNode == 0 || task.SourceNode == task.TargetNode {
 		return channel.ErrInvalidArgument
+	}
+	if meta.ChannelEpoch != task.BaseChannelEpoch || meta.LeaderEpoch != task.BaseLeaderEpoch {
+		return slotmeta.ErrStaleMeta
 	}
 	if meta.Status != uint8(channel.StatusActive) ||
 		!containsUint64(meta.Replicas, task.SourceNode) ||
