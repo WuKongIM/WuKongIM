@@ -203,6 +203,30 @@ func TestLeaderTransferDoesNotAdvanceAfterProbeTargetExpiresOwnerLease(t *testin
 	require.Empty(t, store.advancedTaskIDs())
 }
 
+func TestLeaderTransferDoesNotSetFenceAfterRuntimeMetaReadExpiresOwnerLease(t *testing.T) {
+	now := time.UnixMilli(22800)
+	clock := &leaderTransferClock{now: now}
+	task := leaderTransferTask("task-fence-expired-owner", "channel-fence-expired-owner", 1, 2, now)
+	task.Status = slotmeta.ChannelMigrationStatusRunning
+	task.Phase = slotmeta.ChannelMigrationPhaseWriteFence
+	store := newFakeExecutorStore(task)
+	store.putRuntimeMeta(leaderTransferRuntimeMeta(task.ChannelID, 1, 2, now))
+	store.onGetRuntimeMeta = func() {
+		clock.advance(10 * time.Millisecond)
+	}
+	executor := newLeaderTransferExecutorHarness(store, clock, &recordingMigrationControl{}, &recordingProbeClient{}, 9)
+	executor.cfg.OwnerLease = 5 * time.Millisecond
+
+	err := executor.Tick(context.Background())
+
+	require.NoError(t, err)
+	gotTask := store.task(task.TaskID)
+	require.Equal(t, slotmeta.ChannelMigrationStatusRunning, gotTask.Status)
+	require.Equal(t, slotmeta.ChannelMigrationPhaseWriteFence, gotTask.Phase)
+	require.Empty(t, gotTask.FenceToken)
+	require.Empty(t, store.setFenceRequests)
+}
+
 func TestLeaderTransferDrainsRemoteCurrentLeaderThroughMigrationControlClient(t *testing.T) {
 	now := time.UnixMilli(23000)
 	task := leaderTransferTask("task-remote-drain", "channel-remote-drain", 3, 2, now)
@@ -399,6 +423,29 @@ func TestLeaderTransferCommitExpiredFenceResetsToPreCutover(t *testing.T) {
 	require.Zero(t, gotTask.FenceToken)
 	require.Empty(t, store.leaderTransferCommits)
 	require.Len(t, store.resetFenceRequests, 1)
+}
+
+func TestLeaderTransferDoesNotCommitAfterRuntimeMetaReadExpiresOwnerLease(t *testing.T) {
+	now := time.UnixMilli(25700)
+	clock := &leaderTransferClock{now: now}
+	task := leaderTransferDrainedTask("task-commit-expired-owner", "channel-commit-expired-owner", 1, 2, now, slotmeta.ChannelMigrationPhaseCommitLeaderMeta)
+	store := newFakeExecutorStore(task)
+	store.putRuntimeMeta(leaderTransferFencedRuntimeMeta(task, 1, 2, now))
+	store.onGetRuntimeMeta = func() {
+		clock.advance(10 * time.Millisecond)
+	}
+	executor := newLeaderTransferExecutorHarness(store, clock, &recordingMigrationControl{}, &recordingProbeClient{}, 9)
+	executor.cfg.OwnerLease = 5 * time.Millisecond
+
+	err := executor.Tick(context.Background())
+
+	require.NoError(t, err)
+	gotTask := store.task(task.TaskID)
+	require.Equal(t, slotmeta.ChannelMigrationStatusRunning, gotTask.Status)
+	require.Equal(t, slotmeta.ChannelMigrationPhaseCommitLeaderMeta, gotTask.Phase)
+	require.Empty(t, store.leaderTransferCommits)
+	gotMeta := store.runtimeMeta(task.ChannelID, task.ChannelType)
+	require.Equal(t, uint64(1), gotMeta.Leader)
 }
 
 func TestLeaderTransferFenceExpiryResetsToPreCutoverWithVersionBump(t *testing.T) {

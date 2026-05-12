@@ -169,6 +169,43 @@ func TestExecutorHonorsGlobalSourceAndTargetConcurrencyLimits(t *testing.T) {
 	require.Equal(t, []string{"first", "independent"}, store.advancedTaskIDs())
 }
 
+func TestExecutorUsesFreshTimePerTaskAfterSlowPriorTask(t *testing.T) {
+	now := time.UnixMilli(9500)
+	clock := &leaderTransferClock{now: now}
+	first := leaderTransferTask("first", "ch-first", 1, 2, now)
+	first.Status = slotmeta.ChannelMigrationStatusRunning
+	first.Phase = slotmeta.ChannelMigrationPhaseWriteFence
+	second := withOwner(
+		executorTestTask("second", "ch-second", slotmeta.ChannelMigrationStatusRunning, now.Add(-time.Second)),
+		11,
+		now.Add(5*time.Millisecond),
+	)
+	store := newFakeExecutorStore(first, second)
+	store.putRuntimeMeta(leaderTransferRuntimeMeta(first.ChannelID, 1, 2, now))
+	store.onGetRuntimeMeta = func() {
+		clock.advance(10 * time.Millisecond)
+	}
+	executor := NewExecutor(ExecutorOptions{
+		Store:     store,
+		Slots:     newFakeSlotLeadership().withDefault(true),
+		Metrics:   noopMetrics{},
+		LocalNode: 9,
+		Now:       clock.Now,
+		Config: Config{
+			ScanLimit:    16,
+			OwnerLease:   5 * time.Millisecond,
+			RetryBackoff: time.Second,
+			FenceLease:   time.Minute,
+			LeaderLease:  time.Minute,
+		},
+	})
+
+	err := executor.Tick(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"first", "second"}, store.claimedTaskIDs())
+}
+
 func TestExecutorGarbageCollectsTerminalTasksAfterRetention(t *testing.T) {
 	now := time.UnixMilli(10000)
 	store := newFakeExecutorStore()
@@ -352,6 +389,7 @@ type fakeExecutorStore struct {
 	gcDeleted             int
 	advanceErr            error
 	onList                func()
+	onGetRuntimeMeta      func()
 }
 
 type fakeGCCall struct {
@@ -368,9 +406,11 @@ func newFakeExecutorStore(tasks ...Task) *fakeExecutorStore {
 
 func (s *fakeExecutorStore) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (slotmeta.ChannelRuntimeMeta, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	meta, ok := s.runtimeMetas[runtimeMetaFakeKey(channelID, channelType)]
+	s.mu.Unlock()
+	if s.onGetRuntimeMeta != nil {
+		s.onGetRuntimeMeta()
+	}
 	if !ok {
 		return slotmeta.ChannelRuntimeMeta{}, slotmeta.ErrNotFound
 	}
