@@ -2721,6 +2721,167 @@ func TestManagerChannelRuntimeMetaReturnsServiceUnavailableWhenAuthoritativeRead
 	require.JSONEq(t, `{"error":"service_unavailable","message":"slot leader authoritative read unavailable"}`, rec.Body.String())
 }
 
+func TestManagerChannelClusterSummaryReturnsAggregate(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.channel",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{
+			channelClusterSummary: managementusecase.ChannelClusterSummary{
+				Total:           4,
+				Healthy:         1,
+				ISRInsufficient: 2,
+				NoLeader:        1,
+				AvgReplicas:     2,
+				AvgISR:          1.5,
+				LeaderDistribution: []managementusecase.ChannelLeaderDistribution{
+					{NodeID: 1, Count: 3},
+					{NodeID: 2, Count: 1},
+				},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/channel-cluster/summary", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{
+		"total": 4,
+		"healthy": 1,
+		"isr_insufficient": 2,
+		"no_leader": 1,
+		"avg_replicas": 2,
+		"avg_isr": 1.5,
+		"leader_distribution": [
+			{"node_id": 1, "count": 3},
+			{"node_id": 2, "count": 1}
+		]
+	}`, rec.Body.String())
+}
+
+func TestManagerChannelClusterRejectsInsufficientPermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "viewer",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.slot",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/channel-cluster/summary", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
+}
+
+func TestManagerChannelClusterUnhealthyReturnsPagedList(t *testing.T) {
+	var received managementusecase.ListChannelClusterUnhealthyRequest
+	nextCursor := managementusecase.ChannelRuntimeMetaListCursor{SlotID: 2, ChannelID: "g2", ChannelType: 2}
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.channel",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{
+			channelClusterUnhealthyReqSink: &received,
+			channelClusterUnhealthyPage: managementusecase.ListChannelClusterUnhealthyResponse{
+				Items: []managementusecase.ChannelClusterUnhealthyItem{{
+					ChannelRuntimeMeta: managementusecase.ChannelRuntimeMeta{
+						ChannelID:     "g2",
+						ChannelType:   2,
+						SlotID:        2,
+						ChannelEpoch:  11,
+						LeaderEpoch:   5,
+						Leader:        0,
+						Replicas:      []uint64{3, 4},
+						ISR:           []uint64{3},
+						MinISR:        2,
+						MaxMessageSeq: 42,
+						Status:        "active",
+					},
+					Reasons: []string{
+						managementusecase.ChannelClusterUnhealthyReasonISRInsufficient,
+						managementusecase.ChannelClusterUnhealthyReasonNoLeader,
+					},
+				}},
+				HasMore:    true,
+				NextCursor: nextCursor,
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/channel-cluster/unhealthy?limit=2", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, managementusecase.ListChannelClusterUnhealthyRequest{Limit: 2}, received)
+	require.JSONEq(t, fmt.Sprintf(`{
+		"items": [{
+			"channel_id": "g2",
+			"channel_type": 2,
+			"slot_id": 2,
+			"channel_epoch": 11,
+			"leader_epoch": 5,
+			"leader": 0,
+			"replicas": [3, 4],
+			"isr": [3],
+			"min_isr": 2,
+			"max_message_seq": 42,
+			"status": "active",
+			"reasons": ["isr_insufficient", "no_leader"]
+		}],
+		"has_more": true,
+		"next_cursor": %q
+	}`, mustEncodeChannelRuntimeMetaCursorForTest(t, nextCursor)), rec.Body.String())
+}
+
+func TestManagerChannelClusterUnhealthyRejectsInvalidLimit(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.channel",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/channel-cluster/unhealthy?limit=0", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"error":"bad_request","message":"invalid limit"}`, rec.Body.String())
+}
+
 func TestManagerChannelRuntimeMetaDetailRejectsMissingToken(t *testing.T) {
 	srv := New(Options{
 		Auth:       testAuthConfig(nil),
@@ -3542,6 +3703,11 @@ type managementStub struct {
 	channelRuntimeMetaDetailReqSink    *channelRuntimeMetaDetailCall
 	channelRuntimeMetaDetail           managementusecase.ChannelRuntimeMetaDetail
 	channelRuntimeMetaDetailErr        error
+	channelClusterSummary              managementusecase.ChannelClusterSummary
+	channelClusterSummaryErr           error
+	channelClusterUnhealthyReqSink     *managementusecase.ListChannelClusterUnhealthyRequest
+	channelClusterUnhealthyPage        managementusecase.ListChannelClusterUnhealthyResponse
+	channelClusterUnhealthyErr         error
 	messagesReqSink                    *managementusecase.ListMessagesRequest
 	messagesPage                       managementusecase.ListMessagesResponse
 	messagesErr                        error
@@ -3738,6 +3904,17 @@ func (s managementStub) GetChannelRuntimeMeta(_ context.Context, channelID strin
 		*s.channelRuntimeMetaDetailReqSink = channelRuntimeMetaDetailCall{channelID: channelID, channelType: channelType}
 	}
 	return s.channelRuntimeMetaDetail, s.channelRuntimeMetaDetailErr
+}
+
+func (s managementStub) GetChannelClusterSummary(context.Context) (managementusecase.ChannelClusterSummary, error) {
+	return s.channelClusterSummary, s.channelClusterSummaryErr
+}
+
+func (s managementStub) ListChannelClusterUnhealthy(_ context.Context, req managementusecase.ListChannelClusterUnhealthyRequest) (managementusecase.ListChannelClusterUnhealthyResponse, error) {
+	if s.channelClusterUnhealthyReqSink != nil {
+		*s.channelClusterUnhealthyReqSink = req
+	}
+	return s.channelClusterUnhealthyPage, s.channelClusterUnhealthyErr
 }
 
 func (s managementStub) ListMessages(_ context.Context, req managementusecase.ListMessagesRequest) (managementusecase.ListMessagesResponse, error) {
