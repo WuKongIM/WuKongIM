@@ -74,6 +74,10 @@ type Management interface {
 	ListChannelRuntimeMeta(ctx context.Context, req managementusecase.ListChannelRuntimeMetaRequest) (managementusecase.ListChannelRuntimeMetaResponse, error)
 	// GetChannelRuntimeMeta returns one manager-facing channel runtime metadata detail DTO.
 	GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (managementusecase.ChannelRuntimeMetaDetail, error)
+	// GetChannelClusterSummary returns manager-facing channel ISR health counters.
+	GetChannelClusterSummary(ctx context.Context) (managementusecase.ChannelClusterSummary, error)
+	// ListChannelClusterUnhealthy returns one manager-facing unhealthy channel page.
+	ListChannelClusterUnhealthy(ctx context.Context, req managementusecase.ListChannelClusterUnhealthyRequest) (managementusecase.ListChannelClusterUnhealthyResponse, error)
 	// ListMessages returns one manager-facing channel message page.
 	ListMessages(ctx context.Context, req managementusecase.ListMessagesRequest) (managementusecase.ListMessagesResponse, error)
 	// AdvanceMessageRetention advances one channel's history retention boundary.
