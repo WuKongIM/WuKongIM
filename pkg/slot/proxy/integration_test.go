@@ -925,6 +925,35 @@ func TestStoreListUserConversationActiveReadsAuthoritativeSlot(t *testing.T) {
 	}, got)
 }
 
+func TestStoreListCMDConversationActiveReadsAuthoritativeSlot(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	uid := findUIDForSlot(t, nodes[0].cluster, 2, "remote-cmd-active")
+	hashSlot := mustHashSlotForKey(t, nodes[1].cluster, uid)
+	require.NoError(t, nodes[1].db.ForHashSlot(hashSlot).UpsertCMDConversationState(ctx, metadb.CMDConversationState{
+		UID:         uid,
+		ChannelID:   "g1____cmd",
+		ChannelType: 2,
+		ActiveAt:    100,
+		UpdatedAt:   10,
+	}))
+	require.NoError(t, nodes[1].db.ForHashSlot(hashSlot).UpsertCMDConversationState(ctx, metadb.CMDConversationState{
+		UID:         uid,
+		ChannelID:   "g2____cmd",
+		ChannelType: 2,
+		ActiveAt:    300,
+		UpdatedAt:   30,
+	}))
+
+	got, err := nodes[0].store.ListCMDConversationActive(ctx, uid, 10)
+	require.NoError(t, err)
+	require.Equal(t, []metadb.CMDConversationState{
+		{UID: uid, ChannelID: "g2____cmd", ChannelType: 2, ActiveAt: 300, UpdatedAt: 30},
+		{UID: uid, ChannelID: "g1____cmd", ChannelType: 2, ActiveAt: 100, UpdatedAt: 10},
+	}, got)
+}
+
 func TestStoreListUserConversationActiveMergesLocalOverlay(t *testing.T) {
 	ctx := context.Background()
 	nodes := startTwoNodeShardedStores(t)
