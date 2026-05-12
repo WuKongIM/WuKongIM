@@ -555,6 +555,7 @@ func build(cfg Config) (_ *App, err error) {
 		DeliveryTag:           deliveryTagAuthority{tags: deliveryTagManager},
 		DeliveryAckIndex:      app.deliveryAcks,
 		ChannelLeaderRepair:   channelLeaderRepairer,
+		ChannelLeaderTransfer: channelLeaderRepairer,
 		ChannelLeaderEvaluate: channelLeaderEvaluator,
 		RuntimeSummary:        nodeRuntimeSummaryProvider{collector: runtimeSummaries},
 		Diagnostics:           app,
@@ -617,6 +618,10 @@ func build(cfg Config) (_ *App, err error) {
 			ChannelLeaderRepair: managerChannelLeaderRepairOperator{
 				metas:    app.store,
 				repairer: channelLeaderRepairer,
+			},
+			ChannelLeaderTransfer: managerChannelLeaderTransferOperator{
+				metas:      app.store,
+				transferer: channelLeaderRepairer,
 			},
 			Network:          app.networkObservability,
 			MessageRetention: managerRetention,
