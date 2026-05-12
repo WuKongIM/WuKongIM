@@ -163,6 +163,13 @@ func (s *Server) registerRoutes() {
 	}
 	channelCluster.GET("/channel-cluster/summary", s.handleChannelClusterSummary)
 	channelCluster.GET("/channel-cluster/unhealthy", s.handleChannelClusterUnhealthy)
+	channelCluster.GET("/channel-cluster/:channel_type/:channel_id/replicas", s.handleChannelClusterReplicas)
+
+	channelClusterWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		channelClusterWrites.Use(s.requirePermission("cluster.channel", "w"))
+	}
+	channelClusterWrites.POST("/channel-cluster/:channel_type/:channel_id/repair", s.handleChannelClusterRepair)
 
 	messageWrites := s.engine.Group("/manager")
 	if s.auth.enabled() {

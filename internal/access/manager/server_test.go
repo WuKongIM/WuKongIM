@@ -12,6 +12,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -2882,6 +2883,213 @@ func TestManagerChannelClusterUnhealthyRejectsInvalidLimit(t *testing.T) {
 	require.JSONEq(t, `{"error":"bad_request","message":"invalid limit"}`, rec.Body.String())
 }
 
+func TestManagerChannelClusterReplicasReturnsDetail(t *testing.T) {
+	commit := uint64(42)
+	minAvailable := uint64(1)
+	retentionThrough := uint64(0)
+	lag := uint64(0)
+	var received channelRuntimeMetaDetailCall
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.channel",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{
+			channelClusterReplicaDetailReqSink: &received,
+			channelClusterReplicaDetail: managementusecase.ChannelClusterReplicaDetail{
+				Channel: managementusecase.ChannelRuntimeMetaDetail{
+					ChannelRuntimeMeta: managementusecase.ChannelRuntimeMeta{
+						ChannelID:     "room-1",
+						ChannelType:   2,
+						SlotID:        9,
+						ChannelEpoch:  7,
+						LeaderEpoch:   3,
+						Leader:        1,
+						Replicas:      []uint64{1, 2},
+						ISR:           []uint64{1},
+						MinISR:        1,
+						MaxMessageSeq: 42,
+						Status:        "active",
+					},
+					HashSlot:     123,
+					Features:     1,
+					LeaseUntilMS: 1700000000000,
+				},
+				RuntimeReported:     true,
+				CommitSeq:           &commit,
+				MinAvailableSeq:     &minAvailable,
+				RetentionThroughSeq: &retentionThrough,
+				Replicas: []managementusecase.ChannelClusterReplicaStatus{
+					{NodeID: 1, Role: "leader", IsLeader: true, InISR: true, Reported: true, CommitSeq: &commit, Lag: &lag},
+					{NodeID: 2, Role: "follower", Reported: false},
+				},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/channel-cluster/2/room-1/replicas", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, channelRuntimeMetaDetailCall{channelID: "room-1", channelType: 2}, received)
+	require.JSONEq(t, `{
+		"channel": {
+			"channel_id": "room-1",
+			"channel_type": 2,
+			"slot_id": 9,
+			"hash_slot": 123,
+			"channel_epoch": 7,
+			"leader_epoch": 3,
+			"leader": 1,
+			"replicas": [1, 2],
+			"isr": [1],
+			"min_isr": 1,
+			"max_message_seq": 42,
+			"status": "active",
+			"features": 1,
+			"lease_until_ms": 1700000000000
+		},
+		"runtime_reported": true,
+		"commit_seq": 42,
+		"min_available_seq": 1,
+		"retention_through_seq": 0,
+		"replicas": [
+			{"node_id": 1, "role": "leader", "is_leader": true, "in_isr": true, "reported": true, "commit_seq": 42, "leo": null, "checkpoint_hw": null, "lag": 0},
+			{"node_id": 2, "role": "follower", "is_leader": false, "in_isr": false, "reported": false, "commit_seq": null, "leo": null, "checkpoint_hw": null, "lag": null}
+		]
+	}`, rec.Body.String())
+}
+
+func TestManagerChannelClusterReplicasRejectsInsufficientPermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username:    "viewer",
+			Password:    "secret",
+			Permissions: []PermissionConfig{{Resource: "cluster.channel", Actions: []string{"w"}}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/channel-cluster/2/room-1/replicas", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
+}
+
+func TestManagerChannelClusterRepairReturnsChangedChannel(t *testing.T) {
+	var received managementusecase.RepairChannelClusterLeaderRequest
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username:    "admin",
+			Password:    "secret",
+			Permissions: []PermissionConfig{{Resource: "cluster.channel", Actions: []string{"w"}}},
+		}}),
+		Management: managementStub{
+			channelClusterRepairReqSink: &received,
+			channelClusterRepair: managementusecase.RepairChannelClusterLeaderResponse{
+				Changed: true,
+				Channel: managementusecase.ChannelRuntimeMetaDetail{
+					ChannelRuntimeMeta: managementusecase.ChannelRuntimeMeta{
+						ChannelID: "room-1", ChannelType: 2, SlotID: 9, Leader: 2, Replicas: []uint64{1, 2}, ISR: []uint64{2}, MinISR: 1, Status: "active",
+					},
+					HashSlot: 123,
+				},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/channel-cluster/2/room-1/repair", bytes.NewBufferString(`{"reason":"no_leader"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, managementusecase.RepairChannelClusterLeaderRequest{ChannelID: "room-1", ChannelType: 2, Reason: "no_leader"}, received)
+	require.JSONEq(t, `{
+		"changed": true,
+		"channel": {
+			"channel_id": "room-1",
+			"channel_type": 2,
+			"slot_id": 9,
+			"hash_slot": 123,
+			"channel_epoch": 0,
+			"leader_epoch": 0,
+			"leader": 2,
+			"replicas": [1, 2],
+			"isr": [2],
+			"min_isr": 1,
+			"max_message_seq": 0,
+			"status": "active",
+			"features": 0,
+			"lease_until_ms": 0
+		}
+	}`, rec.Body.String())
+}
+
+func TestManagerChannelClusterRepairRequiresWritePermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username:    "viewer",
+			Password:    "secret",
+			Permissions: []PermissionConfig{{Resource: "cluster.channel", Actions: []string{"r"}}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/channel-cluster/2/room-1/repair", bytes.NewBufferString(`{"reason":"no_leader"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
+}
+
+func TestManagerChannelClusterOperationsMapErrors(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+		stub   managementStub
+		want   int
+	}{
+		{name: "invalid channel type", method: http.MethodGet, path: "/manager/channel-cluster/0/room-1/replicas", want: http.StatusBadRequest},
+		{name: "replicas not found", method: http.MethodGet, path: "/manager/channel-cluster/2/room-1/replicas", stub: managementStub{channelClusterReplicaDetailErr: metadb.ErrNotFound}, want: http.StatusNotFound},
+		{name: "repair no safe candidate", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/repair", body: `{"reason":"no_leader"}`, stub: managementStub{channelClusterRepairErr: channel.ErrNoSafeChannelLeader}, want: http.StatusConflict},
+		{name: "repair leader unavailable", method: http.MethodPost, path: "/manager/channel-cluster/2/room-1/repair", body: `{"reason":"no_leader"}`, stub: managementStub{channelClusterRepairErr: raftcluster.ErrNoLeader}, want: http.StatusServiceUnavailable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := New(Options{Management: tt.stub})
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tt.method, tt.path, bytes.NewBufferString(tt.body))
+			if tt.body != "" {
+				req.Header.Set("Content-Type", "application/json")
+			}
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			require.Equal(t, tt.want, rec.Code)
+		})
+	}
+}
+
 func TestManagerChannelRuntimeMetaDetailRejectsMissingToken(t *testing.T) {
 	srv := New(Options{
 		Auth:       testAuthConfig(nil),
@@ -3708,6 +3916,12 @@ type managementStub struct {
 	channelClusterUnhealthyReqSink     *managementusecase.ListChannelClusterUnhealthyRequest
 	channelClusterUnhealthyPage        managementusecase.ListChannelClusterUnhealthyResponse
 	channelClusterUnhealthyErr         error
+	channelClusterReplicaDetailReqSink *channelRuntimeMetaDetailCall
+	channelClusterReplicaDetail        managementusecase.ChannelClusterReplicaDetail
+	channelClusterReplicaDetailErr     error
+	channelClusterRepairReqSink        *managementusecase.RepairChannelClusterLeaderRequest
+	channelClusterRepair               managementusecase.RepairChannelClusterLeaderResponse
+	channelClusterRepairErr            error
 	messagesReqSink                    *managementusecase.ListMessagesRequest
 	messagesPage                       managementusecase.ListMessagesResponse
 	messagesErr                        error
@@ -3915,6 +4129,20 @@ func (s managementStub) ListChannelClusterUnhealthy(_ context.Context, req manag
 		*s.channelClusterUnhealthyReqSink = req
 	}
 	return s.channelClusterUnhealthyPage, s.channelClusterUnhealthyErr
+}
+
+func (s managementStub) GetChannelClusterReplicaDetail(_ context.Context, channelID string, channelType int64) (managementusecase.ChannelClusterReplicaDetail, error) {
+	if s.channelClusterReplicaDetailReqSink != nil {
+		*s.channelClusterReplicaDetailReqSink = channelRuntimeMetaDetailCall{channelID: channelID, channelType: channelType}
+	}
+	return s.channelClusterReplicaDetail, s.channelClusterReplicaDetailErr
+}
+
+func (s managementStub) RepairChannelClusterLeader(_ context.Context, req managementusecase.RepairChannelClusterLeaderRequest) (managementusecase.RepairChannelClusterLeaderResponse, error) {
+	if s.channelClusterRepairReqSink != nil {
+		*s.channelClusterRepairReqSink = req
+	}
+	return s.channelClusterRepair, s.channelClusterRepairErr
 }
 
 func (s managementStub) ListMessages(_ context.Context, req managementusecase.ListMessagesRequest) (managementusecase.ListMessagesResponse, error) {

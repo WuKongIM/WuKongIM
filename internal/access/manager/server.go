@@ -78,6 +78,10 @@ type Management interface {
 	GetChannelClusterSummary(ctx context.Context) (managementusecase.ChannelClusterSummary, error)
 	// ListChannelClusterUnhealthy returns one manager-facing unhealthy channel page.
 	ListChannelClusterUnhealthy(ctx context.Context, req managementusecase.ListChannelClusterUnhealthyRequest) (managementusecase.ListChannelClusterUnhealthyResponse, error)
+	// GetChannelClusterReplicaDetail returns authoritative and proven runtime replica detail.
+	GetChannelClusterReplicaDetail(ctx context.Context, channelID string, channelType int64) (managementusecase.ChannelClusterReplicaDetail, error)
+	// RepairChannelClusterLeader runs policy-driven safe leader repair for one channel.
+	RepairChannelClusterLeader(ctx context.Context, req managementusecase.RepairChannelClusterLeaderRequest) (managementusecase.RepairChannelClusterLeaderResponse, error)
 	// ListMessages returns one manager-facing channel message page.
 	ListMessages(ctx context.Context, req managementusecase.ListMessagesRequest) (managementusecase.ListMessagesResponse, error)
 	// AdvanceMessageRetention advances one channel's history retention boundary.
