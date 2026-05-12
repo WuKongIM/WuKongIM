@@ -157,6 +157,13 @@ func (s *Server) registerRoutes() {
 	channelRuntimeMeta.GET("/channel-runtime-meta/:channel_type/:channel_id", s.handleChannelRuntimeMetaDetail)
 	channelRuntimeMeta.GET("/messages", s.handleMessages)
 
+	channelCluster := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		channelCluster.Use(s.requirePermission("cluster.channel", "r"))
+	}
+	channelCluster.GET("/channel-cluster/summary", s.handleChannelClusterSummary)
+	channelCluster.GET("/channel-cluster/unhealthy", s.handleChannelClusterUnhealthy)
+
 	messageWrites := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		messageWrites.Use(s.requirePermission("cluster.channel", "w"))
