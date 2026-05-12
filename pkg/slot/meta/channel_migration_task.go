@@ -176,6 +176,8 @@ type ChannelMigrationTaskAdvance struct {
 	Progress ChannelMigrationProgress
 	// CutoverProof optionally records a fenced drain proof for later cutover commands.
 	CutoverProof ChannelMigrationCutoverProof
+	// EmbeddedDesiredLeader optionally starts an embedded leader transfer to this ISR member.
+	EmbeddedDesiredLeader uint64
 }
 
 // ChannelMigrationFenceRequest sets or renews a channel write fence and
@@ -981,6 +983,9 @@ func validateChannelMigrationTaskAdvance(req ChannelMigrationTaskAdvance) error 
 	if req.CutoverProof.hasPartial() {
 		return ErrInvalidArgument
 	}
+	if req.EmbeddedDesiredLeader != 0 && req.Status != ChannelMigrationStatusRunning {
+		return ErrInvalidArgument
+	}
 	return nil
 }
 
@@ -1099,6 +1104,10 @@ func applyChannelMigrationTaskAdvance(existing ChannelMigrationTask, req Channel
 		next.DrainedChannelEpoch = req.CutoverProof.DrainedChannelEpoch
 		next.DrainedLeaderEpoch = req.CutoverProof.DrainedLeaderEpoch
 		next.DrainedFenceVersion = req.CutoverProof.DrainedFenceVersion
+	}
+	if req.EmbeddedDesiredLeader != 0 {
+		next.EmbeddedLeaderTransfer = true
+		next.EmbeddedDesiredLeader = req.EmbeddedDesiredLeader
 	}
 	return next
 }

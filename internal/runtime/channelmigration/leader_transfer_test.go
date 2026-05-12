@@ -679,6 +679,7 @@ func (c *recordingMigrationControl) calledNodes() []channel.NodeID {
 
 type recordingProbeClient struct {
 	report  ProbeReport
+	reports map[channel.NodeID]ProbeReport
 	err     error
 	calls   []probeCall
 	onProbe func()
@@ -696,6 +697,11 @@ func (c *recordingProbeClient) ProbeChannel(ctx context.Context, nodeID channel.
 	}
 	if c.err != nil {
 		return ProbeReport{}, c.err
+	}
+	if c.reports != nil {
+		if report, ok := c.reports[nodeID]; ok {
+			return report, nil
+		}
 	}
 	if c.report.ChannelKey != "" {
 		return c.report, nil

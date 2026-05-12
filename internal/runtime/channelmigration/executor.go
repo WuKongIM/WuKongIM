@@ -163,6 +163,9 @@ func (e *Executor) dispatchPhase(ctx context.Context, task Task, nowMS int64) er
 	if task.Kind == slotmeta.ChannelMigrationKindLeaderTransfer {
 		return e.runLeaderTransferPhase(ctx, task, nowMS)
 	}
+	if task.Kind == slotmeta.ChannelMigrationKindReplicaReplace {
+		return e.runReplicaReplacePhase(ctx, task, nowMS)
+	}
 
 	err := ErrPhaseNotImplemented
 	nextRunAtMS := int64(0)
