@@ -410,6 +410,11 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	messagePersonWhitelistEnabled, err := parseBool(v, "WK_MESSAGE_PERSON_WHITELIST_ENABLED")
+	if err != nil {
+		return app.Config{}, err
+	}
+	messageSystemDeviceID := stringValue(v, "WK_MESSAGE_SYSTEM_DEVICE_ID")
 	channelMessageRetentionTTL, err := parseDuration(v, "WK_CHANNEL_MESSAGE_RETENTION_TTL")
 	if err != nil {
 		return app.Config{}, err
@@ -540,6 +545,10 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			ScanInterval:     channelMessageRetentionScanInterval,
 			ChannelBatchSize: channelMessageRetentionChannelBatchSize,
 			MaxTrimMessages:  channelMessageRetentionMaxTrimMessages,
+		},
+		Message: app.MessageConfig{
+			PersonWhitelistEnabled: messagePersonWhitelistEnabled,
+			SystemDeviceID:         messageSystemDeviceID,
 		},
 		Conversation: app.ConversationConfig{
 			ActiveHintFlushInterval:         activeHintFlushInterval,

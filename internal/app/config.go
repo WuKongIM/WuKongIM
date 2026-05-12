@@ -26,6 +26,8 @@ type Config struct {
 	Cluster ClusterConfig
 	// ChannelMessageRetention configures leader-driven channel message expiry.
 	ChannelMessageRetention ChannelMessageRetentionConfig
+	// Message configures message send business rules.
+	Message MessageConfig
 	// API configures the public HTTP API entry point.
 	API APIConfig
 	// Manager configures the administration HTTP API entry point.
@@ -38,6 +40,16 @@ type Config struct {
 	Observability ObservabilityConfig
 	// Log configures application logging output.
 	Log LogConfig
+}
+
+// MessageConfig controls send-path business compatibility rules.
+type MessageConfig struct {
+	// PersonWhitelistEnabled enables receiver-side personal allowlist enforcement for sends.
+	// It is disabled by default to match legacy WhitelistOffOfPerson=true compatibility.
+	PersonWhitelistEnabled bool
+	// SystemDeviceID identifies trusted gateway sessions that bypass channel-type-specific
+	// send permissions after sender SendBan has passed.
+	SystemDeviceID string
 }
 
 // ChannelMessageRetentionConfig controls cluster-authoritative channel message retention.
@@ -938,6 +950,9 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if c.ChannelMessageRetention.MaxTrimMessages <= 0 {
 		c.ChannelMessageRetention.MaxTrimMessages = defaultChannelMessageRetentionMaxTrimMessages
 	}
+	if c.Message.SystemDeviceID == "" {
+		c.Message.SystemDeviceID = defaultMessageSystemDeviceID
+	}
 	if c.Log.Level == "" {
 		c.Log.Level = "info"
 	}
@@ -1192,3 +1207,5 @@ const defaultChannelMessageRetentionScanInterval = time.Hour
 const defaultChannelMessageRetentionChannelBatchSize = 128
 
 const defaultChannelMessageRetentionMaxTrimMessages = 10000
+
+const defaultMessageSystemDeviceID = "____device"

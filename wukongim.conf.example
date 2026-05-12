@@ -95,6 +95,13 @@ WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL=1h
 WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE=128
 WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES=10000
 
+# Enables receiver-side personal allowlist checks for person-channel sends.
+# Disabled by default to preserve legacy WhitelistOffOfPerson=true compatibility.
+WK_MESSAGE_PERSON_WHITELIST_ENABLED=false
+# Trusted gateway sessions with this device ID bypass channel-type-specific send permissions
+# after sender SendBan has passed. Keep the legacy default unless all system senders use another ID.
+WK_MESSAGE_SYSTEM_DEVICE_ID=____device
+
 # Conversation ActiveAt is a best-effort working-set hint. Cache updates are
 # batched and may be dropped without affecting message durability.
 WK_CONVERSATION_ACTIVE_HINT_FLUSH_INTERVAL=2s

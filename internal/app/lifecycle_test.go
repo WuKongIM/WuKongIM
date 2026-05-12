@@ -43,6 +43,23 @@ func TestNewBuildsDBClusterStoreMessageAndGatewayAdapter(t *testing.T) {
 	require.Nil(t, app.API())
 }
 
+func TestNewWiresMessagePermissionConfig(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Message.PersonWhitelistEnabled = true
+	cfg.Message.SystemDeviceID = "custom-device"
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.RaftDB().Close())
+		require.NoError(t, app.DB().Close())
+	})
+
+	msg := reflect.ValueOf(app.messageApp).Elem()
+	require.True(t, msg.FieldByName("personWhitelistEnabled").Bool())
+	require.Equal(t, "custom-device", msg.FieldByName("systemDeviceID").String())
+}
+
 func TestNewBuildsOptionalAPIServerWhenConfigured(t *testing.T) {
 	cfg := testConfig(t)
 	cfg.API.ListenAddr = "127.0.0.1:0"
