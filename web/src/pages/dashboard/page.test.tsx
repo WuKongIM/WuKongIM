@@ -11,6 +11,7 @@ import { DashboardPage } from "@/pages/dashboard/page"
 const getOverviewMock = vi.fn()
 const getTasksMock = vi.fn()
 const getNodesMock = vi.fn()
+const getChannelClusterSummaryMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -19,6 +20,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getOverview: (...args: unknown[]) => getOverviewMock(...args),
     getTasks: (...args: unknown[]) => getTasksMock(...args),
     getNodes: (...args: unknown[]) => getNodesMock(...args),
+    getChannelClusterSummary: (...args: unknown[]) => getChannelClusterSummaryMock(...args),
   }
 })
 
@@ -134,13 +136,28 @@ const nodesFixture = {
   ],
 }
 
+const channelClusterFixture = {
+  total: 4,
+  healthy: 1,
+  isr_insufficient: 2,
+  no_leader: 1,
+  avg_replicas: 2,
+  avg_isr: 1.5,
+  leader_distribution: [
+    { node_id: 1, count: 3 },
+    { node_id: 2, count: 1 },
+  ],
+}
+
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
   getOverviewMock.mockReset()
   getTasksMock.mockReset()
   getNodesMock.mockReset()
+  getChannelClusterSummaryMock.mockReset()
   getNodesMock.mockResolvedValue(nodesFixture)
+  getChannelClusterSummaryMock.mockResolvedValue(channelClusterFixture)
 })
 
 function renderDashboard() {
@@ -161,6 +178,15 @@ test("renders overview metrics and task queue from manager APIs", async () => {
 
   expect(await screen.findByText("63")).toBeInTheDocument()
   expect(screen.getByText("Controller leader")).toBeInTheDocument()
+  expect(screen.getByText("Channel health")).toBeInTheDocument()
+  expect(screen.getByText("4 channels total")).toBeInTheDocument()
+  expect(screen.getByText("Healthy: 1")).toBeInTheDocument()
+  expect(screen.getByText("ISR insufficient: 2")).toBeInTheDocument()
+  expect(screen.getByText("No leader: 1")).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Open channel cluster health" })).toHaveAttribute(
+    "href",
+    "/channel-cluster",
+  )
   expect(screen.getByText("rebalance")).toBeInTheDocument()
   expect(screen.getByText("temporary failure")).toBeInTheDocument()
   expect(screen.getAllByText(/slot 9/i).length).toBeGreaterThan(0)
@@ -195,6 +221,7 @@ test("refresh triggers a new overview and task fetch", async () => {
   expect(getOverviewMock).toHaveBeenCalledTimes(2)
   expect(getTasksMock).toHaveBeenCalledTimes(2)
   expect(getNodesMock).toHaveBeenCalledTimes(2)
+  expect(getChannelClusterSummaryMock).toHaveBeenCalledTimes(2)
 })
 
 test("shows a forbidden state when the manager overview request is denied", async () => {
