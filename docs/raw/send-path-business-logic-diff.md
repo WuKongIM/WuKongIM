@@ -741,9 +741,9 @@ P2c 状态（2026-05-11）：
 
 ## 结论
 
-当前发送链路的基础设施能力更强，尤其 channel log 幂等、复制、异步投递和可观测性更清晰。经过 P0/P1/P2a/P2b/P2c 以及 P2 权限收敛后，当前链路已经恢复了主要发送前权限、频道状态、系统 UID / system device 绕过、NoPersist 核心边界、持久化 cmd channel 写入、request-scoped subscribers，以及 `Info` / `CustomerService` / `Visitors` / `Agent` 的核心发送权限。
+当前发送链路的基础设施能力更强，尤其 channel log 幂等、复制、异步投递和可观测性更清晰。经过 P0/P1/P2a/P2b/P2c、P2 权限收敛以及 P2d-a/P2d-b 后，当前链路已经恢复了主要发送前权限、频道状态、系统 UID / system device 绕过、NoPersist 核心边界、持久化 cmd channel 写入、request-scoped subscribers、CMD source-channel 订阅者解析、command-style NoPersist realtime 投递，以及 `Info` / `CustomerService` / `Visitors` / `Agent` 的核心发送权限。
 
-后续最值得优先设计的是 CMD 频道完整语义：cmd 频道权威节点寻址、cmd 订阅者解析、在线 cmd / `systemcmdonline` 投递、CMD conversation/offline sync，以及 request-scoped subscribers 快照在 durable replay 后的恢复策略。这些能力会影响投递、会话、离线和恢复模型，应单独设计，避免把旧版事件总线式逻辑直接搬回当前分层架构。
+后续最值得优先设计的是剩余 CMD 会话与恢复语义：CMD conversation/offline sync，以及 request-scoped subscribers 快照在 durable replay 后的恢复策略。这些能力会影响会话、离线和恢复模型，应单独设计，避免把旧版事件总线式逻辑直接搬回当前分层架构。
 
 ## P0 实施后状态（2026-05-11）
 
