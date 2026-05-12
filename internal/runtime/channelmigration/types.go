@@ -2,9 +2,77 @@ package channelmigration
 
 import (
 	"context"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	slotmeta "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
+
+// Task is the durable slot-layer migration task observed by the executor.
+type Task = slotmeta.ChannelMigrationTask
+
+// ClaimRequest is the guarded slot-layer owner claim command.
+type ClaimRequest = slotmeta.ChannelMigrationTaskClaim
+
+// AdvanceRequest is the guarded slot-layer progress command.
+type AdvanceRequest = slotmeta.ChannelMigrationTaskAdvance
+
+// SlotLeadership resolves and verifies local slot leadership before side effects.
+type SlotLeadership interface {
+	// IsLocalLeader reports whether this node currently leads the slot.
+	IsLocalLeader(ctx context.Context, slotID uint32) (bool, error)
+	// SlotForChannel resolves the authoritative slot for a channel ID.
+	SlotForChannel(channelID string) uint32
+}
+
+// Store persists migration task ownership, progress, and retention cleanup.
+type Store interface {
+	// ListRunnableTasksForLocalLeaderSlots returns migration tasks eligible for a local executor tick.
+	ListRunnableTasksForLocalLeaderSlots(ctx context.Context, nowMS int64, limit int) ([]Task, error)
+	// ClaimChannelMigrationTask compares and swaps the executor owner lease.
+	ClaimChannelMigrationTask(ctx context.Context, req ClaimRequest) error
+	// AdvanceChannelMigrationTask compares and swaps durable phase or progress state.
+	AdvanceChannelMigrationTask(ctx context.Context, req AdvanceRequest) error
+	// GarbageCollectTerminalTasks removes terminal tasks older than beforeMS.
+	GarbageCollectTerminalTasks(ctx context.Context, beforeMS int64, limit int) (int, error)
+}
+
+// Config controls executor scan, lease, retry, cleanup, and local concurrency behavior.
+type Config struct {
+	// ScanLimit caps how many runnable tasks one tick reads from the store.
+	ScanLimit int
+	// OwnerLease is the executor owner lease duration persisted before side effects.
+	OwnerLease time.Duration
+	// RetryBackoff delays the next attempt after an unimplemented or retryable phase.
+	RetryBackoff time.Duration
+	// GCRetention keeps terminal tasks visible for operators before cleanup.
+	GCRetention time.Duration
+	// GCLimit bounds terminal-task cleanup work in one tick.
+	GCLimit int
+	// MaxConcurrentSources limits how many tasks per source node may run in one tick; zero disables the limit.
+	MaxConcurrentSources int
+	// MaxConcurrentTargets limits how many tasks per target node may run in one tick; zero disables the limit.
+	MaxConcurrentTargets int
+}
+
+// ExecutorOptions groups dependencies for constructing an Executor.
+type ExecutorOptions struct {
+	// Store persists authoritative task state through slot metadata.
+	Store Store
+	// Slots protects task execution with current local slot leadership checks.
+	Slots SlotLeadership
+	// Metrics records executor observations; nil installs a no-op implementation.
+	Metrics Metrics
+	// LocalNode is the node ID that will own claimed task leases.
+	LocalNode channel.NodeID
+	// Now supplies wall-clock time for deterministic tests and lease math.
+	Now func() time.Time
+	// Config controls executor tick behavior.
+	Config Config
+	// Logger receives executor diagnostics; nil installs a no-op logger.
+	Logger wklog.Logger
+}
 
 // ProbeClient reads a target replica's durable channel state for migration proof checks.
 type ProbeClient interface {
