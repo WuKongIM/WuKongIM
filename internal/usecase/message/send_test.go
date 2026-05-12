@@ -323,6 +323,130 @@ func TestSendRequestScopedNoPersistDispatchesRealtimeScopedEnvelope(t *testing.T
 	require.Equal(t, int32(fixedSendNow.Unix()), call.Message.Timestamp)
 }
 
+func TestSendNoPersistWithSyncOnceDispatchesRealtimeCommandMessage(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	dispatcher := &recordingCommittedDispatcher{}
+	realtime := &recordingRealtimeDispatcher{}
+	ids := &sequenceMessageIDGenerator{next: 910}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
+		ChannelID:   "g1",
+		ChannelType: int64(frame.ChannelTypeGroup),
+	}
+	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
+	app := New(Options{
+		Now:                 fixedNowFn,
+		Cluster:             cluster,
+		CommittedDispatcher: dispatcher,
+		RealtimeDispatcher:  realtime,
+		MessageIDs:          ids,
+		PermissionStore:     permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:          frame.Framer{NoPersist: true, SyncOnce: true},
+		FromUID:         "u1",
+		SenderSessionID: 77,
+		ChannelID:       "g1",
+		ChannelType:     frame.ChannelTypeGroup,
+		Payload:         []byte("online cmd"),
+		ClientSeq:       12,
+		ClientMsgNo:     "cmd-np-1",
+		Topic:           "cmd-topic",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(910), result.MessageID)
+	require.Zero(t, result.MessageSeq)
+	require.Empty(t, cluster.sendRequests)
+	require.Empty(t, dispatcher.calls)
+	require.Len(t, realtime.calls, 1)
+	call := realtime.calls[0]
+	require.Equal(t, uint64(77), call.SenderSessionID)
+	require.Empty(t, call.MessageScopedUIDs)
+	require.Equal(t, uint64(910), call.Message.MessageID)
+	require.Zero(t, call.Message.MessageSeq)
+	require.Equal(t, runtimechannelid.ToCommandChannel("g1"), call.Message.ChannelID)
+	require.Equal(t, frame.ChannelTypeGroup, call.Message.ChannelType)
+	require.Equal(t, frame.Framer{NoPersist: true, SyncOnce: true}, call.Message.Framer)
+	require.Equal(t, uint64(12), call.Message.ClientSeq)
+	require.Equal(t, "cmd-np-1", call.Message.ClientMsgNo)
+	require.Equal(t, "cmd-topic", call.Message.Topic)
+	require.Equal(t, "u1", call.Message.FromUID)
+	require.Equal(t, []byte("online cmd"), call.Message.Payload)
+	require.Equal(t, int32(fixedSendNow.Unix()), call.Message.Timestamp)
+}
+
+func TestSendNoPersistAlreadyDerivedCommandDispatchesRealtimeWithoutSyncOnce(t *testing.T) {
+	realtime := &recordingRealtimeDispatcher{}
+	ids := &sequenceMessageIDGenerator{next: 920}
+	app := New(Options{
+		Now:                fixedNowFn,
+		RealtimeDispatcher: realtime,
+		MessageIDs:         ids,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:      frame.Framer{NoPersist: true},
+		FromUID:     "u1",
+		ChannelID:   runtimechannelid.ToCommandChannel("g1"),
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("already cmd"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(920), result.MessageID)
+	require.Zero(t, result.MessageSeq)
+	require.Len(t, realtime.calls, 1)
+	require.Equal(t, runtimechannelid.ToCommandChannel("g1"), realtime.calls[0].Message.ChannelID)
+	require.Equal(t, frame.Framer{NoPersist: true}, realtime.calls[0].Message.Framer)
+}
+
+func TestSendNoPersistCommandRequiresMessageIDGenerator(t *testing.T) {
+	realtime := &recordingRealtimeDispatcher{}
+	app := New(Options{
+		Now:                fixedNowFn,
+		RealtimeDispatcher: realtime,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:      frame.Framer{NoPersist: true, SyncOnce: true},
+		FromUID:     "u1",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("cmd"),
+	})
+
+	require.ErrorIs(t, err, ErrMessageIDGeneratorRequired)
+	require.Equal(t, SendResult{}, result)
+	require.Empty(t, realtime.calls)
+}
+
+func TestSendNoPersistCommandReturnsRealtimeDispatcherError(t *testing.T) {
+	wantErr := errors.New("realtime stopped")
+	realtime := &recordingRealtimeDispatcher{err: wantErr}
+	ids := &sequenceMessageIDGenerator{next: 930}
+	app := New(Options{
+		Now:                fixedNowFn,
+		RealtimeDispatcher: realtime,
+		MessageIDs:         ids,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:      frame.Framer{NoPersist: true, SyncOnce: true},
+		FromUID:     "u1",
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("cmd"),
+	})
+
+	require.ErrorIs(t, err, wantErr)
+	require.Equal(t, SendResult{}, result)
+	require.Len(t, realtime.calls, 1)
+}
+
 func TestSendRejectsBannedGroupBeforeDurableAppend(t *testing.T) {
 	cluster := &fakeChannelCluster{}
 	permissions := newFakePermissionStore()
@@ -816,7 +940,7 @@ func TestSendAlreadyDerivedPersonStripsBeforeNormalizeAndRestoresCommandSuffixOn
 	require.NotContains(t, cluster.sendRequests[0].ChannelID.ID, runtimechannelid.CommandChannelSuffix+runtimechannelid.CommandChannelSuffix)
 }
 
-func TestSendNoPersistWithSyncOnceReturnsSuccessWithoutDurableAppend(t *testing.T) {
+func TestSendNoPersistWithoutSyncOnceReturnsSuccessWithoutDurableAppend(t *testing.T) {
 	cluster := &fakeChannelCluster{}
 	dispatcher := &recordingCommittedDispatcher{}
 	permissions := newFakePermissionStore()
@@ -833,7 +957,7 @@ func TestSendNoPersistWithSyncOnceReturnsSuccessWithoutDurableAppend(t *testing.
 	})
 
 	result, err := app.Send(context.Background(), SendCommand{
-		Framer:      frame.Framer{NoPersist: true, SyncOnce: true},
+		Framer:      frame.Framer{NoPersist: true},
 		FromUID:     "u1",
 		ChannelID:   "g1",
 		ChannelType: frame.ChannelTypeGroup,
