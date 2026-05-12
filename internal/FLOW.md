@@ -270,9 +270,15 @@ handleSend(ctx, pkt)
   └─ messages.Send(ctx, cmd)
       ↓
 message.App.Send(ctx, cmd)
-  ├─ 校验 FromUID、ChannelType
-  ├─ Person 频道规范化
-  └─ sendDurable(ctx, cmd)
+  ├─ 校验 FromUID、ChannelType 与 request-scoped subscribers 参数
+  ├─ CMD 输入先还原 source channel；已寻址到 `source____cmd` 的输入不重复追加后缀
+  ├─ Person / Agent 频道规范化
+  ├─ 发送前权限与频道状态校验（业务权限按 source channel；Visitors 非本人使用 CustomerService 维度）
+  ├─ NoPersist 分支
+  │   ├─ command-style（SyncOnce 或已寻址 CMD）分配 transient message ID，MessageSeq=0，通过 SubmitRealtime 投递，不写 Channel Log
+  │   └─ 非 command-style 返回 ReasonSuccess，不写 Channel Log，也不做 realtime 投递
+  ├─ durable CMD 分支（SyncOnce 或已寻址 CMD）写入 `source____cmd`
+  └─ sendDurable(ctx, appendCmd)
       ├─ buildDurableMessage
       └─ sendWithEnsuredMeta
           ├─ 先通过 ChannelMetaSync 获取健康元数据（可命中业务 fast path cache）
@@ -288,6 +294,9 @@ dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted)
       ├─ 队列满时不失败 Send，改走 best-effort conversation fallback
       ├─ delivery.Submit（投递）
       └─ conversation.SubmitCommitted（异步 active hint 投影）
+realtime delivery 直接提交 transient MessageRealtime
+  ├─ 不依赖 committed replay 补偿
+  └─ delivery 使用 source-channel 订阅者解析和在线路由 fanout
 committed_replay 后台从已提交 Channel Log 补偿未分发事件
   ├─ 按 committed cursor 扫描 message_seq
   ├─ 重新提交 delivery / conversation

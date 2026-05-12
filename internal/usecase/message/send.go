@@ -59,6 +59,11 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	}
 
 	if cmd.Framer.NoPersist {
+		if cmd.Framer.SyncOnce || alreadyCommandChannel {
+			realtimeCmd := cmd
+			realtimeCmd.ChannelID = runtimechannelid.ToCommandChannel(cmd.ChannelID)
+			return a.sendRealtime(ctx, realtimeCmd, nil)
+		}
 		return SendResult{Reason: frame.ReasonSuccess}, nil
 	}
 
@@ -119,8 +124,12 @@ func (a *App) sendRequestScoped(ctx context.Context, cmd SendCommand) (SendResul
 	return a.sendDurable(ctx, scopedCmd)
 }
 
-// sendRequestScopedRealtime dispatches a transient message without writing the channel log.
 func (a *App) sendRequestScopedRealtime(ctx context.Context, cmd SendCommand) (SendResult, error) {
+	return a.sendRealtime(ctx, cmd, cmd.RequestSubscribers)
+}
+
+// sendRealtime dispatches a transient command message without writing the channel log.
+func (a *App) sendRealtime(ctx context.Context, cmd SendCommand, messageScopedUIDs []string) (SendResult, error) {
 	if a.messageIDs == nil {
 		return SendResult{}, ErrMessageIDGeneratorRequired
 	}
@@ -133,7 +142,7 @@ func (a *App) sendRequestScopedRealtime(ctx context.Context, cmd SendCommand) (S
 	if err := a.realtime.SubmitRealtime(ctx, messageevents.MessageRealtime{
 		Message:           msg,
 		SenderSessionID:   cmd.SenderSessionID,
-		MessageScopedUIDs: append([]string(nil), cmd.RequestSubscribers...),
+		MessageScopedUIDs: append([]string(nil), messageScopedUIDs...),
 	}); err != nil {
 		return SendResult{}, err
 	}

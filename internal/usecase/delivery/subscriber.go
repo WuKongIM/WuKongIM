@@ -113,7 +113,7 @@ func (r *subscriberResolver) BeginSnapshotWithRequest(ctx context.Context, id ch
 
 	currentVersion := r.channelMutationVersion(ctx, id)
 	sourceVersion := currentVersion
-	if derived {
+	if derived && id.Type != frame.ChannelTypeVisitors {
 		sourceVersion = r.commandSourceMutationVersion(ctx, resolvedID)
 	}
 
@@ -201,6 +201,7 @@ func (r *subscriberResolver) BeginSnapshotWithRequest(ctx context.Context, id ch
 		}
 		if len(token.state.overlayUIDs) > 0 {
 			token.source.Kind = SubscriberSourceKindOverlayStore
+			token.source.ReusableTagState = false
 		} else {
 			token.source.Kind = SubscriberSourceKindPagedStore
 		}

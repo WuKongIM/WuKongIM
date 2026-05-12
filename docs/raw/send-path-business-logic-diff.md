@@ -741,9 +741,9 @@ P2c 状态（2026-05-11）：
 
 ## 结论
 
-当前发送链路的基础设施能力更强，尤其 channel log 幂等、复制、异步投递和可观测性更清晰。经过 P0/P1/P2a/P2b/P2c 以及 P2 权限收敛后，当前链路已经恢复了主要发送前权限、频道状态、系统 UID / system device 绕过、NoPersist 核心边界、持久化 cmd channel 写入、request-scoped subscribers，以及 `Info` / `CustomerService` / `Visitors` / `Agent` 的核心发送权限。
+当前发送链路的基础设施能力更强，尤其 channel log 幂等、复制、异步投递和可观测性更清晰。经过 P0/P1/P2a/P2b/P2c、P2 权限收敛以及 P2d-a/P2d-b 后，当前链路已经恢复了主要发送前权限、频道状态、系统 UID / system device 绕过、NoPersist 核心边界、持久化 cmd channel 写入、request-scoped subscribers、CMD source-channel 订阅者解析、command-style NoPersist realtime 投递，以及 `Info` / `CustomerService` / `Visitors` / `Agent` 的核心发送权限。
 
-后续最值得优先设计的是 CMD 频道完整语义：cmd 频道权威节点寻址、cmd 订阅者解析、在线 cmd / `systemcmdonline` 投递、CMD conversation/offline sync，以及 request-scoped subscribers 快照在 durable replay 后的恢复策略。这些能力会影响投递、会话、离线和恢复模型，应单独设计，避免把旧版事件总线式逻辑直接搬回当前分层架构。
+后续最值得优先设计的是剩余 CMD 会话与恢复语义：CMD conversation/offline sync，以及 request-scoped subscribers 快照在 durable replay 后的恢复策略。这些能力会影响会话、离线和恢复模型，应单独设计，避免把旧版事件总线式逻辑直接搬回当前分层架构。
 
 ## P0 实施后状态（2026-05-11）
 
@@ -829,3 +829,17 @@ P2b 阶段仍未恢复的旧版差异包括：`AllowStranger`、request-scoped s
 - invalid agent channel ID 在 gateway sendack 映射为 `ReasonChannelIDError`，HTTP send 映射为 400 `invalid channel id`。
 
 本轮之后仍未恢复的旧版差异包括：CMD conversation/offline sync、在线 cmd 投递 / `systemcmdonline` 专用语义、普通临时频道投递、`/message/sendbatch`、`expire`、`AllowStranger`、plugin/webhook/AI 钩子，以及特殊频道的后续副作用（例如 webhook / AI / 离线处理）。P2c 中提到的 durable request-scoped subscribers 快照不可 replay 恢复的问题仍然存在，后续如要恢复完整 CMD 离线同步需要单独设计持久化快照或事件模型。
+
+## P2d-a/P2d-b 实施后状态（2026-05-12）
+
+本轮 CMD 频道语义收敛已恢复 / 固化以下行为：
+
+- CMD 频道发送权限继续按 source channel 检查，durable append / delivery actor 继续使用 `source____cmd`。
+- 已寻址到 `____cmd` 的输入不会重复追加后缀，person channel append key 使用规范化后的 source channel。
+- group / person / agent / customer-service / visitors / info / temp CMD 订阅者解析均按 source channel 或 message-scoped snapshot 解析。
+- visitors CMD 非访客本人发送时按 `(source, CustomerService)` 维度检查 denylist / subscriber / allowlist。
+- info CMD 如果合并 temporary overlay，则 delivery tag 标记为 non-reusable，避免只用 info source mutation version 复用包含临时成员的 tag。
+- 普通 `NoPersist + SyncOnce` 和已寻址 CMD 的 `NoPersist` 发送不写 channel log，但会分配 transient message ID 并通过 realtime delivery 投递，`MessageSeq=0`。
+- 非 command-style 的普通 `NoPersist` 仍保持 P2a 行为：权限通过后返回成功，不写 durable append，也不做 realtime 投递。
+
+仍未恢复的旧版差异包括：CMD conversation/offline sync、durable request-scoped subscribers 快照 replay 恢复、普通临时频道投递、`/message/sendbatch`、`expire`、`AllowStranger`、plugin/webhook/AI 钩子，以及特殊频道的后续副作用。
