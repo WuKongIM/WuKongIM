@@ -21,6 +21,9 @@ func (a *App) checkSendPermission(ctx context.Context, cmd SendCommand) (frame.R
 	if reason, err := a.checkSenderSendPermission(ctx, cmd.FromUID); reason != frame.ReasonSuccess || err != nil {
 		return reason, err
 	}
+	if a.systemDeviceID != "" && cmd.DeviceID == a.systemDeviceID {
+		return frame.ReasonSuccess, nil
+	}
 
 	switch cmd.ChannelType {
 	case frame.ChannelTypePerson:
