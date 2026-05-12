@@ -23,6 +23,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/runtime/messageid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
@@ -331,6 +332,16 @@ func build(cfg Config) (_ *App, err error) {
 	)
 	app.nodeClient = accessnode.NewClient(app.cluster)
 	app.channelLog.remoteAppender = app.nodeClient
+	app.cmdSyncApp = cmdsync.New(cmdsync.Options{
+		States: app.store,
+		Messages: cmdsyncMessageStore{
+			localNodeID: cfg.Node.ID,
+			channelLog:  app.channelLogDB,
+			metas:       app.store,
+			remote:      app.nodeClient,
+		},
+		Logger: app.logger.Named("cmdsync"),
+	})
 	repairProbeClient, err := channeltransport.NewProbeClient(channeltransport.ProbeClientOptions{
 		Client:     app.dataPlaneClient,
 		RPCTimeout: cfg.Cluster.DataPlaneRPCTimeout,
@@ -457,6 +468,11 @@ func build(cfg Config) (_ *App, err error) {
 	subscriberResolver := deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
 		Store: app.store,
 	})
+	app.cmdSyncProjector = cmdsync.NewProjector(cmdsync.ProjectorOptions{
+		Store:       app.store,
+		Subscribers: subscriberResolver,
+		Logger:      app.logger.Named("cmdsync.projector"),
+	})
 	var deliveryObserver deliveryruntime.Observer
 	var deliveryMetrics *obsmetrics.DeliveryMetrics
 	if app.metrics != nil {
@@ -510,7 +526,7 @@ func build(cfg Config) (_ *App, err error) {
 		NodeClient:   app.nodeClient,
 		Metrics:      messageMetrics,
 	})
-	committedDispatcher := committedFanout{subscribers: []committedSubscriber{app.committedDispatcher}}
+	committedDispatcher := committedFanout{subscribers: []committedSubscriber{app.committedDispatcher, app.cmdSyncProjector}}
 	app.committedReplayer = newCommittedReplayer(committedReplayerConfig{
 		Log: channelStoreCommittedReplayLog{
 			engine:      app.channelLogDB,
@@ -519,6 +535,7 @@ func build(cfg Config) (_ *App, err error) {
 		},
 		Delivery:     app.deliveryApp,
 		Conversation: app.conversationProjector,
+		CMDSync:      app.cmdSyncProjector,
 		Logger:       app.logger.Named("committed.replay"),
 		Metrics:      messageMetrics,
 	})

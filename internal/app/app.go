@@ -17,6 +17,7 @@ import (
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
@@ -57,6 +58,8 @@ type App struct {
 	deliveryRuntime          *deliveryruntime.Manager
 	deliveryRuntimeLifecycle *deliveryRuntimeLifecycle
 	deliveryAcks             *deliveryruntime.AckIndex
+	cmdSyncApp               *cmdsync.App
+	cmdSyncProjector         cmdsync.Projector
 	committedDispatcher      *asyncCommittedDispatcher
 	committedReplayer        *committedReplayer
 	channelRetentionWorker   *appretention.Worker
@@ -94,6 +97,7 @@ type App struct {
 	presenceOn            atomic.Bool
 	conversationHintsOn   atomic.Bool
 	conversationOn        atomic.Bool
+	cmdSyncProjectorOn    atomic.Bool
 	deliveryRuntimeOn     atomic.Bool
 	committedDispatcherOn atomic.Bool
 	committedReplayOn     atomic.Bool
@@ -107,6 +111,7 @@ type App struct {
 	startPresenceFn                func() error
 	startConversationActiveHintsFn func() error
 	startConversationProjectorFn   func() error
+	startCMDSyncProjectorFn        func() error
 	startDeliveryRuntimeFn         func() error
 	startCommittedDispatcherFn     func() error
 	startCommittedReplayFn         func(context.Context) error
@@ -120,6 +125,7 @@ type App struct {
 	stopManagerFn                  func() error
 	stopGatewayFn                  func() error
 	stopConversationProjectorFn    func() error
+	stopCMDSyncProjectorFn         func() error
 	stopConversationActiveHintsFn  func(context.Context) error
 	stopDeliveryRuntimeFn          func() error
 	stopCommittedDispatcherFn      func(context.Context) error

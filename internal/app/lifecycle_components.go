@@ -13,6 +13,7 @@ const (
 	appLifecyclePresence                = "presence"
 	appLifecycleConversationActiveHints = "conversation_active_hints"
 	appLifecycleConversationProjector   = "conversation_projector"
+	appLifecycleCMDSyncProjector        = "cmdsync_projector"
 	appLifecycleDeliveryRuntime         = "delivery_runtime"
 	appLifecycleCommittedDispatcher     = "committed_dispatcher"
 	appLifecycleCommittedReplay         = "committed_replay"
@@ -69,6 +70,9 @@ func (a *App) lifecycleComponents(includeStopOnly bool) []applifecycle.Component
 	}
 	if a.hasConversationProjectorLifecycle(includeStopOnly) {
 		components = append(components, a.conversationProjectorLifecycleComponent())
+	}
+	if a.hasCMDSyncProjectorLifecycle(includeStopOnly) {
+		components = append(components, a.cmdSyncProjectorLifecycleComponent())
 	}
 	if a.hasDeliveryRuntimeLifecycle(includeStopOnly) {
 		components = append(components, a.deliveryRuntimeLifecycleComponent())
@@ -179,6 +183,22 @@ func (a *App) conversationActiveHintsLifecycleComponent() applifecycle.Component
 		},
 		stop: func(ctx context.Context) error {
 			return a.stopConversationActiveHints(ctx)
+		},
+	}
+}
+
+func (a *App) cmdSyncProjectorLifecycleComponent() applifecycle.Component {
+	return appLifecycleComponent{
+		name: appLifecycleCMDSyncProjector,
+		start: func(context.Context) error {
+			if err := a.startCMDSyncProjector(); err != nil {
+				return err
+			}
+			a.cmdSyncProjectorOn.Store(true)
+			return nil
+		},
+		stop: func(context.Context) error {
+			return a.stopCMDSyncProjector()
 		},
 	}
 }
@@ -311,6 +331,12 @@ func (a *App) hasConversationProjectorLifecycle(includeStopOnly bool) bool {
 	return a.conversationProjector != nil ||
 		a.startConversationProjectorFn != nil ||
 		(includeStopOnly && (a.stopConversationProjectorFn != nil || a.conversationOn.Load()))
+}
+
+func (a *App) hasCMDSyncProjectorLifecycle(includeStopOnly bool) bool {
+	return a.cmdSyncProjector != nil ||
+		a.startCMDSyncProjectorFn != nil ||
+		(includeStopOnly && (a.stopCMDSyncProjectorFn != nil || a.cmdSyncProjectorOn.Load()))
 }
 
 func (a *App) hasConversationActiveHintsLifecycle(includeStopOnly bool) bool {
