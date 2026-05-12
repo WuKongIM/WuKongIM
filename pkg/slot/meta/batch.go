@@ -14,6 +14,7 @@ type WriteBatch struct {
 	writtenUserKeys        map[string]struct{}
 	channels               map[string]channelBatchEntry
 	userConversationStates map[string]userConversationStateBatchEntry
+	cmdConversationStates  map[string]cmdConversationStateBatchEntry
 	channelRuntimeMetas    map[string]channelRuntimeMetaBatchEntry
 }
 
@@ -24,6 +25,11 @@ type channelBatchEntry struct {
 
 type userConversationStateBatchEntry struct {
 	state  UserConversationState
+	exists bool
+}
+
+type cmdConversationStateBatchEntry struct {
+	state  CMDConversationState
 	exists bool
 }
 
@@ -238,6 +244,74 @@ func (b *WriteBatch) UpsertUserConversationState(hashSlot uint16, state UserConv
 		}
 	}
 	b.rememberUserConversationState(primaryKey, state, true)
+	return nil
+}
+
+// UpsertCMDConversationState encodes and stages a CMD conversation state write.
+func (b *WriteBatch) UpsertCMDConversationState(hashSlot uint16, state CMDConversationState) error {
+	if err := validateHashSlot(hashSlot); err != nil {
+		return err
+	}
+	if err := validateCMDConversationState(state); err != nil {
+		return err
+	}
+
+	primaryKey := encodeCMDConversationStatePrimaryKey(hashSlot, state.UID, state.ChannelType, state.ChannelID, cmdConversationStatePrimaryFamilyID)
+	existing, exists, err := b.loadCMDConversationState(hashSlot, primaryKey, state.UID, state.ChannelID, state.ChannelType)
+	if err != nil {
+		return err
+	}
+	if exists {
+		state = mergeCMDConversationState(existing, state)
+	}
+	value := encodeCMDConversationStateFamilyValue(state, primaryKey)
+	if exists && existing.ActiveAt > 0 && existing.ActiveAt != state.ActiveAt {
+		oldIndexKey := encodeCMDConversationActiveIndexKey(hashSlot, state.UID, existing.ActiveAt, state.ChannelType, state.ChannelID)
+		if err := b.batch.Delete(oldIndexKey, nil); err != nil {
+			return err
+		}
+	}
+	if err := b.batch.Set(primaryKey, value, nil); err != nil {
+		return err
+	}
+	if state.ActiveAt > 0 {
+		indexKey := encodeCMDConversationActiveIndexKey(hashSlot, state.UID, state.ActiveAt, state.ChannelType, state.ChannelID)
+		if err := b.batch.Set(indexKey, []byte{}, nil); err != nil {
+			return err
+		}
+	}
+	b.rememberCMDConversationState(primaryKey, state, true)
+	return nil
+}
+
+// AdvanceCMDConversationReadSeq advances read_seq for each patch without
+// creating missing CMD conversation rows.
+func (b *WriteBatch) AdvanceCMDConversationReadSeq(hashSlot uint16, patches []CMDConversationReadPatch) error {
+	if err := validateHashSlot(hashSlot); err != nil {
+		return err
+	}
+	for _, patch := range patches {
+		if err := validateCMDConversationReadPatch(patch); err != nil {
+			return err
+		}
+
+		primaryKey := encodeCMDConversationStatePrimaryKey(hashSlot, patch.UID, patch.ChannelType, patch.ChannelID, cmdConversationStatePrimaryFamilyID)
+		current, exists, err := b.loadCMDConversationState(hashSlot, primaryKey, patch.UID, patch.ChannelID, patch.ChannelType)
+		if err != nil {
+			return err
+		}
+		if !exists || patch.ReadSeq <= current.ReadSeq {
+			continue
+		}
+		current.ReadSeq = patch.ReadSeq
+		if patch.UpdatedAt > current.UpdatedAt {
+			current.UpdatedAt = patch.UpdatedAt
+		}
+		if err := b.batch.Set(primaryKey, encodeCMDConversationStateFamilyValue(current, primaryKey), nil); err != nil {
+			return err
+		}
+		b.rememberCMDConversationState(primaryKey, current, true)
+	}
 	return nil
 }
 
@@ -680,6 +754,37 @@ func (b *WriteBatch) rememberUserConversationState(primaryKey []byte, state User
 		b.userConversationStates = make(map[string]userConversationStateBatchEntry, 1)
 	}
 	b.userConversationStates[string(primaryKey)] = userConversationStateBatchEntry{
+		state:  state,
+		exists: exists,
+	}
+}
+
+func (b *WriteBatch) loadCMDConversationState(hashSlot uint16, primaryKey []byte, uid, channelID string, channelType int64) (CMDConversationState, bool, error) {
+	if b.cmdConversationStates != nil {
+		if entry, ok := b.cmdConversationStates[string(primaryKey)]; ok {
+			return entry.state, entry.exists, nil
+		}
+	}
+
+	shard := b.db.ForHashSlot(hashSlot)
+	state, err := shard.getCMDConversationStateLocked(uid, channelID, channelType)
+	switch err {
+	case nil:
+		b.rememberCMDConversationState(primaryKey, state, true)
+		return state, true, nil
+	case ErrNotFound:
+		b.rememberCMDConversationState(primaryKey, CMDConversationState{}, false)
+		return CMDConversationState{}, false, nil
+	default:
+		return CMDConversationState{}, false, err
+	}
+}
+
+func (b *WriteBatch) rememberCMDConversationState(primaryKey []byte, state CMDConversationState, exists bool) {
+	if b.cmdConversationStates == nil {
+		b.cmdConversationStates = make(map[string]cmdConversationStateBatchEntry, 1)
+	}
+	b.cmdConversationStates[string(primaryKey)] = cmdConversationStateBatchEntry{
 		state:  state,
 		exists: exists,
 	}
