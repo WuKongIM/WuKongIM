@@ -3,6 +3,7 @@ package channelmigration
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -13,6 +14,12 @@ import (
 // ErrPhaseNotImplemented marks a claimed task phase that is intentionally left
 // for the later phase-specific migration tasks.
 var ErrPhaseNotImplemented = errors.New("channelmigration: phase not implemented")
+
+// ErrMissingDependency reports that the executor was constructed without a
+// required runtime dependency.
+var ErrMissingDependency = errors.New("channelmigration: missing dependency")
+
+const defaultRetryBackoff = time.Minute
 
 // Executor claims channel migration tasks and runs one guarded phase attempt per tick.
 type Executor struct {
@@ -61,6 +68,9 @@ func NewExecutor(opts ExecutorOptions) *Executor {
 // Tick scans runnable tasks, claims owner leases, runs skeleton phase dispatch,
 // and performs terminal-task cleanup.
 func (e *Executor) Tick(ctx context.Context) error {
+	if err := e.validateReady(); err != nil {
+		return err
+	}
 	now := e.now()
 	nowMS := now.UnixMilli()
 	tasks, err := e.store.ListRunnableTasksForLocalLeaderSlots(ctx, nowMS, e.cfg.ScanLimit)
@@ -100,6 +110,16 @@ func (e *Executor) runOne(ctx context.Context, task Task, nowMS int64) error {
 	}
 	if err := e.dispatchPhase(ctx, claimed, nowMS); err != nil {
 		e.metrics.RecordRetry(claimed, err)
+		if errors.Is(err, ErrPhaseNotImplemented) {
+			return nil
+		}
+		e.log.Warn("channel migration phase dispatch failed",
+			wklog.ChannelID(claimed.ChannelID),
+			wklog.ChannelType(claimed.ChannelType),
+			wklog.String("taskID", claimed.TaskID),
+			wklog.Error(err),
+		)
+		return err
 	}
 	return nil
 }
@@ -191,6 +211,32 @@ func (e *Executor) hasLocalOwnerLease(task Task, nowMS int64) bool {
 	return task.OwnerNodeID == uint64(e.localNode) && task.OwnerLeaseUntilMS > nowMS
 }
 
+func (e *Executor) validateReady() error {
+	if e == nil {
+		return fmt.Errorf("%w: executor", ErrMissingDependency)
+	}
+	if e.store == nil {
+		return fmt.Errorf("%w: store", ErrMissingDependency)
+	}
+	if e.slots == nil {
+		return fmt.Errorf("%w: slot leadership", ErrMissingDependency)
+	}
+	if e.localNode == 0 {
+		return fmt.Errorf("%w: local node", ErrMissingDependency)
+	}
+	if e.metrics == nil {
+		e.metrics = noopMetrics{}
+	}
+	if e.now == nil {
+		e.now = time.Now
+	}
+	if e.log == nil {
+		e.log = wklog.NewNop()
+	}
+	e.cfg = normalizeConfig(e.cfg)
+	return nil
+}
+
 func guardFromTask(task Task) slotmeta.ChannelMigrationTaskGuard {
 	return slotmeta.ChannelMigrationTaskGuard{
 		ChannelID:                 task.ChannelID,
@@ -215,16 +261,22 @@ func normalizeConfig(cfg Config) Config {
 	if cfg.ScanLimit <= 0 {
 		cfg.ScanLimit = 64
 	}
-	if cfg.OwnerLease <= 0 {
-		cfg.OwnerLease = 30 * time.Second
-	}
-	if cfg.RetryBackoff <= 0 {
-		cfg.RetryBackoff = time.Second
-	}
+	cfg.OwnerLease = normalizeDuration(cfg.OwnerLease, 30*time.Second)
+	cfg.RetryBackoff = normalizeDuration(cfg.RetryBackoff, defaultRetryBackoff)
 	if cfg.GCLimit <= 0 {
 		cfg.GCLimit = 128
 	}
 	return cfg
+}
+
+func normalizeDuration(value, fallback time.Duration) time.Duration {
+	if value <= 0 {
+		return fallback
+	}
+	if value < time.Millisecond {
+		return time.Millisecond
+	}
+	return value
 }
 
 type concurrencyLimits struct {

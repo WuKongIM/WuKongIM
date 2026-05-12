@@ -28,7 +28,7 @@ type SlotLeadership interface {
 
 // Store persists migration task ownership, progress, and retention cleanup.
 type Store interface {
-	// ListRunnableTasksForLocalLeaderSlots returns migration tasks eligible for a local executor tick.
+	// ListRunnableTasksForLocalLeaderSlots returns candidate tasks; the executor still re-checks readiness and leadership.
 	ListRunnableTasksForLocalLeaderSlots(ctx context.Context, nowMS int64, limit int) ([]Task, error)
 	// ClaimChannelMigrationTask compares and swaps the executor owner lease.
 	ClaimChannelMigrationTask(ctx context.Context, req ClaimRequest) error

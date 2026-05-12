@@ -2,6 +2,7 @@ package channelmigration
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -118,7 +119,9 @@ func TestDuplicateExecutorRaceSingleOwner(t *testing.T) {
 
 	require.NoError(t, <-errs)
 	require.NoError(t, <-errs)
+	require.Len(t, store.claims, 2)
 	require.Len(t, store.successfulClaims(), 1)
+	require.Equal(t, 1, store.staleClaimCount())
 	require.Len(t, store.advancedTaskIDs(), 1)
 	require.Contains(t, []uint64{9, 10}, store.task("task").OwnerNodeID)
 }
@@ -198,6 +201,71 @@ func TestExecutorRecordsPhaseTransitionMetrics(t *testing.T) {
 	require.ErrorIs(t, metrics.retries[0].err, ErrPhaseNotImplemented)
 }
 
+func TestExecutorReturnsAdvancePersistenceError(t *testing.T) {
+	now := time.UnixMilli(12000)
+	store := newFakeExecutorStore(executorTestTask("task", "ch", slotmeta.ChannelMigrationStatusPending, now.Add(-time.Second)))
+	store.advanceErr = errors.New("advance raft failed")
+	metrics := &recordingExecutorMetrics{}
+	executor := newExecutorTestHarness(store, newFakeSlotLeadership().withDefault(true), now, 9)
+	executor.metrics = metrics
+
+	err := executor.Tick(context.Background())
+
+	require.ErrorIs(t, err, store.advanceErr)
+	require.Len(t, metrics.retries, 1)
+	require.ErrorIs(t, metrics.retries[0].err, store.advanceErr)
+}
+
+func TestExecutorTickReportsMissingDependencies(t *testing.T) {
+	executor := NewExecutor(ExecutorOptions{LocalNode: 9})
+
+	var err error
+	require.NotPanics(t, func() {
+		err = executor.Tick(context.Background())
+	})
+	require.ErrorIs(t, err, ErrMissingDependency)
+}
+
+func TestExecutorDefaultRetryBackoffAvoidsHotLoop(t *testing.T) {
+	now := time.UnixMilli(13000)
+	store := newFakeExecutorStore(executorTestTask("task", "ch", slotmeta.ChannelMigrationStatusPending, now.Add(-time.Second)))
+	executor := NewExecutor(ExecutorOptions{
+		Store:     store,
+		Slots:     newFakeSlotLeadership().withDefault(true),
+		LocalNode: 9,
+		Now:       func() time.Time { return now },
+	})
+
+	err := executor.Tick(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, store.advances, 1)
+	require.GreaterOrEqual(t, store.advances[0].NextRunAtMS, now.Add(time.Minute).UnixMilli())
+}
+
+func TestExecutorNormalizesSubMillisecondDurations(t *testing.T) {
+	now := time.UnixMilli(14000)
+	store := newFakeExecutorStore(executorTestTask("task", "ch", slotmeta.ChannelMigrationStatusPending, now.Add(-time.Second)))
+	executor := NewExecutor(ExecutorOptions{
+		Store:     store,
+		Slots:     newFakeSlotLeadership().withDefault(true),
+		LocalNode: 9,
+		Now:       func() time.Time { return now },
+		Config: Config{
+			OwnerLease:   time.Nanosecond,
+			RetryBackoff: time.Nanosecond,
+		},
+	})
+
+	err := executor.Tick(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, store.claims, 1)
+	require.Greater(t, store.claims[0].OwnerLeaseUntilMS, now.UnixMilli())
+	require.Len(t, store.advances, 1)
+	require.Greater(t, store.advances[0].NextRunAtMS, now.UnixMilli())
+}
+
 func newExecutorTestHarness(store *fakeExecutorStore, slots *fakeSlotLeadership, now time.Time, localNode channel.NodeID) *Executor {
 	return NewExecutor(ExecutorOptions{
 		Store:     store,
@@ -270,13 +338,15 @@ func withNodes(task Task, source, target uint64) Task {
 }
 
 type fakeExecutorStore struct {
-	mu        sync.Mutex
-	tasks     []Task
-	claims    []ClaimRequest
-	advances  []AdvanceRequest
-	gcCalls   []fakeGCCall
-	gcDeleted int
-	onList    func()
+	mu         sync.Mutex
+	tasks      []Task
+	claims     []ClaimRequest
+	claimErrs  []error
+	advances   []AdvanceRequest
+	gcCalls    []fakeGCCall
+	gcDeleted  int
+	advanceErr error
+	onList     func()
 }
 
 type fakeGCCall struct {
@@ -289,15 +359,17 @@ func newFakeExecutorStore(tasks ...Task) *fakeExecutorStore {
 }
 
 func (s *fakeExecutorStore) ListRunnableTasksForLocalLeaderSlots(ctx context.Context, nowMS int64, limit int) ([]Task, error) {
+	s.mu.Lock()
+	tasks := append([]Task(nil), s.tasks...)
+	s.mu.Unlock()
+
+	if limit > 0 && len(tasks) > limit {
+		tasks = tasks[:limit]
+	}
 	if s.onList != nil {
 		s.onList()
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if limit > 0 && len(s.tasks) > limit {
-		return append([]Task(nil), s.tasks[:limit]...), nil
-	}
-	return append([]Task(nil), s.tasks...), nil
+	return tasks, nil
 }
 
 func (s *fakeExecutorStore) ClaimChannelMigrationTask(ctx context.Context, req ClaimRequest) error {
@@ -305,12 +377,18 @@ func (s *fakeExecutorStore) ClaimChannelMigrationTask(ctx context.Context, req C
 	defer s.mu.Unlock()
 
 	s.claims = append(s.claims, req)
+	err := error(nil)
+	defer func() {
+		s.claimErrs = append(s.claimErrs, err)
+	}()
 	idx := s.taskIndex(req.Guard.TaskID)
 	if idx < 0 {
-		return slotmeta.ErrNotFound
+		err = slotmeta.ErrNotFound
+		return err
 	}
 	if !guardMatches(req.Guard, s.tasks[idx]) {
-		return slotmeta.ErrStaleMeta
+		err = slotmeta.ErrStaleMeta
+		return err
 	}
 	s.tasks[idx].Status = req.Status
 	s.tasks[idx].Phase = req.Phase
@@ -324,6 +402,9 @@ func (s *fakeExecutorStore) AdvanceChannelMigrationTask(ctx context.Context, req
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.advanceErr != nil {
+		return s.advanceErr
+	}
 	idx := s.taskIndex(req.Guard.TaskID)
 	if idx < 0 {
 		return slotmeta.ErrNotFound
@@ -376,6 +457,19 @@ func (s *fakeExecutorStore) successfulClaims() []ClaimRequest {
 		}
 	}
 	return out
+}
+
+func (s *fakeExecutorStore) staleClaimCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	count := 0
+	for _, err := range s.claimErrs {
+		if errors.Is(err, slotmeta.ErrStaleMeta) {
+			count++
+		}
+	}
+	return count
 }
 
 func (s *fakeExecutorStore) advancedTaskIDs() []string {
