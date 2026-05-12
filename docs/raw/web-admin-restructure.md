@@ -150,7 +150,7 @@ WuKongIM 是一个高性能分布式即时通讯引擎，采用自研的 ISR（I
 展示：
 - 异常原因标签 — **已完成**
 - 持续时间 — 待补充，需要 runtime 暴露异常起始时间
-- 建议操作（修复/转移 Leader）— P0.5 待实现，需要安全的 manager 写操作端口
+- 建议操作（查看副本/安全修复无 Leader）— **已完成**；显式 Leader 转移仍待后续安全 target transfer 设计
 
 #### 需要新增的后端 API
 
@@ -164,20 +164,20 @@ GET  /manager/channel-cluster/unhealthy?limit=50&cursor=xxx
      状态：已完成
 
 GET  /manager/channel-cluster/:type/:id/replicas
-     返回：各副本同步进度（commit_seq, lag）
-     状态：待实现（P0.5）
+     返回：权威元数据 + 已证明的运行时状态；未知 follower commit_seq/lag 用 null，不推断
+     状态：已完成（P0.5）
 
 POST /manager/channel-cluster/:type/:id/leader/transfer
      Body: { target_node_id: uint64 }
-     状态：待实现（P0.5）
+     状态：待实现（P0.6+，需要显式安全 target transfer）
 
 POST /manager/channel-cluster/:type/:id/repair
-     触发副本修复流程
-     状态：待实现（P0.5）
+     触发策略驱动的安全 Leader repair（当前仅暴露 no_leader 修复入口）
+     状态：已完成（P0.5）
 
 POST /manager/channel-cluster/batch/leader-drain/:node_id
      批量迁移某节点上所有频道的 Leader
-     状态：待实现（P0.5）
+     状态：待实现（P0.6+）
 ```
 
 ### 4.4 业务管理模块（新增）
@@ -289,11 +289,11 @@ POST /user/systemuids_remove
 2. **异常频道** — 已新增 `/manager/channel-cluster/unhealthy` 分页 API 与页面
 3. **Dashboard 增强** — 已加入频道集群健康度卡片
 
-### P0.5 — 频道集群操作（待设计）
+### P0.5 — 频道集群操作（已完成安全子集）
 
-- 副本同步进度读取：需要 runtime 暴露 manager-safe per-replica lag/commit_seq 读端口
-- 修复：需要通过 `internal/usecase/management` 接入安全 repair 端口
-- Leader 转移：需要 runtime 支持显式安全 target transfer 后再暴露 API/UI
+- 副本详情读取：已通过 `GET /manager/channel-cluster/:type/:id/replicas` 暴露权威元数据与已证明的 leader/local runtime 状态；未证明的 follower 数值保持 unknown/null。
+- 安全修复：已通过 `POST /manager/channel-cluster/:type/:id/repair` 接入 `internal/usecase/management` 和现有 channelmeta leader repairer；当前 UI 仅对 `no_leader` 行显示修复。
+- Leader 转移：仍需 runtime 支持显式安全 target transfer 后再暴露 API/UI。
 
 ### P1 — 运营必需
 
@@ -319,9 +319,10 @@ POST /user/systemuids_remove
 - [x] 频道集群总览页面（聚合 channel runtime meta 数据）
 - [x] 异常频道页面（后端过滤，前端分页展示）
 - [x] Dashboard 频道集群健康度卡片
+- [x] 频道集群 P0.5 安全操作：副本详情、no_leader repair
 
 待实现：
-- [ ] 频道集群操作 API（副本进度、repair、Leader transfer、leader drain）
+- [ ] 频道集群显式 Leader transfer 与 leader drain
 - [ ] 用户管理后端 API + 前端页面
 - [ ] 频道业务管理后端 API + 前端页面
 - [ ] 权限管理页面
