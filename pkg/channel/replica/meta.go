@@ -32,6 +32,9 @@ func (r *replica) validateMetaLocked(normalized channel.Meta) error {
 }
 
 func (r *replica) commitMetaLocked(normalized channel.Meta) {
+	if r.drainedFence.active && normalized.WriteFence.Version > r.drainedFence.version {
+		r.drainedFence = drainedFenceState{}
+	}
 	r.meta = normalized
 	r.state.ChannelKey = normalized.Key
 	r.state.Epoch = normalized.Epoch

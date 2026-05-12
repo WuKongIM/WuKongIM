@@ -15,6 +15,7 @@ const (
 	RPCServiceFetch          uint8 = 30
 	RPCServiceLongPollFetch  uint8 = 35
 	RPCServiceReconcileProbe uint8 = 34
+	RPCServiceFenceAndDrain  uint8 = 36
 
 	fetchRequestCodecVersion  byte = 1
 	fetchResponseCodecVersion byte = 3
@@ -22,6 +23,8 @@ const (
 	longPollResponseCodecVer  byte = 4
 	reconcileProbeCodecVer    byte = 2
 	reconcileProbeRespVer     byte = 2
+	fenceAndDrainReqVer       byte = 1
+	fenceAndDrainRespVer      byte = 1
 )
 
 func encodeFetchRequest(req runtime.FetchRequestEnvelope) ([]byte, error) {

@@ -41,6 +41,7 @@ type Cluster interface {
 | `AppendRequest` | types.go | 追加请求：ChannelID, Message, ExpectedChannelEpoch, ExpectedLeaderEpoch；`TraceID` / `Attempt` 仅用于节点内 diagnostics |
 | `Checkpoint` | types.go | 检查点：Epoch + LogStartOffset + HW；用于冷恢复下界与 reconcile 后的持久化提交水位 |
 | `RetentionView` / `RetentionReset` | types.go | retention 规划视图与 follower 低于逻辑 floor 时的 typed reset |
+| `FenceAndDrainRequest` / `DrainResult` | types.go | migration cutover 写栅栏下的 leader drain 请求与证明结果 |
 
 ## 5. 核心流程
 
@@ -154,6 +155,19 @@ BecomeFollower (replica.go:227 → lifecycle_pipeline.go:270):
 
 Tombstone (replica.go:231 → lifecycle_pipeline.go:293):
   ① 标记 Tombstoned → 拒绝所有后续操作
+```
+
+### 5.4.1 Migration Fence And Drain
+
+入口: `runtime.FenceAndDrain` → `replica.FenceAndDrain`
+
+```
+  ① 调用方必须先应用带相同 WriteFence token/version 的权威 Meta；本地 wall-clock TTL 不能放开写入
+  ② runtime 按 ChannelKey 找到本地 channel，调用 replica loop 并在结果里补充 RuntimeGeneration
+  ③ replica 仅允许当前 leader、未过期 lease、匹配 ChannelEpoch / LeaderEpoch / Leader / fence token / fence version 的请求生成 drain proof
+  ④ drain 会先 fail-closed 后续 append，并等待已进入 durable append lane 的请求完成/失败后再返回
+  ⑤ DrainResult 返回 LEO、HW、CheckpointHW、ChannelEpoch、LeaderEpoch、WriteFenceVersion 和 RuntimeGeneration，供 migration task 持久化 proof
+  ⑥ drain 后即使同版本 fence TTL 过期或同版本空 fence 被误应用，append 仍返回 ErrWriteFenced；只有更高 WriteFenceVersion 的 clear/reset/superseding meta 可退出 drained fail-closed 状态
 ```
 
 ### 5.5 故障恢复

@@ -236,6 +236,8 @@ type Runtime interface {
 	EnsureChannel(meta core.Meta) error
 	RemoveChannel(key core.ChannelKey) error
 	ApplyMeta(meta core.Meta) error
+	// FenceAndDrain delegates a migration drain request to the local channel runtime.
+	FenceAndDrain(ctx context.Context, req core.FenceAndDrainRequest) (core.DrainResult, error)
 	ApplyRetentionBoundary(ctx context.Context, key core.ChannelKey, throughSeq uint64) error
 	RetentionView(key core.ChannelKey) (core.RetentionView, error)
 	Channel(key core.ChannelKey) (ChannelHandle, bool)
@@ -248,6 +250,12 @@ type FetchService interface {
 
 type ReconcileProbeService interface {
 	ServeReconcileProbe(ctx context.Context, req ReconcileProbeRequestEnvelope) (ReconcileProbeResponseEnvelope, error)
+}
+
+// MigrationRuntime exposes local migration control operations to channel transport RPCs.
+type MigrationRuntime interface {
+	// FenceAndDrain validates and drains the local leader for the requested fenced channel.
+	FenceAndDrain(ctx context.Context, req core.FenceAndDrainRequest) (core.DrainResult, error)
 }
 
 type ChannelHandle = core.HandlerChannel

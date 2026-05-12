@@ -41,6 +41,7 @@ It does not choose channel placement, store control-plane metadata, or route net
 | `snapshot_pipeline.go` | Snapshot validation, durable install effect, state publication. |
 | `recovery.go` | Startup durable recovery before loop/effect workers start. |
 | `retention.go` | Logical retention apply facade, durable adoption/trim effects, retention views. |
+| `migration.go` | Migration fence-and-drain facade and loop-owned drain proof generation. |
 | `durable_store.go` | Durable adapter, optional combined store contracts, recovery validation. |
 | `history.go` | In-memory epoch-history append and trim helpers used by loop-owned transitions. |
 | `epoch_lineage.go` | Pure epoch-lineage and divergence decisions. |
@@ -149,9 +150,11 @@ Recovery loads checkpoint, epoch history, snapshot presence, local retention sta
 
 `Append()` clones records, records commit mode from context, keeps diagnostics-only trace metadata on the append request, and submits `machineAppendRequestCommand`.
 
-Loop admission requires leader role, non-expired lease, `CommitReady=true`, no local `WriteFence` token, and `len(ISR) >= MinISR`. A present write-fence token returns `ErrWriteFenced` even after its wall-clock TTL; the channel only reopens after authoritative metadata clears or supersedes the fence. Empty batches complete immediately. Non-empty batches enter `appendPending` and are flushed by size/count or the group-commit timer.
+Loop admission requires leader role, non-expired lease, `CommitReady=true`, no local `WriteFence` token, no drained fail-closed marker, and `len(ISR) >= MinISR`. A present write-fence token returns `ErrWriteFenced` even after its wall-clock TTL; a drained marker also returns `ErrWriteFenced` until a newer fence version is applied. Empty batches complete immediately. Non-empty batches enter `appendPending` and are flushed by size/count or the group-commit timer.
 
 A flush emits one `appendLeaderBatchEffect`. The append worker serializes durable mutation with `durableMu`, calls `AppendLeaderBatch`, syncs the log, verifies the returned LEO range, and sends `machineLeaderAppendCommittedEvent` back to the loop.
+
+`FenceAndDrain()` is the migration cutover primitive. It runs through the same single-writer loop, requires local leader role, non-expired lease, matching channel epoch, leader epoch, leader, write-fence token, and write-fence version, fails queued appends with `ErrWriteFenced`, waits for any in-flight durable append to finish, then records an in-memory drained marker and returns a `DrainResult` proof containing LEO/HW/checkpoint/fence metadata. Applying metadata with a higher `WriteFenceVersion` clears the drained marker; same-version clears or TTL expiry do not reopen appends.
 
 On a matching result the loop verifies all fences, publishes the new LEO and local progress, and wakes the runtime via `onLeaderLocalAppend`. `CommitModeLocal` callers complete after durable append. Quorum callers become waiters and complete only after HW reaches their target. Context cancellation removes queued or waiting requests and completes the waiter once; in-flight durable appends are fenced when their result returns.
 

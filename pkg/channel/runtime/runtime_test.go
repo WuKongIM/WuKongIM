@@ -119,6 +119,31 @@ func TestChannelAppendRejectsLocalWriteFence(t *testing.T) {
 	require.Equal(t, 0, rt.replicaForTest(t, meta.Key).appendCalls)
 }
 
+func TestFenceAndDrainReturnsRuntimeGeneration(t *testing.T) {
+	rt := newTestRuntime(t)
+	meta := testMeta("room-runtime-drain")
+	fenced := meta
+	fenced.WriteFence = core.WriteFence{
+		Token:   "task-runtime-drain",
+		Version: 3,
+		Reason:  core.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	require.NoError(t, rt.EnsureChannel(fenced))
+
+	drain, err := rt.FenceAndDrain(context.Background(), core.FenceAndDrainRequest{
+		ChannelKey:           meta.Key,
+		WriteFenceToken:      "task-runtime-drain",
+		WriteFenceVersion:    3,
+		ExpectedChannelEpoch: meta.Epoch,
+		ExpectedLeader:       meta.Leader,
+	})
+	require.NoError(t, err)
+	require.Equal(t, meta.Key, drain.ChannelKey)
+	require.Equal(t, uint64(3), drain.WriteFenceVersion)
+	require.Equal(t, uint64(1), drain.RuntimeGeneration)
+}
+
 func TestRuntimeApplyRetentionBoundaryDelegatesToReplica(t *testing.T) {
 	rt := newTestRuntime(t)
 	meta := testMeta("room-retention-apply")

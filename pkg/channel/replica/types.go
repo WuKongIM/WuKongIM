@@ -69,6 +69,8 @@ type Replica interface {
 	ApplyProgressAck(ctx context.Context, req channel.ReplicaProgressAckRequest) error
 	ApplyReconcileProof(ctx context.Context, proof channel.ReplicaReconcileProof) error
 	ApplyRetentionBoundary(ctx context.Context, throughSeq uint64) error
+	// FenceAndDrain captures a fenced leader drain proof while blocking further appends.
+	FenceAndDrain(ctx context.Context, req channel.FenceAndDrainRequest) (channel.DrainResult, error)
 	RetentionView() (channel.RetentionView, error)
 	Status() channel.ReplicaState
 }

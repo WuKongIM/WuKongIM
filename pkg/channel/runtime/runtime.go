@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"errors"
 	"hash/fnv"
 	"sync"
@@ -294,6 +295,26 @@ func (r *runtime) ApplyMeta(meta core.Meta) error {
 		r.enqueueScheduler(meta.Key, PriorityNormal)
 	}
 	return nil
+}
+
+// FenceAndDrain routes a drain request to the per-channel replica and stamps the runtime generation.
+func (r *runtime) FenceAndDrain(ctx context.Context, req core.FenceAndDrainRequest) (core.DrainResult, error) {
+	ch, ok := r.lookupChannel(req.ChannelKey)
+	if !ok {
+		return core.DrainResult{}, ErrChannelNotFound
+	}
+	drainer, ok := ch.replica.(interface {
+		FenceAndDrain(context.Context, core.FenceAndDrainRequest) (core.DrainResult, error)
+	})
+	if !ok {
+		return core.DrainResult{}, core.ErrInvalidConfig
+	}
+	result, err := drainer.FenceAndDrain(ctx, req)
+	if err != nil {
+		return core.DrainResult{}, err
+	}
+	result.RuntimeGeneration = ch.gen
+	return result, nil
 }
 
 func (r *runtime) clearInvalidPeerWork(ch *channel, meta core.Meta) {
