@@ -45,6 +45,10 @@ type Options struct {
 	DeliveryOffline     DeliveryOffline
 	PermissionStore     PermissionStore
 	SystemUIDs          SystemUIDChecker
+	// PersonWhitelistEnabled enables receiver-side personal allowlist checks.
+	PersonWhitelistEnabled bool
+	// SystemDeviceID identifies trusted system-device sessions after SendBan passes.
+	SystemDeviceID string
 	// AppendMetrics records durable append attempts without coupling usecases to a metrics backend.
 	AppendMetrics messageAppendMetrics
 	LocalNodeID   uint64
@@ -54,28 +58,30 @@ type Options struct {
 }
 
 type App struct {
-	identities      IdentityStore
-	channels        ChannelStore
-	cluster         ChannelCluster
-	messageReader   ChannelMessageReader
-	refresher       MetaRefresher
-	remoteAppender  RemoteAppender
-	online          online.Registry
-	delivery        online.Delivery
-	recipients      RecipientDirectory
-	remote          RemoteDelivery
-	dispatcher      CommittedMessageDispatcher
-	realtime        RealtimeDispatcher
-	messageIDs      MessageIDGenerator
-	deliveryAck     DeliveryAck
-	deliveryOffline DeliveryOffline
-	permissions     PermissionStore
-	systemUIDs      SystemUIDChecker
-	appendMetrics   messageAppendMetrics
-	localNodeID     uint64
-	localBootID     uint64
-	now             func() time.Time
-	logger          wklog.Logger
+	identities             IdentityStore
+	channels               ChannelStore
+	cluster                ChannelCluster
+	messageReader          ChannelMessageReader
+	refresher              MetaRefresher
+	remoteAppender         RemoteAppender
+	online                 online.Registry
+	delivery               online.Delivery
+	recipients             RecipientDirectory
+	remote                 RemoteDelivery
+	dispatcher             CommittedMessageDispatcher
+	realtime               RealtimeDispatcher
+	messageIDs             MessageIDGenerator
+	deliveryAck            DeliveryAck
+	deliveryOffline        DeliveryOffline
+	permissions            PermissionStore
+	systemUIDs             SystemUIDChecker
+	personWhitelistEnabled bool
+	systemDeviceID         string
+	appendMetrics          messageAppendMetrics
+	localNodeID            uint64
+	localBootID            uint64
+	now                    func() time.Time
+	logger                 wklog.Logger
 }
 
 func New(opts Options) *App {
@@ -93,28 +99,30 @@ func New(opts Options) *App {
 	}
 
 	return &App{
-		identities:      opts.IdentityStore,
-		channels:        opts.ChannelStore,
-		cluster:         opts.Cluster,
-		messageReader:   opts.MessageReader,
-		refresher:       opts.MetaRefresher,
-		remoteAppender:  opts.RemoteAppender,
-		online:          opts.Online,
-		delivery:        opts.Delivery,
-		recipients:      opts.Recipients,
-		remote:          opts.RemoteDelivery,
-		dispatcher:      opts.CommittedDispatcher,
-		realtime:        opts.RealtimeDispatcher,
-		messageIDs:      opts.MessageIDs,
-		deliveryAck:     opts.DeliveryAck,
-		deliveryOffline: opts.DeliveryOffline,
-		permissions:     opts.PermissionStore,
-		systemUIDs:      opts.SystemUIDs,
-		appendMetrics:   opts.AppendMetrics,
-		localNodeID:     opts.LocalNodeID,
-		localBootID:     opts.LocalBootID,
-		now:             opts.Now,
-		logger:          opts.Logger,
+		identities:             opts.IdentityStore,
+		channels:               opts.ChannelStore,
+		cluster:                opts.Cluster,
+		messageReader:          opts.MessageReader,
+		refresher:              opts.MetaRefresher,
+		remoteAppender:         opts.RemoteAppender,
+		online:                 opts.Online,
+		delivery:               opts.Delivery,
+		recipients:             opts.Recipients,
+		remote:                 opts.RemoteDelivery,
+		dispatcher:             opts.CommittedDispatcher,
+		realtime:               opts.RealtimeDispatcher,
+		messageIDs:             opts.MessageIDs,
+		deliveryAck:            opts.DeliveryAck,
+		deliveryOffline:        opts.DeliveryOffline,
+		permissions:            opts.PermissionStore,
+		systemUIDs:             opts.SystemUIDs,
+		personWhitelistEnabled: opts.PersonWhitelistEnabled,
+		systemDeviceID:         opts.SystemDeviceID,
+		appendMetrics:          opts.AppendMetrics,
+		localNodeID:            opts.LocalNodeID,
+		localBootID:            opts.LocalBootID,
+		now:                    opts.Now,
+		logger:                 opts.Logger,
 	}
 }
 

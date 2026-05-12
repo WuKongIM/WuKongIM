@@ -684,6 +684,44 @@ func TestLoadConfigPrefersEnvironmentVariablesForChannelMessageRetention(t *test
 	require.Equal(t, 2500, cfg.ChannelMessageRetention.MaxTrimMessages)
 }
 
+func TestLoadConfigParsesMessagePermissionConfig(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_MESSAGE_PERSON_WHITELIST_ENABLED=true",
+		"WK_MESSAGE_SYSTEM_DEVICE_ID=custom-device",
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.True(t, cfg.Message.PersonWhitelistEnabled)
+	require.Equal(t, "custom-device", cfg.Message.SystemDeviceID)
+}
+
+func TestLoadConfigPrefersEnvironmentVariablesForMessagePermissionConfig(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_MESSAGE_PERSON_WHITELIST_ENABLED=false",
+		"WK_MESSAGE_SYSTEM_DEVICE_ID=file-device",
+	)
+	t.Setenv("WK_MESSAGE_PERSON_WHITELIST_ENABLED", "true")
+	t.Setenv("WK_MESSAGE_SYSTEM_DEVICE_ID", "env-device")
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.True(t, cfg.Message.PersonWhitelistEnabled)
+	require.Equal(t, "env-device", cfg.Message.SystemDeviceID)
+}
+
 func TestLoadConfigUsesDefaultSearchPathsWhenFlagPathIsEmpty(t *testing.T) {
 	dir := t.TempDir()
 	confDir := filepath.Join(dir, "conf")
