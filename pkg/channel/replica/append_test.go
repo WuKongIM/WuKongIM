@@ -235,6 +235,213 @@ func TestReplicaFenceRejectsAppendDespiteStaleHandlerMeta(t *testing.T) {
 	require.ErrorIs(t, err, channel.ErrWriteFenced)
 }
 
+func TestFenceAndDrainRejectsNewAppends(t *testing.T) {
+	r := newLeaderReplica(t)
+	fenced := activeMetaWithMinISR(7, 1, 1)
+	fenced.WriteFence = channel.WriteFence{
+		Token:   "task-drain",
+		Version: 1,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	require.NoError(t, r.ApplyMeta(fenced))
+
+	drain, err := r.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+		ChannelKey:           fenced.Key,
+		WriteFenceToken:      "task-drain",
+		WriteFenceVersion:    1,
+		ExpectedChannelEpoch: 7,
+		ExpectedLeaderEpoch:  0,
+		ExpectedLeader:       1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, fenced.Key, drain.ChannelKey)
+	require.Equal(t, uint64(7), drain.ChannelEpoch)
+	require.Equal(t, uint64(1), drain.WriteFenceVersion)
+
+	_, err = r.Append(context.Background(), []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
+	require.ErrorIs(t, err, channel.ErrWriteFenced)
+}
+
+func TestFenceAndDrainWaitsForInflightAppend(t *testing.T) {
+	r := newLeaderReplica(t)
+	r.durableMu.Lock()
+	appendDone := make(chan error, 1)
+	go func() {
+		_, err := r.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("x"), SizeBytes: 1}})
+		appendDone <- err
+	}()
+	require.Eventually(t, func() bool {
+		r.mu.RLock()
+		defer r.mu.RUnlock()
+		return r.appendInFlightEffectID != 0
+	}, time.Second, time.Millisecond)
+
+	fenced := activeMetaWithMinISR(7, 1, 1)
+	fenced.WriteFence = channel.WriteFence{
+		Token:   "task-inflight-drain",
+		Version: 1,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	require.NoError(t, r.ApplyMeta(fenced))
+	drainDone := make(chan error, 1)
+	go func() {
+		_, err := r.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+			ChannelKey:           fenced.Key,
+			WriteFenceToken:      "task-inflight-drain",
+			WriteFenceVersion:    1,
+			ExpectedChannelEpoch: 7,
+			ExpectedLeader:       1,
+		})
+		drainDone <- err
+	}()
+
+	select {
+	case err := <-drainDone:
+		r.durableMu.Unlock()
+		t.Fatalf("FenceAndDrain returned before in-flight append completed: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	r.durableMu.Unlock()
+	require.Error(t, <-appendDone)
+	require.NoError(t, <-drainDone)
+}
+
+func TestFenceAndDrainRejectsNonLeaderOrFenceMismatch(t *testing.T) {
+	follower := newFollowerReplica(t)
+	_, err := follower.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+		ChannelKey:           "group-10",
+		WriteFenceToken:      "task",
+		WriteFenceVersion:    1,
+		ExpectedChannelEpoch: 7,
+		ExpectedLeader:       1,
+	})
+	require.ErrorIs(t, err, channel.ErrNotLeader)
+
+	leader := newLeaderReplica(t)
+	fenced := activeMetaWithMinISR(7, 1, 1)
+	fenced.WriteFence = channel.WriteFence{
+		Token:   "task-expected",
+		Version: 1,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	require.NoError(t, leader.ApplyMeta(fenced))
+	_, err = leader.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+		ChannelKey:           fenced.Key,
+		WriteFenceToken:      "task-other",
+		WriteFenceVersion:    1,
+		ExpectedChannelEpoch: 7,
+		ExpectedLeader:       1,
+	})
+	require.ErrorIs(t, err, channel.ErrStaleMeta)
+}
+
+func TestFenceAndDrainRequiresExactLeaderEpoch(t *testing.T) {
+	leader := newLeaderReplica(t)
+	fenced := activeMetaWithMinISR(7, 1, 1)
+	fenced.LeaderEpoch = 2
+	fenced.WriteFence = channel.WriteFence{
+		Token:   "task-leader-epoch",
+		Version: 1,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	require.NoError(t, leader.ApplyMeta(fenced))
+
+	_, err := leader.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+		ChannelKey:           fenced.Key,
+		WriteFenceToken:      "task-leader-epoch",
+		WriteFenceVersion:    1,
+		ExpectedChannelEpoch: 7,
+		ExpectedLeader:       1,
+	})
+	require.ErrorIs(t, err, channel.ErrStaleMeta)
+}
+
+func TestFenceAndDrainRejectsExpiredLeaderLease(t *testing.T) {
+	leader := newLeaderReplica(t)
+	fenced := activeMetaWithMinISR(7, 1, 1)
+	fenced.LeaseUntil = leader.now().Add(-time.Millisecond)
+	fenced.WriteFence = channel.WriteFence{
+		Token:   "task-expired-lease",
+		Version: 1,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	require.NoError(t, leader.ApplyMeta(fenced))
+
+	_, err := leader.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+		ChannelKey:           fenced.Key,
+		WriteFenceToken:      "task-expired-lease",
+		WriteFenceVersion:    1,
+		ExpectedChannelEpoch: 7,
+		ExpectedLeaderEpoch:  fenced.LeaderEpoch,
+		ExpectedLeader:       1,
+	})
+	require.ErrorIs(t, err, channel.ErrLeaseExpired)
+}
+
+func TestDrainedFailClosedReopensOnlyAfterNewerVersionClear(t *testing.T) {
+	r := newLeaderReplica(t)
+	fenced := activeMetaWithMinISR(7, 1, 1)
+	fenced.WriteFence = channel.WriteFence{
+		Token:   "task-drain-clear",
+		Version: 1,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	require.NoError(t, r.ApplyMeta(fenced))
+	_, err := r.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+		ChannelKey:           fenced.Key,
+		WriteFenceToken:      "task-drain-clear",
+		WriteFenceVersion:    1,
+		ExpectedChannelEpoch: 7,
+		ExpectedLeader:       1,
+	})
+	require.NoError(t, err)
+
+	sameVersionClear := fenced
+	sameVersionClear.WriteFence = channel.WriteFence{Version: 1}
+	require.NoError(t, r.ApplyMeta(sameVersionClear))
+	_, err = r.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("blocked"), SizeBytes: 7}})
+	require.ErrorIs(t, err, channel.ErrWriteFenced)
+
+	newerClear := fenced
+	newerClear.WriteFence = channel.WriteFence{Version: 2}
+	require.NoError(t, r.ApplyMeta(newerClear))
+	_, err = r.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("open"), SizeBytes: 4}})
+	require.NoError(t, err)
+}
+
+func TestDrainedFailClosedIgnoresSameVersionTTLExpiry(t *testing.T) {
+	r := newLeaderReplica(t)
+	fenced := activeMetaWithMinISR(7, 1, 1)
+	fenced.WriteFence = channel.WriteFence{
+		Token:   "task-drain-ttl",
+		Version: 1,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   r.now().Add(time.Second),
+	}
+	require.NoError(t, r.ApplyMeta(fenced))
+	_, err := r.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+		ChannelKey:           fenced.Key,
+		WriteFenceToken:      "task-drain-ttl",
+		WriteFenceVersion:    1,
+		ExpectedChannelEpoch: 7,
+		ExpectedLeaderEpoch:  fenced.LeaderEpoch,
+		ExpectedLeader:       1,
+	})
+	require.NoError(t, err)
+
+	expiredSameVersion := fenced
+	expiredSameVersion.WriteFence.Until = r.now().Add(-time.Millisecond)
+	require.NoError(t, r.ApplyMeta(expiredSameVersion))
+	_, err = r.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("blocked"), SizeBytes: 7}})
+	require.ErrorIs(t, err, channel.ErrWriteFenced)
+}
+
 func TestAppendWaitsUntilMinISRReplicasAcknowledgeViaFetch(t *testing.T) {
 	env := newThreeReplicaCluster(t)
 	done := make(chan appendTestResult, 1)

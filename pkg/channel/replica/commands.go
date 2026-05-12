@@ -135,6 +135,13 @@ type machineApplyMetaCommand struct {
 func (machineApplyMetaCommand) isMachineEvent()   {}
 func (machineApplyMetaCommand) isMachineCommand() {}
 
+type machineFenceAndDrainCommand struct {
+	Request channel.FenceAndDrainRequest
+}
+
+func (machineFenceAndDrainCommand) isMachineEvent()   {}
+func (machineFenceAndDrainCommand) isMachineCommand() {}
+
 type machineApplyRetentionCommand struct {
 	// ThroughSeq is the authoritative highest sequence hidden by retention.
 	ThroughSeq uint64

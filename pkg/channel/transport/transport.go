@@ -43,6 +43,7 @@ type Transport struct {
 	fetchService     runtime.FetchService
 	longPollService  LongPollService
 	reconcileService runtime.ReconcileProbeService
+	migrationService runtime.MigrationRuntime
 	closeOnce        sync.Once
 
 	sessions *sessionManager
@@ -89,10 +90,14 @@ func New(opts Options) (*Transport, error) {
 	if service, ok := opts.FetchService.(runtime.ReconcileProbeService); ok {
 		transport.reconcileService = service
 	}
+	if service, ok := opts.FetchService.(runtime.MigrationRuntime); ok {
+		transport.migrationService = service
+	}
 	transport.sessions = newSessionManager(transport)
 	opts.RPCMux.Handle(RPCServiceFetch, transport.handleRPC)
 	opts.RPCMux.Handle(RPCServiceLongPollFetch, transport.handleLongPollFetchRPC)
 	opts.RPCMux.Handle(RPCServiceReconcileProbe, transport.handleReconcileProbeRPC)
+	opts.RPCMux.Handle(RPCServiceFenceAndDrain, transport.handleMigrationControlDrainRPC)
 	return transport, nil
 }
 
@@ -192,6 +197,7 @@ func (t *Transport) Close() error {
 		t.rpcMux.Unhandle(RPCServiceFetch)
 		t.rpcMux.Unhandle(RPCServiceLongPollFetch)
 		t.rpcMux.Unhandle(RPCServiceReconcileProbe)
+		t.rpcMux.Unhandle(RPCServiceFenceAndDrain)
 	})
 	return nil
 }
@@ -210,6 +216,11 @@ func (t *Transport) BindFetchService(service runtime.FetchService) {
 		t.longPollService = runtimeLanePollServiceAdapter{service: lanePollService}
 	} else {
 		t.longPollService = nil
+	}
+	if migrationService, ok := service.(runtime.MigrationRuntime); ok {
+		t.migrationService = migrationService
+	} else {
+		t.migrationService = nil
 	}
 	t.mu.Unlock()
 }

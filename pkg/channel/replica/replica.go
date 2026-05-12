@@ -114,6 +114,17 @@ type replica struct {
 	checkpointQueued   bool
 	checkpointInFlight bool
 	reconcilePending   map[channel.NodeID]struct{}
+	drainedFence       drainedFenceState
+}
+
+// drainedFenceState keeps append admission fail-closed after a successful migration drain.
+type drainedFenceState struct {
+	// token is the migration task fence token that produced the drain proof.
+	token string
+	// version is the write-fence generation that must be superseded before reopening.
+	version uint64
+	// active indicates that same-version metadata must continue rejecting appends.
+	active bool
 }
 
 func NewReplica(cfg ReplicaConfig) (Replica, error) {

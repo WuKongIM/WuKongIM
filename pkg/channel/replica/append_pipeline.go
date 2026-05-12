@@ -245,6 +245,9 @@ func (r *replica) validateAppendEffectFenceLocked(effect appendLeaderBatchEffect
 	if r.meta.WriteFence.BlocksAppend() {
 		return channel.ErrWriteFenced
 	}
+	if r.drainedFenceBlocksAppendLocked() {
+		return channel.ErrWriteFenced
+	}
 	if len(r.meta.ISR) < r.meta.MinISR {
 		return channel.ErrInsufficientISR
 	}
@@ -352,6 +355,9 @@ func (r *replica) appendableLocked() error {
 		return channel.ErrLeaseExpired
 	}
 	if r.meta.WriteFence.BlocksAppend() {
+		return channel.ErrWriteFenced
+	}
+	if r.drainedFenceBlocksAppendLocked() {
 		return channel.ErrWriteFenced
 	}
 	if len(r.meta.ISR) < r.meta.MinISR {
