@@ -51,6 +51,7 @@ import {
   transferSlotLeader,
   advanceMessageRetention,
   repairChannelClusterLeader,
+  transferChannelClusterLeader,
 } from "@/lib/manager-api"
 
 describe("manager api client", () => {
@@ -1137,6 +1138,36 @@ describe("manager api client", () => {
       status: 409,
       error: "conflict",
     })
+  })
+
+  it("transfers a channel cluster leader", async () => {
+    const transferResponse = {
+      changed: true,
+      channel: {
+        channel_id: "room-1",
+        channel_type: 2,
+        slot_id: 9,
+        hash_slot: 123,
+        channel_epoch: 7,
+        leader_epoch: 4,
+        leader: 3,
+        replicas: [1, 2, 3],
+        isr: [1, 2, 3],
+        min_isr: 2,
+        max_message_seq: 42,
+        status: "active",
+        features: 0,
+        lease_until_ms: 0,
+      },
+    }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(transferResponse), { status: 200 }))
+
+    await expect(transferChannelClusterLeader(2, "room-1", { target_node_id: 3 })).resolves.toEqual(transferResponse)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channel-cluster/2/room-1/leader/transfer")
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ target_node_id: 3 }),
+    }))
   })
 
 

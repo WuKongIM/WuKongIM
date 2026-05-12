@@ -13,9 +13,11 @@ import {
   getChannelClusterReplicas,
   getChannelClusterUnhealthy,
   repairChannelClusterLeader,
+  transferChannelClusterLeader,
 } from "@/lib/manager-api"
 import type {
   ManagerChannelClusterReplicaDetailResponse,
+  ManagerChannelClusterReplicaStatus,
   ManagerChannelClusterUnhealthyItem,
 } from "@/lib/manager-api.types"
 
@@ -75,6 +77,13 @@ function canRepairLeader(channel: ManagerChannelClusterUnhealthyItem) {
   return channel.reasons.includes("no_leader")
 }
 
+function canTransferLeader(
+  detail: ManagerChannelClusterReplicaDetailResponse,
+  replica: ManagerChannelClusterReplicaStatus,
+) {
+  return detail.channel.status === "active" && replica.in_isr && !replica.is_leader
+}
+
 function formatUnknownNumber(value?: number | null) {
   return typeof value === "number" ? String(value) : "-"
 }
@@ -109,6 +118,10 @@ export function ChannelClusterUnhealthyPage() {
     error: null,
   })
   const [repairState, setRepairState] = useState<RepairState>({
+    loadingKey: null,
+    notice: null,
+  })
+  const [transferState, setTransferState] = useState<RepairState>({
     loadingKey: null,
     notice: null,
   })
@@ -239,6 +252,46 @@ export function ChannelClusterUnhealthyPage() {
     }
   }, [intl, loadFirstPage])
 
+  const transferLeader = useCallback(async (channel: ManagerChannelClusterUnhealthyItem, targetNodeId: number) => {
+    const key = `${channelKey(channel)}:${targetNodeId}`
+    setTransferState({ loadingKey: key, notice: null })
+
+    try {
+      const result = await transferChannelClusterLeader(channel.channel_type, channel.channel_id, {
+        target_node_id: targetNodeId,
+      })
+      setTransferState({
+        loadingKey: null,
+        notice: {
+          kind: "success",
+          message: intl.formatMessage(
+            {
+              id: result.changed
+                ? "channelCluster.replicaDetail.transferSuccessChanged"
+                : "channelCluster.replicaDetail.transferSuccessUnchanged",
+            },
+            { leader: result.channel.leader },
+          ),
+        },
+      })
+      await loadReplicaDetail(channel)
+      await loadFirstPage(true)
+    } catch (error) {
+      const isConflict = error instanceof ManagerApiError && error.status === 409
+      setTransferState({
+        loadingKey: null,
+        notice: {
+          kind: isConflict ? "conflict" : "error",
+          message: intl.formatMessage({
+            id: isConflict
+              ? "channelCluster.replicaDetail.transferConflict"
+              : "channelCluster.replicaDetail.transferError",
+          }),
+        },
+      })
+    }
+  }, [intl, loadFirstPage, loadReplicaDetail])
+
   useEffect(() => {
     void loadFirstPage(false)
   }, [loadFirstPage])
@@ -280,6 +333,14 @@ export function ChannelClusterUnhealthyPage() {
           role="status"
         >
           {repairState.notice.message}
+        </div>
+      ) : null}
+      {transferState.notice ? (
+        <div
+          className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground"
+          role="status"
+        >
+          {transferState.notice.message}
         </div>
       ) : null}
       {!state.loading && !state.error ? (
@@ -449,27 +510,47 @@ export function ChannelClusterUnhealthyPage() {
                       <th className="px-3 py-3">LEO</th>
                       <th className="px-3 py-3">Checkpoint HW</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channelCluster.replicaDetail.lag" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.actions" })}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {detailState.detail.replicas.map((replica) => (
-                      <tr className="border-t border-border" key={replica.node_id}>
-                        <td className="px-3 py-3 text-sm font-medium text-foreground">
-                          {intl.formatMessage({ id: "channelCluster.nodeValue" }, { id: replica.node_id })}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{replica.role}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{replica.in_isr ? "yes" : "no"}</td>
-                        <td className="px-3 py-3 text-sm text-foreground">
-                          {replica.reported
-                            ? intl.formatMessage({ id: "channelCluster.replicaDetail.reported" })
-                            : intl.formatMessage({ id: "channelCluster.replicaDetail.notReported" })}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatUnknownNumber(replica.commit_seq)}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatUnknownNumber(replica.leo)}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatUnknownNumber(replica.checkpoint_hw)}</td>
-                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatUnknownNumber(replica.lag)}</td>
-                      </tr>
-                    ))}
+                    {detailState.detail.replicas.map((replica) => {
+                      const rowTransferKey = `${channelKey(detailState.channel!)}:${replica.node_id}`
+                      return (
+                        <tr className="border-t border-border" key={replica.node_id}>
+                          <td className="px-3 py-3 text-sm font-medium text-foreground">
+                            {intl.formatMessage({ id: "channelCluster.nodeValue" }, { id: replica.node_id })}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-muted-foreground">{replica.role}</td>
+                          <td className="px-3 py-3 text-sm text-muted-foreground">{replica.in_isr ? "yes" : "no"}</td>
+                          <td className="px-3 py-3 text-sm text-foreground">
+                            {replica.reported
+                              ? intl.formatMessage({ id: "channelCluster.replicaDetail.reported" })
+                              : intl.formatMessage({ id: "channelCluster.replicaDetail.notReported" })}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-muted-foreground">{formatUnknownNumber(replica.commit_seq)}</td>
+                          <td className="px-3 py-3 text-sm text-muted-foreground">{formatUnknownNumber(replica.leo)}</td>
+                          <td className="px-3 py-3 text-sm text-muted-foreground">{formatUnknownNumber(replica.checkpoint_hw)}</td>
+                          <td className="px-3 py-3 text-sm text-muted-foreground">{formatUnknownNumber(replica.lag)}</td>
+                          <td className="px-3 py-3 text-sm text-foreground">
+                            {canTransferLeader(detailState.detail!, replica) ? (
+                              <Button
+                                disabled={transferState.loadingKey === rowTransferKey}
+                                onClick={() => {
+                                  void transferLeader(detailState.channel!, replica.node_id)
+                                }}
+                                size="sm"
+                                variant="outline"
+                              >
+                                {transferState.loadingKey === rowTransferKey
+                                  ? intl.formatMessage({ id: "common.loading" })
+                                  : intl.formatMessage({ id: "channelCluster.replicaDetail.transferLeader" })}
+                              </Button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -14,6 +14,7 @@ import type {
   ManagerChannelClusterUnhealthyResponse,
   ManagerChannelClusterReplicaDetailResponse,
   ManagerChannelClusterRepairResponse,
+  ManagerChannelClusterLeaderTransferResponse,
   ManagerConnectionDetailResponse,
   ManagerControllerLogsResponse,
   ManagerControllerRaftCompactResponse,
@@ -52,6 +53,7 @@ import type {
   AdvanceMessageRetentionInput,
   AdvanceMessageRetentionResponse,
   RepairChannelClusterLeaderInput,
+  TransferChannelClusterLeaderInput,
 } from "@/lib/manager-api.types"
 
 export type ManagerAuthConfig = {
@@ -533,6 +535,17 @@ export function repairChannelClusterLeader(
 ) {
   return jsonManagerFetch<ManagerChannelClusterRepairResponse>(
     `/manager/channel-cluster/${channelType}/${encodeURIComponent(channelId)}/repair`,
+    { method: "POST", body: JSON.stringify(input) },
+  )
+}
+
+export function transferChannelClusterLeader(
+  channelType: number,
+  channelId: string,
+  input: TransferChannelClusterLeaderInput,
+) {
+  return jsonManagerFetch<ManagerChannelClusterLeaderTransferResponse>(
+    `/manager/channel-cluster/${channelType}/${encodeURIComponent(channelId)}/leader/transfer`,
     { method: "POST", body: JSON.stringify(input) },
   )
 }
