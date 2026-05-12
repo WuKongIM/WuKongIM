@@ -169,16 +169,30 @@ type Repairer interface {
 	RepairIfNeeded(ctx context.Context, meta metadb.ChannelRuntimeMeta, reason string) (metadb.ChannelRuntimeMeta, bool, error)
 }
 
+// Transferer safely transfers one channel leader to an explicit target.
+type Transferer interface {
+	// TransferIfSafe transfers metadata only after the target proves it can lead.
+	TransferIfSafe(ctx context.Context, meta metadb.ChannelRuntimeMeta, targetNodeID uint64) (metadb.ChannelRuntimeMeta, bool, error)
+}
+
 // AuthoritativeRepairer handles repair requests on the authoritative slot leader.
 type AuthoritativeRepairer interface {
 	// RepairChannelLeaderAuthoritative repairs the channel leader from the authoritative slot leader.
 	RepairChannelLeaderAuthoritative(ctx context.Context, req LeaderRepairRequest) (LeaderRepairResult, error)
 }
 
+// AuthoritativeTransferer handles explicit transfer requests on the authoritative slot leader.
+type AuthoritativeTransferer interface {
+	// TransferChannelLeaderAuthoritative transfers channel leader from the authoritative slot leader.
+	TransferChannelLeaderAuthoritative(ctx context.Context, req LeaderTransferRequest) (LeaderTransferResult, error)
+}
+
 // RepairRemote calls peer nodes for channel leader repair and candidate evaluation.
 type RepairRemote interface {
 	// RepairChannelLeader asks the current slot leader to repair channel leader metadata.
 	RepairChannelLeader(ctx context.Context, req LeaderRepairRequest) (LeaderRepairResult, error)
+	// TransferChannelLeader asks the current slot leader to transfer channel leadership.
+	TransferChannelLeader(ctx context.Context, req LeaderTransferRequest) (LeaderTransferResult, error)
 	// EvaluateChannelLeaderCandidate asks a peer replica to dry-run channel leader promotion.
 	EvaluateChannelLeaderCandidate(ctx context.Context, nodeID uint64, req LeaderEvaluateRequest) (LeaderPromotionReport, error)
 }

@@ -25,6 +25,26 @@ type LeaderRepairResult struct {
 	Changed bool
 }
 
+// LeaderTransferRequest describes an explicit safe channel leader transfer request.
+type LeaderTransferRequest struct {
+	// ChannelID identifies the channel whose leader should move.
+	ChannelID channel.ChannelID
+	// ObservedChannelEpoch carries the caller's last observed channel epoch.
+	ObservedChannelEpoch uint64
+	// ObservedLeaderEpoch carries the caller's last observed leader epoch.
+	ObservedLeaderEpoch uint64
+	// TargetNodeID is the requested new channel leader.
+	TargetNodeID uint64
+}
+
+// LeaderTransferResult returns authoritative runtime metadata after transfer validation.
+type LeaderTransferResult struct {
+	// Meta is the authoritative runtime metadata after transfer or validation.
+	Meta metadb.ChannelRuntimeMeta
+	// Changed reports whether transfer persisted a changed authoritative record.
+	Changed bool
+}
+
 // LeaderEvaluateRequest asks a replica to evaluate local leader promotion safety.
 type LeaderEvaluateRequest struct {
 	// Meta is the authoritative runtime metadata used for the dry-run.
