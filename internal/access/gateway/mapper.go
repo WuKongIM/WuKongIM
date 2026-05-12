@@ -15,6 +15,8 @@ func mapSendCommand(ctx *coregateway.Context, pkt *frame.SendPacket) (message.Se
 	if senderUID == "" {
 		return message.SendCommand{}, ErrUnauthenticatedSession
 	}
+	deviceID, _ := ctx.Session.Value(coregateway.SessionValueDeviceID).(string)
+	deviceFlag := deviceFlagFromValue(ctx.Session.Value(coregateway.SessionValueDeviceFlag))
 
 	protocolVersion := uint8(frame.LatestVersion)
 	if sessionVersion, ok := ctx.Session.Value(coregateway.SessionValueProtocolVersion).(uint8); ok && sessionVersion != 0 {
@@ -25,6 +27,8 @@ func mapSendCommand(ctx *coregateway.Context, pkt *frame.SendPacket) (message.Se
 		return message.SendCommand{
 			FromUID:         senderUID,
 			SenderSessionID: ctx.Session.ID(),
+			DeviceID:        deviceID,
+			DeviceFlag:      deviceFlag,
 			ProtocolVersion: protocolVersion,
 		}, nil
 	}
@@ -36,6 +40,8 @@ func mapSendCommand(ctx *coregateway.Context, pkt *frame.SendPacket) (message.Se
 		Expire:          pkt.Expire,
 		FromUID:         senderUID,
 		SenderSessionID: ctx.Session.ID(),
+		DeviceID:        deviceID,
+		DeviceFlag:      deviceFlag,
 		ClientSeq:       pkt.ClientSeq,
 		ClientMsgNo:     pkt.ClientMsgNo,
 		StreamNo:        pkt.StreamNo,
