@@ -1,15 +1,21 @@
 import type { LucideIcon } from "lucide-react"
 import {
+  Activity,
   Cable,
   Database,
   GitPullRequestArrow,
   LayoutDashboard,
   MessageSquare,
   Radar,
-  SearchCode,
+  Radio,
   ScrollText,
+  SearchCode,
   Server,
+  Settings,
+  Shield,
+  Users,
   Waypoints,
+  Webhook,
 } from "lucide-react"
 
 export type NavigationItem = {
@@ -34,34 +40,22 @@ export const navigationGroups: NavigationGroup[] = [
         descriptionMessageId: "nav.dashboard.description",
         icon: LayoutDashboard,
       },
+      {
+        href: "/monitor",
+        titleMessageId: "nav.monitor.title",
+        descriptionMessageId: "nav.monitor.description",
+        icon: Activity,
+      },
     ],
   },
   {
-    labelMessageId: "nav.group.runtime",
+    labelMessageId: "nav.group.globalCluster",
     items: [
       {
         href: "/nodes",
         titleMessageId: "nav.nodes.title",
         descriptionMessageId: "nav.nodes.description",
         icon: Server,
-      },
-      {
-        href: "/channels",
-        titleMessageId: "nav.channels.title",
-        descriptionMessageId: "nav.channels.description",
-        icon: MessageSquare,
-      },
-      {
-        href: "/messages",
-        titleMessageId: "nav.messages.title",
-        descriptionMessageId: "nav.messages.description",
-        icon: MessageSquare,
-      },
-      {
-        href: "/connections",
-        titleMessageId: "nav.connections.title",
-        descriptionMessageId: "nav.connections.description",
-        icon: Cable,
       },
       {
         href: "/slots",
@@ -75,10 +69,74 @@ export const navigationGroups: NavigationGroup[] = [
         descriptionMessageId: "nav.onboarding.description",
         icon: GitPullRequestArrow,
       },
+      {
+        href: "/controller",
+        titleMessageId: "nav.controller.title",
+        descriptionMessageId: "nav.controller.description",
+        icon: ScrollText,
+      },
+      {
+        href: "/topology",
+        titleMessageId: "nav.topology.title",
+        descriptionMessageId: "nav.topology.description",
+        icon: Waypoints,
+      },
     ],
   },
   {
-    labelMessageId: "nav.group.observability",
+    labelMessageId: "nav.group.channelCluster",
+    items: [
+      {
+        href: "/channel-cluster",
+        titleMessageId: "nav.channelCluster.title",
+        descriptionMessageId: "nav.channelCluster.description",
+        icon: Radio,
+      },
+      {
+        href: "/channel-cluster/list",
+        titleMessageId: "nav.channelClusterList.title",
+        descriptionMessageId: "nav.channelClusterList.description",
+        icon: Radio,
+      },
+      {
+        href: "/channel-cluster/unhealthy",
+        titleMessageId: "nav.channelClusterUnhealthy.title",
+        descriptionMessageId: "nav.channelClusterUnhealthy.description",
+        icon: Radio,
+      },
+    ],
+  },
+  {
+    labelMessageId: "nav.group.business",
+    items: [
+      {
+        href: "/users",
+        titleMessageId: "nav.users.title",
+        descriptionMessageId: "nav.users.description",
+        icon: Users,
+      },
+      {
+        href: "/channels-biz",
+        titleMessageId: "nav.channelsBiz.title",
+        descriptionMessageId: "nav.channelsBiz.description",
+        icon: MessageSquare,
+      },
+      {
+        href: "/messages",
+        titleMessageId: "nav.messages.title",
+        descriptionMessageId: "nav.messages.description",
+        icon: MessageSquare,
+      },
+      {
+        href: "/system-users",
+        titleMessageId: "nav.systemUsers.title",
+        descriptionMessageId: "nav.systemUsers.description",
+        icon: Shield,
+      },
+    ],
+  },
+  {
+    labelMessageId: "nav.group.diagnostics",
     items: [
       {
         href: "/diagnostics",
@@ -93,10 +151,10 @@ export const navigationGroups: NavigationGroup[] = [
         icon: Radar,
       },
       {
-        href: "/controller",
-        titleMessageId: "nav.controller.title",
-        descriptionMessageId: "nav.controller.description",
-        icon: ScrollText,
+        href: "/connections",
+        titleMessageId: "nav.connections.title",
+        descriptionMessageId: "nav.connections.description",
+        icon: Cable,
       },
       {
         href: "/slot-logs",
@@ -104,11 +162,22 @@ export const navigationGroups: NavigationGroup[] = [
         descriptionMessageId: "nav.slotLogs.description",
         icon: Database,
       },
+    ],
+  },
+  {
+    labelMessageId: "nav.group.settings",
+    items: [
       {
-        href: "/topology",
-        titleMessageId: "nav.topology.title",
-        descriptionMessageId: "nav.topology.description",
-        icon: Waypoints,
+        href: "/settings/permissions",
+        titleMessageId: "nav.permissions.title",
+        descriptionMessageId: "nav.permissions.description",
+        icon: Settings,
+      },
+      {
+        href: "/settings/webhooks",
+        titleMessageId: "nav.webhooks.title",
+        descriptionMessageId: "nav.webhooks.description",
+        icon: Webhook,
       },
     ],
   },
