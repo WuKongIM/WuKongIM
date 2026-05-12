@@ -838,6 +838,31 @@ func TestChannelMigrationTaskAdvancePersistsEmbeddedLeaderTransferDecision(t *te
 	require.Equal(t, ChannelMigrationPhaseProbeTarget, got.Phase)
 }
 
+func TestChannelMigrationTaskAdvancePersistsEmbeddedLeaderTransferDecisionFromAddLearner(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+	task := testChannelMigrationTask("task-advance-embedded-reentry", "channel-advance-embedded-reentry")
+	task.SourceNode = 1
+	task.TargetNode = 3
+	task.Status = ChannelMigrationStatusRunning
+	task.Phase = ChannelMigrationPhaseAddLearner
+	task.UpdatedAtMS = 1750000001000
+	require.NoError(t, shard.CreateChannelMigrationTask(ctx, task))
+
+	advanced := task
+	advanced.Phase = ChannelMigrationPhaseProbeTarget
+	advanced.UpdatedAtMS = 1750000002000
+	advanced.EmbeddedLeaderTransfer = true
+	advanced.EmbeddedDesiredLeader = 2
+	require.NoError(t, shard.AdvanceChannelMigrationTask(ctx, channelMigrationTaskAdvanceRequest(task, advanced)))
+
+	got, err := shard.GetChannelMigrationTask(ctx, task.ChannelID, task.ChannelType, task.TaskID)
+	require.NoError(t, err)
+	require.True(t, got.EmbeddedLeaderTransfer)
+	require.Equal(t, uint64(2), got.EmbeddedDesiredLeader)
+	require.Equal(t, ChannelMigrationPhaseProbeTarget, got.Phase)
+}
+
 func TestWriteBatchAdvanceChannelMigrationTaskIsIdempotentForDuplicateCommand(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)

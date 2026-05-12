@@ -107,6 +107,7 @@ func (b *WriteBatch) AddChannelLearner(hashSlot uint16, req ChannelMigrationAddL
 			return ChannelMigrationTask{}, ChannelRuntimeMeta{}, err
 		}
 		if req.TargetNode != task.TargetNode ||
+			meta.Leader == task.SourceNode ||
 			!containsUint64(meta.Replicas, task.SourceNode) ||
 			!containsUint64(meta.ISR, task.SourceNode) ||
 			containsUint64(meta.Replicas, req.TargetNode) ||

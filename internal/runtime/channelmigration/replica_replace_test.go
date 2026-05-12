@@ -95,6 +95,24 @@ func TestReplicaReplaceAddLearnerKeepsISRUnchanged(t *testing.T) {
 	require.Len(t, store.addLearnerRequests, 1)
 }
 
+func TestReplicaReplaceAddLearnerRoutesBackToEmbeddedTransferWhenSourceBecomesLeader(t *testing.T) {
+	now := time.UnixMilli(32300)
+	task := replicaReplaceTask("task-add-leader-reentry", "channel-add-leader-reentry", 1, 3, now)
+	task.Status = slotmeta.ChannelMigrationStatusRunning
+	task.Phase = slotmeta.ChannelMigrationPhaseAddLearner
+	store := newFakeExecutorStore(task)
+	store.putRuntimeMeta(replicaReplaceRuntimeMeta(task.ChannelID, 1, []uint64{1, 2}, []uint64{1, 2}, now))
+	executor := newLeaderTransferExecutorHarness(store, &leaderTransferClock{now: now}, &recordingMigrationControl{}, &recordingProbeClient{}, 9)
+
+	require.NoError(t, executor.Tick(context.Background()))
+
+	gotTask := store.task(task.TaskID)
+	require.Equal(t, slotmeta.ChannelMigrationPhaseProbeTarget, gotTask.Phase)
+	require.True(t, gotTask.EmbeddedLeaderTransfer)
+	require.Equal(t, uint64(2), gotTask.EmbeddedDesiredLeader)
+	require.Empty(t, store.addLearnerRequests)
+}
+
 func TestReplicaReplaceDoesNotAddLearnerAfterRuntimeMetaReadExpiresOwnerLease(t *testing.T) {
 	now := time.UnixMilli(32500)
 	clock := &leaderTransferClock{now: now}

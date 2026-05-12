@@ -985,7 +985,8 @@ func validateChannelMigrationTaskAdvance(req ChannelMigrationTaskAdvance) error 
 	}
 	if req.EmbeddedDesiredLeader != 0 {
 		if req.Status != ChannelMigrationStatusRunning ||
-			req.Guard.ExpectedPhase != ChannelMigrationPhaseValidate ||
+			(req.Guard.ExpectedPhase != ChannelMigrationPhaseValidate &&
+				req.Guard.ExpectedPhase != ChannelMigrationPhaseAddLearner) ||
 			req.Phase != ChannelMigrationPhaseProbeTarget {
 			return ErrInvalidArgument
 		}
