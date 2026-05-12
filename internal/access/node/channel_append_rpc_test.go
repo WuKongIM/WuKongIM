@@ -309,6 +309,23 @@ func TestAppendToLeaderRPCReturnsTypedNotLeaderWhenRemoteLeaderChangesBeforeAppe
 	require.ErrorIs(t, err, channel.ErrNotLeader)
 }
 
+func TestAppendToLeaderRPCReturnsTypedWriteFenced(t *testing.T) {
+	req := channel.AppendRequest{
+		ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
+		Message: channel.Message{
+			FromUID:     "u1",
+			ClientMsgNo: "m-fenced",
+			Payload:     []byte("hi"),
+		},
+	}
+	client := NewClient(remoteErrorCluster{
+		err: fmt.Errorf("nodetransport: remote error: %s", channel.ErrWriteFenced),
+	})
+	_, err := client.AppendToLeader(context.Background(), 2, req)
+
+	require.ErrorIs(t, err, channel.ErrWriteFenced)
+}
+
 func TestAppendToLeaderRPCLogsRefreshDiagnostics(t *testing.T) {
 	req := channel.AppendRequest{
 		ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},

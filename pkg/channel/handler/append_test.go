@@ -333,6 +333,58 @@ func TestAppendExpiredPreDrainFenceRequiresRefresh(t *testing.T) {
 	}
 }
 
+func TestAppendIdempotencyHitBypassesWriteFence(t *testing.T) {
+	id := core.ChannelID{ID: "room-fenced-retry", Type: 2}
+	key := KeyFromChannelID(id)
+	svc, rt, _ := newAppendService(t, id)
+
+	first, err := svc.Append(context.Background(), core.AppendRequest{
+		ChannelID:             id,
+		SupportsMessageSeqU64: true,
+		Message:               core.Message{FromUID: "u1", ClientMsgNo: "m-fenced-retry", Payload: []byte("payload")},
+	})
+	if err != nil {
+		t.Fatalf("first Append() error = %v", err)
+	}
+	beforeCalls := rt.channels[key].appendCalls
+	fenced := core.Meta{
+		Key:         key,
+		ID:          id,
+		Epoch:       7,
+		LeaderEpoch: 9,
+		Leader:      1,
+		Replicas:    []core.NodeID{1},
+		ISR:         []core.NodeID{1},
+		MinISR:      1,
+		Status:      core.StatusActive,
+		Features:    core.Features{MessageSeqFormat: core.MessageSeqFormatU64},
+		WriteFence: core.WriteFence{
+			Token:   "task-fenced-retry",
+			Version: 1,
+			Reason:  core.WriteFenceReasonMigration,
+			Until:   time.Now().Add(time.Minute),
+		},
+	}
+	if err := svc.ApplyMeta(fenced); err != nil {
+		t.Fatalf("ApplyMeta() error = %v", err)
+	}
+
+	second, err := svc.Append(context.Background(), core.AppendRequest{
+		ChannelID:             id,
+		SupportsMessageSeqU64: true,
+		Message:               core.Message{FromUID: "u1", ClientMsgNo: "m-fenced-retry", Payload: []byte("payload")},
+	})
+	if err != nil {
+		t.Fatalf("retry Append() error = %v", err)
+	}
+	if second.MessageID != first.MessageID || second.MessageSeq != first.MessageSeq {
+		t.Fatalf("retry result = %+v, want %+v", second, first)
+	}
+	if rt.channels[key].appendCalls != beforeCalls {
+		t.Fatalf("Append() calls = %d, want %d", rt.channels[key].appendCalls, beforeCalls)
+	}
+}
+
 func TestAppendIdempotencyHitReturnsStoredMessageFromUniqueIndex(t *testing.T) {
 	key := core.IdempotencyKey{
 		ChannelID:   core.ChannelID{ID: "room-1", Type: 2},
