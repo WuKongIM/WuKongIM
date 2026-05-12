@@ -15,7 +15,7 @@ const (
 	RPCServiceFetch          uint8 = 30
 	RPCServiceLongPollFetch  uint8 = 35
 	RPCServiceReconcileProbe uint8 = 34
-	RPCServiceFenceAndDrain  uint8 = 36
+	RPCServiceFenceAndDrain  uint8 = 46
 
 	fetchRequestCodecVersion  byte = 1
 	fetchResponseCodecVersion byte = 3

@@ -31,6 +31,33 @@ func TestTransportCodecUsesRootTypes(t *testing.T) {
 	}
 }
 
+func TestMigrationControlRPCServiceIDDoesNotCollideWithNodeServices(t *testing.T) {
+	// Keep this list in sync with internal/access/node/service_ids.go because both
+	// node access and channel transport register handlers on the shared RPC mux.
+	occupiedNodeServices := map[uint8]string{
+		5:  "presence",
+		6:  "delivery-submit",
+		7:  "delivery-push",
+		8:  "delivery-ack",
+		9:  "delivery-offline",
+		13: "conversation-facts",
+		33: "channel-append",
+		36: "channel-messages",
+		37: "channel-leader-repair",
+		38: "channel-leader-evaluate",
+		39: "runtime-summary",
+		40: "connections",
+		41: "connection",
+		42: "diagnostics",
+		43: "channel-retention",
+		44: "delivery-tag",
+		45: "system-uid-cache",
+	}
+	if name, exists := occupiedNodeServices[RPCServiceFenceAndDrain]; exists {
+		t.Fatalf("RPCServiceFenceAndDrain = %d collides with internal/access/node %s service", RPCServiceFenceAndDrain, name)
+	}
+}
+
 func TestFetchRequestCodecRoundTrip(t *testing.T) {
 	req := runtime.FetchRequestEnvelope{
 		ChannelKey:  channel.ChannelKey("g1"),
