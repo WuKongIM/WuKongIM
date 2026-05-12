@@ -40,22 +40,23 @@ func (e *Executor) leaderTransferValidate(ctx context.Context, task Task, nowMS 
 	if err != nil {
 		return err
 	}
+	afterReadMS := e.freshNowMS(nowMS)
 	if task.Kind != slotmeta.ChannelMigrationKindLeaderTransfer {
-		return e.failTask(ctx, task, nowMS, "task is not a leader transfer")
+		return e.failTask(ctx, task, afterReadMS, "task is not a leader transfer")
 	}
 	if task.TargetNode == 0 || task.DesiredLeader != task.TargetNode {
-		return e.failTask(ctx, task, nowMS, "invalid leader transfer target")
+		return e.failTask(ctx, task, afterReadMS, "invalid leader transfer target")
 	}
 	if !containsUint64(meta.ISR, task.TargetNode) {
-		return e.failTask(ctx, task, nowMS, "target outside ISR")
+		return e.failTask(ctx, task, afterReadMS, "target outside ISR")
 	}
 	if meta.Leader != task.SourceNode || meta.Leader == task.TargetNode {
-		return e.failTask(ctx, task, nowMS, "source is not current leader")
+		return e.failTask(ctx, task, afterReadMS, "source is not current leader")
 	}
 	if meta.ChannelEpoch != task.BaseChannelEpoch || meta.LeaderEpoch != task.BaseLeaderEpoch {
-		return e.failTask(ctx, task, nowMS, "base epoch changed")
+		return e.failTask(ctx, task, afterReadMS, "base epoch changed")
 	}
-	return e.advanceTask(ctx, task, nowMS, task.Status, slotmeta.ChannelMigrationPhaseProbeTarget, advanceTaskOptions{})
+	return e.advanceTask(ctx, task, afterReadMS, task.Status, slotmeta.ChannelMigrationPhaseProbeTarget, advanceTaskOptions{})
 }
 
 func (e *Executor) leaderTransferProbeTarget(ctx context.Context, task Task, nowMS int64) error {
@@ -129,10 +130,11 @@ func (e *Executor) leaderTransferDrainLeader(ctx context.Context, task Task, now
 	if err != nil {
 		return err
 	}
-	if e.fenceExpired(task, meta, nowMS) {
-		return e.resetExpiredLeaderTransferFence(ctx, task, meta, nowMS)
+	afterReadMS := e.freshNowMS(nowMS)
+	if e.fenceExpired(task, meta, afterReadMS) {
+		return e.resetExpiredLeaderTransferFence(ctx, task, meta, afterReadMS)
 	}
-	if err := e.ensureTaskOwnership(ctx, task, nowMS); err != nil {
+	if err := e.ensureTaskOwnership(ctx, task, afterReadMS); err != nil {
 		return err
 	}
 	projected := channelmeta.ProjectChannelMeta(meta)
@@ -145,10 +147,7 @@ func (e *Executor) leaderTransferDrainLeader(ctx context.Context, task Task, now
 		ExpectedLeaderEpoch:  meta.LeaderEpoch,
 		ExpectedLeader:       channel.NodeID(meta.Leader),
 	})
-	afterDrainMS := e.now().UnixMilli()
-	if afterDrainMS < nowMS {
-		afterDrainMS = nowMS
-	}
+	afterDrainMS := e.freshNowMS(afterReadMS)
 	if err != nil {
 		return e.retryTask(ctx, task, afterDrainMS, err, task.Progress)
 	}
@@ -183,18 +182,16 @@ func (e *Executor) leaderTransferFinalTargetCatchUp(ctx context.Context, task Ta
 	if err != nil {
 		return err
 	}
-	if e.fenceExpired(task, meta, nowMS) {
-		return e.resetExpiredLeaderTransferFence(ctx, task, meta, nowMS)
+	afterReadMS := e.freshNowMS(nowMS)
+	if e.fenceExpired(task, meta, afterReadMS) {
+		return e.resetExpiredLeaderTransferFence(ctx, task, meta, afterReadMS)
 	}
 	if task.DrainedFenceVersion != meta.WriteFenceVersion {
-		return e.retryTask(ctx, task, nowMS, slotmeta.ErrStaleMeta, task.Progress)
+		return e.retryTask(ctx, task, afterReadMS, slotmeta.ErrStaleMeta, task.Progress)
 	}
 	projected := channelmeta.ProjectChannelMeta(meta)
 	report, err := e.probeClient.ProbeChannel(ctx, channel.NodeID(task.TargetNode), projected)
-	afterProbeMS := e.now().UnixMilli()
-	if afterProbeMS < nowMS {
-		afterProbeMS = nowMS
-	}
+	afterProbeMS := e.freshNowMS(afterReadMS)
 	if err != nil {
 		return e.retryTask(ctx, task, afterProbeMS, err, task.Progress)
 	}
@@ -265,18 +262,16 @@ func (e *Executor) leaderTransferVerifyNewLeader(ctx context.Context, task Task,
 	if err != nil {
 		return err
 	}
+	afterReadMS := e.freshNowMS(nowMS)
 	if meta.Leader != channelMigrationDesiredLeader(task) {
-		return e.retryTask(ctx, task, nowMS, channel.ErrNotReady, task.Progress)
+		return e.retryTask(ctx, task, afterReadMS, channel.ErrNotReady, task.Progress)
 	}
 	if e.probeClient == nil {
 		return fmt.Errorf("%w: probe client", ErrMissingDependency)
 	}
 	projected := channelmeta.ProjectChannelMeta(meta)
 	report, err := e.probeClient.ProbeChannel(ctx, channel.NodeID(task.TargetNode), projected)
-	afterProbeMS := e.now().UnixMilli()
-	if afterProbeMS < nowMS {
-		afterProbeMS = nowMS
-	}
+	afterProbeMS := e.freshNowMS(afterReadMS)
 	if err != nil {
 		return e.retryTask(ctx, task, afterProbeMS, err, task.Progress)
 	}

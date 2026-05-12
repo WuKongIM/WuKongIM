@@ -177,7 +177,7 @@ func TestExecutorUsesFreshTimePerTaskAfterSlowPriorTask(t *testing.T) {
 	first.Phase = slotmeta.ChannelMigrationPhaseWriteFence
 	second := withOwner(
 		executorTestTask("second", "ch-second", slotmeta.ChannelMigrationStatusRunning, now.Add(-time.Second)),
-		11,
+		9,
 		now.Add(5*time.Millisecond),
 	)
 	store := newFakeExecutorStore(first, second)
@@ -204,6 +204,7 @@ func TestExecutorUsesFreshTimePerTaskAfterSlowPriorTask(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, []string{"first", "second"}, store.claimedTaskIDs())
+	require.Greater(t, store.task("second").OwnerLeaseUntilMS, clock.Now().UnixMilli())
 }
 
 func TestExecutorGarbageCollectsTerminalTasksAfterRetention(t *testing.T) {
