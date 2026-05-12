@@ -73,6 +73,6 @@ test("renders Chinese navigation labels and cluster context when locale is zh-CN
   )
 
   expect(await screen.findByRole("link", { name: "仪表盘" })).toBeInTheDocument()
-  expect(screen.getByText("运行时")).toBeInTheDocument()
+  expect(screen.getByText("全局集群")).toBeInTheDocument()
   expect(screen.getByText("单节点集群")).toBeInTheDocument()
 })

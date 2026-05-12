@@ -284,7 +284,7 @@ beforeEach(() => {
 it.each([
   ["/dashboard", "Dashboard", "Operations Summary"],
   ["/nodes", "Nodes", "Address"],
-  ["/channels", "Channels", "Channel ID"],
+  ["/channel-cluster/list", "Channel List", "Channel ID"],
   ["/connections", "Connections", "Session"],
   ["/messages", "Messages", "Channel ID"],
   ["/slots", "Slots", "Slot"],
@@ -342,7 +342,7 @@ test("dashboard shows monochrome workbench sections", async () => {
 it.each([
   ["/dashboard", "仪表盘", "操作摘要"],
   ["/nodes", "节点", "地址"],
-  ["/channels", "频道", "频道 ID"],
+  ["/channel-cluster/list", "频道列表", "频道 ID"],
   ["/connections", "连接", "会话"],
   ["/messages", "消息", "频道 ID"],
   ["/slots", "槽位", "槽位"],
