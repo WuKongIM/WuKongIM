@@ -137,6 +137,72 @@ func TestLeaderTransferBlocksWhenFinalCatchUpNeedsSnapshot(t *testing.T) {
 	require.Equal(t, []string{slotmeta.ChannelMigrationBlockerNeedsSnapshotBootstrap}, metrics.blockers)
 }
 
+func TestLeaderTransferDoesNotBlockAfterFinalCatchUpProbeExpiresOwnerLease(t *testing.T) {
+	now := time.UnixMilli(22600)
+	clock := &leaderTransferClock{now: now}
+	task := leaderTransferDrainedTask("task-snapshot-expired-owner", "channel-snapshot-expired-owner", 1, 2, now, slotmeta.ChannelMigrationPhaseFinalTargetCatchUp)
+	store := newFakeExecutorStore(task)
+	store.putRuntimeMeta(leaderTransferFencedRuntimeMeta(task, 1, 2, now))
+	probes := &recordingProbeClient{
+		report: ProbeReport{
+			ChannelKey:       leaderTransferChannelKey(task.ChannelID),
+			ChannelEpoch:     5,
+			LeaderEpoch:      7,
+			ReplicaID:        2,
+			SnapshotRequired: true,
+		},
+		onProbe: func() {
+			clock.advance(10 * time.Millisecond)
+		},
+	}
+	executor := newLeaderTransferExecutorHarness(store, clock, &recordingMigrationControl{}, probes, 9)
+	executor.cfg.OwnerLease = 5 * time.Millisecond
+
+	err := executor.Tick(context.Background())
+
+	require.NoError(t, err)
+	gotTask := store.task(task.TaskID)
+	require.Equal(t, slotmeta.ChannelMigrationStatusRunning, gotTask.Status)
+	require.Equal(t, slotmeta.ChannelMigrationPhaseFinalTargetCatchUp, gotTask.Phase)
+	require.Empty(t, gotTask.BlockerCode)
+	require.Empty(t, gotTask.LastError)
+	require.Empty(t, store.advancedTaskIDs())
+}
+
+func TestLeaderTransferDoesNotAdvanceAfterProbeTargetExpiresOwnerLease(t *testing.T) {
+	now := time.UnixMilli(22700)
+	clock := &leaderTransferClock{now: now}
+	task := leaderTransferTask("task-probe-expired-owner", "channel-probe-expired-owner", 1, 2, now)
+	task.Status = slotmeta.ChannelMigrationStatusRunning
+	task.Phase = slotmeta.ChannelMigrationPhaseProbeTarget
+	store := newFakeExecutorStore(task)
+	store.putRuntimeMeta(leaderTransferRuntimeMeta(task.ChannelID, 1, 2, now))
+	probes := &recordingProbeClient{
+		report: ProbeReport{
+			ChannelKey:   leaderTransferChannelKey(task.ChannelID),
+			ChannelEpoch: 5,
+			LeaderEpoch:  7,
+			ReplicaID:    2,
+			OffsetEpoch:  5,
+			LogEndOffset: 20,
+			CheckpointHW: 18,
+		},
+		onProbe: func() {
+			clock.advance(10 * time.Millisecond)
+		},
+	}
+	executor := newLeaderTransferExecutorHarness(store, clock, &recordingMigrationControl{}, probes, 9)
+	executor.cfg.OwnerLease = 5 * time.Millisecond
+
+	err := executor.Tick(context.Background())
+
+	require.NoError(t, err)
+	gotTask := store.task(task.TaskID)
+	require.Equal(t, slotmeta.ChannelMigrationPhaseProbeTarget, gotTask.Phase)
+	require.Zero(t, gotTask.Progress.TargetLEO)
+	require.Empty(t, store.advancedTaskIDs())
+}
+
 func TestLeaderTransferDrainsRemoteCurrentLeaderThroughMigrationControlClient(t *testing.T) {
 	now := time.UnixMilli(23000)
 	task := leaderTransferTask("task-remote-drain", "channel-remote-drain", 3, 2, now)

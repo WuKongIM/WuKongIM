@@ -68,11 +68,18 @@ func (e *Executor) leaderTransferProbeTarget(ctx context.Context, task Task, now
 	}
 	projected := channelmeta.ProjectChannelMeta(meta)
 	report, err := e.probeClient.ProbeChannel(ctx, channel.NodeID(task.TargetNode), projected)
+	afterProbeMS := e.now().UnixMilli()
+	if afterProbeMS < nowMS {
+		afterProbeMS = nowMS
+	}
 	if err != nil {
-		return e.retryTask(ctx, task, nowMS, err, task.Progress)
+		return e.retryTask(ctx, task, afterProbeMS, err, task.Progress)
 	}
 	if err := validateTargetReportFence(projected, channel.NodeID(task.TargetNode), report); err != nil {
-		return e.retryTask(ctx, task, nowMS, err, task.Progress)
+		return e.retryTask(ctx, task, afterProbeMS, err, task.Progress)
+	}
+	if err := e.ensureTaskOwnership(ctx, task, afterProbeMS); err != nil {
+		return err
 	}
 	progress := task.Progress
 	progress.TargetLEO = report.LogEndOffset
@@ -82,7 +89,7 @@ func (e *Executor) leaderTransferProbeTarget(ctx context.Context, task Task, now
 	} else {
 		progress.LagRecords = progress.LeaderLEO - report.LogEndOffset
 	}
-	return e.advanceTask(ctx, task, nowMS, task.Status, slotmeta.ChannelMigrationPhaseWriteFence, advanceTaskOptions{Progress: progress})
+	return e.advanceTask(ctx, task, afterProbeMS, task.Status, slotmeta.ChannelMigrationPhaseWriteFence, advanceTaskOptions{Progress: progress})
 }
 
 func (e *Executor) leaderTransferWriteFence(ctx context.Context, task Task, nowMS int64) error {
@@ -180,8 +187,15 @@ func (e *Executor) leaderTransferFinalTargetCatchUp(ctx context.Context, task Ta
 	}
 	projected := channelmeta.ProjectChannelMeta(meta)
 	report, err := e.probeClient.ProbeChannel(ctx, channel.NodeID(task.TargetNode), projected)
+	afterProbeMS := e.now().UnixMilli()
+	if afterProbeMS < nowMS {
+		afterProbeMS = nowMS
+	}
 	if err != nil {
-		return e.retryTask(ctx, task, nowMS, err, task.Progress)
+		return e.retryTask(ctx, task, afterProbeMS, err, task.Progress)
+	}
+	if err := e.ensureTaskOwnership(ctx, task, afterProbeMS); err != nil {
+		return err
 	}
 	progress := task.Progress
 	progress.TargetLEO = report.LogEndOffset
@@ -196,13 +210,13 @@ func (e *Executor) leaderTransferFinalTargetCatchUp(ctx context.Context, task Ta
 	})
 	if err != nil {
 		if errors.Is(err, channel.ErrSnapshotRequired) {
-			return e.blockTask(ctx, task, nowMS, slotmeta.ChannelMigrationBlockerNeedsSnapshotBootstrap, channel.ErrSnapshotRequired.Error(), progress)
+			return e.blockTask(ctx, task, afterProbeMS, slotmeta.ChannelMigrationBlockerNeedsSnapshotBootstrap, channel.ErrSnapshotRequired.Error(), progress)
 		}
-		return e.retryTask(ctx, task, nowMS, err, progress)
+		return e.retryTask(ctx, task, afterProbeMS, err, progress)
 	}
 	progress.TargetLEO = proof.TargetLEO
 	progress.TargetCheckpointHW = proof.TargetCheckpointHW
-	return e.advanceTask(ctx, task, nowMS, task.Status, slotmeta.ChannelMigrationPhaseCommitLeaderMeta, advanceTaskOptions{Progress: progress})
+	return e.advanceTask(ctx, task, afterProbeMS, task.Status, slotmeta.ChannelMigrationPhaseCommitLeaderMeta, advanceTaskOptions{Progress: progress})
 }
 
 func (e *Executor) leaderTransferCommitLeaderMeta(ctx context.Context, task Task, nowMS int64) error {
