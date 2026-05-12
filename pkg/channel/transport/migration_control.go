@@ -197,6 +197,8 @@ func normalizeMigrationControlError(err error) error {
 		channel.ErrStaleMeta,
 		channel.ErrWriteFenced,
 		channel.ErrNotReady,
+		channel.ErrLeaseExpired,
+		channel.ErrChannelNotFound,
 	} {
 		if errors.Is(err, target) || strings.Contains(err.Error(), target.Error()) {
 			return target
