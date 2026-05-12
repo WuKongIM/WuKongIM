@@ -97,7 +97,21 @@ storage/sync key: g1____cmd / group
 client view:      g1 / group
 ```
 
-If the existing `UserConversationState` storage does not carry `ConversationType`, P2d-c implementation should extend the schema, codecs, and RPC contracts or add a dedicated CMD conversation state table. The implementation plan should choose the smallest safe persistence change after checking `pkg/slot/meta` and `pkg/slot/proxy` codecs.
+CMD state isolation is mandatory. The current ordinary `UserConversationState` path is type-less and `/conversation/sync` lists active states without a conversation-type filter. P2d-c must not write CMD rows into that existing active index unless it first adds a durable conversation-type dimension everywhere the state is keyed, indexed, encoded, and served over RPC.
+
+The implementation plan must choose one of these two safe persistence shapes:
+
+1. Add a dedicated CMD conversation state store/table and dedicated active index used only by `/message/sync` and `/message/syncack`.
+2. Extend `UserConversationState` with `ConversationType` as part of the primary key, active index, codecs, and node RPC contracts.
+
+Either shape must expose type-scoped APIs:
+
+- ordinary conversation APIs read/write only `ConversationType=Chat`;
+- CMD sync APIs read/write only `ConversationType=CMD`;
+- chat clear unread, set unread, delete, and `/conversation/sync` must not touch CMD state;
+- CMD `/message/syncack` must not touch chat state.
+
+If the implementation cannot provide type-scoped storage in the current phase, P2d-c must stop before writing CMD conversation rows. A suffix-only filter on `____cmd` is not sufficient because it still allows CMD rows into ordinary active scans and future chat maintenance APIs.
 
 ## CMD Conversation Projection
 
@@ -133,7 +147,7 @@ Rules:
 - For visitors CMD channels, use the `(source, CustomerService)` subscriber source plus visitor overlay.
 - For info CMD channels with temporary overlays, use the non-reusable snapshot from the resolver.
 - For durable request-scoped temp CMD messages carrying `MessageScopedUIDs`, create state only for those UIDs.
-- Sender read behavior should match the existing chat convention: the sender may be marked read to the sent `MessageSeq` so the sender does not get self-unread CMD messages.
+- Sender read behavior is deterministic: if the sender UID is included in the CMD recipient set, create/update the sender CMD state with `ReadSeq=MessageSeq` and `ActiveAt` updated, so self-sent durable CMD messages do not become unread for the sender. If the sender is not in the resolved recipient set, do not create an extra sender-only CMD state.
 
 The projector should enqueue/write active hints or state asynchronously, similar to the current conversation projector. It must not block sendack on large subscriber scans or remote UID-owner writes.
 
@@ -145,18 +159,21 @@ P2d-c restores the legacy-compatible HTTP endpoint:
 POST /message/sync
 ```
 
-Minimal request shape:
+Legacy-compatible request shape:
 
 ```json
 {
   "uid": "u1",
+  "message_seq": 0,
   "limit": 200
 }
 ```
 
+`message_seq` is the legacy client global maximum message sequence field. P2d-c should accept it for wire compatibility, but CMD sync selection is conversation-record based (`ReadSeq + 1` per command channel). The implementation plan may ignore `message_seq` for selection unless a later compatibility test proves an old client depends on it.
+
 Access adapter responsibilities:
 
-- Parse the legacy request fields.
+- Parse the legacy request fields, including `message_seq`.
 - Apply default and maximum limits.
 - Forward or RPC to the UID-owned node if the API node is not authoritative for the UID's CMD sync state.
 - Call a reusable usecase, for example `cmdsync.App.Sync`.
@@ -172,10 +189,18 @@ cmdsync.App.Sync(uid, limit)
        start seq = ReadSeq + 1
        fetch messages from command channel log source____cmd
   -> convert each returned message to source-channel client view
+  -> sort deterministically by message timestamp, command channel key, and message seq
   -> globally limit the response to at most limit messages
-  -> record per-channel last returned seq in a UID-owned sync record cache
+  -> record per-channel last seq actually returned in a UID-owned sync record generation
   -> return messages
 ```
+
+Ordering and limit rules:
+
+- Response ordering must be deterministic across retries. Use ascending delivery order unless legacy API tests require a different order; tie-break by `CommandChannelID`, `ChannelType`, and `MessageSeq`.
+- The global `limit` applies after merging candidate messages from all CMD conversations.
+- If a channel fetch returns more messages than the remaining global limit, the sync record must store only the last sequence actually returned to the client, not the last sequence fetched.
+- `/message/sync` must not create sync records for channels that produced no returned messages.
 
 Message-log fetch authority:
 
@@ -200,17 +225,20 @@ P2d-c restores the legacy-compatible HTTP endpoint:
 POST /message/syncack
 ```
 
-Minimal request shape:
+Legacy-compatible request shape:
 
 ```json
 {
-  "uid": "u1"
+  "uid": "u1",
+  "last_message_seq": 123
 }
 ```
 
+`last_message_seq` is required for legacy wire compatibility and should be validated as non-zero by the access adapter. It is not sufficient to choose which per-channel cursors to advance; exact channel advancement comes from the latest UID-owned sync record generation.
+
 Access adapter responsibilities:
 
-- Parse and validate `uid`.
+- Parse and validate `uid` and `last_message_seq`.
 - Forward or RPC to the UID-owned node if needed.
 - Call `cmdsync.App.SyncAck`.
 - Return success for empty/no-op acks.
@@ -231,8 +259,9 @@ Rules:
 
 - Sync ack updates only CMD conversation read state.
 - Sync ack never advances ordinary conversation read state.
-- Duplicate `syncack` calls are idempotent.
-- If the process restarts and the in-memory sync record cache is lost, `syncack` becomes a no-op; the next `/message/sync` may return those messages again.
+- Duplicate `syncack` calls are idempotent when no sync records remain.
+- If the process restarts and the in-memory sync record cache is lost, a valid `syncack` request becomes a no-op; the next `/message/sync` may return those messages again.
+- `last_message_seq` must not be used to advance every CMD conversation blindly.
 - Missing CMD conversation rows should be ignored or logged as warnings, not surfaced as client errors.
 
 ## Sync Record Cache
@@ -242,20 +271,27 @@ Legacy `/message/syncack` does not carry explicit per-message ack details. It re
 P2d-c should preserve that compatibility behavior with a UID-owned in-memory sync record cache:
 
 ```text
-SyncRecord:
+SyncRecordGeneration:
   UID
+  GenerationID
+  Records[]
+  CreatedAt
+
+SyncRecord:
   CommandChannelID
   ChannelType
-  LastMsgSeq
-  CreatedAt
+  LastReturnedMsgSeq
 ```
 
 Requirements:
 
-- Records are scoped by UID.
-- `/message/sync` replaces or appends records for the returned channels.
-- `/message/syncack` atomically reads and clears records.
-- Records should have a bounded TTL or bounded per-UID size to avoid unbounded memory growth.
+- Records are scoped by UID and by generation.
+- Each successful `/message/sync` replaces the previous generation for that UID with records from the latest response only.
+- Latest sync wins for concurrent `/message/sync` calls on the same UID.
+- `/message/syncack` atomically reads and clears only the latest generation for the UID.
+- Records must be created only for channels that returned at least one message in that response.
+- `LastReturnedMsgSeq` must be the last sequence actually returned to the client for that channel.
+- Records should have a bounded TTL and bounded per-UID size to avoid unbounded memory growth.
 - Losing records is safe but may cause duplicate sync until the client receives and acks again.
 
 ## Cluster Authority Model
@@ -342,11 +378,14 @@ P2d-c implementation should add focused unit/integration tests for:
 - Durable already-addressed `source____cmd` send creates CMD conversation state.
 - Ordinary `/conversation/sync` still does not return CMD conversations.
 - `/message/sync` returns durable CMD messages and strips `____cmd` from client view.
-- `/message/syncack` advances CMD read cursor, and a second `/message/sync` does not return acked messages.
+- `/message/syncack` advances CMD read cursor from the latest sync record generation, and a second `/message/sync` does not return acked messages.
 - `NoPersist + SyncOnce` realtime CMD does not create CMD conversation state and does not appear in `/message/sync`.
 - Durable request-scoped CMD creates CMD conversation state only for `MessageScopedUIDs` during live committed dispatch.
 - Multi-node sync reads CMD state from the UID owner and messages from the command channel owner.
-- Process restart/lost sync-record cache makes `/message/syncack` a no-op and allows safe duplicate sync.
+- Process restart/lost sync-record cache makes a valid `/message/syncack` a no-op and allows safe duplicate sync.
+- Stale sync records from an earlier generation cannot advance CMD read cursors after a later `/message/sync`.
+- CMD state cannot leak into `/conversation/sync`, and chat clear/delete/read operations do not touch CMD state.
+- Self-sent durable CMD messages create/update sender state with `ReadSeq=MessageSeq` when the sender is part of the resolved recipient set.
 
 ## Implementation Notes for the Future Plan
 
