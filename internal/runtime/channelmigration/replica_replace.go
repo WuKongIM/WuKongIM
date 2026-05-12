@@ -448,7 +448,8 @@ func isEmbeddedLeaderTransferPhase(task Task) bool {
 		slotmeta.ChannelMigrationPhaseVerifyNewLeader:
 		return true
 	case slotmeta.ChannelMigrationPhaseFinalTargetCatchUp:
-		return task.DrainedLeaderNode == task.SourceNode
+		return task.DrainedLeaderNode == task.SourceNode &&
+			task.DrainedChannelEpoch == task.BaseChannelEpoch
 	default:
 		return false
 	}

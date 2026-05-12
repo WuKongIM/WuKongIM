@@ -147,6 +147,7 @@ func (b *WriteBatch) PromoteLearnerAndRemoveReplica(hashSlot uint16, req Channel
 		}
 		if req.SourceNode != task.SourceNode ||
 			req.TargetNode != task.TargetNode ||
+			meta.Leader == req.SourceNode ||
 			!containsUint64(meta.Replicas, req.SourceNode) ||
 			!containsUint64(meta.Replicas, req.TargetNode) ||
 			!containsUint64(meta.ISR, req.SourceNode) ||
@@ -189,6 +190,14 @@ func (b *WriteBatch) ClearChannelWriteFence(hashSlot uint16, req ChannelMigratio
 		nextTask.Phase = req.Phase
 		nextTask.UpdatedAtMS = req.UpdatedAtMS
 		nextTask.CompletedAtMS = req.CompletedAtMS
+		if task.Kind == ChannelMigrationKindReplicaReplace &&
+			task.EmbeddedLeaderTransfer &&
+			task.Phase == ChannelMigrationPhaseVerifyNewLeader &&
+			req.Status == ChannelMigrationStatusRunning &&
+			req.Phase == ChannelMigrationPhaseAddLearner {
+			nextTask.EmbeddedLeaderTransfer = false
+			nextTask.EmbeddedDesiredLeader = 0
+		}
 
 		nextMeta := clearChannelRuntimeMetaFence(meta)
 		return nextTask, nextMeta, nil
