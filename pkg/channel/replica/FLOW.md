@@ -142,7 +142,9 @@ Recovery loads checkpoint, epoch history, snapshot presence, local retention sta
 `ApplyMeta`, `BecomeLeader`, `BecomeFollower`, `Tombstone`, and `Close` all submit loop commands.
 
 - `ApplyMeta` normalizes replica/ISR lists, validates channel/epoch/leader fences, bumps `roleGeneration`, and restarts leader reconcile if the local role is leader/fenced leader. Same-leader meta refresh can execute the local/probe reconcile effect immediately so checkpoint-only lag does not leave `CommitReady=false`.
+- Membership is intentionally asymmetric during migration: `learner = Replicas - ISR`. Learners may receive replication/fetch traffic through the runtime, but HW quorum, `MinISR` write admission, leader reconcile quorum, and promotion dry-run candidates are computed from `ISR` only until authoritative slot metadata promotes the learner into `ISR`.
 - A same-leader higher `ChannelEpoch` first gates append admission with `CommitReady=false`, persists `EpochPoint{Epoch: newEpoch, StartOffset: currentLEO}` through `BeginEpoch`, and only then publishes the new epoch. If the durable boundary fails, the replica stays not-ready so a later authoritative retry can reattempt the boundary.
+- Migration membership changes that keep the same leader must use that same-leader epoch boundary before the new membership is considered append-ready; publishing the higher epoch before durable `EpochPoint` storage would make later reconcile unable to distinguish pre-cutover and post-cutover tails.
 - `BecomeLeader` validates that the local node is the new leader, the replica has recovered, LEO is not below HW, and the lease is still valid. If a new epoch point is needed, it first emits `beginLeaderEpochEffect`; only the fenced durable result publishes leader state.
 - `BecomeFollower` applies meta, changes role, cancels reconcile/begin-epoch effects, and fails all outstanding appends with `ErrNotLeader`.
 - `Tombstone` marks the replica tombstoned and rejects future mutating operations.
@@ -182,7 +184,7 @@ If records are needed, the loop emits a read-log effect with captured leader LEO
 
 ### 6.5 HW And Checkpoint Progress
 
-Leader progress uses `quorumProgressCandidate()`: sort ISR match offsets, default missing ISR entries to current HW, and choose the `MinISR`-th highest offset. A candidate below HW is corrupt; a candidate equal to HW is a no-op; a candidate above LEO is corrupt.
+Leader progress uses `quorumProgressCandidate()`: sort ISR match offsets, default missing ISR entries to current HW, and choose the `MinISR`-th highest offset. A candidate below HW is corrupt; a candidate equal to HW is a no-op; a candidate above LEO is corrupt. Learner progress is deliberately excluded from this calculation until the slot layer promotes the learner into `ISR`.
 
 When HW advances, the loop:
 
@@ -217,6 +219,8 @@ The durable reconcile result is fenced by effect id, channel key, epoch, leader 
 `InstallSnapshot()` validates snapshot channel/epoch/end offset under the loop. Snapshot end must not go below runtime HW or current log start, and log LEO must already cover the snapshot end. The effect installs payload, checkpoint, and epoch point through `InstallSnapshotAtomically` when available, then reloads durable view.
 
 A successful fenced result publishes follower state with `LogStartOffset == HW == CheckpointHW == snapshot.EndOffset`, updates epoch history, clears reconcile/begin-epoch state, fails outstanding appends, and bumps `roleGeneration`.
+
+Channel replica migration V1 does not use replica snapshot install as an automatic catch-up path. The migration proof evaluator rejects promotion with `ErrSnapshotRequired` when the target's `LogStartOffset` is above the cutover HW, so that target must not enter `ISR` until snapshot transfer/install support has caught it up or the operator resolves the gap.
 
 ### 6.9 Promotion Dry-run
 
