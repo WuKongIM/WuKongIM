@@ -11,12 +11,13 @@ import (
 )
 
 const (
-	rpcStatusOK              = "ok"
-	rpcStatusNotLeader       = "not_leader"
-	rpcStatusNoLeader        = "no_leader"
-	rpcStatusNoSlot          = "no_group"
-	rpcStatusRejected        = "rejected"
-	rpcStatusNoSafeCandidate = "no_safe_candidate"
+	rpcStatusOK                   = "ok"
+	rpcStatusNotLeader            = "not_leader"
+	rpcStatusNoLeader             = "no_leader"
+	rpcStatusNoSlot               = "no_group"
+	rpcStatusRejected             = "rejected"
+	rpcStatusNoSafeCandidate      = "no_safe_candidate"
+	rpcStatusRetryableWriteFenced = "write_fenced"
 
 	presenceOpRegister        = "register"
 	presenceOpUnregister      = "unregister"
