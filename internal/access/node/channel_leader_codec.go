@@ -13,6 +13,8 @@ var (
 	channelLeaderRepairResponseMagic   = [...]byte{'W', 'K', 'L', 'S', 1}
 	channelLeaderEvaluateRequestMagic  = [...]byte{'W', 'K', 'L', 'E', 1}
 	channelLeaderEvaluateResponseMagic = [...]byte{'W', 'K', 'L', 'P', 1}
+	channelLeaderTransferRequestMagic  = [...]byte{'W', 'K', 'L', 'T', 1}
+	channelLeaderTransferResponseMagic = [...]byte{'W', 'K', 'L', 'U', 1}
 )
 
 // encodeChannelLeaderRepairRequestBinary encodes channel leader repair requests without JSON reflection.
@@ -132,6 +134,73 @@ func decodeChannelLeaderEvaluateResponseBinary(body []byte) (channelLeaderEvalua
 	return resp, nil
 }
 
+// encodeChannelLeaderTransferRequestBinary encodes channel leader transfer requests without JSON reflection.
+func encodeChannelLeaderTransferRequestBinary(req ChannelLeaderTransferRequest) ([]byte, error) {
+	dst := make([]byte, 0, len(channelLeaderTransferRequestMagic)+len(req.ChannelID.ID)+40)
+	dst = append(dst, channelLeaderTransferRequestMagic[:]...)
+	dst = appendChannelID(dst, req.ChannelID)
+	dst = appendUvarint(dst, req.ObservedChannelEpoch)
+	dst = appendUvarint(dst, req.ObservedLeaderEpoch)
+	dst = appendUvarint(dst, req.TargetNodeID)
+	return dst, nil
+}
+
+func decodeChannelLeaderTransferRequest(body []byte) (ChannelLeaderTransferRequest, error) {
+	if !isChannelLeaderTransferRequestBinary(body) {
+		return ChannelLeaderTransferRequest{}, fmt.Errorf("access/node: invalid channel leader transfer request codec")
+	}
+	offset := len(channelLeaderTransferRequestMagic)
+	var req ChannelLeaderTransferRequest
+	var err error
+	if req.ChannelID, offset, err = readChannelID(body, offset); err != nil {
+		return ChannelLeaderTransferRequest{}, err
+	}
+	if req.ObservedChannelEpoch, offset, err = readUvarint(body, offset); err != nil {
+		return ChannelLeaderTransferRequest{}, err
+	}
+	if req.ObservedLeaderEpoch, offset, err = readUvarint(body, offset); err != nil {
+		return ChannelLeaderTransferRequest{}, err
+	}
+	if req.TargetNodeID, offset, err = readUvarint(body, offset); err != nil {
+		return ChannelLeaderTransferRequest{}, err
+	}
+	if offset != len(body) {
+		return ChannelLeaderTransferRequest{}, fmt.Errorf("access/node: trailing channel leader transfer request bytes")
+	}
+	return req, nil
+}
+
+func encodeChannelLeaderTransferResponseBinary(resp channelLeaderTransferResponse) ([]byte, error) {
+	dst := make([]byte, 0, len(channelLeaderTransferResponseMagic)+128)
+	dst = append(dst, channelLeaderTransferResponseMagic[:]...)
+	dst = appendString(dst, resp.Status)
+	dst = appendUvarint(dst, resp.LeaderID)
+	dst = appendChannelLeaderTransferResultPtr(dst, resp.Result)
+	return dst, nil
+}
+
+func decodeChannelLeaderTransferResponseBinary(body []byte) (channelLeaderTransferResponse, error) {
+	if !isChannelLeaderTransferResponseBinary(body) {
+		return channelLeaderTransferResponse{}, fmt.Errorf("access/node: invalid channel leader transfer response codec")
+	}
+	offset := len(channelLeaderTransferResponseMagic)
+	var resp channelLeaderTransferResponse
+	var err error
+	if resp.Status, offset, err = readString(body, offset); err != nil {
+		return channelLeaderTransferResponse{}, err
+	}
+	if resp.LeaderID, offset, err = readUvarint(body, offset); err != nil {
+		return channelLeaderTransferResponse{}, err
+	}
+	if resp.Result, offset, err = readChannelLeaderTransferResultPtr(body, offset); err != nil {
+		return channelLeaderTransferResponse{}, err
+	}
+	if offset != len(body) {
+		return channelLeaderTransferResponse{}, fmt.Errorf("access/node: trailing channel leader transfer response bytes")
+	}
+	return resp, nil
+}
+
 func isChannelLeaderRepairRequestBinary(body []byte) bool {
 	return hasMagic(body, channelLeaderRepairRequestMagic[:])
 }
@@ -146,6 +215,14 @@ func isChannelLeaderEvaluateRequestBinary(body []byte) bool {
 
 func isChannelLeaderEvaluateResponseBinary(body []byte) bool {
 	return hasMagic(body, channelLeaderEvaluateResponseMagic[:])
+}
+
+func isChannelLeaderTransferRequestBinary(body []byte) bool {
+	return hasMagic(body, channelLeaderTransferRequestMagic[:])
+}
+
+func isChannelLeaderTransferResponseBinary(body []byte) bool {
+	return hasMagic(body, channelLeaderTransferResponseMagic[:])
 }
 
 func appendChannelID(dst []byte, id channel.ChannelID) []byte {
@@ -187,6 +264,31 @@ func readChannelLeaderRepairResultPtr(body []byte, offset int) (*ChannelLeaderRe
 		return nil, offset, err
 	}
 	return &ChannelLeaderRepairResult{Meta: meta, Changed: changed}, next, nil
+}
+
+func appendChannelLeaderTransferResultPtr(dst []byte, result *ChannelLeaderTransferResult) []byte {
+	if result == nil {
+		return append(dst, 0)
+	}
+	dst = append(dst, 1)
+	dst = appendChannelRuntimeMeta(dst, result.Meta)
+	return appendNodeBool(dst, result.Changed)
+}
+
+func readChannelLeaderTransferResultPtr(body []byte, offset int) (*ChannelLeaderTransferResult, int, error) {
+	marker, next, err := readNodeMarker(body, offset, "channel leader transfer result")
+	if err != nil || marker == 0 {
+		return nil, next, err
+	}
+	meta, next, err := readChannelRuntimeMeta(body, next)
+	if err != nil {
+		return nil, offset, err
+	}
+	changed, next, err := readNodeBool(body, next)
+	if err != nil {
+		return nil, offset, err
+	}
+	return &ChannelLeaderTransferResult{Meta: meta, Changed: changed}, next, nil
 }
 
 func appendChannelLeaderPromotionReportPtr(dst []byte, report *ChannelLeaderPromotionReport) []byte {

@@ -80,12 +80,46 @@ func TestChannelLeaderEvaluateBinaryCodecRoundTrip(t *testing.T) {
 	require.Equal(t, resp, gotResp)
 }
 
+func TestChannelLeaderTransferBinaryCodecRoundTrip(t *testing.T) {
+	req := ChannelLeaderTransferRequest{
+		ChannelID:            channel.ChannelID{ID: "transfer-binary", Type: 2},
+		ObservedChannelEpoch: 11,
+		ObservedLeaderEpoch:  10,
+		TargetNodeID:         3,
+	}
+
+	reqBody, err := encodeChannelLeaderTransferRequestBinary(req)
+	require.NoError(t, err)
+	require.True(t, isChannelLeaderTransferRequestBinary(reqBody))
+
+	gotReq, err := decodeChannelLeaderTransferRequest(reqBody)
+	require.NoError(t, err)
+	require.Equal(t, req, gotReq)
+
+	resp := channelLeaderTransferResponse{
+		Status:   rpcStatusOK,
+		LeaderID: 2,
+		Result: &ChannelLeaderTransferResult{
+			Meta:    testChannelRuntimeMeta("transfer-binary"),
+			Changed: true,
+		},
+	}
+	respBody, err := encodeChannelLeaderTransferResponse(resp)
+	require.NoError(t, err)
+	require.True(t, isChannelLeaderTransferResponseBinary(respBody))
+
+	gotResp, err := decodeChannelLeaderTransferResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, resp, gotResp)
+}
+
 func TestChannelLeaderRPCRejectsJSONPayload(t *testing.T) {
 	adapter := New(Options{
 		Presence:              presence.New(presence.Options{}),
 		Online:                online.NewRegistry(),
 		LocalNodeID:           2,
 		ChannelLeaderRepair:   &stubNodeChannelLeaderRepairer{},
+		ChannelLeaderTransfer: &stubNodeChannelLeaderTransferer{},
 		ChannelLeaderEvaluate: &stubNodeChannelLeaderEvaluator{},
 	})
 
@@ -95,6 +129,10 @@ func TestChannelLeaderRPCRejectsJSONPayload(t *testing.T) {
 
 	evaluateBody := []byte(`{"meta":{"channel_id":"evaluate-json"}}`)
 	_, err = adapter.handleChannelLeaderEvaluateRPC(context.Background(), evaluateBody)
+	require.Error(t, err)
+
+	transferBody := []byte(`{"channel_id":{"id":"transfer-json","type":2},"target_node_id":2}`)
+	_, err = adapter.handleChannelLeaderTransferRPC(context.Background(), transferBody)
 	require.Error(t, err)
 }
 
