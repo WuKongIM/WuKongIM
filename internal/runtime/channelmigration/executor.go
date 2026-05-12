@@ -29,6 +29,10 @@ type Executor struct {
 	slots SlotLeadership
 	// metrics records executor activity without affecting task progress.
 	metrics Metrics
+	// probeClient reads target replica proofs for catch-up decisions.
+	probeClient ProbeClient
+	// migrationControl sends migration commands to current channel leaders.
+	migrationControl channel.MigrationControlClient
 	// localNode is the node ID written into owner leases.
 	localNode channel.NodeID
 	// now supplies wall-clock time for leases, retries, and cleanup cutoffs.
@@ -55,13 +59,15 @@ func NewExecutor(opts ExecutorOptions) *Executor {
 		logger = wklog.NewNop()
 	}
 	return &Executor{
-		store:     opts.Store,
-		slots:     opts.Slots,
-		metrics:   metrics,
-		localNode: opts.LocalNode,
-		now:       now,
-		cfg:       cfg,
-		log:       logger,
+		store:            opts.Store,
+		slots:            opts.Slots,
+		metrics:          metrics,
+		probeClient:      opts.ProbeClient,
+		migrationControl: opts.MigrationControl,
+		localNode:        opts.LocalNode,
+		now:              now,
+		cfg:              cfg,
+		log:              logger,
 	}
 }
 
@@ -110,6 +116,9 @@ func (e *Executor) runOne(ctx context.Context, task Task, nowMS int64) error {
 	}
 	if err := e.dispatchPhase(ctx, claimed, nowMS); err != nil {
 		e.metrics.RecordRetry(claimed, err)
+		if errors.Is(err, errOwnerCheckFailed) {
+			return nil
+		}
 		if errors.Is(err, ErrPhaseNotImplemented) {
 			return nil
 		}
@@ -150,6 +159,10 @@ func (e *Executor) claimOwnerLease(ctx context.Context, task Task, nowMS int64) 
 }
 
 func (e *Executor) dispatchPhase(ctx context.Context, task Task, nowMS int64) error {
+	if task.Kind == slotmeta.ChannelMigrationKindLeaderTransfer {
+		return e.runLeaderTransferPhase(ctx, task, nowMS)
+	}
+
 	err := ErrPhaseNotImplemented
 	nextRunAtMS := int64(0)
 	if e.cfg.RetryBackoff > 0 {
@@ -263,6 +276,8 @@ func normalizeConfig(cfg Config) Config {
 	}
 	cfg.OwnerLease = normalizeDuration(cfg.OwnerLease, 30*time.Second)
 	cfg.RetryBackoff = normalizeDuration(cfg.RetryBackoff, defaultRetryBackoff)
+	cfg.FenceLease = normalizeDuration(cfg.FenceLease, time.Minute)
+	cfg.LeaderLease = normalizeDuration(cfg.LeaderLease, time.Minute)
 	if cfg.GCLimit <= 0 {
 		cfg.GCLimit = 128
 	}
