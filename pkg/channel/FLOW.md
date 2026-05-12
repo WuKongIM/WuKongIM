@@ -101,6 +101,7 @@ steady-state `long_poll`（当前唯一复制主路径）:
   ② channel startup / membership change / response reissue 只负责标记 lane dirty 或 pending，并把 lane 交给 dispatcher；dispatcher 保证同一 `(peer,lane)` 只会 single-flight 发送一条 poll，但真正会阻塞到 RPC 返回的 send 会异步发车，避免被单个 long-poll park 串住其他 lane
   ③ lane 首次发送 `open(full membership + 当前 follower cursorDelta)`，后续 steady-state 只发 `poll(membershipVersionHint + cursorDelta[])`
   ④ leader 侧 Runtime 为每个 `(peer,lane)` 维护 `LeaderLaneSession`；频道把复制事件通过 `replicationTargets` 直达对应 lane
+     复制目标来自 `Replicas`，因此 learner 会收到复制；HW / append quorum / reconcile 安全判断只来自 `ISR`，learner 在提升进 `ISR` 前不影响写可用性
   ⑤ leader 处理 `ServeLanePoll` 时，先应用 `cursorDelta` 推进 follower progress / HW，再从 lane ready queue 挑选可返回的 channel item
   ⑥ replica 层在 follower cursor 低于 `max(RetentionThroughSeq, LogStartOffset)` 且 retention 主导 floor 时返回 typed `RetentionReset`；若 `LogStartOffset` 主导则仍走 snapshot-required
   ⑦ `RetentionReset` 会通过普通 Fetch 与 long-poll item 传播；follower 先 `ApplyRetentionBoundary` 采用本地 floor，再从 `RetainedThroughOffset` / `MinAvailableSeq` 继续拉取，不把空/HW-only 响应当作已追平
@@ -148,6 +149,11 @@ BecomeLeader (replica.go:219 → lifecycle_pipeline.go:87):
   ④ 若本地恢复结果仍是 provisional，则允许完成 leader promotion，但保持 `CommitReady=false`
   ⑤ Runtime 触发 reconcile；只有 `CommitReady=true` 后 leader 才接受新的 Append
   ⑥ BecomeLeader 入场 Lease 已过期会直接返回 ErrLeaseExpired；已发布 leader 在 append/reconcile 中发现 lease 过期才会变为 FencedLeader
+
+ApplyMeta same-leader ChannelEpoch bump:
+  ① 本节点已经是 leader 且权威 Meta 提升 ChannelEpoch 但 leader 不变时，先保持旧 epoch 对外可见并把 `CommitReady=false`
+  ② 通过 durable `BeginEpoch` 写入 `EpochPoint{Epoch:newEpoch, StartOffset:currentLEO}`
+  ③ durable 成功后才发布新 epoch 并按原有 readiness/reconcile 规则重新打开 append；durable 失败则保持 not-ready 等待后续权威重试
 
 BecomeFollower (replica.go:227 → lifecycle_pipeline.go:270):
   ① 应用新 Meta（支持同 channel epoch 下、更高 LeaderEpoch 的 leader transfer）

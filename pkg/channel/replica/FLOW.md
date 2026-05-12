@@ -142,6 +142,7 @@ Recovery loads checkpoint, epoch history, snapshot presence, local retention sta
 `ApplyMeta`, `BecomeLeader`, `BecomeFollower`, `Tombstone`, and `Close` all submit loop commands.
 
 - `ApplyMeta` normalizes replica/ISR lists, validates channel/epoch/leader fences, bumps `roleGeneration`, and restarts leader reconcile if the local role is leader/fenced leader. Same-leader meta refresh can execute the local/probe reconcile effect immediately so checkpoint-only lag does not leave `CommitReady=false`.
+- A same-leader higher `ChannelEpoch` first gates append admission with `CommitReady=false`, persists `EpochPoint{Epoch: newEpoch, StartOffset: currentLEO}` through `BeginEpoch`, and only then publishes the new epoch. If the durable boundary fails, the replica stays not-ready so a later authoritative retry can reattempt the boundary.
 - `BecomeLeader` validates that the local node is the new leader, the replica has recovered, LEO is not below HW, and the lease is still valid. If a new epoch point is needed, it first emits `beginLeaderEpochEffect`; only the fenced durable result publishes leader state.
 - `BecomeFollower` applies meta, changes role, cancels reconcile/begin-epoch effects, and fails all outstanding appends with `ErrNotLeader`.
 - `Tombstone` marks the replica tombstoned and rejects future mutating operations.
@@ -197,7 +198,7 @@ Checkpoint writes are coalesced. A newer pending checkpoint replaces an older qu
 
 `ApplyFetch()` submits `machineApplyFetchCommand`. The loop accepts follower and fenced-leader roles, fences channel/epoch/leader, rejects concurrent follower apply effects, validates optional `TruncateTo`, and validates fetched record indexes are contiguous from `baseLEO+1`.
 
-Record batches may create a new epoch point, append records, and optionally persist a checkpoint up to `min(LeaderHW, newLEO)`. Heartbeats may only move LEO/HW safely and can store a checkpoint without records. Durable work runs under `durableMu` through `ApplyFollowerBatch`, `TruncateLogAndHistory`, or `StoreCheckpointMonotonic`.
+Record batches may create a new epoch point, append records, and optionally persist a checkpoint up to `min(LeaderHW, newLEO)`. Heartbeats may also persist an epoch-only boundary when metadata has advanced but no records exist yet, then move LEO/HW safely and store a checkpoint without records. Durable work runs under `durableMu` through `ApplyFollowerBatch`, `BeginEpoch`, `TruncateLogAndHistory`, or `StoreCheckpointMonotonic`.
 
 The fenced result publishes LEO, HW, CheckpointHW, OffsetEpoch, and CommitReady. If a durable truncate committed before the result became stale, the loop still reflects that truncation so runtime LEO does not remain above local durable log.
 

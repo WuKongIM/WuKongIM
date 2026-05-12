@@ -109,6 +109,41 @@ func TestApplyFetchStoresHeartbeatCheckpointThroughDurableAdapter(t *testing.T) 
 	require.Equal(t, uint64(4), env.replica.state.CheckpointHW)
 }
 
+func TestFollowerPersistsHeartbeatOnlyEpochBoundary(t *testing.T) {
+	env := newFollowerEnv(t)
+	env.log.leo = 5
+	env.replica.state.LEO = 5
+	env.replica.state.HW = 5
+	env.replica.state.CheckpointHW = 5
+	env.replica.state.CommitReady = true
+	env.replica.publishStateLocked()
+
+	meta := activeMeta(8, 1)
+	env.replica.mustApplyMeta(t, meta)
+	require.NoError(t, env.replica.BecomeFollower(meta))
+
+	spy := &spyDurableStore{}
+	env.replica.durable = spy
+	err := env.replica.ApplyFetch(context.Background(), channel.ReplicaApplyFetchRequest{
+		ChannelKey: "group-10",
+		Epoch:      8,
+		Leader:     1,
+		LeaderHW:   5,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, spy.beginEpochCalls)
+	require.Equal(t, channel.EpochPoint{Epoch: 8, StartOffset: 5}, spy.beginEpochPoint)
+	require.Equal(t, uint64(5), spy.beginExpectedLEO)
+	require.Zero(t, spy.applyCalls)
+	require.Zero(t, spy.checkpointCalls)
+	require.Equal(t, []channel.EpochPoint{{Epoch: 7, StartOffset: 0}, {Epoch: 8, StartOffset: 5}}, env.replica.epochHistory)
+	st := env.replica.Status()
+	require.Equal(t, uint64(8), st.OffsetEpoch)
+	require.Equal(t, uint64(5), st.LEO)
+	require.Equal(t, uint64(5), st.HW)
+}
+
 func TestApplyFetchStaleResultAfterMetaChangeIsFenced(t *testing.T) {
 	env := newFollowerEnv(t)
 	blocking := &blockingApplyDurableStore{

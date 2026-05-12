@@ -520,6 +520,7 @@ func TestProgressLoopStaleReconcileProofAfterMetaChangeDoesNotMutate(t *testing.
 	r := newLeaderReplica(t)
 	r.mu.Lock()
 	r.state.LEO = 3
+	r.log.(*fakeLogStore).leo = 3
 	r.progress[r.localNode] = 3
 	r.reconcilePending = map[channel.NodeID]struct{}{2: {}}
 	r.publishStateLocked()
