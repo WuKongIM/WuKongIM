@@ -270,6 +270,44 @@ func TestApplyMetaSameLeaderHigherChannelEpochPersistsEpochPointBeforeAppend(t *
 	require.Equal(t, 1, spy.appendCalls)
 }
 
+func TestApplyMetaSameLeaderBoundaryRejectsOldReconcileCompletion(t *testing.T) {
+	env := newRecoveredLeaderEnv(t)
+	env.log.leo = 12
+	env.checkpoints.checkpoint = channel.Checkpoint{Epoch: 7, LogStartOffset: 0, HW: 12}
+	env.history.points = []channel.EpochPoint{{Epoch: 7, StartOffset: 0}}
+
+	r := newReplicaFromEnv(t, env)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	r.mustApplyMeta(t, meta)
+	require.NoError(t, r.BecomeLeader(meta))
+	r.durable = &spyDurableStore{}
+
+	r.durableMu.Lock()
+	applied := make(chan error, 1)
+	go func() {
+		applied <- r.ApplyMeta(activeMetaWithMinISR(8, 1, 1))
+	}()
+	require.Eventually(t, func() bool {
+		r.mu.RLock()
+		defer r.mu.RUnlock()
+		return r.pendingLeaderEpochEffectID != 0
+	}, time.Second, time.Millisecond)
+
+	result := r.applyLoopEvent(machineCompleteReconcileCommand{Meta: meta})
+	require.ErrorIs(t, result.Err, channel.ErrNotReady)
+	require.False(t, r.Status().CommitReady)
+	_, err := r.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("blocked"), SizeBytes: 7}})
+	require.ErrorIs(t, err, channel.ErrNotReady)
+
+	r.durableMu.Unlock()
+	select {
+	case err := <-applied:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("ApplyMeta did not finish after durable lane release")
+	}
+}
+
 func TestBecomeLeaderReconcilesLocalTailWithoutPeerProbesWhenMinISROne(t *testing.T) {
 	env := newRecoveredLeaderEnv(t)
 	env.log.leo = 5
