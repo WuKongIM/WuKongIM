@@ -88,6 +88,18 @@ type ChannelRuntimeMetaReader interface {
 	GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error)
 }
 
+// ChannelReplicaStatusReader exposes proven live channel runtime status.
+type ChannelReplicaStatusReader interface {
+	// ChannelRuntimeStatus returns the best proven runtime status for one channel.
+	ChannelRuntimeStatus(ctx context.Context, id channel.ChannelID) (channel.ChannelRuntimeStatus, error)
+}
+
+// ChannelLeaderRepairOperator exposes policy-driven channel leader repair.
+type ChannelLeaderRepairOperator interface {
+	// RepairChannelLeader repairs or validates authoritative channel leader metadata.
+	RepairChannelLeader(ctx context.Context, req RepairChannelClusterLeaderRequest) (RepairChannelClusterLeaderResult, error)
+}
+
 // MessageReader exposes authoritative channel message page reads.
 type MessageReader interface {
 	// QueryMessages returns one authoritative message page for a channel.
@@ -168,6 +180,10 @@ type Options struct {
 	Diagnostics DiagnosticsReader
 	// ChannelRuntimeMeta provides authoritative slot-level runtime meta pages.
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
+	// ChannelReplicaStatus provides proven live channel runtime status when available.
+	ChannelReplicaStatus ChannelReplicaStatusReader
+	// ChannelLeaderRepair provides policy-driven channel leader repair.
+	ChannelLeaderRepair ChannelLeaderRepairOperator
 	// Messages provides authoritative channel message pages.
 	Messages MessageReader
 	// MessageRetention provides destructive channel message retention operations.
@@ -191,6 +207,8 @@ type App struct {
 	connections              ConnectionReader
 	diagnostics              DiagnosticsReader
 	channelRuntimeMeta       ChannelRuntimeMetaReader
+	channelReplicaStatus     ChannelReplicaStatusReader
+	channelLeaderRepair      ChannelLeaderRepairOperator
 	messages                 MessageReader
 	messageRetention         MessageRetentionOperator
 	network                  NetworkSnapshotReader
@@ -220,6 +238,8 @@ func New(opts Options) *App {
 		connections:              opts.Connections,
 		diagnostics:              opts.Diagnostics,
 		channelRuntimeMeta:       opts.ChannelRuntimeMeta,
+		channelReplicaStatus:     opts.ChannelReplicaStatus,
+		channelLeaderRepair:      opts.ChannelLeaderRepair,
 		messages:                 opts.Messages,
 		messageRetention:         opts.MessageRetention,
 		network:                  opts.Network,
