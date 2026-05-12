@@ -28,7 +28,7 @@ func (ProofEvaluator) EvaluateFinalTargetProof(req FinalTargetProofRequest) (Fin
 	if target.LogStartOffset > req.CutoverHW {
 		return FinalTargetProof{}, channel.ErrSnapshotRequired
 	}
-	if target.LogEndOffset < req.CutoverHW || target.CheckpointHW < req.CutoverHW {
+	if target.LogEndOffset < req.CutoverLEO || target.CheckpointHW < req.CutoverHW {
 		return FinalTargetProof{}, channel.ErrNotReady
 	}
 

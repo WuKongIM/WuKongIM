@@ -19,6 +19,19 @@ func TestFinalTargetProofRejectsLagBelowCutoverHW(t *testing.T) {
 	require.False(t, proof.Ready)
 }
 
+func TestFinalTargetProofRejectsLEOBelowCutoverLEO(t *testing.T) {
+	req := finalTargetProofTestRequest()
+	req.CutoverLEO = 12
+	req.CutoverHW = 10
+	req.Target.LogEndOffset = 11
+	req.Target.CheckpointHW = 10
+
+	proof, err := (ProofEvaluator{}).EvaluateFinalTargetProof(req)
+
+	require.ErrorIs(t, err, channel.ErrNotReady)
+	require.False(t, proof.Ready)
+}
+
 func TestFinalTargetProofRejectsDivergentOffsetEpoch(t *testing.T) {
 	req := finalTargetProofTestRequest()
 	req.CutoverOffsetEpoch = 7
