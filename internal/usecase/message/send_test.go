@@ -1244,6 +1244,36 @@ func TestSendVisitorsNonSelfUsesCustomerServicePermissionLists(t *testing.T) {
 	require.Len(t, cluster.sendRequests, 1)
 }
 
+func TestSendAlreadyDerivedVisitorsChecksCustomerServicePermissionSource(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 940, MessageSeq: 41}},
+		},
+	}
+	permissions := newFakePermissionStore()
+	permissions.members[permissionKey("visitor1", int64(frame.ChannelTypeCustomerService))] = map[string]bool{"agent1": true}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		MetaRefresher:   &fakeMetaRefresher{},
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "agent1",
+		ChannelID:   runtimechannelid.ToCommandChannel("visitor1"),
+		ChannelType: frame.ChannelTypeVisitors,
+		Payload:     []byte("visitor cmd"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(940), result.MessageID)
+	require.Equal(t, uint64(41), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Equal(t, channel.ChannelID{ID: runtimechannelid.ToCommandChannel("visitor1"), Type: frame.ChannelTypeVisitors}, cluster.sendRequests[0].ChannelID)
+}
+
 func TestSendPassesTraceIDToChannelAppend(t *testing.T) {
 	cluster := &fakeChannelCluster{}
 	app := New(Options{
