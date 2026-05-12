@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -42,6 +43,44 @@ func TestSubmitCommittedDelegatesToRuntimeWithDurableMessage(t *testing.T) {
 			ClientSeq:   9,
 		},
 		SenderSessionID: 33,
+	}}, runtime.submits)
+}
+
+func TestSubmitRealtimeScopedEnvelopeDelegatesToRuntime(t *testing.T) {
+	runtime := &recordingRuntime{}
+	app := New(Options{Runtime: runtime})
+
+	err := app.SubmitRealtime(context.Background(), messageevents.MessageRealtime{
+		Message: channel.Message{
+			ChannelID:   "tmp____cmd",
+			ChannelType: frame.ChannelTypeTemp,
+			MessageID:   202,
+			MessageSeq:  0,
+			Framer:      frame.Framer{NoPersist: true, SyncOnce: true},
+			FromUID:     "system",
+			ClientMsgNo: "rt1",
+			Payload:     []byte("cmd"),
+			ClientSeq:   10,
+		},
+		SenderSessionID:   44,
+		MessageScopedUIDs: []string{"u1", "u2"},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []runtimedelivery.CommittedEnvelope{{
+		Message: channel.Message{
+			ChannelID:   "tmp____cmd",
+			ChannelType: frame.ChannelTypeTemp,
+			MessageID:   202,
+			MessageSeq:  0,
+			Framer:      frame.Framer{NoPersist: true, SyncOnce: true},
+			FromUID:     "system",
+			ClientMsgNo: "rt1",
+			Payload:     []byte("cmd"),
+			ClientSeq:   10,
+		},
+		SenderSessionID:   44,
+		MessageScopedUIDs: []string{"u1", "u2"},
 	}}, runtime.submits)
 }
 
@@ -90,6 +129,7 @@ type recordingRuntime struct {
 func (r *recordingRuntime) Submit(_ context.Context, env runtimedelivery.CommittedEnvelope) error {
 	copied := env
 	copied.Payload = append([]byte(nil), env.Payload...)
+	copied.MessageScopedUIDs = append([]string(nil), env.MessageScopedUIDs...)
 	r.submits = append(r.submits, copied)
 	return nil
 }

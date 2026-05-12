@@ -17,6 +17,7 @@ type sendMessageRequest struct {
 	ChannelType   uint8                    `json:"channel_type"`
 	ClientMsgNo   string                   `json:"client_msg_no"`
 	Payload       string                   `json:"payload"`
+	Subscribers   []string                 `json:"subscribers"`
 	Header        sendMessageHeaderRequest `json:"header"`
 	NoPersist     int                      `json:"no_persist"`
 	SyncOnce      int                      `json:"sync_once"`
@@ -44,7 +45,17 @@ func (s *Server) handleSendMessage(c *gin.Context) {
 	if req.FromUID == "" {
 		req.FromUID = req.LegacyFromUID
 	}
-	if req.FromUID == "" || req.ChannelID == "" || req.ChannelType == 0 || req.Payload == "" {
+	requestScoped := len(req.Subscribers) > 0
+	if req.FromUID == "" || req.Payload == "" {
+		writeJSONError(c, http.StatusBadRequest, "invalid request")
+		return
+	}
+	if requestScoped {
+		if req.ChannelID != "" {
+			writeJSONError(c, http.StatusBadRequest, "invalid request")
+			return
+		}
+	} else if req.ChannelID == "" || req.ChannelType == 0 {
 		writeJSONError(c, http.StatusBadRequest, "invalid request")
 		return
 	}
@@ -67,16 +78,23 @@ func (s *Server) handleSendMessage(c *gin.Context) {
 	reqCtx, traceCtx := tracectx.Ensure(reqCtx, nil)
 	noPersist := req.Header.NoPersist != 0 || req.NoPersist != 0
 	syncOnce := req.Header.SyncOnce != 0 || req.SyncOnce != 0
+	channelID := req.ChannelID
+	channelType := req.ChannelType
+	if requestScoped {
+		channelID = ""
+		channelType = 0
+	}
 
 	result, err := s.messages.Send(reqCtx, message.SendCommand{
-		TraceID:         traceCtx.TraceID,
-		Framer:          frame.Framer{NoPersist: noPersist, SyncOnce: syncOnce},
-		FromUID:         req.FromUID,
-		ChannelID:       req.ChannelID,
-		ChannelType:     req.ChannelType,
-		ClientMsgNo:     req.ClientMsgNo,
-		Payload:         payload,
-		ProtocolVersion: frame.LatestVersion,
+		TraceID:            traceCtx.TraceID,
+		Framer:             frame.Framer{NoPersist: noPersist, SyncOnce: syncOnce},
+		FromUID:            req.FromUID,
+		ChannelID:          channelID,
+		ChannelType:        channelType,
+		RequestSubscribers: req.Subscribers,
+		ClientMsgNo:        req.ClientMsgNo,
+		Payload:            payload,
+		ProtocolVersion:    frame.LatestVersion,
 	})
 	if err != nil {
 		if status, msg, ok := mapSendError(err); ok {

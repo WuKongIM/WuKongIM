@@ -131,6 +131,31 @@ func TestSubscriberResolverResolvesCommandPersonFromOriginalChannel(t *testing.T
 	require.True(t, done)
 }
 
+func TestSubscriberResolverMessageScopedTempCommandSource(t *testing.T) {
+	resolver := NewSubscriberResolver(SubscriberResolverOptions{})
+	requestedID := channelid.ToCommandChannel("tmp1")
+
+	token, err := resolver.BeginSnapshotWithRequest(context.Background(), channel.ChannelID{
+		ID:   requestedID,
+		Type: frame.ChannelTypeTemp,
+	}, SubscriberSnapshotRequest{MessageScopedUIDs: []string{"u1", "u2", "u1", ""}})
+	require.NoError(t, err)
+
+	source := token.Source()
+	require.Equal(t, SubscriberSourceKindMessageScoped, source.Kind)
+	require.Equal(t, requestedID, source.ChannelID)
+	require.Equal(t, frame.ChannelTypeTemp, source.ChannelType)
+	require.Equal(t, "tmp1", source.SourceChannelID)
+	require.Equal(t, frame.ChannelTypeTemp, source.SourceChannelType)
+	require.False(t, source.ReusableTagState)
+
+	page, cursor, done, err := resolver.NextPage(context.Background(), token, "", 10)
+	require.NoError(t, err)
+	require.Equal(t, []string{"u1", "u2"}, page)
+	require.Equal(t, "u2", cursor)
+	require.True(t, done)
+}
+
 func TestSubscriberResolverUsesAuthoritativeMetadataForCommandSourceVersion(t *testing.T) {
 	store := &fakeAuthoritativeSubscriberStore{
 		fakeSubscriberStore: fakeSubscriberStore{

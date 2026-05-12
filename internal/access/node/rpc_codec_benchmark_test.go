@@ -475,8 +475,9 @@ func benchmarkPresenceHeartbeatRequest() presenceRPCRequest {
 func benchmarkDeliverySubmitRequest() deliverySubmitRequest {
 	return deliverySubmitRequest{
 		Envelope: deliveryruntime.CommittedEnvelope{
-			Message:         benchmarkChannelMessage(1),
-			SenderSessionID: 42,
+			Message:           benchmarkChannelMessage(1),
+			SenderSessionID:   42,
+			MessageScopedUIDs: []string{"bench-u1", "bench-u2"},
 		},
 	}
 }

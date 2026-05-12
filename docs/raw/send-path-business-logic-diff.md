@@ -42,7 +42,9 @@
 - `internal/access/api/message_send.go:14`
 - `internal/access/api/routes.go:66`
 
-相比旧版，当前 HTTP send 已恢复 `header.no_persist` / `header.sync_once` 的部分兼容语义，但仍不支持 `expire`、`subscribers`、临时频道投递、`sendbatch`、流消息等旧接口语义。
+相比旧版，当前 HTTP send 已恢复 `header.no_persist` / `header.sync_once` 和 request-scoped `subscribers` 的核心兼容语义，但仍不支持 `expire`、`sendbatch`、流消息、CMD 会话 / 离线同步等旧接口语义。
+
+P2c 状态（2026-05-11）：当前 `/message/send` 已恢复 request-scoped `subscribers` 的核心语义。带 `subscribers` 的请求要求 `sync_once=1`、拒绝非空 `channel_id`，并忽略 `channel_type`，由 message usecase 派生内部 temp `____cmd` channel。
 
 ### message usecase
 
@@ -54,6 +56,7 @@
 - 在原始频道上检查发送权限，包括发送者 `SendBan`、群 `Ban` / `Disband`、群黑白名单和订阅者资格、个人接收方黑名单。
 - `NoPersist` 在权限通过后直接返回成功，不要求 channel cluster。
 - `SyncOnce` 或已派生 cmd 输入会把 durable append 目标切换到原频道派生的 `____cmd`。
+- request-scoped `RequestSubscribers` 会先规范化和去重；持久化路径写入派生 temp cmd channel，并把精确订阅者快照作为 `MessageScopedUIDs` 传给投递；非持久化路径分配 transient message ID 后直接走 realtime delivery。
 - 持久化发送必须配置 channel cluster。
 
 随后进入 durable append，`pkg/channel` 仍只负责日志和复制语义。
@@ -374,7 +377,9 @@ P2a 状态（2026-05-11）：当前项目已在 `internal/usecase/message` 的 P
 
 P2b 状态（2026-05-11）：`NoPersist + SyncOnce` 仍沿用 P2a 非持久化边界，成功返回但不做 durable append，也不做实时投递。
 
-仍未恢复：request-scoped subscribers、临时频道投递、在线 cmd 投递 / `systemcmdonline`、CMD 会话 / 离线 cmd 同步、sendbatch、plugin/webhook/AI 钩子，以及非持久化消息的完整在线临时投递链路。
+P2c 状态（2026-05-11）：`NoPersist + SyncOnce + subscribers` 已恢复为 transient realtime delivery；普通 `NoPersist + SyncOnce` 仍沿用 P2a 非持久化边界，成功返回但不做 durable append，也不做实时投递。
+
+仍未恢复：普通临时频道投递、在线 cmd 投递 / `systemcmdonline`、CMD 会话 / 离线 cmd 同步、sendbatch、plugin/webhook/AI 钩子，以及非持久化消息的完整在线临时投递链路。
 
 ### 2. SyncOnce / cmd channel
 
@@ -397,7 +402,7 @@ P2b 状态（2026-05-11）：
 - 投递订阅者仍从原始频道解析，避免 cmd 派生频道缺少普通订阅者导致投递目标为空。
 - 实时投递的 `RecvPacket` 对客户端展示原始频道，不暴露内部 cmd channel。
 - 普通会话投影会过滤 cmd 派生频道和 `SyncOnce` 消息，避免一次性同步消息进入普通会话列表。
-- `SendCommand` 仍没有 request-scoped subscribers 字段。
+- P2c 后 `SendCommand` 已有 request-scoped subscribers 字段；P2b 时该字段尚未接入。
 
 关键代码：
 
@@ -405,7 +410,7 @@ P2b 状态（2026-05-11）：
 - `internal/usecase/message/send.go:30`
 - `internal/usecase/message/send.go:53`
 
-影响：持久化 `SyncOnce` 的核心 cmd channel 写入、权限、订阅者解析、实时展示和普通会话过滤已恢复；在线 cmd 投递、CMD 会话 / 离线 cmd 同步、request-scoped subscribers、临时频道和 sendbatch 仍未恢复。
+影响：持久化 `SyncOnce` 的核心 cmd channel 写入、权限、订阅者解析、实时展示和普通会话过滤已恢复；P2c 又补上 request-scoped subscribers 的核心定向投递。在线 cmd 投递、CMD 会话 / 离线 cmd 同步、普通临时频道和 sendbatch 仍未恢复。
 
 ### 3. request-scoped subscribers / 临时频道
 
@@ -425,10 +430,11 @@ P2b 状态（2026-05-11）：
 - `learn_project/WuKongIM/internal/api/message.go:118`
 - `learn_project/WuKongIM/internal/api/message.go:128`
 
-当前：
+P2c 状态（2026-05-11）：
 
-- HTTP send 不支持 `subscribers`。
-- delivery 层有 `SubscriberSnapshotRequest.MessageScopedUIDs`，但当前 send path 没有调用 `BeginSnapshotWithRequest`，因此这个能力未接入发送入口。
+- HTTP send 已支持 `subscribers`，该模式拒绝非空 `channel_id`，忽略 `channel_type`，并将订阅者列表传入 message usecase。
+- delivery 层通过 `SubscriberSnapshotRequest.MessageScopedUIDs` 解析消息级 subscriber 快照；tag path 使用 ephemeral tag，避免覆盖普通频道 tag ref。
+- 持久化 request-scoped send 写 temp cmd channel；非持久化 request-scoped send 分配 transient message ID 并直接进入 realtime delivery。
 
 关键代码：
 
@@ -436,7 +442,7 @@ P2b 状态（2026-05-11）：
 - `internal/usecase/delivery/source.go:37`
 - `internal/usecase/delivery/subscriber.go:102`
 
-影响：指定一批用户临时投递的旧 API 语义缺失。
+影响：指定一批用户临时投递的核心旧 API 语义已恢复；但旧版通过临时订阅者状态支撑的 CMD 会话 / 离线同步仍未恢复。
 
 ## 投递与回执语义差异
 
@@ -761,6 +767,20 @@ P2b 状态（2026-05-11）：
 - 实时投递给客户端时展示原始频道视图。
 - 普通会话投影过滤 cmd 派生频道和 `SyncOnce` 消息。
 
-`NoPersist + SyncOnce` 本阶段仍返回成功，但不写 durable channel log，也不做实时投递。
+P2b 阶段普通 `NoPersist + SyncOnce` 仍返回成功，但不写 durable channel log，也不做实时投递。
 
-仍未恢复的旧版差异包括：`AllowStranger`、request-scoped subscribers、临时频道投递、在线 cmd 投递 / `systemcmdonline`、CMD 会话 / 离线 cmd 同步、sendbatch、plugin/webhook/AI 钩子、特殊频道发送支持，以及非持久化消息的完整在线临时投递链路。
+P2b 阶段仍未恢复的旧版差异包括：`AllowStranger`、request-scoped subscribers、临时频道投递、在线 cmd 投递 / `systemcmdonline`、CMD 会话 / 离线 cmd 同步、sendbatch、plugin/webhook/AI 钩子、特殊频道发送支持，以及非持久化消息的完整在线临时投递链路。
+
+## P2c 实施后状态（2026-05-11）
+
+本轮 P2c 已恢复 `/message/send` request-scoped `subscribers` 的核心定向投递语义：
+
+- HTTP `/message/send` 接收 `subscribers`；该模式要求 `sync_once=1`，拒绝非空 `channel_id`，并忽略 `channel_type`。
+- subscriber 列表会 trim 空值并按首次出现顺序去重；空列表返回 request-subscriber validation error。
+- 持久化 request-scoped send 不写旧版临时订阅者状态，而是根据规范化 subscriber 快照派生稳定 temp channel，再写入其 `____cmd` channel。
+- durable append 成功后，committed delivery envelope 携带 `MessageScopedUIDs`，投递 resolver 只使用该消息级 subscriber 快照，不复用普通频道 subscriber tag state。
+- message-scoped delivery tag 是 ephemeral tag，只缓存本次消息 tag body，不覆盖同 channel key 下可复用 tag ref。
+- `NoPersist + SyncOnce + subscribers` 分配 transient message ID，`MessageSeq=0`，不写 channel log，直接提交 realtime delivery；本地接入节点作为该 transient delivery 的 ack/retry owner。
+- temp cmd realtime packet 展示给客户端时会剥离 `____cmd` 后缀，保留 `SyncOnce` / `NoPersist` header。
+
+仍未恢复的旧版差异包括：CMD conversation/offline sync、`/message/sendbatch`、`systemcmdonline` 专用语义、`expire`、plugin/webhook/AI 钩子以及特殊频道发送支持。P2c 的 durable request-scoped send 只保证 channel log 中有消息；如果进程崩溃后仅靠 durable replay，精确 `MessageScopedUIDs` 快照不会从日志中恢复，后续如要恢复完整旧版离线/CMD 同步需要单独设计持久化快照或事件模型。

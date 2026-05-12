@@ -549,6 +549,7 @@ func (a *actor) rememberCompleted(messageID uint64) {
 func cloneEnvelope(env CommittedEnvelope) CommittedEnvelope {
 	copied := env
 	copied.Payload = append([]byte(nil), env.Payload...)
+	copied.MessageScopedUIDs = append([]string(nil), env.MessageScopedUIDs...)
 	return copied
 }
 

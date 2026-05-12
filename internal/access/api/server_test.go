@@ -419,6 +419,42 @@ func TestSendMessageMapsSyncOnceAliasesToUsecaseCommand(t *testing.T) {
 	}
 }
 
+func TestSendMessageMapsSubscribersToUsecaseCommand(t *testing.T) {
+	msgs := &recordingMessageUsecase{
+		result: message.SendResult{Reason: frame.ReasonSuccess},
+	}
+	srv := New(Options{Messages: msgs})
+
+	body := map[string]any{
+		"from_uid":      "system",
+		"channel_type":  float64(frame.ChannelTypeGroup),
+		"client_msg_no": "api-subscribers-1",
+		"payload":       base64.StdEncoding.EncodeToString([]byte("cmd")),
+		"subscribers":   []string{"u1", "u2"},
+		"header": map[string]any{
+			"sync_once": float64(1),
+		},
+	}
+	payload, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/send", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, msgs.calls, 1)
+	require.Equal(t, "system", msgs.calls[0].FromUID)
+	require.Empty(t, msgs.calls[0].ChannelID)
+	require.Zero(t, msgs.calls[0].ChannelType)
+	require.Equal(t, []string{"u1", "u2"}, msgs.calls[0].RequestSubscribers)
+	require.True(t, msgs.calls[0].Framer.SyncOnce)
+	require.Equal(t, "api-subscribers-1", msgs.calls[0].ClientMsgNo)
+	require.Equal(t, []byte("cmd"), msgs.calls[0].Payload)
+}
+
 func TestSendMessagePassesPrecomposedPersonChannelToUsecase(t *testing.T) {
 	msgs := &recordingMessageUsecase{}
 	srv := New(Options{Messages: msgs})
@@ -588,6 +624,65 @@ func TestSendMessageRejectsInvalidJSON(t *testing.T) {
 	require.JSONEq(t, `{"error":"invalid request"}`, rec.Body.String())
 }
 
+func TestSendMessageRejectsSubscribersWithChannelID(t *testing.T) {
+	msgs := &recordingMessageUsecase{}
+	srv := New(Options{Messages: msgs})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/send", bytes.NewBufferString(`{"sender_uid":"system","channel_id":"g1","payload":"aGk=","subscribers":["u1"],"header":{"sync_once":1}}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"error":"invalid request"}`, rec.Body.String())
+	require.Empty(t, msgs.calls)
+}
+
+func TestSendMessageSubscribersWithoutSyncOnceMapsUsecaseValidation(t *testing.T) {
+	msgs := message.New(message.Options{})
+	srv := New(Options{Messages: msgs})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/send", bytes.NewBufferString(`{"sender_uid":"system","payload":"aGk=","subscribers":["u1"]}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"error":"request subscribers require sync_once"}`, rec.Body.String())
+}
+
+func TestSendMessageRejectsEmptySubscribersWithoutOrdinaryChannel(t *testing.T) {
+	msgs := &recordingMessageUsecase{}
+	srv := New(Options{Messages: msgs})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/send", bytes.NewBufferString(`{"sender_uid":"u1","payload":"aGk=","subscribers":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"error":"invalid request"}`, rec.Body.String())
+	require.Empty(t, msgs.calls)
+}
+
+func TestSendMessageRejectsOrdinaryMissingChannel(t *testing.T) {
+	msgs := &recordingMessageUsecase{}
+	srv := New(Options{Messages: msgs})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/send", bytes.NewBufferString(`{"sender_uid":"u1","payload":"aGk="}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"error":"invalid request"}`, rec.Body.String())
+	require.Empty(t, msgs.calls)
+}
+
 func TestSendMessageReturnsInternalServerErrorWhenUsecaseFails(t *testing.T) {
 	msgs := &recordingMessageUsecase{err: errors.New("boom")}
 	srv := New(Options{Messages: msgs})
@@ -650,6 +745,24 @@ func TestSendMessageMapsSemanticErrorsToHTTPStatus(t *testing.T) {
 			err:    channel.ErrNotLeader,
 			status: http.StatusServiceUnavailable,
 			body:   `{"error":"retry required"}`,
+		},
+		{
+			name:   "request subscribers require sync_once",
+			err:    message.ErrRequestSubscribersRequireSyncOnce,
+			status: http.StatusBadRequest,
+			body:   `{"error":"request subscribers require sync_once"}`,
+		},
+		{
+			name:   "request subscribers conflict channel",
+			err:    message.ErrRequestSubscribersConflictChannel,
+			status: http.StatusBadRequest,
+			body:   `{"error":"request subscribers cannot include channel_id"}`,
+		},
+		{
+			name:   "request subscribers required",
+			err:    message.ErrRequestSubscribersRequired,
+			status: http.StatusBadRequest,
+			body:   `{"error":"request subscribers required"}`,
 		},
 	}
 

@@ -41,6 +41,16 @@ type CommittedMessageDispatcher interface {
 	SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error
 }
 
+// RealtimeDispatcher receives transient messages that should bypass durable append.
+type RealtimeDispatcher interface {
+	SubmitRealtime(ctx context.Context, event messageevents.MessageRealtime) error
+}
+
+// MessageIDGenerator allocates transient IDs for non-durable realtime messages.
+type MessageIDGenerator interface {
+	Next() uint64
+}
+
 type DeliveryAck interface {
 	AckRoute(ctx context.Context, cmd RouteAckCommand) error
 }
