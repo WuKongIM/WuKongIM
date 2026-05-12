@@ -796,6 +796,36 @@ export type ManagerChannelClusterUnhealthyResponse = {
   next_cursor?: string
 }
 
+export type ManagerChannelClusterReplicaStatus = {
+  node_id: number
+  role: string
+  is_leader: boolean
+  in_isr: boolean
+  reported: boolean
+  commit_seq?: number | null
+  leo?: number | null
+  checkpoint_hw?: number | null
+  lag?: number | null
+}
+
+export type ManagerChannelClusterReplicaDetailResponse = {
+  channel: ManagerChannelRuntimeMetaDetailResponse
+  runtime_reported: boolean
+  commit_seq?: number | null
+  min_available_seq?: number | null
+  retention_through_seq?: number | null
+  replicas: ManagerChannelClusterReplicaStatus[]
+}
+
+export type RepairChannelClusterLeaderInput = {
+  reason?: string
+}
+
+export type ManagerChannelClusterRepairResponse = {
+  changed: boolean
+  channel: ManagerChannelRuntimeMetaDetailResponse
+}
+
 export type ManagerConnection = {
   node_id: number
   session_id: number

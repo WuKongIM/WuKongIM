@@ -4,6 +4,7 @@ import {
   configureManagerAuth,
   getChannelClusterSummary,
   getChannelClusterUnhealthy,
+  getChannelClusterReplicas,
   getChannelRuntimeMeta,
   getChannelRuntimeMetaDetail,
   getConnection,
@@ -49,6 +50,7 @@ import {
   startNodeOnboardingJob,
   transferSlotLeader,
   advanceMessageRetention,
+  repairChannelClusterLeader,
 } from "@/lib/manager-api"
 
 describe("manager api client", () => {
@@ -1064,6 +1066,77 @@ describe("manager api client", () => {
 
     await expect(getChannelClusterUnhealthy({ limit: 50, cursor: "cursor-1" })).resolves.toEqual(unhealthyResponse)
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channel-cluster/unhealthy?limit=50&cursor=cursor-1")
+  })
+
+
+  it("fetches channel cluster replica detail", async () => {
+    const detailResponse = {
+      channel: {
+        channel_id: "room-1",
+        channel_type: 2,
+        slot_id: 9,
+        hash_slot: 123,
+        channel_epoch: 7,
+        leader_epoch: 3,
+        leader: 1,
+        replicas: [1, 2],
+        isr: [1],
+        min_isr: 1,
+        max_message_seq: 42,
+        status: "active",
+        features: 0,
+        lease_until_ms: 0,
+      },
+      runtime_reported: true,
+      commit_seq: 42,
+      min_available_seq: 1,
+      retention_through_seq: 0,
+      replicas: [
+        { node_id: 1, role: "leader", is_leader: true, in_isr: true, reported: true, commit_seq: 42, leo: null, checkpoint_hw: null, lag: 0 },
+        { node_id: 2, role: "follower", is_leader: false, in_isr: false, reported: false, commit_seq: null, leo: null, checkpoint_hw: null, lag: null },
+      ],
+    }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(detailResponse), { status: 200 }))
+
+    await expect(getChannelClusterReplicas(2, "room-1")).resolves.toEqual(detailResponse)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channel-cluster/2/room-1/replicas")
+  })
+
+  it("repairs a channel cluster leader and maps conflict errors", async () => {
+    const repairResponse = {
+      changed: true,
+      channel: {
+        channel_id: "room-1",
+        channel_type: 2,
+        slot_id: 9,
+        hash_slot: 123,
+        channel_epoch: 7,
+        leader_epoch: 4,
+        leader: 2,
+        replicas: [1, 2],
+        isr: [2],
+        min_isr: 1,
+        max_message_seq: 42,
+        status: "active",
+        features: 0,
+        lease_until_ms: 0,
+      },
+    }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(repairResponse), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "conflict", message: "no safe channel leader candidate" }), { status: 409 }),
+    )
+
+    await expect(repairChannelClusterLeader(2, "room-1", { reason: "no_leader" })).resolves.toEqual(repairResponse)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channel-cluster/2/room-1/repair")
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ reason: "no_leader" }),
+    }))
+    await expect(repairChannelClusterLeader(2, "room-1", { reason: "no_leader" })).rejects.toMatchObject({
+      status: 409,
+      error: "conflict",
+    })
   })
 
 

@@ -12,6 +12,8 @@ import type {
   ManagerChannelRuntimeMetaListResponse,
   ManagerChannelClusterSummaryResponse,
   ManagerChannelClusterUnhealthyResponse,
+  ManagerChannelClusterReplicaDetailResponse,
+  ManagerChannelClusterRepairResponse,
   ManagerConnectionDetailResponse,
   ManagerControllerLogsResponse,
   ManagerControllerRaftCompactResponse,
@@ -49,6 +51,7 @@ import type {
   AdvanceNodeScaleInInput,
   AdvanceMessageRetentionInput,
   AdvanceMessageRetentionResponse,
+  RepairChannelClusterLeaderInput,
 } from "@/lib/manager-api.types"
 
 export type ManagerAuthConfig = {
@@ -515,6 +518,23 @@ export function getChannelClusterSummary() {
 
 export function getChannelClusterUnhealthy(params?: ChannelClusterUnhealthyParams) {
   return jsonManagerFetch<ManagerChannelClusterUnhealthyResponse>(buildChannelClusterUnhealthyPath(params))
+}
+
+export function getChannelClusterReplicas(channelType: number, channelId: string) {
+  return jsonManagerFetch<ManagerChannelClusterReplicaDetailResponse>(
+    `/manager/channel-cluster/${channelType}/${encodeURIComponent(channelId)}/replicas`,
+  )
+}
+
+export function repairChannelClusterLeader(
+  channelType: number,
+  channelId: string,
+  input: RepairChannelClusterLeaderInput = {},
+) {
+  return jsonManagerFetch<ManagerChannelClusterRepairResponse>(
+    `/manager/channel-cluster/${channelType}/${encodeURIComponent(channelId)}/repair`,
+    { method: "POST", body: JSON.stringify(input) },
+  )
 }
 
 export function getNodeOnboardingCandidates() {
