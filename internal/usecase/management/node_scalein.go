@@ -307,6 +307,9 @@ func (a *App) PlanNodeScaleIn(ctx context.Context, nodeID uint64, req NodeScaleI
 		}
 		report.BlockedReasons = append(report.BlockedReasons, scaleInBlockedReason("channel_inventory_unavailable", message, 0, 0, nodeID))
 	}
+	if report.Checks.ChannelInventoryAvailable && targetFound && target.Status != controllermeta.NodeStatusDraining && channelInventory.activeMigrations > 0 {
+		report.BlockedReasons = append(report.BlockedReasons, scaleInBlockedReason("active_channel_migrations_involving_target", "active channel migrations involving the target must finish before scale-in starts", channelInventory.activeMigrations, 0, nodeID))
+	}
 
 	report.Status = scaleInStatus(target, targetFound, report.BlockedReasons, report.Progress, report.ConnectionSafetyVerified)
 	report.SafeToRemove = report.Status == NodeScaleInStatusReadyToRemove

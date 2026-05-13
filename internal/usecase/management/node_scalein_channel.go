@@ -55,7 +55,7 @@ func (a *App) loadNodeScaleInChannelInventory(ctx context.Context, nodeID uint64
 			if done {
 				break
 			}
-			if cursor == after {
+			if !scaleInChannelInventoryCursorAfter(cursor, after) {
 				inventory.partial = true
 				inventory.errText = "channel inventory scan made no cursor progress"
 				return inventory
@@ -127,9 +127,16 @@ func scaleInUint64sContain(values []uint64, needle uint64) bool {
 
 func scaleInChannelMigrationTaskKey(task metadb.ChannelMigrationTask) string {
 	if task.TaskID != "" {
-		return task.TaskID
+		return fmt.Sprintf("%s:%d:%s", task.ChannelID, task.ChannelType, task.TaskID)
 	}
 	return fmt.Sprintf("%s:%d:%d:%d:%d", task.ChannelID, task.ChannelType, task.Kind, task.SourceNode, task.TargetNode)
+}
+
+func scaleInChannelInventoryCursorAfter(cursor, after metadb.ChannelRuntimeMetaCursor) bool {
+	if cursor.ChannelID != after.ChannelID {
+		return cursor.ChannelID > after.ChannelID
+	}
+	return cursor.ChannelType > after.ChannelType
 }
 
 func scaleInChannelInventoryError(err error) string {
