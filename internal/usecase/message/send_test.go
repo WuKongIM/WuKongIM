@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -220,6 +221,73 @@ func TestSendRequestScopedDurableAppendsTempCommandAndDispatchesSubscribers(t *t
 	require.Equal(t, []string{"u1", "u2"}, dispatcher.calls[0].MessageScopedUIDs)
 	require.Equal(t, scoped.CommandChannelID, dispatcher.calls[0].Message.ChannelID)
 	require.Equal(t, frame.ChannelTypeTemp, dispatcher.calls[0].Message.ChannelType)
+}
+
+func TestSendRequestScopedDurableSubmitsCMDConversationIntent(t *testing.T) {
+	intentSink := &recordingCMDConversationIntentSink{accepted: true}
+	dispatcher := &recordingCommittedDispatcher{}
+	cluster := &fakeChannelCluster{
+		sendFn: func(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
+			msg := req.Message
+			msg.MessageID = 808
+			msg.MessageSeq = 18
+			return channel.AppendResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}, nil
+		},
+	}
+	app := New(Options{
+		Now:                    fixedNowFn,
+		Cluster:                cluster,
+		MetaRefresher:          &fakeMetaRefresher{},
+		CommittedDispatcher:    dispatcher,
+		CMDConversationIntents: intentSink,
+	})
+
+	_, err := app.Send(context.Background(), SendCommand{
+		Framer:             frame.Framer{SyncOnce: true},
+		FromUID:            "system",
+		RequestSubscribers: []string{"system", "u2", "u2"},
+		Payload:            []byte("cmd"),
+	})
+
+	require.NoError(t, err)
+	require.Len(t, intentSink.intents, 1)
+	require.Len(t, dispatcher.calls, 1)
+	require.True(t, dispatcher.calls[0].CMDConversationIntentSubmitted)
+	require.Equal(t, uint64(18), intentSink.intents[0].MessageSeq)
+	require.Equal(t, map[string]uint64{"system": 18, "u2": 0}, intentSink.intents[0].UserReadSeqs)
+}
+
+func TestSendRequestScopedDurableLeavesIntentSubmittedFalseOnIntentFailure(t *testing.T) {
+	intentSink := &recordingCMDConversationIntentSink{err: errors.New("remote owner down")}
+	dispatcher := &recordingCommittedDispatcher{}
+	cluster := &fakeChannelCluster{
+		sendFn: func(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
+			msg := req.Message
+			msg.MessageID = 809
+			msg.MessageSeq = 19
+			return channel.AppendResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}, nil
+		},
+	}
+	app := New(Options{
+		Now:                    fixedNowFn,
+		Cluster:                cluster,
+		MetaRefresher:          &fakeMetaRefresher{},
+		CommittedDispatcher:    dispatcher,
+		CMDConversationIntents: intentSink,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:             frame.Framer{SyncOnce: true},
+		FromUID:            "system",
+		RequestSubscribers: []string{"system", "u2"},
+		Payload:            []byte("cmd"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Len(t, intentSink.intents, 1)
+	require.Len(t, dispatcher.calls, 1)
+	require.False(t, dispatcher.calls[0].CMDConversationIntentSubmitted)
 }
 
 func TestSendRequestScopedDurableRequiresCommittedDispatcherBeforeAppend(t *testing.T) {
@@ -2126,6 +2194,22 @@ func (d *recordingCommittedDispatcher) SubmitCommitted(_ context.Context, env me
 }
 
 type deliveryEnvelopeRecord = messageevents.MessageCommitted
+
+type recordingCMDConversationIntentSink struct {
+	intents  []cmdsync.ConversationIntent
+	accepted bool
+	err      error
+}
+
+func (s *recordingCMDConversationIntentSink) PushIntent(_ context.Context, intent cmdsync.ConversationIntent) (bool, error) {
+	copied := intent
+	copied.UserReadSeqs = make(map[string]uint64, len(intent.UserReadSeqs))
+	for uid, readSeq := range intent.UserReadSeqs {
+		copied.UserReadSeqs[uid] = readSeq
+	}
+	s.intents = append(s.intents, copied)
+	return s.accepted, s.err
+}
 
 type recordingRealtimeDispatcher struct {
 	calls []messageevents.MessageRealtime

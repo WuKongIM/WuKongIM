@@ -17,6 +17,8 @@ type CommittedEnvelope struct {
 	SenderSessionID uint64
 	// MessageScopedUIDs contains request-scoped subscribers used only for this delivery envelope.
 	MessageScopedUIDs []string
+	// CMDConversationIntentSubmitted reports that request-scoped CMD sync intent was fully accepted.
+	CMDConversationIntentSubmitted bool
 }
 
 type RouteKey struct {

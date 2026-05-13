@@ -14,7 +14,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
-// ErrMessageScopedDeliverySubmitUnsupported means the target node cannot decode scoped delivery-submit payloads.
+// ErrMessageScopedDeliverySubmitUnsupported means the target node cannot decode non-legacy delivery-submit payloads.
 var ErrMessageScopedDeliverySubmitUnsupported = errors.New("access/node: message scoped delivery submit unsupported")
 
 type authoritativeRPCResponse interface {
@@ -116,7 +116,15 @@ func (c *Client) SubmitCommitted(ctx context.Context, nodeID uint64, env deliver
 	if c == nil || c.cluster == nil {
 		return fmt.Errorf("access/node: cluster not configured")
 	}
-	if len(env.MessageScopedUIDs) > 0 {
+	if env.CMDConversationIntentSubmitted {
+		supported, err := c.SupportsDeliverySubmitV3(ctx, nodeID)
+		if err != nil {
+			return err
+		}
+		if !supported {
+			return ErrMessageScopedDeliverySubmitUnsupported
+		}
+	} else if len(env.MessageScopedUIDs) > 0 {
 		supported, err := c.SupportsMessageScopedDeliverySubmit(ctx, nodeID)
 		if err != nil {
 			return err
@@ -171,6 +179,32 @@ func (c *Client) SupportsMessageScopedDeliverySubmit(ctx context.Context, nodeID
 	return true, nil
 }
 
+// SupportsDeliverySubmitV3 probes whether a node supports delivery-submit v3 metadata.
+func (c *Client) SupportsDeliverySubmitV3(ctx context.Context, nodeID uint64) (bool, error) {
+	if c == nil || c.cluster == nil {
+		return false, fmt.Errorf("access/node: cluster not configured")
+	}
+	if c.hasDeliverySubmitV3Support(nodeID) {
+		return true, nil
+	}
+	respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(nodeID), 0, deliverySubmitRPCServiceID, encodeDeliverySubmitV3CapabilityProbe())
+	if err != nil {
+		if isDeliverySubmitCodecUnsupported(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	resp, err := decodeDeliveryResponse(respBody)
+	if err != nil {
+		return false, err
+	}
+	if resp.Status != rpcStatusOK {
+		return false, fmt.Errorf("access/node: unexpected delivery submit v3 capability status %q", resp.Status)
+	}
+	c.rememberDeliverySubmitV3Support(nodeID)
+	return true, nil
+}
+
 func (c *Client) hasMessageScopedDeliverySubmitSupport(nodeID uint64) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -184,6 +218,21 @@ func (c *Client) rememberMessageScopedDeliverySubmitSupport(nodeID uint64) {
 		c.messageScopedDeliverySubmitSupport = make(map[uint64]bool)
 	}
 	c.messageScopedDeliverySubmitSupport[nodeID] = true
+}
+
+func (c *Client) hasDeliverySubmitV3Support(nodeID uint64) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.deliverySubmitV3Support[nodeID]
+}
+
+func (c *Client) rememberDeliverySubmitV3Support(nodeID uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.deliverySubmitV3Support == nil {
+		c.deliverySubmitV3Support = make(map[uint64]bool)
+	}
+	c.deliverySubmitV3Support[nodeID] = true
 }
 
 func isDeliverySubmitCodecUnsupported(err error) bool {

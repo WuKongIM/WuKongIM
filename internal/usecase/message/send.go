@@ -8,6 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
@@ -191,11 +192,13 @@ func (a *App) sendDurable(ctx context.Context, cmd SendCommand) (SendResult, err
 		Reason:     frame.ReasonSuccess,
 	}
 
+	intentSubmitted := a.submitRequestScopedCMDConversationIntent(ctx, result.Message, cmd.RequestSubscribers)
 	if a.dispatcher != nil {
 		if err := a.dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted{
-			Message:           result.Message,
-			SenderSessionID:   cmd.SenderSessionID,
-			MessageScopedUIDs: append([]string(nil), cmd.RequestSubscribers...),
+			Message:                        result.Message,
+			SenderSessionID:                cmd.SenderSessionID,
+			MessageScopedUIDs:              append([]string(nil), cmd.RequestSubscribers...),
+			CMDConversationIntentSubmitted: intentSubmitted,
 		}); err != nil {
 			fields := append([]wklog.Field{
 				wklog.Event("message.send.dispatch_submit.failed"),
@@ -208,6 +211,26 @@ func (a *App) sendDurable(ctx context.Context, cmd SendCommand) (SendResult, err
 		}
 	}
 	return sendResult, nil
+}
+
+func (a *App) submitRequestScopedCMDConversationIntent(ctx context.Context, msg channel.Message, subscribers []string) bool {
+	if a == nil || a.cmdConversationIntents == nil || len(subscribers) == 0 {
+		return false
+	}
+	intent, ok := cmdsync.BuildConversationIntent(msg, subscribers, a.now)
+	if !ok {
+		return false
+	}
+	accepted, err := a.cmdConversationIntents.PushIntent(ctx, intent)
+	if err != nil {
+		fields := append([]wklog.Field{
+			wklog.Event("message.send.cmd_conversation_intent.failed"),
+		}, messageLogFields(channel.ChannelID{ID: msg.ChannelID, Type: msg.ChannelType}, msg.FromUID)...)
+		fields = append(fields, wklog.Error(err))
+		a.sendLogger().Warn("submit cmd conversation intent failed", fields...)
+		return false
+	}
+	return accepted
 }
 
 func buildDurableMessage(cmd SendCommand, now time.Time) channel.Message {
