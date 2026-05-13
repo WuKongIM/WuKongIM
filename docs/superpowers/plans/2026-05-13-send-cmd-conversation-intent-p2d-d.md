@@ -599,6 +599,16 @@ func TestCMDIntentAdapterMissingProviderReturnsRejectedStatus(t *testing.T) {
     require.Contains(t, resp.Error, "cmd conversation intent")
 }
 
+func TestCMDIntentAdapterPushDoesNotRequireCMDSyncUsecase(t *testing.T) {
+    sink := &recordingCMDIntentSink{}
+    adapter := New(Options{CMDConversationIntents: sink}) // CMDSync intentionally nil.
+    body, err := adapter.handleCMDSyncRPC(context.Background(), mustEncodeCMDSyncRequest(t, cmdSyncRPCRequest{Op: cmdSyncOpPushIntent, Intent: cmdsync.ConversationIntent{CommandChannelID: "g1____cmd", ChannelType: 2, MessageSeq: 1, UserReadSeqs: map[string]uint64{"u1": 0}}}))
+    require.NoError(t, err)
+    resp := mustDecodeCMDSyncResponse(t, body)
+    require.Equal(t, rpcStatusOK, resp.Status)
+    require.Len(t, sink.intents, 1)
+}
+
 func TestCMDIntentAdapterStaleOwnerIsRetryable(t *testing.T) {
     sink := &recordingCMDIntentSink{err: cmdsync.ErrConversationIntentStaleOwner}
     adapter := New(Options{CMDConversationIntents: sink})
@@ -1160,13 +1170,21 @@ Add/update tests:
 func TestAppLifecycleStartsAndStopsCMDConversationUpdaterHooks(t *testing.T) {
     var starts, stops int
     app := &App{
+        cluster: &appLifecycleTestCluster{},
+        gateway: &gateway.Gateway{},
+        startClusterFn: func() error { return nil },
+        startGatewayFn: func() error { return nil },
         startCMDConversationUpdaterFn: func() error { starts++; return nil },
         stopCMDConversationUpdaterFn:  func(context.Context) error { stops++; return nil },
+        stopGatewayFn: func() error { return nil },
+        stopClusterFn: func() {},
+        closeRaftDBFn: func() error { return nil },
+        closeWKDBFn: func() error { return nil },
     }
 
     require.NoError(t, app.Start())
     require.Equal(t, 1, starts)
-    require.NoError(t, app.Stop(context.Background()))
+    require.NoError(t, app.Stop())
     require.Equal(t, 1, stops)
 }
 
