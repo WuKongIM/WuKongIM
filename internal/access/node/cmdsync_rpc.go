@@ -2,22 +2,28 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 const (
-	cmdSyncOpSync    = "sync"
-	cmdSyncOpSyncAck = "sync_ack"
+	cmdSyncOpSync       = "sync"
+	cmdSyncOpSyncAck    = "sync_ack"
+	cmdSyncOpPushIntent = "push_intent"
+	rpcStatusStaleOwner = "stale_owner"
 )
 
 type cmdSyncRPCRequest struct {
-	Op    string                 `json:"op"`
-	Query cmdsync.SyncQuery      `json:"query,omitempty"`
-	Ack   cmdsync.SyncAckCommand `json:"ack,omitempty"`
+	Op     string                     `json:"op"`
+	Query  cmdsync.SyncQuery          `json:"query,omitempty"`
+	Ack    cmdsync.SyncAckCommand     `json:"ack,omitempty"`
+	Intent cmdsync.ConversationIntent `json:"intent,omitempty"`
 }
 
 type cmdSyncRPCResponse struct {
@@ -31,19 +37,36 @@ func (a *Adapter) handleCMDSyncRPC(ctx context.Context, body []byte) ([]byte, er
 	if err != nil {
 		return nil, err
 	}
-	if a == nil || a.cmdSync == nil {
-		return encodeCMDSyncResponse(cmdSyncRPCResponse{Status: rpcStatusRejected, Error: "access/node: cmd sync usecase not configured"})
-	}
 
 	switch req.Op {
 	case cmdSyncOpSync:
+		if a == nil || a.cmdSync == nil {
+			return encodeCMDSyncResponse(cmdSyncRPCResponse{Status: rpcStatusRejected, Error: "access/node: cmd sync usecase not configured"})
+		}
 		result, err := a.cmdSync.Sync(ctx, req.Query)
 		if err != nil {
 			return encodeCMDSyncResponse(cmdSyncRPCResponse{Status: rpcStatusRejected, Error: err.Error()})
 		}
 		return encodeCMDSyncResponse(cmdSyncRPCResponse{Status: rpcStatusOK, Messages: append([]channel.Message(nil), result.Messages...)})
 	case cmdSyncOpSyncAck:
+		if a == nil || a.cmdSync == nil {
+			return encodeCMDSyncResponse(cmdSyncRPCResponse{Status: rpcStatusRejected, Error: "access/node: cmd sync usecase not configured"})
+		}
 		if err := a.cmdSync.SyncAck(ctx, req.Ack); err != nil {
+			return encodeCMDSyncResponse(cmdSyncRPCResponse{Status: rpcStatusRejected, Error: err.Error()})
+		}
+		return encodeCMDSyncResponse(cmdSyncRPCResponse{Status: rpcStatusOK})
+	case cmdSyncOpPushIntent:
+		if a == nil || a.cmdConversationIntents == nil {
+			return encodeCMDSyncResponse(cmdSyncRPCResponse{Status: rpcStatusRejected, Error: "access/node: cmd conversation intent sink not configured"})
+		}
+		if err := validateCMDConversationIntent(req.Intent); err != nil {
+			return encodeCMDSyncResponse(cmdSyncRPCResponse{Status: rpcStatusRejected, Error: err.Error()})
+		}
+		if err := a.cmdConversationIntents.PushIntent(ctx, req.Intent); err != nil {
+			if errors.Is(err, cmdsync.ErrConversationIntentStaleOwner) {
+				return encodeCMDSyncResponse(cmdSyncRPCResponse{Status: rpcStatusStaleOwner, Error: err.Error()})
+			}
 			return encodeCMDSyncResponse(cmdSyncRPCResponse{Status: rpcStatusRejected, Error: err.Error()})
 		}
 		return encodeCMDSyncResponse(cmdSyncRPCResponse{Status: rpcStatusOK})
@@ -62,6 +85,11 @@ func (c *Client) SyncCMD(ctx context.Context, nodeID uint64, query cmdsync.SyncQ
 
 func (c *Client) SyncAckCMD(ctx context.Context, nodeID uint64, cmd cmdsync.SyncAckCommand) error {
 	_, err := c.callCMDSync(ctx, nodeID, cmdSyncRPCRequest{Op: cmdSyncOpSyncAck, Ack: cmd})
+	return err
+}
+
+func (c *Client) PushCMDConversationIntent(ctx context.Context, nodeID uint64, intent cmdsync.ConversationIntent) error {
+	_, err := c.callCMDSync(ctx, nodeID, cmdSyncRPCRequest{Op: cmdSyncOpPushIntent, Intent: intent})
 	return err
 }
 
@@ -85,10 +113,47 @@ func (c *Client) callCMDSync(ctx context.Context, nodeID uint64, req cmdSyncRPCR
 		return cmdSyncRPCResponse{}, err
 	}
 	if resp.Status != rpcStatusOK {
+		if resp.Status == rpcStatusStaleOwner {
+			return cmdSyncRPCResponse{}, cmdSyncStaleOwnerError{message: resp.Error}
+		}
 		if resp.Error != "" {
 			return cmdSyncRPCResponse{}, fmt.Errorf("access/node: cmd sync rpc %s: %s", resp.Status, resp.Error)
 		}
 		return cmdSyncRPCResponse{}, fmt.Errorf("access/node: cmd sync rpc status %s", resp.Status)
 	}
 	return resp, nil
+}
+
+func validateCMDConversationIntent(intent cmdsync.ConversationIntent) error {
+	commandChannelID := strings.TrimSpace(intent.CommandChannelID)
+	if commandChannelID == "" || !runtimechannelid.IsCommandChannel(commandChannelID) {
+		return fmt.Errorf("access/node: cmd conversation intent command channel required")
+	}
+	if intent.ChannelType == 0 {
+		return fmt.Errorf("access/node: cmd conversation intent channel type required")
+	}
+	if intent.MessageSeq == 0 {
+		return fmt.Errorf("access/node: cmd conversation intent message seq required")
+	}
+	for uid := range intent.UserReadSeqs {
+		if strings.TrimSpace(uid) != "" {
+			return nil
+		}
+	}
+	return fmt.Errorf("access/node: cmd conversation intent uid read seqs required")
+}
+
+type cmdSyncStaleOwnerError struct {
+	message string
+}
+
+func (e cmdSyncStaleOwnerError) Error() string {
+	if e.message == "" {
+		return cmdsync.ErrConversationIntentStaleOwner.Error()
+	}
+	return fmt.Sprintf("access/node: cmd sync rpc %s: %s", rpcStatusStaleOwner, e.message)
+}
+
+func (e cmdSyncStaleOwnerError) Unwrap() error {
+	return cmdsync.ErrConversationIntentStaleOwner
 }

@@ -151,54 +151,61 @@ type CMDSyncUsecase interface {
 	SyncAck(ctx context.Context, cmd cmdsync.SyncAckCommand) error
 }
 
+// CMDConversationIntentSink accepts UID-owner CMD conversation update intents.
+type CMDConversationIntentSink interface {
+	PushIntent(ctx context.Context, intent cmdsync.ConversationIntent) error
+}
+
 type Options struct {
-	Cluster               Cluster
-	Presence              Presence
-	Online                online.Registry
-	GatewayBootID         uint64
-	LocalNodeID           uint64
-	ChannelLog            ChannelLog
-	ChannelLogDB          *channelstore.Engine
-	DeliverySubmit        DeliverySubmit
-	DeliveryAck           DeliveryAck
-	DeliveryOffline       DeliveryOffline
-	DeliveryTag           DeliveryTagAuthority
-	ChannelMeta           ChannelMetaRefresher
-	ChannelLeaderRepair   ChannelLeaderRepairer
-	ChannelLeaderEvaluate ChannelLeaderEvaluator
-	DeliveryAckIndex      *deliveryruntime.AckIndex
-	RuntimeSummary        RuntimeSummaryProvider
-	Diagnostics           DiagnosticsProvider
-	ChannelRetention      ChannelRetentionProvider
-	SystemUIDCache        SystemUIDCache
-	CMDSync               CMDSyncUsecase
-	Codec                 codec.Protocol
-	Logger                wklog.Logger
+	Cluster                Cluster
+	Presence               Presence
+	Online                 online.Registry
+	GatewayBootID          uint64
+	LocalNodeID            uint64
+	ChannelLog             ChannelLog
+	ChannelLogDB           *channelstore.Engine
+	DeliverySubmit         DeliverySubmit
+	DeliveryAck            DeliveryAck
+	DeliveryOffline        DeliveryOffline
+	DeliveryTag            DeliveryTagAuthority
+	ChannelMeta            ChannelMetaRefresher
+	ChannelLeaderRepair    ChannelLeaderRepairer
+	ChannelLeaderEvaluate  ChannelLeaderEvaluator
+	DeliveryAckIndex       *deliveryruntime.AckIndex
+	RuntimeSummary         RuntimeSummaryProvider
+	Diagnostics            DiagnosticsProvider
+	ChannelRetention       ChannelRetentionProvider
+	SystemUIDCache         SystemUIDCache
+	CMDSync                CMDSyncUsecase
+	CMDConversationIntents CMDConversationIntentSink
+	Codec                  codec.Protocol
+	Logger                 wklog.Logger
 }
 
 type Adapter struct {
-	cluster               Cluster
-	presence              Presence
-	online                online.Registry
-	gatewayBootID         uint64
-	localNodeID           uint64
-	channelLog            ChannelLog
-	channelLogDB          *channelstore.Engine
-	deliverySubmit        DeliverySubmit
-	deliveryAck           DeliveryAck
-	deliveryOffline       DeliveryOffline
-	deliveryTag           DeliveryTagAuthority
-	channelMeta           ChannelMetaRefresher
-	channelLeaderRepair   ChannelLeaderRepairer
-	channelLeaderEvaluate ChannelLeaderEvaluator
-	deliveryAckIndex      *deliveryruntime.AckIndex
-	runtimeSummary        RuntimeSummaryProvider
-	diagnostics           DiagnosticsProvider
-	channelRetention      ChannelRetentionProvider
-	systemUIDCache        SystemUIDCache
-	cmdSync               CMDSyncUsecase
-	codec                 codec.Protocol
-	logger                wklog.Logger
+	cluster                Cluster
+	presence               Presence
+	online                 online.Registry
+	gatewayBootID          uint64
+	localNodeID            uint64
+	channelLog             ChannelLog
+	channelLogDB           *channelstore.Engine
+	deliverySubmit         DeliverySubmit
+	deliveryAck            DeliveryAck
+	deliveryOffline        DeliveryOffline
+	deliveryTag            DeliveryTagAuthority
+	channelMeta            ChannelMetaRefresher
+	channelLeaderRepair    ChannelLeaderRepairer
+	channelLeaderEvaluate  ChannelLeaderEvaluator
+	deliveryAckIndex       *deliveryruntime.AckIndex
+	runtimeSummary         RuntimeSummaryProvider
+	diagnostics            DiagnosticsProvider
+	channelRetention       ChannelRetentionProvider
+	systemUIDCache         SystemUIDCache
+	cmdSync                CMDSyncUsecase
+	cmdConversationIntents CMDConversationIntentSink
+	codec                  codec.Protocol
+	logger                 wklog.Logger
 }
 
 func New(opts Options) *Adapter {
@@ -209,28 +216,29 @@ func New(opts Options) *Adapter {
 		opts.Logger = wklog.NewNop()
 	}
 	adapter := &Adapter{
-		cluster:               opts.Cluster,
-		presence:              opts.Presence,
-		online:                opts.Online,
-		gatewayBootID:         opts.GatewayBootID,
-		localNodeID:           opts.LocalNodeID,
-		channelLog:            opts.ChannelLog,
-		channelLogDB:          opts.ChannelLogDB,
-		deliverySubmit:        opts.DeliverySubmit,
-		deliveryAck:           opts.DeliveryAck,
-		deliveryOffline:       opts.DeliveryOffline,
-		deliveryTag:           opts.DeliveryTag,
-		channelMeta:           opts.ChannelMeta,
-		channelLeaderRepair:   opts.ChannelLeaderRepair,
-		channelLeaderEvaluate: opts.ChannelLeaderEvaluate,
-		deliveryAckIndex:      opts.DeliveryAckIndex,
-		runtimeSummary:        opts.RuntimeSummary,
-		diagnostics:           opts.Diagnostics,
-		channelRetention:      opts.ChannelRetention,
-		systemUIDCache:        opts.SystemUIDCache,
-		cmdSync:               opts.CMDSync,
-		codec:                 opts.Codec,
-		logger:                opts.Logger,
+		cluster:                opts.Cluster,
+		presence:               opts.Presence,
+		online:                 opts.Online,
+		gatewayBootID:          opts.GatewayBootID,
+		localNodeID:            opts.LocalNodeID,
+		channelLog:             opts.ChannelLog,
+		channelLogDB:           opts.ChannelLogDB,
+		deliverySubmit:         opts.DeliverySubmit,
+		deliveryAck:            opts.DeliveryAck,
+		deliveryOffline:        opts.DeliveryOffline,
+		deliveryTag:            opts.DeliveryTag,
+		channelMeta:            opts.ChannelMeta,
+		channelLeaderRepair:    opts.ChannelLeaderRepair,
+		channelLeaderEvaluate:  opts.ChannelLeaderEvaluate,
+		deliveryAckIndex:       opts.DeliveryAckIndex,
+		runtimeSummary:         opts.RuntimeSummary,
+		diagnostics:            opts.Diagnostics,
+		channelRetention:       opts.ChannelRetention,
+		systemUIDCache:         opts.SystemUIDCache,
+		cmdSync:                opts.CMDSync,
+		cmdConversationIntents: opts.CMDConversationIntents,
+		codec:                  opts.Codec,
+		logger:                 opts.Logger,
 	}
 	if opts.Cluster != nil && opts.Cluster.RPCMux() != nil {
 		opts.Cluster.RPCMux().Handle(presenceRPCServiceID, adapter.handlePresenceRPC)
