@@ -348,6 +348,15 @@ type PendingStateStore interface {
     UpsertCMDConversationStates(ctx context.Context, states []metadb.CMDConversationState) error
 }
 
+// StateStore persists UID-owned durable CMD sync state. P2d-d adds the upsert
+// method so syncack can create read progress for pending-only CMD conversations
+// before removing pending entries.
+type StateStore interface {
+    ListCMDConversationActive(ctx context.Context, uid string, limit int) ([]metadb.CMDConversationState, error)
+    AdvanceCMDConversationReadSeq(ctx context.Context, patches []metadb.CMDConversationReadPatch) error
+    UpsertCMDConversationStates(ctx context.Context, states []metadb.CMDConversationState) error
+}
+
 // ConversationPendingStore provides owner-local pending overlays to sync/ack.
 type ConversationPendingStore interface {
     ListPending(ctx context.Context, uid string, limit int) []PendingConversationView
@@ -495,6 +504,19 @@ func TestAppSyncAckTreatsPendingCleanupFailureAsBestEffort(t *testing.T) {
     require.NoError(t, app.SyncAck(context.Background(), SyncAckCommand{UID: "u1", LastMessageSeq: 9}))
     require.NotEmpty(t, states.patches)
 }
+
+func TestAppSyncAckPersistsPendingOnlyReadProgressBeforeCleanup(t *testing.T) {
+    states := &fakeStateStore{advanceNoopsWhenMissing: true}
+    pending := &fakePendingStore{views: map[string][]PendingConversationView{"u1": {{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 9, ActiveAt: 100, ReadSeq: 0}}}}
+    records := NewSyncRecordCache(SyncRecordCacheOptions{Now: time.Now})
+    records.Replace("u1", []SyncRecord{{CommandChannelID: "g1____cmd", ChannelType: 2, LastReturnedMsgSeq: 9}})
+    app := New(Options{States: states, Messages: &fakeMessageStore{}, Records: records, Pending: pending})
+
+    require.NoError(t, app.SyncAck(context.Background(), SyncAckCommand{UID: "u1", LastMessageSeq: 9}))
+
+    require.Equal(t, []metadb.CMDConversationState{{UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ReadSeq: 9, ActiveAt: 100}}, stripUpdateTimes(states.upserts))
+    require.Equal(t, []CommandChannelKey{{ChannelID: "g1____cmd", ChannelType: 2}}, pending.markedKeys)
+}
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -512,6 +534,7 @@ Expected: FAIL with `Options.Pending` undefined or missing merge behavior.
 In `internal/usecase/cmdsync/app.go`:
 
 - Add `Pending ConversationPendingStore` to `Options` and `pending ConversationPendingStore` to `App`.
+- Extend the existing `StateStore` interface with `UpsertCMDConversationStates(ctx, []metadb.CMDConversationState) error`. Do not add a second state dependency to `App`; `a.states` must support list, advance, and upsert.
 - Convert persisted states and pending views into a shared candidate state keyed by `CommandChannelKey`.
 - For each key, merge:
 
@@ -526,19 +549,39 @@ activeAt := maxInt64(persisted.ActiveAt, pending.ActiveAt)
 
 - [ ] **Step 4: Clean pending on ack**
 
-Use `records := a.records.Pop(uid)` as today. After successful `a.states.AdvanceCMDConversationReadSeq(ctx, patches)`, call pending cleanup as best effort:
+Use `records := a.records.Pop(uid)` as today, but make read progress durable before pending cleanup.
+
+Algorithm:
+
+1. Build valid read patches from sync records.
+2. Call `AdvanceCMDConversationReadSeq(ctx, patches)` for existing durable rows.
+3. If `a.pending != nil`, list pending views for the UID and build a lookup by `(CommandChannelID, ChannelType)`.
+4. For each valid sync record that has a matching pending view, call `UpsertCMDConversationStates` with a state carrying at least `UID`, `ChannelID`, `ChannelType`, `ReadSeq=LastReturnedMsgSeq`, `ActiveAt=max(pending.ActiveAt, now)`, and `UpdatedAt=now`. This creates a durable row when the previous advance was a no-op because the channel existed only in pending.
+5. Only after the upsert succeeds, call `MarkSynced` for that UID/channel.
+6. If the durable upsert fails, do not call `MarkSynced`; return the error so the pending entry remains as the retryable source of progress.
+7. If `MarkSynced` fails after durable progress exists, log and return nil; cleanup is best effort because read progress is already durable.
+
+Example cleanup block:
 
 ```go
 if a.pending != nil {
+    pendingByKey := pendingViewsByKey(a.pending.ListPending(ctx, uid, a.activeScanLimit))
     for _, record := range validRecords {
-        if err := a.pending.MarkSynced(ctx, uid, CommandChannelKey{ChannelID: record.CommandChannelID, ChannelType: record.ChannelType}, record.LastReturnedMsgSeq); err != nil {
+        key := CommandChannelKey{ChannelID: record.CommandChannelID, ChannelType: record.ChannelType}
+        if view, ok := pendingByKey[key]; ok {
+            state := metadb.CMDConversationState{UID: uid, ChannelID: key.ChannelID, ChannelType: int64(key.ChannelType), ReadSeq: record.LastReturnedMsgSeq, ActiveAt: maxInt64(view.ActiveAt, updatedAt), UpdatedAt: updatedAt}
+            if err := a.states.UpsertCMDConversationStates(ctx, []metadb.CMDConversationState{state}); err != nil {
+                return err
+            }
+        }
+        if err := a.pending.MarkSynced(ctx, uid, key, record.LastReturnedMsgSeq); err != nil {
             a.logger.Warn("cmd sync pending cleanup failed", wklog.Error(err))
         }
     }
 }
 ```
 
-Only call for valid records that generated a read patch. Do not return pending cleanup errors from `SyncAck`, because the sync records were already popped and a client retry cannot identify the same channel set. Pending cleanup is idempotent and best effort; any uncleaned pending entries will either be flushed or later ignored through max read-seq semantics.
+Only call for valid records that generated a read patch. The critical contract is: pending cleanup is allowed only after durable read progress exists or has just been upserted successfully.
 
 - [ ] **Step 5: Run cmdsync tests**
 
