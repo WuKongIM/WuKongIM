@@ -18,7 +18,7 @@
 
 ```go
 // proxy/store.go — 业务层唯一入口
-Store.CreateChannel / UpdateChannel / UpsertChannel / DeleteChannel
+Store.CreateChannel / UpdateChannel / UpsertChannel / DeleteChannel / GetChannelForPermission / ScanChannelsSlotPage
 Store.AddChannelSubscribers / RemoveChannelSubscribers / ListChannelSubscribers
 Store.UpsertChannelRuntimeMeta / AdvanceChannelRetentionThroughSeq / GetChannelRuntimeMeta / ListChannelRuntimeMeta / ScanChannelRuntimeMetaSlotPage
 Store.CreateUser / UpsertUser / GetUser
