@@ -480,6 +480,7 @@ handleRecvAck(ctx, pkt)
 | `channel_leader_repair` | → slot leader | `access/node/channel_leader_repair_rpc.go` | 请求权威修复 ChannelRuntimeMeta.Leader |
 | `channel_leader_evaluate` | → candidate replica | `access/node/channel_leader_evaluate_rpc.go` | 评估副本是否可安全接任 channel leader |
 | `diagnostics` | → target node | `access/node/diagnostics_rpc.go` | 管理端跨节点查询目标节点的 node-local diagnostics store |
+| `cmd_sync` | → UID slot leader | `access/node/cmdsync_rpc.go` | 转发 legacy CMD 离线消息同步与 syncack 到 UID 权威节点 |
 
 ---
 
