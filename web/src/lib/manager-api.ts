@@ -42,10 +42,13 @@ import type {
   ManagerSlotRemoveResponse,
   ManagerSlotRecoverResponse,
   ManagerSlotRebalanceResponse,
+  ManagerSystemUsersResponse,
   ManagerSlotsResponse,
   ManagerTaskDetailResponse,
   ManagerTasksResponse,
   MessageListParams,
+  MutateSystemUsersInput,
+  MutateSystemUsersResponse,
   NodeOnboardingJobsParams,
   SlotListParams,
   SlotLogListParams,
@@ -539,6 +542,24 @@ export function resetUserToken(uid: string, input: ResetUserTokenInput) {
       device_level: input.deviceLevel,
       token: input.token,
     }),
+  })
+}
+
+export function getSystemUsers() {
+  return jsonManagerFetch<ManagerSystemUsersResponse>("/manager/system-users")
+}
+
+export function addSystemUsers(input: MutateSystemUsersInput) {
+  return jsonManagerFetch<MutateSystemUsersResponse>("/manager/system-users/add", {
+    method: "POST",
+    body: JSON.stringify({ uids: input.uids }),
+  })
+}
+
+export function removeSystemUsers(input: MutateSystemUsersInput) {
+  return jsonManagerFetch<MutateSystemUsersResponse>("/manager/system-users/remove", {
+    method: "POST",
+    body: JSON.stringify({ uids: input.uids }),
   })
 }
 

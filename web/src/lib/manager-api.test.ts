@@ -34,6 +34,7 @@ import {
   getTasks,
   getUsers,
   getUser,
+  getSystemUsers,
   kickUser,
   loginManager,
   managerFetch,
@@ -45,6 +46,8 @@ import {
   recoverSlot,
   resetManagerAuthConfig,
   resumeNode,
+  addSystemUsers,
+  removeSystemUsers,
   retryNodeOnboardingJob,
   planNodeScaleIn,
   startNodeScaleIn,
@@ -239,6 +242,50 @@ describe("manager api client", () => {
       device_flag: "app",
       device_level: "master",
     })
+  })
+
+  it("fetches manager system users", async () => {
+    const payload = { items: [{ uid: "sys-a" }], total: 1 }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }))
+
+    await expect(getSystemUsers()).resolves.toEqual(payload)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/system-users",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
+  it("adds manager system users", async () => {
+    const payload = { uids: ["sys-a", "sys-b"], changed: true }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }))
+
+    await expect(addSystemUsers({ uids: ["sys-a", "sys-b"] })).resolves.toEqual(payload)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/system-users/add",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ uids: ["sys-a", "sys-b"] }),
+        headers: expect.any(Headers),
+      }),
+    )
+  })
+
+  it("removes manager system users", async () => {
+    const payload = { uids: ["sys-a"], changed: true }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }))
+
+    await expect(removeSystemUsers({ uids: ["sys-a"] })).resolves.toEqual(payload)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/system-users/remove",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ uids: ["sys-a"] }),
+        headers: expect.any(Headers),
+      }),
+    )
   })
 
   it("fetches business channels with search params", async () => {

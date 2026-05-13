@@ -1120,6 +1120,24 @@ export type ManagerUsersResponse = {
   next_cursor?: string
 }
 
+export type ManagerSystemUser = {
+  uid: string
+}
+
+export type ManagerSystemUsersResponse = {
+  items: ManagerSystemUser[]
+  total: number
+}
+
+export type MutateSystemUsersInput = {
+  uids: string[]
+}
+
+export type MutateSystemUsersResponse = {
+  uids: string[]
+  changed: boolean
+}
+
 export type ManagerUserDevice = {
   device_flag: string
   device_level: string
