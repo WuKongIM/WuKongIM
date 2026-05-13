@@ -187,6 +187,59 @@ func TestCreateUserRejectsOverlongUID(t *testing.T) {
 	}
 }
 
+func TestShardListUsersPageReturnsStableCursor(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+
+	for _, user := range []User{
+		{UID: "u1", Token: "t1"},
+		{UID: "u2", Token: "t2"},
+		{UID: "u3", Token: "t3"},
+	} {
+		if err := shard.CreateUser(ctx, user); err != nil {
+			t.Fatalf("create user %s: %v", user.UID, err)
+		}
+	}
+
+	page1, cursor, done, err := shard.ListUsersPage(ctx, UserCursor{}, 2)
+	if err != nil {
+		t.Fatalf("list first page: %v", err)
+	}
+	if done {
+		t.Fatal("first page done = true, want false")
+	}
+	if got, want := userUIDs(page1), []string{"u1", "u2"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("first page UIDs = %v, want %v", got, want)
+	}
+	if cursor != (UserCursor{UID: "u2"}) {
+		t.Fatalf("first cursor = %#v, want u2", cursor)
+	}
+
+	page2, cursor, done, err := shard.ListUsersPage(ctx, cursor, 2)
+	if err != nil {
+		t.Fatalf("list second page: %v", err)
+	}
+	if !done {
+		t.Fatal("second page done = false, want true")
+	}
+	if got, want := userUIDs(page2), []string{"u3"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("second page UIDs = %v, want %v", got, want)
+	}
+	if cursor != (UserCursor{UID: "u3"}) {
+		t.Fatalf("second cursor = %#v, want u3", cursor)
+	}
+}
+
+func TestShardListUsersPageRejectsInvalidLimit(t *testing.T) {
+	db := openTestDB(t)
+
+	_, _, _, err := db.ForSlot(7).ListUsersPage(context.Background(), UserCursor{}, 0)
+	if !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("expected ErrInvalidArgument, got %v", err)
+	}
+}
+
 func TestGetUserHonorsCanceledContext(t *testing.T) {
 	db := openTestDB(t)
 	shard := db.ForSlot(1)
@@ -198,4 +251,12 @@ func TestGetUserHonorsCanceledContext(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context.Canceled, got %v", err)
 	}
+}
+
+func userUIDs(users []User) []string {
+	uids := make([]string, 0, len(users))
+	for _, user := range users {
+		uids = append(uids, user.UID)
+	}
+	return uids
 }
