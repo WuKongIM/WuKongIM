@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
@@ -14,8 +15,9 @@ import (
 const channelMigrationRPCServiceID uint8 = 47
 
 const (
-	channelMigrationRPCGetActive = "get_active"
-	channelMigrationRPCPropose   = "propose"
+	channelMigrationRPCGetActive         = "get_active"
+	channelMigrationRPCPropose           = "propose"
+	channelMigrationRPCListActiveForNode = "list_active_for_node"
 )
 
 var channelMigrationProposalRPCStatuses = map[string]struct{}{
@@ -30,12 +32,16 @@ type channelMigrationRPCRequest struct {
 	ChannelID   string `json:"channel_id,omitempty"`
 	ChannelType int64  `json:"channel_type,omitempty"`
 	Command     []byte `json:"command,omitempty"`
+	NodeID      uint64 `json:"node_id,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
 }
 
 type channelMigrationRPCResponse struct {
-	Status   string                       `json:"status"`
-	LeaderID uint64                       `json:"leader_id,omitempty"`
-	Task     *metadb.ChannelMigrationTask `json:"task,omitempty"`
+	Status   string                        `json:"status"`
+	LeaderID uint64                        `json:"leader_id,omitempty"`
+	Task     *metadb.ChannelMigrationTask  `json:"task,omitempty"`
+	Tasks    []metadb.ChannelMigrationTask `json:"tasks,omitempty"`
+	HasMore  bool                          `json:"has_more,omitempty"`
 }
 
 func (r channelMigrationRPCResponse) rpcStatus() string {
@@ -121,6 +127,61 @@ func (s *Store) ListRunnableChannelMigrationTasksForLocalLeaderSlots(ctx context
 		}
 	}
 	return out, nil
+}
+
+// ListActiveChannelMigrationTasksForNode returns active migration tasks whose source or target is the node.
+func (s *Store) ListActiveChannelMigrationTasksForNode(ctx context.Context, nodeID uint64, limit int) ([]metadb.ChannelMigrationTask, bool, error) {
+	if s.cluster == nil {
+		return nil, false, fmt.Errorf("metastore: cluster not configured")
+	}
+	if limit <= 0 {
+		return nil, false, nil
+	}
+
+	out := make([]metadb.ChannelMigrationTask, 0, limit)
+	probeLimit := limit + 1
+	slotIDs := append([]multiraft.SlotID(nil), s.cluster.SlotIDs()...)
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	for _, slotID := range slotIDs {
+		remaining := probeLimit - len(out)
+		if remaining <= 0 {
+			break
+		}
+
+		var tasks []metadb.ChannelMigrationTask
+		var hasMore bool
+		if s.shouldServeSlotLocally(slotID) {
+			var err error
+			tasks, hasMore, err = s.listActiveChannelMigrationTasksForNodeLocalSlot(ctx, slotID, nodeID, remaining)
+			if err != nil {
+				return nil, false, err
+			}
+		} else {
+			resp, err := s.callChannelMigrationRPC(ctx, slotID, channelMigrationRPCRequest{
+				Op:     channelMigrationRPCListActiveForNode,
+				SlotID: uint64(slotID),
+				NodeID: nodeID,
+				Limit:  remaining,
+			})
+			if err != nil {
+				return nil, false, err
+			}
+			tasks = resp.Tasks
+			hasMore = resp.HasMore
+		}
+
+		out = append(out, tasks...)
+		if hasMore || len(out) > limit {
+			if len(out) > limit {
+				out = out[:limit]
+			}
+			return out, true, nil
+		}
+	}
+	if len(out) > limit {
+		return out[:limit], true, nil
+	}
+	return out, false, nil
 }
 
 // ClaimChannelMigrationTask claims a task only when this node currently leads the owning slot.
@@ -311,6 +372,16 @@ func (s *Store) handleChannelMigrationRPC(ctx context.Context, body []byte) ([]b
 			Status: rpcStatusOK,
 			Task:   &task,
 		})
+	case channelMigrationRPCListActiveForNode:
+		tasks, hasMore, err := s.listActiveChannelMigrationTasksForNodeLocalSlot(ctx, slotID, req.NodeID, req.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return encodeChannelMigrationRPCResponse(channelMigrationRPCResponse{
+			Status:  rpcStatusOK,
+			Tasks:   tasks,
+			HasMore: hasMore,
+		})
 	case channelMigrationRPCPropose:
 		hashSlot := req.HashSlot
 		if req.ChannelID != "" {
@@ -333,6 +404,30 @@ func (s *Store) handleChannelMigrationRPC(ctx context.Context, body []byte) ([]b
 	default:
 		return nil, fmt.Errorf("metastore: unknown channel migration rpc op %q", req.Op)
 	}
+}
+
+func (s *Store) listActiveChannelMigrationTasksForNodeLocalSlot(ctx context.Context, slotID multiraft.SlotID, nodeID uint64, limit int) ([]metadb.ChannelMigrationTask, bool, error) {
+	if limit <= 0 {
+		return nil, false, nil
+	}
+
+	out := make([]metadb.ChannelMigrationTask, 0, limit)
+	for _, hashSlot := range s.cluster.HashSlotsOf(slotID) {
+		tasks, err := s.db.ForHashSlot(hashSlot).ListChannelMigrationTasks(ctx)
+		if err != nil {
+			return nil, false, err
+		}
+		for _, task := range tasks {
+			if !channelMigrationTaskActive(task) || (task.SourceNode != nodeID && task.TargetNode != nodeID) {
+				continue
+			}
+			if len(out) >= limit {
+				return out, true, nil
+			}
+			out = append(out, task)
+		}
+	}
+	return out, false, nil
 }
 
 func (s *Store) resolveChannelMigrationRPCRoute(channelID string, slotID multiraft.SlotID) (uint16, []byte, error) {
@@ -363,4 +458,13 @@ func isRunnableChannelMigrationTaskForLocalLeader(task metadb.ChannelMigrationTa
 		return true
 	}
 	return task.OwnerLeaseUntilMS > 0 && task.OwnerLeaseUntilMS <= nowMS
+}
+
+func channelMigrationTaskActive(task metadb.ChannelMigrationTask) bool {
+	switch task.Status {
+	case metadb.ChannelMigrationStatusCompleted, metadb.ChannelMigrationStatusFailed, metadb.ChannelMigrationStatusAborted:
+		return false
+	default:
+		return true
+	}
 }

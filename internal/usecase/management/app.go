@@ -112,6 +112,8 @@ type ChannelMigrationStore interface {
 	CreateChannelMigrationTaskWithRuntimeGuard(ctx context.Context, req metadb.ChannelMigrationTaskCreate) error
 	// GetActiveChannelMigrationTask returns the active task for one channel when present.
 	GetActiveChannelMigrationTask(ctx context.Context, channelID string, channelType int64) (metadb.ChannelMigrationTask, bool, error)
+	// ListActiveChannelMigrationTasksForNode returns active channel migration tasks whose source or target is the node.
+	ListActiveChannelMigrationTasksForNode(ctx context.Context, nodeID uint64, limit int) ([]metadb.ChannelMigrationTask, bool, error)
 	// AbortChannelMigration marks an active migration task aborted.
 	AbortChannelMigration(ctx context.Context, req metadb.ChannelMigrationAbortRequest) error
 }

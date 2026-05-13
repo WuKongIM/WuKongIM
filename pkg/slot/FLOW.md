@@ -27,7 +27,7 @@ Store.GetUserConversationState / UpsertUserConversationStates / ListUserConversa
 Store.TouchUserConversationActiveAt / ClearUserConversationActiveAt / HideUserConversations
 Store.RegisterUserConversationActiveOverlay(overlay)  // 注册 UID-owner active_at 热提示覆盖层
 Store.SubmitUserConversationActiveHints / RemoveUserConversationActiveHints
-Store.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / GetActiveChannelMigrationTask / ListRunnableChannelMigrationTasksForLocalLeaderSlots
+Store.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / GetActiveChannelMigrationTask / ListRunnableChannelMigrationTasksForLocalLeaderSlots / ListActiveChannelMigrationTasksForNode
 Store.ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteFence / ResetChannelWriteFenceToPreCutover
 Store.CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration
 Store.GarbageCollectTerminalChannelMigrationTasks
@@ -105,6 +105,9 @@ Pebble:
        not_leader + leaderID   → 优先重试 leaderID
        no_leader / no_slot     → 记录 lastErr，尝试下一个
     ④ 所有 peers 用尽 → 返回 lastErr
+
+Channel migration active task scan:
+  `Store.ListActiveChannelMigrationTasksForNode` 按 Slot 权威 leader 扫描 active task，仅以 `SourceNode` / `TargetNode` 判断节点参与关系；`OwnerNodeID` 只表示当前 executor，不算节点参与。NodeScaleIn 会把该结果与当前 `ChannelRuntimeMeta` 扫描结果再 join，用于统计 channel metadata 仍引用目标节点的 active task。
 ```
 
 ### 5.3 Raft Ready 处理循环

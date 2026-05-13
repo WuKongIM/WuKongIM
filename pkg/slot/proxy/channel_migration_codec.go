@@ -14,6 +14,7 @@ var (
 const (
 	channelMigrationRPCGetActiveID byte = iota + 1
 	channelMigrationRPCProposeID
+	channelMigrationRPCListActiveForNodeID
 )
 
 func encodeChannelMigrationRPCRequestBinary(req channelMigrationRPCRequest) ([]byte, error) {
@@ -29,6 +30,8 @@ func encodeChannelMigrationRPCRequestBinary(req channelMigrationRPCRequest) ([]b
 	dst = runtimeMetaAppendString(dst, req.ChannelID)
 	dst = runtimeMetaAppendVarint(dst, req.ChannelType)
 	dst = channelMigrationAppendBytes(dst, req.Command)
+	dst = runtimeMetaAppendUvarint(dst, req.NodeID)
+	dst = runtimeMetaAppendVarint(dst, int64(req.Limit))
 	return dst, nil
 }
 
@@ -69,6 +72,18 @@ func decodeChannelMigrationRPCRequest(body []byte) (channelMigrationRPCRequest, 
 	if req.Command, offset, err = channelMigrationReadBytes(body, offset); err != nil {
 		return channelMigrationRPCRequest{}, err
 	}
+	if req.NodeID, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
+		return channelMigrationRPCRequest{}, err
+	}
+	limit, next, err := runtimeMetaReadVarint(body, offset)
+	if err != nil {
+		return channelMigrationRPCRequest{}, err
+	}
+	if limit > int64(int(^uint(0)>>1)) || limit < -int64(int(^uint(0)>>1))-1 {
+		return channelMigrationRPCRequest{}, fmt.Errorf("metastore: channel migration limit overflows int")
+	}
+	req.Limit = int(limit)
+	offset = next
 	if offset != len(body) {
 		return channelMigrationRPCRequest{}, fmt.Errorf("metastore: trailing channel migration request bytes")
 	}
@@ -81,6 +96,8 @@ func encodeChannelMigrationRPCResponse(resp channelMigrationRPCResponse) ([]byte
 	dst = runtimeMetaAppendString(dst, resp.Status)
 	dst = runtimeMetaAppendUvarint(dst, resp.LeaderID)
 	dst = appendChannelMigrationTaskPtr(dst, resp.Task)
+	dst = appendChannelMigrationTasks(dst, resp.Tasks)
+	dst = runtimeMetaAppendBool(dst, resp.HasMore)
 	return dst, nil
 }
 
@@ -100,6 +117,12 @@ func decodeChannelMigrationRPCResponse(body []byte) (channelMigrationRPCResponse
 	if resp.Task, offset, err = readChannelMigrationTaskPtr(body, offset); err != nil {
 		return channelMigrationRPCResponse{}, err
 	}
+	if resp.Tasks, offset, err = readChannelMigrationTasks(body, offset); err != nil {
+		return channelMigrationRPCResponse{}, err
+	}
+	if resp.HasMore, offset, err = runtimeMetaReadBool(body, offset); err != nil {
+		return channelMigrationRPCResponse{}, err
+	}
 	if offset != len(body) {
 		return channelMigrationRPCResponse{}, fmt.Errorf("metastore: trailing channel migration response bytes")
 	}
@@ -112,6 +135,8 @@ func channelMigrationOpID(op string) (byte, error) {
 		return channelMigrationRPCGetActiveID, nil
 	case channelMigrationRPCPropose:
 		return channelMigrationRPCProposeID, nil
+	case channelMigrationRPCListActiveForNode:
+		return channelMigrationRPCListActiveForNodeID, nil
 	default:
 		return 0, fmt.Errorf("metastore: unknown channel migration rpc op %q", op)
 	}
@@ -123,6 +148,8 @@ func channelMigrationOpFromID(op byte) (string, error) {
 		return channelMigrationRPCGetActive, nil
 	case channelMigrationRPCProposeID:
 		return channelMigrationRPCPropose, nil
+	case channelMigrationRPCListActiveForNodeID:
+		return channelMigrationRPCListActiveForNode, nil
 	default:
 		return "", fmt.Errorf("metastore: unknown channel migration rpc op id %d", op)
 	}
@@ -164,6 +191,35 @@ func readChannelMigrationTaskPtr(body []byte, offset int) (*metadb.ChannelMigrat
 		return nil, offset, err
 	}
 	return &task, next, nil
+}
+
+func appendChannelMigrationTasks(dst []byte, tasks []metadb.ChannelMigrationTask) []byte {
+	dst = runtimeMetaAppendUvarint(dst, uint64(len(tasks)))
+	for _, task := range tasks {
+		dst = appendChannelMigrationTask(dst, task)
+	}
+	return dst
+}
+
+func readChannelMigrationTasks(body []byte, offset int) ([]metadb.ChannelMigrationTask, int, error) {
+	length, next, err := runtimeMetaReadUvarint(body, offset)
+	if err != nil {
+		return nil, offset, err
+	}
+	if length > uint64(int(^uint(0)>>1)) {
+		return nil, offset, fmt.Errorf("metastore: channel migration task list overflows int")
+	}
+	offset = next
+	tasks := make([]metadb.ChannelMigrationTask, 0, int(length))
+	for range int(length) {
+		task, next, err := readChannelMigrationTask(body, offset)
+		if err != nil {
+			return nil, offset, err
+		}
+		tasks = append(tasks, task)
+		offset = next
+	}
+	return tasks, offset, nil
 }
 
 func appendChannelMigrationTask(dst []byte, task metadb.ChannelMigrationTask) []byte {
