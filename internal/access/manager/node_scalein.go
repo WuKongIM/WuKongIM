@@ -11,7 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const managerMaxScaleInLeaderTransfers = 3
+const (
+	managerMaxScaleInLeaderTransfers   = 3
+	managerMaxScaleInChannelMigrations = 5
+)
 
 // nodeScaleInPlanRequest is the HTTP request body for plan/start scale-in routes.
 type nodeScaleInPlanRequest struct {
@@ -22,6 +25,7 @@ type nodeScaleInPlanRequest struct {
 // advanceNodeScaleInRequest is the HTTP request body for one scale-in advance step.
 type advanceNodeScaleInRequest struct {
 	MaxLeaderTransfers    int  `json:"max_leader_transfers"`
+	MaxChannelMigrations  int  `json:"max_channel_migrations"`
 	ForceCloseConnections bool `json:"force_close_connections"`
 }
 
@@ -44,35 +48,45 @@ type nodeScaleInReportDTO struct {
 
 // nodeScaleInChecksDTO exposes stable preflight check names for the UI.
 type nodeScaleInChecksDTO struct {
-	TargetExists                          bool `json:"target_exists"`
-	TargetIsDataNode                      bool `json:"target_is_data_node"`
-	TargetIsActiveOrDraining              bool `json:"target_is_active_or_draining"`
-	TargetIsNotControllerVoter            bool `json:"target_is_not_controller_voter"`
-	TailNodeMappingVerified               bool `json:"tail_node_mapping_verified"`
-	RemainingDataNodesEnough              bool `json:"remaining_data_nodes_enough"`
-	ControllerLeaderAvailable             bool `json:"controller_leader_available"`
-	SlotReplicaCountKnown                 bool `json:"slot_replica_count_known"`
-	NoOtherDrainingNode                   bool `json:"no_other_draining_node"`
-	NoActiveHashslotMigrations            bool `json:"no_active_hashslot_migrations"`
-	NoRunningOnboarding                   bool `json:"no_running_onboarding"`
-	NoActiveReconcileTasksInvolvingTarget bool `json:"no_active_reconcile_tasks_involving_target"`
-	NoFailedReconcileTasks                bool `json:"no_failed_reconcile_tasks"`
-	RuntimeViewsCompleteAndFresh          bool `json:"runtime_views_complete_and_fresh"`
-	AllSlotsHaveQuorum                    bool `json:"all_slots_have_quorum"`
-	TargetNotUniqueHealthyReplica         bool `json:"target_not_unique_healthy_replica"`
+	TargetExists                             bool `json:"target_exists"`
+	TargetIsDataNode                         bool `json:"target_is_data_node"`
+	TargetIsActiveOrDraining                 bool `json:"target_is_active_or_draining"`
+	TargetIsNotControllerVoter               bool `json:"target_is_not_controller_voter"`
+	TailNodeMappingVerified                  bool `json:"tail_node_mapping_verified"`
+	RemainingDataNodesEnough                 bool `json:"remaining_data_nodes_enough"`
+	ControllerLeaderAvailable                bool `json:"controller_leader_available"`
+	SlotReplicaCountKnown                    bool `json:"slot_replica_count_known"`
+	NoOtherDrainingNode                      bool `json:"no_other_draining_node"`
+	NoActiveHashslotMigrations               bool `json:"no_active_hashslot_migrations"`
+	NoRunningOnboarding                      bool `json:"no_running_onboarding"`
+	NoActiveReconcileTasksInvolvingTarget    bool `json:"no_active_reconcile_tasks_involving_target"`
+	NoFailedReconcileTasks                   bool `json:"no_failed_reconcile_tasks"`
+	RuntimeViewsCompleteAndFresh             bool `json:"runtime_views_complete_and_fresh"`
+	AllSlotsHaveQuorum                       bool `json:"all_slots_have_quorum"`
+	TargetNotUniqueHealthyReplica            bool `json:"target_not_unique_healthy_replica"`
+	ChannelInventoryAvailable                bool `json:"channel_inventory_available"`
+	NoActiveChannelMigrationsInvolvingTarget bool `json:"no_active_channel_migrations_involving_target"`
+	NoChannelLeadersOnTarget                 bool `json:"no_channel_leaders_on_target"`
+	NoChannelReplicasOnTarget                bool `json:"no_channel_replicas_on_target"`
 }
 
 // nodeScaleInProgressDTO contains live scale-in progress counters.
 type nodeScaleInProgressDTO struct {
-	AssignedSlotReplicas          int  `json:"assigned_slot_replicas"`
-	ObservedSlotReplicas          int  `json:"observed_slot_replicas"`
-	SlotLeaders                   int  `json:"slot_leaders"`
-	ActiveTasksInvolvingNode      int  `json:"active_tasks_involving_node"`
-	ActiveMigrationsInvolvingNode int  `json:"active_migrations_involving_node"`
-	ActiveConnections             int  `json:"active_connections"`
-	ClosingConnections            int  `json:"closing_connections"`
-	GatewaySessions               int  `json:"gateway_sessions"`
-	ActiveConnectionsUnknown      bool `json:"active_connections_unknown"`
+	AssignedSlotReplicas                 int    `json:"assigned_slot_replicas"`
+	ObservedSlotReplicas                 int    `json:"observed_slot_replicas"`
+	SlotLeaders                          int    `json:"slot_leaders"`
+	ActiveTasksInvolvingNode             int    `json:"active_tasks_involving_node"`
+	ActiveMigrationsInvolvingNode        int    `json:"active_migrations_involving_node"`
+	ChannelLeaders                       int    `json:"channel_leaders"`
+	ChannelReplicas                      int    `json:"channel_replicas"`
+	ActiveChannelMigrationsInvolvingNode int    `json:"active_channel_migrations_involving_node"`
+	ActiveConnections                    int    `json:"active_connections"`
+	ClosingConnections                   int    `json:"closing_connections"`
+	GatewaySessions                      int    `json:"gateway_sessions"`
+	ActiveConnectionsUnknown             bool   `json:"active_connections_unknown"`
+	ChannelInventoryScanned              bool   `json:"channel_inventory_scanned"`
+	ChannelInventoryPartial              bool   `json:"channel_inventory_partial"`
+	ChannelInventoryError                string `json:"channel_inventory_error"`
 }
 
 // nodeScaleInRuntimeSummaryDTO exposes runtime counters used for connection safety.
@@ -178,8 +192,12 @@ func (s *Server) handleNodeScaleInAdvance(c *gin.Context) {
 	if req.MaxLeaderTransfers > managerMaxScaleInLeaderTransfers {
 		req.MaxLeaderTransfers = managerMaxScaleInLeaderTransfers
 	}
+	if req.MaxChannelMigrations > managerMaxScaleInChannelMigrations {
+		req.MaxChannelMigrations = managerMaxScaleInChannelMigrations
+	}
 	report, err := s.management.AdvanceNodeScaleIn(c.Request.Context(), nodeID, managementusecase.AdvanceNodeScaleInRequest{
 		MaxLeaderTransfers:    req.MaxLeaderTransfers,
+		MaxChannelMigrations:  req.MaxChannelMigrations,
 		ForceCloseConnections: req.ForceCloseConnections,
 	})
 	if err != nil {
@@ -280,33 +298,43 @@ func nodeScaleInReportDTOFromUsecase(report managementusecase.NodeScaleInReport)
 		ConnectionSafetyVerified: report.ConnectionSafetyVerified,
 		BlockedReasons:           nodeScaleInBlockedReasonDTOs(report.BlockedReasons),
 		Checks: nodeScaleInChecksDTO{
-			TargetExists:                          report.Checks.TargetNodeFound,
-			TargetIsDataNode:                      report.Checks.TargetIsDataNode,
-			TargetIsActiveOrDraining:              report.Checks.TargetActiveOrDraining,
-			TargetIsNotControllerVoter:            !blocked["target_is_controller_voter"],
-			TailNodeMappingVerified:               report.Checks.TailNodeMappingVerified,
-			RemainingDataNodesEnough:              !blocked["remaining_data_nodes_insufficient"],
-			ControllerLeaderAvailable:             report.Checks.ControllerReadsAvailable,
-			SlotReplicaCountKnown:                 report.Checks.SlotReplicaCountKnown,
-			NoOtherDrainingNode:                   !blocked["other_draining_node_exists"],
-			NoActiveHashslotMigrations:            !blocked["active_hashslot_migrations_exist"],
-			NoRunningOnboarding:                   !blocked["running_onboarding_exists"],
-			NoActiveReconcileTasksInvolvingTarget: !blocked["active_reconcile_tasks_involving_target"],
-			NoFailedReconcileTasks:                !blocked["failed_reconcile_tasks_exist"],
-			RuntimeViewsCompleteAndFresh:          report.Checks.RuntimeViewsFresh,
-			AllSlotsHaveQuorum:                    !blocked["slot_quorum_lost"],
-			TargetNotUniqueHealthyReplica:         !blocked["target_unique_healthy_replica"],
+			TargetExists:                             report.Checks.TargetNodeFound,
+			TargetIsDataNode:                         report.Checks.TargetIsDataNode,
+			TargetIsActiveOrDraining:                 report.Checks.TargetActiveOrDraining,
+			TargetIsNotControllerVoter:               !blocked["target_is_controller_voter"],
+			TailNodeMappingVerified:                  report.Checks.TailNodeMappingVerified,
+			RemainingDataNodesEnough:                 !blocked["remaining_data_nodes_insufficient"],
+			ControllerLeaderAvailable:                report.Checks.ControllerReadsAvailable,
+			SlotReplicaCountKnown:                    report.Checks.SlotReplicaCountKnown,
+			NoOtherDrainingNode:                      !blocked["other_draining_node_exists"],
+			NoActiveHashslotMigrations:               !blocked["active_hashslot_migrations_exist"],
+			NoRunningOnboarding:                      !blocked["running_onboarding_exists"],
+			NoActiveReconcileTasksInvolvingTarget:    !blocked["active_reconcile_tasks_involving_target"],
+			NoFailedReconcileTasks:                   !blocked["failed_reconcile_tasks_exist"],
+			RuntimeViewsCompleteAndFresh:             report.Checks.RuntimeViewsFresh,
+			AllSlotsHaveQuorum:                       !blocked["slot_quorum_lost"],
+			TargetNotUniqueHealthyReplica:            !blocked["target_unique_healthy_replica"],
+			ChannelInventoryAvailable:                report.Checks.ChannelInventoryAvailable,
+			NoActiveChannelMigrationsInvolvingTarget: report.Checks.NoActiveChannelMigrationsInvolvingTarget,
+			NoChannelLeadersOnTarget:                 report.Checks.NoChannelLeadersOnTarget,
+			NoChannelReplicasOnTarget:                report.Checks.NoChannelReplicasOnTarget,
 		},
 		Progress: nodeScaleInProgressDTO{
-			AssignedSlotReplicas:          report.Progress.AssignedSlotReplicas,
-			ObservedSlotReplicas:          report.Progress.ObservedSlotReplicas,
-			SlotLeaders:                   report.Progress.SlotLeaders,
-			ActiveTasksInvolvingNode:      report.Progress.ActiveTasksInvolvingNode,
-			ActiveMigrationsInvolvingNode: report.Progress.ActiveMigrationsInvolvingNode,
-			ActiveConnections:             report.Progress.ActiveConnections,
-			ClosingConnections:            report.Progress.ClosingConnections,
-			GatewaySessions:               report.Progress.GatewaySessions,
-			ActiveConnectionsUnknown:      report.Progress.ActiveConnectionsUnknown,
+			AssignedSlotReplicas:                 report.Progress.AssignedSlotReplicas,
+			ObservedSlotReplicas:                 report.Progress.ObservedSlotReplicas,
+			SlotLeaders:                          report.Progress.SlotLeaders,
+			ActiveTasksInvolvingNode:             report.Progress.ActiveTasksInvolvingNode,
+			ActiveMigrationsInvolvingNode:        report.Progress.ActiveMigrationsInvolvingNode,
+			ChannelLeaders:                       report.Progress.ChannelLeaders,
+			ChannelReplicas:                      report.Progress.ChannelReplicas,
+			ActiveChannelMigrationsInvolvingNode: report.Progress.ActiveChannelMigrationsInvolvingNode,
+			ActiveConnections:                    report.Progress.ActiveConnections,
+			ClosingConnections:                   report.Progress.ClosingConnections,
+			GatewaySessions:                      report.Progress.GatewaySessions,
+			ActiveConnectionsUnknown:             report.Progress.ActiveConnectionsUnknown,
+			ChannelInventoryScanned:              report.Progress.ChannelInventoryScanned,
+			ChannelInventoryPartial:              report.Progress.ChannelInventoryPartial,
+			ChannelInventoryError:                report.Progress.ChannelInventoryError,
 		},
 		Runtime: nodeScaleInRuntimeSummaryDTO{
 			NodeID:               report.Runtime.NodeID,
@@ -353,6 +381,8 @@ func nodeScaleInCanAdvance(report managementusecase.NodeScaleInReport) bool {
 	switch report.Status {
 	case managementusecase.NodeScaleInStatusMigratingReplicas,
 		managementusecase.NodeScaleInStatusTransferringLeaders,
+		managementusecase.NodeScaleInStatusWaitingChannelMigrations,
+		managementusecase.NodeScaleInStatusDrainingChannels,
 		managementusecase.NodeScaleInStatusWaitingConnections:
 		return true
 	default:
@@ -371,11 +401,15 @@ func nodeScaleInNextAction(report managementusecase.NodeScaleInReport) string {
 	case managementusecase.NodeScaleInStatusMigratingReplicas:
 		return "wait_reconcile_tasks"
 	case managementusecase.NodeScaleInStatusTransferringLeaders:
-		return "transfer_leaders"
+		return "transfer_slot_leaders"
+	case managementusecase.NodeScaleInStatusWaitingChannelMigrations:
+		return "wait_channel_migrations"
+	case managementusecase.NodeScaleInStatusDrainingChannels:
+		return "drain_channels"
 	case managementusecase.NodeScaleInStatusWaitingConnections:
 		return "wait_connections"
 	case managementusecase.NodeScaleInStatusReadyToRemove:
-		return "remove_pod"
+		return "remove_node"
 	default:
 		return ""
 	}

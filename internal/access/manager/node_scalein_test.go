@@ -36,6 +36,8 @@ func TestManagerNodeScaleInPlanReturnsReport(t *testing.T) {
 	require.Equal(t, true, body["connection_safety_verified"])
 	require.Equal(t, "slot_replica_count_unknown", body["blocked_reasons"].([]any)[0].(map[string]any)["code"])
 	require.Equal(t, float64(2), body["progress"].(map[string]any)["assigned_slot_replicas"])
+	require.Equal(t, float64(7), body["progress"].(map[string]any)["channel_leaders"])
+	require.Equal(t, true, body["checks"].(map[string]any)["channel_inventory_available"])
 }
 
 func TestManagerNodeScaleInStartReturnsBlockedReport(t *testing.T) {
@@ -75,14 +77,44 @@ func TestManagerNodeScaleInAdvanceClampsRequest(t *testing.T) {
 		nodeScaleInAdvanceReqSink: &gotReq,
 	}})
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/3/scale-in/advance", strings.NewReader(`{"max_leader_transfers":99,"force_close_connections":true}`))
+	req := httptest.NewRequest(http.MethodPost, "/manager/nodes/3/scale-in/advance", strings.NewReader(`{"max_leader_transfers":99,"max_channel_migrations":99,"force_close_connections":true}`))
 	req.Header.Set("Content-Type", "application/json")
 
 	srv.Engine().ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, 3, gotReq.MaxLeaderTransfers)
+	require.Equal(t, 5, gotReq.MaxChannelMigrations)
 	require.True(t, gotReq.ForceCloseConnections)
+}
+
+func TestManagerNodeScaleInNextActionIncludesChannelDrainStates(t *testing.T) {
+	tests := []struct {
+		status     managementusecase.NodeScaleInStatus
+		nextAction string
+		canAdvance bool
+	}{
+		{status: managementusecase.NodeScaleInStatusNotStarted, nextAction: "start"},
+		{status: managementusecase.NodeScaleInStatusMigratingReplicas, nextAction: "wait_reconcile_tasks", canAdvance: true},
+		{status: managementusecase.NodeScaleInStatusTransferringLeaders, nextAction: "transfer_slot_leaders", canAdvance: true},
+		{status: managementusecase.NodeScaleInStatusWaitingChannelMigrations, nextAction: "wait_channel_migrations", canAdvance: true},
+		{status: managementusecase.NodeScaleInStatusDrainingChannels, nextAction: "drain_channels", canAdvance: true},
+		{status: managementusecase.NodeScaleInStatusWaitingConnections, nextAction: "wait_connections", canAdvance: true},
+		{status: managementusecase.NodeScaleInStatusReadyToRemove, nextAction: "remove_node"},
+	}
+	for _, tc := range tests {
+		t.Run(string(tc.status), func(t *testing.T) {
+			report := managementusecase.NodeScaleInReport{Status: tc.status}
+			if tc.status == managementusecase.NodeScaleInStatusReadyToRemove {
+				report.SafeToRemove = true
+			}
+
+			dto := nodeScaleInReportDTOFromUsecase(report)
+
+			require.Equal(t, tc.nextAction, dto.NextAction)
+			require.Equal(t, tc.canAdvance, dto.CanAdvance)
+		})
+	}
 }
 
 func TestManagerNodeScaleInCancelReturnsReport(t *testing.T) {
@@ -157,25 +189,31 @@ func sampleManagerNodeScaleInReport() managementusecase.NodeScaleInReport {
 		SafeToRemove:             false,
 		ConnectionSafetyVerified: true,
 		Checks: managementusecase.NodeScaleInChecks{
-			SlotReplicaCountKnown:    false,
-			ControllerReadsAvailable: true,
-			TargetNodeFound:          true,
-			TargetIsDataNode:         true,
-			TargetActiveOrDraining:   true,
-			TailNodeMappingVerified:  true,
-			RuntimeViewsFresh:        true,
-			ConnectionSafetyKnown:    true,
+			SlotReplicaCountKnown:                    false,
+			ControllerReadsAvailable:                 true,
+			TargetNodeFound:                          true,
+			TargetIsDataNode:                         true,
+			TargetActiveOrDraining:                   true,
+			TailNodeMappingVerified:                  true,
+			RuntimeViewsFresh:                        true,
+			ConnectionSafetyKnown:                    true,
+			ChannelInventoryAvailable:                true,
+			NoActiveChannelMigrationsInvolvingTarget: true,
 		},
 		Progress: managementusecase.NodeScaleInProgress{
-			AssignedSlotReplicas:          2,
-			ObservedSlotReplicas:          2,
-			SlotLeaders:                   1,
-			ActiveTasksInvolvingNode:      1,
-			ActiveMigrationsInvolvingNode: 0,
-			ActiveConnections:             4,
-			ClosingConnections:            1,
-			GatewaySessions:               5,
-			ActiveConnectionsUnknown:      false,
+			AssignedSlotReplicas:                 2,
+			ObservedSlotReplicas:                 2,
+			SlotLeaders:                          1,
+			ActiveTasksInvolvingNode:             1,
+			ActiveMigrationsInvolvingNode:        0,
+			ChannelLeaders:                       7,
+			ChannelReplicas:                      8,
+			ActiveChannelMigrationsInvolvingNode: 9,
+			ActiveConnections:                    4,
+			ClosingConnections:                   1,
+			GatewaySessions:                      5,
+			ActiveConnectionsUnknown:             false,
+			ChannelInventoryScanned:              true,
 		},
 		BlockedReasons: []managementusecase.NodeScaleInBlockedReason{{
 			Code:    "slot_replica_count_unknown",
