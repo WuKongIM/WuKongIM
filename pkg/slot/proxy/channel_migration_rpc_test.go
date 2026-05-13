@@ -305,6 +305,79 @@ func TestChannelMigrationListActiveTasksForNodeScansLocalHashSlotsInOrder(t *tes
 	require.Equal(t, low.TaskID, got[0].TaskID)
 }
 
+func TestChannelMigrationListActiveTasksForNodeClampsHugeLimit(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	hashSlot := uint16(1)
+	store := &Store{
+		cluster: &proxyTestMigrationCluster{
+			nodeID:      1,
+			localNodeID: 1,
+			slotIDs:     []multiraft.SlotID{1},
+			hashSlots:   map[multiraft.SlotID][]uint16{1: {hashSlot}},
+			leaders:     map[multiraft.SlotID]multiraft.NodeID{1: 1},
+		},
+		db: db,
+	}
+	for i := 0; i < 2; i++ {
+		task := proxyTestChannelMigrationTask(fmt.Sprintf("task-huge-limit-%d", i), fmt.Sprintf("channel-huge-limit-%d", i))
+		task.SourceNode = 3
+		task.TargetNode = 4
+		require.NoError(t, db.ForHashSlot(hashSlot).CreateChannelMigrationTask(ctx, task))
+	}
+
+	var got []metadb.ChannelMigrationTask
+	var hasMore bool
+	var err error
+	require.NotPanics(t, func() {
+		got, hasMore, err = store.ListActiveChannelMigrationTasksForNode(ctx, 3, int(^uint(0)>>1))
+	})
+	require.NoError(t, err)
+	require.False(t, hasMore)
+	require.Len(t, got, 2)
+}
+
+func TestChannelMigrationListActiveTasksForNodeRPCClampsHugeLimitAndReportsHasMore(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	hashSlot := uint16(1)
+	store := &Store{
+		cluster: &proxyTestMigrationCluster{
+			nodeID:      1,
+			localNodeID: 1,
+			slotIDs:     []multiraft.SlotID{1},
+			hashSlots:   map[multiraft.SlotID][]uint16{1: {hashSlot}},
+			leaders:     map[multiraft.SlotID]multiraft.NodeID{1: 1},
+		},
+		db: db,
+	}
+	const wantLimit = 1024
+	for i := 0; i < wantLimit+1; i++ {
+		task := proxyTestChannelMigrationTask(fmt.Sprintf("task-rpc-huge-limit-%04d", i), fmt.Sprintf("channel-rpc-huge-limit-%04d", i))
+		task.SourceNode = 3
+		task.TargetNode = 4
+		require.NoError(t, db.ForHashSlot(hashSlot).CreateChannelMigrationTask(ctx, task))
+	}
+	body, err := encodeChannelMigrationRPCRequestBinary(channelMigrationRPCRequest{
+		Op:     channelMigrationRPCListActiveForNode,
+		SlotID: 1,
+		NodeID: 3,
+		Limit:  int(^uint(0) >> 1),
+	})
+	require.NoError(t, err)
+
+	var resp channelMigrationRPCResponse
+	require.NotPanics(t, func() {
+		respBody, err := store.handleChannelMigrationRPC(ctx, body)
+		require.NoError(t, err)
+		resp, err = decodeChannelMigrationRPCResponse(respBody)
+		require.NoError(t, err)
+	})
+	require.Equal(t, rpcStatusOK, resp.Status)
+	require.Len(t, resp.Tasks, wantLimit)
+	require.True(t, resp.HasMore)
+}
+
 func TestChannelMigrationClaimUsesLocalSlotLeaderAsOwner(t *testing.T) {
 	ctx := context.Background()
 	nodes := startTwoNodeShardedStores(t)
@@ -736,6 +809,28 @@ func TestChannelMigrationRPCCodecRejectsMalformedHugeTaskListWithoutLargeAllocat
 
 	require.Error(t, err)
 	require.Less(t, after.TotalAlloc-before.TotalAlloc, uint64(4<<20))
+}
+
+func TestChannelMigrationRPCCodecRejectsTrailingBytesAfterOptionalFields(t *testing.T) {
+	task := proxyTestChannelMigrationTask("task-trailing-codec", "channel-trailing-codec")
+	reqBody, err := encodeChannelMigrationRPCRequestBinary(channelMigrationRPCRequest{
+		Op:     channelMigrationRPCListActiveForNode,
+		SlotID: 2,
+		NodeID: 3,
+		Limit:  10,
+	})
+	require.NoError(t, err)
+	_, err = decodeChannelMigrationRPCRequest(append(reqBody, 0))
+	require.ErrorContains(t, err, "trailing channel migration request bytes")
+
+	respBody, err := encodeChannelMigrationRPCResponse(channelMigrationRPCResponse{
+		Status:  rpcStatusOK,
+		Tasks:   []metadb.ChannelMigrationTask{task},
+		HasMore: true,
+	})
+	require.NoError(t, err)
+	_, err = decodeChannelMigrationRPCResponse(append(respBody, 0))
+	require.ErrorContains(t, err, "trailing channel migration response bytes")
 }
 
 func TestChannelMigrationRPCCodecRoundTripsListActiveForNode(t *testing.T) {
