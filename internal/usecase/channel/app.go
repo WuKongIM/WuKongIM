@@ -203,6 +203,21 @@ func (a *App) ListAllowlist(ctx context.Context, key ChannelKey) (MemberListResu
 	return MemberListResult{Members: members}, nil
 }
 
+// ListSubscribersPage returns one ordinary subscriber page.
+func (a *App) ListSubscribersPage(ctx context.Context, req MemberListPageRequest) (MemberListPageResult, error) {
+	return a.listMemberListPage(ctx, req.ChannelID, int64(req.ChannelType), req.AfterUID, req.Limit)
+}
+
+// ListAllowlistPage returns one allowlist page.
+func (a *App) ListAllowlistPage(ctx context.Context, req MemberListPageRequest) (MemberListPageResult, error) {
+	return a.listMemberListPage(ctx, namespacedListChannelID(allowListKind, req.ChannelKey), int64(req.ChannelType), req.AfterUID, req.Limit)
+}
+
+// ListDenylistPage returns one denylist page.
+func (a *App) ListDenylistPage(ctx context.Context, req MemberListPageRequest) (MemberListPageResult, error) {
+	return a.listMemberListPage(ctx, namespacedListChannelID(denyListKind, req.ChannelKey), int64(req.ChannelType), req.AfterUID, req.Limit)
+}
+
 func (a *App) addMemberList(ctx context.Context, kind memberListKind, key ChannelKey, uids []string) error {
 	if err := a.requireStore(); err != nil {
 		return err
@@ -239,6 +254,28 @@ func (a *App) listMemberList(ctx context.Context, kind memberListKind, key Chann
 		return nil, err
 	}
 	return a.listSubscribers(ctx, namespacedListChannelID(kind, key), int64(key.ChannelType))
+}
+
+func (a *App) listMemberListPage(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) (MemberListPageResult, error) {
+	if err := a.requireStore(); err != nil {
+		return MemberListPageResult{}, err
+	}
+	if limit <= 0 {
+		return MemberListPageResult{}, metadb.ErrInvalidArgument
+	}
+	uids, nextCursor, done, err := a.store.ListChannelSubscribers(ctx, channelID, channelType, afterUID, limit)
+	if err != nil {
+		return MemberListPageResult{}, err
+	}
+	members := make([]Member, 0, len(uids))
+	for _, uid := range uids {
+		members = append(members, Member{UID: uid})
+	}
+	return MemberListPageResult{
+		Members:    members,
+		NextCursor: nextCursor,
+		HasMore:    !done,
+	}, nil
 }
 
 func (a *App) removeAllSubscribersFor(ctx context.Context, channelID string, channelType int64, subscriberMutationVersion uint64) error {

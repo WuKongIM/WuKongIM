@@ -89,6 +89,25 @@ type MemberListResult struct {
 	Members []Member
 }
 
+// MemberListPageRequest configures one paginated channel member-list read.
+type MemberListPageRequest struct {
+	ChannelKey
+	// AfterUID resumes the page after this UID.
+	AfterUID string
+	// Limit bounds the number of members returned.
+	Limit int
+}
+
+// MemberListPageResult contains one member-list page.
+type MemberListPageResult struct {
+	// Members is the current page of channel members.
+	Members []Member
+	// NextCursor is the UID cursor returned by storage.
+	NextCursor string
+	// HasMore reports whether another page is available.
+	HasMore bool
+}
+
 func namespacedListChannelID(kind memberListKind, key ChannelKey) string {
 	contractKey := channelmembers.ChannelKey{ChannelID: key.ChannelID, ChannelType: key.ChannelType}
 	switch kind {
