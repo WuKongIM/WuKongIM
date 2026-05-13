@@ -393,6 +393,10 @@ func (f *fakeChannelMigrationStore) GetActiveChannelMigrationTask(_ context.Cont
 	return f.active, true, nil
 }
 
+func (f *fakeChannelMigrationStore) ListActiveChannelMigrationTasksForNode(context.Context, uint64, int) ([]metadb.ChannelMigrationTask, bool, error) {
+	return nil, false, nil
+}
+
 func (f *fakeChannelMigrationStore) AbortChannelMigration(_ context.Context, req metadb.ChannelMigrationAbortRequest) error {
 	if f.abortErr != nil {
 		return f.abortErr

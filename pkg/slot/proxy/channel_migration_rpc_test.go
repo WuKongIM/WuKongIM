@@ -132,6 +132,74 @@ func TestChannelMigrationGetActiveTaskReadsLocalAndRemoteAuthoritativeSlot(t *te
 	require.Equal(t, remoteTask, got)
 }
 
+func TestChannelMigrationListActiveTasksForNodeRoutesToAuthoritativeSlots(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeHashSlotStores(t, 8)
+	task := proxyTestChannelMigrationTask("task-node", "channel-node")
+	task.SourceNode = 3
+	task.TargetNode = 4
+
+	require.NoError(t, nodes[1].store.CreateChannelMigrationTask(ctx, task))
+
+	got, hasMore, err := nodes[0].store.ListActiveChannelMigrationTasksForNode(ctx, 3, 10)
+	require.NoError(t, err)
+	require.False(t, hasMore)
+	require.Len(t, got, 1)
+	require.Equal(t, task.TaskID, got[0].TaskID)
+}
+
+func TestChannelMigrationListActiveTasksForNodeFiltersTerminalAndUnrelated(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeHashSlotStores(t, 8)
+
+	matchSource := proxyTestChannelMigrationTask("task-match-source", "channel-match-source")
+	matchSource.SourceNode = 3
+	matchSource.TargetNode = 4
+	require.NoError(t, nodes[0].store.CreateChannelMigrationTask(ctx, matchSource))
+
+	matchTarget := proxyTestChannelMigrationTask("task-match-target", "channel-match-target")
+	matchTarget.SourceNode = 5
+	matchTarget.TargetNode = 3
+	require.NoError(t, nodes[0].store.CreateChannelMigrationTask(ctx, matchTarget))
+
+	terminal := proxyTestCompletedChannelMigrationTask("task-terminal", "channel-terminal", 1750000005000)
+	terminal.SourceNode = 3
+	terminal.TargetNode = 4
+	require.NoError(t, nodes[0].store.CreateChannelMigrationTask(ctx, terminal))
+
+	unrelated := proxyTestChannelMigrationTask("task-unrelated", "channel-unrelated")
+	unrelated.SourceNode = 6
+	unrelated.TargetNode = 7
+	unrelated.OwnerNodeID = 3
+	unrelated.OwnerLeaseUntilMS = 1750000010000
+	require.NoError(t, nodes[0].store.CreateChannelMigrationTask(ctx, unrelated))
+
+	got, hasMore, err := nodes[1].store.ListActiveChannelMigrationTasksForNode(ctx, 3, 10)
+	require.NoError(t, err)
+	require.False(t, hasMore)
+	require.ElementsMatch(t, []string{matchSource.TaskID, matchTarget.TaskID}, channelMigrationTaskIDs(got))
+}
+
+func TestChannelMigrationListActiveTasksForNodeReportsHasMore(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeHashSlotStores(t, 8)
+
+	first := proxyTestChannelMigrationTask("task-has-more-1", "channel-has-more-1")
+	first.SourceNode = 3
+	first.TargetNode = 4
+	require.NoError(t, nodes[0].store.CreateChannelMigrationTask(ctx, first))
+
+	second := proxyTestChannelMigrationTask("task-has-more-2", "channel-has-more-2")
+	second.SourceNode = 3
+	second.TargetNode = 5
+	require.NoError(t, nodes[0].store.CreateChannelMigrationTask(ctx, second))
+
+	got, hasMore, err := nodes[1].store.ListActiveChannelMigrationTasksForNode(ctx, 3, 1)
+	require.NoError(t, err)
+	require.True(t, hasMore)
+	require.Len(t, got, 1)
+}
+
 func TestChannelMigrationClaimUsesLocalSlotLeaderAsOwner(t *testing.T) {
 	ctx := context.Background()
 	nodes := startTwoNodeShardedStores(t)
@@ -473,6 +541,43 @@ func TestChannelMigrationRPCCodecRejectsInvalidTaskEnums(t *testing.T) {
 
 	_, err = decodeChannelMigrationRPCResponse(body)
 	require.Error(t, err)
+}
+
+func TestChannelMigrationRPCCodecRoundTripsListActiveForNode(t *testing.T) {
+	task := proxyTestChannelMigrationTask("task-codec-list-active", "channel-codec-list-active")
+	task.SourceNode = 3
+	task.TargetNode = 4
+	req := channelMigrationRPCRequest{
+		Op:     channelMigrationRPCListActiveForNode,
+		SlotID: 2,
+		NodeID: 3,
+		Limit:  25,
+	}
+
+	reqBody, err := encodeChannelMigrationRPCRequestBinary(req)
+	require.NoError(t, err)
+	gotReq, err := decodeChannelMigrationRPCRequest(reqBody)
+	require.NoError(t, err)
+	require.Equal(t, req, gotReq)
+
+	resp := channelMigrationRPCResponse{
+		Status:  rpcStatusOK,
+		Tasks:   []metadb.ChannelMigrationTask{task},
+		HasMore: true,
+	}
+	respBody, err := encodeChannelMigrationRPCResponse(resp)
+	require.NoError(t, err)
+	gotResp, err := decodeChannelMigrationRPCResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, resp, gotResp)
+}
+
+func channelMigrationTaskIDs(tasks []metadb.ChannelMigrationTask) []string {
+	out := make([]string, 0, len(tasks))
+	for _, task := range tasks {
+		out = append(out, task.TaskID)
+	}
+	return out
 }
 
 func proxyTestChannelMigrationTask(taskID, channelID string) metadb.ChannelMigrationTask {
