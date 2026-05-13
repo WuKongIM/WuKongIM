@@ -3,6 +3,29 @@ export type ManagerPermission = {
   actions: string[]
 }
 
+export type ManagerPermissionGrant = {
+  resource: string
+  actions: string[]
+}
+
+export type ManagerPermissionUser = {
+  username: string
+  permissions: ManagerPermissionGrant[]
+}
+
+export type ManagerPermissionResource = {
+  resource: string
+  actions: string[]
+  description: string
+}
+
+export type ManagerPermissionsResponse = {
+  auth_enabled: boolean
+  current_user: string
+  users: ManagerPermissionUser[]
+  resources: ManagerPermissionResource[]
+}
+
 export type ManagerLoginResponse = {
   username: string
   token_type: string

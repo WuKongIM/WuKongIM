@@ -27,6 +27,7 @@ import {
   getNodes,
   getNodeScaleInStatus,
   getOverview,
+  getPermissions,
   getSlot,
   getSlotLogs,
   getSlots,
@@ -197,6 +198,23 @@ describe("manager api client", () => {
     await expect(getOverview()).resolves.toEqual(overview)
     expect(fetchMock).toHaveBeenCalledWith(
       "/manager/overview",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
+  it("fetches manager permissions", async () => {
+    const payload = {
+      auth_enabled: true,
+      current_user: "admin",
+      users: [{ username: "admin", permissions: [{ resource: "*", actions: ["*"] }] }],
+      resources: [{ resource: "cluster.permission", actions: ["r"], description: "Read manager permissions." }],
+    }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }))
+
+    await expect(getPermissions()).resolves.toEqual(payload)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/permissions",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
   })
