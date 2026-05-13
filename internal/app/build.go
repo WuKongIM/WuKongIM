@@ -511,7 +511,6 @@ func build(cfg Config) (_ *App, err error) {
 	}
 	app.committedDispatcher = newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID:  cfg.Node.ID,
-		PreferLocal:  true,
 		Logger:       app.logger.Named("delivery.route"),
 		ChannelLog:   app.channelLog,
 		Delivery:     app.deliveryApp,

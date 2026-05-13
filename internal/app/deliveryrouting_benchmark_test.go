@@ -23,7 +23,6 @@ func TestAsyncCommittedDispatcherBurstKeepsGoroutinesBounded(t *testing.T) {
 	delivery := newBlockingCommittedSubmitter()
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID: 1,
-		PreferLocal: true,
 		Delivery:    delivery,
 		ShardCount:  4,
 		QueueDepth:  16,
@@ -198,7 +197,6 @@ func BenchmarkDistributedDeliveryPushPersonRouteViews(b *testing.B) {
 func BenchmarkAsyncCommittedDispatcherSubmitCommitted(b *testing.B) {
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID: 1,
-		PreferLocal: true,
 		Delivery:    benchmarkCommittedDeliverySubmitter{},
 		ShardCount:  4,
 		QueueDepth:  1024,

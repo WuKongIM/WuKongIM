@@ -59,11 +59,9 @@ const (
 type asyncCommittedDispatcherConfig struct {
 	// LocalNodeID identifies the current node for committed owner routing.
 	LocalNodeID uint64
-	// PreferLocal skips owner lookup and routes committed side effects through this node.
-	PreferLocal bool
 	// Logger records committed routing diagnostics without failing the send path.
 	Logger wklog.Logger
-	// ChannelLog resolves the channel owner when PreferLocal is false.
+	// ChannelLog resolves the channel owner for committed side effects.
 	ChannelLog interface {
 		Status(channel.ChannelID) (channel.ChannelRuntimeStatus, error)
 	}
@@ -91,7 +89,6 @@ type committedDispatchMetrics interface {
 
 type asyncCommittedDispatcher struct {
 	localNodeID uint64
-	preferLocal bool
 	logger      wklog.Logger
 	channelLog  interface {
 		Status(id channel.ChannelID) (channel.ChannelRuntimeStatus, error)
@@ -138,7 +135,6 @@ func newAsyncCommittedDispatcher(cfg asyncCommittedDispatcherConfig) *asyncCommi
 	}
 	return &asyncCommittedDispatcher{
 		localNodeID:           cfg.LocalNodeID,
-		preferLocal:           cfg.PreferLocal,
 		logger:                cfg.Logger,
 		channelLog:            cfg.ChannelLog,
 		delivery:              cfg.Delivery,
@@ -367,10 +363,6 @@ func (d *asyncCommittedDispatcher) routeMessageScopedCommitted(ctx context.Conte
 		d.logCommittedRoute(env, "message_scoped_delivery_required", 0, errMessageScopedDeliveryRequired)
 		return errMessageScopedDeliveryRequired
 	}
-	if d.preferLocal {
-		d.logCommittedRoute(env, "message_scoped_prefer_local", d.localNodeID, nil)
-		return d.submitLocalStrict(ctx, env)
-	}
 	if d.channelLog == nil {
 		d.logCommittedRoute(env, "message_scoped_no_channel_log", 0, errMessageScopedOwnerRequired)
 		return errMessageScopedOwnerRequired
@@ -529,11 +521,6 @@ func (s deliveryRuntimeCommittedSubmitter) SubmitCommitted(ctx context.Context, 
 }
 
 func (d *asyncCommittedDispatcher) routeCommitted(ctx context.Context, env deliveryruntime.CommittedEnvelope) {
-	if d.preferLocal {
-		d.logCommittedRoute(env, "prefer_local", d.localNodeID, nil)
-		d.submitLocal(ctx, env)
-		return
-	}
 	if d.channelLog == nil {
 		d.logCommittedRoute(env, "no_channel_log", d.localNodeID, nil)
 		d.submitLocal(ctx, env)
@@ -1374,7 +1361,7 @@ func (p localDeliveryPush) pushEnvelope(env deliveryruntime.CommittedEnvelope, r
 	}
 	for _, route := range routes {
 		switch {
-		case env.SenderSessionID != 0 && route.SessionID == env.SenderSessionID:
+		case isSenderDeliveryRoute(env, route):
 			continue
 		case p.localNodeID != 0 && route.NodeID != p.localNodeID:
 			result.Dropped = append(result.Dropped, route)
@@ -1441,6 +1428,9 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 	localRoutes := make([]deliveryruntime.RouteKey, 0, len(cmd.Routes))
 	remoteRoutes := make(map[uint64][]deliveryruntime.RouteKey)
 	for _, route := range cmd.Routes {
+		if isSenderDeliveryRoute(cmd.Envelope, route) {
+			continue
+		}
 		if route.NodeID == p.localNodeID {
 			localRoutes = append(localRoutes, route)
 			continue
@@ -1486,6 +1476,13 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 		result.Dropped = append(result.Dropped, remoteResult.Dropped...)
 	}
 	return result, nil
+}
+
+func isSenderDeliveryRoute(env deliveryruntime.CommittedEnvelope, route deliveryruntime.RouteKey) bool {
+	if env.SenderSessionID == 0 || route.SessionID != env.SenderSessionID {
+		return false
+	}
+	return env.FromUID == "" || route.UID == env.FromUID
 }
 
 type remoteDeliveryPushResult struct {
