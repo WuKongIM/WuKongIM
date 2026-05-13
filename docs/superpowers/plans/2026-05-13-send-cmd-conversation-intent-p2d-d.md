@@ -891,6 +891,14 @@ Copy it in:
 - `delivery.App.SubmitRealtime` should default false
 - `internal/access/node/delivery_submit_codec.go` encode/decode path
 
+Delivery submit codec versioning:
+
+- Add `deliverySubmitRequestMagicV3 = [...]byte{'W', 'K', 'D', 'C', 3}`.
+- Encode V3 whenever `len(MessageScopedUIDs) > 0` or `CMDConversationIntentSubmitted` is true.
+- V3 payload layout should be V2 fields plus one trailing bool for `CMDConversationIntentSubmitted`.
+- V1 decodes with empty scoped UIDs and false flag; V2 decodes scoped UIDs and false flag; V3 decodes both scoped UIDs and the flag.
+- Update `isDeliverySubmitRequestBinary` and legacy tests so existing V1/V2 compatibility remains covered.
+
 - [ ] **Step 4: Write failing request-scoped send tests**
 
 In `internal/usecase/message/send_test.go`, add tests:
@@ -1018,7 +1026,10 @@ func TestDeliveryUIDObserverSkipsWhenRequestScopedIntentAlreadySubmitted(t *test
 }
 ```
 
-Also add a non-fatal observer test where the observer records an internal error but `ResolvePage` still returns routes and nil error. Since the observer interface returns no error, use a fake observer that panics only if called incorrectly; do not allow panics in production observer.
+Also add:
+
+- a non-fatal observer test where the observer records an internal error but `ResolvePage` still returns routes and nil error. Since the observer interface returns no error, use a fake observer that panics only if called incorrectly; do not allow panics in production observer.
+- a fallback test where `tagDeliveryResolver` has nil tags or subscribers, delegates to an inline `localDeliveryResolver`, and the UID observer is still called. This prevents losing CMD intents on the fallback path.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -1146,18 +1157,25 @@ git commit -m "feat: project cmd intents from delivery uid pages"
 Add/update tests:
 
 ```go
-func TestAppLifecycleIncludesCMDConversationUpdater(t *testing.T) {
+func TestAppLifecycleStartsAndStopsCMDConversationUpdaterHooks(t *testing.T) {
+    var starts, stops int
     app := &App{
-        cmdConversationUpdater: &recordingLifecycleConversationUpdater{},
+        startCMDConversationUpdaterFn: func() error { starts++; return nil },
+        stopCMDConversationUpdaterFn:  func(context.Context) error { stops++; return nil },
     }
-    names := app.lifecycleComponentNames(false)
-    require.Contains(t, names, appLifecycleCMDConversationUpdater)
+
+    require.NoError(t, app.Start())
+    require.Equal(t, 1, starts)
+    require.NoError(t, app.Stop(context.Background()))
+    require.Equal(t, 1, stops)
 }
 
 func TestCommittedReplayDoesNotCallIndependentCMDSyncProjector(t *testing.T) {
     delivery := &fakeCommittedReplayDelivery{}
-    replayer := newCommittedReplayer(committedReplayerConfig{Delivery: delivery, CMDSync: nil /* no cmd projector */})
-    // existing replay harness should assert command messages go to delivery, not a separate CMD scan projector.
+    replayer := newCommittedReplayer(committedReplayerConfig{Delivery: delivery})
+    // Use the existing replay harness to append a command message and assert it reaches delivery.
+    // There should be no CMDSync field in committedReplayerConfig after the cleanup.
+    _ = replayer
 }
 ```
 
@@ -1178,7 +1196,7 @@ Expected: FAIL with old `cmdsync_projector` lifecycle expectations.
 In `internal/app/app.go`:
 
 - Remove or stop using `cmdSyncProjector cmdsync.Projector` and `cmdSyncProjectorOn`.
-- Add:
+- Add concrete runtime fields:
 
 ```go
 cmdConversationUpdater *cmdsync.ConversationUpdater
@@ -1186,7 +1204,12 @@ cmdConversationIntents cmdConversationIntentRouter
 cmdConversationUpdaterOn atomic.Bool
 ```
 
-Keep test hook funcs if existing lifecycle tests depend on them, but rename to `startCMDConversationUpdaterFn` / `stopCMDConversationUpdaterFn`.
+Keep lifecycle test hook funcs because tests should not assign fakes to the concrete updater field:
+
+```go
+startCMDConversationUpdaterFn func() error
+stopCMDConversationUpdaterFn  func(context.Context) error
+```
 
 In `internal/app/lifecycle_components.go`:
 
@@ -1202,11 +1225,11 @@ In `internal/app/build.go`:
 
 ```go
 app.cmdConversationUpdater = cmdsync.NewConversationUpdater(cmdsync.ConversationUpdaterOptions{
-    Store: app.store,
-    DataDir: cfg.DataDir,
-    FlushInterval: cfg.Conversation.ActiveHintFlushInterval, // or a local default if config has no suitable field
+    Store:          app.store,
+    DataDir:        cfg.Node.DataDir,
+    FlushInterval:  cfg.Conversation.ActiveHintFlushInterval, // or a local default if config has no suitable field
     FlushBatchSize: cfg.Conversation.ActiveHintFlushBatchSize,
-    Logger: app.logger.Named("cmdsync.pending"),
+    Logger:         app.logger.Named("cmdsync.pending"),
 })
 ```
 
@@ -1220,7 +1243,17 @@ app.cmdConversationIntents = cmdIntentRouter
 - Pass pending updater into `cmdsync.New`:
 
 ```go
-app.cmdSyncApp = cmdsync.New(cmdsync.Options{States: app.store, Messages: cmdMessages, Pending: app.cmdConversationUpdater, Logger: app.logger.Named("cmdsync")})
+app.cmdSyncApp = cmdsync.New(cmdsync.Options{
+    States: app.store,
+    Messages: cmdsyncMessageStore{
+        localNodeID: cfg.Node.ID,
+        channelLog:  app.channelLogDB,
+        metas:       app.store,
+        remote:      app.nodeClient,
+    },
+    Pending: app.cmdConversationUpdater,
+    Logger:  app.logger.Named("cmdsync"),
+})
 ```
 
 - Remove the old `app.cmdSyncProjector` construction block from `internal/app/build.go`.
