@@ -422,7 +422,7 @@ func (a *App) AdvanceNodeScaleIn(ctx context.Context, nodeID uint64, req Advance
 		return report, nil
 	}
 	if report.Status == NodeScaleInStatusDrainingChannels {
-		created, blocker, race, err := a.advanceNodeScaleInChannels(ctx, nodeID, clampScaleInChannelMigrations(req.MaxChannelMigrations))
+		created, blockers, race, err := a.advanceNodeScaleInChannels(ctx, nodeID, clampScaleInChannelMigrations(req.MaxChannelMigrations))
 		if race {
 			refreshed, refreshErr := a.GetNodeScaleInStatus(ctx, nodeID)
 			if refreshErr != nil {
@@ -435,22 +435,42 @@ func (a *App) AdvanceNodeScaleIn(ctx context.Context, nodeID uint64, req Advance
 			if refreshErr == nil {
 				report = refreshed
 			}
-			if blocker != "" {
-				report.BlockedReasons = append(report.BlockedReasons, scaleInBlockedReason(blocker, "no eligible channel migration target is available", 0, 0, nodeID))
-			}
-			return report, &NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
+			return report, err
 		}
 		if created == 0 {
 			refreshed, refreshErr := a.GetNodeScaleInStatus(ctx, nodeID)
 			if refreshErr == nil {
 				report = refreshed
 			}
-			report.BlockedReasons = append(report.BlockedReasons, scaleInBlockedReason("no_channel_migration_target", "no eligible channel migration target is available", 0, 0, nodeID))
+			if scaleInOnlyNoChannelMigrationTarget(blockers) && report.Progress.ChannelLeaders == 0 && report.Progress.ChannelReplicas == 0 {
+				return report, nil
+			}
+			if len(blockers) == 0 {
+				blockers = []string{"no_channel_migration_target"}
+			}
+			report = scaleInReportWithSyntheticChannelBlockers(report, blockers, nodeID)
 			return report, &NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
 		}
 		return a.GetNodeScaleInStatus(ctx, nodeID)
 	}
 	return report, nil
+}
+
+func scaleInOnlyNoChannelMigrationTarget(blockers []string) bool {
+	return len(blockers) == 1 && blockers[0] == "no_channel_migration_target"
+}
+
+func scaleInReportWithSyntheticChannelBlockers(report NodeScaleInReport, blockers []string, nodeID uint64) NodeScaleInReport {
+	for _, blocker := range blockers {
+		message := fmt.Sprintf("channel migration validation blocked: %s", blocker)
+		if blocker == "no_channel_migration_target" {
+			message = "no eligible channel migration target is available"
+		}
+		report.BlockedReasons = append(report.BlockedReasons, scaleInBlockedReason(blocker, message, 0, 0, nodeID))
+	}
+	report.Status = NodeScaleInStatusBlocked
+	report.SafeToRemove = false
+	return report
 }
 
 func (a *App) loadNodeScaleInSnapshot(ctx context.Context, nodeID uint64) (nodeScaleInSnapshot, error) {
