@@ -19,8 +19,9 @@
 - 在线状态（Presence）
 - 投递（Delivery）
 - 会话同步（Conversation）
+- CMD 离线同步（CMD Sync）
 - HTTP API 接入
-- 节点间 RPC 协��
+- 节点间 RPC 协议
 
 ### ❌ 不负责范围
 - 分布式共识与 Slot 编排 → `pkg/cluster`
@@ -72,7 +73,7 @@
 |------|------|------|
 | `gateway.Gateway` | `gateway/gateway.go` | 网关：管理 Transport/Protocol/Session，双向实时通信 |
 | `gateway.Handler` | `access/gateway/handler.go` | 网关桥接：将 Frame 路由到 Usecase 层 |
-| `api.Server` | `access/api/server.go` | HTTP API：消息发送、频道同步、Token、会话同步 |
+| `api.Server` | `access/api/server.go` | HTTP API：消息发送、频道同步、Token、会话同步、CMD 离线同步 |
 | `node.Client` | `access/node/options.go` | 节点间 RPC 客户端 |
 | `node.Adapter` | `access/node/options.go` | 节点间 RPC 服务端 |
 
@@ -83,6 +84,8 @@
 | `delivery.App` | `usecase/delivery/app.go` | 投递用例：提交投递、确认、离线处理 |
 | `presence.App` | `usecase/presence/app.go` | 在线状态用例：激活/去激活、权威路由、心跳 |
 | `conversation.App` | `usecase/conversation/app.go` | 会话用例：增量/全量同步、冷热分离 |
+| `cmdsync.App` | `usecase/cmdsync/app.go` | CMD 同步用例：读取 command-channel log、生成 sync records、处理 syncack |
+| `cmdsync.Projector` | `usecase/cmdsync/projector.go` | CMD 投影器：从 committed event 维护 UID-owned CMD conversation state |
 
 #### 运行时层（Runtime）
 | 组件 | 文件 | 职责 |
@@ -145,6 +148,10 @@ conversation.App.Sync(ctx, SyncQuery) (SyncResult, error)
 conversation.App.ClearUnread(ctx, ClearUnreadCommand) error
 conversation.App.SetUnread(ctx, SetUnreadCommand) error
 conversation.App.DeleteConversation(ctx, DeleteConversationCommand) error
+
+// CMD 离线同步
+cmdsync.App.Sync(ctx, SyncQuery) (SyncResult, error)
+cmdsync.App.SyncAck(ctx, SyncAckCommand) error
 ```
 
 ### 3.4 运行时层
@@ -187,6 +194,7 @@ online.Registry.Connection(sessionID)
    ├─ Store（元数据存储）
    ├─ ConversationActiveHintCache（UID-owner active_at 热提示覆盖层）
    ├─ Conversation（会话投影器）
+   ├─ CMDSync（CMD 离线同步用例 + CMD projector）
    ├─ ChannelMetaSync（元数据同步）
    ├─ Presence（在线状态 + Worker）
    ├─ Delivery（投递管理器）
@@ -194,7 +202,7 @@ online.Registry.Connection(sessionID)
    ├─ CommittedReplay（从 Channel Log 补偿已提交事件）
    ├─ ChannelRetention（按权威元数据推进频道消息保留边界）
    ├─ Message（消息用例）
-   └─ Node Access（RPC Handler）
+   └─ Node Access（RPC Handler，含 CMD sync UID-owner 转发）
 
 6. 创建接入层
    ├─ API Server（可选）
@@ -212,13 +220,14 @@ online.Registry.Connection(sessionID)
 4. presence（启动 Worker）
 5. conversation_active_hints
 6. conversation_projector
-7. delivery_runtime
-8. committed_dispatcher
-9. committed_replay
-10. channel_retention
-11. gateway
-12. api
-13. manager
+7. cmdsync_projector
+8. delivery_runtime
+9. committed_dispatcher
+10. committed_replay
+11. channel_retention
+12. gateway
+13. api
+14. manager
 ```
 
 ### 4.2 停止流程
@@ -234,21 +243,22 @@ online.Registry.Connection(sessionID)
 5. committed_replay
 6. committed_dispatcher
 7. delivery_runtime
-8. conversation_projector
-9. conversation_active_hints
-10. presence
-11. channelmeta（StopWithoutCleanup）
-12. managed_slots_ready（no-op）
-13. cluster
+8. cmdsync_projector
+9. conversation_projector
+10. conversation_active_hints
+11. presence
+12. channelmeta（StopWithoutCleanup）
+13. managed_slots_ready（no-op）
+14. cluster
 
 然后关闭资源:
-14. channelLog.Close
-15. dataPlaneClient.Stop
-16. dataPlanePool.Close
-17. channelLogDB.Close
-18. raftDB.Close
-19. metadb.Close
-20. syncLogger
+15. channelLog.Close
+16. dataPlaneClient.Stop
+17. dataPlanePool.Close
+18. channelLogDB.Close
+19. raftDB.Close
+20. metadb.Close
+21. syncLogger
 ```
 
 ### 4.3 消息发送流程
@@ -288,7 +298,8 @@ message.App.Send(ctx, cmd)
           └─ stale / not-leader / lease-expired / reroute 错误时强制刷新并仅重试一次 Append
       ↓
 dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted)
-  ├─ committedFanout（fanout 给订阅者）
+  ├─ committedFanout（fanout 给普通投递/会话和 CMD 投影）
+  ├─ cmdsync.Projector（维护 UID-owned CMD conversation state）
   └─ asyncCommittedDispatcher
       ├─ 按 ChannelID + ChannelType 选择固定分片队列
       ├─ 队列满时不失败 Send，改走 best-effort conversation fallback
@@ -299,7 +310,8 @@ realtime delivery 直接提交 transient MessageRealtime
   └─ delivery 使用 source-channel 订阅者解析和在线路由 fanout
 committed_replay 后台从已提交 Channel Log 补偿未分发事件
   ├─ 按 committed cursor 扫描 message_seq
-  ├─ 重新提交 delivery / conversation
+  ├─ 重新提交 delivery / conversation / CMD sync projection
+  ├─ CMD projection 同步成功后才推进 replay cursor，避免 state 未落盘就跳过
   ├─ delivery 接受后批量推进 cursor；active hint 失败只记录告警
   └─ 记录 replay lag / pass duration 指标
   ↓
@@ -444,7 +456,48 @@ conversation.App.Sync(ctx, query)
 返回 SyncResult{Conversations}
 ```
 
-### 4.7 接收确认流程
+普通 `/conversation/sync` 只读取 `UserConversationState` 和 Channel Log 最新消息，不依赖 `CMDConversationState`；`source____cmd` 和 `SyncOnce` 消息不会进入普通会话列表。
+
+### 4.7 CMD 离线同步流程
+
+```
+API: POST /message/sync
+  ↓
+access/api 解析 uid/message_seq/limit，保持 legacy bare array 响应
+  ↓
+clusterCMDSyncUsecase
+  ├─ trim/validate UID，避免空 UID 做 slot lookup
+  ├─ SlotForKey(uid) + LeaderOf(slot) 寻址 UID owner
+  ├─ 本地 UID owner: cmdsync.App.Sync
+  └─ 远程 UID owner: nodeClient.SyncCMD RPC
+      ↓
+cmdsync.App.Sync
+  ├─ ListCMDConversationActive(uid) 读取独立 CMD conversation state
+  ├─ 对每个 state 从 max(ReadSeq, DeletedToSeq)+1 开始读取 command-channel log
+  │   ├─ command channel key 始终是 `source____cmd`
+  │   ├─ 本地 command owner: Channel Log committed read
+  │   └─ 远端 command owner: channel_messages RPC（SyncMode=true）
+  ├─ 按 Timestamp / commandChannelID / channelType / messageSeq / messageID 稳定排序并按 limit 截断
+  ├─ 返回前剥离一层 `____cmd`，展示 source-channel
+  └─ Replace 最新 sync records（供 syncack 推进 read cursor）
+
+API: POST /message/syncack
+  ↓
+clusterCMDSyncUsecase 按 UID owner 本地/远端路由
+  ↓
+cmdsync.App.SyncAck
+  ├─ Pop 最近一次 sync records
+  ├─ 只保留 command-channel record 且 LastReturnedMsgSeq > 0
+  └─ AdvanceCMDConversationReadSeq 推进独立 CMD read cursor
+```
+
+说明：
+
+- `NoPersist` CMD 不写 Channel Log，也不创建 CMD conversation state，因此不会被 `/message/sync` 返回。
+- live request-scoped CMD projection 只使用 `MessageScopedUIDs`；没有 scoped UIDs 的 temp CMD replay 不回扫临时订阅者。
+- 当前项目没有绕过集群的独立部署语义；单节点集群也走同一 UID owner / command owner 路由模型。
+
+### 4.8 接收确认流程
 
 ```
 客户端 RecvackPacket
@@ -514,7 +567,7 @@ handleRecvAck(ctx, pkt)
 ## 7. 避坑清单
 
 ### 🔴 启动与停止
-- **启动顺序严格**: 按 Cluster → WaitReady → ChannelMetaSync → Presence → Conversation → DeliveryRuntime → CommittedDispatcher → CommittedReplay → ChannelRetention → Gateway → API → Manager 顺序启动，任一步骤失败会按启动逆序停止
+- **启动顺序严格**: 按 Cluster → WaitReady → ChannelMetaSync → Presence → Conversation → CMDSyncProjector → DeliveryRuntime → CommittedDispatcher → CommittedReplay → ChannelRetention → Gateway → API → Manager 顺序启动，任一步骤失败会按启动逆序停止
 - **停止顺序相反**: 先停 Manager/API/Gateway（停止接入新请求），再停业务层，最后停 Cluster 和关闭数据库
 - **stopOnce 保证幂等**: 多次调用 Stop() 只执行一次
 
@@ -543,6 +596,13 @@ handleRecvAck(ctx, pkt)
 - **工作集同步**: 默认候选来自 `ListUserConversationActive`（持久化 `active_at` + UID-owner hot active hint overlay）和客户端 `last_msg_seqs`，再以 Channel Log 作为最新消息事实源。
 - **Legacy version 兼容**: 请求 `version` 只保留兼容语义，不再触发完整历史增量发现；返回项 `version` 是展示时间与用户状态更新时间的兼容水位。
 - **删除屏障**: DeleteConversation 持久化 `deleted_to_seq`、清空 `active_at` 并删除 hot hint；`message_seq <= deleted_to_seq` 的 hint/recents 不可见，更新消息可重新激活会话。
+- **普通会话不读 CMD 状态**: `/conversation/sync` 只依赖 `UserConversationState`，不能把 `CMDConversationState` 混入普通会话工作集。
+
+### 🔴 CMD 离线同步
+- **UID owner 与 command owner 分离**: `/message/sync` 和 `/message/syncack` 按 UID slot owner 路由；UID owner 再按 `source____cmd` 的 ChannelRuntimeMeta leader 读取 command-channel log。
+- **CMD state 独立**: `CMDConversationState` 只服务 legacy CMD 离线同步，不能写入或读取普通 `UserConversationState`。
+- **syncack 只推进最近 generation**: `/message/syncack` 只消费 `SyncRecordCache` 中最近一次 `/message/sync` 返回的 record，不按客户端 `last_message_seq` 重新扫描频道。
+- **request-scoped replay 仍有限制**: live path 使用 `MessageScopedUIDs` 精确投影；崩溃后仅靠 committed replay 仍不能恢复丢失的 request-scoped subscriber 快照。
 
 ### 🔴 网关
 - **空闲断开只看客户端入站**: idle monitor 只根据最近一次客户端入站数据刷新 deadline，服务端持续下发消息不会延长 `IdleTimeout`（默认 3 分钟）
@@ -588,5 +648,5 @@ GOWORK=off go test ./internal -run TestInternalImportBoundaries -count=1
 
 ---
 
-**文档版本**: v2.0
-**最后更新**: 2026-04-30
+**文档版本**: v2.1
+**最后更新**: 2026-05-13
