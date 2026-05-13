@@ -139,7 +139,6 @@ func (a *App) advanceNodeScaleInChannels(ctx context.Context, nodeID uint64, lim
 	sortScaleInChannelDrainCandidates(leaderCandidates)
 	sortScaleInChannelDrainCandidates(replicaCandidates)
 
-	attemptedRaceable := false
 	missingTarget := false
 	for _, candidates := range [][]scaleInChannelDrainCandidate{leaderCandidates, replicaCandidates} {
 		for _, candidate := range candidates {
@@ -148,9 +147,7 @@ func (a *App) advanceNodeScaleInChannels(ctx context.Context, nodeID uint64, lim
 			case createErr != nil:
 				return created, "no_channel_migration_target", false, createErr
 			case raced:
-				attemptedRaceable = true
-				race = true
-				continue
+				return created, "", true, nil
 			case !ok:
 				missingTarget = true
 				continue
@@ -163,9 +160,6 @@ func (a *App) advanceNodeScaleInChannels(ctx context.Context, nodeID uint64, lim
 	}
 	if created > 0 {
 		return created, "", false, nil
-	}
-	if race && attemptedRaceable {
-		return 0, "", true, nil
 	}
 	if missingTarget || len(leaderCandidates) > 0 || len(replicaCandidates) > 0 {
 		return 0, "no_channel_migration_target", false, nil

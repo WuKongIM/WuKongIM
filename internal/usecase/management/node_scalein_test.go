@@ -738,6 +738,27 @@ func TestAdvanceNodeScaleInRefreshesReportWithoutErrorOnChannelTaskRace(t *testi
 	}
 }
 
+func TestAdvanceNodeScaleInStopsChannelDrainAfterTaskRace(t *testing.T) {
+	fixture := newScaleInActionFixture()
+	fixture.prepareChannelDrain()
+	fixture.channelRuntime.metas = map[multiraft.SlotID][]metadb.ChannelRuntimeMeta{
+		1: {
+			scaleInChannelMeta("aaa-race", 1, 3, []uint64{1, 3}, []uint64{1, 3}),
+			scaleInChannelMeta("bbb-creatable", 1, 3, []uint64{1, 3}, []uint64{1, 3}),
+		},
+	}
+	fixture.channelMigration.createErrByKey = map[string]error{
+		scaleInChannelMigrationKey("aaa-race", 1): metadb.ErrStaleMeta,
+	}
+	fixture.rebuildApp()
+
+	report, err := fixture.app.AdvanceNodeScaleIn(context.Background(), 3, AdvanceNodeScaleInRequest{MaxChannelMigrations: 2})
+
+	require.NoError(t, err)
+	require.Empty(t, fixture.channelMigration.created)
+	require.NotContains(t, scaleInReasonCodes(report.BlockedReasons), "no_channel_migration_target")
+}
+
 func scaleInReasonCodes(reasons []NodeScaleInBlockedReason) []string {
 	codes := make([]string, 0, len(reasons))
 	for _, reason := range reasons {
@@ -983,6 +1004,7 @@ type fakeScaleInChannelMigrationStore struct {
 	created             []metadb.ChannelMigrationTask
 	err                 error
 	createErr           error
+	createErrByKey      map[string]error
 	createCalls         int
 	getActiveCalls      int
 	activeAfterGetCalls int
@@ -1032,6 +1054,9 @@ func (f *fakeScaleInChannelMigrationStore) CreateChannelMigrationTaskWithRuntime
 	f.createCalls++
 	if f.createErr != nil {
 		return f.createErr
+	}
+	if err, ok := f.createErrByKey[scaleInChannelMigrationKey(req.Task.ChannelID, req.Task.ChannelType)]; ok {
+		return err
 	}
 	f.created = append(f.created, req.Task)
 	f.active = append(f.active, req.Task)
