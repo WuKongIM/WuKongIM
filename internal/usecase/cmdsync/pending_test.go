@@ -73,7 +73,58 @@ func TestPendingUpdaterSaveLoadRoundTrip(t *testing.T) {
 
 	loaded := NewConversationUpdater(ConversationUpdaterOptions{Store: &fakePendingStateStore{}, DataDir: dir, Now: fixedNano(1000)})
 	require.NoError(t, loaded.Start())
+	t.Cleanup(func() { require.NoError(t, loaded.Stop()) })
 	require.Equal(t, []PendingConversationView{{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 3, ActiveAt: 30, ReadSeq: 0}}, loaded.ListPending(context.Background(), "u1", 10))
+}
+
+func TestPendingUpdaterKeepsLoadedFileUntilSuccessfulFlush(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "conversationv2", "cmd_conversation_updates.json")
+	saved := NewConversationUpdater(ConversationUpdaterOptions{Store: &fakePendingStateStore{}, DataDir: dir, Now: fixedNano(1000)})
+	require.NoError(t, saved.PushIntent(context.Background(), ConversationIntent{CommandChannelID: "g1____cmd", ChannelType: 2, MessageSeq: 3, ActiveAt: 30, UserReadSeqs: map[string]uint64{"u1": 0}}))
+	require.NoError(t, saved.Stop())
+
+	loadedStore := &fakePendingStateStore{}
+	loaded := NewConversationUpdater(ConversationUpdaterOptions{Store: loadedStore, DataDir: dir, FlushInterval: time.Hour, Now: fixedNano(2000)})
+	require.NoError(t, loaded.Start())
+	t.Cleanup(func() { require.NoError(t, loaded.Stop()) })
+	require.FileExists(t, path)
+	require.Equal(t, []PendingConversationView{{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 3, ActiveAt: 30, ReadSeq: 0}}, loaded.ListPending(context.Background(), "u1", 10))
+
+	require.NoError(t, loaded.Flush(context.Background()))
+	require.NoFileExists(t, path)
+	require.Equal(t, []metadb.CMDConversationState{{UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ReadSeq: 0, ActiveAt: 30, UpdatedAt: 2000}}, loadedStore.states)
+}
+
+func TestPendingUpdaterKeepsLoadedFileWhenFlushFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "conversationv2", "cmd_conversation_updates.json")
+	saved := NewConversationUpdater(ConversationUpdaterOptions{Store: &fakePendingStateStore{}, DataDir: dir, Now: fixedNano(1000)})
+	require.NoError(t, saved.PushIntent(context.Background(), ConversationIntent{CommandChannelID: "g1____cmd", ChannelType: 2, MessageSeq: 3, ActiveAt: 30, UserReadSeqs: map[string]uint64{"u1": 0}}))
+	require.NoError(t, saved.Stop())
+
+	loaded := NewConversationUpdater(ConversationUpdaterOptions{Store: &fakePendingStateStore{err: errors.New("store down")}, DataDir: dir, FlushInterval: time.Hour, Now: fixedNano(2000)})
+	require.NoError(t, loaded.Start())
+	t.Cleanup(func() { _ = loaded.Stop() })
+	require.Error(t, loaded.Flush(context.Background()))
+	require.FileExists(t, path)
+}
+
+func TestPendingUpdaterRemovesLoadedFileWhenPendingAlreadySynced(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "conversationv2", "cmd_conversation_updates.json")
+	saved := NewConversationUpdater(ConversationUpdaterOptions{Store: &fakePendingStateStore{}, DataDir: dir, Now: fixedNano(1000)})
+	require.NoError(t, saved.PushIntent(context.Background(), ConversationIntent{CommandChannelID: "g1____cmd", ChannelType: 2, MessageSeq: 3, ActiveAt: 30, UserReadSeqs: map[string]uint64{"u1": 0}}))
+	require.NoError(t, saved.Stop())
+
+	loaded := NewConversationUpdater(ConversationUpdaterOptions{Store: &fakePendingStateStore{}, DataDir: dir, FlushInterval: time.Hour, Now: fixedNano(2000)})
+	require.NoError(t, loaded.Start())
+	t.Cleanup(func() { require.NoError(t, loaded.Stop()) })
+	require.FileExists(t, path)
+	require.NoError(t, loaded.MarkSynced(context.Background(), "u1", CommandChannelKey{ChannelID: "g1____cmd", ChannelType: 2}, 3))
+
+	require.NoError(t, loaded.Flush(context.Background()))
+	require.NoFileExists(t, path)
 }
 
 func TestPendingUpdaterStopContextBoundsBlockedFlush(t *testing.T) {
