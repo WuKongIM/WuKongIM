@@ -20,6 +20,10 @@ type SyncRecord struct {
 	ChannelType uint8
 	// LastReturnedMsgSeq is the highest sequence returned in the latest sync generation.
 	LastReturnedMsgSeq uint64
+	// Pending marks records that were returned from an owner-local pending overlay.
+	Pending bool
+	// PendingActiveAt records the pending activity timestamp needed for durable ack upserts.
+	PendingActiveAt int64
 }
 
 // SyncRecordCacheOptions configures the UID-local latest sync generation cache.
@@ -127,6 +131,56 @@ func (c *SyncRecordCache) Pop(uid string) []SyncRecord {
 	return append([]SyncRecord(nil), entry.records...)
 }
 
+// Peek returns the latest unexpired generation for uid without clearing it.
+func (c *SyncRecordCache) Peek(uid string) []SyncRecord {
+	if c == nil {
+		return nil
+	}
+	uid = strings.TrimSpace(uid)
+	if uid == "" {
+		return nil
+	}
+
+	now := c.now()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.entries[uid]
+	if !ok {
+		return nil
+	}
+	if !entry.expiresAt.IsZero() && now.After(entry.expiresAt) {
+		delete(c.entries, uid)
+		return nil
+	}
+	return append([]SyncRecord(nil), entry.records...)
+}
+
+// DeleteIfUnchanged clears uid only when its latest generation still matches records.
+func (c *SyncRecordCache) DeleteIfUnchanged(uid string, records []SyncRecord) {
+	if c == nil {
+		return
+	}
+	uid = strings.TrimSpace(uid)
+	if uid == "" {
+		return
+	}
+
+	now := c.now()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.entries[uid]
+	if !ok {
+		return
+	}
+	if !entry.expiresAt.IsZero() && now.After(entry.expiresAt) {
+		delete(c.entries, uid)
+		return
+	}
+	if syncRecordsEqual(entry.records, records) {
+		delete(c.entries, uid)
+	}
+}
+
 func (c *SyncRecordCache) pruneExpiredLocked(now time.Time) {
 	for uid, entry := range c.entries {
 		if !entry.expiresAt.IsZero() && now.After(entry.expiresAt) {
@@ -152,4 +206,16 @@ func (c *SyncRecordCache) evictOverflowLocked() {
 		}
 		delete(c.entries, oldestUID)
 	}
+}
+
+func syncRecordsEqual(left, right []SyncRecord) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
