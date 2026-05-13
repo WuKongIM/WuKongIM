@@ -16,7 +16,7 @@
 - append 成功后，通过 committed dispatcher 异步触发：
   - realtime delivery：`internal/runtime/delivery`
   - conversation active hint：`internal/usecase/conversation`
-- `internal/app/build.go` 当前把 committed dispatcher 配成 `PreferLocal: true`，即提交后的本地副作用优先在当前节点执行。
+- `internal/app/build.go` 当前让 committed dispatcher 按 Channel owner/leader 路由提交后的 delivery 与 conversation 副作用。
 
 相关代码：
 

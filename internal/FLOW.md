@@ -528,7 +528,7 @@ handleRecvAck(ctx, pkt)
 ### 🔴 投递运行时
 - **Actor 按 Channel 隔离**: 每个 Channel 有独立的 Actor，通过 shard 分片减少锁竞争
 - **Actor 空闲回收**: 超过 1 分钟空闲会被回收
-- **不等待全局连续 MessageSeq**: `preferLocal` 下每个节点只能看到该 Channel 全局序列的稀疏子集，按本节点已观察到的提交流推进
+- **不等待全局连续 MessageSeq**: owner routing 与 replay 会让节点只看到该 Channel 全局序列的稀疏子集，按本节点已观察到的提交流推进
 - **投递重试有上限**: 默认重试延迟 [500ms, 1s, 2s]，最大重试次数 = 4 次，超过后移除 Ack 绑定并依赖 Channel Log catch-up
 - **AckIndex 是关键**: `AckIndex.Bind` 在 Push 时建立 SessionID+MessageID → Channel+Route 的映射
 - **DeliveryTag 是 Leader 权威分区快照**: Leader 构建全频道订阅者分区，Follower 仅缓存本节点分区；普通订阅者变更保持 `tagKey`、递增 `tagVersion`，陈旧 tag 响应只触发重试/刷新，不能覆盖新缓存
@@ -556,7 +556,7 @@ handleRecvAck(ctx, pkt)
 - **Refresh 热路径只读 node liveness cache**: `RefreshChannelMeta()` 不会每次都直接查 controller，先看本地 `nodeLiveness` cache
 
 ### 🔴 已提交消息分发
-- **committedFanout + asyncCommittedDispatcher 的 preferLocal**: message 用例只发布 `messageevents.MessageCommitted`，`asyncCommittedDispatcher` 用有界分片队列分发，默认把已提交消息进入本地 delivery runtime，避免所有实时投递都绕经 Leader。
+- **committedFanout + asyncCommittedDispatcher 的 owner routing**: message 用例只发布 `messageevents.MessageCommitted`，`asyncCommittedDispatcher` 用有界分片队列分发，并按 Channel owner/leader 路由已提交消息的 delivery / conversation 副作用。
 - **committed dispatcher 溢出不影响 durable send**: 队列满只记录指标并触发 best-effort conversation fallback，Sendack 仍只由 Channel Log quorum commit 决定。
 - **committed dispatcher 停止依赖 replay 补偿**: 停止时不再接收新队列任务，未启动/停止中的提交返回内部错误供调用方记录；队列内未处理实时投递可被丢弃并由 committed_replay 兜底补发。
 - **committed_replay 是补偿路径，不阻塞 Sendack**: Sendack 仍只等待 Channel Log quorum commit；后台 replayer 以 Channel Log 为真相，用批量 cursor 兜底补发 delivery / conversation，active hint 是可丢弃的 best-effort 路径。
