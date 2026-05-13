@@ -14,6 +14,9 @@ import (
 
 const channelMigrationRPCServiceID uint8 = 47
 
+// channelMigrationListActiveForNodeMaxLimit bounds active task scan pages from manager or RPC callers.
+const channelMigrationListActiveForNodeMaxLimit = 1024
+
 const (
 	channelMigrationRPCGetActive         = "get_active"
 	channelMigrationRPCPropose           = "propose"
@@ -134,18 +137,20 @@ func (s *Store) ListActiveChannelMigrationTasksForNode(ctx context.Context, node
 	if s.cluster == nil {
 		return nil, false, fmt.Errorf("metastore: cluster not configured")
 	}
+	limit = normalizeChannelMigrationListActiveForNodeLimit(limit)
 	if limit <= 0 {
 		return nil, false, nil
 	}
 
 	out := make([]metadb.ChannelMigrationTask, 0, limit)
-	probeLimit := limit + 1
 	slotIDs := append([]multiraft.SlotID(nil), s.cluster.SlotIDs()...)
 	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
 	for _, slotID := range slotIDs {
-		remaining := probeLimit - len(out)
+		remaining := limit - len(out)
+		probeOnly := false
 		if remaining <= 0 {
-			break
+			remaining = 1
+			probeOnly = true
 		}
 
 		var tasks []metadb.ChannelMigrationTask
@@ -174,16 +179,20 @@ func (s *Store) ListActiveChannelMigrationTasksForNode(ctx context.Context, node
 			hasMore = resp.HasMore
 		}
 
-		out = append(out, tasks...)
-		if hasMore || len(out) > limit {
-			if len(out) > limit {
-				out = out[:limit]
+		if probeOnly {
+			if len(tasks) > 0 || hasMore {
+				return out, true, nil
 			}
+			continue
+		}
+		if len(tasks) > remaining {
+			out = append(out, tasks[:remaining]...)
 			return out, true, nil
 		}
-	}
-	if len(out) > limit {
-		return out[:limit], true, nil
+		out = append(out, tasks...)
+		if hasMore {
+			return out, true, nil
+		}
 	}
 	return out, false, nil
 }
@@ -411,6 +420,7 @@ func (s *Store) handleChannelMigrationRPC(ctx context.Context, body []byte) ([]b
 }
 
 func (s *Store) listActiveChannelMigrationTasksForNodeLocalSlot(ctx context.Context, slotID multiraft.SlotID, nodeID uint64, limit int) ([]metadb.ChannelMigrationTask, bool, error) {
+	limit = normalizeChannelMigrationListActiveForNodeLimit(limit)
 	if limit <= 0 {
 		return nil, false, nil
 	}
@@ -434,6 +444,16 @@ func (s *Store) listActiveChannelMigrationTasksForNodeLocalSlot(ctx context.Cont
 		}
 	}
 	return out, false, nil
+}
+
+func normalizeChannelMigrationListActiveForNodeLimit(limit int) int {
+	if limit <= 0 {
+		return 0
+	}
+	if limit > channelMigrationListActiveForNodeMaxLimit {
+		return channelMigrationListActiveForNodeMaxLimit
+	}
+	return limit
 }
 
 func (s *Store) resolveChannelMigrationRPCRoute(channelID string, slotID multiraft.SlotID) (uint16, []byte, error) {
