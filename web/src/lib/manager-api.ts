@@ -34,6 +34,7 @@ import type {
   ManagerNodesResponse,
   ManagerOverviewResponse,
   ManagerPermission,
+  ManagerPermissionsResponse,
   ManagerUserDetailResponse,
   ManagerUsersResponse,
   ManagerSlotDetailResponse,
@@ -346,6 +347,10 @@ export async function loginManager(credentials: ManagerLoginCredentials): Promis
 
 export function getOverview() {
   return jsonManagerFetch<ManagerOverviewResponse>("/manager/overview")
+}
+
+export function getPermissions() {
+  return jsonManagerFetch<ManagerPermissionsResponse>("/manager/permissions")
 }
 
 export function getNetworkSummary() {
