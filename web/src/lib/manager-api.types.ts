@@ -392,10 +392,10 @@ export type ManagerNodeScaleInChecks = {
   runtime_views_complete_and_fresh: boolean
   all_slots_have_quorum: boolean
   target_not_unique_healthy_replica: boolean
-  channel_inventory_available: boolean
-  no_active_channel_migrations_involving_target: boolean
-  no_channel_leaders_on_target: boolean
-  no_channel_replicas_on_target: boolean
+  channel_inventory_available?: boolean | null
+  no_active_channel_migrations_involving_target?: boolean | null
+  no_channel_leaders_on_target?: boolean | null
+  no_channel_replicas_on_target?: boolean | null
 }
 
 // ManagerNodeScaleInProgress contains counters that explain remaining scale-in work.
@@ -405,16 +405,16 @@ export type ManagerNodeScaleInProgress = {
   slot_leaders: number
   active_tasks_involving_node: number
   active_migrations_involving_node: number
-  channel_leaders: number
-  channel_replicas: number
-  active_channel_migrations_involving_node: number
+  channel_leaders?: number | null
+  channel_replicas?: number | null
+  active_channel_migrations_involving_node?: number | null
   active_connections: number
   closing_connections: number
   gateway_sessions: number
   active_connections_unknown: boolean
-  channel_inventory_scanned: boolean
-  channel_inventory_partial: boolean
-  channel_inventory_error: string
+  channel_inventory_scanned?: boolean | null
+  channel_inventory_partial?: boolean | null
+  channel_inventory_error?: string | null
 }
 
 // ManagerNodeScaleInRuntime contains live runtime counters used for connection safety.
