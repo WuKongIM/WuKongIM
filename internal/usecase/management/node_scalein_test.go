@@ -31,6 +31,7 @@ func TestPlanNodeScaleInPreflightBlockedReasons(t *testing.T) {
 	healthyApp := func(mutator func(*fakeClusterReader, *NodeScaleInPlanRequest)) (*App, uint64, NodeScaleInPlanRequest) {
 		req := NodeScaleInPlanRequest{ConfirmStatefulSetTail: true, ExpectedTailNodeID: 3}
 		cluster := &fakeClusterReader{
+			slotIDs: []multiraft.SlotID{1, 2},
 			nodes: []controllermeta.ClusterNode{
 				scaleInTestNode(1, controllermeta.NodeRoleData, controllermeta.NodeJoinStateActive, controllermeta.NodeStatusAlive),
 				scaleInTestNode(2, controllermeta.NodeRoleData, controllermeta.NodeJoinStateActive, controllermeta.NodeStatusAlive),
@@ -54,6 +55,8 @@ func TestPlanNodeScaleInPreflightBlockedReasons(t *testing.T) {
 			ScaleInRuntimeViewMaxAge: time.Minute,
 			Cluster:                  cluster,
 			RuntimeSummary:           scaleInRuntimeSummaryReader{summary: NodeRuntimeSummary{NodeID: 3}},
+			ChannelRuntimeMeta:       &fakeScaleInChannelRuntimeMeta{},
+			ChannelMigration:         &fakeScaleInChannelMigrationStore{},
 			Now:                      func() time.Time { return now },
 		}), 3, req
 	}
@@ -87,7 +90,7 @@ func TestPlanNodeScaleInPreflightBlockedReasons(t *testing.T) {
 		}, wantCodes: []string{"tail_node_mapping_unverified"}},
 		{name: "other draining node", mutator: func(c *fakeClusterReader, _ *NodeScaleInPlanRequest) {
 			c.nodes[1].Status = controllermeta.NodeStatusDraining
-		}, wantCodes: []string{"other_draining_node_exists"}},
+		}, wantCodes: []string{"other_draining_node_exists", "remaining_data_nodes_insufficient"}},
 		{name: "remaining data nodes insufficient", mutator: func(c *fakeClusterReader, _ *NodeScaleInPlanRequest) {
 			c.nodes = c.nodes[1:]
 		}, wantCodes: []string{"remaining_data_nodes_insufficient"}},
@@ -127,7 +130,7 @@ func TestPlanNodeScaleInPreflightBlockedReasons(t *testing.T) {
 			report, err := app.PlanNodeScaleIn(context.Background(), nodeID, req)
 
 			require.NoError(t, err)
-			require.Subset(t, scaleInReasonCodes(report.BlockedReasons), tc.wantCodes)
+			require.ElementsMatch(t, tc.wantCodes, scaleInReasonCodes(report.BlockedReasons))
 			require.Equal(t, NodeScaleInStatusBlocked, report.Status)
 			require.False(t, report.SafeToRemove)
 		})
