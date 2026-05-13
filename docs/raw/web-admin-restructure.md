@@ -230,15 +230,16 @@ POST /manager/channels/:type/:id/allowlist/remove
 
 #### 系统用户 `/system-users`
 
+- 状态：MVP 已完成（持久化系统 UID 列表、添加、移除）；cache-only 操作、remove-all、用途元数据和审计日志仍待后续设计
 - System UID 列表
 - 添加/移除系统 UID
 - 说明各系统 UID 的用途
 
-对应已有 API：
+对应后台 API：
 ```
-GET  /user/systemuids
-POST /user/systemuids_add
-POST /user/systemuids_remove
+GET  /manager/system-users
+POST /manager/system-users/add
+POST /manager/system-users/remove
 ```
 
 ### 4.5 诊断工具模块（已有，重组）
@@ -318,7 +319,7 @@ POST /user/systemuids_remove
 
 7. **实时监控** — 需要 WebSocket 推送或轮询机制
 8. **Webhook 配置** — 需要后端配置持久化
-9. **系统用户管理** — 已有 API，前端包装即可
+9. **系统用户管理** — 持久化系统 UID 列表/添加/移除已完成；cache-only/remove-all 待后续设计
 
 ## 7. 当前实现状态
 
@@ -343,4 +344,4 @@ POST /user/systemuids_remove
 - [ ] 权限管理页面
 - [ ] 实时监控页面
 - [ ] Webhook 配置页面
-- [ ] 系统用户管理页面
+- [x] 系统用户管理页面
