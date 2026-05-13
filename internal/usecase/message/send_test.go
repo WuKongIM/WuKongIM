@@ -391,6 +391,34 @@ func TestSendRequestScopedNoPersistDispatchesRealtimeScopedEnvelope(t *testing.T
 	require.Equal(t, int32(fixedSendNow.Unix()), call.Message.Timestamp)
 }
 
+func TestSendRequestScopedNoPersistDoesNotSubmitCMDConversationIntent(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	realtime := &recordingRealtimeDispatcher{}
+	intentSink := &recordingCMDConversationIntentSink{accepted: true}
+	ids := &sequenceMessageIDGenerator{next: 911}
+	app := New(Options{
+		Now:                    fixedNowFn,
+		Cluster:                cluster,
+		MessageIDs:             ids,
+		RealtimeDispatcher:     realtime,
+		CMDConversationIntents: intentSink,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		Framer:             frame.Framer{NoPersist: true, SyncOnce: true},
+		FromUID:            "system",
+		RequestSubscribers: []string{"u1", "u2"},
+		Payload:            []byte("cmd realtime"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Zero(t, result.MessageSeq)
+	require.Empty(t, cluster.sendRequests)
+	require.Len(t, realtime.calls, 1)
+	require.Empty(t, intentSink.intents)
+}
+
 func TestSendNoPersistWithSyncOnceDispatchesRealtimeCommandMessage(t *testing.T) {
 	cluster := &fakeChannelCluster{}
 	dispatcher := &recordingCommittedDispatcher{}

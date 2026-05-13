@@ -84,8 +84,8 @@
 | `delivery.App` | `usecase/delivery/app.go` | 投递用例：提交投递、确认、离线处理 |
 | `presence.App` | `usecase/presence/app.go` | 在线状态用例：激活/去激活、权威路由、心跳 |
 | `conversation.App` | `usecase/conversation/app.go` | 会话用例：增量/全量同步、冷热分离 |
-| `cmdsync.App` | `usecase/cmdsync/app.go` | CMD 同步用例：读取 command-channel log、生成 sync records、处理 syncack |
-| `cmdsync.Projector` | `usecase/cmdsync/projector.go` | CMD 投影器：从 committed event 维护 UID-owned CMD conversation state |
+| `cmdsync.App` | `usecase/cmdsync/app.go` | CMD 同步用例：合并 pending overlay、读取 command-channel log、生成 sync records、处理 syncack |
+| `cmdsync.ConversationUpdater` | `usecase/cmdsync/pending.go` | UID-owner pending CMD conversation intent 缓冲、flush 与 graceful-stop 恢复 |
 
 #### 运行时层（Runtime）
 | 组件 | 文件 | 职责 |
@@ -194,7 +194,7 @@ online.Registry.Connection(sessionID)
    ├─ Store（元数据存储）
    ├─ ConversationActiveHintCache（UID-owner active_at 热提示覆盖层）
    ├─ Conversation（会话投影器）
-   ├─ CMDSync（CMD 离线同步用例 + CMD projector）
+   ├─ CMDSync（CMD 离线同步用例 + pending conversation updater / intent router）
    ├─ ChannelMetaSync（元数据同步）
    ├─ Presence（在线状态 + Worker）
    ├─ Delivery（投递管理器）
@@ -202,7 +202,7 @@ online.Registry.Connection(sessionID)
    ├─ CommittedReplay（从 Channel Log 补偿已提交事件）
    ├─ ChannelRetention（按权威元数据推进频道消息保留边界）
    ├─ Message（消息用例）
-   └─ Node Access（RPC Handler，含 CMD sync UID-owner 转发）
+   └─ Node Access（RPC Handler，含 CMD sync 与 CMD intent UID-owner 转发）
 
 6. 创建接入层
    ├─ API Server（可选）
@@ -220,7 +220,7 @@ online.Registry.Connection(sessionID)
 4. presence（启动 Worker）
 5. conversation_active_hints
 6. conversation_projector
-7. cmdsync_projector
+7. cmd_conversation_updater
 8. delivery_runtime
 9. committed_dispatcher
 10. committed_replay
@@ -243,7 +243,7 @@ online.Registry.Connection(sessionID)
 5. committed_replay
 6. committed_dispatcher
 7. delivery_runtime
-8. cmdsync_projector
+8. cmd_conversation_updater
 9. conversation_projector
 10. conversation_active_hints
 11. presence
@@ -297,9 +297,10 @@ message.App.Send(ctx, cmd)
           ├─ lease 过期时续租或 repair
           └─ stale / not-leader / lease-expired / reroute 错误时强制刷新并仅重试一次 Append
       ↓
+request-scoped durable CMD：用 RequestSubscribers 构建 CMD conversation intent，并按 UID owner 路由到 pending updater
+      ↓
 dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted)
-  ├─ committedFanout（fanout 给普通投递/会话和 CMD 投影）
-  ├─ cmdsync.Projector（维护 UID-owned CMD conversation state）
+  ├─ committedFanout（仅提交到 asyncCommittedDispatcher）
   └─ asyncCommittedDispatcher
       ├─ 按 ChannelID + ChannelType 选择固定分片队列
       ├─ 队列满时不失败 Send，改走 best-effort conversation fallback
@@ -310,8 +311,8 @@ realtime delivery 直接提交 transient MessageRealtime
   └─ delivery 使用 source-channel 订阅者解析和在线路由 fanout
 committed_replay 后台从已提交 Channel Log 补偿未分发事件
   ├─ 按 committed cursor 扫描 message_seq
-  ├─ 重新提交 delivery / conversation / CMD sync projection
-  ├─ CMD projection 同步成功后才推进 replay cursor，避免 state 未落盘就跳过
+  ├─ 重新提交 delivery / conversation；不再运行独立 CMD subscriber-scan projector
+  ├─ 普通 CMD intent 由 delivery resolver 的 UID page observer 重新产生
   ├─ delivery 接受后批量推进 cursor；active hint 失败只记录告警
   └─ 记录 replay lag / pass duration 指标
   ↓
@@ -473,7 +474,8 @@ clusterCMDSyncUsecase
       ↓
 cmdsync.App.Sync
   ├─ ListCMDConversationActive(uid) 读取独立 CMD conversation state
-  ├─ 对每个 state 从 max(ReadSeq, DeletedToSeq)+1 开始读取 command-channel log
+  ├─ 合并 owner-local pending CMD conversation overlay，避免等待 flush 才可见
+  ├─ 对每个 state/pending view 从 max(ReadSeq, DeletedToSeq)+1 开始读取 command-channel log
   │   ├─ command channel key 始终是 `source____cmd`
   │   ├─ 本地 command owner: Channel Log committed read
   │   └─ 远端 command owner: channel_messages RPC（SyncMode=true）
@@ -488,13 +490,15 @@ clusterCMDSyncUsecase 按 UID owner 本地/远端路由
 cmdsync.App.SyncAck
   ├─ Pop 最近一次 sync records
   ├─ 只保留 command-channel record 且 LastReturnedMsgSeq > 0
-  └─ AdvanceCMDConversationReadSeq 推进独立 CMD read cursor
+  ├─ AdvanceCMDConversationReadSeq 推进独立 CMD read cursor
+  └─ pending-only record 先 upsert durable read progress，再按 UID/channel/throughSeq 清理 pending
 ```
 
 说明：
 
 - `NoPersist` CMD 不写 Channel Log，也不创建 CMD conversation state，因此不会被 `/message/sync` 返回。
-- live request-scoped CMD projection 只使用 `MessageScopedUIDs`；没有 scoped UIDs 的 temp CMD replay 不回扫临时订阅者。
+- CMD conversation 更新来自 request-scoped recipients 或 delivery 已解析 UID page；不保存每条消息的 subscriber snapshot。
+- request-scoped replay 没有 `MessageScopedUIDs` 时仍是 best effort；普通 CMD replay 依赖 delivery UID observer 重新生成 intent。
 - 当前项目没有绕过集群的独立部署语义；单节点集群也走同一 UID owner / command owner 路由模型。
 
 ### 4.8 接收确认流程
@@ -567,7 +571,7 @@ handleRecvAck(ctx, pkt)
 ## 7. 避坑清单
 
 ### 🔴 启动与停止
-- **启动顺序严格**: 按 Cluster → WaitReady → ChannelMetaSync → Presence → Conversation → CMDSyncProjector → DeliveryRuntime → CommittedDispatcher → CommittedReplay → ChannelRetention → Gateway → API → Manager 顺序启动，任一步骤失败会按启动逆序停止
+- **启动顺序严格**: 按 Cluster → WaitReady → ChannelMetaSync → Presence → Conversation → CMDConversationUpdater → DeliveryRuntime → CommittedDispatcher → CommittedReplay → ChannelRetention → Gateway → API → Manager 顺序启动，任一步骤失败会按启动逆序停止；CMDConversationUpdater 早于 DeliveryRuntime 启动，因此停止时会在 DeliveryRuntime drain 之后保存 pending
 - **停止顺序相反**: 先停 Manager/API/Gateway（停止接入新请求），再停业务层，最后停 Cluster 和关闭数据库
 - **stopOnce 保证幂等**: 多次调用 Stop() 只执行一次
 
@@ -602,7 +606,7 @@ handleRecvAck(ctx, pkt)
 - **UID owner 与 command owner 分离**: `/message/sync` 和 `/message/syncack` 按 UID slot owner 路由；UID owner 再按 `source____cmd` 的 ChannelRuntimeMeta leader 读取 command-channel log。
 - **CMD state 独立**: `CMDConversationState` 只服务 legacy CMD 离线同步，不能写入或读取普通 `UserConversationState`。
 - **syncack 只推进最近 generation**: `/message/syncack` 只消费 `SyncRecordCache` 中最近一次 `/message/sync` 返回的 record，不按客户端 `last_message_seq` 重新扫描频道。
-- **request-scoped replay 仍有限制**: live path 使用 `MessageScopedUIDs` 精确投影；崩溃后仅靠 committed replay 仍不能恢复丢失的 request-scoped subscriber 快照。
+- **不持久化 subscriber snapshot**: CMD offline sync 写入/恢复的是 conversation intent pending update；graceful stop 可恢复未 flush pending，kill -9 不保证内存 intent 持久化。
 
 ### 🔴 网关
 - **空闲断开只看客户端入站**: idle monitor 只根据最近一次客户端入站数据刷新 deadline，服务端持续下发消息不会延长 `IdleTimeout`（默认 3 分钟）

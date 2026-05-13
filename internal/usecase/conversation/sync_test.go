@@ -146,6 +146,7 @@ func TestSyncDoesNotReadDedicatedCMDConversationState(t *testing.T) {
 	repo := newConversationSyncRepoStub()
 	repo.active = []metadb.UserConversationState{
 		{UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 1, ActiveAt: 100},
+		{UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ReadSeq: 0, ActiveAt: 200},
 	}
 	cmdRows := []metadb.CMDConversationState{
 		{UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ActiveAt: 200},

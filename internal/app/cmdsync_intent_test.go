@@ -48,6 +48,25 @@ func TestCMDIntentRouterPartialFailureReturnsNotFullyAccepted(t *testing.T) {
 	require.Equal(t, map[string]uint64{"u2": 0}, remote.calls[0].intent.UserReadSeqs)
 }
 
+func TestCMDIntentRouterPartialFailureCanRetryFullIntentIdempotently(t *testing.T) {
+	local := cmdsync.NewConversationUpdater(cmdsync.ConversationUpdaterOptions{})
+	remote := &recordingCMDIntentRemote{errs: []error{errors.New("remote unavailable")}}
+	cluster := newStaticUIDOwnerCluster(map[string]uint64{"u1": 1, "u2": 2})
+	router := cmdConversationIntentRouter{local: local, remote: remote, cluster: cluster, localNodeID: 1}
+	intent := validCMDConversationIntent(map[string]uint64{"u1": 9, "u2": 0})
+
+	accepted, err := router.PushIntent(context.Background(), intent)
+	require.Error(t, err)
+	require.False(t, accepted)
+	require.Equal(t, []cmdsync.PendingConversationView{{CommandChannelID: intent.CommandChannelID, ChannelType: intent.ChannelType, LastMsgSeq: 9, ActiveAt: intent.ActiveAt, ReadSeq: 9}}, local.ListPending(context.Background(), "u1", 10))
+
+	accepted, err = router.PushIntent(context.Background(), intent)
+	require.NoError(t, err)
+	require.True(t, accepted)
+	require.Len(t, remote.calls, 2)
+	require.Equal(t, []cmdsync.PendingConversationView{{CommandChannelID: intent.CommandChannelID, ChannelType: intent.ChannelType, LastMsgSeq: 9, ActiveAt: intent.ActiveAt, ReadSeq: 9}}, local.ListPending(context.Background(), "u1", 10))
+}
+
 func TestCMDConversationIntentOwnerValidationRejectsStaleOwnerWithoutPartialStore(t *testing.T) {
 	local := &recordingCMDIntentSink{}
 	cluster := newStaticUIDOwnerCluster(map[string]uint64{"u1": 1, "u2": 2})
