@@ -7,8 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -250,6 +252,53 @@ type ManagerConnection struct {
 	UID string `json:"uid"`
 }
 
+// ManagerChannelRuntimeMetaDetail mirrors channel runtime metadata used by channel-cluster E2E assertions.
+type ManagerChannelRuntimeMetaDetail struct {
+	ChannelID     string   `json:"channel_id"`
+	ChannelType   int64    `json:"channel_type"`
+	SlotID        uint32   `json:"slot_id"`
+	HashSlot      uint32   `json:"hash_slot"`
+	ChannelEpoch  uint64   `json:"channel_epoch"`
+	LeaderEpoch   uint64   `json:"leader_epoch"`
+	Leader        uint64   `json:"leader"`
+	Replicas      []uint64 `json:"replicas"`
+	ISR           []uint64 `json:"isr"`
+	MinISR        int      `json:"min_isr"`
+	MaxMessageSeq uint64   `json:"max_message_seq"`
+	Status        string   `json:"status"`
+	Features      uint64   `json:"features"`
+	LeaseUntilMS  int64    `json:"lease_until_ms"`
+}
+
+// ManagerChannelClusterReplicaDetail mirrors /manager/channel-cluster/:type/:id/replicas.
+type ManagerChannelClusterReplicaDetail struct {
+	Channel             ManagerChannelRuntimeMetaDetail      `json:"channel"`
+	RuntimeReported     bool                                 `json:"runtime_reported"`
+	CommitSeq           *uint64                              `json:"commit_seq"`
+	MinAvailableSeq     *uint64                              `json:"min_available_seq"`
+	RetentionThroughSeq *uint64                              `json:"retention_through_seq"`
+	Replicas            []ManagerChannelClusterReplicaStatus `json:"replicas"`
+}
+
+// ManagerChannelClusterReplicaStatus mirrors one channel-cluster replica row.
+type ManagerChannelClusterReplicaStatus struct {
+	NodeID       uint64  `json:"node_id"`
+	Role         string  `json:"role"`
+	IsLeader     bool    `json:"is_leader"`
+	InISR        bool    `json:"in_isr"`
+	Reported     bool    `json:"reported"`
+	CommitSeq    *uint64 `json:"commit_seq"`
+	LEO          *uint64 `json:"leo"`
+	CheckpointHW *uint64 `json:"checkpoint_hw"`
+	Lag          *uint64 `json:"lag"`
+}
+
+// ManagerChannelLeaderTransferResponse mirrors the manager leader transfer response.
+type ManagerChannelLeaderTransferResponse struct {
+	Changed bool                            `json:"changed"`
+	Channel ManagerChannelRuntimeMetaDetail `json:"channel"`
+}
+
 // FetchNodeOnboardingCandidates fetches manager onboarding candidates from the started node.
 func FetchNodeOnboardingCandidates(ctx context.Context, node StartedNode) (ManagerNodeOnboardingCandidatesResponse, []byte, error) {
 	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, "/manager/node-onboarding/candidates")
@@ -432,6 +481,89 @@ func FetchSlotDetail(ctx context.Context, node StartedNode, slotID uint32) (Mana
 		return ManagerSlotDetail{}, body, err
 	}
 	return detail, body, nil
+}
+
+// FetchChannelClusterReplicas fetches authoritative channel-cluster replica detail.
+func FetchChannelClusterReplicas(ctx context.Context, node StartedNode, channelType uint8, channelID string) (ManagerChannelClusterReplicaDetail, []byte, error) {
+	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/channel-cluster/%d/%s/replicas", channelType, url.PathEscape(channelID)))
+	if err != nil {
+		return ManagerChannelClusterReplicaDetail{}, nil, err
+	}
+
+	detail, err := decodeChannelClusterReplicaDetail(body)
+	if err != nil {
+		return ManagerChannelClusterReplicaDetail{}, body, err
+	}
+	return detail, body, nil
+}
+
+// TransferChannelClusterLeader transfers one channel leader to a requested replica through manager APIs.
+func TransferChannelClusterLeader(ctx context.Context, node StartedNode, channelType uint8, channelID string, targetNodeID uint64) (ManagerChannelLeaderTransferResponse, []byte, error) {
+	body, err := postHTTPJSONBody(
+		ctx,
+		node.Spec.ManagerAddr,
+		fmt.Sprintf("/manager/channel-cluster/%d/%s/leader/transfer", channelType, url.PathEscape(channelID)),
+		map[string]uint64{"target_node_id": targetNodeID},
+	)
+	if err != nil {
+		return ManagerChannelLeaderTransferResponse{}, nil, err
+	}
+
+	result, err := decodeChannelLeaderTransferResponse(body)
+	if err != nil {
+		return ManagerChannelLeaderTransferResponse{}, body, err
+	}
+	return result, body, nil
+}
+
+// WaitForChannelClusterReplicas waits until channel-cluster replica detail satisfies accept.
+func WaitForChannelClusterReplicas(ctx context.Context, node StartedNode, channelType uint8, channelID string, accept func(ManagerChannelClusterReplicaDetail) bool) (ManagerChannelClusterReplicaDetail, []byte, error) {
+	ticker := time.NewTicker(readyPollInterval)
+	defer ticker.Stop()
+
+	var (
+		lastDetail ManagerChannelClusterReplicaDetail
+		lastErr    error
+		lastBody   []byte
+	)
+	for {
+		detail, body, err := FetchChannelClusterReplicas(ctx, node, channelType, channelID)
+		if err == nil {
+			lastDetail = detail
+			lastBody = body
+			if accept == nil || accept(detail) {
+				return detail, body, nil
+			}
+			lastErr = fmt.Errorf("channel %d/%s replica detail did not satisfy expected state", channelType, channelID)
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			if lastErr != nil {
+				return lastDetail, lastBody, lastErr
+			}
+			return lastDetail, lastBody, ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func decodeChannelClusterReplicaDetail(body []byte) (ManagerChannelClusterReplicaDetail, error) {
+	var detail ManagerChannelClusterReplicaDetail
+	if err := json.Unmarshal(body, &detail); err != nil {
+		return ManagerChannelClusterReplicaDetail{}, err
+	}
+	return detail, nil
+}
+
+func decodeChannelLeaderTransferResponse(body []byte) (ManagerChannelLeaderTransferResponse, error) {
+	var resp ManagerChannelLeaderTransferResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return ManagerChannelLeaderTransferResponse{}, err
+	}
+	return resp, nil
 }
 
 // FetchConnections fetches local manager connections from the started node.
@@ -822,6 +954,19 @@ func ConnectionsContainUID(ctx context.Context, node StartedNode, uid string) (b
 		case <-ticker.C:
 		}
 	}
+}
+
+// PersonChannelID returns the canonical runtime channel ID for two person-channel UIDs.
+func PersonChannelID(leftUID, rightUID string) string {
+	leftHash := crc32.ChecksumIEEE([]byte(leftUID))
+	rightHash := crc32.ChecksumIEEE([]byte(rightUID))
+	if leftHash > rightHash {
+		return leftUID + "@" + rightUID
+	}
+	if leftHash == rightHash && leftUID > rightUID {
+		return leftUID + "@" + rightUID
+	}
+	return rightUID + "@" + leftUID
 }
 
 func sameNodeSet(left, right []uint64) bool {
