@@ -224,17 +224,57 @@ function canScaleInNode(node: ManagerNode, canReadScaleIn: boolean) {
   return canReadScaleIn && (node.actions?.can_scale_in ?? true)
 }
 
-function ScaleInMetricCard({ label, value }: { label: string; value: number | string }) {
+function ScaleInMetricCard({
+  description,
+  label,
+  value,
+}: {
+  description?: string
+  label: string
+  value: number | string
+}) {
   return (
     <div className="rounded-lg border border-border bg-muted/30 px-3 py-3">
       <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
       <div className="mt-2 text-2xl font-semibold text-foreground">{value}</div>
+      {description ? <div className="mt-1 text-xs text-muted-foreground">{description}</div> : null}
     </div>
   )
 }
 
+function formatScaleInMetricNumber(value: number | null | undefined) {
+  return value ?? 0
+}
+
+function formatScaleInCheckStatus(value: boolean | null | undefined) {
+  if (value === true) {
+    return "ready"
+  }
+  if (value === false) {
+    return "blocked"
+  }
+  return "unknown"
+}
+
+function formatChannelInventoryMetric(intl: IntlShape, progress: ManagerNodeScaleInReport["progress"]) {
+  const error = progress.channel_inventory_error?.trim()
+  if (progress.channel_inventory_partial === true) {
+    return {
+      description: error
+        ? intl.formatMessage({ id: "nodes.scaleIn.inventoryErrorValue" }, { value: error })
+        : undefined,
+      value: intl.formatMessage({ id: "nodes.scaleIn.inventoryPartial" }),
+    }
+  }
+  if (progress.channel_inventory_scanned === true) {
+    return { value: intl.formatMessage({ id: "nodes.scaleIn.inventoryOk" }) }
+  }
+  return { value: intl.formatMessage({ id: "nodes.scaleIn.unknown" }) }
+}
+
 function ScaleInReportView({ intl, report }: { intl: IntlShape; report: ManagerNodeScaleInReport }) {
   const checkEntries = Object.entries(report.checks)
+  const channelInventoryMetric = formatChannelInventoryMetric(intl, report.progress)
 
   return (
     <div className="space-y-4">
@@ -272,23 +312,20 @@ function ScaleInReportView({ intl, report }: { intl: IntlShape; report: ManagerN
         />
         <ScaleInMetricCard
           label={intl.formatMessage({ id: "nodes.scaleIn.metrics.channelLeaders" })}
-          value={report.progress.channel_leaders}
+          value={formatScaleInMetricNumber(report.progress.channel_leaders)}
         />
         <ScaleInMetricCard
           label={intl.formatMessage({ id: "nodes.scaleIn.metrics.channelReplicas" })}
-          value={report.progress.channel_replicas}
+          value={formatScaleInMetricNumber(report.progress.channel_replicas)}
         />
         <ScaleInMetricCard
           label={intl.formatMessage({ id: "nodes.scaleIn.metrics.activeChannelMigrations" })}
-          value={report.progress.active_channel_migrations_involving_node}
+          value={formatScaleInMetricNumber(report.progress.active_channel_migrations_involving_node)}
         />
         <ScaleInMetricCard
+          description={channelInventoryMetric.description}
           label={intl.formatMessage({ id: "nodes.scaleIn.metrics.channelInventory" })}
-          value={
-            report.progress.channel_inventory_partial
-              ? report.progress.channel_inventory_error || intl.formatMessage({ id: "nodes.scaleIn.unknown" })
-              : formatBooleanValue(intl, report.progress.channel_inventory_scanned)
-          }
+          value={channelInventoryMetric.value}
         />
         <ScaleInMetricCard
           label={intl.formatMessage({ id: "nodes.scaleIn.metrics.activeConnections" })}
@@ -347,7 +384,7 @@ function ScaleInReportView({ intl, report }: { intl: IntlShape; report: ManagerN
             key={key}
           >
             <span className="text-muted-foreground">{formatScaleInCheckLabel(key)}</span>
-            <StatusBadge value={passed ? "ready" : "blocked"} />
+            <StatusBadge value={formatScaleInCheckStatus(passed)} />
           </div>
         ))}
       </div>

@@ -144,9 +144,9 @@ const scaleInPlanReport = {
     slot_leaders: 0,
     active_tasks_involving_node: 0,
     active_migrations_involving_node: 0,
-    channel_leaders: 0,
-    channel_replicas: 0,
-    active_channel_migrations_involving_node: 0,
+    channel_leaders: 3,
+    channel_replicas: 5,
+    active_channel_migrations_involving_node: 2,
     active_connections: 0,
     closing_connections: 0,
     gateway_sessions: 0,
@@ -168,6 +168,38 @@ const scaleInPlanReport = {
   },
   leaders: [],
   next_action: "start",
+}
+
+const legacyScaleInReport = {
+  ...scaleInPlanReport,
+  checks: omitKeys(scaleInPlanReport.checks, [
+    "channel_inventory_available",
+    "no_active_channel_migrations_involving_target",
+    "no_channel_leaders_on_target",
+    "no_channel_replicas_on_target",
+  ] as const),
+  progress: omitKeys(scaleInPlanReport.progress, [
+    "channel_leaders",
+    "channel_replicas",
+    "active_channel_migrations_involving_node",
+    "channel_inventory_scanned",
+    "channel_inventory_partial",
+    "channel_inventory_error",
+  ] as const),
+}
+
+const partialChannelInventoryReport = {
+  ...scaleInPlanReport,
+  checks: {
+    ...scaleInPlanReport.checks,
+    channel_inventory_available: false,
+  },
+  progress: {
+    ...scaleInPlanReport.progress,
+    channel_inventory_scanned: true,
+    channel_inventory_partial: true,
+    channel_inventory_error: "channel runtime unavailable",
+  },
 }
 
 const scaleInRunningReport = {
@@ -253,6 +285,25 @@ function renderNodesPage() {
       </MemoryRouter>
     </I18nProvider>,
   )
+}
+
+function omitKeys<T extends object, K extends keyof T>(value: T, keys: readonly K[]): Omit<T, K> {
+  const copy: Partial<T> = { ...value }
+  for (const key of keys) {
+    delete copy[key]
+  }
+  return copy as Omit<T, K>
+}
+
+function getMetricCard(container: HTMLElement, label: string) {
+  const labelElement = within(container).getByText(label)
+  const card = labelElement.parentElement
+  expect(card).not.toBeNull()
+  return card as HTMLElement
+}
+
+function expectMetricValue(container: HTMLElement, label: string, value: string) {
+  expect(getMetricCard(container, label)).toHaveTextContent(value)
 }
 
 test("omits distributed log health from the node list and detail", async () => {
@@ -431,10 +482,54 @@ test("opens scale-in review in a sheet instead of an inline section", async () =
 
   const dialog = await screen.findByRole("dialog", { name: "Scale-in Plan" })
   expect(within(dialog).getByText("Assigned replicas")).toBeInTheDocument()
-  expect(within(dialog).getByText("Channel leaders")).toBeInTheDocument()
-  expect(within(dialog).getByText("Channel replicas")).toBeInTheDocument()
-  expect(within(dialog).getByText("Active channel migrations")).toBeInTheDocument()
+  expectMetricValue(dialog, "Channel leaders", "3")
+  expectMetricValue(dialog, "Channel replicas", "5")
+  expectMetricValue(dialog, "Active channel migrations", "2")
+  expectMetricValue(dialog, "Channel inventory", "ok")
   expect(within(dialog).getByText("Node 1 manager-driven scale-in safety report.")).toBeInTheDocument()
+})
+
+test("renders safe scale-in channel fallbacks for legacy reports", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
+  planNodeScaleInMock.mockResolvedValueOnce(legacyScaleInReport)
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Review scale-in for node 1" }))
+
+  const dialog = await screen.findByRole("dialog", { name: "Scale-in Plan" })
+  expectMetricValue(dialog, "Channel leaders", "0")
+  expectMetricValue(dialog, "Channel replicas", "0")
+  expectMetricValue(dialog, "Active channel migrations", "0")
+  expectMetricValue(dialog, "Channel inventory", "unknown")
+})
+
+test("renders partial channel inventory errors as supporting text", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
+  planNodeScaleInMock.mockResolvedValueOnce(partialChannelInventoryReport)
+
+  const user = userEvent.setup()
+  renderNodesPage()
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Review scale-in for node 1" }))
+
+  const dialog = await screen.findByRole("dialog", { name: "Scale-in Plan" })
+  const inventoryCard = getMetricCard(dialog, "Channel inventory")
+  expect(inventoryCard).toHaveTextContent("partial")
+  expect(inventoryCard).toHaveTextContent("Error: channel runtime unavailable")
 })
 
 test("opens node detail and refreshes after draining", async () => {
