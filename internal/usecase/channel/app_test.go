@@ -226,6 +226,87 @@ func TestListAllowlistReturnsLegacyMembers(t *testing.T) {
 	require.Contains(t, store.listSubscribers[0].channelID, "allow")
 }
 
+func TestListSubscribersPageReturnsOnePage(t *testing.T) {
+	store := &recordingStore{
+		listPages: []listPage{{uids: []string{"u1", "u2"}, cursor: "u2", done: false}},
+	}
+	app := New(Options{Store: store})
+
+	result, err := app.ListSubscribersPage(context.Background(), MemberListPageRequest{
+		ChannelKey: ChannelKey{ChannelID: "g1", ChannelType: 2},
+		AfterUID:   "u0",
+		Limit:      2,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, MemberListPageResult{
+		Members:    []Member{{UID: "u1"}, {UID: "u2"}},
+		NextCursor: "u2",
+		HasMore:    true,
+	}, result)
+	require.Equal(t, []listSubscribersCall{{channelID: "g1", channelType: 2, afterUID: "u0", limit: 2}}, store.listSubscribers)
+}
+
+func TestListAllowlistPageUsesNamespacedChannel(t *testing.T) {
+	store := &recordingStore{
+		listPages: []listPage{{uids: []string{"u1"}, cursor: "u1", done: true}},
+	}
+	app := New(Options{Store: store})
+	key := ChannelKey{ChannelID: "g1", ChannelType: 2}
+
+	result, err := app.ListAllowlistPage(context.Background(), MemberListPageRequest{
+		ChannelKey: key,
+		Limit:      10,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, MemberListPageResult{Members: []Member{{UID: "u1"}}, NextCursor: "u1"}, result)
+	require.Equal(t, []listSubscribersCall{{
+		channelID:   namespacedListChannelID(allowListKind, key),
+		channelType: 2,
+		afterUID:    "",
+		limit:       10,
+	}}, store.listSubscribers)
+}
+
+func TestListDenylistPageUsesNamespacedChannel(t *testing.T) {
+	store := &recordingStore{
+		listPages: []listPage{{uids: []string{"u3"}, cursor: "u3", done: true}},
+	}
+	app := New(Options{Store: store})
+	key := ChannelKey{ChannelID: "g1", ChannelType: 2}
+
+	result, err := app.ListDenylistPage(context.Background(), MemberListPageRequest{
+		ChannelKey: key,
+		AfterUID:   "u2",
+		Limit:      10,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, MemberListPageResult{Members: []Member{{UID: "u3"}}, NextCursor: "u3"}, result)
+	require.Equal(t, []listSubscribersCall{{
+		channelID:   namespacedListChannelID(denyListKind, key),
+		channelType: 2,
+		afterUID:    "u2",
+		limit:       10,
+	}}, store.listSubscribers)
+}
+
+func TestListSubscribersPageValidatesStoreAndLimit(t *testing.T) {
+	app := New(Options{})
+	_, err := app.ListSubscribersPage(context.Background(), MemberListPageRequest{
+		ChannelKey: ChannelKey{ChannelID: "g1", ChannelType: 2},
+		Limit:      10,
+	})
+	require.ErrorIs(t, err, ErrStoreRequired)
+
+	app = New(Options{Store: &recordingStore{}})
+	_, err = app.ListSubscribersPage(context.Background(), MemberListPageRequest{
+		ChannelKey: ChannelKey{ChannelID: "g1", ChannelType: 2},
+	})
+	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+}
+
 type recordingStore struct {
 	upsertChannels    []metadb.Channel
 	deleteChannels    []channelKeyCall

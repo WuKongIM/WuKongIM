@@ -784,6 +784,72 @@ export type ManagerChannelRuntimeMetaDetailResponse = ManagerChannelRuntimeMeta 
   lease_until_ms: number
 }
 
+export type BusinessChannelListParams = {
+  type?: number
+  keyword?: string
+  limit?: number
+  cursor?: string
+}
+
+export type ManagerBusinessChannelListItem = {
+  channel_id: string
+  channel_type: number
+  slot_id: number
+  hash_slot: number
+  ban: boolean
+  disband: boolean
+  send_ban: boolean
+  subscriber_mutation_version: number
+}
+
+export type ManagerBusinessChannelsResponse = {
+  items: ManagerBusinessChannelListItem[]
+  has_more: boolean
+  next_cursor?: string
+}
+
+export type ManagerBusinessChannelDetailResponse = ManagerBusinessChannelListItem & {
+  has_subscribers: boolean
+  has_allowlist: boolean
+  has_denylist: boolean
+}
+
+export type UpsertBusinessChannelInput = {
+  channelId: string
+  channelType: number
+  ban?: boolean
+  disband?: boolean
+  sendBan?: boolean
+}
+
+export type BusinessChannelMemberListKind = "subscribers" | "allowlist" | "denylist"
+
+export type BusinessChannelMembersParams = {
+  limit?: number
+  cursor?: string
+}
+
+export type ManagerBusinessChannelMember = {
+  uid: string
+}
+
+export type BusinessChannelMembersResponse = {
+  items: ManagerBusinessChannelMember[]
+  has_more: boolean
+  next_cursor?: string
+}
+
+export type MutateBusinessChannelMembersInput = {
+  uids: string[]
+}
+
+export type MutateBusinessChannelMembersResponse = {
+  channel_id: string
+  channel_type: number
+  list: BusinessChannelMemberListKind
+  changed: boolean
+}
+
 export type ManagerChannelClusterSummaryResponse = {
   total: number
   healthy: number

@@ -15,6 +15,8 @@ var (
 	messageCursorMagic            = [...]byte{'W', 'K', 'M', 'C'}
 	channelRuntimeMetaCursorMagic = [...]byte{'W', 'K', 'R', 'M'}
 	userListCursorMagic           = [...]byte{'W', 'K', 'U', 'L'}
+	businessChannelCursorMagic    = [...]byte{'W', 'K', 'C', 'L'}
+	businessChannelMemberMagic    = [...]byte{'W', 'K', 'C', 'M'}
 )
 
 func encodeMessageCursorBinary(cursor managementusecase.MessageListCursor) string {
@@ -224,6 +226,128 @@ func decodeUserListCursorBinary(payload []byte) (managementusecase.UserListCurso
 	}
 	if len(rest) != 0 || cursor.SlotID == 0 || uid == "" {
 		return managementusecase.UserListCursor{}, strconv.ErrSyntax
+	}
+	cursor.UID = uid
+	return cursor, nil
+}
+
+func encodeBusinessChannelCursor(cursor managementusecase.ChannelListCursor) (string, error) {
+	if cursor == (managementusecase.ChannelListCursor{}) {
+		return "", nil
+	}
+	var stack [256]byte
+	data := stack[:0]
+	if len(businessChannelCursorMagic)+1+4+8+8+4+binary.MaxVarintLen64+len(cursor.ChannelID) > len(stack) {
+		data = make([]byte, 0, len(businessChannelCursorMagic)+1+4+8+8+4+binary.MaxVarintLen64+len(cursor.ChannelID))
+	}
+	data = append(data, businessChannelCursorMagic[:]...)
+	data = append(data, managerCursorVersion)
+	data = binary.BigEndian.AppendUint32(data, cursor.SlotID)
+	data = binary.BigEndian.AppendUint64(data, uint64(cursor.ChannelType))
+	data = binary.BigEndian.AppendUint64(data, uint64(cursor.TypeFilter))
+	data = binary.BigEndian.AppendUint32(data, cursor.KeywordHash)
+	data = appendCursorString(data, cursor.ChannelID)
+	return encodeCursorBase64(data), nil
+}
+
+func decodeBusinessChannelCursor(raw string) (managementusecase.ChannelListCursor, error) {
+	if raw == "" {
+		return managementusecase.ChannelListCursor{}, nil
+	}
+	var stack [512]byte
+	decodedLen := base64.RawURLEncoding.DecodedLen(len(raw))
+	if decodedLen > len(stack) {
+		payload, err := decodeCursorBase64Heap(raw, decodedLen)
+		if err != nil {
+			return managementusecase.ChannelListCursor{}, err
+		}
+		return decodeBusinessChannelCursorBinary(payload)
+	}
+	n, err := decodeRawURLBase64String(stack[:decodedLen], raw)
+	if err != nil {
+		return managementusecase.ChannelListCursor{}, err
+	}
+	return decodeBusinessChannelCursorBinary(stack[:n])
+}
+
+func decodeBusinessChannelCursorBinary(payload []byte) (managementusecase.ChannelListCursor, error) {
+	if !hasCursorMagic(payload, businessChannelCursorMagic) || len(payload) < len(businessChannelCursorMagic)+1+4+8+8+4 || payload[len(businessChannelCursorMagic)] != managerCursorVersion {
+		return managementusecase.ChannelListCursor{}, strconv.ErrSyntax
+	}
+	rest := payload[len(businessChannelCursorMagic)+1:]
+	cursor := managementusecase.ChannelListCursor{
+		SlotID:      binary.BigEndian.Uint32(rest[:4]),
+		ChannelType: int64(binary.BigEndian.Uint64(rest[4:12])),
+		TypeFilter:  int64(binary.BigEndian.Uint64(rest[12:20])),
+		KeywordHash: binary.BigEndian.Uint32(rest[20:24]),
+	}
+	rest = rest[24:]
+	channelID, rest, err := readCursorString(rest)
+	if err != nil {
+		return managementusecase.ChannelListCursor{}, err
+	}
+	if len(rest) != 0 || cursor.SlotID == 0 || channelID == "" || cursor.ChannelType <= 0 {
+		return managementusecase.ChannelListCursor{}, strconv.ErrSyntax
+	}
+	cursor.ChannelID = channelID
+	return cursor, nil
+}
+
+func encodeBusinessChannelMemberCursor(cursor managementusecase.ChannelMemberCursor) (string, error) {
+	if cursor == (managementusecase.ChannelMemberCursor{}) {
+		return "", nil
+	}
+	var stack [256]byte
+	data := stack[:0]
+	if len(businessChannelMemberMagic)+1+4+8+1+binary.MaxVarintLen64+len(cursor.UID) > len(stack) {
+		data = make([]byte, 0, len(businessChannelMemberMagic)+1+4+8+1+binary.MaxVarintLen64+len(cursor.UID))
+	}
+	data = append(data, businessChannelMemberMagic[:]...)
+	data = append(data, managerCursorVersion)
+	data = binary.BigEndian.AppendUint32(data, cursor.ChannelIDHash)
+	data = binary.BigEndian.AppendUint64(data, uint64(cursor.ChannelType))
+	data = append(data, cursor.ListKind)
+	data = appendCursorString(data, cursor.UID)
+	return encodeCursorBase64(data), nil
+}
+
+func decodeBusinessChannelMemberCursor(raw string) (managementusecase.ChannelMemberCursor, error) {
+	if raw == "" {
+		return managementusecase.ChannelMemberCursor{}, nil
+	}
+	var stack [512]byte
+	decodedLen := base64.RawURLEncoding.DecodedLen(len(raw))
+	if decodedLen > len(stack) {
+		payload, err := decodeCursorBase64Heap(raw, decodedLen)
+		if err != nil {
+			return managementusecase.ChannelMemberCursor{}, err
+		}
+		return decodeBusinessChannelMemberCursorBinary(payload)
+	}
+	n, err := decodeRawURLBase64String(stack[:decodedLen], raw)
+	if err != nil {
+		return managementusecase.ChannelMemberCursor{}, err
+	}
+	return decodeBusinessChannelMemberCursorBinary(stack[:n])
+}
+
+func decodeBusinessChannelMemberCursorBinary(payload []byte) (managementusecase.ChannelMemberCursor, error) {
+	if !hasCursorMagic(payload, businessChannelMemberMagic) || len(payload) < len(businessChannelMemberMagic)+1+4+8+1 || payload[len(businessChannelMemberMagic)] != managerCursorVersion {
+		return managementusecase.ChannelMemberCursor{}, strconv.ErrSyntax
+	}
+	rest := payload[len(businessChannelMemberMagic)+1:]
+	cursor := managementusecase.ChannelMemberCursor{
+		ChannelIDHash: binary.BigEndian.Uint32(rest[:4]),
+		ChannelType:   int64(binary.BigEndian.Uint64(rest[4:12])),
+		ListKind:      rest[12],
+	}
+	rest = rest[13:]
+	uid, rest, err := readCursorString(rest)
+	if err != nil {
+		return managementusecase.ChannelMemberCursor{}, err
+	}
+	if len(rest) != 0 || cursor.ChannelType <= 0 || cursor.ListKind == 0 || uid == "" {
+		return managementusecase.ChannelMemberCursor{}, strconv.ErrSyntax
 	}
 	cursor.UID = uid
 	return cursor, nil

@@ -194,6 +194,35 @@ func TestChannelRPCBinaryCodecRoundTripsStatusFlags(t *testing.T) {
 	require.Equal(t, resp, got)
 }
 
+func TestChannelRPCBinaryCodecRoundTripsChannelScanPage(t *testing.T) {
+	req := channelRPCRequest{
+		Op:     channelRPCScanChannelsPage,
+		SlotID: 1,
+		After:  metadb.ChannelCursor{ChannelID: "a", ChannelType: 2},
+		Limit:  50,
+	}
+
+	body, err := encodeChannelRPCRequestBinary(req)
+	require.NoError(t, err)
+	gotReq, err := decodeChannelRPCRequest(body)
+	require.NoError(t, err)
+	require.Equal(t, req, gotReq)
+
+	resp := channelRPCResponse{
+		Status: rpcStatusOK,
+		Channels: []metadb.Channel{
+			{ChannelID: "a", ChannelType: 2, Ban: 1},
+		},
+		Cursor: metadb.ChannelCursor{ChannelID: "a", ChannelType: 2},
+		Done:   true,
+	}
+
+	body = encodeChannelRPCResponseBinary(resp)
+	gotResp, err := decodeChannelRPCResponseBinary(body)
+	require.NoError(t, err)
+	require.Equal(t, resp, gotResp)
+}
+
 func TestRemainingProxyRPCsRejectJSONPayload(t *testing.T) {
 	store := New(nil, openTestDB(t))
 

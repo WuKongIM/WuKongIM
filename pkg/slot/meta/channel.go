@@ -3,6 +3,7 @@ package meta
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/cockroachdb/pebble/v2"
@@ -18,6 +19,14 @@ type Channel struct {
 	SendBan int64
 	// SubscriberMutationVersion is the durable version fence for subscriber mutations.
 	SubscriberMutationVersion uint64
+}
+
+// ChannelCursor identifies the last emitted channel in a shard page scan.
+type ChannelCursor struct {
+	// ChannelID is the last emitted channel ID in primary-key order.
+	ChannelID string
+	// ChannelType is the last emitted channel type in primary-key order.
+	ChannelType int64
 }
 
 func (s *ShardStore) CreateChannel(ctx context.Context, ch Channel) error {
@@ -174,6 +183,78 @@ func (s *ShardStore) ListChannelsByChannelID(ctx context.Context, channelID stri
 	return channels, nil
 }
 
+// ListChannelsPage scans one hash slot page in primary-key order.
+func (s *ShardStore) ListChannelsPage(ctx context.Context, after ChannelCursor, limit int) ([]Channel, ChannelCursor, bool, error) {
+	if err := s.validate(); err != nil {
+		return nil, ChannelCursor{}, false, err
+	}
+	if err := s.db.checkContext(ctx); err != nil {
+		return nil, ChannelCursor{}, false, err
+	}
+	if err := validateChannelCursor(after); err != nil {
+		return nil, ChannelCursor{}, false, err
+	}
+	if limit <= 0 {
+		return nil, ChannelCursor{}, false, ErrInvalidArgument
+	}
+
+	s.db.mu.RLock()
+	defer s.db.mu.RUnlock()
+
+	prefix := encodeChannelPrimaryPrefix(s.slot)
+	lowerBound := prefix
+	if after != (ChannelCursor{}) {
+		lowerBound = nextPrefix(encodeChannelPrimaryKey(s.slot, after.ChannelID, after.ChannelType, channelPrimaryFamilyID))
+	}
+
+	iter, err := s.db.db.NewIter(&pebble.IterOptions{
+		LowerBound: lowerBound,
+		UpperBound: nextPrefix(prefix),
+	})
+	if err != nil {
+		return nil, ChannelCursor{}, false, err
+	}
+	defer iter.Close()
+
+	channels := make([]Channel, 0, limit+1)
+	for ok := iter.SeekGE(lowerBound); ok; ok = iter.Next() {
+		if err := s.db.checkContext(ctx); err != nil {
+			return nil, ChannelCursor{}, false, err
+		}
+
+		key := iter.Key()
+		if !bytes.HasPrefix(key, prefix) {
+			break
+		}
+		value, err := iter.ValueAndErr()
+		if err != nil {
+			return nil, ChannelCursor{}, false, err
+		}
+
+		channel, familyID, err := decodeChannelRecord(key, value, prefix)
+		if err != nil {
+			return nil, ChannelCursor{}, false, err
+		}
+		if familyID != channelPrimaryFamilyID {
+			continue
+		}
+
+		channels = append(channels, channel)
+		if len(channels) > limit {
+			return channels[:limit], channelToCursor(channels[limit-1]), false, nil
+		}
+	}
+	if err := iter.Error(); err != nil {
+		return nil, ChannelCursor{}, false, err
+	}
+
+	cursor := after
+	if len(channels) > 0 {
+		cursor = channelToCursor(channels[len(channels)-1])
+	}
+	return channels, cursor, true, nil
+}
+
 func (s *ShardStore) UpdateChannel(ctx context.Context, ch Channel) error {
 	if err := s.validate(); err != nil {
 		return err
@@ -313,4 +394,54 @@ func validateChannel(ch Channel) error {
 		return ErrInvalidArgument
 	}
 	return nil
+}
+
+func validateChannelCursor(cursor ChannelCursor) error {
+	if cursor == (ChannelCursor{}) {
+		return nil
+	}
+	if cursor.ChannelID == "" || len(cursor.ChannelID) > maxKeyStringLen {
+		return ErrInvalidArgument
+	}
+	return nil
+}
+
+func channelToCursor(ch Channel) ChannelCursor {
+	return ChannelCursor{ChannelID: ch.ChannelID, ChannelType: ch.ChannelType}
+}
+
+func encodeChannelPrimaryPrefix(hashSlot uint16) []byte {
+	return encodeStatePrefix(hashSlot, ChannelTable.ID)
+}
+
+func decodeChannelRecord(key, value, prefix []byte) (Channel, uint16, error) {
+	rest := key[len(prefix):]
+	channelID, rest, err := decodeKeyString(rest)
+	if err != nil {
+		return Channel{}, 0, err
+	}
+	channelType, rest, err := decodeOrderedInt64(rest)
+	if err != nil {
+		return Channel{}, 0, err
+	}
+	familyID, n := binary.Uvarint(rest)
+	if n <= 0 {
+		return Channel{}, 0, ErrCorruptValue
+	}
+	if len(rest[n:]) != 0 {
+		return Channel{}, 0, ErrCorruptValue
+	}
+
+	ban, disband, sendBan, subscriberMutationVersion, err := decodeChannelFamilyValue(key, value)
+	if err != nil {
+		return Channel{}, 0, err
+	}
+	return Channel{
+		ChannelID:                 channelID,
+		ChannelType:               channelType,
+		Ban:                       ban,
+		Disband:                   disband,
+		SendBan:                   sendBan,
+		SubscriberMutationVersion: subscriberMutationVersion,
+	}, uint16(familyID), nil
 }

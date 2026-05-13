@@ -3998,6 +3998,19 @@ type managementStub struct {
 	resetUserTokenReqSink              *managementusecase.ResetUserTokenRequest
 	resetUserTokenResponse             managementusecase.ResetUserTokenResponse
 	resetUserTokenErr                  error
+	businessChannelsReqSink            *managementusecase.ListBusinessChannelsRequest
+	businessChannelsPage               managementusecase.ListBusinessChannelsResponse
+	businessChannelsErr                error
+	businessChannelDetail              managementusecase.BusinessChannelDetail
+	businessChannelDetailErr           error
+	businessChannelUpsertReqSink       *managementusecase.UpsertBusinessChannelRequest
+	businessChannelMembersReqSink      *managementusecase.ListBusinessChannelMembersRequest
+	businessChannelMembersPage         managementusecase.ListBusinessChannelMembersResponse
+	businessChannelMembersErr          error
+	businessChannelMutateReqSink       *managementusecase.MutateBusinessChannelMembersRequest
+	businessChannelSecondMutateReqSink *managementusecase.MutateBusinessChannelMembersRequest
+	businessChannelMutateResponse      managementusecase.MutateBusinessChannelMembersResponse
+	businessChannelMutateErr           error
 	channelRuntimeMetaReqSink          *managementusecase.ListChannelRuntimeMetaRequest
 	channelRuntimeMetaPage             managementusecase.ListChannelRuntimeMetaResponse
 	channelRuntimeMetaErr              error
@@ -4225,6 +4238,50 @@ func (s managementStub) ResetUserToken(_ context.Context, req managementusecase.
 		*s.resetUserTokenReqSink = req
 	}
 	return s.resetUserTokenResponse, s.resetUserTokenErr
+}
+
+func (s managementStub) ListBusinessChannels(_ context.Context, req managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error) {
+	if s.businessChannelsReqSink != nil {
+		*s.businessChannelsReqSink = req
+	}
+	return s.businessChannelsPage, s.businessChannelsErr
+}
+
+func (s managementStub) GetBusinessChannel(_ context.Context, channelID string, channelType int64) (managementusecase.BusinessChannelDetail, error) {
+	if s.businessChannelDetail.ChannelID == "" {
+		s.businessChannelDetail.BusinessChannelListItem.ChannelID = channelID
+		s.businessChannelDetail.BusinessChannelListItem.ChannelType = channelType
+	}
+	return s.businessChannelDetail, s.businessChannelDetailErr
+}
+
+func (s managementStub) UpsertBusinessChannel(_ context.Context, req managementusecase.UpsertBusinessChannelRequest) (managementusecase.BusinessChannelDetail, error) {
+	if s.businessChannelUpsertReqSink != nil {
+		*s.businessChannelUpsertReqSink = req
+	}
+	return s.businessChannelDetail, s.businessChannelDetailErr
+}
+
+func (s managementStub) ListBusinessChannelMembers(_ context.Context, req managementusecase.ListBusinessChannelMembersRequest) (managementusecase.ListBusinessChannelMembersResponse, error) {
+	if s.businessChannelMembersReqSink != nil {
+		*s.businessChannelMembersReqSink = req
+	}
+	return s.businessChannelMembersPage, s.businessChannelMembersErr
+}
+
+func (s managementStub) MutateBusinessChannelMembers(_ context.Context, req managementusecase.MutateBusinessChannelMembersRequest) (managementusecase.MutateBusinessChannelMembersResponse, error) {
+	if s.businessChannelMutateReqSink != nil && businessChannelMutateSinkEmpty(*s.businessChannelMutateReqSink) {
+		*s.businessChannelMutateReqSink = req
+	} else if s.businessChannelSecondMutateReqSink != nil {
+		*s.businessChannelSecondMutateReqSink = req
+	} else if s.businessChannelMutateReqSink != nil {
+		*s.businessChannelMutateReqSink = req
+	}
+	return s.businessChannelMutateResponse, s.businessChannelMutateErr
+}
+
+func businessChannelMutateSinkEmpty(req managementusecase.MutateBusinessChannelMembersRequest) bool {
+	return req.ChannelID == "" && req.ChannelType == 0 && req.ListKind == "" && len(req.UIDs) == 0 && !req.Add
 }
 
 func (s managementStub) ListChannelRuntimeMeta(_ context.Context, req managementusecase.ListChannelRuntimeMetaRequest) (managementusecase.ListChannelRuntimeMetaResponse, error) {

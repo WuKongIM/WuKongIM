@@ -7,6 +7,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -98,6 +99,40 @@ type UserReader interface {
 	GetUser(ctx context.Context, uid string) (metadb.User, error)
 	// GetDevice returns one authoritative device record.
 	GetDevice(ctx context.Context, uid string, deviceFlag int64) (metadb.Device, error)
+}
+
+// ChannelBusinessReader exposes authoritative channel metadata and subscriber reads.
+type ChannelBusinessReader interface {
+	// ScanChannelsSlotPage returns one authoritative channel page for a physical Slot.
+	ScanChannelsSlotPage(ctx context.Context, slotID multiraft.SlotID, after metadb.ChannelCursor, limit int) ([]metadb.Channel, metadb.ChannelCursor, bool, error)
+	// GetChannelForPermission returns one authoritative channel metadata record.
+	GetChannelForPermission(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error)
+	// HasChannelSubscribers reports whether one authoritative subscriber list is non-empty.
+	HasChannelSubscribers(ctx context.Context, channelID string, channelType int64) (bool, error)
+}
+
+// ChannelBusinessOperator exposes channel business mutations and member pages.
+type ChannelBusinessOperator interface {
+	// UpdateInfo updates the persisted channel metadata flags.
+	UpdateInfo(ctx context.Context, info channelusecase.Info) error
+	// AddSubscribers appends ordinary subscribers.
+	AddSubscribers(ctx context.Context, cmd channelusecase.SubscriberCommand) error
+	// RemoveSubscribers removes ordinary subscribers.
+	RemoveSubscribers(ctx context.Context, cmd channelusecase.SubscriberCommand) error
+	// AddAllowlist appends allowlist members.
+	AddAllowlist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	// RemoveAllowlist removes allowlist members.
+	RemoveAllowlist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	// AddDenylist appends denylist members.
+	AddDenylist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	// RemoveDenylist removes denylist members.
+	RemoveDenylist(ctx context.Context, cmd channelusecase.MemberCommand) error
+	// ListSubscribersPage returns one ordinary subscriber page.
+	ListSubscribersPage(ctx context.Context, req channelusecase.MemberListPageRequest) (channelusecase.MemberListPageResult, error)
+	// ListAllowlistPage returns one allowlist page.
+	ListAllowlistPage(ctx context.Context, req channelusecase.MemberListPageRequest) (channelusecase.MemberListPageResult, error)
+	// ListDenylistPage returns one denylist page.
+	ListDenylistPage(ctx context.Context, req channelusecase.MemberListPageRequest) (channelusecase.MemberListPageResult, error)
 }
 
 // UserOperator exposes user mutations reused by manager actions.
@@ -232,6 +267,10 @@ type Options struct {
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
 	// Users provides authoritative user and device reads.
 	Users UserReader
+	// ChannelBusinessReader provides authoritative channel business reads.
+	ChannelBusinessReader ChannelBusinessReader
+	// ChannelBusinessOperator applies channel business mutations.
+	ChannelBusinessOperator ChannelBusinessOperator
 	// UserOperator applies user token and device mutations.
 	UserOperator UserOperator
 	// UserPresence reads authoritative user presence routes.
@@ -270,6 +309,8 @@ type App struct {
 	diagnostics              DiagnosticsReader
 	channelRuntimeMeta       ChannelRuntimeMetaReader
 	users                    UserReader
+	channelBusinessReader    ChannelBusinessReader
+	channelBusinessOperator  ChannelBusinessOperator
 	userOperator             UserOperator
 	userPresence             UserPresenceDirectory
 	userActions              UserRouteActionDispatcher
@@ -307,6 +348,8 @@ func New(opts Options) *App {
 		diagnostics:              opts.Diagnostics,
 		channelRuntimeMeta:       opts.ChannelRuntimeMeta,
 		users:                    opts.Users,
+		channelBusinessReader:    opts.ChannelBusinessReader,
+		channelBusinessOperator:  opts.ChannelBusinessOperator,
 		userOperator:             opts.UserOperator,
 		userPresence:             opts.UserPresence,
 		userActions:              opts.UserActions,

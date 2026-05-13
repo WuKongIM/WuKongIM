@@ -58,8 +58,17 @@ import type {
   AdvanceNodeScaleInInput,
   AdvanceMessageRetentionInput,
   AdvanceMessageRetentionResponse,
+  BusinessChannelListParams,
+  BusinessChannelMemberListKind,
+  BusinessChannelMembersParams,
+  BusinessChannelMembersResponse,
+  ManagerBusinessChannelDetailResponse,
+  ManagerBusinessChannelsResponse,
+  MutateBusinessChannelMembersInput,
+  MutateBusinessChannelMembersResponse,
   RepairChannelClusterLeaderInput,
   TransferChannelClusterLeaderInput,
+  UpsertBusinessChannelInput,
   UserListParams,
 } from "@/lib/manager-api.types"
 
@@ -208,6 +217,43 @@ function buildUsersPath(params?: UserListParams) {
 
   const query = search.toString()
   return query ? `/manager/users?${query}` : "/manager/users"
+}
+
+function buildBusinessChannelsPath(params?: BusinessChannelListParams) {
+  const search = new URLSearchParams()
+  if (typeof params?.type === "number") {
+    search.set("type", String(params.type))
+  }
+  if (params?.keyword !== undefined) {
+    search.set("keyword", params.keyword)
+  }
+  if (typeof params?.limit === "number") {
+    search.set("limit", String(params.limit))
+  }
+  if (params?.cursor) {
+    search.set("cursor", params.cursor)
+  }
+
+  const query = search.toString()
+  return query ? `/manager/channels?${query}` : "/manager/channels"
+}
+
+function buildBusinessChannelMembersPath(
+  channelType: number,
+  channelId: string,
+  listKind: BusinessChannelMemberListKind,
+  params?: BusinessChannelMembersParams,
+) {
+  const search = new URLSearchParams()
+  if (typeof params?.limit === "number") {
+    search.set("limit", String(params.limit))
+  }
+  if (params?.cursor) {
+    search.set("cursor", params.cursor)
+  }
+  const path = `/manager/channels/${channelType}/${encodeURIComponent(channelId)}/${listKind}`
+  const query = search.toString()
+  return query ? `${path}?${query}` : path
 }
 
 function buildNodeOnboardingJobsPath(params?: NodeOnboardingJobsParams) {
@@ -494,6 +540,70 @@ export function resetUserToken(uid: string, input: ResetUserTokenInput) {
       token: input.token,
     }),
   })
+}
+
+export function getBusinessChannels(params?: BusinessChannelListParams) {
+  return jsonManagerFetch<ManagerBusinessChannelsResponse>(buildBusinessChannelsPath(params))
+}
+
+export function getBusinessChannel(channelType: number, channelId: string) {
+  return jsonManagerFetch<ManagerBusinessChannelDetailResponse>(
+    `/manager/channels/${channelType}/${encodeURIComponent(channelId)}`,
+  )
+}
+
+export function upsertBusinessChannel(input: UpsertBusinessChannelInput) {
+  return jsonManagerFetch<ManagerBusinessChannelDetailResponse>("/manager/channels", {
+    method: "POST",
+    body: JSON.stringify({
+      channel_id: input.channelId,
+      channel_type: input.channelType,
+      ban: input.ban,
+      disband: input.disband,
+      send_ban: input.sendBan,
+    }),
+  })
+}
+
+export function getBusinessChannelMembers(
+  channelType: number,
+  channelId: string,
+  listKind: BusinessChannelMemberListKind,
+  params?: BusinessChannelMembersParams,
+) {
+  return jsonManagerFetch<BusinessChannelMembersResponse>(
+    buildBusinessChannelMembersPath(channelType, channelId, listKind, params),
+  )
+}
+
+export function addBusinessChannelMembers(
+  channelType: number,
+  channelId: string,
+  listKind: BusinessChannelMemberListKind,
+  input: MutateBusinessChannelMembersInput,
+) {
+  return jsonManagerFetch<MutateBusinessChannelMembersResponse>(
+    `/manager/channels/${channelType}/${encodeURIComponent(channelId)}/${listKind}/add`,
+    {
+      method: "POST",
+      body: JSON.stringify({ uids: input.uids }),
+    },
+  )
+}
+
+export function removeBusinessChannelMembers(
+  channelType: number,
+  channelId: string,
+  listKind: BusinessChannelMemberListKind,
+  input: MutateBusinessChannelMembersInput,
+) {
+  return jsonManagerFetch<MutateBusinessChannelMembersResponse>(
+    `/manager/channels/${channelType}/${encodeURIComponent(channelId)}/${listKind}/remove`,
+    {
+      method: "POST",
+      body: JSON.stringify({ uids: input.uids }),
+    },
+  )
 }
 
 export function getMessages(params: MessageListParams) {
