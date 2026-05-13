@@ -39,6 +39,38 @@ func TestIdentityRPCBinaryCodecRoundTrip(t *testing.T) {
 	require.Equal(t, resp, gotResp)
 }
 
+func TestIdentityRPCBinaryCodecRoundTripsUserScanPage(t *testing.T) {
+	req := identityRPCRequest{
+		Op:     identityRPCScanUsersPage,
+		SlotID: 2,
+		After:  metadb.UserCursor{UID: "u1"},
+		Limit:  25,
+	}
+
+	reqBody, err := encodeIdentityRPCRequestBinary(req)
+	require.NoError(t, err)
+
+	gotReq, err := decodeIdentityRPCRequest(reqBody)
+	require.NoError(t, err)
+	require.Equal(t, req, gotReq)
+
+	resp := identityRPCResponse{
+		Status: rpcStatusOK,
+		Users: []metadb.User{
+			{UID: "u2", Token: "token-2", DeviceFlag: 1, DeviceLevel: 2},
+			{UID: "u3", Token: "token-3", DeviceFlag: 2, DeviceLevel: 1},
+		},
+		Cursor: metadb.UserCursor{UID: "u3"},
+		Done:   true,
+	}
+	respBody, err := encodeIdentityRPCResponse(resp)
+	require.NoError(t, err)
+
+	gotResp, err := decodeIdentityRPCResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, resp, gotResp)
+}
+
 func TestSubscriberRPCBinaryCodecRoundTrip(t *testing.T) {
 	req := subscriberRPCRequest{
 		SlotID:      2,

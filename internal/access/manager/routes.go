@@ -149,6 +149,20 @@ func (s *Server) registerRoutes() {
 	connections.GET("/connections", s.handleConnections)
 	connections.GET("/connections/:session_id", s.handleConnection)
 
+	userReads := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		userReads.Use(s.requirePermission("cluster.user", "r"))
+	}
+	userReads.GET("/users", s.handleUsers)
+	userReads.GET("/users/:uid", s.handleUser)
+
+	userWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		userWrites.Use(s.requirePermission("cluster.user", "w"))
+	}
+	userWrites.POST("/users/:uid/kick", s.handleUserKick)
+	userWrites.POST("/users/:uid/token/reset", s.handleUserTokenReset)
+
 	channelRuntimeMeta := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		channelRuntimeMeta.Use(s.requirePermission("cluster.channel", "r"))

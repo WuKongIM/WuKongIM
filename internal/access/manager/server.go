@@ -71,6 +71,14 @@ type Management interface {
 	ListConnections(ctx context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error)
 	// GetConnection returns one manager-facing node-local connection detail DTO.
 	GetConnection(ctx context.Context, req managementusecase.GetConnectionRequest) (managementusecase.ConnectionDetail, error)
+	// ListUsers returns one manager-facing user page.
+	ListUsers(ctx context.Context, req managementusecase.ListUsersRequest) (managementusecase.ListUsersResponse, error)
+	// GetUser returns one manager-facing user detail.
+	GetUser(ctx context.Context, uid string) (managementusecase.UserDetail, error)
+	// KickUser forces one user's sessions offline.
+	KickUser(ctx context.Context, req managementusecase.KickUserRequest) (managementusecase.KickUserResponse, error)
+	// ResetUserToken resets one user device token.
+	ResetUserToken(ctx context.Context, req managementusecase.ResetUserTokenRequest) (managementusecase.ResetUserTokenResponse, error)
 	// ListChannelRuntimeMeta returns one manager-facing channel runtime metadata page.
 	ListChannelRuntimeMeta(ctx context.Context, req managementusecase.ListChannelRuntimeMetaRequest) (managementusecase.ListChannelRuntimeMetaResponse, error)
 	// GetChannelRuntimeMeta returns one manager-facing channel runtime metadata detail DTO.

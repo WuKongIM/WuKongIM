@@ -187,6 +187,7 @@ POST /manager/channel-cluster/batch/leader-drain/:node_id
 - 用户列表（分页、搜索）
 - 用户详情：UID、在线状态、设备列表、Token 信息
 - 操作：封禁/解封、强制下线、Token 重置
+- 状态：已部分完成（列表、详情、强制下线、Token 重置；封禁/解封仍待后续实现）
 
 需要新增 API：
 ```
@@ -195,6 +196,7 @@ GET  /manager/users/:uid
 POST /manager/users/:uid/ban
 POST /manager/users/:uid/unban
 POST /manager/users/:uid/kick
+POST /manager/users/:uid/token/reset
 ```
 
 #### 频道管理 `/channels-biz`
@@ -302,7 +304,7 @@ POST /user/systemuids_remove
 
 ### P1 — 运营必需
 
-4. **用户管理** — 需要新增后端 API
+4. **用户管理** — 列表/详情/强制下线/Token 重置已完成；封禁/解封待实现
 5. **频道业务管理** — 需要新增后端 API（部分可复用 client API）
 6. **权限管理** — 后端已有 permission 中间件，需要管理界面
 
@@ -326,10 +328,11 @@ POST /user/systemuids_remove
 - [x] Dashboard 频道集群健康度卡片
 - [x] 频道集群 P0.5 安全操作：副本详情、no_leader repair
 - [x] 频道集群 P0.6 单频道显式安全 Leader transfer
+- [x] 用户管理后端 API + 前端页面（不含封禁/解封）
 
 待实现：
 - [ ] 频道集群批量 leader drain
-- [ ] 用户管理后端 API + 前端页面
+- [ ] 用户管理封禁/解封
 - [ ] 频道业务管理后端 API + 前端页面
 - [ ] 权限管理页面
 - [ ] 实时监控页面
