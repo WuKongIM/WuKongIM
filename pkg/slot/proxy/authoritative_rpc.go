@@ -15,6 +15,7 @@ const (
 	rpcStatusNoLeader  = "no_leader"
 	rpcStatusNoSlot    = "no_slot"
 	rpcStatusNotFound  = "not_found"
+	rpcStatusStaleMeta = "stale_meta"
 )
 
 type authoritativeRPCResponse interface {
@@ -23,6 +24,11 @@ type authoritativeRPCResponse interface {
 }
 
 type rpcStatusEncoder func(status string, leaderID uint64) ([]byte, error)
+
+var defaultAuthoritativeRPCStatuses = map[string]struct{}{
+	rpcStatusOK:       {},
+	rpcStatusNotFound: {},
+}
 
 func (s *Store) shouldServeSlotLocally(slotID multiraft.SlotID) bool {
 	if s.cluster == nil || s.singleLocalPeerSlot(slotID) {
@@ -39,6 +45,18 @@ func callAuthoritativeRPC[T authoritativeRPCResponse](
 	serviceID uint8,
 	payload []byte,
 	decode func([]byte) (T, error),
+) (T, error) {
+	return callAuthoritativeRPCWithStatuses(ctx, s, slotID, serviceID, payload, decode, defaultAuthoritativeRPCStatuses)
+}
+
+func callAuthoritativeRPCWithStatuses[T authoritativeRPCResponse](
+	ctx context.Context,
+	s *Store,
+	slotID multiraft.SlotID,
+	serviceID uint8,
+	payload []byte,
+	decode func([]byte) (T, error),
+	acceptedStatuses map[string]struct{},
 ) (T, error) {
 	var zero T
 
@@ -76,8 +94,11 @@ func callAuthoritativeRPC[T authoritativeRPCResponse](
 		}
 
 		switch resp.rpcStatus() {
-		case rpcStatusOK, rpcStatusNotFound:
-			return resp, nil
+		case rpcStatusOK, rpcStatusNotFound, rpcStatusStaleMeta:
+			if _, ok := acceptedStatuses[resp.rpcStatus()]; ok {
+				return resp, nil
+			}
+			return zero, fmt.Errorf("metastore: unexpected rpc status %q", resp.rpcStatus())
 		case rpcStatusNotLeader:
 			if leaderID := multiraft.NodeID(resp.rpcLeaderID()); leaderID != 0 {
 				if _, ok := tried[leaderID]; !ok {
@@ -92,8 +113,7 @@ func callAuthoritativeRPC[T authoritativeRPCResponse](
 			lastErr = raftcluster.ErrSlotNotFound
 			continue
 		default:
-			lastErr = fmt.Errorf("metastore: unexpected rpc status %q", resp.rpcStatus())
-			continue
+			return zero, fmt.Errorf("metastore: unexpected rpc status %q", resp.rpcStatus())
 		}
 	}
 

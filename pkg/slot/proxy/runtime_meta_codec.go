@@ -8,8 +8,12 @@ import (
 )
 
 var (
-	runtimeMetaRPCRequestMagic  = [...]byte{'W', 'K', 'R', 'M', 1}
-	runtimeMetaRPCResponseMagic = [...]byte{'W', 'K', 'R', 'R', 1}
+	runtimeMetaRPCRequestMagicV1   = [...]byte{'W', 'K', 'R', 'M', 1}
+	runtimeMetaRPCRequestMagic     = [...]byte{'W', 'K', 'R', 'M', 2}
+	runtimeMetaRPCRequestMagicLen  = len(runtimeMetaRPCRequestMagic)
+	runtimeMetaRPCResponseMagicV1  = [...]byte{'W', 'K', 'R', 'R', 1}
+	runtimeMetaRPCResponseMagic    = [...]byte{'W', 'K', 'R', 'R', 2}
+	runtimeMetaRPCResponseMagicLen = len(runtimeMetaRPCResponseMagic)
 )
 
 const (
@@ -25,8 +29,13 @@ func encodeRuntimeMetaRPCRequestBinary(req runtimeMetaRPCRequest) ([]byte, error
 	if err != nil {
 		return nil, err
 	}
+	codecVersion := runtimeMetaRPCCodecVersionOrLatest(req.CodecVersion)
+	requestMagic, err := runtimeMetaRPCRequestMagicForVersion(codecVersion)
+	if err != nil {
+		return nil, err
+	}
 	dst := make([]byte, 0, estimateRuntimeMetaRequestBinarySize(req))
-	dst = append(dst, runtimeMetaRPCRequestMagic[:]...)
+	dst = append(dst, requestMagic...)
 	dst = append(dst, opID)
 	dst = runtimeMetaAppendUvarint(dst, req.SlotID)
 	dst = runtimeMetaAppendString(dst, req.ChannelID)
@@ -38,10 +47,11 @@ func encodeRuntimeMetaRPCRequestBinary(req runtimeMetaRPCRequest) ([]byte, error
 }
 
 func decodeRuntimeMetaRPCRequest(body []byte) (runtimeMetaRPCRequest, error) {
-	if !isRuntimeMetaRPCRequestBinary(body) {
+	requestVersion, ok := runtimeMetaRPCRequestVersion(body)
+	if !ok {
 		return runtimeMetaRPCRequest{}, fmt.Errorf("metastore: invalid runtime meta request codec")
 	}
-	offset := len(runtimeMetaRPCRequestMagic)
+	offset := runtimeMetaRPCRequestMagicLen
 	if offset >= len(body) {
 		return runtimeMetaRPCRequest{}, fmt.Errorf("metastore: short runtime meta op")
 	}
@@ -53,6 +63,7 @@ func decodeRuntimeMetaRPCRequest(body []byte) (runtimeMetaRPCRequest, error) {
 
 	var req runtimeMetaRPCRequest
 	req.Op = op
+	req.CodecVersion = requestVersion
 	if req.SlotID, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
 		return runtimeMetaRPCRequest{}, err
 	}
@@ -78,22 +89,34 @@ func decodeRuntimeMetaRPCRequest(body []byte) (runtimeMetaRPCRequest, error) {
 }
 
 func encodeRuntimeMetaRPCResponseBinary(resp runtimeMetaRPCResponse) ([]byte, error) {
+	return encodeRuntimeMetaRPCResponseForVersion(resp, 2)
+}
+
+func encodeRuntimeMetaRPCResponseForVersion(resp runtimeMetaRPCResponse, version byte) ([]byte, error) {
+	version = runtimeMetaRPCCodecVersionOrLatest(version)
+	responseMagic, err := runtimeMetaRPCResponseMagicForVersion(version)
+	if err != nil {
+		return nil, err
+	}
+	includeWriteFence := version >= 2
 	dst := make([]byte, 0, estimateRuntimeMetaResponseBinarySize(resp))
-	dst = append(dst, runtimeMetaRPCResponseMagic[:]...)
+	dst = append(dst, responseMagic...)
 	dst = runtimeMetaAppendString(dst, resp.Status)
 	dst = runtimeMetaAppendUvarint(dst, resp.LeaderID)
-	dst = runtimeMetaAppendMetaPtr(dst, resp.Meta)
-	dst = runtimeMetaAppendMetas(dst, resp.Metas)
+	dst = runtimeMetaAppendMetaPtrWithFence(dst, resp.Meta, includeWriteFence)
+	dst = runtimeMetaAppendMetasWithFence(dst, resp.Metas, includeWriteFence)
 	dst = runtimeMetaAppendCursor(dst, resp.Cursor)
 	dst = runtimeMetaAppendBool(dst, resp.Done)
 	return dst, nil
 }
 
 func decodeRuntimeMetaRPCResponseBinary(body []byte) (runtimeMetaRPCResponse, error) {
-	if !isRuntimeMetaRPCResponseBinary(body) {
+	responseVersion, ok := runtimeMetaRPCResponseVersion(body)
+	if !ok {
 		return runtimeMetaRPCResponse{}, fmt.Errorf("metastore: invalid runtime meta response codec")
 	}
-	offset := len(runtimeMetaRPCResponseMagic)
+	offset := runtimeMetaRPCResponseMagicLen
+	includeWriteFence := responseVersion >= 2
 	var resp runtimeMetaRPCResponse
 	var err error
 	if resp.Status, offset, err = runtimeMetaReadString(body, offset); err != nil {
@@ -102,10 +125,10 @@ func decodeRuntimeMetaRPCResponseBinary(body []byte) (runtimeMetaRPCResponse, er
 	if resp.LeaderID, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
 		return runtimeMetaRPCResponse{}, err
 	}
-	if resp.Meta, offset, err = runtimeMetaReadMetaPtr(body, offset); err != nil {
+	if resp.Meta, offset, err = runtimeMetaReadMetaPtr(body, offset, includeWriteFence); err != nil {
 		return runtimeMetaRPCResponse{}, err
 	}
-	if resp.Metas, offset, err = runtimeMetaReadMetas(body, offset); err != nil {
+	if resp.Metas, offset, err = runtimeMetaReadMetas(body, offset, includeWriteFence); err != nil {
 		return runtimeMetaRPCResponse{}, err
 	}
 	if resp.Cursor, offset, err = runtimeMetaReadCursor(body, offset); err != nil {
@@ -121,11 +144,62 @@ func decodeRuntimeMetaRPCResponseBinary(body []byte) (runtimeMetaRPCResponse, er
 }
 
 func isRuntimeMetaRPCRequestBinary(body []byte) bool {
-	return runtimeMetaHasMagic(body, runtimeMetaRPCRequestMagic[:])
+	_, ok := runtimeMetaRPCRequestVersion(body)
+	return ok
 }
 
 func isRuntimeMetaRPCResponseBinary(body []byte) bool {
-	return runtimeMetaHasMagic(body, runtimeMetaRPCResponseMagic[:])
+	_, ok := runtimeMetaRPCResponseVersion(body)
+	return ok
+}
+
+func runtimeMetaRPCRequestVersion(body []byte) (byte, bool) {
+	if runtimeMetaHasMagic(body, runtimeMetaRPCRequestMagic[:]) {
+		return runtimeMetaRPCRequestMagic[len(runtimeMetaRPCRequestMagic)-1], true
+	}
+	if runtimeMetaHasMagic(body, runtimeMetaRPCRequestMagicV1[:]) {
+		return runtimeMetaRPCRequestMagicV1[len(runtimeMetaRPCRequestMagicV1)-1], true
+	}
+	return 0, false
+}
+
+func runtimeMetaRPCResponseVersion(body []byte) (byte, bool) {
+	if runtimeMetaHasMagic(body, runtimeMetaRPCResponseMagic[:]) {
+		return runtimeMetaRPCResponseMagic[len(runtimeMetaRPCResponseMagic)-1], true
+	}
+	if runtimeMetaHasMagic(body, runtimeMetaRPCResponseMagicV1[:]) {
+		return runtimeMetaRPCResponseMagicV1[len(runtimeMetaRPCResponseMagicV1)-1], true
+	}
+	return 0, false
+}
+
+func runtimeMetaRPCCodecVersionOrLatest(version byte) byte {
+	if version == 0 {
+		return 2
+	}
+	return version
+}
+
+func runtimeMetaRPCRequestMagicForVersion(version byte) ([]byte, error) {
+	switch version {
+	case 1:
+		return runtimeMetaRPCRequestMagicV1[:], nil
+	case 2:
+		return runtimeMetaRPCRequestMagic[:], nil
+	default:
+		return nil, fmt.Errorf("metastore: unsupported runtime meta request codec version %d", version)
+	}
+}
+
+func runtimeMetaRPCResponseMagicForVersion(version byte) ([]byte, error) {
+	switch version {
+	case 1:
+		return runtimeMetaRPCResponseMagicV1[:], nil
+	case 2:
+		return runtimeMetaRPCResponseMagic[:], nil
+	default:
+		return nil, fmt.Errorf("metastore: unsupported runtime meta response codec version %d", version)
+	}
 }
 
 func runtimeMetaOpID(op string) (byte, error) {
@@ -228,19 +302,23 @@ func runtimeMetaReadCursor(body []byte, offset int) (metadb.ChannelRuntimeMetaCu
 }
 
 func runtimeMetaAppendMetaPtr(dst []byte, meta *metadb.ChannelRuntimeMeta) []byte {
+	return runtimeMetaAppendMetaPtrWithFence(dst, meta, true)
+}
+
+func runtimeMetaAppendMetaPtrWithFence(dst []byte, meta *metadb.ChannelRuntimeMeta, includeWriteFence bool) []byte {
 	if meta == nil {
 		return append(dst, 0)
 	}
 	dst = append(dst, 1)
-	return runtimeMetaAppendMeta(dst, *meta)
+	return runtimeMetaAppendMeta(dst, *meta, includeWriteFence)
 }
 
-func runtimeMetaReadMetaPtr(body []byte, offset int) (*metadb.ChannelRuntimeMeta, int, error) {
+func runtimeMetaReadMetaPtr(body []byte, offset int, includeWriteFence bool) (*metadb.ChannelRuntimeMeta, int, error) {
 	marker, next, err := runtimeMetaReadMarker(body, offset, "runtime meta")
 	if err != nil || marker == 0 {
 		return nil, next, err
 	}
-	meta, next, err := runtimeMetaReadMeta(body, next)
+	meta, next, err := runtimeMetaReadMeta(body, next, includeWriteFence)
 	if err != nil {
 		return nil, offset, err
 	}
@@ -248,14 +326,18 @@ func runtimeMetaReadMetaPtr(body []byte, offset int) (*metadb.ChannelRuntimeMeta
 }
 
 func runtimeMetaAppendMetas(dst []byte, metas []metadb.ChannelRuntimeMeta) []byte {
+	return runtimeMetaAppendMetasWithFence(dst, metas, true)
+}
+
+func runtimeMetaAppendMetasWithFence(dst []byte, metas []metadb.ChannelRuntimeMeta, includeWriteFence bool) []byte {
 	dst = runtimeMetaAppendUvarint(dst, uint64(len(metas)))
 	for _, meta := range metas {
-		dst = runtimeMetaAppendMeta(dst, meta)
+		dst = runtimeMetaAppendMeta(dst, meta, includeWriteFence)
 	}
 	return dst
 }
 
-func runtimeMetaReadMetas(body []byte, offset int) ([]metadb.ChannelRuntimeMeta, int, error) {
+func runtimeMetaReadMetas(body []byte, offset int, includeWriteFence bool) ([]metadb.ChannelRuntimeMeta, int, error) {
 	count, next, err := runtimeMetaReadUvarint(body, offset)
 	if err != nil {
 		return nil, offset, err
@@ -267,14 +349,14 @@ func runtimeMetaReadMetas(body []byte, offset int) ([]metadb.ChannelRuntimeMeta,
 	}
 	metas := make([]metadb.ChannelRuntimeMeta, metasLen)
 	for i := range metas {
-		if metas[i], offset, err = runtimeMetaReadMeta(body, offset); err != nil {
+		if metas[i], offset, err = runtimeMetaReadMeta(body, offset, includeWriteFence); err != nil {
 			return nil, offset, err
 		}
 	}
 	return metas, offset, nil
 }
 
-func runtimeMetaAppendMeta(dst []byte, meta metadb.ChannelRuntimeMeta) []byte {
+func runtimeMetaAppendMeta(dst []byte, meta metadb.ChannelRuntimeMeta, includeWriteFence bool) []byte {
 	dst = runtimeMetaAppendString(dst, meta.ChannelID)
 	dst = runtimeMetaAppendVarint(dst, meta.ChannelType)
 	dst = runtimeMetaAppendUvarint(dst, meta.ChannelEpoch)
@@ -288,10 +370,17 @@ func runtimeMetaAppendMeta(dst []byte, meta metadb.ChannelRuntimeMeta) []byte {
 	dst = runtimeMetaAppendVarint(dst, meta.LeaseUntilMS)
 	dst = runtimeMetaAppendUvarint(dst, meta.RetentionThroughSeq)
 	dst = runtimeMetaAppendVarint(dst, meta.RetentionUpdatedAtMS)
+	if !includeWriteFence {
+		return dst
+	}
+	dst = runtimeMetaAppendString(dst, meta.WriteFenceToken)
+	dst = runtimeMetaAppendUvarint(dst, meta.WriteFenceVersion)
+	dst = append(dst, meta.WriteFenceReason)
+	dst = runtimeMetaAppendVarint(dst, meta.WriteFenceUntilMS)
 	return dst
 }
 
-func runtimeMetaReadMeta(body []byte, offset int) (metadb.ChannelRuntimeMeta, int, error) {
+func runtimeMetaReadMeta(body []byte, offset int, includeWriteFence bool) (metadb.ChannelRuntimeMeta, int, error) {
 	var meta metadb.ChannelRuntimeMeta
 	var err error
 	if meta.ChannelID, offset, err = runtimeMetaReadString(body, offset); err != nil {
@@ -333,6 +422,23 @@ func runtimeMetaReadMeta(body []byte, offset int) (metadb.ChannelRuntimeMeta, in
 		return metadb.ChannelRuntimeMeta{}, offset, err
 	}
 	if meta.RetentionUpdatedAtMS, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
+		return metadb.ChannelRuntimeMeta{}, offset, err
+	}
+	if !includeWriteFence {
+		return meta, offset, nil
+	}
+	if meta.WriteFenceToken, offset, err = runtimeMetaReadString(body, offset); err != nil {
+		return metadb.ChannelRuntimeMeta{}, offset, err
+	}
+	if meta.WriteFenceVersion, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
+		return metadb.ChannelRuntimeMeta{}, offset, err
+	}
+	if offset >= len(body) {
+		return metadb.ChannelRuntimeMeta{}, offset, fmt.Errorf("metastore: short runtime meta write fence reason")
+	}
+	meta.WriteFenceReason = body[offset]
+	offset++
+	if meta.WriteFenceUntilMS, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
 		return metadb.ChannelRuntimeMeta{}, offset, err
 	}
 	return meta, offset, nil
@@ -502,5 +608,5 @@ func estimateRuntimeMetaResponseBinarySize(resp runtimeMetaRPCResponse) int {
 }
 
 func estimateRuntimeMetaBinarySize(meta metadb.ChannelRuntimeMeta) int {
-	return len(meta.ChannelID) + binary.MaxVarintLen64*11 + len(meta.Replicas)*binary.MaxVarintLen64 + len(meta.ISR)*binary.MaxVarintLen64 + 1
+	return len(meta.ChannelID) + len(meta.WriteFenceToken) + binary.MaxVarintLen64*15 + len(meta.Replicas)*binary.MaxVarintLen64 + len(meta.ISR)*binary.MaxVarintLen64 + 2
 }

@@ -257,7 +257,11 @@ func TestTransportRPCServiceNameCoversKnownServices(t *testing.T) {
 		41: "connection",
 		42: "diagnostics",
 		43: "channel_retention",
-		44: "system_uid_cache",
+		44: "delivery_tag",
+		45: "system_uid_cache",
+		46: "channel_leader_transfer",
+		47: "channel_migration",
+		48: "channel_fence_and_drain",
 		99: "service_99",
 	}
 	for serviceID, want := range cases {

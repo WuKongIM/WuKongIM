@@ -46,6 +46,32 @@ func TestAppendEffectBlockedOnDurableLaneRevalidatesFenceBeforeWrite(t *testing.
 	require.Equal(t, 0, spy.appendCalls)
 }
 
+func TestAppendEffectFenceRejectsWriteFenceBeforeDurableWrite(t *testing.T) {
+	r := newLeaderReplica(t)
+	r.mu.Lock()
+	r.nextEffectID++
+	effect := appendLeaderBatchEffect{
+		EffectID:       r.nextEffectID,
+		ChannelKey:     r.state.ChannelKey,
+		Epoch:          r.state.Epoch,
+		LeaderEpoch:    r.meta.LeaderEpoch,
+		RoleGeneration: r.roleGeneration,
+		LeaseUntil:     r.meta.LeaseUntil,
+		Records:        []channel.Record{{Payload: []byte("x"), SizeBytes: 1}},
+	}
+	r.appendInFlightEffectID = effect.EffectID
+	r.meta.WriteFence = channel.WriteFence{
+		Token:   "task-effect-fence",
+		Version: 1,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   time.Now().Add(time.Minute),
+	}
+	err := r.validateAppendEffectFenceLocked(effect)
+	r.mu.Unlock()
+
+	require.ErrorIs(t, err, channel.ErrWriteFenced)
+}
+
 func TestBeginLeaderEpochEffectBlockedOnDurableLaneRevalidatesFenceBeforeWrite(t *testing.T) {
 	env := newTestEnv(t)
 	env.checkpoints.loadErr = nil

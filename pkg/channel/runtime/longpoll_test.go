@@ -235,6 +235,112 @@ func TestApplyMetaUpdatesLaneTargetsForLeaderChannels(t *testing.T) {
 	require.Len(t, ch.replicationTargetsSnapshot(), 2)
 }
 
+func TestApplyMetaPreservesLeaderLaneCursorOnWriteFenceOnlyChange(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+	})
+	meta := testMetaLocal(27021, 4, 1, []core.NodeID{1, 2})
+	meta.WriteFence = core.WriteFence{
+		Token:   "migration-task",
+		Version: 3,
+		Reason:  core.WriteFenceReasonMigration,
+		Until:   time.Unix(1_700_000_000, 0).UTC().Add(time.Minute),
+	}
+	mustEnsureLocal(t, env.runtime, meta)
+
+	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	replica.state.LEO = 1
+	replica.state.HW = 1
+	replica.state.OffsetEpoch = meta.Epoch
+	replica.fetchResult = core.ReplicaFetchResult{HW: 1}
+	replica.mu.Unlock()
+
+	laneID := testFollowerLaneFor(meta.Key, 4)
+	_, err := env.runtime.ServeLanePoll(context.Background(), LanePollRequestEnvelope{
+		ReplicaID:   2,
+		LaneID:      laneID,
+		LaneCount:   4,
+		Op:          LanePollOpOpen,
+		MaxWait:     time.Millisecond,
+		MaxBytes:    64 * 1024,
+		MaxChannels: 64,
+		FullMembership: []LaneMembership{
+			{ChannelKey: meta.Key, ChannelEpoch: meta.Epoch, ChannelGeneration: 1},
+		},
+		CursorDelta: []LaneCursorDelta{
+			{ChannelKey: meta.Key, ChannelEpoch: meta.Epoch, ChannelGeneration: 1, MatchOffset: 1, OffsetEpoch: meta.Epoch},
+		},
+	})
+	require.NoError(t, err)
+
+	session, ok := env.runtime.leaderLanes.Session(PeerLaneKey{Peer: 2, LaneID: laneID})
+	require.True(t, ok)
+	before, ok := session.Cursor(meta.Key)
+	require.True(t, ok)
+	require.Equal(t, uint64(1), before.MatchOffset)
+
+	cleared := meta
+	cleared.WriteFence = core.WriteFence{Version: 4}
+	require.NoError(t, env.runtime.ApplyMeta(cleared))
+
+	after, ok := session.Cursor(meta.Key)
+	require.True(t, ok)
+	require.Equal(t, before, after)
+}
+
+func TestApplyMetaResetsLeaderLaneCursorOnRetentionChange(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+	})
+	meta := testMetaLocal(27022, 4, 1, []core.NodeID{1, 2})
+	mustEnsureLocal(t, env.runtime, meta)
+
+	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	replica.state.LEO = 3
+	replica.state.HW = 3
+	replica.state.OffsetEpoch = meta.Epoch
+	replica.fetchResult = core.ReplicaFetchResult{HW: 3}
+	replica.mu.Unlock()
+
+	laneID := testFollowerLaneFor(meta.Key, 4)
+	_, err := env.runtime.ServeLanePoll(context.Background(), LanePollRequestEnvelope{
+		ReplicaID:   2,
+		LaneID:      laneID,
+		LaneCount:   4,
+		Op:          LanePollOpOpen,
+		MaxWait:     time.Millisecond,
+		MaxBytes:    64 * 1024,
+		MaxChannels: 64,
+		FullMembership: []LaneMembership{
+			{ChannelKey: meta.Key, ChannelEpoch: meta.Epoch, ChannelGeneration: 1},
+		},
+		CursorDelta: []LaneCursorDelta{
+			{ChannelKey: meta.Key, ChannelEpoch: meta.Epoch, ChannelGeneration: 1, MatchOffset: 3, OffsetEpoch: meta.Epoch},
+		},
+	})
+	require.NoError(t, err)
+
+	session, ok := env.runtime.leaderLanes.Session(PeerLaneKey{Peer: 2, LaneID: laneID})
+	require.True(t, ok)
+	_, ok = session.Cursor(meta.Key)
+	require.True(t, ok)
+
+	retained := meta
+	retained.RetentionThroughSeq = 2
+	require.NoError(t, env.runtime.ApplyMeta(retained))
+
+	_, ok = session.Cursor(meta.Key)
+	require.False(t, ok)
+}
+
 func TestRuntimeLongPollLeaderAppendWakesParkedLanePoll(t *testing.T) {
 	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
 		cfg.LongPollLaneCount = 4

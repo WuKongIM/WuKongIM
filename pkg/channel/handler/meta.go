@@ -47,6 +47,9 @@ func (s *service) ApplyMeta(meta channel.Meta) error {
 		s.metas[key] = next
 		return nil
 	}
+	if staleWriteFence(local.WriteFence, next.WriteFence) {
+		return channel.ErrStaleMeta
+	}
 
 	switch {
 	case next.Epoch < local.Epoch:
@@ -152,7 +155,8 @@ func compatibleWithExpectation(meta channel.Meta, expectedChannelEpoch, expected
 
 func metaEqual(a, b channel.Meta) bool {
 	return metaEqualExceptRetention(a, b) &&
-		a.RetentionThroughSeq == b.RetentionThroughSeq
+		a.RetentionThroughSeq == b.RetentionThroughSeq &&
+		a.WriteFence == b.WriteFence
 }
 
 func metaEqualExceptRetention(a, b channel.Meta) bool {
@@ -172,4 +176,11 @@ func cloneMeta(meta channel.Meta) channel.Meta {
 	meta.Replicas = slices.Clone(meta.Replicas)
 	meta.ISR = slices.Clone(meta.ISR)
 	return meta
+}
+
+func staleWriteFence(current, next channel.WriteFence) bool {
+	if next.Version < current.Version {
+		return true
+	}
+	return next.Version == current.Version && next != current
 }

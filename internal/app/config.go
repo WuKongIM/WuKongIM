@@ -24,6 +24,8 @@ type Config struct {
 	Storage StorageConfig
 	// Cluster configures controller, slot, and channel replication runtimes.
 	Cluster ClusterConfig
+	// ChannelMigration configures the cluster-authoritative channel replica migration executor.
+	ChannelMigration ChannelMigrationConfig
 	// ChannelMessageRetention configures leader-driven channel message expiry.
 	ChannelMessageRetention ChannelMessageRetentionConfig
 	// Message configures message send business rules.
@@ -40,6 +42,84 @@ type Config struct {
 	Observability ObservabilityConfig
 	// Log configures application logging output.
 	Log LogConfig
+}
+
+// ChannelMigrationConfig controls the background executor that advances durable channel migration tasks.
+type ChannelMigrationConfig struct {
+	// ScanInterval is the delay between channel migration executor scans on this node.
+	ScanInterval time.Duration
+	// ScanLimit caps how many runnable migration tasks one executor tick reads from local slot leaders.
+	ScanLimit int
+	// OwnerLeaseTTL controls how long this node may own one migration task before another slot leader may reclaim it.
+	OwnerLeaseTTL time.Duration
+	// RetryBackoff delays the next attempt after a retryable migration phase error or blocked dependency.
+	RetryBackoff time.Duration
+	// FenceTTL controls how long a migration-owned channel write fence remains valid before recovery must reset it.
+	FenceTTL time.Duration
+	// LeaderLeaseTTL is the lease duration written to channel runtime metadata after a migration leader transfer.
+	LeaderLeaseTTL time.Duration
+	// CatchUpStableWindow controls how long target lag must stay at or below CatchUpLagThreshold before cutover.
+	CatchUpStableWindow time.Duration
+	// CatchUpLagThreshold is the maximum leader-to-target record lag accepted as warm catch-up stable.
+	CatchUpLagThreshold uint64
+	// MaxConcurrent limits active channel migration tasks this node advances in one scan; zero disables the global limit.
+	MaxConcurrent int
+	// MaxConcurrentPerSource limits active replacement tasks draining or removing the same source node; zero disables the per-source limit.
+	MaxConcurrentPerSource int
+	// MaxConcurrentPerTarget limits active tasks bootstrapping, catching up, or promoting the same target node; zero disables the per-target limit.
+	MaxConcurrentPerTarget int
+	// CompletedRetentionTTL controls how long terminal migration tasks remain queryable before garbage collection; zero disables cleanup.
+	CompletedRetentionTTL time.Duration
+	// GCLimit controls how many terminal migration tasks one cleanup tick may delete.
+	GCLimit int
+
+	scanIntervalSet           bool
+	scanLimitSet              bool
+	ownerLeaseTTLSet          bool
+	retryBackoffSet           bool
+	fenceTTLSet               bool
+	leaderLeaseTTLSet         bool
+	catchUpStableWindowSet    bool
+	catchUpLagThresholdSet    bool
+	maxConcurrentSet          bool
+	maxConcurrentPerSourceSet bool
+	maxConcurrentPerTargetSet bool
+	completedRetentionTTLSet  bool
+	gcLimitSet                bool
+}
+
+// SetExplicitFlags records which channel migration tuning values were explicitly configured.
+func (c *ChannelMigrationConfig) SetExplicitFlags(
+	scanIntervalSet bool,
+	scanLimitSet bool,
+	ownerLeaseTTLSet bool,
+	retryBackoffSet bool,
+	fenceTTLSet bool,
+	leaderLeaseTTLSet bool,
+	catchUpStableWindowSet bool,
+	catchUpLagThresholdSet bool,
+	maxConcurrentSet bool,
+	maxConcurrentPerSourceSet bool,
+	maxConcurrentPerTargetSet bool,
+	completedRetentionTTLSet bool,
+	gcLimitSet bool,
+) {
+	if c == nil {
+		return
+	}
+	c.scanIntervalSet = scanIntervalSet
+	c.scanLimitSet = scanLimitSet
+	c.ownerLeaseTTLSet = ownerLeaseTTLSet
+	c.retryBackoffSet = retryBackoffSet
+	c.fenceTTLSet = fenceTTLSet
+	c.leaderLeaseTTLSet = leaderLeaseTTLSet
+	c.catchUpStableWindowSet = catchUpStableWindowSet
+	c.catchUpLagThresholdSet = catchUpLagThresholdSet
+	c.maxConcurrentSet = maxConcurrentSet
+	c.maxConcurrentPerSourceSet = maxConcurrentPerSourceSet
+	c.maxConcurrentPerTargetSet = maxConcurrentPerTargetSet
+	c.completedRetentionTTLSet = completedRetentionTTLSet
+	c.gcLimitSet = gcLimitSet
 }
 
 // MessageConfig controls send-path business compatibility rules.
@@ -596,6 +676,66 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 			}
 		}
 	}
+	if c.ChannelMigration.ScanInterval < 0 {
+		return fmt.Errorf("%w: channel migration scan interval must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.ScanInterval == 0 && c.ChannelMigration.scanIntervalSet {
+		return fmt.Errorf("%w: channel migration scan interval must be positive", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.ScanLimit < 0 {
+		return fmt.Errorf("%w: channel migration scan limit must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.ScanLimit == 0 && c.ChannelMigration.scanLimitSet {
+		return fmt.Errorf("%w: channel migration scan limit must be positive", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.OwnerLeaseTTL < 0 {
+		return fmt.Errorf("%w: channel migration owner lease ttl must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.OwnerLeaseTTL == 0 && c.ChannelMigration.ownerLeaseTTLSet {
+		return fmt.Errorf("%w: channel migration owner lease ttl must be positive", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.RetryBackoff < 0 {
+		return fmt.Errorf("%w: channel migration retry backoff must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.RetryBackoff == 0 && c.ChannelMigration.retryBackoffSet {
+		return fmt.Errorf("%w: channel migration retry backoff must be positive", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.FenceTTL < 0 {
+		return fmt.Errorf("%w: channel migration fence ttl must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.FenceTTL == 0 && c.ChannelMigration.fenceTTLSet {
+		return fmt.Errorf("%w: channel migration fence ttl must be positive", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.LeaderLeaseTTL < 0 {
+		return fmt.Errorf("%w: channel migration leader lease ttl must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.LeaderLeaseTTL == 0 && c.ChannelMigration.leaderLeaseTTLSet {
+		return fmt.Errorf("%w: channel migration leader lease ttl must be positive", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.CatchUpStableWindow < 0 {
+		return fmt.Errorf("%w: channel migration catch-up stable window must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.CatchUpStableWindow == 0 && c.ChannelMigration.catchUpStableWindowSet {
+		return fmt.Errorf("%w: channel migration catch-up stable window must be positive", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.MaxConcurrent < 0 {
+		return fmt.Errorf("%w: channel migration max concurrent must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.MaxConcurrentPerSource < 0 {
+		return fmt.Errorf("%w: channel migration max concurrent per source must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.MaxConcurrentPerTarget < 0 {
+		return fmt.Errorf("%w: channel migration max concurrent per target must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.CompletedRetentionTTL < 0 {
+		return fmt.Errorf("%w: channel migration completed retention ttl must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.GCLimit < 0 {
+		return fmt.Errorf("%w: channel migration gc limit must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelMigration.GCLimit == 0 && c.ChannelMigration.gcLimitSet {
+		return fmt.Errorf("%w: channel migration gc limit must be positive", ErrInvalidConfig)
+	}
 	if c.ChannelMessageRetention.TTL < 0 {
 		return fmt.Errorf("%w: channel message retention ttl must be >= 0", ErrInvalidConfig)
 	}
@@ -941,6 +1081,42 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if c.Conversation.GroupActiveFanoutInterval <= 0 {
 		c.Conversation.GroupActiveFanoutInterval = 5 * time.Minute
 	}
+	if c.ChannelMigration.ScanInterval <= 0 {
+		c.ChannelMigration.ScanInterval = defaultChannelMigrationScanInterval
+	}
+	if c.ChannelMigration.ScanLimit <= 0 {
+		c.ChannelMigration.ScanLimit = defaultChannelMigrationScanLimit
+	}
+	if c.ChannelMigration.OwnerLeaseTTL <= 0 {
+		c.ChannelMigration.OwnerLeaseTTL = defaultChannelMigrationOwnerLeaseTTL
+	}
+	if c.ChannelMigration.RetryBackoff <= 0 {
+		c.ChannelMigration.RetryBackoff = defaultChannelMigrationRetryBackoff
+	}
+	if c.ChannelMigration.FenceTTL <= 0 {
+		c.ChannelMigration.FenceTTL = defaultChannelMigrationFenceTTL
+	}
+	if c.ChannelMigration.LeaderLeaseTTL <= 0 {
+		c.ChannelMigration.LeaderLeaseTTL = defaultChannelMigrationLeaderLeaseTTL
+	}
+	if c.ChannelMigration.CatchUpStableWindow <= 0 {
+		c.ChannelMigration.CatchUpStableWindow = defaultChannelMigrationCatchUpStableWindow
+	}
+	if c.ChannelMigration.MaxConcurrent == 0 && !c.ChannelMigration.maxConcurrentSet {
+		c.ChannelMigration.MaxConcurrent = defaultChannelMigrationMaxConcurrent
+	}
+	if c.ChannelMigration.MaxConcurrentPerSource == 0 && !c.ChannelMigration.maxConcurrentPerSourceSet {
+		c.ChannelMigration.MaxConcurrentPerSource = defaultChannelMigrationMaxConcurrentPerSource
+	}
+	if c.ChannelMigration.MaxConcurrentPerTarget == 0 && !c.ChannelMigration.maxConcurrentPerTargetSet {
+		c.ChannelMigration.MaxConcurrentPerTarget = defaultChannelMigrationMaxConcurrentPerTarget
+	}
+	if c.ChannelMigration.CompletedRetentionTTL == 0 && !c.ChannelMigration.completedRetentionTTLSet {
+		c.ChannelMigration.CompletedRetentionTTL = defaultChannelMigrationCompletedRetentionTTL
+	}
+	if c.ChannelMigration.GCLimit <= 0 && !c.ChannelMigration.gcLimitSet {
+		c.ChannelMigration.GCLimit = defaultChannelMigrationGCLimit
+	}
 	if c.ChannelMessageRetention.ScanInterval <= 0 {
 		c.ChannelMessageRetention.ScanInterval = defaultChannelMessageRetentionScanInterval
 	}
@@ -1201,6 +1377,30 @@ func effectiveDataPlaneRPCTimeout(configured time.Duration) time.Duration {
 }
 
 const defaultGatewaySendTimeout = 20 * time.Second
+
+const defaultChannelMigrationScanInterval = time.Second
+
+const defaultChannelMigrationScanLimit = 64
+
+const defaultChannelMigrationOwnerLeaseTTL = 30 * time.Second
+
+const defaultChannelMigrationRetryBackoff = time.Minute
+
+const defaultChannelMigrationFenceTTL = time.Minute
+
+const defaultChannelMigrationLeaderLeaseTTL = time.Minute
+
+const defaultChannelMigrationCatchUpStableWindow = time.Second
+
+const defaultChannelMigrationMaxConcurrent = 64
+
+const defaultChannelMigrationMaxConcurrentPerSource = 1
+
+const defaultChannelMigrationMaxConcurrentPerTarget = 1
+
+const defaultChannelMigrationCompletedRetentionTTL = 24 * time.Hour
+
+const defaultChannelMigrationGCLimit = 128
 
 const defaultChannelMessageRetentionScanInterval = time.Hour
 

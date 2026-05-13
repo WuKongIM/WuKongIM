@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"errors"
 	"hash/fnv"
 	"sync"
@@ -241,7 +242,12 @@ func (r *runtime) ApplyMeta(meta core.Meta) error {
 	if !ok {
 		return ErrChannelNotFound
 	}
+	ch.applyMu.Lock()
+	defer ch.applyMu.Unlock()
 	previousMeta := ch.metaSnapshot()
+	if staleWriteFence(previousMeta.WriteFence, meta.WriteFence) {
+		return core.ErrStaleMeta
+	}
 	queueLeaderProbe := false
 	if shouldSkipReplicaApplyMeta(ch, r.cfg.LocalNode, meta) {
 		r.sendCoordMu.Lock()
@@ -289,6 +295,26 @@ func (r *runtime) ApplyMeta(meta core.Meta) error {
 		r.enqueueScheduler(meta.Key, PriorityNormal)
 	}
 	return nil
+}
+
+// FenceAndDrain routes a drain request to the per-channel replica and stamps the runtime generation.
+func (r *runtime) FenceAndDrain(ctx context.Context, req core.FenceAndDrainRequest) (core.DrainResult, error) {
+	ch, ok := r.lookupChannel(req.ChannelKey)
+	if !ok {
+		return core.DrainResult{}, ErrChannelNotFound
+	}
+	drainer, ok := ch.replica.(interface {
+		FenceAndDrain(context.Context, core.FenceAndDrainRequest) (core.DrainResult, error)
+	})
+	if !ok {
+		return core.DrainResult{}, core.ErrInvalidConfig
+	}
+	result, err := drainer.FenceAndDrain(ctx, req)
+	if err != nil {
+		return core.DrainResult{}, err
+	}
+	result.RuntimeGeneration = ch.gen
+	return result, nil
 }
 
 func (r *runtime) clearInvalidPeerWork(ch *channel, meta core.Meta) {
@@ -518,6 +544,7 @@ func metaEqualExceptLease(a, b core.Meta) bool {
 		a.MinISR != b.MinISR ||
 		a.Status != b.Status ||
 		a.Features != b.Features ||
+		a.WriteFence != b.WriteFence ||
 		a.RetentionThroughSeq != b.RetentionThroughSeq {
 		return false
 	}
@@ -535,6 +562,13 @@ func metaEqualExceptLease(a, b core.Meta) bool {
 		}
 	}
 	return true
+}
+
+func staleWriteFence(current, next core.WriteFence) bool {
+	if next.Version < current.Version {
+		return true
+	}
+	return next.Version == current.Version && next != current
 }
 
 func snapshotWorkInvalidated(previous, next core.Meta) bool {

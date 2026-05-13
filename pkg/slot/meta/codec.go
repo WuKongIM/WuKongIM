@@ -381,7 +381,29 @@ func encodeChannelRuntimeMetaFamilyValue(meta ChannelRuntimeMeta, key []byte) []
 	payload = appendIntValue(payload, channelRuntimeMetaColumnIDLeaseUntilMS, channelRuntimeMetaColumnIDFeatures, meta.LeaseUntilMS)
 	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDRetentionThroughSeq, channelRuntimeMetaColumnIDLeaseUntilMS, meta.RetentionThroughSeq)
 	payload = appendIntValue(payload, channelRuntimeMetaColumnIDRetentionUpdatedAtMS, channelRuntimeMetaColumnIDRetentionThroughSeq, meta.RetentionUpdatedAtMS)
+	payload = appendChannelRuntimeMetaWriteFenceValues(payload, meta, channelRuntimeMetaColumnIDRetentionUpdatedAtMS)
 	return wrapFamilyValue(key, payload)
+}
+
+func appendChannelRuntimeMetaWriteFenceValues(payload []byte, meta ChannelRuntimeMeta, previousColumnID uint16) []byte {
+	// Omit zero-value fence fields so ordinary runtime-meta rows stay readable by
+	// older decoders until a migration task actually writes a fence.
+	if meta.WriteFenceToken != "" {
+		payload = appendBytesValue(payload, channelRuntimeMetaColumnIDWriteFenceToken, previousColumnID, meta.WriteFenceToken)
+		previousColumnID = channelRuntimeMetaColumnIDWriteFenceToken
+	}
+	if meta.WriteFenceVersion != 0 {
+		payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceVersion, previousColumnID, meta.WriteFenceVersion)
+		previousColumnID = channelRuntimeMetaColumnIDWriteFenceVersion
+	}
+	if meta.WriteFenceReason != 0 {
+		payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceReason, previousColumnID, uint64(meta.WriteFenceReason))
+		previousColumnID = channelRuntimeMetaColumnIDWriteFenceReason
+	}
+	if meta.WriteFenceUntilMS != 0 {
+		payload = appendIntValue(payload, channelRuntimeMetaColumnIDWriteFenceUntilMS, previousColumnID, meta.WriteFenceUntilMS)
+	}
+	return payload
 }
 
 func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta, error) {
@@ -414,6 +436,9 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 			return ChannelRuntimeMeta{}, fmt.Errorf("%w: zero column delta", ErrCorruptValue)
 		}
 		colID += delta
+		if expectedType, ok := channelRuntimeMetaValueColumnType(colID); ok && expectedType != valueType {
+			return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid column %d type %d", ErrCorruptValue, colID, valueType)
+		}
 
 		switch valueType {
 		case valueTypeBytes:
@@ -429,6 +454,8 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 			payload = payload[length:]
 
 			switch colID {
+			case channelRuntimeMetaColumnIDWriteFenceToken:
+				meta.WriteFenceToken = string(raw)
 			case channelRuntimeMetaColumnIDReplicas:
 				meta.Replicas, err = decodeUint64Slice(raw)
 				if err != nil {
@@ -442,7 +469,8 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 				}
 				haveISR = true
 			default:
-				return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid bytes column %d", ErrCorruptValue, colID)
+				// Unknown columns are skipped so future optional fields do not
+				// make this decoder fail when required columns are present.
 			}
 		case valueTypeInt:
 			raw, n := binary.Uvarint(payload)
@@ -460,8 +488,10 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 				haveLeaseUntil = true
 			case channelRuntimeMetaColumnIDRetentionUpdatedAtMS:
 				meta.RetentionUpdatedAtMS = decodeZigZagInt64(raw)
+			case channelRuntimeMetaColumnIDWriteFenceUntilMS:
+				meta.WriteFenceUntilMS = decodeZigZagInt64(raw)
 			default:
-				return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid int column %d", ErrCorruptValue, colID)
+				// Unknown columns are skipped for forward compatibility.
 			}
 		case valueTypeUint:
 			raw, n := binary.Uvarint(payload)
@@ -491,8 +521,15 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 				haveFeatures = true
 			case channelRuntimeMetaColumnIDRetentionThroughSeq:
 				meta.RetentionThroughSeq = raw
+			case channelRuntimeMetaColumnIDWriteFenceVersion:
+				meta.WriteFenceVersion = raw
+			case channelRuntimeMetaColumnIDWriteFenceReason:
+				if raw > uint64(^uint8(0)) {
+					return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid write fence reason %d", ErrCorruptValue, raw)
+				}
+				meta.WriteFenceReason = uint8(raw)
 			default:
-				return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid uint column %d", ErrCorruptValue, colID)
+				// Unknown columns are skipped for forward compatibility.
 			}
 		default:
 			return ChannelRuntimeMeta{}, fmt.Errorf("metadb: unsupported value type %d", valueType)
@@ -526,7 +563,35 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 	if !haveLeaseUntil {
 		return ChannelRuntimeMeta{}, fmt.Errorf("%w: missing int column %d", ErrCorruptValue, channelRuntimeMetaColumnIDLeaseUntilMS)
 	}
+	if hasInvalidChannelRuntimeMetaWriteFence(meta) {
+		return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid write fence state", ErrCorruptValue)
+	}
 	return normalizeChannelRuntimeMeta(meta), nil
+}
+
+func channelRuntimeMetaValueColumnType(columnID uint16) (byte, bool) {
+	switch columnID {
+	case channelRuntimeMetaColumnIDReplicas,
+		channelRuntimeMetaColumnIDISR,
+		channelRuntimeMetaColumnIDWriteFenceToken:
+		return valueTypeBytes, true
+	case channelRuntimeMetaColumnIDMinISR,
+		channelRuntimeMetaColumnIDLeaseUntilMS,
+		channelRuntimeMetaColumnIDRetentionUpdatedAtMS,
+		channelRuntimeMetaColumnIDWriteFenceUntilMS:
+		return valueTypeInt, true
+	case channelRuntimeMetaColumnIDChannelEpoch,
+		channelRuntimeMetaColumnIDLeaderEpoch,
+		channelRuntimeMetaColumnIDLeader,
+		channelRuntimeMetaColumnIDStatus,
+		channelRuntimeMetaColumnIDFeatures,
+		channelRuntimeMetaColumnIDRetentionThroughSeq,
+		channelRuntimeMetaColumnIDWriteFenceVersion,
+		channelRuntimeMetaColumnIDWriteFenceReason:
+		return valueTypeUint, true
+	default:
+		return 0, false
+	}
 }
 
 func wrapFamilyValue(key, payload []byte) []byte {

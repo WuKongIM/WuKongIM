@@ -11,6 +11,7 @@ var (
 	ErrNotLeader               = errors.New("channel: not leader")
 	ErrNotReady                = errors.New("channel: not ready")
 	ErrLeaseExpired            = errors.New("channel: lease expired")
+	ErrWriteFenced             = errors.New("channel: write fenced")
 	ErrInsufficientISR         = errors.New("channel: insufficient isr")
 	ErrTombstoned              = errors.New("channel: tombstoned")
 	ErrSnapshotRequired        = errors.New("channel: snapshot required")

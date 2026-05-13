@@ -41,6 +41,7 @@ It does not choose channel placement, store control-plane metadata, or route net
 | `snapshot_pipeline.go` | Snapshot validation, durable install effect, state publication. |
 | `recovery.go` | Startup durable recovery before loop/effect workers start. |
 | `retention.go` | Logical retention apply facade, durable adoption/trim effects, retention views. |
+| `migration.go` | Migration fence-and-drain facade and loop-owned drain proof generation. |
 | `durable_store.go` | Durable adapter, optional combined store contracts, recovery validation. |
 | `history.go` | In-memory epoch-history append and trim helpers used by loop-owned transitions. |
 | `epoch_lineage.go` | Pure epoch-lineage and divergence decisions. |
@@ -66,6 +67,7 @@ type Replica interface {
     ApplyProgressAck(ctx context.Context, req channel.ReplicaProgressAckRequest) error
     ApplyReconcileProof(ctx context.Context, proof channel.ReplicaReconcileProof) error
     ApplyRetentionBoundary(ctx context.Context, throughSeq uint64) error
+    FenceAndDrain(ctx context.Context, req channel.FenceAndDrainRequest) (channel.DrainResult, error)
     RetentionView() (channel.RetentionView, error)
     Status() channel.ReplicaState
 }
@@ -140,6 +142,9 @@ Recovery loads checkpoint, epoch history, snapshot presence, local retention sta
 `ApplyMeta`, `BecomeLeader`, `BecomeFollower`, `Tombstone`, and `Close` all submit loop commands.
 
 - `ApplyMeta` normalizes replica/ISR lists, validates channel/epoch/leader fences, bumps `roleGeneration`, and restarts leader reconcile if the local role is leader/fenced leader. Same-leader meta refresh can execute the local/probe reconcile effect immediately so checkpoint-only lag does not leave `CommitReady=false`.
+- Membership is intentionally asymmetric during migration: `learner = Replicas - ISR`. Learners may receive replication/fetch traffic through the runtime, but HW quorum, `MinISR` write admission, leader reconcile quorum, and promotion dry-run candidates are computed from `ISR` only until authoritative slot metadata promotes the learner into `ISR`.
+- A same-leader higher `ChannelEpoch` first gates append admission with `CommitReady=false`, persists `EpochPoint{Epoch: newEpoch, StartOffset: currentLEO}` through `BeginEpoch`, and only then publishes the new epoch. If the durable boundary fails, the replica stays not-ready so a later authoritative retry can reattempt the boundary.
+- Migration membership changes that keep the same leader must use that same-leader epoch boundary before the new membership is considered append-ready; publishing the higher epoch before durable `EpochPoint` storage would make later reconcile unable to distinguish pre-cutover and post-cutover tails.
 - `BecomeLeader` validates that the local node is the new leader, the replica has recovered, LEO is not below HW, and the lease is still valid. If a new epoch point is needed, it first emits `beginLeaderEpochEffect`; only the fenced durable result publishes leader state.
 - `BecomeFollower` applies meta, changes role, cancels reconcile/begin-epoch effects, and fails all outstanding appends with `ErrNotLeader`.
 - `Tombstone` marks the replica tombstoned and rejects future mutating operations.
@@ -149,11 +154,13 @@ Recovery loads checkpoint, epoch history, snapshot presence, local retention sta
 
 `Append()` clones records, records commit mode from context, keeps diagnostics-only trace metadata on the append request, and submits `machineAppendRequestCommand`.
 
-Loop admission requires leader role, non-expired lease, `CommitReady=true`, and `len(ISR) >= MinISR`. Empty batches complete immediately. Non-empty batches enter `appendPending` and are flushed by size/count or the group-commit timer.
+Loop admission requires leader role, non-expired lease, `CommitReady=true`, no local `WriteFence` token, no drained fail-closed marker, and `len(ISR) >= MinISR`. A present write-fence token returns `ErrWriteFenced` even after its wall-clock TTL; a drained marker also returns `ErrWriteFenced` until a newer fence version is applied. Empty batches complete immediately. Non-empty batches enter `appendPending` and are flushed by size/count or the group-commit timer.
 
 A flush emits one `appendLeaderBatchEffect`. The append worker serializes durable mutation with `durableMu`, calls `AppendLeaderBatch`, syncs the log, verifies the returned LEO range, and sends `machineLeaderAppendCommittedEvent` back to the loop.
 
-On a matching result the loop verifies all fences, publishes the new LEO and local progress, and wakes the runtime via `onLeaderLocalAppend`. `CommitModeLocal` callers complete after durable append. Quorum callers become waiters and complete only after HW reaches their target. Context cancellation removes queued or waiting requests and completes the waiter once; in-flight durable appends are fenced when their result returns.
+`FenceAndDrain()` is the migration cutover primitive. It runs through the same single-writer loop, requires local leader role, non-expired lease, matching channel epoch, leader epoch, leader, write-fence token, and write-fence version, fails queued appends with `ErrWriteFenced`, waits for in-flight durable appends, quorum waiters, uncommitted local tail, reconcile effects, and pending checkpoint writes to settle, then records an in-memory drained marker and returns a `DrainResult` proof containing LEO/HW/checkpoint/fence metadata. Applying metadata with a higher `WriteFenceVersion` clears the drained marker; same-version clears or TTL expiry do not reopen appends.
+
+On a matching result the loop publishes already-synced same-leader appends even if fenced metadata was applied after the durable write, then publishes the new LEO and local progress and wakes the runtime via `onLeaderLocalAppend`. `CommitModeLocal` callers complete after durable append. Quorum callers become waiters and complete only after HW reaches their target. Context cancellation removes queued or waiting requests and completes the waiter once; in-flight durable appends are fenced before write when their result returns with an error.
 
 Leader append sendtrace events are emitted for queue wait, local durable, and quorum wait stages. Each event carries stable result/error metadata and the relevant range so diagnostics queries can distinguish normal success, cancellation, timeout, and durable/commit errors without inspecting payload bytes.
 
@@ -177,7 +184,7 @@ If records are needed, the loop emits a read-log effect with captured leader LEO
 
 ### 6.5 HW And Checkpoint Progress
 
-Leader progress uses `quorumProgressCandidate()`: sort ISR match offsets, default missing ISR entries to current HW, and choose the `MinISR`-th highest offset. A candidate below HW is corrupt; a candidate equal to HW is a no-op; a candidate above LEO is corrupt.
+Leader progress uses `quorumProgressCandidate()`: sort ISR match offsets, default missing ISR entries to current HW, and choose the `MinISR`-th highest offset. A candidate below HW is corrupt; a candidate equal to HW is a no-op; a candidate above LEO is corrupt. Learner progress is deliberately excluded from this calculation until the slot layer promotes the learner into `ISR`.
 
 When HW advances, the loop:
 
@@ -193,7 +200,7 @@ Checkpoint writes are coalesced. A newer pending checkpoint replaces an older qu
 
 `ApplyFetch()` submits `machineApplyFetchCommand`. The loop accepts follower and fenced-leader roles, fences channel/epoch/leader, rejects concurrent follower apply effects, validates optional `TruncateTo`, and validates fetched record indexes are contiguous from `baseLEO+1`.
 
-Record batches may create a new epoch point, append records, and optionally persist a checkpoint up to `min(LeaderHW, newLEO)`. Heartbeats may only move LEO/HW safely and can store a checkpoint without records. Durable work runs under `durableMu` through `ApplyFollowerBatch`, `TruncateLogAndHistory`, or `StoreCheckpointMonotonic`.
+Record batches may create a new epoch point, append records, and optionally persist a checkpoint up to `min(LeaderHW, newLEO)`. Heartbeats may also persist an epoch-only boundary when metadata has advanced but no records exist yet, then move LEO/HW safely and store a checkpoint without records. Durable work runs under `durableMu` through `ApplyFollowerBatch`, `BeginEpoch`, `TruncateLogAndHistory`, or `StoreCheckpointMonotonic`.
 
 The fenced result publishes LEO, HW, CheckpointHW, OffsetEpoch, and CommitReady. If a durable truncate committed before the result became stale, the loop still reflects that truncation so runtime LEO does not remain above local durable log.
 
@@ -212,6 +219,8 @@ The durable reconcile result is fenced by effect id, channel key, epoch, leader 
 `InstallSnapshot()` validates snapshot channel/epoch/end offset under the loop. Snapshot end must not go below runtime HW or current log start, and log LEO must already cover the snapshot end. The effect installs payload, checkpoint, and epoch point through `InstallSnapshotAtomically` when available, then reloads durable view.
 
 A successful fenced result publishes follower state with `LogStartOffset == HW == CheckpointHW == snapshot.EndOffset`, updates epoch history, clears reconcile/begin-epoch state, fails outstanding appends, and bumps `roleGeneration`.
+
+Channel replica migration V1 does not use replica snapshot install as an automatic catch-up path. The migration proof evaluator rejects promotion with `ErrSnapshotRequired` when the target's `LogStartOffset` is above the cutover HW, so that target must not enter `ISR` until snapshot transfer/install support has caught it up or the operator resolves the gap.
 
 ### 6.9 Promotion Dry-run
 
@@ -252,6 +261,7 @@ After recovery and while the loop is running, transitions must preserve:
 | `ErrNotLeader` | Operation requires an active leader/follower role but the replica is closed, follower for leader-only APIs, or otherwise fenced. |
 | `ErrLeaseExpired` | Leader lease expired; write/reconcile paths fence the role as `FencedLeader`. |
 | `ErrNotReady` | A required single in-flight effect is already running, or leader reconcile/checkpoint safety has not made appends safe. |
+| `ErrWriteFenced` | Authoritative migration metadata has fenced new appends until a newer clear/reset/superseding fence is applied. |
 | `ErrInsufficientISR` | Current ISR cannot satisfy `MinISR`. |
 | `ErrStaleMeta` | Channel key, epoch, leader, leader epoch, effect id, or role generation is stale. |
 | `ErrCorruptState` | Durable state, remote proof, store result, truncation, checkpoint, or invariant is impossible/unsafe. |

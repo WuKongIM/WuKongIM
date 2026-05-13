@@ -9,6 +9,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-gonic/gin"
 )
@@ -88,6 +89,14 @@ type Management interface {
 	ListMessages(ctx context.Context, req managementusecase.ListMessagesRequest) (managementusecase.ListMessagesResponse, error)
 	// AdvanceMessageRetention advances one channel's history retention boundary.
 	AdvanceMessageRetention(ctx context.Context, req managementusecase.AdvanceMessageRetentionRequest) (managementusecase.AdvanceMessageRetentionResponse, error)
+	// TransferChannelLeader validates or creates a channel leader-transfer task.
+	TransferChannelLeader(ctx context.Context, id channel.ChannelID, req managementusecase.TransferChannelLeaderRequest) (managementusecase.ChannelMigrationResult, error)
+	// MigrateChannelReplica validates or creates a channel replica replacement task.
+	MigrateChannelReplica(ctx context.Context, id channel.ChannelID, req managementusecase.MigrateChannelReplicaRequest) (managementusecase.ChannelMigrationResult, error)
+	// GetChannelMigration returns the active channel migration task.
+	GetChannelMigration(ctx context.Context, id channel.ChannelID) (managementusecase.ChannelMigrationDetail, error)
+	// AbortChannelMigration aborts the active channel migration task.
+	AbortChannelMigration(ctx context.Context, id channel.ChannelID, taskID string) (managementusecase.ChannelMigrationDetail, error)
 	// GetOverview returns the manager homepage overview DTO.
 	GetOverview(ctx context.Context) (managementusecase.Overview, error)
 	// ListNetworkSummary returns the manager-facing local-node cluster network summary.

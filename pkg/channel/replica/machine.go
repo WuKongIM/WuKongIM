@@ -16,6 +16,8 @@ type machineCompletion struct {
 type machineResult struct {
 	Effects     []machineEffect
 	Completions []machineCompletion
+	// Drain carries a fence-and-drain proof captured by the leader loop.
+	Drain *channel.DrainResult
 	// Fetch carries the deterministic fetch response snapshot after loop-owned progress updates.
 	Fetch *machineFetchProgressResult
 	Err   error

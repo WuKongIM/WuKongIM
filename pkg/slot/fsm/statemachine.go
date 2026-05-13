@@ -270,14 +270,43 @@ func (m *stateMachine) ApplyBatch(ctx context.Context, cmds []multiraft.Command)
 		if ok {
 			pendingForwardDeltas = append(pendingForwardDeltas, pendingForward)
 		}
-		results[i] = []byte(ApplyResultOK)
+		results[i] = commandApplyResult(decoded)
 	}
 
 	if err := wb.Commit(); err != nil {
+		if isStaleMetaCommitError(err) {
+			if len(cmds) == 1 {
+				return [][]byte{[]byte(ApplyResultStaleMeta)}, nil
+			}
+			return m.applyCommandsIndividuallyAfterStaleCommit(ctx, cmds)
+		}
 		return nil, err
 	}
 	m.markAppliedDeltas(pendingDeltaKeys)
 	m.forwardCommittedDeltas(ctx, pendingForwardDeltas)
+	return results, nil
+}
+
+func commandApplyResult(decoded command) []byte {
+	if result, ok := decoded.(resultCommand); ok {
+		return result.applyResult()
+	}
+	return []byte(ApplyResultOK)
+}
+
+func (m *stateMachine) applyCommandsIndividuallyAfterStaleCommit(ctx context.Context, cmds []multiraft.Command) ([][]byte, error) {
+	results := make([][]byte, len(cmds))
+	for i, cmd := range cmds {
+		result, err := m.ApplyBatch(ctx, []multiraft.Command{cmd})
+		if err != nil {
+			if isStaleMetaCommitError(err) {
+				results[i] = []byte(ApplyResultStaleMeta)
+				continue
+			}
+			return nil, err
+		}
+		results[i] = result[0]
+	}
 	return results, nil
 }
 
@@ -287,11 +316,31 @@ func isStaleMetaResult(cmd command, err error) bool {
 		// Missing runtime metadata means the proposal was based on an observation
 		// that is no longer current, so it is reported as the same stale no-op.
 		return errors.Is(err, metadb.ErrStaleMeta) || errors.Is(err, metadb.ErrNotFound)
+	case *createChannelMigrationTaskCmd:
+		return errors.Is(err, metadb.ErrAlreadyExists)
+	case *createChannelMigrationTaskWithRuntimeGuardCmd:
+		return errors.Is(err, metadb.ErrStaleMeta) || errors.Is(err, metadb.ErrNotFound) || errors.Is(err, metadb.ErrAlreadyExists)
+	case *claimChannelMigrationTaskCmd,
+		*advanceChannelMigrationTaskCmd,
+		*setChannelWriteFenceCmd,
+		*resetChannelWriteFenceToPreCutoverCmd,
+		*commitChannelLeaderTransferCmd,
+		*addChannelLearnerCmd,
+		*promoteLearnerAndRemoveReplicaCmd,
+		*clearChannelWriteFenceCmd,
+		*abortChannelMigrationCmd:
+		return errors.Is(err, metadb.ErrStaleMeta) || errors.Is(err, metadb.ErrNotFound)
 	case *addSubscribersCmd, *removeSubscribersCmd:
 		return errors.Is(err, metadb.ErrStaleMeta)
 	default:
 		return false
 	}
+}
+
+func isStaleMetaCommitError(err error) bool {
+	return errors.Is(err, metadb.ErrStaleMeta) ||
+		errors.Is(err, metadb.ErrNotFound) ||
+		errors.Is(err, metadb.ErrAlreadyExists)
 }
 
 func commandTypeForDiagnostics(data []byte) uint8 {

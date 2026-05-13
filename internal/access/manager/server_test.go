@@ -4251,6 +4251,22 @@ func (s managementStub) AdvanceMessageRetention(_ context.Context, req managemen
 	return s.retentionResult, s.retentionErr
 }
 
+func (s managementStub) TransferChannelLeader(context.Context, channel.ChannelID, managementusecase.TransferChannelLeaderRequest) (managementusecase.ChannelMigrationResult, error) {
+	return managementusecase.ChannelMigrationResult{}, nil
+}
+
+func (s managementStub) MigrateChannelReplica(context.Context, channel.ChannelID, managementusecase.MigrateChannelReplicaRequest) (managementusecase.ChannelMigrationResult, error) {
+	return managementusecase.ChannelMigrationResult{}, nil
+}
+
+func (s managementStub) GetChannelMigration(context.Context, channel.ChannelID) (managementusecase.ChannelMigrationDetail, error) {
+	return managementusecase.ChannelMigrationDetail{}, nil
+}
+
+func (s managementStub) AbortChannelMigration(context.Context, channel.ChannelID, string) (managementusecase.ChannelMigrationDetail, error) {
+	return managementusecase.ChannelMigrationDetail{}, nil
+}
+
 func (s managementStub) GetOverview(context.Context) (managementusecase.Overview, error) {
 	return s.overview, s.overviewErr
 }

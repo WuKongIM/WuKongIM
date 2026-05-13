@@ -135,6 +135,13 @@ type machineApplyMetaCommand struct {
 func (machineApplyMetaCommand) isMachineEvent()   {}
 func (machineApplyMetaCommand) isMachineCommand() {}
 
+type machineFenceAndDrainCommand struct {
+	Request channel.FenceAndDrainRequest
+}
+
+func (machineFenceAndDrainCommand) isMachineEvent()   {}
+func (machineFenceAndDrainCommand) isMachineCommand() {}
+
 type machineApplyRetentionCommand struct {
 	// ThroughSeq is the authoritative highest sequence hidden by retention.
 	ThroughSeq uint64
@@ -187,7 +194,11 @@ type machineBeginLeaderEpochResultCommand struct {
 	RoleGeneration uint64
 	LEO            uint64
 	EpochPoint     channel.EpochPoint
-	Err            error
+	// RestoreCommitReady restores the pre-boundary gate after same-leader ApplyMeta.
+	RestoreCommitReady bool
+	// CommitReadyBeforeBoundary is the append gate captured before boundary fencing.
+	CommitReadyBeforeBoundary bool
+	Err                       error
 }
 
 func (machineBeginLeaderEpochResultCommand) isMachineEvent()   {}
@@ -342,6 +353,10 @@ type beginLeaderEpochEffect struct {
 	RoleGeneration uint64
 	LEO            uint64
 	EpochPoint     channel.EpochPoint
+	// RestoreCommitReady restores the pre-boundary gate after same-leader ApplyMeta.
+	RestoreCommitReady bool
+	// CommitReadyBeforeBoundary is the append gate captured before boundary fencing.
+	CommitReadyBeforeBoundary bool
 }
 
 func (beginLeaderEpochEffect) isMachineEffect() {}

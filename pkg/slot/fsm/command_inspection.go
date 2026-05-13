@@ -96,6 +96,28 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 			"target_slot":   typed.TargetSlot,
 			"through_index": typed.ThroughIndex,
 		}), nil
+	case *createChannelMigrationTaskCmd:
+		return channelMigrationTaskInspection("create_channel_migration_task", typed.task), nil
+	case *createChannelMigrationTaskWithRuntimeGuardCmd:
+		return channelMigrationTaskInspection("create_channel_migration_task_with_runtime_guard", typed.req.Task), nil
+	case *claimChannelMigrationTaskCmd:
+		return channelMigrationGuardInspection("claim_channel_migration_task", typed.req.Guard), nil
+	case *advanceChannelMigrationTaskCmd:
+		return channelMigrationGuardInspection("advance_channel_migration_task", typed.req.Guard), nil
+	case *setChannelWriteFenceCmd:
+		return channelMigrationGuardInspection("set_channel_write_fence", typed.req.Guard), nil
+	case *resetChannelWriteFenceToPreCutoverCmd:
+		return channelMigrationGuardInspection("reset_channel_write_fence", typed.req.Guard), nil
+	case *commitChannelLeaderTransferCmd:
+		return channelMigrationGuardInspection("commit_channel_leader_transfer", typed.req.Guard), nil
+	case *addChannelLearnerCmd:
+		return channelMigrationGuardInspection("add_channel_learner", typed.req.Guard), nil
+	case *promoteLearnerAndRemoveReplicaCmd:
+		return channelMigrationGuardInspection("promote_learner_and_remove_replica", typed.req.Guard), nil
+	case *clearChannelWriteFenceCmd:
+		return channelMigrationGuardInspection("clear_channel_write_fence", typed.req.Guard), nil
+	case *abortChannelMigrationCmd:
+		return channelMigrationGuardInspection("abort_channel_migration", typed.req.Guard), nil
 	default:
 		return CommandInspection{}, fmt.Errorf("%w: unsupported command inspection %T", metadb.ErrInvalidArgument, cmd)
 	}
@@ -149,6 +171,10 @@ func runtimeMetaInspection(commandType string, meta metadb.ChannelRuntimeMeta) C
 		"lease_until_ms":          meta.LeaseUntilMS,
 		"retention_through_seq":   meta.RetentionThroughSeq,
 		"retention_updated_at_ms": meta.RetentionUpdatedAtMS,
+		"write_fence_token":       meta.WriteFenceToken,
+		"write_fence_version":     meta.WriteFenceVersion,
+		"write_fence_reason":      meta.WriteFenceReason,
+		"write_fence_until_ms":    meta.WriteFenceUntilMS,
 	})
 }
 
@@ -175,6 +201,29 @@ func subscribersInspection(commandType, channelID string, channelType int64, uid
 		payload["subscriber_mutation_version"] = subscriberMutationVersion
 	}
 	return simpleInspection(commandType, payload)
+}
+
+func channelMigrationTaskInspection(commandType string, task metadb.ChannelMigrationTask) CommandInspection {
+	return simpleInspection(commandType, map[string]any{
+		"task_id":      task.TaskID,
+		"kind":         task.Kind,
+		"status":       task.Status,
+		"phase":        task.Phase,
+		"channel_id":   task.ChannelID,
+		"channel_type": task.ChannelType,
+		"source_node":  task.SourceNode,
+		"target_node":  task.TargetNode,
+	})
+}
+
+func channelMigrationGuardInspection(commandType string, guard metadb.ChannelMigrationTaskGuard) CommandInspection {
+	return simpleInspection(commandType, map[string]any{
+		"task_id":         guard.TaskID,
+		"channel_id":      guard.ChannelID,
+		"channel_type":    guard.ChannelType,
+		"expected_status": guard.ExpectedStatus,
+		"expected_phase":  guard.ExpectedPhase,
+	})
 }
 
 func applyDeltaInspection(cmd *applyDeltaCmd) (CommandInspection, error) {

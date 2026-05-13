@@ -2,6 +2,7 @@ package meta
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"reflect"
 	"testing"
@@ -63,6 +64,24 @@ func TestShardStoreChannelRuntimeMetaPersistsRetentionBoundary(t *testing.T) {
 	got, err := shard.GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
 	require.NoError(t, err)
 	require.Equal(t, normalizeChannelRuntimeMeta(meta), got)
+}
+
+func TestChannelRuntimeMetaWriteFenceRoundTrip(t *testing.T) {
+	shard := newTestShardStore(t, 7)
+	ctx := context.Background()
+	meta := testRuntimeMeta("write-fence-round-trip", 1)
+	meta.WriteFenceToken = "task-1"
+	meta.WriteFenceVersion = 3
+	meta.WriteFenceReason = 1
+	meta.WriteFenceUntilMS = 1710000000000
+
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, meta))
+	got, err := shard.GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	require.NoError(t, err)
+	require.Equal(t, meta.WriteFenceToken, got.WriteFenceToken)
+	require.Equal(t, meta.WriteFenceVersion, got.WriteFenceVersion)
+	require.Equal(t, meta.WriteFenceReason, got.WriteFenceReason)
+	require.Equal(t, meta.WriteFenceUntilMS, got.WriteFenceUntilMS)
 }
 
 func TestShardStoreAdvanceChannelRetentionThroughSeqOnlyMutatesRetention(t *testing.T) {
@@ -342,23 +361,380 @@ func TestResolveMonotonicChannelRuntimeMetaKeepsNewestRetentionTimestampForEqual
 	require.Equal(t, int64(5000), got.RetentionUpdatedAtMS)
 }
 
+func TestChannelRuntimeMetaMonotonicPreservesWriteFence(t *testing.T) {
+	existing := testRuntimeMeta("write-fence-monotonic", 1)
+	existing.ChannelEpoch = 5
+	existing.LeaderEpoch = 7
+	existing.WriteFenceToken = "task-1"
+	existing.WriteFenceVersion = 9
+	existing.WriteFenceReason = 2
+	existing.WriteFenceUntilMS = 1710000000000
+
+	candidate := existing
+	candidate.ChannelEpoch = existing.ChannelEpoch + 1
+	candidate.WriteFenceToken = ""
+	candidate.WriteFenceVersion = 0
+	candidate.WriteFenceReason = 0
+	candidate.WriteFenceUntilMS = 0
+
+	got, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, true, candidate)
+	require.True(t, shouldWrite)
+	require.Equal(t, existing.WriteFenceToken, got.WriteFenceToken)
+	require.Equal(t, existing.WriteFenceVersion, got.WriteFenceVersion)
+	require.Equal(t, existing.WriteFenceReason, got.WriteFenceReason)
+	require.Equal(t, existing.WriteFenceUntilMS, got.WriteFenceUntilMS)
+}
+
+func TestChannelRuntimeMetaWriteFenceMonotonicPreservesSameVersionRegressions(t *testing.T) {
+	existing := testRuntimeMeta("write-fence-same-version", 1)
+	existing.ChannelEpoch = 5
+	existing.LeaderEpoch = 7
+	existing.WriteFenceToken = "task-1"
+	existing.WriteFenceVersion = 9
+	existing.WriteFenceReason = 2
+	existing.WriteFenceUntilMS = 1710000000000
+
+	tests := []struct {
+		name   string
+		mutate func(*ChannelRuntimeMeta)
+	}{
+		{
+			name: "changed_token",
+			mutate: func(candidate *ChannelRuntimeMeta) {
+				candidate.WriteFenceToken = "task-2"
+				candidate.WriteFenceUntilMS = existing.WriteFenceUntilMS + 1000
+			},
+		},
+		{
+			name: "changed_reason",
+			mutate: func(candidate *ChannelRuntimeMeta) {
+				candidate.WriteFenceReason = existing.WriteFenceReason + 1
+				candidate.WriteFenceUntilMS = existing.WriteFenceUntilMS + 1000
+			},
+		},
+		{
+			name: "shorter_until",
+			mutate: func(candidate *ChannelRuntimeMeta) {
+				candidate.WriteFenceUntilMS = existing.WriteFenceUntilMS - 1000
+			},
+		},
+		{
+			name: "zero_until",
+			mutate: func(candidate *ChannelRuntimeMeta) {
+				candidate.WriteFenceUntilMS = 0
+			},
+		},
+		{
+			name: "clear",
+			mutate: func(candidate *ChannelRuntimeMeta) {
+				candidate.WriteFenceToken = ""
+				candidate.WriteFenceReason = 0
+				candidate.WriteFenceUntilMS = 0
+			},
+		},
+		{
+			name: "replacement",
+			mutate: func(candidate *ChannelRuntimeMeta) {
+				candidate.WriteFenceToken = "task-2"
+				candidate.WriteFenceReason = existing.WriteFenceReason + 1
+				candidate.WriteFenceUntilMS = existing.WriteFenceUntilMS + 1000
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			candidate := existing
+			candidate.ChannelEpoch = existing.ChannelEpoch + 1
+			tt.mutate(&candidate)
+
+			got, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, true, candidate)
+			require.True(t, shouldWrite)
+			require.Equal(t, existing.WriteFenceToken, got.WriteFenceToken)
+			require.Equal(t, existing.WriteFenceVersion, got.WriteFenceVersion)
+			require.Equal(t, existing.WriteFenceReason, got.WriteFenceReason)
+			require.Equal(t, existing.WriteFenceUntilMS, got.WriteFenceUntilMS)
+		})
+	}
+}
+
+func TestChannelRuntimeMetaWriteFenceMonotonicRejectsSameVersionLeaseExtension(t *testing.T) {
+	existing := testRuntimeMeta("write-fence-same-version-extend", 1)
+	existing.ChannelEpoch = 5
+	existing.LeaderEpoch = 7
+	existing.WriteFenceToken = "task-1"
+	existing.WriteFenceVersion = 9
+	existing.WriteFenceReason = 2
+	existing.WriteFenceUntilMS = 1710000000000
+
+	candidate := existing
+	candidate.ChannelEpoch = existing.ChannelEpoch + 1
+	candidate.WriteFenceUntilMS = existing.WriteFenceUntilMS + 1000
+
+	got, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, true, candidate)
+	require.True(t, shouldWrite)
+	require.Equal(t, existing.WriteFenceToken, got.WriteFenceToken)
+	require.Equal(t, existing.WriteFenceVersion, got.WriteFenceVersion)
+	require.Equal(t, existing.WriteFenceReason, got.WriteFenceReason)
+	require.Equal(t, existing.WriteFenceUntilMS, got.WriteFenceUntilMS)
+}
+
+func TestChannelRuntimeMetaWriteFenceMonotonicDoesNotFabricateSameVersionFence(t *testing.T) {
+	existing := testRuntimeMeta("write-fence-no-fabricate", 1)
+	existing.ChannelEpoch = 5
+	existing.LeaderEpoch = 7
+	existing.WriteFenceVersion = 9
+
+	candidate := existing
+	candidate.ChannelEpoch = existing.ChannelEpoch + 1
+	candidate.WriteFenceToken = "task-1"
+	candidate.WriteFenceReason = 2
+	candidate.WriteFenceUntilMS = 1710000000000
+
+	got, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, true, candidate)
+	require.True(t, shouldWrite)
+	require.Empty(t, got.WriteFenceToken)
+	require.Equal(t, existing.WriteFenceVersion, got.WriteFenceVersion)
+	require.Zero(t, got.WriteFenceReason)
+	require.Zero(t, got.WriteFenceUntilMS)
+}
+
+func TestChannelRuntimeMetaWriteFenceMonotonicAllowsHigherVersionUpdate(t *testing.T) {
+	existing := testRuntimeMeta("write-fence-higher-version", 1)
+	existing.ChannelEpoch = 5
+	existing.LeaderEpoch = 7
+	existing.WriteFenceToken = "task-1"
+	existing.WriteFenceVersion = 9
+	existing.WriteFenceReason = 2
+	existing.WriteFenceUntilMS = 1710000000000
+
+	candidate := existing
+	candidate.ChannelEpoch = existing.ChannelEpoch + 1
+	candidate.WriteFenceToken = "task-2"
+	candidate.WriteFenceVersion = existing.WriteFenceVersion + 1
+	candidate.WriteFenceReason = 3
+	candidate.WriteFenceUntilMS = existing.WriteFenceUntilMS + 1000
+
+	got, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, true, candidate)
+	require.True(t, shouldWrite)
+	require.Equal(t, candidate.WriteFenceToken, got.WriteFenceToken)
+	require.Equal(t, candidate.WriteFenceVersion, got.WriteFenceVersion)
+	require.Equal(t, candidate.WriteFenceReason, got.WriteFenceReason)
+	require.Equal(t, candidate.WriteFenceUntilMS, got.WriteFenceUntilMS)
+}
+
+func TestChannelRuntimeMetaWriteFenceEncodingSkipsZeroFenceColumns(t *testing.T) {
+	shard := newTestShardStore(t, 7)
+	ctx := context.Background()
+	meta := testRuntimeMeta("write-fence-zero-encode", 1)
+
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, meta))
+	key := encodeChannelRuntimeMetaPrimaryKey(7, meta.ChannelID, meta.ChannelType, channelRuntimeMetaPrimaryFamilyID)
+	value, err := shard.db.getValue(key)
+	require.NoError(t, err)
+	_, payload, err := decodeWrappedValue(key, value)
+	require.NoError(t, err)
+
+	columns, err := decodeTestColumnIDs(payload)
+	require.NoError(t, err)
+	require.NotContains(t, columns, channelRuntimeMetaColumnIDWriteFenceToken)
+	require.NotContains(t, columns, channelRuntimeMetaColumnIDWriteFenceVersion)
+	require.NotContains(t, columns, channelRuntimeMetaColumnIDWriteFenceReason)
+	require.NotContains(t, columns, channelRuntimeMetaColumnIDWriteFenceUntilMS)
+}
+
+func TestDecodeChannelRuntimeMetaRejectsKnownWriteFenceWrongType(t *testing.T) {
+	key := encodeChannelRuntimeMetaPrimaryKey(7, "wrong-fence-type", 2, channelRuntimeMetaPrimaryFamilyID)
+
+	tests := []struct {
+		name       string
+		appendWire func([]byte) []byte
+	}{
+		{
+			name: "token_as_uint",
+			appendWire: func(payload []byte) []byte {
+				return appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceToken, channelRuntimeMetaColumnIDLeaseUntilMS, 1)
+			},
+		},
+		{
+			name: "version_as_bytes",
+			appendWire: func(payload []byte) []byte {
+				return appendRawBytesValue(payload, channelRuntimeMetaColumnIDWriteFenceVersion, channelRuntimeMetaColumnIDLeaseUntilMS, []byte("bad"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := channelRuntimeMetaRequiredPayload()
+			payload = tt.appendWire(payload)
+
+			_, err := decodeChannelRuntimeMetaFamilyValue(key, wrapFamilyValue(key, payload))
+			require.ErrorIs(t, err, ErrCorruptValue)
+		})
+	}
+}
+
+func TestDecodeChannelRuntimeMetaRejectsMalformedWriteFenceMissingVersion(t *testing.T) {
+	key := encodeChannelRuntimeMetaPrimaryKey(7, "missing-fence-version", 2, channelRuntimeMetaPrimaryFamilyID)
+
+	tests := []struct {
+		name       string
+		appendWire func([]byte) []byte
+	}{
+		{
+			name: "token_without_version",
+			appendWire: func(payload []byte) []byte {
+				return appendBytesValue(payload, channelRuntimeMetaColumnIDWriteFenceToken, channelRuntimeMetaColumnIDLeaseUntilMS, "task-1")
+			},
+		},
+		{
+			name: "reason_without_version",
+			appendWire: func(payload []byte) []byte {
+				return appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceReason, channelRuntimeMetaColumnIDLeaseUntilMS, 1)
+			},
+		},
+		{
+			name: "until_without_version",
+			appendWire: func(payload []byte) []byte {
+				return appendIntValue(payload, channelRuntimeMetaColumnIDWriteFenceUntilMS, channelRuntimeMetaColumnIDLeaseUntilMS, 1710000000000)
+			},
+		},
+		{
+			name: "explicit_zero_version_with_token",
+			appendWire: func(payload []byte) []byte {
+				payload = appendBytesValue(payload, channelRuntimeMetaColumnIDWriteFenceToken, channelRuntimeMetaColumnIDLeaseUntilMS, "task-1")
+				return appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceVersion, channelRuntimeMetaColumnIDWriteFenceToken, 0)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := channelRuntimeMetaRequiredPayload()
+			payload = tt.appendWire(payload)
+
+			_, err := decodeChannelRuntimeMetaFamilyValue(key, wrapFamilyValue(key, payload))
+			require.ErrorIs(t, err, ErrCorruptValue)
+		})
+	}
+}
+
+func TestDecodeChannelRuntimeMetaRejectsMalformedWriteFenceInvalidStates(t *testing.T) {
+	key := encodeChannelRuntimeMetaPrimaryKey(7, "invalid-fence-state", 2, channelRuntimeMetaPrimaryFamilyID)
+
+	tests := []struct {
+		name       string
+		appendWire func([]byte) []byte
+	}{
+		{
+			name: "version_with_reason_no_token",
+			appendWire: func(payload []byte) []byte {
+				payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceVersion, channelRuntimeMetaColumnIDLeaseUntilMS, 1)
+				return appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceReason, channelRuntimeMetaColumnIDWriteFenceVersion, 1)
+			},
+		},
+		{
+			name: "version_with_until_no_token",
+			appendWire: func(payload []byte) []byte {
+				payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceVersion, channelRuntimeMetaColumnIDLeaseUntilMS, 1)
+				return appendIntValue(payload, channelRuntimeMetaColumnIDWriteFenceUntilMS, channelRuntimeMetaColumnIDWriteFenceVersion, 1710000000000)
+			},
+		},
+		{
+			name: "token_with_version_no_reason",
+			appendWire: func(payload []byte) []byte {
+				payload = appendBytesValue(payload, channelRuntimeMetaColumnIDWriteFenceToken, channelRuntimeMetaColumnIDLeaseUntilMS, "task-1")
+				payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceVersion, channelRuntimeMetaColumnIDWriteFenceToken, 1)
+				return appendIntValue(payload, channelRuntimeMetaColumnIDWriteFenceUntilMS, channelRuntimeMetaColumnIDWriteFenceVersion, 1710000000000)
+			},
+		},
+		{
+			name: "token_with_version_no_until",
+			appendWire: func(payload []byte) []byte {
+				payload = appendBytesValue(payload, channelRuntimeMetaColumnIDWriteFenceToken, channelRuntimeMetaColumnIDLeaseUntilMS, "task-1")
+				payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceVersion, channelRuntimeMetaColumnIDWriteFenceToken, 1)
+				return appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceReason, channelRuntimeMetaColumnIDWriteFenceVersion, 1)
+			},
+		},
+		{
+			name: "token_with_version_negative_until",
+			appendWire: func(payload []byte) []byte {
+				payload = appendBytesValue(payload, channelRuntimeMetaColumnIDWriteFenceToken, channelRuntimeMetaColumnIDLeaseUntilMS, "task-1")
+				payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceVersion, channelRuntimeMetaColumnIDWriteFenceToken, 1)
+				payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceReason, channelRuntimeMetaColumnIDWriteFenceVersion, 1)
+				return appendIntValue(payload, channelRuntimeMetaColumnIDWriteFenceUntilMS, channelRuntimeMetaColumnIDWriteFenceReason, -1)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := channelRuntimeMetaRequiredPayload()
+			payload = tt.appendWire(payload)
+
+			_, err := decodeChannelRuntimeMetaFamilyValue(key, wrapFamilyValue(key, payload))
+			require.ErrorIs(t, err, ErrCorruptValue)
+		})
+	}
+}
+
+func TestDecodeChannelRuntimeMetaWriteFenceClearMarker(t *testing.T) {
+	key := encodeChannelRuntimeMetaPrimaryKey(7, "clear-fence-marker", 2, channelRuntimeMetaPrimaryFamilyID)
+	payload := channelRuntimeMetaRequiredPayload()
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceVersion, channelRuntimeMetaColumnIDLeaseUntilMS, 7)
+
+	got, err := decodeChannelRuntimeMetaFamilyValue(key, wrapFamilyValue(key, payload))
+	require.NoError(t, err)
+	require.Empty(t, got.WriteFenceToken)
+	require.Equal(t, uint64(7), got.WriteFenceVersion)
+	require.Zero(t, got.WriteFenceReason)
+	require.Zero(t, got.WriteFenceUntilMS)
+}
+
+func TestDecodeChannelRuntimeMetaWriteFenceValidActive(t *testing.T) {
+	key := encodeChannelRuntimeMetaPrimaryKey(7, "valid-active-fence", 2, channelRuntimeMetaPrimaryFamilyID)
+	payload := channelRuntimeMetaRequiredPayload()
+	payload = appendBytesValue(payload, channelRuntimeMetaColumnIDWriteFenceToken, channelRuntimeMetaColumnIDLeaseUntilMS, "task-1")
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceVersion, channelRuntimeMetaColumnIDWriteFenceToken, 7)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceReason, channelRuntimeMetaColumnIDWriteFenceVersion, 2)
+	payload = appendIntValue(payload, channelRuntimeMetaColumnIDWriteFenceUntilMS, channelRuntimeMetaColumnIDWriteFenceReason, 1710000000000)
+
+	got, err := decodeChannelRuntimeMetaFamilyValue(key, wrapFamilyValue(key, payload))
+	require.NoError(t, err)
+	require.Equal(t, "task-1", got.WriteFenceToken)
+	require.Equal(t, uint64(7), got.WriteFenceVersion)
+	require.Equal(t, uint8(2), got.WriteFenceReason)
+	require.Equal(t, int64(1710000000000), got.WriteFenceUntilMS)
+}
+
+func TestDecodeChannelRuntimeMetaSkipsUnknownFutureFenceColumn(t *testing.T) {
+	key := encodeChannelRuntimeMetaPrimaryKey(7, "future-fence-column", 2, channelRuntimeMetaPrimaryFamilyID)
+	payload := channelRuntimeMetaRequiredPayload()
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceUntilMS+1, channelRuntimeMetaColumnIDLeaseUntilMS, 99)
+
+	got, err := decodeChannelRuntimeMetaFamilyValue(key, wrapFamilyValue(key, payload))
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), got.ChannelEpoch)
+	require.Equal(t, uint64(4), got.LeaderEpoch)
+	require.Empty(t, got.WriteFenceToken)
+	require.Zero(t, got.WriteFenceVersion)
+	require.Zero(t, got.WriteFenceReason)
+	require.Zero(t, got.WriteFenceUntilMS)
+}
+
 func TestDecodeChannelRuntimeMetaDefaultsMissingRetentionToZero(t *testing.T) {
 	key := encodeChannelRuntimeMetaPrimaryKey(7, "old-retention", 2, channelRuntimeMetaPrimaryFamilyID)
-	payload := make([]byte, 0, 128)
-	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDChannelEpoch, 0, 3)
-	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDLeaderEpoch, channelRuntimeMetaColumnIDChannelEpoch, 4)
-	payload = appendRawBytesValue(payload, channelRuntimeMetaColumnIDReplicas, channelRuntimeMetaColumnIDLeaderEpoch, encodeUint64Slice([]uint64{1, 2}))
-	payload = appendRawBytesValue(payload, channelRuntimeMetaColumnIDISR, channelRuntimeMetaColumnIDReplicas, encodeUint64Slice([]uint64{1, 2}))
-	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDLeader, channelRuntimeMetaColumnIDISR, 1)
-	payload = appendIntValue(payload, channelRuntimeMetaColumnIDMinISR, channelRuntimeMetaColumnIDLeader, 2)
-	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDStatus, channelRuntimeMetaColumnIDMinISR, 2)
-	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDFeatures, channelRuntimeMetaColumnIDStatus, 1)
-	payload = appendIntValue(payload, channelRuntimeMetaColumnIDLeaseUntilMS, channelRuntimeMetaColumnIDFeatures, 1234)
+	payload := channelRuntimeMetaRequiredPayload()
 
 	got, err := decodeChannelRuntimeMetaFamilyValue(key, wrapFamilyValue(key, payload))
 	require.NoError(t, err)
 	require.Zero(t, got.RetentionThroughSeq)
 	require.Zero(t, got.RetentionUpdatedAtMS)
+	require.Empty(t, got.WriteFenceToken)
+	require.Zero(t, got.WriteFenceVersion)
+	require.Zero(t, got.WriteFenceReason)
+	require.Zero(t, got.WriteFenceUntilMS)
 }
 
 func TestWriteBatchUpsertChannelRuntimeMetaRejectsStaleLeaderEpoch(t *testing.T) {
@@ -518,6 +894,117 @@ func TestShardStoreUpsertChannelRuntimeMetaRejectsInvalidTopology(t *testing.T) 
 	}
 }
 
+func TestShardStoreUpsertChannelRuntimeMetaWriteFenceInvalidStates(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+
+	tests := []struct {
+		name   string
+		mutate func(*ChannelRuntimeMeta)
+	}{
+		{
+			name: "token_without_version",
+			mutate: func(meta *ChannelRuntimeMeta) {
+				meta.WriteFenceToken = "task-1"
+			},
+		},
+		{
+			name: "reason_without_version",
+			mutate: func(meta *ChannelRuntimeMeta) {
+				meta.WriteFenceReason = 1
+			},
+		},
+		{
+			name: "until_without_version",
+			mutate: func(meta *ChannelRuntimeMeta) {
+				meta.WriteFenceUntilMS = 1710000000000
+			},
+		},
+		{
+			name: "version_with_reason_no_token",
+			mutate: func(meta *ChannelRuntimeMeta) {
+				meta.WriteFenceVersion = 1
+				meta.WriteFenceReason = 1
+			},
+		},
+		{
+			name: "version_with_until_no_token",
+			mutate: func(meta *ChannelRuntimeMeta) {
+				meta.WriteFenceVersion = 1
+				meta.WriteFenceUntilMS = 1710000000000
+			},
+		},
+		{
+			name: "token_with_version_no_reason",
+			mutate: func(meta *ChannelRuntimeMeta) {
+				meta.WriteFenceToken = "task-1"
+				meta.WriteFenceVersion = 1
+				meta.WriteFenceUntilMS = 1710000000000
+			},
+		},
+		{
+			name: "token_with_version_no_until",
+			mutate: func(meta *ChannelRuntimeMeta) {
+				meta.WriteFenceToken = "task-1"
+				meta.WriteFenceVersion = 1
+				meta.WriteFenceReason = 1
+			},
+		},
+		{
+			name: "token_with_version_negative_until",
+			mutate: func(meta *ChannelRuntimeMeta) {
+				meta.WriteFenceToken = "task-1"
+				meta.WriteFenceVersion = 1
+				meta.WriteFenceReason = 1
+				meta.WriteFenceUntilMS = -1
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			meta := testRuntimeMeta("invalid-write-fence-"+tt.name, 1)
+			tt.mutate(&meta)
+
+			err := shard.UpsertChannelRuntimeMeta(ctx, meta)
+			require.ErrorIs(t, err, ErrInvalidArgument)
+		})
+	}
+}
+
+func TestShardStoreUpsertChannelRuntimeMetaWriteFenceClearMarker(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+	meta := testRuntimeMeta("write-fence-clear-marker", 1)
+	meta.WriteFenceVersion = 7
+
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, meta))
+	got, err := shard.GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	require.NoError(t, err)
+	require.Empty(t, got.WriteFenceToken)
+	require.Equal(t, uint64(7), got.WriteFenceVersion)
+	require.Zero(t, got.WriteFenceReason)
+	require.Zero(t, got.WriteFenceUntilMS)
+}
+
+func TestShardStoreUpsertChannelRuntimeMetaWriteFenceValidActive(t *testing.T) {
+	ctx := context.Background()
+	shard := newTestShardStore(t, 7)
+	meta := testRuntimeMeta("write-fence-valid-active", 1)
+	meta.WriteFenceToken = "task-1"
+	meta.WriteFenceVersion = 7
+	meta.WriteFenceReason = 2
+	meta.WriteFenceUntilMS = 1710000000000
+
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, meta))
+	got, err := shard.GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	require.NoError(t, err)
+	require.Equal(t, meta.WriteFenceToken, got.WriteFenceToken)
+	require.Equal(t, meta.WriteFenceVersion, got.WriteFenceVersion)
+	require.Equal(t, meta.WriteFenceReason, got.WriteFenceReason)
+	require.Equal(t, meta.WriteFenceUntilMS, got.WriteFenceUntilMS)
+}
+
 func TestDBListChannelRuntimeMeta(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -555,6 +1042,54 @@ func TestDBListChannelRuntimeMeta(t *testing.T) {
 	got, err := db.ListChannelRuntimeMeta(ctx)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []ChannelRuntimeMeta{first, second}, got)
+}
+
+func decodeTestColumnIDs(payload []byte) ([]uint16, error) {
+	columns := make([]uint16, 0, 16)
+	var colID uint16
+	for len(payload) > 0 {
+		tag := payload[0]
+		payload = payload[1:]
+
+		delta := uint16(tag >> 4)
+		if delta == 0 {
+			return nil, ErrCorruptValue
+		}
+		colID += delta
+		columns = append(columns, colID)
+
+		switch tag & 0x0f {
+		case valueTypeBytes:
+			length, n := binary.Uvarint(payload)
+			if n <= 0 || uint64(len(payload[n:])) < length {
+				return nil, ErrCorruptValue
+			}
+			payload = payload[n+int(length):]
+		case valueTypeInt, valueTypeUint:
+			_, n := binary.Uvarint(payload)
+			if n <= 0 {
+				return nil, ErrCorruptValue
+			}
+			payload = payload[n:]
+		default:
+			return nil, ErrCorruptValue
+		}
+	}
+	return columns, nil
+}
+
+func channelRuntimeMetaRequiredPayload() []byte {
+	payload := make([]byte, 0, 128)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDChannelEpoch, 0, 3)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDLeaderEpoch, channelRuntimeMetaColumnIDChannelEpoch, 4)
+	payload = appendRawBytesValue(payload, channelRuntimeMetaColumnIDReplicas, channelRuntimeMetaColumnIDLeaderEpoch, encodeUint64Slice([]uint64{1, 2}))
+	payload = appendRawBytesValue(payload, channelRuntimeMetaColumnIDISR, channelRuntimeMetaColumnIDReplicas, encodeUint64Slice([]uint64{1, 2}))
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDLeader, channelRuntimeMetaColumnIDISR, 1)
+	payload = appendIntValue(payload, channelRuntimeMetaColumnIDMinISR, channelRuntimeMetaColumnIDLeader, 2)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDStatus, channelRuntimeMetaColumnIDMinISR, 2)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDFeatures, channelRuntimeMetaColumnIDStatus, 1)
+	payload = appendIntValue(payload, channelRuntimeMetaColumnIDLeaseUntilMS, channelRuntimeMetaColumnIDFeatures, 1234)
+	return payload
 }
 
 func newTestShardStore(t *testing.T, slot uint64) *ShardStore {
