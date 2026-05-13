@@ -13,7 +13,91 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
+
+type cmdsyncUIDOwnerRemote interface {
+	SyncCMD(ctx context.Context, nodeID uint64, query cmdsync.SyncQuery) (cmdsync.SyncResult, error)
+	SyncAckCMD(ctx context.Context, nodeID uint64, cmd cmdsync.SyncAckCommand) error
+}
+
+type cmdsyncUIDOwnerCluster interface {
+	SlotForKey(string) multiraft.SlotID
+	LeaderOf(multiraft.SlotID) (multiraft.NodeID, error)
+}
+
+// clusterCMDSyncUsecase routes legacy CMD sync calls to the UID slot owner.
+type clusterCMDSyncUsecase struct {
+	// local handles requests when this node owns the UID slot.
+	local *cmdsync.App
+	// remote forwards requests to another UID slot owner.
+	remote cmdsyncUIDOwnerRemote
+	// cluster resolves UID slots and their current leaders.
+	cluster cmdsyncUIDOwnerCluster
+	// localNodeID identifies the current node for owner comparisons.
+	localNodeID uint64
+}
+
+func (u clusterCMDSyncUsecase) Sync(ctx context.Context, query cmdsync.SyncQuery) (cmdsync.SyncResult, error) {
+	uid := strings.TrimSpace(query.UID)
+	if uid == "" {
+		return cmdsync.SyncResult{}, cmdsync.ErrUIDRequired
+	}
+	query.UID = uid
+
+	ownerNodeID, err := u.ownerNodeID(uid)
+	if err != nil {
+		return cmdsync.SyncResult{}, err
+	}
+	if ownerNodeID == u.localNodeID || u.cluster == nil {
+		if u.local == nil {
+			return cmdsync.SyncResult{}, errors.New("app: cmd sync usecase not configured")
+		}
+		return u.local.Sync(ctx, query)
+	}
+	if u.remote == nil {
+		return cmdsync.SyncResult{}, errors.New("app: cmd sync remote not configured")
+	}
+	return u.remote.SyncCMD(ctx, ownerNodeID, query)
+}
+
+func (u clusterCMDSyncUsecase) SyncAck(ctx context.Context, cmd cmdsync.SyncAckCommand) error {
+	uid := strings.TrimSpace(cmd.UID)
+	if uid == "" {
+		return cmdsync.ErrUIDRequired
+	}
+	cmd.UID = uid
+
+	ownerNodeID, err := u.ownerNodeID(uid)
+	if err != nil {
+		return err
+	}
+	if ownerNodeID == u.localNodeID || u.cluster == nil {
+		if u.local == nil {
+			return errors.New("app: cmd sync usecase not configured")
+		}
+		return u.local.SyncAck(ctx, cmd)
+	}
+	if u.remote == nil {
+		return errors.New("app: cmd sync remote not configured")
+	}
+	return u.remote.SyncAckCMD(ctx, ownerNodeID, cmd)
+}
+
+func (u clusterCMDSyncUsecase) ownerNodeID(uid string) (uint64, error) {
+	if u.cluster == nil {
+		return u.localNodeID, nil
+	}
+	slotID := u.cluster.SlotForKey(uid)
+	leaderID, err := u.cluster.LeaderOf(slotID)
+	if err != nil {
+		return 0, err
+	}
+	if leaderID == 0 {
+		return 0, raftcluster.ErrNoLeader
+	}
+	return uint64(leaderID), nil
+}
 
 type cmdsyncMessageMetas interface {
 	GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error)

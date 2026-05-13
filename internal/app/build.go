@@ -576,6 +576,7 @@ func build(cfg Config) (_ *App, err error) {
 		RuntimeSummary:        nodeRuntimeSummaryProvider{collector: runtimeSummaries},
 		Diagnostics:           app,
 		ChannelRetention:      managerMessageRetentionNodeProvider{target: managerRetention},
+		CMDSync:               app.cmdSyncApp,
 		SystemUIDCache:        userApp,
 		Logger:                app.logger.Named("access.node"),
 	})
@@ -669,9 +670,16 @@ func build(cfg Config) (_ *App, err error) {
 			localNodeID: cfg.Node.ID,
 			peerNodeIDs: controllerPeerIDs(cfg.Cluster.DerivedControllerNodes(), cfg.Cluster.runtimeSeeds()),
 		}
+		cmdSyncAPI := clusterCMDSyncUsecase{
+			local:       app.cmdSyncApp,
+			remote:      app.nodeClient,
+			cluster:     app.cluster,
+			localNodeID: cfg.Node.ID,
+		}
 		app.api = accessapi.New(accessapi.Options{
 			ListenAddr:               cfg.API.ListenAddr,
 			Messages:                 app.messageApp,
+			CMDSync:                  cmdSyncAPI,
 			Users:                    userAPI,
 			Channels:                 app.channelApp,
 			TestMode:                 cfg.TestMode,

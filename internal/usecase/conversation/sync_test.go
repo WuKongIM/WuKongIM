@@ -141,6 +141,28 @@ func TestSyncLoadsRecentsOnlyForFinalLimitedWindow(t *testing.T) {
 	require.Equal(t, []channel.Message{testMessage("g2", 2, 20, "u2", 200, "c2"), testMessage("g2", 2, 19, "u2", 199, "c2-1")}, got.Conversations[1].Recents)
 }
 
+func TestSyncDoesNotReadDedicatedCMDConversationState(t *testing.T) {
+	repo := newConversationSyncRepoStub()
+	repo.active = []metadb.UserConversationState{
+		{UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 1, ActiveAt: 100},
+	}
+	cmdRows := []metadb.CMDConversationState{
+		{UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ActiveAt: 200},
+	}
+	repo.latest[key("g1", 2)] = testMessage("g1", 2, 3, "u2", 100, "chat")
+	repo.latest[key("g1____cmd", 2)] = testMessage("g1____cmd", 2, 9, "system", 200, "cmd")
+
+	app := New(Options{States: repo, Facts: repo})
+	got, err := app.Sync(context.Background(), SyncQuery{UID: "u1", Limit: 10})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, cmdRows, "CMD rows exist in a separate store that conversation sync cannot access")
+	require.Equal(t, []SyncConversation{{
+		ChannelID: "g1", ChannelType: 2, Unread: 2, Timestamp: 100, LastMsgSeq: 3, LastClientMsgNo: "chat", ReadToMsgSeq: 1, Version: time.Unix(100, 0).UnixNano(),
+	}}, got.Conversations)
+	require.NotContains(t, repo.latestLoads, key("g1____cmd", 2))
+}
+
 type conversationSyncRepoStub struct {
 	active             []metadb.UserConversationState
 	states             map[metadb.ConversationKey]metadb.UserConversationState

@@ -73,6 +73,28 @@ func TestProjectorUsesMessageScopedUIDsExactly(t *testing.T) {
 	}, store.flattened())
 }
 
+func TestProjectorScopedUIDsDoNotIncludeSenderUnlessScoped(t *testing.T) {
+	ctx := context.Background()
+	store := &fakeProjectorStore{}
+	projector := NewProjector(ProjectorOptions{
+		Store:       store,
+		Subscribers: &fakeSubscriberResolver{pages: [][]string{{"store-user"}}},
+		Now:         func() time.Time { return time.Unix(301, 0) },
+	})
+
+	require.NoError(t, projector.SubmitCommitted(ctx, messageevents.MessageCommitted{
+		Message:           channel.Message{ChannelID: "tmp1____cmd", ChannelType: frame.ChannelTypeTemp, FromUID: "sender", MessageSeq: 13, Timestamp: 102},
+		MessageScopedUIDs: []string{"u2", "u3"},
+	}))
+	require.NoError(t, projector.Flush(ctx))
+
+	require.Equal(t, []metadb.CMDConversationState{
+		{UID: "u2", ChannelID: "tmp1____cmd", ChannelType: int64(frame.ChannelTypeTemp), ActiveAt: time.Unix(102, 0).UnixNano(), UpdatedAt: time.Unix(301, 0).UnixNano()},
+		{UID: "u3", ChannelID: "tmp1____cmd", ChannelType: int64(frame.ChannelTypeTemp), ActiveAt: time.Unix(102, 0).UnixNano(), UpdatedAt: time.Unix(301, 0).UnixNano()},
+	}, store.flattened())
+	require.Empty(t, subscribersFromStates(store.flattened(), "sender"))
+}
+
 func TestProjectorIgnoresTempCommandWithoutScopedUIDs(t *testing.T) {
 	ctx := context.Background()
 	store := &fakeProjectorStore{}
@@ -86,6 +108,16 @@ func TestProjectorIgnoresTempCommandWithoutScopedUIDs(t *testing.T) {
 
 	require.Empty(t, subscribers.beginIDs)
 	require.Empty(t, store.flattened())
+}
+
+func subscribersFromStates(states []metadb.CMDConversationState, uid string) []metadb.CMDConversationState {
+	var out []metadb.CMDConversationState
+	for _, state := range states {
+		if state.UID == uid {
+			out = append(out, state)
+		}
+	}
+	return out
 }
 
 func TestProjectorSubmitCommittedDoesNotBlockOnSubscriberScan(t *testing.T) {
