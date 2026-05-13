@@ -135,12 +135,20 @@ func validateCMDConversationIntent(intent cmdsync.ConversationIntent) error {
 	if intent.MessageSeq == 0 {
 		return fmt.Errorf("access/node: cmd conversation intent message seq required")
 	}
+	nonEmptyUIDs := 0
 	for uid := range intent.UserReadSeqs {
-		if strings.TrimSpace(uid) != "" {
-			return nil
+		if strings.TrimSpace(uid) == "" {
+			return fmt.Errorf("access/node: cmd conversation intent uid required")
 		}
+		if intent.UserReadSeqs[uid] > intent.MessageSeq {
+			return fmt.Errorf("access/node: cmd conversation intent read seq exceeds message seq")
+		}
+		nonEmptyUIDs++
 	}
-	return fmt.Errorf("access/node: cmd conversation intent uid read seqs required")
+	if nonEmptyUIDs == 0 {
+		return fmt.Errorf("access/node: cmd conversation intent uid read seqs required")
+	}
+	return nil
 }
 
 type cmdSyncStaleOwnerError struct {

@@ -18,7 +18,9 @@ func encodeCMDSyncRequestBinary(req cmdSyncRPCRequest) ([]byte, error) {
 	dst = appendString(dst, req.Op)
 	dst = appendCMDSyncQuery(dst, req.Query)
 	dst = appendCMDSyncAckCommand(dst, req.Ack)
-	dst = appendCMDConversationIntent(dst, req.Intent)
+	if req.Op == cmdSyncOpPushIntent {
+		dst = appendCMDConversationIntent(dst, req.Intent)
+	}
 	return dst, nil
 }
 
@@ -38,8 +40,10 @@ func decodeCMDSyncRequest(body []byte) (cmdSyncRPCRequest, error) {
 	if req.Ack, offset, err = readCMDSyncAckCommand(body, offset); err != nil {
 		return cmdSyncRPCRequest{}, err
 	}
-	if req.Intent, offset, err = readCMDConversationIntent(body, offset); err != nil {
-		return cmdSyncRPCRequest{}, err
+	if offset < len(body) {
+		if req.Intent, offset, err = readCMDConversationIntent(body, offset); err != nil {
+			return cmdSyncRPCRequest{}, err
+		}
 	}
 	if offset != len(body) {
 		return cmdSyncRPCRequest{}, fmt.Errorf("access/node: trailing cmd sync request bytes")
