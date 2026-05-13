@@ -2,6 +2,7 @@ package node
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 )
@@ -17,6 +18,7 @@ func encodeCMDSyncRequestBinary(req cmdSyncRPCRequest) ([]byte, error) {
 	dst = appendString(dst, req.Op)
 	dst = appendCMDSyncQuery(dst, req.Query)
 	dst = appendCMDSyncAckCommand(dst, req.Ack)
+	dst = appendCMDConversationIntent(dst, req.Intent)
 	return dst, nil
 }
 
@@ -34,6 +36,9 @@ func decodeCMDSyncRequest(body []byte) (cmdSyncRPCRequest, error) {
 		return cmdSyncRPCRequest{}, err
 	}
 	if req.Ack, offset, err = readCMDSyncAckCommand(body, offset); err != nil {
+		return cmdSyncRPCRequest{}, err
+	}
+	if req.Intent, offset, err = readCMDConversationIntent(body, offset); err != nil {
 		return cmdSyncRPCRequest{}, err
 	}
 	if offset != len(body) {
@@ -125,4 +130,73 @@ func readCMDSyncAckCommand(body []byte, offset int) (cmdsync.SyncAckCommand, int
 		return cmdsync.SyncAckCommand{}, offset, err
 	}
 	return cmd, offset, nil
+}
+
+func appendCMDConversationIntent(dst []byte, intent cmdsync.ConversationIntent) []byte {
+	dst = appendString(dst, intent.CommandChannelID)
+	dst = appendUvarint(dst, uint64(intent.ChannelType))
+	dst = appendUvarint(dst, intent.MessageSeq)
+	dst = appendNodeVarint(dst, intent.ActiveAt)
+	dst = appendString(dst, intent.SenderUID)
+	keys := make([]string, 0, len(intent.UserReadSeqs))
+	for uid := range intent.UserReadSeqs {
+		keys = append(keys, uid)
+	}
+	sort.Strings(keys)
+	dst = appendUvarint(dst, uint64(len(keys)))
+	for _, uid := range keys {
+		dst = appendString(dst, uid)
+		dst = appendUvarint(dst, intent.UserReadSeqs[uid])
+	}
+	return dst
+}
+
+func readCMDConversationIntent(body []byte, offset int) (cmdsync.ConversationIntent, int, error) {
+	var intent cmdsync.ConversationIntent
+	var err error
+	if intent.CommandChannelID, offset, err = readString(body, offset); err != nil {
+		return cmdsync.ConversationIntent{}, offset, err
+	}
+	channelType, next, err := readUvarint(body, offset)
+	if err != nil {
+		return cmdsync.ConversationIntent{}, offset, err
+	}
+	if channelType > uint64(^uint8(0)) {
+		return cmdsync.ConversationIntent{}, offset, fmt.Errorf("access/node: cmd conversation intent channel type overflows uint8")
+	}
+	intent.ChannelType = uint8(channelType)
+	offset = next
+	if intent.MessageSeq, offset, err = readUvarint(body, offset); err != nil {
+		return cmdsync.ConversationIntent{}, offset, err
+	}
+	if intent.ActiveAt, offset, err = readNodeVarint(body, offset); err != nil {
+		return cmdsync.ConversationIntent{}, offset, err
+	}
+	if intent.SenderUID, offset, err = readString(body, offset); err != nil {
+		return cmdsync.ConversationIntent{}, offset, err
+	}
+	count, next, err := readUvarint(body, offset)
+	if err != nil {
+		return cmdsync.ConversationIntent{}, offset, err
+	}
+	n, err := readCollectionLen(count, len(body)-next, "cmd conversation intent user read seqs")
+	if err != nil {
+		return cmdsync.ConversationIntent{}, offset, err
+	}
+	offset = next
+	if n > 0 {
+		intent.UserReadSeqs = make(map[string]uint64, n)
+	}
+	for i := 0; i < n; i++ {
+		var uid string
+		if uid, offset, err = readString(body, offset); err != nil {
+			return cmdsync.ConversationIntent{}, offset, err
+		}
+		var seq uint64
+		if seq, offset, err = readUvarint(body, offset); err != nil {
+			return cmdsync.ConversationIntent{}, offset, err
+		}
+		intent.UserReadSeqs[uid] = seq
+	}
+	return intent, offset, nil
 }
