@@ -134,14 +134,41 @@ func TestChannelMigrationGetActiveTaskReadsLocalAndRemoteAuthoritativeSlot(t *te
 
 func TestChannelMigrationListActiveTasksForNodeRoutesToAuthoritativeSlots(t *testing.T) {
 	ctx := context.Background()
-	nodes := startTwoNodeHashSlotStores(t, 8)
+	localDB := openTestDB(t)
+	remoteDB := openTestDB(t)
+	leaders := map[multiraft.SlotID]multiraft.NodeID{1: 1, 2: 2}
+	hashSlots := map[multiraft.SlotID][]uint16{1: {1}, 2: {2}}
+	remoteCluster := &proxyTestMigrationCluster{
+		nodeID:      2,
+		localNodeID: 2,
+		slotIDs:     []multiraft.SlotID{1, 2},
+		hashSlots:   hashSlots,
+		leaders:     leaders,
+		peers:       map[multiraft.SlotID][]multiraft.NodeID{1: {1}, 2: {2}},
+	}
+	remoteStore := &Store{cluster: remoteCluster, db: remoteDB}
+	localCluster := &proxyTestMigrationCluster{
+		nodeID:      1,
+		localNodeID: 1,
+		slotIDs:     []multiraft.SlotID{1, 2},
+		hashSlots:   hashSlots,
+		leaders:     leaders,
+		peers:       map[multiraft.SlotID][]multiraft.NodeID{1: {1}, 2: {2}},
+		rpcService: func(ctx context.Context, nodeID multiraft.NodeID, slotID multiraft.SlotID, serviceID uint8, payload []byte) ([]byte, error) {
+			require.Equal(t, multiraft.NodeID(2), nodeID)
+			require.Equal(t, multiraft.SlotID(2), slotID)
+			require.Equal(t, channelMigrationRPCServiceID, serviceID)
+			return remoteStore.handleChannelMigrationRPC(ctx, payload)
+		},
+	}
+	localStore := &Store{cluster: localCluster, db: localDB}
 	task := proxyTestChannelMigrationTask("task-node", "channel-node")
 	task.SourceNode = 3
 	task.TargetNode = 4
 
-	require.NoError(t, nodes[1].store.CreateChannelMigrationTask(ctx, task))
+	require.NoError(t, remoteDB.ForHashSlot(2).CreateChannelMigrationTask(ctx, task))
 
-	got, hasMore, err := nodes[0].store.ListActiveChannelMigrationTasksForNode(ctx, 3, 10)
+	got, hasMore, err := localStore.ListActiveChannelMigrationTasksForNode(ctx, 3, 10)
 	require.NoError(t, err)
 	require.False(t, hasMore)
 	require.Len(t, got, 1)
@@ -150,31 +177,42 @@ func TestChannelMigrationListActiveTasksForNodeRoutesToAuthoritativeSlots(t *tes
 
 func TestChannelMigrationListActiveTasksForNodeFiltersTerminalAndUnrelated(t *testing.T) {
 	ctx := context.Background()
-	nodes := startTwoNodeHashSlotStores(t, 8)
+	db := openTestDB(t)
+	hashSlot := uint16(1)
+	store := &Store{
+		cluster: &proxyTestMigrationCluster{
+			nodeID:      1,
+			localNodeID: 1,
+			slotIDs:     []multiraft.SlotID{1},
+			hashSlots:   map[multiraft.SlotID][]uint16{1: {hashSlot}},
+			leaders:     map[multiraft.SlotID]multiraft.NodeID{1: 1},
+		},
+		db: db,
+	}
 
 	matchSource := proxyTestChannelMigrationTask("task-match-source", "channel-match-source")
 	matchSource.SourceNode = 3
 	matchSource.TargetNode = 4
-	require.NoError(t, nodes[0].store.CreateChannelMigrationTask(ctx, matchSource))
+	require.NoError(t, db.ForHashSlot(hashSlot).CreateChannelMigrationTask(ctx, matchSource))
 
 	matchTarget := proxyTestChannelMigrationTask("task-match-target", "channel-match-target")
 	matchTarget.SourceNode = 5
 	matchTarget.TargetNode = 3
-	require.NoError(t, nodes[0].store.CreateChannelMigrationTask(ctx, matchTarget))
+	require.NoError(t, db.ForHashSlot(hashSlot).CreateChannelMigrationTask(ctx, matchTarget))
 
 	terminal := proxyTestCompletedChannelMigrationTask("task-terminal", "channel-terminal", 1750000005000)
 	terminal.SourceNode = 3
 	terminal.TargetNode = 4
-	require.NoError(t, nodes[0].store.CreateChannelMigrationTask(ctx, terminal))
+	require.NoError(t, db.ForHashSlot(hashSlot).CreateChannelMigrationTask(ctx, terminal))
 
 	unrelated := proxyTestChannelMigrationTask("task-unrelated", "channel-unrelated")
 	unrelated.SourceNode = 6
 	unrelated.TargetNode = 7
 	unrelated.OwnerNodeID = 3
 	unrelated.OwnerLeaseUntilMS = 1750000010000
-	require.NoError(t, nodes[0].store.CreateChannelMigrationTask(ctx, unrelated))
+	require.NoError(t, db.ForHashSlot(hashSlot).CreateChannelMigrationTask(ctx, unrelated))
 
-	got, hasMore, err := nodes[1].store.ListActiveChannelMigrationTasksForNode(ctx, 3, 10)
+	got, hasMore, err := store.ListActiveChannelMigrationTasksForNode(ctx, 3, 10)
 	require.NoError(t, err)
 	require.False(t, hasMore)
 	require.ElementsMatch(t, []string{matchSource.TaskID, matchTarget.TaskID}, channelMigrationTaskIDs(got))
@@ -182,22 +220,58 @@ func TestChannelMigrationListActiveTasksForNodeFiltersTerminalAndUnrelated(t *te
 
 func TestChannelMigrationListActiveTasksForNodeReportsHasMore(t *testing.T) {
 	ctx := context.Background()
-	nodes := startTwoNodeHashSlotStores(t, 8)
+	db := openTestDB(t)
+	hashSlot := uint16(1)
+	store := &Store{
+		cluster: &proxyTestMigrationCluster{
+			nodeID:      1,
+			localNodeID: 1,
+			slotIDs:     []multiraft.SlotID{1},
+			hashSlots:   map[multiraft.SlotID][]uint16{1: {hashSlot}},
+			leaders:     map[multiraft.SlotID]multiraft.NodeID{1: 1},
+		},
+		db: db,
+	}
 
 	first := proxyTestChannelMigrationTask("task-has-more-1", "channel-has-more-1")
 	first.SourceNode = 3
 	first.TargetNode = 4
-	require.NoError(t, nodes[0].store.CreateChannelMigrationTask(ctx, first))
+	require.NoError(t, db.ForHashSlot(hashSlot).CreateChannelMigrationTask(ctx, first))
 
 	second := proxyTestChannelMigrationTask("task-has-more-2", "channel-has-more-2")
 	second.SourceNode = 3
 	second.TargetNode = 5
-	require.NoError(t, nodes[0].store.CreateChannelMigrationTask(ctx, second))
+	require.NoError(t, db.ForHashSlot(hashSlot).CreateChannelMigrationTask(ctx, second))
 
-	got, hasMore, err := nodes[1].store.ListActiveChannelMigrationTasksForNode(ctx, 3, 1)
+	got, hasMore, err := store.ListActiveChannelMigrationTasksForNode(ctx, 3, 1)
 	require.NoError(t, err)
 	require.True(t, hasMore)
 	require.Len(t, got, 1)
+}
+
+func TestChannelMigrationListActiveTasksForNodeReturnsNoLeaderBeforeLocalScan(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	hashSlot := uint16(1)
+	cluster := &proxyTestMigrationCluster{
+		nodeID:      1,
+		localNodeID: 1,
+		slotIDs:     []multiraft.SlotID{1},
+		hashSlots:   map[multiraft.SlotID][]uint16{1: {hashSlot}},
+		leaders:     map[multiraft.SlotID]multiraft.NodeID{},
+		peers:       map[multiraft.SlotID][]multiraft.NodeID{1: {1}},
+	}
+	store := &Store{cluster: cluster, db: db}
+	task := proxyTestChannelMigrationTask("task-no-leader", "channel-no-leader")
+	task.SourceNode = 3
+	task.TargetNode = 4
+	require.NoError(t, db.ForHashSlot(hashSlot).CreateChannelMigrationTask(ctx, task))
+
+	got, hasMore, err := store.ListActiveChannelMigrationTasksForNode(ctx, 3, 10)
+
+	require.ErrorIs(t, err, raftcluster.ErrNoLeader)
+	require.Nil(t, got)
+	require.False(t, hasMore)
 }
 
 func TestChannelMigrationClaimUsesLocalSlotLeaderAsOwner(t *testing.T) {
