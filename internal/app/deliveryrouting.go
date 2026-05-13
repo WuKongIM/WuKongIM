@@ -974,7 +974,7 @@ func (r localDeliveryResolver) recordResolveMetric(channelType, result string, d
 }
 
 func (r tagDeliveryResolver) BeginResolve(ctx context.Context, key deliveryruntime.ChannelKey, env deliveryruntime.CommittedEnvelope) (any, error) {
-	if r.tags == nil || r.subscribers == nil {
+	if r.tags == nil || r.subscribers == nil || deliveryTagPartitionBypassed(key.ChannelType) {
 		return localDeliveryResolver{
 			subscribers: r.subscribers,
 			authority:   r.authority,
@@ -1004,6 +1004,12 @@ func (r tagDeliveryResolver) BeginResolve(ctx context.Context, key deliveryrunti
 	}, nil
 }
 
+func deliveryTagPartitionBypassed(channelType uint8) bool {
+	// Person-channel subscriber sets are derived and tiny; resolving them on the
+	// current committed owner avoids tag partitions tied to unrelated Slot owners.
+	return channelType == frame.ChannelTypePerson
+}
+
 func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor string, limit int) (routes []deliveryruntime.RouteKey, nextCursor string, done bool, err error) {
 	startedAt := time.Now()
 	pages := 0
@@ -1026,7 +1032,13 @@ func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor 
 	}
 	resolveToken, ok := token.(*tagResolveToken)
 	if !ok {
-		return nil, "", true, nil
+		return localDeliveryResolver{
+			subscribers: r.subscribers,
+			authority:   r.authority,
+			pageSize:    r.pageSize,
+			metrics:     r.metrics,
+			logger:      r.logger,
+		}.ResolvePage(ctx, token, cursor, limit)
 	}
 	channelType = deliveryChannelTypeLabel(resolveToken.channelType)
 	if !resolveToken.ephemeral {

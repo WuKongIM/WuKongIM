@@ -916,6 +916,45 @@ func TestDeliveryRoutingUsesTagPartition(t *testing.T) {
 	}, tag.Partitions)
 }
 
+func TestDeliveryRoutingBypassesTagPartitionForPersonChannels(t *testing.T) {
+	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{
+		LocalNodeID: 2,
+		NewTagKey:   func() string { return "tag-person" },
+	})
+	resolver := tagDeliveryResolver{
+		localNodeID: 2,
+		tags:        manager,
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{}),
+		authority: &recordingAuthoritative{single: map[string][]presence.Route{
+			"u2": {{UID: "u2", NodeID: 3, BootID: 33, SessionID: 202}},
+		}},
+		topology: staticDeliveryTagTopology{version: deliverytagruntime.PartitionTopologyVersion{
+			HashSlotTableVersion: 9,
+			SlotAuthorityRefs: []deliverytagruntime.SlotAuthorityRef{
+				{SlotID: 1, LeaderNodeID: 1, ConfigEpoch: 2, BalanceVersion: 3},
+			},
+		}},
+		pageSize: 8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   deliveryusecase.EncodePersonChannel("u1", "u2"),
+		ChannelType: frame.ChannelTypePerson,
+	}, deliveryruntime.CommittedEnvelope{})
+	require.NoError(t, err)
+
+	routes, cursor, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 3, BootID: 33, SessionID: 202}}, routes)
+	require.Equal(t, "u1", cursor)
+	require.True(t, done)
+	require.Equal(t, []string{"u2", "u1"}, resolver.authority.(*recordingAuthoritative).uidCalls)
+	require.Empty(t, resolver.authority.(*recordingAuthoritative).uidBatches)
+
+	_, ok := manager.CurrentRef("1:" + deliveryusecase.EncodePersonChannel("u1", "u2"))
+	require.False(t, ok)
+}
+
 func TestDeliveryRoutingMessageScopedTagDoesNotReplaceReusableRef(t *testing.T) {
 	var tagSeq int
 	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{
