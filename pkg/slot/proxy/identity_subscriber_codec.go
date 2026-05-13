@@ -16,6 +16,7 @@ var (
 const (
 	identityRPCGetUserID byte = iota + 1
 	identityRPCGetDeviceID
+	identityRPCScanUsersPageID
 )
 
 // encodeIdentityRPCRequestBinary encodes identity lookups without JSON reflection.
@@ -30,6 +31,8 @@ func encodeIdentityRPCRequestBinary(req identityRPCRequest) ([]byte, error) {
 	dst = runtimeMetaAppendUvarint(dst, req.SlotID)
 	dst = runtimeMetaAppendString(dst, req.UID)
 	dst = runtimeMetaAppendVarint(dst, req.DeviceFlag)
+	dst = runtimeMetaAppendString(dst, req.After.UID)
+	dst = runtimeMetaAppendVarint(dst, int64(req.Limit))
 	return dst, nil
 }
 
@@ -57,6 +60,12 @@ func decodeIdentityRPCRequest(body []byte) (identityRPCRequest, error) {
 	if req.DeviceFlag, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
 		return identityRPCRequest{}, err
 	}
+	if req.After.UID, offset, err = runtimeMetaReadString(body, offset); err != nil {
+		return identityRPCRequest{}, err
+	}
+	if req.Limit, offset, err = runtimeMetaReadInt(body, offset, "identity user scan limit"); err != nil {
+		return identityRPCRequest{}, err
+	}
 	if offset != len(body) {
 		return identityRPCRequest{}, fmt.Errorf("metastore: trailing identity request bytes")
 	}
@@ -70,6 +79,9 @@ func encodeIdentityRPCResponseBinary(resp identityRPCResponse) ([]byte, error) {
 	dst = runtimeMetaAppendUvarint(dst, resp.LeaderID)
 	dst = appendIdentityUserPtr(dst, resp.User)
 	dst = appendIdentityDevicePtr(dst, resp.Device)
+	dst = appendIdentityUsers(dst, resp.Users)
+	dst = runtimeMetaAppendString(dst, resp.Cursor.UID)
+	dst = runtimeMetaAppendBool(dst, resp.Done)
 	return dst, nil
 }
 
@@ -92,6 +104,15 @@ func decodeIdentityRPCResponseBinary(body []byte) (identityRPCResponse, error) {
 	if resp.Device, offset, err = readIdentityDevicePtr(body, offset); err != nil {
 		return identityRPCResponse{}, err
 	}
+	if resp.Users, offset, err = readIdentityUsers(body, offset); err != nil {
+		return identityRPCResponse{}, err
+	}
+	if resp.Cursor.UID, offset, err = runtimeMetaReadString(body, offset); err != nil {
+		return identityRPCResponse{}, err
+	}
+	if resp.Done, offset, err = runtimeMetaReadBool(body, offset); err != nil {
+		return identityRPCResponse{}, err
+	}
 	if offset != len(body) {
 		return identityRPCResponse{}, fmt.Errorf("metastore: trailing identity response bytes")
 	}
@@ -112,6 +133,8 @@ func identityOpID(op string) (byte, error) {
 		return identityRPCGetUserID, nil
 	case identityRPCGetDevice:
 		return identityRPCGetDeviceID, nil
+	case identityRPCScanUsersPage:
+		return identityRPCScanUsersPageID, nil
 	default:
 		return 0, fmt.Errorf("metastore: unknown identity rpc op %q", op)
 	}
@@ -123,6 +146,8 @@ func identityOpFromID(op byte) (string, error) {
 		return identityRPCGetUser, nil
 	case identityRPCGetDeviceID:
 		return identityRPCGetDevice, nil
+	case identityRPCScanUsersPageID:
+		return identityRPCScanUsersPage, nil
 	default:
 		return "", fmt.Errorf("metastore: unknown identity rpc op id %d", op)
 	}
@@ -192,6 +217,48 @@ func readIdentityDevicePtr(body []byte, offset int) (*metadb.Device, int, error)
 		return nil, offset, err
 	}
 	return &device, next, nil
+}
+
+func appendIdentityUsers(dst []byte, users []metadb.User) []byte {
+	dst = runtimeMetaAppendUvarint(dst, uint64(len(users)))
+	for _, user := range users {
+		dst = runtimeMetaAppendString(dst, user.UID)
+		dst = runtimeMetaAppendString(dst, user.Token)
+		dst = runtimeMetaAppendVarint(dst, user.DeviceFlag)
+		dst = runtimeMetaAppendVarint(dst, user.DeviceLevel)
+	}
+	return dst
+}
+
+func readIdentityUsers(body []byte, offset int) ([]metadb.User, int, error) {
+	count, next, err := runtimeMetaReadUvarint(body, offset)
+	if err != nil {
+		return nil, offset, err
+	}
+	offset = next
+	if count == 0 {
+		return nil, offset, nil
+	}
+	usersLen, err := runtimeMetaCollectionLen(count, len(body)-offset, "identity users")
+	if err != nil {
+		return nil, offset, err
+	}
+	users := make([]metadb.User, usersLen)
+	for i := range users {
+		if users[i].UID, offset, err = runtimeMetaReadString(body, offset); err != nil {
+			return nil, offset, err
+		}
+		if users[i].Token, offset, err = runtimeMetaReadString(body, offset); err != nil {
+			return nil, offset, err
+		}
+		if users[i].DeviceFlag, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
+			return nil, offset, err
+		}
+		if users[i].DeviceLevel, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
+			return nil, offset, err
+		}
+	}
+	return users, offset, nil
 }
 
 // encodeSubscriberRPCRequestBinary encodes subscriber page requests without JSON reflection.
