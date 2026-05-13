@@ -300,9 +300,9 @@ func (a *actor) pushResultStillCurrent(msg *InflightMessage, route RouteKey) boo
 }
 
 func (a *actor) dispatchLate(ctx context.Context, env CommittedEnvelope) error {
-	// preferLocal routing allows each node to observe only a sparse subset of the
-	// global channel sequence, so a lower seq can legitimately arrive after a
-	// higher locally observed one. Deliver it late instead of stalling forever.
+	// Owner routing and replay can deliver sparse committed sequences to a node,
+	// so a lower seq can legitimately arrive after a higher locally observed one.
+	// Deliver it late instead of stalling forever.
 	return a.dispatch(ctx, env)
 }
 
