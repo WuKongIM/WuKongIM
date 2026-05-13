@@ -3998,6 +3998,12 @@ type managementStub struct {
 	resetUserTokenReqSink              *managementusecase.ResetUserTokenRequest
 	resetUserTokenResponse             managementusecase.ResetUserTokenResponse
 	resetUserTokenErr                  error
+	systemUsers                        managementusecase.ListSystemUsersResponse
+	systemUsersErr                     error
+	systemUsersAddReqSink              *managementusecase.MutateSystemUsersRequest
+	systemUsersRemoveReqSink           *managementusecase.MutateSystemUsersRequest
+	systemUsersMutation                managementusecase.MutateSystemUsersResponse
+	systemUsersMutationErr             error
 	businessChannelsReqSink            *managementusecase.ListBusinessChannelsRequest
 	businessChannelsPage               managementusecase.ListBusinessChannelsResponse
 	businessChannelsErr                error
@@ -4238,6 +4244,24 @@ func (s managementStub) ResetUserToken(_ context.Context, req managementusecase.
 		*s.resetUserTokenReqSink = req
 	}
 	return s.resetUserTokenResponse, s.resetUserTokenErr
+}
+
+func (s managementStub) ListSystemUsers(context.Context) (managementusecase.ListSystemUsersResponse, error) {
+	return s.systemUsers, s.systemUsersErr
+}
+
+func (s managementStub) AddSystemUsers(_ context.Context, req managementusecase.MutateSystemUsersRequest) (managementusecase.MutateSystemUsersResponse, error) {
+	if s.systemUsersAddReqSink != nil {
+		*s.systemUsersAddReqSink = req
+	}
+	return s.systemUsersMutation, s.systemUsersMutationErr
+}
+
+func (s managementStub) RemoveSystemUsers(_ context.Context, req managementusecase.MutateSystemUsersRequest) (managementusecase.MutateSystemUsersResponse, error) {
+	if s.systemUsersRemoveReqSink != nil {
+		*s.systemUsersRemoveReqSink = req
+	}
+	return s.systemUsersMutation, s.systemUsersMutationErr
 }
 
 func (s managementStub) ListBusinessChannels(_ context.Context, req managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error) {
