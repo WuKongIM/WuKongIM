@@ -122,19 +122,19 @@ func clampScaleInChannelMigrations(limit int) int {
 	return limit
 }
 
-func (a *App) advanceNodeScaleInChannels(ctx context.Context, nodeID uint64, limit int) (created int, blocker string, race bool, err error) {
+func (a *App) advanceNodeScaleInChannels(ctx context.Context, nodeID uint64, limit int) (created int, blockers []string, race bool, err error) {
 	if a == nil || a.cluster == nil || a.channelRuntimeMeta == nil {
-		return 0, "no_channel_migration_target", false, metadb.ErrInvalidArgument
+		return 0, nil, false, metadb.ErrInvalidArgument
 	}
 	limit = clampScaleInChannelMigrations(limit)
 	nodes, err := a.cluster.ListNodesStrict(ctx)
 	if err != nil {
-		return 0, "", false, err
+		return 0, nil, false, err
 	}
 
 	leaderCandidates, replicaCandidates, err := a.loadNodeScaleInChannelDrainCandidates(ctx, nodeID)
 	if err != nil {
-		return 0, "", false, err
+		return 0, nil, false, err
 	}
 	sortScaleInChannelDrainCandidates(leaderCandidates)
 	sortScaleInChannelDrainCandidates(replicaCandidates)
@@ -142,29 +142,40 @@ func (a *App) advanceNodeScaleInChannels(ctx context.Context, nodeID uint64, lim
 	missingTarget := false
 	for _, candidates := range [][]scaleInChannelDrainCandidate{leaderCandidates, replicaCandidates} {
 		for _, candidate := range candidates {
-			ok, raced, createErr := a.createScaleInChannelMigration(ctx, nodes, candidate.meta, nodeID)
+			ok, raced, validationBlockers, createErr := a.createScaleInChannelMigration(ctx, nodes, candidate.meta, nodeID)
 			switch {
 			case createErr != nil:
-				return created, "no_channel_migration_target", false, createErr
+				if created > 0 {
+					return created, nil, false, nil
+				}
+				return 0, nil, false, createErr
 			case raced:
-				return created, "", true, nil
+				return created, nil, true, nil
+			case len(validationBlockers) > 0:
+				if created > 0 {
+					return created, nil, false, nil
+				}
+				return 0, validationBlockers, false, nil
 			case !ok:
+				if created > 0 {
+					return created, nil, false, nil
+				}
 				missingTarget = true
 				continue
 			}
 			created++
 			if created >= limit {
-				return created, "", false, nil
+				return created, nil, false, nil
 			}
 		}
 	}
 	if created > 0 {
-		return created, "", false, nil
+		return created, nil, false, nil
 	}
 	if missingTarget || len(leaderCandidates) > 0 || len(replicaCandidates) > 0 {
-		return 0, "no_channel_migration_target", false, nil
+		return 0, []string{"no_channel_migration_target"}, false, nil
 	}
-	return 0, "no_channel_migration_target", false, nil
+	return 0, []string{"no_channel_migration_target"}, false, nil
 }
 
 func (a *App) loadNodeScaleInChannelDrainCandidates(ctx context.Context, nodeID uint64) ([]scaleInChannelDrainCandidate, []scaleInChannelDrainCandidate, error) {
@@ -213,7 +224,7 @@ func sortScaleInChannelDrainCandidates(candidates []scaleInChannelDrainCandidate
 	})
 }
 
-func (a *App) createScaleInChannelMigration(ctx context.Context, nodes []controllermeta.ClusterNode, meta metadb.ChannelRuntimeMeta, source uint64) (created bool, race bool, err error) {
+func (a *App) createScaleInChannelMigration(ctx context.Context, nodes []controllermeta.ClusterNode, meta metadb.ChannelRuntimeMeta, source uint64) (created bool, race bool, blockers []string, err error) {
 	id := channel.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}
 	migrationApp := *a
 	migrationApp.cluster = scaleInChannelMigrationCluster{ClusterReader: a.cluster, source: source}
@@ -221,30 +232,39 @@ func (a *App) createScaleInChannelMigration(ctx context.Context, nodes []control
 		if target, ok := selectScaleInChannelReplicaTarget(nodes, meta, source); ok && hasEligibleEmbeddedLeader(nodes, meta, source, target) {
 			result, err := migrationApp.MigrateChannelReplica(ctx, id, MigrateChannelReplicaRequest{SourceNodeID: source, TargetNodeID: target})
 			if scaleInChannelMigrationRace(result, err) {
-				return false, true, nil
+				return false, true, nil, nil
 			}
-			return err == nil, false, err
+			if err != nil && len(result.Blockers) > 0 {
+				return false, false, append([]string(nil), result.Blockers...), nil
+			}
+			return err == nil, false, nil, err
 		}
 		target, ok := selectScaleInChannelLeaderTarget(nodes, meta, source)
 		if !ok {
-			return false, false, nil
+			return false, false, nil, nil
 		}
 		result, err := migrationApp.TransferChannelLeader(ctx, id, TransferChannelLeaderRequest{TargetNodeID: target})
 		if scaleInChannelMigrationRace(result, err) {
-			return false, true, nil
+			return false, true, nil, nil
 		}
-		return err == nil, false, err
+		if err != nil && len(result.Blockers) > 0 {
+			return false, false, append([]string(nil), result.Blockers...), nil
+		}
+		return err == nil, false, nil, err
 	}
 
 	target, ok := selectScaleInChannelReplicaTarget(nodes, meta, source)
 	if !ok {
-		return false, false, nil
+		return false, false, nil, nil
 	}
 	result, err := migrationApp.MigrateChannelReplica(ctx, id, MigrateChannelReplicaRequest{SourceNodeID: source, TargetNodeID: target})
 	if scaleInChannelMigrationRace(result, err) {
-		return false, true, nil
+		return false, true, nil, nil
 	}
-	return err == nil, false, err
+	if err != nil && len(result.Blockers) > 0 {
+		return false, false, append([]string(nil), result.Blockers...), nil
+	}
+	return err == nil, false, nil, err
 }
 
 func scaleInChannelMigrationRace(result ChannelMigrationResult, err error) bool {

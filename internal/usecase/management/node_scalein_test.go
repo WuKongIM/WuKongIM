@@ -645,6 +645,8 @@ func TestAdvanceNodeScaleInReturnsInvalidStateWhenNoChannelTarget(t *testing.T) 
 	require.ErrorIs(t, err, ErrInvalidNodeScaleInState)
 	require.Empty(t, fixture.channelMigration.created)
 	require.Contains(t, scaleInReasonCodes(report.BlockedReasons), "no_channel_migration_target")
+	require.Equal(t, NodeScaleInStatusBlocked, report.Status)
+	require.False(t, report.SafeToRemove)
 }
 
 func TestAdvanceNodeScaleInKeepsSlotLeaderTransferBeforeChannelDrain(t *testing.T) {
@@ -756,6 +758,84 @@ func TestAdvanceNodeScaleInStopsChannelDrainAfterTaskRace(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Empty(t, fixture.channelMigration.created)
+	require.NotContains(t, scaleInReasonCodes(report.BlockedReasons), "no_channel_migration_target")
+}
+
+func TestAdvanceNodeScaleInPropagatesChannelMigrationCreateError(t *testing.T) {
+	createErr := errors.New("channel migration store unavailable")
+	fixture := newScaleInActionFixture()
+	fixture.prepareChannelDrain()
+	fixture.channelRuntime.metas = map[multiraft.SlotID][]metadb.ChannelRuntimeMeta{
+		1: {scaleInChannelMeta("leader-replica", 1, 3, []uint64{1, 3}, []uint64{1, 3})},
+	}
+	fixture.channelMigration.createErr = createErr
+	fixture.rebuildApp()
+
+	report, err := fixture.app.AdvanceNodeScaleIn(context.Background(), 3, AdvanceNodeScaleInRequest{MaxChannelMigrations: 1})
+
+	require.ErrorIs(t, err, createErr)
+	require.False(t, errors.Is(err, ErrInvalidNodeScaleInState))
+	require.Empty(t, fixture.channelMigration.created)
+	require.NotContains(t, scaleInReasonCodes(report.BlockedReasons), "no_channel_migration_target")
+}
+
+func TestAdvanceNodeScaleInSurfacesChannelMigrationValidationBlocker(t *testing.T) {
+	fixture := newScaleInActionFixture()
+	fixture.prepareChannelDrain()
+	inactive := scaleInChannelMeta("inactive-leader", 1, 3, []uint64{1, 3}, []uint64{1, 3})
+	inactive.Status = uint8(channel.StatusDeleted)
+	fixture.channelRuntime.metas = map[multiraft.SlotID][]metadb.ChannelRuntimeMeta{
+		1: {inactive},
+	}
+	fixture.rebuildApp()
+
+	report, err := fixture.app.AdvanceNodeScaleIn(context.Background(), 3, AdvanceNodeScaleInRequest{MaxChannelMigrations: 1})
+
+	require.ErrorIs(t, err, ErrInvalidNodeScaleInState)
+	require.Empty(t, fixture.channelMigration.created)
+	require.Contains(t, scaleInReasonCodes(report.BlockedReasons), "channel_not_active")
+	require.NotContains(t, scaleInReasonCodes(report.BlockedReasons), "no_channel_migration_target")
+	require.Equal(t, NodeScaleInStatusBlocked, report.Status)
+	require.False(t, report.SafeToRemove)
+}
+
+func TestAdvanceNodeScaleInRefreshesWhenChannelOwnershipAlreadyCleared(t *testing.T) {
+	fixture := newScaleInActionFixture()
+	fixture.prepareChannelDrain()
+	fixture.channelRuntime.metas = map[multiraft.SlotID][]metadb.ChannelRuntimeMeta{
+		1: {scaleInChannelMeta("cleared-before-advance", 1, 3, []uint64{1, 3}, []uint64{1, 3})},
+	}
+	fixture.channelRuntime.clearMetasAfterScanCalls = 1
+	fixture.rebuildApp()
+
+	report, err := fixture.app.AdvanceNodeScaleIn(context.Background(), 3, AdvanceNodeScaleInRequest{MaxChannelMigrations: 1})
+
+	require.NoError(t, err)
+	require.Empty(t, fixture.channelMigration.created)
+	require.Zero(t, report.Progress.ChannelLeaders)
+	require.Zero(t, report.Progress.ChannelReplicas)
+	require.NotContains(t, scaleInReasonCodes(report.BlockedReasons), "no_channel_migration_target")
+}
+
+func TestAdvanceNodeScaleInReturnsRefreshAfterPartialChannelTaskCreation(t *testing.T) {
+	fixture := newScaleInActionFixture()
+	fixture.prepareChannelDrain()
+	inactive := scaleInChannelMeta("bbb-inactive", 1, 3, []uint64{1, 3}, []uint64{1, 3})
+	inactive.Status = uint8(channel.StatusDeleted)
+	fixture.channelRuntime.metas = map[multiraft.SlotID][]metadb.ChannelRuntimeMeta{
+		1: {
+			scaleInChannelMeta("aaa-created", 1, 3, []uint64{1, 3}, []uint64{1, 3}),
+			inactive,
+		},
+	}
+	fixture.rebuildApp()
+
+	report, err := fixture.app.AdvanceNodeScaleIn(context.Background(), 3, AdvanceNodeScaleInRequest{MaxChannelMigrations: 2})
+
+	require.NoError(t, err)
+	require.Len(t, fixture.channelMigration.created, 1)
+	require.Equal(t, NodeScaleInStatusWaitingChannelMigrations, report.Status)
+	require.NotContains(t, scaleInReasonCodes(report.BlockedReasons), "channel_not_active")
 	require.NotContains(t, scaleInReasonCodes(report.BlockedReasons), "no_channel_migration_target")
 }
 
@@ -941,13 +1021,19 @@ func (f *fakeScaleInActionCluster) TransferSlotLeader(_ context.Context, slotID 
 }
 
 type fakeScaleInChannelRuntimeMeta struct {
-	metas map[multiraft.SlotID][]metadb.ChannelRuntimeMeta
-	err   error
+	metas                    map[multiraft.SlotID][]metadb.ChannelRuntimeMeta
+	err                      error
+	scanCalls                int
+	clearMetasAfterScanCalls int
 }
 
 func (f *fakeScaleInChannelRuntimeMeta) ScanChannelRuntimeMetaSlotPage(_ context.Context, slotID multiraft.SlotID, after metadb.ChannelRuntimeMetaCursor, limit int) ([]metadb.ChannelRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error) {
 	if f.err != nil {
 		return nil, metadb.ChannelRuntimeMetaCursor{}, false, f.err
+	}
+	f.scanCalls++
+	if f.clearMetasAfterScanCalls > 0 && f.scanCalls > f.clearMetasAfterScanCalls {
+		return nil, after, true, nil
 	}
 	if limit <= 0 {
 		return nil, after, true, nil
