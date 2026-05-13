@@ -540,12 +540,13 @@ func build(cfg Config) (_ *App, err error) {
 		now:         time.Now,
 	}
 	userApp := userusecase.New(userusecase.Options{
-		Users:      app.store,
-		Devices:    app.store,
-		Presence:   authorityClient,
-		SystemUIDs: app.store,
-		Online:     onlineRegistry,
-		Logger:     app.logger.Named("user"),
+		Users:        app.store,
+		Devices:      app.store,
+		DeviceReader: app.store,
+		Presence:     authorityClient,
+		SystemUIDs:   app.store,
+		Online:       onlineRegistry,
+		Logger:       app.logger.Named("user"),
 	})
 	app.userApp = userApp
 	app.nodeAccess = accessnode.New(accessnode.Options{
@@ -622,6 +623,10 @@ func build(cfg Config) (_ *App, err error) {
 				remote:      app.nodeClient,
 			},
 			ChannelRuntimeMeta: app.store,
+			Users:              app.store,
+			UserOperator:       userApp,
+			UserPresence:       authorityClient,
+			UserActions:        authorityClient,
 			ChannelReplicaStatus: managerChannelReplicaStatusReader{
 				channelLog: app.channelLog,
 			},
