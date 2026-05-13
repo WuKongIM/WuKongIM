@@ -843,3 +843,20 @@ P2b 阶段仍未恢复的旧版差异包括：`AllowStranger`、request-scoped s
 - 非 command-style 的普通 `NoPersist` 仍保持 P2a 行为：权限通过后返回成功，不写 durable append，也不做 realtime 投递。
 
 仍未恢复的旧版差异包括：CMD conversation/offline sync、durable request-scoped subscribers 快照 replay 恢复、普通临时频道投递、`/message/sendbatch`、`expire`、`AllowStranger`、plugin/webhook/AI 钩子，以及特殊频道的后续副作用。
+
+## P2d-c 实施后状态（2026-05-13）
+
+本轮已恢复 legacy CMD 离线同步的核心业务语义：
+
+- HTTP `POST /message/sync` 已恢复，用于同步 durable CMD 消息；普通 `/conversation/sync` 仍不返回 CMD 状态。
+- HTTP `POST /message/syncack` 已恢复，只推进最近一次 sync record generation 中返回过的 CMD channel read cursor，不按客户端传入的 `last_message_seq` 重新选择频道。
+- CMD 会话状态使用独立 `CMDConversationState` 表，不复用普通 `UserConversationState`；状态按 UID 所属 slot owner 持久化和同步。
+- CMD 消息事实仍从 command channel log 读取，即 `source____cmd`；返回给旧客户端前只剥离一层 `____cmd` 后缀，展示 source-channel 视图。
+- CMD sync API 的权威路由按 UID owner 寻址；UID owner 再按 `source____cmd` 的 `ChannelRuntimeMeta.Leader` 读取本地或远端 command-channel log，避免把 UID 状态 owner 与 command-channel log owner 混为一谈。
+- `NoPersist` CMD 仍是在线 transient 语义：不写 channel log，不创建 CMD conversation state，也不会出现在 `/message/sync`。
+- live committed request-scoped CMD 投影使用 `MessageScopedUIDs` 精确建 state；没有 scoped UIDs 的 temp CMD replay 不回扫临时订阅者。
+
+仍未恢复 / 延后到 P2d-d 的差异：
+
+- durable request-scoped subscribers 快照在进程崩溃后仅靠 committed replay 仍不能完整恢复；P2d-c 只保证 live path 的精确投影。
+- 在线 cmd 专用 `systemcmdonline`、普通临时频道投递、`/message/sendbatch`、`expire`、`AllowStranger`、plugin/webhook/AI 钩子和特殊频道后续副作用仍未恢复。
