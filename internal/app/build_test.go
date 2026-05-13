@@ -207,6 +207,21 @@ func TestBuildWiresManagerUserDependencies(t *testing.T) {
 	requireManagementAppFieldNonNil(t, app, "userActions")
 }
 
+func TestBuildWiresManagerChannelBusinessDependencies(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Manager = validManagerConfigForTest()
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	require.NotNil(t, app.managementApp)
+	requireManagementAppFieldNonNil(t, app, "channelBusinessReader")
+	requireManagementAppFieldNonNil(t, app, "channelBusinessOperator")
+}
+
 func TestBuildWiresDataPlanePoolToClusterDiscovery(t *testing.T) {
 	cfg := testConfig(t)
 
