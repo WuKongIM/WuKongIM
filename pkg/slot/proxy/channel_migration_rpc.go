@@ -416,7 +416,9 @@ func (s *Store) listActiveChannelMigrationTasksForNodeLocalSlot(ctx context.Cont
 	}
 
 	out := make([]metadb.ChannelMigrationTask, 0, limit)
-	for _, hashSlot := range s.cluster.HashSlotsOf(slotID) {
+	hashSlots := append([]uint16(nil), s.cluster.HashSlotsOf(slotID)...)
+	sort.Slice(hashSlots, func(i, j int) bool { return hashSlots[i] < hashSlots[j] })
+	for _, hashSlot := range hashSlots {
 		tasks, err := s.db.ForHashSlot(hashSlot).ListChannelMigrationTasks(ctx)
 		if err != nil {
 			return nil, false, err
@@ -465,10 +467,5 @@ func isRunnableChannelMigrationTaskForLocalLeader(task metadb.ChannelMigrationTa
 }
 
 func channelMigrationTaskActive(task metadb.ChannelMigrationTask) bool {
-	switch task.Status {
-	case metadb.ChannelMigrationStatusCompleted, metadb.ChannelMigrationStatusFailed, metadb.ChannelMigrationStatusAborted:
-		return false
-	default:
-		return true
-	}
+	return task.IsActive()
 }
