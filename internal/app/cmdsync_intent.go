@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
@@ -20,6 +21,10 @@ type cmdConversationIntentRemote interface {
 // cmdConversationIntentLocal stores pending CMD conversation intents on the local owner.
 type cmdConversationIntentLocal interface {
 	PushIntent(ctx context.Context, intent cmdsync.ConversationIntent) error
+}
+
+type cmdConversationIntentSink interface {
+	PushIntent(ctx context.Context, intent cmdsync.ConversationIntent) (bool, error)
 }
 
 // cmdConversationIntentRouter partitions a conversation intent by UID owner.
@@ -67,6 +72,33 @@ func (r cmdConversationIntentRouter) PushIntent(ctx context.Context, intent cmds
 		return false, errors.Join(errs...)
 	}
 	return true, nil
+}
+
+// cmdConversationResolvedUIDObserver projects delivery-resolved UID pages into CMD conversation intents.
+type cmdConversationResolvedUIDObserver struct {
+	// sink routes intents to UID owners.
+	sink cmdConversationIntentSink
+	// now supplies fallback timestamps for messages without committed timestamps.
+	now func() time.Time
+	// logger receives non-fatal observer diagnostics.
+	logger wklog.Logger
+}
+
+// OnResolvedUIDPage builds one intent from an already-resolved UID page.
+func (o cmdConversationResolvedUIDObserver) OnResolvedUIDPage(ctx context.Context, page resolvedUIDPage) {
+	if o.sink == nil || page.Envelope.CMDConversationIntentSubmitted {
+		return
+	}
+	intent, ok := cmdsync.BuildConversationIntent(page.Envelope.Message, page.UIDs, o.now)
+	if !ok {
+		return
+	}
+	if _, err := o.sink.PushIntent(ctx, intent); err != nil && o.logger != nil {
+		o.logger.Warn("cmd conversation intent route failed",
+			wklog.Event("cmdsync.intent.route.failed"),
+			wklog.Error(err),
+		)
+	}
 }
 
 func (r cmdConversationIntentRouter) pushCMDConversationIntentGroup(ctx context.Context, ownerNodeID uint64, intent cmdsync.ConversationIntent) error {

@@ -828,6 +828,169 @@ func TestLocalDeliveryResolverUsesMessageScopedSubscribers(t *testing.T) {
 	}, routes)
 }
 
+func TestLocalDeliveryResolverNotifiesUIDObserverBeforePresenceExpansion(t *testing.T) {
+	observer := &recordingResolvedUIDObserver{}
+	resolver := localDeliveryResolver{
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
+			Store: &resolverSnapshotStore{uids: []string{"offline", "online"}},
+		}),
+		authority: &recordingAuthoritative{batches: map[string][]presence.Route{
+			"online": {{UID: "online", NodeID: 1, BootID: 11, SessionID: 101}},
+		}},
+		uidObserver: observer,
+		pageSize:    8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   channelid.ToCommandChannel("g1"),
+		ChannelType: frame.ChannelTypeGroup,
+	}, deliveryruntime.CommittedEnvelope{Message: channel.Message{
+		ChannelID:   channelid.ToCommandChannel("g1"),
+		ChannelType: frame.ChannelTypeGroup,
+		MessageSeq:  9,
+	}})
+	require.NoError(t, err)
+
+	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Equal(t, []string{"offline", "online"}, observer.pages[0].UIDs)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "online", NodeID: 1, BootID: 11, SessionID: 101}}, routes)
+}
+
+func TestTagDeliveryResolverNotifiesUIDObserverBeforePresenceExpansion(t *testing.T) {
+	observer := &recordingResolvedUIDObserver{}
+	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{
+		LocalNodeID: 1,
+		NewTagKey:   func() string { return "tag-observer" },
+	})
+	resolver := tagDeliveryResolver{
+		localNodeID: 1,
+		tags:        manager,
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
+			Store: &resolverVersionStore{uids: []string{"offline", "online"}, version: 4},
+		}),
+		authority: &recordingAuthoritative{batches: map[string][]presence.Route{
+			"online": {{UID: "online", NodeID: 1, BootID: 11, SessionID: 101}},
+		}},
+		topology:    staticDeliveryTagTopology{version: testDeliveryTagTopology(1)},
+		uidObserver: observer,
+		pageSize:    8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   channelid.ToCommandChannel("g1"),
+		ChannelType: frame.ChannelTypeGroup,
+	}, deliveryruntime.CommittedEnvelope{Message: channel.Message{
+		ChannelID:   channelid.ToCommandChannel("g1"),
+		ChannelType: frame.ChannelTypeGroup,
+		MessageSeq:  9,
+	}})
+	require.NoError(t, err)
+
+	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Equal(t, []string{"offline", "online"}, observer.pages[0].UIDs)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "online", NodeID: 1, BootID: 11, SessionID: 101}}, routes)
+}
+
+func TestDeliveryUIDObserverSkipsWhenRequestScopedIntentAlreadySubmitted(t *testing.T) {
+	observer := &recordingResolvedUIDObserver{}
+	resolver := localDeliveryResolver{
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{}),
+		authority: &recordingAuthoritative{batches: map[string][]presence.Route{
+			"u1": {{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101}},
+		}},
+		uidObserver: observer,
+		pageSize:    8,
+	}
+	env := deliveryruntime.CommittedEnvelope{
+		Message: channel.Message{
+			ChannelID:   "temp____cmd",
+			ChannelType: frame.ChannelTypeTemp,
+			MessageSeq:  1,
+		},
+		MessageScopedUIDs:              []string{"u1"},
+		CMDConversationIntentSubmitted: true,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   env.ChannelID,
+		ChannelType: env.ChannelType,
+	}, env)
+	require.NoError(t, err)
+	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Empty(t, observer.pages)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101}}, routes)
+}
+
+func TestDeliveryUIDObserverDoesNotAffectResolvePage(t *testing.T) {
+	observer := &recordingResolvedUIDObserver{internalErr: errors.New("observer side effect failed")}
+	resolver := localDeliveryResolver{
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
+			Store: &resolverSnapshotStore{uids: []string{"u1"}},
+		}),
+		authority: &recordingAuthoritative{batches: map[string][]presence.Route{
+			"u1": {{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101}},
+		}},
+		uidObserver: observer,
+		pageSize:    8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   channelid.ToCommandChannel("g1"),
+		ChannelType: frame.ChannelTypeGroup,
+	}, deliveryruntime.CommittedEnvelope{Message: channel.Message{
+		ChannelID:   channelid.ToCommandChannel("g1"),
+		ChannelType: frame.ChannelTypeGroup,
+		MessageSeq:  9,
+	}})
+	require.NoError(t, err)
+	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Equal(t, observer.internalErr, observer.errs[0])
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101}}, routes)
+}
+
+func TestTagDeliveryResolverFallbackNotifiesUIDObserver(t *testing.T) {
+	observer := &recordingResolvedUIDObserver{}
+	metrics := &recordingDeliveryRoutingMetrics{}
+	resolver := tagDeliveryResolver{
+		localNodeID: 1,
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
+			Store: &resolverSnapshotStore{uids: []string{"u1"}},
+		}),
+		authority: &recordingAuthoritative{batches: map[string][]presence.Route{
+			"u1": {{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101}},
+		}},
+		uidObserver: observer,
+		metrics:     metrics,
+		pageSize:    8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   channelid.ToCommandChannel("g1"),
+		ChannelType: frame.ChannelTypeGroup,
+	}, deliveryruntime.CommittedEnvelope{Message: channel.Message{
+		ChannelID:   channelid.ToCommandChannel("g1"),
+		ChannelType: frame.ChannelTypeGroup,
+		MessageSeq:  9,
+	}})
+	require.NoError(t, err)
+	_, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Equal(t, []string{"u1"}, observer.pages[0].UIDs)
+	require.Equal(t, []string{"group:ok:1:1"}, metrics.resolves)
+}
+
 func TestLocalDeliveryResolverRoutesNonDurableCommandGroupToRemoteSessions(t *testing.T) {
 	store := &resolverSnapshotStore{
 		uids: []string{"u-local", "u-remote"},
@@ -2455,6 +2618,22 @@ func (s *resolverVersionStore) ListChannelSubscribers(ctx context.Context, chann
 		cursor = page[len(page)-1]
 	}
 	return page, cursor, end >= len(s.uids), nil
+}
+
+type recordingResolvedUIDObserver struct {
+	pages       []resolvedUIDPage
+	internalErr error
+	errs        []error
+}
+
+func (o *recordingResolvedUIDObserver) OnResolvedUIDPage(_ context.Context, page resolvedUIDPage) {
+	page.UIDs = append([]string(nil), page.UIDs...)
+	page.Envelope.Payload = append([]byte(nil), page.Envelope.Payload...)
+	page.Envelope.MessageScopedUIDs = append([]string(nil), page.Envelope.MessageScopedUIDs...)
+	o.pages = append(o.pages, page)
+	if o.internalErr != nil {
+		o.errs = append(o.errs, o.internalErr)
+	}
 }
 
 type staticDeliveryTagTopology struct {

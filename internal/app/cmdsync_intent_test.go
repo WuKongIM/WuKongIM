@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
+	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
+	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
@@ -133,6 +136,55 @@ func TestCMDIntentRouterValidatesBeforeRouting(t *testing.T) {
 	}
 }
 
+func TestCMDConversationResolvedUIDObserverBuildsIntent(t *testing.T) {
+	sink := &recordingRoutedCMDIntentSink{accepted: true}
+	observer := cmdConversationResolvedUIDObserver{
+		sink: sink,
+		now:  func() time.Time { return time.Unix(123, 0) },
+	}
+
+	observer.OnResolvedUIDPage(context.Background(), resolvedUIDPage{
+		Envelope: deliveryruntime.CommittedEnvelope{Message: channel.Message{
+			ChannelID:   channelid.ToCommandChannel("g1"),
+			ChannelType: frame.ChannelTypeGroup,
+			MessageSeq:  9,
+			FromUID:     "u1",
+		}},
+		UIDs: []string{"u1", "u2", "u2"},
+	})
+
+	require.Len(t, sink.intents, 1)
+	require.Equal(t, channelid.ToCommandChannel("g1"), sink.intents[0].CommandChannelID)
+	require.Equal(t, map[string]uint64{"u1": 9, "u2": 0}, sink.intents[0].UserReadSeqs)
+}
+
+func TestCMDConversationResolvedUIDObserverSkipsAlreadySubmittedOrInvalidPages(t *testing.T) {
+	sink := &recordingRoutedCMDIntentSink{accepted: true}
+	observer := cmdConversationResolvedUIDObserver{sink: sink}
+
+	observer.OnResolvedUIDPage(context.Background(), resolvedUIDPage{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				ChannelID:   channelid.ToCommandChannel("g1"),
+				ChannelType: frame.ChannelTypeGroup,
+				MessageSeq:  9,
+			},
+			CMDConversationIntentSubmitted: true,
+		},
+		UIDs: []string{"u1"},
+	})
+	observer.OnResolvedUIDPage(context.Background(), resolvedUIDPage{
+		Envelope: deliveryruntime.CommittedEnvelope{Message: channel.Message{
+			ChannelID:   channelid.ToCommandChannel("g1"),
+			ChannelType: frame.ChannelTypeGroup,
+			MessageSeq:  0,
+		}},
+		UIDs: []string{"u1"},
+	})
+
+	require.Empty(t, sink.intents)
+}
+
 func validCMDConversationIntent(readSeqs map[string]uint64) cmdsync.ConversationIntent {
 	return cmdsync.ConversationIntent{
 		CommandChannelID: channelid.ToCommandChannel("g1"),
@@ -155,6 +207,17 @@ func (s *recordingCMDIntentSink) PushIntent(_ context.Context, intent cmdsync.Co
 	}
 	s.intents = append(s.intents, cloneTestCMDConversationIntent(intent))
 	return nil
+}
+
+type recordingRoutedCMDIntentSink struct {
+	intents  []cmdsync.ConversationIntent
+	accepted bool
+	err      error
+}
+
+func (s *recordingRoutedCMDIntentSink) PushIntent(_ context.Context, intent cmdsync.ConversationIntent) (bool, error) {
+	s.intents = append(s.intents, cloneTestCMDConversationIntent(intent))
+	return s.accepted, s.err
 }
 
 type recordingCMDIntentRemote struct {
