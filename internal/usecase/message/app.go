@@ -39,12 +39,14 @@ type Options struct {
 	Recipients          RecipientDirectory
 	RemoteDelivery      RemoteDelivery
 	CommittedDispatcher CommittedMessageDispatcher
-	RealtimeDispatcher  RealtimeDispatcher
-	MessageIDs          MessageIDGenerator
-	DeliveryAck         DeliveryAck
-	DeliveryOffline     DeliveryOffline
-	PermissionStore     PermissionStore
-	SystemUIDs          SystemUIDChecker
+	// CMDConversationIntents accepts durable request-scoped CMD sync intents.
+	CMDConversationIntents CMDConversationIntentSink
+	RealtimeDispatcher     RealtimeDispatcher
+	MessageIDs             MessageIDGenerator
+	DeliveryAck            DeliveryAck
+	DeliveryOffline        DeliveryOffline
+	PermissionStore        PermissionStore
+	SystemUIDs             SystemUIDChecker
 	// PersonWhitelistEnabled enables receiver-side personal allowlist checks.
 	PersonWhitelistEnabled bool
 	// SystemDeviceID identifies trusted system-device sessions after SendBan passes.
@@ -69,6 +71,7 @@ type App struct {
 	recipients             RecipientDirectory
 	remote                 RemoteDelivery
 	dispatcher             CommittedMessageDispatcher
+	cmdConversationIntents CMDConversationIntentSink
 	realtime               RealtimeDispatcher
 	messageIDs             MessageIDGenerator
 	deliveryAck            DeliveryAck
@@ -110,6 +113,7 @@ func New(opts Options) *App {
 		recipients:             opts.Recipients,
 		remote:                 opts.RemoteDelivery,
 		dispatcher:             opts.CommittedDispatcher,
+		cmdConversationIntents: opts.CMDConversationIntents,
 		realtime:               opts.RealtimeDispatcher,
 		messageIDs:             opts.MessageIDs,
 		deliveryAck:            opts.DeliveryAck,

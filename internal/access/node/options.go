@@ -269,6 +269,7 @@ type Client struct {
 
 	mu                                 sync.RWMutex
 	messageScopedDeliverySubmitSupport map[uint64]bool
+	deliverySubmitV3Support            map[uint64]bool
 }
 
 func NewClient(cluster Cluster) *Client {

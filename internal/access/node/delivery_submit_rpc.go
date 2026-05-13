@@ -12,7 +12,7 @@ type deliverySubmitRequest struct {
 }
 
 func (a *Adapter) handleDeliverySubmitRPC(ctx context.Context, body []byte) ([]byte, error) {
-	if isDeliverySubmitCapabilityProbe(body) {
+	if isDeliverySubmitCapabilityProbe(body) || isDeliverySubmitV3CapabilityProbe(body) {
 		return encodeDeliveryResponse(deliveryResponse{Status: rpcStatusOK})
 	}
 	req, err := decodeDeliverySubmitRequest(body)

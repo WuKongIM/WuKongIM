@@ -11,6 +11,8 @@ type MessageCommitted struct {
 	SenderSessionID uint64
 	// MessageScopedUIDs contains request-scoped subscribers used only for this message dispatch.
 	MessageScopedUIDs []string
+	// CMDConversationIntentSubmitted reports that request-scoped CMD sync intent was fully accepted.
+	CMDConversationIntentSubmitted bool
 }
 
 // Clone returns an event copy safe for fanout subscribers to mutate independently.

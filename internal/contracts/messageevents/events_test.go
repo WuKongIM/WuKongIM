@@ -35,3 +35,11 @@ func TestMessageCommittedCloneDeepCopiesMessageScopedUIDs(t *testing.T) {
 	require.Equal(t, []string{"u1", "u2"}, event.MessageScopedUIDs)
 	require.Equal(t, []string{"changed", "u2"}, clone.MessageScopedUIDs)
 }
+
+func TestMessageCommittedClonePreservesCMDConversationIntentSubmitted(t *testing.T) {
+	event := MessageCommitted{CMDConversationIntentSubmitted: true}
+
+	clone := event.Clone()
+
+	require.True(t, clone.CMDConversationIntentSubmitted)
+}

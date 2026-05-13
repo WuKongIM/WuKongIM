@@ -505,9 +505,10 @@ func (c committedDispatchValueContext) Value(key any) any {
 
 func committedEnvelopeFromMessageEvent(event messageevents.MessageCommitted) deliveryruntime.CommittedEnvelope {
 	return deliveryruntime.CommittedEnvelope{
-		Message:           event.Message,
-		SenderSessionID:   event.SenderSessionID,
-		MessageScopedUIDs: append([]string(nil), event.MessageScopedUIDs...),
+		Message:                        event.Message,
+		SenderSessionID:                event.SenderSessionID,
+		MessageScopedUIDs:              append([]string(nil), event.MessageScopedUIDs...),
+		CMDConversationIntentSubmitted: event.CMDConversationIntentSubmitted,
 	}
 }
 
@@ -522,9 +523,10 @@ func (s deliveryRuntimeCommittedSubmitter) SubmitCommitted(ctx context.Context, 
 		return nil
 	}
 	return s.target.SubmitCommitted(ctx, messageevents.MessageCommitted{
-		Message:           env.Message,
-		SenderSessionID:   env.SenderSessionID,
-		MessageScopedUIDs: append([]string(nil), env.MessageScopedUIDs...),
+		Message:                        env.Message,
+		SenderSessionID:                env.SenderSessionID,
+		MessageScopedUIDs:              append([]string(nil), env.MessageScopedUIDs...),
+		CMDConversationIntentSubmitted: env.CMDConversationIntentSubmitted,
 	})
 }
 
