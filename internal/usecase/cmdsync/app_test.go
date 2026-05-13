@@ -67,18 +67,27 @@ func TestAppSyncMergesPendingCMDConversationOverlay(t *testing.T) {
 	ctx := context.Background()
 	states := &fakeStateStore{}
 	pending := &fakePendingStore{views: map[string][]PendingConversationView{
-		"u1": {{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 1, ActiveAt: 10, ReadSeq: 0}},
+		"u1": {
+			{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 1, ActiveAt: 10, ReadSeq: 0},
+			{CommandChannelID: "nested____cmd____cmd", ChannelType: 2, LastMsgSeq: 2, ActiveAt: 20, ReadSeq: 0},
+		},
 	}}
 	messages := &fakeMessageStore{byKey: map[CommandChannelKey][]channel.Message{
 		{ChannelID: "g1____cmd", ChannelType: 2}: {
 			{MessageID: 11, MessageSeq: 1, Timestamp: 20, ChannelID: "g1____cmd", ChannelType: 2},
+		},
+		{ChannelID: "nested____cmd____cmd", ChannelType: 2}: {
+			{MessageID: 12, MessageSeq: 2, Timestamp: 21, ChannelID: "nested____cmd____cmd", ChannelType: 2},
 		},
 	}}
 	app := New(Options{States: states, Messages: messages, Pending: pending, Records: NewSyncRecordCache(SyncRecordCacheOptions{})})
 
 	result, err := app.Sync(ctx, SyncQuery{UID: "u1", Limit: 10})
 	require.NoError(t, err)
-	require.Equal(t, []channel.Message{{MessageID: 11, MessageSeq: 1, Timestamp: 20, ChannelID: "g1", ChannelType: 2}}, result.Messages)
+	require.Equal(t, []channel.Message{
+		{MessageID: 11, MessageSeq: 1, Timestamp: 20, ChannelID: "g1", ChannelType: 2},
+		{MessageID: 12, MessageSeq: 2, Timestamp: 21, ChannelID: "nested____cmd", ChannelType: 2},
+	}, result.Messages)
 }
 
 func TestAppSyncUsesMaxPersistedAndPendingReadSeq(t *testing.T) {
