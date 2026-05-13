@@ -549,6 +549,12 @@ func build(cfg Config) (_ *App, err error) {
 		Logger:       app.logger.Named("user"),
 	})
 	app.userApp = userApp
+	clusterUsers := &clusterUserUsecase{
+		local:       userApp,
+		remote:      app.nodeClient,
+		localNodeID: cfg.Node.ID,
+		peerNodeIDs: controllerPeerIDs(cfg.Cluster.DerivedControllerNodes(), cfg.Cluster.runtimeSeeds()),
+	}
 	app.nodeAccess = accessnode.New(accessnode.Options{
 		Cluster:               app.cluster,
 		Presence:              app.presenceApp,
@@ -627,6 +633,7 @@ func build(cfg Config) (_ *App, err error) {
 			ChannelBusinessReader:   app.store,
 			ChannelBusinessOperator: app.channelApp,
 			UserOperator:            userApp,
+			SystemUsers:             clusterUsers,
 			UserPresence:            authorityClient,
 			UserActions:             authorityClient,
 			ChannelReplicaStatus: managerChannelReplicaStatusReader{
@@ -669,16 +676,10 @@ func build(cfg Config) (_ *App, err error) {
 			SlotSnapshotUsers:      app.store,
 			ControllerSnapshotJobs: app.cluster,
 		})
-		userAPI := &clusterUserUsecase{
-			local:       userApp,
-			remote:      app.nodeClient,
-			localNodeID: cfg.Node.ID,
-			peerNodeIDs: controllerPeerIDs(cfg.Cluster.DerivedControllerNodes(), cfg.Cluster.runtimeSeeds()),
-		}
 		app.api = accessapi.New(accessapi.Options{
 			ListenAddr:               cfg.API.ListenAddr,
 			Messages:                 app.messageApp,
-			Users:                    userAPI,
+			Users:                    clusterUsers,
 			Channels:                 app.channelApp,
 			TestMode:                 cfg.TestMode,
 			TestData:                 testDataApp,
