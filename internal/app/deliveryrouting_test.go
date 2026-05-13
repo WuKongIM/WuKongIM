@@ -266,7 +266,6 @@ func TestCommittedDispatchQueuePreservesPerChannelOrder(t *testing.T) {
 	delivery := &recordingCommittedSubmitter{}
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID: 1,
-		PreferLocal: true,
 		Delivery:    delivery,
 		ShardCount:  1,
 		QueueDepth:  8,
@@ -291,7 +290,6 @@ func TestCommittedDispatchQueueOverflowFallbackDoesNotFlushConversation(t *testi
 	conversation := &recordingFlushingConversationSubmitter{}
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID:           1,
-		PreferLocal:           true,
 		Conversation:          conversation,
 		ShardCount:            1,
 		QueueDepth:            1,
@@ -310,7 +308,6 @@ func TestCommittedDispatchQueueRejectsBeforeStart(t *testing.T) {
 	conversation := &recordingFlushingConversationSubmitter{}
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID:  1,
-		PreferLocal:  true,
 		Conversation: conversation,
 		ShardCount:   1,
 		QueueDepth:   1,
@@ -327,7 +324,6 @@ func TestCommittedDispatchQueueRejectsAfterStop(t *testing.T) {
 	conversation := &recordingFlushingConversationSubmitter{}
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID:  1,
-		PreferLocal:  true,
 		Conversation: conversation,
 		ShardCount:   1,
 		QueueDepth:   1,
@@ -346,7 +342,6 @@ func TestCommittedDispatchQueueStopContextBoundsBlockedWorker(t *testing.T) {
 	delivery := newBlockingCommittedSubmitter()
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID: 1,
-		PreferLocal: true,
 		Delivery:    delivery,
 		ShardCount:  1,
 		QueueDepth:  1,
@@ -368,7 +363,6 @@ func TestCommittedDispatchQueueStopContextCancelsInFlightRoute(t *testing.T) {
 	delivery := newContextAwareBlockingCommittedSubmitter()
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID: 1,
-		PreferLocal: true,
 		Delivery:    delivery,
 		ShardCount:  1,
 		QueueDepth:  1,
@@ -388,7 +382,6 @@ func TestCommittedDispatchQueueStopContextCanBeRetriedAfterTimeout(t *testing.T)
 	delivery := newBlockingCommittedSubmitter()
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID: 1,
-		PreferLocal: true,
 		Delivery:    delivery,
 		ShardCount:  1,
 		QueueDepth:  1,
@@ -415,7 +408,6 @@ func TestCommittedDispatchQueueRecordsMetrics(t *testing.T) {
 	conversation := &recordingFlushingConversationSubmitter{}
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID:           1,
-		PreferLocal:           true,
 		Conversation:          conversation,
 		Metrics:               metrics,
 		ShardCount:            1,
@@ -437,7 +429,6 @@ func TestAsyncCommittedDispatcherRecordsQueueMetrics(t *testing.T) {
 	metrics := &recordingCommittedDispatchMetrics{}
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID:           1,
-		PreferLocal:           true,
 		Conversation:          &recordingFlushingConversationSubmitter{},
 		Metrics:               metrics,
 		ShardCount:            1,
@@ -458,7 +449,6 @@ func TestCommittedDispatchQueueOverflowFallbackDoesNotBlockSubmit(t *testing.T) 
 	conversation := newBlockingConversationSubmitter()
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID:           1,
-		PreferLocal:           true,
 		Conversation:          conversation,
 		ShardCount:            1,
 		QueueDepth:            1,
@@ -489,7 +479,6 @@ func TestCommittedDispatchQueueResetsDepthOnStop(t *testing.T) {
 	metrics := &recordingCommittedDispatchMetrics{}
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID:           1,
-		PreferLocal:           true,
 		Conversation:          &recordingFlushingConversationSubmitter{},
 		Metrics:               metrics,
 		ShardCount:            1,
@@ -663,18 +652,21 @@ func TestAsyncCommittedDispatcherSubmitsToConversationProjector(t *testing.T) {
 	require.Equal(t, msg, conversation.Calls()[0])
 }
 
-func TestAsyncCommittedDispatcherPrefersLocalDeliveryWithoutOwnerLookup(t *testing.T) {
+func TestAsyncCommittedDispatcherRoutesDurableMessageToRemoteOwner(t *testing.T) {
 	delivery := &recordingCommittedSubmitter{}
 	conversation := &recordingConversationSubmitter{}
+	nodeClient := &recordingCommittedNodeSubmitter{}
 	channelLog := &stubChannelLogCluster{
-		statusErr: errors.New("status should not be called in local-preferred mode"),
+		status: channel.ChannelRuntimeStatus{
+			Leader: 2,
+		},
 	}
 	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
 		LocalNodeID:  1,
-		PreferLocal:  true,
 		ChannelLog:   channelLog,
 		Delivery:     delivery,
 		Conversation: conversation,
+		NodeClient:   nodeClient,
 		ShardCount:   1,
 		QueueDepth:   8,
 	})
@@ -693,11 +685,14 @@ func TestAsyncCommittedDispatcherPrefersLocalDeliveryWithoutOwnerLookup(t *testi
 	require.NoError(t, dispatcher.SubmitCommitted(context.Background(), messageevents.MessageCommitted{Message: msg}))
 
 	require.Eventually(t, func() bool {
-		return delivery.Len() == 1 && conversation.Len() == 1
+		return nodeClient.Len() == 1
 	}, time.Second, 10*time.Millisecond)
-	require.Equal(t, 0, channelLog.StatusCalls())
-	require.Equal(t, msg, delivery.Calls()[0].Message)
-	require.Equal(t, msg, conversation.Calls()[0])
+	require.Equal(t, 1, channelLog.StatusCalls())
+	require.Equal(t, 0, delivery.Len())
+	require.Equal(t, 0, conversation.Len())
+	calls := nodeClient.Calls()
+	require.Equal(t, uint64(2), calls[0].nodeID)
+	require.Equal(t, msg, calls[0].env.Message)
 }
 
 func TestDeliverySuccessDiagnosticsUseDebugLevel(t *testing.T) {
@@ -1515,6 +1510,44 @@ func TestLocalDeliveryPushSkipsOriginSessionButKeepsOtherSenderSessions(t *testi
 	require.Equal(t, "u1", recipientPacket.ChannelID)
 }
 
+func TestDistributedDeliveryPushSkipsRemoteOriginSessionOnly(t *testing.T) {
+	client := &recordingDeliveryPushClient{}
+	push := distributedDeliveryPush{
+		localNodeID: 1,
+		client:      client,
+		codec:       codec.New(),
+	}
+
+	result, err := push.Push(context.Background(), deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				MessageID:   100,
+				MessageSeq:  9,
+				ChannelID:   "u1@u2",
+				ChannelType: frame.ChannelTypePerson,
+				FromUID:     "u1",
+				Payload:     []byte("hello remote"),
+			},
+			SenderSessionID: 1,
+		},
+		Routes: []deliveryruntime.RouteKey{
+			{UID: "u1", NodeID: 2, BootID: 22, SessionID: 1},
+			{UID: "u2", NodeID: 3, BootID: 33, SessionID: 1},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []deliveryruntime.RouteKey{
+		{UID: "u2", NodeID: 3, BootID: 33, SessionID: 1},
+	}, result.Accepted)
+	require.Empty(t, result.Retryable)
+	require.Empty(t, result.Dropped)
+	require.Len(t, client.batchCalls, 1)
+	require.Equal(t, uint64(3), client.batchCalls[0].nodeID)
+	require.Equal(t, []deliveryruntime.RouteKey{
+		{UID: "u2", NodeID: 3, BootID: 33, SessionID: 1},
+	}, client.batchCalls[0].cmd.Items[0].Routes)
+}
+
 func TestDistributedDeliveryPushBatchesGroupRoutesPerTargetNode(t *testing.T) {
 	client := &recordingDeliveryPushClient{}
 	push := distributedDeliveryPush{
@@ -2076,6 +2109,7 @@ type recordingCommittedSubmitter struct {
 }
 
 type recordingCommittedNodeSubmitter struct {
+	mu    sync.Mutex
 	calls []recordingCommittedNodeSubmitCall
 	err   error
 }
@@ -2086,11 +2120,32 @@ type recordingCommittedNodeSubmitCall struct {
 }
 
 func (r *recordingCommittedNodeSubmitter) SubmitCommitted(_ context.Context, nodeID uint64, env deliveryruntime.CommittedEnvelope) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	copied := env
 	copied.Payload = append([]byte(nil), env.Payload...)
 	copied.MessageScopedUIDs = append([]string(nil), env.MessageScopedUIDs...)
 	r.calls = append(r.calls, recordingCommittedNodeSubmitCall{nodeID: nodeID, env: copied})
 	return r.err
+}
+
+func (r *recordingCommittedNodeSubmitter) Len() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.calls)
+}
+
+func (r *recordingCommittedNodeSubmitter) Calls() []recordingCommittedNodeSubmitCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]recordingCommittedNodeSubmitCall, len(r.calls))
+	for i, call := range r.calls {
+		copied := call
+		copied.env.Payload = append([]byte(nil), call.env.Payload...)
+		copied.env.MessageScopedUIDs = append([]string(nil), call.env.MessageScopedUIDs...)
+		out[i] = copied
+	}
+	return out
 }
 
 func (r *recordingCommittedSubmitter) SubmitCommitted(_ context.Context, env deliveryruntime.CommittedEnvelope) error {

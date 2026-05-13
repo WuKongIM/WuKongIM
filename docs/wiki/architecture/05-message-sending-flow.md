@@ -263,13 +263,11 @@ ctx.WriteFrame(&frame.SendackPacket{
 ```
 asyncCommittedDispatcher.SubmitCommitted(msg)
   → go routeCommitted(ctx, msg)
-      → 单节点模式（preferLocal=true）→ 直接本地提交
-      → 多节点模式：
-          → channelLog.Status(channelKey) → 获取 ISR Leader
-          → Leader 在本地 → submitLocal()（含 delivery + conversation）
-          → Leader 在远端 → nodeClient.SubmitCommitted(nodeID, msg) via RPC
-          → 获取 Leader 失败 → 重试 3 次（20ms × (attempt+1) 退避）
-          → 全部失败 → 降级为仅更新会话列表（conversation fallback）
+      → channelLog.Status(channelKey) → 获取 ISR Leader
+      → Leader 在本节点（包含单节点集群）→ submitLocal()（含 delivery + conversation）
+      → Leader 在远端 → nodeClient.SubmitCommitted(nodeID, msg) via RPC
+      → 获取 Leader 失败 → 重试 3 次（20ms × (attempt+1) 退避）
+      → 全部失败 → 降级为仅更新会话列表（conversation fallback）
 ```
 
 #### 2.6.2 解析订阅者与在线端点
