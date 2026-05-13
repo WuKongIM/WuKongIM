@@ -163,6 +163,28 @@ func (s *Server) registerRoutes() {
 	userWrites.POST("/users/:uid/kick", s.handleUserKick)
 	userWrites.POST("/users/:uid/token/reset", s.handleUserTokenReset)
 
+	businessChannelReads := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		businessChannelReads.Use(s.requirePermission("cluster.channel", "r"))
+	}
+	businessChannelReads.GET("/channels", s.handleBusinessChannels)
+	businessChannelReads.GET("/channels/:channel_type/:channel_id", s.handleBusinessChannel)
+	businessChannelReads.GET("/channels/:channel_type/:channel_id/subscribers", s.handleBusinessChannelSubscribers)
+	businessChannelReads.GET("/channels/:channel_type/:channel_id/allowlist", s.handleBusinessChannelAllowlist)
+	businessChannelReads.GET("/channels/:channel_type/:channel_id/denylist", s.handleBusinessChannelDenylist)
+
+	businessChannelWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		businessChannelWrites.Use(s.requirePermission("cluster.channel", "w"))
+	}
+	businessChannelWrites.POST("/channels", s.handleBusinessChannelUpsert)
+	businessChannelWrites.POST("/channels/:channel_type/:channel_id/subscribers/add", s.handleBusinessChannelSubscribersAdd)
+	businessChannelWrites.POST("/channels/:channel_type/:channel_id/subscribers/remove", s.handleBusinessChannelSubscribersRemove)
+	businessChannelWrites.POST("/channels/:channel_type/:channel_id/allowlist/add", s.handleBusinessChannelAllowlistAdd)
+	businessChannelWrites.POST("/channels/:channel_type/:channel_id/allowlist/remove", s.handleBusinessChannelAllowlistRemove)
+	businessChannelWrites.POST("/channels/:channel_type/:channel_id/denylist/add", s.handleBusinessChannelDenylistAdd)
+	businessChannelWrites.POST("/channels/:channel_type/:channel_id/denylist/remove", s.handleBusinessChannelDenylistRemove)
+
 	channelRuntimeMeta := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		channelRuntimeMeta.Use(s.requirePermission("cluster.channel", "r"))

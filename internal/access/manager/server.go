@@ -79,6 +79,16 @@ type Management interface {
 	KickUser(ctx context.Context, req managementusecase.KickUserRequest) (managementusecase.KickUserResponse, error)
 	// ResetUserToken resets one user device token.
 	ResetUserToken(ctx context.Context, req managementusecase.ResetUserTokenRequest) (managementusecase.ResetUserTokenResponse, error)
+	// ListBusinessChannels returns one manager-facing business channel page.
+	ListBusinessChannels(ctx context.Context, req managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error)
+	// GetBusinessChannel returns one manager-facing business channel detail.
+	GetBusinessChannel(ctx context.Context, channelID string, channelType int64) (managementusecase.BusinessChannelDetail, error)
+	// UpsertBusinessChannel creates or updates business channel metadata.
+	UpsertBusinessChannel(ctx context.Context, req managementusecase.UpsertBusinessChannelRequest) (managementusecase.BusinessChannelDetail, error)
+	// ListBusinessChannelMembers returns one manager-facing channel member page.
+	ListBusinessChannelMembers(ctx context.Context, req managementusecase.ListBusinessChannelMembersRequest) (managementusecase.ListBusinessChannelMembersResponse, error)
+	// MutateBusinessChannelMembers adds or removes manager-facing channel members.
+	MutateBusinessChannelMembers(ctx context.Context, req managementusecase.MutateBusinessChannelMembersRequest) (managementusecase.MutateBusinessChannelMembersResponse, error)
 	// ListChannelRuntimeMeta returns one manager-facing channel runtime metadata page.
 	ListChannelRuntimeMeta(ctx context.Context, req managementusecase.ListChannelRuntimeMetaRequest) (managementusecase.ListChannelRuntimeMetaResponse, error)
 	// GetChannelRuntimeMeta returns one manager-facing channel runtime metadata detail DTO.

@@ -101,6 +101,11 @@ func (s *Store) GetChannelForPermission(ctx context.Context, channelID string, c
 	return s.getChannelForPermissionAuthoritative(ctx, slotID, hashSlot, channelID, channelType)
 }
 
+// ScanChannelsSlotPage reads one authoritative channel page for a physical Slot.
+func (s *Store) ScanChannelsSlotPage(ctx context.Context, slotID multiraft.SlotID, after metadb.ChannelCursor, limit int) ([]metadb.Channel, metadb.ChannelCursor, bool, error) {
+	return s.scanChannelsSlotPageAuthoritative(ctx, slotID, after, limit)
+}
+
 func (s *Store) AddChannelSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error {
 	slotID := s.cluster.SlotForKey(channelID)
 	hashSlot := hashSlotForKey(s.cluster, channelID)

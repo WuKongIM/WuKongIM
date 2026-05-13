@@ -53,9 +53,15 @@ import {
   startNodeOnboardingJob,
   transferSlotLeader,
   advanceMessageRetention,
+  addBusinessChannelMembers,
   repairChannelClusterLeader,
+  getBusinessChannel,
+  getBusinessChannelMembers,
+  getBusinessChannels,
   resetUserToken,
+  removeBusinessChannelMembers,
   transferChannelClusterLeader,
+  upsertBusinessChannel,
 } from "@/lib/manager-api"
 
 describe("manager api client", () => {
@@ -233,6 +239,62 @@ describe("manager api client", () => {
       device_flag: "app",
       device_level: "master",
     })
+  })
+
+  it("fetches business channels with search params", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ items: [], has_more: false }), { status: 200 }))
+
+    await getBusinessChannels({ type: 2, keyword: "g1", limit: 25, cursor: "abc" })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/channels?type=2&keyword=g1&limit=25&cursor=abc",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
+  it("fetches business channel detail with encoded channel id", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ channel_id: "g/1", channel_type: 2 }), { status: 200 }))
+
+    await getBusinessChannel(2, "g/1")
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channels/2/g%2F1")
+  })
+
+  it("upserts a business channel with backend field names", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ channel_id: "g1", channel_type: 2 }), { status: 200 }))
+
+    await upsertBusinessChannel({ channelId: "g1", channelType: 2, ban: true, disband: false, sendBan: true })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channels")
+    expect(JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string)).toEqual({
+      channel_id: "g1",
+      channel_type: 2,
+      ban: true,
+      disband: false,
+      send_ban: true,
+    })
+  })
+
+  it("fetches business channel members by list kind", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ items: [], has_more: false }), { status: 200 }))
+
+    await getBusinessChannelMembers(2, "g/1", "allowlist", { limit: 100, cursor: "next" })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channels/2/g%2F1/allowlist?limit=100&cursor=next")
+  })
+
+  it("adds and removes business channel members with uid bodies", async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ changed: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ changed: true }), { status: 200 }))
+
+    await addBusinessChannelMembers(2, "g1", "subscribers", { uids: ["u1", "u2"] })
+    await removeBusinessChannelMembers(2, "g1", "denylist", { uids: ["u3"] })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/channels/2/g1/subscribers/add")
+    expect(JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string)).toEqual({ uids: ["u1", "u2"] })
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/manager/channels/2/g1/denylist/remove")
+    expect(JSON.parse((fetchMock.mock.calls[1]?.[1] as RequestInit).body as string)).toEqual({ uids: ["u3"] })
   })
 
   it("fetches network summary from the manager network endpoint", async () => {
