@@ -150,7 +150,11 @@ func (s *Store) ListActiveChannelMigrationTasksForNode(ctx context.Context, node
 
 		var tasks []metadb.ChannelMigrationTask
 		var hasMore bool
-		if s.shouldServeSlotLocally(slotID) {
+		leaderID, err := s.cluster.LeaderOf(slotID)
+		if err != nil {
+			return nil, false, err
+		}
+		if s.cluster.IsLocal(leaderID) {
 			var err error
 			tasks, hasMore, err = s.listActiveChannelMigrationTasksForNodeLocalSlot(ctx, slotID, nodeID, remaining)
 			if err != nil {
