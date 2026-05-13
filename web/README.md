@@ -32,7 +32,8 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 | `/users` | `GET /manager/users`, `GET /manager/users/:uid`, `POST /manager/users/:uid/kick`, `POST /manager/users/:uid/token/reset` | Implemented |
 | `/channels-biz` | `GET /manager/channels`, `GET /manager/channels/:type/:id`, `POST /manager/channels`, member list add/remove APIs | Implemented |
 | `/system-users` | `GET /manager/system-users`, `POST /manager/system-users/add`, `POST /manager/system-users/remove` | Implemented |
-| `/monitor`, `/settings/permissions`, `/settings/webhooks`, `/topology` | Requires follow-up read/write API design | Placeholder |
+| `/settings/permissions` | `GET /manager/permissions` | Implemented |
+| `/monitor`, `/settings/webhooks`, `/topology` | Requires follow-up read/write API design | Placeholder |
 
 ## Channel Cluster Notes
 
