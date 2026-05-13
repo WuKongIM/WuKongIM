@@ -85,7 +85,7 @@
 | `presence.App` | `usecase/presence/app.go` | 在线状态用例：激活/去激活、权威路由、心跳 |
 | `conversation.App` | `usecase/conversation/app.go` | 会话用例：增量/全量同步、冷热分离 |
 | `channel.App` | `usecase/channel/app.go` | 频道业务用例：资料、订阅者、白名单、黑名单 |
-| `management.App` | `usecase/management/app.go` | 后台管理聚合用例：节点、用户、频道业务、诊断 DTO |
+| `management.App` | `usecase/management/app.go` | 后台管理聚合用例：节点、用户、系统 UID、频道业务、诊断 DTO |
 
 #### 运行时层（Runtime）
 | 组件 | 文件 | 职责 |
@@ -162,6 +162,9 @@ management.App.UpsertChannel(ctx, ChannelBusinessUpsertCommand) (ChannelBusiness
 management.App.ListChannelMembers(ctx, ChannelMemberListQuery) (ChannelMemberListResult, error)
 management.App.AddChannelMembers(ctx, ChannelMemberMutationCommand) (ChannelMemberMutationResult, error)
 management.App.RemoveChannelMembers(ctx, ChannelMemberMutationCommand) (ChannelMemberMutationResult, error)
+management.App.ListSystemUsers(ctx) (ListSystemUsersResponse, error)
+management.App.AddSystemUsers(ctx, MutateSystemUsersRequest) (MutateSystemUsersResponse, error)
+management.App.RemoveSystemUsers(ctx, MutateSystemUsersRequest) (MutateSystemUsersResponse, error)
 ```
 
 ### 3.4 运行时层
