@@ -8,12 +8,15 @@ import (
 	"unsafe"
 
 	"github.com/WuKongIM/WuKongIM/internal/access/node"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 )
 
@@ -96,6 +99,7 @@ func TestCMDSyncMessageStoreReturnsEmptyWhenCommandLogUnavailable(t *testing.T) 
 
 func TestNewBuildsCMDSyncRuntimeAndCommittedFanout(t *testing.T) {
 	cfg := testConfig(t)
+	cfg.API.ListenAddr = "127.0.0.1:0"
 
 	app, err := New(cfg)
 	require.NoError(t, err)
@@ -110,6 +114,167 @@ func TestNewBuildsCMDSyncRuntimeAndCommittedFanout(t *testing.T) {
 	require.Len(t, fanout.subscribers, 2)
 	require.Same(t, app.committedDispatcher, fanout.subscribers[0])
 	require.Same(t, app.cmdSyncProjector, fanout.subscribers[1])
+
+	nodeCMDSync, ok := unexportedFieldForTest(t, app.nodeAccess, "cmdSync").(*cmdsync.App)
+	require.True(t, ok)
+	require.Same(t, app.cmdSyncApp, nodeCMDSync)
+
+	require.NotNil(t, app.api)
+	apiCMDSync, ok := unexportedFieldForTest(t, app.api, "cmdSync").(clusterCMDSyncUsecase)
+	require.True(t, ok)
+	require.Same(t, app.cmdSyncApp, apiCMDSync.local)
+	require.Same(t, app.nodeClient, apiCMDSync.remote)
+	require.Same(t, app.cluster, apiCMDSync.cluster)
+	require.Equal(t, cfg.Node.ID, apiCMDSync.localNodeID)
+}
+
+func TestClusterCMDSyncUsecaseRoutesLocalOwner(t *testing.T) {
+	commandChannelID := channelid.ToCommandChannel("g-local")
+	states := &cmdsyncStateStoreFake{
+		active: []metadb.CMDConversationState{{
+			UID: "u1", ChannelID: commandChannelID, ChannelType: int64(frame.ChannelTypeGroup), ActiveAt: 100,
+		}},
+	}
+	messages := &cmdsyncMessageStoreFake{
+		byKey: map[cmdsync.CommandChannelKey][]channel.Message{
+			{ChannelID: commandChannelID, ChannelType: frame.ChannelTypeGroup}: {{
+				MessageSeq: 7, ChannelID: commandChannelID, ChannelType: frame.ChannelTypeGroup,
+			}},
+		},
+	}
+	remote := &cmdsyncRemoteCapture{}
+	uc := clusterCMDSyncUsecase{
+		local:       cmdsync.New(cmdsync.Options{States: states, Messages: messages}),
+		remote:      remote,
+		cluster:     &cmdsyncRoutingClusterFake{slot: 3, leader: 1},
+		localNodeID: 1,
+	}
+
+	result, err := uc.Sync(context.Background(), cmdsync.SyncQuery{UID: " u1 ", Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, []channel.Message{{MessageSeq: 7, ChannelID: "g-local", ChannelType: frame.ChannelTypeGroup}}, result.Messages)
+	require.Equal(t, []string{"u1"}, states.listUIDs)
+	require.Empty(t, remote.syncQueries)
+
+	require.NoError(t, uc.SyncAck(context.Background(), cmdsync.SyncAckCommand{UID: " u1 ", LastMessageSeq: 7}))
+	require.Equal(t, []metadb.CMDConversationReadPatch{{
+		UID: "u1", ChannelID: commandChannelID, ChannelType: int64(frame.ChannelTypeGroup), ReadSeq: 7,
+	}}, stripCMDPatchTimes(states.patches))
+	require.Empty(t, remote.acks)
+}
+
+func TestClusterCMDSyncUsecaseRoutesRemoteOwner(t *testing.T) {
+	remote := &cmdsyncRemoteCapture{
+		syncResult: cmdsync.SyncResult{Messages: []channel.Message{{MessageSeq: 9, ChannelID: "g-remote", ChannelType: frame.ChannelTypeGroup}}},
+	}
+	uc := clusterCMDSyncUsecase{
+		local:       cmdsync.New(cmdsync.Options{States: &cmdsyncStateStoreFake{}, Messages: &cmdsyncMessageStoreFake{}}),
+		remote:      remote,
+		cluster:     &cmdsyncRoutingClusterFake{slot: 5, leader: 9},
+		localNodeID: 1,
+	}
+
+	result, err := uc.Sync(context.Background(), cmdsync.SyncQuery{UID: " u2 ", MessageSeq: 3, Limit: 20})
+	require.NoError(t, err)
+	require.Equal(t, []channel.Message{{MessageSeq: 9, ChannelID: "g-remote", ChannelType: frame.ChannelTypeGroup}}, result.Messages)
+	require.Equal(t, []uint64{9}, remote.syncNodeIDs)
+	require.Equal(t, []cmdsync.SyncQuery{{UID: "u2", MessageSeq: 3, Limit: 20}}, remote.syncQueries)
+
+	require.NoError(t, uc.SyncAck(context.Background(), cmdsync.SyncAckCommand{UID: " u2 ", LastMessageSeq: 9}))
+	require.Equal(t, []uint64{9}, remote.ackNodeIDs)
+	require.Equal(t, []cmdsync.SyncAckCommand{{UID: "u2", LastMessageSeq: 9}}, remote.acks)
+}
+
+func TestClusterCMDSyncUsecaseRejectsBlankUIDBeforeRouting(t *testing.T) {
+	cluster := &cmdsyncRoutingClusterFake{slot: 5, leader: 9}
+	remote := &cmdsyncRemoteCapture{}
+	uc := clusterCMDSyncUsecase{
+		local:       cmdsync.New(cmdsync.Options{States: &cmdsyncStateStoreFake{}, Messages: &cmdsyncMessageStoreFake{}}),
+		remote:      remote,
+		cluster:     cluster,
+		localNodeID: 1,
+	}
+
+	_, err := uc.Sync(context.Background(), cmdsync.SyncQuery{UID: "   ", Limit: 1})
+	require.ErrorIs(t, err, cmdsync.ErrUIDRequired)
+	require.ErrorIs(t, uc.SyncAck(context.Background(), cmdsync.SyncAckCommand{UID: "   ", LastMessageSeq: 1}), cmdsync.ErrUIDRequired)
+	require.Empty(t, cluster.slotKeys)
+	require.Empty(t, remote.syncQueries)
+	require.Empty(t, remote.acks)
+}
+
+func TestCMDSyncProjectionSyncAckDurableRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	commandChannelID := channelid.ToCommandChannel("g1")
+	store := newDurableCMDStateStore()
+	projector := cmdsync.NewProjector(cmdsync.ProjectorOptions{
+		Store:       store,
+		Subscribers: &appCMDSyncSubscriberResolver{pages: [][]string{{"u1", "u2"}}},
+	})
+	msg := channel.Message{
+		ChannelID: commandChannelID, ChannelType: frame.ChannelTypeGroup, FromUID: "u1",
+		MessageSeq: 7, Timestamp: 100, Framer: frame.Framer{SyncOnce: true},
+	}
+
+	require.NoError(t, projector.ProjectCommitted(ctx, messageevents.MessageCommitted{Message: msg}))
+	require.Equal(t, uint64(7), store.state("u1", commandChannelID, frame.ChannelTypeGroup).ReadSeq)
+	require.Zero(t, store.state("u2", commandChannelID, frame.ChannelTypeGroup).ReadSeq)
+
+	app := cmdsync.New(cmdsync.Options{
+		States: store,
+		Messages: &cmdsyncMessageStoreFake{byKey: map[cmdsync.CommandChannelKey][]channel.Message{
+			{ChannelID: commandChannelID, ChannelType: frame.ChannelTypeGroup}: {msg},
+		}},
+	})
+	result, err := app.Sync(ctx, cmdsync.SyncQuery{UID: "u2", Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, []channel.Message{{
+		ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, FromUID: "u1", MessageSeq: 7, Timestamp: 100, Framer: frame.Framer{SyncOnce: true},
+	}}, result.Messages)
+
+	require.NoError(t, app.SyncAck(ctx, cmdsync.SyncAckCommand{UID: "u2", LastMessageSeq: 7}))
+	require.Equal(t, uint64(7), store.state("u2", commandChannelID, frame.ChannelTypeGroup).ReadSeq)
+
+	result, err = app.Sync(ctx, cmdsync.SyncQuery{UID: "u2", Limit: 10})
+	require.NoError(t, err)
+	require.Empty(t, result.Messages)
+}
+
+func TestClusterCMDSyncUsecaseKeepsUIDOwnerSeparateFromCommandOwner(t *testing.T) {
+	commandChannelID := channelid.ToCommandChannel("g-split")
+	states := &cmdsyncStateStoreFake{
+		active: []metadb.CMDConversationState{{
+			UID: "u1", ChannelID: commandChannelID, ChannelType: int64(frame.ChannelTypeGroup), ActiveAt: 100,
+		}},
+	}
+	commandOwner := &cmdsyncMessageRemoteCapture{
+		page: node.ChannelMessagesPage{Messages: []channel.Message{{
+			MessageSeq: 11, ChannelID: commandChannelID, ChannelType: frame.ChannelTypeGroup,
+		}}},
+	}
+	uidOwnerRemote := &cmdsyncRemoteCapture{}
+	uc := clusterCMDSyncUsecase{
+		local: cmdsync.New(cmdsync.Options{
+			States: states,
+			Messages: cmdsyncMessageStore{
+				localNodeID: 1,
+				metas: cmdsyncMessageMetasFake{meta: metadb.ChannelRuntimeMeta{
+					ChannelID: commandChannelID, ChannelType: int64(frame.ChannelTypeGroup), Leader: 7,
+				}},
+				remote: commandOwner,
+			},
+		}),
+		remote:      uidOwnerRemote,
+		cluster:     &cmdsyncRoutingClusterFake{slot: 4, leader: 1},
+		localNodeID: 1,
+	}
+
+	result, err := uc.Sync(context.Background(), cmdsync.SyncQuery{UID: "u1", Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, []channel.Message{{MessageSeq: 11, ChannelID: "g-split", ChannelType: frame.ChannelTypeGroup}}, result.Messages)
+	require.Empty(t, uidOwnerRemote.syncQueries)
+	require.Equal(t, []uint64{7}, commandOwner.nodeIDs)
+	require.Equal(t, commandChannelID, commandOwner.requests[0].ChannelID.ID)
 }
 
 type cmdsyncMessageMetasFake struct {
@@ -153,4 +318,187 @@ func messageAppDispatcherForTest(t *testing.T, app *App) any {
 		t.Fatal("message.App is missing dispatcher field")
 	}
 	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface()
+}
+
+func unexportedFieldForTest(t *testing.T, target any, name string) any {
+	t.Helper()
+	value := reflect.ValueOf(target)
+	if value.Kind() == reflect.Pointer {
+		value = value.Elem()
+	}
+	field := value.FieldByName(name)
+	require.Truef(t, field.IsValid(), "%T is missing field %s", target, name)
+	return reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface()
+}
+
+type cmdsyncRoutingClusterFake struct {
+	slot        multiraft.SlotID
+	leader      multiraft.NodeID
+	err         error
+	slotKeys    []string
+	leaderSlots []multiraft.SlotID
+}
+
+func (f *cmdsyncRoutingClusterFake) SlotForKey(key string) multiraft.SlotID {
+	f.slotKeys = append(f.slotKeys, key)
+	return f.slot
+}
+
+func (f *cmdsyncRoutingClusterFake) LeaderOf(slotID multiraft.SlotID) (multiraft.NodeID, error) {
+	f.leaderSlots = append(f.leaderSlots, slotID)
+	return f.leader, f.err
+}
+
+type cmdsyncRemoteCapture struct {
+	syncNodeIDs []uint64
+	syncQueries []cmdsync.SyncQuery
+	syncResult  cmdsync.SyncResult
+	syncErr     error
+	ackNodeIDs  []uint64
+	acks        []cmdsync.SyncAckCommand
+	ackErr      error
+}
+
+func (r *cmdsyncRemoteCapture) SyncCMD(_ context.Context, nodeID uint64, query cmdsync.SyncQuery) (cmdsync.SyncResult, error) {
+	r.syncNodeIDs = append(r.syncNodeIDs, nodeID)
+	r.syncQueries = append(r.syncQueries, query)
+	return r.syncResult, r.syncErr
+}
+
+func (r *cmdsyncRemoteCapture) SyncAckCMD(_ context.Context, nodeID uint64, cmd cmdsync.SyncAckCommand) error {
+	r.ackNodeIDs = append(r.ackNodeIDs, nodeID)
+	r.acks = append(r.acks, cmd)
+	return r.ackErr
+}
+
+type cmdsyncStateStoreFake struct {
+	active   []metadb.CMDConversationState
+	listUIDs []string
+	patches  []metadb.CMDConversationReadPatch
+}
+
+func (s *cmdsyncStateStoreFake) ListCMDConversationActive(_ context.Context, uid string, limit int) ([]metadb.CMDConversationState, error) {
+	s.listUIDs = append(s.listUIDs, uid)
+	out := make([]metadb.CMDConversationState, 0, len(s.active))
+	for _, state := range s.active {
+		if state.UID != uid {
+			continue
+		}
+		out = append(out, state)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (s *cmdsyncStateStoreFake) AdvanceCMDConversationReadSeq(_ context.Context, patches []metadb.CMDConversationReadPatch) error {
+	s.patches = append(s.patches, patches...)
+	return nil
+}
+
+type cmdsyncMessageStoreFake struct {
+	byKey map[cmdsync.CommandChannelKey][]channel.Message
+}
+
+func (s *cmdsyncMessageStoreFake) LoadCommandMessages(_ context.Context, key cmdsync.CommandChannelKey, fromSeq uint64, limit int) ([]channel.Message, error) {
+	out := make([]channel.Message, 0, len(s.byKey[key]))
+	for _, msg := range s.byKey[key] {
+		if msg.MessageSeq < fromSeq {
+			continue
+		}
+		out = append(out, msg)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+type durableCMDStateStore struct {
+	rows map[cmdsyncDurableStateKey]metadb.CMDConversationState
+}
+
+func newDurableCMDStateStore() *durableCMDStateStore {
+	return &durableCMDStateStore{rows: make(map[cmdsyncDurableStateKey]metadb.CMDConversationState)}
+}
+
+func (s *durableCMDStateStore) UpsertCMDConversationStates(_ context.Context, states []metadb.CMDConversationState) error {
+	for _, state := range states {
+		key := cmdsyncDurableStateKey{uid: state.UID, channelID: state.ChannelID, channelType: state.ChannelType}
+		existing := s.rows[key]
+		if state.ReadSeq < existing.ReadSeq {
+			state.ReadSeq = existing.ReadSeq
+		}
+		s.rows[key] = state
+	}
+	return nil
+}
+
+func (s *durableCMDStateStore) ListCMDConversationActive(_ context.Context, uid string, limit int) ([]metadb.CMDConversationState, error) {
+	out := make([]metadb.CMDConversationState, 0, len(s.rows))
+	for _, state := range s.rows {
+		if state.UID != uid {
+			continue
+		}
+		out = append(out, state)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (s *durableCMDStateStore) AdvanceCMDConversationReadSeq(_ context.Context, patches []metadb.CMDConversationReadPatch) error {
+	for _, patch := range patches {
+		key := cmdsyncDurableStateKey{uid: patch.UID, channelID: patch.ChannelID, channelType: patch.ChannelType}
+		state := s.rows[key]
+		if patch.ReadSeq > state.ReadSeq {
+			state.ReadSeq = patch.ReadSeq
+		}
+		state.UpdatedAt = patch.UpdatedAt
+		s.rows[key] = state
+	}
+	return nil
+}
+
+func (s *durableCMDStateStore) state(uid, channelID string, channelType uint8) metadb.CMDConversationState {
+	return s.rows[cmdsyncDurableStateKey{uid: uid, channelID: channelID, channelType: int64(channelType)}]
+}
+
+type cmdsyncDurableStateKey struct {
+	uid         string
+	channelID   string
+	channelType int64
+}
+
+type appCMDSyncSubscriberResolver struct {
+	pages [][]string
+}
+
+func (r *appCMDSyncSubscriberResolver) BeginSnapshot(ctx context.Context, id channel.ChannelID) (delivery.SnapshotToken, error) {
+	return r.BeginSnapshotWithRequest(ctx, id, delivery.SubscriberSnapshotRequest{})
+}
+
+func (r *appCMDSyncSubscriberResolver) BeginSnapshotWithRequest(context.Context, channel.ChannelID, delivery.SubscriberSnapshotRequest) (delivery.SnapshotToken, error) {
+	return delivery.SnapshotToken{}, nil
+}
+
+func (r *appCMDSyncSubscriberResolver) NextPage(_ context.Context, _ delivery.SnapshotToken, cursor string, _ int) ([]string, string, bool, error) {
+	idx := 0
+	if cursor != "" {
+		idx = 1
+	}
+	if idx >= len(r.pages) {
+		return nil, cursor, true, nil
+	}
+	return append([]string(nil), r.pages[idx]...), "done", true, nil
+}
+
+func stripCMDPatchTimes(patches []metadb.CMDConversationReadPatch) []metadb.CMDConversationReadPatch {
+	out := append([]metadb.CMDConversationReadPatch(nil), patches...)
+	for i := range out {
+		out[i].UpdatedAt = 0
+	}
+	return out
 }
