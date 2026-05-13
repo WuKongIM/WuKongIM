@@ -367,7 +367,7 @@ func (a *App) CancelNodeScaleIn(ctx context.Context, nodeID uint64) (NodeScaleIn
 	return a.GetNodeScaleInStatus(ctx, nodeID)
 }
 
-// AdvanceNodeScaleIn performs a bounded leader-transfer step and returns the refreshed report.
+// AdvanceNodeScaleIn performs one bounded scale-in advancement step and returns the refreshed report.
 func (a *App) AdvanceNodeScaleIn(ctx context.Context, nodeID uint64, req AdvanceNodeScaleInRequest) (NodeScaleInReport, error) {
 	report, err := a.GetNodeScaleInStatus(ctx, nodeID)
 	if err != nil {
@@ -392,25 +392,65 @@ func (a *App) AdvanceNodeScaleIn(ctx context.Context, nodeID uint64, req Advance
 		return report, &NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
 	}
 
-	limit := clampScaleInLeaderTransfers(req.MaxLeaderTransfers)
-	transferred := 0
-	for _, view := range snapshot.views {
-		if view.LeaderID != nodeID {
-			continue
+	if report.Status == NodeScaleInStatusTransferringLeaders || report.Progress.SlotLeaders > 0 {
+		limit := clampScaleInLeaderTransfers(req.MaxLeaderTransfers)
+		transferred := 0
+		for _, view := range snapshot.views {
+			if view.LeaderID != nodeID {
+				continue
+			}
+			candidate, ok := selectScaleInLeaderCandidate(snapshot.nodes, snapshot.assignments, view, nodeID)
+			if !ok {
+				return report, &NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
+			}
+			if err := a.cluster.TransferSlotLeader(ctx, view.SlotID, multiraft.NodeID(candidate)); err != nil {
+				return report, err
+			}
+			transferred++
+			if transferred >= limit {
+				break
+			}
 		}
-		candidate, ok := selectScaleInLeaderCandidate(snapshot.nodes, snapshot.assignments, view, nodeID)
-		if !ok {
+		return a.GetNodeScaleInStatus(ctx, nodeID)
+	}
+
+	switch report.Status {
+	case NodeScaleInStatusMigratingReplicas, NodeScaleInStatusTransferringLeaders, NodeScaleInStatusFailed, NodeScaleInStatusBlocked:
+		return report, nil
+	}
+	if report.Progress.ActiveChannelMigrationsInvolvingNode > 0 {
+		return report, nil
+	}
+	if report.Status == NodeScaleInStatusDrainingChannels {
+		created, blocker, race, err := a.advanceNodeScaleInChannels(ctx, nodeID, clampScaleInChannelMigrations(req.MaxChannelMigrations))
+		if race {
+			refreshed, refreshErr := a.GetNodeScaleInStatus(ctx, nodeID)
+			if refreshErr != nil {
+				return report, refreshErr
+			}
+			return refreshed, nil
+		}
+		if err != nil {
+			refreshed, refreshErr := a.GetNodeScaleInStatus(ctx, nodeID)
+			if refreshErr == nil {
+				report = refreshed
+			}
+			if blocker != "" {
+				report.BlockedReasons = append(report.BlockedReasons, scaleInBlockedReason(blocker, "no eligible channel migration target is available", 0, 0, nodeID))
+			}
 			return report, &NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
 		}
-		if err := a.cluster.TransferSlotLeader(ctx, view.SlotID, multiraft.NodeID(candidate)); err != nil {
-			return report, err
+		if created == 0 {
+			refreshed, refreshErr := a.GetNodeScaleInStatus(ctx, nodeID)
+			if refreshErr == nil {
+				report = refreshed
+			}
+			report.BlockedReasons = append(report.BlockedReasons, scaleInBlockedReason("no_channel_migration_target", "no eligible channel migration target is available", 0, 0, nodeID))
+			return report, &NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
 		}
-		transferred++
-		if transferred >= limit {
-			break
-		}
+		return a.GetNodeScaleInStatus(ctx, nodeID)
 	}
-	return a.GetNodeScaleInStatus(ctx, nodeID)
+	return report, nil
 }
 
 func (a *App) loadNodeScaleInSnapshot(ctx context.Context, nodeID uint64) (nodeScaleInSnapshot, error) {

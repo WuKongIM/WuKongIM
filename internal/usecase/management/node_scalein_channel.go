@@ -2,17 +2,22 @@ package management
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
 const (
-	scaleInChannelScanPageLimit = 128
-	scaleInChannelTaskScanLimit = 1024
+	scaleInChannelScanPageLimit     = 128
+	scaleInChannelTaskScanLimit     = 1024
+	scaleInDefaultChannelMigrations = 1
+	scaleInMaxChannelMigrations     = 5
 )
 
 type nodeScaleInChannelInventory struct {
@@ -22,6 +27,31 @@ type nodeScaleInChannelInventory struct {
 	scanned          bool
 	partial          bool
 	errText          string
+}
+
+type scaleInChannelDrainCandidate struct {
+	slotID multiraft.SlotID
+	meta   metadb.ChannelRuntimeMeta
+}
+
+type scaleInChannelMigrationCluster struct {
+	ClusterReader
+	source uint64
+}
+
+func (c scaleInChannelMigrationCluster) ListNodesStrict(ctx context.Context) ([]controllermeta.ClusterNode, error) {
+	nodes, err := c.ClusterReader.ListNodesStrict(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := append([]controllermeta.ClusterNode(nil), nodes...)
+	for i := range out {
+		if out[i].NodeID == c.source && out[i].Status == controllermeta.NodeStatusDraining {
+			// Scale-in drains ownership from a Draining source while preserving normal target eligibility checks.
+			out[i].Status = controllermeta.NodeStatusAlive
+		}
+	}
+	return out, nil
 }
 
 func (a *App) loadNodeScaleInChannelInventory(ctx context.Context, nodeID uint64) nodeScaleInChannelInventory {
@@ -80,6 +110,196 @@ func (a *App) loadNodeScaleInChannelInventory(ctx context.Context, nodeID uint64
 		inventory.errText = fmt.Sprintf("active channel migration scan exceeded limit %d", scaleInChannelTaskScanLimit)
 	}
 	return inventory
+}
+
+func clampScaleInChannelMigrations(limit int) int {
+	if limit <= 0 {
+		return scaleInDefaultChannelMigrations
+	}
+	if limit > scaleInMaxChannelMigrations {
+		return scaleInMaxChannelMigrations
+	}
+	return limit
+}
+
+func (a *App) advanceNodeScaleInChannels(ctx context.Context, nodeID uint64, limit int) (created int, blocker string, race bool, err error) {
+	if a == nil || a.cluster == nil || a.channelRuntimeMeta == nil {
+		return 0, "no_channel_migration_target", false, metadb.ErrInvalidArgument
+	}
+	limit = clampScaleInChannelMigrations(limit)
+	nodes, err := a.cluster.ListNodesStrict(ctx)
+	if err != nil {
+		return 0, "", false, err
+	}
+
+	leaderCandidates, replicaCandidates, err := a.loadNodeScaleInChannelDrainCandidates(ctx, nodeID)
+	if err != nil {
+		return 0, "", false, err
+	}
+	sortScaleInChannelDrainCandidates(leaderCandidates)
+	sortScaleInChannelDrainCandidates(replicaCandidates)
+
+	attemptedRaceable := false
+	missingTarget := false
+	for _, candidates := range [][]scaleInChannelDrainCandidate{leaderCandidates, replicaCandidates} {
+		for _, candidate := range candidates {
+			ok, raced, createErr := a.createScaleInChannelMigration(ctx, nodes, candidate.meta, nodeID)
+			switch {
+			case createErr != nil:
+				return created, "no_channel_migration_target", false, createErr
+			case raced:
+				attemptedRaceable = true
+				race = true
+				continue
+			case !ok:
+				missingTarget = true
+				continue
+			}
+			created++
+			if created >= limit {
+				return created, "", false, nil
+			}
+		}
+	}
+	if created > 0 {
+		return created, "", false, nil
+	}
+	if race && attemptedRaceable {
+		return 0, "", true, nil
+	}
+	if missingTarget || len(leaderCandidates) > 0 || len(replicaCandidates) > 0 {
+		return 0, "no_channel_migration_target", false, nil
+	}
+	return 0, "no_channel_migration_target", false, nil
+}
+
+func (a *App) loadNodeScaleInChannelDrainCandidates(ctx context.Context, nodeID uint64) ([]scaleInChannelDrainCandidate, []scaleInChannelDrainCandidate, error) {
+	slotIDs := append([]multiraft.SlotID(nil), a.cluster.SlotIDs()...)
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+
+	var leaderCandidates []scaleInChannelDrainCandidate
+	var replicaCandidates []scaleInChannelDrainCandidate
+	for _, slotID := range slotIDs {
+		after := metadb.ChannelRuntimeMetaCursor{}
+		for {
+			page, cursor, done, err := a.channelRuntimeMeta.ScanChannelRuntimeMetaSlotPage(ctx, slotID, after, scaleInChannelScanPageLimit)
+			if err != nil {
+				return nil, nil, err
+			}
+			for _, meta := range page {
+				if meta.Leader == nodeID {
+					leaderCandidates = append(leaderCandidates, scaleInChannelDrainCandidate{slotID: slotID, meta: meta})
+					continue
+				}
+				if scaleInUint64sContain(meta.Replicas, nodeID) || scaleInUint64sContain(meta.ISR, nodeID) {
+					replicaCandidates = append(replicaCandidates, scaleInChannelDrainCandidate{slotID: slotID, meta: meta})
+				}
+			}
+			if done {
+				break
+			}
+			if !scaleInChannelInventoryCursorAfter(cursor, after) {
+				return nil, nil, fmt.Errorf("channel inventory scan made no cursor progress")
+			}
+			after = cursor
+		}
+	}
+	return leaderCandidates, replicaCandidates, nil
+}
+
+func sortScaleInChannelDrainCandidates(candidates []scaleInChannelDrainCandidate) {
+	sort.SliceStable(candidates, func(i, j int) bool {
+		if candidates[i].slotID != candidates[j].slotID {
+			return candidates[i].slotID < candidates[j].slotID
+		}
+		if candidates[i].meta.ChannelID != candidates[j].meta.ChannelID {
+			return candidates[i].meta.ChannelID < candidates[j].meta.ChannelID
+		}
+		return candidates[i].meta.ChannelType < candidates[j].meta.ChannelType
+	})
+}
+
+func (a *App) createScaleInChannelMigration(ctx context.Context, nodes []controllermeta.ClusterNode, meta metadb.ChannelRuntimeMeta, source uint64) (created bool, race bool, err error) {
+	id := channel.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}
+	migrationApp := *a
+	migrationApp.cluster = scaleInChannelMigrationCluster{ClusterReader: a.cluster, source: source}
+	if meta.Leader == source {
+		if target, ok := selectScaleInChannelReplicaTarget(nodes, meta, source); ok && hasEligibleEmbeddedLeader(nodes, meta, source, target) {
+			result, err := migrationApp.MigrateChannelReplica(ctx, id, MigrateChannelReplicaRequest{SourceNodeID: source, TargetNodeID: target})
+			if scaleInChannelMigrationRace(result, err) {
+				return false, true, nil
+			}
+			return err == nil, false, err
+		}
+		target, ok := selectScaleInChannelLeaderTarget(nodes, meta, source)
+		if !ok {
+			return false, false, nil
+		}
+		result, err := migrationApp.TransferChannelLeader(ctx, id, TransferChannelLeaderRequest{TargetNodeID: target})
+		if scaleInChannelMigrationRace(result, err) {
+			return false, true, nil
+		}
+		return err == nil, false, err
+	}
+
+	target, ok := selectScaleInChannelReplicaTarget(nodes, meta, source)
+	if !ok {
+		return false, false, nil
+	}
+	result, err := migrationApp.MigrateChannelReplica(ctx, id, MigrateChannelReplicaRequest{SourceNodeID: source, TargetNodeID: target})
+	if scaleInChannelMigrationRace(result, err) {
+		return false, true, nil
+	}
+	return err == nil, false, err
+}
+
+func scaleInChannelMigrationRace(result ChannelMigrationResult, err error) bool {
+	if errors.Is(err, metadb.ErrStaleMeta) || errors.Is(err, metadb.ErrAlreadyExists) {
+		return true
+	}
+	if err == nil {
+		return false
+	}
+	for _, blocker := range result.Blockers {
+		if blocker == "active_task_exists" {
+			return true
+		}
+	}
+	return false
+}
+
+func selectScaleInChannelLeaderTarget(nodes []controllermeta.ClusterNode, meta metadb.ChannelRuntimeMeta, source uint64) (uint64, bool) {
+	for _, node := range scaleInSortedAliveChannelTargets(nodes, source) {
+		if scaleInUint64sContain(meta.ISR, node.NodeID) {
+			return node.NodeID, true
+		}
+	}
+	return 0, false
+}
+
+func selectScaleInChannelReplicaTarget(nodes []controllermeta.ClusterNode, meta metadb.ChannelRuntimeMeta, source uint64) (uint64, bool) {
+	for _, node := range scaleInSortedAliveChannelTargets(nodes, source) {
+		if scaleInUint64sContain(meta.Replicas, node.NodeID) || scaleInUint64sContain(meta.ISR, node.NodeID) {
+			continue
+		}
+		return node.NodeID, true
+	}
+	return 0, false
+}
+
+func scaleInSortedAliveChannelTargets(nodes []controllermeta.ClusterNode, source uint64) []controllermeta.ClusterNode {
+	out := make([]controllermeta.ClusterNode, 0, len(nodes))
+	for _, node := range nodes {
+		if node.NodeID == source {
+			continue
+		}
+		if node.Role != controllermeta.NodeRoleData || node.JoinState != controllermeta.NodeJoinStateActive || node.Status != controllermeta.NodeStatusAlive {
+			continue
+		}
+		out = append(out, node)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].NodeID < out[j].NodeID })
+	return out
 }
 
 func (i *nodeScaleInChannelInventory) addRuntimeMeta(ctx context.Context, store ChannelMigrationStore, nodeID uint64, meta metadb.ChannelRuntimeMeta, seenTasks map[scaleInChannelMigrationTaskKey]struct{}) {
