@@ -23,6 +23,23 @@ func TestPendingUpdaterCoalescesByCommandChannelAndUID(t *testing.T) {
 	require.Equal(t, []PendingConversationView{{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 7, ActiveAt: 70, ReadSeq: 5}}, got)
 }
 
+func TestPendingUpdaterKeepsPerUIDLastSeqForDisjointRecipients(t *testing.T) {
+	store := &fakePendingStateStore{}
+	updater := NewConversationUpdater(ConversationUpdaterOptions{Store: store, Now: fixedNano(1000)})
+
+	require.NoError(t, updater.PushIntent(context.Background(), ConversationIntent{CommandChannelID: "g1____cmd", ChannelType: 2, MessageSeq: 5, ActiveAt: 50, UserReadSeqs: map[string]uint64{"u1": 0}}))
+	require.NoError(t, updater.PushIntent(context.Background(), ConversationIntent{CommandChannelID: "g1____cmd", ChannelType: 2, MessageSeq: 7, ActiveAt: 70, UserReadSeqs: map[string]uint64{"u2": 0}}))
+
+	require.Equal(t, []PendingConversationView{{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 5, ActiveAt: 50, ReadSeq: 0}}, updater.ListPending(context.Background(), "u1", 10))
+	require.Equal(t, []PendingConversationView{{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 7, ActiveAt: 70, ReadSeq: 0}}, updater.ListPending(context.Background(), "u2", 10))
+
+	require.NoError(t, updater.Flush(context.Background()))
+	require.Equal(t, []metadb.CMDConversationState{
+		{UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ReadSeq: 0, ActiveAt: 50, UpdatedAt: 1000},
+		{UID: "u2", ChannelID: "g1____cmd", ChannelType: 2, ReadSeq: 0, ActiveAt: 70, UpdatedAt: 1000},
+	}, store.states)
+}
+
 func TestPendingUpdaterKeepsWholeFailedFlushBatch(t *testing.T) {
 	store := &fakePendingStateStore{err: errors.New("store down")}
 	updater := NewConversationUpdater(ConversationUpdaterOptions{Store: store, Now: fixedNano(1000), FlushBatchSize: 10})

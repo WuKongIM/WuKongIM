@@ -375,6 +375,7 @@ type cmdsyncStateStoreFake struct {
 	active   []metadb.CMDConversationState
 	listUIDs []string
 	patches  []metadb.CMDConversationReadPatch
+	upserts  []metadb.CMDConversationState
 }
 
 func (s *cmdsyncStateStoreFake) ListCMDConversationActive(_ context.Context, uid string, limit int) ([]metadb.CMDConversationState, error) {
@@ -394,6 +395,11 @@ func (s *cmdsyncStateStoreFake) ListCMDConversationActive(_ context.Context, uid
 
 func (s *cmdsyncStateStoreFake) AdvanceCMDConversationReadSeq(_ context.Context, patches []metadb.CMDConversationReadPatch) error {
 	s.patches = append(s.patches, patches...)
+	return nil
+}
+
+func (s *cmdsyncStateStoreFake) UpsertCMDConversationStates(_ context.Context, states []metadb.CMDConversationState) error {
+	s.upserts = append(s.upserts, states...)
 	return nil
 }
 

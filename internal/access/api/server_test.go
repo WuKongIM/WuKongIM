@@ -1436,6 +1436,7 @@ func (r *recordingCMDSyncUsecase) SyncAck(_ context.Context, cmd cmdsync.SyncAck
 type apiCMDStateStore struct {
 	active  []metadb.CMDConversationState
 	patches []metadb.CMDConversationReadPatch
+	upserts []metadb.CMDConversationState
 }
 
 func (s *apiCMDStateStore) ListCMDConversationActive(_ context.Context, uid string, limit int) ([]metadb.CMDConversationState, error) {
@@ -1454,6 +1455,11 @@ func (s *apiCMDStateStore) ListCMDConversationActive(_ context.Context, uid stri
 
 func (s *apiCMDStateStore) AdvanceCMDConversationReadSeq(_ context.Context, patches []metadb.CMDConversationReadPatch) error {
 	s.patches = append(s.patches, patches...)
+	return nil
+}
+
+func (s *apiCMDStateStore) UpsertCMDConversationStates(_ context.Context, states []metadb.CMDConversationState) error {
+	s.upserts = append(s.upserts, states...)
 	return nil
 }
 

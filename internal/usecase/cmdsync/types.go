@@ -70,6 +70,7 @@ type StateStore interface {
 // ConversationPendingStore provides owner-local pending overlays to sync/ack.
 type ConversationPendingStore interface {
 	ListPending(ctx context.Context, uid string, limit int) []PendingConversationView
+	// MarkSynced removes a pending overlay only after durable read progress is persisted.
 	MarkSynced(ctx context.Context, uid string, key CommandChannelKey, throughSeq uint64) error
 }
 
