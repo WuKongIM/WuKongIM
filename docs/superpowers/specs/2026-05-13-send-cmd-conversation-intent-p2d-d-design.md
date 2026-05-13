@@ -190,6 +190,17 @@ userIndex[uid] -> set(channelKey)
 
 This mirrors the old cache and lets `/message/sync` discover unflushed CMD channels for one UID without scanning the whole buffer.
 
+All channel-scoped pending operations must key by both `CommandChannelID` and `ChannelType`. Implementations may reuse the existing `cmdsync.CommandChannelKey` shape:
+
+```go
+type CommandChannelKey struct {
+    ChannelID   string
+    ChannelType uint8
+}
+```
+
+No pending cleanup or merge operation should key by channel ID alone.
+
 ## Component Design
 
 ### 1. CMD conversation intent builder
@@ -251,7 +262,7 @@ type ConversationUpdater interface {
     Stop() error
     PushIntent(ctx, intent) error
     ListPending(ctx, uid, limit) []PendingConversationView
-    MarkSynced(ctx, uid, channel, throughSeq) error
+    MarkSynced(ctx, uid, commandChannelKey, throughSeq) error
     Flush(ctx) error
 }
 ```
@@ -262,7 +273,7 @@ Responsibilities:
 - maintain `userIndex` for UID lookups;
 - coalesce multiple intents for the same command channel;
 - flush bounded batches to `CMDConversationState`;
-- save pending updates to a local file on graceful stop;
+- on graceful stop, attempt a final bounded flush, then save whatever remains pending to a local file;
 - load pending updates on start and remove the file after successful load.
 
 Coalescing rules:
@@ -271,6 +282,13 @@ Coalescing rules:
 - `ActiveAt = max(existing.ActiveAt, intent.ActiveAt)`.
 - For each UID, `UserReadSeqs[uid] = max(existingReadSeq, newReadSeq)`.
 - A receiver update with `0` must not regress a sender or acked read seq.
+
+Idempotency rules:
+
+- Duplicate intent submission is safe.
+- Pending coalescing is monotonic by `(CommandChannelID, ChannelType, UID)`.
+- State upsert must be monotonic and must not regress `ReadSeq`, `ActiveAt`, or latest activity.
+- This allows request-scoped direct intent routing and delivery-observer retry to overlap without creating duplicate unread state.
 
 Flush rules:
 
@@ -312,8 +330,9 @@ CMDConversationIntentSubmitted bool
 
 Rules:
 
-- Set the flag only when the request-scoped intent was accepted by the local pending updater or remote owner RPC.
-- If direct intent routing fails, leave the flag false and let the delivery UID observer make a second best-effort attempt from `MessageScopedUIDs`.
+- Set the flag only when all UID-owner partitions for the request-scoped intent were accepted by the local pending updater or remote owner RPC.
+- If any owner partition fails, leave the flag false and let the delivery UID observer make a second best-effort attempt from `MessageScopedUIDs`.
+- Partial success is acceptable because duplicate submission to already-accepted partitions is idempotent.
 - The flag is not written to the channel log and is not expected to survive committed replay.
 - The delivery observer skips request-scoped intent generation only when `CMDConversationIntentSubmitted` is true.
 - P2d-d does not relax the existing strictness of request-scoped committed delivery submission. If current message-scoped delivery submission fails after append, the send path may keep returning the existing dispatch error. Only the CMD conversation intent side effect is non-fatal.
@@ -325,8 +344,14 @@ For ordinary durable CMD channels, the recipient set should come from the delive
 Add a narrow observer interface near the app delivery resolver wiring:
 
 ```text
+type ResolvedUIDPage struct {
+    Envelope                       CommittedEnvelope
+    UIDs                           []string
+    CMDConversationIntentSubmitted bool
+}
+
 type ResolvedUIDObserver interface {
-    OnResolvedUIDPage(ctx, message, uids)
+    OnResolvedUIDPage(ctx, page)
 }
 ```
 
@@ -339,7 +364,7 @@ subscriber/tag UID page
   -> delivery runtime pushes online packets
 ```
 
-The observer should receive UID pages, not online `RouteKey` values. Route keys would drop offline users and would make CMD sync incomplete.
+The observer should receive UID pages and the envelope metadata, not online `RouteKey` values. Route keys would drop offline users and would make CMD sync incomplete. The envelope metadata lets the observer skip request-scoped pages when `CMDConversationIntentSubmitted=true`.
 
 Observer calls are side effects and must not fail delivery resolution. The observer implementation may enqueue work, log failures, and record metrics, but delivery code should not branch on observer success. If the app layer wants retries, it should implement them inside the intent router or pending updater queue, not by returning errors to the delivery actor.
 
@@ -387,7 +412,7 @@ Important rules:
 `cmdsync.App.SyncAck` should continue to advance persisted `CMDConversationState` from the latest sync generation. It should also notify the pending updater after advancement:
 
 ```text
-MarkSynced(uid, commandChannel, ackSeq)
+MarkSynced(uid, CommandChannelKey{ChannelID: commandChannelID, ChannelType: channelType}, ackSeq)
 ```
 
 Cleanup rules:
@@ -437,6 +462,7 @@ No new global service object should be introduced.
 - UID-owner router forwards remote UID partitions through node RPC.
 - Request-scoped durable send builds exactly one intent from `RequestSubscribers`.
 - If direct request-scoped intent routing fails after durable append, send does not fail only because of the intent side effect, the committed delivery envelope has `CMDConversationIntentSubmitted=false`, and the delivery UID observer retries intent submission once from `MessageScopedUIDs`.
+- Partial request-scoped owner-route success leaves `CMDConversationIntentSubmitted=false`; the delivery UID observer may retry all UIDs, and already-accepted UID/channel entries remain correct because intent submission is idempotent.
 - Message-scoped delivery path does not double-submit intents for the same request-scoped send.
 - Delivery UID observer receives UID pages before presence expansion and includes offline users.
 - Delivery UID observer failures are logged/recorded but do not fail delivery resolution or online push.
@@ -454,6 +480,7 @@ No new global service object should be introduced.
 - `/message/syncack` still uses the latest sync record generation, not `last_message_seq` as a channel selector.
 - Ordinary `/conversation/sync` does not return CMD channels, including pending CMD channels.
 - `NoPersist` command-style messages remain online-only.
+- Partial owner-route failure on a request-scoped durable send retries through the delivery observer without duplicating unread state for already-accepted partitions.
 - Focused import-boundary tests still pass.
 
 ## Rollout Notes
