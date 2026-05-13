@@ -304,6 +304,24 @@ func TestPlanNodeScaleInCountsDuplicateChannelMigrationTaskIDsByChannel(t *testi
 	require.Equal(t, NodeScaleInStatusWaitingChannelMigrations, report.Status)
 }
 
+func TestPlanNodeScaleInCountsChannelMigrationTaskKeyWithoutDelimiterCollision(t *testing.T) {
+	fixture := newScaleInActionFixture()
+	fixture.cluster.nodes[2].Status = controllermeta.NodeStatusDraining
+	fixture.cluster.assignments = []controllermeta.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 2}}
+	fixture.cluster.views = []controllermeta.SlotRuntimeView{{SlotID: 1, CurrentPeers: []uint64{1, 2}, LeaderID: 1, HealthyVoters: 2, HasQuorum: true, LastReportAt: fixture.now}}
+	fixture.channelMigration.active = []metadb.ChannelMigrationTask{
+		{TaskID: "task", ChannelID: "a:1", ChannelType: 2, SourceNode: 3, TargetNode: 4, Status: metadb.ChannelMigrationStatusPending},
+		{TaskID: "2:task", ChannelID: "a", ChannelType: 1, SourceNode: 2, TargetNode: 3, Status: metadb.ChannelMigrationStatusPending},
+	}
+	fixture.rebuildApp()
+
+	report, err := fixture.app.PlanNodeScaleIn(context.Background(), 3, fixture.req)
+
+	require.NoError(t, err)
+	require.Equal(t, 2, report.Progress.ActiveChannelMigrationsInvolvingNode)
+	require.Equal(t, NodeScaleInStatusWaitingChannelMigrations, report.Status)
+}
+
 func TestPlanNodeScaleInFailsClosedWhenChannelInventoryCursorRegresses(t *testing.T) {
 	now := time.Unix(1713686400, 0).UTC()
 	regressedCursor := metadb.ChannelRuntimeMetaCursor{ChannelID: "a", ChannelType: 1}
@@ -346,6 +364,55 @@ func TestPlanNodeScaleInFailsClosedWhenChannelInventoryCursorRegresses(t *testin
 	require.Contains(t, report.Progress.ChannelInventoryError, "channel inventory scan made no cursor progress")
 	require.Contains(t, scaleInReasonCodes(report.BlockedReasons), "channel_inventory_unavailable")
 	require.Equal(t, NodeScaleInStatusBlocked, report.Status)
+}
+
+func TestPlanNodeScaleInAllowsChannelInventoryLengthOrderedCursorProgress(t *testing.T) {
+	now := time.Unix(1713686400, 0).UTC()
+	app := New(Options{
+		ControllerPeerIDs:        []uint64{1},
+		SlotReplicaN:             2,
+		ScaleInRuntimeViewMaxAge: time.Minute,
+		Cluster: &fakeClusterReader{
+			slotIDs: []multiraft.SlotID{1},
+			nodes: []controllermeta.ClusterNode{
+				scaleInTestNode(1, controllermeta.NodeRoleData, controllermeta.NodeJoinStateActive, controllermeta.NodeStatusAlive),
+				scaleInTestNode(2, controllermeta.NodeRoleData, controllermeta.NodeJoinStateActive, controllermeta.NodeStatusAlive),
+				scaleInTestNode(3, controllermeta.NodeRoleData, controllermeta.NodeJoinStateActive, controllermeta.NodeStatusDraining),
+			},
+			assignments: []controllermeta.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 2}},
+			views:       []controllermeta.SlotRuntimeView{{SlotID: 1, CurrentPeers: []uint64{1, 2}, LeaderID: 1, HealthyVoters: 2, HasQuorum: true, LastReportAt: now}},
+		},
+		RuntimeSummary: scaleInRuntimeSummaryReader{summary: NodeRuntimeSummary{NodeID: 3}},
+		ChannelRuntimeMeta: &fakeChannelRuntimeMetaReader{pages: map[multiraft.SlotID]map[metadb.ChannelRuntimeMetaCursor]fakeChannelRuntimeMetaPage{
+			1: {
+				{}: {
+					items:  []metadb.ChannelRuntimeMeta{{ChannelID: "z", ChannelType: 1, Leader: 1, Replicas: []uint64{1, 2}, ISR: []uint64{1, 2}}},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "z", ChannelType: 1},
+					done:   false,
+				},
+				{ChannelID: "z", ChannelType: 1}: {
+					items:  []metadb.ChannelRuntimeMeta{{ChannelID: "aa", ChannelType: 1, Leader: 1, Replicas: []uint64{1, 2}, ISR: []uint64{1, 2}}},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "aa", ChannelType: 1},
+					done:   false,
+				},
+				{ChannelID: "aa", ChannelType: 1}: {
+					items:  []metadb.ChannelRuntimeMeta{{ChannelID: "bb", ChannelType: 1, Leader: 1, Replicas: []uint64{1, 2}, ISR: []uint64{1, 2}}},
+					cursor: metadb.ChannelRuntimeMetaCursor{ChannelID: "bb", ChannelType: 1},
+					done:   true,
+				},
+			},
+		}},
+		ChannelMigration: &fakeScaleInChannelMigrationStore{},
+		Now:              func() time.Time { return now },
+	})
+
+	report, err := app.PlanNodeScaleIn(context.Background(), 3, NodeScaleInPlanRequest{ConfirmStatefulSetTail: true, ExpectedTailNodeID: 3})
+
+	require.NoError(t, err)
+	require.False(t, report.Progress.ChannelInventoryPartial)
+	require.Empty(t, report.Progress.ChannelInventoryError)
+	require.NotContains(t, scaleInReasonCodes(report.BlockedReasons), "channel_inventory_unavailable")
+	require.Equal(t, NodeScaleInStatusReadyToRemove, report.Status)
 }
 
 func TestScaleInStatusWaitsForChannelMigrationsBeforeConnections(t *testing.T) {

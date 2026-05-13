@@ -33,7 +33,7 @@ func (a *App) loadNodeScaleInChannelInventory(ctx context.Context, nodeID uint64
 	}
 
 	inventory := nodeScaleInChannelInventory{scanned: true}
-	seenTasks := make(map[string]struct{})
+	seenTasks := make(map[scaleInChannelMigrationTaskKey]struct{})
 	slotIDs := append([]multiraft.SlotID(nil), a.cluster.SlotIDs()...)
 	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
 
@@ -82,7 +82,7 @@ func (a *App) loadNodeScaleInChannelInventory(ctx context.Context, nodeID uint64
 	return inventory
 }
 
-func (i *nodeScaleInChannelInventory) addRuntimeMeta(ctx context.Context, store ChannelMigrationStore, nodeID uint64, meta metadb.ChannelRuntimeMeta, seenTasks map[string]struct{}) {
+func (i *nodeScaleInChannelInventory) addRuntimeMeta(ctx context.Context, store ChannelMigrationStore, nodeID uint64, meta metadb.ChannelRuntimeMeta, seenTasks map[scaleInChannelMigrationTaskKey]struct{}) {
 	referencesTarget := false
 	if meta.Leader == nodeID {
 		i.leaders++
@@ -107,8 +107,8 @@ func (i *nodeScaleInChannelInventory) addRuntimeMeta(ctx context.Context, store 
 	}
 }
 
-func (i *nodeScaleInChannelInventory) addMigrationTask(task metadb.ChannelMigrationTask, seenTasks map[string]struct{}) {
-	key := scaleInChannelMigrationTaskKey(task)
+func (i *nodeScaleInChannelInventory) addMigrationTask(task metadb.ChannelMigrationTask, seenTasks map[scaleInChannelMigrationTaskKey]struct{}) {
+	key := newScaleInChannelMigrationTaskKey(task)
 	if _, ok := seenTasks[key]; ok {
 		return
 	}
@@ -125,14 +125,36 @@ func scaleInUint64sContain(values []uint64, needle uint64) bool {
 	return false
 }
 
-func scaleInChannelMigrationTaskKey(task metadb.ChannelMigrationTask) string {
+type scaleInChannelMigrationTaskKey struct {
+	channelID   string
+	channelType int64
+	taskID      string
+	kind        metadb.ChannelMigrationKind
+	sourceNode  uint64
+	targetNode  uint64
+}
+
+func newScaleInChannelMigrationTaskKey(task metadb.ChannelMigrationTask) scaleInChannelMigrationTaskKey {
 	if task.TaskID != "" {
-		return fmt.Sprintf("%s:%d:%s", task.ChannelID, task.ChannelType, task.TaskID)
+		return scaleInChannelMigrationTaskKey{
+			channelID:   task.ChannelID,
+			channelType: task.ChannelType,
+			taskID:      task.TaskID,
+		}
 	}
-	return fmt.Sprintf("%s:%d:%d:%d:%d", task.ChannelID, task.ChannelType, task.Kind, task.SourceNode, task.TargetNode)
+	return scaleInChannelMigrationTaskKey{
+		channelID:   task.ChannelID,
+		channelType: task.ChannelType,
+		kind:        task.Kind,
+		sourceNode:  task.SourceNode,
+		targetNode:  task.TargetNode,
+	}
 }
 
 func scaleInChannelInventoryCursorAfter(cursor, after metadb.ChannelRuntimeMetaCursor) bool {
+	if len(cursor.ChannelID) != len(after.ChannelID) {
+		return len(cursor.ChannelID) > len(after.ChannelID)
+	}
 	if cursor.ChannelID != after.ChannelID {
 		return cursor.ChannelID > after.ChannelID
 	}
