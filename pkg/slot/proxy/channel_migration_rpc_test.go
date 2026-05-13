@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"testing"
 
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -272,6 +273,36 @@ func TestChannelMigrationListActiveTasksForNodeReturnsNoLeaderBeforeLocalScan(t 
 	require.ErrorIs(t, err, raftcluster.ErrNoLeader)
 	require.Nil(t, got)
 	require.False(t, hasMore)
+}
+
+func TestChannelMigrationListActiveTasksForNodeScansLocalHashSlotsInOrder(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	store := &Store{
+		cluster: &proxyTestMigrationCluster{
+			nodeID:      1,
+			localNodeID: 1,
+			slotIDs:     []multiraft.SlotID{1},
+			hashSlots:   map[multiraft.SlotID][]uint16{1: {5, 1}},
+			leaders:     map[multiraft.SlotID]multiraft.NodeID{1: 1},
+		},
+		db: db,
+	}
+	high := proxyTestChannelMigrationTask("task-high-hash-slot", "channel-high-hash-slot")
+	high.SourceNode = 3
+	high.TargetNode = 4
+	low := proxyTestChannelMigrationTask("task-low-hash-slot", "channel-low-hash-slot")
+	low.SourceNode = 3
+	low.TargetNode = 5
+	require.NoError(t, db.ForHashSlot(5).CreateChannelMigrationTask(ctx, high))
+	require.NoError(t, db.ForHashSlot(1).CreateChannelMigrationTask(ctx, low))
+
+	got, hasMore, err := store.ListActiveChannelMigrationTasksForNode(ctx, 3, 1)
+
+	require.NoError(t, err)
+	require.True(t, hasMore)
+	require.Len(t, got, 1)
+	require.Equal(t, low.TaskID, got[0].TaskID)
 }
 
 func TestChannelMigrationClaimUsesLocalSlotLeaderAsOwner(t *testing.T) {
@@ -617,6 +648,96 @@ func TestChannelMigrationRPCCodecRejectsInvalidTaskEnums(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestChannelMigrationRPCCodecDecodesLegacyFrames(t *testing.T) {
+	task := proxyTestChannelMigrationTask("task-legacy-codec", "channel-legacy-codec")
+	getActive := channelMigrationRPCRequest{
+		Op:          channelMigrationRPCGetActive,
+		SlotID:      2,
+		ChannelID:   task.ChannelID,
+		ChannelType: task.ChannelType,
+	}
+	propose := channelMigrationRPCRequest{
+		Op:        channelMigrationRPCPropose,
+		SlotID:    2,
+		HashSlot:  7,
+		ChannelID: task.ChannelID,
+		Command:   []byte{1, 30},
+	}
+
+	gotGetActive, err := decodeChannelMigrationRPCRequest(encodeLegacyChannelMigrationRPCRequest(t, getActive))
+	require.NoError(t, err)
+	require.Equal(t, getActive, gotGetActive)
+	require.Zero(t, gotGetActive.NodeID)
+	require.Zero(t, gotGetActive.Limit)
+
+	gotPropose, err := decodeChannelMigrationRPCRequest(encodeLegacyChannelMigrationRPCRequest(t, propose))
+	require.NoError(t, err)
+	require.Equal(t, propose, gotPropose)
+	require.Zero(t, gotPropose.NodeID)
+	require.Zero(t, gotPropose.Limit)
+
+	legacyResp := channelMigrationRPCResponse{
+		Status:   rpcStatusOK,
+		LeaderID: 2,
+		Task:     &task,
+	}
+	gotResp, err := decodeChannelMigrationRPCResponse(encodeLegacyChannelMigrationRPCResponse(legacyResp))
+	require.NoError(t, err)
+	require.Equal(t, legacyResp.Status, gotResp.Status)
+	require.Equal(t, legacyResp.LeaderID, gotResp.LeaderID)
+	require.Equal(t, legacyResp.Task, gotResp.Task)
+	require.Nil(t, gotResp.Tasks)
+	require.False(t, gotResp.HasMore)
+}
+
+func TestChannelMigrationRPCCodecEncodesLegacyFramesForExistingOpsAndEmptyResponses(t *testing.T) {
+	getActive := channelMigrationRPCRequest{
+		Op:          channelMigrationRPCGetActive,
+		SlotID:      2,
+		ChannelID:   "channel-legacy-get-active",
+		ChannelType: 1,
+	}
+	propose := channelMigrationRPCRequest{
+		Op:        channelMigrationRPCPropose,
+		SlotID:    2,
+		HashSlot:  7,
+		ChannelID: "channel-legacy-propose",
+		Command:   []byte{1, 30},
+	}
+
+	getActiveBody, err := encodeChannelMigrationRPCRequestBinary(getActive)
+	require.NoError(t, err)
+	require.Equal(t, encodeLegacyChannelMigrationRPCRequest(t, getActive), getActiveBody)
+
+	proposeBody, err := encodeChannelMigrationRPCRequestBinary(propose)
+	require.NoError(t, err)
+	require.Equal(t, encodeLegacyChannelMigrationRPCRequest(t, propose), proposeBody)
+
+	resp := channelMigrationRPCResponse{Status: rpcStatusOK, LeaderID: 2}
+	respBody, err := encodeChannelMigrationRPCResponse(resp)
+	require.NoError(t, err)
+	require.Equal(t, encodeLegacyChannelMigrationRPCResponse(resp), respBody)
+}
+
+func TestChannelMigrationRPCCodecRejectsMalformedHugeTaskListWithoutLargeAllocation(t *testing.T) {
+	body := make([]byte, 0, len(channelMigrationRPCResponseMagic)+32)
+	body = append(body, channelMigrationRPCResponseMagic[:]...)
+	body = runtimeMetaAppendString(body, rpcStatusOK)
+	body = runtimeMetaAppendUvarint(body, 0)
+	body = appendChannelMigrationTaskPtr(body, nil)
+	body = runtimeMetaAppendUvarint(body, 1<<16)
+
+	runtime.GC()
+	var before runtime.MemStats
+	runtime.ReadMemStats(&before)
+	_, err := decodeChannelMigrationRPCResponse(body)
+	var after runtime.MemStats
+	runtime.ReadMemStats(&after)
+
+	require.Error(t, err)
+	require.Less(t, after.TotalAlloc-before.TotalAlloc, uint64(4<<20))
+}
+
 func TestChannelMigrationRPCCodecRoundTripsListActiveForNode(t *testing.T) {
 	task := proxyTestChannelMigrationTask("task-codec-list-active", "channel-codec-list-active")
 	task.SourceNode = 3
@@ -644,6 +765,28 @@ func TestChannelMigrationRPCCodecRoundTripsListActiveForNode(t *testing.T) {
 	gotResp, err := decodeChannelMigrationRPCResponse(respBody)
 	require.NoError(t, err)
 	require.Equal(t, resp, gotResp)
+}
+
+func encodeLegacyChannelMigrationRPCRequest(t testing.TB, req channelMigrationRPCRequest) []byte {
+	t.Helper()
+	opID, err := channelMigrationOpID(req.Op)
+	require.NoError(t, err)
+	dst := make([]byte, 0, len(channelMigrationRPCRequestMagic)+len(req.ChannelID)+32)
+	dst = append(dst, channelMigrationRPCRequestMagic[:]...)
+	dst = append(dst, opID)
+	dst = runtimeMetaAppendUvarint(dst, req.SlotID)
+	dst = runtimeMetaAppendUvarint(dst, uint64(req.HashSlot))
+	dst = runtimeMetaAppendString(dst, req.ChannelID)
+	dst = runtimeMetaAppendVarint(dst, req.ChannelType)
+	return channelMigrationAppendBytes(dst, req.Command)
+}
+
+func encodeLegacyChannelMigrationRPCResponse(resp channelMigrationRPCResponse) []byte {
+	dst := make([]byte, 0, len(channelMigrationRPCResponseMagic)+128)
+	dst = append(dst, channelMigrationRPCResponseMagic[:]...)
+	dst = runtimeMetaAppendString(dst, resp.Status)
+	dst = runtimeMetaAppendUvarint(dst, resp.LeaderID)
+	return appendChannelMigrationTaskPtr(dst, resp.Task)
 }
 
 func channelMigrationTaskIDs(tasks []metadb.ChannelMigrationTask) []string {

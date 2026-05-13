@@ -30,8 +30,10 @@ func encodeChannelMigrationRPCRequestBinary(req channelMigrationRPCRequest) ([]b
 	dst = runtimeMetaAppendString(dst, req.ChannelID)
 	dst = runtimeMetaAppendVarint(dst, req.ChannelType)
 	dst = channelMigrationAppendBytes(dst, req.Command)
-	dst = runtimeMetaAppendUvarint(dst, req.NodeID)
-	dst = runtimeMetaAppendVarint(dst, int64(req.Limit))
+	if req.Op == channelMigrationRPCListActiveForNode {
+		dst = runtimeMetaAppendUvarint(dst, req.NodeID)
+		dst = runtimeMetaAppendVarint(dst, int64(req.Limit))
+	}
 	return dst, nil
 }
 
@@ -72,6 +74,9 @@ func decodeChannelMigrationRPCRequest(body []byte) (channelMigrationRPCRequest, 
 	if req.Command, offset, err = channelMigrationReadBytes(body, offset); err != nil {
 		return channelMigrationRPCRequest{}, err
 	}
+	if offset == len(body) {
+		return req, nil
+	}
 	if req.NodeID, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
 		return channelMigrationRPCRequest{}, err
 	}
@@ -96,8 +101,10 @@ func encodeChannelMigrationRPCResponse(resp channelMigrationRPCResponse) ([]byte
 	dst = runtimeMetaAppendString(dst, resp.Status)
 	dst = runtimeMetaAppendUvarint(dst, resp.LeaderID)
 	dst = appendChannelMigrationTaskPtr(dst, resp.Task)
-	dst = appendChannelMigrationTasks(dst, resp.Tasks)
-	dst = runtimeMetaAppendBool(dst, resp.HasMore)
+	if len(resp.Tasks) > 0 || resp.HasMore {
+		dst = appendChannelMigrationTasks(dst, resp.Tasks)
+		dst = runtimeMetaAppendBool(dst, resp.HasMore)
+	}
 	return dst, nil
 }
 
@@ -116,6 +123,9 @@ func decodeChannelMigrationRPCResponse(body []byte) (channelMigrationRPCResponse
 	}
 	if resp.Task, offset, err = readChannelMigrationTaskPtr(body, offset); err != nil {
 		return channelMigrationRPCResponse{}, err
+	}
+	if offset == len(body) {
+		return resp, nil
 	}
 	if resp.Tasks, offset, err = readChannelMigrationTasks(body, offset); err != nil {
 		return channelMigrationRPCResponse{}, err
@@ -210,8 +220,8 @@ func readChannelMigrationTasks(body []byte, offset int) ([]metadb.ChannelMigrati
 		return nil, offset, fmt.Errorf("metastore: channel migration task list overflows int")
 	}
 	offset = next
-	tasks := make([]metadb.ChannelMigrationTask, 0, int(length))
-	for range int(length) {
+	var tasks []metadb.ChannelMigrationTask
+	for range length {
 		task, next, err := readChannelMigrationTask(body, offset)
 		if err != nil {
 			return nil, offset, err
