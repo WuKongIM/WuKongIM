@@ -14,6 +14,7 @@ const managerCursorVersion byte = 1
 var (
 	messageCursorMagic            = [...]byte{'W', 'K', 'M', 'C'}
 	channelRuntimeMetaCursorMagic = [...]byte{'W', 'K', 'R', 'M'}
+	userListCursorMagic           = [...]byte{'W', 'K', 'U', 'L'}
 )
 
 func encodeMessageCursorBinary(cursor managementusecase.MessageListCursor) string {
@@ -168,6 +169,64 @@ func validateChannelRuntimeMetaListCursor(cursor managementusecase.ChannelRuntim
 		ChannelID:   cursor.ChannelID,
 		ChannelType: cursor.ChannelType,
 	})
+}
+
+func encodeUserListCursor(cursor managementusecase.UserListCursor) (string, error) {
+	if cursor == (managementusecase.UserListCursor{}) {
+		return "", nil
+	}
+	var stack [256]byte
+	data := stack[:0]
+	if len(userListCursorMagic)+1+4+4+binary.MaxVarintLen64+len(cursor.UID) > len(stack) {
+		data = make([]byte, 0, len(userListCursorMagic)+1+4+4+binary.MaxVarintLen64+len(cursor.UID))
+	}
+	data = append(data, userListCursorMagic[:]...)
+	data = append(data, managerCursorVersion)
+	data = binary.BigEndian.AppendUint32(data, cursor.SlotID)
+	data = binary.BigEndian.AppendUint32(data, cursor.KeywordHash)
+	data = appendCursorString(data, cursor.UID)
+	return encodeCursorBase64(data), nil
+}
+
+func decodeUserListCursor(raw string) (managementusecase.UserListCursor, error) {
+	if raw == "" {
+		return managementusecase.UserListCursor{}, nil
+	}
+	var stack [512]byte
+	decodedLen := base64.RawURLEncoding.DecodedLen(len(raw))
+	if decodedLen > len(stack) {
+		payload, err := decodeCursorBase64Heap(raw, decodedLen)
+		if err != nil {
+			return managementusecase.UserListCursor{}, err
+		}
+		return decodeUserListCursorBinary(payload)
+	}
+	n, err := decodeRawURLBase64String(stack[:decodedLen], raw)
+	if err != nil {
+		return managementusecase.UserListCursor{}, err
+	}
+	return decodeUserListCursorBinary(stack[:n])
+}
+
+func decodeUserListCursorBinary(payload []byte) (managementusecase.UserListCursor, error) {
+	if !hasCursorMagic(payload, userListCursorMagic) || len(payload) < len(userListCursorMagic)+1+4+4 || payload[len(userListCursorMagic)] != managerCursorVersion {
+		return managementusecase.UserListCursor{}, strconv.ErrSyntax
+	}
+	rest := payload[len(userListCursorMagic)+1:]
+	cursor := managementusecase.UserListCursor{
+		SlotID:      binary.BigEndian.Uint32(rest[:4]),
+		KeywordHash: binary.BigEndian.Uint32(rest[4:8]),
+	}
+	rest = rest[8:]
+	uid, rest, err := readCursorString(rest)
+	if err != nil {
+		return managementusecase.UserListCursor{}, err
+	}
+	if len(rest) != 0 || cursor.SlotID == 0 || uid == "" {
+		return managementusecase.UserListCursor{}, strconv.ErrSyntax
+	}
+	cursor.UID = uid
+	return cursor, nil
 }
 
 func appendCursorString(dst []byte, value string) []byte {

@@ -1020,6 +1020,84 @@ export type MessageListParams = {
   clientMsgNo?: string
 }
 
+export type UserListParams = {
+  keyword?: string
+  limit?: number
+  cursor?: string
+}
+
+export type ManagerUserListItem = {
+  uid: string
+  slot_id: number
+  hash_slot: number
+  online: boolean
+  online_device_count: number
+  online_device_flags: string[] | null
+  device_count: number
+  token_set_count: number
+}
+
+export type ManagerUsersResponse = {
+  items: ManagerUserListItem[]
+  has_more: boolean
+  next_cursor?: string
+}
+
+export type ManagerUserDevice = {
+  device_flag: string
+  device_level: string
+  token_set: boolean
+  online: boolean
+  online_session_count: number
+}
+
+export type ManagerUserConnection = {
+  node_id: number
+  session_id: number
+  uid: string
+  device_id: string
+  device_flag: string
+  device_level: string
+  slot_id?: number
+  state?: string
+  listener: string
+  connected_at?: string
+  remote_addr: string
+  local_addr: string
+}
+
+export type ManagerUserDetailResponse = {
+  uid: string
+  slot_id: number
+  hash_slot: number
+  online: boolean
+  devices: ManagerUserDevice[]
+  connections: ManagerUserConnection[]
+}
+
+export type KickUserInput = {
+  deviceFlag: "all" | "app" | "web" | "pc"
+}
+
+export type KickUserResponse = {
+  uid: string
+  device_flag: string
+  changed: boolean
+}
+
+export type ResetUserTokenInput = {
+  deviceFlag: "app" | "web" | "pc" | "system"
+  deviceLevel: "master" | "slave"
+  token?: string
+}
+
+export type ResetUserTokenResponse = {
+  uid: string
+  device_flag: string
+  device_level: string
+  token: string
+}
+
 
 export type ManagerMessageRetentionStatus = "advanced" | "would_advance" | "noop" | "blocked"
 

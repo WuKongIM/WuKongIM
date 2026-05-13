@@ -3987,6 +3987,17 @@ type managementStub struct {
 	connectionDetailReqSink            *managementusecase.GetConnectionRequest
 	connectionDetail                   managementusecase.ConnectionDetail
 	connectionDetailErr                error
+	usersReqSink                       *managementusecase.ListUsersRequest
+	usersPage                          managementusecase.ListUsersResponse
+	usersErr                           error
+	userDetail                         managementusecase.UserDetail
+	userDetailErr                      error
+	kickUserReqSink                    *managementusecase.KickUserRequest
+	kickUserResponse                   managementusecase.KickUserResponse
+	kickUserErr                        error
+	resetUserTokenReqSink              *managementusecase.ResetUserTokenRequest
+	resetUserTokenResponse             managementusecase.ResetUserTokenResponse
+	resetUserTokenErr                  error
 	channelRuntimeMetaReqSink          *managementusecase.ListChannelRuntimeMetaRequest
 	channelRuntimeMetaPage             managementusecase.ListChannelRuntimeMetaResponse
 	channelRuntimeMetaErr              error
@@ -4189,6 +4200,31 @@ func (s managementStub) GetConnection(_ context.Context, req managementusecase.G
 		*s.connectionDetailReqSink = req
 	}
 	return s.connectionDetail, s.connectionDetailErr
+}
+
+func (s managementStub) ListUsers(_ context.Context, req managementusecase.ListUsersRequest) (managementusecase.ListUsersResponse, error) {
+	if s.usersReqSink != nil {
+		*s.usersReqSink = req
+	}
+	return s.usersPage, s.usersErr
+}
+
+func (s managementStub) GetUser(_ context.Context, uid string) (managementusecase.UserDetail, error) {
+	return s.userDetail, s.userDetailErr
+}
+
+func (s managementStub) KickUser(_ context.Context, req managementusecase.KickUserRequest) (managementusecase.KickUserResponse, error) {
+	if s.kickUserReqSink != nil {
+		*s.kickUserReqSink = req
+	}
+	return s.kickUserResponse, s.kickUserErr
+}
+
+func (s managementStub) ResetUserToken(_ context.Context, req managementusecase.ResetUserTokenRequest) (managementusecase.ResetUserTokenResponse, error) {
+	if s.resetUserTokenReqSink != nil {
+		*s.resetUserTokenReqSink = req
+	}
+	return s.resetUserTokenResponse, s.resetUserTokenErr
 }
 
 func (s managementStub) ListChannelRuntimeMeta(_ context.Context, req managementusecase.ListChannelRuntimeMetaRequest) (managementusecase.ListChannelRuntimeMetaResponse, error) {

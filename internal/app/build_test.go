@@ -190,6 +190,23 @@ func TestBuildWiresMessagePermissionDependencies(t *testing.T) {
 	requireMessageAppFieldNonNil(t, app, "systemUIDs")
 }
 
+func TestBuildWiresManagerUserDependencies(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Manager = validManagerConfigForTest()
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	require.NotNil(t, app.managementApp)
+	requireManagementAppFieldNonNil(t, app, "users")
+	requireManagementAppFieldNonNil(t, app, "userOperator")
+	requireManagementAppFieldNonNil(t, app, "userPresence")
+	requireManagementAppFieldNonNil(t, app, "userActions")
+}
+
 func TestBuildWiresDataPlanePoolToClusterDiscovery(t *testing.T) {
 	cfg := testConfig(t)
 
@@ -499,4 +516,21 @@ func appGatewayHandlerDurationField(t *testing.T, handler any, name string) time
 		t.Fatalf("gateway handler missing %s field", name)
 	}
 	return time.Duration(reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Int())
+}
+
+func requireManagementAppFieldNonNil(t *testing.T, app *App, name string) {
+	t.Helper()
+
+	value := reflect.ValueOf(app.managementApp)
+	if value.Kind() != reflect.Pointer || value.IsNil() {
+		t.Fatalf("management app is %s, want non-nil pointer", value.Kind())
+	}
+	field := value.Elem().FieldByName(name)
+	if !field.IsValid() {
+		t.Fatalf("management app missing %s field", name)
+	}
+	field = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem()
+	if field.IsNil() {
+		t.Fatalf("management app field %s is nil", name)
+	}
 }
