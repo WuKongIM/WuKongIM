@@ -55,6 +55,86 @@ func TestConnectionsContainUID(t *testing.T) {
 	require.False(t, connectionsContainUID(items, "u3"))
 }
 
+func TestDecodeChannelClusterReplicaDetail(t *testing.T) {
+	body := []byte(`{
+		"channel": {
+			"channel_id": "u1@u2",
+			"channel_type": 1,
+			"slot_id": 1,
+			"hash_slot": 9,
+			"channel_epoch": 7,
+			"leader_epoch": 3,
+			"leader": 1,
+			"replicas": [1, 2, 3],
+			"isr": [1, 2, 3],
+			"min_isr": 2,
+			"max_message_seq": 10,
+			"status": "active",
+			"features": 5,
+			"lease_until_ms": 1700000000000
+		},
+		"runtime_reported": true,
+		"commit_seq": 10,
+		"min_available_seq": 1,
+		"retention_through_seq": 0,
+		"replicas": [
+			{"node_id": 1, "role": "leader", "is_leader": true, "in_isr": true, "reported": true, "commit_seq": 10, "leo": 10, "checkpoint_hw": 10, "lag": 0},
+			{"node_id": 2, "role": "follower", "is_leader": false, "in_isr": true, "reported": false, "commit_seq": null, "leo": null, "checkpoint_hw": null, "lag": null}
+		]
+	}`)
+
+	got, err := decodeChannelClusterReplicaDetail(body)
+
+	require.NoError(t, err)
+	require.Equal(t, "u1@u2", got.Channel.ChannelID)
+	require.Equal(t, int64(1), got.Channel.ChannelType)
+	require.Equal(t, uint64(1), got.Channel.Leader)
+	require.Equal(t, []uint64{1, 2, 3}, got.Channel.Replicas)
+	require.Equal(t, []uint64{1, 2, 3}, got.Channel.ISR)
+	require.Len(t, got.Replicas, 2)
+	require.True(t, got.Replicas[1].InISR)
+	require.False(t, got.Replicas[1].IsLeader)
+	require.Nil(t, got.Replicas[1].CommitSeq)
+}
+
+func TestDecodeChannelLeaderTransferResponse(t *testing.T) {
+	body := []byte(`{
+		"changed": true,
+		"channel": {
+			"channel_id": "u1@u2",
+			"channel_type": 1,
+			"slot_id": 1,
+			"hash_slot": 9,
+			"channel_epoch": 7,
+			"leader_epoch": 4,
+			"leader": 2,
+			"replicas": [1, 2, 3],
+			"isr": [1, 2, 3],
+			"min_isr": 2,
+			"max_message_seq": 10,
+			"status": "active",
+			"features": 5,
+			"lease_until_ms": 1700000001000
+		}
+	}`)
+
+	got, err := decodeChannelLeaderTransferResponse(body)
+
+	require.NoError(t, err)
+	require.True(t, got.Changed)
+	require.Equal(t, uint64(2), got.Channel.Leader)
+	require.Equal(t, uint64(4), got.Channel.LeaderEpoch)
+}
+
+func TestPersonChannelID(t *testing.T) {
+	left := PersonChannelID("u1", "u2")
+	right := PersonChannelID("u2", "u1")
+
+	require.NotEmpty(t, left)
+	require.Equal(t, left, right)
+	require.Contains(t, left, "@")
+}
+
 func TestDecodeManagerNodesResponse(t *testing.T) {
 	body := []byte(`{
 		"total": 2,
