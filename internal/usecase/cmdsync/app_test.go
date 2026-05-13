@@ -156,6 +156,10 @@ func (f *fakeStateStore) AdvanceCMDConversationReadSeq(_ context.Context, patche
 	return nil
 }
 
+func (f *fakeStateStore) UpsertCMDConversationStates(_ context.Context, _ []metadb.CMDConversationState) error {
+	return f.err
+}
+
 type messageLoadCall struct {
 	key     CommandChannelKey
 	fromSeq uint64

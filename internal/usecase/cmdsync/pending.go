@@ -1,0 +1,506 @@
+package cmdsync
+
+import (
+	"context"
+	"hash/fnv"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
+)
+
+const (
+	defaultPendingFlushInterval = time.Second
+	defaultPendingFlushBatch    = 500
+	defaultPendingShardCount    = 16
+)
+
+// ConversationUpdaterOptions configures the owner-local pending CMD conversation updater.
+type ConversationUpdaterOptions struct {
+	// Store persists flushed pending state into the durable CMD state store.
+	Store PendingStateStore
+	// DataDir stores pending updates across graceful restarts when non-empty.
+	DataDir string
+	// FlushInterval controls the background durable flush cadence.
+	FlushInterval time.Duration
+	// FlushBatchSize limits one all-or-error durable upsert batch.
+	FlushBatchSize int
+	// ShardCount controls the number of locked in-memory pending shards.
+	ShardCount int
+	// Now returns the current time used for durable UpdatedAt timestamps.
+	Now func() time.Time
+	// Logger receives non-fatal pending file and background flush diagnostics.
+	Logger wklog.Logger
+}
+
+// ConversationUpdater buffers owner-local CMD conversation state before durable flush.
+type ConversationUpdater struct {
+	store          PendingStateStore
+	dataDir        string
+	flushInterval  time.Duration
+	flushBatchSize int
+	now            func() time.Time
+	logger         wklog.Logger
+
+	shards []conversationPendingShard
+
+	mu      sync.Mutex
+	running bool
+	stopCh  chan struct{}
+	doneCh  chan struct{}
+}
+
+type conversationPendingShard struct {
+	mu               sync.Mutex
+	pendingByChannel map[CommandChannelKey]*PendingConversationUpdate
+	userIndex        map[string]map[CommandChannelKey]struct{}
+}
+
+type pendingFlushEntry struct {
+	state      metadb.CMDConversationState
+	lastMsgSeq uint64
+}
+
+// NewConversationUpdater creates a pending updater with safe local defaults.
+func NewConversationUpdater(opts ConversationUpdaterOptions) *ConversationUpdater {
+	if opts.FlushInterval <= 0 {
+		opts.FlushInterval = defaultPendingFlushInterval
+	}
+	if opts.FlushBatchSize <= 0 {
+		opts.FlushBatchSize = defaultPendingFlushBatch
+	}
+	if opts.ShardCount <= 0 {
+		opts.ShardCount = defaultPendingShardCount
+	}
+	if opts.Now == nil {
+		opts.Now = time.Now
+	}
+	if opts.Logger == nil {
+		opts.Logger = wklog.NewNop()
+	}
+
+	u := &ConversationUpdater{
+		store:          opts.Store,
+		dataDir:        opts.DataDir,
+		flushInterval:  opts.FlushInterval,
+		flushBatchSize: opts.FlushBatchSize,
+		now:            opts.Now,
+		logger:         opts.Logger,
+		shards:         make([]conversationPendingShard, opts.ShardCount),
+	}
+	for i := range u.shards {
+		u.shards[i].pendingByChannel = make(map[CommandChannelKey]*PendingConversationUpdate)
+		u.shards[i].userIndex = make(map[string]map[CommandChannelKey]struct{})
+	}
+	return u
+}
+
+// Start loads pending updates from disk and starts the background flush loop.
+func (u *ConversationUpdater) Start() error {
+	if u == nil {
+		return nil
+	}
+	u.mu.Lock()
+	if u.running {
+		u.mu.Unlock()
+		return nil
+	}
+	if err := u.loadPendingFile(); err != nil {
+		u.mu.Unlock()
+		return err
+	}
+	u.stopCh = make(chan struct{})
+	u.doneCh = make(chan struct{})
+	u.running = true
+	stopCh := u.stopCh
+	doneCh := u.doneCh
+	interval := u.flushInterval
+	u.mu.Unlock()
+
+	go u.flushLoop(stopCh, doneCh, interval)
+	return nil
+}
+
+// Stop stops the background loop, flushes running updaters, and saves remaining pending updates.
+func (u *ConversationUpdater) Stop() error {
+	if u == nil {
+		return nil
+	}
+	u.mu.Lock()
+	wasRunning := u.running
+	stopCh := u.stopCh
+	doneCh := u.doneCh
+	if wasRunning {
+		close(stopCh)
+		u.running = false
+		u.stopCh = nil
+		u.doneCh = nil
+	}
+	u.mu.Unlock()
+
+	if wasRunning {
+		<-doneCh
+	}
+
+	var flushErr error
+	if wasRunning {
+		flushErr = u.Flush(context.Background())
+	}
+	saveErr := u.savePendingFile()
+	if flushErr != nil {
+		return flushErr
+	}
+	return saveErr
+}
+
+// PushIntent merges one validated conversation intent into the owner-local pending buffer.
+func (u *ConversationUpdater) PushIntent(_ context.Context, intent ConversationIntent) error {
+	if u == nil {
+		return ErrIntentRequired
+	}
+	key, readSeqs, err := normalizeConversationIntent(intent)
+	if err != nil {
+		return err
+	}
+
+	shard := u.shardForKey(key)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	update := shard.pendingByChannel[key]
+	if update == nil {
+		update = &PendingConversationUpdate{
+			CommandChannelID: key.ChannelID,
+			ChannelType:      key.ChannelType,
+			LastMsgSeq:       intent.MessageSeq,
+			ActiveAt:         intent.ActiveAt,
+			UserReadSeqs:     make(map[string]uint64, len(readSeqs)),
+		}
+		shard.pendingByChannel[key] = update
+	} else {
+		if intent.MessageSeq > update.LastMsgSeq {
+			update.LastMsgSeq = intent.MessageSeq
+		}
+		if intent.ActiveAt > update.ActiveAt {
+			update.ActiveAt = intent.ActiveAt
+		}
+	}
+
+	for uid, readSeq := range readSeqs {
+		if current, ok := update.UserReadSeqs[uid]; !ok || readSeq > current {
+			update.UserReadSeqs[uid] = readSeq
+		}
+		if shard.userIndex[uid] == nil {
+			shard.userIndex[uid] = make(map[CommandChannelKey]struct{})
+		}
+		shard.userIndex[uid][key] = struct{}{}
+	}
+	return nil
+}
+
+// ListPending returns deterministic pending overlays for one UID.
+func (u *ConversationUpdater) ListPending(_ context.Context, uid string, limit int) []PendingConversationView {
+	if u == nil {
+		return nil
+	}
+	uid = strings.TrimSpace(uid)
+	if uid == "" {
+		return nil
+	}
+
+	views := make([]PendingConversationView, 0)
+	for i := range u.shards {
+		shard := &u.shards[i]
+		shard.mu.Lock()
+		keys := shard.userIndex[uid]
+		for key := range keys {
+			update := shard.pendingByChannel[key]
+			if update == nil {
+				continue
+			}
+			readSeq, ok := update.UserReadSeqs[uid]
+			if !ok {
+				continue
+			}
+			views = append(views, PendingConversationView{
+				CommandChannelID: update.CommandChannelID,
+				ChannelType:      update.ChannelType,
+				LastMsgSeq:       update.LastMsgSeq,
+				ActiveAt:         update.ActiveAt,
+				ReadSeq:          readSeq,
+			})
+		}
+		shard.mu.Unlock()
+	}
+
+	sortPendingViews(views)
+	if limit > 0 && len(views) > limit {
+		views = views[:limit]
+	}
+	return views
+}
+
+// MarkSynced removes one UID's pending overlay once sync has covered the latest pending sequence.
+func (u *ConversationUpdater) MarkSynced(_ context.Context, uid string, key CommandChannelKey, throughSeq uint64) error {
+	if u == nil {
+		return nil
+	}
+	uid = strings.TrimSpace(uid)
+	key.ChannelID = strings.TrimSpace(key.ChannelID)
+	if uid == "" || key.ChannelID == "" || key.ChannelType == 0 {
+		return nil
+	}
+
+	shard := u.shardForKey(key)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	update := shard.pendingByChannel[key]
+	if update == nil || throughSeq < update.LastMsgSeq {
+		return nil
+	}
+	u.removeUIDLocked(shard, uid, key)
+	return nil
+}
+
+// Flush persists pending UID/channel states in all-or-error batches.
+func (u *ConversationUpdater) Flush(ctx context.Context) error {
+	if u == nil {
+		return nil
+	}
+	if u.store == nil {
+		return ErrStateStoreRequired
+	}
+	entries := u.snapshotFlushEntries()
+	if len(entries) == 0 {
+		return nil
+	}
+
+	batchSize := u.flushBatchSize
+	if batchSize <= 0 {
+		batchSize = defaultPendingFlushBatch
+	}
+	for start := 0; start < len(entries); start += batchSize {
+		end := start + batchSize
+		if end > len(entries) {
+			end = len(entries)
+		}
+		batch := entries[start:end]
+		states := make([]metadb.CMDConversationState, 0, len(batch))
+		for _, entry := range batch {
+			states = append(states, entry.state)
+		}
+		if err := u.store.UpsertCMDConversationStates(ctx, states); err != nil {
+			return err
+		}
+		u.removeFlushedEntries(batch)
+	}
+	return nil
+}
+
+func (u *ConversationUpdater) flushLoop(stopCh <-chan struct{}, doneCh chan<- struct{}, interval time.Duration) {
+	defer close(doneCh)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if err := u.Flush(context.Background()); err != nil && u.logger != nil {
+				u.logger.Warn("flush pending CMD conversation updates failed", wklog.Error(err))
+			}
+		case <-stopCh:
+			return
+		}
+	}
+}
+
+func normalizeConversationIntent(intent ConversationIntent) (CommandChannelKey, map[string]uint64, error) {
+	key := CommandChannelKey{ChannelID: strings.TrimSpace(intent.CommandChannelID), ChannelType: intent.ChannelType}
+	if intent.MessageSeq == 0 || key.ChannelID == "" || key.ChannelType == 0 || !runtimechannelid.IsCommandChannel(key.ChannelID) {
+		return CommandChannelKey{}, nil, ErrIntentRequired
+	}
+	readSeqs := make(map[string]uint64, len(intent.UserReadSeqs))
+	for uid, readSeq := range intent.UserReadSeqs {
+		uid = strings.TrimSpace(uid)
+		if uid == "" {
+			continue
+		}
+		if current, ok := readSeqs[uid]; !ok || readSeq > current {
+			readSeqs[uid] = readSeq
+		}
+	}
+	if len(readSeqs) == 0 {
+		return CommandChannelKey{}, nil, ErrIntentRequired
+	}
+	return key, readSeqs, nil
+}
+
+func (u *ConversationUpdater) snapshotFlushEntries() []pendingFlushEntry {
+	updatedAt := u.now().UnixNano()
+	entries := make([]pendingFlushEntry, 0)
+	for i := range u.shards {
+		shard := &u.shards[i]
+		shard.mu.Lock()
+		keys := sortedPendingKeys(shard.pendingByChannel)
+		for _, key := range keys {
+			update := shard.pendingByChannel[key]
+			if update == nil {
+				continue
+			}
+			uids := sortedUIDs(update.UserReadSeqs)
+			for _, uid := range uids {
+				entries = append(entries, pendingFlushEntry{
+					state: metadb.CMDConversationState{
+						UID:         uid,
+						ChannelID:   update.CommandChannelID,
+						ChannelType: int64(update.ChannelType),
+						ReadSeq:     update.UserReadSeqs[uid],
+						ActiveAt:    update.ActiveAt,
+						UpdatedAt:   updatedAt,
+					},
+					lastMsgSeq: update.LastMsgSeq,
+				})
+			}
+		}
+		shard.mu.Unlock()
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		left, right := entries[i].state, entries[j].state
+		if left.ActiveAt != right.ActiveAt {
+			return left.ActiveAt < right.ActiveAt
+		}
+		if left.ChannelType != right.ChannelType {
+			return left.ChannelType < right.ChannelType
+		}
+		if left.ChannelID != right.ChannelID {
+			return left.ChannelID < right.ChannelID
+		}
+		return left.UID < right.UID
+	})
+	return entries
+}
+
+func (u *ConversationUpdater) removeFlushedEntries(entries []pendingFlushEntry) {
+	for _, entry := range entries {
+		key := CommandChannelKey{ChannelID: entry.state.ChannelID, ChannelType: uint8(entry.state.ChannelType)}
+		shard := u.shardForKey(key)
+		shard.mu.Lock()
+		update := shard.pendingByChannel[key]
+		if update != nil && update.LastMsgSeq <= entry.lastMsgSeq && update.ActiveAt <= entry.state.ActiveAt && update.UserReadSeqs[entry.state.UID] <= entry.state.ReadSeq {
+			u.removeUIDLocked(shard, entry.state.UID, key)
+		}
+		shard.mu.Unlock()
+	}
+}
+
+func (u *ConversationUpdater) removeUIDLocked(shard *conversationPendingShard, uid string, key CommandChannelKey) {
+	update := shard.pendingByChannel[key]
+	if update != nil {
+		delete(update.UserReadSeqs, uid)
+		if len(update.UserReadSeqs) == 0 {
+			delete(shard.pendingByChannel, key)
+		}
+	}
+	if keys := shard.userIndex[uid]; keys != nil {
+		delete(keys, key)
+		if len(keys) == 0 {
+			delete(shard.userIndex, uid)
+		}
+	}
+}
+
+func (u *ConversationUpdater) putLoadedUpdate(update PendingConversationUpdate) {
+	intent := ConversationIntent{
+		CommandChannelID: update.CommandChannelID,
+		ChannelType:      update.ChannelType,
+		MessageSeq:       update.LastMsgSeq,
+		ActiveAt:         update.ActiveAt,
+		UserReadSeqs:     update.UserReadSeqs,
+	}
+	_ = u.PushIntent(context.Background(), intent)
+}
+
+func (u *ConversationUpdater) snapshotUpdates() []PendingConversationUpdate {
+	updates := make([]PendingConversationUpdate, 0)
+	for i := range u.shards {
+		shard := &u.shards[i]
+		shard.mu.Lock()
+		keys := sortedPendingKeys(shard.pendingByChannel)
+		for _, key := range keys {
+			update := shard.pendingByChannel[key]
+			if update == nil || len(update.UserReadSeqs) == 0 {
+				continue
+			}
+			copyUpdate := PendingConversationUpdate{
+				CommandChannelID: update.CommandChannelID,
+				ChannelType:      update.ChannelType,
+				LastMsgSeq:       update.LastMsgSeq,
+				ActiveAt:         update.ActiveAt,
+				UserReadSeqs:     make(map[string]uint64, len(update.UserReadSeqs)),
+			}
+			for uid, readSeq := range update.UserReadSeqs {
+				copyUpdate.UserReadSeqs[uid] = readSeq
+			}
+			updates = append(updates, copyUpdate)
+		}
+		shard.mu.Unlock()
+	}
+	sort.Slice(updates, func(i, j int) bool {
+		if updates[i].ChannelType != updates[j].ChannelType {
+			return updates[i].ChannelType < updates[j].ChannelType
+		}
+		return updates[i].CommandChannelID < updates[j].CommandChannelID
+	})
+	return updates
+}
+
+func (u *ConversationUpdater) shardForKey(key CommandChannelKey) *conversationPendingShard {
+	idx := hashCommandChannelKey(key) % uint32(len(u.shards))
+	return &u.shards[idx]
+}
+
+func hashCommandChannelKey(key CommandChannelKey) uint32 {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key.ChannelID))
+	_, _ = h.Write([]byte{key.ChannelType})
+	return h.Sum32()
+}
+
+func sortPendingViews(views []PendingConversationView) {
+	sort.Slice(views, func(i, j int) bool {
+		if views[i].ActiveAt != views[j].ActiveAt {
+			return views[i].ActiveAt > views[j].ActiveAt
+		}
+		if views[i].ChannelType != views[j].ChannelType {
+			return views[i].ChannelType < views[j].ChannelType
+		}
+		return views[i].CommandChannelID < views[j].CommandChannelID
+	})
+}
+
+func sortedPendingKeys(updates map[CommandChannelKey]*PendingConversationUpdate) []CommandChannelKey {
+	keys := make([]CommandChannelKey, 0, len(updates))
+	for key := range updates {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].ChannelType != keys[j].ChannelType {
+			return keys[i].ChannelType < keys[j].ChannelType
+		}
+		return keys[i].ChannelID < keys[j].ChannelID
+	})
+	return keys
+}
+
+func sortedUIDs(readSeqs map[string]uint64) []string {
+	uids := make([]string, 0, len(readSeqs))
+	for uid := range readSeqs {
+		uids = append(uids, uid)
+	}
+	sort.Strings(uids)
+	return uids
+}
