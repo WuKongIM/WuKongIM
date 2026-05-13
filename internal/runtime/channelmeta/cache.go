@@ -65,6 +65,10 @@ func (c *ActivationCache) LoadPositive(key channel.ChannelKey, now time.Time) (c
 	if !ok {
 		return channel.Meta{}, false
 	}
+	if entry.meta.WriteFence.Token != "" {
+		c.Invalidate(key)
+		return channel.Meta{}, false
+	}
 	return entry.meta, true
 }
 
@@ -108,6 +112,10 @@ func (c *ActivationCache) storePositiveEntry(key channel.ChannelKey, entry cache
 	if c == nil {
 		return
 	}
+	if entry.meta.WriteFence.Token != "" {
+		c.Invalidate(key)
+		return
+	}
 	shard := c.shard(key)
 	shard.mu.Lock()
 	if shard.positive == nil {
@@ -134,6 +142,10 @@ func (c *ActivationCache) storeAuthoritativePositiveAtGeneration(key channel.Cha
 
 func (c *ActivationCache) storePositiveEntryAtGeneration(key channel.ChannelKey, entry cachedChannelMeta, generation ActivationCacheGeneration) {
 	if c == nil {
+		return
+	}
+	if entry.meta.WriteFence.Token != "" {
+		c.Invalidate(key)
 		return
 	}
 	c.mu.Lock()
@@ -269,6 +281,45 @@ func (c *ActivationCache) Invalidate(key channel.ChannelKey) {
 		shard.generations = make(map[channel.ChannelKey]uint64)
 	}
 	shard.generations[key]++
+}
+
+func (c *ActivationCache) isCurrentGeneration(key channel.ChannelKey, generation ActivationCacheGeneration) bool {
+	if c == nil {
+		return true
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	shard := c.shard(key)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+	return c.isCurrentGenerationLocked(shard, key, generation)
+}
+
+func (c *ActivationCache) invalidateIfWriteFenceChanged(key channel.ChannelKey, authoritative metadb.ChannelRuntimeMeta, now time.Time) {
+	if c == nil {
+		return
+	}
+	shard := c.shard(key)
+	shard.mu.Lock()
+	entry, ok := shard.positive[key]
+	changed := !ok && hasAuthoritativeWriteFence(authoritative)
+	changed = changed || (ok && (!entry.hasAuthoritative ||
+		entry.authoritative.WriteFenceVersion != authoritative.WriteFenceVersion ||
+		entry.authoritative.WriteFenceToken != authoritative.WriteFenceToken ||
+		entry.authoritative.WriteFenceReason != authoritative.WriteFenceReason ||
+		entry.authoritative.WriteFenceUntilMS != authoritative.WriteFenceUntilMS ||
+		entry.meta.WriteFence.Token != ""))
+	shard.mu.Unlock()
+	if changed {
+		c.Invalidate(key)
+	}
+}
+
+func hasAuthoritativeWriteFence(meta metadb.ChannelRuntimeMeta) bool {
+	return meta.WriteFenceVersion != 0 ||
+		meta.WriteFenceToken != "" ||
+		meta.WriteFenceReason != 0 ||
+		meta.WriteFenceUntilMS != 0
 }
 
 func (c *ActivationCache) currentGenerationLocked(key channel.ChannelKey) ActivationCacheGeneration {

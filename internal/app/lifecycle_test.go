@@ -471,6 +471,10 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 			calls = append(calls, "committed_replay.start")
 			return nil
 		},
+		startChannelMigrationFn: func(context.Context) error {
+			calls = append(calls, "channel_migration.start")
+			return nil
+		},
 		startChannelRetentionFn: func(context.Context) error {
 			calls = append(calls, "channel_retention.start")
 			return nil
@@ -500,11 +504,110 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 		"delivery_runtime.start",
 		"committed_dispatcher.start",
 		"committed_replay.start",
+		"channel_migration.start",
 		"channel_retention.start",
 		"gateway.start",
 		"api.start",
 		"manager.start",
 	}, calls)
+}
+
+func TestAppLifecycleStopsChannelMigrationAfterRetentionAndBeforeReplay(t *testing.T) {
+	var startCalls []string
+	var stopCalls []string
+
+	app := &App{
+		cluster: &appLifecycleTestCluster{
+			waitFn: func(context.Context) error {
+				startCalls = append(startCalls, "managed_slots_ready.start")
+				return nil
+			},
+		},
+		gateway: &gateway.Gateway{},
+		startClusterFn: func() error {
+			startCalls = append(startCalls, "cluster.start")
+			return nil
+		},
+		startChannelMetaSyncFn: func() error {
+			startCalls = append(startCalls, "channelmeta.start")
+			return nil
+		},
+		startCommittedReplayFn: func(context.Context) error {
+			startCalls = append(startCalls, "committed_replay.start")
+			return nil
+		},
+		startChannelMigrationFn: func(context.Context) error {
+			startCalls = append(startCalls, "channel_migration.start")
+			return nil
+		},
+		startChannelRetentionFn: func(context.Context) error {
+			startCalls = append(startCalls, "channel_retention.start")
+			return nil
+		},
+		startGatewayFn: func() error {
+			startCalls = append(startCalls, "gateway.start")
+			return nil
+		},
+		stopGatewayFn: func() error {
+			stopCalls = append(stopCalls, "gateway.stop")
+			return nil
+		},
+		stopChannelRetentionFn: func(context.Context) error {
+			stopCalls = append(stopCalls, "channel_retention.stop")
+			return nil
+		},
+		stopChannelMigrationFn: func(context.Context) error {
+			stopCalls = append(stopCalls, "channel_migration.stop")
+			return nil
+		},
+		stopCommittedReplayFn: func(context.Context) error {
+			stopCalls = append(stopCalls, "committed_replay.stop")
+			return nil
+		},
+		stopChannelMetaSyncFn: func() error {
+			stopCalls = append(stopCalls, "channelmeta.stop")
+			return nil
+		},
+		stopClusterFn: func() {
+			stopCalls = append(stopCalls, "cluster.stop")
+		},
+		closeChannelLogDBFn: func() error {
+			stopCalls = append(stopCalls, "channellog.close")
+			return nil
+		},
+		closeRaftDBFn: func() error {
+			stopCalls = append(stopCalls, "raft.close")
+			return nil
+		},
+		closeWKDBFn: func() error {
+			stopCalls = append(stopCalls, "metadb.close")
+			return nil
+		},
+	}
+
+	require.NoError(t, app.Start())
+	require.Equal(t, []string{
+		"cluster.start",
+		"managed_slots_ready.start",
+		"channelmeta.start",
+		"committed_replay.start",
+		"channel_migration.start",
+		"channel_retention.start",
+		"gateway.start",
+	}, startCalls)
+
+	require.NoError(t, app.Stop())
+	require.Equal(t, []string{
+		"gateway.stop",
+		"channel_retention.stop",
+		"channel_migration.stop",
+		"committed_replay.stop",
+		"channelmeta.stop",
+		"cluster.stop",
+		"channellog.close",
+		"raft.close",
+		"metadb.close",
+	}, stopCalls)
 }
 
 func TestAppLifecycleStopsChannelRetentionBeforeCommittedReplayAndStorage(t *testing.T) {

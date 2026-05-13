@@ -102,6 +102,9 @@ func (r *replica) needsLeaderProofsLocked() bool {
 }
 
 func (r *replica) completeLeaderReconcileLocked() machineResult {
+	if r.pendingLeaderEpochEffectID != 0 {
+		return machineResult{Err: channel.ErrNotReady}
+	}
 	if !r.needsLeaderReconcileLocked() {
 		r.reconcilePending = nil
 		return machineResult{}

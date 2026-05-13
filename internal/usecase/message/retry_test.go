@@ -158,6 +158,27 @@ func TestSendWithEnsuredMetaInvalidatesCacheAndRetriesAfterStaleAppend(t *testin
 	require.Equal(t, []string{"local:error", "local:ok"}, metrics.observations)
 }
 
+func TestSendWithEnsuredMetaInvalidatesCacheAndRetriesAfterWriteFence(t *testing.T) {
+	refresher := &recordingInvalidatingRefresher{
+		metas: []channel.Meta{
+			{Leader: 1, Epoch: 1, LeaderEpoch: 1, ID: channel.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup}},
+			{Leader: 1, Epoch: 1, LeaderEpoch: 1, ID: channel.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup}},
+		},
+	}
+	cluster := &flakyAppendCluster{errs: []error{channel.ErrWriteFenced}, result: channel.AppendResult{MessageID: 9, MessageSeq: 2}}
+
+	result, err := sendWithEnsuredMeta(context.Background(), 1, time.Now, wklog.NewNop(), cluster, nil, refresher, nil, channel.AppendRequest{
+		ChannelID: channel.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup},
+		Message:   channel.Message{FromUID: "u1"},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(9), result.MessageID)
+	require.Equal(t, 1, refresher.invalidations)
+	require.Equal(t, 2, refresher.refreshCalls)
+	require.Equal(t, 2, cluster.appendCalls)
+}
+
 type fakeRemoteAppenderReply struct {
 	result channel.AppendResult
 	err    error

@@ -15,6 +15,10 @@ type hashSlotProposer interface {
 	ProposeWithHashSlot(context.Context, multiraft.SlotID, uint16, []byte) error
 }
 
+type hashSlotResultProposer interface {
+	ProposeWithHashSlotResult(context.Context, multiraft.SlotID, uint16, []byte) ([]byte, error)
+}
+
 type localHashSlotProposer interface {
 	ProposeLocalWithHashSlot(context.Context, multiraft.SlotID, uint16, []byte) error
 }
@@ -48,6 +52,16 @@ func proposeWithHashSlot(ctx context.Context, cluster any, slotID multiraft.Slot
 		return proposer.Propose(ctx, slotID, cmd)
 	}
 	return fmt.Errorf("metastore: cluster does not support proposal submission")
+}
+
+func proposeWithHashSlotResult(ctx context.Context, cluster any, slotID multiraft.SlotID, hashSlot uint16, cmd []byte) ([]byte, error) {
+	if cluster == nil {
+		return nil, fmt.Errorf("metastore: cluster not configured")
+	}
+	if proposer, ok := cluster.(hashSlotResultProposer); ok {
+		return proposer.ProposeWithHashSlotResult(ctx, slotID, hashSlot, cmd)
+	}
+	return nil, proposeWithHashSlot(ctx, cluster, slotID, hashSlot, cmd)
 }
 
 func proposeLocalWithHashSlot(ctx context.Context, cluster any, slotID multiraft.SlotID, hashSlot uint16, cmd []byte) error {

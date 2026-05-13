@@ -3091,6 +3091,18 @@ func (r *sessionReplica) ApplyRetentionBoundary(_ context.Context, throughSeq ui
 	}
 	return nil
 }
+func (r *sessionReplica) FenceAndDrain(_ context.Context, req core.FenceAndDrainRequest) (core.DrainResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return core.DrainResult{
+		ChannelKey:        r.state.ChannelKey,
+		LEO:               r.state.LEO,
+		HW:                r.state.HW,
+		CheckpointHW:      r.state.CheckpointHW,
+		ChannelEpoch:      r.state.Epoch,
+		WriteFenceVersion: req.WriteFenceVersion,
+	}, nil
+}
 func (r *sessionReplica) RetentionView() (core.RetentionView, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

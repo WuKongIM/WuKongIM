@@ -223,20 +223,35 @@ func (f *fakeReplicaFactory) New(cfg ChannelConfig) (replica.Replica, error) {
 }
 
 type fakeReplica struct {
-	mu                  sync.Mutex
-	state               core.ReplicaState
-	tombstone           int
-	tombstoneErr        error
-	becomeLeaderErr     error
-	closeCount          int
-	retentionCalls      []uint64
-	retentionView       core.RetentionView
-	onLeaderLocalAppend func()
-	onLeaderHWAdvance   func()
+	mu                         sync.Mutex
+	state                      core.ReplicaState
+	tombstone                  int
+	tombstoneErr               error
+	becomeLeaderErr            error
+	closeCount                 int
+	appendCalls                int
+	retentionCalls             []uint64
+	retentionView              core.RetentionView
+	onLeaderLocalAppend        func()
+	onLeaderHWAdvance          func()
+	blockApplyMetaFenceVersion uint64
+	applyMetaEntered           chan struct{}
+	releaseApplyMeta           chan struct{}
 }
 
 func (r *fakeReplica) ApplyMeta(meta core.Meta) error {
 	r.mu.Lock()
+	entered := r.applyMetaEntered
+	release := r.releaseApplyMeta
+	if r.blockApplyMetaFenceVersion != 0 && meta.WriteFence.Version == r.blockApplyMetaFenceVersion && entered != nil {
+		r.applyMetaEntered = nil
+		r.mu.Unlock()
+		close(entered)
+		if release != nil {
+			<-release
+		}
+		r.mu.Lock()
+	}
 	defer r.mu.Unlock()
 	r.state.ChannelKey = meta.Key
 	r.state.Epoch = meta.Epoch
@@ -290,6 +305,9 @@ func (r *fakeReplica) InstallSnapshot(context.Context, core.Snapshot) error {
 }
 
 func (r *fakeReplica) Append(context.Context, []core.Record) (core.CommitResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.appendCalls++
 	return core.CommitResult{}, nil
 }
 
@@ -321,6 +339,19 @@ func (r *fakeReplica) ApplyRetentionBoundary(_ context.Context, throughSeq uint6
 		r.state.LEO = throughSeq
 	}
 	return nil
+}
+
+func (r *fakeReplica) FenceAndDrain(_ context.Context, req core.FenceAndDrainRequest) (core.DrainResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return core.DrainResult{
+		ChannelKey:        r.state.ChannelKey,
+		LEO:               r.state.LEO,
+		HW:                r.state.HW,
+		CheckpointHW:      r.state.CheckpointHW,
+		ChannelEpoch:      r.state.Epoch,
+		WriteFenceVersion: req.WriteFenceVersion,
+	}, nil
 }
 
 func (r *fakeReplica) RetentionView() (core.RetentionView, error) {

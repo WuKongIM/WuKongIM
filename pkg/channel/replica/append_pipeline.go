@@ -236,11 +236,20 @@ func (r *replica) validateAppendEffectFenceLocked(effect appendLeaderBatchEffect
 	if r.state.Role != channel.ReplicaRoleLeader {
 		return channel.ErrNotLeader
 	}
+	if r.pendingLeaderEpochEffectID != 0 {
+		return channel.ErrNotReady
+	}
 	if !r.state.CommitReady {
 		return channel.ErrNotReady
 	}
 	if !r.now().Before(r.meta.LeaseUntil) || !r.now().Before(effect.LeaseUntil) {
 		return channel.ErrLeaseExpired
+	}
+	if r.meta.WriteFence.BlocksAppend() {
+		return channel.ErrWriteFenced
+	}
+	if r.drainedFenceBlocksAppendLocked() {
+		return channel.ErrWriteFenced
 	}
 	if len(r.meta.ISR) < r.meta.MinISR {
 		return channel.ErrInsufficientISR
@@ -339,6 +348,9 @@ func (r *replica) appendableLocked() error {
 	if r.state.Role != channel.ReplicaRoleLeader {
 		return channel.ErrNotLeader
 	}
+	if r.pendingLeaderEpochEffectID != 0 {
+		return channel.ErrNotReady
+	}
 	if !r.state.CommitReady {
 		return channel.ErrNotReady
 	}
@@ -347,6 +359,12 @@ func (r *replica) appendableLocked() error {
 		r.roleGeneration++
 		r.publishStateLocked()
 		return channel.ErrLeaseExpired
+	}
+	if r.meta.WriteFence.BlocksAppend() {
+		return channel.ErrWriteFenced
+	}
+	if r.drainedFenceBlocksAppendLocked() {
+		return channel.ErrWriteFenced
 	}
 	if len(r.meta.ISR) < r.meta.MinISR {
 		return channel.ErrInsufficientISR

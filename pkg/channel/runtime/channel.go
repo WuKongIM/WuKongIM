@@ -31,8 +31,10 @@ type channel struct {
 	onAppend func(core.ChannelKey)
 	changes  *replicaChangeNotifier
 	meta     atomic.Pointer[core.Meta]
-	mu       sync.Mutex
-	pending  taskMask
+	// applyMu serializes metadata application so older fence generations cannot publish after newer ones.
+	applyMu sync.Mutex
+	mu      sync.Mutex
+	pending taskMask
 
 	replicationPeers   nodeIDQueue
 	replicationTargets []PeerLaneKey
@@ -98,6 +100,9 @@ func (c *channel) Append(ctx context.Context, records []core.Record) (core.Commi
 	}
 	if state.Role == core.ReplicaRoleLeader && !state.CommitReady {
 		return core.CommitResult{}, core.ErrNotReady
+	}
+	if meta.WriteFence.BlocksAppend() {
+		return core.CommitResult{}, core.ErrWriteFenced
 	}
 	if !meta.LeaseUntil.IsZero() && !c.now().Before(meta.LeaseUntil) {
 		return core.CommitResult{}, core.ErrLeaseExpired

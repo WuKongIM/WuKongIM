@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -28,6 +29,8 @@ type runtimeMetaRPCRequest struct {
 	Keys        []metadb.ConversationKey         `json:"keys,omitempty"`
 	After       *metadb.ChannelRuntimeMetaCursor `json:"after,omitempty"`
 	Limit       int                              `json:"limit,omitempty"`
+	// CodecVersion tracks the binary request version so responses can match legacy callers.
+	CodecVersion byte `json:"-"`
 }
 
 type runtimeMetaRPCResponse struct {
@@ -137,6 +140,32 @@ func (s *Store) BatchGetChannelRuntimeMetas(ctx context.Context, keys []metadb.C
 }
 
 func (s *Store) callRuntimeMetaRPC(ctx context.Context, slotID multiraft.SlotID, req runtimeMetaRPCRequest) (runtimeMetaRPCResponse, error) {
+	if req.CodecVersion != 0 {
+		return s.callRuntimeMetaRPCWithCodec(ctx, slotID, req)
+	}
+
+	latestReq := req
+	latestReq.CodecVersion = 2
+	resp, err := s.callRuntimeMetaRPCWithCodec(ctx, slotID, latestReq)
+	if err == nil {
+		return resp, nil
+	}
+	if !isRuntimeMetaRPCUnsupportedRequestCodecError(err) {
+		return runtimeMetaRPCResponse{}, err
+	}
+
+	// Fall back to v1 so upgraded nodes can still query slot leaders that have
+	// not learned the write-fence aware v2 runtime-meta codec yet.
+	legacyReq := req
+	legacyReq.CodecVersion = 1
+	legacyResp, legacyErr := s.callRuntimeMetaRPCWithCodec(ctx, slotID, legacyReq)
+	if legacyErr == nil {
+		return legacyResp, nil
+	}
+	return runtimeMetaRPCResponse{}, err
+}
+
+func (s *Store) callRuntimeMetaRPCWithCodec(ctx context.Context, slotID multiraft.SlotID, req runtimeMetaRPCRequest) (runtimeMetaRPCResponse, error) {
 	payload, err := encodeRuntimeMetaRPCRequestBinary(req)
 	if err != nil {
 		return runtimeMetaRPCResponse{}, err
@@ -152,7 +181,7 @@ func (s *Store) handleRuntimeMetaRPC(ctx context.Context, body []byte) ([]byte, 
 
 	slotID := multiraft.SlotID(req.SlotID)
 	if statusBody, handled, err := s.handleAuthoritativeRPC(slotID, func(status string, leaderID uint64) ([]byte, error) {
-		return encodeRuntimeMetaRPCResponse(runtimeMetaRPCResponse{
+		return encodeRuntimeMetaRPCResponseForRequest(req, runtimeMetaRPCResponse{
 			Status:   status,
 			LeaderID: leaderID,
 		})
@@ -165,12 +194,12 @@ func (s *Store) handleRuntimeMetaRPC(ctx context.Context, body []byte) ([]byte, 
 		hashSlot := hashSlotForKey(s.cluster, req.ChannelID)
 		meta, err := s.db.ForHashSlot(hashSlot).GetChannelRuntimeMeta(ctx, req.ChannelID, req.ChannelType)
 		if errors.Is(err, metadb.ErrNotFound) {
-			return encodeRuntimeMetaRPCResponse(runtimeMetaRPCResponse{Status: rpcStatusNotFound})
+			return encodeRuntimeMetaRPCResponseForRequest(req, runtimeMetaRPCResponse{Status: rpcStatusNotFound})
 		}
 		if err != nil {
 			return nil, err
 		}
-		return encodeRuntimeMetaRPCResponse(runtimeMetaRPCResponse{
+		return encodeRuntimeMetaRPCResponseForRequest(req, runtimeMetaRPCResponse{
 			Status: rpcStatusOK,
 			Meta:   &meta,
 		})
@@ -187,7 +216,7 @@ func (s *Store) handleRuntimeMetaRPC(ctx context.Context, body []byte) ([]byte, 
 			}
 			out = append(out, meta)
 		}
-		return encodeRuntimeMetaRPCResponse(runtimeMetaRPCResponse{
+		return encodeRuntimeMetaRPCResponseForRequest(req, runtimeMetaRPCResponse{
 			Status: rpcStatusOK,
 			Metas:  out,
 		})
@@ -196,7 +225,7 @@ func (s *Store) handleRuntimeMetaRPC(ctx context.Context, body []byte) ([]byte, 
 		if err != nil {
 			return nil, err
 		}
-		return encodeRuntimeMetaRPCResponse(runtimeMetaRPCResponse{
+		return encodeRuntimeMetaRPCResponseForRequest(req, runtimeMetaRPCResponse{
 			Status: rpcStatusOK,
 			Metas:  filterChannelRuntimeMetaBySlot(s.cluster, slotID, metas),
 		})
@@ -209,7 +238,7 @@ func (s *Store) handleRuntimeMetaRPC(ctx context.Context, body []byte) ([]byte, 
 		if err != nil {
 			return nil, err
 		}
-		return encodeRuntimeMetaRPCResponse(runtimeMetaRPCResponse{
+		return encodeRuntimeMetaRPCResponseForRequest(req, runtimeMetaRPCResponse{
 			Status: rpcStatusOK,
 			Metas:  metas,
 			Cursor: cursor,
@@ -344,8 +373,16 @@ func encodeRuntimeMetaRPCResponse(resp runtimeMetaRPCResponse) ([]byte, error) {
 	return encodeRuntimeMetaRPCResponseBinary(resp)
 }
 
+func encodeRuntimeMetaRPCResponseForRequest(req runtimeMetaRPCRequest, resp runtimeMetaRPCResponse) ([]byte, error) {
+	return encodeRuntimeMetaRPCResponseForVersion(resp, req.CodecVersion)
+}
+
 func decodeRuntimeMetaRPCResponse(body []byte) (runtimeMetaRPCResponse, error) {
 	return decodeRuntimeMetaRPCResponseBinary(body)
+}
+
+func isRuntimeMetaRPCUnsupportedRequestCodecError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "invalid runtime meta request codec")
 }
 
 type runtimeMetaMergeItem struct {

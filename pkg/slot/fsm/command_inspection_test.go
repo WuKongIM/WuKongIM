@@ -55,11 +55,19 @@ func TestDecodeCommandInspectionIncludesRuntimeMetaRetention(t *testing.T) {
 		LeaseUntilMS:         1700000000000,
 		RetentionThroughSeq:  99,
 		RetentionUpdatedAtMS: 1700000000123,
+		WriteFenceToken:      "task-inspect",
+		WriteFenceVersion:    7,
+		WriteFenceReason:     2,
+		WriteFenceUntilMS:    1700000000456,
 	}))
 	require.NoError(t, err)
 
 	require.Equal(t, uint64(99), got.Payload["retention_through_seq"])
 	require.Equal(t, int64(1700000000123), got.Payload["retention_updated_at_ms"])
+	require.Equal(t, "task-inspect", got.Payload["write_fence_token"])
+	require.Equal(t, uint64(7), got.Payload["write_fence_version"])
+	require.Equal(t, uint8(2), got.Payload["write_fence_reason"])
+	require.Equal(t, int64(1700000000456), got.Payload["write_fence_until_ms"])
 }
 
 func TestDecodeCommandInspectionIncludesAdvanceChannelRetentionThroughSeq(t *testing.T) {
@@ -89,6 +97,36 @@ func TestDecodeCommandInspectionIncludesAdvanceChannelRetentionThroughSeq(t *tes
 			"retention_updated_at_ms": int64(1700000000123),
 		},
 	}, got)
+}
+
+func TestDecodeCommandInspectionIncludesGuardedChannelMigrationCreate(t *testing.T) {
+	task := metadb.ChannelMigrationTask{
+		TaskID:      "task-inspect-create-guard",
+		Kind:        metadb.ChannelMigrationKindReplicaReplace,
+		Status:      metadb.ChannelMigrationStatusPending,
+		Phase:       metadb.ChannelMigrationPhaseValidate,
+		ChannelID:   "inspect-create-guard",
+		ChannelType: 2,
+		SourceNode:  1,
+		TargetNode:  3,
+		CreatedAtMS: 1700000000000,
+		UpdatedAtMS: 1700000000000,
+	}
+	got, err := DecodeCommandInspection(EncodeCreateChannelMigrationTaskWithRuntimeGuardCommand(metadb.ChannelMigrationTaskCreate{
+		Task: task,
+		RuntimeGuard: metadb.ChannelMigrationRuntimeGuard{
+			ChannelID:            task.ChannelID,
+			ChannelType:          task.ChannelType,
+			ExpectedChannelEpoch: 7,
+			ExpectedLeaderEpoch:  9,
+			ExpectedLeader:       1,
+		},
+	}))
+	require.NoError(t, err)
+
+	require.Equal(t, "create_channel_migration_task_with_runtime_guard", got.Type)
+	require.Equal(t, task.TaskID, got.Payload["task_id"])
+	require.Equal(t, task.ChannelID, got.Payload["channel_id"])
 }
 
 func TestDecodeCommandInspectionIncludesUserConversationActiveMessageSeq(t *testing.T) {

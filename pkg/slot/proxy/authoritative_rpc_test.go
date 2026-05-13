@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -46,6 +47,46 @@ func TestHandleRuntimeMetaRPCBeforeClusterStartReturnsNoLeader(t *testing.T) {
 		respBody, err = store.handleRuntimeMetaRPC(context.Background(), body)
 	})
 	require.NoError(t, err)
+	require.True(t, runtimeMetaHasMagic(respBody, runtimeMetaRPCResponseMagic[:]))
+
+	resp, err := decodeRuntimeMetaRPCResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, rpcStatusNoLeader, resp.Status)
+}
+
+func TestHandleRuntimeMetaRPCLegacyRequestEmitsLegacyResponse(t *testing.T) {
+	db := openTestDB(t)
+	raftDB := openTestRaftDBAt(t, filepath.Join(t.TempDir(), "raft"))
+
+	cluster, err := raftcluster.NewCluster(raftcluster.Config{
+		NodeID:             1,
+		ListenAddr:         "127.0.0.1:9090",
+		SlotCount:          1,
+		ControllerReplicaN: 1,
+		SlotReplicaN:       1,
+		NewStorage: func(slotID multiraft.SlotID) (multiraft.Storage, error) {
+			return raftDB.ForSlot(uint64(slotID)), nil
+		},
+		NewStateMachine:              metafsm.NewStateMachineFactory(db),
+		NewStateMachineWithHashSlots: metafsm.NewHashSlotStateMachineFactory(db),
+		Nodes: []raftcluster.NodeConfig{{
+			NodeID: 1,
+			Addr:   "127.0.0.1:9090",
+		}},
+	})
+	require.NoError(t, err)
+
+	store := New(cluster, db)
+	body, err := encodeRuntimeMetaRPCRequestBinary(runtimeMetaRPCRequest{
+		Op:           runtimeMetaRPCList,
+		SlotID:       1,
+		CodecVersion: 1,
+	})
+	require.NoError(t, err)
+
+	respBody, err := store.handleRuntimeMetaRPC(context.Background(), body)
+	require.NoError(t, err)
+	require.True(t, runtimeMetaHasMagic(respBody, runtimeMetaRPCResponseMagicV1[:]))
 
 	resp, err := decodeRuntimeMetaRPCResponse(respBody)
 	require.NoError(t, err)
@@ -74,12 +115,13 @@ func TestRuntimeMetaRPCBinaryCodecRoundTrip(t *testing.T) {
 	require.Equal(t, req.ChannelType, gotReq.ChannelType)
 	require.Equal(t, req.After, gotReq.After)
 	require.Equal(t, req.Limit, gotReq.Limit)
+	require.Equal(t, byte(2), gotReq.CodecVersion)
 
 	resp := runtimeMetaRPCResponse{
 		Status:   rpcStatusOK,
 		LeaderID: 3,
-		Meta:     &metadb.ChannelRuntimeMeta{ChannelID: "g1", ChannelType: 2, ChannelEpoch: 10, LeaderEpoch: 11, Replicas: []uint64{1, 2}, ISR: []uint64{1}, Leader: 1, MinISR: 1, Status: 1},
-		Metas:    []metadb.ChannelRuntimeMeta{{ChannelID: "g2", ChannelType: 2, ChannelEpoch: 20, LeaderEpoch: 21, Replicas: []uint64{2, 1}, ISR: []uint64{2}, Leader: 2, MinISR: 1, Status: 1}},
+		Meta:     &metadb.ChannelRuntimeMeta{ChannelID: "g1", ChannelType: 2, ChannelEpoch: 10, LeaderEpoch: 11, Replicas: []uint64{1, 2}, ISR: []uint64{1}, Leader: 1, MinISR: 1, Status: 1, WriteFenceToken: "task-1", WriteFenceVersion: 7, WriteFenceReason: 2, WriteFenceUntilMS: 1710000000000},
+		Metas:    []metadb.ChannelRuntimeMeta{{ChannelID: "g2", ChannelType: 2, ChannelEpoch: 20, LeaderEpoch: 21, Replicas: []uint64{2, 1}, ISR: []uint64{2}, Leader: 2, MinISR: 1, Status: 1, WriteFenceVersion: 8}},
 		Cursor:   metadb.ChannelRuntimeMetaCursor{ChannelID: "g2", ChannelType: 2},
 		Done:     true,
 	}
@@ -95,6 +137,119 @@ func TestRuntimeMetaRPCBinaryCodecRoundTrip(t *testing.T) {
 	require.Equal(t, resp.Metas, gotResp.Metas)
 	require.Equal(t, resp.Cursor, gotResp.Cursor)
 	require.Equal(t, resp.Done, gotResp.Done)
+}
+
+func TestRuntimeMetaRPCBinaryCodecDecodesLegacyResponse(t *testing.T) {
+	resp := runtimeMetaRPCResponse{
+		Status:   rpcStatusOK,
+		LeaderID: 3,
+		Meta:     &metadb.ChannelRuntimeMeta{ChannelID: "g1", ChannelType: 2, ChannelEpoch: 10, LeaderEpoch: 11, Replicas: []uint64{1, 2}, ISR: []uint64{1}, Leader: 1, MinISR: 1, Status: 1},
+		Metas:    []metadb.ChannelRuntimeMeta{{ChannelID: "g2", ChannelType: 2, ChannelEpoch: 20, LeaderEpoch: 21, Replicas: []uint64{2, 1}, ISR: []uint64{2}, Leader: 2, MinISR: 1, Status: 1}},
+		Cursor:   metadb.ChannelRuntimeMetaCursor{ChannelID: "g2", ChannelType: 2},
+		Done:     true,
+	}
+	body, err := encodeRuntimeMetaRPCResponseForVersion(resp, 1)
+	require.NoError(t, err)
+
+	got, err := decodeRuntimeMetaRPCResponse(body)
+	require.NoError(t, err)
+	require.Equal(t, resp, got)
+	require.Zero(t, got.Meta.WriteFenceVersion)
+	require.Zero(t, got.Metas[0].WriteFenceVersion)
+}
+
+func TestRuntimeMetaRPCBinaryCodecRejectsTruncatedWriteFenceTail(t *testing.T) {
+	resp := runtimeMetaRPCResponse{
+		Status: rpcStatusOK,
+		Meta:   &metadb.ChannelRuntimeMeta{ChannelID: "g1", ChannelType: 2, ChannelEpoch: 10, LeaderEpoch: 11, Replicas: []uint64{1, 2}, ISR: []uint64{1}, Leader: 1, MinISR: 1, Status: 1, WriteFenceToken: "task-1", WriteFenceVersion: 7, WriteFenceReason: 1, WriteFenceUntilMS: 1710000000000},
+	}
+	body, err := encodeRuntimeMetaRPCResponse(resp)
+	require.NoError(t, err)
+	require.NotEmpty(t, body)
+
+	_, err = decodeRuntimeMetaRPCResponse(body[:len(body)-1])
+	require.Error(t, err)
+}
+
+func TestRuntimeMetaRPCBinaryCodecLegacyRequestRoundTrip(t *testing.T) {
+	req := runtimeMetaRPCRequest{
+		Op:           runtimeMetaRPCList,
+		SlotID:       1,
+		CodecVersion: 1,
+	}
+
+	body, err := encodeRuntimeMetaRPCRequestBinary(req)
+	require.NoError(t, err)
+	require.True(t, runtimeMetaHasMagic(body, runtimeMetaRPCRequestMagicV1[:]))
+
+	got, err := decodeRuntimeMetaRPCRequest(body)
+	require.NoError(t, err)
+	require.Equal(t, req.Op, got.Op)
+	require.Equal(t, req.SlotID, got.SlotID)
+	require.Equal(t, byte(1), got.CodecVersion)
+}
+
+func TestRuntimeMetaRPCFallbacksToLegacyRequestForUnsupportedPeer(t *testing.T) {
+	var versions []byte
+	store := New(&proxyTestMigrationCluster{
+		nodeID:         2,
+		localNodeID:    2,
+		slotForKey:     1,
+		hashSlotForKey: 0,
+		leaders:        map[multiraft.SlotID]multiraft.NodeID{1: 1},
+		peers:          map[multiraft.SlotID][]multiraft.NodeID{1: {1}},
+		rpcService: func(_ context.Context, _ multiraft.NodeID, _ multiraft.SlotID, _ uint8, payload []byte) ([]byte, error) {
+			version, ok := runtimeMetaRPCRequestVersion(payload)
+			if !ok {
+				return nil, errors.New("invalid test payload")
+			}
+			versions = append(versions, version)
+			if version == 2 {
+				return nil, errors.New("nodetransport: remote error: metastore: invalid runtime meta request codec")
+			}
+			return encodeRuntimeMetaRPCResponseForVersion(runtimeMetaRPCResponse{
+				Status: rpcStatusOK,
+				Meta:   &metadb.ChannelRuntimeMeta{ChannelID: "g1", ChannelType: 2},
+			}, 1)
+		},
+	}, openTestDB(t))
+
+	resp, err := store.callRuntimeMetaRPC(context.Background(), 1, runtimeMetaRPCRequest{
+		Op:          runtimeMetaRPCGet,
+		SlotID:      1,
+		ChannelID:   "g1",
+		ChannelType: 2,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Meta)
+	require.Equal(t, "g1", resp.Meta.ChannelID)
+	require.Zero(t, resp.Meta.WriteFenceVersion)
+	require.Equal(t, []byte{2, 1}, versions)
+}
+
+func TestRuntimeMetaRPCDoesNotFallbackToLegacyOnNonCodecError(t *testing.T) {
+	calls := 0
+	store := New(&proxyTestMigrationCluster{
+		nodeID:         2,
+		localNodeID:    2,
+		slotForKey:     1,
+		hashSlotForKey: 0,
+		leaders:        map[multiraft.SlotID]multiraft.NodeID{1: 1},
+		peers:          map[multiraft.SlotID][]multiraft.NodeID{1: {1}},
+		rpcService: func(_ context.Context, _ multiraft.NodeID, _ multiraft.SlotID, _ uint8, _ []byte) ([]byte, error) {
+			calls++
+			return nil, errors.New("temporary outage")
+		},
+	}, openTestDB(t))
+
+	_, err := store.callRuntimeMetaRPC(context.Background(), 1, runtimeMetaRPCRequest{
+		Op:          runtimeMetaRPCGet,
+		SlotID:      1,
+		ChannelID:   "g1",
+		ChannelType: 2,
+	})
+	require.Error(t, err)
+	require.Equal(t, 1, calls)
 }
 
 func TestRuntimeMetaRPCRejectsJSONPayload(t *testing.T) {

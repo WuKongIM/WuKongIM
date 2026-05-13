@@ -104,12 +104,21 @@ func (r *replica) prepareFollowerRecordApplyLocked(req channel.ReplicaApplyFetch
 }
 
 func (r *replica) prepareFollowerHeartbeatApplyLocked(req channel.ReplicaApplyFetchRequest, baseLEO uint64) machineResult {
+	epochPoint, err := r.followerEpochBoundaryPointLocked(req.Epoch, baseLEO)
+	if err != nil {
+		return machineResult{Err: err}
+	}
 	nextHW := req.LeaderHW
 	if nextHW > baseLEO {
 		nextHW = baseLEO
 	}
 	if nextHW < r.state.HW {
 		if req.TruncateTo == nil {
+			if epochPoint != nil {
+				effect := r.newFollowerApplyEffectLocked(req, baseLEO, baseLEO, r.state.HW, r.state.HW, r.state.CommitReady)
+				effect.EpochPoint = cloneEpochPointPointer(epochPoint)
+				return machineResult{Effects: []machineEffect{effect}}
+			}
 			r.state.LEO = baseLEO
 			r.state.OffsetEpoch = offsetEpochForLEO(r.epochHistory, baseLEO)
 			r.publishStateLocked()
@@ -117,7 +126,7 @@ func (r *replica) prepareFollowerHeartbeatApplyLocked(req channel.ReplicaApplyFe
 		}
 		return machineResult{Err: channel.ErrCorruptState}
 	}
-	if nextHW == r.state.HW && req.TruncateTo == nil {
+	if nextHW == r.state.HW && req.TruncateTo == nil && epochPoint == nil {
 		r.state.LEO = baseLEO
 		r.state.CommitReady = true
 		r.state.OffsetEpoch = offsetEpochForLEO(r.epochHistory, baseLEO)
@@ -136,7 +145,19 @@ func (r *replica) prepareFollowerHeartbeatApplyLocked(req channel.ReplicaApplyFe
 	}
 	effect := r.newFollowerApplyEffectLocked(req, baseLEO, baseLEO, r.state.HW, nextHW, true)
 	effect.Checkpoint = cloneCheckpointPointer(checkpoint)
+	effect.EpochPoint = cloneEpochPointPointer(epochPoint)
 	return machineResult{Effects: []machineEffect{effect}}
+}
+
+func (r *replica) followerEpochBoundaryPointLocked(epoch, startOffset uint64) (*channel.EpochPoint, error) {
+	if len(r.epochHistory) > 0 && r.epochHistory[len(r.epochHistory)-1].Epoch == epoch {
+		return nil, nil
+	}
+	point := channel.EpochPoint{Epoch: epoch, StartOffset: startOffset}
+	if _, err := appendEpochPointInMemory(r.epochHistory, point); err != nil {
+		return nil, err
+	}
+	return &point, nil
 }
 
 func (r *replica) newFollowerApplyEffectLocked(req channel.ReplicaApplyFetchRequest, baseLEO, newLEO, previousHW, newHW uint64, commitReady bool) applyFollowerEffect {
@@ -187,7 +208,10 @@ func (r *replica) executeFollowerApplyEffect(ctx context.Context, effect applyFo
 				Checkpoint:          cloneCheckpointPointer(effect.Checkpoint),
 			}
 			storedLEO, err = r.durable.ApplyFollowerBatch(ctx, applyReq, cloneEpochPointPointer(effect.EpochPoint))
-		} else if err == nil && effect.Checkpoint != nil {
+		} else if err == nil && effect.EpochPoint != nil {
+			err = r.durable.BeginEpoch(ctx, *effect.EpochPoint, effect.NewLEO)
+		}
+		if err == nil && len(effect.Records) == 0 && effect.Checkpoint != nil {
 			err = r.durable.StoreCheckpointMonotonic(ctx, *effect.Checkpoint, effect.NewHW, effect.NewLEO)
 		}
 		r.durableMu.Unlock()

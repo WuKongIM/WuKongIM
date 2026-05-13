@@ -87,6 +87,22 @@ WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]
 # WK_CLUSTER_ADVERTISE_ADDR=wk-node4:7000
 # WK_CLUSTER_JOIN_TOKEN=change-me
 
+# Channel migration runs on local slot leaders and advances durable channel leader-transfer
+# or replica-replacement tasks created through the manager API.
+WK_CHANNEL_MIGRATION_SCAN_INTERVAL=1s
+WK_CHANNEL_MIGRATION_SCAN_LIMIT=64
+WK_CHANNEL_MIGRATION_OWNER_LEASE_TTL=30s
+WK_CHANNEL_MIGRATION_RETRY_BACKOFF=1m
+WK_CHANNEL_MIGRATION_FENCE_TTL=1m
+WK_CHANNEL_MIGRATION_LEADER_LEASE_TTL=1m
+WK_CHANNEL_MIGRATION_CATCH_UP_STABLE_WINDOW=1s
+WK_CHANNEL_MIGRATION_CATCH_UP_LAG_THRESHOLD=0
+WK_CHANNEL_MIGRATION_MAX_CONCURRENT=64
+WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_SOURCE=1
+WK_CHANNEL_MIGRATION_MAX_CONCURRENT_PER_TARGET=1
+WK_CHANNEL_MIGRATION_COMPLETED_RETENTION_TTL=24h
+WK_CHANNEL_MIGRATION_GC_LIMIT=128
+
 # Channel message retention is disabled by default. Set a positive TTL to allow
 # the leader-driven retention worker to hide and trim expired channel message prefixes.
 # The scan interval, channel batch size, and max trim messages are only used while TTL retention is enabled.

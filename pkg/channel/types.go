@@ -80,6 +80,82 @@ type Meta struct {
 	Features    Features
 	// RetentionThroughSeq is the authoritative highest message sequence hidden by retention.
 	RetentionThroughSeq uint64
+	// WriteFence rejects new appends while a migration owns the channel cutover.
+	WriteFence WriteFence
+}
+
+// WriteFenceReason explains why channel writes are currently fenced.
+type WriteFenceReason uint8
+
+const (
+	// WriteFenceReasonMigration indicates writes are fenced by channel migration.
+	WriteFenceReasonMigration WriteFenceReason = 1
+)
+
+// WriteFence is the channel runtime projection of an authoritative write fence.
+type WriteFence struct {
+	// Token identifies the task that owns the current write fence.
+	Token string
+	// Version is the monotonic fence generation applied from authoritative metadata.
+	Version uint64
+	// Reason explains why writes are currently fenced.
+	Reason WriteFenceReason
+	// Until is the fence lease deadline from authoritative metadata.
+	Until time.Time
+}
+
+// Active reports whether the fence currently rejects new writes.
+func (f WriteFence) Active(now time.Time) bool {
+	return f.Token != "" && !now.After(f.Until)
+}
+
+// BlocksAppend reports whether local append admission must fail closed until authoritative metadata clears the fence.
+func (f WriteFence) BlocksAppend() bool {
+	return f.Token != ""
+}
+
+// FenceAndDrainRequest asks the current channel leader to prove a fenced cutover point.
+type FenceAndDrainRequest struct {
+	// ChannelKey identifies the channel runtime to drain.
+	ChannelKey ChannelKey
+	// TaskID identifies the migration task requesting the drain.
+	TaskID string
+	// WriteFenceToken must match the locally applied authoritative write fence.
+	WriteFenceToken string
+	// WriteFenceVersion must match the locally applied authoritative write fence generation.
+	WriteFenceVersion uint64
+	// ExpectedChannelEpoch fences the drain to the authoritative channel epoch.
+	ExpectedChannelEpoch uint64
+	// ExpectedLeaderEpoch fences the drain to the authoritative leader epoch.
+	ExpectedLeaderEpoch uint64
+	// ExpectedLeader fences the drain to the current local leader.
+	ExpectedLeader NodeID
+}
+
+// DrainResult is a leader-side proof captured after append admission is fail-closed.
+type DrainResult struct {
+	// ChannelKey identifies the drained channel runtime.
+	ChannelKey ChannelKey
+	// LEO is the leader log end offset at the drain point.
+	LEO uint64
+	// HW is the committed high watermark at the drain point.
+	HW uint64
+	// CheckpointHW is the durable checkpoint high watermark at the drain point.
+	CheckpointHW uint64
+	// ChannelEpoch is the applied channel metadata epoch.
+	ChannelEpoch uint64
+	// LeaderEpoch is the applied leader epoch.
+	LeaderEpoch uint64
+	// WriteFenceVersion is the matching fence generation used for the drain proof.
+	WriteFenceVersion uint64
+	// RuntimeGeneration is the node-local runtime generation that produced the proof.
+	RuntimeGeneration uint64
+}
+
+// MigrationControlClient sends migration control operations to channel leaders.
+type MigrationControlClient interface {
+	// FenceAndDrain asks the peer to validate the fenced leader state and return a drain proof.
+	FenceAndDrain(ctx context.Context, nodeID NodeID, req FenceAndDrainRequest) (DrainResult, error)
 }
 
 type AppendRequest struct {

@@ -93,22 +93,41 @@ type FetchResponseEnvelope struct {
 }
 
 type ReconcileProbeRequestEnvelope struct {
-	ChannelKey  core.ChannelKey
-	Epoch       uint64
+	ChannelKey core.ChannelKey
+	Epoch      uint64
+	// LeaderEpoch fences externally triggered probes to the applied leader metadata epoch.
 	LeaderEpoch uint64
 	Generation  uint64
 	ReplicaID   core.NodeID
+	// RequireExtendedResponse requests v3 transport fields needed by channel migration proof checks.
+	RequireExtendedResponse bool
 }
 
 type ReconcileProbeResponseEnvelope struct {
-	ChannelKey   core.ChannelKey
-	Epoch        uint64
-	LeaderEpoch  uint64
-	Generation   uint64
-	ReplicaID    core.NodeID
-	OffsetEpoch  uint64
+	// ChannelKey identifies the channel runtime that produced this proof.
+	ChannelKey core.ChannelKey
+	// Epoch is the applied channel membership epoch.
+	Epoch uint64
+	// LeaderEpoch is the applied leader metadata epoch.
+	LeaderEpoch uint64
+	// Generation is the node-local runtime generation for this channel.
+	Generation uint64
+	// ReplicaID is the node that produced this proof.
+	ReplicaID core.NodeID
+	// Leader is the leader currently applied by this replica.
+	Leader core.NodeID
+	// Role is the local role currently applied by this replica.
+	Role core.ReplicaRole
+	// OffsetEpoch owns LogEndOffset when richer epoch history is unavailable.
+	OffsetEpoch uint64
+	// LogStartOffset is the first local offset available without snapshot bootstrap.
+	LogStartOffset uint64
+	// LogEndOffset is this replica's durable log end offset.
 	LogEndOffset uint64
+	// CheckpointHW is this replica's durable checkpoint high watermark.
 	CheckpointHW uint64
+	// CommitReady reports whether this replica can safely serve its applied role.
+	CommitReady bool
 }
 
 type PeerLaneKey struct {
@@ -236,6 +255,8 @@ type Runtime interface {
 	EnsureChannel(meta core.Meta) error
 	RemoveChannel(key core.ChannelKey) error
 	ApplyMeta(meta core.Meta) error
+	// FenceAndDrain delegates a migration drain request to the local channel runtime.
+	FenceAndDrain(ctx context.Context, req core.FenceAndDrainRequest) (core.DrainResult, error)
 	ApplyRetentionBoundary(ctx context.Context, key core.ChannelKey, throughSeq uint64) error
 	RetentionView(key core.ChannelKey) (core.RetentionView, error)
 	Channel(key core.ChannelKey) (ChannelHandle, bool)
@@ -248,6 +269,12 @@ type FetchService interface {
 
 type ReconcileProbeService interface {
 	ServeReconcileProbe(ctx context.Context, req ReconcileProbeRequestEnvelope) (ReconcileProbeResponseEnvelope, error)
+}
+
+// MigrationRuntime exposes local migration control operations to channel transport RPCs.
+type MigrationRuntime interface {
+	// FenceAndDrain validates and drains the local leader for the requested fenced channel.
+	FenceAndDrain(ctx context.Context, req core.FenceAndDrainRequest) (core.DrainResult, error)
 }
 
 type ChannelHandle = core.HandlerChannel

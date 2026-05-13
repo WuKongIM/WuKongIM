@@ -57,6 +57,9 @@ func (s *service) Append(ctx context.Context, req channel.AppendRequest) (channe
 			return result, nil
 		}
 	}
+	if meta.WriteFence.BlocksAppend() {
+		return channel.AppendResult{}, channel.ErrWriteFenced
+	}
 	if meta.Features.MessageSeqFormat == channel.MessageSeqFormatLegacyU32 && state.HW >= maxLegacyMessageSeq {
 		return channel.AppendResult{}, channel.ErrMessageSeqExhausted
 	}

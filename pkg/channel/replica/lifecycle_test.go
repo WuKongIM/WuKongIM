@@ -10,6 +10,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type flakyBeginEpochDurableStore struct {
+	spyDurableStore
+	failures []error
+}
+
+func (s *flakyBeginEpochDurableStore) BeginEpoch(_ context.Context, point channel.EpochPoint, expectedLEO uint64) error {
+	s.beginEpochCalls++
+	s.beginEpochPoint = point
+	s.beginExpectedLEO = expectedLEO
+	if len(s.failures) == 0 {
+		return nil
+	}
+	err := s.failures[0]
+	s.failures = s.failures[1:]
+	return err
+}
+
 func TestCloseStopsAppendEffectWorker(t *testing.T) {
 	r := newLeaderReplica(t)
 	require.NoError(t, r.Close())
@@ -216,6 +233,134 @@ func TestBecomeLeaderExpiredLeaseDoesNotPersistEpochPoint(t *testing.T) {
 	require.ErrorIs(t, err, channel.ErrLeaseExpired)
 	require.Empty(t, env.history.appended, "expired leader lease must not persist a new epoch boundary")
 	require.Equal(t, []channel.EpochPoint{{Epoch: 7, StartOffset: 0}}, env.history.points)
+}
+
+func TestApplyMetaSameLeaderHigherChannelEpochPersistsEpochPointBeforeAppend(t *testing.T) {
+	env := newRecoveredLeaderEnv(t)
+	env.log.leo = 12
+	env.checkpoints.checkpoint = channel.Checkpoint{Epoch: 7, LogStartOffset: 0, HW: 12}
+	env.history.points = []channel.EpochPoint{{Epoch: 7, StartOffset: 0}}
+
+	r := newReplicaFromEnv(t, env)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	r.mustApplyMeta(t, meta)
+	require.NoError(t, r.BecomeLeader(meta))
+
+	spy := &spyDurableStore{appendBase: 12, appendLEO: 13}
+	r.durable = spy
+	next := activeMetaWithMinISR(8, 1, 1)
+	r.durableMu.Lock()
+	applied := make(chan error, 1)
+	go func() {
+		applied <- r.ApplyMeta(next)
+	}()
+	require.Eventually(t, func() bool {
+		r.mu.RLock()
+		defer r.mu.RUnlock()
+		return r.pendingLeaderEpochEffectID != 0
+	}, time.Second, time.Millisecond)
+
+	st := r.Status()
+	require.Equal(t, uint64(7), st.Epoch, "new channel epoch must not publish before durable epoch boundary")
+	require.False(t, st.CommitReady, "append should be gated while the epoch boundary is durable-pending")
+	_, err := r.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("blocked"), SizeBytes: 7}})
+	require.ErrorIs(t, err, channel.ErrNotReady)
+	require.Equal(t, 0, spy.appendCalls)
+
+	r.durableMu.Unlock()
+	select {
+	case err := <-applied:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("ApplyMeta did not finish after epoch boundary durable lane was released")
+	}
+	require.Equal(t, 1, spy.beginEpochCalls)
+	require.Equal(t, channel.EpochPoint{Epoch: 8, StartOffset: 12}, spy.beginEpochPoint)
+	require.Equal(t, uint64(12), spy.beginExpectedLEO)
+	require.Equal(t, []channel.EpochPoint{{Epoch: 7, StartOffset: 0}, {Epoch: 8, StartOffset: 12}}, r.epochHistory)
+
+	st = r.Status()
+	require.Equal(t, uint64(8), st.Epoch)
+	require.True(t, st.CommitReady)
+	_, err = r.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("open"), SizeBytes: 4}})
+	require.NoError(t, err)
+	require.Equal(t, 1, spy.appendCalls)
+}
+
+func TestApplyMetaSameLeaderBoundaryRejectsOldReconcileCompletion(t *testing.T) {
+	env := newRecoveredLeaderEnv(t)
+	env.log.leo = 12
+	env.checkpoints.checkpoint = channel.Checkpoint{Epoch: 7, LogStartOffset: 0, HW: 12}
+	env.history.points = []channel.EpochPoint{{Epoch: 7, StartOffset: 0}}
+
+	r := newReplicaFromEnv(t, env)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	r.mustApplyMeta(t, meta)
+	require.NoError(t, r.BecomeLeader(meta))
+	r.durable = &spyDurableStore{}
+
+	r.durableMu.Lock()
+	applied := make(chan error, 1)
+	go func() {
+		applied <- r.ApplyMeta(activeMetaWithMinISR(8, 1, 1))
+	}()
+	require.Eventually(t, func() bool {
+		r.mu.RLock()
+		defer r.mu.RUnlock()
+		return r.pendingLeaderEpochEffectID != 0
+	}, time.Second, time.Millisecond)
+
+	result := r.applyLoopEvent(machineCompleteReconcileCommand{Meta: meta})
+	require.ErrorIs(t, result.Err, channel.ErrNotReady)
+	require.False(t, r.Status().CommitReady)
+	_, err := r.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("blocked"), SizeBytes: 7}})
+	require.ErrorIs(t, err, channel.ErrNotReady)
+
+	r.durableMu.Unlock()
+	select {
+	case err := <-applied:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("ApplyMeta did not finish after durable lane release")
+	}
+}
+
+func TestApplyMetaSameLeaderEpochBoundaryFailureStaysGatedAndRetryRecovers(t *testing.T) {
+	env := newRecoveredLeaderEnv(t)
+	env.log.leo = 12
+	env.checkpoints.checkpoint = channel.Checkpoint{Epoch: 7, LogStartOffset: 0, HW: 12}
+	env.history.points = []channel.EpochPoint{{Epoch: 7, StartOffset: 0}}
+
+	r := newReplicaFromEnv(t, env)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	r.mustApplyMeta(t, meta)
+	require.NoError(t, r.BecomeLeader(meta))
+
+	durable := &flakyBeginEpochDurableStore{
+		spyDurableStore: spyDurableStore{appendBase: 12, appendLEO: 13},
+		failures:        []error{channel.ErrCorruptState},
+	}
+	r.durable = durable
+	next := activeMetaWithMinISR(8, 1, 1)
+
+	err := r.ApplyMeta(next)
+	require.ErrorIs(t, err, channel.ErrCorruptState)
+	st := r.Status()
+	require.Equal(t, uint64(7), st.Epoch)
+	require.False(t, st.CommitReady, "failed epoch boundary must fail closed until authoritative retry")
+	_, err = r.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("blocked"), SizeBytes: 7}})
+	require.ErrorIs(t, err, channel.ErrNotReady)
+	require.Equal(t, 0, durable.appendCalls)
+
+	require.NoError(t, r.ApplyMeta(next))
+	require.Equal(t, 2, durable.beginEpochCalls)
+	require.Equal(t, channel.EpochPoint{Epoch: 8, StartOffset: 12}, durable.beginEpochPoint)
+	st = r.Status()
+	require.Equal(t, uint64(8), st.Epoch)
+	require.True(t, st.CommitReady)
+	_, err = r.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("open"), SizeBytes: 4}})
+	require.NoError(t, err)
+	require.Equal(t, 1, durable.appendCalls)
 }
 
 func TestBecomeLeaderReconcilesLocalTailWithoutPeerProbesWhenMinISROne(t *testing.T) {

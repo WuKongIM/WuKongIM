@@ -458,13 +458,14 @@ func (r *runtime) leaderLaneTargetsFor(meta core.Meta) []PeerLaneKey {
 	return targets
 }
 
-// shouldKeepLeaderLaneTargets preserves leader-side lane sessions when a meta
-// refresh only renews the lease and does not change channel leadership or epoch.
+// shouldKeepLeaderLaneTargets preserves leader-side lane sessions when only
+// lease or write-fence metadata changes, so follower cursors survive migration
+// fence transitions that do not require a new lane open.
 func (r *runtime) shouldKeepLeaderLaneTargets(previous *core.Meta, next core.Meta, currentTargets, nextTargets []PeerLaneKey) bool {
 	if previous == nil {
 		return false
 	}
-	if !metaEqualExceptLease(*previous, next) {
+	if !metaEqualExceptLeaseAndWriteFence(*previous, next) {
 		return false
 	}
 	if len(currentTargets) != len(nextTargets) {
@@ -476,4 +477,10 @@ func (r *runtime) shouldKeepLeaderLaneTargets(previous *core.Meta, next core.Met
 		}
 	}
 	return true
+}
+
+func metaEqualExceptLeaseAndWriteFence(a, b core.Meta) bool {
+	a.WriteFence = core.WriteFence{}
+	b.WriteFence = core.WriteFence{}
+	return metaEqualExceptLease(a, b)
 }

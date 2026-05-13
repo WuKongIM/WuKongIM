@@ -27,6 +27,14 @@ type ChannelRuntimeMeta struct {
 	// RetentionUpdatedAtMS is the wall-clock time in milliseconds when the
 	// authoritative retention boundary was last advanced.
 	RetentionUpdatedAtMS int64
+	// WriteFenceToken identifies the migration task currently fencing writes for this channel.
+	WriteFenceToken string
+	// WriteFenceVersion is a monotonic per-channel fence generation changed by set, renew, reset, or clear commands.
+	WriteFenceVersion uint64
+	// WriteFenceReason describes why writes are fenced for diagnostics and API responses.
+	WriteFenceReason uint8
+	// WriteFenceUntilMS is the wall-clock deadline for the current fence lease in milliseconds.
+	WriteFenceUntilMS int64
 }
 
 // ChannelRetentionAdvance describes a fenced request to advance only the
@@ -234,7 +242,24 @@ func validateChannelRuntimeMeta(meta ChannelRuntimeMeta) error {
 			return ErrInvalidArgument
 		}
 	}
+	if err := validateChannelRuntimeMetaWriteFence(meta); err != nil {
+		return err
+	}
 	return nil
+}
+
+func validateChannelRuntimeMetaWriteFence(meta ChannelRuntimeMeta) error {
+	if hasInvalidChannelRuntimeMetaWriteFence(meta) {
+		return ErrInvalidArgument
+	}
+	return nil
+}
+
+func hasInvalidChannelRuntimeMetaWriteFence(meta ChannelRuntimeMeta) bool {
+	if meta.WriteFenceToken == "" {
+		return meta.WriteFenceReason != 0 || meta.WriteFenceUntilMS != 0
+	}
+	return meta.WriteFenceVersion == 0 || meta.WriteFenceReason == 0 || meta.WriteFenceUntilMS <= 0
 }
 
 func validateChannelRetentionAdvance(req ChannelRetentionAdvance) error {
@@ -287,11 +312,13 @@ func resolveMonotonicChannelRuntimeMeta(existing ChannelRuntimeMeta, exists bool
 		return existing, false
 	case candidate.ChannelEpoch > existing.ChannelEpoch:
 		preserveRetentionBoundary(existing, &candidate)
+		preserveWriteFence(existing, &candidate)
 		return candidate, true
 	case candidate.LeaderEpoch < existing.LeaderEpoch:
 		return existing, false
 	case candidate.LeaderEpoch > existing.LeaderEpoch:
 		preserveRetentionBoundary(existing, &candidate)
+		preserveWriteFence(existing, &candidate)
 		return candidate, true
 	case candidate.Leader != existing.Leader:
 		return existing, false
@@ -300,6 +327,7 @@ func resolveMonotonicChannelRuntimeMeta(existing ChannelRuntimeMeta, exists bool
 		candidate.LeaseUntilMS = existing.LeaseUntilMS
 	}
 	preserveRetentionBoundary(existing, &candidate)
+	preserveWriteFence(existing, &candidate)
 	return candidate, true
 }
 
@@ -312,6 +340,19 @@ func preserveRetentionBoundary(existing ChannelRuntimeMeta, candidate *ChannelRu
 	if candidate.RetentionThroughSeq == existing.RetentionThroughSeq && candidate.RetentionUpdatedAtMS < existing.RetentionUpdatedAtMS {
 		candidate.RetentionUpdatedAtMS = existing.RetentionUpdatedAtMS
 	}
+}
+
+func preserveWriteFence(existing ChannelRuntimeMeta, candidate *ChannelRuntimeMeta) {
+	if candidate.WriteFenceVersion <= existing.WriteFenceVersion {
+		restoreWriteFence(existing, candidate)
+	}
+}
+
+func restoreWriteFence(existing ChannelRuntimeMeta, candidate *ChannelRuntimeMeta) {
+	candidate.WriteFenceToken = existing.WriteFenceToken
+	candidate.WriteFenceVersion = existing.WriteFenceVersion
+	candidate.WriteFenceReason = existing.WriteFenceReason
+	candidate.WriteFenceUntilMS = existing.WriteFenceUntilMS
 }
 
 func normalizeUint64Set(values []uint64) []uint64 {

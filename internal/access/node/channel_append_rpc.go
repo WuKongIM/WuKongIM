@@ -86,6 +86,9 @@ func (a *Adapter) handleChannelAppendRPC(ctx context.Context, body []byte) ([]by
 		}
 		return encodeChannelAppendResponse(channelAppendResponse{Status: rpcStatusNotLeader})
 	}
+	if errors.Is(err, channel.ErrWriteFenced) {
+		return encodeChannelAppendResponse(channelAppendResponse{Status: rpcStatusRetryableWriteFenced})
+	}
 	return nil, err
 }
 
@@ -164,6 +167,9 @@ func (c *Client) AppendToLeader(ctx context.Context, nodeID uint64, req channel.
 						candidates = append([]uint64{resp.LeaderID}, candidates...)
 					}
 					continue
+				case rpcStatusRetryableWriteFenced:
+					lastErr = channel.ErrWriteFenced
+					continue
 				default:
 					lastErr = fmt.Errorf("access/node: unexpected channel append status %q", resp.Status)
 					continue
@@ -197,12 +203,17 @@ func normalizeChannelAppendRPCError(err error) error {
 	if errors.Is(err, channel.ErrNotLeader) || errors.Is(err, channel.ErrStaleMeta) {
 		return err
 	}
+	if errors.Is(err, channel.ErrWriteFenced) {
+		return err
+	}
 	msg := err.Error()
 	switch {
 	case strings.Contains(msg, channel.ErrNotLeader.Error()):
 		return channel.ErrNotLeader
 	case strings.Contains(msg, channel.ErrStaleMeta.Error()):
 		return channel.ErrStaleMeta
+	case strings.Contains(msg, channel.ErrWriteFenced.Error()):
+		return channel.ErrWriteFenced
 	default:
 		return err
 	}

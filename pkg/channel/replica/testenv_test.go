@@ -580,6 +580,22 @@ func newFollowerEnv(t testing.TB) *testEnv {
 	return env
 }
 
+func newFollowerEnvWithMeta(t testing.TB, localNode channel.NodeID, meta channel.Meta) *replica {
+	t.Helper()
+	env := newTestEnv(t)
+	env.localNode = localNode
+	env.checkpoints.loadErr = nil
+	env.checkpoints.checkpoint = channel.Checkpoint{Epoch: meta.Epoch, LogStartOffset: 0, HW: 0}
+	env.history.loadErr = nil
+	env.history.points = []channel.EpochPoint{{Epoch: meta.Epoch, StartOffset: 0}}
+	env.replica = newReplicaFromEnv(t, env)
+	env.replica.mustApplyMeta(t, meta)
+	if err := env.replica.BecomeFollower(meta); err != nil {
+		t.Fatalf("follower%d BecomeFollower() error = %v", localNode, err)
+	}
+	return env.replica
+}
+
 func activeMeta(epoch uint64, leader channel.NodeID) channel.Meta {
 	return activeMetaWithMinISR(epoch, leader, 2)
 }
@@ -616,7 +632,11 @@ func newThreeReplicaCluster(t testing.TB) *threeReplicaCluster {
 func newThreeReplicaClusterWithMinISR(t testing.TB, minISR int) *threeReplicaCluster {
 	t.Helper()
 	meta := activeMetaWithMinISR(7, 1, minISR)
+	return newThreeReplicaClusterWithMeta(t, meta)
+}
 
+func newThreeReplicaClusterWithMeta(t testing.TB, meta channel.Meta) *threeReplicaCluster {
+	t.Helper()
 	leaderEnv := newTestEnv(t)
 	leaderEnv.replica = newReplicaFromEnv(t, leaderEnv)
 	leaderEnv.replica.mustApplyMeta(t, meta)
