@@ -121,6 +121,12 @@ func (s *Server) registerRoutes() {
 	}
 	network.GET("/network/summary", s.handleNetworkSummary)
 
+	permissions := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		permissions.Use(s.requirePermission("cluster.permission", "r"))
+	}
+	permissions.GET("/permissions", s.handlePermissions)
+
 	diagnostics := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		diagnostics.Use(s.requirePermission("cluster.diagnostics", "r"))
