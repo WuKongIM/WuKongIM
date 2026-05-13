@@ -39,6 +39,10 @@ const (
 	NodeScaleInStatusMigratingReplicas NodeScaleInStatus = "migrating_replicas"
 	// NodeScaleInStatusTransferringLeaders means replicas are gone but Slot leaders still run on the target.
 	NodeScaleInStatusTransferringLeaders NodeScaleInStatus = "transferring_leaders"
+	// NodeScaleInStatusWaitingChannelMigrations means channel migration tasks still involve or reference the target.
+	NodeScaleInStatusWaitingChannelMigrations NodeScaleInStatus = "waiting_channel_migrations"
+	// NodeScaleInStatusDrainingChannels means channel leaders or replicas still reference the target.
+	NodeScaleInStatusDrainingChannels NodeScaleInStatus = "draining_channels"
 	// NodeScaleInStatusWaitingConnections means cluster state is clear but runtime sessions are still present or unknown.
 	NodeScaleInStatusWaitingConnections NodeScaleInStatus = "waiting_connections"
 	// NodeScaleInStatusReadyToRemove means the manager sees no remaining blockers for external node removal.
@@ -57,6 +61,8 @@ type NodeScaleInPlanRequest struct {
 type AdvanceNodeScaleInRequest struct {
 	// MaxLeaderTransfers caps leader transfers performed by one request; zero defaults to one.
 	MaxLeaderTransfers int
+	// MaxChannelMigrations caps channel migration tasks created by one request; zero uses the usecase default.
+	MaxChannelMigrations int
 	// ForceCloseConnections requests connection closing but is not a safety override.
 	ForceCloseConnections bool
 }
@@ -119,6 +125,14 @@ type NodeScaleInChecks struct {
 	RuntimeViewsFresh bool
 	// ConnectionSafetyKnown reports whether target runtime counters were available.
 	ConnectionSafetyKnown bool
+	// ChannelInventoryAvailable reports whether authoritative channel inventory was fully scanned.
+	ChannelInventoryAvailable bool
+	// NoActiveChannelMigrationsInvolvingTarget reports whether no active channel migration involves or references the target.
+	NoActiveChannelMigrationsInvolvingTarget bool
+	// NoChannelLeadersOnTarget reports whether no channel leadership remains on the target.
+	NoChannelLeadersOnTarget bool
+	// NoChannelReplicasOnTarget reports whether no channel replica membership remains on the target.
+	NoChannelReplicasOnTarget bool
 }
 
 // NodeScaleInProgress records counters used to explain scale-in progress.
@@ -133,6 +147,12 @@ type NodeScaleInProgress struct {
 	ActiveTasksInvolvingNode int
 	// ActiveMigrationsInvolvingNode counts active hash-slot migrations that must finish before scale-in.
 	ActiveMigrationsInvolvingNode int
+	// ChannelLeaders counts authoritative channel leaders still running on the target.
+	ChannelLeaders int
+	// ChannelReplicas counts authoritative channel replica memberships still referencing the target.
+	ChannelReplicas int
+	// ActiveChannelMigrationsInvolvingNode counts active channel migrations involving or referencing the target.
+	ActiveChannelMigrationsInvolvingNode int
 	// ActiveConnections counts active online connections on the target.
 	ActiveConnections int
 	// ClosingConnections counts target connections that are closing but still registered.
@@ -141,6 +161,12 @@ type NodeScaleInProgress struct {
 	GatewaySessions int
 	// ActiveConnectionsUnknown reports that runtime connection counters could not be read.
 	ActiveConnectionsUnknown bool
+	// ChannelInventoryScanned reports whether the channel inventory scan reached authoritative readers.
+	ChannelInventoryScanned bool
+	// ChannelInventoryPartial reports whether the channel inventory scan was incomplete or failed.
+	ChannelInventoryPartial bool
+	// ChannelInventoryError contains a trimmed channel inventory failure detail when partial.
+	ChannelInventoryError string
 }
 
 // NodeScaleInBlockedReason describes one safety condition blocking scale-in.
@@ -262,6 +288,25 @@ func (a *App) PlanNodeScaleIn(ctx context.Context, nodeID uint64, req NodeScaleI
 	report.Progress.ActiveConnectionsUnknown = snapshot.runtime.Unknown || snapshot.runtimeReadFailure
 	report.ConnectionSafetyVerified = !report.Progress.ActiveConnectionsUnknown
 	report.Checks.ConnectionSafetyKnown = report.ConnectionSafetyVerified
+
+	channelInventory := a.loadNodeScaleInChannelInventory(ctx, nodeID)
+	report.Progress.ChannelLeaders = channelInventory.leaders
+	report.Progress.ChannelReplicas = channelInventory.replicas
+	report.Progress.ActiveChannelMigrationsInvolvingNode = channelInventory.activeMigrations
+	report.Progress.ChannelInventoryScanned = channelInventory.scanned
+	report.Progress.ChannelInventoryPartial = channelInventory.partial
+	report.Progress.ChannelInventoryError = channelInventory.errText
+	report.Checks.ChannelInventoryAvailable = channelInventory.scanned && !channelInventory.partial
+	report.Checks.NoActiveChannelMigrationsInvolvingTarget = report.Checks.ChannelInventoryAvailable && channelInventory.activeMigrations == 0
+	report.Checks.NoChannelLeadersOnTarget = report.Checks.ChannelInventoryAvailable && channelInventory.leaders == 0
+	report.Checks.NoChannelReplicasOnTarget = report.Checks.ChannelInventoryAvailable && channelInventory.replicas == 0
+	if !report.Checks.ChannelInventoryAvailable {
+		message := "authoritative channel inventory is unavailable"
+		if channelInventory.errText != "" {
+			message = fmt.Sprintf("%s: %s", message, channelInventory.errText)
+		}
+		report.BlockedReasons = append(report.BlockedReasons, scaleInBlockedReason("channel_inventory_unavailable", message, 0, 0, nodeID))
+	}
 
 	report.Status = scaleInStatus(target, targetFound, report.BlockedReasons, report.Progress, report.ConnectionSafetyVerified)
 	report.SafeToRemove = report.Status == NodeScaleInStatusReadyToRemove
@@ -651,6 +696,12 @@ func scaleInStatus(target controllermeta.ClusterNode, targetFound bool, reasons 
 	}
 	if progress.SlotLeaders > 0 {
 		return NodeScaleInStatusTransferringLeaders
+	}
+	if progress.ActiveChannelMigrationsInvolvingNode > 0 {
+		return NodeScaleInStatusWaitingChannelMigrations
+	}
+	if progress.ChannelLeaders > 0 || progress.ChannelReplicas > 0 {
+		return NodeScaleInStatusDrainingChannels
 	}
 	if !connectionSafetyVerified || progress.ActiveConnections > 0 || progress.ClosingConnections > 0 || progress.GatewaySessions > 0 {
 		return NodeScaleInStatusWaitingConnections
