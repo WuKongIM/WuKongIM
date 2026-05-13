@@ -163,6 +163,19 @@ func (s *Server) registerRoutes() {
 	userWrites.POST("/users/:uid/kick", s.handleUserKick)
 	userWrites.POST("/users/:uid/token/reset", s.handleUserTokenReset)
 
+	systemUserReads := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		systemUserReads.Use(s.requirePermission("cluster.user", "r"))
+	}
+	systemUserReads.GET("/system-users", s.handleSystemUsers)
+
+	systemUserWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		systemUserWrites.Use(s.requirePermission("cluster.user", "w"))
+	}
+	systemUserWrites.POST("/system-users/add", s.handleSystemUsersAdd)
+	systemUserWrites.POST("/system-users/remove", s.handleSystemUsersRemove)
+
 	businessChannelReads := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		businessChannelReads.Use(s.requirePermission("cluster.channel", "r"))

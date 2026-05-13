@@ -79,6 +79,12 @@ type Management interface {
 	KickUser(ctx context.Context, req managementusecase.KickUserRequest) (managementusecase.KickUserResponse, error)
 	// ResetUserToken resets one user device token.
 	ResetUserToken(ctx context.Context, req managementusecase.ResetUserTokenRequest) (managementusecase.ResetUserTokenResponse, error)
+	// ListSystemUsers returns persisted manager-facing system UIDs.
+	ListSystemUsers(ctx context.Context) (managementusecase.ListSystemUsersResponse, error)
+	// AddSystemUsers persists system UIDs.
+	AddSystemUsers(ctx context.Context, req managementusecase.MutateSystemUsersRequest) (managementusecase.MutateSystemUsersResponse, error)
+	// RemoveSystemUsers removes persisted system UIDs.
+	RemoveSystemUsers(ctx context.Context, req managementusecase.MutateSystemUsersRequest) (managementusecase.MutateSystemUsersResponse, error)
 	// ListBusinessChannels returns one manager-facing business channel page.
 	ListBusinessChannels(ctx context.Context, req managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error)
 	// GetBusinessChannel returns one manager-facing business channel detail.
