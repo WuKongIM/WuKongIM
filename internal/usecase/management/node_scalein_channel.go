@@ -62,7 +62,7 @@ func (a *App) loadNodeScaleInChannelInventory(ctx context.Context, nodeID uint64
 		}
 	}
 
-	inventory := nodeScaleInChannelInventory{scanned: true}
+	inventory := nodeScaleInChannelInventory{}
 	seenTasks := make(map[scaleInChannelMigrationTaskKey]struct{})
 	slotIDs := append([]multiraft.SlotID(nil), a.cluster.SlotIDs()...)
 	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
@@ -108,7 +108,9 @@ func (a *App) loadNodeScaleInChannelInventory(ctx context.Context, nodeID uint64
 	if hasMore {
 		inventory.partial = true
 		inventory.errText = fmt.Sprintf("active channel migration scan exceeded limit %d", scaleInChannelTaskScanLimit)
+		return inventory
 	}
+	inventory.scanned = true
 	return inventory
 }
 
@@ -322,7 +324,7 @@ func (i *nodeScaleInChannelInventory) addRuntimeMeta(ctx context.Context, store 
 		i.leaders++
 		referencesTarget = true
 	}
-	if scaleInUint64sContain(meta.Replicas, nodeID) || scaleInUint64sContain(meta.ISR, nodeID) {
+	if referencesTarget || scaleInUint64sContain(meta.Replicas, nodeID) || scaleInUint64sContain(meta.ISR, nodeID) {
 		i.replicas++
 		referencesTarget = true
 	}

@@ -392,7 +392,7 @@ func (a *App) AdvanceNodeScaleIn(ctx context.Context, nodeID uint64, req Advance
 		return report, &NodeScaleInReportError{Err: ErrInvalidNodeScaleInState, Report: report}
 	}
 
-	if report.Status == NodeScaleInStatusTransferringLeaders || report.Progress.SlotLeaders > 0 {
+	if report.Status == NodeScaleInStatusTransferringLeaders {
 		limit := clampScaleInLeaderTransfers(req.MaxLeaderTransfers)
 		transferred := 0
 		for _, view := range snapshot.views {

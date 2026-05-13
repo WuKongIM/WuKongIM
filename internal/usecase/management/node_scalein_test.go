@@ -212,6 +212,28 @@ func TestPlanNodeScaleInCountsChannelISRReplicas(t *testing.T) {
 	require.False(t, report.SafeToRemove)
 }
 
+func TestPlanNodeScaleInCountsChannelLeaderAsReplicaEvenWhenMembershipIsInconsistent(t *testing.T) {
+	fixture := newScaleInActionFixture()
+	fixture.cluster.nodes[2].Status = controllermeta.NodeStatusDraining
+	fixture.cluster.assignments = []controllermeta.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 2}}
+	fixture.cluster.views = []controllermeta.SlotRuntimeView{{SlotID: 1, CurrentPeers: []uint64{1, 2}, LeaderID: 1, HealthyVoters: 2, HasQuorum: true, LastReportAt: fixture.now}}
+	fixture.channelRuntime = &fakeScaleInChannelRuntimeMeta{metas: map[multiraft.SlotID][]metadb.ChannelRuntimeMeta{
+		1: {
+			{ChannelID: "leader-only-on-3", ChannelType: 1, Leader: 3, Replicas: []uint64{1, 2}, ISR: []uint64{1, 2}, Status: uint8(channel.StatusActive)},
+		},
+	}}
+	fixture.rebuildApp()
+
+	report, err := fixture.app.PlanNodeScaleIn(context.Background(), 3, fixture.req)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, report.Progress.ChannelLeaders)
+	require.Equal(t, 1, report.Progress.ChannelReplicas)
+	require.False(t, report.Checks.NoChannelReplicasOnTarget)
+	require.Equal(t, NodeScaleInStatusDrainingChannels, report.Status)
+	require.False(t, report.SafeToRemove)
+}
+
 func TestPlanNodeScaleInFailsClosedWhenChannelInventoryUnavailable(t *testing.T) {
 	fixture := newScaleInActionFixture()
 	fixture.cluster.nodes[2].Status = controllermeta.NodeStatusDraining
@@ -224,6 +246,7 @@ func TestPlanNodeScaleInFailsClosedWhenChannelInventoryUnavailable(t *testing.T)
 
 	require.NoError(t, err)
 	require.False(t, report.Checks.ChannelInventoryAvailable)
+	require.False(t, report.Progress.ChannelInventoryScanned)
 	require.True(t, report.Progress.ChannelInventoryPartial)
 	require.Contains(t, report.Progress.ChannelInventoryError, "channel runtime unavailable")
 	require.Contains(t, scaleInReasonCodes(report.BlockedReasons), "channel_inventory_unavailable")
@@ -499,22 +522,36 @@ func TestCancelNodeScaleInCallsResumeNode(t *testing.T) {
 func TestAdvanceNodeScaleInTransfersOneLeaderToAliveDataCandidate(t *testing.T) {
 	fixture := newScaleInActionFixture()
 	fixture.cluster.nodes[2].Status = controllermeta.NodeStatusDraining
+	fixture.cluster.assignments = []controllermeta.SlotAssignment{{SlotID: 7, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 2}}
+	fixture.cluster.views = []controllermeta.SlotRuntimeView{{SlotID: 7, CurrentPeers: []uint64{1, 2}, LeaderID: 3, HealthyVoters: 2, HasQuorum: true, LastReportAt: fixture.now}}
+
+	report, err := fixture.app.AdvanceNodeScaleIn(context.Background(), 3, AdvanceNodeScaleInRequest{MaxLeaderTransfers: 1})
+
+	require.NoError(t, err)
+	require.Equal(t, []scaleInTransfer{{slotID: 7, nodeID: 1}}, fixture.cluster.transfers)
+	require.Equal(t, NodeScaleInStatusReadyToRemove, report.Status)
+	require.Equal(t, 0, report.Progress.SlotLeaders)
+}
+
+func TestAdvanceNodeScaleInWaitsForSlotReplicasBeforeLeaderTransfer(t *testing.T) {
+	fixture := newScaleInActionFixture()
+	fixture.cluster.nodes[2].Status = controllermeta.NodeStatusDraining
 	fixture.cluster.assignments = []controllermeta.SlotAssignment{{SlotID: 7, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 1}}
 	fixture.cluster.views = []controllermeta.SlotRuntimeView{{SlotID: 7, CurrentPeers: []uint64{1, 2, 3}, LeaderID: 3, HealthyVoters: 3, HasQuorum: true, LastReportAt: fixture.now}}
 
 	report, err := fixture.app.AdvanceNodeScaleIn(context.Background(), 3, AdvanceNodeScaleInRequest{MaxLeaderTransfers: 1})
 
 	require.NoError(t, err)
-	require.Equal(t, []scaleInTransfer{{slotID: 7, nodeID: 1}}, fixture.cluster.transfers)
+	require.Empty(t, fixture.cluster.transfers)
 	require.Equal(t, NodeScaleInStatusMigratingReplicas, report.Status)
-	require.Equal(t, 0, report.Progress.SlotLeaders)
+	require.Equal(t, 1, report.Progress.SlotLeaders)
 }
 
 func TestAdvanceNodeScaleInReturnsInvalidStateWhenNoLeaderCandidate(t *testing.T) {
 	fixture := newScaleInActionFixture()
 	fixture.cluster.nodes[2].Status = controllermeta.NodeStatusDraining
-	fixture.cluster.assignments = []controllermeta.SlotAssignment{{SlotID: 7, DesiredPeers: []uint64{3}, ConfigEpoch: 1}}
-	fixture.cluster.views = []controllermeta.SlotRuntimeView{{SlotID: 7, CurrentPeers: []uint64{3}, LeaderID: 3, HealthyVoters: 1, HasQuorum: true, LastReportAt: fixture.now}}
+	fixture.cluster.assignments = []controllermeta.SlotAssignment{{SlotID: 7, DesiredPeers: nil, ConfigEpoch: 2}}
+	fixture.cluster.views = []controllermeta.SlotRuntimeView{{SlotID: 7, CurrentPeers: nil, LeaderID: 3, HealthyVoters: 0, HasQuorum: true, LastReportAt: fixture.now}}
 
 	report, err := fixture.app.AdvanceNodeScaleIn(context.Background(), 3, AdvanceNodeScaleInRequest{MaxLeaderTransfers: 1})
 
@@ -652,8 +689,8 @@ func TestAdvanceNodeScaleInReturnsInvalidStateWhenNoChannelTarget(t *testing.T) 
 func TestAdvanceNodeScaleInKeepsSlotLeaderTransferBeforeChannelDrain(t *testing.T) {
 	fixture := newScaleInActionFixture()
 	fixture.cluster.nodes[2].Status = controllermeta.NodeStatusDraining
-	fixture.cluster.assignments = []controllermeta.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2, 3}, ConfigEpoch: 1}}
-	fixture.cluster.views = []controllermeta.SlotRuntimeView{{SlotID: 1, CurrentPeers: []uint64{1, 2, 3}, LeaderID: 3, HealthyVoters: 3, HasQuorum: true, LastReportAt: fixture.now}}
+	fixture.cluster.assignments = []controllermeta.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 2}}
+	fixture.cluster.views = []controllermeta.SlotRuntimeView{{SlotID: 1, CurrentPeers: []uint64{1, 2}, LeaderID: 3, HealthyVoters: 2, HasQuorum: true, LastReportAt: fixture.now}}
 	fixture.channelRuntime.metas = map[multiraft.SlotID][]metadb.ChannelRuntimeMeta{
 		1: {scaleInChannelMeta("leader-replica", 1, 3, []uint64{1, 3}, []uint64{1, 3})},
 	}
