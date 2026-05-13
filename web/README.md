@@ -29,7 +29,8 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 | `/channel-cluster/unhealthy` | `GET /manager/channel-cluster/unhealthy`, `GET /manager/channel-cluster/:type/:id/replicas`, `POST /manager/channel-cluster/:type/:id/repair`, `POST /manager/channel-cluster/:type/:id/leader/transfer` | Implemented |
 | `/nodes`, `/slots`, `/onboarding`, `/controller` | Existing cluster manager endpoints | Implemented |
 | `/messages`, `/diagnostics`, `/network`, `/connections`, `/slot-logs` | Existing diagnostics and message endpoints | Implemented |
-| `/users`, `/channels-biz`, `/system-users` | Requires manager-scoped business APIs | Placeholder |
+| `/users` | `GET /manager/users`, `GET /manager/users/:uid`, `POST /manager/users/:uid/kick`, `POST /manager/users/:uid/token/reset` | Implemented |
+| `/channels-biz`, `/system-users` | Requires manager-scoped business APIs or frontend wrapping | Placeholder |
 | `/monitor`, `/settings/permissions`, `/settings/webhooks`, `/topology` | Requires follow-up read/write API design | Placeholder |
 
 ## Channel Cluster Notes
