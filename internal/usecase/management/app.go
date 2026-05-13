@@ -143,6 +143,16 @@ type UserOperator interface {
 	DeviceQuit(ctx context.Context, cmd userusecase.DeviceQuitCommand) error
 }
 
+// SystemUserOperator exposes persisted system UID mutations reused by manager actions.
+type SystemUserOperator interface {
+	// ListSystemUIDs returns the persisted system account UID list.
+	ListSystemUIDs(ctx context.Context) ([]string, error)
+	// AddSystemUIDs persists system account UIDs and refreshes caches.
+	AddSystemUIDs(ctx context.Context, uids []string) error
+	// RemoveSystemUIDs removes persisted system account UIDs and refreshes caches.
+	RemoveSystemUIDs(ctx context.Context, uids []string) error
+}
+
 // UserPresenceDirectory exposes authoritative online routes keyed by UID.
 type UserPresenceDirectory interface {
 	// EndpointsByUIDs returns authoritative online routes keyed by UID.
@@ -273,6 +283,8 @@ type Options struct {
 	ChannelBusinessOperator ChannelBusinessOperator
 	// UserOperator applies user token and device mutations.
 	UserOperator UserOperator
+	// SystemUsers applies persisted system UID mutations.
+	SystemUsers SystemUserOperator
 	// UserPresence reads authoritative user presence routes.
 	UserPresence UserPresenceDirectory
 	// UserActions applies route owner force-offline actions.
@@ -312,6 +324,7 @@ type App struct {
 	channelBusinessReader    ChannelBusinessReader
 	channelBusinessOperator  ChannelBusinessOperator
 	userOperator             UserOperator
+	systemUsers              SystemUserOperator
 	userPresence             UserPresenceDirectory
 	userActions              UserRouteActionDispatcher
 	channelReplicaStatus     ChannelReplicaStatusReader
@@ -351,6 +364,7 @@ func New(opts Options) *App {
 		channelBusinessReader:    opts.ChannelBusinessReader,
 		channelBusinessOperator:  opts.ChannelBusinessOperator,
 		userOperator:             opts.UserOperator,
+		systemUsers:              opts.SystemUsers,
 		userPresence:             opts.UserPresence,
 		userActions:              opts.UserActions,
 		channelReplicaStatus:     opts.ChannelReplicaStatus,
