@@ -100,6 +100,28 @@ The intent is independent of how the recipient set was produced. It may come fro
 - delivery tag local UID partitions;
 - a local subscriber resolver fallback that pages UIDs before presence expansion.
 
+### Migration from the P2d-c projector
+
+P2d-d replaces the current `cmdsync.Projector` subscriber-scan projection path as the CMD conversation state writer.
+
+Implementation must do one of these two equivalent refactors:
+
+- remove `cmdsync.Projector` from committed fanout and move its useful helper logic into the intent builder / pending updater; or
+- keep the type as a compatibility wrapper, but make it enqueue already-resolved `ConversationIntent` values only.
+
+It must not keep this P2d-c behavior:
+
+```text
+MessageCommitted
+  -> cmdsync.Projector
+  -> page SubscriberResolver after commit
+  -> write CMDConversationState directly
+```
+
+Keeping both paths would preserve the rejected subscriber-scan model and can double-write CMD state. After P2d-d, CMD conversation updates should be produced by request-scoped recipients or delivery-resolved UID pages, then flushed through the owner-local pending updater.
+
+Committed replay should follow the same rule. It may replay delivery so the delivery resolver emits UID pages again, but it must not run an independent CMD subscriber scan projector. Request-scoped replay without `MessageScopedUIDs` remains best effort and is not repaired by a snapshot table in this phase.
+
 ## Core Data Structures
 
 Add a usecase-level value in `internal/usecase/cmdsync`:
@@ -138,6 +160,26 @@ type PendingConversationUpdate struct {
     UserReadSeqs     map[string]uint64 `json:"user_read_seqs"`
 }
 ```
+
+`/message/sync` should read a UID-specific view rather than exposing the whole pending update:
+
+```go
+// PendingConversationView is the pending overlay for one UID and CMD channel.
+type PendingConversationView struct {
+    CommandChannelID string
+    ChannelType      uint8
+    LastMsgSeq       uint64
+    ActiveAt         int64
+    ReadSeq          uint64
+}
+```
+
+Field meanings:
+
+- `CommandChannelID` and `ChannelType` identify the command-channel log to fetch.
+- `LastMsgSeq` is the highest pending message seq for cleanup and diagnostics.
+- `ActiveAt` participates in candidate ordering and active-state merge.
+- `ReadSeq` is this UID's pending read seq for the channel, usually `0` for receivers and `MessageSeq` for sender self-read.
 
 The owner-local buffer also maintains an inverted index:
 
@@ -234,7 +276,7 @@ Flush rules:
 
 - Convert pending UID/channel entries into `metadb.CMDConversationState`.
 - Use existing state upsert semantics that do not regress `ReadSeq`.
-- Remove only entries that were successfully flushed.
+- Remove only UID/channel entries that were successfully flushed. A successful flush for one UID must not remove other UIDs still pending on the same command channel.
 - If a batch flush partially fails, keep the unconfirmed entries pending.
 - The flush loop must be bounded by a `SyncOnce`-style limit to avoid long stalls.
 
@@ -255,14 +297,26 @@ message.App.sendDurable
   -> append to temp____cmd channel
   -> build CMD conversation intent from RequestSubscribers
   -> route intent to UID owners
-  -> submit committed delivery envelope with MessageScopedUIDs
+  -> submit committed delivery envelope with MessageScopedUIDs and intent-submitted flag
 ```
 
 This avoids waiting for async delivery to rediscover the same request-local recipient list.
 
-The send result should not become a false durable failure only because the best-effort conversation intent route failed after append succeeded. The router should log/trace the failure and return a non-fatal side-effect error unless the current code path already treats message-scoped delivery submission as strict. Durable append success remains the source of truth for the message write.
+The send result should not become a false durable failure only because the best-effort conversation intent route failed after append succeeded. The router should log/trace the failure and return a non-fatal side-effect result. Durable append success remains the source of truth for the message write.
 
-To avoid duplicate updates, the delivery observer should skip intent generation when `env.MessageScopedUIDs` is non-empty and the send path already submitted the request-scoped intent.
+Duplicate suppression must be explicit. Add an in-memory event/envelope metadata flag, for example:
+
+```go
+CMDConversationIntentSubmitted bool
+```
+
+Rules:
+
+- Set the flag only when the request-scoped intent was accepted by the local pending updater or remote owner RPC.
+- If direct intent routing fails, leave the flag false and let the delivery UID observer make a second best-effort attempt from `MessageScopedUIDs`.
+- The flag is not written to the channel log and is not expected to survive committed replay.
+- The delivery observer skips request-scoped intent generation only when `CMDConversationIntentSubmitted` is true.
+- P2d-d does not relax the existing strictness of request-scoped committed delivery submission. If current message-scoped delivery submission fails after append, the send path may keep returning the existing dispatch error. Only the CMD conversation intent side effect is non-fatal.
 
 ### 5. Delivery-tag UID hook for ordinary CMD channels
 
@@ -272,7 +326,7 @@ Add a narrow observer interface near the app delivery resolver wiring:
 
 ```text
 type ResolvedUIDObserver interface {
-    OnResolvedUIDPage(ctx, message, uids) error
+    OnResolvedUIDPage(ctx, message, uids)
 }
 ```
 
@@ -286,6 +340,8 @@ subscriber/tag UID page
 ```
 
 The observer should receive UID pages, not online `RouteKey` values. Route keys would drop offline users and would make CMD sync incomplete.
+
+Observer calls are side effects and must not fail delivery resolution. The observer implementation may enqueue work, log failures, and record metrics, but delivery code should not branch on observer success. If the app layer wants retries, it should implement them inside the intent router or pending updater queue, not by returning errors to the delivery actor.
 
 For tag-based delivery:
 
@@ -380,8 +436,10 @@ No new global service object should be introduced.
 - UID-owner router sends local UID partitions to the local pending updater.
 - UID-owner router forwards remote UID partitions through node RPC.
 - Request-scoped durable send builds exactly one intent from `RequestSubscribers`.
+- If direct request-scoped intent routing fails after durable append, send does not fail only because of the intent side effect, the committed delivery envelope has `CMDConversationIntentSubmitted=false`, and the delivery UID observer retries intent submission once from `MessageScopedUIDs`.
 - Message-scoped delivery path does not double-submit intents for the same request-scoped send.
 - Delivery UID observer receives UID pages before presence expansion and includes offline users.
+- Delivery UID observer failures are logged/recorded but do not fail delivery resolution or online push.
 - Ordinary non-CMD committed messages do not produce CMD intents.
 
 ### `internal/access/node`
