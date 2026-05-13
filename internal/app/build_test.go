@@ -205,6 +205,7 @@ func TestBuildWiresManagerUserDependencies(t *testing.T) {
 	requireManagementAppFieldNonNil(t, app, "userOperator")
 	requireManagementAppFieldNonNil(t, app, "userPresence")
 	requireManagementAppFieldNonNil(t, app, "userActions")
+	requireManagementAppFieldNonNil(t, app, "channelMigration")
 }
 
 func TestBuildWiresDataPlanePoolToClusterDiscovery(t *testing.T) {
