@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -73,6 +74,24 @@ func TestPendingUpdaterSaveLoadRoundTrip(t *testing.T) {
 	loaded := NewConversationUpdater(ConversationUpdaterOptions{Store: &fakePendingStateStore{}, DataDir: dir, Now: fixedNano(1000)})
 	require.NoError(t, loaded.Start())
 	require.Equal(t, []PendingConversationView{{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 3, ActiveAt: 30, ReadSeq: 0}}, loaded.ListPending(context.Background(), "u1", 10))
+}
+
+func TestPendingUpdaterStopContextBoundsBlockedFlush(t *testing.T) {
+	store := newContextBlockingPendingStateStore()
+	updater := NewConversationUpdater(ConversationUpdaterOptions{
+		Store:         store,
+		FlushInterval: time.Millisecond,
+		Now:           fixedNano(1000),
+	})
+	require.NoError(t, updater.PushIntent(context.Background(), ConversationIntent{
+		CommandChannelID: "g1____cmd", ChannelType: 2, MessageSeq: 1, ActiveAt: 10, UserReadSeqs: map[string]uint64{"u1": 0},
+	}))
+	require.NoError(t, updater.Start())
+	store.waitEntered(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	require.ErrorIs(t, updater.StopContext(ctx), context.DeadlineExceeded)
 }
 
 func TestPendingUpdaterMarkSyncedRemovesOnlyUIDWhenThroughSeqCoversPending(t *testing.T) {
@@ -157,4 +176,28 @@ func (f *fakePendingStateStore) UpsertCMDConversationStates(_ context.Context, s
 	}
 	f.states = append(f.states, states...)
 	return nil
+}
+
+type contextBlockingPendingStateStore struct {
+	entered chan struct{}
+	once    sync.Once
+}
+
+func newContextBlockingPendingStateStore() *contextBlockingPendingStateStore {
+	return &contextBlockingPendingStateStore{entered: make(chan struct{})}
+}
+
+func (s *contextBlockingPendingStateStore) UpsertCMDConversationStates(ctx context.Context, _ []metadb.CMDConversationState) error {
+	s.once.Do(func() { close(s.entered) })
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (s *contextBlockingPendingStateStore) waitEntered(t *testing.T) {
+	t.Helper()
+	select {
+	case <-s.entered:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for blocked pending flush")
+	}
 }

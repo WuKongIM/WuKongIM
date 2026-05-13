@@ -332,6 +332,21 @@ func build(cfg Config) (_ *App, err error) {
 	)
 	app.nodeClient = accessnode.NewClient(app.cluster)
 	app.channelLog.remoteAppender = app.nodeClient
+	app.cmdConversationUpdater = cmdsync.NewConversationUpdater(cmdsync.ConversationUpdaterOptions{
+		Store:          app.store,
+		DataDir:        cfg.Node.DataDir,
+		FlushInterval:  cfg.Conversation.ActiveHintFlushInterval,
+		FlushBatchSize: cfg.Conversation.ActiveHintFlushBatchSize,
+		Logger:         app.logger.Named("cmdsync.pending"),
+	})
+	cmdIntentRouter := cmdConversationIntentRouter{
+		local:       app.cmdConversationUpdater,
+		remote:      app.nodeClient,
+		cluster:     app.cluster,
+		localNodeID: cfg.Node.ID,
+		logger:      app.logger.Named("cmdsync.intent"),
+	}
+	app.cmdConversationIntents = cmdIntentRouter
 	app.cmdSyncApp = cmdsync.New(cmdsync.Options{
 		States: app.store,
 		Messages: cmdsyncMessageStore{
@@ -340,7 +355,8 @@ func build(cfg Config) (_ *App, err error) {
 			metas:       app.store,
 			remote:      app.nodeClient,
 		},
-		Logger: app.logger.Named("cmdsync"),
+		Pending: app.cmdConversationUpdater,
+		Logger:  app.logger.Named("cmdsync"),
 	})
 	repairProbeClient, err := channeltransport.NewProbeClient(channeltransport.ProbeClientOptions{
 		Client:     app.dataPlaneClient,
@@ -468,11 +484,11 @@ func build(cfg Config) (_ *App, err error) {
 	subscriberResolver := deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
 		Store: app.store,
 	})
-	app.cmdSyncProjector = cmdsync.NewProjector(cmdsync.ProjectorOptions{
-		Store:       app.store,
-		Subscribers: subscriberResolver,
-		Logger:      app.logger.Named("cmdsync.projector"),
-	})
+	cmdUIDObserver := cmdConversationResolvedUIDObserver{
+		sink:   cmdIntentRouter,
+		now:    time.Now,
+		logger: app.logger.Named("cmdsync.intent"),
+	}
 	var deliveryObserver deliveryruntime.Observer
 	var deliveryMetrics *obsmetrics.DeliveryMetrics
 	if app.metrics != nil {
@@ -487,6 +503,7 @@ func build(cfg Config) (_ *App, err error) {
 			subscribers: subscriberResolver,
 			authority:   authorityClient,
 			topology:    deliveryTagTopologyReaderAdapter{cluster: app.cluster},
+			uidObserver: cmdUIDObserver,
 			metrics:     deliveryMetrics,
 			logger:      app.logger.Named("delivery.resolve"),
 		},
@@ -526,7 +543,7 @@ func build(cfg Config) (_ *App, err error) {
 		NodeClient:   app.nodeClient,
 		Metrics:      messageMetrics,
 	})
-	committedDispatcher := committedFanout{subscribers: []committedSubscriber{app.committedDispatcher, app.cmdSyncProjector}}
+	committedDispatcher := committedFanout{subscribers: []committedSubscriber{app.committedDispatcher}}
 	app.committedReplayer = newCommittedReplayer(committedReplayerConfig{
 		Log: channelStoreCommittedReplayLog{
 			engine:      app.channelLogDB,
@@ -535,7 +552,6 @@ func build(cfg Config) (_ *App, err error) {
 		},
 		Delivery:     app.deliveryApp,
 		Conversation: app.conversationProjector,
-		CMDSync:      app.cmdSyncProjector,
 		Logger:       app.logger.Named("committed.replay"),
 		Metrics:      messageMetrics,
 	})
@@ -577,8 +593,13 @@ func build(cfg Config) (_ *App, err error) {
 		Diagnostics:           app,
 		ChannelRetention:      managerMessageRetentionNodeProvider{target: managerRetention},
 		CMDSync:               app.cmdSyncApp,
-		SystemUIDCache:        userApp,
-		Logger:                app.logger.Named("access.node"),
+		CMDConversationIntents: ownerValidatingCMDIntentSink{
+			local:       app.cmdConversationUpdater,
+			cluster:     app.cluster,
+			localNodeID: cfg.Node.ID,
+		},
+		SystemUIDCache: userApp,
+		Logger:         app.logger.Named("access.node"),
 	})
 	app.messageApp = message.New(message.Options{
 		IdentityStore:          app.store,
@@ -594,13 +615,14 @@ func build(cfg Config) (_ *App, err error) {
 			metas:       app.store,
 			remote:      app.nodeClient,
 		},
-		MetaRefresher:       app.channelMetaSync,
-		RemoteAppender:      app.nodeClient,
-		AppendMetrics:       messageMetrics,
-		Online:              onlineRegistry,
-		CommittedDispatcher: committedDispatcher,
-		RealtimeDispatcher:  app.deliveryApp,
-		MessageIDs:          messageIDs,
+		MetaRefresher:          app.channelMetaSync,
+		RemoteAppender:         app.nodeClient,
+		AppendMetrics:          messageMetrics,
+		Online:                 onlineRegistry,
+		CommittedDispatcher:    committedDispatcher,
+		CMDConversationIntents: cmdIntentRouter,
+		RealtimeDispatcher:     app.deliveryApp,
+		MessageIDs:             messageIDs,
 		DeliveryAck: ackRouting{
 			localNodeID: cfg.Node.ID,
 			local:       app.deliveryApp,

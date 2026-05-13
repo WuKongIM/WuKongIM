@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
@@ -52,10 +51,6 @@ type committedReplayConversation interface {
 	SubmitCommitted(context.Context, channel.Message) error
 }
 
-type committedReplayCMDSync interface {
-	ProjectCommitted(context.Context, messageevents.MessageCommitted) error
-}
-
 type committedReplayMetrics interface {
 	SetCommittedReplayLag(channelType string, lag uint64)
 	ObserveCommittedReplayPass(result string, dur time.Duration)
@@ -68,8 +63,6 @@ type committedReplayerConfig struct {
 	Delivery committedReplayDelivery
 	// Conversation receives replayed committed messages as best-effort active hints.
 	Conversation committedReplayConversation
-	// CMDSync receives replayed durable command messages for offline sync repair.
-	CMDSync committedReplayCMDSync
 	// CursorName separates replay lanes in the per-channel cursor keyspace.
 	CursorName string
 	// BatchSize bounds messages processed per channel pass.
@@ -319,11 +312,6 @@ func (r *committedReplayer) replayChannel(ctx context.Context, ch committedRepla
 func (r *committedReplayer) submitMessage(ctx context.Context, msg channel.Message) error {
 	if r.cfg.Delivery != nil {
 		if err := r.cfg.Delivery.SubmitCommitted(ctx, deliveryruntime.CommittedEnvelope{Message: msg}); err != nil {
-			return err
-		}
-	}
-	if r.cfg.CMDSync != nil {
-		if err := r.cfg.CMDSync.ProjectCommitted(ctx, messageevents.MessageCommitted{Message: msg}); err != nil {
 			return err
 		}
 	}

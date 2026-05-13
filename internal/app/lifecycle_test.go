@@ -459,8 +459,8 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 			calls = append(calls, "conversation_projector.start")
 			return nil
 		},
-		startCMDSyncProjectorFn: func() error {
-			calls = append(calls, "cmdsync_projector.start")
+		startCMDConversationUpdaterFn: func() error {
+			calls = append(calls, "cmd_conversation_updater.start")
 			return nil
 		},
 		startDeliveryRuntimeFn: func() error {
@@ -501,7 +501,7 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 		"presence.start",
 		"conversation_active_hints.start",
 		"conversation_projector.start",
-		"cmdsync_projector.start",
+		"cmd_conversation_updater.start",
 		"delivery_runtime.start",
 		"committed_dispatcher.start",
 		"committed_replay.start",
@@ -775,7 +775,7 @@ func TestStartStopIncludesConversationProjector(t *testing.T) {
 	require.Equal(t, []string{"cluster.start", "conversation.start", "gateway.start", "gateway.stop", "conversation.stop", "cluster.stop"}, calls)
 }
 
-func TestStartStopIncludesCMDSyncProjectorAfterConversation(t *testing.T) {
+func TestStartStopIncludesCMDConversationUpdaterAfterConversation(t *testing.T) {
 	var calls []string
 
 	app := &App{
@@ -789,7 +789,7 @@ func TestStartStopIncludesCMDSyncProjectorAfterConversation(t *testing.T) {
 			calls = append(calls, "conversation.start")
 			return nil
 		},
-		startCMDSyncProjectorFn: func() error {
+		startCMDConversationUpdaterFn: func() error {
 			calls = append(calls, "cmdsync.start")
 			return nil
 		},
@@ -801,7 +801,7 @@ func TestStartStopIncludesCMDSyncProjectorAfterConversation(t *testing.T) {
 			calls = append(calls, "gateway.stop")
 			return nil
 		},
-		stopCMDSyncProjectorFn: func() error {
+		stopCMDConversationUpdaterFn: func(context.Context) error {
 			calls = append(calls, "cmdsync.stop")
 			return nil
 		},
@@ -1284,11 +1284,16 @@ func TestAppLifecycleStopsPresenceWorkerAfterGateway(t *testing.T) {
 
 func TestAppLifecyclePassesBoundedStopContextToActiveHintsReplayAndDispatcher(t *testing.T) {
 	var activeHintsHasDeadline bool
+	var cmdUpdaterHasDeadline bool
 	var replayHasDeadline bool
 	var dispatcherHasDeadline bool
 	app := &App{
 		stopConversationActiveHintsFn: func(ctx context.Context) error {
 			_, activeHintsHasDeadline = ctx.Deadline()
+			return nil
+		},
+		stopCMDConversationUpdaterFn: func(ctx context.Context) error {
+			_, cmdUpdaterHasDeadline = ctx.Deadline()
 			return nil
 		},
 		stopCommittedReplayFn: func(ctx context.Context) error {
@@ -1303,11 +1308,13 @@ func TestAppLifecyclePassesBoundedStopContextToActiveHintsReplayAndDispatcher(t 
 		closeWKDBFn:   func() error { return nil },
 	}
 	app.conversationHintsOn.Store(true)
+	app.cmdConversationUpdaterOn.Store(true)
 	app.committedReplayOn.Store(true)
 	app.committedDispatcherOn.Store(true)
 
 	require.NoError(t, app.Stop())
 	require.True(t, activeHintsHasDeadline)
+	require.True(t, cmdUpdaterHasDeadline)
 	require.True(t, replayHasDeadline)
 	require.True(t, dispatcherHasDeadline)
 }

@@ -8,10 +8,8 @@ import (
 	"unsafe"
 
 	"github.com/WuKongIM/WuKongIM/internal/access/node"
-	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -106,18 +104,33 @@ func TestNewBuildsCMDSyncRuntimeAndCommittedFanout(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, app.Stop()) })
 
 	require.NotNil(t, app.cmdSyncApp)
-	require.NotNil(t, app.cmdSyncProjector)
+	require.NotNil(t, app.cmdConversationUpdater)
 
 	dispatcher := messageAppDispatcherForTest(t, app)
 	fanout, ok := dispatcher.(committedFanout)
 	require.Truef(t, ok, "message dispatcher should be committedFanout, got %T", dispatcher)
-	require.Len(t, fanout.subscribers, 2)
+	require.Len(t, fanout.subscribers, 1)
 	require.Same(t, app.committedDispatcher, fanout.subscribers[0])
-	require.Same(t, app.cmdSyncProjector, fanout.subscribers[1])
+
+	cmdPending, ok := unexportedFieldForTest(t, app.cmdSyncApp, "pending").(*cmdsync.ConversationUpdater)
+	require.True(t, ok)
+	require.Same(t, app.cmdConversationUpdater, cmdPending)
+
+	messageSink, ok := unexportedFieldForTest(t, app.messageApp, "cmdConversationIntents").(cmdConversationIntentRouter)
+	require.True(t, ok)
+	require.Same(t, app.cmdConversationUpdater, messageSink.local)
+	require.Same(t, app.nodeClient, messageSink.remote)
+	require.Same(t, app.cluster, messageSink.cluster)
+	require.Equal(t, cfg.Node.ID, messageSink.localNodeID)
 
 	nodeCMDSync, ok := unexportedFieldForTest(t, app.nodeAccess, "cmdSync").(*cmdsync.App)
 	require.True(t, ok)
 	require.Same(t, app.cmdSyncApp, nodeCMDSync)
+	nodeIntentSink, ok := unexportedFieldForTest(t, app.nodeAccess, "cmdConversationIntents").(ownerValidatingCMDIntentSink)
+	require.True(t, ok)
+	require.Same(t, app.cmdConversationUpdater, nodeIntentSink.local)
+	require.Same(t, app.cluster, nodeIntentSink.cluster)
+	require.Equal(t, cfg.Node.ID, nodeIntentSink.localNodeID)
 
 	require.NotNil(t, app.api)
 	apiCMDSync, ok := unexportedFieldForTest(t, app.api, "cmdSync").(clusterCMDSyncUsecase)
@@ -203,25 +216,25 @@ func TestClusterCMDSyncUsecaseRejectsBlankUIDBeforeRouting(t *testing.T) {
 	require.Empty(t, remote.acks)
 }
 
-func TestCMDSyncProjectionSyncAckDurableRoundTrip(t *testing.T) {
+func TestCMDSyncPendingIntentSyncAckDurableRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	commandChannelID := channelid.ToCommandChannel("g1")
 	store := newDurableCMDStateStore()
-	projector := cmdsync.NewProjector(cmdsync.ProjectorOptions{
-		Store:       store,
-		Subscribers: &appCMDSyncSubscriberResolver{pages: [][]string{{"u1", "u2"}}},
-	})
+	updater := cmdsync.NewConversationUpdater(cmdsync.ConversationUpdaterOptions{Store: store})
 	msg := channel.Message{
 		ChannelID: commandChannelID, ChannelType: frame.ChannelTypeGroup, FromUID: "u1",
 		MessageSeq: 7, Timestamp: 100, Framer: frame.Framer{SyncOnce: true},
 	}
 
-	require.NoError(t, projector.ProjectCommitted(ctx, messageevents.MessageCommitted{Message: msg}))
-	require.Equal(t, uint64(7), store.state("u1", commandChannelID, frame.ChannelTypeGroup).ReadSeq)
-	require.Zero(t, store.state("u2", commandChannelID, frame.ChannelTypeGroup).ReadSeq)
+	intent, ok := cmdsync.BuildConversationIntent(msg, []string{"u1", "u2"}, nil)
+	require.True(t, ok)
+	require.NoError(t, updater.PushIntent(ctx, intent))
+	require.Equal(t, uint64(7), updater.ListPending(ctx, "u1", 10)[0].ReadSeq)
+	require.Zero(t, updater.ListPending(ctx, "u2", 10)[0].ReadSeq)
 
 	app := cmdsync.New(cmdsync.Options{
-		States: store,
+		States:  store,
+		Pending: updater,
 		Messages: &cmdsyncMessageStoreFake{byKey: map[cmdsync.CommandChannelKey][]channel.Message{
 			{ChannelID: commandChannelID, ChannelType: frame.ChannelTypeGroup}: {msg},
 		}},
@@ -234,6 +247,7 @@ func TestCMDSyncProjectionSyncAckDurableRoundTrip(t *testing.T) {
 
 	require.NoError(t, app.SyncAck(ctx, cmdsync.SyncAckCommand{UID: "u2", LastMessageSeq: 7}))
 	require.Equal(t, uint64(7), store.state("u2", commandChannelID, frame.ChannelTypeGroup).ReadSeq)
+	require.Empty(t, updater.ListPending(ctx, "u2", 10))
 
 	result, err = app.Sync(ctx, cmdsync.SyncQuery{UID: "u2", Limit: 10})
 	require.NoError(t, err)
@@ -476,29 +490,6 @@ type cmdsyncDurableStateKey struct {
 	uid         string
 	channelID   string
 	channelType int64
-}
-
-type appCMDSyncSubscriberResolver struct {
-	pages [][]string
-}
-
-func (r *appCMDSyncSubscriberResolver) BeginSnapshot(ctx context.Context, id channel.ChannelID) (delivery.SnapshotToken, error) {
-	return r.BeginSnapshotWithRequest(ctx, id, delivery.SubscriberSnapshotRequest{})
-}
-
-func (r *appCMDSyncSubscriberResolver) BeginSnapshotWithRequest(context.Context, channel.ChannelID, delivery.SubscriberSnapshotRequest) (delivery.SnapshotToken, error) {
-	return delivery.SnapshotToken{}, nil
-}
-
-func (r *appCMDSyncSubscriberResolver) NextPage(_ context.Context, _ delivery.SnapshotToken, cursor string, _ int) ([]string, string, bool, error) {
-	idx := 0
-	if cursor != "" {
-		idx = 1
-	}
-	if idx >= len(r.pages) {
-		return nil, cursor, true, nil
-	}
-	return append([]string(nil), r.pages[idx]...), "done", true, nil
 }
 
 func stripCMDPatchTimes(patches []metadb.CMDConversationReadPatch) []metadb.CMDConversationReadPatch {

@@ -91,3 +91,37 @@ func BuildConversationIntent(msg channel.Message, uids []string, now func() time
 		UserReadSeqs:     readSeqs,
 	}, true
 }
+
+func isDurableCMDProjectionMessage(msg channel.Message) bool {
+	if msg.MessageSeq == 0 || msg.Framer.NoPersist {
+		return false
+	}
+	return runtimechannelid.IsCommandChannel(msg.ChannelID) || msg.Framer.SyncOnce
+}
+
+func activeAtFromMessage(msg channel.Message, now func() time.Time) int64 {
+	if msg.Timestamp != 0 {
+		return time.Unix(int64(msg.Timestamp), 0).UnixNano()
+	}
+	if now == nil {
+		now = time.Now
+	}
+	return now().UnixNano()
+}
+
+func uniqueNonEmptyStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}

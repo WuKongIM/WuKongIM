@@ -154,14 +154,14 @@ func (a *App) startConversationProjector() error {
 	return a.conversationProjector.Start()
 }
 
-func (a *App) startCMDSyncProjector() error {
-	if a.startCMDSyncProjectorFn != nil {
-		return a.startCMDSyncProjectorFn()
+func (a *App) startCMDConversationUpdater() error {
+	if a.startCMDConversationUpdaterFn != nil {
+		return a.startCMDConversationUpdaterFn()
 	}
-	if a.cmdSyncProjector == nil {
+	if a.cmdConversationUpdater == nil {
 		return nil
 	}
-	return a.cmdSyncProjector.Start()
+	return a.cmdConversationUpdater.Start()
 }
 
 func (a *App) startConversationActiveHints() error {
@@ -253,17 +253,20 @@ func (a *App) stopConversationProjector() error {
 	return a.conversationProjector.Stop()
 }
 
-func (a *App) stopCMDSyncProjector() error {
-	if !a.cmdSyncProjectorOn.Swap(false) {
+func (a *App) stopCMDConversationUpdater(ctx context.Context) error {
+	if !a.cmdConversationUpdaterOn.Swap(false) {
 		return nil
 	}
-	if a.stopCMDSyncProjectorFn != nil {
-		return a.stopCMDSyncProjectorFn()
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	if a.cmdSyncProjector == nil {
+	if a.stopCMDConversationUpdaterFn != nil {
+		return a.stopCMDConversationUpdaterFn(ctx)
+	}
+	if a.cmdConversationUpdater == nil {
 		return nil
 	}
-	return a.cmdSyncProjector.Stop()
+	return a.cmdConversationUpdater.StopContext(ctx)
 }
 
 func (a *App) stopConversationActiveHints(ctx context.Context) error {
