@@ -203,6 +203,7 @@ func TestBuildWiresManagerUserDependencies(t *testing.T) {
 	require.NotNil(t, app.managementApp)
 	requireManagementAppFieldNonNil(t, app, "users")
 	requireManagementAppFieldNonNil(t, app, "userOperator")
+	requireManagementAppFieldNonNil(t, app, "systemUsers")
 	requireManagementAppFieldNonNil(t, app, "userPresence")
 	requireManagementAppFieldNonNil(t, app, "userActions")
 	requireManagementAppFieldNonNil(t, app, "channelMigration")
