@@ -1375,8 +1375,8 @@ describe("manager api client", () => {
     })).resolves.toEqual(report)
     await expect(getNodeScaleInStatus(3)).resolves.toEqual(report)
     await expect(advanceNodeScaleIn(3, {
-      maxLeaderTransfers: 8,
-      forceCloseConnections: true,
+      maxLeaderTransfers: 2,
+      maxChannelMigrations: 4,
     })).resolves.toEqual(report)
     await expect(cancelNodeScaleIn(3)).resolves.toEqual(report)
 
@@ -1394,8 +1394,9 @@ describe("manager api client", () => {
     expect((fetchMock.mock.calls[2]?.[1] as { method?: string }).method).toBeUndefined()
     expect(fetchMock.mock.calls[3]?.[0]).toBe("/manager/nodes/3/scale-in/advance")
     expect(JSON.parse((fetchMock.mock.calls[3]?.[1] as { body: string }).body)).toEqual({
-      max_leader_transfers: 8,
-      force_close_connections: true,
+      max_leader_transfers: 2,
+      max_channel_migrations: 4,
+      force_close_connections: false,
     })
     expect(fetchMock.mock.calls[4]?.[0]).toBe("/manager/nodes/3/scale-in/cancel")
     expect((fetchMock.mock.calls[4]?.[1] as { method: string }).method).toBe("POST")

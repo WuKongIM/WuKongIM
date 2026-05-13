@@ -353,7 +353,8 @@ export function advanceNodeScaleIn(nodeId: number, input: AdvanceNodeScaleInInpu
     method: "POST",
     body: JSON.stringify({
       max_leader_transfers: input.maxLeaderTransfers,
-      force_close_connections: input.forceCloseConnections,
+      max_channel_migrations: input.maxChannelMigrations ?? 1,
+      force_close_connections: input.forceCloseConnections ?? false,
     }),
   })
 }

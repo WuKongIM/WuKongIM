@@ -271,6 +271,26 @@ function ScaleInReportView({ intl, report }: { intl: IntlShape; report: ManagerN
           value={report.progress.active_tasks_involving_node}
         />
         <ScaleInMetricCard
+          label={intl.formatMessage({ id: "nodes.scaleIn.metrics.channelLeaders" })}
+          value={report.progress.channel_leaders}
+        />
+        <ScaleInMetricCard
+          label={intl.formatMessage({ id: "nodes.scaleIn.metrics.channelReplicas" })}
+          value={report.progress.channel_replicas}
+        />
+        <ScaleInMetricCard
+          label={intl.formatMessage({ id: "nodes.scaleIn.metrics.activeChannelMigrations" })}
+          value={report.progress.active_channel_migrations_involving_node}
+        />
+        <ScaleInMetricCard
+          label={intl.formatMessage({ id: "nodes.scaleIn.metrics.channelInventory" })}
+          value={
+            report.progress.channel_inventory_partial
+              ? report.progress.channel_inventory_error || intl.formatMessage({ id: "nodes.scaleIn.unknown" })
+              : formatBooleanValue(intl, report.progress.channel_inventory_scanned)
+          }
+        />
+        <ScaleInMetricCard
           label={intl.formatMessage({ id: "nodes.scaleIn.metrics.activeConnections" })}
           value={
             report.progress.active_connections_unknown
@@ -514,7 +534,10 @@ export function NodesPage() {
     setScaleInAction("advance")
 
     try {
-      const report = await advanceNodeScaleIn(scaleInNodeId, { maxLeaderTransfers: 1 })
+      const report = await advanceNodeScaleIn(scaleInNodeId, {
+        maxLeaderTransfers: 1,
+        maxChannelMigrations: 1,
+      })
       setScaleInReport(report)
     } catch (error) {
       applyScaleInError(error)
