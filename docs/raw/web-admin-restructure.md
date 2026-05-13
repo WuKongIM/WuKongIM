@@ -258,17 +258,26 @@ POST /manager/system-users/remove
 - 管理员账号列表
 - 角色定义（基于现有 permission resource 模型）
 - 权限分配矩阵
+- 状态：只读 MVP 已完成（认证状态、静态管理员、权限资源矩阵）；新增/编辑/删除管理员、持久化权限配置和审计日志仍待后续设计
 
 现有权限资源：
+- `*` (*)
+- `cluster.overview` (r)
 - `cluster.node` (r/w)
 - `cluster.slot` (r/w)
 - `cluster.controller` (r/w)
 - `cluster.task` (r)
-- `cluster.overview` (r)
+- `cluster.connection` (r)
 - `cluster.network` (r)
 - `cluster.diagnostics` (r)
-- `cluster.connection` (r)
+- `cluster.user` (r/w)
 - `cluster.channel` (r/w)
+- `cluster.permission` (r)
+
+对应后台 API：
+```
+GET  /manager/permissions
+```
 
 #### Webhook 配置 `/settings/webhooks`
 
@@ -313,7 +322,7 @@ POST /manager/system-users/remove
 
 4. **用户管理** — 列表/详情/强制下线/Token 重置已完成；封禁/解封待实现
 5. **频道业务管理** — 需要新增后端 API（部分可复用 client API）
-6. **权限管理** — 后端已有 permission 中间件，需要管理界面
+6. **权限管理** — 只读 MVP 已完成，写管理与持久化仍待后续设计
 
 ### P2 — 体验提升
 
@@ -336,12 +345,13 @@ POST /manager/system-users/remove
 - [x] 频道集群 P0.5 安全操作：副本详情、no_leader repair
 - [x] 频道集群 P0.6 单频道显式安全 Leader transfer
 - [x] 用户管理后端 API + 前端页面（不含封禁/解封）
+- [x] 权限管理只读 MVP：`GET /manager/permissions` + `/settings/permissions`
 
 待实现：
 - [ ] 频道集群批量 leader drain
 - [ ] 用户管理封禁/解封
 - [ ] 频道业务管理后端 API + 前端页面
-- [ ] 权限管理页面
+- [ ] 权限写管理：新增/编辑/删除管理员、持久化权限配置、审计日志
 - [ ] 实时监控页面
 - [ ] Webhook 配置页面
 - [x] 系统用户管理页面
