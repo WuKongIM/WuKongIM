@@ -7,6 +7,8 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
+	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
@@ -86,6 +88,36 @@ type ChannelRuntimeMetaReader interface {
 	ScanChannelRuntimeMetaSlotPage(ctx context.Context, slotID multiraft.SlotID, after metadb.ChannelRuntimeMetaCursor, limit int) ([]metadb.ChannelRuntimeMeta, metadb.ChannelRuntimeMetaCursor, bool, error)
 	// GetChannelRuntimeMeta returns one authoritative channel runtime metadata record.
 	GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error)
+}
+
+// UserReader exposes authoritative user and device reads for manager pages.
+type UserReader interface {
+	// ScanUsersSlotPage returns one authoritative user page for a physical Slot.
+	ScanUsersSlotPage(ctx context.Context, slotID multiraft.SlotID, after metadb.UserCursor, limit int) ([]metadb.User, metadb.UserCursor, bool, error)
+	// GetUser returns one authoritative user record.
+	GetUser(ctx context.Context, uid string) (metadb.User, error)
+	// GetDevice returns one authoritative device record.
+	GetDevice(ctx context.Context, uid string, deviceFlag int64) (metadb.Device, error)
+}
+
+// UserOperator exposes user mutations reused by manager actions.
+type UserOperator interface {
+	// UpdateToken creates or replaces a user's device token.
+	UpdateToken(ctx context.Context, cmd userusecase.UpdateTokenCommand) error
+	// DeviceQuit clears stored device tokens and kicks matching local sessions.
+	DeviceQuit(ctx context.Context, cmd userusecase.DeviceQuitCommand) error
+}
+
+// UserPresenceDirectory exposes authoritative online routes keyed by UID.
+type UserPresenceDirectory interface {
+	// EndpointsByUIDs returns authoritative online routes keyed by UID.
+	EndpointsByUIDs(ctx context.Context, uids []string) (map[string][]presence.Route, error)
+}
+
+// UserRouteActionDispatcher applies manager force-offline actions on route owners.
+type UserRouteActionDispatcher interface {
+	// ApplyRouteAction applies a close/kick action on the route owner node.
+	ApplyRouteAction(ctx context.Context, action presence.RouteAction) error
 }
 
 // ChannelReplicaStatusReader exposes proven live channel runtime status.
@@ -196,6 +228,14 @@ type Options struct {
 	Diagnostics DiagnosticsReader
 	// ChannelRuntimeMeta provides authoritative slot-level runtime meta pages.
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
+	// Users provides authoritative user and device reads.
+	Users UserReader
+	// UserOperator applies user token and device mutations.
+	UserOperator UserOperator
+	// UserPresence reads authoritative user presence routes.
+	UserPresence UserPresenceDirectory
+	// UserActions applies route owner force-offline actions.
+	UserActions UserRouteActionDispatcher
 	// ChannelReplicaStatus provides proven live channel runtime status when available.
 	ChannelReplicaStatus ChannelReplicaStatusReader
 	// ChannelLeaderRepair provides policy-driven channel leader repair.
@@ -227,6 +267,10 @@ type App struct {
 	connections              ConnectionReader
 	diagnostics              DiagnosticsReader
 	channelRuntimeMeta       ChannelRuntimeMetaReader
+	users                    UserReader
+	userOperator             UserOperator
+	userPresence             UserPresenceDirectory
+	userActions              UserRouteActionDispatcher
 	channelReplicaStatus     ChannelReplicaStatusReader
 	channelLeaderRepair      ChannelLeaderRepairOperator
 	channelLeaderTransfer    ChannelLeaderTransferOperator
@@ -260,6 +304,10 @@ func New(opts Options) *App {
 		connections:              opts.Connections,
 		diagnostics:              opts.Diagnostics,
 		channelRuntimeMeta:       opts.ChannelRuntimeMeta,
+		users:                    opts.Users,
+		userOperator:             opts.UserOperator,
+		userPresence:             opts.UserPresence,
+		userActions:              opts.UserActions,
 		channelReplicaStatus:     opts.ChannelReplicaStatus,
 		channelLeaderRepair:      opts.ChannelLeaderRepair,
 		channelLeaderTransfer:    opts.ChannelLeaderTransfer,
