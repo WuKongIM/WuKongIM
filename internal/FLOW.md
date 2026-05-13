@@ -73,6 +73,7 @@
 | `gateway.Gateway` | `gateway/gateway.go` | 网关：管理 Transport/Protocol/Session，双向实时通信 |
 | `gateway.Handler` | `access/gateway/handler.go` | 网关桥接：将 Frame 路由到 Usecase 层 |
 | `api.Server` | `access/api/server.go` | HTTP API：消息发送、频道同步、Token、会话同步 |
+| `manager.Server` | `access/manager/server.go` | 后台管理 HTTP API：JWT、权限适配、集群/业务管理 DTO |
 | `node.Client` | `access/node/options.go` | 节点间 RPC 客户端 |
 | `node.Adapter` | `access/node/options.go` | 节点间 RPC 服务端 |
 
@@ -83,6 +84,8 @@
 | `delivery.App` | `usecase/delivery/app.go` | 投递用例：提交投递、确认、离线处理 |
 | `presence.App` | `usecase/presence/app.go` | 在线状态用例：激活/去激活、权威路由、心跳 |
 | `conversation.App` | `usecase/conversation/app.go` | 会话用例：增量/全量同步、冷热分离 |
+| `channel.App` | `usecase/channel/app.go` | 频道业务用例：资料、订阅者、白名单、黑名单 |
+| `management.App` | `usecase/management/app.go` | 后台管理聚合用例：节点、用户、频道业务、诊断 DTO |
 
 #### 运行时层（Runtime）
 | 组件 | 文件 | 职责 |
@@ -145,6 +148,20 @@ conversation.App.Sync(ctx, SyncQuery) (SyncResult, error)
 conversation.App.ClearUnread(ctx, ClearUnreadCommand) error
 conversation.App.SetUnread(ctx, SetUnreadCommand) error
 conversation.App.DeleteConversation(ctx, DeleteConversationCommand) error
+
+// 频道业务
+channel.App.UpdateInfo(ctx, UpdateInfoCommand) (UpdateInfoResult, error)
+channel.App.ListSubscribersPage(ctx, MemberListPageRequest) (MemberListPageResult, error)
+channel.App.ListAllowlistPage(ctx, MemberListPageRequest) (MemberListPageResult, error)
+channel.App.ListDenylistPage(ctx, MemberListPageRequest) (MemberListPageResult, error)
+
+// 后台管理
+management.App.ListChannels(ctx, ChannelBusinessListQuery) (ChannelBusinessListResult, error)
+management.App.GetChannel(ctx, ChannelBusinessDetailQuery) (ChannelBusinessDetail, error)
+management.App.UpsertChannel(ctx, ChannelBusinessUpsertCommand) (ChannelBusinessDetail, error)
+management.App.ListChannelMembers(ctx, ChannelMemberListQuery) (ChannelMemberListResult, error)
+management.App.AddChannelMembers(ctx, ChannelMemberMutationCommand) (ChannelMemberMutationResult, error)
+management.App.RemoveChannelMembers(ctx, ChannelMemberMutationCommand) (ChannelMemberMutationResult, error)
 ```
 
 ### 3.4 运行时层

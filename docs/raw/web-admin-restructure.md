@@ -204,16 +204,22 @@ POST /manager/users/:uid/token/reset
 - 频道列表（按类型筛选：个人/群组/客服/社区）
 - 频道详情：基本信息、订阅者列表、黑白名单
 - 操作：创建频道、添加/移除订阅者、管理黑白名单
+- 状态：MVP 已完成（列表、详情、频道元数据 upsert、订阅者/白名单/黑名单分页与单项增删）；批量导入、remove-all/set-all 等破坏性或大批量操作仍待后续设计
 
 需要新增 API：
 ```
 GET  /manager/channels?type=x&keyword=xxx&limit=50&cursor=xxx
 GET  /manager/channels/:type/:id
+POST /manager/channels
 GET  /manager/channels/:type/:id/subscribers
 POST /manager/channels/:type/:id/subscribers/add
 POST /manager/channels/:type/:id/subscribers/remove
 GET  /manager/channels/:type/:id/denylist
+POST /manager/channels/:type/:id/denylist/add
+POST /manager/channels/:type/:id/denylist/remove
 GET  /manager/channels/:type/:id/allowlist
+POST /manager/channels/:type/:id/allowlist/add
+POST /manager/channels/:type/:id/allowlist/remove
 ```
 
 #### 消息管理 `/messages`（已有，增强）

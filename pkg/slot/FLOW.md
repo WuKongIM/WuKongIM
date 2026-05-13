@@ -254,7 +254,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 | `identityRPCServiceID` | 4 | User / Device 查询 | proxy/identity_rpc.go |
 | `subscriberRPCServiceID` | 10 | 订阅者列表（分页/快照） | proxy/subscriber_rpc.go |
 | `userConversationStateRPCServiceID` | 11 | 会话状态查询、active_at 热提示提交/删除 | proxy/user_conversation_state_rpc.go |
-| `channelRPCServiceID` | 12 | Channel 权限元数据查询（Ban / Disband / SendBan / SubscriberMutationVersion） | proxy/channel_rpc.go |
+| `channelRPCServiceID` | 12 | Channel 权限元数据查询与物理 Slot 权威分页扫描（Ban / Disband / SendBan / SubscriberMutationVersion） | proxy/channel_rpc.go |
 | `channelMigrationRPCServiceID` | 47 | Channel migration active-task 查询与远端 slot-leader 提案转发，避免与 conversation facts service ID 13 冲突 | proxy/channel_migration_rpc.go |
 
 **RPC 状态码** (authoritative_rpc.go): `ok` / `not_found` / `not_leader` / `no_leader` / `no_slot` / `stale_meta`
@@ -281,6 +281,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **Retention 窄更新是可失败提案**: `AdvanceChannelRetentionThroughSeq` 直接调用 meta store 时会返回 `ErrStaleMeta` / `ErrNotFound`，但 FSM apply 会把 stale 或缺失 runtime meta 转成确定性的 `stale_meta` 结果，避免正常竞态让 Slot fatal；proxy/cluster 再把该结果归一化为调用方可见的 `ErrStaleMeta`。
 - **ChannelRuntimeMeta 分页边界**: `meta.ShardStore.ListChannelRuntimeMetaPage` 只扫描当前 hash slot 的主键范围，按 `(channel_id, channel_type)` 升序读取并用 `limit+1` 判定是否还有下一页；更高层如果需要物理 Slot / 全局分页，必须基于这个分片原语做增量合并，不能先全量拉取再截页。
 - **ChannelRuntimeMeta 权威分页**: `Store.ScanChannelRuntimeMetaSlotPage` 通过 `runtime_meta scan_page` 在物理 Slot leader 上把多个 hash slot 做增量 k-way merge；任一节点对同一 Slot 发起分页都会路由到同一个权威来源，不允许回退本地全量扫描。
+- **Channel 元数据权威分页**: `Store.ScanChannelsSlotPage` 通过 `channel scan_channels_page` 在物理 Slot leader 上扫描 channel 主记录；后台业务频道清单必须基于该权威分页聚合，不能绕过 Slot leader 或全量本地扫描。
 - **ListUserConversationActive 热覆盖层**: `Store.ListUserConversationActive` 在 UID 所属 Slot leader 合并持久化 active index 与 `UserConversationActiveOverlay` 中的 UID-local 热提示；覆盖层只作为工作集提示，合并时会 point-read 未出现在 active index 的会话状态，用 `DeletedToSeq` 过滤 stale hint，且对覆盖层请求完整的 UID-local 有界热集合，避免已删除 hint 前缀遮挡后续有效 hint。
 - **HideUserConversations 删除语义**: 删除会话必须走独立命令 16；只有新 `DeletedToSeq` 前进时才持久化屏障并在同一批写中清空 `ActiveAt`/删除 active index，避免旧 delete 重试覆盖后续新消息激活；随后通过 `RemoveUserConversationActiveHints` 删除 UID-owner hot hint 并安装 stale hint barrier。
 - **命令 16 升级约束**: 混合版本 Slot 副本不能安全接收 `HideUserConversations`；发布时需要 stop-the-world 升级或后续 capability gate。
