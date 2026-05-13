@@ -15,6 +15,10 @@ var (
 	ErrStateStoreRequired = errors.New("usecase/cmdsync: state store required")
 	// ErrMessageStoreRequired reports a missing command-channel message dependency.
 	ErrMessageStoreRequired = errors.New("usecase/cmdsync: message store required")
+	// ErrIntentRequired reports a missing or malformed pending conversation intent.
+	ErrIntentRequired = errors.New("usecase/cmdsync: conversation intent required")
+	// ErrConversationIntentStaleOwner reports an intent routed to a stale UID owner.
+	ErrConversationIntentStaleOwner = errors.New("usecase/cmdsync: conversation intent stale owner")
 )
 
 // SyncQuery is the legacy /message/sync request after access-layer mapping.
@@ -49,10 +53,24 @@ type CommandChannelKey struct {
 	ChannelType uint8
 }
 
-// StateStore persists UID-owned durable CMD sync state.
+// PendingStateStore persists flushed CMD conversation state.
+type PendingStateStore interface {
+	UpsertCMDConversationStates(ctx context.Context, states []metadb.CMDConversationState) error
+}
+
+// StateStore persists UID-owned durable CMD sync state. P2d-d adds the upsert
+// method so syncack can create read progress for pending-only CMD conversations
+// before removing pending entries.
 type StateStore interface {
 	ListCMDConversationActive(ctx context.Context, uid string, limit int) ([]metadb.CMDConversationState, error)
 	AdvanceCMDConversationReadSeq(ctx context.Context, patches []metadb.CMDConversationReadPatch) error
+	UpsertCMDConversationStates(ctx context.Context, states []metadb.CMDConversationState) error
+}
+
+// ConversationPendingStore provides owner-local pending overlays to sync/ack.
+type ConversationPendingStore interface {
+	ListPending(ctx context.Context, uid string, limit int) []PendingConversationView
+	MarkSynced(ctx context.Context, uid string, key CommandChannelKey, throughSeq uint64) error
 }
 
 // MessageStore loads authoritative messages from command-channel logs.
