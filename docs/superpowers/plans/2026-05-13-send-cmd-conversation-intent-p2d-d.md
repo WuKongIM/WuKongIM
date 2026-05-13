@@ -67,8 +67,8 @@ Do not implement:
 - `internal/usecase/cmdsync/types.go`: extend store interfaces and define errors/interfaces for pending and intent routing.
 - `internal/usecase/cmdsync/app.go`: merge pending overlays into `Sync`; call pending cleanup from `SyncAck`.
 - `internal/usecase/cmdsync/app_test.go`: add sync overlay and ack cleanup tests.
-- `internal/usecase/cmdsync/projector.go`: remove subscriber-scan behavior or refactor to intent-only wrapper. Prefer deleting from app wiring and leaving only reusable helper functions if needed.
-- `internal/usecase/cmdsync/projector_test.go`: replace subscriber-scan tests with intent-builder/pending tests, or delete obsolete tests if `projector.go` is removed.
+- `internal/usecase/cmdsync/projector.go`: delete the old projector file after moving reusable helpers into `intent.go`.
+- `internal/usecase/cmdsync/projector_test.go`: delete obsolete subscriber-scan projector tests; coverage moves to intent, pending, app routing, and delivery observer tests.
 - `internal/contracts/messageevents/events.go`: add `CMDConversationIntentSubmitted bool` and clone coverage.
 - `internal/contracts/messageevents/events_test.go`: verify clone preserves the new flag.
 - `internal/runtime/delivery/types.go`: add `CMDConversationIntentSubmitted bool` to `CommittedEnvelope`.
@@ -284,14 +284,24 @@ func TestPendingUpdaterCoalescesByCommandChannelAndUID(t *testing.T) {
     require.Equal(t, []PendingConversationView{{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 7, ActiveAt: 70, ReadSeq: 5}}, got)
 }
 
-func TestPendingUpdaterFlushesUIDChannelEntriesAndKeepsFailures(t *testing.T) {
-    store := &fakePendingStateStore{failUID: "u2"}
+func TestPendingUpdaterKeepsWholeFailedFlushBatch(t *testing.T) {
+    store := &fakePendingStateStore{err: errors.New("store down")}
     updater := NewConversationUpdater(ConversationUpdaterOptions{Store: store, Now: fixedNano(1000), FlushBatchSize: 10})
     require.NoError(t, updater.PushIntent(context.Background(), ConversationIntent{CommandChannelID: "g1____cmd", ChannelType: 2, MessageSeq: 9, ActiveAt: 90, UserReadSeqs: map[string]uint64{"u1": 0, "u2": 0}}))
 
     require.Error(t, updater.Flush(context.Background()))
-    require.Empty(t, updater.ListPending(context.Background(), "u1", 10))
+    require.Equal(t, []PendingConversationView{{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 9, ActiveAt: 90, ReadSeq: 0}}, updater.ListPending(context.Background(), "u1", 10))
     require.Equal(t, []PendingConversationView{{CommandChannelID: "g1____cmd", ChannelType: 2, LastMsgSeq: 9, ActiveAt: 90, ReadSeq: 0}}, updater.ListPending(context.Background(), "u2", 10))
+}
+
+func TestPendingUpdaterRemovesSuccessfulFlushBatch(t *testing.T) {
+    store := &fakePendingStateStore{}
+    updater := NewConversationUpdater(ConversationUpdaterOptions{Store: store, Now: fixedNano(1000), FlushBatchSize: 10})
+    require.NoError(t, updater.PushIntent(context.Background(), ConversationIntent{CommandChannelID: "g1____cmd", ChannelType: 2, MessageSeq: 9, ActiveAt: 90, UserReadSeqs: map[string]uint64{"u1": 0, "u2": 0}}))
+
+    require.NoError(t, updater.Flush(context.Background()))
+    require.Empty(t, updater.ListPending(context.Background(), "u1", 10))
+    require.Empty(t, updater.ListPending(context.Background(), "u2", 10))
 }
 
 func TestPendingUpdaterSaveLoadRoundTrip(t *testing.T) {
@@ -330,6 +340,7 @@ In `internal/usecase/cmdsync/types.go`, add:
 ```go
 var (
     ErrIntentRequired = errors.New("usecase/cmdsync: conversation intent required")
+    ErrConversationIntentStaleOwner = errors.New("usecase/cmdsync: conversation intent stale owner")
 )
 
 // PendingStateStore persists flushed CMD conversation state.
@@ -388,7 +399,10 @@ state := metadb.CMDConversationState{
 }
 ```
 
-- Flush in bounded batches. If the store returns an error for a batch, keep all entries in that failed batch pending and return the error. If earlier batches succeeded, remove only their UID/channel entries.
+- Flush in bounded batches through the existing all-or-error `UpsertCMDConversationStates(ctx, []state) error` API.
+- If a batch succeeds, remove all UID/channel entries included in that successful batch.
+- If a batch fails, keep every UID/channel entry in that failed batch pending and return the error. Do not claim per-row success because the store API does not expose per-row results.
+- If earlier batches succeeded before a later batch failed, remove only the earlier successful batch entries.
 - `Stop()` should stop the ticker, run one final bounded `Flush(context.Background())`, then save remaining pending updates.
 
 - [ ] **Step 5: Implement pending file save/load**
@@ -470,6 +484,17 @@ func TestAppSyncAckCleansPendingAfterPersistedAdvance(t *testing.T) {
     require.Equal(t, []CommandChannelKey{{ChannelID: "g1____cmd", ChannelType: 2}}, pending.markedKeys)
     require.Equal(t, []uint64{9}, pending.markedSeqs)
 }
+
+func TestAppSyncAckTreatsPendingCleanupFailureAsBestEffort(t *testing.T) {
+    states := &fakeStateStore{}
+    pending := &fakePendingStore{markErr: errors.New("cleanup failed")}
+    records := NewSyncRecordCache(SyncRecordCacheOptions{Now: time.Now})
+    records.Replace("u1", []SyncRecord{{CommandChannelID: "g1____cmd", ChannelType: 2, LastReturnedMsgSeq: 9}})
+    app := New(Options{States: states, Messages: &fakeMessageStore{}, Records: records, Pending: pending})
+
+    require.NoError(t, app.SyncAck(context.Background(), SyncAckCommand{UID: "u1", LastMessageSeq: 9}))
+    require.NotEmpty(t, states.patches)
+}
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -501,17 +526,19 @@ activeAt := maxInt64(persisted.ActiveAt, pending.ActiveAt)
 
 - [ ] **Step 4: Clean pending on ack**
 
-After successful `a.states.AdvanceCMDConversationReadSeq(ctx, patches)`, call:
+Use `records := a.records.Pop(uid)` as today. After successful `a.states.AdvanceCMDConversationReadSeq(ctx, patches)`, call pending cleanup as best effort:
 
 ```go
 if a.pending != nil {
-    for _, record := range records {
-        _ = a.pending.MarkSynced(ctx, uid, CommandChannelKey{ChannelID: record.CommandChannelID, ChannelType: record.ChannelType}, record.LastReturnedMsgSeq)
+    for _, record := range validRecords {
+        if err := a.pending.MarkSynced(ctx, uid, CommandChannelKey{ChannelID: record.CommandChannelID, ChannelType: record.ChannelType}, record.LastReturnedMsgSeq); err != nil {
+            a.logger.Warn("cmd sync pending cleanup failed", wklog.Error(err))
+        }
     }
 }
 ```
 
-Only call for valid records that generated a read patch. If pending cleanup fails, return the error after persisted advancement so callers can retry ack cleanup; do not regress read state.
+Only call for valid records that generated a read patch. Do not return pending cleanup errors from `SyncAck`, because the sync records were already popped and a client retry cannot identify the same channel set. Pending cleanup is idempotent and best effort; any uncleaned pending entries will either be flushed or later ignored through max read-seq semantics.
 
 - [ ] **Step 5: Run cmdsync tests**
 
@@ -563,6 +590,24 @@ func TestCMDConversationIntentBinaryCodecRoundTrip(t *testing.T) {
     require.Equal(t, req, got)
 }
 
+func TestCMDIntentAdapterMissingProviderReturnsRejectedStatus(t *testing.T) {
+    adapter := New(Options{})
+    body, err := adapter.handleCMDSyncRPC(context.Background(), mustEncodeCMDSyncRequest(t, cmdSyncRPCRequest{Op: cmdSyncOpPushIntent, Intent: cmdsync.ConversationIntent{CommandChannelID: "g1____cmd", ChannelType: 2, MessageSeq: 1, UserReadSeqs: map[string]uint64{"u1": 0}}}))
+    require.NoError(t, err)
+    resp := mustDecodeCMDSyncResponse(t, body)
+    require.Equal(t, rpcStatusRejected, resp.Status)
+    require.Contains(t, resp.Error, "cmd conversation intent")
+}
+
+func TestCMDIntentAdapterStaleOwnerIsRetryable(t *testing.T) {
+    sink := &recordingCMDIntentSink{err: cmdsync.ErrConversationIntentStaleOwner}
+    adapter := New(Options{CMDConversationIntents: sink})
+    body, err := adapter.handleCMDSyncRPC(context.Background(), mustEncodeCMDSyncRequest(t, cmdSyncRPCRequest{Op: cmdSyncOpPushIntent, Intent: cmdsync.ConversationIntent{CommandChannelID: "g1____cmd", ChannelType: 2, MessageSeq: 1, UserReadSeqs: map[string]uint64{"u1": 0}}}))
+    require.NoError(t, err)
+    resp := mustDecodeCMDSyncResponse(t, body)
+    require.Equal(t, rpcStatusStaleOwner, resp.Status)
+}
+
 func TestCMDIntentClientPushCallsRemoteOwner(t *testing.T) {
     network := newFakeClusterNetwork(map[uint64][]uint64{}, map[uint64]uint64{})
     sink := &recordingCMDIntentSink{}
@@ -603,13 +648,18 @@ Add `CMDConversationIntents CMDConversationIntentSink` to `Options` and `cmdConv
 In `internal/access/node/cmdsync_rpc.go`:
 
 - Add `cmdSyncOpPushIntent = "push_intent"`.
+- Add a retryable status constant such as `rpcStatusStaleOwner = "stale_owner"` if no existing retryable status fits.
 - Add `Intent cmdsync.ConversationIntent` to `cmdSyncRPCRequest`.
 - In `handleCMDSyncRPC`, route the new op to `a.cmdConversationIntents.PushIntent(ctx, req.Intent)`.
+- If the provider is missing or the intent is malformed, return `rpcStatusRejected`.
+- If `errors.Is(err, cmdsync.ErrConversationIntentStaleOwner)`, return `rpcStatusStaleOwner` so the client can preserve retry semantics.
 - Add client method:
 
 ```go
 func (c *Client) PushCMDConversationIntent(ctx context.Context, nodeID uint64, intent cmdsync.ConversationIntent) error
 ```
+
+The client must convert `rpcStatusStaleOwner` into an error that satisfies `errors.Is(err, cmdsync.ErrConversationIntentStaleOwner)`.
 
 - [ ] **Step 4: Extend binary codec**
 
@@ -696,10 +746,11 @@ func TestCMDIntentRouterPartialFailureReturnsNotFullyAccepted(t *testing.T) {
 }
 ```
 
-Also test owner-local receiver validation:
+Also test owner-local receiver validation and stale-owner propagation:
 
-- `ownerValidatingCMDIntentSink` rejects a UID not owned by local node with a stale-owner error.
-- Router can re-resolve and retry once when remote returns stale-owner, if that is easy with the fake cluster.
+- `ownerValidatingCMDIntentSink` rejects a UID not owned by local node with `cmdsync.ErrConversationIntentStaleOwner`.
+- Router re-resolves UID ownership and retries once when the remote client returns an error satisfying `errors.Is(err, cmdsync.ErrConversationIntentStaleOwner)`.
+- The node RPC mapping for that sentinel is covered in Task 4.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -744,6 +795,7 @@ Implementation:
 - Remote group calls `remote.PushCMDConversationIntent`.
 - Return `fullyAccepted=true` only when every group succeeds.
 - If one group fails after earlier groups succeed, return `false` and joined error; duplicate retry is safe.
+- If a remote group returns `cmdsync.ErrConversationIntentStaleOwner`, re-resolve that group's UIDs with `LeaderOf(SlotForKey(uid))` and retry once. If it still fails, return `false` and the joined error.
 
 - [ ] **Step 4: Implement local owner validation wrapper**
 
@@ -759,7 +811,7 @@ type ownerValidatingCMDIntentSink struct {
 func (s ownerValidatingCMDIntentSink) PushIntent(ctx context.Context, intent cmdsync.ConversationIntent) error
 ```
 
-For every UID in `intent.UserReadSeqs`, verify `ownerNodeID(uid) == localNodeID`. If not, return a stale-owner error; do not store partial invalid intents locally.
+For every UID in `intent.UserReadSeqs`, verify `ownerNodeID(uid) == localNodeID`. If not, return `cmdsync.ErrConversationIntentStaleOwner`; do not store partial invalid intents locally.
 
 - [ ] **Step 5: Run router tests**
 
@@ -1054,10 +1106,11 @@ func (o cmdConversationResolvedUIDObserver) OnResolvedUIDPage(ctx context.Contex
 
 Refactor `internal/usecase/cmdsync/projector.go`:
 
-- Preferred: delete `Projector`, `ProjectorOptions`, queue, subscriber resolver scan, and direct state writes after app wiring no longer uses it.
-- If deletion causes too much churn, keep a deprecated type only for tests but make it accept already-built intents and push to `ConversationUpdater`; it must not call `SubscriberResolver.NextPage`.
+- Delete `Projector`, `ProjectorOptions`, queue, subscriber resolver scan, and direct state writes after app wiring no longer uses it.
+- Move `isDurableCMDProjectionMessage`, `activeAtFromMessage`, and `uniqueNonEmptyStrings` into `intent.go` if they still live in `projector.go`.
+- Delete `internal/usecase/cmdsync/projector_test.go`; equivalent coverage belongs in `intent_test.go`, `pending_test.go`, and app delivery observer tests.
 
-Update/remove `internal/usecase/cmdsync/projector_test.go` so no test expects post-commit subscriber scanning.
+No test should expect post-commit subscriber scanning after this task.
 
 - [ ] **Step 7: Run focused tests**
 
