@@ -147,6 +147,7 @@ Rules:
 - Receivers get `0`.
 - Duplicate UIDs are collapsed before the intent is enqueued.
 - `NoPersist` and seq-zero realtime messages never create intents.
+- `ActiveAt` should be derived from the message timestamp when present, otherwise from the injected clock. Tests should inject the clock rather than relying on wall time.
 
 The pending buffer can store a normalized shape close to the old `channelUpdate`:
 
@@ -251,6 +252,8 @@ internal/access/node/cmdsync_intent_rpc.go
 ```
 
 It must not contain business rules beyond validation and transport mapping.
+
+The receiver should preserve the owner-local invariant. If the RPC target no longer owns a UID in the intent, it should reject that UID or the whole request with a retryable stale-owner error rather than storing it locally. The caller can then re-resolve UID ownership and retry.
 
 ### 3. Owner-local pending updater
 
@@ -405,6 +408,7 @@ Important rules:
 - Pending receiver read seq `0` activates the channel but does not override a persisted read seq.
 - Pending sender read seq equal to `MessageSeq` prevents the sender's own CMD message from being returned as unread when no persisted state exists yet.
 - If pending indicates a channel is active but fetch returns no messages beyond `effectiveReadSeq`, no sync record is created for that channel.
+- Persisted and pending candidates share the same deterministic ordering and global limit rules from P2d-c. The merge must decide candidate order before fetching enough messages to satisfy the global response limit.
 - Ordinary `/conversation/sync` must not use this pending buffer.
 
 ### 7. `/message/syncack` pending cleanup
