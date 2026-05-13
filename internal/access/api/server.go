@@ -9,6 +9,7 @@ import (
 
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	testdatausecase "github.com/WuKongIM/WuKongIM/internal/usecase/testdata"
@@ -22,6 +23,12 @@ var ErrListenAddrRequired = errors.New("access/api: listen address required")
 type MessageUsecase interface {
 	Send(ctx context.Context, cmd message.SendCommand) (message.SendResult, error)
 	SyncChannelMessages(ctx context.Context, query message.SyncChannelMessagesQuery) (message.SyncChannelMessagesResult, error)
+}
+
+// CMDSyncUsecase serves legacy durable command-message sync APIs.
+type CMDSyncUsecase interface {
+	Sync(ctx context.Context, query cmdsync.SyncQuery) (cmdsync.SyncResult, error)
+	SyncAck(ctx context.Context, cmd cmdsync.SyncAckCommand) error
 }
 
 type UserUsecase interface {
@@ -81,6 +88,7 @@ type LegacyRouteAddresses struct {
 type Options struct {
 	ListenAddr               string
 	Messages                 MessageUsecase
+	CMDSync                  CMDSyncUsecase
 	Users                    UserUsecase
 	Channels                 ChannelUsecase
 	TestMode                 bool
@@ -110,6 +118,7 @@ type Server struct {
 	listenAddr               string
 	addr                     string
 	messages                 MessageUsecase
+	cmdSync                  CMDSyncUsecase
 	users                    UserUsecase
 	channels                 ChannelUsecase
 	testMode                 bool
@@ -146,6 +155,7 @@ func New(opts Options) *Server {
 		engine:                   engine,
 		listenAddr:               opts.ListenAddr,
 		messages:                 opts.Messages,
+		cmdSync:                  opts.CMDSync,
 		users:                    opts.Users,
 		channels:                 opts.Channels,
 		testMode:                 opts.TestMode,

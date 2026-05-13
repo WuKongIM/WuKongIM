@@ -12,12 +12,14 @@ import (
 	"testing"
 
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	testdatausecase "github.com/WuKongIM/WuKongIM/internal/usecase/testdata"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
 )
 
@@ -861,6 +863,137 @@ func TestChannelMessageSyncReturnsLegacyValidationError(t *testing.T) {
 	require.JSONEq(t, `{"msg":"login_uid不能为空！","status":400}`, rec.Body.String())
 }
 
+func TestMessageSyncMapsLegacyRequestToCMDSyncUsecase(t *testing.T) {
+	cmdSync := &recordingCMDSyncUsecase{
+		syncResult: cmdsync.SyncResult{Messages: []channel.Message{
+			{
+				Framer:      frame.Framer{RedDot: true, SyncOnce: true},
+				MessageID:   99,
+				MessageSeq:  7,
+				ClientMsgNo: "cmd-1",
+				FromUID:     "system",
+				ChannelID:   "g1",
+				ChannelType: frame.ChannelTypeGroup,
+				Timestamp:   123,
+				Payload:     []byte("cmd"),
+			},
+			{
+				MessageID:   100,
+				MessageSeq:  8,
+				FromUID:     "u2",
+				ChannelID:   runtimechannelid.EncodePersonChannel("u1", "u2"),
+				ChannelType: frame.ChannelTypePerson,
+				Payload:     []byte("peer"),
+			},
+		}},
+	}
+	srv := New(Options{CMDSync: cmdSync})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/sync", bytes.NewBufferString(`{"uid":"u1","message_seq":3,"limit":20}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `[{"header":{"no_persist":0,"red_dot":1,"sync_once":1},"setting":0,"message_id":99,"message_idstr":"99","client_msg_no":"cmd-1","message_seq":7,"from_uid":"system","channel_id":"g1","channel_type":2,"expire":0,"timestamp":123,"payload":"Y21k"},{"header":{"no_persist":0,"red_dot":0,"sync_once":0},"setting":0,"message_id":100,"message_idstr":"100","client_msg_no":"","message_seq":8,"from_uid":"u2","channel_id":"u2","channel_type":1,"expire":0,"timestamp":0,"payload":"cGVlcg=="}]`, rec.Body.String())
+	require.Equal(t, []cmdsync.SyncQuery{{UID: "u1", MessageSeq: 3, Limit: 20}}, cmdSync.syncQueries)
+}
+
+func TestMessageSyncReturnsSourceChannelFromCommandLog(t *testing.T) {
+	commandChannelID := runtimechannelid.ToCommandChannel("g1")
+	states := &apiCMDStateStore{
+		active: []metadb.CMDConversationState{{
+			UID: "u1", ChannelID: commandChannelID, ChannelType: int64(frame.ChannelTypeGroup), ReadSeq: 4, ActiveAt: 100,
+		}},
+	}
+	messages := &apiCMDMessageStore{
+		byKey: map[cmdsync.CommandChannelKey][]channel.Message{
+			{ChannelID: commandChannelID, ChannelType: frame.ChannelTypeGroup}: {{
+				MessageID: 99, MessageSeq: 5, ChannelID: commandChannelID, ChannelType: frame.ChannelTypeGroup, Payload: []byte("cmd"),
+			}},
+		},
+	}
+	srv := New(Options{CMDSync: cmdsync.New(cmdsync.Options{States: states, Messages: messages})})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/sync", bytes.NewBufferString(`{"uid":"u1","limit":10}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `[{"header":{"no_persist":0,"red_dot":0,"sync_once":0},"setting":0,"message_id":99,"message_idstr":"99","client_msg_no":"","message_seq":5,"from_uid":"","channel_id":"g1","channel_type":2,"expire":0,"timestamp":0,"payload":"Y21k"}]`, rec.Body.String())
+	require.NotContains(t, rec.Body.String(), runtimechannelid.CommandChannelSuffix)
+}
+
+func TestMessageSyncReturnsLegacyValidationErrors(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "missing uid", body: `{"uid":"","message_seq":1}`, want: `{"msg":"uid不能为空！","status":400}`},
+		{name: "negative limit", body: `{"uid":"u1","limit":-1}`, want: `{"msg":"limit不能为负数！","status":400}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cmdSync := &recordingCMDSyncUsecase{}
+			srv := New(Options{CMDSync: cmdSync})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/message/sync", bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusBadRequest, rec.Code)
+			require.JSONEq(t, tt.want, rec.Body.String())
+			require.Empty(t, cmdSync.syncQueries)
+		})
+	}
+}
+
+func TestMessageSyncAckMapsLegacyRequestToCMDSyncUsecase(t *testing.T) {
+	cmdSync := &recordingCMDSyncUsecase{}
+	srv := New(Options{CMDSync: cmdSync})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/message/syncack", bytes.NewBufferString(`{"uid":"u1","last_message_seq":9}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"status":200}`, rec.Body.String())
+	require.Equal(t, []cmdsync.SyncAckCommand{{UID: "u1", LastMessageSeq: 9}}, cmdSync.acks)
+}
+
+func TestMessageSyncAckRejectsMissingLastMessageSeq(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "missing uid", body: `{"uid":"","last_message_seq":9}`, want: `{"msg":"uid不能为空！","status":400}`},
+		{name: "missing last message seq", body: `{"uid":"u1","last_message_seq":0}`, want: `{"msg":"last_message_seq不能为空！","status":400}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cmdSync := &recordingCMDSyncUsecase{}
+			srv := New(Options{CMDSync: cmdSync})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/message/syncack", bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusBadRequest, rec.Code)
+			require.JSONEq(t, tt.want, rec.Body.String())
+			require.Empty(t, cmdSync.acks)
+		})
+	}
+}
+
 func TestUpdateTokenMapsJSONToUsecaseCommand(t *testing.T) {
 	users := &recordingUserUsecase{}
 	srv := New(Options{Users: users})
@@ -1279,6 +1412,68 @@ func (r *recordingMessageUsecase) SyncChannelMessages(ctx context.Context, query
 		return r.syncFn(ctx, query)
 	}
 	return r.syncResult, r.syncErr
+}
+
+type recordingCMDSyncUsecase struct {
+	syncQueries []cmdsync.SyncQuery
+	acks        []cmdsync.SyncAckCommand
+	syncResult  cmdsync.SyncResult
+	syncErr     error
+	ackErr      error
+}
+
+func (r *recordingCMDSyncUsecase) Sync(_ context.Context, query cmdsync.SyncQuery) (cmdsync.SyncResult, error) {
+	r.syncQueries = append(r.syncQueries, query)
+	return r.syncResult, r.syncErr
+}
+
+func (r *recordingCMDSyncUsecase) SyncAck(_ context.Context, cmd cmdsync.SyncAckCommand) error {
+	r.acks = append(r.acks, cmd)
+	return r.ackErr
+}
+
+// apiCMDStateStore is a small CMD sync state fake used by HTTP adapter tests.
+type apiCMDStateStore struct {
+	active  []metadb.CMDConversationState
+	patches []metadb.CMDConversationReadPatch
+}
+
+func (s *apiCMDStateStore) ListCMDConversationActive(_ context.Context, uid string, limit int) ([]metadb.CMDConversationState, error) {
+	out := make([]metadb.CMDConversationState, 0, len(s.active))
+	for _, state := range s.active {
+		if state.UID != uid {
+			continue
+		}
+		out = append(out, state)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (s *apiCMDStateStore) AdvanceCMDConversationReadSeq(_ context.Context, patches []metadb.CMDConversationReadPatch) error {
+	s.patches = append(s.patches, patches...)
+	return nil
+}
+
+// apiCMDMessageStore is a command-log fake that filters by message sequence.
+type apiCMDMessageStore struct {
+	byKey map[cmdsync.CommandChannelKey][]channel.Message
+}
+
+func (s *apiCMDMessageStore) LoadCommandMessages(_ context.Context, key cmdsync.CommandChannelKey, fromSeq uint64, limit int) ([]channel.Message, error) {
+	out := make([]channel.Message, 0, len(s.byKey[key]))
+	for _, msg := range s.byKey[key] {
+		if msg.MessageSeq < fromSeq {
+			continue
+		}
+		out = append(out, msg)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
 }
 
 type recordingUserUsecase struct {
