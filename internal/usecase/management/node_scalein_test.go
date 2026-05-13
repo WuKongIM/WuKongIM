@@ -191,6 +191,27 @@ func TestPlanNodeScaleInCountsChannelLeadersAndReplicas(t *testing.T) {
 	require.False(t, report.SafeToRemove)
 }
 
+func TestPlanNodeScaleInCountsChannelISRReplicas(t *testing.T) {
+	fixture := newScaleInActionFixture()
+	fixture.cluster.nodes[2].Status = controllermeta.NodeStatusDraining
+	fixture.cluster.assignments = []controllermeta.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 2}}
+	fixture.cluster.views = []controllermeta.SlotRuntimeView{{SlotID: 1, CurrentPeers: []uint64{1, 2}, LeaderID: 1, HealthyVoters: 2, HasQuorum: true, LastReportAt: fixture.now}}
+	fixture.channelRuntime = &fakeScaleInChannelRuntimeMeta{metas: map[multiraft.SlotID][]metadb.ChannelRuntimeMeta{
+		1: {
+			{ChannelID: "isr-only-on-3", ChannelType: 1, Leader: 1, Replicas: []uint64{1, 2}, ISR: []uint64{1, 2, 3}, Status: uint8(channel.StatusActive)},
+		},
+	}}
+	fixture.rebuildApp()
+
+	report, err := fixture.app.PlanNodeScaleIn(context.Background(), 3, fixture.req)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, report.Progress.ChannelReplicas)
+	require.False(t, report.Checks.NoChannelReplicasOnTarget)
+	require.Equal(t, NodeScaleInStatusDrainingChannels, report.Status)
+	require.False(t, report.SafeToRemove)
+}
+
 func TestPlanNodeScaleInFailsClosedWhenChannelInventoryUnavailable(t *testing.T) {
 	fixture := newScaleInActionFixture()
 	fixture.cluster.nodes[2].Status = controllermeta.NodeStatusDraining
@@ -208,6 +229,61 @@ func TestPlanNodeScaleInFailsClosedWhenChannelInventoryUnavailable(t *testing.T)
 	require.Contains(t, scaleInReasonCodes(report.BlockedReasons), "channel_inventory_unavailable")
 	require.Equal(t, NodeScaleInStatusBlocked, report.Status)
 	require.False(t, report.SafeToRemove)
+}
+
+func TestPlanNodeScaleInFailsClosedWhenChannelInventoryDependenciesMissing(t *testing.T) {
+	tests := []struct {
+		name             string
+		provideRuntime   bool
+		provideMigration bool
+	}{
+		{name: "runtime missing", provideMigration: true},
+		{name: "migration missing", provideRuntime: true},
+		{name: "both missing"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			now := time.Unix(1713686400, 0).UTC()
+			var channelRuntime ChannelRuntimeMetaReader
+			if tc.provideRuntime {
+				channelRuntime = &fakeScaleInChannelRuntimeMeta{}
+			}
+			var channelMigration ChannelMigrationStore
+			if tc.provideMigration {
+				channelMigration = &fakeScaleInChannelMigrationStore{}
+			}
+			app := New(Options{
+				ControllerPeerIDs:        []uint64{1},
+				SlotReplicaN:             2,
+				ScaleInRuntimeViewMaxAge: time.Minute,
+				Cluster: &fakeClusterReader{
+					slotIDs: []multiraft.SlotID{1},
+					nodes: []controllermeta.ClusterNode{
+						scaleInTestNode(1, controllermeta.NodeRoleData, controllermeta.NodeJoinStateActive, controllermeta.NodeStatusAlive),
+						scaleInTestNode(2, controllermeta.NodeRoleData, controllermeta.NodeJoinStateActive, controllermeta.NodeStatusAlive),
+						scaleInTestNode(3, controllermeta.NodeRoleData, controllermeta.NodeJoinStateActive, controllermeta.NodeStatusDraining),
+					},
+					assignments: []controllermeta.SlotAssignment{{SlotID: 1, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 2}},
+					views:       []controllermeta.SlotRuntimeView{{SlotID: 1, CurrentPeers: []uint64{1, 2}, LeaderID: 1, HealthyVoters: 2, HasQuorum: true, LastReportAt: now}},
+				},
+				RuntimeSummary:     scaleInRuntimeSummaryReader{summary: NodeRuntimeSummary{NodeID: 3}},
+				ChannelRuntimeMeta: channelRuntime,
+				ChannelMigration:   channelMigration,
+				Now:                func() time.Time { return now },
+			})
+
+			report, err := app.PlanNodeScaleIn(context.Background(), 3, NodeScaleInPlanRequest{ConfirmStatefulSetTail: true, ExpectedTailNodeID: 3})
+
+			require.NoError(t, err)
+			require.True(t, report.Progress.ChannelInventoryPartial)
+			require.False(t, report.Checks.ChannelInventoryAvailable)
+			require.Contains(t, report.Progress.ChannelInventoryError, "channel inventory dependencies are not configured")
+			require.Contains(t, scaleInReasonCodes(report.BlockedReasons), "channel_inventory_unavailable")
+			require.Equal(t, NodeScaleInStatusBlocked, report.Status)
+			require.False(t, report.SafeToRemove)
+		})
+	}
 }
 
 func TestScaleInStatusWaitsForChannelMigrationsBeforeConnections(t *testing.T) {

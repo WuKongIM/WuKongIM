@@ -88,11 +88,8 @@ func (i *nodeScaleInChannelInventory) addRuntimeMeta(ctx context.Context, store 
 		i.leaders++
 		referencesTarget = true
 	}
-	if scaleInUint64sContain(meta.Replicas, nodeID) {
+	if scaleInUint64sContain(meta.Replicas, nodeID) || scaleInUint64sContain(meta.ISR, nodeID) {
 		i.replicas++
-		referencesTarget = true
-	}
-	if scaleInUint64sContain(meta.ISR, nodeID) {
 		referencesTarget = true
 	}
 	if !referencesTarget {
