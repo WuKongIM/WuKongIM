@@ -18,4 +18,6 @@ const (
 	channelRetentionRPCServiceID      uint8 = 43
 	deliveryTagRPCServiceID           uint8 = 44
 	systemUIDCacheRPCServiceID        uint8 = 45
+	// 46 is reserved by slot/proxy CMD conversation state on the shared RPC mux.
+	cmdSyncRPCServiceID uint8 = 47
 )

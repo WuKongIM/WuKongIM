@@ -10,6 +10,7 @@ import (
 	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
@@ -144,6 +145,12 @@ type SystemUIDCache interface {
 	RemoveSystemUIDsFromCache(uids []string) error
 }
 
+// CMDSyncUsecase serves UID-owned durable command-message sync requests.
+type CMDSyncUsecase interface {
+	Sync(ctx context.Context, query cmdsync.SyncQuery) (cmdsync.SyncResult, error)
+	SyncAck(ctx context.Context, cmd cmdsync.SyncAckCommand) error
+}
+
 type Options struct {
 	Cluster               Cluster
 	Presence              Presence
@@ -164,6 +171,7 @@ type Options struct {
 	Diagnostics           DiagnosticsProvider
 	ChannelRetention      ChannelRetentionProvider
 	SystemUIDCache        SystemUIDCache
+	CMDSync               CMDSyncUsecase
 	Codec                 codec.Protocol
 	Logger                wklog.Logger
 }
@@ -188,6 +196,7 @@ type Adapter struct {
 	diagnostics           DiagnosticsProvider
 	channelRetention      ChannelRetentionProvider
 	systemUIDCache        SystemUIDCache
+	cmdSync               CMDSyncUsecase
 	codec                 codec.Protocol
 	logger                wklog.Logger
 }
@@ -219,6 +228,7 @@ func New(opts Options) *Adapter {
 		diagnostics:           opts.Diagnostics,
 		channelRetention:      opts.ChannelRetention,
 		systemUIDCache:        opts.SystemUIDCache,
+		cmdSync:               opts.CMDSync,
 		codec:                 opts.Codec,
 		logger:                opts.Logger,
 	}
@@ -240,6 +250,7 @@ func New(opts Options) *Adapter {
 		opts.Cluster.RPCMux().Handle(diagnosticsRPCServiceID, adapter.handleDiagnosticsRPC)
 		opts.Cluster.RPCMux().Handle(channelRetentionRPCServiceID, adapter.handleChannelRetentionRPC)
 		opts.Cluster.RPCMux().Handle(systemUIDCacheRPCServiceID, adapter.handleSystemUIDCacheRPC)
+		opts.Cluster.RPCMux().Handle(cmdSyncRPCServiceID, adapter.handleCMDSyncRPC)
 	}
 	return adapter
 }
