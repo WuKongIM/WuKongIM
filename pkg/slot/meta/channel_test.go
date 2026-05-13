@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -257,6 +258,59 @@ func TestChannelStatusFlagsRoundTrip(t *testing.T) {
 	}
 }
 
+func TestShardListChannelsPageReturnsStableCursor(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+
+	channels := []Channel{
+		{ChannelID: "a", ChannelType: 2, Ban: 1},
+		{ChannelID: "b", ChannelType: 1, Disband: 1},
+		{ChannelID: "b", ChannelType: 2, SendBan: 1},
+	}
+	for _, ch := range channels {
+		if err := shard.CreateChannel(ctx, ch); err != nil {
+			t.Fatalf("CreateChannel(%s:%d): %v", ch.ChannelID, ch.ChannelType, err)
+		}
+	}
+
+	page1, cursor, done, err := shard.ListChannelsPage(ctx, ChannelCursor{}, 2)
+	if err != nil {
+		t.Fatalf("ListChannelsPage(page1): %v", err)
+	}
+	if done {
+		t.Fatal("expected page1 to have more data")
+	}
+	if got, want := channelKeysForTest(page1), []string{"a:2", "b:1"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("page1 keys = %#v, want %#v", got, want)
+	}
+	if want := (ChannelCursor{ChannelID: "b", ChannelType: 1}); cursor != want {
+		t.Fatalf("page1 cursor = %#v, want %#v", cursor, want)
+	}
+
+	page2, cursor, done, err := shard.ListChannelsPage(ctx, cursor, 2)
+	if err != nil {
+		t.Fatalf("ListChannelsPage(page2): %v", err)
+	}
+	if !done {
+		t.Fatal("expected page2 to be done")
+	}
+	if got, want := channelKeysForTest(page2), []string{"b:2"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("page2 keys = %#v, want %#v", got, want)
+	}
+	if want := (ChannelCursor{ChannelID: "b", ChannelType: 2}); cursor != want {
+		t.Fatalf("page2 cursor = %#v, want %#v", cursor, want)
+	}
+}
+
+func TestShardListChannelsPageRejectsInvalidLimit(t *testing.T) {
+	db := openTestDB(t)
+	_, _, _, err := db.ForSlot(7).ListChannelsPage(context.Background(), ChannelCursor{}, 0)
+	if !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("ListChannelsPage(limit=0) error = %v, want ErrInvalidArgument", err)
+	}
+}
+
 func TestChannelSubscriberMutationVersionRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
@@ -290,6 +344,14 @@ func TestChannelSubscriberMutationVersionRoundTrip(t *testing.T) {
 	if got.Ban != updated.Ban {
 		t.Fatalf("ban after update = %d, want %d", got.Ban, updated.Ban)
 	}
+}
+
+func channelKeysForTest(channels []Channel) []string {
+	out := make([]string, 0, len(channels))
+	for _, ch := range channels {
+		out = append(out, ch.ChannelID+":"+strconv.FormatInt(ch.ChannelType, 10))
+	}
+	return out
 }
 
 func TestSubscriberMutationVersionAdvancesMonotonically(t *testing.T) {
