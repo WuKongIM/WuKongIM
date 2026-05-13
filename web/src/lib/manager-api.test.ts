@@ -32,6 +32,9 @@ import {
   getSlots,
   getTask,
   getTasks,
+  getUsers,
+  getUser,
+  kickUser,
   loginManager,
   managerFetch,
   ManagerApiError,
@@ -51,6 +54,7 @@ import {
   transferSlotLeader,
   advanceMessageRetention,
   repairChannelClusterLeader,
+  resetUserToken,
   transferChannelClusterLeader,
 } from "@/lib/manager-api"
 
@@ -186,6 +190,49 @@ describe("manager api client", () => {
       "/manager/overview",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
+  })
+
+  it("fetches manager users with search params", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ items: [], has_more: false }), { status: 200 }))
+
+    await expect(getUsers({ keyword: "u1", limit: 25, cursor: "abc" })).resolves.toEqual({ items: [], has_more: false })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/users?keyword=u1&limit=25&cursor=abc",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
+  it("fetches manager user detail with encoded uid", async () => {
+    const detail = { uid: "u/1", slot_id: 1, hash_slot: 7, online: false, devices: [], connections: [] }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(detail), { status: 200 }))
+
+    await expect(getUser("u/1")).resolves.toEqual(detail)
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/users/u%2F1")
+  })
+
+  it("kicks a manager user", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ uid: "u1", device_flag: "all", changed: true }), { status: 200 }))
+
+    await kickUser("u1", { deviceFlag: "all" })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/users/u1/kick")
+    expect(JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string)).toEqual({
+      device_flag: "all",
+    })
+  })
+
+  it("resets a manager user token", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ uid: "u1", device_flag: "app", device_level: "master", token: "next" }), { status: 200 }))
+
+    await resetUserToken("u1", { deviceFlag: "app", deviceLevel: "master" })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/manager/users/u1/token/reset")
+    expect(JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string)).toEqual({
+      device_flag: "app",
+      device_level: "master",
+    })
   })
 
   it("fetches network summary from the manager network endpoint", async () => {

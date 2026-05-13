@@ -8,6 +8,8 @@ import type {
   DiagnosticsCommonParams,
   DiagnosticsEventsParams,
   DiagnosticsMessageParams,
+  KickUserInput,
+  KickUserResponse,
   ManagerChannelRuntimeMetaDetailResponse,
   ManagerChannelRuntimeMetaListResponse,
   ManagerChannelClusterSummaryResponse,
@@ -32,6 +34,8 @@ import type {
   ManagerNodesResponse,
   ManagerOverviewResponse,
   ManagerPermission,
+  ManagerUserDetailResponse,
+  ManagerUsersResponse,
   ManagerSlotDetailResponse,
   ManagerSlotLogsResponse,
   ManagerSlotRaftCompactResponse,
@@ -46,6 +50,8 @@ import type {
   SlotListParams,
   SlotLogListParams,
   RecoverSlotInput,
+  ResetUserTokenInput,
+  ResetUserTokenResponse,
   TransferSlotLeaderInput,
   CreateNodeOnboardingPlanInput,
   CreateNodeScaleInPlanInput,
@@ -54,6 +60,7 @@ import type {
   AdvanceMessageRetentionResponse,
   RepairChannelClusterLeaderInput,
   TransferChannelClusterLeaderInput,
+  UserListParams,
 } from "@/lib/manager-api.types"
 
 export type ManagerAuthConfig = {
@@ -185,6 +192,22 @@ function buildConnectionDetailPath(sessionId: number, params?: ConnectionDetailP
 
   const query = search.toString()
   return query ? `/manager/connections/${sessionId}?${query}` : `/manager/connections/${sessionId}`
+}
+
+function buildUsersPath(params?: UserListParams) {
+  const search = new URLSearchParams()
+  if (params?.keyword !== undefined) {
+    search.set("keyword", params.keyword)
+  }
+  if (typeof params?.limit === "number") {
+    search.set("limit", String(params.limit))
+  }
+  if (params?.cursor) {
+    search.set("cursor", params.cursor)
+  }
+
+  const query = search.toString()
+  return query ? `/manager/users?${query}` : "/manager/users"
 }
 
 function buildNodeOnboardingJobsPath(params?: NodeOnboardingJobsParams) {
@@ -444,6 +467,32 @@ export function getConnections(params?: ConnectionListParams) {
 
 export function getConnection(sessionId: number, params?: ConnectionDetailParams) {
   return jsonManagerFetch<ManagerConnectionDetailResponse>(buildConnectionDetailPath(sessionId, params))
+}
+
+export function getUsers(params?: UserListParams) {
+  return jsonManagerFetch<ManagerUsersResponse>(buildUsersPath(params))
+}
+
+export function getUser(uid: string) {
+  return jsonManagerFetch<ManagerUserDetailResponse>(`/manager/users/${encodeURIComponent(uid)}`)
+}
+
+export function kickUser(uid: string, input: KickUserInput) {
+  return jsonManagerFetch<KickUserResponse>(`/manager/users/${encodeURIComponent(uid)}/kick`, {
+    method: "POST",
+    body: JSON.stringify({ device_flag: input.deviceFlag }),
+  })
+}
+
+export function resetUserToken(uid: string, input: ResetUserTokenInput) {
+  return jsonManagerFetch<ResetUserTokenResponse>(`/manager/users/${encodeURIComponent(uid)}/token/reset`, {
+    method: "POST",
+    body: JSON.stringify({
+      device_flag: input.deviceFlag,
+      device_level: input.deviceLevel,
+      token: input.token,
+    }),
+  })
 }
 
 export function getMessages(params: MessageListParams) {
