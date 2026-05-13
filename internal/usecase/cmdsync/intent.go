@@ -36,6 +36,10 @@ type PendingConversationUpdate struct {
 	ActiveAt int64 `json:"active_at"`
 	// UserReadSeqs maps each pending recipient UID to its read sequence.
 	UserReadSeqs map[string]uint64 `json:"user_read_seqs"`
+	// UserLastMsgSeqs maps each pending recipient UID to its covered message sequence.
+	UserLastMsgSeqs map[string]uint64 `json:"user_last_msg_seqs,omitempty"`
+	// UserActiveAts maps each pending recipient UID to its activity timestamp.
+	UserActiveAts map[string]int64 `json:"user_active_ats,omitempty"`
 }
 
 // PendingConversationView is the pending overlay for one UID and CMD channel.

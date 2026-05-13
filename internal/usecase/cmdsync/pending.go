@@ -179,6 +179,8 @@ func (u *ConversationUpdater) PushIntent(_ context.Context, intent ConversationI
 			LastMsgSeq:       intent.MessageSeq,
 			ActiveAt:         intent.ActiveAt,
 			UserReadSeqs:     make(map[string]uint64, len(readSeqs)),
+			UserLastMsgSeqs:  make(map[string]uint64, len(readSeqs)),
+			UserActiveAts:    make(map[string]int64, len(readSeqs)),
 		}
 		shard.pendingByChannel[key] = update
 	} else {
@@ -193,6 +195,18 @@ func (u *ConversationUpdater) PushIntent(_ context.Context, intent ConversationI
 	for uid, readSeq := range readSeqs {
 		if current, ok := update.UserReadSeqs[uid]; !ok || readSeq > current {
 			update.UserReadSeqs[uid] = readSeq
+		}
+		if update.UserLastMsgSeqs == nil {
+			update.UserLastMsgSeqs = make(map[string]uint64, len(update.UserReadSeqs))
+		}
+		if current, ok := update.UserLastMsgSeqs[uid]; !ok || intent.MessageSeq > current {
+			update.UserLastMsgSeqs[uid] = intent.MessageSeq
+		}
+		if update.UserActiveAts == nil {
+			update.UserActiveAts = make(map[string]int64, len(update.UserReadSeqs))
+		}
+		if current, ok := update.UserActiveAts[uid]; !ok || intent.ActiveAt > current {
+			update.UserActiveAts[uid] = intent.ActiveAt
 		}
 		if shard.userIndex[uid] == nil {
 			shard.userIndex[uid] = make(map[CommandChannelKey]struct{})
@@ -229,8 +243,8 @@ func (u *ConversationUpdater) ListPending(_ context.Context, uid string, limit i
 			views = append(views, PendingConversationView{
 				CommandChannelID: update.CommandChannelID,
 				ChannelType:      update.ChannelType,
-				LastMsgSeq:       update.LastMsgSeq,
-				ActiveAt:         update.ActiveAt,
+				LastMsgSeq:       pendingUserLastMsgSeq(update, uid),
+				ActiveAt:         pendingUserActiveAt(update, uid),
 				ReadSeq:          readSeq,
 			})
 		}
@@ -244,7 +258,7 @@ func (u *ConversationUpdater) ListPending(_ context.Context, uid string, limit i
 	return views
 }
 
-// MarkSynced removes one UID's pending overlay once sync has covered the latest pending sequence.
+// MarkSynced removes one UID's pending overlay after durable read progress covers it.
 func (u *ConversationUpdater) MarkSynced(_ context.Context, uid string, key CommandChannelKey, throughSeq uint64) error {
 	if u == nil {
 		return nil
@@ -260,7 +274,7 @@ func (u *ConversationUpdater) MarkSynced(_ context.Context, uid string, key Comm
 	defer shard.mu.Unlock()
 
 	update := shard.pendingByChannel[key]
-	if update == nil || throughSeq < update.LastMsgSeq {
+	if update == nil || throughSeq < pendingUserLastMsgSeq(update, uid) {
 		return nil
 	}
 	u.removeUIDLocked(shard, uid, key)
@@ -359,10 +373,10 @@ func (u *ConversationUpdater) snapshotFlushEntries() []pendingFlushEntry {
 						ChannelID:   update.CommandChannelID,
 						ChannelType: int64(update.ChannelType),
 						ReadSeq:     update.UserReadSeqs[uid],
-						ActiveAt:    update.ActiveAt,
+						ActiveAt:    pendingUserActiveAt(update, uid),
 						UpdatedAt:   updatedAt,
 					},
-					lastMsgSeq: update.LastMsgSeq,
+					lastMsgSeq: pendingUserLastMsgSeq(update, uid),
 				})
 			}
 		}
@@ -390,7 +404,10 @@ func (u *ConversationUpdater) removeFlushedEntries(entries []pendingFlushEntry) 
 		shard := u.shardForKey(key)
 		shard.mu.Lock()
 		update := shard.pendingByChannel[key]
-		if update != nil && update.LastMsgSeq <= entry.lastMsgSeq && update.ActiveAt <= entry.state.ActiveAt && update.UserReadSeqs[entry.state.UID] <= entry.state.ReadSeq {
+		if update != nil &&
+			pendingUserLastMsgSeq(update, entry.state.UID) <= entry.lastMsgSeq &&
+			pendingUserActiveAt(update, entry.state.UID) <= entry.state.ActiveAt &&
+			update.UserReadSeqs[entry.state.UID] <= entry.state.ReadSeq {
 			u.removeUIDLocked(shard, entry.state.UID, key)
 		}
 		shard.mu.Unlock()
@@ -401,6 +418,8 @@ func (u *ConversationUpdater) removeUIDLocked(shard *conversationPendingShard, u
 	update := shard.pendingByChannel[key]
 	if update != nil {
 		delete(update.UserReadSeqs, uid)
+		delete(update.UserLastMsgSeqs, uid)
+		delete(update.UserActiveAts, uid)
 		if len(update.UserReadSeqs) == 0 {
 			delete(shard.pendingByChannel, key)
 		}
@@ -414,14 +433,24 @@ func (u *ConversationUpdater) removeUIDLocked(shard *conversationPendingShard, u
 }
 
 func (u *ConversationUpdater) putLoadedUpdate(update PendingConversationUpdate) {
-	intent := ConversationIntent{
-		CommandChannelID: update.CommandChannelID,
-		ChannelType:      update.ChannelType,
-		MessageSeq:       update.LastMsgSeq,
-		ActiveAt:         update.ActiveAt,
-		UserReadSeqs:     update.UserReadSeqs,
+	for uid, readSeq := range update.UserReadSeqs {
+		lastMsgSeq := update.UserLastMsgSeqs[uid]
+		if lastMsgSeq == 0 {
+			lastMsgSeq = update.LastMsgSeq
+		}
+		activeAt := update.UserActiveAts[uid]
+		if activeAt == 0 {
+			activeAt = update.ActiveAt
+		}
+		intent := ConversationIntent{
+			CommandChannelID: update.CommandChannelID,
+			ChannelType:      update.ChannelType,
+			MessageSeq:       lastMsgSeq,
+			ActiveAt:         activeAt,
+			UserReadSeqs:     map[string]uint64{uid: readSeq},
+		}
+		_ = u.PushIntent(context.Background(), intent)
 	}
-	_ = u.PushIntent(context.Background(), intent)
 }
 
 func (u *ConversationUpdater) snapshotUpdates() []PendingConversationUpdate {
@@ -441,9 +470,13 @@ func (u *ConversationUpdater) snapshotUpdates() []PendingConversationUpdate {
 				LastMsgSeq:       update.LastMsgSeq,
 				ActiveAt:         update.ActiveAt,
 				UserReadSeqs:     make(map[string]uint64, len(update.UserReadSeqs)),
+				UserLastMsgSeqs:  make(map[string]uint64, len(update.UserReadSeqs)),
+				UserActiveAts:    make(map[string]int64, len(update.UserReadSeqs)),
 			}
 			for uid, readSeq := range update.UserReadSeqs {
 				copyUpdate.UserReadSeqs[uid] = readSeq
+				copyUpdate.UserLastMsgSeqs[uid] = pendingUserLastMsgSeq(update, uid)
+				copyUpdate.UserActiveAts[uid] = pendingUserActiveAt(update, uid)
 			}
 			updates = append(updates, copyUpdate)
 		}
@@ -503,4 +536,24 @@ func sortedUIDs(readSeqs map[string]uint64) []string {
 	}
 	sort.Strings(uids)
 	return uids
+}
+
+func pendingUserLastMsgSeq(update *PendingConversationUpdate, uid string) uint64 {
+	if update == nil {
+		return 0
+	}
+	if seq := update.UserLastMsgSeqs[uid]; seq > 0 {
+		return seq
+	}
+	return update.LastMsgSeq
+}
+
+func pendingUserActiveAt(update *PendingConversationUpdate, uid string) int64 {
+	if update == nil {
+		return 0
+	}
+	if activeAt := update.UserActiveAts[uid]; activeAt > 0 {
+		return activeAt
+	}
+	return update.ActiveAt
 }
