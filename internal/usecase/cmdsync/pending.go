@@ -52,6 +52,7 @@ type ConversationUpdater struct {
 	running bool
 	stopCh  chan struct{}
 	doneCh  chan struct{}
+	cancel  context.CancelFunc
 }
 
 type conversationPendingShard struct {
@@ -113,42 +114,61 @@ func (u *ConversationUpdater) Start() error {
 		u.mu.Unlock()
 		return err
 	}
-	u.stopCh = make(chan struct{})
-	u.doneCh = make(chan struct{})
+	stopCh := make(chan struct{})
+	doneCh := make(chan struct{})
+	runCtx, cancel := context.WithCancel(context.Background())
+	u.stopCh = stopCh
+	u.doneCh = doneCh
+	u.cancel = cancel
 	u.running = true
-	stopCh := u.stopCh
-	doneCh := u.doneCh
 	interval := u.flushInterval
 	u.mu.Unlock()
 
-	go u.flushLoop(stopCh, doneCh, interval)
+	go u.flushLoop(runCtx, stopCh, doneCh, interval)
 	return nil
 }
 
 // Stop stops the background loop, flushes running updaters, and saves remaining pending updates.
 func (u *ConversationUpdater) Stop() error {
+	return u.StopContext(context.Background())
+}
+
+// StopContext stops periodic flushing and bounds the final flush with ctx.
+func (u *ConversationUpdater) StopContext(ctx context.Context) error {
 	if u == nil {
 		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	u.mu.Lock()
 	wasRunning := u.running
 	stopCh := u.stopCh
 	doneCh := u.doneCh
+	cancel := u.cancel
 	if wasRunning {
-		close(stopCh)
 		u.running = false
 		u.stopCh = nil
 		u.doneCh = nil
+		u.cancel = nil
 	}
 	u.mu.Unlock()
 
 	if wasRunning {
-		<-doneCh
+		if cancel != nil {
+			cancel()
+		}
+		close(stopCh)
+		select {
+		case <-doneCh:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 
 	var flushErr error
 	if wasRunning {
-		flushErr = u.Flush(context.Background())
+		flushErr = u.Flush(ctx)
 	}
 	saveErr := u.savePendingFile()
 	if flushErr != nil {
@@ -316,14 +336,16 @@ func (u *ConversationUpdater) Flush(ctx context.Context) error {
 	return nil
 }
 
-func (u *ConversationUpdater) flushLoop(stopCh <-chan struct{}, doneCh chan<- struct{}, interval time.Duration) {
+func (u *ConversationUpdater) flushLoop(ctx context.Context, stopCh <-chan struct{}, doneCh chan<- struct{}, interval time.Duration) {
 	defer close(doneCh)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-ticker.C:
-			if err := u.Flush(context.Background()); err != nil && u.logger != nil {
+			if err := u.Flush(ctx); err != nil && u.logger != nil {
 				u.logger.Warn("flush pending CMD conversation updates failed", wklog.Error(err))
 			}
 		case <-stopCh:
