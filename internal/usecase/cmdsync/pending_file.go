@@ -79,8 +79,15 @@ func (u *ConversationUpdater) loadPendingFile() error {
 		}
 		return nil
 	}
+	if len(updates) == 0 {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return nil
+	}
 	for _, update := range updates {
 		u.putLoadedUpdate(update)
 	}
-	return os.Remove(path)
+	u.markRestoredPendingFileDirty()
+	return nil
 }

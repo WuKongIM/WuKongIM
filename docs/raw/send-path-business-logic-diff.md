@@ -870,7 +870,7 @@ P2b 阶段仍未恢复的旧版差异包括：`AllowStranger`、request-scoped s
 - 普通 CMD durable delivery 在 resolver 已经解析出 UID page 后、在线 presence 扩展前，基于该 UID page 构建 intent；nil observer、空 UID page、已完全提交的 request-scoped intent 都会跳过，observer 失败只记录告警。
 - UID owner 上的 `ConversationUpdater` 按 command channel + channel type 合并 pending updates，维护 UID 索引；`/message/sync` 会把 pending overlay 与已落盘 `CMDConversationState` 合并，所以未 flush 的 CMD activity 也可被同步到。
 - `/message/syncack` 仍只消费最近一次 sync generation；对 pending-only channel，会先 upsert durable read progress，再按 UID/channel/throughSeq 清理 pending，避免把客户端 `last_message_seq` 当作频道选择器。
-- graceful stop 会把未 flush 的 pending updates 保存到 `DataDir/conversationv2/cmd_conversation_updates.json` 并在启动时恢复；这与旧版 ConversationManager 的边界一致，不保证 kill -9 后的 intent 持久化。
+- graceful stop 会把未 flush 的 pending updates 保存到 `DataDir/conversationv2/cmd_conversation_updates.json` 并在启动时恢复；启动加载后会保留该文件到后续 durable flush / save 成功，避免恢复窗口内再次崩溃丢 pending；这仍不保证 kill -9 前新接收的内存 intent 持久化。
 - committed replay 不再运行独立 CMD subscriber scan/projector；它只重放 delivery / conversation，普通 CMD intent 由 delivery UID observer 重新产生，request-scoped replay 没有 `MessageScopedUIDs` 时仍是 best effort。
 
 仍未恢复 / 继续延后的差异：在线 cmd 专用 `systemcmdonline`、普通临时频道投递、`/message/sendbatch`、`expire`、`AllowStranger`、plugin/webhook/AI 钩子和特殊频道后续副作用。

@@ -53,6 +53,8 @@ type ConversationUpdater struct {
 	stopCh  chan struct{}
 	doneCh  chan struct{}
 	cancel  context.CancelFunc
+	// restoredFileDirty keeps a loaded pending file until durable flush/save succeeds.
+	restoredFileDirty bool
 }
 
 type conversationPendingShard struct {
@@ -311,7 +313,7 @@ func (u *ConversationUpdater) Flush(ctx context.Context) error {
 	}
 	entries := u.snapshotFlushEntries()
 	if len(entries) == 0 {
-		return nil
+		return u.saveRestoredPendingFileIfNeeded()
 	}
 
 	batchSize := u.flushBatchSize
@@ -333,7 +335,7 @@ func (u *ConversationUpdater) Flush(ctx context.Context) error {
 		}
 		u.removeFlushedEntries(batch)
 	}
-	return nil
+	return u.saveRestoredPendingFileIfNeeded()
 }
 
 func (u *ConversationUpdater) flushLoop(ctx context.Context, stopCh <-chan struct{}, doneCh chan<- struct{}, interval time.Duration) {
@@ -452,6 +454,28 @@ func (u *ConversationUpdater) removeUIDLocked(shard *conversationPendingShard, u
 			delete(shard.userIndex, uid)
 		}
 	}
+}
+
+func (u *ConversationUpdater) markRestoredPendingFileDirty() {
+	// loadPendingFile runs during Start while u.mu is already held.
+	u.restoredFileDirty = true
+}
+
+func (u *ConversationUpdater) saveRestoredPendingFileIfNeeded() error {
+	u.mu.Lock()
+	dirty := u.restoredFileDirty
+	u.mu.Unlock()
+	if !dirty {
+		return nil
+	}
+	if err := u.savePendingFile(); err != nil {
+		return err
+	}
+	hasPending := len(u.snapshotUpdates()) > 0
+	u.mu.Lock()
+	u.restoredFileDirty = hasPending
+	u.mu.Unlock()
+	return nil
 }
 
 func (u *ConversationUpdater) putLoadedUpdate(update PendingConversationUpdate) {
