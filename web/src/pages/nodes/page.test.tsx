@@ -133,6 +133,10 @@ const scaleInPlanReport = {
     runtime_views_complete_and_fresh: true,
     all_slots_have_quorum: true,
     target_not_unique_healthy_replica: true,
+    channel_inventory_available: true,
+    no_active_channel_migrations_involving_target: true,
+    no_channel_leaders_on_target: true,
+    no_channel_replicas_on_target: true,
   },
   progress: {
     assigned_slot_replicas: 0,
@@ -140,10 +144,16 @@ const scaleInPlanReport = {
     slot_leaders: 0,
     active_tasks_involving_node: 0,
     active_migrations_involving_node: 0,
+    channel_leaders: 0,
+    channel_replicas: 0,
+    active_channel_migrations_involving_node: 0,
     active_connections: 0,
     closing_connections: 0,
     gateway_sessions: 0,
     active_connections_unknown: false,
+    channel_inventory_scanned: true,
+    channel_inventory_partial: false,
+    channel_inventory_error: "",
   },
   runtime: {
     node_id: 1,
@@ -421,6 +431,9 @@ test("opens scale-in review in a sheet instead of an inline section", async () =
 
   const dialog = await screen.findByRole("dialog", { name: "Scale-in Plan" })
   expect(within(dialog).getByText("Assigned replicas")).toBeInTheDocument()
+  expect(within(dialog).getByText("Channel leaders")).toBeInTheDocument()
+  expect(within(dialog).getByText("Channel replicas")).toBeInTheDocument()
+  expect(within(dialog).getByText("Active channel migrations")).toBeInTheDocument()
   expect(within(dialog).getByText("Node 1 manager-driven scale-in safety report.")).toBeInTheDocument()
 })
 
@@ -589,7 +602,10 @@ test("advances an active scale-in report", async () => {
   await user.click(screen.getByRole("button", { name: "Review scale-in for node 1" }))
   await user.click(await screen.findByRole("button", { name: "Advance scale-in" }))
 
-  expect(advanceNodeScaleInMock).toHaveBeenCalledWith(1, { maxLeaderTransfers: 1 })
+  expect(advanceNodeScaleInMock).toHaveBeenCalledWith(1, {
+    maxLeaderTransfers: 1,
+    maxChannelMigrations: 1,
+  })
   expect(await screen.findByText("Safe to remove: yes")).toBeInTheDocument()
 })
 
