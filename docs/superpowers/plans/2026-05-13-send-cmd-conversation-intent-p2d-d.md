@@ -556,7 +556,7 @@ Algorithm:
 1. Build valid read patches from sync records.
 2. Call `AdvanceCMDConversationReadSeq(ctx, patches)` for existing durable rows.
 3. If `a.pending != nil`, list pending views for the UID and build a lookup by `(CommandChannelID, ChannelType)`.
-4. For each valid sync record that has a matching pending view, call `UpsertCMDConversationStates` with a state carrying at least `UID`, `ChannelID`, `ChannelType`, `ReadSeq=LastReturnedMsgSeq`, `ActiveAt=max(pending.ActiveAt, now)`, and `UpdatedAt=now`. This creates a durable row when the previous advance was a no-op because the channel existed only in pending.
+4. For each valid sync record that has a matching pending view, call `UpsertCMDConversationStates` with a state carrying at least `UID`, `ChannelID`, `ChannelType`, `ReadSeq=LastReturnedMsgSeq`, `ActiveAt=pending.ActiveAt`, and `UpdatedAt=now`. This creates a durable row when the previous advance was a no-op because the channel existed only in pending, without making ack time look like message activity time.
 5. Only after the upsert succeeds, call `MarkSynced` for that UID/channel.
 6. If the durable upsert fails, do not call `MarkSynced`; return the error so the pending entry remains as the retryable source of progress.
 7. If `MarkSynced` fails after durable progress exists, log and return nil; cleanup is best effort because read progress is already durable.
@@ -569,7 +569,7 @@ if a.pending != nil {
     for _, record := range validRecords {
         key := CommandChannelKey{ChannelID: record.CommandChannelID, ChannelType: record.ChannelType}
         if view, ok := pendingByKey[key]; ok {
-            state := metadb.CMDConversationState{UID: uid, ChannelID: key.ChannelID, ChannelType: int64(key.ChannelType), ReadSeq: record.LastReturnedMsgSeq, ActiveAt: maxInt64(view.ActiveAt, updatedAt), UpdatedAt: updatedAt}
+            state := metadb.CMDConversationState{UID: uid, ChannelID: key.ChannelID, ChannelType: int64(key.ChannelType), ReadSeq: record.LastReturnedMsgSeq, ActiveAt: view.ActiveAt, UpdatedAt: updatedAt}
             if err := a.states.UpsertCMDConversationStates(ctx, []metadb.CMDConversationState{state}); err != nil {
                 return err
             }
@@ -642,6 +642,16 @@ func TestCMDIntentAdapterMissingProviderReturnsRejectedStatus(t *testing.T) {
     require.Contains(t, resp.Error, "cmd conversation intent")
 }
 
+func TestCMDIntentAdapterRejectsMalformedIntent(t *testing.T) {
+    sink := &recordingCMDIntentSink{}
+    adapter := New(Options{CMDConversationIntents: sink})
+    body, err := adapter.handleCMDSyncRPC(context.Background(), mustEncodeCMDSyncRequest(t, cmdSyncRPCRequest{Op: cmdSyncOpPushIntent, Intent: cmdsync.ConversationIntent{CommandChannelID: "g1", ChannelType: 2, MessageSeq: 0, UserReadSeqs: map[string]uint64{}}}))
+    require.NoError(t, err)
+    resp := mustDecodeCMDSyncResponse(t, body)
+    require.Equal(t, rpcStatusRejected, resp.Status)
+    require.Empty(t, sink.intents)
+}
+
 func TestCMDIntentAdapterPushDoesNotRequireCMDSyncUsecase(t *testing.T) {
     sink := &recordingCMDIntentSink{}
     adapter := New(Options{CMDConversationIntents: sink}) // CMDSync intentionally nil.
@@ -704,7 +714,7 @@ In `internal/access/node/cmdsync_rpc.go`:
 - Add a retryable status constant such as `rpcStatusStaleOwner = "stale_owner"` if no existing retryable status fits.
 - Add `Intent cmdsync.ConversationIntent` to `cmdSyncRPCRequest`.
 - In `handleCMDSyncRPC`, route the new op to `a.cmdConversationIntents.PushIntent(ctx, req.Intent)`.
-- If the provider is missing or the intent is malformed, return `rpcStatusRejected`.
+- If the provider is missing or the intent is malformed, return `rpcStatusRejected`. Malformed means `MessageSeq=0`, empty/non-command `CommandChannelID`, `ChannelType=0`, or no non-empty UID entries.
 - If `errors.Is(err, cmdsync.ErrConversationIntentStaleOwner)`, return `rpcStatusStaleOwner` so the client can preserve retry semantics.
 - Add client method:
 
@@ -841,7 +851,7 @@ func (r cmdConversationIntentRouter) PushIntent(ctx context.Context, intent cmds
 
 Implementation:
 
-- Trim/validate intent through cmdsync helper if available.
+- Validate intent through a cmdsync helper before routing. Reject `MessageSeq=0`, empty/non-command `CommandChannelID`, `ChannelType=0`, and empty UID maps before any local or remote write.
 - Group `UserReadSeqs` by `ownerNodeID(uid)` using `SlotForKey` + `LeaderOf`.
 - For each owner group, clone the intent with only that group's `UserReadSeqs`.
 - Local group calls `local.PushIntent`.
@@ -1120,22 +1130,22 @@ In both `BeginResolve` methods, store `env` in the token.
 In `localDeliveryResolver.ResolvePage`, after `uids` are read from `SubscriberResolver.NextPage` and before `EndpointsByUIDs`, call:
 
 ```go
-r.notifyResolvedUIDPage(ctx, resolveToken.env, uids)
+notifyResolvedUIDPage(ctx, r.uidObserver, resolveToken.env, uids)
 ```
 
 In `tagDeliveryResolver.ResolvePage`, after `nextDeliveryTagUIDPageAt` returns `uids` and before `expandTagUIDs`, call the same helper.
 
-Helper rules:
+Helper rules: implement this as a shared free helper, or as equivalent methods on both `localDeliveryResolver` and `tagDeliveryResolver`. Both resolver paths must call it.
 
 ```go
-func (r localDeliveryResolver) notifyResolvedUIDPage(ctx context.Context, env deliveryruntime.CommittedEnvelope, uids []string) {
-    if r.uidObserver == nil || len(uids) == 0 {
+func notifyResolvedUIDPage(ctx context.Context, observer resolvedUIDObserver, env deliveryruntime.CommittedEnvelope, uids []string) {
+    if observer == nil || len(uids) == 0 {
         return
     }
     if env.CMDConversationIntentSubmitted && len(env.MessageScopedUIDs) > 0 {
         return
     }
-    r.uidObserver.OnResolvedUIDPage(ctx, resolvedUIDPage{Envelope: env, UIDs: append([]string(nil), uids...)})
+    observer.OnResolvedUIDPage(ctx, resolvedUIDPage{Envelope: env, UIDs: append([]string(nil), uids...)})
 }
 ```
 
@@ -1320,7 +1330,7 @@ app.cmdSyncApp = cmdsync.New(cmdsync.Options{
 - Remove the old `app.cmdSyncProjector` construction block from `internal/app/build.go`.
 - Remove `app.cmdSyncProjector` from `committedFanout` subscribers. Fanout should include delivery dispatcher only for delivery and ordinary conversation projector as currently configured through dispatcher.
 - Remove `CMDSync: app.cmdSyncProjector` from committed replayer config.
-- Pass `cmdConversationResolvedUIDObserver{sink: cmdIntentRouter, now: time.Now, logger: app.logger.Named("cmdsync.intent")}` into both `tagDeliveryResolver` and fallback `localDeliveryResolver` constructors.
+- Pass `cmdConversationResolvedUIDObserver{sink: cmdIntentRouter, now: time.Now, logger: app.logger.Named("cmdsync.intent")}` into both `tagDeliveryResolver` and fallback `localDeliveryResolver` constructors. In `tagDeliveryResolver.BeginResolve`, the inline fallback-created `localDeliveryResolver` must copy `uidObserver: r.uidObserver`.
 - Pass `CMDConversationIntents: cmdIntentRouter` into `message.New` options.
 - Pass `CMDConversationIntents: ownerValidatingCMDIntentSink{local: app.cmdConversationUpdater, cluster: app.cluster, localNodeID: cfg.Node.ID}` into `accessnode.New` options.
 
