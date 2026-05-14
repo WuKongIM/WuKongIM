@@ -96,7 +96,7 @@ func managerPermissionCatalog() []PermissionResourceDTO {
 		{Resource: "cluster.task", Actions: []string{"r"}, Description: "Read reconcile tasks."},
 		{Resource: "cluster.connection", Actions: []string{"r"}, Description: "Read connection inventory and details."},
 		{Resource: "cluster.network", Actions: []string{"r"}, Description: "Read network diagnostics summaries."},
-		{Resource: "cluster.diagnostics", Actions: []string{"r"}, Description: "Read diagnostics and message trace data."},
+		{Resource: "cluster.diagnostics", Actions: []string{"r", "w"}, Description: "Read diagnostics and manage temporary message trace sampling rules."},
 		{Resource: "cluster.user", Actions: []string{"r", "w"}, Description: "Read users and mutate user or system UID state."},
 		{Resource: "cluster.channel", Actions: []string{"r", "w"}, Description: "Read and mutate channel, message, and channel-cluster operations."},
 		{Resource: "cluster.permission", Actions: []string{"r"}, Description: "Read manager authentication and permission configuration snapshots."},

@@ -168,6 +168,16 @@ func TestManagerDiagnosticsEventsQueriesStageAndResult(t *testing.T) {
 	require.Equal(t, diagnostics.Query{Stage: diagnostics.Stage("channel_append"), Result: diagnostics.ResultError, Limit: 100}, received.Query)
 }
 
+func TestManagerDiagnosticsEventsQueriesUIDAndChannelKey(t *testing.T) {
+	var received managementusecase.DiagnosticsQueryRequest
+	srv := newDiagnosticsTestServer(t, diagnosticsHTTPStub{reqSink: &received, response: diagnosticsHTTPResponse()})
+
+	rec := performDiagnosticsRequest(t, srv, "/manager/diagnostics/events?uid=u1&channel_key=channel%2F2%2FZzE", "admin")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, diagnostics.Query{UID: "u1", ChannelKey: "channel/2/ZzE", Limit: 100}, received.Query)
+}
+
 func TestManagerDiagnosticsRejectsInvalidResult(t *testing.T) {
 	srv := newDiagnosticsTestServer(t, diagnosticsHTTPStub{response: diagnosticsHTTPResponse()})
 
