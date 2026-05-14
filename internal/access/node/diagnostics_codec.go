@@ -15,8 +15,8 @@ const (
 )
 
 var (
-	diagnosticsRequestMagic  = [...]byte{'W', 'K', 'D', 'Q', 1}
-	diagnosticsResponseMagic = [...]byte{'W', 'K', 'D', 'R', 1}
+	diagnosticsRequestMagic  = [...]byte{'W', 'K', 'D', 'Q', 2}
+	diagnosticsResponseMagic = [...]byte{'W', 'K', 'D', 'R', 2}
 )
 
 // encodeDiagnosticsRequestBinary encodes diagnostics requests without JSON fallback.
@@ -87,6 +87,7 @@ func appendDiagnosticsQuery(dst []byte, query diagnostics.Query) []byte {
 	dst = appendString(dst, query.TraceID)
 	dst = appendString(dst, query.ClientMsgNo)
 	dst = appendString(dst, query.ChannelKey)
+	dst = appendString(dst, query.UID)
 	dst = appendUvarint(dst, query.MessageSeq)
 	dst = appendString(dst, string(query.Stage))
 	dst = appendString(dst, string(query.Result))
@@ -106,6 +107,9 @@ func readDiagnosticsQuery(body []byte, offset int) (diagnostics.Query, int, erro
 		return diagnostics.Query{}, offset, err
 	}
 	if query.ChannelKey, offset, err = readDiagnosticsString(body, offset); err != nil {
+		return diagnostics.Query{}, offset, err
+	}
+	if query.UID, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.Query{}, offset, err
 	}
 	if query.MessageSeq, offset, err = readUvarint(body, offset); err != nil {
@@ -131,6 +135,7 @@ func appendDiagnosticsQueryResult(dst []byte, result diagnostics.QueryResult) []
 	dst = appendString(dst, result.TraceID)
 	dst = appendString(dst, result.ClientMsgNo)
 	dst = appendString(dst, result.ChannelKey)
+	dst = appendString(dst, result.UID)
 	dst = appendUvarint(dst, result.MessageSeq)
 	dst = appendDiagnosticsQuery(dst, result.Query)
 	dst = appendString(dst, string(result.Status))
@@ -159,6 +164,9 @@ func readDiagnosticsQueryResult(body []byte, offset int) (diagnostics.QueryResul
 		return diagnostics.QueryResult{}, offset, err
 	}
 	if result.ChannelKey, offset, err = readDiagnosticsString(body, offset); err != nil {
+		return diagnostics.QueryResult{}, offset, err
+	}
+	if result.UID, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnostics.QueryResult{}, offset, err
 	}
 	if result.MessageSeq, offset, err = readUvarint(body, offset); err != nil {
