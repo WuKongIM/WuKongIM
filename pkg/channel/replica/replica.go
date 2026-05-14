@@ -199,7 +199,11 @@ func NewReplica(cfg ReplicaConfig) (Replica, error) {
 	if err := r.recoverFromStores(); err != nil {
 		return nil, err
 	}
-	r.loop = newDedicatedLoopDriver(r)
+	if cfg.Execution.Mode == ExecutionModePooled {
+		r.loop = newPooledLoopDriver(r, cfg.Execution)
+	} else {
+		r.loop = newDedicatedLoopDriver(r)
+	}
 	r.loop.start()
 	r.startAppendEffectWorker()
 	r.startCheckpointEffectWorker()
