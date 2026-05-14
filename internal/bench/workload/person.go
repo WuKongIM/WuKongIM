@@ -167,9 +167,9 @@ func (w *PersonWorkload) Connect(ctx context.Context) error {
 	return nil
 }
 
-// Warmup is reserved for future warmup traffic and currently only ensures connections exist.
+// Warmup is reserved for future warmup traffic and currently does not emit load in v1.
 func (w *PersonWorkload) Warmup(ctx context.Context) error {
-	return w.Connect(ctx)
+	return nil
 }
 
 // Run sends one deterministic person message for every assigned pair.
@@ -241,7 +241,11 @@ func (w *PersonWorkload) SendOne(ctx context.Context, messageIndex int) error {
 		return nil
 	}
 	recvStart := time.Now()
-	recv, err := w.waitForRecv(ctx, recipient, clientMsgNo, pair.RecipientUID)
+	expectedMessageID := uint64(0)
+	if ack.MessageID > 0 {
+		expectedMessageID = uint64(ack.MessageID)
+	}
+	recv, err := w.waitForRecv(ctx, recipient, clientMsgNo, pair.SenderUID, expectedMessageID, ack.MessageSeq, w.payloadMarker(channelIndex, messageIndex))
 	if err != nil {
 		w.recordError("person_recv_error", err)
 		w.metrics.IncCounter("person_recv_error_total", nil)
@@ -321,7 +325,7 @@ func (w *PersonWorkload) waitForSendack(ctx context.Context, client PersonClient
 	}
 }
 
-func (w *PersonWorkload) waitForRecv(ctx context.Context, client PersonClient, clientMsgNo, recipientUID string) (*frame.RecvPacket, error) {
+func (w *PersonWorkload) waitForRecv(ctx context.Context, client PersonClient, clientMsgNo, senderUID string, expectedMessageID uint64, expectedMessageSeq uint64, payloadMarker string) (*frame.RecvPacket, error) {
 	deadlineCtx, cancel := w.withTimeout(ctx, w.cfg.RecvTimeout)
 	defer cancel()
 	for {
@@ -336,7 +340,16 @@ func (w *PersonWorkload) waitForRecv(ctx context.Context, client PersonClient, c
 		if !ok {
 			continue
 		}
-		if recv.ChannelID != recipientUID || recv.ChannelType != frame.ChannelTypePerson || recv.ClientMsgNo != clientMsgNo {
+		if recv.FromUID != senderUID || recv.ChannelID != senderUID || recv.ChannelType != frame.ChannelTypePerson || recv.ClientMsgNo != clientMsgNo {
+			continue
+		}
+		if expectedMessageID > 0 && recv.MessageID != int64(expectedMessageID) {
+			continue
+		}
+		if expectedMessageSeq > 0 && recv.MessageSeq != expectedMessageSeq {
+			continue
+		}
+		if payloadMarker != "" && !strings.Contains(string(recv.Payload), payloadMarker) {
 			continue
 		}
 		return recv, nil
@@ -344,7 +357,7 @@ func (w *PersonWorkload) waitForRecv(ctx context.Context, client PersonClient, c
 }
 
 func (w *PersonWorkload) buildPayload(channelIndex, messageIndex int) []byte {
-	base := fmt.Sprintf("run=%s profile=%s traffic=%s channel=%d message=%d", w.cfg.RunID, w.cfg.ProfileName, w.cfg.TrafficName, channelIndex, messageIndex)
+	base := w.payloadMarker(channelIndex, messageIndex)
 	if w.cfg.PayloadSizeBytes <= 0 {
 		return []byte(base)
 	}
@@ -363,6 +376,10 @@ func (w *PersonWorkload) buildPayload(channelIndex, messageIndex int) []byte {
 		payload = append(payload, fill[:remaining]...)
 	}
 	return payload
+}
+
+func (w *PersonWorkload) payloadMarker(channelIndex, messageIndex int) string {
+	return fmt.Sprintf("run=%s profile=%s traffic=%s channel=%d message=%d", w.cfg.RunID, w.cfg.ProfileName, w.cfg.TrafficName, channelIndex, messageIndex)
 }
 
 func (w *PersonWorkload) clientMsgNo(channelIndex, messageIndex int) string {

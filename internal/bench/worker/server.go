@@ -31,6 +31,8 @@ type Config struct {
 	WorkDir string
 	// WorkloadRunner receives connect, warmup, run, and cooldown phase hooks.
 	WorkloadRunner WorkloadRunner
+	// WorkloadClientFactory overrides default runner client creation for tests.
+	WorkloadClientFactory WorkloadClientFactory
 }
 
 // Server exposes the wkbench worker control HTTP API.
@@ -43,7 +45,11 @@ type Server struct {
 
 // NewServer builds a worker control server with in-memory assignment state.
 func NewServer(cfg Config) *Server {
-	s := &Server{cfg: cfg, state: NewState(cfg.WorkDir), runner: cfg.WorkloadRunner, mux: http.NewServeMux()}
+	runner := cfg.WorkloadRunner
+	if runner == nil {
+		runner = newDefaultWorkloadRunner(cfg.WorkloadClientFactory)
+	}
+	s := &Server{cfg: cfg, state: NewState(cfg.WorkDir), runner: runner, mux: http.NewServeMux()}
 	s.routes()
 	return s
 }

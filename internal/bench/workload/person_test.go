@@ -52,6 +52,8 @@ func TestPersonWorkloadSendOneMatchesSendackAndVerifiesRecvWhenEnabled(t *testin
 	sender := newRecordingPersonClient()
 	recipient := newRecordingPersonClient()
 	ack := &frame.SendackPacket{
+		MessageID:   100,
+		MessageSeq:  42,
 		ClientSeq:   42,
 		ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-ch3-msg42",
 		ReasonCode:  frame.ReasonSuccess,
@@ -60,7 +62,8 @@ func TestPersonWorkloadSendOneMatchesSendackAndVerifiesRecvWhenEnabled(t *testin
 	recipient.recvFrames = append(recipient.recvFrames, &frame.RecvPacket{
 		MessageID:   100,
 		MessageSeq:  42,
-		ChannelID:   "u2",
+		FromUID:     "u1",
+		ChannelID:   "u1",
 		ChannelType: frame.ChannelTypePerson,
 		ClientMsgNo: ack.ClientMsgNo,
 		Payload:     []byte("run=run-a profile=profile-a traffic=traffic-a channel=3 message=42"),
@@ -92,6 +95,44 @@ func TestPersonWorkloadSendOneMatchesSendackAndVerifiesRecvWhenEnabled(t *testin
 	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_success_total", nil))
 	require.NotEmpty(t, workload.Metrics().LatencyValues("person_send_latency_seconds", nil))
 	require.NotEmpty(t, workload.Metrics().LatencyValues("person_recv_latency_seconds", nil))
+}
+
+func TestPersonWorkloadRecvVerificationRejectsWrongFromUID(t *testing.T) {
+	sender := newRecordingPersonClient()
+	recipient := newRecordingPersonClient()
+	ack := &frame.SendackPacket{
+		MessageID:   100,
+		MessageSeq:  42,
+		ClientSeq:   42,
+		ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-ch3-msg42",
+		ReasonCode:  frame.ReasonSuccess,
+	}
+	sender.sendacks = append(sender.sendacks, ack)
+	recipient.recvFrames = append(recipient.recvFrames, &frame.RecvPacket{
+		MessageID:   100,
+		MessageSeq:  42,
+		FromUID:     "intruder",
+		ChannelID:   "u1",
+		ChannelType: frame.ChannelTypePerson,
+		ClientMsgNo: ack.ClientMsgNo,
+		Payload:     []byte("run=run-a profile=profile-a traffic=traffic-a channel=3 message=42"),
+	})
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		Pairs:           []PersonPair{{ChannelIndex: 3, SenderUID: "u1", RecipientUID: "u2"}},
+		ClientMsgPrefix: "bench-msg",
+		VerifyRecvMode:  "full",
+		Metrics:         metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": recipient})
+	require.NoError(t, err)
+
+	err = workload.SendOne(context.Background(), 42)
+
+	require.Error(t, err)
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_error_total", nil))
+	require.NotEmpty(t, workload.Metrics().ErrorSamples())
 }
 
 func TestPersonWorkloadSendOneRecordsFailures(t *testing.T) {
