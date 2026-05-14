@@ -37,6 +37,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) routes() {
+	s.mux.HandleFunc("/", s.notFound)
 	s.mux.HandleFunc("/healthz", s.healthz)
 	s.mux.HandleFunc("/v1/info", s.withControl(s.info))
 	s.mux.HandleFunc("/v1/assign", s.withControl(s.assign))
@@ -81,6 +82,8 @@ func (s *Server) assign(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, ErrActiveRunConflict):
 			writeError(w, http.StatusConflict, err.Error())
+		case errors.Is(err, ErrAssignmentPersistence):
+			writeError(w, http.StatusInternalServerError, err.Error())
 		default:
 			writeError(w, http.StatusBadRequest, err.Error())
 		}
@@ -142,8 +145,11 @@ func (s *Server) withControl(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (s *Server) authorized(r *http.Request) bool {
+	if s.cfg.InsecureControl {
+		return true
+	}
 	if s.cfg.ControlToken == "" {
-		return s.cfg.InsecureControl
+		return false
 	}
 	if token := bearerToken(r.Header.Get("Authorization")); token == s.cfg.ControlToken {
 		return true
@@ -159,7 +165,12 @@ func bearerToken(header string) string {
 	return strings.TrimSpace(strings.TrimPrefix(header, prefix))
 }
 
+func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusNotFound, "not found")
+}
+
 func methodNotAllowed(w http.ResponseWriter) {
+	w.Header().Set("Allow", "GET, POST")
 	writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 }
 

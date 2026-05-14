@@ -63,7 +63,11 @@ func parseWorkerConfig(args []string, stderr io.Writer) (workerCLIConfig, int) {
 	if err := fs.Parse(args); err != nil {
 		return workerCLIConfig{}, 1
 	}
-	if cfg.server.ControlToken == "" && !cfg.server.InsecureControl {
+	if cfg.server.InsecureControl {
+		cfg.server.ControlToken = ""
+		return cfg, 0
+	}
+	if cfg.server.ControlToken == "" {
 		fmt.Fprintln(stderr, "--control-token is required unless --insecure-control=true")
 		return workerCLIConfig{}, 1
 	}
