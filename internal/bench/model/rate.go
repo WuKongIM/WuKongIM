@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -26,8 +27,8 @@ func ParseRate(raw string) (Rate, error) {
 	if err != nil {
 		return Rate{}, fmt.Errorf("parse rate %q: %w", raw, err)
 	}
-	if perSecond <= 0 {
-		return Rate{}, fmt.Errorf("rate %q must be greater than zero", raw)
+	if perSecond <= 0 || math.IsNaN(perSecond) || math.IsInf(perSecond, 0) {
+		return Rate{}, fmt.Errorf("rate %q must be finite and greater than zero", raw)
 	}
 	return Rate{PerSecond: perSecond}, nil
 }

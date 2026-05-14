@@ -12,7 +12,17 @@ func TestParseRatePerSecond(t *testing.T) {
 	require.Equal(t, 5000.0, got.PerSecond)
 }
 
-func TestParseRateRejectsZero(t *testing.T) {
-	_, err := ParseRate("0/s")
-	require.Error(t, err)
+func TestParseRateSupportsWhitespaceAndDecimal(t *testing.T) {
+	got, err := ParseRate(" 12.5/s ")
+	require.NoError(t, err)
+	require.Equal(t, 12.5, got.PerSecond)
+}
+
+func TestParseRateRejectsInvalidRates(t *testing.T) {
+	for _, input := range []string{"0/s", "-1/s", "NaN/s", "+Inf/s", "5000"} {
+		t.Run(input, func(t *testing.T) {
+			_, err := ParseRate(input)
+			require.Error(t, err)
+		})
+	}
 }
