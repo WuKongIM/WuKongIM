@@ -1,6 +1,13 @@
 package replica
 
-import "testing"
+import (
+	"context"
+	"runtime"
+	"testing"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/channel"
+)
 
 func TestPooledLoopSerializesReplicaCommands(t *testing.T) {
 	pool, err := NewExecutionPool(ExecutionPoolConfig{
@@ -32,5 +39,70 @@ func TestPooledLoopSerializesReplicaCommands(t *testing.T) {
 		if err := got.ApplyMeta(activeMetaWithMinISR(uint64(i+1), 1, 1)); err != nil {
 			t.Fatalf("ApplyMeta(%d) error = %v", i+1, err)
 		}
+	}
+}
+
+func TestPooledAppendFlushDoesNotSpawnTimerGoroutinePerReplica(t *testing.T) {
+	pool, err := NewExecutionPool(ExecutionPoolConfig{
+		Workers:     4,
+		MailboxSize: 64,
+		TurnBudget:  4,
+	})
+	if err != nil {
+		t.Fatalf("NewExecutionPool() error = %v", err)
+	}
+	t.Cleanup(func() { _ = pool.Close() })
+
+	reps := make([]*replica, 0, 200)
+	for i := 0; i < 200; i++ {
+		env := newTestEnv(t)
+		cfg := env.config()
+		cfg.AppendGroupCommitMaxWait = time.Second
+		cfg.Execution = ExecutionConfig{
+			Mode:        ExecutionModePooled,
+			Pool:        pool,
+			MailboxSize: 64,
+			TurnBudget:  4,
+		}
+		got, err := NewReplica(cfg)
+		if err != nil {
+			t.Fatalf("NewReplica(%d) error = %v", i, err)
+		}
+		rep := got.(*replica)
+		meta := activeMetaWithMinISR(7, 1, 1)
+		if err := rep.ApplyMeta(meta); err != nil {
+			t.Fatalf("ApplyMeta(%d) error = %v", i, err)
+		}
+		if err := rep.BecomeLeader(meta); err != nil {
+			t.Fatalf("BecomeLeader(%d) error = %v", i, err)
+		}
+		reps = append(reps, rep)
+	}
+	t.Cleanup(func() {
+		for _, rep := range reps {
+			_ = rep.Close()
+		}
+	})
+
+	afterCreate := runtime.NumGoroutine()
+	for i, rep := range reps {
+		ctx := channel.WithCommitMode(context.Background(), channel.CommitModeLocal)
+		req := &appendRequest{
+			ctx:        ctx,
+			batch:      []channel.Record{{Payload: []byte("x"), SizeBytes: 1}},
+			byteCount:  1,
+			commitMode: channel.CommitModeLocal,
+			waiter:     &appendWaiter{ch: make(chan appendCompletion, 1), enqueuedAt: rep.now()},
+			enqueuedAt: rep.now(),
+		}
+		result := rep.submitLoopCommand(ctx, machineAppendRequestCommand{Request: req, Now: rep.now()})
+		if result.Err != nil {
+			t.Fatalf("append request %d error = %v", i, result.Err)
+		}
+	}
+	time.Sleep(20 * time.Millisecond)
+
+	if delta := runtime.NumGoroutine() - afterCreate; delta > 60 {
+		t.Fatalf("goroutines delta after scheduling append flushes = %d, want <= 60", delta)
 	}
 }
