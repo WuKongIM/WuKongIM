@@ -10,7 +10,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	benchworkload "github.com/WuKongIM/WuKongIM/internal/bench/workload"
@@ -207,25 +210,7 @@ func TestWorkerMetricsAndReportReturnMinimalJSON(t *testing.T) {
 func TestWorkerDefaultRunnerConnectsAndRunsPersonShard(t *testing.T) {
 	pool := newWorkerPersonClientPool()
 	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
-	assignment := Assignment{
-		RunID:    "run-a",
-		WorkerID: "worker-a",
-		Target:   model.Target{Gateway: model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"gw-a:5100"}}}},
-		Scenario: model.Scenario{
-			Run:      model.RunConfig{ID: "run-a"},
-			Identity: model.IdentityConfig{UIDPrefix: "bench-u", DevicePrefix: "bench-d", ClientMsgPrefix: "bench-msg"},
-			Online:   model.OnlineConfig{GatewayBalance: "round_robin"},
-			Messages: model.MessagesConfig{Traffic: []model.TrafficConfig{{Name: "person-send", ChannelRef: "person-a"}}},
-		},
-		Plan: model.WorkerPlan{WorkerID: "worker-a", Profiles: map[string]model.ProfileShard{
-			"person-a": {
-				Name:             "person-a",
-				ChannelType:      model.ChannelTypePerson,
-				ChannelRange:     model.Range{Start: 3, End: 4},
-				ParticipantRange: model.Range{Start: 6, End: 8},
-			},
-		}},
-	}
+	assignment := personShardAssignment()
 	assignFull(t, srv, "secret", assignment)
 
 	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
@@ -241,6 +226,50 @@ func TestWorkerDefaultRunnerConnectsAndRunsPersonShard(t *testing.T) {
 	require.Equal(t, "bench-u-7", sender.sentFrames[0].ChannelID)
 	require.Equal(t, frame.ChannelTypePerson, sender.sentFrames[0].ChannelType)
 	require.Contains(t, sender.sentFrames[0].ClientMsgNo, "bench-msg")
+}
+
+func TestWorkerDefaultRunnerRejectsPersonShardWithoutTraffic(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignment := personShardAssignment()
+	assignment.Scenario.Messages.Traffic = nil
+	assignFull(t, srv, "secret", assignment)
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/connect", "secret", nil)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	require.Contains(t, rec.Body.String(), "no matching traffic")
+	require.Equal(t, PhasePrepare, workerStatus(t, srv, "secret").Phase)
+}
+
+func TestWorkerConcurrentDuplicatePhaseRunsHookOnce(t *testing.T) {
+	runner := newBlockingConnectRunner()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	var wg sync.WaitGroup
+	recorders := make([]*httptest.ResponseRecorder, 2)
+	wg.Add(2)
+	for i := range recorders {
+		go func(idx int) {
+			defer wg.Done()
+			recorders[idx] = authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/connect", "secret", nil)
+		}(i)
+	}
+
+	require.True(t, runner.waitForCalls(1, time.Second), "first hook call did not start")
+	time.Sleep(50 * time.Millisecond)
+	require.Equal(t, int32(1), runner.calls.Load())
+	runner.release()
+	wg.Wait()
+
+	for _, rec := range recorders {
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	}
+	require.Equal(t, int32(1), runner.calls.Load())
+	require.Equal(t, PhaseConnect, workerStatus(t, srv, "secret").Phase)
 }
 
 func TestWorkerPhaseHooksCallWorkloadRunner(t *testing.T) {
@@ -299,6 +328,71 @@ func (r *recordingWorkloadRunner) record(phase Phase, assignment Assignment) err
 	r.phases = append(r.phases, phase)
 	r.runIDs = append(r.runIDs, assignment.RunID)
 	return nil
+}
+
+func personShardAssignment() Assignment {
+	return Assignment{
+		RunID:    "run-a",
+		WorkerID: "worker-a",
+		Target:   model.Target{Gateway: model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"gw-a:5100"}}}},
+		Scenario: model.Scenario{
+			Run:      model.RunConfig{ID: "run-a"},
+			Identity: model.IdentityConfig{UIDPrefix: "bench-u", DevicePrefix: "bench-d", ClientMsgPrefix: "bench-msg"},
+			Online:   model.OnlineConfig{GatewayBalance: "round_robin"},
+			Messages: model.MessagesConfig{Traffic: []model.TrafficConfig{{Name: "person-send", ChannelRef: "person-a"}}},
+		},
+		Plan: model.WorkerPlan{WorkerID: "worker-a", Profiles: map[string]model.ProfileShard{
+			"person-a": {
+				Name:             "person-a",
+				ChannelType:      model.ChannelTypePerson,
+				ChannelRange:     model.Range{Start: 3, End: 4},
+				ParticipantRange: model.Range{Start: 6, End: 8},
+			},
+		}},
+	}
+}
+
+type blockingConnectRunner struct {
+	calls   atomic.Int32
+	entered chan struct{}
+	done    chan struct{}
+}
+
+func newBlockingConnectRunner() *blockingConnectRunner {
+	return &blockingConnectRunner{entered: make(chan struct{}, 2), done: make(chan struct{})}
+}
+
+func (r *blockingConnectRunner) Connect(ctx context.Context, assignment Assignment) error {
+	r.calls.Add(1)
+	r.entered <- struct{}{}
+	select {
+	case <-r.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (r *blockingConnectRunner) Warmup(ctx context.Context, assignment Assignment) error { return nil }
+func (r *blockingConnectRunner) Run(ctx context.Context, assignment Assignment) error    { return nil }
+func (r *blockingConnectRunner) Cooldown(ctx context.Context, assignment Assignment) error {
+	return nil
+}
+
+func (r *blockingConnectRunner) waitForCalls(want int32, timeout time.Duration) bool {
+	deadline := time.After(timeout)
+	for r.calls.Load() < want {
+		select {
+		case <-r.entered:
+		case <-deadline:
+			return false
+		}
+	}
+	return true
+}
+
+func (r *blockingConnectRunner) release() {
+	close(r.done)
 }
 
 func assignFull(t *testing.T, srv *Server, token string, assignment Assignment) {

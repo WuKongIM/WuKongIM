@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 // WorkloadRunner receives worker lifecycle hooks for assigned benchmark shards.
@@ -37,10 +38,11 @@ type Config struct {
 
 // Server exposes the wkbench worker control HTTP API.
 type Server struct {
-	cfg    Config
-	state  *State
-	runner WorkloadRunner
-	mux    *http.ServeMux
+	cfg     Config
+	state   *State
+	runner  WorkloadRunner
+	phaseMu sync.Mutex
+	mux     *http.ServeMux
 }
 
 // NewServer builds a worker control server with in-memory assignment state.
@@ -121,6 +123,8 @@ func (s *Server) phase(phase Phase) http.HandlerFunc {
 			methodNotAllowed(w)
 			return
 		}
+		s.phaseMu.Lock()
+		defer s.phaseMu.Unlock()
 		status := s.state.Status()
 		if status.Phase == phase {
 			writeJSON(w, http.StatusOK, status)

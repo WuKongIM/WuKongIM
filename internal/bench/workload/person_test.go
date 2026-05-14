@@ -97,6 +97,42 @@ func TestPersonWorkloadSendOneMatchesSendackAndVerifiesRecvWhenEnabled(t *testin
 	require.NotEmpty(t, workload.Metrics().LatencyValues("person_recv_latency_seconds", nil))
 }
 
+func TestPersonWorkloadFullRecvVerificationAllowsSmallPayload(t *testing.T) {
+	sender := newRecordingPersonClient()
+	recipient := newRecordingPersonClient()
+	ack := &frame.SendackPacket{
+		MessageID:   100,
+		MessageSeq:  42,
+		ClientSeq:   42,
+		ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-ch3-msg42",
+		ReasonCode:  frame.ReasonSuccess,
+	}
+	sender.sendacks = append(sender.sendacks, ack)
+	recipient.recvFrames = append(recipient.recvFrames, &frame.RecvPacket{
+		MessageID:   100,
+		MessageSeq:  42,
+		FromUID:     "u1",
+		ChannelID:   "u1",
+		ChannelType: frame.ChannelTypePerson,
+		ClientMsgNo: ack.ClientMsgNo,
+		Payload:     []byte("run=run-"),
+	})
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:            "run-a",
+		ProfileName:      "profile-a",
+		TrafficName:      "traffic-a",
+		Pairs:            []PersonPair{{ChannelIndex: 3, SenderUID: "u1", RecipientUID: "u2"}},
+		ClientMsgPrefix:  "bench-msg",
+		VerifyRecvMode:   "full",
+		PayloadSizeBytes: 8,
+		Metrics:          metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": recipient})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.SendOne(context.Background(), 42))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_success_total", nil))
+}
+
 func TestPersonWorkloadRecvVerificationRejectsWrongFromUID(t *testing.T) {
 	sender := newRecordingPersonClient()
 	recipient := newRecordingPersonClient()
