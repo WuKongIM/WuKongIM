@@ -40,7 +40,7 @@ The effective person permission order should be:
 2. If the sender UID is a configured system UID, allow.
 3. Check sender personal metadata `(from_uid, Person)` for `SendBan`; if set, return `ReasonSendBan`. Missing sender metadata means not send-banned.
 4. If the gateway-sourced device ID matches `Message.SystemDeviceID`, allow the remaining receiver-side permission. System device must not bypass sender `SendBan`.
-5. Normalize the person channel ID and derive the receiver UID.
+5. Normalize the person channel ID and derive the receiver UID using the existing person-channel helper path already used by `checkPersonSendPermission`; do not introduce a second normalization rule.
 6. If the receiver UID is a configured system UID, allow.
 7. Check receiver-dimensional denylist `deny/person/<receiver>`; if sender is present, return `ReasonInBlacklist`.
 8. If `PersonWhitelistEnabled=false`, allow. `AllowStranger=false` must not become a new default rejection path.
@@ -67,7 +67,7 @@ Rules:
 
 ### Slot Meta
 
-`pkg/slot/meta` should add an `allow_stranger` column to the channel table, likely the next channel column ID after `send_ban`.
+`pkg/slot/meta` should add an `allow_stranger` column to the channel table as the next channel column ID after `send_ban`.
 
 The primary channel family should encode and decode `AllowStranger` alongside `Ban`, `Disband`, `SendBan`, and `SubscriberMutationVersion`. The existing value encoding is field-oriented, so missing `allow_stranger` in older records should naturally default to zero.
 
@@ -130,6 +130,7 @@ Focused tests:
   - receiver denylist still returns `ReasonInBlacklist` even when `AllowStranger=1`;
   - sender `SendBan` still returns `ReasonSendBan` before `AllowStranger` can matter;
   - `PersonWhitelistEnabled=false`, receiver `AllowStranger=0` remains allowed after denylist miss;
+  - receiver metadata missing while checking `AllowStranger` returns `ReasonNotInWhitelist`;
   - receiver metadata store error while checking `AllowStranger` returns `ReasonSystemError`.
 - `internal/usecase/channel` and `internal/access/api`:
   - `allow_stranger` is mapped into `metadb.Channel.AllowStranger`.
