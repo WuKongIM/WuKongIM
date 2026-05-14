@@ -47,6 +47,39 @@ func TestConnectionManagerConnectsUsersRoundRobinAndTracksActiveSessions(t *test
 	}
 }
 
+func TestConnectionManagerAppliesDefaultAndPerUserTokens(t *testing.T) {
+	factory := &recordingClientFactory{}
+	manager, err := NewConnectionManager(ConnectionManagerConfig{
+		GatewayAddrs:  []string{"gw-a:5100"},
+		Token:         "default-token",
+		ClientFactory: factory.newClient,
+	})
+	if err != nil {
+		t.Fatalf("NewConnectionManager() error = %v", err)
+	}
+	defer manager.Close()
+
+	users := []ConnectionUser{
+		{UID: "u1", DeviceID: "d1"},
+		{UID: "u2", DeviceID: "d2", Token: "user-token"},
+	}
+	if err := manager.Connect(context.Background(), users); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	if got, want := factory.users[0].Token, "default-token"; got != want {
+		t.Fatalf("first factory token = %q, want %q", got, want)
+	}
+	if got, want := factory.users[1].Token, "user-token"; got != want {
+		t.Fatalf("second factory token = %q, want %q", got, want)
+	}
+	if session, ok := manager.Session("u1"); !ok || session.Token != "default-token" {
+		t.Fatalf("session u1 token = %#v, want default-token", session)
+	}
+	if session, ok := manager.Session("u2"); !ok || session.Token != "user-token" {
+		t.Fatalf("session u2 token = %#v, want user-token", session)
+	}
+}
+
 func TestConnectionManagerRateLimitsConnectAttempts(t *testing.T) {
 	var sleeps []time.Duration
 	manager, err := NewConnectionManager(ConnectionManagerConfig{
@@ -113,10 +146,12 @@ func TestConnectionManagerRejectsInvalidConfig(t *testing.T) {
 type recordingClientFactory struct {
 	addrs   []string
 	clients []*recordingClient
+	users   []ConnectionUser
 }
 
-func (f *recordingClientFactory) newClient(addr string) (ConnectionClient, error) {
+func (f *recordingClientFactory) newClient(user ConnectionUser, addr string) (ConnectionClient, error) {
 	client := &recordingClient{addr: addr}
+	f.users = append(f.users, user)
 	f.addrs = append(f.addrs, addr)
 	f.clients = append(f.clients, client)
 	return client, nil

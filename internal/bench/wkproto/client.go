@@ -21,6 +21,8 @@ var errClientNotConnected = errors.New("wkproto client: not connected")
 type ClientConfig struct {
 	// Addr is the gateway TCP address in host:port form.
 	Addr string
+	// Token is the default connect token sent when callers do not override it.
+	Token string
 	// Dialer overrides TCP dialing for tests; nil uses net.Dialer.
 	Dialer interface {
 		DialContext(context.Context, string, string) (net.Conn, error)
@@ -37,8 +39,10 @@ type Client struct {
 	}
 	operationTimeout time.Duration
 	proto            *codec.WKProto
+	token            string
 
 	mu            sync.Mutex
+	writeMu       sync.Mutex
 	conn          net.Conn
 	privateKey    [32]byte
 	publicKey     [32]byte
@@ -65,6 +69,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		dialer:           cfg.Dialer,
 		operationTimeout: cfg.OperationTimeout,
 		proto:            codec.New(),
+		token:            cfg.Token,
 		privateKey:       private,
 		publicKey:        public,
 	}, nil
@@ -97,6 +102,7 @@ func (c *Client) Connect(ctx context.Context, uid, deviceID string) error {
 		DeviceFlag:      frame.APP,
 		ClientTimestamp: time.Now().UnixMilli(),
 		ClientKey:       protocolenc.EncodePublicKey(c.publicKey),
+		Token:           c.token,
 	}
 	if err := c.writeFrame(ctx, connect); err != nil {
 		_ = c.Close()
@@ -179,6 +185,8 @@ func (c *Client) Close() error {
 }
 
 func (c *Client) writeFrame(ctx context.Context, f frame.Frame) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 	ctx, cancel := c.withDefaultTimeout(ctx)
 	defer cancel()
 	conn, err := c.currentConn()
