@@ -113,8 +113,7 @@ online:
   gateway_balance: round_robin
   reconnect:
     enabled: true
-    interval: 1s
-    jitter: 250ms
+    backoff: 1s
     max_attempts: 5
   heartbeat:
     enabled: true
@@ -130,7 +129,7 @@ channels:
       members:
         count: 100
         pick: random
-        overlap: 0.2
+        overlap: allowed
       online:
         sender_ratio: 0.5
         recipient_ratio: 0.75
@@ -139,6 +138,9 @@ channels:
         mode: hash
       prepare:
         subscribers_batch_size: 500
+cleanup:
+  enabled: false
+  strategy: keep_data
 messages:
   payload:
     size_bytes: 256
@@ -173,6 +175,10 @@ messages:
 	require.Equal(t, 100, scenario.Online.TotalUsers)
 	require.Equal(t, 25.5, scenario.Online.ConnectRate.PerSecond)
 	require.True(t, scenario.Online.Reconnect.Enabled)
+	require.Equal(t, time.Second, scenario.Online.Reconnect.Backoff)
+	require.Equal(t, "allowed", scenario.Channels.Profiles[0].Members.Overlap)
+	require.False(t, scenario.Cleanup.Enabled)
+	require.Equal(t, "keep_data", scenario.Cleanup.Strategy)
 	require.Equal(t, 30*time.Second, scenario.Online.Heartbeat.Interval)
 	require.Len(t, scenario.Channels.Profiles, 1)
 	require.Equal(t, "group-hot", scenario.Channels.Profiles[0].Name)
