@@ -5,12 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	benchworkload "github.com/WuKongIM/WuKongIM/internal/bench/workload"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )
 
@@ -200,6 +204,45 @@ func TestWorkerMetricsAndReportReturnMinimalJSON(t *testing.T) {
 	}
 }
 
+func TestWorkerDefaultRunnerConnectsAndRunsPersonShard(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignment := Assignment{
+		RunID:    "run-a",
+		WorkerID: "worker-a",
+		Target:   model.Target{Gateway: model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"gw-a:5100"}}}},
+		Scenario: model.Scenario{
+			Run:      model.RunConfig{ID: "run-a"},
+			Identity: model.IdentityConfig{UIDPrefix: "bench-u", DevicePrefix: "bench-d", ClientMsgPrefix: "bench-msg"},
+			Online:   model.OnlineConfig{GatewayBalance: "round_robin"},
+			Messages: model.MessagesConfig{Traffic: []model.TrafficConfig{{Name: "person-send", ChannelRef: "person-a"}}},
+		},
+		Plan: model.WorkerPlan{WorkerID: "worker-a", Profiles: map[string]model.ProfileShard{
+			"person-a": {
+				Name:             "person-a",
+				ChannelType:      model.ChannelTypePerson,
+				ChannelRange:     model.Range{Start: 3, End: 4},
+				ParticipantRange: model.Range{Start: 6, End: 8},
+			},
+		}},
+	}
+	assignFull(t, srv, "secret", assignment)
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/warmup", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/run", http.StatusOK)
+
+	sender := pool.client("bench-u-6")
+	recipient := pool.client("bench-u-7")
+	require.Equal(t, []workerConnectCall{{uid: "bench-u-6", deviceID: "bench-d-6"}}, sender.connected)
+	require.Equal(t, []workerConnectCall{{uid: "bench-u-7", deviceID: "bench-d-7"}}, recipient.connected)
+	require.Len(t, sender.sentFrames, 1)
+	require.Equal(t, "bench-u-7", sender.sentFrames[0].ChannelID)
+	require.Equal(t, frame.ChannelTypePerson, sender.sentFrames[0].ChannelType)
+	require.Contains(t, sender.sentFrames[0].ClientMsgNo, "bench-msg")
+}
+
 func TestWorkerPhaseHooksCallWorkloadRunner(t *testing.T) {
 	runner := &recordingWorkloadRunner{}
 	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
@@ -257,6 +300,71 @@ func (r *recordingWorkloadRunner) record(phase Phase, assignment Assignment) err
 	r.runIDs = append(r.runIDs, assignment.RunID)
 	return nil
 }
+
+func assignFull(t *testing.T, srv *Server, token string, assignment Assignment) {
+	t.Helper()
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/assign", token, mustJSON(t, assignment))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+}
+
+type workerPersonClientPool struct {
+	clients map[string]*workerPersonClient
+}
+
+func newWorkerPersonClientPool() *workerPersonClientPool {
+	return &workerPersonClientPool{clients: make(map[string]*workerPersonClient)}
+}
+
+func (p *workerPersonClientPool) newClient(user benchworkload.ConnectionUser, addr string) (benchworkload.ConnectionClient, error) {
+	client := &workerPersonClient{uid: user.UID, addr: addr}
+	p.clients[user.UID] = client
+	return client, nil
+}
+
+func (p *workerPersonClientPool) client(uid string) *workerPersonClient {
+	return p.clients[uid]
+}
+
+type workerPersonClient struct {
+	uid        string
+	addr       string
+	connected  []workerConnectCall
+	sentFrames []*frame.SendPacket
+	readFrames []frame.Frame
+}
+
+type workerConnectCall struct {
+	uid, deviceID string
+}
+
+func (c *workerPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
+	c.connected = append(c.connected, workerConnectCall{uid: uid, deviceID: deviceID})
+	return nil
+}
+
+func (c *workerPersonClient) Send(ctx context.Context, pkt *frame.SendPacket) error {
+	cloned := *pkt
+	c.sentFrames = append(c.sentFrames, &cloned)
+	c.readFrames = append(c.readFrames, &frame.SendackPacket{ClientSeq: pkt.ClientSeq, ClientMsgNo: pkt.ClientMsgNo, ReasonCode: frame.ReasonSuccess})
+	return nil
+}
+
+func (c *workerPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	if len(c.readFrames) == 0 {
+		return nil, io.EOF
+	}
+	f := c.readFrames[0]
+	c.readFrames = c.readFrames[1:]
+	return f, nil
+}
+
+func (c *workerPersonClient) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
+	return nil
+}
+
+func (c *workerPersonClient) Close() error { return nil }
+
+var _ benchworkload.PersonClient = (*workerPersonClient)(nil)
 
 func assign(t *testing.T, srv *Server, token, runID string) {
 	t.Helper()
