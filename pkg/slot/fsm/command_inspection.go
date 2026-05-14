@@ -156,11 +156,12 @@ func deviceInspection(commandType string, device metadb.Device) CommandInspectio
 
 func channelInspection(commandType string, channel metadb.Channel) CommandInspection {
 	return simpleInspection(commandType, map[string]any{
-		"channel_id":   channel.ChannelID,
-		"channel_type": channel.ChannelType,
-		"ban":          channel.Ban,
-		"disband":      channel.Disband,
-		"send_ban":     channel.SendBan,
+		"channel_id":     channel.ChannelID,
+		"channel_type":   channel.ChannelType,
+		"ban":            channel.Ban,
+		"disband":        channel.Disband,
+		"send_ban":       channel.SendBan,
+		"allow_stranger": channel.AllowStranger,
 	})
 }
 
