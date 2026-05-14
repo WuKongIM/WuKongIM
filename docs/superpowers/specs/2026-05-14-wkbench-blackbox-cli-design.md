@@ -1,7 +1,7 @@
 # wkbench Black-Box Load Test CLI Design
 
 Date: 2026-05-14
-Status: Approved design draft
+Status: Reviewed design draft
 Scope: External black-box load testing for WuKongIM clusters
 
 ## 1. Goals
@@ -81,7 +81,7 @@ The coordinator does not produce business load directly.
 Users manually start workers on load-generator machines:
 
 ```bash
-wkbench worker --listen 0.0.0.0:19090 --work-dir ./wkbench-data
+wkbench worker --listen 0.0.0.0:19090 --work-dir ./wkbench-data --control-token "$WK_BENCH_WORKER_TOKEN"
 ```
 
 Each worker owns only the shard assigned by the coordinator. It creates data through target HTTP or bench APIs, opens real WKProto connections, runs message traffic, verifies recv behavior, and reports aggregated metrics.
@@ -101,7 +101,7 @@ The target is a user-managed WuKongIM cluster. `wkbench` talks to it only throug
 
 ```bash
 wkbench run --target target.yaml --scenario scenario.yaml --workers workers.yaml
-wkbench worker --listen 0.0.0.0:19090 --work-dir ./wkbench-data
+wkbench worker --listen 0.0.0.0:19090 --work-dir ./wkbench-data --control-token "$WK_BENCH_WORKER_TOKEN"
 wkbench validate --target target.yaml --scenario scenario.yaml --workers workers.yaml
 wkbench doctor --target target.yaml --workers workers.yaml
 wkbench report --run-dir ./runs/bench-20260514-001
@@ -164,7 +164,7 @@ metrics:
     - http://10.0.1.13:5001/metrics
 
 bench_api:
-  enabled: true
+  enabled: false
 ```
 
 There is no manager section in v1.
@@ -176,14 +176,17 @@ workers:
   - id: bench-a
     addr: http://192.168.10.21:19090
     weight: 1
+    control_token: "${WK_BENCH_WORKER_TOKEN}"
     tags: [zone-a]
   - id: bench-b
     addr: http://192.168.10.22:19090
     weight: 1
+    control_token: "${WK_BENCH_WORKER_TOKEN}"
     tags: [zone-b]
   - id: bench-c
     addr: http://192.168.10.23:19090
     weight: 2
+    control_token: "${WK_BENCH_WORKER_TOKEN}"
     tags: [zone-c]
 ```
 
@@ -204,6 +207,7 @@ run:
   report_dir: ./runs/bench-20260514-001
 
 limits:
+  fail_on_soft: false
   hard:
     max_worker_failed: 0
     max_connect_error_rate: 0.001
@@ -214,14 +218,12 @@ limits:
     max_recv_p99: 3s
 
 prepare:
+  api_strategy: existing_first
   concurrency: 200
   rate_limit: 1000/s
   retry:
     max_attempts: 3
     backoff: 200ms
-  fallback_bench_api:
-    enabled: true
-    required: false
 
 identity:
   uid_prefix: bench-20260514-001-u
@@ -318,11 +320,51 @@ cleanup:
   strategy: keep_data
 ```
 
+### 5.4 Prepare API Strategy
+
+Existing APIs are the default data-preparation path. Bench APIs are only used when the scenario explicitly selects or requires them.
+
+`prepare.api_strategy` values:
+
+- `existing_first`: default. Use `/channel`, `/channel/subscriber_add`, and optional `/user/token`. Bench APIs are not used in this mode; preflight may warn when the estimated prepare cost suggests `bench_first`.
+- `bench_first`: use `/bench/v1/*` when target capabilities support the needed operation; fall back to existing APIs if the capabilities are unavailable or incomplete.
+- `bench_required`: use `/bench/v1/*` and fail preflight if capabilities are unavailable or incomplete.
+
+Bench API acceleration example:
+
+```yaml
+# target.yaml
+bench_api:
+  enabled: true
+
+# scenario.yaml
+prepare:
+  api_strategy: bench_first
+```
+
+Profile rates are defined by one or more `messages.traffic` entries referencing the profile through `channel_ref`. Do not add competing rate fields directly under `channels.profiles`.
+
 ## 6. Channel Profile Semantics
 
 The schema is profile-based so later channel types can be added without changing the CLI shape. v1 enables only `person` and `group`.
 
-### 6.1 Person
+### 6.1 Global Identity Pool
+
+The planner builds a deterministic UID pool before it expands profiles.
+
+Rules:
+
+- `online.total_users` is the default shared UID pool size and the maximum target online sessions for the run.
+- UIDs are generated as `identity.uid_prefix` plus a zero-padded global UID index.
+- Person profiles consume pairs from the shared pool by default. `person.count=500000` requires 1,000,000 distinct participant slots unless a future profile explicitly enables user reuse.
+- Group profiles select members from the same shared pool by default. This intentionally allows a user to participate in both person and group workloads unless a profile sets `members.overlap=disallowed`.
+- `members.overlap=allowed` permits overlap across channels and profiles. `members.overlap=disallowed` requires the planner to reserve disjoint UID ranges and fail validation if the pool is too small.
+- Online ratios select from the profile's participant set. They do not create additional UIDs.
+- Token preparation deduplicates by UID after all profiles are expanded.
+
+The planner must output the resolved UID ranges and reuse policy into `plan.json` so connection count, token count, and recv verification are reproducible.
+
+### 6.2 Person
 
 A `person` profile models one-to-one channels.
 
@@ -338,7 +380,7 @@ Rules:
 
 Person profiles do not create channels or subscribers through HTTP.
 
-### 6.2 Group
+### 6.3 Group
 
 A `group` profile models subscriber-based group channels.
 
@@ -410,6 +452,15 @@ bench-c:
 
 Only one assigned channel owner calls `/channel`. All workers can add their subscriber batches. Traffic is partitioned by message index, for example `message_index % partition_count`.
 
+Huge-group prepare ownership rules:
+
+- The channel owner is chosen deterministically from the weighted worker list by `hash(run_id, profile, channel_index)`.
+- Channel upsert must be idempotent. If the owner retries after a timeout and the channel already exists, prepare continues.
+- Workers do not start subscriber batches for a huge group until the coordinator observes the owner reached `channel_prepared` for that channel.
+- Each subscriber batch has a deterministic batch ID derived from `run_id`, profile, channel index, worker ID, and member range. Retrying the same batch must be safe.
+- If the owner fails before `channel_prepared`, the coordinator either fails the run when `fail_fast=true` or reassigns ownership to the next deterministic worker and records the ownership change in `plan.json`.
+- If a non-owner fails during subscriber preparation, its member range remains incomplete and the run is failed or degraded according to `fail_fast`; other workers must not silently claim that range unless the coordinator explicitly reassigns it.
+
 ## 8. Run Phases
 
 A run moves through fixed phases:
@@ -437,7 +488,7 @@ Compiles global profiles and traffic into deterministic worker shards.
 
 ### 8.3 Prepare
 
-Prepares data through public APIs or optional bench APIs.
+Prepares data through public APIs or optional bench APIs according to `prepare.api_strategy`.
 
 - Person: optional token preparation only.
 - Group: channel upsert and subscriber add.
@@ -523,6 +574,18 @@ GET  /v1/metrics
 GET  /v1/report
 ```
 
+### 10.1 Worker Control Security
+
+Target `/bench/v1/*` APIs are intentionally unauthenticated when enabled, but coordinator-to-worker control is a separate trust boundary. A worker can start large outbound traffic, stop a run, and expose reports, so the control API must not be open by default.
+
+Worker control rules:
+
+- `wkbench worker` requires a shared `--control-token` unless the user passes an explicit `--insecure-control` flag.
+- Coordinator requests include `Authorization: Bearer <control-token>`.
+- `wkbench doctor` verifies the token before a run can be assigned.
+- Workers should bind to a private address by default in documentation examples; `0.0.0.0` examples must mention firewall isolation.
+- If `--insecure-control` is used, the worker includes that fact in `/v1/info`, and the coordinator prints a warning in preflight and the final report.
+
 Worker phase state is monotonic:
 
 ```text
@@ -606,7 +669,6 @@ Allowed labels:
 
 ```text
 worker_id
-run_id
 phase
 channel_type
 profile
@@ -614,6 +676,8 @@ traffic
 error_kind
 reason_code
 ```
+
+`run_id` belongs in JSON reports, logs, and local files. It is not a default metric label because repeated timestamped runs would create unbounded time-series churn. If a future Prometheus exporter needs a run label, it must be opt-in and documented as short-lived.
 
 Forbidden labels:
 
@@ -684,7 +748,15 @@ runs/
       samples.jsonl
 ```
 
-### 11.6 Exit Codes
+### 11.6 Limit Evaluation
+
+Hard limits determine the run verdict and exit status. If any hard limit fails, `wkbench run` exits with code 3 after cooldown and report generation.
+
+Soft limits produce warnings by default and do not change the exit status. If `limits.fail_on_soft=true`, soft-limit failures are promoted to hard-limit failures and use exit code 3.
+
+The final report records each limit as `passed`, `warning`, or `failed` with the configured value and observed value.
+
+### 11.7 Exit Codes
 
 ```text
 0  success
@@ -698,7 +770,7 @@ runs/
 
 ## 12. Bench API
 
-Bench APIs are optional. Existing APIs are used first unless the scenario allows or requires bench API acceleration.
+Bench APIs are optional. `WK_BENCH_API_ENABLE=true` is the only v1 bench API mode switch; when it is false, `/bench/v1/*` routes are not registered. Existing APIs remain the default data-preparation path unless `prepare.api_strategy` selects or requires bench API acceleration.
 
 Bench APIs are unauthenticated by design to avoid manager-account complexity, but they are disabled by default and must only be enabled in isolated benchmark environments.
 
@@ -754,6 +826,43 @@ POST /bench/v1/users/tokens
 
 Used only when token mode requires prepared user tokens.
 
+Request:
+
+```json
+{
+  "run_id": "bench-20260514-001",
+  "batch_id": "bench-20260514-001-users-000001",
+  "upsert": true,
+  "users": [
+    {
+      "uid": "bench-20260514-001-u-0000000001",
+      "token": "bench-token",
+      "device_flag": 0,
+      "device_level": 1
+    }
+  ]
+}
+```
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "accepted": 1,
+  "created_or_updated": 1,
+  "skipped": 0,
+  "errors": []
+}
+```
+
+Semantics:
+
+- `run_id` and `batch_id` are required.
+- The same `batch_id` with the same body is idempotent and retry-safe.
+- The same `batch_id` with a different body returns `409 conflict`.
+- `errors` contains bounded per-item errors; the endpoint returns non-2xx when any required item fails.
+
 ### 12.4 Batch Channels
 
 ```text
@@ -762,6 +871,46 @@ POST /bench/v1/channels
 
 v1 supports only `channel_type=2` group channels. Person channels are not created.
 
+Request:
+
+```json
+{
+  "run_id": "bench-20260514-001",
+  "batch_id": "bench-20260514-001-channels-small-000001",
+  "upsert": true,
+  "channels": [
+    {
+      "channel_id": "bench-20260514-001-g-small-000001",
+      "channel_type": 2,
+      "large": 0,
+      "ban": 0,
+      "disband": 0,
+      "send_ban": 0,
+      "allow_stranger": 0
+    }
+  ]
+}
+```
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "accepted": 1,
+  "created_or_updated": 1,
+  "skipped": 0,
+  "errors": []
+}
+```
+
+Semantics:
+
+- `run_id` and `batch_id` are required.
+- Channel IDs should include the run prefix so repeated runs do not collide accidentally.
+- Upsert is idempotent and retry-safe.
+- Unsupported `channel_type` returns `400 bad_request`.
+
 ### 12.5 Batch Subscribers
 
 ```text
@@ -769,6 +918,63 @@ POST /bench/v1/channels/subscribers
 ```
 
 v1 supports only group subscribers. `reset=false` is the default so multiple workers can add disjoint member batches to the same huge group.
+
+Request:
+
+```json
+{
+  "run_id": "bench-20260514-001",
+  "batch_id": "bench-20260514-001-subs-huge-000000-bench-a-000001",
+  "items": [
+    {
+      "channel_id": "bench-20260514-001-g-huge-000000",
+      "channel_type": 2,
+      "reset": false,
+      "subscribers": [
+        "bench-20260514-001-u-0000000001",
+        "bench-20260514-001-u-0000000002"
+      ]
+    }
+  ]
+}
+```
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "accepted_channels": 1,
+  "accepted_subscribers": 2,
+  "created_or_updated": 2,
+  "skipped": 0,
+  "errors": []
+}
+```
+
+Semantics:
+
+- `run_id` and `batch_id` are required.
+- `reset=false` is required for multi-worker huge-group preparation. `reset=true` is only allowed for a single owner-owned channel batch and must be rejected when the plan marks the channel as split across workers.
+- Re-adding an existing subscriber is success and increments `skipped` or `created_or_updated` according to implementation detail, but must not fail the batch.
+- Partial success should be avoided. If a batch cannot be applied atomically, the response must include per-item errors and the worker must retry only deterministic failed batch IDs.
+
+Common error envelope:
+
+```json
+{
+  "status": "error",
+  "error": "bad_request",
+  "message": "unsupported channel_type",
+  "items": [
+    {
+      "index": 0,
+      "error": "unsupported_channel_type",
+      "message": "bench/v1 subscribers supports group only"
+    }
+  ]
+}
+```
 
 ### 12.6 Snapshot
 
@@ -837,6 +1043,31 @@ internal/
     report/
 ```
 
+### 13.1 Black-Box Import Boundary
+
+Because `wkbench` lives in the same Go module, import boundaries must be enforced by tests and review. The CLI and `internal/bench/*` packages are external-load-generator code, not server composition code.
+
+Allowed imports for `cmd/wkbench` and `internal/bench/*`:
+
+- Go standard library.
+- Approved third-party CLI/config/HTTP libraries.
+- `internal/bench/*`.
+- Public protocol packages needed to speak the real wire protocol, especially `pkg/protocol/frame`, `pkg/protocol/codec`, and `pkg/protocol/jsonrpc` if WebSocket support is added later.
+
+Forbidden imports:
+
+- `internal/app`
+- `internal/access/*`
+- `internal/usecase/*`
+- `internal/runtime/*`
+- `internal/gateway/*`; if WKProto client crypto helpers are needed, first extract a minimal protocol-safe helper into a public package instead of importing gateway internals.
+- `pkg/slot/*`
+- `pkg/controller/*`
+- `pkg/cluster/*`
+- storage, Raft, and metadata internals.
+
+Add a boundary test that runs `go list -deps ./cmd/wkbench` and fails if any forbidden import appears. This test is part of the acceptance criteria because it prevents the CLI from becoming an in-repo shortcut instead of a black-box client.
+
 `internal/bench/target` may use public protocol packages:
 
 ```text
@@ -844,7 +1075,7 @@ pkg/protocol/frame
 pkg/protocol/codec
 ```
 
-It must not use `internal/app`.
+It must not use forbidden server, cluster, storage, or runtime packages.
 
 ## 14. Test Strategy
 
@@ -856,14 +1087,17 @@ It must not use `internal/app`.
 - Worker-weight sharding.
 - Huge-group member and traffic partitioning.
 - Rate parsing and payload generation.
+- `prepare.api_strategy` selection and preflight behavior.
 - Error classification.
 - Report aggregation.
+- `wkbench` import-boundary test rejects server internals in `go list -deps ./cmd/wkbench`.
 
 ### 14.2 Coordinator/Worker Tests
 
 - Worker phase state machine.
 - Idempotent assignment for the same run ID.
 - Conflict on different active run ID.
+- Control token is required by default and invalid tokens are rejected.
 - Coordinator phase progression.
 - Partial worker failure behavior with `fail_fast=true/false`.
 - Metrics delta aggregation.
@@ -881,8 +1115,10 @@ It must not use `internal/app`.
 - Capabilities route is present when enabled.
 - Batch size and payload limits are enforced.
 - `run_id` is required for mutating routes.
+- `batch_id` is required, idempotent for identical retries, and conflicts on changed bodies.
 - Batch channels reject unsupported channel types.
 - Batch subscribers are idempotent and default to `reset=false`.
+- Batch subscribers reject unsafe `reset=true` for split huge-group preparation.
 
 ### 14.5 Focused Integration Tests
 
@@ -930,12 +1166,14 @@ Do not put large real-time load tests into default unit tests.
 - Add bench capabilities, batch token, batch channel, batch subscriber, and snapshot routes.
 - Make wkbench select existing APIs or bench APIs according to scenario and capabilities.
 
-## 16. Open Questions
+## 16. Post-v1 Questions
+
+These questions are intentionally outside the v1 implementation contract:
 
 - Should `wkbench worker` expose Prometheus metrics directly in addition to JSON metrics for the coordinator?
-- Should v1 support WebSocket JSON-RPC, or only WKProto TCP?
-- Should cleanup remain only `keep_data` in v1, or should a best-effort run-prefix cleanup be added later under bench mode?
-- What default `ulimit` safety factor should make preflight fail versus warn?
+- Should a later version support WebSocket JSON-RPC, or should WKProto TCP remain the only transport?
+- Should cleanup remain only `keep_data`, or should a best-effort run-prefix cleanup be added later under bench mode?
+- What default `ulimit` safety factor should make preflight fail versus warn after real-world calibration?
 
 ## 17. Acceptance Criteria
 
@@ -948,5 +1186,8 @@ v1 is acceptable when:
 - Each profile can define its own message rate.
 - All message pressure uses real WKProto.
 - Data preparation uses existing APIs by default.
+- `prepare.api_strategy` makes bench API selection explicit and testable.
 - Bench APIs are optional, disabled by default, unauthenticated when enabled, and do not depend on manager APIs.
+- Worker control APIs require a control token unless explicitly started with insecure control mode.
+- `wkbench` import-boundary tests prevent imports of server internals and cluster/storage shortcuts.
 - Reports include overall, by-worker, and by-profile connection count, QPS, sendack latency, recv latency, error rate, and bounded error samples.
