@@ -267,9 +267,15 @@ test("builds related slot log and connection links", async () => {
   await user.type(screen.getByLabelText("Trace ID"), "tr-1")
   await user.click(screen.getByRole("button", { name: "Run diagnostics" }))
 
-  expect(await screen.findByRole("link", { name: "Slot 9 logs on node 2" })).toHaveAttribute("href", "/slot-logs?slot_id=9&node_id=2")
-  expect(screen.getByRole("link", { name: "Connections on node 2" })).toHaveAttribute("href", "/connections?node_id=2")
-  expect(screen.getByRole("link", { name: "Nodes" })).toHaveAttribute("href", "/nodes")
+  expect(await screen.findByRole("link", { name: "Slot 9 logs on node 2" })).toHaveAttribute(
+    "href",
+    "/cluster/diagnostics?tab=slot-logs&slot_id=9&node_id=2",
+  )
+  expect(screen.getByRole("link", { name: "Connections on node 2" })).toHaveAttribute(
+    "href",
+    "/system/connections?node_id=2",
+  )
+  expect(screen.getByRole("link", { name: "Nodes" })).toHaveAttribute("href", "/cluster/nodes")
 })
 
 test("exports the current diagnostics JSON", async () => {

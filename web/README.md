@@ -24,18 +24,34 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 | Page | Manager API coverage | Status |
 |------|----------------------|--------|
 | `/dashboard` | `GET /manager/overview`, `GET /manager/tasks`, `GET /manager/nodes`, `GET /manager/channel-cluster/summary` | Implemented |
-| `/channel-cluster` | `GET /manager/channel-cluster/summary` | Implemented |
-| `/channel-cluster/list` | `GET /manager/channel-runtime-meta`, `GET /manager/channel-runtime-meta/:type/:id` | Implemented |
-| `/channel-cluster/unhealthy` | `GET /manager/channel-cluster/unhealthy`, `GET /manager/channel-cluster/:type/:id/replicas`, `POST /manager/channel-cluster/:type/:id/repair`, `POST /manager/channel-cluster/:type/:id/leader/transfer` | Implemented |
-| `/nodes`, `/slots`, `/onboarding`, `/controller` | Existing cluster manager endpoints | Implemented |
-| `/tasks` | `GET /manager/distributed-tasks/summary`, `GET /manager/distributed-tasks`, `GET /manager/distributed-tasks/:domain/:id` | Implemented |
-| `/messages`, `/diagnostics`, `/network`, `/connections`, `/slot-logs` | Existing diagnostics and message endpoints | Implemented |
-| `/users` | `GET /manager/users`, `GET /manager/users/:uid`, `POST /manager/users/:uid/kick`, `POST /manager/users/:uid/token/reset` | Implemented |
-| `/channels-biz` | `GET /manager/channels`, `GET /manager/channels/:type/:id`, `POST /manager/channels`, member list add/remove APIs | Implemented |
-| `/system-users` | `GET /manager/system-users`, `POST /manager/system-users/add`, `POST /manager/system-users/remove` | Implemented |
-| `/settings/permissions` | `GET /manager/permissions` | Implemented |
-| `/topology` | `GET /manager/overview`, `GET /manager/nodes`, `GET /manager/slots` | Implemented |
-| `/monitor`, `/settings/webhooks` | Requires follow-up read/write API design | Placeholder |
+| `/monitor` | Requires follow-up real-time read API design | Placeholder |
+| `/cluster/nodes` | `GET /manager/nodes`, `GET /manager/nodes/:id`, node lifecycle and scale-in APIs; `?panel=onboarding` also uses node onboarding APIs | Implemented |
+| `/cluster/slots` | `GET /manager/nodes`, `GET /manager/slots`, `GET /manager/slots/:id`, slot leader/recovery/rebalance APIs | Implemented |
+| `/cluster/channels?tab=overview` | `GET /manager/channel-cluster/summary` | Implemented |
+| `/cluster/channels?tab=list` | `GET /manager/channel-runtime-meta`, `GET /manager/channel-runtime-meta/:type/:id` | Implemented |
+| `/cluster/channels?tab=unhealthy` | `GET /manager/channel-cluster/unhealthy`, `GET /manager/channel-cluster/:type/:id/replicas`, `POST /manager/channel-cluster/:type/:id/repair`, `POST /manager/channel-cluster/:type/:id/leader/transfer` | Implemented |
+| `/cluster/tasks` | `GET /manager/distributed-tasks/summary`, `GET /manager/distributed-tasks`, `GET /manager/distributed-tasks/:domain/:id` | Implemented |
+| `/cluster/topology` | `GET /manager/overview`, `GET /manager/nodes`, `GET /manager/slots` | Implemented |
+| `/cluster/diagnostics?tab=trace` | Diagnostics tracking, trace, message, and recent event APIs | Implemented |
+| `/cluster/diagnostics?tab=network` | `GET /manager/network/summary` | Implemented |
+| `/cluster/diagnostics?tab=controller-logs` | Controller Raft log/status and compaction APIs | Implemented |
+| `/cluster/diagnostics?tab=slot-logs` | Slot Raft log and compaction APIs | Implemented |
+| `/business/users` | `GET /manager/users`, `GET /manager/users/:uid`, `POST /manager/users/:uid/kick`, `POST /manager/users/:uid/token/reset` | Implemented |
+| `/business/channels` | `GET /manager/channels`, `GET /manager/channels/:type/:id`, `POST /manager/channels`, member list add/remove APIs | Implemented |
+| `/business/messages` | `GET /manager/messages`, message retention APIs, channel runtime suggestions | Implemented |
+| `/business/system-users` | `GET /manager/system-users`, `POST /manager/system-users/add`, `POST /manager/system-users/remove` | Implemented |
+| `/system/permissions` | `GET /manager/permissions` | Implemented |
+| `/system/webhooks` | Requires follow-up read/write API design | Placeholder |
+| `/system/connections` | `GET /manager/connections`, `GET /manager/connections/:session_id` | Implemented |
+
+## Legacy Redirects
+
+Old bookmarks are kept as `replace` redirects into the redesigned sections:
+
+- Cluster routes: `/nodes`, `/onboarding`, `/slots`, `/tasks`, `/topology`, `/channel-cluster`, `/channel-cluster/list`, `/channel-cluster/unhealthy`, `/channels`.
+- Diagnostics routes: `/diagnostics`, `/network`, `/controller`, `/slot-logs`; log redirects preserve existing query parameters such as `node_id` and `slot_id`.
+- Business routes: `/users`, `/channels-biz`, `/messages`, `/system-users`.
+- System routes: `/settings/permissions`, `/settings/webhooks`, `/connections`.
 
 ## Channel Cluster Notes
 

@@ -5,11 +5,11 @@ import { Topbar } from "@/app/layout/topbar"
 
 export function AppShell() {
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
-      <SidebarNav />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar />
-        <main className="flex-1" role="main">
+    <div className="min-h-screen bg-background text-foreground">
+      <Topbar />
+      <div className="flex min-h-[calc(100vh-3rem)]">
+        <SidebarNav />
+        <main className="min-w-0 flex-1" role="main">
           <Outlet />
         </main>
       </div>

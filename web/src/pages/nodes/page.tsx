@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useIntl, type IntlShape } from "react-intl"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 
 import { useAuthStore } from "@/auth/auth-store"
 import { ConfirmDialog } from "@/components/manager/confirm-dialog"
@@ -10,6 +10,7 @@ import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
 import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/shell/page-container"
+import { NodeOnboardingPanel } from "@/pages/onboarding/page"
 import {
   ManagerApiError,
   advanceNodeScaleIn,
@@ -196,7 +197,7 @@ function nodeControllerRaftWatermark(intl: IntlShape, node: ManagerNode) {
 }
 
 function controllerRaftPath(nodeId: number) {
-  return `/controller?node_id=${nodeId}`
+  return `/cluster/diagnostics?tab=controller-logs&node_id=${nodeId}`
 }
 
 function controllerRaftLink(intl: IntlShape, nodeId: number) {
@@ -394,6 +395,8 @@ function ScaleInReportView({ intl, report }: { intl: IntlShape; report: ManagerN
 
 export function NodesPage() {
   const intl = useIntl()
+  const [searchParams] = useSearchParams()
+  const showOnboardingPanel = searchParams.get("panel") === "onboarding"
   const permissions = useAuthStore((state) => state.permissions)
   const canWriteNodes = useMemo(
     () => hasPermission(permissions, "cluster.node", "w"),
@@ -631,6 +634,9 @@ export function NodesPage() {
     <PageContainer>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
+          <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            {intl.formatMessage({ id: "nav.path.cluster.nodes" })}
+          </div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
             {intl.formatMessage({ id: "nav.nodes.title" })}
           </h1>
@@ -640,17 +646,24 @@ export function NodesPage() {
               : intl.formatMessage({ id: "nodes.totalPending" })}
           </p>
         </div>
-        <Button
-          onClick={() => {
-            void loadNodes(true)
-          }}
-          size="sm"
-          variant="outline"
-        >
-          {state.refreshing
-            ? intl.formatMessage({ id: "common.refreshing" })
-            : intl.formatMessage({ id: "common.refresh" })}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link to="/cluster/nodes?panel=onboarding">
+              {intl.formatMessage({ id: "nav.onboarding.title" })}
+            </Link>
+          </Button>
+          <Button
+            onClick={() => {
+              void loadNodes(true)
+            }}
+            size="sm"
+            variant="outline"
+          >
+            {state.refreshing
+              ? intl.formatMessage({ id: "common.refreshing" })
+              : intl.formatMessage({ id: "common.refresh" })}
+          </Button>
+        </div>
       </div>
 
       {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nav.nodes.title" })} /> : null}
@@ -782,6 +795,8 @@ export function NodesPage() {
           )}
         </div>
       ) : null}
+
+      {showOnboardingPanel ? <NodeOnboardingPanel /> : null}
 
       <DetailSheet
         description={

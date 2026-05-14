@@ -165,6 +165,9 @@ export function ConnectionsPage() {
     <PageContainer>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
+          <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            {intl.formatMessage({ id: "nav.path.system.connections" })}
+          </div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
             {intl.formatMessage({ id: "nav.connections.title" })}
           </h1>
