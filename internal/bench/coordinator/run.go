@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
@@ -158,59 +159,86 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 		return result, err
 	}
 
-	if err := c.assignWorkers(ctx, scenario.Run.ID); err != nil {
-		result.Status = statusForError(err)
-		if result.Status == StatusCanceled {
-			c.stopAll()
-		}
+	if err := c.assignWorkers(ctx, scenario, plan); err != nil {
+		result.Status = statusForError(ctx, err)
 		return result, err
 	}
 
+	var phaseErrs []error
 	for _, phase := range runPhases() {
-		if err := c.runPhase(ctx, phase); err != nil {
-			result.Status = statusForError(err)
-			if result.Status == StatusCanceled || scenario.Run.FailFast {
-				c.stopAll()
+		if err := c.runPhase(ctx, scenario.Run.ID, phase); err != nil {
+			result.Status = statusForError(ctx, err)
+			if result.Status == StatusCanceled {
+				c.stopAll(c.cfg.Workers)
+				return result, err
 			}
-			return result, err
+			phaseErrs = append(phaseErrs, err)
+			if scenario.Run.FailFast {
+				c.stopAll(c.cfg.Workers)
+				return result, err
+			}
 		}
+	}
+	if len(phaseErrs) > 0 {
+		result.Status = StatusWorkerFailed
+		return result, errors.Join(phaseErrs...)
 	}
 	result.Status = StatusCompleted
 	return result, nil
 }
 
-func (c *Coordinator) assignWorkers(ctx context.Context, runID string) error {
+func (c *Coordinator) assignWorkers(ctx context.Context, scenario model.Scenario, plan model.Plan) error {
+	assigned := make([]model.Worker, 0, len(c.cfg.Workers))
 	for _, w := range c.cfg.Workers {
-		assignment := worker.Assignment{RunID: runID, WorkerID: strings.TrimSpace(w.ID)}
+		workerID := strings.TrimSpace(w.ID)
+		assignment := worker.Assignment{RunID: scenario.Run.ID, WorkerID: workerID, Plan: plan.Workers[workerID], Target: c.cfg.Target, Scenario: scenario}
 		if err := c.postJSON(ctx, w, "/v1/assign", assignment, nil); err != nil {
+			c.stopAll(assigned)
 			return fmt.Errorf("worker %s assign failed: %w", workerName(w), err)
 		}
+		assigned = append(assigned, w)
 	}
 	return nil
 }
 
-func (c *Coordinator) runPhase(ctx context.Context, phase Phase) error {
+func (c *Coordinator) runPhase(ctx context.Context, runID string, phase Phase) error {
+	accepted := make([]model.Worker, 0, len(c.cfg.Workers))
+	var errs []error
 	for _, w := range c.cfg.Workers {
 		if err := c.postJSON(ctx, w, "/v1/phase/"+string(phase), nil, nil); err != nil {
-			return fmt.Errorf("worker %s phase %s failed: %w", workerName(w), phase, err)
+			errs = append(errs, fmt.Errorf("worker %s phase %s failed: %w", workerName(w), phase, err))
+			if errorsIsParentContext(ctx, err) {
+				return errors.Join(errs...)
+			}
+			continue
+		}
+		accepted = append(accepted, w)
+	}
+	for _, w := range accepted {
+		if err := c.waitForPhase(ctx, w, runID, phase); err != nil {
+			errs = append(errs, fmt.Errorf("worker %s wait for phase %s failed: %w", workerName(w), phase, err))
+			if errorsIsParentContext(ctx, err) {
+				return errors.Join(errs...)
+			}
 		}
 	}
-	for _, w := range c.cfg.Workers {
-		if err := c.waitForPhase(ctx, w, phase); err != nil {
-			return fmt.Errorf("worker %s wait for phase %s failed: %w", workerName(w), phase, err)
-		}
-	}
-	return nil
+	return errors.Join(errs...)
 }
 
-func (c *Coordinator) waitForPhase(ctx context.Context, w model.Worker, want Phase) error {
-	ctx, cancel := context.WithTimeout(ctx, c.cfg.PollTimeout)
+func (c *Coordinator) waitForPhase(parent context.Context, w model.Worker, runID string, want Phase) error {
+	ctx, cancel := context.WithTimeout(parent, c.cfg.PollTimeout)
 	defer cancel()
 	ticker := time.NewTicker(c.cfg.PollInterval)
 	defer ticker.Stop()
 	for {
 		status, err := c.workerStatus(ctx, w)
 		if err != nil {
+			if errorsIsParentContext(parent, err) {
+				return parent.Err()
+			}
+			return err
+		}
+		if err := validateStatusAssignment(status, w, runID); err != nil {
 			return err
 		}
 		if status.Phase == want {
@@ -220,8 +248,13 @@ func (c *Coordinator) waitForPhase(ctx context.Context, w model.Worker, want Pha
 			return fmt.Errorf("worker stopped before phase %s", want)
 		}
 		select {
+		case <-parent.Done():
+			return parent.Err()
 		case <-ctx.Done():
-			return ctx.Err()
+			if parentErr := parent.Err(); parentErr != nil {
+				return parentErr
+			}
+			return errPollTimeout
 		case <-ticker.C:
 		}
 	}
@@ -235,12 +268,19 @@ func (c *Coordinator) workerStatus(ctx context.Context, w model.Worker) (worker.
 	return status, nil
 }
 
-func (c *Coordinator) stopAll() {
-	ctx, cancel := context.WithTimeout(context.Background(), c.cfg.StopTimeout)
-	defer cancel()
-	for _, w := range c.cfg.Workers {
-		_ = c.postJSON(ctx, w, "/v1/stop", nil, nil)
+func (c *Coordinator) stopAll(workers []model.Worker) {
+	var wg sync.WaitGroup
+	for _, w := range workers {
+		w := w
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), c.cfg.StopTimeout)
+			defer cancel()
+			_ = c.postJSON(ctx, w, "/v1/stop", nil, nil)
+		}()
 	}
+	wg.Wait()
 }
 
 func (c *Coordinator) postJSON(ctx context.Context, w model.Worker, path string, body any, out any) error {
@@ -303,11 +343,26 @@ func runPhases() []Phase {
 	return []Phase{PhasePrepare, PhaseConnect, PhaseWarmup, PhaseRun, PhaseCooldown}
 }
 
-func statusForError(err error) RunStatus {
-	if errors.Is(err, context.Canceled) {
+func statusForError(parent context.Context, err error) RunStatus {
+	if parentErr := parent.Err(); parentErr != nil && errors.Is(err, parentErr) {
 		return StatusCanceled
 	}
 	return StatusWorkerFailed
+}
+
+var errPollTimeout = errors.New("worker phase poll timeout")
+
+func validateStatusAssignment(status worker.Status, w model.Worker, runID string) error {
+	workerID := strings.TrimSpace(w.ID)
+	if status.Assignment.RunID != runID || status.Assignment.WorkerID != workerID {
+		return fmt.Errorf("status assignment mismatch: got run_id=%q worker_id=%q want run_id=%q worker_id=%q", status.Assignment.RunID, status.Assignment.WorkerID, runID, workerID)
+	}
+	return nil
+}
+
+func errorsIsParentContext(parent context.Context, err error) bool {
+	parentErr := parent.Err()
+	return parentErr != nil && errors.Is(err, parentErr)
 }
 
 func errorsIsContext(err error) bool {

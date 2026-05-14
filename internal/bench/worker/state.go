@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 )
 
 var (
@@ -47,6 +49,12 @@ type Assignment struct {
 	RunID string `json:"run_id"`
 	// WorkerID identifies this worker within the benchmark worker set.
 	WorkerID string `json:"worker_id,omitempty"`
+	// Plan is the deterministic worker-local shard assigned by the coordinator.
+	Plan model.WorkerPlan `json:"plan,omitempty"`
+	// Target carries the black-box WuKongIM deployment configuration for future workloads.
+	Target model.Target `json:"target,omitempty"`
+	// Scenario carries the validated scenario configuration for future fake or real workloads.
+	Scenario model.Scenario `json:"scenario,omitempty"`
 }
 
 // Status is a JSON-friendly snapshot of the worker control state.
@@ -82,7 +90,7 @@ func (s *State) Assign(a Assignment) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.assignment.RunID != "" && s.phase != PhaseStopped {
-		if s.assignment == a {
+		if assignmentsEqual(s.assignment, a) {
 			return nil
 		}
 		return ErrActiveRunConflict
@@ -93,6 +101,18 @@ func (s *State) Assign(a Assignment) error {
 	s.assignment = a
 	s.phase = PhaseAssigned
 	return nil
+}
+
+func assignmentsEqual(a, b Assignment) bool {
+	aJSON, err := json.Marshal(a)
+	if err != nil {
+		return false
+	}
+	bJSON, err := json.Marshal(b)
+	if err != nil {
+		return false
+	}
+	return string(aJSON) == string(bJSON)
 }
 
 // Transition advances the worker to the next expected phase or accepts an idempotent retry.
