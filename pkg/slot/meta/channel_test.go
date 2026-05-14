@@ -230,7 +230,7 @@ func TestChannelStatusFlagsRoundTrip(t *testing.T) {
 	db := openTestDB(t)
 	shard := db.ForSlot(7)
 
-	ch := Channel{ChannelID: "group-status", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, SubscriberMutationVersion: 5}
+	ch := Channel{ChannelID: "group-status", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1, SubscriberMutationVersion: 5}
 	if err := shard.CreateChannel(ctx, ch); err != nil {
 		t.Fatalf("CreateChannel(): %v", err)
 	}
@@ -243,7 +243,7 @@ func TestChannelStatusFlagsRoundTrip(t *testing.T) {
 		t.Fatalf("unexpected channel after create:\n got: %#v\nwant: %#v", got, ch)
 	}
 
-	updated := Channel{ChannelID: ch.ChannelID, ChannelType: ch.ChannelType, Ban: 0, Disband: 1, SendBan: 0}
+	updated := Channel{ChannelID: ch.ChannelID, ChannelType: ch.ChannelType, Ban: 0, Disband: 1, SendBan: 0, AllowStranger: 1}
 	if err := shard.UpdateChannel(ctx, updated); err != nil {
 		t.Fatalf("UpdateChannel(): %v", err)
 	}
@@ -255,6 +255,47 @@ func TestChannelStatusFlagsRoundTrip(t *testing.T) {
 	updated.SubscriberMutationVersion = ch.SubscriberMutationVersion
 	if !reflect.DeepEqual(got, updated) {
 		t.Fatalf("unexpected channel after update:\n got: %#v\nwant: %#v", got, updated)
+	}
+}
+
+func TestShardListChannelsPagePreservesAllowStranger(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+
+	want := Channel{ChannelID: "person-a", ChannelType: 1, AllowStranger: 1}
+	if err := shard.CreateChannel(ctx, want); err != nil {
+		t.Fatalf("CreateChannel(): %v", err)
+	}
+
+	got, _, done, err := shard.ListChannelsPage(ctx, ChannelCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListChannelsPage(): %v", err)
+	}
+	if !done || len(got) != 1 {
+		t.Fatalf("unexpected page: got=%#v done=%v", got, done)
+	}
+	if !reflect.DeepEqual(got[0], want) {
+		t.Fatalf("listed channel = %#v, want %#v", got[0], want)
+	}
+}
+
+func TestUpsertChannelPreservesAllowStranger(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+
+	want := Channel{ChannelID: "person-upsert", ChannelType: 1, AllowStranger: 1}
+	if err := shard.UpsertChannel(ctx, want); err != nil {
+		t.Fatalf("UpsertChannel(): %v", err)
+	}
+
+	got, err := shard.GetChannel(ctx, want.ChannelID, want.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannel(): %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("upserted channel = %#v, want %#v", got, want)
 	}
 }
 

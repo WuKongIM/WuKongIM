@@ -69,7 +69,7 @@ func (s *ShardStore) AddSubscribers(ctx context.Context, channelID string, chann
 	}
 	if version > 0 {
 		primaryKey := encodeChannelPrimaryKey(s.slot, channelID, channelType, channelPrimaryFamilyID)
-		value := encodeChannelFamilyValue(channel.Ban, channel.Disband, channel.SendBan, channel.SubscriberMutationVersion, primaryKey)
+		value := encodeChannelFamilyValue(channel.Ban, channel.Disband, channel.SendBan, channel.AllowStranger, channel.SubscriberMutationVersion, primaryKey)
 		if err := batch.Set(primaryKey, value, nil); err != nil {
 			return err
 		}
@@ -131,7 +131,7 @@ func (s *ShardStore) RemoveSubscribers(ctx context.Context, channelID string, ch
 	}
 	if version > 0 {
 		primaryKey := encodeChannelPrimaryKey(s.slot, channelID, channelType, channelPrimaryFamilyID)
-		value := encodeChannelFamilyValue(channel.Ban, channel.Disband, channel.SendBan, channel.SubscriberMutationVersion, primaryKey)
+		value := encodeChannelFamilyValue(channel.Ban, channel.Disband, channel.SendBan, channel.AllowStranger, channel.SubscriberMutationVersion, primaryKey)
 		if err := batch.Set(primaryKey, value, nil); err != nil {
 			return err
 		}
