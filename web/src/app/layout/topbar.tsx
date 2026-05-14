@@ -51,7 +51,7 @@ export function Topbar() {
                   className={cn(
                     "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm",
                     active
-                      ? "bg-primary text-primary-foreground shadow-[0_0_18px_rgba(101,216,138,0.18)]"
+                      ? "bg-[#c8ffd8] text-[#06120b] shadow-[0_0_18px_rgba(101,216,138,0.18)] hover:text-[#06120b]"
                       : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
                   )}
                   key={section.id}
