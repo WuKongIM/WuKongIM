@@ -45,10 +45,13 @@ cmd/
   wukongim/              程序入口，负责读取配置并启动应用
 
 internal/
-  bench/                 wkbench 黑盒客户端配置、模型与确定性规划
+  bench/                 wkbench 黑盒客户端配置、模型、规划与协调预检
     config/              wkbench YAML 加载与严格解码
-    model/               wkbench spec-shaped 配置与计划模型
+    model/               wkbench spec-shaped 配置、计划与 bench API DTO
     planner/             worker 权重、identity pool 与 channel/member/traffic 分片规划
+    target/              target HTTP bench API 黑盒客户端
+    coordinator/         coordinator preflight 检查 target、worker 与 gateway placeholder
+    worker/              wkbench worker 控制 HTTP API 与运行状态
   app/                   组合根；负责 build、lifecycle、config、依赖装配
     lifecycle/           生命周期管理器与资源栈原语
   access/                接入层，只做入口适配
