@@ -20,6 +20,7 @@ import { PermissionsPage } from "@/pages/settings/permissions/page"
 import { SlotLogsPage } from "@/pages/slot-logs/page"
 import { SlotsPage } from "@/pages/slots/page"
 import { SystemUsersPage } from "@/pages/system-users/page"
+import { TasksPage } from "@/pages/tasks/page"
 import { TopologyPage } from "@/pages/topology/page"
 import { UsersPage } from "@/pages/users/page"
 import { WebhooksPage } from "@/pages/settings/webhooks/page"
@@ -47,6 +48,7 @@ export const routes: RouteObject[] = [
       { path: "monitor", element: <MonitorPage /> },
       // Global Cluster
       { path: "nodes", element: <NodesPage /> },
+      { path: "tasks", element: <TasksPage /> },
       { path: "slots", element: <SlotsPage /> },
       { path: "onboarding", element: <OnboardingPage /> },
       { path: "controller", element: <ControllerPage /> },
