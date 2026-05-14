@@ -213,7 +213,7 @@ Tombstone (replica.go:231 → lifecycle_pipeline.go:293):
 - **三级背压**: 无背压(立即发送) / 软(批量合并) / 硬(排队+重试调度) → `runtime/backpressure.go`
 - **墓碑管理**: 频道删除后加入墓碑(带TTL)，防止过期响应生效 → `runtime/tombstone.go`
 - **Idle Eviction**: 可通过 `IdleEvictionPolicy` 为冷 channel runtime 设置空闲卸载；卸载前会避开正在使用、调度、复制或 snapshot 等运行时工作，随后复用 `RemoveChannel` 的 tombstone/cleanup 路径释放 replica goroutine 与 `MaxChannels` 计数 → `runtime/runtime.go` / `runtime/channel.go`
-- **Replica 执行模式**: `WK_CLUSTER_CHANNEL_EXECUTION_MODE=pooled` 可把本地 replica loop、append/checkpoint effect 和 timer 调度放入共享 worker pool；它只改变节点内执行缓存/调度方式，仍保留每 channel single-writer、ISR 复制和单节点集群语义 → `replica/execution_pool.go`
+- **Replica 执行模式**: 默认 `WK_CLUSTER_CHANNEL_EXECUTION_MODE=pooled`，把本地 replica loop、append/checkpoint effect 和 timer 调度放入共享 worker pool；`dedicated` 保留为回滚模式。它只改变节点内执行缓存/调度方式，仍保留每 channel single-writer、ISR 复制和单节点集群语义 → `replica/execution_pool.go`
 
 ## 7. 存储键空间
 

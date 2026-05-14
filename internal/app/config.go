@@ -371,7 +371,8 @@ type ClusterConfig struct {
 	// A zero value lets the channel runtime derive a bounded scan interval from ChannelIdleTimeout.
 	ChannelIdleScanInterval time.Duration
 	// ChannelExecutionMode selects local channel replica execution scheduling.
-	// "dedicated" preserves legacy per-replica workers; "pooled" uses shared worker pools.
+	// Empty values default to "pooled"; "dedicated" remains available as a rollback mode
+	// with legacy per-replica workers.
 	ChannelExecutionMode string
 	// ChannelExecutionWorkers is the number of shared workers used by pooled channel execution.
 	// A zero value lets the replica execution runtime derive a default from GOMAXPROCS.
@@ -904,7 +905,7 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 		return fmt.Errorf("%w: channel execution mode must be dedicated or pooled", ErrInvalidConfig)
 	}
 	if c.Cluster.ChannelExecutionMode == "" {
-		c.Cluster.ChannelExecutionMode = "dedicated"
+		c.Cluster.ChannelExecutionMode = "pooled"
 	}
 	if c.Cluster.ChannelExecutionWorkers < 0 {
 		return fmt.Errorf("%w: channel execution worker count must be >= 0", ErrInvalidConfig)
