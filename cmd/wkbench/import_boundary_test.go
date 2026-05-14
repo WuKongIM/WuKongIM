@@ -10,20 +10,70 @@ import (
 
 func TestWkbenchDoesNotImportServerInternals(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	cmd := exec.Command("go", "list", "-deps", "./cmd/wkbench")
+	deps := listDeps(t, repoRoot, "./cmd/wkbench", "./internal/bench/...")
+	for _, dep := range deps {
+		if forbidden, ok := forbiddenBenchImport(dep); ok {
+			t.Fatalf("wkbench imports forbidden dependency %s via %s\n%s", forbidden, dep, strings.Join(deps, "\n"))
+		}
+	}
+}
+
+func TestForbiddenBenchImportCatchesExactRootAndChildren(t *testing.T) {
+	for _, dep := range []string{
+		"github.com/WuKongIM/WuKongIM/internal/app",
+		"github.com/WuKongIM/WuKongIM/internal/app/lifecycle",
+	} {
+		forbidden, ok := forbiddenBenchImport(dep)
+		if !ok {
+			t.Fatalf("expected %s to be forbidden", dep)
+		}
+		if forbidden != "github.com/WuKongIM/WuKongIM/internal/app" {
+			t.Fatalf("unexpected forbidden root %s", forbidden)
+		}
+	}
+}
+
+func TestForbiddenBenchImportAllowsPrefixLookalikes(t *testing.T) {
+	for _, dep := range []string{
+		"github.com/WuKongIM/WuKongIM/internal/application",
+		"github.com/WuKongIM/WuKongIM/pkg/clustering",
+	} {
+		if forbidden, ok := forbiddenBenchImport(dep); ok {
+			t.Fatalf("expected %s to be allowed, matched %s", dep, forbidden)
+		}
+	}
+}
+
+func listDeps(t *testing.T, repoRoot string, patterns ...string) []string {
+	t.Helper()
+	args := append([]string{"list", "-deps"}, patterns...)
+	cmd := exec.Command("go", args...)
 	cmd.Dir = repoRoot
 	cmd.Env = append(os.Environ(), "GOWORK=off")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("go list: %v\n%s", err, out)
+		t.Fatalf("go %s: %v\n%s", strings.Join(args, " "), err, out)
 	}
-	forbidden := []string{"/internal/app", "/internal/access/", "/internal/usecase/", "/internal/runtime/", "/internal/gateway/", "/pkg/slot/", "/pkg/controller/", "/pkg/cluster/"}
-	deps := string(out)
-	for _, item := range forbidden {
-		if strings.Contains(deps, item) {
-			t.Fatalf("wkbench imports forbidden dependency %s\n%s", item, deps)
+	return strings.Fields(string(out))
+}
+
+func forbiddenBenchImport(dep string) (string, bool) {
+	forbidden := []string{
+		"github.com/WuKongIM/WuKongIM/internal/app",
+		"github.com/WuKongIM/WuKongIM/internal/access",
+		"github.com/WuKongIM/WuKongIM/internal/usecase",
+		"github.com/WuKongIM/WuKongIM/internal/runtime",
+		"github.com/WuKongIM/WuKongIM/internal/gateway",
+		"github.com/WuKongIM/WuKongIM/pkg/slot",
+		"github.com/WuKongIM/WuKongIM/pkg/controller",
+		"github.com/WuKongIM/WuKongIM/pkg/cluster",
+	}
+	for _, prefix := range forbidden {
+		if dep == prefix || strings.HasPrefix(dep, prefix+"/") {
+			return prefix, true
 		}
 	}
+	return "", false
 }
 
 func findRepoRoot(t *testing.T) string {
