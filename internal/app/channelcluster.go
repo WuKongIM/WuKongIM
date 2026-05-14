@@ -155,6 +155,7 @@ func (c *appChannelCluster) Append(ctx context.Context, req channel.AppendReques
 			ChannelKey:  string(channelhandler.KeyFromChannelID(req.ChannelID)),
 			ClientMsgNo: req.Message.ClientMsgNo,
 			MessageSeq:  result.MessageSeq,
+			FromUID:     req.Message.FromUID,
 			Attempt:     req.Attempt,
 		})
 	}
@@ -368,6 +369,7 @@ func (c *appChannelCluster) forwardAppendToLeader(ctx context.Context, req chann
 			ChannelKey:  string(meta.Key),
 			ClientMsgNo: req.Message.ClientMsgNo,
 			MessageSeq:  result.MessageSeq,
+			FromUID:     req.Message.FromUID,
 			Service:     "channel_append",
 			Attempt:     req.Attempt,
 		})
