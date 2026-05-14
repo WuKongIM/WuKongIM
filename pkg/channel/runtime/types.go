@@ -244,10 +244,20 @@ type LanePollService interface {
 }
 
 type Limits struct {
+	// MaxChannels limits active local channel runtimes on this node. A zero value disables the limit.
 	MaxChannels               int
 	MaxFetchInflightPeer      int
 	MaxSnapshotInflight       int
 	MaxRecoveryBytesPerSecond int64
+}
+
+type IdleEvictionPolicy struct {
+	// IdleTimeout is the idle duration after which a local channel runtime can be evicted.
+	// A zero value disables idle eviction and preserves the legacy resident runtime behavior.
+	IdleTimeout time.Duration
+	// ScanInterval is the interval between idle eviction scans when IdleTimeout is enabled.
+	// A zero value uses IdleTimeout, capped to a short operational interval by the runtime.
+	ScanInterval time.Duration
 }
 
 type Runtime interface {
@@ -324,7 +334,12 @@ type Config struct {
 	LongPollMaxBytes                 int
 	LongPollMaxChannels              int
 	Tombstones                       TombstonePolicy
+	IdleEviction                     IdleEvictionPolicy
 	Limits                           Limits
-	Now                              func() time.Time
-	Logger                           wklog.Logger
+	// OnIdleEvict is called after the runtime removes an idle local channel runtime.
+	OnIdleEvict func(core.ChannelKey)
+	// OnActivationReject is called when the runtime rejects a new local channel activation.
+	OnActivationReject func(core.ChannelKey, error)
+	Now                func() time.Time
+	Logger             wklog.Logger
 }

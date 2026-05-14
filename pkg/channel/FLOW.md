@@ -212,6 +212,7 @@ Tombstone (replica.go:231 → lifecycle_pipeline.go:293):
 - **lane dispatcher**: `long_poll` steady-state 不再让 channel 直接发下一条 poll；startup / membership / response 事件只调度 `(peer,lane)`，由 dispatcher 统一做 single-flight、异步 send 发车与 dirty requeue，避免阻塞中的 long-poll 把其他 lane 一起串行化 → `runtime/lane_dispatcher.go`
 - **三级背压**: 无背压(立即发送) / 软(批量合并) / 硬(排队+重试调度) → `runtime/backpressure.go`
 - **墓碑管理**: 频道删除后加入墓碑(带TTL)，防止过期响应生效 → `runtime/tombstone.go`
+- **Idle Eviction**: 可通过 `IdleEvictionPolicy` 为冷 channel runtime 设置空闲卸载；卸载前会避开正在使用、调度、复制或 snapshot 等运行时工作，随后复用 `RemoveChannel` 的 tombstone/cleanup 路径释放 replica goroutine 与 `MaxChannels` 计数 → `runtime/runtime.go` / `runtime/channel.go`
 
 ## 7. 存储键空间
 

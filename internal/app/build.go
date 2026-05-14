@@ -84,6 +84,7 @@ func build(cfg Config) (_ *App, err error) {
 	cleanup.Push("logger", func() error { return app.syncLogger() })
 	if cfg.Observability.MetricsEnabled {
 		app.metrics = obsmetrics.New(cfg.Node.ID, cfg.Node.Name)
+		app.metrics.Channel.SetMaxChannels(cfg.Cluster.MaxChannels)
 	}
 	if cfg.Observability.Diagnostics.Enabled {
 		app.diagnostics = obsdiagnostics.NewStore(diagnosticsStoreOptions(cfg))
@@ -282,7 +283,30 @@ func build(cfg Config) (_ *App, err error) {
 		LongPollMaxWait:                  replicationCfg.LongPollMaxWait,
 		LongPollMaxBytes:                 replicationCfg.LongPollMaxBytes,
 		LongPollMaxChannels:              replicationCfg.LongPollMaxChannels,
+		IdleEviction: channelruntime.IdleEvictionPolicy{
+			IdleTimeout:  cfg.Cluster.ChannelIdleTimeout,
+			ScanInterval: cfg.Cluster.ChannelIdleScanInterval,
+		},
+		OnIdleEvict: func(key channel.ChannelKey) {
+			if app.channelLog != nil {
+				app.channelLog.setChannelActive(key, false)
+			}
+			if app.metrics != nil && app.metrics.Channel != nil {
+				app.metrics.Channel.ObserveIdleEvict()
+			}
+		},
+		OnActivationReject: func(_ channel.ChannelKey, err error) {
+			if app.metrics == nil || app.metrics.Channel == nil {
+				return
+			}
+			reason := "err"
+			if errors.Is(err, channelruntime.ErrTooManyChannels) {
+				reason = "too_many_channels"
+			}
+			app.metrics.Channel.ObserveActivationRejected(reason)
+		},
 		Limits: channelruntime.Limits{
+			MaxChannels:               cfg.Cluster.MaxChannels,
 			MaxFetchInflightPeer:      effectiveDataPlaneMaxFetchInflight(cfg.Cluster.PoolSize, cfg.Cluster.DataPlaneMaxFetchInflight),
 			MaxSnapshotInflight:       1,
 			MaxRecoveryBytesPerSecond: 0,

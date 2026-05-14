@@ -9,16 +9,21 @@ import (
 
 type ChannelSnapshot struct {
 	ActiveChannels int64
+	MaxChannels    int64
 }
 
 type ChannelMetrics struct {
-	appendTotal     *prometheus.CounterVec
-	appendDuration  prometheus.Histogram
-	fetchTotal      prometheus.Counter
-	fetchDuration   prometheus.Histogram
-	activeChannels  prometheus.Gauge
-	mu              sync.Mutex
-	activeChannelsV int64
+	appendTotal             *prometheus.CounterVec
+	appendDuration          prometheus.Histogram
+	fetchTotal              prometheus.Counter
+	fetchDuration           prometheus.Histogram
+	activeChannels          prometheus.Gauge
+	maxChannels             prometheus.Gauge
+	activationRejectedTotal *prometheus.CounterVec
+	idleEvictionsTotal      prometheus.Counter
+	mu                      sync.Mutex
+	activeChannelsV         int64
+	maxChannelsV            int64
 }
 
 func newChannelMetrics(registry prometheus.Registerer, labels prometheus.Labels) *ChannelMetrics {
@@ -50,6 +55,21 @@ func newChannelMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 			Help:        "Number of active local channel runtimes.",
 			ConstLabels: labels,
 		}),
+		maxChannels: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_channel_max_channels",
+			Help:        "Configured maximum number of active local channel runtimes on this node. A value of 0 means unlimited.",
+			ConstLabels: labels,
+		}),
+		activationRejectedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channel_activation_rejected_total",
+			Help:        "Total number of local channel runtime activation attempts rejected before creating a runtime.",
+			ConstLabels: labels,
+		}, []string{"reason"}),
+		idleEvictionsTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name:        "wukongim_channel_idle_evictions_total",
+			Help:        "Total number of idle local channel runtimes evicted from this node.",
+			ConstLabels: labels,
+		}),
 	}
 
 	registry.MustRegister(
@@ -58,6 +78,9 @@ func newChannelMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		m.fetchTotal,
 		m.fetchDuration,
 		m.activeChannels,
+		m.maxChannels,
+		m.activationRejectedTotal,
+		m.idleEvictionsTotal,
 	)
 
 	return m
@@ -89,11 +112,41 @@ func (m *ChannelMetrics) SetActiveChannels(v int) {
 	m.mu.Unlock()
 }
 
+func (m *ChannelMetrics) SetMaxChannels(v int) {
+	if m == nil {
+		return
+	}
+	if v < 0 {
+		v = 0
+	}
+	m.maxChannels.Set(float64(v))
+	m.mu.Lock()
+	m.maxChannelsV = int64(v)
+	m.mu.Unlock()
+}
+
+func (m *ChannelMetrics) ObserveActivationRejected(reason string) {
+	if m == nil {
+		return
+	}
+	if reason == "" {
+		reason = "unknown"
+	}
+	m.activationRejectedTotal.WithLabelValues(reason).Inc()
+}
+
+func (m *ChannelMetrics) ObserveIdleEvict() {
+	if m == nil {
+		return
+	}
+	m.idleEvictionsTotal.Inc()
+}
+
 func (m *ChannelMetrics) Snapshot() ChannelSnapshot {
 	if m == nil {
 		return ChannelSnapshot{}
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return ChannelSnapshot{ActiveChannels: m.activeChannelsV}
+	return ChannelSnapshot{ActiveChannels: m.activeChannelsV, MaxChannels: m.maxChannelsV}
 }

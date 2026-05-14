@@ -27,6 +27,7 @@ type testRuntimeOptions struct {
 	tombstoneCleanup     time.Duration
 	beforeTombstoneAdd   func()
 	tombstoneDropHook    func()
+	onActivationReject   func(core.ChannelKey, error)
 }
 
 func withGenerationStoreDelay(delay time.Duration) testRuntimeOption {
@@ -89,6 +90,12 @@ func withTombstoneDropHook(fn func()) testRuntimeOption {
 	}
 }
 
+func withActivationRejectHook(fn func(core.ChannelKey, error)) testRuntimeOption {
+	return func(opts *testRuntimeOptions) {
+		opts.onActivationReject = fn
+	}
+}
+
 func newTestRuntimeWithOptions(t *testing.T, options ...testRuntimeOption) *runtime {
 	t.Helper()
 
@@ -119,7 +126,8 @@ func newTestRuntimeWithOptions(t *testing.T, options ...testRuntimeOption) *runt
 			TombstoneTTL:    ttl,
 			CleanupInterval: opts.tombstoneCleanup,
 		},
-		Now: time.Now,
+		OnActivationReject: opts.onActivationReject,
+		Now:                time.Now,
 	})
 	require.NoError(t, err)
 

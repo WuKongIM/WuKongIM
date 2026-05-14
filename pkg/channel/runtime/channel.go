@@ -36,6 +36,10 @@ type channel struct {
 	mu      sync.Mutex
 	pending taskMask
 
+	lastActiveAt time.Time
+	inUse        int
+	evicting     bool
+
 	replicationPeers   nodeIDQueue
 	replicationTargets []PeerLaneKey
 	snapshotBytes      int64
@@ -66,6 +70,7 @@ func newChannel(
 		onAppend: onAppend,
 		changes:  changes,
 	}
+	c.lastActiveAt = c.now()
 	c.setMeta(meta)
 	return c
 }
@@ -90,6 +95,11 @@ func (c *channel) waitReplicaChange(ctx context.Context, version uint64) bool {
 }
 
 func (c *channel) Append(ctx context.Context, records []core.Record) (core.CommitResult, error) {
+	if !c.beginUse() {
+		return core.CommitResult{}, ErrChannelNotFound
+	}
+	defer c.endUse()
+
 	meta := c.metaSnapshot()
 	state := c.replica.Status()
 	if state.Role == core.ReplicaRoleTombstoned {
@@ -115,6 +125,72 @@ func (c *channel) Append(ctx context.Context, records []core.Record) (core.Commi
 		c.onAppend(c.key)
 	}
 	return result, nil
+}
+
+func (c *channel) beginUse() bool {
+	if c == nil {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.evicting {
+		return false
+	}
+	c.inUse++
+	c.lastActiveAt = c.now()
+	return true
+}
+
+func (c *channel) endUse() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.inUse > 0 {
+		c.inUse--
+	}
+}
+
+func (c *channel) touch() bool {
+	if c == nil {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.evicting {
+		return false
+	}
+	c.lastActiveAt = c.now()
+	return true
+}
+
+func (c *channel) tryMarkIdleEvicting(cutoff time.Time) bool {
+	if c == nil {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.evicting || c.inUse > 0 {
+		return false
+	}
+	if c.lastActiveAt.After(cutoff) {
+		return false
+	}
+	if c.pending != 0 || c.snapshotBytes > 0 || c.replicationPeers.pending() > 0 {
+		return false
+	}
+	c.evicting = true
+	return true
+}
+
+func (c *channel) cancelIdleEviction() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.evicting = false
 }
 
 func (c *channel) setMeta(meta core.Meta) {
@@ -287,6 +363,13 @@ func (q *nodeIDQueue) pop() (core.NodeID, bool) {
 		q.head = 0
 	}
 	return nodeID, true
+}
+
+func (q *nodeIDQueue) pending() int {
+	if q == nil {
+		return 0
+	}
+	return len(q.items) - q.head
 }
 
 func (q *nodeIDQueue) compact() {
