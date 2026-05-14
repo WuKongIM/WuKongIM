@@ -98,15 +98,9 @@ func (r *replica) scheduleAppendFlush() {
 	if delay <= 0 {
 		delay = time.Millisecond
 	}
-	go func() {
-		timer := time.NewTimer(delay)
-		defer timer.Stop()
-		select {
-		case <-timer.C:
-			_ = r.submitLoopResult(context.Background(), machineAppendFlushEvent{})
-		case <-r.stopCh:
-		}
-	}()
+	if r.loop != nil {
+		r.loop.scheduleResult(delay, machineAppendFlushEvent{})
+	}
 }
 
 func (r *replica) emitAppendBatchLocked() {

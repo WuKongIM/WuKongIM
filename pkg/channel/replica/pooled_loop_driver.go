@@ -3,6 +3,7 @@ package replica
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 )
@@ -81,6 +82,13 @@ func (d *pooledLoopDriver) submitResult(ctx context.Context, event machineEvent)
 		return channel.ErrNotLeader
 	}
 	return d.enqueue(ctx, pooledLoopMessage{event: event})
+}
+
+func (d *pooledLoopDriver) scheduleResult(delay time.Duration, event machineEvent) {
+	if d == nil || d.pool == nil {
+		return
+	}
+	d.pool.scheduleResult(d, delay, event)
 }
 
 func (d *pooledLoopDriver) done() <-chan struct{} {
