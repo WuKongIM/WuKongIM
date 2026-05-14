@@ -109,6 +109,9 @@ type Options struct {
 	HealthDetails            func() any
 	Readyz                   func(context.Context) (bool, any)
 	DebugEnabled             bool
+	BenchEnabled             bool
+	BenchMaxBatchSize        int
+	BenchMaxPayloadBytes     int64
 	DebugConfig              func() any
 	DebugCluster             func() any
 	DiagnosticsDebugEnabled  bool
@@ -141,6 +144,9 @@ type Server struct {
 	healthDetails            func() any
 	readyz                   func(context.Context) (bool, any)
 	debugEnabled             bool
+	benchEnabled             bool
+	benchMaxBatchSize        int
+	benchMaxPayloadBytes     int64
 	debugConfig              func() any
 	debugCluster             func() any
 	diagnosticsDebugEnabled  bool
@@ -179,6 +185,9 @@ func New(opts Options) *Server {
 		healthDetails:            opts.HealthDetails,
 		readyz:                   opts.Readyz,
 		debugEnabled:             opts.DebugEnabled,
+		benchEnabled:             opts.BenchEnabled,
+		benchMaxBatchSize:        opts.BenchMaxBatchSize,
+		benchMaxPayloadBytes:     opts.BenchMaxPayloadBytes,
 		debugConfig:              opts.DebugConfig,
 		debugCluster:             opts.DebugCluster,
 		diagnosticsDebugEnabled:  opts.DiagnosticsDebugEnabled,
