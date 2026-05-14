@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useIntl, type IntlShape } from "react-intl"
 import { Link } from "react-router-dom"
 
@@ -7,8 +7,16 @@ import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
-import { ManagerApiError, getDiagnosticsEvents, getDiagnosticsMessage, getDiagnosticsTrace } from "@/lib/manager-api"
-import type { ManagerDiagnosticsEvent, ManagerDiagnosticsResponse } from "@/lib/manager-api.types"
+import {
+  ManagerApiError,
+  createDiagnosticsTrackingRule,
+  deleteDiagnosticsTrackingRule,
+  getDiagnosticsEvents,
+  getDiagnosticsMessage,
+  getDiagnosticsTrace,
+  listDiagnosticsTrackingRules,
+} from "@/lib/manager-api"
+import type { CreateDiagnosticsTrackingRuleInput, ManagerDiagnosticsEvent, ManagerDiagnosticsResponse, ManagerDiagnosticsTrackingRule } from "@/lib/manager-api.types"
 
 type DiagnosticsQueryMode = "trace" | "client_msg_no" | "channel_seq" | "recent_errors"
 
@@ -26,6 +34,16 @@ type DiagnosticsQueryForm = {
   limit: string
 }
 
+type TrackingForm = {
+  target: "sender_uid" | "channel"
+  uid: string
+  channelId: string
+  channelType: string
+  ttlSeconds: string
+  customTTLSeconds: string
+  sampleRate: string
+}
+
 type DiagnosticsState = {
   response: ManagerDiagnosticsResponse | null
   loading: boolean
@@ -35,6 +53,16 @@ type DiagnosticsState = {
 }
 
 type CommonParams = { nodeId?: number; limit: number }
+
+const defaultTrackingForm: TrackingForm = {
+  target: "sender_uid",
+  uid: "",
+  channelId: "",
+  channelType: "",
+  ttlSeconds: "3600",
+  customTTLSeconds: "",
+  sampleRate: "1",
+}
 
 const defaultForm: DiagnosticsQueryForm = {
   mode: "trace",
@@ -97,6 +125,45 @@ function validateForm(form: DiagnosticsQueryForm, intl: IntlShape) {
   return { errors, params }
 }
 
+function validateTrackingForm(form: TrackingForm, intl: IntlShape): { errors: string[]; input: CreateDiagnosticsTrackingRuleInput | null } {
+  const errors: string[] = []
+  const ttlSeconds = form.ttlSeconds === "custom" ? positiveInteger(form.customTTLSeconds) : positiveInteger(form.ttlSeconds)
+  const sampleRate = Number(form.sampleRate.trim() || "1")
+
+  if (ttlSeconds === null) {
+    errors.push(intl.formatMessage({ id: "diagnostics.validation.ttl" }))
+  }
+  if (!Number.isFinite(sampleRate) || sampleRate < 0 || sampleRate > 1) {
+    errors.push(intl.formatMessage({ id: "diagnostics.validation.sampleRate" }))
+  }
+
+  if (form.target === "sender_uid") {
+    const uid = form.uid.trim()
+    if (!uid) {
+      errors.push(intl.formatMessage({ id: "diagnostics.validation.senderUid" }))
+    }
+    return {
+      errors,
+      input: errors.length === 0 && ttlSeconds !== null ? { target: "sender_uid", uid, ttlSeconds, sampleRate } : null,
+    }
+  }
+
+  const channelId = form.channelId.trim()
+  const channelType = positiveInteger(form.channelType)
+  if (!channelId) {
+    errors.push(intl.formatMessage({ id: "diagnostics.validation.channelId" }))
+  }
+  if (channelType === null) {
+    errors.push(intl.formatMessage({ id: "diagnostics.validation.channelType" }))
+  }
+  return {
+    errors,
+    input: errors.length === 0 && ttlSeconds !== null && channelType !== null
+      ? { target: "channel", channelId, channelType, ttlSeconds, sampleRate }
+      : null,
+  }
+}
+
 function timestamp(intl: IntlShape, value: string) {
   const date = new Date(value)
   if (!value || Number.isNaN(date.getTime())) return "-"
@@ -126,6 +193,27 @@ function statusTone(status: string) {
 
 function StatusPill({ value }: { value: string }) {
   return <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${statusTone(value)}`}>{value}</span>
+}
+
+function trackingRuleLabel(rule: ManagerDiagnosticsTrackingRule) {
+  if (rule.target === "sender_uid") {
+    return `Sender UID: ${rule.uid ?? "-"}`
+  }
+  return `Channel: ${rule.channel_key ?? rule.channel_id ?? "-"}`
+}
+
+function upsertTrackingRule(rules: ManagerDiagnosticsTrackingRule[], next: ManagerDiagnosticsTrackingRule) {
+  const existing = rules.filter((rule) => rule.rule_id !== next.rule_id)
+  return [next, ...existing]
+}
+
+function trackingResponseNotice(status: string, notes: string[], nodes: { node_id: number; status: string; notes: string[] }[]) {
+  const nodeNotes = nodes.flatMap((node) => node.notes.map((note) => `node ${node.node_id}: ${note}`))
+  const details = [...notes, ...nodeNotes]
+  if (details.length > 0) {
+    return `${status}: ${details.join("; ")}`
+  }
+  return status === "partial" || status === "error" ? status : ""
 }
 
 function HeaderBadge({ label, value }: { label: string; value: string }) {
@@ -210,6 +298,11 @@ function RelatedLinks({ response }: { response: ManagerDiagnosticsResponse }) {
 export function DiagnosticsPage() {
   const intl = useIntl()
   const [form, setForm] = useState<DiagnosticsQueryForm>(defaultForm)
+  const [trackingForm, setTrackingForm] = useState<TrackingForm>(defaultTrackingForm)
+  const [trackingRules, setTrackingRules] = useState<ManagerDiagnosticsTrackingRule[]>([])
+  const [trackingErrors, setTrackingErrors] = useState<string[]>([])
+  const [trackingNotice, setTrackingNotice] = useState("")
+  const [trackingLoading, setTrackingLoading] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [exported, setExported] = useState(false)
   const [state, setState] = useState<DiagnosticsState>({
@@ -221,6 +314,24 @@ export function DiagnosticsPage() {
   })
 
   const events = useMemo(() => [...(state.response?.events ?? [])].sort((a, b) => a.at.localeCompare(b.at)), [state.response])
+
+  const refreshTrackingRules = useCallback(async () => {
+    setTrackingLoading(true)
+    try {
+      const response = await listDiagnosticsTrackingRules()
+      setTrackingRules(response.rules)
+      setTrackingNotice(trackingResponseNotice(response.status, response.notes, response.nodes))
+      setTrackingErrors([])
+    } catch (error) {
+      setTrackingErrors([error instanceof Error ? error.message : "failed to load tracking rules"])
+    } finally {
+      setTrackingLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshTrackingRules()
+  }, [refreshTrackingRules])
 
   const submit = useCallback(async () => {
     const { errors, params } = validateForm(form, intl)
@@ -259,6 +370,51 @@ export function DiagnosticsPage() {
     }
   }, [state.response])
 
+  const createTrackingRule = useCallback(async () => {
+    const { errors, input } = validateTrackingForm(trackingForm, intl)
+    setTrackingErrors(errors)
+    if (!input) return
+
+    setTrackingLoading(true)
+    try {
+      const response = await createDiagnosticsTrackingRule(input)
+      setTrackingRules((current) => upsertTrackingRule(current, response.rule))
+      setTrackingNotice(trackingResponseNotice(response.status, response.notes, response.nodes))
+      setTrackingErrors([])
+    } catch (error) {
+      setTrackingErrors([error instanceof Error ? error.message : "failed to create tracking rule"])
+    } finally {
+      setTrackingLoading(false)
+    }
+  }, [intl, trackingForm])
+
+  const queryTrackingRule = useCallback(async (rule: ManagerDiagnosticsTrackingRule) => {
+    const limit = positiveInteger(form.limit) ?? 100
+    setState((current) => ({ ...current, loading: !current.response, refreshing: Boolean(current.response), error: null, queried: true }))
+    try {
+      const response = rule.target === "sender_uid" && rule.uid
+        ? await getDiagnosticsEvents({ uid: rule.uid, limit })
+        : await getDiagnosticsEvents({ channelKey: rule.channel_key, limit })
+      setState({ response, loading: false, refreshing: false, error: null, queried: true })
+    } catch (error) {
+      setState({ response: null, loading: false, refreshing: false, error: error instanceof Error ? error : new Error("diagnostics query failed"), queried: true })
+    }
+  }, [form.limit])
+
+  const stopTrackingRule = useCallback(async (ruleId: string) => {
+    setTrackingLoading(true)
+    try {
+      const response = await deleteDiagnosticsTrackingRule(ruleId)
+      setTrackingNotice(trackingResponseNotice(response.status, response.notes, response.nodes))
+      setTrackingErrors([])
+      await refreshTrackingRules()
+    } catch (error) {
+      setTrackingErrors([error instanceof Error ? error.message : "failed to delete tracking rule"])
+    } finally {
+      setTrackingLoading(false)
+    }
+  }, [refreshTrackingRules])
+
   const response = state.response
   const partialNodes = response?.nodes.filter((node) => node.status === "unavailable" || node.status === "skipped") ?? []
   const errorKind = mapErrorKind(state.error)
@@ -277,6 +433,84 @@ export function DiagnosticsPage() {
           <HeaderBadge label="Events" value={response ? `${response.summary.event_count} events` : "0 events"} />
         </div>
       </PageHeader>
+
+      <SectionCard title={intl.formatMessage({ id: "diagnostics.tracking.title" })} description={intl.formatMessage({ id: "diagnostics.tracking.description" })}>
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800">
+          {intl.formatMessage({ id: "diagnostics.tracking.warning" })}
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-5">
+          <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
+            {intl.formatMessage({ id: "diagnostics.tracking.target" })}
+            <select
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={trackingForm.target}
+              onChange={(event) => setTrackingForm((current) => ({ ...current, target: event.target.value as TrackingForm["target"] }))}
+            >
+              <option value="sender_uid">sender_uid</option>
+              <option value="channel">channel</option>
+            </select>
+          </label>
+          {trackingForm.target === "sender_uid" ? (
+            <TextInput label={intl.formatMessage({ id: "diagnostics.tracking.senderUid" })} value={trackingForm.uid} onChange={(uid) => setTrackingForm((current) => ({ ...current, uid }))} />
+          ) : (
+            <>
+              <TextInput label={intl.formatMessage({ id: "diagnostics.tracking.channelId" })} value={trackingForm.channelId} onChange={(channelId) => setTrackingForm((current) => ({ ...current, channelId }))} />
+              <TextInput label={intl.formatMessage({ id: "diagnostics.tracking.channelType" })} value={trackingForm.channelType} onChange={(channelType) => setTrackingForm((current) => ({ ...current, channelType }))} />
+            </>
+          )}
+          <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
+            {intl.formatMessage({ id: "diagnostics.tracking.ttl" })}
+            <select
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={trackingForm.ttlSeconds}
+              onChange={(event) => setTrackingForm((current) => ({ ...current, ttlSeconds: event.target.value }))}
+            >
+              <option value="600">10 minutes</option>
+              <option value="3600">1 hour</option>
+              <option value="21600">6 hours</option>
+              <option value="custom">custom</option>
+            </select>
+          </label>
+          {trackingForm.ttlSeconds === "custom" ? (
+            <TextInput label="Custom TTL" value={trackingForm.customTTLSeconds} onChange={(customTTLSeconds) => setTrackingForm((current) => ({ ...current, customTTLSeconds }))} />
+          ) : null}
+          <TextInput label={intl.formatMessage({ id: "diagnostics.tracking.sampleRate" })} value={trackingForm.sampleRate} onChange={(sampleRate) => setTrackingForm((current) => ({ ...current, sampleRate }))} />
+        </div>
+        {trackingErrors.length > 0 ? (
+          <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive" role="alert">
+            {trackingErrors.map((error) => <div key={error}>{error}</div>)}
+          </div>
+        ) : null}
+        {trackingNotice ? <div className="mt-3 text-sm text-muted-foreground">{trackingNotice}</div> : null}
+        <Button className="mt-4" disabled={trackingLoading} onClick={() => void createTrackingRule()}>
+          {trackingLoading ? "Working..." : intl.formatMessage({ id: "diagnostics.tracking.start" })}
+        </Button>
+        <div className="mt-4 grid gap-3">
+          {trackingRules.map((rule) => (
+            <div key={rule.rule_id} className="rounded-lg border border-border bg-muted/20 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="font-medium text-foreground">{trackingRuleLabel(rule)}</div>
+                  {rule.target === "sender_uid" && rule.uid ? <div className="text-sm text-foreground">{rule.uid}</div> : null}
+                  {rule.target === "channel" && rule.channel_key ? <div className="text-sm text-foreground">{rule.channel_key}</div> : null}
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {rule.rule_id} · sample {rule.sample_rate} · expires {rule.expires_at ? timestamp(intl, rule.expires_at) : "-"}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => void queryTrackingRule(rule)}>
+                    {intl.formatMessage({ id: "diagnostics.tracking.query" })}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => void stopTrackingRule(rule.rule_id)}>
+                    {intl.formatMessage({ id: "diagnostics.tracking.stop" })}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {trackingRules.length === 0 ? <div className="text-sm text-muted-foreground">No active tracking rules.</div> : null}
+        </div>
+      </SectionCard>
 
       <SectionCard title={intl.formatMessage({ id: "diagnostics.query.title" })} description="Query only through /manager/diagnostics endpoints.">
         <div className="grid gap-3 md:grid-cols-4">
