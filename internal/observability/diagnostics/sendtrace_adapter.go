@@ -47,6 +47,7 @@ func (s *SendTraceSink) RecordSendTrace(event sendtrace.Event) {
 		MessageSeq:  event.MessageSeq,
 		RangeStart:  event.RangeStart,
 		RangeEnd:    event.RangeEnd,
+		FromUID:     event.FromUID,
 		Result:      Result(event.Result),
 		ErrorCode:   ErrorCode(event.ErrorCode),
 		Error:       event.Error,

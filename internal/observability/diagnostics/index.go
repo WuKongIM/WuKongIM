@@ -6,6 +6,7 @@ type indexes struct {
 	trace       *boundedIndex
 	client      *boundedIndex
 	channel     *boundedIndex
+	uid         *boundedIndex
 	channelSeq  *boundedIndex
 	node        *boundedIndex
 	peerNode    *boundedIndex
@@ -24,6 +25,7 @@ func newIndexes(maxEventsPerKey, maxKeys int) *indexes {
 		trace:       newBoundedIndex(maxEventsPerKey, maxKeys),
 		client:      newBoundedIndex(maxEventsPerKey, maxKeys),
 		channel:     newBoundedIndex(maxEventsPerKey, maxKeys),
+		uid:         newBoundedIndex(maxEventsPerKey, maxKeys),
 		channelSeq:  newBoundedIndex(maxEventsPerKey, maxKeys),
 		node:        newBoundedIndex(maxEventsPerKey, maxKeys),
 		peerNode:    newBoundedIndex(maxEventsPerKey, maxKeys),
@@ -44,6 +46,9 @@ func (i *indexes) add(id uint64, event Event) {
 		if event.MessageSeq > 0 {
 			i.channelSeq.Add(channelSeqKey(event.ChannelKey, event.MessageSeq), id)
 		}
+	}
+	if event.FromUID != "" {
+		i.uid.Add(event.FromUID, id)
 	}
 	if event.NodeID > 0 {
 		i.node.Add(fmt.Sprint(event.NodeID), id)
@@ -74,6 +79,9 @@ func (i *indexes) lookup(q Query) []uint64 {
 		} else {
 			ids = append(ids, i.channel.Get(q.ChannelKey)...)
 		}
+	}
+	if q.UID != "" {
+		ids = append(ids, i.uid.Get(q.UID)...)
 	}
 	if q.Stage != "" {
 		ids = append(ids, i.stage.Get(string(q.Stage))...)

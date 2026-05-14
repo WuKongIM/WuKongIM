@@ -108,10 +108,12 @@ type Query struct {
 	TraceID     string `json:"trace_id,omitempty"`
 	ClientMsgNo string `json:"client_msg_no,omitempty"`
 	ChannelKey  string `json:"channel_key,omitempty"`
-	MessageSeq  uint64 `json:"message_seq,omitempty"`
-	Stage       Stage  `json:"stage,omitempty"`
-	Result      Result `json:"result,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+	// UID filters events by sender UID and must not cause event FromUID exposure.
+	UID        string `json:"uid,omitempty"`
+	MessageSeq uint64 `json:"message_seq,omitempty"`
+	Stage      Stage  `json:"stage,omitempty"`
+	Result     Result `json:"result,omitempty"`
+	Limit      int    `json:"limit,omitempty"`
 }
 
 // QuerySummary contains compact aggregate hints for matched diagnostics events.
@@ -129,6 +131,7 @@ type QueryResult struct {
 	TraceID     string       `json:"trace_id,omitempty"`
 	ClientMsgNo string       `json:"client_msg_no,omitempty"`
 	ChannelKey  string       `json:"channel_key,omitempty"`
+	UID         string       `json:"uid,omitempty"`
 	MessageSeq  uint64       `json:"message_seq,omitempty"`
 	Query       Query        `json:"query"`
 	Status      Status       `json:"status"`
