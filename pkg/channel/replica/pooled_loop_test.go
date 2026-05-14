@@ -42,6 +42,34 @@ func TestPooledLoopSerializesReplicaCommands(t *testing.T) {
 	}
 }
 
+func TestPooledLoopCommandWaitPrefersReadyReplyOverDone(t *testing.T) {
+	reply := make(chan machineResult, 1)
+	done := make(chan struct{})
+	stop := make(chan struct{})
+	reply <- machineResult{}
+	close(done)
+	close(stop)
+
+	result := awaitPooledLoopCommandResult(context.Background(), reply, done, stop)
+
+	if result.Err != nil {
+		t.Fatalf("awaitPooledLoopCommandResult() error = %v", result.Err)
+	}
+}
+
+func TestPooledLoopCommandWaitReturnsNotLeaderWhenDoneWinsWithoutReply(t *testing.T) {
+	reply := make(chan machineResult, 1)
+	done := make(chan struct{})
+	stop := make(chan struct{})
+	close(done)
+
+	result := awaitPooledLoopCommandResult(context.Background(), reply, done, stop)
+
+	if result.Err != channel.ErrNotLeader {
+		t.Fatalf("awaitPooledLoopCommandResult() error = %v, want %v", result.Err, channel.ErrNotLeader)
+	}
+}
+
 func TestPooledAppendFlushDoesNotSpawnTimerGoroutinePerReplica(t *testing.T) {
 	pool, err := NewExecutionPool(ExecutionPoolConfig{
 		Workers:     4,
