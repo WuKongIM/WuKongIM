@@ -139,6 +139,13 @@ type DiagnosticsProvider interface {
 	QueryDiagnostics(ctx context.Context, query diagnostics.Query) diagnostics.QueryResult
 }
 
+// DiagnosticsTrackingProvider mutates node-local diagnostics tracking rules.
+type DiagnosticsTrackingProvider interface {
+	AddDiagnosticsTrackingRule(ctx context.Context, input diagnostics.TrackingRuleInput) (diagnostics.TrackingRule, error)
+	ListDiagnosticsTrackingRules(ctx context.Context) ([]diagnostics.TrackingRule, error)
+	DeleteDiagnosticsTrackingRule(ctx context.Context, ruleID string) error
+}
+
 // ChannelRetentionProvider advances local channel retention boundaries for leader-authoritative RPCs.
 type ChannelRetentionProvider interface {
 	// AdvanceChannelRetention advances one channel's history retention boundary on the channel leader.
@@ -181,6 +188,7 @@ type Options struct {
 	DeliveryAckIndex       *deliveryruntime.AckIndex
 	RuntimeSummary         RuntimeSummaryProvider
 	Diagnostics            DiagnosticsProvider
+	DiagnosticsTracking    DiagnosticsTrackingProvider
 	ChannelRetention       ChannelRetentionProvider
 	SystemUIDCache         SystemUIDCache
 	CMDSync                CMDSyncUsecase
@@ -208,6 +216,7 @@ type Adapter struct {
 	deliveryAckIndex       *deliveryruntime.AckIndex
 	runtimeSummary         RuntimeSummaryProvider
 	diagnostics            DiagnosticsProvider
+	diagnosticsTracking    DiagnosticsTrackingProvider
 	channelRetention       ChannelRetentionProvider
 	systemUIDCache         SystemUIDCache
 	cmdSync                CMDSyncUsecase
@@ -242,6 +251,7 @@ func New(opts Options) *Adapter {
 		deliveryAckIndex:       opts.DeliveryAckIndex,
 		runtimeSummary:         opts.RuntimeSummary,
 		diagnostics:            opts.Diagnostics,
+		diagnosticsTracking:    opts.DiagnosticsTracking,
 		channelRetention:       opts.ChannelRetention,
 		systemUIDCache:         opts.SystemUIDCache,
 		cmdSync:                opts.CMDSync,
@@ -266,6 +276,7 @@ func New(opts Options) *Adapter {
 		opts.Cluster.RPCMux().Handle(connectionsRPCServiceID, adapter.handleConnectionsRPC)
 		opts.Cluster.RPCMux().Handle(connectionRPCServiceID, adapter.handleConnectionRPC)
 		opts.Cluster.RPCMux().Handle(diagnosticsRPCServiceID, adapter.handleDiagnosticsRPC)
+		opts.Cluster.RPCMux().Handle(diagnosticsTrackingRPCServiceID, adapter.handleDiagnosticsTrackingRPC)
 		opts.Cluster.RPCMux().Handle(channelRetentionRPCServiceID, adapter.handleChannelRetentionRPC)
 		opts.Cluster.RPCMux().Handle(systemUIDCacheRPCServiceID, adapter.handleSystemUIDCacheRPC)
 		opts.Cluster.RPCMux().Handle(cmdSyncRPCServiceID, adapter.handleCMDSyncRPC)
