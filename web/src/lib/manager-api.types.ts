@@ -781,6 +781,99 @@ export type ManagerTaskDetailResponse = ManagerTask & {
   }
 }
 
+export type ManagerDistributedTaskStatus =
+  | "pending"
+  | "running"
+  | "retrying"
+  | "blocked"
+  | "failed"
+  | "completed"
+  | "cancelled"
+  | "unknown"
+
+export type ManagerDistributedTaskDomain =
+  | "slot_reconcile"
+  | "node_onboarding"
+  | "node_scale_in"
+  | "channel_migration"
+
+export type ManagerDistributedTaskScopeType = "slot" | "node" | "channel" | "job"
+
+export type DistributedTaskListParams = {
+  domain?: ManagerDistributedTaskDomain
+  status?: ManagerDistributedTaskStatus
+  nodeId?: number
+  scope?: ManagerDistributedTaskScopeType
+  keyword?: string
+  limit?: number
+  cursor?: string
+}
+
+export type ManagerDistributedTaskScope = {
+  type: ManagerDistributedTaskScopeType
+  id: string
+  slot_id: number
+  channel_id: string
+  channel_type: number
+  node_id: number
+}
+
+export type ManagerDistributedTask = {
+  id: string
+  domain: ManagerDistributedTaskDomain
+  kind: string
+  status: ManagerDistributedTaskStatus
+  phase: string
+  scope: ManagerDistributedTaskScope
+  source_node: number
+  target_node: number
+  owner_node: number
+  attempt: number
+  next_run_at: string | null
+  created_at: string | null
+  updated_at: string | null
+  last_error: string
+  summary: string
+  links: Record<string, string>
+}
+
+export type ManagerDistributedTaskWarning = {
+  domain: ManagerDistributedTaskDomain
+  code: string
+  message: string
+}
+
+export type ManagerDistributedTasksSummaryResponse = {
+  total: number
+  by_status: Record<ManagerDistributedTaskStatus, number>
+  by_domain: Record<ManagerDistributedTaskDomain, number>
+  partial: boolean
+  warnings: ManagerDistributedTaskWarning[]
+}
+
+export type ManagerDistributedTasksResponse = {
+  total: number
+  items: ManagerDistributedTask[]
+  next_cursor: string
+  has_more: boolean
+  partial: boolean
+  warnings: ManagerDistributedTaskWarning[]
+}
+
+export type ManagerDistributedTaskDetailPayload = {
+  domain: ManagerDistributedTaskDomain
+  raw_status: string
+  slot?: ManagerTaskDetailResponse | null
+  node_onboarding?: ManagerNodeOnboardingJob | null
+  node_scale_in?: ManagerNodeScaleInReport | null
+  channel_migration?: Record<string, unknown> | null
+}
+
+export type ManagerDistributedTaskDetailResponse = {
+  task: ManagerDistributedTask
+  detail: ManagerDistributedTaskDetailPayload
+}
+
 export type ManagerChannelRuntimeMeta = {
   channel_id: string
   channel_type: number

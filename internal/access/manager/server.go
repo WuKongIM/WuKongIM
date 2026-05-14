@@ -67,6 +67,12 @@ type Management interface {
 	ListTasks(ctx context.Context) ([]managementusecase.Task, error)
 	// GetTask returns one manager-facing reconcile task detail DTO.
 	GetTask(ctx context.Context, slotID uint32) (managementusecase.TaskDetail, error)
+	// GetDistributedTasksSummary returns normalized read-only task counts across task domains.
+	GetDistributedTasksSummary(ctx context.Context) (managementusecase.DistributedTaskSummary, error)
+	// ListDistributedTasks returns one normalized read-only distributed task page.
+	ListDistributedTasks(ctx context.Context, query managementusecase.DistributedTaskQuery) (managementusecase.DistributedTaskListResult, error)
+	// GetDistributedTask returns one normalized read-only distributed task detail.
+	GetDistributedTask(ctx context.Context, domain managementusecase.DistributedTaskDomain, id string) (managementusecase.DistributedTaskDetail, error)
 	// ListConnections returns manager-facing node-local connection DTOs.
 	ListConnections(ctx context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error)
 	// GetConnection returns one manager-facing node-local connection detail DTO.
