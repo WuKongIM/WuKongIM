@@ -208,6 +208,9 @@ func matchesQuery(event Event, q Query) bool {
 	if q.ChannelKey != "" && event.ChannelKey != q.ChannelKey {
 		return false
 	}
+	if q.UID != "" && event.FromUID != q.UID {
+		return false
+	}
 	if q.MessageSeq > 0 && !event.ContainsMessageSeq(q.MessageSeq) {
 		return false
 	}
@@ -227,6 +230,7 @@ func notFoundResult(q Query, nodeID uint64, started time.Time, duration time.Dur
 		TraceID:     q.TraceID,
 		ClientMsgNo: q.ClientMsgNo,
 		ChannelKey:  q.ChannelKey,
+		UID:         q.UID,
 		MessageSeq:  q.MessageSeq,
 		Query:       q,
 		Status:      StatusNotFound,
@@ -244,6 +248,7 @@ func buildQueryResult(nodeID uint64, q Query, events []Event, started time.Time,
 		TraceID:     firstNonEmpty(q.TraceID, firstTraceID(events)),
 		ClientMsgNo: firstNonEmpty(q.ClientMsgNo, firstClientMsgNo(events)),
 		ChannelKey:  firstNonEmpty(q.ChannelKey, firstChannelKey(events)),
+		UID:         q.UID,
 		MessageSeq:  firstNonZero(q.MessageSeq, firstMessageSeq(events)),
 		Query:       q,
 		Status:      statusForEvents(events),
