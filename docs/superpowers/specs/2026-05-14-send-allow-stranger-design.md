@@ -88,7 +88,9 @@ Rules:
 
 `pkg/slot/proxy` channel metadata RPCs should carry `AllowStranger` in `metadb.Channel` payloads.
 
-To keep older test fixtures and local binary decoding robust, append `AllowStranger` after the existing `SubscriberMutationVersion` field and make the reader default it to zero when no bytes remain. This is not a rolling-upgrade protocol guarantee, but it avoids making old encoded in-process fixtures corrupt.
+Append `AllowStranger` after the existing `SubscriberMutationVersion` field in the new channel response shape.
+
+Because channel list entries are currently not length-delimited, do not add an ambiguous optional trailing read to the existing response decoder: it could consume the next channel entry in scan-page responses. Instead, introduce a new channel response codec version for the `AllowStranger` shape and keep decoders for older response versions defaulting `AllowStranger` to zero. This preserves old in-process fixtures and keeps channel scan-page decoding deterministic.
 
 `GetChannelForPermission` must return the authoritative slot owner's `AllowStranger` value because message permission checks depend on it.
 
