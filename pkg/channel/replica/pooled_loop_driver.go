@@ -59,12 +59,32 @@ func (d *pooledLoopDriver) submitCommand(ctx context.Context, event machineEvent
 		return machineResult{Err: err}
 	}
 
+	return awaitPooledLoopCommandResult(ctx, reply, d.doneCh, r.stopCh)
+}
+
+func awaitPooledLoopCommandResult(ctx context.Context, reply <-chan machineResult, done <-chan struct{}, stop <-chan struct{}) machineResult {
 	select {
 	case result := <-reply:
 		return result
-	case <-d.doneCh:
+	default:
+	}
+
+	select {
+	case result := <-reply:
+		return result
+	case <-done:
+		select {
+		case result := <-reply:
+			return result
+		default:
+		}
 		return machineResult{Err: channel.ErrNotLeader}
-	case <-r.stopCh:
+	case <-stop:
+		select {
+		case result := <-reply:
+			return result
+		default:
+		}
 		return machineResult{Err: channel.ErrNotLeader}
 	case <-ctx.Done():
 		return machineResult{Err: ctx.Err()}

@@ -52,8 +52,8 @@ func TestActivationPressureConfigDefaultsAndOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadActivationPressureConfig() error = %v", err)
 	}
-	if cfg.channels != 100000 || cfg.maxChannels != 0 || cfg.reportEvery != 10000 || cfg.executionMode != "dedicated" {
-		t.Fatalf("defaults = %+v, want channels=100000 maxChannels=0 reportEvery=10000 executionMode=dedicated", cfg)
+	if cfg.channels != 100000 || cfg.maxChannels != 0 || cfg.reportEvery != 10000 || cfg.executionMode != "pooled" {
+		t.Fatalf("defaults = %+v, want channels=100000 maxChannels=0 reportEvery=10000 executionMode=pooled", cfg)
 	}
 
 	t.Setenv("MULTIISR_ACTIVATION_STRESS", "1")
@@ -154,7 +154,7 @@ func loadActivationPressureConfig() (activationPressureConfig, error) {
 		channels:      defaultActivationPressureChannels,
 		maxChannels:   defaultActivationPressureMaxChannels,
 		reportEvery:   defaultActivationPressureReportEvery,
-		executionMode: "dedicated",
+		executionMode: "pooled",
 	}
 
 	var err error
