@@ -23,7 +23,10 @@ It does not choose channel placement, store control-plane metadata, or route net
 |------|----------------|
 | `types.go` | Public `Replica` interface, store interfaces, config, probe source. |
 | `replica.go` | Constructor, public facade, lifecycle wiring, immutable status publication. |
-| `loop.go` | Command/result channels and the single-writer event loop entry. |
+| `loop.go` | Command/result envelopes and replica wrappers around the configured loop driver. |
+| `loop_driver.go` | Dedicated per-replica loop driver preserving the legacy execution model. |
+| `execution_pool.go` | Shared pooled execution workers, effect queues, centralized timer scheduling, and observer hooks. |
+| `pooled_loop_driver.go` | Per-replica pooled mailbox preserving single-writer loop ownership on shared workers. |
 | `commands.go` | Command, event, result, and durable-effect envelopes. |
 | `lifecycle_pipeline.go` | Live loop dispatcher plus meta, role, close, tombstone, begin-epoch effects. |
 | `meta.go` | Meta normalization, validation, and loop-owned commit helpers. |
@@ -111,17 +114,27 @@ Live mutable fields are owned by the loop/pipeline handlers while holding `r.mu`
 
 ## 5. Event Loop And Effects
 
-`startLoop()` consumes two channels:
+Replica loop work is selected by `ReplicaConfig.Execution.Mode`:
+
+- `dedicated` is the default and keeps the legacy per-replica loop goroutine plus per-replica append/checkpoint effect workers.
+- `pooled` uses a shared `ExecutionPool`; each replica owns a bounded mailbox and workers drain one replica at a time with a turn budget.
+
+Both modes preserve per-channel single-writer semantics: all commands/results for one replica still pass through `applyLoopEvent()` serially, and all log/history/checkpoint/snapshot mutations remain fenced by the same effect ids, channel key, epoch, leader epoch, role generation, and `durableMu` checks.
+
+Dedicated mode consumes two channels:
 
 1. `loopCommands`: synchronous facade commands with a reply channel.
 2. `loopResults`: asynchronous worker results and timer events.
+
+Pooled mode enqueues the same command/result envelopes into the replica mailbox and schedules append flush/checkpoint retry timers through the shared pool scheduler instead of spawning a timer goroutine per channel.
 
 `applyLoopEvent()` dispatches to the appropriate pipeline. Most handlers mutate memory under `r.mu`, publish a new immutable state snapshot, and optionally emit effects.
 
 Durable effects run outside the loop so storage I/O does not block command processing:
 
-- append effects go through `appendEffects` and `startAppendEffectWorker()`;
-- checkpoint effects go through `checkpointEffects` and `startCheckpointEffectWorker()`;
+- dedicated append effects go through `appendEffects` and `startAppendEffectWorker()`;
+- dedicated checkpoint effects go through `checkpointEffects` and `startCheckpointEffectWorker()`;
+- pooled append/checkpoint effects go through shared execution-pool effect queues while preserving each replica's `durableMu` lane and result fencing;
 - begin-epoch, follower apply, snapshot install, and leader reconcile durable effects are executed by the caller path after a loop command returns the effect;
 - retention adoption/reset and physical trim effects are executed by the caller path after a loop command returns them;
 - all log/history/checkpoint/snapshot mutations take `durableMu` so one replica has a single durable mutation lane;
