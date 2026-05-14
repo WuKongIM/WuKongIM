@@ -68,3 +68,10 @@ func (r *Registry) Handler() http.Handler {
 	}
 	return promhttp.HandlerFor(r.registry, promhttp.HandlerOpts{})
 }
+
+func (r *Registry) ChannelExecutionMetrics() *ChannelMetrics {
+	if r == nil {
+		return nil
+	}
+	return r.Channel
+}

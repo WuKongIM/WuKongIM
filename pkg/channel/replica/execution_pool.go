@@ -28,6 +28,8 @@ type ExecutionPoolConfig struct {
 	EffectQueueSize int
 	// Now returns the current wall clock time for future scheduler extensions.
 	Now func() time.Time
+	// Observer receives low-cardinality pooled execution metrics.
+	Observer ExecutionObserver
 	// Logger emits execution pool diagnostics.
 	Logger wklog.Logger
 }
@@ -47,7 +49,8 @@ type ExecutionPool struct {
 	closeOnce sync.Once
 	workers   sync.WaitGroup
 
-	logger wklog.Logger
+	logger   wklog.Logger
+	observer ExecutionObserver
 }
 
 // NewExecutionPool creates a shared worker pool for pooled replica execution.
@@ -100,6 +103,7 @@ func NewExecutionPool(cfg ExecutionPoolConfig) (*ExecutionPool, error) {
 		stopCh:     make(chan struct{}),
 		done:       make(chan struct{}),
 		logger:     cfg.Logger,
+		observer:   cfg.Observer,
 	}
 	p.workers.Add(cfg.Workers)
 	for i := 0; i < cfg.Workers; i++ {
@@ -195,12 +199,17 @@ func (p *ExecutionPool) submitAppendEffect(ctx context.Context, r *replica, effe
 	}
 	select {
 	case p.append <- pooledAppendEffect{replica: r, effect: effect}:
+		p.observeEnqueue("ok")
+		p.observeQueueDepth()
 		return nil
 	case <-p.stopCh:
+		p.observeEnqueue("closed")
 		return channel.ErrNotLeader
 	case <-ctx.Done():
+		p.observeEnqueue("canceled")
 		return ctx.Err()
 	default:
+		p.observeEnqueue("queue_full")
 		return channel.ErrNotReady
 	}
 }
@@ -214,14 +223,40 @@ func (p *ExecutionPool) submitCheckpointEffect(ctx context.Context, r *replica, 
 	}
 	select {
 	case p.checkpoint <- pooledCheckpointEffect{replica: r, effect: effect}:
+		p.observeEnqueue("ok")
+		p.observeQueueDepth()
 		return nil
 	case <-p.stopCh:
+		p.observeEnqueue("closed")
 		return channel.ErrNotLeader
 	case <-ctx.Done():
+		p.observeEnqueue("canceled")
 		return ctx.Err()
 	default:
+		p.observeEnqueue("queue_full")
 		return channel.ErrNotReady
 	}
+}
+
+func (p *ExecutionPool) observeEnqueue(result string) {
+	if p == nil || p.observer == nil {
+		return
+	}
+	p.observer.ObserveEnqueue(result)
+}
+
+func (p *ExecutionPool) observeQueueDepth() {
+	if p == nil || p.observer == nil {
+		return
+	}
+	p.observer.SetQueueDepth(len(p.ready) + len(p.schedule) + len(p.append) + len(p.checkpoint))
+}
+
+func (p *ExecutionPool) observeMailboxWait(d time.Duration) {
+	if p == nil || p.observer == nil {
+		return
+	}
+	p.observer.ObserveMailboxWait(d)
 }
 
 func (p *ExecutionPool) mailboxSize(configured int) int {

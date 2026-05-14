@@ -274,6 +274,7 @@ func build(cfg Config) (_ *App, err error) {
 			Workers:         cfg.Cluster.ChannelExecutionWorkers,
 			MailboxSize:     cfg.Cluster.ChannelExecutionQueueSize,
 			EffectQueueSize: cfg.Cluster.ChannelExecutionQueueSize,
+			Observer:        channelReplicaExecutionMetricsObserver{metrics: app.metrics.Channel},
 			Logger:          app.logger.Named("channel.replica.execution"),
 		})
 		if err != nil {

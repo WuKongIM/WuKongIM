@@ -59,6 +59,11 @@ func TestChannelMetricsTrackAppendFetchAndActiveChannels(t *testing.T) {
 	reg.Channel.SetMaxChannels(10)
 	reg.Channel.ObserveActivationRejected("too_many_channels")
 	reg.Channel.ObserveIdleEvict()
+	reg.Channel.SetExecutionQueueDepth(5)
+	reg.Channel.ObserveExecutionEnqueue("ok")
+	reg.Channel.ObserveExecutionEnqueue("queue_full")
+	reg.Channel.SetExecutionWorkerBusyRatio(0.25)
+	reg.Channel.ObserveExecutionMailboxWait(3 * time.Millisecond)
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -104,6 +109,20 @@ func TestChannelMetricsTrackAppendFetchAndActiveChannels(t *testing.T) {
 		"node_name": "node-7",
 	})
 	require.Equal(t, float64(1), evicted.GetMetric()[0].GetCounter().GetValue())
+
+	queueDepth := requireMetricFamily(t, families, "wukongim_channel_execution_queue_depth")
+	require.Len(t, queueDepth.GetMetric(), 1)
+	require.Equal(t, float64(5), queueDepth.GetMetric()[0].GetGauge().GetValue())
+
+	enqueue := requireMetricFamily(t, families, "wukongim_channel_execution_enqueue_total")
+	require.Len(t, enqueue.GetMetric(), 2)
+
+	busy := requireMetricFamily(t, families, "wukongim_channel_execution_worker_busy_ratio")
+	require.Len(t, busy.GetMetric(), 1)
+	require.Equal(t, 0.25, busy.GetMetric()[0].GetGauge().GetValue())
+
+	wait := requireMetricFamily(t, families, "wukongim_channel_execution_mailbox_wait_duration_seconds")
+	require.Len(t, wait.GetMetric(), 1)
 }
 
 func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T) {
