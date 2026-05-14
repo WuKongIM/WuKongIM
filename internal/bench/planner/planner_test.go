@@ -41,8 +41,8 @@ func TestPlanManyGroupChannelsByWorkerWeightAndOwnersAreDeterministic(t *testing
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"many-group"}, plan.ProfileOrder)
-	require.Equal(t, model.Range{Start: 0, End: 2}, plan.Workers["a"].Profiles["many-group"].ChannelRange)
-	require.Equal(t, model.Range{Start: 2, End: 5}, plan.Workers["b"].Profiles["many-group"].ChannelRange)
+	require.Equal(t, model.Range{Start: 0, End: 3}, plan.Workers["a"].Profiles["many-group"].ChannelRange)
+	require.Equal(t, model.Range{Start: 3, End: 5}, plan.Workers["b"].Profiles["many-group"].ChannelRange)
 	require.Equal(t, model.Range{Start: 5, End: 10}, plan.Workers["c"].Profiles["many-group"].ChannelRange)
 	require.Equal(t, 2.0, plan.Workers["a"].Profiles["many-group"].GlobalRate.PerSecond)
 	require.Equal(t, 2.0, plan.Workers["c"].Profiles["many-group"].LocalRate.PerSecond)
@@ -51,6 +51,42 @@ func TestPlanManyGroupChannelsByWorkerWeightAndOwnersAreDeterministic(t *testing
 	for channelIndex, ownerID := range plan.ChannelOwners["many-group"] {
 		require.Contains(t, map[string]struct{}{"a": {}, "b": {}, "c": {}}, ownerID, "channel %d", channelIndex)
 	}
+}
+
+func TestPlanManyGroupUsesLargestRemainderWeightedRanges(t *testing.T) {
+	scenario := scenarioWithManyGroup(50, 100, "2/s")
+	workers := []model.Worker{{ID: "a", Weight: 1}, {ID: "b", Weight: 1}, {ID: "c", Weight: 2}}
+
+	plan, err := Build(scenario, workers)
+
+	require.NoError(t, err)
+	require.Equal(t, model.Range{Start: 0, End: 13}, plan.Workers["a"].Profiles["many-group"].ChannelRange)
+	require.Equal(t, model.Range{Start: 13, End: 25}, plan.Workers["b"].Profiles["many-group"].ChannelRange)
+	require.Equal(t, model.Range{Start: 25, End: 50}, plan.Workers["c"].Profiles["many-group"].ChannelRange)
+}
+
+func TestPlanGroupOwnersRespectWorkerWeights(t *testing.T) {
+	scenario := scenarioWithManyGroup(400, 100, "2/s")
+	workers := []model.Worker{{ID: "low", Weight: 1}, {ID: "high", Weight: 3}}
+
+	plan, err := Build(scenario, workers)
+
+	require.NoError(t, err)
+	counts := ownerCounts(plan.ChannelOwners["many-group"])
+	require.Greater(t, counts["high"], counts["low"]*2)
+}
+
+func TestPlanGroupOwnersIncludeRunIDInStableHash(t *testing.T) {
+	scenario := scenarioWithManyGroup(20, 100, "2/s")
+	workers := []model.Worker{{ID: "a", Weight: 1}, {ID: "b", Weight: 1}}
+
+	first, err := Build(scenario, workers)
+	require.NoError(t, err)
+	scenario.Run.ID = "run-2"
+	second, err := Build(scenario, workers)
+	require.NoError(t, err)
+
+	require.NotEqual(t, first.ChannelOwners["many-group"], second.ChannelOwners["many-group"])
 }
 
 func TestPlanHugeGroupSplitsMembersAndTraffic(t *testing.T) {
@@ -64,10 +100,25 @@ func TestPlanHugeGroupSplitsMembersAndTraffic(t *testing.T) {
 	require.Equal(t, model.Range{Start: 0, End: 2500}, plan.Workers["a"].Profiles["huge-group"].MemberRange)
 	require.Equal(t, model.Range{Start: 2500, End: 5000}, plan.Workers["b"].Profiles["huge-group"].MemberRange)
 	require.Equal(t, model.Range{Start: 5000, End: 10000}, plan.Workers["c"].Profiles["huge-group"].MemberRange)
-	require.Equal(t, 1, plan.Workers["a"].Profiles["huge-group"].TrafficPartitionCount)
+	require.Equal(t, 4, plan.Workers["a"].Profiles["huge-group"].TrafficPartitionCount)
+	require.Equal(t, 4, plan.Workers["c"].Profiles["huge-group"].TrafficPartitionCount)
 	require.Equal(t, []int{0}, plan.Workers["a"].Profiles["huge-group"].OwnedTrafficPartitions)
 	require.Equal(t, []int{2, 3}, plan.Workers["c"].Profiles["huge-group"].OwnedTrafficPartitions)
 	require.Equal(t, 20.0, plan.Workers["a"].Profiles["huge-group"].GlobalRate.PerSecond)
+	require.InDelta(t, 5.0, plan.Workers["a"].Profiles["huge-group"].LocalRate.PerSecond, 0.001)
+	require.InDelta(t, 10.0, plan.Workers["c"].Profiles["huge-group"].LocalRate.PerSecond, 0.001)
+}
+
+func TestPlanHugeGroupScaledWeightsKeepSameTrafficPartitions(t *testing.T) {
+	scenario := scenarioWithHugeGroup(10000, "20/s")
+	workers := []model.Worker{{ID: "a", Weight: 0.25}, {ID: "b", Weight: 0.25}, {ID: "c", Weight: 0.5}}
+
+	plan, err := Build(scenario, workers)
+
+	require.NoError(t, err)
+	require.Equal(t, 4, plan.Workers["a"].Profiles["huge-group"].TrafficPartitionCount)
+	require.Equal(t, []int{0}, plan.Workers["a"].Profiles["huge-group"].OwnedTrafficPartitions)
+	require.Equal(t, []int{2, 3}, plan.Workers["c"].Profiles["huge-group"].OwnedTrafficPartitions)
 	require.InDelta(t, 5.0, plan.Workers["a"].Profiles["huge-group"].LocalRate.PerSecond, 0.001)
 	require.InDelta(t, 10.0, plan.Workers["c"].Profiles["huge-group"].LocalRate.PerSecond, 0.001)
 }
@@ -103,11 +154,51 @@ func TestBuildValidatesProfileAndWorkerInputs(t *testing.T) {
 			workers:  []model.Worker{{ID: "a", Weight: 0}},
 			wantErr:  "weight must be greater than zero",
 		},
+		{
+			name: "negative online users",
+			scenario: func() model.Scenario {
+				scenario := scenarioWithManyGroup(1, 10, "1/s")
+				scenario.Online.TotalUsers = -1
+				return scenario
+			}(),
+			workers: []model.Worker{{ID: "a", Weight: 1}},
+			wantErr: "online.total_users must not be negative",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := Build(tt.scenario, tt.workers)
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestBuildValidatesTrafficRefs(t *testing.T) {
+	tests := []struct {
+		name    string
+		traffic model.TrafficConfig
+		wantErr string
+	}{
+		{
+			name:    "empty channel ref",
+			traffic: traffic("bad", "", "1/s"),
+			wantErr: "messages.traffic[0].channel_ref is required",
+		},
+		{
+			name:    "unknown channel ref",
+			traffic: traffic("bad", "missing", "1/s"),
+			wantErr: "messages.traffic[0].channel_ref \"missing\" does not match a channel profile",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scenario := scenarioWithManyGroup(1, 10, "1/s")
+			scenario.Messages.Traffic = []model.TrafficConfig{tt.traffic}
+
+			_, err := Build(scenario, []model.Worker{{ID: "a", Weight: 1}})
+
 			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
@@ -164,3 +255,11 @@ func traffic(name, channelRef, rate string) model.TrafficConfig {
 }
 
 func nilTraffic() model.TrafficConfig { return model.TrafficConfig{} }
+
+func ownerCounts(owners map[int]string) map[string]int {
+	counts := make(map[string]int)
+	for _, owner := range owners {
+		counts[owner]++
+	}
+	return counts
+}

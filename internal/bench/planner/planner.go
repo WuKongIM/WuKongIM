@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math"
+	"sort"
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
@@ -14,6 +15,9 @@ func Build(s model.Scenario, workers []model.Worker) (model.Plan, error) {
 	if err := validateWorkers(workers); err != nil {
 		return model.Plan{}, err
 	}
+	if s.Online.TotalUsers < 0 {
+		return model.Plan{}, fmt.Errorf("online.total_users must not be negative")
+	}
 	profilesByName, profileOrder, personParticipants, err := validateProfiles(s.Channels.Profiles)
 	if err != nil {
 		return model.Plan{}, err
@@ -22,7 +26,10 @@ func Build(s model.Scenario, workers []model.Worker) (model.Plan, error) {
 		return model.Plan{}, fmt.Errorf("person profiles require %d distinct participants, but online.total_users is %d", personParticipants, s.Online.TotalUsers)
 	}
 
-	globalRates := ratesByProfile(s.Messages.Traffic)
+	globalRates, err := ratesByProfile(s.Messages.Traffic, profilesByName)
+	if err != nil {
+		return model.Plan{}, err
+	}
 	plan := model.Plan{
 		RunID:         s.Run.ID,
 		Workers:       make(map[string]model.WorkerPlan, len(workers)),
@@ -45,7 +52,7 @@ func Build(s model.Scenario, workers []model.Worker) (model.Plan, error) {
 		profile := profilesByName[profileName]
 		globalRate := globalRates[profileName]
 		if profile.ChannelType == model.ChannelTypeGroup {
-			plan.ChannelOwners[profileName] = channelOwners(profileName, profile.Count, workers)
+			plan.ChannelOwners[profileName] = channelOwners(s.Run.ID, profileName, profile.Count, workers)
 		}
 
 		for idx, worker := range workers {
@@ -75,7 +82,7 @@ func Build(s model.Scenario, workers []model.Worker) (model.Plan, error) {
 					partitionRange := weightedRange(totalPartitions, workers, idx)
 					shard.ChannelRange = model.Range{Start: 0, End: profile.Count}
 					shard.MemberRange = memberRange
-					shard.TrafficPartitionCount = partitionRange.Len()
+					shard.TrafficPartitionCount = totalPartitions
 					shard.OwnedTrafficPartitions = indexesInRange(partitionRange)
 					shard.LocalRate = model.Rate{PerSecond: globalRate.PerSecond * float64(partitionRange.Len()) / float64(totalPartitions)}
 				} else {
@@ -130,18 +137,22 @@ func validateProfiles(profiles []model.ChannelProfile) (map[string]model.Channel
 			return nil, nil, 0, fmt.Errorf("duplicate channel profile name %q", profileName)
 		}
 		profile.Name = profileName
-		switch profile.ChannelType {
-		case model.ChannelTypePerson:
-			personParticipants += profile.Count * 2
-		case model.ChannelTypeGroup:
-		default:
-			return nil, nil, 0, fmt.Errorf("profile %q uses unsupported channel type %q", profile.Name, profile.ChannelType)
-		}
 		if profile.Count < 0 {
 			return nil, nil, 0, fmt.Errorf("profile %q count must not be negative", profile.Name)
 		}
 		if profile.Members.Count < 0 {
 			return nil, nil, 0, fmt.Errorf("profile %q members.count must not be negative", profile.Name)
+		}
+
+		switch profile.ChannelType {
+		case model.ChannelTypePerson:
+			if profile.Count > (math.MaxInt-personParticipants)/2 {
+				return nil, nil, 0, fmt.Errorf("profile %q person participant count overflows int", profile.Name)
+			}
+			personParticipants += profile.Count * 2
+		case model.ChannelTypeGroup:
+		default:
+			return nil, nil, 0, fmt.Errorf("profile %q uses unsupported channel type %q", profile.Name, profile.ChannelType)
 		}
 		byName[profileName] = profile
 		order = append(order, profileName)
@@ -149,49 +160,101 @@ func validateProfiles(profiles []model.ChannelProfile) (map[string]model.Channel
 	return byName, order, personParticipants, nil
 }
 
-func ratesByProfile(traffic []model.TrafficConfig) map[string]model.Rate {
+func ratesByProfile(traffic []model.TrafficConfig, profiles map[string]model.ChannelProfile) (map[string]model.Rate, error) {
 	rates := make(map[string]model.Rate, len(traffic))
-	for _, item := range traffic {
-		if item.ChannelRef == "" {
-			continue
+	for idx, item := range traffic {
+		channelRef := strings.TrimSpace(item.ChannelRef)
+		if channelRef == "" {
+			return nil, fmt.Errorf("messages.traffic[%d].channel_ref is required", idx)
 		}
-		current := rates[item.ChannelRef]
+		if _, ok := profiles[channelRef]; !ok {
+			return nil, fmt.Errorf("messages.traffic[%d].channel_ref %q does not match a channel profile", idx, channelRef)
+		}
+		current := rates[channelRef]
 		current.PerSecond += item.RatePerChannel.PerSecond
-		rates[item.ChannelRef] = current
+		rates[channelRef] = current
 	}
-	return rates
+	return rates, nil
 }
 
 func weightedRange(count int, workers []model.Worker, idx int) model.Range {
+	allocations := weightedAllocations(count, workers)
+	start := 0
+	for i := 0; i < idx; i++ {
+		start += allocations[i]
+	}
+	return model.Range{Start: start, End: start + allocations[idx]}
+}
+
+func weightedAllocations(count int, workers []model.Worker) []int {
+	allocations := make([]int, len(workers))
 	if count <= 0 {
-		return model.Range{}
+		return allocations
 	}
 	totalWeight := 0.0
 	for _, worker := range workers {
 		totalWeight += worker.Weight
 	}
-	prefixWeight := 0.0
-	for i := 0; i < idx; i++ {
-		prefixWeight += workers[i].Weight
+	type remainder struct {
+		idx   int
+		value float64
 	}
-	start := int(math.Floor(float64(count) * prefixWeight / totalWeight))
-	end := count
-	if idx < len(workers)-1 {
-		end = int(math.Floor(float64(count) * (prefixWeight + workers[idx].Weight) / totalWeight))
+	remainders := make([]remainder, 0, len(workers))
+	allocated := 0
+	for idx, worker := range workers {
+		exact := float64(count) * worker.Weight / totalWeight
+		base := int(math.Floor(exact))
+		allocations[idx] = base
+		allocated += base
+		remainders = append(remainders, remainder{idx: idx, value: exact - float64(base)})
 	}
-	return model.Range{Start: start, End: end}
+	sort.SliceStable(remainders, func(i, j int) bool {
+		return remainders[i].value > remainders[j].value
+	})
+	for remaining := count - allocated; remaining > 0; remaining-- {
+		allocations[remainders[0].idx]++
+		remainders = remainders[1:]
+	}
+	return allocations
 }
 
 func trafficPartitionTotal(workers []model.Worker) int {
+	best := len(workers)
+	for partitions := len(workers); partitions <= len(workers)*1000; partitions++ {
+		allocations := weightedAllocations(partitions, workers)
+		allPositive := true
+		for _, allocation := range allocations {
+			if allocation == 0 {
+				allPositive = false
+				break
+			}
+		}
+		if !allPositive {
+			continue
+		}
+		if partitions > best {
+			best = partitions
+		}
+		if allocationsApproximateWeights(workers, allocations) {
+			return partitions
+		}
+	}
+	return best
+}
+
+func allocationsApproximateWeights(workers []model.Worker, allocations []int) bool {
 	totalWeight := 0.0
-	for _, worker := range workers {
+	totalAllocations := 0
+	for idx, worker := range workers {
 		totalWeight += worker.Weight
+		totalAllocations += allocations[idx]
 	}
-	partitions := int(math.Round(totalWeight))
-	if partitions < len(workers) {
-		return len(workers)
+	for idx, worker := range workers {
+		if math.Abs(float64(totalAllocations)*worker.Weight/totalWeight-float64(allocations[idx])) > 1e-9 {
+			return false
+		}
 	}
-	return partitions
+	return true
 }
 
 func indexesInRange(r model.Range) []int {
@@ -202,19 +265,31 @@ func indexesInRange(r model.Range) []int {
 	return indexes
 }
 
-func channelOwners(profileName string, count int, workers []model.Worker) map[int]string {
+func channelOwners(runID, profileName string, count int, workers []model.Worker) map[int]string {
 	owners := make(map[int]string, count)
 	if count <= 0 {
 		return owners
 	}
+	totalWeight := 0.0
+	for _, worker := range workers {
+		totalWeight += worker.Weight
+	}
 	for channelIndex := 0; channelIndex < count; channelIndex++ {
-		owners[channelIndex] = ownerForChannel(profileName, channelIndex, workers)
+		owners[channelIndex] = ownerForChannel(runID, profileName, channelIndex, workers, totalWeight)
 	}
 	return owners
 }
 
-func ownerForChannel(profileName string, channelIndex int, workers []model.Worker) string {
+func ownerForChannel(runID, profileName string, channelIndex int, workers []model.Worker, totalWeight float64) string {
 	h := fnv.New32a()
-	_, _ = fmt.Fprintf(h, "%s/%d", profileName, channelIndex)
-	return strings.TrimSpace(workers[int(h.Sum32())%len(workers)].ID)
+	_, _ = fmt.Fprintf(h, "%s/%s/%d", runID, profileName, channelIndex)
+	point := float64(h.Sum32()) / float64(math.MaxUint32) * totalWeight
+	cumulative := 0.0
+	for _, worker := range workers {
+		cumulative += worker.Weight
+		if point < cumulative {
+			return strings.TrimSpace(worker.ID)
+		}
+	}
+	return strings.TrimSpace(workers[len(workers)-1].ID)
 }
