@@ -29,6 +29,7 @@
 - Runtime-meta RPC v2 carries `WriteFence*` fields; v1 must remain supported for mixed-version fallback, and responders must match the request codec version.
 - Channel replica migration treats `learner = Replicas - ISR`; learners receive replication but cannot affect quorum, write availability, or leader repair promotion until promoted into `ISR`.
 - Migration write fences fail closed; TTL expiry requires an authoritative reset/clear with a higher `WriteFenceVersion`, not a local reopen.
+- Migration reconcile probes with newer channel or leader epochs must refresh authoritative metadata on the target before proof checks; never relax epoch fences to hide stale local runtime state.
 
 ### Delivery tag
 - Delivery tags are the unified subscriber-partition snapshot mechanism for all channel delivery paths; large channels are only the highest-pressure case.

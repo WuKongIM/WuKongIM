@@ -126,6 +126,48 @@ func TestDecodeChannelLeaderTransferResponse(t *testing.T) {
 	require.Equal(t, uint64(4), got.Channel.LeaderEpoch)
 }
 
+func TestDecodeChannelMigrationDetailResponse(t *testing.T) {
+	body := []byte(`{
+		"task_id": "task-1",
+		"kind": "replica_migration",
+		"status": "running",
+		"phase": "DrainLeader",
+		"channel_id": "u1@u2",
+		"channel_type": 1,
+		"source_node": 3,
+		"target_node": 2,
+		"desired_leader": 2,
+		"base_channel_epoch": 7,
+		"base_leader_epoch": 4,
+		"current_channel_epoch": 8,
+		"current_leader_epoch": 5,
+		"leader_leo": 12,
+		"leader_hw": 11,
+		"target_leo": 10,
+		"target_checkpoint_hw": 9,
+		"lag_records": 2,
+		"fence_active": true,
+		"fence_until_ms": 1700000000000,
+		"blocker_code": "leader_drain_pending",
+		"blocker_message": "waiting for leader drain proof",
+		"attempt": 3,
+		"next_run_at_ms": 1700000000100,
+		"last_error": "leader still accepts writes"
+	}`)
+
+	got, err := decodeChannelMigrationDetailResponse(body)
+
+	require.NoError(t, err)
+	require.Equal(t, "task-1", got.TaskID)
+	require.Equal(t, "DrainLeader", got.Phase)
+	require.Equal(t, uint64(3), got.SourceNode)
+	require.Equal(t, uint64(2), got.TargetNode)
+	require.Equal(t, uint64(2), got.LagRecords)
+	require.True(t, got.FenceActive)
+	require.Equal(t, "leader_drain_pending", got.BlockerCode)
+	require.Equal(t, "leader still accepts writes", got.LastError)
+}
+
 func TestPersonChannelID(t *testing.T) {
 	left := PersonChannelID("u1", "u2")
 	right := PersonChannelID("u2", "u1")

@@ -120,9 +120,9 @@ type FenceAndDrainRequest struct {
 	ChannelKey ChannelKey
 	// TaskID identifies the migration task requesting the drain.
 	TaskID string
-	// WriteFenceToken must match the locally applied authoritative write fence.
+	// WriteFenceToken identifies the authoritative migration write fence.
 	WriteFenceToken string
-	// WriteFenceVersion must match the locally applied authoritative write fence generation.
+	// WriteFenceVersion is the authoritative migration write fence generation.
 	WriteFenceVersion uint64
 	// ExpectedChannelEpoch fences the drain to the authoritative channel epoch.
 	ExpectedChannelEpoch uint64

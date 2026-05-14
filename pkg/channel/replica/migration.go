@@ -44,14 +44,8 @@ func (r *replica) applyFenceAndDrainCommand(cmd machineFenceAndDrainCommand) mac
 	if req.ChannelKey == "" || req.ChannelKey != r.state.ChannelKey {
 		return machineResult{Err: channel.ErrStaleMeta}
 	}
-	if r.state.Role == channel.ReplicaRoleFencedLeader {
-		return machineResult{Err: channel.ErrLeaseExpired}
-	}
-	if r.state.Role != channel.ReplicaRoleLeader {
+	if r.state.Role != channel.ReplicaRoleLeader && r.state.Role != channel.ReplicaRoleFencedLeader {
 		return machineResult{Err: channel.ErrNotLeader}
-	}
-	if !r.now().Before(r.meta.LeaseUntil) {
-		return machineResult{Err: channel.ErrLeaseExpired}
 	}
 	if req.ExpectedLeader == 0 || req.ExpectedLeader != r.state.Leader {
 		return machineResult{Err: channel.ErrNotLeader}
@@ -62,12 +56,16 @@ func (r *replica) applyFenceAndDrainCommand(cmd machineFenceAndDrainCommand) mac
 	if req.ExpectedLeaderEpoch != r.meta.LeaderEpoch {
 		return machineResult{Err: channel.ErrStaleMeta}
 	}
-	if r.meta.WriteFence.Token != req.WriteFenceToken ||
-		r.meta.WriteFence.Version != req.WriteFenceVersion ||
-		req.WriteFenceToken == "" || req.WriteFenceVersion == 0 {
+	if req.WriteFenceToken == "" || req.WriteFenceVersion == 0 {
+		return machineResult{Err: channel.ErrStaleMeta}
+	}
+	if !r.drainRequestFenceAcceptedLocked(req) {
 		return machineResult{Err: channel.ErrStaleMeta}
 	}
 
+	// The request carries an authoritative migration fence. If local metadata
+	// has not observed it yet, the loop-owned drained marker still fail-closes
+	// future appends before returning the proof.
 	if len(r.appendPending) > 0 {
 		r.failPendingAppendRequestsLocked(channel.ErrWriteFenced)
 	}
@@ -86,9 +84,22 @@ func (r *replica) applyFenceAndDrainCommand(cmd machineFenceAndDrainCommand) mac
 		CheckpointHW:      r.state.CheckpointHW,
 		ChannelEpoch:      r.state.Epoch,
 		LeaderEpoch:       r.meta.LeaderEpoch,
-		WriteFenceVersion: r.meta.WriteFence.Version,
+		WriteFenceVersion: req.WriteFenceVersion,
 	}
 	return machineResult{Drain: &drain}
+}
+
+func (r *replica) drainRequestFenceAcceptedLocked(req channel.FenceAndDrainRequest) bool {
+	if r.meta.WriteFence.Token == req.WriteFenceToken && r.meta.WriteFence.Version == req.WriteFenceVersion {
+		return true
+	}
+	if r.meta.WriteFence.Token == req.WriteFenceToken {
+		return r.meta.WriteFence.Version < req.WriteFenceVersion
+	}
+	if r.meta.WriteFence.Token != "" {
+		return false
+	}
+	return r.meta.WriteFence.Version < req.WriteFenceVersion
 }
 
 func (r *replica) drainedFenceBlocksAppendLocked() bool {

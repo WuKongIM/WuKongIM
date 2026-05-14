@@ -299,6 +299,181 @@ type ManagerChannelLeaderTransferResponse struct {
 	Channel ManagerChannelRuntimeMetaDetail `json:"channel"`
 }
 
+// ManagerChannelMigrationDetail mirrors the manager channel migration detail response.
+type ManagerChannelMigrationDetail struct {
+	// TaskID identifies one active channel migration task.
+	TaskID string `json:"task_id"`
+	// Kind is the stable migration kind.
+	Kind string `json:"kind"`
+	// Status is the stable task lifecycle status.
+	Status string `json:"status"`
+	// Phase is the current resumable executor phase.
+	Phase string `json:"phase"`
+	// ChannelID identifies the migrated channel.
+	ChannelID string `json:"channel_id"`
+	// ChannelType identifies the channel namespace.
+	ChannelType int64 `json:"channel_type"`
+	// SourceNode is the leader or replica being drained.
+	SourceNode uint64 `json:"source_node"`
+	// TargetNode is the target leader or replacement replica.
+	TargetNode uint64 `json:"target_node"`
+	// DesiredLeader is the requested leader after migration.
+	DesiredLeader uint64 `json:"desired_leader"`
+	// BaseChannelEpoch is the epoch captured when the task was created.
+	BaseChannelEpoch uint64 `json:"base_channel_epoch"`
+	// BaseLeaderEpoch is the leader epoch captured when the task was created.
+	BaseLeaderEpoch uint64 `json:"base_leader_epoch"`
+	// CurrentChannelEpoch is the latest authoritative channel epoch.
+	CurrentChannelEpoch uint64 `json:"current_channel_epoch"`
+	// CurrentLeaderEpoch is the latest authoritative leader epoch.
+	CurrentLeaderEpoch uint64 `json:"current_leader_epoch"`
+	// LeaderLEO is the latest observed leader log end offset.
+	LeaderLEO uint64 `json:"leader_leo"`
+	// LeaderHW is the latest observed leader high watermark.
+	LeaderHW uint64 `json:"leader_hw"`
+	// TargetLEO is the latest observed target log end offset.
+	TargetLEO uint64 `json:"target_leo"`
+	// TargetCheckpointHW is the latest target checkpoint high watermark.
+	TargetCheckpointHW uint64 `json:"target_checkpoint_hw"`
+	// LagRecords is the latest observed leader-to-target record gap.
+	LagRecords uint64 `json:"lag_records"`
+	// StableSinceMS records when the current catch-up proof became stable.
+	StableSinceMS int64 `json:"stable_since_ms"`
+	// FenceActive reports whether a migration write fence is active.
+	FenceActive bool `json:"fence_active"`
+	// FenceUntilMS is the write-fence lease deadline.
+	FenceUntilMS int64 `json:"fence_until_ms"`
+	// FenceReason is the raw runtime write-fence reason.
+	FenceReason uint8 `json:"fence_reason"`
+	// BlockerCode is a stable blocker code when the task is blocked.
+	BlockerCode string `json:"blocker_code"`
+	// BlockerMessage is the human-readable blocker detail.
+	BlockerMessage string `json:"blocker_message"`
+	// Attempt is the durable retry counter.
+	Attempt uint32 `json:"attempt"`
+	// NextRunAtMS is the next executor wake-up timestamp.
+	NextRunAtMS int64 `json:"next_run_at_ms"`
+	// LastError is the latest retryable or terminal error.
+	LastError string `json:"last_error"`
+	// CreatedAtMS is the task creation timestamp.
+	CreatedAtMS int64 `json:"created_at_ms"`
+	// UpdatedAtMS is the latest task update timestamp.
+	UpdatedAtMS int64 `json:"updated_at_ms"`
+	// CompletedAtMS is set for terminal tasks.
+	CompletedAtMS int64 `json:"completed_at_ms"`
+}
+
+// ManagerNodeScaleInPlanRequest carries operator confirmation for scale-in plan/start APIs.
+type ManagerNodeScaleInPlanRequest struct {
+	// ConfirmStatefulSetTail confirms the target is the external StatefulSet tail node.
+	ConfirmStatefulSetTail bool `json:"confirm_statefulset_tail"`
+	// ExpectedTailNodeID is the node ID the operator expects to remove.
+	ExpectedTailNodeID uint64 `json:"expected_tail_node_id"`
+}
+
+// ManagerAdvanceNodeScaleInRequest controls one bounded manager scale-in advance step.
+type ManagerAdvanceNodeScaleInRequest struct {
+	// MaxLeaderTransfers limits Slot leader transfer attempts in one call.
+	MaxLeaderTransfers int `json:"max_leader_transfers"`
+	// MaxChannelMigrations limits channel migration task creation in one call.
+	MaxChannelMigrations int `json:"max_channel_migrations"`
+	// ForceCloseConnections is reserved for explicit operator-driven session closure.
+	ForceCloseConnections bool `json:"force_close_connections"`
+}
+
+// ManagerNodeScaleInReport mirrors the manager scale-in report used by e2e.
+type ManagerNodeScaleInReport struct {
+	// NodeID is the target data node being evaluated.
+	NodeID uint64 `json:"node_id"`
+	// Status is the manager-computed scale-in phase.
+	Status string `json:"status"`
+	// SafeToRemove is true only when the manager reports ready_to_remove.
+	SafeToRemove bool `json:"safe_to_remove"`
+	// CanStart reports whether the target can enter the draining state.
+	CanStart bool `json:"can_start"`
+	// CanAdvance reports whether a bounded advance call can progress the phase.
+	CanAdvance bool `json:"can_advance"`
+	// CanCancel reports whether the draining target can be resumed.
+	CanCancel bool `json:"can_cancel"`
+	// ConnectionSafetyVerified reports whether runtime session counters are known.
+	ConnectionSafetyVerified bool `json:"connection_safety_verified"`
+	// BlockedReasons lists stable manager blockers for diagnostics.
+	BlockedReasons []ManagerNodeScaleInBlockedReason `json:"blocked_reasons"`
+	// Checks exposes individual scale-in safety checks.
+	Checks ManagerNodeScaleInChecks `json:"checks"`
+	// Progress exposes live drain counters.
+	Progress ManagerNodeScaleInProgress `json:"progress"`
+	// Runtime exposes node-local runtime session counters.
+	Runtime ManagerNodeScaleInRuntimeSummary `json:"runtime"`
+	// NextAction describes the next operator or manager action.
+	NextAction string `json:"next_action"`
+}
+
+// ManagerNodeScaleInChecks mirrors stable safety check booleans from the manager API.
+type ManagerNodeScaleInChecks struct {
+	TargetExists                             bool `json:"target_exists"`
+	TargetIsDataNode                         bool `json:"target_is_data_node"`
+	TargetIsActiveOrDraining                 bool `json:"target_is_active_or_draining"`
+	TargetIsNotControllerVoter               bool `json:"target_is_not_controller_voter"`
+	TailNodeMappingVerified                  bool `json:"tail_node_mapping_verified"`
+	RemainingDataNodesEnough                 bool `json:"remaining_data_nodes_enough"`
+	ControllerLeaderAvailable                bool `json:"controller_leader_available"`
+	SlotReplicaCountKnown                    bool `json:"slot_replica_count_known"`
+	NoOtherDrainingNode                      bool `json:"no_other_draining_node"`
+	NoActiveHashslotMigrations               bool `json:"no_active_hashslot_migrations"`
+	NoRunningOnboarding                      bool `json:"no_running_onboarding"`
+	NoActiveReconcileTasksInvolvingTarget    bool `json:"no_active_reconcile_tasks_involving_target"`
+	NoFailedReconcileTasks                   bool `json:"no_failed_reconcile_tasks"`
+	RuntimeViewsCompleteAndFresh             bool `json:"runtime_views_complete_and_fresh"`
+	AllSlotsHaveQuorum                       bool `json:"all_slots_have_quorum"`
+	TargetNotUniqueHealthyReplica            bool `json:"target_not_unique_healthy_replica"`
+	ChannelInventoryAvailable                bool `json:"channel_inventory_available"`
+	NoActiveChannelMigrationsInvolvingTarget bool `json:"no_active_channel_migrations_involving_target"`
+	NoChannelLeadersOnTarget                 bool `json:"no_channel_leaders_on_target"`
+	NoChannelReplicasOnTarget                bool `json:"no_channel_replicas_on_target"`
+}
+
+// ManagerNodeScaleInProgress mirrors live drain counters from the manager API.
+type ManagerNodeScaleInProgress struct {
+	AssignedSlotReplicas                 int    `json:"assigned_slot_replicas"`
+	ObservedSlotReplicas                 int    `json:"observed_slot_replicas"`
+	SlotLeaders                          int    `json:"slot_leaders"`
+	ActiveTasksInvolvingNode             int    `json:"active_tasks_involving_node"`
+	ActiveMigrationsInvolvingNode        int    `json:"active_migrations_involving_node"`
+	ChannelLeaders                       int    `json:"channel_leaders"`
+	ChannelReplicas                      int    `json:"channel_replicas"`
+	ActiveChannelMigrationsInvolvingNode int    `json:"active_channel_migrations_involving_node"`
+	ActiveConnections                    int    `json:"active_connections"`
+	ClosingConnections                   int    `json:"closing_connections"`
+	GatewaySessions                      int    `json:"gateway_sessions"`
+	ActiveConnectionsUnknown             bool   `json:"active_connections_unknown"`
+	ChannelInventoryScanned              bool   `json:"channel_inventory_scanned"`
+	ChannelInventoryPartial              bool   `json:"channel_inventory_partial"`
+	ChannelInventoryError                string `json:"channel_inventory_error"`
+}
+
+// ManagerNodeScaleInRuntimeSummary mirrors runtime session counters used for scale-in safety.
+type ManagerNodeScaleInRuntimeSummary struct {
+	NodeID               uint64         `json:"node_id"`
+	ActiveOnline         int            `json:"active_online"`
+	ClosingOnline        int            `json:"closing_online"`
+	TotalOnline          int            `json:"total_online"`
+	GatewaySessions      int            `json:"gateway_sessions"`
+	SessionsByListener   map[string]int `json:"sessions_by_listener"`
+	AcceptingNewSessions bool           `json:"accepting_new_sessions"`
+	Draining             bool           `json:"draining"`
+	Unknown              bool           `json:"unknown"`
+}
+
+// ManagerNodeScaleInBlockedReason mirrors one stable scale-in blocker.
+type ManagerNodeScaleInBlockedReason struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Count   int    `json:"count"`
+	SlotID  uint32 `json:"slot_id"`
+	NodeID  uint64 `json:"node_id"`
+}
+
 // FetchNodeOnboardingCandidates fetches manager onboarding candidates from the started node.
 func FetchNodeOnboardingCandidates(ctx context.Context, node StartedNode) (ManagerNodeOnboardingCandidatesResponse, []byte, error) {
 	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, "/manager/node-onboarding/candidates")
@@ -516,6 +691,20 @@ func TransferChannelClusterLeader(ctx context.Context, node StartedNode, channel
 	return result, body, nil
 }
 
+// FetchChannelMigration fetches active manager migration details for one channel.
+func FetchChannelMigration(ctx context.Context, node StartedNode, channelType uint8, channelID string) (ManagerChannelMigrationDetail, []byte, error) {
+	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/channels/%d/%s/migration", channelType, url.PathEscape(channelID)))
+	if err != nil {
+		return ManagerChannelMigrationDetail{}, nil, err
+	}
+
+	detail, err := decodeChannelMigrationDetailResponse(body)
+	if err != nil {
+		return ManagerChannelMigrationDetail{}, body, err
+	}
+	return detail, body, nil
+}
+
 // WaitForChannelClusterReplicas waits until channel-cluster replica detail satisfies accept.
 func WaitForChannelClusterReplicas(ctx context.Context, node StartedNode, channelType uint8, channelID string, accept func(ManagerChannelClusterReplicaDetail) bool) (ManagerChannelClusterReplicaDetail, []byte, error) {
 	ticker := time.NewTicker(readyPollInterval)
@@ -564,6 +753,78 @@ func decodeChannelLeaderTransferResponse(body []byte) (ManagerChannelLeaderTrans
 		return ManagerChannelLeaderTransferResponse{}, err
 	}
 	return resp, nil
+}
+
+func decodeChannelMigrationDetailResponse(body []byte) (ManagerChannelMigrationDetail, error) {
+	var detail ManagerChannelMigrationDetail
+	if err := json.Unmarshal(body, &detail); err != nil {
+		return ManagerChannelMigrationDetail{}, err
+	}
+	return detail, nil
+}
+
+// PlanNodeScaleIn fetches a side-effect-free manager scale-in report.
+func PlanNodeScaleIn(ctx context.Context, node StartedNode, nodeID uint64, req ManagerNodeScaleInPlanRequest) (ManagerNodeScaleInReport, []byte, error) {
+	body, err := postHTTPJSONBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/nodes/%d/scale-in/plan", nodeID), req)
+	if err != nil {
+		return ManagerNodeScaleInReport{}, nil, err
+	}
+
+	report, err := decodeNodeScaleInReportResponse(body)
+	if err != nil {
+		return ManagerNodeScaleInReport{}, body, err
+	}
+	return report, body, nil
+}
+
+// StartNodeScaleIn marks a preflight-safe manager node as draining.
+func StartNodeScaleIn(ctx context.Context, node StartedNode, nodeID uint64, req ManagerNodeScaleInPlanRequest) (ManagerNodeScaleInReport, []byte, error) {
+	body, err := postHTTPJSONBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/nodes/%d/scale-in/start", nodeID), req)
+	if err != nil {
+		return ManagerNodeScaleInReport{}, nil, err
+	}
+
+	report, err := decodeNodeScaleInReportResponse(body)
+	if err != nil {
+		return ManagerNodeScaleInReport{}, body, err
+	}
+	return report, body, nil
+}
+
+// GetNodeScaleInStatus fetches the latest manager scale-in report.
+func GetNodeScaleInStatus(ctx context.Context, node StartedNode, nodeID uint64) (ManagerNodeScaleInReport, []byte, error) {
+	body, err := fetchHTTPBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/nodes/%d/scale-in/status", nodeID))
+	if err != nil {
+		return ManagerNodeScaleInReport{}, nil, err
+	}
+
+	report, err := decodeNodeScaleInReportResponse(body)
+	if err != nil {
+		return ManagerNodeScaleInReport{}, body, err
+	}
+	return report, body, nil
+}
+
+// AdvanceNodeScaleIn performs one bounded manager scale-in advance step.
+func AdvanceNodeScaleIn(ctx context.Context, node StartedNode, nodeID uint64, req ManagerAdvanceNodeScaleInRequest) (ManagerNodeScaleInReport, []byte, error) {
+	body, err := postHTTPJSONBody(ctx, node.Spec.ManagerAddr, fmt.Sprintf("/manager/nodes/%d/scale-in/advance", nodeID), req)
+	if err != nil {
+		return ManagerNodeScaleInReport{}, nil, err
+	}
+
+	report, err := decodeNodeScaleInReportResponse(body)
+	if err != nil {
+		return ManagerNodeScaleInReport{}, body, err
+	}
+	return report, body, nil
+}
+
+func decodeNodeScaleInReportResponse(body []byte) (ManagerNodeScaleInReport, error) {
+	var report ManagerNodeScaleInReport
+	if err := json.Unmarshal(body, &report); err != nil {
+		return ManagerNodeScaleInReport{}, err
+	}
+	return report, nil
 }
 
 // FetchConnections fetches local manager connections from the started node.

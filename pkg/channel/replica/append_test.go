@@ -419,7 +419,7 @@ func TestFenceAndDrainWaitsForLocalCommitTailToBecomeStable(t *testing.T) {
 	require.Equal(t, gotDrain.HW, gotDrain.CheckpointHW)
 }
 
-func TestFenceAndDrainReturnsLeaseExpiredForFencedLeader(t *testing.T) {
+func TestFenceAndDrainAllowsFencedLeaderWhenMigrationFenceMatches(t *testing.T) {
 	env := newTestEnv(t)
 	meta := activeMetaWithMinISR(7, 1, 1)
 	meta.LeaseUntil = env.clock.Now().Add(time.Second)
@@ -438,7 +438,7 @@ func TestFenceAndDrainReturnsLeaseExpiredForFencedLeader(t *testing.T) {
 		Until:   time.Now().Add(time.Minute),
 	}
 	require.NoError(t, env.replica.ApplyMeta(fenced))
-	_, err = env.replica.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+	drain, err := env.replica.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
 		ChannelKey:           fenced.Key,
 		WriteFenceToken:      "task-fenced-leader-drain",
 		WriteFenceVersion:    1,
@@ -446,7 +446,11 @@ func TestFenceAndDrainReturnsLeaseExpiredForFencedLeader(t *testing.T) {
 		ExpectedLeaderEpoch:  fenced.LeaderEpoch,
 		ExpectedLeader:       1,
 	})
-	require.ErrorIs(t, err, channel.ErrLeaseExpired)
+
+	require.NoError(t, err)
+	require.Equal(t, fenced.Key, drain.ChannelKey)
+	require.Equal(t, fenced.LeaderEpoch, drain.LeaderEpoch)
+	require.Equal(t, uint64(1), drain.WriteFenceVersion)
 }
 
 func TestFenceAndDrainRejectsNonLeaderOrFenceMismatch(t *testing.T) {
@@ -501,7 +505,7 @@ func TestFenceAndDrainRequiresExactLeaderEpoch(t *testing.T) {
 	require.ErrorIs(t, err, channel.ErrStaleMeta)
 }
 
-func TestFenceAndDrainRejectsExpiredLeaderLease(t *testing.T) {
+func TestFenceAndDrainAllowsExpiredLeaderWhenMigrationFenceMatches(t *testing.T) {
 	leader := newLeaderReplica(t)
 	fenced := activeMetaWithMinISR(7, 1, 1)
 	fenced.LeaseUntil = leader.now().Add(-time.Millisecond)
@@ -513,7 +517,7 @@ func TestFenceAndDrainRejectsExpiredLeaderLease(t *testing.T) {
 	}
 	require.NoError(t, leader.ApplyMeta(fenced))
 
-	_, err := leader.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+	drain, err := leader.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
 		ChannelKey:           fenced.Key,
 		WriteFenceToken:      "task-expired-lease",
 		WriteFenceVersion:    1,
@@ -521,7 +525,59 @@ func TestFenceAndDrainRejectsExpiredLeaderLease(t *testing.T) {
 		ExpectedLeaderEpoch:  fenced.LeaderEpoch,
 		ExpectedLeader:       1,
 	})
-	require.ErrorIs(t, err, channel.ErrLeaseExpired)
+
+	require.NoError(t, err)
+	require.Equal(t, fenced.Key, drain.ChannelKey)
+	require.Equal(t, fenced.LeaderEpoch, drain.LeaderEpoch)
+	require.Equal(t, uint64(1), drain.WriteFenceVersion)
+}
+
+func TestFenceAndDrainAllowsAuthoritativeFenceBeforeLocalMetaApplies(t *testing.T) {
+	leader := newLeaderReplica(t)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	require.NoError(t, leader.ApplyMeta(meta))
+
+	drain, err := leader.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+		ChannelKey:           meta.Key,
+		WriteFenceToken:      "task-authoritative-fence",
+		WriteFenceVersion:    3,
+		ExpectedChannelEpoch: 7,
+		ExpectedLeaderEpoch:  meta.LeaderEpoch,
+		ExpectedLeader:       1,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, meta.Key, drain.ChannelKey)
+	require.Equal(t, uint64(3), drain.WriteFenceVersion)
+	_, err = leader.Append(context.Background(), []channel.Record{{Payload: []byte("blocked"), SizeBytes: 7}})
+	require.ErrorIs(t, err, channel.ErrWriteFenced)
+}
+
+func TestFenceAndDrainAllowsNewerAuthoritativeFenceForSameTaskWhenLocalFenceStale(t *testing.T) {
+	leader := newLeaderReplica(t)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	meta.WriteFence = channel.WriteFence{
+		Token:   "task-same-fence",
+		Version: 3,
+		Reason:  channel.WriteFenceReasonMigration,
+		Until:   leader.now().Add(time.Minute),
+	}
+	require.NoError(t, leader.ApplyMeta(meta))
+
+	drain, err := leader.FenceAndDrain(context.Background(), channel.FenceAndDrainRequest{
+		ChannelKey:           meta.Key,
+		WriteFenceToken:      "task-same-fence",
+		WriteFenceVersion:    5,
+		ExpectedChannelEpoch: 7,
+		ExpectedLeaderEpoch:  meta.LeaderEpoch,
+		ExpectedLeader:       1,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, meta.Key, drain.ChannelKey)
+	require.Equal(t, uint64(5), drain.WriteFenceVersion)
+	_, err = leader.Append(context.Background(), []channel.Record{{Payload: []byte("blocked"), SizeBytes: 7}})
+	require.ErrorIs(t, err, channel.ErrWriteFenced)
 }
 
 func TestDrainedFailClosedReopensOnlyAfterNewerVersionClear(t *testing.T) {

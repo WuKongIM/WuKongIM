@@ -19,6 +19,11 @@ type Activator interface {
 	ActivateByKey(ctx context.Context, key core.ChannelKey, source ActivationSource) (core.Meta, error)
 }
 
+type authoritativeRefresher interface {
+	// RefreshAuthoritativeByKey rereads authoritative metadata and applies it to local runtime views.
+	RefreshAuthoritativeByKey(ctx context.Context, key core.ChannelKey) (core.Meta, error)
+}
+
 func (r *runtime) ensureChannelForIngress(ctx context.Context, key core.ChannelKey, source ActivationSource) (*channel, bool, error) {
 	if ch, ok := r.lookupChannel(key); ok {
 		return ch, false, nil

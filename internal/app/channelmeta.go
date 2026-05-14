@@ -82,6 +82,13 @@ func (s *channelMetaSync) ActivateByKey(ctx context.Context, key channel.Channel
 	return s.resolver.ActivateByKey(ctx, key, source)
 }
 
+func (s *channelMetaSync) RefreshAuthoritativeByKey(ctx context.Context, key channel.ChannelKey) (channel.Meta, error) {
+	if s == nil || s.resolver == nil {
+		return channel.Meta{}, channel.ErrInvalidConfig
+	}
+	return s.resolver.RefreshAuthoritativeByKey(ctx, key)
+}
+
 func (s *channelMetaSync) applyAuthoritativeMeta(meta metadb.ChannelRuntimeMeta) (channel.Meta, error) {
 	if s == nil || s.resolver == nil {
 		return channel.Meta{}, channel.ErrInvalidConfig
