@@ -876,6 +876,181 @@ func TestSendAllowsPersonSenderInReceiverAllowlistWhenPersonWhitelistEnabled(t *
 	require.Len(t, cluster.sendRequests, 1)
 }
 
+func TestSendAllowsPersonStrangerWhenReceiverAllowsStrangerAndWhitelistEnabled(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 710, MessageSeq: 40}},
+		},
+	}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("u2", int64(frame.ChannelTypePerson))] = metadb.Channel{
+		ChannelID:     "u2",
+		ChannelType:   int64(frame.ChannelTypePerson),
+		AllowStranger: 1,
+	}
+	app := New(Options{
+		Now:                    fixedNowFn,
+		Cluster:                cluster,
+		MetaRefresher:          &fakeMetaRefresher{},
+		PermissionStore:        permissions,
+		PersonWhitelistEnabled: true,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Equal(t, int64(710), result.MessageID)
+	require.Equal(t, uint64(40), result.MessageSeq)
+	require.Len(t, cluster.sendRequests, 1)
+}
+
+func TestSendRejectsPersonDenylistBeforeAllowStranger(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("u2", int64(frame.ChannelTypePerson))] = metadb.Channel{
+		ChannelID:     "u2",
+		ChannelType:   int64(frame.ChannelTypePerson),
+		AllowStranger: 1,
+	}
+	denyID := channelmembers.DenylistChannelID(channelmembers.ChannelKey{ChannelID: "u2", ChannelType: frame.ChannelTypePerson})
+	permissions.members[permissionKey(denyID, int64(frame.ChannelTypePerson))] = map[string]bool{"u1": true}
+	app := New(Options{
+		Now:                    fixedNowFn,
+		Cluster:                cluster,
+		MetaRefresher:          &fakeMetaRefresher{},
+		PermissionStore:        permissions,
+		PersonWhitelistEnabled: true,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonInBlacklist, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+}
+
+func TestSendRejectsSenderSendBanBeforeReceiverAllowStranger(t *testing.T) {
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("u1", int64(frame.ChannelTypePerson))] = metadb.Channel{
+		ChannelID:   "u1",
+		ChannelType: int64(frame.ChannelTypePerson),
+		SendBan:     1,
+	}
+	permissions.channels[permissionKey("u2", int64(frame.ChannelTypePerson))] = metadb.Channel{
+		ChannelID:     "u2",
+		ChannelType:   int64(frame.ChannelTypePerson),
+		AllowStranger: 1,
+	}
+	cluster := &fakeChannelCluster{}
+	app := New(Options{
+		Now:                    fixedNowFn,
+		Cluster:                cluster,
+		MetaRefresher:          &fakeMetaRefresher{},
+		PermissionStore:        permissions,
+		PersonWhitelistEnabled: true,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSendBan, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+}
+
+func TestSendRejectsPersonStrangerWhenWhitelistEnabledAndReceiverMetadataMissing(t *testing.T) {
+	permissions := newFakePermissionStore()
+	cluster := &fakeChannelCluster{}
+	app := New(Options{
+		Now:                    fixedNowFn,
+		Cluster:                cluster,
+		MetaRefresher:          &fakeMetaRefresher{},
+		PermissionStore:        permissions,
+		PersonWhitelistEnabled: true,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonNotInWhitelist, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+}
+
+func TestSendAllowsPersonWhenWhitelistDisabledEvenReceiverDoesNotAllowStranger(t *testing.T) {
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("u2", int64(frame.ChannelTypePerson))] = metadb.Channel{
+		ChannelID:     "u2",
+		ChannelType:   int64(frame.ChannelTypePerson),
+		AllowStranger: 0,
+	}
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 711, MessageSeq: 41}},
+		},
+	}
+	app := New(Options{
+		Now:             fixedNowFn,
+		Cluster:         cluster,
+		MetaRefresher:   &fakeMetaRefresher{},
+		PermissionStore: permissions,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Len(t, cluster.sendRequests, 1)
+}
+
+func TestSendReturnsSystemErrorWhenReceiverAllowStrangerLookupFails(t *testing.T) {
+	permissions := newFakePermissionStore()
+	permissions.channelErrs[permissionKey("u2", int64(frame.ChannelTypePerson))] = errors.New("receiver metadata failed")
+	cluster := &fakeChannelCluster{}
+	app := New(Options{
+		Now:                    fixedNowFn,
+		Cluster:                cluster,
+		MetaRefresher:          &fakeMetaRefresher{},
+		PermissionStore:        permissions,
+		PersonWhitelistEnabled: true,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.Error(t, err)
+	require.Equal(t, frame.ReasonSystemError, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+}
+
 func TestSendAllowsPersonWhenReceiverIsSystemUID(t *testing.T) {
 	cluster := &fakeChannelCluster{
 		sendReplies: []fakeChannelClusterSendReply{
@@ -2273,16 +2448,18 @@ func (*fakeChannelStore) GetChannel(context.Context, string, int64) (metadb.Chan
 }
 
 type fakePermissionStore struct {
-	channels map[string]metadb.Channel
-	members  map[string]map[string]bool
-	hasAny   map[string]bool
+	channels    map[string]metadb.Channel
+	channelErrs map[string]error
+	members     map[string]map[string]bool
+	hasAny      map[string]bool
 }
 
 func newFakePermissionStore() *fakePermissionStore {
 	return &fakePermissionStore{
-		channels: make(map[string]metadb.Channel),
-		members:  make(map[string]map[string]bool),
-		hasAny:   make(map[string]bool),
+		channels:    make(map[string]metadb.Channel),
+		channelErrs: make(map[string]error),
+		members:     make(map[string]map[string]bool),
+		hasAny:      make(map[string]bool),
 	}
 }
 
@@ -2291,7 +2468,11 @@ func permissionKey(channelID string, channelType int64) string {
 }
 
 func (s *fakePermissionStore) GetChannelForPermission(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {
-	ch, ok := s.channels[permissionKey(channelID, channelType)]
+	key := permissionKey(channelID, channelType)
+	if err, ok := s.channelErrs[key]; ok {
+		return metadb.Channel{}, err
+	}
+	ch, ok := s.channels[key]
 	if !ok {
 		return metadb.Channel{}, metadb.ErrNotFound
 	}
