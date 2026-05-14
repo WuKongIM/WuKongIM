@@ -672,6 +672,11 @@ func build(cfg Config) (_ *App, err error) {
 				local:       app,
 				remote:      app.nodeClient,
 			},
+			DiagnosticsTracking: managementDiagnosticsTrackingReader{
+				localNodeID: cfg.Node.ID,
+				local:       app,
+				remote:      app.nodeClient,
+			},
 			ChannelRuntimeMeta:      app.store,
 			Users:                   app.store,
 			ChannelBusinessReader:   app.store,

@@ -44,6 +44,8 @@ type DiagnosticsQueryDTO struct {
 	ClientMsgNo string `json:"client_msg_no,omitempty"`
 	// ChannelKey filters events by diagnostics channel key.
 	ChannelKey string `json:"channel_key,omitempty"`
+	// UID filters events by sender UID without exposing FromUID in event DTOs.
+	UID string `json:"uid,omitempty"`
 	// MessageSeq filters events by channel message sequence.
 	MessageSeq uint64 `json:"message_seq,omitempty"`
 	// Stage filters events by diagnostics stage.
@@ -160,6 +162,12 @@ func (s *Server) handleDiagnosticsEvents(c *gin.Context) {
 	if stage := strings.TrimSpace(c.Query("stage")); stage != "" {
 		req.Query.Stage = diagnostics.Stage(stage)
 	}
+	if uid := strings.TrimSpace(c.Query("uid")); uid != "" {
+		req.Query.UID = uid
+	}
+	if channelKey := strings.TrimSpace(c.Query("channel_key")); channelKey != "" {
+		req.Query.ChannelKey = channelKey
+	}
 	result, valid := parseDiagnosticsResult(c.Query("result"))
 	if !valid {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid result")
@@ -266,6 +274,7 @@ func diagnosticsQueryDTO(query diagnostics.Query) DiagnosticsQueryDTO {
 		TraceID:     query.TraceID,
 		ClientMsgNo: query.ClientMsgNo,
 		ChannelKey:  query.ChannelKey,
+		UID:         query.UID,
 		MessageSeq:  query.MessageSeq,
 		Stage:       string(query.Stage),
 		Result:      string(query.Result),
