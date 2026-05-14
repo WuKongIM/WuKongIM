@@ -55,6 +55,7 @@ WuKongIM 是一个高性能分布式即时通讯引擎，采用自研的 ISR（I
 
 🖥️ 全局集群 (Global Cluster)
   ├── 节点管理         /nodes
+  ├── 任务中心         /tasks
   ├── Slot 管理        /slots
   ├── 节点扩容         /onboarding
   ├── Controller       /controller
@@ -105,10 +106,24 @@ WuKongIM 是一个高性能分布式即时通讯引擎，采用自研的 ISR（I
 | 页面 | 功能 |
 |------|------|
 | 节点管理 | 节点列表、排水/恢复、缩容流程 |
+| 任务中心 | 分布式任务状态聚合、筛选、详情查看；MVP 只读，不提供重试/取消/推进操作 |
 | Slot 管理 | Slot 分布、Rebalance、Leader 转移、恢复 |
 | 节点扩容 | 新节点上线、Slot 分配计划 |
 | Controller | Raft 日志查看、压缩操作 |
 | 拓扑视图 | 全局集群与 Slot 拓扑只读 MVP 已完成；频道级副本拓扑仍待专门 API |
+
+#### 任务中心 `/tasks`
+
+- 状态：只读 MVP 已完成，统一聚合 Slot reconcile、节点扩容、节点缩容与频道迁移任务。
+- 能力：汇总卡片、domain/status/scope/node/keyword 筛选、部分来源不可用告警、任务详情抽屉。
+- 约束：当前阶段仅做状态聚合与详情查看，不暴露 retry/cancel/advance/start 等写操作。
+
+对应后台 API：
+```
+GET  /manager/distributed-tasks/summary
+GET  /manager/distributed-tasks?domain=&status=&node_id=&scope=&keyword=&limit=&cursor=
+GET  /manager/distributed-tasks/:domain/:id
+```
 
 ### 4.3 频道集群模块（核心新增）
 
@@ -306,6 +321,7 @@ GET  /manager/permissions
 1. **频道集群总览** — 已新增 `/manager/channel-cluster/summary` 聚合 API 与页面
 2. **异常频道** — 已新增 `/manager/channel-cluster/unhealthy` 分页 API 与页面
 3. **Dashboard 增强** — 已加入频道集群健康度卡片
+4. **分布式任务中心** — 已新增 `/manager/distributed-tasks*` 只读聚合 API 与 `/tasks` 页面
 
 ### P0.5 — 频道集群操作（已完成安全子集）
 
@@ -347,6 +363,7 @@ GET  /manager/permissions
 - [x] 用户管理后端 API + 前端页面（不含封禁/解封）
 - [x] 权限管理只读 MVP：`GET /manager/permissions` + `/settings/permissions`
 - [x] 拓扑只读 MVP：复用 overview/nodes/slots 展示全局集群与 Slot 拓扑
+- [x] 分布式任务中心只读 MVP：`/manager/distributed-tasks*` + `/tasks`
 
 待实现：
 - [ ] 频道集群批量 leader drain
