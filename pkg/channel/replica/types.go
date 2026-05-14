@@ -49,9 +49,6 @@ const (
 	ExecutionModePooled ExecutionMode = "pooled"
 )
 
-// ExecutionPool is the shared worker pool used by pooled replica execution.
-type ExecutionPool struct{}
-
 // ExecutionConfig configures replica loop and effect execution.
 type ExecutionConfig struct {
 	// Mode selects how replica loop and effect work is executed.
