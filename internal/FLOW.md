@@ -112,6 +112,7 @@
 | `bench/config` | `bench/config/` | wkbench target / worker / scenario YAML 严格加载 |
 | `bench/model` | `bench/model/` | wkbench 配置、速率与确定性计划模型 |
 | `bench/planner` | `bench/planner/` | 按 worker 权重规划 identity pool、channel、member 与 traffic 分片 |
+| `bench/worker` | `bench/worker/` | wkbench 黑盒 worker 控制 HTTP API、运行分配状态与阶段推进 |
 
 ### 2.3 依赖边界
 
