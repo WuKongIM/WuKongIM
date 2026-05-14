@@ -1598,6 +1598,7 @@ func TestSendRecordsDurableTraceWithChannelKey(t *testing.T) {
 	}
 	require.Equal(t, "trace-1", durable.TraceID)
 	require.Equal(t, "m-channel", durable.ClientMsgNo)
+	require.Equal(t, "u1", durable.FromUID)
 	require.Equal(t, uint64(9), durable.MessageSeq)
 	require.Equal(t, string(channelhandler.KeyFromChannelID(channel.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup})), durable.ChannelKey)
 }

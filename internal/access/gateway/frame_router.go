@@ -69,6 +69,7 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 		ChannelKey:  channelKey,
 		ClientMsgNo: cmd.ClientMsgNo,
 		MessageSeq:  result.MessageSeq,
+		FromUID:     cmd.FromUID,
 	})
 	if err != nil {
 		fields := append([]wklog.Field{
@@ -79,12 +80,12 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 		h.frameLogger().Warn("send request failed", fields...)
 		if reason, ok := mapSendErrorReason(err); ok {
 			result.Reason = reason
-			return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, cmd.TraceID, channelKey, result)
+			return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, cmd.TraceID, channelKey, cmd.FromUID, result)
 		}
 		return err
 	}
 
-	return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, cmd.TraceID, channelKey, result)
+	return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, cmd.TraceID, channelKey, cmd.FromUID, result)
 }
 
 func (h *Handler) handleRecvAck(ctx *coregateway.Context, pkt *frame.RecvackPacket) error {
@@ -99,7 +100,7 @@ func (h *Handler) handlePing(ctx *coregateway.Context) error {
 	return writePong(ctx)
 }
 
-func (h *Handler) writeSendackWithTrace(ctx *coregateway.Context, pkt *frame.SendPacket, clientMsgNo, traceID, channelKey string, result message.SendResult) error {
+func (h *Handler) writeSendackWithTrace(ctx *coregateway.Context, pkt *frame.SendPacket, clientMsgNo, traceID, channelKey, fromUID string, result message.SendResult) error {
 	startedAt := h.now()
 	err := writeSendack(ctx, pkt, result)
 	sendtrace.Record(sendtrace.Event{
@@ -111,6 +112,7 @@ func (h *Handler) writeSendackWithTrace(ctx *coregateway.Context, pkt *frame.Sen
 		ChannelKey:  channelKey,
 		ClientMsgNo: clientMsgNo,
 		MessageSeq:  result.MessageSeq,
+		FromUID:     fromUID,
 	})
 	return err
 }

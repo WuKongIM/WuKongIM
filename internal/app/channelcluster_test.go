@@ -175,7 +175,7 @@ func TestAppChannelClusterLocalAppendRecordsTraceID(t *testing.T) {
 
 	_, err := cluster.Append(context.Background(), channel.AppendRequest{
 		ChannelID: channel.ChannelID{ID: "room", Type: 2},
-		Message:   channel.Message{ClientMsgNo: "m1"},
+		Message:   channel.Message{FromUID: "u1", ClientMsgNo: "m1"},
 		TraceID:   "trace-1",
 		Attempt:   2,
 	})
@@ -185,6 +185,7 @@ func TestAppChannelClusterLocalAppendRecordsTraceID(t *testing.T) {
 	require.Len(t, events, 1)
 	require.Equal(t, sendtrace.StageChannelAppendLocal, events[0].Stage)
 	require.Equal(t, "trace-1", events[0].TraceID)
+	require.Equal(t, "u1", events[0].FromUID)
 	require.Equal(t, 2, events[0].Attempt)
 }
 
@@ -223,6 +224,7 @@ func TestAppChannelClusterForwardAppendRecordsTraceID(t *testing.T) {
 	require.Len(t, events, 1)
 	require.Equal(t, sendtrace.StageChannelAppendForward, events[0].Stage)
 	require.Equal(t, "trace-1", events[0].TraceID)
+	require.Equal(t, "u1", events[0].FromUID)
 	require.Equal(t, 3, events[0].Attempt)
 	require.Equal(t, "channel_append", events[0].Service)
 }
