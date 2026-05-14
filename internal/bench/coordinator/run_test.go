@@ -52,6 +52,8 @@ func TestCoordinatorAssignmentIncludesWorkerShard(t *testing.T) {
 	require.Equal(t, "a", assignment.WorkerID)
 	require.Equal(t, "a", assignment.Plan.WorkerID)
 	require.Contains(t, assignment.Plan.Profiles, "group-hot")
+	require.Equal(t, result.Plan.ChannelOwners, assignment.ChannelOwners)
+	require.Contains(t, assignment.ChannelOwners, "group-hot")
 	require.Equal(t, fakeTargetOK().Gateway.TCP.Addrs, assignment.Target.Gateway.TCP.Addrs)
 	require.Equal(t, "wkbench/v1", assignment.Scenario.Version)
 }

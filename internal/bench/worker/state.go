@@ -49,6 +49,8 @@ type Assignment struct {
 	RunID string `json:"run_id"`
 	// WorkerID identifies this worker within the benchmark worker set.
 	WorkerID string `json:"worker_id,omitempty"`
+	// ChannelOwners records deterministic group channel owners by profile and channel index.
+	ChannelOwners map[string]map[int]string `json:"channel_owners,omitempty"`
 	// Plan is the deterministic worker-local shard assigned by the coordinator.
 	Plan model.WorkerPlan `json:"plan,omitempty"`
 	// Target carries the black-box WuKongIM deployment configuration for future workloads.

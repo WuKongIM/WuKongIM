@@ -278,6 +278,79 @@ func TestWorkerDefaultRunnerPreparesConnectsAndRunsGroupShard(t *testing.T) {
 	require.Contains(t, sender.sentFrames[0].ClientMsgNo, "bench-msg")
 }
 
+func TestWorkerDefaultRunnerUsesChannelOwnersForHugeGroupPrepare(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/channels":
+			var req model.BatchChannelsRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			require.Len(t, req.Channels, 1)
+			require.Equal(t, "bench-run-huge-group-0", req.Channels[0].ChannelID)
+		case "/bench/v1/channels/subscribers":
+			var req model.BatchSubscribersRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		default:
+			t.Fatalf("unexpected target path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+
+	srv := NewServer(Config{ControlToken: "secret"})
+	assignment := groupShardAssignment(target.URL)
+	assignment.Plan.Profiles["huge-group"] = model.ProfileShard{
+		Name:                   "huge-group",
+		ChannelType:            model.ChannelTypeGroup,
+		ChannelRange:           model.Range{Start: 0, End: 1},
+		MemberRange:            model.Range{Start: 2500, End: 5000},
+		TrafficPartitionCount:  4,
+		OwnedTrafficPartitions: []int{0},
+	}
+	assignment.ChannelOwners = map[string]map[int]string{"huge-group": {0: "worker-a"}}
+	assignFull(t, srv, "secret", assignment)
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, PhasePrepare, status.Phase)
+}
+
+func TestWorkerDefaultRunnerSkipsHugeGroupPrepareWhenAnotherWorkerOwnsChannel(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/channels":
+			t.Fatalf("unexpected channel prepare request for non-owner")
+		case "/bench/v1/channels/subscribers":
+			var req model.BatchSubscribersRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			require.Len(t, req.Items, 1)
+			require.False(t, req.Items[0].Reset)
+		default:
+			t.Fatalf("unexpected target path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+
+	srv := NewServer(Config{ControlToken: "secret"})
+	assignment := groupShardAssignment(target.URL)
+	assignment.Plan.Profiles["huge-group"] = model.ProfileShard{
+		Name:                   "huge-group",
+		ChannelType:            model.ChannelTypeGroup,
+		ChannelRange:           model.Range{Start: 0, End: 1},
+		MemberRange:            model.Range{Start: 0, End: 2500},
+		TrafficPartitionCount:  4,
+		OwnedTrafficPartitions: []int{0},
+	}
+	assignment.ChannelOwners = map[string]map[int]string{"huge-group": {0: "worker-b"}}
+	assignFull(t, srv, "secret", assignment)
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, PhasePrepare, status.Phase)
+}
+
 func TestWorkerDefaultRunnerRejectsPersonShardWithoutTraffic(t *testing.T) {
 	pool := newWorkerPersonClientPool()
 	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
