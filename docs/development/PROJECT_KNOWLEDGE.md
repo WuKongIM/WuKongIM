@@ -5,6 +5,7 @@
 ### Conversation working set
 - Recent conversation sync is allowed to be working-set based; it does not need `version` to discover every historical conversation update.
 - Active local channel runtimes must be capacity-managed per node with `WK_CLUSTER_MAX_CHANNELS` and optional idle eviction; 100k simultaneously active channels can amplify replica goroutines and heap even before message volume is high.
+- Channel replica pooled execution must preserve per-channel single-writer ordering and all generation/epoch/fence checks; it is an execution-cache optimization, not a cluster semantic change.
 - `ActiveAt` is a best-effort hint: updates may be batched, throttled, dropped, and merged from cache during `ListUserConversationActive`.
 - Deleting a conversation clears current active visibility through `DeletedToSeq`; a later message with a larger sequence must be allowed to reactivate it.
 - Delete without an explicit message sequence must first resolve the latest Channel Log sequence; if no sequence is available, do not install a zero delete barrier.
