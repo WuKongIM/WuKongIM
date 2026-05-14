@@ -2,7 +2,9 @@ package worker
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -196,6 +198,64 @@ func TestWorkerMetricsAndReportReturnMinimalJSON(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code)
 		require.JSONEq(t, `{}`, rec.Body.String())
 	}
+}
+
+func TestWorkerPhaseHooksCallWorkloadRunner(t *testing.T) {
+	runner := &recordingWorkloadRunner{}
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/warmup", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/run", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/cooldown", http.StatusOK)
+
+	require.Equal(t, []Phase{PhaseConnect, PhaseWarmup, PhaseRun, PhaseCooldown}, runner.phases)
+	require.Equal(t, []string{"run-a", "run-a", "run-a", "run-a"}, runner.runIDs)
+}
+
+func TestWorkerPhaseHookFailureDoesNotAdvanceStatus(t *testing.T) {
+	runner := &recordingWorkloadRunner{failPhase: PhaseConnect}
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/connect", "secret", nil)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	require.Equal(t, PhasePrepare, workerStatus(t, srv, "secret").Phase)
+}
+
+type recordingWorkloadRunner struct {
+	phases    []Phase
+	runIDs    []string
+	failPhase Phase
+}
+
+func (r *recordingWorkloadRunner) Connect(ctx context.Context, assignment Assignment) error {
+	return r.record(PhaseConnect, assignment)
+}
+
+func (r *recordingWorkloadRunner) Warmup(ctx context.Context, assignment Assignment) error {
+	return r.record(PhaseWarmup, assignment)
+}
+
+func (r *recordingWorkloadRunner) Run(ctx context.Context, assignment Assignment) error {
+	return r.record(PhaseRun, assignment)
+}
+
+func (r *recordingWorkloadRunner) Cooldown(ctx context.Context, assignment Assignment) error {
+	return r.record(PhaseCooldown, assignment)
+}
+
+func (r *recordingWorkloadRunner) record(phase Phase, assignment Assignment) error {
+	if phase == r.failPhase {
+		return fmt.Errorf("phase %s failed", phase)
+	}
+	r.phases = append(r.phases, phase)
+	r.runIDs = append(r.runIDs, assignment.RunID)
+	return nil
 }
 
 func assign(t *testing.T, srv *Server, token, runID string) {
