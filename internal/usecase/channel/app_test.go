@@ -34,10 +34,10 @@ func TestUpdateInfoPersistsStatusFlags(t *testing.T) {
 	store := &recordingStore{}
 	app := New(Options{Store: store})
 
-	err := app.UpdateInfo(context.Background(), Info{ChannelID: "g1", ChannelType: 2, Ban: true, Disband: true, SendBan: true})
+	err := app.UpdateInfo(context.Background(), Info{ChannelID: "g1", ChannelType: 2, Ban: true, Disband: true, SendBan: true, AllowStranger: true})
 	require.NoError(t, err)
 	require.Len(t, store.upsertChannels, 1)
-	require.Equal(t, metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1}, store.upsertChannels[0])
+	require.Equal(t, metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1}, store.upsertChannels[0])
 }
 
 func TestRemoveAllSubscribersDeletesEachPageWithoutAccumulating(t *testing.T) {
