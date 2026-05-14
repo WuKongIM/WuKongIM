@@ -35,6 +35,7 @@ const (
 	channelColumnIDSubscriberMutationVersion uint16 = 4
 	channelColumnIDDisband                   uint16 = 5
 	channelColumnIDSendBan                   uint16 = 6
+	channelColumnIDAllowStranger             uint16 = 7
 )
 
 const (
@@ -224,12 +225,13 @@ var ChannelTable = &TableDesc{
 		{ID: channelColumnIDSubscriberMutationVersion, Name: "subscriber_mutation_version", Type: ColumnUint64},
 		{ID: channelColumnIDDisband, Name: "disband", Type: ColumnInt64},
 		{ID: channelColumnIDSendBan, Name: "send_ban", Type: ColumnInt64},
+		{ID: channelColumnIDAllowStranger, Name: "allow_stranger", Type: ColumnInt64},
 	},
 	Families: []ColumnFamilyDesc{
 		{
 			ID:              channelPrimaryFamilyID,
 			Name:            "primary",
-			ColumnIDs:       []uint16{channelColumnIDBan, channelColumnIDSubscriberMutationVersion, channelColumnIDDisband, channelColumnIDSendBan},
+			ColumnIDs:       []uint16{channelColumnIDBan, channelColumnIDSubscriberMutationVersion, channelColumnIDDisband, channelColumnIDSendBan, channelColumnIDAllowStranger},
 			DefaultColumnID: channelColumnIDBan,
 		},
 	},
