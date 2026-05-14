@@ -2,8 +2,8 @@ package gateway
 
 import (
 	coregateway "github.com/WuKongIM/WuKongIM/internal/gateway"
-	"github.com/WuKongIM/WuKongIM/internal/gateway/wkprotoenc"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 )
 
 func decryptSendPacketIfNeeded(ctx *coregateway.Context, pkt *frame.SendPacket) (frame.ReasonCode, error) {

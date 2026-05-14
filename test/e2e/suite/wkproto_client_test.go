@@ -6,8 +6,8 @@ import (
 	"net"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway/wkprotoenc"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 	"github.com/stretchr/testify/require"
 )
 
