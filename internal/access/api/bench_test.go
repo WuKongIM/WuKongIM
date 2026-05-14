@@ -52,7 +52,12 @@ func TestBenchCapabilitiesSuccess(t *testing.T) {
 }
 
 func TestBenchSubscribersRejectsResetTrue(t *testing.T) {
-	srv := New(Options{BenchEnabled: true, BenchData: benchStub{}, BenchMaxBatchSize: 100, BenchMaxPayloadBytes: 1024})
+	srv := New(Options{
+		BenchEnabled:         true,
+		BenchData:            benchdata.New(benchdata.Config{Channels: benchAPIChannels{}, MaxBatchSize: 100, MaxPayloadBytes: 1024}),
+		BenchMaxBatchSize:    100,
+		BenchMaxPayloadBytes: 1024,
+	})
 	body := `{"run_id":"bench-run","batch_id":"b1","items":[{"channel_id":"g1","channel_type":2,"reset":true,"subscribers":["u1"]}]}`
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/bench/v1/channels/subscribers", strings.NewReader(body))
@@ -61,6 +66,48 @@ func TestBenchSubscribersRejectsResetTrue(t *testing.T) {
 	srv.Engine().ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestBenchMutationOversizedBodyReturnsPayloadTooLarge(t *testing.T) {
+	srv := New(Options{BenchEnabled: true, BenchData: benchStub{}, BenchMaxBatchSize: 100, BenchMaxPayloadBytes: 16})
+	body := `{"run_id":"bench-run","batch_id":"b1","items":[{"uid":"u1","token":"token-that-is-too-large"}]}`
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/bench/v1/users/tokens", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
+	require.Contains(t, rec.Body.String(), "payload too large")
+}
+
+func TestBenchMissingDependencyReturnsServiceUnavailable(t *testing.T) {
+	srv := New(Options{
+		BenchEnabled:         true,
+		BenchData:            benchdata.New(benchdata.Config{MaxBatchSize: 100, MaxPayloadBytes: 1024}),
+		BenchMaxBatchSize:    100,
+		BenchMaxPayloadBytes: 1024,
+	})
+	body := `{"run_id":"bench-run","batch_id":"b1","items":[{"uid":"u1","token":"t1"}]}`
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/bench/v1/users/tokens", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+}
+
+func TestBenchBackendErrorReturnsInternalServerError(t *testing.T) {
+	srv := New(Options{BenchEnabled: true, BenchData: benchFailingStub{}, BenchMaxBatchSize: 100, BenchMaxPayloadBytes: 1024})
+	body := `{"run_id":"bench-run","batch_id":"b1","items":[{"uid":"u1","token":"t1"}]}`
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/bench/v1/users/tokens", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
 func TestBenchTokensMutationSuccess(t *testing.T) {
@@ -108,4 +155,16 @@ func (b benchStub) AddSubscribers(_ context.Context, req benchdata.SubscribersRe
 
 func (b benchStub) Snapshot(context.Context) (benchdata.SnapshotResponse, error) {
 	return benchdata.SnapshotResponse{Version: "bench/v1"}, nil
+}
+
+type benchAPIChannels struct{}
+
+func (benchAPIChannels) UpsertChannel(context.Context, benchdata.ChannelRecord) error { return nil }
+
+func (benchAPIChannels) AddSubscribers(context.Context, string, uint8, []string) error { return nil }
+
+type benchFailingStub struct{ benchStub }
+
+func (b benchFailingStub) UpsertTokens(context.Context, benchdata.TokensRequest) (benchdata.MutationResponse, error) {
+	return benchdata.MutationResponse{}, errors.New("backend failed")
 }

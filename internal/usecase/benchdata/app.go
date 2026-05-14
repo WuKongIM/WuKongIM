@@ -10,6 +10,12 @@ import (
 
 const versionV1 = "bench/v1"
 
+// ErrValidation marks deterministic request validation failures.
+var ErrValidation = errors.New("benchdata: validation error")
+
+// ErrDependency marks missing benchdata dependencies required to serve a request.
+var ErrDependency = errors.New("benchdata: dependency unavailable")
+
 // App coordinates benchmark data setup without depending on HTTP DTOs or stores.
 type App struct {
 	users           UserWriter
@@ -54,8 +60,13 @@ func (a *App) UpsertTokens(ctx context.Context, req TokensRequest) (MutationResp
 	if err := a.validateBatchSize(len(req.Items)); err != nil {
 		return resp, err
 	}
+	for _, item := range req.Items {
+		if err := validateUserToken(item); err != nil {
+			return resp, err
+		}
+	}
 	if a.users == nil {
-		return resp, errors.New("benchdata: user writer required")
+		return resp, fmt.Errorf("%w: user writer required", ErrDependency)
 	}
 	for _, item := range req.Items {
 		if err := a.users.UpdateToken(ctx, item); err != nil {
@@ -76,12 +87,12 @@ func (a *App) UpsertChannels(ctx context.Context, req ChannelsRequest) (Mutation
 		return resp, err
 	}
 	for _, item := range req.Items {
-		if err := validateGroupChannelType(item.ChannelType); err != nil {
+		if err := validateChannelRecord(item); err != nil {
 			return resp, err
 		}
 	}
 	if a.channels == nil {
-		return resp, errors.New("benchdata: channel writer required")
+		return resp, fmt.Errorf("%w: channel writer required", ErrDependency)
 	}
 	for _, item := range req.Items {
 		if err := a.channels.UpsertChannel(ctx, item); err != nil {
@@ -102,15 +113,12 @@ func (a *App) AddSubscribers(ctx context.Context, req SubscribersRequest) (Subsc
 		return resp, err
 	}
 	for _, item := range req.Items {
-		if item.Reset {
-			return resp, errors.New("benchdata: reset=true is not supported for bench/v1 subscribers")
-		}
-		if err := validateGroupChannelType(item.ChannelType); err != nil {
+		if err := validateSubscriberItem(item); err != nil {
 			return resp, err
 		}
 	}
 	if a.channels == nil {
-		return resp, errors.New("benchdata: channel writer required")
+		return resp, fmt.Errorf("%w: channel writer required", ErrDependency)
 	}
 	for _, item := range req.Items {
 		if err := a.channels.AddSubscribers(ctx, item.ChannelID, item.ChannelType, item.Subscribers); err != nil {
@@ -137,9 +145,9 @@ func (a *App) Snapshot(ctx context.Context) (SnapshotResponse, error) {
 func validateMutationHeader(runID, batchID string) error {
 	switch {
 	case runID == "":
-		return errors.New("benchdata: run_id is required")
+		return fmt.Errorf("%w: run_id is required", ErrValidation)
 	case batchID == "":
-		return errors.New("benchdata: batch_id is required")
+		return fmt.Errorf("%w: batch_id is required", ErrValidation)
 	default:
 		return nil
 	}
@@ -147,14 +155,67 @@ func validateMutationHeader(runID, batchID string) error {
 
 func (a *App) validateBatchSize(n int) error {
 	if a.maxBatchSize > 0 && n > a.maxBatchSize {
-		return fmt.Errorf("benchdata: batch size %d exceeds max %d", n, a.maxBatchSize)
+		return fmt.Errorf("%w: batch size %d exceeds max %d", ErrValidation, n, a.maxBatchSize)
+	}
+	return nil
+}
+
+func validateUserToken(cmd UserTokenCommand) error {
+	switch {
+	case cmd.UID == "":
+		return fmt.Errorf("%w: uid is required", ErrValidation)
+	case hasForbiddenUIDChar(cmd.UID):
+		return fmt.Errorf("%w: uid contains forbidden character", ErrValidation)
+	case cmd.Token == "":
+		return fmt.Errorf("%w: token is required", ErrValidation)
+	default:
+		return nil
+	}
+}
+
+func validateChannelRecord(ch ChannelRecord) error {
+	if ch.ChannelID == "" {
+		return fmt.Errorf("%w: channel_id is required", ErrValidation)
+	}
+	return validateGroupChannelType(ch.ChannelType)
+}
+
+func validateSubscriberItem(item SubscriberItem) error {
+	switch {
+	case item.ChannelID == "":
+		return fmt.Errorf("%w: channel_id is required", ErrValidation)
+	case item.Reset:
+		return fmt.Errorf("%w: reset=true is not supported for bench/v1 subscribers", ErrValidation)
+	case len(item.Subscribers) == 0:
+		return fmt.Errorf("%w: subscribers are required", ErrValidation)
+	}
+	if err := validateGroupChannelType(item.ChannelType); err != nil {
+		return err
+	}
+	for _, uid := range item.Subscribers {
+		if uid == "" {
+			return fmt.Errorf("%w: subscriber uid is required", ErrValidation)
+		}
+		if hasForbiddenUIDChar(uid) {
+			return fmt.Errorf("%w: subscriber uid contains forbidden character", ErrValidation)
+		}
 	}
 	return nil
 }
 
 func validateGroupChannelType(channelType uint8) error {
 	if channelType != frame.ChannelTypeGroup {
-		return fmt.Errorf("benchdata: bench/v1 supports only group channel_type=%d", frame.ChannelTypeGroup)
+		return fmt.Errorf("%w: bench/v1 supports only group channel_type=%d", ErrValidation, frame.ChannelTypeGroup)
 	}
 	return nil
+}
+
+func hasForbiddenUIDChar(uid string) bool {
+	for _, r := range uid {
+		switch r {
+		case '@', '#', '&':
+			return true
+		}
+	}
+	return false
 }

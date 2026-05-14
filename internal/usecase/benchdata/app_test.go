@@ -66,7 +66,95 @@ func TestBatchChannelsValidateAllItemsBeforeMutation(t *testing.T) {
 	})
 
 	require.ErrorContains(t, err, "group")
+	require.ErrorIs(t, err, ErrValidation)
 	require.Empty(t, channels.upserted)
+}
+
+func TestBatchTokensValidateAllItemsBeforeMutation(t *testing.T) {
+	users := &recordingUsers{}
+	app := New(Config{Users: users, MaxBatchSize: 100, MaxPayloadBytes: 1024})
+
+	_, err := app.UpsertTokens(context.Background(), TokensRequest{
+		RunID:   "bench-run",
+		BatchID: "batch-1",
+		Items: []UserTokenCommand{
+			{UID: "u1", Token: "t1"},
+			{UID: "bad@uid", Token: "t2"},
+		},
+	})
+
+	require.ErrorContains(t, err, "uid")
+	require.ErrorIs(t, err, ErrValidation)
+	require.Empty(t, users.updated)
+}
+
+func TestBatchChannelsRejectEmptyChannelIDBeforeMutation(t *testing.T) {
+	channels := &recordingChannels{}
+	app := New(Config{Channels: channels, MaxBatchSize: 100, MaxPayloadBytes: 1024})
+
+	_, err := app.UpsertChannels(context.Background(), ChannelsRequest{
+		RunID:   "bench-run",
+		BatchID: "batch-1",
+		Items: []ChannelRecord{
+			{ChannelID: "g1", ChannelType: 2},
+			{ChannelID: "", ChannelType: 2},
+		},
+	})
+
+	require.ErrorContains(t, err, "channel_id")
+	require.ErrorIs(t, err, ErrValidation)
+	require.Empty(t, channels.upserted)
+}
+
+func TestBatchSubscribersValidateAllItemsBeforeMutation(t *testing.T) {
+	channels := &recordingChannels{}
+	app := New(Config{Channels: channels, MaxBatchSize: 100, MaxPayloadBytes: 1024})
+
+	_, err := app.AddSubscribers(context.Background(), SubscribersRequest{
+		RunID:   "bench-run",
+		BatchID: "batch-1",
+		Items: []SubscriberItem{
+			{ChannelID: "g1", ChannelType: 2, Subscribers: []string{"u1"}},
+			{ChannelID: "g2", ChannelType: 2, Subscribers: []string{"bad#uid"}},
+		},
+	})
+
+	require.ErrorContains(t, err, "subscriber")
+	require.ErrorIs(t, err, ErrValidation)
+	require.Empty(t, channels.added)
+}
+
+func TestMissingWritersReturnDependencyErrors(t *testing.T) {
+	app := New(Config{MaxBatchSize: 100, MaxPayloadBytes: 1024})
+
+	_, tokenErr := app.UpsertTokens(context.Background(), TokensRequest{
+		RunID:   "bench-run",
+		BatchID: "batch-1",
+		Items:   []UserTokenCommand{{UID: "u1", Token: "t1"}},
+	})
+	_, channelErr := app.UpsertChannels(context.Background(), ChannelsRequest{
+		RunID:   "bench-run",
+		BatchID: "batch-1",
+		Items:   []ChannelRecord{{ChannelID: "g1", ChannelType: 2}},
+	})
+	_, subscriberErr := app.AddSubscribers(context.Background(), SubscribersRequest{
+		RunID:   "bench-run",
+		BatchID: "batch-1",
+		Items:   []SubscriberItem{{ChannelID: "g1", ChannelType: 2, Subscribers: []string{"u1"}}},
+	})
+
+	require.ErrorIs(t, tokenErr, ErrDependency)
+	require.ErrorIs(t, channelErr, ErrDependency)
+	require.ErrorIs(t, subscriberErr, ErrDependency)
+}
+
+type recordingUsers struct {
+	updated []UserTokenCommand
+}
+
+func (r *recordingUsers) UpdateToken(_ context.Context, cmd UserTokenCommand) error {
+	r.updated = append(r.updated, cmd)
+	return nil
 }
 
 type fakeChannels struct{}
@@ -77,6 +165,7 @@ func (fakeChannels) AddSubscribers(context.Context, string, uint8, []string) err
 
 type recordingChannels struct {
 	upserted []ChannelRecord
+	added    []subscriberAdd
 }
 
 func (r *recordingChannels) UpsertChannel(_ context.Context, ch ChannelRecord) error {
@@ -84,6 +173,13 @@ func (r *recordingChannels) UpsertChannel(_ context.Context, ch ChannelRecord) e
 	return nil
 }
 
-func (r *recordingChannels) AddSubscribers(context.Context, string, uint8, []string) error {
+func (r *recordingChannels) AddSubscribers(_ context.Context, channelID string, channelType uint8, uids []string) error {
+	r.added = append(r.added, subscriberAdd{channelID: channelID, channelType: channelType, uids: append([]string(nil), uids...)})
 	return nil
+}
+
+type subscriberAdd struct {
+	channelID   string
+	channelType uint8
+	uids        []string
 }
