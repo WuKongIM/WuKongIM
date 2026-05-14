@@ -78,11 +78,12 @@ func (a *App) UpdateInfo(ctx context.Context, info Info) error {
 		return err
 	}
 	return a.store.UpsertChannel(ctx, metadb.Channel{
-		ChannelID:   info.ChannelID,
-		ChannelType: int64(info.ChannelType),
-		Ban:         boolToInt64(info.Ban),
-		Disband:     boolToInt64(info.Disband),
-		SendBan:     boolToInt64(info.SendBan),
+		ChannelID:     info.ChannelID,
+		ChannelType:   int64(info.ChannelType),
+		Ban:           boolToInt64(info.Ban),
+		Disband:       boolToInt64(info.Disband),
+		SendBan:       boolToInt64(info.SendBan),
+		AllowStranger: boolToInt64(info.AllowStranger),
 	})
 }
 

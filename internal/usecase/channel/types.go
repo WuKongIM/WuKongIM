@@ -34,7 +34,7 @@ type Info struct {
 	Disband bool
 	// SendBan blocks sending while allowing receives; currently accepted for compatibility.
 	SendBan bool
-	// AllowStranger permits stranger messages for person channels; currently accepted for compatibility.
+	// AllowStranger permits stranger sends to person channels when personal whitelist enforcement is enabled.
 	AllowStranger bool
 }
 
