@@ -104,6 +104,7 @@ type replica struct {
 	checkpointEffects      chan storeCheckpointEffect
 	loopCommands           chan replicaLoopCommand
 	loopResults            chan machineEvent
+	loop                   replicaLoopDriver
 	stopCh                 chan struct{}
 	loopDone               chan struct{}
 	appendWorkerDone       chan struct{}
@@ -198,7 +199,8 @@ func NewReplica(cfg ReplicaConfig) (Replica, error) {
 	if err := r.recoverFromStores(); err != nil {
 		return nil, err
 	}
-	r.startLoop()
+	r.loop = newDedicatedLoopDriver(r)
+	r.loop.start()
 	r.startAppendEffectWorker()
 	r.startCheckpointEffectWorker()
 	return r, nil
@@ -288,7 +290,9 @@ func (r *replica) Close() error {
 			close(r.stopCh)
 		}
 	})
-	if r.loopDone != nil {
+	if r.loop != nil && r.loop.done() != nil {
+		<-r.loop.done()
+	} else if r.loopDone != nil {
 		<-r.loopDone
 	}
 	if r.appendWorkerDone != nil {
