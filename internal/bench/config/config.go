@@ -37,6 +37,7 @@ type MembersConfig = model.MembersConfig
 type ChannelOnlineConfig = model.ChannelOnlineConfig
 type ShardConfig = model.ShardConfig
 type ChannelPrepareConfig = model.ChannelPrepareConfig
+type CleanupConfig = model.CleanupConfig
 type MessagesConfig = model.MessagesConfig
 type PayloadConfig = model.PayloadConfig
 type TrafficConfig = model.TrafficConfig
