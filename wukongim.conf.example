@@ -30,6 +30,14 @@ WK_CLUSTER_HASH_SLOT_COUNT=256
 WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED=false
 WK_CLUSTER_INITIAL_SLOT_COUNT=1
 WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR=2
+# Limits active local channel runtimes on this node. 0 preserves unlimited legacy behavior;
+# set a positive per-node budget to fail closed before channel runtime goroutines grow unbounded.
+WK_CLUSTER_MAX_CHANNELS=0
+# Evicts cold local channel runtimes after this idle duration. 0 disables eviction;
+# enable together with WK_CLUSTER_MAX_CHANNELS to keep long-lived working sets bounded.
+WK_CLUSTER_CHANNEL_IDLE_TIMEOUT=0
+# Controls how often idle channel runtimes are scanned. 0 lets the runtime derive a bounded interval.
+WK_CLUSTER_CHANNEL_IDLE_SCAN_INTERVAL=0
 WK_CLUSTER_LONG_POLL_LANE_COUNT=8
 WK_CLUSTER_LONG_POLL_MAX_WAIT=200ms
 WK_CLUSTER_LONG_POLL_MAX_BYTES=65536

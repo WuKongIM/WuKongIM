@@ -110,6 +110,18 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	maxChannels, err := parseInt(v, "WK_CLUSTER_MAX_CHANNELS")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelIdleTimeout, err := parseDuration(v, "WK_CLUSTER_CHANNEL_IDLE_TIMEOUT")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelIdleScanInterval, err := parseDuration(v, "WK_CLUSTER_CHANNEL_IDLE_SCAN_INTERVAL")
+	if err != nil {
+		return app.Config{}, err
+	}
 	channelBootstrapDefaultMinISR, err := parseInt(v, "WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR")
 	if err != nil {
 		return app.Config{}, err
@@ -544,6 +556,9 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			EnableHashSlotMigration:          hashSlotMigrationEnabled,
 			InitialSlotCount:                 initialSlotCount,
 			ChannelBootstrapDefaultMinISR:    channelBootstrapDefaultMinISR,
+			MaxChannels:                      maxChannels,
+			ChannelIdleTimeout:               channelIdleTimeout,
+			ChannelIdleScanInterval:          channelIdleScanInterval,
 			LongPollLaneCount:                longPollLaneCount,
 			LongPollMaxWait:                  longPollMaxWait,
 			LongPollMaxBytes:                 longPollMaxBytes,

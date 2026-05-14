@@ -96,6 +96,22 @@ func (s *peerRequestState) queuedCount(peer core.NodeID) int {
 	return q.len()
 }
 
+func (s *peerRequestState) hasChannelWork(key core.ChannelKey) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for channelPeer := range s.groups {
+		if channelPeer.channelKey == key {
+			return true
+		}
+	}
+	for _, q := range s.queued {
+		if q != nil && q.containsChannel(key) {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *peerRequestState) release(peer core.NodeID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -267,6 +283,18 @@ func (q *peerEnvelopeQueue) pop() (Envelope, bool) {
 
 func (q *peerEnvelopeQueue) len() int {
 	return len(q.items) - q.head
+}
+
+func (q *peerEnvelopeQueue) containsChannel(key core.ChannelKey) bool {
+	if q == nil {
+		return false
+	}
+	for i := q.head; i < len(q.items); i++ {
+		if q.items[i].ChannelKey == key {
+			return true
+		}
+	}
+	return false
 }
 
 func (q *peerEnvelopeQueue) dropChannel(key core.ChannelKey) bool {
@@ -633,6 +661,9 @@ func (r *runtime) handleEnvelope(env Envelope) {
 		}
 		return
 	}
+	if !ch.touch() {
+		return
+	}
 
 	if env.Kind == MessageKindFetchResponse || env.Kind == MessageKindReconcileProbeResponse {
 		if r.deliverEnvelope(ch, env) {
@@ -977,6 +1008,10 @@ func (r *runtime) ServeFetch(ctx context.Context, req FetchRequestEnvelope) (Fet
 	if err != nil {
 		return FetchResponseEnvelope{}, err
 	}
+	if !ch.beginUse() {
+		return FetchResponseEnvelope{}, ErrChannelNotFound
+	}
+	defer ch.endUse()
 	if ch.gen != req.Generation {
 		return FetchResponseEnvelope{}, ErrGenerationMismatch
 	}
@@ -1038,6 +1073,10 @@ func (r *runtime) ServeReconcileProbe(ctx context.Context, req ReconcileProbeReq
 	if err != nil {
 		return ReconcileProbeResponseEnvelope{}, err
 	}
+	if !ch.beginUse() {
+		return ReconcileProbeResponseEnvelope{}, ErrChannelNotFound
+	}
+	defer ch.endUse()
 	if req.Generation != 0 && ch.gen != req.Generation {
 		return ReconcileProbeResponseEnvelope{}, ErrGenerationMismatch
 	}

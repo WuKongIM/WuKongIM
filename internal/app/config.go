@@ -360,6 +360,16 @@ type ClusterConfig struct {
 	InitialSlotCount uint32
 	// ChannelBootstrapDefaultMinISR is the default MinISR for newly bootstrapped channel metadata.
 	ChannelBootstrapDefaultMinISR int
+	// MaxChannels limits active local channel runtimes on this node.
+	// A zero value keeps the legacy unlimited behavior; a positive value
+	// makes channel activation fail closed when the per-node runtime budget is exhausted.
+	MaxChannels int
+	// ChannelIdleTimeout is the idle duration after which a local channel runtime may be evicted.
+	// A zero value disables idle eviction so activated channel runtimes remain resident until removal or shutdown.
+	ChannelIdleTimeout time.Duration
+	// ChannelIdleScanInterval is how often this node scans for idle local channel runtimes.
+	// A zero value lets the channel runtime derive a bounded scan interval from ChannelIdleTimeout.
+	ChannelIdleScanInterval time.Duration
 	// LongPollLaneCount is the number of channel fetch long-poll lanes.
 	LongPollLaneCount int
 	// LongPollMaxWait is the maximum wait for one channel fetch long-poll request.
@@ -869,6 +879,15 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 			return fmt.Errorf("%w: channel bootstrap default min isr must be positive", ErrInvalidConfig)
 		}
 		c.Cluster.ChannelBootstrapDefaultMinISR = 2
+	}
+	if c.Cluster.MaxChannels < 0 {
+		return fmt.Errorf("%w: cluster max channels must be >= 0", ErrInvalidConfig)
+	}
+	if c.Cluster.ChannelIdleTimeout < 0 {
+		return fmt.Errorf("%w: channel idle timeout must be >= 0", ErrInvalidConfig)
+	}
+	if c.Cluster.ChannelIdleScanInterval < 0 {
+		return fmt.Errorf("%w: channel idle scan interval must be >= 0", ErrInvalidConfig)
 	}
 	if c.Cluster.FollowerReplicationRetryInterval <= 0 && c.Cluster.followerReplicationRetryIntervalSet {
 		return fmt.Errorf("%w: follower replication retry interval must be positive", ErrInvalidConfig)

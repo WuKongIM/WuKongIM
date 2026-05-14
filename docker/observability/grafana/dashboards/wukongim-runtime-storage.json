@@ -60,6 +60,11 @@
           "expr": "sum(wukongim_channel_active_channels{node_name=~\"$node_name\"})",
           "legendFormat": "channels",
           "refId": "A"
+        },
+        {
+          "expr": "max(wukongim_channel_max_channels{node_name=~\"$node_name\"})",
+          "legendFormat": "max_channels",
+          "refId": "B"
         }
       ],
       "title": "Active Channels",
@@ -779,6 +784,64 @@
           },
           "custom": {
             "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            }
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 28
+      },
+      "id": 29,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (reason) (rate(wukongim_channel_activation_rejected_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "activation rejected {{reason}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(wukongim_channel_idle_evictions_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "idle evictions",
+          "refId": "B"
+        }
+      ],
+      "title": "Channel Runtime Capacity Events",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
             "fillOpacity": 10,
             "lineInterpolation": "linear",
             "lineWidth": 2,
@@ -794,7 +857,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 28
+        "y": 36
       },
       "id": 16,
       "options": {
@@ -848,7 +911,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 28
+        "y": 36
       },
       "id": 17,
       "options": {
@@ -889,7 +952,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 28
+        "y": 36
       },
       "id": 18,
       "options": {
@@ -947,7 +1010,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 36
+        "y": 44
       },
       "id": 19,
       "options": {
@@ -996,7 +1059,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 36
+        "y": 44
       },
       "id": 20,
       "options": {
@@ -1042,7 +1105,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 36
+        "y": 44
       },
       "id": 21,
       "options": {
@@ -1100,7 +1163,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 44
+        "y": 52
       },
       "id": 22,
       "options": {
@@ -1153,7 +1216,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 44
+        "y": 52
       },
       "id": 23,
       "options": {
@@ -1194,7 +1257,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 44
+        "y": 52
       },
       "id": 24,
       "options": {
@@ -1239,52 +1302,6 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 60
-      },
-      "id": 25,
-      "options": {
-        "displayMode": "gradient",
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true
-      },
-      "targets": [
-        {
-          "expr": "sum by (store) (wukongim_storage_disk_usage_bytes{node_name=~\"$node_name\", store=~\"$store\"})",
-          "legendFormat": "{{store}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Storage Usage by Store",
-      "type": "bargauge"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
             "mode": "thresholds"
           },
           "mappings": [],
@@ -1313,7 +1330,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 52
+        "y": 60
       },
       "id": 26,
       "options": {
@@ -1368,7 +1385,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 52
+        "y": 60
       },
       "id": 27,
       "options": {
@@ -1431,7 +1448,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 52
+        "y": 60
       },
       "id": 28,
       "options": {
@@ -1457,6 +1474,52 @@
       ],
       "title": "Diagnostics Buffer Usage",
       "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 68
+      },
+      "id": 25,
+      "options": {
+        "displayMode": "gradient",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true
+      },
+      "targets": [
+        {
+          "expr": "sum by (store) (wukongim_storage_disk_usage_bytes{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "{{store}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Storage Usage by Store",
+      "type": "bargauge"
     }
   ],
   "refresh": "30s",

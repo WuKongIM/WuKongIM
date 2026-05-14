@@ -129,6 +129,13 @@ func (s *snapshotState) waitingCount() int {
 	return len(s.waiting)
 }
 
+func (s *snapshotState) hasWaiter(key core.ChannelKey) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.waitingSet[key]
+	return ok
+}
+
 func (s *snapshotState) clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
