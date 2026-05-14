@@ -52,21 +52,25 @@ func TestActivationPressureConfigDefaultsAndOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadActivationPressureConfig() error = %v", err)
 	}
-	if cfg.channels != 100000 || cfg.maxChannels != 0 || cfg.reportEvery != 10000 {
-		t.Fatalf("defaults = %+v, want channels=100000 maxChannels=0 reportEvery=10000", cfg)
+	if cfg.channels != 100000 || cfg.maxChannels != 0 || cfg.reportEvery != 10000 || cfg.executionMode != "dedicated" {
+		t.Fatalf("defaults = %+v, want channels=100000 maxChannels=0 reportEvery=10000 executionMode=dedicated", cfg)
 	}
 
 	t.Setenv("MULTIISR_ACTIVATION_STRESS", "1")
 	t.Setenv("MULTIISR_ACTIVATION_CHANNELS", "2048")
 	t.Setenv("MULTIISR_ACTIVATION_MAX_CHANNELS", "1024")
 	t.Setenv("MULTIISR_ACTIVATION_REPORT_EVERY", "256")
+	t.Setenv("MULTIISR_ACTIVATION_EXECUTION_MODE", "pooled")
+	t.Setenv("MULTIISR_ACTIVATION_EXECUTION_WORKERS", "8")
+	t.Setenv("MULTIISR_ACTIVATION_EXECUTION_QUEUE_SIZE", "4096")
 
 	cfg, err = loadActivationPressureConfig()
 	if err != nil {
 		t.Fatalf("loadActivationPressureConfig() error = %v", err)
 	}
-	if !cfg.stressEnabled || cfg.channels != 2048 || cfg.maxChannels != 1024 || cfg.reportEvery != 256 {
-		t.Fatalf("overrides = %+v, want stress=true channels=2048 maxChannels=1024 reportEvery=256", cfg)
+	if !cfg.stressEnabled || cfg.channels != 2048 || cfg.maxChannels != 1024 || cfg.reportEvery != 256 ||
+		cfg.executionMode != "pooled" || cfg.executionWorkers != 8 || cfg.executionQueueSize != 4096 {
+		t.Fatalf("overrides = %+v, want pooled execution overrides", cfg)
 	}
 }
 
@@ -101,10 +105,13 @@ type pressureConfig struct {
 }
 
 type activationPressureConfig struct {
-	stressEnabled bool
-	channels      int
-	maxChannels   int
-	reportEvery   int
+	stressEnabled      bool
+	channels           int
+	maxChannels        int
+	reportEvery        int
+	executionMode      string
+	executionWorkers   int
+	executionQueueSize int
 }
 
 func loadPressureConfig() (pressureConfig, error) {
@@ -144,9 +151,10 @@ func loadPressureConfig() (pressureConfig, error) {
 
 func loadActivationPressureConfig() (activationPressureConfig, error) {
 	cfg := activationPressureConfig{
-		channels:    defaultActivationPressureChannels,
-		maxChannels: defaultActivationPressureMaxChannels,
-		reportEvery: defaultActivationPressureReportEvery,
+		channels:      defaultActivationPressureChannels,
+		maxChannels:   defaultActivationPressureMaxChannels,
+		reportEvery:   defaultActivationPressureReportEvery,
+		executionMode: "dedicated",
 	}
 
 	var err error
@@ -160,6 +168,15 @@ func loadActivationPressureConfig() (activationPressureConfig, error) {
 		return activationPressureConfig{}, err
 	}
 	if cfg.reportEvery, err = loadPressurePositiveInt("MULTIISR_ACTIVATION_REPORT_EVERY", cfg.reportEvery); err != nil {
+		return activationPressureConfig{}, err
+	}
+	if cfg.executionMode, err = loadPressureStringChoice("MULTIISR_ACTIVATION_EXECUTION_MODE", cfg.executionMode, "dedicated", "pooled"); err != nil {
+		return activationPressureConfig{}, err
+	}
+	if cfg.executionWorkers, err = loadPressureNonNegativeInt("MULTIISR_ACTIVATION_EXECUTION_WORKERS", cfg.executionWorkers); err != nil {
+		return activationPressureConfig{}, err
+	}
+	if cfg.executionQueueSize, err = loadPressureNonNegativeInt("MULTIISR_ACTIVATION_EXECUTION_QUEUE_SIZE", cfg.executionQueueSize); err != nil {
 		return activationPressureConfig{}, err
 	}
 	return cfg, nil
@@ -232,6 +249,19 @@ func loadPressureInt64(key string, defaultValue int64) (int64, error) {
 		return 0, fmt.Errorf("%s: %w", key, err)
 	}
 	return value, nil
+}
+
+func loadPressureStringChoice(key, defaultValue string, choices ...string) (string, error) {
+	raw, ok := os.LookupEnv(key)
+	if !ok || raw == "" {
+		return defaultValue, nil
+	}
+	for _, choice := range choices {
+		if raw == choice {
+			return raw, nil
+		}
+	}
+	return "", fmt.Errorf("%s: must be one of %v", key, choices)
 }
 
 type pressureHarness struct {
