@@ -30,6 +30,8 @@ type ConnectionUser struct {
 	UID string
 	// DeviceID is the benchmark device identifier used in the WKProto connect packet.
 	DeviceID string
+	// Token is the optional connect token used for this user.
+	Token string
 }
 
 // ConnectionSession stores the active client session for one UID.
@@ -38,6 +40,8 @@ type ConnectionSession struct {
 	UID string
 	// DeviceID is the benchmark device identifier for this connection.
 	DeviceID string
+	// Token is the effective connect token used for this session.
+	Token string
 	// GatewayAddr is the selected gateway TCP address for this connection.
 	GatewayAddr string
 	// ConnectedAt records when the connect handshake completed.
@@ -58,10 +62,12 @@ type ConnectionManagerConfig struct {
 	ConnectRate model.Rate
 	// Reconnect is retained for future reconnect support; it must remain disabled in v1.
 	Reconnect ReconnectConfig
+	// Token is the default connect token applied when a user does not specify one.
+	Token string
 	// OperationTimeout is passed to production WKProto clients.
 	OperationTimeout time.Duration
 	// ClientFactory overrides production WKProto client creation for tests.
-	ClientFactory func(addr string) (ConnectionClient, error)
+	ClientFactory func(user ConnectionUser, addr string) (ConnectionClient, error)
 
 	sleep func(context.Context, time.Duration) error
 }
@@ -70,7 +76,7 @@ type ConnectionManagerConfig struct {
 type ConnectionManager struct {
 	cfg          ConnectionManagerConfig
 	gatewayAddrs []string
-	factory      func(addr string) (ConnectionClient, error)
+	factory      func(user ConnectionUser, addr string) (ConnectionClient, error)
 	sleep        func(context.Context, time.Duration) error
 	rateLimiter  *connectRateLimiter
 
@@ -100,8 +106,12 @@ func NewConnectionManager(cfg ConnectionManagerConfig) (*ConnectionManager, erro
 	}
 	factory := cfg.ClientFactory
 	if factory == nil {
-		factory = func(addr string) (ConnectionClient, error) {
-			return benchwkproto.NewClient(benchwkproto.ClientConfig{Addr: addr, OperationTimeout: cfg.OperationTimeout})
+		factory = func(user ConnectionUser, addr string) (ConnectionClient, error) {
+			return benchwkproto.NewClient(benchwkproto.ClientConfig{
+				Addr:             addr,
+				Token:            user.Token,
+				OperationTimeout: cfg.OperationTimeout,
+			})
 		}
 	}
 	sleep := cfg.sleep
@@ -135,11 +145,15 @@ func (m *ConnectionManager) ConnectUser(ctx context.Context, user ConnectionUser
 	}
 	user.UID = strings.TrimSpace(user.UID)
 	user.DeviceID = strings.TrimSpace(user.DeviceID)
+	user.Token = strings.TrimSpace(user.Token)
 	if user.UID == "" {
 		return nil, fmt.Errorf("connection manager: uid is required")
 	}
 	if user.DeviceID == "" {
 		return nil, fmt.Errorf("connection manager: device id is required")
+	}
+	if user.Token == "" {
+		user.Token = strings.TrimSpace(m.cfg.Token)
 	}
 	if session, ok := m.Session(user.UID); ok {
 		return session, nil
@@ -148,7 +162,7 @@ func (m *ConnectionManager) ConnectUser(ctx context.Context, user ConnectionUser
 		return nil, err
 	}
 	addr := m.selectGateway()
-	client, err := m.factory(addr)
+	client, err := m.factory(user, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -159,6 +173,7 @@ func (m *ConnectionManager) ConnectUser(ctx context.Context, user ConnectionUser
 	session := &ConnectionSession{
 		UID:         user.UID,
 		DeviceID:    user.DeviceID,
+		Token:       user.Token,
 		GatewayAddr: addr,
 		ConnectedAt: time.Now(),
 		Client:      client,

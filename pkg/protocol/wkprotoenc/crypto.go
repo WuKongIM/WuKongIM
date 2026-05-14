@@ -16,13 +16,6 @@ import (
 
 const sessionIVSize = 16
 
-const (
-	sessionValueEncryptionEnabled = "gateway.encryption_enabled"
-	sessionValueAESKey            = "gateway.aes_key"
-	sessionValueAESIV             = "gateway.aes_iv"
-	sessionValueCrypto            = "gateway.wkproto_crypto"
-)
-
 var (
 	// ErrInvalidPublicKey reports an invalid X25519 public key encoding.
 	ErrInvalidPublicKey = errors.New("protocol/wkprotoenc: invalid public key")
@@ -44,11 +37,6 @@ type SessionKeys struct {
 type SessionCrypto struct {
 	block cipher.Block
 	iv    [aes.BlockSize]byte
-}
-
-// ValueReader reads session values from a gateway session-like container.
-type ValueReader interface {
-	Value(string) any
 }
 
 // GenerateKeyPair creates a new X25519 private/public key pair.
@@ -260,40 +248,6 @@ func SealRecvPacketWithCrypto(packet *frame.RecvPacket, sessionCrypto *SessionCr
 	return &sealed, nil
 }
 
-// SessionEncryptionEnabled reports whether session encryption has been negotiated.
-func SessionEncryptionEnabled(reader ValueReader) bool {
-	if reader == nil {
-		return false
-	}
-	enabled, _ := reader.Value(sessionValueEncryptionEnabled).(bool)
-	return enabled
-}
-
-// SessionKeysFromSession reads negotiated session keys from a gateway session-like container.
-func SessionKeysFromSession(reader ValueReader) (SessionKeys, bool) {
-	if reader == nil {
-		return SessionKeys{}, false
-	}
-	key, ok := bytesValue(reader.Value(sessionValueAESKey))
-	if !ok {
-		return SessionKeys{}, false
-	}
-	iv, ok := bytesValue(reader.Value(sessionValueAESIV))
-	if !ok {
-		return SessionKeys{}, false
-	}
-	return SessionKeys{AESKey: key, AESIV: iv}, true
-}
-
-// SessionCryptoFromSession reads cached session crypto from a gateway session-like container.
-func SessionCryptoFromSession(reader ValueReader) (*SessionCrypto, bool) {
-	if reader == nil {
-		return nil, false
-	}
-	sessionCrypto, ok := reader.Value(sessionValueCrypto).(*SessionCrypto)
-	return sessionCrypto, ok && sessionCrypto != nil
-}
-
 func sharedSecret(private, public [32]byte) ([]byte, error) {
 	return curve25519.X25519(private[:], public[:])
 }
@@ -408,18 +362,4 @@ func hexLower(src []byte) []byte {
 		out[i*2+1] = digits[b&0x0f]
 	}
 	return out
-}
-
-func bytesValue(value any) ([]byte, bool) {
-	switch v := value.(type) {
-	case []byte:
-		return append([]byte(nil), v...), len(v) > 0
-	case string:
-		if v == "" {
-			return nil, false
-		}
-		return []byte(v), true
-	default:
-		return nil, false
-	}
 }

@@ -2,7 +2,10 @@ package wkproto
 
 import (
 	"context"
+	"io"
 	"net"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,11 +36,14 @@ func TestClientConnectSendsConnectPacketAndAcceptsConnack(t *testing.T) {
 		if connect.ClientKey == "" {
 			t.Fatal("connect.ClientKey is empty")
 		}
+		if connect.Token != "auth-token" {
+			t.Fatalf("connect.Token = %q, want %q", connect.Token, "auth-token")
+		}
 		writeFrame(t, conn, &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess, ServerVersion: frame.LatestVersion})
 	})
 	defer server.close()
 
-	client, err := NewClient(ClientConfig{Addr: server.addr, OperationTimeout: time.Second})
+	client, err := NewClient(ClientConfig{Addr: server.addr, Token: "auth-token", OperationTimeout: time.Second})
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
@@ -168,6 +174,73 @@ func TestClientEncryptsSendDecryptsRecvAndWritesRecvAck(t *testing.T) {
 	}
 }
 
+func TestClientSerializesConcurrentPartialWrites(t *testing.T) {
+	conn := newPartialWriteConn(mustEncodeFrame(t, &frame.ConnackPacket{
+		ReasonCode:    frame.ReasonSuccess,
+		ServerVersion: frame.LatestVersion,
+	}), 1)
+	client, err := NewClient(ClientConfig{
+		Addr:             "127.0.0.1:5100",
+		Dialer:           staticDialer{conn: conn},
+		OperationTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := client.Connect(ctx, "u1", "d1"); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	conn.resetWrites()
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		<-start
+		errs <- client.Send(ctx, &frame.SendPacket{
+			ClientSeq:   1,
+			ClientMsgNo: "c1",
+			ChannelID:   "u2",
+			ChannelType: frame.ChannelTypePerson,
+			Payload:     []byte("hello"),
+		})
+	}()
+	go func() {
+		defer wg.Done()
+		<-start
+		errs <- client.RecvAck(ctx, 99, 7)
+	}()
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent write error = %v", err)
+		}
+	}
+	if got := conn.maxConcurrentWrites(); got != 1 {
+		t.Fatalf("max concurrent Write calls = %d, want 1", got)
+	}
+
+	frames := decodeWrittenFrames(t, conn.written())
+	if len(frames) != 2 {
+		t.Fatalf("decoded frames = %d, want 2", len(frames))
+	}
+	seen := map[frame.FrameType]bool{}
+	for _, f := range frames {
+		seen[f.GetFrameType()] = true
+	}
+	if !seen[frame.SEND] || !seen[frame.RECVACK] {
+		t.Fatalf("decoded frame types = %#v, want SEND and RECVACK", seen)
+	}
+}
+
 func TestClientMethodsReportNotConnectedForNilClient(t *testing.T) {
 	var client *Client
 	if err := client.Send(context.Background(), &frame.SendPacket{}); err == nil {
@@ -213,11 +286,157 @@ func (s *fakeWKProtoServer) close() {
 
 func writeFrame(t *testing.T, conn net.Conn, f frame.Frame) {
 	t.Helper()
+	payload := mustEncodeFrame(t, f)
+	if _, err := conn.Write(payload); err != nil {
+		t.Fatalf("write frame %T: %v", f, err)
+	}
+}
+
+func mustEncodeFrame(t *testing.T, f frame.Frame) []byte {
+	t.Helper()
 	payload, err := codec.New().EncodeFrame(f, frame.LatestVersion)
 	if err != nil {
 		t.Fatalf("EncodeFrame(%T): %v", f, err)
 	}
-	if _, err := conn.Write(payload); err != nil {
-		t.Fatalf("write frame %T: %v", f, err)
+	return payload
+}
+
+func decodeWrittenFrames(t *testing.T, payload []byte) []frame.Frame {
+	t.Helper()
+	var frames []frame.Frame
+	proto := codec.New()
+	for len(payload) > 0 {
+		f, n, err := proto.DecodeFrame(payload, frame.LatestVersion)
+		if err != nil {
+			t.Fatalf("DecodeFrame() error = %v", err)
+		}
+		if f == nil || n == 0 {
+			t.Fatalf("DecodeFrame() consumed %d bytes and returned %T", n, f)
+		}
+		frames = append(frames, f)
+		payload = payload[n:]
 	}
+	return frames
+}
+
+type staticDialer struct {
+	conn net.Conn
+}
+
+func (d staticDialer) DialContext(context.Context, string, string) (net.Conn, error) {
+	return d.conn, nil
+}
+
+type partialWriteConn struct {
+	mu       sync.Mutex
+	readBuf  []byte
+	writeBuf []byte
+	partial  int
+	closed   bool
+	active   int32
+	max      int32
+}
+
+func newPartialWriteConn(readBuf []byte, partial int) *partialWriteConn {
+	return &partialWriteConn{readBuf: append([]byte(nil), readBuf...), partial: partial}
+}
+
+func (c *partialWriteConn) Read(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return 0, net.ErrClosed
+	}
+	if len(c.readBuf) == 0 {
+		return 0, io.EOF
+	}
+	n := copy(p, c.readBuf)
+	c.readBuf = c.readBuf[n:]
+	return n, nil
+}
+
+func (c *partialWriteConn) Write(p []byte) (int, error) {
+	current := atomic.AddInt32(&c.active, 1)
+	c.recordMaxConcurrent(current)
+	defer atomic.AddInt32(&c.active, -1)
+
+	if len(p) == 0 {
+		return 0, nil
+	}
+	n := len(p)
+	if c.partial > 0 && c.partial < n {
+		n = c.partial
+	}
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return 0, net.ErrClosed
+	}
+	c.writeBuf = append(c.writeBuf, p[:n]...)
+	c.mu.Unlock()
+	time.Sleep(time.Millisecond)
+	return n, nil
+}
+
+func (c *partialWriteConn) recordMaxConcurrent(current int32) {
+	for {
+		max := atomic.LoadInt32(&c.max)
+		if current <= max || atomic.CompareAndSwapInt32(&c.max, max, current) {
+			return
+		}
+	}
+}
+
+func (c *partialWriteConn) resetWrites() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.writeBuf = nil
+	atomic.StoreInt32(&c.max, 0)
+}
+
+func (c *partialWriteConn) written() []byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]byte(nil), c.writeBuf...)
+}
+
+func (c *partialWriteConn) maxConcurrentWrites() int32 {
+	return atomic.LoadInt32(&c.max)
+}
+
+func (c *partialWriteConn) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.closed = true
+	return nil
+}
+
+func (c *partialWriteConn) LocalAddr() net.Addr {
+	return fakeAddr("local")
+}
+
+func (c *partialWriteConn) RemoteAddr() net.Addr {
+	return fakeAddr("remote")
+}
+
+func (c *partialWriteConn) SetDeadline(time.Time) error {
+	return nil
+}
+
+func (c *partialWriteConn) SetReadDeadline(time.Time) error {
+	return nil
+}
+
+func (c *partialWriteConn) SetWriteDeadline(time.Time) error {
+	return nil
+}
+
+type fakeAddr string
+
+func (a fakeAddr) Network() string {
+	return "tcp"
+}
+
+func (a fakeAddr) String() string {
+	return string(a)
 }

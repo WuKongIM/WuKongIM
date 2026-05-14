@@ -1,13 +1,17 @@
 package wkprotoenc
 
 import (
+	gatewaytypes "github.com/WuKongIM/WuKongIM/internal/gateway/types"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	protocolenc "github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 )
 
 type SessionKeys = protocolenc.SessionKeys
 type SessionCrypto = protocolenc.SessionCrypto
-type ValueReader = protocolenc.ValueReader
+
+type ValueReader interface {
+	Value(string) any
+}
 
 var (
 	ErrInvalidPublicKey  = protocolenc.ErrInvalidPublicKey
@@ -41,10 +45,6 @@ func EncryptPayload(payload []byte, keys SessionKeys) ([]byte, error) {
 
 func NewSessionCrypto(keys SessionKeys) (*SessionCrypto, error) {
 	return protocolenc.NewSessionCrypto(keys)
-}
-
-func SessionCryptoFromSession(reader ValueReader) (*SessionCrypto, bool) {
-	return protocolenc.SessionCryptoFromSession(reader)
 }
 
 func EncryptPayloadWithCrypto(payload []byte, sessionCrypto *SessionCrypto) ([]byte, error) {
@@ -84,9 +84,46 @@ func SealRecvPacketWithCrypto(packet *frame.RecvPacket, sessionCrypto *SessionCr
 }
 
 func SessionEncryptionEnabled(reader ValueReader) bool {
-	return protocolenc.SessionEncryptionEnabled(reader)
+	if reader == nil {
+		return false
+	}
+	enabled, _ := reader.Value(gatewaytypes.SessionValueEncryptionEnabled).(bool)
+	return enabled
 }
 
 func SessionKeysFromSession(reader ValueReader) (SessionKeys, bool) {
-	return protocolenc.SessionKeysFromSession(reader)
+	if reader == nil {
+		return SessionKeys{}, false
+	}
+	key, ok := bytesValue(reader.Value(gatewaytypes.SessionValueAESKey))
+	if !ok {
+		return SessionKeys{}, false
+	}
+	iv, ok := bytesValue(reader.Value(gatewaytypes.SessionValueAESIV))
+	if !ok {
+		return SessionKeys{}, false
+	}
+	return SessionKeys{AESKey: key, AESIV: iv}, true
+}
+
+func SessionCryptoFromSession(reader ValueReader) (*SessionCrypto, bool) {
+	if reader == nil {
+		return nil, false
+	}
+	sessionCrypto, ok := reader.Value(gatewaytypes.SessionValueCrypto).(*SessionCrypto)
+	return sessionCrypto, ok && sessionCrypto != nil
+}
+
+func bytesValue(value any) ([]byte, bool) {
+	switch v := value.(type) {
+	case []byte:
+		return append([]byte(nil), v...), len(v) > 0
+	case string:
+		if v == "" {
+			return nil, false
+		}
+		return []byte(v), true
+	default:
+		return nil, false
+	}
 }
