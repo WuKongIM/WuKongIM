@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -83,9 +86,57 @@ workers:
 
 func TestValidateCommandReturnsConfigExitCodeForInvalidConfig(t *testing.T) {
 	targetPath := writeWkbenchTempFile(t, `
+api:
+  addrs: [http://127.0.0.1:1]
+gateway:
+  tcp:
+    addrs: [127.0.0.1:5100]
 bench_api:
   enabled: false
 `)
+	scenarioPath := writeWkbenchTempFile(t, validScenarioYAML())
+	workersPath := writeWkbenchTempFile(t, `
+workers:
+  - id: w1
+    addr: http://127.0.0.1:19090
+    weight: 1
+    control_token: secret
+`)
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"validate", "--target", targetPath, "--scenario", scenarioPath, "--workers", workersPath}, &stderr)
+
+	if code != 1 {
+		t.Fatalf("expected config exit code 1, got %d stderr %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "bench_api.enabled") {
+		t.Fatalf("expected bench_api.enabled error, got %q", stderr.String())
+	}
+}
+
+func TestValidateCommandReturnsConfigExitCodeForMissingWorkerAddr(t *testing.T) {
+	targetPath := writeWkbenchTempFile(t, validTargetYAML("http://127.0.0.1:1"))
+	scenarioPath := writeWkbenchTempFile(t, validScenarioYAML())
+	workersPath := writeWkbenchTempFile(t, `
+workers:
+  - id: w1
+    weight: 1
+    control_token: secret
+`)
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"validate", "--target", targetPath, "--scenario", scenarioPath, "--workers", workersPath}, &stderr)
+
+	if code != 1 {
+		t.Fatalf("expected config exit code 1, got %d stderr %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "workers[0].addr") {
+		t.Fatalf("expected worker addr error, got %q", stderr.String())
+	}
+}
+
+func TestValidateCommandReturnsConfigExitCodeForMissingWorkerToken(t *testing.T) {
+	targetPath := writeWkbenchTempFile(t, validTargetYAML("http://127.0.0.1:1"))
 	scenarioPath := writeWkbenchTempFile(t, validScenarioYAML())
 	workersPath := writeWkbenchTempFile(t, `
 workers:
@@ -100,8 +151,8 @@ workers:
 	if code != 1 {
 		t.Fatalf("expected config exit code 1, got %d stderr %q", code, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "bench_api.enabled") {
-		t.Fatalf("expected bench_api.enabled error, got %q", stderr.String())
+	if !strings.Contains(stderr.String(), "control_token") {
+		t.Fatalf("expected control token error, got %q", stderr.String())
 	}
 }
 
@@ -109,6 +160,9 @@ func TestDoctorCommandReturnsPreflightExitCodeForNetworkFailure(t *testing.T) {
 	targetPath := writeWkbenchTempFile(t, `
 api:
   addrs: [http://127.0.0.1:1]
+gateway:
+  tcp:
+    addrs: [127.0.0.1:5100]
 bench_api:
   enabled: true
 `)
@@ -118,6 +172,7 @@ workers:
   - id: w1
     addr: http://127.0.0.1:19090
     weight: 1
+    insecure_control: true
 `)
 	var stderr bytes.Buffer
 
@@ -128,6 +183,51 @@ workers:
 	}
 	if !strings.Contains(stderr.String(), "preflight failed") {
 		t.Fatalf("expected preflight error, got %q", stderr.String())
+	}
+}
+
+func TestDoctorCommandRunsWithoutScenario(t *testing.T) {
+	targetSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/healthz", "/readyz":
+			w.WriteHeader(http.StatusOK)
+		case "/bench/v1/capabilities":
+			writeWkbenchJSON(t, w, map[string]any{
+				"enabled": true,
+				"version": "bench/v1",
+				"supports": map[string]any{
+					"users_tokens_batch":        true,
+					"channels_batch":            true,
+					"channel_subscribers_batch": true,
+					"snapshot":                  true,
+					"channel_types":             []string{"group"},
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer targetSrv.Close()
+	workerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requirePath(t, r, "/v1/info")
+		requireHeader(t, r, "Authorization", "Bearer secret")
+		writeWkbenchJSON(t, w, map[string]string{"worker": "wkbench"})
+	}))
+	defer workerSrv.Close()
+	targetPath := writeWkbenchTempFile(t, validTargetYAML(targetSrv.URL))
+	workersPath := writeWkbenchTempFile(t, `
+workers:
+  - id: w1
+    addr: `+workerSrv.URL+`
+    weight: 1
+    control_token: secret
+`)
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"doctor", "--target", targetPath, "--workers", workersPath}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected doctor success, got code %d stderr %q", code, stderr.String())
 	}
 }
 
@@ -173,4 +273,39 @@ messages:
       channel_ref: group-hot
       rate_per_channel: 1/s
 `
+}
+
+func validTargetYAML(apiAddr string) string {
+	return `
+name: target
+api:
+  addrs: [` + apiAddr + `]
+gateway:
+  tcp:
+    addrs: [127.0.0.1:5100]
+bench_api:
+  enabled: true
+`
+}
+
+func writeWkbenchJSON(t *testing.T, w http.ResponseWriter, v any) {
+	t.Helper()
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func requirePath(t *testing.T, r *http.Request, want string) {
+	t.Helper()
+	if r.URL.Path != want {
+		t.Fatalf("path = %s, want %s", r.URL.Path, want)
+	}
+}
+
+func requireHeader(t *testing.T, r *http.Request, key, want string) {
+	t.Helper()
+	if got := r.Header.Get(key); got != want {
+		t.Fatalf("%s = %q, want %q", key, got, want)
+	}
 }

@@ -93,6 +93,74 @@ func TestPreflightFailsWhenRequiredCapabilityMissing(t *testing.T) {
 	require.ErrorContains(t, err, "snapshot")
 }
 
+func TestPreflightFailsWhenCapabilityVersionIsWrong(t *testing.T) {
+	targetSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/healthz", "/readyz":
+			w.WriteHeader(http.StatusOK)
+		case "/bench/v1/capabilities":
+			writeJSON(t, w, model.BenchCapabilities{
+				Enabled: true,
+				Version: "bench/v0",
+				Supports: model.BenchCapabilitiesSupports{
+					UsersTokensBatch:        true,
+					ChannelsBatch:           true,
+					ChannelSubscribersBatch: true,
+					Snapshot:                true,
+					ChannelTypes:            []string{"group"},
+				},
+			})
+		}
+	}))
+	defer targetSrv.Close()
+
+	err := NewPreflight(PreflightConfig{}).Check(context.Background(), model.Target{
+		API:      model.TargetAPIConfig{Addrs: []string{targetSrv.URL}},
+		BenchAPI: model.BenchAPIConfig{Enabled: true},
+	}, model.WorkerSet{})
+
+	require.ErrorContains(t, err, "bench/v1")
+	require.ErrorContains(t, err, "version")
+}
+
+func TestPreflightAllowsInsecureWorkerWithoutToken(t *testing.T) {
+	targetSrv := goodTargetServer(t)
+	defer targetSrv.Close()
+	workerSawAuth := false
+	workerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		workerSawAuth = r.Header.Get("Authorization") != ""
+		writeJSON(t, w, map[string]string{"worker": "wkbench"})
+	}))
+	defer workerSrv.Close()
+
+	err := NewPreflight(PreflightConfig{}).Check(context.Background(), model.Target{
+		API:      model.TargetAPIConfig{Addrs: []string{targetSrv.URL}},
+		BenchAPI: model.BenchAPIConfig{Enabled: true},
+	}, model.WorkerSet{Workers: []model.Worker{{ID: "w1", Addr: workerSrv.URL, Weight: 1, ControlToken: "ignored", InsecureControl: true}}})
+
+	require.NoError(t, err)
+	require.False(t, workerSawAuth)
+}
+
+func TestPreflightRejectsSecureWorkerWithoutTokenBeforeHTTP(t *testing.T) {
+	targetSrv := goodTargetServer(t)
+	defer targetSrv.Close()
+	workerHit := false
+	workerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		workerHit = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer workerSrv.Close()
+
+	err := NewPreflight(PreflightConfig{}).Check(context.Background(), model.Target{
+		API:      model.TargetAPIConfig{Addrs: []string{targetSrv.URL}},
+		BenchAPI: model.BenchAPIConfig{Enabled: true},
+	}, model.WorkerSet{Workers: []model.Worker{{ID: "w1", Addr: workerSrv.URL, Weight: 1}}})
+
+	require.ErrorContains(t, err, "control_token")
+	require.False(t, workerHit)
+}
+
 func TestPreflightFailsWhenGroupChannelTypeUnsupported(t *testing.T) {
 	targetSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

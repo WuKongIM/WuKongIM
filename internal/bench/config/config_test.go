@@ -74,6 +74,51 @@ workers:
 	require.Equal(t, []string{"zone-a"}, workers.Workers[0].Tags)
 }
 
+func TestValidateStaticConfigRequiresTargetAddresses(t *testing.T) {
+	target := Target{BenchAPI: BenchAPIConfig{Enabled: true}}
+	workers := WorkerSet{Workers: []Worker{{ID: "w1", Addr: "http://127.0.0.1:19090", Weight: 1, ControlToken: "secret"}}}
+
+	err := ValidateStaticConfig(target, workers)
+
+	require.ErrorContains(t, err, "target.api.addrs")
+}
+
+func TestValidateStaticConfigRequiresGatewayTCPAddrs(t *testing.T) {
+	target := Target{API: TargetAPIConfig{Addrs: []string{"http://127.0.0.1:5001"}}, BenchAPI: BenchAPIConfig{Enabled: true}}
+	workers := WorkerSet{Workers: []Worker{{ID: "w1", Addr: "http://127.0.0.1:19090", Weight: 1, ControlToken: "secret"}}}
+
+	err := ValidateStaticConfig(target, workers)
+
+	require.ErrorContains(t, err, "target.gateway.tcp.addrs")
+}
+
+func TestValidateStaticConfigRequiresWorkerAddr(t *testing.T) {
+	target := validStaticTarget()
+	workers := WorkerSet{Workers: []Worker{{ID: "w1", Weight: 1, ControlToken: "secret"}}}
+
+	err := ValidateStaticConfig(target, workers)
+
+	require.ErrorContains(t, err, "workers[0].addr")
+}
+
+func TestValidateStaticConfigRequiresWorkerTokenUnlessInsecure(t *testing.T) {
+	target := validStaticTarget()
+	workers := WorkerSet{Workers: []Worker{{ID: "w1", Addr: "http://127.0.0.1:19090", Weight: 1}}}
+
+	err := ValidateStaticConfig(target, workers)
+
+	require.ErrorContains(t, err, "control_token")
+}
+
+func TestValidateStaticConfigAllowsInsecureWorkerWithoutToken(t *testing.T) {
+	target := validStaticTarget()
+	workers := WorkerSet{Workers: []Worker{{ID: "w1", Addr: "http://127.0.0.1:19090", Weight: 1, InsecureControl: true}}}
+
+	err := ValidateStaticConfig(target, workers)
+
+	require.NoError(t, err)
+}
+
 func TestLoadScenarioSpecShape(t *testing.T) {
 	path := writeTempYAML(t, `
 version: wkbench/v1
@@ -194,4 +239,12 @@ func writeTempYAML(t *testing.T, content string) string {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 	return path
+}
+
+func validStaticTarget() Target {
+	return Target{
+		API:      TargetAPIConfig{Addrs: []string{"http://127.0.0.1:5001"}},
+		Gateway:  TargetGatewayConfig{TCP: TargetGatewayTCPConfig{Addrs: []string{"127.0.0.1:5100"}}},
+		BenchAPI: BenchAPIConfig{Enabled: true},
+	}
 }

@@ -92,6 +92,31 @@ func TestMutationsPostSpecShapedRequestsToFirstAddress(t *testing.T) {
 	require.Equal(t, []string{"/bench/v1/users/tokens", "/bench/v1/channels", "/bench/v1/channels/subscribers"}, firstSeen)
 }
 
+func TestMutationsFallBackToNextAPIAddress(t *testing.T) {
+	firstHits := 0
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		firstHits++
+		http.Error(w, "temporary unavailable", http.StatusServiceUnavailable)
+	}))
+	defer first.Close()
+	secondHits := make(map[string]int)
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		secondHits[r.URL.Path]++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer second.Close()
+	client := NewClient(Config{APIAddrs: []string{first.URL, second.URL}})
+
+	require.NoError(t, client.UpsertTokens(context.Background(), model.BatchTokensRequest{RunID: "run", BatchID: "b1", Users: []model.UserTokenItem{{UID: "u1", Token: "t1"}}}))
+	require.NoError(t, client.UpsertChannels(context.Background(), model.BatchChannelsRequest{RunID: "run", BatchID: "b2", Channels: []model.ChannelItem{{ChannelID: "g1", ChannelType: 2}}}))
+	require.NoError(t, client.AddSubscribers(context.Background(), model.BatchSubscribersRequest{RunID: "run", BatchID: "b3", Items: []model.SubscriberItem{{ChannelID: "g1", ChannelType: 2, Subscribers: []string{"u1"}}}}))
+
+	require.Equal(t, 3, firstHits)
+	require.Equal(t, 1, secondHits["/bench/v1/users/tokens"])
+	require.Equal(t, 1, secondHits["/bench/v1/channels"])
+	require.Equal(t, 1, secondHits["/bench/v1/channels/subscribers"])
+}
+
 func TestSnapshotMapsNon2xxStatusAndBody(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/bench/v1/snapshot", r.URL.Path)

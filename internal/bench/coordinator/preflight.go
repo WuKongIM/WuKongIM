@@ -82,6 +82,9 @@ func (p *Preflight) Check(ctx context.Context, tgt model.Target, workers model.W
 
 func validateCapabilities(caps model.BenchCapabilities) error {
 	var missing []string
+	if caps.Version != "bench/v1" {
+		missing = append(missing, fmt.Sprintf("version bench/v1 (got %q)", caps.Version))
+	}
 	if !caps.Enabled {
 		missing = append(missing, "enabled")
 	}
@@ -116,8 +119,12 @@ func (p *Preflight) checkWorker(ctx context.Context, worker model.Worker) error 
 	if err != nil {
 		return fmt.Errorf("worker %s info request: %w", workerName(worker), err)
 	}
-	if worker.ControlToken != "" {
+	if worker.InsecureControl {
+		// Explicit insecure workers must be probed without auth to mirror their control mode.
+	} else if worker.ControlToken != "" {
 		req.Header.Set("Authorization", "Bearer "+worker.ControlToken)
+	} else {
+		return fmt.Errorf("worker %s control_token is required unless insecure_control=true", workerName(worker))
 	}
 	resp, err := p.http.Do(req)
 	if err != nil {

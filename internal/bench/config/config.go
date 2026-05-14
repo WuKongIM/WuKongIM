@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -85,6 +86,73 @@ func ValidateTargetScenario(target Target, scenario Scenario) error {
 	}
 	if len(problems) > 0 {
 		return fmt.Errorf("invalid wkbench config: %s", strings.Join(problems, "; "))
+	}
+	return nil
+}
+
+// ValidateStaticConfig validates deterministic target and worker fields before network preflight.
+func ValidateStaticConfig(target Target, workers WorkerSet) error {
+	var problems []string
+	benchAddrs := nonEmptyStrings(target.BenchAPI.Addrs)
+	apiAddrs := nonEmptyStrings(target.API.Addrs)
+	if len(benchAddrs) == 0 && len(apiAddrs) == 0 {
+		problems = append(problems, "target.api.addrs is required when target.bench_api.addrs is empty")
+	}
+	for idx, addr := range apiAddrs {
+		if err := validateHTTPURL(addr); err != nil {
+			problems = append(problems, fmt.Sprintf("target.api.addrs[%d] %v", idx, err))
+		}
+	}
+	for idx, addr := range benchAddrs {
+		if err := validateHTTPURL(addr); err != nil {
+			problems = append(problems, fmt.Sprintf("target.bench_api.addrs[%d] %v", idx, err))
+		}
+	}
+	if len(nonEmptyStrings(target.Gateway.TCP.Addrs)) == 0 {
+		problems = append(problems, "target.gateway.tcp.addrs is required")
+	}
+	for idx, worker := range workers.Workers {
+		prefix := fmt.Sprintf("workers[%d]", idx)
+		if strings.TrimSpace(worker.ID) == "" {
+			problems = append(problems, prefix+".id is required")
+		}
+		addr := strings.TrimSpace(worker.Addr)
+		if addr == "" {
+			problems = append(problems, prefix+".addr is required")
+		} else if err := validateHTTPURL(addr); err != nil {
+			problems = append(problems, fmt.Sprintf("%s.addr %v", prefix, err))
+		}
+		if worker.Weight <= 0 {
+			problems = append(problems, prefix+".weight must be greater than zero")
+		}
+		if !worker.InsecureControl && strings.TrimSpace(worker.ControlToken) == "" {
+			problems = append(problems, prefix+".control_token is required unless insecure_control=true")
+		}
+	}
+	if len(problems) > 0 {
+		return fmt.Errorf("invalid wkbench config: %s", strings.Join(problems, "; "))
+	}
+	return nil
+}
+
+func nonEmptyStrings(items []string) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func validateHTTPURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("must be an absolute http URL")
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("must use http or https")
 	}
 	return nil
 }
