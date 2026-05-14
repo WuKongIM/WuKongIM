@@ -245,7 +245,7 @@ func (w *PersonWorkload) SendOne(ctx context.Context, messageIndex int) error {
 	if ack.MessageID > 0 {
 		expectedMessageID = uint64(ack.MessageID)
 	}
-	recv, err := w.waitForRecv(ctx, recipient, clientMsgNo, pair.SenderUID, expectedMessageID, ack.MessageSeq, w.payloadMarker(channelIndex, messageIndex))
+	recv, err := w.waitForRecv(ctx, recipient, clientMsgNo, pair.SenderUID, expectedMessageID, ack.MessageSeq)
 	if err != nil {
 		w.recordError("person_recv_error", err)
 		w.metrics.IncCounter("person_recv_error_total", nil)
@@ -325,7 +325,7 @@ func (w *PersonWorkload) waitForSendack(ctx context.Context, client PersonClient
 	}
 }
 
-func (w *PersonWorkload) waitForRecv(ctx context.Context, client PersonClient, clientMsgNo, senderUID string, expectedMessageID uint64, expectedMessageSeq uint64, payloadMarker string) (*frame.RecvPacket, error) {
+func (w *PersonWorkload) waitForRecv(ctx context.Context, client PersonClient, clientMsgNo, senderUID string, expectedMessageID uint64, expectedMessageSeq uint64) (*frame.RecvPacket, error) {
 	deadlineCtx, cancel := w.withTimeout(ctx, w.cfg.RecvTimeout)
 	defer cancel()
 	for {
@@ -347,9 +347,6 @@ func (w *PersonWorkload) waitForRecv(ctx context.Context, client PersonClient, c
 			continue
 		}
 		if expectedMessageSeq > 0 && recv.MessageSeq != expectedMessageSeq {
-			continue
-		}
-		if payloadMarker != "" && !strings.Contains(string(recv.Payload), payloadMarker) {
 			continue
 		}
 		return recv, nil

@@ -162,7 +162,7 @@ func buildPersonExecutionPlan(assignment Assignment) (personExecutionPlan, error
 		}
 		trafficItems := trafficByProfile[profileName]
 		if len(trafficItems) == 0 {
-			continue
+			return personExecutionPlan{}, fmt.Errorf("person profile %q has assigned channels but no matching traffic", profileName)
 		}
 		for _, traffic := range trafficItems {
 			plan.bundles = append(plan.bundles, personWorkloadBundle{profile: profile, traffic: traffic, pairs: pairs})
