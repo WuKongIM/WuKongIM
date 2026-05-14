@@ -689,7 +689,7 @@ func TestStoreGetChannelForPermissionReadsAuthoritativeSlot(t *testing.T) {
 	nodes := startTwoNodeShardedStores(t)
 
 	channelID := findChannelIDForSlot(t, nodes[0].cluster, 2, "remote-channel-permission")
-	ch := metadb.Channel{ChannelID: channelID, ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1}
+	ch := metadb.Channel{ChannelID: channelID, ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1}
 	require.NoError(t, nodes[1].db.ForHashSlot(mustHashSlotForKey(t, nodes[1].cluster, channelID)).UpsertChannel(ctx, ch))
 
 	got, err := nodes[0].store.GetChannelForPermission(ctx, channelID, 2)
