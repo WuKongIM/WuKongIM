@@ -57,11 +57,12 @@ const (
 	tagDeviceLevel uint8 = 4
 
 	// Channel field tags.
-	tagChannelID      uint8 = 1
-	tagChannelType    uint8 = 2
-	tagChannelBan     uint8 = 3
-	tagChannelDisband uint8 = 4
-	tagChannelSendBan uint8 = 5
+	tagChannelID            uint8 = 1
+	tagChannelType          uint8 = 2
+	tagChannelBan           uint8 = 3
+	tagChannelDisband       uint8 = 4
+	tagChannelSendBan       uint8 = 5
+	tagChannelAllowStranger uint8 = 6
 
 	// Channel runtime metadata field tags.
 	tagRuntimeMetaChannelID            uint8 = 1
@@ -474,9 +475,10 @@ func EncodeUpsertDeviceCommand(d metadb.Device) []byte {
 // EncodeUpsertChannelCommand encodes a Channel into a binary command.
 func EncodeUpsertChannelCommand(ch metadb.Channel) []byte {
 	idLen := len(ch.ChannelID)
-	// header + 1 string field + 4 int64 fields
+	// header + 1 string field + 5 int64 fields
 	size := headerSize +
 		tlvOverhead + idLen +
+		tlvOverhead + 8 +
 		tlvOverhead + 8 +
 		tlvOverhead + 8 +
 		tlvOverhead + 8 +
@@ -494,7 +496,8 @@ func EncodeUpsertChannelCommand(ch metadb.Channel) []byte {
 	off = putInt64Field(buf, off, tagChannelType, ch.ChannelType)
 	off = putInt64Field(buf, off, tagChannelBan, ch.Ban)
 	off = putInt64Field(buf, off, tagChannelDisband, ch.Disband)
-	_ = putInt64Field(buf, off, tagChannelSendBan, ch.SendBan)
+	off = putInt64Field(buf, off, tagChannelSendBan, ch.SendBan)
+	_ = putInt64Field(buf, off, tagChannelAllowStranger, ch.AllowStranger)
 
 	return buf
 }
@@ -1356,6 +1359,11 @@ func decodeUpsertChannel(data []byte) (command, error) {
 				return nil, fmt.Errorf("%w: bad SendBan length", metadb.ErrCorruptValue)
 			}
 			ch.SendBan = int64(binary.BigEndian.Uint64(value))
+		case tagChannelAllowStranger:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad AllowStranger length", metadb.ErrCorruptValue)
+			}
+			ch.AllowStranger = int64(binary.BigEndian.Uint64(value))
 		default:
 			// Unknown tag — skip for forward compatibility.
 		}

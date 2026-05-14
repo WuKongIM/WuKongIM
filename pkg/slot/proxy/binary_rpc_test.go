@@ -186,7 +186,7 @@ func TestChannelRPCBinaryCodecRoundTripsStatusFlags(t *testing.T) {
 	resp := channelRPCResponse{
 		Status:   rpcStatusOK,
 		LeaderID: 2,
-		Channel:  &metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, SubscriberMutationVersion: 7},
+		Channel:  &metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1, SubscriberMutationVersion: 7},
 	}
 	body := encodeChannelRPCResponseBinary(resp)
 	got, err := decodeChannelRPCResponseBinary(body)
@@ -211,9 +211,10 @@ func TestChannelRPCBinaryCodecRoundTripsChannelScanPage(t *testing.T) {
 	resp := channelRPCResponse{
 		Status: rpcStatusOK,
 		Channels: []metadb.Channel{
-			{ChannelID: "a", ChannelType: 2, Ban: 1},
+			{ChannelID: "a", ChannelType: 1, AllowStranger: 1},
+			{ChannelID: "b", ChannelType: 2, Ban: 1, SendBan: 1, AllowStranger: 1, SubscriberMutationVersion: 9},
 		},
-		Cursor: metadb.ChannelCursor{ChannelID: "a", ChannelType: 2},
+		Cursor: metadb.ChannelCursor{ChannelID: "b", ChannelType: 2},
 		Done:   true,
 	}
 
@@ -221,6 +222,75 @@ func TestChannelRPCBinaryCodecRoundTripsChannelScanPage(t *testing.T) {
 	gotResp, err := decodeChannelRPCResponseBinary(body)
 	require.NoError(t, err)
 	require.Equal(t, resp, gotResp)
+}
+
+func TestChannelRPCBinaryCodecDecodesV2ChannelWithoutAllowStranger(t *testing.T) {
+	body := make([]byte, 0, 64)
+	body = append(body, channelRPCResponseMagicV2[:]...)
+	body = runtimeMetaAppendString(body, rpcStatusOK)
+	body = runtimeMetaAppendUvarint(body, 0)
+	body = append(body, 1)
+	body = appendChannelLegacyV2ForTest(body, metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, SubscriberMutationVersion: 7})
+	body = runtimeMetaAppendUvarint(body, 0)
+	body = runtimeMetaAppendChannelCursor(body, metadb.ChannelCursor{})
+	body = runtimeMetaAppendBool(body, true)
+
+	got, err := decodeChannelRPCResponseBinary(body)
+	require.NoError(t, err)
+	require.NotNil(t, got.Channel)
+	require.Equal(t, int64(0), got.Channel.AllowStranger)
+}
+
+func TestChannelRPCBinaryCodecDecodesV2ChannelScanPageWithoutAllowStranger(t *testing.T) {
+	resp := channelRPCResponse{
+		Status: rpcStatusOK,
+		Channels: []metadb.Channel{
+			{ChannelID: "a", ChannelType: 1, Ban: 1, SubscriberMutationVersion: 3},
+			{ChannelID: "b", ChannelType: 2, Disband: 1, SendBan: 1, SubscriberMutationVersion: 7},
+		},
+		Cursor: metadb.ChannelCursor{ChannelID: "b", ChannelType: 2},
+		Done:   true,
+	}
+
+	body := make([]byte, 0, 128)
+	body = append(body, channelRPCResponseMagicV2[:]...)
+	body = runtimeMetaAppendString(body, resp.Status)
+	body = runtimeMetaAppendUvarint(body, resp.LeaderID)
+	body = append(body, 0)
+	body = runtimeMetaAppendUvarint(body, uint64(len(resp.Channels)))
+	for _, ch := range resp.Channels {
+		body = appendChannelLegacyV2ForTest(body, ch)
+	}
+	body = runtimeMetaAppendChannelCursor(body, resp.Cursor)
+	body = runtimeMetaAppendBool(body, resp.Done)
+
+	got, err := decodeChannelRPCResponseBinary(body)
+	require.NoError(t, err)
+	require.Equal(t, resp, got)
+}
+
+func TestChannelRPCBinaryCodecDecodesV1ChannelWithoutAllowStranger(t *testing.T) {
+	body := make([]byte, 0, 64)
+	body = append(body, channelRPCResponseMagicV1[:]...)
+	body = runtimeMetaAppendString(body, rpcStatusOK)
+	body = runtimeMetaAppendUvarint(body, 0)
+	body = append(body, 1)
+	body = appendChannelLegacyV2ForTest(body, metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, SubscriberMutationVersion: 7})
+
+	got, err := decodeChannelRPCResponseBinary(body)
+	require.NoError(t, err)
+	require.NotNil(t, got.Channel)
+	require.Equal(t, int64(0), got.Channel.AllowStranger)
+}
+
+func appendChannelLegacyV2ForTest(dst []byte, ch metadb.Channel) []byte {
+	dst = runtimeMetaAppendString(dst, ch.ChannelID)
+	dst = runtimeMetaAppendVarint(dst, ch.ChannelType)
+	dst = runtimeMetaAppendVarint(dst, ch.Ban)
+	dst = runtimeMetaAppendVarint(dst, ch.Disband)
+	dst = runtimeMetaAppendVarint(dst, ch.SendBan)
+	dst = runtimeMetaAppendUvarint(dst, ch.SubscriberMutationVersion)
+	return dst
 }
 
 func TestRemainingProxyRPCsRejectJSONPayload(t *testing.T) {

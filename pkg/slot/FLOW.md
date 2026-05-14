@@ -55,7 +55,7 @@ Runtime.ChangeConfig / TransferLeadership / CompactLog / Status
 | `ConfigChange` | multiraft/types.go | 成员变更：AddVoter / RemoveVoter / AddLearner / PromoteLearner |
 | `Status` | multiraft/types.go | Runtime 观测：Leader、Peers、CurrentVoters、Term/Index 等；CurrentVoters 来自当前 Raft conf state |
 | `Storage` interface | multiraft/types.go | Raft 日志存储抽象：InitialState / Entries / Save / MarkApplied |
-| `User` / `Channel` / `Device` | meta/*.go | 业务数据模型；`Channel` 现在持久化 `Ban` / `Disband` / `SendBan` / `SubscriberMutationVersion` |
+| `User` / `Channel` / `Device` | meta/*.go | 业务数据模型；`Channel` 现在持久化 `Ban` / `Disband` / `SendBan` / `AllowStranger` / `SubscriberMutationVersion` |
 | `ChannelRuntimeMeta` | meta/channel_runtime_meta.go | Leader/ISR/Epoch、write-fence 与权威保留边界运行时元数据 |
 | `ChannelMigrationTask` | meta/channel_migration_task.go | Channel leader transfer / replica replace 的权威任务、owner lease、进度与 terminal retention 索引 |
 | `CMDConversationState` | meta/cmd_conversation_state.go | UID-owned CMD 离线同步工作集与 read cursor，独立于普通会话状态 |
@@ -260,7 +260,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 | `identityRPCServiceID` | 4 | User / Device 查询 | proxy/identity_rpc.go |
 | `subscriberRPCServiceID` | 10 | 订阅者列表（分页/快照） | proxy/subscriber_rpc.go |
 | `userConversationStateRPCServiceID` | 11 | 会话状态查询、active_at 热提示提交/删除 | proxy/user_conversation_state_rpc.go |
-| `channelRPCServiceID` | 12 | Channel 权限元数据查询与物理 Slot 权威分页扫描（Ban / Disband / SendBan / SubscriberMutationVersion） | proxy/channel_rpc.go |
+| `channelRPCServiceID` | 12 | Channel 权限元数据查询与物理 Slot 权威分页扫描（Ban / Disband / SendBan / AllowStranger / SubscriberMutationVersion） | proxy/channel_rpc.go |
 | `channelMigrationRPCServiceID` | 47 | Channel migration active-task 查询与远端 slot-leader 提案转发，避免与 conversation facts service ID 13 冲突 | proxy/channel_migration_rpc.go |
 | `cmdConversationStateRPCServiceID` | 49 | CMD 会话状态查询、upsert 与 read cursor 推进 | proxy/cmd_conversation_state_rpc.go |
 

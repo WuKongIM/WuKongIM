@@ -3274,7 +3274,7 @@ func TestApplyBatch_DeleteChannel(t *testing.T) {
 }
 
 func TestEncodeDecodeChannelStatusFlags(t *testing.T) {
-	want := metadb.Channel{ChannelID: "c-status", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1}
+	want := metadb.Channel{ChannelID: "c-status", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1}
 	decoded, err := decodeCommand(EncodeUpsertChannelCommand(want))
 	if err != nil {
 		t.Fatalf("decodeCommand(): %v", err)
