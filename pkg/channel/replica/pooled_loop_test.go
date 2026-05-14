@@ -106,3 +106,37 @@ func TestPooledAppendFlushDoesNotSpawnTimerGoroutinePerReplica(t *testing.T) {
 		t.Fatalf("goroutines delta after scheduling append flushes = %d, want <= 60", delta)
 	}
 }
+
+func TestPooledExecutionDoesNotStartDurableWorkerPerReplica(t *testing.T) {
+	before := runtime.NumGoroutine()
+	pool, err := NewExecutionPool(ExecutionPoolConfig{
+		Workers:           4,
+		AppendWorkers:     4,
+		CheckpointWorkers: 2,
+	})
+	if err != nil {
+		t.Fatalf("NewExecutionPool() error = %v", err)
+	}
+	t.Cleanup(func() { _ = pool.Close() })
+
+	reps := make([]Replica, 0, 200)
+	for i := 0; i < 200; i++ {
+		env := newTestEnv(t)
+		cfg := env.config()
+		cfg.Execution = ExecutionConfig{Mode: ExecutionModePooled, Pool: pool}
+		rep, err := NewReplica(cfg)
+		if err != nil {
+			t.Fatalf("NewReplica(%d) error = %v", i, err)
+		}
+		reps = append(reps, rep)
+	}
+	t.Cleanup(func() {
+		for _, rep := range reps {
+			_ = rep.Close()
+		}
+	})
+
+	if delta := runtime.NumGoroutine() - before; delta > 80 {
+		t.Fatalf("goroutines delta = %d, want <= 80", delta)
+	}
+}

@@ -16,10 +16,16 @@ import (
 type ExecutionPoolConfig struct {
 	// Workers is the number of shared loop workers. Zero uses GOMAXPROCS.
 	Workers int
+	// AppendWorkers is the number of shared durable append workers. Zero uses Workers.
+	AppendWorkers int
+	// CheckpointWorkers is the number of shared checkpoint workers. Zero uses max(1, Workers/2).
+	CheckpointWorkers int
 	// MailboxSize is the default per-replica pooled loop queue size.
 	MailboxSize int
 	// TurnBudget is the default number of loop events a worker processes before yielding.
 	TurnBudget int
+	// EffectQueueSize bounds queued durable append and checkpoint effects.
+	EffectQueueSize int
 	// Now returns the current wall clock time for future scheduler extensions.
 	Now func() time.Time
 	// Logger emits execution pool diagnostics.
@@ -30,9 +36,11 @@ type ExecutionPoolConfig struct {
 type ExecutionPool struct {
 	cfg ExecutionPoolConfig
 
-	ready    chan *pooledLoopDriver
-	schedule chan executionTimer
-	timerSeq uint64
+	ready      chan *pooledLoopDriver
+	schedule   chan executionTimer
+	timerSeq   uint64
+	append     chan pooledAppendEffect
+	checkpoint chan pooledCheckpointEffect
 
 	stopCh    chan struct{}
 	done      chan struct{}
@@ -44,17 +52,30 @@ type ExecutionPool struct {
 
 // NewExecutionPool creates a shared worker pool for pooled replica execution.
 func NewExecutionPool(cfg ExecutionPoolConfig) (*ExecutionPool, error) {
-	if cfg.Workers < 0 || cfg.MailboxSize < 0 || cfg.TurnBudget < 0 {
+	if cfg.Workers < 0 || cfg.AppendWorkers < 0 || cfg.CheckpointWorkers < 0 ||
+		cfg.MailboxSize < 0 || cfg.TurnBudget < 0 || cfg.EffectQueueSize < 0 {
 		return nil, channel.ErrInvalidConfig
 	}
 	if cfg.Workers == 0 {
 		cfg.Workers = runtime.GOMAXPROCS(0)
+	}
+	if cfg.AppendWorkers == 0 {
+		cfg.AppendWorkers = cfg.Workers
+	}
+	if cfg.CheckpointWorkers == 0 {
+		cfg.CheckpointWorkers = cfg.Workers / 2
+		if cfg.CheckpointWorkers == 0 {
+			cfg.CheckpointWorkers = 1
+		}
 	}
 	if cfg.MailboxSize == 0 {
 		cfg.MailboxSize = 1024
 	}
 	if cfg.TurnBudget == 0 {
 		cfg.TurnBudget = 8
+	}
+	if cfg.EffectQueueSize == 0 {
+		cfg.EffectQueueSize = 1024
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
@@ -71,16 +92,26 @@ func NewExecutionPool(cfg ExecutionPoolConfig) (*ExecutionPool, error) {
 		readyCapacity = 1024
 	}
 	p := &ExecutionPool{
-		cfg:      cfg,
-		ready:    make(chan *pooledLoopDriver, readyCapacity),
-		schedule: make(chan executionTimer, readyCapacity),
-		stopCh:   make(chan struct{}),
-		done:     make(chan struct{}),
-		logger:   cfg.Logger,
+		cfg:        cfg,
+		ready:      make(chan *pooledLoopDriver, readyCapacity),
+		schedule:   make(chan executionTimer, readyCapacity),
+		append:     make(chan pooledAppendEffect, cfg.EffectQueueSize),
+		checkpoint: make(chan pooledCheckpointEffect, cfg.EffectQueueSize),
+		stopCh:     make(chan struct{}),
+		done:       make(chan struct{}),
+		logger:     cfg.Logger,
 	}
 	p.workers.Add(cfg.Workers)
 	for i := 0; i < cfg.Workers; i++ {
 		go p.runWorker()
+	}
+	p.workers.Add(cfg.AppendWorkers)
+	for i := 0; i < cfg.AppendWorkers; i++ {
+		go p.runAppendWorker()
+	}
+	p.workers.Add(cfg.CheckpointWorkers)
+	for i := 0; i < cfg.CheckpointWorkers; i++ {
+		go p.runCheckpointWorker()
 	}
 	p.workers.Add(1)
 	go p.runScheduler()
@@ -114,6 +145,82 @@ func (p *ExecutionPool) runWorker() {
 		case <-p.stopCh:
 			return
 		}
+	}
+}
+
+func (p *ExecutionPool) runAppendWorker() {
+	defer p.workers.Done()
+	for {
+		select {
+		case effect := <-p.append:
+			if effect.replica != nil {
+				effect.replica.runAppendEffect(context.Background(), effect.effect)
+			}
+		case <-p.stopCh:
+			return
+		}
+	}
+}
+
+func (p *ExecutionPool) runCheckpointWorker() {
+	defer p.workers.Done()
+	for {
+		select {
+		case effect := <-p.checkpoint:
+			if effect.replica == nil {
+				continue
+			}
+			err := effect.replica.storeCheckpointEffect(context.Background(), effect.effect)
+			_ = effect.replica.submitLoopResult(context.Background(), machineCheckpointStoredEvent{
+				EffectID:       effect.effect.EffectID,
+				ChannelKey:     effect.effect.ChannelKey,
+				Epoch:          effect.effect.Epoch,
+				LeaderEpoch:    effect.effect.LeaderEpoch,
+				RoleGeneration: effect.effect.RoleGeneration,
+				Checkpoint:     effect.effect.Checkpoint,
+				Err:            err,
+			})
+		case <-p.stopCh:
+			return
+		}
+	}
+}
+
+func (p *ExecutionPool) submitAppendEffect(ctx context.Context, r *replica, effect appendLeaderBatchEffect) error {
+	if p == nil {
+		return channel.ErrNotReady
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case p.append <- pooledAppendEffect{replica: r, effect: effect}:
+		return nil
+	case <-p.stopCh:
+		return channel.ErrNotLeader
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return channel.ErrNotReady
+	}
+}
+
+func (p *ExecutionPool) submitCheckpointEffect(ctx context.Context, r *replica, effect storeCheckpointEffect) error {
+	if p == nil {
+		return channel.ErrNotReady
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case p.checkpoint <- pooledCheckpointEffect{replica: r, effect: effect}:
+		return nil
+	case <-p.stopCh:
+		return channel.ErrNotLeader
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return channel.ErrNotReady
 	}
 }
 
@@ -213,6 +320,16 @@ type executionTimer struct {
 	driver *pooledLoopDriver
 	event  machineEvent
 	seq    uint64
+}
+
+type pooledAppendEffect struct {
+	replica *replica
+	effect  appendLeaderBatchEffect
+}
+
+type pooledCheckpointEffect struct {
+	replica *replica
+	effect  storeCheckpointEffect
 }
 
 type executionTimerHeap []executionTimer

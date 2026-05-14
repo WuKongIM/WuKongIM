@@ -157,6 +157,19 @@ func (r *replica) emitAppendBatchLocked() {
 		Records:        cloneRecords(records),
 		StartedAt:      r.now(),
 	}
+	if r.executionPool != nil {
+		if err := r.executionPool.submitAppendEffect(context.Background(), r, effect); err == nil {
+			return
+		}
+		for _, req := range active {
+			req.stage = appendRequestQueued
+		}
+		r.appendInFlightIDs = nil
+		r.appendInFlightEffectID = 0
+		r.appendPending = append(active, r.appendPending...)
+		r.scheduleAppendFlush()
+		return
+	}
 	select {
 	case r.appendEffects <- effect:
 	default:
