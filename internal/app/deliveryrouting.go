@@ -497,9 +497,10 @@ func (c committedDispatchValueContext) Value(key any) any {
 
 func committedEnvelopeFromMessageEvent(event messageevents.MessageCommitted) deliveryruntime.CommittedEnvelope {
 	return deliveryruntime.CommittedEnvelope{
-		Message:           event.Message,
-		SenderSessionID:   event.SenderSessionID,
-		MessageScopedUIDs: append([]string(nil), event.MessageScopedUIDs...),
+		Message:                        event.Message,
+		SenderSessionID:                event.SenderSessionID,
+		MessageScopedUIDs:              append([]string(nil), event.MessageScopedUIDs...),
+		CMDConversationIntentSubmitted: event.CMDConversationIntentSubmitted,
 	}
 }
 
@@ -514,9 +515,10 @@ func (s deliveryRuntimeCommittedSubmitter) SubmitCommitted(ctx context.Context, 
 		return nil
 	}
 	return s.target.SubmitCommitted(ctx, messageevents.MessageCommitted{
-		Message:           env.Message,
-		SenderSessionID:   env.SenderSessionID,
-		MessageScopedUIDs: append([]string(nil), env.MessageScopedUIDs...),
+		Message:                        env.Message,
+		SenderSessionID:                env.SenderSessionID,
+		MessageScopedUIDs:              append([]string(nil), env.MessageScopedUIDs...),
+		CMDConversationIntentSubmitted: env.CMDConversationIntentSubmitted,
 	})
 }
 
@@ -628,9 +630,21 @@ func (d *asyncCommittedDispatcher) submitConversationFallback(ctx context.Contex
 type localDeliveryResolver struct {
 	subscribers deliveryusecase.SubscriberResolver
 	authority   presence.Authoritative
+	uidObserver resolvedUIDObserver
 	pageSize    int
 	metrics     deliveryRoutingMetrics
 	logger      wklog.Logger
+}
+
+// resolvedUIDPage contains one resolver UID page before presence expansion.
+type resolvedUIDPage struct {
+	Envelope deliveryruntime.CommittedEnvelope
+	UIDs     []string
+}
+
+// resolvedUIDObserver observes resolver UID pages for non-routing side effects.
+type resolvedUIDObserver interface {
+	OnResolvedUIDPage(context.Context, resolvedUIDPage)
 }
 
 // deliveryTagTopologyReader reads the authority shape that affects tag UID partitioning.
@@ -655,6 +669,7 @@ type tagDeliveryResolver struct {
 	tags        *deliverytagruntime.Manager
 	subscribers deliveryusecase.SubscriberResolver
 	authority   presence.Authoritative
+	uidObserver resolvedUIDObserver
 	topology    deliveryTagTopologyReader
 	pageSize    int
 	metrics     deliveryRoutingMetrics
@@ -762,6 +777,7 @@ func (r deliveryTagTopologyReaderAdapter) ValidateCurrentDeliveryTagTopology(ctx
 
 type localResolveToken struct {
 	snapshot    deliveryusecase.SnapshotToken
+	env         deliveryruntime.CommittedEnvelope
 	channelType uint8
 	pending     []deliveryruntime.RouteKey
 	done        bool
@@ -769,6 +785,7 @@ type localResolveToken struct {
 
 type tagResolveToken struct {
 	tag         deliverytagruntime.DeliveryTag
+	env         deliveryruntime.CommittedEnvelope
 	localUIDs   []string
 	nextIndex   int
 	channelType uint8
@@ -804,7 +821,7 @@ func (r localDeliveryResolver) BeginResolve(ctx context.Context, key deliveryrun
 		r.recordResolveMetric(deliveryChannelTypeLabel(key.ChannelType), "error", time.Since(startedAt), 0, 0)
 		return nil, err
 	}
-	return &localResolveToken{snapshot: snapshot, channelType: key.ChannelType}, nil
+	return &localResolveToken{snapshot: snapshot, env: env, channelType: key.ChannelType}, nil
 }
 
 func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor string, limit int) (routes []deliveryruntime.RouteKey, nextCursor string, done bool, err error) {
@@ -870,6 +887,7 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 			}
 			continue
 		}
+		notifyResolvedUIDPage(ctx, r.uidObserver, resolveToken.env, uids)
 
 		var (
 			expandedCount int
@@ -978,6 +996,7 @@ func (r tagDeliveryResolver) BeginResolve(ctx context.Context, key deliveryrunti
 		return localDeliveryResolver{
 			subscribers: r.subscribers,
 			authority:   r.authority,
+			uidObserver: r.uidObserver,
 			pageSize:    r.pageSize,
 			metrics:     r.metrics,
 			logger:      r.logger,
@@ -998,6 +1017,7 @@ func (r tagDeliveryResolver) BeginResolve(ctx context.Context, key deliveryrunti
 	}
 	return &tagResolveToken{
 		tag:         tag,
+		env:         env,
 		localUIDs:   deliveryTagLocalUIDs(tag, r.localNodeID),
 		channelType: key.ChannelType,
 		ephemeral:   !source.ReusableTagState,
@@ -1011,6 +1031,17 @@ func deliveryTagPartitionBypassed(channelType uint8) bool {
 }
 
 func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor string, limit int) (routes []deliveryruntime.RouteKey, nextCursor string, done bool, err error) {
+	if _, local := token.(*localResolveToken); local {
+		return localDeliveryResolver{
+			subscribers: r.subscribers,
+			authority:   r.authority,
+			uidObserver: r.uidObserver,
+			pageSize:    r.pageSize,
+			metrics:     r.metrics,
+			logger:      r.logger,
+		}.ResolvePage(ctx, token, cursor, limit)
+	}
+
 	startedAt := time.Now()
 	pages := 0
 	channelType := "unknown"
@@ -1089,6 +1120,7 @@ func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor 
 			resolveToken.done = pageDone
 			return out, cursor, pageDone && len(resolveToken.pending) == 0, nil
 		}
+		notifyResolvedUIDPage(ctx, r.uidObserver, resolveToken.env, uids)
 		expanded, overflow, err := r.expandTagUIDs(ctx, uids, limit-len(out), resolveToken.channelType)
 		if err != nil {
 			return nil, "", false, err
@@ -1265,6 +1297,19 @@ func (r tagDeliveryResolver) expandTagUIDs(ctx context.Context, uids []string, l
 		out, overflow = appendResolvedPresenceRoutes(out, overflow, endpointsByUID[uid], &remaining)
 	}
 	return out, overflow, nil
+}
+
+func notifyResolvedUIDPage(ctx context.Context, observer resolvedUIDObserver, env deliveryruntime.CommittedEnvelope, uids []string) {
+	if observer == nil || len(uids) == 0 {
+		return
+	}
+	if env.CMDConversationIntentSubmitted && len(env.MessageScopedUIDs) > 0 {
+		return
+	}
+	observer.OnResolvedUIDPage(ctx, resolvedUIDPage{
+		Envelope: env,
+		UIDs:     append([]string(nil), uids...),
+	})
 }
 
 func (r tagDeliveryResolver) recordResolveMetric(channelType, result string, dur time.Duration, pages, routes int) {

@@ -3043,6 +3043,97 @@ func TestApplyBatchHideUserConversation(t *testing.T) {
 	}
 }
 
+func TestApplyBatchUpsertCMDConversationState(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	bsm, ok := mustNewStateMachine(t, db, 11).(multiraft.BatchStateMachine)
+	if !ok {
+		t.Fatal("state machine does not implement multiraft.BatchStateMachine")
+	}
+
+	results, err := bsm.ApplyBatch(ctx, []multiraft.Command{{
+		SlotID: 11,
+		Index:  1,
+		Term:   1,
+		Data: EncodeUpsertCMDConversationStatesCommand([]metadb.CMDConversationState{{
+			UID:         "u1",
+			ChannelID:   "g1____cmd",
+			ChannelType: 2,
+			ActiveAt:    100,
+			UpdatedAt:   100,
+		}}),
+	}})
+	if err != nil {
+		t.Fatalf("ApplyBatch(upsert cmd conversation) error = %v", err)
+	}
+	if len(results) != 1 || string(results[0]) != ApplyResultOK {
+		t.Fatalf("ApplyBatch(upsert cmd conversation) results = %q", results)
+	}
+
+	got, err := db.ForHashSlot(11).GetCMDConversationState(ctx, "u1", "g1____cmd", 2)
+	if err != nil {
+		t.Fatalf("GetCMDConversationState() error = %v", err)
+	}
+	want := metadb.CMDConversationState{
+		UID:         "u1",
+		ChannelID:   "g1____cmd",
+		ChannelType: 2,
+		ActiveAt:    100,
+		UpdatedAt:   100,
+	}
+	if got != want {
+		t.Fatalf("cmd conversation state = %#v, want %#v", got, want)
+	}
+}
+
+func TestApplyBatchAdvanceCMDConversationReadSeq(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForHashSlot(11)
+	bsm, ok := mustNewStateMachine(t, db, 11).(multiraft.BatchStateMachine)
+	if !ok {
+		t.Fatal("state machine does not implement multiraft.BatchStateMachine")
+	}
+
+	if err := shard.UpsertCMDConversationState(ctx, metadb.CMDConversationState{
+		UID:         "u1",
+		ChannelID:   "g1____cmd",
+		ChannelType: 2,
+		ReadSeq:     3,
+		ActiveAt:    100,
+		UpdatedAt:   100,
+	}); err != nil {
+		t.Fatalf("UpsertCMDConversationState() error = %v", err)
+	}
+
+	results, err := bsm.ApplyBatch(ctx, []multiraft.Command{{
+		SlotID: 11,
+		Index:  1,
+		Term:   1,
+		Data: EncodeAdvanceCMDConversationReadSeqCommand([]metadb.CMDConversationReadPatch{{
+			UID:         "u1",
+			ChannelID:   "g1____cmd",
+			ChannelType: 2,
+			ReadSeq:     7,
+			UpdatedAt:   200,
+		}}),
+	}})
+	if err != nil {
+		t.Fatalf("ApplyBatch(advance cmd read seq) error = %v", err)
+	}
+	if len(results) != 1 || string(results[0]) != ApplyResultOK {
+		t.Fatalf("ApplyBatch(advance cmd read seq) results = %q", results)
+	}
+
+	got, err := shard.GetCMDConversationState(ctx, "u1", "g1____cmd", 2)
+	if err != nil {
+		t.Fatalf("GetCMDConversationState() error = %v", err)
+	}
+	if got.ReadSeq != 7 || got.UpdatedAt != 200 || got.ActiveAt != 100 {
+		t.Fatalf("cmd conversation state = %#v", got)
+	}
+}
+
 func TestApplyDeprecatedConversationProjectionCommandsAreNoop(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)

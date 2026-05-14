@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
@@ -139,6 +140,46 @@ func TestSyncLoadsRecentsOnlyForFinalLimitedWindow(t *testing.T) {
 	require.Empty(t, repo.recentLoads)
 	require.Equal(t, []channel.Message{testMessage("g1", 2, 30, "u2", 300, "c1"), testMessage("g1", 2, 29, "u2", 299, "c1-1")}, got.Conversations[0].Recents)
 	require.Equal(t, []channel.Message{testMessage("g2", 2, 20, "u2", 200, "c2"), testMessage("g2", 2, 19, "u2", 199, "c2-1")}, got.Conversations[1].Recents)
+}
+
+func TestSyncDoesNotReadDedicatedCMDConversationState(t *testing.T) {
+	repo := newConversationSyncRepoStub()
+	repo.active = []metadb.UserConversationState{
+		{UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 1, ActiveAt: 100},
+		{UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ReadSeq: 0, ActiveAt: 200},
+	}
+	cmdRows := []metadb.CMDConversationState{
+		{UID: "u1", ChannelID: "g1____cmd", ChannelType: 2, ActiveAt: 200},
+	}
+	repo.latest[key("g1", 2)] = testMessage("g1", 2, 3, "u2", 100, "chat")
+	repo.latest[key("g1____cmd", 2)] = testMessage("g1____cmd", 2, 9, "system", 200, "cmd")
+
+	app := New(Options{States: repo, Facts: repo})
+	got, err := app.Sync(context.Background(), SyncQuery{UID: "u1", Limit: 10})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, cmdRows, "CMD rows exist in a separate store that conversation sync cannot access")
+	require.Equal(t, []SyncConversation{{
+		ChannelID: "g1", ChannelType: 2, Unread: 2, Timestamp: 100, LastMsgSeq: 3, LastClientMsgNo: "chat", ReadToMsgSeq: 1, Version: time.Unix(100, 0).UnixNano(),
+	}}, got.Conversations)
+	require.NotContains(t, repo.latestLoads, key("g1____cmd", 2))
+}
+
+func TestSyncIgnoresCommandChannelOverlayCandidates(t *testing.T) {
+	repo := newConversationSyncRepoStub()
+	commandKey := key(runtimechannelid.ToCommandChannel("g1"), 2)
+	repo.latest[commandKey] = testMessage(commandKey.ChannelID, commandKey.ChannelType, 9, "system", 200, "cmd")
+
+	app := New(Options{States: repo, Facts: repo})
+	got, err := app.Sync(context.Background(), SyncQuery{
+		UID:         "u1",
+		LastMsgSeqs: map[ConversationKey]uint64{commandKey: 0},
+		Limit:       10,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, got.Conversations)
+	require.NotContains(t, repo.latestLoads, commandKey)
 }
 
 type conversationSyncRepoStub struct {

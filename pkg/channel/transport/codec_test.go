@@ -56,6 +56,8 @@ func TestMigrationControlRPCServiceIDDoesNotCollideWithNodeServices(t *testing.T
 		45: "system-uid-cache",
 		46: "channel-leader-transfer",
 		47: "slot-channel-migration",
+		49: "slot-cmd-conversation-state",
+		50: "cmd-sync",
 	}
 	if name, exists := occupiedNodeServices[RPCServiceFenceAndDrain]; exists {
 		t.Fatalf("RPCServiceFenceAndDrain = %d collides with internal/access/node %s service", RPCServiceFenceAndDrain, name)

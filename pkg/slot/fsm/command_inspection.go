@@ -75,6 +75,14 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 		return simpleInspection("hide_user_conversations", map[string]any{
 			"deletes": userConversationDeletesPayload(typed.deletes),
 		}), nil
+	case *upsertCMDConversationStatesCmd:
+		return simpleInspection("upsert_cmd_conversation_states", map[string]any{
+			"states": cmdConversationStatesPayload(typed.states),
+		}), nil
+	case *advanceCMDConversationReadSeqCmd:
+		return simpleInspection("advance_cmd_conversation_read_seq", map[string]any{
+			"patches": cmdConversationReadPatchesPayload(typed.patches),
+		}), nil
 	case *applyDeltaCmd:
 		return applyDeltaInspection(typed)
 	case *enterFenceCmd:
@@ -278,6 +286,36 @@ func userConversationDeletesPayload(deletes []metadb.UserConversationDelete) []m
 			"channel_type":   req.ChannelType,
 			"deleted_to_seq": req.DeletedToSeq,
 			"updated_at":     req.UpdatedAt,
+		})
+	}
+	return out
+}
+
+func cmdConversationStatesPayload(states []metadb.CMDConversationState) []map[string]any {
+	out := make([]map[string]any, 0, len(states))
+	for _, state := range states {
+		out = append(out, map[string]any{
+			"uid":            state.UID,
+			"channel_id":     state.ChannelID,
+			"channel_type":   state.ChannelType,
+			"read_seq":       state.ReadSeq,
+			"deleted_to_seq": state.DeletedToSeq,
+			"active_at":      state.ActiveAt,
+			"updated_at":     state.UpdatedAt,
+		})
+	}
+	return out
+}
+
+func cmdConversationReadPatchesPayload(patches []metadb.CMDConversationReadPatch) []map[string]any {
+	out := make([]map[string]any, 0, len(patches))
+	for _, patch := range patches {
+		out = append(out, map[string]any{
+			"uid":          patch.UID,
+			"channel_id":   patch.ChannelID,
+			"channel_type": patch.ChannelType,
+			"read_seq":     patch.ReadSeq,
+			"updated_at":   patch.UpdatedAt,
 		})
 	}
 	return out

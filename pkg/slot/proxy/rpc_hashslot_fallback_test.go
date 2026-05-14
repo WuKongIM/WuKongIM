@@ -149,3 +149,42 @@ func TestHandleUserConversationStateRPCFallsBackToUIDHashSlot(t *testing.T) {
 	require.NotNil(t, resp.State)
 	require.Equal(t, want, *resp.State)
 }
+
+func TestHandleCMDConversationStateRPCFallsBackToUIDHashSlot(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeHashSlotStores(t, 8)
+
+	uid := findUIDForSlotWithDifferentHashSlot(t, nodes[0].cluster, 2, 2, "cmd-conversation-fallback")
+	hashSlot := nodes[0].cluster.HashSlotForKey(uid)
+	require.NotEqual(t, uint16(2), hashSlot)
+
+	want := metadb.CMDConversationState{
+		UID:          uid,
+		ChannelID:    "g-fallback____cmd",
+		ChannelType:  2,
+		ReadSeq:      9,
+		DeletedToSeq: 5,
+		ActiveAt:     1234,
+	}
+	require.NoError(t, nodes[1].db.ForHashSlot(hashSlot).UpsertCMDConversationState(ctx, want))
+
+	body, err := encodeCMDConversationStateRPCRequestBinary(cmdConversationStateRPCRequest{
+		Op:          cmdConversationStateRPCGet,
+		SlotID:      2,
+		UID:         uid,
+		ChannelID:   want.ChannelID,
+		ChannelType: want.ChannelType,
+		States:      []metadb.CMDConversationState{},
+		Patches:     []metadb.CMDConversationReadPatch{},
+	})
+	require.NoError(t, err)
+
+	respBody, err := nodes[1].store.handleCMDConversationStateRPC(ctx, body)
+	require.NoError(t, err)
+
+	resp, err := decodeCMDConversationStateRPCResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, rpcStatusOK, resp.Status)
+	require.NotNil(t, resp.State)
+	require.Equal(t, want, *resp.State)
+}

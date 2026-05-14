@@ -459,6 +459,10 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 			calls = append(calls, "conversation_projector.start")
 			return nil
 		},
+		startCMDConversationUpdaterFn: func() error {
+			calls = append(calls, "cmd_conversation_updater.start")
+			return nil
+		},
 		startDeliveryRuntimeFn: func() error {
 			calls = append(calls, "delivery_runtime.start")
 			return nil
@@ -501,6 +505,7 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 		"presence.start",
 		"conversation_active_hints.start",
 		"conversation_projector.start",
+		"cmd_conversation_updater.start",
 		"delivery_runtime.start",
 		"committed_dispatcher.start",
 		"committed_replay.start",
@@ -871,6 +876,52 @@ func TestStartStopIncludesConversationProjector(t *testing.T) {
 
 	require.NoError(t, app.Stop())
 	require.Equal(t, []string{"cluster.start", "conversation.start", "gateway.start", "gateway.stop", "conversation.stop", "cluster.stop"}, calls)
+}
+
+func TestStartStopIncludesCMDConversationUpdaterAfterConversation(t *testing.T) {
+	var calls []string
+
+	app := &App{
+		cluster: &raftcluster.Cluster{},
+		gateway: &gateway.Gateway{},
+		startClusterFn: func() error {
+			calls = append(calls, "cluster.start")
+			return nil
+		},
+		startConversationProjectorFn: func() error {
+			calls = append(calls, "conversation.start")
+			return nil
+		},
+		startCMDConversationUpdaterFn: func() error {
+			calls = append(calls, "cmdsync.start")
+			return nil
+		},
+		startGatewayFn: func() error {
+			calls = append(calls, "gateway.start")
+			return nil
+		},
+		stopGatewayFn: func() error {
+			calls = append(calls, "gateway.stop")
+			return nil
+		},
+		stopCMDConversationUpdaterFn: func(context.Context) error {
+			calls = append(calls, "cmdsync.stop")
+			return nil
+		},
+		stopConversationProjectorFn: func() error {
+			calls = append(calls, "conversation.stop")
+			return nil
+		},
+		stopClusterFn: func() {
+			calls = append(calls, "cluster.stop")
+		},
+	}
+
+	require.NoError(t, app.Start())
+	require.Equal(t, []string{"cluster.start", "conversation.start", "cmdsync.start", "gateway.start"}, calls)
+
+	require.NoError(t, app.Stop())
+	require.Equal(t, []string{"cluster.start", "conversation.start", "cmdsync.start", "gateway.start", "gateway.stop", "cmdsync.stop", "conversation.stop", "cluster.stop"}, calls)
 }
 
 func TestStartStopIncludesConversationActiveHintCache(t *testing.T) {
@@ -1336,11 +1387,16 @@ func TestAppLifecycleStopsPresenceWorkerAfterGateway(t *testing.T) {
 
 func TestAppLifecyclePassesBoundedStopContextToActiveHintsReplayAndDispatcher(t *testing.T) {
 	var activeHintsHasDeadline bool
+	var cmdUpdaterHasDeadline bool
 	var replayHasDeadline bool
 	var dispatcherHasDeadline bool
 	app := &App{
 		stopConversationActiveHintsFn: func(ctx context.Context) error {
 			_, activeHintsHasDeadline = ctx.Deadline()
+			return nil
+		},
+		stopCMDConversationUpdaterFn: func(ctx context.Context) error {
+			_, cmdUpdaterHasDeadline = ctx.Deadline()
 			return nil
 		},
 		stopCommittedReplayFn: func(ctx context.Context) error {
@@ -1355,11 +1411,13 @@ func TestAppLifecyclePassesBoundedStopContextToActiveHintsReplayAndDispatcher(t 
 		closeWKDBFn:   func() error { return nil },
 	}
 	app.conversationHintsOn.Store(true)
+	app.cmdConversationUpdaterOn.Store(true)
 	app.committedReplayOn.Store(true)
 	app.committedDispatcherOn.Store(true)
 
 	require.NoError(t, app.Stop())
 	require.True(t, activeHintsHasDeadline)
+	require.True(t, cmdUpdaterHasDeadline)
 	require.True(t, replayHasDeadline)
 	require.True(t, dispatcherHasDeadline)
 }

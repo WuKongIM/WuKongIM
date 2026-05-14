@@ -18,6 +18,7 @@ import (
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
@@ -58,6 +59,9 @@ type App struct {
 	deliveryRuntime           *deliveryruntime.Manager
 	deliveryRuntimeLifecycle  *deliveryRuntimeLifecycle
 	deliveryAcks              *deliveryruntime.AckIndex
+	cmdSyncApp                *cmdsync.App
+	cmdConversationUpdater    *cmdsync.ConversationUpdater
+	cmdConversationIntents    cmdConversationIntentRouter
 	committedDispatcher       *asyncCommittedDispatcher
 	committedReplayer         *committedReplayer
 	channelMigrationExecutor  *channelmigrationruntime.Executor
@@ -87,30 +91,32 @@ type App struct {
 	observedClusterCache observedClusterStateCache
 	nodeDrainState       *nodeDrainState
 
-	stopOnce              sync.Once
-	lifecycle             sync.Mutex
-	lifecycleMgr          *applifecycle.Manager
-	started               atomic.Bool
-	stopped               atomic.Bool
-	clusterOn             atomic.Bool
-	channelMetaOn         atomic.Bool
-	presenceOn            atomic.Bool
-	conversationHintsOn   atomic.Bool
-	conversationOn        atomic.Bool
-	deliveryRuntimeOn     atomic.Bool
-	committedDispatcherOn atomic.Bool
-	committedReplayOn     atomic.Bool
-	channelMigrationOn    atomic.Bool
-	channelRetentionOn    atomic.Bool
-	apiOn                 atomic.Bool
-	managerOn             atomic.Bool
-	gatewayOn             atomic.Bool
+	stopOnce                 sync.Once
+	lifecycle                sync.Mutex
+	lifecycleMgr             *applifecycle.Manager
+	started                  atomic.Bool
+	stopped                  atomic.Bool
+	clusterOn                atomic.Bool
+	channelMetaOn            atomic.Bool
+	presenceOn               atomic.Bool
+	conversationHintsOn      atomic.Bool
+	conversationOn           atomic.Bool
+	cmdConversationUpdaterOn atomic.Bool
+	deliveryRuntimeOn        atomic.Bool
+	committedDispatcherOn    atomic.Bool
+	committedReplayOn        atomic.Bool
+	channelMigrationOn       atomic.Bool
+	channelRetentionOn       atomic.Bool
+	apiOn                    atomic.Bool
+	managerOn                atomic.Bool
+	gatewayOn                atomic.Bool
 
 	startClusterFn                 func() error
 	startChannelMetaSyncFn         func() error
 	startPresenceFn                func() error
 	startConversationActiveHintsFn func() error
 	startConversationProjectorFn   func() error
+	startCMDConversationUpdaterFn  func() error
 	startDeliveryRuntimeFn         func() error
 	startCommittedDispatcherFn     func() error
 	startCommittedReplayFn         func(context.Context) error
@@ -125,6 +131,7 @@ type App struct {
 	stopManagerFn                  func() error
 	stopGatewayFn                  func() error
 	stopConversationProjectorFn    func() error
+	stopCMDConversationUpdaterFn   func(context.Context) error
 	stopConversationActiveHintsFn  func(context.Context) error
 	stopDeliveryRuntimeFn          func() error
 	stopCommittedDispatcherFn      func(context.Context) error

@@ -44,6 +44,8 @@ func TestChannelMigrationRPCServiceIDDoesNotCollideWithSharedRPCServices(t *test
 		45: "node-system-uid-cache",
 		46: "node-channel-leader-transfer",
 		48: "channel-fence-and-drain",
+		49: "slot-cmd-conversation-state",
+		50: "node-cmd-sync",
 	}
 	if name, exists := occupied[channelMigrationRPCServiceID]; exists {
 		t.Fatalf("channelMigrationRPCServiceID = %d collides with %s", channelMigrationRPCServiceID, name)

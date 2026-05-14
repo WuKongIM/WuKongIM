@@ -38,6 +38,7 @@ func New(cluster raftcluster.API, db *metadb.DB) *Store {
 		cluster.RPCMux().Handle(channelRPCServiceID, store.handleChannelRPC)
 		cluster.RPCMux().Handle(userConversationStateRPCServiceID, store.handleUserConversationStateRPC)
 		cluster.RPCMux().Handle(channelMigrationRPCServiceID, store.handleChannelMigrationRPC)
+		cluster.RPCMux().Handle(cmdConversationStateRPCServiceID, store.handleCMDConversationStateRPC)
 	}
 	return store
 }

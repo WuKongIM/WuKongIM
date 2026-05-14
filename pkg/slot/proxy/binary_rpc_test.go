@@ -238,4 +238,8 @@ func TestRemainingProxyRPCsRejectJSONPayload(t *testing.T) {
 	conversationBody := []byte(`{"op":"get","slot_id":1,"uid":"u1"}`)
 	_, err = store.handleUserConversationStateRPC(context.Background(), conversationBody)
 	require.Error(t, err)
+
+	cmdConversationBody := []byte(`{"op":"get","slot_id":1,"uid":"u1"}`)
+	_, err = store.handleCMDConversationStateRPC(context.Background(), cmdConversationBody)
+	require.Error(t, err)
 }

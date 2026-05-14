@@ -6,6 +6,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/sequence"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
@@ -39,6 +40,11 @@ type RemoteDelivery interface {
 
 type CommittedMessageDispatcher interface {
 	SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error
+}
+
+// CMDConversationIntentSink receives request-scoped CMD conversation intents after durable append.
+type CMDConversationIntentSink interface {
+	PushIntent(ctx context.Context, intent cmdsync.ConversationIntent) (bool, error)
 }
 
 // RealtimeDispatcher receives transient messages that should bypass durable append.

@@ -10,6 +10,7 @@ const (
 	// TableIDReservedConversationProjection is reserved for the removed conversation projection table.
 	TableIDReservedConversationProjection uint32 = 7
 	TableIDChannelMigrationTask           uint32 = 8
+	TableIDCMDConversationState           uint32 = 9
 
 	maxKeyStringLen = 1<<16 - 1
 )
@@ -131,6 +132,20 @@ const (
 	channelMigrationTaskColumnIDUpdatedAtMS              uint16 = 32
 	channelMigrationTaskColumnIDCompletedAtMS            uint16 = 33
 	channelMigrationTaskColumnIDProgress                 uint16 = 34
+)
+
+const (
+	cmdConversationStatePrimaryFamilyID uint16 = 0
+	cmdConversationStatePrimaryIndexID  uint16 = 1
+	cmdConversationStateActiveIndexID   uint16 = 2
+
+	cmdConversationStateColumnIDUID          uint16 = 1
+	cmdConversationStateColumnIDChannelID    uint16 = 2
+	cmdConversationStateColumnIDChannelType  uint16 = 3
+	cmdConversationStateColumnIDReadSeq      uint16 = 4
+	cmdConversationStateColumnIDDeletedToSeq uint16 = 5
+	cmdConversationStateColumnIDActiveAt     uint16 = 6
+	cmdConversationStateColumnIDUpdatedAt    uint16 = 7
 )
 
 type ColumnType int
@@ -475,6 +490,43 @@ var ChannelMigrationTaskTable = &TableDesc{
 			Name:      "idx_channel_migration_terminal",
 			Unique:    true,
 			ColumnIDs: []uint16{channelMigrationTaskColumnIDCompletedAtMS, channelMigrationTaskColumnIDChannelID, channelMigrationTaskColumnIDType, channelMigrationTaskColumnIDTaskID},
+		},
+	},
+}
+
+var CMDConversationStateTable = &TableDesc{
+	ID:   TableIDCMDConversationState,
+	Name: "cmd_conversation_state",
+	Columns: []ColumnDesc{
+		{ID: cmdConversationStateColumnIDUID, Name: "uid", Type: ColumnString},
+		{ID: cmdConversationStateColumnIDChannelType, Name: "channel_type", Type: ColumnInt64},
+		{ID: cmdConversationStateColumnIDChannelID, Name: "channel_id", Type: ColumnString},
+		{ID: cmdConversationStateColumnIDReadSeq, Name: "read_seq", Type: ColumnUint64},
+		{ID: cmdConversationStateColumnIDDeletedToSeq, Name: "deleted_to_seq", Type: ColumnUint64},
+		{ID: cmdConversationStateColumnIDActiveAt, Name: "active_at", Type: ColumnInt64},
+		{ID: cmdConversationStateColumnIDUpdatedAt, Name: "updated_at", Type: ColumnInt64},
+	},
+	Families: []ColumnFamilyDesc{
+		{
+			ID:              cmdConversationStatePrimaryFamilyID,
+			Name:            "primary",
+			ColumnIDs:       []uint16{cmdConversationStateColumnIDReadSeq, cmdConversationStateColumnIDDeletedToSeq, cmdConversationStateColumnIDActiveAt, cmdConversationStateColumnIDUpdatedAt},
+			DefaultColumnID: cmdConversationStateColumnIDReadSeq,
+		},
+	},
+	PrimaryIndex: IndexDesc{
+		ID:        cmdConversationStatePrimaryIndexID,
+		Name:      "pk_cmd_conversation_state",
+		Unique:    true,
+		Primary:   true,
+		ColumnIDs: []uint16{cmdConversationStateColumnIDUID, cmdConversationStateColumnIDChannelType, cmdConversationStateColumnIDChannelID},
+	},
+	SecondaryIndexes: []IndexDesc{
+		{
+			ID:        cmdConversationStateActiveIndexID,
+			Name:      "idx_cmd_conversation_active",
+			Unique:    false,
+			ColumnIDs: []uint16{cmdConversationStateColumnIDUID, cmdConversationStateColumnIDActiveAt, cmdConversationStateColumnIDChannelType, cmdConversationStateColumnIDChannelID},
 		},
 	},
 }

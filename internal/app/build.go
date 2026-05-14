@@ -23,6 +23,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/runtime/messageid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
@@ -331,6 +332,32 @@ func build(cfg Config) (_ *App, err error) {
 	)
 	app.nodeClient = accessnode.NewClient(app.cluster)
 	app.channelLog.remoteAppender = app.nodeClient
+	app.cmdConversationUpdater = cmdsync.NewConversationUpdater(cmdsync.ConversationUpdaterOptions{
+		Store:          app.store,
+		DataDir:        cfg.Node.DataDir,
+		FlushInterval:  cfg.Conversation.ActiveHintFlushInterval,
+		FlushBatchSize: cfg.Conversation.ActiveHintFlushBatchSize,
+		Logger:         app.logger.Named("cmdsync.pending"),
+	})
+	cmdIntentRouter := cmdConversationIntentRouter{
+		local:       app.cmdConversationUpdater,
+		remote:      app.nodeClient,
+		cluster:     app.cluster,
+		localNodeID: cfg.Node.ID,
+		logger:      app.logger.Named("cmdsync.intent"),
+	}
+	app.cmdConversationIntents = cmdIntentRouter
+	app.cmdSyncApp = cmdsync.New(cmdsync.Options{
+		States: app.store,
+		Messages: cmdsyncMessageStore{
+			localNodeID: cfg.Node.ID,
+			channelLog:  app.channelLogDB,
+			metas:       app.store,
+			remote:      app.nodeClient,
+		},
+		Pending: app.cmdConversationUpdater,
+		Logger:  app.logger.Named("cmdsync"),
+	})
 	repairProbeClient, err := channeltransport.NewProbeClient(channeltransport.ProbeClientOptions{
 		Client:     app.dataPlaneClient,
 		RPCTimeout: cfg.Cluster.DataPlaneRPCTimeout,
@@ -466,6 +493,11 @@ func build(cfg Config) (_ *App, err error) {
 	subscriberResolver := deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
 		Store: app.store,
 	})
+	cmdUIDObserver := cmdConversationResolvedUIDObserver{
+		sink:   cmdIntentRouter,
+		now:    time.Now,
+		logger: app.logger.Named("cmdsync.intent"),
+	}
 	var deliveryObserver deliveryruntime.Observer
 	var deliveryMetrics *obsmetrics.DeliveryMetrics
 	if app.metrics != nil {
@@ -480,6 +512,7 @@ func build(cfg Config) (_ *App, err error) {
 			subscribers: subscriberResolver,
 			authority:   authorityClient,
 			topology:    deliveryTagTopologyReaderAdapter{cluster: app.cluster},
+			uidObserver: cmdUIDObserver,
 			metrics:     deliveryMetrics,
 			logger:      app.logger.Named("delivery.resolve"),
 		},
@@ -575,8 +608,14 @@ func build(cfg Config) (_ *App, err error) {
 		RuntimeSummary:        nodeRuntimeSummaryProvider{collector: runtimeSummaries},
 		Diagnostics:           app,
 		ChannelRetention:      managerMessageRetentionNodeProvider{target: managerRetention},
-		SystemUIDCache:        userApp,
-		Logger:                app.logger.Named("access.node"),
+		CMDSync:               app.cmdSyncApp,
+		CMDConversationIntents: ownerValidatingCMDIntentSink{
+			local:       app.cmdConversationUpdater,
+			cluster:     app.cluster,
+			localNodeID: cfg.Node.ID,
+		},
+		SystemUIDCache: userApp,
+		Logger:         app.logger.Named("access.node"),
 	})
 	app.messageApp = message.New(message.Options{
 		IdentityStore:          app.store,
@@ -592,13 +631,14 @@ func build(cfg Config) (_ *App, err error) {
 			metas:       app.store,
 			remote:      app.nodeClient,
 		},
-		MetaRefresher:       app.channelMetaSync,
-		RemoteAppender:      app.nodeClient,
-		AppendMetrics:       messageMetrics,
-		Online:              onlineRegistry,
-		CommittedDispatcher: committedDispatcher,
-		RealtimeDispatcher:  app.deliveryApp,
-		MessageIDs:          messageIDs,
+		MetaRefresher:          app.channelMetaSync,
+		RemoteAppender:         app.nodeClient,
+		AppendMetrics:          messageMetrics,
+		Online:                 onlineRegistry,
+		CommittedDispatcher:    committedDispatcher,
+		CMDConversationIntents: cmdIntentRouter,
+		RealtimeDispatcher:     app.deliveryApp,
+		MessageIDs:             messageIDs,
 		DeliveryAck: ackRouting{
 			localNodeID: cfg.Node.ID,
 			local:       app.deliveryApp,
@@ -676,9 +716,16 @@ func build(cfg Config) (_ *App, err error) {
 			SlotSnapshotUsers:      app.store,
 			ControllerSnapshotJobs: app.cluster,
 		})
+		cmdSyncAPI := clusterCMDSyncUsecase{
+			local:       app.cmdSyncApp,
+			remote:      app.nodeClient,
+			cluster:     app.cluster,
+			localNodeID: cfg.Node.ID,
+		}
 		app.api = accessapi.New(accessapi.Options{
 			ListenAddr:               cfg.API.ListenAddr,
 			Messages:                 app.messageApp,
+			CMDSync:                  cmdSyncAPI,
 			Users:                    clusterUsers,
 			Channels:                 app.channelApp,
 			TestMode:                 cfg.TestMode,

@@ -70,6 +70,7 @@ internal/
     messageevents/       消息提交事件合约
   usecase/               可复用业务用例，不依赖具体入口协议
     channel/             频道资料、订阅者、黑白名单等兼容用例
+    cmdsync/             CMD 离线同步、syncack 与独立 CMD 会话状态用例
     conversation/        会话投影、同步等用例
     delivery/            投递、离线、订阅等用例
     management/          后台管理聚合查询用例

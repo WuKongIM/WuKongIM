@@ -64,6 +64,8 @@ func (s *Server) registerRoutes() {
 	s.engine.POST("/channel/whitelist_remove_all", s.handleChannelAllowlistRemoveAll)
 	s.engine.GET("/channel/whitelist", s.handleChannelAllowlistGet)
 	s.engine.POST("/message/send", s.handleSendMessage)
+	s.engine.POST("/message/sync", s.handleMessageSync)
+	s.engine.POST("/message/syncack", s.handleMessageSyncAck)
 	s.engine.POST("/channel/messagesync", s.handleChannelMessageSync)
 	s.engine.POST("/conversations/clearUnread", s.handleConversationClearUnread)
 	s.engine.POST("/conversations/setUnread", s.handleConversationSetUnread)

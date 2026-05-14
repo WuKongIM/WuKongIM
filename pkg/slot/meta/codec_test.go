@@ -61,6 +61,8 @@ func TestHashSlotAPIsUseUint16Signatures(t *testing.T) {
 		"ClaimChannelMigrationTask",
 		"AdvanceChannelMigrationTask",
 		"UpsertUserConversationState",
+		"UpsertCMDConversationState",
+		"AdvanceCMDConversationReadSeq",
 		"TouchUserConversationActiveAt",
 		"ClearUserConversationActiveAt",
 		"HideUserConversation",
