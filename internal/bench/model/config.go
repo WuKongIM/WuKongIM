@@ -218,6 +218,15 @@ type ChannelsConfig struct {
 	Profiles []ChannelProfile `json:"profiles" yaml:"profiles"`
 }
 
+const (
+	// ChannelTypePerson identifies generated one-to-one conversation channels.
+	ChannelTypePerson = "person"
+	// ChannelTypeGroup identifies generated group conversation channels.
+	ChannelTypeGroup = "group"
+	// ShardModeSplitMembersAndTraffic splits one logical group by member and traffic partitions.
+	ShardModeSplitMembersAndTraffic = "split_members_and_traffic"
+)
+
 // ChannelProfile describes a class of channels prepared for a scenario.
 type ChannelProfile struct {
 	// Name is a stable profile name referenced by traffic phases.

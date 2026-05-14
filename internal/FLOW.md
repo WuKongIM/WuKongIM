@@ -106,12 +106,20 @@
 | `messageevents` | `contracts/messageevents/` | 已提交消息事件合约 |
 | `deliveryevents` | `contracts/deliveryevents/` | 投递回执与会话关闭事件合约 |
 
+#### Benchmark 黑盒客户端（Bench）
+| 组件 | 文件 | 职责 |
+|------|------|------|
+| `bench/config` | `bench/config/` | wkbench target / worker / scenario YAML 严格加载 |
+| `bench/model` | `bench/model/` | wkbench 配置、速率与确定性计划模型 |
+| `bench/planner` | `bench/planner/` | 按 worker 权重规划 identity pool、channel、member 与 traffic 分片 |
+
 ### 2.3 依赖边界
 
 **规则**：
 - `runtime/*` 可依赖 `pkg/*`，禁止依赖 `access/*`、`gateway/*`、`usecase/*`、`app`
 - `usecase/*` 可依赖 `runtime/*`、`pkg/*`，禁止依赖 `access/*`、`app`
 - `access/*` 作为适配器层，转换传输 DTO 到合约/用例/运行时 DTO
+- `bench/*` 是 wkbench 黑盒客户端代码，禁止依赖 server internal 包和集群运行时包
 
 **边界检查**：
 ```bash

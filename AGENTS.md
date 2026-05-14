@@ -45,6 +45,10 @@ cmd/
   wukongim/              程序入口，负责读取配置并启动应用
 
 internal/
+  bench/                 wkbench 黑盒客户端配置、模型与确定性规划
+    config/              wkbench YAML 加载与严格解码
+    model/               wkbench spec-shaped 配置与计划模型
+    planner/             worker 权重、identity pool 与 channel/member/traffic 分片规划
   app/                   组合根；负责 build、lifecycle、config、依赖装配
     lifecycle/           生命周期管理器与资源栈原语
   access/                接入层，只做入口适配
