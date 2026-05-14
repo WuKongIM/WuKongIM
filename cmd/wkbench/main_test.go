@@ -231,7 +231,7 @@ workers:
 	}
 }
 
-func TestRunCommandCompletesFakeOrchestration(t *testing.T) {
+func TestRunCommandCompletesWorkloadOrchestration(t *testing.T) {
 	targetSrv := goodWkbenchTargetServer(t)
 	defer targetSrv.Close()
 	workerSrv := goodWkbenchWorkerServer(t, "secret")
@@ -252,8 +252,40 @@ workers:
 	if code != 0 {
 		t.Fatalf("expected run success, got code %d stderr %q", code, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "fake/no-op workload orchestration completed") {
-		t.Fatalf("expected fake orchestration note, got %q", stderr.String())
+	if !strings.Contains(stderr.String(), "wkbench workload orchestration completed") {
+		t.Fatalf("expected workload orchestration note, got %q", stderr.String())
+	}
+	if strings.Contains(stderr.String(), "fake/no-op") {
+		t.Fatalf("did not expect stale fake/no-op note, got %q", stderr.String())
+	}
+}
+
+func TestRunCommandWritesReportDirectoryWhenConfigured(t *testing.T) {
+	targetSrv := goodWkbenchTargetServer(t)
+	defer targetSrv.Close()
+	workerSrv := goodWkbenchWorkerServer(t, "secret")
+	defer workerSrv.Close()
+	reportDir := t.TempDir()
+	targetPath := writeWkbenchTempFile(t, validTargetYAML(targetSrv.URL))
+	scenarioPath := writeWkbenchTempFile(t, validScenarioYAMLWithReportDir(reportDir))
+	workersPath := writeWkbenchTempFile(t, `
+workers:
+  - id: w1
+    addr: `+workerSrv.URL+`
+    weight: 1
+    control_token: secret
+`)
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"run", "--target", targetPath, "--scenario", scenarioPath, "--workers", workersPath}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected run success, got code %d stderr %q", code, stderr.String())
+	}
+	for _, rel := range []string{"report.json", "summary.md", "coordinator.log", "metrics/worker-1s.jsonl", "errors/samples.jsonl"} {
+		if _, err := os.Stat(filepath.Join(reportDir, rel)); err != nil {
+			t.Fatalf("expected report artifact %s: %v", rel, err)
+		}
 	}
 }
 
@@ -347,6 +379,29 @@ func validScenarioYAML() string {
 version: wkbench/v1
 run:
   id: bench-run
+online:
+  total_users: 10
+channels:
+  profiles:
+    - name: group-hot
+      channel_type: group
+      count: 1
+      members:
+        count: 5
+messages:
+  traffic:
+    - name: hot-group-send
+      channel_ref: group-hot
+      rate_per_channel: 1/s
+`
+}
+
+func validScenarioYAMLWithReportDir(reportDir string) string {
+	return `
+version: wkbench/v1
+run:
+  id: bench-run
+  report_dir: ` + reportDir + `
 online:
   total_users: 10
 channels:
