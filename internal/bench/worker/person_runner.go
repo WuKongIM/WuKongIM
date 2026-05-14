@@ -2,7 +2,9 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"sort"
 	"strings"
 	"sync"
@@ -12,6 +14,8 @@ import (
 	benchworkload "github.com/WuKongIM/WuKongIM/internal/bench/workload"
 )
 
+var errTargetUnavailable = errors.New("target unavailable")
+
 // WorkloadClientFactory builds benchmark clients for the default worker runner.
 type WorkloadClientFactory func(user benchworkload.ConnectionUser, addr string) (benchworkload.ConnectionClient, error)
 
@@ -20,6 +24,8 @@ type defaultWorkloadRunner struct {
 	clientFactory WorkloadClientFactory
 
 	mu sync.Mutex
+	// metrics stores worker-level counters for connection lifecycle events.
+	metrics *metrics.Registry
 	// runID is the assignment currently bound to manager and workloads.
 	runID string
 	// manager owns the connected benchmark sessions for the active run.
@@ -44,7 +50,7 @@ type personExecutionPlan struct {
 }
 
 func newDefaultWorkloadRunner(factory WorkloadClientFactory) WorkloadRunner {
-	return &defaultWorkloadRunner{clientFactory: factory}
+	return &defaultWorkloadRunner{clientFactory: factory, metrics: metrics.NewRegistry()}
 }
 
 func (r *defaultWorkloadRunner) Prepare(ctx context.Context, assignment Assignment) error {
@@ -78,8 +84,10 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 	}
 	if err := manager.Connect(ctx, users); err != nil {
 		_ = manager.Close()
-		return err
+		r.recordConnectError(err)
+		return markTargetUnavailable(err)
 	}
+	r.recordConnectSuccess(uint64(len(users)))
 	clients, err := personClientsFromManager(manager, users)
 	if err != nil {
 		_ = manager.Close()
@@ -97,6 +105,40 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 	}
 	r.store(assignment.RunID, manager, workloads, groupWorkloads)
 	return nil
+}
+
+// MetricsSnapshot returns the merged metrics from active worker-local workloads.
+func (r *defaultWorkloadRunner) MetricsSnapshot() metrics.SnapshotData {
+	personWorkloads, groupWorkloads, _ := r.snapshot(r.currentRunID())
+	workerSnapshots := make([]metrics.WorkerSnapshot, 0, len(personWorkloads)+len(groupWorkloads)+1)
+	workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: r.workerMetrics()})
+	for _, wl := range personWorkloads {
+		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: wl.Metrics().Collect()})
+	}
+	for _, wl := range groupWorkloads {
+		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: wl.Metrics().Collect()})
+	}
+	agg, err := metrics.Aggregate(workerSnapshots)
+	if err != nil {
+		return metrics.SnapshotData{Counters: map[string]uint64{}, Gauges: map[string]float64{}, Histograms: map[string]metrics.HistogramSummary{}}
+	}
+	return agg
+}
+
+func (r *defaultWorkloadRunner) workerMetrics() metrics.SnapshotData {
+	r.mu.Lock()
+	registry := r.metrics
+	r.mu.Unlock()
+	if registry == nil {
+		return metrics.SnapshotData{Counters: map[string]uint64{}, Gauges: map[string]float64{}, Histograms: map[string]metrics.HistogramSummary{}}
+	}
+	return registry.Collect()
+}
+
+func (r *defaultWorkloadRunner) currentRunID() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.runID
 }
 
 func (r *defaultWorkloadRunner) Warmup(ctx context.Context, assignment Assignment) error {
@@ -319,6 +361,25 @@ func (r *defaultWorkloadRunner) store(runID string, manager *benchworkload.Conne
 	r.groupWorkloads = groupWorkloads
 }
 
+func (r *defaultWorkloadRunner) recordConnectSuccess(count uint64) {
+	r.mu.Lock()
+	registry := r.metrics
+	r.mu.Unlock()
+	if registry != nil && count > 0 {
+		registry.AddCounter("connect_success_total", nil, count)
+	}
+}
+
+func (r *defaultWorkloadRunner) recordConnectError(err error) {
+	r.mu.Lock()
+	registry := r.metrics
+	r.mu.Unlock()
+	if registry != nil {
+		registry.IncCounter("connect_error_total", nil)
+		registry.RecordErrorSample("connect_error", err)
+	}
+}
+
 func (r *defaultWorkloadRunner) snapshot(runID string) ([]*benchworkload.PersonWorkload, []*benchworkload.GroupWorkload, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -338,8 +399,21 @@ func (r *defaultWorkloadRunner) closeCurrent(runID string) {
 		_ = r.manager.Close()
 	}
 	r.manager = nil
-	r.personWorkloads = nil
-	r.groupWorkloads = nil
+}
+
+func markTargetUnavailable(err error) error {
+	if err == nil {
+		return nil
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return fmt.Errorf("%w: %v", errTargetUnavailable, err)
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "connection refused") || strings.Contains(msg, "no such host") || strings.Contains(msg, "i/o timeout") || strings.Contains(msg, "network is unreachable") {
+		return fmt.Errorf("%w: %v", errTargetUnavailable, err)
+	}
+	return err
 }
 
 func (r *defaultWorkloadRunner) reset(runID string) {

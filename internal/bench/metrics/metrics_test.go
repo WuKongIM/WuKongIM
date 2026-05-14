@@ -3,6 +3,7 @@ package metrics
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -73,5 +74,27 @@ func TestAggregateRejectsUnsafeLabelsFromWorkerSnapshots(t *testing.T) {
 	}
 	if got := err.Error(); !strings.Contains(got, "uid") {
 		t.Fatalf("expected error to mention uid, got %q", got)
+	}
+}
+
+func TestAggregateBoundsErrorSamplesGlobally(t *testing.T) {
+	workers := make([]WorkerSnapshot, 0, 40)
+	for i := 0; i < 40; i++ {
+		workers = append(workers, WorkerSnapshot{
+			WorkerID: fmt.Sprintf("w%02d", i),
+			Metrics:  SnapshotData{Errors: []ErrorSample{{Name: "send", Message: fmt.Sprintf("err-%02d", i)}}},
+		})
+	}
+
+	agg, err := Aggregate(workers)
+	if err != nil {
+		t.Fatalf("Aggregate: %v", err)
+	}
+
+	if len(agg.Errors) != 32 {
+		t.Fatalf("len(errors) = %d, want 32", len(agg.Errors))
+	}
+	if agg.Errors[0].Message != "err-08" || agg.Errors[31].Message != "err-39" {
+		t.Fatalf("unexpected bounded errors: first=%q last=%q", agg.Errors[0].Message, agg.Errors[31].Message)
 	}
 }

@@ -234,6 +234,28 @@ messages:
 	require.Equal(t, 3, scenario.Messages.Traffic[0].Verify.Recv.SampleSizePerMessage)
 }
 
+func TestLoadScenarioDefaultsOmittedHardErrorRatesToDisabledSentinel(t *testing.T) {
+	path := writeTempYAML(t, `
+version: wkbench/v1
+run:
+  id: bench-run
+limits:
+  hard:
+    max_sendack_error_rate: 0
+channels:
+  profiles: []
+messages:
+  traffic: []
+`)
+
+	scenario, err := LoadScenario(path)
+
+	require.NoError(t, err)
+	require.Equal(t, 0.0, scenario.Limits.Hard.MaxSendackErrorRate)
+	require.Equal(t, -1.0, scenario.Limits.Hard.MaxConnectErrorRate)
+	require.Equal(t, -1.0, scenario.Limits.Hard.MaxRecvVerifyErrorRate)
+}
+
 func writeTempYAML(t *testing.T, content string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.yaml")

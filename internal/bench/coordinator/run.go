@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/internal/bench/planner"
 	"github.com/WuKongIM/WuKongIM/internal/bench/report"
@@ -192,11 +193,22 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 	}
 	if len(phaseErrs) > 0 {
 		result.Status = StatusWorkerFailed
-		c.writeReport(scenario, &result, report.Summary{WorkerFailed: len(phaseErrs)})
+		if isTargetUnavailable(errors.Join(phaseErrs...)) {
+			result.Status = StatusTargetUnavailable
+		}
+		if _, err := c.writeReport(ctx, scenario, &result, len(phaseErrs)); err != nil {
+			if result.Status != StatusTargetUnavailable {
+				result.Status = StatusInternalFailed
+			}
+			return result, errors.Join(errors.Join(phaseErrs...), err)
+		}
 		return result, errors.Join(phaseErrs...)
 	}
-	summary := report.Summary{}
-	rep := c.writeReport(scenario, &result, summary)
+	rep, err := c.writeReport(ctx, scenario, &result, 0)
+	if err != nil {
+		result.Status = StatusInternalFailed
+		return result, err
+	}
 	if rep.ExitCode == report.ExitHardLimitFailed {
 		result.Status = StatusHardLimitFailed
 		result.Report = rep
@@ -206,24 +218,58 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 	return result, nil
 }
 
-func (c *Coordinator) writeReport(scenario model.Scenario, result *RunResult, summary report.Summary) report.Report {
+func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, result *RunResult, workerFailed int) (report.Report, error) {
+	workerMetrics, workerReports := c.collectWorkerReports(ctx)
+	agg, err := metrics.Aggregate(workerMetrics)
+	if err != nil {
+		return report.Report{}, err
+	}
+	summary := report.SummaryFromMetrics(agg, workerFailed)
 	rep := report.Build(report.Input{
-		RunID:    scenario.Run.ID,
-		Scenario: scenario,
-		Target:   c.cfg.Target,
-		Workers:  model.WorkerSet{Workers: c.cfg.Workers},
-		Plan:     result.Plan,
-		Summary:  summary,
+		RunID:         scenario.Run.ID,
+		Scenario:      scenario,
+		Target:        c.cfg.Target,
+		Workers:       model.WorkerSet{Workers: c.cfg.Workers},
+		Plan:          result.Plan,
+		Summary:       summary,
+		Metrics:       agg,
+		WorkerReports: workerReports,
+		WorkerMetrics: workerMetrics,
+		ErrorSamples:  agg.Errors,
 	})
 	result.Report = rep
 	if strings.TrimSpace(scenario.Run.ReportDir) == "" {
-		return rep
+		return rep, nil
 	}
 	if err := report.WriteDir(scenario.Run.ReportDir, rep); err != nil {
 		result.Status = StatusInternalFailed
 		result.Report = rep
+		return rep, err
 	}
-	return rep
+	return rep, nil
+}
+
+func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.WorkerSnapshot, []report.WorkerReport) {
+	workerMetrics := make([]metrics.WorkerSnapshot, 0, len(c.cfg.Workers))
+	workerReports := make([]report.WorkerReport, 0, len(c.cfg.Workers))
+	for _, w := range c.cfg.Workers {
+		workerID := strings.TrimSpace(w.ID)
+		var snap metrics.SnapshotData
+		if err := c.getJSON(ctx, w, "/v1/metrics", &snap); err == nil {
+			workerMetrics = append(workerMetrics, metrics.WorkerSnapshot{WorkerID: workerID, Metrics: snap})
+		} else {
+			workerMetrics = append(workerMetrics, metrics.WorkerSnapshot{WorkerID: workerID, Metrics: metrics.SnapshotData{Counters: map[string]uint64{}, Gauges: map[string]float64{}, Histograms: map[string]metrics.HistogramSummary{}, Errors: []metrics.ErrorSample{{Name: "worker_metrics_error", Message: err.Error(), At: time.Now()}}}})
+		}
+
+		var raw json.RawMessage
+		if err := c.getJSON(ctx, w, "/v1/report", &raw); err == nil && len(raw) > 0 {
+			workerReports = append(workerReports, report.WorkerReport{WorkerID: workerID, Report: raw})
+		} else {
+			payload, _ := json.Marshal(map[string]any{"worker_id": workerID, "error": "worker report unavailable"})
+			workerReports = append(workerReports, report.WorkerReport{WorkerID: workerID, Report: payload})
+		}
+	}
+	return workerMetrics, workerReports
 }
 
 func (c *Coordinator) assignWorkers(ctx context.Context, scenario model.Scenario, plan model.Plan) error {
@@ -393,6 +439,9 @@ func statusForError(parent context.Context, err error) RunStatus {
 	if parentErr := parent.Err(); parentErr != nil && errors.Is(err, parentErr) {
 		return StatusCanceled
 	}
+	if isTargetUnavailable(err) {
+		return StatusTargetUnavailable
+	}
 	return StatusWorkerFailed
 }
 
@@ -419,7 +468,19 @@ func coordinatorStatusError(method, url string, resp *http.Response) error {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxBodySnippetBytes))
 	snippet := strings.TrimSpace(string(body))
 	if snippet == "" {
+		if resp.StatusCode == http.StatusServiceUnavailable {
+			return fmt.Errorf("%s %s returned status %d: %w", method, url, resp.StatusCode, errTargetUnavailable)
+		}
 		return fmt.Errorf("%s %s returned status %d", method, url, resp.StatusCode)
 	}
+	if resp.StatusCode == http.StatusServiceUnavailable && strings.Contains(strings.ToLower(snippet), "target unavailable") {
+		return fmt.Errorf("%s %s returned status %d: %s: %w", method, url, resp.StatusCode, snippet, errTargetUnavailable)
+	}
 	return fmt.Errorf("%s %s returned status %d: %s", method, url, resp.StatusCode, snippet)
+}
+
+var errTargetUnavailable = errors.New("target unavailable")
+
+func isTargetUnavailable(err error) bool {
+	return errors.Is(err, errTargetUnavailable)
 }

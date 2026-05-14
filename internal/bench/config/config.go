@@ -56,8 +56,8 @@ func LoadTarget(path string) (Target, error) {
 
 // LoadScenario reads a scenario YAML file, expands environment variables, and decodes it strictly.
 func LoadScenario(path string) (Scenario, error) {
-	var scenario Scenario
-	if err := loadYAMLFile(path, &scenario); err != nil {
+	scenario := Scenario{Limits: defaultLimitsConfig()}
+	if err := loadYAMLFileInto(path, &scenario); err != nil {
 		return Scenario{}, err
 	}
 	return scenario, nil
@@ -158,6 +158,10 @@ func validateHTTPURL(raw string) error {
 }
 
 func loadYAMLFile(path string, out interface{}) error {
+	return loadYAMLFileInto(path, out)
+}
+
+func loadYAMLFileInto(path string, out interface{}) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
@@ -169,4 +173,8 @@ func loadYAMLFile(path string, out interface{}) error {
 		return fmt.Errorf("parse %s: %w", path, err)
 	}
 	return nil
+}
+
+func defaultLimitsConfig() LimitsConfig {
+	return LimitsConfig{Hard: HardLimitsConfig{MaxWorkerFailed: -1, MaxConnectErrorRate: -1, MaxSendackErrorRate: -1, MaxRecvVerifyErrorRate: -1}}
 }

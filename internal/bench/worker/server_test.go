@@ -15,7 +15,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/internal/bench/report"
 	benchworkload "github.com/WuKongIM/WuKongIM/internal/bench/workload"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
@@ -197,14 +199,21 @@ func TestWorkerStopAllowsNewRunAssignment(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 }
 
-func TestWorkerMetricsAndReportReturnMinimalJSON(t *testing.T) {
-	srv := NewServer(Config{ControlToken: "secret"})
+func TestWorkerMetricsAndReportExposeSnapshots(t *testing.T) {
+	runner := &snapshotRunner{metrics: metrics.SnapshotData{Counters: map[string]uint64{"connect_success_total": 2}}}
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assignFull(t, srv, "secret", Assignment{RunID: "run-a", WorkerID: "worker-a"})
 
-	for _, path := range []string{"/v1/metrics", "/v1/report"} {
-		rec := authorizedRecorder(t, srv, http.MethodGet, path, "secret", nil)
-		require.Equal(t, http.StatusOK, rec.Code)
-		require.JSONEq(t, `{}`, rec.Body.String())
-	}
+	metricsRec := authorizedRecorder(t, srv, http.MethodGet, "/v1/metrics", "secret", nil)
+	reportRec := authorizedRecorder(t, srv, http.MethodGet, "/v1/report", "secret", nil)
+
+	require.Equal(t, http.StatusOK, metricsRec.Code)
+	require.JSONEq(t, `{"counters":{"connect_success_total":2},"gauges":{},"histograms":{},"errors":null}`, metricsRec.Body.String())
+	require.Equal(t, http.StatusOK, reportRec.Code)
+	var wr report.WorkerReport
+	require.NoError(t, json.Unmarshal(reportRec.Body.Bytes(), &wr))
+	require.Equal(t, "worker-a", wr.WorkerID)
+	require.JSONEq(t, `{"run_id":"run-a","worker_id":"worker-a","phase":"assigned","metrics":{"counters":{"connect_success_total":2},"gauges":{},"histograms":{},"errors":null}}`, string(wr.Report))
 }
 
 func TestWorkerDefaultRunnerConnectsAndRunsPersonShard(t *testing.T) {
@@ -226,6 +235,24 @@ func TestWorkerDefaultRunnerConnectsAndRunsPersonShard(t *testing.T) {
 	require.Equal(t, "bench-u-7", sender.sentFrames[0].ChannelID)
 	require.Equal(t, frame.ChannelTypePerson, sender.sentFrames[0].ChannelType)
 	require.Contains(t, sender.sentFrames[0].ClientMsgNo, "bench-msg")
+}
+
+func TestWorkerDefaultRunnerMetricsSurviveCooldown(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignFull(t, srv, "secret", personShardAssignment())
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/warmup", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/run", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/cooldown", http.StatusOK)
+
+	rec := authorizedRecorder(t, srv, http.MethodGet, "/v1/metrics", "secret", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var snap metrics.SnapshotData
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &snap))
+	require.Equal(t, uint64(1), snap.Counters["person_send_success_total"])
 }
 
 func TestWorkerDefaultRunnerPreparesConnectsAndRunsGroupShard(t *testing.T) {
@@ -422,10 +449,24 @@ func TestWorkerPhaseHookFailureDoesNotAdvanceStatus(t *testing.T) {
 	require.Equal(t, PhasePrepare, workerStatus(t, srv, "secret").Phase)
 }
 
+func TestWorkerTargetUnavailableHookFailureReturnsServiceUnavailable(t *testing.T) {
+	runner := &recordingWorkloadRunner{failPhase: PhaseConnect, failErr: fmt.Errorf("%w: dial tcp", errTargetUnavailable)}
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/connect", "secret", nil)
+
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	require.Contains(t, rec.Body.String(), "target unavailable")
+	require.Equal(t, PhasePrepare, workerStatus(t, srv, "secret").Phase)
+}
+
 type recordingWorkloadRunner struct {
 	phases    []Phase
 	runIDs    []string
 	failPhase Phase
+	failErr   error
 }
 
 func (r *recordingWorkloadRunner) Prepare(ctx context.Context, assignment Assignment) error {
@@ -450,6 +491,9 @@ func (r *recordingWorkloadRunner) Cooldown(ctx context.Context, assignment Assig
 
 func (r *recordingWorkloadRunner) record(phase Phase, assignment Assignment) error {
 	if phase == r.failPhase {
+		if r.failErr != nil {
+			return r.failErr
+		}
 		return fmt.Errorf("phase %s failed", phase)
 	}
 	r.phases = append(r.phases, phase)
@@ -623,6 +667,17 @@ func (c *workerPersonClient) RecvAck(ctx context.Context, messageID int64, messa
 func (c *workerPersonClient) Close() error { return nil }
 
 var _ benchworkload.PersonClient = (*workerPersonClient)(nil)
+
+type snapshotRunner struct {
+	metrics metrics.SnapshotData
+}
+
+func (r *snapshotRunner) Prepare(context.Context, Assignment) error  { return nil }
+func (r *snapshotRunner) Connect(context.Context, Assignment) error  { return nil }
+func (r *snapshotRunner) Warmup(context.Context, Assignment) error   { return nil }
+func (r *snapshotRunner) Run(context.Context, Assignment) error      { return nil }
+func (r *snapshotRunner) Cooldown(context.Context, Assignment) error { return nil }
+func (r *snapshotRunner) MetricsSnapshot() metrics.SnapshotData      { return r.metrics }
 
 func assign(t *testing.T, srv *Server, token, runID string) {
 	t.Helper()

@@ -188,6 +188,20 @@ func (m *ConnectionManager) ConnectUser(ctx context.Context, user ConnectionUser
 	return session, nil
 }
 
+// Sessions returns a stable copy of all active sessions.
+func (m *ConnectionManager) Sessions() []*ConnectionSession {
+	if m == nil {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	sessions := make([]*ConnectionSession, 0, len(m.sessions))
+	for _, session := range m.sessions {
+		sessions = append(sessions, session)
+	}
+	return sessions
+}
+
 // Session returns the active session for a UID, when connected.
 func (m *ConnectionManager) Session(uid string) (*ConnectionSession, bool) {
 	if m == nil {

@@ -287,6 +287,36 @@ workers:
 			t.Fatalf("expected report artifact %s: %v", rel, err)
 		}
 	}
+	if _, err := os.Stat(filepath.Join(reportDir, "workers", "w1.report.json")); err != nil {
+		t.Fatalf("expected worker report artifact: %v", err)
+	}
+}
+
+func TestRunCommandReturnsInternalExitCodeWhenReportWriteFails(t *testing.T) {
+	targetSrv := goodWkbenchTargetServer(t)
+	defer targetSrv.Close()
+	workerSrv := goodWkbenchWorkerServer(t, "secret")
+	defer workerSrv.Close()
+	reportDir := filepath.Join(t.TempDir(), "not-a-dir")
+	if err := os.WriteFile(reportDir, []byte("file blocks report dir"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	targetPath := writeWkbenchTempFile(t, validTargetYAML(targetSrv.URL))
+	scenarioPath := writeWkbenchTempFile(t, validScenarioYAMLWithReportDir(reportDir))
+	workersPath := writeWkbenchTempFile(t, `
+workers:
+  - id: w1
+    addr: `+workerSrv.URL+`
+    weight: 1
+    control_token: secret
+`)
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"run", "--target", targetPath, "--scenario", scenarioPath, "--workers", workersPath}, &stderr)
+
+	if code != 6 {
+		t.Fatalf("expected internal exit code 6, got %d stderr %q", code, stderr.String())
+	}
 }
 
 func TestRunCommandReturnsPreflightExitCodeForNetworkFailure(t *testing.T) {
@@ -488,6 +518,10 @@ func goodWkbenchWorkerServer(t *testing.T, token string) *httptest.Server {
 			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
 		case "/v1/status":
 			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
+		case "/v1/metrics":
+			writeWkbenchJSON(t, w, map[string]any{"counters": map[string]uint64{}, "gauges": map[string]float64{}, "histograms": map[string]any{}, "errors": []any{}})
+		case "/v1/report":
+			writeWkbenchJSON(t, w, map[string]any{"worker_id": "w1"})
 		case "/v1/stop":
 			phase = "stopped"
 			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
