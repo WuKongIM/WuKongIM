@@ -53,6 +53,9 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 
 	reason, err := a.checkSendPermission(ctx, cmd)
 	if err != nil {
+		if reason != 0 && reason != frame.ReasonSuccess {
+			return SendResult{Reason: reason}, err
+		}
 		return SendResult{}, err
 	}
 	if reason != frame.ReasonSuccess {
