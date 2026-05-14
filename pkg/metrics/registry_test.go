@@ -56,6 +56,9 @@ func TestChannelMetricsTrackAppendFetchAndActiveChannels(t *testing.T) {
 	reg.Channel.ObserveAppend("ok", 15*time.Millisecond)
 	reg.Channel.ObserveFetch(8 * time.Millisecond)
 	reg.Channel.SetActiveChannels(3)
+	reg.Channel.SetMaxChannels(10)
+	reg.Channel.ObserveActivationRejected("too_many_channels")
+	reg.Channel.ObserveIdleEvict()
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -76,6 +79,31 @@ func TestChannelMetricsTrackAppendFetchAndActiveChannels(t *testing.T) {
 		"node_name": "node-7",
 	})
 	require.Equal(t, float64(3), active.GetMetric()[0].GetGauge().GetValue())
+
+	maxChannels := requireMetricFamily(t, families, "wukongim_channel_max_channels")
+	require.Len(t, maxChannels.GetMetric(), 1)
+	requireMetricLabels(t, maxChannels.GetMetric()[0], map[string]string{
+		"node_id":   "7",
+		"node_name": "node-7",
+	})
+	require.Equal(t, float64(10), maxChannels.GetMetric()[0].GetGauge().GetValue())
+
+	rejected := requireMetricFamily(t, families, "wukongim_channel_activation_rejected_total")
+	require.Len(t, rejected.GetMetric(), 1)
+	requireMetricLabels(t, rejected.GetMetric()[0], map[string]string{
+		"node_id":   "7",
+		"node_name": "node-7",
+		"reason":    "too_many_channels",
+	})
+	require.Equal(t, float64(1), rejected.GetMetric()[0].GetCounter().GetValue())
+
+	evicted := requireMetricFamily(t, families, "wukongim_channel_idle_evictions_total")
+	require.Len(t, evicted.GetMetric(), 1)
+	requireMetricLabels(t, evicted.GetMetric()[0], map[string]string{
+		"node_id":   "7",
+		"node_name": "node-7",
+	})
+	require.Equal(t, float64(1), evicted.GetMetric()[0].GetCounter().GetValue())
 }
 
 func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T) {

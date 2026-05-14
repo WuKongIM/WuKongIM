@@ -189,6 +189,117 @@ func TestEnsureChannel(t *testing.T) {
 	require.Equal(t, uint64(1), store.stored[meta.Key])
 }
 
+func TestRuntimeIdleEvictionRemovesIdleChannelAndReleasesLimit(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	factory := newFakeReplicaFactory()
+	evictedKeys := make([]core.ChannelKey, 0, 1)
+	created, err := New(Config{
+		LocalNode:       1,
+		ReplicaFactory:  factory,
+		GenerationStore: newFakeGenerationStore(),
+		Limits: Limits{
+			MaxChannels: 1,
+		},
+		IdleEviction: IdleEvictionPolicy{
+			IdleTimeout: time.Second,
+		},
+		OnIdleEvict: func(key core.ChannelKey) {
+			evictedKeys = append(evictedKeys, key)
+		},
+		Tombstones: TombstonePolicy{
+			TombstoneTTL:    30 * time.Second,
+			CleanupInterval: 30 * time.Second,
+		},
+		Now: func() time.Time { return now },
+	})
+	require.NoError(t, err)
+	rt := created.(*runtime)
+	t.Cleanup(func() { require.NoError(t, rt.Close()) })
+
+	first := testMeta("room-idle-evict-1")
+	require.NoError(t, rt.EnsureChannel(first))
+
+	now = now.Add(2 * time.Second)
+	require.Equal(t, 1, rt.evictIdleChannels())
+	_, ok := rt.Channel(first.Key)
+	require.False(t, ok)
+	require.Equal(t, 0, rt.totalChannels())
+	require.Equal(t, 1, factory.replicas[0].closeCalls())
+	require.Equal(t, []core.ChannelKey{first.Key}, evictedKeys)
+
+	require.NoError(t, rt.EnsureChannel(testMeta("room-idle-evict-2")))
+	require.Equal(t, 1, rt.totalChannels())
+}
+
+func TestRuntimeIdleEvictionKeepsRecentlyTouchedChannel(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	created, err := New(Config{
+		LocalNode:       1,
+		ReplicaFactory:  newFakeReplicaFactory(),
+		GenerationStore: newFakeGenerationStore(),
+		IdleEviction: IdleEvictionPolicy{
+			IdleTimeout: time.Second,
+		},
+		Tombstones: TombstonePolicy{
+			TombstoneTTL:    30 * time.Second,
+			CleanupInterval: 30 * time.Second,
+		},
+		Now: func() time.Time { return now },
+	})
+	require.NoError(t, err)
+	rt := created.(*runtime)
+	t.Cleanup(func() { require.NoError(t, rt.Close()) })
+
+	meta := testMeta("room-idle-touch")
+	require.NoError(t, rt.EnsureChannel(meta))
+	now = now.Add(900 * time.Millisecond)
+	handle, ok := rt.Channel(meta.Key)
+	require.True(t, ok)
+	_, err = handle.Append(context.Background(), []core.Record{{Payload: []byte("x"), SizeBytes: 1}})
+	require.NoError(t, err)
+
+	now = now.Add(600 * time.Millisecond)
+	require.Equal(t, 0, rt.evictIdleChannels())
+	_, ok = rt.Channel(meta.Key)
+	require.True(t, ok)
+}
+
+func TestRuntimeCleanupRespectsIdleScanIntervalWhenTombstoneCleanupIsFaster(t *testing.T) {
+	var tombstoneDrops atomic.Int64
+	var idleEvicts atomic.Int64
+	created, err := New(Config{
+		LocalNode:       1,
+		ReplicaFactory:  newFakeReplicaFactory(),
+		GenerationStore: newFakeGenerationStore(),
+		IdleEviction: IdleEvictionPolicy{
+			IdleTimeout:  time.Millisecond,
+			ScanInterval: 2 * time.Second,
+		},
+		OnIdleEvict: func(core.ChannelKey) {
+			idleEvicts.Add(1)
+		},
+		Tombstones: TombstonePolicy{
+			TombstoneTTL:    time.Second,
+			CleanupInterval: 5 * time.Millisecond,
+		},
+	})
+	require.NoError(t, err)
+	rt := created.(*runtime)
+	rt.tombstones.setHooks(nil, func() {
+		tombstoneDrops.Add(1)
+	})
+	t.Cleanup(func() { require.NoError(t, rt.Close()) })
+
+	meta := testMeta("room-idle-scan-interval")
+	require.NoError(t, rt.EnsureChannel(meta))
+	require.Eventually(t, func() bool {
+		return tombstoneDrops.Load() >= 2
+	}, 300*time.Millisecond, 5*time.Millisecond)
+	require.Zero(t, idleEvicts.Load())
+	_, ok := rt.Channel(meta.Key)
+	require.True(t, ok)
+}
+
 func TestEnsureChannelLeaderLocalAppendNotifierDoesNotBlockCaller(t *testing.T) {
 	store := newFakeGenerationStore()
 	factory := newFakeReplicaFactory()
@@ -386,6 +497,24 @@ func TestEnsureChannelRespectsMaxChannelsUnderConcurrency(t *testing.T) {
 	factory, ok := rt.replicaFactory.(*fakeReplicaFactory)
 	require.True(t, ok)
 	require.Len(t, factory.created, maxChannels)
+}
+
+func TestEnsureChannelNotifiesMaxChannelRejection(t *testing.T) {
+	rejected := make([]core.ChannelKey, 0, 1)
+	rt := newTestRuntimeWithOptions(
+		t,
+		withMaxChannels(1),
+		withActivationRejectHook(func(key core.ChannelKey, err error) {
+			if errors.Is(err, ErrTooManyChannels) {
+				rejected = append(rejected, key)
+			}
+		}),
+	)
+
+	require.NoError(t, rt.EnsureChannel(testMeta("room-cap-1")))
+	second := testMeta("room-cap-2")
+	require.ErrorIs(t, rt.EnsureChannel(second), ErrTooManyChannels)
+	require.Equal(t, []core.ChannelKey{second.Key}, rejected)
 }
 
 func TestRemoveChannelTombstoneFailureKeepsChannel(t *testing.T) {

@@ -1,0 +1,46 @@
+groups:
+  - name: wukongim-channel-runtime-capacity
+    rules:
+      - alert: WKChannelRuntimeCapacityHigh
+        expr: |
+          (
+            sum by (cluster, node_name) (wukongim_channel_active_channels)
+            /
+            clamp_min(max by (cluster, node_name) (wukongim_channel_max_channels), 1)
+          ) > 0.8
+          and on (cluster, node_name)
+          max by (cluster, node_name) (wukongim_channel_max_channels) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WuKongIM channel runtime capacity is above 80%"
+          description: "Node {{ $labels.node_name }} active channel runtimes are above 80% of WK_CLUSTER_MAX_CHANNELS."
+
+      - alert: WKChannelRuntimeCapacityCritical
+        expr: |
+          (
+            sum by (cluster, node_name) (wukongim_channel_active_channels)
+            /
+            clamp_min(max by (cluster, node_name) (wukongim_channel_max_channels), 1)
+          ) > 0.9
+          and on (cluster, node_name)
+          max by (cluster, node_name) (wukongim_channel_max_channels) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "WuKongIM channel runtime capacity is above 90%"
+          description: "Node {{ $labels.node_name }} active channel runtimes are above 90% of WK_CLUSTER_MAX_CHANNELS."
+
+      - alert: WKChannelRuntimeActivationRejected
+        expr: |
+          sum by (cluster, node_name, reason) (
+            increase(wukongim_channel_activation_rejected_total{reason="too_many_channels"}[5m])
+          ) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WuKongIM channel runtime activations are being rejected"
+          description: "Node {{ $labels.node_name }} rejected channel runtime activations because WK_CLUSTER_MAX_CHANNELS was reached."

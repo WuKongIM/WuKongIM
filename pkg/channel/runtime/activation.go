@@ -26,6 +26,9 @@ type authoritativeRefresher interface {
 
 func (r *runtime) ensureChannelForIngress(ctx context.Context, key core.ChannelKey, source ActivationSource) (*channel, bool, error) {
 	if ch, ok := r.lookupChannel(key); ok {
+		if !ch.touch() {
+			return nil, false, ErrChannelNotFound
+		}
 		return ch, false, nil
 	}
 	if r == nil || r.cfg.Activator == nil {
@@ -37,6 +40,9 @@ func (r *runtime) ensureChannelForIngress(ctx context.Context, key core.ChannelK
 	ch, ok := r.lookupChannel(key)
 	if !ok {
 		return nil, false, ErrChannelNotFound
+	}
+	if !ch.touch() {
+		return nil, true, ErrChannelNotFound
 	}
 	return ch, true, nil
 }

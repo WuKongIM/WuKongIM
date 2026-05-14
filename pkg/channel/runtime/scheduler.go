@@ -133,6 +133,19 @@ func (s *scheduler) hasReady() bool {
 	return false
 }
 
+func (s *scheduler) hasChannelWork(key core.ChannelKey) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.queued[key]; ok {
+		return true
+	}
+	if _, ok := s.processing[key]; ok {
+		return true
+	}
+	_, ok := s.dirty[key]
+	return ok
+}
+
 func (s *scheduler) clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -195,6 +208,10 @@ func (r *runtime) processChannel(key core.ChannelKey) {
 	if !ok {
 		return
 	}
+	if !ch.beginUse() {
+		return
+	}
+	defer ch.endUse()
 	ch.runPendingTasks()
 }
 

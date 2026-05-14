@@ -64,6 +64,9 @@ func TestLoadConfigParsesConfFileIntoAppConfig(t *testing.T) {
 		"WK_NODE_DATA_DIR="+dataDir,
 		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
 		"WK_CLUSTER_SLOT_COUNT=1",
+		"WK_CLUSTER_MAX_CHANNELS=2048",
+		"WK_CLUSTER_CHANNEL_IDLE_TIMEOUT=30m",
+		"WK_CLUSTER_CHANNEL_IDLE_SCAN_INTERVAL=1m",
 		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
 		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"stdnet","protocol":"wkproto"}]`,
 		"WK_API_LISTEN_ADDR=127.0.0.1:8080",
@@ -75,6 +78,9 @@ func TestLoadConfigParsesConfFileIntoAppConfig(t *testing.T) {
 	require.Equal(t, "node-1", cfg.Node.Name)
 	require.Equal(t, dataDir, cfg.Node.DataDir)
 	require.Equal(t, "127.0.0.1:7000", cfg.Cluster.ListenAddr)
+	require.Equal(t, 2048, cfg.Cluster.MaxChannels)
+	require.Equal(t, 30*time.Minute, cfg.Cluster.ChannelIdleTimeout)
+	require.Equal(t, time.Minute, cfg.Cluster.ChannelIdleScanInterval)
 	require.Equal(t, "127.0.0.1:8080", cfg.API.ListenAddr)
 	require.Len(t, cfg.Cluster.Nodes, 1)
 	require.Empty(t, cfg.Cluster.Slots)

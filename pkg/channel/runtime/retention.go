@@ -11,6 +11,10 @@ func (r *runtime) ApplyRetentionBoundary(ctx context.Context, key core.ChannelKe
 	if !ok {
 		return ErrChannelNotFound
 	}
+	if !ch.beginUse() {
+		return ErrChannelNotFound
+	}
+	defer ch.endUse()
 	return ch.replica.ApplyRetentionBoundary(ctx, throughSeq)
 }
 
@@ -19,5 +23,9 @@ func (r *runtime) RetentionView(key core.ChannelKey) (core.RetentionView, error)
 	if !ok {
 		return core.RetentionView{}, ErrChannelNotFound
 	}
+	if !ch.beginUse() {
+		return core.RetentionView{}, ErrChannelNotFound
+	}
+	defer ch.endUse()
 	return ch.replica.RetentionView()
 }

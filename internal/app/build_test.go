@@ -150,6 +150,9 @@ func TestLoadRecentConversationMessagesTreatsNotReadyAsEmpty(t *testing.T) {
 
 func TestBuildLongPollForwardsReplicationSettingsIntoChannelConfigs(t *testing.T) {
 	cfg := testConfig(t)
+	cfg.Cluster.MaxChannels = 2048
+	cfg.Cluster.ChannelIdleTimeout = 30 * time.Minute
+	cfg.Cluster.ChannelIdleScanInterval = time.Minute
 	cfg.Cluster.LongPollLaneCount = 16
 	cfg.Cluster.LongPollMaxWait = 2 * time.Millisecond
 	cfg.Cluster.LongPollMaxBytes = 128 * 1024
@@ -171,6 +174,14 @@ func TestBuildLongPollForwardsReplicationSettingsIntoChannelConfigs(t *testing.T
 	require.Equal(t, 2*time.Millisecond, appRuntimeDurationField(t, app.isrRuntime, "cfg", "LongPollMaxWait"))
 	require.Equal(t, 128*1024, appRuntimeIntField(t, app.isrRuntime, "cfg", "LongPollMaxBytes"))
 	require.Equal(t, 32, appRuntimeIntField(t, app.isrRuntime, "cfg", "LongPollMaxChannels"))
+	require.Equal(t, 2048, appRuntimeNestedIntField(t, app.isrRuntime, "cfg", "Limits", "MaxChannels"))
+	require.Equal(t, 30*time.Minute, appRuntimeNestedDurationField(t, app.isrRuntime, "cfg", "IdleEviction", "IdleTimeout"))
+	require.Equal(t, time.Minute, appRuntimeNestedDurationField(t, app.isrRuntime, "cfg", "IdleEviction", "ScanInterval"))
+	families, err := app.metrics.Gather()
+	require.NoError(t, err)
+	maxChannels := requireMetricFamilyByName(t, families, "wukongim_channel_max_channels")
+	require.Len(t, maxChannels.Metric, 1)
+	require.Equal(t, float64(2048), maxChannels.Metric[0].GetGauge().GetValue())
 	require.Equal(t, 16, appTransportIntField(t, app.isrTransport, "longPollLaneCount"))
 	require.Equal(t, 2*time.Millisecond, appTransportDurationField(t, app.isrTransport, "longPollMaxWait"))
 	require.Equal(t, 128*1024, appTransportIntField(t, app.isrTransport, "longPollMaxBytes"))
@@ -461,6 +472,54 @@ func appRuntimeDurationField(t *testing.T, appRuntime any, structField, name str
 	field := cfg.FieldByName(name)
 	if !field.IsValid() {
 		t.Fatalf("runtime config missing %s field", name)
+	}
+	return time.Duration(reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Int())
+}
+
+func appRuntimeNestedIntField(t *testing.T, appRuntime any, structField, nested, name string) int {
+	t.Helper()
+
+	value := reflect.ValueOf(appRuntime)
+	if value.Kind() != reflect.Pointer || value.IsNil() {
+		t.Fatalf("runtime is %s, want non-nil pointer", value.Kind())
+	}
+	cfgField := value.Elem().FieldByName(structField)
+	if !cfgField.IsValid() {
+		t.Fatalf("runtime missing %s field", structField)
+	}
+	cfg := reflect.NewAt(cfgField.Type(), unsafe.Pointer(cfgField.UnsafeAddr())).Elem()
+	nestedField := cfg.FieldByName(nested)
+	if !nestedField.IsValid() {
+		t.Fatalf("runtime config missing %s field", nested)
+	}
+	nestedValue := reflect.NewAt(nestedField.Type(), unsafe.Pointer(nestedField.UnsafeAddr())).Elem()
+	field := nestedValue.FieldByName(name)
+	if !field.IsValid() {
+		t.Fatalf("runtime config missing %s.%s field", nested, name)
+	}
+	return int(reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Int())
+}
+
+func appRuntimeNestedDurationField(t *testing.T, appRuntime any, structField, nested, name string) time.Duration {
+	t.Helper()
+
+	value := reflect.ValueOf(appRuntime)
+	if value.Kind() != reflect.Pointer || value.IsNil() {
+		t.Fatalf("runtime is %s, want non-nil pointer", value.Kind())
+	}
+	cfgField := value.Elem().FieldByName(structField)
+	if !cfgField.IsValid() {
+		t.Fatalf("runtime missing %s field", structField)
+	}
+	cfg := reflect.NewAt(cfgField.Type(), unsafe.Pointer(cfgField.UnsafeAddr())).Elem()
+	nestedField := cfg.FieldByName(nested)
+	if !nestedField.IsValid() {
+		t.Fatalf("runtime config missing %s field", nested)
+	}
+	nestedValue := reflect.NewAt(nestedField.Type(), unsafe.Pointer(nestedField.UnsafeAddr())).Elem()
+	field := nestedValue.FieldByName(name)
+	if !field.IsValid() {
+		t.Fatalf("runtime config missing %s.%s field", nested, name)
 	}
 	return time.Duration(reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Int())
 }
