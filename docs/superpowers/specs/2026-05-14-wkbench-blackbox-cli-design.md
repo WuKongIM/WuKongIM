@@ -81,7 +81,7 @@ The coordinator does not produce business load directly.
 Users manually start workers on load-generator machines:
 
 ```bash
-wkbench worker --listen 0.0.0.0:19090 --work-dir ./wkbench-data --control-token "$WK_BENCH_WORKER_TOKEN"
+wkbench worker --listen 192.168.10.21:19090 --work-dir ./wkbench-data --control-token "$WK_BENCH_WORKER_TOKEN"
 ```
 
 Each worker owns only the shard assigned by the coordinator. It creates data through target HTTP or bench APIs, opens real WKProto connections, runs message traffic, verifies recv behavior, and reports aggregated metrics.
@@ -101,7 +101,7 @@ The target is a user-managed WuKongIM cluster. `wkbench` talks to it only throug
 
 ```bash
 wkbench run --target target.yaml --scenario scenario.yaml --workers workers.yaml
-wkbench worker --listen 0.0.0.0:19090 --work-dir ./wkbench-data --control-token "$WK_BENCH_WORKER_TOKEN"
+wkbench worker --listen 192.168.10.21:19090 --work-dir ./wkbench-data --control-token "$WK_BENCH_WORKER_TOKEN"
 wkbench validate --target target.yaml --scenario scenario.yaml --workers workers.yaml
 wkbench doctor --target target.yaml --workers workers.yaml
 wkbench report --run-dir ./runs/bench-20260514-001
@@ -344,6 +344,8 @@ prepare:
 
 Profile rates are defined by one or more `messages.traffic` entries referencing the profile through `channel_ref`. Do not add competing rate fields directly under `channels.profiles`.
 
+`rate_per_channel` is always a global logical-channel rate before sharding. The coordinator compiles worker-local schedules from that global budget. For a split huge group, worker local rate is proportional to owned traffic partitions, for example `worker_rate = rate_per_channel * owned_partitions / partition_count`. Workers must not each emit the full `rate_per_channel`.
+
 ## 6. Channel Profile Semantics
 
 The schema is profile-based so later channel types can be added without changing the CLI shape. v1 enables only `person` and `group`.
@@ -450,7 +452,7 @@ bench-c:
   traffic_partition: 2-3/4
 ```
 
-Only one assigned channel owner calls `/channel`. All workers can add their subscriber batches. Traffic is partitioned by message index, for example `message_index % partition_count`.
+Only one assigned channel owner calls `/channel`. All workers can add their subscriber batches. Traffic is partitioned by message index, for example `message_index % partition_count`, and the coordinator divides the configured global channel rate across those partitions.
 
 Huge-group prepare ownership rules:
 
@@ -545,7 +547,7 @@ The production bench client should be implemented outside `test/e2e/suite` becau
 
 ### 9.4 Traffic Scheduler
 
-Generates sends from assigned traffic plans using deterministic randomness. v1 supports `rate_per_channel` and can later add global-rate and burst modes.
+Generates sends from assigned traffic plans using deterministic randomness. v1 supports worker-local schedules derived from global `rate_per_channel` budgets and can later add global-rate and burst modes.
 
 ### 9.5 Recv Verifier
 
@@ -584,6 +586,7 @@ Worker control rules:
 - Coordinator requests include `Authorization: Bearer <control-token>`.
 - `wkbench doctor` verifies the token before a run can be assigned.
 - Workers should bind to a private address by default in documentation examples; `0.0.0.0` examples must mention firewall isolation.
+- Use `--listen 0.0.0.0:19090` only on a private benchmark network or behind firewall rules that allow coordinator hosts only.
 - If `--insecure-control` is used, the worker includes that fact in `/v1/info`, and the coordinator prints a warning in preflight and the final report.
 
 Worker phase state is monotonic:
@@ -917,7 +920,7 @@ Semantics:
 POST /bench/v1/channels/subscribers
 ```
 
-v1 supports only group subscribers. `reset=false` is the default so multiple workers can add disjoint member batches to the same huge group.
+v1 supports only group subscribers. `reset=false` is the only accepted value so multiple workers can add disjoint member batches to the same huge group without a destructive reset race.
 
 Request:
 
@@ -955,7 +958,7 @@ Response:
 Semantics:
 
 - `run_id` and `batch_id` are required.
-- `reset=false` is required for multi-worker huge-group preparation. `reset=true` is only allowed for a single owner-owned channel batch and must be rejected when the plan marks the channel as split across workers.
+- `reset=false` is required. `reset=true` is rejected by bench/v1 with `400 bad_request`; destructive subscriber replacement can be introduced later as a separate explicitly named endpoint if needed.
 - Re-adding an existing subscriber is success and increments `skipped` or `created_or_updated` according to implementation detail, but must not fail the batch.
 - Partial success should be avoided. If a batch cannot be applied atomically, the response must include per-item errors and the worker must retry only deterministic failed batch IDs.
 
@@ -1117,8 +1120,8 @@ It must not use forbidden server, cluster, storage, or runtime packages.
 - `run_id` is required for mutating routes.
 - `batch_id` is required, idempotent for identical retries, and conflicts on changed bodies.
 - Batch channels reject unsupported channel types.
-- Batch subscribers are idempotent and default to `reset=false`.
-- Batch subscribers reject unsafe `reset=true` for split huge-group preparation.
+- Batch subscribers are idempotent and accept only `reset=false`.
+- Batch subscribers reject `reset=true`.
 
 ### 14.5 Focused Integration Tests
 
