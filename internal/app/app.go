@@ -26,6 +26,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelreplica "github.com/WuKongIM/WuKongIM/pkg/channel/replica"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
@@ -84,6 +85,7 @@ type App struct {
 	isrTransport         *channeltransport.Transport
 	dataPlanePool        *transport.Pool
 	dataPlaneClient      *transport.Client
+	replicaExecutionPool *channelreplica.ExecutionPool
 	metrics              *obsmetrics.Registry
 	diagnostics          *obsdiagnostics.Store
 	diagnosticsTracking  *obsdiagnostics.TrackingRules

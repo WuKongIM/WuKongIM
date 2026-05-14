@@ -149,6 +149,10 @@ type channelReplicaFactory struct {
 	appendGroupCommitMaxWait    time.Duration
 	appendGroupCommitMaxRecords int
 	appendGroupCommitMaxBytes   int
+	executionMode               string
+	executionWorkers            int
+	executionQueueSize          int
+	executionPool               *channelreplica.ExecutionPool
 	onStateChange               func(channel.ChannelKey)
 	logger                      wklog.Logger
 }
@@ -182,6 +186,16 @@ func newChannelReplicaFactory(db *channelstore.Engine, localNode channel.NodeID,
 	}
 }
 
+func (f *channelReplicaFactory) setExecutionPool(mode string, workers, queueSize int, pool *channelreplica.ExecutionPool) {
+	if f == nil {
+		return
+	}
+	f.executionMode = mode
+	f.executionWorkers = workers
+	f.executionQueueSize = queueSize
+	f.executionPool = pool
+}
+
 func (f *channelReplicaFactory) New(cfg channelruntime.ChannelConfig) (channelreplica.Replica, error) {
 	store := f.db.ForChannel(cfg.ChannelKey, cfg.Meta.ID)
 	onStateChange := cfg.OnReplicaStateChange
@@ -204,8 +218,13 @@ func (f *channelReplicaFactory) New(cfg channelruntime.ChannelConfig) (channelre
 		AppendGroupCommitMaxWait:    f.appendGroupCommitMaxWait,
 		AppendGroupCommitMaxRecords: f.appendGroupCommitMaxRecords,
 		AppendGroupCommitMaxBytes:   f.appendGroupCommitMaxBytes,
-		Logger:                      f.logger,
-		OnStateChange:               onStateChange,
+		Execution: channelreplica.ExecutionConfig{
+			Mode:        channelreplica.ExecutionMode(f.executionMode),
+			Pool:        f.executionPool,
+			MailboxSize: f.executionQueueSize,
+		},
+		Logger:        f.logger,
+		OnStateChange: onStateChange,
 	})
 }
 

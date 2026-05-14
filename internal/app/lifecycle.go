@@ -460,6 +460,10 @@ func (a *App) closeChannelLogDB() error {
 	if a.channelLog != nil {
 		err = errors.Join(err, a.channelLog.Close())
 	}
+	if a.replicaExecutionPool != nil {
+		err = errors.Join(err, a.replicaExecutionPool.Close())
+		a.replicaExecutionPool = nil
+	}
 	if a.dataPlaneClient != nil {
 		a.dataPlaneClient.Stop()
 		a.dataPlaneClient = nil

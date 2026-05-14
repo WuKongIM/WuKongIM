@@ -75,6 +75,9 @@ func supportedConfigExampleKeys() []string {
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_WAIT",
 		"WK_CLUSTER_ADVERTISE_ADDR",
 		"WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR",
+		"WK_CLUSTER_CHANNEL_EXECUTION_MODE",
+		"WK_CLUSTER_CHANNEL_EXECUTION_QUEUE_SIZE",
+		"WK_CLUSTER_CHANNEL_EXECUTION_WORKERS",
 		"WK_CLUSTER_CHANNEL_IDLE_SCAN_INTERVAL",
 		"WK_CLUSTER_CHANNEL_IDLE_TIMEOUT",
 		"WK_CLUSTER_CONFIG_CHANGE_RETRY_BUDGET",
@@ -857,6 +860,58 @@ func TestConfigPreservesExplicitClusterMaxChannels(t *testing.T) {
 	require.Equal(t, 4096, cfg.Cluster.MaxChannels)
 	require.Equal(t, 30*time.Minute, cfg.Cluster.ChannelIdleTimeout)
 	require.Equal(t, time.Minute, cfg.Cluster.ChannelIdleScanInterval)
+}
+
+func TestConfigPreservesChannelExecutionPoolSettings(t *testing.T) {
+	cfg := validConfig()
+	cfg.Cluster.ChannelExecutionMode = "pooled"
+	cfg.Cluster.ChannelExecutionWorkers = 8
+	cfg.Cluster.ChannelExecutionQueueSize = 4096
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.Equal(t, "pooled", cfg.Cluster.ChannelExecutionMode)
+	require.Equal(t, 8, cfg.Cluster.ChannelExecutionWorkers)
+	require.Equal(t, 4096, cfg.Cluster.ChannelExecutionQueueSize)
+}
+
+func TestConfigRejectsInvalidChannelExecutionSettings(t *testing.T) {
+	tests := []struct {
+		name string
+		edit func(*ClusterConfig)
+		want string
+	}{
+		{
+			name: "invalid mode",
+			edit: func(cfg *ClusterConfig) {
+				cfg.ChannelExecutionMode = "bogus"
+			},
+			want: "channel execution mode",
+		},
+		{
+			name: "negative workers",
+			edit: func(cfg *ClusterConfig) {
+				cfg.ChannelExecutionWorkers = -1
+			},
+			want: "channel execution worker",
+		},
+		{
+			name: "negative queue size",
+			edit: func(cfg *ClusterConfig) {
+				cfg.ChannelExecutionQueueSize = -1
+			},
+			want: "channel execution",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validConfig()
+			tt.edit(&cfg.Cluster)
+
+			require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), tt.want)
+		})
+	}
 }
 
 func TestConfigRejectsNegativeClusterMaxChannels(t *testing.T) {
