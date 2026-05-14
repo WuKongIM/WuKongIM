@@ -39,6 +39,14 @@ type ReconcileProbeSource interface {
 	ProbeQuorum(ctx context.Context, meta channel.Meta, local channel.ReplicaState) ([]channel.ReplicaReconcileProof, error)
 }
 
+// ExecutionObserver receives low-cardinality pooled execution metrics.
+type ExecutionObserver interface {
+	SetQueueDepth(int)
+	ObserveEnqueue(result string)
+	SetWorkerBusyRatio(float64)
+	ObserveMailboxWait(time.Duration)
+}
+
 // ExecutionMode selects how replica loop and effect work is executed.
 type ExecutionMode string
 

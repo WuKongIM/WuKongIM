@@ -21,6 +21,10 @@ type ChannelMetrics struct {
 	maxChannels             prometheus.Gauge
 	activationRejectedTotal *prometheus.CounterVec
 	idleEvictionsTotal      prometheus.Counter
+	executionQueueDepth     prometheus.Gauge
+	executionEnqueueTotal   *prometheus.CounterVec
+	executionWorkerBusy     prometheus.Gauge
+	executionMailboxWait    prometheus.Histogram
 	mu                      sync.Mutex
 	activeChannelsV         int64
 	maxChannelsV            int64
@@ -70,6 +74,27 @@ func newChannelMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 			Help:        "Total number of idle local channel runtimes evicted from this node.",
 			ConstLabels: labels,
 		}),
+		executionQueueDepth: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_channel_execution_queue_depth",
+			Help:        "Current queued work depth across local pooled channel replica execution.",
+			ConstLabels: labels,
+		}),
+		executionEnqueueTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channel_execution_enqueue_total",
+			Help:        "Total number of local pooled channel replica execution enqueue attempts.",
+			ConstLabels: labels,
+		}, []string{"result"}),
+		executionWorkerBusy: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "wukongim_channel_execution_worker_busy_ratio",
+			Help:        "Approximate busy ratio for local pooled channel replica execution workers.",
+			ConstLabels: labels,
+		}),
+		executionMailboxWait: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:        "wukongim_channel_execution_mailbox_wait_duration_seconds",
+			Help:        "Time local channel replica work waits in pooled execution mailboxes.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}),
 	}
 
 	registry.MustRegister(
@@ -81,6 +106,10 @@ func newChannelMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		m.maxChannels,
 		m.activationRejectedTotal,
 		m.idleEvictionsTotal,
+		m.executionQueueDepth,
+		m.executionEnqueueTotal,
+		m.executionWorkerBusy,
+		m.executionMailboxWait,
 	)
 
 	return m
@@ -140,6 +169,49 @@ func (m *ChannelMetrics) ObserveIdleEvict() {
 		return
 	}
 	m.idleEvictionsTotal.Inc()
+}
+
+func (m *ChannelMetrics) SetExecutionQueueDepth(v int) {
+	if m == nil {
+		return
+	}
+	if v < 0 {
+		v = 0
+	}
+	m.executionQueueDepth.Set(float64(v))
+}
+
+func (m *ChannelMetrics) ObserveExecutionEnqueue(result string) {
+	if m == nil {
+		return
+	}
+	if result == "" {
+		result = "unknown"
+	}
+	m.executionEnqueueTotal.WithLabelValues(result).Inc()
+}
+
+func (m *ChannelMetrics) SetExecutionWorkerBusyRatio(v float64) {
+	if m == nil {
+		return
+	}
+	if v < 0 {
+		v = 0
+	}
+	if v > 1 {
+		v = 1
+	}
+	m.executionWorkerBusy.Set(v)
+}
+
+func (m *ChannelMetrics) ObserveExecutionMailboxWait(d time.Duration) {
+	if m == nil {
+		return
+	}
+	if d < 0 {
+		d = 0
+	}
+	m.executionMailboxWait.Observe(d.Seconds())
 }
 
 func (m *ChannelMetrics) Snapshot() ChannelSnapshot {

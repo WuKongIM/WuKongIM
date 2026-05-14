@@ -26,11 +26,58 @@ type channelMetaMetricsObserver struct {
 	metrics channelMetaMetrics
 }
 
+type channelReplicaExecutionMetrics interface {
+	SetExecutionQueueDepth(int)
+	ObserveExecutionEnqueue(string)
+	SetExecutionWorkerBusyRatio(float64)
+	ObserveExecutionMailboxWait(time.Duration)
+}
+
+type channelReplicaExecutionMetricsObserver struct {
+	metrics channelReplicaExecutionMetrics
+}
+
 func (o channelMetaMetricsObserver) OnMetaRefresh(event runtimechannelmeta.MetaRefreshEvent) {
 	if o.metrics == nil {
 		return
 	}
 	o.metrics.ObserveMetaRefresh(string(event.Result), event.Duration)
+}
+
+func (o channelReplicaExecutionMetricsObserver) SetQueueDepth(v int) {
+	metrics := o.channelMetrics()
+	if metrics == nil {
+		return
+	}
+	metrics.SetExecutionQueueDepth(v)
+}
+
+func (o channelReplicaExecutionMetricsObserver) ObserveEnqueue(result string) {
+	metrics := o.channelMetrics()
+	if metrics == nil {
+		return
+	}
+	metrics.ObserveExecutionEnqueue(result)
+}
+
+func (o channelReplicaExecutionMetricsObserver) SetWorkerBusyRatio(v float64) {
+	metrics := o.channelMetrics()
+	if metrics == nil {
+		return
+	}
+	metrics.SetExecutionWorkerBusyRatio(v)
+}
+
+func (o channelReplicaExecutionMetricsObserver) ObserveMailboxWait(d time.Duration) {
+	metrics := o.channelMetrics()
+	if metrics == nil {
+		return
+	}
+	metrics.ObserveExecutionMailboxWait(d)
+}
+
+func (o channelReplicaExecutionMetricsObserver) channelMetrics() channelReplicaExecutionMetrics {
+	return o.metrics
 }
 
 func (s *channelMetaSync) Start() error {

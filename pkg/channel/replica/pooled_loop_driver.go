@@ -9,8 +9,9 @@ import (
 )
 
 type pooledLoopMessage struct {
-	command *replicaLoopCommand
-	event   machineEvent
+	command  *replicaLoopCommand
+	event    machineEvent
+	queuedAt time.Time
 }
 
 type pooledLoopDriver struct {
@@ -103,30 +104,39 @@ func (d *pooledLoopDriver) enqueue(ctx context.Context, msg pooledLoopMessage) e
 	defer d.mu.Unlock()
 
 	if d.closed {
+		d.pool.observeEnqueue("closed")
 		return channel.ErrNotLeader
 	}
 	if len(d.queue) >= d.mailboxSize {
+		d.pool.observeEnqueue("queue_full")
 		return channel.ErrNotReady
 	}
+	msg.queuedAt = d.pool.cfg.Now()
 	d.queue = append(d.queue, msg)
+	d.pool.observeEnqueue("ok")
+	d.pool.observeQueueDepth()
 	if d.queued {
 		return nil
 	}
 	d.queued = true
 	select {
 	case d.pool.ready <- d:
+		d.pool.observeQueueDepth()
 		return nil
 	case <-d.pool.stopCh:
 		d.queued = false
 		d.queue = d.queue[:len(d.queue)-1]
+		d.pool.observeEnqueue("closed")
 		return channel.ErrNotLeader
 	case <-ctx.Done():
 		d.queued = false
 		d.queue = d.queue[:len(d.queue)-1]
+		d.pool.observeEnqueue("canceled")
 		return ctx.Err()
 	default:
 		d.queued = false
 		d.queue = d.queue[:len(d.queue)-1]
+		d.pool.observeEnqueue("queue_full")
 		return channel.ErrNotReady
 	}
 }
@@ -149,6 +159,9 @@ func (d *pooledLoopDriver) drain() {
 		d.queue = d.queue[:len(d.queue)-1]
 		d.mu.Unlock()
 
+		if !msg.queuedAt.IsZero() {
+			d.pool.observeMailboxWait(d.pool.cfg.Now().Sub(msg.queuedAt))
+		}
 		d.process(msg)
 		processed++
 		if processed < d.turnBudget {
