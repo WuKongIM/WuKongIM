@@ -109,6 +109,14 @@ func (s *Server) registerRoutes() {
 	tasks.GET("/tasks", s.handleTasks)
 	tasks.GET("/tasks/:slot_id", s.handleTask)
 
+	distributedTasks := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		distributedTasks.Use(s.requirePermission("cluster.task", "r"))
+	}
+	distributedTasks.GET("/distributed-tasks/summary", s.handleDistributedTasksSummary)
+	distributedTasks.GET("/distributed-tasks", s.handleDistributedTasks)
+	distributedTasks.GET("/distributed-tasks/:domain/:id", s.handleDistributedTask)
+
 	overview := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		overview.Use(s.requirePermission("cluster.overview", "r"))

@@ -17,6 +17,7 @@ var (
 	userListCursorMagic           = [...]byte{'W', 'K', 'U', 'L'}
 	businessChannelCursorMagic    = [...]byte{'W', 'K', 'C', 'L'}
 	businessChannelMemberMagic    = [...]byte{'W', 'K', 'C', 'M'}
+	distributedTaskCursorMagic    = [...]byte{'W', 'K', 'D', 'T'}
 )
 
 func encodeMessageCursorBinary(cursor managementusecase.MessageListCursor) string {
@@ -56,6 +57,48 @@ func decodeMessageCursorPayload(payload []byte) (managementusecase.MessageListCu
 		return decodeMessageCursorBinary(payload)
 	}
 	return decodeLegacyMessageCursorJSON(payload)
+}
+
+func encodeDistributedTaskCursor(offset int) string {
+	if offset <= 0 {
+		return ""
+	}
+	var data [len(distributedTaskCursorMagic) + 1 + 4]byte
+	copy(data[:], distributedTaskCursorMagic[:])
+	data[len(distributedTaskCursorMagic)] = managerCursorVersion
+	binary.BigEndian.PutUint32(data[len(distributedTaskCursorMagic)+1:], uint32(offset))
+	return encodeCursorBase64(data[:])
+}
+
+func decodeDistributedTaskCursor(raw string) (int, error) {
+	if raw == "" {
+		return 0, nil
+	}
+	var stack [64]byte
+	decodedLen := base64.RawURLEncoding.DecodedLen(len(raw))
+	if decodedLen > len(stack) {
+		payload, err := decodeCursorBase64Heap(raw, decodedLen)
+		if err != nil {
+			return 0, err
+		}
+		return decodeDistributedTaskCursorPayload(payload)
+	}
+	n, err := decodeRawURLBase64String(stack[:decodedLen], raw)
+	if err != nil {
+		return 0, err
+	}
+	return decodeDistributedTaskCursorPayload(stack[:n])
+}
+
+func decodeDistributedTaskCursorPayload(payload []byte) (int, error) {
+	if len(payload) != len(distributedTaskCursorMagic)+1+4 || !hasCursorMagic(payload, distributedTaskCursorMagic) || payload[len(distributedTaskCursorMagic)] != managerCursorVersion {
+		return 0, strconv.ErrSyntax
+	}
+	offset := binary.BigEndian.Uint32(payload[len(distributedTaskCursorMagic)+1:])
+	if offset == 0 {
+		return 0, strconv.ErrSyntax
+	}
+	return int(offset), nil
 }
 
 func decodeMessageCursorBinary(payload []byte) (managementusecase.MessageListCursor, error) {

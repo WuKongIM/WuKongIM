@@ -2467,6 +2467,277 @@ func TestManagerTaskDetailReturnsServiceUnavailableWhenLeaderConsistentReadUnava
 	require.JSONEq(t, `{"error":"service_unavailable","message":"controller leader consistent read unavailable"}`, rec.Body.String())
 }
 
+func TestManagerDistributedTasksRejectsMissingToken(t *testing.T) {
+	srv := New(Options{
+		Auth:       testAuthConfig(nil),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/distributed-tasks", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	require.JSONEq(t, `{"error":"unauthorized","message":"unauthorized"}`, rec.Body.String())
+}
+
+func TestManagerDistributedTasksRejectsInsufficientPermission(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "viewer",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.slot",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/distributed-tasks", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "viewer"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.JSONEq(t, `{"error":"forbidden","message":"forbidden"}`, rec.Body.String())
+}
+
+func TestManagerDistributedTasksReturnsFilteredList(t *testing.T) {
+	updated := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
+	var query managementusecase.DistributedTaskQuery
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.task",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{
+			distributedTasksReqSink: &query,
+			distributedTasks: managementusecase.DistributedTaskListResult{
+				Total: 1,
+				Items: []managementusecase.DistributedTask{{
+					ID:         "slot-reconcile:1",
+					Domain:     managementusecase.DistributedTaskDomainSlotReconcile,
+					Kind:       "repair",
+					Status:     managementusecase.DistributedTaskStatusRetrying,
+					Phase:      "catch_up",
+					Scope:      managementusecase.DistributedTaskScope{Type: managementusecase.DistributedTaskScopeSlot, ID: "1", SlotID: 1},
+					TargetNode: 3,
+					UpdatedAt:  &updated,
+					Links:      map[string]string{"slot": "/slots?slot_id=1"},
+				}},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/distributed-tasks?domain=slot_reconcile&status=retrying&node_id=3&scope=slot&keyword=repair&limit=25", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, managementusecase.DistributedTaskDomainSlotReconcile, query.Domain)
+	require.Equal(t, managementusecase.DistributedTaskStatusRetrying, query.Status)
+	require.Equal(t, uint64(3), query.NodeID)
+	require.Equal(t, managementusecase.DistributedTaskScopeSlot, query.Scope)
+	require.Equal(t, "repair", query.Keyword)
+	require.Equal(t, 25, query.Limit)
+	require.JSONEq(t, `{
+		"total": 1,
+		"items": [{
+			"id": "slot-reconcile:1",
+			"domain": "slot_reconcile",
+			"kind": "repair",
+			"status": "retrying",
+			"phase": "catch_up",
+			"scope": {"type":"slot","id":"1","slot_id":1,"channel_id":"","channel_type":0,"node_id":0},
+			"source_node": 0,
+			"target_node": 3,
+			"owner_node": 0,
+			"attempt": 0,
+			"next_run_at": null,
+			"created_at": null,
+			"updated_at": "2026-05-14T10:00:00Z",
+			"last_error": "",
+			"summary": "",
+			"links": {"slot":"/slots?slot_id=1"}
+		}],
+		"next_cursor": "",
+		"has_more": false,
+		"partial": false,
+		"warnings": []
+	}`, rec.Body.String())
+}
+
+func TestManagerDistributedTasksSummaryReturnsCounts(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.task",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{
+			distributedTaskSummary: managementusecase.DistributedTaskSummary{
+				Total: 2,
+				ByStatus: map[managementusecase.DistributedTaskStatus]int{
+					managementusecase.DistributedTaskStatusRetrying: 1,
+					managementusecase.DistributedTaskStatusRunning:  1,
+				},
+				ByDomain: map[managementusecase.DistributedTaskDomain]int{
+					managementusecase.DistributedTaskDomainSlotReconcile:  1,
+					managementusecase.DistributedTaskDomainNodeOnboarding: 1,
+				},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/distributed-tasks/summary", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{
+		"total": 2,
+		"by_status": {"pending":0,"running":1,"retrying":1,"blocked":0,"failed":0,"completed":0,"cancelled":0,"unknown":0},
+		"by_domain": {"slot_reconcile":1,"node_onboarding":1,"node_scale_in":0,"channel_migration":0},
+		"partial": false,
+		"warnings": []
+	}`, rec.Body.String())
+}
+
+func TestManagerDistributedTaskDetailReturnsSourcePayload(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.task",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{
+			distributedTask: managementusecase.DistributedTaskDetail{
+				Task: managementusecase.DistributedTask{
+					ID:     "slot-reconcile:2",
+					Domain: managementusecase.DistributedTaskDomainSlotReconcile,
+					Kind:   "repair",
+					Status: managementusecase.DistributedTaskStatusRetrying,
+					Scope:  managementusecase.DistributedTaskScope{Type: managementusecase.DistributedTaskScopeSlot, ID: "2", SlotID: 2},
+				},
+				Detail: managementusecase.DistributedTaskDetailPayload{
+					Domain:    managementusecase.DistributedTaskDomainSlotReconcile,
+					RawStatus: "retrying",
+					Slot: &managementusecase.TaskDetail{
+						Task: managementusecase.Task{SlotID: 2, Kind: "repair", Status: "retrying"},
+					},
+				},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/distributed-tasks/slot_reconcile/slot-reconcile:2", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{
+		"task": {
+			"id":"slot-reconcile:2",
+			"domain":"slot_reconcile",
+			"kind":"repair",
+			"status":"retrying",
+			"phase":"",
+			"scope":{"type":"slot","id":"2","slot_id":2,"channel_id":"","channel_type":0,"node_id":0},
+			"source_node":0,
+			"target_node":0,
+			"owner_node":0,
+			"attempt":0,
+			"next_run_at":null,
+			"created_at":null,
+			"updated_at":null,
+			"last_error":"",
+			"summary":"",
+			"links":{}
+		},
+		"detail": {
+			"domain": "slot_reconcile",
+			"raw_status": "retrying",
+			"slot": {
+				"slot_id":2,
+				"kind":"repair",
+				"step":"",
+				"status":"retrying",
+				"source_node":0,
+				"target_node":0,
+				"attempt":0,
+				"next_run_at":null,
+				"last_error":"",
+				"slot":{"state":{"quorum":"","sync":"","leader_match":false,"leader_transfer_pending":false},"assignment":{"desired_peers":null,"preferred_leader_id":0,"config_epoch":0,"balance_version":0},"runtime":{"current_peers":null,"current_voters":null,"leader_id":0,"healthy_voters":0,"has_quorum":false,"observed_config_epoch":0,"last_report_at":"0001-01-01T00:00:00Z"}}
+			}
+		}
+	}`, rec.Body.String())
+}
+
+func TestManagerDistributedTasksRejectsInvalidQuery(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.task",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/distributed-tasks?status=bogus", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, `{"error":"bad_request","message":"invalid distributed task query"}`, rec.Body.String())
+}
+
+func TestManagerDistributedTasksReturnsServiceUnavailableWhenAllSourcesFail(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.task",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{distributedTasksErr: managementusecase.ErrDistributedTasksUnavailable},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/distributed-tasks", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	require.JSONEq(t, `{"error":"service_unavailable","message":"distributed task sources unavailable"}`, rec.Body.String())
+}
+
 func TestManagerChannelRuntimeMetaRejectsInsufficientPermission(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
@@ -3981,6 +4252,13 @@ type managementStub struct {
 	tasksErr                           error
 	task                               managementusecase.TaskDetail
 	taskErr                            error
+	distributedTaskSummary             managementusecase.DistributedTaskSummary
+	distributedTaskSummaryErr          error
+	distributedTasksReqSink            *managementusecase.DistributedTaskQuery
+	distributedTasks                   managementusecase.DistributedTaskListResult
+	distributedTasksErr                error
+	distributedTask                    managementusecase.DistributedTaskDetail
+	distributedTaskErr                 error
 	connections                        []managementusecase.Connection
 	connectionsErr                     error
 	listConnectionsReqSink             *managementusecase.ListConnectionsRequest
@@ -4205,6 +4483,21 @@ func (s managementStub) ListTasks(context.Context) ([]managementusecase.Task, er
 
 func (s managementStub) GetTask(context.Context, uint32) (managementusecase.TaskDetail, error) {
 	return s.task, s.taskErr
+}
+
+func (s managementStub) GetDistributedTasksSummary(context.Context) (managementusecase.DistributedTaskSummary, error) {
+	return s.distributedTaskSummary, s.distributedTaskSummaryErr
+}
+
+func (s managementStub) ListDistributedTasks(_ context.Context, query managementusecase.DistributedTaskQuery) (managementusecase.DistributedTaskListResult, error) {
+	if s.distributedTasksReqSink != nil {
+		*s.distributedTasksReqSink = query
+	}
+	return s.distributedTasks, s.distributedTasksErr
+}
+
+func (s managementStub) GetDistributedTask(context.Context, managementusecase.DistributedTaskDomain, string) (managementusecase.DistributedTaskDetail, error) {
+	return s.distributedTask, s.distributedTaskErr
 }
 
 func (s managementStub) ListConnections(_ context.Context, req managementusecase.ListConnectionsRequest) ([]managementusecase.Connection, error) {
