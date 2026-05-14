@@ -40,12 +40,56 @@ func TestStateRejectsDifferentActiveRunUntilStopped(t *testing.T) {
 	require.Equal(t, "run-b", state.Status().Assignment.RunID)
 }
 
-func TestStateStopSetsStoppedWithoutAssignment(t *testing.T) {
+func TestStateSameRunRetryPreservesAdvancedPhase(t *testing.T) {
+	state := NewState("")
+	require.NoError(t, state.Assign(Assignment{RunID: "run-a", WorkerID: "worker-a"}))
+	require.NoError(t, state.Transition(PhasePrepare))
+
+	require.NoError(t, state.Assign(Assignment{RunID: "run-a", WorkerID: "worker-a"}))
+
+	require.Equal(t, PhasePrepare, state.Status().Phase)
+}
+
+func TestStateSameRunDifferentAssignmentConflictsWhileActive(t *testing.T) {
+	state := NewState("")
+	require.NoError(t, state.Assign(Assignment{RunID: "run-a", WorkerID: "worker-a"}))
+
+	err := state.Assign(Assignment{RunID: "run-a", WorkerID: "worker-b"})
+
+	require.ErrorIs(t, err, ErrActiveRunConflict)
+	require.Equal(t, "worker-a", state.Status().Assignment.WorkerID)
+}
+
+func TestStateDoesNotMutateWhenAssignmentPersistenceFails(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "not-a-directory")
+	require.NoError(t, os.WriteFile(workDir, []byte("file blocks directory"), 0o644))
+	state := NewState(workDir)
+
+	err := state.Assign(Assignment{RunID: "run-a", WorkerID: "worker-a"})
+
+	require.Error(t, err)
+	status := state.Status()
+	require.Equal(t, PhaseIdle, status.Phase)
+	require.Empty(t, status.Assignment.RunID)
+}
+
+func TestStateDuplicatePhaseTransitionIsIdempotent(t *testing.T) {
+	state := NewState("")
+	require.NoError(t, state.Assign(Assignment{RunID: "run-a", WorkerID: "worker-a"}))
+	require.NoError(t, state.Transition(PhasePrepare))
+
+	require.NoError(t, state.Transition(PhasePrepare))
+
+	require.Equal(t, PhasePrepare, state.Status().Phase)
+}
+
+func TestStateStopFromIdleConflicts(t *testing.T) {
 	state := NewState("")
 
-	require.NoError(t, state.Stop())
+	err := state.Stop()
 
-	require.Equal(t, PhaseStopped, state.Status().Phase)
+	require.ErrorIs(t, err, ErrInvalidPhaseTransition)
+	require.Equal(t, PhaseIdle, state.Status().Phase)
 }
 
 func TestStatePersistsAssignmentWhenWorkDirIsSet(t *testing.T) {

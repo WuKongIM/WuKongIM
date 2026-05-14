@@ -11,10 +11,12 @@ import (
 )
 
 var (
-	// ErrActiveRunConflict reports that a different run is already assigned and active.
+	// ErrActiveRunConflict reports that a different run or payload is already active.
 	ErrActiveRunConflict = errors.New("active run conflict")
 	// ErrInvalidPhaseTransition reports a non-monotonic worker phase transition.
 	ErrInvalidPhaseTransition = errors.New("invalid phase transition")
+	// ErrAssignmentPersistence reports a failure while saving accepted assignment state.
+	ErrAssignmentPersistence = errors.New("assignment persistence failed")
 )
 
 // Phase is the coarse lifecycle phase of a worker assignment.
@@ -69,7 +71,7 @@ func NewState(workDir string) *State {
 	return &State{workDir: workDir, phase: PhaseIdle}
 }
 
-// Assign stores a run assignment unless a different run is already active.
+// Assign stores a run assignment unless another non-equivalent assignment is active.
 func (s *State) Assign(a Assignment) error {
 	a.RunID = strings.TrimSpace(a.RunID)
 	a.WorkerID = strings.TrimSpace(a.WorkerID)
@@ -79,18 +81,27 @@ func (s *State) Assign(a Assignment) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.assignment.RunID != "" && s.assignment.RunID != a.RunID && s.phase != PhaseStopped {
+	if s.assignment.RunID != "" && s.phase != PhaseStopped {
+		if s.assignment == a {
+			return nil
+		}
 		return ErrActiveRunConflict
+	}
+	if err := s.persistAssignment(a); err != nil {
+		return fmt.Errorf("%w: %v", ErrAssignmentPersistence, err)
 	}
 	s.assignment = a
 	s.phase = PhaseAssigned
-	return s.persistLocked()
+	return nil
 }
 
-// Transition advances the worker to the next expected phase.
+// Transition advances the worker to the next expected phase or accepts an idempotent retry.
 func (s *State) Transition(next Phase) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.phase == next {
+		return nil
+	}
 	if !canTransition(s.phase, next) {
 		return fmt.Errorf("%w: %s to %s", ErrInvalidPhaseTransition, s.phase, next)
 	}
@@ -98,10 +109,13 @@ func (s *State) Transition(next Phase) error {
 	return nil
 }
 
-// Stop marks the current assignment as stopped.
+// Stop marks the current assignment as stopped. Idle workers cannot be stopped.
 func (s *State) Stop() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.assignment.RunID == "" || s.phase == PhaseIdle {
+		return fmt.Errorf("%w: %s to %s", ErrInvalidPhaseTransition, s.phase, PhaseStopped)
+	}
 	s.phase = PhaseStopped
 	return nil
 }
@@ -113,14 +127,14 @@ func (s *State) Status() Status {
 	return Status{Phase: s.phase, Assignment: s.assignment}
 }
 
-func (s *State) persistLocked() error {
+func (s *State) persistAssignment(a Assignment) error {
 	if s.workDir == "" {
 		return nil
 	}
 	if err := os.MkdirAll(s.workDir, 0o755); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(s.assignment, "", "  ")
+	data, err := json.MarshalIndent(a, "", "  ")
 	if err != nil {
 		return err
 	}
