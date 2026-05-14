@@ -606,6 +606,9 @@ P2c 状态（2026-05-11）：
 - `ChannelID`
 - `ChannelType`
 - `Ban`
+- `Disband`
+- `SendBan`
+- `AllowStranger`
 - `SubscriberMutationVersion`
 
 关键代码：
@@ -622,7 +625,7 @@ P2c 状态（2026-05-11）：
 - `send_ban`
 - `allow_stranger`
 
-但 usecase 仅持久化 `Ban`。
+usecase 当前会持久化 `Ban` / `Disband` / `SendBan` / `AllowStranger`。
 
 关键代码：
 
@@ -693,7 +696,6 @@ P2c 状态（2026-05-11）：
 
 - `Disband`
 - `SendBan`
-- `AllowStranger`
 - 必要时 `Large`
 
 涉及：
@@ -741,9 +743,9 @@ P2c 状态（2026-05-11）：
 
 ## 结论
 
-当前发送链路的基础设施能力更强，尤其 channel log 幂等、复制、异步投递和可观测性更清晰。经过 P0/P1/P2a/P2b/P2c、P2 权限收敛以及 P2d-a/P2d-b/P2d-c/P2d-d 后，当前链路已经恢复了主要发送前权限、频道状态、系统 UID / system device 绕过、NoPersist 核心边界、持久化 cmd channel 写入、request-scoped subscribers、CMD source-channel 订阅者解析、command-style NoPersist realtime 投递、legacy CMD 离线同步，以及 `Info` / `CustomerService` / `Visitors` / `Agent` 的核心发送权限。
+当前发送链路的基础设施能力更强，尤其 channel log 幂等、复制、异步投递和可观测性更清晰。经过 P0/P1/P2a/P2b/P2c、P2 权限收敛以及 P2d-a/P2d-b/P2d-c/P2d-d/P2e 后，当前链路已经恢复了主要发送前权限、频道状态、系统 UID / system device 绕过、NoPersist 核心边界、持久化 cmd channel 写入、request-scoped subscribers、CMD source-channel 订阅者解析、command-style NoPersist realtime 投递、legacy CMD 离线同步、`AllowStranger`，以及 `Info` / `CustomerService` / `Visitors` / `Agent` 的核心发送权限。
 
-后续最值得优先设计的是剩余在线/批量/插件类差异：在线 cmd 专用 `systemcmdonline`、普通临时频道投递、`/message/sendbatch`、`expire`、`AllowStranger`、plugin/webhook/AI 钩子和特殊频道后续副作用。
+后续最值得优先设计的是剩余在线/批量/插件类差异：在线 cmd 专用 `systemcmdonline`、普通临时频道投递、`/message/sendbatch`、`expire`、plugin/webhook/AI 钩子和特殊频道后续副作用。
 
 ## P0 实施后状态（2026-05-11）
 
@@ -772,7 +774,7 @@ P2c 状态（2026-05-11）：
 - `/channel/info` 传入的 `ban` / `disband` / `send_ban` 会通过 channel usecase 持久化到 slot channel metadata。
 - `pkg/slot/meta`、`pkg/slot/fsm`、`pkg/slot/proxy` 均保留 `Disband` / `SendBan` 字段，authoritative permission read 可读取完整状态。
 
-仍未恢复的旧版差异包括：`AllowStranger`、`NoPersist` 完整在线临时投递语义、request-scoped subscribers、临时频道投递、在线 cmd 投递 / `systemcmdonline`、CMD 会话 / 离线 cmd 同步、sendbatch、plugin/webhook/AI 钩子以及特殊频道发送支持。
+仍未恢复的旧版差异包括：`NoPersist` 完整在线临时投递语义、request-scoped subscribers、临时频道投递、在线 cmd 投递 / `systemcmdonline`、CMD 会话 / 离线 cmd 同步、sendbatch、plugin/webhook/AI 钩子以及特殊频道发送支持。
 
 ## P2a 实施后状态（2026-05-11）
 
@@ -784,7 +786,7 @@ P2c 状态（2026-05-11）：
 - NoPersist 成功不提交 committed-message event，避免把不存在的 durable commit 分发给后续副作用。
 - `/message/send` 已支持旧版兼容字段 `header.no_persist`，并兼容顶层 `no_persist` 别名。
 
-仍未恢复的旧版差异包括：`AllowStranger`、request-scoped subscribers、临时频道投递、在线 cmd 投递 / `systemcmdonline`、CMD 会话 / 离线 cmd 同步、sendbatch、plugin/webhook/AI 钩子、特殊频道发送支持，以及非持久化消息的完整在线临时投递链路。
+仍未恢复的旧版差异包括：request-scoped subscribers、临时频道投递、在线 cmd 投递 / `systemcmdonline`、CMD 会话 / 离线 cmd 同步、sendbatch、plugin/webhook/AI 钩子、特殊频道发送支持，以及非持久化消息的完整在线临时投递链路。
 
 ## P2b 实施后状态（2026-05-11）
 
@@ -798,7 +800,7 @@ P2c 状态（2026-05-11）：
 
 P2b 阶段普通 `NoPersist + SyncOnce` 仍返回成功，但不写 durable channel log，也不做实时投递。
 
-P2b 阶段仍未恢复的旧版差异包括：`AllowStranger`、request-scoped subscribers、临时频道投递、在线 cmd 投递 / `systemcmdonline`、CMD 会话 / 离线 cmd 同步、sendbatch、plugin/webhook/AI 钩子、特殊频道发送支持，以及非持久化消息的完整在线临时投递链路。
+P2b 阶段仍未恢复的旧版差异包括：request-scoped subscribers、临时频道投递、在线 cmd 投递 / `systemcmdonline`、CMD 会话 / 离线 cmd 同步、sendbatch、plugin/webhook/AI 钩子、特殊频道发送支持，以及非持久化消息的完整在线临时投递链路。
 
 ## P2c 实施后状态（2026-05-11）
 
@@ -828,7 +830,7 @@ P2b 阶段仍未恢复的旧版差异包括：`AllowStranger`、request-scoped s
 - 已新增 `internal/runtime/channelid` 的 agent channel 编解码辅助，避免把 agent channel ID 解析散落在发送路径。
 - invalid agent channel ID 在 gateway sendack 映射为 `ReasonChannelIDError`，HTTP send 映射为 400 `invalid channel id`。
 
-本轮之后仍未恢复的旧版差异包括：CMD conversation/offline sync、在线 cmd 投递 / `systemcmdonline` 专用语义、普通临时频道投递、`/message/sendbatch`、`expire`、`AllowStranger`、plugin/webhook/AI 钩子，以及特殊频道的后续副作用（例如 webhook / AI / 离线处理）。P2c 中提到的 durable request-scoped subscribers 快照不可 replay 恢复的问题仍然存在，后续如要恢复完整 CMD 离线同步需要单独设计持久化快照或事件模型。
+本轮之后仍未恢复的旧版差异包括：CMD conversation/offline sync、在线 cmd 投递 / `systemcmdonline` 专用语义、普通临时频道投递、`/message/sendbatch`、`expire`、plugin/webhook/AI 钩子，以及特殊频道的后续副作用（例如 webhook / AI / 离线处理）。P2c 中提到的 durable request-scoped subscribers 快照不可 replay 恢复的问题仍然存在，后续如要恢复完整 CMD 离线同步需要单独设计持久化快照或事件模型。
 
 ## P2d-a/P2d-b 实施后状态（2026-05-12）
 
@@ -842,7 +844,7 @@ P2b 阶段仍未恢复的旧版差异包括：`AllowStranger`、request-scoped s
 - 普通 `NoPersist + SyncOnce` 和已寻址 CMD 的 `NoPersist` 发送不写 channel log，但会分配 transient message ID 并通过 realtime delivery 投递，`MessageSeq=0`。
 - 非 command-style 的普通 `NoPersist` 仍保持 P2a 行为：权限通过后返回成功，不写 durable append，也不做 realtime 投递。
 
-仍未恢复的旧版差异包括：CMD conversation/offline sync、durable request-scoped subscribers 快照 replay 恢复、普通临时频道投递、`/message/sendbatch`、`expire`、`AllowStranger`、plugin/webhook/AI 钩子，以及特殊频道的后续副作用。
+仍未恢复的旧版差异包括：CMD conversation/offline sync、durable request-scoped subscribers 快照 replay 恢复、普通临时频道投递、`/message/sendbatch`、`expire`、plugin/webhook/AI 钩子，以及特殊频道的后续副作用。
 
 ## P2d-c 实施后状态（2026-05-13）
 
@@ -859,7 +861,7 @@ P2b 阶段仍未恢复的旧版差异包括：`AllowStranger`、request-scoped s
 仍未恢复 / 延后到 P2d-d 的差异：
 
 - durable request-scoped subscribers 快照在进程崩溃后仅靠 committed replay 仍不能完整恢复；P2d-c 只保证 live path 的精确投影。
-- 在线 cmd 专用 `systemcmdonline`、普通临时频道投递、`/message/sendbatch`、`expire`、`AllowStranger`、plugin/webhook/AI 钩子和特殊频道后续副作用仍未恢复。
+- 在线 cmd 专用 `systemcmdonline`、普通临时频道投递、`/message/sendbatch`、`expire`、plugin/webhook/AI 钩子和特殊频道后续副作用仍未恢复。
 
 
 ## P2d-d 实施后状态（2026-05-14）
@@ -873,4 +875,8 @@ P2b 阶段仍未恢复的旧版差异包括：`AllowStranger`、request-scoped s
 - graceful stop 会把未 flush 的 pending updates 保存到 `DataDir/conversationv2/cmd_conversation_updates.json` 并在启动时恢复；启动加载后会保留该文件到后续 durable flush / save 成功，避免恢复窗口内再次崩溃丢 pending；这仍不保证 kill -9 前新接收的内存 intent 持久化。
 - committed replay 不再运行独立 CMD subscriber scan/projector；它只重放 delivery / conversation，普通 CMD intent 由 delivery UID observer 重新产生，request-scoped replay 没有 `MessageScopedUIDs` 时仍是 best effort。
 
-仍未恢复 / 继续延后的差异：在线 cmd 专用 `systemcmdonline`、普通临时频道投递、`/message/sendbatch`、`expire`、`AllowStranger`、plugin/webhook/AI 钩子和特殊频道后续副作用。
+仍未恢复 / 继续延后的差异：在线 cmd 专用 `systemcmdonline`、普通临时频道投递、`/message/sendbatch`、`expire`、plugin/webhook/AI 钩子和特殊频道后续副作用。
+
+## P2e 状态（2026-05-14）
+
+P2e 状态（2026-05-14）：当前项目已恢复 `AllowStranger` 的个人频道发送语义。`allow_stranger` 通过频道 API 持久化到 slot channel metadata，并通过 slot FSM / proxy 权限读取链路传播。个人发送权限中，发送者 `SendBan` 与接收方 denylist 仍优先；只有 `WK_MESSAGE_PERSON_WHITELIST_ENABLED=true` 且发送者不在接收方 allowlist 时，才读取接收方个人频道 `AllowStranger`，非零则允许陌生人发送，否则返回 `ReasonNotInWhitelist`。默认未开启个人白名单时，`AllowStranger=0` 不会新增拒绝路径。
