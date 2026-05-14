@@ -86,6 +86,7 @@ type App struct {
 	dataPlaneClient      *transport.Client
 	metrics              *obsmetrics.Registry
 	diagnostics          *obsdiagnostics.Store
+	diagnosticsTracking  *obsdiagnostics.TrackingRules
 	diagnosticsRestore   func()
 	networkObservability *networkObservability
 	observedClusterCache observedClusterStateCache

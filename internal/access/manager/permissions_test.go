@@ -72,7 +72,7 @@ func TestManagerPermissionsReturnsSanitizedSnapshot(t *testing.T) {
 			{"resource":"cluster.task","actions":["r"],"description":"Read reconcile tasks."},
 			{"resource":"cluster.connection","actions":["r"],"description":"Read connection inventory and details."},
 			{"resource":"cluster.network","actions":["r"],"description":"Read network diagnostics summaries."},
-			{"resource":"cluster.diagnostics","actions":["r"],"description":"Read diagnostics and message trace data."},
+			{"resource":"cluster.diagnostics","actions":["r","w"],"description":"Read diagnostics and manage temporary message trace sampling rules."},
 			{"resource":"cluster.user","actions":["r","w"],"description":"Read users and mutate user or system UID state."},
 			{"resource":"cluster.channel","actions":["r","w"],"description":"Read and mutate channel, message, and channel-cluster operations."},
 			{"resource":"cluster.permission","actions":["r"],"description":"Read manager authentication and permission configuration snapshots."}

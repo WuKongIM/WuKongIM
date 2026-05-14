@@ -142,6 +142,14 @@ func (s *Server) registerRoutes() {
 	diagnostics.GET("/diagnostics/trace/:trace_id", s.handleDiagnosticsTrace)
 	diagnostics.GET("/diagnostics/message", s.handleDiagnosticsMessage)
 	diagnostics.GET("/diagnostics/events", s.handleDiagnosticsEvents)
+	diagnostics.GET("/diagnostics/tracking-rules", s.handleDiagnosticsTrackingRules)
+
+	diagnosticsWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		diagnosticsWrites.Use(s.requirePermission("cluster.diagnostics", "w"))
+	}
+	diagnosticsWrites.POST("/diagnostics/tracking-rules", s.handleCreateDiagnosticsTrackingRule)
+	diagnosticsWrites.DELETE("/diagnostics/tracking-rules/:rule_id", s.handleDeleteDiagnosticsTrackingRule)
 
 	controllerLogs := s.engine.Group("/manager")
 	if s.auth.enabled() {

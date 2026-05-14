@@ -4719,6 +4719,18 @@ func (s managementStub) QueryDiagnostics(_ context.Context, req managementusecas
 	return s.diagnosticsResponse, s.diagnosticsErr
 }
 
+func (s managementStub) CreateDiagnosticsTrackingRule(context.Context, managementusecase.DiagnosticsTrackingCreateRequest) (managementusecase.DiagnosticsTrackingMutationResponse, error) {
+	return managementusecase.DiagnosticsTrackingMutationResponse{}, nil
+}
+
+func (s managementStub) ListDiagnosticsTrackingRules(context.Context) (managementusecase.DiagnosticsTrackingListResponse, error) {
+	return managementusecase.DiagnosticsTrackingListResponse{}, nil
+}
+
+func (s managementStub) DeleteDiagnosticsTrackingRule(context.Context, string) (managementusecase.DiagnosticsTrackingDeleteResponse, error) {
+	return managementusecase.DiagnosticsTrackingDeleteResponse{}, nil
+}
+
 type channelRuntimeMetaDetailCall struct {
 	channelID   string
 	channelType int64

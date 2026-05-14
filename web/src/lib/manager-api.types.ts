@@ -1397,4 +1397,50 @@ export type DiagnosticsMessageParams = DiagnosticsCommonParams & (
   | { clientMsgNo: string; channelKey?: never; messageSeq?: never }
   | { clientMsgNo?: never; channelKey: string; messageSeq: number }
 )
-export type DiagnosticsEventsParams = DiagnosticsCommonParams & { stage?: string; result?: string }
+export type DiagnosticsEventsParams = DiagnosticsCommonParams & { stage?: string; result?: string; uid?: string; channelKey?: string }
+
+export type DiagnosticsTrackingTarget = "sender_uid" | "channel"
+export type DiagnosticsTrackingStatus = "ok" | "partial" | "error"
+
+export type ManagerDiagnosticsTrackingRule = {
+  rule_id: string
+  target: DiagnosticsTrackingTarget
+  uid?: string
+  channel_key?: string
+  channel_id?: string
+  channel_type?: number
+  sample_rate: number
+  created_at?: string
+  expires_at?: string
+}
+
+export type ManagerDiagnosticsTrackingNodeResult = {
+  node_id: number
+  status: "ok" | "unavailable" | "skipped"
+  notes: string[]
+}
+
+export type ManagerDiagnosticsTrackingMutationResponse = {
+  status: DiagnosticsTrackingStatus
+  rule: ManagerDiagnosticsTrackingRule
+  nodes: ManagerDiagnosticsTrackingNodeResult[]
+  notes: string[]
+}
+
+export type ManagerDiagnosticsTrackingListResponse = {
+  status: DiagnosticsTrackingStatus
+  rules: ManagerDiagnosticsTrackingRule[]
+  nodes: ManagerDiagnosticsTrackingNodeResult[]
+  notes: string[]
+}
+
+export type ManagerDiagnosticsTrackingDeleteResponse = {
+  status: DiagnosticsTrackingStatus
+  rule_id: string
+  nodes: ManagerDiagnosticsTrackingNodeResult[]
+  notes: string[]
+}
+
+export type CreateDiagnosticsTrackingRuleInput =
+  | { target: "sender_uid"; uid: string; ttlSeconds: number; sampleRate?: number }
+  | { target: "channel"; channelId: string; channelType: number; ttlSeconds: number; sampleRate?: number }
