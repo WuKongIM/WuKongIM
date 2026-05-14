@@ -54,7 +54,7 @@ test("renders brand, top sections, route metadata, and logged-in username", asyn
   expect(within(banner).getByText("admin")).toBeInTheDocument()
 })
 
-test("keeps global actions and lets the user log out", async () => {
+test("keeps cockpit health context and lets the user log out", async () => {
   const router = createMemoryRouter(routes, { initialEntries: ["/cluster/diagnostics?tab=network"] })
   const user = userEvent.setup()
 
@@ -65,8 +65,9 @@ test("keeps global actions and lets the user log out", async () => {
   )
 
   const banner = screen.getByRole("banner")
-  expect(await within(banner).findByRole("button", { name: /refresh/i })).toBeInTheDocument()
-  expect(within(banner).getByRole("button", { name: /search/i })).toBeInTheDocument()
+  expect(await within(banner).findByText("Single-node cluster · healthy")).toBeInTheDocument()
+  expect(within(banner).queryByRole("button", { name: /refresh/i })).not.toBeInTheDocument()
+  expect(within(banner).queryByRole("button", { name: /search/i })).not.toBeInTheDocument()
   expect(within(banner).getByRole("button", { name: /logout/i })).toBeInTheDocument()
 
   await user.click(within(banner).getByRole("button", { name: /logout/i }))
@@ -89,7 +90,7 @@ test("switches topbar actions and sections to Chinese", async () => {
   await user.click(await within(screen.getByRole("banner")).findByRole("button", { name: "中文" }))
 
   expect(within(screen.getByRole("banner")).getByRole("link", { name: "集群运维" })).toHaveAttribute("aria-current", "page")
-  expect(within(screen.getByRole("banner")).getByRole("button", { name: "刷新" })).toBeInTheDocument()
-  expect(within(screen.getByRole("banner")).getByRole("button", { name: "搜索" })).toBeInTheDocument()
+  expect(within(screen.getByRole("banner")).getByText("单节点集群 · 健康")).toBeInTheDocument()
+  expect(within(screen.getByRole("banner")).getByRole("button", { name: "退出登录" })).toBeInTheDocument()
   expect(localStorage.getItem("wukongim_manager_locale")).toBe("zh-CN")
 })

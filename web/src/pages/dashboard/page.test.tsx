@@ -185,11 +185,38 @@ test("renders overview metrics and task queue from manager APIs", async () => {
   expect(screen.getByText("No leader: 1")).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Open channel cluster health" })).toHaveAttribute(
     "href",
-    "/channel-cluster",
+    "/cluster/channels?tab=overview",
   )
+  expect(screen.getByText("Operations cockpit")).toBeInTheDocument()
+  expect(screen.getByText("Alert rail")).toBeInTheDocument()
   expect(screen.getByText("rebalance")).toBeInTheDocument()
   expect(screen.getByText("temporary failure")).toBeInTheDocument()
   expect(screen.getAllByText(/slot 9/i).length).toBeGreaterThan(0)
+})
+
+test("renders a healthy alert rail when there are no anomalies", async () => {
+  getOverviewMock.mockResolvedValue({
+    ...overviewFixture,
+    slots: { ...overviewFixture.slots, quorum_lost: 0, peer_mismatch: 0 },
+    tasks: { ...overviewFixture.tasks, total: 0, pending: 0, retrying: 0 },
+    anomalies: {
+      slots: {
+        quorum_lost: { count: 0, items: [] },
+        leader_missing: { count: 0, items: [] },
+        sync_mismatch: { count: 0, items: [] },
+      },
+      tasks: {
+        failed: { count: 0, items: [] },
+        retrying: { count: 0, items: [] },
+      },
+    },
+  })
+  getTasksMock.mockResolvedValue({ total: 0, items: [] })
+
+  renderDashboard()
+
+  expect(await screen.findByText("No active alerts")).toBeInTheDocument()
+  expect(screen.getByText("All sampled slot and task signals are clear.")).toBeInTheDocument()
 })
 
 test("renders controller raft health summary from node inventory", async () => {

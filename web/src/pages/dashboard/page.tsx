@@ -143,6 +143,8 @@ function controllerRaftPath(nodeId: number) {
   return `/controller?node_id=${nodeId}`
 }
 
+const channelClusterOverviewPath = "/cluster/channels?tab=overview"
+
 function renderTaskRow(intl: IntlShape, task: ManagerTask) {
   return (
     <tr className="border-t border-border" key={`${task.slot_id}-${task.kind}-${task.step}`}>
@@ -216,10 +218,14 @@ export function DashboardPage() {
   return (
     <PageContainer>
       <PageHeader
+        eyebrow={intl.formatMessage({ id: "dashboard.cockpitEyebrow" })}
         title={intl.formatMessage({ id: "dashboard.title" })}
         description={intl.formatMessage({ id: "dashboard.description" })}
         actions={
           <>
+            <Button asChild size="sm" variant="outline">
+              <a href="#dashboard-alert-rail">{intl.formatMessage({ id: "dashboard.inspectAlerts" })}</a>
+            </Button>
             <Button
               onClick={() => {
                 void loadDashboard(true)
@@ -237,11 +243,11 @@ export function DashboardPage() {
           </>
         }
       >
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          <div className="rounded-md border border-border bg-background px-3 py-2">
+        <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+          <div className="rounded-xl border border-border/80 bg-background/70 px-3 py-2">
             {intl.formatMessage({ id: "dashboard.scopeSingleNodeCluster" })}
           </div>
-          <div className="rounded-md border border-border bg-background px-3 py-2">
+          <div className="rounded-xl border border-border/80 bg-background/70 px-3 py-2">
             {state.overview
               ? intl.formatMessage(
                   { id: "dashboard.generatedAtValue" },
@@ -249,7 +255,7 @@ export function DashboardPage() {
                 )
               : intl.formatMessage({ id: "dashboard.generatedAtPending" })}
           </div>
-          <div className="rounded-md border border-border bg-background px-3 py-2">
+          <div className="rounded-xl border border-border/80 bg-background/70 px-3 py-2">
             {state.overview
               ? intl.formatMessage(
                   { id: "dashboard.controllerLeaderValue" },
@@ -276,14 +282,17 @@ export function DashboardPage() {
         <>
           <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <SectionCard
+              className="min-h-36"
               description={intl.formatMessage({ id: "dashboard.controllerLeaderCardDescription" })}
               title={intl.formatMessage({ id: "dashboard.controllerLeaderCardTitle" })}
             >
-              <div className="text-3xl font-semibold text-foreground">
+              <div className="font-mono text-4xl font-semibold tracking-[-0.04em] text-foreground">
                 {state.overview.cluster.controller_leader_id}
               </div>
+              <p className="mt-3 text-xs text-muted-foreground">{intl.formatMessage({ id: "dashboard.metricControllerHint" })}</p>
             </SectionCard>
             <SectionCard
+              className="min-h-36"
               description={intl.formatMessage({ id: "dashboard.controllerRaftCardDescription" })}
               title={intl.formatMessage({ id: "dashboard.controllerRaftCardTitle" })}
             >
@@ -314,22 +323,43 @@ export function DashboardPage() {
               </div>
             </SectionCard>
             <SectionCard
+              className="min-h-36"
               description={intl.formatMessage({ id: "dashboard.nodesCardDescription" })}
               title={intl.formatMessage({ id: "dashboard.nodesCardTitle" })}
             >
-              <div className="text-3xl font-semibold text-foreground">{state.overview.nodes.total}</div>
+              <div className="font-mono text-4xl font-semibold tracking-[-0.04em] text-foreground">{state.overview.nodes.total}</div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                {intl.formatMessage(
+                  { id: "dashboard.nodesSummary" },
+                  { alive: state.overview.nodes.alive, draining: state.overview.nodes.draining },
+                )}
+              </p>
             </SectionCard>
             <SectionCard
+              className="min-h-36"
               description={intl.formatMessage({ id: "dashboard.readySlotsCardDescription" })}
               title={intl.formatMessage({ id: "dashboard.readySlotsCardTitle" })}
             >
-              <div className="text-3xl font-semibold text-foreground">{state.overview.slots.ready}</div>
+              <div className="font-mono text-4xl font-semibold tracking-[-0.04em] text-foreground">{state.overview.slots.ready}</div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                {intl.formatMessage(
+                  { id: "dashboard.slotsSummary" },
+                  { ready: state.overview.slots.ready, quorumLost: state.overview.slots.quorum_lost },
+                )}
+              </p>
             </SectionCard>
             <SectionCard
+              className="min-h-36"
               description={intl.formatMessage({ id: "dashboard.tasksCardDescription" })}
               title={intl.formatMessage({ id: "dashboard.tasksCardTitle" })}
             >
-              <div className="text-3xl font-semibold text-foreground">{state.overview.tasks.total}</div>
+              <div className="font-mono text-4xl font-semibold tracking-[-0.04em] text-foreground">{state.overview.tasks.total}</div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                {intl.formatMessage(
+                  { id: "dashboard.tasksSummary" },
+                  { pending: state.overview.tasks.pending, retrying: state.overview.tasks.retrying },
+                )}
+              </p>
             </SectionCard>
           </section>
 
@@ -339,7 +369,7 @@ export function DashboardPage() {
               title={intl.formatMessage({ id: "dashboard.operationsSummaryTitle" })}
             >
               <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-lg border border-border bg-muted/30 px-3 py-3">
+                <div className="rounded-2xl border border-border/80 bg-muted/35 px-3 py-3">
                   <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
                     {intl.formatMessage({ id: "dashboard.nodesLabel" })}
                   </div>
@@ -350,7 +380,7 @@ export function DashboardPage() {
                     )}
                   </div>
                 </div>
-                <div className="rounded-lg border border-border bg-muted/30 px-3 py-3">
+                <div className="rounded-2xl border border-border/80 bg-muted/35 px-3 py-3">
                   <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
                     {intl.formatMessage({ id: "dashboard.slotsLabel" })}
                   </div>
@@ -364,7 +394,7 @@ export function DashboardPage() {
                     )}
                   </div>
                 </div>
-                <div className="rounded-lg border border-border bg-muted/30 px-3 py-3">
+                <div className="rounded-2xl border border-border/80 bg-muted/35 px-3 py-3">
                   <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
                     {intl.formatMessage({ id: "dashboard.tasksLabel" })}
                   </div>
@@ -378,7 +408,7 @@ export function DashboardPage() {
                     )}
                   </div>
                 </div>
-                <div className="rounded-lg border border-border bg-muted/30 px-3 py-3">
+                <div className="rounded-2xl border border-border/80 bg-muted/35 px-3 py-3">
                   <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
                     {intl.formatMessage({ id: "dashboard.generatedLabel" })}
                   </div>
@@ -386,7 +416,7 @@ export function DashboardPage() {
                     {formatTimestamp(intl, state.overview.generated_at)}
                   </div>
                 </div>
-                <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 md:col-span-2">
+                <div className="rounded-2xl border border-border/80 bg-muted/35 px-3 py-3 md:col-span-2">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
@@ -400,7 +430,10 @@ export function DashboardPage() {
                       </div>
                     </div>
                     <Button asChild size="sm" variant="outline">
-                      <Link aria-label={intl.formatMessage({ id: "dashboard.channelHealthOpen" })} to="/channel-cluster">
+                      <Link
+                        aria-label={intl.formatMessage({ id: "dashboard.channelHealthOpen" })}
+                        to={channelClusterOverviewPath}
+                      >
                         {intl.formatMessage({ id: "common.inspect" })}
                       </Link>
                     </Button>
@@ -429,13 +462,15 @@ export function DashboardPage() {
               </div>
             </SectionCard>
             <SectionCard
+              className="scroll-mt-20"
               description={intl.formatMessage({ id: "dashboard.alertListDescription" })}
+              id="dashboard-alert-rail"
               title={intl.formatMessage({ id: "dashboard.alertListTitle" })}
             >
               {alertItems.length > 0 ? (
                 <div className="space-y-3">
                   {alertItems.map((item) => (
-                    <div className="rounded-lg border border-border bg-muted/20 px-3 py-3" key={item.key}>
+                    <div className="rounded-2xl border border-border/80 bg-muted/25 px-3 py-3" key={item.key}>
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-medium text-foreground">{item.title}</div>
                         <StatusBadge value={item.tone} />
@@ -445,7 +480,15 @@ export function DashboardPage() {
                   ))}
                 </div>
               ) : (
-                <ResourceState kind="empty" title={intl.formatMessage({ id: "dashboard.alertListTitle" })} />
+                <div className="rounded-2xl border border-primary/25 bg-primary/8 px-4 py-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <span className="size-2 rounded-full bg-[var(--status-healthy)]" />
+                    {intl.formatMessage({ id: "dashboard.noActiveAlertsTitle" })}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    {intl.formatMessage({ id: "dashboard.noActiveAlertsDescription" })}
+                  </p>
+                </div>
               )}
             </SectionCard>
           </section>
@@ -456,9 +499,9 @@ export function DashboardPage() {
               title={intl.formatMessage({ id: "dashboard.controlQueueTitle" })}
             >
               {state.tasks.items.length > 0 ? (
-                <div className="overflow-x-auto rounded-lg border border-border">
+                <div className="overflow-x-auto rounded-2xl border border-border/80">
                   <table className="w-full border-collapse">
-                    <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                    <thead className="bg-muted/45 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                       <tr>
                         <th className="px-3 py-3">{intl.formatMessage({ id: "dashboard.table.slot" })}</th>
                         <th className="px-3 py-3">{intl.formatMessage({ id: "dashboard.table.kind" })}</th>

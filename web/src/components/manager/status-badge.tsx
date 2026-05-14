@@ -14,6 +14,8 @@ function resolveVariant(value: string) {
       return "success"
     case "quorum_lost":
     case "leader_missing":
+    case "no_leader":
+    case "isr_insufficient":
     case "draining":
     case "retrying":
     case "suspect":
@@ -43,11 +45,11 @@ export function StatusBadge({ value }: StatusBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium capitalize",
-        variant === "success" && "border-border bg-muted text-foreground",
-        variant === "warning" && "border-border bg-secondary text-foreground",
+        "inline-flex items-center rounded-full border px-2 py-1 text-xs font-medium capitalize",
+        variant === "success" && "border-primary/25 bg-primary/10 text-primary",
+        variant === "warning" && "border-warning/25 bg-warning/10 text-warning",
         variant === "danger" && "border-destructive/30 bg-destructive/10 text-destructive",
-        variant === "neutral" && "border-border bg-background text-muted-foreground",
+        variant === "neutral" && "border-border bg-background/70 text-muted-foreground",
       )}
       data-variant={variant}
     >

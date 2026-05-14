@@ -146,3 +146,17 @@ test("switches the login page copy without navigating away", async () => {
   expect(screen.getByRole("heading", { name: "登录" })).toBeInTheDocument()
   expect(localStorage.getItem("wukongim_manager_locale")).toBe("zh-CN")
 })
+
+test("renders the cockpit brand and single-node cluster promise", () => {
+  const router = createMemoryRouter(routes, { initialEntries: ["/login"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  expect(screen.getByText("Operations cockpit")).toBeInTheDocument()
+  expect(screen.getByText("Single-node cluster ready")).toBeInTheDocument()
+  expect(screen.getByText("Health-first navigation")).toBeInTheDocument()
+})

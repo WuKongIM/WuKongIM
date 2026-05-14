@@ -49,6 +49,20 @@ test("keeps the cluster context visible in the sidebar", async () => {
   expect(screen.getByText("Single-node cluster")).toBeInTheDocument()
 })
 
+test("shows the cockpit health context in the topbar", async () => {
+  const router = createMemoryRouter(routes, { initialEntries: ["/dashboard"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  expect((await screen.findAllByText("Operations cockpit")).length).toBeGreaterThan(0)
+  expect(screen.getByText("Single-node cluster · healthy")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Search" })).not.toBeInTheDocument()
+})
+
 test("renders Chinese navigation labels and cluster context", async () => {
   localStorage.setItem("wukongim_manager_locale", "zh-CN")
   const router = createMemoryRouter(routes, { initialEntries: ["/cluster/nodes"] })

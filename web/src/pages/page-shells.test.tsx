@@ -368,7 +368,7 @@ test("dashboard shows monochrome workbench sections", async () => {
 
   expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument()
   expect(screen.getByText("Operations Summary")).toBeInTheDocument()
-  expect(screen.getAllByText("Alert List").length).toBeGreaterThan(0)
+  expect(screen.getAllByText("Alert rail").length).toBeGreaterThan(0)
   expect(screen.getAllByText("Control Queue").length).toBeGreaterThan(0)
   expect(screen.queryByText("Pin board")).not.toBeInTheDocument()
 })

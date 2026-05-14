@@ -107,12 +107,14 @@ test("status badge distinguishes runtime states", () => {
     <div>
       <StatusBadge value="alive" />
       <StatusBadge value="quorum_lost" />
+      <StatusBadge value="no_leader" />
       <StatusBadge value="failed" />
     </div>,
   )
 
   expect(screen.getByText("alive")).toHaveAttribute("data-variant", "success")
   expect(screen.getByText("quorum lost")).toHaveAttribute("data-variant", "warning")
+  expect(screen.getByText("no leader")).toHaveAttribute("data-variant", "warning")
   expect(screen.getByText("failed")).toHaveAttribute("data-variant", "danger")
 })
 
