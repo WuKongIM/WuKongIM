@@ -134,6 +134,30 @@ func TestConnectionManagerIsIdempotentByUID(t *testing.T) {
 	}
 }
 
+func TestConnectionManagerSessionsReturnsStableCopy(t *testing.T) {
+	manager, err := NewConnectionManager(ConnectionManagerConfig{
+		GatewayAddrs:  []string{"gw-a:5100"},
+		ClientFactory: (&recordingClientFactory{}).newClient,
+	})
+	if err != nil {
+		t.Fatalf("NewConnectionManager() error = %v", err)
+	}
+	defer manager.Close()
+	if err := manager.Connect(context.Background(), []ConnectionUser{{UID: "u1", DeviceID: "d1"}}); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+
+	sessions := manager.Sessions()
+	sessions[0] = nil
+
+	if got, want := manager.ActiveCount(), 1; got != want {
+		t.Fatalf("ActiveCount() = %d, want %d", got, want)
+	}
+	if session, ok := manager.Session("u1"); !ok || session == nil {
+		t.Fatalf("Session(u1) missing after mutating Sessions result")
+	}
+}
+
 func TestConnectionManagerRejectsInvalidConfig(t *testing.T) {
 	if _, err := NewConnectionManager(ConnectionManagerConfig{}); err == nil {
 		t.Fatal("NewConnectionManager() error = nil, want missing gateway error")

@@ -6,10 +6,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/internal/bench/worker"
 	"github.com/stretchr/testify/require"
@@ -242,6 +245,70 @@ func TestCoordinatorRunsPreflightBeforeAssignment(t *testing.T) {
 	require.False(t, workers[0].Assigned())
 }
 
+func TestCoordinatorCollectsWorkerMetricsReportsAndFailsHardLimit(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].SetMetrics(metrics.SnapshotData{Counters: map[string]uint64{
+		"person_send_success_total": 9,
+		"person_send_error_total":   1,
+	}})
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Limits.Hard.MaxSendackErrorRate = 0
+	scenario.Run.ReportDir = t.TempDir()
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.Error(t, err)
+	require.Equal(t, StatusHardLimitFailed, result.Status)
+	require.Equal(t, 0.1, result.Report.Summary.SendackErrorRate)
+	require.Len(t, result.Report.WorkerMetrics, 1)
+	require.Len(t, result.Report.WorkerReports, 1)
+	require.FileExists(t, filepath.Join(scenario.Run.ReportDir, "workers", "a.report.json"))
+}
+
+func TestCoordinatorReportWriteFailureReturnsInternalFailed(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	reportDir := filepath.Join(t.TempDir(), "not-a-dir")
+	require.NoError(t, os.WriteFile(reportDir, []byte("file blocks report dir"), 0o600))
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.ReportDir = reportDir
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.Error(t, err)
+	require.Equal(t, StatusInternalFailed, result.Status)
+}
+
+func TestCoordinatorReturnsTargetUnavailableForMarkedWorkerError(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].FailPhase(PhaseRun, http.StatusServiceUnavailable, `{"error":"target unavailable"}`)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.Error(t, err)
+	require.Equal(t, StatusTargetUnavailable, result.Status)
+}
+
 type preflightFunc func(context.Context, model.Target, model.WorkerSet) error
 
 func (f preflightFunc) Check(ctx context.Context, target model.Target, workers model.WorkerSet) error {
@@ -289,9 +356,17 @@ type fakeWorker struct {
 	phaseAttempts      []Phase
 	failAssign         *fakePhaseFailure
 	failPhases         map[Phase]fakePhaseFailure
+	metrics            metrics.SnapshotData
+	report             json.RawMessage
 	lagPhases          map[Phase]bool
 	blockStatus        map[Phase]bool
 	cancelOnStatusPoll context.CancelFunc
+}
+
+func (fw *fakeWorker) SetMetrics(snapshot metrics.SnapshotData) {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	fw.metrics = snapshot
 }
 
 type fakePhaseFailure struct {
@@ -399,11 +474,33 @@ func (fw *fakeWorker) handle(w http.ResponseWriter, r *http.Request) {
 		fw.handlePhase(w, PhaseCooldown, worker.PhaseCooldown)
 	case "/v1/status":
 		fw.handleStatus(w, r)
+	case "/v1/metrics":
+		fw.handleMetrics(w, r)
+	case "/v1/report":
+		fw.handleReport(w, r)
 	case "/v1/stop":
 		fw.handleStop(w, r)
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func (fw *fakeWorker) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	fw.mu.Lock()
+	snapshot := fw.metrics
+	fw.mu.Unlock()
+	writeRunTestJSON(w, snapshot)
+}
+
+func (fw *fakeWorker) handleReport(w http.ResponseWriter, r *http.Request) {
+	fw.mu.Lock()
+	reportPayload := fw.report
+	if len(reportPayload) == 0 {
+		reportPayload = json.RawMessage(`{"worker_id":"` + fw.id + `"}`)
+	}
+	fw.mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(reportPayload)
 }
 
 func (fw *fakeWorker) handleAssign(w http.ResponseWriter, r *http.Request) {

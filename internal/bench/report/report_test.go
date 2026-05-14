@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
@@ -25,6 +26,55 @@ func TestBuildHardLimitFailureSetsFailedStatusAndExitCode3(t *testing.T) {
 	}
 	if len(r.Violations) != 1 || r.Violations[0].Name != "max_sendack_error_rate" {
 		t.Fatalf("unexpected violations: %+v", r.Violations)
+	}
+}
+
+func TestBuildExplicitZeroHardLimitFailsWhenActualIsPositive(t *testing.T) {
+	r := Build(Input{
+		RunID:   "run-1",
+		Limits:  model.LimitsConfig{Hard: model.HardLimitsConfig{MaxSendackErrorRate: 0}},
+		Summary: Summary{SendackErrorRate: 0.001},
+	})
+
+	if r.Status != StatusFailed {
+		t.Fatalf("status = %s, want %s", r.Status, StatusFailed)
+	}
+	if len(r.Violations) != 1 || r.Violations[0].Name != "max_sendack_error_rate" || r.Violations[0].Limit != 0 {
+		t.Fatalf("unexpected violations: %+v", r.Violations)
+	}
+}
+
+func TestSummaryFromMetricsComputesRatesAndP99(t *testing.T) {
+	summary := SummaryFromMetrics(metrics.SnapshotData{
+		Counters: map[string]uint64{
+			"connect_success_total":     8,
+			"connect_error_total":       2,
+			"person_send_success_total": 9,
+			"group_send_error_total":    1,
+			"person_recv_success_total": 3,
+			"group_recv_error_total":    1,
+		},
+		Histograms: map[string]metrics.HistogramSummary{
+			"person_send_latency_seconds": {P99Seconds: 0.020},
+			"group_send_latency_seconds":  {P99Seconds: 0.050},
+			"person_recv_latency_seconds": {P99Seconds: 0.030},
+		},
+	}, 2)
+
+	if summary.ConnectErrorRate != 0.2 {
+		t.Fatalf("connect_error_rate = %v, want 0.2", summary.ConnectErrorRate)
+	}
+	if summary.SendackErrorRate != 0.1 {
+		t.Fatalf("sendack_error_rate = %v, want 0.1", summary.SendackErrorRate)
+	}
+	if summary.RecvVerifyErrorRate != 0.25 {
+		t.Fatalf("recv_verify_error_rate = %v, want 0.25", summary.RecvVerifyErrorRate)
+	}
+	if summary.WorkerFailed != 2 {
+		t.Fatalf("worker_failed = %d, want 2", summary.WorkerFailed)
+	}
+	if summary.SendackP99 != 50*time.Millisecond {
+		t.Fatalf("sendack_p99 = %s, want 50ms", summary.SendackP99)
 	}
 }
 

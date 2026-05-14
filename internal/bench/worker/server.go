@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+
+	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
+	"github.com/WuKongIM/WuKongIM/internal/bench/report"
 )
 
 // WorkloadRunner receives worker lifecycle hooks for assigned benchmark shards.
@@ -22,6 +25,12 @@ type WorkloadRunner interface {
 	Run(ctx context.Context, assignment Assignment) error
 	// Cooldown drains workload state after measured traffic.
 	Cooldown(ctx context.Context, assignment Assignment) error
+}
+
+// MetricsReporter exposes worker-local metrics collected by a workload runner.
+type MetricsReporter interface {
+	// MetricsSnapshot returns a JSON-friendly worker-local metrics snapshot.
+	MetricsSnapshot() metrics.SnapshotData
 }
 
 // Config controls the worker HTTP control server.
@@ -75,8 +84,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/v1/phase/cooldown", s.withControl(s.phase(PhaseCooldown)))
 	s.mux.HandleFunc("/v1/stop", s.withControl(s.stop))
 	s.mux.HandleFunc("/v1/status", s.withControl(s.status))
-	s.mux.HandleFunc("/v1/metrics", s.withControl(s.emptyJSON))
-	s.mux.HandleFunc("/v1/report", s.withControl(s.emptyJSON))
+	s.mux.HandleFunc("/v1/metrics", s.withControl(s.metrics))
+	s.mux.HandleFunc("/v1/report", s.withControl(s.report))
 }
 
 func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
@@ -137,6 +146,10 @@ func (s *Server) phase(phase Phase) http.HandlerFunc {
 			return
 		}
 		if err := s.runPhaseHook(r.Context(), phase, status.Assignment); err != nil {
+			if errors.Is(err, errTargetUnavailable) {
+				writeError(w, http.StatusServiceUnavailable, err.Error())
+				return
+			}
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -188,12 +201,52 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.state.Status())
 }
 
-func (s *Server) emptyJSON(w http.ResponseWriter, r *http.Request) {
+func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{})
+	writeJSON(w, http.StatusOK, s.metricsSnapshot())
+}
+
+func (s *Server) report(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	status := s.state.Status()
+	payload := map[string]any{
+		"run_id":    status.Assignment.RunID,
+		"worker_id": status.Assignment.WorkerID,
+		"phase":     status.Phase,
+		"metrics":   s.metricsSnapshot(),
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, report.WorkerReport{WorkerID: status.Assignment.WorkerID, Report: data})
+}
+
+func (s *Server) metricsSnapshot() metrics.SnapshotData {
+	if reporter, ok := s.runner.(MetricsReporter); ok {
+		return normalizeMetricsSnapshot(reporter.MetricsSnapshot())
+	}
+	return metrics.SnapshotData{Counters: map[string]uint64{}, Gauges: map[string]float64{}, Histograms: map[string]metrics.HistogramSummary{}}
+}
+
+func normalizeMetricsSnapshot(snapshot metrics.SnapshotData) metrics.SnapshotData {
+	if snapshot.Counters == nil {
+		snapshot.Counters = map[string]uint64{}
+	}
+	if snapshot.Gauges == nil {
+		snapshot.Gauges = map[string]float64{}
+	}
+	if snapshot.Histograms == nil {
+		snapshot.Histograms = map[string]metrics.HistogramSummary{}
+	}
+	return snapshot
 }
 
 func (s *Server) withControl(next http.HandlerFunc) http.HandlerFunc {

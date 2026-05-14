@@ -260,10 +260,71 @@ func softLimitViolations(l model.SoftLimitsConfig, s Summary) []Violation {
 }
 
 func appendRateViolation(out []Violation, name string, actual, limit float64, hard bool) []Violation {
-	if limit > 0 && actual > limit {
+	if limit >= 0 && actual > limit {
 		out = append(out, Violation{Name: name, Actual: actual, Limit: limit, Hard: hard})
 	}
 	return out
+}
+
+// SummaryFromMetrics derives report limit inputs from aggregated worker metrics.
+func SummaryFromMetrics(snapshot metrics.SnapshotData, workerFailed int) Summary {
+	connectSuccess := counterSum(snapshot, "connect_success_total")
+	connectErrors := counterSum(snapshot, "connect_error_total")
+	sendSuccess := counterSum(snapshot, "person_send_success_total", "group_send_success_total", "sendack_success_total")
+	sendErrors := counterSum(snapshot, "person_send_error_total", "group_send_error_total", "sendack_error_total")
+	recvSuccess := counterSum(snapshot, "person_recv_success_total", "group_recv_success_total", "recv_verify_success_total")
+	recvErrors := counterSum(snapshot, "person_recv_error_total", "group_recv_error_total", "recv_verify_error_total")
+	return Summary{
+		ConnectErrorRate:    errorRate(connectErrors, connectSuccess),
+		SendackErrorRate:    errorRate(sendErrors, sendSuccess),
+		RecvVerifyErrorRate: errorRate(recvErrors, recvSuccess),
+		WorkerFailed:        workerFailed,
+		SendackP99:          maxHistogramP99(snapshot, "person_send_latency_seconds", "group_send_latency_seconds", "sendack_latency_seconds"),
+		RecvP99:             maxHistogramP99(snapshot, "person_recv_latency_seconds", "group_recv_latency_seconds", "recv_latency_seconds"),
+	}
+}
+
+func counterSum(snapshot metrics.SnapshotData, names ...string) uint64 {
+	wanted := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		wanted[name] = struct{}{}
+	}
+	var sum uint64
+	for key, value := range snapshot.Counters {
+		if _, ok := wanted[metricName(key)]; ok {
+			sum += value
+		}
+	}
+	return sum
+}
+
+func metricName(key string) string {
+	if idx := strings.IndexByte(key, '{'); idx >= 0 {
+		return strings.TrimSpace(key[:idx])
+	}
+	return strings.TrimSpace(key)
+}
+
+func errorRate(errors, successes uint64) float64 {
+	total := errors + successes
+	if total == 0 {
+		return 0
+	}
+	return float64(errors) / float64(total)
+}
+
+func maxHistogramP99(snapshot metrics.SnapshotData, names ...string) time.Duration {
+	wanted := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		wanted[name] = struct{}{}
+	}
+	var max float64
+	for key, hist := range snapshot.Histograms {
+		if _, ok := wanted[metricName(key)]; ok && hist.P99Seconds > max {
+			max = hist.P99Seconds
+		}
+	}
+	return time.Duration(max * float64(time.Second))
 }
 
 func writeJSON(path string, v any) error {

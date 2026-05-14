@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const defaultAggregateMaxErrorSamples = 32
+
 var allowedLabelKeys = map[string]struct{}{
 	"worker_id":    {},
 	"phase":        {},
@@ -288,9 +290,23 @@ func Aggregate(workers []WorkerSnapshot) (SnapshotData, error) {
 			}
 			out.Histograms[key] = mergeHistogram(out.Histograms[key], value)
 		}
-		out.Errors = append(out.Errors, worker.Metrics.Errors...)
+		for _, sample := range worker.Metrics.Errors {
+			out.Errors = appendBoundedErrorSample(out.Errors, sample, defaultAggregateMaxErrorSamples)
+		}
 	}
 	return out, nil
+}
+
+func appendBoundedErrorSample(samples []ErrorSample, sample ErrorSample, max int) []ErrorSample {
+	if max <= 0 {
+		return nil
+	}
+	if len(samples) >= max {
+		copy(samples, samples[1:])
+		samples[len(samples)-1] = sample
+		return samples
+	}
+	return append(samples, sample)
 }
 
 func emptySnapshot() SnapshotData {
