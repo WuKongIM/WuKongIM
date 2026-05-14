@@ -87,7 +87,10 @@ func build(cfg Config) (_ *App, err error) {
 	}
 	if cfg.Observability.Diagnostics.Enabled {
 		app.diagnostics = obsdiagnostics.NewStore(diagnosticsStoreOptions(cfg))
-		sink := obsdiagnostics.NewSendTraceSink(app.diagnostics, obsdiagnostics.NewSampler(diagnosticsSamplerOptions(cfg)))
+		app.diagnosticsTracking = obsdiagnostics.NewTrackingRules(obsdiagnostics.TrackingRulesOptions{})
+		samplerOptions := diagnosticsSamplerOptions(cfg)
+		samplerOptions.TrackingRules = app.diagnosticsTracking
+		sink := obsdiagnostics.NewSendTraceSink(app.diagnostics, obsdiagnostics.NewSampler(samplerOptions))
 		if app.metrics != nil {
 			sink = sink.WithMetrics(app.metrics.Diagnostics)
 		}
@@ -607,6 +610,7 @@ func build(cfg Config) (_ *App, err error) {
 		ChannelLeaderEvaluate: channelLeaderEvaluator,
 		RuntimeSummary:        nodeRuntimeSummaryProvider{collector: runtimeSummaries},
 		Diagnostics:           app,
+		DiagnosticsTracking:   app,
 		ChannelRetention:      managerMessageRetentionNodeProvider{target: managerRetention},
 		CMDSync:               app.cmdSyncApp,
 		CMDConversationIntents: ownerValidatingCMDIntentSink{
