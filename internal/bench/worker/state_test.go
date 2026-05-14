@@ -1,10 +1,12 @@
 package worker
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,12 +54,25 @@ func TestStateSameRunRetryPreservesAdvancedPhase(t *testing.T) {
 
 func TestStateSameRunDifferentAssignmentConflictsWhileActive(t *testing.T) {
 	state := NewState("")
-	require.NoError(t, state.Assign(Assignment{RunID: "run-a", WorkerID: "worker-a"}))
+	base := Assignment{RunID: "run-a", WorkerID: "worker-a", Plan: model.WorkerPlan{WorkerID: "worker-a"}}
+	require.NoError(t, state.Assign(base))
 
-	err := state.Assign(Assignment{RunID: "run-a", WorkerID: "worker-b"})
+	err := state.Assign(Assignment{RunID: "run-a", WorkerID: "worker-a", Plan: model.WorkerPlan{WorkerID: "worker-b"}})
 
 	require.ErrorIs(t, err, ErrActiveRunConflict)
 	require.Equal(t, "worker-a", state.Status().Assignment.WorkerID)
+}
+
+func TestStateSameRunSamePlanRetryPreservesAdvancedPhase(t *testing.T) {
+	state := NewState("")
+	assignment := Assignment{RunID: "run-a", WorkerID: "worker-a", Plan: model.WorkerPlan{WorkerID: "worker-a"}}
+	require.NoError(t, state.Assign(assignment))
+	require.NoError(t, state.Transition(PhasePrepare))
+
+	require.NoError(t, state.Assign(assignment))
+
+	require.Equal(t, PhasePrepare, state.Status().Phase)
+	require.Equal(t, "worker-a", state.Status().Assignment.Plan.WorkerID)
 }
 
 func TestStateDoesNotMutateWhenAssignmentPersistenceFails(t *testing.T) {
@@ -100,5 +115,8 @@ func TestStatePersistsAssignmentWhenWorkDirIsSet(t *testing.T) {
 
 	data, err := os.ReadFile(filepath.Join(workDir, "current-run.json"))
 	require.NoError(t, err)
-	require.JSONEq(t, `{"run_id":"run-a","worker_id":"worker-a"}`, string(data))
+	var persisted Assignment
+	require.NoError(t, json.Unmarshal(data, &persisted))
+	require.Equal(t, "run-a", persisted.RunID)
+	require.Equal(t, "worker-a", persisted.WorkerID)
 }

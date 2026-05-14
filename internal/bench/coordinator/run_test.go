@@ -33,6 +33,49 @@ func TestCoordinatorAssignsWorkersAndRunsPhases(t *testing.T) {
 	require.Equal(t, []Phase{PhasePrepare, PhaseConnect, PhaseWarmup, PhaseRun, PhaseCooldown}, workers[1].ObservedPhases())
 }
 
+func TestCoordinatorAssignmentIncludesWorkerShard(t *testing.T) {
+	workers := newFakeWorkers(t, 2)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusCompleted, result.Status)
+	assignment := workers[0].Assignment()
+	require.Equal(t, "run-1", assignment.RunID)
+	require.Equal(t, "a", assignment.WorkerID)
+	require.Equal(t, "a", assignment.Plan.WorkerID)
+	require.Contains(t, assignment.Plan.Profiles, "group-hot")
+	require.Equal(t, fakeTargetOK().Gateway.TCP.Addrs, assignment.Target.Gateway.TCP.Addrs)
+	require.Equal(t, "wkbench/v1", assignment.Scenario.Version)
+}
+
+func TestCoordinatorStopsAssignedWorkersWhenLaterAssignmentFails(t *testing.T) {
+	workers := newFakeWorkers(t, 2)
+	workers[1].FailAssign(http.StatusInternalServerError, "assign exploded")
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Contains(t, err.Error(), "assign exploded")
+	require.True(t, workers[0].Stopped(), "already assigned worker should be stopped")
+	require.False(t, workers[1].Stopped(), "worker that rejected assignment was not active")
+}
+
 func TestCoordinatorReturnsWorkerFailedWhenPhasePostFails(t *testing.T) {
 	workers := newFakeWorkers(t, 2)
 	workers[1].FailPhase(PhaseWarmup, http.StatusInternalServerError, "warmup exploded")
@@ -53,6 +96,28 @@ func TestCoordinatorReturnsWorkerFailedWhenPhasePostFails(t *testing.T) {
 	require.Contains(t, err.Error(), "warmup exploded")
 	require.True(t, workers[0].Stopped(), "healthy workers should be stopped on fail-fast failure")
 	require.True(t, workers[1].Stopped(), "failed worker should be stopped on fail-fast failure")
+}
+
+func TestCoordinatorFailFastFalseAttemptsRemainingWorkersAndPhases(t *testing.T) {
+	workers := newFakeWorkers(t, 2)
+	workers[0].FailPhase(PhasePrepare, http.StatusInternalServerError, "prepare exploded")
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  20 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.FailFast = false
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.False(t, workers[0].Stopped(), "fail_fast=false should not stop all workers on first phase error")
+	require.Equal(t, []Phase{PhasePrepare, PhaseConnect, PhaseWarmup, PhaseRun, PhaseCooldown}, workers[1].ObservedPhases())
+	require.True(t, workers[0].SawPhaseAttempt(PhaseCooldown), "later phases should still be attempted for failed workers")
 }
 
 func TestCoordinatorStopsWorkersOnContextCancellation(t *testing.T) {
@@ -77,6 +142,28 @@ func TestCoordinatorStopsWorkersOnContextCancellation(t *testing.T) {
 	require.True(t, workers[1].Stopped())
 }
 
+func TestCoordinatorParentDeadlineReturnsCanceled(t *testing.T) {
+	workers := newFakeWorkers(t, 2)
+	workers[0].BlockStatus(PhaseConnect)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  time.Second,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	result, err := coord.Run(ctx, fakeScenario())
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Equal(t, StatusCanceled, result.Status)
+	require.True(t, workers[0].Stopped())
+	require.True(t, workers[1].Stopped())
+}
+
 func TestCoordinatorPollTimeoutReturnsWorkerFailed(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
 	workers[0].LagPhase(PhasePrepare)
@@ -92,6 +179,46 @@ func TestCoordinatorPollTimeoutReturnsWorkerFailed(t *testing.T) {
 
 	require.Error(t, err)
 	require.Equal(t, StatusWorkerFailed, result.Status)
+}
+
+func TestCoordinatorStopAllContinuesWhenOneWorkerStopHangs(t *testing.T) {
+	workers := newFakeWorkers(t, 2)
+	workers[0].HangStop()
+	workers[1].FailPhase(PhaseWarmup, http.StatusInternalServerError, "warmup exploded")
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+		StopTimeout:  50 * time.Millisecond,
+	})
+
+	started := time.Now()
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.True(t, workers[1].Stopped(), "healthy worker should still receive stop")
+	require.Less(t, time.Since(started), 500*time.Millisecond)
+}
+
+func TestCoordinatorRejectsMismatchedWorkerStatusAssignment(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].SetStatusAssignment(worker.Assignment{RunID: "wrong-run", WorkerID: "a"})
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Contains(t, err.Error(), "status assignment mismatch")
 }
 
 func TestCoordinatorRunsPreflightBeforeAssignment(t *testing.T) {
@@ -155,6 +282,10 @@ type fakeWorker struct {
 	observed           []Phase
 	stopped            bool
 	assigned           bool
+	hangStop           bool
+	statusAssignment   *worker.Assignment
+	phaseAttempts      []Phase
+	failAssign         *fakePhaseFailure
 	failPhases         map[Phase]fakePhaseFailure
 	lagPhases          map[Phase]bool
 	blockStatus        map[Phase]bool
@@ -170,6 +301,24 @@ func (fw *fakeWorker) FailPhase(phase Phase, status int, body string) {
 	fw.mu.Lock()
 	defer fw.mu.Unlock()
 	fw.failPhases[phase] = fakePhaseFailure{status: status, body: body}
+}
+
+func (fw *fakeWorker) FailAssign(status int, body string) {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	fw.failAssign = &fakePhaseFailure{status: status, body: body}
+}
+
+func (fw *fakeWorker) HangStop() {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	fw.hangStop = true
+}
+
+func (fw *fakeWorker) SetStatusAssignment(a worker.Assignment) {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	fw.statusAssignment = &a
 }
 
 func (fw *fakeWorker) BlockStatus(phase Phase) {
@@ -211,6 +360,23 @@ func (fw *fakeWorker) Assigned() bool {
 	return fw.assigned
 }
 
+func (fw *fakeWorker) Assignment() worker.Assignment {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	return fw.assignment
+}
+
+func (fw *fakeWorker) SawPhaseAttempt(phase Phase) bool {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	for _, got := range fw.phaseAttempts {
+		if got == phase {
+			return true
+		}
+	}
+	return false
+}
+
 func (fw *fakeWorker) handle(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Authorization") != "Bearer secret" {
 		http.Error(w, "missing auth", http.StatusUnauthorized)
@@ -232,13 +398,20 @@ func (fw *fakeWorker) handle(w http.ResponseWriter, r *http.Request) {
 	case "/v1/status":
 		fw.handleStatus(w, r)
 	case "/v1/stop":
-		fw.handleStop(w)
+		fw.handleStop(w, r)
 	default:
 		http.NotFound(w, r)
 	}
 }
 
 func (fw *fakeWorker) handleAssign(w http.ResponseWriter, r *http.Request) {
+	fw.mu.Lock()
+	if failure := fw.failAssign; failure != nil {
+		fw.mu.Unlock()
+		http.Error(w, failure.body, failure.status)
+		return
+	}
+	fw.mu.Unlock()
 	var assignment worker.Assignment
 	if err := json.NewDecoder(r.Body).Decode(&assignment); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -255,6 +428,7 @@ func (fw *fakeWorker) handleAssign(w http.ResponseWriter, r *http.Request) {
 
 func (fw *fakeWorker) handlePhase(w http.ResponseWriter, phase Phase, workerPhase worker.Phase) {
 	fw.mu.Lock()
+	fw.phaseAttempts = append(fw.phaseAttempts, phase)
 	if failure, ok := fw.failPhases[phase]; ok {
 		fw.mu.Unlock()
 		http.Error(w, failure.body, failure.status)
@@ -276,7 +450,11 @@ func (fw *fakeWorker) handleStatus(w http.ResponseWriter, r *http.Request) {
 		go cancel()
 	}
 	blocked := fw.blockStatus[Phase(fw.phase)]
-	status := worker.Status{Phase: fw.phase, Assignment: fw.assignment}
+	assignment := fw.assignment
+	if fw.statusAssignment != nil {
+		assignment = *fw.statusAssignment
+	}
+	status := worker.Status{Phase: fw.phase, Assignment: assignment}
 	fw.mu.Unlock()
 	if blocked {
 		<-r.Context().Done()
@@ -285,8 +463,13 @@ func (fw *fakeWorker) handleStatus(w http.ResponseWriter, r *http.Request) {
 	writeRunTestJSON(w, status)
 }
 
-func (fw *fakeWorker) handleStop(w http.ResponseWriter) {
+func (fw *fakeWorker) handleStop(w http.ResponseWriter, r *http.Request) {
 	fw.mu.Lock()
+	if fw.hangStop {
+		fw.mu.Unlock()
+		<-r.Context().Done()
+		return
+	}
 	fw.stopped = true
 	fw.phase = worker.PhaseStopped
 	status := worker.Status{Phase: fw.phase, Assignment: fw.assignment}
