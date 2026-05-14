@@ -17,6 +17,7 @@ import (
 const (
 	exitConfig    = 1
 	exitPreflight = 2
+	exitWorker    = 4
 	exitInternal  = 6
 )
 
@@ -40,13 +41,42 @@ func runWithStderr(args []string, stderr io.Writer) int {
 		return runValidate(args[1:], stderr)
 	case "doctor":
 		return runDoctor(args[1:], stderr)
-	case "run", "report":
+	case "run":
+		return runBench(args[1:], stderr)
+	case "report":
 		fmt.Fprintf(stderr, "%s is not implemented yet\n", args[0])
 		return exitInternal
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n", args[0])
 		return exitConfig
 	}
+}
+
+func runBench(args []string, stderr io.Writer) int {
+	targetCfg, scenario, workers, code := loadValidateInputs("run", args, stderr)
+	if code != 0 {
+		return code
+	}
+	coord := coordinator.New(coordinator.CoordinatorConfig{Workers: workers.Workers, Target: targetCfg})
+	result, err := coord.Run(context.Background(), scenario)
+	if err != nil {
+		switch result.Status {
+		case coordinator.StatusConfigFailed:
+			fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+			return exitConfig
+		case coordinator.StatusPreflightFailed:
+			fmt.Fprintf(stderr, "preflight failed: %v\n", err)
+			return exitPreflight
+		case coordinator.StatusWorkerFailed:
+			fmt.Fprintf(stderr, "worker run failed: %v\n", err)
+			return exitWorker
+		default:
+			fmt.Fprintf(stderr, "run failed: %v\n", err)
+			return exitInternal
+		}
+	}
+	fmt.Fprintln(stderr, "fake/no-op workload orchestration completed; real workloads are not implemented yet")
+	return result.Status.ExitCode()
 }
 
 type benchConfigPaths struct {
