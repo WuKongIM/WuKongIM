@@ -228,6 +228,56 @@ func TestWorkerDefaultRunnerConnectsAndRunsPersonShard(t *testing.T) {
 	require.Contains(t, sender.sentFrames[0].ClientMsgNo, "bench-msg")
 }
 
+func TestWorkerDefaultRunnerPreparesConnectsAndRunsGroupShard(t *testing.T) {
+	type seenRequest struct {
+		path  string
+		batch string
+	}
+	seen := make([]seenRequest, 0)
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/channels":
+			var req model.BatchChannelsRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			seen = append(seen, seenRequest{path: r.URL.Path, batch: req.BatchID})
+			require.Equal(t, []model.ChannelItem{{ChannelID: "bench-run-huge-group-0", ChannelType: uint8(frame.ChannelTypeGroup), Large: true}}, req.Channels)
+		case "/bench/v1/channels/subscribers":
+			var req model.BatchSubscribersRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			seen = append(seen, seenRequest{path: r.URL.Path, batch: req.BatchID})
+			require.Len(t, req.Items, 1)
+			require.False(t, req.Items[0].Reset)
+			require.LessOrEqual(t, len(req.Items[0].Subscribers), 2)
+		default:
+			t.Fatalf("unexpected target path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignment := groupShardAssignment(target.URL)
+	assignFull(t, srv, "secret", assignment)
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/warmup", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/run", http.StatusOK)
+
+	require.Equal(t, []seenRequest{
+		{path: "/bench/v1/channels", batch: "bench-run-channels-huge-group-worker-a-0-1"},
+		{path: "/bench/v1/channels/subscribers", batch: "bench-run-subs-huge-group-worker-a-0-2"},
+		{path: "/bench/v1/channels/subscribers", batch: "bench-run-subs-huge-group-worker-a-2-4"},
+	}, seen)
+	sender := pool.client("bench-u-0")
+	require.NotNil(t, sender)
+	require.Equal(t, []workerConnectCall{{uid: "bench-u-0", deviceID: "bench-d-0"}}, sender.connected)
+	require.Len(t, sender.sentFrames, 1)
+	require.Equal(t, "bench-run-huge-group-0", sender.sentFrames[0].ChannelID)
+	require.Equal(t, frame.ChannelTypeGroup, sender.sentFrames[0].ChannelType)
+	require.Contains(t, sender.sentFrames[0].ClientMsgNo, "bench-msg")
+}
+
 func TestWorkerDefaultRunnerRejectsPersonShardWithoutTraffic(t *testing.T) {
 	pool := newWorkerPersonClientPool()
 	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
@@ -283,8 +333,8 @@ func TestWorkerPhaseHooksCallWorkloadRunner(t *testing.T) {
 	postPhase(t, srv, "secret", "/v1/phase/run", http.StatusOK)
 	postPhase(t, srv, "secret", "/v1/phase/cooldown", http.StatusOK)
 
-	require.Equal(t, []Phase{PhaseConnect, PhaseWarmup, PhaseRun, PhaseCooldown}, runner.phases)
-	require.Equal(t, []string{"run-a", "run-a", "run-a", "run-a"}, runner.runIDs)
+	require.Equal(t, []Phase{PhasePrepare, PhaseConnect, PhaseWarmup, PhaseRun, PhaseCooldown}, runner.phases)
+	require.Equal(t, []string{"run-a", "run-a", "run-a", "run-a", "run-a"}, runner.runIDs)
 }
 
 func TestWorkerPhaseHookFailureDoesNotAdvanceStatus(t *testing.T) {
@@ -303,6 +353,10 @@ type recordingWorkloadRunner struct {
 	phases    []Phase
 	runIDs    []string
 	failPhase Phase
+}
+
+func (r *recordingWorkloadRunner) Prepare(ctx context.Context, assignment Assignment) error {
+	return r.record(PhasePrepare, assignment)
 }
 
 func (r *recordingWorkloadRunner) Connect(ctx context.Context, assignment Assignment) error {
@@ -352,6 +406,41 @@ func personShardAssignment() Assignment {
 	}
 }
 
+func groupShardAssignment(targetURL string) Assignment {
+	return Assignment{
+		RunID:    "bench-run",
+		WorkerID: "worker-a",
+		Target: model.Target{
+			BenchAPI: model.BenchAPIConfig{Addrs: []string{targetURL}},
+			Gateway:  model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"gw-a:5100"}}},
+		},
+		Scenario: model.Scenario{
+			Run:      model.RunConfig{ID: "bench-run"},
+			Identity: model.IdentityConfig{UIDPrefix: "bench-u", DevicePrefix: "bench-d", ClientMsgPrefix: "bench-msg"},
+			Online:   model.OnlineConfig{GatewayBalance: "round_robin"},
+			Channels: model.ChannelsConfig{Profiles: []model.ChannelProfile{{
+				Name:        "huge-group",
+				ChannelType: model.ChannelTypeGroup,
+				Count:       1,
+				Members:     model.MembersConfig{Count: 4},
+				Shard:       model.ShardConfig{Mode: model.ShardModeSplitMembersAndTraffic},
+				Prepare:     model.ChannelPrepareConfig{SubscribersBatchSize: 2},
+			}}},
+			Messages: model.MessagesConfig{Traffic: []model.TrafficConfig{{Name: "group-send", ChannelRef: "huge-group"}}},
+		},
+		Plan: model.WorkerPlan{WorkerID: "worker-a", Profiles: map[string]model.ProfileShard{
+			"huge-group": {
+				Name:                   "huge-group",
+				ChannelType:            model.ChannelTypeGroup,
+				ChannelRange:           model.Range{Start: 0, End: 1},
+				MemberRange:            model.Range{Start: 0, End: 4},
+				TrafficPartitionCount:  4,
+				OwnedTrafficPartitions: []int{0},
+			},
+		}},
+	}
+}
+
 type blockingConnectRunner struct {
 	calls   atomic.Int32
 	entered chan struct{}
@@ -361,6 +450,8 @@ type blockingConnectRunner struct {
 func newBlockingConnectRunner() *blockingConnectRunner {
 	return &blockingConnectRunner{entered: make(chan struct{}, 2), done: make(chan struct{})}
 }
+
+func (r *blockingConnectRunner) Prepare(ctx context.Context, assignment Assignment) error { return nil }
 
 func (r *blockingConnectRunner) Connect(ctx context.Context, assignment Assignment) error {
 	r.calls.Add(1)

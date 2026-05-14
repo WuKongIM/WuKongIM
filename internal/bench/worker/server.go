@@ -12,6 +12,8 @@ import (
 
 // WorkloadRunner receives worker lifecycle hooks for assigned benchmark shards.
 type WorkloadRunner interface {
+	// Prepare prepares target-side benchmark data for the active assignment.
+	Prepare(ctx context.Context, assignment Assignment) error
 	// Connect establishes workload connections for the active assignment.
 	Connect(ctx context.Context, assignment Assignment) error
 	// Warmup runs warmup traffic for the active assignment.
@@ -30,7 +32,7 @@ type Config struct {
 	InsecureControl bool
 	// WorkDir stores the active assignment file current-run.json when configured.
 	WorkDir string
-	// WorkloadRunner receives connect, warmup, run, and cooldown phase hooks.
+	// WorkloadRunner receives prepare, connect, warmup, run, and cooldown phase hooks.
 	WorkloadRunner WorkloadRunner
 	// WorkloadClientFactory overrides default runner client creation for tests.
 	WorkloadClientFactory WorkloadClientFactory
@@ -151,6 +153,8 @@ func (s *Server) runPhaseHook(ctx context.Context, phase Phase, assignment Assig
 		return nil
 	}
 	switch phase {
+	case PhasePrepare:
+		return s.runner.Prepare(ctx, assignment)
 	case PhaseConnect:
 		return s.runner.Connect(ctx, assignment)
 	case PhaseWarmup:
