@@ -42,7 +42,11 @@ func (a *App) Capabilities(context.Context) CapabilitiesResponse {
 		Enabled: true,
 		Version: versionV1,
 		Supports: CapabilitiesSupports{
-			ChannelTypes: []string{"group"},
+			UsersTokensBatch:        true,
+			ChannelsBatch:           true,
+			ChannelSubscribersBatch: true,
+			Snapshot:                true,
+			ChannelTypes:            []string{"group"},
 		},
 		Limits: CapabilitiesLimits{
 			MaxBatchSize:    a.maxBatchSize,
@@ -54,13 +58,17 @@ func (a *App) Capabilities(context.Context) CapabilitiesResponse {
 // UpsertTokens writes benchmark user tokens through the user boundary.
 func (a *App) UpsertTokens(ctx context.Context, req TokensRequest) (MutationResponse, error) {
 	resp := MutationResponse{RunID: req.RunID, BatchID: req.BatchID}
+	items := req.tokenItems()
 	if err := validateMutationHeader(req.RunID, req.BatchID); err != nil {
 		return resp, err
 	}
-	if err := a.validateBatchSize(len(req.Items)); err != nil {
+	if len(items) == 0 {
+		return resp, fmt.Errorf("%w: users are required", ErrValidation)
+	}
+	if err := a.validateBatchSize(len(items)); err != nil {
 		return resp, err
 	}
-	for _, item := range req.Items {
+	for _, item := range items {
 		if err := validateUserToken(item); err != nil {
 			return resp, err
 		}
@@ -68,7 +76,7 @@ func (a *App) UpsertTokens(ctx context.Context, req TokensRequest) (MutationResp
 	if a.users == nil {
 		return resp, fmt.Errorf("%w: user writer required", ErrDependency)
 	}
-	for _, item := range req.Items {
+	for _, item := range items {
 		if err := a.users.UpdateToken(ctx, item); err != nil {
 			return resp, err
 		}
@@ -80,13 +88,17 @@ func (a *App) UpsertTokens(ctx context.Context, req TokensRequest) (MutationResp
 // UpsertChannels writes benchmark group channels through the channel boundary.
 func (a *App) UpsertChannels(ctx context.Context, req ChannelsRequest) (MutationResponse, error) {
 	resp := MutationResponse{RunID: req.RunID, BatchID: req.BatchID}
+	items := req.channelItems()
 	if err := validateMutationHeader(req.RunID, req.BatchID); err != nil {
 		return resp, err
 	}
-	if err := a.validateBatchSize(len(req.Items)); err != nil {
+	if len(items) == 0 {
+		return resp, fmt.Errorf("%w: channels are required", ErrValidation)
+	}
+	if err := a.validateBatchSize(len(items)); err != nil {
 		return resp, err
 	}
-	for _, item := range req.Items {
+	for _, item := range items {
 		if err := validateChannelRecord(item); err != nil {
 			return resp, err
 		}
@@ -94,7 +106,7 @@ func (a *App) UpsertChannels(ctx context.Context, req ChannelsRequest) (Mutation
 	if a.channels == nil {
 		return resp, fmt.Errorf("%w: channel writer required", ErrDependency)
 	}
-	for _, item := range req.Items {
+	for _, item := range items {
 		if err := a.channels.UpsertChannel(ctx, item); err != nil {
 			return resp, err
 		}
@@ -112,6 +124,9 @@ func (a *App) AddSubscribers(ctx context.Context, req SubscribersRequest) (Subsc
 	if err := a.validateBatchSize(len(req.Items)); err != nil {
 		return resp, err
 	}
+	if len(req.Items) == 0 {
+		return resp, fmt.Errorf("%w: items are required", ErrValidation)
+	}
 	for _, item := range req.Items {
 		if err := validateSubscriberItem(item); err != nil {
 			return resp, err
@@ -128,6 +143,20 @@ func (a *App) AddSubscribers(ctx context.Context, req SubscribersRequest) (Subsc
 		resp.AcceptedSubscribers += len(item.Subscribers)
 	}
 	return resp, nil
+}
+
+func (r TokensRequest) tokenItems() []UserTokenCommand {
+	if len(r.Users) > 0 {
+		return r.Users
+	}
+	return r.Items
+}
+
+func (r ChannelsRequest) channelItems() []ChannelRecord {
+	if len(r.Channels) > 0 {
+		return r.Channels
+	}
+	return r.Items
 }
 
 // Snapshot returns benchmark setup state when a reader is configured.

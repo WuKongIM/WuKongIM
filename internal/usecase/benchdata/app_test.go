@@ -15,7 +15,65 @@ func TestCapabilitiesReportsV1GroupSupport(t *testing.T) {
 	require.True(t, got.Enabled)
 	require.Equal(t, "bench/v1", got.Version)
 	require.Contains(t, got.Supports.ChannelTypes, "group")
+	require.True(t, got.Supports.UsersTokensBatch)
+	require.True(t, got.Supports.ChannelsBatch)
+	require.True(t, got.Supports.ChannelSubscribersBatch)
+	require.True(t, got.Supports.Snapshot)
 	require.Equal(t, 100, got.Limits.MaxBatchSize)
+}
+
+func TestUpsertTokensAcceptsSpecUsersSchema(t *testing.T) {
+	users := &recordingUsers{}
+	app := New(Config{Users: users, MaxBatchSize: 100, MaxPayloadBytes: 1024})
+
+	got, err := app.UpsertTokens(context.Background(), TokensRequest{
+		RunID:   "bench-run",
+		BatchID: "batch-1",
+		Upsert:  true,
+		Users:   []UserTokenCommand{{UID: "u1", Token: "t1"}},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, got.Accepted)
+	require.Equal(t, []UserTokenCommand{{UID: "u1", Token: "t1"}}, users.updated)
+}
+
+func TestUpsertTokensRejectsMissingUsers(t *testing.T) {
+	users := &recordingUsers{}
+	app := New(Config{Users: users, MaxBatchSize: 100, MaxPayloadBytes: 1024})
+
+	_, err := app.UpsertTokens(context.Background(), TokensRequest{RunID: "bench-run", BatchID: "batch-1", Upsert: true})
+
+	require.ErrorContains(t, err, "users")
+	require.ErrorIs(t, err, ErrValidation)
+	require.Empty(t, users.updated)
+}
+
+func TestUpsertChannelsAcceptsSpecChannelsSchema(t *testing.T) {
+	channels := &recordingChannels{}
+	app := New(Config{Channels: channels, MaxBatchSize: 100, MaxPayloadBytes: 1024})
+
+	got, err := app.UpsertChannels(context.Background(), ChannelsRequest{
+		RunID:    "bench-run",
+		BatchID:  "batch-1",
+		Upsert:   true,
+		Channels: []ChannelRecord{{ChannelID: "g1", ChannelType: 2}},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, got.Accepted)
+	require.Equal(t, []ChannelRecord{{ChannelID: "g1", ChannelType: 2}}, channels.upserted)
+}
+
+func TestUpsertChannelsRejectsMissingChannels(t *testing.T) {
+	channels := &recordingChannels{}
+	app := New(Config{Channels: channels, MaxBatchSize: 100, MaxPayloadBytes: 1024})
+
+	_, err := app.UpsertChannels(context.Background(), ChannelsRequest{RunID: "bench-run", BatchID: "batch-1", Upsert: true})
+
+	require.ErrorContains(t, err, "channels")
+	require.ErrorIs(t, err, ErrValidation)
+	require.Empty(t, channels.upserted)
 }
 
 func TestBatchSubscribersRejectsResetTrue(t *testing.T) {
