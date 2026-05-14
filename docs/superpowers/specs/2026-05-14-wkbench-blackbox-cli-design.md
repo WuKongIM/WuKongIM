@@ -16,7 +16,7 @@ The first version focuses on:
 - Multiple group profiles in one run, for example 50 groups with 100 members plus 1 group with 10,000 members.
 - Per-profile message rates, verification rules, and online ratios.
 - Distributed load generation through manually started workers.
-- Optional bench-only data-preparation APIs when existing public APIs are too slow.
+- Required bench-only data-preparation APIs; if the target cluster has not enabled bench mode, `wkbench` fails preflight and does not start load.
 
 The design must preserve the project deployment semantics: a single-node deployment is still treated as a single-node cluster, and the load tester must not introduce shortcuts that bypass cluster behavior.
 
@@ -90,8 +90,8 @@ Each worker owns only the shard assigned by the coordinator. It creates data thr
 
 The target is a user-managed WuKongIM cluster. `wkbench` talks to it only through:
 
-- Public API server routes such as `/healthz`, `/readyz`, `/channel`, `/channel/subscriber_add`, and optional `/user/token`.
-- Optional bench-only routes under `/bench/v1/*` when explicitly enabled.
+- Public API server routes such as `/healthz` and `/readyz`.
+- Required bench-only routes under `/bench/v1/*` for benchmark data setup and lightweight benchmark snapshots.
 - WKProto TCP gateway listeners.
 - Optional public `/metrics` endpoints.
 
@@ -164,7 +164,7 @@ metrics:
     - http://10.0.1.13:5001/metrics
 
 bench_api:
-  enabled: false
+  enabled: true
 ```
 
 There is no manager section in v1.
@@ -218,7 +218,6 @@ limits:
     max_recv_p99: 3s
 
 prepare:
-  api_strategy: existing_first
   concurrency: 200
   rate_limit: 1000/s
   retry:
@@ -320,27 +319,17 @@ cleanup:
   strategy: keep_data
 ```
 
-### 5.4 Prepare API Strategy
+### 5.4 Bench API Requirement
 
-Existing APIs are the default data-preparation path. Bench APIs are only used when the scenario explicitly selects or requires them.
+`wkbench` uses one benchmark data setup interface: `/bench/v1/*`. It does not switch between production data-preparation routes and bench routes.
 
-`prepare.api_strategy` values:
+Rules:
 
-- `existing_first`: default. Use `/channel`, `/channel/subscriber_add`, and optional `/user/token`. Bench APIs are not used in this mode; preflight may warn when the estimated prepare cost suggests `bench_first`.
-- `bench_first`: use `/bench/v1/*` when target capabilities support the needed operation; fall back to existing APIs if the capabilities are unavailable or incomplete.
-- `bench_required`: use `/bench/v1/*` and fail preflight if capabilities are unavailable or incomplete.
-
-Bench API acceleration example:
-
-```yaml
-# target.yaml
-bench_api:
-  enabled: true
-
-# scenario.yaml
-prepare:
-  api_strategy: bench_first
-```
+- `target.bench_api.enabled` must be true in `target.yaml`.
+- Preflight must call `/bench/v1/capabilities` on the target API nodes.
+- If capabilities are missing, unsupported, or return 404 because `WK_BENCH_API_ENABLE=false`, `wkbench run` fails before prepare/connect/warmup/run.
+- Existing production routes such as `/channel`, `/channel/subscriber_add`, and `/user/token` are not used by `wkbench` v1 for benchmark data setup.
+- Formal load still uses real WKProto. Bench APIs prepare data only; they do not send benchmark messages.
 
 Profile rates are defined by one or more `messages.traffic` entries referencing the profile through `channel_ref`. Do not add competing rate fields directly under `channels.profiles`.
 
@@ -390,7 +379,7 @@ Rules:
 
 - `count` is group channel count.
 - `members.count` is member count per channel.
-- Data preparation uses `/channel` and `/channel/subscriber_add` unless bench API is enabled and selected.
+- Data preparation uses `/bench/v1/channels` and `/bench/v1/channels/subscribers`.
 - Senders are selected from members.
 - The sender sends `SendPacket{ChannelType: group, ChannelID: groupID}`.
 - Small groups can use full recv verification.
@@ -452,7 +441,7 @@ bench-c:
   traffic_partition: 2-3/4
 ```
 
-Only one assigned channel owner calls `/channel`. All workers can add their subscriber batches. Traffic is partitioned by message index, for example `message_index % partition_count`, and the coordinator divides the configured global channel rate across those partitions.
+Only one assigned channel owner calls `/bench/v1/channels`. All workers can add their subscriber batches through `/bench/v1/channels/subscribers`. Traffic is partitioned by message index, for example `message_index % partition_count`, and the coordinator divides the configured global channel rate across those partitions.
 
 Huge-group prepare ownership rules:
 
@@ -478,11 +467,11 @@ Checks:
 - API `/healthz` and `/readyz`.
 - Gateway TCP and one WKProto handshake.
 - Optional `/metrics` access.
-- Optional `/bench/v1/capabilities` access.
+- Required `/bench/v1/capabilities` access.
 - Worker availability, version, and resource capacity.
 - Scenario capacity estimates.
 
-If bench API is required by the scenario but unavailable, preflight fails.
+If bench API capabilities are unavailable or incomplete, preflight fails and no load is started.
 
 ### 8.2 Plan
 
@@ -490,7 +479,7 @@ Compiles global profiles and traffic into deterministic worker shards.
 
 ### 8.3 Prepare
 
-Prepares data through public APIs or optional bench APIs according to `prepare.api_strategy`.
+Prepares data through required bench APIs.
 
 - Person: optional token preparation only.
 - Group: channel upsert and subscriber add.
@@ -537,7 +526,7 @@ Persists current run metadata in `--work-dir`, prevents concurrent conflicting a
 
 ### 9.2 Prepare Engine
 
-Executes HTTP/bench API data setup with concurrency, rate limits, retry, and bounded error samples.
+Executes `/bench/v1/*` data setup with concurrency, rate limits, retry, and bounded error samples.
 
 ### 9.3 Connection Manager
 
@@ -773,7 +762,7 @@ The final report records each limit as `passed`, `warning`, or `failed` with the
 
 ## 12. Bench API
 
-Bench APIs are optional. `WK_BENCH_API_ENABLE=true` is the only v1 bench API mode switch; when it is false, `/bench/v1/*` routes are not registered. Existing APIs remain the default data-preparation path unless `prepare.api_strategy` selects or requires bench API acceleration.
+`wkbench` v1 requires bench APIs for benchmark data setup and lightweight target snapshots. `WK_BENCH_API_ENABLE=true` is the only v1 bench API mode switch; when it is false, `/bench/v1/*` routes are not registered and `wkbench run` must fail preflight instead of falling back to production data-preparation routes.
 
 Bench APIs are unauthenticated by design to avoid manager-account complexity, but they are disabled by default and must only be enabled in isolated benchmark environments.
 
@@ -1090,7 +1079,7 @@ It must not use forbidden server, cluster, storage, or runtime packages.
 - Worker-weight sharding.
 - Huge-group member and traffic partitioning.
 - Rate parsing and payload generation.
-- `prepare.api_strategy` selection and preflight behavior.
+- Required bench API capability checks and preflight failure behavior.
 - Error classification.
 - Report aggregation.
 - `wkbench` import-boundary test rejects server internals in `go list -deps ./cmd/wkbench`.
@@ -1131,7 +1120,7 @@ Use small scales only:
 - Person profile with a few pairs.
 - Group profile with a few groups.
 - Mixed small group plus one larger group with sampled verification.
-- Bench API enabled path and existing API fallback path.
+- Bench API enabled path and disabled-target preflight failure path.
 
 Do not put large real-time load tests into default unit tests.
 
@@ -1150,24 +1139,27 @@ Do not put large real-time load tests into default unit tests.
 - Implement coordinator assignment and phase orchestration.
 - Use fake workload to verify distributed control and reporting.
 
-### Phase 3: Real WKProto and Person Workload
+### Phase 3: Required Bench API and Person Workload
 
+- Add `WK_BENCH_API_ENABLE` and bench API limits.
+- Add bench capabilities, batch token, batch channel, batch subscriber, and snapshot routes.
+- Make wkbench fail preflight when required bench API capabilities are unavailable.
 - Implement production bench WKProto client.
 - Implement connection manager.
 - Implement person profile traffic and verification.
 
-### Phase 4: Group Workload Through Existing APIs
+### Phase 4: Group Workload Through Bench APIs
 
-- Implement group data preparation using `/channel` and `/channel/subscriber_add`.
+- Implement group data preparation using `/bench/v1/channels` and `/bench/v1/channels/subscribers`.
 - Implement group profile traffic.
 - Implement huge-group member and traffic sharding.
 - Implement full and sampled recv verification.
 
-### Phase 5: Bench API Acceleration and Snapshot
+### Phase 5: Reporting and Operational Hardening
 
-- Add `WK_BENCH_API_ENABLE` and bench API limits.
-- Add bench capabilities, batch token, batch channel, batch subscriber, and snapshot routes.
-- Make wkbench select existing APIs or bench APIs according to scenario and capabilities.
+- Finalize report formats and limit evaluation.
+- Add worker resource warnings and operator-facing diagnostics.
+- Add focused integration coverage for disabled bench API preflight failure.
 
 ## 16. Post-v1 Questions
 
@@ -1188,9 +1180,9 @@ v1 is acceptable when:
 - Multiple group sizes work in the same run.
 - Each profile can define its own message rate.
 - All message pressure uses real WKProto.
-- Data preparation uses existing APIs by default.
-- `prepare.api_strategy` makes bench API selection explicit and testable.
-- Bench APIs are optional, disabled by default, unauthenticated when enabled, and do not depend on manager APIs.
+- Data preparation uses `/bench/v1/*`; no production data-preparation fallback exists in v1.
+- `WK_BENCH_API_ENABLE=false` or missing capabilities make `wkbench run` fail before starting load.
+- Bench APIs are disabled by default on the server, unauthenticated when enabled, and do not depend on manager APIs.
 - Worker control APIs require a control token unless explicitly started with insecure control mode.
 - `wkbench` import-boundary tests prevent imports of server internals and cluster/storage shortcuts.
 - Reports include overall, by-worker, and by-profile connection count, QPS, sendack latency, recv latency, error rate, and bounded error samples.
