@@ -17,6 +17,8 @@ type Channel struct {
 	Disband int64
 	// SendBan blocks sends while preserving receive semantics.
 	SendBan int64
+	// AllowStranger permits stranger sends to a person channel receiver.
+	AllowStranger int64
 	// SubscriberMutationVersion is the durable version fence for subscriber mutations.
 	SubscriberMutationVersion uint64
 }
@@ -56,7 +58,7 @@ func (s *ShardStore) CreateChannel(ctx context.Context, ch Channel) error {
 		return err
 	}
 
-	value := encodeChannelFamilyValue(ch.Ban, ch.Disband, ch.SendBan, ch.SubscriberMutationVersion, primaryKey)
+	value := encodeChannelFamilyValue(ch.Ban, ch.Disband, ch.SendBan, ch.AllowStranger, ch.SubscriberMutationVersion, primaryKey)
 	indexKey := encodeChannelIDIndexKey(s.slot, ch.ChannelID, ch.ChannelType)
 	indexValue := encodeChannelIndexValue(ch.Ban)
 
@@ -110,7 +112,7 @@ func (s *ShardStore) getChannelForPrimaryKeyLocked(primaryKey []byte, channelID 
 		return Channel{}, false, err
 	}
 
-	ban, disband, sendBan, version, err := decodeChannelFamilyValue(primaryKey, value)
+	ban, disband, sendBan, allowStranger, version, err := decodeChannelFamilyValue(primaryKey, value)
 	if err != nil {
 		return Channel{}, false, err
 	}
@@ -120,6 +122,7 @@ func (s *ShardStore) getChannelForPrimaryKeyLocked(primaryKey []byte, channelID 
 		Ban:                       ban,
 		Disband:                   disband,
 		SendBan:                   sendBan,
+		AllowStranger:             allowStranger,
 		SubscriberMutationVersion: version,
 	}, true, nil
 }
@@ -291,7 +294,7 @@ func (s *ShardStore) UpdateChannel(ctx context.Context, ch Channel) error {
 	if ch.SubscriberMutationVersion == 0 {
 		ch.SubscriberMutationVersion = existing.SubscriberMutationVersion
 	}
-	value := encodeChannelFamilyValue(ch.Ban, ch.Disband, ch.SendBan, ch.SubscriberMutationVersion, primaryKey)
+	value := encodeChannelFamilyValue(ch.Ban, ch.Disband, ch.SendBan, ch.AllowStranger, ch.SubscriberMutationVersion, primaryKey)
 	indexKey := encodeChannelIDIndexKey(s.slot, ch.ChannelID, ch.ChannelType)
 	indexValue := encodeChannelIndexValue(ch.Ban)
 
@@ -329,7 +332,7 @@ func (s *ShardStore) UpsertChannel(ctx context.Context, ch Channel) error {
 	if exists && ch.SubscriberMutationVersion == 0 {
 		ch.SubscriberMutationVersion = existing.SubscriberMutationVersion
 	}
-	value := encodeChannelFamilyValue(ch.Ban, ch.Disband, ch.SendBan, ch.SubscriberMutationVersion, primaryKey)
+	value := encodeChannelFamilyValue(ch.Ban, ch.Disband, ch.SendBan, ch.AllowStranger, ch.SubscriberMutationVersion, primaryKey)
 	indexKey := encodeChannelIDIndexKey(s.slot, ch.ChannelID, ch.ChannelType)
 	indexValue := encodeChannelIndexValue(ch.Ban)
 
@@ -432,7 +435,7 @@ func decodeChannelRecord(key, value, prefix []byte) (Channel, uint16, error) {
 		return Channel{}, 0, ErrCorruptValue
 	}
 
-	ban, disband, sendBan, subscriberMutationVersion, err := decodeChannelFamilyValue(key, value)
+	ban, disband, sendBan, allowStranger, subscriberMutationVersion, err := decodeChannelFamilyValue(key, value)
 	if err != nil {
 		return Channel{}, 0, err
 	}
@@ -442,6 +445,7 @@ func decodeChannelRecord(key, value, prefix []byte) (Channel, uint16, error) {
 		Ban:                       ban,
 		Disband:                   disband,
 		SendBan:                   sendBan,
+		AllowStranger:             allowStranger,
 		SubscriberMutationVersion: subscriberMutationVersion,
 	}, uint16(familyID), nil
 }

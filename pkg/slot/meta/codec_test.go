@@ -134,44 +134,44 @@ func TestUserValueEncodingMatchesDoc(t *testing.T) {
 
 func TestChannelValueEncodingMatchesDoc(t *testing.T) {
 	key := encodeChannelPrimaryKey(7, "group-001", 1, 0)
-	got := encodeChannelFamilyValue(0, 0, 0, 0, key)
+	got := encodeChannelFamilyValue(0, 0, 0, 0, 0, key)
 	want := mustHex(t, "40 96 6d 34 0a 33 00 14 00")
 	if !bytes.Equal(got, want) {
 		t.Fatalf("unexpected value:\n got: %x\nwant: %x", got, want)
 	}
 
-	ban, disband, sendBan, version, err := decodeChannelFamilyValue(key, got)
+	ban, disband, sendBan, allowStranger, version, err := decodeChannelFamilyValue(key, got)
 	if err != nil {
 		t.Fatalf("decodeChannelFamilyValue(): %v", err)
 	}
-	if ban != 0 || disband != 0 || sendBan != 0 || version != 0 {
-		t.Fatalf("decoded channel value = (%d, %d, %d, %d), want (0, 0, 0, 0)", ban, disband, sendBan, version)
+	if ban != 0 || disband != 0 || sendBan != 0 || allowStranger != 0 || version != 0 {
+		t.Fatalf("decoded channel value = (%d, %d, %d, %d, %d), want (0, 0, 0, 0, 0)", ban, disband, sendBan, allowStranger, version)
 	}
 }
 
 func TestChannelValueEncodingCarriesSubscriberMutationVersion(t *testing.T) {
 	key := encodeChannelPrimaryKey(7, "group-001", 1, 0)
-	got := encodeChannelFamilyValue(9, 0, 0, 7, key)
+	got := encodeChannelFamilyValue(9, 0, 0, 0, 7, key)
 
-	ban, disband, sendBan, version, err := decodeChannelFamilyValue(key, got)
+	ban, disband, sendBan, allowStranger, version, err := decodeChannelFamilyValue(key, got)
 	if err != nil {
 		t.Fatalf("decodeChannelFamilyValue(): %v", err)
 	}
-	if ban != 9 || disband != 0 || sendBan != 0 || version != 7 {
-		t.Fatalf("decoded channel value = (%d, %d, %d, %d), want (9, 0, 0, 7)", ban, disband, sendBan, version)
+	if ban != 9 || disband != 0 || sendBan != 0 || allowStranger != 0 || version != 7 {
+		t.Fatalf("decoded channel value = (%d, %d, %d, %d, %d), want (9, 0, 0, 0, 7)", ban, disband, sendBan, allowStranger, version)
 	}
 }
 
 func TestChannelValueEncodingCarriesStatusFlags(t *testing.T) {
 	key := encodeChannelPrimaryKey(7, "group-001", 1, 0)
-	got := encodeChannelFamilyValue(1, 2, 3, 11, key)
+	got := encodeChannelFamilyValue(1, 2, 3, 4, 11, key)
 
-	ban, disband, sendBan, version, err := decodeChannelFamilyValue(key, got)
+	ban, disband, sendBan, allowStranger, version, err := decodeChannelFamilyValue(key, got)
 	if err != nil {
 		t.Fatalf("decodeChannelFamilyValue(): %v", err)
 	}
-	if ban != 1 || disband != 2 || sendBan != 3 || version != 11 {
-		t.Fatalf("decoded channel value = (%d, %d, %d, %d), want (1, 2, 3, 11)", ban, disband, sendBan, version)
+	if ban != 1 || disband != 2 || sendBan != 3 || allowStranger != 4 || version != 11 {
+		t.Fatalf("decoded channel value = (%d, %d, %d, %d, %d), want (1, 2, 3, 4, 11)", ban, disband, sendBan, allowStranger, version)
 	}
 }
 
@@ -179,12 +179,12 @@ func TestDecodeChannelFamilyValueDefaultsMissingStatusFlags(t *testing.T) {
 	key := encodeChannelPrimaryKey(7, "group-001", 1, 0)
 	legacy := encodeLegacyChannelFamilyValue(9, key)
 
-	ban, disband, sendBan, version, err := decodeChannelFamilyValue(key, legacy)
+	ban, disband, sendBan, allowStranger, version, err := decodeChannelFamilyValue(key, legacy)
 	if err != nil {
 		t.Fatalf("decodeChannelFamilyValue(legacy): %v", err)
 	}
-	if ban != 9 || disband != 0 || sendBan != 0 || version != 0 {
-		t.Fatalf("decoded legacy value = (%d, %d, %d, %d), want (9, 0, 0, 0)", ban, disband, sendBan, version)
+	if ban != 9 || disband != 0 || sendBan != 0 || allowStranger != 0 || version != 0 {
+		t.Fatalf("decoded legacy value = (%d, %d, %d, %d, %d), want (9, 0, 0, 0, 0)", ban, disband, sendBan, allowStranger, version)
 	}
 }
 
@@ -255,7 +255,7 @@ func TestDecodeChannelFamilyValueRejectsMissingBan(t *testing.T) {
 	key := encodeChannelPrimaryKey(7, "group-001", 1, 0)
 	value := wrapFamilyValue(key, nil)
 
-	_, _, _, _, err := decodeChannelFamilyValue(key, value)
+	_, _, _, _, _, err := decodeChannelFamilyValue(key, value)
 	if !errors.Is(err, ErrCorruptValue) {
 		t.Fatalf("expected ErrCorruptValue, got %v", err)
 	}
@@ -266,7 +266,7 @@ func TestDecodeChannelFamilyValueRejectsWrongType(t *testing.T) {
 	payload := appendBytesValue(nil, channelColumnIDBan, 0, "bad")
 	value := wrapFamilyValue(key, payload)
 
-	_, _, _, _, err := decodeChannelFamilyValue(key, value)
+	_, _, _, _, _, err := decodeChannelFamilyValue(key, value)
 	if !errors.Is(err, ErrCorruptValue) {
 		t.Fatalf("expected ErrCorruptValue, got %v", err)
 	}
