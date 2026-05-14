@@ -5,7 +5,6 @@ import { Link } from "react-router-dom"
 import { ResourceState } from "@/components/manager/resource-state"
 import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/shell/page-container"
-import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
 import {
   ManagerApiError,
@@ -248,21 +247,21 @@ function RelatedLinks({ response }: { response: ManagerDiagnosticsResponse }) {
   for (const event of response.events) {
     if (event.slot_id && event.node_id) {
       links.set(`slot-${event.slot_id}-${event.node_id}`, {
-        href: `/slot-logs?slot_id=${event.slot_id}&node_id=${event.node_id}`,
+        href: `/cluster/diagnostics?tab=slot-logs&slot_id=${event.slot_id}&node_id=${event.node_id}`,
         label: `Slot ${event.slot_id} logs on node ${event.node_id}`,
       })
     }
     if (event.node_id) {
       links.set(`conn-${event.node_id}`, {
-        href: `/connections?node_id=${event.node_id}`,
+        href: `/system/connections?node_id=${event.node_id}`,
         label: `Connections on node ${event.node_id}`,
       })
-      links.set("nodes", { href: "/nodes", label: "Nodes" })
+      links.set("nodes", { href: "/cluster/nodes", label: "Nodes" })
     }
     const parsed = parseChannelKey(event.channel_key)
     if (parsed) {
       links.set(`channel-${event.channel_key}`, {
-        href: `/messages?channel_id=${encodeURIComponent(parsed.channelId)}&channel_type=${parsed.channelType}`,
+        href: `/business/messages?channel_id=${encodeURIComponent(parsed.channelId)}&channel_type=${parsed.channelType}`,
         label: `Messages for ${event.channel_key}`,
       })
     }
@@ -295,7 +294,7 @@ function RelatedLinks({ response }: { response: ManagerDiagnosticsResponse }) {
   )
 }
 
-export function DiagnosticsPage() {
+export function DiagnosticsTracePanel() {
   const intl = useIntl()
   const [form, setForm] = useState<DiagnosticsQueryForm>(defaultForm)
   const [trackingForm, setTrackingForm] = useState<TrackingForm>(defaultTrackingForm)
@@ -420,19 +419,25 @@ export function DiagnosticsPage() {
   const errorKind = mapErrorKind(state.error)
 
   return (
-    <PageContainer>
-      <PageHeader
-        eyebrow="Observability"
-        title={intl.formatMessage({ id: "diagnostics.title" })}
-        description={intl.formatMessage({ id: "diagnostics.description" })}
-        actions={response ? <Button onClick={exportJSON} size="sm" variant="outline">Export JSON</Button> : null}
-      >
-        <div className="grid gap-3 sm:grid-cols-3">
+    <>
+      <section className="rounded-lg border border-border bg-card p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">
+              {intl.formatMessage({ id: "diagnostics.title" })}
+            </h2>
+            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+              {intl.formatMessage({ id: "diagnostics.description" })}
+            </p>
+          </div>
+          {response ? <Button onClick={exportJSON} size="sm" variant="outline">Export JSON</Button> : null}
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <HeaderBadge label="Scope" value={response?.scope ?? "cluster"} />
           <HeaderBadge label="Generated" value={response ? timestamp(intl, response.generated_at) : "pending"} />
           <HeaderBadge label="Events" value={response ? `${response.summary.event_count} events` : "0 events"} />
         </div>
-      </PageHeader>
+      </section>
 
       <SectionCard title={intl.formatMessage({ id: "diagnostics.tracking.title" })} description={intl.formatMessage({ id: "diagnostics.tracking.description" })}>
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800">
@@ -665,6 +670,14 @@ export function DiagnosticsPage() {
           {exported ? <div className="text-sm text-muted-foreground" role="status">Diagnostics JSON copied.</div> : null}
         </>
       ) : null}
+    </>
+  )
+}
+
+export function DiagnosticsPage() {
+  return (
+    <PageContainer>
+      <DiagnosticsTracePanel />
     </PageContainer>
   )
 }

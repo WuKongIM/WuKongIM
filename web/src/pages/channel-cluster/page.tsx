@@ -17,6 +17,10 @@ type ChannelClusterState = {
   error: Error | null
 }
 
+type ChannelClusterOverviewPanelProps = {
+  unhealthyHref?: string
+}
+
 function mapErrorKind(error: Error | null) {
   if (!(error instanceof ManagerApiError)) {
     return "error" as const
@@ -37,7 +41,9 @@ function formatAverage(value: number) {
   }).format(value)
 }
 
-export function ChannelClusterPage() {
+export function ChannelClusterOverviewPanel({
+  unhealthyHref = "/channel-cluster/unhealthy",
+}: ChannelClusterOverviewPanelProps = {}) {
   const intl = useIntl()
   const [state, setState] = useState<ChannelClusterState>({
     summary: null,
@@ -75,31 +81,35 @@ export function ChannelClusterPage() {
   const unhealthyCount = summary ? summary.isr_insufficient + summary.no_leader : 0
 
   return (
-    <PageContainer>
-      <PageHeader
-        title={intl.formatMessage({ id: "channelCluster.title" })}
-        description={intl.formatMessage({ id: "channelCluster.description" })}
-        actions={
-          <>
-            <Button asChild size="sm" variant="outline">
-              <Link to="/channel-cluster/unhealthy">
-                {intl.formatMessage({ id: "channelCluster.unhealthyLink" })}
-              </Link>
-            </Button>
-            <Button
-              onClick={() => {
-                void loadSummary(true)
-              }}
-              size="sm"
-              variant="outline"
-            >
-              {state.refreshing
-                ? intl.formatMessage({ id: "common.refreshing" })
-                : intl.formatMessage({ id: "common.refresh" })}
-            </Button>
-          </>
-        }
-      />
+    <>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
+            {intl.formatMessage({ id: "channelCluster.overview.title" })}
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+            {intl.formatMessage({ id: "channelCluster.description" })}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link to={unhealthyHref}>
+              {intl.formatMessage({ id: "channelCluster.unhealthyLink" })}
+            </Link>
+          </Button>
+          <Button
+            onClick={() => {
+              void loadSummary(true)
+            }}
+            size="sm"
+            variant="outline"
+          >
+            {state.refreshing
+              ? intl.formatMessage({ id: "common.refreshing" })
+              : intl.formatMessage({ id: "common.refresh" })}
+          </Button>
+        </div>
+      </div>
       {state.loading ? (
         <ResourceState kind="loading" title={intl.formatMessage({ id: "channelCluster.title" })} />
       ) : null}
@@ -206,6 +216,21 @@ export function ChannelClusterPage() {
           </section>
         </>
       ) : null}
+    </>
+  )
+}
+
+export function ChannelClusterPage() {
+  const intl = useIntl()
+
+  return (
+    <PageContainer>
+      <PageHeader
+        eyebrow={intl.formatMessage({ id: "nav.path.cluster.channels" })}
+        title={intl.formatMessage({ id: "channelCluster.title" })}
+        description={intl.formatMessage({ id: "channelCluster.description" })}
+      />
+      <ChannelClusterOverviewPanel />
     </PageContainer>
   )
 }

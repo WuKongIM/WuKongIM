@@ -7,7 +7,6 @@ import { NodeFilter, defaultNodeId, hasNode } from "@/components/manager/node-fi
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
 import { PageContainer } from "@/components/shell/page-container"
-import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
 import { Button } from "@/components/ui/button"
 import { compactControllerRaftLogOnNode, compactControllerRaftLogs, getControllerLogs, getControllerRaftStatus, getNodes, ManagerApiError } from "@/lib/manager-api"
@@ -291,7 +290,7 @@ function ControllerRaftStatusPanel({
   )
 }
 
-export function ControllerPage() {
+export function ControllerLogsPanel() {
   const intl = useIntl()
   const [searchParams, setSearchParams] = useSearchParams()
   const queryNodeId = useMemo(() => requestedNodeId(searchParams), [searchParams])
@@ -487,38 +486,44 @@ export function ControllerPage() {
   const visiblePage = state.page?.node_id === selectedNodeId ? state.page : null
 
   return (
-    <PageContainer>
-      <PageHeader
-        actions={(
-          <div className="flex flex-wrap items-center gap-2">
-            <NodeFilter nodes={nodes} selectedNodeId={selectedNodeId} onNodeChange={handleNodeChange} />
-            <Button
-              disabled={compactionState.loading}
-              onClick={openControllerCompactionDialog}
-              size="sm"
-              variant="outline"
-            >
-              {compactionState.loading ? intl.formatMessage({ id: "controller.compaction.triggering" }) : intl.formatMessage({ id: "controller.compaction.trigger" })}
-            </Button>
-            <Button
-              disabled={state.loading || statusState.loading || selectedNodeId === null}
-              onClick={() => {
-                if (selectedNodeId !== null) {
-                  void loadControllerLogs(selectedNodeId)
-                  void loadControllerStatus(selectedNodeId)
-                }
-              }}
-              size="sm"
-              variant="outline"
-            >
-              {state.loading || statusState.loading ? intl.formatMessage({ id: "common.refreshing" }) : intl.formatMessage({ id: "common.refresh" })}
-            </Button>
+    <>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-2">
+          <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            {intl.formatMessage({ id: "controller.eyebrow" })}
           </div>
-        )}
-        description={intl.formatMessage({ id: "controller.description" })}
-        eyebrow={intl.formatMessage({ id: "controller.eyebrow" })}
-        title={intl.formatMessage({ id: "controller.title" })}
-      />
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
+            {intl.formatMessage({ id: "controller.title" })}
+          </h2>
+          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+            {intl.formatMessage({ id: "controller.description" })}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <NodeFilter nodes={nodes} selectedNodeId={selectedNodeId} onNodeChange={handleNodeChange} />
+          <Button
+            disabled={compactionState.loading}
+            onClick={openControllerCompactionDialog}
+            size="sm"
+            variant="outline"
+          >
+            {compactionState.loading ? intl.formatMessage({ id: "controller.compaction.triggering" }) : intl.formatMessage({ id: "controller.compaction.trigger" })}
+          </Button>
+          <Button
+            disabled={state.loading || statusState.loading || selectedNodeId === null}
+            onClick={() => {
+              if (selectedNodeId !== null) {
+                void loadControllerLogs(selectedNodeId)
+                void loadControllerStatus(selectedNodeId)
+              }
+            }}
+            size="sm"
+            variant="outline"
+          >
+            {state.loading || statusState.loading ? intl.formatMessage({ id: "common.refreshing" }) : intl.formatMessage({ id: "common.refresh" })}
+          </Button>
+        </div>
+      </div>
 
       {compactionState.error ? (
         <ResourceState
@@ -687,6 +692,14 @@ export function ControllerPage() {
           </label>
         </fieldset>
       </ActionFormDialog>
+    </>
+  )
+}
+
+export function ControllerPage() {
+  return (
+    <PageContainer>
+      <ControllerLogsPanel />
     </PageContainer>
   )
 }

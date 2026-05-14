@@ -31,8 +31,8 @@ export function SectionCard({
         className,
       )}
     >
-      <CardHeader className="border-b border-border bg-muted/40">
-        <CardTitle className="text-sm font-semibold text-foreground">{title}</CardTitle>
+      <CardHeader className="border-b border-border bg-muted/35 py-3">
+        <CardTitle className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-foreground">{title}</CardTitle>
         {description ? <CardDescription className="leading-6">{description}</CardDescription> : null}
         {action ? <CardAction>{action}</CardAction> : null}
       </CardHeader>

@@ -8,6 +8,7 @@ import { NodeFilter, defaultNodeId, hasNode } from "@/components/manager/node-fi
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
 import { PageContainer } from "@/components/shell/page-container"
+import { PageHeader } from "@/components/shell/page-header"
 import { Button } from "@/components/ui/button"
 import {
   ManagerApiError,
@@ -29,6 +30,10 @@ type ChannelsState = {
   error: Error | null
 }
 
+type ChannelClusterListPanelProps = {
+  messagesHref?: string
+}
+
 function mapErrorKind(error: Error | null) {
   if (!(error instanceof ManagerApiError)) {
     return "error" as const
@@ -46,7 +51,9 @@ function formatNodeList(nodeIds: number[]) {
   return nodeIds.length > 0 ? nodeIds.join(", ") : "-"
 }
 
-export function ChannelsPage() {
+export function ChannelClusterListPanel({
+  messagesHref = "/messages",
+}: ChannelClusterListPanelProps = {}) {
   const intl = useIntl()
   const navigate = useNavigate()
   const [state, setState] = useState<ChannelsState>({
@@ -205,13 +212,13 @@ export function ChannelsPage() {
 
   const openMessages = useCallback(
     (channelType: number, channelId: string) => {
-      navigate(`/messages?channel_id=${encodeURIComponent(channelId)}&channel_type=${channelType}`)
+      navigate(`${messagesHref}?channel_id=${encodeURIComponent(channelId)}&channel_type=${channelType}`)
     },
-    [navigate],
+    [messagesHref, navigate],
   )
 
   return (
-    <PageContainer>
+    <>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
@@ -403,6 +410,21 @@ export function ChannelsPage() {
           />
         ) : null}
       </DetailSheet>
+    </>
+  )
+}
+
+export function ChannelsPage() {
+  const intl = useIntl()
+
+  return (
+    <PageContainer>
+      <PageHeader
+        eyebrow={intl.formatMessage({ id: "nav.path.cluster.channels" })}
+        title={intl.formatMessage({ id: "nav.channels.title" })}
+        description={intl.formatMessage({ id: "nav.channels.description" })}
+      />
+      <ChannelClusterListPanel />
     </PageContainer>
   )
 }
