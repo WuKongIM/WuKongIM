@@ -191,7 +191,14 @@ func (c *Coordinator) assignWorkers(ctx context.Context, scenario model.Scenario
 	assigned := make([]model.Worker, 0, len(c.cfg.Workers))
 	for _, w := range c.cfg.Workers {
 		workerID := strings.TrimSpace(w.ID)
-		assignment := worker.Assignment{RunID: scenario.Run.ID, WorkerID: workerID, Plan: plan.Workers[workerID], Target: c.cfg.Target, Scenario: scenario}
+		assignment := worker.Assignment{
+			RunID:         scenario.Run.ID,
+			WorkerID:      workerID,
+			ChannelOwners: plan.ChannelOwners,
+			Plan:          plan.Workers[workerID],
+			Target:        c.cfg.Target,
+			Scenario:      scenario,
+		}
 		if err := c.postJSON(ctx, w, "/v1/assign", assignment, nil); err != nil {
 			c.stopAll(assigned)
 			return fmt.Errorf("worker %s assign failed: %w", workerName(w), err)

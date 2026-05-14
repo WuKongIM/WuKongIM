@@ -45,7 +45,7 @@ func prepareGroupData(ctx context.Context, assignment Assignment) error {
 			WorkerID:             assignment.WorkerID,
 			ProfileName:          profileName,
 			ShardMode:            profileDef.Shard.Mode,
-			OwnsChannel:          groupShardOwnsChannel(shard, profileDef),
+			OwnsChannel:          groupShardOwnsChannel(assignment, shard, profileDef),
 			ChannelRange:         shard.ChannelRange,
 			MemberRange:          shard.MemberRange,
 			MembersPerChannel:    profileDef.Members.Count,
@@ -170,9 +170,13 @@ func sortedProfileNames(profiles map[string]model.ProfileShard) []string {
 	return names
 }
 
-func groupShardOwnsChannel(shard model.ProfileShard, profile model.ChannelProfile) bool {
+func groupShardOwnsChannel(assignment Assignment, shard model.ProfileShard, profile model.ChannelProfile) bool {
 	if profile.Shard.Mode != model.ShardModeSplitMembersAndTraffic {
 		return true
+	}
+	if owners, ok := assignment.ChannelOwners[shard.Name]; ok {
+		owner, ok := owners[shard.ChannelRange.Start]
+		return ok && owner == assignment.WorkerID
 	}
 	return shard.ChannelRange.Len() > 0 && shard.MemberRange.Start == 0
 }
