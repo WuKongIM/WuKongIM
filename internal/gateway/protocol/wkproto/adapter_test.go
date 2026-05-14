@@ -7,9 +7,9 @@ import (
 	adapterpkg "github.com/WuKongIM/WuKongIM/internal/gateway/protocol/wkproto"
 	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/gateway/testkit"
-	"github.com/WuKongIM/WuKongIM/internal/gateway/wkprotoenc"
 	codec "github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 )
 
 func TestAdapterDecodeReturnsZeroUntilFrameIsComplete(t *testing.T) {

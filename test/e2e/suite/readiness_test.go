@@ -4,15 +4,15 @@ package suite
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
-	"net"
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/gateway/wkprotoenc"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 	"github.com/stretchr/testify/require"
 )
 
