@@ -172,7 +172,7 @@ Tombstone (replica.go:231 → lifecycle_pipeline.go:293):
 ```
   ① 调用方必须先应用带相同 WriteFence token/version 的权威 Meta；本地 wall-clock TTL 不能放开写入
   ② runtime 按 ChannelKey 找到本地 channel，调用 replica loop 并在结果里补充 RuntimeGeneration
-  ③ replica 仅允许当前 leader、未过期 lease、匹配 ChannelEpoch / LeaderEpoch / Leader / fence token / fence version 的请求生成 drain proof
+  ③ replica 仅允许当前 leader 或已被 lease fence 的旧 leader，在匹配 ChannelEpoch / LeaderEpoch / Leader 后生成 drain proof；请求携带的权威迁移 fence 可早于本地 Meta 传播到达，同 task token 的旧 fence 也可被更高权威版本推进，但本地已有其他 active/newer fence 时会拒绝
   ④ drain 会先 fail-closed 后续 append，并等待 durable append、quorum waiter、本地未提交 tail、reconcile/checkpoint settle 后再返回
   ⑤ DrainResult 返回 LEO、HW、CheckpointHW、ChannelEpoch、LeaderEpoch、WriteFenceVersion 和 RuntimeGeneration，供 migration task 持久化 proof
   ⑥ drain 后即使同版本 fence TTL 过期或同版本空 fence 被误应用，append 仍返回 ErrWriteFenced；只有更高 WriteFenceVersion 的 clear/reset/superseding meta 可退出 drained fail-closed 状态

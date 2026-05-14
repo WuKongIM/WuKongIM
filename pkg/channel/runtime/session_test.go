@@ -2679,6 +2679,46 @@ func TestSessionServeReconcileProbeAllowsExternalProbeWithoutGeneration(t *testi
 	require.Equal(t, uint64(8), resp.CheckpointHW)
 }
 
+func TestSessionServeReconcileProbeRefreshesAuthoritativeMetaWhenLocalLeaderEpochLags(t *testing.T) {
+	activator := &recordingAuthoritativeProbeActivator{recordingActivator: &recordingActivator{}}
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.Activator = activator
+	})
+	stale := testMetaLocal(2608, 6, 3, []core.NodeID{1, 2, 3})
+	stale.LeaderEpoch = 21
+	mustEnsureLocal(t, env.runtime, stale)
+	current := stale
+	current.Leader = 1
+	current.LeaderEpoch = 22
+
+	activator.refreshFn = func(context.Context, core.ChannelKey) (core.Meta, error) {
+		require.NoError(t, env.runtime.ApplyMeta(current))
+		replica := env.factory.replicas[0]
+		replica.mu.Lock()
+		replica.state.LEO = 13
+		replica.state.CheckpointHW = 11
+		replica.mu.Unlock()
+		return current, nil
+	}
+
+	resp, err := env.runtime.ServeReconcileProbe(context.Background(), ReconcileProbeRequestEnvelope{
+		ChannelKey:  current.Key,
+		Epoch:       current.Epoch,
+		LeaderEpoch: current.LeaderEpoch,
+		ReplicaID:   2,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, activator.refreshCallCount())
+	require.Equal(t, current.Key, resp.ChannelKey)
+	require.Equal(t, current.Epoch, resp.Epoch)
+	require.Equal(t, current.LeaderEpoch, resp.LeaderEpoch)
+	require.Equal(t, core.NodeID(1), resp.Leader)
+	require.Equal(t, core.ReplicaRoleLeader, resp.Role)
+	require.Equal(t, uint64(13), resp.LogEndOffset)
+	require.Equal(t, uint64(11), resp.CheckpointHW)
+}
+
 func TestSessionServeReconcileProbeRejectsMissingLeaderEpoch(t *testing.T) {
 	env := newSessionTestEnv(t)
 	meta := testMetaLocal(2607, 6, 1, []core.NodeID{1, 2})
@@ -2840,6 +2880,30 @@ func (a *recordingActivator) callCount() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return len(a.calls)
+}
+
+type recordingAuthoritativeProbeActivator struct {
+	*recordingActivator
+	mu           sync.Mutex
+	refreshCalls []core.ChannelKey
+	refreshFn    func(context.Context, core.ChannelKey) (core.Meta, error)
+}
+
+func (a *recordingAuthoritativeProbeActivator) RefreshAuthoritativeByKey(ctx context.Context, key core.ChannelKey) (core.Meta, error) {
+	a.mu.Lock()
+	a.refreshCalls = append(a.refreshCalls, key)
+	fn := a.refreshFn
+	a.mu.Unlock()
+	if fn == nil {
+		return core.Meta{}, nil
+	}
+	return fn(ctx, key)
+}
+
+func (a *recordingAuthoritativeProbeActivator) refreshCallCount() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return len(a.refreshCalls)
 }
 
 func newSessionTestEnv(t *testing.T) *sessionTestEnv {

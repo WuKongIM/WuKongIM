@@ -1043,6 +1043,15 @@ func (r *runtime) ServeReconcileProbe(ctx context.Context, req ReconcileProbeReq
 	}
 
 	meta := ch.metaSnapshot()
+	if shouldRefreshReconcileProbeMeta(req, meta) {
+		ch, meta, err = r.refreshReconcileProbeMeta(ctx, req.ChannelKey)
+		if err != nil {
+			return ReconcileProbeResponseEnvelope{}, err
+		}
+		if req.Generation != 0 && ch.gen != req.Generation {
+			return ReconcileProbeResponseEnvelope{}, ErrGenerationMismatch
+		}
+	}
 	if req.Epoch != meta.Epoch {
 		return ReconcileProbeResponseEnvelope{}, core.ErrStaleMeta
 	}
@@ -1065,6 +1074,31 @@ func (r *runtime) ServeReconcileProbe(ctx context.Context, req ReconcileProbeReq
 		CheckpointHW:   state.CheckpointHW,
 		CommitReady:    state.CommitReady,
 	}, nil
+}
+
+func shouldRefreshReconcileProbeMeta(req ReconcileProbeRequestEnvelope, current core.Meta) bool {
+	if req.Epoch == 0 || req.LeaderEpoch == 0 {
+		return false
+	}
+	if req.Epoch > current.Epoch {
+		return req.LeaderEpoch >= current.LeaderEpoch
+	}
+	return req.Epoch == current.Epoch && req.LeaderEpoch > current.LeaderEpoch
+}
+
+func (r *runtime) refreshReconcileProbeMeta(ctx context.Context, key core.ChannelKey) (*channel, core.Meta, error) {
+	refresher, ok := r.cfg.Activator.(authoritativeRefresher)
+	if !ok || refresher == nil {
+		return nil, core.Meta{}, core.ErrStaleMeta
+	}
+	if _, err := refresher.RefreshAuthoritativeByKey(ctx, key); err != nil {
+		return nil, core.Meta{}, err
+	}
+	ch, ok := r.lookupChannel(key)
+	if !ok {
+		return nil, core.Meta{}, ErrChannelNotFound
+	}
+	return ch, ch.metaSnapshot(), nil
 }
 
 type nopTransport struct {
