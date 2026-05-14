@@ -41,6 +41,8 @@ const (
 	cmdTypeReservedConversationProjectionDelete uint8 = 14
 	cmdTypeAdvanceChannelRetention              uint8 = 15
 	cmdTypeHideUserConversations                uint8 = 16
+	cmdTypeUpsertCMDConversationStates          uint8 = 17
+	cmdTypeAdvanceCMDConversationReadSeq        uint8 = 18
 
 	// User field tags.
 	tagUserUID         uint8 = 1
@@ -123,6 +125,22 @@ const (
 	tagUserConversationDeleteEntryDeletedToSeq uint8 = 4
 	tagUserConversationDeleteEntryUpdatedAt    uint8 = 5
 
+	// CMD conversation state field tags.
+	tagCMDConversationStateEntryUID          uint8 = 1
+	tagCMDConversationStateEntryChannelID    uint8 = 2
+	tagCMDConversationStateEntryChannelType  uint8 = 3
+	tagCMDConversationStateEntryReadSeq      uint8 = 4
+	tagCMDConversationStateEntryDeletedToSeq uint8 = 5
+	tagCMDConversationStateEntryActiveAt     uint8 = 6
+	tagCMDConversationStateEntryUpdatedAt    uint8 = 7
+
+	// CMD conversation read patch field tags.
+	tagCMDConversationReadPatchEntryUID         uint8 = 1
+	tagCMDConversationReadPatchEntryChannelID   uint8 = 2
+	tagCMDConversationReadPatchEntryChannelType uint8 = 3
+	tagCMDConversationReadPatchEntryReadSeq     uint8 = 4
+	tagCMDConversationReadPatchEntryUpdatedAt   uint8 = 5
+
 	// Conversation key field tags.
 	tagConversationKeyEntryChannelID   uint8 = 1
 	tagConversationKeyEntryChannelType uint8 = 2
@@ -179,6 +197,8 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeReservedConversationProjectionDelete: decodeReservedConversationProjection,
 	cmdTypeAdvanceChannelRetention:              decodeAdvanceChannelRetentionThroughSeq,
 	cmdTypeHideUserConversations:                decodeHideUserConversations,
+	cmdTypeUpsertCMDConversationStates:          decodeUpsertCMDConversationStates,
+	cmdTypeAdvanceCMDConversationReadSeq:        decodeAdvanceCMDConversationReadSeq,
 	cmdTypeApplyDelta:                           decodeApplyDelta,
 	cmdTypeEnterFence:                           decodeEnterFence,
 	cmdTypeAckMigrationOutbox:                   decodeAckMigrationOutbox,
@@ -362,6 +382,31 @@ func (c *hideUserConversationsCmd) apply(wb *metadb.WriteBatch, hashSlot uint16)
 		}
 	}
 	return nil
+}
+
+// --- UpsertCMDConversationStates ---
+
+type upsertCMDConversationStatesCmd struct {
+	states []metadb.CMDConversationState
+}
+
+func (c *upsertCMDConversationStatesCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
+	for _, state := range c.states {
+		if err := wb.UpsertCMDConversationState(hashSlot, state); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// --- AdvanceCMDConversationReadSeq ---
+
+type advanceCMDConversationReadSeqCmd struct {
+	patches []metadb.CMDConversationReadPatch
+}
+
+func (c *advanceCMDConversationReadSeqCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
+	return wb.AdvanceCMDConversationReadSeq(hashSlot, c.patches)
 }
 
 // EncodeUpsertUserCommand encodes a User into a binary command.
@@ -595,6 +640,26 @@ func EncodeHideUserConversationsCommand(deletes []metadb.UserConversationDelete)
 	return buf
 }
 
+// EncodeUpsertCMDConversationStatesCommand encodes durable CMD state upserts.
+func EncodeUpsertCMDConversationStatesCommand(states []metadb.CMDConversationState) []byte {
+	buf := make([]byte, 0, headerSize+len(states)*64)
+	buf = append(buf, commandVersion, cmdTypeUpsertCMDConversationStates)
+	for _, state := range states {
+		buf = appendBytesTLVField(buf, tagCMDConversationStateEntryUID, encodeCMDConversationStateEntry(state))
+	}
+	return buf
+}
+
+// EncodeAdvanceCMDConversationReadSeqCommand encodes CMD read cursor advances.
+func EncodeAdvanceCMDConversationReadSeqCommand(patches []metadb.CMDConversationReadPatch) []byte {
+	buf := make([]byte, 0, headerSize+len(patches)*56)
+	buf = append(buf, commandVersion, cmdTypeAdvanceCMDConversationReadSeq)
+	for _, patch := range patches {
+		buf = appendBytesTLVField(buf, tagCMDConversationReadPatchEntryUID, encodeCMDConversationReadPatchEntry(patch))
+	}
+	return buf
+}
+
 func encodeSubscribersCommand(cmdType uint8, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) []byte {
 	buf := make([]byte, 0, headerSize+len(channelID)+len(uids)*8+16)
 	buf = append(buf, commandVersion, cmdType)
@@ -643,6 +708,28 @@ func encodeUserConversationDeleteEntry(req metadb.UserConversationDelete) []byte
 	buf = appendInt64TLVField(buf, tagUserConversationDeleteEntryChannelType, req.ChannelType)
 	buf = appendUint64TLVField(buf, tagUserConversationDeleteEntryDeletedToSeq, req.DeletedToSeq)
 	buf = appendInt64TLVField(buf, tagUserConversationDeleteEntryUpdatedAt, req.UpdatedAt)
+	return buf
+}
+
+func encodeCMDConversationStateEntry(state metadb.CMDConversationState) []byte {
+	buf := make([]byte, 0, 64)
+	buf = appendStringTLVField(buf, tagCMDConversationStateEntryUID, state.UID)
+	buf = appendStringTLVField(buf, tagCMDConversationStateEntryChannelID, state.ChannelID)
+	buf = appendInt64TLVField(buf, tagCMDConversationStateEntryChannelType, state.ChannelType)
+	buf = appendUint64TLVField(buf, tagCMDConversationStateEntryReadSeq, state.ReadSeq)
+	buf = appendUint64TLVField(buf, tagCMDConversationStateEntryDeletedToSeq, state.DeletedToSeq)
+	buf = appendInt64TLVField(buf, tagCMDConversationStateEntryActiveAt, state.ActiveAt)
+	buf = appendInt64TLVField(buf, tagCMDConversationStateEntryUpdatedAt, state.UpdatedAt)
+	return buf
+}
+
+func encodeCMDConversationReadPatchEntry(patch metadb.CMDConversationReadPatch) []byte {
+	buf := make([]byte, 0, 56)
+	buf = appendStringTLVField(buf, tagCMDConversationReadPatchEntryUID, patch.UID)
+	buf = appendStringTLVField(buf, tagCMDConversationReadPatchEntryChannelID, patch.ChannelID)
+	buf = appendInt64TLVField(buf, tagCMDConversationReadPatchEntryChannelType, patch.ChannelType)
+	buf = appendUint64TLVField(buf, tagCMDConversationReadPatchEntryReadSeq, patch.ReadSeq)
+	buf = appendInt64TLVField(buf, tagCMDConversationReadPatchEntryUpdatedAt, patch.UpdatedAt)
 	return buf
 }
 
@@ -713,6 +800,52 @@ func decodeUserConversationDeleteEntries(data []byte) ([]metadb.UserConversation
 		}
 	}
 	return deletes, nil
+}
+
+func decodeCMDConversationStateEntries(data []byte) ([]metadb.CMDConversationState, error) {
+	var states []metadb.CMDConversationState
+	off := 0
+	for off < len(data) {
+		tag, value, n, err := readTLV(data[off:])
+		if err != nil {
+			return nil, err
+		}
+		off += n
+		switch tag {
+		case tagCMDConversationStateEntryUID:
+			state, err := decodeCMDConversationStateEntry(value)
+			if err != nil {
+				return nil, err
+			}
+			states = append(states, state)
+		default:
+			// Unknown tag — skip for forward compatibility.
+		}
+	}
+	return states, nil
+}
+
+func decodeCMDConversationReadPatchEntries(data []byte) ([]metadb.CMDConversationReadPatch, error) {
+	var patches []metadb.CMDConversationReadPatch
+	off := 0
+	for off < len(data) {
+		tag, value, n, err := readTLV(data[off:])
+		if err != nil {
+			return nil, err
+		}
+		off += n
+		switch tag {
+		case tagCMDConversationReadPatchEntryUID:
+			patch, err := decodeCMDConversationReadPatchEntry(value)
+			if err != nil {
+				return nil, err
+			}
+			patches = append(patches, patch)
+		default:
+			// Unknown tag — skip for forward compatibility.
+		}
+	}
+	return patches, nil
 }
 
 func decodeUserConversationStateEntry(data []byte) (metadb.UserConversationState, error) {
@@ -891,6 +1024,108 @@ func decodeUserConversationDeleteEntry(data []byte) (metadb.UserConversationDele
 	return req, nil
 }
 
+func decodeCMDConversationStateEntry(data []byte) (metadb.CMDConversationState, error) {
+	var state metadb.CMDConversationState
+	var haveUID, haveChannelID, haveChannelType, haveReadSeq, haveDeletedToSeq, haveActiveAt, haveUpdatedAt bool
+	off := 0
+	for off < len(data) {
+		tag, value, n, err := readTLV(data[off:])
+		if err != nil {
+			return metadb.CMDConversationState{}, err
+		}
+		off += n
+		switch tag {
+		case tagCMDConversationStateEntryUID:
+			state.UID = string(value)
+			haveUID = true
+		case tagCMDConversationStateEntryChannelID:
+			state.ChannelID = string(value)
+			haveChannelID = true
+		case tagCMDConversationStateEntryChannelType:
+			if len(value) != 8 {
+				return metadb.CMDConversationState{}, fmt.Errorf("%w: bad cmd conversation ChannelType length", metadb.ErrCorruptValue)
+			}
+			state.ChannelType = int64(binary.BigEndian.Uint64(value))
+			haveChannelType = true
+		case tagCMDConversationStateEntryReadSeq:
+			if len(value) != 8 {
+				return metadb.CMDConversationState{}, fmt.Errorf("%w: bad cmd conversation ReadSeq length", metadb.ErrCorruptValue)
+			}
+			state.ReadSeq = binary.BigEndian.Uint64(value)
+			haveReadSeq = true
+		case tagCMDConversationStateEntryDeletedToSeq:
+			if len(value) != 8 {
+				return metadb.CMDConversationState{}, fmt.Errorf("%w: bad cmd conversation DeletedToSeq length", metadb.ErrCorruptValue)
+			}
+			state.DeletedToSeq = binary.BigEndian.Uint64(value)
+			haveDeletedToSeq = true
+		case tagCMDConversationStateEntryActiveAt:
+			if len(value) != 8 {
+				return metadb.CMDConversationState{}, fmt.Errorf("%w: bad cmd conversation ActiveAt length", metadb.ErrCorruptValue)
+			}
+			state.ActiveAt = int64(binary.BigEndian.Uint64(value))
+			haveActiveAt = true
+		case tagCMDConversationStateEntryUpdatedAt:
+			if len(value) != 8 {
+				return metadb.CMDConversationState{}, fmt.Errorf("%w: bad cmd conversation UpdatedAt length", metadb.ErrCorruptValue)
+			}
+			state.UpdatedAt = int64(binary.BigEndian.Uint64(value))
+			haveUpdatedAt = true
+		default:
+			// Unknown tag — skip for forward compatibility.
+		}
+	}
+	if !haveUID || !haveChannelID || !haveChannelType || !haveReadSeq || !haveDeletedToSeq || !haveActiveAt || !haveUpdatedAt {
+		return metadb.CMDConversationState{}, fmt.Errorf("%w: incomplete cmd conversation state record", metadb.ErrCorruptValue)
+	}
+	return state, nil
+}
+
+func decodeCMDConversationReadPatchEntry(data []byte) (metadb.CMDConversationReadPatch, error) {
+	var patch metadb.CMDConversationReadPatch
+	var haveUID, haveChannelID, haveChannelType, haveReadSeq, haveUpdatedAt bool
+	off := 0
+	for off < len(data) {
+		tag, value, n, err := readTLV(data[off:])
+		if err != nil {
+			return metadb.CMDConversationReadPatch{}, err
+		}
+		off += n
+		switch tag {
+		case tagCMDConversationReadPatchEntryUID:
+			patch.UID = string(value)
+			haveUID = true
+		case tagCMDConversationReadPatchEntryChannelID:
+			patch.ChannelID = string(value)
+			haveChannelID = true
+		case tagCMDConversationReadPatchEntryChannelType:
+			if len(value) != 8 {
+				return metadb.CMDConversationReadPatch{}, fmt.Errorf("%w: bad cmd conversation read patch ChannelType length", metadb.ErrCorruptValue)
+			}
+			patch.ChannelType = int64(binary.BigEndian.Uint64(value))
+			haveChannelType = true
+		case tagCMDConversationReadPatchEntryReadSeq:
+			if len(value) != 8 {
+				return metadb.CMDConversationReadPatch{}, fmt.Errorf("%w: bad cmd conversation read patch ReadSeq length", metadb.ErrCorruptValue)
+			}
+			patch.ReadSeq = binary.BigEndian.Uint64(value)
+			haveReadSeq = true
+		case tagCMDConversationReadPatchEntryUpdatedAt:
+			if len(value) != 8 {
+				return metadb.CMDConversationReadPatch{}, fmt.Errorf("%w: bad cmd conversation read patch UpdatedAt length", metadb.ErrCorruptValue)
+			}
+			patch.UpdatedAt = int64(binary.BigEndian.Uint64(value))
+			haveUpdatedAt = true
+		default:
+			// Unknown tag — skip for forward compatibility.
+		}
+	}
+	if !haveUID || !haveChannelID || !haveChannelType || !haveReadSeq || !haveUpdatedAt {
+		return metadb.CMDConversationReadPatch{}, fmt.Errorf("%w: incomplete cmd conversation read patch record", metadb.ErrCorruptValue)
+	}
+	return patch, nil
+}
+
 func decodeUpsertUserConversationStates(data []byte) (command, error) {
 	states, err := decodeUserConversationStateEntries(data)
 	if err != nil {
@@ -960,6 +1195,28 @@ func decodeHideUserConversations(data []byte) (command, error) {
 		return nil, fmt.Errorf("%w: empty user conversation delete batch", metadb.ErrInvalidArgument)
 	}
 	return &hideUserConversationsCmd{deletes: deletes}, nil
+}
+
+func decodeUpsertCMDConversationStates(data []byte) (command, error) {
+	states, err := decodeCMDConversationStateEntries(data)
+	if err != nil {
+		return nil, err
+	}
+	if len(states) == 0 {
+		return nil, fmt.Errorf("%w: empty cmd conversation state batch", metadb.ErrInvalidArgument)
+	}
+	return &upsertCMDConversationStatesCmd{states: states}, nil
+}
+
+func decodeAdvanceCMDConversationReadSeq(data []byte) (command, error) {
+	patches, err := decodeCMDConversationReadPatchEntries(data)
+	if err != nil {
+		return nil, err
+	}
+	if len(patches) == 0 {
+		return nil, fmt.Errorf("%w: empty cmd conversation read patch batch", metadb.ErrInvalidArgument)
+	}
+	return &advanceCMDConversationReadSeqCmd{patches: patches}, nil
 }
 
 // decodeCommand parses a binary-encoded command using the decoder registry.

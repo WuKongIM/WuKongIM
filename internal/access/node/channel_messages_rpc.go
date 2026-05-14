@@ -231,7 +231,11 @@ func normalizeChannelMessagesRPCError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, channel.ErrNotLeader) || errors.Is(err, channel.ErrStaleMeta) || errors.Is(err, raftcluster.ErrNoLeader) {
+	if errors.Is(err, channel.ErrNotLeader) ||
+		errors.Is(err, channel.ErrStaleMeta) ||
+		errors.Is(err, channel.ErrNotReady) ||
+		errors.Is(err, channel.ErrChannelNotFound) ||
+		errors.Is(err, raftcluster.ErrNoLeader) {
 		return err
 	}
 	msg := err.Error()
@@ -240,6 +244,10 @@ func normalizeChannelMessagesRPCError(err error) error {
 		return channel.ErrNotLeader
 	case strings.Contains(msg, channel.ErrStaleMeta.Error()):
 		return channel.ErrStaleMeta
+	case strings.Contains(msg, channel.ErrNotReady.Error()):
+		return channel.ErrNotReady
+	case strings.Contains(msg, channel.ErrChannelNotFound.Error()):
+		return channel.ErrChannelNotFound
 	case strings.Contains(msg, raftcluster.ErrNoLeader.Error()):
 		return raftcluster.ErrNoLeader
 	default:

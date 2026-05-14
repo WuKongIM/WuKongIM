@@ -208,6 +208,9 @@ func filterCandidateKeys(candidates map[ConversationKey]*syncCandidate, excluded
 	}
 	keys := make([]ConversationKey, 0, len(candidates))
 	for key := range candidates {
+		if runtimechannelid.IsCommandChannel(key.ChannelID) {
+			continue
+		}
 		if _, ok := blocked[key.ChannelType]; ok {
 			continue
 		}

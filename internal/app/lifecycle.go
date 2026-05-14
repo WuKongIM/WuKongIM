@@ -154,6 +154,16 @@ func (a *App) startConversationProjector() error {
 	return a.conversationProjector.Start()
 }
 
+func (a *App) startCMDConversationUpdater() error {
+	if a.startCMDConversationUpdaterFn != nil {
+		return a.startCMDConversationUpdaterFn()
+	}
+	if a.cmdConversationUpdater == nil {
+		return nil
+	}
+	return a.cmdConversationUpdater.Start()
+}
+
 func (a *App) startConversationActiveHints() error {
 	if a.startConversationActiveHintsFn != nil {
 		return a.startConversationActiveHintsFn()
@@ -251,6 +261,22 @@ func (a *App) stopConversationProjector() error {
 		return nil
 	}
 	return a.conversationProjector.Stop()
+}
+
+func (a *App) stopCMDConversationUpdater(ctx context.Context) error {
+	if !a.cmdConversationUpdaterOn.Swap(false) {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if a.stopCMDConversationUpdaterFn != nil {
+		return a.stopCMDConversationUpdaterFn(ctx)
+	}
+	if a.cmdConversationUpdater == nil {
+		return nil
+	}
+	return a.cmdConversationUpdater.StopContext(ctx)
 }
 
 func (a *App) stopConversationActiveHints(ctx context.Context) error {

@@ -13,6 +13,7 @@ const (
 	appLifecyclePresence                = "presence"
 	appLifecycleConversationActiveHints = "conversation_active_hints"
 	appLifecycleConversationProjector   = "conversation_projector"
+	appLifecycleCMDConversationUpdater  = "cmd_conversation_updater"
 	appLifecycleDeliveryRuntime         = "delivery_runtime"
 	appLifecycleCommittedDispatcher     = "committed_dispatcher"
 	appLifecycleCommittedReplay         = "committed_replay"
@@ -70,6 +71,9 @@ func (a *App) lifecycleComponents(includeStopOnly bool) []applifecycle.Component
 	}
 	if a.hasConversationProjectorLifecycle(includeStopOnly) {
 		components = append(components, a.conversationProjectorLifecycleComponent())
+	}
+	if a.hasCMDConversationUpdaterLifecycle(includeStopOnly) {
+		components = append(components, a.cmdConversationUpdaterLifecycleComponent())
 	}
 	if a.hasDeliveryRuntimeLifecycle(includeStopOnly) {
 		components = append(components, a.deliveryRuntimeLifecycleComponent())
@@ -183,6 +187,22 @@ func (a *App) conversationActiveHintsLifecycleComponent() applifecycle.Component
 		},
 		stop: func(ctx context.Context) error {
 			return a.stopConversationActiveHints(ctx)
+		},
+	}
+}
+
+func (a *App) cmdConversationUpdaterLifecycleComponent() applifecycle.Component {
+	return appLifecycleComponent{
+		name: appLifecycleCMDConversationUpdater,
+		start: func(context.Context) error {
+			if err := a.startCMDConversationUpdater(); err != nil {
+				return err
+			}
+			a.cmdConversationUpdaterOn.Store(true)
+			return nil
+		},
+		stop: func(ctx context.Context) error {
+			return a.stopCMDConversationUpdater(ctx)
 		},
 	}
 }
@@ -331,6 +351,12 @@ func (a *App) hasConversationProjectorLifecycle(includeStopOnly bool) bool {
 	return a.conversationProjector != nil ||
 		a.startConversationProjectorFn != nil ||
 		(includeStopOnly && (a.stopConversationProjectorFn != nil || a.conversationOn.Load()))
+}
+
+func (a *App) hasCMDConversationUpdaterLifecycle(includeStopOnly bool) bool {
+	return a.cmdConversationUpdater != nil ||
+		a.startCMDConversationUpdaterFn != nil ||
+		(includeStopOnly && (a.stopCMDConversationUpdaterFn != nil || a.cmdConversationUpdaterOn.Load()))
 }
 
 func (a *App) hasConversationActiveHintsLifecycle(includeStopOnly bool) bool {

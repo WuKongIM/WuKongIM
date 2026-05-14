@@ -741,9 +741,9 @@ P2c 状态（2026-05-11）：
 
 ## 结论
 
-当前发送链路的基础设施能力更强，尤其 channel log 幂等、复制、异步投递和可观测性更清晰。经过 P0/P1/P2a/P2b/P2c、P2 权限收敛以及 P2d-a/P2d-b 后，当前链路已经恢复了主要发送前权限、频道状态、系统 UID / system device 绕过、NoPersist 核心边界、持久化 cmd channel 写入、request-scoped subscribers、CMD source-channel 订阅者解析、command-style NoPersist realtime 投递，以及 `Info` / `CustomerService` / `Visitors` / `Agent` 的核心发送权限。
+当前发送链路的基础设施能力更强，尤其 channel log 幂等、复制、异步投递和可观测性更清晰。经过 P0/P1/P2a/P2b/P2c、P2 权限收敛以及 P2d-a/P2d-b/P2d-c/P2d-d 后，当前链路已经恢复了主要发送前权限、频道状态、系统 UID / system device 绕过、NoPersist 核心边界、持久化 cmd channel 写入、request-scoped subscribers、CMD source-channel 订阅者解析、command-style NoPersist realtime 投递、legacy CMD 离线同步，以及 `Info` / `CustomerService` / `Visitors` / `Agent` 的核心发送权限。
 
-后续最值得优先设计的是剩余 CMD 会话与恢复语义：CMD conversation/offline sync，以及 request-scoped subscribers 快照在 durable replay 后的恢复策略。这些能力会影响会话、离线和恢复模型，应单独设计，避免把旧版事件总线式逻辑直接搬回当前分层架构。
+后续最值得优先设计的是剩余在线/批量/插件类差异：在线 cmd 专用 `systemcmdonline`、普通临时频道投递、`/message/sendbatch`、`expire`、`AllowStranger`、plugin/webhook/AI 钩子和特殊频道后续副作用。
 
 ## P0 实施后状态（2026-05-11）
 
@@ -843,3 +843,34 @@ P2b 阶段仍未恢复的旧版差异包括：`AllowStranger`、request-scoped s
 - 非 command-style 的普通 `NoPersist` 仍保持 P2a 行为：权限通过后返回成功，不写 durable append，也不做 realtime 投递。
 
 仍未恢复的旧版差异包括：CMD conversation/offline sync、durable request-scoped subscribers 快照 replay 恢复、普通临时频道投递、`/message/sendbatch`、`expire`、`AllowStranger`、plugin/webhook/AI 钩子，以及特殊频道的后续副作用。
+
+## P2d-c 实施后状态（2026-05-13）
+
+本轮已恢复 legacy CMD 离线同步的核心业务语义：
+
+- HTTP `POST /message/sync` 已恢复，用于同步 durable CMD 消息；普通 `/conversation/sync` 仍不返回 CMD 状态。
+- HTTP `POST /message/syncack` 已恢复，只推进最近一次 sync record generation 中返回过的 CMD channel read cursor，不按客户端传入的 `last_message_seq` 重新选择频道。
+- CMD 会话状态使用独立 `CMDConversationState` 表，不复用普通 `UserConversationState`；状态按 UID 所属 slot owner 持久化和同步。
+- CMD 消息事实仍从 command channel log 读取，即 `source____cmd`；返回给旧客户端前只剥离一层 `____cmd` 后缀，展示 source-channel 视图。
+- CMD sync API 的权威路由按 UID owner 寻址；UID owner 再按 `source____cmd` 的 `ChannelRuntimeMeta.Leader` 读取本地或远端 command-channel log，避免把 UID 状态 owner 与 command-channel log owner 混为一谈。
+- `NoPersist` CMD 仍是在线 transient 语义：不写 channel log，不创建 CMD conversation state，也不会出现在 `/message/sync`。
+- live committed request-scoped CMD 投影使用 `MessageScopedUIDs` 精确建 state；没有 scoped UIDs 的 temp CMD replay 不回扫临时订阅者。
+
+仍未恢复 / 延后到 P2d-d 的差异：
+
+- durable request-scoped subscribers 快照在进程崩溃后仅靠 committed replay 仍不能完整恢复；P2d-c 只保证 live path 的精确投影。
+- 在线 cmd 专用 `systemcmdonline`、普通临时频道投递、`/message/sendbatch`、`expire`、`AllowStranger`、plugin/webhook/AI 钩子和特殊频道后续副作用仍未恢复。
+
+
+## P2d-d 实施后状态（2026-05-14）
+
+本轮将 P2d-c 的 post-commit subscriber scan 投影替换为旧版兼容的 CMD conversation intent 路径，不新增 subscriber snapshot 持久化表：
+
+- request-scoped durable send 在 channel log append 成功后，用本次请求的 `RequestSubscribers` 构建 `ConversationIntent`，按 UID owner 路由到 owner-local pending updater；部分 owner 路由失败不影响发送成功，但 committed event 标记为未完全提交，后续 delivery UID page observer 可重试。
+- 普通 CMD durable delivery 在 resolver 已经解析出 UID page 后、在线 presence 扩展前，基于该 UID page 构建 intent；nil observer、空 UID page、已完全提交的 request-scoped intent 都会跳过，observer 失败只记录告警。
+- UID owner 上的 `ConversationUpdater` 按 command channel + channel type 合并 pending updates，维护 UID 索引；`/message/sync` 会把 pending overlay 与已落盘 `CMDConversationState` 合并，所以未 flush 的 CMD activity 也可被同步到。
+- `/message/syncack` 仍只消费最近一次 sync generation；对 pending-only channel，会先 upsert durable read progress，再按 UID/channel/throughSeq 清理 pending，避免把客户端 `last_message_seq` 当作频道选择器。
+- graceful stop 会把未 flush 的 pending updates 保存到 `DataDir/conversationv2/cmd_conversation_updates.json` 并在启动时恢复；启动加载后会保留该文件到后续 durable flush / save 成功，避免恢复窗口内再次崩溃丢 pending；这仍不保证 kill -9 前新接收的内存 intent 持久化。
+- committed replay 不再运行独立 CMD subscriber scan/projector；它只重放 delivery / conversation，普通 CMD intent 由 delivery UID observer 重新产生，request-scoped replay 没有 `MessageScopedUIDs` 时仍是 best effort。
+
+仍未恢复 / 继续延后的差异：在线 cmd 专用 `systemcmdonline`、普通临时频道投递、`/message/sendbatch`、`expire`、`AllowStranger`、plugin/webhook/AI 钩子和特殊频道后续副作用。
