@@ -114,3 +114,4 @@
 
 ### Worktree testing
 - When using project-local `.worktrees/*`, run Go tests with `GOWORK=off`; the parent `go.work` points at the main checkout and otherwise makes packages resolve under `.worktrees` incorrectly.
+- Bench target APIs live under `/bench/v1/*`, are registered only when `WK_BENCH_API_ENABLE=true`, and route mutations through `internal/usecase/benchdata` plus user/channel usecase adapters.

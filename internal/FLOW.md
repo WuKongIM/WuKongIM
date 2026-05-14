@@ -85,6 +85,7 @@
 | `delivery.App` | `usecase/delivery/app.go` | 投递用例：提交投递、确认、离线处理 |
 | `presence.App` | `usecase/presence/app.go` | 在线状态用例：激活/去激活、权威路由、心跳 |
 | `conversation.App` | `usecase/conversation/app.go` | 会话用例：增量/全量同步、冷热分离 |
+| `benchdata.App` | `usecase/benchdata/app.go` | Benchmark 数据准备用例：能力描述、用户 token、群频道、订阅者批量准备 |
 | `channel.App` | `usecase/channel/app.go` | 频道业务用例：资料、订阅者、白名单、黑名单 |
 | `cmdsync.App` | `usecase/cmdsync/app.go` | CMD 同步用例：合并 pending overlay、读取 command-channel log、生成 sync records、处理 syncack |
 | `cmdsync.ConversationUpdater` | `usecase/cmdsync/pending.go` | UID-owner pending CMD conversation intent 缓冲、flush 与 graceful-stop 恢复 |

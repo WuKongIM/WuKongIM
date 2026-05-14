@@ -290,7 +290,7 @@ func TestBuildForwardsBenchAPIConfigIntoAPIServer(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/bench/v1/capabilities", nil)
 	app.API().Engine().ServeHTTP(rec, req)
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	require.Equal(t, http.StatusOK, rec.Code)
 }
 
 func TestNewClosesChannelRuntimeResourcesWhenLateBuildFails(t *testing.T) {
