@@ -24,6 +24,9 @@ const getNetworkSummaryMock = vi.fn()
 const getDiagnosticsTraceMock = vi.fn()
 const getDiagnosticsMessageMock = vi.fn()
 const getDiagnosticsEventsMock = vi.fn()
+const getDistributedTasksSummaryMock = vi.fn()
+const getDistributedTasksMock = vi.fn()
+const getDistributedTaskMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -46,6 +49,9 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getDiagnosticsTrace: (...args: unknown[]) => getDiagnosticsTraceMock(...args),
     getDiagnosticsMessage: (...args: unknown[]) => getDiagnosticsMessageMock(...args),
     getDiagnosticsEvents: (...args: unknown[]) => getDiagnosticsEventsMock(...args),
+    getDistributedTasksSummary: (...args: unknown[]) => getDistributedTasksSummaryMock(...args),
+    getDistributedTasks: (...args: unknown[]) => getDistributedTasksMock(...args),
+    getDistributedTask: (...args: unknown[]) => getDistributedTaskMock(...args),
   }
 })
 
@@ -69,6 +75,9 @@ beforeEach(() => {
   getDiagnosticsTraceMock.mockReset()
   getDiagnosticsMessageMock.mockReset()
   getDiagnosticsEventsMock.mockReset()
+  getDistributedTasksSummaryMock.mockReset()
+  getDistributedTasksMock.mockReset()
+  getDistributedTaskMock.mockReset()
 
   getOverviewMock.mockResolvedValue({
     generated_at: "2026-04-23T08:00:00Z",
@@ -97,6 +106,15 @@ beforeEach(() => {
     },
   })
   getTasksMock.mockResolvedValue({ total: 0, items: [] })
+  getDistributedTasksSummaryMock.mockResolvedValue({
+    total: 0,
+    by_status: { pending: 0, running: 0, retrying: 0, blocked: 0, failed: 0, completed: 0, cancelled: 0, unknown: 0 },
+    by_domain: { slot_reconcile: 0, node_onboarding: 0, node_scale_in: 0, channel_migration: 0 },
+    partial: false,
+    warnings: [],
+  })
+  getDistributedTasksMock.mockResolvedValue({ total: 0, items: [], next_cursor: "", has_more: false, partial: false, warnings: [] })
+  getDistributedTaskMock.mockResolvedValue({ task: null, detail: { domain: "slot_reconcile", raw_status: "" } })
   getChannelClusterSummaryMock.mockResolvedValue({
     total: 1,
     healthy: 1,
@@ -296,6 +314,7 @@ beforeEach(() => {
 it.each([
   ["/dashboard", "Dashboard", "Operations Summary"],
   ["/nodes", "Nodes", "Address"],
+  ["/tasks", "Distributed Tasks", "Task queue"],
   ["/channel-cluster/list", "Channel List", "Channel ID"],
   ["/connections", "Connections", "Session"],
   ["/messages", "Messages", "Channel ID"],
@@ -339,6 +358,7 @@ test("dashboard shows monochrome workbench sections", async () => {
 it.each([
   ["/dashboard", "仪表盘", "操作摘要"],
   ["/nodes", "节点", "地址"],
+  ["/tasks", "分布式任务", "任务队列"],
   ["/channel-cluster/list", "频道列表", "频道 ID"],
   ["/connections", "连接", "会话"],
   ["/messages", "消息", "频道 ID"],
