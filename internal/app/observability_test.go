@@ -71,6 +71,28 @@ func TestBuildWiresDiagnosticsStoreAndSink(t *testing.T) {
 	require.Equal(t, "trace-1", result.Events[0].TraceID)
 }
 
+func TestBuildWiresDiagnosticsTrackingRules(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.API.ListenAddr = "127.0.0.1:0"
+	cfg.Observability.Diagnostics.Enabled = true
+	cfg.Observability.Diagnostics.SampleRate = 0
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	_, err = app.AddDiagnosticsTrackingRule(context.Background(), diagnostics.TrackingRuleInput{
+		ID: "rule-1", Target: diagnostics.TrackingTargetSenderUID, UID: "u1", TTL: time.Minute, SampleRate: 1,
+	})
+	require.NoError(t, err)
+
+	sendtrace.Record(sendtrace.Event{TraceID: "trace-u1", FromUID: "u1", Stage: sendtrace.StageMessageSendDurable, Result: sendtrace.ResultOK})
+	result := app.QueryDiagnostics(context.Background(), diagnostics.Query{UID: "u1", Limit: 10})
+	require.Equal(t, diagnostics.StatusOK, result.Status)
+}
+
 func TestStopRestoresDiagnosticsSendTraceSink(t *testing.T) {
 	cfg := testConfig(t)
 	cfg.Observability.Diagnostics.Enabled = true
