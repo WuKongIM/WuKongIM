@@ -72,7 +72,11 @@ type CapabilitiesResponse struct {
 
 // CapabilitiesSupports lists bench/v1 supported setup dimensions.
 type CapabilitiesSupports struct {
-	ChannelTypes []string `json:"channel_types"`
+	UsersTokensBatch        bool     `json:"users_tokens_batch"`
+	ChannelsBatch           bool     `json:"channels_batch"`
+	ChannelSubscribersBatch bool     `json:"channel_subscribers_batch"`
+	Snapshot                bool     `json:"snapshot"`
+	ChannelTypes            []string `json:"channel_types"`
 }
 
 // CapabilitiesLimits lists configured request limits exposed to wkbench.
@@ -85,14 +89,18 @@ type CapabilitiesLimits struct {
 type TokensRequest struct {
 	RunID   string             `json:"run_id"`
 	BatchID string             `json:"batch_id"`
-	Items   []UserTokenCommand `json:"items"`
+	Upsert  bool               `json:"upsert,omitempty"`
+	Users   []UserTokenCommand `json:"users,omitempty"`
+	Items   []UserTokenCommand `json:"items,omitempty"`
 }
 
 // ChannelsRequest upserts benchmark channels in one batch.
 type ChannelsRequest struct {
-	RunID   string          `json:"run_id"`
-	BatchID string          `json:"batch_id"`
-	Items   []ChannelRecord `json:"items"`
+	RunID    string          `json:"run_id"`
+	BatchID  string          `json:"batch_id"`
+	Upsert   bool            `json:"upsert,omitempty"`
+	Channels []ChannelRecord `json:"channels,omitempty"`
+	Items    []ChannelRecord `json:"items,omitempty"`
 }
 
 // SubscribersRequest appends benchmark subscribers in one batch.

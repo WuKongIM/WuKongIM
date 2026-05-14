@@ -49,6 +49,11 @@ func TestBenchCapabilitiesSuccess(t *testing.T) {
 	require.True(t, got.Enabled)
 	require.Equal(t, "bench/v1", got.Version)
 	require.Contains(t, got.Supports.ChannelTypes, "group")
+	require.True(t, got.Supports.UsersTokensBatch)
+	require.True(t, got.Supports.ChannelsBatch)
+	require.True(t, got.Supports.ChannelSubscribersBatch)
+	require.True(t, got.Supports.Snapshot)
+	require.JSONEq(t, `{"enabled":true,"version":"bench/v1","supports":{"users_tokens_batch":true,"channels_batch":true,"channel_subscribers_batch":true,"snapshot":true,"channel_types":["group"]},"limits":{"max_batch_size":100,"max_payload_bytes":1024}}`, rec.Body.String())
 }
 
 func TestBenchSubscribersRejectsResetTrue(t *testing.T) {
@@ -125,23 +130,81 @@ func TestBenchTokensMutationSuccess(t *testing.T) {
 	require.Equal(t, 1, got.Accepted)
 }
 
+func TestBenchTokensSpecFormMutationSuccess(t *testing.T) {
+	users := &benchAPIUsers{}
+	srv := New(Options{
+		BenchEnabled:         true,
+		BenchData:            benchdata.New(benchdata.Config{Users: users, MaxBatchSize: 100, MaxPayloadBytes: 1024}),
+		BenchMaxBatchSize:    100,
+		BenchMaxPayloadBytes: 1024,
+	})
+	body := `{"run_id":"bench-run","batch_id":"b1","upsert":true,"users":[{"uid":"u1","token":"t1"}]}`
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/bench/v1/users/tokens", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got benchdata.MutationResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Equal(t, 1, got.Accepted)
+	require.Equal(t, []benchdata.UserTokenCommand{{UID: "u1", Token: "t1"}}, users.updated)
+}
+
+func TestBenchChannelsSpecFormMutationSuccess(t *testing.T) {
+	channels := &benchAPIChannelsRecorder{}
+	srv := New(Options{
+		BenchEnabled:         true,
+		BenchData:            benchdata.New(benchdata.Config{Channels: channels, MaxBatchSize: 100, MaxPayloadBytes: 1024}),
+		BenchMaxBatchSize:    100,
+		BenchMaxPayloadBytes: 1024,
+	})
+	body := `{"run_id":"bench-run","batch_id":"b1","upsert":true,"channels":[{"channel_id":"g1","channel_type":2}]}`
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/bench/v1/channels", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got benchdata.MutationResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Equal(t, 1, got.Accepted)
+	require.Equal(t, []benchdata.ChannelRecord{{ChannelID: "g1", ChannelType: 2}}, channels.upserted)
+}
+
 type benchStub struct{}
 
 func (b benchStub) Capabilities(context.Context) benchdata.CapabilitiesResponse {
 	return benchdata.CapabilitiesResponse{
-		Enabled:  true,
-		Version:  "bench/v1",
-		Supports: benchdata.CapabilitiesSupports{ChannelTypes: []string{"group"}},
-		Limits:   benchdata.CapabilitiesLimits{MaxBatchSize: 100, MaxPayloadBytes: 1024},
+		Enabled: true,
+		Version: "bench/v1",
+		Supports: benchdata.CapabilitiesSupports{
+			UsersTokensBatch:        true,
+			ChannelsBatch:           true,
+			ChannelSubscribersBatch: true,
+			Snapshot:                true,
+			ChannelTypes:            []string{"group"},
+		},
+		Limits: benchdata.CapabilitiesLimits{MaxBatchSize: 100, MaxPayloadBytes: 1024},
 	}
 }
 
 func (b benchStub) UpsertTokens(_ context.Context, req benchdata.TokensRequest) (benchdata.MutationResponse, error) {
-	return benchdata.MutationResponse{RunID: req.RunID, BatchID: req.BatchID, Accepted: len(req.Items)}, nil
+	accepted := len(req.Items)
+	if len(req.Users) > 0 {
+		accepted = len(req.Users)
+	}
+	return benchdata.MutationResponse{RunID: req.RunID, BatchID: req.BatchID, Accepted: accepted}, nil
 }
 
 func (b benchStub) UpsertChannels(_ context.Context, req benchdata.ChannelsRequest) (benchdata.MutationResponse, error) {
-	return benchdata.MutationResponse{RunID: req.RunID, BatchID: req.BatchID, Accepted: len(req.Items)}, nil
+	accepted := len(req.Items)
+	if len(req.Channels) > 0 {
+		accepted = len(req.Channels)
+	}
+	return benchdata.MutationResponse{RunID: req.RunID, BatchID: req.BatchID, Accepted: accepted}, nil
 }
 
 func (b benchStub) AddSubscribers(_ context.Context, req benchdata.SubscribersRequest) (benchdata.SubscribersResponse, error) {
@@ -162,6 +225,28 @@ type benchAPIChannels struct{}
 func (benchAPIChannels) UpsertChannel(context.Context, benchdata.ChannelRecord) error { return nil }
 
 func (benchAPIChannels) AddSubscribers(context.Context, string, uint8, []string) error { return nil }
+
+type benchAPIUsers struct {
+	updated []benchdata.UserTokenCommand
+}
+
+func (u *benchAPIUsers) UpdateToken(_ context.Context, cmd benchdata.UserTokenCommand) error {
+	u.updated = append(u.updated, cmd)
+	return nil
+}
+
+type benchAPIChannelsRecorder struct {
+	upserted []benchdata.ChannelRecord
+}
+
+func (c *benchAPIChannelsRecorder) UpsertChannel(_ context.Context, ch benchdata.ChannelRecord) error {
+	c.upserted = append(c.upserted, ch)
+	return nil
+}
+
+func (c *benchAPIChannelsRecorder) AddSubscribers(context.Context, string, uint8, []string) error {
+	return nil
+}
 
 type benchFailingStub struct{ benchStub }
 
