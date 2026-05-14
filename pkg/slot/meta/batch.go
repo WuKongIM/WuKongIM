@@ -170,7 +170,7 @@ func (b *WriteBatch) UpsertChannel(hashSlot uint16, ch Channel) error {
 	if exists && ch.SubscriberMutationVersion == 0 {
 		ch.SubscriberMutationVersion = existing.SubscriberMutationVersion
 	}
-	value := encodeChannelFamilyValue(ch.Ban, ch.Disband, ch.SendBan, ch.SubscriberMutationVersion, primaryKey)
+	value := encodeChannelFamilyValue(ch.Ban, ch.Disband, ch.SendBan, ch.AllowStranger, ch.SubscriberMutationVersion, primaryKey)
 	indexKey := encodeChannelIDIndexKey(hashSlot, ch.ChannelID, ch.ChannelType)
 	indexValue := encodeChannelIndexValue(ch.Ban)
 
@@ -725,7 +725,7 @@ func (b *WriteBatch) AddSubscribers(hashSlot uint16, channelID string, channelTy
 	}
 	if version > 0 {
 		channelKey := encodeChannelPrimaryKey(hashSlot, channelID, channelType, channelPrimaryFamilyID)
-		value := encodeChannelFamilyValue(channel.Ban, channel.Disband, channel.SendBan, channel.SubscriberMutationVersion, channelKey)
+		value := encodeChannelFamilyValue(channel.Ban, channel.Disband, channel.SendBan, channel.AllowStranger, channel.SubscriberMutationVersion, channelKey)
 		if err := b.batch.Set(channelKey, value, nil); err != nil {
 			return err
 		}
@@ -775,7 +775,7 @@ func (b *WriteBatch) RemoveSubscribers(hashSlot uint16, channelID string, channe
 	}
 	if version > 0 {
 		channelKey := encodeChannelPrimaryKey(hashSlot, channelID, channelType, channelPrimaryFamilyID)
-		value := encodeChannelFamilyValue(channel.Ban, channel.Disband, channel.SendBan, channel.SubscriberMutationVersion, channelKey)
+		value := encodeChannelFamilyValue(channel.Ban, channel.Disband, channel.SendBan, channel.AllowStranger, channel.SubscriberMutationVersion, channelKey)
 		if err := b.batch.Set(channelKey, value, nil); err != nil {
 			return err
 		}
@@ -882,7 +882,7 @@ func (b *WriteBatch) loadChannel(hashSlot uint16, key []byte, channelID string, 
 		return Channel{}, false, err
 	}
 
-	ban, disband, sendBan, version, err := decodeChannelFamilyValue(key, value)
+	ban, disband, sendBan, allowStranger, version, err := decodeChannelFamilyValue(key, value)
 	if err != nil {
 		return Channel{}, false, err
 	}
@@ -892,6 +892,7 @@ func (b *WriteBatch) loadChannel(hashSlot uint16, key []byte, channelID string, 
 		Ban:                       ban,
 		Disband:                   disband,
 		SendBan:                   sendBan,
+		AllowStranger:             allowStranger,
 		SubscriberMutationVersion: version,
 	}, true, nil
 }
