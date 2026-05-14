@@ -10,6 +10,7 @@ import { resetLocale } from "@/i18n/locale-store"
 const getOverviewMock = vi.fn()
 const getTasksMock = vi.fn()
 const getNodesMock = vi.fn()
+const getChannelClusterSummaryMock = vi.fn()
 const getChannelRuntimeMetaMock = vi.fn()
 const getConnectionsMock = vi.fn()
 const getControllerLogsMock = vi.fn()
@@ -31,6 +32,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getOverview: (...args: unknown[]) => getOverviewMock(...args),
     getTasks: (...args: unknown[]) => getTasksMock(...args),
     getNodes: (...args: unknown[]) => getNodesMock(...args),
+    getChannelClusterSummary: (...args: unknown[]) => getChannelClusterSummaryMock(...args),
     getChannelRuntimeMeta: (...args: unknown[]) => getChannelRuntimeMetaMock(...args),
     getConnections: (...args: unknown[]) => getConnectionsMock(...args),
     getControllerLogs: (...args: unknown[]) => getControllerLogsMock(...args),
@@ -53,6 +55,7 @@ beforeEach(() => {
   getOverviewMock.mockReset()
   getTasksMock.mockReset()
   getNodesMock.mockReset()
+  getChannelClusterSummaryMock.mockReset()
   getChannelRuntimeMetaMock.mockReset()
   getConnectionsMock.mockReset()
   getControllerLogsMock.mockReset()
@@ -94,6 +97,15 @@ beforeEach(() => {
     },
   })
   getTasksMock.mockResolvedValue({ total: 0, items: [] })
+  getChannelClusterSummaryMock.mockResolvedValue({
+    total: 1,
+    healthy: 1,
+    isr_insufficient: 0,
+    no_leader: 0,
+    avg_replicas: 1,
+    avg_isr: 1,
+    leader_distribution: [{ node_id: 1, count: 1 }],
+  })
   getNodesMock.mockResolvedValue({
     total: 1,
     items: [{
@@ -293,6 +305,7 @@ it.each([
   ["/network", "Network", "Node Health Status"],
   ["/controller", "Controller Logs", "Log Index"],
   ["/slot-logs", "Slot Logs", "Log Index"],
+  ["/topology", "Topology", "Topology Summary"],
 ])("renders %s shell", async (path, title, section) => {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
 
@@ -305,22 +318,6 @@ it.each([
   expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument()
   expect((await screen.findAllByText(section)).length).toBeGreaterThan(0)
   expect(screen.queryByText(/workspace/i)).not.toBeInTheDocument()
-})
-
-it.each([
-  ["/topology", "Topology", /does not expose replica topology endpoints/i],
-])("renders %s unavailable manager scope", async (path, title, message) => {
-  const router = createMemoryRouter(routes, { initialEntries: [path] })
-
-  render(
-    <AppProviders>
-      <RouterProvider router={router} />
-    </AppProviders>,
-  )
-
-  expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument()
-  expect(screen.getByText("Manager API Coverage")).toBeInTheDocument()
-  expect(screen.getByText(message)).toBeInTheDocument()
 })
 
 test("dashboard shows monochrome workbench sections", async () => {
@@ -351,7 +348,7 @@ it.each([
   ["/network", "网络", "节点健康状态"],
   ["/controller", "控制面日志", "日志索引"],
   ["/slot-logs", "槽位日志", "日志索引"],
-  ["/topology", "拓扑", "管理 API 覆盖"],
+  ["/topology", "拓扑", "拓扑摘要"],
 ])("renders %s in Chinese", async (path, title, section) => {
   localStorage.setItem("wukongim_manager_locale", "zh-CN")
   const router = createMemoryRouter(routes, { initialEntries: [path] })
