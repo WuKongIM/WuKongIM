@@ -1,11 +1,25 @@
 package worker
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 )
+
+// WorkloadRunner receives worker lifecycle hooks for assigned benchmark shards.
+type WorkloadRunner interface {
+	// Connect establishes workload connections for the active assignment.
+	Connect(ctx context.Context, assignment Assignment) error
+	// Warmup runs warmup traffic for the active assignment.
+	Warmup(ctx context.Context, assignment Assignment) error
+	// Run runs measured traffic for the active assignment.
+	Run(ctx context.Context, assignment Assignment) error
+	// Cooldown drains workload state after measured traffic.
+	Cooldown(ctx context.Context, assignment Assignment) error
+}
 
 // Config controls the worker HTTP control server.
 type Config struct {
@@ -15,18 +29,21 @@ type Config struct {
 	InsecureControl bool
 	// WorkDir stores the active assignment file current-run.json when configured.
 	WorkDir string
+	// WorkloadRunner receives connect, warmup, run, and cooldown phase hooks.
+	WorkloadRunner WorkloadRunner
 }
 
 // Server exposes the wkbench worker control HTTP API.
 type Server struct {
-	cfg   Config
-	state *State
-	mux   *http.ServeMux
+	cfg    Config
+	state  *State
+	runner WorkloadRunner
+	mux    *http.ServeMux
 }
 
 // NewServer builds a worker control server with in-memory assignment state.
 func NewServer(cfg Config) *Server {
-	s := &Server{cfg: cfg, state: NewState(cfg.WorkDir), mux: http.NewServeMux()}
+	s := &Server{cfg: cfg, state: NewState(cfg.WorkDir), runner: cfg.WorkloadRunner, mux: http.NewServeMux()}
 	s.routes()
 	return s
 }
@@ -98,11 +115,42 @@ func (s *Server) phase(phase Phase) http.HandlerFunc {
 			methodNotAllowed(w)
 			return
 		}
+		status := s.state.Status()
+		if status.Phase == phase {
+			writeJSON(w, http.StatusOK, status)
+			return
+		}
+		if !canTransition(status.Phase, phase) {
+			writeError(w, http.StatusConflict, fmt.Errorf("%w: %s to %s", ErrInvalidPhaseTransition, status.Phase, phase).Error())
+			return
+		}
+		if err := s.runPhaseHook(r.Context(), phase, status.Assignment); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 		if err := s.state.Transition(phase); err != nil {
 			writeError(w, http.StatusConflict, err.Error())
 			return
 		}
 		writeJSON(w, http.StatusOK, s.state.Status())
+	}
+}
+
+func (s *Server) runPhaseHook(ctx context.Context, phase Phase, assignment Assignment) error {
+	if s.runner == nil {
+		return nil
+	}
+	switch phase {
+	case PhaseConnect:
+		return s.runner.Connect(ctx, assignment)
+	case PhaseWarmup:
+		return s.runner.Warmup(ctx, assignment)
+	case PhaseRun:
+		return s.runner.Run(ctx, assignment)
+	case PhaseCooldown:
+		return s.runner.Cooldown(ctx, assignment)
+	default:
+		return nil
 	}
 }
 
