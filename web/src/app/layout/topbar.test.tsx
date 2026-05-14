@@ -49,6 +49,7 @@ test("renders brand, top sections, route metadata, and logged-in username", asyn
   expect(within(banner).getByRole("link", { name: "Cluster Ops" })).toHaveAttribute("aria-current", "page")
   expect(within(banner).getByRole("link", { name: "Business" })).toBeInTheDocument()
   expect(within(banner).getByRole("link", { name: "System" })).toBeInTheDocument()
+  expect(within(banner).getByRole("link", { name: "Cluster Ops" })).toHaveClass("text-[#06120b]")
   expect(within(banner).getByText("Nodes")).toBeInTheDocument()
   expect(within(banner).getByText("Node inventory, roles, and lifecycle status.")).toBeInTheDocument()
   expect(within(banner).getByText("admin")).toBeInTheDocument()
