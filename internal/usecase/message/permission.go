@@ -155,8 +155,19 @@ func (a *App) checkPersonSendPermission(ctx context.Context, cmd SendCommand) (f
 	if err != nil {
 		return frame.ReasonSystemError, err
 	}
-	if !allowed {
+	if allowed {
+		return frame.ReasonSuccess, nil
+	}
+
+	ch, err := a.permissions.GetChannelForPermission(ctx, receiver, int64(frame.ChannelTypePerson))
+	if errors.Is(err, metadb.ErrNotFound) {
 		return frame.ReasonNotInWhitelist, nil
 	}
-	return frame.ReasonSuccess, nil
+	if err != nil {
+		return frame.ReasonSystemError, err
+	}
+	if ch.AllowStranger != 0 {
+		return frame.ReasonSuccess, nil
+	}
+	return frame.ReasonNotInWhitelist, nil
 }
