@@ -143,6 +143,21 @@ func NewReplica(cfg ReplicaConfig) (Replica, error) {
 	if cfg.SnapshotApplier == nil {
 		return nil, channel.ErrInvalidConfig
 	}
+	if cfg.Execution.Mode == "" {
+		cfg.Execution.Mode = ExecutionModeDedicated
+	}
+	switch cfg.Execution.Mode {
+	case ExecutionModeDedicated:
+	case ExecutionModePooled:
+		if cfg.Execution.Pool == nil {
+			return nil, channel.ErrInvalidConfig
+		}
+	default:
+		return nil, channel.ErrInvalidConfig
+	}
+	if cfg.Execution.MailboxSize < 0 || cfg.Execution.TurnBudget < 0 {
+		return nil, channel.ErrInvalidConfig
+	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
