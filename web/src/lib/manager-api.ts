@@ -8,6 +8,7 @@ import type {
   DiagnosticsCommonParams,
   DiagnosticsEventsParams,
   DiagnosticsMessageParams,
+  DistributedTaskListParams,
   KickUserInput,
   KickUserResponse,
   ManagerChannelRuntimeMetaDetailResponse,
@@ -23,6 +24,10 @@ import type {
   ManagerControllerRaftStatusResponse,
   ManagerConnectionsResponse,
   ManagerDiagnosticsResponse,
+  ManagerDistributedTaskDetailResponse,
+  ManagerDistributedTaskDomain,
+  ManagerDistributedTasksResponse,
+  ManagerDistributedTasksSummaryResponse,
   ManagerLoginResponse,
   ManagerMessagesResponse,
   ManagerNetworkSummaryResponse,
@@ -273,6 +278,34 @@ function buildNodeOnboardingJobsPath(params?: NodeOnboardingJobsParams) {
   return query ? `/manager/node-onboarding/jobs?${query}` : "/manager/node-onboarding/jobs"
 }
 
+function buildDistributedTasksPath(params?: DistributedTaskListParams) {
+  const search = new URLSearchParams()
+  if (params?.domain) {
+    search.set("domain", params.domain)
+  }
+  if (params?.status) {
+    search.set("status", params.status)
+  }
+  if (typeof params?.nodeId === "number") {
+    search.set("node_id", String(params.nodeId))
+  }
+  if (params?.scope) {
+    search.set("scope", params.scope)
+  }
+  if (params?.keyword !== undefined) {
+    search.set("keyword", params.keyword)
+  }
+  if (typeof params?.limit === "number") {
+    search.set("limit", String(params.limit))
+  }
+  if (params?.cursor) {
+    search.set("cursor", params.cursor)
+  }
+
+  const query = search.toString()
+  return query ? `/manager/distributed-tasks?${query}` : "/manager/distributed-tasks"
+}
+
 function buildMessageListPath(params: MessageListParams) {
   const search = new URLSearchParams()
   search.set("channel_id", params.channelId)
@@ -514,6 +547,20 @@ export function getTasks() {
 
 export function getTask(slotId: number) {
   return jsonManagerFetch<ManagerTaskDetailResponse>(`/manager/tasks/${slotId}`)
+}
+
+export function getDistributedTasksSummary() {
+  return jsonManagerFetch<ManagerDistributedTasksSummaryResponse>("/manager/distributed-tasks/summary")
+}
+
+export function getDistributedTasks(params?: DistributedTaskListParams) {
+  return jsonManagerFetch<ManagerDistributedTasksResponse>(buildDistributedTasksPath(params))
+}
+
+export function getDistributedTask(domain: ManagerDistributedTaskDomain, id: string) {
+  return jsonManagerFetch<ManagerDistributedTaskDetailResponse>(
+    `/manager/distributed-tasks/${domain}/${encodeURIComponent(id)}`,
+  )
 }
 
 export function getConnections(params?: ConnectionListParams) {
