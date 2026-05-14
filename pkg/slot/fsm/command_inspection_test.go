@@ -31,13 +31,14 @@ func TestDecodeCommandInspectionRedactsUserToken(t *testing.T) {
 
 func TestDecodeCommandInspectionIncludesChannelStatusFlags(t *testing.T) {
 	got, err := DecodeCommandInspection(EncodeUpsertChannelCommand(metadb.Channel{
-		ChannelID: "room-status", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1,
+		ChannelID: "room-status", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1,
 	}))
 	require.NoError(t, err)
 
 	require.Equal(t, int64(1), got.Payload["ban"])
 	require.Equal(t, int64(1), got.Payload["disband"])
 	require.Equal(t, int64(1), got.Payload["send_ban"])
+	require.Equal(t, int64(1), got.Payload["allow_stranger"])
 }
 
 func TestDecodeCommandInspectionIncludesRuntimeMetaRetention(t *testing.T) {
@@ -260,12 +261,13 @@ func TestDecodeCommandInspectionExpandsApplyDeltaOriginalCommand(t *testing.T) {
 			"source_index":   uint64(99),
 			"hash_slot":      uint16(7),
 			"original": map[string]any{
-				"command":      "upsert_channel",
-				"channel_id":   "room-1",
-				"channel_type": int64(2),
-				"ban":          int64(1),
-				"disband":      int64(0),
-				"send_ban":     int64(0),
+				"command":        "upsert_channel",
+				"channel_id":     "room-1",
+				"channel_type":   int64(2),
+				"ban":            int64(1),
+				"disband":        int64(0),
+				"send_ban":       int64(0),
+				"allow_stranger": int64(0),
 			},
 		},
 	}, got)
