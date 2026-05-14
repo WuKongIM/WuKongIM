@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/benchdata"
@@ -93,6 +94,11 @@ func (s *Server) bindBenchJSON(c *gin.Context, req any) bool {
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, s.benchMaxPayloadBytes)
 	}
 	if err := c.ShouldBindJSON(req); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			writeBenchError(c, http.StatusRequestEntityTooLarge, fmt.Sprintf("payload too large: max %d bytes", maxBytesErr.Limit))
+			return false
+		}
 		writeBenchError(c, http.StatusBadRequest, "invalid request")
 		return false
 	}
@@ -100,9 +106,11 @@ func (s *Server) bindBenchJSON(c *gin.Context, req any) bool {
 }
 
 func writeBenchMutationError(c *gin.Context, err error) {
-	status := http.StatusBadRequest
-	if errors.Is(err, http.ErrBodyReadAfterClose) {
+	status := http.StatusInternalServerError
+	if errors.Is(err, benchdata.ErrValidation) {
 		status = http.StatusBadRequest
+	} else if errors.Is(err, benchdata.ErrDependency) {
+		status = http.StatusServiceUnavailable
 	}
 	writeBenchError(c, status, err.Error())
 }
