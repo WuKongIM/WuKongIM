@@ -122,6 +122,14 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	channelExecutionWorkers, err := parseInt(v, "WK_CLUSTER_CHANNEL_EXECUTION_WORKERS")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelExecutionQueueSize, err := parseInt(v, "WK_CLUSTER_CHANNEL_EXECUTION_QUEUE_SIZE")
+	if err != nil {
+		return app.Config{}, err
+	}
 	channelBootstrapDefaultMinISR, err := parseInt(v, "WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR")
 	if err != nil {
 		return app.Config{}, err
@@ -559,6 +567,9 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			MaxChannels:                      maxChannels,
 			ChannelIdleTimeout:               channelIdleTimeout,
 			ChannelIdleScanInterval:          channelIdleScanInterval,
+			ChannelExecutionMode:             stringValue(v, "WK_CLUSTER_CHANNEL_EXECUTION_MODE"),
+			ChannelExecutionWorkers:          channelExecutionWorkers,
+			ChannelExecutionQueueSize:        channelExecutionQueueSize,
 			LongPollLaneCount:                longPollLaneCount,
 			LongPollMaxWait:                  longPollMaxWait,
 			LongPollMaxBytes:                 longPollMaxBytes,

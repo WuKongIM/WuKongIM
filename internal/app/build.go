@@ -32,6 +32,7 @@ import (
 	testdatausecase "github.com/WuKongIM/WuKongIM/internal/usecase/testdata"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelreplica "github.com/WuKongIM/WuKongIM/pkg/channel/replica"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
@@ -268,7 +269,20 @@ func build(cfg Config) (_ *App, err error) {
 		return app.isrTransport.Close()
 	})
 	app.channelMetaSync = &channelMetaSync{}
+	if cfg.Cluster.ChannelExecutionMode == "pooled" {
+		app.replicaExecutionPool, err = channelreplica.NewExecutionPool(channelreplica.ExecutionPoolConfig{
+			Workers:         cfg.Cluster.ChannelExecutionWorkers,
+			MailboxSize:     cfg.Cluster.ChannelExecutionQueueSize,
+			EffectQueueSize: cfg.Cluster.ChannelExecutionQueueSize,
+			Logger:          app.logger.Named("channel.replica.execution"),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("app: create channel replica execution pool: %w", err)
+		}
+		cleanup.Push("channel replica execution pool", app.replicaExecutionPool.Close)
+	}
 	replicaFactory := newChannelReplicaFactory(app.channelLogDB, channel.NodeID(cfg.Node.ID), nil, cfg.Cluster.AppendGroupCommitMaxWait, cfg.Cluster.AppendGroupCommitMaxRecords, cfg.Cluster.AppendGroupCommitMaxBytes, app.logger.Named("channel"))
+	replicaFactory.setExecutionPool(cfg.Cluster.ChannelExecutionMode, cfg.Cluster.ChannelExecutionWorkers, cfg.Cluster.ChannelExecutionQueueSize, app.replicaExecutionPool)
 	replicaFactory.onStateChange = app.channelMetaSync.enqueueLocalReplicaStateChange
 	app.isrRuntime, err = channelruntime.New(channelruntime.Config{
 		LocalNode:                        channel.NodeID(cfg.Node.ID),

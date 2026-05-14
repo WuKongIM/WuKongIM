@@ -370,6 +370,15 @@ type ClusterConfig struct {
 	// ChannelIdleScanInterval is how often this node scans for idle local channel runtimes.
 	// A zero value lets the channel runtime derive a bounded scan interval from ChannelIdleTimeout.
 	ChannelIdleScanInterval time.Duration
+	// ChannelExecutionMode selects local channel replica execution scheduling.
+	// "dedicated" preserves legacy per-replica workers; "pooled" uses shared worker pools.
+	ChannelExecutionMode string
+	// ChannelExecutionWorkers is the number of shared workers used by pooled channel execution.
+	// A zero value lets the replica execution runtime derive a default from GOMAXPROCS.
+	ChannelExecutionWorkers int
+	// ChannelExecutionQueueSize bounds pooled execution queues to avoid unbounded memory growth.
+	// A zero value uses the replica execution runtime default.
+	ChannelExecutionQueueSize int
 	// LongPollLaneCount is the number of channel fetch long-poll lanes.
 	LongPollLaneCount int
 	// LongPollMaxWait is the maximum wait for one channel fetch long-poll request.
@@ -888,6 +897,20 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	}
 	if c.Cluster.ChannelIdleScanInterval < 0 {
 		return fmt.Errorf("%w: channel idle scan interval must be >= 0", ErrInvalidConfig)
+	}
+	switch c.Cluster.ChannelExecutionMode {
+	case "", "dedicated", "pooled":
+	default:
+		return fmt.Errorf("%w: channel execution mode must be dedicated or pooled", ErrInvalidConfig)
+	}
+	if c.Cluster.ChannelExecutionMode == "" {
+		c.Cluster.ChannelExecutionMode = "dedicated"
+	}
+	if c.Cluster.ChannelExecutionWorkers < 0 {
+		return fmt.Errorf("%w: channel execution worker count must be >= 0", ErrInvalidConfig)
+	}
+	if c.Cluster.ChannelExecutionQueueSize < 0 {
+		return fmt.Errorf("%w: channel execution queue size must be >= 0", ErrInvalidConfig)
 	}
 	if c.Cluster.FollowerReplicationRetryInterval <= 0 && c.Cluster.followerReplicationRetryIntervalSet {
 		return fmt.Errorf("%w: follower replication retry interval must be positive", ErrInvalidConfig)
