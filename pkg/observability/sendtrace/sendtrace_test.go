@@ -28,3 +28,14 @@ func TestSetSinkRestoreHandlesNilPrevious(t *testing.T) {
 	require.Len(t, sink.events, 1)
 	require.Equal(t, "trace-1", sink.events[0].TraceID)
 }
+
+func TestRecordCarriesFromUID(t *testing.T) {
+	sink := &recordingSink{}
+	restore := SetSink(sink)
+	defer restore()
+
+	Record(Event{Stage: StageGatewayMessagesSend, TraceID: "trace-1", FromUID: "u1", Result: ResultOK})
+
+	require.Len(t, sink.events, 1)
+	require.Equal(t, "u1", sink.events[0].FromUID)
+}

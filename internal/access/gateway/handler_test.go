@@ -550,8 +550,10 @@ func TestHandleSendAssignsTraceIDToCommandAndSendTrace(t *testing.T) {
 	require.Equal(t, traceID, sendEvent.TraceID)
 	wantKey := string(channelhandler.KeyFromChannelID(channel.ChannelID{ID: "u2", Type: frame.ChannelTypePerson}))
 	require.Equal(t, wantKey, sendEvent.ChannelKey)
+	require.Equal(t, "u1", sendEvent.FromUID)
 	require.Equal(t, traceID, ackEvent.TraceID)
 	require.Equal(t, wantKey, ackEvent.ChannelKey)
+	require.Equal(t, "u1", ackEvent.FromUID)
 }
 
 func TestHandlerOnFrameSendMapsCanceledRequestContextToSendack(t *testing.T) {

@@ -184,6 +184,7 @@ func (a *App) sendDurable(ctx context.Context, cmd SendCommand) (SendResult, err
 		ChannelKey:  string(channelhandler.KeyFromChannelID(channelID)),
 		ClientMsgNo: cmd.ClientMsgNo,
 		MessageSeq:  result.MessageSeq,
+		FromUID:     cmd.FromUID,
 	})
 	if err != nil {
 		return SendResult{}, err
