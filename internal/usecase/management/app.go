@@ -229,6 +229,16 @@ type DiagnosticsReader interface {
 	QueryNodeDiagnostics(ctx context.Context, nodeID uint64, query diagnostics.Query) (diagnostics.QueryResult, error)
 }
 
+// DiagnosticsTrackingOperator mutates node-local diagnostics tracking rules through manager fanout.
+type DiagnosticsTrackingOperator interface {
+	// AddNodeDiagnosticsTrackingRule installs a runtime diagnostics tracking rule on one node.
+	AddNodeDiagnosticsTrackingRule(ctx context.Context, nodeID uint64, input diagnostics.TrackingRuleInput) (diagnostics.TrackingRule, error)
+	// ListNodeDiagnosticsTrackingRules returns active runtime diagnostics tracking rules from one node.
+	ListNodeDiagnosticsTrackingRules(ctx context.Context, nodeID uint64) ([]diagnostics.TrackingRule, error)
+	// DeleteNodeDiagnosticsTrackingRule removes a runtime diagnostics tracking rule from one node.
+	DeleteNodeDiagnosticsTrackingRule(ctx context.Context, nodeID uint64, ruleID string) error
+}
+
 // NodeRuntimeSummary contains target-node connection and gateway admission counters.
 type NodeRuntimeSummary struct {
 	// NodeID identifies the cluster node described by this summary.
@@ -273,6 +283,8 @@ type Options struct {
 	Connections ConnectionReader
 	// Diagnostics reads local or remote node diagnostics events for manager aggregations.
 	Diagnostics DiagnosticsReader
+	// DiagnosticsTracking mutates local or remote runtime diagnostics tracking rules.
+	DiagnosticsTracking DiagnosticsTrackingOperator
 	// ChannelRuntimeMeta provides authoritative slot-level runtime meta pages.
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
 	// Users provides authoritative user and device reads.
@@ -319,6 +331,7 @@ type App struct {
 	runtimeSummary           RuntimeSummaryReader
 	connections              ConnectionReader
 	diagnostics              DiagnosticsReader
+	diagnosticsTracking      DiagnosticsTrackingOperator
 	channelRuntimeMeta       ChannelRuntimeMetaReader
 	users                    UserReader
 	channelBusinessReader    ChannelBusinessReader
@@ -359,6 +372,7 @@ func New(opts Options) *App {
 		runtimeSummary:           opts.RuntimeSummary,
 		connections:              opts.Connections,
 		diagnostics:              opts.Diagnostics,
+		diagnosticsTracking:      opts.DiagnosticsTracking,
 		channelRuntimeMeta:       opts.ChannelRuntimeMeta,
 		users:                    opts.Users,
 		channelBusinessReader:    opts.ChannelBusinessReader,

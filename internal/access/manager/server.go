@@ -145,6 +145,12 @@ type Management interface {
 	RetryNodeOnboardingJob(ctx context.Context, jobID string) (managementusecase.NodeOnboardingJobResponse, error)
 	// QueryDiagnostics returns a manager-facing diagnostics aggregate query result.
 	QueryDiagnostics(ctx context.Context, req managementusecase.DiagnosticsQueryRequest) (managementusecase.DiagnosticsQueryResponse, error)
+	// CreateDiagnosticsTrackingRule installs a temporary diagnostics tracking rule.
+	CreateDiagnosticsTrackingRule(ctx context.Context, req managementusecase.DiagnosticsTrackingCreateRequest) (managementusecase.DiagnosticsTrackingMutationResponse, error)
+	// ListDiagnosticsTrackingRules returns active temporary diagnostics tracking rules.
+	ListDiagnosticsTrackingRules(ctx context.Context) (managementusecase.DiagnosticsTrackingListResponse, error)
+	// DeleteDiagnosticsTrackingRule removes a temporary diagnostics tracking rule.
+	DeleteDiagnosticsTrackingRule(ctx context.Context, ruleID string) (managementusecase.DiagnosticsTrackingDeleteResponse, error)
 }
 
 // PermissionConfig binds a resource to allowed actions.
