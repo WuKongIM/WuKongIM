@@ -105,6 +105,7 @@ type replica struct {
 	loopCommands           chan replicaLoopCommand
 	loopResults            chan machineEvent
 	loop                   replicaLoopDriver
+	executionPool          *ExecutionPool
 	stopCh                 chan struct{}
 	loopDone               chan struct{}
 	appendWorkerDone       chan struct{}
@@ -200,13 +201,19 @@ func NewReplica(cfg ReplicaConfig) (Replica, error) {
 		return nil, err
 	}
 	if cfg.Execution.Mode == ExecutionModePooled {
+		r.executionPool = cfg.Execution.Pool
 		r.loop = newPooledLoopDriver(r, cfg.Execution)
 	} else {
 		r.loop = newDedicatedLoopDriver(r)
 	}
 	r.loop.start()
-	r.startAppendEffectWorker()
-	r.startCheckpointEffectWorker()
+	if cfg.Execution.Mode == ExecutionModePooled {
+		close(r.appendWorkerDone)
+		close(r.checkpointWorkerDone)
+	} else {
+		r.startAppendEffectWorker()
+		r.startCheckpointEffectWorker()
+	}
 	return r, nil
 }
 

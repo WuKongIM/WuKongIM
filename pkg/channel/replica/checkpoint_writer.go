@@ -100,7 +100,7 @@ func (r *replica) lockDurableMu(ctx context.Context) error {
 }
 
 func (r *replica) emitCheckpointEffectLocked() {
-	if r.checkpointEffects == nil {
+	if r.checkpointEffects == nil && r.executionPool == nil {
 		return
 	}
 	if r.closed || r.state.Role == channel.ReplicaRoleTombstoned {
@@ -129,6 +129,16 @@ func (r *replica) emitCheckpointEffectLocked() {
 		Checkpoint:     checkpoint,
 		VisibleHW:      r.state.HW,
 		LEO:            r.state.LEO,
+	}
+	if r.executionPool != nil {
+		if err := r.executionPool.submitCheckpointEffect(context.Background(), r, effect); err == nil {
+			return
+		}
+		r.checkpointQueued = true
+		r.checkpointInFlight = false
+		r.pendingCheckpointEffectID = 0
+		r.scheduleCheckpointRetry()
+		return
 	}
 	select {
 	case r.checkpointEffects <- effect:
