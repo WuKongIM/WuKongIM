@@ -17,7 +17,9 @@ import (
 const (
 	exitConfig    = 1
 	exitPreflight = 2
+	exitHardLimit = 3
 	exitWorker    = 4
+	exitTarget    = 5
 	exitInternal  = 6
 )
 
@@ -67,15 +69,21 @@ func runBench(args []string, stderr io.Writer) int {
 		case coordinator.StatusPreflightFailed:
 			fmt.Fprintf(stderr, "preflight failed: %v\n", err)
 			return exitPreflight
+		case coordinator.StatusHardLimitFailed:
+			fmt.Fprintf(stderr, "hard limit failed: %v\n", err)
+			return exitHardLimit
 		case coordinator.StatusWorkerFailed:
 			fmt.Fprintf(stderr, "worker run failed: %v\n", err)
 			return exitWorker
+		case coordinator.StatusTargetUnavailable:
+			fmt.Fprintf(stderr, "target unavailable: %v\n", err)
+			return exitTarget
 		default:
 			fmt.Fprintf(stderr, "run failed: %v\n", err)
 			return exitInternal
 		}
 	}
-	fmt.Fprintln(stderr, "fake/no-op workload orchestration completed; real workloads are not implemented yet")
+	fmt.Fprintln(stderr, "wkbench workload orchestration completed")
 	return result.Status.ExitCode()
 }
 

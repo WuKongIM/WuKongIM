@@ -14,6 +14,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/internal/bench/planner"
+	"github.com/WuKongIM/WuKongIM/internal/bench/report"
 	"github.com/WuKongIM/WuKongIM/internal/bench/worker"
 )
 
@@ -50,8 +51,12 @@ const (
 	StatusConfigFailed RunStatus = "config_failed"
 	// StatusPreflightFailed means target or worker preflight failed before assignment.
 	StatusPreflightFailed RunStatus = "preflight_failed"
+	// StatusHardLimitFailed means one or more hard report limits failed.
+	StatusHardLimitFailed RunStatus = "hard_limit_failed"
 	// StatusWorkerFailed means at least one worker failed or was unreachable.
 	StatusWorkerFailed RunStatus = "worker_failed"
+	// StatusTargetUnavailable means the benchmark target became unavailable during the run.
+	StatusTargetUnavailable RunStatus = "target_unavailable"
 	// StatusCanceled means the coordinator context was canceled before completion.
 	StatusCanceled RunStatus = "canceled"
 	// StatusInternalFailed means the coordinator hit an unexpected internal error.
@@ -67,8 +72,12 @@ func (s RunStatus) ExitCode() int {
 		return 1
 	case StatusPreflightFailed:
 		return 2
+	case StatusHardLimitFailed:
+		return 3
 	case StatusWorkerFailed:
 		return 4
+	case StatusTargetUnavailable:
+		return 5
 	default:
 		return 6
 	}
@@ -82,6 +91,8 @@ type RunResult struct {
 	Status RunStatus
 	// Plan is the deterministic worker assignment used for the run.
 	Plan model.Plan
+	// Report is the optional run report written when scenario.run.report_dir is configured.
+	Report report.Report
 }
 
 // PreflightChecker verifies target and worker readiness before assignment.
@@ -181,10 +192,38 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 	}
 	if len(phaseErrs) > 0 {
 		result.Status = StatusWorkerFailed
+		c.writeReport(scenario, &result, report.Summary{WorkerFailed: len(phaseErrs)})
 		return result, errors.Join(phaseErrs...)
+	}
+	summary := report.Summary{}
+	rep := c.writeReport(scenario, &result, summary)
+	if rep.ExitCode == report.ExitHardLimitFailed {
+		result.Status = StatusHardLimitFailed
+		result.Report = rep
+		return result, fmt.Errorf("hard limit failed")
 	}
 	result.Status = StatusCompleted
 	return result, nil
+}
+
+func (c *Coordinator) writeReport(scenario model.Scenario, result *RunResult, summary report.Summary) report.Report {
+	rep := report.Build(report.Input{
+		RunID:    scenario.Run.ID,
+		Scenario: scenario,
+		Target:   c.cfg.Target,
+		Workers:  model.WorkerSet{Workers: c.cfg.Workers},
+		Plan:     result.Plan,
+		Summary:  summary,
+	})
+	result.Report = rep
+	if strings.TrimSpace(scenario.Run.ReportDir) == "" {
+		return rep
+	}
+	if err := report.WriteDir(scenario.Run.ReportDir, rep); err != nil {
+		result.Status = StatusInternalFailed
+		result.Report = rep
+	}
+	return rep
 }
 
 func (c *Coordinator) assignWorkers(ctx context.Context, scenario model.Scenario, plan model.Plan) error {
