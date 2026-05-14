@@ -61,10 +61,13 @@ import {
   transferSlotLeader,
   advanceMessageRetention,
   addBusinessChannelMembers,
+  createDiagnosticsTrackingRule,
+  deleteDiagnosticsTrackingRule,
   repairChannelClusterLeader,
   getBusinessChannel,
   getBusinessChannelMembers,
   getBusinessChannels,
+  listDiagnosticsTrackingRules,
   resetUserToken,
   removeBusinessChannelMembers,
   transferChannelClusterLeader,
@@ -994,6 +997,78 @@ describe("manager api client", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/manager/diagnostics/events?node_id=3&stage=channel_append&result=error",
       expect.any(Object),
+    )
+  })
+
+  it("builds diagnostics events query with uid and channel key", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(emptyDiagnosticsResponse()), { status: 200 }))
+
+    await getDiagnosticsEvents({ uid: "u1", channelKey: "channel/2/ZzE", limit: 50 })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/diagnostics/events?limit=50&uid=u1&channel_key=channel%2F2%2FZzE",
+      expect.any(Object),
+    )
+  })
+
+  it("lists diagnostics tracking rules", async () => {
+    const payload = { status: "ok", rules: [], nodes: [], notes: [] }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(payload), { status: 200 }))
+
+    await expect(listDiagnosticsTrackingRules()).resolves.toEqual(payload)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/diagnostics/tracking-rules",
+      expect.any(Object),
+    )
+  })
+
+  it("creates sender uid diagnostics tracking rule", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      status: "ok",
+      rule: { rule_id: "rule-1", target: "sender_uid", uid: "u1", sample_rate: 1 },
+      nodes: [],
+      notes: [],
+    }), { status: 200 }))
+
+    await createDiagnosticsTrackingRule({ target: "sender_uid", uid: "u1", ttlSeconds: 3600, sampleRate: 1 })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/diagnostics/tracking-rules",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ target: "sender_uid", uid: "u1", ttl_seconds: 3600, sample_rate: 1 }),
+      }),
+    )
+  })
+
+  it("creates channel diagnostics tracking rule", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      status: "ok",
+      rule: { rule_id: "rule-2", target: "channel", channel_key: "channel/2/ZzE", sample_rate: 1 },
+      nodes: [],
+      notes: [],
+    }), { status: 200 }))
+
+    await createDiagnosticsTrackingRule({ target: "channel", channelId: "g1", channelType: 2, ttlSeconds: 600, sampleRate: 1 })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/diagnostics/tracking-rules",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ target: "channel", channel_id: "g1", channel_type: 2, ttl_seconds: 600, sample_rate: 1 }),
+      }),
+    )
+  })
+
+  it("deletes diagnostics tracking rule", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ status: "ok", rule_id: "rule-1", nodes: [], notes: [] }), { status: 200 }))
+
+    await deleteDiagnosticsTrackingRule("rule-1")
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/diagnostics/tracking-rules/rule-1",
+      expect.objectContaining({ method: "DELETE" }),
     )
   })
 

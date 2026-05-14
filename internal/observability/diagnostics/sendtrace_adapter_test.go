@@ -51,6 +51,22 @@ func TestSendTraceAdapterKeepsErrorEvenWhenSampleRateZero(t *testing.T) {
 	require.Equal(t, ErrorCodeInvalidFrame, result.Events[0].ErrorCode)
 }
 
+func TestSendTraceAdapterUsesSenderTrackingAndRedactsUID(t *testing.T) {
+	rules := NewTrackingRules(TrackingRulesOptions{})
+	_, err := rules.Add(TrackingRuleInput{ID: "sender", Target: TrackingTargetSenderUID, UID: "u1", TTL: time.Hour, SampleRate: 1})
+	require.NoError(t, err)
+
+	store := NewStore(StoreOptions{NodeID: 1})
+	adapter := NewSendTraceSink(store, NewSampler(SamplerOptions{SampleRate: 0, TrackingRules: rules}))
+	adapter.RecordSendTrace(sendtrace.Event{TraceID: "trace-u1", FromUID: "u1", Stage: sendtrace.StageMessageSendDurable, Result: sendtrace.ResultOK})
+
+	result := store.Query(context.Background(), Query{UID: "u1", Limit: 10})
+	require.Equal(t, StatusOK, result.Status)
+	require.Len(t, result.Events, 1)
+	require.Equal(t, "debug", result.Events[0].SampleReason)
+	require.Empty(t, result.Events[0].FromUID)
+}
+
 func BenchmarkSendTraceAdapterUnsampled(b *testing.B) {
 	store := NewStore(StoreOptions{Capacity: 1024})
 	adapter := NewSendTraceSink(store, NewSampler(SamplerOptions{SampleRate: 0, SlowThreshold: time.Hour}))

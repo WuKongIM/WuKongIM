@@ -110,6 +110,20 @@ func TestStoreMatchesRangeEventsWithoutPerSeqExpansion(t *testing.T) {
 	require.Len(t, result.Events, 1)
 }
 
+func TestStoreQueryByUIDRedactsFromUID(t *testing.T) {
+	store := NewStore(StoreOptions{NodeID: 1})
+	store.Record(Event{TraceID: "trace-u1", FromUID: "u1", Stage: "message.send_durable", Result: ResultOK})
+	store.Record(Event{TraceID: "trace-u2", FromUID: "u2", Stage: "message.send_durable", Result: ResultOK})
+
+	result := store.Query(context.Background(), Query{UID: "u1", Limit: 10})
+
+	require.Equal(t, StatusOK, result.Status)
+	require.Equal(t, "u1", result.UID)
+	require.Len(t, result.Events, 1)
+	require.Equal(t, "trace-u1", result.Events[0].TraceID)
+	require.Empty(t, result.Events[0].FromUID)
+}
+
 func TestStoreBoundsIndexKeys(t *testing.T) {
 	store := NewStore(StoreOptions{Capacity: 16, MaxEventsPerKey: 2, MaxKeysPerIndex: 2})
 	store.Record(Event{TraceID: "trace-1", Stage: "s1"})

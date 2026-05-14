@@ -11,6 +11,9 @@ import { DiagnosticsPage } from "@/pages/diagnostics/page"
 const getDiagnosticsTraceMock = vi.fn()
 const getDiagnosticsMessageMock = vi.fn()
 const getDiagnosticsEventsMock = vi.fn()
+const listDiagnosticsTrackingRulesMock = vi.fn()
+const createDiagnosticsTrackingRuleMock = vi.fn()
+const deleteDiagnosticsTrackingRuleMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -19,6 +22,9 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getDiagnosticsTrace: (...args: unknown[]) => getDiagnosticsTraceMock(...args),
     getDiagnosticsMessage: (...args: unknown[]) => getDiagnosticsMessageMock(...args),
     getDiagnosticsEvents: (...args: unknown[]) => getDiagnosticsEventsMock(...args),
+    listDiagnosticsTrackingRules: (...args: unknown[]) => listDiagnosticsTrackingRulesMock(...args),
+    createDiagnosticsTrackingRule: (...args: unknown[]) => createDiagnosticsTrackingRuleMock(...args),
+    deleteDiagnosticsTrackingRule: (...args: unknown[]) => deleteDiagnosticsTrackingRuleMock(...args),
   }
 })
 
@@ -87,6 +93,85 @@ beforeEach(() => {
   getDiagnosticsTraceMock.mockReset()
   getDiagnosticsMessageMock.mockReset()
   getDiagnosticsEventsMock.mockReset()
+  listDiagnosticsTrackingRulesMock.mockReset()
+  createDiagnosticsTrackingRuleMock.mockReset()
+  deleteDiagnosticsTrackingRuleMock.mockReset()
+  listDiagnosticsTrackingRulesMock.mockResolvedValue({ status: "ok", rules: [], nodes: [], notes: [] })
+})
+
+test("creates a sender uid tracking rule", async () => {
+  const user = userEvent.setup()
+  createDiagnosticsTrackingRuleMock.mockResolvedValue({
+    status: "ok",
+    rule: { rule_id: "rule-1", target: "sender_uid", uid: "u1", sample_rate: 1, expires_at: "2026-05-14T10:00:00Z" },
+    nodes: [{ node_id: 1, status: "ok", notes: [] }],
+    notes: [],
+  })
+
+  renderPage()
+
+  await user.selectOptions(await screen.findByLabelText("Tracking target"), "sender_uid")
+  await user.type(screen.getByLabelText("Sender UID"), "u1")
+  await user.selectOptions(screen.getByLabelText("TTL"), "3600")
+  await user.click(screen.getByRole("button", { name: "Start tracking" }))
+
+  await waitFor(() => expect(createDiagnosticsTrackingRuleMock).toHaveBeenCalledWith({ target: "sender_uid", uid: "u1", ttlSeconds: 3600, sampleRate: 1 }))
+  expect(await screen.findByText("u1")).toBeInTheDocument()
+})
+
+test("creates a channel tracking rule", async () => {
+  const user = userEvent.setup()
+  createDiagnosticsTrackingRuleMock.mockResolvedValue({
+    status: "ok",
+    rule: { rule_id: "rule-2", target: "channel", channel_key: "channel/2/ZzE", channel_id: "g1", channel_type: 2, sample_rate: 1 },
+    nodes: [],
+    notes: [],
+  })
+
+  renderPage()
+
+  await user.selectOptions(await screen.findByLabelText("Tracking target"), "channel")
+  await user.type(screen.getByLabelText("Channel ID"), "g1")
+  await user.type(screen.getByLabelText("Channel Type"), "2")
+  await user.click(screen.getByRole("button", { name: "Start tracking" }))
+
+  await waitFor(() => expect(createDiagnosticsTrackingRuleMock).toHaveBeenCalledWith({ target: "channel", channelId: "g1", channelType: 2, ttlSeconds: 3600, sampleRate: 1 }))
+})
+
+test("queries recent events from a tracking rule", async () => {
+  const user = userEvent.setup()
+  listDiagnosticsTrackingRulesMock.mockResolvedValue({
+    status: "ok",
+    rules: [{ rule_id: "rule-1", target: "sender_uid", uid: "u1", sample_rate: 1 }],
+    nodes: [],
+    notes: [],
+  })
+  getDiagnosticsEventsMock.mockResolvedValue(diagnosticsResponse())
+
+  renderPage()
+
+  await user.click(await screen.findByRole("button", { name: "Query recent events" }))
+
+  await waitFor(() => expect(getDiagnosticsEventsMock).toHaveBeenCalledWith({ uid: "u1", limit: 100 }))
+})
+
+test("deletes a tracking rule", async () => {
+  const user = userEvent.setup()
+  listDiagnosticsTrackingRulesMock
+    .mockResolvedValueOnce({
+      status: "ok",
+      rules: [{ rule_id: "rule-1", target: "sender_uid", uid: "u1", sample_rate: 1 }],
+      nodes: [],
+      notes: [],
+    })
+    .mockResolvedValueOnce({ status: "ok", rules: [], nodes: [], notes: [] })
+  deleteDiagnosticsTrackingRuleMock.mockResolvedValue({ status: "ok", rule_id: "rule-1", nodes: [], notes: [] })
+
+  renderPage()
+
+  await user.click(await screen.findByRole("button", { name: "Stop tracking" }))
+
+  await waitFor(() => expect(deleteDiagnosticsTrackingRuleMock).toHaveBeenCalledWith("rule-1"))
 })
 
 test("runs a trace query and renders the summary", async () => {

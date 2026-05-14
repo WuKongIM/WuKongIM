@@ -61,6 +61,8 @@ type Event struct {
 	RangeStart uint64
 	// RangeEnd is the last message sequence covered by a range event.
 	RangeEnd uint64
+	// FromUID is the sending UID used for diagnostics sampling and must not be exposed in manager event DTOs.
+	FromUID string
 	// Service identifies the node-local service or RPC path involved in this event.
 	Service string
 	// Result records the stable outcome token for the event.
