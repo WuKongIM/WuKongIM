@@ -45,13 +45,49 @@ func TestPressureConfigRejectsInvalidDuration(t *testing.T) {
 	}
 }
 
+func TestActivationPressureConfigDefaultsAndOverrides(t *testing.T) {
+	t.Setenv("MULTIISR_ACTIVATION_STRESS", "")
+
+	cfg, err := loadActivationPressureConfig()
+	if err != nil {
+		t.Fatalf("loadActivationPressureConfig() error = %v", err)
+	}
+	if cfg.channels != 100000 || cfg.maxChannels != 0 || cfg.reportEvery != 10000 {
+		t.Fatalf("defaults = %+v, want channels=100000 maxChannels=0 reportEvery=10000", cfg)
+	}
+
+	t.Setenv("MULTIISR_ACTIVATION_STRESS", "1")
+	t.Setenv("MULTIISR_ACTIVATION_CHANNELS", "2048")
+	t.Setenv("MULTIISR_ACTIVATION_MAX_CHANNELS", "1024")
+	t.Setenv("MULTIISR_ACTIVATION_REPORT_EVERY", "256")
+
+	cfg, err = loadActivationPressureConfig()
+	if err != nil {
+		t.Fatalf("loadActivationPressureConfig() error = %v", err)
+	}
+	if !cfg.stressEnabled || cfg.channels != 2048 || cfg.maxChannels != 1024 || cfg.reportEvery != 256 {
+		t.Fatalf("overrides = %+v, want stress=true channels=2048 maxChannels=1024 reportEvery=256", cfg)
+	}
+}
+
+func TestActivationPressureConfigRejectsNegativeMaxChannels(t *testing.T) {
+	t.Setenv("MULTIISR_ACTIVATION_MAX_CHANNELS", "-1")
+
+	if _, err := loadActivationPressureConfig(); err == nil {
+		t.Fatal("loadActivationPressureConfig() error = nil, want negative max channels error")
+	}
+}
+
 const (
-	defaultPressureDuration                   = 10 * time.Second
-	defaultPressureGroups                     = 256
-	defaultPressurePeers                      = 8
-	defaultPressureSeed                 int64 = 1
-	defaultPressureSnapshotInterval           = 32
-	defaultPressureBackpressureInterval       = 16
+	defaultPressureDuration                    = 10 * time.Second
+	defaultPressureGroups                      = 256
+	defaultPressurePeers                       = 8
+	defaultPressureSeed                  int64 = 1
+	defaultPressureSnapshotInterval            = 32
+	defaultPressureBackpressureInterval        = 16
+	defaultActivationPressureChannels          = 100000
+	defaultActivationPressureMaxChannels       = 0
+	defaultActivationPressureReportEvery       = 10000
 )
 
 type pressureConfig struct {
@@ -62,6 +98,13 @@ type pressureConfig struct {
 	seed                 int64
 	snapshotInterval     int
 	backpressureInterval int
+}
+
+type activationPressureConfig struct {
+	stressEnabled bool
+	channels      int
+	maxChannels   int
+	reportEvery   int
 }
 
 func loadPressureConfig() (pressureConfig, error) {
@@ -95,6 +138,29 @@ func loadPressureConfig() (pressureConfig, error) {
 	}
 	if cfg.backpressureInterval, err = loadPressurePositiveInt("MULTIISR_STRESS_BACKPRESSURE_INTERVAL", cfg.backpressureInterval); err != nil {
 		return pressureConfig{}, err
+	}
+	return cfg, nil
+}
+
+func loadActivationPressureConfig() (activationPressureConfig, error) {
+	cfg := activationPressureConfig{
+		channels:    defaultActivationPressureChannels,
+		maxChannels: defaultActivationPressureMaxChannels,
+		reportEvery: defaultActivationPressureReportEvery,
+	}
+
+	var err error
+	if cfg.stressEnabled, err = loadPressureBool("MULTIISR_ACTIVATION_STRESS", false); err != nil {
+		return activationPressureConfig{}, err
+	}
+	if cfg.channels, err = loadPressurePositiveInt("MULTIISR_ACTIVATION_CHANNELS", cfg.channels); err != nil {
+		return activationPressureConfig{}, err
+	}
+	if cfg.maxChannels, err = loadPressureNonNegativeInt("MULTIISR_ACTIVATION_MAX_CHANNELS", cfg.maxChannels); err != nil {
+		return activationPressureConfig{}, err
+	}
+	if cfg.reportEvery, err = loadPressurePositiveInt("MULTIISR_ACTIVATION_REPORT_EVERY", cfg.reportEvery); err != nil {
+		return activationPressureConfig{}, err
 	}
 	return cfg, nil
 }
@@ -137,6 +203,21 @@ func loadPressurePositiveInt(key string, defaultValue int) (int, error) {
 	}
 	if value <= 0 {
 		return 0, fmt.Errorf("%s: must be > 0", key)
+	}
+	return value, nil
+}
+
+func loadPressureNonNegativeInt(key string, defaultValue int) (int, error) {
+	raw, ok := os.LookupEnv(key)
+	if !ok || raw == "" {
+		return defaultValue, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", key, err)
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("%s: must be >= 0", key)
 	}
 	return value, nil
 }

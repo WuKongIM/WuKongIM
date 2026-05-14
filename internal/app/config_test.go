@@ -75,6 +75,8 @@ func supportedConfigExampleKeys() []string {
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_WAIT",
 		"WK_CLUSTER_ADVERTISE_ADDR",
 		"WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR",
+		"WK_CLUSTER_CHANNEL_IDLE_SCAN_INTERVAL",
+		"WK_CLUSTER_CHANNEL_IDLE_TIMEOUT",
 		"WK_CLUSTER_CONFIG_CHANGE_RETRY_BUDGET",
 		"WK_CLUSTER_CONTROLLER_LOG_COMPACTION_CHECK_INTERVAL",
 		"WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED",
@@ -105,6 +107,7 @@ func supportedConfigExampleKeys() []string {
 		"WK_CLUSTER_MANAGED_SLOT_CATCH_UP_TIMEOUT",
 		"WK_CLUSTER_MANAGED_SLOT_LEADER_MOVE_TIMEOUT",
 		"WK_CLUSTER_MANAGED_SLOT_LEADER_WAIT_TIMEOUT",
+		"WK_CLUSTER_MAX_CHANNELS",
 		"WK_CLUSTER_NODES",
 		"WK_CLUSTER_OBSERVATION_HEARTBEAT_INTERVAL",
 		"WK_CLUSTER_OBSERVATION_RUNTIME_FLUSH_DEBOUNCE",
@@ -831,6 +834,52 @@ func TestConfigAlwaysAppliesLongPollDefaults(t *testing.T) {
 	require.Equal(t, 200*time.Millisecond, cfg.Cluster.LongPollMaxWait)
 	require.Equal(t, 64*1024, cfg.Cluster.LongPollMaxBytes)
 	require.Equal(t, 64, cfg.Cluster.LongPollMaxChannels)
+}
+
+func TestConfigDefaultsClusterMaxChannelsToUnlimited(t *testing.T) {
+	cfg := validConfig()
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.Zero(t, cfg.Cluster.MaxChannels)
+	require.Zero(t, cfg.Cluster.ChannelIdleTimeout)
+	require.Zero(t, cfg.Cluster.ChannelIdleScanInterval)
+}
+
+func TestConfigPreservesExplicitClusterMaxChannels(t *testing.T) {
+	cfg := validConfig()
+	cfg.Cluster.MaxChannels = 4096
+	cfg.Cluster.ChannelIdleTimeout = 30 * time.Minute
+	cfg.Cluster.ChannelIdleScanInterval = time.Minute
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.Equal(t, 4096, cfg.Cluster.MaxChannels)
+	require.Equal(t, 30*time.Minute, cfg.Cluster.ChannelIdleTimeout)
+	require.Equal(t, time.Minute, cfg.Cluster.ChannelIdleScanInterval)
+}
+
+func TestConfigRejectsNegativeClusterMaxChannels(t *testing.T) {
+	cfg := validConfig()
+	cfg.Cluster.MaxChannels = -1
+
+	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "cluster max channels")
+}
+
+func TestConfigRejectsNegativeChannelIdleEviction(t *testing.T) {
+	t.Run("timeout", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Cluster.ChannelIdleTimeout = -time.Second
+
+		require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "channel idle timeout")
+	})
+
+	t.Run("scan interval", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Cluster.ChannelIdleScanInterval = -time.Second
+
+		require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "channel idle scan interval")
+	})
 }
 
 func TestConfigDefaultsChannelMessageRetentionDisabled(t *testing.T) {

@@ -474,6 +474,7 @@ func (a *App) healthDetailsSnapshot() any {
 			"channel_layer": map[string]any{
 				"status":          "healthy",
 				"active_channels": channelSnapshot.ActiveChannels,
+				"max_channels":    channelSnapshot.MaxChannels,
 			},
 			"controller": controller,
 			"slot_layer": slotLayer,

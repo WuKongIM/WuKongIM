@@ -999,6 +999,32 @@ func TestSessionFetchResponseDropsStaleEpoch(t *testing.T) {
 	}
 }
 
+func TestSessionFetchResponseDropsWhileChannelIdleEvicting(t *testing.T) {
+	env := newSessionTestEnv(t)
+	key := testChannelKey(2401)
+	mustEnsureLocal(t, env.runtime, testMetaLocal(2401, 3, 1, []core.NodeID{1, 2}))
+
+	ch, ok := env.runtime.lookupChannel(key)
+	if !ok {
+		t.Fatal("expected channel to exist")
+	}
+	if !ch.tryMarkIdleEvicting(time.Now().Add(time.Hour)) {
+		t.Fatal("expected channel to be marked idle-evicting")
+	}
+
+	env.transport.deliver(Envelope{
+		Peer:          2,
+		ChannelKey:    key,
+		Generation:    1,
+		Epoch:         3,
+		Kind:          MessageKindFetchResponse,
+		FetchResponse: &FetchResponseEnvelope{LeaderHW: 5, Records: []core.Record{{Payload: []byte("late"), SizeBytes: 4}}},
+	})
+	if env.factory.replicas[0].applyFetchCalls != 0 {
+		t.Fatalf("idle-evicting channel should not apply fetch responses, got %d", env.factory.replicas[0].applyFetchCalls)
+	}
+}
+
 func TestSessionFetchResponseDecodesPayloadIntoApplyFetch(t *testing.T) {
 	env := newSessionTestEnv(t)
 	mustEnsureLocal(t, env.runtime, testMetaLocal(25, 4, 1, []core.NodeID{1, 2}))

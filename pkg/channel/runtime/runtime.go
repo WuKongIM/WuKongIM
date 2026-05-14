@@ -15,6 +15,8 @@ import (
 
 const runtimeShardCount = 64
 
+const defaultMaxIdleEvictionScanInterval = time.Minute
+
 type shard struct {
 	mu       sync.RWMutex
 	channels map[core.ChannelKey]*channel
@@ -80,6 +82,15 @@ func New(cfg Config) (Runtime, error) {
 	if cfg.Limits.MaxChannels < 0 || cfg.Limits.MaxFetchInflightPeer < 0 || cfg.Limits.MaxSnapshotInflight < 0 {
 		return nil, ErrInvalidConfig
 	}
+	if cfg.IdleEviction.IdleTimeout < 0 || cfg.IdleEviction.ScanInterval < 0 {
+		return nil, ErrInvalidConfig
+	}
+	if cfg.IdleEviction.IdleTimeout > 0 && cfg.IdleEviction.ScanInterval == 0 {
+		cfg.IdleEviction.ScanInterval = cfg.IdleEviction.IdleTimeout
+		if cfg.IdleEviction.ScanInterval > defaultMaxIdleEvictionScanInterval {
+			cfg.IdleEviction.ScanInterval = defaultMaxIdleEvictionScanInterval
+		}
+	}
 	if cfg.Tombstones.TombstoneTTL <= 0 {
 		return nil, ErrInvalidConfig
 	}
@@ -136,6 +147,7 @@ func (r *runtime) EnsureChannel(meta core.Meta) error {
 	if r.cfg.Limits.MaxChannels > 0 {
 		if !r.tryReserveChannelSlot() {
 			shard.mu.Unlock()
+			r.notifyActivationReject(meta.Key, ErrTooManyChannels)
 			return ErrTooManyChannels
 		}
 		reserved = true
@@ -242,6 +254,10 @@ func (r *runtime) ApplyMeta(meta core.Meta) error {
 	if !ok {
 		return ErrChannelNotFound
 	}
+	if !ch.beginUse() {
+		return ErrChannelNotFound
+	}
+	defer ch.endUse()
 	ch.applyMu.Lock()
 	defer ch.applyMu.Unlock()
 	previousMeta := ch.metaSnapshot()
@@ -303,6 +319,10 @@ func (r *runtime) FenceAndDrain(ctx context.Context, req core.FenceAndDrainReque
 	if !ok {
 		return core.DrainResult{}, ErrChannelNotFound
 	}
+	if !ch.beginUse() {
+		return core.DrainResult{}, ErrChannelNotFound
+	}
+	defer ch.endUse()
 	drainer, ok := ch.replica.(interface {
 		FenceAndDrain(context.Context, core.FenceAndDrainRequest) (core.DrainResult, error)
 	})
@@ -492,6 +512,13 @@ func (r *runtime) releaseChannelSlot() {
 	}
 }
 
+func (r *runtime) notifyActivationReject(key core.ChannelKey, err error) {
+	if r == nil || r.cfg.OnActivationReject == nil {
+		return
+	}
+	r.cfg.OnActivationReject(key, err)
+}
+
 func applyReplicaMeta(rep replica.Replica, localNode core.NodeID, meta core.Meta) error {
 	state := rep.Status()
 
@@ -592,23 +619,84 @@ func snapshotWorkInvalidated(previous, next core.Meta) bool {
 }
 
 func (r *runtime) startTombstoneCleanup() {
-	interval := r.cfg.Tombstones.CleanupInterval
-	if interval <= 0 {
-		interval = r.cfg.Tombstones.TombstoneTTL
-	}
+	tombstoneInterval := r.tombstoneCleanupInterval()
+	idleInterval := r.cfg.IdleEviction.ScanInterval
 	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
+		tombstoneTicker := time.NewTicker(tombstoneInterval)
+		defer tombstoneTicker.Stop()
+		var idleTicker *time.Ticker
+		var idleC <-chan time.Time
+		if r.cfg.IdleEviction.IdleTimeout > 0 && idleInterval > 0 {
+			idleTicker = time.NewTicker(idleInterval)
+			idleC = idleTicker.C
+			defer idleTicker.Stop()
+		}
 		defer close(r.cleanupDone)
 		for {
 			select {
-			case <-ticker.C:
+			case <-tombstoneTicker.C:
 				r.tombstones.dropExpired(r.cfg.Now())
+			case <-idleC:
+				r.evictIdleChannels()
 			case <-r.cleanupStop:
 				return
 			}
 		}
 	}()
+}
+
+func (r *runtime) tombstoneCleanupInterval() time.Duration {
+	if r.cfg.Tombstones.CleanupInterval > 0 {
+		return r.cfg.Tombstones.CleanupInterval
+	}
+	return r.cfg.Tombstones.TombstoneTTL
+}
+
+func (r *runtime) evictIdleChannels() int {
+	if r == nil || r.cfg.IdleEviction.IdleTimeout <= 0 || r.isClosed() {
+		return 0
+	}
+	cutoff := r.cfg.Now().Add(-r.cfg.IdleEviction.IdleTimeout)
+	candidates := make([]*channel, 0)
+	for i := range r.shards {
+		shard := &r.shards[i]
+		shard.mu.RLock()
+		for _, ch := range shard.channels {
+			if r.channelHasRuntimeWork(ch.key) {
+				continue
+			}
+			if ch.tryMarkIdleEvicting(cutoff) {
+				candidates = append(candidates, ch)
+			}
+		}
+		shard.mu.RUnlock()
+	}
+
+	evicted := 0
+	for _, ch := range candidates {
+		err := r.RemoveChannel(ch.key)
+		switch {
+		case err == nil:
+			evicted++
+			if r.cfg.OnIdleEvict != nil {
+				r.cfg.OnIdleEvict(ch.key)
+			}
+		case errors.Is(err, ErrChannelNotFound):
+		default:
+			ch.cancelIdleEviction()
+		}
+	}
+	return evicted
+}
+
+func (r *runtime) channelHasRuntimeWork(key core.ChannelKey) bool {
+	if r.scheduler.hasChannelWork(key) {
+		return true
+	}
+	if r.peerRequests.hasChannelWork(key) {
+		return true
+	}
+	return r.snapshots.hasWaiter(key)
 }
 
 func (r *runtime) stopTombstoneCleanup() {
