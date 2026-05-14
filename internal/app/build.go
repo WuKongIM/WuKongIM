@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"runtime"
 	"sort"
 	"strings"
@@ -764,6 +766,7 @@ func build(cfg Config) (_ *App, err error) {
 	}
 	if cfg.API.ListenAddr != "" {
 		legacyRouteExternal, legacyRouteIntranet := legacyRouteAddresses(cfg.API, cfg.Gateway.Listeners)
+		legacyRouteNodes := legacyRouteNodeAddresses(cfg.Node.ID, cfg.Cluster.Nodes, legacyRouteExternal, legacyRouteIntranet)
 		testDataApp := testdatausecase.New(testdatausecase.AppOptions{
 			SlotSnapshotUsers:      app.store,
 			ControllerSnapshotJobs: app.cluster,
@@ -796,6 +799,7 @@ func build(cfg Config) (_ *App, err error) {
 			Diagnostics:              app,
 			LegacyRouteExternal:      legacyRouteExternal,
 			LegacyRouteIntranet:      legacyRouteIntranet,
+			LegacyRouteNodes:         legacyRouteNodes,
 			Logger:                   app.logger.Named("access.api"),
 		})
 	}
@@ -925,6 +929,38 @@ func legacyRouteAddresses(apiCfg APIConfig, listeners []gateway.ListenerOptions)
 	return external, intranet
 }
 
+func legacyRouteNodeAddresses(localNodeID uint64, nodes []NodeConfigRef, external, intranet accessapi.LegacyRouteAddresses) map[uint64]accessapi.LegacyRouteNodeAddresses {
+	out := make(map[uint64]accessapi.LegacyRouteNodeAddresses, len(nodes)+1)
+	if localNodeID != 0 {
+		out[localNodeID] = accessapi.LegacyRouteNodeAddresses{External: external, Intranet: intranet}
+	}
+	for _, node := range nodes {
+		if node.ID == 0 || node.ID == localNodeID {
+			continue
+		}
+		host := legacyRouteNodeHost(node.Addr)
+		if host == "" {
+			continue
+		}
+		out[node.ID] = accessapi.LegacyRouteNodeAddresses{
+			External: legacyRouteAddressesForHost(external, host),
+			Intranet: legacyRouteAddressesForHost(intranet, host),
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func legacyRouteAddressesForHost(addrs accessapi.LegacyRouteAddresses, host string) accessapi.LegacyRouteAddresses {
+	return accessapi.LegacyRouteAddresses{
+		TCPAddr: legacyRouteHostPort(addrs.TCPAddr, host),
+		WSAddr:  legacyRouteURLHost(addrs.WSAddr, host),
+		WSSAddr: legacyRouteURLHost(addrs.WSSAddr, host),
+	}
+}
+
 func legacyRouteAddressesFromListeners(listeners []gateway.ListenerOptions) (accessapi.LegacyRouteAddresses, accessapi.LegacyRouteAddresses) {
 	var external accessapi.LegacyRouteAddresses
 	var intranet accessapi.LegacyRouteAddresses
@@ -951,6 +987,62 @@ func legacyRouteAddressesFromListeners(listeners []gateway.ListenerOptions) (acc
 		}
 	}
 	return external, intranet
+}
+
+func legacyRouteNodeHost(addr string) string {
+	trimmed := strings.TrimSpace(addr)
+	if trimmed == "" {
+		return ""
+	}
+	if parsed, err := url.Parse(trimmed); err == nil && parsed.Host != "" {
+		return legacyRouteHostOnly(parsed.Host)
+	}
+	trimmed = strings.TrimPrefix(trimmed, "tcp://")
+	return legacyRouteHostOnly(trimmed)
+}
+
+func legacyRouteHostOnly(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err == nil {
+		return strings.Trim(host, "[]")
+	}
+	if strings.Contains(err.Error(), "missing port in address") {
+		return strings.Trim(addr, "[]")
+	}
+	return ""
+}
+
+func legacyRouteHostPort(addr string, host string) string {
+	trimmed := strings.TrimSpace(addr)
+	if trimmed == "" || strings.TrimSpace(host) == "" {
+		return trimmed
+	}
+	_, port, err := net.SplitHostPort(trimmed)
+	if err != nil {
+		return trimmed
+	}
+	return net.JoinHostPort(host, port)
+}
+
+func legacyRouteURLHost(addr string, host string) string {
+	trimmed := strings.TrimSpace(addr)
+	if trimmed == "" || strings.TrimSpace(host) == "" {
+		return trimmed
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" {
+		return trimmed
+	}
+	_, port, err := net.SplitHostPort(parsed.Host)
+	if err == nil {
+		parsed.Host = net.JoinHostPort(host, port)
+		return parsed.String()
+	}
+	if strings.Contains(err.Error(), "missing port in address") {
+		parsed.Host = host
+		return parsed.String()
+	}
+	return trimmed
 }
 
 func normalizeLegacyTCPAddress(addr string) string {

@@ -286,6 +286,33 @@ func TestRouteReturnsLegacyIntranetAddresses(t *testing.T) {
 	require.JSONEq(t, `{"tcp_addr":"10.0.0.10:5100","ws_addr":"","wss_addr":""}`, rec.Body.String())
 }
 
+func TestRouteReturnsSpecifiedNodeExternalAddresses(t *testing.T) {
+	srv := New(Options{
+		LegacyRouteExternal: LegacyRouteAddresses{
+			TCPAddr: "198.51.100.10:5100",
+			WSAddr:  "ws://198.51.100.10:5200",
+			WSSAddr: "wss://198.51.100.10:5210",
+		},
+		LegacyRouteNodes: map[uint64]LegacyRouteNodeAddresses{
+			2: {
+				External: LegacyRouteAddresses{
+					TCPAddr: "198.51.100.20:5100",
+					WSAddr:  "ws://198.51.100.20:5200",
+					WSSAddr: "wss://198.51.100.20:5210",
+				},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/route?uid=u1&node_id=2", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"tcp_addr":"198.51.100.20:5100","ws_addr":"ws://198.51.100.20:5200","wss_addr":"wss://198.51.100.20:5210"}`, rec.Body.String())
+}
+
 func TestRouteBatchReturnsSingleLegacyGroup(t *testing.T) {
 	srv := New(Options{
 		LegacyRouteExternal: LegacyRouteAddresses{
@@ -303,6 +330,32 @@ func TestRouteBatchReturnsSingleLegacyGroup(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.JSONEq(t, `[{"uids":["u1","u2"],"tcp_addr":"198.51.100.10:5100","ws_addr":"ws://198.51.100.10:5200","wss_addr":"wss://198.51.100.10:5210"}]`, rec.Body.String())
+}
+
+func TestRouteBatchReturnsSpecifiedNodeIntranetAddresses(t *testing.T) {
+	srv := New(Options{
+		LegacyRouteNodes: map[uint64]LegacyRouteNodeAddresses{
+			2: {
+				External: LegacyRouteAddresses{
+					TCPAddr: "198.51.100.20:5100",
+					WSAddr:  "ws://198.51.100.20:5200",
+					WSSAddr: "wss://198.51.100.20:5210",
+				},
+				Intranet: LegacyRouteAddresses{
+					TCPAddr: "10.0.0.20:5100",
+				},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/route/batch?node_id=2&intranet=1", bytes.NewBufferString(`["u1","u2"]`))
+	req.Header.Set("Content-Type", "application/json")
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `[{"uids":["u1","u2"],"tcp_addr":"10.0.0.20:5100","ws_addr":"","wss_addr":""}]`, rec.Body.String())
 }
 
 func TestRouteBatchReturnsLegacyInvalidRequestError(t *testing.T) {

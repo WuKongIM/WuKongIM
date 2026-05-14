@@ -790,6 +790,44 @@ func TestLegacyRouteAddressesPreferExplicitExternalConfig(t *testing.T) {
 	}, intranet)
 }
 
+func TestLegacyRouteNodeAddressesDeriveRemoteHosts(t *testing.T) {
+	cfg := validConfig()
+	cfg.API.ExternalTCPAddr = "im-node1.example.com:15100"
+	cfg.API.ExternalWSAddr = "ws://im-node1.example.com:15200"
+	cfg.API.ExternalWSSAddr = "wss://im-node1.example.com:15300"
+	cfg.Cluster.Nodes = []NodeConfigRef{
+		{ID: 1, Addr: "node1.internal:7000"},
+		{ID: 2, Addr: "node2.internal:7000"},
+	}
+	cfg.Gateway.Listeners = []gateway.ListenerOptions{
+		binding.TCPWKProto("tcp-wkproto", "10.0.0.1:5100"),
+	}
+	external, intranet := legacyRouteAddresses(cfg.API, cfg.Gateway.Listeners)
+
+	nodes := legacyRouteNodeAddresses(cfg.Node.ID, cfg.Cluster.Nodes, external, intranet)
+
+	require.Equal(t, accessapi.LegacyRouteNodeAddresses{
+		External: accessapi.LegacyRouteAddresses{
+			TCPAddr: "im-node1.example.com:15100",
+			WSAddr:  "ws://im-node1.example.com:15200",
+			WSSAddr: "wss://im-node1.example.com:15300",
+		},
+		Intranet: accessapi.LegacyRouteAddresses{
+			TCPAddr: "10.0.0.1:5100",
+		},
+	}, nodes[1])
+	require.Equal(t, accessapi.LegacyRouteNodeAddresses{
+		External: accessapi.LegacyRouteAddresses{
+			TCPAddr: "node2.internal:15100",
+			WSAddr:  "ws://node2.internal:15200",
+			WSSAddr: "wss://node2.internal:15300",
+		},
+		Intranet: accessapi.LegacyRouteAddresses{
+			TCPAddr: "node2.internal:5100",
+		},
+	}, nodes[2])
+}
+
 func TestConfigPreservesExplicitDataPlaneRPCTimeout(t *testing.T) {
 	cfg := validConfig()
 	cfg.Cluster.DataPlaneRPCTimeout = 250 * time.Millisecond
