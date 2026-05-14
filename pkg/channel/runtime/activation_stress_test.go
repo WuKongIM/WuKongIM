@@ -26,9 +26,31 @@ func TestRuntimeStressChannelActivationFootprint(t *testing.T) {
 	var beforeMem goruntime.MemStats
 	goruntime.ReadMemStats(&beforeMem)
 
+	var executionPool *channelreplica.ExecutionPool
+	if cfg.executionMode == "pooled" {
+		executionPool, err = channelreplica.NewExecutionPool(channelreplica.ExecutionPoolConfig{
+			Workers:         cfg.executionWorkers,
+			MailboxSize:     cfg.executionQueueSize,
+			EffectQueueSize: cfg.executionQueueSize,
+		})
+		if err != nil {
+			t.Fatalf("NewExecutionPool() error = %v", err)
+		}
+		defer func() {
+			if err := executionPool.Close(); err != nil {
+				t.Fatalf("execution pool Close() error = %v", err)
+			}
+		}()
+	}
+
 	rt, err := New(Config{
-		LocalNode:                        1,
-		ReplicaFactory:                   activationReplicaFactory{localNode: 1},
+		LocalNode: 1,
+		ReplicaFactory: activationReplicaFactory{
+			localNode:      1,
+			executionMode:  cfg.executionMode,
+			executionPool:  executionPool,
+			executionQueue: cfg.executionQueueSize,
+		},
 		GenerationStore:                  newSessionGenerationStore(),
 		AutoRunScheduler:                 false,
 		FollowerReplicationRetryInterval: time.Hour,
@@ -114,17 +136,29 @@ func formatBytes(v uint64) string {
 }
 
 type activationReplicaFactory struct {
-	localNode core.NodeID
+	localNode      core.NodeID
+	executionMode  string
+	executionPool  *channelreplica.ExecutionPool
+	executionQueue int
 }
 
 func (f activationReplicaFactory) New(cfg ChannelConfig) (channelreplica.Replica, error) {
 	state := &activationReplicaStoreState{}
+	execution := channelreplica.ExecutionConfig{}
+	if f.executionMode == "pooled" {
+		execution = channelreplica.ExecutionConfig{
+			Mode:        channelreplica.ExecutionModePooled,
+			Pool:        f.executionPool,
+			MailboxSize: f.executionQueue,
+		}
+	}
 	return channelreplica.NewReplica(channelreplica.ReplicaConfig{
 		LocalNode:         f.localNode,
 		LogStore:          activationLogStore{state: state},
 		CheckpointStore:   activationCheckpointStore{state: state},
 		EpochHistoryStore: activationEpochHistoryStore{state: state},
 		SnapshotApplier:   activationSnapshotStore{state: state},
+		Execution:         execution,
 	})
 }
 
