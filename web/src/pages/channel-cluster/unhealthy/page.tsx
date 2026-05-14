@@ -48,6 +48,11 @@ type RepairState = {
   notice: RepairNotice | null
 }
 
+type ChannelClusterUnhealthyPanelProps = {
+  listHref?: string
+  showHeader?: boolean
+}
+
 function mapErrorKind(error: Error | null) {
   if (!(error instanceof ManagerApiError)) {
     return "error" as const
@@ -65,8 +70,12 @@ function formatNodeList(nodeIds: number[]) {
   return nodeIds.length > 0 ? nodeIds.join(", ") : "-"
 }
 
-function channelInspectPath(channel: ManagerChannelClusterUnhealthyItem) {
-  return `/channel-cluster/list?channel_id=${encodeURIComponent(channel.channel_id)}&channel_type=${channel.channel_type}`
+function channelInspectPath(channel: ManagerChannelClusterUnhealthyItem, listHref: string) {
+  const [pathname, search = ""] = listHref.split("?")
+  const params = new URLSearchParams(search)
+  params.set("channel_id", channel.channel_id)
+  params.set("channel_type", String(channel.channel_type))
+  return `${pathname}?${params.toString()}`
 }
 
 function channelKey(channel: ManagerChannelClusterUnhealthyItem) {
@@ -101,7 +110,10 @@ function reasonMessageId(reason: string) {
   }
 }
 
-export function ChannelClusterUnhealthyPage() {
+export function ChannelClusterUnhealthyPanel({
+  listHref = "/channel-cluster/list",
+  showHeader = true,
+}: ChannelClusterUnhealthyPanelProps = {}) {
   const intl = useIntl()
   const [state, setState] = useState<ChannelClusterUnhealthyState>({
     items: [],
@@ -297,24 +309,32 @@ export function ChannelClusterUnhealthyPage() {
   }, [loadFirstPage])
 
   return (
-    <PageContainer>
-      <PageHeader
-        title={intl.formatMessage({ id: "channelCluster.unhealthy.title" })}
-        description={intl.formatMessage({ id: "channelCluster.unhealthy.description" })}
-        actions={
-          <Button
-            onClick={() => {
-              void loadFirstPage(true)
-            }}
-            size="sm"
-            variant="outline"
-          >
-            {state.refreshing
-              ? intl.formatMessage({ id: "common.refreshing" })
-              : intl.formatMessage({ id: "common.refresh" })}
-          </Button>
-        }
-      />
+    <>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        {showHeader ? (
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">
+              {intl.formatMessage({ id: "channelCluster.unhealthy.title" })}
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+              {intl.formatMessage({ id: "channelCluster.unhealthy.description" })}
+            </p>
+          </div>
+        ) : (
+          <span aria-hidden className="hidden sm:block" />
+        )}
+        <Button
+          onClick={() => {
+            void loadFirstPage(true)
+          }}
+          size="sm"
+          variant="outline"
+        >
+          {state.refreshing
+            ? intl.formatMessage({ id: "common.refreshing" })
+            : intl.formatMessage({ id: "common.refresh" })}
+        </Button>
+      </div>
       {state.loading ? (
         <ResourceState kind="loading" title={intl.formatMessage({ id: "channelCluster.unhealthy.title" })} />
       ) : null}
@@ -429,10 +449,10 @@ export function ChannelClusterUnhealthyPage() {
                             <Button asChild size="sm" variant="outline">
                               <Link
                                 aria-label={intl.formatMessage(
-                                  { id: "channels.inspectChannel" },
-                                  { id: channel.channel_id },
-                                )}
-                                to={channelInspectPath(channel)}
+                                { id: "channels.inspectChannel" },
+                                { id: channel.channel_id },
+                              )}
+                                to={channelInspectPath(channel, listHref)}
                               >
                                 {intl.formatMessage({ id: "common.inspect" })}
                               </Link>
@@ -558,6 +578,21 @@ export function ChannelClusterUnhealthyPage() {
           ) : null}
         </SectionCard>
       ) : null}
+    </>
+  )
+}
+
+export function ChannelClusterUnhealthyPage() {
+  const intl = useIntl()
+
+  return (
+    <PageContainer>
+      <PageHeader
+        eyebrow={intl.formatMessage({ id: "nav.path.cluster.channels" })}
+        title={intl.formatMessage({ id: "channelCluster.unhealthy.title" })}
+        description={intl.formatMessage({ id: "channelCluster.unhealthy.description" })}
+      />
+      <ChannelClusterUnhealthyPanel showHeader={false} />
     </PageContainer>
   )
 }

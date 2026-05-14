@@ -6,6 +6,18 @@ import { AppProviders } from "@/app/providers"
 import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
 import { routes } from "@/app/router"
 
+function authenticatedState() {
+  return {
+    status: "authenticated" as const,
+    isHydrated: true,
+    username: "admin",
+    tokenType: "Bearer",
+    accessToken: "token-1",
+    expiresAt: "2099-04-22T12:00:00Z",
+    permissions: [],
+  }
+}
+
 beforeEach(() => {
   localStorage.clear()
   useAuthStore.setState({ ...createAnonymousAuthState(), isHydrated: true })
@@ -24,15 +36,7 @@ test("redirects anonymous /dashboard visits to /login", async () => {
 })
 
 test("redirects authenticated /login visits to /dashboard", async () => {
-  useAuthStore.setState({
-    status: "authenticated",
-    isHydrated: true,
-    username: "admin",
-    tokenType: "Bearer",
-    accessToken: "token-1",
-    expiresAt: "2099-04-22T12:00:00Z",
-    permissions: [],
-  })
+  useAuthStore.setState(authenticatedState())
 
   const router = createMemoryRouter(routes, { initialEntries: ["/login"] })
 
@@ -46,17 +50,9 @@ test("redirects authenticated /login visits to /dashboard", async () => {
 })
 
 test("renders the app shell for authenticated routes", async () => {
-  useAuthStore.setState({
-    status: "authenticated",
-    isHydrated: true,
-    username: "admin",
-    tokenType: "Bearer",
-    accessToken: "token-1",
-    expiresAt: "2099-04-22T12:00:00Z",
-    permissions: [],
-  })
+  useAuthStore.setState(authenticatedState())
 
-  const router = createMemoryRouter(routes, { initialEntries: ["/nodes"] })
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/nodes"] })
 
   render(
     <AppProviders>
@@ -67,6 +63,55 @@ test("renders the app shell for authenticated routes", async () => {
   expect(await screen.findByLabelText("Primary navigation")).toBeInTheDocument()
   expect(screen.getByRole("banner")).toBeInTheDocument()
   expect(screen.getByRole("main")).toBeInTheDocument()
+})
+
+test("renders the shell for redesigned cluster routes", async () => {
+  useAuthStore.setState(authenticatedState())
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/nodes"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  expect(await screen.findByLabelText("Primary navigation")).toBeInTheDocument()
+  expect(screen.getByRole("main")).toBeInTheDocument()
+})
+
+test.each([
+  ["/nodes", "/cluster/nodes"],
+  ["/channel-cluster/unhealthy", "/cluster/channels?tab=unhealthy"],
+  ["/network", "/cluster/diagnostics?tab=network"],
+  ["/connections", "/system/connections"],
+])("redirects legacy %s to %s", async (from, to) => {
+  useAuthStore.setState(authenticatedState())
+  const router = createMemoryRouter(routes, { initialEntries: [from] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  await screen.findByRole("main")
+  expect(router.state.location.pathname + router.state.location.search).toBe(to)
+})
+
+test("preserves controller log search params when redirecting to diagnostics", async () => {
+  useAuthStore.setState(authenticatedState())
+  const router = createMemoryRouter(routes, { initialEntries: ["/controller?node_id=1"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  await screen.findByRole("main")
+  expect(router.state.location.pathname + router.state.location.search).toBe(
+    "/cluster/diagnostics?node_id=1&tab=controller-logs",
+  )
 })
 
 test("waits for hydration before showing the login route", () => {

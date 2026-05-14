@@ -18,6 +18,12 @@ const startNodeScaleInMock = vi.fn()
 const getNodeScaleInStatusMock = vi.fn()
 const advanceNodeScaleInMock = vi.fn()
 const cancelNodeScaleInMock = vi.fn()
+const getNodeOnboardingCandidatesMock = vi.fn()
+const getNodeOnboardingJobsMock = vi.fn()
+const getNodeOnboardingJobMock = vi.fn()
+const createNodeOnboardingPlanMock = vi.fn()
+const startNodeOnboardingJobMock = vi.fn()
+const retryNodeOnboardingJobMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -32,6 +38,12 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getNodeScaleInStatus: (...args: unknown[]) => getNodeScaleInStatusMock(...args),
     advanceNodeScaleIn: (...args: unknown[]) => advanceNodeScaleInMock(...args),
     cancelNodeScaleIn: (...args: unknown[]) => cancelNodeScaleInMock(...args),
+    getNodeOnboardingCandidates: (...args: unknown[]) => getNodeOnboardingCandidatesMock(...args),
+    getNodeOnboardingJobs: (...args: unknown[]) => getNodeOnboardingJobsMock(...args),
+    getNodeOnboardingJob: (...args: unknown[]) => getNodeOnboardingJobMock(...args),
+    createNodeOnboardingPlan: (...args: unknown[]) => createNodeOnboardingPlanMock(...args),
+    startNodeOnboardingJob: (...args: unknown[]) => startNodeOnboardingJobMock(...args),
+    retryNodeOnboardingJob: (...args: unknown[]) => retryNodeOnboardingJobMock(...args),
   }
 })
 
@@ -262,6 +274,14 @@ beforeEach(() => {
   getNodeScaleInStatusMock.mockReset()
   advanceNodeScaleInMock.mockReset()
   cancelNodeScaleInMock.mockReset()
+  getNodeOnboardingCandidatesMock.mockReset()
+  getNodeOnboardingJobsMock.mockReset()
+  getNodeOnboardingJobMock.mockReset()
+  createNodeOnboardingPlanMock.mockReset()
+  startNodeOnboardingJobMock.mockReset()
+  retryNodeOnboardingJobMock.mockReset()
+  getNodeOnboardingCandidatesMock.mockResolvedValue({ total: 0, items: [] })
+  getNodeOnboardingJobsMock.mockResolvedValue({ items: [], next_cursor: "", has_more: false })
   useAuthStore.setState({
     ...createAnonymousAuthState(),
     isHydrated: true,
@@ -277,10 +297,10 @@ beforeEach(() => {
   })
 })
 
-function renderNodesPage() {
+function renderNodesPage(path = "/cluster/nodes") {
   return render(
     <I18nProvider>
-      <MemoryRouter initialEntries={["/nodes"]}>
+      <MemoryRouter initialEntries={[path]}>
         <NodesPage />
       </MemoryRouter>
     </I18nProvider>,
@@ -378,7 +398,7 @@ test("renders controller raft health summary in the node list and detail", async
   expect(screen.getByText("first 10 / applied 20 / snapshot 9")).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Open Controller Raft for node 1" })).toHaveAttribute(
     "href",
-    "/controller?node_id=1",
+    "/cluster/diagnostics?tab=controller-logs&node_id=1",
   )
   await user.click(screen.getByRole("button", { name: "Inspect node 1" }))
 
@@ -411,7 +431,7 @@ test("renders unavailable controller raft summary without fake zero watermarks",
   expect(screen.queryByText("unknown")).not.toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Open Controller Raft for node 1" })).toHaveAttribute(
     "href",
-    "/controller?node_id=1",
+    "/cluster/diagnostics?tab=controller-logs&node_id=1",
   )
   await user.click(screen.getByRole("button", { name: "Inspect node 1" }))
 
@@ -731,4 +751,33 @@ test("cancels an active scale-in report", async () => {
 
   expect(cancelNodeScaleInMock).toHaveBeenCalledWith(1)
   expect(getNodesMock).toHaveBeenCalledTimes(2)
+})
+
+test("opens the onboarding operation panel from the nodes page", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
+  getNodeOnboardingCandidatesMock.mockResolvedValueOnce({
+    total: 1,
+    items: [{
+      node_id: 4,
+      name: "node-4",
+      addr: "127.0.0.1:7004",
+      role: "data",
+      join_state: "active",
+      status: "alive",
+      slot_count: 0,
+      leader_count: 0,
+      recommended: true,
+    }],
+  })
+
+  renderNodesPage("/cluster/nodes?panel=onboarding")
+
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+  expect(await screen.findByText("Candidate Nodes")).toBeInTheDocument()
+  expect(getNodeOnboardingCandidatesMock).toHaveBeenCalled()
 })

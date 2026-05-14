@@ -4,13 +4,10 @@ import {
   Cable,
   ClipboardList,
   Database,
-  GitPullRequestArrow,
   LayoutDashboard,
   MessageSquare,
+  Network,
   Radar,
-  Radio,
-  ScrollText,
-  SearchCode,
   Server,
   Settings,
   Shield,
@@ -19,179 +16,217 @@ import {
   Webhook,
 } from "lucide-react"
 
+export type NavigationSectionId = "overview" | "cluster" | "business" | "system"
+
 export type NavigationItem = {
   href: string
   titleMessageId: string
   descriptionMessageId: string
+  pathLabelMessageId: string
   icon: LucideIcon
+  aliases?: string[]
 }
 
-export type NavigationGroup = {
-  labelMessageId: string
+export type NavigationSection = {
+  id: NavigationSectionId
+  href: string
+  titleMessageId: string
   items: NavigationItem[]
 }
 
-export const navigationGroups: NavigationGroup[] = [
+export const navigationSections: NavigationSection[] = [
   {
-    labelMessageId: "nav.group.overview",
+    id: "overview",
+    href: "/dashboard",
+    titleMessageId: "nav.section.overview",
     items: [
       {
         href: "/dashboard",
         titleMessageId: "nav.dashboard.title",
         descriptionMessageId: "nav.dashboard.description",
+        pathLabelMessageId: "nav.path.overview.dashboard",
         icon: LayoutDashboard,
       },
       {
         href: "/monitor",
         titleMessageId: "nav.monitor.title",
         descriptionMessageId: "nav.monitor.description",
+        pathLabelMessageId: "nav.path.overview.monitor",
         icon: Activity,
       },
     ],
   },
   {
-    labelMessageId: "nav.group.globalCluster",
+    id: "cluster",
+    href: "/cluster/nodes",
+    titleMessageId: "nav.section.cluster",
     items: [
       {
-        href: "/nodes",
+        href: "/cluster/nodes",
         titleMessageId: "nav.nodes.title",
         descriptionMessageId: "nav.nodes.description",
+        pathLabelMessageId: "nav.path.cluster.nodes",
         icon: Server,
+        aliases: ["/nodes", "/onboarding"],
       },
       {
-        href: "/tasks",
-        titleMessageId: "nav.tasks.title",
-        descriptionMessageId: "nav.tasks.description",
-        icon: ClipboardList,
-      },
-      {
-        href: "/slots",
+        href: "/cluster/slots",
         titleMessageId: "nav.slots.title",
         descriptionMessageId: "nav.slots.description",
+        pathLabelMessageId: "nav.path.cluster.slots",
         icon: Database,
+        aliases: ["/slots"],
       },
       {
-        href: "/onboarding",
-        titleMessageId: "nav.onboarding.title",
-        descriptionMessageId: "nav.onboarding.description",
-        icon: GitPullRequestArrow,
-      },
-      {
-        href: "/controller",
-        titleMessageId: "nav.controller.title",
-        descriptionMessageId: "nav.controller.description",
-        icon: ScrollText,
-      },
-      {
-        href: "/topology",
-        titleMessageId: "nav.topology.title",
-        descriptionMessageId: "nav.topology.description",
-        icon: Waypoints,
-      },
-    ],
-  },
-  {
-    labelMessageId: "nav.group.channelCluster",
-    items: [
-      {
-        href: "/channel-cluster",
+        href: "/cluster/channels",
         titleMessageId: "nav.channelCluster.title",
         descriptionMessageId: "nav.channelCluster.description",
-        icon: Radio,
+        pathLabelMessageId: "nav.path.cluster.channels",
+        icon: Network,
+        aliases: ["/channel-cluster", "/channel-cluster/list", "/channel-cluster/unhealthy", "/channels"],
       },
       {
-        href: "/channel-cluster/list",
-        titleMessageId: "nav.channelClusterList.title",
-        descriptionMessageId: "nav.channelClusterList.description",
-        icon: Radio,
+        href: "/cluster/tasks",
+        titleMessageId: "nav.tasks.title",
+        descriptionMessageId: "nav.tasks.description",
+        pathLabelMessageId: "nav.path.cluster.tasks",
+        icon: ClipboardList,
+        aliases: ["/tasks"],
       },
       {
-        href: "/channel-cluster/unhealthy",
-        titleMessageId: "nav.channelClusterUnhealthy.title",
-        descriptionMessageId: "nav.channelClusterUnhealthy.description",
-        icon: Radio,
-      },
-    ],
-  },
-  {
-    labelMessageId: "nav.group.business",
-    items: [
-      {
-        href: "/users",
-        titleMessageId: "nav.users.title",
-        descriptionMessageId: "nav.users.description",
-        icon: Users,
+        href: "/cluster/topology",
+        titleMessageId: "nav.topology.title",
+        descriptionMessageId: "nav.topology.description",
+        pathLabelMessageId: "nav.path.cluster.topology",
+        icon: Waypoints,
+        aliases: ["/topology"],
       },
       {
-        href: "/channels-biz",
-        titleMessageId: "nav.channelsBiz.title",
-        descriptionMessageId: "nav.channelsBiz.description",
-        icon: MessageSquare,
-      },
-      {
-        href: "/messages",
-        titleMessageId: "nav.messages.title",
-        descriptionMessageId: "nav.messages.description",
-        icon: MessageSquare,
-      },
-      {
-        href: "/system-users",
-        titleMessageId: "nav.systemUsers.title",
-        descriptionMessageId: "nav.systemUsers.description",
-        icon: Shield,
-      },
-    ],
-  },
-  {
-    labelMessageId: "nav.group.diagnostics",
-    items: [
-      {
-        href: "/diagnostics",
+        href: "/cluster/diagnostics",
         titleMessageId: "nav.diagnostics.title",
         descriptionMessageId: "nav.diagnostics.description",
-        icon: SearchCode,
-      },
-      {
-        href: "/network",
-        titleMessageId: "nav.network.title",
-        descriptionMessageId: "nav.network.description",
+        pathLabelMessageId: "nav.path.cluster.diagnostics",
         icon: Radar,
-      },
-      {
-        href: "/connections",
-        titleMessageId: "nav.connections.title",
-        descriptionMessageId: "nav.connections.description",
-        icon: Cable,
-      },
-      {
-        href: "/slot-logs",
-        titleMessageId: "nav.slotLogs.title",
-        descriptionMessageId: "nav.slotLogs.description",
-        icon: Database,
+        aliases: ["/diagnostics", "/network", "/controller", "/slot-logs"],
       },
     ],
   },
   {
-    labelMessageId: "nav.group.settings",
+    id: "business",
+    href: "/business/users",
+    titleMessageId: "nav.section.business",
     items: [
       {
-        href: "/settings/permissions",
-        titleMessageId: "nav.permissions.title",
-        descriptionMessageId: "nav.permissions.description",
-        icon: Settings,
+        href: "/business/users",
+        titleMessageId: "nav.users.title",
+        descriptionMessageId: "nav.users.description",
+        pathLabelMessageId: "nav.path.business.users",
+        icon: Users,
+        aliases: ["/users"],
       },
       {
-        href: "/settings/webhooks",
+        href: "/business/channels",
+        titleMessageId: "nav.channelsBiz.title",
+        descriptionMessageId: "nav.channelsBiz.description",
+        pathLabelMessageId: "nav.path.business.channels",
+        icon: MessageSquare,
+        aliases: ["/channels-biz"],
+      },
+      {
+        href: "/business/messages",
+        titleMessageId: "nav.messages.title",
+        descriptionMessageId: "nav.messages.description",
+        pathLabelMessageId: "nav.path.business.messages",
+        icon: MessageSquare,
+        aliases: ["/messages"],
+      },
+      {
+        href: "/business/system-users",
+        titleMessageId: "nav.systemUsers.title",
+        descriptionMessageId: "nav.systemUsers.description",
+        pathLabelMessageId: "nav.path.business.systemUsers",
+        icon: Shield,
+        aliases: ["/system-users"],
+      },
+    ],
+  },
+  {
+    id: "system",
+    href: "/system/permissions",
+    titleMessageId: "nav.section.system",
+    items: [
+      {
+        href: "/system/permissions",
+        titleMessageId: "nav.permissions.title",
+        descriptionMessageId: "nav.permissions.description",
+        pathLabelMessageId: "nav.path.system.permissions",
+        icon: Settings,
+        aliases: ["/settings/permissions"],
+      },
+      {
+        href: "/system/webhooks",
         titleMessageId: "nav.webhooks.title",
         descriptionMessageId: "nav.webhooks.description",
+        pathLabelMessageId: "nav.path.system.webhooks",
         icon: Webhook,
+        aliases: ["/settings/webhooks"],
+      },
+      {
+        href: "/system/connections",
+        titleMessageId: "nav.connections.title",
+        descriptionMessageId: "nav.connections.description",
+        pathLabelMessageId: "nav.path.system.connections",
+        icon: Cable,
+        aliases: ["/connections"],
       },
     ],
   },
 ]
 
-export const navigationItems = navigationGroups.flatMap((group) => group.items)
+export const navigationItems = navigationSections.flatMap((section) => section.items)
 
 export const pageMetadata = new Map(
   navigationItems.map((item) => [item.href, item] as const),
 )
+
+export const legacyRouteRedirects: Record<string, string> = {
+  "/nodes": "/cluster/nodes",
+  "/onboarding": "/cluster/nodes?panel=onboarding",
+  "/slots": "/cluster/slots",
+  "/tasks": "/cluster/tasks",
+  "/topology": "/cluster/topology",
+  "/channel-cluster": "/cluster/channels?tab=overview",
+  "/channel-cluster/list": "/cluster/channels?tab=list",
+  "/channel-cluster/unhealthy": "/cluster/channels?tab=unhealthy",
+  "/channels": "/cluster/channels?tab=list",
+  "/diagnostics": "/cluster/diagnostics?tab=trace",
+  "/network": "/cluster/diagnostics?tab=network",
+  "/controller": "/cluster/diagnostics?tab=controller-logs",
+  "/slot-logs": "/cluster/diagnostics?tab=slot-logs",
+  "/users": "/business/users",
+  "/channels-biz": "/business/channels",
+  "/messages": "/business/messages",
+  "/system-users": "/business/system-users",
+  "/settings/permissions": "/system/permissions",
+  "/settings/webhooks": "/system/webhooks",
+  "/connections": "/system/connections",
+}
+
+function matchesItem(pathname: string, item: NavigationItem) {
+  return pathname === item.href || pathname.startsWith(`${item.href}/`) || Boolean(item.aliases?.includes(pathname))
+}
+
+export function getActiveNavigationItem(pathname: string) {
+  return navigationItems.find((item) => matchesItem(pathname, item)) ?? pageMetadata.get("/dashboard")
+}
+
+export function getActiveNavigationSection(pathname: string) {
+  const activeItem = getActiveNavigationItem(pathname)
+  return navigationSections.find((section) => section.items.some((item) => item.href === activeItem?.href)) ?? navigationSections[0]
+}
+
+// Compatibility for older imports while the shell is being migrated.
+export const navigationGroups = navigationSections.map((section) => ({
+  labelMessageId: section.titleMessageId,
+  items: section.items,
+}))
