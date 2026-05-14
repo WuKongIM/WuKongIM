@@ -40,6 +40,19 @@ func TestSamplerKeepsDebugMatchesUntilTTL(t *testing.T) {
 	require.Equal(t, "debug", reason)
 }
 
+func TestSamplerPrefersDynamicTrackingRules(t *testing.T) {
+	now := time.Unix(100, 0)
+	rules := NewTrackingRules(TrackingRulesOptions{Now: func() time.Time { return now }})
+	_, err := rules.Add(TrackingRuleInput{ID: "uid-u1", Target: TrackingTargetSenderUID, UID: "u1", TTL: time.Minute, SampleRate: 1})
+	require.NoError(t, err)
+
+	sampler := NewSampler(SamplerOptions{SampleRate: 0, TrackingRules: rules, Now: func() time.Time { return now }})
+	keep, reason := sampler.Keep(Event{FromUID: "u1", Result: ResultOK})
+
+	require.True(t, keep)
+	require.Equal(t, "debug", reason)
+}
+
 func TestSamplerExpiresDebugMatches(t *testing.T) {
 	now := time.Unix(10, 0)
 	sampler := NewSampler(SamplerOptions{

@@ -18,6 +18,8 @@ type SamplerOptions struct {
 	ErrorSampleRateSet bool
 	// DebugMatches contains immutable temporary match rules evaluated before ordinary sampling.
 	DebugMatches []DebugMatch
+	// TrackingRules contains mutable runtime rules evaluated before static debug matches.
+	TrackingRules *TrackingRules
 	// Now supplies time for debug-match TTL checks.
 	Now func() time.Time
 }
@@ -45,6 +47,7 @@ type Sampler struct {
 	errorSampleRate    float64
 	errorSampleRateSet bool
 	debugRules         []*debugRule
+	trackingRules      *TrackingRules
 	now                func() time.Time
 	counter            atomic.Uint64
 	errorCounter       atomic.Uint64
@@ -69,6 +72,7 @@ func NewSampler(opts SamplerOptions) *Sampler {
 		errorSampleRate:    opts.ErrorSampleRate,
 		errorSampleRateSet: opts.ErrorSampleRateSet,
 		debugRules:         rules,
+		trackingRules:      opts.TrackingRules,
 		now:                opts.Now,
 	}
 }
@@ -77,6 +81,9 @@ func NewSampler(opts SamplerOptions) *Sampler {
 func (s *Sampler) Keep(event Event) (bool, string) {
 	if s == nil {
 		return false, ""
+	}
+	if s.trackingRules != nil && s.trackingRules.Keep(event) {
+		return true, "debug"
 	}
 	if s.keepDebug(event) {
 		return true, "debug"
