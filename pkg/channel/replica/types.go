@@ -39,6 +39,31 @@ type ReconcileProbeSource interface {
 	ProbeQuorum(ctx context.Context, meta channel.Meta, local channel.ReplicaState) ([]channel.ReplicaReconcileProof, error)
 }
 
+// ExecutionMode selects how replica loop and effect work is executed.
+type ExecutionMode string
+
+const (
+	// ExecutionModeDedicated keeps the legacy per-replica execution workers.
+	ExecutionModeDedicated ExecutionMode = "dedicated"
+	// ExecutionModePooled uses a shared execution pool for replica loop work.
+	ExecutionModePooled ExecutionMode = "pooled"
+)
+
+// ExecutionPool is the shared worker pool used by pooled replica execution.
+type ExecutionPool struct{}
+
+// ExecutionConfig configures replica loop and effect execution.
+type ExecutionConfig struct {
+	// Mode selects how replica loop and effect work is executed.
+	Mode ExecutionMode
+	// Pool is the shared worker pool used when Mode is pooled.
+	Pool *ExecutionPool
+	// MailboxSize bounds per-replica queued loop work in pooled mode.
+	MailboxSize int
+	// TurnBudget limits how many loop events one worker processes for a replica before yielding.
+	TurnBudget int
+}
+
 type ReplicaConfig struct {
 	LocalNode                   channel.NodeID
 	LogStore                    LogStore
@@ -51,6 +76,8 @@ type ReplicaConfig struct {
 	AppendGroupCommitMaxWait    time.Duration
 	AppendGroupCommitMaxRecords int
 	AppendGroupCommitMaxBytes   int
+	// Execution configures replica loop and effect execution.
+	Execution ExecutionConfig
 	// Logger emits replica diagnostics for append wait and lifecycle paths.
 	Logger        wklog.Logger
 	OnStateChange func()
