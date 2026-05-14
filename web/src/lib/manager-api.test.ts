@@ -33,6 +33,9 @@ import {
   getSlots,
   getTask,
   getTasks,
+  getDistributedTask,
+  getDistributedTasks,
+  getDistributedTasksSummary,
   getUsers,
   getUser,
   getSystemUsers,
@@ -1152,6 +1155,62 @@ describe("manager api client", () => {
     await expect(getTask(9)).resolves.toEqual(taskDetail)
     expect(fetchMock).toHaveBeenNthCalledWith(1, "/manager/tasks", expect.anything())
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/manager/tasks/9", expect.anything())
+  })
+
+  it("fetches distributed task summary, list, and detail data", async () => {
+    const summary = {
+      total: 1,
+      by_status: { pending: 0, running: 0, retrying: 1, blocked: 0, failed: 0, completed: 0, cancelled: 0, unknown: 0 },
+      by_domain: { slot_reconcile: 1, node_onboarding: 0, node_scale_in: 0, channel_migration: 0 },
+      partial: false,
+      warnings: [],
+    }
+    const list = {
+      total: 1,
+      items: [{
+        id: "slot-reconcile:1",
+        domain: "slot_reconcile",
+        kind: "repair",
+        status: "retrying",
+        phase: "catch_up",
+        scope: { type: "slot", id: "1", slot_id: 1, channel_id: "", channel_type: 0, node_id: 0 },
+        source_node: 0,
+        target_node: 3,
+        owner_node: 0,
+        attempt: 1,
+        next_run_at: null,
+        created_at: null,
+        updated_at: "2026-05-14T10:00:00Z",
+        last_error: "",
+        summary: "Slot 1 repair is retrying.",
+        links: { slot: "/slots?slot_id=1" },
+      }],
+      next_cursor: "",
+      has_more: false,
+      partial: false,
+      warnings: [],
+    }
+    const detail = { task: list.items[0], detail: { domain: "slot_reconcile", raw_status: "retrying", slot: null } }
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(summary), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(list), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(detail), { status: 200 }))
+
+    await expect(getDistributedTasksSummary()).resolves.toEqual(summary)
+    await expect(getDistributedTasks({
+      domain: "slot_reconcile",
+      status: "retrying",
+      nodeId: 3,
+      scope: "slot",
+      keyword: "repair",
+      limit: 25,
+      cursor: "abc",
+    })).resolves.toEqual(list)
+    await expect(getDistributedTask("slot_reconcile", "slot-reconcile:1")).resolves.toEqual(detail)
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/manager/distributed-tasks/summary", expect.anything())
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/manager/distributed-tasks?domain=slot_reconcile&status=retrying&node_id=3&scope=slot&keyword=repair&limit=25&cursor=abc", expect.anything())
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/manager/distributed-tasks/slot_reconcile/slot-reconcile%3A1", expect.anything())
   })
 
   it("fetches channel runtime metadata list and detail data", async () => {
