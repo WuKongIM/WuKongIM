@@ -38,9 +38,9 @@ WK_CLUSTER_MAX_CHANNELS=0
 WK_CLUSTER_CHANNEL_IDLE_TIMEOUT=0
 # Controls how often idle channel runtimes are scanned. 0 lets the runtime derive a bounded interval.
 WK_CLUSTER_CHANNEL_IDLE_SCAN_INTERVAL=0
-# Selects local channel replica execution scheduling. dedicated preserves legacy per-replica workers;
-# pooled uses shared workers while preserving per-channel single-writer ordering.
-WK_CLUSTER_CHANNEL_EXECUTION_MODE=dedicated
+# Selects local channel replica execution scheduling. The default is pooled; dedicated keeps the
+# legacy per-replica workers and serves as a rollback mode while preserving per-channel single-writer ordering.
+WK_CLUSTER_CHANNEL_EXECUTION_MODE=pooled
 # Shared worker count for pooled channel execution. 0 derives a default from GOMAXPROCS.
 WK_CLUSTER_CHANNEL_EXECUTION_WORKERS=0
 # Per-replica mailbox and shared effect queue size in pooled execution. 0 uses the runtime default.

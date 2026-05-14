@@ -115,6 +115,49 @@ func TestNewBuildsChannelLogDataPlane(t *testing.T) {
 	require.NotNil(t, app.ChannelLog())
 }
 
+func TestNewBuildsDefaultChannelReplicaExecutionPool(t *testing.T) {
+	cfg := testConfig(t)
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	require.Equal(t, "pooled", app.cfg.Cluster.ChannelExecutionMode)
+	require.NotNil(t, app.replicaExecutionPool)
+}
+
+func TestNewBuildsDefaultChannelReplicaExecutionPoolWhenMetricsDisabled(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Observability.MetricsEnabled = false
+	cfg.Observability.SetExplicitFlags(true, false, false)
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	require.Equal(t, "pooled", app.cfg.Cluster.ChannelExecutionMode)
+	require.Nil(t, app.metrics)
+	require.NotNil(t, app.replicaExecutionPool)
+}
+
+func TestNewPreservesDedicatedChannelReplicaExecutionMode(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Cluster.ChannelExecutionMode = "dedicated"
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	require.Equal(t, "dedicated", app.cfg.Cluster.ChannelExecutionMode)
+	require.Nil(t, app.replicaExecutionPool)
+}
+
 func TestNewBuildsDeliveryRuntimeLifecycle(t *testing.T) {
 	cfg := testConfig(t)
 

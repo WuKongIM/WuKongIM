@@ -849,6 +849,14 @@ func TestConfigDefaultsClusterMaxChannelsToUnlimited(t *testing.T) {
 	require.Zero(t, cfg.Cluster.ChannelIdleScanInterval)
 }
 
+func TestConfigDefaultsChannelExecutionModeToPooled(t *testing.T) {
+	cfg := validConfig()
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.Equal(t, "pooled", cfg.Cluster.ChannelExecutionMode)
+}
+
 func TestConfigPreservesExplicitClusterMaxChannels(t *testing.T) {
 	cfg := validConfig()
 	cfg.Cluster.MaxChannels = 4096
@@ -860,6 +868,15 @@ func TestConfigPreservesExplicitClusterMaxChannels(t *testing.T) {
 	require.Equal(t, 4096, cfg.Cluster.MaxChannels)
 	require.Equal(t, 30*time.Minute, cfg.Cluster.ChannelIdleTimeout)
 	require.Equal(t, time.Minute, cfg.Cluster.ChannelIdleScanInterval)
+}
+
+func TestConfigPreservesDedicatedChannelExecutionMode(t *testing.T) {
+	cfg := validConfig()
+	cfg.Cluster.ChannelExecutionMode = "dedicated"
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.Equal(t, "dedicated", cfg.Cluster.ChannelExecutionMode)
 }
 
 func TestConfigPreservesChannelExecutionPoolSettings(t *testing.T) {

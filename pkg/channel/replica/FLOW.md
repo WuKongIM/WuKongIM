@@ -116,8 +116,8 @@ Live mutable fields are owned by the loop/pipeline handlers while holding `r.mu`
 
 Replica loop work is selected by `ReplicaConfig.Execution.Mode`:
 
-- `dedicated` is the default and keeps the legacy per-replica loop goroutine plus per-replica append/checkpoint effect workers.
-- `pooled` uses a shared `ExecutionPool`; each replica owns a bounded mailbox and workers drain one replica at a time with a turn budget.
+- `pooled` is the default and uses a shared `ExecutionPool`; each replica owns a bounded mailbox and workers drain one replica at a time with a turn budget.
+- `dedicated` keeps the legacy per-replica loop goroutine plus per-replica append/checkpoint effect workers and remains a rollback mode.
 
 Both modes preserve per-channel single-writer semantics: all commands/results for one replica still pass through `applyLoopEvent()` serially, and all log/history/checkpoint/snapshot mutations remain fenced by the same effect ids, channel key, epoch, leader epoch, role generation, and `durableMu` checks.
 

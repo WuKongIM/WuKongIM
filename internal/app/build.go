@@ -270,11 +270,15 @@ func build(cfg Config) (_ *App, err error) {
 	})
 	app.channelMetaSync = &channelMetaSync{}
 	if cfg.Cluster.ChannelExecutionMode == "pooled" {
+		var executionObserver channelreplica.ExecutionObserver
+		if app.metrics != nil {
+			executionObserver = channelReplicaExecutionMetricsObserver{metrics: app.metrics.Channel}
+		}
 		app.replicaExecutionPool, err = channelreplica.NewExecutionPool(channelreplica.ExecutionPoolConfig{
 			Workers:         cfg.Cluster.ChannelExecutionWorkers,
 			MailboxSize:     cfg.Cluster.ChannelExecutionQueueSize,
 			EffectQueueSize: cfg.Cluster.ChannelExecutionQueueSize,
-			Observer:        channelReplicaExecutionMetricsObserver{metrics: app.metrics.Channel},
+			Observer:        executionObserver,
 			Logger:          app.logger.Named("channel.replica.execution"),
 		})
 		if err != nil {
