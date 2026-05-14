@@ -121,6 +121,14 @@ func TestReplicaLoopStartsAndStops(t *testing.T) {
 	requireClosed(t, r.loopDone, "replica loop did not stop")
 }
 
+func TestDedicatedLoopDriverStopsOnClose(t *testing.T) {
+	r := newTestReplica(t)
+
+	require.NoError(t, r.Close())
+
+	requireClosed(t, r.loopDone, "replica loop did not stop")
+}
+
 func TestReplicaLoopSubmitAfterCloseReturnsNotLeader(t *testing.T) {
 	r := newLeaderReplica(t)
 	require.NoError(t, r.Close())
