@@ -53,7 +53,7 @@ type ProfileShard struct {
 	GlobalRate Rate `json:"global_rate" yaml:"global_rate"`
 	// LocalRate is the worker-local share of GlobalRate for split traffic profiles.
 	LocalRate Rate `json:"local_rate" yaml:"local_rate"`
-	// TrafficPartitionCount is the number of traffic partitions assigned to this worker.
+	// TrafficPartitionCount is the global traffic partition modulus for this profile.
 	TrafficPartitionCount int `json:"traffic_partition_count" yaml:"traffic_partition_count"`
 	// OwnedTrafficPartitions are deterministic partition indexes assigned to this worker.
 	OwnedTrafficPartitions []int `json:"owned_traffic_partitions" yaml:"owned_traffic_partitions"`
