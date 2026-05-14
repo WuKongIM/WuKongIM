@@ -29,7 +29,13 @@ func TestGroupPrepareHugeOwnerCreatesChannelThenWaitsAndAddsSubscribers(t *testi
 	}, target, barrier)
 
 	require.NoError(t, err)
-	require.Equal(t, []string{"channels:bench-run-channels-huge-group-a-0-1", "barrier:channel_prepared", "subs:bench-run-subs-huge-group-a-0-2500"}, target.events)
+	require.Equal(t, []string{
+		"channels:bench-run-channels-huge-group-a-0-1",
+		"barrier:channel_prepared",
+		"subs:bench-run-subs-huge-group-a-0-1000",
+		"subs:bench-run-subs-huge-group-a-1000-2000",
+		"subs:bench-run-subs-huge-group-a-2000-2500",
+	}, target.events)
 	require.Len(t, target.channelRequests, 1)
 	require.Equal(t, model.BatchChannelsRequest{
 		RunID:   "bench-run",
@@ -42,13 +48,29 @@ func TestGroupPrepareHugeOwnerCreatesChannelThenWaitsAndAddsSubscribers(t *testi
 		}},
 	}, target.channelRequests[0])
 	require.Equal(t, []groupBarrierWait{{runID: "bench-run", name: "channel_prepared"}}, barrier.waits)
-	require.Len(t, target.subscriberRequests, 1)
-	require.Equal(t, "bench-run-subs-huge-group-a-0-2500", target.subscriberRequests[0].BatchID)
-	require.False(t, target.subscriberRequests[0].Items[0].Reset)
-	require.Equal(t, []string{"bench-u-0", "bench-u-1", "bench-u-2499"}, []string{
+	require.Len(t, target.subscriberRequests, 3)
+	require.Equal(t, "bench-run-subs-huge-group-a-0-1000", target.subscriberRequests[0].BatchID)
+	require.Equal(t, "bench-run-subs-huge-group-a-1000-2000", target.subscriberRequests[1].BatchID)
+	require.Equal(t, "bench-run-subs-huge-group-a-2000-2500", target.subscriberRequests[2].BatchID)
+	for _, req := range target.subscriberRequests {
+		require.Len(t, req.Items, 1)
+		require.False(t, req.Items[0].Reset)
+		require.LessOrEqual(t, len(req.Items[0].Subscribers), 1000)
+	}
+	require.Equal(t, []string{"bench-u-0", "bench-u-1", "bench-u-999"}, []string{
 		target.subscriberRequests[0].Items[0].Subscribers[0],
 		target.subscriberRequests[0].Items[0].Subscribers[1],
-		target.subscriberRequests[0].Items[0].Subscribers[2499],
+		target.subscriberRequests[0].Items[0].Subscribers[999],
+	})
+	require.Equal(t, []string{"bench-u-1000", "bench-u-1001", "bench-u-1999"}, []string{
+		target.subscriberRequests[1].Items[0].Subscribers[0],
+		target.subscriberRequests[1].Items[0].Subscribers[1],
+		target.subscriberRequests[1].Items[0].Subscribers[999],
+	})
+	require.Equal(t, []string{"bench-u-2000", "bench-u-2001", "bench-u-2499"}, []string{
+		target.subscriberRequests[2].Items[0].Subscribers[0],
+		target.subscriberRequests[2].Items[0].Subscribers[1],
+		target.subscriberRequests[2].Items[0].Subscribers[499],
 	})
 }
 
@@ -107,6 +129,40 @@ func TestGroupPrepareSmallGroupsCreatesOwnedChannelsAndSubscriberBatches(t *test
 	require.Equal(t, []string{"u-11"}, target.subscriberRequests[3].Items[0].Subscribers)
 }
 
+func TestGroupPrepareChunksChannelUpsertsAtThousand(t *testing.T) {
+	target := newRecordingGroupPrepareTarget()
+
+	err := PrepareGroup(context.Background(), GroupPrepareConfig{
+		RunID:             "run-large",
+		WorkerID:          "worker-a",
+		ProfileName:       "large-group",
+		ChannelRange:      model.Range{Start: 0, End: 2500},
+		MembersPerChannel: 0,
+		UIDPrefix:         "u",
+	}, target, NoopGroupPrepareBarrier{})
+
+	require.NoError(t, err)
+	require.Len(t, target.channelRequests, 3)
+	require.Equal(t, []string{
+		"run-large-channels-large-group-worker-a-0-1000",
+		"run-large-channels-large-group-worker-a-1000-2000",
+		"run-large-channels-large-group-worker-a-2000-2500",
+	}, []string{
+		target.channelRequests[0].BatchID,
+		target.channelRequests[1].BatchID,
+		target.channelRequests[2].BatchID,
+	})
+	require.Len(t, target.channelRequests[0].Channels, 1000)
+	require.Len(t, target.channelRequests[1].Channels, 1000)
+	require.Len(t, target.channelRequests[2].Channels, 500)
+	require.Equal(t, "run-large-large-group-0", target.channelRequests[0].Channels[0].ChannelID)
+	require.Equal(t, "run-large-large-group-999", target.channelRequests[0].Channels[999].ChannelID)
+	require.Equal(t, "run-large-large-group-1000", target.channelRequests[1].Channels[0].ChannelID)
+	require.Equal(t, "run-large-large-group-1999", target.channelRequests[1].Channels[999].ChannelID)
+	require.Equal(t, "run-large-large-group-2000", target.channelRequests[2].Channels[0].ChannelID)
+	require.Equal(t, "run-large-large-group-2499", target.channelRequests[2].Channels[499].ChannelID)
+}
+
 func TestGroupWorkloadLocalRateUsesOwnedPartitionShare(t *testing.T) {
 	got := GroupLocalRate(model.Rate{PerSecond: 20}, 4, []int{2})
 
@@ -127,8 +183,8 @@ func TestGroupWorkloadSendOneBuildsGroupSendAndVerifiesFullReceivers(t *testing.
 		ClientMsgNo: clientMsgNo,
 		ReasonCode:  frame.ReasonSuccess,
 	})
-	for uid, client := range clients {
-		client.(*recordingPersonClient).recvFrames = append(client.(*recordingPersonClient).recvFrames, groupRecv(clientMsgNo, uid, 99, 7))
+	for _, uid := range []string{"u-1", "u-2"} {
+		clients[uid].(*recordingPersonClient).recvFrames = append(clients[uid].(*recordingPersonClient).recvFrames, groupRecv(clientMsgNo, uid, 99, 7))
 	}
 	workload, err := NewGroupWorkload(GroupConfig{
 		RunID:           "run-a",
@@ -154,10 +210,10 @@ func TestGroupWorkloadSendOneBuildsGroupSendAndVerifiesFullReceivers(t *testing.
 	require.Equal(t, "run-a-huge-group-0", sender.sentFrames[0].ChannelID)
 	require.Equal(t, frame.ChannelTypeGroup, sender.sentFrames[0].ChannelType)
 	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_send_success_total", nil))
-	require.Equal(t, uint64(3), workload.Metrics().CounterValue("group_recv_success_total", nil))
-	for uid, client := range clients {
-		require.Len(t, client.(*recordingPersonClient).recvAckCalls, 1, uid)
-	}
+	require.Equal(t, uint64(2), workload.Metrics().CounterValue("group_recv_success_total", nil))
+	require.Empty(t, clients["u-0"].(*recordingPersonClient).recvAckCalls)
+	require.Len(t, clients["u-1"].(*recordingPersonClient).recvAckCalls, 1)
+	require.Len(t, clients["u-2"].(*recordingPersonClient).recvAckCalls, 1)
 }
 
 func TestGroupWorkloadSampledRecvVerificationIsDeterministic(t *testing.T) {
@@ -175,7 +231,7 @@ func TestGroupWorkloadSampledRecvVerificationIsDeterministic(t *testing.T) {
 		ClientMsgNo: clientMsgNo,
 		ReasonCode:  frame.ReasonSuccess,
 	})
-	for _, uid := range []string{"u-0", "u-1"} {
+	for _, uid := range []string{"u-1"} {
 		clients[uid].(*recordingPersonClient).recvFrames = append(clients[uid].(*recordingPersonClient).recvFrames, groupRecv(clientMsgNo, uid, 100, 8))
 	}
 	workload, err := NewGroupWorkload(GroupConfig{
@@ -184,7 +240,7 @@ func TestGroupWorkloadSampledRecvVerificationIsDeterministic(t *testing.T) {
 		TrafficName:            "group-send",
 		ClientMsgPrefix:        "bench-msg",
 		VerifyRecvMode:         "sampled",
-		RecvSampleSize:         2,
+		RecvSampleSize:         1,
 		RecvAck:                true,
 		OwnedTrafficPartitions: []int{0},
 		TrafficPartitionCount:  4,
@@ -199,11 +255,11 @@ func TestGroupWorkloadSampledRecvVerificationIsDeterministic(t *testing.T) {
 
 	require.NoError(t, workload.Run(context.Background()))
 
-	require.Len(t, clients["u-0"].(*recordingPersonClient).recvAckCalls, 1)
 	require.Len(t, clients["u-1"].(*recordingPersonClient).recvAckCalls, 1)
+	require.Empty(t, clients["u-0"].(*recordingPersonClient).recvAckCalls)
 	require.Empty(t, clients["u-2"].(*recordingPersonClient).recvAckCalls)
 	require.Empty(t, clients["u-3"].(*recordingPersonClient).recvAckCalls)
-	require.Equal(t, uint64(2), workload.Metrics().CounterValue("group_recv_success_total", nil))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_recv_success_total", nil))
 }
 
 func groupRecv(clientMsgNo, recipientUID string, messageID int64, messageSeq uint64) *frame.RecvPacket {

@@ -14,9 +14,12 @@ import (
 )
 
 const (
-	defaultGroupClientPrefix = "bench-msg"
-	groupPreparedBarrierName = "channel_prepared"
-	verifyRecvModeSampled    = "sampled"
+	defaultGroupClientPrefix     = "bench-msg"
+	groupPreparedBarrierName     = "channel_prepared"
+	verifyRecvModeSampled        = "sampled"
+	maxGroupChannelBatchSize     = 1000
+	maxGroupSubscriberBatchSize  = 1000
+	maxGroupSubscriberBatchBytes = 64 * 1024
 )
 
 // GroupPrepareTarget is the bench/v1 subset required to prepare group channels.
@@ -289,7 +292,7 @@ func (w *GroupWorkload) SendOne(ctx context.Context, channelIndex, messageIndex 
 	w.metrics.IncCounter("group_send_success_total", nil)
 	w.metrics.ObserveLatency("group_send_latency_seconds", nil, time.Since(sendStart))
 
-	recipients := w.verificationMembers(ch)
+	recipients := w.verificationMembers(ch, senderUID)
 	if len(recipients) == 0 {
 		return nil
 	}
@@ -347,12 +350,23 @@ func upsertGroupChannels(ctx context.Context, cfg GroupPrepareConfig, target Gro
 	if len(channels) == 0 {
 		return nil
 	}
-	return target.UpsertChannels(ctx, model.BatchChannelsRequest{
-		RunID:    cfg.RunID,
-		BatchID:  groupChannelsBatchID(cfg),
-		Upsert:   true,
-		Channels: channels,
-	})
+	for start := 0; start < len(channels); start += maxGroupChannelBatchSize {
+		end := start + maxGroupChannelBatchSize
+		if end > len(channels) {
+			end = len(channels)
+		}
+		channelStart := cfg.ChannelRange.Start + start
+		channelEnd := cfg.ChannelRange.Start + end
+		if err := target.UpsertChannels(ctx, model.BatchChannelsRequest{
+			RunID:    cfg.RunID,
+			BatchID:  groupChannelsBatchID(cfg, channelStart, channelEnd),
+			Upsert:   true,
+			Channels: channels[start:end],
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func addHugeGroupSubscribers(ctx context.Context, cfg GroupPrepareConfig, target GroupPrepareTarget) error {
@@ -360,14 +374,12 @@ func addHugeGroupSubscribers(ctx context.Context, cfg GroupPrepareConfig, target
 		return nil
 	}
 	channelID := GroupChannelID(cfg.RunID, cfg.ProfileName, cfg.ChannelRange.Start)
-	for start := cfg.MemberRange.Start; start < cfg.MemberRange.End; start += cfg.SubscribersBatchSize {
-		end := start + cfg.SubscribersBatchSize
-		if end > cfg.MemberRange.End {
-			end = cfg.MemberRange.End
-		}
+	for start := cfg.MemberRange.Start; start < cfg.MemberRange.End; {
+		end := groupSubscriberBatchEnd(cfg, start, cfg.MemberRange.End)
 		if err := addSubscriberBatch(ctx, target, cfg, channelID, start, end); err != nil {
 			return err
 		}
+		start = end
 	}
 	return nil
 }
@@ -380,14 +392,12 @@ func addSmallGroupSubscribers(ctx context.Context, cfg GroupPrepareConfig, targe
 		memberStart := channelIndex * cfg.MembersPerChannel
 		memberEnd := memberStart + cfg.MembersPerChannel
 		channelID := GroupChannelID(cfg.RunID, cfg.ProfileName, channelIndex)
-		for start := memberStart; start < memberEnd; start += cfg.SubscribersBatchSize {
-			end := start + cfg.SubscribersBatchSize
-			if end > memberEnd {
-				end = memberEnd
-			}
+		for start := memberStart; start < memberEnd; {
+			end := groupSubscriberBatchEnd(cfg, start, memberEnd)
 			if err := addSubscriberBatch(ctx, target, cfg, channelID, start, end); err != nil {
 				return err
 			}
+			start = end
 		}
 	}
 	return nil
@@ -410,8 +420,8 @@ func addSubscriberBatch(ctx context.Context, target GroupPrepareTarget, cfg Grou
 	})
 }
 
-func groupChannelsBatchID(cfg GroupPrepareConfig) string {
-	return fmt.Sprintf("%s-channels-%s-%s-%d-%d", cfg.RunID, cfg.ProfileName, cfg.WorkerID, cfg.ChannelRange.Start, cfg.ChannelRange.End)
+func groupChannelsBatchID(cfg GroupPrepareConfig, start, end int) string {
+	return fmt.Sprintf("%s-channels-%s-%s-%d-%d", cfg.RunID, cfg.ProfileName, cfg.WorkerID, start, end)
 }
 
 func groupSubscribersBatchID(cfg GroupPrepareConfig, start, end int) string {
@@ -461,20 +471,27 @@ func (w *GroupWorkload) channelForIndex(channelIndex int) (GroupChannel, error) 
 	return GroupChannel{}, fmt.Errorf("group workload: no channel assigned to index %d", channelIndex)
 }
 
-func (w *GroupWorkload) verificationMembers(ch GroupChannel) []string {
+func (w *GroupWorkload) verificationMembers(ch GroupChannel, senderUID string) []string {
 	mode := strings.ToLower(strings.TrimSpace(w.cfg.VerifyRecvMode))
+	members := make([]string, 0, len(ch.OnlineMembers))
+	for _, uid := range ch.OnlineMembers {
+		if uid == senderUID {
+			continue
+		}
+		members = append(members, uid)
+	}
 	switch mode {
 	case verifyRecvModeFull:
-		return append([]string(nil), ch.OnlineMembers...)
+		return members
 	case verifyRecvModeSampled:
 		if w.cfg.RecvSampleSize <= 0 {
 			return nil
 		}
 		limit := w.cfg.RecvSampleSize
-		if limit > len(ch.OnlineMembers) {
-			limit = len(ch.OnlineMembers)
+		if limit > len(members) {
+			limit = len(members)
 		}
-		return append([]string(nil), ch.OnlineMembers[:limit]...)
+		return append([]string(nil), members[:limit]...)
 	default:
 		return nil
 	}
@@ -580,4 +597,35 @@ func indexedBenchID(prefix string, index int) string {
 		prefix = "bench"
 	}
 	return fmt.Sprintf("%s-%d", prefix, index)
+}
+
+func groupSubscriberBatchLimit(batchSize int) int {
+	if batchSize <= 0 || batchSize > maxGroupSubscriberBatchSize {
+		return maxGroupSubscriberBatchSize
+	}
+	return batchSize
+}
+
+func groupSubscriberBatchEnd(cfg GroupPrepareConfig, start, end int) int {
+	limit := groupSubscriberBatchLimit(cfg.SubscribersBatchSize)
+	batchBytes := 0
+	count := 0
+	idx := start
+	for idx < end {
+		uid := indexedBenchID(cfg.UIDPrefix, idx)
+		uidBytes := len(uid) + 3
+		if count > 0 && (count >= limit || batchBytes+uidBytes > maxGroupSubscriberBatchBytes) {
+			break
+		}
+		batchBytes += uidBytes
+		count++
+		idx++
+		if count >= limit || batchBytes >= maxGroupSubscriberBatchBytes {
+			break
+		}
+	}
+	if idx == start {
+		return start + 1
+	}
+	return idx
 }
