@@ -108,7 +108,7 @@ WuKongIM 是一个高性能分布式即时通讯引擎，采用自研的 ISR（I
 | Slot 管理 | Slot 分布、Rebalance、Leader 转移、恢复 |
 | 节点扩容 | 新节点上线、Slot 分配计划 |
 | Controller | Raft 日志查看、压缩操作 |
-| 拓扑视图 | 集群节点关系可视化 |
+| 拓扑视图 | 全局集群与 Slot 拓扑只读 MVP 已完成；频道级副本拓扑仍待专门 API |
 
 ### 4.3 频道集群模块（核心新增）
 
@@ -346,9 +346,11 @@ GET  /manager/permissions
 - [x] 频道集群 P0.6 单频道显式安全 Leader transfer
 - [x] 用户管理后端 API + 前端页面（不含封禁/解封）
 - [x] 权限管理只读 MVP：`GET /manager/permissions` + `/settings/permissions`
+- [x] 拓扑只读 MVP：复用 overview/nodes/slots 展示全局集群与 Slot 拓扑
 
 待实现：
 - [ ] 频道集群批量 leader drain
+- [ ] 频道级副本拓扑与专用 topology API
 - [ ] 用户管理封禁/解封
 - [ ] 频道业务管理后端 API + 前端页面
 - [ ] 权限写管理：新增/编辑/删除管理员、持久化权限配置、审计日志
