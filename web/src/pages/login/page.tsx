@@ -48,35 +48,58 @@ export function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background px-6 py-12">
-      <div className="mx-auto flex min-h-[calc(100vh-6rem)] w-full max-w-6xl items-center gap-10 lg:grid lg:grid-cols-[1.15fr_0.85fr]">
+    <main className="min-h-screen overflow-hidden bg-background px-5 py-8 sm:px-6 lg:py-12">
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(101,216,138,0.16),transparent_32rem),radial-gradient(circle_at_86%_12%,rgba(93,168,255,0.10),transparent_28rem)]"
+      />
+      <div className="relative mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-6xl items-center gap-8 lg:grid-cols-[1.08fr_0.92fr]">
         <section className="max-w-2xl">
           <div className="flex items-center justify-between gap-3">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-              {intl.formatMessage({ id: "auth.brand" })}
+            <div className="flex items-center gap-3">
+              <div
+                aria-hidden
+                className="size-10 rounded-2xl border border-primary/35 bg-[linear-gradient(135deg,var(--primary),#1f7a4a)] shadow-[0_0_36px_rgba(101,216,138,0.28)]"
+              />
+              <div>
+                <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.28em] text-foreground">
+                  {intl.formatMessage({ id: "auth.brand" })}
+                </div>
+                <div className="mt-1 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  {intl.formatMessage({ id: "auth.operationsCockpit" })}
+                </div>
+              </div>
             </div>
             <LocaleSwitcher />
           </div>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+          <h1 className="mt-7 text-4xl font-semibold tracking-[-0.05em] text-foreground sm:text-6xl">
             {intl.formatMessage({ id: "auth.signIn" })}
           </h1>
           <p className="mt-4 max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">
             {intl.formatMessage({ id: "auth.description" })}
           </p>
           <div className="mt-8 grid gap-3 text-sm text-muted-foreground sm:max-w-xl sm:grid-cols-3">
-            <div className="rounded-xl border border-border bg-card px-4 py-4">
+            <div className="rounded-2xl border border-border/80 bg-card/80 px-4 py-4">
               {intl.formatMessage({ id: "auth.feature.nodeInventory" })}
             </div>
-            <div className="rounded-xl border border-border bg-card px-4 py-4">
+            <div className="rounded-2xl border border-border/80 bg-card/80 px-4 py-4">
               {intl.formatMessage({ id: "auth.feature.slotCoordination" })}
             </div>
-            <div className="rounded-xl border border-border bg-card px-4 py-4">
+            <div className="rounded-2xl border border-border/80 bg-card/80 px-4 py-4">
               {intl.formatMessage({ id: "auth.feature.runtimeStatus" })}
             </div>
           </div>
+          <div className="mt-4 flex flex-wrap gap-2 text-xs text-primary">
+            <span className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5">
+              {intl.formatMessage({ id: "auth.singleNodeClusterReady" })}
+            </span>
+            <span className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5">
+              {intl.formatMessage({ id: "auth.healthFirstNavigation" })}
+            </span>
+          </div>
         </section>
 
-        <section className="w-full rounded-2xl border border-border bg-card p-8 text-card-foreground shadow-sm">
+        <section className="w-full rounded-3xl border border-border/80 bg-card/90 p-6 text-card-foreground shadow-[0_24px_80px_rgba(0,0,0,0.22)] sm:p-8">
           <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
             {intl.formatMessage({ id: "auth.clusterAccess" })}
           </div>
@@ -94,7 +117,7 @@ export function LoginPage() {
               </span>
               <input
                 autoComplete="username"
-                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-foreground"
+                className="w-full rounded-2xl border border-input bg-background/80 px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-3 focus:ring-primary/20"
                 name="username"
                 onChange={(event) => setUsername(event.target.value)}
                 type="text"
@@ -108,7 +131,7 @@ export function LoginPage() {
               </span>
               <input
                 autoComplete="current-password"
-                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-foreground"
+                className="w-full rounded-2xl border border-input bg-background/80 px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-3 focus:ring-primary/20"
                 name="password"
                 onChange={(event) => setPassword(event.target.value)}
                 type="password"
@@ -119,7 +142,7 @@ export function LoginPage() {
             {errorMessage ? (
               <div
                 aria-live="polite"
-                className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+                className="rounded-2xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
                 role="alert"
               >
                 {errorMessage}
