@@ -85,6 +85,14 @@ type LegacyRouteAddresses struct {
 	WSSAddr string
 }
 
+// LegacyRouteNodeAddresses stores the public and intranet route addresses for one cluster node.
+type LegacyRouteNodeAddresses struct {
+	// External is returned by legacy route APIs unless the request asks for intranet addresses.
+	External LegacyRouteAddresses
+	// Intranet is returned by legacy route APIs when intranet=1 is supplied.
+	Intranet LegacyRouteAddresses
+}
+
 type Options struct {
 	ListenAddr               string
 	Messages                 MessageUsecase
@@ -107,7 +115,9 @@ type Options struct {
 	Diagnostics              DiagnosticsReader
 	LegacyRouteExternal      LegacyRouteAddresses
 	LegacyRouteIntranet      LegacyRouteAddresses
-	Logger                   wklog.Logger
+	// LegacyRouteNodes maps node_id query parameters to node-specific legacy route addresses.
+	LegacyRouteNodes map[uint64]LegacyRouteNodeAddresses
+	Logger           wklog.Logger
 }
 
 type Server struct {
@@ -137,6 +147,7 @@ type Server struct {
 	diagnostics              DiagnosticsReader
 	legacyRouteExternal      LegacyRouteAddresses
 	legacyRouteIntranet      LegacyRouteAddresses
+	legacyRouteNodes         map[uint64]LegacyRouteNodeAddresses
 	logger                   wklog.Logger
 	started                  bool
 }
@@ -174,10 +185,22 @@ func New(opts Options) *Server {
 		diagnostics:              opts.Diagnostics,
 		legacyRouteExternal:      opts.LegacyRouteExternal,
 		legacyRouteIntranet:      opts.LegacyRouteIntranet,
+		legacyRouteNodes:         cloneLegacyRouteNodes(opts.LegacyRouteNodes),
 		logger:                   opts.Logger,
 	}
 	srv.registerRoutes()
 	return srv
+}
+
+func cloneLegacyRouteNodes(nodes map[uint64]LegacyRouteNodeAddresses) map[uint64]LegacyRouteNodeAddresses {
+	if len(nodes) == 0 {
+		return nil
+	}
+	out := make(map[uint64]LegacyRouteNodeAddresses, len(nodes))
+	for nodeID, addrs := range nodes {
+		out[nodeID] = addrs
+	}
+	return out
 }
 
 func (s *Server) Engine() *gin.Engine {
