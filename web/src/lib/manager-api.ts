@@ -5,6 +5,7 @@ import type {
   ControllerLogListParams,
   ConnectionDetailParams,
   ConnectionListParams,
+  CreateDiagnosticsTrackingRuleInput,
   DiagnosticsCommonParams,
   DiagnosticsEventsParams,
   DiagnosticsMessageParams,
@@ -23,6 +24,9 @@ import type {
   ManagerControllerRaftCompactResponse,
   ManagerControllerRaftStatusResponse,
   ManagerConnectionsResponse,
+  ManagerDiagnosticsTrackingDeleteResponse,
+  ManagerDiagnosticsTrackingListResponse,
+  ManagerDiagnosticsTrackingMutationResponse,
   ManagerDiagnosticsResponse,
   ManagerDistributedTaskDetailResponse,
   ManagerDistributedTaskDomain,
@@ -733,8 +737,47 @@ export function getDiagnosticsEvents(params?: DiagnosticsEventsParams) {
   if (params?.result) {
     search.set("result", params.result)
   }
+  if (params?.uid) {
+    search.set("uid", params.uid)
+  }
+  if (params?.channelKey) {
+    search.set("channel_key", params.channelKey)
+  }
   const query = search.toString()
   return jsonManagerFetch<ManagerDiagnosticsResponse>(query ? `/manager/diagnostics/events?${query}` : "/manager/diagnostics/events")
+}
+
+export function listDiagnosticsTrackingRules() {
+  return jsonManagerFetch<ManagerDiagnosticsTrackingListResponse>("/manager/diagnostics/tracking-rules")
+}
+
+export function createDiagnosticsTrackingRule(input: CreateDiagnosticsTrackingRuleInput) {
+  const body = input.target === "sender_uid"
+    ? {
+        target: input.target,
+        uid: input.uid,
+        ttl_seconds: input.ttlSeconds,
+        sample_rate: input.sampleRate ?? 1,
+      }
+    : {
+        target: input.target,
+        channel_id: input.channelId,
+        channel_type: input.channelType,
+        ttl_seconds: input.ttlSeconds,
+        sample_rate: input.sampleRate ?? 1,
+      }
+
+  return jsonManagerFetch<ManagerDiagnosticsTrackingMutationResponse>("/manager/diagnostics/tracking-rules", {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
+}
+
+export function deleteDiagnosticsTrackingRule(ruleId: string) {
+  return jsonManagerFetch<ManagerDiagnosticsTrackingDeleteResponse>(
+    `/manager/diagnostics/tracking-rules/${encodeURIComponent(ruleId)}`,
+    { method: "DELETE" },
+  )
 }
 
 export function getChannelRuntimeMeta(params?: ChannelRuntimeMetaListParams) {
