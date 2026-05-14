@@ -15,7 +15,7 @@ import (
 // WorkloadClientFactory builds benchmark clients for the default worker runner.
 type WorkloadClientFactory func(user benchworkload.ConnectionUser, addr string) (benchworkload.ConnectionClient, error)
 
-// defaultWorkloadRunner builds and runs person workloads from worker assignments.
+// defaultWorkloadRunner builds and runs built-in workloads from worker assignments.
 type defaultWorkloadRunner struct {
 	clientFactory WorkloadClientFactory
 
@@ -24,8 +24,10 @@ type defaultWorkloadRunner struct {
 	runID string
 	// manager owns the connected benchmark sessions for the active run.
 	manager *benchworkload.ConnectionManager
-	// workloads contains the active person traffic executors for the active run.
-	workloads []*benchworkload.PersonWorkload
+	// personWorkloads contains the active person traffic executors for the active run.
+	personWorkloads []*benchworkload.PersonWorkload
+	// groupWorkloads contains the active group traffic executors for the active run.
+	groupWorkloads []*benchworkload.GroupWorkload
 }
 
 // personWorkloadBundle binds one profile shard, one traffic stream, and its pairs.
@@ -45,12 +47,21 @@ func newDefaultWorkloadRunner(factory WorkloadClientFactory) WorkloadRunner {
 	return &defaultWorkloadRunner{clientFactory: factory}
 }
 
+func (r *defaultWorkloadRunner) Prepare(ctx context.Context, assignment Assignment) error {
+	return prepareGroupData(ctx, assignment)
+}
+
 func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignment) error {
 	plan, err := buildPersonExecutionPlan(assignment)
 	if err != nil {
 		return err
 	}
-	if len(plan.users) == 0 {
+	groupPlan, err := buildGroupExecutionPlan(assignment)
+	if err != nil {
+		return err
+	}
+	users := mergeConnectionUsers(plan.users, groupPlan.users)
+	if len(users) == 0 {
 		r.reset(assignment.RunID)
 		return nil
 	}
@@ -65,11 +76,11 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 	if err != nil {
 		return err
 	}
-	if err := manager.Connect(ctx, plan.users); err != nil {
+	if err := manager.Connect(ctx, users); err != nil {
 		_ = manager.Close()
 		return err
 	}
-	clients, err := personClientsFromManager(manager, plan.users)
+	clients, err := personClientsFromManager(manager, users)
 	if err != nil {
 		_ = manager.Close()
 		return err
@@ -79,37 +90,62 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 		_ = manager.Close()
 		return err
 	}
-	r.store(assignment.RunID, manager, workloads)
+	groupWorkloads, err := buildGroupWorkloads(assignment, groupPlan.bundles, clients)
+	if err != nil {
+		_ = manager.Close()
+		return err
+	}
+	r.store(assignment.RunID, manager, workloads, groupWorkloads)
 	return nil
 }
 
 func (r *defaultWorkloadRunner) Warmup(ctx context.Context, assignment Assignment) error {
-	return r.runPhase(ctx, assignment, func(wl *benchworkload.PersonWorkload) error { return wl.Warmup(ctx) })
+	return r.runPhase(ctx, assignment, func(person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
+		if person != nil {
+			return person.Warmup(ctx)
+		}
+		return group.Warmup(ctx)
+	})
 }
 
 func (r *defaultWorkloadRunner) Run(ctx context.Context, assignment Assignment) error {
-	return r.runPhase(ctx, assignment, func(wl *benchworkload.PersonWorkload) error { return wl.Run(ctx) })
+	return r.runPhase(ctx, assignment, func(person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
+		if person != nil {
+			return person.Run(ctx)
+		}
+		return group.Run(ctx)
+	})
 }
 
 func (r *defaultWorkloadRunner) Cooldown(ctx context.Context, assignment Assignment) error {
-	err := r.runPhase(ctx, assignment, func(wl *benchworkload.PersonWorkload) error { return wl.Cooldown(ctx) })
+	err := r.runPhase(ctx, assignment, func(person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
+		if person != nil {
+			return person.Cooldown(ctx)
+		}
+		return group.Cooldown(ctx)
+	})
 	r.closeCurrent(assignment.RunID)
 	return err
 }
 
-func (r *defaultWorkloadRunner) runPhase(ctx context.Context, assignment Assignment, fn func(*benchworkload.PersonWorkload) error) error {
-	workloads, ok := r.snapshot(assignment.RunID)
+func (r *defaultWorkloadRunner) runPhase(ctx context.Context, assignment Assignment, fn func(*benchworkload.PersonWorkload, *benchworkload.GroupWorkload) error) error {
+	personWorkloads, groupWorkloads, ok := r.snapshot(assignment.RunID)
 	if !ok {
 		if err := r.Connect(ctx, assignment); err != nil {
 			return err
 		}
-		workloads, ok = r.snapshot(assignment.RunID)
+		personWorkloads, groupWorkloads, ok = r.snapshot(assignment.RunID)
 		if !ok {
 			return nil
 		}
 	}
-	for _, wl := range workloads {
-		if err := fn(wl); err != nil {
+	for _, wl := range personWorkloads {
+		if err := fn(wl, nil); err != nil {
+			return err
+		}
+	}
+	for _, wl := range groupWorkloads {
+		if err := fn(nil, wl); err != nil {
 			return err
 		}
 	}
@@ -271,7 +307,7 @@ func personToken(mode, uid string) string {
 	}
 }
 
-func (r *defaultWorkloadRunner) store(runID string, manager *benchworkload.ConnectionManager, workloads []*benchworkload.PersonWorkload) {
+func (r *defaultWorkloadRunner) store(runID string, manager *benchworkload.ConnectionManager, personWorkloads []*benchworkload.PersonWorkload, groupWorkloads []*benchworkload.GroupWorkload) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.manager != nil && r.manager != manager {
@@ -279,16 +315,17 @@ func (r *defaultWorkloadRunner) store(runID string, manager *benchworkload.Conne
 	}
 	r.runID = runID
 	r.manager = manager
-	r.workloads = workloads
+	r.personWorkloads = personWorkloads
+	r.groupWorkloads = groupWorkloads
 }
 
-func (r *defaultWorkloadRunner) snapshot(runID string) ([]*benchworkload.PersonWorkload, bool) {
+func (r *defaultWorkloadRunner) snapshot(runID string) ([]*benchworkload.PersonWorkload, []*benchworkload.GroupWorkload, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.runID != runID || (r.manager == nil && len(r.workloads) == 0) {
-		return nil, false
+	if r.runID != runID || (r.manager == nil && len(r.personWorkloads) == 0 && len(r.groupWorkloads) == 0) {
+		return nil, nil, false
 	}
-	return append([]*benchworkload.PersonWorkload(nil), r.workloads...), true
+	return append([]*benchworkload.PersonWorkload(nil), r.personWorkloads...), append([]*benchworkload.GroupWorkload(nil), r.groupWorkloads...), true
 }
 
 func (r *defaultWorkloadRunner) closeCurrent(runID string) {
@@ -301,7 +338,8 @@ func (r *defaultWorkloadRunner) closeCurrent(runID string) {
 		_ = r.manager.Close()
 	}
 	r.manager = nil
-	r.workloads = nil
+	r.personWorkloads = nil
+	r.groupWorkloads = nil
 }
 
 func (r *defaultWorkloadRunner) reset(runID string) {
@@ -312,5 +350,21 @@ func (r *defaultWorkloadRunner) reset(runID string) {
 	}
 	r.runID = runID
 	r.manager = nil
-	r.workloads = nil
+	r.personWorkloads = nil
+	r.groupWorkloads = nil
+}
+
+func mergeConnectionUsers(groups ...[]benchworkload.ConnectionUser) []benchworkload.ConnectionUser {
+	seen := make(map[string]struct{})
+	users := make([]benchworkload.ConnectionUser, 0)
+	for _, group := range groups {
+		for _, user := range group {
+			if _, ok := seen[user.UID]; ok {
+				continue
+			}
+			seen[user.UID] = struct{}{}
+			users = append(users, user)
+		}
+	}
+	return users
 }
