@@ -34,8 +34,8 @@ beforeEach(() => {
   })
 })
 
-test("shows the current route title, description, and logged-in username", async () => {
-  const router = createMemoryRouter(routes, { initialEntries: ["/network"] })
+test("renders brand, top sections, route metadata, and logged-in username", async () => {
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/nodes"] })
 
   render(
     <AppProviders>
@@ -43,15 +43,19 @@ test("shows the current route title, description, and logged-in username", async
     </AppProviders>,
   )
 
-  expect(within(screen.getByRole("banner")).getByText("Network")).toBeInTheDocument()
-  expect(
-    within(screen.getByRole("banner")).getByText("Local-node transport summary and runtime status."),
-  ).toBeInTheDocument()
-  expect(within(screen.getByRole("banner")).getByText("admin")).toBeInTheDocument()
+  const banner = screen.getByRole("banner")
+  expect(within(banner).getByText("WUKONGIM")).toBeInTheDocument()
+  expect(within(banner).getByRole("link", { name: "Overview" })).toBeInTheDocument()
+  expect(within(banner).getByRole("link", { name: "Cluster Ops" })).toHaveAttribute("aria-current", "page")
+  expect(within(banner).getByRole("link", { name: "Business" })).toBeInTheDocument()
+  expect(within(banner).getByRole("link", { name: "System" })).toBeInTheDocument()
+  expect(within(banner).getByText("Nodes")).toBeInTheDocument()
+  expect(within(banner).getByText("Node inventory, roles, and lifecycle status.")).toBeInTheDocument()
+  expect(within(banner).getByText("admin")).toBeInTheDocument()
 })
 
 test("keeps global actions and lets the user log out", async () => {
-  const router = createMemoryRouter(routes, { initialEntries: ["/network"] })
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/diagnostics?tab=network"] })
   const user = userEvent.setup()
 
   render(
@@ -60,23 +64,20 @@ test("keeps global actions and lets the user log out", async () => {
     </AppProviders>,
   )
 
-  expect(
-    await within(screen.getByRole("banner")).findByRole("button", { name: /refresh/i }),
-  ).toBeInTheDocument()
-  expect(within(screen.getByRole("banner")).getByRole("button", { name: /search/i })).toBeInTheDocument()
-  expect(within(screen.getByRole("banner")).getByRole("button", { name: /logout/i })).toBeInTheDocument()
+  const banner = screen.getByRole("banner")
+  expect(await within(banner).findByRole("button", { name: /refresh/i })).toBeInTheDocument()
+  expect(within(banner).getByRole("button", { name: /search/i })).toBeInTheDocument()
+  expect(within(banner).getByRole("button", { name: /logout/i })).toBeInTheDocument()
 
-  await user.click(within(screen.getByRole("banner")).getByRole("button", { name: /logout/i }))
+  await user.click(within(banner).getByRole("button", { name: /logout/i }))
 
   expect(await screen.findByRole("heading", { name: /sign in/i })).toBeInTheDocument()
   expect(useAuthStore.getState().status).toBe("anonymous")
-  expect(screen.queryByText("Control plane")).not.toBeInTheDocument()
-  expect(screen.queryByText("Manager shell")).not.toBeInTheDocument()
 })
 
-test("switches topbar actions to Chinese and persists the locale", async () => {
+test("switches topbar actions and sections to Chinese", async () => {
   localStorage.setItem("wukongim_manager_locale", "en")
-  const router = createMemoryRouter(routes, { initialEntries: ["/network"] })
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/nodes"] })
   const user = userEvent.setup()
 
   render(
@@ -87,21 +88,8 @@ test("switches topbar actions to Chinese and persists the locale", async () => {
 
   await user.click(await within(screen.getByRole("banner")).findByRole("button", { name: "中文" }))
 
+  expect(within(screen.getByRole("banner")).getByRole("link", { name: "集群运维" })).toHaveAttribute("aria-current", "page")
   expect(within(screen.getByRole("banner")).getByRole("button", { name: "刷新" })).toBeInTheDocument()
   expect(within(screen.getByRole("banner")).getByRole("button", { name: "搜索" })).toBeInTheDocument()
   expect(localStorage.getItem("wukongim_manager_locale")).toBe("zh-CN")
-})
-
-test("reads the translated route title and description from shared metadata", async () => {
-  localStorage.setItem("wukongim_manager_locale", "zh-CN")
-  const router = createMemoryRouter(routes, { initialEntries: ["/network"] })
-
-  render(
-    <AppProviders>
-      <RouterProvider router={router} />
-    </AppProviders>,
-  )
-
-  expect(await within(screen.getByRole("banner")).findByText("网络")).toBeInTheDocument()
-  expect(within(screen.getByRole("banner")).getByText("本地节点传输摘要与运行时状态。")).toBeInTheDocument()
 })

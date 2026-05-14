@@ -27,6 +27,10 @@ const getDiagnosticsEventsMock = vi.fn()
 const getDistributedTasksSummaryMock = vi.fn()
 const getDistributedTasksMock = vi.fn()
 const getDistributedTaskMock = vi.fn()
+const getUsersMock = vi.fn()
+const getBusinessChannelsMock = vi.fn()
+const getSystemUsersMock = vi.fn()
+const getPermissionsMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -52,6 +56,10 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getDistributedTasksSummary: (...args: unknown[]) => getDistributedTasksSummaryMock(...args),
     getDistributedTasks: (...args: unknown[]) => getDistributedTasksMock(...args),
     getDistributedTask: (...args: unknown[]) => getDistributedTaskMock(...args),
+    getUsers: (...args: unknown[]) => getUsersMock(...args),
+    getBusinessChannels: (...args: unknown[]) => getBusinessChannelsMock(...args),
+    getSystemUsers: (...args: unknown[]) => getSystemUsersMock(...args),
+    getPermissions: (...args: unknown[]) => getPermissionsMock(...args),
   }
 })
 
@@ -78,6 +86,10 @@ beforeEach(() => {
   getDistributedTasksSummaryMock.mockReset()
   getDistributedTasksMock.mockReset()
   getDistributedTaskMock.mockReset()
+  getUsersMock.mockReset()
+  getBusinessChannelsMock.mockReset()
+  getSystemUsersMock.mockReset()
+  getPermissionsMock.mockReset()
 
   getOverviewMock.mockResolvedValue({
     generated_at: "2026-04-23T08:00:00Z",
@@ -115,6 +127,10 @@ beforeEach(() => {
   })
   getDistributedTasksMock.mockResolvedValue({ total: 0, items: [], next_cursor: "", has_more: false, partial: false, warnings: [] })
   getDistributedTaskMock.mockResolvedValue({ task: null, detail: { domain: "slot_reconcile", raw_status: "" } })
+  getUsersMock.mockResolvedValue({ items: [], has_more: false })
+  getBusinessChannelsMock.mockResolvedValue({ items: [], has_more: false })
+  getSystemUsersMock.mockResolvedValue({ items: [], total: 0 })
+  getPermissionsMock.mockResolvedValue({ auth_enabled: true, current_user: "admin", users: [], resources: [] })
   getChannelClusterSummaryMock.mockResolvedValue({
     total: 1,
     healthy: 1,
@@ -313,18 +329,20 @@ beforeEach(() => {
 
 it.each([
   ["/dashboard", "Dashboard", "Operations Summary"],
-  ["/nodes", "Nodes", "Address"],
-  ["/tasks", "Distributed Tasks", "Task queue"],
-  ["/channel-cluster/list", "Channel List", "Channel ID"],
-  ["/connections", "Connections", "Session"],
-  ["/messages", "Messages", "Channel ID"],
-  ["/slots", "Slots", "Slot"],
-  ["/onboarding", "Onboarding", "Candidate Nodes"],
-  ["/diagnostics", "Message Diagnostics", "Query"],
-  ["/network", "Network", "Node Health Status"],
-  ["/controller", "Controller Logs", "Log Index"],
-  ["/slot-logs", "Slot Logs", "Log Index"],
-  ["/topology", "Topology", "Topology Summary"],
+  ["/monitor", "Live Monitor", "Coming Soon"],
+  ["/cluster/nodes", "Nodes", "Address"],
+  ["/cluster/slots", "Slots", "Slot"],
+  ["/cluster/channels", "Channel Cluster", "Channel Cluster Overview"],
+  ["/cluster/tasks", "Distributed Tasks", "Task queue"],
+  ["/cluster/topology", "Topology", "Topology Summary"],
+  ["/cluster/diagnostics", "Diagnostics", "Message Diagnostics"],
+  ["/business/users", "User Management", "Users"],
+  ["/business/channels", "Channel Management", "Business channels"],
+  ["/business/messages", "Messages", "Channel ID"],
+  ["/business/system-users", "System Users", "Persisted system UIDs"],
+  ["/system/permissions", "Permissions", "Authentication Summary"],
+  ["/system/webhooks", "Webhook Configuration", "Coming Soon"],
+  ["/system/connections", "Connections", "Session"],
 ])("renders %s shell", async (path, title, section) => {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
 
@@ -356,19 +374,47 @@ test("dashboard shows monochrome workbench sections", async () => {
 })
 
 it.each([
+  ["/cluster/nodes", "CLUSTER / NODES"],
+  ["/cluster/slots", "Slot"],
+  ["/cluster/channels", "CLUSTER / CHANNELS"],
+  ["/cluster/tasks", "Task queue"],
+  ["/cluster/topology", "CLUSTER / TOPOLOGY"],
+  ["/cluster/diagnostics", "CLUSTER / DIAGNOSTICS"],
+  ["/business/users", "BUSINESS / USERS"],
+  ["/business/channels", "BUSINESS / CHANNELS"],
+  ["/business/messages", "BUSINESS / MESSAGES"],
+  ["/business/system-users", "BUSINESS / SYSTEM USERS"],
+  ["/system/permissions", "SYSTEM / PERMISSIONS"],
+  ["/system/webhooks", "SYSTEM / WEBHOOKS"],
+  ["/system/connections", "SYSTEM / CONNECTIONS"],
+])("renders the redesigned path label for %s", async (path, label) => {
+  const router = createMemoryRouter(routes, { initialEntries: [path] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  expect(await screen.findByText(label)).toBeInTheDocument()
+})
+
+it.each([
   ["/dashboard", "仪表盘", "操作摘要"],
-  ["/nodes", "节点", "地址"],
-  ["/tasks", "分布式任务", "任务队列"],
-  ["/channel-cluster/list", "频道列表", "频道 ID"],
-  ["/connections", "连接", "会话"],
-  ["/messages", "消息", "频道 ID"],
-  ["/slots", "槽位", "槽位"],
-  ["/onboarding", "扩容", "候选节点"],
-  ["/diagnostics", "消息诊断", "查询"],
-  ["/network", "网络", "节点健康状态"],
-  ["/controller", "控制面日志", "日志索引"],
-  ["/slot-logs", "槽位日志", "日志索引"],
-  ["/topology", "拓扑", "拓扑摘要"],
+  ["/monitor", "实时监控", "即将推出"],
+  ["/cluster/nodes", "节点", "地址"],
+  ["/cluster/slots", "槽位", "槽位"],
+  ["/cluster/channels", "频道集群", "频道集群总览"],
+  ["/cluster/tasks", "分布式任务", "任务队列"],
+  ["/cluster/topology", "拓扑", "拓扑摘要"],
+  ["/cluster/diagnostics", "诊断", "消息诊断"],
+  ["/business/users", "用户管理", "用户"],
+  ["/business/channels", "频道管理", "业务频道"],
+  ["/business/messages", "消息", "频道 ID"],
+  ["/business/system-users", "系统用户", "持久化系统 UID"],
+  ["/system/permissions", "权限管理", "认证摘要"],
+  ["/system/webhooks", "Webhook 配置", "即将推出"],
+  ["/system/connections", "连接", "会话"],
 ])("renders %s in Chinese", async (path, title, section) => {
   localStorage.setItem("wukongim_manager_locale", "zh-CN")
   const router = createMemoryRouter(routes, { initialEntries: [path] })

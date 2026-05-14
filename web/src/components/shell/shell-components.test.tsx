@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { render, screen, within } from "@testing-library/react"
 import { beforeEach } from "vitest"
+import { MemoryRouter } from "react-router-dom"
 
 import { ActionFormDialog } from "@/components/manager/action-form-dialog"
 import { ConfirmDialog } from "@/components/manager/confirm-dialog"
@@ -11,7 +12,10 @@ import { I18nProvider } from "@/i18n/provider"
 import { resetLocale } from "@/i18n/locale-store"
 import { MetricPlaceholder } from "@/components/shell/metric-placeholder"
 import { PageHeader } from "@/components/shell/page-header"
+import { PageTabs } from "@/components/shell/page-tabs"
 import { PlaceholderBlock } from "@/components/shell/placeholder-block"
+import { StatusDot } from "@/components/shell/status-dot"
+import { StatusMetricCard } from "@/components/shell/status-metric-card"
 
 beforeEach(() => {
   localStorage.clear()
@@ -22,8 +26,16 @@ function renderWithI18n(node: ReactNode) {
   return render(<I18nProvider>{node}</I18nProvider>)
 }
 
+function renderWithProviders(node: ReactNode) {
+  return render(
+    <I18nProvider>
+      <MemoryRouter>{node}</MemoryRouter>
+    </I18nProvider>,
+  )
+}
+
 test("page header renders a flat tool row", () => {
-  render(
+  renderWithProviders(
     <PageHeader
       title="Dashboard"
       description="Runtime summary."
@@ -45,6 +57,26 @@ test("metric placeholder is a compact data cell", () => {
   expect(screen.getByText("--")).toBeInTheDocument()
   expect(screen.getByText("Registered node count.")).toBeInTheDocument()
   expect(screen.queryByText("Ready")).not.toBeInTheDocument()
+})
+
+test("status dot exposes the selected semantic tone", () => {
+  render(<StatusDot tone="healthy" />)
+
+  expect(screen.getByTestId("status-dot")).toHaveAttribute("data-tone", "healthy")
+})
+
+test("status metric card renders a monospace value with a status dot", () => {
+  render(<StatusMetricCard label="NODES" value="3" tone="healthy" description="Live nodes" />)
+
+  expect(screen.getByText("3")).toHaveClass("font-mono")
+  expect(screen.getByText("Live nodes")).toBeInTheDocument()
+  expect(screen.getByTestId("status-dot")).toHaveAttribute("data-tone", "healthy")
+})
+
+test("page tabs expose accessible tab state", () => {
+  render(<PageTabs activeTab="overview" tabs={[{ id: "overview", label: "Overview" }]} onTabChange={() => undefined} />)
+
+  expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true")
 })
 
 test("table placeholder exposes structural table rows", () => {

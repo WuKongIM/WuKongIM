@@ -21,8 +21,8 @@ beforeEach(() => {
   })
 })
 
-test("marks the current navigation item with aria-current", async () => {
-  const router = createMemoryRouter(routes, { initialEntries: ["/slots"] })
+test("shows only the active section navigation items", async () => {
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/nodes"] })
 
   render(
     <AppProviders>
@@ -30,23 +30,10 @@ test("marks the current navigation item with aria-current", async () => {
     </AppProviders>,
   )
 
-  expect(await screen.findByRole("link", { name: "Slots" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  )
-})
-
-test("renders sidebar links without description copy", async () => {
-  const router = createMemoryRouter(routes, { initialEntries: ["/slots"] })
-
-  render(
-    <AppProviders>
-      <RouterProvider router={router} />
-    </AppProviders>,
-  )
-
-  expect(await screen.findByRole("link", { name: "Slots" })).toBeInTheDocument()
-  expect(screen.queryAllByText("Slot distribution and status shell.")).toHaveLength(0)
+  expect(await screen.findByRole("link", { name: "Nodes" })).toHaveAttribute("aria-current", "page")
+  expect(screen.getByRole("link", { name: "Slots" })).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Channel Cluster" })).toBeInTheDocument()
+  expect(screen.queryByRole("link", { name: "Users" })).not.toBeInTheDocument()
 })
 
 test("keeps the cluster context visible in the sidebar", async () => {
@@ -62,9 +49,9 @@ test("keeps the cluster context visible in the sidebar", async () => {
   expect(screen.getByText("Single-node cluster")).toBeInTheDocument()
 })
 
-test("renders Chinese navigation labels and cluster context when locale is zh-CN", async () => {
+test("renders Chinese navigation labels and cluster context", async () => {
   localStorage.setItem("wukongim_manager_locale", "zh-CN")
-  const router = createMemoryRouter(routes, { initialEntries: ["/dashboard"] })
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/nodes"] })
 
   render(
     <AppProviders>
@@ -72,7 +59,7 @@ test("renders Chinese navigation labels and cluster context when locale is zh-CN
     </AppProviders>,
   )
 
-  expect(await screen.findByRole("link", { name: "仪表盘" })).toBeInTheDocument()
-  expect(screen.getByText("全局集群")).toBeInTheDocument()
+  expect(await screen.findByRole("link", { name: "节点" })).toHaveAttribute("aria-current", "page")
+  expect(screen.getAllByText("集群运维").length).toBeGreaterThan(0)
   expect(screen.getByText("单节点集群")).toBeInTheDocument()
 })

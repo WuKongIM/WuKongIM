@@ -8,7 +8,7 @@ type PageContainerProps = PropsWithChildren<{
 
 export function PageContainer({ children, className }: PageContainerProps) {
   return (
-    <div className={cn("mx-auto flex w-full max-w-7xl flex-col gap-4 px-6 py-6", className)}>
+    <div className={cn("mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-5 py-5", className)}>
       {children}
     </div>
   )

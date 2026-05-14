@@ -7,7 +7,6 @@ import { NodeFilter, defaultNodeId, hasNode } from "@/components/manager/node-fi
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
 import { PageContainer } from "@/components/shell/page-container"
-import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
 import { Button } from "@/components/ui/button"
 import { compactSlotRaftLogOnNode, getNodes, getSlotLogs, getSlots, ManagerApiError } from "@/lib/manager-api"
@@ -174,7 +173,7 @@ function SlotCompactionResultPanel({
   )
 }
 
-export function SlotLogsPage() {
+export function SlotLogsPanel() {
   const intl = useIntl()
   const permissions = useAuthStore((authState) => authState.permissions)
   const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
@@ -350,61 +349,67 @@ export function SlotLogsPage() {
   }, [canCompactSlotLogs, loadSlotLogs, selectedNodeId, selectedSlotId])
 
   return (
-    <PageContainer>
-      <PageHeader
-        actions={(
-          <div className="flex flex-wrap items-center gap-2">
-            <NodeFilter nodes={nodes} selectedNodeId={selectedNodeId} onNodeChange={setSelectedNodeId} />
-            <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <span>{intl.formatMessage({ id: "slotLogs.slotFilter" })}</span>
-              <select
-                aria-label={intl.formatMessage({ id: "slotLogs.slotFilter" })}
-                className="h-7 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
-                disabled={!slotsState.slots || slotsState.slots.items.length === 0}
-                onChange={(event) => {
-                  const nextSlotId = Number(event.target.value)
-                  setSelectedSlotId(Number.isInteger(nextSlotId) && nextSlotId >= 0 ? nextSlotId : null)
-                }}
-                value={selectedSlotId ?? ""}
-              >
-                {slotsState.slots?.items.map((slot) => (
-                  <option key={slot.slot_id} value={slot.slot_id}>
-                    {intl.formatMessage({ id: "slotLogs.slotValue" }, { id: slot.slot_id })}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button
-              disabled={!canCompactSlotLogs}
-              onClick={() => setCompactionDialogOpen(true)}
-              size="sm"
-              variant="outline"
-            >
-              {compactionState.loading ? intl.formatMessage({ id: "slotLogs.compaction.triggering" }) : intl.formatMessage({ id: "slotLogs.compaction.trigger" })}
-            </Button>
-            {!hasSlotCompactionPermission ? (
-              <span className="text-xs text-muted-foreground">
-                {intl.formatMessage({ id: "slotLogs.compaction.permissionRequired" })}
-              </span>
-            ) : null}
-            <Button
-              disabled={!canRefresh}
-              onClick={() => {
-                if (selectedNodeId !== null && selectedSlotId !== null) {
-                  void loadSlotLogs(selectedNodeId, selectedSlotId)
-                }
-              }}
-              size="sm"
-              variant="outline"
-            >
-              {state.loading ? intl.formatMessage({ id: "common.refreshing" }) : intl.formatMessage({ id: "common.refresh" })}
-            </Button>
+    <>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-2">
+          <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            {intl.formatMessage({ id: "slotLogs.eyebrow" })}
           </div>
-        )}
-        description={intl.formatMessage({ id: "slotLogs.description" })}
-        eyebrow={intl.formatMessage({ id: "slotLogs.eyebrow" })}
-        title={intl.formatMessage({ id: "slotLogs.title" })}
-      />
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
+            {intl.formatMessage({ id: "slotLogs.title" })}
+          </h2>
+          <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+            {intl.formatMessage({ id: "slotLogs.description" })}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <NodeFilter nodes={nodes} selectedNodeId={selectedNodeId} onNodeChange={setSelectedNodeId} />
+          <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <span>{intl.formatMessage({ id: "slotLogs.slotFilter" })}</span>
+            <select
+              aria-label={intl.formatMessage({ id: "slotLogs.slotFilter" })}
+              className="h-7 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+              disabled={!slotsState.slots || slotsState.slots.items.length === 0}
+              onChange={(event) => {
+                const nextSlotId = Number(event.target.value)
+                setSelectedSlotId(Number.isInteger(nextSlotId) && nextSlotId >= 0 ? nextSlotId : null)
+              }}
+              value={selectedSlotId ?? ""}
+            >
+              {slotsState.slots?.items.map((slot) => (
+                <option key={slot.slot_id} value={slot.slot_id}>
+                  {intl.formatMessage({ id: "slotLogs.slotValue" }, { id: slot.slot_id })}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button
+            disabled={!canCompactSlotLogs}
+            onClick={() => setCompactionDialogOpen(true)}
+            size="sm"
+            variant="outline"
+          >
+            {compactionState.loading ? intl.formatMessage({ id: "slotLogs.compaction.triggering" }) : intl.formatMessage({ id: "slotLogs.compaction.trigger" })}
+          </Button>
+          {!hasSlotCompactionPermission ? (
+            <span className="text-xs text-muted-foreground">
+              {intl.formatMessage({ id: "slotLogs.compaction.permissionRequired" })}
+            </span>
+          ) : null}
+          <Button
+            disabled={!canRefresh}
+            onClick={() => {
+              if (selectedNodeId !== null && selectedSlotId !== null) {
+                void loadSlotLogs(selectedNodeId, selectedSlotId)
+              }
+            }}
+            size="sm"
+            variant="outline"
+          >
+            {state.loading ? intl.formatMessage({ id: "common.refreshing" }) : intl.formatMessage({ id: "common.refresh" })}
+          </Button>
+        </div>
+      </div>
 
       {compactionState.error ? (
         <ResourceState
@@ -537,6 +542,14 @@ export function SlotLogsPage() {
         pending={compactionState.loading}
         title={intl.formatMessage({ id: "slotLogs.compaction.dialog.title" })}
       />
+    </>
+  )
+}
+
+export function SlotLogsPage() {
+  return (
+    <PageContainer>
+      <SlotLogsPanel />
     </PageContainer>
   )
 }

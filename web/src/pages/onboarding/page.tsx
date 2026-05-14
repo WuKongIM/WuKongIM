@@ -8,7 +8,6 @@ import { StatusBadge } from "@/components/manager/status-badge"
 import { TableToolbar } from "@/components/manager/table-toolbar"
 import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/shell/page-container"
-import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
 import {
   ManagerApiError,
@@ -80,7 +79,7 @@ function formatPeerMove(source: number, target: number) {
   return `${source} -> ${target}`
 }
 
-export function OnboardingPage() {
+export function NodeOnboardingPanel() {
   const intl = useIntl()
   const permissions = useAuthStore((state) => state.permissions)
   const canWriteSlots = useMemo(
@@ -235,11 +234,17 @@ export function OnboardingPage() {
   const runningOrTerminal = activeJob ? activeJob.status === "running" || terminalJobStatuses.has(activeJob.status) : false
 
   return (
-    <PageContainer>
-      <PageHeader
-        title={intl.formatMessage({ id: "nav.onboarding.title" })}
-        description={intl.formatMessage({ id: "nav.onboarding.description" })}
-        actions={
+    <>
+      <section className="rounded-lg border border-border bg-card p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">
+              {intl.formatMessage({ id: "nav.onboarding.title" })}
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+              {intl.formatMessage({ id: "nav.onboarding.description" })}
+            </p>
+          </div>
           <Button
             onClick={() => {
               void loadOnboarding(true)
@@ -251,9 +256,8 @@ export function OnboardingPage() {
               ? intl.formatMessage({ id: "common.refreshing" })
               : intl.formatMessage({ id: "common.refresh" })}
           </Button>
-        }
-      >
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
           <div className="rounded-md border border-border bg-background px-3 py-2">
             {intl.formatMessage({ id: "onboarding.scope" })}
           </div>
@@ -264,7 +268,7 @@ export function OnboardingPage() {
             )}
           </div>
         </div>
-      </PageHeader>
+      </section>
 
       {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nav.onboarding.title" })} /> : null}
       {!state.loading && state.error ? (
@@ -531,6 +535,14 @@ export function OnboardingPage() {
         pending={startPending}
         title={intl.formatMessage({ id: "onboarding.startConfirmTitle" })}
       />
+    </>
+  )
+}
+
+export function OnboardingPage() {
+  return (
+    <PageContainer>
+      <NodeOnboardingPanel />
     </PageContainer>
   )
 }

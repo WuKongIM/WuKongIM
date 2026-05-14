@@ -3,7 +3,6 @@ import { useIntl, type IntlShape } from "react-intl"
 
 import { ResourceState } from "@/components/manager/resource-state"
 import { PageContainer } from "@/components/shell/page-container"
-import { PageHeader } from "@/components/shell/page-header"
 import { ManagerApiError } from "@/lib/manager-api"
 import type { ManagerNetworkSummaryResponse } from "@/lib/manager-api.types"
 import { ConnectionPoolCard } from "./components/connection-pool-card"
@@ -83,7 +82,7 @@ function detailTitle(intl: IntlShape, kind: NetworkDetailKind | null) {
   return intl.formatMessage({ id: "network.detail.title" }, { title: intl.formatMessage({ id: ids[kind] }) })
 }
 
-export function NetworkPage() {
+export function DiagnosticsNetworkPanel() {
   const intl = useIntl()
   const filter = useNodeFilter()
   const network = useNetworkData({ selectedNodes: filter.selectedNodes, autoRefresh: filter.autoRefresh })
@@ -95,8 +94,15 @@ export function NetworkPage() {
   const errorKind = mapErrorKind(network.error)
 
   return (
-    <PageContainer>
-      <PageHeader title={intl.formatMessage({ id: "network.title" })} description={intl.formatMessage({ id: "network.description" })} />
+    <>
+      <div className="flex flex-col gap-1">
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">
+          {intl.formatMessage({ id: "network.title" })}
+        </h2>
+        <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+          {intl.formatMessage({ id: "network.description" })}
+        </p>
+      </div>
 
       {network.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "network.title" })} description={intl.formatMessage({ id: "network.loading" })} /> : null}
       {!network.loading && network.error ? <ResourceState kind={errorKind} onRetry={() => { void network.refresh() }} title={resourceTitle(intl, network.error)} /> : null}
@@ -129,6 +135,14 @@ export function NetworkPage() {
           <DetailDrawer kind={detailKind} metrics={metrics} onOpenChange={(open) => { if (!open) setDetailKind(null) }} open={detailKind !== null} title={detailTitle(intl, detailKind)} />
         </>
       ) : null}
+    </>
+  )
+}
+
+export function NetworkPage() {
+  return (
+    <PageContainer>
+      <DiagnosticsNetworkPanel />
     </PageContainer>
   )
 }
