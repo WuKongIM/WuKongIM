@@ -62,6 +62,8 @@ type Worker struct {
 	Weight float64 `json:"weight" yaml:"weight"`
 	// ControlToken is an optional shared token for worker control requests.
 	ControlToken string `json:"control_token" yaml:"control_token"`
+	// InsecureControl allows unauthenticated worker control checks when explicitly enabled.
+	InsecureControl bool `json:"insecure_control" yaml:"insecure_control"`
 	// Tags are free-form labels for worker selection.
 	Tags []string `json:"tags" yaml:"tags"`
 }

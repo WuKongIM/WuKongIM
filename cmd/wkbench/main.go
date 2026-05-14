@@ -56,7 +56,7 @@ type benchConfigPaths struct {
 }
 
 func runValidate(args []string, stderr io.Writer) int {
-	targetCfg, scenario, workers, code := loadBenchInputs("validate", args, stderr)
+	targetCfg, scenario, workers, code := loadValidateInputs("validate", args, stderr)
 	if code != 0 {
 		return code
 	}
@@ -69,13 +69,15 @@ func runValidate(args []string, stderr io.Writer) int {
 }
 
 func runDoctor(args []string, stderr io.Writer) int {
-	targetCfg, scenario, workers, code := loadBenchInputs("doctor", args, stderr)
+	targetCfg, workers, scenario, hasScenario, code := loadDoctorInputs("doctor", args, stderr)
 	if code != 0 {
 		return code
 	}
-	if _, err := planner.Build(scenario, workers.Workers); err != nil {
-		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
-		return exitConfig
+	if hasScenario {
+		if _, err := planner.Build(scenario, workers.Workers); err != nil {
+			fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+			return exitConfig
+		}
 	}
 	if err := coordinator.NewPreflight(coordinator.PreflightConfig{}).Check(context.Background(), targetCfg, workers); err != nil {
 		fmt.Fprintf(stderr, "preflight failed: %v\n", err)
@@ -84,22 +86,16 @@ func runDoctor(args []string, stderr io.Writer) int {
 	return 0
 }
 
-func loadBenchInputs(name string, args []string, stderr io.Writer) (config.Target, config.Scenario, config.WorkerSet, int) {
-	paths, code := parseBenchConfigPaths(name, args, stderr)
+func loadValidateInputs(name string, args []string, stderr io.Writer) (config.Target, config.Scenario, config.WorkerSet, int) {
+	paths, code := parseBenchConfigPaths(name, args, stderr, true)
 	if code != 0 {
 		return config.Target{}, config.Scenario{}, config.WorkerSet{}, code
 	}
-	targetCfg, err := config.LoadTarget(paths.target)
-	if err != nil {
-		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
-		return config.Target{}, config.Scenario{}, config.WorkerSet{}, exitConfig
+	targetCfg, workers, code := loadTargetAndWorkers(paths, stderr)
+	if code != 0 {
+		return config.Target{}, config.Scenario{}, config.WorkerSet{}, code
 	}
 	scenario, err := config.LoadScenario(paths.scenario)
-	if err != nil {
-		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
-		return config.Target{}, config.Scenario{}, config.WorkerSet{}, exitConfig
-	}
-	workers, err := config.LoadWorkerSet(paths.workers)
 	if err != nil {
 		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
 		return config.Target{}, config.Scenario{}, config.WorkerSet{}, exitConfig
@@ -111,7 +107,49 @@ func loadBenchInputs(name string, args []string, stderr io.Writer) (config.Targe
 	return targetCfg, scenario, workers, 0
 }
 
-func parseBenchConfigPaths(name string, args []string, stderr io.Writer) (benchConfigPaths, int) {
+func loadDoctorInputs(name string, args []string, stderr io.Writer) (config.Target, config.WorkerSet, config.Scenario, bool, int) {
+	paths, code := parseBenchConfigPaths(name, args, stderr, false)
+	if code != 0 {
+		return config.Target{}, config.WorkerSet{}, config.Scenario{}, false, code
+	}
+	targetCfg, workers, code := loadTargetAndWorkers(paths, stderr)
+	if code != 0 {
+		return config.Target{}, config.WorkerSet{}, config.Scenario{}, false, code
+	}
+	if paths.scenario == "" {
+		return targetCfg, workers, config.Scenario{}, false, 0
+	}
+	scenario, err := config.LoadScenario(paths.scenario)
+	if err != nil {
+		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+		return config.Target{}, config.WorkerSet{}, config.Scenario{}, false, exitConfig
+	}
+	if err := config.ValidateTargetScenario(targetCfg, scenario); err != nil {
+		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+		return config.Target{}, config.WorkerSet{}, config.Scenario{}, false, exitConfig
+	}
+	return targetCfg, workers, scenario, true, 0
+}
+
+func loadTargetAndWorkers(paths benchConfigPaths, stderr io.Writer) (config.Target, config.WorkerSet, int) {
+	targetCfg, err := config.LoadTarget(paths.target)
+	if err != nil {
+		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+		return config.Target{}, config.WorkerSet{}, exitConfig
+	}
+	workers, err := config.LoadWorkerSet(paths.workers)
+	if err != nil {
+		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+		return config.Target{}, config.WorkerSet{}, exitConfig
+	}
+	if err := config.ValidateStaticConfig(targetCfg, workers); err != nil {
+		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+		return config.Target{}, config.WorkerSet{}, exitConfig
+	}
+	return targetCfg, workers, 0
+}
+
+func parseBenchConfigPaths(name string, args []string, stderr io.Writer, scenarioRequired bool) (benchConfigPaths, int) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var paths benchConfigPaths
@@ -125,7 +163,7 @@ func parseBenchConfigPaths(name string, args []string, stderr io.Writer) (benchC
 		fmt.Fprintln(stderr, "--target is required")
 		return benchConfigPaths{}, exitConfig
 	}
-	if paths.scenario == "" {
+	if scenarioRequired && paths.scenario == "" {
 		fmt.Fprintln(stderr, "--scenario is required")
 		return benchConfigPaths{}, exitConfig
 	}

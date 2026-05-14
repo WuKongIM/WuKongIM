@@ -70,17 +70,17 @@ func (c *Client) Snapshot(ctx context.Context) (model.BenchSnapshot, error) {
 
 // UpsertTokens posts a spec-shaped batch user token request.
 func (c *Client) UpsertTokens(ctx context.Context, req model.BatchTokensRequest) error {
-	return c.postFirst(ctx, "/bench/v1/users/tokens", req)
+	return c.postAny(ctx, "/bench/v1/users/tokens", req)
 }
 
 // UpsertChannels posts a spec-shaped batch channel upsert request.
 func (c *Client) UpsertChannels(ctx context.Context, req model.BatchChannelsRequest) error {
-	return c.postFirst(ctx, "/bench/v1/channels", req)
+	return c.postAny(ctx, "/bench/v1/channels", req)
 }
 
 // AddSubscribers posts a spec-shaped batch subscribers request.
 func (c *Client) AddSubscribers(ctx context.Context, req model.BatchSubscribersRequest) error {
-	return c.postFirst(ctx, "/bench/v1/channels/subscribers", req)
+	return c.postAny(ctx, "/bench/v1/channels/subscribers", req)
 }
 
 func (c *Client) getAny(ctx context.Context, path string, out any) error {
@@ -99,12 +99,20 @@ func (c *Client) getAny(ctx context.Context, path string, out any) error {
 	return fmt.Errorf("all target api addresses failed: %s", strings.Join(errs, "; "))
 }
 
-func (c *Client) postFirst(ctx context.Context, path string, body any) error {
+func (c *Client) postAny(ctx context.Context, path string, body any) error {
 	addrs := c.addrs()
 	if len(addrs) == 0 {
 		return fmt.Errorf("no target api addresses configured")
 	}
-	return c.doJSON(ctx, http.MethodPost, addrs[0], path, body, nil)
+	var errs []string
+	for _, addr := range addrs {
+		if err := c.doJSON(ctx, http.MethodPost, addr, path, body, nil); err != nil {
+			errs = append(errs, err.Error())
+			continue
+		}
+		return nil
+	}
+	return fmt.Errorf("all target api addresses failed: %s", strings.Join(errs, "; "))
 }
 
 func (c *Client) doJSON(ctx context.Context, method, base, path string, body any, out any) error {
