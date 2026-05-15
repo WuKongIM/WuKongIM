@@ -291,6 +291,38 @@ func TestRuntimeRestartMarksErrorWhenProcessStartFails(t *testing.T) {
 	require.Contains(t, got.LastError, "boom")
 }
 
+func TestRuntimeDisabledUninstallDoesNothing(t *testing.T) {
+	dir := t.TempDir()
+	pluginDir := filepath.Join(dir, "plugins")
+	stateDir := filepath.Join(dir, "state")
+	pluginPath := filepath.Join(pluginDir, "alpha.wkp")
+	require.NoError(t, os.MkdirAll(pluginDir, 0o755))
+	writeExecutablePlugin(t, pluginPath)
+	store := NewStore(stateDir)
+	manager := &recordingRuntimeProcessManager{}
+	runtime := NewRuntime(RuntimeOptions{
+		Enable:         false,
+		Dir:            pluginDir,
+		SocketPath:     filepath.Join(dir, "run", "plugin.sock"),
+		SandboxDir:     filepath.Join(dir, "sandbox"),
+		StateDir:       stateDir,
+		Store:          store,
+		Socket:         &recordingRuntimeSocket{},
+		ProcessManager: manager,
+		Scanner: func(string) ([]ProcessSpec, error) {
+			t.Fatal("scanner should not be called when runtime is disabled")
+			return nil, nil
+		},
+	})
+
+	require.NoError(t, runtime.Uninstall(context.Background(), "alpha"))
+
+	require.Empty(t, manager.stopped)
+	require.FileExists(t, pluginPath)
+	_, err := store.Load("alpha")
+	require.ErrorIs(t, err, ErrDesiredStateNotFound)
+}
+
 func TestRuntimeUninstallStopsProcessDisablesStateAndRemovesLocalBinary(t *testing.T) {
 	dir := t.TempDir()
 	pluginDir := filepath.Join(dir, "plugins")
