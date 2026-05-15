@@ -158,6 +158,34 @@ func TestConnectionManagerSessionsReturnsStableCopy(t *testing.T) {
 	}
 }
 
+func TestConnectionManagerMetricsCountPartialConnectFailureByUser(t *testing.T) {
+	factory := &recordingClientFactory{}
+	manager, err := NewConnectionManager(ConnectionManagerConfig{
+		GatewayAddrs:  []string{"gw-a:5100"},
+		ClientFactory: factory.newClient,
+	})
+	if err != nil {
+		t.Fatalf("NewConnectionManager() error = %v", err)
+	}
+	defer manager.Close()
+
+	err = manager.Connect(context.Background(), []ConnectionUser{{UID: "u1", DeviceID: "d1"}, {UID: "fail", DeviceID: "d2"}, {UID: "u3", DeviceID: "d3"}})
+	if err == nil {
+		t.Fatal("Connect() error = nil, want partial failure")
+	}
+
+	snap := manager.MetricsSnapshot()
+	if got, want := snap.Counters["connect_attempt_total"], uint64(2); got != want {
+		t.Fatalf("connect_attempt_total = %d, want %d", got, want)
+	}
+	if got, want := snap.Counters["connect_success_total"], uint64(1); got != want {
+		t.Fatalf("connect_success_total = %d, want %d", got, want)
+	}
+	if got, want := snap.Counters["connect_error_total"], uint64(1); got != want {
+		t.Fatalf("connect_error_total = %d, want %d", got, want)
+	}
+}
+
 func TestConnectionManagerRejectsInvalidConfig(t *testing.T) {
 	if _, err := NewConnectionManager(ConnectionManagerConfig{}); err == nil {
 		t.Fatal("NewConnectionManager() error = nil, want missing gateway error")

@@ -42,7 +42,7 @@ const (
 	StatusFailed Status = "failed"
 )
 
-// Summary contains aggregate run quality measurements used for limit checks.
+// Summary contains run quality measurements used for limit checks.
 type Summary struct {
 	// ConnectErrorRate is failed connects divided by attempted connects.
 	ConnectErrorRate float64 `json:"connect_error_rate"`
@@ -52,10 +52,10 @@ type Summary struct {
 	RecvVerifyErrorRate float64 `json:"recv_verify_error_rate"`
 	// WorkerFailed is the number of failed or unreachable workers.
 	WorkerFailed int `json:"worker_failed"`
-	// SendackP99 is the observed p99 send acknowledgement latency.
-	SendackP99 time.Duration `json:"sendack_p99"`
-	// RecvP99 is the observed p99 receive latency.
-	RecvP99 time.Duration `json:"recv_p99"`
+	// SendackMaxWorkerP99 is the maximum worker-local send acknowledgement p99 latency.
+	SendackMaxWorkerP99 time.Duration `json:"sendack_max_worker_p99"`
+	// RecvMaxWorkerP99 is the maximum worker-local receive p99 latency.
+	RecvMaxWorkerP99 time.Duration `json:"recv_max_worker_p99"`
 }
 
 // Violation describes one failed or warning benchmark limit.
@@ -92,9 +92,9 @@ type Input struct {
 	Plan model.Plan
 	// Limits contains hard and soft failure thresholds.
 	Limits model.LimitsConfig
-	// Summary contains aggregate metrics used for limit evaluation.
+	// Summary contains run metrics used for limit evaluation.
 	Summary Summary
-	// Metrics contains aggregated safe metrics.
+	// Metrics contains safely merged worker metrics.
 	Metrics metrics.SnapshotData
 	// WorkerReports contains raw per-worker report payloads.
 	WorkerReports []WorkerReport
@@ -116,7 +116,7 @@ type Report struct {
 	Status Status `json:"status"`
 	// ExitCode is the wkbench process exit code associated with the verdict.
 	ExitCode int `json:"exit_code"`
-	// Summary contains aggregate run quality measurements.
+	// Summary contains run quality measurements.
 	Summary Summary `json:"summary"`
 	// Violations contains enforced limit failures.
 	Violations []Violation `json:"violations"`
@@ -130,7 +130,7 @@ type Report struct {
 	Workers model.WorkerSet `json:"workers"`
 	// Plan is the deterministic worker assignment used for the run.
 	Plan model.Plan `json:"plan"`
-	// Metrics contains aggregate safe metrics.
+	// Metrics contains safely merged worker metrics.
 	Metrics metrics.SnapshotData `json:"metrics"`
 	// WorkerReports contains raw per-worker report payloads.
 	WorkerReports []WorkerReport `json:"worker_reports,omitempty"`
@@ -250,11 +250,11 @@ func hardLimitViolations(l model.HardLimitsConfig, s Summary) []Violation {
 
 func softLimitViolations(l model.SoftLimitsConfig, s Summary) []Violation {
 	var out []Violation
-	if l.MaxSendackP99 > 0 && s.SendackP99 > l.MaxSendackP99 {
-		out = append(out, Violation{Name: "max_sendack_p99", Actual: float64(s.SendackP99), Limit: float64(l.MaxSendackP99)})
+	if l.MaxSendackP99 > 0 && s.SendackMaxWorkerP99 > l.MaxSendackP99 {
+		out = append(out, Violation{Name: "max_sendack_p99", Actual: float64(s.SendackMaxWorkerP99), Limit: float64(l.MaxSendackP99)})
 	}
-	if l.MaxRecvP99 > 0 && s.RecvP99 > l.MaxRecvP99 {
-		out = append(out, Violation{Name: "max_recv_p99", Actual: float64(s.RecvP99), Limit: float64(l.MaxRecvP99)})
+	if l.MaxRecvP99 > 0 && s.RecvMaxWorkerP99 > l.MaxRecvP99 {
+		out = append(out, Violation{Name: "max_recv_p99", Actual: float64(s.RecvMaxWorkerP99), Limit: float64(l.MaxRecvP99)})
 	}
 	return out
 }
@@ -268,6 +268,7 @@ func appendRateViolation(out []Violation, name string, actual, limit float64, ha
 
 // SummaryFromMetrics derives report limit inputs from aggregated worker metrics.
 func SummaryFromMetrics(snapshot metrics.SnapshotData, workerFailed int) Summary {
+	connectAttempts := counterSum(snapshot, "connect_attempt_total")
 	connectSuccess := counterSum(snapshot, "connect_success_total")
 	connectErrors := counterSum(snapshot, "connect_error_total")
 	sendSuccess := counterSum(snapshot, "person_send_success_total", "group_send_success_total", "sendack_success_total")
@@ -275,12 +276,12 @@ func SummaryFromMetrics(snapshot metrics.SnapshotData, workerFailed int) Summary
 	recvSuccess := counterSum(snapshot, "person_recv_success_total", "group_recv_success_total", "recv_verify_success_total")
 	recvErrors := counterSum(snapshot, "person_recv_error_total", "group_recv_error_total", "recv_verify_error_total")
 	return Summary{
-		ConnectErrorRate:    errorRate(connectErrors, connectSuccess),
+		ConnectErrorRate:    connectErrorRate(connectErrors, connectSuccess, connectAttempts),
 		SendackErrorRate:    errorRate(sendErrors, sendSuccess),
 		RecvVerifyErrorRate: errorRate(recvErrors, recvSuccess),
 		WorkerFailed:        workerFailed,
-		SendackP99:          maxHistogramP99(snapshot, "person_send_latency_seconds", "group_send_latency_seconds", "sendack_latency_seconds"),
-		RecvP99:             maxHistogramP99(snapshot, "person_recv_latency_seconds", "group_recv_latency_seconds", "recv_latency_seconds"),
+		SendackMaxWorkerP99: maxHistogramP99(snapshot, "person_send_latency_seconds", "group_send_latency_seconds", "sendack_latency_seconds"),
+		RecvMaxWorkerP99:    maxHistogramP99(snapshot, "person_recv_latency_seconds", "group_recv_latency_seconds", "recv_latency_seconds"),
 	}
 }
 
@@ -303,6 +304,13 @@ func metricName(key string) string {
 		return strings.TrimSpace(key[:idx])
 	}
 	return strings.TrimSpace(key)
+}
+
+func connectErrorRate(errors, successes, attempts uint64) float64 {
+	if attempts > 0 {
+		return float64(errors) / float64(attempts)
+	}
+	return errorRate(errors, successes)
 }
 
 func errorRate(errors, successes uint64) float64 {
@@ -354,6 +362,8 @@ func summaryMarkdown(rep Report) string {
 	fmt.Fprintf(&b, "- connect_error_rate: %.6f\n", rep.Summary.ConnectErrorRate)
 	fmt.Fprintf(&b, "- recv_verify_error_rate: %.6f\n", rep.Summary.RecvVerifyErrorRate)
 	fmt.Fprintf(&b, "- worker_failed: %d\n", rep.Summary.WorkerFailed)
+	fmt.Fprintf(&b, "- sendack_max_worker_p99: %s\n", rep.Summary.SendackMaxWorkerP99)
+	fmt.Fprintf(&b, "- recv_max_worker_p99: %s\n", rep.Summary.RecvMaxWorkerP99)
 	return b.String()
 }
 

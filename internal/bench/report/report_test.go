@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -44,7 +45,7 @@ func TestBuildExplicitZeroHardLimitFailsWhenActualIsPositive(t *testing.T) {
 	}
 }
 
-func TestSummaryFromMetricsComputesRatesAndP99(t *testing.T) {
+func TestSummaryFromMetricsComputesRatesAndMaxWorkerP99(t *testing.T) {
 	summary := SummaryFromMetrics(metrics.SnapshotData{
 		Counters: map[string]uint64{
 			"connect_success_total":     8,
@@ -73,8 +74,34 @@ func TestSummaryFromMetricsComputesRatesAndP99(t *testing.T) {
 	if summary.WorkerFailed != 2 {
 		t.Fatalf("worker_failed = %d, want 2", summary.WorkerFailed)
 	}
-	if summary.SendackP99 != 50*time.Millisecond {
-		t.Fatalf("sendack_p99 = %s, want 50ms", summary.SendackP99)
+	if summary.SendackMaxWorkerP99 != 50*time.Millisecond {
+		t.Fatalf("sendack_max_worker_p99 = %s, want 50ms", summary.SendackMaxWorkerP99)
+	}
+}
+
+func TestSummaryFromMetricsUsesConnectAttemptsAsRateDenominator(t *testing.T) {
+	summary := SummaryFromMetrics(metrics.SnapshotData{
+		Counters: map[string]uint64{
+			"connect_attempt_total": 10,
+			"connect_success_total": 6,
+			"connect_error_total":   1,
+		},
+	}, 0)
+
+	if summary.ConnectErrorRate != 0.1 {
+		t.Fatalf("connect_error_rate = %v, want 0.1", summary.ConnectErrorRate)
+	}
+}
+
+func TestSummaryMarkdownLabelsMaxWorkerPercentiles(t *testing.T) {
+	rep := Build(Input{RunID: "run-1", Summary: Summary{SendackMaxWorkerP99: 50 * time.Millisecond, RecvMaxWorkerP99: 70 * time.Millisecond}})
+
+	md := summaryMarkdown(rep)
+	if !strings.Contains(md, "sendack_max_worker_p99") || !strings.Contains(md, "recv_max_worker_p99") {
+		t.Fatalf("summary markdown should label max-worker percentiles, got:\n%s", md)
+	}
+	if strings.Contains(md, "sendack_p99") || strings.Contains(md, "recv_p99") {
+		t.Fatalf("summary markdown should not label max-worker values as aggregate p99, got:\n%s", md)
 	}
 }
 
@@ -82,7 +109,7 @@ func TestBuildSoftLimitWarnsWithoutFailOnSoft(t *testing.T) {
 	r := Build(Input{
 		RunID:   "run-1",
 		Limits:  model.LimitsConfig{Soft: model.SoftLimitsConfig{MaxSendackP99: 10}},
-		Summary: Summary{SendackP99: 20},
+		Summary: Summary{SendackMaxWorkerP99: 20},
 	})
 
 	if r.Status != StatusPassed || r.ExitCode != ExitSuccess {

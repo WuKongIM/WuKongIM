@@ -77,6 +77,21 @@ func TestAggregateRejectsUnsafeLabelsFromWorkerSnapshots(t *testing.T) {
 	}
 }
 
+func TestAggregateHistogramPercentilesAreMaxWorkerPercentiles(t *testing.T) {
+	agg, err := Aggregate([]WorkerSnapshot{
+		{WorkerID: "w1", Metrics: SnapshotData{Histograms: map[string]HistogramSummary{"sendack_latency_seconds": {Count: 10, P50Seconds: 0.010, P95Seconds: 0.020, P99Seconds: 0.030}}}},
+		{WorkerID: "w2", Metrics: SnapshotData{Histograms: map[string]HistogramSummary{"sendack_latency_seconds": {Count: 10, P50Seconds: 0.040, P95Seconds: 0.050, P99Seconds: 0.060}}}},
+	})
+	if err != nil {
+		t.Fatalf("Aggregate: %v", err)
+	}
+
+	hist := agg.Histograms["sendack_latency_seconds"]
+	if hist.P50Seconds != 0.040 || hist.P95Seconds != 0.050 || hist.P99Seconds != 0.060 {
+		t.Fatalf("histogram percentiles = p50:%v p95:%v p99:%v, want max worker percentiles", hist.P50Seconds, hist.P95Seconds, hist.P99Seconds)
+	}
+}
+
 func TestAggregateBoundsErrorSamplesGlobally(t *testing.T) {
 	workers := make([]WorkerSnapshot, 0, 40)
 	for i := 0; i < 40; i++ {

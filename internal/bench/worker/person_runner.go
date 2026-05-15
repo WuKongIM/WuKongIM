@@ -83,11 +83,11 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 		return err
 	}
 	if err := manager.Connect(ctx, users); err != nil {
+		r.mergeConnectionMetrics(manager)
 		_ = manager.Close()
-		r.recordConnectError(err)
 		return markTargetUnavailable(err)
 	}
-	r.recordConnectSuccess(uint64(len(users)))
+	r.mergeConnectionMetrics(manager)
 	clients, err := personClientsFromManager(manager, users)
 	if err != nil {
 		_ = manager.Close()
@@ -361,22 +361,19 @@ func (r *defaultWorkloadRunner) store(runID string, manager *benchworkload.Conne
 	r.groupWorkloads = groupWorkloads
 }
 
-func (r *defaultWorkloadRunner) recordConnectSuccess(count uint64) {
+func (r *defaultWorkloadRunner) mergeConnectionMetrics(manager *benchworkload.ConnectionManager) {
 	r.mu.Lock()
 	registry := r.metrics
 	r.mu.Unlock()
-	if registry != nil && count > 0 {
-		registry.AddCounter("connect_success_total", nil, count)
+	if registry == nil || manager == nil {
+		return
 	}
-}
-
-func (r *defaultWorkloadRunner) recordConnectError(err error) {
-	r.mu.Lock()
-	registry := r.metrics
-	r.mu.Unlock()
-	if registry != nil {
-		registry.IncCounter("connect_error_total", nil)
-		registry.RecordErrorSample("connect_error", err)
+	snap := manager.MetricsSnapshot()
+	for key, value := range snap.Counters {
+		registry.AddCounter(key, nil, value)
+	}
+	for _, sample := range snap.Errors {
+		registry.RecordErrorSample(sample.Name, errors.New(sample.Message))
 	}
 }
 
