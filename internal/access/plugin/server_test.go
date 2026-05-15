@@ -190,13 +190,19 @@ func TestLifecycleCloseEventDoesNotBlockOnUsecase(t *testing.T) {
 	srv := mustServer(t, uc)
 	ctx := newFakeCloseEventContext(nil)
 	ctx.uid = "plug-close"
+	returned := make(chan struct{})
 
-	begin := time.Now()
-	srv.handlePath("/close", ctx)
-	elapsed := time.Since(begin)
+	go func() {
+		srv.handlePath("/close", ctx)
+		close(returned)
+	}()
 
-	if elapsed > 20*time.Millisecond {
-		t.Fatalf("close event blocked for %v", elapsed)
+	select {
+	case <-returned:
+	case <-started:
+		t.Fatal("close handler waited for blocked ClosePlugin")
+	case <-time.After(time.Second):
+		t.Fatal("close handler did not return")
 	}
 	if ctx.ok {
 		t.Fatal("close event should not write OK to a closing connection")
