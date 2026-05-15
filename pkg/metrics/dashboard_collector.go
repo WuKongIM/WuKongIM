@@ -57,6 +57,13 @@ type QueryResult struct {
 	ActiveChannels          MetricSeries
 	RetryQueueDepth         MetricSeries
 	FanOutRate              MetricSeries
+	SendDelta               MetricSeries
+	DeliverDelta            MetricSeries
+	SendTotalDelta          MetricSeries
+	SendFailDelta           MetricSeries
+	DeliverTotalDelta       MetricSeries
+	DeliverFailDelta        MetricSeries
+	ResolveRoutesDelta      MetricSeries
 }
 
 // DashboardCollector samples metrics every second into a ring buffer.
@@ -283,6 +290,13 @@ func (c *DashboardCollector) Query(window, step time.Duration) (QueryResult, err
 	activeChans := make([]float64, bucketCount)
 	retryQueue := make([]float64, bucketCount)
 	fanOut := make([]float64, bucketCount)
+	sendDeltas := make([]float64, bucketCount)
+	deliverDeltas := make([]float64, bucketCount)
+	sendTotalDeltas := make([]float64, bucketCount)
+	sendFailDeltas := make([]float64, bucketCount)
+	deliverTotalDeltas := make([]float64, bucketCount)
+	deliverFailDeltas := make([]float64, bucketCount)
+	resolveRoutesDeltas := make([]float64, bucketCount)
 
 	for i, b := range buckets {
 		if len(b.samples) == 0 {
@@ -303,12 +317,14 @@ func (c *DashboardCollector) Query(window, step time.Duration) (QueryResult, err
 		if sendDelta < 0 {
 			sendDelta = 0
 		}
+		sendDeltas[i] = sendDelta
 		sendPerSec[i] = math.Round(sendDelta / stepSec)
 
 		delivDelta := last.DeliverCount - first.DeliverCount
 		if delivDelta < 0 {
 			delivDelta = 0
 		}
+		deliverDeltas[i] = delivDelta
 		deliverPerSec[i] = math.Round(delivDelta / stepSec)
 
 		connections[i] = float64(last.Connections)
@@ -331,18 +347,38 @@ func (c *DashboardCollector) Query(window, step time.Duration) (QueryResult, err
 		// Fail rates
 		sendTotalDelta := last.SendTotalCount - first.SendTotalCount
 		sendFailDelta := last.SendFailCount - first.SendFailCount
+		if sendTotalDelta < 0 {
+			sendTotalDelta = 0
+		}
+		if sendFailDelta < 0 {
+			sendFailDelta = 0
+		}
+		sendTotalDeltas[i] = sendTotalDelta
+		sendFailDeltas[i] = sendFailDelta
 		if sendTotalDelta > 0 {
 			sendFailRate[i] = math.Round(sendFailDelta/sendTotalDelta*1000) / 10
 		}
 
 		delivTotalDelta := last.DeliverTotalCount - first.DeliverTotalCount
 		delivFailDelta := last.DeliverFailCount - first.DeliverFailCount
+		if delivTotalDelta < 0 {
+			delivTotalDelta = 0
+		}
+		if delivFailDelta < 0 {
+			delivFailDelta = 0
+		}
+		deliverTotalDeltas[i] = delivTotalDelta
+		deliverFailDeltas[i] = delivFailDelta
 		if delivTotalDelta > 0 {
 			delivFailRate[i] = math.Round(delivFailDelta/delivTotalDelta*1000) / 10
 		}
 
 		// Fan-out
 		routesDelta := last.ResolveRoutesCount - first.ResolveRoutesCount
+		if routesDelta < 0 {
+			routesDelta = 0
+		}
+		resolveRoutesDeltas[i] = routesDelta
 		if sendDelta > 0 {
 			fanOut[i] = math.Round(routesDelta/sendDelta*10) / 10
 		}
@@ -363,6 +399,13 @@ func (c *DashboardCollector) Query(window, step time.Duration) (QueryResult, err
 		ActiveChannels:          buildMetricSeries(activeChans),
 		RetryQueueDepth:         buildMetricSeries(retryQueue),
 		FanOutRate:              buildMetricSeries(fanOut),
+		SendDelta:               buildMetricSeries(sendDeltas),
+		DeliverDelta:            buildMetricSeries(deliverDeltas),
+		SendTotalDelta:          buildMetricSeries(sendTotalDeltas),
+		SendFailDelta:           buildMetricSeries(sendFailDeltas),
+		DeliverTotalDelta:       buildMetricSeries(deliverTotalDeltas),
+		DeliverFailDelta:        buildMetricSeries(deliverFailDeltas),
+		ResolveRoutesDelta:      buildMetricSeries(resolveRoutesDeltas),
 	}, nil
 }
 

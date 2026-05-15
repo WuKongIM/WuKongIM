@@ -87,6 +87,7 @@ type App struct {
 	dataPlaneClient      *transport.Client
 	replicaExecutionPool *channelreplica.ExecutionPool
 	metrics              *obsmetrics.Registry
+	dashboardCollector   *obsmetrics.DashboardCollector
 	diagnostics          *obsdiagnostics.Store
 	diagnosticsTracking  *obsdiagnostics.TrackingRules
 	diagnosticsRestore   func()
@@ -95,6 +96,7 @@ type App struct {
 	nodeDrainState       *nodeDrainState
 
 	stopOnce                 sync.Once
+	dashboardCollectorStop   sync.Once
 	lifecycle                sync.Mutex
 	lifecycleMgr             *applifecycle.Manager
 	started                  atomic.Bool

@@ -22,4 +22,5 @@ const (
 	// 47 is used by slot/proxy channel migration, 48 by channel transport fence/drain, and 49 by slot/proxy CMD conversation state.
 	cmdSyncRPCServiceID             uint8 = 50
 	diagnosticsTrackingRPCServiceID uint8 = 51
+	monitorMetricsRPCServiceID      uint8 = 52
 )

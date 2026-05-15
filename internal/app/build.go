@@ -89,6 +89,12 @@ func build(cfg Config) (_ *App, err error) {
 	if cfg.Observability.MetricsEnabled {
 		app.metrics = obsmetrics.New(cfg.Node.ID, cfg.Node.Name)
 		app.metrics.Channel.SetMaxChannels(cfg.Cluster.MaxChannels)
+		app.dashboardCollector = obsmetrics.NewDashboardCollector(app.metrics)
+		app.dashboardCollector.Start()
+		cleanup.Push("dashboard collector", func() error {
+			app.stopDashboardCollector()
+			return nil
+		})
 	}
 	if cfg.Observability.Diagnostics.Enabled {
 		app.diagnostics = obsdiagnostics.NewStore(diagnosticsStoreOptions(cfg))
@@ -655,6 +661,7 @@ func build(cfg Config) (_ *App, err error) {
 		ChannelLeaderTransfer: channelLeaderRepairer,
 		ChannelLeaderEvaluate: channelLeaderEvaluator,
 		RuntimeSummary:        nodeRuntimeSummaryProvider{collector: runtimeSummaries},
+		MonitorMetrics:        nodeMonitorMetricsProvider{collector: app.dashboardCollector},
 		Diagnostics:           app,
 		DiagnosticsTracking:   app,
 		ChannelRetention:      managerMessageRetentionNodeProvider{target: managerRetention},
@@ -712,7 +719,12 @@ func build(cfg Config) (_ *App, err error) {
 			Cluster:           app.cluster,
 			Online:            onlineRegistry,
 			RuntimeSummary:    managementRuntimeSummaryReader{collector: runtimeSummaries, nodeClient: app.nodeClient},
-			Connections:       managementConnectionReader{nodeClient: app.nodeClient},
+			MonitorMetrics: managementMonitorMetricsReader{
+				localNodeID: cfg.Node.ID,
+				collector:   app.dashboardCollector,
+				remote:      app.nodeClient,
+			},
+			Connections: managementConnectionReader{nodeClient: app.nodeClient},
 			Diagnostics: managementDiagnosticsReader{
 				localNodeID: cfg.Node.ID,
 				local:       app,
@@ -742,10 +754,10 @@ func build(cfg Config) (_ *App, err error) {
 				metas:      app.store,
 				transferer: channelLeaderRepairer,
 			},
-			ChannelMigration: app.store,
-			Network:          app.networkObservability,
-			MessageRetention: managerRetention,
-			MetricsRegistry:  app.metrics,
+			ChannelMigration:   app.store,
+			Network:            app.networkObservability,
+			MessageRetention:   managerRetention,
+			DashboardCollector: app.dashboardCollector,
 			Messages: managerMessageReader{
 				localNodeID: cfg.Node.ID,
 				channelLog:  app.channelLogDB,

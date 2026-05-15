@@ -216,6 +216,12 @@ type RuntimeSummaryReader interface {
 	NodeRuntimeSummary(ctx context.Context, nodeID uint64) (NodeRuntimeSummary, error)
 }
 
+// MonitorMetricsReader reads node-local dashboard metrics for monitor fanout.
+type MonitorMetricsReader interface {
+	// NodeMonitorMetrics returns timestamped local monitor metrics from one cluster node.
+	NodeMonitorMetrics(ctx context.Context, nodeID uint64, window, step time.Duration) (metrics.QueryResult, error)
+}
+
 // ConnectionReader reads node-local connection inventory for non-local manager filters.
 type ConnectionReader interface {
 	// NodeConnections returns active connections currently registered on one cluster node.
@@ -280,6 +286,8 @@ type Options struct {
 	Online online.Registry
 	// RuntimeSummary reads local or remote node runtime counters for scale-in safety.
 	RuntimeSummary RuntimeSummaryReader
+	// MonitorMetrics reads node-local dashboard metrics for cluster monitor aggregation.
+	MonitorMetrics MonitorMetricsReader
 	// Connections reads remote node connection inventory for manager connection filters.
 	Connections ConnectionReader
 	// Diagnostics reads local or remote node diagnostics events for manager aggregations.
@@ -320,6 +328,8 @@ type Options struct {
 	Now func() time.Time
 	// MetricsRegistry provides the Prometheus metrics registry for the dashboard collector.
 	MetricsRegistry *metrics.Registry
+	// DashboardCollector provides a shared dashboard collector owned by the composition root.
+	DashboardCollector *metrics.DashboardCollector
 }
 
 // App serves manager-oriented read usecases.
@@ -332,6 +342,7 @@ type App struct {
 	cluster                  ClusterReader
 	online                   online.Registry
 	runtimeSummary           RuntimeSummaryReader
+	monitorMetrics           MonitorMetricsReader
 	connections              ConnectionReader
 	diagnostics              DiagnosticsReader
 	diagnosticsTracking      DiagnosticsTrackingOperator
@@ -352,6 +363,7 @@ type App struct {
 	network                  NetworkSnapshotReader
 	now                      func() time.Time
 	dashCollector            *metrics.DashboardCollector
+	ownsDashCollector        bool
 }
 
 // New constructs the management usecase app.
@@ -366,9 +378,13 @@ func New(opts Options) *App {
 		scaleInRuntimeViewMaxAge = defaultScaleInRuntimeViewMaxAge
 	}
 	var dashCollector *metrics.DashboardCollector
-	if opts.MetricsRegistry != nil {
+	ownsDashCollector := false
+	if opts.DashboardCollector != nil {
+		dashCollector = opts.DashboardCollector
+	} else if opts.MetricsRegistry != nil {
 		dashCollector = metrics.NewDashboardCollector(opts.MetricsRegistry)
 		dashCollector.Start()
+		ownsDashCollector = true
 	}
 	return &App{
 		localNodeID:              opts.LocalNodeID,
@@ -379,6 +395,7 @@ func New(opts Options) *App {
 		cluster:                  opts.Cluster,
 		online:                   opts.Online,
 		runtimeSummary:           opts.RuntimeSummary,
+		monitorMetrics:           opts.MonitorMetrics,
 		connections:              opts.Connections,
 		diagnostics:              opts.Diagnostics,
 		diagnosticsTracking:      opts.DiagnosticsTracking,
@@ -399,12 +416,13 @@ func New(opts Options) *App {
 		network:                  opts.Network,
 		now:                      now,
 		dashCollector:            dashCollector,
+		ownsDashCollector:        ownsDashCollector,
 	}
 }
 
 // Stop shuts down background collectors owned by the management app.
 func (a *App) Stop() {
-	if a.dashCollector != nil {
+	if a.dashCollector != nil && a.ownsDashCollector {
 		a.dashCollector.Stop()
 	}
 }
