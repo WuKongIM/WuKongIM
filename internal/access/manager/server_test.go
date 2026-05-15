@@ -4731,6 +4731,10 @@ func (s managementStub) DeleteDiagnosticsTrackingRule(context.Context, string) (
 	return managementusecase.DiagnosticsTrackingDeleteResponse{}, nil
 }
 
+func (s managementStub) GetDashboardMetrics(time.Duration, time.Duration) (managementusecase.DashboardMetricsResult, error) {
+	return managementusecase.DashboardMetricsResult{}, nil
+}
+
 type channelRuntimeMetaDetailCall struct {
 	channelID   string
 	channelType int64
