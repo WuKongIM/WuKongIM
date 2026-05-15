@@ -51,6 +51,37 @@ func TestWatcherDebouncerStopCancelsPendingEvents(t *testing.T) {
 	require.Empty(t, requests)
 }
 
+func TestWatcherDebouncerStopDoesNotDeadlockWithInFlightEmit(t *testing.T) {
+	scheduler := &manualDebounceScheduler{}
+	emitStarted := make(chan struct{})
+	releaseEmit := make(chan struct{})
+	debouncer := newPluginDebouncer(time.Millisecond, scheduler, func(req RestartRequest) {
+		close(emitStarted)
+		<-releaseEmit
+	})
+	debouncer.HandlePath(filepath.Join(t.TempDir(), "alpha.wkp"))
+
+	go scheduler.FireAll()
+	select {
+	case <-emitStarted:
+	case <-time.After(time.Second):
+		t.Fatal("debounced emit did not start")
+	}
+	stopped := make(chan struct{})
+	go func() {
+		debouncer.Stop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+	case <-time.After(100 * time.Millisecond):
+		close(releaseEmit)
+		t.Fatal("Stop blocked behind an in-flight emit")
+	}
+	close(releaseEmit)
+}
+
 type manualDebounceScheduler struct {
 	funcs []func()
 }

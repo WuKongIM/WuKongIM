@@ -90,12 +90,14 @@ func (d *pluginDebouncer) HandlePath(path string) {
 
 func (d *pluginDebouncer) fire(path string, seq uint64) {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	entry, ok := d.pending[path]
 	if d.stopped || !ok || entry.seq != seq {
+		d.mu.Unlock()
 		return
 	}
 	delete(d.pending, path)
+	d.mu.Unlock()
+
 	if d.emit != nil {
 		d.emit(entry.req)
 	}
