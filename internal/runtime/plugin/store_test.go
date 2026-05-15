@@ -54,6 +54,47 @@ func TestStoreLoadCorruptJSONReturnsError(t *testing.T) {
 	require.Equal(t, DesiredState{}, got)
 }
 
+func TestStoreLoadRejectsMismatchedDecodedPluginNo(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "expected.json"), []byte(`{"no":"other","enabled":true}`), 0o600))
+	store := NewStore(dir)
+
+	got, err := store.Load("expected")
+
+	require.ErrorIs(t, err, ErrCorruptDesiredState)
+	require.Equal(t, DesiredState{}, got)
+}
+
+func TestStoreLoadRejectsInvalidDecodedPluginNo(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "expected.json"), []byte(`{"no":"../escape","enabled":true}`), 0o600))
+	store := NewStore(dir)
+
+	got, err := store.Load("expected")
+
+	require.ErrorIs(t, err, ErrCorruptDesiredState)
+	require.Equal(t, DesiredState{}, got)
+}
+
+func TestStoreSaveSyncsParentDirectoryAfterRename(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+	var syncedDir string
+	originalSync := syncParentDirAfterRename
+	syncParentDirAfterRename = func(dir string) error {
+		syncedDir = dir
+		return nil
+	}
+	t.Cleanup(func() {
+		syncParentDirAfterRename = originalSync
+	})
+
+	err := store.Save(DesiredState{No: "sync-test", Enabled: true})
+
+	require.NoError(t, err)
+	require.Equal(t, dir, syncedDir)
+}
+
 func TestStoreRejectsUnsafePluginNo(t *testing.T) {
 	store := NewStore(t.TempDir())
 
