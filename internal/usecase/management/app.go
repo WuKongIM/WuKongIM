@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
+	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -204,6 +205,12 @@ type MessageReader interface {
 	MaxMessageSeq(ctx context.Context, id channel.ChannelID) (uint64, error)
 }
 
+// RecentConversationSyncer exposes UID-scoped conversation sync for manager read views.
+type RecentConversationSyncer interface {
+	// Sync returns the bounded recent conversation working set for one UID.
+	Sync(ctx context.Context, query conversationusecase.SyncQuery) (conversationusecase.SyncResult, error)
+}
+
 // MessageRetentionOperator exposes destructive channel message retention operations.
 type MessageRetentionOperator interface {
 	// AdvanceMessageRetention advances one channel's history retention boundary.
@@ -320,6 +327,8 @@ type Options struct {
 	ChannelMigration ChannelMigrationStore
 	// Messages provides authoritative channel message pages.
 	Messages MessageReader
+	// Conversations provides UID-scoped recent conversation working sets.
+	Conversations RecentConversationSyncer
 	// MessageRetention provides destructive channel message retention operations.
 	MessageRetention MessageRetentionOperator
 	// Network provides local node network observations for manager network pages.
@@ -359,6 +368,7 @@ type App struct {
 	channelLeaderTransfer    ChannelLeaderTransferOperator
 	channelMigration         ChannelMigrationStore
 	messages                 MessageReader
+	conversations            RecentConversationSyncer
 	messageRetention         MessageRetentionOperator
 	network                  NetworkSnapshotReader
 	now                      func() time.Time
@@ -412,6 +422,7 @@ func New(opts Options) *App {
 		channelLeaderTransfer:    opts.ChannelLeaderTransfer,
 		channelMigration:         opts.ChannelMigration,
 		messages:                 opts.Messages,
+		conversations:            opts.Conversations,
 		messageRetention:         opts.MessageRetention,
 		network:                  opts.Network,
 		now:                      now,
