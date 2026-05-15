@@ -30,6 +30,8 @@ type Config struct {
 	ChannelMessageRetention ChannelMessageRetentionConfig
 	// Message configures message send business rules.
 	Message MessageConfig
+	// Plugin configures node-local PDK-compatible plugin execution.
+	Plugin PluginConfig
 	// API configures the public HTTP API entry point.
 	API APIConfig
 	// Bench controls unauthenticated benchmark-only APIs used by wkbench.
@@ -54,6 +56,40 @@ type BenchConfig struct {
 	APIMaxBatchSize int
 	// APIMaxPayloadBytes limits HTTP request body size accepted by bench APIs.
 	APIMaxPayloadBytes int64
+}
+
+// PluginConfig controls node-local PDK-compatible plugin execution.
+type PluginConfig struct {
+	// Enable starts the node-local plugin runtime. It defaults to false because plugins execute local binaries.
+	Enable bool
+	// Dir contains local .wkp plugin binaries for this node.
+	Dir string
+	// SocketPath is the Unix socket path used by PDK plugins to call the host.
+	SocketPath string
+	// SandboxDir is the per-plugin writable directory root passed to plugin processes.
+	SandboxDir string
+	// StateDir stores node-local desired plugin config and enable state.
+	StateDir string
+	// Timeout bounds plugin RPC calls and graceful stop waits.
+	Timeout time.Duration
+	// HotReload watches Dir for .wkp changes and restarts affected local plugins.
+	HotReload bool
+	// FailOpen lets sends continue when Send hooks fail; false rejects sends on plugin errors.
+	FailOpen bool
+
+	timeoutSet   bool
+	hotReloadSet bool
+	failOpenSet  bool
+}
+
+// SetExplicitFlags records which plugin values were explicitly configured.
+func (c *PluginConfig) SetExplicitFlags(timeoutSet, hotReloadSet, failOpenSet bool) {
+	if c == nil {
+		return
+	}
+	c.timeoutSet = timeoutSet
+	c.hotReloadSet = hotReloadSet
+	c.failOpenSet = failOpenSet
 }
 
 // ChannelMigrationConfig controls the background executor that advances durable channel migration tasks.
@@ -791,6 +827,15 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 			return fmt.Errorf("%w: channel message retention max trim messages must be positive when ttl is enabled", ErrInvalidConfig)
 		}
 	}
+	if c.Plugin.Timeout <= 0 {
+		if c.Plugin.Timeout < 0 || c.Plugin.timeoutSet {
+			return fmt.Errorf("%w: plugin timeout must be positive", ErrInvalidConfig)
+		}
+		c.Plugin.Timeout = 5 * time.Second
+	}
+	if !c.Plugin.hotReloadSet {
+		c.Plugin.HotReload = true
+	}
 	if len(c.Cluster.Slots) > 0 {
 		return fmt.Errorf("%w: Cluster.Slots is no longer supported; remove static slot peers and use Cluster.InitialSlotCount for managed slots", ErrInvalidConfig)
 	}
@@ -983,6 +1028,18 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if c.Storage.ControllerRaftSnapshotPath == "" {
 		c.Storage.ControllerRaftSnapshotPath = filepath.Join(c.Node.DataDir, "controller-raft-snapshots")
 	}
+	if c.Plugin.Dir == "" {
+		c.Plugin.Dir = filepath.Join(c.Node.DataDir, "plugins")
+	}
+	if c.Plugin.SocketPath == "" {
+		c.Plugin.SocketPath = filepath.Join(c.Node.DataDir, "run", "plugin.sock")
+	}
+	if c.Plugin.SandboxDir == "" {
+		c.Plugin.SandboxDir = filepath.Join(c.Node.DataDir, "plugin-sandbox")
+	}
+	if c.Plugin.StateDir == "" {
+		c.Plugin.StateDir = filepath.Join(c.Node.DataDir, "plugin-state")
+	}
 	if c.Storage.RaftSnapshotChunkSize == 0 {
 		if c.Storage.raftSnapshotChunkSizeSet {
 			return fmt.Errorf("%w: raft snapshot chunk size must be > 0", ErrInvalidConfig)
@@ -1024,6 +1081,22 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if err != nil {
 		return fmt.Errorf("%w: normalize controller raft snapshot path: %v", ErrInvalidConfig, err)
 	}
+	pluginDir, err := normalizeStoragePath(c.Plugin.Dir)
+	if err != nil {
+		return fmt.Errorf("%w: normalize plugin dir: %v", ErrInvalidConfig, err)
+	}
+	pluginSocketPath, err := normalizeStoragePath(c.Plugin.SocketPath)
+	if err != nil {
+		return fmt.Errorf("%w: normalize plugin socket path: %v", ErrInvalidConfig, err)
+	}
+	pluginSandboxDir, err := normalizeStoragePath(c.Plugin.SandboxDir)
+	if err != nil {
+		return fmt.Errorf("%w: normalize plugin sandbox dir: %v", ErrInvalidConfig, err)
+	}
+	pluginStateDir, err := normalizeStoragePath(c.Plugin.StateDir)
+	if err != nil {
+		return fmt.Errorf("%w: normalize plugin state dir: %v", ErrInvalidConfig, err)
+	}
 	c.Storage.DBPath = dbPath
 	c.Storage.RaftPath = raftPath
 	c.Storage.ChannelLogPath = channelLogPath
@@ -1031,6 +1104,10 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	c.Storage.ControllerRaftPath = controllerRaftPath
 	c.Storage.RaftSnapshotPath = raftSnapshotPath
 	c.Storage.ControllerRaftSnapshotPath = controllerRaftSnapshotPath
+	c.Plugin.Dir = pluginDir
+	c.Plugin.SocketPath = pluginSocketPath
+	c.Plugin.SandboxDir = pluginSandboxDir
+	c.Plugin.StateDir = pluginStateDir
 	if err := validateStoragePathIsolation([]namedStoragePath{
 		{name: "storage db path", path: dbPath},
 		{name: "slot raft path", path: raftPath},
