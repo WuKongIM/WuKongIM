@@ -8,10 +8,12 @@ export type PulseSeries = {
 }
 
 export type PulseData = {
-  messagesPerSec: PulseSeries
+  sendPerSec: PulseSeries
+  deliverPerSec: PulseSeries
   connections: PulseSeries
-  sendLatencyMs: PulseSeries
+  sendLatencyP99: PulseSeries
   deliveryLatencyP99: PulseSeries
+  sendFailRate: PulseSeries
   deliveryFailRate: PulseSeries
   activeChannels: PulseSeries
   retryQueueDepth: PulseSeries
@@ -53,10 +55,12 @@ export function generatePulseData(seed: string): PulseData {
   const rand = makePrng(hash)
 
   return {
-    messagesPerSec: buildSeries(rand, 1200, 400),
+    sendPerSec: buildSeries(rand, 1200, 400),
+    deliverPerSec: buildSeries(rand, 1100, 380),
     connections: buildSeries(rand, 850, 100),
-    sendLatencyMs: buildSeries(rand, 45, 20),
+    sendLatencyP99: buildSeries(rand, 45, 20),
     deliveryLatencyP99: buildSeries(rand, 120, 50),
+    sendFailRate: buildSeries(rand, 1, 2),
     deliveryFailRate: buildSeries(rand, 1, 2),
     activeChannels: buildSeries(rand, 320, 80),
     retryQueueDepth: buildSeries(rand, 5, 8),
