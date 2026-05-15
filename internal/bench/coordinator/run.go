@@ -253,9 +253,14 @@ func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, 
 		ErrorSamples:    agg.Errors,
 	}
 	rep := report.Build(input)
-	if workerFailed > 0 {
+	if rep.ExitCode == report.ExitHardLimitFailed {
+		result.Status = StatusHardLimitFailed
+	} else if workerFailed > 0 {
 		rep.Status = report.StatusFailed
 		rep.ExitCode = report.ExitWorkerFailed
+		if result.Status == "" {
+			result.Status = StatusWorkerFailed
+		}
 	}
 	result.Report = rep
 	if strings.TrimSpace(scenario.Run.ReportDir) != "" {
@@ -266,7 +271,11 @@ func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, 
 		}
 	}
 	if len(collectionFailures) > 0 {
-		result.Status = StatusWorkerFailed
+		if rep.ExitCode == report.ExitHardLimitFailed {
+			result.Status = StatusHardLimitFailed
+		} else if result.Status == "" {
+			result.Status = StatusWorkerFailed
+		}
 		return rep, fmt.Errorf("%w for %d worker(s)", errWorkerReportCollection, len(collectionFailures))
 	}
 	return rep, nil
