@@ -63,6 +63,12 @@ type Assignment struct {
 type Status struct {
 	// Phase is the worker's current lifecycle phase.
 	Phase Phase `json:"phase"`
+	// ActivePhase is the phase hook currently running asynchronously.
+	ActivePhase Phase `json:"active_phase,omitempty"`
+	// CompletedPhase is the latest phase whose hook finished successfully.
+	CompletedPhase Phase `json:"completed_phase,omitempty"`
+	// LastError records the latest asynchronous phase hook failure.
+	LastError string `json:"last_error,omitempty"`
 	// Assignment is the active or most recently stopped assignment.
 	Assignment Assignment `json:"assignment"`
 }
@@ -72,6 +78,8 @@ type State struct {
 	mu         sync.Mutex
 	workDir    string
 	phase      Phase
+	active     Phase
+	lastError  string
 	assignment Assignment
 }
 
@@ -102,6 +110,8 @@ func (s *State) Assign(a Assignment) error {
 	}
 	s.assignment = a
 	s.phase = PhaseAssigned
+	s.active = ""
+	s.lastError = ""
 	return nil
 }
 
@@ -134,6 +144,49 @@ func (s *State) TransitionForAssignment(runID string, next Phase) error {
 	return s.transitionLocked(next)
 }
 
+// BeginPhaseForAssignment starts a phase hook if it is not already running or complete.
+func (s *State) BeginPhaseForAssignment(runID string, next Phase) (Status, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.assignment.RunID != strings.TrimSpace(runID) {
+		return s.statusLocked(), false, fmt.Errorf("%w: active run %q does not match %q", ErrActiveRunConflict, s.assignment.RunID, strings.TrimSpace(runID))
+	}
+	if s.phase == next && s.active == "" {
+		return s.statusLocked(), false, nil
+	}
+	if s.active == next {
+		return s.statusLocked(), false, nil
+	}
+	if s.active != "" {
+		return s.statusLocked(), false, fmt.Errorf("%w: phase %s already running", ErrInvalidPhaseTransition, s.active)
+	}
+	if !canTransition(s.phase, next) {
+		return s.statusLocked(), false, fmt.Errorf("%w: %s to %s", ErrInvalidPhaseTransition, s.phase, next)
+	}
+	s.active = next
+	s.lastError = ""
+	return s.statusLocked(), true, nil
+}
+
+// CompletePhaseForAssignment records the terminal result of an asynchronous phase hook.
+func (s *State) CompletePhaseForAssignment(runID string, phase Phase, phaseErr error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.assignment.RunID != strings.TrimSpace(runID) {
+		return fmt.Errorf("%w: active run %q does not match %q", ErrActiveRunConflict, s.assignment.RunID, strings.TrimSpace(runID))
+	}
+	if s.active != phase {
+		return fmt.Errorf("%w: active phase %q does not match %q", ErrInvalidPhaseTransition, s.active, phase)
+	}
+	s.active = ""
+	if phaseErr != nil {
+		s.lastError = phaseErr.Error()
+		return nil
+	}
+	s.lastError = ""
+	return s.transitionLocked(phase)
+}
+
 func (s *State) transitionLocked(next Phase) error {
 	if s.phase == next {
 		return nil
@@ -153,6 +206,7 @@ func (s *State) Stop() error {
 		return fmt.Errorf("%w: %s to %s", ErrInvalidPhaseTransition, s.phase, PhaseStopped)
 	}
 	s.phase = PhaseStopped
+	s.active = ""
 	return nil
 }
 
@@ -160,7 +214,17 @@ func (s *State) Stop() error {
 func (s *State) Status() Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return Status{Phase: s.phase, Assignment: s.assignment}
+	return s.statusLocked()
+}
+
+func (s *State) statusLocked() Status {
+	return Status{
+		Phase:          s.phase,
+		ActivePhase:    s.active,
+		CompletedPhase: s.phase,
+		LastError:      s.lastError,
+		Assignment:     s.assignment,
+	}
 }
 
 func (s *State) persistAssignment(a Assignment) error {

@@ -5,8 +5,10 @@ import (
 	"io"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
+	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +18,7 @@ func TestPersonWorkloadSendOneBuildsRecipientSendPacket(t *testing.T) {
 	recipient := newRecordingPersonClient()
 	sender.sendacks = append(sender.sendacks, &frame.SendackPacket{
 		ClientSeq:   7,
-		ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-ch7-msg7",
+		ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-run-ch7-msg7",
 		ReasonCode:  frame.ReasonSuccess,
 	})
 
@@ -38,7 +40,7 @@ func TestPersonWorkloadSendOneBuildsRecipientSendPacket(t *testing.T) {
 
 	require.Len(t, sender.sentFrames, 1)
 	sent := sender.sentFrames[0]
-	require.Equal(t, "u2", sent.ChannelID)
+	require.Equal(t, "u2@u1", sent.ChannelID)
 	require.Equal(t, frame.ChannelTypePerson, sent.ChannelType)
 	require.Contains(t, sent.ClientMsgNo, "bench-msg")
 	require.Contains(t, sent.ClientMsgNo, "run-a")
@@ -55,7 +57,7 @@ func TestPersonWorkloadSendOneMatchesSendackAndVerifiesRecvWhenEnabled(t *testin
 		MessageID:   100,
 		MessageSeq:  42,
 		ClientSeq:   42,
-		ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-ch3-msg42",
+		ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-run-ch3-msg42",
 		ReasonCode:  frame.ReasonSuccess,
 	}
 	sender.sendacks = append(sender.sendacks, ack)
@@ -66,7 +68,7 @@ func TestPersonWorkloadSendOneMatchesSendackAndVerifiesRecvWhenEnabled(t *testin
 		ChannelID:   "u1",
 		ChannelType: frame.ChannelTypePerson,
 		ClientMsgNo: ack.ClientMsgNo,
-		Payload:     []byte("run=run-a profile=profile-a traffic=traffic-a channel=3 message=42"),
+		Payload:     []byte("run=run-a profile=profile-a traffic=traffic-a phase=run channel=3 message=42"),
 	})
 
 	workload, err := NewPersonWorkload(PersonConfig{
@@ -104,7 +106,7 @@ func TestPersonWorkloadFullRecvVerificationAllowsSmallPayload(t *testing.T) {
 		MessageID:   100,
 		MessageSeq:  42,
 		ClientSeq:   42,
-		ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-ch3-msg42",
+		ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-run-ch3-msg42",
 		ReasonCode:  frame.ReasonSuccess,
 	}
 	sender.sendacks = append(sender.sendacks, ack)
@@ -140,7 +142,7 @@ func TestPersonWorkloadRecvVerificationRejectsWrongFromUID(t *testing.T) {
 		MessageID:   100,
 		MessageSeq:  42,
 		ClientSeq:   42,
-		ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-ch3-msg42",
+		ClientMsgNo: "bench-msg-run-a-profile-a-traffic-a-run-ch3-msg42",
 		ReasonCode:  frame.ReasonSuccess,
 	}
 	sender.sendacks = append(sender.sendacks, ack)
@@ -151,7 +153,7 @@ func TestPersonWorkloadRecvVerificationRejectsWrongFromUID(t *testing.T) {
 		ChannelID:   "u1",
 		ChannelType: frame.ChannelTypePerson,
 		ClientMsgNo: ack.ClientMsgNo,
-		Payload:     []byte("run=run-a profile=profile-a traffic=traffic-a channel=3 message=42"),
+		Payload:     []byte("run=run-a profile=profile-a traffic=traffic-a phase=run channel=3 message=42"),
 	})
 	workload, err := NewPersonWorkload(PersonConfig{
 		RunID:           "run-a",
@@ -236,6 +238,7 @@ type recordingPersonClient struct {
 	sendacks     []*frame.SendackPacket
 	recvFrames   []frame.Frame
 	recvAckCalls []recvAckCall
+	autoSendack  bool
 }
 
 type personConnectCall struct {
@@ -263,6 +266,9 @@ func (c *recordingPersonClient) Send(ctx context.Context, pkt *frame.SendPacket)
 	defer c.mu.Unlock()
 	cloned := *pkt
 	c.sentFrames = append(c.sentFrames, &cloned)
+	if c.autoSendack {
+		c.sendacks = append(c.sendacks, &frame.SendackPacket{ClientSeq: pkt.ClientSeq, ClientMsgNo: pkt.ClientMsgNo, ReasonCode: frame.ReasonSuccess})
+	}
 	return nil
 }
 
@@ -292,3 +298,149 @@ func (c *recordingPersonClient) RecvAck(ctx context.Context, messageID int64, me
 func (c *recordingPersonClient) Close() error { return nil }
 
 var _ PersonClient = (*recordingPersonClient)(nil)
+
+func TestConcurrentPersonClientBuffersUnmatchedFrames(t *testing.T) {
+	raw := newRecordingPersonClient()
+	raw.sendacks = append(raw.sendacks,
+		&frame.SendackPacket{ClientSeq: 1, ClientMsgNo: "msg-a", ReasonCode: frame.ReasonSuccess},
+		&frame.SendackPacket{ClientSeq: 2, ClientMsgNo: "msg-b", ReasonCode: frame.ReasonSuccess},
+	)
+	wrapped := WrapPersonClientsForConcurrentReads(map[string]PersonClient{"u1": raw})["u1"]
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	got, err := readFrameMatching(ctx, wrapped, func(f frame.Frame) bool {
+		ack, ok := f.(*frame.SendackPacket)
+		return ok && ack.ClientMsgNo == "msg-b"
+	})
+	require.NoError(t, err)
+	require.Equal(t, "msg-b", got.(*frame.SendackPacket).ClientMsgNo)
+
+	got, err = readFrameMatching(ctx, wrapped, func(f frame.Frame) bool {
+		ack, ok := f.(*frame.SendackPacket)
+		return ok && ack.ClientMsgNo == "msg-a"
+	})
+	require.NoError(t, err)
+	require.Equal(t, "msg-a", got.(*frame.SendackPacket).ClientMsgNo)
+}
+
+func TestConcurrentPersonClientServesBufferedFrameWhileAnotherReadBlocks(t *testing.T) {
+	raw := newBlockingReadPersonClient([]frame.Frame{
+		&frame.SendackPacket{ClientSeq: 2, ClientMsgNo: "msg-b", ReasonCode: frame.ReasonSuccess},
+	})
+	wrapped := WrapPersonClientsForConcurrentReads(map[string]PersonClient{"u1": raw})["u1"]
+	ctxA, cancelA := context.WithCancel(context.Background())
+	defer cancelA()
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := readFrameMatching(ctxA, wrapped, func(f frame.Frame) bool {
+			ack, ok := f.(*frame.SendackPacket)
+			return ok && ack.ClientMsgNo == "msg-a"
+		})
+		firstDone <- err
+	}()
+	require.Eventually(t, func() bool {
+		select {
+		case <-raw.blockStarted:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 10*time.Millisecond)
+
+	secondDone := make(chan error, 1)
+	go func() {
+		got, err := readFrameMatching(context.Background(), wrapped, func(f frame.Frame) bool {
+			ack, ok := f.(*frame.SendackPacket)
+			return ok && ack.ClientMsgNo == "msg-b"
+		})
+		if err != nil {
+			secondDone <- err
+			return
+		}
+		require.Equal(t, "msg-b", got.(*frame.SendackPacket).ClientMsgNo)
+		secondDone <- nil
+	}()
+
+	select {
+	case err := <-secondDone:
+		require.NoError(t, err)
+	case <-time.After(50 * time.Millisecond):
+		cancelA()
+		<-firstDone
+		t.Fatal("buffered matching frame was blocked behind another goroutine's read")
+	}
+	cancelA()
+	<-firstDone
+}
+
+type blockingReadPersonClient struct {
+	frames       []frame.Frame
+	blockStarted chan struct{}
+	blockOnce    sync.Once
+}
+
+func newBlockingReadPersonClient(frames []frame.Frame) *blockingReadPersonClient {
+	return &blockingReadPersonClient{frames: append([]frame.Frame(nil), frames...), blockStarted: make(chan struct{})}
+}
+
+func (c *blockingReadPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
+	return nil
+}
+func (c *blockingReadPersonClient) Send(ctx context.Context, pkt *frame.SendPacket) error { return nil }
+func (c *blockingReadPersonClient) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
+	return nil
+}
+func (c *blockingReadPersonClient) Close() error { return nil }
+
+func (c *blockingReadPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	if len(c.frames) > 0 {
+		f := c.frames[0]
+		c.frames = c.frames[1:]
+		return f, nil
+	}
+	c.blockOnce.Do(func() { close(c.blockStarted) })
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func TestPersonWorkloadRunHonorsRateDurationPerChannel(t *testing.T) {
+	clients := map[string]*recordingPersonClient{
+		"u1": newRecordingPersonClient(),
+		"u2": newRecordingPersonClient(),
+		"u3": newRecordingPersonClient(),
+		"u4": newRecordingPersonClient(),
+	}
+	for _, client := range clients {
+		client.autoSendack = true
+	}
+	var sleeps []time.Duration
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		ClientMsgPrefix: "bench-msg",
+		RunDuration:     time.Second,
+		Rate:            model.Rate{PerSecond: 2},
+		Pairs: []PersonPair{
+			{ChannelIndex: 0, SenderUID: "u1", RecipientUID: "u2"},
+			{ChannelIndex: 1, SenderUID: "u3", RecipientUID: "u4"},
+		},
+		Metrics: metrics.NewRegistry(),
+		sleep: func(ctx context.Context, d time.Duration) error {
+			sleeps = append(sleeps, d)
+			return nil
+		},
+	}, map[string]PersonClient{"u1": clients["u1"], "u2": clients["u2"], "u3": clients["u3"], "u4": clients["u4"]})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Run(context.Background()))
+
+	require.Len(t, clients["u1"].sentFrames, 2)
+	require.Len(t, clients["u3"].sentFrames, 2)
+	require.Len(t, sleeps, 4)
+	for _, d := range sleeps {
+		require.Equal(t, 250*time.Millisecond, d)
+	}
+	require.Equal(t, uint64(4), workload.Metrics().CounterValue("person_send_success_total", nil))
+}

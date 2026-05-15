@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
@@ -129,6 +130,33 @@ func TestGroupPrepareSmallGroupsCreatesOwnedChannelsAndSubscriberBatches(t *test
 	require.Equal(t, []string{"u-11"}, target.subscriberRequests[3].Items[0].Subscribers)
 }
 
+func TestGroupPrepareAllowedOverlapUsesSharedMemberPool(t *testing.T) {
+	target := newRecordingGroupPrepareTarget()
+
+	err := PrepareGroup(context.Background(), GroupPrepareConfig{
+		RunID:             "run-overlap",
+		WorkerID:          "worker-a",
+		ProfileName:       "small-group",
+		ChannelRange:      model.Range{Start: 1, End: 2},
+		MemberRange:       model.Range{Start: 0, End: 100},
+		MembersPerChannel: 60,
+		MemberReusePolicy: "allowed",
+		UIDPrefix:         "u",
+	}, target, NoopGroupPrepareBarrier{})
+
+	require.NoError(t, err)
+	var subscribers []string
+	for _, req := range target.subscriberRequests {
+		require.Len(t, req.Items, 1)
+		subscribers = append(subscribers, req.Items[0].Subscribers...)
+	}
+	require.Len(t, subscribers, 60)
+	require.NotContains(t, subscribers, "u-119")
+	for _, uid := range subscribers {
+		require.NotRegexp(t, `^u-1[0-9][0-9]$`, uid)
+	}
+}
+
 func TestGroupPrepareChunksChannelUpsertsAtThousand(t *testing.T) {
 	target := newRecordingGroupPrepareTarget()
 
@@ -175,7 +203,7 @@ func TestGroupWorkloadSendOneBuildsGroupSendAndVerifiesFullReceivers(t *testing.
 		"u-1": newRecordingPersonClient(),
 		"u-2": newRecordingPersonClient(),
 	}
-	clientMsgNo := "bench-msg-run-a-huge-group-group-send-ch0-msg0"
+	clientMsgNo := "bench-msg-run-a-huge-group-group-send-run-ch0-msg0"
 	clients["u-0"].(*recordingPersonClient).sendacks = append(clients["u-0"].(*recordingPersonClient).sendacks, &frame.SendackPacket{
 		MessageID:   99,
 		MessageSeq:  7,
@@ -223,7 +251,7 @@ func TestGroupWorkloadSampledRecvVerificationIsDeterministic(t *testing.T) {
 		"u-2": newRecordingPersonClient(),
 		"u-3": newRecordingPersonClient(),
 	}
-	clientMsgNo := "bench-msg-run-a-huge-group-group-send-ch0-msg0"
+	clientMsgNo := "bench-msg-run-a-huge-group-group-send-run-ch0-msg0"
 	clients["u-0"].(*recordingPersonClient).sendacks = append(clients["u-0"].(*recordingPersonClient).sendacks, &frame.SendackPacket{
 		MessageID:   100,
 		MessageSeq:  8,
@@ -270,7 +298,7 @@ func groupRecv(clientMsgNo, recipientUID string, messageID int64, messageSeq uin
 		ChannelID:   "run-a-huge-group-0",
 		ChannelType: frame.ChannelTypeGroup,
 		ClientMsgNo: clientMsgNo,
-		Payload:     []byte("run=run-a profile=huge-group traffic=group-send channel=0 message=0"),
+		Payload:     []byte("run=run-a profile=huge-group traffic=group-send phase=run channel=0 message=0"),
 	}
 }
 
@@ -319,4 +347,42 @@ func (b *recordingGroupPrepareBarrier) Wait(ctx context.Context, runID, name str
 		b.target.mu.Unlock()
 	}
 	return nil
+}
+
+func TestGroupWorkloadRunHonorsLocalRateDurationPerChannel(t *testing.T) {
+	clients := map[string]PersonClient{
+		"u-0": newRecordingPersonClient(),
+		"u-1": newRecordingPersonClient(),
+	}
+	clients["u-0"].(*recordingPersonClient).autoSendack = true
+	var sleeps []time.Duration
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "many-group",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		RunDuration:     time.Second,
+		LocalRate:       model.Rate{PerSecond: 3},
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-many-group-0",
+			OnlineMembers: []string{"u-0", "u-1"},
+		}},
+		Metrics: metrics.NewRegistry(),
+		sleep: func(ctx context.Context, d time.Duration) error {
+			sleeps = append(sleeps, d)
+			return nil
+		},
+	}, clients)
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Run(context.Background()))
+
+	sender := clients["u-0"].(*recordingPersonClient)
+	require.Len(t, sender.sentFrames, 3)
+	require.Len(t, sleeps, 3)
+	for _, d := range sleeps {
+		require.Equal(t, time.Second/3, d)
+	}
+	require.Equal(t, uint64(3), workload.Metrics().CounterValue("group_send_success_total", nil))
 }

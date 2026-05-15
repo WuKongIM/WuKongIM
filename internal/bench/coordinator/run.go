@@ -182,7 +182,7 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 	phaseFailures := make(map[string]struct{})
 	var phaseErrs []error
 	for _, phase := range runPhases() {
-		if err := c.runPhase(ctx, scenario.Run.ID, phase, phaseFailures); err != nil {
+		if err := c.runPhase(ctx, scenario, phase, phaseFailures, plan); err != nil {
 			result.Status = statusForError(ctx, err)
 			if result.Status == StatusCanceled {
 				c.stopAll(c.cfg.Workers)
@@ -421,10 +421,82 @@ func (c *Coordinator) assignWorkers(ctx context.Context, scenario model.Scenario
 	return nil
 }
 
-func (c *Coordinator) runPhase(ctx context.Context, runID string, phase Phase, failed map[string]struct{}) error {
+func (c *Coordinator) runPhase(ctx context.Context, scenario model.Scenario, phase Phase, failed map[string]struct{}, plan model.Plan) error {
+	if phase == PhasePrepare {
+		return c.runPreparePhase(ctx, scenario.Run.ID, failed, plan)
+	}
+	return c.runWorkerPhase(ctx, scenario.Run.ID, phase, c.phasePollTimeout(scenario, phase), failed, c.cfg.Workers)
+}
+
+func (c *Coordinator) runPreparePhase(ctx context.Context, runID string, failed map[string]struct{}, plan model.Plan) error {
+	var errs []error
+	for _, w := range c.prepareOwners(plan) {
+		if _, skip := failed[strings.TrimSpace(w.ID)]; skip {
+			continue
+		}
+		if err := c.postJSON(ctx, w, "/v1/prepare/channels", nil, nil); err != nil {
+			ownerErr := fmt.Errorf("worker %s prepare channels failed: %w", workerName(w), err)
+			errs = append(errs, &workerFailureError{workerID: strings.TrimSpace(w.ID), err: ownerErr})
+			if errorsIsParentContext(ctx, err) {
+				return errors.Join(errs...)
+			}
+		}
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return c.runWorkerPhase(ctx, runID, PhasePrepare, c.cfg.PollTimeout, failed, c.cfg.Workers)
+}
+
+func (c *Coordinator) prepareOwners(plan model.Plan) []model.Worker {
+	seen := make(map[string]struct{})
+	owners := make([]model.Worker, 0, len(c.cfg.Workers))
+	for _, w := range c.cfg.Workers {
+		workerID := strings.TrimSpace(w.ID)
+		workerPlan := plan.Workers[workerID]
+		for profileName, shard := range workerPlan.Profiles {
+			if shard.ChannelType != model.ChannelTypeGroup || shard.TrafficPartitionCount <= 0 {
+				continue
+			}
+			for channelIndex := shard.ChannelRange.Start; channelIndex < shard.ChannelRange.End; channelIndex++ {
+				if plan.ChannelOwners[profileName][channelIndex] != workerID {
+					continue
+				}
+				if _, ok := seen[workerID]; !ok {
+					seen[workerID] = struct{}{}
+					owners = append(owners, w)
+				}
+				break
+			}
+		}
+	}
+	return owners
+}
+
+func (c *Coordinator) phasePollTimeout(scenario model.Scenario, phase Phase) time.Duration {
+	timeout := c.cfg.PollTimeout
+	switch phase {
+	case PhaseWarmup:
+		timeout += positiveDuration(scenario.Run.Warmup)
+	case PhaseRun:
+		timeout += positiveDuration(scenario.Run.Duration)
+	case PhaseCooldown:
+		timeout += positiveDuration(scenario.Run.Cooldown)
+	}
+	return timeout
+}
+
+func positiveDuration(d time.Duration) time.Duration {
+	if d < 0 {
+		return 0
+	}
+	return d
+}
+
+func (c *Coordinator) runWorkerPhase(ctx context.Context, runID string, phase Phase, pollTimeout time.Duration, failed map[string]struct{}, workers []model.Worker) error {
 	accepted := make([]model.Worker, 0, len(c.cfg.Workers))
 	var errs []error
-	for _, w := range c.cfg.Workers {
+	for _, w := range workers {
 		if _, skip := failed[strings.TrimSpace(w.ID)]; skip {
 			continue
 		}
@@ -442,7 +514,7 @@ func (c *Coordinator) runPhase(ctx context.Context, runID string, phase Phase, f
 		if _, skip := failed[strings.TrimSpace(w.ID)]; skip {
 			continue
 		}
-		if err := c.waitForPhase(ctx, w, runID, phase); err != nil {
+		if err := c.waitForPhase(ctx, w, runID, phase, pollTimeout); err != nil {
 			waitErr := fmt.Errorf("worker %s wait for phase %s failed: %w", workerName(w), phase, err)
 			errs = append(errs, &workerFailureError{workerID: strings.TrimSpace(w.ID), err: waitErr})
 			if errorsIsParentContext(ctx, err) {
@@ -497,8 +569,11 @@ func collectWorkerFailures(failed map[string]struct{}, err error) {
 	}
 }
 
-func (c *Coordinator) waitForPhase(parent context.Context, w model.Worker, runID string, want Phase) error {
-	ctx, cancel := context.WithTimeout(parent, c.cfg.PollTimeout)
+func (c *Coordinator) waitForPhase(parent context.Context, w model.Worker, runID string, want Phase, pollTimeout time.Duration) error {
+	if pollTimeout <= 0 {
+		pollTimeout = c.cfg.PollTimeout
+	}
+	ctx, cancel := context.WithTimeout(parent, pollTimeout)
 	defer cancel()
 	ticker := time.NewTicker(c.cfg.PollInterval)
 	defer ticker.Stop()
@@ -513,7 +588,10 @@ func (c *Coordinator) waitForPhase(parent context.Context, w model.Worker, runID
 		if err := validateStatusAssignment(status, w, runID); err != nil {
 			return err
 		}
-		if status.Phase == want {
+		if status.LastError != "" {
+			return workerStatusPhaseError(status.LastError)
+		}
+		if status.CompletedPhase == want || (status.CompletedPhase == "" && status.Phase == want) {
 			return nil
 		}
 		if status.Phase == worker.PhaseStopped {
@@ -626,6 +704,13 @@ func statusForError(parent context.Context, err error) RunStatus {
 }
 
 var errPollTimeout = errors.New("worker phase poll timeout")
+
+func workerStatusPhaseError(message string) error {
+	if strings.Contains(strings.ToLower(message), "target unavailable") {
+		return fmt.Errorf("%s: %w", message, errTargetUnavailable)
+	}
+	return errors.New(message)
+}
 
 func validateStatusAssignment(status worker.Status, w model.Worker, runID string) error {
 	workerID := strings.TrimSpace(w.ID)

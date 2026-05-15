@@ -4,14 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/report"
 )
+
+const phaseStartGrace = 25 * time.Millisecond
 
 // WorkloadRunner receives worker lifecycle hooks for assigned benchmark shards.
 type WorkloadRunner interface {
@@ -55,11 +57,19 @@ type Config struct {
 
 // Server exposes the wkbench worker control HTTP API.
 type Server struct {
-	cfg     Config
-	state   *State
-	runner  WorkloadRunner
+	cfg    Config
+	state  *State
+	runner WorkloadRunner
+	mux    *http.ServeMux
+
 	phaseMu sync.Mutex
-	mux     *http.ServeMux
+	cancel  phaseCancel
+}
+
+type phaseCancel struct {
+	runID  string
+	phase  Phase
+	cancel context.CancelFunc
 }
 
 // NewServer builds a worker control server with in-memory assignment state.
@@ -88,6 +98,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/v1/phase/warmup", s.withControl(s.phase(PhaseWarmup)))
 	s.mux.HandleFunc("/v1/phase/run", s.withControl(s.phase(PhaseRun)))
 	s.mux.HandleFunc("/v1/phase/cooldown", s.withControl(s.phase(PhaseCooldown)))
+	s.mux.HandleFunc("/v1/prepare/channels", s.withControl(s.prepareChannels))
 	s.mux.HandleFunc("/v1/stop", s.withControl(s.stop))
 	s.mux.HandleFunc("/v1/status", s.withControl(s.status))
 	s.mux.HandleFunc("/v1/metrics", s.withControl(s.metrics))
@@ -160,30 +171,76 @@ func (s *Server) phase(phase Phase) http.HandlerFunc {
 			methodNotAllowed(w)
 			return
 		}
-		s.phaseMu.Lock()
-		defer s.phaseMu.Unlock()
 		status := s.state.Status()
-		if status.Phase == phase {
-			writeJSON(w, http.StatusOK, status)
-			return
-		}
-		if !canTransition(status.Phase, phase) {
-			writeError(w, http.StatusConflict, fmt.Errorf("%w: %s to %s", ErrInvalidPhaseTransition, status.Phase, phase).Error())
-			return
-		}
-		if err := s.runPhaseHook(r.Context(), phase, status.Assignment); err != nil {
-			if errors.Is(err, errTargetUnavailable) {
-				writeError(w, http.StatusServiceUnavailable, err.Error())
-				return
-			}
-			writeError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		if err := s.state.TransitionForAssignment(status.Assignment.RunID, phase); err != nil {
+		nextStatus, started, err := s.state.BeginPhaseForAssignment(status.Assignment.RunID, phase)
+		if err != nil {
 			writeError(w, http.StatusConflict, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, s.state.Status())
+		if !started {
+			writeJSON(w, http.StatusOK, nextStatus)
+			return
+		}
+		assignment := nextStatus.Assignment
+		phaseCtx, phaseCancel := context.WithCancel(context.Background())
+		s.storePhaseCancel(assignment.RunID, phase, phaseCancel)
+		done := make(chan error, 1)
+		go func() {
+			done <- s.completePhase(phaseCtx, phase, assignment)
+		}()
+		select {
+		case err := <-done:
+			s.clearPhaseCancel(assignment.RunID, phase)
+			if err != nil {
+				if errors.Is(err, errTargetUnavailable) {
+					writeError(w, http.StatusServiceUnavailable, err.Error())
+					return
+				}
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			writeJSON(w, http.StatusOK, s.state.Status())
+		case <-time.After(phaseStartGrace):
+			writeJSONStatus(w, http.StatusAccepted, nextStatus)
+		}
+	}
+}
+
+func (s *Server) completePhase(ctx context.Context, phase Phase, assignment Assignment) error {
+	err := s.runPhaseHook(ctx, phase, assignment)
+	s.clearPhaseCancel(assignment.RunID, phase)
+	completeErr := s.state.CompletePhaseForAssignment(assignment.RunID, phase, err)
+	if errors.Is(err, context.Canceled) && errors.Is(completeErr, ErrInvalidPhaseTransition) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return completeErr
+}
+
+func (s *Server) storePhaseCancel(runID string, phase Phase, cancel context.CancelFunc) {
+	s.phaseMu.Lock()
+	defer s.phaseMu.Unlock()
+	s.cancel = phaseCancel{runID: runID, phase: phase, cancel: cancel}
+}
+
+func (s *Server) clearPhaseCancel(runID string, phase Phase) {
+	s.phaseMu.Lock()
+	defer s.phaseMu.Unlock()
+	if s.cancel.runID != runID || s.cancel.phase != phase {
+		return
+	}
+	s.cancel = phaseCancel{}
+}
+
+func (s *Server) cancelActivePhase() {
+	s.phaseMu.Lock()
+	cancel := s.cancel.cancel
+	s.cancel = phaseCancel{}
+	s.phaseMu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
 }
 
@@ -207,11 +264,35 @@ func (s *Server) runPhaseHook(ctx context.Context, phase Phase, assignment Assig
 	}
 }
 
+func (s *Server) prepareChannels(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	status := s.state.Status()
+	if status.Assignment.RunID == "" || status.Phase == PhaseIdle || status.Phase == PhaseStopped {
+		writeError(w, http.StatusConflict, "worker is not assigned")
+		return
+	}
+	if runner, ok := s.runner.(PrepareChannelsRunner); ok {
+		if err := runner.PrepareChannels(r.Context(), status.Assignment); err != nil {
+			if errors.Is(err, errTargetUnavailable) {
+				writeError(w, http.StatusServiceUnavailable, err.Error())
+				return
+			}
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, s.state.Status())
+}
+
 func (s *Server) stop(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w)
 		return
 	}
+	s.cancelActivePhase()
 	if err := s.state.Stop(); err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -323,4 +404,8 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func writeJSONStatus(w http.ResponseWriter, status int, v any) {
+	writeJSON(w, status, v)
 }
