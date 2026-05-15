@@ -656,7 +656,17 @@ type fakeUsecase struct {
 	closeBlock    <-chan struct{}
 	closeErr      error
 
-	sendCalls int
+	sendResp   *pluginproto.SendResp
+	sendCalls  int
+	sendCtx    context.Context
+	sendReq    *pluginproto.SendReq
+	sendCaller string
+
+	channelMessagesResp   *pluginproto.ChannelMessageBatchResp
+	channelMessagesCalls  int
+	channelMessagesCtx    context.Context
+	channelMessagesReq    *pluginproto.ChannelMessageBatchReq
+	channelMessagesCaller string
 }
 
 func (f *fakeUsecase) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, callerUID string) (*pluginproto.StartupResp, error) {
@@ -719,14 +729,29 @@ func (f *fakeUsecase) SendMessage(ctx context.Context, req *pluginproto.SendReq,
 	f.mu.Lock()
 	f.lastCtx = ctx
 	f.sendCalls++
+	f.sendCtx = ctx
+	f.sendReq = req
+	f.sendCaller = callerUID
+	resp := f.sendResp
 	f.mu.Unlock()
+	if resp != nil {
+		return resp, nil
+	}
 	return &pluginproto.SendResp{MessageId: 123}, nil
 }
 
 func (f *fakeUsecase) ChannelMessages(ctx context.Context, req *pluginproto.ChannelMessageBatchReq, callerUID string) (*pluginproto.ChannelMessageBatchResp, error) {
 	f.mu.Lock()
 	f.lastCtx = ctx
+	f.channelMessagesCalls++
+	f.channelMessagesCtx = ctx
+	f.channelMessagesReq = req
+	f.channelMessagesCaller = callerUID
+	resp := f.channelMessagesResp
 	f.mu.Unlock()
+	if resp != nil {
+		return resp, nil
+	}
 	return &pluginproto.ChannelMessageBatchResp{}, nil
 }
 
