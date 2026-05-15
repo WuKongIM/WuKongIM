@@ -77,6 +77,7 @@ directory tree.
 
 | Domain | Scenario path | Purpose | Run |
 | --- | --- | --- | --- |
+| `bench` | `test/e2e/bench/wkbench_smoke` | Prove wkbench can prepare tiny benchmark data through the target bench API, drive person and group WKProto traffic through one worker, write a successful report with non-zero sendack success, and fail preflight when server bench mode is disabled. | `GOWORK=off go test -tags=e2e ./test/e2e/bench/wkbench_smoke -count=1` |
 | `cluster` | `test/e2e/cluster/dynamic_node_join` | Prove a fourth data node can join a running three-node cluster through seed config, exchange WKProto person messages with an existing node, receive Slot resources through manager onboarding, and optionally catch up from a large Slot snapshot. | `go test -tags=e2e ./test/e2e/cluster/dynamic_node_join -count=1` |
 | `cluster` | `test/e2e/cluster/controller_snapshot` | Prove a stopped Controller follower can rejoin after leader compaction by restoring a large Controller Raft snapshot generated through the test-data API. | `go test -tags=e2e ./test/e2e/cluster/controller_snapshot -count=1` |
 | `cluster` | `test/e2e/cluster/node_scalein_channel_drain` | Prove manager-driven data-node scale-in drains Slot ownership, channel replicas, active channel migrations, and runtime sessions before reporting the node safe to remove while WKProto delivery continues. | `go test -tags=e2e ./test/e2e/cluster/node_scalein_channel_drain -count=1 -timeout 3m` |

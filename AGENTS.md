@@ -128,6 +128,11 @@ scripts/                 仓库辅助脚本
 
 test/
   e2e/                   真实二进制黑盒 e2e 测试与子进程 harness
+    bench/               wkbench 黑盒 CLI e2e 场景
+      wkbench_smoke/     单节点集群 wkbench smoke 与 bench API disabled preflight
+    cluster/             集群拓扑、快照、扩缩容 e2e 场景
+    message/             WKProto 消息投递闭环 e2e 场景
+    suite/               e2e 共享黑盒 harness 与客户端辅助
 
 ui/                      内置管理 UI 静态页面
   assets/                前端静态资源
