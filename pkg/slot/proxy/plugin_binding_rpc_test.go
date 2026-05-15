@@ -185,6 +185,110 @@ func TestPluginBindingListByPluginNoContinuesWithinLocalHashSlot(t *testing.T) {
 	require.Equal(t, []string{"u3"}, pluginBindingUIDs(page2))
 }
 
+func TestPluginBindingListByPluginNoContinuesDuplicateTupleAcrossHashSlots(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	cluster := &proxyPluginBindingTestCluster{
+		slotIDs:     []multiraft.SlotID{1},
+		hashSlots:   map[multiraft.SlotID][]uint16{1: {3, 4}},
+		leaders:     map[multiraft.SlotID]multiraft.NodeID{1: 1},
+		peers:       map[multiraft.SlotID][]multiraft.NodeID{1: {1}},
+		localNodeID: 1,
+	}
+	store := &Store{cluster: cluster, db: db}
+	binding := metadb.PluginUserBinding{UID: "same-uid", PluginNo: "bot-dup", CreatedAtMS: 1, UpdatedAtMS: 1}
+	require.NoError(t, db.ForHashSlot(3).BindPluginUser(ctx, binding))
+	require.NoError(t, db.ForHashSlot(4).BindPluginUser(ctx, binding))
+
+	page1, cursor, hasMore, err := store.ListPluginBindingsByPluginNo(ctx, "bot-dup", "", 1)
+	require.NoError(t, err)
+	require.True(t, hasMore)
+	require.Len(t, page1, 1)
+	require.NotEmpty(t, cursor)
+
+	page2, _, hasMore, err := store.ListPluginBindingsByPluginNo(ctx, "bot-dup", cursor, 1)
+	require.NoError(t, err)
+	require.False(t, hasMore)
+	require.Equal(t, []metadb.PluginUserBinding{binding}, page2)
+}
+
+func TestPluginBindingListByPluginNoRejectsMismatchedCursorPlugin(t *testing.T) {
+	cursor, err := encodePluginBindingPageCursor(pluginBindingPageCursor{
+		SlotID:   1,
+		HashSlot: 3,
+		Binding:  metadb.PluginUserBindingCursor{PluginNo: "bot-a", UID: "u1"},
+	})
+	require.NoError(t, err)
+	store := &Store{cluster: &proxyPluginBindingTestCluster{slotIDs: []multiraft.SlotID{1}}, db: openTestDB(t)}
+
+	_, _, _, err = store.ListPluginBindingsByPluginNo(context.Background(), "bot-b", cursor, 10)
+	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+}
+
+func TestPluginBindingListByPluginNoSkipsEmptyPhysicalSlots(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	cluster := &proxyPluginBindingTestCluster{
+		slotIDs:     []multiraft.SlotID{1, 2},
+		hashSlots:   map[multiraft.SlotID][]uint16{2: {3}},
+		leaders:     map[multiraft.SlotID]multiraft.NodeID{1: 1, 2: 1},
+		peers:       map[multiraft.SlotID][]multiraft.NodeID{1: {1}, 2: {1}},
+		localNodeID: 1,
+	}
+	store := &Store{cluster: cluster, db: db}
+	want := metadb.PluginUserBinding{UID: "u1", PluginNo: "bot-empty-slot", CreatedAtMS: 1, UpdatedAtMS: 1}
+	require.NoError(t, db.ForHashSlot(3).BindPluginUser(ctx, want))
+
+	page, _, hasMore, err := store.ListPluginBindingsByPluginNo(ctx, "bot-empty-slot", "", 10)
+	require.NoError(t, err)
+	require.False(t, hasMore)
+	require.Equal(t, []metadb.PluginUserBinding{want}, page)
+}
+
+func TestPluginBindingRPCRejectsUnownedHashSlotScan(t *testing.T) {
+	ctx := context.Background()
+	store := &Store{
+		cluster: &proxyPluginBindingTestCluster{
+			hashSlots:   map[multiraft.SlotID][]uint16{1: {7}},
+			leaders:     map[multiraft.SlotID]multiraft.NodeID{1: 1},
+			peers:       map[multiraft.SlotID][]multiraft.NodeID{1: {1}},
+			localNodeID: 1,
+		},
+		db: openTestDB(t),
+	}
+	body, err := encodePluginBindingRPCRequestBinary(pluginBindingRPCRequest{
+		Op:       pluginBindingRPCScanByPluginNo,
+		SlotID:   1,
+		HashSlot: 8,
+		PluginNo: "bot-a",
+		Limit:    10,
+	})
+	require.NoError(t, err)
+
+	_, err = store.handlePluginBindingRPC(ctx, body)
+	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+}
+
+func TestPluginBindingStoreRejectsOverlongInputBeforeProposal(t *testing.T) {
+	ctx := context.Background()
+	cluster := &proxyPluginBindingTestCluster{
+		slotForKeyFunc:     func(key string) multiraft.SlotID { return 1 },
+		hashSlotForKeyFunc: func(key string) uint16 { return 1 },
+		leaders:            map[multiraft.SlotID]multiraft.NodeID{1: 1},
+		peers:              map[multiraft.SlotID][]multiraft.NodeID{1: {1}},
+		localNodeID:        1,
+	}
+	store := &Store{cluster: cluster, db: openTestDB(t)}
+	overlong := string(make([]byte, 1<<16))
+
+	require.ErrorIs(t, store.BindPluginUser(ctx, overlong, "bot-a"), metadb.ErrInvalidArgument)
+	require.Empty(t, cluster.lastCommand)
+	require.ErrorIs(t, store.BindPluginUser(ctx, "u1", overlong), metadb.ErrInvalidArgument)
+	require.Empty(t, cluster.lastCommand)
+	require.ErrorIs(t, store.UnbindPluginUser(ctx, overlong, "bot-a"), metadb.ErrInvalidArgument)
+	require.Empty(t, cluster.lastCommand)
+}
+
 func TestPluginBindingRPCRejectsMisroutedUIDRequest(t *testing.T) {
 	ctx := context.Background()
 	db := openTestDB(t)
