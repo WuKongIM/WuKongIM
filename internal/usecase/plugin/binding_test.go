@@ -122,6 +122,40 @@ func TestBindingUsecaseDoesNotCacheStaleReadAcrossConcurrentMutation(t *testing.
 	}
 }
 
+func TestBindingUsecaseSkipsCacheSetWhenEpochChangesAfterRead(t *testing.T) {
+	ctx := context.Background()
+	rt := newFakeRuntime(t.TempDir())
+	rt.plugins["bot-a"] = ObservedPlugin{No: "bot-a", Status: StatusRunning, Enabled: true, Methods: []Method{MethodReceive}, Priority: 10}
+	store := newFakeBindingStore()
+	cache := NewBindingCache(BindingCacheOptions{TTL: time.Minute, MaxEntries: 8, Clock: func() time.Time { return time.Unix(100, 0).UTC() }})
+	app := newTestBindingApp(t, rt, store, cache)
+
+	lookup, err := app.listBindingsByUID(ctx, "u1", true)
+	if err != nil {
+		t.Fatalf("listBindingsByUID: %v", err)
+	}
+	if lookup.fromCache || len(lookup.bindings) != 0 {
+		t.Fatalf("lookup before bind = %#v", lookup)
+	}
+	if _, err := app.BindPluginUser(ctx, "u1", "bot-a"); err != nil {
+		t.Fatalf("BindPluginUser: %v", err)
+	}
+	if app.setBindingCacheIfEpoch("u1", lookup.bindings, ObservedPlugin{}, false, lookup.epoch) {
+		t.Fatal("stale lookup was cached after binding epoch changed")
+	}
+
+	plugin, ok, err := app.BoundReceivePluginForUID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("BoundReceivePluginForUID: %v", err)
+	}
+	if !ok || plugin.No != "bot-a" {
+		t.Fatalf("selected = (%#v,%v), want bot-a true", plugin, ok)
+	}
+	if store.listUIDCalls != 2 {
+		t.Fatalf("listUIDCalls = %d, want stale cache skipped and latest reread", store.listUIDCalls)
+	}
+}
+
 func TestBindingUsecaseListsBindingsAndAddsWarningForAbsentLocalPlugin(t *testing.T) {
 	ctx := context.Background()
 	rt := newFakeRuntime(t.TempDir())
@@ -217,6 +251,27 @@ func TestBindingUsecaseListByUIDDoesNotRequireReceiveSelection(t *testing.T) {
 	}
 }
 
+func TestBindingUsecaseBoundReceiveSelectionIgnoresUnrelatedDesiredStoreErrors(t *testing.T) {
+	ctx := context.Background()
+	rt := newFakeRuntime(t.TempDir())
+	rt.plugins["bound"] = ObservedPlugin{No: "bound", Status: StatusRunning, Enabled: true, Methods: []Method{MethodReceive}, Priority: 1}
+	rt.plugins["unrelated"] = ObservedPlugin{No: "unrelated", Status: StatusRunning, Enabled: true, Methods: []Method{MethodReceive}, Priority: 99}
+	store := newFakeBindingStore()
+	store.bindingsByUID["u1"] = []PluginBinding{{UID: "u1", PluginNo: "bound"}}
+	app, err := NewApp(Options{Runtime: rt, DesiredStore: selectiveDesiredStore{errors: map[string]error{"unrelated": assertAnError{}}}, BindingStore: store})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+
+	plugin, ok, err := app.BoundReceivePluginForUID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("BoundReceivePluginForUID: %v", err)
+	}
+	if !ok || plugin.No != "bound" {
+		t.Fatalf("selected = (%#v,%v), want bound true", plugin, ok)
+	}
+}
+
 func TestBindingUsecaseCachesUIDBindingsAndSelectedPlugin(t *testing.T) {
 	ctx := context.Background()
 	now := time.Unix(100, 0).UTC()
@@ -269,6 +324,45 @@ func TestBindingUsecaseCachesUIDBindingsAndSelectedPlugin(t *testing.T) {
 	}
 	if store.listUIDCalls != 2 {
 		t.Fatalf("listUIDCalls after expiry = %d, want 2", store.listUIDCalls)
+	}
+}
+
+func TestBindingUsecaseUIDBindingCacheUsesFixedTTL(t *testing.T) {
+	ctx := context.Background()
+	now := time.Unix(100, 0).UTC()
+	rt := newFakeRuntime(t.TempDir())
+	rt.plugins["bot-a"] = ObservedPlugin{No: "bot-a", Status: StatusRunning, Enabled: true, Methods: []Method{MethodReceive}, Priority: 1}
+	store := newFakeBindingStore()
+	store.bindingsByUID["u1"] = []PluginBinding{{UID: "u1", PluginNo: "bot-a"}}
+	cache := NewBindingCache(BindingCacheOptions{TTL: time.Minute, MaxEntries: 8, Clock: func() time.Time { return now }})
+	app := newTestBindingApp(t, rt, store, cache)
+
+	plugin, ok, err := app.BoundReceivePluginForUID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("BoundReceivePluginForUID first: %v", err)
+	}
+	if !ok || plugin.No != "bot-a" {
+		t.Fatalf("first selected = (%#v,%v), want bot-a true", plugin, ok)
+	}
+	now = now.Add(50 * time.Second)
+	store.bindingsByUID["u1"] = nil
+	plugin, ok, err = app.BoundReceivePluginForUID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("BoundReceivePluginForUID cached: %v", err)
+	}
+	if !ok || plugin.No != "bot-a" {
+		t.Fatalf("cached selected = (%#v,%v), want bot-a true", plugin, ok)
+	}
+	now = now.Add(11 * time.Second)
+	plugin, ok, err = app.BoundReceivePluginForUID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("BoundReceivePluginForUID expired: %v", err)
+	}
+	if ok || plugin.No != "" {
+		t.Fatalf("expired selected = (%#v,%v), want none", plugin, ok)
+	}
+	if store.listUIDCalls != 2 {
+		t.Fatalf("listUIDCalls = %d, want one refresh after fixed TTL expiry", store.listUIDCalls)
 	}
 }
 
@@ -427,3 +521,18 @@ func (desiredStoreError) Delete(context.Context, string) error { return assertAn
 type assertAnError struct{}
 
 func (assertAnError) Error() string { return "assertion error" }
+
+type selectiveDesiredStore struct {
+	errors map[string]error
+}
+
+func (s selectiveDesiredStore) Get(_ context.Context, no string) (DesiredPlugin, error) {
+	if err := s.errors[no]; err != nil {
+		return DesiredPlugin{}, err
+	}
+	return DesiredPlugin{}, ErrDesiredPluginNotFound
+}
+
+func (selectiveDesiredStore) Save(context.Context, DesiredPlugin) error { return assertAnError{} }
+
+func (selectiveDesiredStore) Delete(context.Context, string) error { return assertAnError{} }
