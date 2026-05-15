@@ -434,7 +434,7 @@ func (s *recordingRuntimeSocket) Request(ctx context.Context, uid, path string, 
 
 func (s *recordingRuntimeSocket) Send(uid string, msgType uint32, body []byte) error { return nil }
 
-func (s *recordingRuntimeSocket) Route(path string, handler func(*wkrpc.Context)) {}
+func (s *recordingRuntimeSocket) Route(path string, handler wkrpc.Handler) {}
 
 type recordingRuntimeProcessManager struct {
 	order    *runtimeOrderRecorder

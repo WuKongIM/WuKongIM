@@ -25,11 +25,11 @@ type Options struct {
 	Routes RouteRegistrar
 	// Usecase handles decoded plugin host RPC requests.
 	Usecase Usecase
-	// MaxBodyBytes limits decoded host RPC request bodies.
+	// MaxBodyBytes limits decoded host RPC request and response bodies.
 	MaxBodyBytes int64
 	// Timeout bounds plugin-origin host RPC usecase calls.
 	Timeout time.Duration
-	// Logger is reserved for adapter-level diagnostics.
+	// Logger records adapter-level diagnostics.
 	Logger wklog.Logger
 	// Now supplies time for tests and future adapter timestamps.
 	Now func() time.Time
@@ -37,7 +37,7 @@ type Options struct {
 
 // RouteRegistrar is the narrow wkrpc route surface required by the adapter.
 type RouteRegistrar interface {
-	Route(path string, handler func(*wkrpc.Context))
+	Route(path string, handler wkrpc.Handler)
 }
 
 // Usecase is the narrow plugin host RPC application contract.
@@ -92,7 +92,7 @@ func NewServer(opts Options) (*Server, error) {
 	return s, nil
 }
 
-// MaxBodyBytes returns the configured request body limit.
+// MaxBodyBytes returns the configured request and response body limit.
 func (s *Server) MaxBodyBytes() int64 { return s.maxBodyBytes }
 
 func (s *Server) registerRoutes() {
@@ -102,9 +102,9 @@ func (s *Server) registerRoutes() {
 	}
 }
 
-func (s *Server) routeHandler(path string) func(*wkrpc.Context) {
+func (s *Server) routeHandler(path string) wkrpc.Handler {
 	handler := registeredRouteHandler{server: s, path: path}
-	return handler.handleWKRPC
+	return wkrpc.Handler(handler.handleWKRPC)
 }
 
 type registeredRouteHandler struct {
@@ -153,7 +153,7 @@ func (s *Server) handlePath(path string, c rpcContext) {
 	case "/conversation/channels":
 		s.handleConversationChannels(c)
 	case "/stream/open", "/stream/write", "/stream/close":
-		s.handleUnimplementedStream(c)
+		s.handleUnimplementedStream(path, c)
 	default:
 		c.WriteErr(errors.New("plugin host rpc route not registered"))
 	}
