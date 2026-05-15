@@ -68,7 +68,8 @@ type RecentConversation struct {
 // ListRecentConversations returns one bounded UID-scoped recent conversation working set.
 func (a *App) ListRecentConversations(ctx context.Context, req RecentConversationsRequest) (RecentConversationsResponse, error) {
 	uid := strings.TrimSpace(req.UID)
-	if uid == "" || req.Limit <= 0 || req.MsgCount < 0 {
+	maxInt := int(^uint(0) >> 1)
+	if uid == "" || req.Limit <= 0 || req.Limit >= maxInt || req.MsgCount < 0 {
 		return RecentConversationsResponse{}, metadb.ErrInvalidArgument
 	}
 	if a == nil || a.conversations == nil {

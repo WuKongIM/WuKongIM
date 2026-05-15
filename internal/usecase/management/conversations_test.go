@@ -44,9 +44,11 @@ func TestListRecentConversationsMapsSyncResultAndTruncates(t *testing.T) {
 
 func TestListRecentConversationsRejectsInvalidRequest(t *testing.T) {
 	app := New(Options{Conversations: &fakeRecentConversationSyncer{}})
+	maxInt := int(^uint(0) >> 1)
 	for _, req := range []RecentConversationsRequest{
 		{UID: "", Limit: 1, MsgCount: 0},
 		{UID: "u1", Limit: 0, MsgCount: 0},
+		{UID: "u1", Limit: maxInt, MsgCount: 0},
 		{UID: "u1", Limit: 1, MsgCount: -1},
 	} {
 		_, err := app.ListRecentConversations(context.Background(), req)
