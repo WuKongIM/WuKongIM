@@ -172,11 +172,11 @@ func (a *App) ListBindingsByUID(ctx context.Context, uid string) (BindingList, e
 	if uid == "" {
 		return BindingList{}, ErrBindingUIDRequired
 	}
-	bindings, _, err := a.listBindingsByUID(ctx, uid, false)
+	lookup, err := a.listBindingsByUID(ctx, uid, false)
 	if err != nil {
 		return BindingList{}, err
 	}
-	details, warnings, err := a.bindingDetails(ctx, bindings)
+	details, warnings, err := a.bindingDetails(ctx, lookup.bindings)
 	if err != nil {
 		return BindingList{}, err
 	}
@@ -224,57 +224,91 @@ func (a *App) BoundReceivePluginForUID(ctx context.Context, uid string) (Observe
 	if uid == "" {
 		return ObservedPlugin{}, false, ErrBindingUIDRequired
 	}
-	bindings, cacheable, err := a.listBindingsByUID(ctx, uid, true)
+	lookup, err := a.listBindingsByUID(ctx, uid, true)
 	if err != nil {
 		return ObservedPlugin{}, false, err
 	}
-	selected, selectedOK, err := a.selectBoundReceivePlugin(ctx, bindings)
+	selected, selectedOK, err := a.selectBoundReceivePlugin(ctx, lookup.bindings)
 	if err != nil {
 		return ObservedPlugin{}, false, err
 	}
-	if cacheable {
-		a.bindingCache.Set(uid, bindings, selected, selectedOK)
+	if lookup.cacheable {
+		a.setBindingCacheIfEpoch(uid, lookup.bindings, selected, selectedOK, lookup.epoch)
 	}
 	return selected, selectedOK, nil
 }
 
-func (a *App) listBindingsByUID(ctx context.Context, uid string, useCache bool) ([]PluginBinding, bool, error) {
+type bindingLookup struct {
+	bindings  []PluginBinding
+	epoch     uint64
+	cacheable bool
+	fromCache bool
+}
+
+func (a *App) listBindingsByUID(ctx context.Context, uid string, useCache bool) (bindingLookup, error) {
 	if a.bindingStore == nil {
-		return nil, false, ErrBindingStoreRequired
+		return bindingLookup{}, ErrBindingStoreRequired
 	}
 	if useCache {
 		a.bindingMu.RLock()
 		if bindings, _, _, hit := a.bindingCache.Get(uid); hit {
 			a.bindingMu.RUnlock()
-			return bindings, true, nil
+			return bindingLookup{bindings: bindings, fromCache: true}, nil
 		}
 		epoch := a.bindingEpoch
 		bindings, err := a.bindingStore.ListPluginBindingsByUID(ctx, uid)
 		a.bindingMu.RUnlock()
 		if err != nil {
-			return nil, false, err
+			return bindingLookup{}, err
 		}
 		bindings = clonePluginBindings(bindings)
 		a.bindingMu.RLock()
 		cacheable := epoch == a.bindingEpoch
 		a.bindingMu.RUnlock()
-		return bindings, cacheable, nil
+		return bindingLookup{bindings: bindings, epoch: epoch, cacheable: cacheable}, nil
 	}
 	a.bindingMu.RLock()
 	bindings, err := a.bindingStore.ListPluginBindingsByUID(ctx, uid)
 	a.bindingMu.RUnlock()
 	if err != nil {
-		return nil, false, err
+		return bindingLookup{}, err
 	}
-	return clonePluginBindings(bindings), false, nil
+	return bindingLookup{bindings: clonePluginBindings(bindings)}, nil
+}
+
+func (a *App) setBindingCacheIfEpoch(uid string, bindings []PluginBinding, selected ObservedPlugin, selectedOK bool, epoch uint64) bool {
+	a.bindingMu.RLock()
+	defer a.bindingMu.RUnlock()
+	if epoch != a.bindingEpoch {
+		return false
+	}
+	a.bindingCache.Set(uid, bindings, selected, selectedOK)
+	return true
 }
 
 func (a *App) selectBoundReceivePlugin(ctx context.Context, bindings []PluginBinding) (ObservedPlugin, bool, error) {
-	boundPluginNos := make([]string, 0, len(bindings))
+	bound := make(map[string]struct{}, len(bindings))
 	for _, binding := range bindings {
-		boundPluginNos = append(boundPluginNos, binding.PluginNo)
+		if binding.PluginNo != "" {
+			bound[binding.PluginNo] = struct{}{}
+		}
 	}
-	return a.BoundReceivePlugin(ctx, boundPluginNos)
+	if len(bound) == 0 {
+		return ObservedPlugin{}, false, nil
+	}
+	plugins := make([]ObservedPlugin, 0, len(bound))
+	for _, plugin := range a.runtime.List() {
+		if _, ok := bound[plugin.No]; !ok {
+			continue
+		}
+		effective, err := a.applyDesiredEnabledToPlugin(ctx, plugin)
+		if err != nil {
+			return ObservedPlugin{}, false, err
+		}
+		plugins = append(plugins, effective)
+	}
+	plugin, ok := SelectReceivePlugin(plugins, keysFromPluginBindingSet(bound))
+	return plugin, ok, nil
 }
 
 func (a *App) bindingDetails(ctx context.Context, bindings []PluginBinding) ([]BindingDetail, []BindingWarning, error) {
@@ -368,4 +402,12 @@ func pluginBindingsFromSlot(bindings []metadb.PluginUserBinding) []PluginBinding
 		out = append(out, PluginBinding{UID: binding.UID, PluginNo: binding.PluginNo})
 	}
 	return out
+}
+
+func keysFromPluginBindingSet(bound map[string]struct{}) []string {
+	keys := make([]string, 0, len(bound))
+	for key := range bound {
+		keys = append(keys, key)
+	}
+	return keys
 }
