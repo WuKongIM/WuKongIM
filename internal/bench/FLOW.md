@@ -1,0 +1,215 @@
+# internal/bench Flow
+
+`internal/bench` contains the reusable implementation behind `cmd/wkbench`. It is organized as a black-box benchmark runtime: configuration and planning are local, while target mutation and traffic use HTTP bench APIs and WKProto gateway clients. It must not import WuKongIM server internals.
+
+## Package Roles
+
+- `config`: strict YAML loading, environment expansion, and early static validation.
+- `model`: shared DTOs for target, worker, scenario, plan, bench API, rates, and reports.
+- `planner`: deterministic worker sharding for person profiles, group profiles, large groups, member ranges, traffic partitions, and channel owners.
+- `coordinator`: top-level run orchestration, preflight, worker assignment, phase polling, failure classification, and report collection.
+- `worker`: HTTP control server plus the default workload runner used by worker processes.
+- `workload`: reusable connection, person traffic, and group traffic executors.
+- `target`: black-box HTTP client for target health, readiness, bench capabilities, snapshot, token, channel, and subscriber APIs.
+- `wkproto`: benchmark WKProto client implementation.
+- `metrics`: worker-local counters, histograms, bounded error samples, and aggregation helpers.
+- `report`: deterministic report construction and report directory writing.
+
+## Coordinator Run Flow
+
+```text
+cmd/wkbench run
+  -> config.LoadTarget / LoadWorkerSet / LoadScenario
+  -> config.ValidateStaticConfig / ValidateTargetScenario
+  -> planner.Build
+  -> coordinator.Preflight.Check
+       -> target /healthz, /readyz, /bench/v1/capabilities
+       -> worker /v1/info
+       -> gateway checker
+  -> coordinator.assignWorkers
+       -> POST worker /v1/assign
+  -> phases: prepare -> connect -> warmup -> run -> cooldown
+       -> POST worker /v1/phase/<phase>
+       -> poll worker /v1/status until completed_phase catches up
+  -> collect worker metrics and reports
+  -> report.Build and report.WriteDir
+```
+
+Coordinator terminal statuses map directly to CLI exit codes:
+
+- `completed` -> `0`
+- `config_failed` -> `1`
+- `preflight_failed` -> `2`
+- `hard_limit_failed` -> `3`
+- `worker_failed` -> `4`
+- `target_unavailable` -> `5`
+- `canceled` or `internal_failed` -> `6`
+
+`PhasePrepare` has one extra coordinator step for split large groups: before normal prepare, the coordinator calls `/v1/prepare/channels` on workers that own split group channels. This creates owner channels before all workers append subscribers.
+
+## Worker Control Flow
+
+Workers expose a small HTTP control API:
+
+```text
+GET  /healthz
+GET  /v1/info
+POST /v1/assign
+POST /v1/prepare/channels
+POST /v1/phase/prepare
+POST /v1/phase/connect
+POST /v1/phase/warmup
+POST /v1/phase/run
+POST /v1/phase/cooldown
+POST /v1/stop
+GET  /v1/status
+GET  /v1/metrics
+GET  /v1/report
+```
+
+`worker.State` stores the active assignment and lifecycle phase. Phase hooks are asynchronous when they take longer than the short start grace period. In that case the worker returns `202 Accepted`, sets `active_phase`, and later updates `completed_phase` after the hook finishes. Duplicate phase requests are idempotent when the requested phase is already active or complete.
+
+The monotonic phase order is:
+
+```text
+idle -> assigned -> prepare -> connect -> warmup -> run -> cooldown -> stopped
+```
+
+`/v1/stop` cancels the active phase hook when possible and marks the worker stopped. A stopped worker may accept a new assignment.
+
+## Default Worker Runner Flow
+
+The default runner is assembled by `worker.newDefaultWorkloadRunner`.
+
+### Prepare
+
+```text
+Prepare
+  -> prepareBenchTokens when identity.token.mode == bench_api
+  -> prepareGroupData
+       -> group channel upsert batches
+       -> group subscriber batches
+```
+
+Group preparation uses the target bench API only. Small group profiles create owned channels and append their subscribers. Split large group profiles create the logical group channel only on the deterministic owner, then every worker appends its member range as subscribers.
+
+### Connect
+
+```text
+Connect
+  -> buildPersonExecutionPlan
+  -> buildGroupExecutionPlan
+  -> merge connection users
+  -> workload.ConnectionManager.Connect
+  -> wrap clients for concurrent frame matching
+  -> build person workloads
+  -> build group workloads
+```
+
+The client wrapper serializes access to each underlying `ReadFrame` call and buffers unmatched frames. This lets concurrent person/group workloads on the same UID wait for different sendack or recv frames without stealing each other's frames.
+
+### Warmup, Run, Cooldown
+
+Warmup, run, and cooldown execute all stored person and group workloads concurrently. Warmup uses a reduced rate. Run uses each traffic entry's own `rate_per_channel`, adjusted by split traffic partitions for large groups. Cooldown waits for the configured drain period without new sends.
+
+## Planner Flow
+
+`planner.Build` validates inputs, computes identity ranges, and creates a `model.Plan`.
+
+Person profiles:
+
+```text
+profile.count channels
+  -> two generated users per channel
+  -> weighted channel ranges per worker
+  -> participant ranges derived from channel ranges
+```
+
+Group profiles:
+
+```text
+normal group
+  -> weighted channel ranges per worker
+  -> member ranges are shared when members.overlap is allowed
+  -> member ranges are disjoint when members.overlap is disallowed
+
+split_members_and_traffic group
+  -> requires profile.count == 1
+  -> weighted member ranges per worker
+  -> weighted traffic partitions per worker
+  -> deterministic channel owner map
+```
+
+Allowed-overlap group members are selected from a shared identity pool by deterministic hash. Disallowed-overlap group members reserve disjoint user ranges. Person participants are distinct from their own profile ranges, but allowed-overlap groups may reuse the global identity pool.
+
+## Workload Flow
+
+### Person Traffic
+
+```text
+PersonWorkload.RunWindow
+  -> pick deterministic pair
+  -> build payload and client_msg_no with phase/profile/traffic/channel/message markers
+  -> send WKProto frame.ChannelTypePerson packet
+  -> wait for matching sendack
+  -> optionally wait for matching recv and send recvack
+  -> record metrics and bounded error samples
+```
+
+Person channel IDs are encoded deterministically from both UIDs. The workload does not import `internal/runtime/channelid`.
+
+### Group Traffic
+
+```text
+GroupWorkload.RunWindow
+  -> pick deterministic group channel and message index
+  -> first online member sends to frame.ChannelTypeGroup
+  -> wait for matching sendack
+  -> optionally verify full or sampled recipients
+  -> optionally send recvack
+  -> record metrics and bounded error samples
+```
+
+For split traffic, message indexes are partitioned by `TrafficPartitionCount` and `OwnedTrafficPartitions`, so workers emit non-overlapping message identity streams.
+
+## Target Bench API Boundary
+
+`internal/bench/target.Client` is the only target preparation client used by wkbench. It calls:
+
+- `GET /healthz`
+- `GET /readyz`
+- `GET /bench/v1/capabilities`
+- `GET /bench/v1/snapshot`
+- `POST /bench/v1/users/tokens`
+- `POST /bench/v1/channels`
+- `POST /bench/v1/channels/subscribers`
+
+The server-side implementation lives outside this package. Keep request/response types in `internal/bench/model` aligned with the bench API surface and avoid depending on internal server usecases from wkbench code.
+
+## Failure Handling
+
+- Static configuration and planning errors become `config_failed`.
+- Target, worker, capability, or gateway preflight errors become `preflight_failed`.
+- Worker phase errors become `worker_failed` unless the error is classified as target unavailable.
+- Target connection failures during worker execution are wrapped as `target_unavailable`.
+- Hard limit violations in report evaluation become `hard_limit_failed`.
+- Context cancellation becomes `canceled`.
+- Report collection or unexpected coordinator errors become `internal_failed` when no more specific status applies.
+
+When `run.fail_fast` is true, the coordinator stops remaining workers after the first unrecoverable phase error.
+
+## Code Reading Guide
+
+- CLI behavior: start at `cmd/wkbench/main.go`, then follow into `config`, `planner`, and `coordinator`.
+- Scenario schema or YAML behavior: read `internal/bench/model/config.go` and `internal/bench/config/config.go`.
+- Sharding bugs: start with `internal/bench/planner/planner.go`, then inspect `worker/person_runner.go` or `worker/group_runner.go`.
+- Worker phase issues: read `internal/bench/worker/state.go` and `internal/bench/worker/server.go`.
+- Send/recv correctness: read `internal/bench/workload/person.go`, `internal/bench/workload/group.go`, and `internal/bench/wkproto/client.go`.
+- Report output and limit checks: read `internal/bench/report/report.go` and `internal/bench/metrics/metrics.go`.
+
+## Current Boundaries
+
+- `cmd/wkbench report` is reserved and currently returns an internal failure.
+- Cleanup configuration exists in the scenario model, but cleanup execution is not implemented in the current runner.
+- The split-group channel prepare barrier is minimal: channel owners create channels before subscriber prepare. It is not a full per-channel prepared status and reassignment system.
+- Metrics scraping from target metrics endpoints is modeled but not yet used as a full scrape pipeline.

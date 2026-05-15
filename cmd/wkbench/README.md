@@ -1,0 +1,217 @@
+# wkbench
+
+`wkbench` is a black-box benchmark driver for WuKongIM. It talks to a running WuKongIM cluster through public HTTP, benchmark-only HTTP, and WKProto gateway endpoints. It does not import server internals or bypass cluster semantics; a single-node deployment is treated as a single-node cluster.
+
+## Commands
+
+```bash
+go run ./cmd/wkbench <command> [flags]
+```
+
+| Command | Purpose |
+| --- | --- |
+| `worker` | Starts one worker control process. Workers hold WKProto clients and execute assigned workload shards. |
+| `validate` | Loads target, workers, and scenario YAML and validates static config plus deterministic planning. |
+| `doctor` | Validates target and workers, then checks target health, bench API capabilities, worker control APIs, and gateway reachability. |
+| `run` | Runs the full coordinator flow: validate, preflight, assign workers, prepare, connect, warmup, run, cooldown, and report. |
+| `report` | Reserved for future standalone report rendering. It is not implemented yet. |
+
+Exit codes are stable: `0` success, `1` config validation failure, `2` preflight failure, `3` hard limit failure, `4` worker failure, `5` target unavailable, and `6` internal failure.
+
+## Target Requirements
+
+The target WuKongIM process must expose the normal health/readiness endpoints and the benchmark API:
+
+- `GET /healthz`
+- `GET /readyz`
+- `GET /bench/v1/capabilities`
+- `GET /bench/v1/snapshot`
+- `POST /bench/v1/users/tokens`
+- `POST /bench/v1/channels`
+- `POST /bench/v1/channels/subscribers`
+
+Enable the server-side bench API in `wukongim.conf` before running wkbench:
+
+```ini
+WK_BENCH_API_ENABLED=true
+WK_BENCH_API_TOKEN=bench-secret
+```
+
+If token auth is enabled, put the same token in `target.yaml` under `bench_api.token`.
+
+## Minimal Workflow
+
+Start one or more workers first:
+
+```bash
+WK_BENCH_WORKER_TOKEN=worker-secret \
+  go run ./cmd/wkbench worker \
+  --listen 127.0.0.1:19090 \
+  --work-dir ./tmp/wkbench-worker-a
+```
+
+Validate local files without network checks:
+
+```bash
+go run ./cmd/wkbench validate \
+  --target ./target.yaml \
+  --workers ./workers.yaml \
+  --scenario ./scenario.yaml
+```
+
+Run network preflight checks:
+
+```bash
+go run ./cmd/wkbench doctor \
+  --target ./target.yaml \
+  --workers ./workers.yaml \
+  --scenario ./scenario.yaml
+```
+
+Run the benchmark:
+
+```bash
+go run ./cmd/wkbench run \
+  --target ./target.yaml \
+  --workers ./workers.yaml \
+  --scenario ./scenario.yaml
+```
+
+For a compiled binary, replace `go run ./cmd/wkbench` with the binary path.
+
+## Example `target.yaml`
+
+```yaml
+name: local-single-node-cluster
+api:
+  addrs:
+    - http://127.0.0.1:5001
+gateway:
+  tcp:
+    addrs:
+      - 127.0.0.1:5100
+bench_api:
+  enabled: true
+  addrs:
+    - http://127.0.0.1:5001
+  token: bench-secret
+metrics:
+  enabled: false
+  addrs: []
+```
+
+`bench_api.addrs` is optional. When it is empty, wkbench uses `api.addrs` for bench API requests.
+
+## Example `workers.yaml`
+
+```yaml
+workers:
+  - id: worker-a
+    addr: http://127.0.0.1:19090
+    weight: 1
+    control_token: worker-secret
+```
+
+For local experiments only, a worker may be started with `--insecure-control`; then set `insecure_control: true` and omit `control_token` in `workers.yaml`.
+
+## Example `scenario.yaml`
+
+```yaml
+version: wkbench/v1
+run:
+  id: smoke-001
+  warmup: 1s
+  duration: 5s
+  cooldown: 1s
+  fail_fast: true
+  report_dir: ./tmp/wkbench-reports/smoke-001
+identity:
+  uid_prefix: bench-u
+  device_prefix: bench-d
+  client_msg_prefix: bench-msg
+  token:
+    mode: bench_api
+online:
+  total_users: 100
+  connect_rate: 50/s
+  gateway_balance: round_robin
+channels:
+  profiles:
+    - name: person-chat
+      channel_type: person
+      count: 10
+    - name: small-group
+      channel_type: group
+      count: 5
+      members:
+        count: 20
+        overlap: allowed
+      online:
+        member_ratio: 1
+      shard:
+        mode: hash
+      prepare:
+        subscribers_batch_size: 1000
+messages:
+  payload:
+    size_bytes: 128
+    mode: deterministic
+  traffic:
+    - name: person-send
+      channel_ref: person-chat
+      rate_per_channel: 1/s
+      recv_ack: true
+      verify:
+        recv:
+          mode: full
+    - name: group-send
+      channel_ref: small-group
+      rate_per_channel: 1/s
+      recv_ack: true
+      verify:
+        recv:
+          mode: sampled
+          sample_size_per_message: 1
+limits:
+  hard:
+    max_worker_failed: 0
+    max_connect_error_rate: 0
+    max_sendack_error_rate: 0
+    max_recv_verify_error_rate: 0
+cleanup:
+  enabled: false
+```
+
+Durations use Go duration syntax such as `500ms`, `1s`, or `2m`. Rates use `<number>/s`, for example `100/s` or `12.5/s`.
+
+## Scenario Notes
+
+- `online.total_users` is the generated identity pool. Person channels reserve two users per channel. Group member ranges may share this pool when `members.overlap: allowed`.
+- Person profiles generate deterministic one-to-one channel IDs from the sender and recipient UID pair.
+- Group profiles support normal hashed channel ranges and the `split_members_and_traffic` mode for one very large group. In split mode, exactly one logical group channel is split across workers by member ranges and traffic partitions.
+- Multiple `messages.traffic` entries may target the same channel profile. Each traffic entry uses its own `rate_per_channel`.
+- `verify.recv.mode: full` verifies every expected recipient in the workload shard. `sampled` verifies a deterministic recipient sample. Empty mode disables receive verification.
+- `identity.token.mode: bench_api` prepares benchmark user tokens through `/bench/v1/users/tokens`. Empty or `none` uses empty tokens.
+
+## Report Output
+
+When `run.report_dir` is set, wkbench writes a report directory containing:
+
+- `scenario.yaml`, `target.yaml`, and `workers.yaml`: copied effective inputs.
+- `plan.json`: deterministic worker assignment.
+- `report.json`: machine-readable verdict, summary, limits, metrics, and errors.
+- `summary.md`: human-readable summary.
+- `workers/`: raw worker reports.
+- `metrics/` and `errors/`: jsonl details for metrics and error samples.
+
+## Development Checks
+
+Useful commands while changing wkbench:
+
+```bash
+GOWORK=off go test ./internal/bench/... ./cmd/wkbench -count=1
+GOWORK=off go test ./cmd/wkbench -run TestWkbenchDoesNotImportServerInternals -count=1
+GOWORK=off go test -tags=e2e ./test/e2e/bench/wkbench_smoke -count=1
+```
+
+Keep `cmd/wkbench` as a thin CLI over `internal/bench`. Do not import WuKongIM server internals into wkbench; use `internal/bench/target` and WKProto clients as black-box boundaries.
