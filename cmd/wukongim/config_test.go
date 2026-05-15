@@ -126,6 +126,27 @@ func TestLoadConfigParsesTestMode(t *testing.T) {
 	require.True(t, cfg.TestMode)
 }
 
+func TestLoadConfigParsesBenchAPIConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:11110",
+		"WK_CLUSTER_INITIAL_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:11110"}]`,
+		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"stdnet","protocol":"wkproto"}]`,
+		"WK_BENCH_API_ENABLE=true",
+		"WK_BENCH_API_MAX_BATCH_SIZE=123",
+		"WK_BENCH_API_MAX_PAYLOAD_BYTES=456789",
+	)
+
+	cfg, err := loadConfig(path)
+	require.NoError(t, err)
+	require.True(t, cfg.Bench.APIEnabled)
+	require.Equal(t, 123, cfg.Bench.APIMaxBatchSize)
+	require.Equal(t, int64(456789), cfg.Bench.APIMaxPayloadBytes)
+}
+
 func TestLoadConfigParsesClusterSeedJoinKeys(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",

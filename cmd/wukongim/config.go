@@ -306,6 +306,18 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	benchAPIEnable, err := parseBool(v, "WK_BENCH_API_ENABLE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	benchAPIMaxBatchSize, err := parseInt(v, "WK_BENCH_API_MAX_BATCH_SIZE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	benchAPIMaxPayloadBytes, err := parseInt64(v, "WK_BENCH_API_MAX_PAYLOAD_BYTES")
+	if err != nil {
+		return app.Config{}, err
+	}
 
 	nodes, err := parseJSONValue[[]app.NodeConfigRef](v, "WK_CLUSTER_NODES")
 	if err != nil {
@@ -642,6 +654,11 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			ChannelBatchSize: channelMessageRetentionChannelBatchSize,
 			MaxTrimMessages:  channelMessageRetentionMaxTrimMessages,
 		},
+		Bench: app.BenchConfig{
+			APIEnabled:         benchAPIEnable,
+			APIMaxBatchSize:    benchAPIMaxBatchSize,
+			APIMaxPayloadBytes: benchAPIMaxPayloadBytes,
+		},
 		Message: app.MessageConfig{
 			PersonWhitelistEnabled: messagePersonWhitelistEnabled,
 			SystemDeviceID:         messageSystemDeviceID,
@@ -886,6 +903,19 @@ func parseInt(v *viper.Viper, key string) (int, error) {
 	}
 
 	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", key, err)
+	}
+	return value, nil
+}
+
+func parseInt64(v *viper.Viper, key string) (int64, error) {
+	raw := stringValue(v, key)
+	if raw == "" {
+		return 0, nil
+	}
+
+	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("parse %s: %w", key, err)
 	}

@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/benchdata"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
@@ -61,6 +62,15 @@ type ChannelUsecase interface {
 	ListAllowlist(ctx context.Context, key channelusecase.ChannelKey) (channelusecase.MemberListResult, error)
 }
 
+// BenchDataUsecase prepares unauthenticated benchmark data when bench mode is enabled.
+type BenchDataUsecase interface {
+	Capabilities(ctx context.Context) benchdata.CapabilitiesResponse
+	UpsertTokens(ctx context.Context, req benchdata.TokensRequest) (benchdata.MutationResponse, error)
+	UpsertChannels(ctx context.Context, req benchdata.ChannelsRequest) (benchdata.MutationResponse, error)
+	AddSubscribers(ctx context.Context, req benchdata.SubscribersRequest) (benchdata.SubscribersResponse, error)
+	Snapshot(ctx context.Context) (benchdata.SnapshotResponse, error)
+}
+
 // TestDataUsecase generates deterministic datasets for process-level e2e tests.
 type TestDataUsecase interface {
 	GenerateSlotSnapshotUsers(ctx context.Context, cmd testdatausecase.GenerateSlotSnapshotUsersCommand) (testdatausecase.GenerateSlotSnapshotUsersResult, error)
@@ -109,6 +119,10 @@ type Options struct {
 	HealthDetails            func() any
 	Readyz                   func(context.Context) (bool, any)
 	DebugEnabled             bool
+	BenchEnabled             bool
+	BenchData                BenchDataUsecase
+	BenchMaxBatchSize        int
+	BenchMaxPayloadBytes     int64
 	DebugConfig              func() any
 	DebugCluster             func() any
 	DiagnosticsDebugEnabled  bool
@@ -141,6 +155,10 @@ type Server struct {
 	healthDetails            func() any
 	readyz                   func(context.Context) (bool, any)
 	debugEnabled             bool
+	benchEnabled             bool
+	benchData                BenchDataUsecase
+	benchMaxBatchSize        int
+	benchMaxPayloadBytes     int64
 	debugConfig              func() any
 	debugCluster             func() any
 	diagnosticsDebugEnabled  bool
@@ -179,6 +197,10 @@ func New(opts Options) *Server {
 		healthDetails:            opts.HealthDetails,
 		readyz:                   opts.Readyz,
 		debugEnabled:             opts.DebugEnabled,
+		benchEnabled:             opts.BenchEnabled,
+		benchData:                opts.BenchData,
+		benchMaxBatchSize:        opts.BenchMaxBatchSize,
+		benchMaxPayloadBytes:     opts.BenchMaxPayloadBytes,
 		debugConfig:              opts.DebugConfig,
 		debugCluster:             opts.DebugCluster,
 		diagnosticsDebugEnabled:  opts.DiagnosticsDebugEnabled,

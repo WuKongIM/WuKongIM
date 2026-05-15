@@ -379,6 +379,44 @@ func TestConfigApplyDefaultsKeepsTestModeDisabledByDefault(t *testing.T) {
 	require.False(t, cfg.TestMode)
 }
 
+func TestConfigApplyDefaultsSetsBenchAPILimits(t *testing.T) {
+	cfg := validConfig()
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	require.False(t, cfg.Bench.APIEnabled)
+	require.Equal(t, 10000, cfg.Bench.APIMaxBatchSize)
+	require.Equal(t, int64(10<<20), cfg.Bench.APIMaxPayloadBytes)
+}
+
+func TestConfigApplyDefaultsSetsBenchAPILimitsWhenEnabled(t *testing.T) {
+	cfg := validConfig()
+	cfg.Bench.APIEnabled = true
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	require.Equal(t, 10000, cfg.Bench.APIMaxBatchSize)
+	require.Equal(t, int64(10<<20), cfg.Bench.APIMaxPayloadBytes)
+}
+
+func TestConfigRejectsInvalidBenchAPILimitsWhenEnabled(t *testing.T) {
+	t.Run("batch size", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Bench.APIEnabled = true
+		cfg.Bench.APIMaxBatchSize = -1
+		cfg.Bench.APIMaxPayloadBytes = 1024
+
+		require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "bench api max batch size")
+	})
+
+	t.Run("payload bytes", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Bench.APIEnabled = true
+		cfg.Bench.APIMaxBatchSize = 10
+		cfg.Bench.APIMaxPayloadBytes = -1
+
+		require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "bench api max payload bytes")
+	})
+}
+
 func TestConfigRejectsNodeIDSnowflakeOverflow(t *testing.T) {
 	cfg := validConfig()
 	cfg.Node.ID = 1024
