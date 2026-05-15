@@ -4,6 +4,7 @@ import { NavLink, useLocation } from "react-router-dom"
 
 import { useAuthStore } from "@/auth/auth-store"
 import { LocaleSwitcher } from "@/components/i18n/locale-switcher"
+import { ThemeSwitcher } from "@/components/theme/theme-switcher"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
@@ -51,7 +52,7 @@ export function Topbar() {
                   className={cn(
                     "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm",
                     active
-                      ? "bg-[#c8ffd8] text-[#06120b] shadow-[0_0_18px_rgba(101,216,138,0.18)] hover:text-[#06120b]"
+                      ? "bg-[#123b23] text-[#e8fff0] shadow-[0_0_18px_rgba(101,216,138,0.18)] ring-1 ring-primary/35 hover:text-[#e8fff0]"
                       : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
                   )}
                   key={section.id}
@@ -76,6 +77,7 @@ export function Topbar() {
             <ShieldCheck className="size-3.5" />
             {intl.formatMessage({ id: "shell.singleNodeClusterHealthy" })}
           </div>
+          <ThemeSwitcher />
           <LocaleSwitcher />
           <div className="flex items-center gap-2 border-l border-border/80 pl-2 sm:pl-3">
             <span className="hidden text-xs text-muted-foreground sm:inline">{username}</span>

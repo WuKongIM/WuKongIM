@@ -5,6 +5,7 @@ import { beforeEach, expect, test, vi } from "vitest"
 
 import { AppProviders } from "@/app/providers"
 import { routes } from "@/app/router"
+import { resetThemePreference } from "@/app/theme-store"
 import { useAuthStore } from "@/auth/auth-store"
 import { resetLocale } from "@/i18n/locale-store"
 
@@ -21,6 +22,8 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
+  resetThemePreference()
+  document.documentElement.classList.remove("dark", "light")
   getNetworkSummaryMock.mockReset()
   getNetworkSummaryMock.mockImplementation(() => new Promise(() => {}))
   useAuthStore.setState({
@@ -49,10 +52,30 @@ test("renders brand, top sections, route metadata, and logged-in username", asyn
   expect(within(banner).getByRole("link", { name: "Cluster Ops" })).toHaveAttribute("aria-current", "page")
   expect(within(banner).getByRole("link", { name: "Business" })).toBeInTheDocument()
   expect(within(banner).getByRole("link", { name: "System" })).toBeInTheDocument()
-  expect(within(banner).getByRole("link", { name: "Cluster Ops" })).toHaveClass("text-[#06120b]")
+  expect(within(banner).getByRole("link", { name: "Cluster Ops" })).toHaveClass("bg-[#123b23]", "text-[#e8fff0]")
   expect(within(banner).getByText("Nodes")).toBeInTheDocument()
   expect(within(banner).getByText("Node inventory, roles, and lifecycle status.")).toBeInTheDocument()
   expect(within(banner).getByText("admin")).toBeInTheDocument()
+  expect(within(banner).getByRole("group", { name: "Theme switcher" })).toBeInTheDocument()
+  expect(within(banner).getByRole("button", { name: "System theme" })).toHaveAttribute("aria-pressed", "true")
+  expect(within(banner).getByRole("button", { name: "Light theme" })).toBeInTheDocument()
+  expect(within(banner).getByRole("button", { name: "Dark theme" })).toBeInTheDocument()
+})
+
+test("uses a high-contrast active top section pill in Chinese", async () => {
+  localStorage.setItem("wukongim_manager_locale", "zh-CN")
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/nodes"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  const activeSection = await within(screen.getByRole("banner")).findByRole("link", { name: "集群运维" })
+
+  expect(activeSection).toHaveClass("bg-[#123b23]", "text-[#e8fff0]")
+  expect(activeSection).not.toHaveClass("bg-[#c8ffd8]", "text-[#06120b]")
 })
 
 test("keeps cockpit health context and lets the user log out", async () => {
@@ -91,6 +114,8 @@ test("switches topbar actions and sections to Chinese", async () => {
   await user.click(await within(screen.getByRole("banner")).findByRole("button", { name: "中文" }))
 
   expect(within(screen.getByRole("banner")).getByRole("link", { name: "集群运维" })).toHaveAttribute("aria-current", "page")
+  expect(within(screen.getByRole("banner")).getByRole("group", { name: "主题切换" })).toBeInTheDocument()
+  expect(within(screen.getByRole("banner")).getByRole("button", { name: "跟随系统" })).toBeInTheDocument()
   expect(within(screen.getByRole("banner")).getByText("单节点集群 · 健康")).toBeInTheDocument()
   expect(within(screen.getByRole("banner")).getByRole("button", { name: "退出登录" })).toBeInTheDocument()
   expect(localStorage.getItem("wukongim_manager_locale")).toBe("zh-CN")

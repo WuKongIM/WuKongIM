@@ -49,6 +49,25 @@ test("keeps the cluster context visible in the sidebar", async () => {
   expect(screen.getByText("Single-node cluster")).toBeInTheDocument()
 })
 
+test("keeps the primary menu outside the scrollable content area", async () => {
+  const router = createMemoryRouter(routes, { initialEntries: ["/dashboard"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  const main = await screen.findByRole("main")
+  const contentFrame = main.parentElement
+  const appShell = contentFrame?.parentElement
+
+  expect(appShell).toHaveClass("h-screen", "overflow-hidden")
+  expect(contentFrame).toHaveClass("min-h-0", "flex-1")
+  expect(main).toHaveClass("min-h-0", "overflow-y-auto")
+  expect(screen.getByRole("navigation", { name: "Primary navigation" }).parentElement).toBe(contentFrame)
+})
+
 test("shows the cockpit health context in the topbar", async () => {
   const router = createMemoryRouter(routes, { initialEntries: ["/dashboard"] })
 
