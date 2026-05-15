@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -29,6 +30,8 @@ const (
 	pluginBindingProxyMaxKeyStringLen    = 1<<16 - 1
 	pluginBindingPageCursorMaxEncodedLen = ((pluginBindingProxyMaxKeyStringLen*2 + 64) * 4 / 3) + 8
 )
+
+var pluginBindingErrGetInHashSlotUnsupported = fmt.Errorf("metastore: plugin binding get_in_hash_slot unsupported")
 
 type pluginBindingRPCRequest struct {
 	Op       string                  `json:"op"`
@@ -392,7 +395,7 @@ func (s *Store) loadPluginBindingMergeItem(ctx context.Context, slotID multiraft
 		if pluginBindingShardAfterCursor(slotID, hashSlot, after) {
 			binding, exists, err := s.getPluginBindingSlotHashSlot(ctx, slotID, hashSlot, after.Binding.UID, pluginNo)
 			if err != nil {
-				if pluginBindingGetInHashSlotUnsupported(err) {
+				if err == pluginBindingErrGetInHashSlotUnsupported {
 					return s.loadPluginBindingMergeItemCompat(ctx, slotID, hashSlot, pluginNo, after)
 				}
 				return pluginBindingMergeItem{}, false, err
@@ -447,6 +450,9 @@ func (s *Store) loadPluginBindingMergeItemCompat(ctx context.Context, slotID mul
 		if done {
 			return pluginBindingMergeItem{}, false, nil
 		}
+		if cursor == shardAfter {
+			return pluginBindingMergeItem{}, false, fmt.Errorf("metastore: plugin binding scan cursor did not advance")
+		}
 		shardAfter = cursor
 	}
 }
@@ -458,7 +464,7 @@ func (s *Store) getPluginBindingSlotHashSlot(ctx context.Context, slotID multira
 		}
 		return s.getPluginBindingLocalHashSlot(ctx, hashSlot, uid, pluginNo)
 	}
-	resp, err := s.callPluginBindingRPC(ctx, slotID, pluginBindingRPCRequest{
+	resp, err := s.callPluginBindingGetInHashSlotRPC(ctx, slotID, pluginBindingRPCRequest{
 		Op:       pluginBindingRPCGetInHashSlot,
 		SlotID:   uint64(slotID),
 		HashSlot: hashSlot,
@@ -466,12 +472,92 @@ func (s *Store) getPluginBindingSlotHashSlot(ctx context.Context, slotID multira
 		PluginNo: pluginNo,
 	})
 	if err != nil {
+		if pluginBindingGetInHashSlotUnsupported(err) {
+			return metadb.PluginUserBinding{}, false, pluginBindingErrGetInHashSlotUnsupported
+		}
 		return metadb.PluginUserBinding{}, false, err
 	}
 	if len(resp.Bindings) == 0 {
 		return metadb.PluginUserBinding{}, false, nil
 	}
 	return resp.Bindings[0], true, nil
+}
+
+func (s *Store) callPluginBindingGetInHashSlotRPC(ctx context.Context, slotID multiraft.SlotID, req pluginBindingRPCRequest) (pluginBindingRPCResponse, error) {
+	payload, err := encodePluginBindingRPCRequestBinary(req)
+	if err != nil {
+		return pluginBindingRPCResponse{}, err
+	}
+	return callPluginBindingRPCPreserveUnsupported(ctx, s, slotID, payload)
+}
+
+func callPluginBindingRPCPreserveUnsupported(ctx context.Context, s *Store, slotID multiraft.SlotID, payload []byte) (pluginBindingRPCResponse, error) {
+	if s.cluster == nil {
+		return pluginBindingRPCResponse{}, fmt.Errorf("metastore: cluster not configured")
+	}
+
+	peers := s.cluster.PeersForSlot(slotID)
+	if len(peers) == 0 {
+		return pluginBindingRPCResponse{}, raftcluster.ErrSlotNotFound
+	}
+
+	tried := make(map[multiraft.NodeID]struct{}, len(peers))
+	candidates := append([]multiraft.NodeID(nil), peers...)
+	var lastErr error
+	unsupported := false
+	for len(candidates) > 0 {
+		peer := candidates[0]
+		candidates = candidates[1:]
+		if _, ok := tried[peer]; ok {
+			continue
+		}
+		tried[peer] = struct{}{}
+
+		body, err := s.cluster.RPCService(ctx, peer, slotID, pluginBindingRPCServiceID, payload)
+		if err != nil {
+			if pluginBindingGetInHashSlotUnsupported(err) {
+				unsupported = true
+			}
+			lastErr = err
+			continue
+		}
+
+		resp, err := decodePluginBindingRPCResponse(body)
+		if err != nil {
+			if pluginBindingGetInHashSlotUnsupported(err) {
+				unsupported = true
+			}
+			lastErr = err
+			continue
+		}
+
+		switch resp.rpcStatus() {
+		case rpcStatusOK, rpcStatusNotFound:
+			return resp, nil
+		case rpcStatusNotLeader:
+			if leaderID := multiraft.NodeID(resp.rpcLeaderID()); leaderID != 0 {
+				if _, ok := tried[leaderID]; !ok {
+					candidates = append([]multiraft.NodeID{leaderID}, candidates...)
+				}
+				continue
+			}
+		case rpcStatusNoLeader:
+			lastErr = raftcluster.ErrNoLeader
+			continue
+		case rpcStatusNoSlot:
+			lastErr = raftcluster.ErrSlotNotFound
+			continue
+		default:
+			return pluginBindingRPCResponse{}, fmt.Errorf("metastore: unexpected rpc status %q", resp.rpcStatus())
+		}
+	}
+	if unsupported {
+		return pluginBindingRPCResponse{}, pluginBindingErrGetInHashSlotUnsupported
+	}
+	if lastErr != nil {
+		return pluginBindingRPCResponse{}, lastErr
+	}
+	return pluginBindingRPCResponse{}, raftcluster.ErrNoLeader
 }
 
 func (s *Store) getPluginBindingLocalHashSlot(ctx context.Context, hashSlot uint16, uid, pluginNo string) (metadb.PluginUserBinding, bool, error) {
