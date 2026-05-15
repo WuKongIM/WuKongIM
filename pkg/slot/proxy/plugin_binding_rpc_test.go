@@ -373,6 +373,66 @@ func TestPluginBindingListByPluginNoUsesCursorBoundForLaterRemoteShards(t *testi
 	require.Equal(t, []string{pluginBindingRPCGetInHashSlot, pluginBindingRPCScanByPluginNo}, ops)
 }
 
+func TestPluginBindingListByPluginNoFallsBackWhenUnsupportedIsOverwrittenByLaterPeerError(t *testing.T) {
+	ctx := context.Background()
+	cursor, err := encodePluginBindingPageCursor(pluginBindingPageCursor{
+		SlotID:   1,
+		HashSlot: 3,
+		Binding:  metadb.PluginUserBindingCursor{PluginNo: "bot-compat-loss", UID: "u2"},
+	})
+	require.NoError(t, err)
+
+	getCalls := 0
+	cluster := &proxyPluginBindingTestCluster{
+		slotIDs:     []multiraft.SlotID{1, 2},
+		hashSlots:   map[multiraft.SlotID][]uint16{1: {3}, 2: {4}},
+		leaders:     map[multiraft.SlotID]multiraft.NodeID{1: 1, 2: 2},
+		peers:       map[multiraft.SlotID][]multiraft.NodeID{1: {1}, 2: {2, 3}},
+		localNodeID: 1,
+		rpcService: func(_ context.Context, nodeID multiraft.NodeID, _ multiraft.SlotID, _ uint8, payload []byte) ([]byte, error) {
+			req, err := decodePluginBindingRPCRequest(payload)
+			require.NoError(t, err)
+			switch req.Op {
+			case pluginBindingRPCGetInHashSlot:
+				getCalls++
+				if nodeID == 2 {
+					return nil, fmt.Errorf("metastore: unknown plugin binding rpc op id 6")
+				}
+				return nil, fmt.Errorf("temporary peer failure")
+			case pluginBindingRPCScanByPluginNo:
+				if req.After == nil || req.After.UID == "" {
+					return encodePluginBindingRPCResponse(pluginBindingRPCResponse{
+						Status: rpcStatusOK,
+						Bindings: []metadb.PluginUserBinding{{
+							UID: "u1", PluginNo: "bot-compat-loss", CreatedAtMS: 1, UpdatedAtMS: 1,
+						}},
+						Cursor: pluginBindingRPCCursor{PluginNo: "bot-compat-loss", UID: "u1"},
+					})
+				}
+				return encodePluginBindingRPCResponse(pluginBindingRPCResponse{
+					Status: rpcStatusOK,
+					Bindings: []metadb.PluginUserBinding{{
+						UID: "u2", PluginNo: "bot-compat-loss", CreatedAtMS: 1, UpdatedAtMS: 1,
+					}},
+					Cursor: pluginBindingRPCCursor{PluginNo: "bot-compat-loss", UID: "u2"},
+					Done:   true,
+				})
+			default:
+				t.Fatalf("unexpected plugin binding rpc op %s", req.Op)
+				return nil, nil
+			}
+		},
+	}
+	store := &Store{cluster: cluster, db: openTestDB(t)}
+
+	page, cursor, hasMore, err := store.ListPluginBindingsByPluginNo(ctx, "bot-compat-loss", cursor, 1)
+	require.NoError(t, err)
+	require.False(t, hasMore)
+	require.Empty(t, cursor)
+	require.Equal(t, []string{"u2"}, pluginBindingUIDs(page))
+	require.Equal(t, 2, getCalls)
+}
+
 func TestPluginBindingListByPluginNoFallsBackWhenGetInHashSlotUnsupported(t *testing.T) {
 	ctx := context.Background()
 	cursor, err := encodePluginBindingPageCursor(pluginBindingPageCursor{
@@ -425,6 +485,47 @@ func TestPluginBindingListByPluginNoFallsBackWhenGetInHashSlotUnsupported(t *tes
 	require.Empty(t, cursor)
 	require.Equal(t, []string{"u2"}, pluginBindingUIDs(page))
 	require.Equal(t, []string{pluginBindingRPCGetInHashSlot, pluginBindingRPCScanByPluginNo, pluginBindingRPCScanByPluginNo}, ops)
+}
+
+func TestPluginBindingListByPluginNoCompatRejectsNonAdvancingCursor(t *testing.T) {
+	ctx := context.Background()
+	cursor, err := encodePluginBindingPageCursor(pluginBindingPageCursor{
+		SlotID:   1,
+		HashSlot: 3,
+		Binding:  metadb.PluginUserBindingCursor{PluginNo: "bot-stuck", UID: "u2"},
+	})
+	require.NoError(t, err)
+
+	cluster := &proxyPluginBindingTestCluster{
+		slotIDs:     []multiraft.SlotID{1, 2},
+		hashSlots:   map[multiraft.SlotID][]uint16{1: {3}, 2: {4}},
+		leaders:     map[multiraft.SlotID]multiraft.NodeID{1: 1, 2: 2},
+		peers:       map[multiraft.SlotID][]multiraft.NodeID{1: {1}, 2: {2}},
+		localNodeID: 1,
+		rpcService: func(_ context.Context, _ multiraft.NodeID, _ multiraft.SlotID, _ uint8, payload []byte) ([]byte, error) {
+			req, err := decodePluginBindingRPCRequest(payload)
+			require.NoError(t, err)
+			switch req.Op {
+			case pluginBindingRPCGetInHashSlot:
+				return nil, fmt.Errorf("metastore: unknown plugin binding rpc op id 6")
+			case pluginBindingRPCScanByPluginNo:
+				return encodePluginBindingRPCResponse(pluginBindingRPCResponse{
+					Status: rpcStatusOK,
+					Bindings: []metadb.PluginUserBinding{{
+						UID: "u1", PluginNo: "bot-stuck", CreatedAtMS: 1, UpdatedAtMS: 1,
+					}},
+					Cursor: pluginBindingRPCCursor{PluginNo: "bot-stuck", UID: ""},
+				})
+			default:
+				t.Fatalf("unexpected plugin binding rpc op %s", req.Op)
+				return nil, nil
+			}
+		},
+	}
+	store := &Store{cluster: cluster, db: openTestDB(t)}
+
+	_, _, _, err = store.ListPluginBindingsByPluginNo(ctx, "bot-stuck", cursor, 1)
+	require.ErrorContains(t, err, "cursor did not advance")
 }
 
 func TestPluginBindingListByPluginNoSkipsEmptyPhysicalSlots(t *testing.T) {
