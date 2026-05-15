@@ -41,6 +41,18 @@ var (
 	ErrMessageReaderRequired = errors.New("plugin message reader required")
 	// ErrDefaultSenderUIDRequired reports that plugin-origin sends without fromUid need a default sender.
 	ErrDefaultSenderUIDRequired = errors.New("plugin default sender uid required")
+	// ErrClusterReaderRequired reports that host cluster/config needs the cluster reader port.
+	ErrClusterReaderRequired = errors.New("plugin cluster reader required")
+	// ErrChannelOwnerReaderRequired reports that host belong-node lookup needs the channel owner reader port.
+	ErrChannelOwnerReaderRequired = errors.New("plugin channel owner reader required")
+	// ErrChannelRequired reports that a host RPC omitted a required channel.
+	ErrChannelRequired = errors.New("plugin channel required")
+	// ErrChannelOwnerUnknown reports that a channel owner could not be determined authoritatively.
+	ErrChannelOwnerUnknown = errors.New("plugin channel owner unknown")
+	// ErrConversationReaderRequired reports that host conversation/channels needs the conversation reader port.
+	ErrConversationReaderRequired = errors.New("plugin conversation reader required")
+	// ErrConversationUIDRequired reports that host conversation/channels omitted the UID.
+	ErrConversationUIDRequired = errors.New("plugin conversation uid required")
 )
 
 var pluginNoPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
@@ -171,3 +183,35 @@ type LocalPlugin struct {
 
 // LocalPluginDetail is the manager-facing detail of one node-local plugin.
 type LocalPluginDetail = LocalPlugin
+
+// ClusterSnapshot is the authoritative cluster view exposed to legacy plugins.
+type ClusterSnapshot struct {
+	// Nodes contains cluster node metadata.
+	Nodes []ClusterNode
+	// Slots contains physical Slot placement and runtime leadership metadata.
+	Slots []ClusterSlot
+}
+
+// ClusterNode is one node in a plugin-compatible cluster snapshot.
+type ClusterNode struct {
+	// ID is the stable cluster node identifier.
+	ID uint64
+	// ClusterAddr is the node-to-node cluster RPC address.
+	ClusterAddr string
+	// APIServerAddr is the node API address when an adapter can provide it.
+	APIServerAddr string
+	// Online reports whether the controller currently considers the node alive.
+	Online bool
+}
+
+// ClusterSlot is one physical Slot in a plugin-compatible cluster snapshot.
+type ClusterSlot struct {
+	// ID is the physical Slot identifier.
+	ID uint32
+	// Leader is the currently observed Slot leader. Zero means unknown.
+	Leader uint64
+	// Term is the observed leader term when available.
+	Term uint32
+	// Replicas is the desired replica set for the Slot.
+	Replicas []uint64
+}

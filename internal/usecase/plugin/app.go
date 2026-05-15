@@ -23,6 +23,9 @@ type App struct {
 	invoker          Invoker
 	messages         MessageSender
 	messageReader    MessageReader
+	clusterReader    ClusterReader
+	channelOwners    ChannelOwnerReader
+	conversations    ConversationReader
 	failOpen         bool
 	defaultSenderUID string
 	nodeID           uint64
@@ -49,6 +52,9 @@ func NewApp(opts Options) (*App, error) {
 		invoker:          opts.Invoker,
 		messages:         opts.Messages,
 		messageReader:    opts.MessageReader,
+		clusterReader:    opts.ClusterReader,
+		channelOwners:    opts.ChannelOwners,
+		conversations:    opts.Conversations,
 		failOpen:         opts.FailOpen,
 		defaultSenderUID: opts.DefaultSenderUID,
 		nodeID:           opts.NodeID,
