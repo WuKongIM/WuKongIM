@@ -16,6 +16,7 @@ func TestPluginBindingRPCBinaryCodecRoundTripsOperations(t *testing.T) {
 		{Op: pluginBindingRPCListByUID, SlotID: 2, HashSlot: 7, UID: "u1"},
 		{Op: pluginBindingRPCScanByPluginNo, SlotID: 2, HashSlot: 7, PluginNo: "bot-a", After: after, Limit: 64},
 		{Op: pluginBindingRPCExistsByUID, SlotID: 2, HashSlot: 7, UID: "u1"},
+		{Op: pluginBindingRPCGetInHashSlot, SlotID: 2, HashSlot: 7, UID: "u1", PluginNo: "bot-a"},
 	}
 
 	for _, req := range reqs {

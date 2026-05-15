@@ -205,10 +205,14 @@ func TestPluginBindingListByPluginNoContinuesDuplicateTupleAcrossHashSlots(t *te
 	require.True(t, hasMore)
 	require.Len(t, page1, 1)
 	require.NotEmpty(t, cursor)
+	decoded, err := decodePluginBindingPageCursor(cursor)
+	require.NoError(t, err)
+	require.Equal(t, uint16(3), decoded.HashSlot)
 
-	page2, _, hasMore, err := store.ListPluginBindingsByPluginNo(ctx, "bot-dup", cursor, 1)
+	page2, cursor, hasMore, err := store.ListPluginBindingsByPluginNo(ctx, "bot-dup", cursor, 1)
 	require.NoError(t, err)
 	require.False(t, hasMore)
+	require.Empty(t, cursor)
 	require.Equal(t, []metadb.PluginUserBinding{binding}, page2)
 }
 
@@ -223,6 +227,113 @@ func TestPluginBindingListByPluginNoRejectsMismatchedCursorPlugin(t *testing.T) 
 
 	_, _, _, err = store.ListPluginBindingsByPluginNo(context.Background(), "bot-b", cursor, 10)
 	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+}
+
+func TestPluginBindingListByPluginNoRejectsMismatchedCursorShard(t *testing.T) {
+	cursor, err := encodePluginBindingPageCursor(pluginBindingPageCursor{
+		SlotID:   1,
+		HashSlot: 8,
+		Binding:  metadb.PluginUserBindingCursor{PluginNo: "bot-a", UID: "u1"},
+	})
+	require.NoError(t, err)
+	store := &Store{
+		cluster: &proxyPluginBindingTestCluster{
+			slotIDs:   []multiraft.SlotID{1},
+			hashSlots: map[multiraft.SlotID][]uint16{1: {7}},
+		},
+		db: openTestDB(t),
+	}
+
+	_, _, _, err = store.ListPluginBindingsByPluginNo(context.Background(), "bot-a", cursor, 10)
+	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+}
+
+func TestPluginBindingListByPluginNoContinuesWithoutRescanningLowerUIDsOnLaterShards(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	cluster := &proxyPluginBindingTestCluster{
+		slotIDs:     []multiraft.SlotID{1},
+		hashSlots:   map[multiraft.SlotID][]uint16{1: {3, 4}},
+		leaders:     map[multiraft.SlotID]multiraft.NodeID{1: 1},
+		peers:       map[multiraft.SlotID][]multiraft.NodeID{1: {1}},
+		localNodeID: 1,
+	}
+	store := &Store{cluster: cluster, db: db}
+	for _, uid := range []string{"u1", "u2", "u3"} {
+		require.NoError(t, db.ForHashSlot(3).BindPluginUser(ctx, metadb.PluginUserBinding{
+			UID: uid, PluginNo: "bot-no-rescan", CreatedAtMS: 1, UpdatedAtMS: 1,
+		}))
+	}
+	for _, uid := range []string{"u0", "u2", "u4"} {
+		require.NoError(t, db.ForHashSlot(4).BindPluginUser(ctx, metadb.PluginUserBinding{
+			UID: uid, PluginNo: "bot-no-rescan", CreatedAtMS: 1, UpdatedAtMS: 1,
+		}))
+	}
+
+	page1, cursor, hasMore, err := store.ListPluginBindingsByPluginNo(ctx, "bot-no-rescan", "", 3)
+	require.NoError(t, err)
+	require.True(t, hasMore)
+	require.Equal(t, []string{"u0", "u1", "u2"}, pluginBindingUIDs(page1))
+	decoded, err := decodePluginBindingPageCursor(cursor)
+	require.NoError(t, err)
+	require.Equal(t, uint16(3), decoded.HashSlot)
+
+	page2, cursor, hasMore, err := store.ListPluginBindingsByPluginNo(ctx, "bot-no-rescan", cursor, 10)
+	require.NoError(t, err)
+	require.False(t, hasMore)
+	require.Empty(t, cursor)
+	require.Equal(t, []string{"u2", "u3", "u4"}, pluginBindingUIDs(page2))
+}
+
+func TestPluginBindingListByPluginNoUsesCursorBoundForLaterRemoteShards(t *testing.T) {
+	ctx := context.Background()
+	cursor, err := encodePluginBindingPageCursor(pluginBindingPageCursor{
+		SlotID:   1,
+		HashSlot: 3,
+		Binding:  metadb.PluginUserBindingCursor{PluginNo: "bot-efficient", UID: "u2"},
+	})
+	require.NoError(t, err)
+
+	ops := make([]string, 0, 2)
+	cluster := &proxyPluginBindingTestCluster{
+		slotIDs:     []multiraft.SlotID{1, 2},
+		hashSlots:   map[multiraft.SlotID][]uint16{1: {3}, 2: {4}},
+		leaders:     map[multiraft.SlotID]multiraft.NodeID{1: 1, 2: 2},
+		peers:       map[multiraft.SlotID][]multiraft.NodeID{1: {1}, 2: {2}},
+		localNodeID: 1,
+		rpcService: func(_ context.Context, _ multiraft.NodeID, _ multiraft.SlotID, _ uint8, payload []byte) ([]byte, error) {
+			req, err := decodePluginBindingRPCRequest(payload)
+			require.NoError(t, err)
+			ops = append(ops, req.Op)
+			switch req.Op {
+			case pluginBindingRPCGetInHashSlot:
+				require.Equal(t, "u2", req.UID)
+				return encodePluginBindingRPCResponse(pluginBindingRPCResponse{Status: rpcStatusOK})
+			case pluginBindingRPCScanByPluginNo:
+				require.NotNil(t, req.After)
+				require.Equal(t, pluginBindingRPCCursor{PluginNo: "bot-efficient", UID: "u2"}, *req.After)
+				return encodePluginBindingRPCResponse(pluginBindingRPCResponse{
+					Status: rpcStatusOK,
+					Bindings: []metadb.PluginUserBinding{{
+						UID: "u4", PluginNo: "bot-efficient", CreatedAtMS: 1, UpdatedAtMS: 1,
+					}},
+					Cursor: pluginBindingRPCCursor{PluginNo: "bot-efficient", UID: "u4"},
+					Done:   true,
+				})
+			default:
+				t.Fatalf("unexpected plugin binding rpc op %s", req.Op)
+				return nil, nil
+			}
+		},
+	}
+	store := &Store{cluster: cluster, db: openTestDB(t)}
+
+	page, nextCursor, hasMore, err := store.ListPluginBindingsByPluginNo(ctx, "bot-efficient", cursor, 1)
+	require.NoError(t, err)
+	require.False(t, hasMore)
+	require.Empty(t, nextCursor)
+	require.Equal(t, []string{"u4"}, pluginBindingUIDs(page))
+	require.Equal(t, []string{pluginBindingRPCGetInHashSlot, pluginBindingRPCScanByPluginNo}, ops)
 }
 
 func TestPluginBindingListByPluginNoSkipsEmptyPhysicalSlots(t *testing.T) {
@@ -287,6 +398,59 @@ func TestPluginBindingStoreRejectsOverlongInputBeforeProposal(t *testing.T) {
 	require.Empty(t, cluster.lastCommand)
 	require.ErrorIs(t, store.UnbindPluginUser(ctx, overlong, "bot-a"), metadb.ErrInvalidArgument)
 	require.Empty(t, cluster.lastCommand)
+	require.ErrorIs(t, store.UnbindPluginUser(ctx, "u1", overlong), metadb.ErrInvalidArgument)
+	require.Empty(t, cluster.lastCommand)
+}
+
+func TestPluginBindingStoreRejectsOverlongReadInputBeforeRPC(t *testing.T) {
+	ctx := context.Background()
+	cluster := &proxyPluginBindingTestCluster{
+		slotForKeyFunc:     func(key string) multiraft.SlotID { return 2 },
+		hashSlotForKeyFunc: func(key string) uint16 { return 1 },
+		leaders:            map[multiraft.SlotID]multiraft.NodeID{2: 2},
+		peers:              map[multiraft.SlotID][]multiraft.NodeID{2: {2}},
+		localNodeID:        1,
+		rpcService: func(context.Context, multiraft.NodeID, multiraft.SlotID, uint8, []byte) ([]byte, error) {
+			t.Fatal("overlong input should be rejected before RPC")
+			return nil, nil
+		},
+	}
+	store := &Store{cluster: cluster, db: openTestDB(t)}
+	overlong := string(make([]byte, 1<<16))
+
+	_, err := store.ListPluginBindingsByUID(ctx, overlong)
+	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+	_, err = store.ExistPluginBindingByUID(ctx, overlong)
+	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+	_, _, _, err = store.ListPluginBindingsByPluginNo(ctx, overlong, "", 10)
+	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+}
+
+func TestPluginBindingRPCRejectsOverlongInputBeforeProposal(t *testing.T) {
+	ctx := context.Background()
+	cluster := &proxyPluginBindingTestCluster{
+		hashSlots:   map[multiraft.SlotID][]uint16{1: {7}},
+		leaders:     map[multiraft.SlotID]multiraft.NodeID{1: 1},
+		peers:       map[multiraft.SlotID][]multiraft.NodeID{1: {1}},
+		localNodeID: 1,
+	}
+	store := &Store{cluster: cluster, db: openTestDB(t)}
+	overlong := string(make([]byte, 1<<16))
+
+	for _, req := range []pluginBindingRPCRequest{
+		{Op: pluginBindingRPCBind, SlotID: 1, HashSlot: 7, UID: overlong, PluginNo: "bot-a"},
+		{Op: pluginBindingRPCBind, SlotID: 1, HashSlot: 7, UID: "u1", PluginNo: overlong},
+		{Op: pluginBindingRPCUnbind, SlotID: 1, HashSlot: 7, UID: "u1", PluginNo: overlong},
+		{Op: pluginBindingRPCListByUID, SlotID: 1, HashSlot: 7, UID: overlong},
+		{Op: pluginBindingRPCExistsByUID, SlotID: 1, HashSlot: 7, UID: overlong},
+		{Op: pluginBindingRPCScanByPluginNo, SlotID: 1, HashSlot: 7, PluginNo: overlong, Limit: 10},
+	} {
+		body, err := encodePluginBindingRPCRequestBinary(req)
+		require.NoError(t, err)
+		_, err = store.handlePluginBindingRPC(ctx, body)
+		require.ErrorIs(t, err, metadb.ErrInvalidArgument)
+		require.Empty(t, cluster.lastCommand)
+	}
 }
 
 func TestPluginBindingRPCRejectsMisroutedUIDRequest(t *testing.T) {
