@@ -119,36 +119,6 @@ func isCloseEvent(c rpcContext) bool {
 	return ok && eventCtx.CloseEvent()
 }
 
-func (s *Server) handleSendMessage(c rpcContext) {
-	var req pluginproto.SendReq
-	if !s.decodeProto(c, &req) {
-		return
-	}
-	ctx, cancel := s.usecaseContext(c)
-	defer cancel()
-	resp, err := s.usecase.SendMessage(ctx, &req, c.Uid())
-	if err != nil {
-		c.WriteErr(err)
-		return
-	}
-	s.writeProto(c, resp)
-}
-
-func (s *Server) handleChannelMessages(c rpcContext) {
-	var req pluginproto.ChannelMessageBatchReq
-	if !s.decodeProto(c, &req) {
-		return
-	}
-	ctx, cancel := s.usecaseContext(c)
-	defer cancel()
-	resp, err := s.usecase.ChannelMessages(ctx, &req, c.Uid())
-	if err != nil {
-		c.WriteErr(err)
-		return
-	}
-	s.writeProto(c, resp)
-}
-
 func (s *Server) handleHTTPForward(c rpcContext) {
 	var req pluginproto.ForwardHttpReq
 	if !s.decodeProto(c, &req) {

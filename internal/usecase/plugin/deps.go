@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 )
 
@@ -71,6 +72,18 @@ type Invoker interface {
 	Stop(ctx context.Context, no string) error
 }
 
+// MessageSender is the message send usecase surface used by plugin-origin host RPCs.
+type MessageSender interface {
+	// Send routes a plugin-origin message through the normal message append pipeline.
+	Send(ctx context.Context, cmd message.SendCommand) (message.SendResult, error)
+}
+
+// MessageReader is the authoritative channel message sync surface used by host RPCs.
+type MessageReader interface {
+	// SyncMessages returns one authoritative legacy-compatible channel message page.
+	SyncMessages(ctx context.Context, query message.ChannelMessageQuery) (message.ChannelMessagePage, error)
+}
+
 // Options configures the plugin business usecase.
 type Options struct {
 	// Runtime provides node-local plugin registry and lifecycle operations.
@@ -83,8 +96,14 @@ type Options struct {
 	BindingCache *BindingCache
 	// Invoker sends byte-oriented hook requests to running plugins.
 	Invoker Invoker
+	// Messages routes plugin-origin sends through the message usecase.
+	Messages MessageSender
+	// MessageReader reads authoritative channel message pages for plugin host RPCs.
+	MessageReader MessageReader
 	// FailOpen lets message sends continue when Send hooks fail.
 	FailOpen bool
+	// DefaultSenderUID is used when legacy plugin send requests omit fromUid.
+	DefaultSenderUID string
 	// NodeID identifies the local cluster node for node-scoped responses.
 	NodeID uint64
 	// Clock supplies timestamps for deterministic tests.

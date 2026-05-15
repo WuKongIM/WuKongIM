@@ -35,6 +35,12 @@ var (
 	ErrPluginIdentityRequired = errors.New("plugin identity required")
 	// ErrInvalidPluginNo reports a plugin number that is not filename-safe.
 	ErrInvalidPluginNo = errors.New("invalid plugin no")
+	// ErrMessageSenderRequired reports that host message/send needs the message usecase port.
+	ErrMessageSenderRequired = errors.New("plugin message sender required")
+	// ErrMessageReaderRequired reports that host channel/messages needs the message reader port.
+	ErrMessageReaderRequired = errors.New("plugin message reader required")
+	// ErrDefaultSenderUIDRequired reports that plugin-origin sends without fromUid need a default sender.
+	ErrDefaultSenderUIDRequired = errors.New("plugin default sender uid required")
 )
 
 var pluginNoPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
