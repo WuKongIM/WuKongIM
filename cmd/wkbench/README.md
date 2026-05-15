@@ -33,11 +33,10 @@ The target WuKongIM process must expose the normal health/readiness endpoints an
 Enable the server-side bench API in `wukongim.conf` before running wkbench:
 
 ```ini
-WK_BENCH_API_ENABLED=true
-WK_BENCH_API_TOKEN=bench-secret
+WK_BENCH_API_ENABLE=true
 ```
 
-If token auth is enabled, put the same token in `target.yaml` under `bench_api.token`.
+The current bench API is intended for controlled benchmark environments. Do not expose `/bench/v1/*` on public networks.
 
 ## Minimal Workflow
 
