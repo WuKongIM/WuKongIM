@@ -52,7 +52,7 @@ export function Topbar() {
                   className={cn(
                     "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm",
                     active
-                      ? "bg-[#123b23] text-[#e8fff0] shadow-[0_0_18px_rgba(101,216,138,0.18)] ring-1 ring-primary/35 hover:text-[#e8fff0]"
+                      ? "top-section-link-active ring-1 ring-primary/35"
                       : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
                   )}
                   key={section.id}

@@ -5,7 +5,7 @@ import { beforeEach, expect, test, vi } from "vitest"
 
 import { AppProviders } from "@/app/providers"
 import { routes } from "@/app/router"
-import { resetThemePreference } from "@/app/theme-store"
+import { resetThemePreference, THEME_STORAGE_KEY } from "@/app/theme-store"
 import { useAuthStore } from "@/auth/auth-store"
 import { resetLocale } from "@/i18n/locale-store"
 
@@ -52,7 +52,7 @@ test("renders brand, top sections, route metadata, and logged-in username", asyn
   expect(within(banner).getByRole("link", { name: "Cluster Ops" })).toHaveAttribute("aria-current", "page")
   expect(within(banner).getByRole("link", { name: "Business" })).toBeInTheDocument()
   expect(within(banner).getByRole("link", { name: "System" })).toBeInTheDocument()
-  expect(within(banner).getByRole("link", { name: "Cluster Ops" })).toHaveClass("bg-[#123b23]", "text-[#e8fff0]")
+  expect(within(banner).getByRole("link", { name: "Cluster Ops" })).toHaveClass("top-section-link-active")
   expect(within(banner).getByText("Nodes")).toBeInTheDocument()
   expect(within(banner).getByText("Node inventory, roles, and lifecycle status.")).toBeInTheDocument()
   expect(within(banner).getByText("admin")).toBeInTheDocument()
@@ -64,6 +64,7 @@ test("renders brand, top sections, route metadata, and logged-in username", asyn
 
 test("uses a high-contrast active top section pill in Chinese", async () => {
   localStorage.setItem("wukongim_manager_locale", "zh-CN")
+  localStorage.setItem(THEME_STORAGE_KEY, "light")
   const router = createMemoryRouter(routes, { initialEntries: ["/cluster/nodes"] })
 
   render(
@@ -74,8 +75,9 @@ test("uses a high-contrast active top section pill in Chinese", async () => {
 
   const activeSection = await within(screen.getByRole("banner")).findByRole("link", { name: "集群运维" })
 
-  expect(activeSection).toHaveClass("bg-[#123b23]", "text-[#e8fff0]")
+  expect(activeSection).toHaveClass("top-section-link-active")
   expect(activeSection).not.toHaveClass("bg-[#c8ffd8]", "text-[#06120b]")
+  expect(activeSection).not.toHaveClass("text-foreground")
 })
 
 test("keeps cockpit health context and lets the user log out", async () => {
