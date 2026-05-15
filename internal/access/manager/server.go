@@ -151,6 +151,8 @@ type Management interface {
 	ListDiagnosticsTrackingRules(ctx context.Context) (managementusecase.DiagnosticsTrackingListResponse, error)
 	// DeleteDiagnosticsTrackingRule removes a temporary diagnostics tracking rule.
 	DeleteDiagnosticsTrackingRule(ctx context.Context, ruleID string) (managementusecase.DiagnosticsTrackingDeleteResponse, error)
+	// GetDashboardMetrics returns time-series dashboard metrics for the given window and step.
+	GetDashboardMetrics(window, step time.Duration) (managementusecase.DashboardMetricsResult, error)
 }
 
 // PermissionConfig binds a resource to allowed actions.

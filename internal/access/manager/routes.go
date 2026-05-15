@@ -122,6 +122,7 @@ func (s *Server) registerRoutes() {
 		overview.Use(s.requirePermission("cluster.overview", "r"))
 	}
 	overview.GET("/overview", s.handleOverview)
+	overview.GET("/dashboard/metrics", s.handleDashboardMetrics)
 
 	network := s.engine.Group("/manager")
 	if s.auth.enabled() {
