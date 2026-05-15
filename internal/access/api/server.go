@@ -13,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	testdatausecase "github.com/WuKongIM/WuKongIM/internal/usecase/testdata"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -89,6 +90,11 @@ type ConversationUsecase interface {
 	DeleteConversation(ctx context.Context, cmd conversationusecase.DeleteConversationCommand) error
 }
 
+// PluginRouteUsecase forwards documented public plugin HTTP routes to node-local plugins.
+type PluginRouteUsecase interface {
+	Route(ctx context.Context, pluginNo string, req *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error)
+}
+
 type LegacyRouteAddresses struct {
 	TCPAddr string
 	WSAddr  string
@@ -104,11 +110,13 @@ type LegacyRouteNodeAddresses struct {
 }
 
 type Options struct {
-	ListenAddr               string
-	Messages                 MessageUsecase
-	CMDSync                  CMDSyncUsecase
-	Users                    UserUsecase
-	Channels                 ChannelUsecase
+	ListenAddr string
+	Messages   MessageUsecase
+	CMDSync    CMDSyncUsecase
+	Users      UserUsecase
+	Channels   ChannelUsecase
+	// PluginRoutes handles open Phase 1 plugin public routes when the plugin subsystem is enabled.
+	PluginRoutes             PluginRouteUsecase
 	TestMode                 bool
 	TestData                 TestDataUsecase
 	Conversations            ConversationUsecase
@@ -145,6 +153,7 @@ type Server struct {
 	cmdSync                  CMDSyncUsecase
 	users                    UserUsecase
 	channels                 ChannelUsecase
+	pluginRoutes             PluginRouteUsecase
 	testMode                 bool
 	testData                 TestDataUsecase
 	conversations            ConversationUsecase
@@ -187,6 +196,7 @@ func New(opts Options) *Server {
 		cmdSync:                  opts.CMDSync,
 		users:                    opts.Users,
 		channels:                 opts.Channels,
+		pluginRoutes:             opts.PluginRoutes,
 		testMode:                 opts.TestMode,
 		testData:                 opts.TestData,
 		conversations:            opts.Conversations,

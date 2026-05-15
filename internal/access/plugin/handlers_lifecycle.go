@@ -119,21 +119,6 @@ func isCloseEvent(c rpcContext) bool {
 	return ok && eventCtx.CloseEvent()
 }
 
-func (s *Server) handleHTTPForward(c rpcContext) {
-	var req pluginproto.ForwardHttpReq
-	if !s.decodeProto(c, &req) {
-		return
-	}
-	ctx, cancel := s.usecaseContext(c)
-	defer cancel()
-	resp, err := s.usecase.HTTPForward(ctx, &req, c.Uid())
-	if err != nil {
-		c.WriteErr(err)
-		return
-	}
-	s.writeProto(c, resp)
-}
-
 func (s *Server) handleUnimplementedStream(path string, c rpcContext) {
 	if !s.checkBodyLimit(c) {
 		return

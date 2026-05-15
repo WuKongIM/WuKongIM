@@ -84,6 +84,15 @@ func TestRouteUsesLegacyPathAndDecodesHTTPResponse(t *testing.T) {
 	}
 }
 
+func TestRouteRejectsOversizedPluginResponse(t *testing.T) {
+	invoker := &fakeInvokerWithResponses{responses: map[string][]byte{PathRoute: mustMarshalProto(t, &pluginproto.HttpResponse{Status: 200, Body: []byte("12345")})}}
+	app := mustNewTestApp(t, Options{Runtime: newFakeRuntime(t.TempDir()), DesiredStore: newFakeDesiredStore(), Invoker: invoker, HTTPForwardMaxBodyBytes: 4})
+
+	_, err := app.Route(context.Background(), "p1", &pluginproto.HttpRequest{Path: "/x"})
+
+	assertErrorIs(t, err, ErrHTTPForwardBodyTooLarge)
+}
+
 func mustMarshalProto(t *testing.T, msg interface{ Marshal() ([]byte, error) }) []byte {
 	t.Helper()
 	data, err := msg.Marshal()

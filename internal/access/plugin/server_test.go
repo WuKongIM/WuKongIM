@@ -684,6 +684,12 @@ type fakeUsecase struct {
 	conversationChannelsCtx    context.Context
 	conversationChannelsReq    *pluginproto.ConversationChannelReq
 	conversationChannelsCaller string
+
+	httpForwardResp   *pluginproto.HttpResponse
+	httpForwardCalls  int
+	httpForwardCtx    context.Context
+	httpForwardReq    *pluginproto.ForwardHttpReq
+	httpForwardCaller string
 }
 
 func (f *fakeUsecase) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, callerUID string) (*pluginproto.StartupResp, error) {
@@ -775,7 +781,15 @@ func (f *fakeUsecase) ChannelMessages(ctx context.Context, req *pluginproto.Chan
 func (f *fakeUsecase) HTTPForward(ctx context.Context, req *pluginproto.ForwardHttpReq, callerUID string) (*pluginproto.HttpResponse, error) {
 	f.mu.Lock()
 	f.lastCtx = ctx
+	f.httpForwardCalls++
+	f.httpForwardCtx = ctx
+	f.httpForwardReq = req
+	f.httpForwardCaller = callerUID
+	resp := f.httpForwardResp
 	f.mu.Unlock()
+	if resp != nil {
+		return resp, nil
+	}
 	return &pluginproto.HttpResponse{}, nil
 }
 
