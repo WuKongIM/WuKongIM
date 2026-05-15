@@ -16,7 +16,7 @@ func (a *App) BeforeSend(ctx context.Context, cmd message.SendCommand) (message.
 		if a.failOpen {
 			return cmd, frame.ReasonSuccess, nil
 		}
-		return message.SendCommand{}, 0, err
+		return cmd, frame.ReasonSystemError, err
 	}
 	if len(plugins) == 0 {
 		return cmd, frame.ReasonSuccess, nil
@@ -29,7 +29,7 @@ func (a *App) BeforeSend(ctx context.Context, cmd message.SendCommand) (message.
 			if a.failOpen {
 				return cmd, frame.ReasonSuccess, nil
 			}
-			return message.SendCommand{}, 0, err
+			return current, frame.ReasonSystemError, err
 		}
 		reason, valid := sendHookReason(resp.GetReason())
 		if !valid {
