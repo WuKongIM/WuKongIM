@@ -395,6 +395,9 @@ func (a *App) stopManager(ctx context.Context) error {
 	if !a.managerOn.Swap(false) {
 		return nil
 	}
+	if a.managementApp != nil {
+		a.managementApp.Stop()
+	}
 	if a.stopManagerWithContextFn != nil {
 		return a.stopManagerWithContextFn(ctx)
 	}

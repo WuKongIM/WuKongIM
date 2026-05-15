@@ -744,6 +744,7 @@ func build(cfg Config) (_ *App, err error) {
 			ChannelMigration: app.store,
 			Network:          app.networkObservability,
 			MessageRetention: managerRetention,
+			MetricsRegistry:  app.metrics,
 			Messages: managerMessageReader{
 				localNodeID: cfg.Node.ID,
 				channelLog:  app.channelLogDB,
