@@ -13,11 +13,15 @@ import (
 var (
 	// ErrDesiredStateNotFound is returned when no desired state file exists.
 	ErrDesiredStateNotFound = errors.New("plugin desired state not found")
+	// ErrCorruptDesiredState is returned when a desired state file is invalid.
+	ErrCorruptDesiredState = errors.New("corrupt plugin desired state")
 	// ErrInvalidPluginNo is returned when a plugin number is not filename-safe.
 	ErrInvalidPluginNo = errors.New("invalid plugin no")
 )
 
 var pluginNoPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+var syncParentDirAfterRename = syncDir
 
 // DesiredState is the node-local desired plugin state persisted on disk.
 type DesiredState struct {
@@ -86,6 +90,9 @@ func (s *Store) Save(state DesiredState) error {
 	if err := os.Rename(tmpName, s.pathFor(state.No)); err != nil {
 		return fmt.Errorf("rename plugin desired state file %q: %w", state.No, err)
 	}
+	if err := syncParentDirAfterRename(s.dir); err != nil {
+		return fmt.Errorf("sync plugin desired state dir %q: %w", s.dir, err)
+	}
 	return nil
 }
 
@@ -105,7 +112,13 @@ func (s *Store) Load(no string) (DesiredState, error) {
 
 	var state DesiredState
 	if err := json.Unmarshal(data, &state); err != nil {
-		return DesiredState{}, fmt.Errorf("decode plugin desired state %q: %w", no, err)
+		return DesiredState{}, fmt.Errorf("%w: decode %q: %w", ErrCorruptDesiredState, no, err)
+	}
+	if err := validatePluginNo(state.No); err != nil {
+		return DesiredState{}, fmt.Errorf("%w: decoded plugin no %q: %w", ErrCorruptDesiredState, state.No, err)
+	}
+	if state.No != no {
+		return DesiredState{}, fmt.Errorf("%w: decoded plugin no %q does not match requested %q", ErrCorruptDesiredState, state.No, no)
 	}
 	return state, nil
 }
@@ -119,4 +132,13 @@ func validatePluginNo(no string) error {
 		return fmt.Errorf("%w: %q", ErrInvalidPluginNo, no)
 	}
 	return nil
+}
+
+func syncDir(dir string) error {
+	f, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return f.Sync()
 }

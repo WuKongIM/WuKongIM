@@ -6,10 +6,21 @@ import (
 )
 
 // Registry keeps a concurrency-safe node-local snapshot of observed plugins.
+// It must not be copied after first use.
 type Registry struct {
+	noCopy  noCopy
 	mu      sync.RWMutex
 	plugins map[string]ObservedPlugin
 }
+
+// noCopy marks structs that must not be copied after first use.
+type noCopy struct{}
+
+// Lock is used by go vet's copylocks analyzer.
+func (*noCopy) Lock() {}
+
+// Unlock is used by go vet's copylocks analyzer.
+func (*noCopy) Unlock() {}
 
 // NewRegistry creates an empty plugin registry.
 func NewRegistry() *Registry {
