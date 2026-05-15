@@ -13,6 +13,7 @@ the target bench API, and WKProto traffic.
 | Scenario | Purpose | Run |
 | --- | --- | --- |
 | `wkbench_smoke` | Prove wkbench can prepare tiny benchmark data through the target bench API, drive person and group WKProto traffic through one worker, write a successful report with non-zero sendack success, and fail preflight when the server bench API is disabled. | `GOWORK=off go test -tags=e2e ./test/e2e/bench/wkbench_smoke -count=1` |
+| `devsim_smoke` | Prove `wkbench dev-sim` can run against a real three-node cluster, expose status, connect simulated users, and emit non-zero simulator traffic. | `GOWORK=off go test -tags=e2e ./test/e2e/bench/devsim_smoke -count=1` |
 
 ## Maintenance Rules
 

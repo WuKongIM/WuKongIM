@@ -63,6 +63,7 @@ learn_project/
 wukongim.conf
 .devdata/
 docker/dev-cluster/
+docker/dev-sim/
 docker/dev-observability/
 tmp/
 node_modules/
