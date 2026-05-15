@@ -136,28 +136,28 @@ export function DashboardPage() {
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <PulseTile
             label={intl.formatMessage({ id: "dashboard.pulse.sendPerSec" })}
-            mocked
+            mocked={pulse.mocked}
             series={pulse.sendPerSec.series}
             sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.sendPerSec.peak, avg: pulse.sendPerSec.avg })}
             value={pulse.sendPerSec.latest}
           />
           <PulseTile
             label={intl.formatMessage({ id: "dashboard.pulse.deliverPerSec" })}
-            mocked
+            mocked={pulse.mocked}
             series={pulse.deliverPerSec.series}
             sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.deliverPerSec.peak, avg: pulse.deliverPerSec.avg })}
             value={pulse.deliverPerSec.latest}
           />
           <PulseTile
             label={intl.formatMessage({ id: "dashboard.pulse.connections" })}
-            mocked
+            mocked={pulse.mocked}
             series={pulse.connections.series}
             sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.connections.peak, avg: pulse.connections.avg })}
             value={pulse.connections.latest}
           />
           <PulseTile
             label={intl.formatMessage({ id: "dashboard.pulse.sendLatencyP99" })}
-            mocked
+            mocked={pulse.mocked}
             series={pulse.sendLatencyP99.series}
             sub={intl.formatMessage({ id: "dashboard.pulse.latencyMs" }, { peak: pulse.sendLatencyP99.peak, avg: pulse.sendLatencyP99.avg })}
             value={pulse.sendLatencyP99.latest}
@@ -165,7 +165,7 @@ export function DashboardPage() {
           />
           <PulseTile
             label={intl.formatMessage({ id: "dashboard.pulse.deliveryLatencyP99" })}
-            mocked
+            mocked={pulse.mocked}
             series={pulse.deliveryLatencyP99.series}
             sub={intl.formatMessage({ id: "dashboard.pulse.latencyMs" }, { peak: pulse.deliveryLatencyP99.peak, avg: pulse.deliveryLatencyP99.avg })}
             tone="danger"
@@ -174,7 +174,7 @@ export function DashboardPage() {
           />
           <PulseTile
             label={intl.formatMessage({ id: "dashboard.pulse.sendFailRate" })}
-            mocked
+            mocked={pulse.mocked}
             series={pulse.sendFailRate.series}
             sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.sendFailRate.peak, avg: pulse.sendFailRate.avg })}
             tone="danger"
@@ -183,7 +183,7 @@ export function DashboardPage() {
           />
           <PulseTile
             label={intl.formatMessage({ id: "dashboard.pulse.deliveryFailRate" })}
-            mocked
+            mocked={pulse.mocked}
             series={pulse.deliveryFailRate.series}
             sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.deliveryFailRate.peak, avg: pulse.deliveryFailRate.avg })}
             tone="danger"
@@ -192,14 +192,14 @@ export function DashboardPage() {
           />
           <PulseTile
             label={intl.formatMessage({ id: "dashboard.pulse.activeChannels" })}
-            mocked
+            mocked={pulse.mocked}
             series={pulse.activeChannels.series}
             sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.activeChannels.peak, avg: pulse.activeChannels.avg })}
             value={pulse.activeChannels.latest}
           />
           <PulseTile
             label={intl.formatMessage({ id: "dashboard.pulse.retryQueueDepth" })}
-            mocked
+            mocked={pulse.mocked}
             series={pulse.retryQueueDepth.series}
             sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.retryQueueDepth.peak, avg: pulse.retryQueueDepth.avg })}
             tone={pulse.retryQueueDepth.latest > 10 ? "danger" : "default"}
@@ -207,7 +207,7 @@ export function DashboardPage() {
           />
           <PulseTile
             label={intl.formatMessage({ id: "dashboard.pulse.fanOutRate" })}
-            mocked
+            mocked={pulse.mocked}
             series={pulse.fanOutRate.series}
             sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.fanOutRate.peak, avg: pulse.fanOutRate.avg })}
             value={pulse.fanOutRate.latest}
