@@ -78,14 +78,14 @@ This package owns node-local plugin runtime mechanics:
 
 - scan `.wkp` files from `WK_PLUGIN_DIR`
 - start plugin binaries with `--socket` and `--sandbox`
-- host the Unix-socket `wkrpc` server
-- register PDK-compatible RPC paths
+- provide Unix-socket `wkrpc` server primitives for the access adapter
 - maintain an in-memory runtime registry
 - watch plugin directory changes when hot reload is enabled
 - stop plugins gracefully through `/stop`, then kill on timeout
 - expose process status, last error, methods, and priority to the usecase layer
 
-It must not own user binding business rules or cluster-authoritative metadata.
+It must not register host RPC business handlers, call message/conversation
+usecases, or own cluster-authoritative metadata.
 
 ### 3.2 `internal/usecase/plugin`
 
@@ -104,8 +104,19 @@ It depends on narrow interfaces for:
 - runtime registry and RPC invocation
 - cluster-authoritative binding store
 - message send and message read host APIs
+- cluster and conversation host APIs used by PDK compatibility handlers
 
-### 3.3 `internal/access/api`
+### 3.3 `internal/access/plugin`
+
+This adapter owns the PDK host RPC entrypoints over `wkrpc`.
+
+It registers paths such as `/plugin/start`, `/message/send`, and
+`/channel/messages` on the runtime-provided socket server, decodes
+`pluginproto` requests, calls `internal/usecase/plugin`, and encodes
+`pluginproto` responses. It contains no business decisions beyond transport
+adaptation.
+
+### 3.4 `internal/access/api`
 
 The public API adapter adds:
 
@@ -114,7 +125,7 @@ The public API adapter adds:
 It converts HTTP requests into `pluginproto.HttpRequest`, calls the plugin
 Route hook, and writes the `pluginproto.HttpResponse` back to the client.
 
-### 3.4 `internal/access/manager`
+### 3.5 `internal/access/manager`
 
 The manager adapter adds plugin management routes protected by a new
 `cluster.plugin` permission resource.
@@ -138,12 +149,19 @@ Plugin inventory, config, restart, and uninstall routes are node-scoped because
 plugin binaries and process state are node-local. Binding routes are not
 node-scoped because bindings are cluster-authoritative business metadata.
 
-### 3.5 `internal/app`
+For node-scoped plugin management, requests for the local node execute locally.
+Requests for another node are forwarded through a new node-access RPC adapter
+with the same timeout budget as other manager node operations. If the remote
+node is unavailable or does not support plugin management RPCs, the manager
+returns a clear 503/501-style response without falling back to local state.
+
+### 3.6 `internal/app`
 
 The app composition root wires:
 
 - plugin runtime
 - plugin usecase
+- plugin wkrpc access adapter
 - message Send hook
 - owner-routed committed PersistAfter side effect
 - delivery offline Receive observer
@@ -158,18 +176,12 @@ Plugin data is split by consistency requirements.
 ### 4.1 Node-Local Plugin Manifest and Config
 
 Plugin binaries and plugin process state are node-local facts. Phase 1 stores
-manifest/config data in a local durable store owned by the plugin subsystem.
+desired local config data in a local durable store owned by the plugin
+subsystem.
 
-Durable fields:
+Durable desired/config fields:
 
 - `No`
-- `Name`
-- `Version`
-- `Methods`
-- `Priority`
-- `PersistAfterSync`
-- `ReplySync`
-- `ConfigTemplate`
 - `Config`
 - `Enabled`
 - `CreatedAt`
@@ -179,10 +191,13 @@ This state describes the plugin instance on one node. It is not a cluster-wide
 source of truth.
 
 Runtime observation stays outside the durable manifest/config record. `Status`,
-PID, connection state, methods from the latest handshake, and `LastError` are
-derived from the runtime registry or diagnostics. If operators need to disable a
-plugin persistently, the stored field is desired state (`Enabled`), not an
-ephemeral runtime status.
+PID, connection state, `ObservedName`, `ObservedVersion`, `ObservedMethods`,
+`ObservedPriority`, `ObservedPersistAfterSync`, `ObservedReplySync`,
+`ObservedConfigTemplate`, `LastSeenAt`, and `LastError` come from the latest
+handshake and runtime registry. These observed fields may be cached for manager
+display and config form rendering, but hook ordering and invocation use the live
+runtime registry only. If operators need to disable a plugin persistently, the
+stored field is desired state (`Enabled`), not an ephemeral runtime status.
 
 ### 4.2 Cluster-Authoritative Plugin User Binding
 
@@ -192,7 +207,7 @@ slot Raft.
 Add a `plugin_user_binding` table to `pkg/slot/meta`:
 
 - primary key: `(uid, plugin_no)`
-- secondary index: by `uid`
+- secondary index: `idx_plugin_no_uid(plugin_no, uid)` within each hash slot
 - fields:
   - `UID`
   - `PluginNo`
@@ -214,6 +229,11 @@ Add proxy APIs:
 
 The UID is the slot key, so one user's plugin routing facts are owned by that
 user's authoritative slot in both single-node clusters and multi-node clusters.
+
+`ListPluginBindingsByPluginNo` is a manager/diagnostics query. It fans out over
+authoritative hash slots, scans each slot's `idx_plugin_no_uid`, and returns a
+deterministically merged page. Its cursor contains the last scanned hash slot
+and `(plugin_no, uid)` tuple, encoded as an opaque string by the proxy layer.
 
 Bindings intentionally have no Raft-level foreign key to node-local plugin
 metadata. A binding may reference a plugin that is absent or stopped on a
@@ -259,6 +279,28 @@ node.
 after basic normalization and permission checks, before the send path branches
 into NoPersist, SyncOnce, request-scoped delivery, or durable append.
 
+The message usecase contract is:
+
+```go
+type SendOrigin string
+
+const (
+	SendOriginClient SendOrigin = "client"
+	SendOriginPlugin SendOrigin = "plugin"
+)
+
+type SendHook interface {
+	BeforeSend(ctx context.Context, cmd SendCommand) (SendCommand, frame.ReasonCode, error)
+}
+```
+
+`SendCommand` gains explicit `Origin SendOrigin`, `HookDepth int`, and
+`SkipPluginHooks bool` fields so recursion and deliberate hook skipping are
+visible in tests. Client/API/gateway sends default to `SendOriginClient`.
+Plugin host RPC sends set `SendOriginPlugin` and increment `HookDepth`; the
+message usecase rejects or skips hooks when the configured maximum depth is
+exceeded.
+
 Mapping:
 
 - `message.SendCommand` -> `pluginproto.SendPacket`
@@ -275,10 +317,8 @@ current early request-scoped branch skipping hooks by either moving hook
 invocation ahead of that branch after validation, or by making the request-scoped
 path call the same hook helper.
 
-Plugin-originated sends carry explicit origin metadata. Phase 1 may add fields
-such as `Origin`, `HookDepth`, or `SkipPluginHooks` to `message.SendCommand`, or
-use a typed context value. The contract must cap recursion and make deliberate
-hook skipping visible in tests.
+Plugin-originated sends carry this explicit origin metadata. The contract must
+cap recursion and make deliberate hook skipping visible in tests.
 
 ## 5.2 PersistAfter
 
@@ -358,7 +398,8 @@ plugin-originated sends.
 
 ## 6. Host RPC Compatibility
 
-The runtime wkrpc server registers these PDK-compatible host paths in Phase 1:
+`internal/access/plugin` registers these PDK-compatible host paths on the
+runtime-provided wkrpc server in Phase 1:
 
 - `/plugin/start`
 - `/close`
@@ -378,27 +419,30 @@ These stream paths return explicit `unimplemented` errors in Phase 1:
 The host must fail loudly for unsupported stream calls instead of silently
 dropping data.
 
-Phase 1 must define a small compatibility appendix before implementation:
+Generated compatibility types live in `internal/usecase/plugin/pluginproto`
+using the legacy `plugin.proto` wire schema. The host imports `wkrpc` only from
+`internal/runtime/plugin` and `internal/access/plugin`; usecase packages see
+plain Go interfaces and `pluginproto` DTOs.
 
-- where generated `pluginproto` compatibility types live
-- the pinned `wkrpc` dependency boundary
-- request/response mappings for every supported host RPC
-- body-size limits, timeouts, and header/query forwarding rules
-- authoritative data source for each RPC
+All host RPCs use `WK_PLUGIN_TIMEOUT` unless the request context has a shorter
+deadline. Phase 1 also applies a bounded body limit derived from API defaults,
+with a plugin-specific override added later only if needed.
 
-Authority requirements:
+| RPC path | Handler layer | Request -> response | Authority and forwarding |
+| --- | --- | --- | --- |
+| `/plugin/start` | `internal/access/plugin` -> `internal/usecase/plugin` | `PluginInfo` -> `StartupResp` | local only; registers observed runtime manifest, ensures sandbox, returns local node ID and local config |
+| `/close` | `internal/access/plugin` -> `internal/usecase/plugin` | empty -> OK | local only; marks runtime connection closed |
+| `/message/send` | `internal/access/plugin` -> `internal/usecase/plugin` -> `message.App.Send` | `SendReq` -> `SendResp` | normal message usecase and cluster append path; sets `SendOriginPlugin` |
+| `/channel/messages` | `internal/access/plugin` -> message reader interface | `ChannelMessageBatchReq` -> `ChannelMessageBatchResp` | authoritative channel owner reader, reusing the existing local/remote channel message reader pattern |
+| `/plugin/httpForward` | `internal/access/plugin` -> plugin Route usecase or node HTTP/RPC forwarding | `ForwardHttpReq` -> `HttpResponse` | `toNodeId=0` local; positive remote node forwarded with timeout/body/header limits; `-1` fanout is deferred unless needed |
+| `/cluster/config` | `internal/access/plugin` -> cluster reader interface | empty -> `ClusterConfig` | maps controller nodes and slot assignments into the legacy PDK protobuf shape |
+| `/cluster/channels/belongNode` | `internal/access/plugin` -> channel metadata/routing reader | `ClusterChannelBelongNodeReq` -> `ClusterChannelBelongNodeBatchResp` | uses current channel owner/routing metadata, not local guesses |
+| `/conversation/channels` | `internal/access/plugin` -> conversation reader interface | `ConversationChannelReq` -> `ConversationChannelResp` | uses conversation usecase/store and preserves authoritative read semantics |
+| `/stream/open`, `/stream/write`, `/stream/close` | `internal/access/plugin` | stream request -> error | returns a stable `unimplemented` wkrpc error status and logs plugin number/path |
 
-- `/message/send` calls `message.App.Send`
-- `/channel/messages` reads from the authoritative channel owner, reusing the
-  existing channel message reader/remote reader pattern instead of reading only
-  a local log
-- `/cluster/config` maps current controller/slot node state into the legacy PDK
-  protobuf DTO
-- `/cluster/channels/belongNode` uses current channel routing/owner metadata
-- `/conversation/channels` uses the conversation usecase/store rather than a
-  local-only projection
-- `/plugin/httpForward` has explicit timeout, body-size, target-node, and
-  header behavior
+`/plugin/httpForward` copies request method, path, query, headers, and body
+through the `pluginproto.HttpRequest` DTO. Hop-by-hop headers are dropped, and
+response status/header/body are copied from `pluginproto.HttpResponse`.
 
 ## 7. Configuration
 
@@ -408,6 +452,7 @@ Add `PluginConfig` to `internal/app/config.go` and parse these `WK_` keys:
 - `WK_PLUGIN_DIR=`
 - `WK_PLUGIN_SOCKET_PATH=`
 - `WK_PLUGIN_SANDBOX_DIR=`
+- `WK_PLUGIN_STATE_DIR=`
 - `WK_PLUGIN_TIMEOUT=5s`
 - `WK_PLUGIN_HOT_RELOAD=true`
 - `WK_PLUGIN_FAIL_OPEN=false`
@@ -417,6 +462,8 @@ Add `PluginConfig` to `internal/app/config.go` and parse these `WK_` keys:
 `WK_PLUGIN_DIR` defaults to `<WK_NODE_DATA_DIR>/plugins`.
 
 `WK_PLUGIN_SANDBOX_DIR` defaults to `<WK_NODE_DATA_DIR>/plugin-sandbox`.
+
+`WK_PLUGIN_STATE_DIR` defaults to `<WK_NODE_DATA_DIR>/plugin-state`.
 
 Relative plugin paths are resolved relative to the process working directory
 only when explicitly configured. Defaults are derived from `WK_NODE_DATA_DIR` so
@@ -445,7 +492,7 @@ Plugin runtime shutdown:
 2. ask each plugin to stop through `/stop`
 3. wait up to the configured timeout
 4. kill remaining processes
-5. close the wkrpc server and local store
+5. close the wkrpc server and state store
 
 ## 9. Security
 
@@ -470,6 +517,13 @@ Plugin runtime shutdown:
 - start/close status updates
 - timeout and error mapping
 - hot reload dedupe
+
+`internal/access/plugin`:
+
+- each PDK host RPC decodes and encodes the expected `pluginproto` DTOs
+- unsupported stream RPCs return the stable unimplemented status
+- remote `httpForward` and node-scoped manager forwarding honor timeouts and
+  body limits
 
 `internal/usecase/plugin`:
 
@@ -498,15 +552,20 @@ Fast integration tests should verify a single-node cluster can:
 - expose plugin status through manager/API paths
 - route `/plugins/:plugin/*path`
 - send plugin-originated messages through `message.App.Send`
+
+Focused multi-node integration tests should verify:
+
 - send from a non-owner API node and verify only the owner node invokes
   PersistAfter
+- node-scoped manager plugin requests either execute on the target node or fail
+  with the documented remote unsupported/unavailable response
 
 Real `.wkp` process tests should use the `integration` build tag to avoid
 slowing normal unit tests.
 
 ## 11. Milestones
 
-### M1: Runtime and PDK Compatibility Kernel
+### M1: Runtime and Access PDK Compatibility Kernel
 
 - wkrpc server
 - plugin process start/stop
@@ -536,8 +595,7 @@ slowing normal unit tests.
 - `/cluster/config`
 - `/cluster/channels/belongNode`
 - `/conversation/channels`
-- compatibility appendix for `pluginproto` placement, RPC authority, limits,
-  and mappings
+- `pluginproto` placement, RPC authority, limits, and mappings
 
 ### M5: Documentation and Cleanup
 
