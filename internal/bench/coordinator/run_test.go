@@ -14,6 +14,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/internal/bench/report"
 	"github.com/WuKongIM/WuKongIM/internal/bench/worker"
 	"github.com/stretchr/testify/require"
 )
@@ -122,7 +123,177 @@ func TestCoordinatorFailFastFalseAttemptsRemainingWorkersAndPhases(t *testing.T)
 	require.Equal(t, StatusWorkerFailed, result.Status)
 	require.False(t, workers[0].Stopped(), "fail_fast=false should not stop all workers on first phase error")
 	require.Equal(t, []Phase{PhasePrepare, PhaseConnect, PhaseWarmup, PhaseRun, PhaseCooldown}, workers[1].ObservedPhases())
-	require.True(t, workers[0].SawPhaseAttempt(PhaseCooldown), "later phases should still be attempted for failed workers")
+	require.False(t, workers[0].SawPhaseAttempt(PhaseCooldown), "failed workers should be skipped after their first failure")
+}
+
+func TestCoordinatorFailFastPhaseFailureStillWritesReport(t *testing.T) {
+	workers := newFakeWorkers(t, 2)
+	workers[1].FailPhase(PhaseWarmup, http.StatusInternalServerError, "warmup exploded")
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.FailFast = true
+	scenario.Run.ReportDir = t.TempDir()
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Equal(t, 1, result.Report.Summary.WorkerFailed)
+	require.Equal(t, report.ExitWorkerFailed, result.Report.ExitCode)
+	require.Len(t, result.Report.WorkerMetrics, 2)
+	require.FileExists(t, filepath.Join(scenario.Run.ReportDir, "report.json"))
+	require.FileExists(t, filepath.Join(scenario.Run.ReportDir, "workers", "a.report.json"))
+	require.FileExists(t, filepath.Join(scenario.Run.ReportDir, "workers", "b.report.json"))
+}
+
+func TestCoordinatorFailFastReportWriteFailureOverridesWorkerFailure(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].FailPhase(PhaseWarmup, http.StatusInternalServerError, "warmup exploded")
+	reportDir := filepath.Join(t.TempDir(), "not-a-dir")
+	require.NoError(t, os.WriteFile(reportDir, []byte("file blocks report dir"), 0o600))
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.FailFast = true
+	scenario.Run.ReportDir = reportDir
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.Error(t, err)
+	require.Equal(t, StatusInternalFailed, result.Status)
+	require.Contains(t, err.Error(), "warmup exploded")
+}
+
+func TestCoordinatorCollectsFinalTargetSnapshot(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/bench/v1/snapshot" {
+			writeRunTestJSON(w, model.BenchSnapshot{Version: "bench/v1", Counts: map[string]int{"users": 7}})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(targetServer.Close)
+	tgt := fakeTargetOK()
+	tgt.BenchAPI.Addrs = []string{targetServer.URL}
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       tgt,
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.ReportDir = t.TempDir()
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.NoError(t, err)
+	require.Equal(t, StatusCompleted, result.Status)
+	require.Len(t, result.Report.TargetSnapshots, 1)
+	require.JSONEq(t, `{"version":"bench/v1","counts":{"users":7}}`, string(result.Report.TargetSnapshots[0]))
+	data, err := os.ReadFile(filepath.Join(scenario.Run.ReportDir, "metrics", "target-snapshots.jsonl"))
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"users":7`)
+}
+
+func TestCoordinatorRecordsTargetSnapshotErrorSample(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	tgt := fakeTargetOK()
+	tgt.BenchAPI.Addrs = []string{"http://127.0.0.1:1"}
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       tgt,
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.NoError(t, err)
+	require.Equal(t, StatusCompleted, result.Status)
+	require.Empty(t, result.Report.TargetSnapshots)
+	require.NotEmpty(t, result.Report.ErrorSamples)
+	require.Equal(t, "target_metrics_error", result.Report.ErrorSamples[0].Name)
+}
+
+func TestCoordinatorWorkerFailedSummaryCountsDistinctWorkers(t *testing.T) {
+	workers := newFakeWorkers(t, 2)
+	workers[0].FailPhase(PhasePrepare, http.StatusInternalServerError, "prepare exploded")
+	workers[0].FailPhase(PhaseConnect, http.StatusInternalServerError, "connect exploded")
+	workers[0].FailPhase(PhaseWarmup, http.StatusInternalServerError, "warmup exploded")
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  20 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.FailFast = false
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Equal(t, 1, result.Report.Summary.WorkerFailed)
+}
+
+func TestCoordinatorWorkerMetricsCollectionFailureFailsSuccessfulRun(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].FailMetrics(http.StatusInternalServerError, "metrics exploded")
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Equal(t, 1, result.Report.Summary.WorkerFailed)
+	require.Equal(t, report.ExitWorkerFailed, result.Report.ExitCode)
+	require.NotEmpty(t, result.Report.WorkerMetrics)
+	require.NotEmpty(t, result.Report.WorkerMetrics[0].Metrics.Errors)
+	require.Equal(t, "worker_metrics_error", result.Report.WorkerMetrics[0].Metrics.Errors[0].Name)
+}
+
+func TestCoordinatorWorkerReportCollectionFailureFailsSuccessfulRunWithFallback(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].FailReport(http.StatusInternalServerError, "report exploded")
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Equal(t, 1, result.Report.Summary.WorkerFailed)
+	require.Equal(t, report.ExitWorkerFailed, result.Report.ExitCode)
+	require.Len(t, result.Report.WorkerReports, 1)
+	require.JSONEq(t, `{"worker_id":"a","error":"worker report unavailable"}`, string(result.Report.WorkerReports[0].Report))
+	require.NotEmpty(t, result.Report.ErrorSamples)
+	require.Equal(t, "worker_report_error", result.Report.ErrorSamples[0].Name)
 }
 
 func TestCoordinatorStopsWorkersOnContextCancellation(t *testing.T) {
@@ -358,6 +529,8 @@ type fakeWorker struct {
 	failPhases         map[Phase]fakePhaseFailure
 	metrics            metrics.SnapshotData
 	report             json.RawMessage
+	failMetrics        *fakePhaseFailure
+	failReport         *fakePhaseFailure
 	lagPhases          map[Phase]bool
 	blockStatus        map[Phase]bool
 	cancelOnStatusPoll context.CancelFunc
@@ -367,6 +540,18 @@ func (fw *fakeWorker) SetMetrics(snapshot metrics.SnapshotData) {
 	fw.mu.Lock()
 	defer fw.mu.Unlock()
 	fw.metrics = snapshot
+}
+
+func (fw *fakeWorker) FailMetrics(status int, body string) {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	fw.failMetrics = &fakePhaseFailure{status: status, body: body}
+}
+
+func (fw *fakeWorker) FailReport(status int, body string) {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	fw.failReport = &fakePhaseFailure{status: status, body: body}
 }
 
 type fakePhaseFailure struct {
@@ -487,6 +672,11 @@ func (fw *fakeWorker) handle(w http.ResponseWriter, r *http.Request) {
 
 func (fw *fakeWorker) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	fw.mu.Lock()
+	if failure := fw.failMetrics; failure != nil {
+		fw.mu.Unlock()
+		http.Error(w, failure.body, failure.status)
+		return
+	}
 	snapshot := fw.metrics
 	fw.mu.Unlock()
 	writeRunTestJSON(w, snapshot)
@@ -494,6 +684,11 @@ func (fw *fakeWorker) handleMetrics(w http.ResponseWriter, r *http.Request) {
 
 func (fw *fakeWorker) handleReport(w http.ResponseWriter, r *http.Request) {
 	fw.mu.Lock()
+	if failure := fw.failReport; failure != nil {
+		fw.mu.Unlock()
+		http.Error(w, failure.body, failure.status)
+		return
+	}
 	reportPayload := fw.report
 	if len(reportPayload) == 0 {
 		reportPayload = json.RawMessage(`{"worker_id":"` + fw.id + `"}`)

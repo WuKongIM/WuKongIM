@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	benchwkproto "github.com/WuKongIM/WuKongIM/internal/bench/wkproto"
 )
@@ -83,6 +84,7 @@ type ConnectionManager struct {
 	mu          sync.Mutex
 	nextGateway int
 	sessions    map[string]*ConnectionSession
+	metrics     *metrics.Registry
 }
 
 // NewConnectionManager validates config and creates an empty connection manager.
@@ -125,6 +127,7 @@ func NewConnectionManager(cfg ConnectionManagerConfig) (*ConnectionManager, erro
 		sleep:        sleep,
 		rateLimiter:  newConnectRateLimiter(cfg.ConnectRate, sleep),
 		sessions:     make(map[string]*ConnectionSession),
+		metrics:      metrics.NewRegistry(),
 	}, nil
 }
 
@@ -159,15 +162,19 @@ func (m *ConnectionManager) ConnectUser(ctx context.Context, user ConnectionUser
 		return session, nil
 	}
 	if err := m.rateLimiter.Wait(ctx); err != nil {
+		m.recordConnectError(err)
 		return nil, err
 	}
+	m.recordConnectAttempt()
 	addr := m.selectGateway()
 	client, err := m.factory(user, addr)
 	if err != nil {
+		m.recordConnectError(err)
 		return nil, err
 	}
 	if err := client.Connect(ctx, user.UID, user.DeviceID); err != nil {
 		_ = client.Close()
+		m.recordConnectError(err)
 		return nil, err
 	}
 	session := &ConnectionSession{
@@ -185,6 +192,7 @@ func (m *ConnectionManager) ConnectUser(ctx context.Context, user ConnectionUser
 		return existing, nil
 	}
 	m.sessions[user.UID] = session
+	m.recordConnectSuccess()
 	return session, nil
 }
 
@@ -221,6 +229,33 @@ func (m *ConnectionManager) ActiveCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.sessions)
+}
+
+// MetricsSnapshot returns connection lifecycle counters recorded by the manager.
+func (m *ConnectionManager) MetricsSnapshot() metrics.SnapshotData {
+	if m == nil || m.metrics == nil {
+		return metrics.SnapshotData{Counters: map[string]uint64{}, Gauges: map[string]float64{}, Histograms: map[string]metrics.HistogramSummary{}}
+	}
+	return m.metrics.Collect()
+}
+
+func (m *ConnectionManager) recordConnectAttempt() {
+	if m != nil && m.metrics != nil {
+		m.metrics.IncCounter("connect_attempt_total", nil)
+	}
+}
+
+func (m *ConnectionManager) recordConnectSuccess() {
+	if m != nil && m.metrics != nil {
+		m.metrics.IncCounter("connect_success_total", nil)
+	}
+}
+
+func (m *ConnectionManager) recordConnectError(err error) {
+	if m != nil && m.metrics != nil {
+		m.metrics.IncCounter("connect_error_total", nil)
+		m.metrics.RecordErrorSample("connect_error", err)
+	}
 }
 
 // Close closes all active client sessions and clears the session map.
