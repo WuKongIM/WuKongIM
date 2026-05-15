@@ -39,7 +39,7 @@ message ConfigTemplate {
 // 插件启动返回
 message StartupResp {
     // 节点id
-    uint64 nodeId = 1; 
+    uint64 nodeId = 1;
     // 是否成功
     bool success = 2;
     // 错误信息
@@ -52,7 +52,7 @@ message StartupResp {
 
 message Conn {
     // 用户uid
-    string uid  = 1; 
+    string uid  = 1;
     int64 connId = 2; // 连接id
     string deviceId = 3; // 设备id
     uint32 deviceFlag = 4; // 设备标志
@@ -66,11 +66,11 @@ message SendPacket {
     // 接收频道
     string channelId = 2;
     // 频道类型
-    uint32 channelType = 3;  
+    uint32 channelType = 3;
     // 消息内容
     bytes payload = 4;
     // 错误原因（默认为成功）
-    uint32 reason = 5; 
+    uint32 reason = 5;
     // 发送者的连接
     Conn conn = 6; // 发送者的连接
 }
@@ -84,7 +84,7 @@ message RecvPacket {
     // 接收频道
     string channelId = 3;
     // 频道类型
-    uint32 channelType = 4;  
+    uint32 channelType = 4;
     // 消息内容
     bytes payload = 5;
 }
@@ -107,7 +107,7 @@ message Message {
      // 接收频道
      string channelId = 8;
      // 频道类型
-     uint32 channelType = 9;  
+     uint32 channelType = 9;
      // topic
      string topic = 10;
     // 消息内容
@@ -277,7 +277,7 @@ message StreamWriteReq {
     string channelId = 5; // 频道id
     uint32 channelType = 6; // 频道类型
     bytes payload = 7; // 消息内容
-   
+
 }
 
 // 流写入结果
