@@ -224,7 +224,6 @@ export const zhCNMessages: AppMessages = {
   "dashboard.pulse.fanOutRate": "订阅扇出率",
   "dashboard.pulse.peakAvg": "峰值 {peak} · 均值 {avg}",
   "dashboard.pulse.latencyMs": "峰值 {peak}ms · 均值 {avg}ms",
-  "dashboard.pulse.mockedTag": "模拟数据",
   "dashboard.health.cardTitle": "槽位与频道健康度",
   "dashboard.health.slotsCenter": "{ready}/{total}",
   "dashboard.health.slotsCenterSub": "{percent}% 就绪",
