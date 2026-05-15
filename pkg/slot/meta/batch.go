@@ -16,6 +16,7 @@ type WriteBatch struct {
 	channels                map[string]channelBatchEntry
 	userConversationStates  map[string]userConversationStateBatchEntry
 	cmdConversationStates   map[string]cmdConversationStateBatchEntry
+	pluginUserBindings      map[string]pluginUserBindingBatchEntry
 	channelRuntimeMetas     map[string]channelRuntimeMetaBatchEntry
 	channelMigrationTasks   map[string]channelMigrationTaskBatchEntry
 	channelMigrationActive  map[string]channelMigrationTaskActiveBatchEntry
@@ -38,6 +39,11 @@ type userConversationStateBatchEntry struct {
 type cmdConversationStateBatchEntry struct {
 	state  CMDConversationState
 	exists bool
+}
+
+type pluginUserBindingBatchEntry struct {
+	binding PluginUserBinding
+	exists  bool
 }
 
 // channelRuntimeMetaBatchEntry records same-batch existence so deletes are
@@ -784,6 +790,50 @@ func (b *WriteBatch) RemoveSubscribers(hashSlot uint16, channelID string, channe
 	return nil
 }
 
+// BindPluginUser stages an idempotent plugin binding write.
+func (b *WriteBatch) BindPluginUser(hashSlot uint16, binding PluginUserBinding) error {
+	if err := validateHashSlot(hashSlot); err != nil {
+		return err
+	}
+	if err := validatePluginUserBinding(binding); err != nil {
+		return err
+	}
+
+	primaryKey := encodePluginUserBindingPrimaryKey(hashSlot, binding.UID, binding.PluginNo, pluginUserBindingPrimaryFamilyID)
+	existing, exists, err := b.loadPluginUserBinding(hashSlot, primaryKey, binding.UID, binding.PluginNo)
+	if err != nil {
+		return err
+	}
+	if exists {
+		binding.CreatedAtMS = existing.CreatedAtMS
+		if binding.UpdatedAtMS < existing.UpdatedAtMS {
+			binding.UpdatedAtMS = existing.UpdatedAtMS
+		}
+	}
+	if err := stageBindPluginUser(b.batch, hashSlot, binding); err != nil {
+		return err
+	}
+	b.rememberPluginUserBinding(primaryKey, binding, true)
+	return nil
+}
+
+// UnbindPluginUser stages an idempotent plugin binding deletion.
+func (b *WriteBatch) UnbindPluginUser(hashSlot uint16, uid, pluginNo string) error {
+	if err := validateHashSlot(hashSlot); err != nil {
+		return err
+	}
+	if err := validatePluginUserBindingIdentity(uid, pluginNo); err != nil {
+		return err
+	}
+
+	primaryKey := encodePluginUserBindingPrimaryKey(hashSlot, uid, pluginNo, pluginUserBindingPrimaryFamilyID)
+	if err := stageUnbindPluginUser(b.batch, hashSlot, uid, pluginNo); err != nil {
+		return err
+	}
+	b.rememberPluginUserBinding(primaryKey, PluginUserBinding{}, false)
+	return nil
+}
+
 // Commit atomically writes all staged operations with a single fsync.
 func (b *WriteBatch) Commit() error {
 	b.db.mu.Lock()
@@ -1389,6 +1439,37 @@ func (b *WriteBatch) rememberUserConversationState(primaryKey []byte, state User
 	b.userConversationStates[string(primaryKey)] = userConversationStateBatchEntry{
 		state:  state,
 		exists: exists,
+	}
+}
+
+func (b *WriteBatch) loadPluginUserBinding(hashSlot uint16, primaryKey []byte, uid, pluginNo string) (PluginUserBinding, bool, error) {
+	if b.pluginUserBindings != nil {
+		if entry, ok := b.pluginUserBindings[string(primaryKey)]; ok {
+			return entry.binding, entry.exists, nil
+		}
+	}
+
+	shard := b.db.ForHashSlot(hashSlot)
+	binding, err := shard.getPluginUserBindingLocked(uid, pluginNo)
+	switch err {
+	case nil:
+		b.rememberPluginUserBinding(primaryKey, binding, true)
+		return binding, true, nil
+	case ErrNotFound:
+		b.rememberPluginUserBinding(primaryKey, PluginUserBinding{}, false)
+		return PluginUserBinding{}, false, nil
+	default:
+		return PluginUserBinding{}, false, err
+	}
+}
+
+func (b *WriteBatch) rememberPluginUserBinding(primaryKey []byte, binding PluginUserBinding, exists bool) {
+	if b.pluginUserBindings == nil {
+		b.pluginUserBindings = make(map[string]pluginUserBindingBatchEntry, 1)
+	}
+	b.pluginUserBindings[string(primaryKey)] = pluginUserBindingBatchEntry{
+		binding: binding,
+		exists:  exists,
 	}
 }
 
