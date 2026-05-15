@@ -4,11 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 )
 
 const (
 	// BindingWarningPluginMissing reports that a durable binding references no observed local plugin.
 	BindingWarningPluginMissing = "plugin_missing"
+	// BindingWarningPluginUnavailable reports that a bound plugin is not currently runnable.
+	BindingWarningPluginUnavailable = "plugin_unavailable"
+	// BindingWarningPluginDisabled reports that desired state disables a bound plugin.
+	BindingWarningPluginDisabled = "plugin_disabled"
+	// BindingWarningReceiveUnsupported reports that a bound plugin does not advertise Receive.
+	BindingWarningReceiveUnsupported = "receive_unsupported"
 )
 
 var (
@@ -78,6 +86,46 @@ type BindingMutationResult struct {
 	Warnings []BindingWarning
 }
 
+// NewSlotBindingStoreAdapter converts the slot proxy binding API into the plugin usecase port.
+func NewSlotBindingStoreAdapter(store SlotBindingStore) BindingStore {
+	if store == nil {
+		return nil
+	}
+	return slotBindingStoreAdapter{store: store}
+}
+
+type slotBindingStoreAdapter struct {
+	store SlotBindingStore
+}
+
+func (s slotBindingStoreAdapter) BindPluginUser(ctx context.Context, uid, pluginNo string) error {
+	return s.store.BindPluginUser(ctx, uid, pluginNo)
+}
+
+func (s slotBindingStoreAdapter) UnbindPluginUser(ctx context.Context, uid, pluginNo string) error {
+	return s.store.UnbindPluginUser(ctx, uid, pluginNo)
+}
+
+func (s slotBindingStoreAdapter) ListPluginBindingsByUID(ctx context.Context, uid string) ([]PluginBinding, error) {
+	bindings, err := s.store.ListPluginBindingsByUID(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+	return pluginBindingsFromSlot(bindings), nil
+}
+
+func (s slotBindingStoreAdapter) ListPluginBindingsByPluginNo(ctx context.Context, pluginNo, cursor string, limit int) (BindingPage, error) {
+	bindings, nextCursor, hasMore, err := s.store.ListPluginBindingsByPluginNo(ctx, pluginNo, cursor, limit)
+	if err != nil {
+		return BindingPage{}, err
+	}
+	return BindingPage{Bindings: pluginBindingsFromSlot(bindings), Cursor: nextCursor, HasMore: hasMore}, nil
+}
+
+func (s slotBindingStoreAdapter) ExistPluginBindingByUID(ctx context.Context, uid string) (bool, error) {
+	return s.store.ExistPluginBindingByUID(ctx, uid)
+}
+
 // BindPluginUser creates or updates one UID to plugin binding and invalidates its cache entry.
 func (a *App) BindPluginUser(ctx context.Context, uid, pluginNo string) (BindingMutationResult, error) {
 	if err := validateBindingIdentity(uid, pluginNo); err != nil {
@@ -91,10 +139,13 @@ func (a *App) BindPluginUser(ctx context.Context, uid, pluginNo string) (Binding
 	if err != nil {
 		return BindingMutationResult{}, err
 	}
+	a.bindingMu.Lock()
+	defer a.bindingMu.Unlock()
 	if err := a.bindingStore.BindPluginUser(ctx, uid, pluginNo); err != nil {
 		return BindingMutationResult{}, err
 	}
 	a.invalidateBindingCache(uid)
+	a.bindingEpoch++
 	return BindingMutationResult{Binding: binding, Warnings: warnings}, nil
 }
 
@@ -106,10 +157,13 @@ func (a *App) UnbindPluginUser(ctx context.Context, uid, pluginNo string) error 
 	if a.bindingStore == nil {
 		return ErrBindingStoreRequired
 	}
+	a.bindingMu.Lock()
+	defer a.bindingMu.Unlock()
 	if err := a.bindingStore.UnbindPluginUser(ctx, uid, pluginNo); err != nil {
 		return err
 	}
 	a.invalidateBindingCache(uid)
+	a.bindingEpoch++
 	return nil
 }
 
@@ -118,7 +172,7 @@ func (a *App) ListBindingsByUID(ctx context.Context, uid string) (BindingList, e
 	if uid == "" {
 		return BindingList{}, ErrBindingUIDRequired
 	}
-	bindings, _, _, err := a.bindingsForUID(ctx, uid)
+	bindings, _, err := a.listBindingsByUID(ctx, uid, false)
 	if err != nil {
 		return BindingList{}, err
 	}
@@ -170,31 +224,49 @@ func (a *App) BoundReceivePluginForUID(ctx context.Context, uid string) (Observe
 	if uid == "" {
 		return ObservedPlugin{}, false, ErrBindingUIDRequired
 	}
-	_, selected, selectedOK, err := a.bindingsForUID(ctx, uid)
+	bindings, cacheable, err := a.listBindingsByUID(ctx, uid, true)
 	if err != nil {
 		return ObservedPlugin{}, false, err
+	}
+	selected, selectedOK, err := a.selectBoundReceivePlugin(ctx, bindings)
+	if err != nil {
+		return ObservedPlugin{}, false, err
+	}
+	if cacheable {
+		a.bindingCache.Set(uid, bindings, selected, selectedOK)
 	}
 	return selected, selectedOK, nil
 }
 
-func (a *App) bindingsForUID(ctx context.Context, uid string) ([]PluginBinding, ObservedPlugin, bool, error) {
+func (a *App) listBindingsByUID(ctx context.Context, uid string, useCache bool) ([]PluginBinding, bool, error) {
 	if a.bindingStore == nil {
-		return nil, ObservedPlugin{}, false, ErrBindingStoreRequired
+		return nil, false, ErrBindingStoreRequired
 	}
-	if bindings, selected, selectedOK, hit := a.bindingCache.Get(uid); hit {
-		return bindings, selected, selectedOK, nil
+	if useCache {
+		a.bindingMu.RLock()
+		if bindings, _, _, hit := a.bindingCache.Get(uid); hit {
+			a.bindingMu.RUnlock()
+			return bindings, true, nil
+		}
+		epoch := a.bindingEpoch
+		bindings, err := a.bindingStore.ListPluginBindingsByUID(ctx, uid)
+		a.bindingMu.RUnlock()
+		if err != nil {
+			return nil, false, err
+		}
+		bindings = clonePluginBindings(bindings)
+		a.bindingMu.RLock()
+		cacheable := epoch == a.bindingEpoch
+		a.bindingMu.RUnlock()
+		return bindings, cacheable, nil
 	}
+	a.bindingMu.RLock()
 	bindings, err := a.bindingStore.ListPluginBindingsByUID(ctx, uid)
+	a.bindingMu.RUnlock()
 	if err != nil {
-		return nil, ObservedPlugin{}, false, err
+		return nil, false, err
 	}
-	bindings = clonePluginBindings(bindings)
-	selected, selectedOK, err := a.selectBoundReceivePlugin(ctx, bindings)
-	if err != nil {
-		return nil, ObservedPlugin{}, false, err
-	}
-	a.bindingCache.Set(uid, bindings, selected, selectedOK)
-	return bindings, selected, selectedOK, nil
+	return clonePluginBindings(bindings), false, nil
 }
 
 func (a *App) selectBoundReceivePlugin(ctx context.Context, bindings []PluginBinding) (ObservedPlugin, bool, error) {
@@ -209,12 +281,13 @@ func (a *App) bindingDetails(ctx context.Context, bindings []PluginBinding) ([]B
 	details := make([]BindingDetail, 0, len(bindings))
 	warnings := make([]BindingWarning, 0)
 	for _, binding := range bindings {
-		rowWarnings, err := a.bindingWarnings(ctx, binding)
+		observed, ok := a.runtime.Get(binding.PluginNo)
+		rowWarnings, err := a.bindingWarningsForObserved(ctx, binding, observed, ok)
 		if err != nil {
 			return nil, nil, err
 		}
 		detail := BindingDetail{Binding: binding, Warnings: cloneBindingWarnings(rowWarnings)}
-		if observed, ok := a.runtime.Get(binding.PluginNo); ok {
+		if ok {
 			local, err := a.localPluginFromObserved(ctx, observed)
 			if err != nil {
 				return nil, nil, err
@@ -227,11 +300,29 @@ func (a *App) bindingDetails(ctx context.Context, bindings []PluginBinding) ([]B
 	return details, warnings, nil
 }
 
-func (a *App) bindingWarnings(_ context.Context, binding PluginBinding) ([]BindingWarning, error) {
-	if _, ok := a.runtime.Get(binding.PluginNo); ok {
+func (a *App) bindingWarnings(ctx context.Context, binding PluginBinding) ([]BindingWarning, error) {
+	observed, ok := a.runtime.Get(binding.PluginNo)
+	return a.bindingWarningsForObserved(ctx, binding, observed, ok)
+}
+
+func (a *App) bindingWarningsForObserved(ctx context.Context, binding PluginBinding, observed ObservedPlugin, ok bool) ([]BindingWarning, error) {
+	if !ok {
+		return []BindingWarning{missingPluginWarning(binding)}, nil
+	}
+	effective, err := a.applyDesiredEnabledToPlugin(ctx, observed)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case !effective.Enabled || effective.Status == StatusDisabled:
+		return []BindingWarning{bindingWarning(binding, BindingWarningPluginDisabled, fmt.Sprintf("plugin %q is disabled on this node", binding.PluginNo))}, nil
+	case effective.Status != StatusRunning:
+		return []BindingWarning{bindingWarning(binding, BindingWarningPluginUnavailable, fmt.Sprintf("plugin %q is %s on this node", binding.PluginNo, effective.Status))}, nil
+	case !hasMethod(effective, MethodReceive):
+		return []BindingWarning{bindingWarning(binding, BindingWarningReceiveUnsupported, fmt.Sprintf("plugin %q does not support Receive", binding.PluginNo))}, nil
+	default:
 		return nil, nil
 	}
-	return []BindingWarning{missingPluginWarning(binding)}, nil
 }
 
 func missingPluginWarning(binding PluginBinding) BindingWarning {
@@ -241,6 +332,10 @@ func missingPluginWarning(binding PluginBinding) BindingWarning {
 		UID:      binding.UID,
 		PluginNo: binding.PluginNo,
 	}
+}
+
+func bindingWarning(binding PluginBinding, code, message string) BindingWarning {
+	return BindingWarning{Code: code, Message: message, UID: binding.UID, PluginNo: binding.PluginNo}
 }
 
 func validateBindingIdentity(uid, pluginNo string) error {
@@ -265,4 +360,12 @@ func clonePluginBindings(bindings []PluginBinding) []PluginBinding {
 
 func cloneBindingWarnings(warnings []BindingWarning) []BindingWarning {
 	return append([]BindingWarning(nil), warnings...)
+}
+
+func pluginBindingsFromSlot(bindings []metadb.PluginUserBinding) []PluginBinding {
+	out := make([]PluginBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		out = append(out, PluginBinding{UID: binding.UID, PluginNo: binding.PluginNo})
+	}
+	return out
 }

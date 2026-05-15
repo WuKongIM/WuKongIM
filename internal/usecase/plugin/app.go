@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
@@ -17,6 +18,8 @@ type App struct {
 	store        DesiredStore
 	bindingStore BindingStore
 	bindingCache *BindingCache
+	bindingMu    sync.RWMutex
+	bindingEpoch uint64
 	invoker      Invoker
 	nodeID       uint64
 	clock        func() time.Time

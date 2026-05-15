@@ -15,7 +15,7 @@ type BindingCacheOptions struct {
 	Clock func() time.Time
 }
 
-// BindingCache stores short-lived UID binding lookups and selected Receive plugins.
+// BindingCache stores short-lived UID binding lookups.
 type BindingCache struct {
 	mu         sync.Mutex
 	ttl        time.Duration

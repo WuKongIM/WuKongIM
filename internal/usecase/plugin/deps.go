@@ -3,6 +3,8 @@ package plugin
 import (
 	"context"
 	"time"
+
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 )
 
 // Runtime exposes node-local plugin observations and process lifecycle controls.
@@ -42,6 +44,20 @@ type BindingStore interface {
 	// ListPluginBindingsByPluginNo lists plugin-centric bindings using an opaque cursor.
 	ListPluginBindingsByPluginNo(ctx context.Context, pluginNo, cursor string, limit int) (BindingPage, error)
 	// ExistPluginBindingByUID reports whether a UID has any plugin binding.
+	ExistPluginBindingByUID(ctx context.Context, uid string) (bool, error)
+}
+
+// SlotBindingStore is the slot proxy binding API adapted into BindingStore.
+type SlotBindingStore interface {
+	// BindPluginUser creates or updates a UID to plugin binding in the authoritative slot.
+	BindPluginUser(ctx context.Context, uid, pluginNo string) error
+	// UnbindPluginUser removes a UID to plugin binding in the authoritative slot.
+	UnbindPluginUser(ctx context.Context, uid, pluginNo string) error
+	// ListPluginBindingsByUID lists all slot-store plugin bindings for one UID.
+	ListPluginBindingsByUID(ctx context.Context, uid string) ([]metadb.PluginUserBinding, error)
+	// ListPluginBindingsByPluginNo lists slot-store plugin bindings using an opaque cursor.
+	ListPluginBindingsByPluginNo(ctx context.Context, pluginNo, cursor string, limit int) ([]metadb.PluginUserBinding, string, bool, error)
+	// ExistPluginBindingByUID reports whether a UID has any slot-store plugin binding.
 	ExistPluginBindingByUID(ctx context.Context, uid string) (bool, error)
 }
 
