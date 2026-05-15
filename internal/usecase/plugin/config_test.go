@@ -103,3 +103,23 @@ func TestUpdateLocalConfigSkipsConfigUpdateWhenPluginIsNotRunnableForMethod(t *t
 		})
 	}
 }
+
+func TestUpdateLocalConfigSkipsConfigUpdateWhenDesiredStateDisabled(t *testing.T) {
+	rt := newFakeRuntime(t.TempDir())
+	rt.plugins["wk.plugin.ai"] = ObservedPlugin{No: "wk.plugin.ai", Status: StatusRunning, Enabled: true, Methods: []Method{MethodConfigUpdate}}
+	store := newFakeDesiredStore()
+	store.states["wk.plugin.ai"] = DesiredPlugin{No: "wk.plugin.ai", Enabled: false, Config: json.RawMessage(`{"name":"old"}`)}
+	invoker := &fakeInvoker{}
+	app := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: store, Invoker: invoker, NodeID: 1})
+
+	detail, err := app.UpdateLocalConfig(context.Background(), "wk.plugin.ai", json.RawMessage(`{"name":"new"}`))
+	if err != nil {
+		t.Fatalf("UpdateLocalConfig returned error: %v", err)
+	}
+	if detail.Enabled || detail.Status != StatusDisabled {
+		t.Fatalf("detail enabled/status = %v/%s, want false/%s", detail.Enabled, detail.Status, StatusDisabled)
+	}
+	if len(invoker.requests) != 0 {
+		t.Fatalf("ConfigUpdate requests = %#v, want none", invoker.requests)
+	}
+}

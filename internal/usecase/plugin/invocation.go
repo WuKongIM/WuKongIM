@@ -84,6 +84,9 @@ func (a *App) Route(ctx context.Context, pluginNo string, req *pluginproto.HttpR
 	if a.invoker == nil {
 		return nil, ErrInvokerRequired
 	}
+	if err := validatePluginNo(pluginNo); err != nil {
+		return nil, err
+	}
 	data, err := req.Marshal()
 	if err != nil {
 		return nil, fmt.Errorf("marshal plugin http request: %w", err)
@@ -97,4 +100,18 @@ func (a *App) Route(ctx context.Context, pluginNo string, req *pluginproto.HttpR
 		return nil, fmt.Errorf("unmarshal plugin http response: %w", err)
 	}
 	return &resp, nil
+}
+
+// StopPlugin asks one plugin to stop through the invoker's legacy /stop mapping.
+func (a *App) StopPlugin(ctx context.Context, pluginNo string) error {
+	if a.invoker == nil {
+		return ErrInvokerRequired
+	}
+	if pluginNo == "" {
+		return ErrPluginNoRequired
+	}
+	if err := validatePluginNo(pluginNo); err != nil {
+		return err
+	}
+	return a.invoker.Stop(ctx, pluginNo)
 }

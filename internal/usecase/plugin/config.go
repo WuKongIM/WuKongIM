@@ -14,6 +14,9 @@ func (a *App) UpdateLocalConfig(ctx context.Context, no string, config json.RawM
 	if no == "" {
 		return LocalPluginDetail{}, ErrPluginNoRequired
 	}
+	if err := validatePluginNo(no); err != nil {
+		return LocalPluginDetail{}, err
+	}
 	observed, observedOK := a.runtime.Get(no)
 	if !observedOK {
 		return LocalPluginDetail{}, fmt.Errorf("%w: %s", ErrPluginNotFound, no)
@@ -42,11 +45,16 @@ func (a *App) UpdateLocalConfig(ctx context.Context, no string, config json.RawM
 			state.CreatedAt = now
 		}
 	}
+	effectiveObserved := observed
+	effectiveObserved.Enabled = state.Enabled
+	if !state.Enabled {
+		effectiveObserved.Status = StatusDisabled
+	}
 	if err := a.store.Save(ctx, state); err != nil {
 		return LocalPluginDetail{}, fmt.Errorf("save desired plugin %q: %w", no, err)
 	}
 
-	if isRunnableForMethod(observed, MethodConfigUpdate) {
+	if isRunnableForMethod(effectiveObserved, MethodConfigUpdate) {
 		if a.invoker == nil {
 			return LocalPluginDetail{}, ErrInvokerRequired
 		}
@@ -54,7 +62,7 @@ func (a *App) UpdateLocalConfig(ctx context.Context, no string, config json.RawM
 			return LocalPluginDetail{}, fmt.Errorf("notify plugin config update %q: %w", no, err)
 		}
 	}
-	return a.localPluginFromObservedAndDesired(observed, &state)
+	return a.localPluginFromObservedAndDesired(effectiveObserved, &state)
 }
 
 func decodeConfigTemplate(raw []byte) (*pluginproto.ConfigTemplate, error) {

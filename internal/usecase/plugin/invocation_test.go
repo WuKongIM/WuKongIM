@@ -105,3 +105,15 @@ func (f *fakeInvokerWithResponses) RequestPlugin(ctx context.Context, no, path s
 	}
 	return append([]byte(nil), f.responses[path]...), nil
 }
+
+func TestStopPluginUsesInvokerStop(t *testing.T) {
+	invoker := &fakeInvoker{}
+	app := mustNewTestApp(t, Options{Runtime: newFakeRuntime(t.TempDir()), DesiredStore: newFakeDesiredStore(), Invoker: invoker, NodeID: 1})
+
+	if err := app.StopPlugin(context.Background(), "p1"); err != nil {
+		t.Fatalf("StopPlugin returned error: %v", err)
+	}
+	if len(invoker.stops) != 1 || invoker.stops[0] != "p1" {
+		t.Fatalf("stops = %#v, want [p1]", invoker.stops)
+	}
+}

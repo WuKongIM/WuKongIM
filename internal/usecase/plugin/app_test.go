@@ -296,3 +296,79 @@ func assertErrorIs(t *testing.T, got error, want error) {
 		t.Fatalf("error = %v, want %v", got, want)
 	}
 }
+
+func TestStartPluginRejectsCallerMismatchAndInvalidPluginNo(t *testing.T) {
+	app := mustNewTestApp(t, Options{Runtime: newFakeRuntime(t.TempDir()), DesiredStore: newFakeDesiredStore(), NodeID: 1})
+
+	_, err := app.StartPlugin(context.Background(), &pluginproto.PluginInfo{No: "plugin-b"}, "plugin-a")
+	assertErrorIs(t, err, ErrPluginIdentityMismatch)
+
+	_, err = app.StartPlugin(context.Background(), &pluginproto.PluginInfo{No: "../escape"}, "../escape")
+	assertErrorIs(t, err, ErrInvalidPluginNo)
+}
+
+func TestStartPluginHonorsDisabledDesiredState(t *testing.T) {
+	rt := newFakeRuntime(t.TempDir())
+	store := newFakeDesiredStore()
+	store.states["wk.plugin.ai"] = DesiredPlugin{No: "wk.plugin.ai", Enabled: false, Config: json.RawMessage(`{"api_key":"real-secret"}`)}
+	app := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: store, NodeID: 1})
+
+	_, err := app.StartPlugin(context.Background(), &pluginproto.PluginInfo{No: "wk.plugin.ai", Methods: []string{"Receive"}}, "wk.plugin.ai")
+	if err != nil {
+		t.Fatalf("StartPlugin returned error: %v", err)
+	}
+	observed, ok := rt.Get("wk.plugin.ai")
+	if !ok {
+		t.Fatal("observed plugin was not registered")
+	}
+	if observed.Enabled || observed.Status != StatusDisabled {
+		t.Fatalf("observed enabled/status = %v/%s, want false/%s", observed.Enabled, observed.Status, StatusDisabled)
+	}
+}
+
+func TestListAndGetLocalPluginUseDesiredEnabledState(t *testing.T) {
+	rt := newFakeRuntime(t.TempDir())
+	rt.plugins["wk.plugin.ai"] = ObservedPlugin{No: "wk.plugin.ai", Status: StatusRunning, Enabled: true, Methods: []Method{MethodReceive}}
+	store := newFakeDesiredStore()
+	store.states["wk.plugin.ai"] = DesiredPlugin{No: "wk.plugin.ai", Enabled: false}
+	app := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: store, NodeID: 1})
+
+	list, err := app.ListLocalPlugins(context.Background())
+	if err != nil {
+		t.Fatalf("ListLocalPlugins returned error: %v", err)
+	}
+	if len(list.Plugins) != 1 || list.Plugins[0].Enabled || list.Plugins[0].Status != StatusDisabled {
+		t.Fatalf("list plugin = %#v, want desired disabled", list.Plugins)
+	}
+	detail, err := app.GetLocalPlugin(context.Background(), "wk.plugin.ai")
+	if err != nil {
+		t.Fatalf("GetLocalPlugin returned error: %v", err)
+	}
+	if detail.Enabled || detail.Status != StatusDisabled {
+		t.Fatalf("detail enabled/status = %v/%s, want false/%s", detail.Enabled, detail.Status, StatusDisabled)
+	}
+}
+
+func TestUninstallLocalPluginPersistsDisabledDesiredState(t *testing.T) {
+	now := time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC)
+	created := now.Add(-time.Hour)
+	rt := newFakeRuntime(t.TempDir())
+	store := newFakeDesiredStore()
+	store.states["wk.plugin.ai"] = DesiredPlugin{No: "wk.plugin.ai", Enabled: true, Config: json.RawMessage(`{"api_key":"real-secret"}`), CreatedAt: created, UpdatedAt: created}
+	app := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: store, NodeID: 1, Clock: func() time.Time { return now }})
+
+	if err := app.UninstallLocalPlugin(context.Background(), "wk.plugin.ai"); err != nil {
+		t.Fatalf("UninstallLocalPlugin returned error: %v", err)
+	}
+	saved, ok := store.saved("wk.plugin.ai")
+	if !ok {
+		t.Fatal("disabled desired state was not saved")
+	}
+	if saved.Enabled || !saved.CreatedAt.Equal(created) || !saved.UpdatedAt.Equal(now) {
+		t.Fatalf("saved desired state = %#v", saved)
+	}
+	assertJSONEqual(t, saved.Config, []byte(`{"api_key":"real-secret"}`))
+	if len(rt.uninstalls) != 1 || rt.uninstalls[0] != "wk.plugin.ai" {
+		t.Fatalf("runtime uninstalls = %#v", rt.uninstalls)
+	}
+}

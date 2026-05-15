@@ -1,6 +1,9 @@
 package plugin
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestSelectionOrdersSendAndPersistAfterGlobalPlugins(t *testing.T) {
 	plugins := []ObservedPlugin{
@@ -42,7 +45,34 @@ func TestAppSelectionUsesRuntimeRegistry(t *testing.T) {
 	rt.plugins["p1"] = ObservedPlugin{No: "p1", Priority: 1, Status: StatusRunning, Enabled: true, Methods: []Method{MethodSend}}
 	app := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: newFakeDesiredStore(), NodeID: 1})
 
-	assertPluginNos(t, app.SendPluginCandidates(), []string{"p2", "p1"})
+	plugins, err := app.SendPluginCandidates(context.Background())
+	if err != nil {
+		t.Fatalf("SendPluginCandidates returned error: %v", err)
+	}
+	assertPluginNos(t, plugins, []string{"p2", "p1"})
+}
+
+func TestAppSelectionSkipsDesiredDisabledPlugins(t *testing.T) {
+	rt := newFakeRuntime(t.TempDir())
+	rt.plugins["p2"] = ObservedPlugin{No: "p2", Priority: 2, Status: StatusRunning, Enabled: true, Methods: []Method{MethodSend, MethodReceive}}
+	rt.plugins["p1"] = ObservedPlugin{No: "p1", Priority: 1, Status: StatusRunning, Enabled: true, Methods: []Method{MethodSend, MethodReceive}}
+	store := newFakeDesiredStore()
+	store.states["p2"] = DesiredPlugin{No: "p2", Enabled: false}
+	app := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: store, NodeID: 1})
+
+	send, err := app.SendPluginCandidates(context.Background())
+	if err != nil {
+		t.Fatalf("SendPluginCandidates returned error: %v", err)
+	}
+	assertPluginNos(t, send, []string{"p1"})
+
+	recv, ok, err := app.BoundReceivePlugin(context.Background(), []string{"p1", "p2"})
+	if err != nil {
+		t.Fatalf("BoundReceivePlugin returned error: %v", err)
+	}
+	if !ok || recv.No != "p1" {
+		t.Fatalf("BoundReceivePlugin = (%#v, %v), want p1 true", recv, ok)
+	}
 }
 
 func assertPluginNos(t *testing.T, plugins []ObservedPlugin, want []string) {
