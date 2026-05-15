@@ -251,6 +251,48 @@ func TestCoordinatorWorkerFailedSummaryCountsDistinctWorkers(t *testing.T) {
 	require.Equal(t, 1, result.Report.Summary.WorkerFailed)
 }
 
+func TestCoordinatorPhaseAndCollectionFailuresCountDistinctWorkerUnion(t *testing.T) {
+	workers := newFakeWorkers(t, 2)
+	workers[0].FailPhase(PhaseWarmup, http.StatusInternalServerError, "warmup exploded")
+	workers[1].FailReport(http.StatusInternalServerError, "report exploded")
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.FailFast = true
+	scenario.Limits.Hard.MaxWorkerFailed = 1
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.Error(t, err)
+	require.Equal(t, StatusHardLimitFailed, result.Status)
+	require.Equal(t, 2, result.Report.Summary.WorkerFailed)
+	require.Equal(t, report.ExitHardLimitFailed, result.Report.ExitCode)
+}
+
+func TestCoordinatorReportCollectionCancellationReturnsCanceled(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	workers[0].CancelWhenMetricsPolled(cancel)
+
+	result, err := coord.Run(ctx, fakeScenario())
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, StatusCanceled, result.Status)
+}
+
 func TestCoordinatorWorkerMetricsCollectionFailureFailsSuccessfulRun(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
 	workers[0].FailMetrics(http.StatusInternalServerError, "metrics exploded")
@@ -540,26 +582,27 @@ func (fws fakeWorkers) ClientConfigs() []model.Worker {
 }
 
 type fakeWorker struct {
-	mu                 sync.Mutex
-	id                 string
-	server             *httptest.Server
-	phase              worker.Phase
-	assignment         worker.Assignment
-	observed           []Phase
-	stopped            bool
-	assigned           bool
-	hangStop           bool
-	statusAssignment   *worker.Assignment
-	phaseAttempts      []Phase
-	failAssign         *fakePhaseFailure
-	failPhases         map[Phase]fakePhaseFailure
-	metrics            metrics.SnapshotData
-	report             json.RawMessage
-	failMetrics        *fakePhaseFailure
-	failReport         *fakePhaseFailure
-	lagPhases          map[Phase]bool
-	blockStatus        map[Phase]bool
-	cancelOnStatusPoll context.CancelFunc
+	mu                  sync.Mutex
+	id                  string
+	server              *httptest.Server
+	phase               worker.Phase
+	assignment          worker.Assignment
+	observed            []Phase
+	stopped             bool
+	assigned            bool
+	hangStop            bool
+	statusAssignment    *worker.Assignment
+	phaseAttempts       []Phase
+	failAssign          *fakePhaseFailure
+	failPhases          map[Phase]fakePhaseFailure
+	metrics             metrics.SnapshotData
+	report              json.RawMessage
+	failMetrics         *fakePhaseFailure
+	failReport          *fakePhaseFailure
+	lagPhases           map[Phase]bool
+	blockStatus         map[Phase]bool
+	cancelOnStatusPoll  context.CancelFunc
+	cancelOnMetricsPoll context.CancelFunc
 }
 
 func (fw *fakeWorker) SetMetrics(snapshot metrics.SnapshotData) {
@@ -630,6 +673,12 @@ func (fw *fakeWorker) CancelWhenStatusPolled(cancel context.CancelFunc) {
 	fw.cancelOnStatusPoll = cancel
 }
 
+func (fw *fakeWorker) CancelWhenMetricsPolled(cancel context.CancelFunc) {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	fw.cancelOnMetricsPoll = cancel
+}
+
 func (fw *fakeWorker) ObservedPhases() []Phase {
 	fw.mu.Lock()
 	defer fw.mu.Unlock()
@@ -698,6 +747,10 @@ func (fw *fakeWorker) handle(w http.ResponseWriter, r *http.Request) {
 
 func (fw *fakeWorker) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	fw.mu.Lock()
+	if cancel := fw.cancelOnMetricsPoll; cancel != nil {
+		fw.cancelOnMetricsPoll = nil
+		go cancel()
+	}
 	if failure := fw.failMetrics; failure != nil {
 		fw.mu.Unlock()
 		http.Error(w, failure.body, failure.status)

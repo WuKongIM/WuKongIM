@@ -201,17 +201,21 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 		if isTargetUnavailable(errors.Join(phaseErrs...)) {
 			result.Status = StatusTargetUnavailable
 		}
-		if _, err := c.writeReport(ctx, scenario, &result, len(phaseFailures)); err != nil {
-			if !errors.Is(err, errWorkerReportCollection) {
+		if _, err := c.writeReport(ctx, scenario, &result, phaseFailures); err != nil {
+			if errorsIsContext(err) {
+				result.Status = StatusCanceled
+			} else if !errors.Is(err, errWorkerReportCollection) {
 				result.Status = StatusInternalFailed
 			}
 			return result, errors.Join(errors.Join(phaseErrs...), err)
 		}
 		return result, errors.Join(phaseErrs...)
 	}
-	rep, err := c.writeReport(ctx, scenario, &result, 0)
+	rep, err := c.writeReport(ctx, scenario, &result, nil)
 	if err != nil {
-		if result.Status == "" {
+		if errorsIsContext(err) {
+			result.Status = StatusCanceled
+		} else if result.Status == "" {
 			result.Status = StatusInternalFailed
 		}
 		return result, err
@@ -225,20 +229,24 @@ func (c *Coordinator) Run(ctx context.Context, scenario model.Scenario) (RunResu
 	return result, nil
 }
 
-func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, result *RunResult, workerFailed int) (report.Report, error) {
-	workerMetrics, workerReports, collectionFailures := c.collectWorkerReports(ctx)
+func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, result *RunResult, workerFailures map[string]struct{}) (report.Report, error) {
+	workerMetrics, workerReports, collectionFailures, err := c.collectWorkerReports(ctx)
+	if err != nil {
+		return report.Report{}, err
+	}
 	agg, err := metrics.Aggregate(workerMetrics)
 	if err != nil {
 		return report.Report{}, err
 	}
-	targetSnapshots, targetErrors := c.collectTargetSnapshots(ctx)
+	targetSnapshots, targetErrors, err := c.collectTargetSnapshots(ctx)
+	if err != nil {
+		return report.Report{}, err
+	}
 	for _, sample := range targetErrors {
 		agg.Errors = appendBoundedReportError(agg.Errors, sample)
 	}
-	if workerFailed < len(collectionFailures) {
-		workerFailed = len(collectionFailures)
-	}
-	summary := report.SummaryFromMetrics(agg, workerFailed)
+	failedWorkers := mergeWorkerFailureSets(workerFailures, collectionFailures)
+	summary := report.SummaryFromMetrics(agg, len(failedWorkers))
 	input := report.Input{
 		RunID:           scenario.Run.ID,
 		Scenario:        scenario,
@@ -255,7 +263,7 @@ func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, 
 	rep := report.Build(input)
 	if rep.ExitCode == report.ExitHardLimitFailed {
 		result.Status = StatusHardLimitFailed
-	} else if workerFailed > 0 {
+	} else if len(failedWorkers) > 0 {
 		rep.Status = report.StatusFailed
 		rep.ExitCode = report.ExitWorkerFailed
 		if result.Status == "" {
@@ -281,7 +289,7 @@ func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, 
 	return rep, nil
 }
 
-func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.WorkerSnapshot, []report.WorkerReport, map[string]struct{}) {
+func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.WorkerSnapshot, []report.WorkerReport, map[string]struct{}, error) {
 	workerMetrics := make([]metrics.WorkerSnapshot, 0, len(c.cfg.Workers))
 	workerReports := make([]report.WorkerReport, 0, len(c.cfg.Workers))
 	collectionFailures := make(map[string]struct{})
@@ -291,6 +299,9 @@ func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.Worke
 		if err := c.getJSON(ctx, w, "/v1/metrics", &snap); err == nil {
 			workerMetrics = append(workerMetrics, metrics.WorkerSnapshot{WorkerID: workerID, Metrics: snap})
 		} else {
+			if contextCanceled(ctx, err) {
+				return nil, nil, nil, contextError(ctx, err)
+			}
 			collectionFailures[workerID] = struct{}{}
 			workerMetrics = append(workerMetrics, metrics.WorkerSnapshot{WorkerID: workerID, Metrics: emptyWorkerMetricsWithError("worker_metrics_error", err)})
 		}
@@ -299,6 +310,9 @@ func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.Worke
 		if err := c.getJSON(ctx, w, "/v1/report", &raw); err == nil && len(raw) > 0 {
 			workerReports = append(workerReports, report.WorkerReport{WorkerID: workerID, Report: raw})
 		} else {
+			if contextCanceled(ctx, err) {
+				return nil, nil, nil, contextError(ctx, err)
+			}
 			collectionFailures[workerID] = struct{}{}
 			if err != nil {
 				addReportErrorToLastMetric(workerMetrics, workerID, "worker_report_error", err)
@@ -307,10 +321,22 @@ func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.Worke
 			workerReports = append(workerReports, report.WorkerReport{WorkerID: workerID, Report: payload})
 		}
 	}
-	return workerMetrics, workerReports, collectionFailures
+	return workerMetrics, workerReports, collectionFailures, nil
 }
 
-func (c *Coordinator) collectTargetSnapshots(ctx context.Context) ([]json.RawMessage, []metrics.ErrorSample) {
+func mergeWorkerFailureSets(sets ...map[string]struct{}) map[string]struct{} {
+	merged := make(map[string]struct{})
+	for _, set := range sets {
+		for workerID := range set {
+			if workerID != "" {
+				merged[workerID] = struct{}{}
+			}
+		}
+	}
+	return merged
+}
+
+func (c *Coordinator) collectTargetSnapshots(ctx context.Context) ([]json.RawMessage, []metrics.ErrorSample, error) {
 	apiAddrs := c.cfg.Target.BenchAPI.Addrs
 	if len(apiAddrs) == 0 {
 		apiAddrs = c.cfg.Target.API.Addrs
@@ -318,13 +344,16 @@ func (c *Coordinator) collectTargetSnapshots(ctx context.Context) ([]json.RawMes
 	client := target.NewClient(target.Config{APIAddrs: apiAddrs, Token: c.cfg.Target.BenchAPI.Token, HTTPClient: c.http})
 	snapshot, err := client.Snapshot(ctx)
 	if err != nil {
-		return nil, []metrics.ErrorSample{{Name: "target_metrics_error", Message: err.Error(), At: time.Now()}}
+		if contextCanceled(ctx, err) {
+			return nil, nil, contextError(ctx, err)
+		}
+		return nil, []metrics.ErrorSample{{Name: "target_metrics_error", Message: err.Error(), At: time.Now()}}, nil
 	}
 	data, err := json.Marshal(snapshot)
 	if err != nil {
-		return nil, []metrics.ErrorSample{{Name: "target_metrics_error", Message: err.Error(), At: time.Now()}}
+		return nil, []metrics.ErrorSample{{Name: "target_metrics_error", Message: err.Error(), At: time.Now()}}, nil
 	}
-	return []json.RawMessage{json.RawMessage(data)}, nil
+	return []json.RawMessage{json.RawMessage(data)}, nil, nil
 }
 
 func emptyWorkerMetricsWithError(name string, err error) metrics.SnapshotData {
@@ -598,6 +627,17 @@ func errorsIsParentContext(parent context.Context, err error) bool {
 
 func errorsIsContext(err error) bool {
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+func contextCanceled(ctx context.Context, err error) bool {
+	return ctx.Err() != nil || errorsIsContext(err)
+}
+
+func contextError(ctx context.Context, err error) error {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
+	}
+	return err
 }
 
 func coordinatorStatusError(method, url string, resp *http.Response) error {

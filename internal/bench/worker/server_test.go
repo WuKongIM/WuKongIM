@@ -450,6 +450,33 @@ func TestWorkerConcurrentDuplicatePhaseRunsHookOnce(t *testing.T) {
 	require.Equal(t, PhaseConnect, workerStatus(t, srv, "secret").Phase)
 }
 
+func TestWorkerOldPhaseHookDoesNotAdvanceNewAssignment(t *testing.T) {
+	runner := newBlockingPrepareRunner()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+
+	phaseDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		phaseDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
+	}()
+	require.True(t, runner.waitForCalls(1, time.Second), "prepare hook did not start")
+
+	postPhase(t, srv, "secret", "/v1/stop", http.StatusOK)
+	rec := assignRecorder(t, srv, "secret", "run-b")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	runner.release()
+	select {
+	case rec := <-phaseDone:
+		require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	case <-time.After(time.Second):
+		t.Fatal("old phase request did not finish")
+	}
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, "run-b", status.Assignment.RunID)
+	require.Equal(t, PhaseAssigned, status.Phase)
+}
+
 func TestWorkerPhaseHooksCallWorkloadRunner(t *testing.T) {
 	runner := &recordingWorkloadRunner{}
 	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
@@ -584,6 +611,50 @@ func groupShardAssignment(targetURL string) Assignment {
 			},
 		}},
 	}
+}
+
+type blockingPrepareRunner struct {
+	calls   atomic.Int32
+	entered chan struct{}
+	done    chan struct{}
+}
+
+func newBlockingPrepareRunner() *blockingPrepareRunner {
+	return &blockingPrepareRunner{entered: make(chan struct{}, 2), done: make(chan struct{})}
+}
+
+func (r *blockingPrepareRunner) Prepare(ctx context.Context, assignment Assignment) error {
+	r.calls.Add(1)
+	r.entered <- struct{}{}
+	select {
+	case <-r.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (r *blockingPrepareRunner) Connect(ctx context.Context, assignment Assignment) error { return nil }
+func (r *blockingPrepareRunner) Warmup(ctx context.Context, assignment Assignment) error  { return nil }
+func (r *blockingPrepareRunner) Run(ctx context.Context, assignment Assignment) error     { return nil }
+func (r *blockingPrepareRunner) Cooldown(ctx context.Context, assignment Assignment) error {
+	return nil
+}
+
+func (r *blockingPrepareRunner) waitForCalls(want int32, timeout time.Duration) bool {
+	deadline := time.After(timeout)
+	for r.calls.Load() < want {
+		select {
+		case <-r.entered:
+		case <-deadline:
+			return false
+		}
+	}
+	return true
+}
+
+func (r *blockingPrepareRunner) release() {
+	close(r.done)
 }
 
 type blockingConnectRunner struct {

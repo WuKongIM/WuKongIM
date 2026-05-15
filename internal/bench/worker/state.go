@@ -121,6 +121,20 @@ func assignmentsEqual(a, b Assignment) bool {
 func (s *State) Transition(next Phase) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.transitionLocked(next)
+}
+
+// TransitionForAssignment advances the phase only if the active run still matches runID.
+func (s *State) TransitionForAssignment(runID string, next Phase) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.assignment.RunID != strings.TrimSpace(runID) {
+		return fmt.Errorf("%w: active run %q does not match %q", ErrActiveRunConflict, s.assignment.RunID, strings.TrimSpace(runID))
+	}
+	return s.transitionLocked(next)
+}
+
+func (s *State) transitionLocked(next Phase) error {
 	if s.phase == next {
 		return nil
 	}
