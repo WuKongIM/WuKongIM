@@ -241,8 +241,11 @@ export function buildInternalLinkMetrics(network?: ManagerNetworkSummaryResponse
   const completedCalls = Math.max(calls - expectedTimeouts, 0)
   const rpcErrorRate = completedCalls > 0 ? (failures / completedCalls) * 100 : 0
   const rpcCallsPerSecond = calls / 60
-  const latestRpcPoint = network.history.rpc.at(-1)
-  const stepSeconds = Math.max(network.history.step_seconds || 60, 1)
+  const history = network.history
+  const rpcHistory = history?.rpc ?? []
+  const trafficHistory = history?.traffic ?? []
+  const latestRpcPoint = rpcHistory.at(-1)
+  const stepSeconds = Math.max(history?.step_seconds || 60, 1)
   const internalMessagesPerSecond = latestRpcPoint ? latestRpcPoint.calls / stepSeconds : rpcCallsPerSecond
   const weightedLatency = calls > 0
     ? sum(services.map((service) => service.p95_ms * Math.max(service.calls_1m, 1))) / sum(services.map((service) => Math.max(service.calls_1m, 1)))
@@ -258,8 +261,8 @@ export function buildInternalLinkMetrics(network?: ManagerNetworkSummaryResponse
     rpcInflight: metric("rpcInflight", "clusterDashboard.metric.rpcInflight", network.headline.rpc_inflight, String(network.headline.rpc_inflight), "inflight", "default", "real"),
     queueFull: metric("queueFull", "clusterDashboard.metric.queueFull", queueFull, String(queueFull), "queue full/min", queueFull > 0 ? "warning" : "default", "real"),
     timeouts: metric("timeouts", "clusterDashboard.metric.timeouts", timeouts, String(timeouts), "timeouts/min", timeouts > 0 ? "warning" : "default", "real"),
-    trafficSeries: network.history.traffic.map((point) => ({ at: point.at, txBytes: point.tx_bytes, rxBytes: point.rx_bytes })),
-    rpcSeries: network.history.rpc.map((point) => ({
+    trafficSeries: trafficHistory.map((point) => ({ at: point.at, txBytes: point.tx_bytes, rxBytes: point.rx_bytes })),
+    rpcSeries: rpcHistory.map((point) => ({
       at: point.at,
       calls: point.calls,
       errors: point.errors,

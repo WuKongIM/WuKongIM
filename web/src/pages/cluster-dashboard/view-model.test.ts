@@ -271,6 +271,16 @@ describe("buildInternalLinkMetrics", () => {
     expect(metrics.internalMessagesPerSecond.value).toBeCloseTo(1.5, 2)
     expect(metrics.internalMessagesPerSecond.source).toBe("derived")
   })
+
+  it("handles partial network summaries without history", () => {
+    const partial = makeNetworkSummary()
+    delete (partial as Partial<ManagerNetworkSummaryResponse>).history
+
+    const metrics = buildInternalLinkMetrics(partial)
+
+    expect(metrics.rpcSeries).toEqual([])
+    expect(metrics.internalMessagesPerSecond.value).toBeCloseTo(1, 2)
+  })
 })
 
 describe("buildClusterMetricStrip", () => {
