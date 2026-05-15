@@ -227,3 +227,162 @@ func sortFloat64s(a []float64) {
 		}
 	}
 }
+
+// Query returns aggregated metric series for the given window and step.
+func (c *DashboardCollector) Query(window, step time.Duration) (QueryResult, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.count < 2 {
+		return QueryResult{}, ErrInsufficientData
+	}
+
+	now := time.Now().UTC()
+	cutoff := now.Add(-window)
+	bucketCount := int(window / step)
+	stepSec := step.Seconds()
+
+	// Collect samples within window
+	samples := make([]RawSample, 0, c.count)
+	for i := 0; i < c.count; i++ {
+		idx := (c.head - c.count + i + c.capacity) % c.capacity
+		s := c.ring[idx]
+		if !s.At.Before(cutoff) {
+			samples = append(samples, s)
+		}
+	}
+
+	if len(samples) < 2 {
+		return QueryResult{}, ErrInsufficientData
+	}
+
+	// Assign samples to buckets
+	type bucket struct {
+		samples []RawSample
+	}
+	buckets := make([]bucket, bucketCount)
+	for _, s := range samples {
+		idx := int(s.At.Sub(cutoff).Seconds() / stepSec)
+		if idx >= bucketCount {
+			idx = bucketCount - 1
+		}
+		if idx < 0 {
+			idx = 0
+		}
+		buckets[idx].samples = append(buckets[idx].samples, s)
+	}
+
+	// Build series
+	sendPerSec := make([]float64, bucketCount)
+	deliverPerSec := make([]float64, bucketCount)
+	connections := make([]float64, bucketCount)
+	sendLatP99 := make([]float64, bucketCount)
+	delivLatP99 := make([]float64, bucketCount)
+	sendFailRate := make([]float64, bucketCount)
+	delivFailRate := make([]float64, bucketCount)
+	activeChans := make([]float64, bucketCount)
+	retryQueue := make([]float64, bucketCount)
+	fanOut := make([]float64, bucketCount)
+
+	for i, b := range buckets {
+		if len(b.samples) == 0 {
+			continue
+		}
+		if len(b.samples) == 1 {
+			connections[i] = float64(b.samples[0].Connections)
+			activeChans[i] = float64(b.samples[0].ActiveChannels)
+			retryQueue[i] = float64(b.samples[0].RetryQueueDepth)
+			sendLatP99[i] = b.samples[0].SendLatencyP99 * 1000
+			delivLatP99[i] = b.samples[0].DeliveryLatencyP99 * 1000
+			continue
+		}
+		first := b.samples[0]
+		last := b.samples[len(b.samples)-1]
+
+		sendDelta := last.SendCount - first.SendCount
+		if sendDelta < 0 {
+			sendDelta = 0
+		}
+		sendPerSec[i] = math.Round(sendDelta / stepSec)
+
+		delivDelta := last.DeliverCount - first.DeliverCount
+		if delivDelta < 0 {
+			delivDelta = 0
+		}
+		deliverPerSec[i] = math.Round(delivDelta / stepSec)
+
+		connections[i] = float64(last.Connections)
+		activeChans[i] = float64(last.ActiveChannels)
+		retryQueue[i] = float64(last.RetryQueueDepth)
+
+		// Latency: max p99 in bucket
+		var maxSendLat, maxDelivLat float64
+		for _, s := range b.samples {
+			if s.SendLatencyP99 > maxSendLat {
+				maxSendLat = s.SendLatencyP99
+			}
+			if s.DeliveryLatencyP99 > maxDelivLat {
+				maxDelivLat = s.DeliveryLatencyP99
+			}
+		}
+		sendLatP99[i] = math.Round(maxSendLat * 1000)
+		delivLatP99[i] = math.Round(maxDelivLat * 1000)
+
+		// Fail rates
+		sendTotalDelta := last.SendTotalCount - first.SendTotalCount
+		sendFailDelta := last.SendFailCount - first.SendFailCount
+		if sendTotalDelta > 0 {
+			sendFailRate[i] = math.Round(sendFailDelta/sendTotalDelta*1000) / 10
+		}
+
+		delivTotalDelta := last.DeliverTotalCount - first.DeliverTotalCount
+		delivFailDelta := last.DeliverFailCount - first.DeliverFailCount
+		if delivTotalDelta > 0 {
+			delivFailRate[i] = math.Round(delivFailDelta/delivTotalDelta*1000) / 10
+		}
+
+		// Fan-out
+		routesDelta := last.ResolveRoutesCount - first.ResolveRoutesCount
+		if sendDelta > 0 {
+			fanOut[i] = math.Round(routesDelta/sendDelta*10) / 10
+		}
+	}
+
+	return QueryResult{
+		GeneratedAt:             now,
+		WindowSeconds:           int(window.Seconds()),
+		StepSeconds:             int(step.Seconds()),
+		Points:                  bucketCount,
+		SendPerSec:              buildMetricSeries(sendPerSec),
+		DeliverPerSec:           buildMetricSeries(deliverPerSec),
+		Connections:             buildMetricSeries(connections),
+		SendLatencyP99Ms:        buildMetricSeries(sendLatP99),
+		DeliveryLatencyP99Ms:    buildMetricSeries(delivLatP99),
+		SendFailRatePercent:     buildMetricSeries(sendFailRate),
+		DeliveryFailRatePercent: buildMetricSeries(delivFailRate),
+		ActiveChannels:          buildMetricSeries(activeChans),
+		RetryQueueDepth:         buildMetricSeries(retryQueue),
+		FanOutRate:              buildMetricSeries(fanOut),
+	}, nil
+}
+
+func buildMetricSeries(series []float64) MetricSeries {
+	if len(series) == 0 {
+		return MetricSeries{}
+	}
+	latest := series[len(series)-1]
+	var peak, sum float64
+	for _, v := range series {
+		sum += v
+		if v > peak {
+			peak = v
+		}
+	}
+	avg := math.Round(sum/float64(len(series))*10) / 10
+	return MetricSeries{
+		Latest: latest,
+		Peak:   peak,
+		Avg:    avg,
+		Series: series,
+	}
+}
