@@ -10,10 +10,14 @@ import (
 	"github.com/WuKongIM/wkrpc"
 )
 
-const defaultMaxBodyBytes int64 = 10 << 20
+// DefaultHostRPCMaxBodyBytes is the phase-1 host RPC request and response body limit.
+const DefaultHostRPCMaxBodyBytes int64 = 10 << 20
 
 // ErrUnimplementedStreamRPC is returned for stream host RPCs until phase 1 wires a stream runtime.
 var ErrUnimplementedStreamRPC = errors.New("plugin stream rpc unimplemented in phase 1")
+
+// ErrUsecaseRequired is returned when the host RPC adapter has no usecase target.
+var ErrUsecaseRequired = errors.New("plugin host rpc usecase required")
 
 // Options configures the plugin host RPC adapter.
 type Options struct {
@@ -33,7 +37,7 @@ type Options struct {
 
 // RouteRegistrar is the narrow wkrpc route surface required by the adapter.
 type RouteRegistrar interface {
-	Route(path string, handler wkrpc.Handler)
+	Route(path string, handler func(*wkrpc.Context))
 }
 
 // Usecase is the narrow plugin host RPC application contract.
@@ -63,9 +67,12 @@ func NewServer(opts Options) (*Server, error) {
 	if opts.Timeout <= 0 {
 		return nil, errors.New("plugin host rpc timeout must be positive")
 	}
+	if opts.Usecase == nil {
+		return nil, ErrUsecaseRequired
+	}
 	maxBodyBytes := opts.MaxBodyBytes
 	if maxBodyBytes <= 0 {
-		maxBodyBytes = defaultMaxBodyBytes
+		maxBodyBytes = DefaultHostRPCMaxBodyBytes
 	}
 	now := opts.Now
 	if now == nil {
@@ -91,10 +98,26 @@ func (s *Server) MaxBodyBytes() int64 { return s.maxBodyBytes }
 func (s *Server) registerRoutes() {
 	for _, path := range routePaths {
 		path := path
-		s.routes.Route(path, func(c *wkrpc.Context) {
-			s.handlePath(path, wkrpcContext{ctx: c})
-		})
+		s.routes.Route(path, s.routeHandler(path))
 	}
+}
+
+func (s *Server) routeHandler(path string) func(*wkrpc.Context) {
+	handler := registeredRouteHandler{server: s, path: path}
+	return handler.handleWKRPC
+}
+
+type registeredRouteHandler struct {
+	server *Server
+	path   string
+}
+
+func (h registeredRouteHandler) handleWKRPC(c *wkrpc.Context) {
+	h.handle(wkrpcContext{ctx: c})
+}
+
+func (h registeredRouteHandler) handle(c rpcContext) {
+	h.server.handlePath(h.path, c)
 }
 
 var routePaths = []string{

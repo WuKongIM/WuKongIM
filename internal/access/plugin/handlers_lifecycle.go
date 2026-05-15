@@ -57,16 +57,18 @@ func (s *Server) handlePluginStart(c rpcContext) {
 		c.WriteErr(err)
 		return
 	}
-	writeProto(c, resp)
+	s.writeProto(c, resp)
 }
 
 func (s *Server) handleClose(c rpcContext) {
-	if !s.checkBodyLimit(c) {
+	pluginNo := c.Uid()
+	if pluginNo == "" {
+		c.WriteErr(errEmptyPluginNumber)
 		return
 	}
 	ctx, cancel := s.usecaseContext(c)
 	defer cancel()
-	if err := s.usecase.ClosePlugin(ctx, string(c.Body()), c.Uid()); err != nil {
+	if err := s.usecase.ClosePlugin(ctx, pluginNo, c.Uid()); err != nil {
 		c.WriteErr(err)
 		return
 	}
@@ -85,7 +87,7 @@ func (s *Server) handleSendMessage(c rpcContext) {
 		c.WriteErr(err)
 		return
 	}
-	writeProto(c, resp)
+	s.writeProto(c, resp)
 }
 
 func (s *Server) handleChannelMessages(c rpcContext) {
@@ -100,7 +102,7 @@ func (s *Server) handleChannelMessages(c rpcContext) {
 		c.WriteErr(err)
 		return
 	}
-	writeProto(c, resp)
+	s.writeProto(c, resp)
 }
 
 func (s *Server) handleHTTPForward(c rpcContext) {
@@ -115,7 +117,7 @@ func (s *Server) handleHTTPForward(c rpcContext) {
 		c.WriteErr(err)
 		return
 	}
-	writeProto(c, resp)
+	s.writeProto(c, resp)
 }
 
 func (s *Server) handleClusterConfig(c rpcContext) {
@@ -129,7 +131,7 @@ func (s *Server) handleClusterConfig(c rpcContext) {
 		c.WriteErr(err)
 		return
 	}
-	writeProto(c, resp)
+	s.writeProto(c, resp)
 }
 
 func (s *Server) handleClusterChannelsBelongNode(c rpcContext) {
@@ -144,7 +146,7 @@ func (s *Server) handleClusterChannelsBelongNode(c rpcContext) {
 		c.WriteErr(err)
 		return
 	}
-	writeProto(c, resp)
+	s.writeProto(c, resp)
 }
 
 func (s *Server) handleConversationChannels(c rpcContext) {
@@ -159,7 +161,7 @@ func (s *Server) handleConversationChannels(c rpcContext) {
 		c.WriteErr(err)
 		return
 	}
-	writeProto(c, resp)
+	s.writeProto(c, resp)
 }
 
 func (s *Server) handleUnimplementedStream(c rpcContext) {

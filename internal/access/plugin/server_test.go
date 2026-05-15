@@ -2,12 +2,20 @@ package plugin
 
 import (
 	"context"
+	"encoding/binary"
+	"errors"
+	"io"
+	"net"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 
+	runtimeplugin "github.com/WuKongIM/WuKongIM/internal/runtime/plugin"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	"github.com/WuKongIM/wkrpc"
+	wkrpcproto "github.com/WuKongIM/wkrpc/proto"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -15,6 +23,10 @@ func TestConstructorRequiresPositiveTimeoutAndDefaultsMaxBody(t *testing.T) {
 	_, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: &fakeUsecase{}})
 	if err == nil {
 		t.Fatal("expected missing timeout error")
+	}
+	_, err = NewServer(Options{Routes: &fakeRoutes{}, Timeout: time.Second})
+	if !errors.Is(err, ErrUsecaseRequired) {
+		t.Fatalf("error = %v, want %v", err, ErrUsecaseRequired)
 	}
 
 	srv, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: &fakeUsecase{}, Timeout: time.Second})
@@ -56,6 +68,47 @@ func TestRegisterRoutes(t *testing.T) {
 	}
 }
 
+func TestRouteRegistrarAcceptsRuntimeSocketServer(t *testing.T) {
+	var _ RouteRegistrar = runtimeplugin.NewSocketServer("/tmp/wukongim-plugin-test.sock")
+}
+
+func TestRegisteredHandlerDispatchesThroughWKRPCAdapter(t *testing.T) {
+	socketPath := shortAccessSocketPath(t)
+	routes := runtimeplugin.NewSocketServer(socketPath)
+	uc := &fakeUsecase{startupResp: &pluginproto.StartupResp{NodeId: 9, Success: true}}
+	_, err := NewServer(Options{Routes: routes, Usecase: uc, Timeout: time.Second})
+	if err != nil {
+		t.Fatalf("NewServer returned error: %v", err)
+	}
+	if err := routes.Start(); err != nil {
+		t.Fatalf("socket start: %v", err)
+	}
+	t.Cleanup(routes.Stop)
+
+	conn, err := net.DialTimeout("unix", socketPath, time.Second)
+	if err != nil {
+		t.Fatalf("dial plugin socket: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	wkrpcConnect(t, conn, "registered")
+
+	resp := wkrpcRequest(t, conn, 2, "/plugin/start", mustMarshal(t, &pluginproto.PluginInfo{No: "registered"}))
+	if resp.Status != wkrpcproto.StatusOK {
+		t.Fatalf("response status = %v body=%q", resp.Status, string(resp.Body))
+	}
+	var got pluginproto.StartupResp
+	mustUnmarshal(t, resp.Body, &got)
+	if got.NodeId != 9 || !got.Success {
+		t.Fatalf("startup response = %#v", &got)
+	}
+	if uc.startInfo == nil || uc.startInfo.No != "registered" {
+		t.Fatalf("StartPlugin info = %#v", uc.startInfo)
+	}
+	if uc.startCaller != "registered" {
+		t.Fatalf("StartPlugin caller = %q", uc.startCaller)
+	}
+}
+
 func TestLifecycleStartValidAndEmptyPluginNumber(t *testing.T) {
 	uc := &fakeUsecase{startupResp: &pluginproto.StartupResp{NodeId: 7, Success: true}}
 	srv := mustServer(t, uc)
@@ -92,8 +145,8 @@ func TestLifecycleStartValidAndEmptyPluginNumber(t *testing.T) {
 func TestLifecycleCloseCallsUsecaseAndWritesOK(t *testing.T) {
 	uc := &fakeUsecase{}
 	srv := mustServer(t, uc)
-	ctx := newFakeRPCContext([]byte("plug-a"))
-	ctx.uid = "caller-2"
+	ctx := newFakeRPCContext(nil)
+	ctx.uid = "plug-a"
 
 	srv.handlePath("/close", ctx)
 
@@ -103,8 +156,14 @@ func TestLifecycleCloseCallsUsecaseAndWritesOK(t *testing.T) {
 	if !ctx.ok {
 		t.Fatal("expected WriteOk")
 	}
-	if uc.closePluginNo != "plug-a" || uc.closeCaller != "caller-2" {
+	if uc.closePluginNo != "plug-a" || uc.closeCaller != "plug-a" {
 		t.Fatalf("ClosePlugin args = (%q, %q)", uc.closePluginNo, uc.closeCaller)
+	}
+
+	emptyCtx := newFakeRPCContext(nil)
+	srv.handlePath("/close", emptyCtx)
+	if emptyCtx.err == nil {
+		t.Fatal("expected WriteErr for empty plugin number")
 	}
 }
 
@@ -143,13 +202,31 @@ func TestCodecRejectsBodyLargerThanMax(t *testing.T) {
 	}
 }
 
+func TestCodecRejectsResponseLargerThanMax(t *testing.T) {
+	uc := &fakeUsecase{startupResp: &pluginproto.StartupResp{Config: []byte("too large")}}
+	srv, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: uc, Timeout: time.Second, MaxBodyBytes: 3})
+	if err != nil {
+		t.Fatalf("NewServer returned error: %v", err)
+	}
+	ctx := newFakeRPCContext(mustMarshal(t, &pluginproto.PluginInfo{No: "plug-a"}))
+
+	srv.handlePath("/plugin/start", ctx)
+
+	if ctx.err == nil {
+		t.Fatal("expected max response body WriteErr")
+	}
+	if len(ctx.written) != 0 {
+		t.Fatalf("unexpected response body written: %d bytes", len(ctx.written))
+	}
+}
+
 func TestTimeoutWrapsAllHostRPCRoutesAndKeepsShorterIncomingDeadline(t *testing.T) {
 	for _, tc := range []struct {
 		path string
 		body []byte
 	}{
 		{path: "/plugin/start", body: mustMarshal(t, &pluginproto.PluginInfo{No: "plug-timeout"})},
-		{path: "/close", body: []byte("plug-timeout")},
+		{path: "/close", body: nil},
 		{path: "/message/send", body: mustMarshal(t, &pluginproto.SendReq{ClientMsgNo: "c1"})},
 		{path: "/channel/messages", body: mustMarshal(t, &pluginproto.ChannelMessageBatchReq{})},
 		{path: "/plugin/httpForward", body: mustMarshal(t, &pluginproto.ForwardHttpReq{PluginNo: "plug-timeout"})},
@@ -161,6 +238,7 @@ func TestTimeoutWrapsAllHostRPCRoutesAndKeepsShorterIncomingDeadline(t *testing.
 			uc := &fakeUsecase{}
 			srv := mustServer(t, uc)
 			ctx := newFakeRPCContext(tc.body)
+			ctx.uid = "plug-timeout"
 			srv.handlePath(tc.path, ctx)
 			if ctx.err != nil {
 				t.Fatalf("unexpected WriteErr: %v", ctx.err)
@@ -181,6 +259,7 @@ func TestTimeoutWrapsAllHostRPCRoutesAndKeepsShorterIncomingDeadline(t *testing.
 			incoming, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 			defer cancel()
 			ctx := newFakeRPCContext(tc.body)
+			ctx.uid = "plug-timeout"
 			ctx.ctx = incoming
 			srv.handlePath(tc.path, ctx)
 			if ctx.err != nil {
@@ -200,15 +279,98 @@ func TestTimeoutWrapsAllHostRPCRoutesAndKeepsShorterIncomingDeadline(t *testing.
 
 type fakeRoutes struct {
 	paths    []string
-	handlers map[string]wkrpc.Handler
+	handlers map[string]func(*wkrpc.Context)
 }
 
-func (f *fakeRoutes) Route(path string, handler wkrpc.Handler) {
+func (f *fakeRoutes) Route(path string, handler func(*wkrpc.Context)) {
 	if f.handlers == nil {
-		f.handlers = make(map[string]wkrpc.Handler)
+		f.handlers = make(map[string]func(*wkrpc.Context))
 	}
 	f.paths = append(f.paths, path)
 	f.handlers[path] = handler
+}
+
+func shortAccessSocketPath(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("/tmp", "wkp-access-")
+	if err != nil {
+		t.Fatalf("create temp socket dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return filepath.Join(dir, "plugin.sock")
+}
+
+func wkrpcConnect(t *testing.T, conn net.Conn, uid string) {
+	t.Helper()
+	req := &wkrpcproto.Connect{Id: 1, Uid: uid}
+	payload, err := req.Marshal()
+	if err != nil {
+		t.Fatalf("marshal connect: %v", err)
+	}
+	writeWKRPCFrame(t, conn, wkrpcproto.MsgTypeConnect, payload)
+	msgType, data := readWKRPCFrame(t, conn)
+	if msgType != wkrpcproto.MsgTypeConnack {
+		t.Fatalf("connect response type = %v", msgType)
+	}
+	var ack wkrpcproto.Connack
+	if err := ack.Unmarshal(data); err != nil {
+		t.Fatalf("unmarshal connack: %v", err)
+	}
+	if ack.Status != wkrpcproto.StatusOK {
+		t.Fatalf("connack status = %v body=%q", ack.Status, string(ack.Body))
+	}
+}
+
+func wkrpcRequest(t *testing.T, conn net.Conn, id uint64, path string, body []byte) *wkrpcproto.Response {
+	t.Helper()
+	req := &wkrpcproto.Request{Id: id, Path: path, Body: body}
+	payload, err := req.Marshal()
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	writeWKRPCFrame(t, conn, wkrpcproto.MsgTypeRequest, payload)
+	msgType, data := readWKRPCFrame(t, conn)
+	if msgType != wkrpcproto.MsgTypeResp {
+		t.Fatalf("request response type = %v", msgType)
+	}
+	var resp wkrpcproto.Response
+	if err := resp.Unmarshal(data); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	return &resp
+}
+
+func writeWKRPCFrame(t *testing.T, conn net.Conn, msgType wkrpcproto.MsgType, payload []byte) {
+	t.Helper()
+	frame := make([]byte, len(wkrpcproto.MagicNumberStart)+1+4+len(payload))
+	copy(frame, wkrpcproto.MagicNumberStart)
+	frame[len(wkrpcproto.MagicNumberStart)] = msgType.Uint8()
+	binary.BigEndian.PutUint32(frame[len(wkrpcproto.MagicNumberStart)+1:], uint32(len(payload)))
+	copy(frame[len(wkrpcproto.MagicNumberStart)+1+4:], payload)
+	if _, err := conn.Write(frame); err != nil {
+		t.Fatalf("write wkrpc frame: %v", err)
+	}
+}
+
+func readWKRPCFrame(t *testing.T, conn net.Conn) (wkrpcproto.MsgType, []byte) {
+	t.Helper()
+	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("set read deadline: %v", err)
+	}
+	header := make([]byte, len(wkrpcproto.MagicNumberStart)+1+4)
+	if _, err := io.ReadFull(conn, header); err != nil {
+		t.Fatalf("read wkrpc header: %v", err)
+	}
+	if string(header[:len(wkrpcproto.MagicNumberStart)]) != string(wkrpcproto.MagicNumberStart) {
+		t.Fatalf("invalid wkrpc magic: %q", header[:len(wkrpcproto.MagicNumberStart)])
+	}
+	msgType := wkrpcproto.MsgType(header[len(wkrpcproto.MagicNumberStart)])
+	length := binary.BigEndian.Uint32(header[len(wkrpcproto.MagicNumberStart)+1:])
+	body := make([]byte, length)
+	if _, err := io.ReadFull(conn, body); err != nil {
+		t.Fatalf("read wkrpc body: %v", err)
+	}
+	return msgType, body
 }
 
 type fakeRPCContext struct {
