@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
@@ -25,7 +26,8 @@ const (
 
 	pluginBindingScanMaxLimit = 1024
 
-	pluginBindingProxyMaxKeyStringLen = 1<<16 - 1
+	pluginBindingProxyMaxKeyStringLen    = 1<<16 - 1
+	pluginBindingPageCursorMaxEncodedLen = ((pluginBindingProxyMaxKeyStringLen*2 + 64) * 4 / 3) + 8
 )
 
 type pluginBindingRPCRequest struct {
@@ -390,6 +392,9 @@ func (s *Store) loadPluginBindingMergeItem(ctx context.Context, slotID multiraft
 		if pluginBindingShardAfterCursor(slotID, hashSlot, after) {
 			binding, exists, err := s.getPluginBindingSlotHashSlot(ctx, slotID, hashSlot, after.Binding.UID, pluginNo)
 			if err != nil {
+				if pluginBindingGetInHashSlotUnsupported(err) {
+					return s.loadPluginBindingMergeItemCompat(ctx, slotID, hashSlot, pluginNo, after)
+				}
 				return pluginBindingMergeItem{}, false, err
 			}
 			if exists {
@@ -417,6 +422,33 @@ func (s *Store) loadPluginBindingMergeItem(ctx context.Context, slotID multiraft
 		Cursor:   cursor,
 		Done:     done,
 	}, true, nil
+}
+
+func (s *Store) loadPluginBindingMergeItemCompat(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, pluginNo string, after pluginBindingPageCursor) (pluginBindingMergeItem, bool, error) {
+	shardAfter := metadb.PluginUserBindingCursor{}
+	for {
+		bindings, cursor, done, err := s.scanPluginBindingsSlotHashSlot(ctx, slotID, hashSlot, pluginNo, shardAfter, 1)
+		if err != nil {
+			return pluginBindingMergeItem{}, false, err
+		}
+		if len(bindings) == 0 {
+			return pluginBindingMergeItem{}, false, nil
+		}
+		item := pluginBindingMergeItem{
+			SlotID:   slotID,
+			HashSlot: hashSlot,
+			Binding:  bindings[0],
+			Cursor:   cursor,
+			Done:     done,
+		}
+		if pluginBindingItemAfterCursor(item, after) {
+			return item, true, nil
+		}
+		if done {
+			return pluginBindingMergeItem{}, false, nil
+		}
+		shardAfter = cursor
+	}
 }
 
 func (s *Store) getPluginBindingSlotHashSlot(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, uid, pluginNo string) (metadb.PluginUserBinding, bool, error) {
@@ -503,7 +535,7 @@ func validatePluginBindingRPCRequest(req pluginBindingRPCRequest) error {
 		if err := validatePluginBindingPluginNo(req.PluginNo); err != nil {
 			return err
 		}
-		if req.Limit <= 0 {
+		if req.Limit <= 0 || req.Limit > pluginBindingScanMaxLimit {
 			return metadb.ErrInvalidArgument
 		}
 		return validatePluginBindingRPCCursor(req.PluginNo, req.After)
@@ -546,6 +578,30 @@ func pluginBindingShardAfterCursor(slotID multiraft.SlotID, hashSlot uint16, cur
 		return slotID > cursor.SlotID
 	}
 	return hashSlot > cursor.HashSlot
+}
+
+func pluginBindingGetInHashSlotUnsupported(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "unknown plugin binding rpc op id") || strings.Contains(msg, "unknown plugin binding rpc op ")
+}
+
+func pluginBindingItemAfterCursor(item pluginBindingMergeItem, cursor pluginBindingPageCursor) bool {
+	if cursor == pluginBindingEmptyPageCursor {
+		return true
+	}
+	if item.Binding.PluginNo != cursor.Binding.PluginNo {
+		return item.Binding.PluginNo > cursor.Binding.PluginNo
+	}
+	if item.Binding.UID != cursor.Binding.UID {
+		return item.Binding.UID > cursor.Binding.UID
+	}
+	if item.SlotID != cursor.SlotID {
+		return item.SlotID > cursor.SlotID
+	}
+	return item.HashSlot > cursor.HashSlot
 }
 
 func pluginBindingRPCUsesUIDRoute(op string) bool {
