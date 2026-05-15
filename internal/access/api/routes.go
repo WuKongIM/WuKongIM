@@ -8,9 +8,6 @@ func (s *Server) registerRoutes() {
 	}
 
 	s.engine.GET("/healthz", s.handleHealthz)
-	s.engine.OPTIONS("/*path", func(c *gin.Context) {
-		c.Status(204)
-	})
 	if s.healthDetailEnabled && s.healthDetails != nil {
 		s.engine.GET("/healthz/details", s.handleHealthzDetails)
 	}
@@ -21,6 +18,9 @@ func (s *Server) registerRoutes() {
 		s.engine.GET("/metrics", func(c *gin.Context) {
 			s.metricsHandler.ServeHTTP(c.Writer, c.Request)
 		})
+	}
+	if s.pluginRoutes != nil {
+		s.engine.Any("/plugins/:plugin/*path", s.handlePluginRoute)
 	}
 	s.engine.GET("/route", s.handleRoute)
 	s.engine.POST("/route/batch", s.handleRouteBatch)

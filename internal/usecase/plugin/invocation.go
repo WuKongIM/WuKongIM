@@ -87,6 +87,11 @@ func (a *App) Route(ctx context.Context, pluginNo string, req *pluginproto.HttpR
 	if err := validatePluginNo(pluginNo); err != nil {
 		return nil, err
 	}
+	req = clonePluginHTTPRequest(req)
+	dropHopByHopHeaders(req.Headers)
+	if err := a.validateHTTPForwardRequestSize(req); err != nil {
+		return nil, err
+	}
 	data, err := req.Marshal()
 	if err != nil {
 		return nil, fmt.Errorf("marshal plugin http request: %w", err)
@@ -98,6 +103,9 @@ func (a *App) Route(ctx context.Context, pluginNo string, req *pluginproto.HttpR
 	var resp pluginproto.HttpResponse
 	if err := resp.Unmarshal(respData); err != nil {
 		return nil, fmt.Errorf("unmarshal plugin http response: %w", err)
+	}
+	if err := a.validateHTTPForwardResponseSize(&resp); err != nil {
+		return nil, err
 	}
 	return &resp, nil
 }

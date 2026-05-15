@@ -23,4 +23,5 @@ const (
 	cmdSyncRPCServiceID             uint8 = 50
 	diagnosticsTrackingRPCServiceID uint8 = 51
 	monitorMetricsRPCServiceID      uint8 = 52
+	pluginHTTPForwardRPCServiceID   uint8 = 54
 )

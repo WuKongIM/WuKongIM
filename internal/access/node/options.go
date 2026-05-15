@@ -11,6 +11,7 @@ import (
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
@@ -170,6 +171,12 @@ type CMDSyncUsecase interface {
 	SyncAck(ctx context.Context, cmd cmdsync.SyncAckCommand) error
 }
 
+// PluginHTTPRouteProvider handles node-local plugin HTTP routes for node RPC callers.
+type PluginHTTPRouteProvider interface {
+	// Route invokes one local plugin's HTTP-compatible Route hook.
+	Route(ctx context.Context, pluginNo string, req *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error)
+}
+
 // CMDConversationIntentSink accepts UID-owner CMD conversation update intents.
 type CMDConversationIntentSink interface {
 	PushIntent(ctx context.Context, intent cmdsync.ConversationIntent) error
@@ -200,6 +207,7 @@ type Options struct {
 	SystemUIDCache         SystemUIDCache
 	CMDSync                CMDSyncUsecase
 	CMDConversationIntents CMDConversationIntentSink
+	PluginHTTPRoutes       PluginHTTPRouteProvider
 	Codec                  codec.Protocol
 	Logger                 wklog.Logger
 }
@@ -229,6 +237,7 @@ type Adapter struct {
 	systemUIDCache         SystemUIDCache
 	cmdSync                CMDSyncUsecase
 	cmdConversationIntents CMDConversationIntentSink
+	pluginHTTPRoutes       PluginHTTPRouteProvider
 	codec                  codec.Protocol
 	logger                 wklog.Logger
 }
@@ -265,6 +274,7 @@ func New(opts Options) *Adapter {
 		systemUIDCache:         opts.SystemUIDCache,
 		cmdSync:                opts.CMDSync,
 		cmdConversationIntents: opts.CMDConversationIntents,
+		pluginHTTPRoutes:       opts.PluginHTTPRoutes,
 		codec:                  opts.Codec,
 		logger:                 opts.Logger,
 	}
@@ -290,6 +300,7 @@ func New(opts Options) *Adapter {
 		opts.Cluster.RPCMux().Handle(channelRetentionRPCServiceID, adapter.handleChannelRetentionRPC)
 		opts.Cluster.RPCMux().Handle(systemUIDCacheRPCServiceID, adapter.handleSystemUIDCacheRPC)
 		opts.Cluster.RPCMux().Handle(cmdSyncRPCServiceID, adapter.handleCMDSyncRPC)
+		opts.Cluster.RPCMux().Handle(pluginHTTPForwardRPCServiceID, adapter.handlePluginHTTPForwardRPC)
 	}
 	return adapter
 }

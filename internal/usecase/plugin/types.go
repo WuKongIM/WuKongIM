@@ -53,6 +53,14 @@ var (
 	ErrConversationReaderRequired = errors.New("plugin conversation reader required")
 	// ErrConversationUIDRequired reports that host conversation/channels omitted the UID.
 	ErrConversationUIDRequired = errors.New("plugin conversation uid required")
+	// ErrHTTPForwarderRequired reports that remote plugin HTTP forward needs a node forwarder.
+	ErrHTTPForwarderRequired = errors.New("plugin http forwarder required")
+	// ErrHTTPForwardFanoutDeferred reports that broadcast HTTP forward is not implemented in phase 1.
+	ErrHTTPForwardFanoutDeferred = errors.New("plugin http forward fanout deferred")
+	// ErrHTTPForwardBodyTooLarge reports that a plugin HTTP body exceeds the configured limit.
+	ErrHTTPForwardBodyTooLarge = errors.New("plugin http forward body too large")
+	// ErrHTTPForwardHeaderTooLarge reports that plugin HTTP headers exceed the configured limit.
+	ErrHTTPForwardHeaderTooLarge = errors.New("plugin http forward headers too large")
 )
 
 var pluginNoPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)

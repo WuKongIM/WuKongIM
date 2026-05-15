@@ -26,6 +26,8 @@ type App struct {
 	clusterReader    ClusterReader
 	channelOwners    ChannelOwnerReader
 	conversations    ConversationReader
+	httpForwarder    HTTPForwarder
+	httpForwardLimit int64
 	failOpen         bool
 	defaultSenderUID string
 	nodeID           uint64
@@ -55,6 +57,8 @@ func NewApp(opts Options) (*App, error) {
 		clusterReader:    opts.ClusterReader,
 		channelOwners:    opts.ChannelOwners,
 		conversations:    opts.Conversations,
+		httpForwarder:    opts.HTTPForwarder,
+		httpForwardLimit: opts.HTTPForwardMaxBodyBytes,
 		failOpen:         opts.FailOpen,
 		defaultSenderUID: opts.DefaultSenderUID,
 		nodeID:           opts.NodeID,

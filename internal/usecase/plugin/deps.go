@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 )
@@ -103,6 +104,12 @@ type ConversationReader interface {
 	ConversationChannels(ctx context.Context, uid string, limit int) ([]channel.ChannelID, error)
 }
 
+// HTTPForwarder forwards plugin HTTP route requests to another cluster node.
+type HTTPForwarder interface {
+	// ForwardPluginHTTP calls the target node's node-local plugin route provider.
+	ForwardPluginHTTP(ctx context.Context, nodeID uint64, req *pluginproto.ForwardHttpReq) (*pluginproto.HttpResponse, error)
+}
+
 // Options configures the plugin business usecase.
 type Options struct {
 	// Runtime provides node-local plugin registry and lifecycle operations.
@@ -125,6 +132,10 @@ type Options struct {
 	ChannelOwners ChannelOwnerReader
 	// Conversations reads authoritative recent conversation channels for plugin host RPCs.
 	Conversations ConversationReader
+	// HTTPForwarder forwards plugin HTTP requests to another node through node RPC.
+	HTTPForwarder HTTPForwarder
+	// HTTPForwardMaxBodyBytes limits plugin HTTP forward request and response bodies.
+	HTTPForwardMaxBodyBytes int64
 	// FailOpen lets message sends continue when Send hooks fail.
 	FailOpen bool
 	// DefaultSenderUID is used when legacy plugin send requests omit fromUid.
