@@ -164,6 +164,15 @@ func TestLifecycleStartValidAndEmptyPluginNumber(t *testing.T) {
 	if uc.startCalls != 1 {
 		t.Fatalf("StartPlugin calls = %d, want 1", uc.startCalls)
 	}
+
+	emptyCallerCtx := newFakeRPCContext(mustMarshal(t, &pluginproto.PluginInfo{No: "plug-a"}))
+	srv.handlePath("/plugin/start", emptyCallerCtx)
+	if emptyCallerCtx.err == nil {
+		t.Fatal("expected WriteErr for empty caller uid")
+	}
+	if uc.startCalls != 1 {
+		t.Fatalf("StartPlugin calls = %d, want 1", uc.startCalls)
+	}
 }
 
 func TestLifecycleCloseRequestWithEmptyBodyWritesOK(t *testing.T) {

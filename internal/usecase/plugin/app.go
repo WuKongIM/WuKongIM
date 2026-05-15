@@ -46,7 +46,10 @@ func (a *App) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, cal
 	if err := validatePluginNo(info.GetNo()); err != nil {
 		return nil, err
 	}
-	if callerUID != "" && callerUID != info.GetNo() {
+	if callerUID == "" {
+		return nil, ErrPluginIdentityRequired
+	}
+	if callerUID != info.GetNo() {
 		return nil, fmt.Errorf("%w: caller %q plugin %q", ErrPluginIdentityMismatch, callerUID, info.GetNo())
 	}
 
@@ -348,7 +351,7 @@ func (a *App) applyDesiredEnabledToPlugin(ctx context.Context, observed Observed
 }
 
 func validatePluginNo(no string) error {
-	if !pluginNoPattern.MatchString(no) {
+	if no == "." || no == ".." || !pluginNoPattern.MatchString(no) {
 		return fmt.Errorf("%w: %q", ErrInvalidPluginNo, no)
 	}
 	return nil

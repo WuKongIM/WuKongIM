@@ -10,6 +10,7 @@ import (
 )
 
 var errEmptyPluginNumber = errors.New("empty plugin number")
+var errEmptyCallerUID = errors.New("empty caller uid")
 
 type rpcContext interface {
 	Context() context.Context
@@ -70,6 +71,10 @@ func (s *Server) handlePluginStart(c rpcContext) {
 	}
 	if info.No == "" {
 		c.WriteErr(errEmptyPluginNumber)
+		return
+	}
+	if c.Uid() == "" {
+		c.WriteErr(errEmptyCallerUID)
 		return
 	}
 	ctx, cancel := s.usecaseContext(c)
