@@ -33,6 +33,8 @@ type Plan struct {
 type WorkerPlan struct {
 	// WorkerID is the stable worker identifier from the configured worker set.
 	WorkerID string `json:"worker_id" yaml:"worker_id"`
+	// IdentityRange is the generated user index range this worker should keep online.
+	IdentityRange Range `json:"identity_range" yaml:"identity_range"`
 	// Profiles contains one shard per scenario channel profile keyed by profile name.
 	Profiles map[string]ProfileShard `json:"profiles" yaml:"profiles"`
 }

@@ -168,6 +168,14 @@ func (c *Client) RecvAck(ctx context.Context, messageID int64, messageSeq uint64
 	return c.writeFrame(ctx, &frame.RecvackPacket{MessageID: messageID, MessageSeq: messageSeq})
 }
 
+// Ping sends a WKProto heartbeat ping frame on the active connection.
+func (c *Client) Ping(ctx context.Context) error {
+	if c == nil {
+		return errClientNotConnected
+	}
+	return c.writeFrame(ctx, &frame.PingPacket{})
+}
+
 // Close closes the active TCP connection, if any.
 func (c *Client) Close() error {
 	if c == nil {

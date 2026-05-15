@@ -26,6 +26,8 @@ target:
 	require.NoError(t, err)
 	require.Equal(t, "wkbench/dev-sim/v1", cfg.Version)
 	require.Equal(t, 20, cfg.Online.TotalUsers)
+	require.True(t, cfg.Online.Heartbeat.Enabled)
+	require.Equal(t, 30*time.Second, cfg.Online.Heartbeat.Interval)
 	require.Equal(t, 5, cfg.Profiles.PersonChannels)
 	require.Equal(t, "sim-u", cfg.Identity.UIDPrefix)
 }
@@ -45,6 +47,7 @@ target:
 		"WK_SIM_GROUP_CHANNELS":  "3",
 		"WK_SIM_GROUP_MEMBERS":   "12",
 		"WK_SIM_RATE":            "1.5/s",
+		"WK_SIM_VERIFY_RECV":     "none",
 		"WK_SIM_UID_PREFIX":      "dev-u",
 	})
 
@@ -55,6 +58,7 @@ target:
 	require.Equal(t, 12, cfg.Profiles.GroupMembers)
 	require.Equal(t, 1.5, cfg.Traffic.PersonRatePerChannel.PerSecond)
 	require.Equal(t, 1.5, cfg.Traffic.GroupRatePerChannel.PerSecond)
+	require.Equal(t, "none", cfg.Traffic.VerifyRecv)
 	require.Equal(t, "dev-u", cfg.Identity.UIDPrefix)
 }
 
@@ -91,7 +95,11 @@ func TestConfigDerivesBenchInputs(t *testing.T) {
 			GatewayTCPAddrs: []string{"wk-node1:5100"},
 		},
 		Identity: IdentityConfig{UIDPrefix: "sim-u", DevicePrefix: "sim-d", ClientMsgPrefix: "sim-msg", TokenMode: "none"},
-		Online:   OnlineConfig{TotalUsers: 20, ConnectRate: model.Rate{PerSecond: 10}},
+		Online: OnlineConfig{
+			TotalUsers:  20,
+			ConnectRate: model.Rate{PerSecond: 10},
+			Heartbeat:   model.HeartbeatConfig{Enabled: true, Interval: 30 * time.Second, Timeout: 5 * time.Second},
+		},
 		Profiles: ProfilesConfig{PersonChannels: 5, GroupChannels: 2, GroupMembers: 10},
 		Traffic: TrafficConfig{
 			PayloadSizeBytes:     128,
@@ -116,6 +124,7 @@ func TestConfigDerivesBenchInputs(t *testing.T) {
 	require.Equal(t, 24*time.Hour, inputs.Scenario.Run.Duration)
 	require.Equal(t, 20, inputs.Scenario.Online.TotalUsers)
 	require.Equal(t, "round_robin", inputs.Scenario.Online.GatewayBalance)
+	require.Equal(t, 30*time.Second, inputs.Scenario.Online.Heartbeat.Interval)
 	require.Len(t, inputs.Scenario.Channels.Profiles, 2)
 	require.Equal(t, "sim-person", inputs.Scenario.Channels.Profiles[0].Name)
 	require.Equal(t, model.ChannelTypePerson, inputs.Scenario.Channels.Profiles[0].ChannelType)

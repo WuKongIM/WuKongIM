@@ -37,15 +37,10 @@ func TestRunnerWaitsForReadiness(t *testing.T) {
 	require.Equal(t, []string{"prepare", "connect", "run", "cooldown"}, workload.calls)
 }
 
-func TestRunnerRetriesAfterRuntimeError(t *testing.T) {
+func TestRunnerKeepsConnectionsAfterRuntimeError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	workload := &fakeWorkload{runHook: func(context.Context, worker.Assignment) error {
-		if workloadRunCount := 0; workloadRunCount > 0 {
-			return nil
-		}
-		return nil
-	}}
+	workload := &fakeWorkload{}
 	runtimeErr := errors.New("gateway unavailable")
 	runCalls := 0
 	workload.runHook = func(context.Context, worker.Assignment) error {
@@ -75,9 +70,9 @@ func TestRunnerRetriesAfterRuntimeError(t *testing.T) {
 	err := runner.Run(ctx)
 
 	require.NoError(t, err)
-	require.GreaterOrEqual(t, countCall(workload.calls, "prepare"), 2)
-	require.GreaterOrEqual(t, countCall(workload.calls, "connect"), 2)
-	require.NotEqual(t, workload.preparePrefixes[0], workload.preparePrefixes[1])
+	require.Equal(t, []string{"prepare", "connect", "run", "reset", "run", "cooldown"}, workload.calls)
+	require.Equal(t, []string{"sim-msg"}, workload.preparePrefixes)
+	require.Equal(t, []string{"sim-msg-r1"}, workload.resetPrefixes)
 	require.True(t, sawRetryError)
 }
 
@@ -161,6 +156,7 @@ func (p *fakeProbe) CheckReady(context.Context) error {
 type fakeWorkload struct {
 	calls           []string
 	preparePrefixes []string
+	resetPrefixes   []string
 	runHook         func(context.Context, worker.Assignment) error
 	metrics         metrics.SnapshotData
 }
@@ -173,6 +169,12 @@ func (w *fakeWorkload) Prepare(_ context.Context, assignment worker.Assignment) 
 
 func (w *fakeWorkload) Connect(context.Context, worker.Assignment) error {
 	w.calls = append(w.calls, "connect")
+	return nil
+}
+
+func (w *fakeWorkload) ResetTraffic(assignment worker.Assignment) error {
+	w.calls = append(w.calls, "reset")
+	w.resetPrefixes = append(w.resetPrefixes, assignment.Scenario.Identity.ClientMsgPrefix)
 	return nil
 }
 
@@ -211,13 +213,3 @@ func testRunnerConfig() Config {
 }
 
 func noSleep(context.Context, time.Duration) error { return nil }
-
-func countCall(calls []string, want string) int {
-	count := 0
-	for _, call := range calls {
-		if call == want {
-			count++
-		}
-	}
-	return count
-}

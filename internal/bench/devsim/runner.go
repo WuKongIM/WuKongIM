@@ -173,14 +173,41 @@ func (r *Runner) Run(ctx context.Context) error {
 					r.stop(assignment)
 					return nil
 				}
+				cause := err
 				r.status.SetLastError(err.Error())
 				r.status.SetState(StateRetrying)
-				r.cooldown(assignment)
 				if err := r.sleep(ctx, r.cfg.Retry.RestartBackoff); err != nil {
 					r.stop(assignment)
 					return nil
 				}
 				attempt++
+				nextAssignment, err := assignmentFromInputs(inputs, attempt)
+				if err != nil {
+					r.status.SetLastError(err.Error())
+					r.stop(assignment)
+					return err
+				}
+				if recoverer, ok := r.workload.(worker.TrafficRecoverer); ok {
+					if err := recoverer.RecoverTraffic(ctx, nextAssignment, cause); err != nil {
+						r.status.SetLastError(err.Error())
+						r.cooldown(assignment)
+						break
+					}
+					assignment = nextAssignment
+					r.status.SetRunning(r.cfg.Online.TotalUsers, r.cfg.Profiles.PersonChannels, r.cfg.Profiles.GroupChannels)
+					continue
+				}
+				if resetter, ok := r.workload.(worker.TrafficResetter); ok {
+					if err := resetter.ResetTraffic(nextAssignment); err != nil {
+						r.status.SetLastError(err.Error())
+						r.cooldown(assignment)
+						break
+					}
+					assignment = nextAssignment
+					r.status.SetRunning(r.cfg.Online.TotalUsers, r.cfg.Profiles.PersonChannels, r.cfg.Profiles.GroupChannels)
+					continue
+				}
+				r.cooldown(assignment)
 				break
 			}
 			if err := r.sleep(ctx, r.cfg.Traffic.Cooldown); err != nil {

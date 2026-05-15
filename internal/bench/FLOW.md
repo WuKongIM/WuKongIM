@@ -70,6 +70,8 @@ GET  /v1/report
 
 `worker.State` stores the active assignment and lifecycle phase. Phase hooks are asynchronous when they take longer than the short start grace period. In that case the worker returns `202 Accepted`, sets `active_phase`, and later updates `completed_phase` after the hook finishes. Duplicate phase requests are idempotent when the requested phase is already active or complete.
 
+The in-process dev simulator also uses the worker runner's traffic recovery hook after a runtime traffic error. This repairs only failed WKProto sessions when the workload can identify them, then rebuilds person/group workload objects with a new client message prefix while preserving healthy sessions. This avoids full online-user churn for a single send/recv failure.
+
 The monotonic phase order is:
 
 ```text
@@ -94,7 +96,8 @@ cmd/wkbench dev-sim
        -> worker.NewDefaultWorkloadRunner
        -> prepare -> connect
        -> loop run windows until canceled
-       -> on runtime target error: record status, cooldown, back off, retry readiness/connect
+       -> on prepare/connect target error: record status, back off, retry readiness/connect
+       -> on traffic window error: record status, back off, rebuild traffic identity, keep sessions, continue next window
 ```
 
 `devsim` is intentionally a supervisor around existing wkbench primitives. It keeps the same black-box boundary as coordinator/worker runs: target mutation goes through `internal/bench/target`, traffic goes through WKProto clients, and no WuKongIM server internals are imported. `docker compose --profile dev-sim` uses this command for the optional `wk-sim` service; normal `docker compose up` does not start simulator traffic.
@@ -121,12 +124,15 @@ Group preparation uses the target bench API only. Small group profiles create ow
 Connect
   -> buildPersonExecutionPlan
   -> buildGroupExecutionPlan
-  -> merge connection users
+  -> merge connection users with the worker identity range
   -> workload.ConnectionManager.Connect
+  -> optional heartbeat pings keep idle online users active
   -> wrap clients for concurrent frame matching
   -> build person workloads
   -> build group workloads
 ```
+
+Each worker keeps its assigned `online.total_users` identity range connected even when some generated users are not referenced by a traffic profile. Profile-derived users are still merged in so existing group overlap behavior remains compatible.
 
 The client wrapper serializes access to each underlying `ReadFrame` call and buffers unmatched frames. This lets concurrent person/group workloads on the same UID wait for different sendack or recv frames without stealing each other's frames.
 
@@ -136,7 +142,7 @@ Warmup, run, and cooldown execute all stored person and group workloads concurre
 
 ## Planner Flow
 
-`planner.Build` validates inputs, computes identity ranges, and creates a `model.Plan`.
+`planner.Build` validates inputs, computes identity ranges, and creates a `model.Plan`. The total generated online identity pool is weighted across workers as `WorkerPlan.IdentityRange`; worker connect uses this range as the baseline online population.
 
 Person profiles:
 

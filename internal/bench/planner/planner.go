@@ -42,12 +42,13 @@ func Build(s model.Scenario, workers []model.Worker) (model.Plan, error) {
 		IdentityPool:  model.Range{Start: 0, End: s.Online.TotalUsers},
 		ChannelOwners: make(map[string]map[int]string),
 	}
-	for _, worker := range workers {
+	for idx, worker := range workers {
 		workerID := strings.TrimSpace(worker.ID)
 		plan.WorkerOrder = append(plan.WorkerOrder, workerID)
 		plan.Workers[workerID] = model.WorkerPlan{
-			WorkerID: workerID,
-			Profiles: make(map[string]model.ProfileShard, len(s.Channels.Profiles)),
+			WorkerID:      workerID,
+			IdentityRange: weightedRange(s.Online.TotalUsers, workers, idx),
+			Profiles:      make(map[string]model.ProfileShard, len(s.Channels.Profiles)),
 		}
 	}
 

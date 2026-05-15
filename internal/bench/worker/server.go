@@ -41,6 +41,18 @@ type AssignmentStarter interface {
 	BeginAssignment(assignment Assignment)
 }
 
+// TrafficResetter rebuilds traffic executors for an assignment without reconnecting sessions.
+type TrafficResetter interface {
+	// ResetTraffic applies assignment traffic changes while preserving existing connections.
+	ResetTraffic(assignment Assignment) error
+}
+
+// TrafficRecoverer repairs failed sessions and rebuilds traffic executors.
+type TrafficRecoverer interface {
+	// RecoverTraffic applies recovery for cause while preserving healthy connections.
+	RecoverTraffic(ctx context.Context, assignment Assignment, cause error) error
+}
+
 // Config controls the worker HTTP control server.
 type Config struct {
 	// ControlToken is the bearer token required for /v1 control routes.

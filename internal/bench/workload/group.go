@@ -2,6 +2,7 @@ package workload
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"io"
@@ -373,12 +374,15 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 	if err := sender.Send(ctx, pkt); err != nil {
 		w.recordError("group_send_error", err)
 		w.metrics.IncCounter("group_send_error_total", nil)
-		return err
+		return sessionOperationError(senderUID, "group send", err)
 	}
 	ack, err := w.waitForSendack(ctx, sender, clientSeq, clientMsgNo)
 	if err != nil {
 		w.recordError("group_send_error", err)
 		w.metrics.IncCounter("group_send_error_total", nil)
+		if errors.Is(err, io.EOF) {
+			return sessionOperationError(senderUID, "group sendack", err)
+		}
 		return err
 	}
 	if ack.ReasonCode != frame.ReasonSuccess {
@@ -404,6 +408,9 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 		if err != nil {
 			w.recordError("group_recv_error", err)
 			w.metrics.IncCounter("group_recv_error_total", nil)
+			if errors.Is(err, io.EOF) {
+				return sessionOperationError(uid, "group recv", err)
+			}
 			return err
 		}
 		if string(recv.Payload) != string(payload) {
@@ -416,7 +423,7 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 			if err := w.clients[uid].RecvAck(ctx, recv.MessageID, recv.MessageSeq); err != nil {
 				w.recordError("group_recv_error", err)
 				w.metrics.IncCounter("group_recv_error_total", nil)
-				return err
+				return sessionOperationError(uid, "group recvack", err)
 			}
 		}
 		w.metrics.IncCounter("group_recv_success_total", nil)

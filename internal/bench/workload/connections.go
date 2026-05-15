@@ -12,7 +12,10 @@ import (
 	benchwkproto "github.com/WuKongIM/WuKongIM/internal/bench/wkproto"
 )
 
-const gatewayBalanceRoundRobin = "round_robin"
+const (
+	gatewayBalanceRoundRobin = "round_robin"
+	defaultHeartbeatTimeout  = 5 * time.Second
+)
 
 // ReconnectConfig reserves reconnect policy shape for future workload phases.
 type ReconnectConfig = model.ReconnectConfig
@@ -23,6 +26,12 @@ type ConnectionClient interface {
 	Connect(ctx context.Context, uid, deviceID string) error
 	// Close releases the underlying gateway connection.
 	Close() error
+}
+
+// HeartbeatClient is implemented by clients that can send gateway heartbeat frames.
+type HeartbeatClient interface {
+	// Ping sends one heartbeat frame on the active session.
+	Ping(ctx context.Context) error
 }
 
 // ConnectionUser identifies one simulated online WKProto session.
@@ -49,6 +58,8 @@ type ConnectionSession struct {
 	ConnectedAt time.Time
 	// Client is the live WKProto client bound to this session.
 	Client ConnectionClient
+
+	cancelHeartbeat context.CancelFunc
 }
 
 // ConnectionManagerConfig controls benchmark WKProto connection creation.
@@ -63,6 +74,8 @@ type ConnectionManagerConfig struct {
 	ConnectRate model.Rate
 	// Reconnect is retained for future reconnect support; it must remain disabled in v1.
 	Reconnect ReconnectConfig
+	// Heartbeat controls optional client heartbeat pings for idle online sessions.
+	Heartbeat model.HeartbeatConfig
 	// Token is the default connect token applied when a user does not specify one.
 	Token string
 	// OperationTimeout is passed to production WKProto clients.
@@ -106,6 +119,9 @@ func NewConnectionManager(cfg ConnectionManagerConfig) (*ConnectionManager, erro
 	if cfg.Reconnect.Enabled {
 		return nil, fmt.Errorf("connection manager: reconnect is not implemented yet")
 	}
+	if cfg.Heartbeat.Enabled && cfg.Heartbeat.Interval <= 0 {
+		return nil, fmt.Errorf("connection manager: heartbeat interval must be greater than zero")
+	}
 	factory := cfg.ClientFactory
 	if factory == nil {
 		factory = func(user ConnectionUser, addr string) (ConnectionClient, error) {
@@ -146,19 +162,11 @@ func (m *ConnectionManager) ConnectUser(ctx context.Context, user ConnectionUser
 	if m == nil {
 		return nil, fmt.Errorf("connection manager: nil manager")
 	}
-	user.UID = strings.TrimSpace(user.UID)
-	user.DeviceID = strings.TrimSpace(user.DeviceID)
-	user.Token = strings.TrimSpace(user.Token)
-	if user.UID == "" {
-		return nil, fmt.Errorf("connection manager: uid is required")
+	normalized, err := m.normalizedUser(user)
+	if err != nil {
+		return nil, err
 	}
-	if user.DeviceID == "" {
-		return nil, fmt.Errorf("connection manager: device id is required")
-	}
-	if user.Token == "" {
-		user.Token = strings.TrimSpace(m.cfg.Token)
-	}
-	if session, ok := m.Session(user.UID); ok {
+	if session, ok := m.Session(normalized.UID); ok {
 		return session, nil
 	}
 	if err := m.rateLimiter.Wait(ctx); err != nil {
@@ -167,33 +175,61 @@ func (m *ConnectionManager) ConnectUser(ctx context.Context, user ConnectionUser
 	}
 	m.recordConnectAttempt()
 	addr := m.selectGateway()
-	client, err := m.factory(user, addr)
+	client, err := m.factory(normalized, addr)
 	if err != nil {
 		m.recordConnectError(err)
 		return nil, err
 	}
-	if err := client.Connect(ctx, user.UID, user.DeviceID); err != nil {
+	if err := client.Connect(ctx, normalized.UID, normalized.DeviceID); err != nil {
 		_ = client.Close()
 		m.recordConnectError(err)
 		return nil, err
 	}
 	session := &ConnectionSession{
-		UID:         user.UID,
-		DeviceID:    user.DeviceID,
-		Token:       user.Token,
+		UID:         normalized.UID,
+		DeviceID:    normalized.DeviceID,
+		Token:       normalized.Token,
 		GatewayAddr: addr,
 		ConnectedAt: time.Now(),
 		Client:      client,
 	}
+	m.startHeartbeat(session)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if existing := m.sessions[user.UID]; existing != nil {
+	if existing := m.sessions[normalized.UID]; existing != nil {
+		if session.cancelHeartbeat != nil {
+			session.cancelHeartbeat()
+		}
 		_ = client.Close()
 		return existing, nil
 	}
-	m.sessions[user.UID] = session
+	m.sessions[normalized.UID] = session
 	m.recordConnectSuccess()
 	return session, nil
+}
+
+// ReconnectUsers closes and reopens sessions for the supplied users.
+func (m *ConnectionManager) ReconnectUsers(ctx context.Context, users []ConnectionUser) error {
+	for _, user := range users {
+		if _, err := m.ReconnectUser(ctx, user); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ReconnectUser replaces the active session for one UID with a new connection.
+func (m *ConnectionManager) ReconnectUser(ctx context.Context, user ConnectionUser) (*ConnectionSession, error) {
+	if m == nil {
+		return nil, fmt.Errorf("connection manager: nil manager")
+	}
+	normalized, err := m.normalizedUser(user)
+	if err != nil {
+		return nil, err
+	}
+	old := m.removeSession(normalized.UID)
+	closeSession(old)
+	return m.ConnectUser(ctx, normalized)
 }
 
 // Sessions returns a stable copy of all active sessions.
@@ -258,6 +294,74 @@ func (m *ConnectionManager) recordConnectError(err error) {
 	}
 }
 
+func (m *ConnectionManager) startHeartbeat(session *ConnectionSession) {
+	if m == nil || session == nil || !m.cfg.Heartbeat.Enabled {
+		return
+	}
+	client, ok := session.Client.(HeartbeatClient)
+	if !ok || client == nil {
+		return
+	}
+	interval := m.cfg.Heartbeat.Interval
+	if interval <= 0 {
+		return
+	}
+	timeout := m.cfg.Heartbeat.Timeout
+	if timeout <= 0 {
+		timeout = m.cfg.OperationTimeout
+	}
+	if timeout <= 0 {
+		timeout = defaultHeartbeatTimeout
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	session.cancelHeartbeat = cancel
+	go m.heartbeatLoop(ctx, client, interval, timeout)
+}
+
+func (m *ConnectionManager) heartbeatLoop(ctx context.Context, client HeartbeatClient, interval, timeout time.Duration) {
+	for {
+		if err := m.sleep(ctx, interval); err != nil {
+			return
+		}
+		pingCtx, cancel := context.WithTimeout(ctx, timeout)
+		err := client.Ping(pingCtx)
+		cancel()
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			m.metrics.IncCounter("heartbeat_error_total", nil)
+			m.metrics.RecordErrorSample("heartbeat_error", err)
+			continue
+		}
+		m.metrics.IncCounter("heartbeat_success_total", nil)
+	}
+}
+
+func (m *ConnectionManager) normalizedUser(user ConnectionUser) (ConnectionUser, error) {
+	user.UID = strings.TrimSpace(user.UID)
+	user.DeviceID = strings.TrimSpace(user.DeviceID)
+	user.Token = strings.TrimSpace(user.Token)
+	if user.UID == "" {
+		return ConnectionUser{}, fmt.Errorf("connection manager: uid is required")
+	}
+	if user.DeviceID == "" {
+		return ConnectionUser{}, fmt.Errorf("connection manager: device id is required")
+	}
+	if user.Token == "" {
+		user.Token = strings.TrimSpace(m.cfg.Token)
+	}
+	return user, nil
+}
+
+func (m *ConnectionManager) removeSession(uid string) *ConnectionSession {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	session := m.sessions[strings.TrimSpace(uid)]
+	delete(m.sessions, strings.TrimSpace(uid))
+	return session
+}
+
 // Close closes all active client sessions and clears the session map.
 func (m *ConnectionManager) Close() error {
 	if m == nil {
@@ -273,14 +377,25 @@ func (m *ConnectionManager) Close() error {
 
 	var closeErr error
 	for _, session := range sessions {
-		if session.Client == nil {
-			continue
-		}
-		if err := session.Client.Close(); err != nil && closeErr == nil {
+		if err := closeSession(session); err != nil && closeErr == nil {
 			closeErr = err
 		}
 	}
 	return closeErr
+}
+
+func closeSession(session *ConnectionSession) error {
+	if session == nil {
+		return nil
+	}
+	if session.cancelHeartbeat != nil {
+		session.cancelHeartbeat()
+		session.cancelHeartbeat = nil
+	}
+	if session.Client == nil {
+		return nil
+	}
+	return session.Client.Close()
 }
 
 func (m *ConnectionManager) selectGateway() string {
