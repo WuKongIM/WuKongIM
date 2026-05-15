@@ -95,7 +95,9 @@ func (s *Server) handleClose(c rpcContext) {
 	if isCloseEvent(c) {
 		go func() {
 			defer cancel()
-			_ = s.usecase.ClosePlugin(ctx, pluginNo, c.Uid())
+			if err := s.usecase.ClosePlugin(ctx, pluginNo, c.Uid()); err != nil && s.logger != nil {
+				s.logger.Warn("plugin close event cleanup failed", wklog.String("pluginNo", pluginNo), wklog.Error(err))
+			}
 		}()
 		return
 	}
