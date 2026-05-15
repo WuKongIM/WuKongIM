@@ -328,7 +328,7 @@ beforeEach(() => {
 })
 
 it.each([
-  ["/dashboard", "Dashboard", "Operations Summary"],
+  ["/dashboard", "Dashboard", "Topology snapshot"],
   ["/monitor", "Live Monitor", "Coming Soon"],
   ["/cluster/nodes", "Nodes", "Address"],
   ["/cluster/slots", "Slots", "Slot"],
@@ -352,8 +352,8 @@ it.each([
     </AppProviders>,
   )
 
-  expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument()
-  expect((await screen.findAllByText(section)).length).toBeGreaterThan(0)
+  await screen.findAllByText(section)
+  expect(screen.getByRole("heading", { name: title })).toBeInTheDocument()
   expect(screen.queryByText(/workspace/i)).not.toBeInTheDocument()
 })
 
@@ -366,10 +366,10 @@ test("dashboard shows monochrome workbench sections", async () => {
     </AppProviders>,
   )
 
-  expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument()
-  expect(screen.getByText("Operations Summary")).toBeInTheDocument()
-  expect(screen.getAllByText("Alert rail").length).toBeGreaterThan(0)
-  expect(screen.getAllByText("Control Queue").length).toBeGreaterThan(0)
+  await screen.findByText("Topology snapshot")
+  expect(screen.getByRole("heading", { name: "Dashboard" })).toBeInTheDocument()
+  expect(screen.getAllByText(/Active incidents/).length).toBeGreaterThan(0)
+  expect(screen.getAllByText(/Slot & channel health/).length).toBeGreaterThan(0)
   expect(screen.queryByText("Pin board")).not.toBeInTheDocument()
 })
 
@@ -400,7 +400,7 @@ it.each([
 })
 
 it.each([
-  ["/dashboard", "仪表盘", "操作摘要"],
+  ["/dashboard", "仪表盘", "拓扑快照"],
   ["/monitor", "实时监控", "即将推出"],
   ["/cluster/nodes", "节点", "地址"],
   ["/cluster/slots", "槽位", "槽位"],
@@ -425,6 +425,6 @@ it.each([
     </AppProviders>,
   )
 
-  expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument()
-  expect((await screen.findAllByText(section)).length).toBeGreaterThan(0)
+  await screen.findAllByText(section)
+  expect(screen.getByRole("heading", { name: title })).toBeInTheDocument()
 })

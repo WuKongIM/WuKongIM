@@ -89,10 +89,13 @@ export function DashboardPage() {
   )
   const pulse = useDashboardPulse(state.overview?.generated_at ?? null)
 
+  const title = intl.formatMessage({ id: "dashboard.title" })
+
   if (state.loading) {
     return (
       <PageContainer>
-        <ResourceState kind="loading" title={intl.formatMessage({ id: "dashboard.title" })} />
+        <h1 className="text-2xl font-semibold tracking-[-0.04em] text-foreground sm:text-3xl">{title}</h1>
+        <ResourceState kind="loading" title={title} />
       </PageContainer>
     )
   }
@@ -100,10 +103,11 @@ export function DashboardPage() {
   if (state.error) {
     return (
       <PageContainer>
+        <h1 className="text-2xl font-semibold tracking-[-0.04em] text-foreground sm:text-3xl">{title}</h1>
         <ResourceState
           kind={formatErrorKind(state.error)}
           onRetry={() => { void loadDashboard(false) }}
-          title={intl.formatMessage({ id: "dashboard.title" })}
+          title={title}
         />
       </PageContainer>
     )

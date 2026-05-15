@@ -93,6 +93,9 @@ export function HealthHero({
       <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between lg:p-6">
         {/* Left: verdict pill + summary */}
         <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-semibold tracking-[-0.04em] text-foreground sm:text-3xl">
+            {intl.formatMessage({ id: "dashboard.title" })}
+          </h1>
           <span
             role="status"
             aria-live="polite"
