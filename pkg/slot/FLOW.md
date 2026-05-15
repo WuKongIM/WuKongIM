@@ -33,11 +33,12 @@ Store.CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveR
 Store.GarbageCollectTerminalChannelMigrationTasks
 Store.GetCMDConversationState / ListCMDConversationActive
 Store.UpsertCMDConversationStates / AdvanceCMDConversationReadSeq
-Store.BindPluginUser / UnbindPluginUser / ListPluginBindingsByUID / ListPluginBindingsByPluginNo / ExistPluginBindingByUID
 
-// meta/channel_migration_task.go — 当前 Task 2/3 提供本地 ShardStore / WriteBatch helper
+// meta/* — 本地 ShardStore / WriteBatch helper
 ShardStore.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / GetChannelMigrationTask / GetActiveChannelMigrationTask / ListChannelMigrationTasks / DeleteTerminalChannelMigrationTasksBefore
 WriteBatch.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteFence / ResetChannelWriteFenceToPreCutover / CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration / DeleteTerminalChannelMigrationTasksBefore
+ShardStore.BindPluginUser / UnbindPluginUser / ListPluginBindingsByUID / ScanPluginBindingsByPluginNo / ExistPluginBindingByUID
+WriteBatch.BindPluginUser / UnbindPluginUser
 
 // multiraft/api.go — Raft Runtime 底层 API
 Runtime.OpenSlot / BootstrapSlot / CloseSlot
