@@ -21,6 +21,7 @@ const getSlotsMock = vi.fn()
 const getNodeOnboardingCandidatesMock = vi.fn()
 const getNodeOnboardingJobsMock = vi.fn()
 const getNetworkSummaryMock = vi.fn()
+const getDashboardMetricsMock = vi.fn()
 const getMonitorMetricsMock = vi.fn()
 const getDiagnosticsTraceMock = vi.fn()
 const getDiagnosticsMessageMock = vi.fn()
@@ -32,6 +33,13 @@ const getUsersMock = vi.fn()
 const getBusinessChannelsMock = vi.fn()
 const getSystemUsersMock = vi.fn()
 const getPermissionsMock = vi.fn()
+
+const dashboardMetricSeries = (latest: number, peak = latest, avg = latest) => ({
+  latest,
+  peak,
+  avg,
+  series: [avg, latest],
+})
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -51,6 +59,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getNodeOnboardingCandidates: (...args: unknown[]) => getNodeOnboardingCandidatesMock(...args),
     getNodeOnboardingJobs: (...args: unknown[]) => getNodeOnboardingJobsMock(...args),
     getNetworkSummary: (...args: unknown[]) => getNetworkSummaryMock(...args),
+    getDashboardMetrics: (...args: unknown[]) => getDashboardMetricsMock(...args),
     getMonitorMetrics: (...args: unknown[]) => getMonitorMetricsMock(...args),
     getDiagnosticsTrace: (...args: unknown[]) => getDiagnosticsTraceMock(...args),
     getDiagnosticsMessage: (...args: unknown[]) => getDiagnosticsMessageMock(...args),
@@ -82,6 +91,7 @@ beforeEach(() => {
   getNodeOnboardingCandidatesMock.mockReset()
   getNodeOnboardingJobsMock.mockReset()
   getNetworkSummaryMock.mockReset()
+  getDashboardMetricsMock.mockReset()
   getMonitorMetricsMock.mockReset()
   getDiagnosticsTraceMock.mockReset()
   getDiagnosticsMessageMock.mockReset()
@@ -317,6 +327,24 @@ beforeEach(() => {
       controller_observation_interval_ms: 0,
     },
     events: [],
+  })
+  getDashboardMetricsMock.mockResolvedValue({
+    generated_at: "2026-05-15T08:30:00Z",
+    window_seconds: 300,
+    step_seconds: 30,
+    points: 10,
+    metrics: {
+      send_per_sec: dashboardMetricSeries(2800),
+      deliver_per_sec: dashboardMetricSeries(2700),
+      connections: dashboardMetricSeries(18400),
+      send_latency_p99_ms: dashboardMetricSeries(31),
+      delivery_latency_p99_ms: dashboardMetricSeries(42),
+      send_fail_rate_percent: dashboardMetricSeries(0.02),
+      delivery_fail_rate_percent: dashboardMetricSeries(0.01),
+      active_channels: dashboardMetricSeries(2143),
+      retry_queue_depth: dashboardMetricSeries(8),
+      fan_out_rate: dashboardMetricSeries(3.4),
+    },
   })
   getMonitorMetricsMock.mockResolvedValue({
     generated_at: "2026-05-15T08:30:00Z",
