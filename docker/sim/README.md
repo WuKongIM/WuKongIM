@@ -16,6 +16,13 @@ curl http://127.0.0.1:19091/status
 docker compose logs -f wk-sim
 ```
 
+Run the opt-in e2e smoke when you want to validate the simulator without using
+the local Compose volumes:
+
+```bash
+GOWORK=off go test -tags=e2e ./test/e2e/bench/devsim_smoke -count=1
+```
+
 Tune the safe defaults without editing `dev-sim.yaml`:
 
 ```bash

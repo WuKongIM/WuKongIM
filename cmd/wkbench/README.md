@@ -121,6 +121,13 @@ Safe tuning environment variables:
 
 The simulator stays within wkbench's black-box boundary: it prepares data through `/bench/v1/*` and sends messages through WKProto gateways. It does not import server internals or bypass cluster paths.
 
+The opt-in e2e smoke starts a real three-node cluster and checks that `dev-sim`
+reaches `running` with connected users and non-zero traffic:
+
+```bash
+GOWORK=off go test -tags=e2e ./test/e2e/bench/devsim_smoke -count=1
+```
+
 ## Example `target.yaml`
 
 ```yaml
