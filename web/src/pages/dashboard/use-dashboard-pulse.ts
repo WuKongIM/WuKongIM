@@ -10,8 +10,12 @@ export type PulseSeries = {
 export type PulseData = {
   messagesPerSec: PulseSeries
   connections: PulseSeries
-  txKbPerSec: PulseSeries
-  rpcErrorRate: PulseSeries
+  sendLatencyMs: PulseSeries
+  deliveryLatencyP99: PulseSeries
+  deliveryFailRate: PulseSeries
+  activeChannels: PulseSeries
+  retryQueueDepth: PulseSeries
+  fanOutRate: PulseSeries
 }
 
 function djb2(str: string): number {
@@ -51,8 +55,12 @@ export function generatePulseData(seed: string): PulseData {
   return {
     messagesPerSec: buildSeries(rand, 1200, 400),
     connections: buildSeries(rand, 850, 100),
-    txKbPerSec: buildSeries(rand, 320, 150),
-    rpcErrorRate: buildSeries(rand, 2, 3),
+    sendLatencyMs: buildSeries(rand, 45, 20),
+    deliveryLatencyP99: buildSeries(rand, 120, 50),
+    deliveryFailRate: buildSeries(rand, 1, 2),
+    activeChannels: buildSeries(rand, 320, 80),
+    retryQueueDepth: buildSeries(rand, 5, 8),
+    fanOutRate: buildSeries(rand, 12, 6),
   }
 }
 

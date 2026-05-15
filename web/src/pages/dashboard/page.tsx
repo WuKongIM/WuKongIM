@@ -149,21 +149,53 @@ export function DashboardPage() {
             value={pulse.connections.latest}
           />
           <PulseTile
-            label={intl.formatMessage({ id: "dashboard.pulse.txKbPerSec" })}
+            label={intl.formatMessage({ id: "dashboard.pulse.sendLatencyMs" })}
             mocked
-            series={pulse.txKbPerSec.series}
-            sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.txKbPerSec.peak, avg: pulse.txKbPerSec.avg })}
-            value={pulse.txKbPerSec.latest}
-            valueSuffix="KB/s"
+            series={pulse.sendLatencyMs.series}
+            sub={intl.formatMessage({ id: "dashboard.pulse.latencyMs" }, { peak: pulse.sendLatencyMs.peak, avg: pulse.sendLatencyMs.avg })}
+            value={pulse.sendLatencyMs.latest}
+            valueSuffix="ms"
           />
           <PulseTile
-            label={intl.formatMessage({ id: "dashboard.pulse.rpcErrorRate" })}
+            label={intl.formatMessage({ id: "dashboard.pulse.deliveryLatencyP99" })}
             mocked
-            series={pulse.rpcErrorRate.series}
-            sub={intl.formatMessage({ id: "dashboard.pulse.errorsOverCalls" }, { errors: pulse.rpcErrorRate.latest, calls: pulse.rpcErrorRate.peak })}
+            series={pulse.deliveryLatencyP99.series}
+            sub={intl.formatMessage({ id: "dashboard.pulse.latencyMs" }, { peak: pulse.deliveryLatencyP99.peak, avg: pulse.deliveryLatencyP99.avg })}
             tone="danger"
-            value={pulse.rpcErrorRate.latest}
+            value={pulse.deliveryLatencyP99.latest}
+            valueSuffix="ms"
+          />
+          <PulseTile
+            label={intl.formatMessage({ id: "dashboard.pulse.deliveryFailRate" })}
+            mocked
+            series={pulse.deliveryFailRate.series}
+            sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.deliveryFailRate.peak, avg: pulse.deliveryFailRate.avg })}
+            tone="danger"
+            value={pulse.deliveryFailRate.latest}
             valueSuffix="%"
+          />
+          <PulseTile
+            label={intl.formatMessage({ id: "dashboard.pulse.activeChannels" })}
+            mocked
+            series={pulse.activeChannels.series}
+            sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.activeChannels.peak, avg: pulse.activeChannels.avg })}
+            value={pulse.activeChannels.latest}
+          />
+          <PulseTile
+            label={intl.formatMessage({ id: "dashboard.pulse.retryQueueDepth" })}
+            mocked
+            series={pulse.retryQueueDepth.series}
+            sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.retryQueueDepth.peak, avg: pulse.retryQueueDepth.avg })}
+            tone={pulse.retryQueueDepth.latest > 10 ? "danger" : "default"}
+            value={pulse.retryQueueDepth.latest}
+          />
+          <PulseTile
+            label={intl.formatMessage({ id: "dashboard.pulse.fanOutRate" })}
+            mocked
+            series={pulse.fanOutRate.series}
+            sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.fanOutRate.peak, avg: pulse.fanOutRate.avg })}
+            value={pulse.fanOutRate.latest}
+            valueSuffix="x"
           />
         </section>
       ) : null}
