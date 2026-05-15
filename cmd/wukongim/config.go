@@ -318,6 +318,22 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	pluginEnable, err := parseBool(v, "WK_PLUGIN_ENABLE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	pluginTimeout, err := parseDuration(v, "WK_PLUGIN_TIMEOUT")
+	if err != nil {
+		return app.Config{}, err
+	}
+	pluginHotReload, err := parseBool(v, "WK_PLUGIN_HOT_RELOAD")
+	if err != nil {
+		return app.Config{}, err
+	}
+	pluginFailOpen, err := parseBool(v, "WK_PLUGIN_FAIL_OPEN")
+	if err != nil {
+		return app.Config{}, err
+	}
 
 	nodes, err := parseJSONValue[[]app.NodeConfigRef](v, "WK_CLUSTER_NODES")
 	if err != nil {
@@ -663,6 +679,16 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			PersonWhitelistEnabled: messagePersonWhitelistEnabled,
 			SystemDeviceID:         messageSystemDeviceID,
 		},
+		Plugin: app.PluginConfig{
+			Enable:     pluginEnable,
+			Dir:        stringValue(v, "WK_PLUGIN_DIR"),
+			SocketPath: stringValue(v, "WK_PLUGIN_SOCKET_PATH"),
+			SandboxDir: stringValue(v, "WK_PLUGIN_SANDBOX_DIR"),
+			StateDir:   stringValue(v, "WK_PLUGIN_STATE_DIR"),
+			Timeout:    pluginTimeout,
+			HotReload:  pluginHotReload,
+			FailOpen:   pluginFailOpen,
+		},
 		Conversation: app.ConversationConfig{
 			ActiveHintFlushInterval:         activeHintFlushInterval,
 			ActiveHintTTL:                   activeHintTTL,
@@ -753,6 +779,11 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	cfg.Storage.SetRaftSnapshotExplicitFlags(
 		stringValue(v, "WK_STORAGE_RAFT_SNAPSHOT_CHUNK_SIZE") != "",
 		stringValue(v, "WK_STORAGE_RAFT_SNAPSHOT_GC_GRACE") != "",
+	)
+	cfg.Plugin.SetExplicitFlags(
+		stringValue(v, "WK_PLUGIN_TIMEOUT") != "",
+		stringValue(v, "WK_PLUGIN_HOT_RELOAD") != "",
+		stringValue(v, "WK_PLUGIN_FAIL_OPEN") != "",
 	)
 	cfg.Gateway.SetExplicitFlags(stringValue(v, "WK_GATEWAY_SEND_TIMEOUT") != "")
 	cfg.Log.SetExplicitFlags(stringValue(v, "WK_LOG_COMPRESS") != "", stringValue(v, "WK_LOG_CONSOLE") != "")
