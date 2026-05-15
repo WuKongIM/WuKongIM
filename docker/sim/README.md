@@ -16,6 +16,18 @@ curl http://127.0.0.1:19091/status
 docker compose logs -f wk-sim
 ```
 
+Run the local Compose smoke check after changing simulator or cluster startup
+behavior:
+
+```bash
+scripts/dev-sim-compose-smoke.sh
+```
+
+The script starts `wk-node1`, `wk-node2`, `wk-node3`, and `wk-sim` with the
+`dev-sim` profile, retries transient `docker compose up --build` failures,
+waits for `/status` to report running traffic, and checks recent logs for panic
+markers. Use `--no-up` to check an already running stack only.
+
 Run the opt-in e2e smoke when you want to validate the simulator without using
 the local Compose volumes:
 

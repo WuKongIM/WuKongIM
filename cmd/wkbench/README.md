@@ -91,6 +91,16 @@ docker compose logs -f wk-sim
 
 Plain `docker compose up -d` does not start the simulator. The `dev-sim` profile must be enabled explicitly.
 
+To verify the local Compose stack end to end, run:
+
+```bash
+scripts/dev-sim-compose-smoke.sh
+```
+
+The script retries transient `docker compose up --build` failures, waits for
+`wk-sim` to report running traffic, and checks recent node/simulator logs for
+panic markers.
+
 The service runs:
 
 ```bash
