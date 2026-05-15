@@ -244,6 +244,38 @@ func TestDecodeCommandInspectionIncludesCMDConversationStateCommands(t *testing.
 	}, got)
 }
 
+func TestDecodeCommandInspectionIncludesPluginBindingCommands(t *testing.T) {
+	binding := metadb.PluginUserBinding{
+		UID:         "u1",
+		PluginNo:    "bot-a",
+		CreatedAtMS: 100,
+		UpdatedAtMS: 101,
+	}
+	got, err := DecodeCommandInspection(EncodeBindPluginUserCommand(binding))
+	require.NoError(t, err)
+	require.Equal(t, CommandInspection{
+		Type: "bind_plugin_user",
+		Payload: map[string]any{
+			"command":       "bind_plugin_user",
+			"uid":           "u1",
+			"plugin_no":     "bot-a",
+			"created_at_ms": int64(100),
+			"updated_at_ms": int64(101),
+		},
+	}, got)
+
+	got, err = DecodeCommandInspection(EncodeUnbindPluginUserCommand("u1", "bot-a"))
+	require.NoError(t, err)
+	require.Equal(t, CommandInspection{
+		Type: "unbind_plugin_user",
+		Payload: map[string]any{
+			"command":   "unbind_plugin_user",
+			"uid":       "u1",
+			"plugin_no": "bot-a",
+		},
+	}, got)
+}
+
 func TestDecodeCommandInspectionExpandsApplyDeltaOriginalCommand(t *testing.T) {
 	got, err := DecodeCommandInspection(EncodeApplyDeltaCommand(
 		11,
@@ -271,4 +303,28 @@ func TestDecodeCommandInspectionExpandsApplyDeltaOriginalCommand(t *testing.T) {
 			},
 		},
 	}, got)
+}
+
+func TestDecodeCommandInspectionExpandsApplyDeltaPluginBindingCommand(t *testing.T) {
+	got, err := DecodeCommandInspection(EncodeApplyDeltaCommand(
+		11,
+		99,
+		7,
+		EncodeBindPluginUserCommand(metadb.PluginUserBinding{
+			UID:         "u1",
+			PluginNo:    "bot-a",
+			CreatedAtMS: 100,
+			UpdatedAtMS: 101,
+		}),
+	))
+	require.NoError(t, err)
+
+	require.Equal(t, "apply_delta", got.Type)
+	require.Equal(t, map[string]any{
+		"command":       "bind_plugin_user",
+		"uid":           "u1",
+		"plugin_no":     "bot-a",
+		"created_at_ms": int64(100),
+		"updated_at_ms": int64(101),
+	}, got.Payload["original"])
 }
