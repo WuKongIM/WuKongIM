@@ -13,11 +13,13 @@ import (
 
 // App orchestrates plugin lifecycle, config, and hook selection usecases.
 type App struct {
-	runtime Runtime
-	store   DesiredStore
-	invoker Invoker
-	nodeID  uint64
-	clock   func() time.Time
+	runtime      Runtime
+	store        DesiredStore
+	bindingStore BindingStore
+	bindingCache *BindingCache
+	invoker      Invoker
+	nodeID       uint64
+	clock        func() time.Time
 }
 
 // NewApp creates a plugin usecase with explicit ports.
@@ -32,7 +34,15 @@ func NewApp(opts Options) (*App, error) {
 	if clock == nil {
 		clock = func() time.Time { return time.Now().UTC() }
 	}
-	return &App{runtime: opts.Runtime, store: opts.DesiredStore, invoker: opts.Invoker, nodeID: opts.NodeID, clock: clock}, nil
+	return &App{
+		runtime:      opts.Runtime,
+		store:        opts.DesiredStore,
+		bindingStore: opts.BindingStore,
+		bindingCache: opts.BindingCache,
+		invoker:      opts.Invoker,
+		nodeID:       opts.NodeID,
+		clock:        clock,
+	}, nil
 }
 
 // StartPlugin records plugin startup metadata and returns node-local startup settings.
