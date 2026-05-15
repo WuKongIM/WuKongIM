@@ -350,8 +350,9 @@ beforeEach(() => {
 })
 
 it.each([
-  ["/dashboard", "Dashboard", "Topology snapshot"],
-  ["/monitor", "Live Monitor", "Message Flow"],
+  ["/cluster/dashboard", "Cluster Dashboard", "Internal Link Trends"],
+  ["/business/dashboard", "Business Dashboard", "Business Message Trends"],
+  ["/business/monitor", "Live Monitor", "Message Flow"],
   ["/cluster/nodes", "Nodes", "Address"],
   ["/cluster/slots", "Slots", "Slot"],
   ["/cluster/channels", "Channel Cluster", "Channel Cluster Overview"],
@@ -379,29 +380,16 @@ it.each([
   expect(screen.queryByText(/workspace/i)).not.toBeInTheDocument()
 })
 
-test("dashboard shows monochrome workbench sections", async () => {
-  const router = createMemoryRouter(routes, { initialEntries: ["/dashboard"] })
-
-  render(
-    <AppProviders>
-      <RouterProvider router={router} />
-    </AppProviders>,
-  )
-
-  await screen.findByText("Topology snapshot")
-  expect(screen.getByRole("heading", { name: "Dashboard" })).toBeInTheDocument()
-  expect(screen.getAllByText(/Active incidents/).length).toBeGreaterThan(0)
-  expect(screen.getAllByText(/Slot & channel health/).length).toBeGreaterThan(0)
-  expect(screen.queryByText("Pin board")).not.toBeInTheDocument()
-})
-
 it.each([
+  ["/cluster/dashboard", "CLUSTER / DASHBOARD"],
   ["/cluster/nodes", "CLUSTER / NODES"],
   ["/cluster/slots", "Slot"],
   ["/cluster/channels", "CLUSTER / CHANNELS"],
   ["/cluster/tasks", "Task queue"],
   ["/cluster/topology", "CLUSTER / TOPOLOGY"],
   ["/cluster/diagnostics", "CLUSTER / DIAGNOSTICS"],
+  ["/business/dashboard", "BUSINESS / DASHBOARD"],
+  ["/business/monitor", "BUSINESS / MONITOR"],
   ["/business/users", "BUSINESS / USERS"],
   ["/business/channels", "BUSINESS / CHANNELS"],
   ["/business/messages", "BUSINESS / MESSAGES"],
@@ -422,8 +410,9 @@ it.each([
 })
 
 it.each([
-  ["/dashboard", "仪表盘", "拓扑快照"],
-  ["/monitor", "实时监控", "消息流量"],
+  ["/cluster/dashboard", "集群仪表盘", "内部链路趋势"],
+  ["/business/dashboard", "业务仪表盘", "业务消息趋势"],
+  ["/business/monitor", "实时监控", "消息流量"],
   ["/cluster/nodes", "节点", "地址"],
   ["/cluster/slots", "槽位", "槽位"],
   ["/cluster/channels", "频道集群", "频道集群总览"],
