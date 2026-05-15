@@ -309,7 +309,8 @@ Mapping:
 - non-success plugin reason -> send is rejected with that reason
 
 RPC errors and timeouts default to fail-closed and return a system-error reason.
-`WK_PLUGIN_FAIL_OPEN` may later allow fail-open behavior, but the default keeps
+Phase 1 parses `WK_PLUGIN_FAIL_OPEN` and, when enabled, logs the plugin failure
+but lets the original send continue. The default remains fail-closed to keep
 legacy-style safety.
 
 Request-scoped sends participate exactly once. The implementation must avoid the
@@ -425,19 +426,20 @@ using the legacy `plugin.proto` wire schema. The host imports `wkrpc` only from
 plain Go interfaces and `pluginproto` DTOs.
 
 All host RPCs use `WK_PLUGIN_TIMEOUT` unless the request context has a shorter
-deadline. Phase 1 also applies a bounded body limit derived from API defaults,
-with a plugin-specific override added later only if needed.
+deadline. Phase 1 applies a fixed `DefaultHostRPCMaxBodyBytes` constant of
+10 MiB for plugin host RPC request and response bodies; a config override can be
+added later only if needed.
 
 | RPC path | Handler layer | Request -> response | Authority and forwarding |
 | --- | --- | --- | --- |
 | `/plugin/start` | `internal/access/plugin` -> `internal/usecase/plugin` | `PluginInfo` -> `StartupResp` | local only; registers observed runtime manifest, ensures sandbox, returns local node ID and local config |
 | `/close` | `internal/access/plugin` -> `internal/usecase/plugin` | empty -> OK | local only; marks runtime connection closed |
 | `/message/send` | `internal/access/plugin` -> `internal/usecase/plugin` -> `message.App.Send` | `SendReq` -> `SendResp` | normal message usecase and cluster append path; sets `SendOriginPlugin` |
-| `/channel/messages` | `internal/access/plugin` -> message reader interface | `ChannelMessageBatchReq` -> `ChannelMessageBatchResp` | authoritative channel owner reader, reusing the existing local/remote channel message reader pattern |
-| `/plugin/httpForward` | `internal/access/plugin` -> plugin Route usecase or node HTTP/RPC forwarding | `ForwardHttpReq` -> `HttpResponse` | `toNodeId=0` local; positive remote node forwarded with timeout/body/header limits; `-1` fanout is deferred unless needed |
-| `/cluster/config` | `internal/access/plugin` -> cluster reader interface | empty -> `ClusterConfig` | maps controller nodes and slot assignments into the legacy PDK protobuf shape |
-| `/cluster/channels/belongNode` | `internal/access/plugin` -> channel metadata/routing reader | `ClusterChannelBelongNodeReq` -> `ClusterChannelBelongNodeBatchResp` | uses current channel owner/routing metadata, not local guesses |
-| `/conversation/channels` | `internal/access/plugin` -> conversation reader interface | `ConversationChannelReq` -> `ConversationChannelResp` | uses conversation usecase/store and preserves authoritative read semantics |
+| `/channel/messages` | `internal/access/plugin` -> `internal/usecase/plugin` -> message reader interface | `ChannelMessageBatchReq` -> `ChannelMessageBatchResp` | authoritative channel owner reader, reusing the existing local/remote channel message reader pattern |
+| `/plugin/httpForward` | `internal/access/plugin` -> `internal/usecase/plugin` -> plugin Route usecase or node HTTP/RPC forwarding | `ForwardHttpReq` -> `HttpResponse` | `toNodeId=0` local; positive remote node forwarded with timeout/body/header limits; `-1` fanout is deferred unless needed |
+| `/cluster/config` | `internal/access/plugin` -> `internal/usecase/plugin` -> cluster reader interface | empty -> `ClusterConfig` | maps controller nodes and slot assignments into the legacy PDK protobuf shape |
+| `/cluster/channels/belongNode` | `internal/access/plugin` -> `internal/usecase/plugin` -> channel metadata/routing reader | `ClusterChannelBelongNodeReq` -> `ClusterChannelBelongNodeBatchResp` | uses current channel owner/routing metadata, not local guesses |
+| `/conversation/channels` | `internal/access/plugin` -> `internal/usecase/plugin` -> conversation reader interface | `ConversationChannelReq` -> `ConversationChannelResp` | uses conversation usecase/store and preserves authoritative read semantics |
 | `/stream/open`, `/stream/write`, `/stream/close` | `internal/access/plugin` | stream request -> error | returns a stable `unimplemented` wkrpc error status and logs plugin number/path |
 
 `/plugin/httpForward` copies request method, path, query, headers, and body
