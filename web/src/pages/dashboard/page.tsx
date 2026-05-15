@@ -1,22 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useIntl, type IntlShape } from "react-intl"
-import { Link } from "react-router-dom"
+import { useIntl } from "react-intl"
 
 import { ResourceState } from "@/components/manager/resource-state"
-import { StatusBadge } from "@/components/manager/status-badge"
-import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/shell/page-container"
-import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
 import { ManagerApiError, getChannelClusterSummary, getNodes, getOverview, getTasks } from "@/lib/manager-api"
 import type {
   ManagerChannelClusterSummaryResponse,
-  ManagerNode,
   ManagerNodesResponse,
   ManagerOverviewResponse,
-  ManagerTask,
   ManagerTasksResponse,
 } from "@/lib/manager-api.types"
+
+import { HealthHero } from "./components/health-hero"
+import { IncidentList } from "./components/incident-list"
+import { PulseTile } from "./components/pulse-tile"
+import { SlotChannelHealth } from "./components/slot-channel-health"
+import { TopologyRow } from "./components/topology-row"
+import { useDashboardPulse } from "./use-dashboard-pulse"
+import { buildIncidents, buildTopologyRows, computeVerdict } from "./view-model"
 
 type DashboardState = {
   overview: ManagerOverviewResponse | null
@@ -28,137 +30,11 @@ type DashboardState = {
   error: Error | null
 }
 
-type ControllerRaftSummary = {
-  health: string
-  reported: number
-  voters: number
-  watermarkNode: ManagerNode | null
-}
-
-function formatTimestamp(intl: IntlShape, value: string) {
-  return new Intl.DateTimeFormat(intl.locale, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(new Date(value))
-}
-
 function formatErrorKind(error: Error | null) {
-  if (!(error instanceof ManagerApiError)) {
-    return "error" as const
-  }
-  if (error.status === 403) {
-    return "forbidden" as const
-  }
-  if (error.status === 503) {
-    return "unavailable" as const
-  }
+  if (!(error instanceof ManagerApiError)) return "error" as const
+  if (error.status === 403) return "forbidden" as const
+  if (error.status === 503) return "unavailable" as const
   return "error" as const
-}
-
-function buildAlertItems(intl: IntlShape, overview: ManagerOverviewResponse) {
-  return [
-    ...overview.anomalies.slots.quorum_lost.items.map((item) => ({
-      key: `slot-quorum-${item.slot_id}`,
-      title: intl.formatMessage({ id: "dashboard.slotValue" }, { id: item.slot_id }),
-      detail: `${item.quorum} / ${item.sync}`,
-      tone: item.quorum,
-    })),
-    ...overview.anomalies.tasks.retrying.items.map((item) => ({
-      key: `task-retrying-${item.slot_id}`,
-      title: intl.formatMessage({ id: "dashboard.slotValue" }, { id: item.slot_id }),
-      detail: `${item.kind} ${item.status}`,
-      tone: item.status,
-    })),
-  ]
-}
-
-function hasControllerRaftSummary(node: ManagerNode) {
-  return Boolean(node.controller.raft_health && node.controller.raft_health !== "unknown")
-}
-
-function hasControllerRaftWatermark(node: ManagerNode) {
-  return hasControllerRaftSummary(node) &&
-    node.controller.first_index !== undefined &&
-    node.controller.applied_index !== undefined &&
-    node.controller.snapshot_index !== undefined
-}
-
-function controllerRaftHealthRank(health: string) {
-  switch (health) {
-    case "restore_failed":
-      return 60
-    case "compaction_degraded":
-      return 50
-    case "snapshot_transferring":
-      return 40
-    case "snapshot_required":
-      return 30
-    case "append_catchup":
-      return 20
-    case "healthy":
-      return 10
-    default:
-      return 0
-  }
-}
-
-function buildControllerRaftSummary(nodes: ManagerNodesResponse): ControllerRaftSummary {
-  const voters = nodes.items.filter((node) => node.controller.voter).length
-  const reportedNodes = nodes.items.filter(hasControllerRaftSummary)
-  const health = reportedNodes.reduce((current, node) => {
-    const next = node.controller.raft_health || "unknown"
-    return controllerRaftHealthRank(next) > controllerRaftHealthRank(current) ? next : current
-  }, "unknown")
-  const watermarkNode = reportedNodes.find((node) => node.controller.role === "leader" && hasControllerRaftWatermark(node)) ??
-    reportedNodes.find(hasControllerRaftWatermark) ??
-    null
-
-  return {
-    health,
-    reported: reportedNodes.length,
-    voters,
-    watermarkNode,
-  }
-}
-
-function formatControllerRaftWatermark(intl: IntlShape, node: ManagerNode | null) {
-  if (!node) {
-    return intl.formatMessage({ id: "dashboard.controllerRaftWatermarkUnavailable" })
-  }
-  return intl.formatMessage(
-    { id: "dashboard.controllerRaftWatermark" },
-    {
-      first: node.controller.first_index,
-      applied: node.controller.applied_index,
-      snapshot: node.controller.snapshot_index,
-    },
-  )
-}
-
-function controllerRaftPath(nodeId: number) {
-  return `/controller?node_id=${nodeId}`
-}
-
-const channelClusterOverviewPath = "/cluster/channels?tab=overview"
-
-function renderTaskRow(intl: IntlShape, task: ManagerTask) {
-  return (
-    <tr className="border-t border-border" key={`${task.slot_id}-${task.kind}-${task.step}`}>
-      <td className="px-3 py-3 text-sm font-medium text-foreground">
-        {intl.formatMessage({ id: "dashboard.slotValue" }, { id: task.slot_id })}
-      </td>
-      <td className="px-3 py-3 text-sm text-foreground">{task.kind}</td>
-      <td className="px-3 py-3 text-sm text-foreground">
-        <StatusBadge value={task.status} />
-      </td>
-      <td className="px-3 py-3 text-sm text-muted-foreground">{task.attempt}</td>
-      <td className="px-3 py-3 text-sm text-muted-foreground">{task.last_error || "-"}</td>
-    </tr>
-  )
 }
 
 export function DashboardPage() {
@@ -180,7 +56,6 @@ export function DashboardPage() {
       refreshing,
       error: null,
     }))
-
     try {
       const [overview, tasks, nodes, channelCluster] = await Promise.all([
         getOverview(),
@@ -191,335 +66,122 @@ export function DashboardPage() {
       setState({ overview, tasks, nodes, channelCluster, loading: false, refreshing: false, error: null })
     } catch (error) {
       setState({
-        overview: null,
-        tasks: null,
-        nodes: null,
-        channelCluster: null,
-        loading: false,
-        refreshing: false,
+        overview: null, tasks: null, nodes: null, channelCluster: null,
+        loading: false, refreshing: false,
         error: error instanceof Error ? error : new Error("dashboard request failed"),
       })
     }
   }, [])
 
-  useEffect(() => {
-    void loadDashboard(false)
-  }, [loadDashboard])
+  useEffect(() => { void loadDashboard(false) }, [loadDashboard])
 
-  const alertItems = useMemo(
-    () => (state.overview ? buildAlertItems(intl, state.overview) : []),
-    [intl, state.overview],
+  const verdict = useMemo(
+    () => (state.overview && state.nodes ? computeVerdict(state.overview, state.nodes) : null),
+    [state.overview, state.nodes],
   )
-  const controllerRaftSummary = useMemo(
-    () => (state.nodes ? buildControllerRaftSummary(state.nodes) : null),
+  const incidents = useMemo(
+    () => (state.overview && state.nodes ? buildIncidents(intl, state.overview, state.nodes) : []),
+    [intl, state.overview, state.nodes],
+  )
+  const topologyRows = useMemo(
+    () => (state.nodes ? buildTopologyRows(state.nodes) : []),
     [state.nodes],
   )
+  const pulse = useDashboardPulse(state.overview?.generated_at ?? null)
+
+  if (state.loading) {
+    return (
+      <PageContainer>
+        <ResourceState kind="loading" title={intl.formatMessage({ id: "dashboard.title" })} />
+      </PageContainer>
+    )
+  }
+
+  if (state.error) {
+    return (
+      <PageContainer>
+        <ResourceState
+          kind={formatErrorKind(state.error)}
+          onRetry={() => { void loadDashboard(false) }}
+          title={intl.formatMessage({ id: "dashboard.title" })}
+        />
+      </PageContainer>
+    )
+  }
+
+  if (!state.overview || !state.nodes || !state.channelCluster || !verdict) return null
 
   return (
     <PageContainer>
-      <PageHeader
-        eyebrow={intl.formatMessage({ id: "dashboard.cockpitEyebrow" })}
-        title={intl.formatMessage({ id: "dashboard.title" })}
-        description={intl.formatMessage({ id: "dashboard.description" })}
-        actions={
-          <>
-            <Button asChild size="sm" variant="outline">
-              <a href="#dashboard-alert-rail">{intl.formatMessage({ id: "dashboard.inspectAlerts" })}</a>
-            </Button>
-            <Button
-              onClick={() => {
-                void loadDashboard(true)
-              }}
-              size="sm"
-              variant="outline"
-            >
-              {state.refreshing
-                ? intl.formatMessage({ id: "common.refreshing" })
-                : intl.formatMessage({ id: "common.refresh" })}
-            </Button>
-            <Button disabled size="sm">
-              {intl.formatMessage({ id: "common.export" })}
-            </Button>
-          </>
-        }
-      >
-        <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-          <div className="rounded-xl border border-border/80 bg-background/70 px-3 py-2">
-            {intl.formatMessage({ id: "dashboard.scopeSingleNodeCluster" })}
-          </div>
-          <div className="rounded-xl border border-border/80 bg-background/70 px-3 py-2">
-            {state.overview
-              ? intl.formatMessage(
-                  { id: "dashboard.generatedAtValue" },
-                  { value: formatTimestamp(intl, state.overview.generated_at) },
-                )
-              : intl.formatMessage({ id: "dashboard.generatedAtPending" })}
-          </div>
-          <div className="rounded-xl border border-border/80 bg-background/70 px-3 py-2">
-            {state.overview
-              ? intl.formatMessage(
-                  { id: "dashboard.controllerLeaderValue" },
-                  { id: state.overview.cluster.controller_leader_id },
-                )
-              : intl.formatMessage({ id: "dashboard.controllerLeaderPending" })}
-          </div>
-        </div>
-      </PageHeader>
+      {/* R1 — Health Hero */}
+      <HealthHero
+        controllerLeaderId={state.overview.cluster.controller_leader_id}
+        generatedAt={state.overview.generated_at}
+        incidentCount={incidents.length}
+        nodesAlive={state.overview.nodes.alive}
+        nodesTotal={state.overview.nodes.total}
+        onRefresh={() => { void loadDashboard(true) }}
+        refreshing={state.refreshing}
+        slotsReady={state.overview.slots.ready}
+        slotsTotal={state.overview.slots.total}
+        verdict={verdict}
+      />
 
-      {state.loading ? (
-        <ResourceState kind="loading" title={intl.formatMessage({ id: "dashboard.title" })} />
+      {/* R2 — Realtime Pulse */}
+      {pulse ? (
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <PulseTile
+            label={intl.formatMessage({ id: "dashboard.pulse.messagesPerSec" })}
+            mocked
+            series={pulse.messagesPerSec.series}
+            sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.messagesPerSec.peak, avg: pulse.messagesPerSec.avg })}
+            value={pulse.messagesPerSec.latest}
+          />
+          <PulseTile
+            label={intl.formatMessage({ id: "dashboard.pulse.connections" })}
+            mocked
+            series={pulse.connections.series}
+            sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.connections.peak, avg: pulse.connections.avg })}
+            value={pulse.connections.latest}
+          />
+          <PulseTile
+            label={intl.formatMessage({ id: "dashboard.pulse.txKbPerSec" })}
+            mocked
+            series={pulse.txKbPerSec.series}
+            sub={intl.formatMessage({ id: "dashboard.pulse.peakAvg" }, { peak: pulse.txKbPerSec.peak, avg: pulse.txKbPerSec.avg })}
+            value={pulse.txKbPerSec.latest}
+            valueSuffix="KB/s"
+          />
+          <PulseTile
+            label={intl.formatMessage({ id: "dashboard.pulse.rpcErrorRate" })}
+            mocked
+            series={pulse.rpcErrorRate.series}
+            sub={intl.formatMessage({ id: "dashboard.pulse.errorsOverCalls" }, { errors: pulse.rpcErrorRate.latest, calls: pulse.rpcErrorRate.peak })}
+            tone="danger"
+            value={pulse.rpcErrorRate.latest}
+            valueSuffix="%"
+          />
+        </section>
       ) : null}
-      {!state.loading && state.error ? (
-        <ResourceState
-          kind={formatErrorKind(state.error)}
-          onRetry={() => {
-            void loadDashboard(false)
-          }}
-          title={intl.formatMessage({ id: "dashboard.title" })}
-        />
-      ) : null}
-      {!state.loading && !state.error && state.overview && state.tasks && state.channelCluster && controllerRaftSummary ? (
-        <>
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <SectionCard
-              className="min-h-36"
-              description={intl.formatMessage({ id: "dashboard.controllerLeaderCardDescription" })}
-              title={intl.formatMessage({ id: "dashboard.controllerLeaderCardTitle" })}
-            >
-              <div className="font-mono text-4xl font-semibold tracking-[-0.04em] text-foreground">
-                {state.overview.cluster.controller_leader_id}
-              </div>
-              <p className="mt-3 text-xs text-muted-foreground">{intl.formatMessage({ id: "dashboard.metricControllerHint" })}</p>
-            </SectionCard>
-            <SectionCard
-              className="min-h-36"
-              description={intl.formatMessage({ id: "dashboard.controllerRaftCardDescription" })}
-              title={intl.formatMessage({ id: "dashboard.controllerRaftCardTitle" })}
-            >
-              <div className="flex flex-col gap-3">
-                <StatusBadge value={controllerRaftSummary.health} />
-                <div className="text-sm text-muted-foreground">
-                  {intl.formatMessage(
-                    { id: "dashboard.controllerRaftReported" },
-                    { reported: controllerRaftSummary.reported, voters: controllerRaftSummary.voters },
-                  )}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {formatControllerRaftWatermark(intl, controllerRaftSummary.watermarkNode)}
-                </div>
-                {controllerRaftSummary.watermarkNode ? (
-                  <Button asChild size="sm" variant="outline">
-                    <Link
-                      aria-label={intl.formatMessage(
-                        { id: "dashboard.controllerRaftOpenForNode" },
-                        { id: controllerRaftSummary.watermarkNode.node_id },
-                      )}
-                      to={controllerRaftPath(controllerRaftSummary.watermarkNode.node_id)}
-                    >
-                      {intl.formatMessage({ id: "dashboard.controllerRaftOpen" })}
-                    </Link>
-                  </Button>
-                ) : null}
-              </div>
-            </SectionCard>
-            <SectionCard
-              className="min-h-36"
-              description={intl.formatMessage({ id: "dashboard.nodesCardDescription" })}
-              title={intl.formatMessage({ id: "dashboard.nodesCardTitle" })}
-            >
-              <div className="font-mono text-4xl font-semibold tracking-[-0.04em] text-foreground">{state.overview.nodes.total}</div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                {intl.formatMessage(
-                  { id: "dashboard.nodesSummary" },
-                  { alive: state.overview.nodes.alive, draining: state.overview.nodes.draining },
-                )}
-              </p>
-            </SectionCard>
-            <SectionCard
-              className="min-h-36"
-              description={intl.formatMessage({ id: "dashboard.readySlotsCardDescription" })}
-              title={intl.formatMessage({ id: "dashboard.readySlotsCardTitle" })}
-            >
-              <div className="font-mono text-4xl font-semibold tracking-[-0.04em] text-foreground">{state.overview.slots.ready}</div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                {intl.formatMessage(
-                  { id: "dashboard.slotsSummary" },
-                  { ready: state.overview.slots.ready, quorumLost: state.overview.slots.quorum_lost },
-                )}
-              </p>
-            </SectionCard>
-            <SectionCard
-              className="min-h-36"
-              description={intl.formatMessage({ id: "dashboard.tasksCardDescription" })}
-              title={intl.formatMessage({ id: "dashboard.tasksCardTitle" })}
-            >
-              <div className="font-mono text-4xl font-semibold tracking-[-0.04em] text-foreground">{state.overview.tasks.total}</div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                {intl.formatMessage(
-                  { id: "dashboard.tasksSummary" },
-                  { pending: state.overview.tasks.pending, retrying: state.overview.tasks.retrying },
-                )}
-              </p>
-            </SectionCard>
-          </section>
 
-          <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-            <SectionCard
-              description={intl.formatMessage({ id: "dashboard.operationsSummaryDescription" })}
-              title={intl.formatMessage({ id: "dashboard.operationsSummaryTitle" })}
-            >
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-2xl border border-border/80 bg-muted/35 px-3 py-3">
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                    {intl.formatMessage({ id: "dashboard.nodesLabel" })}
-                  </div>
-                  <div className="mt-2 text-sm text-foreground">
-                    {intl.formatMessage(
-                      { id: "dashboard.nodesSummary" },
-                      { alive: state.overview.nodes.alive, draining: state.overview.nodes.draining },
-                    )}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-border/80 bg-muted/35 px-3 py-3">
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                    {intl.formatMessage({ id: "dashboard.slotsLabel" })}
-                  </div>
-                  <div className="mt-2 text-sm text-foreground">
-                    {intl.formatMessage(
-                      { id: "dashboard.slotsSummary" },
-                      {
-                        ready: state.overview.slots.ready,
-                        quorumLost: state.overview.slots.quorum_lost,
-                      },
-                    )}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-border/80 bg-muted/35 px-3 py-3">
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                    {intl.formatMessage({ id: "dashboard.tasksLabel" })}
-                  </div>
-                  <div className="mt-2 text-sm text-foreground">
-                    {intl.formatMessage(
-                      { id: "dashboard.tasksSummary" },
-                      {
-                        pending: state.overview.tasks.pending,
-                        retrying: state.overview.tasks.retrying,
-                      },
-                    )}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-border/80 bg-muted/35 px-3 py-3">
-                  <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                    {intl.formatMessage({ id: "dashboard.generatedLabel" })}
-                  </div>
-                  <div className="mt-2 text-sm text-foreground">
-                    {formatTimestamp(intl, state.overview.generated_at)}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-border/80 bg-muted/35 px-3 py-3 md:col-span-2">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        {intl.formatMessage({ id: "dashboard.channelHealthTitle" })}
-                      </div>
-                      <div className="mt-2 text-sm text-foreground">
-                        {intl.formatMessage(
-                          { id: "dashboard.channelHealthTotal" },
-                          { count: state.channelCluster.total },
-                        )}
-                      </div>
-                    </div>
-                    <Button asChild size="sm" variant="outline">
-                      <Link
-                        aria-label={intl.formatMessage({ id: "dashboard.channelHealthOpen" })}
-                        to={channelClusterOverviewPath}
-                      >
-                        {intl.formatMessage({ id: "common.inspect" })}
-                      </Link>
-                    </Button>
-                  </div>
-                  <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-                    <div>
-                      {intl.formatMessage(
-                        { id: "dashboard.channelHealthHealthy" },
-                        { count: state.channelCluster.healthy },
-                      )}
-                    </div>
-                    <div>
-                      {intl.formatMessage(
-                        { id: "dashboard.channelHealthIsrInsufficient" },
-                        { count: state.channelCluster.isr_insufficient },
-                      )}
-                    </div>
-                    <div>
-                      {intl.formatMessage(
-                        { id: "dashboard.channelHealthNoLeader" },
-                        { count: state.channelCluster.no_leader },
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </SectionCard>
-            <SectionCard
-              className="scroll-mt-20"
-              description={intl.formatMessage({ id: "dashboard.alertListDescription" })}
-              id="dashboard-alert-rail"
-              title={intl.formatMessage({ id: "dashboard.alertListTitle" })}
-            >
-              {alertItems.length > 0 ? (
-                <div className="space-y-3">
-                  {alertItems.map((item) => (
-                    <div className="rounded-2xl border border-border/80 bg-muted/25 px-3 py-3" key={item.key}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-medium text-foreground">{item.title}</div>
-                        <StatusBadge value={item.tone} />
-                      </div>
-                      <div className="mt-2 text-sm text-muted-foreground">{item.detail}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-primary/25 bg-primary/8 px-4 py-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                    <span className="size-2 rounded-full bg-[var(--status-healthy)]" />
-                    {intl.formatMessage({ id: "dashboard.noActiveAlertsTitle" })}
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    {intl.formatMessage({ id: "dashboard.noActiveAlertsDescription" })}
-                  </p>
-                </div>
-              )}
-            </SectionCard>
-          </section>
+      {/* R3 + R4 — Slot/Channel Health + Active Incidents */}
+      <section className="grid gap-4 xl:grid-cols-[2fr_3fr]">
+        <SlotChannelHealth channelCluster={state.channelCluster} slots={state.overview.slots} />
+        <IncidentList items={incidents} />
+      </section>
 
-          <section>
-            <SectionCard
-              description={intl.formatMessage({ id: "dashboard.controlQueueDescription" })}
-              title={intl.formatMessage({ id: "dashboard.controlQueueTitle" })}
-            >
-              {state.tasks.items.length > 0 ? (
-                <div className="overflow-x-auto rounded-2xl border border-border/80">
-                  <table className="w-full border-collapse">
-                    <thead className="bg-muted/45 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                      <tr>
-                        <th className="px-3 py-3">{intl.formatMessage({ id: "dashboard.table.slot" })}</th>
-                        <th className="px-3 py-3">{intl.formatMessage({ id: "dashboard.table.kind" })}</th>
-                        <th className="px-3 py-3">{intl.formatMessage({ id: "dashboard.table.status" })}</th>
-                        <th className="px-3 py-3">{intl.formatMessage({ id: "dashboard.table.attempt" })}</th>
-                        <th className="px-3 py-3">{intl.formatMessage({ id: "dashboard.table.lastError" })}</th>
-                      </tr>
-                    </thead>
-                    <tbody>{state.tasks.items.map((task) => renderTaskRow(intl, task))}</tbody>
-                  </table>
-                </div>
-              ) : (
-                <ResourceState kind="empty" title={intl.formatMessage({ id: "dashboard.controlQueueTitle" })} />
-              )}
-            </SectionCard>
-          </section>
-        </>
-      ) : null}
+      {/* R5 — Topology Snapshot */}
+      <SectionCard title={intl.formatMessage({ id: "dashboard.topology.cardTitle" })}>
+        {topologyRows.length > 0 ? (
+          <div className="space-y-2">
+            {topologyRows.map((row) => (
+              <TopologyRow key={row.nodeId} row={row} />
+            ))}
+          </div>
+        ) : (
+          <ResourceState kind="empty" title={intl.formatMessage({ id: "dashboard.topology.cardTitle" })} />
+        )}
+      </SectionCard>
     </PageContainer>
   )
 }
