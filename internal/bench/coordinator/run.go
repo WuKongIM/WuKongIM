@@ -263,6 +263,9 @@ func (c *Coordinator) writeReport(ctx context.Context, scenario model.Scenario, 
 	rep := report.Build(input)
 	if rep.ExitCode == report.ExitHardLimitFailed {
 		result.Status = StatusHardLimitFailed
+	} else if result.Status == StatusTargetUnavailable {
+		rep.Status = report.StatusFailed
+		rep.ExitCode = report.ExitTargetUnavailable
 	} else if len(failedWorkers) > 0 {
 		rep.Status = report.StatusFailed
 		rep.ExitCode = report.ExitWorkerFailed
@@ -308,7 +311,7 @@ func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.Worke
 
 		var raw json.RawMessage
 		if err := c.getJSON(ctx, w, "/v1/report", &raw); err == nil && len(raw) > 0 {
-			workerReports = append(workerReports, report.WorkerReport{WorkerID: workerID, Report: raw})
+			workerReports = append(workerReports, normalizeWorkerReport(workerID, raw))
 		} else {
 			if contextCanceled(ctx, err) {
 				return nil, nil, nil, contextError(ctx, err)
@@ -322,6 +325,18 @@ func (c *Coordinator) collectWorkerReports(ctx context.Context) ([]metrics.Worke
 		}
 	}
 	return workerMetrics, workerReports, collectionFailures, nil
+}
+
+// normalizeWorkerReport unwraps the current worker envelope while preserving legacy raw payloads.
+func normalizeWorkerReport(workerID string, raw json.RawMessage) report.WorkerReport {
+	var envelope report.WorkerReport
+	if err := json.Unmarshal(raw, &envelope); err == nil && strings.TrimSpace(envelope.WorkerID) != "" && len(envelope.Report) > 0 {
+		if strings.TrimSpace(workerID) == "" {
+			workerID = strings.TrimSpace(envelope.WorkerID)
+		}
+		return report.WorkerReport{WorkerID: workerID, Report: envelope.Report}
+	}
+	return report.WorkerReport{WorkerID: workerID, Report: raw}
 }
 
 func mergeWorkerFailureSets(sets ...map[string]struct{}) map[string]struct{} {

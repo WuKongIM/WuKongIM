@@ -338,6 +338,26 @@ func TestCoordinatorWorkerReportCollectionFailureFailsSuccessfulRunWithFallback(
 	require.Equal(t, "worker_report_error", result.Report.ErrorSamples[0].Name)
 }
 
+func TestCoordinatorCollectWorkerReportsUnwrapsWorkerEnvelopeAndNormalizesID(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].SetReport(json.RawMessage(`{"worker_id":"worker-endpoint-id","report":{"run_id":"run-1","phase":"run","metrics":{"counters":{"send_success_total":1}}}}`))
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+
+	_, workerReports, collectionFailures, err := coord.collectWorkerReports(context.Background())
+
+	require.NoError(t, err)
+	require.Empty(t, collectionFailures)
+	require.Len(t, workerReports, 1)
+	require.Equal(t, "a", workerReports[0].WorkerID)
+	require.JSONEq(t, `{"run_id":"run-1","phase":"run","metrics":{"counters":{"send_success_total":1}}}`, string(workerReports[0].Report))
+}
+
 func TestCoordinatorHardLimitTakesPriorityOverWorkerReportCollectionFailure(t *testing.T) {
 	workers := newFakeWorkers(t, 1)
 	workers[0].SetMetrics(metrics.SnapshotData{Counters: map[string]uint64{
@@ -548,6 +568,33 @@ func TestCoordinatorReturnsTargetUnavailableForMarkedWorkerError(t *testing.T) {
 	require.Equal(t, StatusTargetUnavailable, result.Status)
 }
 
+func TestCoordinatorTargetUnavailableReportUsesTargetExitCode(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].FailPhase(PhaseRun, http.StatusServiceUnavailable, `{"error":"target unavailable"}`)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.ReportDir = t.TempDir()
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.Error(t, err)
+	require.Equal(t, StatusTargetUnavailable, result.Status)
+	require.Equal(t, report.StatusFailed, result.Report.Status)
+	require.Equal(t, report.ExitTargetUnavailable, result.Report.ExitCode)
+	data, readErr := os.ReadFile(filepath.Join(scenario.Run.ReportDir, "report.json"))
+	require.NoError(t, readErr)
+	var written report.Report
+	require.NoError(t, json.Unmarshal(data, &written))
+	require.Equal(t, report.StatusFailed, written.Status)
+	require.Equal(t, report.ExitTargetUnavailable, written.ExitCode)
+}
+
 type preflightFunc func(context.Context, model.Target, model.WorkerSet) error
 
 func (f preflightFunc) Check(ctx context.Context, target model.Target, workers model.WorkerSet) error {
@@ -621,6 +668,12 @@ func (fw *fakeWorker) FailReport(status int, body string) {
 	fw.mu.Lock()
 	defer fw.mu.Unlock()
 	fw.failReport = &fakePhaseFailure{status: status, body: body}
+}
+
+func (fw *fakeWorker) SetReport(payload json.RawMessage) {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	fw.report = payload
 }
 
 type fakePhaseFailure struct {
