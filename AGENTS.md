@@ -43,11 +43,12 @@
 ```text
 cmd/
   wukongim/              程序入口，负责读取配置并启动应用
-  wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/report 入口
+  wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/dev-sim/report 入口
 
 internal/
   bench/                 wkbench 黑盒客户端配置、模型、规划与协调预检
     config/              wkbench YAML 加载与严格解码
+    devsim/              docker compose 开发模拟器 supervisor、状态 API 与配置派生
     model/               wkbench spec-shaped 配置、计划与 bench API DTO
     planner/             worker 权重、identity pool 与 channel/member/traffic 分片规划
     target/              target HTTP bench API 黑盒客户端
@@ -124,6 +125,10 @@ docs/
   raw/                   草稿、重构提案与原始设计记录
   superpowers/           specs / plans / reports / runbooks
   wiki/                  项目 wiki 与架构文档
+
+docker/
+  conf/                  本地 docker compose 节点配置
+  sim/                   可选 wkbench dev-sim 模拟器配置与使用说明
 
 scripts/                 仓库辅助脚本
 

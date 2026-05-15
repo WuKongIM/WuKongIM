@@ -472,6 +472,25 @@ func TestDirectoryUnregisterRemovesOwnerSetWhenAssumedGroupIsWrong(t *testing.T)
 	require.Empty(t, dir.leases)
 }
 
+func TestDirectoryRegisterRecreatesOwnerSetAfterSameLeaseReplacement(t *testing.T) {
+	dir := newDirectory()
+	nowUnix := time.Unix(200, 0).Unix()
+	oldRoute := testRoute("u1", 1, 10, 100, "device-a", uint8(frame.DeviceLevelMaster))
+	newRoute := testRoute("u1", 1, 10, 101, "device-b", uint8(frame.DeviceLevelMaster))
+
+	dir.register(1, oldRoute, nowUnix)
+	require.NotPanics(t, func() {
+		actions := dir.register(1, newRoute, nowUnix)
+		require.Len(t, actions, 1)
+	})
+
+	endpoints := dir.endpointsByUID("u1", nowUnix)
+	require.Len(t, endpoints, 1)
+	require.Equal(t, uint64(101), endpoints[0].SessionID)
+	require.Len(t, dir.ownerSet, 1)
+	require.Len(t, dir.leases, 1)
+}
+
 func testRoute(uid string, nodeID, bootID, sessionID uint64, deviceID string, level uint8) Route {
 	return Route{
 		UID:         uid,

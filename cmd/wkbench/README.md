@@ -14,6 +14,7 @@ go run ./cmd/wkbench <command> [flags]
 | `validate` | Loads target, workers, and scenario YAML and validates static config plus deterministic planning. |
 | `doctor` | Validates target and workers, then checks target health, bench API capabilities, worker control APIs, and gateway reachability. |
 | `run` | Runs the full coordinator flow: validate, preflight, assign workers, prepare, connect, warmup, run, cooldown, and report. |
+| `dev-sim` | Runs a long-lived development simulator that keeps users online and emits low-rate person/group messages. |
 | `report` | Reserved for future standalone report rendering. It is not implemented yet. |
 
 Exit codes are stable: `0` success, `1` config validation failure, `2` preflight failure, `3` hard limit failure, `4` worker failure, `5` target unavailable, and `6` internal failure.
@@ -77,6 +78,48 @@ go run ./cmd/wkbench run \
 ```
 
 For a compiled binary, replace `go run ./cmd/wkbench` with the binary path.
+
+## Compose Development Simulator
+
+The Docker Compose development cluster can start an optional simulator service named `wk-sim`:
+
+```bash
+docker compose --profile dev-sim up -d --build
+curl http://127.0.0.1:19091/status
+docker compose logs -f wk-sim
+```
+
+Plain `docker compose up -d` does not start the simulator. The `dev-sim` profile must be enabled explicitly.
+
+The service runs:
+
+```bash
+wkbench dev-sim --config /etc/wkbench/dev-sim.yaml
+```
+
+For local non-Docker runs:
+
+```bash
+GOWORK=off go run ./cmd/wkbench dev-sim --config ./docker/sim/dev-sim.yaml
+```
+
+Status endpoints:
+
+- `GET http://127.0.0.1:19091/healthz`
+- `GET http://127.0.0.1:19091/status`
+
+Safe tuning environment variables:
+
+| Variable | Meaning |
+| --- | --- |
+| `WK_SIM_USERS` | Total generated online user pool. |
+| `WK_SIM_PERSON_CHANNELS` | Number of one-to-one channels. |
+| `WK_SIM_GROUP_CHANNELS` | Number of group channels. |
+| `WK_SIM_GROUP_MEMBERS` | Members per group channel. |
+| `WK_SIM_RATE` | Per-channel person and group send rate, for example `0.5/s`. |
+| `WK_SIM_UID_PREFIX` | Prefix for generated simulator user IDs. |
+
+The simulator stays within wkbench's black-box boundary: it prepares data through `/bench/v1/*` and sends messages through WKProto gateways. It does not import server internals or bypass cluster paths.
 
 ## Example `target.yaml`
 

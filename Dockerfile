@@ -8,11 +8,13 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/wukongim ./cmd/wukongim
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/wukongim ./cmd/wukongim \
+ && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/wkbench ./cmd/wkbench
 
 FROM ${RUNTIME_IMAGE}
 WORKDIR /app
 COPY --from=builder /out/wukongim /usr/local/bin/wukongim
+COPY --from=builder /out/wkbench /usr/local/bin/wkbench
 
 EXPOSE 5001 5100 5200 7000
 ENTRYPOINT ["/usr/local/bin/wukongim", "-config", "/etc/wukongim/wukongim.conf"]

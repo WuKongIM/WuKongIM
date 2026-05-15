@@ -7,9 +7,13 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/signal"
+	"strings"
+	"syscall"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/config"
 	"github.com/WuKongIM/WuKongIM/internal/bench/coordinator"
+	"github.com/WuKongIM/WuKongIM/internal/bench/devsim"
 	"github.com/WuKongIM/WuKongIM/internal/bench/planner"
 	"github.com/WuKongIM/WuKongIM/internal/bench/worker"
 )
@@ -33,7 +37,7 @@ func run(args []string) int {
 
 func runWithStderr(args []string, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: wkbench <run|worker|validate|doctor|report>")
+		fmt.Fprintln(stderr, "usage: wkbench <run|worker|validate|doctor|dev-sim|report>")
 		return exitConfig
 	}
 	switch args[0] {
@@ -45,6 +49,8 @@ func runWithStderr(args []string, stderr io.Writer) int {
 		return runDoctor(args[1:], stderr)
 	case "run":
 		return runBench(args[1:], stderr)
+	case "dev-sim":
+		return runDevSim(args[1:], stderr)
 	case "report":
 		fmt.Fprintf(stderr, "%s is not implemented yet\n", args[0])
 		return exitInternal
@@ -52,6 +58,71 @@ func runWithStderr(args []string, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "unknown command %q\n", args[0])
 		return exitConfig
 	}
+}
+
+type devSimCLIConfig struct {
+	configPath   string
+	statusListen string
+}
+
+func runDevSim(args []string, stderr io.Writer) int {
+	cliCfg, code := parseDevSimConfig(args, stderr)
+	if code != 0 {
+		return code
+	}
+	if cliCfg.configPath == "" {
+		return 0
+	}
+	cfg, err := devsim.LoadConfig(cliCfg.configPath, envMap(os.Environ()))
+	if err != nil {
+		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+		return exitConfig
+	}
+	if strings.TrimSpace(cliCfg.statusListen) != "" {
+		cfg.Status.Listen = strings.TrimSpace(cliCfg.statusListen)
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := devsim.Run(ctx, cfg); err != nil {
+		fmt.Fprintf(stderr, "dev-sim failed: %v\n", err)
+		return exitTarget
+	}
+	return 0
+}
+
+func parseDevSimConfig(args []string, stderr io.Writer) (devSimCLIConfig, int) {
+	fs := flag.NewFlagSet("dev-sim", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		fmt.Fprintln(stderr, "usage: wkbench dev-sim --config <path> [--status-listen addr]")
+		fs.PrintDefaults()
+	}
+	var cfg devSimCLIConfig
+	fs.StringVar(&cfg.configPath, "config", "", "dev-sim YAML file")
+	fs.StringVar(&cfg.statusListen, "status-listen", "", "override status.listen")
+	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return devSimCLIConfig{}, 0
+		}
+		return devSimCLIConfig{}, exitConfig
+	}
+	if strings.TrimSpace(cfg.configPath) == "" {
+		fmt.Fprintln(stderr, "--config is required")
+		return devSimCLIConfig{}, exitConfig
+	}
+	return cfg, 0
+}
+
+func envMap(items []string) map[string]string {
+	env := make(map[string]string, len(items))
+	for _, item := range items {
+		key, value, ok := strings.Cut(item, "=")
+		if !ok {
+			continue
+		}
+		env[key] = value
+	}
+	return env
 }
 
 func runBench(args []string, stderr io.Writer) int {

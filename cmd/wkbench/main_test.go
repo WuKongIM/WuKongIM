@@ -425,6 +425,32 @@ func TestValidateCommandRequiresConfigFlags(t *testing.T) {
 	}
 }
 
+func TestDevSimCommandReturnsConfigExitCodeForMissingConfig(t *testing.T) {
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"dev-sim", "--config", filepath.Join(t.TempDir(), "missing.yaml")}, &stderr)
+
+	if code != 1 {
+		t.Fatalf("expected config exit code 1, got %d stderr %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "config validation failed") {
+		t.Fatalf("expected config validation error, got %q", stderr.String())
+	}
+}
+
+func TestDevSimCommandHelp(t *testing.T) {
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"dev-sim", "--help"}, &stderr)
+
+	if code != 0 {
+		t.Fatalf("expected help exit code 0, got %d stderr %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "wkbench dev-sim") || !strings.Contains(stderr.String(), "--status-listen") {
+		t.Fatalf("expected dev-sim help, got %q", stderr.String())
+	}
+}
+
 func writeWkbenchTempFile(t *testing.T, content string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.yaml")
