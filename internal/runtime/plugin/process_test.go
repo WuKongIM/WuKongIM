@@ -88,6 +88,67 @@ func TestProcessStopReturnsKillErrorWithoutBlocking(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestProcessStartDoesNotTieProcessLifetimeToCallerContext(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args.txt")
+	t.Setenv("WK_PLUGIN_PROCESS_HELPER", "1")
+	t.Setenv("WK_PLUGIN_ARGS_FILE", argsFile)
+	manager := NewProcessManager(ProcessOptions{
+		SocketPath:  filepath.Join(dir, "plugin.sock"),
+		SandboxDir:  filepath.Join(dir, "sandbox"),
+		StopTimeout: 10 * time.Millisecond,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+
+	handle, err := manager.Start(ctx, ProcessSpec{No: "ctx", Path: os.Args[0]})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = manager.Stop(context.Background(), handle, nil) })
+	cancel()
+
+	require.Never(t, func() bool {
+		select {
+		case <-handle.done:
+			return true
+		default:
+			return false
+		}
+	}, 100*time.Millisecond, 10*time.Millisecond)
+}
+
+func TestProcessStopKillsWhenStopFuncBlocks(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("WK_PLUGIN_PROCESS_HELPER", "1")
+	manager := NewProcessManager(ProcessOptions{
+		SocketPath:  filepath.Join(dir, "plugin.sock"),
+		SandboxDir:  filepath.Join(dir, "sandbox"),
+		StopTimeout: 10 * time.Millisecond,
+	})
+	handle, err := manager.Start(context.Background(), ProcessSpec{No: "blocking-stop", Path: os.Args[0]})
+	require.NoError(t, err)
+	stopStarted := make(chan struct{})
+	finished := make(chan error, 1)
+
+	go func() {
+		finished <- manager.Stop(context.Background(), handle, func(ctx context.Context, no string) error {
+			close(stopStarted)
+			<-ctx.Done()
+			return ctx.Err()
+		})
+	}()
+
+	select {
+	case <-stopStarted:
+	case <-time.After(time.Second):
+		t.Fatal("stop callback was not invoked")
+	}
+	select {
+	case err := <-finished:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not kill process after timeout while StopFunc blocked")
+	}
+}
+
 func TestProcessStopInvokesCallbackThenKillsAfterTimeout(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("WK_PLUGIN_PROCESS_HELPER", "1")
@@ -99,13 +160,17 @@ func TestProcessStopInvokesCallbackThenKillsAfterTimeout(t *testing.T) {
 	handle, err := manager.Start(context.Background(), ProcessSpec{No: "beta", Path: os.Args[0]})
 	require.NoError(t, err)
 
-	called := false
+	called := make(chan struct{})
 	err = manager.Stop(context.Background(), handle, func(ctx context.Context, no string) error {
-		called = true
+		close(called)
 		require.Equal(t, "beta", no)
 		return nil
 	})
 
 	require.NoError(t, err)
-	require.True(t, called)
+	select {
+	case <-called:
+	default:
+		t.Fatal("stop callback was not invoked")
+	}
 }

@@ -37,6 +37,20 @@ func TestWatcherDebouncerIgnoresNonPluginFiles(t *testing.T) {
 	require.Empty(t, requests)
 }
 
+func TestWatcherDebouncerStopCancelsPendingEvents(t *testing.T) {
+	scheduler := &manualDebounceScheduler{}
+	var requests []RestartRequest
+	debouncer := newPluginDebouncer(time.Millisecond, scheduler, func(req RestartRequest) {
+		requests = append(requests, req)
+	})
+
+	debouncer.HandlePath(filepath.Join(t.TempDir(), "alpha.wkp"))
+	debouncer.Stop()
+	scheduler.FireAll()
+
+	require.Empty(t, requests)
+}
+
 type manualDebounceScheduler struct {
 	funcs []func()
 }

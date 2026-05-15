@@ -49,6 +49,7 @@ type pluginDebouncer struct {
 
 	mu      sync.Mutex
 	nextSeq uint64
+	stopped bool
 	pending map[string]debouncedEntry
 }
 
@@ -74,6 +75,9 @@ func (d *pluginDebouncer) HandlePath(path string) {
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if d.stopped {
+		return
+	}
 	if existing, ok := d.pending[cleanPath]; ok && existing.timer != nil {
 		existing.timer.Stop()
 	}
@@ -86,15 +90,26 @@ func (d *pluginDebouncer) HandlePath(path string) {
 
 func (d *pluginDebouncer) fire(path string, seq uint64) {
 	d.mu.Lock()
+	defer d.mu.Unlock()
 	entry, ok := d.pending[path]
-	if !ok || entry.seq != seq {
-		d.mu.Unlock()
+	if d.stopped || !ok || entry.seq != seq {
 		return
 	}
 	delete(d.pending, path)
-	d.mu.Unlock()
 	if d.emit != nil {
 		d.emit(entry.req)
+	}
+}
+
+func (d *pluginDebouncer) Stop() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.stopped = true
+	for path, entry := range d.pending {
+		if entry.timer != nil {
+			entry.timer.Stop()
+		}
+		delete(d.pending, path)
 	}
 }
 
@@ -146,16 +161,17 @@ func (w *Watcher) Start(ctx context.Context) error {
 		return fmt.Errorf("watch plugin dir %q: %w", w.dir, err)
 	}
 	watchCtx, cancel := context.WithCancel(ctx)
-	w.watcher = watcher
-	w.cancel = cancel
-	w.done = make(chan struct{})
-	w.debouncer = newPluginDebouncer(w.delay, nil, func(req RestartRequest) {
+	debouncer := newPluginDebouncer(w.delay, nil, func(req RestartRequest) {
 		if w.onRestart != nil {
 			w.onRestart(watchCtx, req.PluginNo)
 		}
 	})
+	w.watcher = watcher
+	w.cancel = cancel
+	w.done = make(chan struct{})
+	w.debouncer = debouncer
 	w.started = true
-	go w.run(watchCtx, watcher, w.done)
+	go w.run(watchCtx, watcher, debouncer, w.done)
 	return nil
 }
 
@@ -168,10 +184,12 @@ func (w *Watcher) Stop() {
 	}
 	cancel := w.cancel
 	watcher := w.watcher
+	debouncer := w.debouncer
 	done := w.done
 	w.started = false
 	w.cancel = nil
 	w.watcher = nil
+	w.debouncer = nil
 	w.done = nil
 	w.mu.Unlock()
 
@@ -181,12 +199,15 @@ func (w *Watcher) Stop() {
 	if watcher != nil {
 		_ = watcher.Close()
 	}
+	if debouncer != nil {
+		debouncer.Stop()
+	}
 	if done != nil {
 		<-done
 	}
 }
 
-func (w *Watcher) run(ctx context.Context, watcher *fsnotify.Watcher, done chan struct{}) {
+func (w *Watcher) run(ctx context.Context, watcher *fsnotify.Watcher, debouncer *pluginDebouncer, done chan struct{}) {
 	defer close(done)
 	for {
 		select {
@@ -197,7 +218,7 @@ func (w *Watcher) run(ctx context.Context, watcher *fsnotify.Watcher, done chan 
 				return
 			}
 			if event.Has(fsnotify.Create) || event.Has(fsnotify.Write) {
-				w.debouncer.HandlePath(event.Name)
+				debouncer.HandlePath(event.Name)
 			}
 		case _, ok := <-watcher.Errors:
 			if !ok {

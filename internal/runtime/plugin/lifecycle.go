@@ -279,6 +279,9 @@ func (r *Runtime) Restart(ctx context.Context, pluginNo string) error {
 
 // Uninstall stops a local plugin, disables desired state, and removes binaries under Dir.
 func (r *Runtime) Uninstall(ctx context.Context, pluginNo string) error {
+	if !r.enable {
+		return nil
+	}
 	if err := validatePluginNo(pluginNo); err != nil {
 		return err
 	}

@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -36,10 +37,14 @@ type socketBackend interface {
 	Send(uid string, msg *wkrpcproto.Message) error
 }
 
+const defaultSocketReadyTimeout = 2 * time.Second
+
 // WKRPCSocketServer wraps a wkrpc Unix socket server without registering business routes.
 type WKRPCSocketServer struct {
-	socketPath string
-	backend    socketBackend
+	socketPath   string
+	backend      socketBackend
+	readyTimeout time.Duration
+	readyCheck   func(string, time.Duration) error
 
 	mu      sync.Mutex
 	started bool
@@ -51,7 +56,12 @@ func NewSocketServer(socketPath string) *WKRPCSocketServer {
 }
 
 func newSocketServerWithBackend(socketPath string, backend socketBackend) *WKRPCSocketServer {
-	return &WKRPCSocketServer{socketPath: socketPath, backend: backend}
+	return &WKRPCSocketServer{
+		socketPath:   socketPath,
+		backend:      backend,
+		readyTimeout: defaultSocketReadyTimeout,
+		readyCheck:   waitUnixSocketReady,
+	}
 }
 
 // Route registers a host RPC route on the underlying wkrpc server.
@@ -69,14 +79,55 @@ func (s *WKRPCSocketServer) Start() error {
 	if err := os.MkdirAll(filepath.Dir(s.socketPath), 0o755); err != nil {
 		return fmt.Errorf("create plugin socket dir: %w", err)
 	}
-	if err := os.Remove(s.socketPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("remove stale plugin socket %q: %w", s.socketPath, err)
+	if err := removeStaleSocket(s.socketPath); err != nil {
+		return err
 	}
 	if err := s.backend.Start(); err != nil {
 		return fmt.Errorf("start plugin socket %q: %w", s.socketPath, err)
 	}
+	if err := s.readyCheck(s.socketPath, s.readyTimeout); err != nil {
+		s.backend.Stop()
+		return err
+	}
 	s.started = true
 	return nil
+}
+
+func removeStaleSocket(socketPath string) error {
+	info, err := os.Lstat(socketPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("stat plugin socket %q: %w", socketPath, err)
+	}
+	if info.Mode()&os.ModeSocket == 0 {
+		return fmt.Errorf("plugin socket path %q exists and is not a socket", socketPath)
+	}
+	if err := os.Remove(socketPath); err != nil {
+		return fmt.Errorf("remove stale plugin socket %q: %w", socketPath, err)
+	}
+	return nil
+}
+
+func waitUnixSocketReady(socketPath string, timeout time.Duration) error {
+	if timeout <= 0 {
+		timeout = defaultSocketReadyTimeout
+	}
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for {
+		conn, err := net.DialTimeout("unix", socketPath, 10*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		lastErr = err
+		if time.Now().After(deadline) {
+			return fmt.Errorf("wait plugin socket %q ready: %w", socketPath, lastErr)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 // Stop stops the underlying socket server once.

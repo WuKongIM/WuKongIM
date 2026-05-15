@@ -69,7 +69,10 @@ func (m *ProcessManager) Start(ctx context.Context, spec ProcessSpec) (*ProcessH
 	if err := os.MkdirAll(sandboxPath, 0o755); err != nil {
 		return nil, fmt.Errorf("create plugin sandbox %q: %w", sandboxPath, err)
 	}
-	cmd := exec.CommandContext(ctx, spec.Path, "--socket", m.socketPath, "--sandbox", sandboxPath)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(spec.Path, "--socket", m.socketPath, "--sandbox", sandboxPath)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start plugin %q: %w", spec.No, err)
 	}
@@ -85,8 +88,23 @@ func (m *ProcessManager) Stop(ctx context.Context, handle *ProcessHandle, stop S
 	if handle == nil || handle.cmd == nil || handle.cmd.Process == nil {
 		return nil
 	}
+	timeout := m.stopTimeout
+	if timeout <= 0 {
+		timeout = defaultProcessStopTimeout
+	}
+	stopCtx, stopCancel := context.WithCancel(ctx)
+	defer stopCancel()
 	if stop != nil {
-		_ = stop(ctx, handle.Spec.No)
+		stopStarted := make(chan struct{})
+		go func() {
+			close(stopStarted)
+			_ = stop(stopCtx, handle.Spec.No)
+		}()
+		select {
+		case <-stopStarted:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 	select {
 	case <-handle.done:
@@ -94,21 +112,19 @@ func (m *ProcessManager) Stop(ctx context.Context, handle *ProcessHandle, stop S
 	default:
 	}
 
-	timeout := m.stopTimeout
-	if timeout <= 0 {
-		timeout = defaultProcessStopTimeout
-	}
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {
 	case <-handle.done:
 		return nil
 	case <-ctx.Done():
+		stopCancel()
 		if err := handle.cmd.Process.Kill(); err == nil {
 			<-handle.done
 		}
 		return ctx.Err()
 	case <-timer.C:
+		stopCancel()
 		if err := handle.cmd.Process.Kill(); err != nil {
 			if tryReceiveProcessDone(handle) {
 				return nil
