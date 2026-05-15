@@ -199,10 +199,8 @@ func TestLifecycleCloseEventDoesNotBlockOnUsecase(t *testing.T) {
 
 	select {
 	case <-returned:
-	case <-started:
-		t.Fatal("close handler waited for blocked ClosePlugin")
 	case <-time.After(time.Second):
-		t.Fatal("close handler did not return")
+		t.Fatal("close handler did not return before blocked ClosePlugin was released")
 	}
 	if ctx.ok {
 		t.Fatal("close event should not write OK to a closing connection")
@@ -213,6 +211,30 @@ func TestLifecycleCloseEventDoesNotBlockOnUsecase(t *testing.T) {
 		t.Fatal("ClosePlugin was not started asynchronously")
 	}
 	close(block)
+}
+
+func TestLifecycleCloseEventLogsCleanupError(t *testing.T) {
+	logger := newRecordingLogger()
+	uc := &fakeUsecase{closeErr: errors.New("cleanup failed")}
+	srv, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: uc, Timeout: time.Second, Logger: logger})
+	if err != nil {
+		t.Fatalf("NewServer returned error: %v", err)
+	}
+	ctx := newFakeCloseEventContext(nil)
+	ctx.uid = "plug-close"
+
+	srv.handlePath("/close", ctx)
+
+	logger.waitWarn(t)
+	if logger.lastWarnMsg != "plugin close event cleanup failed" {
+		t.Fatalf("warn msg = %q", logger.lastWarnMsg)
+	}
+	if got := logger.warnFieldValue("pluginNo"); got != "plug-close" {
+		t.Fatalf("logged pluginNo = %#v", got)
+	}
+	if got := logger.warnFieldValue("error"); got == nil {
+		t.Fatal("expected logged error field")
+	}
 }
 
 func TestLifecycleCloseCallsUsecaseAndWritesOK(t *testing.T) {
@@ -302,7 +324,7 @@ func TestCodecRejectsBodyLargerThanMaxOnCloseAndStream(t *testing.T) {
 }
 
 func TestStreamRoutesLogPathAndPluginNumber(t *testing.T) {
-	logger := &recordingLogger{}
+	logger := newRecordingLogger()
 	srv, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: &fakeUsecase{}, Timeout: time.Second, Logger: logger})
 	if err != nil {
 		t.Fatalf("NewServer returned error: %v", err)
@@ -550,17 +572,30 @@ func newFakeRequestContext(body []byte) *fakeRequestContext {
 
 func (f *fakeRequestContext) CloseEvent() bool { return false }
 
+func newRecordingLogger() *recordingLogger {
+	return &recordingLogger{warned: make(chan struct{})}
+}
+
 type recordingLogger struct {
-	lastMsg    string
-	lastFields []wklog.Field
+	lastMsg       string
+	lastFields    []wklog.Field
+	lastWarnMsg   string
+	lastWarnField []wklog.Field
+	warned        chan struct{}
 }
 
 func (r *recordingLogger) Debug(msg string, fields ...wklog.Field) {
 	r.lastMsg = msg
 	r.lastFields = append([]wklog.Field(nil), fields...)
 }
-func (r *recordingLogger) Info(msg string, fields ...wklog.Field)  {}
-func (r *recordingLogger) Warn(msg string, fields ...wklog.Field)  {}
+func (r *recordingLogger) Info(msg string, fields ...wklog.Field) {}
+func (r *recordingLogger) Warn(msg string, fields ...wklog.Field) {
+	r.lastWarnMsg = msg
+	r.lastWarnField = append([]wklog.Field(nil), fields...)
+	if r.warned != nil {
+		close(r.warned)
+	}
+}
 func (r *recordingLogger) Error(msg string, fields ...wklog.Field) {}
 func (r *recordingLogger) Fatal(msg string, fields ...wklog.Field) {}
 func (r *recordingLogger) Named(string) wklog.Logger               { return r }
@@ -568,7 +603,24 @@ func (r *recordingLogger) With(fields ...wklog.Field) wklog.Logger { return r }
 func (r *recordingLogger) Sync() error                             { return nil }
 
 func (r *recordingLogger) fieldValue(key string) any {
-	for _, field := range r.lastFields {
+	return fieldValue(r.lastFields, key)
+}
+
+func (r *recordingLogger) warnFieldValue(key string) any {
+	return fieldValue(r.lastWarnField, key)
+}
+
+func (r *recordingLogger) waitWarn(t *testing.T) {
+	t.Helper()
+	select {
+	case <-r.warned:
+	case <-time.After(time.Second):
+		t.Fatal("logger did not record warning")
+	}
+}
+
+func fieldValue(fields []wklog.Field, key string) any {
+	for _, field := range fields {
 		if field.Key == key {
 			return field.Value
 		}
@@ -588,6 +640,7 @@ type fakeUsecase struct {
 	closeCaller   string
 	closeStarted  chan struct{}
 	closeBlock    <-chan struct{}
+	closeErr      error
 
 	sendCalls int
 }
@@ -617,7 +670,7 @@ func (f *fakeUsecase) ClosePlugin(ctx context.Context, pluginNo string, callerUI
 			return ctx.Err()
 		}
 	}
-	return nil
+	return f.closeErr
 }
 
 func (f *fakeUsecase) SendMessage(ctx context.Context, req *pluginproto.SendReq, callerUID string) (*pluginproto.SendResp, error) {
