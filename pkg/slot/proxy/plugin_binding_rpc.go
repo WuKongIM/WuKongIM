@@ -7,7 +7,6 @@ import (
 	"sort"
 	"time"
 
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -24,6 +23,8 @@ const (
 	pluginBindingRPCExistsByUID    = "exists_by_uid"
 
 	pluginBindingScanMaxLimit = 1024
+
+	pluginBindingProxyMaxKeyStringLen = 1<<16 - 1
 )
 
 type pluginBindingRPCRequest struct {
@@ -169,8 +170,8 @@ func (s *Store) ListPluginBindingsByPluginNo(ctx context.Context, pluginNo, curs
 	if err != nil {
 		return nil, "", false, err
 	}
-	if after != pluginBindingEmptyPageCursor && after.Binding.PluginNo != pluginNo {
-		return nil, "", false, metadb.ErrInvalidArgument
+	if err := s.validatePluginBindingPageCursor(pluginNo, after); err != nil {
+		return nil, "", false, err
 	}
 
 	slotIDs := append([]multiraft.SlotID(nil), s.cluster.SlotIDs()...)
@@ -179,11 +180,11 @@ func (s *Store) ListPluginBindingsByPluginNo(ctx context.Context, pluginNo, curs
 	for _, slotID := range slotIDs {
 		hashSlots := append([]uint16(nil), s.cluster.HashSlotsOf(slotID)...)
 		if len(hashSlots) == 0 {
-			return nil, "", false, raftcluster.ErrSlotNotFound
+			continue
 		}
 		sort.Slice(hashSlots, func(i, j int) bool { return hashSlots[i] < hashSlots[j] })
 		for _, hashSlot := range hashSlots {
-			item, ok, err := s.loadPluginBindingMergeItem(ctx, slotID, hashSlot, pluginNo, after.Binding)
+			item, ok, err := s.loadPluginBindingMergeItem(ctx, slotID, hashSlot, pluginNo, after)
 			if err != nil {
 				return nil, "", false, err
 			}
@@ -206,7 +207,7 @@ func (s *Store) ListPluginBindingsByPluginNo(ctx context.Context, pluginNo, curs
 		if item.Done {
 			continue
 		}
-		nextItem, ok, err := s.loadPluginBindingMergeItem(ctx, item.SlotID, item.HashSlot, pluginNo, item.Cursor)
+		nextItem, ok, err := s.loadPluginBindingMergeItem(ctx, item.SlotID, item.HashSlot, pluginNo, pluginBindingPageCursor{SlotID: item.SlotID, HashSlot: item.HashSlot, Binding: item.Cursor})
 		if err != nil {
 			return nil, "", false, err
 		}
@@ -299,6 +300,9 @@ func (s *Store) handlePluginBindingRPC(ctx context.Context, body []byte) ([]byte
 			Exists: exists,
 		})
 	case pluginBindingRPCScanByPluginNo:
+		if !pluginBindingHashSlotOwnedBySlot(s.cluster, slotID, hashSlot) {
+			return nil, metadb.ErrInvalidArgument
+		}
 		after := metadb.PluginUserBindingCursor{}
 		if req.After != nil {
 			after = metadb.PluginUserBindingCursor{PluginNo: req.After.PluginNo, UID: req.After.UID}
@@ -360,21 +364,34 @@ func (s *Store) scanPluginBindingsSlotHashSlot(ctx context.Context, slotID multi
 	return append([]metadb.PluginUserBinding(nil), resp.Bindings...), metadb.PluginUserBindingCursor{PluginNo: resp.Cursor.PluginNo, UID: resp.Cursor.UID}, resp.Done, nil
 }
 
-func (s *Store) loadPluginBindingMergeItem(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, pluginNo string, after metadb.PluginUserBindingCursor) (pluginBindingMergeItem, bool, error) {
-	bindings, cursor, done, err := s.scanPluginBindingsSlotHashSlot(ctx, slotID, hashSlot, pluginNo, after, 1)
-	if err != nil {
-		return pluginBindingMergeItem{}, false, err
+func (s *Store) loadPluginBindingMergeItem(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, pluginNo string, after pluginBindingPageCursor) (pluginBindingMergeItem, bool, error) {
+	shardAfter := metadb.PluginUserBindingCursor{}
+	if after != pluginBindingEmptyPageCursor && !pluginBindingShardAfterCursor(slotID, hashSlot, after) {
+		shardAfter = after.Binding
 	}
-	if len(bindings) == 0 {
-		return pluginBindingMergeItem{}, false, nil
+	for {
+		bindings, cursor, done, err := s.scanPluginBindingsSlotHashSlot(ctx, slotID, hashSlot, pluginNo, shardAfter, 1)
+		if err != nil {
+			return pluginBindingMergeItem{}, false, err
+		}
+		if len(bindings) == 0 {
+			return pluginBindingMergeItem{}, false, nil
+		}
+		item := pluginBindingMergeItem{
+			SlotID:   slotID,
+			HashSlot: hashSlot,
+			Binding:  bindings[0],
+			Cursor:   cursor,
+			Done:     done,
+		}
+		if pluginBindingItemAfterCursor(item, after) {
+			return item, true, nil
+		}
+		if done {
+			return pluginBindingMergeItem{}, false, nil
+		}
+		shardAfter = cursor
 	}
-	return pluginBindingMergeItem{
-		SlotID:   slotID,
-		HashSlot: hashSlot,
-		Binding:  bindings[0],
-		Cursor:   cursor,
-		Done:     done,
-	}, true, nil
 }
 
 func pluginBindingRPCCursorPtr(cursor metadb.PluginUserBindingCursor) *pluginBindingRPCCursor {
@@ -385,10 +402,71 @@ func pluginBindingRPCCursorPtr(cursor metadb.PluginUserBindingCursor) *pluginBin
 }
 
 func validatePluginBindingInput(uid, pluginNo string) error {
-	if uid == "" || pluginNo == "" {
+	if err := validatePluginBindingUID(uid); err != nil {
+		return err
+	}
+	return validatePluginBindingPluginNo(pluginNo)
+}
+
+func validatePluginBindingUID(uid string) error {
+	if uid == "" || len(uid) > pluginBindingProxyMaxKeyStringLen {
 		return metadb.ErrInvalidArgument
 	}
 	return nil
+}
+
+func validatePluginBindingPluginNo(pluginNo string) error {
+	if pluginNo == "" || len(pluginNo) > pluginBindingProxyMaxKeyStringLen {
+		return metadb.ErrInvalidArgument
+	}
+	return nil
+}
+
+func (s *Store) validatePluginBindingPageCursor(pluginNo string, cursor pluginBindingPageCursor) error {
+	if cursor == pluginBindingEmptyPageCursor {
+		return nil
+	}
+	if cursor.Binding.PluginNo != pluginNo || cursor.Binding.UID == "" {
+		return metadb.ErrInvalidArgument
+	}
+	if !pluginBindingHashSlotOwnedBySlot(s.cluster, cursor.SlotID, cursor.HashSlot) {
+		return metadb.ErrInvalidArgument
+	}
+	return nil
+}
+
+func pluginBindingHashSlotOwnedBySlot(cluster interface {
+	HashSlotsOf(multiraft.SlotID) []uint16
+}, slotID multiraft.SlotID, hashSlot uint16) bool {
+	for _, owned := range cluster.HashSlotsOf(slotID) {
+		if owned == hashSlot {
+			return true
+		}
+	}
+	return false
+}
+
+func pluginBindingShardAfterCursor(slotID multiraft.SlotID, hashSlot uint16, cursor pluginBindingPageCursor) bool {
+	if slotID != cursor.SlotID {
+		return slotID > cursor.SlotID
+	}
+	return hashSlot > cursor.HashSlot
+}
+
+func pluginBindingItemAfterCursor(item pluginBindingMergeItem, cursor pluginBindingPageCursor) bool {
+	if cursor == pluginBindingEmptyPageCursor {
+		return true
+	}
+	if item.Binding.PluginNo != cursor.Binding.PluginNo {
+		return item.Binding.PluginNo > cursor.Binding.PluginNo
+	}
+	if item.Binding.UID != cursor.Binding.UID {
+		return item.Binding.UID > cursor.Binding.UID
+	}
+	if item.SlotID != cursor.SlotID {
+		return item.SlotID > cursor.SlotID
+	}
+	return item.HashSlot > cursor.HashSlot
 }
 
 type pluginBindingMergeItem struct {
