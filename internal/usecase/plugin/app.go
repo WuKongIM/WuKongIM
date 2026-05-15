@@ -36,12 +36,18 @@ func NewApp(opts Options) (*App, error) {
 }
 
 // StartPlugin records plugin startup metadata and returns node-local startup settings.
-func (a *App) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, _ string) (*pluginproto.StartupResp, error) {
+func (a *App) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, callerUID string) (*pluginproto.StartupResp, error) {
 	if info == nil {
 		return nil, ErrPluginInfoRequired
 	}
 	if info.GetNo() == "" {
 		return nil, ErrPluginNoRequired
+	}
+	if err := validatePluginNo(info.GetNo()); err != nil {
+		return nil, err
+	}
+	if callerUID != "" && callerUID != info.GetNo() {
+		return nil, fmt.Errorf("%w: caller %q plugin %q", ErrPluginIdentityMismatch, callerUID, info.GetNo())
 	}
 
 	sandboxDir, err := a.runtime.SandboxDir(info.GetNo())
@@ -69,13 +75,24 @@ func (a *App) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, _ s
 		Enabled:           true,
 		LastSeenAt:        a.now(),
 	}
-	if err := a.runtime.RegisterObserved(ctx, observed); err != nil {
-		return nil, fmt.Errorf("register observed plugin %q: %w", info.GetNo(), err)
-	}
 
 	state, err := a.store.Get(ctx, info.GetNo())
 	if err != nil && !errors.Is(err, ErrDesiredPluginNotFound) {
 		return nil, fmt.Errorf("load desired plugin %q: %w", info.GetNo(), err)
+	}
+	enabled := true
+	status := StatusRunning
+	if err == nil && !state.Enabled {
+		enabled = false
+		status = StatusDisabled
+	}
+	observed.Enabled = enabled
+	observed.Status = status
+	if !enabled {
+		observed.PID = 0
+	}
+	if err := a.runtime.RegisterObserved(ctx, observed); err != nil {
+		return nil, fmt.Errorf("register observed plugin %q: %w", info.GetNo(), err)
 	}
 	var config []byte
 	if err == nil && len(state.Config) > 0 {
@@ -93,6 +110,9 @@ func (a *App) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, _ s
 func (a *App) ClosePlugin(ctx context.Context, no string, _ string) error {
 	if no == "" {
 		return ErrPluginNoRequired
+	}
+	if err := validatePluginNo(no); err != nil {
+		return err
 	}
 	observed, ok := a.runtime.Get(no)
 	if !ok {
@@ -124,6 +144,9 @@ func (a *App) GetLocalPlugin(ctx context.Context, no string) (LocalPluginDetail,
 	if no == "" {
 		return LocalPluginDetail{}, ErrPluginNoRequired
 	}
+	if err := validatePluginNo(no); err != nil {
+		return LocalPluginDetail{}, err
+	}
 	observed, ok := a.runtime.Get(no)
 	if !ok {
 		return LocalPluginDetail{}, fmt.Errorf("%w: %s", ErrPluginNotFound, no)
@@ -136,6 +159,9 @@ func (a *App) RestartLocalPlugin(ctx context.Context, no string) (LocalPluginDet
 	if no == "" {
 		return LocalPluginDetail{}, ErrPluginNoRequired
 	}
+	if err := validatePluginNo(no); err != nil {
+		return LocalPluginDetail{}, err
+	}
 	if err := a.runtime.Restart(ctx, no); err != nil {
 		return LocalPluginDetail{}, err
 	}
@@ -147,22 +173,47 @@ func (a *App) UninstallLocalPlugin(ctx context.Context, no string) error {
 	if no == "" {
 		return ErrPluginNoRequired
 	}
+	if err := validatePluginNo(no); err != nil {
+		return err
+	}
+	existing, err := a.store.Get(ctx, no)
+	if err != nil && !errors.Is(err, ErrDesiredPluginNotFound) {
+		return fmt.Errorf("load desired plugin %q: %w", no, err)
+	}
+	now := a.now()
+	state := DesiredPlugin{No: no, Enabled: false, CreatedAt: now, UpdatedAt: now}
+	if err == nil {
+		state = existing
+		state.Enabled = false
+		state.UpdatedAt = now
+		if state.CreatedAt.IsZero() {
+			state.CreatedAt = now
+		}
+	}
+	if err := a.store.Save(ctx, state); err != nil {
+		return fmt.Errorf("save disabled desired plugin %q: %w", no, err)
+	}
 	return a.runtime.Uninstall(ctx, no)
 }
 
 // SendPluginCandidates returns running local Send plugins in hook order.
-func (a *App) SendPluginCandidates() []ObservedPlugin {
-	return RunningPluginsByMethod(a.runtime.List(), MethodSend)
+func (a *App) SendPluginCandidates(ctx context.Context) ([]ObservedPlugin, error) {
+	return a.runningCandidates(ctx, MethodSend)
 }
 
 // PersistAfterPluginCandidates returns running local PersistAfter plugins in hook order.
-func (a *App) PersistAfterPluginCandidates() []ObservedPlugin {
-	return RunningPluginsByMethod(a.runtime.List(), MethodPersistAfter)
+func (a *App) PersistAfterPluginCandidates(ctx context.Context) ([]ObservedPlugin, error) {
+	return a.runningCandidates(ctx, MethodPersistAfter)
 }
 
 // BoundReceivePlugin returns the highest-priority running Receive plugin in the bound set.
-func (a *App) BoundReceivePlugin(boundPluginNos []string) (ObservedPlugin, bool) {
-	return SelectReceivePlugin(a.runtime.List(), boundPluginNos)
+func (a *App) BoundReceivePlugin(ctx context.Context, boundPluginNos []string) (ObservedPlugin, bool, error) {
+	plugins, err := a.applyDesiredEnabled(ctx, a.runtime.List())
+	if err != nil {
+		return ObservedPlugin{}, false, err
+	}
+	plugin, ok := SelectReceivePlugin(plugins, boundPluginNos)
+	return plugin, ok, nil
 }
 
 func (a *App) localPluginFromObserved(ctx context.Context, observed ObservedPlugin) (LocalPluginDetail, error) {
@@ -185,7 +236,13 @@ func (a *App) localPluginFromObservedAndDesired(observed ObservedPlugin, desired
 	var config map[string]any
 	var createdAt *time.Time
 	var updatedAt *time.Time
+	enabled := observed.Enabled
+	status := observed.Status
 	if desired != nil {
+		enabled = desired.Enabled
+		if !enabled {
+			status = StatusDisabled
+		}
 		config, err = redactedConfig(desired.Config, template)
 		if err != nil {
 			return LocalPluginDetail{}, fmt.Errorf("decode desired config %q: %w", observed.No, err)
@@ -208,8 +265,8 @@ func (a *App) localPluginFromObservedAndDesired(observed ObservedPlugin, desired
 		Config:           config,
 		CreatedAt:        createdAt,
 		UpdatedAt:        updatedAt,
-		Status:           observed.Status,
-		Enabled:          observed.Enabled,
+		Status:           status,
+		Enabled:          enabled,
 		Methods:          append([]Method(nil), observed.Methods...),
 		Priority:         observed.Priority,
 		PersistAfterSync: observed.PersistAfterSync,
@@ -252,4 +309,47 @@ func isAI(plugin ObservedPlugin) uint8 {
 		return 1
 	}
 	return 0
+}
+
+func (a *App) runningCandidates(ctx context.Context, method Method) ([]ObservedPlugin, error) {
+	plugins, err := a.applyDesiredEnabled(ctx, a.runtime.List())
+	if err != nil {
+		return nil, err
+	}
+	return RunningPluginsByMethod(plugins, method), nil
+}
+
+func (a *App) applyDesiredEnabled(ctx context.Context, observed []ObservedPlugin) ([]ObservedPlugin, error) {
+	plugins := make([]ObservedPlugin, 0, len(observed))
+	for _, plugin := range observed {
+		effective, err := a.applyDesiredEnabledToPlugin(ctx, plugin)
+		if err != nil {
+			return nil, err
+		}
+		plugins = append(plugins, effective)
+	}
+	return plugins, nil
+}
+
+func (a *App) applyDesiredEnabledToPlugin(ctx context.Context, observed ObservedPlugin) (ObservedPlugin, error) {
+	state, err := a.store.Get(ctx, observed.No)
+	if errors.Is(err, ErrDesiredPluginNotFound) {
+		return observed, nil
+	}
+	if err != nil {
+		return ObservedPlugin{}, fmt.Errorf("load desired plugin %q: %w", observed.No, err)
+	}
+	if state.Enabled {
+		return observed, nil
+	}
+	observed.Enabled = false
+	observed.Status = StatusDisabled
+	return observed, nil
+}
+
+func validatePluginNo(no string) error {
+	if !pluginNoPattern.MatchString(no) {
+		return fmt.Errorf("%w: %q", ErrInvalidPluginNo, no)
+	}
+	return nil
 }
