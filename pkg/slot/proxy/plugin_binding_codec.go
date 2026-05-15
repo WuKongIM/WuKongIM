@@ -23,6 +23,7 @@ const (
 	pluginBindingRPCListByUIDID
 	pluginBindingRPCScanByPluginNoID
 	pluginBindingRPCExistsByUIDID
+	pluginBindingRPCGetInHashSlotID
 )
 
 func encodePluginBindingRPCRequestBinary(req pluginBindingRPCRequest) ([]byte, error) {
@@ -151,6 +152,8 @@ func pluginBindingOpID(op string) (byte, error) {
 		return pluginBindingRPCScanByPluginNoID, nil
 	case pluginBindingRPCExistsByUID:
 		return pluginBindingRPCExistsByUIDID, nil
+	case pluginBindingRPCGetInHashSlot:
+		return pluginBindingRPCGetInHashSlotID, nil
 	default:
 		return 0, fmt.Errorf("metastore: unknown plugin binding rpc op %q", op)
 	}
@@ -168,6 +171,8 @@ func pluginBindingOpFromID(op byte) (string, error) {
 		return pluginBindingRPCScanByPluginNo, nil
 	case pluginBindingRPCExistsByUIDID:
 		return pluginBindingRPCExistsByUID, nil
+	case pluginBindingRPCGetInHashSlotID:
+		return pluginBindingRPCGetInHashSlot, nil
 	default:
 		return "", fmt.Errorf("metastore: unknown plugin binding rpc op id %d", op)
 	}
