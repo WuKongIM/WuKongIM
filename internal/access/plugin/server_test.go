@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -123,6 +124,7 @@ func TestRegisteredHandlerDispatchesThroughWKRPCAdapter(t *testing.T) {
 	if got.NodeId != 9 || !got.Success {
 		t.Fatalf("startup response = %#v", &got)
 	}
+	uc.waitStartCalls(t, 1)
 	if uc.startInfo == nil || uc.startInfo.No != "registered" {
 		t.Fatalf("StartPlugin info = %#v", uc.startInfo)
 	}
@@ -582,6 +584,7 @@ type recordingLogger struct {
 	lastWarnMsg   string
 	lastWarnField []wklog.Field
 	warned        chan struct{}
+	warnOnce      sync.Once
 }
 
 func (r *recordingLogger) Debug(msg string, fields ...wklog.Field) {
@@ -593,7 +596,7 @@ func (r *recordingLogger) Warn(msg string, fields ...wklog.Field) {
 	r.lastWarnMsg = msg
 	r.lastWarnField = append([]wklog.Field(nil), fields...)
 	if r.warned != nil {
-		close(r.warned)
+		r.warnOnce.Do(func() { close(r.warned) })
 	}
 }
 func (r *recordingLogger) Error(msg string, fields ...wklog.Field) {}
@@ -629,6 +632,8 @@ func fieldValue(fields []wklog.Field, key string) any {
 }
 
 type fakeUsecase struct {
+	mu sync.Mutex
+
 	lastCtx context.Context
 
 	startupResp *pluginproto.StartupResp
@@ -646,61 +651,101 @@ type fakeUsecase struct {
 }
 
 func (f *fakeUsecase) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, callerUID string) (*pluginproto.StartupResp, error) {
+	f.mu.Lock()
 	f.lastCtx = ctx
 	f.startCalls++
 	f.startInfo = info
 	f.startCaller = callerUID
-	if f.startupResp != nil {
-		return f.startupResp, nil
+	resp := f.startupResp
+	f.mu.Unlock()
+	if resp != nil {
+		return resp, nil
 	}
 	return &pluginproto.StartupResp{Success: true}, nil
 }
 
+func (f *fakeUsecase) waitStartCalls(t *testing.T, want int) {
+	t.Helper()
+	deadline := time.After(time.Second)
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+	for {
+		f.mu.Lock()
+		got := f.startCalls
+		f.mu.Unlock()
+		if got >= want {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("StartPlugin calls = %d, want at least %d", got, want)
+		case <-tick.C:
+		}
+	}
+}
+
 func (f *fakeUsecase) ClosePlugin(ctx context.Context, pluginNo string, callerUID string) error {
+	f.mu.Lock()
 	f.lastCtx = ctx
 	f.closePluginNo = pluginNo
 	f.closeCaller = callerUID
-	if f.closeStarted != nil {
-		close(f.closeStarted)
+	started := f.closeStarted
+	block := f.closeBlock
+	closeErr := f.closeErr
+	f.mu.Unlock()
+	if started != nil {
+		close(started)
 	}
-	if f.closeBlock != nil {
+	if block != nil {
 		select {
-		case <-f.closeBlock:
+		case <-block:
 		case <-ctx.Done():
 			return ctx.Err()
 		}
 	}
-	return f.closeErr
+	return closeErr
 }
 
 func (f *fakeUsecase) SendMessage(ctx context.Context, req *pluginproto.SendReq, callerUID string) (*pluginproto.SendResp, error) {
+	f.mu.Lock()
 	f.lastCtx = ctx
 	f.sendCalls++
+	f.mu.Unlock()
 	return &pluginproto.SendResp{MessageId: 123}, nil
 }
 
 func (f *fakeUsecase) ChannelMessages(ctx context.Context, req *pluginproto.ChannelMessageBatchReq, callerUID string) (*pluginproto.ChannelMessageBatchResp, error) {
+	f.mu.Lock()
 	f.lastCtx = ctx
+	f.mu.Unlock()
 	return &pluginproto.ChannelMessageBatchResp{}, nil
 }
 
 func (f *fakeUsecase) HTTPForward(ctx context.Context, req *pluginproto.ForwardHttpReq, callerUID string) (*pluginproto.HttpResponse, error) {
+	f.mu.Lock()
 	f.lastCtx = ctx
+	f.mu.Unlock()
 	return &pluginproto.HttpResponse{}, nil
 }
 
 func (f *fakeUsecase) ClusterConfig(ctx context.Context, callerUID string) (*pluginproto.ClusterConfig, error) {
+	f.mu.Lock()
 	f.lastCtx = ctx
+	f.mu.Unlock()
 	return &pluginproto.ClusterConfig{}, nil
 }
 
 func (f *fakeUsecase) ClusterChannelsBelongNode(ctx context.Context, req *pluginproto.ClusterChannelBelongNodeReq, callerUID string) (*pluginproto.ClusterChannelBelongNodeBatchResp, error) {
+	f.mu.Lock()
 	f.lastCtx = ctx
+	f.mu.Unlock()
 	return &pluginproto.ClusterChannelBelongNodeBatchResp{}, nil
 }
 
 func (f *fakeUsecase) ConversationChannels(ctx context.Context, req *pluginproto.ConversationChannelReq, callerUID string) (*pluginproto.ConversationChannelResp, error) {
+	f.mu.Lock()
 	f.lastCtx = ctx
+	f.mu.Unlock()
 	return &pluginproto.ConversationChannelResp{}, nil
 }
 
