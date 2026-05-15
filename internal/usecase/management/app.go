@@ -13,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/metrics"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
@@ -317,6 +318,8 @@ type Options struct {
 	Network NetworkSnapshotReader
 	// Now returns the current time for manager aggregations.
 	Now func() time.Time
+	// MetricsRegistry provides the Prometheus metrics registry for the dashboard collector.
+	MetricsRegistry *metrics.Registry
 }
 
 // App serves manager-oriented read usecases.
@@ -348,6 +351,7 @@ type App struct {
 	messageRetention         MessageRetentionOperator
 	network                  NetworkSnapshotReader
 	now                      func() time.Time
+	dashCollector            *metrics.DashboardCollector
 }
 
 // New constructs the management usecase app.
@@ -360,6 +364,11 @@ func New(opts Options) *App {
 	scaleInRuntimeViewMaxAge := opts.ScaleInRuntimeViewMaxAge
 	if scaleInRuntimeViewMaxAge <= 0 {
 		scaleInRuntimeViewMaxAge = defaultScaleInRuntimeViewMaxAge
+	}
+	var dashCollector *metrics.DashboardCollector
+	if opts.MetricsRegistry != nil {
+		dashCollector = metrics.NewDashboardCollector(opts.MetricsRegistry)
+		dashCollector.Start()
 	}
 	return &App{
 		localNodeID:              opts.LocalNodeID,
@@ -389,6 +398,14 @@ func New(opts Options) *App {
 		messageRetention:         opts.MessageRetention,
 		network:                  opts.Network,
 		now:                      now,
+		dashCollector:            dashCollector,
+	}
+}
+
+// Stop shuts down background collectors owned by the management app.
+func (a *App) Stop() {
+	if a.dashCollector != nil {
+		a.dashCollector.Stop()
 	}
 }
 
