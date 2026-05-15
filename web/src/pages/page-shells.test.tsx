@@ -17,6 +17,7 @@ const getControllerLogsMock = vi.fn()
 const getControllerRaftStatusMock = vi.fn()
 const getSlotLogsMock = vi.fn()
 const getMessagesMock = vi.fn()
+const getRecentConversationsMock = vi.fn()
 const getSlotsMock = vi.fn()
 const getNodeOnboardingCandidatesMock = vi.fn()
 const getNodeOnboardingJobsMock = vi.fn()
@@ -47,6 +48,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getControllerRaftStatus: (...args: unknown[]) => getControllerRaftStatusMock(...args),
     getSlotLogs: (...args: unknown[]) => getSlotLogsMock(...args),
     getMessages: (...args: unknown[]) => getMessagesMock(...args),
+    getRecentConversations: (...args: unknown[]) => getRecentConversationsMock(...args),
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
     getNodeOnboardingCandidates: (...args: unknown[]) => getNodeOnboardingCandidatesMock(...args),
     getNodeOnboardingJobs: (...args: unknown[]) => getNodeOnboardingJobsMock(...args),
@@ -78,6 +80,7 @@ beforeEach(() => {
   getControllerRaftStatusMock.mockReset()
   getSlotLogsMock.mockReset()
   getMessagesMock.mockReset()
+  getRecentConversationsMock.mockReset()
   getSlotsMock.mockReset()
   getNodeOnboardingCandidatesMock.mockReset()
   getNodeOnboardingJobsMock.mockReset()
@@ -172,6 +175,7 @@ beforeEach(() => {
     has_more: false,
   })
   getMessagesMock.mockResolvedValue({ items: [], has_more: false })
+  getRecentConversationsMock.mockResolvedValue({ uid: "", limit: 50, msg_count: 1, only_unread: false, truncated: false, items: [] })
   getControllerLogsMock.mockResolvedValue({
     node_id: 1,
     first_index: 1,
@@ -361,6 +365,7 @@ it.each([
   ["/business/users", "User Management", "Users"],
   ["/business/channels", "Channel Management", "Business channels"],
   ["/business/messages", "Messages", "Channel ID"],
+  ["/business/conversations", "Recent Conversations", "Enter a UID to inspect recent conversations."],
   ["/business/system-users", "System Users", "Persisted system UIDs"],
   ["/system/permissions", "Permissions", "Authentication Summary"],
   ["/system/webhooks", "Webhook Configuration", "Coming Soon"],
@@ -405,6 +410,7 @@ it.each([
   ["/business/users", "BUSINESS / USERS"],
   ["/business/channels", "BUSINESS / CHANNELS"],
   ["/business/messages", "BUSINESS / MESSAGES"],
+  ["/business/conversations", "BUSINESS / CONVERSATIONS"],
   ["/business/system-users", "BUSINESS / SYSTEM USERS"],
   ["/system/permissions", "SYSTEM / PERMISSIONS"],
   ["/system/webhooks", "SYSTEM / WEBHOOKS"],
@@ -433,6 +439,7 @@ it.each([
   ["/business/users", "用户管理", "用户"],
   ["/business/channels", "频道管理", "业务频道"],
   ["/business/messages", "消息", "频道 ID"],
+  ["/business/conversations", "最近会话", "输入 UID 查看最近会话。"],
   ["/business/system-users", "系统用户", "持久化系统 UID"],
   ["/system/permissions", "权限管理", "认证摘要"],
   ["/system/webhooks", "Webhook 配置", "即将推出"],

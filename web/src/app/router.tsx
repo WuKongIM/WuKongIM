@@ -6,6 +6,7 @@ import { ChannelsBizPage } from "@/pages/channels-biz/page"
 import { ClusterChannelsPage } from "@/pages/cluster/channels/page"
 import { ClusterDiagnosticsPage } from "@/pages/cluster/diagnostics/page"
 import { ConnectionsPage } from "@/pages/connections/page"
+import { ConversationsPage } from "@/pages/conversations/page"
 import { DashboardPage } from "@/pages/dashboard/page"
 import { LoginPage } from "@/pages/login/page"
 import { MessagesPage } from "@/pages/messages/page"
@@ -61,6 +62,7 @@ export const routes: RouteObject[] = [
       { path: "business/users", element: <UsersPage /> },
       { path: "business/channels", element: <ChannelsBizPage /> },
       { path: "business/messages", element: <MessagesPage /> },
+      { path: "business/conversations", element: <ConversationsPage /> },
       { path: "business/system-users", element: <SystemUsersPage /> },
       // System
       { path: "system/permissions", element: <PermissionsPage /> },
@@ -83,6 +85,7 @@ export const routes: RouteObject[] = [
       { path: "users", element: <Navigate replace to="/business/users" /> },
       { path: "channels-biz", element: <Navigate replace to="/business/channels" /> },
       { path: "messages", element: <Navigate replace to="/business/messages" /> },
+      { path: "conversations", element: <Navigate replace to="/business/conversations" /> },
       { path: "system-users", element: <Navigate replace to="/business/system-users" /> },
       { path: "settings/permissions", element: <Navigate replace to="/system/permissions" /> },
       { path: "settings/webhooks", element: <Navigate replace to="/system/webhooks" /> },

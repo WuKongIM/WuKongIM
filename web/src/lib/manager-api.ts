@@ -34,6 +34,7 @@ import type {
   ManagerDistributedTasksSummaryResponse,
   ManagerLoginResponse,
   ManagerMessagesResponse,
+  ManagerRecentConversationsResponse,
   ManagerMonitorMetricsResponse,
   ManagerNetworkSummaryResponse,
   ManagerNodeOnboardingCandidatesResponse,
@@ -58,6 +59,7 @@ import type {
   ManagerTaskDetailResponse,
   ManagerTasksResponse,
   MessageListParams,
+  RecentConversationsParams,
   MutateSystemUsersInput,
   MutateSystemUsersResponse,
   NodeOnboardingJobsParams,
@@ -328,6 +330,21 @@ function buildMessageListPath(params: MessageListParams) {
     search.set("client_msg_no", params.clientMsgNo)
   }
   return `/manager/messages?${search.toString()}`
+}
+
+function buildRecentConversationsPath(params: RecentConversationsParams) {
+  const search = new URLSearchParams()
+  search.set("uid", params.uid)
+  if (typeof params.limit === "number") {
+    search.set("limit", String(params.limit))
+  }
+  if (typeof params.msgCount === "number") {
+    search.set("msg_count", String(params.msgCount))
+  }
+  if (typeof params.onlyUnread === "boolean") {
+    search.set("only_unread", String(params.onlyUnread))
+  }
+  return `/manager/conversations?${search.toString()}`
 }
 
 function applyDiagnosticsCommonParams(search: URLSearchParams, params?: DiagnosticsCommonParams) {
@@ -695,6 +712,10 @@ export function removeBusinessChannelMembers(
 
 export function getMessages(params: MessageListParams) {
   return jsonManagerFetch<ManagerMessagesResponse>(buildMessageListPath(params))
+}
+
+export function getRecentConversations(params: RecentConversationsParams) {
+  return jsonManagerFetch<ManagerRecentConversationsResponse>(buildRecentConversationsPath(params))
 }
 
 export function advanceMessageRetention(input: AdvanceMessageRetentionInput) {
