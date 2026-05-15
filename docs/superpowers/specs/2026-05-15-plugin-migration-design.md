@@ -121,17 +121,22 @@ The manager adapter adds plugin management routes protected by a new
 
 Suggested routes:
 
-- `GET /manager/plugins`
-- `GET /manager/plugins/:plugin_no`
-- `PUT /manager/plugins/:plugin_no/config`
-- `POST /manager/plugins/:plugin_no/restart`
-- `DELETE /manager/plugins/:plugin_no`
+- `GET /manager/nodes/:node_id/plugins`
+- `GET /manager/nodes/:node_id/plugins/:plugin_no`
+- `PUT /manager/nodes/:node_id/plugins/:plugin_no/config`
+- `POST /manager/nodes/:node_id/plugins/:plugin_no/restart`
+- `DELETE /manager/nodes/:node_id/plugins/:plugin_no`
 - `GET /manager/plugin-bindings?uid=...`
+- `GET /manager/plugin-bindings?plugin_no=...`
 - `POST /manager/plugin-bindings`
 - `DELETE /manager/plugin-bindings`
 
 Legacy admin paths such as `/plugin/bind` can be added later as thin adapters
 if an existing UI or script requires them.
+
+Plugin inventory, config, restart, and uninstall routes are node-scoped because
+plugin binaries and process state are node-local. Binding routes are not
+node-scoped because bindings are cluster-authoritative business metadata.
 
 ### 3.5 `internal/app`
 
@@ -140,8 +145,8 @@ The app composition root wires:
 - plugin runtime
 - plugin usecase
 - message Send hook
-- committed PersistAfter subscriber
-- delivery Receive observer
+- owner-routed committed PersistAfter side effect
+- delivery offline Receive observer
 - API and manager adapters
 
 No other package should create global plugin managers.
@@ -155,7 +160,7 @@ Plugin data is split by consistency requirements.
 Plugin binaries and plugin process state are node-local facts. Phase 1 stores
 manifest/config data in a local durable store owned by the plugin subsystem.
 
-Fields:
+Durable fields:
 
 - `No`
 - `Name`
@@ -166,13 +171,18 @@ Fields:
 - `ReplySync`
 - `ConfigTemplate`
 - `Config`
-- `Status`
+- `Enabled`
 - `CreatedAt`
 - `UpdatedAt`
-- `LastError`
 
 This state describes the plugin instance on one node. It is not a cluster-wide
 source of truth.
+
+Runtime observation stays outside the durable manifest/config record. `Status`,
+PID, connection state, methods from the latest handshake, and `LastError` are
+derived from the runtime registry or diagnostics. If operators need to disable a
+plugin persistently, the stored field is desired state (`Enabled`), not an
+ephemeral runtime status.
 
 ### 4.2 Cluster-Authoritative Plugin User Binding
 
@@ -199,10 +209,19 @@ Add proxy APIs:
 - `BindPluginUser(ctx, uid, pluginNo)`
 - `UnbindPluginUser(ctx, uid, pluginNo)`
 - `ListPluginBindingsByUID(ctx, uid)`
+- `ListPluginBindingsByPluginNo(ctx, pluginNo, cursor, limit)`
 - `ExistPluginBindingByUID(ctx, uid)`
 
 The UID is the slot key, so one user's plugin routing facts are owned by that
 user's authoritative slot in both single-node clusters and multi-node clusters.
+
+Bindings intentionally have no Raft-level foreign key to node-local plugin
+metadata. A binding may reference a plugin that is absent or stopped on a
+particular node. Bind-time validation can warn when the current node has no
+matching plugin, but it must not make the cluster metadata depend on a local
+binary. Runtime selection skips missing, disabled, or offline plugin instances
+and records diagnostics. Plugin-centric listing is required so operators can
+find stale bindings before uninstall or cleanup.
 
 ### 4.3 Priority Rule
 
@@ -214,6 +233,9 @@ Use one rule everywhere:
 
 `Send` and `PersistAfter` invoke matching global plugins from high priority to
 low priority.
+
+Equal priorities are ordered by `PluginNo` ascending to keep selection and hook
+chains deterministic.
 
 This intentionally fixes the legacy inconsistency where one path sorted
 ascending while the documentation described larger priority values as higher.
@@ -232,13 +254,15 @@ node.
 
 ## 5.1 Send
 
-`Send` hooks run inside `internal/usecase/message.App.Send` after basic
-normalization and permission checks, before the send path branches into
-NoPersist, SyncOnce, or durable append.
+`Send` hooks run through a narrow `message.SendHook` dependency injected through
+`message.Options`. The hook is invoked inside `internal/usecase/message.App.Send`
+after basic normalization and permission checks, before the send path branches
+into NoPersist, SyncOnce, request-scoped delivery, or durable append.
 
 Mapping:
 
 - `message.SendCommand` -> `pluginproto.SendPacket`
+- `SenderSessionID`, `DeviceID`, and `DeviceFlag` -> `pluginproto.Conn`
 - plugin output payload -> updated `SendCommand.Payload`
 - non-success plugin reason -> send is rejected with that reason
 
@@ -246,13 +270,37 @@ RPC errors and timeouts default to fail-closed and return a system-error reason.
 `WK_PLUGIN_FAIL_OPEN` may later allow fail-open behavior, but the default keeps
 legacy-style safety.
 
+Request-scoped sends participate exactly once. The implementation must avoid the
+current early request-scoped branch skipping hooks by either moving hook
+invocation ahead of that branch after validation, or by making the request-scoped
+path call the same hook helper.
+
+Plugin-originated sends carry explicit origin metadata. Phase 1 may add fields
+such as `Origin`, `HookDepth`, or `SkipPluginHooks` to `message.SendCommand`, or
+use a typed context value. The contract must cap recursion and make deliberate
+hook skipping visible in tests.
+
 ## 5.2 PersistAfter
 
-`PersistAfter` is implemented as a committed-message subscriber.
+`PersistAfter` is implemented as an owner-routed committed side effect, not as a
+plain local committed subscriber.
 
 Each `messageevents.MessageCommitted` is converted to a
 `pluginproto.MessageBatch`. Phase 1 may use one-message batches while keeping
 the PDK-facing batch contract.
+
+The node that handled `message.App.Send` is not necessarily the channel owner.
+Therefore the app layer must either:
+
+- integrate plugin PersistAfter invocation into the existing owner-routed
+  committed dispatcher path, or
+- add a dedicated `pluginCommittedRouter` that resolves the channel owner and
+  forwards the event through node RPC before invoking local plugin usecase code.
+
+Only the owner node invokes local PersistAfter plugins for a committed message.
+This preserves the legacy behavior that forwarded PersistAfter to the channel
+leader and prevents non-owner API nodes from duplicating or missing side
+effects.
 
 Failures are logged and observed, but they do not fail the already-committed
 send. Phase 1 does not invoke PersistAfter from committed replay to avoid
@@ -260,15 +308,39 @@ duplicating external side effects after restart.
 
 ## 5.3 Receive
 
-`Receive` is tied to resolved recipient UIDs, not just committed messages.
+`Receive` is tied to eligible offline recipient UIDs, not just committed
+messages.
 
-Use the existing delivery resolver observer shape and add a plugin receive
-observer:
+The legacy plugin Receive behavior was an AI/user-plugin offline trigger. Phase
+1 preserves that compatibility rather than calling Receive for every resolved
+recipient.
+
+Eligibility matrix:
+
+| Case | Phase 1 behavior |
+| --- | --- |
+| durable message, recipient offline, sender is not recipient, sender is not system UID, not SyncOnce | invoke `Receive` |
+| recipient online | do not invoke `Receive` |
+| sender equals recipient | do not invoke `Receive` |
+| sender is system UID | do not invoke `Receive` |
+| SyncOnce message | do not invoke `Receive` |
+| NoPersist realtime message | do not invoke `Receive` in Phase 1 |
+| request-scoped command/temp channel | do not invoke `Receive` in Phase 1 unless later documented as a compatibility break |
+
+The implementation should not use the current pre-presence `resolvedUIDObserver`
+as-is for Receive. It must either add an offline UID observer after presence
+expansion/classification, or pass enough delivery outcome context for the plugin
+observer to determine that a UID is offline.
+
+Flow:
 
 1. delivery resolves a page of target UIDs
-2. the observer queries plugin bindings for those UIDs
-3. each UID selects the highest-priority running local plugin with `Receive`
-4. the observer invokes `pluginproto.RecvPacket`
+2. delivery determines which UIDs are offline according to authoritative
+   presence
+3. the observer filters by the eligibility matrix
+4. the observer queries plugin bindings for eligible offline UIDs
+5. each UID selects the highest-priority running local plugin with `Receive`
+6. the observer invokes `pluginproto.RecvPacket`
 
 Receive failures do not block normal delivery. The observer keeps a short TTL
 dedupe key of `messageID + uid` to avoid duplicate plugin calls during retry or
@@ -306,12 +378,34 @@ These stream paths return explicit `unimplemented` errors in Phase 1:
 The host must fail loudly for unsupported stream calls instead of silently
 dropping data.
 
+Phase 1 must define a small compatibility appendix before implementation:
+
+- where generated `pluginproto` compatibility types live
+- the pinned `wkrpc` dependency boundary
+- request/response mappings for every supported host RPC
+- body-size limits, timeouts, and header/query forwarding rules
+- authoritative data source for each RPC
+
+Authority requirements:
+
+- `/message/send` calls `message.App.Send`
+- `/channel/messages` reads from the authoritative channel owner, reusing the
+  existing channel message reader/remote reader pattern instead of reading only
+  a local log
+- `/cluster/config` maps current controller/slot node state into the legacy PDK
+  protobuf DTO
+- `/cluster/channels/belongNode` uses current channel routing/owner metadata
+- `/conversation/channels` uses the conversation usecase/store rather than a
+  local-only projection
+- `/plugin/httpForward` has explicit timeout, body-size, target-node, and
+  header behavior
+
 ## 7. Configuration
 
 Add `PluginConfig` to `internal/app/config.go` and parse these `WK_` keys:
 
 - `WK_PLUGIN_ENABLE=false`
-- `WK_PLUGIN_DIR=./plugindir`
+- `WK_PLUGIN_DIR=`
 - `WK_PLUGIN_SOCKET_PATH=`
 - `WK_PLUGIN_SANDBOX_DIR=`
 - `WK_PLUGIN_TIMEOUT=5s`
@@ -320,7 +414,14 @@ Add `PluginConfig` to `internal/app/config.go` and parse these `WK_` keys:
 
 `WK_PLUGIN_SOCKET_PATH` defaults to `<WK_NODE_DATA_DIR>/run/plugin.sock`.
 
-`WK_PLUGIN_SANDBOX_DIR` defaults to `<WK_PLUGIN_DIR>/plugindata`.
+`WK_PLUGIN_DIR` defaults to `<WK_NODE_DATA_DIR>/plugins`.
+
+`WK_PLUGIN_SANDBOX_DIR` defaults to `<WK_NODE_DATA_DIR>/plugin-sandbox`.
+
+Relative plugin paths are resolved relative to the process working directory
+only when explicitly configured. Defaults are derived from `WK_NODE_DATA_DIR` so
+multiple nodes started from one repository checkout do not accidentally share
+plugin binaries, socket paths, sandbox data, or local config stores.
 
 The example config must document that plugins execute local binaries and are
 disabled by default for safety.
@@ -351,7 +452,8 @@ Plugin runtime shutdown:
 - `WK_PLUGIN_ENABLE` defaults to false.
 - Manager plugin APIs require `cluster.plugin` permissions.
 - Public plugin routes remain open in Phase 1 for compatibility with the
-  documented `/plugins/:plugin/*path` behavior.
+  documented `/plugins/:plugin/*path` behavior. They are node-local routes
+  unless a later phase adds explicit plugin-route federation.
 - Secret-looking config fields are redacted in list responses.
 - Plugin config is passed through the RPC channel, not injected as environment
   variables.
@@ -375,13 +477,16 @@ Plugin runtime shutdown:
 - config update and `ConfigUpdate` invocation
 - highest-priority Receive selection
 - Send hook payload mutation and reason rejection
+- request-scoped sends invoke Send hooks exactly once
 - Receive dedupe
+- Receive eligibility matrix filtering
 
 `pkg/slot/meta`, `pkg/slot/fsm`, and `pkg/slot/proxy`:
 
 - binding table encode/decode
 - bind/unbind commands
 - UID binding list/query
+- plugin-centric binding listing
 - idempotent unbind of missing binding
 
 ### 10.2 Integration Tests
@@ -393,6 +498,8 @@ Fast integration tests should verify a single-node cluster can:
 - expose plugin status through manager/API paths
 - route `/plugins/:plugin/*path`
 - send plugin-originated messages through `message.App.Send`
+- send from a non-owner API node and verify only the owner node invokes
+  PersistAfter
 
 Real `.wkp` process tests should use the `integration` build tag to avoid
 slowing normal unit tests.
@@ -417,8 +524,8 @@ slowing normal unit tests.
 ### M3: Message Hooks
 
 - Send pre-hook
-- PersistAfter committed subscriber
-- Receive delivery UID observer
+- owner-routed PersistAfter committed side effect
+- offline Receive delivery observer
 
 ### M4: Public Route and Host RPCs
 
@@ -429,6 +536,8 @@ slowing normal unit tests.
 - `/cluster/config`
 - `/cluster/channels/belongNode`
 - `/conversation/channels`
+- compatibility appendix for `pluginproto` placement, RPC authority, limits,
+  and mappings
 
 ### M5: Documentation and Cleanup
 
@@ -456,8 +565,9 @@ Phase 1 is complete when:
 1. an existing Go PDK plugin can register through `/plugin/start`
 2. public plugin route forwarding works through `/plugins/:plugin/*path`
 3. Send hook can mutate payload and reject a send
-4. PersistAfter receives durable messages after append
-5. Receive triggers for bound UIDs during delivery resolution
+4. PersistAfter receives durable messages only on the channel owner node after
+   append
+5. Receive triggers only for eligible offline bound UIDs
 6. user bindings are stored through slot-authoritative metadata
 7. plugin-originated sends go through `message.App.Send`
 8. relevant unit tests pass for changed packages
