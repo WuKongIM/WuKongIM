@@ -856,3 +856,37 @@ export function retryNodeOnboardingJob(jobId: string) {
     method: "POST",
   })
 }
+
+export type DashboardMetricsSeriesDTO = {
+  latest: number
+  peak: number
+  avg: number
+  series: number[]
+}
+
+export type DashboardMetricsResponse = {
+  generated_at: string
+  window_seconds: number
+  step_seconds: number
+  points: number
+  metrics: {
+    send_per_sec: DashboardMetricsSeriesDTO
+    deliver_per_sec: DashboardMetricsSeriesDTO
+    connections: DashboardMetricsSeriesDTO
+    send_latency_p99_ms: DashboardMetricsSeriesDTO
+    delivery_latency_p99_ms: DashboardMetricsSeriesDTO
+    send_fail_rate_percent: DashboardMetricsSeriesDTO
+    delivery_fail_rate_percent: DashboardMetricsSeriesDTO
+    active_channels: DashboardMetricsSeriesDTO
+    retry_queue_depth: DashboardMetricsSeriesDTO
+    fan_out_rate: DashboardMetricsSeriesDTO
+  }
+}
+
+export function getDashboardMetrics(params?: { window?: string; step?: string }) {
+  const search = new URLSearchParams()
+  if (params?.window) search.set("window", params.window)
+  if (params?.step) search.set("step", params.step)
+  const query = search.toString()
+  return jsonManagerFetch<DashboardMetricsResponse>(`/manager/dashboard/metrics${query ? `?${query}` : ""}`)
+}

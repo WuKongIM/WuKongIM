@@ -1,4 +1,6 @@
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from "react"
+
+import { getDashboardMetrics } from "@/lib/manager-api"
 
 export type PulseSeries = {
   latest: number
@@ -18,6 +20,7 @@ export type PulseData = {
   activeChannels: PulseSeries
   retryQueueDepth: PulseSeries
   fanOutRate: PulseSeries
+  mocked: boolean
 }
 
 function djb2(str: string): number {
@@ -65,12 +68,41 @@ export function generatePulseData(seed: string): PulseData {
     activeChannels: buildSeries(rand, 320, 80),
     retryQueueDepth: buildSeries(rand, 5, 8),
     fanOutRate: buildSeries(rand, 12, 6),
+    mocked: true,
   }
 }
 
 export function useDashboardPulse(generatedAt: string | null): PulseData | null {
-  return useMemo(() => {
-    if (generatedAt === null) return null
-    return generatePulseData(generatedAt)
-  }, [generatedAt])
+  const fallback = useMemo(
+    () => (generatedAt ? generatePulseData(generatedAt) : null),
+    [generatedAt],
+  )
+  const [data, setData] = useState<PulseData | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const resp = await getDashboardMetrics({ window: "30m", step: "30s" })
+      setData({
+        sendPerSec: resp.metrics.send_per_sec,
+        deliverPerSec: resp.metrics.deliver_per_sec,
+        connections: resp.metrics.connections,
+        sendLatencyP99: resp.metrics.send_latency_p99_ms,
+        deliveryLatencyP99: resp.metrics.delivery_latency_p99_ms,
+        sendFailRate: resp.metrics.send_fail_rate_percent,
+        deliveryFailRate: resp.metrics.delivery_fail_rate_percent,
+        activeChannels: resp.metrics.active_channels,
+        retryQueueDepth: resp.metrics.retry_queue_depth,
+        fanOutRate: resp.metrics.fan_out_rate,
+        mocked: false,
+      })
+    } catch {
+      setData(fallback)
+    }
+  }, [fallback])
+
+  useEffect(() => {
+    if (generatedAt) void load()
+  }, [generatedAt, load])
+
+  return data ?? fallback
 }
