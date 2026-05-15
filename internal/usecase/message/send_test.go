@@ -80,6 +80,43 @@ func TestSendHookRequestScopedSyncOnceInvokedExactlyOnce(t *testing.T) {
 	require.Equal(t, []byte("scoped-mutated"), cluster.sendRequests[0].Message.Payload)
 }
 
+func TestSendHookRequestScopedNoPersistRealtimePreservesScopedEnvelope(t *testing.T) {
+	realtime := &recordingRealtimeDispatcher{}
+	ids := &sequenceMessageIDGenerator{next: 951}
+	hook := &recordingSendHook{mutate: func(cmd SendCommand) SendCommand {
+		cmd.Payload = []byte("scoped-realtime-mutated")
+		cmd.ChannelID = "malicious"
+		cmd.ChannelType = frame.ChannelTypeGroup
+		cmd.RequestSubscribers = []string{"mallory"}
+		return cmd
+	}}
+	app := New(Options{Now: fixedNowFn, MessageIDs: ids, RealtimeDispatcher: realtime, SendHook: hook})
+
+	result, err := app.Send(context.Background(), SendCommand{Framer: frame.Framer{NoPersist: true, SyncOnce: true}, FromUID: "system", RequestSubscribers: []string{"u1", "u2"}, Payload: []byte("scoped")})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Len(t, hook.calls, 1)
+	require.Len(t, realtime.calls, 1)
+	scoped, err := runtimechannelid.RequestSubscriberChannelFor([]string{"u1", "u2"})
+	require.NoError(t, err)
+	require.Equal(t, scoped.CommandChannelID, realtime.calls[0].Message.ChannelID)
+	require.Equal(t, frame.ChannelTypeTemp, realtime.calls[0].Message.ChannelType)
+	require.Equal(t, []string{"u1", "u2"}, realtime.calls[0].MessageScopedUIDs)
+	require.Equal(t, []byte("scoped-realtime-mutated"), realtime.calls[0].Message.Payload)
+}
+
+func TestSendHookUnsupportedChannelTypeDoesNotInvokeHook(t *testing.T) {
+	hook := &recordingSendHook{reason: frame.ReasonPayloadDecodeError}
+	app := New(Options{Now: fixedNowFn, SendHook: hook})
+
+	result, err := app.Send(context.Background(), SendCommand{FromUID: "u1", ChannelID: "bad", ChannelType: 99, Payload: []byte("bad")})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonNotSupportChannelType, result.Reason)
+	require.Empty(t, hook.calls)
+}
+
 func TestSendHookReasonRejectsBeforeAppend(t *testing.T) {
 	cluster := &fakeChannelCluster{}
 	hook := &recordingSendHook{reason: frame.ReasonPayloadDecodeError}

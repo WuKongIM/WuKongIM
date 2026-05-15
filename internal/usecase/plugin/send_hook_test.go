@@ -36,6 +36,9 @@ func TestSendHookRunsSendPluginsInOrderAndMutatesPayload(t *testing.T) {
 	if reason != frame.ReasonSuccess {
 		t.Fatalf("reason = %v, want success", reason)
 	}
+	if cmd.FromUID != "u1" || cmd.ChannelID != "g1" || cmd.ChannelType != frame.ChannelTypeGroup {
+		t.Fatalf("mutated command identity = %#v", cmd)
+	}
 	if string(cmd.Payload) != "from-low" {
 		t.Fatalf("payload = %q, want from-low", string(cmd.Payload))
 	}
@@ -51,6 +54,32 @@ func TestSendHookRunsSendPluginsInOrderAndMutatesPayload(t *testing.T) {
 	}
 	if first.GetFromUid() != "u1" || first.GetChannelId() != "g1" || first.GetChannelType() != uint32(frame.ChannelTypeGroup) || string(first.GetPayload()) != "original" {
 		t.Fatalf("first send packet = %#v", &first)
+	}
+	var second pluginproto.SendPacket
+	if err := second.Unmarshal(invoker.requests[1].Body); err != nil {
+		t.Fatalf("unmarshal second request: %v", err)
+	}
+	if second.GetFromUid() != "u1" || second.GetChannelId() != "g1" || second.GetChannelType() != uint32(frame.ChannelTypeGroup) || string(second.GetPayload()) != "from-high" {
+		t.Fatalf("second send packet = %#v", &second)
+	}
+}
+
+func TestSendHookEmptySuccessResponsePreservesCommandIdentity(t *testing.T) {
+	rt := newFakeRuntime(t.TempDir())
+	rt.plugins["noop"] = ObservedPlugin{No: "noop", Status: StatusRunning, Enabled: true, Methods: []Method{MethodSend}}
+	invoker := &sendHookInvoker{responses: map[string]*pluginproto.SendPacket{"noop": {}}}
+	app := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: newFakeDesiredStore(), Invoker: invoker})
+
+	cmd, reason, err := app.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, Payload: []byte("original")})
+
+	if err != nil {
+		t.Fatalf("BeforeSend: %v", err)
+	}
+	if reason != frame.ReasonSuccess {
+		t.Fatalf("reason = %v, want success", reason)
+	}
+	if cmd.FromUID != "u1" || cmd.ChannelID != "g1" || cmd.ChannelType != frame.ChannelTypeGroup || string(cmd.Payload) != "original" {
+		t.Fatalf("command after noop response = %#v", cmd)
 	}
 }
 
@@ -86,6 +115,34 @@ func TestSendHookFailClosedAndFailOpen(t *testing.T) {
 	cmd, reason, err = failOpen.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", Payload: []byte("original")})
 	if err != nil || reason != frame.ReasonSuccess || string(cmd.Payload) != "original" {
 		t.Fatalf("fail-open = cmd %#v reason %v err %v", cmd, reason, err)
+	}
+}
+
+func TestSendHookFailOpenCoversCandidateErrors(t *testing.T) {
+	rt := newFakeRuntime(t.TempDir())
+	rt.plugins["mod"] = ObservedPlugin{No: "mod", Status: StatusRunning, Enabled: true, Methods: []Method{MethodSend}}
+	app := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: desiredStoreError{}, Invoker: &sendHookInvoker{}, FailOpen: true})
+
+	cmd, reason, err := app.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", Payload: []byte("original")})
+
+	if err != nil || reason != frame.ReasonSuccess || string(cmd.Payload) != "original" {
+		t.Fatalf("fail-open candidate error = cmd %#v reason %v err %v", cmd, reason, err)
+	}
+}
+
+func TestSendHookRejectsOutOfRangeReason(t *testing.T) {
+	rt := newFakeRuntime(t.TempDir())
+	rt.plugins["mod"] = ObservedPlugin{No: "mod", Status: StatusRunning, Enabled: true, Methods: []Method{MethodSend}}
+	invoker := &sendHookInvoker{responses: map[string]*pluginproto.SendPacket{"mod": {Reason: 257}}}
+	app := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: newFakeDesiredStore(), Invoker: invoker})
+
+	_, reason, err := app.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", Payload: []byte("original")})
+
+	if err != nil {
+		t.Fatalf("BeforeSend: %v", err)
+	}
+	if reason != frame.ReasonSystemError {
+		t.Fatalf("reason = %v, want system error", reason)
 	}
 }
 
