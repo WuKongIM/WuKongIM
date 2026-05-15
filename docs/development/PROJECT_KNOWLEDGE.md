@@ -114,3 +114,5 @@
 
 ### Worktree testing
 - When using project-local `.worktrees/*`, run Go tests with `GOWORK=off`; the parent `go.work` points at the main checkout and otherwise makes packages resolve under `.worktrees` incorrectly.
+- Bench APIs are unauthenticated benchmark-only `/bench/v1/*` routes gated by `WK_BENCH_API_ENABLE`; mutations go through benchdata plus user/channel usecase boundaries.
+- wkbench requires server bench mode (`WK_BENCH_API_ENABLE=true`) and must prepare target data only through `/bench/v1/*`; it must not use Manager APIs for benchmark setup.

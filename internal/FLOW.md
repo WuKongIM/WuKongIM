@@ -85,6 +85,7 @@
 | `delivery.App` | `usecase/delivery/app.go` | 投递用例：提交投递、确认、离线处理 |
 | `presence.App` | `usecase/presence/app.go` | 在线状态用例：激活/去激活、权威路由、心跳 |
 | `conversation.App` | `usecase/conversation/app.go` | 会话用例：增量/全量同步、冷热分离 |
+| `benchdata.App` | `usecase/benchdata/app.go` | Benchmark 数据准备用例：能力描述、用户 token、群频道、订阅者批量准备 |
 | `channel.App` | `usecase/channel/app.go` | 频道业务用例：资料、订阅者、白名单、黑名单 |
 | `cmdsync.App` | `usecase/cmdsync/app.go` | CMD 同步用例：合并 pending overlay、读取 command-channel log、生成 sync records、处理 syncack |
 | `cmdsync.ConversationUpdater` | `usecase/cmdsync/pending.go` | UID-owner pending CMD conversation intent 缓冲、flush 与 graceful-stop 恢复 |
@@ -105,12 +106,27 @@
 | `messageevents` | `contracts/messageevents/` | 已提交消息事件合约 |
 | `deliveryevents` | `contracts/deliveryevents/` | 投递回执与会话关闭事件合约 |
 
+#### Benchmark 黑盒客户端（Bench）
+| 组件 | 文件 | 职责 |
+|------|------|------|
+| `bench/config` | `bench/config/` | wkbench target / worker / scenario YAML 严格加载 |
+| `bench/model` | `bench/model/` | wkbench 配置、速率与确定性计划模型 |
+| `bench/planner` | `bench/planner/` | 按 worker 权重规划 identity pool、channel、member 与 traffic 分片 |
+| `bench/target` | `bench/target/` | wkbench 黑盒 target HTTP client，调用 bench API、health、ready 与 snapshot |
+| `bench/coordinator` | `bench/coordinator/` | wkbench coordinator preflight，校验 target capabilities、worker control 与 gateway placeholder；编排阶段并汇总 metrics/report |
+| `bench/worker` | `bench/worker/` | wkbench worker 控制 HTTP API、运行分配状态、阶段推进、WKProto workload metrics 与 worker report |
+| `bench/metrics` | `bench/metrics/` | wkbench 低基数 counters/gauges/histograms/errors 快照与聚合 |
+| `bench/report` | `bench/report/` | wkbench report.json、summary.md、worker metrics 与 target snapshot artifacts |
+| `bench/wkproto` | `bench/wkproto/` | wkbench 黑盒 WKProto TCP client，用于 worker 连接、SendAck 与 Recv 验证 |
+| `bench/workload` | `bench/workload/` | wkbench person/group 数据准备和 WKProto 发送/接收 workload |
+
 ### 2.3 依赖边界
 
 **规则**：
 - `runtime/*` 可依赖 `pkg/*`，禁止依赖 `access/*`、`gateway/*`、`usecase/*`、`app`
 - `usecase/*` 可依赖 `runtime/*`、`pkg/*`，禁止依赖 `access/*`、`app`
 - `access/*` 作为适配器层，转换传输 DTO 到合约/用例/运行时 DTO
+- `bench/*` 是 wkbench 黑盒客户端代码，禁止依赖 server internal 包和集群运行时包；target 数据准备只能通过 `/bench/v1/*` bench API，不能使用 Manager API
 
 **边界检查**：
 ```bash

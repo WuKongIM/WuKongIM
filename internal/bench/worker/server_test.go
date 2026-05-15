@@ -1,0 +1,1178 @@
+package worker
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
+	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/internal/bench/report"
+	benchworkload "github.com/WuKongIM/WuKongIM/internal/bench/workload"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/stretchr/testify/require"
+)
+
+func TestWorkerRequiresControlToken(t *testing.T) {
+	srv := NewServer(Config{ControlToken: "secret"})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/info", nil)
+
+	srv.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+func TestWorkerRejectsDifferentActiveRun(t *testing.T) {
+	srv := NewServer(Config{ControlToken: "secret"})
+	assign(t, srv, "secret", "run-a")
+
+	rec := assignRecorder(t, srv, "secret", "run-b")
+
+	require.Equal(t, http.StatusConflict, rec.Code)
+}
+
+func TestWorkerHealthzDoesNotRequireControlToken(t *testing.T) {
+	srv := NewServer(Config{ControlToken: "secret"})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+
+	srv.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestWorkerRejectsV1RoutesWhenControlIsNotExplicitlyConfigured(t *testing.T) {
+	srv := NewServer(Config{})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/info", nil)
+
+	srv.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+func TestWorkerInsecureControlIgnoresConfiguredToken(t *testing.T) {
+	srv := NewServer(Config{ControlToken: "secret", InsecureControl: true})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/info", nil)
+
+	srv.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestWorkerAssignmentPersistenceFailureReturnsServerError(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "not-a-directory")
+	require.NoError(t, os.WriteFile(workDir, []byte("file blocks directory"), 0o644))
+	srv := NewServer(Config{ControlToken: "secret", WorkDir: workDir})
+
+	rec := assignRecorder(t, srv, "secret", "run-a")
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, PhaseIdle, status.Phase)
+	require.Empty(t, status.Assignment.RunID)
+}
+
+func TestWorkerStopFromIdleReturnsConflict(t *testing.T) {
+	srv := NewServer(Config{ControlToken: "secret"})
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/stop", "secret", nil)
+
+	require.Equal(t, http.StatusConflict, rec.Code)
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, PhaseIdle, status.Phase)
+	require.Empty(t, status.Assignment.RunID)
+}
+
+func TestWorkerUnknownPathReturnsJSONNotFound(t *testing.T) {
+	srv := NewServer(Config{ControlToken: "secret"})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/missing", nil)
+
+	srv.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusNotFound, rec.Code)
+	require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+	require.JSONEq(t, `{"error":"not found"}`, rec.Body.String())
+}
+
+func TestWorkerAllowsV1RoutesWhenInsecureControlIsExplicit(t *testing.T) {
+	srv := NewServer(Config{InsecureControl: true})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/info", nil)
+
+	srv.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestWorkerAcceptsLegacyControlTokenHeader(t *testing.T) {
+	srv := NewServer(Config{ControlToken: "secret"})
+
+	rec := assignRecorderWithHeader(t, srv, "X-WKBench-Control-Token", "secret", "run-a")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestWorkerSameRunAssignmentRetryPreservesPhase(t *testing.T) {
+	srv := NewServer(Config{ControlToken: "secret"})
+	assign(t, srv, "secret", "run-a")
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusAccepted)
+	require.Eventually(t, func() bool {
+		return workerStatus(t, srv, "secret").Phase == PhasePrepare
+	}, time.Second, 10*time.Millisecond)
+
+	rec := assignRecorder(t, srv, "secret", "run-a")
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, PhasePrepare, status.Phase)
+}
+
+func TestWorkerSameRunDifferentAssignmentReturnsConflict(t *testing.T) {
+	srv := NewServer(Config{ControlToken: "secret"})
+	assign(t, srv, "secret", "run-a")
+	body := mustJSON(t, Assignment{RunID: "run-a", WorkerID: "worker-b"})
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/assign", "secret", body)
+
+	require.Equal(t, http.StatusConflict, rec.Code)
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, "worker-a", status.Assignment.WorkerID)
+}
+
+func TestWorkerDuplicatePhasePostIsIdempotent(t *testing.T) {
+	srv := NewServer(Config{ControlToken: "secret"})
+	assign(t, srv, "secret", "run-a")
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusAccepted)
+	require.Eventually(t, func() bool {
+		return workerStatus(t, srv, "secret").Phase == PhasePrepare
+	}, time.Second, 10*time.Millisecond)
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, PhasePrepare, status.Phase)
+}
+
+func TestWorkerPhasePostAcceptsLongRunningHookWithoutWaiting(t *testing.T) {
+	runner := newBlockingPrepareRunner()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	defer runner.release()
+
+	phaseDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		phaseDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
+	}()
+	require.True(t, runner.waitForCalls(1, time.Second), "prepare hook did not start")
+
+	select {
+	case rec := <-phaseDone:
+		require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("phase POST waited for the long-running hook")
+	}
+
+	status := workerStatusMap(t, srv, "secret")
+	require.Equal(t, string(PhaseAssigned), status["phase"])
+	require.Equal(t, string(PhasePrepare), status["active_phase"])
+	require.Equal(t, string(PhaseAssigned), status["completed_phase"])
+	require.Empty(t, status["last_error"])
+
+	runner.release()
+	require.Eventually(t, func() bool {
+		status := workerStatusMap(t, srv, "secret")
+		return status["phase"] == string(PhasePrepare) &&
+			status["completed_phase"] == string(PhasePrepare) &&
+			status["active_phase"] == nil &&
+			status["last_error"] == nil
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestWorkerDuplicateInProgressAndCompletedPhasePostsDoNotRunHookTwice(t *testing.T) {
+	runner := newBlockingPrepareRunner()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	defer runner.release()
+
+	firstDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		firstDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
+	}()
+	require.True(t, runner.waitForCalls(1, time.Second), "prepare hook did not start")
+	select {
+	case rec := <-firstDone:
+		require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("initial phase POST waited for the long-running hook")
+	}
+
+	secondDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		secondDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
+	}()
+	select {
+	case rec := <-secondDone:
+		require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("duplicate in-progress phase POST waited for the hook")
+	}
+	require.Equal(t, int32(1), runner.calls.Load())
+
+	runner.release()
+	require.Eventually(t, func() bool {
+		return workerStatus(t, srv, "secret").Phase == PhasePrepare
+	}, time.Second, 10*time.Millisecond)
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, int32(1), runner.calls.Load())
+}
+
+func TestWorkerStopPreservesAssignment(t *testing.T) {
+	srv := NewServer(Config{ControlToken: "secret"})
+	assign(t, srv, "secret", "run-a")
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/stop", "secret", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, PhaseStopped, status.Phase)
+	require.Equal(t, "run-a", status.Assignment.RunID)
+}
+
+func TestWorkerPhaseEndpointsAdvanceStatus(t *testing.T) {
+	srv := NewServer(Config{ControlToken: "secret"})
+	assign(t, srv, "secret", "run-a")
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+
+	rec := authorizedRecorder(t, srv, http.MethodGet, "/v1/status", "secret", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var status Status
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &status))
+	require.Equal(t, "run-a", status.Assignment.RunID)
+	require.Equal(t, PhaseConnect, status.Phase)
+}
+
+func TestWorkerStopAllowsNewRunAssignment(t *testing.T) {
+	srv := NewServer(Config{ControlToken: "secret"})
+	assign(t, srv, "secret", "run-a")
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/stop", "secret", nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec = assignRecorder(t, srv, "secret", "run-b")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestWorkerMetricsAndReportExposeSnapshots(t *testing.T) {
+	runner := &snapshotRunner{metrics: metrics.SnapshotData{Counters: map[string]uint64{"connect_success_total": 2}}}
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assignFull(t, srv, "secret", Assignment{RunID: "run-a", WorkerID: "worker-a"})
+
+	metricsRec := authorizedRecorder(t, srv, http.MethodGet, "/v1/metrics", "secret", nil)
+	reportRec := authorizedRecorder(t, srv, http.MethodGet, "/v1/report", "secret", nil)
+
+	require.Equal(t, http.StatusOK, metricsRec.Code)
+	require.JSONEq(t, `{"counters":{"connect_success_total":2},"gauges":{},"histograms":{},"errors":null}`, metricsRec.Body.String())
+	require.Equal(t, http.StatusOK, reportRec.Code)
+	var wr report.WorkerReport
+	require.NoError(t, json.Unmarshal(reportRec.Body.Bytes(), &wr))
+	require.Equal(t, "worker-a", wr.WorkerID)
+	require.JSONEq(t, `{"run_id":"run-a","worker_id":"worker-a","phase":"assigned","metrics":{"counters":{"connect_success_total":2},"gauges":{},"histograms":{},"errors":null}}`, string(wr.Report))
+}
+
+func TestWorkerDefaultRunnerConnectsAndRunsPersonShard(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignment := personShardAssignment()
+	assignFull(t, srv, "secret", assignment)
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/warmup", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/run", http.StatusOK)
+
+	sender := pool.client("bench-u-6")
+	recipient := pool.client("bench-u-7")
+	require.Equal(t, []workerConnectCall{{uid: "bench-u-6", deviceID: "bench-d-6"}}, sender.connected)
+	require.Equal(t, []workerConnectCall{{uid: "bench-u-7", deviceID: "bench-d-7"}}, recipient.connected)
+	require.Len(t, sender.sentFrames, 1)
+	require.Equal(t, "bench-u-7@bench-u-6", sender.sentFrames[0].ChannelID)
+	require.Equal(t, frame.ChannelTypePerson, sender.sentFrames[0].ChannelType)
+	require.Contains(t, sender.sentFrames[0].ClientMsgNo, "bench-msg")
+}
+
+func TestWorkerDefaultRunnerMetricsSurviveCooldown(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignFull(t, srv, "secret", personShardAssignment())
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/warmup", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/run", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/cooldown", http.StatusOK)
+
+	rec := authorizedRecorder(t, srv, http.MethodGet, "/v1/metrics", "secret", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var snap metrics.SnapshotData
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &snap))
+	require.Equal(t, uint64(1), snap.Counters["person_send_success_total"])
+}
+
+func TestWorkerDefaultRunnerNewRunResetsConnectMetricsAfterStop(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignment := personShardAssignment()
+	assignFull(t, srv, "secret", assignment)
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/stop", http.StatusOK)
+
+	assignment.RunID = "run-b"
+	assignment.Scenario.Run.ID = "run-b"
+	assignment.Plan.Profiles["person-a"] = model.ProfileShard{
+		Name:             "person-a",
+		ChannelType:      model.ChannelTypePerson,
+		ChannelRange:     model.Range{Start: 4, End: 5},
+		ParticipantRange: model.Range{Start: 8, End: 10},
+	}
+	assignFull(t, srv, "secret", assignment)
+
+	rec := authorizedRecorder(t, srv, http.MethodGet, "/v1/metrics", "secret", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var snap metrics.SnapshotData
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &snap))
+	require.Zero(t, snap.Counters["connect_attempt_total"])
+	require.Zero(t, snap.Counters["connect_success_total"])
+}
+
+func TestWorkerDefaultRunnerRunsStoredWorkloadsConcurrently(t *testing.T) {
+	runner := &defaultWorkloadRunner{
+		runID:           "run-a",
+		metrics:         metrics.NewRegistry(),
+		personWorkloads: []*benchworkload.PersonWorkload{nil, nil},
+	}
+	var calls atomic.Int32
+	bothStarted := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan error, 1)
+
+	go func() {
+		done <- runner.runPhase(context.Background(), Assignment{RunID: "run-a"}, func(*benchworkload.PersonWorkload, *benchworkload.GroupWorkload) error {
+			if calls.Add(1) == 2 {
+				close(bothStarted)
+			}
+			<-release
+			return nil
+		})
+	}()
+
+	select {
+	case <-bothStarted:
+	case <-time.After(50 * time.Millisecond):
+		close(release)
+		t.Fatal("stored workloads did not start concurrently")
+	}
+	close(release)
+	require.NoError(t, <-done)
+}
+
+func TestWorkerDefaultRunnerPreparesConnectsAndRunsGroupShard(t *testing.T) {
+	type seenRequest struct {
+		path  string
+		batch string
+	}
+	seen := make([]seenRequest, 0)
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/channels":
+			var req model.BatchChannelsRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			seen = append(seen, seenRequest{path: r.URL.Path, batch: req.BatchID})
+			require.Equal(t, []model.ChannelItem{{ChannelID: "bench-run-huge-group-0", ChannelType: uint8(frame.ChannelTypeGroup), Large: true}}, req.Channels)
+		case "/bench/v1/channels/subscribers":
+			var req model.BatchSubscribersRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			seen = append(seen, seenRequest{path: r.URL.Path, batch: req.BatchID})
+			require.Len(t, req.Items, 1)
+			require.False(t, req.Items[0].Reset)
+			require.LessOrEqual(t, len(req.Items[0].Subscribers), 2)
+		default:
+			t.Fatalf("unexpected target path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignment := groupShardAssignment(target.URL)
+	assignFull(t, srv, "secret", assignment)
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/warmup", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/run", http.StatusOK)
+
+	require.Equal(t, []seenRequest{
+		{path: "/bench/v1/channels", batch: "bench-run-channels-huge-group-worker-a-0-1"},
+		{path: "/bench/v1/channels/subscribers", batch: "bench-run-subs-huge-group-worker-a-0-2"},
+		{path: "/bench/v1/channels/subscribers", batch: "bench-run-subs-huge-group-worker-a-2-4"},
+	}, seen)
+	sender := pool.client("bench-u-0")
+	require.NotNil(t, sender)
+	require.Equal(t, []workerConnectCall{{uid: "bench-u-0", deviceID: "bench-d-0"}}, sender.connected)
+	require.Len(t, sender.sentFrames, 1)
+	require.Equal(t, "bench-run-huge-group-0", sender.sentFrames[0].ChannelID)
+	require.Equal(t, frame.ChannelTypeGroup, sender.sentFrames[0].ChannelType)
+	require.Contains(t, sender.sentFrames[0].ClientMsgNo, "bench-msg")
+}
+
+func TestBuildGroupWorkloadsUsesTrafficRatePerStream(t *testing.T) {
+	assignment := groupShardAssignment("http://target.invalid")
+	assignment.Scenario.Run.Duration = time.Second
+	assignment.Scenario.Messages.Traffic = []model.TrafficConfig{
+		{Name: "slow", ChannelRef: "huge-group", RatePerChannel: model.Rate{PerSecond: 1}},
+		{Name: "fast", ChannelRef: "huge-group", RatePerChannel: model.Rate{PerSecond: 3}},
+	}
+	assignment.Plan.Profiles["huge-group"] = model.ProfileShard{
+		Name:                   "huge-group",
+		ChannelType:            model.ChannelTypeGroup,
+		ChannelRange:           model.Range{Start: 0, End: 1},
+		MemberRange:            model.Range{Start: 0, End: 4},
+		GlobalRate:             model.Rate{PerSecond: 4},
+		LocalRate:              model.Rate{PerSecond: 4},
+		TrafficPartitionCount:  4,
+		OwnedTrafficPartitions: []int{0, 1},
+	}
+	clients := map[string]benchworkload.PersonClient{
+		"bench-u-0": &workerPersonClient{},
+		"bench-u-1": &workerPersonClient{},
+		"bench-u-2": &workerPersonClient{},
+		"bench-u-3": &workerPersonClient{},
+	}
+
+	workloads, err := buildGroupWorkloads(assignment, groupBundlesForTest(t, assignment), clients)
+	require.NoError(t, err)
+
+	for _, wl := range workloads {
+		require.NoError(t, wl.Run(context.Background()))
+	}
+	require.Len(t, clients["bench-u-0"].(*workerPersonClient).sentFrames, 2)
+}
+
+func TestWorkerDefaultRunnerUsesChannelOwnersForHugeGroupPrepare(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/channels":
+			var req model.BatchChannelsRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			require.Len(t, req.Channels, 1)
+			require.Equal(t, "bench-run-huge-group-0", req.Channels[0].ChannelID)
+		case "/bench/v1/channels/subscribers":
+			var req model.BatchSubscribersRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		default:
+			t.Fatalf("unexpected target path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+
+	srv := NewServer(Config{ControlToken: "secret"})
+	assignment := groupShardAssignment(target.URL)
+	assignment.Plan.Profiles["huge-group"] = model.ProfileShard{
+		Name:                   "huge-group",
+		ChannelType:            model.ChannelTypeGroup,
+		ChannelRange:           model.Range{Start: 0, End: 1},
+		MemberRange:            model.Range{Start: 2500, End: 5000},
+		TrafficPartitionCount:  4,
+		OwnedTrafficPartitions: []int{0},
+	}
+	assignment.ChannelOwners = map[string]map[int]string{"huge-group": {0: "worker-a"}}
+	assignFull(t, srv, "secret", assignment)
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, PhasePrepare, status.Phase)
+}
+
+func TestWorkerDefaultRunnerSkipsHugeGroupPrepareWhenAnotherWorkerOwnsChannel(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/channels":
+			t.Fatalf("unexpected channel prepare request for non-owner")
+		case "/bench/v1/channels/subscribers":
+			var req model.BatchSubscribersRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			require.Len(t, req.Items, 1)
+			require.False(t, req.Items[0].Reset)
+		default:
+			t.Fatalf("unexpected target path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+
+	srv := NewServer(Config{ControlToken: "secret"})
+	assignment := groupShardAssignment(target.URL)
+	assignment.Plan.Profiles["huge-group"] = model.ProfileShard{
+		Name:                   "huge-group",
+		ChannelType:            model.ChannelTypeGroup,
+		ChannelRange:           model.Range{Start: 0, End: 1},
+		MemberRange:            model.Range{Start: 0, End: 2500},
+		TrafficPartitionCount:  4,
+		OwnedTrafficPartitions: []int{0},
+	}
+	assignment.ChannelOwners = map[string]map[int]string{"huge-group": {0: "worker-b"}}
+	assignFull(t, srv, "secret", assignment)
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, PhasePrepare, status.Phase)
+}
+
+func TestWorkerDefaultRunnerRejectsPersonShardWithoutTraffic(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignment := personShardAssignment()
+	assignment.Scenario.Messages.Traffic = nil
+	assignFull(t, srv, "secret", assignment)
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/connect", "secret", nil)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	require.Contains(t, rec.Body.String(), "no matching traffic")
+	require.Equal(t, PhasePrepare, workerStatus(t, srv, "secret").Phase)
+}
+
+func TestWorkerConcurrentDuplicatePhaseRunsHookOnce(t *testing.T) {
+	runner := newBlockingConnectRunner()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	var wg sync.WaitGroup
+	recorders := make([]*httptest.ResponseRecorder, 2)
+	wg.Add(2)
+	for i := range recorders {
+		go func(idx int) {
+			defer wg.Done()
+			recorders[idx] = authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/connect", "secret", nil)
+		}(i)
+	}
+
+	require.True(t, runner.waitForCalls(1, time.Second), "first hook call did not start")
+	time.Sleep(50 * time.Millisecond)
+	require.Equal(t, int32(1), runner.calls.Load())
+	runner.release()
+	wg.Wait()
+
+	for _, rec := range recorders {
+		require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
+	}
+	require.Equal(t, int32(1), runner.calls.Load())
+	require.Eventually(t, func() bool {
+		return workerStatus(t, srv, "secret").Phase == PhaseConnect
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestWorkerStopCancelsActiveAsyncPhase(t *testing.T) {
+	runner := newBlockingPrepareRunner()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+
+	phaseDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		phaseDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
+	}()
+	require.True(t, runner.waitForCalls(1, time.Second), "prepare hook did not start")
+	select {
+	case rec := <-phaseDone:
+		require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("phase request did not return promptly")
+	}
+
+	postPhase(t, srv, "secret", "/v1/stop", http.StatusOK)
+
+	require.True(t, runner.waitCanceled(time.Second), "stop did not cancel active phase context")
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, PhaseStopped, status.Phase)
+	require.Empty(t, status.ActivePhase)
+	require.Empty(t, status.LastError)
+}
+
+func TestWorkerOldPhaseHookDoesNotAdvanceNewAssignment(t *testing.T) {
+	runner := newBlockingPrepareRunner()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	defer runner.release()
+
+	phaseDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		phaseDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
+	}()
+	require.True(t, runner.waitForCalls(1, time.Second), "prepare hook did not start")
+	select {
+	case rec := <-phaseDone:
+		require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("old phase request did not return promptly")
+	}
+
+	postPhase(t, srv, "secret", "/v1/stop", http.StatusOK)
+	rec := assignRecorder(t, srv, "secret", "run-b")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	runner.release()
+	require.Eventually(t, func() bool {
+		status := workerStatus(t, srv, "secret")
+		return status.Assignment.RunID == "run-b" && status.Phase == PhaseAssigned
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestWorkerPhaseHooksCallWorkloadRunner(t *testing.T) {
+	runner := &recordingWorkloadRunner{}
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/warmup", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/run", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/cooldown", http.StatusOK)
+
+	require.Equal(t, []Phase{PhasePrepare, PhaseConnect, PhaseWarmup, PhaseRun, PhaseCooldown}, runner.phases)
+	require.Equal(t, []string{"run-a", "run-a", "run-a", "run-a", "run-a"}, runner.runIDs)
+}
+
+func TestWorkerPhaseHookFailureDoesNotAdvanceStatus(t *testing.T) {
+	runner := &recordingWorkloadRunner{failPhase: PhaseConnect}
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/connect", "secret", nil)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	require.Equal(t, PhasePrepare, workerStatus(t, srv, "secret").Phase)
+}
+
+func TestWorkerAsyncPhaseHookFailureIsVisibleInStatus(t *testing.T) {
+	runner := newBlockingConnectRunner()
+	runner.err = fmt.Errorf("phase connect failed")
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	require.Eventually(t, func() bool {
+		return workerStatus(t, srv, "secret").CompletedPhase == PhasePrepare
+	}, time.Second, 10*time.Millisecond)
+	defer runner.release()
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/connect", "secret", nil)
+
+	require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
+	require.True(t, runner.waitForCalls(1, time.Second), "connect hook did not start")
+	runner.release()
+	require.Eventually(t, func() bool {
+		status := workerStatusMap(t, srv, "secret")
+		lastError, _ := status["last_error"].(string)
+		return status["phase"] == string(PhasePrepare) &&
+			status["completed_phase"] == string(PhasePrepare) &&
+			status["active_phase"] == nil &&
+			strings.Contains(lastError, "phase connect failed")
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestWorkerTargetUnavailableHookFailureReturnsServiceUnavailable(t *testing.T) {
+	runner := &recordingWorkloadRunner{failPhase: PhaseConnect, failErr: fmt.Errorf("%w: dial tcp", errTargetUnavailable)}
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/connect", "secret", nil)
+
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	require.Contains(t, rec.Body.String(), "target unavailable")
+	require.Equal(t, PhasePrepare, workerStatus(t, srv, "secret").Phase)
+}
+
+type recordingWorkloadRunner struct {
+	phases    []Phase
+	runIDs    []string
+	failPhase Phase
+	failErr   error
+}
+
+func (r *recordingWorkloadRunner) Prepare(ctx context.Context, assignment Assignment) error {
+	return r.record(PhasePrepare, assignment)
+}
+
+func (r *recordingWorkloadRunner) Connect(ctx context.Context, assignment Assignment) error {
+	return r.record(PhaseConnect, assignment)
+}
+
+func (r *recordingWorkloadRunner) Warmup(ctx context.Context, assignment Assignment) error {
+	return r.record(PhaseWarmup, assignment)
+}
+
+func (r *recordingWorkloadRunner) Run(ctx context.Context, assignment Assignment) error {
+	return r.record(PhaseRun, assignment)
+}
+
+func (r *recordingWorkloadRunner) Cooldown(ctx context.Context, assignment Assignment) error {
+	return r.record(PhaseCooldown, assignment)
+}
+
+func (r *recordingWorkloadRunner) record(phase Phase, assignment Assignment) error {
+	if phase == r.failPhase {
+		if r.failErr != nil {
+			return r.failErr
+		}
+		return fmt.Errorf("phase %s failed", phase)
+	}
+	r.phases = append(r.phases, phase)
+	r.runIDs = append(r.runIDs, assignment.RunID)
+	return nil
+}
+
+func personShardAssignment() Assignment {
+	return Assignment{
+		RunID:    "run-a",
+		WorkerID: "worker-a",
+		Target:   model.Target{Gateway: model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"gw-a:5100"}}}},
+		Scenario: model.Scenario{
+			Run:      model.RunConfig{ID: "run-a"},
+			Identity: model.IdentityConfig{UIDPrefix: "bench-u", DevicePrefix: "bench-d", ClientMsgPrefix: "bench-msg"},
+			Online:   model.OnlineConfig{GatewayBalance: "round_robin"},
+			Messages: model.MessagesConfig{Traffic: []model.TrafficConfig{{Name: "person-send", ChannelRef: "person-a"}}},
+		},
+		Plan: model.WorkerPlan{WorkerID: "worker-a", Profiles: map[string]model.ProfileShard{
+			"person-a": {
+				Name:             "person-a",
+				ChannelType:      model.ChannelTypePerson,
+				ChannelRange:     model.Range{Start: 3, End: 4},
+				ParticipantRange: model.Range{Start: 6, End: 8},
+			},
+		}},
+	}
+}
+
+func groupBundlesForTest(t *testing.T, assignment Assignment) []groupWorkloadBundle {
+	t.Helper()
+	plan, err := buildGroupExecutionPlan(assignment)
+	require.NoError(t, err)
+	return plan.bundles
+}
+
+func groupShardAssignment(targetURL string) Assignment {
+	return Assignment{
+		RunID:    "bench-run",
+		WorkerID: "worker-a",
+		Target: model.Target{
+			BenchAPI: model.BenchAPIConfig{Addrs: []string{targetURL}},
+			Gateway:  model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"gw-a:5100"}}},
+		},
+		Scenario: model.Scenario{
+			Run:      model.RunConfig{ID: "bench-run"},
+			Identity: model.IdentityConfig{UIDPrefix: "bench-u", DevicePrefix: "bench-d", ClientMsgPrefix: "bench-msg"},
+			Online:   model.OnlineConfig{GatewayBalance: "round_robin"},
+			Channels: model.ChannelsConfig{Profiles: []model.ChannelProfile{{
+				Name:        "huge-group",
+				ChannelType: model.ChannelTypeGroup,
+				Count:       1,
+				Members:     model.MembersConfig{Count: 4},
+				Shard:       model.ShardConfig{Mode: model.ShardModeSplitMembersAndTraffic},
+				Prepare:     model.ChannelPrepareConfig{SubscribersBatchSize: 2},
+			}}},
+			Messages: model.MessagesConfig{Traffic: []model.TrafficConfig{{Name: "group-send", ChannelRef: "huge-group"}}},
+		},
+		Plan: model.WorkerPlan{WorkerID: "worker-a", Profiles: map[string]model.ProfileShard{
+			"huge-group": {
+				Name:                   "huge-group",
+				ChannelType:            model.ChannelTypeGroup,
+				ChannelRange:           model.Range{Start: 0, End: 1},
+				MemberRange:            model.Range{Start: 0, End: 4},
+				TrafficPartitionCount:  4,
+				OwnedTrafficPartitions: []int{0},
+			},
+		}},
+	}
+}
+
+type blockingPrepareRunner struct {
+	calls      atomic.Int32
+	entered    chan struct{}
+	done       chan struct{}
+	canceled   chan struct{}
+	once       sync.Once
+	cancelOnce sync.Once
+}
+
+func newBlockingPrepareRunner() *blockingPrepareRunner {
+	return &blockingPrepareRunner{entered: make(chan struct{}, 2), done: make(chan struct{}), canceled: make(chan struct{})}
+}
+
+func (r *blockingPrepareRunner) Prepare(ctx context.Context, assignment Assignment) error {
+	r.calls.Add(1)
+	r.entered <- struct{}{}
+	select {
+	case <-r.done:
+		return nil
+	case <-ctx.Done():
+		r.cancelOnce.Do(func() { close(r.canceled) })
+		return ctx.Err()
+	}
+}
+
+func (r *blockingPrepareRunner) Connect(ctx context.Context, assignment Assignment) error { return nil }
+func (r *blockingPrepareRunner) Warmup(ctx context.Context, assignment Assignment) error  { return nil }
+func (r *blockingPrepareRunner) Run(ctx context.Context, assignment Assignment) error     { return nil }
+func (r *blockingPrepareRunner) Cooldown(ctx context.Context, assignment Assignment) error {
+	return nil
+}
+
+func (r *blockingPrepareRunner) waitForCalls(want int32, timeout time.Duration) bool {
+	deadline := time.After(timeout)
+	for r.calls.Load() < want {
+		select {
+		case <-r.entered:
+		case <-deadline:
+			return false
+		}
+	}
+	return true
+}
+
+func (r *blockingPrepareRunner) release() {
+	r.once.Do(func() { close(r.done) })
+}
+
+func (r *blockingPrepareRunner) waitCanceled(timeout time.Duration) bool {
+	select {
+	case <-r.canceled:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
+}
+
+type blockingConnectRunner struct {
+	calls   atomic.Int32
+	entered chan struct{}
+	done    chan struct{}
+	err     error
+	once    sync.Once
+}
+
+func newBlockingConnectRunner() *blockingConnectRunner {
+	return &blockingConnectRunner{entered: make(chan struct{}, 2), done: make(chan struct{})}
+}
+
+func (r *blockingConnectRunner) Prepare(ctx context.Context, assignment Assignment) error { return nil }
+
+func (r *blockingConnectRunner) Connect(ctx context.Context, assignment Assignment) error {
+	r.calls.Add(1)
+	r.entered <- struct{}{}
+	select {
+	case <-r.done:
+		return r.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (r *blockingConnectRunner) Warmup(ctx context.Context, assignment Assignment) error { return nil }
+func (r *blockingConnectRunner) Run(ctx context.Context, assignment Assignment) error    { return nil }
+func (r *blockingConnectRunner) Cooldown(ctx context.Context, assignment Assignment) error {
+	return nil
+}
+
+func (r *blockingConnectRunner) waitForCalls(want int32, timeout time.Duration) bool {
+	deadline := time.After(timeout)
+	for r.calls.Load() < want {
+		select {
+		case <-r.entered:
+		case <-deadline:
+			return false
+		}
+	}
+	return true
+}
+
+func (r *blockingConnectRunner) release() {
+	r.once.Do(func() { close(r.done) })
+}
+
+func assignFull(t *testing.T, srv *Server, token string, assignment Assignment) {
+	t.Helper()
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/assign", token, mustJSON(t, assignment))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+}
+
+type workerPersonClientPool struct {
+	clients map[string]*workerPersonClient
+}
+
+func newWorkerPersonClientPool() *workerPersonClientPool {
+	return &workerPersonClientPool{clients: make(map[string]*workerPersonClient)}
+}
+
+func (p *workerPersonClientPool) newClient(user benchworkload.ConnectionUser, addr string) (benchworkload.ConnectionClient, error) {
+	client := &workerPersonClient{uid: user.UID, addr: addr}
+	p.clients[user.UID] = client
+	return client, nil
+}
+
+func (p *workerPersonClientPool) client(uid string) *workerPersonClient {
+	return p.clients[uid]
+}
+
+type workerPersonClient struct {
+	uid        string
+	addr       string
+	connected  []workerConnectCall
+	sentFrames []*frame.SendPacket
+	readFrames []frame.Frame
+}
+
+type workerConnectCall struct {
+	uid, deviceID string
+}
+
+func (c *workerPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
+	c.connected = append(c.connected, workerConnectCall{uid: uid, deviceID: deviceID})
+	return nil
+}
+
+func (c *workerPersonClient) Send(ctx context.Context, pkt *frame.SendPacket) error {
+	cloned := *pkt
+	c.sentFrames = append(c.sentFrames, &cloned)
+	c.readFrames = append(c.readFrames, &frame.SendackPacket{ClientSeq: pkt.ClientSeq, ClientMsgNo: pkt.ClientMsgNo, ReasonCode: frame.ReasonSuccess})
+	return nil
+}
+
+func (c *workerPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	if len(c.readFrames) == 0 {
+		return nil, io.EOF
+	}
+	f := c.readFrames[0]
+	c.readFrames = c.readFrames[1:]
+	return f, nil
+}
+
+func (c *workerPersonClient) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
+	return nil
+}
+
+func (c *workerPersonClient) Close() error { return nil }
+
+var _ benchworkload.PersonClient = (*workerPersonClient)(nil)
+
+type snapshotRunner struct {
+	metrics metrics.SnapshotData
+}
+
+func (r *snapshotRunner) Prepare(context.Context, Assignment) error  { return nil }
+func (r *snapshotRunner) Connect(context.Context, Assignment) error  { return nil }
+func (r *snapshotRunner) Warmup(context.Context, Assignment) error   { return nil }
+func (r *snapshotRunner) Run(context.Context, Assignment) error      { return nil }
+func (r *snapshotRunner) Cooldown(context.Context, Assignment) error { return nil }
+func (r *snapshotRunner) MetricsSnapshot() metrics.SnapshotData      { return r.metrics }
+
+func assign(t *testing.T, srv *Server, token, runID string) {
+	t.Helper()
+	rec := assignRecorder(t, srv, token, runID)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+}
+
+func assignRecorder(t *testing.T, srv *Server, token, runID string) *httptest.ResponseRecorder {
+	t.Helper()
+	return assignRecorderWithHeader(t, srv, "Authorization", "Bearer "+token, runID)
+}
+
+func assignRecorderWithHeader(t *testing.T, srv *Server, header, value, runID string) *httptest.ResponseRecorder {
+	t.Helper()
+	body := mustJSON(t, Assignment{RunID: runID, WorkerID: "worker-a"})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/assign", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(header, value)
+	srv.ServeHTTP(rec, req)
+	return rec
+}
+
+func postPhase(t *testing.T, srv *Server, token, path string, want int) {
+	t.Helper()
+	rec := authorizedRecorder(t, srv, http.MethodPost, path, token, nil)
+	if strings.HasPrefix(path, "/v1/phase/") && (want == http.StatusOK || want == http.StatusAccepted) {
+		require.Contains(t, []int{http.StatusOK, http.StatusAccepted}, rec.Code, rec.Body.String())
+		if rec.Code == http.StatusAccepted {
+			phase := Phase(strings.TrimPrefix(path, "/v1/phase/"))
+			require.Eventually(t, func() bool {
+				status := workerStatus(t, srv, token)
+				return status.CompletedPhase == phase && status.ActivePhase == "" && status.LastError == ""
+			}, time.Second, 10*time.Millisecond)
+		}
+		return
+	}
+	require.Equal(t, want, rec.Code, rec.Body.String())
+}
+
+func authorizedRecorder(t *testing.T, srv *Server, method, path, token string, body []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(method, path, bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	srv.ServeHTTP(rec, req)
+	return rec
+}
+
+func workerStatus(t *testing.T, srv *Server, token string) Status {
+	t.Helper()
+	rec := authorizedRecorder(t, srv, http.MethodGet, "/v1/status", token, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var status Status
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &status))
+	return status
+}
+
+func workerStatusMap(t *testing.T, srv *Server, token string) map[string]any {
+	t.Helper()
+	rec := authorizedRecorder(t, srv, http.MethodGet, "/v1/status", token, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var status map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &status))
+	return status
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	data, err := json.Marshal(v)
+	require.NoError(t, err)
+	return data
+}
+
+func TestWorkerDefaultRunnerPreparesBenchAPITokensBeforeConnect(t *testing.T) {
+	type seenTokenRequest struct {
+		batch string
+		uids  []string
+	}
+	seen := make([]seenTokenRequest, 0)
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/users/tokens":
+			var req model.BatchTokensRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			uids := make([]string, 0, len(req.Users))
+			for _, user := range req.Users {
+				uids = append(uids, user.UID)
+				require.Equal(t, "bench-token-"+user.UID, user.Token)
+			}
+			seen = append(seen, seenTokenRequest{batch: req.BatchID, uids: uids})
+		default:
+			t.Fatalf("unexpected target path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignment := personShardAssignment()
+	assignment.Target.BenchAPI.Addrs = []string{target.URL}
+	assignment.Scenario.Identity.Token.Mode = "bench_api"
+	assignFull(t, srv, "secret", assignment)
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+
+	require.Equal(t, []seenTokenRequest{{batch: "run-a-tokens-worker-a-0-2", uids: []string{"bench-u-6", "bench-u-7"}}}, seen)
+	require.NotNil(t, pool.client("bench-u-6"))
+}
+
+func TestWorkerDefaultRunnerUsesPlannedMemberRangeForSmallGroups(t *testing.T) {
+	type seenSubscribers struct {
+		channelID string
+		uids      []string
+	}
+	seen := make([]seenSubscribers, 0)
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/channels":
+			var req model.BatchChannelsRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		case "/bench/v1/channels/subscribers":
+			var req model.BatchSubscribersRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			require.Len(t, req.Items, 1)
+			seen = append(seen, seenSubscribers{channelID: req.Items[0].ChannelID, uids: req.Items[0].Subscribers})
+		default:
+			t.Fatalf("unexpected target path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+	srv := NewServer(Config{ControlToken: "secret"})
+	assignment := groupShardAssignment(target.URL)
+	assignment.Scenario.Channels.Profiles[0].Shard.Mode = "hash"
+	assignment.Scenario.Channels.Profiles[0].Count = 2
+	assignment.Plan.Profiles["huge-group"] = model.ProfileShard{
+		Name:         "huge-group",
+		ChannelType:  model.ChannelTypeGroup,
+		ChannelRange: model.Range{Start: 1, End: 2},
+		MemberRange:  model.Range{Start: 5000, End: 5004},
+	}
+	assignFull(t, srv, "secret", assignment)
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	require.Equal(t, []seenSubscribers{{channelID: "bench-run-huge-group-1", uids: []string{"bench-u-5000", "bench-u-5001"}}, {channelID: "bench-run-huge-group-1", uids: []string{"bench-u-5002", "bench-u-5003"}}}, seen)
+}
+
+func TestGroupChannelsForShardAllowedOverlapStaysInsideSharedPool(t *testing.T) {
+	shard := model.ProfileShard{
+		Name:              "group-hot",
+		ChannelType:       model.ChannelTypeGroup,
+		ChannelRange:      model.Range{Start: 0, End: 2},
+		MemberRange:       model.Range{Start: 0, End: 100},
+		MemberReusePolicy: "allowed",
+	}
+	profile := model.ChannelProfile{
+		Name:        "group-hot",
+		ChannelType: model.ChannelTypeGroup,
+		Count:       2,
+		Members:     model.MembersConfig{Count: 60, Overlap: "allowed", Pick: "deterministic_hash"},
+	}
+
+	channels := groupChannelsForShard("run-a", shard, profile, model.IdentityConfig{UIDPrefix: "bench-u"})
+
+	require.Len(t, channels, 2)
+	for _, ch := range channels {
+		require.Len(t, ch.OnlineMembers, 60)
+		for _, uid := range ch.OnlineMembers {
+			require.Regexp(t, `^bench-u-([0-9]|[1-9][0-9])$`, uid)
+		}
+	}
+}

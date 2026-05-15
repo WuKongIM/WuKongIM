@@ -43,8 +43,16 @@
 ```text
 cmd/
   wukongim/              程序入口，负责读取配置并启动应用
+  wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/report 入口
 
 internal/
+  bench/                 wkbench 黑盒客户端配置、模型、规划与协调预检
+    config/              wkbench YAML 加载与严格解码
+    model/               wkbench spec-shaped 配置、计划与 bench API DTO
+    planner/             worker 权重、identity pool 与 channel/member/traffic 分片规划
+    target/              target HTTP bench API 黑盒客户端
+    coordinator/         coordinator preflight 检查 target、worker 与 gateway placeholder
+    worker/              wkbench worker 控制 HTTP API 与运行状态
   app/                   组合根；负责 build、lifecycle、config、依赖装配
     lifecycle/           生命周期管理器与资源栈原语
   access/                接入层，只做入口适配
@@ -69,6 +77,7 @@ internal/
     deliveryevents/      投递回执与离线事件合约
     messageevents/       消息提交事件合约
   usecase/               可复用业务用例，不依赖具体入口协议
+    benchdata/           benchmark 数据准备、能力描述与受限批量变更用例
     channel/             频道资料、订阅者、黑白名单等兼容用例
     cmdsync/             CMD 离线同步、syncack 与独立 CMD 会话状态用例
     conversation/        会话投影、同步等用例
@@ -120,6 +129,11 @@ scripts/                 仓库辅助脚本
 
 test/
   e2e/                   真实二进制黑盒 e2e 测试与子进程 harness
+    bench/               wkbench 黑盒 CLI e2e 场景
+      wkbench_smoke/     单节点集群 wkbench smoke 与 bench API disabled preflight
+    cluster/             集群拓扑、快照、扩缩容 e2e 场景
+    message/             WKProto 消息投递闭环 e2e 场景
+    suite/               e2e 共享黑盒 harness 与客户端辅助
 
 ui/                      内置管理 UI 静态页面
   assets/                前端静态资源

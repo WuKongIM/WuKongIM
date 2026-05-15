@@ -24,6 +24,7 @@ import (
 	deliverytagruntime "github.com/WuKongIM/WuKongIM/internal/runtime/deliverytag"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/messageid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/benchdata"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
@@ -778,6 +779,15 @@ func build(cfg Config) (_ *App, err error) {
 			cluster:     app.cluster,
 			localNodeID: cfg.Node.ID,
 		}
+		var benchData accessapi.BenchDataUsecase
+		if cfg.Bench.APIEnabled {
+			benchData = benchdata.New(benchdata.Config{
+				Users:           benchUserWriter{users: clusterUsers},
+				Channels:        benchChannelWriter{channels: app.channelApp},
+				MaxBatchSize:    cfg.Bench.APIMaxBatchSize,
+				MaxPayloadBytes: cfg.Bench.APIMaxPayloadBytes,
+			})
+		}
 		app.api = accessapi.New(accessapi.Options{
 			ListenAddr:               cfg.API.ListenAddr,
 			Messages:                 app.messageApp,
@@ -794,6 +804,10 @@ func build(cfg Config) (_ *App, err error) {
 			HealthDetails:            app.healthDetailsSnapshot,
 			Readyz:                   app.readyzReport,
 			DebugEnabled:             cfg.Observability.HealthDebugEnabled,
+			BenchEnabled:             cfg.Bench.APIEnabled,
+			BenchData:                benchData,
+			BenchMaxBatchSize:        cfg.Bench.APIMaxBatchSize,
+			BenchMaxPayloadBytes:     cfg.Bench.APIMaxPayloadBytes,
 			DebugConfig:              app.debugConfigSnapshot,
 			DebugCluster:             app.debugClusterSnapshot,
 			DiagnosticsDebugEnabled:  cfg.Observability.Diagnostics.Enabled && cfg.Observability.Diagnostics.DebugAPIEnabled,

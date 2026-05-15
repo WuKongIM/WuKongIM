@@ -32,6 +32,8 @@ type Config struct {
 	Message MessageConfig
 	// API configures the public HTTP API entry point.
 	API APIConfig
+	// Bench controls unauthenticated benchmark-only APIs used by wkbench.
+	Bench BenchConfig
 	// Manager configures the administration HTTP API entry point.
 	Manager ManagerConfig
 	// Gateway configures client connection listeners and session behavior.
@@ -42,6 +44,16 @@ type Config struct {
 	Observability ObservabilityConfig
 	// Log configures application logging output.
 	Log LogConfig
+}
+
+// BenchConfig controls unauthenticated benchmark-only APIs used by wkbench.
+type BenchConfig struct {
+	// APIEnabled registers /bench/v1/* routes for controlled benchmark environments.
+	APIEnabled bool
+	// APIMaxBatchSize limits top-level records accepted by a bench API request.
+	APIMaxBatchSize int
+	// APIMaxPayloadBytes limits HTTP request body size accepted by bench APIs.
+	APIMaxPayloadBytes int64
 }
 
 // ChannelMigrationConfig controls the background executor that advances durable channel migration tasks.
@@ -1035,6 +1047,18 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if c.Gateway.SendTimeout <= 0 {
 		c.Gateway.SendTimeout = defaultGatewaySendTimeout
 	}
+	if c.Bench.APIMaxBatchSize < 0 {
+		return fmt.Errorf("%w: bench api max batch size must be positive", ErrInvalidConfig)
+	}
+	if c.Bench.APIMaxPayloadBytes < 0 {
+		return fmt.Errorf("%w: bench api max payload bytes must be positive", ErrInvalidConfig)
+	}
+	if c.Bench.APIMaxBatchSize == 0 {
+		c.Bench.APIMaxBatchSize = defaultBenchAPIMaxBatchSize
+	}
+	if c.Bench.APIMaxPayloadBytes == 0 {
+		c.Bench.APIMaxPayloadBytes = defaultBenchAPIMaxPayloadBytes
+	}
 	if c.Conversation.ColdThreshold <= 0 {
 		c.Conversation.ColdThreshold = 30 * 24 * time.Hour
 	}
@@ -1420,6 +1444,10 @@ func effectiveDataPlaneRPCTimeout(configured time.Duration) time.Duration {
 }
 
 const defaultGatewaySendTimeout = 20 * time.Second
+
+const defaultBenchAPIMaxBatchSize = 10000
+
+const defaultBenchAPIMaxPayloadBytes = int64(10 << 20)
 
 const defaultChannelMigrationScanInterval = time.Second
 

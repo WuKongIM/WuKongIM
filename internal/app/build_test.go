@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"sort"
 	"testing"
@@ -272,6 +274,23 @@ func TestBuildForwardsGatewaySendTimeoutIntoHandler(t *testing.T) {
 	})
 
 	require.Equal(t, 27*time.Second, appGatewayHandlerDurationField(t, app.GatewayHandler(), "sendTimeout"))
+}
+
+func TestBuildForwardsBenchAPIConfigIntoAPIServer(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.API.ListenAddr = "127.0.0.1:0"
+	cfg.Bench.APIEnabled = true
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/bench/v1/capabilities", nil)
+	app.API().Engine().ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
 }
 
 func TestNewClosesChannelRuntimeResourcesWhenLateBuildFails(t *testing.T) {

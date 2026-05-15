@@ -1,8 +1,8 @@
 package testkit
 
 import (
-	"github.com/WuKongIM/WuKongIM/internal/gateway/wkprotoenc"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 )
 
 type WKProtoClient struct {

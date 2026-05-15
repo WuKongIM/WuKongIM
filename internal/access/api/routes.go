@@ -27,6 +27,9 @@ func (s *Server) registerRoutes() {
 	if s.diagnosticsDebugEnabled && s.diagnostics != nil {
 		s.registerDiagnosticsRoutes()
 	}
+	if s.benchEnabled {
+		s.registerBenchRoutes()
+	}
 	if s.debugEnabled {
 		if s.debugConfig != nil {
 			s.engine.GET("/debug/config", s.handleDebugConfig)
