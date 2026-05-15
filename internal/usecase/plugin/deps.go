@@ -83,6 +83,8 @@ type Options struct {
 	BindingCache *BindingCache
 	// Invoker sends byte-oriented hook requests to running plugins.
 	Invoker Invoker
+	// FailOpen lets message sends continue when Send hooks fail.
+	FailOpen bool
 	// NodeID identifies the local cluster node for node-scoped responses.
 	NodeID uint64
 	// Clock supplies timestamps for deterministic tests.

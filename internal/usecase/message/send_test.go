@@ -23,6 +23,121 @@ import (
 
 var fixedSendNow = time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC)
 
+func TestSendHookInvokedAfterPermissionAndMutatesDurablePayload(t *testing.T) {
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{ChannelID: "g1", ChannelType: int64(frame.ChannelTypeGroup)}
+	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
+	cluster := &fakeChannelCluster{sendReplies: []fakeChannelClusterSendReply{{result: channel.AppendResult{MessageID: 501, MessageSeq: 51}}}}
+	hook := &recordingSendHook{mutate: func(cmd SendCommand) SendCommand {
+		cmd.Payload = []byte("mutated")
+		cmd.Topic = "hook-topic"
+		return cmd
+	}}
+	app := New(Options{Now: fixedNowFn, Cluster: cluster, MetaRefresher: &fakeMetaRefresher{}, PermissionStore: permissions, SendHook: hook})
+
+	result, err := app.Send(context.Background(), SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, Payload: []byte("original")})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Len(t, hook.calls, 1)
+	require.Equal(t, "g1", hook.calls[0].ChannelID)
+	require.Equal(t, []byte("original"), hook.calls[0].Payload)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Equal(t, []byte("mutated"), cluster.sendRequests[0].Message.Payload)
+	require.Equal(t, "hook-topic", cluster.sendRequests[0].Message.Topic)
+}
+
+func TestSendHookNotInvokedWhenPermissionRejects(t *testing.T) {
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("u1", int64(frame.ChannelTypePerson))] = metadb.Channel{ChannelID: "u1", ChannelType: int64(frame.ChannelTypePerson), SendBan: 1}
+	hook := &recordingSendHook{}
+	app := New(Options{Now: fixedNowFn, PermissionStore: permissions, SendHook: hook})
+
+	result, err := app.Send(context.Background(), SendCommand{FromUID: "u1", ChannelID: "u2", ChannelType: frame.ChannelTypePerson, Payload: []byte("hi")})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSendBan, result.Reason)
+	require.Empty(t, hook.calls)
+}
+
+func TestSendHookRequestScopedSyncOnceInvokedExactlyOnce(t *testing.T) {
+	cluster := &fakeChannelCluster{sendReplies: []fakeChannelClusterSendReply{{result: channel.AppendResult{MessageID: 502, MessageSeq: 52}}}}
+	hook := &recordingSendHook{mutate: func(cmd SendCommand) SendCommand {
+		cmd.Payload = []byte("scoped-mutated")
+		return cmd
+	}}
+	app := New(Options{Now: fixedNowFn, Cluster: cluster, MetaRefresher: &fakeMetaRefresher{}, CommittedDispatcher: &recordingCommittedDispatcher{}, SendHook: hook})
+
+	result, err := app.Send(context.Background(), SendCommand{Framer: frame.Framer{SyncOnce: true}, FromUID: "system", RequestSubscribers: []string{"u1", "u2"}, Payload: []byte("scoped")})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Len(t, hook.calls, 1)
+	require.NotEmpty(t, hook.calls[0].ChannelID)
+	require.Equal(t, frame.ChannelTypeTemp, hook.calls[0].ChannelType)
+	require.Equal(t, []byte("scoped"), hook.calls[0].Payload)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Equal(t, []byte("scoped-mutated"), cluster.sendRequests[0].Message.Payload)
+}
+
+func TestSendHookReasonRejectsBeforeAppend(t *testing.T) {
+	cluster := &fakeChannelCluster{}
+	hook := &recordingSendHook{reason: frame.ReasonPayloadDecodeError}
+	app := New(Options{Now: fixedNowFn, Cluster: cluster, MetaRefresher: &fakeMetaRefresher{}, SendHook: hook})
+
+	result, err := app.Send(context.Background(), SendCommand{FromUID: "u1", ChannelID: "u2", ChannelType: frame.ChannelTypePerson, Payload: []byte("bad")})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonPayloadDecodeError, result.Reason)
+	require.Empty(t, cluster.sendRequests)
+	require.Len(t, hook.calls, 1)
+}
+
+func TestSendHookPluginOriginDepthAndLimit(t *testing.T) {
+	hook := &recordingSendHook{}
+	app := New(Options{Now: fixedNowFn, Cluster: &fakeChannelCluster{}, MetaRefresher: &fakeMetaRefresher{}, SendHook: hook})
+
+	_, err := app.Send(context.Background(), SendCommand{Origin: SendOriginPlugin, HookDepth: DefaultPluginSendMaxHookDepth, FromUID: "plugin-a", ChannelID: "u2", ChannelType: frame.ChannelTypePerson, Payload: []byte("loop")})
+	require.ErrorIs(t, err, ErrSendHookDepthExceeded)
+	require.Empty(t, hook.calls)
+
+	_, err = app.Send(context.Background(), SendCommand{Origin: SendOriginPlugin, FromUID: "plugin-a", ChannelID: "u2", ChannelType: frame.ChannelTypePerson, Payload: []byte("hook")})
+	require.NoError(t, err)
+	require.Len(t, hook.calls, 1)
+	require.Equal(t, SendOriginPlugin, hook.calls[0].Origin)
+	require.Equal(t, 1, hook.calls[0].HookDepth)
+}
+
+func TestSendHookSkipPluginHooksBypassesHook(t *testing.T) {
+	cluster := &fakeChannelCluster{sendReplies: []fakeChannelClusterSendReply{{result: channel.AppendResult{MessageID: 503, MessageSeq: 53}}}}
+	hook := &recordingSendHook{reason: frame.ReasonPayloadDecodeError}
+	app := New(Options{Now: fixedNowFn, Cluster: cluster, MetaRefresher: &fakeMetaRefresher{}, SendHook: hook})
+
+	result, err := app.Send(context.Background(), SendCommand{SkipPluginHooks: true, FromUID: "u1", ChannelID: "u2", ChannelType: frame.ChannelTypePerson, Payload: []byte("skip")})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Empty(t, hook.calls)
+	require.Len(t, cluster.sendRequests, 1)
+}
+
+type recordingSendHook struct {
+	calls  []SendCommand
+	mutate func(SendCommand) SendCommand
+	reason frame.ReasonCode
+	err    error
+}
+
+func (h *recordingSendHook) BeforeSend(_ context.Context, cmd SendCommand) (SendCommand, frame.ReasonCode, error) {
+	copied := cmd
+	copied.Payload = append([]byte(nil), cmd.Payload...)
+	h.calls = append(h.calls, copied)
+	if h.mutate != nil {
+		cmd = h.mutate(cmd)
+	}
+	return cmd, h.reason, h.err
+}
+
 func TestSendRejectsUnauthenticatedSender(t *testing.T) {
 	app := New(Options{Now: fixedNowFn})
 

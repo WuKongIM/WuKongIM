@@ -52,6 +52,12 @@ type RealtimeDispatcher interface {
 	SubmitRealtime(ctx context.Context, event messageevents.MessageRealtime) error
 }
 
+// SendHook can inspect, mutate, or reject a send before persistence or realtime dispatch.
+type SendHook interface {
+	// BeforeSend returns a possibly mutated command and optional rejection reason.
+	BeforeSend(ctx context.Context, cmd SendCommand) (SendCommand, frame.ReasonCode, error)
+}
+
 // MessageIDGenerator allocates transient IDs for non-durable realtime messages.
 type MessageIDGenerator interface {
 	Next() uint64
