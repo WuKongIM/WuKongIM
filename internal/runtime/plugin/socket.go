@@ -16,7 +16,7 @@ import (
 // SocketServer exposes the node-local Unix socket used by PDK-compatible plugins.
 type SocketServer interface {
 	// Route registers a byte-oriented host RPC path; access adapters own business handlers.
-	Route(path string, handler func(*wkrpc.Context))
+	Route(path string, handler wkrpc.Handler)
 	// Start starts the Unix socket server.
 	Start() error
 	// Stop stops the Unix socket server.
@@ -65,7 +65,7 @@ func newSocketServerWithBackend(socketPath string, backend socketBackend) *WKRPC
 }
 
 // Route registers a host RPC route on the underlying wkrpc server.
-func (s *WKRPCSocketServer) Route(path string, handler func(*wkrpc.Context)) {
+func (s *WKRPCSocketServer) Route(path string, handler wkrpc.Handler) {
 	s.backend.Route(path, handler)
 }
 

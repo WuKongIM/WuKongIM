@@ -9,11 +9,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	runtimeplugin "github.com/WuKongIM/WuKongIM/internal/runtime/plugin"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/wkrpc"
 	wkrpcproto "github.com/WuKongIM/wkrpc/proto"
 	"google.golang.org/protobuf/proto"
@@ -33,8 +35,8 @@ func TestConstructorRequiresPositiveTimeoutAndDefaultsMaxBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewServer returned error: %v", err)
 	}
-	if srv.MaxBodyBytes() != 10<<20 {
-		t.Fatalf("MaxBodyBytes = %d, want %d", srv.MaxBodyBytes(), 10<<20)
+	if srv.MaxBodyBytes() != DefaultHostRPCMaxBodyBytes {
+		t.Fatalf("MaxBodyBytes = %d, want %d", srv.MaxBodyBytes(), DefaultHostRPCMaxBodyBytes)
 	}
 }
 
@@ -70,6 +72,26 @@ func TestRegisterRoutes(t *testing.T) {
 
 func TestRouteRegistrarAcceptsRuntimeSocketServer(t *testing.T) {
 	var _ RouteRegistrar = runtimeplugin.NewSocketServer("/tmp/wukongim-plugin-test.sock")
+}
+
+func TestRouteRegistrarAcceptsDirectWKRPCServer(t *testing.T) {
+	var _ RouteRegistrar = (*wkrpc.Server)(nil)
+}
+
+func TestRegisterRoutesSupportsWKRPCHandlerRegistrar(t *testing.T) {
+	routes := &fakeHandlerRoutes{}
+	_, err := NewServer(Options{Routes: routes, Usecase: &fakeUsecase{}, Timeout: time.Second})
+	if err != nil {
+		t.Fatalf("NewServer returned error: %v", err)
+	}
+	if !reflect.DeepEqual(routes.paths, routePaths) {
+		t.Fatalf("registered paths = %#v, want %#v", routes.paths, routePaths)
+	}
+	for _, path := range routePaths {
+		if routes.handlers[path] == nil {
+			t.Fatalf("route %s registered nil handler", path)
+		}
+	}
 }
 
 func TestRegisteredHandlerDispatchesThroughWKRPCAdapter(t *testing.T) {
@@ -142,6 +164,51 @@ func TestLifecycleStartValidAndEmptyPluginNumber(t *testing.T) {
 	}
 }
 
+func TestLifecycleCloseRequestWithEmptyBodyWritesOK(t *testing.T) {
+	uc := &fakeUsecase{}
+	srv := mustServer(t, uc)
+	ctx := newFakeRequestContext(nil)
+	ctx.uid = "plug-request-close"
+
+	srv.handlePath("/close", ctx)
+
+	if ctx.err != nil {
+		t.Fatalf("unexpected WriteErr: %v", ctx.err)
+	}
+	if !ctx.ok {
+		t.Fatal("expected WriteOk for an explicit /close request")
+	}
+	if uc.closePluginNo != "plug-request-close" {
+		t.Fatalf("ClosePlugin pluginNo = %q", uc.closePluginNo)
+	}
+}
+
+func TestLifecycleCloseEventDoesNotBlockOnUsecase(t *testing.T) {
+	started := make(chan struct{})
+	block := make(chan struct{})
+	uc := &fakeUsecase{closeStarted: started, closeBlock: block}
+	srv := mustServer(t, uc)
+	ctx := newFakeCloseEventContext(nil)
+	ctx.uid = "plug-close"
+
+	begin := time.Now()
+	srv.handlePath("/close", ctx)
+	elapsed := time.Since(begin)
+
+	if elapsed > 20*time.Millisecond {
+		t.Fatalf("close event blocked for %v", elapsed)
+	}
+	if ctx.ok {
+		t.Fatal("close event should not write OK to a closing connection")
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("ClosePlugin was not started asynchronously")
+	}
+	close(block)
+}
+
 func TestLifecycleCloseCallsUsecaseAndWritesOK(t *testing.T) {
 	uc := &fakeUsecase{}
 	srv := mustServer(t, uc)
@@ -202,6 +269,57 @@ func TestCodecRejectsBodyLargerThanMax(t *testing.T) {
 	}
 }
 
+func TestCodecRejectsBodyLargerThanMaxOnCloseAndStream(t *testing.T) {
+	for _, path := range []string{"/close", "/stream/open", "/stream/write", "/stream/close"} {
+		t.Run(path, func(t *testing.T) {
+			uc := &fakeUsecase{}
+			srv, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: uc, Timeout: time.Second, MaxBodyBytes: 3})
+			if err != nil {
+				t.Fatalf("NewServer returned error: %v", err)
+			}
+			ctx := newFakeRPCContext([]byte{1, 2, 3, 4})
+			ctx.uid = "plug-a"
+
+			srv.handlePath(path, ctx)
+
+			if ctx.err == nil {
+				t.Fatal("expected max body WriteErr")
+			}
+			if !strings.Contains(ctx.err.Error(), "body exceeds max bytes") {
+				t.Fatalf("error = %q", ctx.err.Error())
+			}
+			if uc.closePluginNo != "" {
+				t.Fatalf("ClosePlugin called with %q", uc.closePluginNo)
+			}
+		})
+	}
+}
+
+func TestStreamRoutesLogPathAndPluginNumber(t *testing.T) {
+	logger := &recordingLogger{}
+	srv, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: &fakeUsecase{}, Timeout: time.Second, Logger: logger})
+	if err != nil {
+		t.Fatalf("NewServer returned error: %v", err)
+	}
+	ctx := newFakeRPCContext(nil)
+	ctx.uid = "plug-stream"
+
+	srv.handlePath("/stream/open", ctx)
+
+	if ctx.err == nil {
+		t.Fatal("expected stream unimplemented error")
+	}
+	if logger.lastMsg != "plugin stream rpc unimplemented" {
+		t.Fatalf("log msg = %q", logger.lastMsg)
+	}
+	if got := logger.fieldValue("path"); got != "/stream/open" {
+		t.Fatalf("logged path = %#v", got)
+	}
+	if got := logger.fieldValue("pluginNo"); got != "plug-stream" {
+		t.Fatalf("logged pluginNo = %#v", got)
+	}
+}
+
 func TestCodecRejectsResponseLargerThanMax(t *testing.T) {
 	uc := &fakeUsecase{startupResp: &pluginproto.StartupResp{Config: []byte("too large")}}
 	srv, err := NewServer(Options{Routes: &fakeRoutes{}, Usecase: uc, Timeout: time.Second, MaxBodyBytes: 3})
@@ -256,7 +374,7 @@ func TestTimeoutWrapsAllHostRPCRoutesAndKeepsShorterIncomingDeadline(t *testing.
 		t.Run(tc.path+"/keeps shorter incoming deadline", func(t *testing.T) {
 			uc := &fakeUsecase{}
 			srv := mustServer(t, uc)
-			incoming, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+			incoming, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 			defer cancel()
 			ctx := newFakeRPCContext(tc.body)
 			ctx.uid = "plug-timeout"
@@ -270,7 +388,7 @@ func TestTimeoutWrapsAllHostRPCRoutesAndKeepsShorterIncomingDeadline(t *testing.
 				t.Fatal("usecase context has no deadline")
 			}
 			remaining := time.Until(deadline)
-			if remaining <= 0 || remaining > 50*time.Millisecond {
+			if remaining <= 0 || remaining > 250*time.Millisecond {
 				t.Fatalf("deadline remaining = %v, want incoming shorter deadline", remaining)
 			}
 		})
@@ -279,12 +397,25 @@ func TestTimeoutWrapsAllHostRPCRoutesAndKeepsShorterIncomingDeadline(t *testing.
 
 type fakeRoutes struct {
 	paths    []string
-	handlers map[string]func(*wkrpc.Context)
+	handlers map[string]wkrpc.Handler
 }
 
-func (f *fakeRoutes) Route(path string, handler func(*wkrpc.Context)) {
+func (f *fakeRoutes) Route(path string, handler wkrpc.Handler) {
 	if f.handlers == nil {
-		f.handlers = make(map[string]func(*wkrpc.Context))
+		f.handlers = make(map[string]wkrpc.Handler)
+	}
+	f.paths = append(f.paths, path)
+	f.handlers[path] = handler
+}
+
+type fakeHandlerRoutes struct {
+	paths    []string
+	handlers map[string]wkrpc.Handler
+}
+
+func (f *fakeHandlerRoutes) Route(path string, handler wkrpc.Handler) {
+	if f.handlers == nil {
+		f.handlers = make(map[string]wkrpc.Handler)
 	}
 	f.paths = append(f.paths, path)
 	f.handlers[path] = handler
@@ -393,6 +524,52 @@ func (f *fakeRPCContext) Write(data []byte)        { f.written = append([]byte(n
 func (f *fakeRPCContext) WriteOk()                 { f.ok = true }
 func (f *fakeRPCContext) WriteErr(err error)       { f.err = err }
 
+type fakeCloseEventContext struct {
+	*fakeRPCContext
+}
+
+func newFakeCloseEventContext(body []byte) *fakeCloseEventContext {
+	return &fakeCloseEventContext{fakeRPCContext: newFakeRPCContext(body)}
+}
+
+func (f *fakeCloseEventContext) CloseEvent() bool { return true }
+
+type fakeRequestContext struct {
+	*fakeRPCContext
+}
+
+func newFakeRequestContext(body []byte) *fakeRequestContext {
+	return &fakeRequestContext{fakeRPCContext: newFakeRPCContext(body)}
+}
+
+func (f *fakeRequestContext) CloseEvent() bool { return false }
+
+type recordingLogger struct {
+	lastMsg    string
+	lastFields []wklog.Field
+}
+
+func (r *recordingLogger) Debug(msg string, fields ...wklog.Field) {
+	r.lastMsg = msg
+	r.lastFields = append([]wklog.Field(nil), fields...)
+}
+func (r *recordingLogger) Info(msg string, fields ...wklog.Field)  {}
+func (r *recordingLogger) Warn(msg string, fields ...wklog.Field)  {}
+func (r *recordingLogger) Error(msg string, fields ...wklog.Field) {}
+func (r *recordingLogger) Fatal(msg string, fields ...wklog.Field) {}
+func (r *recordingLogger) Named(string) wklog.Logger               { return r }
+func (r *recordingLogger) With(fields ...wklog.Field) wklog.Logger { return r }
+func (r *recordingLogger) Sync() error                             { return nil }
+
+func (r *recordingLogger) fieldValue(key string) any {
+	for _, field := range r.lastFields {
+		if field.Key == key {
+			return field.Value
+		}
+	}
+	return nil
+}
+
 type fakeUsecase struct {
 	lastCtx context.Context
 
@@ -403,6 +580,8 @@ type fakeUsecase struct {
 
 	closePluginNo string
 	closeCaller   string
+	closeStarted  chan struct{}
+	closeBlock    <-chan struct{}
 
 	sendCalls int
 }
@@ -422,6 +601,16 @@ func (f *fakeUsecase) ClosePlugin(ctx context.Context, pluginNo string, callerUI
 	f.lastCtx = ctx
 	f.closePluginNo = pluginNo
 	f.closeCaller = callerUID
+	if f.closeStarted != nil {
+		close(f.closeStarted)
+	}
+	if f.closeBlock != nil {
+		select {
+		case <-f.closeBlock:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	return nil
 }
 

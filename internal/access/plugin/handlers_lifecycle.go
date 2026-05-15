@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/WuKongIM/wkrpc"
 )
 
@@ -19,16 +20,37 @@ type rpcContext interface {
 	WriteErr(error)
 }
 
+type closeEventContext interface {
+	CloseEvent() bool
+}
+
 type wkrpcContext struct {
 	ctx *wkrpc.Context
 }
 
 func (w wkrpcContext) Context() context.Context { return context.Background() }
-func (w wkrpcContext) Body() []byte             { return w.ctx.Body() }
-func (w wkrpcContext) Uid() string              { return w.ctx.Uid() }
-func (w wkrpcContext) Write(data []byte)        { w.ctx.Write(data) }
-func (w wkrpcContext) WriteOk()                 { w.ctx.WriteOk() }
-func (w wkrpcContext) WriteErr(err error)       { w.ctx.WriteErr(err) }
+func (w wkrpcContext) Body() []byte {
+	body, _ := w.safeBody()
+	return body
+}
+func (w wkrpcContext) Uid() string        { return w.ctx.Uid() }
+func (w wkrpcContext) Write(data []byte)  { w.ctx.Write(data) }
+func (w wkrpcContext) WriteOk()           { w.ctx.WriteOk() }
+func (w wkrpcContext) WriteErr(err error) { w.ctx.WriteErr(err) }
+func (w wkrpcContext) CloseEvent() bool {
+	_, closeEvent := w.safeBody()
+	return closeEvent
+}
+
+func (w wkrpcContext) safeBody() (body []byte, closeEvent bool) {
+	defer func() {
+		if recover() != nil {
+			body = nil
+			closeEvent = true
+		}
+	}()
+	return w.ctx.Body(), false
+}
 
 func (s *Server) usecaseContext(c rpcContext) (context.Context, context.CancelFunc) {
 	base := c.Context()
@@ -61,18 +83,33 @@ func (s *Server) handlePluginStart(c rpcContext) {
 }
 
 func (s *Server) handleClose(c rpcContext) {
+	if !s.checkBodyLimit(c) {
+		return
+	}
 	pluginNo := c.Uid()
 	if pluginNo == "" {
 		c.WriteErr(errEmptyPluginNumber)
 		return
 	}
 	ctx, cancel := s.usecaseContext(c)
+	if isCloseEvent(c) {
+		go func() {
+			defer cancel()
+			_ = s.usecase.ClosePlugin(ctx, pluginNo, c.Uid())
+		}()
+		return
+	}
 	defer cancel()
 	if err := s.usecase.ClosePlugin(ctx, pluginNo, c.Uid()); err != nil {
 		c.WriteErr(err)
 		return
 	}
 	c.WriteOk()
+}
+
+func isCloseEvent(c rpcContext) bool {
+	eventCtx, ok := c.(closeEventContext)
+	return ok && eventCtx.CloseEvent()
 }
 
 func (s *Server) handleSendMessage(c rpcContext) {
@@ -164,6 +201,12 @@ func (s *Server) handleConversationChannels(c rpcContext) {
 	s.writeProto(c, resp)
 }
 
-func (s *Server) handleUnimplementedStream(c rpcContext) {
+func (s *Server) handleUnimplementedStream(path string, c rpcContext) {
+	if !s.checkBodyLimit(c) {
+		return
+	}
+	if s.logger != nil {
+		s.logger.Debug("plugin stream rpc unimplemented", wklog.String("path", path), wklog.String("pluginNo", c.Uid()))
+	}
 	c.WriteErr(ErrUnimplementedStreamRPC)
 }
