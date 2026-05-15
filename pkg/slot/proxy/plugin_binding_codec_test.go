@@ -68,4 +68,6 @@ func TestPluginBindingPageCursorRoundTripsAndRejectsInvalidInput(t *testing.T) {
 	require.Error(t, err)
 	_, err = decodePluginBindingPageCursor(encoded[:len(encoded)-1])
 	require.Error(t, err)
+	_, err = decodePluginBindingPageCursor(string(make([]byte, pluginBindingPageCursorMaxEncodedLen+1)))
+	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
 }

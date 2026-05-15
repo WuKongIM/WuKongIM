@@ -286,6 +286,9 @@ func decodePluginBindingPageCursor(raw string) (pluginBindingPageCursor, error) 
 	if raw == "" {
 		return pluginBindingPageCursor{}, nil
 	}
+	if len(raw) > pluginBindingPageCursorMaxEncodedLen {
+		return pluginBindingPageCursor{}, metadb.ErrInvalidArgument
+	}
 	body, err := pluginBindingPageCursorBase64.DecodeString(raw)
 	if err != nil {
 		return pluginBindingPageCursor{}, err
