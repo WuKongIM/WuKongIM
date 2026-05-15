@@ -319,6 +319,67 @@ func TestWorkerDefaultRunnerConnectsAndRunsPersonShard(t *testing.T) {
 	require.Contains(t, sender.sentFrames[0].ClientMsgNo, "bench-msg")
 }
 
+func TestWorkerDefaultRunnerRecoverTrafficReconnectsFailedSession(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	runner := NewDefaultWorkloadRunner(pool.newClient)
+	assignment := personShardAssignment()
+
+	require.NoError(t, runner.Connect(context.Background(), assignment))
+	firstSender := pool.client("bench-u-6")
+	firstRecipient := pool.client("bench-u-7")
+	require.NotNil(t, firstSender)
+	require.NotNil(t, firstRecipient)
+
+	recovered := assignment
+	recovered.Scenario.Identity.ClientMsgPrefix = "bench-msg-r1"
+	recoverer := runner.(TrafficRecoverer)
+	require.NoError(t, recoverer.RecoverTraffic(context.Background(), recovered, &benchworkload.SessionError{
+		UID:       "bench-u-6",
+		Operation: "person send",
+		Err:       io.EOF,
+	}))
+
+	secondSender := pool.client("bench-u-6")
+	require.NotNil(t, secondSender)
+	require.NotSame(t, firstSender, secondSender)
+	require.Same(t, firstRecipient, pool.client("bench-u-7"))
+	require.Equal(t, 1, firstSender.closed)
+	require.Equal(t, []workerConnectCall{{uid: "bench-u-6", deviceID: "bench-d-6"}}, secondSender.connected)
+
+	require.NoError(t, runner.Run(context.Background(), recovered))
+	require.Len(t, secondSender.sentFrames, 1)
+	require.Contains(t, secondSender.sentFrames[0].ClientMsgNo, "bench-msg-r1")
+}
+
+func TestWorkerDefaultRunnerConnectsAssignedIdentityRange(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	runner := NewDefaultWorkloadRunner(pool.newClient)
+	assignment := Assignment{
+		RunID:    "run-a",
+		WorkerID: "worker-a",
+		Target:   model.Target{Gateway: model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"gw-a:5100"}}}},
+		Scenario: model.Scenario{
+			Run:      model.RunConfig{ID: "run-a"},
+			Identity: model.IdentityConfig{UIDPrefix: "bench-u", DevicePrefix: "bench-d"},
+			Online:   model.OnlineConfig{GatewayBalance: "round_robin"},
+		},
+		Plan: model.WorkerPlan{
+			WorkerID:      "worker-a",
+			IdentityRange: model.Range{Start: 0, End: 3},
+			Profiles:      map[string]model.ProfileShard{},
+		},
+	}
+
+	require.NoError(t, runner.Connect(context.Background(), assignment))
+
+	for idx := 0; idx < 3; idx++ {
+		uid := fmt.Sprintf("bench-u-%d", idx)
+		client := pool.client(uid)
+		require.NotNil(t, client)
+		require.Equal(t, []workerConnectCall{{uid: uid, deviceID: fmt.Sprintf("bench-d-%d", idx)}}, client.connected)
+	}
+}
+
 func TestWorkerDefaultRunnerMetricsSurviveCooldown(t *testing.T) {
 	pool := newWorkerPersonClientPool()
 	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
@@ -954,6 +1015,7 @@ type workerPersonClient struct {
 	uid        string
 	addr       string
 	connected  []workerConnectCall
+	closed     int
 	sentFrames []*frame.SendPacket
 	readFrames []frame.Frame
 }
@@ -987,7 +1049,10 @@ func (c *workerPersonClient) RecvAck(ctx context.Context, messageID int64, messa
 	return nil
 }
 
-func (c *workerPersonClient) Close() error { return nil }
+func (c *workerPersonClient) Close() error {
+	c.closed++
+	return nil
+}
 
 var _ benchworkload.PersonClient = (*workerPersonClient)(nil)
 

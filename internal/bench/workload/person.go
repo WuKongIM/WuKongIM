@@ -2,6 +2,7 @@ package workload
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -303,12 +304,15 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 	if err := sender.Send(ctx, pkt); err != nil {
 		w.recordError("person_send_error", err)
 		w.metrics.IncCounter("person_send_error_total", nil)
-		return err
+		return sessionOperationError(pair.SenderUID, "person send", err)
 	}
 	ack, err := w.waitForSendack(ctx, sender, clientSeq, clientMsgNo)
 	if err != nil {
 		w.recordError("person_send_error", err)
 		w.metrics.IncCounter("person_send_error_total", nil)
+		if errors.Is(err, io.EOF) {
+			return sessionOperationError(pair.SenderUID, "person sendack", err)
+		}
 		return err
 	}
 	if ack.ReasonCode != frame.ReasonSuccess {
@@ -332,6 +336,9 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 	if err != nil {
 		w.recordError("person_recv_error", err)
 		w.metrics.IncCounter("person_recv_error_total", nil)
+		if errors.Is(err, io.EOF) {
+			return sessionOperationError(pair.RecipientUID, "person recv", err)
+		}
 		return err
 	}
 	if string(recv.Payload) != string(payload) {
@@ -344,7 +351,7 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 		if err := recipient.RecvAck(ctx, recv.MessageID, recv.MessageSeq); err != nil {
 			w.recordError("person_recv_error", err)
 			w.metrics.IncCounter("person_recv_error_total", nil)
-			return err
+			return sessionOperationError(pair.RecipientUID, "person recvack", err)
 		}
 	}
 	w.metrics.IncCounter("person_recv_success_total", nil)
@@ -555,6 +562,11 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 			c.signalLocked()
 			c.mu.Unlock()
 			return f, nil
+		}
+		if _, ok := f.(*frame.PongPacket); ok {
+			c.signalLocked()
+			c.mu.Unlock()
+			continue
 		}
 		c.buffer = append(c.buffer, f)
 		c.signalLocked()

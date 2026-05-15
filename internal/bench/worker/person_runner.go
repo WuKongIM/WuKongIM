@@ -89,7 +89,7 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 	if err != nil {
 		return err
 	}
-	users := mergeConnectionUsers(plan.users, groupPlan.users)
+	users := mergeConnectionUsers(plan.users, groupPlan.users, identityRangeUsers(assignment))
 	if len(users) == 0 {
 		r.reset(assignment.RunID)
 		return nil
@@ -98,6 +98,7 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 		Target:           assignment.Target,
 		GatewayBalance:   assignment.Scenario.Online.GatewayBalance,
 		ConnectRate:      assignment.Scenario.Online.ConnectRate,
+		Heartbeat:        assignment.Scenario.Online.Heartbeat,
 		ClientFactory:    r.clientFactory,
 		Token:            "",
 		OperationTimeout: 0,
@@ -111,20 +112,92 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 		return markTargetUnavailable(err)
 	}
 	r.mergeConnectionMetrics(manager)
+	if err := r.rebuildTrafficFromManager(assignment, manager); err != nil {
+		_ = manager.Close()
+		return err
+	}
+	return nil
+}
+
+// ResetTraffic rebuilds traffic workloads while keeping the active sessions open.
+func (r *defaultWorkloadRunner) ResetTraffic(assignment Assignment) error {
+	manager, err := r.managerForRun(assignment.RunID)
+	if err != nil {
+		return err
+	}
+	return r.rebuildTrafficFromManager(assignment, manager)
+}
+
+// RecoverTraffic repairs failed sessions and rebuilds workloads for the next traffic window.
+func (r *defaultWorkloadRunner) RecoverTraffic(ctx context.Context, assignment Assignment, cause error) error {
+	manager, err := r.managerForRun(assignment.RunID)
+	if err != nil {
+		return err
+	}
+	if err := r.repairSessions(ctx, assignment, manager, cause); err != nil {
+		return markTargetUnavailable(err)
+	}
+	return r.rebuildTrafficFromManager(assignment, manager)
+}
+
+func (r *defaultWorkloadRunner) managerForRun(runID string) (*benchworkload.ConnectionManager, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.runID != runID || r.manager == nil {
+		return nil, fmt.Errorf("worker runner: no active sessions for run %q", runID)
+	}
+	return r.manager, nil
+}
+
+func (r *defaultWorkloadRunner) repairSessions(ctx context.Context, assignment Assignment, manager *benchworkload.ConnectionManager, cause error) error {
+	repairUIDs := benchworkload.SessionErrorUIDs(cause)
+	if len(repairUIDs) == 0 {
+		return nil
+	}
+	users, err := connectionUsersForAssignment(assignment)
+	if err != nil {
+		return err
+	}
+	usersByUID := make(map[string]benchworkload.ConnectionUser, len(users))
+	for _, user := range users {
+		usersByUID[user.UID] = user
+	}
+	repairUsers := make([]benchworkload.ConnectionUser, 0, len(repairUIDs))
+	for _, uid := range repairUIDs {
+		user, ok := usersByUID[uid]
+		if !ok {
+			return fmt.Errorf("worker runner: failed session %q is not in assignment", uid)
+		}
+		repairUsers = append(repairUsers, user)
+	}
+	return manager.ReconnectUsers(ctx, repairUsers)
+}
+
+func (r *defaultWorkloadRunner) rebuildTrafficFromManager(assignment Assignment, manager *benchworkload.ConnectionManager) error {
+	plan, err := buildPersonExecutionPlan(assignment)
+	if err != nil {
+		return err
+	}
+	groupPlan, err := buildGroupExecutionPlan(assignment)
+	if err != nil {
+		return err
+	}
+	users := mergeConnectionUsers(plan.users, groupPlan.users, identityRangeUsers(assignment))
+	if len(users) == 0 {
+		r.store(assignment.RunID, manager, nil, nil)
+		return nil
+	}
 	rawClients, err := personClientsFromManager(manager, users)
 	if err != nil {
-		_ = manager.Close()
 		return err
 	}
 	clients := benchworkload.WrapPersonClientsForConcurrentReads(rawClients)
 	workloads, err := buildPersonWorkloads(assignment, plan.bundles, clients)
 	if err != nil {
-		_ = manager.Close()
 		return err
 	}
 	groupWorkloads, err := buildGroupWorkloads(assignment, groupPlan.bundles, clients)
 	if err != nil {
-		_ = manager.Close()
 		return err
 	}
 	r.store(assignment.RunID, manager, workloads, groupWorkloads)
@@ -399,15 +472,10 @@ func prepareBenchTokens(ctx context.Context, assignment Assignment) error {
 	if strings.TrimSpace(assignment.Scenario.Identity.Token.Mode) != "bench_api" {
 		return nil
 	}
-	plan, err := buildPersonExecutionPlan(assignment)
+	users, err := connectionUsersForAssignment(assignment)
 	if err != nil {
 		return err
 	}
-	groupPlan, err := buildGroupExecutionPlan(assignment)
-	if err != nil {
-		return err
-	}
-	users := mergeConnectionUsers(plan.users, groupPlan.users)
 	if len(users) == 0 {
 		return nil
 	}
@@ -432,6 +500,36 @@ func prepareBenchTokens(ctx context.Context, assignment Assignment) error {
 		}
 	}
 	return nil
+}
+
+func connectionUsersForAssignment(assignment Assignment) ([]benchworkload.ConnectionUser, error) {
+	plan, err := buildPersonExecutionPlan(assignment)
+	if err != nil {
+		return nil, err
+	}
+	groupPlan, err := buildGroupExecutionPlan(assignment)
+	if err != nil {
+		return nil, err
+	}
+	return mergeConnectionUsers(plan.users, groupPlan.users, identityRangeUsers(assignment)), nil
+}
+
+func identityRangeUsers(assignment Assignment) []benchworkload.ConnectionUser {
+	identityRange := assignment.Plan.IdentityRange
+	if identityRange.Len() <= 0 {
+		return nil
+	}
+	identity := assignment.Scenario.Identity
+	users := make([]benchworkload.ConnectionUser, 0, identityRange.Len())
+	for idx := identityRange.Start; idx < identityRange.End; idx++ {
+		uid := indexedID(identity.UIDPrefix, idx)
+		users = append(users, benchworkload.ConnectionUser{
+			UID:      uid,
+			DeviceID: indexedID(identity.DevicePrefix, idx),
+			Token:    personToken(identity.Token.Mode, uid),
+		})
+	}
+	return users
 }
 
 func (r *defaultWorkloadRunner) store(runID string, manager *benchworkload.ConnectionManager, personWorkloads []*benchworkload.PersonWorkload, groupWorkloads []*benchworkload.GroupWorkload) {

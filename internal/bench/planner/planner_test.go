@@ -42,6 +42,19 @@ func TestBuildHandlesZeroCountGroupWithMembersWithoutPanic(t *testing.T) {
 	})
 }
 
+func TestPlanIdentityRangeByWorkerWeight(t *testing.T) {
+	scenario := scenarioWithManyGroup(1, 10, "1/s")
+	scenario.Online.TotalUsers = 100
+	workers := []model.Worker{{ID: "a", Weight: 1}, {ID: "b", Weight: 1}, {ID: "c", Weight: 2}}
+
+	plan, err := Build(scenario, workers)
+
+	require.NoError(t, err)
+	require.Equal(t, model.Range{Start: 0, End: 25}, plan.Workers["a"].IdentityRange)
+	require.Equal(t, model.Range{Start: 25, End: 50}, plan.Workers["b"].IdentityRange)
+	require.Equal(t, model.Range{Start: 50, End: 100}, plan.Workers["c"].IdentityRange)
+}
+
 func TestBuildRejectsDisallowedOverlapGroupsWhenSharedIdentityPoolTooSmall(t *testing.T) {
 	small := channelProfile("small-groups", "group", 50)
 	small.Members.Count = 100

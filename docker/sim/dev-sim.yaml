@@ -22,6 +22,10 @@ identity:
 online:
   total_users: 20
   connect_rate: 10/s
+  heartbeat:
+    enabled: true
+    interval: 30s
+    timeout: 5s
 
 profiles:
   person_channels: 5

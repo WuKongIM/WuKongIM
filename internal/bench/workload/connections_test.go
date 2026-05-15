@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -186,12 +187,40 @@ func TestConnectionManagerMetricsCountPartialConnectFailureByUser(t *testing.T) 
 	}
 }
 
+func TestConnectionManagerSendsHeartbeatPings(t *testing.T) {
+	factory := &recordingClientFactory{}
+	manager, err := NewConnectionManager(ConnectionManagerConfig{
+		GatewayAddrs:  []string{"gw-a:5100"},
+		Heartbeat:     model.HeartbeatConfig{Enabled: true, Interval: time.Millisecond, Timeout: time.Second},
+		ClientFactory: factory.newClient,
+	})
+	if err != nil {
+		t.Fatalf("NewConnectionManager() error = %v", err)
+	}
+	defer manager.Close()
+
+	if err := manager.Connect(context.Background(), []ConnectionUser{{UID: "u1", DeviceID: "d1"}}); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if factory.clients[0].pings.Load() > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("heartbeat ping was not sent")
+}
+
 func TestConnectionManagerRejectsInvalidConfig(t *testing.T) {
 	if _, err := NewConnectionManager(ConnectionManagerConfig{}); err == nil {
 		t.Fatal("NewConnectionManager() error = nil, want missing gateway error")
 	}
 	if _, err := NewConnectionManager(ConnectionManagerConfig{GatewayAddrs: []string{"gw"}, Reconnect: ReconnectConfig{Enabled: true}}); err == nil {
 		t.Fatal("NewConnectionManager() error = nil, want reconnect disabled error")
+	}
+	if _, err := NewConnectionManager(ConnectionManagerConfig{GatewayAddrs: []string{"gw"}, Heartbeat: model.HeartbeatConfig{Enabled: true}}); err == nil {
+		t.Fatal("NewConnectionManager() error = nil, want heartbeat interval error")
 	}
 }
 
@@ -213,6 +242,7 @@ type recordingClient struct {
 	addr      string
 	connected []ConnectionUser
 	closed    bool
+	pings     atomic.Int32
 }
 
 func (c *recordingClient) Connect(ctx context.Context, uid, deviceID string) error {
@@ -225,5 +255,10 @@ func (c *recordingClient) Connect(ctx context.Context, uid, deviceID string) err
 
 func (c *recordingClient) Close() error {
 	c.closed = true
+	return nil
+}
+
+func (c *recordingClient) Ping(context.Context) error {
+	c.pings.Add(1)
 	return nil
 }

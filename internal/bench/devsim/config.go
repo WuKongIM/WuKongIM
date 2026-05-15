@@ -92,6 +92,8 @@ type OnlineConfig struct {
 	TotalUsers int `json:"total_users" yaml:"total_users"`
 	// ConnectRate limits gateway connection attempts.
 	ConnectRate model.Rate `json:"connect_rate" yaml:"connect_rate"`
+	// Heartbeat keeps idle simulated users active on the gateway.
+	Heartbeat model.HeartbeatConfig `json:"heartbeat" yaml:"heartbeat"`
 }
 
 // ProfilesConfig describes compact person and group channel counts.
@@ -163,6 +165,11 @@ func defaultConfig() Config {
 		Online: OnlineConfig{
 			TotalUsers:  20,
 			ConnectRate: model.Rate{PerSecond: 10},
+			Heartbeat: model.HeartbeatConfig{
+				Enabled:  true,
+				Interval: 30 * time.Second,
+				Timeout:  5 * time.Second,
+			},
 		},
 		Profiles: ProfilesConfig{
 			PersonChannels: 5,
@@ -207,6 +214,9 @@ func applyEnvOverrides(cfg *Config, env map[string]string) error {
 		}
 		cfg.Traffic.PersonRatePerChannel = rate
 		cfg.Traffic.GroupRatePerChannel = rate
+	}
+	if raw, ok := lookupEnvValue(env, "WK_SIM_VERIFY_RECV"); ok {
+		cfg.Traffic.VerifyRecv = strings.TrimSpace(raw)
 	}
 	if raw, ok := lookupEnvValue(env, "WK_SIM_UID_PREFIX"); ok {
 		cfg.Identity.UIDPrefix = strings.TrimSpace(raw)
@@ -258,6 +268,12 @@ func validateConfig(cfg Config) error {
 	}
 	if cfg.Online.TotalUsers <= 0 {
 		problems = append(problems, "online.total_users must be greater than zero")
+	}
+	if cfg.Online.Heartbeat.Enabled && cfg.Online.Heartbeat.Interval <= 0 {
+		problems = append(problems, "online.heartbeat.interval must be greater than zero when enabled")
+	}
+	if cfg.Online.Heartbeat.Timeout < 0 {
+		problems = append(problems, "online.heartbeat.timeout must not be negative")
 	}
 	if cfg.Profiles.PersonChannels < 0 {
 		problems = append(problems, "profiles.person_channels must not be negative")
@@ -357,6 +373,7 @@ func (cfg Config) BuildBenchInputs(runID string) (BenchInputs, error) {
 			TotalUsers:     cfg.Online.TotalUsers,
 			ConnectRate:    cfg.Online.ConnectRate,
 			GatewayBalance: "round_robin",
+			Heartbeat:      cfg.Online.Heartbeat,
 		},
 		Messages: model.MessagesConfig{
 			Payload: model.PayloadConfig{SizeBytes: cfg.Traffic.PayloadSizeBytes, Mode: "deterministic"},

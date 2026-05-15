@@ -68,11 +68,15 @@ services:
       - --config
       - /etc/wkbench/dev-sim.yaml
     environment:
-      WK_SIM_USERS: ${WK_SIM_USERS:-}
-      WK_SIM_PERSON_CHANNELS: ${WK_SIM_PERSON_CHANNELS:-}
-      WK_SIM_GROUP_CHANNELS: ${WK_SIM_GROUP_CHANNELS:-}
-      WK_SIM_GROUP_MEMBERS: ${WK_SIM_GROUP_MEMBERS:-}
-      WK_SIM_RATE: ${WK_SIM_RATE:-}
+      # Default Compose simulator target: 100 person channels + 100 group channels
+      # at 5 msg/s each, roughly 1000 ingress messages per second. Receive
+      # verification defaults to none so local send pressure is not throttled.
+      WK_SIM_USERS: ${WK_SIM_USERS:-500}
+      WK_SIM_PERSON_CHANNELS: ${WK_SIM_PERSON_CHANNELS:-100}
+      WK_SIM_GROUP_CHANNELS: ${WK_SIM_GROUP_CHANNELS:-100}
+      WK_SIM_GROUP_MEMBERS: ${WK_SIM_GROUP_MEMBERS:-10}
+      WK_SIM_RATE: ${WK_SIM_RATE:-5/s}
+      WK_SIM_VERIFY_RECV: ${WK_SIM_VERIFY_RECV:-none}
       WK_SIM_UID_PREFIX: ${WK_SIM_UID_PREFIX:-}
     volumes:
       - ./docker/sim:/etc/wkbench:ro
