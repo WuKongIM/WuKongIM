@@ -62,6 +62,11 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 		return SendResult{Reason: reason}, nil
 	}
 
+	cmd, hookResult, err := a.beforeSendHook(ctx, cmd)
+	if err != nil || hookResult.Reason != frame.ReasonSuccess {
+		return hookResult, err
+	}
+
 	if cmd.Framer.NoPersist {
 		if cmd.Framer.SyncOnce || alreadyCommandChannel {
 			realtimeCmd := cmd
@@ -88,6 +93,32 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	return a.sendDurable(ctx, appendCmd)
 }
 
+func (a *App) beforeSendHook(ctx context.Context, cmd SendCommand) (SendCommand, SendResult, error) {
+	if cmd.Origin == "" {
+		cmd.Origin = SendOriginClient
+	}
+	if cmd.SkipPluginHooks || a.sendHook == nil {
+		return cmd, SendResult{Reason: frame.ReasonSuccess}, nil
+	}
+	if cmd.Origin == SendOriginPlugin {
+		if cmd.HookDepth >= DefaultPluginSendMaxHookDepth {
+			return cmd, SendResult{}, ErrSendHookDepthExceeded
+		}
+		cmd.HookDepth++
+	}
+	mutated, reason, err := a.sendHook.BeforeSend(ctx, cmd)
+	if err != nil {
+		if reason != 0 && reason != frame.ReasonSuccess {
+			return mutated, SendResult{Reason: reason}, err
+		}
+		return mutated, SendResult{}, err
+	}
+	if reason != 0 && reason != frame.ReasonSuccess {
+		return mutated, SendResult{Reason: reason}, nil
+	}
+	return mutated, SendResult{Reason: frame.ReasonSuccess}, nil
+}
+
 // sendRequestScoped routes a one-shot subscriber list through an internal temp command channel.
 func (a *App) sendRequestScoped(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	if !cmd.Framer.SyncOnce {
@@ -108,6 +139,10 @@ func (a *App) sendRequestScoped(ctx context.Context, cmd SendCommand) (SendResul
 	scopedCmd.ChannelID = scoped.CommandChannelID
 	scopedCmd.ChannelType = scoped.ChannelType
 	scopedCmd.RequestSubscribers = scoped.Subscribers
+	scopedCmd, hookResult, err := a.beforeSendHook(ctx, scopedCmd)
+	if err != nil || hookResult.Reason != frame.ReasonSuccess {
+		return hookResult, err
+	}
 	if scopedCmd.Framer.NoPersist {
 		return a.sendRequestScopedRealtime(ctx, scopedCmd)
 	}

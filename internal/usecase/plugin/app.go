@@ -21,6 +21,7 @@ type App struct {
 	bindingMu    sync.RWMutex
 	bindingEpoch uint64
 	invoker      Invoker
+	failOpen     bool
 	nodeID       uint64
 	clock        func() time.Time
 }
@@ -43,6 +44,7 @@ func NewApp(opts Options) (*App, error) {
 		bindingStore: opts.BindingStore,
 		bindingCache: opts.BindingCache,
 		invoker:      opts.Invoker,
+		failOpen:     opts.FailOpen,
 		nodeID:       opts.NodeID,
 		clock:        clock,
 	}, nil
