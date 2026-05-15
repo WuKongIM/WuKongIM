@@ -1,0 +1,433 @@
+package proxy
+
+import (
+	"container/heap"
+	"context"
+	"fmt"
+	"sort"
+	"time"
+
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+)
+
+// pluginBindingRPCServiceID is globally unique on the shared transport RPC mux.
+const pluginBindingRPCServiceID uint8 = 53
+
+const (
+	pluginBindingRPCBind           = "bind"
+	pluginBindingRPCUnbind         = "unbind"
+	pluginBindingRPCListByUID      = "list_by_uid"
+	pluginBindingRPCScanByPluginNo = "scan_by_plugin_no"
+	pluginBindingRPCExistsByUID    = "exists_by_uid"
+
+	pluginBindingScanMaxLimit = 1024
+)
+
+type pluginBindingRPCRequest struct {
+	Op       string                  `json:"op"`
+	SlotID   uint64                  `json:"slot_id"`
+	HashSlot uint16                  `json:"hash_slot,omitempty"`
+	UID      string                  `json:"uid,omitempty"`
+	PluginNo string                  `json:"plugin_no,omitempty"`
+	After    *pluginBindingRPCCursor `json:"after,omitempty"`
+	Limit    int                     `json:"limit,omitempty"`
+}
+
+type pluginBindingRPCResponse struct {
+	Status   string                     `json:"status"`
+	LeaderID uint64                     `json:"leader_id,omitempty"`
+	Bindings []metadb.PluginUserBinding `json:"bindings,omitempty"`
+	Cursor   pluginBindingRPCCursor     `json:"cursor,omitempty"`
+	Done     bool                       `json:"done,omitempty"`
+	Exists   bool                       `json:"exists,omitempty"`
+}
+
+func (r pluginBindingRPCResponse) rpcStatus() string {
+	return r.Status
+}
+
+func (r pluginBindingRPCResponse) rpcLeaderID() uint64 {
+	return r.LeaderID
+}
+
+type pluginBindingRPCCursor struct {
+	PluginNo string
+	UID      string
+}
+
+type pluginBindingPageCursor struct {
+	SlotID   multiraft.SlotID
+	HashSlot uint16
+	Binding  metadb.PluginUserBindingCursor
+}
+
+// BindPluginUser binds a UID to a plugin through the UID-owned authoritative slot.
+func (s *Store) BindPluginUser(ctx context.Context, uid, pluginNo string) error {
+	nowMS := time.Now().UTC().UnixMilli()
+	binding := metadb.PluginUserBinding{
+		UID:         uid,
+		PluginNo:    pluginNo,
+		CreatedAtMS: nowMS,
+		UpdatedAtMS: nowMS,
+	}
+	if err := validatePluginBindingInput(uid, pluginNo); err != nil {
+		return err
+	}
+	slotID := s.cluster.SlotForKey(uid)
+	hashSlot := hashSlotForKey(s.cluster, uid)
+	if s.shouldServeSlotLocally(slotID) {
+		cmd := metafsm.EncodeBindPluginUserCommand(binding)
+		return proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd)
+	}
+	_, err := s.callPluginBindingRPC(ctx, slotID, pluginBindingRPCRequest{
+		Op:       pluginBindingRPCBind,
+		SlotID:   uint64(slotID),
+		HashSlot: hashSlot,
+		UID:      uid,
+		PluginNo: pluginNo,
+	})
+	return err
+}
+
+// UnbindPluginUser removes a UID to plugin binding through the UID-owned slot.
+func (s *Store) UnbindPluginUser(ctx context.Context, uid, pluginNo string) error {
+	if err := validatePluginBindingInput(uid, pluginNo); err != nil {
+		return err
+	}
+	slotID := s.cluster.SlotForKey(uid)
+	hashSlot := hashSlotForKey(s.cluster, uid)
+	if s.shouldServeSlotLocally(slotID) {
+		cmd := metafsm.EncodeUnbindPluginUserCommand(uid, pluginNo)
+		return proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd)
+	}
+	_, err := s.callPluginBindingRPC(ctx, slotID, pluginBindingRPCRequest{
+		Op:       pluginBindingRPCUnbind,
+		SlotID:   uint64(slotID),
+		HashSlot: hashSlot,
+		UID:      uid,
+		PluginNo: pluginNo,
+	})
+	return err
+}
+
+// ListPluginBindingsByUID lists all plugin bindings for one UID from its authoritative slot.
+func (s *Store) ListPluginBindingsByUID(ctx context.Context, uid string) ([]metadb.PluginUserBinding, error) {
+	if uid == "" {
+		return nil, metadb.ErrInvalidArgument
+	}
+	slotID := s.cluster.SlotForKey(uid)
+	hashSlot := hashSlotForKey(s.cluster, uid)
+	if s.shouldServeSlotLocally(slotID) {
+		return s.db.ForHashSlot(hashSlot).ListPluginBindingsByUID(ctx, uid)
+	}
+	resp, err := s.callPluginBindingRPC(ctx, slotID, pluginBindingRPCRequest{
+		Op:       pluginBindingRPCListByUID,
+		SlotID:   uint64(slotID),
+		HashSlot: hashSlot,
+		UID:      uid,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return append([]metadb.PluginUserBinding(nil), resp.Bindings...), nil
+}
+
+// ExistPluginBindingByUID reports whether one UID has any plugin binding.
+func (s *Store) ExistPluginBindingByUID(ctx context.Context, uid string) (bool, error) {
+	if uid == "" {
+		return false, metadb.ErrInvalidArgument
+	}
+	slotID := s.cluster.SlotForKey(uid)
+	hashSlot := hashSlotForKey(s.cluster, uid)
+	if s.shouldServeSlotLocally(slotID) {
+		return s.db.ForHashSlot(hashSlot).ExistPluginBindingByUID(ctx, uid)
+	}
+	resp, err := s.callPluginBindingRPC(ctx, slotID, pluginBindingRPCRequest{
+		Op:       pluginBindingRPCExistsByUID,
+		SlotID:   uint64(slotID),
+		HashSlot: hashSlot,
+		UID:      uid,
+	})
+	if err != nil {
+		return false, err
+	}
+	return resp.Exists, nil
+}
+
+// ListPluginBindingsByPluginNo returns a deterministic plugin-centric page.
+func (s *Store) ListPluginBindingsByPluginNo(ctx context.Context, pluginNo, cursor string, limit int) ([]metadb.PluginUserBinding, string, bool, error) {
+	if pluginNo == "" || limit <= 0 {
+		return nil, "", false, metadb.ErrInvalidArgument
+	}
+	if limit > pluginBindingScanMaxLimit {
+		limit = pluginBindingScanMaxLimit
+	}
+	after, err := decodePluginBindingPageCursor(cursor)
+	if err != nil {
+		return nil, "", false, err
+	}
+	if after != pluginBindingEmptyPageCursor && after.Binding.PluginNo != pluginNo {
+		return nil, "", false, metadb.ErrInvalidArgument
+	}
+
+	slotIDs := append([]multiraft.SlotID(nil), s.cluster.SlotIDs()...)
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	queue := make(pluginBindingMergeHeap, 0, len(slotIDs))
+	for _, slotID := range slotIDs {
+		hashSlots := append([]uint16(nil), s.cluster.HashSlotsOf(slotID)...)
+		if len(hashSlots) == 0 {
+			return nil, "", false, raftcluster.ErrSlotNotFound
+		}
+		sort.Slice(hashSlots, func(i, j int) bool { return hashSlots[i] < hashSlots[j] })
+		for _, hashSlot := range hashSlots {
+			item, ok, err := s.loadPluginBindingMergeItem(ctx, slotID, hashSlot, pluginNo, after.Binding)
+			if err != nil {
+				return nil, "", false, err
+			}
+			if ok {
+				heap.Push(&queue, item)
+			}
+		}
+	}
+
+	out := make([]metadb.PluginUserBinding, 0, limit)
+	var last pluginBindingPageCursor
+	for len(out) < limit && queue.Len() > 0 {
+		item := heap.Pop(&queue).(pluginBindingMergeItem)
+		out = append(out, item.Binding)
+		last = pluginBindingPageCursor{
+			SlotID:   item.SlotID,
+			HashSlot: item.HashSlot,
+			Binding:  metadb.PluginUserBindingCursor{PluginNo: pluginNo, UID: item.Binding.UID},
+		}
+		if item.Done {
+			continue
+		}
+		nextItem, ok, err := s.loadPluginBindingMergeItem(ctx, item.SlotID, item.HashSlot, pluginNo, item.Cursor)
+		if err != nil {
+			return nil, "", false, err
+		}
+		if ok {
+			heap.Push(&queue, nextItem)
+		}
+	}
+	if queue.Len() == 0 {
+		return out, "", false, nil
+	}
+	next, err := encodePluginBindingPageCursor(last)
+	if err != nil {
+		return nil, "", false, err
+	}
+	return out, next, true, nil
+}
+
+func (s *Store) callPluginBindingRPC(ctx context.Context, slotID multiraft.SlotID, req pluginBindingRPCRequest) (pluginBindingRPCResponse, error) {
+	payload, err := encodePluginBindingRPCRequestBinary(req)
+	if err != nil {
+		return pluginBindingRPCResponse{}, err
+	}
+	return callAuthoritativeRPC(ctx, s, slotID, pluginBindingRPCServiceID, payload, decodePluginBindingRPCResponse)
+}
+
+func (s *Store) handlePluginBindingRPC(ctx context.Context, body []byte) ([]byte, error) {
+	req, err := decodePluginBindingRPCRequest(body)
+	if err != nil {
+		return nil, err
+	}
+
+	slotID := multiraft.SlotID(req.SlotID)
+	if redirected, err := s.resolvePluginBindingRPCRoute(req, slotID); redirected != nil || err != nil {
+		return redirected, err
+	}
+	if statusBody, handled, err := s.handleAuthoritativeRPC(slotID, func(status string, leaderID uint64) ([]byte, error) {
+		return encodePluginBindingRPCResponse(pluginBindingRPCResponse{
+			Status:   status,
+			LeaderID: leaderID,
+		})
+	}); handled || err != nil {
+		return statusBody, err
+	}
+
+	hashSlot := req.HashSlot
+	if req.UID != "" {
+		hashSlot = hashSlotForKey(s.cluster, req.UID)
+	}
+	switch req.Op {
+	case pluginBindingRPCBind:
+		if err := validatePluginBindingInput(req.UID, req.PluginNo); err != nil {
+			return nil, err
+		}
+		nowMS := time.Now().UTC().UnixMilli()
+		cmd := metafsm.EncodeBindPluginUserCommand(metadb.PluginUserBinding{
+			UID:         req.UID,
+			PluginNo:    req.PluginNo,
+			CreatedAtMS: nowMS,
+			UpdatedAtMS: nowMS,
+		})
+		if err := proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd); err != nil {
+			return nil, err
+		}
+		return encodePluginBindingRPCResponse(pluginBindingRPCResponse{Status: rpcStatusOK})
+	case pluginBindingRPCUnbind:
+		if err := validatePluginBindingInput(req.UID, req.PluginNo); err != nil {
+			return nil, err
+		}
+		cmd := metafsm.EncodeUnbindPluginUserCommand(req.UID, req.PluginNo)
+		if err := proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd); err != nil {
+			return nil, err
+		}
+		return encodePluginBindingRPCResponse(pluginBindingRPCResponse{Status: rpcStatusOK})
+	case pluginBindingRPCListByUID:
+		bindings, err := s.db.ForHashSlot(hashSlot).ListPluginBindingsByUID(ctx, req.UID)
+		if err != nil {
+			return nil, err
+		}
+		return encodePluginBindingRPCResponse(pluginBindingRPCResponse{
+			Status:   rpcStatusOK,
+			Bindings: bindings,
+		})
+	case pluginBindingRPCExistsByUID:
+		exists, err := s.db.ForHashSlot(hashSlot).ExistPluginBindingByUID(ctx, req.UID)
+		if err != nil {
+			return nil, err
+		}
+		return encodePluginBindingRPCResponse(pluginBindingRPCResponse{
+			Status: rpcStatusOK,
+			Exists: exists,
+		})
+	case pluginBindingRPCScanByPluginNo:
+		after := metadb.PluginUserBindingCursor{}
+		if req.After != nil {
+			after = metadb.PluginUserBindingCursor{PluginNo: req.After.PluginNo, UID: req.After.UID}
+		}
+		bindings, cursor, hasMore, err := s.db.ForHashSlot(hashSlot).ScanPluginBindingsByPluginNo(ctx, req.PluginNo, after, req.Limit)
+		if err != nil {
+			return nil, err
+		}
+		return encodePluginBindingRPCResponse(pluginBindingRPCResponse{
+			Status:   rpcStatusOK,
+			Bindings: bindings,
+			Cursor:   pluginBindingRPCCursor{PluginNo: cursor.PluginNo, UID: cursor.UID},
+			Done:     !hasMore,
+		})
+	default:
+		return nil, fmt.Errorf("metastore: unknown plugin binding rpc op %q", req.Op)
+	}
+}
+
+func (s *Store) resolvePluginBindingRPCRoute(req pluginBindingRPCRequest, slotID multiraft.SlotID) ([]byte, error) {
+	if req.UID == "" {
+		return nil, nil
+	}
+	actualSlotID := s.cluster.SlotForKey(req.UID)
+	if actualSlotID == slotID {
+		return nil, nil
+	}
+	leaderID, err := s.cluster.LeaderOf(actualSlotID)
+	if err != nil {
+		body, encodeErr := encodePluginBindingRPCResponse(pluginBindingRPCResponse{Status: rpcStatusNoLeader})
+		return body, encodeErr
+	}
+	body, err := encodePluginBindingRPCResponse(pluginBindingRPCResponse{
+		Status:   rpcStatusNotLeader,
+		LeaderID: uint64(leaderID),
+	})
+	return body, err
+}
+
+func (s *Store) scanPluginBindingsSlotHashSlot(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, pluginNo string, after metadb.PluginUserBindingCursor, limit int) ([]metadb.PluginUserBinding, metadb.PluginUserBindingCursor, bool, error) {
+	if limit <= 0 {
+		return nil, after, true, nil
+	}
+	if s.shouldServeSlotLocally(slotID) {
+		bindings, cursor, hasMore, err := s.db.ForHashSlot(hashSlot).ScanPluginBindingsByPluginNo(ctx, pluginNo, after, limit)
+		return bindings, cursor, !hasMore, err
+	}
+	resp, err := s.callPluginBindingRPC(ctx, slotID, pluginBindingRPCRequest{
+		Op:       pluginBindingRPCScanByPluginNo,
+		SlotID:   uint64(slotID),
+		HashSlot: hashSlot,
+		PluginNo: pluginNo,
+		After:    pluginBindingRPCCursorPtr(after),
+		Limit:    limit,
+	})
+	if err != nil {
+		return nil, metadb.PluginUserBindingCursor{}, false, err
+	}
+	return append([]metadb.PluginUserBinding(nil), resp.Bindings...), metadb.PluginUserBindingCursor{PluginNo: resp.Cursor.PluginNo, UID: resp.Cursor.UID}, resp.Done, nil
+}
+
+func (s *Store) loadPluginBindingMergeItem(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, pluginNo string, after metadb.PluginUserBindingCursor) (pluginBindingMergeItem, bool, error) {
+	bindings, cursor, done, err := s.scanPluginBindingsSlotHashSlot(ctx, slotID, hashSlot, pluginNo, after, 1)
+	if err != nil {
+		return pluginBindingMergeItem{}, false, err
+	}
+	if len(bindings) == 0 {
+		return pluginBindingMergeItem{}, false, nil
+	}
+	return pluginBindingMergeItem{
+		SlotID:   slotID,
+		HashSlot: hashSlot,
+		Binding:  bindings[0],
+		Cursor:   cursor,
+		Done:     done,
+	}, true, nil
+}
+
+func pluginBindingRPCCursorPtr(cursor metadb.PluginUserBindingCursor) *pluginBindingRPCCursor {
+	if cursor == (metadb.PluginUserBindingCursor{}) {
+		return pluginBindingEmptyRPCCursorPtr
+	}
+	return &pluginBindingRPCCursor{PluginNo: cursor.PluginNo, UID: cursor.UID}
+}
+
+func validatePluginBindingInput(uid, pluginNo string) error {
+	if uid == "" || pluginNo == "" {
+		return metadb.ErrInvalidArgument
+	}
+	return nil
+}
+
+type pluginBindingMergeItem struct {
+	SlotID   multiraft.SlotID
+	HashSlot uint16
+	Binding  metadb.PluginUserBinding
+	Cursor   metadb.PluginUserBindingCursor
+	Done     bool
+}
+
+type pluginBindingMergeHeap []pluginBindingMergeItem
+
+func (h pluginBindingMergeHeap) Len() int { return len(h) }
+
+func (h pluginBindingMergeHeap) Less(i, j int) bool {
+	if h[i].Binding.PluginNo != h[j].Binding.PluginNo {
+		return h[i].Binding.PluginNo < h[j].Binding.PluginNo
+	}
+	if h[i].Binding.UID != h[j].Binding.UID {
+		return h[i].Binding.UID < h[j].Binding.UID
+	}
+	if h[i].SlotID != h[j].SlotID {
+		return h[i].SlotID < h[j].SlotID
+	}
+	return h[i].HashSlot < h[j].HashSlot
+}
+
+func (h pluginBindingMergeHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+}
+
+func (h *pluginBindingMergeHeap) Push(x any) {
+	*h = append(*h, x.(pluginBindingMergeItem))
+}
+
+func (h *pluginBindingMergeHeap) Pop() any {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	*h = old[:n-1]
+	return item
+}

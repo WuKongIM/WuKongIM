@@ -33,6 +33,7 @@ Store.CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveR
 Store.GarbageCollectTerminalChannelMigrationTasks
 Store.GetCMDConversationState / ListCMDConversationActive
 Store.UpsertCMDConversationStates / AdvanceCMDConversationReadSeq
+Store.BindPluginUser / UnbindPluginUser / ListPluginBindingsByUID / ListPluginBindingsByPluginNo / ExistPluginBindingByUID
 
 // meta/* — 本地 ShardStore / WriteBatch helper
 ShardStore.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / GetChannelMigrationTask / GetActiveChannelMigrationTask / ListChannelMigrationTasks / DeleteTerminalChannelMigrationTasksBefore
@@ -267,6 +268,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 | `channelRPCServiceID` | 12 | Channel 权限元数据查询与物理 Slot 权威分页扫描（Ban / Disband / SendBan / AllowStranger / SubscriberMutationVersion） | proxy/channel_rpc.go |
 | `channelMigrationRPCServiceID` | 47 | Channel migration active-task 查询与远端 slot-leader 提案转发，避免与 conversation facts service ID 13 冲突 | proxy/channel_migration_rpc.go |
 | `cmdConversationStateRPCServiceID` | 49 | CMD 会话状态查询、upsert 与 read cursor 推进 | proxy/cmd_conversation_state_rpc.go |
+| `pluginBindingRPCServiceID` | 53 | 插件绑定查询、UID-owned 远端提案与 plugin_no 扫描 | proxy/plugin_binding_rpc.go |
 
 **RPC 状态码** (authoritative_rpc.go): `ok` / `not_found` / `not_leader` / `no_leader` / `no_slot` / `stale_meta`
 
