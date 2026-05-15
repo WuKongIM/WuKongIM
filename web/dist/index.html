@@ -4,9 +4,22 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (() => {
+        try {
+          const preference = localStorage.getItem("wukongim_manager_theme") || "system"
+          const systemDark = matchMedia("(prefers-color-scheme: dark)").matches
+          const resolvedTheme = preference === "dark" || (preference === "system" && systemDark) ? "dark" : "light"
+          document.documentElement.classList.add(resolvedTheme)
+          document.documentElement.style.colorScheme = resolvedTheme
+        } catch {
+          document.documentElement.classList.add("light")
+        }
+      })()
+    </script>
     <title>web</title>
-    <script type="module" crossorigin src="/assets/index-CSDh9zy-.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DyY10lay.css">
+    <script type="module" crossorigin src="/assets/index-Ci7URVTF.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-_p_7mB7o.css">
   </head>
   <body>
     <div id="root"></div>

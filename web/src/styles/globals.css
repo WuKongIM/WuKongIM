@@ -45,6 +45,8 @@
   --sidebar-accent-foreground: #0d3d22;
   --sidebar-border: #d2dfd4;
   --sidebar-ring: #19864a;
+  --top-section-active: #123b23;
+  --top-section-active-foreground: #f6fff8;
   font-family: "Geist Variable", "IBM Plex Sans", "Segoe UI", sans-serif;
   color: var(--foreground);
   background: var(--background);
@@ -172,6 +174,8 @@ a {
   --sidebar-accent-foreground: #d9f7e2;
   --sidebar-border: #23302a;
   --sidebar-ring: #65d88a;
+  --top-section-active: #123b23;
+  --top-section-active-foreground: #e8fff0;
   color-scheme: dark;
 }
 @layer base {
@@ -186,4 +190,14 @@ a {
   html {
     @apply font-sans;
   }
+}
+
+.top-section-link-active {
+  background: var(--top-section-active);
+  color: var(--top-section-active-foreground);
+  box-shadow: 0 0 18px rgba(101, 216, 138, 0.18);
+}
+
+.top-section-link-active:hover {
+  color: var(--top-section-active-foreground);
 }
