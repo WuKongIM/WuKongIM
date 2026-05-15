@@ -1,6 +1,4 @@
 import { Line, LineChart, ResponsiveContainer } from "recharts"
-import { useIntl } from "react-intl"
-import { cn } from "@/lib/utils"
 
 type PulseTileProps = {
   label: string
@@ -9,7 +7,6 @@ type PulseTileProps = {
   sub: string
   series: number[]
   tone?: "default" | "danger"
-  mocked?: boolean
 }
 
 export function PulseTile({
@@ -19,32 +16,17 @@ export function PulseTile({
   sub,
   series,
   tone = "default",
-  mocked,
 }: PulseTileProps) {
-  const intl = useIntl()
   const data = series.map((v, i) => ({ i, v }))
   const strokeColor =
     tone === "danger" ? "var(--chart-4)" : "var(--chart-1)"
 
   return (
-    <div
-      className={cn(
-        "relative flex flex-col justify-between rounded-2xl border border-border/80 bg-card/88 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
-      )}
-    >
-      {/* Header row */}
-      <div className="flex items-start justify-between">
-        <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          {label}
-        </span>
-        {mocked && (
-          <span className="absolute right-2 top-2 rounded-full border border-border/60 bg-muted/50 px-1.5 py-0.5 text-[9px] text-muted-foreground">
-            {intl.formatMessage({ id: "dashboard.pulse.mockedTag" })}
-          </span>
-        )}
-      </div>
+    <div className="relative flex flex-col justify-between rounded-2xl border border-border/80 bg-card/88 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+      <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        {label}
+      </span>
 
-      {/* Value */}
       <div className="mt-1">
         <span className="font-mono text-2xl font-semibold tracking-[-0.04em] text-foreground">
           {value.toLocaleString()}
@@ -54,14 +36,9 @@ export function PulseTile({
         )}
       </div>
 
-      {/* Sub */}
       <p className="mt-1 text-xs text-muted-foreground">{sub}</p>
 
-      {/* Sparkline */}
-      <div
-        className="mt-3 h-10"
-        aria-label={`${label}: ${value}`}
-      >
+      <div className="mt-3 h-10" aria-label={`${label}: ${value}`}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
             <Line

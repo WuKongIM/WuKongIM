@@ -226,7 +226,6 @@ export const enMessages: AppMessages = {
   "dashboard.pulse.fanOutRate": "Fan-out rate",
   "dashboard.pulse.peakAvg": "peak {peak} · avg {avg}",
   "dashboard.pulse.latencyMs": "peak {peak}ms · avg {avg}ms",
-  "dashboard.pulse.mockedTag": "mocked",
   "dashboard.health.cardTitle": "Slot & channel health",
   "dashboard.health.slotsCenter": "{ready}/{total}",
   "dashboard.health.slotsCenterSub": "{percent}% ready",
