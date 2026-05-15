@@ -109,7 +109,9 @@ steady-state `long_poll`（当前唯一复制主路径）:
   ⑨ follower 收到 data item 后仍走 `ApplyFetch` 落盘；`StoreApplyFetch()` 会按 leader 给出的顺序把兼容 payload
      解成 `messageRow` 并写入同一个结构化 `message` 表；steady-state ACK 通过下一条 lane poll 的 `cursorDelta` 回传
   ⑩ lane poll 发送失败 / backpressure / RPC timeout 的恢复退避按 `(peer,lane)` 维度计时；steady-state 不再依赖 legacy short-poll / batch-fetch 路径
-  ⑪ 对冷 channel 的 `Fetch` / `ReconcileProbe` ingress 不再要求 runtime 预热：runtime miss 时会通过注入的 activator 按 `ChannelKey` 做一次权威激活，再重试一次本地处理
+  ⑪ 对冷 channel 的 `Fetch` / `ReconcileProbe` ingress 以及 follower 收到的 `lane response item`
+     不再要求 runtime 预热：runtime miss 时会通过注入的 activator 按 `ChannelKey` 做一次权威激活，再重试一次本地处理；
+     这样首条 long-poll 复制响应不会因为 follower 本地 runtime 尚未落地而被直接丢弃
 ```
 
 ```

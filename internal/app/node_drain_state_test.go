@@ -66,6 +66,33 @@ func TestReadyzReportIncludesNodeNotDrainingCheck(t *testing.T) {
 	require.Equal(t, "alive", checks["node_drain_reason"])
 }
 
+func TestReadyzReportRefreshesStaleNodeDrainStateFromCluster(t *testing.T) {
+	now := time.Unix(1713686400, 0).UTC()
+	state := newNodeDrainState(3, func() time.Time { return now })
+	state.Observe(3, controllermeta.NodeStatusAlive)
+	now = now.Add(state.staleAfter + time.Millisecond)
+	app := &App{
+		cfg:            Config{Node: NodeConfig{ID: 3}},
+		nodeDrainState: state,
+		cluster: fakeObservabilityCluster{
+			hashSlotTableVersion: 1,
+			nodes: []controllermeta.ClusterNode{{
+				NodeID: 3,
+				Status: controllermeta.NodeStatusAlive,
+			}},
+		},
+	}
+
+	_, payload := app.readyzReport(context.Background())
+
+	body, ok := payload.(map[string]any)
+	require.True(t, ok)
+	checks, ok := body["checks"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, true, checks["node_not_draining"])
+	require.Equal(t, "alive", checks["node_drain_reason"])
+}
+
 func TestLocalNodeDrainingDisablesGatewayAdmission(t *testing.T) {
 	now := time.Unix(1713686400, 0).UTC()
 	gw, err := gateway.New(gateway.Options{

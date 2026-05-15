@@ -1396,6 +1396,68 @@ func TestSessionLongPollRetentionResetItemAdoptsBoundaryAndReissuesFromRetainedO
 	require.Equal(t, uint64(5), session.last.LanePollRequest.CursorDelta[0].MatchOffset)
 }
 
+func TestSessionLongPollResponseActivatesMissingFollowerChannel(t *testing.T) {
+	activator := &recordingActivator{}
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.Activator = activator
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+		cfg.FollowerReplicationRetryInterval = time.Hour
+	})
+	meta := testMetaLocal(26022, 4, 2, []core.NodeID{1, 2, 3})
+	key := meta.Key
+	activator.fn = func(_ context.Context, got core.ChannelKey, source ActivationSource) (core.Meta, error) {
+		require.Equal(t, key, got)
+		require.Equal(t, ActivationSourceLaneOpen, source)
+		require.NoError(t, env.runtime.EnsureChannel(meta))
+		return meta, nil
+	}
+
+	manager := env.runtime.ensureLaneManager(meta.Leader)
+	laneID := manager.LaneFor(key)
+	require.True(t, manager.UpsertChannel(key, meta.Epoch, 0))
+	req, ok := manager.NextRequest(laneID)
+	require.True(t, ok)
+	require.Equal(t, LanePollOpOpen, req.Op)
+
+	env.transport.deliver(Envelope{
+		Peer: meta.Leader,
+		Kind: MessageKindLanePollResponse,
+		Sync: true,
+		LanePollResponse: &LanePollResponseEnvelope{
+			LaneID:       laneID,
+			Status:       LanePollStatusOK,
+			SessionID:    501,
+			SessionEpoch: 1,
+			Items: []LaneResponseItem{
+				{
+					ChannelKey:        key,
+					ChannelEpoch:      meta.Epoch,
+					ChannelGeneration: req.FullMembership[0].ChannelGeneration,
+					LeaderHW:          1,
+					Flags:             LanePollItemFlagData,
+					Records: []core.Record{
+						{Payload: []byte("cold"), SizeBytes: len("cold")},
+					},
+				},
+			},
+		},
+	})
+
+	require.Equal(t, 1, activator.callCount())
+	replica := env.factory.replicas[len(env.factory.replicas)-1]
+	replica.mu.Lock()
+	require.Equal(t, 1, replica.applyFetchCalls)
+	require.Equal(t, key, replica.lastApplyFetch.ChannelKey)
+	require.Equal(t, meta.Epoch, replica.lastApplyFetch.Epoch)
+	require.Equal(t, meta.Leader, replica.lastApplyFetch.Leader)
+	require.Equal(t, uint64(1), replica.lastApplyFetch.LeaderHW)
+	require.Len(t, replica.lastApplyFetch.Records, 1)
+	replica.mu.Unlock()
+}
+
 func TestSessionLongPollRetentionResetDoesNotRegressFollowerCursor(t *testing.T) {
 	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
 		cfg.LongPollLaneCount = 4

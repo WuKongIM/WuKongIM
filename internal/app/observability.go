@@ -510,7 +510,7 @@ func (a *App) readyzReport(ctx context.Context) (bool, any) {
 	}
 
 	hashSlotReady := a.clusterHashSlotTableVersion() > 0
-	nodeNotDraining, drainReason := a.localNodeNotDraining()
+	nodeNotDraining, drainReason := a.localNodeNotDraining(ctx)
 	ready := gatewayReady && clusterReady && hashSlotReady && nodeNotDraining
 	status := "not_ready"
 	if ready {
@@ -529,11 +529,38 @@ func (a *App) readyzReport(ctx context.Context) (bool, any) {
 	}
 }
 
-func (a *App) localNodeNotDraining() (bool, string) {
+func (a *App) localNodeNotDraining(ctx context.Context) (bool, string) {
 	if a == nil || a.nodeDrainState == nil {
 		return false, "unknown"
 	}
+	ready, reason := a.nodeDrainState.Ready()
+	if ready {
+		return ready, reason
+	}
+	a.refreshLocalNodeDrainState(ctx)
 	return a.nodeDrainState.Ready()
+}
+
+// refreshLocalNodeDrainState refreshes readiness from the controller snapshot when observer updates are stale.
+func (a *App) refreshLocalNodeDrainState(ctx context.Context) {
+	if a == nil || a.nodeDrainState == nil || a.cluster == nil || a.cfg.Node.ID == 0 {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	queryCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer cancel()
+	nodes, err := a.cluster.ListNodes(queryCtx)
+	if err != nil {
+		return
+	}
+	for _, node := range nodes {
+		if node.NodeID == a.cfg.Node.ID {
+			a.nodeDrainState.Observe(node.NodeID, node.Status)
+			return
+		}
+	}
 }
 
 func (a *App) debugConfigSnapshot() any {

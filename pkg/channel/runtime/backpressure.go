@@ -824,12 +824,22 @@ func (r *runtime) handleLanePollResponse(peer core.NodeID, resp LanePollResponse
 	for _, item := range resp.Items {
 		ch, ok := r.lookupChannel(item.ChannelKey)
 		if !ok {
-			r.cfg.Logger.Warn("lane poll response item skipped, channel not found",
-				wklog.Event("repl.diag.lane_resp_item_no_channel"),
+			var err error
+			ch, _, err = r.ensureChannelForIngress(context.Background(), item.ChannelKey, ActivationSourceLaneOpen)
+			if err != nil {
+				r.cfg.Logger.Warn("lane poll response item skipped, channel not found",
+					wklog.Event("repl.diag.lane_resp_item_no_channel"),
+					wklog.String("channelKey", string(item.ChannelKey)),
+					wklog.Uint64("peer", uint64(peer)),
+					wklog.Error(err),
+				)
+				continue
+			}
+			r.cfg.Logger.Debug("lane poll response activated missing channel",
+				wklog.Event("repl.diag.lane_resp_item_activated"),
 				wklog.String("channelKey", string(item.ChannelKey)),
 				wklog.Uint64("peer", uint64(peer)),
 			)
-			continue
 		}
 		fetchResp := FetchResponseEnvelope{
 			ChannelKey:     item.ChannelKey,
