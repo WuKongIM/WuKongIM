@@ -128,7 +128,7 @@ func (s *Store) pathFor(no string) string {
 }
 
 func validatePluginNo(no string) error {
-	if !pluginNoPattern.MatchString(no) {
+	if no == "." || no == ".." || !pluginNoPattern.MatchString(no) {
 		return fmt.Errorf("%w: %q", ErrInvalidPluginNo, no)
 	}
 	return nil

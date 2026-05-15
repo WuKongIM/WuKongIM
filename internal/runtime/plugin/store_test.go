@@ -106,3 +106,13 @@ func TestStoreRejectsUnsafePluginNo(t *testing.T) {
 		})
 	}
 }
+
+func TestValidatePluginNoRejectsDotSegments(t *testing.T) {
+	for _, no := range []string{".", ".."} {
+		t.Run(no, func(t *testing.T) {
+			if err := validatePluginNo(no); err == nil {
+				t.Fatalf("validatePluginNo(%q) returned nil", no)
+			}
+		})
+	}
+}
