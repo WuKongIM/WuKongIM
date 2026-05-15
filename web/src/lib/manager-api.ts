@@ -34,6 +34,7 @@ import type {
   ManagerDistributedTasksSummaryResponse,
   ManagerLoginResponse,
   ManagerMessagesResponse,
+  ManagerMonitorMetricsResponse,
   ManagerNetworkSummaryResponse,
   ManagerNodeOnboardingCandidatesResponse,
   ManagerNodeOnboardingJob,
@@ -392,6 +393,15 @@ export function getPermissions() {
 
 export function getNetworkSummary() {
   return jsonManagerFetch<ManagerNetworkSummaryResponse>("/manager/network/summary")
+}
+
+export function getMonitorMetrics(params?: { window?: string; step?: string; nodeId?: string }) {
+  const search = new URLSearchParams()
+  if (params?.window) search.set("window", params.window)
+  if (params?.step) search.set("step", params.step)
+  if (params?.nodeId && params.nodeId !== "all") search.set("node_id", params.nodeId)
+  const query = search.toString()
+  return jsonManagerFetch<ManagerMonitorMetricsResponse>(`/manager/monitor/metrics${query ? `?${query}` : ""}`)
 }
 
 export function getNodes() {

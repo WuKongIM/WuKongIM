@@ -21,6 +21,7 @@ const getSlotsMock = vi.fn()
 const getNodeOnboardingCandidatesMock = vi.fn()
 const getNodeOnboardingJobsMock = vi.fn()
 const getNetworkSummaryMock = vi.fn()
+const getMonitorMetricsMock = vi.fn()
 const getDiagnosticsTraceMock = vi.fn()
 const getDiagnosticsMessageMock = vi.fn()
 const getDiagnosticsEventsMock = vi.fn()
@@ -50,6 +51,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getNodeOnboardingCandidates: (...args: unknown[]) => getNodeOnboardingCandidatesMock(...args),
     getNodeOnboardingJobs: (...args: unknown[]) => getNodeOnboardingJobsMock(...args),
     getNetworkSummary: (...args: unknown[]) => getNetworkSummaryMock(...args),
+    getMonitorMetrics: (...args: unknown[]) => getMonitorMetricsMock(...args),
     getDiagnosticsTrace: (...args: unknown[]) => getDiagnosticsTraceMock(...args),
     getDiagnosticsMessage: (...args: unknown[]) => getDiagnosticsMessageMock(...args),
     getDiagnosticsEvents: (...args: unknown[]) => getDiagnosticsEventsMock(...args),
@@ -80,6 +82,7 @@ beforeEach(() => {
   getNodeOnboardingCandidatesMock.mockReset()
   getNodeOnboardingJobsMock.mockReset()
   getNetworkSummaryMock.mockReset()
+  getMonitorMetricsMock.mockReset()
   getDiagnosticsTraceMock.mockReset()
   getDiagnosticsMessageMock.mockReset()
   getDiagnosticsEventsMock.mockReset()
@@ -315,6 +318,25 @@ beforeEach(() => {
     },
     events: [],
   })
+  getMonitorMetricsMock.mockResolvedValue({
+    generated_at: "2026-05-15T08:30:00Z",
+    window_seconds: 10,
+    step_seconds: 5,
+    points: 2,
+    scope: { view: "local_node", local_node_id: 1 },
+    capabilities: { node_filter: false },
+    nodes: [{ node_id: 1, name: "node-1", is_local: true, available: true }],
+    metrics: {
+      send_rate: {
+        key: "send_rate",
+        unit: "msg/s",
+        latest: 8,
+        peak: 8,
+        avg: 6,
+        points: [{ at: "2026-05-15T08:29:55Z", value: 8 }],
+      },
+    },
+  })
 
   useAuthStore.setState({
     status: "authenticated",
@@ -329,7 +351,7 @@ beforeEach(() => {
 
 it.each([
   ["/dashboard", "Dashboard", "Topology snapshot"],
-  ["/monitor", "Live Monitor", "Coming Soon"],
+  ["/monitor", "Live Monitor", "Message Flow"],
   ["/cluster/nodes", "Nodes", "Address"],
   ["/cluster/slots", "Slots", "Slot"],
   ["/cluster/channels", "Channel Cluster", "Channel Cluster Overview"],
@@ -401,7 +423,7 @@ it.each([
 
 it.each([
   ["/dashboard", "仪表盘", "拓扑快照"],
-  ["/monitor", "实时监控", "即将推出"],
+  ["/monitor", "实时监控", "消息流量"],
   ["/cluster/nodes", "节点", "地址"],
   ["/cluster/slots", "槽位", "槽位"],
   ["/cluster/channels", "频道集群", "频道集群总览"],

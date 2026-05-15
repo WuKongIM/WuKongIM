@@ -289,6 +289,44 @@ export type ManagerNetworkEvent = {
   message: string
 }
 
+export type ManagerMonitorMetricPoint = {
+  at: string
+  value: number
+}
+
+export type ManagerMonitorMetricSeries = {
+  key: string
+  unit: string
+  latest: number
+  peak: number
+  avg: number
+  points: ManagerMonitorMetricPoint[]
+}
+
+export type ManagerMonitorMetricsResponse = {
+  generated_at: string
+  window_seconds: number
+  step_seconds: number
+  points: number
+  scope: {
+    view: string
+    local_node_id: number
+    node_id?: number
+  }
+  capabilities: {
+    node_filter: boolean
+  }
+  nodes: ManagerMonitorNode[]
+  metrics: Record<string, ManagerMonitorMetricSeries>
+}
+
+export type ManagerMonitorNode = {
+  node_id: number
+  name: string
+  is_local: boolean
+  available: boolean
+}
+
 export type ManagerNode = {
   node_id: number
   name?: string

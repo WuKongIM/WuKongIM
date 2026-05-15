@@ -53,6 +53,7 @@ func (a *App) Stop() error {
 		defer cancel()
 		err = errors.Join(
 			a.stopLifecycleManager(stopCtx),
+			a.stopDashboardCollectorWithError(),
 			a.closeChannelLogDB(),
 			a.closeRaftDB(),
 			a.closeWKDB(),
@@ -60,6 +61,20 @@ func (a *App) Stop() error {
 		)
 	})
 	return err
+}
+
+func (a *App) stopDashboardCollectorWithError() error {
+	a.stopDashboardCollector()
+	return nil
+}
+
+func (a *App) stopDashboardCollector() {
+	if a == nil || a.dashboardCollector == nil {
+		return
+	}
+	a.dashboardCollectorStop.Do(func() {
+		a.dashboardCollector.Stop()
+	})
 }
 
 func (a *App) stopLifecycleManager(ctx context.Context) error {

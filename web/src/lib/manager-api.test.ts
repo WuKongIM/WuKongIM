@@ -18,6 +18,7 @@ import {
   getDiagnosticsMessage,
   getDiagnosticsTrace,
   getMessages,
+  getMonitorMetrics,
   getNetworkSummary,
   createNodeOnboardingPlan,
   getNode,
@@ -503,6 +504,57 @@ describe("manager api client", () => {
     await expect(getNetworkSummary()).resolves.toEqual(summary)
     expect(fetchMock).toHaveBeenCalledWith(
       "/manager/network/summary",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
+  it("fetches monitor metrics with window and step params", async () => {
+    const response = {
+      generated_at: "2026-05-15T08:30:00Z",
+      window_seconds: 300,
+      step_seconds: 5,
+      points: 60,
+      scope: { view: "local_node", local_node_id: 1 },
+      capabilities: { node_filter: false },
+      nodes: [{ node_id: 1, name: "node-1", is_local: true, available: true }],
+      metrics: {
+        send_rate: {
+          key: "send_rate",
+          unit: "msg/s",
+          latest: 8,
+          peak: 8,
+          avg: 6,
+          points: [{ at: "2026-05-15T08:29:55Z", value: 8 }],
+        },
+      },
+    }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
+
+    await expect(getMonitorMetrics({ window: "5m", step: "5s" })).resolves.toEqual(response)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/monitor/metrics?window=5m&step=5s",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
+  it("fetches monitor metrics for a selected node", async () => {
+    const response = {
+      generated_at: "2026-05-15T08:30:00Z",
+      window_seconds: 300,
+      step_seconds: 5,
+      points: 60,
+      scope: { view: "node", local_node_id: 1, node_id: 2 },
+      capabilities: { node_filter: true },
+      nodes: [{ node_id: 2, name: "node-2", is_local: false, available: true }],
+      metrics: {},
+    }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
+
+    await expect(getMonitorMetrics({ window: "5m", step: "5s", nodeId: "2" })).resolves.toEqual(response)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/monitor/metrics?window=5m&step=5s&node_id=2",
       expect.objectContaining({ headers: expect.any(Headers) }),
     )
   })
