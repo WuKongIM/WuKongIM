@@ -143,6 +143,9 @@ func (a *App) sendRequestScoped(ctx context.Context, cmd SendCommand) (SendResul
 	if err != nil || hookResult.Reason != frame.ReasonSuccess {
 		return hookResult, err
 	}
+	scopedCmd.ChannelID = scoped.CommandChannelID
+	scopedCmd.ChannelType = scoped.ChannelType
+	scopedCmd.RequestSubscribers = scoped.Subscribers
 	if scopedCmd.Framer.NoPersist {
 		return a.sendRequestScopedRealtime(ctx, scopedCmd)
 	}

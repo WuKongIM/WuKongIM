@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"math"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
@@ -12,6 +13,9 @@ import (
 func (a *App) BeforeSend(ctx context.Context, cmd message.SendCommand) (message.SendCommand, frame.ReasonCode, error) {
 	plugins, err := a.SendPluginCandidates(ctx)
 	if err != nil {
+		if a.failOpen {
+			return cmd, frame.ReasonSuccess, nil
+		}
 		return message.SendCommand{}, 0, err
 	}
 	if len(plugins) == 0 {
@@ -27,7 +31,11 @@ func (a *App) BeforeSend(ctx context.Context, cmd message.SendCommand) (message.
 			}
 			return message.SendCommand{}, 0, err
 		}
-		if reason := frame.ReasonCode(resp.GetReason()); reason != 0 && reason != frame.ReasonSuccess {
+		reason, valid := sendHookReason(resp.GetReason())
+		if !valid {
+			return current, frame.ReasonSystemError, nil
+		}
+		if reason != 0 && reason != frame.ReasonSuccess {
 			return current, reason, nil
 		}
 		applySendPacketResponse(&current, resp)
@@ -55,8 +63,14 @@ func applySendPacketResponse(cmd *message.SendCommand, resp *pluginproto.SendPac
 	if resp == nil {
 		return
 	}
-	cmd.FromUID = resp.GetFromUid()
-	cmd.ChannelID = resp.GetChannelId()
-	cmd.ChannelType = uint8(resp.GetChannelType())
-	cmd.Payload = append([]byte(nil), resp.GetPayload()...)
+	if resp.Payload != nil {
+		cmd.Payload = append([]byte(nil), resp.GetPayload()...)
+	}
+}
+
+func sendHookReason(reason uint32) (frame.ReasonCode, bool) {
+	if reason > math.MaxUint8 {
+		return 0, false
+	}
+	return frame.ReasonCode(reason), true
 }
