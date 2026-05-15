@@ -107,8 +107,14 @@ func TestSendHookFailClosedAndFailOpen(t *testing.T) {
 	failClosed := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: newFakeDesiredStore(), Invoker: invoker})
 
 	cmd, reason, err := failClosed.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", Payload: []byte("original")})
-	if !errors.Is(err, expected) || reason != 0 || string(cmd.Payload) != "" {
+	if !errors.Is(err, expected) || reason != frame.ReasonSystemError || string(cmd.Payload) != "original" {
 		t.Fatalf("fail-closed = cmd %#v reason %v err %v", cmd, reason, err)
+	}
+
+	failingStore := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: desiredStoreError{}, Invoker: &sendHookInvoker{}})
+	cmd, reason, err = failingStore.BeforeSend(context.Background(), message.SendCommand{FromUID: "u1", Payload: []byte("original")})
+	if err == nil || reason != frame.ReasonSystemError || string(cmd.Payload) != "original" {
+		t.Fatalf("fail-closed candidate error = cmd %#v reason %v err %v", cmd, reason, err)
 	}
 
 	failOpen := mustNewTestApp(t, Options{Runtime: rt, DesiredStore: newFakeDesiredStore(), Invoker: invoker, FailOpen: true})
