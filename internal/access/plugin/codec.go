@@ -30,10 +30,18 @@ func (s *Server) decodeProto(c rpcContext, msg proto.Message) bool {
 	return true
 }
 
-func writeProto(c rpcContext, msg proto.Message) {
+func (s *Server) writeProto(c rpcContext, msg proto.Message) {
+	if size := proto.Size(msg); int64(size) > s.maxBodyBytes {
+		c.WriteErr(fmt.Errorf("plugin host rpc response exceeds max bytes: %d > %d", size, s.maxBodyBytes))
+		return
+	}
 	data, err := proto.Marshal(msg)
 	if err != nil {
 		c.WriteErr(err)
+		return
+	}
+	if int64(len(data)) > s.maxBodyBytes {
+		c.WriteErr(fmt.Errorf("plugin host rpc response exceeds max bytes: %d > %d", len(data), s.maxBodyBytes))
 		return
 	}
 	c.Write(data)
