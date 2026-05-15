@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"math"
+	"sort"
 	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
@@ -114,4 +115,54 @@ func timestampToUint32(ts int32) uint32 {
 		return 0
 	}
 	return uint32(ts)
+}
+
+func clusterConfigFromSnapshot(snapshot ClusterSnapshot) *pluginproto.ClusterConfig {
+	nodes := append([]ClusterNode(nil), snapshot.Nodes...)
+	sort.Slice(nodes, func(i, j int) bool { return nodes[i].ID < nodes[j].ID })
+	slots := append([]ClusterSlot(nil), snapshot.Slots...)
+	sort.Slice(slots, func(i, j int) bool { return slots[i].ID < slots[j].ID })
+
+	resp := &pluginproto.ClusterConfig{
+		Nodes: make([]*pluginproto.Node, 0, len(nodes)),
+		Slots: make([]*pluginproto.Slot, 0, len(slots)),
+	}
+	for _, node := range nodes {
+		resp.Nodes = append(resp.Nodes, &pluginproto.Node{
+			Id:            node.ID,
+			ClusterAddr:   node.ClusterAddr,
+			ApiServerAddr: node.APIServerAddr,
+			Online:        node.Online,
+		})
+	}
+	for _, slot := range slots {
+		resp.Slots = append(resp.Slots, &pluginproto.Slot{
+			Id:       slot.ID,
+			Leader:   slot.Leader,
+			Term:     slot.Term,
+			Replicas: append([]uint64(nil), slot.Replicas...),
+		})
+	}
+	return resp
+}
+
+func clonePluginChannel(item *pluginproto.Channel) *pluginproto.Channel {
+	if item == nil {
+		return &pluginproto.Channel{}
+	}
+	return &pluginproto.Channel{
+		ChannelId:   item.GetChannelId(),
+		ChannelType: item.GetChannelType(),
+	}
+}
+
+func conversationChannelsRespFromChannelIDs(channels []channel.ChannelID) *pluginproto.ConversationChannelResp {
+	resp := &pluginproto.ConversationChannelResp{Channels: make([]*pluginproto.Channel, 0, len(channels))}
+	for _, id := range channels {
+		resp.Channels = append(resp.Channels, &pluginproto.Channel{
+			ChannelId:   id.ID,
+			ChannelType: uint32(id.Type),
+		})
+	}
+	return resp
 }

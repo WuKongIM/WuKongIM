@@ -667,6 +667,23 @@ type fakeUsecase struct {
 	channelMessagesCtx    context.Context
 	channelMessagesReq    *pluginproto.ChannelMessageBatchReq
 	channelMessagesCaller string
+
+	clusterConfigResp   *pluginproto.ClusterConfig
+	clusterConfigCalls  int
+	clusterConfigCtx    context.Context
+	clusterConfigCaller string
+
+	clusterBelongNodeResp   *pluginproto.ClusterChannelBelongNodeBatchResp
+	clusterBelongNodeCalls  int
+	clusterBelongNodeCtx    context.Context
+	clusterBelongNodeReq    *pluginproto.ClusterChannelBelongNodeReq
+	clusterBelongNodeCaller string
+
+	conversationChannelsResp   *pluginproto.ConversationChannelResp
+	conversationChannelsCalls  int
+	conversationChannelsCtx    context.Context
+	conversationChannelsReq    *pluginproto.ConversationChannelReq
+	conversationChannelsCaller string
 }
 
 func (f *fakeUsecase) StartPlugin(ctx context.Context, info *pluginproto.PluginInfo, callerUID string) (*pluginproto.StartupResp, error) {
@@ -765,21 +782,44 @@ func (f *fakeUsecase) HTTPForward(ctx context.Context, req *pluginproto.ForwardH
 func (f *fakeUsecase) ClusterConfig(ctx context.Context, callerUID string) (*pluginproto.ClusterConfig, error) {
 	f.mu.Lock()
 	f.lastCtx = ctx
+	f.clusterConfigCalls++
+	f.clusterConfigCtx = ctx
+	f.clusterConfigCaller = callerUID
+	resp := f.clusterConfigResp
 	f.mu.Unlock()
+	if resp != nil {
+		return resp, nil
+	}
 	return &pluginproto.ClusterConfig{}, nil
 }
 
 func (f *fakeUsecase) ClusterChannelsBelongNode(ctx context.Context, req *pluginproto.ClusterChannelBelongNodeReq, callerUID string) (*pluginproto.ClusterChannelBelongNodeBatchResp, error) {
 	f.mu.Lock()
 	f.lastCtx = ctx
+	f.clusterBelongNodeCalls++
+	f.clusterBelongNodeCtx = ctx
+	f.clusterBelongNodeReq = req
+	f.clusterBelongNodeCaller = callerUID
+	resp := f.clusterBelongNodeResp
 	f.mu.Unlock()
+	if resp != nil {
+		return resp, nil
+	}
 	return &pluginproto.ClusterChannelBelongNodeBatchResp{}, nil
 }
 
 func (f *fakeUsecase) ConversationChannels(ctx context.Context, req *pluginproto.ConversationChannelReq, callerUID string) (*pluginproto.ConversationChannelResp, error) {
 	f.mu.Lock()
 	f.lastCtx = ctx
+	f.conversationChannelsCalls++
+	f.conversationChannelsCtx = ctx
+	f.conversationChannelsReq = req
+	f.conversationChannelsCaller = callerUID
+	resp := f.conversationChannelsResp
 	f.mu.Unlock()
+	if resp != nil {
+		return resp, nil
+	}
 	return &pluginproto.ConversationChannelResp{}, nil
 }
 

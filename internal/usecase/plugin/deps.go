@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 )
 
@@ -84,6 +85,24 @@ type MessageReader interface {
 	SyncMessages(ctx context.Context, query message.ChannelMessageQuery) (message.ChannelMessagePage, error)
 }
 
+// ClusterReader exposes the authoritative cluster snapshot needed by legacy host RPCs.
+type ClusterReader interface {
+	// ClusterSnapshot returns nodes and Slots without guessing from node-local state.
+	ClusterSnapshot(ctx context.Context) (ClusterSnapshot, error)
+}
+
+// ChannelOwnerReader resolves authoritative channel ownership for host RPC routing.
+type ChannelOwnerReader interface {
+	// ChannelOwnerNode returns the node that owns the channel.
+	ChannelOwnerNode(ctx context.Context, id channel.ChannelID) (uint64, error)
+}
+
+// ConversationReader exposes authoritative recent conversation channels.
+type ConversationReader interface {
+	// ConversationChannels returns recent conversation channels for a UID in reader-defined order.
+	ConversationChannels(ctx context.Context, uid string, limit int) ([]channel.ChannelID, error)
+}
+
 // Options configures the plugin business usecase.
 type Options struct {
 	// Runtime provides node-local plugin registry and lifecycle operations.
@@ -100,6 +119,12 @@ type Options struct {
 	Messages MessageSender
 	// MessageReader reads authoritative channel message pages for plugin host RPCs.
 	MessageReader MessageReader
+	// ClusterReader reads authoritative cluster state for plugin host RPCs.
+	ClusterReader ClusterReader
+	// ChannelOwners resolves authoritative channel owner nodes for plugin host RPCs.
+	ChannelOwners ChannelOwnerReader
+	// Conversations reads authoritative recent conversation channels for plugin host RPCs.
+	Conversations ConversationReader
 	// FailOpen lets message sends continue when Send hooks fail.
 	FailOpen bool
 	// DefaultSenderUID is used when legacy plugin send requests omit fromUid.
