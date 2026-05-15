@@ -255,6 +255,34 @@ func TestWorkerDefaultRunnerMetricsSurviveCooldown(t *testing.T) {
 	require.Equal(t, uint64(1), snap.Counters["person_send_success_total"])
 }
 
+func TestWorkerDefaultRunnerNewRunResetsConnectMetricsAfterStop(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignment := personShardAssignment()
+	assignFull(t, srv, "secret", assignment)
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/stop", http.StatusOK)
+
+	assignment.RunID = "run-b"
+	assignment.Scenario.Run.ID = "run-b"
+	assignment.Plan.Profiles["person-a"] = model.ProfileShard{
+		Name:             "person-a",
+		ChannelType:      model.ChannelTypePerson,
+		ChannelRange:     model.Range{Start: 4, End: 5},
+		ParticipantRange: model.Range{Start: 8, End: 10},
+	}
+	assignFull(t, srv, "secret", assignment)
+
+	rec := authorizedRecorder(t, srv, http.MethodGet, "/v1/metrics", "secret", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var snap metrics.SnapshotData
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &snap))
+	require.Zero(t, snap.Counters["connect_attempt_total"])
+	require.Zero(t, snap.Counters["connect_success_total"])
+}
+
 func TestWorkerDefaultRunnerPreparesConnectsAndRunsGroupShard(t *testing.T) {
 	type seenRequest struct {
 		path  string

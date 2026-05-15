@@ -382,6 +382,36 @@ workers:
 	}
 }
 
+func TestRunCommandReturnsHardLimitExitCodeWhenCollectionAlsoFails(t *testing.T) {
+	targetSrv := goodWkbenchTargetServer(t)
+	defer targetSrv.Close()
+	workerSrv := hardLimitAndCollectionFailureWorkerServer(t, "secret")
+	defer workerSrv.Close()
+	targetPath := writeWkbenchTempFile(t, validTargetYAML(targetSrv.URL))
+	scenarioPath := writeWkbenchTempFile(t, validScenarioYAML()+`
+limits:
+  hard:
+    max_sendack_error_rate: 0
+`)
+	workersPath := writeWkbenchTempFile(t, `
+workers:
+  - id: w1
+    addr: `+workerSrv.URL+`
+    weight: 1
+    control_token: secret
+`)
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"run", "--target", targetPath, "--scenario", scenarioPath, "--workers", workersPath}, &stderr)
+
+	if code != 3 {
+		t.Fatalf("expected hard-limit exit code 3, got %d stderr %q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "hard limit failed") {
+		t.Fatalf("expected hard limit error, got %q", stderr.String())
+	}
+}
+
 func TestValidateCommandRequiresConfigFlags(t *testing.T) {
 	var stderr bytes.Buffer
 
@@ -522,6 +552,51 @@ func goodWkbenchWorkerServer(t *testing.T, token string) *httptest.Server {
 			writeWkbenchJSON(t, w, map[string]any{"counters": map[string]uint64{}, "gauges": map[string]float64{}, "histograms": map[string]any{}, "errors": []any{}})
 		case "/v1/report":
 			writeWkbenchJSON(t, w, map[string]any{"worker_id": "w1"})
+		case "/v1/stop":
+			phase = "stopped"
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+}
+
+func hardLimitAndCollectionFailureWorkerServer(t *testing.T, token string) *httptest.Server {
+	t.Helper()
+	phase := "assigned"
+	assignment := map[string]string{"run_id": "bench-run", "worker_id": "w1"}
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer "+token {
+			http.Error(w, "missing auth", http.StatusUnauthorized)
+			return
+		}
+		switch r.URL.Path {
+		case "/v1/info":
+			writeWkbenchJSON(t, w, map[string]string{"worker": "wkbench"})
+		case "/v1/assign":
+			phase = "assigned"
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
+		case "/v1/phase/prepare":
+			phase = "prepare"
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
+		case "/v1/phase/connect":
+			phase = "connect"
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
+		case "/v1/phase/warmup":
+			phase = "warmup"
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
+		case "/v1/phase/run":
+			phase = "run"
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
+		case "/v1/phase/cooldown":
+			phase = "cooldown"
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
+		case "/v1/status":
+			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})
+		case "/v1/metrics":
+			writeWkbenchJSON(t, w, map[string]any{"counters": map[string]uint64{"person_send_success_total": 9, "person_send_error_total": 1}, "gauges": map[string]float64{}, "histograms": map[string]any{}, "errors": []any{}})
+		case "/v1/report":
+			http.Error(w, "report exploded", http.StatusInternalServerError)
 		case "/v1/stop":
 			phase = "stopped"
 			writeWkbenchJSON(t, w, map[string]any{"phase": phase, "assignment": assignment})

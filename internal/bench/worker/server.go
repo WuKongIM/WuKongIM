@@ -33,6 +33,12 @@ type MetricsReporter interface {
 	MetricsSnapshot() metrics.SnapshotData
 }
 
+// AssignmentStarter receives a hook when the control plane accepts a fresh run assignment.
+type AssignmentStarter interface {
+	// BeginAssignment resets per-run runner state before any phase hook executes.
+	BeginAssignment(assignment Assignment)
+}
+
 // Config controls the worker HTTP control server.
 type Config struct {
 	// ControlToken is the bearer token required for /v1 control routes.
@@ -114,6 +120,7 @@ func (s *Server) assign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid assignment json")
 		return
 	}
+	before := s.state.Status()
 	if err := s.state.Assign(a); err != nil {
 		switch {
 		case errors.Is(err, ErrActiveRunConflict):
@@ -125,7 +132,26 @@ func (s *Server) assign(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	writeJSON(w, http.StatusOK, s.state.Status())
+	status := s.state.Status()
+	if assignmentStarted(before, status) {
+		if starter, ok := s.runner.(AssignmentStarter); ok {
+			starter.BeginAssignment(status.Assignment)
+		}
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+func assignmentStarted(before, after Status) bool {
+	if after.Phase != PhaseAssigned || strings.TrimSpace(after.Assignment.RunID) == "" {
+		return false
+	}
+	if strings.TrimSpace(before.Assignment.RunID) == "" {
+		return true
+	}
+	if before.Phase == PhaseStopped {
+		return true
+	}
+	return before.Assignment.RunID != after.Assignment.RunID
 }
 
 func (s *Server) phase(phase Phase) http.HandlerFunc {

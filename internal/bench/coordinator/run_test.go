@@ -296,6 +296,32 @@ func TestCoordinatorWorkerReportCollectionFailureFailsSuccessfulRunWithFallback(
 	require.Equal(t, "worker_report_error", result.Report.ErrorSamples[0].Name)
 }
 
+func TestCoordinatorHardLimitTakesPriorityOverWorkerReportCollectionFailure(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].SetMetrics(metrics.SnapshotData{Counters: map[string]uint64{
+		"person_send_success_total": 9,
+		"person_send_error_total":   1,
+	}})
+	workers[0].FailReport(http.StatusInternalServerError, "report exploded")
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Limits.Hard.MaxSendackErrorRate = 0
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.Error(t, err)
+	require.Equal(t, StatusHardLimitFailed, result.Status)
+	require.Equal(t, report.ExitHardLimitFailed, result.Report.ExitCode)
+	require.Equal(t, 1, result.Report.Summary.WorkerFailed)
+	require.NotEmpty(t, result.Report.Violations)
+}
+
 func TestCoordinatorStopsWorkersOnContextCancellation(t *testing.T) {
 	workers := newFakeWorkers(t, 2)
 	workers[0].BlockStatus(PhaseConnect)
@@ -792,7 +818,13 @@ func fakeScenario() model.Scenario {
 	return model.Scenario{
 		Version: "wkbench/v1",
 		Run:     model.RunConfig{ID: "run-1", FailFast: true},
-		Online:  model.OnlineConfig{TotalUsers: 10},
+		Limits: model.LimitsConfig{Hard: model.HardLimitsConfig{
+			MaxWorkerFailed:        -1,
+			MaxConnectErrorRate:    -1,
+			MaxSendackErrorRate:    -1,
+			MaxRecvVerifyErrorRate: -1,
+		}},
+		Online: model.OnlineConfig{TotalUsers: 10},
 		Channels: model.ChannelsConfig{Profiles: []model.ChannelProfile{{
 			Name:        "group-hot",
 			ChannelType: model.ChannelTypeGroup,

@@ -57,6 +57,8 @@ type ErrorSample struct {
 }
 
 // HistogramSummary contains JSON-friendly latency summary statistics.
+// After worker aggregation, percentile fields are max worker-local percentiles,
+// not percentiles recomputed from globally merged samples.
 type HistogramSummary struct {
 	// Count is the number of observed samples.
 	Count uint64 `json:"count"`
@@ -269,6 +271,8 @@ func (r *Registry) Snapshot() map[string]any {
 }
 
 // Aggregate safely combines worker-local snapshots after validating metric labels.
+// Histogram counts, sums, min, and max are merged directly; percentile fields use
+// the maximum worker-local p50/p95/p99 because worker snapshots do not carry buckets.
 func Aggregate(workers []WorkerSnapshot) (SnapshotData, error) {
 	out := emptySnapshot()
 	for _, worker := range workers {
@@ -367,6 +371,8 @@ func mergeHistogram(a, b HistogramSummary) HistogramSummary {
 	}
 	a.Count += b.Count
 	a.SumSeconds += b.SumSeconds
+	// Worker snapshots only expose summaries, so aggregate percentiles are the
+	// largest worker-local percentiles rather than global distribution percentiles.
 	if b.P50Seconds > a.P50Seconds {
 		a.P50Seconds = b.P50Seconds
 	}

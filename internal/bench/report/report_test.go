@@ -1,7 +1,9 @@
 package report
 
 import (
+	"bufio"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -172,3 +174,33 @@ func TestWriterCreatesDeterministicRunDirectoryFiles(t *testing.T) {
 		t.Fatalf("run_id = %q, want run-1", decoded.RunID)
 	}
 }
+
+func TestFinishBufferedWriteReturnsFlushAndCloseErrors(t *testing.T) {
+	flushErr := errors.New("flush failed")
+	closeErr := errors.New("close failed")
+	writer := bufio.NewWriter(errorWriter{err: flushErr})
+	if _, err := writer.WriteString("payload"); err != nil {
+		t.Fatalf("buffer write should not hit underlying writer before flush: %v", err)
+	}
+
+	err := finishBufferedWrite(writer, closeFunc(func() error { return closeErr }))
+
+	if !errors.Is(err, flushErr) {
+		t.Fatalf("expected flush error in joined error, got %v", err)
+	}
+	if !errors.Is(err, closeErr) {
+		t.Fatalf("expected close error in joined error, got %v", err)
+	}
+}
+
+type errorWriter struct {
+	err error
+}
+
+func (w errorWriter) Write([]byte) (int, error) {
+	return 0, w.err
+}
+
+type closeFunc func() error
+
+func (f closeFunc) Close() error { return f() }

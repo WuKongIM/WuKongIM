@@ -3,7 +3,9 @@ package report
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -401,17 +403,16 @@ func writeWorkerMetrics(path string, snapshots []metrics.WorkerSnapshot) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 	w := bufio.NewWriter(f)
 	sorted := append([]metrics.WorkerSnapshot(nil), snapshots...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].WorkerID < sorted[j].WorkerID })
 	enc := json.NewEncoder(w)
 	for _, snap := range sorted {
 		if err := enc.Encode(snap); err != nil {
-			return err
+			return errors.Join(err, f.Close())
 		}
 	}
-	return w.Flush()
+	return finishBufferedWrite(w, f)
 }
 
 func writeRawJSONLines(path string, lines []json.RawMessage) error {
@@ -419,23 +420,22 @@ func writeRawJSONLines(path string, lines []json.RawMessage) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 	w := bufio.NewWriter(f)
 	for _, line := range lines {
 		if len(line) == 0 {
 			line = []byte(`{}`)
 		}
 		if !json.Valid(line) {
-			return fmt.Errorf("jsonl payload is not valid JSON")
+			return errors.Join(fmt.Errorf("jsonl payload is not valid JSON"), f.Close())
 		}
 		if _, err := w.Write(line); err != nil {
-			return err
+			return errors.Join(err, f.Close())
 		}
 		if err := w.WriteByte('\n'); err != nil {
-			return err
+			return errors.Join(err, f.Close())
 		}
 	}
-	return w.Flush()
+	return finishBufferedWrite(w, f)
 }
 
 func writeErrorSamples(path string, samples []metrics.ErrorSample) error {
@@ -443,15 +443,18 @@ func writeErrorSamples(path string, samples []metrics.ErrorSample) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 	w := bufio.NewWriter(f)
 	enc := json.NewEncoder(w)
 	for _, sample := range samples {
 		if err := enc.Encode(sample); err != nil {
-			return err
+			return errors.Join(err, f.Close())
 		}
 	}
-	return w.Flush()
+	return finishBufferedWrite(w, f)
+}
+
+func finishBufferedWrite(w interface{ Flush() error }, c io.Closer) error {
+	return errors.Join(w.Flush(), c.Close())
 }
 
 func safeFilePart(raw string) string {

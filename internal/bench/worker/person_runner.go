@@ -53,11 +53,16 @@ func newDefaultWorkloadRunner(factory WorkloadClientFactory) WorkloadRunner {
 	return &defaultWorkloadRunner{clientFactory: factory, metrics: metrics.NewRegistry()}
 }
 
+func (r *defaultWorkloadRunner) BeginAssignment(assignment Assignment) {
+	r.beginRun(assignment.RunID, true)
+}
+
 func (r *defaultWorkloadRunner) Prepare(ctx context.Context, assignment Assignment) error {
 	return prepareGroupData(ctx, assignment)
 }
 
 func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignment) error {
+	r.beginRun(assignment.RunID, false)
 	plan, err := buildPersonExecutionPlan(assignment)
 	if err != nil {
 		return err
@@ -414,8 +419,15 @@ func markTargetUnavailable(err error) error {
 }
 
 func (r *defaultWorkloadRunner) reset(runID string) {
+	r.beginRun(runID, true)
+}
+
+func (r *defaultWorkloadRunner) beginRun(runID string, force bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if !force && r.runID == runID {
+		return
+	}
 	if r.manager != nil {
 		_ = r.manager.Close()
 	}
@@ -423,6 +435,7 @@ func (r *defaultWorkloadRunner) reset(runID string) {
 	r.manager = nil
 	r.personWorkloads = nil
 	r.groupWorkloads = nil
+	r.metrics = metrics.NewRegistry()
 }
 
 func mergeConnectionUsers(groups ...[]benchworkload.ConnectionUser) []benchworkload.ConnectionUser {
