@@ -3,16 +3,24 @@ package plugin
 import (
 	"context"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
+
+	metastore "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 )
+
+func TestSlotBindingStoreAdapterAcceptsProxyStore(t *testing.T) {
+	var _ SlotBindingStore = (*metastore.Store)(nil)
+}
 
 func TestBindingUsecaseDelegatesToAuthoritativeStoreAndInvalidatesUIDCache(t *testing.T) {
 	ctx := context.Background()
 	rt := newFakeRuntime(t.TempDir())
 	rt.plugins["bot-a"] = ObservedPlugin{No: "bot-a", Status: StatusRunning, Enabled: true, Methods: []Method{MethodReceive}, Priority: 10}
 	store := newFakeBindingStore()
-	app := newTestBindingApp(t, rt, store, nil)
+	cache := NewBindingCache(BindingCacheOptions{TTL: time.Minute, MaxEntries: 8, Clock: func() time.Time { return time.Unix(100, 0).UTC() }})
+	app := newTestBindingApp(t, rt, store, cache)
 
 	plugin, ok, err := app.BoundReceivePluginForUID(ctx, "u1")
 	if err != nil {
@@ -66,6 +74,54 @@ func TestBindingUsecaseDelegatesToAuthoritativeStoreAndInvalidatesUIDCache(t *te
 	}
 }
 
+func TestBindingUsecaseDoesNotCacheStaleReadAcrossConcurrentMutation(t *testing.T) {
+	ctx := context.Background()
+	rt := newFakeRuntime(t.TempDir())
+	rt.plugins["bot-a"] = ObservedPlugin{No: "bot-a", Status: StatusRunning, Enabled: true, Methods: []Method{MethodReceive}, Priority: 10}
+	store := newBlockingBindingStore()
+	cache := NewBindingCache(BindingCacheOptions{TTL: time.Minute, MaxEntries: 8, Clock: func() time.Time { return time.Unix(100, 0).UTC() }})
+	app := newTestBindingApp(t, rt, (*fakeBindingStore)(nil), cache)
+	app.bindingStore = store
+
+	firstRead := make(chan struct{})
+	releaseFirstRead := make(chan struct{})
+	store.onFirstUIDList = func() {
+		close(firstRead)
+		<-releaseFirstRead
+	}
+
+	firstDone := make(chan error, 1)
+	go func() {
+		_, _, err := app.BoundReceivePluginForUID(ctx, "u1")
+		firstDone <- err
+	}()
+	<-firstRead
+
+	bindDone := make(chan error, 1)
+	go func() {
+		_, err := app.BindPluginUser(ctx, "u1", "bot-a")
+		bindDone <- err
+	}()
+	close(releaseFirstRead)
+	if err := <-firstDone; err != nil {
+		t.Fatalf("first BoundReceivePluginForUID: %v", err)
+	}
+	if err := <-bindDone; err != nil {
+		t.Fatalf("BindPluginUser: %v", err)
+	}
+
+	plugin, ok, err := app.BoundReceivePluginForUID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("BoundReceivePluginForUID after concurrent bind: %v", err)
+	}
+	if !ok || plugin.No != "bot-a" {
+		t.Fatalf("selected after concurrent bind = (%#v,%v), want bot-a true", plugin, ok)
+	}
+	if store.listUIDCalls != 2 {
+		t.Fatalf("listUIDCalls = %d, want stale cache invalidated and reread", store.listUIDCalls)
+	}
+}
+
 func TestBindingUsecaseListsBindingsAndAddsWarningForAbsentLocalPlugin(t *testing.T) {
 	ctx := context.Background()
 	rt := newFakeRuntime(t.TempDir())
@@ -108,6 +164,59 @@ func TestBindingUsecaseListsBindingsAndAddsWarningForAbsentLocalPlugin(t *testin
 	}
 }
 
+func TestBindingUsecaseWarningsForPresentButNonRunnableReceivePlugins(t *testing.T) {
+	ctx := context.Background()
+	rt := newFakeRuntime(t.TempDir())
+	rt.plugins["bot-offline"] = ObservedPlugin{No: "bot-offline", Status: StatusOffline, Enabled: true, Methods: []Method{MethodReceive}}
+	rt.plugins["bot-disabled"] = ObservedPlugin{No: "bot-disabled", Status: StatusRunning, Enabled: true, Methods: []Method{MethodReceive}}
+	rt.plugins["bot-send-only"] = ObservedPlugin{No: "bot-send-only", Status: StatusRunning, Enabled: true, Methods: []Method{MethodSend}}
+	desired := newFakeDesiredStore()
+	desired.states["bot-disabled"] = DesiredPlugin{No: "bot-disabled", Enabled: false, CreatedAt: time.Unix(1, 0), UpdatedAt: time.Unix(2, 0)}
+	store := newFakeBindingStore()
+	store.bindingsByUID["u1"] = []PluginBinding{
+		{UID: "u1", PluginNo: "bot-offline"},
+		{UID: "u1", PluginNo: "bot-disabled"},
+		{UID: "u1", PluginNo: "bot-send-only"},
+	}
+	app, err := NewApp(Options{
+		Runtime:      rt,
+		DesiredStore: desired,
+		BindingStore: store,
+		Clock:        func() time.Time { return time.Unix(100, 0).UTC() },
+	})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+
+	list, err := app.ListBindingsByUID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("ListBindingsByUID: %v", err)
+	}
+	if got, want := warningCodes(list.Warnings), []string{BindingWarningPluginUnavailable, BindingWarningPluginDisabled, BindingWarningReceiveUnsupported}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("warning codes = %#v, want %#v", got, want)
+	}
+}
+
+func TestBindingUsecaseListByUIDDoesNotRequireReceiveSelection(t *testing.T) {
+	ctx := context.Background()
+	rt := newFakeRuntime(t.TempDir())
+	rt.plugins["unrelated"] = ObservedPlugin{No: "unrelated", Status: StatusRunning, Enabled: true, Methods: []Method{MethodReceive}}
+	store := newFakeBindingStore()
+	store.bindingsByUID["u1"] = []PluginBinding{{UID: "u1", PluginNo: "missing"}}
+	app, err := NewApp(Options{Runtime: rt, DesiredStore: desiredStoreError{}, BindingStore: store})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+
+	list, err := app.ListBindingsByUID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("ListBindingsByUID: %v", err)
+	}
+	if got, want := bindingPairs(list.Bindings), []PluginBinding{{UID: "u1", PluginNo: "missing"}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("uid bindings = %#v, want %#v", got, want)
+	}
+}
+
 func TestBindingUsecaseCachesUIDBindingsAndSelectedPlugin(t *testing.T) {
 	ctx := context.Background()
 	now := time.Unix(100, 0).UTC()
@@ -136,6 +245,17 @@ func TestBindingUsecaseCachesUIDBindingsAndSelectedPlugin(t *testing.T) {
 	}
 	if store.listUIDCalls != 1 {
 		t.Fatalf("listUIDCalls = %d, want cached single read", store.listUIDCalls)
+	}
+	rt.plugins["high"] = ObservedPlugin{No: "high", Status: StatusOffline, Enabled: true, Methods: []Method{MethodReceive}, Priority: 10}
+	plugin, ok, err = app.BoundReceivePluginForUID(ctx, "u1")
+	if err != nil {
+		t.Fatalf("BoundReceivePluginForUID cached after runtime change: %v", err)
+	}
+	if !ok || plugin.No != "low" {
+		t.Fatalf("cached after runtime change selected = (%#v,%v), want low true", plugin, ok)
+	}
+	if store.listUIDCalls != 1 {
+		t.Fatalf("listUIDCalls after runtime revalidation = %d, want cached bindings reused", store.listUIDCalls)
 	}
 
 	now = now.Add(2 * time.Minute)
@@ -235,3 +355,75 @@ func (f *fakeBindingStore) ListPluginBindingsByPluginNo(_ context.Context, plugi
 func (f *fakeBindingStore) ExistPluginBindingByUID(_ context.Context, uid string) (bool, error) {
 	return len(f.bindingsByUID[uid]) > 0, nil
 }
+
+type blockingBindingStore struct {
+	mu             sync.Mutex
+	bindingsByUID  map[string][]PluginBinding
+	listUIDCalls   int
+	onFirstUIDList func()
+}
+
+func newBlockingBindingStore() *blockingBindingStore {
+	return &blockingBindingStore{bindingsByUID: make(map[string][]PluginBinding)}
+}
+
+func (f *blockingBindingStore) BindPluginUser(_ context.Context, uid, pluginNo string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.bindingsByUID[uid] = append(f.bindingsByUID[uid], PluginBinding{UID: uid, PluginNo: pluginNo})
+	return nil
+}
+
+func (f *blockingBindingStore) UnbindPluginUser(_ context.Context, uid, pluginNo string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	bindings := f.bindingsByUID[uid]
+	out := bindings[:0]
+	for _, binding := range bindings {
+		if binding.PluginNo == pluginNo {
+			continue
+		}
+		out = append(out, binding)
+	}
+	f.bindingsByUID[uid] = append([]PluginBinding(nil), out...)
+	return nil
+}
+
+func (f *blockingBindingStore) ListPluginBindingsByUID(_ context.Context, uid string) ([]PluginBinding, error) {
+	f.mu.Lock()
+	f.listUIDCalls++
+	onFirst := f.onFirstUIDList
+	if f.listUIDCalls > 1 {
+		onFirst = nil
+	}
+	bindings := append([]PluginBinding(nil), f.bindingsByUID[uid]...)
+	f.mu.Unlock()
+	if onFirst != nil {
+		onFirst()
+	}
+	return bindings, nil
+}
+
+func (f *blockingBindingStore) ListPluginBindingsByPluginNo(context.Context, string, string, int) (BindingPage, error) {
+	return BindingPage{}, nil
+}
+
+func (f *blockingBindingStore) ExistPluginBindingByUID(_ context.Context, uid string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.bindingsByUID[uid]) > 0, nil
+}
+
+type desiredStoreError struct{}
+
+func (desiredStoreError) Get(context.Context, string) (DesiredPlugin, error) {
+	return DesiredPlugin{}, assertAnError{}
+}
+
+func (desiredStoreError) Save(context.Context, DesiredPlugin) error { return assertAnError{} }
+
+func (desiredStoreError) Delete(context.Context, string) error { return assertAnError{} }
+
+type assertAnError struct{}
+
+func (assertAnError) Error() string { return "assertion error" }
