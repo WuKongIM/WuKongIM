@@ -47,8 +47,10 @@ type ProfileShard struct {
 	ChannelRange Range `json:"channel_range" yaml:"channel_range"`
 	// ParticipantRange is the half-open generated user index range consumed by person channels.
 	ParticipantRange Range `json:"participant_range" yaml:"participant_range"`
-	// MemberRange is the half-open member index range assigned for split huge groups.
+	// MemberRange is the half-open member index range assigned to this worker for group member generation.
 	MemberRange Range `json:"member_range" yaml:"member_range"`
+	// MemberReusePolicy records whether group member indexes are shared or disjoint.
+	MemberReusePolicy string `json:"member_reuse_policy,omitempty" yaml:"member_reuse_policy,omitempty"`
 	// GlobalRate is the logical per-channel rate configured for this profile.
 	GlobalRate Rate `json:"global_rate" yaml:"global_rate"`
 	// LocalRate is the worker-local share of GlobalRate for split traffic profiles.

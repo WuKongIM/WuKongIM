@@ -19,6 +19,12 @@ var errTargetUnavailable = errors.New("target unavailable")
 // WorkloadClientFactory builds benchmark clients for the default worker runner.
 type WorkloadClientFactory func(user benchworkload.ConnectionUser, addr string) (benchworkload.ConnectionClient, error)
 
+// PrepareChannelsRunner optionally prepares owner-only channel metadata before full prepare.
+type PrepareChannelsRunner interface {
+	// PrepareChannels upserts channel metadata required before subscribers are appended.
+	PrepareChannels(ctx context.Context, assignment Assignment) error
+}
+
 // defaultWorkloadRunner builds and runs built-in workloads from worker assignments.
 type defaultWorkloadRunner struct {
 	clientFactory WorkloadClientFactory
@@ -58,7 +64,14 @@ func (r *defaultWorkloadRunner) BeginAssignment(assignment Assignment) {
 }
 
 func (r *defaultWorkloadRunner) Prepare(ctx context.Context, assignment Assignment) error {
+	if err := prepareBenchTokens(ctx, assignment); err != nil {
+		return err
+	}
 	return prepareGroupData(ctx, assignment)
+}
+
+func (r *defaultWorkloadRunner) PrepareChannels(ctx context.Context, assignment Assignment) error {
+	return prepareGroupChannels(ctx, assignment)
 }
 
 func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignment) error {
@@ -93,11 +106,12 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 		return markTargetUnavailable(err)
 	}
 	r.mergeConnectionMetrics(manager)
-	clients, err := personClientsFromManager(manager, users)
+	rawClients, err := personClientsFromManager(manager, users)
 	if err != nil {
 		_ = manager.Close()
 		return err
 	}
+	clients := benchworkload.WrapPersonClientsForConcurrentReads(rawClients)
 	workloads, err := buildPersonWorkloads(assignment, plan.bundles, clients)
 	if err != nil {
 		_ = manager.Close()
@@ -186,17 +200,35 @@ func (r *defaultWorkloadRunner) runPhase(ctx context.Context, assignment Assignm
 			return nil
 		}
 	}
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(personWorkloads)+len(groupWorkloads))
 	for _, wl := range personWorkloads {
-		if err := fn(wl, nil); err != nil {
-			return err
-		}
+		wl := wl
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := fn(wl, nil); err != nil {
+				errCh <- err
+			}
+		}()
 	}
 	for _, wl := range groupWorkloads {
-		if err := fn(nil, wl); err != nil {
-			return err
-		}
+		wl := wl
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := fn(nil, wl); err != nil {
+				errCh <- err
+			}
+		}()
 	}
-	return nil
+	wg.Wait()
+	close(errCh)
+	var errs []error
+	for err := range errCh {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
 func buildPersonExecutionPlan(assignment Assignment) (personExecutionPlan, error) {
@@ -264,6 +296,10 @@ func buildPersonWorkloads(assignment Assignment, bundles []personWorkloadBundle,
 			ClientMsgPrefix:  assignment.Scenario.Identity.ClientMsgPrefix,
 			DevicePrefix:     assignment.Scenario.Identity.DevicePrefix,
 			PayloadSizeBytes: assignment.Scenario.Messages.Payload.SizeBytes,
+			Rate:             bundle.traffic.RatePerChannel,
+			RunDuration:      assignment.Scenario.Run.Duration,
+			WarmupDuration:   assignment.Scenario.Run.Warmup,
+			CooldownDuration: assignment.Scenario.Run.Cooldown,
 			VerifyRecvMode:   bundle.traffic.Verify.Recv.Mode,
 			RecvAck:          bundle.traffic.RecvAck,
 			Pairs:            bundle.pairs,
@@ -352,6 +388,45 @@ func personToken(mode, uid string) string {
 	default:
 		return ""
 	}
+}
+
+func prepareBenchTokens(ctx context.Context, assignment Assignment) error {
+	if strings.TrimSpace(assignment.Scenario.Identity.Token.Mode) != "bench_api" {
+		return nil
+	}
+	plan, err := buildPersonExecutionPlan(assignment)
+	if err != nil {
+		return err
+	}
+	groupPlan, err := buildGroupExecutionPlan(assignment)
+	if err != nil {
+		return err
+	}
+	users := mergeConnectionUsers(plan.users, groupPlan.users)
+	if len(users) == 0 {
+		return nil
+	}
+	client := groupPrepareClient(assignment.Target)
+	const batchSize = 1000
+	for start := 0; start < len(users); start += batchSize {
+		end := start + batchSize
+		if end > len(users) {
+			end = len(users)
+		}
+		req := model.BatchTokensRequest{
+			RunID:   assignment.RunID,
+			BatchID: fmt.Sprintf("%s-tokens-%s-%d-%d", assignment.RunID, assignment.WorkerID, start, end),
+			Upsert:  true,
+			Users:   make([]model.UserTokenItem, 0, end-start),
+		}
+		for _, user := range users[start:end] {
+			req.Users = append(req.Users, model.UserTokenItem{UID: user.UID, Token: user.Token})
+		}
+		if err := client.UpsertTokens(ctx, req); err != nil {
+			return fmt.Errorf("prepare bench tokens: %w", err)
+		}
+	}
+	return nil
 }
 
 func (r *defaultWorkloadRunner) store(runID string, manager *benchworkload.ConnectionManager, personWorkloads []*benchworkload.PersonWorkload, groupWorkloads []*benchworkload.GroupWorkload) {

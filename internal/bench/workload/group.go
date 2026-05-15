@@ -3,6 +3,7 @@ package workload
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"sort"
 	"strings"
@@ -58,6 +59,10 @@ type GroupPrepareConfig struct {
 	ChannelRange model.Range
 	// MemberRange is the half-open member range assigned for split huge groups.
 	MemberRange model.Range
+	// MemberBase is the first generated user index for non-split group subscribers.
+	MemberBase int
+	// MemberReusePolicy is "allowed" when non-split group channels share MemberRange.
+	MemberReusePolicy string
 	// MembersPerChannel is the deterministic member count per non-split group channel.
 	MembersPerChannel int
 	// SubscribersBatchSize is the maximum subscribers sent in one bench API request.
@@ -90,6 +95,14 @@ type GroupConfig struct {
 	ClientMsgPrefix string
 	// PayloadSizeBytes controls the generated payload size. Zero keeps the base payload as-is.
 	PayloadSizeBytes int
+	// Phase identifies the traffic phase used in generated message identities.
+	Phase string
+	// RunDuration is the measured duration used during Run.
+	RunDuration time.Duration
+	// WarmupDuration is the duration used during Warmup.
+	WarmupDuration time.Duration
+	// CooldownDuration is the drain wait used during Cooldown.
+	CooldownDuration time.Duration
 	// AckTimeout bounds the wait for a sendack after one send request.
 	AckTimeout time.Duration
 	// RecvTimeout bounds the wait for a delivered recv frame when verification is enabled.
@@ -112,6 +125,18 @@ type GroupConfig struct {
 	Channels []GroupChannel
 	// Metrics stores counters, latencies, and error samples for this workload.
 	Metrics *metrics.Registry
+
+	sleep func(context.Context, time.Duration) error
+}
+
+// GroupRunConfig controls one timed group workload execution.
+type GroupRunConfig struct {
+	// Phase identifies the traffic phase used in generated message identities.
+	Phase string
+	// Duration is the traffic window length for this workload execution.
+	Duration time.Duration
+	// Rate is the worker-local send rate for this workload execution.
+	Rate model.Rate
 }
 
 // GroupWorkload executes deterministic group-channel benchmark traffic.
@@ -159,6 +184,27 @@ func PrepareGroup(ctx context.Context, cfg GroupPrepareConfig, target GroupPrepa
 	return addSmallGroupSubscribers(ctx, cfg, target)
 }
 
+// PrepareGroupChannels creates only owned group channels without appending subscribers.
+func PrepareGroupChannels(ctx context.Context, cfg GroupPrepareConfig, target GroupPrepareTarget) error {
+	if target == nil {
+		return fmt.Errorf("group prepare: target is required")
+	}
+	cfg = normalizeGroupPrepareConfig(cfg)
+	if cfg.RunID == "" {
+		return fmt.Errorf("group prepare: run id is required")
+	}
+	if cfg.ProfileName == "" {
+		return fmt.Errorf("group prepare: profile name is required")
+	}
+	if cfg.WorkerID == "" {
+		return fmt.Errorf("group prepare: worker id is required")
+	}
+	if cfg.ShardMode == model.ShardModeSplitMembersAndTraffic && !cfg.OwnsChannel {
+		return nil
+	}
+	return upsertGroupChannels(ctx, cfg, target, cfg.ShardMode == model.ShardModeSplitMembersAndTraffic)
+}
+
 // GroupChannelID returns the stable generated channel ID for a group channel.
 func GroupChannelID(runID, profileName string, channelIndex int) string {
 	return fmt.Sprintf("%s-%s-%d", strings.TrimSpace(runID), strings.TrimSpace(profileName), channelIndex)
@@ -184,6 +230,9 @@ func NewGroupWorkload(cfg GroupConfig, clients map[string]PersonClient) (*GroupW
 	}
 	if cfg.Metrics == nil {
 		cfg.Metrics = metrics.NewRegistry()
+	}
+	if cfg.sleep == nil {
+		cfg.sleep = sleepContext
 	}
 	channels, err := normalizeGroupChannels(cfg)
 	if err != nil {
@@ -221,11 +270,19 @@ func (w *GroupWorkload) Metrics() *metrics.Registry {
 	return w.metrics
 }
 
-// Warmup is reserved for future warmup traffic and currently does not emit load in v1.
-func (w *GroupWorkload) Warmup(ctx context.Context) error { return nil }
+// Warmup runs low-rate traffic for the configured warmup duration.
+func (w *GroupWorkload) Warmup(ctx context.Context) error {
+	if w.cfg.WarmupDuration <= 0 {
+		return nil
+	}
+	return w.RunWindow(ctx, GroupRunConfig{Phase: "warmup", Duration: w.cfg.WarmupDuration, Rate: warmupRate(w.cfg.LocalRate)})
+}
 
-// Run sends deterministic group messages for every assigned channel or split partition.
+// Run sends rate-limited group traffic for the configured measured duration.
 func (w *GroupWorkload) Run(ctx context.Context) error {
+	if w.cfg.RunDuration > 0 && w.cfg.LocalRate.PerSecond > 0 {
+		return w.RunWindow(ctx, GroupRunConfig{Phase: "run", Duration: w.cfg.RunDuration, Rate: w.cfg.LocalRate})
+	}
 	for _, ch := range w.channels {
 		indexes := ch.TrafficIndexes
 		if len(indexes) == 0 && len(w.cfg.OwnedTrafficPartitions) > 0 {
@@ -235,7 +292,7 @@ func (w *GroupWorkload) Run(ctx context.Context) error {
 			indexes = []int{ch.ChannelIndex}
 		}
 		for _, messageIndex := range indexes {
-			if err := w.SendOne(ctx, ch.ChannelIndex, messageIndex); err != nil {
+			if err := w.sendOneInPhase(ctx, w.cfg.phaseName("run"), ch.ChannelIndex, messageIndex); err != nil {
 				return err
 			}
 		}
@@ -243,11 +300,52 @@ func (w *GroupWorkload) Run(ctx context.Context) error {
 	return nil
 }
 
-// Cooldown is reserved for future draining behavior and currently performs no additional work.
-func (w *GroupWorkload) Cooldown(ctx context.Context) error { return nil }
+// Cooldown waits for the configured drain period without emitting new sends.
+func (w *GroupWorkload) Cooldown(ctx context.Context) error {
+	if w.cfg.CooldownDuration <= 0 {
+		return nil
+	}
+	return w.cfg.sleep(ctx, w.cfg.CooldownDuration)
+}
+
+// RunWindow emits this workload's traffic within a caller-owned phase window.
+func (w *GroupWorkload) RunWindow(ctx context.Context, cfg GroupRunConfig) error {
+	return w.runFor(ctx, cfg)
+}
+
+func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
+	totalMessages := scheduledMessageCount(cfg.Duration, cfg.Rate.PerSecond, len(w.channels))
+	if totalMessages <= 0 {
+		return nil
+	}
+	interval := scheduledMessageInterval(cfg.Duration, totalMessages)
+	phase := w.cfg.phaseName(cfg.Phase)
+	for localOffset := 0; localOffset < totalMessages; localOffset++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		ch := w.channels[localOffset%len(w.channels)]
+		messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
+		if err := w.sendOneInPhase(ctx, phase, ch.ChannelIndex, messageIndex); err != nil {
+			return err
+		}
+		if interval > 0 {
+			if err := w.cfg.sleep(ctx, interval); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
 
 // SendOne sends one deterministic group-channel message.
 func (w *GroupWorkload) SendOne(ctx context.Context, channelIndex, messageIndex int) error {
+	return w.sendOneInPhase(ctx, w.cfg.phaseName("run"), channelIndex, messageIndex)
+}
+
+func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channelIndex, messageIndex int) error {
 	ch, err := w.channelForIndex(channelIndex)
 	if err != nil {
 		w.recordError("group_send_error", err)
@@ -260,9 +358,9 @@ func (w *GroupWorkload) SendOne(ctx context.Context, channelIndex, messageIndex 
 	}
 	senderUID := ch.OnlineMembers[0]
 	sender := w.clients[senderUID]
-	payload := w.buildPayload(channelIndex, messageIndex)
+	payload := w.buildPayload(phase, channelIndex, messageIndex)
 	clientSeq := uint64(messageIndex)
-	clientMsgNo := w.clientMsgNo(channelIndex, messageIndex)
+	clientMsgNo := w.clientMsgNo(phase, channelIndex, messageIndex)
 	pkt := &frame.SendPacket{
 		ClientSeq:   clientSeq,
 		ClientMsgNo: clientMsgNo,
@@ -327,6 +425,19 @@ func (w *GroupWorkload) SendOne(ctx context.Context, channelIndex, messageIndex 
 	return nil
 }
 
+func (w *GroupWorkload) messageIndexForLocalOffset(ch GroupChannel, localOffset int) int {
+	if w.cfg.TrafficPartitionCount <= 0 || len(w.cfg.OwnedTrafficPartitions) == 0 {
+		return localOffset
+	}
+	partitions := ch.TrafficIndexes
+	if len(partitions) == 0 {
+		partitions = w.cfg.OwnedTrafficPartitions
+	}
+	partition := partitions[localOffset%len(partitions)]
+	cycle := localOffset / len(partitions)
+	return cycle*w.cfg.TrafficPartitionCount + partition
+}
+
 func normalizeGroupPrepareConfig(cfg GroupPrepareConfig) GroupPrepareConfig {
 	cfg.RunID = strings.TrimSpace(cfg.RunID)
 	cfg.WorkerID = strings.TrimSpace(cfg.WorkerID)
@@ -389,12 +500,14 @@ func addSmallGroupSubscribers(ctx context.Context, cfg GroupPrepareConfig, targe
 		return nil
 	}
 	for channelIndex := cfg.ChannelRange.Start; channelIndex < cfg.ChannelRange.End; channelIndex++ {
-		memberStart := channelIndex * cfg.MembersPerChannel
-		memberEnd := memberStart + cfg.MembersPerChannel
+		memberIndexes := smallGroupMemberIndexes(cfg, channelIndex)
+		if len(memberIndexes) == 0 {
+			continue
+		}
 		channelID := GroupChannelID(cfg.RunID, cfg.ProfileName, channelIndex)
-		for start := memberStart; start < memberEnd; {
-			end := groupSubscriberBatchEnd(cfg, start, memberEnd)
-			if err := addSubscriberBatch(ctx, target, cfg, channelID, start, end); err != nil {
+		for start := 0; start < len(memberIndexes); {
+			end := groupSubscriberIndexBatchEnd(cfg, start, len(memberIndexes))
+			if err := addSubscriberIndexBatch(ctx, target, cfg, channelID, memberIndexes[start:end]); err != nil {
 				return err
 			}
 			start = end
@@ -403,14 +516,62 @@ func addSmallGroupSubscribers(ctx context.Context, cfg GroupPrepareConfig, targe
 	return nil
 }
 
+func smallGroupMemberIndexes(cfg GroupPrepareConfig, channelIndex int) []int {
+	if strings.TrimSpace(cfg.MemberReusePolicy) == "allowed" && cfg.MemberRange.Len() > 0 {
+		return DeterministicGroupMemberIndexes(cfg.RunID, cfg.ProfileName, channelIndex, cfg.MemberRange, cfg.MembersPerChannel)
+	}
+	memberStart := cfg.MemberBase + (channelIndex-cfg.ChannelRange.Start)*cfg.MembersPerChannel
+	if cfg.MemberBase == 0 {
+		memberStart = channelIndex * cfg.MembersPerChannel
+	}
+	indexes := make([]int, 0, cfg.MembersPerChannel)
+	for idx := memberStart; idx < memberStart+cfg.MembersPerChannel; idx++ {
+		indexes = append(indexes, idx)
+	}
+	return indexes
+}
+
+// DeterministicGroupMemberIndexes selects stable members from a shared group member pool.
+func DeterministicGroupMemberIndexes(runID, profileName string, channelIndex int, pool model.Range, count int) []int {
+	if count <= 0 || pool.Len() <= 0 {
+		return nil
+	}
+	if count > pool.Len() {
+		count = pool.Len()
+	}
+	indexes := make([]int, 0, count)
+	seen := make(map[int]struct{}, count)
+	for salt := 0; len(indexes) < count; salt++ {
+		idx := pool.Start + stableGroupMemberHash(runID, profileName, channelIndex, salt)%pool.Len()
+		if _, ok := seen[idx]; ok {
+			continue
+		}
+		seen[idx] = struct{}{}
+		indexes = append(indexes, idx)
+	}
+	sort.Ints(indexes)
+	return indexes
+}
+
 func addSubscriberBatch(ctx context.Context, target GroupPrepareTarget, cfg GroupPrepareConfig, channelID string, start, end int) error {
-	subscribers := make([]string, 0, end-start)
+	indexes := make([]int, 0, end-start)
 	for idx := start; idx < end; idx++ {
+		indexes = append(indexes, idx)
+	}
+	return addSubscriberIndexBatch(ctx, target, cfg, channelID, indexes)
+}
+
+func addSubscriberIndexBatch(ctx context.Context, target GroupPrepareTarget, cfg GroupPrepareConfig, channelID string, indexes []int) error {
+	if len(indexes) == 0 {
+		return nil
+	}
+	subscribers := make([]string, 0, len(indexes))
+	for _, idx := range indexes {
 		subscribers = append(subscribers, indexedBenchID(cfg.UIDPrefix, idx))
 	}
 	return target.AddSubscribers(ctx, model.BatchSubscribersRequest{
 		RunID:   cfg.RunID,
-		BatchID: groupSubscribersBatchID(cfg, start, end),
+		BatchID: groupSubscribersIndexBatchID(cfg, indexes),
 		Items: []model.SubscriberItem{{
 			ChannelID:   channelID,
 			ChannelType: frame.ChannelTypeGroup,
@@ -420,12 +581,33 @@ func addSubscriberBatch(ctx context.Context, target GroupPrepareTarget, cfg Grou
 	})
 }
 
+func groupSubscriberIndexBatchEnd(cfg GroupPrepareConfig, start, max int) int {
+	end := start + cfg.SubscribersBatchSize
+	if end > max {
+		end = max
+	}
+	return end
+}
+
 func groupChannelsBatchID(cfg GroupPrepareConfig, start, end int) string {
 	return fmt.Sprintf("%s-channels-%s-%s-%d-%d", cfg.RunID, cfg.ProfileName, cfg.WorkerID, start, end)
 }
 
 func groupSubscribersBatchID(cfg GroupPrepareConfig, start, end int) string {
 	return fmt.Sprintf("%s-subs-%s-%s-%d-%d", cfg.RunID, cfg.ProfileName, cfg.WorkerID, start, end)
+}
+
+func groupSubscribersIndexBatchID(cfg GroupPrepareConfig, indexes []int) string {
+	if len(indexes) == 0 {
+		return groupSubscribersBatchID(cfg, 0, 0)
+	}
+	return groupSubscribersBatchID(cfg, indexes[0], indexes[len(indexes)-1]+1)
+}
+
+func stableGroupMemberHash(runID, profileName string, channelIndex, salt int) int {
+	h := fnv.New32a()
+	_, _ = fmt.Fprintf(h, "%s/%s/%d/%d", runID, profileName, channelIndex, salt)
+	return int(h.Sum32())
 }
 
 func normalizeGroupChannels(cfg GroupConfig) ([]GroupChannel, error) {
@@ -500,55 +682,52 @@ func (w *GroupWorkload) verificationMembers(ch GroupChannel, senderUID string) [
 func (w *GroupWorkload) waitForSendack(ctx context.Context, client PersonClient, clientSeq uint64, clientMsgNo string) (*frame.SendackPacket, error) {
 	deadlineCtx, cancel := w.withTimeout(ctx, w.cfg.AckTimeout)
 	defer cancel()
-	for {
-		f, err := client.ReadFrame(deadlineCtx)
-		if err != nil {
-			if err == io.EOF {
-				return nil, fmt.Errorf("group workload: sendack not received for %q: %w", clientMsgNo, err)
-			}
-			return nil, err
-		}
+	f, err := readFrameMatching(deadlineCtx, client, func(f frame.Frame) bool {
 		ack, ok := f.(*frame.SendackPacket)
 		if !ok {
-			continue
+			return false
 		}
-		if ack.ClientSeq != clientSeq || ack.ClientMsgNo != clientMsgNo {
-			continue
+		return ack.ClientSeq == clientSeq && ack.ClientMsgNo == clientMsgNo
+	})
+	if err != nil {
+		if err == io.EOF {
+			return nil, fmt.Errorf("group workload: sendack not received for %q: %w", clientMsgNo, err)
 		}
-		return ack, nil
+		return nil, err
 	}
+	return f.(*frame.SendackPacket), nil
 }
 
 func (w *GroupWorkload) waitForRecv(ctx context.Context, client PersonClient, channelID, clientMsgNo, senderUID string, expectedMessageID uint64, expectedMessageSeq uint64) (*frame.RecvPacket, error) {
 	deadlineCtx, cancel := w.withTimeout(ctx, w.cfg.RecvTimeout)
 	defer cancel()
-	for {
-		f, err := client.ReadFrame(deadlineCtx)
-		if err != nil {
-			if err == io.EOF {
-				return nil, fmt.Errorf("group workload: recv not received for %q: %w", clientMsgNo, err)
-			}
-			return nil, err
-		}
+	f, err := readFrameMatching(deadlineCtx, client, func(f frame.Frame) bool {
 		recv, ok := f.(*frame.RecvPacket)
 		if !ok {
-			continue
+			return false
 		}
 		if recv.FromUID != senderUID || recv.ChannelID != channelID || recv.ChannelType != frame.ChannelTypeGroup || recv.ClientMsgNo != clientMsgNo {
-			continue
+			return false
 		}
 		if expectedMessageID > 0 && recv.MessageID != int64(expectedMessageID) {
-			continue
+			return false
 		}
 		if expectedMessageSeq > 0 && recv.MessageSeq != expectedMessageSeq {
-			continue
+			return false
 		}
-		return recv, nil
+		return true
+	})
+	if err != nil {
+		if err == io.EOF {
+			return nil, fmt.Errorf("group workload: recv not received for %q: %w", clientMsgNo, err)
+		}
+		return nil, err
 	}
+	return f.(*frame.RecvPacket), nil
 }
 
-func (w *GroupWorkload) buildPayload(channelIndex, messageIndex int) []byte {
-	base := w.payloadMarker(channelIndex, messageIndex)
+func (w *GroupWorkload) buildPayload(phase string, channelIndex, messageIndex int) []byte {
+	base := w.payloadMarker(phase, channelIndex, messageIndex)
 	if w.cfg.PayloadSizeBytes <= 0 {
 		return []byte(base)
 	}
@@ -569,12 +748,24 @@ func (w *GroupWorkload) buildPayload(channelIndex, messageIndex int) []byte {
 	return payload
 }
 
-func (w *GroupWorkload) payloadMarker(channelIndex, messageIndex int) string {
-	return fmt.Sprintf("run=%s profile=%s traffic=%s channel=%d message=%d", w.cfg.RunID, w.cfg.ProfileName, w.cfg.TrafficName, channelIndex, messageIndex)
+func (w *GroupWorkload) payloadMarker(phase string, channelIndex, messageIndex int) string {
+	return fmt.Sprintf("run=%s profile=%s traffic=%s phase=%s channel=%d message=%d", w.cfg.RunID, w.cfg.ProfileName, w.cfg.TrafficName, phase, channelIndex, messageIndex)
 }
 
-func (w *GroupWorkload) clientMsgNo(channelIndex, messageIndex int) string {
-	return fmt.Sprintf("%s-%s-%s-%s-ch%d-msg%d", w.cfg.ClientMsgPrefix, w.cfg.RunID, w.cfg.ProfileName, w.cfg.TrafficName, channelIndex, messageIndex)
+func (w *GroupWorkload) clientMsgNo(phase string, channelIndex, messageIndex int) string {
+	return fmt.Sprintf("%s-%s-%s-%s-%s-ch%d-msg%d", w.cfg.ClientMsgPrefix, w.cfg.RunID, w.cfg.ProfileName, w.cfg.TrafficName, phase, channelIndex, messageIndex)
+}
+
+func (cfg GroupConfig) phaseName(phase string) string {
+	phase = strings.TrimSpace(phase)
+	if phase != "" {
+		return phase
+	}
+	phase = strings.TrimSpace(cfg.Phase)
+	if phase != "" {
+		return phase
+	}
+	return "run"
 }
 
 func (w *GroupWorkload) recordError(name string, err error) {

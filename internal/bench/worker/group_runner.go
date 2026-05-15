@@ -48,12 +48,51 @@ func prepareGroupData(ctx context.Context, assignment Assignment) error {
 			OwnsChannel:          groupShardOwnsChannel(assignment, shard, profileDef),
 			ChannelRange:         shard.ChannelRange,
 			MemberRange:          shard.MemberRange,
+			MemberBase:           shard.MemberRange.Start,
+			MemberReusePolicy:    shard.MemberReusePolicy,
 			MembersPerChannel:    profileDef.Members.Count,
 			SubscribersBatchSize: profileDef.Prepare.SubscribersBatchSize,
 			UIDPrefix:            assignment.Scenario.Identity.UIDPrefix,
 		}
 		if err := benchworkload.PrepareGroup(ctx, cfg, client, benchworkload.NoopGroupPrepareBarrier{}); err != nil {
 			return fmt.Errorf("group profile %q prepare: %w", profileName, err)
+		}
+	}
+	return nil
+}
+
+func prepareGroupChannels(ctx context.Context, assignment Assignment) error {
+	profiles := scenarioProfilesByName(assignment.Scenario)
+	if len(profiles) == 0 {
+		return nil
+	}
+	client := groupPrepareClient(assignment.Target)
+	profileNames := sortedProfileNames(assignment.Plan.Profiles)
+	for _, profileName := range profileNames {
+		shard := assignment.Plan.Profiles[profileName]
+		if shard.ChannelType != model.ChannelTypeGroup || shard.TrafficPartitionCount <= 0 {
+			continue
+		}
+		profileDef, ok := profiles[profileName]
+		if !ok {
+			return fmt.Errorf("group profile %q missing from scenario", profileName)
+		}
+		cfg := benchworkload.GroupPrepareConfig{
+			RunID:                assignment.RunID,
+			WorkerID:             assignment.WorkerID,
+			ProfileName:          profileName,
+			ShardMode:            profileDef.Shard.Mode,
+			OwnsChannel:          groupShardOwnsChannel(assignment, shard, profileDef),
+			ChannelRange:         shard.ChannelRange,
+			MemberRange:          shard.MemberRange,
+			MemberBase:           shard.MemberRange.Start,
+			MemberReusePolicy:    shard.MemberReusePolicy,
+			MembersPerChannel:    profileDef.Members.Count,
+			SubscribersBatchSize: profileDef.Prepare.SubscribersBatchSize,
+			UIDPrefix:            assignment.Scenario.Identity.UIDPrefix,
+		}
+		if err := benchworkload.PrepareGroupChannels(ctx, cfg, client); err != nil {
+			return fmt.Errorf("group profile %q prepare channels: %w", profileName, err)
 		}
 	}
 	return nil
@@ -124,11 +163,14 @@ func buildGroupWorkloads(assignment Assignment, bundles []groupWorkloadBundle, c
 			TrafficName:            bundle.traffic.Name,
 			ClientMsgPrefix:        assignment.Scenario.Identity.ClientMsgPrefix,
 			PayloadSizeBytes:       assignment.Scenario.Messages.Payload.SizeBytes,
+			RunDuration:            assignment.Scenario.Run.Duration,
+			WarmupDuration:         assignment.Scenario.Run.Warmup,
+			CooldownDuration:       assignment.Scenario.Run.Cooldown,
 			VerifyRecvMode:         bundle.traffic.Verify.Recv.Mode,
 			RecvSampleSize:         bundle.traffic.Verify.Recv.SampleSizePerMessage,
 			RecvAck:                bundle.traffic.RecvAck,
-			GlobalRate:             bundle.profile.GlobalRate,
-			LocalRate:              bundle.profile.LocalRate,
+			GlobalRate:             bundle.traffic.RatePerChannel,
+			LocalRate:              benchworkload.GroupLocalRate(bundle.traffic.RatePerChannel, bundle.profile.TrafficPartitionCount, bundle.profile.OwnedTrafficPartitions),
 			TrafficPartitionCount:  bundle.profile.TrafficPartitionCount,
 			OwnedTrafficPartitions: bundle.profile.OwnedTrafficPartitions,
 			Channels:               bundle.channels,
@@ -196,10 +238,7 @@ func groupChannelsForShard(runID string, shard model.ProfileShard, profile model
 	}
 	channels := make([]benchworkload.GroupChannel, 0, shard.ChannelRange.Len())
 	for channelIndex := shard.ChannelRange.Start; channelIndex < shard.ChannelRange.End; channelIndex++ {
-		memberIndexes := make([]int, 0, profile.Members.Count)
-		for offset := 0; offset < profile.Members.Count; offset++ {
-			memberIndexes = append(memberIndexes, channelIndex*profile.Members.Count+offset)
-		}
+		memberIndexes := memberIndexesForGroupChannel(shard, profile, runID, channelIndex)
 		online := onlineGroupMemberIDs(identity.UIDPrefix, memberIndexes, profile.Online.MemberRatio)
 		if len(online) == 0 {
 			continue
@@ -211,6 +250,22 @@ func groupChannelsForShard(runID string, shard model.ProfileShard, profile model
 		})
 	}
 	return channels
+}
+
+func memberIndexesForGroupChannel(shard model.ProfileShard, profile model.ChannelProfile, runID string, channelIndex int) []int {
+	count := profile.Members.Count
+	if count <= 0 {
+		return nil
+	}
+	if shard.MemberReusePolicy != "allowed" {
+		memberStart := shard.MemberRange.Start + (channelIndex-shard.ChannelRange.Start)*count
+		indexes := make([]int, 0, count)
+		for offset := 0; offset < count; offset++ {
+			indexes = append(indexes, memberStart+offset)
+		}
+		return indexes
+	}
+	return benchworkload.DeterministicGroupMemberIndexes(runID, shard.Name, channelIndex, shard.MemberRange, count)
 }
 
 func indexesInWorkerRange(r model.Range) []int {

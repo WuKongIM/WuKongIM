@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -129,7 +130,10 @@ func TestWorkerAcceptsLegacyControlTokenHeader(t *testing.T) {
 func TestWorkerSameRunAssignmentRetryPreservesPhase(t *testing.T) {
 	srv := NewServer(Config{ControlToken: "secret"})
 	assign(t, srv, "secret", "run-a")
-	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusAccepted)
+	require.Eventually(t, func() bool {
+		return workerStatus(t, srv, "secret").Phase == PhasePrepare
+	}, time.Second, 10*time.Millisecond)
 
 	rec := assignRecorder(t, srv, "secret", "run-a")
 
@@ -153,12 +157,90 @@ func TestWorkerSameRunDifferentAssignmentReturnsConflict(t *testing.T) {
 func TestWorkerDuplicatePhasePostIsIdempotent(t *testing.T) {
 	srv := NewServer(Config{ControlToken: "secret"})
 	assign(t, srv, "secret", "run-a")
-	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusAccepted)
+	require.Eventually(t, func() bool {
+		return workerStatus(t, srv, "secret").Phase == PhasePrepare
+	}, time.Second, 10*time.Millisecond)
 
 	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
 
 	status := workerStatus(t, srv, "secret")
 	require.Equal(t, PhasePrepare, status.Phase)
+}
+
+func TestWorkerPhasePostAcceptsLongRunningHookWithoutWaiting(t *testing.T) {
+	runner := newBlockingPrepareRunner()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	defer runner.release()
+
+	phaseDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		phaseDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
+	}()
+	require.True(t, runner.waitForCalls(1, time.Second), "prepare hook did not start")
+
+	select {
+	case rec := <-phaseDone:
+		require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("phase POST waited for the long-running hook")
+	}
+
+	status := workerStatusMap(t, srv, "secret")
+	require.Equal(t, string(PhaseAssigned), status["phase"])
+	require.Equal(t, string(PhasePrepare), status["active_phase"])
+	require.Equal(t, string(PhaseAssigned), status["completed_phase"])
+	require.Empty(t, status["last_error"])
+
+	runner.release()
+	require.Eventually(t, func() bool {
+		status := workerStatusMap(t, srv, "secret")
+		return status["phase"] == string(PhasePrepare) &&
+			status["completed_phase"] == string(PhasePrepare) &&
+			status["active_phase"] == nil &&
+			status["last_error"] == nil
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestWorkerDuplicateInProgressAndCompletedPhasePostsDoNotRunHookTwice(t *testing.T) {
+	runner := newBlockingPrepareRunner()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	defer runner.release()
+
+	firstDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		firstDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
+	}()
+	require.True(t, runner.waitForCalls(1, time.Second), "prepare hook did not start")
+	select {
+	case rec := <-firstDone:
+		require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("initial phase POST waited for the long-running hook")
+	}
+
+	secondDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		secondDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
+	}()
+	select {
+	case rec := <-secondDone:
+		require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("duplicate in-progress phase POST waited for the hook")
+	}
+	require.Equal(t, int32(1), runner.calls.Load())
+
+	runner.release()
+	require.Eventually(t, func() bool {
+		return workerStatus(t, srv, "secret").Phase == PhasePrepare
+	}, time.Second, 10*time.Millisecond)
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, int32(1), runner.calls.Load())
 }
 
 func TestWorkerStopPreservesAssignment(t *testing.T) {
@@ -232,7 +314,7 @@ func TestWorkerDefaultRunnerConnectsAndRunsPersonShard(t *testing.T) {
 	require.Equal(t, []workerConnectCall{{uid: "bench-u-6", deviceID: "bench-d-6"}}, sender.connected)
 	require.Equal(t, []workerConnectCall{{uid: "bench-u-7", deviceID: "bench-d-7"}}, recipient.connected)
 	require.Len(t, sender.sentFrames, 1)
-	require.Equal(t, "bench-u-7", sender.sentFrames[0].ChannelID)
+	require.Equal(t, "bench-u-7@bench-u-6", sender.sentFrames[0].ChannelID)
 	require.Equal(t, frame.ChannelTypePerson, sender.sentFrames[0].ChannelType)
 	require.Contains(t, sender.sentFrames[0].ClientMsgNo, "bench-msg")
 }
@@ -283,6 +365,37 @@ func TestWorkerDefaultRunnerNewRunResetsConnectMetricsAfterStop(t *testing.T) {
 	require.Zero(t, snap.Counters["connect_success_total"])
 }
 
+func TestWorkerDefaultRunnerRunsStoredWorkloadsConcurrently(t *testing.T) {
+	runner := &defaultWorkloadRunner{
+		runID:           "run-a",
+		metrics:         metrics.NewRegistry(),
+		personWorkloads: []*benchworkload.PersonWorkload{nil, nil},
+	}
+	var calls atomic.Int32
+	bothStarted := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan error, 1)
+
+	go func() {
+		done <- runner.runPhase(context.Background(), Assignment{RunID: "run-a"}, func(*benchworkload.PersonWorkload, *benchworkload.GroupWorkload) error {
+			if calls.Add(1) == 2 {
+				close(bothStarted)
+			}
+			<-release
+			return nil
+		})
+	}()
+
+	select {
+	case <-bothStarted:
+	case <-time.After(50 * time.Millisecond):
+		close(release)
+		t.Fatal("stored workloads did not start concurrently")
+	}
+	close(release)
+	require.NoError(t, <-done)
+}
+
 func TestWorkerDefaultRunnerPreparesConnectsAndRunsGroupShard(t *testing.T) {
 	type seenRequest struct {
 		path  string
@@ -331,6 +444,39 @@ func TestWorkerDefaultRunnerPreparesConnectsAndRunsGroupShard(t *testing.T) {
 	require.Equal(t, "bench-run-huge-group-0", sender.sentFrames[0].ChannelID)
 	require.Equal(t, frame.ChannelTypeGroup, sender.sentFrames[0].ChannelType)
 	require.Contains(t, sender.sentFrames[0].ClientMsgNo, "bench-msg")
+}
+
+func TestBuildGroupWorkloadsUsesTrafficRatePerStream(t *testing.T) {
+	assignment := groupShardAssignment("http://target.invalid")
+	assignment.Scenario.Run.Duration = time.Second
+	assignment.Scenario.Messages.Traffic = []model.TrafficConfig{
+		{Name: "slow", ChannelRef: "huge-group", RatePerChannel: model.Rate{PerSecond: 1}},
+		{Name: "fast", ChannelRef: "huge-group", RatePerChannel: model.Rate{PerSecond: 3}},
+	}
+	assignment.Plan.Profiles["huge-group"] = model.ProfileShard{
+		Name:                   "huge-group",
+		ChannelType:            model.ChannelTypeGroup,
+		ChannelRange:           model.Range{Start: 0, End: 1},
+		MemberRange:            model.Range{Start: 0, End: 4},
+		GlobalRate:             model.Rate{PerSecond: 4},
+		LocalRate:              model.Rate{PerSecond: 4},
+		TrafficPartitionCount:  4,
+		OwnedTrafficPartitions: []int{0, 1},
+	}
+	clients := map[string]benchworkload.PersonClient{
+		"bench-u-0": &workerPersonClient{},
+		"bench-u-1": &workerPersonClient{},
+		"bench-u-2": &workerPersonClient{},
+		"bench-u-3": &workerPersonClient{},
+	}
+
+	workloads, err := buildGroupWorkloads(assignment, groupBundlesForTest(t, assignment), clients)
+	require.NoError(t, err)
+
+	for _, wl := range workloads {
+		require.NoError(t, wl.Run(context.Background()))
+	}
+	require.Len(t, clients["bench-u-0"].(*workerPersonClient).sentFrames, 2)
 }
 
 func TestWorkerDefaultRunnerUsesChannelOwnersForHugeGroupPrepare(t *testing.T) {
@@ -444,13 +590,15 @@ func TestWorkerConcurrentDuplicatePhaseRunsHookOnce(t *testing.T) {
 	wg.Wait()
 
 	for _, rec := range recorders {
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
 	}
 	require.Equal(t, int32(1), runner.calls.Load())
-	require.Equal(t, PhaseConnect, workerStatus(t, srv, "secret").Phase)
+	require.Eventually(t, func() bool {
+		return workerStatus(t, srv, "secret").Phase == PhaseConnect
+	}, time.Second, 10*time.Millisecond)
 }
 
-func TestWorkerOldPhaseHookDoesNotAdvanceNewAssignment(t *testing.T) {
+func TestWorkerStopCancelsActiveAsyncPhase(t *testing.T) {
 	runner := newBlockingPrepareRunner()
 	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
 	assign(t, srv, "secret", "run-a")
@@ -460,21 +608,49 @@ func TestWorkerOldPhaseHookDoesNotAdvanceNewAssignment(t *testing.T) {
 		phaseDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
 	}()
 	require.True(t, runner.waitForCalls(1, time.Second), "prepare hook did not start")
+	select {
+	case rec := <-phaseDone:
+		require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("phase request did not return promptly")
+	}
+
+	postPhase(t, srv, "secret", "/v1/stop", http.StatusOK)
+
+	require.True(t, runner.waitCanceled(time.Second), "stop did not cancel active phase context")
+	status := workerStatus(t, srv, "secret")
+	require.Equal(t, PhaseStopped, status.Phase)
+	require.Empty(t, status.ActivePhase)
+	require.Empty(t, status.LastError)
+}
+
+func TestWorkerOldPhaseHookDoesNotAdvanceNewAssignment(t *testing.T) {
+	runner := newBlockingPrepareRunner()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	defer runner.release()
+
+	phaseDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		phaseDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
+	}()
+	require.True(t, runner.waitForCalls(1, time.Second), "prepare hook did not start")
+	select {
+	case rec := <-phaseDone:
+		require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("old phase request did not return promptly")
+	}
 
 	postPhase(t, srv, "secret", "/v1/stop", http.StatusOK)
 	rec := assignRecorder(t, srv, "secret", "run-b")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	runner.release()
-	select {
-	case rec := <-phaseDone:
-		require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-	case <-time.After(time.Second):
-		t.Fatal("old phase request did not finish")
-	}
-	status := workerStatus(t, srv, "secret")
-	require.Equal(t, "run-b", status.Assignment.RunID)
-	require.Equal(t, PhaseAssigned, status.Phase)
+	require.Eventually(t, func() bool {
+		status := workerStatus(t, srv, "secret")
+		return status.Assignment.RunID == "run-b" && status.Phase == PhaseAssigned
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestWorkerPhaseHooksCallWorkloadRunner(t *testing.T) {
@@ -502,6 +678,32 @@ func TestWorkerPhaseHookFailureDoesNotAdvanceStatus(t *testing.T) {
 
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 	require.Equal(t, PhasePrepare, workerStatus(t, srv, "secret").Phase)
+}
+
+func TestWorkerAsyncPhaseHookFailureIsVisibleInStatus(t *testing.T) {
+	runner := newBlockingConnectRunner()
+	runner.err = fmt.Errorf("phase connect failed")
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+	assign(t, srv, "secret", "run-a")
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	require.Eventually(t, func() bool {
+		return workerStatus(t, srv, "secret").CompletedPhase == PhasePrepare
+	}, time.Second, 10*time.Millisecond)
+	defer runner.release()
+
+	rec := authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/connect", "secret", nil)
+
+	require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
+	require.True(t, runner.waitForCalls(1, time.Second), "connect hook did not start")
+	runner.release()
+	require.Eventually(t, func() bool {
+		status := workerStatusMap(t, srv, "secret")
+		lastError, _ := status["last_error"].(string)
+		return status["phase"] == string(PhasePrepare) &&
+			status["completed_phase"] == string(PhasePrepare) &&
+			status["active_phase"] == nil &&
+			strings.Contains(lastError, "phase connect failed")
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestWorkerTargetUnavailableHookFailureReturnsServiceUnavailable(t *testing.T) {
@@ -578,6 +780,13 @@ func personShardAssignment() Assignment {
 	}
 }
 
+func groupBundlesForTest(t *testing.T, assignment Assignment) []groupWorkloadBundle {
+	t.Helper()
+	plan, err := buildGroupExecutionPlan(assignment)
+	require.NoError(t, err)
+	return plan.bundles
+}
+
 func groupShardAssignment(targetURL string) Assignment {
 	return Assignment{
 		RunID:    "bench-run",
@@ -614,13 +823,16 @@ func groupShardAssignment(targetURL string) Assignment {
 }
 
 type blockingPrepareRunner struct {
-	calls   atomic.Int32
-	entered chan struct{}
-	done    chan struct{}
+	calls      atomic.Int32
+	entered    chan struct{}
+	done       chan struct{}
+	canceled   chan struct{}
+	once       sync.Once
+	cancelOnce sync.Once
 }
 
 func newBlockingPrepareRunner() *blockingPrepareRunner {
-	return &blockingPrepareRunner{entered: make(chan struct{}, 2), done: make(chan struct{})}
+	return &blockingPrepareRunner{entered: make(chan struct{}, 2), done: make(chan struct{}), canceled: make(chan struct{})}
 }
 
 func (r *blockingPrepareRunner) Prepare(ctx context.Context, assignment Assignment) error {
@@ -630,6 +842,7 @@ func (r *blockingPrepareRunner) Prepare(ctx context.Context, assignment Assignme
 	case <-r.done:
 		return nil
 	case <-ctx.Done():
+		r.cancelOnce.Do(func() { close(r.canceled) })
 		return ctx.Err()
 	}
 }
@@ -654,13 +867,24 @@ func (r *blockingPrepareRunner) waitForCalls(want int32, timeout time.Duration) 
 }
 
 func (r *blockingPrepareRunner) release() {
-	close(r.done)
+	r.once.Do(func() { close(r.done) })
+}
+
+func (r *blockingPrepareRunner) waitCanceled(timeout time.Duration) bool {
+	select {
+	case <-r.canceled:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
 }
 
 type blockingConnectRunner struct {
 	calls   atomic.Int32
 	entered chan struct{}
 	done    chan struct{}
+	err     error
+	once    sync.Once
 }
 
 func newBlockingConnectRunner() *blockingConnectRunner {
@@ -674,7 +898,7 @@ func (r *blockingConnectRunner) Connect(ctx context.Context, assignment Assignme
 	r.entered <- struct{}{}
 	select {
 	case <-r.done:
-		return nil
+		return r.err
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -699,7 +923,7 @@ func (r *blockingConnectRunner) waitForCalls(want int32, timeout time.Duration) 
 }
 
 func (r *blockingConnectRunner) release() {
-	close(r.done)
+	r.once.Do(func() { close(r.done) })
 }
 
 func assignFull(t *testing.T, srv *Server, token string, assignment Assignment) {
@@ -803,6 +1027,17 @@ func assignRecorderWithHeader(t *testing.T, srv *Server, header, value, runID st
 func postPhase(t *testing.T, srv *Server, token, path string, want int) {
 	t.Helper()
 	rec := authorizedRecorder(t, srv, http.MethodPost, path, token, nil)
+	if strings.HasPrefix(path, "/v1/phase/") && (want == http.StatusOK || want == http.StatusAccepted) {
+		require.Contains(t, []int{http.StatusOK, http.StatusAccepted}, rec.Code, rec.Body.String())
+		if rec.Code == http.StatusAccepted {
+			phase := Phase(strings.TrimPrefix(path, "/v1/phase/"))
+			require.Eventually(t, func() bool {
+				status := workerStatus(t, srv, token)
+				return status.CompletedPhase == phase && status.ActivePhase == "" && status.LastError == ""
+			}, time.Second, 10*time.Millisecond)
+		}
+		return
+	}
 	require.Equal(t, want, rec.Code, rec.Body.String())
 }
 
@@ -824,9 +1059,120 @@ func workerStatus(t *testing.T, srv *Server, token string) Status {
 	return status
 }
 
+func workerStatusMap(t *testing.T, srv *Server, token string) map[string]any {
+	t.Helper()
+	rec := authorizedRecorder(t, srv, http.MethodGet, "/v1/status", token, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var status map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &status))
+	return status
+}
+
 func mustJSON(t *testing.T, v any) []byte {
 	t.Helper()
 	data, err := json.Marshal(v)
 	require.NoError(t, err)
 	return data
+}
+
+func TestWorkerDefaultRunnerPreparesBenchAPITokensBeforeConnect(t *testing.T) {
+	type seenTokenRequest struct {
+		batch string
+		uids  []string
+	}
+	seen := make([]seenTokenRequest, 0)
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/users/tokens":
+			var req model.BatchTokensRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			uids := make([]string, 0, len(req.Users))
+			for _, user := range req.Users {
+				uids = append(uids, user.UID)
+				require.Equal(t, "bench-token-"+user.UID, user.Token)
+			}
+			seen = append(seen, seenTokenRequest{batch: req.BatchID, uids: uids})
+		default:
+			t.Fatalf("unexpected target path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+	pool := newWorkerPersonClientPool()
+	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	assignment := personShardAssignment()
+	assignment.Target.BenchAPI.Addrs = []string{target.URL}
+	assignment.Scenario.Identity.Token.Mode = "bench_api"
+	assignFull(t, srv, "secret", assignment)
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
+
+	require.Equal(t, []seenTokenRequest{{batch: "run-a-tokens-worker-a-0-2", uids: []string{"bench-u-6", "bench-u-7"}}}, seen)
+	require.NotNil(t, pool.client("bench-u-6"))
+}
+
+func TestWorkerDefaultRunnerUsesPlannedMemberRangeForSmallGroups(t *testing.T) {
+	type seenSubscribers struct {
+		channelID string
+		uids      []string
+	}
+	seen := make([]seenSubscribers, 0)
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bench/v1/channels":
+			var req model.BatchChannelsRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		case "/bench/v1/channels/subscribers":
+			var req model.BatchSubscribersRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			require.Len(t, req.Items, 1)
+			seen = append(seen, seenSubscribers{channelID: req.Items[0].ChannelID, uids: req.Items[0].Subscribers})
+		default:
+			t.Fatalf("unexpected target path %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+	srv := NewServer(Config{ControlToken: "secret"})
+	assignment := groupShardAssignment(target.URL)
+	assignment.Scenario.Channels.Profiles[0].Shard.Mode = "hash"
+	assignment.Scenario.Channels.Profiles[0].Count = 2
+	assignment.Plan.Profiles["huge-group"] = model.ProfileShard{
+		Name:         "huge-group",
+		ChannelType:  model.ChannelTypeGroup,
+		ChannelRange: model.Range{Start: 1, End: 2},
+		MemberRange:  model.Range{Start: 5000, End: 5004},
+	}
+	assignFull(t, srv, "secret", assignment)
+
+	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
+
+	require.Equal(t, []seenSubscribers{{channelID: "bench-run-huge-group-1", uids: []string{"bench-u-5000", "bench-u-5001"}}, {channelID: "bench-run-huge-group-1", uids: []string{"bench-u-5002", "bench-u-5003"}}}, seen)
+}
+
+func TestGroupChannelsForShardAllowedOverlapStaysInsideSharedPool(t *testing.T) {
+	shard := model.ProfileShard{
+		Name:              "group-hot",
+		ChannelType:       model.ChannelTypeGroup,
+		ChannelRange:      model.Range{Start: 0, End: 2},
+		MemberRange:       model.Range{Start: 0, End: 100},
+		MemberReusePolicy: "allowed",
+	}
+	profile := model.ChannelProfile{
+		Name:        "group-hot",
+		ChannelType: model.ChannelTypeGroup,
+		Count:       2,
+		Members:     model.MembersConfig{Count: 60, Overlap: "allowed", Pick: "deterministic_hash"},
+	}
+
+	channels := groupChannelsForShard("run-a", shard, profile, model.IdentityConfig{UIDPrefix: "bench-u"})
+
+	require.Len(t, channels, 2)
+	for _, ch := range channels {
+		require.Len(t, ch.OnlineMembers, 60)
+		for _, uid := range ch.OnlineMembers {
+			require.Regexp(t, `^bench-u-([0-9]|[1-9][0-9])$`, uid)
+		}
+	}
 }

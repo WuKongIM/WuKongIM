@@ -17,6 +17,114 @@ func TestBuildRejectsPersonProfilesExceedingIdentityPool(t *testing.T) {
 	require.ErrorContains(t, err, "person profiles require 102 distinct participants")
 }
 
+func TestBuildAllowsDefaultGroupMemberOverlapWithinSharedIdentityPool(t *testing.T) {
+	scenario := scenarioWithManyGroup(2, 60, "1/s")
+	scenario.Online.TotalUsers = 100
+	workers := []model.Worker{{ID: "a", Weight: 1}}
+
+	plan, err := Build(scenario, workers)
+
+	require.NoError(t, err)
+	shard := plan.Workers["a"].Profiles["many-group"]
+	require.Equal(t, model.Range{Start: 0, End: 100}, shard.MemberRange)
+	require.Equal(t, "allowed", shard.MemberReusePolicy)
+}
+
+func TestBuildHandlesZeroCountGroupWithMembersWithoutPanic(t *testing.T) {
+	scenario := scenarioWithManyGroup(0, 60, "1/s")
+	scenario.Online.TotalUsers = 100
+	workers := []model.Worker{{ID: "a", Weight: 1}}
+
+	require.NotPanics(t, func() {
+		plan, err := Build(scenario, workers)
+		require.NoError(t, err)
+		require.Equal(t, model.Range{}, plan.Workers["a"].Profiles["many-group"].ChannelRange)
+	})
+}
+
+func TestBuildRejectsDisallowedOverlapGroupsWhenSharedIdentityPoolTooSmall(t *testing.T) {
+	small := channelProfile("small-groups", "group", 50)
+	small.Members.Count = 100
+	small.Members.Overlap = "disallowed"
+	huge := channelProfile("huge-group", "group", 1)
+	huge.Members.Count = 10000
+	huge.Members.Overlap = "disallowed"
+	huge.Shard.Mode = "split_members_and_traffic"
+	scenario := scenarioWithProfiles(small, huge)
+	scenario.Online.TotalUsers = 14999
+	workers := []model.Worker{{ID: "a", Weight: 1}, {ID: "b", Weight: 1}, {ID: "c", Weight: 2}}
+
+	_, err := Build(scenario, workers)
+
+	require.ErrorContains(t, err, "group profiles require 15000 distinct members")
+}
+
+func TestBuildRejectsPersonAndGroupReservationsExceedingSharedIdentityPool(t *testing.T) {
+	person := channelProfile("person-chat", "person", 100)
+	group := channelProfile("group-chat", "group", 1)
+	group.Members.Count = 100
+	group.Members.Overlap = "disallowed"
+	scenario := scenarioWithProfiles(person, group)
+	scenario.Online.TotalUsers = 299
+	workers := []model.Worker{{ID: "a", Weight: 1}}
+
+	_, err := Build(scenario, workers)
+
+	require.ErrorContains(t, err, "channel profiles require 300 distinct generated users")
+}
+
+func TestPlanMixedNoOverlapGroupsWhenIdentityPoolIsSufficient(t *testing.T) {
+	small := channelProfile("small-groups", "group", 50)
+	small.Members.Count = 100
+	small.Members.Overlap = "disallowed"
+	huge := channelProfile("huge-group", "group", 1)
+	huge.Members.Count = 10000
+	huge.Members.Overlap = "disallowed"
+	huge.Shard.Mode = "split_members_and_traffic"
+	scenario := scenarioWithProfiles(small, huge)
+	scenario.Online.TotalUsers = 15000
+	workers := []model.Worker{{ID: "a", Weight: 1}, {ID: "b", Weight: 1}, {ID: "c", Weight: 2}}
+
+	plan, err := Build(scenario, workers)
+
+	require.NoError(t, err)
+	require.Equal(t, model.Range{Start: 0, End: 1300}, plan.Workers["a"].Profiles["small-groups"].MemberRange)
+	require.Equal(t, model.Range{Start: 1300, End: 2500}, plan.Workers["b"].Profiles["small-groups"].MemberRange)
+	require.Equal(t, model.Range{Start: 2500, End: 5000}, plan.Workers["c"].Profiles["small-groups"].MemberRange)
+	require.Equal(t, model.Range{Start: 5000, End: 7500}, plan.Workers["a"].Profiles["huge-group"].MemberRange)
+	require.Equal(t, model.Range{Start: 7500, End: 10000}, plan.Workers["b"].Profiles["huge-group"].MemberRange)
+	require.Equal(t, model.Range{Start: 10000, End: 15000}, plan.Workers["c"].Profiles["huge-group"].MemberRange)
+}
+
+func TestBuildAllowsPersonAndDefaultGroupOverlapAtPoolBoundary(t *testing.T) {
+	person := channelProfile("person-chat", "person", 100)
+	group := channelProfile("group-chat", "group", 1)
+	group.Members.Count = 100
+	scenario := scenarioWithProfiles(person, group)
+	scenario.Online.TotalUsers = 200
+	workers := []model.Worker{{ID: "a", Weight: 1}}
+
+	plan, err := Build(scenario, workers)
+
+	require.NoError(t, err)
+	require.Equal(t, model.Range{Start: 0, End: 200}, plan.Workers["a"].Profiles["person-chat"].ParticipantRange)
+	require.Equal(t, model.Range{Start: 0, End: 200}, plan.Workers["a"].Profiles["group-chat"].MemberRange)
+	require.Equal(t, "allowed", plan.Workers["a"].Profiles["group-chat"].MemberReusePolicy)
+}
+
+func TestBuildRejectsAllowedGroupMembersExceedingPool(t *testing.T) {
+	group := channelProfile("group-chat", "group", 1)
+	group.Members.Count = 101
+	group.Members.Overlap = "allowed"
+	scenario := scenarioWithProfiles(group)
+	scenario.Online.TotalUsers = 100
+	workers := []model.Worker{{ID: "a", Weight: 1}}
+
+	_, err := Build(scenario, workers)
+
+	require.ErrorContains(t, err, "requires 101 members per channel")
+}
+
 func TestPlanPersonPairsByWorkerWeight(t *testing.T) {
 	scenario := scenarioWithPersonCount(500000)
 	workers := []model.Worker{{ID: "a", Weight: 1}, {ID: "b", Weight: 1}, {ID: "c", Weight: 2}}

@@ -25,6 +25,10 @@ func Build(s model.Scenario, workers []model.Worker) (model.Plan, error) {
 	if personParticipants > s.Online.TotalUsers {
 		return model.Plan{}, fmt.Errorf("person profiles require %d distinct participants, but online.total_users is %d", personParticipants, s.Online.TotalUsers)
 	}
+	identityRanges, err := profileIdentityRanges(profileOrder, profilesByName, s.Online.TotalUsers, personParticipants)
+	if err != nil {
+		return model.Plan{}, err
+	}
 
 	globalRates, err := ratesByProfile(s.Messages.Traffic, profilesByName)
 	if err != nil {
@@ -47,10 +51,10 @@ func Build(s model.Scenario, workers []model.Worker) (model.Plan, error) {
 		}
 	}
 
-	personParticipantOffset := 0
 	for _, profileName := range profileOrder {
 		profile := profilesByName[profileName]
 		globalRate := globalRates[profileName]
+		identityRange := identityRanges[profileName]
 		if profile.ChannelType == model.ChannelTypeGroup {
 			plan.ChannelOwners[profileName] = channelOwners(s.Run.ID, profileName, profile.Count, workers)
 		}
@@ -69,15 +73,18 @@ func Build(s model.Scenario, workers []model.Worker) (model.Plan, error) {
 				channelRange := weightedRange(profile.Count, workers, idx)
 				shard.ChannelRange = channelRange
 				shard.ParticipantRange = model.Range{
-					Start: personParticipantOffset + channelRange.Start*2,
-					End:   personParticipantOffset + channelRange.End*2,
+					Start: identityRange.Participant.Start + channelRange.Start*2,
+					End:   identityRange.Participant.Start + channelRange.End*2,
 				}
 			case model.ChannelTypeGroup:
+				shard.MemberReusePolicy = groupMemberReusePolicy(profile)
 				if profile.Shard.Mode == model.ShardModeSplitMembersAndTraffic {
 					if profile.Count != 1 {
 						return model.Plan{}, fmt.Errorf("profile %q uses %s and must have exactly one channel", profile.Name, model.ShardModeSplitMembersAndTraffic)
 					}
 					memberRange := weightedRange(profile.Members.Count, workers, idx)
+					memberRange.Start += identityRange.Members.Start
+					memberRange.End += identityRange.Members.Start
 					totalPartitions := trafficPartitionTotal(workers)
 					partitionRange := weightedRange(totalPartitions, workers, idx)
 					shard.ChannelRange = model.Range{Start: 0, End: profile.Count}
@@ -87,6 +94,14 @@ func Build(s model.Scenario, workers []model.Worker) (model.Plan, error) {
 					shard.LocalRate = model.Rate{PerSecond: globalRate.PerSecond * float64(partitionRange.Len()) / float64(totalPartitions)}
 				} else {
 					shard.ChannelRange = weightedRange(profile.Count, workers, idx)
+					if groupMembersRequireNoReuse(profile) {
+						shard.MemberRange = model.Range{
+							Start: identityRange.Members.Start + shard.ChannelRange.Start*profile.Members.Count,
+							End:   identityRange.Members.Start + shard.ChannelRange.End*profile.Members.Count,
+						}
+					} else {
+						shard.MemberRange = identityRange.Members
+					}
 				}
 			}
 
@@ -95,9 +110,6 @@ func Build(s model.Scenario, workers []model.Worker) (model.Plan, error) {
 			plan.Workers[workerID] = workerPlan
 		}
 
-		if profile.ChannelType == model.ChannelTypePerson {
-			personParticipantOffset += profile.Count * 2
-		}
 	}
 
 	return plan, nil
@@ -143,6 +155,10 @@ func validateProfiles(profiles []model.ChannelProfile) (map[string]model.Channel
 		if profile.Members.Count < 0 {
 			return nil, nil, 0, fmt.Errorf("profile %q members.count must not be negative", profile.Name)
 		}
+		overlap := strings.TrimSpace(profile.Members.Overlap)
+		if overlap != "" && overlap != "allowed" && overlap != "disallowed" {
+			return nil, nil, 0, fmt.Errorf("profile %q members.overlap must be allowed or disallowed", profile.Name)
+		}
 
 		switch profile.ChannelType {
 		case model.ChannelTypePerson:
@@ -151,6 +167,9 @@ func validateProfiles(profiles []model.ChannelProfile) (map[string]model.Channel
 			}
 			personParticipants += profile.Count * 2
 		case model.ChannelTypeGroup:
+			if profile.Count > 0 && profile.Members.Count > 0 && profile.Members.Count > math.MaxInt/profile.Count {
+				return nil, nil, 0, fmt.Errorf("profile %q group member count overflows int", profile.Name)
+			}
 		default:
 			return nil, nil, 0, fmt.Errorf("profile %q uses unsupported channel type %q", profile.Name, profile.ChannelType)
 		}
@@ -158,6 +177,87 @@ func validateProfiles(profiles []model.ChannelProfile) (map[string]model.Channel
 		order = append(order, profileName)
 	}
 	return byName, order, personParticipants, nil
+}
+
+type profileIdentityRange struct {
+	Participant model.Range
+	Members     model.Range
+}
+
+func profileIdentityRanges(profileOrder []string, profiles map[string]model.ChannelProfile, totalUsers, personParticipants int) (map[string]profileIdentityRange, error) {
+	ranges := make(map[string]profileIdentityRange, len(profileOrder))
+	cursor := 0
+	for _, profileName := range profileOrder {
+		profile := profiles[profileName]
+		switch profile.ChannelType {
+		case model.ChannelTypePerson:
+			participantSpan := profile.Count * 2
+			ranges[profile.Name] = profileIdentityRange{
+				Participant: model.Range{Start: cursor, End: cursor + participantSpan},
+			}
+			cursor += participantSpan
+		case model.ChannelTypeGroup:
+			memberSpan, err := groupMemberSpan(profile)
+			if err != nil {
+				return nil, err
+			}
+			if profile.Members.Count > totalUsers {
+				return nil, fmt.Errorf("group profile %q requires %d members per channel, but online.total_users is %d", profile.Name, profile.Members.Count, totalUsers)
+			}
+			memberBase := 0
+			if groupMembersRequireNoReuse(profile) {
+				memberBase = cursor
+				cursor += memberSpan
+			}
+			ranges[profile.Name] = profileIdentityRange{
+				Members: model.Range{Start: memberBase, End: memberBase + groupMemberPoolSpan(profile, memberSpan, totalUsers)},
+			}
+		}
+	}
+	if cursor > totalUsers {
+		if personParticipants > 0 {
+			return nil, fmt.Errorf("channel profiles require %d distinct generated users, but online.total_users is %d", cursor, totalUsers)
+		}
+		return nil, fmt.Errorf("group profiles require %d distinct members, but online.total_users is %d", cursor, totalUsers)
+	}
+	return ranges, nil
+}
+
+func groupMemberSpan(profile model.ChannelProfile) (int, error) {
+	if profile.Shard.Mode == model.ShardModeSplitMembersAndTraffic {
+		if profile.Count != 1 {
+			return 0, nil
+		}
+		return profile.Members.Count, nil
+	}
+	if profile.Members.Count == 0 || profile.Count == 0 {
+		return 0, nil
+	}
+	if profile.Count > math.MaxInt/profile.Members.Count {
+		return 0, fmt.Errorf("profile %q group member count overflows int", profile.Name)
+	}
+	return profile.Count * profile.Members.Count, nil
+}
+
+func groupMembersRequireNoReuse(profile model.ChannelProfile) bool {
+	return strings.TrimSpace(profile.Members.Overlap) == "disallowed"
+}
+
+func groupMemberPoolSpan(profile model.ChannelProfile, reservedSpan, totalUsers int) int {
+	if groupMembersRequireNoReuse(profile) {
+		return reservedSpan
+	}
+	if profile.Members.Count == 0 {
+		return 0
+	}
+	return totalUsers
+}
+
+func groupMemberReusePolicy(profile model.ChannelProfile) string {
+	if groupMembersRequireNoReuse(profile) {
+		return "disallowed"
+	}
+	return "allowed"
 }
 
 func ratesByProfile(traffic []model.TrafficConfig, profiles map[string]model.ChannelProfile) (map[string]model.Rate, error) {

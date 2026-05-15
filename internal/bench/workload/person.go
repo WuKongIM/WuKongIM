@@ -3,6 +3,7 @@ package workload
 import (
 	"context"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"sort"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
+	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
@@ -60,6 +62,16 @@ type PersonConfig struct {
 	DevicePrefix string
 	// PayloadSizeBytes controls the generated payload size. Zero keeps the base payload as-is.
 	PayloadSizeBytes int
+	// Rate is the per-channel send rate used during Run.
+	Rate model.Rate
+	// Phase identifies the traffic phase used in generated message identities.
+	Phase string
+	// RunDuration is the measured duration used during Run.
+	RunDuration time.Duration
+	// WarmupDuration is the duration used during Warmup.
+	WarmupDuration time.Duration
+	// CooldownDuration is the drain wait used during Cooldown.
+	CooldownDuration time.Duration
 	// AckTimeout bounds the wait for a sendack after one send request.
 	AckTimeout time.Duration
 	// RecvTimeout bounds the wait for a delivered recv frame when verification is enabled.
@@ -70,6 +82,18 @@ type PersonConfig struct {
 	RecvAck bool
 	// Metrics stores the counters, latencies, and error samples for this workload.
 	Metrics *metrics.Registry
+
+	sleep func(context.Context, time.Duration) error
+}
+
+// PersonRunConfig controls one timed person workload execution.
+type PersonRunConfig struct {
+	// Phase identifies the traffic phase used in generated message identities.
+	Phase string
+	// Duration is the traffic window length for this workload execution.
+	Duration time.Duration
+	// Rate is the per-channel send rate for this workload execution.
+	Rate model.Rate
 }
 
 // PersonWorkload executes deterministic person-channel benchmark traffic.
@@ -102,6 +126,9 @@ func NewPersonWorkload(cfg PersonConfig, clients map[string]PersonClient) (*Pers
 	}
 	if cfg.Metrics == nil {
 		cfg.Metrics = metrics.NewRegistry()
+	}
+	if cfg.sleep == nil {
+		cfg.sleep = sleepContext
 	}
 
 	useMessageIndexAsChannel := len(cfg.Pairs) == 0 && cfg.SenderUID != "" && cfg.RecipientUID != ""
@@ -146,6 +173,18 @@ func (w *PersonWorkload) Metrics() *metrics.Registry {
 	return w.metrics
 }
 
+// WrapPersonClientsForConcurrentReads serializes ReadFrame access per UID and replays unmatched frames.
+func WrapPersonClientsForConcurrentReads(clients map[string]PersonClient) map[string]PersonClient {
+	wrapped := make(map[string]PersonClient, len(clients))
+	for uid, client := range clients {
+		if client == nil {
+			continue
+		}
+		wrapped[uid] = &matchingPersonClient{client: client}
+	}
+	return wrapped
+}
+
 // Connect opens the sender and recipient sessions for all assigned person pairs.
 func (w *PersonWorkload) Connect(ctx context.Context) error {
 	for _, uid := range w.uniqueUIDs() {
@@ -167,23 +206,63 @@ func (w *PersonWorkload) Connect(ctx context.Context) error {
 	return nil
 }
 
-// Warmup is reserved for future warmup traffic and currently does not emit load in v1.
+// Warmup runs low-rate traffic for the configured warmup duration.
 func (w *PersonWorkload) Warmup(ctx context.Context) error {
-	return nil
+	if w.cfg.WarmupDuration <= 0 {
+		return nil
+	}
+	return w.RunWindow(ctx, PersonRunConfig{Phase: "warmup", Duration: w.cfg.WarmupDuration, Rate: warmupRate(w.cfg.Rate)})
 }
 
-// Run sends one deterministic person message for every assigned pair.
+// Run sends rate-limited person traffic for the configured measured duration.
 func (w *PersonWorkload) Run(ctx context.Context) error {
-	for _, pair := range w.pairs {
-		if err := w.SendOne(ctx, pair.ChannelIndex); err != nil {
+	return w.RunWindow(ctx, PersonRunConfig{Phase: "run", Duration: w.cfg.RunDuration, Rate: w.cfg.Rate})
+}
+
+// Cooldown waits for the configured drain period without emitting new sends.
+func (w *PersonWorkload) Cooldown(ctx context.Context) error {
+	if w.cfg.CooldownDuration <= 0 {
+		return nil
+	}
+	return w.cfg.sleep(ctx, w.cfg.CooldownDuration)
+}
+
+// RunWindow emits this workload's traffic within a caller-owned phase window.
+func (w *PersonWorkload) RunWindow(ctx context.Context, cfg PersonRunConfig) error {
+	return w.runFor(ctx, cfg)
+}
+
+func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error {
+	if cfg.Duration <= 0 || cfg.Rate.PerSecond <= 0 {
+		for _, pair := range w.pairs {
+			if err := w.sendPairInPhase(ctx, pair, w.cfg.phaseName(cfg.Phase), pair.ChannelIndex); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	totalMessages := scheduledMessageCount(cfg.Duration, cfg.Rate.PerSecond, len(w.pairs))
+	if totalMessages <= 0 {
+		return nil
+	}
+	interval := scheduledMessageInterval(cfg.Duration, totalMessages)
+	phase := w.cfg.phaseName(cfg.Phase)
+	for messageOffset := 0; messageOffset < totalMessages; messageOffset++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		pair := w.pairs[messageOffset%len(w.pairs)]
+		if err := w.sendPairInPhase(ctx, pair, phase, messageOffset); err != nil {
 			return err
 		}
+		if interval > 0 {
+			if err := w.cfg.sleep(ctx, interval); err != nil {
+				return err
+			}
+		}
 	}
-	return nil
-}
-
-// Cooldown is reserved for future draining behavior and currently performs no additional work.
-func (w *PersonWorkload) Cooldown(ctx context.Context) error {
 	return nil
 }
 
@@ -199,19 +278,23 @@ func (w *PersonWorkload) SendOne(ctx context.Context, messageIndex int) error {
 		w.recordError("person_send_error", err)
 		return err
 	}
+	return w.sendPairInPhase(ctx, pair, w.cfg.phaseName("run"), messageIndex)
+}
+
+func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, phase string, messageIndex int) error {
 	sender := w.clients[pair.SenderUID]
 	recipient := w.clients[pair.RecipientUID]
 	channelIndex := pair.ChannelIndex
 	if w.useMessageIndexAsChannel {
 		channelIndex = messageIndex
 	}
-	payload := w.buildPayload(channelIndex, messageIndex)
+	payload := w.buildPayload(phase, channelIndex, messageIndex)
 	clientSeq := uint64(messageIndex)
-	clientMsgNo := w.clientMsgNo(channelIndex, messageIndex)
+	clientMsgNo := w.clientMsgNo(phase, channelIndex, messageIndex)
 	pkt := &frame.SendPacket{
 		ClientSeq:   clientSeq,
 		ClientMsgNo: clientMsgNo,
-		ChannelID:   pair.RecipientUID,
+		ChannelID:   encodeBenchPersonChannel(pair.SenderUID, pair.RecipientUID),
 		ChannelType: frame.ChannelTypePerson,
 		Payload:     payload,
 	}
@@ -306,55 +389,52 @@ func (w *PersonWorkload) pairForMessageIndex(messageIndex int) (PersonPair, erro
 func (w *PersonWorkload) waitForSendack(ctx context.Context, client PersonClient, clientSeq uint64, clientMsgNo string) (*frame.SendackPacket, error) {
 	deadlineCtx, cancel := w.withTimeout(ctx, w.cfg.AckTimeout)
 	defer cancel()
-	for {
-		f, err := client.ReadFrame(deadlineCtx)
-		if err != nil {
-			if err == io.EOF {
-				return nil, fmt.Errorf("person workload: sendack not received for %q: %w", clientMsgNo, err)
-			}
-			return nil, err
-		}
+	f, err := readFrameMatching(deadlineCtx, client, func(f frame.Frame) bool {
 		ack, ok := f.(*frame.SendackPacket)
 		if !ok {
-			continue
+			return false
 		}
-		if ack.ClientSeq != clientSeq || ack.ClientMsgNo != clientMsgNo {
-			continue
+		return ack.ClientSeq == clientSeq && ack.ClientMsgNo == clientMsgNo
+	})
+	if err != nil {
+		if err == io.EOF {
+			return nil, fmt.Errorf("person workload: sendack not received for %q: %w", clientMsgNo, err)
 		}
-		return ack, nil
+		return nil, err
 	}
+	return f.(*frame.SendackPacket), nil
 }
 
 func (w *PersonWorkload) waitForRecv(ctx context.Context, client PersonClient, clientMsgNo, senderUID string, expectedMessageID uint64, expectedMessageSeq uint64) (*frame.RecvPacket, error) {
 	deadlineCtx, cancel := w.withTimeout(ctx, w.cfg.RecvTimeout)
 	defer cancel()
-	for {
-		f, err := client.ReadFrame(deadlineCtx)
-		if err != nil {
-			if err == io.EOF {
-				return nil, fmt.Errorf("person workload: recv not received for %q: %w", clientMsgNo, err)
-			}
-			return nil, err
-		}
+	f, err := readFrameMatching(deadlineCtx, client, func(f frame.Frame) bool {
 		recv, ok := f.(*frame.RecvPacket)
 		if !ok {
-			continue
+			return false
 		}
-		if recv.FromUID != senderUID || recv.ChannelID != senderUID || recv.ChannelType != frame.ChannelTypePerson || recv.ClientMsgNo != clientMsgNo {
-			continue
+		if recv.FromUID != senderUID || recv.ChannelType != frame.ChannelTypePerson || recv.ClientMsgNo != clientMsgNo {
+			return false
 		}
 		if expectedMessageID > 0 && recv.MessageID != int64(expectedMessageID) {
-			continue
+			return false
 		}
 		if expectedMessageSeq > 0 && recv.MessageSeq != expectedMessageSeq {
-			continue
+			return false
 		}
-		return recv, nil
+		return true
+	})
+	if err != nil {
+		if err == io.EOF {
+			return nil, fmt.Errorf("person workload: recv not received for %q: %w", clientMsgNo, err)
+		}
+		return nil, err
 	}
+	return f.(*frame.RecvPacket), nil
 }
 
-func (w *PersonWorkload) buildPayload(channelIndex, messageIndex int) []byte {
-	base := w.payloadMarker(channelIndex, messageIndex)
+func (w *PersonWorkload) buildPayload(phase string, channelIndex, messageIndex int) []byte {
+	base := w.payloadMarker(phase, channelIndex, messageIndex)
 	if w.cfg.PayloadSizeBytes <= 0 {
 		return []byte(base)
 	}
@@ -375,12 +455,141 @@ func (w *PersonWorkload) buildPayload(channelIndex, messageIndex int) []byte {
 	return payload
 }
 
-func (w *PersonWorkload) payloadMarker(channelIndex, messageIndex int) string {
-	return fmt.Sprintf("run=%s profile=%s traffic=%s channel=%d message=%d", w.cfg.RunID, w.cfg.ProfileName, w.cfg.TrafficName, channelIndex, messageIndex)
+func (w *PersonWorkload) payloadMarker(phase string, channelIndex, messageIndex int) string {
+	return fmt.Sprintf("run=%s profile=%s traffic=%s phase=%s channel=%d message=%d", w.cfg.RunID, w.cfg.ProfileName, w.cfg.TrafficName, phase, channelIndex, messageIndex)
 }
 
-func (w *PersonWorkload) clientMsgNo(channelIndex, messageIndex int) string {
-	return fmt.Sprintf("%s-%s-%s-%s-ch%d-msg%d", w.cfg.ClientMsgPrefix, w.cfg.RunID, w.cfg.ProfileName, w.cfg.TrafficName, channelIndex, messageIndex)
+func (w *PersonWorkload) clientMsgNo(phase string, channelIndex, messageIndex int) string {
+	return fmt.Sprintf("%s-%s-%s-%s-%s-ch%d-msg%d", w.cfg.ClientMsgPrefix, w.cfg.RunID, w.cfg.ProfileName, w.cfg.TrafficName, phase, channelIndex, messageIndex)
+}
+
+func (cfg PersonConfig) phaseName(phase string) string {
+	phase = strings.TrimSpace(phase)
+	if phase != "" {
+		return phase
+	}
+	phase = strings.TrimSpace(cfg.Phase)
+	if phase != "" {
+		return phase
+	}
+	return "run"
+}
+
+func encodeBenchPersonChannel(leftUID, rightUID string) string {
+	leftHash := crc32.ChecksumIEEE([]byte(leftUID))
+	rightHash := crc32.ChecksumIEEE([]byte(rightUID))
+	if leftHash > rightHash {
+		return leftUID + "@" + rightUID
+	}
+	if leftHash == rightHash && leftUID > rightUID {
+		return leftUID + "@" + rightUID
+	}
+	return rightUID + "@" + leftUID
+}
+
+type matchingFrameReader interface {
+	readFrameMatching(context.Context, func(frame.Frame) bool) (frame.Frame, error)
+}
+
+type matchingPersonClient struct {
+	client  PersonClient
+	mu      sync.Mutex
+	buffer  []frame.Frame
+	reading bool
+	notify  chan struct{}
+}
+
+func (c *matchingPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
+	return c.client.Connect(ctx, uid, deviceID)
+}
+
+func (c *matchingPersonClient) Send(ctx context.Context, pkt *frame.SendPacket) error {
+	return c.client.Send(ctx, pkt)
+}
+
+func (c *matchingPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	return c.readFrameMatching(ctx, func(frame.Frame) bool { return true })
+}
+
+func (c *matchingPersonClient) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
+	return c.client.RecvAck(ctx, messageID, messageSeq)
+}
+
+func (c *matchingPersonClient) Close() error {
+	return c.client.Close()
+}
+
+func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func(frame.Frame) bool) (frame.Frame, error) {
+	for {
+		c.mu.Lock()
+		for idx, f := range c.buffer {
+			if !match(f) {
+				continue
+			}
+			c.buffer = append(c.buffer[:idx], c.buffer[idx+1:]...)
+			c.mu.Unlock()
+			return f, nil
+		}
+		if c.reading {
+			notify := c.notifyLocked()
+			c.mu.Unlock()
+			select {
+			case <-notify:
+				continue
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		c.reading = true
+		c.mu.Unlock()
+
+		f, err := c.client.ReadFrame(ctx)
+		c.mu.Lock()
+		c.reading = false
+		if err != nil {
+			c.signalLocked()
+			c.mu.Unlock()
+			return nil, err
+		}
+		if match(f) {
+			c.signalLocked()
+			c.mu.Unlock()
+			return f, nil
+		}
+		c.buffer = append(c.buffer, f)
+		c.signalLocked()
+		c.mu.Unlock()
+	}
+}
+
+func (c *matchingPersonClient) notifyLocked() <-chan struct{} {
+	if c.notify == nil {
+		c.notify = make(chan struct{})
+	}
+	return c.notify
+}
+
+func (c *matchingPersonClient) signalLocked() {
+	if c.notify == nil {
+		return
+	}
+	close(c.notify)
+	c.notify = make(chan struct{})
+}
+
+func readFrameMatching(ctx context.Context, client PersonClient, match func(frame.Frame) bool) (frame.Frame, error) {
+	if reader, ok := client.(matchingFrameReader); ok {
+		return reader.readFrameMatching(ctx, match)
+	}
+	for {
+		f, err := client.ReadFrame(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if match(f) {
+			return f, nil
+		}
+	}
 }
 
 func (w *PersonWorkload) deviceID(uid string) string {
@@ -399,6 +608,31 @@ func (w *PersonWorkload) withTimeout(ctx context.Context, timeout time.Duration)
 		return context.WithTimeout(ctx, 5*time.Second)
 	}
 	return context.WithTimeout(ctx, timeout)
+}
+
+func scheduledMessageCount(duration time.Duration, perSecond float64, channelCount int) int {
+	if duration <= 0 || perSecond <= 0 || channelCount <= 0 {
+		return 0
+	}
+	count := int(duration.Seconds() * perSecond * float64(channelCount))
+	if count < 1 {
+		return 1
+	}
+	return count
+}
+
+func scheduledMessageInterval(duration time.Duration, totalMessages int) time.Duration {
+	if duration <= 0 || totalMessages <= 0 {
+		return 0
+	}
+	return time.Duration(int64(duration) / int64(totalMessages))
+}
+
+func warmupRate(rate model.Rate) model.Rate {
+	if rate.PerSecond <= 0 {
+		return rate
+	}
+	return model.Rate{PerSecond: rate.PerSecond * 0.1}
 }
 
 func normalizePersonPairs(cfg PersonConfig) ([]PersonPair, error) {

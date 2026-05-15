@@ -445,6 +445,63 @@ func TestCoordinatorPollTimeoutReturnsWorkerFailed(t *testing.T) {
 	require.Equal(t, StatusWorkerFailed, result.Status)
 }
 
+func TestCoordinatorWaitsForCompletedPhaseBeforeAdvancing(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].KeepPhaseInProgress(PhasePrepare)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  5 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.False(t, workers[0].SawPhaseAttempt(PhaseConnect), "coordinator must not advance before prepare completes")
+}
+
+func TestCoordinatorPollTimeoutIncludesScenarioPhaseDurations(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].CompletePhaseAfter(PhaseRun, 20*time.Millisecond)
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  5 * time.Millisecond,
+	})
+	scenario := fakeScenario()
+	scenario.Run.Duration = 50 * time.Millisecond
+
+	result, err := coord.Run(context.Background(), scenario)
+
+	require.NoError(t, err)
+	require.Equal(t, StatusCompleted, result.Status)
+	require.True(t, workers[0].SawPhaseAttempt(PhaseCooldown))
+}
+
+func TestCoordinatorFailsWhenWorkerStatusReportsPhaseError(t *testing.T) {
+	workers := newFakeWorkers(t, 1)
+	workers[0].FailPhaseAfterAccept(PhaseConnect, "connect exploded")
+	coord := New(CoordinatorConfig{
+		Workers:      workers.ClientConfigs(),
+		Target:       fakeTargetOK(),
+		Preflight:    preflightFunc(func(context.Context, model.Target, model.WorkerSet) error { return nil }),
+		PollInterval: time.Millisecond,
+		PollTimeout:  100 * time.Millisecond,
+	})
+
+	result, err := coord.Run(context.Background(), fakeScenario())
+
+	require.Error(t, err)
+	require.Equal(t, StatusWorkerFailed, result.Status)
+	require.Contains(t, err.Error(), "connect exploded")
+	require.False(t, workers[0].SawPhaseAttempt(PhaseWarmup), "coordinator must not advance after status reports a phase error")
+}
+
 func TestCoordinatorStopAllContinuesWhenOneWorkerStopHangs(t *testing.T) {
 	workers := newFakeWorkers(t, 2)
 	workers[0].HangStop()
@@ -608,10 +665,14 @@ func newFakeWorkers(t *testing.T, count int) fakeWorkers {
 	out := make(fakeWorkers, 0, count)
 	for i := 0; i < count; i++ {
 		fw := &fakeWorker{
-			id:          string(rune('a' + i)),
-			phase:       worker.PhaseIdle,
-			failPhases:  make(map[Phase]fakePhaseFailure),
-			blockStatus: make(map[Phase]bool),
+			id:              string(rune('a' + i)),
+			phase:           worker.PhaseIdle,
+			failPhases:      make(map[Phase]fakePhaseFailure),
+			blockStatus:     make(map[Phase]bool),
+			activePhase:     make(map[Phase]bool),
+			completeAfter:   make(map[Phase]time.Duration),
+			phaseAcceptedAt: make(map[Phase]time.Time),
+			failAfterAccept: make(map[Phase]string),
 		}
 		fw.server = httptest.NewServer(http.HandlerFunc(fw.handle))
 		t.Cleanup(fw.server.Close)
@@ -648,6 +709,10 @@ type fakeWorker struct {
 	failReport          *fakePhaseFailure
 	lagPhases           map[Phase]bool
 	blockStatus         map[Phase]bool
+	activePhase         map[Phase]bool
+	completeAfter       map[Phase]time.Duration
+	phaseAcceptedAt     map[Phase]time.Time
+	failAfterAccept     map[Phase]string
 	cancelOnStatusPoll  context.CancelFunc
 	cancelOnMetricsPoll context.CancelFunc
 }
@@ -718,6 +783,27 @@ func (fw *fakeWorker) LagPhase(phase Phase) {
 		fw.lagPhases = make(map[Phase]bool)
 	}
 	fw.lagPhases[phase] = true
+}
+
+func (fw *fakeWorker) KeepPhaseInProgress(phase Phase) {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	fw.activePhase[phase] = true
+}
+
+func (fw *fakeWorker) CompletePhaseAfter(phase Phase, d time.Duration) {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	if fw.completeAfter == nil {
+		fw.completeAfter = make(map[Phase]time.Duration)
+	}
+	fw.completeAfter[phase] = d
+}
+
+func (fw *fakeWorker) FailPhaseAfterAccept(phase Phase, message string) {
+	fw.mu.Lock()
+	defer fw.mu.Unlock()
+	fw.failAfterAccept[phase] = message
 }
 
 func (fw *fakeWorker) CancelWhenStatusPolled(cancel context.CancelFunc) {
@@ -864,6 +950,13 @@ func (fw *fakeWorker) handlePhase(w http.ResponseWriter, phase Phase, workerPhas
 	if !fw.lagPhases[phase] {
 		fw.phase = workerPhase
 	}
+	if msg := fw.failAfterAccept[phase]; msg != "" {
+		fw.activePhase[phase] = false
+	}
+	if d := fw.completeAfter[phase]; d > 0 {
+		fw.activePhase[phase] = true
+		fw.phaseAcceptedAt[phase] = time.Now()
+	}
 	status := worker.Status{Phase: fw.phase, Assignment: fw.assignment}
 	fw.mu.Unlock()
 	writeRunTestJSON(w, status)
@@ -881,6 +974,20 @@ func (fw *fakeWorker) handleStatus(w http.ResponseWriter, r *http.Request) {
 		assignment = *fw.statusAssignment
 	}
 	status := worker.Status{Phase: fw.phase, Assignment: assignment}
+	if msg := fw.failAfterAccept[Phase(fw.phase)]; msg != "" {
+		status.LastError = msg
+	} else if fw.activePhase[Phase(fw.phase)] {
+		phase := Phase(fw.phase)
+		if d := fw.completeAfter[phase]; d > 0 && !fw.phaseAcceptedAt[phase].IsZero() && time.Since(fw.phaseAcceptedAt[phase]) >= d {
+			fw.activePhase[phase] = false
+			status.CompletedPhase = fw.phase
+		} else {
+			status.ActivePhase = fw.phase
+			status.CompletedPhase = previousFakePhase(Phase(fw.phase))
+		}
+	} else {
+		status.CompletedPhase = fw.phase
+	}
 	fw.mu.Unlock()
 	if blocked {
 		<-r.Context().Done()
@@ -906,6 +1013,23 @@ func (fw *fakeWorker) handleStop(w http.ResponseWriter, r *http.Request) {
 func writeRunTestJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func previousFakePhase(phase Phase) worker.Phase {
+	switch phase {
+	case PhasePrepare:
+		return worker.PhaseAssigned
+	case PhaseConnect:
+		return worker.PhasePrepare
+	case PhaseWarmup:
+		return worker.PhaseConnect
+	case PhaseRun:
+		return worker.PhaseWarmup
+	case PhaseCooldown:
+		return worker.PhaseRun
+	default:
+		return worker.Phase(phase)
+	}
 }
 
 func fakeTargetOK() model.Target {
