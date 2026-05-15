@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 
+import { ThemeProvider } from "@/app/theme-provider"
 import { useAuthStore } from "@/auth/auth-store"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { I18nProvider } from "@/i18n/provider"
@@ -30,8 +31,10 @@ export function AppProviders({ children }: AppProvidersProps) {
   }, [])
 
   return (
-    <I18nProvider>
-      <TooltipProvider>{children}</TooltipProvider>
-    </I18nProvider>
+    <ThemeProvider>
+      <I18nProvider>
+        <TooltipProvider>{children}</TooltipProvider>
+      </I18nProvider>
+    </ThemeProvider>
   )
 }
