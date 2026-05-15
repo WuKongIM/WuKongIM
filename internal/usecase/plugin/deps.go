@@ -31,6 +31,20 @@ type DesiredStore interface {
 	Delete(ctx context.Context, no string) error
 }
 
+// BindingStore persists cluster-authoritative UID to plugin bindings.
+type BindingStore interface {
+	// BindPluginUser creates or updates a UID to plugin binding.
+	BindPluginUser(ctx context.Context, uid, pluginNo string) error
+	// UnbindPluginUser removes a UID to plugin binding.
+	UnbindPluginUser(ctx context.Context, uid, pluginNo string) error
+	// ListPluginBindingsByUID lists all plugin bindings for one UID.
+	ListPluginBindingsByUID(ctx context.Context, uid string) ([]PluginBinding, error)
+	// ListPluginBindingsByPluginNo lists plugin-centric bindings using an opaque cursor.
+	ListPluginBindingsByPluginNo(ctx context.Context, pluginNo, cursor string, limit int) (BindingPage, error)
+	// ExistPluginBindingByUID reports whether a UID has any plugin binding.
+	ExistPluginBindingByUID(ctx context.Context, uid string) (bool, error)
+}
+
 // Invoker sends byte-oriented requests and messages to running plugins.
 type Invoker interface {
 	// RequestPlugin issues a request to one plugin path.
@@ -47,6 +61,10 @@ type Options struct {
 	Runtime Runtime
 	// DesiredStore persists node-local desired config and enable state.
 	DesiredStore DesiredStore
+	// BindingStore persists cluster-authoritative UID to plugin bindings.
+	BindingStore BindingStore
+	// BindingCache optionally caches short-lived UID binding lookups.
+	BindingCache *BindingCache
 	// Invoker sends byte-oriented hook requests to running plugins.
 	Invoker Invoker
 	// NodeID identifies the local cluster node for node-scoped responses.
