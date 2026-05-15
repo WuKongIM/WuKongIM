@@ -176,16 +176,7 @@ func (a *App) ListMessages(ctx context.Context, req ListMessagesRequest) (ListMe
 		resp.NextCursor = MessageListCursor{BeforeSeq: page.NextBeforeSeq}
 	}
 	for _, item := range page.Items {
-		resp.Items = append(resp.Items, Message{
-			MessageID:   item.MessageID,
-			MessageSeq:  item.MessageSeq,
-			ClientMsgNo: item.ClientMsgNo,
-			ChannelID:   item.ChannelID,
-			ChannelType: int64(item.ChannelType),
-			FromUID:     item.FromUID,
-			Timestamp:   int64(item.Timestamp),
-			Payload:     append([]byte(nil), item.Payload...),
-		})
+		resp.Items = append(resp.Items, messageFromChannelMessage(item))
 	}
 	return resp, nil
 }
