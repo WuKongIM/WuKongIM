@@ -28,9 +28,10 @@ disabled.
 
 ## Observable Outcome
 
-The positive run exits successfully, writes `report.json`, reports `passed`, and
-has non-zero sendack success counters. The disabled-mode run exits with wkbench
-preflight code `2` and mentions bench API capabilities.
+The positive run exits successfully, writes standard report artifacts, reports
+`passed`, has non-zero person and group send success counters, and records at
+least one receive/verification success counter. The disabled-mode run exits with
+wkbench preflight code `2` and mentions bench API capabilities.
 
 ## Failure Diagnostics
 

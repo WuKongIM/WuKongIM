@@ -43,6 +43,7 @@
 ```text
 cmd/
   wukongim/              程序入口，负责读取配置并启动应用
+  wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/report 入口
 
 internal/
   bench/                 wkbench 黑盒客户端配置、模型、规划与协调预检
