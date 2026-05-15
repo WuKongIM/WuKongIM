@@ -1,0 +1,41 @@
+version: wkbench/dev-sim/v1
+
+status:
+  listen: 0.0.0.0:19091
+
+target:
+  api_addrs:
+    - http://wk-node1:5001
+    - http://wk-node2:5001
+    - http://wk-node3:5001
+  gateway_tcp_addrs:
+    - wk-node1:5100
+    - wk-node2:5100
+    - wk-node3:5100
+
+identity:
+  uid_prefix: sim-u
+  device_prefix: sim-d
+  client_msg_prefix: sim-msg
+  token_mode: none
+
+online:
+  total_users: 20
+  connect_rate: 10/s
+
+profiles:
+  person_channels: 5
+  group_channels: 2
+  group_members: 10
+
+traffic:
+  payload_size_bytes: 128
+  person_rate_per_channel: 0.2/s
+  group_rate_per_channel: 0.2/s
+  verify_recv: sampled
+  window: 10s
+  cooldown: 1s
+
+retry:
+  readiness_timeout: 2m
+  restart_backoff: 5s

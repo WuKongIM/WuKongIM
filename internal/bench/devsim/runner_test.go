@@ -1,0 +1,223 @@
+package devsim
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
+	"github.com/WuKongIM/WuKongIM/internal/bench/model"
+	"github.com/WuKongIM/WuKongIM/internal/bench/worker"
+	"github.com/stretchr/testify/require"
+)
+
+func TestRunnerWaitsForReadiness(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	probe := &fakeProbe{failuresBeforeReady: 2}
+	workload := &fakeWorkload{runHook: func(context.Context, worker.Assignment) error {
+		cancel()
+		return context.Canceled
+	}}
+	runner := NewRunner(RunnerConfig{
+		Config:   testRunnerConfig(),
+		RunID:    "dev-sim-run",
+		Status:   NewStatus("dev-sim-run"),
+		Probe:    probe,
+		Workload: workload,
+		Sleep:    noSleep,
+	})
+
+	err := runner.Run(ctx)
+
+	require.NoError(t, err)
+	require.Equal(t, 3, probe.calls)
+	require.Equal(t, []string{"prepare", "connect", "run", "cooldown"}, workload.calls)
+}
+
+func TestRunnerRetriesAfterRuntimeError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	workload := &fakeWorkload{runHook: func(context.Context, worker.Assignment) error {
+		if workloadRunCount := 0; workloadRunCount > 0 {
+			return nil
+		}
+		return nil
+	}}
+	runtimeErr := errors.New("gateway unavailable")
+	runCalls := 0
+	workload.runHook = func(context.Context, worker.Assignment) error {
+		runCalls++
+		if runCalls == 1 {
+			return runtimeErr
+		}
+		cancel()
+		return context.Canceled
+	}
+	status := NewStatus("dev-sim-run")
+	sawRetryError := false
+	runner := NewRunner(RunnerConfig{
+		Config:   testRunnerConfig(),
+		RunID:    "dev-sim-run",
+		Status:   status,
+		Probe:    &fakeProbe{},
+		Workload: workload,
+		Sleep: func(ctx context.Context, d time.Duration) error {
+			if strings.Contains(status.Snapshot().LastError, "gateway unavailable") {
+				sawRetryError = true
+			}
+			return noSleep(ctx, d)
+		},
+	})
+
+	err := runner.Run(ctx)
+
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, countCall(workload.calls, "prepare"), 2)
+	require.GreaterOrEqual(t, countCall(workload.calls, "connect"), 2)
+	require.NotEqual(t, workload.preparePrefixes[0], workload.preparePrefixes[1])
+	require.True(t, sawRetryError)
+}
+
+func TestRunnerStopsOnContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	workload := &fakeWorkload{runHook: func(ctx context.Context, _ worker.Assignment) error {
+		cancel()
+		<-ctx.Done()
+		return ctx.Err()
+	}}
+	status := NewStatus("dev-sim-run")
+	runner := NewRunner(RunnerConfig{
+		Config:   testRunnerConfig(),
+		RunID:    "dev-sim-run",
+		Status:   status,
+		Probe:    &fakeProbe{},
+		Workload: workload,
+		Sleep:    noSleep,
+	})
+
+	err := runner.Run(ctx)
+
+	require.NoError(t, err)
+	require.Equal(t, StateStopped, status.Snapshot().State)
+	require.Contains(t, workload.calls, "cooldown")
+}
+
+func TestNewRunnerUsesDefaultWorkload(t *testing.T) {
+	runner := NewRunner(RunnerConfig{
+		Config: testRunnerConfig(),
+		RunID:  "dev-sim-run",
+		Status: NewStatus("dev-sim-run"),
+		Probe:  &fakeProbe{},
+	})
+
+	require.NotNil(t, runner.workload)
+}
+
+func TestRunnerCopiesWorkloadMetricsToStatus(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	workload := &fakeWorkload{metrics: metrics.SnapshotData{Counters: map[string]uint64{}}}
+	workload.runHook = func(context.Context, worker.Assignment) error {
+		workload.metrics.Counters["person_send_success_total"] = 2
+		workload.metrics.Counters["group_send_success_total"] = 3
+		workload.metrics.Counters["group_recv_error_total"] = 1
+		return nil
+	}
+	status := NewStatus("dev-sim-run")
+	runner := NewRunner(RunnerConfig{
+		Config:   testRunnerConfig(),
+		RunID:    "dev-sim-run",
+		Status:   status,
+		Probe:    &fakeProbe{},
+		Workload: workload,
+		Sleep: func(context.Context, time.Duration) error {
+			cancel()
+			return context.Canceled
+		},
+	})
+
+	err := runner.Run(ctx)
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), status.Snapshot().MessagesSent)
+	require.Equal(t, uint64(1), status.Snapshot().RecvErrors)
+}
+
+type fakeProbe struct {
+	calls               int
+	failuresBeforeReady int
+}
+
+func (p *fakeProbe) CheckReady(context.Context) error {
+	p.calls++
+	if p.calls <= p.failuresBeforeReady {
+		return errors.New("not ready")
+	}
+	return nil
+}
+
+type fakeWorkload struct {
+	calls           []string
+	preparePrefixes []string
+	runHook         func(context.Context, worker.Assignment) error
+	metrics         metrics.SnapshotData
+}
+
+func (w *fakeWorkload) Prepare(_ context.Context, assignment worker.Assignment) error {
+	w.calls = append(w.calls, "prepare")
+	w.preparePrefixes = append(w.preparePrefixes, assignment.Scenario.Identity.ClientMsgPrefix)
+	return nil
+}
+
+func (w *fakeWorkload) Connect(context.Context, worker.Assignment) error {
+	w.calls = append(w.calls, "connect")
+	return nil
+}
+
+func (w *fakeWorkload) Warmup(context.Context, worker.Assignment) error {
+	w.calls = append(w.calls, "warmup")
+	return nil
+}
+
+func (w *fakeWorkload) Run(ctx context.Context, assignment worker.Assignment) error {
+	w.calls = append(w.calls, "run")
+	if w.runHook != nil {
+		return w.runHook(ctx, assignment)
+	}
+	return nil
+}
+
+func (w *fakeWorkload) Cooldown(context.Context, worker.Assignment) error {
+	w.calls = append(w.calls, "cooldown")
+	return nil
+}
+
+func (w *fakeWorkload) MetricsSnapshot() metrics.SnapshotData {
+	return w.metrics
+}
+
+func testRunnerConfig() Config {
+	cfg := defaultConfig()
+	cfg.Target.APIAddrs = []string{"http://127.0.0.1:5001"}
+	cfg.Target.GatewayTCPAddrs = []string{"127.0.0.1:5100"}
+	cfg.Traffic.Window = time.Millisecond
+	cfg.Traffic.Cooldown = time.Millisecond
+	cfg.Retry.ReadinessTimeout = time.Second
+	cfg.Retry.RestartBackoff = time.Millisecond
+	cfg.Online.ConnectRate = model.Rate{PerSecond: 1000}
+	return cfg
+}
+
+func noSleep(context.Context, time.Duration) error { return nil }
+
+func countCall(calls []string, want string) int {
+	count := 0
+	for _, call := range calls {
+		if call == want {
+			count++
+		}
+	}
+	return count
+}

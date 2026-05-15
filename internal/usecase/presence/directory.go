@@ -70,6 +70,9 @@ func (d *directory) register(slotID uint64, route Route, nowUnix int64) []RouteA
 		deleteOwnerRoute(d.ownerSet, d.leases, slotID, existing)
 		actions = append(actions, actionForReplacement(route, existing))
 	}
+	if d.ownerSet[k] == nil {
+		d.ownerSet[k] = make(map[routeKey]Route)
+	}
 
 	d.byUID[route.UID][rk] = route
 	d.ownerSet[k][rk] = route

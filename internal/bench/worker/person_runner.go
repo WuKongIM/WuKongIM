@@ -55,8 +55,13 @@ type personExecutionPlan struct {
 	users   []benchworkload.ConnectionUser
 }
 
-func newDefaultWorkloadRunner(factory WorkloadClientFactory) WorkloadRunner {
+// NewDefaultWorkloadRunner builds the built-in workload runner for in-process callers.
+func NewDefaultWorkloadRunner(factory WorkloadClientFactory) WorkloadRunner {
 	return &defaultWorkloadRunner{clientFactory: factory, metrics: metrics.NewRegistry()}
+}
+
+func newDefaultWorkloadRunner(factory WorkloadClientFactory) WorkloadRunner {
+	return NewDefaultWorkloadRunner(factory)
 }
 
 func (r *defaultWorkloadRunner) BeginAssignment(assignment Assignment) {

@@ -9,6 +9,7 @@
 - `planner`: deterministic worker sharding for person profiles, group profiles, large groups, member ranges, traffic partitions, and channel owners.
 - `coordinator`: top-level run orchestration, preflight, worker assignment, phase polling, failure classification, and report collection.
 - `worker`: HTTP control server plus the default workload runner used by worker processes.
+- `devsim`: long-running development simulator supervisor used by `wkbench dev-sim`; it derives compact simulator config into normal wkbench target/scenario/plan inputs and runs an in-process worker.
 - `workload`: reusable connection, person traffic, and group traffic executors.
 - `target`: black-box HTTP client for target health, readiness, bench capabilities, snapshot, token, channel, and subscriber APIs.
 - `wkproto`: benchmark WKProto client implementation.
@@ -77,9 +78,30 @@ idle -> assigned -> prepare -> connect -> warmup -> run -> cooldown -> stopped
 
 `/v1/stop` cancels the active phase hook when possible and marks the worker stopped. A stopped worker may accept a new assignment.
 
+## Dev-Sim Flow
+
+```text
+cmd/wkbench dev-sim
+  -> devsim.LoadConfig
+       -> strict YAML decode
+       -> laptop-safe defaults
+       -> WK_SIM_* environment overrides
+  -> devsim.Run
+       -> start /healthz and /status
+       -> derive model.Target + model.Scenario + one in-process worker
+       -> planner.Build
+       -> poll target /healthz, /readyz, /bench/v1/capabilities
+       -> worker.NewDefaultWorkloadRunner
+       -> prepare -> connect
+       -> loop run windows until canceled
+       -> on runtime target error: record status, cooldown, back off, retry readiness/connect
+```
+
+`devsim` is intentionally a supervisor around existing wkbench primitives. It keeps the same black-box boundary as coordinator/worker runs: target mutation goes through `internal/bench/target`, traffic goes through WKProto clients, and no WuKongIM server internals are imported. `docker compose --profile dev-sim` uses this command for the optional `wk-sim` service; normal `docker compose up` does not start simulator traffic.
+
 ## Default Worker Runner Flow
 
-The default runner is assembled by `worker.newDefaultWorkloadRunner`.
+The default runner is assembled by `worker.NewDefaultWorkloadRunner`. The private `worker.newDefaultWorkloadRunner` wrapper is kept for package-local server construction.
 
 ### Prepare
 
