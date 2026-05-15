@@ -113,8 +113,12 @@
 | `bench/model` | `bench/model/` | wkbench 配置、速率与确定性计划模型 |
 | `bench/planner` | `bench/planner/` | 按 worker 权重规划 identity pool、channel、member 与 traffic 分片 |
 | `bench/target` | `bench/target/` | wkbench 黑盒 target HTTP client，调用 bench API、health、ready 与 snapshot |
-| `bench/coordinator` | `bench/coordinator/` | wkbench coordinator preflight，校验 target capabilities、worker control 与 gateway placeholder |
-| `bench/worker` | `bench/worker/` | wkbench 黑盒 worker 控制 HTTP API、运行分配状态与阶段推进 |
+| `bench/coordinator` | `bench/coordinator/` | wkbench coordinator preflight，校验 target capabilities、worker control 与 gateway placeholder；编排阶段并汇总 metrics/report |
+| `bench/worker` | `bench/worker/` | wkbench worker 控制 HTTP API、运行分配状态、阶段推进、WKProto workload metrics 与 worker report |
+| `bench/metrics` | `bench/metrics/` | wkbench 低基数 counters/gauges/histograms/errors 快照与聚合 |
+| `bench/report` | `bench/report/` | wkbench report.json、summary.md、worker metrics 与 target snapshot artifacts |
+| `bench/wkproto` | `bench/wkproto/` | wkbench 黑盒 WKProto TCP client，用于 worker 连接、SendAck 与 Recv 验证 |
+| `bench/workload` | `bench/workload/` | wkbench person/group 数据准备和 WKProto 发送/接收 workload |
 
 ### 2.3 依赖边界
 
@@ -122,7 +126,7 @@
 - `runtime/*` 可依赖 `pkg/*`，禁止依赖 `access/*`、`gateway/*`、`usecase/*`、`app`
 - `usecase/*` 可依赖 `runtime/*`、`pkg/*`，禁止依赖 `access/*`、`app`
 - `access/*` 作为适配器层，转换传输 DTO 到合约/用例/运行时 DTO
-- `bench/*` 是 wkbench 黑盒客户端代码，禁止依赖 server internal 包和集群运行时包
+- `bench/*` 是 wkbench 黑盒客户端代码，禁止依赖 server internal 包和集群运行时包；target 数据准备只能通过 `/bench/v1/*` bench API，不能使用 Manager API
 
 **边界检查**：
 ```bash
