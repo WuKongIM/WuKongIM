@@ -179,7 +179,7 @@ func (s *Server) phase(phase Phase) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if err := s.state.Transition(phase); err != nil {
+		if err := s.state.TransitionForAssignment(status.Assignment.RunID, phase); err != nil {
 			writeError(w, http.StatusConflict, err.Error())
 			return
 		}
