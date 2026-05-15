@@ -1105,6 +1105,34 @@ export type ManagerMessagesResponse = {
   next_cursor?: string
 }
 
+export type RecentConversationsParams = {
+  uid: string
+  limit?: number
+  msgCount?: number
+  onlyUnread?: boolean
+}
+
+export type ManagerRecentConversation = {
+  uid: string
+  channel_id: string
+  channel_type: number
+  unread: number
+  timestamp: number
+  last_msg_seq: number
+  last_client_msg_no: string
+  read_to_msg_seq: number
+  version: number
+  recent_messages: ManagerMessage[]
+}
+
+export type ManagerRecentConversationsResponse = {
+  uid: string
+  limit: number
+  msg_count: number
+  only_unread: boolean
+  truncated: boolean
+  items: ManagerRecentConversation[]
+}
 
 export type ManagerNodeOnboardingCandidate = {
   node_id: number
