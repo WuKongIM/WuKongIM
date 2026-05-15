@@ -31,6 +31,8 @@ var (
 	ErrInvokerRequired = errors.New("plugin invoker required")
 	// ErrPluginIdentityMismatch reports a mismatch between transport UID and plugin manifest number.
 	ErrPluginIdentityMismatch = errors.New("plugin identity mismatch")
+	// ErrPluginIdentityRequired reports that startup did not include a transport plugin UID.
+	ErrPluginIdentityRequired = errors.New("plugin identity required")
 	// ErrInvalidPluginNo reports a plugin number that is not filename-safe.
 	ErrInvalidPluginNo = errors.New("invalid plugin no")
 )

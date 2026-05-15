@@ -372,3 +372,23 @@ func TestUninstallLocalPluginPersistsDisabledDesiredState(t *testing.T) {
 		t.Fatalf("runtime uninstalls = %#v", rt.uninstalls)
 	}
 }
+
+func TestStartPluginRejectsEmptyCallerUID(t *testing.T) {
+	store := newFakeDesiredStore()
+	store.states["wk.plugin.ai"] = DesiredPlugin{No: "wk.plugin.ai", Config: json.RawMessage(`{"api_key":"real-secret"}`), Enabled: true}
+	app := mustNewTestApp(t, Options{Runtime: newFakeRuntime(t.TempDir()), DesiredStore: store, NodeID: 1})
+
+	_, err := app.StartPlugin(context.Background(), &pluginproto.PluginInfo{No: "wk.plugin.ai"}, "")
+	assertErrorIs(t, err, ErrPluginIdentityRequired)
+}
+
+func TestStartPluginRejectsDotSegmentPluginNo(t *testing.T) {
+	app := mustNewTestApp(t, Options{Runtime: newFakeRuntime(t.TempDir()), DesiredStore: newFakeDesiredStore(), NodeID: 1})
+
+	for _, no := range []string{".", ".."} {
+		t.Run(no, func(t *testing.T) {
+			_, err := app.StartPlugin(context.Background(), &pluginproto.PluginInfo{No: no}, no)
+			assertErrorIs(t, err, ErrInvalidPluginNo)
+		})
+	}
+}
