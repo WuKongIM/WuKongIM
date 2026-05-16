@@ -25,4 +25,5 @@ const (
 	monitorMetricsRPCServiceID      uint8 = 52
 	pluginHTTPForwardRPCServiceID   uint8 = 54
 	pluginManagementRPCServiceID    uint8 = 55
+	pluginCommittedRPCServiceID     uint8 = 56
 )

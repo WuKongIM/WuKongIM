@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/deliveryevents"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	channelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
@@ -193,6 +194,12 @@ type PluginManagementProvider interface {
 	UninstallLocalPlugin(ctx context.Context, pluginNo string) error
 }
 
+// PluginCommittedProvider handles owner-routed committed-message plugin side effects on the target node.
+type PluginCommittedProvider interface {
+	// PersistAfterCommitted invokes node-local PersistAfter plugins for one committed message.
+	PersistAfterCommitted(ctx context.Context, event messageevents.MessageCommitted) error
+}
+
 // CMDConversationIntentSink accepts UID-owner CMD conversation update intents.
 type CMDConversationIntentSink interface {
 	PushIntent(ctx context.Context, intent cmdsync.ConversationIntent) error
@@ -225,6 +232,7 @@ type Options struct {
 	CMDConversationIntents CMDConversationIntentSink
 	PluginHTTPRoutes       PluginHTTPRouteProvider
 	PluginManagement       PluginManagementProvider
+	PluginCommitted        PluginCommittedProvider
 	Codec                  codec.Protocol
 	Logger                 wklog.Logger
 }
@@ -256,6 +264,7 @@ type Adapter struct {
 	cmdConversationIntents CMDConversationIntentSink
 	pluginHTTPRoutes       PluginHTTPRouteProvider
 	pluginManagement       PluginManagementProvider
+	pluginCommitted        PluginCommittedProvider
 	codec                  codec.Protocol
 	logger                 wklog.Logger
 }
@@ -294,6 +303,7 @@ func New(opts Options) *Adapter {
 		cmdConversationIntents: opts.CMDConversationIntents,
 		pluginHTTPRoutes:       opts.PluginHTTPRoutes,
 		pluginManagement:       opts.PluginManagement,
+		pluginCommitted:        opts.PluginCommitted,
 		codec:                  opts.Codec,
 		logger:                 opts.Logger,
 	}
@@ -321,6 +331,7 @@ func New(opts Options) *Adapter {
 		opts.Cluster.RPCMux().Handle(cmdSyncRPCServiceID, adapter.handleCMDSyncRPC)
 		opts.Cluster.RPCMux().Handle(pluginHTTPForwardRPCServiceID, adapter.handlePluginHTTPForwardRPC)
 		opts.Cluster.RPCMux().Handle(pluginManagementRPCServiceID, adapter.handlePluginManagementRPC)
+		opts.Cluster.RPCMux().Handle(pluginCommittedRPCServiceID, adapter.handlePluginCommittedRPC)
 	}
 	return adapter
 }

@@ -19,6 +19,7 @@ const (
 	appLifecycleCommittedReplay         = "committed_replay"
 	appLifecycleChannelMigration        = "channel_migration"
 	appLifecycleChannelRetention        = "channel_retention"
+	appLifecyclePluginRuntime           = "plugin_runtime"
 	appLifecycleGateway                 = "gateway"
 	appLifecycleAPI                     = "api"
 	appLifecycleManager                 = "manager"
@@ -89,6 +90,9 @@ func (a *App) lifecycleComponents(includeStopOnly bool) []applifecycle.Component
 	}
 	if a.hasChannelRetentionLifecycle(includeStopOnly) {
 		components = append(components, a.channelRetentionLifecycleComponent())
+	}
+	if a.hasPluginLifecycle(includeStopOnly) {
+		components = append(components, a.pluginLifecycleComponent())
 	}
 
 	components = append(components, a.gatewayLifecycleComponent())
@@ -271,6 +275,22 @@ func (a *App) channelRetentionLifecycleComponent() applifecycle.Component {
 	}
 }
 
+func (a *App) pluginLifecycleComponent() applifecycle.Component {
+	return appLifecycleComponent{
+		name: appLifecyclePluginRuntime,
+		start: func(ctx context.Context) error {
+			if err := a.startPlugin(ctx); err != nil {
+				return err
+			}
+			a.pluginOn.Store(true)
+			return nil
+		},
+		stop: func(ctx context.Context) error {
+			return a.stopPlugin(ctx)
+		},
+	}
+}
+
 func (a *App) channelMigrationLifecycleComponent() applifecycle.Component {
 	return appLifecycleComponent{
 		name: appLifecycleChannelMigration,
@@ -393,6 +413,12 @@ func (a *App) hasChannelRetentionLifecycle(includeStopOnly bool) bool {
 	return a.channelRetentionWorker != nil ||
 		a.startChannelRetentionFn != nil ||
 		(includeStopOnly && (a.stopChannelRetentionFn != nil || a.channelRetentionOn.Load()))
+}
+
+func (a *App) hasPluginLifecycle(includeStopOnly bool) bool {
+	return a.pluginRuntime != nil ||
+		a.startPluginFn != nil ||
+		(includeStopOnly && (a.stopPluginFn != nil || a.pluginOn.Load()))
 }
 
 func (a *App) hasAPILifecycle(includeStopOnly bool) bool {

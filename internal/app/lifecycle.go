@@ -239,6 +239,16 @@ func (a *App) startChannelRetention(ctx context.Context) error {
 	return a.channelRetentionWorker.Start(ctx)
 }
 
+func (a *App) startPlugin(ctx context.Context) error {
+	if a.startPluginFn != nil {
+		return a.startPluginFn(ctx)
+	}
+	if a.pluginRuntime == nil {
+		return nil
+	}
+	return a.pluginRuntime.Start(ctx)
+}
+
 func (a *App) stopGateway() error {
 	if !a.gatewayOn.Swap(false) {
 		return nil
@@ -373,6 +383,19 @@ func (a *App) stopChannelRetention(ctx context.Context) error {
 		return nil
 	}
 	return a.channelRetentionWorker.Stop(ctx)
+}
+
+func (a *App) stopPlugin(ctx context.Context) error {
+	if !a.pluginOn.Swap(false) {
+		return nil
+	}
+	if a.stopPluginFn != nil {
+		return a.stopPluginFn(ctx)
+	}
+	if a.pluginRuntime == nil {
+		return nil
+	}
+	return a.pluginRuntime.Stop(ctx)
 }
 
 func (a *App) stopChannelMetaSync() error {
