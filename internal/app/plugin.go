@@ -16,7 +16,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
-func (a *App) buildPluginSubsystem(cfg Config) error {
+func (a *App) buildPluginSubsystem(cfg Config, systemUIDs pluginusecase.SystemUIDChecker) error {
 	socket := runtimeplugin.NewSocketServer(cfg.Plugin.SocketPath)
 	invoker := runtimeplugin.NewInvoker(socket, runtimeplugin.WithTimeout(cfg.Plugin.Timeout))
 	store := runtimeplugin.NewStore(cfg.Plugin.StateDir)
@@ -42,6 +42,7 @@ func (a *App) buildPluginSubsystem(cfg Config) error {
 		ChannelOwners:    pluginChannelOwnerReader{channelLog: a.channelLog},
 		HTTPForwarder:    a.nodeClient,
 		FailOpen:         cfg.Plugin.FailOpen,
+		SystemUIDs:       systemUIDs,
 		DefaultSenderUID: userusecase.DefaultSystemUID,
 		NodeID:           cfg.Node.ID,
 		Logger:           a.logger.Named("plugin"),
@@ -63,6 +64,17 @@ func (a *App) buildPluginSubsystem(cfg Config) error {
 	a.pluginApp = pluginApp
 	a.pluginAccess = pluginAccess
 	return nil
+}
+
+type pluginSystemUIDCheckerRef struct {
+	target pluginusecase.SystemUIDChecker
+}
+
+func (r *pluginSystemUIDCheckerRef) IsSystemUID(uid string) bool {
+	if r == nil || r.target == nil {
+		return false
+	}
+	return r.target.IsSystemUID(uid)
 }
 
 func pluginMessageReader(a *App) managerMessageReader {

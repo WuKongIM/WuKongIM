@@ -387,8 +387,10 @@ func build(cfg Config) (_ *App, err error) {
 	)
 	app.nodeClient = accessnode.NewClient(app.cluster)
 	app.channelLog.remoteAppender = app.nodeClient
+	var pluginSystemUIDs *pluginSystemUIDCheckerRef
 	if cfg.Plugin.Enable {
-		if err := app.buildPluginSubsystem(cfg); err != nil {
+		pluginSystemUIDs = &pluginSystemUIDCheckerRef{}
+		if err := app.buildPluginSubsystem(cfg, pluginSystemUIDs); err != nil {
 			return nil, fmt.Errorf("app: create plugin subsystem: %w", err)
 		}
 	}
@@ -564,17 +566,23 @@ func build(cfg Config) (_ *App, err error) {
 		deliveryMetrics = app.metrics.Delivery
 		deliveryObserver = deliveryRuntimeMetricsObserver{metrics: deliveryMetrics}
 	}
+	var offlineResolvedObserver deliveryruntime.OfflineResolvedObserver
+	if app.pluginApp != nil {
+		app.pluginReceiveObserver = newPluginReceiveObserver(app.pluginApp, cfg.Plugin.Timeout, app.logger.Named("plugin.receive"))
+		offlineResolvedObserver = app.pluginReceiveObserver
+	}
 	app.deliveryRuntime = deliveryruntime.NewManager(deliveryruntime.Config{
 		ShardCount: deliveryShardCountForParallelism(runtime.GOMAXPROCS(0)),
 		Resolver: tagDeliveryResolver{
-			localNodeID: cfg.Node.ID,
-			tags:        deliveryTagManager,
-			subscribers: subscriberResolver,
-			authority:   authorityClient,
-			topology:    deliveryTagTopologyReaderAdapter{cluster: app.cluster},
-			uidObserver: cmdUIDObserver,
-			metrics:     deliveryMetrics,
-			logger:      app.logger.Named("delivery.resolve"),
+			localNodeID:        cfg.Node.ID,
+			tags:               deliveryTagManager,
+			subscribers:        subscriberResolver,
+			authority:          authorityClient,
+			topology:           deliveryTagTopologyReaderAdapter{cluster: app.cluster},
+			uidObserver:        cmdUIDObserver,
+			collectOfflineUIDs: offlineResolvedObserver != nil,
+			metrics:            deliveryMetrics,
+			logger:             app.logger.Named("delivery.resolve"),
 		},
 		Push: distributedDeliveryPush{
 			localNodeID: cfg.Node.ID,
@@ -588,7 +596,8 @@ func build(cfg Config) (_ *App, err error) {
 			metrics: deliveryMetrics,
 			logger:  app.logger.Named("delivery.push.remote"),
 		},
-		Observer: deliveryObserver,
+		Observer:                deliveryObserver,
+		OfflineResolvedObserver: offlineResolvedObserver,
 	})
 	app.deliveryRuntimeLifecycle = newDeliveryRuntimeLifecycle(deliveryRuntimeLifecycleConfig{
 		Runtime:  app.deliveryRuntime,
@@ -652,6 +661,9 @@ func build(cfg Config) (_ *App, err error) {
 		Online:       onlineRegistry,
 		Logger:       app.logger.Named("user"),
 	})
+	if pluginSystemUIDs != nil {
+		pluginSystemUIDs.target = userApp
+	}
 	app.userApp = userApp
 	clusterUsers := &clusterUserUsecase{
 		local:       userApp,

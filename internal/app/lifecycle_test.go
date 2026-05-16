@@ -560,6 +560,93 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 	}, calls)
 }
 
+func TestAppLifecycleStartsPluginBeforeDeliveryRuntimeAndStopsAfter(t *testing.T) {
+	var startCalls []string
+	var stopCalls []string
+
+	app := &App{
+		cluster: &appLifecycleTestCluster{},
+		gateway: &gateway.Gateway{},
+		startClusterFn: func() error {
+			startCalls = append(startCalls, "cluster.start")
+			return nil
+		},
+		startPluginFn: func(context.Context) error {
+			startCalls = append(startCalls, "plugin_runtime.start")
+			return nil
+		},
+		startDeliveryRuntimeFn: func() error {
+			startCalls = append(startCalls, "delivery_runtime.start")
+			return nil
+		},
+		startCommittedDispatcherFn: func() error {
+			startCalls = append(startCalls, "committed_dispatcher.start")
+			return nil
+		},
+		startCommittedReplayFn: func(context.Context) error {
+			startCalls = append(startCalls, "committed_replay.start")
+			return nil
+		},
+		startGatewayFn: func() error {
+			startCalls = append(startCalls, "gateway.start")
+			return nil
+		},
+		stopGatewayFn: func() error {
+			stopCalls = append(stopCalls, "gateway.stop")
+			return nil
+		},
+		stopCommittedReplayFn: func(context.Context) error {
+			stopCalls = append(stopCalls, "committed_replay.stop")
+			return nil
+		},
+		stopCommittedDispatcherFn: func(context.Context) error {
+			stopCalls = append(stopCalls, "committed_dispatcher.stop")
+			return nil
+		},
+		stopDeliveryRuntimeFn: func() error {
+			stopCalls = append(stopCalls, "delivery_runtime.stop")
+			return nil
+		},
+		stopPluginFn: func(context.Context) error {
+			stopCalls = append(stopCalls, "plugin_runtime.stop")
+			return nil
+		},
+		stopClusterFn: func() {
+			stopCalls = append(stopCalls, "cluster.stop")
+		},
+		closeRaftDBFn: func() error {
+			stopCalls = append(stopCalls, "raft.close")
+			return nil
+		},
+		closeWKDBFn: func() error {
+			stopCalls = append(stopCalls, "metadb.close")
+			return nil
+		},
+	}
+
+	require.NoError(t, app.Start())
+	require.Equal(t, []string{
+		"cluster.start",
+		"plugin_runtime.start",
+		"delivery_runtime.start",
+		"committed_dispatcher.start",
+		"committed_replay.start",
+		"gateway.start",
+	}, startCalls)
+
+	require.NoError(t, app.Stop())
+	require.Equal(t, []string{
+		"gateway.stop",
+		"committed_replay.stop",
+		"committed_dispatcher.stop",
+		"delivery_runtime.stop",
+		"plugin_runtime.stop",
+		"cluster.stop",
+		"raft.close",
+		"metadb.close",
+	}, stopCalls)
+}
+
 func TestAppLifecycleStopsChannelMigrationAfterRetentionAndBeforeReplay(t *testing.T) {
 	var startCalls []string
 	var stopCalls []string
