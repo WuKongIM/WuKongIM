@@ -108,6 +108,12 @@
 - Scale-in manager reads require `cluster.node:r` and `cluster.slot:r`; start/advance/cancel require `cluster.node:w` and `cluster.slot:w`.
 - Node scale-in readiness must account for channel leaders, channel replicas, and active channel migration tasks before reporting `ready_to_remove`.
 
+## Plugin Subsystem
+
+- Plugin runtime is node-local and disabled by default; plugin-user bindings are Slot Raft metadata keyed by UID.
+- Phase 1 supports `.wkp`/go-pdk core methods and host RPCs, but stream RPCs return explicit unimplemented errors.
+- Plugin sends must go through `message.App.Send`; PersistAfter runs only on the channel owner node.
+
 ## Development Workflow
 
 ### E2E profiling
