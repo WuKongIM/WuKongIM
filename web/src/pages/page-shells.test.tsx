@@ -396,9 +396,9 @@ it.each([
   ["/business/messages", "Messages", "Channel ID"],
   ["/business/conversations", "Recent Conversations", "Enter a UID to inspect recent conversations."],
   ["/business/system-users", "System Users", "Persisted system UIDs"],
+  ["/business/connections", "Connections", "Session"],
   ["/system/permissions", "Permissions", "Authentication Summary"],
   ["/system/webhooks", "Webhook Configuration", "Coming Soon"],
-  ["/system/connections", "Connections", "Session"],
 ])("renders %s shell", async (path, title, section) => {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
 
@@ -428,9 +428,9 @@ it.each([
   ["/business/messages", "BUSINESS / MESSAGES"],
   ["/business/conversations", "BUSINESS / CONVERSATIONS"],
   ["/business/system-users", "BUSINESS / SYSTEM USERS"],
+  ["/business/connections", "BUSINESS / CONNECTIONS"],
   ["/system/permissions", "SYSTEM / PERMISSIONS"],
   ["/system/webhooks", "SYSTEM / WEBHOOKS"],
-  ["/system/connections", "SYSTEM / CONNECTIONS"],
 ])("renders the redesigned path label for %s", async (path, label) => {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
 
@@ -458,9 +458,9 @@ it.each([
   ["/business/messages", "消息", "频道 ID"],
   ["/business/conversations", "最近会话", "输入 UID 查看最近会话。"],
   ["/business/system-users", "系统用户", "持久化系统 UID"],
+  ["/business/connections", "连接", "会话"],
   ["/system/permissions", "权限管理", "认证摘要"],
   ["/system/webhooks", "Webhook 配置", "即将推出"],
-  ["/system/connections", "连接", "会话"],
 ])("renders %s in Chinese", async (path, title, section) => {
   localStorage.setItem("wukongim_manager_locale", "zh-CN")
   const router = createMemoryRouter(routes, { initialEntries: [path] })

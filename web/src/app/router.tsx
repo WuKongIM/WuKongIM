@@ -65,10 +65,11 @@ export const routes: RouteObject[] = [
       { path: "business/messages", element: <MessagesPage /> },
       { path: "business/conversations", element: <ConversationsPage /> },
       { path: "business/system-users", element: <SystemUsersPage /> },
+      { path: "business/connections", element: <ConnectionsPage /> },
       // System
       { path: "system/permissions", element: <PermissionsPage /> },
       { path: "system/webhooks", element: <WebhooksPage /> },
-      { path: "system/connections", element: <ConnectionsPage /> },
+      { path: "system/connections", element: <RedirectWithSearch to="/business/connections" /> },
       // Legacy redirects
       { path: "dashboard", element: <Navigate replace to="/cluster/dashboard" /> },
       { path: "monitor", element: <Navigate replace to="/business/monitor" /> },
@@ -92,7 +93,7 @@ export const routes: RouteObject[] = [
       { path: "system-users", element: <Navigate replace to="/business/system-users" /> },
       { path: "settings/permissions", element: <Navigate replace to="/system/permissions" /> },
       { path: "settings/webhooks", element: <Navigate replace to="/system/webhooks" /> },
-      { path: "connections", element: <Navigate replace to="/system/connections" /> },
+      { path: "connections", element: <RedirectWithSearch to="/business/connections" /> },
     ],
   },
 ]

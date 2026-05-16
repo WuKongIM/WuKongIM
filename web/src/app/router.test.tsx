@@ -87,7 +87,8 @@ test.each([
   ["/nodes", "/cluster/nodes"],
   ["/channel-cluster/unhealthy", "/cluster/channels?tab=unhealthy"],
   ["/network", "/cluster/diagnostics?tab=network"],
-  ["/connections", "/system/connections"],
+  ["/connections", "/business/connections"],
+  ["/system/connections", "/business/connections"],
 ])("redirects legacy %s to %s", async (from, to) => {
   useAuthStore.setState(authenticatedState())
   const router = createMemoryRouter(routes, { initialEntries: [from] })

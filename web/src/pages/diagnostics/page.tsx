@@ -253,7 +253,7 @@ function RelatedLinks({ response }: { response: ManagerDiagnosticsResponse }) {
     }
     if (event.node_id) {
       links.set(`conn-${event.node_id}`, {
-        href: `/system/connections?node_id=${event.node_id}`,
+        href: `/business/connections?node_id=${event.node_id}`,
         label: `Connections on node ${event.node_id}`,
       })
       links.set("nodes", { href: "/cluster/nodes", label: "Nodes" })

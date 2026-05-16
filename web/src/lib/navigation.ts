@@ -119,6 +119,14 @@ export const navigationSections: NavigationSection[] = [
         aliases: ["/monitor"],
       },
       {
+        href: "/business/connections",
+        titleMessageId: "nav.connections.title",
+        descriptionMessageId: "nav.connections.description",
+        pathLabelMessageId: "nav.path.business.connections",
+        icon: Cable,
+        aliases: ["/connections"],
+      },
+      {
         href: "/business/users",
         titleMessageId: "nav.users.title",
         descriptionMessageId: "nav.users.description",
@@ -181,14 +189,6 @@ export const navigationSections: NavigationSection[] = [
         icon: Webhook,
         aliases: ["/settings/webhooks"],
       },
-      {
-        href: "/system/connections",
-        titleMessageId: "nav.connections.title",
-        descriptionMessageId: "nav.connections.description",
-        pathLabelMessageId: "nav.path.system.connections",
-        icon: Cable,
-        aliases: ["/connections"],
-      },
     ],
   },
 ]
@@ -222,7 +222,7 @@ export const legacyRouteRedirects: Record<string, string> = {
   "/system-users": "/business/system-users",
   "/settings/permissions": "/system/permissions",
   "/settings/webhooks": "/system/webhooks",
-  "/connections": "/system/connections",
+  "/connections": "/business/connections",
 }
 
 function matchesItem(pathname: string, item: NavigationItem) {

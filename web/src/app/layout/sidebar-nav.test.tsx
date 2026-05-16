@@ -123,5 +123,30 @@ test("shows business dashboard and live monitor first in the business section", 
 
   const nav = await screen.findByRole("navigation", { name: "Primary navigation" })
   const links = within(nav).getAllByRole("link").map((link) => link.textContent)
-  expect(links.slice(0, 3)).toEqual(["Dashboard", "Live Monitor", "Users"])
+  expect(links.slice(0, 3)).toEqual(["Dashboard", "Live Monitor", "Connections"])
+})
+
+test("moves connections from the system section into business management", async () => {
+  const businessRouter = createMemoryRouter(routes, { initialEntries: ["/business/connections"] })
+
+  const { unmount } = render(
+    <AppProviders>
+      <RouterProvider router={businessRouter} />
+    </AppProviders>,
+  )
+
+  expect(await screen.findByRole("link", { name: "Connections" })).toHaveAttribute("aria-current", "page")
+  expect(screen.getByRole("link", { name: "Connections" })).toHaveAttribute("href", "/business/connections")
+  unmount()
+
+  const systemRouter = createMemoryRouter(routes, { initialEntries: ["/system/permissions"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={systemRouter} />
+    </AppProviders>,
+  )
+
+  expect(await screen.findByRole("link", { name: "Permissions" })).toBeInTheDocument()
+  expect(screen.queryByRole("link", { name: "Connections" })).not.toBeInTheDocument()
 })
