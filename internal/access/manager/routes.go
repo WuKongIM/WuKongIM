@@ -24,6 +24,24 @@ func (s *Server) registerRoutes() {
 	nodes.GET("/nodes", s.handleNodes)
 	nodes.GET("/nodes/:node_id", s.handleNode)
 
+	pluginReads := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		pluginReads.Use(s.requirePermission("cluster.plugin", "r"))
+	}
+	pluginReads.GET("/nodes/:node_id/plugins", s.handleNodePlugins)
+	pluginReads.GET("/nodes/:node_id/plugins/:plugin_no", s.handleNodePlugin)
+	pluginReads.GET("/plugin-bindings", s.handlePluginBindings)
+
+	pluginWrites := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		pluginWrites.Use(s.requirePermission("cluster.plugin", "w"))
+	}
+	pluginWrites.PUT("/nodes/:node_id/plugins/:plugin_no/config", s.handleNodePluginConfigUpdate)
+	pluginWrites.POST("/nodes/:node_id/plugins/:plugin_no/restart", s.handleNodePluginRestart)
+	pluginWrites.DELETE("/nodes/:node_id/plugins/:plugin_no", s.handleNodePluginUninstall)
+	pluginWrites.POST("/plugin-bindings", s.handlePluginBindingCreate)
+	pluginWrites.DELETE("/plugin-bindings", s.handlePluginBindingDelete)
+
 	nodeControllerRaft := s.engine.Group("/manager")
 	if s.auth.enabled() {
 		nodeControllerRaft.Use(s.requirePermission("cluster.node", "r"))
