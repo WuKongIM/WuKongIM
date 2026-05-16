@@ -4449,6 +4449,9 @@ type managementStub struct {
 	messagesReqSink                    *managementusecase.ListMessagesRequest
 	messagesPage                       managementusecase.ListMessagesResponse
 	messagesErr                        error
+	recentConversationsReqSink         *managementusecase.RecentConversationsRequest
+	recentConversations                managementusecase.RecentConversationsResponse
+	recentConversationsErr             error
 	retentionReqSink                   *managementusecase.AdvanceMessageRetentionRequest
 	retentionResult                    managementusecase.AdvanceMessageRetentionResponse
 	retentionErr                       error
@@ -4786,6 +4789,13 @@ func (s managementStub) ListMessages(_ context.Context, req managementusecase.Li
 		*s.messagesReqSink = req
 	}
 	return s.messagesPage, s.messagesErr
+}
+
+func (s managementStub) ListRecentConversations(_ context.Context, req managementusecase.RecentConversationsRequest) (managementusecase.RecentConversationsResponse, error) {
+	if s.recentConversationsReqSink != nil {
+		*s.recentConversationsReqSink = req
+	}
+	return s.recentConversations, s.recentConversationsErr
 }
 
 func (s managementStub) AdvanceMessageRetention(_ context.Context, req managementusecase.AdvanceMessageRetentionRequest) (managementusecase.AdvanceMessageRetentionResponse, error) {

@@ -117,6 +117,8 @@ type Management interface {
 	TransferChannelClusterLeader(ctx context.Context, req managementusecase.TransferChannelClusterLeaderRequest) (managementusecase.TransferChannelClusterLeaderResponse, error)
 	// ListMessages returns one manager-facing channel message page.
 	ListMessages(ctx context.Context, req managementusecase.ListMessagesRequest) (managementusecase.ListMessagesResponse, error)
+	// ListRecentConversations returns one manager-facing UID recent conversation working set.
+	ListRecentConversations(ctx context.Context, req managementusecase.RecentConversationsRequest) (managementusecase.RecentConversationsResponse, error)
 	// AdvanceMessageRetention advances one channel's history retention boundary.
 	AdvanceMessageRetention(ctx context.Context, req managementusecase.AdvanceMessageRetentionRequest) (managementusecase.AdvanceMessageRetentionResponse, error)
 	// TransferChannelLeader validates or creates a channel leader-transfer task.

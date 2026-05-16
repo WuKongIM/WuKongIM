@@ -18,6 +18,7 @@ import {
   getDiagnosticsMessage,
   getDiagnosticsTrace,
   getMessages,
+  getRecentConversations,
   getMonitorMetrics,
   getNetworkSummary,
   createNodeOnboardingPlan,
@@ -959,6 +960,17 @@ describe("manager api client", () => {
       1,
       "/manager/nodes/2/slots/9/compact",
       expect.objectContaining({ method: "POST" }),
+    )
+  })
+
+  it("fetches recent conversations with query params", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ uid: "u1", items: [] }), { status: 200 }))
+
+    await getRecentConversations({ uid: "u1", limit: 25, msgCount: 2, onlyUnread: true })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/conversations?uid=u1&limit=25&msg_count=2&only_unread=true",
+      expect.objectContaining({ headers: expect.any(Headers) }),
     )
   })
 

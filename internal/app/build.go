@@ -743,6 +743,7 @@ func build(cfg Config) (_ *App, err error) {
 			SystemUsers:             clusterUsers,
 			UserPresence:            authorityClient,
 			UserActions:             authorityClient,
+			Conversations:           app.conversationApp,
 			ChannelReplicaStatus: managerChannelReplicaStatusReader{
 				channelLog: app.channelLog,
 			},
