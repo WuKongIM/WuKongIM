@@ -1,6 +1,7 @@
 import type { FormEvent } from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useIntl, type IntlShape } from "react-intl"
+import { useSearchParams } from "react-router-dom"
 
 import { useAuthStore } from "@/auth/auth-store"
 import { ActionFormDialog } from "@/components/manager/action-form-dialog"
@@ -10,11 +11,15 @@ import { KeyValueList } from "@/components/manager/key-value-list"
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
 import { PageContainer } from "@/components/shell/page-container"
+import { PageHeader } from "@/components/shell/page-header"
+import { PageTabs } from "@/components/shell/page-tabs"
+import { SectionCard } from "@/components/shell/section-card"
 import { Button } from "@/components/ui/button"
 import {
   ManagerApiError,
   addSlot,
   getNodes,
+  getOverview,
   getSlot,
   getSlots,
   removeSlot,
@@ -25,6 +30,8 @@ import {
 import type {
   ManagerNode,
   ManagerNodesResponse,
+  ManagerOverviewResponse,
+  ManagerOverviewSlotAnomalyItem,
   ManagerSlotDetailResponse,
   ManagerSlotHashSlots,
   ManagerSlotRebalanceResponse,
@@ -38,7 +45,30 @@ type SlotsState = {
   error: Error | null
 }
 
+type SlotClusterOverviewState = {
+  overview: ManagerOverviewResponse | null
+  loading: boolean
+  refreshing: boolean
+  error: Error | null
+}
+
+type SlotAnomalyRow = ManagerOverviewSlotAnomalyItem & {
+  reason: "quorum_lost" | "leader_missing" | "sync_mismatch"
+}
+
+const tabs = [
+  { id: "overview", labelMessageId: "slots.tabs.overview" },
+  { id: "list", labelMessageId: "slots.tabs.list" },
+  { id: "unhealthy", labelMessageId: "slots.tabs.unhealthy" },
+] as const
+
+type SlotClusterTab = (typeof tabs)[number]["id"]
+
 const recoverStrategyValues = ["latest_live_replica"] as const
+
+function normalizeTab(value: string | null): SlotClusterTab {
+  return tabs.some((tab) => tab.id === value) ? (value as SlotClusterTab) : "overview"
+}
 
 function formatTimestamp(intl: IntlShape, value: string) {
   return new Intl.DateTimeFormat(intl.locale, {
@@ -141,6 +171,33 @@ function formatHashSlotCount(intl: IntlShape, ownership: ManagerSlotHashSlots) {
   return intl.formatMessage({ id: "slots.hashSlotCountValue" }, { count: ownership.count })
 }
 
+function slotAnomalyRows(overview: ManagerOverviewResponse): SlotAnomalyRow[] {
+  return [
+    ...overview.anomalies.slots.quorum_lost.items.map((item) => ({ ...item, reason: "quorum_lost" as const })),
+    ...overview.anomalies.slots.leader_missing.items.map((item) => ({ ...item, reason: "leader_missing" as const })),
+    ...overview.anomalies.slots.sync_mismatch.items.map((item) => ({ ...item, reason: "sync_mismatch" as const })),
+  ]
+}
+
+function slotAnomalyCount(overview: ManagerOverviewResponse) {
+  return (
+    overview.anomalies.slots.quorum_lost.count +
+    overview.anomalies.slots.leader_missing.count +
+    overview.anomalies.slots.sync_mismatch.count
+  )
+}
+
+function slotAnomalyReasonMessageId(reason: SlotAnomalyRow["reason"]) {
+  switch (reason) {
+    case "quorum_lost":
+      return "slots.unhealthy.reason.quorumLost"
+    case "leader_missing":
+      return "slots.unhealthy.reason.leaderMissing"
+    case "sync_mismatch":
+      return "slots.unhealthy.reason.syncMismatch"
+  }
+}
+
 function HashSlotOwnershipValue({
   intl,
   ownership,
@@ -165,7 +222,7 @@ function HashSlotOwnershipValue({
   )
 }
 
-export function SlotsPage() {
+export function SlotClusterListPanel() {
   const intl = useIntl()
   const recoverStrategies = useMemo(
     () => [
@@ -426,7 +483,7 @@ export function SlotsPage() {
   }, [loadSlots, selectedNodeId, selectedSlotId])
 
   return (
-    <PageContainer>
+    <>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
@@ -849,6 +906,298 @@ export function SlotsPage() {
         pending={removePending}
         title={intl.formatMessage({ id: "slots.removeSlot" })}
       />
+    </>
+  )
+}
+
+
+export function SlotClusterOverviewPanel() {
+  const intl = useIntl()
+  const [state, setState] = useState<SlotClusterOverviewState>({
+    overview: null,
+    loading: true,
+    refreshing: false,
+    error: null,
+  })
+
+  const loadOverview = useCallback(async (refreshing: boolean) => {
+    setState((current) => ({
+      ...current,
+      loading: refreshing ? current.loading : true,
+      refreshing,
+      error: null,
+    }))
+
+    try {
+      const overview = await getOverview()
+      setState({ overview, loading: false, refreshing: false, error: null })
+    } catch (error) {
+      setState({
+        overview: null,
+        loading: false,
+        refreshing: false,
+        error: error instanceof Error ? error : new Error("slot overview request failed"),
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadOverview(false)
+  }, [loadOverview])
+
+  const overview = state.overview
+  const unhealthyCount = overview ? slotAnomalyCount(overview) : 0
+
+  return (
+    <>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
+            {intl.formatMessage({ id: "slots.overview.title" })}
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+            {intl.formatMessage({ id: "nav.slots.description" })}
+          </p>
+        </div>
+        <Button
+          onClick={() => {
+            void loadOverview(true)
+          }}
+          size="sm"
+          variant="outline"
+        >
+          {state.refreshing
+            ? intl.formatMessage({ id: "common.refreshing" })
+            : intl.formatMessage({ id: "common.refresh" })}
+        </Button>
+      </div>
+      {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nav.slots.title" })} /> : null}
+      {!state.loading && state.error ? (
+        <ResourceState
+          kind={mapErrorKind(state.error)}
+          onRetry={() => {
+            void loadOverview(false)
+          }}
+          title={intl.formatMessage({ id: "nav.slots.title" })}
+        />
+      ) : null}
+      {!state.loading && !state.error && overview ? (
+        <>
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+            <SectionCard title={intl.formatMessage({ id: "slots.metric.total" })}>
+              <div className="text-3xl font-semibold text-foreground">{overview.slots.total}</div>
+            </SectionCard>
+            <SectionCard title={intl.formatMessage({ id: "slots.cards.ready.title" })}>
+              <div className="text-3xl font-semibold text-foreground">{overview.slots.ready}</div>
+            </SectionCard>
+            <SectionCard title={intl.formatMessage({ id: "slots.metric.quorumLost" })}>
+              <div className="text-3xl font-semibold text-foreground">{overview.slots.quorum_lost}</div>
+            </SectionCard>
+            <SectionCard title={intl.formatMessage({ id: "slots.metric.leaderMissing" })}>
+              <div className="text-3xl font-semibold text-foreground">{overview.slots.leader_missing}</div>
+            </SectionCard>
+            <SectionCard title={intl.formatMessage({ id: "slots.metric.peerMismatch" })}>
+              <div className="text-3xl font-semibold text-foreground">{overview.slots.peer_mismatch}</div>
+            </SectionCard>
+            <SectionCard title={intl.formatMessage({ id: "slots.metric.unreported" })}>
+              <div className="text-3xl font-semibold text-foreground">{overview.slots.unreported}</div>
+            </SectionCard>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+            <SectionCard
+              description={intl.formatMessage({ id: "slots.unhealthy.summary" }, { count: unhealthyCount })}
+              title={intl.formatMessage({ id: "slots.unhealthy.title" })}
+            >
+              <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm leading-6 text-muted-foreground">
+                {intl.formatMessage(
+                  { id: "slots.unhealthy.breakdown" },
+                  {
+                    quorumLost: overview.anomalies.slots.quorum_lost.count,
+                    leaderMissing: overview.anomalies.slots.leader_missing.count,
+                    syncMismatch: overview.anomalies.slots.sync_mismatch.count,
+                  },
+                )}
+              </div>
+            </SectionCard>
+
+            <SectionCard title={intl.formatMessage({ id: "slots.overview.runtime.title" })}>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+                  <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    {intl.formatMessage({ id: "slots.metric.epochLag" })}
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold text-foreground">{overview.slots.epoch_lag}</div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+                  <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    {intl.formatMessage({ id: "slots.metric.taskRetrying" })}
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold text-foreground">{overview.tasks.retrying}</div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+                  <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    {intl.formatMessage({ id: "slots.metric.taskFailed" })}
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold text-foreground">{overview.tasks.failed}</div>
+                </div>
+              </div>
+            </SectionCard>
+          </section>
+        </>
+      ) : null}
+    </>
+  )
+}
+
+export function SlotClusterUnhealthyPanel() {
+  const intl = useIntl()
+  const [state, setState] = useState<SlotClusterOverviewState>({
+    overview: null,
+    loading: true,
+    refreshing: false,
+    error: null,
+  })
+
+  const loadOverview = useCallback(async (refreshing: boolean) => {
+    setState((current) => ({
+      ...current,
+      loading: refreshing ? current.loading : true,
+      refreshing,
+      error: null,
+    }))
+
+    try {
+      const overview = await getOverview()
+      setState({ overview, loading: false, refreshing: false, error: null })
+    } catch (error) {
+      setState({
+        overview: null,
+        loading: false,
+        refreshing: false,
+        error: error instanceof Error ? error : new Error("slot unhealthy request failed"),
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadOverview(false)
+  }, [loadOverview])
+
+  const rows = state.overview ? slotAnomalyRows(state.overview) : []
+
+  return (
+    <>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
+            {intl.formatMessage({ id: "slots.unhealthy.title" })}
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+            {intl.formatMessage({ id: "slots.unhealthy.description" })}
+          </p>
+        </div>
+        <Button
+          onClick={() => {
+            void loadOverview(true)
+          }}
+          size="sm"
+          variant="outline"
+        >
+          {state.refreshing
+            ? intl.formatMessage({ id: "common.refreshing" })
+            : intl.formatMessage({ id: "common.refresh" })}
+        </Button>
+      </div>
+      {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "slots.unhealthy.title" })} /> : null}
+      {!state.loading && state.error ? (
+        <ResourceState
+          kind={mapErrorKind(state.error)}
+          onRetry={() => {
+            void loadOverview(false)
+          }}
+          title={intl.formatMessage({ id: "slots.unhealthy.title" })}
+        />
+      ) : null}
+      {!state.loading && !state.error && state.overview ? (
+        <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+          {rows.length > 0 ? (
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full border-collapse">
+                <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.slot" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "slots.unhealthy.table.reason" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.quorum" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.sync" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.desiredPeerSet" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.currentPeerSet" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "slots.table.leader" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "slots.unhealthy.table.lastReport" })}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr className="border-t border-border" key={`${row.reason}-${row.slot_id}`}>
+                      <td className="px-3 py-3 text-sm font-medium text-foreground">
+                        {intl.formatMessage({ id: "slots.slotValue" }, { id: row.slot_id })}
+                      </td>
+                      <td className="px-3 py-3 text-sm text-foreground">
+                        {intl.formatMessage({ id: slotAnomalyReasonMessageId(row.reason) })}
+                      </td>
+                      <td className="px-3 py-3 text-sm text-foreground"><StatusBadge value={row.quorum} /></td>
+                      <td className="px-3 py-3 text-sm text-foreground"><StatusBadge value={row.sync} /></td>
+                      <td className="px-3 py-3 text-sm text-muted-foreground">{formatNodeList(row.desired_peers)}</td>
+                      <td className="px-3 py-3 text-sm text-muted-foreground">{formatNodeList(row.current_peers)}</td>
+                      <td className="px-3 py-3 text-sm text-muted-foreground">{row.leader_id}</td>
+                      <td className="px-3 py-3 text-sm text-muted-foreground">
+                        {formatTimestamp(intl, row.last_report_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <ResourceState
+              description={intl.formatMessage({ id: "slots.unhealthy.emptyDescription" })}
+              kind="empty"
+              title={intl.formatMessage({ id: "slots.unhealthy.emptyTitle" })}
+            />
+          )}
+        </div>
+      ) : null}
+    </>
+  )
+}
+
+export function SlotsPage() {
+  const intl = useIntl()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = normalizeTab(searchParams.get("tab"))
+
+  function setTab(tab: string) {
+    const next = new URLSearchParams(searchParams)
+    next.set("tab", tab)
+    setSearchParams(next)
+  }
+
+  return (
+    <PageContainer>
+      <PageHeader
+        eyebrow={intl.formatMessage({ id: "nav.path.cluster.slots" })}
+        title={intl.formatMessage({ id: "nav.slots.title" })}
+        description={intl.formatMessage({ id: "nav.slots.description" })}
+      />
+      <PageTabs
+        activeTab={activeTab}
+        className="px-0 pt-0"
+        tabs={tabs.map((tab) => ({ id: tab.id, label: intl.formatMessage({ id: tab.labelMessageId }) }))}
+        onTabChange={setTab}
+      />
+      {activeTab === "overview" ? <SlotClusterOverviewPanel /> : null}
+      {activeTab === "list" ? <SlotClusterListPanel /> : null}
+      {activeTab === "unhealthy" ? <SlotClusterUnhealthyPanel /> : null}
     </PageContainer>
   )
 }

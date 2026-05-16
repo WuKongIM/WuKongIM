@@ -10,6 +10,9 @@ import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
 import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/shell/page-container"
+import { PageHeader } from "@/components/shell/page-header"
+import { PageTabs } from "@/components/shell/page-tabs"
+import { SectionCard } from "@/components/shell/section-card"
 import { NodeOnboardingPanel } from "@/pages/onboarding/page"
 import {
   ManagerApiError,
@@ -39,6 +42,18 @@ type NodesState = {
   loading: boolean
   refreshing: boolean
   error: Error | null
+}
+
+const tabs = [
+  { id: "overview", labelMessageId: "nodes.tabs.overview" },
+  { id: "list", labelMessageId: "nodes.tabs.list" },
+  { id: "unhealthy", labelMessageId: "nodes.tabs.unhealthy" },
+] as const
+
+type NodeClusterTab = (typeof tabs)[number]["id"]
+
+function normalizeTab(value: string | null): NodeClusterTab {
+  return tabs.some((tab) => tab.id === value) ? (value as NodeClusterTab) : "overview"
 }
 
 function formatTimestamp(intl: IntlShape, value: string) {
@@ -193,6 +208,31 @@ function nodeControllerRaftWatermark(intl: IntlShape, node: ManagerNode) {
       applied: node.controller.applied_index ?? 0,
       snapshot: node.controller.snapshot_index ?? 0,
     },
+  )
+}
+
+function isUnhealthyNode(node: ManagerNode) {
+  const healthStatus = nodeHealthStatus(node)
+  const slots = nodeSlotSummary(node)
+  return (
+    healthStatus !== "alive" ||
+    nodeJoinState(node) !== "active" ||
+    !node.membership?.schedulable ||
+    slots.quorumLostCount > 0 ||
+    slots.unreportedCount > 0 ||
+    node.runtime?.unknown === true ||
+    node.runtime?.draining === true
+  )
+}
+
+function nodeRuntimeTotals(nodes: ManagerNode[]) {
+  return nodes.reduce(
+    (totals, node) => ({
+      gatewaySessions: totals.gatewaySessions + (node.runtime?.gateway_sessions ?? 0),
+      activeOnline: totals.activeOnline + (node.runtime?.active_online ?? 0),
+      unknownRuntime: totals.unknownRuntime + (node.runtime?.unknown ? 1 : 0),
+    }),
+    { gatewaySessions: 0, activeOnline: 0, unknownRuntime: 0 },
   )
 }
 
@@ -393,10 +433,8 @@ function ScaleInReportView({ intl, report }: { intl: IntlShape; report: ManagerN
   )
 }
 
-export function NodesPage() {
+export function NodeClusterListPanel() {
   const intl = useIntl()
-  const [searchParams] = useSearchParams()
-  const showOnboardingPanel = searchParams.get("panel") === "onboarding"
   const permissions = useAuthStore((state) => state.permissions)
   const canWriteNodes = useMemo(
     () => hasPermission(permissions, "cluster.node", "w"),
@@ -631,12 +669,9 @@ export function NodesPage() {
   }, [loadNodeDetail, loadNodes, pendingAction, selectedNodeId])
 
   return (
-    <PageContainer>
+    <>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-            {intl.formatMessage({ id: "nav.path.cluster.nodes" })}
-          </div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
             {intl.formatMessage({ id: "nav.nodes.title" })}
           </h1>
@@ -648,7 +683,7 @@ export function NodesPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild size="sm" variant="outline">
-            <Link to="/cluster/nodes?panel=onboarding">
+            <Link to="/cluster/nodes?tab=list&panel=onboarding">
               {intl.formatMessage({ id: "nav.onboarding.title" })}
             </Link>
           </Button>
@@ -796,7 +831,6 @@ export function NodesPage() {
         </div>
       ) : null}
 
-      {showOnboardingPanel ? <NodeOnboardingPanel /> : null}
 
       <DetailSheet
         description={
@@ -1044,6 +1078,317 @@ export function NodesPage() {
             : intl.formatMessage({ id: "nodes.scaleIn.start" })
         }
       />
+    </>
+  )
+}
+
+
+export function NodeClusterOverviewPanel() {
+  const intl = useIntl()
+  const [state, setState] = useState<NodesState>({
+    nodes: null,
+    loading: true,
+    refreshing: false,
+    error: null,
+  })
+
+  const loadNodes = useCallback(async (refreshing: boolean) => {
+    setState((current) => ({
+      ...current,
+      loading: refreshing ? current.loading : true,
+      refreshing,
+      error: null,
+    }))
+
+    try {
+      const nodes = await getNodes()
+      setState({ nodes, loading: false, refreshing: false, error: null })
+    } catch (error) {
+      setState({
+        nodes: null,
+        loading: false,
+        refreshing: false,
+        error: error instanceof Error ? error : new Error("node overview request failed"),
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadNodes(false)
+  }, [loadNodes])
+
+  const nodes = state.nodes?.items ?? []
+  const aliveCount = nodes.filter((node) => nodeHealthStatus(node) === "alive").length
+  const unhealthyCount = nodes.filter(isUnhealthyNode).length
+  const drainingCount = nodes.filter((node) => node.runtime?.draining === true || nodeHealthStatus(node) === "draining").length
+  const schedulableCount = nodes.filter((node) => node.membership?.schedulable).length
+  const controllerVoterCount = nodes.filter((node) => node.controller.voter).length
+  const runtimeTotals = nodeRuntimeTotals(nodes)
+
+  return (
+    <>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
+            {intl.formatMessage({ id: "nodes.overview.title" })}
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+            {intl.formatMessage({ id: "nav.nodes.description" })}
+          </p>
+        </div>
+        <Button
+          onClick={() => {
+            void loadNodes(true)
+          }}
+          size="sm"
+          variant="outline"
+        >
+          {state.refreshing
+            ? intl.formatMessage({ id: "common.refreshing" })
+            : intl.formatMessage({ id: "common.refresh" })}
+        </Button>
+      </div>
+      {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nav.nodes.title" })} /> : null}
+      {!state.loading && state.error ? (
+        <ResourceState
+          kind={mapErrorKind(state.error)}
+          onRetry={() => {
+            void loadNodes(false)
+          }}
+          title={intl.formatMessage({ id: "nav.nodes.title" })}
+        />
+      ) : null}
+      {!state.loading && !state.error && state.nodes ? (
+        <>
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+            <SectionCard title={intl.formatMessage({ id: "nodes.metric.total" })}>
+              <div className="text-3xl font-semibold text-foreground">{state.nodes.total}</div>
+            </SectionCard>
+            <SectionCard title={intl.formatMessage({ id: "nodes.metric.alive" })}>
+              <div className="text-3xl font-semibold text-foreground">{aliveCount}</div>
+            </SectionCard>
+            <SectionCard title={intl.formatMessage({ id: "nodes.metric.unhealthy" })}>
+              <div className="text-3xl font-semibold text-foreground">{unhealthyCount}</div>
+            </SectionCard>
+            <SectionCard title={intl.formatMessage({ id: "nodes.metric.draining" })}>
+              <div className="text-3xl font-semibold text-foreground">{drainingCount}</div>
+            </SectionCard>
+            <SectionCard title={intl.formatMessage({ id: "nodes.metric.schedulable" })}>
+              <div className="text-3xl font-semibold text-foreground">{schedulableCount}</div>
+            </SectionCard>
+            <SectionCard title={intl.formatMessage({ id: "nodes.metric.controllerVoters" })}>
+              <div className="text-3xl font-semibold text-foreground">{controllerVoterCount}</div>
+            </SectionCard>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+            <SectionCard
+              description={intl.formatMessage({ id: "nodes.unhealthy.summary" }, { count: unhealthyCount })}
+              title={intl.formatMessage({ id: "nodes.unhealthy.title" })}
+            >
+              <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm leading-6 text-muted-foreground">
+                {intl.formatMessage(
+                  { id: "nodes.unhealthy.breakdown" },
+                  {
+                    unhealthy: unhealthyCount,
+                    runtimeUnknown: runtimeTotals.unknownRuntime,
+                    draining: drainingCount,
+                  },
+                )}
+              </div>
+            </SectionCard>
+
+            <SectionCard title={intl.formatMessage({ id: "nodes.overview.runtime.title" })}>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+                  <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    {intl.formatMessage({ id: "nodes.metric.gatewaySessions" })}
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold text-foreground">{runtimeTotals.gatewaySessions}</div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+                  <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    {intl.formatMessage({ id: "nodes.metric.activeOnline" })}
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold text-foreground">{runtimeTotals.activeOnline}</div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+                  <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    {intl.formatMessage({ id: "nodes.metric.runtimeUnknown" })}
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold text-foreground">{runtimeTotals.unknownRuntime}</div>
+                </div>
+              </div>
+            </SectionCard>
+          </section>
+        </>
+      ) : null}
+    </>
+  )
+}
+
+export function NodeClusterUnhealthyPanel() {
+  const intl = useIntl()
+  const [state, setState] = useState<NodesState>({
+    nodes: null,
+    loading: true,
+    refreshing: false,
+    error: null,
+  })
+
+  const loadNodes = useCallback(async (refreshing: boolean) => {
+    setState((current) => ({
+      ...current,
+      loading: refreshing ? current.loading : true,
+      refreshing,
+      error: null,
+    }))
+
+    try {
+      const nodes = await getNodes()
+      setState({ nodes, loading: false, refreshing: false, error: null })
+    } catch (error) {
+      setState({
+        nodes: null,
+        loading: false,
+        refreshing: false,
+        error: error instanceof Error ? error : new Error("node unhealthy request failed"),
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadNodes(false)
+  }, [loadNodes])
+
+  const rows = state.nodes?.items.filter(isUnhealthyNode) ?? []
+
+  return (
+    <>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
+            {intl.formatMessage({ id: "nodes.unhealthy.title" })}
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+            {intl.formatMessage({ id: "nodes.unhealthy.description" })}
+          </p>
+        </div>
+        <Button
+          onClick={() => {
+            void loadNodes(true)
+          }}
+          size="sm"
+          variant="outline"
+        >
+          {state.refreshing
+            ? intl.formatMessage({ id: "common.refreshing" })
+            : intl.formatMessage({ id: "common.refresh" })}
+        </Button>
+      </div>
+      {state.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "nodes.unhealthy.title" })} /> : null}
+      {!state.loading && state.error ? (
+        <ResourceState
+          kind={mapErrorKind(state.error)}
+          onRetry={() => {
+            void loadNodes(false)
+          }}
+          title={intl.formatMessage({ id: "nodes.unhealthy.title" })}
+        />
+      ) : null}
+      {!state.loading && !state.error && state.nodes ? (
+        <div className="rounded-xl border border-border bg-card p-3 shadow-none">
+          {rows.length > 0 ? (
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full border-collapse">
+                <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.node" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.address" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.health" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.membership" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.slots" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.table.runtime" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "nodes.unhealthy.table.lastHeartbeat" })}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((node) => {
+                    const slots = nodeSlotSummary(node)
+                    return (
+                      <tr className="border-t border-border" key={node.node_id}>
+                        <td className="px-3 py-3 text-sm font-medium text-foreground">
+                          <div>{node.node_id}</div>
+                          {node.name ? <div className="mt-1 text-xs font-normal text-muted-foreground">{node.name}</div> : null}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-foreground">{node.addr}</td>
+                        <td className="px-3 py-3 text-sm text-foreground"><StatusBadge value={nodeHealthStatus(node)} /></td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          <div className="font-medium text-foreground">{nodeMembershipRole(node)}</div>
+                          <div className="mt-1">{nodeJoinState(node)}</div>
+                          <div className="mt-1 text-xs">{nodeSchedulableText(intl, node)}</div>
+                        </td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          {intl.formatMessage(
+                            { id: "nodes.unhealthy.slotValue" },
+                            { quorumLost: slots.quorumLostCount, unreported: slots.unreportedCount },
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{nodeRuntimeSummaryText(intl, node)}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          {formatTimestamp(intl, nodeLastHeartbeat(node))}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <ResourceState
+              description={intl.formatMessage({ id: "nodes.unhealthy.emptyDescription" })}
+              kind="empty"
+              title={intl.formatMessage({ id: "nodes.unhealthy.emptyTitle" })}
+            />
+          )}
+        </div>
+      ) : null}
+    </>
+  )
+}
+
+export function NodesPage() {
+  const intl = useIntl()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = searchParams.get("panel") === "onboarding" ? "list" : normalizeTab(searchParams.get("tab"))
+  const showOnboardingPanel = activeTab === "list" && searchParams.get("panel") === "onboarding"
+
+  function setTab(tab: string) {
+    const next = new URLSearchParams(searchParams)
+    next.set("tab", tab)
+    if (tab !== "list") {
+      next.delete("panel")
+    }
+    setSearchParams(next)
+  }
+
+  return (
+    <PageContainer>
+      <PageHeader
+        eyebrow={intl.formatMessage({ id: "nav.path.cluster.nodes" })}
+        title={intl.formatMessage({ id: "nav.nodes.title" })}
+        description={intl.formatMessage({ id: "nav.nodes.description" })}
+      />
+      <PageTabs
+        activeTab={activeTab}
+        className="px-0 pt-0"
+        tabs={tabs.map((tab) => ({ id: tab.id, label: intl.formatMessage({ id: tab.labelMessageId }) }))}
+        onTabChange={setTab}
+      />
+      {activeTab === "overview" ? <NodeClusterOverviewPanel /> : null}
+      {activeTab === "list" ? <NodeClusterListPanel /> : null}
+      {showOnboardingPanel ? <NodeOnboardingPanel /> : null}
+      {activeTab === "unhealthy" ? <NodeClusterUnhealthyPanel /> : null}
     </PageContainer>
   )
 }
