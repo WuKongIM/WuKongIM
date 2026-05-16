@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 // App orchestrates plugin lifecycle, config, and hook selection usecases.
@@ -32,6 +33,7 @@ type App struct {
 	defaultSenderUID string
 	nodeID           uint64
 	clock            func() time.Time
+	logger           wklog.Logger
 }
 
 // NewApp creates a plugin usecase with explicit ports.
@@ -45,6 +47,9 @@ func NewApp(opts Options) (*App, error) {
 	clock := opts.Clock
 	if clock == nil {
 		clock = func() time.Time { return time.Now().UTC() }
+	}
+	if opts.Logger == nil {
+		opts.Logger = wklog.NewNop()
 	}
 	return &App{
 		runtime:          opts.Runtime,
@@ -63,6 +68,7 @@ func NewApp(opts Options) (*App, error) {
 		defaultSenderUID: opts.DefaultSenderUID,
 		nodeID:           opts.NodeID,
 		clock:            clock,
+		logger:           opts.Logger,
 	}, nil
 }
 

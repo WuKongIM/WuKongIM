@@ -42,6 +42,17 @@ func TestStoreLoadMissingReturnsNotFound(t *testing.T) {
 	require.Equal(t, DesiredState{}, got)
 }
 
+func TestStoreDeleteRemovesDesiredState(t *testing.T) {
+	store := NewStore(t.TempDir())
+	require.NoError(t, store.Save(DesiredState{No: "alpha", Enabled: true}))
+
+	require.NoError(t, store.Delete("alpha"))
+	require.NoError(t, store.Delete("alpha"))
+	got, err := store.Load("alpha")
+	require.ErrorIs(t, err, ErrDesiredStateNotFound)
+	require.Equal(t, DesiredState{}, got)
+}
+
 func TestStoreLoadCorruptJSONReturnsError(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "broken.json"), []byte(`{"no":`), 0o600))

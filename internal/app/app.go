@@ -10,6 +10,7 @@ import (
 	accessgateway "github.com/WuKongIM/WuKongIM/internal/access/gateway"
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
+	accessplugin "github.com/WuKongIM/WuKongIM/internal/access/plugin"
 	applifecycle "github.com/WuKongIM/WuKongIM/internal/app/lifecycle"
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
@@ -17,12 +18,14 @@ import (
 	appretention "github.com/WuKongIM/WuKongIM/internal/runtime/channelretention"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	runtimeplugin "github.com/WuKongIM/WuKongIM/internal/runtime/plugin"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	userusecase "github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -69,6 +72,9 @@ type App struct {
 	channelMigrationLifecycle *channelMigrationLifecycle
 	channelRetentionWorker    *appretention.Worker
 	messageApp                *message.App
+	pluginRuntime             *runtimeplugin.Runtime
+	pluginApp                 *pluginusecase.App
+	pluginAccess              *accessplugin.Server
 	managementApp             *managementusecase.App
 	conversationActiveHints   *conversationusecase.ActiveHintCache
 	conversationProjector     conversationusecase.Projector
@@ -112,6 +118,7 @@ type App struct {
 	committedReplayOn        atomic.Bool
 	channelMigrationOn       atomic.Bool
 	channelRetentionOn       atomic.Bool
+	pluginOn                 atomic.Bool
 	apiOn                    atomic.Bool
 	managerOn                atomic.Bool
 	gatewayOn                atomic.Bool
@@ -127,6 +134,7 @@ type App struct {
 	startCommittedReplayFn         func(context.Context) error
 	startChannelMigrationFn        func(context.Context) error
 	startChannelRetentionFn        func(context.Context) error
+	startPluginFn                  func(context.Context) error
 	startAPIFn                     func() error
 	startManagerFn                 func() error
 	startGatewayFn                 func() error
@@ -143,6 +151,7 @@ type App struct {
 	stopCommittedReplayFn          func(context.Context) error
 	stopChannelMigrationFn         func(context.Context) error
 	stopChannelRetentionFn         func(context.Context) error
+	stopPluginFn                   func(context.Context) error
 	stopPresenceFn                 func() error
 	stopChannelMetaSyncFn          func() error
 	stopClusterFn                  func()

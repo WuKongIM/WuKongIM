@@ -20,6 +20,7 @@
 - 投递（Delivery）
 - 会话同步（Conversation）
 - CMD 离线同步（CMD Sync）
+- 插件运行时与 PDK host RPC 适配
 - HTTP API 接入
 - 节点间 RPC 协议
 
@@ -77,6 +78,7 @@
 | `manager.Server` | `access/manager/server.go` | 后台管理 HTTP API：JWT、权限适配、集群/业务管理 DTO |
 | `node.Client` | `access/node/options.go` | 节点间 RPC 客户端 |
 | `node.Adapter` | `access/node/options.go` | 节点间 RPC 服务端 |
+| `plugin.Server` | `access/plugin/server.go` | PDK host RPC：将插件进程 wkrpc 调用适配到插件用例 |
 
 #### 用例层（Usecase）
 | 组件 | 文件 | 职责 |
@@ -89,6 +91,7 @@
 | `channel.App` | `usecase/channel/app.go` | 频道业务用例：资料、订阅者、白名单、黑名单 |
 | `cmdsync.App` | `usecase/cmdsync/app.go` | CMD 同步用例：合并 pending overlay、读取 command-channel log、生成 sync records、处理 syncack |
 | `cmdsync.ConversationUpdater` | `usecase/cmdsync/pending.go` | UID-owner pending CMD conversation intent 缓冲、flush 与 graceful-stop 恢复 |
+| `plugin.App` | `usecase/plugin/app.go` | 插件用例：生命周期登记、配置、绑定、host RPC 和 Send/PersistAfter/Receive hook 编排 |
 | `management.App` | `usecase/management/app.go` | 后台管理聚合用例：节点、用户、系统 UID、频道业务、诊断 DTO |
 
 #### 运行时层（Runtime）
@@ -99,6 +102,7 @@
 | `online.MemoryRegistry` | `runtime/online/registry.go` | 在线注册表：按 SessionID/UID/SlotID 索引 |
 | `channelmeta` | `runtime/channelmeta/` | Channel 元数据：resolver、缓存、lease、repair |
 | `messageid` | `runtime/messageid/` | Snowflake 分布式 ID 生成 |
+| `plugin.Runtime` | `runtime/plugin/lifecycle.go` | 节点内插件进程、Unix socket、热重载和期望状态运行时 |
 
 #### 事件合约（Contracts）
 | 组件 | 文件 | 职责 |
@@ -238,8 +242,9 @@ online.Registry.Connection(sessionID)
    ├─ CommittedReplay（从 Channel Log 补偿已提交事件）
    ├─ ChannelMigration（执行权威迁移任务）
    ├─ ChannelRetention（按权威元数据推进频道消息保留边界）
+   ├─ Plugin（可选：节点内 runtime/usecase/host RPC，并订阅 committed PersistAfter）
    ├─ Message（消息用例）
-   └─ Node Access（RPC Handler，含 CMD sync 与 CMD intent UID-owner 转发）
+   └─ Node Access（RPC Handler，含 CMD sync、CMD intent UID-owner 转发与 plugin committed 转发）
 
 6. 创建接入层
    ├─ API Server（可选）
@@ -339,7 +344,7 @@ message.App.Send(ctx, cmd)
 request-scoped durable CMD：用 RequestSubscribers 构建 CMD conversation intent，并按 UID owner 路由到 pending updater
       ↓
 dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted)
-  ├─ committedFanout（仅提交到 asyncCommittedDispatcher）
+  ├─ committedFanout（提交到 asyncCommittedDispatcher；插件启用时额外提交到 pluginCommittedRouter）
   └─ asyncCommittedDispatcher
       ├─ 按 ChannelID + ChannelType 选择固定分片队列
       ├─ 队列满时不失败 Send，改走 best-effort conversation fallback
@@ -569,6 +574,7 @@ handleRecvAck(ctx, pkt)
 | `delivery_push` | → remote | `access/node/delivery_push_rpc.go` | 批量推送一个 committed message 的多条 route 到目标节点在线 Session，兼容 legacy 单 item |
 | `delivery_ack` | → remote | `access/node/delivery_ack_rpc.go` | 转发 RecvAck 到投递所在节点 |
 | `delivery_offline` | → remote | `access/node/delivery_offline_rpc.go` | 通知离线消息处理 |
+| `plugin_committed` | → channel owner | `access/node/plugin_committed_rpc.go` | 转发已提交消息的插件 PersistAfter 副作用到 Channel owner 节点 |
 | `presence` | → slot leader | `access/node/presence_rpc.go` | 权威路由注册/注销/心跳 |
 | `conversation_facts` | → channel leader | `access/node/conversation_facts_rpc.go` | 远程加载会话最新/最近消息 |
 | `channel_append` | → channel leader | `access/node/channel_append_rpc.go` | 非 Leader 副本转发 Durable Append |
@@ -610,7 +616,7 @@ handleRecvAck(ctx, pkt)
 ## 7. 避坑清单
 
 ### 🔴 启动与停止
-- **启动顺序严格**: 按 Cluster → WaitReady → ChannelMetaSync → Presence → Conversation → CMDConversationUpdater → DeliveryRuntime → CommittedDispatcher → CommittedReplay → ChannelMigration → ChannelRetention → Gateway → API → Manager 顺序启动，任一步骤失败会按启动逆序停止；CMDConversationUpdater 早于 DeliveryRuntime 启动，因此停止时会在 DeliveryRuntime drain 之后保存 pending
+- **启动顺序严格**: 按 Cluster → WaitReady → ChannelMetaSync → Presence → Conversation → CMDConversationUpdater → DeliveryRuntime → CommittedDispatcher → CommittedReplay → ChannelMigration → ChannelRetention → PluginRuntime（可选）→ Gateway → API → Manager 顺序启动，任一步骤失败会按启动逆序停止；CMDConversationUpdater 早于 DeliveryRuntime 启动，因此停止时会在 DeliveryRuntime drain 之后保存 pending
 - **停止顺序相反**: 先停 Manager/API/Gateway（停止接入新请求），再停业务层，最后停 Cluster 和关闭数据库
 - **stopOnce 保证幂等**: 多次调用 Stop() 只执行一次
 
@@ -660,7 +666,7 @@ handleRecvAck(ctx, pkt)
 - **Refresh 热路径只读 node liveness cache**: `RefreshChannelMeta()` 不会每次都直接查 controller，先看本地 `nodeLiveness` cache
 
 ### 🔴 已提交消息分发
-- **committedFanout + asyncCommittedDispatcher 的 owner routing**: message 用例只发布 `messageevents.MessageCommitted`，`asyncCommittedDispatcher` 用有界分片队列分发，并按 Channel owner/leader 路由已提交消息的 delivery / conversation 副作用。
+- **committedFanout + owner routing**: message 用例只发布 `messageevents.MessageCommitted`；`asyncCommittedDispatcher` 用有界分片队列分发 delivery / conversation 副作用，`pluginCommittedRouter`（插件启用时）通过独立 node RPC 将 PersistAfter 副作用路由到 Channel owner 节点；committed replay 不触发插件副作用。
 - **committed dispatcher 溢出不影响 durable send**: 队列满只记录指标并触发 best-effort conversation fallback，Sendack 仍只由 Channel Log quorum commit 决定。
 - **committed dispatcher 停止依赖 replay 补偿**: 停止时不再接收新队列任务，未启动/停止中的提交返回内部错误供调用方记录；队列内未处理实时投递可被丢弃并由 committed_replay 兜底补发。
 - **committed_replay 是补偿路径，不阻塞 Sendack**: Sendack 仍只等待 Channel Log quorum commit；后台 replayer 以 Channel Log 为真相，用批量 cursor 兜底补发 delivery / conversation，active hint 是可丢弃的 best-effort 路径。

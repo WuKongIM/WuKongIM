@@ -387,6 +387,11 @@ func build(cfg Config) (_ *App, err error) {
 	)
 	app.nodeClient = accessnode.NewClient(app.cluster)
 	app.channelLog.remoteAppender = app.nodeClient
+	if cfg.Plugin.Enable {
+		if err := app.buildPluginSubsystem(cfg); err != nil {
+			return nil, fmt.Errorf("app: create plugin subsystem: %w", err)
+		}
+	}
 	app.cmdConversationUpdater = cmdsync.NewConversationUpdater(cmdsync.ConversationUpdaterOptions{
 		Store:          app.store,
 		DataDir:        cfg.Node.DataDir,
@@ -606,7 +611,18 @@ func build(cfg Config) (_ *App, err error) {
 		NodeClient:   app.nodeClient,
 		Metrics:      messageMetrics,
 	})
-	committedDispatcher := committedFanout{subscribers: []committedSubscriber{app.committedDispatcher}}
+	deliverySubmitDispatcher := committedFanout{subscribers: []committedSubscriber{app.committedDispatcher}}
+	committedSubscribers := []committedSubscriber{app.committedDispatcher}
+	if app.pluginApp != nil {
+		committedSubscribers = append(committedSubscribers, pluginCommittedRouter{
+			localNodeID:   cfg.Node.ID,
+			channelLog:    app.channelLog,
+			nodeClient:    app.nodeClient,
+			pluginUsecase: app.pluginApp,
+			logger:        app.logger.Named("plugin.committed"),
+		})
+	}
+	committedDispatcher := committedFanout{subscribers: committedSubscribers}
 	app.committedReplayer = newCommittedReplayer(committedReplayerConfig{
 		Log: channelStoreCommittedReplayLog{
 			engine:      app.channelLogDB,
@@ -652,7 +668,7 @@ func build(cfg Config) (_ *App, err error) {
 		ChannelLog:            app.channelLog,
 		ChannelLogDB:          app.channelLogDB,
 		ChannelMeta:           app.channelMetaSync,
-		DeliverySubmit:        deliveryRuntimeCommittedSubmitter{target: committedDispatcher},
+		DeliverySubmit:        deliveryRuntimeCommittedSubmitter{target: deliverySubmitDispatcher},
 		DeliveryAck:           app.deliveryApp,
 		DeliveryOffline:       app.deliveryApp,
 		DeliveryTag:           deliveryTagAuthority{tags: deliveryTagManager},
@@ -671,8 +687,11 @@ func build(cfg Config) (_ *App, err error) {
 			cluster:     app.cluster,
 			localNodeID: cfg.Node.ID,
 		},
-		SystemUIDCache: userApp,
-		Logger:         app.logger.Named("access.node"),
+		SystemUIDCache:   userApp,
+		PluginHTTPRoutes: app.pluginApp,
+		PluginManagement: app.pluginApp,
+		PluginCommitted:  app.pluginApp,
+		Logger:           app.logger.Named("access.node"),
 	})
 	app.messageApp = message.New(message.Options{
 		IdentityStore:          app.store,
@@ -712,6 +731,16 @@ func build(cfg Config) (_ *App, err error) {
 		Logger:      app.logger.Named("message"),
 	})
 	if cfg.Manager.ListenAddr != "" {
+		var pluginNodes managementusecase.PluginNodeClient
+		var pluginBindings managementusecase.PluginBindingUsecase
+		if app.pluginApp != nil {
+			pluginNodes = pluginManagementNodeClient{
+				localNodeID: cfg.Node.ID,
+				local:       app.pluginApp,
+				remote:      app.nodeClient,
+			}
+			pluginBindings = app.pluginApp
+		}
 		app.managementApp = managementusecase.New(managementusecase.Options{
 			LocalNodeID:       cfg.Node.ID,
 			ControllerPeerIDs: controllerPeerIDs(cfg.Cluster.DerivedControllerNodes(), cfg.Cluster.runtimeSeeds()),
@@ -764,6 +793,8 @@ func build(cfg Config) (_ *App, err error) {
 				metas:       app.store,
 				remote:      app.nodeClient,
 			},
+			Plugins:        pluginNodes,
+			PluginBindings: pluginBindings,
 		})
 		app.manager = accessmanager.New(accessmanager.Options{
 			ListenAddr: cfg.Manager.ListenAddr,
@@ -824,6 +855,7 @@ func build(cfg Config) (_ *App, err error) {
 			DebugCluster:             app.debugClusterSnapshot,
 			DiagnosticsDebugEnabled:  cfg.Observability.Diagnostics.Enabled && cfg.Observability.Diagnostics.DebugAPIEnabled,
 			Diagnostics:              app,
+			PluginRoutes:             app.pluginApp,
 			LegacyRouteExternal:      legacyRouteExternal,
 			LegacyRouteIntranet:      legacyRouteIntranet,
 			LegacyRouteNodes:         legacyRouteNodes,

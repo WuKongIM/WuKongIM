@@ -123,6 +123,23 @@ func (s *Store) Load(no string) (DesiredState, error) {
 	return state, nil
 }
 
+// Delete removes desired state for no. Missing files are treated as already deleted.
+func (s *Store) Delete(no string) error {
+	if err := validatePluginNo(no); err != nil {
+		return err
+	}
+	if err := os.Remove(s.pathFor(no)); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("delete plugin desired state %q: %w", no, err)
+	}
+	if err := syncParentDirAfterRename(s.dir); err != nil {
+		return fmt.Errorf("sync plugin desired state dir %q: %w", s.dir, err)
+	}
+	return nil
+}
+
 func (s *Store) pathFor(no string) string {
 	return filepath.Join(s.dir, no+".json")
 }

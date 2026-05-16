@@ -8,6 +8,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 // Runtime exposes node-local plugin observations and process lifecycle controls.
@@ -144,4 +145,6 @@ type Options struct {
 	NodeID uint64
 	// Clock supplies timestamps for deterministic tests.
 	Clock func() time.Time
+	// Logger records non-fatal plugin hook failures and diagnostics.
+	Logger wklog.Logger
 }
