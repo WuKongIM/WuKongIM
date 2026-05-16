@@ -74,10 +74,10 @@
 |------|------|------|
 | `gateway.Gateway` | `gateway/gateway.go` | 网关：管理 Transport/Protocol/Session，双向实时通信 |
 | `gateway.Handler` | `access/gateway/handler.go` | 网关桥接：将 Frame 路由到 Usecase 层 |
-| `api.Server` | `access/api/server.go` | HTTP API：消息发送、频道同步、Token、会话同步、CMD 离线同步 |
-| `manager.Server` | `access/manager/server.go` | 后台管理 HTTP API：JWT、权限适配、集群/业务管理 DTO |
+| `api.Server` | `access/api/server.go` | HTTP API：消息发送、频道同步、Token、会话同步、CMD 离线同步、插件公开路由 |
+| `manager.Server` | `access/manager/server.go` | 后台管理 HTTP API：JWT、权限适配、集群/业务/插件管理 DTO |
 | `node.Client` | `access/node/options.go` | 节点间 RPC 客户端 |
-| `node.Adapter` | `access/node/options.go` | 节点间 RPC 服务端 |
+| `node.Adapter` | `access/node/options.go` | 节点间 RPC 服务端，包含插件 HTTP route / 管理 / committed side-effect 转发 |
 | `plugin.Server` | `access/plugin/server.go` | PDK host RPC：将插件进程 wkrpc 调用适配到插件用例 |
 
 #### 用例层（Usecase）
@@ -232,6 +232,7 @@ online.Registry.Connection(sessionID)
 
 5. 创建业务组件
    ├─ Store（元数据存储）
+   ├─ Plugin（可选：节点内 runtime/usecase/host RPC；此时先构建能力，后续注入 Send/PersistAfter/Receive hook）
    ├─ ConversationActiveHintCache（UID-owner active_at 热提示覆盖层）
    ├─ Conversation（会话投影器）
    ├─ CMDSync（CMD 离线同步用例 + pending conversation updater / intent router）
@@ -242,9 +243,8 @@ online.Registry.Connection(sessionID)
    ├─ CommittedReplay（从 Channel Log 补偿已提交事件）
    ├─ ChannelMigration（执行权威迁移任务）
    ├─ ChannelRetention（按权威元数据推进频道消息保留边界）
-   ├─ Plugin（可选：节点内 runtime/usecase/host RPC，并订阅 committed PersistAfter）
    ├─ Message（消息用例）
-   └─ Node Access（RPC Handler，含 CMD sync、CMD intent UID-owner 转发与 plugin committed 转发）
+   └─ Node Access（RPC Handler，含 CMD sync、CMD intent UID-owner 转发与 plugin HTTP/management/committed 转发）
 
 6. 创建接入层
    ├─ API Server（可选）
@@ -263,14 +263,15 @@ online.Registry.Connection(sessionID)
 5. conversation_active_hints
 6. conversation_projector
 7. cmd_conversation_updater
-8. delivery_runtime
-9. committed_dispatcher
-10. committed_replay
-11. channel_migration
-12. channel_retention
-13. gateway
-14. api
-15. manager
+8. plugin_runtime（可选；先于 delivery/committed 相关组件，保证 hook 运行期可用）
+9. delivery_runtime
+10. committed_dispatcher
+11. committed_replay
+12. channel_migration
+13. channel_retention
+14. gateway
+15. api
+16. manager
 ```
 
 ### 4.2 停止流程
@@ -287,22 +288,23 @@ online.Registry.Connection(sessionID)
 6. committed_replay
 7. committed_dispatcher
 8. delivery_runtime
-9. cmd_conversation_updater
-10. conversation_projector
-11. conversation_active_hints
-12. presence
-13. channelmeta（StopWithoutCleanup）
-14. managed_slots_ready（no-op）
-15. cluster
+9. plugin_runtime（先停 Receive observer，再停插件进程运行时）
+10. cmd_conversation_updater
+11. conversation_projector
+12. conversation_active_hints
+13. presence
+14. channelmeta（StopWithoutCleanup）
+15. managed_slots_ready（no-op）
+16. cluster
 
 然后关闭资源:
-16. channelLog.Close
-17. dataPlaneClient.Stop
-18. dataPlanePool.Close
-19. channelLogDB.Close
-20. raftDB.Close
-21. metadb.Close
-22. syncLogger
+17. channelLog.Close
+18. dataPlaneClient.Stop
+19. dataPlanePool.Close
+20. channelLogDB.Close
+21. raftDB.Close
+22. metadb.Close
+23. syncLogger
 ```
 
 ### 4.3 消息发送流程
@@ -328,6 +330,7 @@ message.App.Send(ctx, cmd)
   ├─ CMD 输入先还原 source channel；已寻址到 `source____cmd` 的输入不重复追加后缀
   ├─ Person / Agent 频道规范化
   ├─ 发送前权限与频道状态校验（业务权限按 source channel；Visitors 非本人使用 CustomerService 维度）
+  ├─ 插件启用时调用 SendHook（按优先级运行本地 Send 插件，可变更 payload/headers 或返回 reason 拒绝）
   ├─ NoPersist 分支
   │   ├─ command-style（SyncOnce 或已寻址 CMD）分配 transient message ID，MessageSeq=0，通过 SubmitRealtime 投递，不写 Channel Log
   │   └─ 非 command-style 返回 ReasonSuccess，不写 Channel Log，也不做 realtime 投递
@@ -394,7 +397,8 @@ Actor 状态机:
   ├─ Resolve 阶段
   │   ├─ Channel Leader 使用 deliverytag.Manager 构建/刷新订阅者分区 tag
   │   ├─ 非 Leader 通过 delivery_tag RPC 获取本节点分区并本地缓存
-  │   └─ Resolver.ResolvePage 只展开当前 tag 分区内的在线端点并记录 resolve 指标
+  │   ├─ Resolver.ResolvePage 只展开当前 tag 分区内的在线端点并记录 resolve 指标
+  │   └─ 插件启用时，离线 UID 在 presence 分类后分页通知 Receive observer，避免大群全量离线 UID 一次性物化
   │
   ├─ Push 阶段
   │   ├─ 本地端点: localDeliveryPush → Session.WriteFrame
@@ -419,7 +423,8 @@ Actor 状态机:
   │   └─ 依赖 Channel Log / committed_replay / 客户端同步做 durable catch-up
   │
   └─ 离线处理
-      └─ SessionClosed → actor.handleRouteOffline
+      ├─ SessionClosed → actor.handleRouteOffline
+      └─ plugin Receive observer 通过有界 worker/queue 调用绑定 UID 的最高优先级本地 Receive 插件；队列满时反压 delivery，避免静默丢 hook 或创建无界 goroutine
 ```
 
 ### 4.5 在线状态流程
@@ -574,6 +579,8 @@ handleRecvAck(ctx, pkt)
 | `delivery_push` | → remote | `access/node/delivery_push_rpc.go` | 批量推送一个 committed message 的多条 route 到目标节点在线 Session，兼容 legacy 单 item |
 | `delivery_ack` | → remote | `access/node/delivery_ack_rpc.go` | 转发 RecvAck 到投递所在节点 |
 | `delivery_offline` | → remote | `access/node/delivery_offline_rpc.go` | 通知离线消息处理 |
+| `plugin_http_forward` | → plugin owner node | `access/node/plugin_http_forward_rpc.go` | 转发公开 `/plugins/:plugin/*path` 请求到插件所在节点 |
+| `plugin_management` | → target node | `access/node/plugin_management_rpc.go` | 管理端跨节点查询/更新/重启/卸载节点本地插件 |
 | `plugin_committed` | → channel owner | `access/node/plugin_committed_rpc.go` | 转发已提交消息的插件 PersistAfter 副作用到 Channel owner 节点 |
 | `presence` | → slot leader | `access/node/presence_rpc.go` | 权威路由注册/注销/心跳 |
 | `conversation_facts` | → channel leader | `access/node/conversation_facts_rpc.go` | 远程加载会话最新/最近消息 |
@@ -616,7 +623,7 @@ handleRecvAck(ctx, pkt)
 ## 7. 避坑清单
 
 ### 🔴 启动与停止
-- **启动顺序严格**: 按 Cluster → WaitReady → ChannelMetaSync → Presence → Conversation → CMDConversationUpdater → DeliveryRuntime → CommittedDispatcher → CommittedReplay → ChannelMigration → ChannelRetention → PluginRuntime（可选）→ Gateway → API → Manager 顺序启动，任一步骤失败会按启动逆序停止；CMDConversationUpdater 早于 DeliveryRuntime 启动，因此停止时会在 DeliveryRuntime drain 之后保存 pending
+- **启动顺序严格**: 按 Cluster → WaitReady → ChannelMetaSync → Presence → Conversation → CMDConversationUpdater → PluginRuntime（可选）→ DeliveryRuntime → CommittedDispatcher → CommittedReplay → ChannelMigration → ChannelRetention → Gateway → API → Manager 顺序启动，任一步骤失败会按启动逆序停止；PluginRuntime 早于 DeliveryRuntime/CommittedReplay 启动且晚于它们停止，保证 Send/PersistAfter/Receive hook 的运行期边界清晰；CMDConversationUpdater 早于 DeliveryRuntime 启动，因此停止时会在 DeliveryRuntime drain 之后保存 pending
 - **停止顺序相反**: 先停 Manager/API/Gateway（停止接入新请求），再停业务层，最后停 Cluster 和关闭数据库
 - **stopOnce 保证幂等**: 多次调用 Stop() 只执行一次
 
@@ -673,6 +680,11 @@ handleRecvAck(ctx, pkt)
 - **性能指标走窄接口注入**: message append、meta refresh、dispatch queue、delivery resolve/push、runtime gauge 和 replay lag 由 `internal/app` 组合根接入 `pkg/metrics`，低层包不直接依赖具体 metrics registry。
 - **诊断 trace 只走窄链路**: access/gateway 与 access/api 负责创建或校验节点内 diagnostics trace context；`message.SendCommand.TraceID` 把它传到 message 用例和 channel append；gateway send/sendack 与 durable send 的 `pkg/observability/sendtrace` 事件携带 diagnostics-safe `channel_key`，支持按频道 debug match 采样；`internal/app` 组合根负责安装 diagnostics store 的 sendtrace sink 并在 Stop 时恢复。
 
+### 🔴 插件子系统
+- **默认关闭**: `WK_PLUGIN_ENABLE=false` 时不构建 plugin runtime/usecase/access，也不收集 offline Receive UID；单节点集群也不绕过节点间 owner routing 语义。
+- **hook 注入点明确**: SendHook 注入 message usecase；PersistAfter 只在 committed owner 上执行，远端通过 `plugin_committed` RPC 路由；Receive 只对 durable、非 request-scoped、非 SyncOnce、非 NoPersist 的离线收件人执行。
+- **Receive 有界反压**: offline UID 按 resolver page 通知，observer 使用有界 worker/queue；满载时反压 delivery，不静默丢 eligible hook，也不创建无界 goroutine。
+
 ---
 
 ## 8. 测试说明
@@ -698,4 +710,4 @@ GOWORK=off go test ./internal -run TestInternalImportBoundaries -count=1
 ---
 
 **文档版本**: v2.1
-**最后更新**: 2026-05-13
+**最后更新**: 2026-05-16

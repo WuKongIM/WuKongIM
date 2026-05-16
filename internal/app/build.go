@@ -726,6 +726,7 @@ func build(cfg Config) (_ *App, err error) {
 		CommittedDispatcher:    committedDispatcher,
 		CMDConversationIntents: cmdIntentRouter,
 		RealtimeDispatcher:     app.deliveryApp,
+		SendHook:               app.pluginApp,
 		MessageIDs:             messageIDs,
 		DeliveryAck: ackRouting{
 			localNodeID: cfg.Node.ID,
