@@ -1,6 +1,6 @@
 import { Activity, ShieldCheck } from "lucide-react"
 import { useIntl } from "react-intl"
-import { NavLink, useLocation } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 
 import { useAuthStore } from "@/auth/auth-store"
 import { LocaleSwitcher } from "@/components/i18n/locale-switcher"
@@ -47,7 +47,7 @@ export function Topbar() {
             {navigationSections.map((section) => {
               const active = section.id === activeSection.id
               return (
-                <NavLink
+                <Link
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm",
@@ -59,7 +59,7 @@ export function Topbar() {
                   to={section.href}
                 >
                   {intl.formatMessage({ id: section.titleMessageId })}
-                </NavLink>
+                </Link>
               )
             })}
           </nav>

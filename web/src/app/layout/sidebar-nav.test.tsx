@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import { RouterProvider, createMemoryRouter } from "react-router-dom"
 import { beforeEach } from "vitest"
 
@@ -95,4 +95,33 @@ test("renders Chinese navigation labels and cluster context", async () => {
   expect(await screen.findByRole("link", { name: "节点" })).toHaveAttribute("aria-current", "page")
   expect(screen.getAllByText("集群运维").length).toBeGreaterThan(0)
   expect(screen.getByText("单节点集群")).toBeInTheDocument()
+})
+
+
+test("shows cluster dashboard first in the cluster section", async () => {
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/dashboard"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  const nav = await screen.findByRole("navigation", { name: "Primary navigation" })
+  const links = within(nav).getAllByRole("link").map((link) => link.textContent)
+  expect(links.slice(0, 3)).toEqual(["Dashboard", "Nodes", "Slots"])
+})
+
+test("shows business dashboard and live monitor first in the business section", async () => {
+  const router = createMemoryRouter(routes, { initialEntries: ["/business/dashboard"] })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  const nav = await screen.findByRole("navigation", { name: "Primary navigation" })
+  const links = within(nav).getAllByRole("link").map((link) => link.textContent)
+  expect(links.slice(0, 3)).toEqual(["Dashboard", "Live Monitor", "Users"])
 })

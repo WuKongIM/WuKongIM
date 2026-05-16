@@ -9,9 +9,8 @@ import {
 } from "@/lib/navigation"
 
 describe("navigationSections", () => {
-  test("defines the four redesigned top-level sections", () => {
+  test("defines the three section-specific top-level sections", () => {
     expect(navigationSections.map((section) => section.id)).toEqual([
-      "overview",
       "cluster",
       "business",
       "system",
@@ -19,18 +18,27 @@ describe("navigationSections", () => {
   })
 
   test("selects the active section from new nested routes", () => {
+    expect(getActiveNavigationSection("/cluster/dashboard")?.id).toBe("cluster")
     expect(getActiveNavigationSection("/cluster/nodes")?.id).toBe("cluster")
+    expect(getActiveNavigationSection("/business/dashboard")?.id).toBe("business")
+    expect(getActiveNavigationSection("/business/monitor")?.id).toBe("business")
     expect(getActiveNavigationSection("/business/messages")?.id).toBe("business")
     expect(getActiveNavigationSection("/business/conversations")?.id).toBe("business")
     expect(getActiveNavigationSection("/system/connections")?.id).toBe("system")
   })
 
   test("exposes metadata and path label message ids for page headers", () => {
+    expect(pageMetadata.get("/cluster/dashboard")?.titleMessageId).toBe("nav.clusterDashboard.title")
+    expect(pageMetadata.get("/cluster/dashboard")?.pathLabelMessageId).toBe("nav.path.cluster.dashboard")
+    expect(pageMetadata.get("/business/dashboard")?.titleMessageId).toBe("nav.businessDashboard.title")
+    expect(pageMetadata.get("/business/monitor")?.titleMessageId).toBe("nav.monitor.title")
     expect(pageMetadata.get("/cluster/nodes")?.titleMessageId).toBe("nav.nodes.title")
     expect(getActiveNavigationItem("/cluster/nodes")?.pathLabelMessageId).toBe("nav.path.cluster.nodes")
   })
 
   test("maps legacy routes to new routes", () => {
+    expect(legacyRouteRedirects["/dashboard"]).toBe("/cluster/dashboard")
+    expect(legacyRouteRedirects["/monitor"]).toBe("/business/monitor")
     expect(legacyRouteRedirects["/channel-cluster/list"]).toBe("/cluster/channels?tab=list")
     expect(legacyRouteRedirects["/connections"]).toBe("/system/connections")
     expect(legacyRouteRedirects["/conversations"]).toBe("/business/conversations")
