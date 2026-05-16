@@ -5,8 +5,6 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    environment:
-      WK_LOG_LEVEL: debug
     volumes:
       - ./docker/conf/node1.conf:/etc/wukongim/wukongim.conf:ro
       - ./docker/dev-cluster/node1:/var/lib/wukongim
@@ -22,8 +20,6 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    environment:
-      WK_LOG_LEVEL: debug
     volumes:
       - ./docker/conf/node2.conf:/etc/wukongim/wukongim.conf:ro
       - ./docker/dev-cluster/node2:/var/lib/wukongim
@@ -39,8 +35,6 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    environment:
-      WK_LOG_LEVEL: debug
     volumes:
       - ./docker/conf/node3.conf:/etc/wukongim/wukongim.conf:ro
       - ./docker/dev-cluster/node3:/var/lib/wukongim

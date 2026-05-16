@@ -273,7 +273,7 @@ test("builds related slot log and connection links", async () => {
   )
   expect(screen.getByRole("link", { name: "Connections on node 2" })).toHaveAttribute(
     "href",
-    "/system/connections?node_id=2",
+    "/business/connections?node_id=2",
   )
   expect(screen.getByRole("link", { name: "Nodes" })).toHaveAttribute("href", "/cluster/nodes")
 })

@@ -61,6 +61,7 @@ export const enMessages: AppMessages = {
   "nav.path.business.messages": "BUSINESS / MESSAGES",
   "nav.path.business.conversations": "BUSINESS / CONVERSATIONS",
   "nav.path.business.systemUsers": "BUSINESS / SYSTEM USERS",
+  "nav.path.business.connections": "BUSINESS / CONNECTIONS",
   "nav.path.system.permissions": "SYSTEM / PERMISSIONS",
   "nav.path.system.webhooks": "SYSTEM / WEBHOOKS",
   "nav.path.system.connections": "SYSTEM / CONNECTIONS",
