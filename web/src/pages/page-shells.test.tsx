@@ -356,8 +356,8 @@ beforeEach(() => {
 it.each([
   ["/dashboard", "Dashboard", "Topology snapshot"],
   ["/monitor", "Live Monitor", "Message Flow"],
-  ["/cluster/nodes", "Nodes", "Address"],
-  ["/cluster/slots", "Slots", "Slot"],
+  ["/cluster/nodes", "Nodes", "Node Cluster Overview"],
+  ["/cluster/slots", "Slots", "Slot Cluster Overview"],
   ["/cluster/channels", "Channel Cluster", "Channel Cluster Overview"],
   ["/cluster/tasks", "Distributed Tasks", "Task queue"],
   ["/cluster/topology", "Topology", "Topology Summary"],
@@ -402,7 +402,7 @@ test("dashboard shows monochrome workbench sections", async () => {
 
 it.each([
   ["/cluster/nodes", "CLUSTER / NODES"],
-  ["/cluster/slots", "Slot"],
+  ["/cluster/slots", "CLUSTER / SLOTS"],
   ["/cluster/channels", "CLUSTER / CHANNELS"],
   ["/cluster/tasks", "Task queue"],
   ["/cluster/topology", "CLUSTER / TOPOLOGY"],
@@ -430,7 +430,7 @@ it.each([
 it.each([
   ["/dashboard", "仪表盘", "拓扑快照"],
   ["/monitor", "实时监控", "消息流量"],
-  ["/cluster/nodes", "节点", "地址"],
+  ["/cluster/nodes", "节点", "节点集群总览"],
   ["/cluster/slots", "槽位", "槽位"],
   ["/cluster/channels", "频道集群", "频道集群总览"],
   ["/cluster/tasks", "分布式任务", "任务队列"],

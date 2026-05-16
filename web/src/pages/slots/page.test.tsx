@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
 
 import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
@@ -8,6 +9,7 @@ import { resetLocale } from "@/i18n/locale-store"
 import { ManagerApiError } from "@/lib/manager-api"
 import { SlotsPage } from "@/pages/slots/page"
 
+const getOverviewMock = vi.fn()
 const getSlotsMock = vi.fn()
 const getSlotMock = vi.fn()
 const getNodesMock = vi.fn()
@@ -21,6 +23,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
   return {
     ...actual,
+    getOverview: (...args: unknown[]) => getOverviewMock(...args),
     getSlots: (...args: unknown[]) => getSlotsMock(...args),
     getSlot: (...args: unknown[]) => getSlotMock(...args),
     getNodes: (...args: unknown[]) => getNodesMock(...args),
@@ -77,6 +80,7 @@ const slotDetail = {
 beforeEach(() => {
   localStorage.clear()
   resetLocale()
+  getOverviewMock.mockReset()
   getSlotsMock.mockReset()
   getSlotMock.mockReset()
   getNodesMock.mockReset()
@@ -101,6 +105,113 @@ beforeEach(() => {
     total: 1,
     items: [nodeRow],
   })
+  getOverviewMock.mockResolvedValue({
+    generated_at: "2026-04-23T08:00:00Z",
+    cluster: { controller_leader_id: 1 },
+    nodes: { total: 1, alive: 1, suspect: 0, dead: 0, draining: 0 },
+    slots: {
+      total: 1,
+      ready: 1,
+      quorum_lost: 0,
+      leader_missing: 0,
+      unreported: 0,
+      peer_mismatch: 0,
+      epoch_lag: 0,
+    },
+    tasks: { total: 0, pending: 0, retrying: 0, failed: 0 },
+    anomalies: {
+      slots: {
+        quorum_lost: { count: 0, items: [] },
+        leader_missing: { count: 0, items: [] },
+        sync_mismatch: { count: 0, items: [] },
+      },
+      tasks: {
+        failed: { count: 0, items: [] },
+        retrying: { count: 0, items: [] },
+      },
+    },
+  })
+})
+
+
+test("renders slot cluster tabs and defaults to overview", async () => {
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+
+  renderSlotsPage("/cluster/slots")
+
+  expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true")
+  expect(screen.getByRole("tab", { name: "List" })).toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "Unhealthy" })).toBeInTheDocument()
+  expect(await screen.findByText("Slot Cluster Overview")).toBeInTheDocument()
+  expect(await screen.findByText("Ready slots")).toBeInTheDocument()
+  expect(screen.queryByText("Slot 9")).not.toBeInTheDocument()
+})
+
+test("renders the slot list tab from the tab search param", async () => {
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+
+  renderSlotsPage("/cluster/slots?tab=list")
+
+  expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true")
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+})
+
+test("renders the unhealthy slot tab from the tab search param", async () => {
+  getOverviewMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:00Z",
+    cluster: { controller_leader_id: 1 },
+    nodes: { total: 1, alive: 1, suspect: 0, dead: 0, draining: 0 },
+    slots: {
+      total: 2,
+      ready: 1,
+      quorum_lost: 1,
+      leader_missing: 0,
+      unreported: 0,
+      peer_mismatch: 1,
+      epoch_lag: 0,
+    },
+    tasks: { total: 0, pending: 0, retrying: 0, failed: 0 },
+    anomalies: {
+      slots: {
+        quorum_lost: {
+          count: 1,
+          items: [{
+            slot_id: 9,
+            quorum: "quorum_lost",
+            sync: "peer_mismatch",
+            leader_id: 0,
+            desired_peers: [1, 2, 3],
+            current_peers: [1, 2],
+            last_report_at: "2026-04-23T08:00:00Z",
+          }],
+        },
+        leader_missing: { count: 0, items: [] },
+        sync_mismatch: { count: 0, items: [] },
+      },
+      tasks: {
+        failed: { count: 0, items: [] },
+        retrying: { count: 0, items: [] },
+      },
+    },
+  })
+
+  renderSlotsPage("/cluster/slots?tab=unhealthy")
+
+  expect(screen.getByRole("tab", { name: "Unhealthy" })).toHaveAttribute("aria-selected", "true")
+  expect(await screen.findByText("Unhealthy Slots")).toBeInTheDocument()
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
+})
+
+test("slot tab clicks update the selected tab", async () => {
+  getSlotsMock.mockResolvedValueOnce({ total: 1, items: [slotRow] })
+
+  const user = userEvent.setup()
+  renderSlotsPage("/cluster/slots")
+
+  await user.click(screen.getByRole("tab", { name: "List" }))
+
+  expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true")
+  expect(await screen.findByText("Slot 9")).toBeInTheDocument()
 })
 
 test("enables slot write actions for wildcard manager permissions", async () => {
@@ -158,10 +269,14 @@ test("adds a physical slot and opens the returned detail", async () => {
   expect(screen.getByText("Leader 0")).toBeInTheDocument()
 })
 
-function renderSlotsPage() {
+function renderSlotsPage(path = "/cluster/slots?tab=list") {
   return render(
     <I18nProvider>
-      <SlotsPage />
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/cluster/slots" element={<SlotsPage />} />
+        </Routes>
+      </MemoryRouter>
     </I18nProvider>,
   )
 }
@@ -177,7 +292,6 @@ test("uses compact slot page chrome without summary cards", async () => {
   expect(screen.getByRole("button", { name: "Add slot" })).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Rebalance slots" })).toBeInTheDocument()
   expect(screen.queryByText("Scope: all slots")).not.toBeInTheDocument()
-  expect(screen.queryByText("Slot distribution and runtime status.")).not.toBeInTheDocument()
   expect(screen.queryByText("Leader coverage")).not.toBeInTheDocument()
   expect(screen.queryByText("Slots currently reporting a leader.")).not.toBeInTheDocument()
   expect(screen.queryByText("Ready slots")).not.toBeInTheDocument()

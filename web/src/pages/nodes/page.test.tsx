@@ -297,7 +297,7 @@ beforeEach(() => {
   })
 })
 
-function renderNodesPage(path = "/cluster/nodes") {
+function renderNodesPage(path = "/cluster/nodes?tab=list") {
   return render(
     <I18nProvider>
       <MemoryRouter initialEntries={[path]}>
@@ -325,6 +325,86 @@ function getMetricCard(container: HTMLElement, label: string) {
 function expectMetricValue(container: HTMLElement, label: string, value: string) {
   expect(getMetricCard(container, label)).toHaveTextContent(value)
 }
+
+
+test("renders node cluster tabs and defaults to overview", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
+
+  renderNodesPage("/cluster/nodes")
+
+  expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true")
+  expect(screen.getByRole("tab", { name: "List" })).toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "Unhealthy" })).toBeInTheDocument()
+  expect(await screen.findByText("Node Cluster Overview")).toBeInTheDocument()
+  expect(await screen.findByText("Alive nodes")).toBeInTheDocument()
+  expect(screen.queryByText("127.0.0.1:7000")).not.toBeInTheDocument()
+})
+
+test("renders the node list tab from the tab search param", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
+
+  renderNodesPage("/cluster/nodes?tab=list")
+
+  expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true")
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+})
+
+test("renders the unhealthy node tab from the tab search param", async () => {
+  getNodesMock.mockResolvedValueOnce({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 2,
+    items: [nodeRow, {
+      ...drainingNodeRow,
+      node_id: 2,
+      name: "node-2",
+      addr: "127.0.0.1:7002",
+      status: "suspect",
+      health: { ...drainingNodeRow.health, status: "suspect" },
+      slots: {
+        replica_count: 3,
+        leader_count: 0,
+        follower_count: 3,
+        quorum_lost_count: 1,
+        unreported_count: 1,
+      },
+      runtime: { ...drainingNodeRow.runtime, unknown: true },
+    }],
+  })
+
+  renderNodesPage("/cluster/nodes?tab=unhealthy")
+
+  expect(screen.getByRole("tab", { name: "Unhealthy" })).toHaveAttribute("aria-selected", "true")
+  expect(await screen.findByText("Unhealthy Nodes")).toBeInTheDocument()
+  expect(await screen.findByText("127.0.0.1:7002")).toBeInTheDocument()
+})
+
+test("node tab clicks update the selected tab", async () => {
+  getNodesMock.mockResolvedValue({
+    generated_at: "2026-04-23T08:00:01Z",
+    controller_leader_id: 1,
+    total: 1,
+    items: [nodeRow],
+  })
+
+  const user = userEvent.setup()
+  renderNodesPage("/cluster/nodes")
+
+  await user.click(screen.getByRole("tab", { name: "List" }))
+
+  expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true")
+  expect(await screen.findByText("127.0.0.1:7000")).toBeInTheDocument()
+})
 
 test("omits distributed log health from the node list and detail", async () => {
   getNodesMock.mockResolvedValueOnce({
