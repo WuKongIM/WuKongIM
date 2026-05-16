@@ -31,7 +31,7 @@ export function PublicOnlyRoute({ children }: RouteGateProps) {
   }
 
   if (status === "authenticated") {
-    return <Navigate replace to="/dashboard" />
+    return <Navigate replace to="/cluster/dashboard" />
   }
 
   return <>{children}</>

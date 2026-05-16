@@ -48,7 +48,7 @@ test("renders brand, top sections, route metadata, and logged-in username", asyn
 
   const banner = screen.getByRole("banner")
   expect(within(banner).getByText("WUKONGIM")).toBeInTheDocument()
-  expect(within(banner).getByRole("link", { name: "Overview" })).toBeInTheDocument()
+  expect(within(banner).queryByRole("link", { name: "Overview" })).not.toBeInTheDocument()
   expect(within(banner).getByRole("link", { name: "Cluster Ops" })).toHaveAttribute("aria-current", "page")
   expect(within(banner).getByRole("link", { name: "Business" })).toBeInTheDocument()
   expect(within(banner).getByRole("link", { name: "System" })).toBeInTheDocument()

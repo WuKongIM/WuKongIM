@@ -16,7 +16,7 @@ import {
   Webhook,
 } from "lucide-react"
 
-export type NavigationSectionId = "overview" | "cluster" | "business" | "system"
+export type NavigationSectionId = "cluster" | "business" | "system"
 
 export type NavigationItem = {
   href: string
@@ -36,31 +36,18 @@ export type NavigationSection = {
 
 export const navigationSections: NavigationSection[] = [
   {
-    id: "overview",
-    href: "/dashboard",
-    titleMessageId: "nav.section.overview",
-    items: [
-      {
-        href: "/dashboard",
-        titleMessageId: "nav.dashboard.title",
-        descriptionMessageId: "nav.dashboard.description",
-        pathLabelMessageId: "nav.path.overview.dashboard",
-        icon: LayoutDashboard,
-      },
-      {
-        href: "/monitor",
-        titleMessageId: "nav.monitor.title",
-        descriptionMessageId: "nav.monitor.description",
-        pathLabelMessageId: "nav.path.overview.monitor",
-        icon: Activity,
-      },
-    ],
-  },
-  {
     id: "cluster",
-    href: "/cluster/nodes",
+    href: "/cluster/dashboard",
     titleMessageId: "nav.section.cluster",
     items: [
+      {
+        href: "/cluster/dashboard",
+        titleMessageId: "nav.clusterDashboard.title",
+        descriptionMessageId: "nav.clusterDashboard.description",
+        pathLabelMessageId: "nav.path.cluster.dashboard",
+        icon: LayoutDashboard,
+        aliases: ["/dashboard"],
+      },
       {
         href: "/cluster/nodes",
         titleMessageId: "nav.nodes.title",
@@ -113,9 +100,24 @@ export const navigationSections: NavigationSection[] = [
   },
   {
     id: "business",
-    href: "/business/users",
+    href: "/business/dashboard",
     titleMessageId: "nav.section.business",
     items: [
+      {
+        href: "/business/dashboard",
+        titleMessageId: "nav.businessDashboard.title",
+        descriptionMessageId: "nav.businessDashboard.description",
+        pathLabelMessageId: "nav.path.business.dashboard",
+        icon: LayoutDashboard,
+      },
+      {
+        href: "/business/monitor",
+        titleMessageId: "nav.monitor.title",
+        descriptionMessageId: "nav.monitor.description",
+        pathLabelMessageId: "nav.path.business.monitor",
+        icon: Activity,
+        aliases: ["/monitor"],
+      },
       {
         href: "/business/users",
         titleMessageId: "nav.users.title",
@@ -198,6 +200,8 @@ export const pageMetadata = new Map(
 )
 
 export const legacyRouteRedirects: Record<string, string> = {
+  "/dashboard": "/cluster/dashboard",
+  "/monitor": "/business/monitor",
   "/nodes": "/cluster/nodes",
   "/onboarding": "/cluster/nodes?panel=onboarding",
   "/slots": "/cluster/slots",
@@ -226,7 +230,7 @@ function matchesItem(pathname: string, item: NavigationItem) {
 }
 
 export function getActiveNavigationItem(pathname: string) {
-  return navigationItems.find((item) => matchesItem(pathname, item)) ?? pageMetadata.get("/dashboard")
+  return navigationItems.find((item) => matchesItem(pathname, item)) ?? pageMetadata.get("/cluster/dashboard")
 }
 
 export function getActiveNavigationSection(pathname: string) {

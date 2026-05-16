@@ -2,12 +2,13 @@ import { Navigate, createBrowserRouter, useLocation, type RouteObject } from "re
 
 import { AppShell } from "@/app/layout/app-shell"
 import { ProtectedRoute, PublicOnlyRoute } from "@/auth/protected-route"
+import { BusinessDashboardPage } from "@/pages/business-dashboard/page"
 import { ChannelsBizPage } from "@/pages/channels-biz/page"
 import { ClusterChannelsPage } from "@/pages/cluster/channels/page"
 import { ClusterDiagnosticsPage } from "@/pages/cluster/diagnostics/page"
 import { ConnectionsPage } from "@/pages/connections/page"
 import { ConversationsPage } from "@/pages/conversations/page"
-import { DashboardPage } from "@/pages/dashboard/page"
+import { ClusterDashboardPage } from "@/pages/cluster-dashboard/page"
 import { LoginPage } from "@/pages/login/page"
 import { MessagesPage } from "@/pages/messages/page"
 import { MonitorPage } from "@/pages/monitor/page"
@@ -47,11 +48,9 @@ export const routes: RouteObject[] = [
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <Navigate replace to="/dashboard" /> },
-      // Overview
-      { path: "dashboard", element: <DashboardPage /> },
-      { path: "monitor", element: <MonitorPage /> },
+      { index: true, element: <Navigate replace to="/cluster/dashboard" /> },
       // Cluster operations
+      { path: "cluster/dashboard", element: <ClusterDashboardPage /> },
       { path: "cluster/nodes", element: <NodesPage /> },
       { path: "cluster/slots", element: <SlotsPage /> },
       { path: "cluster/channels", element: <ClusterChannelsPage /> },
@@ -59,6 +58,8 @@ export const routes: RouteObject[] = [
       { path: "cluster/topology", element: <TopologyPage /> },
       { path: "cluster/diagnostics", element: <ClusterDiagnosticsPage /> },
       // Business management
+      { path: "business/dashboard", element: <BusinessDashboardPage /> },
+      { path: "business/monitor", element: <MonitorPage /> },
       { path: "business/users", element: <UsersPage /> },
       { path: "business/channels", element: <ChannelsBizPage /> },
       { path: "business/messages", element: <MessagesPage /> },
@@ -69,6 +70,8 @@ export const routes: RouteObject[] = [
       { path: "system/webhooks", element: <WebhooksPage /> },
       { path: "system/connections", element: <ConnectionsPage /> },
       // Legacy redirects
+      { path: "dashboard", element: <Navigate replace to="/cluster/dashboard" /> },
+      { path: "monitor", element: <Navigate replace to="/business/monitor" /> },
       { path: "nodes", element: <Navigate replace to="/cluster/nodes" /> },
       { path: "onboarding", element: <Navigate replace to="/cluster/nodes?panel=onboarding" /> },
       { path: "slots", element: <Navigate replace to="/cluster/slots" /> },

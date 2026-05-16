@@ -22,6 +22,7 @@ const getSlotsMock = vi.fn()
 const getNodeOnboardingCandidatesMock = vi.fn()
 const getNodeOnboardingJobsMock = vi.fn()
 const getNetworkSummaryMock = vi.fn()
+const getDashboardMetricsMock = vi.fn()
 const getMonitorMetricsMock = vi.fn()
 const getDiagnosticsTraceMock = vi.fn()
 const getDiagnosticsMessageMock = vi.fn()
@@ -33,6 +34,13 @@ const getUsersMock = vi.fn()
 const getBusinessChannelsMock = vi.fn()
 const getSystemUsersMock = vi.fn()
 const getPermissionsMock = vi.fn()
+
+const dashboardMetricSeries = (latest: number, peak = latest, avg = latest) => ({
+  latest,
+  peak,
+  avg,
+  series: [avg, latest],
+})
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -53,6 +61,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getNodeOnboardingCandidates: (...args: unknown[]) => getNodeOnboardingCandidatesMock(...args),
     getNodeOnboardingJobs: (...args: unknown[]) => getNodeOnboardingJobsMock(...args),
     getNetworkSummary: (...args: unknown[]) => getNetworkSummaryMock(...args),
+    getDashboardMetrics: (...args: unknown[]) => getDashboardMetricsMock(...args),
     getMonitorMetrics: (...args: unknown[]) => getMonitorMetricsMock(...args),
     getDiagnosticsTrace: (...args: unknown[]) => getDiagnosticsTraceMock(...args),
     getDiagnosticsMessage: (...args: unknown[]) => getDiagnosticsMessageMock(...args),
@@ -85,6 +94,7 @@ beforeEach(() => {
   getNodeOnboardingCandidatesMock.mockReset()
   getNodeOnboardingJobsMock.mockReset()
   getNetworkSummaryMock.mockReset()
+  getDashboardMetricsMock.mockReset()
   getMonitorMetricsMock.mockReset()
   getDiagnosticsTraceMock.mockReset()
   getDiagnosticsMessageMock.mockReset()
@@ -322,6 +332,24 @@ beforeEach(() => {
     },
     events: [],
   })
+  getDashboardMetricsMock.mockResolvedValue({
+    generated_at: "2026-05-15T08:30:00Z",
+    window_seconds: 300,
+    step_seconds: 30,
+    points: 10,
+    metrics: {
+      send_per_sec: dashboardMetricSeries(2800),
+      deliver_per_sec: dashboardMetricSeries(2700),
+      connections: dashboardMetricSeries(18400),
+      send_latency_p99_ms: dashboardMetricSeries(31),
+      delivery_latency_p99_ms: dashboardMetricSeries(42),
+      send_fail_rate_percent: dashboardMetricSeries(0.02),
+      delivery_fail_rate_percent: dashboardMetricSeries(0.01),
+      active_channels: dashboardMetricSeries(2143),
+      retry_queue_depth: dashboardMetricSeries(8),
+      fan_out_rate: dashboardMetricSeries(3.4),
+    },
+  })
   getMonitorMetricsMock.mockResolvedValue({
     generated_at: "2026-05-15T08:30:00Z",
     window_seconds: 10,
@@ -354,8 +382,9 @@ beforeEach(() => {
 })
 
 it.each([
-  ["/dashboard", "Dashboard", "Topology snapshot"],
-  ["/monitor", "Live Monitor", "Message Flow"],
+  ["/cluster/dashboard", "Cluster Dashboard", "Internal Link Trends"],
+  ["/business/dashboard", "Business Dashboard", "Business Message Trends"],
+  ["/business/monitor", "Live Monitor", "Message Flow"],
   ["/cluster/nodes", "Nodes", "Node Cluster Overview"],
   ["/cluster/slots", "Slots", "Slot Cluster Overview"],
   ["/cluster/channels", "Channel Cluster", "Channel Cluster Overview"],
@@ -384,29 +413,16 @@ it.each([
   expect(screen.queryByText(/workspace/i)).not.toBeInTheDocument()
 })
 
-test("dashboard shows monochrome workbench sections", async () => {
-  const router = createMemoryRouter(routes, { initialEntries: ["/dashboard"] })
-
-  render(
-    <AppProviders>
-      <RouterProvider router={router} />
-    </AppProviders>,
-  )
-
-  await screen.findByText("Topology snapshot")
-  expect(screen.getByRole("heading", { name: "Dashboard" })).toBeInTheDocument()
-  expect(screen.getAllByText(/Active incidents/).length).toBeGreaterThan(0)
-  expect(screen.getAllByText(/Slot & channel health/).length).toBeGreaterThan(0)
-  expect(screen.queryByText("Pin board")).not.toBeInTheDocument()
-})
-
 it.each([
+  ["/cluster/dashboard", "CLUSTER / DASHBOARD"],
   ["/cluster/nodes", "CLUSTER / NODES"],
   ["/cluster/slots", "CLUSTER / SLOTS"],
   ["/cluster/channels", "CLUSTER / CHANNELS"],
   ["/cluster/tasks", "Task queue"],
   ["/cluster/topology", "CLUSTER / TOPOLOGY"],
   ["/cluster/diagnostics", "CLUSTER / DIAGNOSTICS"],
+  ["/business/dashboard", "BUSINESS / DASHBOARD"],
+  ["/business/monitor", "BUSINESS / MONITOR"],
   ["/business/users", "BUSINESS / USERS"],
   ["/business/channels", "BUSINESS / CHANNELS"],
   ["/business/messages", "BUSINESS / MESSAGES"],
@@ -428,10 +444,11 @@ it.each([
 })
 
 it.each([
-  ["/dashboard", "仪表盘", "拓扑快照"],
-  ["/monitor", "实时监控", "消息流量"],
+  ["/cluster/dashboard", "集群仪表盘", "内部链路趋势"],
+  ["/business/dashboard", "业务仪表盘", "业务消息趋势"],
+  ["/business/monitor", "实时监控", "消息流量"],
   ["/cluster/nodes", "节点", "节点集群总览"],
-  ["/cluster/slots", "槽位", "槽位"],
+  ["/cluster/slots", "槽位", "槽位集群总览"],
   ["/cluster/channels", "频道集群", "频道集群总览"],
   ["/cluster/tasks", "分布式任务", "任务队列"],
   ["/cluster/topology", "拓扑", "拓扑摘要"],
