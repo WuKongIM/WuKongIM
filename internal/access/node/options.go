@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
+	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -177,6 +179,20 @@ type PluginHTTPRouteProvider interface {
 	Route(ctx context.Context, pluginNo string, req *pluginproto.HttpRequest) (*pluginproto.HttpResponse, error)
 }
 
+// PluginManagementProvider exposes node-local plugin management operations to node RPC callers.
+type PluginManagementProvider interface {
+	// ListLocalPlugins returns the current node-local plugin inventory.
+	ListLocalPlugins(ctx context.Context) (pluginusecase.LocalPluginList, error)
+	// GetLocalPlugin returns one node-local plugin detail.
+	GetLocalPlugin(ctx context.Context, pluginNo string) (pluginusecase.LocalPluginDetail, error)
+	// UpdateLocalConfig persists one plugin's desired config on this node.
+	UpdateLocalConfig(ctx context.Context, pluginNo string, config json.RawMessage) (pluginusecase.LocalPluginDetail, error)
+	// RestartLocalPlugin restarts one plugin process on this node.
+	RestartLocalPlugin(ctx context.Context, pluginNo string) (pluginusecase.LocalPluginDetail, error)
+	// UninstallLocalPlugin disables and removes one plugin process on this node.
+	UninstallLocalPlugin(ctx context.Context, pluginNo string) error
+}
+
 // CMDConversationIntentSink accepts UID-owner CMD conversation update intents.
 type CMDConversationIntentSink interface {
 	PushIntent(ctx context.Context, intent cmdsync.ConversationIntent) error
@@ -208,6 +224,7 @@ type Options struct {
 	CMDSync                CMDSyncUsecase
 	CMDConversationIntents CMDConversationIntentSink
 	PluginHTTPRoutes       PluginHTTPRouteProvider
+	PluginManagement       PluginManagementProvider
 	Codec                  codec.Protocol
 	Logger                 wklog.Logger
 }
@@ -238,6 +255,7 @@ type Adapter struct {
 	cmdSync                CMDSyncUsecase
 	cmdConversationIntents CMDConversationIntentSink
 	pluginHTTPRoutes       PluginHTTPRouteProvider
+	pluginManagement       PluginManagementProvider
 	codec                  codec.Protocol
 	logger                 wklog.Logger
 }
@@ -275,6 +293,7 @@ func New(opts Options) *Adapter {
 		cmdSync:                opts.CMDSync,
 		cmdConversationIntents: opts.CMDConversationIntents,
 		pluginHTTPRoutes:       opts.PluginHTTPRoutes,
+		pluginManagement:       opts.PluginManagement,
 		codec:                  opts.Codec,
 		logger:                 opts.Logger,
 	}
@@ -301,6 +320,7 @@ func New(opts Options) *Adapter {
 		opts.Cluster.RPCMux().Handle(systemUIDCacheRPCServiceID, adapter.handleSystemUIDCacheRPC)
 		opts.Cluster.RPCMux().Handle(cmdSyncRPCServiceID, adapter.handleCMDSyncRPC)
 		opts.Cluster.RPCMux().Handle(pluginHTTPForwardRPCServiceID, adapter.handlePluginHTTPForwardRPC)
+		opts.Cluster.RPCMux().Handle(pluginManagementRPCServiceID, adapter.handlePluginManagementRPC)
 	}
 	return adapter
 }

@@ -26,6 +26,7 @@ func TestRPCServiceIDsAreUniqueAndNonZero(t *testing.T) {
 		"diagnosticsTracking":   diagnosticsTrackingRPCServiceID,
 		"monitorMetrics":        monitorMetricsRPCServiceID,
 		"pluginHTTPForward":     pluginHTTPForwardRPCServiceID,
+		"pluginManagement":      pluginManagementRPCServiceID,
 	}
 	seen := make(map[uint8]string, len(ids))
 	for name, id := range ids {

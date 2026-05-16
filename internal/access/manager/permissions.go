@@ -99,6 +99,7 @@ func managerPermissionCatalog() []PermissionResourceDTO {
 		{Resource: "cluster.diagnostics", Actions: []string{"r", "w"}, Description: "Read diagnostics and manage temporary message trace sampling rules."},
 		{Resource: "cluster.user", Actions: []string{"r", "w"}, Description: "Read users and mutate user or system UID state."},
 		{Resource: "cluster.channel", Actions: []string{"r", "w"}, Description: "Read and mutate channel, message, and channel-cluster operations."},
+		{Resource: "cluster.plugin", Actions: []string{"r", "w"}, Description: "Read and manage node-local plugins and cluster-wide plugin bindings."},
 		{Resource: "cluster.permission", Actions: []string{"r"}, Description: "Read manager authentication and permission configuration snapshots."},
 	}
 }
