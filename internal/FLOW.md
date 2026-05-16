@@ -232,7 +232,7 @@ online.Registry.Connection(sessionID)
 
 5. 创建业务组件
    ├─ Store（元数据存储）
-   ├─ Plugin（可选：节点内 runtime/usecase/host RPC；此时先构建能力，后续注入 Send/PersistAfter/Receive hook）
+   ├─ Plugin（可选：节点内 runtime/usecase/host RPC；默认关闭；此时先构建能力，后续注入 Send/PersistAfter/Receive hook）
    ├─ ConversationActiveHintCache（UID-owner active_at 热提示覆盖层）
    ├─ Conversation（会话投影器）
    ├─ CMDSync（CMD 离线同步用例 + pending conversation updater / intent router）
@@ -682,8 +682,14 @@ handleRecvAck(ctx, pkt)
 
 ### 🔴 插件子系统
 - **默认关闭**: `WK_PLUGIN_ENABLE=false` 时不构建 plugin runtime/usecase/access，也不收集 offline Receive UID；单节点集群也不绕过节点间 owner routing 语义。
-- **hook 注入点明确**: SendHook 注入 message usecase；PersistAfter 只在 committed owner 上执行，远端通过 `plugin_committed` RPC 路由；Receive 只对 durable、非 request-scoped、非 SyncOnce、非 NoPersist 的离线收件人执行。
+- **本地运行时边界**: Runtime 只扫描节点本地 `*.wkp` 可执行文件，启动时传入 `--socket` 与 `--sandbox`；`StateDir` 只保存节点本地 desired config/enabled，UID 绑定不放在本地文件。
+- **Phase 1 PDK 兼容面**: 支持 `.wkp`/go-pdk 的 `Send`、`PersistAfter`、`Receive`、`Route`、`ConfigUpdate` 和 `/stop`；host RPC 支持 `/plugin/start`、`/close`、`/message/send`、`/channel/messages`、`/plugin/httpForward`、`/cluster/config`、`/cluster/channels/belongNode`、`/conversation/channels`；`/stream/open|write|close` 稳定返回 unimplemented。
+- **hook 注入点明确**: SendHook 注入 message usecase，按本地 running plugin 的 priority 降序执行；PersistAfter 只在 committed owner 上执行，远端通过 `plugin_committed` RPC 路由；Receive 只对 durable、非 request-scoped、非 SyncOnce、非 NoPersist 的离线收件人执行。
+- **插件发送不绕过消息用例**: 插件发起 `/message/send` 会设置 `SendOriginPlugin` 并进入 `message.App.Send`，仍走权限、hook recursion guard、NoPersist/SyncOnce 和集群 append 分支。
 - **Receive 有界反压**: offline UID 按 resolver page 通知，observer 使用有界 worker/queue；满载时反压 delivery，不静默丢 eligible hook，也不创建无界 goroutine。
+- **绑定是 Slot 权威元数据**: manager 的 plugin binding API 经 `pkg/slot` 按 UID hash slot 写入 Raft；按 plugin_no 列表是管理查询，需要跨 Slot 权威分页聚合。
+- **管理面语义分离**: `/manager/nodes/:node_id/plugins...` 是节点本地运行时/desired state 管理；`/manager/plugin-bindings` 是集群 UID 绑定管理；二者均要求 `cluster.plugin` 权限。公开 `ANY /plugins/:plugin/*path` Phase 1 保持开放且节点本地。
+- **Send hook 失败策略**: `WK_PLUGIN_FAIL_OPEN=false` 时 Send hook 读状态或调用失败会 fail-closed；开启后返回原始命令并继续发送，插件返回非 success reason 仍按业务拒绝处理。
 
 ---
 

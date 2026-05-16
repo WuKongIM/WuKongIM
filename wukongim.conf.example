@@ -133,7 +133,15 @@ WK_MESSAGE_PERSON_WHITELIST_ENABLED=false
 # after sender SendBan has passed. Keep the legacy default unless all system senders use another ID.
 WK_MESSAGE_SYSTEM_DEVICE_ID=____device
 
-# Plugins execute local .wkp binaries and are disabled by default for safety.
+# Plugins execute node-local .wkp binaries and are disabled by default for safety.
+# When enabled, WK_PLUGIN_DIR defaults to ${WK_NODE_DATA_DIR}/plugins and only
+# executable files directly under that directory with the .wkp suffix are started.
+# The runtime passes --socket and --sandbox to go-pdk plugins; keep the socket
+# path short on macOS because Unix socket paths have a small OS limit.
+# WK_PLUGIN_STATE_DIR stores only node-local desired config/enabled JSON files;
+# plugin-user bindings are cluster metadata managed through Slot Raft.
+# WK_PLUGIN_FAIL_OPEN=false rejects sends when a Send hook fails. Set true only
+# if plugin availability must not block message sending.
 WK_PLUGIN_ENABLE=false
 WK_PLUGIN_DIR=
 WK_PLUGIN_SOCKET_PATH=
