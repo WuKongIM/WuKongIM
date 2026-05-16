@@ -76,6 +76,9 @@ func (a *App) lifecycleComponents(includeStopOnly bool) []applifecycle.Component
 	if a.hasCMDConversationUpdaterLifecycle(includeStopOnly) {
 		components = append(components, a.cmdConversationUpdaterLifecycleComponent())
 	}
+	if a.hasPluginLifecycle(includeStopOnly) {
+		components = append(components, a.pluginLifecycleComponent())
+	}
 	if a.hasDeliveryRuntimeLifecycle(includeStopOnly) {
 		components = append(components, a.deliveryRuntimeLifecycleComponent())
 	}
@@ -90,9 +93,6 @@ func (a *App) lifecycleComponents(includeStopOnly bool) []applifecycle.Component
 	}
 	if a.hasChannelRetentionLifecycle(includeStopOnly) {
 		components = append(components, a.channelRetentionLifecycleComponent())
-	}
-	if a.hasPluginLifecycle(includeStopOnly) {
-		components = append(components, a.pluginLifecycleComponent())
 	}
 
 	components = append(components, a.gatewayLifecycleComponent())

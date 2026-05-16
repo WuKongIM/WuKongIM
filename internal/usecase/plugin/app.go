@@ -30,7 +30,11 @@ type App struct {
 	httpForwarder    HTTPForwarder
 	httpForwardLimit int64
 	failOpen         bool
+	systemUIDs       SystemUIDChecker
 	defaultSenderUID string
+	receiveDedupeTTL time.Duration
+	receiveDedupe    map[string]time.Time
+	receiveDedupeMu  sync.Mutex
 	nodeID           uint64
 	clock            func() time.Time
 	logger           wklog.Logger
@@ -51,6 +55,9 @@ func NewApp(opts Options) (*App, error) {
 	if opts.Logger == nil {
 		opts.Logger = wklog.NewNop()
 	}
+	if opts.ReceiveDedupeTTL <= 0 {
+		opts.ReceiveDedupeTTL = 5 * time.Minute
+	}
 	return &App{
 		runtime:          opts.Runtime,
 		store:            opts.DesiredStore,
@@ -65,7 +72,10 @@ func NewApp(opts Options) (*App, error) {
 		httpForwarder:    opts.HTTPForwarder,
 		httpForwardLimit: opts.HTTPForwardMaxBodyBytes,
 		failOpen:         opts.FailOpen,
+		systemUIDs:       opts.SystemUIDs,
 		defaultSenderUID: opts.DefaultSenderUID,
+		receiveDedupeTTL: opts.ReceiveDedupeTTL,
+		receiveDedupe:    make(map[string]time.Time),
 		nodeID:           opts.NodeID,
 		clock:            clock,
 		logger:           opts.Logger,

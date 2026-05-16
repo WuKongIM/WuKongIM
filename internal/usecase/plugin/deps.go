@@ -111,6 +111,11 @@ type HTTPForwarder interface {
 	ForwardPluginHTTP(ctx context.Context, nodeID uint64, req *pluginproto.ForwardHttpReq) (*pluginproto.HttpResponse, error)
 }
 
+// SystemUIDChecker identifies internal system senders that should not trigger Receive hooks.
+type SystemUIDChecker interface {
+	IsSystemUID(uid string) bool
+}
+
 // Options configures the plugin business usecase.
 type Options struct {
 	// Runtime provides node-local plugin registry and lifecycle operations.
@@ -139,8 +144,12 @@ type Options struct {
 	HTTPForwardMaxBodyBytes int64
 	// FailOpen lets message sends continue when Send hooks fail.
 	FailOpen bool
+	// SystemUIDs identifies internal system senders that should not trigger Receive hooks.
+	SystemUIDs SystemUIDChecker
 	// DefaultSenderUID is used when legacy plugin send requests omit fromUid.
 	DefaultSenderUID string
+	// ReceiveDedupeTTL bounds duplicate Receive hook suppression for messageID+UID pairs.
+	ReceiveDedupeTTL time.Duration
 	// NodeID identifies the local cluster node for node-scoped responses.
 	NodeID uint64
 	// Clock supplies timestamps for deterministic tests.

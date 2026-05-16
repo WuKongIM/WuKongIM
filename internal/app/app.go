@@ -74,6 +74,7 @@ type App struct {
 	messageApp                *message.App
 	pluginRuntime             *runtimeplugin.Runtime
 	pluginApp                 *pluginusecase.App
+	pluginReceiveObserver     *pluginReceiveObserver
 	pluginAccess              *accessplugin.Server
 	managementApp             *managementusecase.App
 	conversationActiveHints   *conversationusecase.ActiveHintCache

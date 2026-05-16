@@ -243,10 +243,15 @@ func (a *App) startPlugin(ctx context.Context) error {
 	if a.startPluginFn != nil {
 		return a.startPluginFn(ctx)
 	}
-	if a.pluginRuntime == nil {
+	if a.pluginRuntime != nil {
+		if err := a.pluginRuntime.Start(ctx); err != nil {
+			return err
+		}
+	}
+	if a.pluginReceiveObserver == nil {
 		return nil
 	}
-	return a.pluginRuntime.Start(ctx)
+	return a.pluginReceiveObserver.Start(ctx)
 }
 
 func (a *App) stopGateway() error {
@@ -392,10 +397,14 @@ func (a *App) stopPlugin(ctx context.Context) error {
 	if a.stopPluginFn != nil {
 		return a.stopPluginFn(ctx)
 	}
-	if a.pluginRuntime == nil {
-		return nil
+	var err error
+	if a.pluginReceiveObserver != nil {
+		err = errors.Join(err, a.pluginReceiveObserver.Stop(ctx))
 	}
-	return a.pluginRuntime.Stop(ctx)
+	if a.pluginRuntime != nil {
+		err = errors.Join(err, a.pluginRuntime.Stop(ctx))
+	}
+	return err
 }
 
 func (a *App) stopChannelMetaSync() error {
