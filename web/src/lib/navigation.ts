@@ -133,6 +133,14 @@ export const navigationSections: NavigationSection[] = [
         aliases: ["/channels-biz"],
       },
       {
+        href: "/business/conversations",
+        titleMessageId: "nav.conversations.title",
+        descriptionMessageId: "nav.conversations.description",
+        pathLabelMessageId: "nav.path.business.conversations",
+        icon: MessageSquare,
+        aliases: ["/conversations"],
+      },
+      {
         href: "/business/messages",
         titleMessageId: "nav.messages.title",
         descriptionMessageId: "nav.messages.description",
@@ -206,6 +214,7 @@ export const legacyRouteRedirects: Record<string, string> = {
   "/users": "/business/users",
   "/channels-biz": "/business/channels",
   "/messages": "/business/messages",
+  "/conversations": "/business/conversations",
   "/system-users": "/business/system-users",
   "/settings/permissions": "/system/permissions",
   "/settings/webhooks": "/system/webhooks",

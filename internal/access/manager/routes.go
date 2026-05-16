@@ -228,6 +228,7 @@ func (s *Server) registerRoutes() {
 	}
 	channelRuntimeMeta.GET("/channel-runtime-meta", s.handleChannelRuntimeMeta)
 	channelRuntimeMeta.GET("/channel-runtime-meta/:channel_type/:channel_id", s.handleChannelRuntimeMetaDetail)
+	channelRuntimeMeta.GET("/conversations", s.handleConversations)
 	channelRuntimeMeta.GET("/messages", s.handleMessages)
 	channelRuntimeMeta.GET("/channels/:channel_type/:channel_id/migration", s.handleChannelMigration)
 

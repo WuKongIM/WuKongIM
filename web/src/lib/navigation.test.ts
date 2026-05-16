@@ -21,6 +21,7 @@ describe("navigationSections", () => {
   test("selects the active section from new nested routes", () => {
     expect(getActiveNavigationSection("/cluster/nodes")?.id).toBe("cluster")
     expect(getActiveNavigationSection("/business/messages")?.id).toBe("business")
+    expect(getActiveNavigationSection("/business/conversations")?.id).toBe("business")
     expect(getActiveNavigationSection("/system/connections")?.id).toBe("system")
   })
 
@@ -32,5 +33,6 @@ describe("navigationSections", () => {
   test("maps legacy routes to new routes", () => {
     expect(legacyRouteRedirects["/channel-cluster/list"]).toBe("/cluster/channels?tab=list")
     expect(legacyRouteRedirects["/connections"]).toBe("/system/connections")
+    expect(legacyRouteRedirects["/conversations"]).toBe("/business/conversations")
   })
 })
