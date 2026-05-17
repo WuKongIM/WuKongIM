@@ -1,6 +1,7 @@
 package app
 
 import (
+	"reflect"
 	"testing"
 
 	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
@@ -10,6 +11,9 @@ import (
 
 func TestNewSkipsPluginSubsystemByDefault(t *testing.T) {
 	cfg := testConfig(t)
+	cfg.API.ListenAddr = "127.0.0.1:0"
+	cfg.Manager = validManagerConfigForTest()
+	cfg.Manager.ListenAddr = "127.0.0.1:0"
 
 	app, err := New(cfg)
 	require.NoError(t, err)
@@ -20,7 +24,26 @@ func TestNewSkipsPluginSubsystemByDefault(t *testing.T) {
 	require.Nil(t, app.pluginAccess)
 	require.Nil(t, app.pluginReceiveObserver)
 	require.Nil(t, unexportedFieldForTest(t, app.messageApp, "sendHook"))
+	requireNilInterfaceField(t, app.messageApp, "sendHook")
+	requireNilInterfaceField(t, app.nodeAccess, "pluginHTTPRoutes")
+	requireNilInterfaceField(t, app.nodeAccess, "pluginManagement")
+	requireNilInterfaceField(t, app.nodeAccess, "pluginCommitted")
+	requireNilInterfaceField(t, app.api, "pluginRoutes")
+	requireNilInterfaceField(t, app.managementApp, "plugins")
+	requireNilInterfaceField(t, app.managementApp, "pluginBindings")
 	require.NotContains(t, appLifecycleComponentNames(app.lifecycleComponents(false)), appLifecyclePluginRuntime)
+}
+
+func requireNilInterfaceField(t *testing.T, target any, name string) {
+	t.Helper()
+	value := reflect.ValueOf(target)
+	if value.Kind() == reflect.Pointer {
+		value = value.Elem()
+	}
+	field := value.FieldByName(name)
+	require.Truef(t, field.IsValid(), "%T is missing field %s", target, name)
+	require.Truef(t, field.Kind() == reflect.Interface, "%T.%s must be an interface field", target, name)
+	require.Truef(t, field.IsNil(), "%T.%s interface must be nil when plugins are disabled", target, name)
 }
 
 func TestNewWiresPluginSubsystemWhenEnabled(t *testing.T) {

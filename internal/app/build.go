@@ -665,6 +665,18 @@ func build(cfg Config) (_ *App, err error) {
 		pluginSystemUIDs.target = userApp
 	}
 	app.userApp = userApp
+	var pluginHTTPRoutes accessnode.PluginHTTPRouteProvider
+	var pluginManagement accessnode.PluginManagementProvider
+	var pluginCommitted accessnode.PluginCommittedProvider
+	var pluginRoutes accessapi.PluginRouteUsecase
+	var sendHook message.SendHook
+	if app.pluginApp != nil {
+		pluginHTTPRoutes = app.pluginApp
+		pluginManagement = app.pluginApp
+		pluginCommitted = app.pluginApp
+		pluginRoutes = app.pluginApp
+		sendHook = app.pluginApp
+	}
 	clusterUsers := &clusterUserUsecase{
 		local:       userApp,
 		remote:      app.nodeClient,
@@ -700,9 +712,9 @@ func build(cfg Config) (_ *App, err error) {
 			localNodeID: cfg.Node.ID,
 		},
 		SystemUIDCache:   userApp,
-		PluginHTTPRoutes: app.pluginApp,
-		PluginManagement: app.pluginApp,
-		PluginCommitted:  app.pluginApp,
+		PluginHTTPRoutes: pluginHTTPRoutes,
+		PluginManagement: pluginManagement,
+		PluginCommitted:  pluginCommitted,
 		Logger:           app.logger.Named("access.node"),
 	})
 	app.messageApp = message.New(message.Options{
@@ -726,7 +738,7 @@ func build(cfg Config) (_ *App, err error) {
 		CommittedDispatcher:    committedDispatcher,
 		CMDConversationIntents: cmdIntentRouter,
 		RealtimeDispatcher:     app.deliveryApp,
-		SendHook:               app.pluginApp,
+		SendHook:               sendHook,
 		MessageIDs:             messageIDs,
 		DeliveryAck: ackRouting{
 			localNodeID: cfg.Node.ID,
@@ -869,7 +881,7 @@ func build(cfg Config) (_ *App, err error) {
 			DebugCluster:             app.debugClusterSnapshot,
 			DiagnosticsDebugEnabled:  cfg.Observability.Diagnostics.Enabled && cfg.Observability.Diagnostics.DebugAPIEnabled,
 			Diagnostics:              app,
-			PluginRoutes:             app.pluginApp,
+			PluginRoutes:             pluginRoutes,
 			LegacyRouteExternal:      legacyRouteExternal,
 			LegacyRouteIntranet:      legacyRouteIntranet,
 			LegacyRouteNodes:         legacyRouteNodes,
