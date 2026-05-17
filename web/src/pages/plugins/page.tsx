@@ -14,6 +14,9 @@ import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
 import {
+  createPluginBinding,
+  deletePluginBinding,
+  getPluginBindings,
   getNodePlugin,
   getNodePlugins,
   getNodes,
@@ -21,7 +24,14 @@ import {
   restartNodePlugin,
   updateNodePluginConfig,
 } from "@/lib/manager-api"
-import type { ManagerNodePluginsResponse, ManagerNodesResponse, ManagerPlugin } from "@/lib/manager-api.types"
+import type {
+  ManagerNodePluginsResponse,
+  ManagerNodesResponse,
+  ManagerPlugin,
+  ManagerPluginBinding,
+  ManagerPluginBindingsResponse,
+  PluginBindingListParams,
+} from "@/lib/manager-api.types"
 
 type PluginInventoryState = {
   page: ManagerNodePluginsResponse | null
@@ -35,6 +45,15 @@ type PluginDetailState = {
   detail: ManagerPlugin | null
   loading: boolean
   error: Error | null
+}
+
+type BindingSelector = "uid" | "plugin"
+
+type PluginBindingState = {
+  page: ManagerPluginBindingsResponse | null
+  loading: boolean
+  error: Error | null
+  validationError: string
 }
 
 function mapErrorKind(error: Error | null) {
@@ -105,6 +124,23 @@ function pluginSummary(page: ManagerNodePluginsResponse | null) {
   }
 }
 
+function bindingSearchParams(selector: BindingSelector, rawQuery: string): PluginBindingListParams | null {
+  const query = rawQuery.trim()
+  if (!query) {
+    return null
+  }
+  if (selector === "plugin") {
+    return { pluginNo: query, limit: 50 }
+  }
+  return { uid: query }
+}
+
+function formatBindingWarnings(binding: ManagerPluginBinding, intl: IntlShape) {
+  return binding.warnings.length > 0
+    ? binding.warnings.map((warning) => warning.message || warning.code).join(", ")
+    : intl.formatMessage({ id: "plugins.none" })
+}
+
 export function PluginsPage() {
   const intl = useIntl()
   const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
@@ -128,6 +164,23 @@ export function PluginsPage() {
   const [restartPlugin, setRestartPlugin] = useState<ManagerPlugin | null>(null)
   const [restartPending, setRestartPending] = useState(false)
   const [restartError, setRestartError] = useState("")
+  const [bindingSelector, setBindingSelector] = useState<BindingSelector>("uid")
+  const [bindingQuery, setBindingQuery] = useState("")
+  const [bindingState, setBindingState] = useState<PluginBindingState>({
+    page: null,
+    loading: false,
+    error: null,
+    validationError: "",
+  })
+  const [lastBindingParams, setLastBindingParams] = useState<PluginBindingListParams | null>(null)
+  const [addBindingOpen, setAddBindingOpen] = useState(false)
+  const [addBindingUid, setAddBindingUid] = useState("")
+  const [addBindingPluginNo, setAddBindingPluginNo] = useState("")
+  const [addBindingPending, setAddBindingPending] = useState(false)
+  const [addBindingError, setAddBindingError] = useState("")
+  const [deleteBindingTarget, setDeleteBindingTarget] = useState<ManagerPluginBinding | null>(null)
+  const [deleteBindingPending, setDeleteBindingPending] = useState(false)
+  const [deleteBindingError, setDeleteBindingError] = useState("")
 
   const summary = useMemo(() => pluginSummary(state.page), [state.page])
 
@@ -250,6 +303,89 @@ export function PluginsPage() {
       setRestartError(error instanceof Error ? error.message : "restart plugin failed")
     } finally {
       setRestartPending(false)
+    }
+  }
+
+  const loadBindings = useCallback(async (params: PluginBindingListParams) => {
+    setBindingState((current) => ({
+      ...current,
+      loading: true,
+      error: null,
+      validationError: "",
+    }))
+    try {
+      const page = await getPluginBindings(params)
+      setBindingState({ page, loading: false, error: null, validationError: "" })
+    } catch (error) {
+      setBindingState({
+        page: null,
+        loading: false,
+        error: error instanceof Error ? error : new Error("plugin binding request failed"),
+        validationError: "",
+      })
+    }
+  }, [])
+
+  const submitBindingSearch = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const params = bindingSearchParams(bindingSelector, bindingQuery)
+    if (!params) {
+      setBindingState((current) => ({
+        ...current,
+        loading: false,
+        error: null,
+        validationError: intl.formatMessage({ id: "plugins.bindings.emptyQuery" }),
+      }))
+      return
+    }
+    setLastBindingParams(params)
+    await loadBindings(params)
+  }
+
+  const refreshCurrentBindings = useCallback(async () => {
+    if (!lastBindingParams) {
+      return
+    }
+    await loadBindings(lastBindingParams)
+  }, [lastBindingParams, loadBindings])
+
+  const submitAddBinding = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const uid = addBindingUid.trim()
+    const pluginNo = addBindingPluginNo.trim()
+    if (!uid || !pluginNo) {
+      setAddBindingError(intl.formatMessage({ id: "plugins.bindings.addRequired" }))
+      return
+    }
+    setAddBindingPending(true)
+    setAddBindingError("")
+    try {
+      await createPluginBinding({ uid, pluginNo })
+      setAddBindingOpen(false)
+      setAddBindingUid("")
+      setAddBindingPluginNo("")
+      await refreshCurrentBindings()
+    } catch (error) {
+      setAddBindingError(error instanceof Error ? error.message : "create plugin binding failed")
+    } finally {
+      setAddBindingPending(false)
+    }
+  }
+
+  const confirmDeleteBinding = async () => {
+    if (!deleteBindingTarget) {
+      return
+    }
+    setDeleteBindingPending(true)
+    setDeleteBindingError("")
+    try {
+      await deletePluginBinding({ uid: deleteBindingTarget.uid, pluginNo: deleteBindingTarget.plugin_no })
+      setDeleteBindingTarget(null)
+      await refreshCurrentBindings()
+    } catch (error) {
+      setDeleteBindingError(error instanceof Error ? error.message : "delete plugin binding failed")
+    } finally {
+      setDeleteBindingPending(false)
     }
   }
 
@@ -385,6 +521,111 @@ export function PluginsPage() {
         ) : null}
       </SectionCard>
 
+      <SectionCard
+        description={intl.formatMessage({ id: "plugins.bindings.description" })}
+        title={intl.formatMessage({ id: "plugins.bindings.title" })}
+      >
+        <form className="flex flex-col gap-3 lg:flex-row lg:items-end" onSubmit={(event) => {
+          void submitBindingSearch(event)
+        }}>
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground" htmlFor="plugin-binding-selector">
+            {intl.formatMessage({ id: "plugins.bindings.selector" })}
+            <select
+              className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+              id="plugin-binding-selector"
+              onChange={(event) => setBindingSelector(event.target.value as BindingSelector)}
+              value={bindingSelector}
+            >
+              <option value="uid">{intl.formatMessage({ id: "plugins.bindings.selector.uid" })}</option>
+              <option value="plugin">{intl.formatMessage({ id: "plugins.bindings.selector.plugin" })}</option>
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-muted-foreground" htmlFor="plugin-binding-query">
+            {intl.formatMessage({ id: "plugins.bindings.query" })}
+            <input
+              className="h-8 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+              id="plugin-binding-query"
+              onChange={(event) => setBindingQuery(event.target.value)}
+              value={bindingQuery}
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={bindingState.loading} size="sm" type="submit">
+              {intl.formatMessage({ id: "plugins.bindings.search" })}
+            </Button>
+            <Button
+              onClick={() => {
+                setAddBindingError("")
+                setAddBindingOpen(true)
+              }}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              {intl.formatMessage({ id: "plugins.bindings.add" })}
+            </Button>
+          </div>
+        </form>
+        {bindingState.validationError ? <p className="text-sm text-destructive">{bindingState.validationError}</p> : null}
+        {bindingState.loading ? <ResourceState kind="loading" title={intl.formatMessage({ id: "plugins.bindings.title" })} /> : null}
+        {!bindingState.loading && bindingState.error ? (
+          <ResourceState
+            kind={mapErrorKind(bindingState.error)}
+            onRetry={() => {
+              void refreshCurrentBindings()
+            }}
+            title={intl.formatMessage({ id: "plugins.bindings.title" })}
+          />
+        ) : null}
+        {!bindingState.loading && !bindingState.error && bindingState.page ? (
+          bindingState.page.items.length > 0 ? (
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full border-collapse">
+                <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.uid" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.pluginNo" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.plugin" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.warnings" })}</th>
+                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.actions" })}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bindingState.page.items.map((binding) => (
+                    <tr className="border-t border-border" key={`${binding.uid}:${binding.plugin_no}`}>
+                      <td className="px-3 py-3 text-sm font-medium text-foreground">{binding.uid}</td>
+                      <td className="px-3 py-3 text-sm text-muted-foreground">{binding.plugin_no}</td>
+                      <td className="px-3 py-3 text-sm text-muted-foreground">
+                        {binding.plugin ? `${binding.plugin.name} · ${binding.plugin.version}` : intl.formatMessage({ id: "plugins.none" })}
+                      </td>
+                      <td className="px-3 py-3 text-sm text-muted-foreground">{formatBindingWarnings(binding, intl)}</td>
+                      <td className="px-3 py-3 text-sm">
+                        <Button
+                          aria-label={intl.formatMessage(
+                            { id: "plugins.bindings.deleteOne" },
+                            { uid: binding.uid, pluginNo: binding.plugin_no },
+                          )}
+                          onClick={() => {
+                            setDeleteBindingError("")
+                            setDeleteBindingTarget(binding)
+                          }}
+                          size="sm"
+                          variant="outline"
+                        >
+                          {intl.formatMessage({ id: "plugins.bindings.delete" })}
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <ResourceState kind="empty" title={intl.formatMessage({ id: "plugins.bindings.title" })} />
+          )
+        ) : null}
+      </SectionCard>
+
       <PluginDetailSheet
         detailState={detailState}
         intl={intl}
@@ -437,6 +678,65 @@ export function PluginsPage() {
         open={restartPlugin !== null}
         pending={restartPending}
         title={intl.formatMessage({ id: "plugins.restart.title" })}
+      />
+
+      <ActionFormDialog
+        description={intl.formatMessage({ id: "plugins.bindings.description" })}
+        error={addBindingError}
+        onOpenChange={(open) => {
+          setAddBindingOpen(open)
+          if (!open) {
+            setAddBindingError("")
+          }
+        }}
+        onSubmit={(event) => {
+          void submitAddBinding(event)
+        }}
+        open={addBindingOpen}
+        pending={addBindingPending}
+        submitLabel={intl.formatMessage({ id: "plugins.bindings.add" })}
+        title={intl.formatMessage({ id: "plugins.bindings.add" })}
+      >
+        <label className="block text-sm font-medium text-foreground" htmlFor="plugin-binding-uid">
+          {intl.formatMessage({ id: "plugins.bindings.table.uid" })}
+        </label>
+        <input
+          className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+          id="plugin-binding-uid"
+          onChange={(event) => setAddBindingUid(event.target.value)}
+          value={addBindingUid}
+        />
+        <label className="block text-sm font-medium text-foreground" htmlFor="plugin-binding-plugin-no">
+          {intl.formatMessage({ id: "plugins.bindings.table.pluginNo" })}
+        </label>
+        <input
+          className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+          id="plugin-binding-plugin-no"
+          onChange={(event) => setAddBindingPluginNo(event.target.value)}
+          value={addBindingPluginNo}
+        />
+      </ActionFormDialog>
+
+      <ConfirmDialog
+        confirmLabel={intl.formatMessage({ id: "plugins.bindings.delete" })}
+        description={deleteBindingTarget
+          ? intl.formatMessage(
+            { id: "plugins.bindings.deleteDescription" },
+            { uid: deleteBindingTarget.uid, pluginNo: deleteBindingTarget.plugin_no },
+          )
+          : undefined}
+        error={deleteBindingError}
+        onConfirm={() => {
+          void confirmDeleteBinding()
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteBindingTarget(null)
+          }
+        }}
+        open={deleteBindingTarget !== null}
+        pending={deleteBindingPending}
+        title={intl.formatMessage({ id: "plugins.bindings.delete" })}
       />
     </PageContainer>
   )
