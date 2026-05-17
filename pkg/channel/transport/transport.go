@@ -349,8 +349,15 @@ func (t *Transport) LongPollFetch(ctx context.Context, peer channel.NodeID, req 
 }
 
 func classifyLongPollFetchResult(respBody []byte) string {
-	resp, err := decodeLongPollFetchResponse(respBody)
-	if err != nil || !resp.TimedOut {
+	const (
+		longPollResponseFlagsOffset = 18
+		longPollResponseHeaderSize  = 24
+	)
+	// The classifier only needs the timeout bit; avoid decoding response items
+	// because the caller decodes the full payload immediately afterwards.
+	if len(respBody) < longPollResponseHeaderSize ||
+		respBody[0] != longPollResponseCodecVer ||
+		respBody[longPollResponseFlagsOffset]&(1<<0) == 0 {
 		return ""
 	}
 	return "expected_timeout"
