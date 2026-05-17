@@ -42,6 +42,7 @@ type Options struct {
 	// CMDConversationIntents accepts durable request-scoped CMD sync intents.
 	CMDConversationIntents CMDConversationIntentSink
 	RealtimeDispatcher     RealtimeDispatcher
+	SendHook               SendHook
 	MessageIDs             MessageIDGenerator
 	DeliveryAck            DeliveryAck
 	DeliveryOffline        DeliveryOffline
@@ -73,6 +74,7 @@ type App struct {
 	dispatcher             CommittedMessageDispatcher
 	cmdConversationIntents CMDConversationIntentSink
 	realtime               RealtimeDispatcher
+	sendHook               SendHook
 	messageIDs             MessageIDGenerator
 	deliveryAck            DeliveryAck
 	deliveryOffline        DeliveryOffline
@@ -115,6 +117,7 @@ func New(opts Options) *App {
 		dispatcher:             opts.CommittedDispatcher,
 		cmdConversationIntents: opts.CMDConversationIntents,
 		realtime:               opts.RealtimeDispatcher,
+		sendHook:               opts.SendHook,
 		messageIDs:             opts.MessageIDs,
 		deliveryAck:            opts.DeliveryAck,
 		deliveryOffline:        opts.DeliveryOffline,

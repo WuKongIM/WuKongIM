@@ -765,7 +765,7 @@ func TestDeliverySuccessDiagnosticsUseDebugLevel(t *testing.T) {
 		ChannelType: 2,
 	}, deliveryruntime.CommittedEnvelope{})
 	require.NoError(t, err)
-	_, _, _, err = resolver.ResolvePage(context.Background(), token, "", 8)
+	_, err = resolver.ResolvePage(context.Background(), token, "", 8)
 	require.NoError(t, err)
 	requireCapturedLogEntry(t, logger, "DEBUG", "", "delivery.diag.resolve_page")
 
@@ -828,10 +828,10 @@ func TestDeliveryResolverMissingAuthoritativeEndpointsUseDebugLevel(t *testing.T
 	}, deliveryruntime.CommittedEnvelope{})
 	require.NoError(t, err)
 
-	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 	require.NoError(t, err)
-	require.Empty(t, routes)
-	require.True(t, done)
+	require.Empty(t, page.Routes)
+	require.True(t, page.Done)
 	entry := requireCapturedLogEntry(t, logger, "DEBUG", "", "delivery.diag.resolve_page")
 	require.Equal(t, "offline-u2", requireCapturedFieldValue[string](t, entry, "missingUIDs"))
 }
@@ -852,13 +852,13 @@ func TestLocalDeliveryResolverUsesMessageScopedSubscribers(t *testing.T) {
 	}, deliveryruntime.CommittedEnvelope{MessageScopedUIDs: []string{"u1", "u2"}})
 	require.NoError(t, err)
 
-	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 	require.NoError(t, err)
-	require.True(t, done)
+	require.True(t, page.Done)
 	require.Equal(t, []deliveryruntime.RouteKey{
 		{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101},
 		{UID: "u2", NodeID: 2, BootID: 22, SessionID: 202},
-	}, routes)
+	}, page.Routes)
 }
 
 func TestLocalDeliveryResolverNotifiesUIDObserverBeforePresenceExpansion(t *testing.T) {
@@ -884,11 +884,11 @@ func TestLocalDeliveryResolverNotifiesUIDObserverBeforePresenceExpansion(t *test
 	}})
 	require.NoError(t, err)
 
-	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 	require.NoError(t, err)
-	require.True(t, done)
+	require.True(t, page.Done)
 	require.Equal(t, []string{"offline", "online"}, observer.pages[0].UIDs)
-	require.Equal(t, []deliveryruntime.RouteKey{{UID: "online", NodeID: 1, BootID: 11, SessionID: 101}}, routes)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "online", NodeID: 1, BootID: 11, SessionID: 101}}, page.Routes)
 }
 
 func TestTagDeliveryResolverNotifiesUIDObserverBeforePresenceExpansion(t *testing.T) {
@@ -921,11 +921,11 @@ func TestTagDeliveryResolverNotifiesUIDObserverBeforePresenceExpansion(t *testin
 	}})
 	require.NoError(t, err)
 
-	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 	require.NoError(t, err)
-	require.True(t, done)
+	require.True(t, page.Done)
 	require.Equal(t, []string{"offline", "online"}, observer.pages[0].UIDs)
-	require.Equal(t, []deliveryruntime.RouteKey{{UID: "online", NodeID: 1, BootID: 11, SessionID: 101}}, routes)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "online", NodeID: 1, BootID: 11, SessionID: 101}}, page.Routes)
 }
 
 func TestDeliveryUIDObserverSkipsWhenRequestScopedIntentAlreadySubmitted(t *testing.T) {
@@ -953,12 +953,12 @@ func TestDeliveryUIDObserverSkipsWhenRequestScopedIntentAlreadySubmitted(t *test
 		ChannelType: env.ChannelType,
 	}, env)
 	require.NoError(t, err)
-	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 
 	require.NoError(t, err)
-	require.True(t, done)
+	require.True(t, page.Done)
 	require.Empty(t, observer.pages)
-	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101}}, routes)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101}}, page.Routes)
 }
 
 func TestDeliveryUIDObserverDoesNotAffectResolvePage(t *testing.T) {
@@ -983,12 +983,12 @@ func TestDeliveryUIDObserverDoesNotAffectResolvePage(t *testing.T) {
 		MessageSeq:  9,
 	}})
 	require.NoError(t, err)
-	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 
 	require.NoError(t, err)
-	require.True(t, done)
+	require.True(t, page.Done)
 	require.Equal(t, observer.internalErr, observer.errs[0])
-	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101}}, routes)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101}}, page.Routes)
 }
 
 func TestTagDeliveryResolverFallbackNotifiesUIDObserver(t *testing.T) {
@@ -1016,10 +1016,10 @@ func TestTagDeliveryResolverFallbackNotifiesUIDObserver(t *testing.T) {
 		MessageSeq:  9,
 	}})
 	require.NoError(t, err)
-	_, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 
 	require.NoError(t, err)
-	require.True(t, done)
+	require.True(t, page.Done)
 	require.Equal(t, []string{"u1"}, observer.pages[0].UIDs)
 	require.Equal(t, []string{"group:ok:1:1"}, metrics.resolves)
 }
@@ -1049,13 +1049,13 @@ func TestLocalDeliveryResolverRoutesNonDurableCommandGroupToRemoteSessions(t *te
 	}})
 	require.NoError(t, err)
 
-	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 	require.NoError(t, err)
-	require.True(t, done)
+	require.True(t, page.Done)
 	require.Equal(t, []deliveryruntime.RouteKey{
 		{UID: "u-local", NodeID: 1, BootID: 11, SessionID: 101},
 		{UID: "u-remote", NodeID: 2, BootID: 22, SessionID: 202},
-	}, routes)
+	}, page.Routes)
 }
 
 func TestDeliveryRoutingUsesTagPartition(t *testing.T) {
@@ -1094,14 +1094,14 @@ func TestDeliveryRoutingUsesTagPartition(t *testing.T) {
 	}, deliveryruntime.CommittedEnvelope{})
 	require.NoError(t, err)
 
-	routes, cursor, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 	require.NoError(t, err)
 	require.Equal(t, []deliveryruntime.RouteKey{
 		{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101},
 		{UID: "u3", NodeID: 1, BootID: 11, SessionID: 103},
-	}, routes)
-	require.Equal(t, "u3", cursor)
-	require.True(t, done)
+	}, page.Routes)
+	require.Equal(t, "u3", page.NextCursor)
+	require.True(t, page.Done)
 	require.Equal(t, [][]string{{"u1", "u3"}}, resolver.authority.(*recordingAuthoritative).uidBatches)
 
 	ref, ok := manager.CurrentRef("2:g1")
@@ -1144,11 +1144,11 @@ func TestDeliveryRoutingBypassesTagPartitionForPersonChannels(t *testing.T) {
 	}, deliveryruntime.CommittedEnvelope{})
 	require.NoError(t, err)
 
-	routes, cursor, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 	require.NoError(t, err)
-	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 3, BootID: 33, SessionID: 202}}, routes)
-	require.Equal(t, "u1", cursor)
-	require.True(t, done)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 3, BootID: 33, SessionID: 202}}, page.Routes)
+	require.Equal(t, "u1", page.NextCursor)
+	require.True(t, page.Done)
 	require.Equal(t, []string{"u2", "u1"}, resolver.authority.(*recordingAuthoritative).uidCalls)
 	require.Empty(t, resolver.authority.(*recordingAuthoritative).uidBatches)
 
@@ -1195,10 +1195,10 @@ func TestDeliveryRoutingMessageScopedTagDoesNotReplaceReusableRef(t *testing.T) 
 		ChannelType: frame.ChannelTypeTemp,
 	}, deliveryruntime.CommittedEnvelope{MessageScopedUIDs: []string{"scoped"}})
 	require.NoError(t, err)
-	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 	require.NoError(t, err)
-	require.True(t, done)
-	require.Equal(t, []deliveryruntime.RouteKey{{UID: "scoped", NodeID: 1, BootID: 11, SessionID: 101}}, routes)
+	require.True(t, page.Done)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "scoped", NodeID: 1, BootID: 11, SessionID: 101}}, page.Routes)
 
 	ref, ok := manager.CurrentRef("8:tmp1____cmd")
 	require.True(t, ok)
@@ -1273,14 +1273,14 @@ func TestDeliveryRoutingUsesCachedTagWithoutListingSubscribers(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, store.pageCalls)
 
-	routes, cursor, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 	require.NoError(t, err)
 	require.Equal(t, []deliveryruntime.RouteKey{
 		{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101},
 		{UID: "u3", NodeID: 1, BootID: 11, SessionID: 103},
-	}, routes)
-	require.Equal(t, "u3", cursor)
-	require.True(t, done)
+	}, page.Routes)
+	require.Equal(t, "u3", page.NextCursor)
+	require.True(t, page.Done)
 	require.Zero(t, store.pageCalls)
 }
 
@@ -1331,10 +1331,10 @@ func TestDeliveryRoutingSkipsCachedTagFastPathWithoutVersionFence(t *testing.T) 
 	require.NoError(t, err)
 	require.NotZero(t, store.pageCalls)
 
-	routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 	require.NoError(t, err)
-	require.Len(t, routes, 2)
-	require.True(t, done)
+	require.Len(t, page.Routes, 2)
+	require.True(t, page.Done)
 }
 
 func TestDeliveryTagTopologyReaderUsesCachedAssignmentsWithoutControllerRefresh(t *testing.T) {
@@ -1463,11 +1463,11 @@ func TestDeliveryRoutingRejectsStaleTagResponse(t *testing.T) {
 		localUIDs: []string{"stale"},
 	}
 
-	routes, cursor, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 	require.NoError(t, err)
-	require.Equal(t, []deliveryruntime.RouteKey{{UID: "fresh", NodeID: 1, BootID: 11, SessionID: 22}}, routes)
-	require.Equal(t, "fresh", cursor)
-	require.True(t, done)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "fresh", NodeID: 1, BootID: 11, SessionID: 22}}, page.Routes)
+	require.Equal(t, "fresh", page.NextCursor)
+	require.True(t, page.Done)
 	require.Equal(t, [][]string{{"fresh"}}, resolver.authority.(*recordingAuthoritative).uidBatches)
 
 	tag, ok := manager.LookupTag("tag-1")
@@ -2330,17 +2330,17 @@ func TestLocalDeliveryResolverSplitsExpandedRoutesAcrossPages(t *testing.T) {
 	}, deliveryruntime.CommittedEnvelope{})
 	require.NoError(t, err)
 
-	page1, cursor, done, err := resolver.ResolvePage(context.Background(), token, "", 1)
+	page1, err := resolver.ResolvePage(context.Background(), token, "", 1)
 	require.NoError(t, err)
-	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 11, SessionID: 2}}, page1)
-	require.Equal(t, "u2", cursor)
-	require.False(t, done)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 11, SessionID: 2}}, page1.Routes)
+	require.Equal(t, "u2", page1.NextCursor)
+	require.False(t, page1.Done)
 
-	page2, cursor, done, err := resolver.ResolvePage(context.Background(), token, cursor, 1)
+	page2, err := resolver.ResolvePage(context.Background(), token, page1.NextCursor, 1)
 	require.NoError(t, err)
-	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 11, SessionID: 3}}, page2)
-	require.Equal(t, "u2", cursor)
-	require.True(t, done)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 11, SessionID: 3}}, page2.Routes)
+	require.Equal(t, "u2", page2.NextCursor)
+	require.True(t, page2.Done)
 
 	require.Equal(t, 0, store.snapshotCalls)
 	require.Equal(t, [][]string{{"u2"}}, authority.uidBatches)
@@ -2365,11 +2365,11 @@ func TestLocalDeliveryResolverUsesDirectLookupForPersonChannels(t *testing.T) {
 	}, deliveryruntime.CommittedEnvelope{})
 	require.NoError(t, err)
 
-	routes, cursor, done, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
 	require.NoError(t, err)
-	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 11, SessionID: 2}}, routes)
-	require.Equal(t, "u1", cursor)
-	require.True(t, done)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "u2", NodeID: 1, BootID: 11, SessionID: 2}}, page.Routes)
+	require.Equal(t, "u1", page.NextCursor)
+	require.True(t, page.Done)
 	require.Equal(t, []string{"u2", "u1"}, authority.uidCalls)
 	require.Empty(t, authority.uidBatches)
 }
@@ -2393,7 +2393,7 @@ func TestLocalDeliveryResolverRecordsResolvePageErrors(t *testing.T) {
 
 	require.NoError(t, err)
 
-	_, _, _, err = resolver.ResolvePage(context.Background(), token, "", 8)
+	_, err = resolver.ResolvePage(context.Background(), token, "", 8)
 	require.ErrorIs(t, err, pageErr)
 	require.Equal(t, []string{"group:error:1:0"}, metrics.resolves)
 }
@@ -3102,4 +3102,87 @@ func (s *transientStatusChannelLog) Calls() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.calls
+}
+
+func TestLocalDeliveryResolverReturnsOfflineUIDsAfterPresenceClassification(t *testing.T) {
+	resolver := localDeliveryResolver{
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
+			Store: &resolverSnapshotStore{uids: []string{"offline", "online"}},
+		}),
+		authority: &recordingAuthoritative{batches: map[string][]presence.Route{
+			"online": {{UID: "online", NodeID: 1, BootID: 11, SessionID: 101}},
+		}},
+		collectOfflineUIDs: true,
+		pageSize:           8,
+	}
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}, deliveryruntime.CommittedEnvelope{})
+	require.NoError(t, err)
+
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
+
+	require.NoError(t, err)
+	require.True(t, page.Done)
+	require.Equal(t, []string{"offline"}, page.OfflineUIDs)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "online", NodeID: 1, BootID: 11, SessionID: 101}}, page.Routes)
+}
+
+func TestLocalDeliveryResolverSkipsOfflineUIDCollectionByDefault(t *testing.T) {
+	resolver := localDeliveryResolver{
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
+			Store: &resolverSnapshotStore{uids: []string{"offline", "online"}},
+		}),
+		authority: &recordingAuthoritative{batches: map[string][]presence.Route{
+			"online": {{UID: "online", NodeID: 1, BootID: 11, SessionID: 101}},
+		}},
+		pageSize: 8,
+	}
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}, deliveryruntime.CommittedEnvelope{})
+	require.NoError(t, err)
+
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
+
+	require.NoError(t, err)
+	require.True(t, page.Done)
+	require.Empty(t, page.OfflineUIDs)
+	require.Equal(t, []deliveryruntime.RouteKey{{UID: "online", NodeID: 1, BootID: 11, SessionID: 101}}, page.Routes)
+}
+
+func TestLocalDeliveryResolverPaginatesOfflineUIDsWhenCollecting(t *testing.T) {
+	resolver := localDeliveryResolver{
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
+			Store: &resolverSnapshotStore{uids: []string{"offline-1", "offline-2", "offline-3"}},
+		}),
+		authority:          &recordingAuthoritative{batches: map[string][]presence.Route{}},
+		collectOfflineUIDs: true,
+		pageSize:           1,
+	}
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup}, deliveryruntime.CommittedEnvelope{})
+	require.NoError(t, err)
+
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
+
+	require.NoError(t, err)
+	require.False(t, page.Done)
+	require.Equal(t, []string{"offline-1"}, page.OfflineUIDs)
+	require.Empty(t, page.Routes)
+}
+
+func TestTagDeliveryResolverPaginatesOfflineUIDsWhenCollecting(t *testing.T) {
+	resolver := tagDeliveryResolver{
+		authority:          &recordingAuthoritative{batches: map[string][]presence.Route{}},
+		collectOfflineUIDs: true,
+		pageSize:           1,
+	}
+	token := &tagResolveToken{
+		localUIDs:   []string{"offline-1", "offline-2", "offline-3"},
+		channelType: frame.ChannelTypeGroup,
+		ephemeral:   true,
+	}
+
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
+
+	require.NoError(t, err)
+	require.False(t, page.Done)
+	require.Equal(t, []string{"offline-1"}, page.OfflineUIDs)
+	require.Empty(t, page.Routes)
 }

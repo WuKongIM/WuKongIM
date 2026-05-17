@@ -12,17 +12,18 @@ const (
 )
 
 type Manager struct {
-	shards           []*shard
-	resolver         Resolver
-	push             Pusher
-	clock            Clock
-	observer         Observer
-	ackIdx           *AckIndex
-	resolvePageSize  int
-	limits           Limits
-	idleTimeout      time.Duration
-	retryDelays      []time.Duration
-	maxRetryAttempts int
+	shards                  []*shard
+	resolver                Resolver
+	push                    Pusher
+	clock                   Clock
+	observer                Observer
+	offlineResolvedObserver OfflineResolvedObserver
+	ackIdx                  *AckIndex
+	resolvePageSize         int
+	limits                  Limits
+	idleTimeout             time.Duration
+	retryDelays             []time.Duration
+	maxRetryAttempts        int
 }
 
 func NewManager(cfg Config) *Manager {
@@ -57,16 +58,17 @@ func NewManager(cfg Config) *Manager {
 		cfg.Limits.DedicatedLaneActivityThreshold = defaultDedicatedLaneActivityThreshold
 	}
 	m := &Manager{
-		resolver:         cfg.Resolver,
-		push:             cfg.Push,
-		clock:            cfg.Clock,
-		observer:         cfg.Observer,
-		ackIdx:           NewAckIndex(),
-		resolvePageSize:  cfg.ResolvePageSize,
-		limits:           cfg.Limits,
-		idleTimeout:      cfg.IdleTimeout,
-		retryDelays:      append([]time.Duration(nil), cfg.RetryDelays...),
-		maxRetryAttempts: cfg.MaxRetryAttempts,
+		resolver:                cfg.Resolver,
+		push:                    cfg.Push,
+		clock:                   cfg.Clock,
+		observer:                cfg.Observer,
+		offlineResolvedObserver: cfg.OfflineResolvedObserver,
+		ackIdx:                  NewAckIndex(),
+		resolvePageSize:         cfg.ResolvePageSize,
+		limits:                  cfg.Limits,
+		idleTimeout:             cfg.IdleTimeout,
+		retryDelays:             append([]time.Duration(nil), cfg.RetryDelays...),
+		maxRetryAttempts:        cfg.MaxRetryAttempts,
 	}
 	m.shards = make([]*shard, cfg.ShardCount)
 	for i := range m.shards {
@@ -138,6 +140,15 @@ func (m *Manager) notifyRouteExpired(events []RouteExpiredEvent) {
 	}
 	for _, event := range events {
 		m.observer.OnRouteExpired(event)
+	}
+}
+
+func (m *Manager) notifyOfflineResolved(ctx context.Context, events []OfflineResolvedEvent) {
+	if m == nil || m.offlineResolvedObserver == nil {
+		return
+	}
+	for _, event := range events {
+		m.offlineResolvedObserver.OfflineResolved(ctx, event)
 	}
 }
 

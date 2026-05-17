@@ -19,8 +19,11 @@ const (
 	deliveryTagRPCServiceID           uint8 = 44
 	systemUIDCacheRPCServiceID        uint8 = 45
 	channelLeaderTransferRPCServiceID uint8 = 46
-	// 47 is used by slot/proxy channel migration, 48 by channel transport fence/drain, and 49 by slot/proxy CMD conversation state.
+	// 47 is used by slot/proxy channel migration, 48 by channel transport fence/drain, 49 by slot/proxy CMD conversation state, and 53 by slot/proxy plugin binding.
 	cmdSyncRPCServiceID             uint8 = 50
 	diagnosticsTrackingRPCServiceID uint8 = 51
 	monitorMetricsRPCServiceID      uint8 = 52
+	pluginHTTPForwardRPCServiceID   uint8 = 54
+	pluginManagementRPCServiceID    uint8 = 55
+	pluginCommittedRPCServiceID     uint8 = 56
 )

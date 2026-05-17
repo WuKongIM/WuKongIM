@@ -12,6 +12,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
@@ -4462,6 +4463,21 @@ type managementStub struct {
 	monitorMetrics                     managementusecase.MonitorMetricsResult
 	monitorMetricsErr                  error
 	monitorMetricsNodeIDSink           *uint64
+	pluginList                         pluginusecase.LocalPluginList
+	pluginListErr                      error
+	pluginDetail                       pluginusecase.LocalPluginDetail
+	pluginDetailErr                    error
+	pluginUpdateReqSink                *managementusecase.UpdatePluginConfigRequest
+	pluginRestartReqSink               *managementusecase.PluginBindingMutationRequest
+	pluginUninstallReqSink             *managementusecase.PluginBindingMutationRequest
+	pluginMutationErr                  error
+	pluginBindingListReqSink           *managementusecase.PluginBindingListRequest
+	pluginBindingList                  managementusecase.PluginBindingListResponse
+	pluginBindingListErr               error
+	pluginBindingMutationReqSink       *managementusecase.PluginBindingMutationRequest
+	pluginBindingUnbindReqSink         *managementusecase.PluginBindingMutationRequest
+	pluginBindingMutation              managementusecase.PluginBindingMutationResponse
+	pluginBindingMutationErr           error
 	nodeOnboardingCandidates           managementusecase.NodeOnboardingCandidatesResponse
 	nodeOnboardingCandidatesErr        error
 	nodeOnboardingJob                  managementusecase.NodeOnboardingJobResponse
@@ -4834,6 +4850,81 @@ func (s managementStub) GetMonitorMetrics(_ context.Context, nodeID uint64, _, _
 		*s.monitorMetricsNodeIDSink = nodeID
 	}
 	return s.monitorMetrics, s.monitorMetricsErr
+}
+
+func (s managementStub) ListNodePlugins(_ context.Context, nodeID uint64) (pluginusecase.LocalPluginList, error) {
+	out := s.pluginList
+	if out.NodeID == 0 {
+		out.NodeID = nodeID
+	}
+	return out, s.pluginListErr
+}
+
+func (s managementStub) GetNodePlugin(_ context.Context, nodeID uint64, pluginNo string) (pluginusecase.LocalPluginDetail, error) {
+	out := s.pluginDetail
+	if out.NodeID == 0 {
+		out.NodeID = nodeID
+	}
+	if out.No == "" {
+		out.No = pluginNo
+	}
+	return out, s.pluginDetailErr
+}
+
+func (s managementStub) UpdateNodePluginConfig(_ context.Context, nodeID uint64, pluginNo string, config json.RawMessage) (pluginusecase.LocalPluginDetail, error) {
+	if s.pluginUpdateReqSink != nil {
+		*s.pluginUpdateReqSink = managementusecase.UpdatePluginConfigRequest{NodeID: nodeID, PluginNo: pluginNo, Config: append(json.RawMessage(nil), config...)}
+	}
+	out := s.pluginDetail
+	if out.NodeID == 0 {
+		out.NodeID = nodeID
+	}
+	if out.No == "" {
+		out.No = pluginNo
+	}
+	return out, s.pluginMutationErr
+}
+
+func (s managementStub) RestartNodePlugin(_ context.Context, nodeID uint64, pluginNo string) (pluginusecase.LocalPluginDetail, error) {
+	if s.pluginRestartReqSink != nil {
+		*s.pluginRestartReqSink = managementusecase.PluginBindingMutationRequest{UID: fmt.Sprintf("%d", nodeID), PluginNo: pluginNo}
+	}
+	out := s.pluginDetail
+	if out.NodeID == 0 {
+		out.NodeID = nodeID
+	}
+	if out.No == "" {
+		out.No = pluginNo
+	}
+	return out, s.pluginMutationErr
+}
+
+func (s managementStub) UninstallNodePlugin(_ context.Context, nodeID uint64, pluginNo string) error {
+	if s.pluginUninstallReqSink != nil {
+		*s.pluginUninstallReqSink = managementusecase.PluginBindingMutationRequest{UID: fmt.Sprintf("%d", nodeID), PluginNo: pluginNo}
+	}
+	return s.pluginMutationErr
+}
+
+func (s managementStub) ListPluginBindings(_ context.Context, req managementusecase.PluginBindingListRequest) (managementusecase.PluginBindingListResponse, error) {
+	if s.pluginBindingListReqSink != nil {
+		*s.pluginBindingListReqSink = req
+	}
+	return s.pluginBindingList, s.pluginBindingListErr
+}
+
+func (s managementStub) BindPluginUser(_ context.Context, req managementusecase.PluginBindingMutationRequest) (managementusecase.PluginBindingMutationResponse, error) {
+	if s.pluginBindingMutationReqSink != nil {
+		*s.pluginBindingMutationReqSink = req
+	}
+	return s.pluginBindingMutation, s.pluginBindingMutationErr
+}
+
+func (s managementStub) UnbindPluginUser(_ context.Context, req managementusecase.PluginBindingMutationRequest) error {
+	if s.pluginBindingUnbindReqSink != nil {
+		*s.pluginBindingUnbindReqSink = req
+	}
+	return s.pluginBindingMutationErr
 }
 
 func (s managementStub) ListNodeOnboardingCandidates(context.Context) (managementusecase.NodeOnboardingCandidatesResponse, error) {

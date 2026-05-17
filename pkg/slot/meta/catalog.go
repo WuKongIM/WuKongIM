@@ -11,6 +11,7 @@ const (
 	TableIDReservedConversationProjection uint32 = 7
 	TableIDChannelMigrationTask           uint32 = 8
 	TableIDCMDConversationState           uint32 = 9
+	TableIDPluginUserBinding              uint32 = 10
 
 	maxKeyStringLen = 1<<16 - 1
 )
@@ -147,6 +148,17 @@ const (
 	cmdConversationStateColumnIDDeletedToSeq uint16 = 5
 	cmdConversationStateColumnIDActiveAt     uint16 = 6
 	cmdConversationStateColumnIDUpdatedAt    uint16 = 7
+)
+
+const (
+	pluginUserBindingPrimaryFamilyID uint16 = 0
+	pluginUserBindingPrimaryIndexID  uint16 = 1
+	pluginUserBindingPluginIndexID   uint16 = 2
+
+	pluginUserBindingColumnIDUID         uint16 = 1
+	pluginUserBindingColumnIDPluginNo    uint16 = 2
+	pluginUserBindingColumnIDCreatedAtMS uint16 = 3
+	pluginUserBindingColumnIDUpdatedAtMS uint16 = 4
 )
 
 type ColumnType int
@@ -529,6 +541,39 @@ var CMDConversationStateTable = &TableDesc{
 			Name:      "idx_cmd_conversation_active",
 			Unique:    false,
 			ColumnIDs: []uint16{cmdConversationStateColumnIDUID, cmdConversationStateColumnIDActiveAt, cmdConversationStateColumnIDChannelType, cmdConversationStateColumnIDChannelID},
+		},
+	},
+}
+var PluginUserBindingTable = &TableDesc{
+	ID:   TableIDPluginUserBinding,
+	Name: "plugin_user_binding",
+	Columns: []ColumnDesc{
+		{ID: pluginUserBindingColumnIDUID, Name: "uid", Type: ColumnString},
+		{ID: pluginUserBindingColumnIDPluginNo, Name: "plugin_no", Type: ColumnString},
+		{ID: pluginUserBindingColumnIDCreatedAtMS, Name: "created_at_ms", Type: ColumnInt64},
+		{ID: pluginUserBindingColumnIDUpdatedAtMS, Name: "updated_at_ms", Type: ColumnInt64},
+	},
+	Families: []ColumnFamilyDesc{
+		{
+			ID:              pluginUserBindingPrimaryFamilyID,
+			Name:            "primary",
+			ColumnIDs:       []uint16{pluginUserBindingColumnIDCreatedAtMS, pluginUserBindingColumnIDUpdatedAtMS},
+			DefaultColumnID: pluginUserBindingColumnIDCreatedAtMS,
+		},
+	},
+	PrimaryIndex: IndexDesc{
+		ID:        pluginUserBindingPrimaryIndexID,
+		Name:      "pk_plugin_user_binding",
+		Unique:    true,
+		Primary:   true,
+		ColumnIDs: []uint16{pluginUserBindingColumnIDUID, pluginUserBindingColumnIDPluginNo},
+	},
+	SecondaryIndexes: []IndexDesc{
+		{
+			ID:        pluginUserBindingPluginIndexID,
+			Name:      "idx_plugin_no_uid",
+			Unique:    true,
+			ColumnIDs: []uint16{pluginUserBindingColumnIDPluginNo, pluginUserBindingColumnIDUID},
 		},
 	},
 }

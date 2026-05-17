@@ -640,12 +640,13 @@ func (d *asyncCommittedDispatcher) submitConversationFallback(ctx context.Contex
 }
 
 type localDeliveryResolver struct {
-	subscribers deliveryusecase.SubscriberResolver
-	authority   presence.Authoritative
-	uidObserver resolvedUIDObserver
-	pageSize    int
-	metrics     deliveryRoutingMetrics
-	logger      wklog.Logger
+	subscribers        deliveryusecase.SubscriberResolver
+	authority          presence.Authoritative
+	uidObserver        resolvedUIDObserver
+	collectOfflineUIDs bool
+	pageSize           int
+	metrics            deliveryRoutingMetrics
+	logger             wklog.Logger
 }
 
 // resolvedUIDPage contains one resolver UID page before presence expansion.
@@ -682,15 +683,16 @@ type cachedDeliveryTagAssignments interface {
 
 // tagDeliveryResolver resolves routes from leader-built delivery tag partitions.
 type tagDeliveryResolver struct {
-	localNodeID uint64
-	tags        *deliverytagruntime.Manager
-	subscribers deliveryusecase.SubscriberResolver
-	authority   presence.Authoritative
-	uidObserver resolvedUIDObserver
-	topology    deliveryTagTopologyReader
-	pageSize    int
-	metrics     deliveryRoutingMetrics
-	logger      wklog.Logger
+	localNodeID        uint64
+	tags               *deliverytagruntime.Manager
+	subscribers        deliveryusecase.SubscriberResolver
+	authority          presence.Authoritative
+	uidObserver        resolvedUIDObserver
+	collectOfflineUIDs bool
+	topology           deliveryTagTopologyReader
+	pageSize           int
+	metrics            deliveryRoutingMetrics
+	logger             wklog.Logger
 }
 
 type deliveryTagAuthority struct {
@@ -874,7 +876,7 @@ func (r localDeliveryResolver) BeginResolve(ctx context.Context, key deliveryrun
 	return &localResolveToken{snapshot: snapshot, env: env, channelType: key.ChannelType}, nil
 }
 
-func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor string, limit int) (routes []deliveryruntime.RouteKey, nextCursor string, done bool, err error) {
+func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor string, limit int) (page deliveryruntime.ResolvePageResult, err error) {
 	startedAt := time.Now()
 	pages := 0
 	channelType := "unknown"
@@ -883,10 +885,10 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 		if err != nil {
 			result = "error"
 		}
-		r.recordResolveMetric(channelType, result, time.Since(startedAt), pages, len(routes))
+		r.recordResolveMetric(channelType, result, time.Since(startedAt), pages, len(page.Routes))
 	}()
 	if r.subscribers == nil || r.authority == nil {
-		return nil, "", true, nil
+		return deliveryruntime.ResolvePageResult{Done: true}, nil
 	}
 	if limit <= 0 {
 		limit = r.pageSize
@@ -897,11 +899,12 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 
 	resolveToken, ok := token.(*localResolveToken)
 	if !ok {
-		return nil, "", true, nil
+		return deliveryruntime.ResolvePageResult{Done: true}, nil
 	}
 	channelType = deliveryChannelTypeLabel(resolveToken.channelType)
 
 	out := make([]deliveryruntime.RouteKey, 0, localResolveRouteCap(limit, resolveToken.channelType))
+	var offlineUIDs []string
 	if len(resolveToken.pending) > 0 {
 		taken := limit
 		if taken > len(resolveToken.pending) {
@@ -910,7 +913,11 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 		out = append(out, resolveToken.pending[:taken]...)
 		resolveToken.pending = resolveToken.pending[taken:]
 		if len(out) == limit || resolveToken.done {
-			return out, cursor, resolveToken.done && len(resolveToken.pending) == 0, nil
+			return deliveryruntime.ResolvePageResult{
+				Routes:     out,
+				NextCursor: cursor,
+				Done:       resolveToken.done && len(resolveToken.pending) == 0,
+			}, nil
 		}
 	}
 
@@ -921,19 +928,19 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 
 	for len(out) < limit {
 		if resolveToken.done {
-			return out, cursor, true, nil
+			return deliveryruntime.ResolvePageResult{Routes: out, OfflineUIDs: offlineUIDs, NextCursor: cursor, Done: true}, nil
 		}
 
 		pages++
 		uids, nextCursor, done, err := r.subscribers.NextPage(ctx, resolveToken.snapshot, cursor, pageSize)
 		if err != nil {
-			return nil, "", false, err
+			return deliveryruntime.ResolvePageResult{}, err
 		}
 		cursor = nextCursor
 		resolveToken.done = done
 		if len(uids) == 0 {
 			if done {
-				return out, cursor, true, nil
+				return deliveryruntime.ResolvePageResult{Routes: out, OfflineUIDs: offlineUIDs, NextCursor: cursor, Done: true}, nil
 			}
 			continue
 		}
@@ -944,6 +951,7 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 			missing       []string
 			overflow      []deliveryruntime.RouteKey
 		)
+		offlineBefore := len(offlineUIDs)
 		remaining := limit - len(out)
 		debugEnabled := wklog.DebugEnabled(r.logger)
 		if debugEnabled {
@@ -953,10 +961,13 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 			for _, uid := range uids {
 				routes, err := r.authority.EndpointsByUID(ctx, uid)
 				if err != nil {
-					return nil, "", false, err
+					return deliveryruntime.ResolvePageResult{}, err
 				}
 				if len(routes) == 0 && debugEnabled {
 					missing = append(missing, uid)
+				}
+				if len(routes) == 0 && r.collectOfflineUIDs {
+					offlineUIDs = append(offlineUIDs, uid)
 				}
 				expandedCount += len(routes)
 				out, overflow = appendResolvedPresenceRoutes(out, overflow, routes, &remaining)
@@ -964,12 +975,15 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 		} else {
 			endpointsByUID, err := r.authority.EndpointsByUIDs(ctx, uids)
 			if err != nil {
-				return nil, "", false, err
+				return deliveryruntime.ResolvePageResult{}, err
 			}
 			for _, uid := range uids {
 				routes := endpointsByUID[uid]
 				if len(routes) == 0 && debugEnabled {
 					missing = append(missing, uid)
+				}
+				if len(routes) == 0 && r.collectOfflineUIDs {
+					offlineUIDs = append(offlineUIDs, uid)
 				}
 				expandedCount += len(routes)
 				out, overflow = appendResolvedPresenceRoutes(out, overflow, routes, &remaining)
@@ -989,19 +1003,22 @@ func (r localDeliveryResolver) ResolvePage(ctx context.Context, token any, curso
 				r.logger.Debug("delivery resolver expanded authoritative endpoints", fields...)
 			}
 		}
-		if expandedCount == 0 {
-			if done {
-				return out, cursor, true, nil
-			}
-			continue
-		}
 
 		if len(overflow) > 0 {
 			resolveToken.pending = append(resolveToken.pending[:0], overflow...)
-			return out, cursor, false, nil
+			return deliveryruntime.ResolvePageResult{Routes: out, OfflineUIDs: offlineUIDs, NextCursor: cursor}, nil
+		}
+		if done {
+			return deliveryruntime.ResolvePageResult{Routes: out, OfflineUIDs: offlineUIDs, NextCursor: cursor, Done: true}, nil
+		}
+		if len(offlineUIDs) > offlineBefore {
+			return deliveryruntime.ResolvePageResult{Routes: out, OfflineUIDs: offlineUIDs, NextCursor: cursor}, nil
+		}
+		if expandedCount == 0 {
+			continue
 		}
 	}
-	return out, cursor, false, nil
+	return deliveryruntime.ResolvePageResult{Routes: out, OfflineUIDs: offlineUIDs, NextCursor: cursor}, nil
 }
 
 // appendResolvedPresenceRoutes appends resolved endpoints to the current page and spills excess routes to overflow.
@@ -1044,12 +1061,13 @@ func (r localDeliveryResolver) recordResolveMetric(channelType, result string, d
 func (r tagDeliveryResolver) BeginResolve(ctx context.Context, key deliveryruntime.ChannelKey, env deliveryruntime.CommittedEnvelope) (any, error) {
 	if r.tags == nil || r.subscribers == nil || deliveryTagPartitionBypassed(key.ChannelType) {
 		return localDeliveryResolver{
-			subscribers: r.subscribers,
-			authority:   r.authority,
-			uidObserver: r.uidObserver,
-			pageSize:    r.pageSize,
-			metrics:     r.metrics,
-			logger:      r.logger,
+			subscribers:        r.subscribers,
+			authority:          r.authority,
+			uidObserver:        r.uidObserver,
+			collectOfflineUIDs: r.collectOfflineUIDs,
+			pageSize:           r.pageSize,
+			metrics:            r.metrics,
+			logger:             r.logger,
 		}.BeginResolve(ctx, key, env)
 	}
 	startedAt := time.Now()
@@ -1080,15 +1098,16 @@ func deliveryTagPartitionBypassed(channelType uint8) bool {
 	return channelType == frame.ChannelTypePerson
 }
 
-func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor string, limit int) (routes []deliveryruntime.RouteKey, nextCursor string, done bool, err error) {
+func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor string, limit int) (page deliveryruntime.ResolvePageResult, err error) {
 	if _, local := token.(*localResolveToken); local {
 		return localDeliveryResolver{
-			subscribers: r.subscribers,
-			authority:   r.authority,
-			uidObserver: r.uidObserver,
-			pageSize:    r.pageSize,
-			metrics:     r.metrics,
-			logger:      r.logger,
+			subscribers:        r.subscribers,
+			authority:          r.authority,
+			uidObserver:        r.uidObserver,
+			collectOfflineUIDs: r.collectOfflineUIDs,
+			pageSize:           r.pageSize,
+			metrics:            r.metrics,
+			logger:             r.logger,
 		}.ResolvePage(ctx, token, cursor, limit)
 	}
 
@@ -1100,10 +1119,10 @@ func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor 
 		if err != nil {
 			result = "error"
 		}
-		r.recordResolveMetric(channelType, result, time.Since(startedAt), pages, len(routes))
+		r.recordResolveMetric(channelType, result, time.Since(startedAt), pages, len(page.Routes))
 	}()
 	if r.authority == nil {
-		return nil, "", true, nil
+		return deliveryruntime.ResolvePageResult{Done: true}, nil
 	}
 	if limit <= 0 {
 		limit = r.pageSize
@@ -1114,11 +1133,13 @@ func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor 
 	resolveToken, ok := token.(*tagResolveToken)
 	if !ok {
 		return localDeliveryResolver{
-			subscribers: r.subscribers,
-			authority:   r.authority,
-			pageSize:    r.pageSize,
-			metrics:     r.metrics,
-			logger:      r.logger,
+			subscribers:        r.subscribers,
+			authority:          r.authority,
+			uidObserver:        r.uidObserver,
+			collectOfflineUIDs: r.collectOfflineUIDs,
+			pageSize:           r.pageSize,
+			metrics:            r.metrics,
+			logger:             r.logger,
 		}.ResolvePage(ctx, token, cursor, limit)
 	}
 	channelType = deliveryChannelTypeLabel(resolveToken.channelType)
@@ -1140,9 +1161,10 @@ func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor 
 		}
 	}
 	if resolveToken.done {
-		return nil, cursor, true, nil
+		return deliveryruntime.ResolvePageResult{NextCursor: cursor, Done: true}, nil
 	}
 	out := make([]deliveryruntime.RouteKey, 0, localResolveRouteCap(limit, resolveToken.channelType))
+	var offlineUIDs []string
 	if len(resolveToken.pending) > 0 {
 		taken := limit
 		if taken > len(resolveToken.pending) {
@@ -1151,7 +1173,7 @@ func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor 
 		out = append(out, resolveToken.pending[:taken]...)
 		resolveToken.pending = resolveToken.pending[taken:]
 		if len(out) == limit || len(resolveToken.pending) > 0 {
-			return out, cursor, false, nil
+			return deliveryruntime.ResolvePageResult{Routes: out, NextCursor: cursor}, nil
 		}
 	}
 
@@ -1168,27 +1190,37 @@ func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor 
 		}
 		if len(uids) == 0 {
 			resolveToken.done = pageDone
-			return out, cursor, pageDone && len(resolveToken.pending) == 0, nil
+			return deliveryruntime.ResolvePageResult{
+				Routes:      out,
+				OfflineUIDs: offlineUIDs,
+				NextCursor:  cursor,
+				Done:        pageDone && len(resolveToken.pending) == 0,
+			}, nil
 		}
 		notifyResolvedUIDPage(ctx, r.uidObserver, resolveToken.env, uids)
-		expanded, overflow, err := r.expandTagUIDs(ctx, uids, limit-len(out), resolveToken.channelType)
+		offlineBefore := len(offlineUIDs)
+		expanded, overflow, offline, err := r.expandTagUIDs(ctx, uids, limit-len(out), resolveToken.channelType)
 		if err != nil {
-			return nil, "", false, err
+			return deliveryruntime.ResolvePageResult{}, err
 		}
+		offlineUIDs = append(offlineUIDs, offline...)
 		out = append(out, expanded...)
 		if len(overflow) > 0 {
 			resolveToken.pending = append(resolveToken.pending[:0], overflow...)
-			return out, cursor, false, nil
+			return deliveryruntime.ResolvePageResult{Routes: out, OfflineUIDs: offlineUIDs, NextCursor: cursor}, nil
 		}
 		if pageDone {
 			resolveToken.done = true
-			return out, cursor, true, nil
+			return deliveryruntime.ResolvePageResult{Routes: out, OfflineUIDs: offlineUIDs, NextCursor: cursor, Done: true}, nil
+		}
+		if len(offlineUIDs) > offlineBefore {
+			return deliveryruntime.ResolvePageResult{Routes: out, OfflineUIDs: offlineUIDs, NextCursor: cursor}, nil
 		}
 		if len(expanded) == 0 {
 			continue
 		}
 	}
-	return out, cursor, false, nil
+	return deliveryruntime.ResolvePageResult{Routes: out, OfflineUIDs: offlineUIDs, NextCursor: cursor}, nil
 }
 
 func (r tagDeliveryResolver) leaderTagFromSnapshot(ctx context.Context, key deliveryruntime.ChannelKey, channelKey string, snapshot deliveryusecase.SnapshotToken) (deliverytagruntime.DeliveryTag, error) {
@@ -1322,31 +1354,39 @@ func (r tagDeliveryResolver) partitionDeliveryTagUIDs(_ context.Context, uids []
 	return out
 }
 
-func (r tagDeliveryResolver) expandTagUIDs(ctx context.Context, uids []string, limit int, channelType uint8) ([]deliveryruntime.RouteKey, []deliveryruntime.RouteKey, error) {
+func (r tagDeliveryResolver) expandTagUIDs(ctx context.Context, uids []string, limit int, channelType uint8) ([]deliveryruntime.RouteKey, []deliveryruntime.RouteKey, []string, error) {
 	if len(uids) == 0 || limit <= 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	remaining := limit
 	out := make([]deliveryruntime.RouteKey, 0, localResolveRouteCap(limit, channelType))
 	var overflow []deliveryruntime.RouteKey
+	var offlineUIDs []string
 	if channelType == frame.ChannelTypePerson {
 		for _, uid := range uids {
 			routes, err := r.authority.EndpointsByUID(ctx, uid)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
+			}
+			if len(routes) == 0 && r.collectOfflineUIDs {
+				offlineUIDs = append(offlineUIDs, uid)
 			}
 			out, overflow = appendResolvedPresenceRoutes(out, overflow, routes, &remaining)
 		}
-		return out, overflow, nil
+		return out, overflow, offlineUIDs, nil
 	}
 	endpointsByUID, err := r.authority.EndpointsByUIDs(ctx, uids)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	for _, uid := range uids {
-		out, overflow = appendResolvedPresenceRoutes(out, overflow, endpointsByUID[uid], &remaining)
+		routes := endpointsByUID[uid]
+		if len(routes) == 0 && r.collectOfflineUIDs {
+			offlineUIDs = append(offlineUIDs, uid)
+		}
+		out, overflow = appendResolvedPresenceRoutes(out, overflow, routes, &remaining)
 	}
-	return out, overflow, nil
+	return out, overflow, offlineUIDs, nil
 }
 
 func notifyResolvedUIDPage(ctx context.Context, observer resolvedUIDObserver, env deliveryruntime.CommittedEnvelope, uids []string) {

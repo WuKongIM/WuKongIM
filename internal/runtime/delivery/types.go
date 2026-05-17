@@ -61,6 +61,18 @@ type PushResult struct {
 	Dropped   []RouteKey
 }
 
+// ResolvePageResult contains one resolver page after subscriber expansion and presence classification.
+type ResolvePageResult struct {
+	// Routes contains currently online routes that should receive the message.
+	Routes []RouteKey
+	// OfflineUIDs contains subscribers that had no authoritative online route in this page.
+	OfflineUIDs []string
+	// NextCursor is the opaque cursor for the next resolver page.
+	NextCursor string
+	// Done reports whether the resolver has exhausted all subscribers for the message.
+	Done bool
+}
+
 // RouteExpiredEvent describes a realtime route removed after exhausting retry budget.
 type RouteExpiredEvent struct {
 	ChannelID   string
@@ -81,6 +93,29 @@ type MaintenanceSnapshot struct {
 type Observer interface {
 	OnRouteExpired(RouteExpiredEvent)
 	OnMaintenanceSnapshot(MaintenanceSnapshot)
+}
+
+// OfflineResolvedEvent describes one offline recipient identified after resolver presence classification.
+type OfflineResolvedEvent struct {
+	// Envelope is the committed message envelope that produced the offline recipient.
+	Envelope CommittedEnvelope
+	// UID is the offline recipient UID.
+	UID string
+	// Attempt is the delivery resolve attempt that observed the offline recipient.
+	Attempt int
+	// PageCursor is the cursor used to request the resolver page.
+	PageCursor string
+	// NextCursor is the cursor returned by the resolver page.
+	NextCursor string
+	// PageLimit is the route budget requested for the resolver page.
+	PageLimit int
+	// Done reports whether this page completed subscriber resolution.
+	Done bool
+}
+
+// OfflineResolvedObserver receives offline recipient notifications after presence classification.
+type OfflineResolvedObserver interface {
+	OfflineResolved(context.Context, OfflineResolvedEvent)
 }
 
 // RetryEntryKind identifies the actor retry work carried by a retry-wheel entry.
@@ -156,7 +191,7 @@ type Limits struct {
 
 type Resolver interface {
 	BeginResolve(ctx context.Context, key ChannelKey, env CommittedEnvelope) (any, error)
-	ResolvePage(ctx context.Context, token any, cursor string, limit int) ([]RouteKey, string, bool, error)
+	ResolvePage(ctx context.Context, token any, cursor string, limit int) (ResolvePageResult, error)
 }
 
 type Pusher interface {
@@ -172,13 +207,15 @@ type Config struct {
 	Push     Pusher
 	Clock    Clock
 	// Observer receives runtime maintenance snapshots and route expiry events.
-	Observer         Observer
-	ShardCount       int
-	ResolvePageSize  int
-	Limits           Limits
-	IdleTimeout      time.Duration
-	RetryDelays      []time.Duration
-	MaxRetryAttempts int
+	Observer Observer
+	// OfflineResolvedObserver receives offline UIDs after resolver presence classification.
+	OfflineResolvedObserver OfflineResolvedObserver
+	ShardCount              int
+	ResolvePageSize         int
+	Limits                  Limits
+	IdleTimeout             time.Duration
+	RetryDelays             []time.Duration
+	MaxRetryAttempts        int
 }
 
 type defaultClock struct{}
@@ -193,8 +230,8 @@ func (noopResolver) BeginResolve(context.Context, ChannelKey, CommittedEnvelope)
 	return nil, nil
 }
 
-func (noopResolver) ResolvePage(context.Context, any, string, int) ([]RouteKey, string, bool, error) {
-	return nil, "", true, nil
+func (noopResolver) ResolvePage(context.Context, any, string, int) (ResolvePageResult, error) {
+	return ResolvePageResult{Done: true}, nil
 }
 
 type noopPusher struct{}

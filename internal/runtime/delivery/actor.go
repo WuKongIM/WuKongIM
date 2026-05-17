@@ -21,6 +21,7 @@ type actor struct {
 	completed       map[uint64]struct{}
 	completedOrder  []uint64
 	expiredEvents   []RouteExpiredEvent
+	offlineEvents   []OfflineResolvedEvent
 	lastActive      int64
 }
 
@@ -153,13 +154,19 @@ func (a *actor) resolvePages(ctx context.Context, msg *InflightMessage) error {
 
 		token := msg.ResolveToken
 		cursor := msg.NextCursor
-		routes, nextCursor, done, err := a.resolvePageOutsideLock(ctx, token, cursor, pageLimit)
+		page, err := a.resolvePageOutsideLock(ctx, token, cursor, pageLimit)
 		if a.inflight[msg.MessageID] != msg || msg.ResolveDone {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
+		a.recordOfflineResolvedEvents(msg, page, cursor, pageLimit)
+		a.notifyOfflineResolvedOutsideLock(ctx)
+		if a.inflight[msg.MessageID] != msg || msg.ResolveDone {
+			return nil
+		}
+		routes := page.Routes
 		if len(routes) > 0 {
 			if err := a.applyPush(ctx, msg, routes, 1); err != nil {
 				return err
@@ -168,9 +175,9 @@ func (a *actor) resolvePages(ctx context.Context, msg *InflightMessage) error {
 				return nil
 			}
 		}
-		msg.NextCursor = nextCursor
-		msg.ResolveDone = done
-		if !done && len(routes) == 0 && nextCursor == "" {
+		msg.NextCursor = page.NextCursor
+		msg.ResolveDone = page.Done
+		if !page.Done && len(routes) == 0 && page.NextCursor == "" {
 			msg.ResolveDone = true
 		}
 	}
@@ -280,11 +287,14 @@ func (a *actor) beginResolveOutsideLock(ctx context.Context, env CommittedEnvelo
 }
 
 // resolvePageOutsideLock resolves one subscriber page without holding the actor lock.
-func (a *actor) resolvePageOutsideLock(ctx context.Context, token any, cursor string, limit int) ([]RouteKey, string, bool, error) {
+func (a *actor) resolvePageOutsideLock(ctx context.Context, token any, cursor string, limit int) (ResolvePageResult, error) {
 	a.mu.Unlock()
-	routes, nextCursor, done, err := a.shard.manager.resolver.ResolvePage(ctx, token, cursor, limit)
+	page, err := a.shard.manager.resolver.ResolvePage(ctx, token, cursor, limit)
 	a.mu.Lock()
-	return routes, nextCursor, done, err
+	if err != nil {
+		return ResolvePageResult{}, err
+	}
+	return page, nil
 }
 
 // pushOutsideLock pushes route batches without holding the actor lock.
@@ -417,6 +427,46 @@ func (a *actor) drainExpiredEventsLocked() []RouteExpiredEvent {
 	events := append([]RouteExpiredEvent(nil), a.expiredEvents...)
 	a.expiredEvents = a.expiredEvents[:0]
 	return events
+}
+
+func (a *actor) recordOfflineResolvedEvents(msg *InflightMessage, page ResolvePageResult, cursor string, limit int) {
+	if msg == nil || len(page.OfflineUIDs) == 0 {
+		return
+	}
+	env := cloneEnvelope(msg.Envelope)
+	for _, uid := range page.OfflineUIDs {
+		if uid == "" {
+			continue
+		}
+		a.offlineEvents = append(a.offlineEvents, OfflineResolvedEvent{
+			Envelope:   env,
+			UID:        uid,
+			Attempt:    msg.ResolveAttempt,
+			PageCursor: cursor,
+			NextCursor: page.NextCursor,
+			PageLimit:  limit,
+			Done:       page.Done,
+		})
+	}
+}
+
+func (a *actor) drainOfflineResolvedEventsLocked() []OfflineResolvedEvent {
+	if len(a.offlineEvents) == 0 {
+		return nil
+	}
+	events := append([]OfflineResolvedEvent(nil), a.offlineEvents...)
+	a.offlineEvents = a.offlineEvents[:0]
+	return events
+}
+
+func (a *actor) notifyOfflineResolvedOutsideLock(ctx context.Context) {
+	events := a.drainOfflineResolvedEventsLocked()
+	if len(events) == 0 {
+		return
+	}
+	a.mu.Unlock()
+	a.shard.manager.notifyOfflineResolved(ctx, events)
+	a.mu.Lock()
 }
 
 func (a *actor) ensureRouteState(msg *InflightMessage, route RouteKey) *RouteDeliveryState {

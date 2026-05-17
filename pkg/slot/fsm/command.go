@@ -43,6 +43,8 @@ const (
 	cmdTypeHideUserConversations                uint8 = 16
 	cmdTypeUpsertCMDConversationStates          uint8 = 17
 	cmdTypeAdvanceCMDConversationReadSeq        uint8 = 18
+	cmdTypeBindPluginUser                       uint8 = 42
+	cmdTypeUnbindPluginUser                     uint8 = 43
 
 	// User field tags.
 	tagUserUID         uint8 = 1
@@ -146,6 +148,12 @@ const (
 	tagConversationKeyEntryChannelID   uint8 = 1
 	tagConversationKeyEntryChannelType uint8 = 2
 
+	// Plugin user binding field tags.
+	tagPluginUserBindingUID         uint8 = 1
+	tagPluginUserBindingPluginNo    uint8 = 2
+	tagPluginUserBindingCreatedAtMS uint8 = 3
+	tagPluginUserBindingUpdatedAtMS uint8 = 4
+
 	// ApplyResultOK is the result returned by Apply/ApplyBatch on success.
 	ApplyResultOK = "ok"
 	// ApplyResultHashSlotFenced reports a committed source write rejected by a migration fence.
@@ -200,6 +208,8 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeHideUserConversations:                decodeHideUserConversations,
 	cmdTypeUpsertCMDConversationStates:          decodeUpsertCMDConversationStates,
 	cmdTypeAdvanceCMDConversationReadSeq:        decodeAdvanceCMDConversationReadSeq,
+	cmdTypeBindPluginUser:                       decodeBindPluginUser,
+	cmdTypeUnbindPluginUser:                     decodeUnbindPluginUser,
 	cmdTypeApplyDelta:                           decodeApplyDelta,
 	cmdTypeEnterFence:                           decodeEnterFence,
 	cmdTypeAckMigrationOutbox:                   decodeAckMigrationOutbox,

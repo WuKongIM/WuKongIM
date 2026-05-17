@@ -345,3 +345,37 @@ func assertKeyInSpan(t *testing.T, key []byte, span Span) {
 		t.Fatalf("key %x not in span [%x, %x)", key, span.Start, span.End)
 	}
 }
+
+func TestPluginBindingSnapshotRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForHashSlot(12)
+	bindings := []PluginUserBinding{
+		{UID: "u1", PluginNo: "bot-a", CreatedAtMS: 100, UpdatedAtMS: 101},
+		{UID: "u2", PluginNo: "bot-a", CreatedAtMS: 200, UpdatedAtMS: 201},
+	}
+	for _, binding := range bindings {
+		if err := shard.BindPluginUser(ctx, binding); err != nil {
+			t.Fatalf("BindPluginUser(%#v): %v", binding, err)
+		}
+	}
+
+	snap, err := db.ExportHashSlotSnapshot(ctx, []uint16{12})
+	if err != nil {
+		t.Fatalf("ExportHashSlotSnapshot(): %v", err)
+	}
+	if err := db.DeleteHashSlotData(ctx, 12); err != nil {
+		t.Fatalf("DeleteHashSlotData(): %v", err)
+	}
+	if err := db.ImportHashSlotSnapshot(ctx, snap); err != nil {
+		t.Fatalf("ImportHashSlotSnapshot(): %v", err)
+	}
+
+	page, _, hasMore, err := shard.ScanPluginBindingsByPluginNo(ctx, "bot-a", PluginUserBindingCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ScanPluginBindingsByPluginNo(): %v", err)
+	}
+	if hasMore || !reflect.DeepEqual(page, bindings) {
+		t.Fatalf("restored bindings = %#v hasMore=%v, want %#v false", page, hasMore, bindings)
+	}
+}

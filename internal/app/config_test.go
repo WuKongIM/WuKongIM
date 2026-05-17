@@ -22,7 +22,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/gateway/binding"
 )
 
-func TestConfigExampleDocumentsSupportedWKKeys(t *testing.T) {
+func TestConfigExampleMentionsEverySupportedKey(t *testing.T) {
 	content, err := os.ReadFile("../../wukongim.conf.example")
 	require.NoError(t, err)
 
@@ -159,6 +159,14 @@ func supportedConfigExampleKeys() []string {
 		"WK_NODE_DATA_DIR",
 		"WK_NODE_ID",
 		"WK_NODE_NAME",
+		"WK_PLUGIN_DIR",
+		"WK_PLUGIN_ENABLE",
+		"WK_PLUGIN_FAIL_OPEN",
+		"WK_PLUGIN_HOT_RELOAD",
+		"WK_PLUGIN_SANDBOX_DIR",
+		"WK_PLUGIN_SOCKET_PATH",
+		"WK_PLUGIN_STATE_DIR",
+		"WK_PLUGIN_TIMEOUT",
 		"WK_STORAGE_CHANNEL_LOG_PATH",
 		"WK_STORAGE_CONTROLLER_META_PATH",
 		"WK_STORAGE_CONTROLLER_RAFT_PATH",
@@ -249,6 +257,35 @@ func TestConfigApplyDefaultsDerivesRaftSnapshotPathsFromDataDir(t *testing.T) {
 	require.Equal(t, "/tmp/wukong-node-1/controller-raft-snapshots", cfg.Storage.ControllerRaftSnapshotPath)
 	require.Equal(t, uint64(8<<20), cfg.Storage.RaftSnapshotChunkSize)
 	require.Equal(t, 30*time.Minute, cfg.Storage.RaftSnapshotGCGrace)
+}
+
+func TestConfigApplyDefaultsDerivesPluginPathsFromDataDir(t *testing.T) {
+	cfg := validConfig()
+	cfg.Plugin.Enable = true
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	require.True(t, cfg.Plugin.Enable)
+	require.Equal(t, filepath.Join(cfg.Node.DataDir, "plugins"), cfg.Plugin.Dir)
+	require.Equal(t, filepath.Join(cfg.Node.DataDir, "run", "plugin.sock"), cfg.Plugin.SocketPath)
+	require.Equal(t, filepath.Join(cfg.Node.DataDir, "plugin-sandbox"), cfg.Plugin.SandboxDir)
+	require.Equal(t, filepath.Join(cfg.Node.DataDir, "plugin-state"), cfg.Plugin.StateDir)
+	require.Equal(t, 5*time.Second, cfg.Plugin.Timeout)
+	require.True(t, cfg.Plugin.HotReload)
+	require.False(t, cfg.Plugin.FailOpen)
+}
+
+func TestConfigApplyDefaultsKeepsPluginDisabledByDefault(t *testing.T) {
+	cfg := validConfig()
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	require.False(t, cfg.Plugin.Enable)
+}
+
+func TestConfigValidateRejectsInvalidPluginTimeout(t *testing.T) {
+	cfg := validConfig()
+	cfg.Plugin.Timeout = -time.Second
+
+	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "plugin timeout")
 }
 
 func TestConfigUsesConfiguredRaftSnapshotPaths(t *testing.T) {

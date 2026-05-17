@@ -147,6 +147,86 @@ func TestLoadConfigParsesBenchAPIConfig(t *testing.T) {
 	require.Equal(t, int64(456789), cfg.Bench.APIMaxPayloadBytes)
 }
 
+func TestLoadConfigParsesPluginConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_CLUSTER_SLOT_COUNT=1",
+		"WK_PLUGIN_ENABLE=true",
+		"WK_PLUGIN_DIR="+filepath.Join(dir, "plugins"),
+		"WK_PLUGIN_SOCKET_PATH="+filepath.Join(dir, "run", "plugin.sock"),
+		"WK_PLUGIN_SANDBOX_DIR="+filepath.Join(dir, "sandbox"),
+		"WK_PLUGIN_STATE_DIR="+filepath.Join(dir, "state"),
+		"WK_PLUGIN_TIMEOUT=7s",
+		"WK_PLUGIN_HOT_RELOAD=false",
+		"WK_PLUGIN_FAIL_OPEN=true",
+	)
+
+	cfg, err := loadConfig(path)
+	require.NoError(t, err)
+	require.True(t, cfg.Plugin.Enable)
+	require.Equal(t, filepath.Join(dir, "plugins"), cfg.Plugin.Dir)
+	require.Equal(t, filepath.Join(dir, "run", "plugin.sock"), cfg.Plugin.SocketPath)
+	require.Equal(t, filepath.Join(dir, "sandbox"), cfg.Plugin.SandboxDir)
+	require.Equal(t, filepath.Join(dir, "state"), cfg.Plugin.StateDir)
+	require.Equal(t, 7*time.Second, cfg.Plugin.Timeout)
+	require.False(t, cfg.Plugin.HotReload)
+	require.True(t, cfg.Plugin.FailOpen)
+}
+
+func TestLoadConfigPrefersEnvironmentVariablesForPluginConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_CLUSTER_SLOT_COUNT=1",
+		"WK_PLUGIN_ENABLE=false",
+		"WK_PLUGIN_DIR="+filepath.Join(dir, "file-plugins"),
+		"WK_PLUGIN_TIMEOUT=7s",
+		"WK_PLUGIN_HOT_RELOAD=true",
+		"WK_PLUGIN_FAIL_OPEN=false",
+	)
+	t.Setenv("WK_PLUGIN_ENABLE", "true")
+	t.Setenv("WK_PLUGIN_DIR", filepath.Join(dir, "env-plugins"))
+	t.Setenv("WK_PLUGIN_SOCKET_PATH", filepath.Join(dir, "env-run", "plugin.sock"))
+	t.Setenv("WK_PLUGIN_SANDBOX_DIR", filepath.Join(dir, "env-sandbox"))
+	t.Setenv("WK_PLUGIN_STATE_DIR", filepath.Join(dir, "env-state"))
+	t.Setenv("WK_PLUGIN_TIMEOUT", "9s")
+	t.Setenv("WK_PLUGIN_HOT_RELOAD", "false")
+	t.Setenv("WK_PLUGIN_FAIL_OPEN", "true")
+
+	cfg, err := loadConfig(path)
+	require.NoError(t, err)
+	require.True(t, cfg.Plugin.Enable)
+	require.Equal(t, filepath.Join(dir, "env-plugins"), cfg.Plugin.Dir)
+	require.Equal(t, filepath.Join(dir, "env-run", "plugin.sock"), cfg.Plugin.SocketPath)
+	require.Equal(t, filepath.Join(dir, "env-sandbox"), cfg.Plugin.SandboxDir)
+	require.Equal(t, filepath.Join(dir, "env-state"), cfg.Plugin.StateDir)
+	require.Equal(t, 9*time.Second, cfg.Plugin.Timeout)
+	require.False(t, cfg.Plugin.HotReload)
+	require.True(t, cfg.Plugin.FailOpen)
+}
+
+func TestLoadConfigRejectsInvalidPluginTimeout(t *testing.T) {
+	dir := t.TempDir()
+	path := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_CLUSTER_SLOT_COUNT=1",
+		"WK_PLUGIN_TIMEOUT=-1s",
+	)
+
+	_, err := loadConfig(path)
+	require.ErrorContains(t, err, "plugin timeout")
+}
+
 func TestLoadConfigParsesClusterSeedJoinKeys(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",

@@ -331,6 +331,10 @@ type Options struct {
 	Conversations RecentConversationSyncer
 	// MessageRetention provides destructive channel message retention operations.
 	MessageRetention MessageRetentionOperator
+	// Plugins reads and mutates node-local plugin runtime state through an adapter.
+	Plugins PluginNodeClient
+	// PluginBindings mutates cluster-authoritative UID to plugin bindings.
+	PluginBindings PluginBindingUsecase
 	// Network provides local node network observations for manager network pages.
 	Network NetworkSnapshotReader
 	// Now returns the current time for manager aggregations.
@@ -370,6 +374,8 @@ type App struct {
 	messages                 MessageReader
 	conversations            RecentConversationSyncer
 	messageRetention         MessageRetentionOperator
+	plugins                  PluginNodeClient
+	pluginBindings           PluginBindingUsecase
 	network                  NetworkSnapshotReader
 	now                      func() time.Time
 	dashCollector            *metrics.DashboardCollector
@@ -424,6 +430,8 @@ func New(opts Options) *App {
 		messages:                 opts.Messages,
 		conversations:            opts.Conversations,
 		messageRetention:         opts.MessageRetention,
+		plugins:                  opts.Plugins,
+		pluginBindings:           opts.PluginBindings,
 		network:                  opts.Network,
 		now:                      now,
 		dashCollector:            dashCollector,
