@@ -333,9 +333,15 @@ type Config struct {
 	LongPollMaxWait                  time.Duration
 	LongPollMaxBytes                 int
 	LongPollMaxChannels              int
-	Tombstones                       TombstonePolicy
-	IdleEviction                     IdleEvictionPolicy
-	Limits                           Limits
+	// LongPollHWOnlyNotifyDelay coalesces commit-only HW wakeups so nearby
+	// data responses can carry the newer HW without an extra lane response.
+	LongPollHWOnlyNotifyDelay time.Duration
+	// LongPollDataNotifyDelay coalesces append wakeups per leader lane so one
+	// parked long-poll response can carry multiple ready channels.
+	LongPollDataNotifyDelay time.Duration
+	Tombstones              TombstonePolicy
+	IdleEviction            IdleEvictionPolicy
+	Limits                  Limits
 	// OnIdleEvict is called after the runtime removes an idle local channel runtime.
 	OnIdleEvict func(core.ChannelKey)
 	// OnActivationReject is called when the runtime rejects a new local channel activation.

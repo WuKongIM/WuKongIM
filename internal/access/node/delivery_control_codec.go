@@ -7,13 +7,27 @@ import (
 )
 
 var (
-	deliveryAckRequestMagic     = [...]byte{'W', 'K', 'D', 'A', 1}
-	deliveryOfflineRequestMagic = [...]byte{'W', 'K', 'D', 'O', 1}
-	deliveryResponseMagic       = [...]byte{'W', 'K', 'D', 'S', 1}
+	deliveryAckRequestMagic      = [...]byte{'W', 'K', 'D', 'A', 1}
+	deliveryAckBatchRequestMagic = [...]byte{'W', 'K', 'D', 'A', 2}
+	deliveryOfflineRequestMagic  = [...]byte{'W', 'K', 'D', 'O', 1}
+	deliveryResponseMagic        = [...]byte{'W', 'K', 'D', 'S', 1}
 )
 
 // encodeDeliveryAckRequestBinary encodes delivery acknowledgement notifications without JSON reflection.
 func encodeDeliveryAckRequestBinary(req deliveryAckRequest) ([]byte, error) {
+	if len(req.Commands) > 0 {
+		size := len(deliveryAckBatchRequestMagic) + 8
+		for _, cmd := range req.Commands {
+			size += len(cmd.UID) + 32
+		}
+		dst := make([]byte, 0, size)
+		dst = append(dst, deliveryAckBatchRequestMagic[:]...)
+		dst = appendUvarint(dst, uint64(len(req.Commands)))
+		for _, cmd := range req.Commands {
+			dst = appendRouteAckEvent(dst, cmd)
+		}
+		return dst, nil
+	}
 	dst := make([]byte, 0, len(deliveryAckRequestMagic)+len(req.Command.UID)+32)
 	dst = append(dst, deliveryAckRequestMagic[:]...)
 	dst = appendRouteAckEvent(dst, req.Command)
@@ -21,7 +35,31 @@ func encodeDeliveryAckRequestBinary(req deliveryAckRequest) ([]byte, error) {
 }
 
 func decodeDeliveryAckRequest(body []byte) (deliveryAckRequest, error) {
-	if !isDeliveryAckRequestBinary(body) {
+	if hasMagic(body, deliveryAckBatchRequestMagic[:]) {
+		offset := len(deliveryAckBatchRequestMagic)
+		count, next, err := readUvarint(body, offset)
+		if err != nil {
+			return deliveryAckRequest{}, err
+		}
+		if count == 0 {
+			return deliveryAckRequest{}, fmt.Errorf("access/node: empty delivery ack batch")
+		}
+		offset = next
+		commands := make([]deliveryevents.RouteAck, 0, int(count))
+		for i := uint64(0); i < count; i++ {
+			cmd, next, err := readRouteAckEvent(body, offset)
+			if err != nil {
+				return deliveryAckRequest{}, err
+			}
+			commands = append(commands, cmd)
+			offset = next
+		}
+		if offset != len(body) {
+			return deliveryAckRequest{}, fmt.Errorf("access/node: trailing delivery ack request bytes")
+		}
+		return deliveryAckRequest{Commands: commands}, nil
+	}
+	if !hasMagic(body, deliveryAckRequestMagic[:]) {
 		return deliveryAckRequest{}, fmt.Errorf("access/node: invalid delivery ack request codec")
 	}
 	offset := len(deliveryAckRequestMagic)
@@ -81,7 +119,7 @@ func decodeDeliveryResponseBinary(body []byte) (deliveryResponse, error) {
 }
 
 func isDeliveryAckRequestBinary(body []byte) bool {
-	return hasMagic(body, deliveryAckRequestMagic[:])
+	return hasMagic(body, deliveryAckRequestMagic[:]) || hasMagic(body, deliveryAckBatchRequestMagic[:])
 }
 
 func isDeliveryOfflineRequestBinary(body []byte) bool {

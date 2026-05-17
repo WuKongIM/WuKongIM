@@ -202,12 +202,13 @@ func (r *runtime) markLeaderLaneReady(ch *channel, ready laneReadyMask) {
 		case laneReadyHWOnly:
 			session.MarkHWOnlyReady(ch.key, state.Epoch)
 		default:
-			session.MarkDataReady(ch.key, state.Epoch)
+			session.MarkDataReadyDelayed(ch.key, state.Epoch, r.cfg.LongPollDataNotifyDelay)
 		}
 	}
 }
 
 func (r *runtime) onChannelAppend(key core.ChannelKey) {
+	r.cancelPendingChannelCommit(key)
 	r.onChannelReady(key, laneReadyData)
 }
 

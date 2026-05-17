@@ -110,6 +110,10 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	longPollDataNotifyDelay, err := parseDuration(v, "WK_CLUSTER_LONG_POLL_DATA_NOTIFY_DELAY")
+	if err != nil {
+		return app.Config{}, err
+	}
 	maxChannels, err := parseInt(v, "WK_CLUSTER_MAX_CHANNELS")
 	if err != nil {
 		return app.Config{}, err
@@ -463,6 +467,22 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		return app.Config{}, err
 	}
 	messageSystemDeviceID := stringValue(v, "WK_MESSAGE_SYSTEM_DEVICE_ID")
+	messagePermissionCacheTTL, err := parseDuration(v, "WK_MESSAGE_PERMISSION_CACHE_TTL")
+	if err != nil {
+		return app.Config{}, err
+	}
+	deliveryPresenceCacheTTL, err := parseDuration(v, "WK_DELIVERY_PRESENCE_CACHE_TTL")
+	if err != nil {
+		return app.Config{}, err
+	}
+	deliveryAckBatchMaxWait, err := parseDuration(v, "WK_DELIVERY_ACK_BATCH_MAX_WAIT")
+	if err != nil {
+		return app.Config{}, err
+	}
+	deliveryAckBatchMaxSize, err := parseInt(v, "WK_DELIVERY_ACK_BATCH_MAX_SIZE")
+	if err != nil {
+		return app.Config{}, err
+	}
 	channelMigrationScanInterval, err := parseDuration(v, "WK_CHANNEL_MIGRATION_SCAN_INTERVAL")
 	if err != nil {
 		return app.Config{}, err
@@ -602,6 +622,7 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			LongPollMaxWait:                  longPollMaxWait,
 			LongPollMaxBytes:                 longPollMaxBytes,
 			LongPollMaxChannels:              longPollMaxChannels,
+			LongPollDataNotifyDelay:          longPollDataNotifyDelay,
 			Nodes:                            nodes,
 			ControllerReplicaN:               controllerReplicaN,
 			SlotReplicaN:                     slotReplicaN,
@@ -678,6 +699,12 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		Message: app.MessageConfig{
 			PersonWhitelistEnabled: messagePersonWhitelistEnabled,
 			SystemDeviceID:         messageSystemDeviceID,
+			PermissionCacheTTL:     messagePermissionCacheTTL,
+		},
+		Delivery: app.DeliveryConfig{
+			PresenceCacheTTL: deliveryPresenceCacheTTL,
+			AckBatchMaxWait:  deliveryAckBatchMaxWait,
+			AckBatchMaxSize:  deliveryAckBatchMaxSize,
 		},
 		Plugin: app.PluginConfig{
 			Enable:     pluginEnable,

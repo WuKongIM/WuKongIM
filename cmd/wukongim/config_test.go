@@ -823,12 +823,14 @@ func TestLoadConfigParsesMessagePermissionConfig(t *testing.T) {
 		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
 		"WK_MESSAGE_PERSON_WHITELIST_ENABLED=true",
 		"WK_MESSAGE_SYSTEM_DEVICE_ID=custom-device",
+		"WK_MESSAGE_PERMISSION_CACHE_TTL=5s",
 	)
 
 	cfg, err := loadConfig(configPath)
 	require.NoError(t, err)
 	require.True(t, cfg.Message.PersonWhitelistEnabled)
 	require.Equal(t, "custom-device", cfg.Message.SystemDeviceID)
+	require.Equal(t, 5*time.Second, cfg.Message.PermissionCacheTTL)
 }
 
 func TestLoadConfigPrefersEnvironmentVariablesForMessagePermissionConfig(t *testing.T) {
@@ -841,14 +843,68 @@ func TestLoadConfigPrefersEnvironmentVariablesForMessagePermissionConfig(t *test
 		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
 		"WK_MESSAGE_PERSON_WHITELIST_ENABLED=false",
 		"WK_MESSAGE_SYSTEM_DEVICE_ID=file-device",
+		"WK_MESSAGE_PERMISSION_CACHE_TTL=1s",
 	)
 	t.Setenv("WK_MESSAGE_PERSON_WHITELIST_ENABLED", "true")
 	t.Setenv("WK_MESSAGE_SYSTEM_DEVICE_ID", "env-device")
+	t.Setenv("WK_MESSAGE_PERMISSION_CACHE_TTL", "3s")
 
 	cfg, err := loadConfig(configPath)
 	require.NoError(t, err)
 	require.True(t, cfg.Message.PersonWhitelistEnabled)
 	require.Equal(t, "env-device", cfg.Message.SystemDeviceID)
+	require.Equal(t, 3*time.Second, cfg.Message.PermissionCacheTTL)
+}
+
+func TestLoadConfigParsesDeliveryPresenceCacheConfig(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_DELIVERY_PRESENCE_CACHE_TTL=5s",
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, 5*time.Second, cfg.Delivery.PresenceCacheTTL)
+}
+
+func TestLoadConfigParsesDeliveryAckBatchConfig(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_DELIVERY_ACK_BATCH_MAX_WAIT=15ms",
+		"WK_DELIVERY_ACK_BATCH_MAX_SIZE=32",
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, 15*time.Millisecond, cfg.Delivery.AckBatchMaxWait)
+	require.Equal(t, 32, cfg.Delivery.AckBatchMaxSize)
+}
+
+func TestLoadConfigPrefersEnvironmentVariablesForDeliveryPresenceCacheConfig(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_DELIVERY_PRESENCE_CACHE_TTL=1s",
+	)
+	t.Setenv("WK_DELIVERY_PRESENCE_CACHE_TTL", "3s")
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, 3*time.Second, cfg.Delivery.PresenceCacheTTL)
 }
 
 func TestChannelMigrationConfigFromEnv(t *testing.T) {
@@ -1418,6 +1474,7 @@ func TestLoadConfigParsesLongPollOverridesFromEnv(t *testing.T) {
 	t.Setenv("WK_CLUSTER_LONG_POLL_MAX_WAIT", "2ms")
 	t.Setenv("WK_CLUSTER_LONG_POLL_MAX_BYTES", "131072")
 	t.Setenv("WK_CLUSTER_LONG_POLL_MAX_CHANNELS", "32")
+	t.Setenv("WK_CLUSTER_LONG_POLL_DATA_NOTIFY_DELAY", "5ms")
 
 	cfg, err := loadConfig(configPath)
 	require.NoError(t, err)
@@ -1425,4 +1482,5 @@ func TestLoadConfigParsesLongPollOverridesFromEnv(t *testing.T) {
 	require.Equal(t, 2*time.Millisecond, cfg.Cluster.LongPollMaxWait)
 	require.Equal(t, 128*1024, cfg.Cluster.LongPollMaxBytes)
 	require.Equal(t, 32, cfg.Cluster.LongPollMaxChannels)
+	require.Equal(t, 5*time.Millisecond, cfg.Cluster.LongPollDataNotifyDelay)
 }

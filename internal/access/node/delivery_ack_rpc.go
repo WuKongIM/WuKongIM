@@ -7,7 +7,8 @@ import (
 )
 
 type deliveryAckRequest struct {
-	Command deliveryevents.RouteAck `json:"command"`
+	Command  deliveryevents.RouteAck   `json:"command"`
+	Commands []deliveryevents.RouteAck `json:"commands,omitempty"`
 }
 
 func (a *Adapter) handleDeliveryAckRPC(ctx context.Context, body []byte) ([]byte, error) {
@@ -16,9 +17,18 @@ func (a *Adapter) handleDeliveryAckRPC(ctx context.Context, body []byte) ([]byte
 		return nil, err
 	}
 	if a.deliveryAck != nil {
-		if err := a.deliveryAck.AckRoute(ctx, req.Command); err != nil {
-			return nil, err
+		for _, cmd := range req.ackCommands() {
+			if err := a.deliveryAck.AckRoute(ctx, cmd); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return encodeDeliveryResponse(deliveryResponse{Status: rpcStatusOK})
+}
+
+func (r deliveryAckRequest) ackCommands() []deliveryevents.RouteAck {
+	if len(r.Commands) > 0 {
+		return r.Commands
+	}
+	return []deliveryevents.RouteAck{r.Command}
 }
