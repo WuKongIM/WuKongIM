@@ -30,6 +30,8 @@ type Config struct {
 	ChannelMessageRetention ChannelMessageRetentionConfig
 	// Message configures message send business rules.
 	Message MessageConfig
+	// Delivery configures realtime delivery routing and fanout.
+	Delivery DeliveryConfig
 	// Plugin configures node-local PDK-compatible plugin execution.
 	Plugin PluginConfig
 	// API configures the public HTTP API entry point.
@@ -178,6 +180,22 @@ type MessageConfig struct {
 	// SystemDeviceID identifies trusted gateway sessions that bypass channel-type-specific
 	// send permissions after sender SendBan has passed.
 	SystemDeviceID string
+	// PermissionCacheTTL enables a bounded node-local send-permission read cache.
+	// Keep zero for strict authorization freshness; benchmark/static-member deployments may set it positive.
+	PermissionCacheTTL time.Duration
+}
+
+// DeliveryConfig controls realtime delivery routing and fanout behavior.
+type DeliveryConfig struct {
+	// PresenceCacheTTL enables a bounded node-local cache for positive UID presence routes
+	// used by delivery fanout. Keep zero for strict presence freshness.
+	PresenceCacheTTL time.Duration
+	// AckBatchMaxWait bounds how long remote delivery acknowledgements may wait
+	// while they are coalesced for the same owner node. Zero disables batching.
+	AckBatchMaxWait time.Duration
+	// AckBatchMaxSize flushes remote delivery acknowledgements immediately once
+	// the pending owner-node batch reaches this size. Zero uses a safe default.
+	AckBatchMaxSize int
 }
 
 // ChannelMessageRetentionConfig controls cluster-authoritative channel message retention.
@@ -436,6 +454,8 @@ type ClusterConfig struct {
 	LongPollMaxBytes int
 	// LongPollMaxChannels is the maximum number of channels served by one long-poll cycle.
 	LongPollMaxChannels int
+	// LongPollDataNotifyDelay coalesces append wakeups so one lane response can batch multiple channels.
+	LongPollDataNotifyDelay time.Duration
 	// FollowerReplicationRetryInterval is the retry interval for channel follower replication.
 	FollowerReplicationRetryInterval time.Duration
 	// AppendGroupCommitMaxWait is the maximum delay for channel append group commit batching.
@@ -827,6 +847,21 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 			return fmt.Errorf("%w: channel message retention max trim messages must be positive when ttl is enabled", ErrInvalidConfig)
 		}
 	}
+	if c.Message.PermissionCacheTTL < 0 {
+		return fmt.Errorf("%w: message permission cache ttl must be >= 0", ErrInvalidConfig)
+	}
+	if c.Delivery.PresenceCacheTTL < 0 {
+		return fmt.Errorf("%w: delivery presence cache ttl must be >= 0", ErrInvalidConfig)
+	}
+	if c.Delivery.AckBatchMaxWait < 0 {
+		return fmt.Errorf("%w: delivery ack batch max wait must be >= 0", ErrInvalidConfig)
+	}
+	if c.Delivery.AckBatchMaxSize < 0 {
+		return fmt.Errorf("%w: delivery ack batch max size must be >= 0", ErrInvalidConfig)
+	}
+	if c.Delivery.AckBatchMaxWait > 0 && c.Delivery.AckBatchMaxSize == 0 {
+		c.Delivery.AckBatchMaxSize = defaultDeliveryAckBatchMaxSize
+	}
 	if c.Plugin.Timeout <= 0 {
 		if c.Plugin.Timeout < 0 || c.Plugin.timeoutSet {
 			return fmt.Errorf("%w: plugin timeout must be positive", ErrInvalidConfig)
@@ -1005,6 +1040,9 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 			return fmt.Errorf("%w: long poll max channels must be positive", ErrInvalidConfig)
 		}
 		c.Cluster.LongPollMaxChannels = 64
+	}
+	if c.Cluster.LongPollDataNotifyDelay < 0 {
+		return fmt.Errorf("%w: long poll data notify delay must be >= 0", ErrInvalidConfig)
 	}
 
 	if c.Storage.DBPath == "" {

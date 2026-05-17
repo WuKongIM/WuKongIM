@@ -45,6 +45,21 @@ func TestDeliveryControlBinaryCodecRoundTrip(t *testing.T) {
 	require.Equal(t, resp, gotResp)
 }
 
+func TestDeliveryAckBatchBinaryCodecRoundTrip(t *testing.T) {
+	req := deliveryAckRequest{Commands: []deliveryevents.RouteAck{
+		{UID: "u1", SessionID: 10, MessageID: 88, MessageSeq: 9},
+		{UID: "u2", SessionID: 11, MessageID: 89, MessageSeq: 10},
+	}}
+
+	body, err := encodeDeliveryAckRequestBinary(req)
+	require.NoError(t, err)
+	require.True(t, isDeliveryAckRequestBinary(body))
+
+	got, err := decodeDeliveryAckRequest(body)
+	require.NoError(t, err)
+	require.Equal(t, req, got)
+}
+
 func TestDeliveryControlRPCsRejectJSONPayload(t *testing.T) {
 	ackRecorder := &recordingDeliveryAck{}
 	offlineRecorder := &recordingDeliveryOffline{}

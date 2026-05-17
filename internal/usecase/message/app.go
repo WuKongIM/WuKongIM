@@ -52,6 +52,9 @@ type Options struct {
 	PersonWhitelistEnabled bool
 	// SystemDeviceID identifies trusted system-device sessions after SendBan passes.
 	SystemDeviceID string
+	// PermissionCacheTTL enables a bounded read-through permission cache for
+	// benchmark/static-member deployments. Zero keeps permission reads uncached.
+	PermissionCacheTTL time.Duration
 	// AppendMetrics records durable append attempts without coupling usecases to a metrics backend.
 	AppendMetrics messageAppendMetrics
 	LocalNodeID   uint64
@@ -102,6 +105,7 @@ func New(opts Options) *App {
 	if opts.Logger == nil {
 		opts.Logger = wklog.NewNop()
 	}
+	permissions := newPermissionCache(opts.PermissionStore, opts.PermissionCacheTTL, opts.Now)
 
 	return &App{
 		identities:             opts.IdentityStore,
@@ -121,7 +125,7 @@ func New(opts Options) *App {
 		messageIDs:             opts.MessageIDs,
 		deliveryAck:            opts.DeliveryAck,
 		deliveryOffline:        opts.DeliveryOffline,
-		permissions:            opts.PermissionStore,
+		permissions:            permissions,
 		systemUIDs:             opts.SystemUIDs,
 		personWhitelistEnabled: opts.PersonWhitelistEnabled,
 		systemDeviceID:         opts.SystemDeviceID,

@@ -320,6 +320,37 @@ func (c *Client) NotifyAck(ctx context.Context, nodeID uint64, cmd deliveryevent
 	return nil
 }
 
+// NotifyAckBatch sends multiple delivery acknowledgement notifications to one owner node.
+func (c *Client) NotifyAckBatch(ctx context.Context, nodeID uint64, commands []deliveryevents.RouteAck) error {
+	if len(commands) == 0 {
+		return nil
+	}
+	if len(commands) == 1 {
+		return c.NotifyAck(ctx, nodeID, commands[0])
+	}
+	if c == nil || c.cluster == nil {
+		return fmt.Errorf("access/node: cluster not configured")
+	}
+	body, err := encodeDeliveryAckRequestBinary(deliveryAckRequest{
+		Commands: commands,
+	})
+	if err != nil {
+		return err
+	}
+	respBody, err := c.cluster.RPCService(ctx, multiraft.NodeID(nodeID), 0, deliveryAckRPCServiceID, body)
+	if err != nil {
+		return err
+	}
+	resp, err := decodeDeliveryResponse(respBody)
+	if err != nil {
+		return err
+	}
+	if resp.Status != rpcStatusOK {
+		return fmt.Errorf("access/node: unexpected delivery ack status %q", resp.Status)
+	}
+	return nil
+}
+
 func (c *Client) NotifyOffline(ctx context.Context, nodeID uint64, cmd deliveryevents.SessionClosed) error {
 	if c == nil || c.cluster == nil {
 		return fmt.Errorf("access/node: cluster not configured")

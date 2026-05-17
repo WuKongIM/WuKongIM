@@ -484,6 +484,101 @@ func TestRuntimeLongPollLeaderAppendWakesParkedLanePoll(t *testing.T) {
 	}
 }
 
+func TestRuntimeLongPollLeaderAppendDebouncesParkedLanePollForBatching(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = time.Second
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+		cfg.LongPollDataNotifyDelay = 120 * time.Millisecond
+	})
+	firstKey := testChannelKeyForLane(t, 1, 4, "debounce-first")
+	secondKey := testChannelKeyForLane(t, 1, 4, "debounce-second")
+	firstMeta := core.Meta{Key: firstKey, Epoch: 4, Leader: 1, Replicas: []core.NodeID{1, 2}, ISR: []core.NodeID{1, 2}, MinISR: 1}
+	secondMeta := core.Meta{Key: secondKey, Epoch: 4, Leader: 1, Replicas: []core.NodeID{1, 2}, ISR: []core.NodeID{1, 2}, MinISR: 1}
+	mustEnsureLocal(t, env.runtime, firstMeta)
+	mustEnsureLocal(t, env.runtime, secondMeta)
+
+	laneID := testFollowerLaneFor(firstMeta.Key, 4)
+	require.Equal(t, laneID, testFollowerLaneFor(secondMeta.Key, 4))
+	respCh := make(chan struct {
+		resp LanePollResponseEnvelope
+		err  error
+	}, 1)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	go func() {
+		resp, err := env.runtime.ServeLanePoll(ctx, LanePollRequestEnvelope{
+			ReplicaID:   2,
+			LaneID:      laneID,
+			LaneCount:   4,
+			Op:          LanePollOpOpen,
+			MaxWait:     time.Second,
+			MaxBytes:    64 * 1024,
+			MaxChannels: 64,
+			FullMembership: []LaneMembership{
+				{ChannelKey: firstMeta.Key, ChannelEpoch: firstMeta.Epoch, ChannelGeneration: 1},
+				{ChannelKey: secondMeta.Key, ChannelEpoch: secondMeta.Epoch, ChannelGeneration: 2},
+			},
+		})
+		respCh <- struct {
+			resp LanePollResponseEnvelope
+			err  error
+		}{resp: resp, err: err}
+	}()
+
+	require.Eventually(t, func() bool {
+		session, ok := env.runtime.leaderLanes.Session(PeerLaneKey{Peer: 2, LaneID: laneID})
+		if !ok {
+			return false
+		}
+		session.mu.Lock()
+		defer session.mu.Unlock()
+		return session.parked != nil
+	}, time.Second, time.Millisecond)
+
+	firstReplica := env.factory.replicas[0]
+	firstReplica.mu.Lock()
+	firstReplica.state.LEO = 1
+	firstReplica.state.HW = 1
+	firstReplica.state.OffsetEpoch = firstMeta.Epoch
+	firstReplica.fetchResult = core.ReplicaFetchResult{
+		HW:      1,
+		Records: []core.Record{{Payload: []byte("first"), SizeBytes: len("first")}},
+	}
+	firstReplica.mu.Unlock()
+	env.runtime.onChannelAppend(firstMeta.Key)
+
+	select {
+	case got := <-respCh:
+		require.NoError(t, got.err)
+		t.Fatalf("data wake returned before debounce window: %+v", got.resp)
+	case <-time.After(40 * time.Millisecond):
+	}
+
+	secondReplica := env.factory.replicas[1]
+	secondReplica.mu.Lock()
+	secondReplica.state.LEO = 1
+	secondReplica.state.HW = 1
+	secondReplica.state.OffsetEpoch = secondMeta.Epoch
+	secondReplica.fetchResult = core.ReplicaFetchResult{
+		HW:      1,
+		Records: []core.Record{{Payload: []byte("second"), SizeBytes: len("second")}},
+	}
+	secondReplica.mu.Unlock()
+	env.runtime.onChannelAppend(secondMeta.Key)
+
+	got := <-respCh
+	require.NoError(t, got.err)
+	require.False(t, got.resp.TimedOut)
+	require.Len(t, got.resp.Items, 2)
+	require.ElementsMatch(t, []core.ChannelKey{firstMeta.Key, secondMeta.Key}, []core.ChannelKey{
+		got.resp.Items[0].ChannelKey,
+		got.resp.Items[1].ChannelKey,
+	})
+}
+
 func TestRuntimeLongPollLeaderCommitAdvanceWakesParkedLanePollWithHWOnly(t *testing.T) {
 	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
 		cfg.LongPollLaneCount = 4
@@ -587,6 +682,145 @@ func TestRuntimeLongPollLeaderCommitAdvanceWakesParkedLanePollWithHWOnly(t *test
 	case <-time.After(time.Second):
 		t.Fatal("expected parked long poll to wake after leader commit advance")
 	}
+}
+
+func TestRuntimeLongPollCommitHWOnlyWakeDebouncesUntilDataCanPiggyback(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = 250 * time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+		cfg.LongPollHWOnlyNotifyDelay = 120 * time.Millisecond
+	})
+	meta := testMetaLocal(27032, 4, 1, []core.NodeID{1, 2})
+	mustEnsureLocal(t, env.runtime, meta)
+
+	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	replica.state.LEO = 1
+	replica.state.HW = 0
+	replica.state.OffsetEpoch = meta.Epoch
+	replica.fetchResult = core.ReplicaFetchResult{
+		HW: 0,
+		Records: []core.Record{
+			{Payload: []byte("first"), SizeBytes: len("first")},
+		},
+	}
+	replica.mu.Unlock()
+
+	laneID := testFollowerLaneFor(meta.Key, 4)
+	openResp, err := env.runtime.ServeLanePoll(context.Background(), LanePollRequestEnvelope{
+		ReplicaID:   2,
+		LaneID:      laneID,
+		LaneCount:   4,
+		Op:          LanePollOpOpen,
+		MaxWait:     time.Millisecond,
+		MaxBytes:    64 * 1024,
+		MaxChannels: 64,
+		FullMembership: []LaneMembership{
+			{ChannelKey: meta.Key, ChannelEpoch: meta.Epoch, ChannelGeneration: 1},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, openResp.Items, 1)
+	require.Equal(t, LanePollItemFlagData, openResp.Items[0].Flags)
+
+	respCh := make(chan struct {
+		resp LanePollResponseEnvelope
+		err  error
+	}, 1)
+	go func() {
+		resp, err := env.runtime.ServeLanePoll(context.Background(), LanePollRequestEnvelope{
+			ReplicaID:    2,
+			LaneID:       laneID,
+			LaneCount:    4,
+			SessionID:    openResp.SessionID,
+			SessionEpoch: openResp.SessionEpoch,
+			Op:           LanePollOpPoll,
+			MaxWait:      250 * time.Millisecond,
+			MaxBytes:     64 * 1024,
+			MaxChannels:  64,
+			CursorDelta: []LaneCursorDelta{{
+				ChannelKey:        meta.Key,
+				ChannelEpoch:      meta.Epoch,
+				ChannelGeneration: 1,
+				MatchOffset:       1,
+				OffsetEpoch:       meta.Epoch,
+			}},
+		})
+		respCh <- struct {
+			resp LanePollResponseEnvelope
+			err  error
+		}{resp: resp, err: err}
+	}()
+
+	require.Eventually(t, func() bool {
+		session, ok := env.runtime.leaderLanes.Session(PeerLaneKey{Peer: 2, LaneID: laneID})
+		if !ok {
+			return false
+		}
+		session.mu.Lock()
+		defer session.mu.Unlock()
+		return session.parked != nil
+	}, time.Second, time.Millisecond)
+
+	replica.mu.Lock()
+	replica.fetchResult = core.ReplicaFetchResult{HW: 1}
+	replica.mu.Unlock()
+	require.NoError(t, replica.ApplyProgressAck(context.Background(), core.ReplicaProgressAckRequest{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		ReplicaID:   2,
+		MatchOffset: 1,
+	}))
+
+	select {
+	case got := <-respCh:
+		require.NoError(t, got.err)
+		t.Fatalf("commit-only HW wake returned before debounce: %+v", got.resp)
+	case <-time.After(40 * time.Millisecond):
+	}
+
+	replica.mu.Lock()
+	replica.state.LEO = 2
+	replica.state.HW = 1
+	replica.fetchResult = core.ReplicaFetchResult{
+		HW: 1,
+		Records: []core.Record{
+			{Payload: []byte("second"), SizeBytes: len("second")},
+		},
+	}
+	replica.mu.Unlock()
+	env.runtime.onChannelAppend(meta.Key)
+
+	got := <-respCh
+	require.NoError(t, got.err)
+	require.False(t, got.resp.TimedOut)
+	require.Len(t, got.resp.Items, 1)
+	require.Equal(t, LanePollItemFlagData, got.resp.Items[0].Flags)
+	require.Equal(t, uint64(1), got.resp.Items[0].LeaderHW)
+
+	time.Sleep(120 * time.Millisecond)
+	idleResp, err := env.runtime.ServeLanePoll(context.Background(), LanePollRequestEnvelope{
+		ReplicaID:    2,
+		LaneID:       laneID,
+		LaneCount:    4,
+		SessionID:    got.resp.SessionID,
+		SessionEpoch: got.resp.SessionEpoch,
+		Op:           LanePollOpPoll,
+		MaxWait:      time.Millisecond,
+		MaxBytes:     64 * 1024,
+		MaxChannels:  64,
+		CursorDelta: []LaneCursorDelta{{
+			ChannelKey:        meta.Key,
+			ChannelEpoch:      meta.Epoch,
+			ChannelGeneration: 1,
+			MatchOffset:       2,
+			OffsetEpoch:       meta.Epoch,
+		}},
+	})
+	require.NoError(t, err)
+	require.True(t, idleResp.TimedOut)
 }
 
 func TestRuntimeLongPollInitialOpenReturnsAlreadyAppendedData(t *testing.T) {

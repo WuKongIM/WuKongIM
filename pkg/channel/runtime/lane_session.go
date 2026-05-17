@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"sync"
+	"time"
 
 	core "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
@@ -62,6 +63,8 @@ type LeaderLaneSession struct {
 	readyFlags   map[core.ChannelKey]laneReadyMask
 	readyQueue   []core.ChannelKey
 	parked       *lanePollWaiter
+	dataWake     *time.Timer
+	dataWaiter   *lanePollWaiter
 	channelEpoch map[core.ChannelKey]uint64
 	channelGen   map[core.ChannelKey]uint64
 	cursor       map[core.ChannelKey]LaneCursorDelta
@@ -119,6 +122,14 @@ func (s *LeaderLaneSession) MarkDataReady(key core.ChannelKey, epoch uint64) {
 	s.markReady(key, epoch, laneReadyData)
 }
 
+func (s *LeaderLaneSession) MarkDataReadyDelayed(key core.ChannelKey, epoch uint64, delay time.Duration) {
+	if delay <= 0 {
+		s.MarkDataReady(key, epoch)
+		return
+	}
+	s.markReadyDelayed(key, epoch, laneReadyData, delay)
+}
+
 func (s *LeaderLaneSession) MarkHWOnlyReady(key core.ChannelKey, epoch uint64) {
 	s.markReady(key, epoch, laneReadyHWOnly)
 }
@@ -139,8 +150,57 @@ func (s *LeaderLaneSession) markReady(key core.ChannelKey, epoch uint64, mask la
 	if s.parked != nil {
 		waiter := s.parked
 		s.parked = nil
+		s.stopDataWakeLocked()
 		waiter.wake()
 	}
+}
+
+func (s *LeaderLaneSession) markReadyDelayed(key core.ChannelKey, epoch uint64, mask laneReadyMask, delay time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if epoch != 0 {
+		s.channelEpoch[key] = epoch
+	}
+	if existing := s.readyFlags[key]; existing != 0 {
+		s.readyFlags[key] = existing | mask
+		return
+	}
+	s.readyFlags[key] = mask
+	s.readyQueue = append(s.readyQueue, key)
+	if s.parked == nil || s.dataWake != nil {
+		return
+	}
+	waiter := s.parked
+	s.dataWaiter = waiter
+	s.dataWake = time.AfterFunc(delay, func() {
+		s.fireDelayedDataWake(waiter)
+	})
+}
+
+func (s *LeaderLaneSession) fireDelayedDataWake(waiter *lanePollWaiter) {
+	s.mu.Lock()
+	if s.dataWaiter != waiter {
+		s.mu.Unlock()
+		return
+	}
+	s.dataWake = nil
+	s.dataWaiter = nil
+	if s.parked != waiter {
+		s.mu.Unlock()
+		return
+	}
+	s.parked = nil
+	s.mu.Unlock()
+	waiter.wake()
+}
+
+func (s *LeaderLaneSession) stopDataWakeLocked() {
+	if s.dataWake != nil {
+		s.dataWake.Stop()
+	}
+	s.dataWake = nil
+	s.dataWaiter = nil
 }
 
 func (s *LeaderLaneSession) Poll(
@@ -176,6 +236,7 @@ func (s *LeaderLaneSession) Poll(
 		s.parked = waiter
 		return LeaderLanePollResult{}, waiter
 	}
+	s.stopDataWakeLocked()
 
 	if budget.MaxChannels <= 0 {
 		budget.MaxChannels = 1

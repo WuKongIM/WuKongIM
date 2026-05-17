@@ -38,15 +38,19 @@ type runtime struct {
 	// laneDispatcher holds queued peer/lane work for the lane dispatcher worker.
 	laneDispatcher *laneDispatchQueue
 	// laneDispatcherWorker marks whether the background lane dispatcher is running.
-	laneDispatcherWorker   atomic.Bool
-	leaderLanes            *laneDirectory
-	peerRequests           peerRequestState
-	snapshots              snapshotState
-	snapshotThrottle       snapshotThrottle
-	requestID              atomic.Uint64
-	sendCoordActive        atomic.Int32
-	laneRetryMu            sync.Mutex
-	laneRetry              map[PeerLaneKey]*laneRetryState
+	laneDispatcherWorker atomic.Bool
+	leaderLanes          *laneDirectory
+	peerRequests         peerRequestState
+	snapshots            snapshotState
+	snapshotThrottle     snapshotThrottle
+	requestID            atomic.Uint64
+	sendCoordActive      atomic.Int32
+	laneRetryMu          sync.Mutex
+	laneRetry            map[PeerLaneKey]*laneRetryState
+	// commitNotifyMu guards commit-only HW notification debounce timers.
+	commitNotifyMu sync.Mutex
+	// pendingCommitNotify stores one coalescing timer per leader channel.
+	pendingCommitNotify    map[core.ChannelKey]*commitNotifyState
 	replicationRetryMu     sync.Mutex
 	replicationRetry       map[core.ChannelKey]map[core.NodeID]*replicationRetryState
 	backpressureRetry      map[core.NodeID]*backpressureRetryState
@@ -120,6 +124,7 @@ func New(cfg Config) (Runtime, error) {
 		peerRequests:           newPeerRequestState(),
 		snapshotThrottle:       newSnapshotThrottle(cfg.Limits.MaxRecoveryBytesPerSecond, time.Sleep),
 		laneRetry:              make(map[PeerLaneKey]*laneRetryState),
+		pendingCommitNotify:    make(map[core.ChannelKey]*commitNotifyState),
 		replicationRetry:       make(map[core.ChannelKey]map[core.NodeID]*replicationRetryState),
 		backpressureRetry:      make(map[core.NodeID]*backpressureRetryState),
 		syncDeferredPeerDrains: make(map[core.NodeID]struct{}),
@@ -182,7 +187,7 @@ func (r *runtime) EnsureChannel(meta core.Meta) error {
 	}
 	if notifier, ok := rep.(interface{ SetLeaderHWAdvanceNotifier(func()) }); ok {
 		notifier.SetLeaderHWAdvanceNotifier(func() {
-			go r.onChannelCommit(meta.Key)
+			r.scheduleChannelCommit(meta.Key)
 		})
 	}
 	if err := applyReplicaMeta(rep, r.cfg.LocalNode, meta); err != nil {
@@ -239,6 +244,7 @@ func (r *runtime) RemoveChannel(key core.ChannelKey) error {
 	r.sendCoordMu.Unlock()
 
 	stopTimers(r.clearReplicationRetries(key, 0, false))
+	stopTimers(r.clearPendingChannelCommit(key))
 	for _, peer := range r.peerRequests.clearChannel(key) {
 		r.drainPeerQueue(peer)
 	}
@@ -714,6 +720,7 @@ func (r *runtime) Close() error {
 	r.stopTombstoneCleanup()
 	stopTimers(r.clearAllReplicationRetries())
 	stopTimers(r.clearAllLaneRetries())
+	stopTimers(r.clearAllPendingChannelCommits())
 	stopTimers(r.clearAllBackpressureRetries())
 	r.peerRequests.clearAll()
 	r.snapshots.clear()

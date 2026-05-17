@@ -58,6 +58,8 @@ var buildAfterChannelRuntimeHook func(*App) error
 
 var openRaftLogDB = raftstorage.Open
 
+const defaultChannelLongPollHWOnlyNotifyDelay = 5 * time.Millisecond
+
 func build(cfg Config) (_ *App, err error) {
 	if err := cfg.ApplyDefaultsAndValidate(); err != nil {
 		return nil, err
@@ -311,6 +313,8 @@ func build(cfg Config) (_ *App, err error) {
 		LongPollMaxWait:                  replicationCfg.LongPollMaxWait,
 		LongPollMaxBytes:                 replicationCfg.LongPollMaxBytes,
 		LongPollMaxChannels:              replicationCfg.LongPollMaxChannels,
+		LongPollHWOnlyNotifyDelay:        defaultChannelLongPollHWOnlyNotifyDelay,
+		LongPollDataNotifyDelay:          cfg.Cluster.LongPollDataNotifyDelay,
 		IdleEviction: channelruntime.IdleEvictionPolicy{
 			IdleTimeout:  cfg.Cluster.ChannelIdleTimeout,
 			ScanInterval: cfg.Cluster.ChannelIdleScanInterval,
@@ -547,6 +551,10 @@ func build(cfg Config) (_ *App, err error) {
 		leaderID, err := app.cluster.LeaderOf(multiraft.SlotID(slotID))
 		return uint64(leaderID), err
 	}
+	deliveryAuthority := presence.Authoritative(authorityClient)
+	if cfg.Delivery.PresenceCacheTTL > 0 {
+		deliveryAuthority = newDeliveryPresenceCache(authorityClient, cfg.Delivery.PresenceCacheTTL, defaultDeliveryPresenceCacheMaxEntries, time.Now)
+	}
 	app.deliveryAcks = deliveryruntime.NewAckIndex()
 	deliveryTagManager := deliverytagruntime.NewManager(deliverytagruntime.Options{
 		LocalNodeID: cfg.Node.ID,
@@ -577,7 +585,7 @@ func build(cfg Config) (_ *App, err error) {
 			localNodeID:        cfg.Node.ID,
 			tags:               deliveryTagManager,
 			subscribers:        subscriberResolver,
-			authority:          authorityClient,
+			authority:          deliveryAuthority,
 			topology:           deliveryTagTopologyReaderAdapter{cluster: app.cluster},
 			uidObserver:        cmdUIDObserver,
 			collectOfflineUIDs: offlineResolvedObserver != nil,
@@ -717,6 +725,19 @@ func build(cfg Config) (_ *App, err error) {
 		PluginCommitted:  pluginCommitted,
 		Logger:           app.logger.Named("access.node"),
 	})
+	deliveryNotifier := deliveryOwnerNotifier(app.nodeClient)
+	if cfg.Delivery.AckBatchMaxWait > 0 && cfg.Delivery.AckBatchMaxSize != 1 {
+		ackBatcher := newDeliveryAckBatchNotifier(app.nodeClient, deliveryAckBatchNotifierOptions{
+			FlushDelay: cfg.Delivery.AckBatchMaxWait,
+			MaxBatch:   cfg.Delivery.AckBatchMaxSize,
+		})
+		cleanup.Push("delivery ack batcher", func() error {
+			ackBatcher.Close()
+			return nil
+		})
+		deliveryNotifier = ackBatcher
+	}
+
 	app.messageApp = message.New(message.Options{
 		IdentityStore:          app.store,
 		ChannelStore:           app.store,
@@ -724,6 +745,7 @@ func build(cfg Config) (_ *App, err error) {
 		SystemUIDs:             userApp,
 		PersonWhitelistEnabled: cfg.Message.PersonWhitelistEnabled,
 		SystemDeviceID:         cfg.Message.SystemDeviceID,
+		PermissionCacheTTL:     cfg.Message.PermissionCacheTTL,
 		Cluster:                app.channelLog,
 		MessageReader: managerMessageReader{
 			localNodeID: cfg.Node.ID,
@@ -744,7 +766,7 @@ func build(cfg Config) (_ *App, err error) {
 			localNodeID: cfg.Node.ID,
 			local:       app.deliveryApp,
 			remoteAcks:  app.deliveryAcks,
-			notifier:    app.nodeClient,
+			notifier:    deliveryNotifier,
 		},
 		DeliveryOffline: offlineRouting{
 			localNodeID: cfg.Node.ID,
