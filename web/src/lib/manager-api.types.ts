@@ -1320,6 +1320,95 @@ export type MutateSystemUsersResponse = {
   changed: boolean
 }
 
+export type ManagerPluginConfigField = {
+  name?: string
+  type?: string
+  label?: string
+  placeholder?: string
+  required?: boolean
+  default?: unknown
+  options?: string[]
+  description?: string
+}
+
+export type ManagerPluginConfigTemplate = {
+  fields?: ManagerPluginConfigField[]
+}
+
+export type ManagerPlugin = {
+  node_id: number
+  plugin_no: string
+  name: string
+  version: string
+  config_template?: ManagerPluginConfigTemplate
+  config?: Record<string, unknown>
+  created_at?: string | null
+  updated_at?: string | null
+  status: string
+  enabled: boolean
+  methods: string[]
+  priority: number
+  persist_after_sync: boolean
+  reply_sync: boolean
+  is_ai: number
+  pid: number
+  last_seen_at: string
+  last_error: string
+}
+
+export type ManagerNodePluginsResponse = {
+  node_id: number
+  total: number
+  items: ManagerPlugin[]
+}
+
+export type ManagerPluginMutationResponse = {
+  node_id: number
+  plugin_no: string
+  changed: boolean
+  plugin?: ManagerPlugin
+}
+
+export type PluginBindingListParams = {
+  uid?: string
+  pluginNo?: string
+  limit?: number
+  cursor?: string
+}
+
+export type ManagerPluginBindingWarning = {
+  code: string
+  message: string
+  uid?: string
+  plugin_no?: string
+}
+
+export type ManagerPluginBinding = {
+  uid: string
+  plugin_no: string
+  plugin?: ManagerPlugin
+  warnings: ManagerPluginBindingWarning[]
+}
+
+export type ManagerPluginBindingsResponse = {
+  items: ManagerPluginBinding[]
+  total: number
+  next_cursor?: string
+  has_more: boolean
+  warnings?: ManagerPluginBindingWarning[]
+}
+
+export type MutatePluginBindingInput = {
+  uid: string
+  pluginNo: string
+}
+
+export type ManagerPluginBindingMutationResponse = {
+  binding: ManagerPluginBinding
+  changed: boolean
+  warnings?: ManagerPluginBindingWarning[]
+}
+
 export type ManagerUserDevice = {
   device_flag: string
   device_level: string

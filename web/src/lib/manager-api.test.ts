@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   configureManagerAuth,
+  createPluginBinding,
+  deletePluginBinding,
   getChannelClusterSummary,
   getChannelClusterUnhealthy,
   getChannelClusterReplicas,
@@ -27,9 +29,12 @@ import {
   getNodeOnboardingJob,
   getNodeOnboardingJobs,
   getNodes,
+  getNodePlugin,
+  getNodePlugins,
   getNodeScaleInStatus,
   getOverview,
   getPermissions,
+  getPluginBindings,
   getSlot,
   getSlotLogs,
   getSlots,
@@ -54,6 +59,7 @@ import {
   resumeNode,
   addSystemUsers,
   removeSystemUsers,
+  restartNodePlugin,
   retryNodeOnboardingJob,
   planNodeScaleIn,
   startNodeScaleIn,
@@ -73,6 +79,7 @@ import {
   resetUserToken,
   removeBusinessChannelMembers,
   transferChannelClusterLeader,
+  updateNodePluginConfig,
   upsertBusinessChannel,
 } from "@/lib/manager-api"
 
@@ -279,6 +286,90 @@ describe("manager api client", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/manager/system-users",
       expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+  })
+
+  it("fetches and mutates node plugins", async () => {
+    const list = { node_id: 2, total: 1, items: [{ node_id: 2, plugin_no: "wk.echo", name: "Echo" }] }
+    const detail = { node_id: 2, plugin_no: "wk.echo", name: "Echo", status: "running", enabled: true }
+    const mutation = { node_id: 2, plugin_no: "wk.echo", changed: true, plugin: detail }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(list), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(detail), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(mutation), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(mutation), { status: 200 }))
+
+    await expect(getNodePlugins(2)).resolves.toEqual(list)
+    await expect(getNodePlugin(2, "wk.echo")).resolves.toEqual(detail)
+    await expect(updateNodePluginConfig(2, "wk.echo", { api_key: "******" })).resolves.toEqual(mutation)
+    await expect(restartNodePlugin(2, "wk.echo")).resolves.toEqual(mutation)
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/manager/nodes/2/plugins",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/manager/nodes/2/plugins/wk.echo",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "/manager/nodes/2/plugins/wk.echo/config",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ api_key: "******" }),
+        headers: expect.any(Headers),
+      }),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "/manager/nodes/2/plugins/wk.echo/restart",
+      expect.objectContaining({ method: "POST", headers: expect.any(Headers) }),
+    )
+  })
+
+  it("fetches and mutates plugin bindings", async () => {
+    const byUID = { items: [{ uid: "u1", plugin_no: "wk.echo", warnings: [] }], total: 1, has_more: false }
+    const byPlugin = { items: [], total: 0, next_cursor: "next", has_more: true }
+    const mutation = { binding: { uid: "u1", plugin_no: "wk.echo", warnings: [] }, changed: true }
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(byUID), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(byPlugin), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(mutation), { status: 200 }))
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(mutation), { status: 200 }))
+
+    await expect(getPluginBindings({ uid: "u1" })).resolves.toEqual(byUID)
+    await expect(getPluginBindings({ pluginNo: "wk.echo", limit: 25, cursor: "abc" })).resolves.toEqual(byPlugin)
+    await expect(createPluginBinding({ uid: "u1", pluginNo: "wk.echo" })).resolves.toEqual(mutation)
+    await expect(deletePluginBinding({ uid: "u1", pluginNo: "wk.echo" })).resolves.toEqual(mutation)
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/manager/plugin-bindings?uid=u1",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/manager/plugin-bindings?plugin_no=wk.echo&limit=25&cursor=abc",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "/manager/plugin-bindings",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ uid: "u1", plugin_no: "wk.echo" }),
+        headers: expect.any(Headers),
+      }),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "/manager/plugin-bindings",
+      expect.objectContaining({
+        method: "DELETE",
+        body: JSON.stringify({ uid: "u1", plugin_no: "wk.echo" }),
+        headers: expect.any(Headers),
+      }),
     )
   })
 

@@ -46,6 +46,11 @@ import type {
   ManagerOverviewResponse,
   ManagerPermission,
   ManagerPermissionsResponse,
+  ManagerNodePluginsResponse,
+  ManagerPlugin,
+  ManagerPluginBindingMutationResponse,
+  ManagerPluginBindingsResponse,
+  ManagerPluginMutationResponse,
   ManagerUserDetailResponse,
   ManagerUsersResponse,
   ManagerSlotDetailResponse,
@@ -62,7 +67,9 @@ import type {
   RecentConversationsParams,
   MutateSystemUsersInput,
   MutateSystemUsersResponse,
+  MutatePluginBindingInput,
   NodeOnboardingJobsParams,
+  PluginBindingListParams,
   SlotListParams,
   SlotLogListParams,
   RecoverSlotInput,
@@ -217,6 +224,25 @@ function buildConnectionDetailPath(sessionId: number, params?: ConnectionDetailP
 
   const query = search.toString()
   return query ? `/manager/connections/${sessionId}?${query}` : `/manager/connections/${sessionId}`
+}
+
+function buildPluginBindingsPath(params?: PluginBindingListParams) {
+  const search = new URLSearchParams()
+  if (params?.uid) {
+    search.set("uid", params.uid)
+  }
+  if (params?.pluginNo) {
+    search.set("plugin_no", params.pluginNo)
+  }
+  if (typeof params?.limit === "number") {
+    search.set("limit", String(params.limit))
+  }
+  if (params?.cursor) {
+    search.set("cursor", params.cursor)
+  }
+
+  const query = search.toString()
+  return query ? `/manager/plugin-bindings?${query}` : "/manager/plugin-bindings"
 }
 
 function buildUsersPath(params?: UserListParams) {
@@ -427,6 +453,33 @@ export function getNodes() {
 
 export function getNode(nodeId: number) {
   return jsonManagerFetch<ManagerNodeDetailResponse>(`/manager/nodes/${nodeId}`)
+}
+
+export function getNodePlugins(nodeId: number) {
+  return jsonManagerFetch<ManagerNodePluginsResponse>(`/manager/nodes/${nodeId}/plugins`)
+}
+
+export function getNodePlugin(nodeId: number, pluginNo: string) {
+  return jsonManagerFetch<ManagerPlugin>(`/manager/nodes/${nodeId}/plugins/${encodeURIComponent(pluginNo)}`)
+}
+
+export function updateNodePluginConfig(nodeId: number, pluginNo: string, config: Record<string, unknown>) {
+  return jsonManagerFetch<ManagerPluginMutationResponse>(
+    `/manager/nodes/${nodeId}/plugins/${encodeURIComponent(pluginNo)}/config`,
+    {
+      method: "PUT",
+      body: JSON.stringify(config),
+    },
+  )
+}
+
+export function restartNodePlugin(nodeId: number, pluginNo: string) {
+  return jsonManagerFetch<ManagerPluginMutationResponse>(
+    `/manager/nodes/${nodeId}/plugins/${encodeURIComponent(pluginNo)}/restart`,
+    {
+      method: "POST",
+    },
+  )
 }
 
 export function markNodeDraining(nodeId: number) {
@@ -643,6 +696,24 @@ export function removeSystemUsers(input: MutateSystemUsersInput) {
   return jsonManagerFetch<MutateSystemUsersResponse>("/manager/system-users/remove", {
     method: "POST",
     body: JSON.stringify({ uids: input.uids }),
+  })
+}
+
+export function getPluginBindings(params?: PluginBindingListParams) {
+  return jsonManagerFetch<ManagerPluginBindingsResponse>(buildPluginBindingsPath(params))
+}
+
+export function createPluginBinding(input: MutatePluginBindingInput) {
+  return jsonManagerFetch<ManagerPluginBindingMutationResponse>("/manager/plugin-bindings", {
+    method: "POST",
+    body: JSON.stringify({ uid: input.uid, plugin_no: input.pluginNo }),
+  })
+}
+
+export function deletePluginBinding(input: MutatePluginBindingInput) {
+  return jsonManagerFetch<ManagerPluginBindingMutationResponse>("/manager/plugin-bindings", {
+    method: "DELETE",
+    body: JSON.stringify({ uid: input.uid, plugin_no: input.pluginNo }),
   })
 }
 
