@@ -58,19 +58,29 @@ func confStateEqual(a, b raftpb.ConfState) bool {
 }
 
 func replaceEntriesFromIndex(existing []raftpb.Entry, first uint64, incoming []raftpb.Entry) []raftpb.Entry {
-	result := make([]raftpb.Entry, 0, len(existing)+len(incoming))
-	for _, entry := range existing {
+	cut := len(existing)
+	for i, entry := range existing {
 		if entry.Index >= first {
+			cut = i
 			break
 		}
-		// Existing entries are already owned by the store; keep their payloads
-		// instead of deep-copying the retained prefix on every append.
-		result = append(result, entry)
 	}
+	oldLen := len(existing)
+	result := existing[:cut]
 	for _, entry := range incoming {
 		result = append(result, cloneEntry(entry))
 	}
+	if len(result) < oldLen {
+		clearEntries(existing[len(result):oldLen])
+	}
 	return result
+}
+
+func clearEntries(entries []raftpb.Entry) {
+	var zero raftpb.Entry
+	for i := range entries {
+		entries[i] = zero
+	}
 }
 
 func trimEntriesAfterSnapshot(existing []raftpb.Entry, snapshotIndex uint64) []raftpb.Entry {
