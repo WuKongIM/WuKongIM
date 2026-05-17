@@ -315,11 +315,7 @@ func (benchmarkAcceptAllDeliveryPushClient) PushBatchItems(_ context.Context, _ 
 	for _, item := range cmd.Items {
 		total += len(item.Routes)
 	}
-	accepted := make([]deliveryruntime.RouteKey, 0, total)
-	for _, item := range cmd.Items {
-		accepted = append(accepted, item.Routes...)
-	}
-	return accessnode.DeliveryPushResponse{Accepted: accepted}, nil
+	return accessnode.DeliveryPushResponse{AcceptedCount: uint64(total), AcceptedCountSet: true}, nil
 }
 
 type benchmarkCommittedDeliverySubmitter struct{}

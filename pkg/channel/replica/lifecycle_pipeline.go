@@ -86,6 +86,11 @@ func (r *replica) applyMetaCommand(cmd machineApplyMetaCommand) machineResult {
 	if err := r.validateMetaLocked(normalized); err != nil {
 		return machineResult{Err: err}
 	}
+	if r.state.Role == channel.ReplicaRoleLeader && sameLeaderLeaseRefresh(r.meta, normalized) {
+		r.commitMetaLocked(normalized)
+		r.publishStateLocked()
+		return machineResult{}
+	}
 	if r.needsSameLeaderEpochBoundaryLocked(normalized) {
 		return r.prepareSameLeaderEpochBoundaryLocked(normalized)
 	}

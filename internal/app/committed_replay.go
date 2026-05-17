@@ -3,9 +3,11 @@ package app
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
@@ -84,6 +86,9 @@ type committedReplayer struct {
 	cancel   context.CancelFunc
 	done     chan struct{}
 	stopping bool
+
+	dirtyMu sync.Mutex
+	dirty   map[channel.ChannelKey]committedReplayChannel
 }
 
 func newCommittedReplayer(cfg committedReplayerConfig) *committedReplayer {
@@ -131,6 +136,23 @@ func (r *committedReplayer) Start(ctx context.Context) error {
 
 func (r *committedReplayer) Stop() error {
 	return r.StopContext(context.Background())
+}
+
+// SubmitCommitted marks the committed channel dirty so steady-state replay can
+// repair known updates without scanning every persisted channel key.
+func (r *committedReplayer) SubmitCommitted(_ context.Context, event messageevents.MessageCommitted) error {
+	if r == nil {
+		return nil
+	}
+	id := channel.ChannelID{ID: event.Message.ChannelID, Type: event.Message.ChannelType}
+	if id.ID == "" {
+		return nil
+	}
+	r.markDirty(committedReplayChannel{
+		Key: channelhandler.KeyFromChannelID(id),
+		ID:  id,
+	})
+	return nil
 }
 
 // StopContext cancels replay and bounds shutdown with the caller context.
@@ -186,7 +208,7 @@ func (r *committedReplayer) finishStop(done chan struct{}) {
 func (r *committedReplayer) run(ctx context.Context, done chan<- struct{}) {
 	defer close(done)
 
-	r.runOnceAndLog(ctx)
+	r.runFullScanOnceAndLog(ctx)
 	ticker := time.NewTicker(r.cfg.Interval)
 	defer ticker.Stop()
 	for {
@@ -196,6 +218,12 @@ func (r *committedReplayer) run(ctx context.Context, done chan<- struct{}) {
 		case <-ticker.C:
 			r.runOnceAndLog(ctx)
 		}
+	}
+}
+
+func (r *committedReplayer) runFullScanOnceAndLog(ctx context.Context) {
+	if err := r.runOnce(ctx, true); err != nil && !errors.Is(err, context.Canceled) {
+		r.cfg.Logger.Warn("committed replay pass failed", wklog.Error(err))
 	}
 }
 
@@ -209,6 +237,10 @@ func (r *committedReplayer) runOnceAndLog(ctx context.Context) {
 // cursor after delivery side effects have accepted the batch. Conversation active
 // hints are best-effort and do not gate cursor advancement.
 func (r *committedReplayer) RunOnce(ctx context.Context) (err error) {
+	return r.runOnce(ctx, false)
+}
+
+func (r *committedReplayer) runOnce(ctx context.Context, forceFullScan bool) (err error) {
 	startedAt := time.Now()
 	lagByType := map[uint8]uint64(nil)
 	defer func() {
@@ -221,7 +253,7 @@ func (r *committedReplayer) RunOnce(ctx context.Context) (err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	channels, err := r.cfg.Log.ListCommittedReplayChannels(ctx)
+	channels, err := r.replayChannels(ctx, forceFullScan)
 	if err != nil {
 		return err
 	}
@@ -237,8 +269,52 @@ func (r *committedReplayer) RunOnce(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+		if lag == 0 {
+			r.clearDirty(ch.Key)
+		}
 	}
 	return nil
+}
+
+func (r *committedReplayer) replayChannels(ctx context.Context, forceFullScan bool) ([]committedReplayChannel, error) {
+	if !forceFullScan {
+		if channels := r.dirtyReplayChannels(); len(channels) > 0 {
+			return channels, nil
+		}
+	}
+	return r.cfg.Log.ListCommittedReplayChannels(ctx)
+}
+
+func (r *committedReplayer) markDirty(ch committedReplayChannel) {
+	if ch.Key == "" {
+		return
+	}
+	r.dirtyMu.Lock()
+	defer r.dirtyMu.Unlock()
+	if r.dirty == nil {
+		r.dirty = make(map[channel.ChannelKey]committedReplayChannel)
+	}
+	r.dirty[ch.Key] = ch
+}
+
+func (r *committedReplayer) dirtyReplayChannels() []committedReplayChannel {
+	r.dirtyMu.Lock()
+	defer r.dirtyMu.Unlock()
+	if len(r.dirty) == 0 {
+		return nil
+	}
+	channels := make([]committedReplayChannel, 0, len(r.dirty))
+	for _, ch := range r.dirty {
+		channels = append(channels, ch)
+	}
+	sort.Slice(channels, func(i, j int) bool { return channels[i].Key < channels[j].Key })
+	return channels
+}
+
+func (r *committedReplayer) clearDirty(key channel.ChannelKey) {
+	r.dirtyMu.Lock()
+	defer r.dirtyMu.Unlock()
+	delete(r.dirty, key)
 }
 
 func (r *committedReplayer) replayChannel(ctx context.Context, ch committedReplayChannel) (uint64, error) {

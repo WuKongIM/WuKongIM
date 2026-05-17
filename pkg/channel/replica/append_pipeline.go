@@ -249,7 +249,7 @@ func (r *replica) validateAppendEffectFenceLocked(effect appendLeaderBatchEffect
 	if !r.state.CommitReady {
 		return channel.ErrNotReady
 	}
-	if !r.now().Before(r.meta.LeaseUntil) || !r.now().Before(effect.LeaseUntil) {
+	if !r.now().Before(r.meta.LeaseUntil) {
 		return channel.ErrLeaseExpired
 	}
 	if r.meta.WriteFence.BlocksAppend() {

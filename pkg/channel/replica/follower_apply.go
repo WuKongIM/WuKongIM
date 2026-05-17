@@ -63,6 +63,10 @@ func (r *replica) applyFetchCommand(cmd machineApplyFetchCommand) machineResult 
 }
 
 func (r *replica) prepareFollowerRecordApplyLocked(req channel.ReplicaApplyFetchRequest, baseLEO uint64) machineResult {
+	req.Records = trimDuplicateFetchedPrefix(req.Records, baseLEO)
+	if len(req.Records) == 0 {
+		return r.prepareFollowerHeartbeatApplyLocked(req, baseLEO)
+	}
 	if err := validateFetchedRecordIndexes(req.Records, baseLEO+1); err != nil {
 		return machineResult{Err: err}
 	}
@@ -101,6 +105,13 @@ func (r *replica) prepareFollowerRecordApplyLocked(req channel.ReplicaApplyFetch
 	effect.Checkpoint = cloneCheckpointPointer(checkpoint)
 	effect.EpochPoint = cloneEpochPointPointer(epochPoint)
 	return machineResult{Effects: []machineEffect{effect}}
+}
+
+func trimDuplicateFetchedPrefix(records []channel.Record, baseLEO uint64) []channel.Record {
+	for len(records) > 0 && records[0].Index != 0 && records[0].Index <= baseLEO {
+		records = records[1:]
+	}
+	return records
 }
 
 func (r *replica) prepareFollowerHeartbeatApplyLocked(req channel.ReplicaApplyFetchRequest, baseLEO uint64) machineResult {

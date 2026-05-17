@@ -85,6 +85,12 @@ func writeFrame(bufs *net.Buffers, msgType uint8, body []byte) {
 	*bufs = append(*bufs, hdr[:], body)
 }
 
+func appendWriteFrame(bufs *net.Buffers, headers *[][HeaderSize]byte, msgType uint8, body []byte) {
+	*headers = append(*headers, encodeHeader(msgType, len(body)))
+	hdr := &(*headers)[len(*headers)-1]
+	*bufs = append(*bufs, hdr[:], body)
+}
+
 // WriteMessage preserves the legacy API while using the new frame encoder.
 func WriteMessage(w io.Writer, msgType uint8, body []byte) error {
 	var bufs net.Buffers

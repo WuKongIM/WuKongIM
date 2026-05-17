@@ -149,6 +149,37 @@ func TestMessageRowFromRecordPayloadDecodesSharedCompatibilityCodec(t *testing.T
 	require.Equal(t, hashMessagePayload([]byte("hello")), row.PayloadHash)
 }
 
+func TestEncodeCompatibilityRecordAvoidsPerFieldHeapChurn(t *testing.T) {
+	row := messageRow{
+		MessageSeq:  9,
+		MessageID:   42,
+		FramerFlags: encodeMessageRowFramerFlags(frame.Framer{NoPersist: true, End: true}),
+		Setting:     uint8(frame.SettingReceiptEnabled),
+		StreamFlag:  uint8(frame.StreamFlagIng),
+		MsgKey:      "k-1",
+		Expire:      60,
+		ClientSeq:   7,
+		ClientMsgNo: "c-1",
+		StreamNo:    "s-1",
+		StreamID:    88,
+		Timestamp:   99,
+		ChannelID:   "room",
+		ChannelType: 1,
+		Topic:       "topic",
+		FromUID:     "u1",
+		Payload:     []byte("hello"),
+		PayloadHash: 123,
+	}
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		record, err := row.toCompatibilityRecord()
+		require.NoError(t, err)
+		require.Equal(t, len(record.Payload), record.SizeBytes)
+	})
+
+	require.LessOrEqual(t, allocs, 2.0)
+}
+
 func TestMessageRowToRecordEncodesSharedCompatibilityCodec(t *testing.T) {
 	row := messageRow{
 		MessageSeq: 9,

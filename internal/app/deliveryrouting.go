@@ -529,6 +529,11 @@ func (d *asyncCommittedDispatcher) routeCommitted(ctx context.Context, env deliv
 		return
 	}
 
+	var (
+		lastRouteErr   error
+		lastRouteStage string
+		lastOwnerNode  uint64
+	)
 	for attempt := 0; attempt < committedRouteRetryAttempts; attempt++ {
 		status, err := d.channelLog.Status(channel.ChannelID{
 			ID:   env.ChannelID,
@@ -546,17 +551,24 @@ func (d *asyncCommittedDispatcher) routeCommitted(ctx context.Context, env deliv
 					d.logCommittedRoute(env, "remote_owner", ownerNodeID, nil)
 					return
 				} else {
-					d.logCommittedRoute(env, "remote_owner_submit_failed", ownerNodeID, err)
+					lastRouteErr = err
+					lastRouteStage = "remote_owner_submit_failed"
+					lastOwnerNode = ownerNodeID
 				}
 			}
 		} else if err != nil {
-			d.logCommittedRoute(env, "status_failed", 0, err)
+			lastRouteErr = err
+			lastRouteStage = "status_failed"
+			lastOwnerNode = 0
 		}
 		if attempt < committedRouteRetryAttempts-1 {
 			if !sleepCommittedRouteRetry(ctx, time.Duration(attempt+1)*committedRouteRetryBackoff) {
 				return
 			}
 		}
+	}
+	if lastRouteErr != nil {
+		d.logCommittedRoute(env, lastRouteStage, lastOwnerNode, lastRouteErr)
 	}
 	d.logCommittedRoute(env, "conversation_fallback", 0, nil)
 	d.submitConversationFallback(ctx, env)
@@ -663,6 +675,11 @@ type deliveryTagCluster interface {
 	ListSlotAssignments(ctx context.Context) ([]controllermeta.SlotAssignment, error)
 }
 
+type cachedDeliveryTagAssignments interface {
+	// ListCachedAssignments returns the node-local controller assignment snapshot without refreshing the controller leader.
+	ListCachedAssignments() []controllermeta.SlotAssignment
+}
+
 // tagDeliveryResolver resolves routes from leader-built delivery tag partitions.
 type tagDeliveryResolver struct {
 	localNodeID uint64
@@ -719,11 +736,7 @@ func (r deliveryTagTopologyReaderAdapter) CurrentDeliveryTagTopology(ctx context
 		slotIDs = append(slotIDs, slotID)
 	}
 	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
-	assignments, _ := r.cluster.ListSlotAssignments(ctx)
-	assignmentBySlot := make(map[uint32]controllermeta.SlotAssignment, len(assignments))
-	for _, assignment := range assignments {
-		assignmentBySlot[assignment.SlotID] = assignment
-	}
+	assignmentBySlot := currentDeliveryTagAssignmentBySlot(ctx, r.cluster, slotIDs)
 	refs := make([]deliverytagruntime.SlotAuthorityRef, 0, len(slotIDs))
 	for _, slotID := range slotIDs {
 		leaderID, err := r.cluster.LeaderOf(multiraft.SlotID(slotID))
@@ -754,11 +767,11 @@ func (r deliveryTagTopologyReaderAdapter) ValidateCurrentDeliveryTagTopology(ctx
 	if len(topology.SlotAuthorityRefs) == 0 {
 		return true, nil
 	}
-	assignments, _ := r.cluster.ListSlotAssignments(ctx)
-	assignmentBySlot := make(map[uint32]controllermeta.SlotAssignment, len(assignments))
-	for _, assignment := range assignments {
-		assignmentBySlot[assignment.SlotID] = assignment
+	slotIDs := make([]uint32, 0, len(topology.SlotAuthorityRefs))
+	for _, ref := range topology.SlotAuthorityRefs {
+		slotIDs = append(slotIDs, ref.SlotID)
 	}
+	assignmentBySlot := currentDeliveryTagAssignmentBySlot(ctx, r.cluster, slotIDs)
 	for _, ref := range topology.SlotAuthorityRefs {
 		leaderID, err := r.cluster.LeaderOf(multiraft.SlotID(ref.SlotID))
 		if err != nil {
@@ -773,6 +786,43 @@ func (r deliveryTagTopologyReaderAdapter) ValidateCurrentDeliveryTagTopology(ctx
 		}
 	}
 	return true, nil
+}
+
+func currentDeliveryTagAssignmentBySlot(ctx context.Context, cluster deliveryTagCluster, requiredSlotIDs []uint32) map[uint32]controllermeta.SlotAssignment {
+	if len(requiredSlotIDs) == 0 || cluster == nil {
+		return nil
+	}
+	if cached, ok := cluster.(cachedDeliveryTagAssignments); ok {
+		assignmentBySlot := deliveryTagAssignmentBySlot(cached.ListCachedAssignments())
+		if deliveryTagAssignmentMapCoversSlots(assignmentBySlot, requiredSlotIDs) {
+			return assignmentBySlot
+		}
+	}
+	assignments, _ := cluster.ListSlotAssignments(ctx)
+	return deliveryTagAssignmentBySlot(assignments)
+}
+
+func deliveryTagAssignmentBySlot(assignments []controllermeta.SlotAssignment) map[uint32]controllermeta.SlotAssignment {
+	if len(assignments) == 0 {
+		return nil
+	}
+	assignmentBySlot := make(map[uint32]controllermeta.SlotAssignment, len(assignments))
+	for _, assignment := range assignments {
+		assignmentBySlot[assignment.SlotID] = assignment
+	}
+	return assignmentBySlot
+}
+
+func deliveryTagAssignmentMapCoversSlots(assignmentBySlot map[uint32]controllermeta.SlotAssignment, requiredSlotIDs []uint32) bool {
+	if len(assignmentBySlot) == 0 {
+		return false
+	}
+	for _, slotID := range requiredSlotIDs {
+		if _, ok := assignmentBySlot[slotID]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 type localResolveToken struct {
@@ -1419,7 +1469,7 @@ func (p localDeliveryPush) pushEnvelope(env deliveryruntime.CommittedEnvelope, r
 	for _, route := range routes {
 		switch {
 		case isSenderDeliveryRoute(env, route):
-			continue
+			result.Dropped = append(result.Dropped, route)
 		case p.localNodeID != 0 && route.NodeID != p.localNodeID:
 			result.Dropped = append(result.Dropped, route)
 		case p.gatewayBootID != 0 && route.BootID != p.gatewayBootID:
@@ -1484,8 +1534,10 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 
 	localRoutes := make([]deliveryruntime.RouteKey, 0, len(cmd.Routes))
 	remoteRoutes := make(map[uint64][]deliveryruntime.RouteKey)
+	result := deliveryruntime.PushResult{}
 	for _, route := range cmd.Routes {
 		if isSenderDeliveryRoute(cmd.Envelope, route) {
+			result.Dropped = append(result.Dropped, route)
 			continue
 		}
 		if route.NodeID == p.localNodeID {
@@ -1495,7 +1547,6 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 		remoteRoutes[route.NodeID] = append(remoteRoutes[route.NodeID], route)
 	}
 
-	result := deliveryruntime.PushResult{}
 	if len(localRoutes) > 0 {
 		localResult := p.local.pushEnvelope(cmd.Envelope, localRoutes)
 		result.Accepted = append(result.Accepted, localResult.Accepted...)
@@ -1549,6 +1600,18 @@ type remoteDeliveryPushResult struct {
 }
 
 func (p distributedDeliveryPush) pushRemoteNodes(ctx context.Context, env deliveryruntime.CommittedEnvelope, remoteRoutes map[uint64][]deliveryruntime.RouteKey, nodeIDs []uint64, sharedFrame []byte) ([]deliveryruntime.PushResult, error) {
+	if len(nodeIDs) == 0 {
+		return nil, nil
+	}
+	if len(nodeIDs) == 1 {
+		nodeID := nodeIDs[0]
+		result, err := p.pushRemoteNode(ctx, env, nodeID, remoteRoutes[nodeID], sharedFrame)
+		if err != nil {
+			return nil, err
+		}
+		return []deliveryruntime.PushResult{result}, nil
+	}
+
 	results := make([]deliveryruntime.PushResult, len(nodeIDs))
 	workers := min(4, len(nodeIDs))
 	jobs := make(chan int)
@@ -1801,6 +1864,13 @@ func unreportedDeliveryRoutes(routes []deliveryruntime.RouteKey, resp accessnode
 
 func acceptedAndUnreportedDeliveryRoutes(routes []deliveryruntime.RouteKey, resp accessnode.DeliveryPushResponse) ([]deliveryruntime.RouteKey, []deliveryruntime.RouteKey) {
 	if resp.AcceptedCountSet {
+		if len(resp.Retryable) == 0 && len(resp.Dropped) == 0 {
+			if resp.AcceptedCount >= uint64(len(routes)) {
+				return routes, nil
+			}
+			acceptedCount := int(resp.AcceptedCount)
+			return routes[:acceptedCount], routes[acceptedCount:]
+		}
 		rejected := deliveryRouteCounts(resp.Retryable)
 		for _, route := range resp.Dropped {
 			rejected[route]++

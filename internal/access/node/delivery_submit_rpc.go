@@ -20,7 +20,7 @@ func (a *Adapter) handleDeliverySubmitRPC(ctx context.Context, body []byte) ([]b
 		return nil, err
 	}
 	if a.logger != nil {
-		a.logger.Info("delivery submit rpc received",
+		a.logger.Debug("delivery submit rpc received",
 			wklog.Event("delivery.diag.submit_rpc"),
 			wklog.String("channelID", req.Envelope.ChannelID),
 			wklog.Int("channelType", int(req.Envelope.ChannelType)),

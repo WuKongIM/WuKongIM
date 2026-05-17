@@ -44,6 +44,36 @@ func (r *replica) commitMetaLocked(normalized channel.Meta) {
 	}
 }
 
+// sameLeaderLeaseRefresh reports whether next only extends or replaces the
+// local leader lease without changing quorum, epoch, or retention semantics.
+func sameLeaderLeaseRefresh(current, next channel.Meta) bool {
+	if current.Key != next.Key ||
+		current.Epoch != next.Epoch ||
+		current.LeaderEpoch != next.LeaderEpoch ||
+		current.Leader != next.Leader ||
+		current.MinISR != next.MinISR ||
+		current.Status != next.Status ||
+		current.Features != next.Features ||
+		current.WriteFence != next.WriteFence ||
+		current.RetentionThroughSeq != next.RetentionThroughSeq {
+		return false
+	}
+	if len(current.Replicas) != len(next.Replicas) || len(current.ISR) != len(next.ISR) {
+		return false
+	}
+	for i := range current.Replicas {
+		if current.Replicas[i] != next.Replicas[i] {
+			return false
+		}
+	}
+	for i := range current.ISR {
+		if current.ISR[i] != next.ISR[i] {
+			return false
+		}
+	}
+	return !current.LeaseUntil.Equal(next.LeaseUntil)
+}
+
 func normalizeMeta(meta channel.Meta) (channel.Meta, error) {
 	meta.Replicas = dedupeNodeIDs(meta.Replicas)
 	meta.ISR = dedupeNodeIDs(meta.ISR)

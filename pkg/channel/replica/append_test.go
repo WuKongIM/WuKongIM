@@ -938,6 +938,48 @@ func TestAppendDurableResultAfterLeaseExpiryDoesNotPublishLEO(t *testing.T) {
 	require.Equal(t, uint64(0), st.LEO)
 }
 
+func TestAppendDurableResultAfterLeaseRenewalPublishesLEO(t *testing.T) {
+	env := newTestEnv(t)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	meta.LeaseUntil = env.clock.Now().Add(time.Second)
+	env.replica = newReplicaFromEnvWithGroupCommit(t, env, time.Millisecond, 1, 1024)
+	env.replica.mustApplyMeta(t, meta)
+	require.NoError(t, env.replica.BecomeLeader(meta))
+	env.log.syncStarted = make(chan struct{}, 2)
+	env.log.syncContinue = make(chan struct{})
+
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := env.replica.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("first"), SizeBytes: 5}})
+		firstDone <- err
+	}()
+	select {
+	case <-env.log.syncStarted:
+	case <-time.After(time.Second):
+		t.Fatal("durable append did not start")
+	}
+
+	env.clock.Advance(2 * time.Second)
+	renewed := meta
+	renewed.LeaseUntil = env.clock.Now().Add(time.Minute)
+	require.NoError(t, env.replica.ApplyMeta(renewed))
+	close(env.log.syncContinue)
+
+	select {
+	case err := <-firstDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("append did not finish after lease renewal")
+	}
+	st := env.replica.Status()
+	require.Equal(t, channel.ReplicaRoleLeader, st.Role)
+	require.Equal(t, uint64(1), st.LEO)
+
+	_, err := env.replica.Append(channel.WithCommitMode(context.Background(), channel.CommitModeLocal), []channel.Record{{Payload: []byte("second"), SizeBytes: 6}})
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), env.replica.Status().LEO)
+}
+
 func TestAppendPendingAfterLeaseExpiryFailsBeforeDurableWrite(t *testing.T) {
 	env := newTestEnv(t)
 	meta := activeMetaWithMinISR(7, 1, 1)

@@ -72,6 +72,9 @@ Replica 层 (replica/append.go + replica/append_pipeline.go):
      写入 `message` 表的 primary/payload families，同时维护 `message_id` / `client_msg_no`
      / `uidx_from_uid_client_msg_no` 三类索引
   ⑩ durable result 带 EffectID/Channel/Epoch/LeaderEpoch/RoleGeneration 回到 loop；fence 通过后才发布 LEO，并注册 Quorum Waiter (目标 CommitHW = LEO + recordCount)
+      对同 leader 的 lease-only 续租，append effect 入写前和 durable result 回环时都以当前已续租 lease 做最终 fence；
+      不能因 effect 创建时捕获的旧 lease 已过期而丢弃已经安全落盘的 append，否则 durable LEO 会领先运行时 LEO
+      若 lease 恢复/leader reconcile 已经把这批 in-flight append 的 durable LEO 采纳到运行时，effect 回环按幂等完成原 waiter，不再把较低 BaseOffset 当成损坏
   ⑪ `progress_pipeline.go:advanceHWLocked` 取 ISR 中第 MinISR 高的 MatchOffset，满足 quorum 后先推进运行时 `HW(CommitHW)`、完成 Waiter / sendack
   ⑫ Checkpoint 持久化由 checkpoint effect worker 异步 coalescing；写盘成功后才推进 `CheckpointHW`
 ```
@@ -106,10 +109,13 @@ steady-state `long_poll`（当前唯一复制主路径）:
   ⑥ replica 层在 follower cursor 低于 `max(RetentionThroughSeq, LogStartOffset)` 且 retention 主导 floor 时返回 typed `RetentionReset`；若 `LogStartOffset` 主导则仍走 snapshot-required
   ⑦ `RetentionReset` 会通过普通 Fetch 与 long-poll item 传播；follower 先 `ApplyRetentionBoundary` 采用本地 floor，再从 `RetainedThroughOffset` / `MinAvailableSeq` 继续拉取，不把空/HW-only 响应当作已追平
   ⑧ 若 lane 当前无 ready item，则 park 到 `maxWait` 或新事件；空响应是正常 timeout，follower 收到后立即续下一条 poll
-  ⑨ follower 收到 data item 后仍走 `ApplyFetch` 落盘；`StoreApplyFetch()` 会按 leader 给出的顺序把兼容 payload
+  ⑨ follower 收到 data item 后仍走 `ApplyFetch` 落盘；重复送达的已应用前缀会被当作幂等 ACK 场景跳过，剩余新记录仍必须连续；
+     `StoreApplyFetch()` 会按 leader 给出的顺序把兼容 payload
      解成 `messageRow` 并写入同一个结构化 `message` 表；steady-state ACK 通过下一条 lane poll 的 `cursorDelta` 回传
   ⑩ lane poll 发送失败 / backpressure / RPC timeout 的恢复退避按 `(peer,lane)` 维度计时；steady-state 不再依赖 legacy short-poll / batch-fetch 路径
-  ⑪ 对冷 channel 的 `Fetch` / `ReconcileProbe` ingress 以及 follower 收到的 `lane response item`
+  ⑪ Leader 只有在 follower 的 lane `FullMembership` 已显式带上该 channel（含本地 generation）后，才把它视为已建立 steady-state lane；
+     仅因为 leader 本地 ready 标记写入 lane session 的 channel 不能抑制冷 follower 的 wake-up `ReconcileProbe`
+  ⑫ 对冷 channel 的 `Fetch` / `ReconcileProbe` ingress 以及 follower 收到的 `lane response item`
      不再要求 runtime 预热：runtime miss 时会通过注入的 activator 按 `ChannelKey` 做一次权威激活，再重试一次本地处理；
      这样首条 long-poll 复制响应不会因为 follower 本地 runtime 尚未落地而被直接丢弃
 ```
@@ -158,6 +164,7 @@ ApplyMeta same-leader ChannelEpoch bump:
   ① 本节点已经是 leader 且权威 Meta 提升 ChannelEpoch 但 leader 不变时，先保持旧 epoch 对外可见并把 `CommitReady=false`
   ② 通过 durable `BeginEpoch` 写入 `EpochPoint{Epoch:newEpoch, StartOffset:currentLEO}`
   ③ durable 成功后才发布新 epoch 并按原有 readiness/reconcile 规则重新打开 append；durable 失败则保持 not-ready 等待后续权威重试
+  ④ 同 leader/epoch/ISR 的 lease-only 续租只刷新本地 Meta，不推进 `roleGeneration`，不触发 leader reconcile，也不因为 `CheckpointHW < HW` 临时关闭 `CommitReady`
 
 BecomeFollower (replica.go:227 → lifecycle_pipeline.go:270):
   ① 应用新 Meta（支持同 channel epoch 下、更高 LeaderEpoch 的 leader transfer）

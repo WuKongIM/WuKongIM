@@ -293,6 +293,9 @@ func (r *runtime) leaderLaneTracksChannel(key core.ChannelKey, epoch uint64, pee
 	if !ok {
 		return false
 	}
+	if _, ok := session.channelGen[key]; !ok {
+		return false
+	}
 	return trackedEpoch == 0 || epoch == 0 || trackedEpoch == epoch
 }
 

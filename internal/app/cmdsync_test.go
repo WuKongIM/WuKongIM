@@ -109,8 +109,9 @@ func TestNewBuildsCMDSyncRuntimeAndCommittedFanout(t *testing.T) {
 	dispatcher := messageAppDispatcherForTest(t, app)
 	fanout, ok := dispatcher.(committedFanout)
 	require.Truef(t, ok, "message dispatcher should be committedFanout, got %T", dispatcher)
-	require.Len(t, fanout.subscribers, 1)
+	require.Len(t, fanout.subscribers, 2)
 	require.Same(t, app.committedDispatcher, fanout.subscribers[0])
+	require.Same(t, app.committedReplayer, fanout.subscribers[1])
 
 	cmdPending, ok := unexportedFieldForTest(t, app.cmdSyncApp, "pending").(*cmdsync.ConversationUpdater)
 	require.True(t, ok)

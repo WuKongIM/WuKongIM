@@ -8,10 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
@@ -374,6 +376,37 @@ func TestCommittedReplayerRecordsPassDuration(t *testing.T) {
 	require.Equal(t, []string{"error"}, errMetrics.passes)
 }
 
+func TestCommittedReplayerUsesDirtyChannelsWithoutFullListing(t *testing.T) {
+	id := channel.ChannelID{ID: "dirty", Type: frame.ChannelTypeGroup}
+	key := channelhandler.KeyFromChannelID(id)
+	source := &fakeCommittedReplayLog{
+		listErr: errors.New("full committed replay scan should not run"),
+		committed: map[channel.ChannelKey]uint64{
+			key: 1,
+		},
+		messages: map[channel.ChannelKey][]channel.Message{
+			key: {
+				{MessageID: 41, MessageSeq: 1, ChannelID: id.ID, ChannelType: id.Type, Payload: []byte("dirty")},
+			},
+		},
+	}
+	delivery := &fakeCommittedReplayDelivery{}
+	replayer := newCommittedReplayer(committedReplayerConfig{
+		Log:       source,
+		Delivery:  delivery,
+		BatchSize: 16,
+	})
+
+	require.NoError(t, replayer.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
+		Message: channel.Message{ChannelID: id.ID, ChannelType: id.Type, MessageSeq: 1},
+	}))
+	require.NoError(t, replayer.RunOnce(context.Background()))
+
+	require.Zero(t, source.listCalls)
+	require.Equal(t, []uint64{1}, delivery.messageSeqs())
+	require.Equal(t, uint64(1), source.cursors[key])
+}
+
 func TestCommittedReplayerStopContextBoundsBlockedPass(t *testing.T) {
 	source := newBlockingCommittedReplayLog()
 	replayer := newCommittedReplayer(committedReplayerConfig{
@@ -405,6 +438,7 @@ type fakeCommittedReplayLog struct {
 	loadFromSeqs    map[channel.ChannelKey][]uint64
 	durableAdvances map[channel.ChannelKey][]uint64
 	listErr         error
+	listCalls       int
 }
 
 type blockingCommittedReplayLog struct {
@@ -466,6 +500,7 @@ func replayerStoppedForTest(r *committedReplayer) bool {
 }
 
 func (f *fakeCommittedReplayLog) ListCommittedReplayChannels(context.Context) ([]committedReplayChannel, error) {
+	f.listCalls++
 	if f.listErr != nil {
 		return nil, f.listErr
 	}

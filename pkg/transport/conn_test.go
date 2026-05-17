@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -66,6 +67,63 @@ func TestMuxConnRPCMatchesResponse(t *testing.T) {
 	}
 	if !bytes.Equal(resp, []byte("ok")) {
 		t.Fatalf("resp = %q, want %q", resp, "ok")
+	}
+}
+
+func TestMuxConnRPCDoesNotAllocateWriteAckChannel(t *testing.T) {
+	writer := &priorityWriter{stopCh: make(chan struct{})}
+	for i := range writer.queues {
+		writer.queues[i] = make(chan writeItem, 1)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	mc := &MuxConn{
+		writer:     writer,
+		pending:    newPendingMap(16),
+		readerDone: make(chan struct{}),
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := mc.RPC(ctx, PriorityRPC, 7, encodeRPCRequest(7, []byte("req")))
+		errCh <- err
+	}()
+
+	var item writeItem
+	select {
+	case item = <-writer.queues[PriorityRPC]:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for rpc write item")
+	}
+	if item.done != nil {
+		t.Fatal("RPC write item has a per-call ack channel")
+	}
+	cancel()
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("RPC() error = %v, want %v", err, context.Canceled)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for rpc cancellation")
+	}
+}
+
+func TestMuxConnRPCWriteFailureWakesPendingCall(t *testing.T) {
+	raw := newWriteFailConn()
+	mc := newMuxConn(raw, func(uint8, []byte, func()) {}, ConnConfig{
+		QueueSizes: [numPriorities]int{4, 4, 4},
+	})
+	defer mc.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := mc.RPC(ctx, PriorityRPC, 7, encodeRPCRequest(7, []byte("req")))
+	if err == nil {
+		t.Fatal("RPC() error = nil, want write failure")
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("RPC() waited for context deadline after write failure: %v", err)
 	}
 }
 
@@ -191,3 +249,40 @@ func TestMuxConnHandleRPCResponseCopiesBody(t *testing.T) {
 		t.Fatalf("resp.body = %q, want %q", resp.body, "ok")
 	}
 }
+
+type writeFailConn struct {
+	closed chan struct{}
+}
+
+func newWriteFailConn() *writeFailConn {
+	return &writeFailConn{closed: make(chan struct{})}
+}
+
+func (c *writeFailConn) Read(_ []byte) (int, error) {
+	<-c.closed
+	return 0, io.ErrClosedPipe
+}
+
+func (c *writeFailConn) Write(_ []byte) (int, error) {
+	return 0, io.ErrClosedPipe
+}
+
+func (c *writeFailConn) Close() error {
+	select {
+	case <-c.closed:
+	default:
+		close(c.closed)
+	}
+	return nil
+}
+
+func (c *writeFailConn) LocalAddr() net.Addr              { return testAddr("local") }
+func (c *writeFailConn) RemoteAddr() net.Addr             { return testAddr("remote") }
+func (c *writeFailConn) SetDeadline(time.Time) error      { return nil }
+func (c *writeFailConn) SetReadDeadline(time.Time) error  { return nil }
+func (c *writeFailConn) SetWriteDeadline(time.Time) error { return nil }
+
+type testAddr string
+
+func (a testAddr) Network() string { return "test" }
+func (a testAddr) String() string  { return string(a) }

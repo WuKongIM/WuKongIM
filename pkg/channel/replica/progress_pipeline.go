@@ -256,15 +256,6 @@ func (r *replica) applyLeaderAppendCommittedEvent(ev machineLeaderAppendCommitte
 		r.mu.Unlock()
 		return machineResult{}
 	}
-	if !ev.LeaseUntil.IsZero() && !r.now().Before(ev.LeaseUntil) {
-		if !r.now().Before(r.meta.LeaseUntil) {
-			_ = r.appendableLocked()
-		}
-		r.failDurableAppendRequestsLocked(requests, channel.ErrLeaseExpired)
-		r.maybeFlushAppendLocked()
-		r.mu.Unlock()
-		return machineResult{}
-	}
 	if !r.now().Before(r.meta.LeaseUntil) {
 		err := appendFailureForState(r.appendableLocked())
 		if err == nil {
@@ -275,17 +266,22 @@ func (r *replica) applyLeaderAppendCommittedEvent(ev machineLeaderAppendCommitte
 		r.mu.Unlock()
 		return machineResult{}
 	}
-	if ev.BaseOffset != r.state.LEO {
-		r.failDurableAppendRequestsLocked(requests, channel.ErrCorruptState)
-		r.maybeFlushAppendLocked()
-		r.mu.Unlock()
-		return machineResult{Err: channel.ErrCorruptState}
-	}
-
-	nextLEO = ev.BaseOffset
 	recordCount := 0
 	for _, req := range requests {
 		recordCount += len(req.batch)
+	}
+	if ev.BaseOffset != r.state.LEO {
+		expectedLEO := ev.BaseOffset + uint64(recordCount)
+		if expectedLEO != r.state.LEO {
+			r.failDurableAppendRequestsLocked(requests, channel.ErrCorruptState)
+			r.maybeFlushAppendLocked()
+			r.mu.Unlock()
+			return machineResult{Err: channel.ErrCorruptState}
+		}
+	}
+
+	nextLEO = ev.BaseOffset
+	for _, req := range requests {
 		reqCtx := req.ctx
 		if reqCtx == nil {
 			reqCtx = context.Background()

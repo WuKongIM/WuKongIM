@@ -2509,6 +2509,61 @@ func TestRuntimeLeaderSchedulesWakeUpProbeForColdFollower(t *testing.T) {
 	}
 }
 
+func TestRuntimeLeaderLocalAppendNotifierSchedulesWakeUpProbeForColdFollower(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+	})
+	meta := testMetaLocal(2571, 4, 1, []core.NodeID{1, 2})
+	mustEnsureLocal(t, env.runtime, meta)
+
+	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	notifier := replica.onLeaderLocalAppend
+	replica.state.LEO = 1
+	replica.mu.Unlock()
+	require.NotNil(t, notifier)
+
+	notifier()
+	require.Eventually(t, func() bool {
+		env.runtime.runScheduler()
+		session := env.sessions.session(2)
+		return session.sendCount() == 1 && session.last.Kind == MessageKindReconcileProbeRequest
+	}, time.Second, time.Millisecond)
+}
+
+func TestRuntimeLeaderLocalAppendNotifierProbesWhenLaneSessionMissesChannel(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+	})
+	meta := testMetaLocal(2572, 4, 1, []core.NodeID{1, 2})
+	mustEnsureLocal(t, env.runtime, meta)
+
+	// Simulate a hot peer/lane session that was opened for other channels, but
+	// the cold channel has not appeared in the follower's lane membership yet.
+	laneID := laneIDFor(meta.Key, env.runtime.cfg.LongPollLaneCount)
+	env.runtime.leaderLanes.RegisterSession(PeerLaneKey{Peer: 2, LaneID: laneID}, newLeaderLaneSession(99, 1))
+
+	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	notifier := replica.onLeaderLocalAppend
+	replica.state.LEO = 1
+	replica.mu.Unlock()
+	require.NotNil(t, notifier)
+
+	notifier()
+	require.Eventually(t, func() bool {
+		env.runtime.runScheduler()
+		session := env.sessions.session(2)
+		return session.sendCount() == 1 && session.last.Kind == MessageKindReconcileProbeRequest
+	}, time.Second, time.Millisecond)
+}
+
 func TestSessionFetchFailureEnvelopeReleasesInflightAndRetriesReplication(t *testing.T) {
 	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
 		cfg.AutoRunScheduler = true
@@ -3108,6 +3163,7 @@ type sessionReplica struct {
 	mu                    sync.Mutex
 	state                 core.ReplicaState
 	onStateChange         func()
+	onLeaderLocalAppend   func()
 	onLeaderHWAdvance     func()
 	applyFetchCalls       int
 	lastApplyFetch        core.ReplicaApplyFetchRequest
@@ -3189,6 +3245,12 @@ func (r *sessionReplica) notifyStateChange() {
 	if r.onStateChange != nil {
 		r.onStateChange()
 	}
+}
+
+func (r *sessionReplica) SetLeaderLocalAppendNotifier(fn func()) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.onLeaderLocalAppend = fn
 }
 
 func (r *sessionReplica) SetLeaderHWAdvanceNotifier(fn func()) {

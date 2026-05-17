@@ -66,6 +66,26 @@ func BenchmarkMessageTableScanBySeq(b *testing.B) {
 	}
 }
 
+func BenchmarkChannelStoreReadCompatibilityRecords(b *testing.B) {
+	for _, rowsPerRead := range []int{1, 32, 256} {
+		b.Run(fmt.Sprintf("rows=%d", rowsPerRead), func(b *testing.B) {
+			st := newBenchmarkMessageTableStore(b, rowsPerRead)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				records, err := st.Read(0, 1<<30)
+				if err != nil {
+					b.Fatalf("Read() error = %v", err)
+				}
+				if len(records) != rowsPerRead {
+					b.Fatalf("Read() records = %d, want %d", len(records), rowsPerRead)
+				}
+			}
+		})
+	}
+}
+
 func newBenchmarkMessageTableStore(tb testing.TB, rows int) *ChannelStore {
 	tb.Helper()
 

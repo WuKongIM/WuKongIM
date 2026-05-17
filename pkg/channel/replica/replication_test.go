@@ -54,6 +54,52 @@ func TestApplyFetchAdvancesCheckpointToMinLeaderHWAndLEO(t *testing.T) {
 	require.Equal(t, uint64(1), env.checkpoints.lastStored().HW)
 }
 
+func TestApplyFetchIgnoresDuplicateFetchedRecordsAndReportsCurrentCursor(t *testing.T) {
+	env := newFollowerEnv(t)
+	req := channel.ReplicaApplyFetchRequest{
+		ChannelKey: "group-10",
+		Epoch:      7,
+		Leader:     1,
+		Records:    []channel.Record{{Index: 1, Payload: []byte("a"), SizeBytes: 1}},
+		LeaderHW:   1,
+	}
+	require.NoError(t, env.replica.ApplyFetch(context.Background(), req))
+	require.Equal(t, uint64(1), env.replica.Status().LEO)
+	require.Equal(t, uint64(1), env.replica.Status().HW)
+
+	require.NoError(t, env.replica.ApplyFetch(context.Background(), req))
+	require.Equal(t, uint64(1), env.replica.Status().LEO)
+	require.Equal(t, uint64(1), env.replica.Status().HW)
+	require.Equal(t, uint64(1), env.log.LEO())
+}
+
+func TestApplyFetchTrimsDuplicatePrefixAndAppliesFetchedSuffix(t *testing.T) {
+	env := newFollowerEnv(t)
+	require.NoError(t, env.replica.ApplyFetch(context.Background(), channel.ReplicaApplyFetchRequest{
+		ChannelKey: "group-10",
+		Epoch:      7,
+		Leader:     1,
+		Records:    []channel.Record{{Index: 1, Payload: []byte("a"), SizeBytes: 1}},
+		LeaderHW:   1,
+	}))
+
+	err := env.replica.ApplyFetch(context.Background(), channel.ReplicaApplyFetchRequest{
+		ChannelKey: "group-10",
+		Epoch:      7,
+		Leader:     1,
+		Records: []channel.Record{
+			{Index: 1, Payload: []byte("a"), SizeBytes: 1},
+			{Index: 2, Payload: []byte("b"), SizeBytes: 1},
+		},
+		LeaderHW: 2,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), env.replica.Status().LEO)
+	require.Equal(t, uint64(2), env.replica.Status().HW)
+	require.Equal(t, uint64(2), env.log.LEO())
+}
+
 func TestApplyFetchUsesDurableAdapterForEpochBoundary(t *testing.T) {
 	env := newFollowerEnv(t)
 	meta := activeMeta(8, 1)

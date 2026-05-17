@@ -351,6 +351,25 @@ func TestWorkerDefaultRunnerRecoverTrafficReconnectsFailedSession(t *testing.T) 
 	require.Contains(t, secondSender.sentFrames[0].ClientMsgNo, "bench-msg-r1")
 }
 
+func TestWorkerDefaultRunnerStartsAutoRecvAckDrain(t *testing.T) {
+	pool := newWorkerPersonClientPool()
+	pool.initialFrames = map[string][]frame.Frame{
+		"bench-u-7": {
+			&frame.RecvPacket{MessageID: 88, MessageSeq: 9, ClientMsgNo: "msg-a"},
+		},
+	}
+	runner := NewDefaultWorkloadRunner(pool.newClient)
+	assignment := personShardAssignment()
+	assignment.Scenario.Messages.Traffic[0].RecvAck = true
+
+	require.NoError(t, runner.Connect(context.Background(), assignment))
+	recipient := pool.client("bench-u-7")
+	require.Eventually(t, func() bool {
+		return len(recipient.recvAckCalls) == 1
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, []workerRecvAckCall{{messageID: 88, messageSeq: 9}}, recipient.recvAckCalls)
+}
+
 func TestWorkerDefaultRunnerConnectsAssignedIdentityRange(t *testing.T) {
 	pool := newWorkerPersonClientPool()
 	runner := NewDefaultWorkloadRunner(pool.newClient)
@@ -994,7 +1013,8 @@ func assignFull(t *testing.T, srv *Server, token string, assignment Assignment) 
 }
 
 type workerPersonClientPool struct {
-	clients map[string]*workerPersonClient
+	clients       map[string]*workerPersonClient
+	initialFrames map[string][]frame.Frame
 }
 
 func newWorkerPersonClientPool() *workerPersonClientPool {
@@ -1002,7 +1022,7 @@ func newWorkerPersonClientPool() *workerPersonClientPool {
 }
 
 func (p *workerPersonClientPool) newClient(user benchworkload.ConnectionUser, addr string) (benchworkload.ConnectionClient, error) {
-	client := &workerPersonClient{uid: user.UID, addr: addr}
+	client := &workerPersonClient{uid: user.UID, addr: addr, readFrames: append([]frame.Frame(nil), p.initialFrames[user.UID]...)}
 	p.clients[user.UID] = client
 	return client, nil
 }
@@ -1012,16 +1032,22 @@ func (p *workerPersonClientPool) client(uid string) *workerPersonClient {
 }
 
 type workerPersonClient struct {
-	uid        string
-	addr       string
-	connected  []workerConnectCall
-	closed     int
-	sentFrames []*frame.SendPacket
-	readFrames []frame.Frame
+	uid          string
+	addr         string
+	connected    []workerConnectCall
+	closed       int
+	sentFrames   []*frame.SendPacket
+	readFrames   []frame.Frame
+	recvAckCalls []workerRecvAckCall
 }
 
 type workerConnectCall struct {
 	uid, deviceID string
+}
+
+type workerRecvAckCall struct {
+	messageID  int64
+	messageSeq uint64
 }
 
 func (c *workerPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
@@ -1046,6 +1072,7 @@ func (c *workerPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error)
 }
 
 func (c *workerPersonClient) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
+	c.recvAckCalls = append(c.recvAckCalls, workerRecvAckCall{messageID: messageID, messageSeq: messageSeq})
 	return nil
 }
 
