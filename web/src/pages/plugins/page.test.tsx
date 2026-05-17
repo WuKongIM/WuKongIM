@@ -292,6 +292,37 @@ test("queries plugin bindings by UID and plugin number", async () => {
   expect(getPluginBindingsMock).toHaveBeenLastCalledWith({ pluginNo: "wk.echo", limit: 50 })
 })
 
+test("loads more plugin bindings with cursor", async () => {
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 1, items: [pluginRow] })
+  getPluginBindingsMock.mockResolvedValueOnce({
+    items: [{ uid: "u1", plugin_no: "wk.echo", warnings: [] }],
+    total: 2,
+    next_cursor: "cursor-2",
+    has_more: true,
+  })
+  getPluginBindingsMock.mockResolvedValueOnce({
+    items: [{ uid: "u2", plugin_no: "wk.echo", warnings: [] }],
+    total: 2,
+    has_more: false,
+  })
+
+  const user = userEvent.setup()
+  renderPluginsPage()
+
+  expect(await screen.findByText("wk.echo")).toBeInTheDocument()
+  await user.selectOptions(screen.getByLabelText("Binding selector"), "plugin")
+  await user.type(screen.getByLabelText("Binding query"), "wk.echo")
+  await user.click(screen.getByRole("button", { name: "Search bindings" }))
+
+  expect(await screen.findByText("u1")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Load more bindings" }))
+
+  expect(await screen.findByText("u2")).toBeInTheDocument()
+  expect(screen.getByText("u1")).toBeInTheDocument()
+  expect(getPluginBindingsMock).toHaveBeenLastCalledWith({ pluginNo: "wk.echo", limit: 50, cursor: "cursor-2" })
+  expect(screen.queryByRole("button", { name: "Load more bindings" })).not.toBeInTheDocument()
+})
+
 test("validates empty binding search", async () => {
   getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 1, items: [pluginRow] })
 
