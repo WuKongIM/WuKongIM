@@ -13,6 +13,9 @@ const getNodePluginsMock = vi.fn()
 const getNodePluginMock = vi.fn()
 const updateNodePluginConfigMock = vi.fn()
 const restartNodePluginMock = vi.fn()
+const getPluginBindingsMock = vi.fn()
+const createPluginBindingMock = vi.fn()
+const deletePluginBindingMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -23,6 +26,9 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getNodePlugin: (...args: unknown[]) => getNodePluginMock(...args),
     updateNodePluginConfig: (...args: unknown[]) => updateNodePluginConfigMock(...args),
     restartNodePlugin: (...args: unknown[]) => restartNodePluginMock(...args),
+    getPluginBindings: (...args: unknown[]) => getPluginBindingsMock(...args),
+    createPluginBinding: (...args: unknown[]) => createPluginBindingMock(...args),
+    deletePluginBinding: (...args: unknown[]) => deletePluginBindingMock(...args),
   }
 })
 
@@ -79,6 +85,9 @@ beforeEach(() => {
   getNodePluginMock.mockReset()
   updateNodePluginConfigMock.mockReset()
   restartNodePluginMock.mockReset()
+  getPluginBindingsMock.mockReset()
+  createPluginBindingMock.mockReset()
+  deletePluginBindingMock.mockReset()
   getNodesMock.mockResolvedValue({
     generated_at: "2026-05-17T08:00:00Z",
     controller_leader_id: 2,
@@ -217,4 +226,97 @@ test("confirms plugin restart and refreshes inventory", async () => {
     expect(restartNodePluginMock).toHaveBeenCalledWith(2, "wk.echo")
   })
   expect(getNodePluginsMock).toHaveBeenCalledTimes(2)
+})
+
+test("queries plugin bindings by UID and plugin number", async () => {
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 1, items: [pluginRow] })
+  getPluginBindingsMock.mockResolvedValueOnce({
+    items: [{ uid: "u1", plugin_no: "wk.echo", warnings: [] }],
+    total: 1,
+    has_more: false,
+  })
+  getPluginBindingsMock.mockResolvedValueOnce({
+    items: [{ uid: "u2", plugin_no: "wk.echo", warnings: [{ code: "plugin_missing", message: "Plugin missing" }] }],
+    total: 1,
+    has_more: false,
+  })
+
+  const user = userEvent.setup()
+  renderPluginsPage()
+
+  expect(await screen.findByText("wk.echo")).toBeInTheDocument()
+  await user.type(screen.getByLabelText("Binding query"), "u1")
+  await user.click(screen.getByRole("button", { name: "Search bindings" }))
+
+  expect(await screen.findByText("u1")).toBeInTheDocument()
+  expect(getPluginBindingsMock).toHaveBeenCalledWith({ uid: "u1" })
+
+  await user.selectOptions(screen.getByLabelText("Binding selector"), "plugin")
+  await user.clear(screen.getByLabelText("Binding query"))
+  await user.type(screen.getByLabelText("Binding query"), "wk.echo")
+  await user.click(screen.getByRole("button", { name: "Search bindings" }))
+
+  expect(await screen.findByText("u2")).toBeInTheDocument()
+  expect(screen.getByText("Plugin missing")).toBeInTheDocument()
+  expect(getPluginBindingsMock).toHaveBeenLastCalledWith({ pluginNo: "wk.echo", limit: 50 })
+})
+
+test("validates empty binding search", async () => {
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 1, items: [pluginRow] })
+
+  const user = userEvent.setup()
+  renderPluginsPage()
+
+  expect(await screen.findByText("wk.echo")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Search bindings" }))
+
+  expect(await screen.findByText("Enter UID or plugin number.")).toBeInTheDocument()
+  expect(getPluginBindingsMock).not.toHaveBeenCalled()
+})
+
+test("adds and deletes plugin bindings", async () => {
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 1, items: [pluginRow] })
+  getPluginBindingsMock.mockResolvedValueOnce({
+    items: [{ uid: "u1", plugin_no: "wk.echo", warnings: [] }],
+    total: 1,
+    has_more: false,
+  })
+  getPluginBindingsMock.mockResolvedValueOnce({
+    items: [{ uid: "u1", plugin_no: "wk.echo", warnings: [] }, { uid: "u2", plugin_no: "wk.echo", warnings: [] }],
+    total: 2,
+    has_more: false,
+  })
+  getPluginBindingsMock.mockResolvedValueOnce({
+    items: [{ uid: "u2", plugin_no: "wk.echo", warnings: [] }],
+    total: 1,
+    has_more: false,
+  })
+  createPluginBindingMock.mockResolvedValueOnce({ binding: { uid: "u2", plugin_no: "wk.echo", warnings: [] }, changed: true })
+  deletePluginBindingMock.mockResolvedValueOnce({ binding: { uid: "u1", plugin_no: "wk.echo", warnings: [] }, changed: true })
+
+  const user = userEvent.setup()
+  renderPluginsPage()
+
+  expect(await screen.findByText("wk.echo")).toBeInTheDocument()
+  await user.type(screen.getByLabelText("Binding query"), "u1")
+  await user.click(screen.getByRole("button", { name: "Search bindings" }))
+  expect(await screen.findByText("u1")).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Add binding" }))
+  await user.type(within(screen.getByRole("dialog")).getByLabelText("UID"), "u2")
+  await user.type(within(screen.getByRole("dialog")).getByLabelText("Plugin No"), "wk.echo")
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add binding" }))
+
+  await waitFor(() => {
+    expect(createPluginBindingMock).toHaveBeenCalledWith({ uid: "u2", pluginNo: "wk.echo" })
+  })
+  expect(getPluginBindingsMock).toHaveBeenCalledTimes(2)
+
+  await user.click(screen.getByRole("button", { name: "Delete binding u1 wk.echo" }))
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete binding" }))
+
+  await waitFor(() => {
+    expect(deletePluginBindingMock).toHaveBeenCalledWith({ uid: "u1", pluginNo: "wk.echo" })
+  })
+  expect(getPluginBindingsMock).toHaveBeenCalledTimes(3)
 })
