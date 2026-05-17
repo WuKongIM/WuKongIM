@@ -40,6 +40,8 @@ type defaultWorkloadRunner struct {
 	personWorkloads []*benchworkload.PersonWorkload
 	// groupWorkloads contains the active group traffic executors for the active run.
 	groupWorkloads []*benchworkload.GroupWorkload
+	// cancelAutoRecvAck stops background recv-ack drains bound to the current run.
+	cancelAutoRecvAck context.CancelFunc
 }
 
 // personWorkloadBundle binds one profile shard, one traffic stream, and its pairs.
@@ -184,7 +186,7 @@ func (r *defaultWorkloadRunner) rebuildTrafficFromManager(assignment Assignment,
 	}
 	users := mergeConnectionUsers(plan.users, groupPlan.users, identityRangeUsers(assignment))
 	if len(users) == 0 {
-		r.store(assignment.RunID, manager, nil, nil)
+		r.store(assignment.RunID, manager, nil, nil, nil)
 		return nil
 	}
 	rawClients, err := personClientsFromManager(manager, users)
@@ -200,7 +202,11 @@ func (r *defaultWorkloadRunner) rebuildTrafficFromManager(assignment Assignment,
 	if err != nil {
 		return err
 	}
-	r.store(assignment.RunID, manager, workloads, groupWorkloads)
+	var cancelAutoRecvAck context.CancelFunc
+	if assignmentWantsRecvAck(assignment) {
+		cancelAutoRecvAck = benchworkload.StartAutoRecvAck(clients)
+	}
+	r.store(assignment.RunID, manager, workloads, groupWorkloads, cancelAutoRecvAck)
 	return nil
 }
 
@@ -532,9 +538,13 @@ func identityRangeUsers(assignment Assignment) []benchworkload.ConnectionUser {
 	return users
 }
 
-func (r *defaultWorkloadRunner) store(runID string, manager *benchworkload.ConnectionManager, personWorkloads []*benchworkload.PersonWorkload, groupWorkloads []*benchworkload.GroupWorkload) {
+func (r *defaultWorkloadRunner) store(runID string, manager *benchworkload.ConnectionManager, personWorkloads []*benchworkload.PersonWorkload, groupWorkloads []*benchworkload.GroupWorkload, cancelAutoRecvAck context.CancelFunc) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.cancelAutoRecvAck != nil {
+		r.cancelAutoRecvAck()
+		r.cancelAutoRecvAck = nil
+	}
 	if r.manager != nil && r.manager != manager {
 		_ = r.manager.Close()
 	}
@@ -542,6 +552,7 @@ func (r *defaultWorkloadRunner) store(runID string, manager *benchworkload.Conne
 	r.manager = manager
 	r.personWorkloads = personWorkloads
 	r.groupWorkloads = groupWorkloads
+	r.cancelAutoRecvAck = cancelAutoRecvAck
 }
 
 func (r *defaultWorkloadRunner) mergeConnectionMetrics(manager *benchworkload.ConnectionManager) {
@@ -575,6 +586,10 @@ func (r *defaultWorkloadRunner) closeCurrent(runID string) {
 	if r.runID != runID {
 		return
 	}
+	if r.cancelAutoRecvAck != nil {
+		r.cancelAutoRecvAck()
+		r.cancelAutoRecvAck = nil
+	}
 	if r.manager != nil {
 		_ = r.manager.Close()
 	}
@@ -606,6 +621,10 @@ func (r *defaultWorkloadRunner) beginRun(runID string, force bool) {
 	if !force && r.runID == runID {
 		return
 	}
+	if r.cancelAutoRecvAck != nil {
+		r.cancelAutoRecvAck()
+		r.cancelAutoRecvAck = nil
+	}
 	if r.manager != nil {
 		_ = r.manager.Close()
 	}
@@ -614,6 +633,15 @@ func (r *defaultWorkloadRunner) beginRun(runID string, force bool) {
 	r.personWorkloads = nil
 	r.groupWorkloads = nil
 	r.metrics = metrics.NewRegistry()
+}
+
+func assignmentWantsRecvAck(assignment Assignment) bool {
+	for _, traffic := range assignment.Scenario.Messages.Traffic {
+		if traffic.RecvAck {
+			return true
+		}
+	}
+	return false
 }
 
 func mergeConnectionUsers(groups ...[]benchworkload.ConnectionUser) []benchworkload.ConnectionUser {

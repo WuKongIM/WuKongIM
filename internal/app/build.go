@@ -606,7 +606,6 @@ func build(cfg Config) (_ *App, err error) {
 		NodeClient:   app.nodeClient,
 		Metrics:      messageMetrics,
 	})
-	committedDispatcher := committedFanout{subscribers: []committedSubscriber{app.committedDispatcher}}
 	app.committedReplayer = newCommittedReplayer(committedReplayerConfig{
 		Log: channelStoreCommittedReplayLog{
 			engine:      app.channelLogDB,
@@ -618,6 +617,7 @@ func build(cfg Config) (_ *App, err error) {
 		Logger:       app.logger.Named("committed.replay"),
 		Metrics:      messageMetrics,
 	})
+	committedDispatcher := committedFanout{subscribers: []committedSubscriber{app.committedDispatcher, app.committedReplayer}}
 	managerRetention := &managerMessageRetentionOperator{
 		localNodeID: cfg.Node.ID,
 		metas:       app.store,

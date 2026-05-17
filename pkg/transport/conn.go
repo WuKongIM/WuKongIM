@@ -53,24 +53,11 @@ func (mc *MuxConn) RPC(ctx context.Context, p Priority, reqID uint64, body []byt
 	mc.pending.Store(reqID, ch)
 	defer mc.pending.Delete(reqID)
 
-	done := make(chan error, 1)
 	if err := mc.writer.enqueue(p, writeItem{
 		msgType: MsgTypeRPCRequest,
 		body:    body,
-		done:    done,
 	}); err != nil {
 		return nil, err
-	}
-
-	select {
-	case err := <-done:
-		if err != nil {
-			return nil, err
-		}
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-mc.readerDone:
-		return nil, ErrStopped
 	}
 
 	select {

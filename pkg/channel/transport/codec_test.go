@@ -128,6 +128,48 @@ func TestFetchResponseCodecRoundTrip(t *testing.T) {
 	}
 }
 
+func TestWriteRecordAvoidsPerFieldHeapChurn(t *testing.T) {
+	record := channel.Record{ID: 101, Index: 10, Epoch: 3, Payload: []byte("payload"), SizeBytes: 7}
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		buf := bytes.NewBuffer(make([]byte, 0, recordEncodedSize(record)))
+		if err := writeRecord(buf, record); err != nil {
+			t.Fatalf("writeRecord() error = %v", err)
+		}
+		if buf.Len() != recordEncodedSize(record) {
+			t.Fatalf("encoded record size = %d, want %d", buf.Len(), recordEncodedSize(record))
+		}
+	})
+
+	if allocs > 1 {
+		t.Fatalf("writeRecord allocs = %v, want <= 1", allocs)
+	}
+}
+
+func TestReadRecordAvoidsPerFieldHeapChurn(t *testing.T) {
+	record := channel.Record{ID: 101, Index: 10, Epoch: 3, Payload: []byte("payload"), SizeBytes: 7}
+	buf := bytes.NewBuffer(make([]byte, 0, recordEncodedSize(record)))
+	if err := writeRecord(buf, record); err != nil {
+		t.Fatalf("writeRecord() error = %v", err)
+	}
+	encoded := buf.Bytes()
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		reader := bytes.NewReader(encoded)
+		got, err := readRecord(reader)
+		if err != nil {
+			t.Fatalf("readRecord() error = %v", err)
+		}
+		if got.ID != record.ID || string(got.Payload) != string(record.Payload) {
+			t.Fatalf("record = %+v, want %+v", got, record)
+		}
+	})
+
+	if allocs > 1 {
+		t.Fatalf("readRecord allocs = %v, want <= 1", allocs)
+	}
+}
+
 func TestFetchResponseCodecRoundTripPreservesRetentionReset(t *testing.T) {
 	resp := runtime.FetchResponseEnvelope{
 		ChannelKey: "g-retention",

@@ -1,9 +1,11 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"strconv"
 	"sync"
 	"testing"
@@ -21,9 +23,11 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	controllermeta "github.com/WuKongIM/WuKongIM/pkg/controller/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 )
 
@@ -614,6 +618,40 @@ func TestAsyncCommittedDispatcherSubmitsDurableMessageToLocalDelivery(t *testing
 		Expire:      60,
 		ClientSeq:   9,
 	}, delivery.Calls()[0].Message)
+}
+
+func TestAsyncCommittedDispatcherDoesNotWarnWhenTransientStatusFailureRecovers(t *testing.T) {
+	logger := newCapturedLogger("")
+	delivery := &recordingCommittedSubmitter{}
+	channelLog := &transientStatusChannelLog{
+		results: []statusResult{
+			{err: channel.ErrNotReady},
+			{status: channel.ChannelRuntimeStatus{Leader: 1}},
+		},
+	}
+	dispatcher := newAsyncCommittedDispatcher(asyncCommittedDispatcherConfig{
+		LocalNodeID: 1,
+		Logger:      logger,
+		ChannelLog:  channelLog,
+		Delivery:    delivery,
+		ShardCount:  1,
+		QueueDepth:  8,
+	})
+
+	dispatcher.routeCommitted(context.Background(), deliveryruntime.CommittedEnvelope{
+		Message: channel.Message{
+			ChannelID:   "u1@u2",
+			ChannelType: frame.ChannelTypePerson,
+			MessageID:   89,
+			MessageSeq:  8,
+		},
+	})
+
+	require.Equal(t, 2, channelLog.Calls())
+	require.Equal(t, 1, delivery.Len())
+	for _, entry := range logger.entries() {
+		require.NotEqual(t, "WARN", entry.level, "transient status retry should not warn: %#v", entry)
+	}
 }
 
 func TestAsyncCommittedDispatcherSubmitsToConversationProjector(t *testing.T) {
@@ -1299,6 +1337,96 @@ func TestDeliveryRoutingSkipsCachedTagFastPathWithoutVersionFence(t *testing.T) 
 	require.True(t, done)
 }
 
+func TestDeliveryTagTopologyReaderUsesCachedAssignmentsWithoutControllerRefresh(t *testing.T) {
+	cluster := &recordingDeliveryTagCluster{
+		slotByKey: map[string]multiraft.SlotID{
+			"u1": 2,
+			"u2": 1,
+			"u3": 2,
+		},
+		leaderBySlot: map[multiraft.SlotID]multiraft.NodeID{
+			1: 11,
+			2: 12,
+		},
+		hashSlotTableVersion: 9,
+		cachedAssignments: []controllermeta.SlotAssignment{
+			{SlotID: 1, ConfigEpoch: 21, BalanceVersion: 31},
+			{SlotID: 2, ConfigEpoch: 22, BalanceVersion: 32},
+		},
+		listAssignments: []controllermeta.SlotAssignment{
+			{SlotID: 1, ConfigEpoch: 99, BalanceVersion: 99},
+			{SlotID: 2, ConfigEpoch: 99, BalanceVersion: 99},
+		},
+	}
+	reader := deliveryTagTopologyReaderAdapter{cluster: cluster}
+
+	topology, err := reader.CurrentDeliveryTagTopology(context.Background(), []string{"u1", "u2", "u3"})
+
+	require.NoError(t, err)
+	require.Zero(t, cluster.ListSlotAssignmentsCalls())
+	require.Equal(t, deliverytagruntime.PartitionTopologyVersion{
+		HashSlotTableVersion: 9,
+		SlotAuthorityRefs: []deliverytagruntime.SlotAuthorityRef{
+			{SlotID: 1, LeaderNodeID: 11, ConfigEpoch: 21, BalanceVersion: 31},
+			{SlotID: 2, LeaderNodeID: 12, ConfigEpoch: 22, BalanceVersion: 32},
+		},
+	}, topology)
+}
+
+func TestDeliveryTagTopologyValidatorUsesCachedAssignmentsWithoutControllerRefresh(t *testing.T) {
+	cluster := &recordingDeliveryTagCluster{
+		leaderBySlot: map[multiraft.SlotID]multiraft.NodeID{
+			1: 11,
+			2: 12,
+		},
+		hashSlotTableVersion: 9,
+		cachedAssignments: []controllermeta.SlotAssignment{
+			{SlotID: 1, ConfigEpoch: 21, BalanceVersion: 31},
+			{SlotID: 2, ConfigEpoch: 22, BalanceVersion: 32},
+		},
+		listAssignments: []controllermeta.SlotAssignment{
+			{SlotID: 1, ConfigEpoch: 99, BalanceVersion: 99},
+			{SlotID: 2, ConfigEpoch: 99, BalanceVersion: 99},
+		},
+	}
+	reader := deliveryTagTopologyReaderAdapter{cluster: cluster}
+	topology := deliverytagruntime.PartitionTopologyVersion{
+		HashSlotTableVersion: 9,
+		SlotAuthorityRefs: []deliverytagruntime.SlotAuthorityRef{
+			{SlotID: 1, LeaderNodeID: 11, ConfigEpoch: 21, BalanceVersion: 31},
+			{SlotID: 2, LeaderNodeID: 12, ConfigEpoch: 22, BalanceVersion: 32},
+		},
+	}
+
+	valid, err := reader.ValidateCurrentDeliveryTagTopology(context.Background(), topology)
+
+	require.NoError(t, err)
+	require.True(t, valid)
+	require.Zero(t, cluster.ListSlotAssignmentsCalls())
+}
+
+func TestDeliveryTagTopologyReaderFallsBackToListingAssignmentsWhenCacheMisses(t *testing.T) {
+	cluster := &recordingDeliveryTagCluster{
+		slotByKey: map[string]multiraft.SlotID{"u1": 1},
+		leaderBySlot: map[multiraft.SlotID]multiraft.NodeID{
+			1: 11,
+		},
+		hashSlotTableVersion: 9,
+		listAssignments: []controllermeta.SlotAssignment{
+			{SlotID: 1, ConfigEpoch: 21, BalanceVersion: 31},
+		},
+	}
+	reader := deliveryTagTopologyReaderAdapter{cluster: cluster}
+
+	topology, err := reader.CurrentDeliveryTagTopology(context.Background(), []string{"u1"})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, cluster.ListSlotAssignmentsCalls())
+	require.Equal(t, []deliverytagruntime.SlotAuthorityRef{
+		{SlotID: 1, LeaderNodeID: 11, ConfigEpoch: 21, BalanceVersion: 31},
+	}, topology.SlotAuthorityRefs)
+}
+
 func TestDeliveryRoutingRejectsStaleTagResponse(t *testing.T) {
 	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{LocalNodeID: 1})
 	_, stored := manager.StoreFollowerPartition(deliverytagruntime.DeliveryTag{
@@ -1539,6 +1667,39 @@ func TestLocalDeliveryPushReusesGroupFrameForAllRoutes(t *testing.T) {
 	require.Same(t, firstWrites[0].f, secondWrites[0].f)
 }
 
+func TestDistributedDeliveryPushSingleRemoteNodeUsesCallerGoroutine(t *testing.T) {
+	client := &sameGoroutineDeliveryPushClient{}
+	push := distributedDeliveryPush{
+		localNodeID: 1,
+		client:      client,
+		codec:       codec.New(),
+	}
+	callerGoroutineID := currentTestGoroutineID(t)
+
+	result, err := push.Push(context.Background(), deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				MessageID:   121,
+				MessageSeq:  13,
+				ChannelID:   "g-single-remote",
+				ChannelType: frame.ChannelTypeGroup,
+				FromUID:     "u1",
+				Payload:     []byte("hello single remote"),
+			},
+		},
+		Routes: []deliveryruntime.RouteKey{
+			{UID: "u2", NodeID: 2, BootID: 11, SessionID: 21},
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []deliveryruntime.RouteKey{
+		{UID: "u2", NodeID: 2, BootID: 11, SessionID: 21},
+	}, result.Accepted)
+	require.NoError(t, client.err)
+	require.Equal(t, callerGoroutineID, client.goroutineID)
+}
+
 func TestDistributedDeliveryPushRunsRemoteNodesWithBoundedParallelism(t *testing.T) {
 	client := newBlockingRemoteDeliveryPushClient()
 	push := distributedDeliveryPush{
@@ -1584,6 +1745,44 @@ func TestDistributedDeliveryPushRunsRemoteNodesWithBoundedParallelism(t *testing
 
 	client.Release()
 	require.NoError(t, <-done)
+}
+
+type sameGoroutineDeliveryPushClient struct {
+	goroutineID uint64
+	err         error
+}
+
+func (c *sameGoroutineDeliveryPushClient) PushBatch(_ context.Context, _ uint64, cmd accessnode.DeliveryPushCommand) (accessnode.DeliveryPushResponse, error) {
+	return accessnode.DeliveryPushResponse{Accepted: append([]deliveryruntime.RouteKey(nil), cmd.Routes...)}, nil
+}
+
+func (c *sameGoroutineDeliveryPushClient) PushBatchItems(_ context.Context, _ uint64, cmd accessnode.DeliveryPushBatchCommand) (accessnode.DeliveryPushResponse, error) {
+	c.goroutineID, c.err = currentGoroutineID()
+	resp := accessnode.DeliveryPushResponse{}
+	for _, item := range cmd.Items {
+		resp.Accepted = append(resp.Accepted, item.Routes...)
+	}
+	return resp, nil
+}
+
+func currentTestGoroutineID(t require.TestingT) uint64 {
+	id, err := currentGoroutineID()
+	require.NoError(t, err)
+	return id
+}
+
+func currentGoroutineID() (uint64, error) {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	fields := bytes.Fields(buf[:n])
+	if len(fields) < 2 {
+		return 0, fmt.Errorf("parse goroutine id from %q", string(buf[:n]))
+	}
+	id, err := strconv.ParseUint(string(fields[1]), 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
 }
 
 type blockingRemoteDeliveryPushClient struct {
@@ -1699,6 +1898,9 @@ func TestLocalDeliveryPushSkipsOriginSessionButKeepsOtherSenderSessions(t *testi
 	})
 	require.NoError(t, err)
 	require.Len(t, result.Accepted, 2)
+	require.Equal(t, []deliveryruntime.RouteKey{
+		{UID: "u1", NodeID: 1, BootID: 11, SessionID: 1},
+	}, result.Dropped)
 
 	require.Empty(t, origin.Writes())
 	require.Len(t, mirror.Writes(), 1)
@@ -1742,7 +1944,9 @@ func TestDistributedDeliveryPushSkipsRemoteOriginSessionOnly(t *testing.T) {
 		{UID: "u2", NodeID: 3, BootID: 33, SessionID: 1},
 	}, result.Accepted)
 	require.Empty(t, result.Retryable)
-	require.Empty(t, result.Dropped)
+	require.Equal(t, []deliveryruntime.RouteKey{
+		{UID: "u1", NodeID: 2, BootID: 22, SessionID: 1},
+	}, result.Dropped)
 	require.Len(t, client.batchCalls, 1)
 	require.Equal(t, uint64(3), client.batchCalls[0].nodeID)
 	require.Equal(t, []deliveryruntime.RouteKey{
@@ -1902,6 +2106,26 @@ func TestDistributedDeliveryPushReconstructsAcceptedRoutesFromAcceptedCount(t *t
 	require.Equal(t, []deliveryruntime.RouteKey{routes[1]}, result.Retryable)
 	require.Equal(t, []deliveryruntime.RouteKey{routes[2]}, result.Dropped)
 	require.Empty(t, client.singleCalls)
+}
+
+func TestAcceptedCountAllAcceptedAvoidsAllocations(t *testing.T) {
+	routes := []deliveryruntime.RouteKey{
+		{UID: "u2", NodeID: 2, BootID: 11, SessionID: 21},
+		{UID: "u3", NodeID: 2, BootID: 11, SessionID: 22},
+	}
+	resp := accessnode.DeliveryPushResponse{
+		AcceptedCount:    uint64(len(routes)),
+		AcceptedCountSet: true,
+	}
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		accepted, missing := acceptedAndUnreportedDeliveryRoutes(routes, resp)
+		if len(accepted) != len(routes) || len(missing) != 0 {
+			t.Fatalf("accepted=%d missing=%d, want all accepted", len(accepted), len(missing))
+		}
+	})
+
+	require.Equal(t, float64(0), allocs)
 }
 
 func TestDistributedDeliveryPushRecordsPartialPushRouteMetrics(t *testing.T) {
@@ -2742,6 +2966,46 @@ func (s staticDeliveryTagTopology) ValidateCurrentDeliveryTagTopology(_ context.
 	return s.version.Equal(topology), nil
 }
 
+type recordingDeliveryTagCluster struct {
+	slotByKey            map[string]multiraft.SlotID
+	leaderBySlot         map[multiraft.SlotID]multiraft.NodeID
+	hashSlotTableVersion uint64
+	cachedAssignments    []controllermeta.SlotAssignment
+	listAssignments      []controllermeta.SlotAssignment
+	listAssignmentsCalls int
+}
+
+func (c *recordingDeliveryTagCluster) SlotForKey(key string) multiraft.SlotID {
+	if c.slotByKey == nil {
+		return 1
+	}
+	return c.slotByKey[key]
+}
+
+func (c *recordingDeliveryTagCluster) HashSlotTableVersion() uint64 {
+	return c.hashSlotTableVersion
+}
+
+func (c *recordingDeliveryTagCluster) LeaderOf(slotID multiraft.SlotID) (multiraft.NodeID, error) {
+	if c.leaderBySlot == nil {
+		return multiraft.NodeID(slotID), nil
+	}
+	return c.leaderBySlot[slotID], nil
+}
+
+func (c *recordingDeliveryTagCluster) ListSlotAssignments(context.Context) ([]controllermeta.SlotAssignment, error) {
+	c.listAssignmentsCalls++
+	return append([]controllermeta.SlotAssignment(nil), c.listAssignments...), nil
+}
+
+func (c *recordingDeliveryTagCluster) ListCachedAssignments() []controllermeta.SlotAssignment {
+	return append([]controllermeta.SlotAssignment(nil), c.cachedAssignments...)
+}
+
+func (c *recordingDeliveryTagCluster) ListSlotAssignmentsCalls() int {
+	return c.listAssignmentsCalls
+}
+
 func testDeliveryTagTopology(version uint64) deliverytagruntime.PartitionTopologyVersion {
 	return deliverytagruntime.PartitionTopologyVersion{
 		HashSlotTableVersion: version,
@@ -2806,4 +3070,36 @@ func (s *stubChannelLogCluster) StatusCalls() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.statusCalls
+}
+
+type statusResult struct {
+	status channel.ChannelRuntimeStatus
+	err    error
+}
+
+type transientStatusChannelLog struct {
+	mu      sync.Mutex
+	results []statusResult
+	calls   int
+}
+
+func (s *transientStatusChannelLog) Status(channel.ChannelID) (channel.ChannelRuntimeStatus, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls++
+	if len(s.results) == 0 {
+		return channel.ChannelRuntimeStatus{}, nil
+	}
+	idx := s.calls - 1
+	if idx >= len(s.results) {
+		idx = len(s.results) - 1
+	}
+	result := s.results[idx]
+	return result.status, result.err
+}
+
+func (s *transientStatusChannelLog) Calls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls
 }

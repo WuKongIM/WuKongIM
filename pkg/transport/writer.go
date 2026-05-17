@@ -88,6 +88,7 @@ func (pw *priorityWriter) loop() {
 
 	batch := make([]writeItem, 0, maxWriteBatch)
 	var bufs net.Buffers
+	headers := make([][HeaderSize]byte, 0, maxWriteBatch)
 
 	for {
 		item, ok := pw.waitAny()
@@ -101,8 +102,9 @@ func (pw *priorityWriter) loop() {
 		batch = pw.drain(batch, PriorityBulk, maxWriteBatch-len(batch))
 
 		bufs = bufs[:0]
+		headers = headers[:0]
 		for i := range batch {
-			writeFrame(&bufs, batch[i].msgType, batch[i].body)
+			appendWriteFrame(&bufs, &headers, batch[i].msgType, batch[i].body)
 		}
 
 		_, err := bufs.WriteTo(pw.conn)
@@ -112,6 +114,7 @@ func (pw *priorityWriter) loop() {
 			}
 		}
 		if err != nil {
+			_ = pw.conn.Close()
 			return
 		}
 		if hook := pw.observer.OnSend; hook != nil {

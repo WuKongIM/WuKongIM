@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"net"
 	"sort"
 	"strings"
 	"sync"
@@ -17,9 +18,10 @@ import (
 )
 
 const (
-	defaultPersonDevicePrefix = "bench-device"
-	defaultPersonClientPrefix = "bench-msg"
-	verifyRecvModeFull        = "full"
+	defaultPersonDevicePrefix  = "bench-device"
+	defaultPersonClientPrefix  = "bench-msg"
+	verifyRecvModeFull         = "full"
+	defaultMatchingBufferLimit = 1024
 )
 
 // PersonClient extends a WKProto connection client with message send and read capabilities.
@@ -181,9 +183,22 @@ func WrapPersonClientsForConcurrentReads(clients map[string]PersonClient) map[st
 		if client == nil {
 			continue
 		}
-		wrapped[uid] = &matchingPersonClient{client: client}
+		wrapped[uid] = &matchingPersonClient{client: client, bufferLimit: defaultMatchingBufferLimit}
 	}
 	return wrapped
+}
+
+// StartAutoRecvAck continuously drains recv frames and sends protocol receive acks.
+func StartAutoRecvAck(clients map[string]PersonClient) context.CancelFunc {
+	ctx, cancel := context.WithCancel(context.Background())
+	for _, client := range clients {
+		starter, ok := client.(interface{ startAutoRecvAck(context.Context) })
+		if !ok || starter == nil {
+			continue
+		}
+		starter.startAutoRecvAck(ctx)
+	}
+	return cancel
 }
 
 // Connect opens the sender and recipient sessions for all assigned person pairs.
@@ -499,11 +514,13 @@ type matchingFrameReader interface {
 }
 
 type matchingPersonClient struct {
-	client  PersonClient
-	mu      sync.Mutex
-	buffer  []frame.Frame
-	reading bool
-	notify  chan struct{}
+	client      PersonClient
+	bufferLimit int
+	mu          sync.Mutex
+	buffer      []frame.Frame
+	reading     bool
+	notify      chan struct{}
+	autoRecvAck bool
 }
 
 func (c *matchingPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
@@ -558,9 +575,11 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 			c.mu.Unlock()
 			return nil, err
 		}
+		autoAck := c.autoRecvAck
 		if match(f) {
 			c.signalLocked()
 			c.mu.Unlock()
+			c.autoAckRecvFrame(ctx, f, autoAck)
 			return f, nil
 		}
 		if _, ok := f.(*frame.PongPacket); ok {
@@ -568,10 +587,117 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 			c.mu.Unlock()
 			continue
 		}
-		c.buffer = append(c.buffer, f)
+		c.bufferFrameLocked(f)
 		c.signalLocked()
 		c.mu.Unlock()
+		c.autoAckRecvFrame(ctx, f, autoAck)
 	}
+}
+
+func (c *matchingPersonClient) startAutoRecvAck(ctx context.Context) {
+	c.mu.Lock()
+	if c.autoRecvAck {
+		c.mu.Unlock()
+		return
+	}
+	c.autoRecvAck = true
+	c.mu.Unlock()
+	go c.autoRecvAckLoop(ctx)
+}
+
+func (c *matchingPersonClient) autoRecvAckLoop(ctx context.Context) {
+	for {
+		if err := c.prefetchFrame(ctx); err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			if isAutoRecvAckIdleTimeout(err) {
+				continue
+			}
+			return
+		}
+	}
+}
+
+func (c *matchingPersonClient) prefetchFrame(ctx context.Context) error {
+	c.mu.Lock()
+	if c.reading {
+		notify := c.notifyLocked()
+		c.mu.Unlock()
+		select {
+		case <-notify:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	c.reading = true
+	c.mu.Unlock()
+
+	f, err := c.client.ReadFrame(ctx)
+	c.mu.Lock()
+	c.reading = false
+	if err != nil {
+		c.signalLocked()
+		c.mu.Unlock()
+		return err
+	}
+	if _, ok := f.(*frame.PongPacket); ok {
+		c.signalLocked()
+		c.mu.Unlock()
+		return nil
+	}
+	c.bufferFrameLocked(f)
+	c.signalLocked()
+	c.mu.Unlock()
+	c.autoAckRecvFrame(ctx, f, true)
+	return nil
+}
+
+func (c *matchingPersonClient) autoAckRecvFrame(ctx context.Context, f frame.Frame, enabled bool) {
+	if !enabled {
+		return
+	}
+	recv, ok := f.(*frame.RecvPacket)
+	if !ok {
+		return
+	}
+	_ = c.client.RecvAck(ctx, recv.MessageID, recv.MessageSeq)
+}
+
+func (c *matchingPersonClient) bufferFrameLocked(f frame.Frame) {
+	limit := c.bufferLimit
+	if limit <= 0 {
+		limit = defaultMatchingBufferLimit
+	}
+	for len(c.buffer) >= limit {
+		c.dropBufferedFrameLocked()
+	}
+	c.buffer = append(c.buffer, f)
+}
+
+func (c *matchingPersonClient) dropBufferedFrameLocked() {
+	if len(c.buffer) == 0 {
+		return
+	}
+	for idx, f := range c.buffer {
+		if _, ok := f.(*frame.RecvPacket); ok {
+			c.buffer = append(c.buffer[:idx], c.buffer[idx+1:]...)
+			return
+		}
+	}
+	c.buffer = c.buffer[1:]
+}
+
+func isAutoRecvAckIdleTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 func (c *matchingPersonClient) notifyLocked() <-chan struct{} {

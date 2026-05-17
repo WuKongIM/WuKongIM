@@ -1,7 +1,6 @@
 package store
 
 import (
-	"bytes"
 	"encoding/binary"
 	"io"
 	"math"
@@ -76,72 +75,32 @@ func decodeCompatibilityRecordPayload(payload []byte) (messageRow, error) {
 
 // encodeCompatibilityRecord encodes one structured row into the compatibility record layout.
 func encodeCompatibilityRecord(row messageRow) (channel.Record, error) {
-	if err := row.validate(); err != nil {
-		return channel.Record{}, err
-	}
-
 	payloadHash := row.PayloadHash
 	if payloadHash == 0 {
 		payloadHash = hashMessagePayload(row.Payload)
 	}
 
-	var buf bytes.Buffer
-	if err := buf.WriteByte(channel.DurableMessageCodecVersion); err != nil {
-		return channel.Record{}, err
-	}
-	if err := binary.Write(&buf, binary.BigEndian, row.MessageID); err != nil {
-		return channel.Record{}, err
-	}
-	if err := buf.WriteByte(row.FramerFlags); err != nil {
-		return channel.Record{}, err
-	}
-	if err := buf.WriteByte(row.Setting); err != nil {
-		return channel.Record{}, err
-	}
-	if err := buf.WriteByte(row.StreamFlag); err != nil {
-		return channel.Record{}, err
-	}
-	if err := buf.WriteByte(row.ChannelType); err != nil {
-		return channel.Record{}, err
-	}
-	if err := binary.Write(&buf, binary.BigEndian, row.Expire); err != nil {
-		return channel.Record{}, err
-	}
-	if err := binary.Write(&buf, binary.BigEndian, row.ClientSeq); err != nil {
-		return channel.Record{}, err
-	}
-	if err := binary.Write(&buf, binary.BigEndian, row.StreamID); err != nil {
-		return channel.Record{}, err
-	}
-	if err := binary.Write(&buf, binary.BigEndian, row.Timestamp); err != nil {
-		return channel.Record{}, err
-	}
-	if err := binary.Write(&buf, binary.BigEndian, payloadHash); err != nil {
-		return channel.Record{}, err
-	}
-	if err := writeCompatibilityRecordString(&buf, row.MsgKey); err != nil {
-		return channel.Record{}, err
-	}
-	if err := writeCompatibilityRecordString(&buf, row.ClientMsgNo); err != nil {
-		return channel.Record{}, err
-	}
-	if err := writeCompatibilityRecordString(&buf, row.StreamNo); err != nil {
-		return channel.Record{}, err
-	}
-	if err := writeCompatibilityRecordString(&buf, row.ChannelID); err != nil {
-		return channel.Record{}, err
-	}
-	if err := writeCompatibilityRecordString(&buf, row.Topic); err != nil {
-		return channel.Record{}, err
-	}
-	if err := writeCompatibilityRecordString(&buf, row.FromUID); err != nil {
-		return channel.Record{}, err
-	}
-	if err := writeCompatibilityRecordBytes(&buf, row.Payload); err != nil {
+	size, err := compatibilityRecordPayloadSize(row)
+	if err != nil {
 		return channel.Record{}, err
 	}
 
-	payload := buf.Bytes()
+	payload := make([]byte, 0, size)
+	payload = append(payload, channel.DurableMessageCodecVersion)
+	payload = binary.BigEndian.AppendUint64(payload, row.MessageID)
+	payload = append(payload, row.FramerFlags, row.Setting, row.StreamFlag, row.ChannelType)
+	payload = binary.BigEndian.AppendUint32(payload, row.Expire)
+	payload = binary.BigEndian.AppendUint64(payload, row.ClientSeq)
+	payload = binary.BigEndian.AppendUint64(payload, row.StreamID)
+	payload = binary.BigEndian.AppendUint32(payload, uint32(row.Timestamp))
+	payload = binary.BigEndian.AppendUint64(payload, payloadHash)
+	payload = appendCompatibilityRecordString(payload, row.MsgKey)
+	payload = appendCompatibilityRecordString(payload, row.ClientMsgNo)
+	payload = appendCompatibilityRecordString(payload, row.StreamNo)
+	payload = appendCompatibilityRecordString(payload, row.ChannelID)
+	payload = appendCompatibilityRecordString(payload, row.Topic)
+	payload = appendCompatibilityRecordString(payload, row.FromUID)
+	payload = appendCompatibilityRecordBytes(payload, row.Payload)
 	return channel.Record{Payload: payload, SizeBytes: len(payload)}, nil
 }
 
@@ -244,17 +203,12 @@ func readCompatibilitySizedBytesView(payload []byte, pos int) ([]byte, int, erro
 	return payload[pos : pos+size], pos + size, nil
 }
 
-func writeCompatibilityRecordString(buf *bytes.Buffer, value string) error {
-	return writeCompatibilityRecordBytes(buf, []byte(value))
+func appendCompatibilityRecordString(dst []byte, value string) []byte {
+	dst = binary.BigEndian.AppendUint32(dst, uint32(len(value)))
+	return append(dst, value...)
 }
 
-func writeCompatibilityRecordBytes(buf *bytes.Buffer, value []byte) error {
-	if len(value) > math.MaxUint32 {
-		return channel.ErrInvalidArgument
-	}
-	if err := binary.Write(buf, binary.BigEndian, uint32(len(value))); err != nil {
-		return err
-	}
-	_, err := buf.Write(value)
-	return err
+func appendCompatibilityRecordBytes(dst []byte, value []byte) []byte {
+	dst = binary.BigEndian.AppendUint32(dst, uint32(len(value)))
+	return append(dst, value...)
 }

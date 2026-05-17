@@ -31,19 +31,27 @@ func encodeKeyspacePrefix(keyspace byte, channelKey channel.ChannelKey) []byte {
 }
 
 func decodeKeyspaceChannelKey(raw []byte, keyspace byte) (channel.ChannelKey, []byte, error) {
+	start, end, rest, err := decodeKeyspaceChannelKeyParts(raw, keyspace)
+	if err != nil {
+		return "", nil, err
+	}
+	return channel.ChannelKey(string(raw[start:end])), rest, nil
+}
+
+func decodeKeyspaceChannelKeyParts(raw []byte, keyspace byte) (int, int, []byte, error) {
 	if len(raw) == 0 || raw[0] != keyspace {
-		return "", nil, channel.ErrCorruptValue
+		return 0, 0, nil, channel.ErrCorruptValue
 	}
 	length, n := binary.Uvarint(raw[1:])
 	if n <= 0 {
-		return "", nil, channel.ErrCorruptValue
+		return 0, 0, nil, channel.ErrCorruptValue
 	}
 	start := 1 + n
 	end := start + int(length)
 	if end < start || len(raw) < end {
-		return "", nil, channel.ErrCorruptValue
+		return 0, 0, nil, channel.ErrCorruptValue
 	}
-	return channel.ChannelKey(string(raw[start:end])), raw[end:], nil
+	return start, end, raw[end:], nil
 }
 
 func encodeTableStatePrefix(channelKey channel.ChannelKey, tableID uint32) []byte {
@@ -58,15 +66,31 @@ func encodeTableStateKey(channelKey channel.ChannelKey, tableID uint32, primaryK
 }
 
 func decodeTableStateKey(key []byte, channelKey channel.ChannelKey, tableID uint32) (uint64, uint16, error) {
-	prefix := encodeTableStatePrefix(channelKey, tableID)
-	if len(key) != len(prefix)+10 {
+	prefixLen, ok := encodedTablePrefixLen(key, keyspaceTableState, channelKey, tableID)
+	if !ok || len(key) != prefixLen+10 {
 		return 0, 0, channel.ErrCorruptValue
 	}
-	if string(key[:len(prefix)]) != string(prefix) {
-		return 0, 0, channel.ErrCorruptValue
-	}
-	rest := key[len(prefix):]
+	rest := key[prefixLen:]
 	return binary.BigEndian.Uint64(rest[:8]), binary.BigEndian.Uint16(rest[8:10]), nil
+}
+
+func encodedTablePrefixLen(key []byte, keyspace byte, channelKey channel.ChannelKey, tableID uint32) (int, bool) {
+	if len(key) == 0 || key[0] != keyspace {
+		return 0, false
+	}
+	length, n := binary.Uvarint(key[1:])
+	if n <= 0 || length != uint64(len(channelKey)) {
+		return 0, false
+	}
+	start := 1 + n
+	end := start + int(length)
+	if end < start || len(key) < end+4 || string(key[start:end]) != string(channelKey) {
+		return 0, false
+	}
+	if binary.BigEndian.Uint32(key[end:end+4]) != tableID {
+		return 0, false
+	}
+	return end + 4, true
 }
 
 func encodeTableIndexPrefix(channelKey channel.ChannelKey, tableID uint32, indexID uint16) []byte {

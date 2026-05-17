@@ -7,6 +7,8 @@
 - Active local channel runtimes must be capacity-managed per node with `WK_CLUSTER_MAX_CHANNELS` and optional idle eviction; 100k simultaneously active channels can amplify replica goroutines and heap even before message volume is high.
 - Channel replica pooled execution must preserve per-channel single-writer ordering and all generation/epoch/fence checks; it is an execution-cache optimization, not a cluster semantic change.
 - Channel replica execution defaults to `pooled`; `dedicated` remains an explicit rollback mode for legacy per-replica workers.
+- Leader-side lane tracking for cold channel wake-up requires follower-advertised lane membership with a local generation; leader ready flags alone must not suppress `ReconcileProbe`.
+- Follower `ApplyFetch` must be idempotent for duplicate already-applied record prefixes so long-poll replay can still emit cursor ACKs and avoid replication stalls.
 - `ActiveAt` is a best-effort hint: updates may be batched, throttled, dropped, and merged from cache during `ListUserConversationActive`.
 - Deleting a conversation clears current active visibility through `DeletedToSeq`; a later message with a larger sequence must be allowed to reactivate it.
 - Delete without an explicit message sequence must first resolve the latest Channel Log sequence; if no sequence is available, do not install a zero delete barrier.
@@ -27,6 +29,9 @@
 ### Long-poll leader lease refresh
 - A channel leader metadata refresh that only renews `LeaseUntil` must preserve existing leader-side lane sessions and follower cursors.
 - Clearing the lane cursor on a lease-only refresh can make the next replication fetch start from offset `0`, preventing follower progress and HW from advancing for the next append.
+- A same leader/epoch/ISR lease-only refresh must not trigger replica leader reconcile or clear `CommitReady`; otherwise a pending checkpoint window can turn successful quorum appends into `channel: not ready`.
+- In-flight leader append effects must be fenced by the current renewed same-leader lease, not only the lease captured when the effect was queued; otherwise a durable write can land while runtime LEO stays behind and the next append fails as corrupt.
+- If leader recovery/reconcile already adopted an in-flight append's durable LEO before that effect result returns, the result should complete the original waiter idempotently instead of treating the lower base offset as corruption.
 - Expired remote channel leader leases must be repaired by evaluating the current leader first; only renew the lease if that leader can still prove it is safe.
 - ChannelRuntimeMeta upserts must be monotonic: stale channel/leader epochs or shorter same-epoch leases are no-ops.
 - ChannelRuntimeMeta write fences are versioned; set, renew, reset, and clear must advance `WriteFenceVersion`, and monotonic upserts must not clear or regress an existing fence.
@@ -47,18 +52,26 @@
 - Delivery tag cache eviction must be stale-safe: an older request must never evict a newer local tag ref.
 - Delivery tag invalidation must be fenced by a durable subscriber mutation version in the authoritative slot store; pending invalidate is only a hint.
 - Delivery tag topology checks use the cluster hash-slot table version plus exact per-UID-slot authority refs `{slotID, leaderNodeID, configEpoch, balanceVersion}`; never collapse multi-slot refs to a max version.
+- Delivery tag topology checks are on the delivery hot path; prefer node-local cached slot assignments and only refresh controller assignments on cache miss.
 - Delivery tag subscriber mutation versions are generated only by the authoritative subscriber store in the same Raft command/transaction as the subscriber rows, not by the tag cache.
 - Channel management chunked subscriber writes must share one durable subscriber mutation version per logical operation; chunk boundaries do not create extra fences.
+
+### Delivery routing
+- Remote delivery push runs one target node inline; only multi-node targets use bounded parallel workers.
+- Delivery push implementations must report intentionally skipped sender-origin routes as `Dropped`; silently omitting a pre-bound route leaves delivery actor ack bindings/inflight routes uncleared.
 
 ### Committed event replay
 - Sendack waits for Channel Log quorum commit; delivery/conversation are async side effects recovered by committed replay from the durable message log.
 - Committed replay cursor is a low-cost progress hint; losing it only causes duplicate replay, not message loss.
+- Committed replay subscribes to committed events and should replay dirty channels before falling back to a full persisted channel-key scan.
+- Channel store persisted key listing must skip by encoded channel-key prefix; decoding every message row turns committed replay full scans into CPU/GC pressure.
 - Channel message retention is cluster-authoritative: leaders advance slot metadata `RetentionThroughSeq`; local stores may lag physically and must not use checkpoint `LogStartOffset` for retention.
 - Manager history-message deletion advances channel `RetentionThroughSeq`; it must not directly delete message rows or skip channel leader/slot metadata semantics.
 
 ### Long-poll observability
 - `RPCClientEvent{ServiceID:35, Result:"timeout"}` means the RPC deadline/context timed out; it is abnormal and not a normal long-poll wait expiry.
 - Normal channel long-poll wait expiry is a successful long-poll response with `TimedOut:true`, and needs an explicit response observer before counting expected timeouts.
+- Transport RPC calls do not wait for a per-call write ACK; write failures must close the mux connection so pending RPCs wake through the reader shutdown path.
 - Diagnostics hot-path events use `pkg/observability/sendtrace` and are consumed by `internal/observability/diagnostics`; recording must be bounded, non-blocking, and must not add high-cardinality Prometheus labels.
 - Diagnostics `channel_key` debug matches use `channel/<channel_type>/<base64url(channel_id)>`; gateway send, sendack, and durable send events must carry it so channel-scoped sampling can still be queried by `client_msg_no`.
 - Manager diagnostics routes require `cluster.diagnostics:r`; cluster-wide diagnostics queries include alive, suspect, and draining nodes, skip dead nodes, and return `partial` when results are incomplete.
@@ -117,3 +130,5 @@
 - When using project-local `.worktrees/*`, run Go tests with `GOWORK=off`; the parent `go.work` points at the main checkout and otherwise makes packages resolve under `.worktrees` incorrectly.
 - Bench APIs are unauthenticated benchmark-only `/bench/v1/*` routes gated by `WK_BENCH_API_ENABLE`; mutations go through benchdata plus user/channel usecase boundaries.
 - wkbench requires server bench mode (`WK_BENCH_API_ENABLE=true`) and must prepare target data only through `/bench/v1/*`; it must not use Manager APIs for benchmark setup.
+- wkbench traffic with `recv_ack=true` must drain delivered recv frames and send protocol recvack even when receive verification is `none`; otherwise delivery retry will keep re-pushing accepted routes until they expire.
+- Committed delivery routing treats transient channel status errors such as `channel: not ready` as retry signals; warn only after retries are exhausted.

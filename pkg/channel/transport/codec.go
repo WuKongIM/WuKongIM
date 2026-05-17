@@ -196,50 +196,55 @@ func decodeFetchResponse(data []byte) (runtime.FetchResponseEnvelope, error) {
 }
 
 func writeRecord(buf *bytes.Buffer, record channel.Record) error {
-	if err := binary.Write(buf, binary.BigEndian, record.ID); err != nil {
-		return err
-	}
-	if err := binary.Write(buf, binary.BigEndian, record.Index); err != nil {
-		return err
-	}
-	if err := binary.Write(buf, binary.BigEndian, record.Epoch); err != nil {
-		return err
-	}
-	if err := binary.Write(buf, binary.BigEndian, int64(record.SizeBytes)); err != nil {
-		return err
-	}
-	if err := binary.Write(buf, binary.BigEndian, uint32(len(record.Payload))); err != nil {
+	buf.Grow(recordEncodedSize(record))
+	var header [36]byte
+	binary.BigEndian.PutUint64(header[0:8], record.ID)
+	binary.BigEndian.PutUint64(header[8:16], record.Index)
+	binary.BigEndian.PutUint64(header[16:24], record.Epoch)
+	binary.BigEndian.PutUint64(header[24:32], uint64(record.SizeBytes))
+	binary.BigEndian.PutUint32(header[32:36], uint32(len(record.Payload)))
+	if _, err := buf.Write(header[:]); err != nil {
 		return err
 	}
 	_, err := buf.Write(record.Payload)
 	return err
 }
 
+func recordEncodedSize(record channel.Record) int {
+	return 36 + len(record.Payload)
+}
+
 func readRecord(rd *bytes.Reader) (channel.Record, error) {
 	var record channel.Record
-	if err := binary.Read(rd, binary.BigEndian, &record.ID); err != nil {
+	var header [36]byte
+	if err := readFullBytesReader(rd, header[:]); err != nil {
 		return channel.Record{}, err
 	}
-	if err := binary.Read(rd, binary.BigEndian, &record.Index); err != nil {
-		return channel.Record{}, err
-	}
-	if err := binary.Read(rd, binary.BigEndian, &record.Epoch); err != nil {
-		return channel.Record{}, err
-	}
-	var sizeBytes int64
-	if err := binary.Read(rd, binary.BigEndian, &sizeBytes); err != nil {
-		return channel.Record{}, err
-	}
-	var payloadLen uint32
-	if err := binary.Read(rd, binary.BigEndian, &payloadLen); err != nil {
-		return channel.Record{}, err
-	}
+	record.ID = binary.BigEndian.Uint64(header[0:8])
+	record.Index = binary.BigEndian.Uint64(header[8:16])
+	record.Epoch = binary.BigEndian.Uint64(header[16:24])
+	sizeBytes := int64(binary.BigEndian.Uint64(header[24:32]))
+	payloadLen := binary.BigEndian.Uint32(header[32:36])
 	record.Payload = make([]byte, payloadLen)
-	if _, err := io.ReadFull(rd, record.Payload); err != nil {
+	if err := readFullBytesReader(rd, record.Payload); err != nil {
 		return channel.Record{}, err
 	}
 	record.SizeBytes = int(sizeBytes)
 	return record, nil
+}
+
+func readFullBytesReader(rd *bytes.Reader, dst []byte) error {
+	if len(dst) == 0 {
+		return nil
+	}
+	n, err := rd.Read(dst)
+	if n == len(dst) {
+		return nil
+	}
+	if err != nil && n == 0 {
+		return err
+	}
+	return io.ErrUnexpectedEOF
 }
 
 func writeRetentionReset(buf *bytes.Buffer, reset *channel.RetentionReset) error {

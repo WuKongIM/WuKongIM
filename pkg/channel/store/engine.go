@@ -117,15 +117,19 @@ func (e *Engine) collectTableStateChannelKeys(seen map[channel.ChannelKey]struct
 	}
 	defer iter.Close()
 
-	for ok := iter.First(); ok; ok = iter.Next() {
-		key, rest, err := decodeKeyspaceChannelKey(iter.Key(), keyspaceTableState)
+	for ok := iter.First(); ok; {
+		rawKey := iter.Key()
+		start, end, rest, err := decodeKeyspaceChannelKeyParts(rawKey, keyspaceTableState)
 		if err != nil {
 			return err
 		}
 		if len(rest) < 4 || binary.BigEndian.Uint32(rest[:4]) != TableIDMessage {
+			ok = iter.Next()
 			continue
 		}
+		key := channel.ChannelKey(string(rawKey[start:end]))
 		appendChannelKeyIfNew(seen, keys, key)
+		ok = iter.SeekGE(nextKeyAfterPrefix(encodeKeyspacePrefix(keyspaceTableState, key)))
 	}
 	return iter.Error()
 }
@@ -140,15 +144,19 @@ func (e *Engine) collectTableSystemChannelKeys(seen map[channel.ChannelKey]struc
 	}
 	defer iter.Close()
 
-	for ok := iter.First(); ok; ok = iter.Next() {
-		key, rest, err := decodeKeyspaceChannelKey(iter.Key(), keyspaceTableSystem)
+	for ok := iter.First(); ok; {
+		rawKey := iter.Key()
+		start, end, rest, err := decodeKeyspaceChannelKeyParts(rawKey, keyspaceTableSystem)
 		if err != nil {
 			return err
 		}
 		if !isChannelCatalogSystemKey(rest) {
+			ok = iter.Next()
 			continue
 		}
+		key := channel.ChannelKey(string(rawKey[start:end]))
 		appendChannelKeyIfNew(seen, keys, key)
+		ok = iter.SeekGE(nextKeyAfterPrefix(encodeKeyspacePrefix(keyspaceTableSystem, key)))
 	}
 	return iter.Error()
 }
@@ -159,6 +167,18 @@ func appendChannelKeyIfNew(seen map[channel.ChannelKey]struct{}, keys *[]channel
 	}
 	seen[key] = struct{}{}
 	*keys = append(*keys, key)
+}
+
+func nextKeyAfterPrefix(prefix []byte) []byte {
+	next := append([]byte(nil), prefix...)
+	for i := len(next) - 1; i >= 0; i-- {
+		if next[i] == 0xff {
+			continue
+		}
+		next[i]++
+		return next[:i+1]
+	}
+	return append(prefix, 0xff)
 }
 
 func isChannelCatalogSystemKey(rest []byte) bool {

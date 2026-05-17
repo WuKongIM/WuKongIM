@@ -72,6 +72,35 @@ func TestAppendEffectFenceRejectsWriteFenceBeforeDurableWrite(t *testing.T) {
 	require.ErrorIs(t, err, channel.ErrWriteFenced)
 }
 
+func TestAppendEffectFenceUsesRenewedLeaseBeforeDurableWrite(t *testing.T) {
+	env := newTestEnv(t)
+	meta := activeMetaWithMinISR(7, 1, 1)
+	meta.LeaseUntil = env.clock.Now().Add(time.Second)
+	env.replica = newReplicaFromEnv(t, env)
+	env.replica.mustApplyMeta(t, meta)
+	require.NoError(t, env.replica.BecomeLeader(meta))
+	r := env.replica
+
+	r.mu.Lock()
+	r.nextEffectID++
+	effect := appendLeaderBatchEffect{
+		EffectID:       r.nextEffectID,
+		ChannelKey:     r.state.ChannelKey,
+		Epoch:          r.state.Epoch,
+		LeaderEpoch:    r.meta.LeaderEpoch,
+		RoleGeneration: r.roleGeneration,
+		LeaseUntil:     r.meta.LeaseUntil,
+		Records:        []channel.Record{{Payload: []byte("x"), SizeBytes: 1}},
+	}
+	r.appendInFlightEffectID = effect.EffectID
+	r.meta.LeaseUntil = effect.LeaseUntil.Add(time.Minute)
+	env.clock.Advance(2 * time.Second)
+	err := r.validateAppendEffectFenceLocked(effect)
+	r.mu.Unlock()
+
+	require.NoError(t, err)
+}
+
 func TestBeginLeaderEpochEffectBlockedOnDurableLaneRevalidatesFenceBeforeWrite(t *testing.T) {
 	env := newTestEnv(t)
 	env.checkpoints.loadErr = nil

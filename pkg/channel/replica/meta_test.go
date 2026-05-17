@@ -83,6 +83,33 @@ func TestBecomeFollowerAppliesMetaAndRole(t *testing.T) {
 	require.Equal(t, channel.ChannelKey("group-10"), st.ChannelKey)
 }
 
+func TestApplyMetaLeaderLeaseRenewalDoesNotGateAppendsWhileCheckpointPending(t *testing.T) {
+	r := newLeaderReplica(t)
+
+	r.mu.Lock()
+	r.state.LEO = 1
+	r.state.HW = 1
+	r.state.CheckpointHW = 0
+	r.state.CommitReady = true
+	r.progress[r.localNode] = 1
+	meta := r.meta
+	generation := r.roleGeneration
+	r.mu.Unlock()
+
+	renewed := meta
+	renewed.LeaseUntil = meta.LeaseUntil.Add(time.Minute)
+	result := r.applyLoopEvent(machineApplyMetaCommand{Meta: renewed})
+	require.NoError(t, result.Err)
+	require.Empty(t, result.Effects)
+
+	st := r.Status()
+	require.True(t, st.CommitReady)
+	require.Equal(t, uint64(1), st.LEO)
+	require.Equal(t, uint64(1), st.HW)
+	require.Equal(t, uint64(0), st.CheckpointHW)
+	require.Equal(t, generation, r.roleGeneration)
+}
+
 func TestBecomeLeaderAcceptsSameEpochLeaderTransferWithHigherLeaderEpoch(t *testing.T) {
 	env := newTestEnv(t)
 	env.localNode = 2

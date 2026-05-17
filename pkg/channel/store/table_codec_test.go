@@ -96,6 +96,20 @@ func TestTableStateKeyRoundTripUsesExpectedLayout(t *testing.T) {
 	require.Equal(t, uint16(messagePayloadFamilyID), familyID)
 }
 
+func TestDecodeTableStateKeyAvoidsPrefixAllocation(t *testing.T) {
+	channelKey := channel.ChannelKey("room:1")
+	key := encodeTableStateKey(channelKey, TableIDMessage, 42, messagePayloadFamilyID)
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		primaryKey, familyID, err := decodeTableStateKey(key, channelKey, TableIDMessage)
+		require.NoError(t, err)
+		require.Equal(t, uint64(42), primaryKey)
+		require.Equal(t, uint16(messagePayloadFamilyID), familyID)
+	})
+
+	require.Zero(t, allocs)
+}
+
 func TestDecodeTableStateKeyRejectsCorruptInputs(t *testing.T) {
 	channelKey := channel.ChannelKey("room:1")
 	key := encodeTableStateKey(channelKey, TableIDMessage, 42, messagePayloadFamilyID)

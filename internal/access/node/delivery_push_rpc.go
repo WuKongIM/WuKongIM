@@ -74,7 +74,7 @@ func (a *Adapter) handleDeliveryPushRPC(ctx context.Context, body []byte) ([]byt
 		a.handleDeliveryPushItem(item, req.OwnerNodeID, frames[i], &resp)
 	}
 	if a.logger != nil {
-		a.logger.Info("delivery push rpc finished",
+		a.logger.Debug("delivery push rpc finished",
 			wklog.Event("delivery.diag.push_rpc"),
 			wklog.Uint64("ownerNodeID", req.OwnerNodeID),
 			wklog.Int("items", len(items)),

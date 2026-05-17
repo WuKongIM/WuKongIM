@@ -237,6 +237,7 @@ type recordingPersonClient struct {
 	sentFrames   []*frame.SendPacket
 	sendacks     []*frame.SendackPacket
 	recvFrames   []frame.Frame
+	readErrors   []error
 	recvAckCalls []recvAckCall
 	autoSendack  bool
 }
@@ -275,6 +276,11 @@ func (c *recordingPersonClient) Send(ctx context.Context, pkt *frame.SendPacket)
 func (c *recordingPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if len(c.readErrors) > 0 {
+		err := c.readErrors[0]
+		c.readErrors = c.readErrors[1:]
+		return nil, err
+	}
 	if len(c.sendacks) > 0 {
 		f := c.sendacks[0]
 		c.sendacks = c.sendacks[1:]
@@ -372,6 +378,55 @@ func TestConcurrentPersonClientServesBufferedFrameWhileAnotherReadBlocks(t *test
 	}
 	cancelA()
 	<-firstDone
+}
+
+func TestAutoRecvAckDrainsAndBuffersRecvFrames(t *testing.T) {
+	raw := newRecordingPersonClient()
+	raw.recvFrames = append(raw.recvFrames, &frame.RecvPacket{
+		MessageID:   42,
+		MessageSeq:  7,
+		ClientMsgNo: "msg-a",
+		FromUID:     "sender",
+		ChannelID:   "channel-a",
+		ChannelType: frame.ChannelTypeGroup,
+	})
+	wrapped := WrapPersonClientsForConcurrentReads(map[string]PersonClient{"u1": raw})["u1"]
+	stop := StartAutoRecvAck(map[string]PersonClient{"u1": wrapped})
+	defer stop()
+
+	require.Eventually(t, func() bool {
+		raw.mu.Lock()
+		defer raw.mu.Unlock()
+		return len(raw.recvAckCalls) == 1
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, []recvAckCall{{messageID: 42, messageSeq: 7}}, raw.recvAckCalls)
+
+	got, err := readFrameMatching(context.Background(), wrapped, func(f frame.Frame) bool {
+		recv, ok := f.(*frame.RecvPacket)
+		return ok && recv.ClientMsgNo == "msg-a"
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(42), got.(*frame.RecvPacket).MessageID)
+}
+
+func TestAutoRecvAckContinuesAfterIdleReadTimeout(t *testing.T) {
+	raw := newRecordingPersonClient()
+	raw.readErrors = append(raw.readErrors, context.DeadlineExceeded)
+	raw.recvFrames = append(raw.recvFrames, &frame.RecvPacket{
+		MessageID:   43,
+		MessageSeq:  8,
+		ClientMsgNo: "msg-after-timeout",
+	})
+	wrapped := WrapPersonClientsForConcurrentReads(map[string]PersonClient{"u1": raw})["u1"]
+	stop := StartAutoRecvAck(map[string]PersonClient{"u1": wrapped})
+	defer stop()
+
+	require.Eventually(t, func() bool {
+		raw.mu.Lock()
+		defer raw.mu.Unlock()
+		return len(raw.recvAckCalls) == 1
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, []recvAckCall{{messageID: 43, messageSeq: 8}}, raw.recvAckCalls)
 }
 
 type blockingReadPersonClient struct {

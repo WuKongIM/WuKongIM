@@ -266,7 +266,7 @@ func TestProgressLoopPublishesDurableAppendAfterSameLeaderFenceMeta(t *testing.T
 	require.Equal(t, uint64(1), drain.LEO)
 }
 
-func TestProgressLoopStaleAppendCommitAfterFenceMetaKeepsEffectLeaseFence(t *testing.T) {
+func TestProgressLoopStaleAppendCommitAfterFenceMetaUsesRenewedLease(t *testing.T) {
 	env := newTestEnv(t)
 	meta := activeMetaWithMinISR(7, 1, 1)
 	meta.LeaseUntil = env.clock.Now().Add(time.Second)
@@ -315,12 +315,59 @@ func TestProgressLoopStaleAppendCommitAfterFenceMetaKeepsEffectLeaseFence(t *tes
 		DoneAt:         time.Now(),
 	})
 	require.NoError(t, result.Err)
-	require.Equal(t, uint64(0), r.Status().LEO)
+	require.Equal(t, uint64(1), r.Status().LEO)
 	select {
 	case completion := <-waiter.ch:
-		require.ErrorIs(t, completion.err, channel.ErrLeaseExpired)
+		require.NoError(t, completion.err)
+		require.Equal(t, uint64(0), completion.result.BaseOffset)
+		require.Equal(t, 1, completion.result.RecordCount)
 	default:
-		t.Fatal("expired effect lease append waiter was not failed")
+		t.Fatal("renewed effect lease append waiter was not completed")
+	}
+}
+
+func TestProgressLoopCompletesAppendWhenRecoveryAlreadyAdoptedDurableLEO(t *testing.T) {
+	r := newLeaderReplica(t)
+	st := r.Status()
+	waiter := &appendWaiter{ch: make(chan appendCompletion, 1)}
+	req := &appendRequest{
+		requestID:  1,
+		ctx:        channel.WithCommitMode(context.Background(), channel.CommitModeLocal),
+		batch:      []channel.Record{{Payload: []byte("a"), SizeBytes: 1}},
+		commitMode: channel.CommitModeLocal,
+		waiter:     waiter,
+		stage:      appendRequestDurable,
+	}
+	waiter.request = req
+	r.mu.Lock()
+	r.state.LEO = 1
+	r.progress[r.localNode] = 1
+	r.appendRequests = map[uint64]*appendRequest{req.requestID: req}
+	r.appendInFlightIDs = []uint64{req.requestID}
+	r.appendInFlightEffectID = 10
+	r.mu.Unlock()
+
+	result := r.applyLoopEvent(machineLeaderAppendCommittedEvent{
+		EffectID:       10,
+		ChannelKey:     st.ChannelKey,
+		Epoch:          st.Epoch,
+		LeaderEpoch:    r.meta.LeaderEpoch,
+		RoleGeneration: r.roleGeneration,
+		LeaseUntil:     r.meta.LeaseUntil,
+		RequestIDs:     []uint64{req.requestID},
+		BaseOffset:     0,
+		DoneAt:         time.Now(),
+	})
+
+	require.NoError(t, result.Err)
+	require.Equal(t, uint64(1), r.Status().LEO)
+	select {
+	case completion := <-waiter.ch:
+		require.NoError(t, completion.err)
+		require.Equal(t, uint64(0), completion.result.BaseOffset)
+		require.Equal(t, 1, completion.result.RecordCount)
+	default:
+		t.Fatal("already-adopted append waiter was not completed")
 	}
 }
 
