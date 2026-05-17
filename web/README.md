@@ -31,6 +31,7 @@ The web app provides the authenticated manager shell for WuKongIM operations:
 | `/cluster/channels?tab=unhealthy` | `GET /manager/channel-cluster/unhealthy`, `GET /manager/channel-cluster/:type/:id/replicas`, `POST /manager/channel-cluster/:type/:id/repair`, `POST /manager/channel-cluster/:type/:id/leader/transfer` | Implemented |
 | `/cluster/tasks` | `GET /manager/distributed-tasks/summary`, `GET /manager/distributed-tasks`, `GET /manager/distributed-tasks/:domain/:id` | Implemented |
 | `/cluster/topology` | `GET /manager/overview`, `GET /manager/nodes`, `GET /manager/slots` | Implemented |
+| `/cluster/plugins` | `GET /manager/nodes/:id/plugins`, `GET /manager/nodes/:id/plugins/:plugin_no`, `PUT /manager/nodes/:id/plugins/:plugin_no/config`, `POST /manager/nodes/:id/plugins/:plugin_no/restart`, `GET/POST/DELETE /manager/plugin-bindings` | Implemented |
 | `/cluster/diagnostics?tab=trace` | Diagnostics tracking, trace, message, and recent event APIs | Implemented |
 | `/cluster/diagnostics?tab=network` | `GET /manager/network/summary` | Implemented |
 | `/cluster/diagnostics?tab=controller-logs` | Controller Raft log/status and compaction APIs | Implemented |
