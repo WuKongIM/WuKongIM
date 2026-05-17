@@ -1,6 +1,9 @@
+import type { FormEvent } from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useIntl, type IntlShape } from "react-intl"
 
+import { ActionFormDialog } from "@/components/manager/action-form-dialog"
+import { ConfirmDialog } from "@/components/manager/confirm-dialog"
 import { DetailSheet } from "@/components/manager/detail-sheet"
 import { KeyValueList } from "@/components/manager/key-value-list"
 import { NodeFilter, defaultNodeId, hasNode } from "@/components/manager/node-filter"
@@ -10,7 +13,14 @@ import { Button } from "@/components/ui/button"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
-import { getNodePlugin, getNodePlugins, getNodes, ManagerApiError } from "@/lib/manager-api"
+import {
+  getNodePlugin,
+  getNodePlugins,
+  getNodes,
+  ManagerApiError,
+  restartNodePlugin,
+  updateNodePluginConfig,
+} from "@/lib/manager-api"
 import type { ManagerNodePluginsResponse, ManagerNodesResponse, ManagerPlugin } from "@/lib/manager-api.types"
 
 type PluginInventoryState = {
@@ -68,6 +78,23 @@ function formatValue(value: unknown, intl: IntlShape) {
   return JSON.stringify(value)
 }
 
+function formatConfig(config?: Record<string, unknown>) {
+  return JSON.stringify(config ?? {}, null, 2)
+}
+
+function parseConfigObject(raw: string, intl: IntlShape): { error: string; value?: never } | { error?: never; value: Record<string, unknown> } {
+  let value: unknown
+  try {
+    value = JSON.parse(raw)
+  } catch {
+    return { error: intl.formatMessage({ id: "plugins.config.invalidJSON" }) }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { error: intl.formatMessage({ id: "plugins.config.notObject" }) }
+  }
+  return { value: value as Record<string, unknown> }
+}
+
 function pluginSummary(page: ManagerNodePluginsResponse | null) {
   const items = page?.items ?? []
   return {
@@ -94,6 +121,13 @@ export function PluginsPage() {
     loading: false,
     error: null,
   })
+  const [configPlugin, setConfigPlugin] = useState<ManagerPlugin | null>(null)
+  const [configText, setConfigText] = useState("{}")
+  const [configPending, setConfigPending] = useState(false)
+  const [configError, setConfigError] = useState("")
+  const [restartPlugin, setRestartPlugin] = useState<ManagerPlugin | null>(null)
+  const [restartPending, setRestartPending] = useState(false)
+  const [restartError, setRestartError] = useState("")
 
   const summary = useMemo(() => pluginSummary(state.page), [state.page])
 
@@ -172,6 +206,52 @@ export function PluginsPage() {
     }
     setDetailState({ pluginNo: null, detail: null, loading: false, error: null })
   }, [])
+
+  const openConfig = useCallback((plugin: ManagerPlugin) => {
+    setConfigPlugin(plugin)
+    setConfigText(formatConfig(plugin.config))
+    setConfigError("")
+  }, [])
+
+  const submitConfig = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!configPlugin || !selectedNodeId) {
+      return
+    }
+    const parsed = parseConfigObject(configText, intl)
+    if (parsed.error) {
+      setConfigError(parsed.error)
+      return
+    }
+    setConfigPending(true)
+    setConfigError("")
+    try {
+      await updateNodePluginConfig(selectedNodeId, configPlugin.plugin_no, parsed.value)
+      setConfigPlugin(null)
+      await loadPlugins(selectedNodeId, true)
+    } catch (error) {
+      setConfigError(error instanceof Error ? error.message : "update plugin config failed")
+    } finally {
+      setConfigPending(false)
+    }
+  }
+
+  const confirmRestart = async () => {
+    if (!restartPlugin || !selectedNodeId) {
+      return
+    }
+    setRestartPending(true)
+    setRestartError("")
+    try {
+      await restartNodePlugin(selectedNodeId, restartPlugin.plugin_no)
+      setRestartPlugin(null)
+      await loadPlugins(selectedNodeId, true)
+    } catch (error) {
+      setRestartError(error instanceof Error ? error.message : "restart plugin failed")
+    } finally {
+      setRestartPending(false)
+    }
+  }
 
   useEffect(() => {
     void loadNodes()
@@ -262,16 +342,37 @@ export function PluginsPage() {
                       <td className="px-3 py-3 text-sm text-muted-foreground">{formatTimestamp(intl, plugin.last_seen_at)}</td>
                       <td className="px-3 py-3 text-sm text-muted-foreground">{plugin.last_error || intl.formatMessage({ id: "plugins.none" })}</td>
                       <td className="px-3 py-3 text-sm">
-                        <Button
-                          aria-label={intl.formatMessage({ id: "plugins.action.viewDetails" }, { pluginNo: plugin.plugin_no })}
-                          onClick={() => {
-                            void openDetail(plugin.plugin_no)
-                          }}
-                          size="sm"
-                          variant="outline"
-                        >
-                          {intl.formatMessage({ id: "plugins.action.details" })}
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            aria-label={intl.formatMessage({ id: "plugins.action.viewDetails" }, { pluginNo: plugin.plugin_no })}
+                            onClick={() => {
+                              void openDetail(plugin.plugin_no)
+                            }}
+                            size="sm"
+                            variant="outline"
+                          >
+                            {intl.formatMessage({ id: "plugins.action.details" })}
+                          </Button>
+                          <Button
+                            aria-label={intl.formatMessage({ id: "plugins.action.configurePlugin" }, { pluginNo: plugin.plugin_no })}
+                            onClick={() => openConfig(plugin)}
+                            size="sm"
+                            variant="outline"
+                          >
+                            {intl.formatMessage({ id: "plugins.action.configure" })}
+                          </Button>
+                          <Button
+                            aria-label={intl.formatMessage({ id: "plugins.action.restartPlugin" }, { pluginNo: plugin.plugin_no })}
+                            onClick={() => {
+                              setRestartError("")
+                              setRestartPlugin(plugin)
+                            }}
+                            size="sm"
+                            variant="outline"
+                          >
+                            {intl.formatMessage({ id: "plugins.action.restart" })}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -289,6 +390,53 @@ export function PluginsPage() {
         intl={intl}
         nodeId={selectedNodeId}
         onOpenChange={closeDetail}
+      />
+
+      <ActionFormDialog
+        description={intl.formatMessage({ id: "plugins.config.description" })}
+        error={configError}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfigPlugin(null)
+          }
+        }}
+        onSubmit={(event) => {
+          void submitConfig(event)
+        }}
+        open={configPlugin !== null}
+        pending={configPending}
+        submitLabel={intl.formatMessage({ id: "plugins.config.update" })}
+        title={intl.formatMessage({ id: "plugins.config.title" })}
+      >
+        <label className="block text-sm font-medium text-foreground" htmlFor="plugin-config-json">
+          {intl.formatMessage({ id: "plugins.config.jsonLabel" })}
+        </label>
+        <textarea
+          className="min-h-48 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:ring-2 focus:ring-ring"
+          id="plugin-config-json"
+          name="config"
+          onChange={(event) => setConfigText(event.target.value)}
+          value={configText}
+        />
+      </ActionFormDialog>
+
+      <ConfirmDialog
+        confirmLabel={intl.formatMessage({ id: "plugins.restart.confirm" })}
+        description={restartPlugin && selectedNodeId
+          ? intl.formatMessage({ id: "plugins.restart.description" }, { pluginNo: restartPlugin.plugin_no, nodeId: selectedNodeId })
+          : undefined}
+        error={restartError}
+        onConfirm={() => {
+          void confirmRestart()
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRestartPlugin(null)
+          }
+        }}
+        open={restartPlugin !== null}
+        pending={restartPending}
+        title={intl.formatMessage({ id: "plugins.restart.title" })}
       />
     </PageContainer>
   )

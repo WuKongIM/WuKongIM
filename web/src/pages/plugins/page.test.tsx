@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -11,6 +11,8 @@ import { PluginsPage } from "@/pages/plugins/page"
 const getNodesMock = vi.fn()
 const getNodePluginsMock = vi.fn()
 const getNodePluginMock = vi.fn()
+const updateNodePluginConfigMock = vi.fn()
+const restartNodePluginMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -19,6 +21,8 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getNodes: (...args: unknown[]) => getNodesMock(...args),
     getNodePlugins: (...args: unknown[]) => getNodePluginsMock(...args),
     getNodePlugin: (...args: unknown[]) => getNodePluginMock(...args),
+    updateNodePluginConfig: (...args: unknown[]) => updateNodePluginConfigMock(...args),
+    restartNodePlugin: (...args: unknown[]) => restartNodePluginMock(...args),
   }
 })
 
@@ -73,6 +77,8 @@ beforeEach(() => {
   getNodesMock.mockReset()
   getNodePluginsMock.mockReset()
   getNodePluginMock.mockReset()
+  updateNodePluginConfigMock.mockReset()
+  restartNodePluginMock.mockReset()
   getNodesMock.mockResolvedValue({
     generated_at: "2026-05-17T08:00:00Z",
     controller_leader_id: 2,
@@ -150,4 +156,65 @@ test("maps plugin inventory errors to resource states", async () => {
   getNodePluginsMock.mockRejectedValueOnce(new ManagerApiError(503, "service_unavailable", "unavailable"))
   renderPluginsPage()
   expect(await screen.findByText("The manager service is currently unavailable.")).toBeInTheDocument()
+})
+
+test("validates plugin config JSON before updating", async () => {
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 1, items: [pluginRow] })
+
+  const user = userEvent.setup()
+  renderPluginsPage()
+
+  expect(await screen.findByText("wk.echo")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Configure plugin wk.echo" }))
+  const textarea = within(screen.getByRole("dialog")).getByLabelText("Config JSON")
+  await user.clear(textarea)
+  await user.type(textarea, "not-json")
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Update config" }))
+
+  expect(await screen.findByText("Enter a valid JSON object.")).toBeInTheDocument()
+  expect(updateNodePluginConfigMock).not.toHaveBeenCalled()
+
+  fireEvent.change(textarea, { target: { value: "[]" } })
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Update config" }))
+
+  expect(await screen.findByText("Config must be a JSON object.")).toBeInTheDocument()
+  expect(updateNodePluginConfigMock).not.toHaveBeenCalled()
+})
+
+test("updates plugin config and refreshes inventory", async () => {
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 1, items: [pluginRow] })
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 1, items: [{ ...pluginRow, priority: 9 }] })
+  updateNodePluginConfigMock.mockResolvedValueOnce({ node_id: 2, plugin_no: "wk.echo", changed: true, plugin: pluginRow })
+
+  const user = userEvent.setup()
+  renderPluginsPage()
+
+  expect(await screen.findByText("wk.echo")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Configure plugin wk.echo" }))
+  const textarea = within(screen.getByRole("dialog")).getByLabelText("Config JSON")
+  fireEvent.change(textarea, { target: { value: "{\"api_key\":\"next\"}" } })
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Update config" }))
+
+  await waitFor(() => {
+    expect(updateNodePluginConfigMock).toHaveBeenCalledWith(2, "wk.echo", { api_key: "next" })
+  })
+  expect(getNodePluginsMock).toHaveBeenCalledTimes(2)
+})
+
+test("confirms plugin restart and refreshes inventory", async () => {
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 1, items: [pluginRow] })
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 1, items: [pluginRow] })
+  restartNodePluginMock.mockResolvedValueOnce({ node_id: 2, plugin_no: "wk.echo", changed: true, plugin: pluginRow })
+
+  const user = userEvent.setup()
+  renderPluginsPage()
+
+  expect(await screen.findByText("wk.echo")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Restart plugin wk.echo" }))
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Restart plugin" }))
+
+  await waitFor(() => {
+    expect(restartNodePluginMock).toHaveBeenCalledWith(2, "wk.echo")
+  })
+  expect(getNodePluginsMock).toHaveBeenCalledTimes(2)
 })
