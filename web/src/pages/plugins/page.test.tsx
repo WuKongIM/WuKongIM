@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -117,6 +117,14 @@ function renderPluginsPage() {
   )
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+  return { promise, resolve }
+}
+
 test("renders node plugin inventory with summary counts", async () => {
   getNodePluginsMock.mockResolvedValueOnce({ node_id: 2, total: 2, items: [pluginRow, failedPluginRow] })
 
@@ -131,6 +139,29 @@ test("renders node plugin inventory with summary counts", async () => {
   expect(screen.getByText("1 enabled")).toBeInTheDocument()
   expect(screen.getByText("Route, Send")).toBeInTheDocument()
   expect(screen.getByText("process exited")).toBeInTheDocument()
+})
+
+test("ignores stale plugin inventory responses after switching nodes", async () => {
+  const node2Plugins = deferred<{ node_id: number; total: number; items: typeof pluginRow[] }>()
+  const node1Plugin = { ...pluginRow, node_id: 1, plugin_no: "wk.node1", name: "Node 1 Plugin" }
+  getNodePluginsMock.mockImplementationOnce(() => node2Plugins.promise)
+  getNodePluginsMock.mockResolvedValueOnce({ node_id: 1, total: 1, items: [node1Plugin] })
+
+  const user = userEvent.setup()
+  renderPluginsPage()
+
+  const nodeFilter = await screen.findByLabelText("Node filter")
+  expect(nodeFilter).toHaveValue("2")
+  await user.selectOptions(nodeFilter, "1")
+
+  expect(await screen.findByText("wk.node1")).toBeInTheDocument()
+  await act(async () => {
+    node2Plugins.resolve({ node_id: 2, total: 1, items: [pluginRow] })
+    await node2Plugins.promise
+  })
+
+  expect(screen.getByText("wk.node1")).toBeInTheDocument()
+  expect(screen.queryByText("wk.echo")).not.toBeInTheDocument()
 })
 
 test("opens plugin detail from manager APIs", async () => {

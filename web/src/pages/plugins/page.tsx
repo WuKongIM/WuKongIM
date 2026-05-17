@@ -1,5 +1,5 @@
 import type { FormEvent } from "react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useIntl, type IntlShape } from "react-intl"
 
 import { ActionFormDialog } from "@/components/manager/action-form-dialog"
@@ -183,6 +183,7 @@ export function PluginsPage() {
   const [deleteBindingTarget, setDeleteBindingTarget] = useState<ManagerPluginBinding | null>(null)
   const [deleteBindingPending, setDeleteBindingPending] = useState(false)
   const [deleteBindingError, setDeleteBindingError] = useState("")
+  const pluginLoadSeq = useRef(0)
 
   const summary = useMemo(() => pluginSummary(state.page), [state.page])
 
@@ -212,6 +213,8 @@ export function PluginsPage() {
   }, [])
 
   const loadPlugins = useCallback(async (nodeId: number | null, refreshing = false) => {
+    const loadSeq = pluginLoadSeq.current + 1
+    pluginLoadSeq.current = loadSeq
     if (!nodeId) {
       setState({ page: null, loading: false, refreshing: false, error: null })
       return
@@ -226,8 +229,14 @@ export function PluginsPage() {
 
     try {
       const page = await getNodePlugins(nodeId)
+      if (pluginLoadSeq.current !== loadSeq) {
+        return
+      }
       setState({ page, loading: false, refreshing: false, error: null })
     } catch (error) {
+      if (pluginLoadSeq.current !== loadSeq) {
+        return
+      }
       setState({
         page: null,
         loading: false,
