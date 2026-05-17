@@ -139,6 +139,18 @@ func TestChannelStoreListMessagesBySeqRespectsMaxBytes(t *testing.T) {
 	require.Equal(t, uint64(54), reverse[0].MessageID)
 }
 
+func TestChannelStoreReadSingleRecordAvoidsBatchRowAllocation(t *testing.T) {
+	st := newBenchmarkMessageTableStore(t, 1)
+
+	allocs := testing.AllocsPerRun(100, func() {
+		records, err := st.Read(0, 1<<20)
+		require.NoError(t, err)
+		require.Len(t, records, 1)
+	})
+
+	require.Less(t, allocs, float64(12), "single-record log reads should avoid allocating the generic row batch")
+}
+
 func TestChannelStoreTruncateFailsOnOrphanPayloadFamily(t *testing.T) {
 	st := newTestChannelStore(t)
 	validPayload := mustEncodeStoreMessage(t, channel.Message{

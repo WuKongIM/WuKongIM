@@ -9,79 +9,51 @@ import (
 )
 
 func encodeLongPollFetchRequest(req LongPollFetchRequest) ([]byte, error) {
-	buf := bytes.NewBuffer(make([]byte, 0, 256))
-	buf.WriteByte(longPollRequestCodecVer)
-	if err := binary.Write(buf, binary.BigEndian, uint64(req.PeerID)); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(buf, binary.BigEndian, req.LaneID); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(buf, binary.BigEndian, req.LaneCount); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(buf, binary.BigEndian, req.SessionID); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(buf, binary.BigEndian, req.SessionEpoch); err != nil {
-		return nil, err
-	}
-	if err := buf.WriteByte(byte(req.Op)); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(buf, binary.BigEndian, req.ProtocolVersion); err != nil {
-		return nil, err
-	}
-	if err := buf.WriteByte(byte(req.Capabilities)); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(buf, binary.BigEndian, req.MaxWaitMs); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(buf, binary.BigEndian, req.MaxBytes); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(buf, binary.BigEndian, req.MaxChannels); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(buf, binary.BigEndian, req.MembershipVersionHint); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(buf, binary.BigEndian, uint32(len(req.FullMembership))); err != nil {
-		return nil, err
-	}
+	buf := make([]byte, 0, longPollFetchRequestEncodedSize(req))
+	buf = append(buf, longPollRequestCodecVer)
+	buf = binary.BigEndian.AppendUint64(buf, uint64(req.PeerID))
+	buf = binary.BigEndian.AppendUint16(buf, req.LaneID)
+	buf = binary.BigEndian.AppendUint16(buf, req.LaneCount)
+	buf = binary.BigEndian.AppendUint64(buf, req.SessionID)
+	buf = binary.BigEndian.AppendUint64(buf, req.SessionEpoch)
+	buf = append(buf, byte(req.Op))
+	buf = binary.BigEndian.AppendUint16(buf, req.ProtocolVersion)
+	buf = append(buf, byte(req.Capabilities))
+	buf = binary.BigEndian.AppendUint32(buf, req.MaxWaitMs)
+	buf = binary.BigEndian.AppendUint32(buf, req.MaxBytes)
+	buf = binary.BigEndian.AppendUint32(buf, req.MaxChannels)
+	buf = binary.BigEndian.AppendUint64(buf, req.MembershipVersionHint)
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(req.FullMembership)))
 	for _, member := range req.FullMembership {
-		if err := writeChannelKey(buf, member.ChannelKey); err != nil {
-			return nil, err
-		}
-		if err := binary.Write(buf, binary.BigEndian, member.ChannelEpoch); err != nil {
-			return nil, err
-		}
-		if err := binary.Write(buf, binary.BigEndian, member.ChannelGeneration); err != nil {
-			return nil, err
-		}
+		buf = appendChannelKeyBytes(buf, member.ChannelKey)
+		buf = binary.BigEndian.AppendUint64(buf, member.ChannelEpoch)
+		buf = binary.BigEndian.AppendUint64(buf, member.ChannelGeneration)
 	}
-	if err := binary.Write(buf, binary.BigEndian, uint32(len(req.CursorDelta))); err != nil {
-		return nil, err
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(req.CursorDelta)))
+	for _, delta := range req.CursorDelta {
+		buf = appendChannelKeyBytes(buf, delta.ChannelKey)
+		buf = binary.BigEndian.AppendUint64(buf, delta.ChannelEpoch)
+		buf = binary.BigEndian.AppendUint64(buf, delta.ChannelGeneration)
+		buf = binary.BigEndian.AppendUint64(buf, delta.MatchOffset)
+		buf = binary.BigEndian.AppendUint64(buf, delta.OffsetEpoch)
+	}
+	return buf, nil
+}
+
+func longPollFetchRequestEncodedSize(req LongPollFetchRequest) int {
+	size := 61
+	for _, member := range req.FullMembership {
+		size += 20 + len(member.ChannelKey)
 	}
 	for _, delta := range req.CursorDelta {
-		if err := writeChannelKey(buf, delta.ChannelKey); err != nil {
-			return nil, err
-		}
-		if err := binary.Write(buf, binary.BigEndian, delta.ChannelEpoch); err != nil {
-			return nil, err
-		}
-		if err := binary.Write(buf, binary.BigEndian, delta.ChannelGeneration); err != nil {
-			return nil, err
-		}
-		if err := binary.Write(buf, binary.BigEndian, delta.MatchOffset); err != nil {
-			return nil, err
-		}
-		if err := binary.Write(buf, binary.BigEndian, delta.OffsetEpoch); err != nil {
-			return nil, err
-		}
+		size += 36 + len(delta.ChannelKey)
 	}
-	return buf.Bytes(), nil
+	return size
+}
+
+func appendChannelKeyBytes(dst []byte, channelKey channel.ChannelKey) []byte {
+	dst = binary.BigEndian.AppendUint32(dst, uint32(len(channelKey)))
+	return append(dst, string(channelKey)...)
 }
 
 func decodeLongPollFetchRequest(data []byte) (LongPollFetchRequest, error) {
@@ -187,17 +159,11 @@ func decodeLongPollFetchRequest(data []byte) (LongPollFetchRequest, error) {
 }
 
 func encodeLongPollFetchResponse(resp LongPollFetchResponse) ([]byte, error) {
-	buf := bytes.NewBuffer(make([]byte, 0, 256))
-	buf.WriteByte(longPollResponseCodecVer)
-	if err := buf.WriteByte(byte(resp.Status)); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(buf, binary.BigEndian, resp.SessionID); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(buf, binary.BigEndian, resp.SessionEpoch); err != nil {
-		return nil, err
-	}
+	buf := make([]byte, 0, longPollFetchResponseEncodedSize(resp))
+	buf = append(buf, longPollResponseCodecVer)
+	buf = append(buf, byte(resp.Status))
+	buf = binary.BigEndian.AppendUint64(buf, resp.SessionID)
+	buf = binary.BigEndian.AppendUint64(buf, resp.SessionEpoch)
 	var flags byte
 	if resp.TimedOut {
 		flags |= 1 << 0
@@ -208,59 +174,70 @@ func encodeLongPollFetchResponse(resp LongPollFetchResponse) ([]byte, error) {
 	if resp.ResetRequired {
 		flags |= 1 << 2
 	}
-	if err := buf.WriteByte(flags); err != nil {
-		return nil, err
-	}
-	if err := buf.WriteByte(byte(resp.ResetReason)); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(buf, binary.BigEndian, uint32(len(resp.Items))); err != nil {
-		return nil, err
-	}
+	buf = append(buf, flags)
+	buf = append(buf, byte(resp.ResetReason))
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(resp.Items)))
 	for _, item := range resp.Items {
-		if err := writeChannelKey(buf, item.ChannelKey); err != nil {
-			return nil, err
-		}
-		if err := binary.Write(buf, binary.BigEndian, item.ChannelEpoch); err != nil {
-			return nil, err
-		}
-		if err := binary.Write(buf, binary.BigEndian, item.ChannelGeneration); err != nil {
-			return nil, err
-		}
-		if err := binary.Write(buf, binary.BigEndian, item.LeaderEpoch); err != nil {
-			return nil, err
-		}
-		if err := buf.WriteByte(byte(item.Flags)); err != nil {
-			return nil, err
-		}
-		if err := binary.Write(buf, binary.BigEndian, item.LeaderHW); err != nil {
-			return nil, err
-		}
+		buf = appendChannelKeyBytes(buf, item.ChannelKey)
+		buf = binary.BigEndian.AppendUint64(buf, item.ChannelEpoch)
+		buf = binary.BigEndian.AppendUint64(buf, item.ChannelGeneration)
+		buf = binary.BigEndian.AppendUint64(buf, item.LeaderEpoch)
+		buf = append(buf, byte(item.Flags))
+		buf = binary.BigEndian.AppendUint64(buf, item.LeaderHW)
 		if item.TruncateTo != nil {
-			if err := buf.WriteByte(1); err != nil {
-				return nil, err
-			}
-			if err := binary.Write(buf, binary.BigEndian, *item.TruncateTo); err != nil {
-				return nil, err
-			}
+			buf = append(buf, 1)
+			buf = binary.BigEndian.AppendUint64(buf, *item.TruncateTo)
 		} else {
-			if err := buf.WriteByte(0); err != nil {
-				return nil, err
-			}
+			buf = append(buf, 0)
 		}
-		if err := writeRetentionReset(buf, item.RetentionReset); err != nil {
-			return nil, err
-		}
-		if err := binary.Write(buf, binary.BigEndian, uint32(len(item.Records))); err != nil {
-			return nil, err
-		}
+		buf = appendRetentionResetBytes(buf, item.RetentionReset)
+		buf = binary.BigEndian.AppendUint32(buf, uint32(len(item.Records)))
 		for _, record := range item.Records {
-			if err := writeRecord(buf, record); err != nil {
-				return nil, err
-			}
+			buf = appendRecordBytes(buf, record)
 		}
 	}
-	return buf.Bytes(), nil
+	return buf, nil
+}
+
+func longPollFetchResponseEncodedSize(resp LongPollFetchResponse) int {
+	size := 24
+	for _, item := range resp.Items {
+		size += 42 + len(item.ChannelKey)
+		if item.TruncateTo != nil {
+			size += 8
+		}
+		size += retentionResetEncodedSize(item.RetentionReset)
+		for _, record := range item.Records {
+			size += recordEncodedSize(record)
+		}
+	}
+	return size
+}
+
+func appendRetentionResetBytes(dst []byte, reset *channel.RetentionReset) []byte {
+	if reset == nil {
+		return append(dst, 0)
+	}
+	dst = append(dst, 1)
+	dst = binary.BigEndian.AppendUint64(dst, reset.RetentionThroughSeq)
+	dst = binary.BigEndian.AppendUint64(dst, reset.RetainedThroughOffset)
+	return binary.BigEndian.AppendUint64(dst, reset.MinAvailableSeq)
+}
+
+func retentionResetEncodedSize(reset *channel.RetentionReset) int {
+	if reset == nil {
+		return 1
+	}
+	return 25
+}
+
+func appendRecordBytes(dst []byte, record channel.Record) []byte {
+	dst = binary.BigEndian.AppendUint64(dst, record.ID)
+	dst = binary.BigEndian.AppendUint64(dst, record.Index)
+	dst = binary.BigEndian.AppendUint64(dst, record.Epoch)
+	dst = binary.BigEndian.AppendUint64(dst, uint64(record.SizeBytes))
+	dst = binary.BigEndian.AppendUint32(dst, uint32(len(record.Payload)))
+	return append(dst, record.Payload...)
 }
 
 func decodeLongPollFetchResponse(data []byte) (LongPollFetchResponse, error) {

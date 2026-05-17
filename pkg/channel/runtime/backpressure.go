@@ -869,6 +869,9 @@ func (r *runtime) applyFetchResponseEnvelope(ch *channel, peer core.NodeID, env 
 	if env.RetentionReset != nil {
 		return r.applyRetentionResetResponse(ch, peer, env)
 	}
+	if canSkipNoopHWOnlyFetchApply(ch.Status(), env) {
+		return nil
+	}
 	if err := ch.replica.ApplyFetch(context.Background(), core.ReplicaApplyFetchRequest{
 		ChannelKey: env.ChannelKey,
 		Epoch:      env.Epoch,
@@ -924,6 +927,19 @@ func (r *runtime) applyFetchResponseEnvelope(ch *channel, peer core.NodeID, env 
 		})
 	}
 	return nil
+}
+
+func canSkipNoopHWOnlyFetchApply(state core.ReplicaState, env FetchResponseEnvelope) bool {
+	if len(env.Records) > 0 || env.TruncateTo != nil || env.RetentionReset != nil {
+		return false
+	}
+	// When the follower already has the advertised committed prefix, an empty
+	// HW-only lane response would only enqueue a no-op ApplyFetch command.
+	return state.CommitReady &&
+		state.Epoch == env.Epoch &&
+		state.OffsetEpoch == env.Epoch &&
+		state.HW >= env.LeaderHW &&
+		state.LEO >= env.LeaderHW
 }
 
 func staleFetchResponseEnvelope(ch *channel, env FetchResponseEnvelope) bool {
