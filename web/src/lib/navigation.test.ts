@@ -20,6 +20,7 @@ describe("navigationSections", () => {
   test("selects the active section from new nested routes", () => {
     expect(getActiveNavigationSection("/cluster/dashboard")?.id).toBe("cluster")
     expect(getActiveNavigationSection("/cluster/nodes")?.id).toBe("cluster")
+    expect(getActiveNavigationSection("/cluster/plugins")?.id).toBe("cluster")
     expect(getActiveNavigationSection("/business/dashboard")?.id).toBe("business")
     expect(getActiveNavigationSection("/business/monitor")?.id).toBe("business")
     expect(getActiveNavigationSection("/business/connections")?.id).toBe("business")
@@ -34,6 +35,7 @@ describe("navigationSections", () => {
     expect(pageMetadata.get("/business/monitor")?.titleMessageId).toBe("nav.monitor.title")
     expect(pageMetadata.get("/business/connections")?.pathLabelMessageId).toBe("nav.path.business.connections")
     expect(pageMetadata.get("/cluster/nodes")?.titleMessageId).toBe("nav.nodes.title")
+    expect(pageMetadata.get("/cluster/plugins")?.pathLabelMessageId).toBe("nav.path.cluster.plugins")
     expect(getActiveNavigationItem("/cluster/nodes")?.pathLabelMessageId).toBe("nav.path.cluster.nodes")
   })
 
