@@ -261,6 +261,39 @@ func TestLongPollFetchResponseHWOnlyEncodingKeepsAllocationsBounded(t *testing.T
 	}
 }
 
+func TestClassifyLongPollFetchResultAvoidsDecodingItems(t *testing.T) {
+	resp := LongPollFetchResponse{
+		Status:       LanePollStatusOK,
+		SessionID:    99,
+		SessionEpoch: 4,
+		TimedOut:     true,
+		Items: []LongPollItem{
+			{
+				ChannelKey:        "g-timeout",
+				ChannelEpoch:      12,
+				ChannelGeneration: 33,
+				LeaderEpoch:       22,
+				Flags:             LongPollItemFlagHWOnly,
+				LeaderHW:          88,
+			},
+		},
+	}
+	data, err := encodeLongPollFetchResponse(resp)
+	if err != nil {
+		t.Fatalf("encodeLongPollFetchResponse() error = %v", err)
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		if got := classifyLongPollFetchResult(data); got != "expected_timeout" {
+			t.Fatalf("classifyLongPollFetchResult() = %q, want expected_timeout", got)
+		}
+	})
+
+	if allocs != 0 {
+		t.Fatalf("classifyLongPollFetchResult() allocs = %v, want 0", allocs)
+	}
+}
+
 func assertLongPollFetchRequestEqual(t *testing.T, got, want LongPollFetchRequest) {
 	t.Helper()
 
