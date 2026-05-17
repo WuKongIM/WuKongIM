@@ -143,6 +143,20 @@ function formatBindingWarnings(binding: ManagerPluginBinding, intl: IntlShape) {
     : intl.formatMessage({ id: "plugins.none" })
 }
 
+function appendBindingPage(
+  current: ManagerPluginBindingsResponse | null,
+  next: ManagerPluginBindingsResponse,
+): ManagerPluginBindingsResponse {
+  if (!current) {
+    return next
+  }
+  return {
+    ...next,
+    items: [...current.items, ...next.items],
+    warnings: [...(current.warnings ?? []), ...(next.warnings ?? [])],
+  }
+}
+
 export function PluginsPage() {
   const intl = useIntl()
   const [nodes, setNodes] = useState<ManagerNodesResponse | null>(null)
@@ -317,7 +331,7 @@ export function PluginsPage() {
     }
   }
 
-  const loadBindings = useCallback(async (params: PluginBindingListParams) => {
+  const loadBindings = useCallback(async (params: PluginBindingListParams, append = false) => {
     setBindingState((current) => ({
       ...current,
       loading: true,
@@ -326,7 +340,12 @@ export function PluginsPage() {
     }))
     try {
       const page = await getPluginBindings(params)
-      setBindingState({ page, loading: false, error: null, validationError: "" })
+      setBindingState((current) => ({
+        page: append ? appendBindingPage(current.page, page) : page,
+        loading: false,
+        error: null,
+        validationError: "",
+      }))
     } catch (error) {
       setBindingState({
         page: null,
@@ -359,6 +378,14 @@ export function PluginsPage() {
     }
     await loadBindings(lastBindingParams)
   }, [lastBindingParams, loadBindings])
+
+  const loadMoreBindings = async () => {
+    const cursor = bindingState.page?.next_cursor
+    if (!lastBindingParams || !cursor) {
+      return
+    }
+    await loadBindings({ ...lastBindingParams, cursor }, true)
+  }
 
   const submitAddBinding = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -590,46 +617,60 @@ export function PluginsPage() {
         ) : null}
         {!bindingState.loading && !bindingState.error && bindingState.page ? (
           bindingState.page.items.length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full border-collapse">
-                <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.uid" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.pluginNo" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.plugin" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.warnings" })}</th>
-                    <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.actions" })}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bindingState.page.items.map((binding) => (
-                    <tr className="border-t border-border" key={`${binding.uid}:${binding.plugin_no}`}>
-                      <td className="px-3 py-3 text-sm font-medium text-foreground">{binding.uid}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{binding.plugin_no}</td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">
-                        {binding.plugin ? `${binding.plugin.name} · ${binding.plugin.version}` : intl.formatMessage({ id: "plugins.none" })}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground">{formatBindingWarnings(binding, intl)}</td>
-                      <td className="px-3 py-3 text-sm">
-                        <Button
-                          aria-label={intl.formatMessage(
-                            { id: "plugins.bindings.deleteOne" },
-                            { uid: binding.uid, pluginNo: binding.plugin_no },
-                          )}
-                          onClick={() => {
-                            setDeleteBindingError("")
-                            setDeleteBindingTarget(binding)
-                          }}
-                          size="sm"
-                          variant="outline"
-                        >
-                          {intl.formatMessage({ id: "plugins.bindings.delete" })}
-                        </Button>
-                      </td>
+            <div className="space-y-3">
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="w-full border-collapse">
+                  <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.uid" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.pluginNo" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.plugin" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.warnings" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "plugins.bindings.table.actions" })}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {bindingState.page.items.map((binding) => (
+                      <tr className="border-t border-border" key={`${binding.uid}:${binding.plugin_no}`}>
+                        <td className="px-3 py-3 text-sm font-medium text-foreground">{binding.uid}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{binding.plugin_no}</td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">
+                          {binding.plugin ? `${binding.plugin.name} · ${binding.plugin.version}` : intl.formatMessage({ id: "plugins.none" })}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-muted-foreground">{formatBindingWarnings(binding, intl)}</td>
+                        <td className="px-3 py-3 text-sm">
+                          <Button
+                            aria-label={intl.formatMessage(
+                              { id: "plugins.bindings.deleteOne" },
+                              { uid: binding.uid, pluginNo: binding.plugin_no },
+                            )}
+                            onClick={() => {
+                              setDeleteBindingError("")
+                              setDeleteBindingTarget(binding)
+                            }}
+                            size="sm"
+                            variant="outline"
+                          >
+                            {intl.formatMessage({ id: "plugins.bindings.delete" })}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {bindingState.page.has_more && bindingState.page.next_cursor ? (
+                <Button
+                  disabled={bindingState.loading}
+                  onClick={() => {
+                    void loadMoreBindings()
+                  }}
+                  size="sm"
+                  variant="outline"
+                >
+                  {intl.formatMessage({ id: "plugins.bindings.loadMore" })}
+                </Button>
+              ) : null}
             </div>
           ) : (
             <ResourceState kind="empty" title={intl.formatMessage({ id: "plugins.bindings.title" })} />

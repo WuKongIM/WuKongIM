@@ -171,6 +171,7 @@ export const enMessages: AppMessages = {
   "plugins.bindings.query": "Binding query",
   "plugins.bindings.search": "Search bindings",
   "plugins.bindings.add": "Add binding",
+  "plugins.bindings.loadMore": "Load more bindings",
   "plugins.bindings.addRequired": "Enter UID and plugin number.",
   "plugins.bindings.emptyQuery": "Enter UID or plugin number.",
   "plugins.bindings.table.uid": "UID",

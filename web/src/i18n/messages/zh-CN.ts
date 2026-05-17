@@ -170,6 +170,7 @@ export const zhCNMessages: AppMessages = {
   "plugins.bindings.query": "绑定查询内容",
   "plugins.bindings.search": "查询绑定",
   "plugins.bindings.add": "添加绑定",
+  "plugins.bindings.loadMore": "加载更多绑定",
   "plugins.bindings.addRequired": "请输入 UID 和插件编号。",
   "plugins.bindings.emptyQuery": "请输入 UID 或插件编号。",
   "plugins.bindings.table.uid": "UID",
