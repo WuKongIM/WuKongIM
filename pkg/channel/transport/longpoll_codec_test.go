@@ -67,6 +67,40 @@ func TestLongPollFetchRequestPollRoundTrip(t *testing.T) {
 	assertLongPollFetchRequestEqual(t, got, req)
 }
 
+func TestLongPollFetchRequestPollEncodingKeepsAllocationsBounded(t *testing.T) {
+	req := LongPollFetchRequest{
+		PeerID:                2,
+		LaneID:                1,
+		LaneCount:             8,
+		SessionID:             99,
+		SessionEpoch:          5,
+		Op:                    LanePollOpPoll,
+		ProtocolVersion:       1,
+		Capabilities:          LongPollCapabilityQuorumAck,
+		MaxWaitMs:             2,
+		MaxBytes:              128 * 1024,
+		MaxChannels:           16,
+		MembershipVersionHint: 77,
+		CursorDelta: []LongPollCursorDelta{
+			{ChannelKey: "g-hot", ChannelEpoch: 21, ChannelGeneration: 3, MatchOffset: 100, OffsetEpoch: 3},
+		},
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		data, err := encodeLongPollFetchRequest(req)
+		if err != nil {
+			t.Fatalf("encodeLongPollFetchRequest() error = %v", err)
+		}
+		if len(data) == 0 {
+			t.Fatal("encodeLongPollFetchRequest() returned empty payload")
+		}
+	})
+
+	if allocs >= 3 {
+		t.Fatalf("encodeLongPollFetchRequest() allocs = %v, want < 3", allocs)
+	}
+}
+
 func TestLongPollFetchRequestCloseRoundTrip(t *testing.T) {
 	req := LongPollFetchRequest{
 		PeerID:          2,
@@ -193,6 +227,38 @@ func TestLongPollFetchResponseMixedItemsRoundTrip(t *testing.T) {
 		t.Fatalf("decodeLongPollFetchResponse() error = %v", err)
 	}
 	assertLongPollFetchResponseEqual(t, got, resp)
+}
+
+func TestLongPollFetchResponseHWOnlyEncodingKeepsAllocationsBounded(t *testing.T) {
+	resp := LongPollFetchResponse{
+		Status:       LanePollStatusOK,
+		SessionID:    99,
+		SessionEpoch: 4,
+		Items: []LongPollItem{
+			{
+				ChannelKey:        "g-hw",
+				ChannelEpoch:      12,
+				ChannelGeneration: 33,
+				LeaderEpoch:       22,
+				Flags:             LongPollItemFlagHWOnly,
+				LeaderHW:          88,
+			},
+		},
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		data, err := encodeLongPollFetchResponse(resp)
+		if err != nil {
+			t.Fatalf("encodeLongPollFetchResponse() error = %v", err)
+		}
+		if len(data) == 0 {
+			t.Fatal("encodeLongPollFetchResponse() returned empty payload")
+		}
+	})
+
+	if allocs >= 3 {
+		t.Fatalf("encodeLongPollFetchResponse() allocs = %v, want < 3", allocs)
+	}
 }
 
 func assertLongPollFetchRequestEqual(t *testing.T, got, want LongPollFetchRequest) {

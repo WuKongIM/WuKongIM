@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"io"
 	"math"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -142,6 +143,54 @@ func (t *messageTable) getByMessageID(messageID uint64) (messageRow, bool, error
 		return messageRow{}, false, channel.ErrCorruptState
 	}
 	return row, true, nil
+}
+
+// compatibilityRecordBySeq materializes one compatibility record without
+// building the generic scan row batch.
+func (t *messageTable) compatibilityRecordBySeq(seq uint64) (channel.Record, bool, error) {
+	if err := t.validate(); err != nil {
+		return channel.Record{}, false, err
+	}
+	if seq == 0 {
+		return channel.Record{}, false, channel.ErrInvalidArgument
+	}
+
+	key := encodeTableStateKey(t.channelKey, TableIDMessage, seq, messagePrimaryFamilyID)
+	primary, primaryCloser, okPrimary, err := t.getBorrowedValue(key)
+	if err != nil {
+		return channel.Record{}, false, err
+	}
+	if okPrimary {
+		defer primaryCloser.Close()
+	}
+	binary.BigEndian.PutUint16(key[len(key)-2:], messagePayloadFamilyID)
+	payload, payloadCloser, okPayload, err := t.getBorrowedValue(key)
+	if err != nil {
+		return channel.Record{}, false, err
+	}
+	if okPayload {
+		defer payloadCloser.Close()
+	}
+	if !okPrimary && !okPayload {
+		return channel.Record{}, false, nil
+	}
+	if !okPrimary || !okPayload {
+		return channel.Record{}, false, channel.ErrCorruptState
+	}
+	row, err := decodeMessageFamilies(seq, primary, payload)
+	if err != nil {
+		return channel.Record{}, false, err
+	}
+	if row.PayloadHash != hashMessagePayload(row.Payload) {
+		return channel.Record{}, false, channel.ErrCorruptState
+	}
+	record, err := row.toCompatibilityRecord()
+	if err != nil {
+		return channel.Record{}, false, err
+	}
+	record.ID = row.MessageID
+	record.Index = row.MessageSeq
+	return record, true, nil
 }
 
 func (t *messageTable) scanBySeq(fromSeq uint64, limit int, maxBytes int) ([]messageRow, error) {
@@ -596,6 +645,19 @@ func (t *messageTable) getValue(key []byte) ([]byte, bool, error) {
 	}
 	defer closer.Close()
 	return append([]byte(nil), value...), true, nil
+}
+
+// getBorrowedValue returns a Pebble-owned value view that must be closed by
+// the caller before the next use of the slice escapes.
+func (t *messageTable) getBorrowedValue(key []byte) ([]byte, io.Closer, bool, error) {
+	value, closer, err := t.db.Get(key)
+	if err != nil {
+		if errors.Is(err, pebble.ErrNotFound) {
+			return nil, nil, false, nil
+		}
+		return nil, nil, false, err
+	}
+	return value, closer, true, nil
 }
 
 func (t *messageTable) validate() error {

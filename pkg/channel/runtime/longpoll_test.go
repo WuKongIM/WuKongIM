@@ -38,6 +38,71 @@ func TestRuntimeLongPollServeLanePollTimesOutWhenLaneHasNoReadyItems(t *testing.
 	require.NotZero(t, resp.SessionEpoch)
 }
 
+func TestRuntimeLongPollHWOnlyReadySkipsFetchWhenFollowerAtLEO(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+	})
+	meta := testMetaLocal(27010, 4, 1, []core.NodeID{1, 2})
+	mustEnsureLocal(t, env.runtime, meta)
+	replica := env.factory.replicas[0]
+	laneID := testFollowerLaneFor(meta.Key, 4)
+
+	openResp, err := env.runtime.ServeLanePoll(context.Background(), LanePollRequestEnvelope{
+		ReplicaID:   2,
+		LaneID:      laneID,
+		LaneCount:   4,
+		Op:          LanePollOpOpen,
+		MaxWait:     time.Millisecond,
+		MaxBytes:    64 * 1024,
+		MaxChannels: 64,
+		FullMembership: []LaneMembership{
+			{ChannelKey: meta.Key, ChannelEpoch: meta.Epoch, ChannelGeneration: 1},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, openResp.TimedOut)
+
+	replica.mu.Lock()
+	replica.state.LEO = 5
+	replica.state.HW = 5
+	replica.state.CheckpointHW = 5
+	replica.state.OffsetEpoch = meta.Epoch
+	replica.fetchResult = core.ReplicaFetchResult{HW: 5}
+	replica.fetchCalls = 0
+	replica.mu.Unlock()
+	session, ok := env.runtime.leaderLanes.Session(PeerLaneKey{Peer: 2, LaneID: laneID})
+	require.True(t, ok)
+	session.MarkHWOnlyReady(meta.Key, meta.Epoch)
+
+	resp, err := env.runtime.ServeLanePoll(context.Background(), LanePollRequestEnvelope{
+		ReplicaID:    2,
+		LaneID:       laneID,
+		LaneCount:    4,
+		SessionID:    openResp.SessionID,
+		SessionEpoch: openResp.SessionEpoch,
+		Op:           LanePollOpPoll,
+		MaxWait:      time.Millisecond,
+		MaxBytes:     64 * 1024,
+		MaxChannels:  64,
+		CursorDelta: []LaneCursorDelta{{
+			ChannelKey:        meta.Key,
+			ChannelEpoch:      meta.Epoch,
+			ChannelGeneration: 1,
+			MatchOffset:       5,
+			OffsetEpoch:       meta.Epoch,
+		}},
+	})
+	require.NoError(t, err)
+	require.False(t, resp.TimedOut)
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, LanePollItemFlagHWOnly, resp.Items[0].Flags)
+	require.Equal(t, uint64(5), resp.Items[0].LeaderHW)
+	require.Equal(t, 0, replica.fetchCalls)
+}
+
 func TestLongPollOpenActivatesTrackedMissingChannels(t *testing.T) {
 	activator := &recordingActivator{}
 	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {

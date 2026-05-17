@@ -1458,6 +1458,57 @@ func TestSessionLongPollResponseActivatesMissingFollowerChannel(t *testing.T) {
 	replica.mu.Unlock()
 }
 
+func TestSessionLongPollHWOnlyResponseSkipsApplyFetchWhenFollowerAlreadyCommitted(t *testing.T) {
+	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
+		cfg.LongPollLaneCount = 4
+		cfg.LongPollMaxWait = time.Millisecond
+		cfg.LongPollMaxBytes = 64 * 1024
+		cfg.LongPollMaxChannels = 64
+		cfg.FollowerReplicationRetryInterval = time.Hour
+	})
+	meta := testMetaLocal(26023, 4, 2, []core.NodeID{1, 2})
+	key := meta.Key
+	mustEnsureLocal(t, env.runtime, meta)
+
+	replica := env.factory.replicas[0]
+	replica.mu.Lock()
+	replica.state.LEO = 5
+	replica.state.HW = 5
+	replica.state.OffsetEpoch = meta.Epoch
+	replica.state.CommitReady = true
+	replica.mu.Unlock()
+
+	manager := env.runtime.ensureLaneManager(meta.Leader)
+	laneID := manager.LaneFor(key)
+	req, ok := manager.NextRequest(laneID)
+	require.True(t, ok)
+
+	env.transport.deliver(Envelope{
+		Peer: meta.Leader,
+		Kind: MessageKindLanePollResponse,
+		Sync: true,
+		LanePollResponse: &LanePollResponseEnvelope{
+			LaneID:       laneID,
+			Status:       LanePollStatusOK,
+			SessionID:    501,
+			SessionEpoch: 1,
+			Items: []LaneResponseItem{
+				{
+					ChannelKey:        key,
+					ChannelEpoch:      meta.Epoch,
+					ChannelGeneration: req.FullMembership[0].ChannelGeneration,
+					LeaderHW:          5,
+					Flags:             LanePollItemFlagHWOnly,
+				},
+			},
+		},
+	})
+
+	replica.mu.Lock()
+	require.Equal(t, 0, replica.applyFetchCalls)
+	replica.mu.Unlock()
+}
+
 func TestSessionLongPollRetentionResetDoesNotRegressFollowerCursor(t *testing.T) {
 	env := newSessionTestEnvWithConfig(t, func(cfg *Config) {
 		cfg.LongPollLaneCount = 4

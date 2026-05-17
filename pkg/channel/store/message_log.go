@@ -132,11 +132,27 @@ func (s *ChannelStore) Read(from uint64, maxBytes int) ([]channel.Record, error)
 		return nil, nil
 	}
 
+	if seq, ok := s.singleRecordReadSeq(from); ok {
+		record, found, err := s.messageTable().compatibilityRecordBySeq(seq)
+		if err != nil || !found {
+			return nil, err
+		}
+		return []channel.Record{record}, nil
+	}
+
 	rows, err := s.messageTable().scanBySeq(from+1, maxLogScanLimit(), maxBytes)
 	if err != nil {
 		return nil, err
 	}
 	return compatibilityRecordsFromRows(rows)
+}
+
+func (s *ChannelStore) singleRecordReadSeq(from uint64) (uint64, bool) {
+	if s == nil || !s.loaded.Load() || s.writeInProgress.Load() {
+		return 0, false
+	}
+	seq := from + 1
+	return seq, seq == s.leo.Load()
 }
 
 func (s *ChannelStore) ReadOffsets(fromOffset uint64, limit int, maxBytes int) ([]LogRecord, error) {

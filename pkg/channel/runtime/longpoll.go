@@ -189,6 +189,22 @@ func (r *runtime) selectLaneReadyItem(ctx context.Context, cursor LaneCursorDelt
 		}, true
 	}
 	state := ch.Status()
+	if canServeHWOnlyLaneReadyWithoutFetch(mask, cursor, state) {
+		return LeaderLaneReadyItem{
+			ChannelKey:        key,
+			ChannelEpoch:      state.Epoch,
+			ChannelGeneration: cursor.ChannelGeneration,
+			ReadyMask:         mask,
+			Response: LaneResponseItem{
+				ChannelKey:        key,
+				ChannelEpoch:      state.Epoch,
+				ChannelGeneration: cursor.ChannelGeneration,
+				LeaderEpoch:       state.Epoch,
+				Flags:             LanePollItemFlagHWOnly,
+				LeaderHW:          visibleLanePollHW(state),
+			},
+		}, true
+	}
 	fetchResult, err := ch.replica.Fetch(ctx, core.ReplicaFetchRequest{
 		ChannelKey:  key,
 		Epoch:       state.Epoch,
@@ -244,6 +260,25 @@ func (r *runtime) selectLaneReadyItem(ctx context.Context, cursor LaneCursorDelt
 		finished = true
 	}
 	return item, finished
+}
+
+func canServeHWOnlyLaneReadyWithoutFetch(mask laneReadyMask, cursor LaneCursorDelta, state core.ReplicaState) bool {
+	if mask != laneReadyHWOnly {
+		return false
+	}
+	// A pure HW wake only needs a fetch when the follower cursor could still
+	// require records, truncation, or retention repair.
+	return cursor.MatchOffset == state.LEO && cursor.OffsetEpoch == state.OffsetEpoch
+}
+
+func visibleLanePollHW(state core.ReplicaState) uint64 {
+	if state.CommitReady {
+		return state.HW
+	}
+	if state.CheckpointHW < state.HW {
+		return state.CheckpointHW
+	}
+	return state.HW
 }
 
 func itemToLaneResponse(item LeaderLaneReadyItem) LaneResponseItem {
