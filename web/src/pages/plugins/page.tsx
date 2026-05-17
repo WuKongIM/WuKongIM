@@ -101,17 +101,19 @@ function formatConfig(config?: Record<string, unknown>) {
   return JSON.stringify(config ?? {}, null, 2)
 }
 
-function parseConfigObject(raw: string, intl: IntlShape): { error: string; value?: never } | { error?: never; value: Record<string, unknown> } {
+type ParseConfigResult = { ok: true; value: Record<string, unknown> } | { ok: false; error: string }
+
+function parseConfigObject(raw: string, intl: IntlShape): ParseConfigResult {
   let value: unknown
   try {
     value = JSON.parse(raw)
   } catch {
-    return { error: intl.formatMessage({ id: "plugins.config.invalidJSON" }) }
+    return { ok: false, error: intl.formatMessage({ id: "plugins.config.invalidJSON" }) }
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { error: intl.formatMessage({ id: "plugins.config.notObject" }) }
+    return { ok: false, error: intl.formatMessage({ id: "plugins.config.notObject" }) }
   }
-  return { value: value as Record<string, unknown> }
+  return { ok: true, value: value as Record<string, unknown> }
 }
 
 function pluginSummary(page: ManagerNodePluginsResponse | null) {
@@ -272,7 +274,7 @@ export function PluginsPage() {
       return
     }
     const parsed = parseConfigObject(configText, intl)
-    if (parsed.error) {
+    if (!parsed.ok) {
       setConfigError(parsed.error)
       return
     }
