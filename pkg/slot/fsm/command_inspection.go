@@ -83,6 +83,13 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 		return simpleInspection("advance_cmd_conversation_read_seq", map[string]any{
 			"patches": cmdConversationReadPatchesPayload(typed.patches),
 		}), nil
+	case *bindPluginUserCmd:
+		return pluginBindingInspection("bind_plugin_user", typed.binding), nil
+	case *unbindPluginUserCmd:
+		return simpleInspection("unbind_plugin_user", map[string]any{
+			"uid":       typed.uid,
+			"plugin_no": typed.pluginNo,
+		}), nil
 	case *applyDeltaCmd:
 		return applyDeltaInspection(typed)
 	case *enterFenceCmd:
@@ -232,6 +239,15 @@ func channelMigrationGuardInspection(commandType string, guard metadb.ChannelMig
 		"channel_type":    guard.ChannelType,
 		"expected_status": guard.ExpectedStatus,
 		"expected_phase":  guard.ExpectedPhase,
+	})
+}
+
+func pluginBindingInspection(commandType string, binding metadb.PluginUserBinding) CommandInspection {
+	return simpleInspection(commandType, map[string]any{
+		"uid":           binding.UID,
+		"plugin_no":     binding.PluginNo,
+		"created_at_ms": binding.CreatedAtMS,
+		"updated_at_ms": binding.UpdatedAtMS,
 	})
 }
 

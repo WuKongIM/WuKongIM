@@ -387,6 +387,13 @@ func build(cfg Config) (_ *App, err error) {
 	)
 	app.nodeClient = accessnode.NewClient(app.cluster)
 	app.channelLog.remoteAppender = app.nodeClient
+	var pluginSystemUIDs *pluginSystemUIDCheckerRef
+	if cfg.Plugin.Enable {
+		pluginSystemUIDs = &pluginSystemUIDCheckerRef{}
+		if err := app.buildPluginSubsystem(cfg, pluginSystemUIDs); err != nil {
+			return nil, fmt.Errorf("app: create plugin subsystem: %w", err)
+		}
+	}
 	app.cmdConversationUpdater = cmdsync.NewConversationUpdater(cmdsync.ConversationUpdaterOptions{
 		Store:          app.store,
 		DataDir:        cfg.Node.DataDir,
@@ -559,17 +566,23 @@ func build(cfg Config) (_ *App, err error) {
 		deliveryMetrics = app.metrics.Delivery
 		deliveryObserver = deliveryRuntimeMetricsObserver{metrics: deliveryMetrics}
 	}
+	var offlineResolvedObserver deliveryruntime.OfflineResolvedObserver
+	if app.pluginApp != nil {
+		app.pluginReceiveObserver = newPluginReceiveObserver(app.pluginApp, cfg.Plugin.Timeout, app.logger.Named("plugin.receive"))
+		offlineResolvedObserver = app.pluginReceiveObserver
+	}
 	app.deliveryRuntime = deliveryruntime.NewManager(deliveryruntime.Config{
 		ShardCount: deliveryShardCountForParallelism(runtime.GOMAXPROCS(0)),
 		Resolver: tagDeliveryResolver{
-			localNodeID: cfg.Node.ID,
-			tags:        deliveryTagManager,
-			subscribers: subscriberResolver,
-			authority:   authorityClient,
-			topology:    deliveryTagTopologyReaderAdapter{cluster: app.cluster},
-			uidObserver: cmdUIDObserver,
-			metrics:     deliveryMetrics,
-			logger:      app.logger.Named("delivery.resolve"),
+			localNodeID:        cfg.Node.ID,
+			tags:               deliveryTagManager,
+			subscribers:        subscriberResolver,
+			authority:          authorityClient,
+			topology:           deliveryTagTopologyReaderAdapter{cluster: app.cluster},
+			uidObserver:        cmdUIDObserver,
+			collectOfflineUIDs: offlineResolvedObserver != nil,
+			metrics:            deliveryMetrics,
+			logger:             app.logger.Named("delivery.resolve"),
 		},
 		Push: distributedDeliveryPush{
 			localNodeID: cfg.Node.ID,
@@ -583,7 +596,8 @@ func build(cfg Config) (_ *App, err error) {
 			metrics: deliveryMetrics,
 			logger:  app.logger.Named("delivery.push.remote"),
 		},
-		Observer: deliveryObserver,
+		Observer:                deliveryObserver,
+		OfflineResolvedObserver: offlineResolvedObserver,
 	})
 	app.deliveryRuntimeLifecycle = newDeliveryRuntimeLifecycle(deliveryRuntimeLifecycleConfig{
 		Runtime:  app.deliveryRuntime,
@@ -617,7 +631,18 @@ func build(cfg Config) (_ *App, err error) {
 		Logger:       app.logger.Named("committed.replay"),
 		Metrics:      messageMetrics,
 	})
-	committedDispatcher := committedFanout{subscribers: []committedSubscriber{app.committedDispatcher, app.committedReplayer}}
+	deliverySubmitDispatcher := committedFanout{subscribers: []committedSubscriber{app.committedDispatcher, app.committedReplayer}}
+	committedSubscribers := []committedSubscriber{app.committedDispatcher, app.committedReplayer}
+	if app.pluginApp != nil {
+		committedSubscribers = append(committedSubscribers, pluginCommittedRouter{
+			localNodeID:   cfg.Node.ID,
+			channelLog:    app.channelLog,
+			nodeClient:    app.nodeClient,
+			pluginUsecase: app.pluginApp,
+			logger:        app.logger.Named("plugin.committed"),
+		})
+	}
+	committedDispatcher := committedFanout{subscribers: committedSubscribers}
 	managerRetention := &managerMessageRetentionOperator{
 		localNodeID: cfg.Node.ID,
 		metas:       app.store,
@@ -636,6 +661,9 @@ func build(cfg Config) (_ *App, err error) {
 		Online:       onlineRegistry,
 		Logger:       app.logger.Named("user"),
 	})
+	if pluginSystemUIDs != nil {
+		pluginSystemUIDs.target = userApp
+	}
 	app.userApp = userApp
 	clusterUsers := &clusterUserUsecase{
 		local:       userApp,
@@ -652,7 +680,7 @@ func build(cfg Config) (_ *App, err error) {
 		ChannelLog:            app.channelLog,
 		ChannelLogDB:          app.channelLogDB,
 		ChannelMeta:           app.channelMetaSync,
-		DeliverySubmit:        deliveryRuntimeCommittedSubmitter{target: committedDispatcher},
+		DeliverySubmit:        deliveryRuntimeCommittedSubmitter{target: deliverySubmitDispatcher},
 		DeliveryAck:           app.deliveryApp,
 		DeliveryOffline:       app.deliveryApp,
 		DeliveryTag:           deliveryTagAuthority{tags: deliveryTagManager},
@@ -671,8 +699,11 @@ func build(cfg Config) (_ *App, err error) {
 			cluster:     app.cluster,
 			localNodeID: cfg.Node.ID,
 		},
-		SystemUIDCache: userApp,
-		Logger:         app.logger.Named("access.node"),
+		SystemUIDCache:   userApp,
+		PluginHTTPRoutes: app.pluginApp,
+		PluginManagement: app.pluginApp,
+		PluginCommitted:  app.pluginApp,
+		Logger:           app.logger.Named("access.node"),
 	})
 	app.messageApp = message.New(message.Options{
 		IdentityStore:          app.store,
@@ -695,6 +726,7 @@ func build(cfg Config) (_ *App, err error) {
 		CommittedDispatcher:    committedDispatcher,
 		CMDConversationIntents: cmdIntentRouter,
 		RealtimeDispatcher:     app.deliveryApp,
+		SendHook:               app.pluginApp,
 		MessageIDs:             messageIDs,
 		DeliveryAck: ackRouting{
 			localNodeID: cfg.Node.ID,
@@ -712,6 +744,16 @@ func build(cfg Config) (_ *App, err error) {
 		Logger:      app.logger.Named("message"),
 	})
 	if cfg.Manager.ListenAddr != "" {
+		var pluginNodes managementusecase.PluginNodeClient
+		var pluginBindings managementusecase.PluginBindingUsecase
+		if app.pluginApp != nil {
+			pluginNodes = pluginManagementNodeClient{
+				localNodeID: cfg.Node.ID,
+				local:       app.pluginApp,
+				remote:      app.nodeClient,
+			}
+			pluginBindings = app.pluginApp
+		}
 		app.managementApp = managementusecase.New(managementusecase.Options{
 			LocalNodeID:       cfg.Node.ID,
 			ControllerPeerIDs: controllerPeerIDs(cfg.Cluster.DerivedControllerNodes(), cfg.Cluster.runtimeSeeds()),
@@ -765,6 +807,8 @@ func build(cfg Config) (_ *App, err error) {
 				metas:       app.store,
 				remote:      app.nodeClient,
 			},
+			Plugins:        pluginNodes,
+			PluginBindings: pluginBindings,
 		})
 		app.manager = accessmanager.New(accessmanager.Options{
 			ListenAddr: cfg.Manager.ListenAddr,
@@ -825,6 +869,7 @@ func build(cfg Config) (_ *App, err error) {
 			DebugCluster:             app.debugClusterSnapshot,
 			DiagnosticsDebugEnabled:  cfg.Observability.Diagnostics.Enabled && cfg.Observability.Diagnostics.DebugAPIEnabled,
 			Diagnostics:              app,
+			PluginRoutes:             app.pluginApp,
 			LegacyRouteExternal:      legacyRouteExternal,
 			LegacyRouteIntranet:      legacyRouteIntranet,
 			LegacyRouteNodes:         legacyRouteNodes,

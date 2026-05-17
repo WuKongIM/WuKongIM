@@ -250,12 +250,12 @@ func BenchmarkLocalDeliveryResolverResolvePagePersonChannel(b *testing.B) {
 		if err != nil {
 			b.Fatalf("begin resolve: %v", err)
 		}
-		routes, _, done, err := resolver.ResolvePage(context.Background(), token, "", 256)
+		page, err := resolver.ResolvePage(context.Background(), token, "", 256)
 		if err != nil {
 			b.Fatalf("resolve page: %v", err)
 		}
-		if !done || len(routes) != 1 {
-			b.Fatalf("routes=%d done=%v, want one done route", len(routes), done)
+		if !page.Done || len(page.Routes) != 1 {
+			b.Fatalf("routes=%d done=%v, want one done route", len(page.Routes), page.Done)
 		}
 	}
 }

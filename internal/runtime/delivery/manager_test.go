@@ -151,7 +151,7 @@ func (r *stubResolver) BeginResolve(_ context.Context, key ChannelKey, _ Committ
 	return key.ChannelID, nil
 }
 
-func (r *stubResolver) ResolvePage(_ context.Context, token any, cursor string, limit int) ([]RouteKey, string, bool, error) {
+func (r *stubResolver) ResolvePage(_ context.Context, token any, cursor string, limit int) (ResolvePageResult, error) {
 	key := ChannelKey{ChannelID: token.(string)}
 	routes := r.routesByChannel[key.ChannelID]
 	start := 0
@@ -164,7 +164,7 @@ func (r *stubResolver) ResolvePage(_ context.Context, token any, cursor string, 
 		}
 	}
 	if start >= len(routes) {
-		return nil, cursor, true, nil
+		return ResolvePageResult{NextCursor: cursor, Done: true}, nil
 	}
 	if limit <= 0 {
 		limit = len(routes) - start
@@ -178,7 +178,7 @@ func (r *stubResolver) ResolvePage(_ context.Context, token any, cursor string, 
 	if len(page) > 0 {
 		nextCursor = page[len(page)-1].UID
 	}
-	return page, nextCursor, end >= len(routes), nil
+	return ResolvePageResult{Routes: page, NextCursor: nextCursor, Done: end >= len(routes)}, nil
 }
 
 func (r *stubResolver) ResolveRoutes(_ context.Context, key ChannelKey, _ CommittedEnvelope) ([]RouteKey, error) {

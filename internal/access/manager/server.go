@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-gonic/gin"
@@ -157,6 +159,22 @@ type Management interface {
 	GetDashboardMetrics(window, step time.Duration) (managementusecase.DashboardMetricsResult, error)
 	// GetMonitorMetrics returns timestamped real-time monitor metrics for the requested node scope.
 	GetMonitorMetrics(ctx context.Context, nodeID uint64, window, step time.Duration) (managementusecase.MonitorMetricsResult, error)
+	// ListNodePlugins returns one node's local plugin inventory.
+	ListNodePlugins(ctx context.Context, nodeID uint64) (pluginusecase.LocalPluginList, error)
+	// GetNodePlugin returns one node-local plugin detail.
+	GetNodePlugin(ctx context.Context, nodeID uint64, pluginNo string) (pluginusecase.LocalPluginDetail, error)
+	// UpdateNodePluginConfig persists desired config for one node-local plugin.
+	UpdateNodePluginConfig(ctx context.Context, nodeID uint64, pluginNo string, config json.RawMessage) (pluginusecase.LocalPluginDetail, error)
+	// RestartNodePlugin restarts one node-local plugin process.
+	RestartNodePlugin(ctx context.Context, nodeID uint64, pluginNo string) (pluginusecase.LocalPluginDetail, error)
+	// UninstallNodePlugin disables and removes one node-local plugin process.
+	UninstallNodePlugin(ctx context.Context, nodeID uint64, pluginNo string) error
+	// ListPluginBindings returns cluster-authoritative plugin-user bindings.
+	ListPluginBindings(ctx context.Context, req managementusecase.PluginBindingListRequest) (managementusecase.PluginBindingListResponse, error)
+	// BindPluginUser creates or updates a cluster-authoritative plugin-user binding.
+	BindPluginUser(ctx context.Context, req managementusecase.PluginBindingMutationRequest) (managementusecase.PluginBindingMutationResponse, error)
+	// UnbindPluginUser removes a cluster-authoritative plugin-user binding.
+	UnbindPluginUser(ctx context.Context, req managementusecase.PluginBindingMutationRequest) error
 }
 
 // PermissionConfig binds a resource to allowed actions.

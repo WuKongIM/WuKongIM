@@ -732,7 +732,7 @@ func (r *pagedStubResolver) BeginResolve(_ context.Context, key ChannelKey, _ Co
 	return key.ChannelID, nil
 }
 
-func (r *pagedStubResolver) ResolvePage(_ context.Context, token any, _ string, _ int) ([]RouteKey, string, bool, error) {
+func (r *pagedStubResolver) ResolvePage(_ context.Context, token any, _ string, _ int) (ResolvePageResult, error) {
 	if r.pageCalls == nil {
 		r.pageCalls = make(map[string]int)
 	}
@@ -740,14 +740,14 @@ func (r *pagedStubResolver) ResolvePage(_ context.Context, token any, _ string, 
 	call := r.pageCalls[channelID]
 	r.pageCalls[channelID] = call + 1
 	page := r.pagesByChannel[channelID][call]
-	return append([]RouteKey(nil), page.routes...), page.nextCursor, page.done, nil
+	return ResolvePageResult{Routes: append([]RouteKey(nil), page.routes...), NextCursor: page.nextCursor, Done: page.done}, nil
 }
 
 func (r *messagePagedResolver) BeginResolve(_ context.Context, _ ChannelKey, env CommittedEnvelope) (any, error) {
 	return env.MessageID, nil
 }
 
-func (r *messagePagedResolver) ResolvePage(_ context.Context, token any, _ string, _ int) ([]RouteKey, string, bool, error) {
+func (r *messagePagedResolver) ResolvePage(_ context.Context, token any, _ string, _ int) (ResolvePageResult, error) {
 	if r.pageCalls == nil {
 		r.pageCalls = make(map[uint64]int)
 	}
@@ -755,20 +755,20 @@ func (r *messagePagedResolver) ResolvePage(_ context.Context, token any, _ strin
 	call := r.pageCalls[messageID]
 	r.pageCalls[messageID] = call + 1
 	page := r.pagesByMessageID[messageID][call]
-	return append([]RouteKey(nil), page.routes...), page.nextCursor, page.done, nil
+	return ResolvePageResult{Routes: append([]RouteKey(nil), page.routes...), NextCursor: page.nextCursor, Done: page.done}, nil
 }
 
 func (r *flakyResolver) BeginResolve(_ context.Context, key ChannelKey, env CommittedEnvelope) (any, error) {
 	return flakyResolveToken{channelID: key.ChannelID, messageID: env.MessageID}, nil
 }
 
-func (r *flakyResolver) ResolvePage(_ context.Context, token any, _ string, _ int) ([]RouteKey, string, bool, error) {
+func (r *flakyResolver) ResolvePage(_ context.Context, token any, _ string, _ int) (ResolvePageResult, error) {
 	resolveToken := token.(flakyResolveToken)
 	if err := r.failMessageIDs[resolveToken.messageID]; err != nil {
 		delete(r.failMessageIDs, resolveToken.messageID)
-		return nil, "", false, err
+		return ResolvePageResult{}, err
 	}
-	return append([]RouteKey(nil), r.routesByChannel[resolveToken.channelID]...), "", true, nil
+	return ResolvePageResult{Routes: append([]RouteKey(nil), r.routesByChannel[resolveToken.channelID]...), Done: true}, nil
 }
 
 func TestDeliveryActorDoesNotHoldLockDuringResolveIO(t *testing.T) {
@@ -891,17 +891,17 @@ func (r *blockingSecondPageResolver) BeginResolve(_ context.Context, key Channel
 	return key.ChannelID, nil
 }
 
-func (r *blockingSecondPageResolver) ResolvePage(_ context.Context, _ any, _ string, _ int) ([]RouteKey, string, bool, error) {
+func (r *blockingSecondPageResolver) ResolvePage(_ context.Context, _ any, _ string, _ int) (ResolvePageResult, error) {
 	r.mu.Lock()
 	call := r.pageCalls
 	r.pageCalls++
 	r.mu.Unlock()
 	if call == 0 {
-		return append([]RouteKey(nil), r.firstRoutes...), "after-first", false, nil
+		return ResolvePageResult{Routes: append([]RouteKey(nil), r.firstRoutes...), NextCursor: "after-first"}, nil
 	}
 	r.once.Do(func() { close(r.started) })
 	<-r.release
-	return []RouteKey{r.secondRoute}, "", true, nil
+	return ResolvePageResult{Routes: []RouteKey{r.secondRoute}, Done: true}, nil
 }
 
 func (r *blockingSecondPageResolver) WaitForBlockedPage(t *testing.T) {

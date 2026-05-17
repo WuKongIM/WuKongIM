@@ -1,8 +1,30 @@
 package message
 
 import (
+	"errors"
+
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+)
+
+const (
+	// DefaultPluginSendMaxHookDepth limits plugin-origin Send hook recursion.
+	DefaultPluginSendMaxHookDepth = 1
+)
+
+var (
+	// ErrSendHookDepthExceeded reports that a plugin-origin send exceeded hook recursion limits.
+	ErrSendHookDepthExceeded = errors.New("usecase/message: send hook depth exceeded")
+)
+
+// SendOrigin identifies where a SendCommand entered the message usecase.
+type SendOrigin string
+
+const (
+	// SendOriginClient marks sends that originated from a client or trusted host caller.
+	SendOriginClient SendOrigin = "client"
+	// SendOriginPlugin marks sends that originated from a plugin host RPC.
+	SendOriginPlugin SendOrigin = "plugin"
 )
 
 type SendCommand struct {
@@ -31,6 +53,12 @@ type SendCommand struct {
 	ProtocolVersion      uint8
 	ExpectedChannelEpoch uint64
 	ExpectedLeaderEpoch  uint64
+	// Origin identifies the caller class for plugin hook recursion controls.
+	Origin SendOrigin
+	// HookDepth records how many plugin Send hook layers have already run.
+	HookDepth int
+	// SkipPluginHooks bypasses Send hook invocation for trusted internal paths.
+	SkipPluginHooks bool
 }
 
 type CommittedMessageEnvelope struct {
