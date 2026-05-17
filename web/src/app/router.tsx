@@ -14,6 +14,7 @@ import { MessagesPage } from "@/pages/messages/page"
 import { MonitorPage } from "@/pages/monitor/page"
 import { NodesPage } from "@/pages/nodes/page"
 import { PermissionsPage } from "@/pages/settings/permissions/page"
+import { PluginsPage } from "@/pages/plugins/page"
 import { SlotsPage } from "@/pages/slots/page"
 import { SystemUsersPage } from "@/pages/system-users/page"
 import { TasksPage } from "@/pages/tasks/page"
@@ -54,6 +55,7 @@ export const routes: RouteObject[] = [
       { path: "cluster/nodes", element: <NodesPage /> },
       { path: "cluster/slots", element: <SlotsPage /> },
       { path: "cluster/channels", element: <ClusterChannelsPage /> },
+      { path: "cluster/plugins", element: <PluginsPage /> },
       { path: "cluster/tasks", element: <TasksPage /> },
       { path: "cluster/topology", element: <TopologyPage /> },
       { path: "cluster/diagnostics", element: <ClusterDiagnosticsPage /> },

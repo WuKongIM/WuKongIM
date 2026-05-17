@@ -68,7 +68,7 @@ test("renders the app shell for authenticated routes", async () => {
 
 test("renders the shell for redesigned cluster routes", async () => {
   useAuthStore.setState(authenticatedState())
-  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/nodes"] })
+  const router = createMemoryRouter(routes, { initialEntries: ["/cluster/plugins"] })
 
   render(
     <AppProviders>

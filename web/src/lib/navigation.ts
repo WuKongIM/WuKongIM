@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   Network,
+  Puzzle,
   Radar,
   Server,
   Settings,
@@ -71,6 +72,13 @@ export const navigationSections: NavigationSection[] = [
         pathLabelMessageId: "nav.path.cluster.channels",
         icon: Network,
         aliases: ["/channel-cluster", "/channel-cluster/list", "/channel-cluster/unhealthy", "/channels"],
+      },
+      {
+        href: "/cluster/plugins",
+        titleMessageId: "nav.plugins.title",
+        descriptionMessageId: "nav.plugins.description",
+        pathLabelMessageId: "nav.path.cluster.plugins",
+        icon: Puzzle,
       },
       {
         href: "/cluster/tasks",
