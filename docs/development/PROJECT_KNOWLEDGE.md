@@ -81,6 +81,7 @@
 ### Send stress performance
 - Send stress regression was concentrated in the leader durable path, not gateway ACK handling: `gateway.write_sendack` is microsecond-scale, while `store.commit.pebble_sync` and durable mutex/append waits dominate.
 - Same-channel append batching and commit-coordinator batching often add waits without building large batches, so a sync still tends to carry only about one request and a few records.
+- Throughput-mode send stress can also be capped before durable send by `gateway.async_dispatch_wait`; the acceptance preset uses a larger bounded async SEND worker pool so queued SEND frames can reach the durable path concurrently.
 
 ## Cluster Membership
 

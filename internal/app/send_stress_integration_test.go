@@ -815,6 +815,7 @@ func logSendStressTraceSummaries(t *testing.T, collector *sendTraceCollector) {
 	}
 	for _, summary := range summarizeSendTraceStages(
 		collector.Snapshot(),
+		sendtrace.StageGatewayAsyncDispatchWait,
 		sendtrace.StageGatewayMessagesSend,
 		sendtrace.StageGatewayWriteSendack,
 		sendtrace.StageMessageSendDurable,
