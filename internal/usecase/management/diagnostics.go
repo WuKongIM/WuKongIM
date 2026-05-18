@@ -103,6 +103,9 @@ type DiagnosticsEvent struct {
 	ErrorCode    string
 	Error        string
 	Attempt      int
+	RequestCount int
+	RecordCount  int
+	ByteCount    int
 	QueueDepth   int
 	ReplicaRole  string
 	SampleReason string
@@ -279,6 +282,9 @@ func managerDiagnosticsEvent(event diagnostics.Event) DiagnosticsEvent {
 		ErrorCode:    string(event.ErrorCode),
 		Error:        event.Error,
 		Attempt:      event.Attempt,
+		RequestCount: event.RequestCount,
+		RecordCount:  event.RecordCount,
+		ByteCount:    event.ByteCount,
 		QueueDepth:   event.QueueDepth,
 		ReplicaRole:  event.ReplicaRole,
 		SampleReason: event.SampleReason,

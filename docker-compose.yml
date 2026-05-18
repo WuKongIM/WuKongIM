@@ -5,6 +5,14 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    environment: &wk-node-observability-env
+      # Keep pprof enabled while disabling high-frequency observability hooks
+      # for the default 1000-channel dev-sim throughput profile.
+      WK_HEALTH_DEBUG_ENABLE: ${WK_HEALTH_DEBUG_ENABLE:-true}
+      WK_METRICS_ENABLE: ${WK_METRICS_ENABLE:-false}
+      WK_DIAGNOSTICS_ENABLE: ${WK_DIAGNOSTICS_ENABLE:-false}
+      WK_NETWORK_OBSERVABILITY_ENABLE: ${WK_NETWORK_OBSERVABILITY_ENABLE:-false}
+      WK_CONVERSATION_ACTIVE_HINT_FLUSH_INTERVAL: ${WK_CONVERSATION_ACTIVE_HINT_FLUSH_INTERVAL:-5m}
     volumes:
       - ./docker/conf/node1.conf:/etc/wukongim/wukongim.conf:ro
       - ./docker/dev-cluster/node1:/var/lib/wukongim
@@ -20,6 +28,7 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    environment: *wk-node-observability-env
     volumes:
       - ./docker/conf/node2.conf:/etc/wukongim/wukongim.conf:ro
       - ./docker/dev-cluster/node2:/var/lib/wukongim
@@ -35,6 +44,7 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    environment: *wk-node-observability-env
     volumes:
       - ./docker/conf/node3.conf:/etc/wukongim/wukongim.conf:ro
       - ./docker/dev-cluster/node3:/var/lib/wukongim
@@ -62,16 +72,17 @@ services:
       - --config
       - /etc/wkbench/dev-sim.yaml
     environment:
-      # Default Compose simulator target: 100 person channels + 100 group channels
-      # at 5 msg/s each, roughly 1000 ingress messages per second. Receive
+      # Default Compose simulator target: 500 person channels + 500 group channels
+      # at 0.25 msg/s each, roughly 250 ingress messages per second. Receive
       # verification defaults to none so local send pressure is not throttled.
-      WK_SIM_USERS: ${WK_SIM_USERS:-500}
-      WK_SIM_PERSON_CHANNELS: ${WK_SIM_PERSON_CHANNELS:-100}
-      WK_SIM_GROUP_CHANNELS: ${WK_SIM_GROUP_CHANNELS:-100}
+      WK_SIM_USERS: ${WK_SIM_USERS:-1000}
+      WK_SIM_PERSON_CHANNELS: ${WK_SIM_PERSON_CHANNELS:-500}
+      WK_SIM_GROUP_CHANNELS: ${WK_SIM_GROUP_CHANNELS:-500}
       WK_SIM_GROUP_MEMBERS: ${WK_SIM_GROUP_MEMBERS:-10}
-      WK_SIM_RATE: ${WK_SIM_RATE:-5/s}
+      WK_SIM_RATE: ${WK_SIM_RATE:-0.25/s}
+      WK_SIM_TRAFFIC_CONCURRENCY: ${WK_SIM_TRAFFIC_CONCURRENCY:-128}
       WK_SIM_VERIFY_RECV: ${WK_SIM_VERIFY_RECV:-none}
-      WK_SIM_UID_PREFIX: ${WK_SIM_UID_PREFIX:-}
+      WK_SIM_UID_PREFIX: ${WK_SIM_UID_PREFIX:-devsim-u}
     volumes:
       - ./docker/sim:/etc/wkbench:ro
       - ./docker/dev-sim:/var/lib/wkbench

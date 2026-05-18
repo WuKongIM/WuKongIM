@@ -78,6 +78,10 @@
 - Manager diagnostics tracking rules are runtime-only, TTL-bound sampler overrides for future events; sender UID rules match messages sent by that UID and never expose `from_uid` in manager event DTOs.
 - Manager Monitor reads `/manager/monitor/metrics`; all-node scope fans out through node RPC and aggregates real dashboard collector series. Sum counters/gauges, recompute fail/fan-out ratios from deltas, and use max node P99 latency as the cluster P99 approximation.
 
+### Send stress performance
+- Send stress regression was concentrated in the leader durable path, not gateway ACK handling: `gateway.write_sendack` is microsecond-scale, while `store.commit.pebble_sync` and durable mutex/append waits dominate.
+- Same-channel append batching and commit-coordinator batching often add waits without building large batches, so a sync still tends to carry only about one request and a few records.
+
 ## Cluster Membership
 
 ### Discovery baseline

@@ -165,7 +165,7 @@ Recovery loads checkpoint, epoch history, snapshot presence, local retention sta
 
 ### 6.3 Leader Append
 
-`Append()` clones records, records commit mode from context, keeps diagnostics-only trace metadata on the append request, and submits `machineAppendRequestCommand`.
+`Append()` clones records, records commit mode from context, keeps diagnostics-only trace metadata on the append request, and submits `machineAppendRequestCommand`. `AppendOwned()` is reserved for trusted in-process callers that transfer ownership of the batch slice, skipping this boundary clone while preserving loop-owned append semantics.
 
 Loop admission requires leader role, non-expired lease, `CommitReady=true`, no local `WriteFence` token, no drained fail-closed marker, and `len(ISR) >= MinISR`. A present write-fence token returns `ErrWriteFenced` even after its wall-clock TTL; a drained marker also returns `ErrWriteFenced` until a newer fence version is applied. Empty batches complete immediately. Non-empty batches enter `appendPending` and are flushed by size/count or the group-commit timer.
 

@@ -10,6 +10,8 @@ import (
 
 const expectedMessageFamilyCodecVersion byte = 1
 
+var benchmarkEncodedKeySink []byte
+
 func TestMessageTableCatalogDeclaresPrimaryPayloadAndIndexes(t *testing.T) {
 	table := MessageTable()
 	require.Equal(t, "message", table.Name)
@@ -55,6 +57,41 @@ func TestEncodeMessageFamiliesUsesVersionedColumnLengthWireFormat(t *testing.T) 
 	require.Equal(t, encodeFamilyUintBytes(uint64(row.FramerFlags)), value)
 }
 
+func TestEncodeMessageFamiliesAvoidsPerColumnAllocations(t *testing.T) {
+	row := messageRow{
+		MessageSeq:  9,
+		MessageID:   42,
+		FramerFlags: 3,
+		Setting:     1,
+		StreamFlag:  2,
+		MsgKey:      "msg-key",
+		Expire:      60,
+		ClientSeq:   7,
+		ClientMsgNo: "c-1",
+		StreamNo:    "s-1",
+		StreamID:    8,
+		Timestamp:   123,
+		ChannelID:   "room",
+		ChannelType: 1,
+		Topic:       "topic",
+		FromUID:     "u1",
+		Payload:     []byte("hello"),
+		PayloadHash: 123,
+	}
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		primary, payload, err := encodeMessageFamilies(row)
+		if err != nil {
+			t.Fatalf("encodeMessageFamilies() error = %v", err)
+		}
+		if len(primary) == 0 || len(payload) == 0 {
+			t.Fatalf("encodeMessageFamilies() returned empty family: primary=%d payload=%d", len(primary), len(payload))
+		}
+	})
+
+	require.LessOrEqual(t, allocs, 3.0)
+}
+
 func TestDecodeMessageFamiliesSkipsUnknownColumns(t *testing.T) {
 	row := messageRow{
 		MessageSeq:  9,
@@ -94,6 +131,36 @@ func TestTableStateKeyRoundTripUsesExpectedLayout(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(42), primaryKey)
 	require.Equal(t, uint16(messagePayloadFamilyID), familyID)
+}
+
+func TestHotPathKeyEncodingAllocatesOnlyReturnedKey(t *testing.T) {
+	channelKey := channel.ChannelKey("room:1")
+
+	cases := map[string]func() []byte{
+		"table_state": func() []byte {
+			return encodeTableStateKey(channelKey, TableIDMessage, 42, messagePayloadFamilyID)
+		},
+		"message_id_index": func() []byte {
+			return encodeMessageIDIndexKey(channelKey, 42)
+		},
+		"client_msg_no_index": func() []byte {
+			return encodeMessageClientMsgNoIndexKey(channelKey, "client-1", 42)
+		},
+		"idempotency_index": func() []byte {
+			return encodeMessageIdempotencyIndexKey(channelKey, "u1", "client-1")
+		},
+	}
+
+	for name, encode := range cases {
+		t.Run(name, func(t *testing.T) {
+			allocs := testing.AllocsPerRun(1000, func() {
+				benchmarkEncodedKeySink = encode()
+			})
+
+			require.Equal(t, 1.0, allocs)
+			require.NotEmpty(t, benchmarkEncodedKeySink)
+		})
+	}
 }
 
 func TestDecodeTableStateKeyAvoidsPrefixAllocation(t *testing.T) {

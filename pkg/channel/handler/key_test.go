@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -13,6 +14,22 @@ func TestKeyFromChannelID(t *testing.T) {
 	want := channel.ChannelKey("channel/3/YS9iOmM")
 	if got != want {
 		t.Fatalf("KeyFromChannelID() = %q, want %q", got, want)
+	}
+}
+
+func TestKeyFromChannelIDAllocatesOnlyReturnedKey(t *testing.T) {
+	id := channel.ChannelID{ID: "room-1", Type: 2}
+
+	runtime.GC()
+	allocs := testing.AllocsPerRun(1000, func() {
+		got := KeyFromChannelID(id)
+		if got == "" {
+			t.Fatal("KeyFromChannelID() returned empty key")
+		}
+	})
+
+	if allocs != 1 {
+		t.Fatalf("allocs = %v, want 1", allocs)
 	}
 }
 

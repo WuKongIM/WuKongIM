@@ -12,7 +12,7 @@ import (
 func TestChannelStoreStoreCheckpointBatchesAcrossChannelsWithCommitCoordinator(t *testing.T) {
 	engine, fs := openCountingCommitCoordinatorTestEngine(t)
 	stores := openTestChannelStoresOnEngine(t, engine, "checkpoint-batch-1", "checkpoint-batch-2")
-	engine.checkpointCoordinator().flushWindow = 10 * time.Millisecond
+	engine.checkpointCoordinator().cfg.FlushWindow = 10 * time.Millisecond
 
 	before := fs.syncCount.Load()
 	results := make(chan error, len(stores))
@@ -168,7 +168,7 @@ func TestChannelStoreStoreCheckpointFanoutsBatchFailureToAllWaiters(t *testing.T
 	stores := openTestChannelStoresOnEngine(t, engine, "checkpoint-fail-1", "checkpoint-fail-2")
 
 	coordinator := engine.checkpointCoordinator()
-	coordinator.flushWindow = 10 * time.Millisecond
+	coordinator.cfg.FlushWindow = 10 * time.Millisecond
 	coordinator.commit = func(*pebble.Batch) error {
 		return errSyntheticSyncFailure
 	}

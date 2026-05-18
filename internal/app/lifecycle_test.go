@@ -15,6 +15,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel/runtime"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	raftstorage "github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -144,6 +145,20 @@ func TestNewBuildsDefaultChannelReplicaExecutionPoolWhenMetricsDisabled(t *testi
 	require.NotNil(t, app.replicaExecutionPool)
 }
 
+func TestNewSkipsNetworkObservabilityWhenDisabled(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Observability.NetworkEnabled = false
+	cfg.Observability.SetNetworkExplicitFlag(true)
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	require.Nil(t, app.networkObservability)
+}
+
 func TestNewPreservesDedicatedChannelReplicaExecutionMode(t *testing.T) {
 	cfg := testConfig(t)
 	cfg.Cluster.ChannelExecutionMode = "dedicated"
@@ -230,6 +245,10 @@ func TestNewConfiguresSendPathTuning(t *testing.T) {
 	setClusterConfigDurationField(t, &cfg.Cluster, "AppendGroupCommitMaxWait", 2*time.Millisecond)
 	setClusterConfigIntField(t, &cfg.Cluster, "AppendGroupCommitMaxRecords", 128)
 	setClusterConfigIntField(t, &cfg.Cluster, "AppendGroupCommitMaxBytes", 256*1024)
+	cfg.Cluster.CommitCoordinatorFlushWindow = 500 * time.Microsecond
+	cfg.Cluster.CommitCoordinatorMaxRequests = 32
+	cfg.Cluster.CommitCoordinatorMaxRecords = 512
+	cfg.Cluster.CommitCoordinatorMaxBytes = 512 * 1024
 	cfg.Cluster.DataPlanePoolSize = 8
 	cfg.Cluster.DataPlaneMaxFetchInflight = 16
 	cfg.Cluster.DataPlaneMaxPendingFetch = 16
@@ -245,6 +264,11 @@ func TestNewConfiguresSendPathTuning(t *testing.T) {
 	require.Equal(t, 2*time.Millisecond, maxWait)
 	require.Equal(t, 128, maxRecords)
 	require.Equal(t, 256*1024, maxBytes)
+	commitCfg := appChannelStoreCommitCoordinatorConfig(t, app)
+	require.Equal(t, 500*time.Microsecond, commitCfg.FlushWindow)
+	require.Equal(t, 32, commitCfg.MaxRequests)
+	require.Equal(t, 512, commitCfg.MaxRecords)
+	require.Equal(t, 512*1024, commitCfg.MaxBytes)
 }
 
 func TestStartChannelMetaSyncUsesExplicitDataPlaneSettings(t *testing.T) {
@@ -814,6 +838,26 @@ func TestAppLifecycleWaitManagedSlotsReadyRollsBackCluster(t *testing.T) {
 	require.ErrorIs(t, err, waitErr)
 	require.Equal(t, []string{"cluster.start", "managed_slots_ready.start", "cluster.stop"}, calls)
 	require.False(t, app.started.Load())
+}
+
+func TestAppWaitManagedSlotsReadyUsesConfiguredTimeout(t *testing.T) {
+	waitErr := errors.New("managed slots inspected")
+	const configuredTimeout = 25 * time.Millisecond
+	app := &App{
+		cfg: Config{Cluster: ClusterConfig{ManagedSlotsReadyTimeout: configuredTimeout}},
+		cluster: &appLifecycleTestCluster{
+			waitFn: func(ctx context.Context) error {
+				deadline, ok := ctx.Deadline()
+				require.True(t, ok, "WaitForManagedSlotsReady context should have a deadline")
+				remaining := time.Until(deadline)
+				require.Greater(t, remaining, time.Duration(0))
+				require.LessOrEqual(t, remaining, configuredTimeout)
+				return waitErr
+			},
+		},
+	}
+
+	require.ErrorIs(t, app.waitForManagedSlotsReady(), waitErr)
 }
 
 func TestAppLifecycleStopAggregatesComponentErrors(t *testing.T) {
@@ -2110,4 +2154,9 @@ func appDataPlaneAdapterMaxPendingFetch(t *testing.T, app *App) int {
 		t.Fatal("channel transport is missing maxPending field")
 	}
 	return int(maxPending.Int())
+}
+
+func appChannelStoreCommitCoordinatorConfig(t *testing.T, app *App) channelstore.CommitCoordinatorConfig {
+	t.Helper()
+	return app.channelLogDB.CommitCoordinatorConfig()
 }

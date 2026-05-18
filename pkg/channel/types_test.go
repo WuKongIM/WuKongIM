@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
@@ -34,6 +35,16 @@ func TestAppendRequestCarriesBusinessChannelID(t *testing.T) {
 	}
 	require.Equal(t, "room-1", req.ChannelID.ID)
 	require.Equal(t, uint8(2), req.ChannelID.Type)
+}
+
+func TestCommitModeFromContextDoesNotAllocateForDefaultContext(t *testing.T) {
+	allocs := testing.AllocsPerRun(1000, func() {
+		if got := CommitModeFromContext(context.Background()); got != CommitModeQuorum {
+			t.Fatalf("CommitModeFromContext() = %v, want %v", got, CommitModeQuorum)
+		}
+	})
+
+	require.Zero(t, allocs)
 }
 
 func TestMessageCarriesDurableBusinessFields(t *testing.T) {

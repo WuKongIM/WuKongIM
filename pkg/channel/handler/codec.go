@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"hash/fnv"
@@ -33,62 +32,27 @@ func encodeMessage(message channel.Message) ([]byte, error) {
 }
 
 func encodeMessageWithPayloadHash(message channel.Message, payloadHash uint64) ([]byte, error) {
-	var buf bytes.Buffer
-	if err := buf.WriteByte(channel.DurableMessageCodecVersion); err != nil {
+	size, err := encodedMessageSize(message)
+	if err != nil {
 		return nil, err
 	}
-	if err := binary.Write(&buf, binary.BigEndian, message.MessageID); err != nil {
-		return nil, err
-	}
-	if err := buf.WriteByte(encodeFramerFlags(message.Framer)); err != nil {
-		return nil, err
-	}
-	if err := buf.WriteByte(byte(message.Setting)); err != nil {
-		return nil, err
-	}
-	if err := buf.WriteByte(byte(message.StreamFlag)); err != nil {
-		return nil, err
-	}
-	if err := buf.WriteByte(message.ChannelType); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.BigEndian, message.Expire); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.BigEndian, message.ClientSeq); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.BigEndian, message.StreamID); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.BigEndian, message.Timestamp); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&buf, binary.BigEndian, payloadHash); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, message.MsgKey); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, message.ClientMsgNo); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, message.StreamNo); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, message.ChannelID); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, message.Topic); err != nil {
-		return nil, err
-	}
-	if err := writeString(&buf, message.FromUID); err != nil {
-		return nil, err
-	}
-	if err := writeBytes(&buf, message.Payload); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	payload := make([]byte, 0, size)
+	payload = append(payload, channel.DurableMessageCodecVersion)
+	payload = binary.BigEndian.AppendUint64(payload, message.MessageID)
+	payload = append(payload, encodeFramerFlags(message.Framer), byte(message.Setting), byte(message.StreamFlag), message.ChannelType)
+	payload = binary.BigEndian.AppendUint32(payload, message.Expire)
+	payload = binary.BigEndian.AppendUint64(payload, message.ClientSeq)
+	payload = binary.BigEndian.AppendUint64(payload, message.StreamID)
+	payload = binary.BigEndian.AppendUint32(payload, uint32(message.Timestamp))
+	payload = binary.BigEndian.AppendUint64(payload, payloadHash)
+	payload = appendSizedString(payload, message.MsgKey)
+	payload = appendSizedString(payload, message.ClientMsgNo)
+	payload = appendSizedString(payload, message.StreamNo)
+	payload = appendSizedString(payload, message.ChannelID)
+	payload = appendSizedString(payload, message.Topic)
+	payload = appendSizedString(payload, message.FromUID)
+	payload = appendSizedBytes(payload, message.Payload)
+	return payload, nil
 }
 
 func decodeMessage(payload []byte) (channel.Message, error) {
@@ -189,16 +153,33 @@ func hashPayload(payload []byte) uint64 {
 	return hasher.Sum64()
 }
 
-func writeString(buf *bytes.Buffer, value string) error {
-	return writeBytes(buf, []byte(value))
+func encodedMessageSize(message channel.Message) (int, error) {
+	size := channel.DurableMessageHeaderSize
+	for _, fieldSize := range [...]int{
+		len(message.MsgKey),
+		len(message.ClientMsgNo),
+		len(message.StreamNo),
+		len(message.ChannelID),
+		len(message.Topic),
+		len(message.FromUID),
+		len(message.Payload),
+	} {
+		if fieldSize > int(^uint32(0)) {
+			return 0, channel.ErrInvalidArgument
+		}
+		size += 4 + fieldSize
+	}
+	return size, nil
 }
 
-func writeBytes(buf *bytes.Buffer, value []byte) error {
-	if err := binary.Write(buf, binary.BigEndian, uint32(len(value))); err != nil {
-		return err
-	}
-	_, err := buf.Write(value)
-	return err
+func appendSizedString(dst []byte, value string) []byte {
+	dst = binary.BigEndian.AppendUint32(dst, uint32(len(value)))
+	return append(dst, value...)
+}
+
+func appendSizedBytes(dst []byte, value []byte) []byte {
+	dst = binary.BigEndian.AppendUint32(dst, uint32(len(value)))
+	return append(dst, value...)
 }
 
 func encodeFramerFlags(framer frame.Framer) uint8 {

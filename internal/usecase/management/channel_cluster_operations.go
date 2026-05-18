@@ -278,7 +278,7 @@ func (a *App) channelRuntimeMetaDetailFromMeta(ctx context.Context, meta metadb.
 	}
 	maxMessageSeq, _ := a.channelMaxMessageSeq(ctx, meta.ChannelID, meta.ChannelType)
 	return ChannelRuntimeMetaDetail{
-		ChannelRuntimeMeta: managerChannelRuntimeMetaWithMaxSeq(slotID, meta, maxMessageSeq),
+		ChannelRuntimeMeta: managerChannelRuntimeMetaWithMaxSeq(slotID, meta, &maxMessageSeq),
 		HashSlot:           hashSlot,
 		Features:           meta.Features,
 		LeaseUntilMS:       meta.LeaseUntilMS,

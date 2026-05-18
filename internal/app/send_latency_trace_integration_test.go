@@ -87,7 +87,7 @@ func TestSendTraceThreeNodeRecordsCriticalStages(t *testing.T) {
 	require.Empty(t, missing)
 	require.NotEmpty(t, breakdown.followerApplyDurable)
 
-	t.Logf("send trace: client_msg_no=%s message_seq=%d ack=%s gateway_send=%s gateway_ack=%s message_durable=%s local_append=%s leader_queue=%s leader_durable=%s leader_quorum=%s follower_apply=%v",
+	t.Logf("send trace: client_msg_no=%s message_seq=%d ack=%s gateway_send=%s gateway_ack=%s message_durable=%s local_append=%s leader_queue=%s leader_durable=%s leader_durable_mu=%s leader_durable_append=%s store_queue=%v store_collect=%v store_sync=%v store_publish=%v leader_quorum=%s follower_apply=%v",
 		record.ClientMsgNo,
 		record.MessageSeq,
 		breakdown.ackLatency,
@@ -97,6 +97,12 @@ func TestSendTraceThreeNodeRecordsCriticalStages(t *testing.T) {
 		breakdown.channelLocalAppend,
 		breakdown.leaderQueueWait,
 		breakdown.leaderLocalDurable,
+		breakdown.leaderDurableMuWait,
+		breakdown.leaderDurableAppend,
+		breakdown.storeCommitQueueWait,
+		breakdown.storeCommitBatchCollect,
+		breakdown.storeCommitPebbleSync,
+		breakdown.storeCommitPublish,
 		breakdown.leaderQuorumWait,
 		breakdown.followerApplyDurable,
 	)

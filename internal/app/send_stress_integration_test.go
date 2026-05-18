@@ -7,19 +7,38 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+	"unsafe"
 
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
+	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
 )
+
+type sendStressCommitModeHook struct {
+	mode channel.CommitMode
+	next messageusecase.SendHook
+}
+
+func (h sendStressCommitModeHook) BeforeSend(ctx context.Context, cmd messageusecase.SendCommand) (messageusecase.SendCommand, frame.ReasonCode, error) {
+	cmd.CommitMode = h.mode
+	if h.next == nil {
+		return cmd, frame.ReasonSuccess, nil
+	}
+	mutated, reason, err := h.next.BeforeSend(ctx, cmd)
+	mutated.CommitMode = h.mode
+	return mutated, reason, err
+}
 
 func TestSendStressThreeNode(t *testing.T) {
 	selection := selectSendStressThreeNodeRun(t)
@@ -34,7 +53,17 @@ func TestSendStressThreeNode(t *testing.T) {
 			appCfg.Gateway.DefaultSession.AsyncSendDispatch = true
 		}
 	})
+	var traceCollector *sendTraceCollector
+	var restoreTraceSink func()
+	if envBool(sendTraceEnv, false) {
+		traceCollector = &sendTraceCollector{}
+	}
+	applySendStressCommitMode(t, harness, cfg.CommitMode)
 	leaderID := harness.waitForStableLeader(t, 1)
+	if traceCollector != nil {
+		restoreTraceSink = sendtrace.SetSink(traceCollector)
+		defer restoreTraceSink()
+	}
 	leader := harness.apps[leaderID]
 
 	targets := preloadSendStressTargets(t, harness, leader, cfg, selection.minISR, sendStressScenarioMultiTarget)
@@ -45,6 +74,7 @@ func TestSendStressThreeNode(t *testing.T) {
 		t.Logf("send stress baseline artifacts: log=%s cpu=%s block=%s", sendStressBaselineLogPath, sendStressBaselineCPUPath, sendStressBaselineBlockPath)
 		t.Logf("%s", compareSendStressBaseline(observed))
 	}
+	logSendStressTraceSummaries(t, traceCollector)
 
 	t.Logf("send stress results: total=%d success=%d failed=%d error_rate=%.2f%%", outcome.Total, outcome.Success, outcome.Failed, outcome.ErrorRate())
 	if len(failures) > 0 {
@@ -70,6 +100,7 @@ func TestSendStressSingleHotChannelThreeNode(t *testing.T) {
 			appCfg.Gateway.DefaultSession.AsyncSendDispatch = true
 		}
 	})
+	applySendStressCommitMode(t, harness, cfg.CommitMode)
 	leaderID := harness.waitForStableLeader(t, 1)
 	leader := harness.apps[leaderID]
 
@@ -108,6 +139,7 @@ func TestSendStressHotColdSkewThreeNode(t *testing.T) {
 			appCfg.Gateway.DefaultSession.AsyncSendDispatch = true
 		}
 	})
+	applySendStressCommitMode(t, harness, cfg.CommitMode)
 	leaderID := harness.waitForStableLeader(t, 1)
 	leader := harness.apps[leaderID]
 
@@ -164,6 +196,30 @@ func assertSendStressAcceptanceMinISR(t *testing.T, harness *threeNodeAppHarness
 			require.EqualValues(t, minISR, meta.MinISR, "app %d should preserve MinISR for %s", app.cfg.Node.ID, target.ChannelID)
 		}
 	}
+}
+
+func applySendStressCommitMode(t *testing.T, harness *threeNodeAppHarness, mode channel.CommitMode) {
+	t.Helper()
+	require.NotNil(t, harness)
+	if mode == 0 || mode == channel.CommitModeQuorum {
+		return
+	}
+	require.Equal(t, channel.CommitModeLocal, mode)
+	for _, app := range harness.orderedApps() {
+		require.NotNil(t, app)
+		installSendStressCommitModeHook(t, app.Message(), mode)
+	}
+}
+
+func installSendStressCommitModeHook(t *testing.T, messages *messageusecase.App, mode channel.CommitMode) {
+	t.Helper()
+	require.NotNil(t, messages)
+
+	field := reflect.ValueOf(messages).Elem().FieldByName("sendHook")
+	require.True(t, field.IsValid(), "message.App is missing sendHook field")
+	current, _ := reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Interface().(messageusecase.SendHook)
+	hook := sendStressCommitModeHook{mode: mode, next: current}
+	reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Set(reflect.ValueOf(messageusecase.SendHook(hook)))
 }
 
 func preloadSendStressTargets(t *testing.T, harness *threeNodeAppHarness, leader *App, cfg sendStressConfig, minISR int, scenario sendStressScenario) []sendStressTarget {
@@ -628,6 +684,7 @@ func executeSendStressAttempt(client sendStressWorkerClient, worker int, phase s
 		RecipientUID:    client.target.RecipientUID,
 		ChannelID:       client.target.ChannelID,
 		ChannelType:     client.target.ChannelType,
+		ChannelKey:      sendStressChannelKey(client.target.ChannelID, client.target.ChannelType),
 		ClientSeq:       clientSeq,
 		ClientMsgNo:     clientMsgNo,
 		Payload:         payload,
@@ -748,5 +805,31 @@ func waitForSendStressSendack(client sendStressWorkerClient, timeout time.Durati
 		default:
 			return nil, framesBeforeAck, fmt.Errorf("unexpected frame while waiting for sendack: %T", f)
 		}
+	}
+}
+
+func logSendStressTraceSummaries(t *testing.T, collector *sendTraceCollector) {
+	t.Helper()
+	if collector == nil {
+		return
+	}
+	for _, summary := range summarizeSendTraceStages(
+		collector.Snapshot(),
+		sendtrace.StageGatewayMessagesSend,
+		sendtrace.StageGatewayWriteSendack,
+		sendtrace.StageMessageSendDurable,
+		sendtrace.StageChannelAppendLocal,
+		sendtrace.StageReplicaLeaderQueueWait,
+		sendtrace.StageReplicaLeaderLocalDurable,
+		sendtrace.StageReplicaLeaderDurableMuWait,
+		sendtrace.StageReplicaLeaderDurableAppend,
+		sendtrace.StageReplicaLeaderQuorumWait,
+		sendtrace.StageReplicaFollowerApplyDurable,
+		sendtrace.StageStoreCommitQueueWait,
+		sendtrace.StageStoreCommitBatchCollect,
+		sendtrace.StageStoreCommitPebbleSync,
+		sendtrace.StageStoreCommitPublish,
+	) {
+		t.Logf("send stress trace summary: %s", formatSendTraceStageSummary(summary))
 	}
 }

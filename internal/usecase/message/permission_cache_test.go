@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -53,8 +54,35 @@ func TestPermissionCacheExpiresEntries(t *testing.T) {
 	require.Equal(t, 2, store.channelReads)
 }
 
+func TestPermissionCacheReusesNotFoundChannelReadsWithinTTL(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	store := &countingPermissionStore{channelErr: metadb.ErrNotFound}
+	cache := newPermissionCache(store, time.Minute, func() time.Time { return now })
+
+	for i := 0; i < 2; i++ {
+		_, err := cache.GetChannelForPermission(context.Background(), "missing", 1)
+		require.ErrorIs(t, err, metadb.ErrNotFound)
+	}
+
+	require.Equal(t, 1, store.channelReads)
+}
+
+func TestPermissionCacheDoesNotReuseTransientChannelReadErrors(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	store := &countingPermissionStore{channelErr: errors.New("temporary failure")}
+	cache := newPermissionCache(store, time.Minute, func() time.Time { return now })
+
+	for i := 0; i < 2; i++ {
+		_, err := cache.GetChannelForPermission(context.Background(), "g1", 2)
+		require.ErrorContains(t, err, "temporary failure")
+	}
+
+	require.Equal(t, 2, store.channelReads)
+}
+
 type countingPermissionStore struct {
 	channel       metadb.Channel
+	channelErr    error
 	contains      map[string]bool
 	hasAny        map[string]bool
 	channelReads  int
@@ -64,6 +92,9 @@ type countingPermissionStore struct {
 
 func (s *countingPermissionStore) GetChannelForPermission(context.Context, string, int64) (metadb.Channel, error) {
 	s.channelReads++
+	if s.channelErr != nil {
+		return metadb.Channel{}, s.channelErr
+	}
 	return s.channel, nil
 }
 

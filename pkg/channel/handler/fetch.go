@@ -14,7 +14,7 @@ func (s *service) Fetch(_ context.Context, req channel.FetchRequest) (channel.Fe
 		return channel.FetchResult{}, channel.ErrInvalidFetchBudget
 	}
 
-	key := KeyFromChannelID(req.ChannelID)
+	key := s.channelKeyForID(req.ChannelID)
 	meta, err := s.metaForKey(key)
 	if err != nil {
 		return channel.FetchResult{}, err

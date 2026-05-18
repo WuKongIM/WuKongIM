@@ -15,16 +15,17 @@ import (
 
 const configVersion = "wkbench/dev-sim/v1"
 
-const devSimRunDuration = 24 * time.Hour
-
 const (
-	simulatorWorkerID       = "wk-sim"
-	personProfileName       = "sim-person"
-	groupProfileName        = "sim-group"
-	personTrafficName       = "sim-person-send"
-	groupTrafficName        = "sim-group-send"
-	defaultPrepareBatchSize = 1000
+	simulatorWorkerID         = "wk-sim"
+	personProfileName         = "sim-person"
+	groupProfileName          = "sim-group"
+	personTrafficName         = "sim-person-send"
+	groupTrafficName          = "sim-group-send"
+	defaultPrepareBatchSize   = 1000
+	defaultTrafficConcurrency = 64
 )
+
+const devSimRunDuration = 24 * time.Hour
 
 // BenchInputs are the regular wkbench inputs derived from a compact dev-sim config.
 type BenchInputs struct {
@@ -114,6 +115,8 @@ type TrafficConfig struct {
 	PersonRatePerChannel model.Rate `json:"person_rate_per_channel" yaml:"person_rate_per_channel"`
 	// GroupRatePerChannel is the per-channel rate for group traffic.
 	GroupRatePerChannel model.Rate `json:"group_rate_per_channel" yaml:"group_rate_per_channel"`
+	// Concurrency bounds in-flight send operations per traffic stream. Zero preserves sequential sends.
+	Concurrency int `json:"concurrency" yaml:"concurrency"`
 	// VerifyRecv selects receive verification mode for traffic.
 	VerifyRecv string `json:"verify_recv" yaml:"verify_recv"`
 	// Window is the active traffic duration for each supervisor loop.
@@ -180,6 +183,7 @@ func defaultConfig() Config {
 			PayloadSizeBytes:     128,
 			PersonRatePerChannel: model.Rate{PerSecond: 0.2},
 			GroupRatePerChannel:  model.Rate{PerSecond: 0.2},
+			Concurrency:          defaultTrafficConcurrency,
 			VerifyRecv:           "sampled",
 			Window:               10 * time.Second,
 			Cooldown:             time.Second,
@@ -214,6 +218,9 @@ func applyEnvOverrides(cfg *Config, env map[string]string) error {
 		}
 		cfg.Traffic.PersonRatePerChannel = rate
 		cfg.Traffic.GroupRatePerChannel = rate
+	}
+	if err := applyIntEnv(env, "WK_SIM_TRAFFIC_CONCURRENCY", &cfg.Traffic.Concurrency); err != nil {
+		return err
 	}
 	if raw, ok := lookupEnvValue(env, "WK_SIM_VERIFY_RECV"); ok {
 		cfg.Traffic.VerifyRecv = strings.TrimSpace(raw)
@@ -298,6 +305,9 @@ func validateConfig(cfg Config) error {
 	}
 	if cfg.Traffic.GroupRatePerChannel.PerSecond <= 0 {
 		problems = append(problems, "traffic.group_rate_per_channel must be greater than zero")
+	}
+	if cfg.Traffic.Concurrency < 0 {
+		problems = append(problems, "traffic.concurrency must not be negative")
 	}
 	if cfg.Traffic.Window <= 0 {
 		problems = append(problems, "traffic.window must be greater than zero")
@@ -391,6 +401,7 @@ func (cfg Config) BuildBenchInputs(runID string) (BenchInputs, error) {
 			Name:           personTrafficName,
 			ChannelRef:     personProfileName,
 			RatePerChannel: cfg.Traffic.PersonRatePerChannel,
+			Concurrency:    cfg.Traffic.Concurrency,
 			RecvAck:        true,
 			Verify:         model.VerifyConfig{Recv: model.RecvVerifyConfig{Mode: personVerifyMode(cfg.Traffic.VerifyRecv)}},
 		})
@@ -409,6 +420,7 @@ func (cfg Config) BuildBenchInputs(runID string) (BenchInputs, error) {
 			Name:           groupTrafficName,
 			ChannelRef:     groupProfileName,
 			RatePerChannel: cfg.Traffic.GroupRatePerChannel,
+			Concurrency:    cfg.Traffic.Concurrency,
 			RecvAck:        true,
 			Verify: model.VerifyConfig{Recv: model.RecvVerifyConfig{
 				Mode:                 strings.TrimSpace(cfg.Traffic.VerifyRecv),

@@ -15,6 +15,8 @@ import (
 type messageTable struct {
 	channelKey channel.ChannelKey
 	db         *pebble.DB
+	// appendLookupKey is a write-path scratch key buffer guarded by ChannelStore.writeMu.
+	appendLookupKey []byte
 }
 
 type messageIdempotencyKey struct {
@@ -29,63 +31,147 @@ func (t *messageTable) append(writeBatch *pebble.Batch, rows []messageRow) error
 	if writeBatch == nil {
 		return channel.ErrInvalidArgument
 	}
+	if len(rows) == 1 {
+		return t.appendRow(writeBatch, rows[0], nil, nil)
+	}
 
 	seenMessageIDs := make(map[uint64]struct{}, len(rows))
 	seenIdempotencyKeys := make(map[messageIdempotencyKey]struct{}, len(rows))
 	for _, row := range rows {
-		if row.MessageSeq == 0 {
-			return channel.ErrInvalidArgument
+		if err := t.appendRow(writeBatch, row, seenMessageIDs, seenIdempotencyKeys); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+func (t *messageTable) appendRow(writeBatch *pebble.Batch, row messageRow, seenMessageIDs map[uint64]struct{}, seenIdempotencyKeys map[messageIdempotencyKey]struct{}) error {
+	if row.MessageSeq == 0 {
+		return channel.ErrInvalidArgument
+	}
+	if seenMessageIDs != nil {
 		if _, ok := seenMessageIDs[row.MessageID]; ok {
 			return channel.ErrCorruptState
 		}
 		seenMessageIDs[row.MessageID] = struct{}{}
+	}
 
-		if existingSeq, ok, err := t.lookupMessageIDSeq(row.MessageID); err != nil {
-			return err
-		} else if ok && existingSeq != row.MessageSeq {
-			return channel.ErrCorruptState
-		}
+	if existingSeq, ok, err := t.lookupMessageIDSeqForAppend(row.MessageID); err != nil {
+		return err
+	} else if ok && existingSeq != row.MessageSeq {
+		return channel.ErrCorruptState
+	}
 
-		primary, payload, err := encodeMessageFamilies(row)
-		if err != nil {
+	if err := setMessageFamiliesDeferred(writeBatch, t.channelKey, row); err != nil {
+		return err
+	}
+	if err := setMessageIDIndexValue(writeBatch, t.channelKey, row.MessageID, row.MessageSeq); err != nil {
+		return err
+	}
+	if row.ClientMsgNo != "" {
+		if err := setMessageClientMsgNoIndexValue(writeBatch, t.channelKey, row.ClientMsgNo, row.MessageSeq); err != nil {
 			return err
 		}
-		if err := writeBatch.Set(encodeTableStateKey(t.channelKey, TableIDMessage, row.MessageSeq, messagePrimaryFamilyID), primary, pebble.NoSync); err != nil {
-			return err
-		}
-		if err := writeBatch.Set(encodeTableStateKey(t.channelKey, TableIDMessage, row.MessageSeq, messagePayloadFamilyID), payload, pebble.NoSync); err != nil {
-			return err
-		}
-		if err := writeBatch.Set(encodeMessageIDIndexKey(t.channelKey, row.MessageID), encodeMessageIDIndexValue(row.MessageSeq), pebble.NoSync); err != nil {
-			return err
-		}
-		if row.ClientMsgNo != "" {
-			if err := writeBatch.Set(encodeMessageClientMsgNoIndexKey(t.channelKey, row.ClientMsgNo, row.MessageSeq), encodeMessageIDIndexValue(row.MessageSeq), pebble.NoSync); err != nil {
-				return err
-			}
-		}
-		if row.FromUID != "" && row.ClientMsgNo != "" {
-			key := messageIdempotencyKey{fromUID: row.FromUID, clientMsgNo: row.ClientMsgNo}
+	}
+	if row.FromUID != "" && row.ClientMsgNo != "" {
+		key := messageIdempotencyKey{fromUID: row.FromUID, clientMsgNo: row.ClientMsgNo}
+		if seenIdempotencyKeys != nil {
 			if _, ok := seenIdempotencyKeys[key]; ok {
 				return channel.ErrCorruptState
 			}
 			seenIdempotencyKeys[key] = struct{}{}
-			if existing, ok, err := t.lookupIdempotency(row.FromUID, row.ClientMsgNo); err != nil {
-				return err
-			} else if ok && existing.MessageSeq != row.MessageSeq {
-				return channel.ErrCorruptState
-			}
-			value, err := encodeIdempotencyIndexValue(row)
-			if err != nil {
-				return err
-			}
-			if err := writeBatch.Set(encodeMessageIdempotencyIndexKey(t.channelKey, row.FromUID, row.ClientMsgNo), value, pebble.NoSync); err != nil {
-				return err
-			}
+		}
+		if existing, ok, err := t.lookupIdempotency(row.FromUID, row.ClientMsgNo); err != nil {
+			return err
+		} else if ok && existing.MessageSeq != row.MessageSeq {
+			return channel.ErrCorruptState
+		}
+		if err := setMessageIdempotencyIndexValue(writeBatch, t.channelKey, row); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func setTableStateValue(writeBatch *pebble.Batch, channelKey channel.ChannelKey, primaryKey uint64, familyID uint16, value []byte) error {
+	op := writeBatch.SetDeferred(encodedTableStateKeyLen(channelKey), len(value))
+	appendTableStateKeyTo(op.Key[:0], channelKey, TableIDMessage, primaryKey, familyID)
+	copy(op.Value, value)
+	return op.Finish()
+}
+
+func setMessageFamiliesDeferred(writeBatch *pebble.Batch, channelKey channel.ChannelKey, row messageRow) error {
+	if err := row.validate(); err != nil {
+		return err
+	}
+	table := canonicalMessageTable()
+	if len(table.Families) != 2 {
+		return channel.ErrInvalidArgument
+	}
+	payloadHash := row.PayloadHash
+	if payloadHash == 0 {
+		payloadHash = hashMessagePayload(row.Payload)
+	}
+	if err := setMessageFamilyDeferred(writeBatch, channelKey, row, messagePrimaryFamilyID, table.Families[0], payloadHash); err != nil {
+		return err
+	}
+	return setMessageFamilyDeferred(writeBatch, channelKey, row, messagePayloadFamilyID, table.Families[1], payloadHash)
+}
+
+func setMessageFamilyDeferred(writeBatch *pebble.Batch, channelKey channel.ChannelKey, row messageRow, familyID uint16, family ColumnFamilyDesc, payloadHash uint64) error {
+	valueLen, err := encodedMessageFamilyPayloadSize(family, row, payloadHash)
+	if err != nil {
+		return err
+	}
+	op := writeBatch.SetDeferred(encodedTableStateKeyLen(channelKey), valueLen)
+	appendTableStateKeyTo(op.Key[:0], channelKey, TableIDMessage, row.MessageSeq, familyID)
+	encoded, err := appendMessageFamilyPayloadTo(op.Value[:0], family, row, payloadHash)
+	if err != nil {
+		return err
+	}
+	if len(encoded) != valueLen {
+		return channel.ErrCorruptState
+	}
+	return op.Finish()
+}
+
+func setMessageIDIndexValue(writeBatch *pebble.Batch, channelKey channel.ChannelKey, messageID uint64, seq uint64) error {
+	op := writeBatch.SetDeferred(encodedTableIndexPrefixLen(channelKey)+8, 8)
+	key := appendTableIndexPrefixTo(op.Key[:0], channelKey, TableIDMessage, messageIndexIDMessageID)
+	binary.BigEndian.PutUint64(key[len(key):len(key)+8], messageID)
+	binary.BigEndian.PutUint64(op.Value, seq)
+	return op.Finish()
+}
+
+func setMessageClientMsgNoIndexValue(writeBatch *pebble.Batch, channelKey channel.ChannelKey, clientMsgNo string, seq uint64) error {
+	keyLen := encodedTableIndexPrefixLen(channelKey) + uvarintLen(uint64(len(clientMsgNo))) + len(clientMsgNo) + 8
+	op := writeBatch.SetDeferred(keyLen, 8)
+	key := appendTableIndexPrefixTo(op.Key[:0], channelKey, TableIDMessage, messageIndexIDClientMsgNo)
+	key = appendKeyString(key, clientMsgNo)
+	binary.BigEndian.PutUint64(key[len(key):len(key)+8], seq)
+	binary.BigEndian.PutUint64(op.Value, seq)
+	return op.Finish()
+}
+
+func setMessageIdempotencyIndexValue(writeBatch *pebble.Batch, channelKey channel.ChannelKey, row messageRow) error {
+	if err := row.validate(); err != nil {
+		return err
+	}
+	payloadHash := row.PayloadHash
+	if payloadHash == 0 {
+		payloadHash = hashMessagePayload(row.Payload)
+	}
+	keyLen := encodedTableIndexPrefixLen(channelKey) +
+		uvarintLen(uint64(len(row.FromUID))) + len(row.FromUID) +
+		uvarintLen(uint64(len(row.ClientMsgNo))) + len(row.ClientMsgNo)
+	op := writeBatch.SetDeferred(keyLen, 24)
+	key := appendTableIndexPrefixTo(op.Key[:0], channelKey, TableIDMessage, messageIndexIDFromUIDClientMsgNo)
+	key = appendKeyString(key, row.FromUID)
+	appendKeyString(key, row.ClientMsgNo)
+	binary.BigEndian.PutUint64(op.Value[0:8], row.MessageSeq)
+	binary.BigEndian.PutUint64(op.Value[8:16], row.MessageID)
+	binary.BigEndian.PutUint64(op.Value[16:24], payloadHash)
+	return op.Finish()
 }
 
 func (t *messageTable) getBySeq(seq uint64) (messageRow, bool, error) {
@@ -596,10 +682,35 @@ func (t *messageTable) maxSeq() (uint64, error) {
 }
 
 func (t *messageTable) lookupMessageIDSeq(messageID uint64) (uint64, bool, error) {
-	value, ok, err := t.getValue(encodeMessageIDIndexKey(t.channelKey, messageID))
+	value, closer, ok, err := t.getBorrowedValue(encodeMessageIDIndexKey(t.channelKey, messageID))
 	if err != nil || !ok {
 		return 0, ok, err
 	}
+	defer closer.Close()
+	seq, err := decodeMessageIDIndexValue(value)
+	if err != nil {
+		return 0, false, err
+	}
+	return seq, true, nil
+}
+
+// lookupMessageIDSeqForAppend reuses write-path scratch key storage and borrows
+// the Pebble value because appendRow only needs the decoded sequence.
+func (t *messageTable) lookupMessageIDSeqForAppend(messageID uint64) (uint64, bool, error) {
+	keyLen := encodedTableIndexPrefixLen(t.channelKey) + 8
+	if cap(t.appendLookupKey) < keyLen {
+		t.appendLookupKey = make([]byte, 0, keyLen)
+	}
+	key := appendTableIndexPrefixTo(t.appendLookupKey[:0], t.channelKey, TableIDMessage, messageIndexIDMessageID)
+	key = key[:keyLen]
+	binary.BigEndian.PutUint64(key[keyLen-8:], messageID)
+	t.appendLookupKey = key
+
+	value, closer, ok, err := t.getBorrowedValue(key)
+	if err != nil || !ok {
+		return 0, ok, err
+	}
+	defer closer.Close()
 	seq, err := decodeMessageIDIndexValue(value)
 	if err != nil {
 		return 0, false, err
@@ -668,17 +779,18 @@ func (t *messageTable) validate() error {
 }
 
 func encodeMessageIDIndexKey(channelKey channel.ChannelKey, messageID uint64) []byte {
-	key := encodeTableIndexPrefix(channelKey, TableIDMessage, messageIndexIDMessageID)
+	key := encodeTableIndexPrefixWithExtra(channelKey, TableIDMessage, messageIndexIDMessageID, 8)
 	return binary.BigEndian.AppendUint64(key, messageID)
 }
 
 func encodeMessageClientMsgNoIndexPrefix(channelKey channel.ChannelKey, clientMsgNo string) []byte {
-	key := encodeTableIndexPrefix(channelKey, TableIDMessage, messageIndexIDClientMsgNo)
+	key := encodeTableIndexPrefixWithExtra(channelKey, TableIDMessage, messageIndexIDClientMsgNo, uvarintLen(uint64(len(clientMsgNo)))+len(clientMsgNo))
 	return appendKeyString(key, clientMsgNo)
 }
 
 func encodeMessageClientMsgNoIndexKey(channelKey channel.ChannelKey, clientMsgNo string, seq uint64) []byte {
-	key := encodeMessageClientMsgNoIndexPrefix(channelKey, clientMsgNo)
+	key := encodeTableIndexPrefixWithExtra(channelKey, TableIDMessage, messageIndexIDClientMsgNo, uvarintLen(uint64(len(clientMsgNo)))+len(clientMsgNo)+8)
+	key = appendKeyString(key, clientMsgNo)
 	return binary.BigEndian.AppendUint64(key, seq)
 }
 
@@ -691,7 +803,12 @@ func decodeMessageClientMsgNoIndexSeq(key []byte, channelKey channel.ChannelKey,
 }
 
 func encodeMessageIdempotencyIndexKey(channelKey channel.ChannelKey, fromUID, clientMsgNo string) []byte {
-	key := encodeTableIndexPrefix(channelKey, TableIDMessage, messageIndexIDFromUIDClientMsgNo)
+	key := encodeTableIndexPrefixWithExtra(
+		channelKey,
+		TableIDMessage,
+		messageIndexIDFromUIDClientMsgNo,
+		uvarintLen(uint64(len(fromUID)))+len(fromUID)+uvarintLen(uint64(len(clientMsgNo)))+len(clientMsgNo),
+	)
 	key = appendKeyString(key, fromUID)
 	return appendKeyString(key, clientMsgNo)
 }

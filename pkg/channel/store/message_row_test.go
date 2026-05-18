@@ -149,6 +149,72 @@ func TestMessageRowFromRecordPayloadDecodesSharedCompatibilityCodec(t *testing.T
 	require.Equal(t, hashMessagePayload([]byte("hello")), row.PayloadHash)
 }
 
+var structuredRowsAllocSink []messageRow
+
+func TestStructuredRowsFromCompatibilityRecordsBorrowsHotPathValues(t *testing.T) {
+	msg := channel.Message{
+		MessageID:   42,
+		MsgKey:      "k-1",
+		ClientMsgNo: "c-1",
+		StreamNo:    "s-1",
+		ChannelID:   "room",
+		Topic:       "topic",
+		FromUID:     "u1",
+		Payload:     []byte("hello"),
+	}
+	payload := makeCompatibilityRecordPayload(t, msg, hashMessagePayload(msg.Payload))
+	records := []channel.Record{{ID: msg.MessageID, Payload: payload, SizeBytes: len(payload)}}
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		rows, err := structuredRowsFromCompatibilityRecords(1, records)
+		if err != nil {
+			t.Fatalf("structuredRowsFromCompatibilityRecords() error = %v", err)
+		}
+		if len(rows) != 1 || rows[0].ClientMsgNo != msg.ClientMsgNo || string(rows[0].Payload) != string(msg.Payload) {
+			t.Fatalf("decoded rows = %+v", rows)
+		}
+		structuredRowsAllocSink = rows
+	})
+
+	if allocs > 1 {
+		t.Fatalf("allocs = %v, want <= 1", allocs)
+	}
+}
+
+func TestChannelStorePrepareCompatibilityAppendReusesRowBuffer(t *testing.T) {
+	st := newTestChannelStore(t)
+	st.publishWrite(0)
+	msg := channel.Message{
+		MessageID:   43,
+		MsgKey:      "k-2",
+		ClientMsgNo: "c-2",
+		ChannelID:   st.id.ID,
+		ChannelType: st.id.Type,
+		FromUID:     "u1",
+		Payload:     []byte("hello"),
+	}
+	payload := makeCompatibilityRecordPayload(t, msg, hashMessagePayload(msg.Payload))
+	records := []channel.Record{{ID: msg.MessageID, Payload: payload, SizeBytes: len(payload)}}
+
+	pending, err := st.prepareCompatibilityAppendLocked(records)
+	require.NoError(t, err)
+	require.Len(t, pending.rows, 1)
+	st.failPendingWrite()
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		pending, err := st.prepareCompatibilityAppendLocked(records)
+		if err != nil {
+			t.Fatalf("prepareCompatibilityAppendLocked() error = %v", err)
+		}
+		if len(pending.rows) != 1 || pending.rows[0].MessageID != msg.MessageID {
+			t.Fatalf("pending rows = %+v", pending.rows)
+		}
+		st.failPendingWrite()
+	})
+
+	require.Zero(t, allocs)
+}
+
 func TestEncodeCompatibilityRecordAvoidsPerFieldHeapChurn(t *testing.T) {
 	row := messageRow{
 		MessageSeq:  9,

@@ -65,12 +65,19 @@ WK_CLUSTER_FOLLOWER_REPLICATION_RETRY_INTERVAL=1s
 WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_WAIT=1ms
 WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_RECORDS=64
 WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_BYTES=65536
+# Cross-channel durable Pebble sync batching; zero max limits mean unlimited until the flush window closes.
+WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=200us
+WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=0
+WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=0
+WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=0
 WK_CLUSTER_DATA_PLANE_POOL_SIZE=1
 WK_CLUSTER_DATA_PLANE_MAX_FETCH_INFLIGHT=2
 WK_CLUSTER_DATA_PLANE_MAX_PENDING_FETCH=2
 WK_CLUSTER_CONTROLLER_OBSERVATION_INTERVAL=200ms
 WK_CLUSTER_CONTROLLER_REQUEST_TIMEOUT=2s
 WK_CLUSTER_CONTROLLER_LEADER_WAIT_TIMEOUT=10s
+# Startup waits this long for controller-managed physical slots to recover leaders before exiting.
+WK_CLUSTER_MANAGED_SLOTS_READY_TIMEOUT=30s
 # Enables local Controller Raft log snapshot compaction. Enabled by default.
 WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED=true
 # Number of newly applied Controller Raft entries after the last snapshot before creating a new snapshot.
@@ -134,8 +141,8 @@ WK_MESSAGE_PERSON_WHITELIST_ENABLED=false
 # Trusted gateway sessions with this device ID bypass channel-type-specific send permissions
 # after sender SendBan has passed. Keep the legacy default unless all system senders use another ID.
 WK_MESSAGE_SYSTEM_DEVICE_ID=____device
-# Optional bounded send-permission read cache for benchmark/static-member deployments.
-# Keep 0 for strict authorization freshness in production.
+# Optional bounded send-permission read cache, including missing-channel reads.
+# Keep 0 for strict authorization freshness; benchmark/static-member deployments may set it positive.
 WK_MESSAGE_PERMISSION_CACHE_TTL=0
 # Enables node-local UID send token buckets before permission reads, plugin hooks, and channel append.
 # Disabled by default to preserve legacy send behavior.
@@ -219,6 +226,9 @@ WK_MANAGER_USERS=[{"username":"admin","password":"a1234567","permissions":[{"res
 # WK_EXTERNAL_WSADDR=ws://im.example.com:5200
 # WK_EXTERNAL_WSSADDR=wss://im.example.com:5210
 WK_METRICS_ENABLE=true
+# Enables per-packet local network observations for manager network snapshots.
+# Disable for pprof throughput runs when network charts are not needed.
+WK_NETWORK_OBSERVABILITY_ENABLE=true
 # Enables the bounded local diagnostics event store for send-path tracing.
 WK_DIAGNOSTICS_ENABLE=true
 # Sets the maximum number of diagnostics events retained in the in-memory ring buffer.

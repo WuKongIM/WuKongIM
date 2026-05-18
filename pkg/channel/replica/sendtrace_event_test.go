@@ -131,3 +131,61 @@ func TestFollowerApplyTraceRecordsErrorDetails(t *testing.T) {
 	require.Equal(t, startedAt, event.At)
 	require.Equal(t, finishedAt.Sub(startedAt), event.Duration)
 }
+
+func TestLeaderAppendEffectTraceSplitsDurableMutexAndStore(t *testing.T) {
+	env := newTestEnv(t)
+	r := newReplicaFromEnv(t, env)
+	r.mu.Lock()
+	r.state.ChannelKey = "group-trace"
+	r.state.Epoch = 1
+	r.state.Role = channel.ReplicaRoleLeader
+	r.state.CommitReady = true
+	r.state.LEO = 0
+	r.meta = channel.Meta{Key: "group-trace", Epoch: 1, LeaderEpoch: 1, Leader: r.localNode, LeaseUntil: time.Now().Add(time.Hour), ISR: []channel.NodeID{r.localNode}, MinISR: 1}
+	r.roleGeneration = 1
+	r.appendInFlightEffectID = 11
+	r.appendInFlightIDs = []uint64{1}
+	r.mu.Unlock()
+
+	sink := &traceEventSink{}
+	restore := sendtrace.SetSink(sink)
+	defer restore()
+
+	r.runAppendEffect(context.Background(), appendLeaderBatchEffect{
+		EffectID:       11,
+		RequestIDs:     []uint64{1},
+		ChannelKey:     "group-trace",
+		Epoch:          1,
+		LeaderEpoch:    1,
+		RoleGeneration: 1,
+		LeaseUntil:     r.meta.LeaseUntil,
+		Records: []channel.Record{
+			{Index: 1, Payload: []byte("abc"), SizeBytes: 3},
+			{Index: 2, Payload: []byte("defg"), SizeBytes: 4},
+		},
+		StartedAt: time.Now(),
+	})
+
+	events := sink.Snapshot()
+	mutexWait := findReplicaTraceEvent(events, sendtrace.StageReplicaLeaderDurableMuWait)
+	require.NotNil(t, mutexWait, "missing durable mutex wait event in %#v", events)
+	require.Equal(t, sendtrace.ResultOK, mutexWait.Result)
+	require.Equal(t, 2, mutexWait.RecordCount)
+	require.Equal(t, 7, mutexWait.ByteCount)
+
+	appendStore := findReplicaTraceEvent(events, sendtrace.StageReplicaLeaderDurableAppend)
+	require.NotNil(t, appendStore, "missing durable append store event in %#v", events)
+	require.Equal(t, sendtrace.ResultOK, appendStore.Result)
+	require.Equal(t, "group-trace", appendStore.ChannelKey)
+	require.Equal(t, 2, appendStore.RecordCount)
+	require.Equal(t, 7, appendStore.ByteCount)
+}
+
+func findReplicaTraceEvent(events []sendtrace.Event, stage sendtrace.Stage) *sendtrace.Event {
+	for i := range events {
+		if events[i].Stage == stage {
+			return &events[i]
+		}
+	}
+	return nil
+}

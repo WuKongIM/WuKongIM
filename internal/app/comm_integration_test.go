@@ -258,6 +258,7 @@ func buildThreeNodeAppHarness(t *testing.T, slotCount uint32, slotReplicaN int, 
 		if mutate != nil {
 			mutate(&cfg)
 		}
+		applySendStressCommitCoordinatorEnvTuning(&cfg)
 
 		specs[nodeID] = appNodeSpec{cfg: cfg}
 
@@ -323,6 +324,10 @@ func applySendPathTuning(t *testing.T, cfg *Config, preset sendStressAcceptanceS
 	setClusterConfigDurationField(t, &cfg.Cluster, "AppendGroupCommitMaxWait", preset.AppendGroupCommitMaxWait)
 	setClusterConfigIntField(t, &cfg.Cluster, "AppendGroupCommitMaxRecords", preset.AppendGroupCommitMaxRecords)
 	setClusterConfigIntField(t, &cfg.Cluster, "AppendGroupCommitMaxBytes", preset.AppendGroupCommitMaxBytes)
+	cfg.Cluster.CommitCoordinatorFlushWindow = preset.CommitCoordinatorFlushWindow
+	cfg.Cluster.CommitCoordinatorMaxRequests = preset.CommitCoordinatorMaxRequests
+	cfg.Cluster.CommitCoordinatorMaxRecords = preset.CommitCoordinatorMaxRecords
+	cfg.Cluster.CommitCoordinatorMaxBytes = preset.CommitCoordinatorMaxBytes
 	cfg.Cluster.DataPlanePoolSize = preset.DataPlanePoolSize
 	cfg.Cluster.DataPlaneMaxFetchInflight = preset.DataPlaneMaxFetchInflight
 	cfg.Cluster.DataPlaneMaxPendingFetch = preset.DataPlaneMaxPendingFetch
@@ -354,6 +359,11 @@ func TestThreeNodeAppHarnessUsesSendPathTuning(t *testing.T) {
 		require.Equal(t, preset.AppendGroupCommitMaxWait, maxWait, "node %d append group wait", nodeID)
 		require.Equal(t, preset.AppendGroupCommitMaxRecords, maxRecords, "node %d append group records", nodeID)
 		require.Equal(t, preset.AppendGroupCommitMaxBytes, maxBytes, "node %d append group bytes", nodeID)
+		commitCfg := appChannelStoreCommitCoordinatorConfig(t, app)
+		require.Equal(t, preset.CommitCoordinatorFlushWindow, commitCfg.FlushWindow, "node %d commit coordinator flush window", nodeID)
+		require.Equal(t, preset.CommitCoordinatorMaxRequests, commitCfg.MaxRequests, "node %d commit coordinator max requests", nodeID)
+		require.Equal(t, preset.CommitCoordinatorMaxRecords, commitCfg.MaxRecords, "node %d commit coordinator max records", nodeID)
+		require.Equal(t, preset.CommitCoordinatorMaxBytes, commitCfg.MaxBytes, "node %d commit coordinator max bytes", nodeID)
 		require.Equal(t, preset.GatewaySendTimeout, appGatewayHandlerDurationField(t, app.GatewayHandler(), "sendTimeout"), "node %d gateway send timeout", nodeID)
 	}
 }

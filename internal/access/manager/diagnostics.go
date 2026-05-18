@@ -102,6 +102,9 @@ type DiagnosticsEventDTO struct {
 	ErrorCode    string    `json:"error_code"`
 	Error        string    `json:"error"`
 	Attempt      int       `json:"attempt"`
+	RequestCount int       `json:"request_count"`
+	RecordCount  int       `json:"record_count"`
+	ByteCount    int       `json:"byte_count"`
 	QueueDepth   int       `json:"queue_depth"`
 	ReplicaRole  string    `json:"replica_role"`
 	SampleReason string    `json:"sample_reason"`
@@ -336,6 +339,9 @@ func diagnosticsEventsDTO(events []managementusecase.DiagnosticsEvent) []Diagnos
 			ErrorCode:    event.ErrorCode,
 			Error:        event.Error,
 			Attempt:      event.Attempt,
+			RequestCount: event.RequestCount,
+			RecordCount:  event.RecordCount,
+			ByteCount:    event.ByteCount,
 			QueueDepth:   event.QueueDepth,
 			ReplicaRole:  event.ReplicaRole,
 			SampleReason: event.SampleReason,

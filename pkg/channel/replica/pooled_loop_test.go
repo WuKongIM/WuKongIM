@@ -2,6 +2,7 @@ package replica
 
 import (
 	"context"
+	"reflect"
 	"runtime"
 	"testing"
 	"time"
@@ -67,6 +68,16 @@ func TestPooledLoopCommandWaitReturnsNotLeaderWhenDoneWinsWithoutReply(t *testin
 
 	if result.Err != channel.ErrNotLeader {
 		t.Fatalf("awaitPooledLoopCommandResult() error = %v, want %v", result.Err, channel.ErrNotLeader)
+	}
+}
+
+func TestPooledLoopMessageStoresCommandInline(t *testing.T) {
+	field, ok := reflect.TypeOf(pooledLoopMessage{}).FieldByName("command")
+	if !ok {
+		t.Fatal("pooledLoopMessage.command field missing")
+	}
+	if field.Type.Kind() == reflect.Pointer {
+		t.Fatalf("pooledLoopMessage.command is %s; store commands inline to avoid per-submit pointer allocation", field.Type)
 	}
 }
 

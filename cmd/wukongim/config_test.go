@@ -265,6 +265,7 @@ func TestLoadConfigUsesBuiltInDefaultsWhenOptionalConfKeysAreMissing(t *testing.
 	require.Equal(t, "0.0.0.0:5001", cfg.API.ListenAddr)
 	require.Len(t, cfg.Gateway.Listeners, 2)
 	require.True(t, cfg.Observability.MetricsEnabled)
+	require.True(t, cfg.Observability.NetworkEnabled)
 	require.True(t, cfg.Observability.HealthDetailEnabled)
 	require.False(t, cfg.Observability.HealthDebugEnabled)
 	require.True(t, cfg.Observability.Diagnostics.Enabled)
@@ -284,6 +285,7 @@ func TestLoadConfigParsesObservabilityFlags(t *testing.T) {
 		"WK_CLUSTER_SLOT_COUNT=1",
 		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
 		"WK_METRICS_ENABLE=false",
+		"WK_NETWORK_OBSERVABILITY_ENABLE=false",
 		"WK_HEALTH_DETAIL_ENABLE=false",
 		"WK_HEALTH_DEBUG_ENABLE=true",
 	)
@@ -291,6 +293,7 @@ func TestLoadConfigParsesObservabilityFlags(t *testing.T) {
 	cfg, err := loadConfig(configPath)
 	require.NoError(t, err)
 	require.False(t, cfg.Observability.MetricsEnabled)
+	require.False(t, cfg.Observability.NetworkEnabled)
 	require.False(t, cfg.Observability.HealthDetailEnabled)
 	require.True(t, cfg.Observability.HealthDebugEnabled)
 }
@@ -673,6 +676,10 @@ func TestLoadConfigParsesSendPathTuning(t *testing.T) {
 		require.Equal(t, 1*time.Millisecond, clusterConfigDurationField(t, &cfg.Cluster, "AppendGroupCommitMaxWait"))
 		require.Equal(t, 64, clusterConfigIntField(t, &cfg.Cluster, "AppendGroupCommitMaxRecords"))
 		require.Equal(t, 64*1024, clusterConfigIntField(t, &cfg.Cluster, "AppendGroupCommitMaxBytes"))
+		require.Equal(t, 200*time.Microsecond, cfg.Cluster.CommitCoordinatorFlushWindow)
+		require.Zero(t, cfg.Cluster.CommitCoordinatorMaxRequests)
+		require.Zero(t, cfg.Cluster.CommitCoordinatorMaxRecords)
+		require.Zero(t, cfg.Cluster.CommitCoordinatorMaxBytes)
 		require.Equal(t, 1*time.Second, cfg.Cluster.DataPlaneRPCTimeout)
 		require.Equal(t, 1, cfg.Cluster.DataPlanePoolSize)
 		require.Equal(t, 2, cfg.Cluster.DataPlaneMaxFetchInflight)
@@ -687,6 +694,10 @@ func TestLoadConfigParsesSendPathTuning(t *testing.T) {
 		t.Setenv("WK_CLUSTER_DATA_PLANE_POOL_SIZE", "8")
 		t.Setenv("WK_CLUSTER_DATA_PLANE_MAX_FETCH_INFLIGHT", "16")
 		t.Setenv("WK_CLUSTER_DATA_PLANE_MAX_PENDING_FETCH", "16")
+		t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW", "500us")
+		t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS", "32")
+		t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS", "512")
+		t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES", "524288")
 
 		cfg, err := loadConfig(basePath)
 		require.NoError(t, err)
@@ -695,6 +706,10 @@ func TestLoadConfigParsesSendPathTuning(t *testing.T) {
 		require.Equal(t, 2*time.Millisecond, clusterConfigDurationField(t, &cfg.Cluster, "AppendGroupCommitMaxWait"))
 		require.Equal(t, 128, clusterConfigIntField(t, &cfg.Cluster, "AppendGroupCommitMaxRecords"))
 		require.Equal(t, 256*1024, clusterConfigIntField(t, &cfg.Cluster, "AppendGroupCommitMaxBytes"))
+		require.Equal(t, 500*time.Microsecond, cfg.Cluster.CommitCoordinatorFlushWindow)
+		require.Equal(t, 32, cfg.Cluster.CommitCoordinatorMaxRequests)
+		require.Equal(t, 512, cfg.Cluster.CommitCoordinatorMaxRecords)
+		require.Equal(t, 512*1024, cfg.Cluster.CommitCoordinatorMaxBytes)
 		require.Equal(t, 8, cfg.Cluster.DataPlanePoolSize)
 		require.Equal(t, 16, cfg.Cluster.DataPlaneMaxFetchInflight)
 		require.Equal(t, 16, cfg.Cluster.DataPlaneMaxPendingFetch)
@@ -740,6 +755,30 @@ func TestLoadConfigRejectsExplicitInvalidSendPathTuning(t *testing.T) {
 			key:     "WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_BYTES",
 			value:   "0",
 			wantErr: "append group commit max bytes",
+		},
+		{
+			name:    "commit coordinator flush window",
+			key:     "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW",
+			value:   "0s",
+			wantErr: "commit coordinator flush window",
+		},
+		{
+			name:    "negative commit coordinator max requests",
+			key:     "WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS",
+			value:   "-1",
+			wantErr: "commit coordinator max requests",
+		},
+		{
+			name:    "negative commit coordinator max records",
+			key:     "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS",
+			value:   "-1",
+			wantErr: "commit coordinator max records",
+		},
+		{
+			name:    "negative commit coordinator max bytes",
+			key:     "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES",
+			value:   "-1",
+			wantErr: "commit coordinator max bytes",
 		},
 		{
 			name:    "negative follower replication retry interval",
@@ -1103,6 +1142,7 @@ func TestLoadConfigParsesClusterTimeoutOverridesFromConf(t *testing.T) {
 		"WK_CLUSTER_CONTROLLER_OBSERVATION_INTERVAL=350ms",
 		"WK_CLUSTER_CONTROLLER_REQUEST_TIMEOUT=3s",
 		"WK_CLUSTER_CONTROLLER_LEADER_WAIT_TIMEOUT=9s",
+		"WK_CLUSTER_MANAGED_SLOTS_READY_TIMEOUT=45s",
 		"WK_CLUSTER_FORWARD_RETRY_BUDGET=600ms",
 		"WK_CLUSTER_MANAGED_SLOT_LEADER_WAIT_TIMEOUT=6s",
 		"WK_CLUSTER_MANAGED_SLOT_CATCH_UP_TIMEOUT=7s",
@@ -1117,6 +1157,7 @@ func TestLoadConfigParsesClusterTimeoutOverridesFromConf(t *testing.T) {
 	require.Equal(t, 350*time.Millisecond, cfg.Cluster.Timeouts.ControllerObservation)
 	require.Equal(t, 3*time.Second, cfg.Cluster.Timeouts.ControllerRequest)
 	require.Equal(t, 9*time.Second, cfg.Cluster.Timeouts.ControllerLeaderWait)
+	require.Equal(t, 45*time.Second, cfg.Cluster.ManagedSlotsReadyTimeout)
 	require.Equal(t, 600*time.Millisecond, cfg.Cluster.Timeouts.ForwardRetryBudget)
 	require.Equal(t, 6*time.Second, cfg.Cluster.Timeouts.ManagedSlotLeaderWait)
 	require.Equal(t, 7*time.Second, cfg.Cluster.Timeouts.ManagedSlotCatchUp)

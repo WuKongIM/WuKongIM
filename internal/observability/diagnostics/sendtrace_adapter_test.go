@@ -39,6 +39,29 @@ func TestSendTraceAdapterPreservesService(t *testing.T) {
 	require.Equal(t, "channel_append", result.Events[0].Service)
 }
 
+func TestSendTraceAdapterPreservesBatchMetrics(t *testing.T) {
+	store := NewStore(StoreOptions{Capacity: 8})
+	adapter := NewSendTraceSink(store, NewSampler(SamplerOptions{SampleRate: 1}))
+
+	adapter.RecordSendTrace(sendtrace.Event{
+		TraceID:      "trace-batch",
+		Stage:        sendtrace.StageStoreCommitPebbleSync,
+		Result:       sendtrace.ResultOK,
+		RequestCount: 3,
+		RecordCount:  17,
+		ByteCount:    4096,
+		QueueDepth:   12,
+	})
+
+	result := store.Query(context.Background(), Query{TraceID: "trace-batch"})
+	require.Equal(t, StatusOK, result.Status)
+	require.Len(t, result.Events, 1)
+	require.Equal(t, 3, result.Events[0].RequestCount)
+	require.Equal(t, 17, result.Events[0].RecordCount)
+	require.Equal(t, 4096, result.Events[0].ByteCount)
+	require.Equal(t, 12, result.Events[0].QueueDepth)
+}
+
 func TestSendTraceAdapterKeepsErrorEvenWhenSampleRateZero(t *testing.T) {
 	store := NewStore(StoreOptions{Capacity: 8})
 	adapter := NewSendTraceSink(store, NewSampler(SamplerOptions{SampleRate: 0}))

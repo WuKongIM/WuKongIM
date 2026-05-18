@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/gateway/testkit"
+	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,6 +20,10 @@ type sendStressAcceptanceSpec struct {
 	AppendGroupCommitMaxWait         time.Duration
 	AppendGroupCommitMaxRecords      int
 	AppendGroupCommitMaxBytes        int
+	CommitCoordinatorFlushWindow     time.Duration
+	CommitCoordinatorMaxRequests     int
+	CommitCoordinatorMaxRecords      int
+	CommitCoordinatorMaxBytes        int
 	DataPlanePoolSize                int
 	DataPlaneMaxFetchInflight        int
 	DataPlaneMaxPendingFetch         int
@@ -37,12 +42,14 @@ func sendStressAcceptancePreset() sendStressAcceptanceSpec {
 			AckTimeout:           20 * time.Second,
 			MaxInflightPerWorker: 64,
 			Seed:                 20260408,
+			CommitMode:           channel.CommitModeQuorum,
 		},
 		GatewaySendTimeout:               25 * time.Second,
 		FollowerReplicationRetryInterval: 250 * time.Millisecond,
 		AppendGroupCommitMaxWait:         2 * time.Millisecond,
 		AppendGroupCommitMaxRecords:      128,
 		AppendGroupCommitMaxBytes:        256 * 1024,
+		CommitCoordinatorFlushWindow:     2 * time.Millisecond,
 		DataPlanePoolSize:                8,
 		DataPlaneMaxFetchInflight:        16,
 		DataPlaneMaxPendingFetch:         16,

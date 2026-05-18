@@ -94,9 +94,11 @@ type replica struct {
 	// pendingRetentionTrimEffectID fences physical retention trim results.
 	pendingRetentionTrimEffectID uint64
 
-	appendGroupCommit      appendGroupCommitConfig
-	appendRequests         map[uint64]*appendRequest
-	appendPending          []*appendRequest
+	appendGroupCommit appendGroupCommitConfig
+	appendRequests    map[uint64]*appendRequest
+	appendPending     []*appendRequest
+	// appendInFlightRequests keeps the loop-owned request pointers for the active durable append batch.
+	appendInFlightRequests []*appendRequest
 	appendInFlightIDs      []uint64
 	appendInFlightEffectID uint64
 	appendFlushScheduled   bool

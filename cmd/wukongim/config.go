@@ -198,6 +198,22 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	commitCoordinatorFlushWindow, err := parseDuration(v, "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW")
+	if err != nil {
+		return app.Config{}, err
+	}
+	commitCoordinatorMaxRequests, err := parseInt(v, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS")
+	if err != nil {
+		return app.Config{}, err
+	}
+	commitCoordinatorMaxRecords, err := parseInt(v, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS")
+	if err != nil {
+		return app.Config{}, err
+	}
+	commitCoordinatorMaxBytes, err := parseInt(v, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES")
+	if err != nil {
+		return app.Config{}, err
+	}
 	dataPlanePoolSize, err := parseInt(v, "WK_CLUSTER_DATA_PLANE_POOL_SIZE")
 	if err != nil {
 		return app.Config{}, err
@@ -219,6 +235,10 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		return app.Config{}, err
 	}
 	controllerLeaderWaitTimeout, err := parseDuration(v, "WK_CLUSTER_CONTROLLER_LEADER_WAIT_TIMEOUT")
+	if err != nil {
+		return app.Config{}, err
+	}
+	managedSlotsReadyTimeout, err := parseDuration(v, "WK_CLUSTER_MANAGED_SLOTS_READY_TIMEOUT")
 	if err != nil {
 		return app.Config{}, err
 	}
@@ -411,6 +431,10 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		return app.Config{}, err
 	}
 	metricsEnable, err := parseBool(v, "WK_METRICS_ENABLE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	networkObservabilityEnable, err := parseBool(v, "WK_NETWORK_OBSERVABILITY_ENABLE")
 	if err != nil {
 		return app.Config{}, err
 	}
@@ -666,10 +690,15 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			ElectionTick:                     electionTick,
 			HeartbeatTick:                    heartbeatTick,
 			DialTimeout:                      dialTimeout,
+			ManagedSlotsReadyTimeout:         managedSlotsReadyTimeout,
 			FollowerReplicationRetryInterval: followerReplicationRetryInterval,
 			AppendGroupCommitMaxWait:         appendGroupCommitMaxWait,
 			AppendGroupCommitMaxRecords:      appendGroupCommitMaxRecords,
 			AppendGroupCommitMaxBytes:        appendGroupCommitMaxBytes,
+			CommitCoordinatorFlushWindow:     commitCoordinatorFlushWindow,
+			CommitCoordinatorMaxRequests:     commitCoordinatorMaxRequests,
+			CommitCoordinatorMaxRecords:      commitCoordinatorMaxRecords,
+			CommitCoordinatorMaxBytes:        commitCoordinatorMaxBytes,
 			Seeds:                            seeds,
 			AdvertiseAddr:                    stringValue(v, "WK_CLUSTER_ADVERTISE_ADDR"),
 			JoinToken:                        stringValue(v, "WK_CLUSTER_JOIN_TOKEN"),
@@ -797,6 +826,7 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		},
 		Observability: app.ObservabilityConfig{
 			MetricsEnabled:      metricsEnable,
+			NetworkEnabled:      networkObservabilityEnable,
 			HealthDetailEnabled: healthDetailEnable,
 			HealthDebugEnabled:  healthDebugEnable,
 			Diagnostics: app.DiagnosticsConfig{
@@ -833,6 +863,12 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		stringValue(v, "WK_CLUSTER_LONG_POLL_MAX_BYTES") != "",
 		stringValue(v, "WK_CLUSTER_LONG_POLL_MAX_CHANNELS") != "",
 	)
+	cfg.Cluster.SetCommitCoordinatorExplicitFlags(
+		stringValue(v, "WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW") != "",
+		stringValue(v, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS") != "",
+		stringValue(v, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS") != "",
+		stringValue(v, "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES") != "",
+	)
 	cfg.Cluster.SetControllerLogCompactionExplicitFlags(
 		stringValue(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_ENABLED") != "",
 		stringValue(v, "WK_CLUSTER_CONTROLLER_LOG_COMPACTION_TRIGGER_ENTRIES") != "",
@@ -867,6 +903,7 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		stringValue(v, "WK_HEALTH_DETAIL_ENABLE") != "",
 		stringValue(v, "WK_HEALTH_DEBUG_ENABLE") != "",
 	)
+	cfg.Observability.SetNetworkExplicitFlag(stringValue(v, "WK_NETWORK_OBSERVABILITY_ENABLE") != "")
 	cfg.Observability.SetDiagnosticsExplicitFlags(
 		stringValue(v, "WK_DIAGNOSTICS_ENABLE") != "",
 		stringValue(v, "WK_DIAGNOSTICS_SAMPLE_RATE") != "",

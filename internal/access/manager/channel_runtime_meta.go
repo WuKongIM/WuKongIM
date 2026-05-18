@@ -48,8 +48,8 @@ type ChannelRuntimeMetaDTO struct {
 	ISR []uint64 `json:"isr"`
 	// MinISR is the configured minimum in-sync replica count.
 	MinISR int64 `json:"min_isr"`
-	// MaxMessageSeq is the maximum committed message sequence for the channel.
-	MaxMessageSeq uint64 `json:"max_message_seq"`
+	// MaxMessageSeq is the maximum committed message sequence for the channel when requested.
+	MaxMessageSeq *uint64 `json:"max_message_seq,omitempty"`
 	// Status is the stable runtime status string.
 	Status string `json:"status"`
 }
@@ -88,11 +88,29 @@ func (s *Server) handleChannelRuntimeMeta(c *gin.Context) {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid cursor")
 		return
 	}
+	nodeID, err := parseOptionalNodeIDParam(c.Query("node_id"))
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid node_id")
+		return
+	}
+	nodeScope, err := parseChannelRuntimeMetaNodeScope(c.Query("node_scope"), nodeID)
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid node_scope")
+		return
+	}
+	includeMaxMessageSeq, err := parseOptionalBool(c.Query("include_max_message_seq"))
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid include_max_message_seq")
+		return
+	}
 
 	page, err := s.management.ListChannelRuntimeMeta(c.Request.Context(), managementusecase.ListChannelRuntimeMetaRequest{
-		Limit:          limit,
-		Cursor:         cursor,
-		ChannelIDQuery: strings.TrimSpace(c.Query("channel_id")),
+		Limit:                limit,
+		Cursor:               cursor,
+		ChannelIDQuery:       strings.TrimSpace(c.Query("channel_id")),
+		NodeID:               nodeID,
+		NodeScope:            nodeScope,
+		IncludeMaxMessageSeq: includeMaxMessageSeq,
 	})
 	if err != nil {
 		switch {
@@ -168,6 +186,29 @@ func parseChannelRuntimeMetaChannelTypeParam(raw string) (int64, error) {
 		return 0, strconv.ErrSyntax
 	}
 	return channelType, nil
+}
+
+func parseChannelRuntimeMetaNodeScope(raw string, nodeID uint64) (managementusecase.ChannelRuntimeMetaNodeScope, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		if nodeID == 0 {
+			return "", nil
+		}
+		return managementusecase.ChannelRuntimeMetaNodeScopeAny, nil
+	}
+	scope := managementusecase.ChannelRuntimeMetaNodeScope(value)
+	switch scope {
+	case managementusecase.ChannelRuntimeMetaNodeScopeAny,
+		managementusecase.ChannelRuntimeMetaNodeScopeLeader,
+		managementusecase.ChannelRuntimeMetaNodeScopeReplica,
+		managementusecase.ChannelRuntimeMetaNodeScopeISR:
+		if nodeID == 0 {
+			return "", strconv.ErrSyntax
+		}
+		return scope, nil
+	default:
+		return "", strconv.ErrSyntax
+	}
 }
 
 func encodeChannelRuntimeMetaCursor(cursor managementusecase.ChannelRuntimeMetaListCursor) (string, error) {

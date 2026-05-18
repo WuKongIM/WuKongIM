@@ -67,6 +67,8 @@ type PersonConfig struct {
 	PayloadSizeBytes int
 	// Rate is the per-channel send rate used during Run.
 	Rate model.Rate
+	// MaxConcurrency bounds concurrent send+sendack operations. Zero preserves sequential sends.
+	MaxConcurrency int
 	// Phase identifies the traffic phase used in generated message identities.
 	Phase string
 	// RunDuration is the measured duration used during Run.
@@ -263,6 +265,15 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 	}
 	interval := scheduledMessageInterval(cfg.Duration, totalMessages)
 	phase := w.cfg.phaseName(cfg.Phase)
+	if w.cfg.MaxConcurrency > 1 {
+		return runScheduledMessagesByKey(ctx, totalMessages, interval, w.cfg.MaxConcurrency, func(messageOffset int) string {
+			pair := w.pairs[messageOffset%len(w.pairs)]
+			return pair.SenderUID
+		}, func(ctx context.Context, messageOffset int) error {
+			pair := w.pairs[messageOffset%len(w.pairs)]
+			return w.sendPairInPhase(ctx, pair, phase, messageOffset)
+		})
+	}
 	for messageOffset := 0; messageOffset < totalMessages; messageOffset++ {
 		select {
 		case <-ctx.Done():

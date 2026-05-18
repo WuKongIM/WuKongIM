@@ -9,6 +9,15 @@ import (
 )
 
 func (r *replica) Append(ctx context.Context, batch []channel.Record) (channel.CommitResult, error) {
+	return r.appendBatch(ctx, batch, false)
+}
+
+// AppendOwned appends a batch whose caller has transferred ownership of the batch slice.
+func (r *replica) AppendOwned(ctx context.Context, batch []channel.Record) (channel.CommitResult, error) {
+	return r.appendBatch(ctx, batch, true)
+}
+
+func (r *replica) appendBatch(ctx context.Context, batch []channel.Record, ownsBatch bool) (channel.CommitResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -16,10 +25,14 @@ func (r *replica) Append(ctx context.Context, batch []channel.Record) (channel.C
 		return channel.CommitResult{}, err
 	}
 
-	waiter := &appendWaiter{ch: make(chan appendCompletion, 1)}
-	req := &appendRequest{}
+	waiter := acquireAppendWaiter()
+	req := acquireAppendRequest()
 	req.ctx = ctx
-	req.batch = cloneRecords(batch)
+	if ownsBatch {
+		req.batch = batch
+	} else {
+		req.batch = cloneRecords(batch)
+	}
 	req.byteCount = appendRequestBytes(batch)
 	req.commitMode = channel.CommitModeFromContext(ctx)
 	req.waiter = waiter
@@ -30,11 +43,15 @@ func (r *replica) Append(ctx context.Context, batch []channel.Record) (channel.C
 	req.waiter.enqueuedAt = req.enqueuedAt
 	result := r.submitLoopCommand(context.Background(), machineAppendRequestCommand{Request: req, Now: req.enqueuedAt})
 	if result.Err != nil {
+		releaseAppendRequest(req)
 		return channel.CommitResult{}, result.Err
 	}
 
 	select {
 	case completion := <-req.waiter.ch:
+		if completion.err == nil {
+			releaseAppendRequest(req)
+		}
 		return completion.result, completion.err
 	case <-ctx.Done():
 		if ctx.Err() == context.DeadlineExceeded {
@@ -42,6 +59,9 @@ func (r *replica) Append(ctx context.Context, batch []channel.Record) (channel.C
 		}
 		_ = r.submitLoopCommand(context.Background(), machineAppendCancelCommand{Request: req, Err: ctx.Err()})
 		completion := <-req.waiter.ch
+		if completion.err == nil {
+			releaseAppendRequest(req)
+		}
 		return completion.result, completion.err
 	}
 }

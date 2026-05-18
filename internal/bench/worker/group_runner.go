@@ -171,6 +171,7 @@ func buildGroupWorkloads(assignment Assignment, bundles []groupWorkloadBundle, c
 			RecvAck:                bundle.traffic.RecvAck,
 			GlobalRate:             bundle.traffic.RatePerChannel,
 			LocalRate:              benchworkload.GroupLocalRate(bundle.traffic.RatePerChannel, bundle.profile.TrafficPartitionCount, bundle.profile.OwnedTrafficPartitions),
+			MaxConcurrency:         bundle.traffic.Concurrency,
 			TrafficPartitionCount:  bundle.profile.TrafficPartitionCount,
 			OwnedTrafficPartitions: bundle.profile.OwnedTrafficPartitions,
 			Channels:               bundle.channels,

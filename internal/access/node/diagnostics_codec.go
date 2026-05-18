@@ -15,8 +15,9 @@ const (
 )
 
 var (
-	diagnosticsRequestMagic  = [...]byte{'W', 'K', 'D', 'Q', 2}
-	diagnosticsResponseMagic = [...]byte{'W', 'K', 'D', 'R', 2}
+	diagnosticsRequestMagic    = [...]byte{'W', 'K', 'D', 'Q', 2}
+	diagnosticsResponseMagicV2 = [...]byte{'W', 'K', 'D', 'R', 2}
+	diagnosticsResponseMagic   = [...]byte{'W', 'K', 'D', 'R', 3}
 )
 
 // encodeDiagnosticsRequestBinary encodes diagnostics requests without JSON fallback.
@@ -60,13 +61,14 @@ func decodeDiagnosticsResponse(body []byte) (diagnosticsResponse, error) {
 	if !isDiagnosticsResponseBinary(body) {
 		return diagnosticsResponse{}, fmt.Errorf("access/node: invalid diagnostics response codec")
 	}
+	version := diagnosticsResponseCodecVersion(body)
 	offset := len(diagnosticsResponseMagic)
 	var resp diagnosticsResponse
 	var err error
 	if resp.Status, offset, err = readDiagnosticsString(body, offset); err != nil {
 		return diagnosticsResponse{}, err
 	}
-	if resp.Result, offset, err = readDiagnosticsQueryResult(body, offset); err != nil {
+	if resp.Result, offset, err = readDiagnosticsQueryResult(body, offset, version); err != nil {
 		return diagnosticsResponse{}, err
 	}
 	if offset != len(body) {
@@ -80,7 +82,18 @@ func isDiagnosticsRequestBinary(body []byte) bool {
 }
 
 func isDiagnosticsResponseBinary(body []byte) bool {
-	return hasMagic(body, diagnosticsResponseMagic[:])
+	return diagnosticsResponseCodecVersion(body) != 0
+}
+
+func diagnosticsResponseCodecVersion(body []byte) int {
+	switch {
+	case hasMagic(body, diagnosticsResponseMagic[:]):
+		return 3
+	case hasMagic(body, diagnosticsResponseMagicV2[:]):
+		return 2
+	default:
+		return 0
+	}
 }
 
 func appendDiagnosticsQuery(dst []byte, query diagnostics.Query) []byte {
@@ -147,7 +160,7 @@ func appendDiagnosticsQueryResult(dst []byte, result diagnostics.QueryResult) []
 	return dst
 }
 
-func readDiagnosticsQueryResult(body []byte, offset int) (diagnostics.QueryResult, int, error) {
+func readDiagnosticsQueryResult(body []byte, offset int, eventCodecVersion int) (diagnostics.QueryResult, int, error) {
 	var result diagnostics.QueryResult
 	var status string
 	var err error
@@ -187,7 +200,7 @@ func readDiagnosticsQueryResult(body []byte, offset int) (diagnostics.QueryResul
 	if result.Summary, offset, err = readDiagnosticsSummary(body, offset); err != nil {
 		return diagnostics.QueryResult{}, offset, err
 	}
-	if result.Events, offset, err = readDiagnosticsEvents(body, offset); err != nil {
+	if result.Events, offset, err = readDiagnosticsEvents(body, offset, eventCodecVersion); err != nil {
 		return diagnostics.QueryResult{}, offset, err
 	}
 	if result.Notes, offset, err = readDiagnosticsStringSlice(body, offset, "diagnostics notes"); err != nil {
@@ -235,7 +248,7 @@ func appendDiagnosticsEvents(dst []byte, events []diagnostics.Event) []byte {
 	return dst
 }
 
-func readDiagnosticsEvents(body []byte, offset int) ([]diagnostics.Event, int, error) {
+func readDiagnosticsEvents(body []byte, offset int, eventCodecVersion int) ([]diagnostics.Event, int, error) {
 	marker, next, err := readNodeMarker(body, offset, "diagnostics events")
 	if err != nil || marker == 0 {
 		return nil, next, err
@@ -254,7 +267,7 @@ func readDiagnosticsEvents(body []byte, offset int) ([]diagnostics.Event, int, e
 	}
 	events := make([]diagnostics.Event, eventsLen)
 	for i := range events {
-		if events[i], offset, err = readDiagnosticsEvent(body, offset); err != nil {
+		if events[i], offset, err = readDiagnosticsEvent(body, offset, eventCodecVersion); err != nil {
 			return nil, offset, err
 		}
 	}
@@ -281,13 +294,16 @@ func appendDiagnosticsEvent(dst []byte, event diagnostics.Event) []byte {
 	dst = appendString(dst, string(event.ErrorCode))
 	dst = appendString(dst, event.Error)
 	dst = appendNodeInt(dst, event.Attempt)
+	dst = appendNodeInt(dst, event.RequestCount)
+	dst = appendNodeInt(dst, event.RecordCount)
+	dst = appendNodeInt(dst, event.ByteCount)
 	dst = appendNodeInt(dst, event.QueueDepth)
 	dst = appendString(dst, event.ReplicaRole)
 	dst = appendString(dst, event.SampleReason)
 	return dst
 }
 
-func readDiagnosticsEvent(body []byte, offset int) (diagnostics.Event, int, error) {
+func readDiagnosticsEvent(body []byte, offset int, eventCodecVersion int) (diagnostics.Event, int, error) {
 	var event diagnostics.Event
 	var stage string
 	var result string
@@ -354,6 +370,17 @@ func readDiagnosticsEvent(body []byte, offset int) (diagnostics.Event, int, erro
 	}
 	if event.Attempt, offset, err = readNodeInt(body, offset, "diagnostics attempt"); err != nil {
 		return diagnostics.Event{}, offset, err
+	}
+	if eventCodecVersion >= 3 {
+		if event.RequestCount, offset, err = readNodeInt(body, offset, "diagnostics request count"); err != nil {
+			return diagnostics.Event{}, offset, err
+		}
+		if event.RecordCount, offset, err = readNodeInt(body, offset, "diagnostics record count"); err != nil {
+			return diagnostics.Event{}, offset, err
+		}
+		if event.ByteCount, offset, err = readNodeInt(body, offset, "diagnostics byte count"); err != nil {
+			return diagnostics.Event{}, offset, err
+		}
 	}
 	if event.QueueDepth, offset, err = readNodeInt(body, offset, "diagnostics queue depth"); err != nil {
 		return diagnostics.Event{}, offset, err

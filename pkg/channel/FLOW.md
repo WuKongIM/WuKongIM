@@ -65,9 +65,10 @@ Handler 层:
 
 Replica 层 (replica/append.go + replica/append_pipeline.go):
   ⑥ 先检查 leader 是否 `CommitReady=true` 且本地 meta 不带 WriteFence token；若刚启动/刚完成 leader transfer 但尚未完成 reconcile，则直接返回 ErrNotReady；若 migration fence 尚未被权威清除/升级，则返回 ErrWriteFenced
-  ⑦ facade 将 append request 提交到 replica loop；loop-owned append pipeline 按 1ms/64条/64KB 做 Group Commit
-  ⑧ append effect worker 在 `durableMu` 下执行 Leader LogStore append/sync；底层 store 在单 channel `writeMu` 下先 prepare 记录，再把 synced append 提交给 `store/commit.go`
-     的跨频道 coordinator，用 200µs 窗口合并 Pebble Sync；sync 完成前不发布新的 LEO
+  ⑦ runtime 对本进程新建的记录批次使用 replica owned append fast path，避免重复深拷贝；facade 将 append request 提交到 replica loop；loop-owned append pipeline 按 1ms/64条/64KB 做 Group Commit
+  ⑧ append effect worker 在 `durableMu` 下执行 Leader LogStore append/sync；底层 store 对同一 channel 的并发 synced Append 先按
+     `store/commit.go` 的 FlushWindow 聚合成一个 channel-local append，再在单 channel `writeMu` 下 prepare 记录并提交给跨频道 coordinator；
+     coordinator 用可配置窗口（默认 200µs）合并 Pebble Sync，并可按请求数/记录数/字节数限制单批大小；sync 完成前不发布新的 LEO
   ⑨ `ChannelStore.prepareAppendLocked()` 会把兼容层 payload 解成 `messageRow`，并由 `messageTable.append()`
      写入 `message` 表的 primary/payload families，同时维护 `message_id` / `client_msg_no`
      / `uidx_from_uid_client_msg_no` 三类索引
@@ -263,7 +264,7 @@ System (0x17): prefix + key + tableID + systemID + ...
 - **Retention 不修改 checkpoint LogStartOffset**: retention reset/trim 只维护 `RetentionThroughSeq`、`LocalRetentionThroughSeq`、`PhysicalRetentionThroughSeq` 和 retained LEO floor；只有 snapshot install 推进 `LogStartOffset`。
 - **HW 推进不可回退**: 运行时 `HW(CommitHW)` 只能前进不能后退。`progress_pipeline.go:advanceHWLocked` 会检查 newHW ≥ currentHW。
 - **Lease 过期自动降级**: Leader Lease 过期后自动变为 FencedLeader，拒绝所有写入但不影响读取。见 `replica/append_pipeline.go:appendableLocked` 和 `replica/reconcile_coordinator.go:ensureReconcileLeaseLocked`。
-- **Cross-channel durable batching**: `store/commit.go` 使用 200µs 窗口跨频道合并 Pebble durable 写入；Leader 的 synced Append 和 Follower 的 ApplyFetch 都走同一个 coordinator。单频道的 `writeMu` 仍然串行，且 sync 完成前不会发布新的 LEO。
+- **Channel-local + cross-channel durable batching**: `ChannelStore.Append()` 对同一 channel 的并发 synced append 先用 commit coordinator 的 FlushWindow 聚合并预留连续 seq，再提交给 `store/commit.go` 跨频道合并 Pebble durable 写入；coordinator 支持请求数/记录数/字节数批量上限。单频道的 `writeMu` 仍然串行，且 sync 完成前不会发布新的 LEO。
 - **Committed Dispatch Cursor 不是消息真相**: `store/committed_cursor.go` 的热路径 cursor 只记录异步已提交事件补偿进度，默认使用 `NoSync` 降低写放大且不能覆盖更高 cursor；retention 安全门禁必须走 durable confirm/advance 路径，cursor 丢失时仍只能从结构化 `message` 表或已采用的 retention floor 重复回放。
 - **手工 `PutIdempotency()` 只应服务恢复/快照路径**: 追加消息时 `Append()` / `StoreApplyFetch()` 已经维护唯一索引；测试或业务代码再额外覆盖同一索引值，可能把 append 已写入的 `payload_hash` 覆盖掉并制造假性损坏。
 - **Checkpoint 不再阻塞 sendack**: leader 在 quorum commit 后先完成 Append waiter，Checkpoint 持久化走 checkpoint effect worker coalescing；若 checkpoint 写盘失败会临时置 `CommitReady=false` 并重试。health / metrics 暴露应通过上层观测性窄接口接入，不改变 sendack 语义。

@@ -219,6 +219,176 @@ func TestAppendPropagatesLocalCommitModeToReplica(t *testing.T) {
 	}
 }
 
+func TestAppendDefaultCommitModeDoesNotWrapContext(t *testing.T) {
+	id := core.ChannelID{ID: "room-default-context", Type: 2}
+	key := KeyFromChannelID(id)
+	engine := openTestEngine(t)
+	store := engine.ForChannel(key, id)
+	ctx := context.Background()
+	var gotCtx context.Context
+	handle := &fakeChannelHandle{
+		id: key,
+		status: core.ReplicaState{
+			ChannelKey:  key,
+			Role:        core.ReplicaRoleLeader,
+			CommitReady: true,
+		},
+	}
+	handle.appendFn = func(ctx context.Context, records []core.Record) (core.CommitResult, error) {
+		gotCtx = ctx
+		base, err := store.Append(records)
+		if err != nil {
+			return core.CommitResult{}, err
+		}
+		handle.status.HW = base + uint64(len(records))
+		return core.CommitResult{BaseOffset: base, NextCommitHW: handle.status.HW, RecordCount: len(records)}, nil
+	}
+	rt := &fakeRuntime{channels: map[core.ChannelKey]*fakeChannelHandle{key: handle}}
+
+	svc, err := New(Config{
+		Runtime:    rt,
+		Store:      engine,
+		MessageIDs: &fakeMessageIDGenerator{},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := svc.ApplyMeta(core.Meta{
+		Key:         key,
+		ID:          id,
+		Epoch:       7,
+		LeaderEpoch: 9,
+		Leader:      1,
+		Replicas:    []core.NodeID{1},
+		ISR:         []core.NodeID{1},
+		MinISR:      1,
+		Status:      core.StatusActive,
+		Features:    core.Features{MessageSeqFormat: core.MessageSeqFormatU64},
+	}); err != nil {
+		t.Fatalf("ApplyMeta() error = %v", err)
+	}
+
+	_, err = svc.Append(ctx, core.AppendRequest{
+		ChannelID:             id,
+		SupportsMessageSeqU64: true,
+		Message: core.Message{
+			FromUID: "u1",
+			Payload: []byte("payload"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+	if gotCtx != ctx {
+		t.Fatalf("append context was wrapped for default commit mode")
+	}
+}
+
+func TestAppendExplicitQuorumCommitModeDoesNotWrapContext(t *testing.T) {
+	id := core.ChannelID{ID: "room-explicit-quorum-context", Type: 2}
+	key := KeyFromChannelID(id)
+	engine := openTestEngine(t)
+	store := engine.ForChannel(key, id)
+	ctx := context.Background()
+	var gotCtx context.Context
+	handle := &fakeChannelHandle{
+		id: key,
+		status: core.ReplicaState{
+			ChannelKey:  key,
+			Role:        core.ReplicaRoleLeader,
+			CommitReady: true,
+		},
+	}
+	handle.appendFn = func(ctx context.Context, records []core.Record) (core.CommitResult, error) {
+		gotCtx = ctx
+		base, err := store.Append(records)
+		if err != nil {
+			return core.CommitResult{}, err
+		}
+		handle.status.HW = base + uint64(len(records))
+		return core.CommitResult{BaseOffset: base, NextCommitHW: handle.status.HW, RecordCount: len(records)}, nil
+	}
+	rt := &fakeRuntime{channels: map[core.ChannelKey]*fakeChannelHandle{key: handle}}
+
+	svc, err := New(Config{
+		Runtime:    rt,
+		Store:      engine,
+		MessageIDs: &fakeMessageIDGenerator{},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := svc.ApplyMeta(core.Meta{
+		Key:         key,
+		ID:          id,
+		Epoch:       7,
+		LeaderEpoch: 9,
+		Leader:      1,
+		Replicas:    []core.NodeID{1},
+		ISR:         []core.NodeID{1},
+		MinISR:      1,
+		Status:      core.StatusActive,
+		Features:    core.Features{MessageSeqFormat: core.MessageSeqFormatU64},
+	}); err != nil {
+		t.Fatalf("ApplyMeta() error = %v", err)
+	}
+
+	_, err = svc.Append(ctx, core.AppendRequest{
+		ChannelID:             id,
+		SupportsMessageSeqU64: true,
+		CommitMode:            core.CommitModeQuorum,
+		Message: core.Message{
+			FromUID: "u1",
+			Payload: []byte("payload"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+	if gotCtx != ctx {
+		t.Fatalf("append context was wrapped for explicit quorum commit mode")
+	}
+}
+
+func TestChannelKeyForIDUsesAppliedMetaCache(t *testing.T) {
+	id := core.ChannelID{ID: "room-key-cache", Type: 2}
+	key := KeyFromChannelID(id)
+	svc, _, _ := newAppendService(t, id)
+	coreSvc := svc.(*service)
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		got := coreSvc.channelKeyForID(id)
+		if got != key {
+			t.Fatalf("channelKeyForID() = %q, want %q", got, key)
+		}
+	})
+
+	if allocs != 0 {
+		t.Fatalf("channelKeyForID() allocs = %v, want 0", allocs)
+	}
+}
+
+func TestMetaForKeyAvoidsHotPathSliceClone(t *testing.T) {
+	id := core.ChannelID{ID: "room-meta-hot-path", Type: 2}
+	key := KeyFromChannelID(id)
+	svc, _, _ := newAppendService(t, id)
+	coreSvc := svc.(*service)
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		got, err := coreSvc.metaForKey(key)
+		if err != nil {
+			t.Fatalf("metaForKey() error = %v", err)
+		}
+		if got.Key != key || got.ID != id {
+			t.Fatalf("metaForKey() = %+v, want key=%q id=%+v", got, key, id)
+		}
+	})
+
+	if allocs != 0 {
+		t.Fatalf("metaForKey() allocs = %v, want 0", allocs)
+	}
+}
+
 func TestAppendReturnsExistingEntryOnIdempotentRetry(t *testing.T) {
 	id := core.ChannelID{ID: "room-1", Type: 2}
 	svc, rt, _ := newAppendService(t, id)

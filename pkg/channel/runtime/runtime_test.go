@@ -353,6 +353,38 @@ func TestEnsureChannelLeaderLocalAppendNotifierDoesNotBlockCaller(t *testing.T) 
 	}
 }
 
+func TestEnsureChannelSkipsLongPollNotifiersWhenLongPollDisabled(t *testing.T) {
+	store := newFakeGenerationStore()
+	factory := newFakeReplicaFactory()
+	created, err := New(Config{
+		LocalNode:       1,
+		ReplicaFactory:  factory,
+		GenerationStore: store,
+		Tombstones: TombstonePolicy{
+			TombstoneTTL: 30 * time.Second,
+		},
+		Now: time.Now,
+	})
+	require.NoError(t, err)
+	rt := created.(*runtime)
+	t.Cleanup(func() {
+		rt.stopTombstoneCleanup()
+	})
+
+	meta := testMeta("room-no-longpoll-notifiers")
+	require.NoError(t, rt.EnsureChannel(meta))
+
+	factory.mu.Lock()
+	require.Len(t, factory.replicas, 1)
+	rep := factory.replicas[0]
+	factory.mu.Unlock()
+
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	require.Nil(t, rep.onLeaderLocalAppend)
+	require.Nil(t, rep.onLeaderHWAdvance)
+}
+
 func TestRemoveChannel(t *testing.T) {
 	rt := newTestRuntime(t)
 	meta := testMeta("room-remove")

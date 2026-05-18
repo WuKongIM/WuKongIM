@@ -25,6 +25,7 @@ type Engine struct {
 	stores      map[channel.ChannelKey]*ChannelStore
 	coordinator *commitCoordinator
 	checkpoint  *commitCoordinator
+	commitCfg   CommitCoordinatorConfig
 }
 
 func Open(path string) (*Engine, error) {
@@ -36,6 +37,35 @@ func Open(path string) (*Engine, error) {
 		db:     pdb,
 		stores: make(map[channel.ChannelKey]*ChannelStore),
 	}, nil
+}
+
+// ConfigureCommitCoordinator sets cross-channel append/apply commit batching before the coordinator starts.
+func (e *Engine) ConfigureCommitCoordinator(cfg CommitCoordinatorConfig) {
+	if e == nil {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.commitCfg = cfg
+	if e.coordinator == nil {
+		return
+	}
+	e.coordinator.configure(cfg)
+}
+
+// CommitCoordinatorConfig returns the effective append/apply commit coordinator settings.
+func (e *Engine) CommitCoordinatorConfig() CommitCoordinatorConfig {
+	if e == nil {
+		return effectiveCommitCoordinatorConfig(CommitCoordinatorConfig{})
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.coordinator != nil {
+		e.coordinator.batchMu.Lock()
+		defer e.coordinator.batchMu.Unlock()
+		return e.coordinator.cfg
+	}
+	return effectiveCommitCoordinatorConfig(e.commitCfg)
 }
 
 func (e *Engine) Close() error {
@@ -203,7 +233,7 @@ func (e *Engine) commitCoordinator() *commitCoordinator {
 		return nil
 	}
 	if e.coordinator == nil {
-		e.coordinator = newCommitCoordinator(e.db)
+		e.coordinator = newCommitCoordinatorWithConfig(e.db, e.commitCfg)
 	}
 	return e.coordinator
 }

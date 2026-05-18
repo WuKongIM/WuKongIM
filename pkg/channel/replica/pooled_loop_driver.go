@@ -9,9 +9,10 @@ import (
 )
 
 type pooledLoopMessage struct {
-	command  *replicaLoopCommand
-	event    machineEvent
-	queuedAt time.Time
+	command    replicaLoopCommand
+	event      machineEvent
+	queuedAt   time.Time
+	hasCommand bool
 }
 
 type pooledLoopDriver struct {
@@ -55,7 +56,7 @@ func (d *pooledLoopDriver) submitCommand(ctx context.Context, event machineEvent
 
 	reply := make(chan machineResult, 1)
 	cmd := replicaLoopCommand{event: event, reply: reply}
-	if err := d.enqueue(ctx, pooledLoopMessage{command: &cmd}); err != nil {
+	if err := d.enqueue(ctx, pooledLoopMessage{command: cmd, hasCommand: true}); err != nil {
 		return machineResult{Err: err}
 	}
 
@@ -210,8 +211,8 @@ func (d *pooledLoopDriver) drain() {
 }
 
 func (d *pooledLoopDriver) process(msg pooledLoopMessage) {
-	if msg.command != nil {
-		d.replica.handleLoopCommand(*msg.command)
+	if msg.hasCommand {
+		d.replica.handleLoopCommand(msg.command)
 		if _, closing := msg.command.event.(machineCloseCommand); closing {
 			d.mu.Lock()
 			d.closed = true

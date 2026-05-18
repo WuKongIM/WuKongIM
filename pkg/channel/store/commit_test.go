@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/cockroachdb/pebble/v2/vfs"
 )
@@ -15,7 +16,7 @@ import (
 func TestCommitCoordinatorBatchesMultipleGroupsIntoSinglePebbleSync(t *testing.T) {
 	engine, fs := openCountingCommitCoordinatorTestEngine(t)
 	stores := openTestChannelStoresOnEngine(t, engine, "group-1", "group-2")
-	engine.commitCoordinator().flushWindow = 5 * time.Millisecond
+	engine.commitCoordinator().cfg.FlushWindow = 5 * time.Millisecond
 
 	before := fs.syncCount.Load()
 
@@ -60,7 +61,7 @@ func TestCommitCoordinatorBatchesMultipleGroupsIntoSinglePebbleSync(t *testing.T
 func TestCommitCoordinatorDoesNotPublishBeforeSyncCompletes(t *testing.T) {
 	engine, fs := openBlockingSyncTestEngine(t)
 	coordinator := engine.commitCoordinator()
-	coordinator.flushWindow = 0
+	coordinator.cfg.FlushWindow = 0
 
 	published := make(chan struct{})
 	done := make(chan error, 1)
@@ -112,7 +113,7 @@ func TestCommitCoordinatorDoesNotPublishBeforeSyncCompletes(t *testing.T) {
 func TestCommitCoordinatorFanoutsBatchFailureToAllWaiters(t *testing.T) {
 	engine, _ := openCountingCommitCoordinatorTestEngine(t)
 	coordinator := engine.commitCoordinator()
-	coordinator.flushWindow = 5 * time.Millisecond
+	coordinator.cfg.FlushWindow = 5 * time.Millisecond
 	coordinator.commit = func(*pebble.Batch) error {
 		return errSyntheticSyncFailure
 	}
@@ -166,7 +167,7 @@ func TestCommitCoordinatorCollectBatchStopsDrainingBufferedRequestsWhenClosed(t 
 
 	coordinator := &commitCoordinator{
 		db:           engine.db,
-		flushWindow:  0,
+		cfg:          CommitCoordinatorConfig{FlushWindow: 0, QueueSize: 2},
 		requests:     make(chan commitRequest, 2),
 		stopAcceptCh: make(chan struct{}),
 		stopCh:       make(chan struct{}),
@@ -254,7 +255,7 @@ func TestCommitCoordinatorAwaitRequestResultReturnsShutdownErrorWithoutPublished
 func TestCommitCoordinatorPublishesIfCloseStartsDuringSync(t *testing.T) {
 	engine, _ := openCountingCommitCoordinatorTestEngine(t)
 	coordinator := engine.commitCoordinator()
-	coordinator.flushWindow = 0
+	coordinator.cfg.FlushWindow = 0
 
 	commitStarted := make(chan struct{})
 	releaseCommit := make(chan struct{})
@@ -349,7 +350,7 @@ func TestCommitCoordinatorPublishesIfCloseStartsDuringSync(t *testing.T) {
 func TestCommitCoordinatorDoesNotStartCloseWhilePublishInFlight(t *testing.T) {
 	engine, _ := openCountingCommitCoordinatorTestEngine(t)
 	coordinator := engine.commitCoordinator()
-	coordinator.flushWindow = 0
+	coordinator.cfg.FlushWindow = 0
 
 	publishStarted := make(chan struct{})
 	releasePublish := make(chan struct{})
@@ -622,4 +623,305 @@ func (f *blockingSyncFile) SyncTo(length int64) (bool, error) {
 func (f *blockingSyncFile) SyncData() error {
 	f.fs.maybeBlockSync()
 	return f.File.SyncData()
+}
+
+func TestCommitCoordinatorConfigLimitsBatchCollection(t *testing.T) {
+	engine, _ := openCountingCommitCoordinatorTestEngine(t)
+	coordinator := newCommitCoordinatorWithConfig(engine.db, CommitCoordinatorConfig{
+		FlushWindow: 5 * time.Millisecond,
+		MaxRequests: 2,
+	})
+	defer coordinator.close()
+
+	releaseCommit := make(chan struct{})
+	var batchSizesMu sync.Mutex
+	batchSizes := make([]int, 0, 2)
+	coordinator.commit = func(batch *pebble.Batch) error {
+		batchSizesMu.Lock()
+		batchSizes = append(batchSizes, int(batch.Count()))
+		batchSizesMu.Unlock()
+		<-releaseCommit
+		return nil
+	}
+	t.Cleanup(func() { closeOnce(releaseCommit) })
+
+	done := make(chan error, 3)
+	start := make(chan struct{})
+	for i := 0; i < 3; i++ {
+		idx := i
+		go func() {
+			<-start
+			done <- coordinator.submit(commitRequest{
+				channelKey: channel.ChannelKey("group-limit"),
+				build: func(batch *pebble.Batch) error {
+					return batch.Set([]byte{byte('a' + idx)}, []byte("v"), pebble.NoSync)
+				},
+			})
+		}()
+	}
+	close(start)
+
+	eventuallyCommitTest(t, func() bool {
+		batchSizesMu.Lock()
+		defer batchSizesMu.Unlock()
+		return len(batchSizes) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+	batchSizesMu.Lock()
+	if got := append([]int(nil), batchSizes...); !intSlicesEqual(got, []int{2}) {
+		t.Fatalf("batch sizes = %v, want [2]", got)
+	}
+	batchSizesMu.Unlock()
+
+	close(releaseCommit)
+	for i := 0; i < 3; i++ {
+		if err := <-done; err != nil {
+			t.Fatalf("submit() error = %v", err)
+		}
+	}
+}
+
+func TestCommitCoordinatorConfigLimitsBatchCollectionByRecordsAndBytes(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  CommitCoordinatorConfig
+		reqs []commitRequest
+		want int
+	}{
+		{
+			name: "max records",
+			cfg: CommitCoordinatorConfig{
+				MaxRecords: 3,
+			},
+			reqs: []commitRequest{
+				{recordCount: 2},
+				{recordCount: 1},
+				{recordCount: 1},
+			},
+			want: 2,
+		},
+		{
+			name: "max bytes",
+			cfg: CommitCoordinatorConfig{
+				MaxBytes: 300,
+			},
+			reqs: []commitRequest{
+				{byteCount: 200},
+				{byteCount: 100},
+				{byteCount: 1},
+			},
+			want: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			coordinator := &commitCoordinator{
+				cfg:          effectiveCommitCoordinatorConfig(tt.cfg),
+				requests:     make(chan commitRequest, len(tt.reqs)),
+				stopAcceptCh: make(chan struct{}),
+			}
+			for _, req := range tt.reqs[1:] {
+				req.channelKey = "group-limit"
+				req.build = func(*pebble.Batch) error { return nil }
+				coordinator.requests <- req
+			}
+			first := tt.reqs[0]
+			first.channelKey = "group-limit"
+			first.build = func(*pebble.Batch) error { return nil }
+
+			batch := coordinator.collectBatch(first)
+			if got := len(batch.requests); got != tt.want {
+				t.Fatalf("len(batch.requests) = %d, want %d", got, tt.want)
+			}
+			requests, records, bytes := batch.stats()
+			if tt.cfg.MaxRecords > 0 && records < tt.cfg.MaxRecords {
+				t.Fatalf("batch records = %d, want at least %d", records, tt.cfg.MaxRecords)
+			}
+			if tt.cfg.MaxBytes > 0 && bytes < tt.cfg.MaxBytes {
+				t.Fatalf("batch bytes = %d, want at least %d", bytes, tt.cfg.MaxBytes)
+			}
+			if requests != tt.want {
+				t.Fatalf("batch requests = %d, want %d", requests, tt.want)
+			}
+		})
+	}
+}
+
+func TestCommitCoordinatorLimitDoesNotOvershootBatch(t *testing.T) {
+	tests := []struct {
+		name      string
+		cfg       CommitCoordinatorConfig
+		first     commitRequest
+		second    commitRequest
+		wantCount int
+	}{
+		{
+			name:      "max records keeps overflowing request for next batch",
+			cfg:       CommitCoordinatorConfig{MaxRecords: 3},
+			first:     commitRequest{recordCount: 2},
+			second:    commitRequest{recordCount: 2},
+			wantCount: 1,
+		},
+		{
+			name:      "max bytes keeps overflowing request for next batch",
+			cfg:       CommitCoordinatorConfig{MaxBytes: 300},
+			first:     commitRequest{byteCount: 200},
+			second:    commitRequest{byteCount: 200},
+			wantCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			coordinator := &commitCoordinator{
+				cfg:          effectiveCommitCoordinatorConfig(tt.cfg),
+				requests:     make(chan commitRequest, 1),
+				stopAcceptCh: make(chan struct{}),
+			}
+			tt.first.channelKey = "group-limit"
+			tt.first.build = func(*pebble.Batch) error { return nil }
+			tt.second.channelKey = "group-limit"
+			tt.second.build = func(*pebble.Batch) error { return nil }
+			coordinator.requests <- tt.second
+
+			batch := coordinator.collectBatch(tt.first)
+			if got := len(batch.requests); got != tt.wantCount {
+				t.Fatalf("len(batch.requests) = %d, want %d", got, tt.wantCount)
+			}
+			if remaining := len(coordinator.deferred); remaining != 1 {
+				t.Fatalf("deferred requests = %d, want 1", remaining)
+			}
+		})
+	}
+}
+
+func eventuallyCommitTest(t *testing.T, cond func() bool, timeout, interval time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(interval)
+	}
+	if cond() {
+		return
+	}
+	t.Fatal("condition was not met before timeout")
+}
+
+func intSlicesEqual(left, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func TestCommitCoordinatorTraceRecordsBatchStats(t *testing.T) {
+	engine, _ := openCountingCommitCoordinatorTestEngine(t)
+	coordinator := newCommitCoordinatorWithConfig(engine.db, CommitCoordinatorConfig{FlushWindow: 5 * time.Millisecond})
+	defer coordinator.close()
+
+	sink := &storeTraceSink{}
+	restore := sendtrace.SetSink(sink)
+	defer restore()
+
+	done := make(chan error, 2)
+	start := make(chan struct{})
+	for i := 0; i < 2; i++ {
+		idx := i
+		go func() {
+			<-start
+			done <- coordinator.submit(commitRequest{
+				channelKey:  "group-trace",
+				recordCount: idx + 1,
+				byteCount:   (idx + 1) * 100,
+				build: func(batch *pebble.Batch) error {
+					return batch.Set([]byte{byte('a' + idx)}, []byte("v"), pebble.NoSync)
+				},
+			})
+		}()
+	}
+	close(start)
+	for i := 0; i < 2; i++ {
+		if err := <-done; err != nil {
+			t.Fatalf("submit() error = %v", err)
+		}
+	}
+
+	events := sink.snapshot()
+	pebbleSync := findStoreTraceEvent(events, sendtrace.StageStoreCommitPebbleSync)
+	if pebbleSync == nil {
+		t.Fatalf("missing %s event in %#v", sendtrace.StageStoreCommitPebbleSync, events)
+	}
+	if pebbleSync.RequestCount != 2 || pebbleSync.RecordCount != 3 || pebbleSync.ByteCount != 300 {
+		t.Fatalf("pebble sync stats = requests:%d records:%d bytes:%d, want 2/3/300", pebbleSync.RequestCount, pebbleSync.RecordCount, pebbleSync.ByteCount)
+	}
+	if pebbleSync.Result != sendtrace.ResultOK {
+		t.Fatalf("pebble sync result = %s, want ok", pebbleSync.Result)
+	}
+	if pebbleSync.ChannelKey != "group-trace" {
+		t.Fatalf("pebble sync channel key = %q, want group-trace", pebbleSync.ChannelKey)
+	}
+
+	queueWait := findStoreTraceEvent(events, sendtrace.StageStoreCommitQueueWait)
+	if queueWait == nil {
+		t.Fatalf("missing %s event in %#v", sendtrace.StageStoreCommitQueueWait, events)
+	}
+	if queueWait.RecordCount == 0 || queueWait.ByteCount == 0 {
+		t.Fatalf("queue wait stats missing: records:%d bytes:%d", queueWait.RecordCount, queueWait.ByteCount)
+	}
+}
+
+type storeTraceSink struct {
+	mu     sync.Mutex
+	events []sendtrace.Event
+}
+
+func (s *storeTraceSink) RecordSendTrace(event sendtrace.Event) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events = append(s.events, event)
+}
+
+func (s *storeTraceSink) snapshot() []sendtrace.Event {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]sendtrace.Event(nil), s.events...)
+}
+
+func findStoreTraceEvent(events []sendtrace.Event, stage sendtrace.Stage) *sendtrace.Event {
+	for i := range events {
+		if events[i].Stage == stage {
+			return &events[i]
+		}
+	}
+	return nil
+}
+
+func TestEngineConfiguresCommitCoordinatorBeforeFirstUse(t *testing.T) {
+	engine, _ := openCountingCommitCoordinatorTestEngine(t)
+	engine.ConfigureCommitCoordinator(CommitCoordinatorConfig{
+		FlushWindow: 750 * time.Microsecond,
+		QueueSize:   7,
+		MaxRequests: 3,
+		MaxRecords:  11,
+		MaxBytes:    4096,
+	})
+
+	coordinator := engine.commitCoordinator()
+	if coordinator.cfg.FlushWindow != 750*time.Microsecond {
+		t.Fatalf("flush window = %s, want 750us", coordinator.cfg.FlushWindow)
+	}
+	if cap(coordinator.requests) != 7 {
+		t.Fatalf("request queue size = %d, want 7", cap(coordinator.requests))
+	}
+	if coordinator.cfg.MaxRequests != 3 || coordinator.cfg.MaxRecords != 11 || coordinator.cfg.MaxBytes != 4096 {
+		t.Fatalf("batch limits = %#v, want requests=3 records=11 bytes=4096", coordinator.cfg)
+	}
 }

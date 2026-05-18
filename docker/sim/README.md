@@ -22,21 +22,34 @@ The Compose profile defaults to a higher local-debug workload:
 
 | Setting | Compose default |
 | --- | --- |
-| Online users | `500` |
-| Person channels | `100` |
-| Group channels | `100` |
+| Online users | `1000` |
+| Person channels | `500` |
+| Group channels | `500` |
 | Group members | `10` |
-| Per-channel send rate | `5/s` |
+| Per-channel send rate | `0.25/s` |
+| Traffic concurrency | `128` |
 | Receive verification | `none` |
+| UID prefix | `devsim-u` |
 
-With 100 person channels and 100 group channels, `5/s` per channel targets
-roughly `1000` ingress messages per second. Group fanout means delivered message
+With 500 person channels and 500 group channels, `0.25/s` per channel targets
+roughly `250` ingress messages per second. Group fanout means delivered message
 volume can be higher than ingress volume.
 
 Receive verification is disabled by default for this high-throughput profile so
 the simulator keeps producing ingress traffic even when local delivery lags.
 Set `WK_SIM_VERIFY_RECV=sampled` when you specifically want sampled receive
 checks instead of maximum send pressure.
+
+`WK_SIM_TRAFFIC_CONCURRENCY` bounds concurrent send+sendack operations per
+traffic stream. Increase it when local RTT caps send pressure below the target
+rate, or lower it when debugging on a small laptop.
+
+The default Compose node environment keeps `WK_HEALTH_DEBUG_ENABLE=true` for
+`/debug/pprof`, but disables high-frequency metrics, diagnostics, and manager
+network traffic collectors (`WK_METRICS_ENABLE=false`,
+`WK_DIAGNOSTICS_ENABLE=false`, `WK_NETWORK_OBSERVABILITY_ENABLE=false`) so CPU
+profiles focus on the send/replication path. Set those variables to `true` when
+you need Prometheus/Grafana or manager network charts during a run.
 
 The development cluster config uses a `5s` data-plane RPC timeout so local
 leader forwarding has enough headroom during this high-debug workload.
@@ -71,6 +84,7 @@ WK_SIM_PERSON_CHANNELS=10 \
 WK_SIM_GROUP_CHANNELS=3 \
 WK_SIM_GROUP_MEMBERS=12 \
 WK_SIM_RATE=0.5/s \
+WK_SIM_TRAFFIC_CONCURRENCY=16 \
 WK_SIM_VERIFY_RECV=sampled \
 WK_SIM_UID_PREFIX=dev-u \
   docker compose --profile dev-sim up -d wk-sim

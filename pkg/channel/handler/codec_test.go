@@ -108,6 +108,28 @@ func TestEncodeMessageRoundTripPreservesRootDurableFields(t *testing.T) {
 	assertMessageFieldEqual(t, decoded, "Topic", messageFieldValue[string](t, msg, "Topic"))
 }
 
+func BenchmarkEncodeMessage(b *testing.B) {
+	msg := channel.Message{
+		MessageID:   42,
+		ChannelID:   "room-encode",
+		ChannelType: frame.ChannelTypeGroup,
+		FromUID:     "bench-user",
+		Payload:     []byte("append benchmark payload"),
+	}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		msg.MessageID = uint64(i + 1)
+		encoded, err := encodeMessage(msg)
+		if err != nil {
+			b.Fatalf("encodeMessage() error = %v", err)
+		}
+		if len(encoded) == 0 {
+			b.Fatal("encoded message is empty")
+		}
+	}
+}
+
 func TestDecodeMessageRecordPreservesRootDurableFieldsAndSequence(t *testing.T) {
 	msg := channel.Message{
 		MessageID:   88,
@@ -264,28 +286,13 @@ func encodeLegacyCompatibleMessagePayloadForTest(t *testing.T, msg channel.Messa
 		t.Fatalf("Write(header padding) error = %v", err)
 	}
 	binary.BigEndian.PutUint64(buf.Bytes()[37:45], hashPayload(msg.Payload))
-	if err := writeString(&buf, ""); err != nil {
-		t.Fatalf("writeString(msgKey) error = %v", err)
-	}
-	if err := writeString(&buf, msg.ClientMsgNo); err != nil {
-		t.Fatalf("writeString(clientMsgNo) error = %v", err)
-	}
-	if err := writeString(&buf, ""); err != nil {
-		t.Fatalf("writeString(streamNo) error = %v", err)
-	}
-	if err := writeString(&buf, msg.ChannelID); err != nil {
-		t.Fatalf("writeString(channelID) error = %v", err)
-	}
-	if err := writeString(&buf, ""); err != nil {
-		t.Fatalf("writeString(topic) error = %v", err)
-	}
-	if err := writeString(&buf, msg.FromUID); err != nil {
-		t.Fatalf("writeString(fromUID) error = %v", err)
-	}
-	if err := writeBytes(&buf, msg.Payload); err != nil {
-		t.Fatalf("writeBytes(payload) error = %v", err)
-	}
-	payload := buf.Bytes()
+	payload := appendSizedString(buf.Bytes(), "")
+	payload = appendSizedString(payload, msg.ClientMsgNo)
+	payload = appendSizedString(payload, "")
+	payload = appendSizedString(payload, msg.ChannelID)
+	payload = appendSizedString(payload, "")
+	payload = appendSizedString(payload, msg.FromUID)
+	payload = appendSizedBytes(payload, msg.Payload)
 	payload[12] = msg.ChannelType
 	return payload
 }

@@ -118,6 +118,8 @@ type GroupConfig struct {
 	GlobalRate model.Rate
 	// LocalRate is the worker-local effective rate.
 	LocalRate model.Rate
+	// MaxConcurrency bounds concurrent send+sendack operations. Zero preserves sequential sends.
+	MaxConcurrency int
 	// TrafficPartitionCount is the global split traffic partition count.
 	TrafficPartitionCount int
 	// OwnedTrafficPartitions are the split traffic partitions assigned to this worker.
@@ -321,6 +323,19 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 	}
 	interval := scheduledMessageInterval(cfg.Duration, totalMessages)
 	phase := w.cfg.phaseName(cfg.Phase)
+	if w.cfg.MaxConcurrency > 1 {
+		return runScheduledMessagesByKey(ctx, totalMessages, interval, w.cfg.MaxConcurrency, func(localOffset int) string {
+			ch := w.channels[localOffset%len(w.channels)]
+			if len(ch.OnlineMembers) == 0 {
+				return ""
+			}
+			return ch.OnlineMembers[0]
+		}, func(ctx context.Context, localOffset int) error {
+			ch := w.channels[localOffset%len(w.channels)]
+			messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
+			return w.sendOneInPhase(ctx, phase, ch.ChannelIndex, messageIndex)
+		})
+	}
 	for localOffset := 0; localOffset < totalMessages; localOffset++ {
 		select {
 		case <-ctx.Done():
