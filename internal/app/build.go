@@ -24,6 +24,7 @@ import (
 	deliverytagruntime "github.com/WuKongIM/WuKongIM/internal/runtime/deliverytag"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/messageid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/userlimit"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/benchdata"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
@@ -738,11 +739,32 @@ func build(cfg Config) (_ *App, err error) {
 		deliveryNotifier = ackBatcher
 	}
 
+	var userSendLimiter message.UserSendLimiter
+	if cfg.Message.UserRateLimitEnabled {
+		limiter := userlimit.New(userlimit.Config{
+			Enabled:         true,
+			RatePerSecond:   cfg.Message.UserRateLimitRate,
+			Burst:           cfg.Message.UserRateLimitBurst,
+			BucketShards:    cfg.Message.UserRateLimitBucketShards,
+			IdleTTL:         cfg.Message.UserRateLimitIdleTTL,
+			MaxBuckets:      cfg.Message.UserRateLimitMaxBuckets,
+			SystemUIDBypass: cfg.Message.UserRateLimitSystemUIDBypass,
+			PluginBypass:    cfg.Message.UserRateLimitPluginBypass,
+		})
+		stopLimiter := limiter.StartJanitor(userRateLimitJanitorInterval(cfg.Message.UserRateLimitIdleTTL))
+		cleanup.Push("user send rate limiter", func() error {
+			stopLimiter()
+			return nil
+		})
+		userSendLimiter = limiter
+	}
+
 	app.messageApp = message.New(message.Options{
 		IdentityStore:          app.store,
 		ChannelStore:           app.store,
 		PermissionStore:        app.store,
 		SystemUIDs:             userApp,
+		UserSendLimiter:        userSendLimiter,
 		PersonWhitelistEnabled: cfg.Message.PersonWhitelistEnabled,
 		SystemDeviceID:         cfg.Message.SystemDeviceID,
 		PermissionCacheTTL:     cfg.Message.PermissionCacheTTL,
@@ -1661,4 +1683,15 @@ func mergeClusterObserverHooks(left, right raftcluster.ObserverHooks) raftcluste
 			}
 		},
 	}
+}
+
+func userRateLimitJanitorInterval(idleTTL time.Duration) time.Duration {
+	if idleTTL <= 0 {
+		return 0
+	}
+	interval := idleTTL / 2
+	if interval < time.Second {
+		return time.Second
+	}
+	return interval
 }

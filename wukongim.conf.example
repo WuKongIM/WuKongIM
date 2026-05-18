@@ -137,6 +137,23 @@ WK_MESSAGE_SYSTEM_DEVICE_ID=____device
 # Optional bounded send-permission read cache for benchmark/static-member deployments.
 # Keep 0 for strict authorization freshness in production.
 WK_MESSAGE_PERMISSION_CACHE_TTL=0
+# Enables node-local UID send token buckets before permission reads, plugin hooks, and channel append.
+# Disabled by default to preserve legacy send behavior.
+WK_MESSAGE_USER_RATE_LIMIT_ENABLED=false
+# Sustained sends admitted per UID per second when user rate limiting is enabled.
+WK_MESSAGE_USER_RATE_LIMIT_RATE=100
+# Maximum immediate send burst admitted for one UID.
+WK_MESSAGE_USER_RATE_LIMIT_BURST=200
+# Lock stripes for in-memory UID buckets. 0 uses the application default.
+WK_MESSAGE_USER_RATE_LIMIT_BUCKET_SHARDS=256
+# Idle UID bucket retention before cleanup. Keep positive to bound memory after UID churn.
+WK_MESSAGE_USER_RATE_LIMIT_IDLE_TTL=10m
+# Maximum UID buckets retained in memory. 0 uses the application default.
+WK_MESSAGE_USER_RATE_LIMIT_MAX_BUCKETS=100000
+# Lets trusted system UIDs bypass user send rate limiting.
+WK_MESSAGE_USER_RATE_LIMIT_SYSTEM_UID_BYPASS=true
+# Lets plugin-origin sends bypass user send rate limiting. Keep false unless plugins are trusted and bounded.
+WK_MESSAGE_USER_RATE_LIMIT_PLUGIN_BYPASS=false
 
 # Optional bounded positive presence-route cache used by realtime delivery fanout.
 # Keep 0 for strict presence freshness; benchmark/static-connection deployments may set it positive.

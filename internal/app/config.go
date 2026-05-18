@@ -183,6 +183,42 @@ type MessageConfig struct {
 	// PermissionCacheTTL enables a bounded node-local send-permission read cache.
 	// Keep zero for strict authorization freshness; benchmark/static-member deployments may set it positive.
 	PermissionCacheTTL time.Duration
+	// UserRateLimitEnabled enables node-local UID send token buckets before expensive send-path work.
+	UserRateLimitEnabled bool
+	// UserRateLimitRate is the sustained number of sends admitted per UID per second.
+	UserRateLimitRate float64
+	// UserRateLimitBurst is the maximum immediate send burst admitted for one UID.
+	UserRateLimitBurst int
+	// UserRateLimitBucketShards controls lock striping for in-memory UID buckets.
+	UserRateLimitBucketShards int
+	// UserRateLimitIdleTTL controls how long inactive UID buckets remain in memory.
+	UserRateLimitIdleTTL time.Duration
+	// UserRateLimitMaxBuckets caps allocated UID buckets to bound memory under high UID cardinality.
+	UserRateLimitMaxBuckets int
+	// UserRateLimitSystemUIDBypass lets trusted system UIDs bypass user send rate limiting.
+	UserRateLimitSystemUIDBypass bool
+	// UserRateLimitPluginBypass lets plugin-origin sends bypass user send rate limiting.
+	UserRateLimitPluginBypass bool
+
+	userRateLimitRateSet            bool
+	userRateLimitBurstSet           bool
+	userRateLimitBucketShardsSet    bool
+	userRateLimitIdleTTLSet         bool
+	userRateLimitMaxBucketsSet      bool
+	userRateLimitSystemUIDBypassSet bool
+}
+
+// SetExplicitFlags records which message tuning values were explicitly configured.
+func (c *MessageConfig) SetExplicitFlags(rateSet, burstSet, bucketShardsSet, idleTTLSet, maxBucketsSet, systemUIDBypassSet bool) {
+	if c == nil {
+		return
+	}
+	c.userRateLimitRateSet = rateSet
+	c.userRateLimitBurstSet = burstSet
+	c.userRateLimitBucketShardsSet = bucketShardsSet
+	c.userRateLimitIdleTTLSet = idleTTLSet
+	c.userRateLimitMaxBucketsSet = maxBucketsSet
+	c.userRateLimitSystemUIDBypassSet = systemUIDBypassSet
 }
 
 // DeliveryConfig controls realtime delivery routing and fanout behavior.
@@ -850,6 +886,36 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if c.Message.PermissionCacheTTL < 0 {
 		return fmt.Errorf("%w: message permission cache ttl must be >= 0", ErrInvalidConfig)
 	}
+	if c.Message.UserRateLimitRate < 0 {
+		return fmt.Errorf("%w: message user rate limit rate must be >= 0", ErrInvalidConfig)
+	}
+	if c.Message.UserRateLimitBurst < 0 {
+		return fmt.Errorf("%w: message user rate limit burst must be >= 0", ErrInvalidConfig)
+	}
+	if c.Message.UserRateLimitBucketShards < 0 {
+		return fmt.Errorf("%w: message user rate limit bucket shards must be >= 0", ErrInvalidConfig)
+	}
+	if c.Message.UserRateLimitIdleTTL < 0 {
+		return fmt.Errorf("%w: message user rate limit idle ttl must be >= 0", ErrInvalidConfig)
+	}
+	if c.Message.UserRateLimitMaxBuckets < 0 {
+		return fmt.Errorf("%w: message user rate limit max buckets must be >= 0", ErrInvalidConfig)
+	}
+	if c.Message.UserRateLimitEnabled && c.Message.UserRateLimitRate == 0 && c.Message.userRateLimitRateSet {
+		return fmt.Errorf("%w: message user rate limit rate must be positive when enabled", ErrInvalidConfig)
+	}
+	if c.Message.UserRateLimitEnabled && c.Message.UserRateLimitBurst == 0 && c.Message.userRateLimitBurstSet {
+		return fmt.Errorf("%w: message user rate limit burst must be positive when enabled", ErrInvalidConfig)
+	}
+	if c.Message.UserRateLimitBucketShards == 0 && c.Message.userRateLimitBucketShardsSet {
+		return fmt.Errorf("%w: message user rate limit bucket shards must be positive", ErrInvalidConfig)
+	}
+	if c.Message.UserRateLimitIdleTTL == 0 && c.Message.userRateLimitIdleTTLSet {
+		return fmt.Errorf("%w: message user rate limit idle ttl must be positive", ErrInvalidConfig)
+	}
+	if c.Message.UserRateLimitMaxBuckets == 0 && c.Message.userRateLimitMaxBucketsSet {
+		return fmt.Errorf("%w: message user rate limit max buckets must be positive", ErrInvalidConfig)
+	}
 	if c.Delivery.PresenceCacheTTL < 0 {
 		return fmt.Errorf("%w: delivery presence cache ttl must be >= 0", ErrInvalidConfig)
 	}
@@ -1311,6 +1377,26 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if c.Message.SystemDeviceID == "" {
 		c.Message.SystemDeviceID = defaultMessageSystemDeviceID
 	}
+	if c.Message.UserRateLimitRate == 0 {
+		c.Message.UserRateLimitRate = defaultMessageUserRateLimitRate
+	}
+	if c.Message.UserRateLimitBurst == 0 {
+		c.Message.UserRateLimitBurst = defaultMessageUserRateLimitBurst
+	}
+	if c.Message.UserRateLimitBucketShards == 0 {
+		c.Message.UserRateLimitBucketShards = defaultMessageUserRateLimitBucketShards
+	}
+	if c.Message.UserRateLimitIdleTTL == 0 {
+		c.Message.UserRateLimitIdleTTL = defaultMessageUserRateLimitIdleTTL
+	}
+	if c.Message.UserRateLimitMaxBuckets == 0 {
+		c.Message.UserRateLimitMaxBuckets = defaultMessageUserRateLimitMaxBuckets
+	}
+	if !c.Message.UserRateLimitEnabled && !c.Message.userRateLimitSystemUIDBypassSet {
+		c.Message.UserRateLimitSystemUIDBypass = true
+	} else if c.Message.UserRateLimitEnabled && !c.Message.userRateLimitSystemUIDBypassSet {
+		c.Message.UserRateLimitSystemUIDBypass = true
+	}
 	if c.Log.Level == "" {
 		c.Log.Level = "info"
 	}
@@ -1595,3 +1681,8 @@ const defaultChannelMessageRetentionChannelBatchSize = 128
 const defaultChannelMessageRetentionMaxTrimMessages = 10000
 
 const defaultMessageSystemDeviceID = "____device"
+const defaultMessageUserRateLimitRate = 100.0
+const defaultMessageUserRateLimitBurst = 200
+const defaultMessageUserRateLimitBucketShards = 256
+const defaultMessageUserRateLimitIdleTTL = 10 * time.Minute
+const defaultMessageUserRateLimitMaxBuckets = 100000

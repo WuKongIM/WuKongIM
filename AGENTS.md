@@ -94,6 +94,7 @@ internal/
     messageid/           消息 ID 分配
     online/              在线会话注册与本地投递
     sequence/            序列号分配
+    userlimit/           节点内用户发送令牌桶限流
 
 pkg/
   cluster/               集群运行时

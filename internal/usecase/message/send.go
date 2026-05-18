@@ -8,6 +8,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/userlimit"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
@@ -24,6 +25,9 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 		fields = append(fields, wklog.Error(ErrUnauthenticatedSender))
 		a.sendLogger().Warn("reject unauthenticated sender", fields...)
 		return SendResult{}, ErrUnauthenticatedSender
+	}
+	if result, limited := a.checkUserSendLimit(cmd); limited {
+		return result, nil
 	}
 
 	if len(cmd.RequestSubscribers) > 0 {
@@ -91,6 +95,31 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	}
 
 	return a.sendDurable(ctx, appendCmd)
+}
+
+func (a *App) checkUserSendLimit(cmd SendCommand) (SendResult, bool) {
+	if a == nil || a.userSendLimiter == nil {
+		return SendResult{}, false
+	}
+	origin := cmd.Origin
+	if origin == "" {
+		origin = SendOriginClient
+	}
+	decision := a.userSendLimiter.AllowSend(a.now(), userlimit.Request{
+		UID:         cmd.FromUID,
+		ChannelID:   cmd.ChannelID,
+		ChannelType: cmd.ChannelType,
+		Origin:      string(origin),
+		IsSystemUID: a.isSystemUID(cmd.FromUID),
+	})
+	if decision.Allowed {
+		return SendResult{}, false
+	}
+	return SendResult{Reason: frame.ReasonRateLimit}, true
+}
+
+func (a *App) isSystemUID(uid string) bool {
+	return a != nil && a.systemUIDs != nil && a.systemUIDs.IsSystemUID(uid)
 }
 
 func (a *App) beforeSendHook(ctx context.Context, cmd SendCommand) (SendCommand, SendResult, error) {

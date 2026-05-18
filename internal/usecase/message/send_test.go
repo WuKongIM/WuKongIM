@@ -11,6 +11,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/userlimit"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
@@ -156,6 +157,38 @@ func TestSendHookSkipPluginHooksBypassesHook(t *testing.T) {
 	require.Equal(t, frame.ReasonSuccess, result.Reason)
 	require.Empty(t, hook.calls)
 	require.Len(t, cluster.sendRequests, 1)
+}
+
+func TestSendUserRateLimitRejectsBeforeExpensiveWork(t *testing.T) {
+	permissions := newFakePermissionStore()
+	cluster := &fakeChannelCluster{}
+	hook := &recordingSendHook{}
+	limiter := &recordingUserSendLimiter{decision: userlimit.Decision{Allowed: false, Reason: userlimit.ReasonRateExceeded, RetryAfter: time.Second}}
+	app := New(Options{Now: fixedNowFn, Cluster: cluster, MetaRefresher: &fakeMetaRefresher{}, PermissionStore: permissions, SendHook: hook, UserSendLimiter: limiter})
+
+	result, err := app.Send(context.Background(), SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, Payload: []byte("hot")})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonRateLimit, result.Reason)
+	require.Len(t, limiter.calls, 1)
+	require.Equal(t, "u1", limiter.calls[0].UID)
+	require.Equal(t, "g1", limiter.calls[0].ChannelID)
+	require.Equal(t, uint8(frame.ChannelTypeGroup), limiter.calls[0].ChannelType)
+	require.Zero(t, permissions.getChannelCalls)
+	require.Empty(t, hook.calls)
+	require.Empty(t, cluster.sendRequests)
+}
+
+func TestSendUserRateLimitPassesSystemUIDAndPluginOrigin(t *testing.T) {
+	limiter := &recordingUserSendLimiter{decision: userlimit.Decision{Allowed: true}}
+	app := New(Options{Now: fixedNowFn, Cluster: &fakeChannelCluster{}, MetaRefresher: &fakeMetaRefresher{}, UserSendLimiter: limiter, SystemUIDs: fakeSystemUIDChecker{"sys": true}})
+
+	_, err := app.Send(context.Background(), SendCommand{Origin: SendOriginPlugin, FromUID: "sys", ChannelID: "u2", ChannelType: frame.ChannelTypePerson, Payload: []byte("plugin")})
+
+	require.NoError(t, err)
+	require.Len(t, limiter.calls, 1)
+	require.True(t, limiter.calls[0].IsSystemUID)
+	require.Equal(t, string(SendOriginPlugin), limiter.calls[0].Origin)
 }
 
 type recordingSendHook struct {
@@ -2424,6 +2457,16 @@ func fixedNowFn() time.Time {
 	return fixedSendNow
 }
 
+type recordingUserSendLimiter struct {
+	decision userlimit.Decision
+	calls    []userlimit.Request
+}
+
+func (l *recordingUserSendLimiter) AllowSend(_ time.Time, req userlimit.Request) userlimit.Decision {
+	l.calls = append(l.calls, req)
+	return l.decision
+}
+
 type fakeRegistry struct {
 	byUID map[string][]online.OnlineConn
 }
@@ -2601,10 +2644,11 @@ func (*fakeChannelStore) GetChannel(context.Context, string, int64) (metadb.Chan
 }
 
 type fakePermissionStore struct {
-	channels    map[string]metadb.Channel
-	channelErrs map[string]error
-	members     map[string]map[string]bool
-	hasAny      map[string]bool
+	channels        map[string]metadb.Channel
+	channelErrs     map[string]error
+	members         map[string]map[string]bool
+	hasAny          map[string]bool
+	getChannelCalls int
 }
 
 func newFakePermissionStore() *fakePermissionStore {
@@ -2621,6 +2665,7 @@ func permissionKey(channelID string, channelType int64) string {
 }
 
 func (s *fakePermissionStore) GetChannelForPermission(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	s.getChannelCalls++
 	key := permissionKey(channelID, channelType)
 	if err, ok := s.channelErrs[key]; ok {
 		return metadb.Channel{}, err
