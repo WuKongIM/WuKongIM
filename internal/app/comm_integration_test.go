@@ -332,6 +332,7 @@ func applySendPathTuning(t *testing.T, cfg *Config, preset sendStressAcceptanceS
 	cfg.Cluster.DataPlaneMaxFetchInflight = preset.DataPlaneMaxFetchInflight
 	cfg.Cluster.DataPlaneMaxPendingFetch = preset.DataPlaneMaxPendingFetch
 	cfg.Gateway.SendTimeout = preset.GatewaySendTimeout
+	cfg.Gateway.DefaultSession.AsyncSendDispatchWorkers = preset.GatewayAsyncSendDispatchWorkers
 }
 
 func TestThreeNodeAppHarnessUsesSendPathTuning(t *testing.T) {
@@ -365,6 +366,7 @@ func TestThreeNodeAppHarnessUsesSendPathTuning(t *testing.T) {
 		require.Equal(t, preset.CommitCoordinatorMaxRecords, commitCfg.MaxRecords, "node %d commit coordinator max records", nodeID)
 		require.Equal(t, preset.CommitCoordinatorMaxBytes, commitCfg.MaxBytes, "node %d commit coordinator max bytes", nodeID)
 		require.Equal(t, preset.GatewaySendTimeout, appGatewayHandlerDurationField(t, app.GatewayHandler(), "sendTimeout"), "node %d gateway send timeout", nodeID)
+		require.Equal(t, preset.GatewayAsyncSendDispatchWorkers, app.cfg.Gateway.DefaultSession.AsyncSendDispatchWorkers, "node %d async send workers", nodeID)
 	}
 }
 

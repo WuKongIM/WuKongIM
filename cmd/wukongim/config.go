@@ -406,6 +406,10 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	asyncSendDispatchWorkers, err := parseInt(v, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS")
+	if err != nil {
+		return app.Config{}, err
+	}
 	gatewaySendTimeout, err := parseDuration(v, "WK_GATEWAY_SEND_TIMEOUT")
 	if err != nil {
 		return app.Config{}, err
@@ -813,14 +817,15 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			TokenAuthOn: tokenAuthOn,
 			SendTimeout: gatewaySendTimeout,
 			DefaultSession: gateway.SessionOptions{
-				ReadBufferSize:      readBufferSize,
-				WriteQueueSize:      writeQueueSize,
-				MaxInboundBytes:     maxInboundBytes,
-				MaxOutboundBytes:    maxOutboundBytes,
-				IdleTimeout:         idleTimeout,
-				WriteTimeout:        writeTimeout,
-				AsyncSendDispatch:   asyncSendDispatch,
-				CloseOnHandlerError: closeOnHandlerError,
+				ReadBufferSize:           readBufferSize,
+				WriteQueueSize:           writeQueueSize,
+				MaxInboundBytes:          maxInboundBytes,
+				MaxOutboundBytes:         maxOutboundBytes,
+				IdleTimeout:              idleTimeout,
+				WriteTimeout:             writeTimeout,
+				AsyncSendDispatch:        asyncSendDispatch,
+				AsyncSendDispatchWorkers: asyncSendDispatchWorkers,
+				CloseOnHandlerError:      closeOnHandlerError,
 			},
 			Listeners: listeners,
 		},

@@ -14,6 +14,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/gateway/transport"
 	gatewaytypes "github.com/WuKongIM/WuKongIM/internal/gateway/types"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -510,7 +511,7 @@ func (s *Server) dispatchFrameAsync(state *sessionState, replyToken string, f fr
 		return
 	}
 
-	task := asyncDispatchTask{state: state, replyToken: replyToken, frame: f}
+	task := asyncDispatchTask{state: state, replyToken: replyToken, frame: f, enqueuedAt: time.Now()}
 	queue := s.asyncDispatcher()
 	if queue != nil && queue.submit(task) {
 		return
@@ -761,10 +762,7 @@ func (s *Server) startAsyncDispatcher() {
 		return
 	}
 
-	workers := runtime.GOMAXPROCS(0)
-	if workers <= 0 {
-		workers = 1
-	}
+	workers := asyncDispatchWorkerCount(s.options.DefaultSession)
 	queue := newAsyncDispatchQueue(workers * asyncDispatchQueuePerWorker)
 
 	s.mu.Lock()
@@ -785,10 +783,22 @@ func (s *Server) runAsyncDispatchWorker(queue *asyncDispatchQueue) {
 	defer s.workerWG.Done()
 
 	for task := range queue.tasks {
+		recordAsyncDispatchWait(task)
 		if err := s.dispatchFrame(task.state, task.replyToken, task.frame); err != nil {
 			s.handleHandlerError(task.state, err)
 		}
 	}
+}
+
+func asyncDispatchWorkerCount(opt gatewaytypes.SessionOptions) int {
+	if opt.AsyncSendDispatchWorkers > 0 {
+		return opt.AsyncSendDispatchWorkers
+	}
+	workers := runtime.GOMAXPROCS(0)
+	if workers <= 0 {
+		return 1
+	}
+	return workers
 }
 
 func (s *Server) asyncDispatcher() *asyncDispatchQueue {
@@ -804,6 +814,21 @@ type asyncDispatchTask struct {
 	state      *sessionState
 	replyToken string
 	frame      frame.Frame
+	enqueuedAt time.Time
+}
+
+func recordAsyncDispatchWait(task asyncDispatchTask) {
+	send, ok := task.frame.(*frame.SendPacket)
+	if !ok || task.enqueuedAt.IsZero() {
+		return
+	}
+	now := time.Now()
+	sendtrace.Record(sendtrace.Event{
+		Stage:       sendtrace.StageGatewayAsyncDispatchWait,
+		At:          task.enqueuedAt,
+		Duration:    sendtrace.Elapsed(task.enqueuedAt, now),
+		ClientMsgNo: send.ClientMsgNo,
+	})
 }
 
 // asyncDispatchQueue provides synchronized close/submit around a bounded task channel.

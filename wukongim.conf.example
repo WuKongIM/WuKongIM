@@ -250,6 +250,8 @@ WK_HEALTH_DEBUG_ENABLE=false
 
 # Optional: allow gateway send frames on the same connection to dispatch concurrently.
 # WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH=true
+# Optional: SEND worker count when async dispatch is enabled; non-positive uses GOMAXPROCS.
+# WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS=0
 # Optional: enable token authentication when verifier hooks are available.
 # WK_GATEWAY_TOKEN_AUTH_ON=false
 # Optional: gateway session safety and buffering defaults.

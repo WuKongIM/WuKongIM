@@ -9,6 +9,7 @@ import (
 type Stage string
 
 const (
+	StageGatewayAsyncDispatchWait      Stage = "gateway.async_dispatch_wait"
 	StageGatewayMessagesSend           Stage = "gateway.messages_send"
 	StageGatewayWriteSendack           Stage = "gateway.write_sendack"
 	StageMessageSendDurable            Stage = "message.send_durable"
