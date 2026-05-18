@@ -471,6 +471,38 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	messageUserRateLimitEnabled, err := parseBool(v, "WK_MESSAGE_USER_RATE_LIMIT_ENABLED")
+	if err != nil {
+		return app.Config{}, err
+	}
+	messageUserRateLimitRate, err := parseFloat(v, "WK_MESSAGE_USER_RATE_LIMIT_RATE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	messageUserRateLimitBurst, err := parseInt(v, "WK_MESSAGE_USER_RATE_LIMIT_BURST")
+	if err != nil {
+		return app.Config{}, err
+	}
+	messageUserRateLimitBucketShards, err := parseInt(v, "WK_MESSAGE_USER_RATE_LIMIT_BUCKET_SHARDS")
+	if err != nil {
+		return app.Config{}, err
+	}
+	messageUserRateLimitIdleTTL, err := parseDuration(v, "WK_MESSAGE_USER_RATE_LIMIT_IDLE_TTL")
+	if err != nil {
+		return app.Config{}, err
+	}
+	messageUserRateLimitMaxBuckets, err := parseInt(v, "WK_MESSAGE_USER_RATE_LIMIT_MAX_BUCKETS")
+	if err != nil {
+		return app.Config{}, err
+	}
+	messageUserRateLimitSystemUIDBypass, err := parseBool(v, "WK_MESSAGE_USER_RATE_LIMIT_SYSTEM_UID_BYPASS")
+	if err != nil {
+		return app.Config{}, err
+	}
+	messageUserRateLimitPluginBypass, err := parseBool(v, "WK_MESSAGE_USER_RATE_LIMIT_PLUGIN_BYPASS")
+	if err != nil {
+		return app.Config{}, err
+	}
 	deliveryPresenceCacheTTL, err := parseDuration(v, "WK_DELIVERY_PRESENCE_CACHE_TTL")
 	if err != nil {
 		return app.Config{}, err
@@ -697,9 +729,17 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			APIMaxPayloadBytes: benchAPIMaxPayloadBytes,
 		},
 		Message: app.MessageConfig{
-			PersonWhitelistEnabled: messagePersonWhitelistEnabled,
-			SystemDeviceID:         messageSystemDeviceID,
-			PermissionCacheTTL:     messagePermissionCacheTTL,
+			PersonWhitelistEnabled:       messagePersonWhitelistEnabled,
+			SystemDeviceID:               messageSystemDeviceID,
+			PermissionCacheTTL:           messagePermissionCacheTTL,
+			UserRateLimitEnabled:         messageUserRateLimitEnabled,
+			UserRateLimitRate:            messageUserRateLimitRate,
+			UserRateLimitBurst:           messageUserRateLimitBurst,
+			UserRateLimitBucketShards:    messageUserRateLimitBucketShards,
+			UserRateLimitIdleTTL:         messageUserRateLimitIdleTTL,
+			UserRateLimitMaxBuckets:      messageUserRateLimitMaxBuckets,
+			UserRateLimitSystemUIDBypass: messageUserRateLimitSystemUIDBypass,
+			UserRateLimitPluginBypass:    messageUserRateLimitPluginBypass,
 		},
 		Delivery: app.DeliveryConfig{
 			PresenceCacheTTL: deliveryPresenceCacheTTL,
@@ -811,6 +851,14 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		stringValue(v, "WK_PLUGIN_TIMEOUT") != "",
 		stringValue(v, "WK_PLUGIN_HOT_RELOAD") != "",
 		stringValue(v, "WK_PLUGIN_FAIL_OPEN") != "",
+	)
+	cfg.Message.SetExplicitFlags(
+		stringValue(v, "WK_MESSAGE_USER_RATE_LIMIT_RATE") != "",
+		stringValue(v, "WK_MESSAGE_USER_RATE_LIMIT_BURST") != "",
+		stringValue(v, "WK_MESSAGE_USER_RATE_LIMIT_BUCKET_SHARDS") != "",
+		stringValue(v, "WK_MESSAGE_USER_RATE_LIMIT_IDLE_TTL") != "",
+		stringValue(v, "WK_MESSAGE_USER_RATE_LIMIT_MAX_BUCKETS") != "",
+		stringValue(v, "WK_MESSAGE_USER_RATE_LIMIT_SYSTEM_UID_BYPASS") != "",
 	)
 	cfg.Gateway.SetExplicitFlags(stringValue(v, "WK_GATEWAY_SEND_TIMEOUT") != "")
 	cfg.Log.SetExplicitFlags(stringValue(v, "WK_LOG_COMPRESS") != "", stringValue(v, "WK_LOG_CONSOLE") != "")

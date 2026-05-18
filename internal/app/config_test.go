@@ -1590,3 +1590,26 @@ func validConfig() Config {
 }
 
 func boolPtr(v bool) *bool { return &v }
+
+func TestConfigValidateMessageUserRateLimitDefaultsAndRejectsInvalidValues(t *testing.T) {
+	cfg := validConfig()
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	require.False(t, cfg.Message.UserRateLimitEnabled)
+	require.Equal(t, 100.0, cfg.Message.UserRateLimitRate)
+	require.Equal(t, 200, cfg.Message.UserRateLimitBurst)
+	require.Equal(t, 256, cfg.Message.UserRateLimitBucketShards)
+	require.Equal(t, 10*time.Minute, cfg.Message.UserRateLimitIdleTTL)
+	require.Equal(t, 100000, cfg.Message.UserRateLimitMaxBuckets)
+	require.True(t, cfg.Message.UserRateLimitSystemUIDBypass)
+	require.False(t, cfg.Message.UserRateLimitPluginBypass)
+
+	cfg = validConfig()
+	cfg.Message.UserRateLimitEnabled = true
+	cfg.Message.UserRateLimitRate = 0
+	cfg.Message.SetExplicitFlags(true, false, false, false, false, false)
+	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "message user rate limit rate")
+
+	cfg = validConfig()
+	cfg.Message.UserRateLimitBucketShards = -1
+	require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "message user rate limit bucket shards")
+}

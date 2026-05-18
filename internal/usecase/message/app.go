@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/userlimit"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -48,6 +49,8 @@ type Options struct {
 	DeliveryOffline        DeliveryOffline
 	PermissionStore        PermissionStore
 	SystemUIDs             SystemUIDChecker
+	// UserSendLimiter rejects over-limit sends before expensive permission, hook, and append work.
+	UserSendLimiter UserSendLimiter
 	// PersonWhitelistEnabled enables receiver-side personal allowlist checks.
 	PersonWhitelistEnabled bool
 	// SystemDeviceID identifies trusted system-device sessions after SendBan passes.
@@ -83,6 +86,7 @@ type App struct {
 	deliveryOffline        DeliveryOffline
 	permissions            PermissionStore
 	systemUIDs             SystemUIDChecker
+	userSendLimiter        UserSendLimiter
 	personWhitelistEnabled bool
 	systemDeviceID         string
 	appendMetrics          messageAppendMetrics
@@ -127,6 +131,7 @@ func New(opts Options) *App {
 		deliveryOffline:        opts.DeliveryOffline,
 		permissions:            permissions,
 		systemUIDs:             opts.SystemUIDs,
+		userSendLimiter:        opts.UserSendLimiter,
 		personWhitelistEnabled: opts.PersonWhitelistEnabled,
 		systemDeviceID:         opts.SystemDeviceID,
 		appendMetrics:          opts.AppendMetrics,
@@ -169,4 +174,9 @@ type PermissionStore interface {
 // SystemUIDChecker identifies internal system senders that bypass business permissions.
 type SystemUIDChecker interface {
 	IsSystemUID(uid string) bool
+}
+
+// UserSendLimiter decides whether a user-origin send can enter the expensive send path.
+type UserSendLimiter interface {
+	AllowSend(now time.Time, req userlimit.Request) userlimit.Decision
 }

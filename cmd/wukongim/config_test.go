@@ -856,6 +856,36 @@ func TestLoadConfigPrefersEnvironmentVariablesForMessagePermissionConfig(t *test
 	require.Equal(t, 3*time.Second, cfg.Message.PermissionCacheTTL)
 }
 
+func TestLoadConfigParsesMessageUserRateLimitConfig(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_MESSAGE_USER_RATE_LIMIT_ENABLED=true",
+		"WK_MESSAGE_USER_RATE_LIMIT_RATE=42.5",
+		"WK_MESSAGE_USER_RATE_LIMIT_BURST=77",
+		"WK_MESSAGE_USER_RATE_LIMIT_BUCKET_SHARDS=64",
+		"WK_MESSAGE_USER_RATE_LIMIT_IDLE_TTL=2m",
+		"WK_MESSAGE_USER_RATE_LIMIT_MAX_BUCKETS=1234",
+		"WK_MESSAGE_USER_RATE_LIMIT_SYSTEM_UID_BYPASS=false",
+		"WK_MESSAGE_USER_RATE_LIMIT_PLUGIN_BYPASS=true",
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.True(t, cfg.Message.UserRateLimitEnabled)
+	require.Equal(t, 42.5, cfg.Message.UserRateLimitRate)
+	require.Equal(t, 77, cfg.Message.UserRateLimitBurst)
+	require.Equal(t, 64, cfg.Message.UserRateLimitBucketShards)
+	require.Equal(t, 2*time.Minute, cfg.Message.UserRateLimitIdleTTL)
+	require.Equal(t, 1234, cfg.Message.UserRateLimitMaxBuckets)
+	require.False(t, cfg.Message.UserRateLimitSystemUIDBypass)
+	require.True(t, cfg.Message.UserRateLimitPluginBypass)
+}
+
 func TestLoadConfigParsesDeliveryPresenceCacheConfig(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",
