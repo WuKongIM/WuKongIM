@@ -73,6 +73,10 @@ func supportedConfigExampleKeys() []string {
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_BYTES",
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_RECORDS",
 		"WK_CLUSTER_APPEND_GROUP_COMMIT_MAX_WAIT",
+		"WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW",
+		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES",
+		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS",
+		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS",
 		"WK_CLUSTER_ADVERTISE_ADDR",
 		"WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR",
 		"WK_CLUSTER_CHANNEL_EXECUTION_MODE",
@@ -920,6 +924,10 @@ func TestConfigDefaultsSendPathTuning(t *testing.T) {
 	require.Equal(t, 1*time.Millisecond, clusterConfigDurationField(t, &cfg.Cluster, "AppendGroupCommitMaxWait"))
 	require.Equal(t, 64, clusterConfigIntField(t, &cfg.Cluster, "AppendGroupCommitMaxRecords"))
 	require.Equal(t, 64*1024, clusterConfigIntField(t, &cfg.Cluster, "AppendGroupCommitMaxBytes"))
+	require.Equal(t, 200*time.Microsecond, cfg.Cluster.CommitCoordinatorFlushWindow)
+	require.Zero(t, cfg.Cluster.CommitCoordinatorMaxRequests)
+	require.Zero(t, cfg.Cluster.CommitCoordinatorMaxRecords)
+	require.Zero(t, cfg.Cluster.CommitCoordinatorMaxBytes)
 	require.Equal(t, 1*time.Second, cfg.Cluster.DataPlaneRPCTimeout)
 	require.Equal(t, 4, cfg.Cluster.DataPlanePoolSize)
 	require.Equal(t, 4, cfg.Cluster.DataPlaneMaxFetchInflight)
@@ -939,6 +947,14 @@ func TestConfigDefaultsConversationActiveHints(t *testing.T) {
 	require.Equal(t, 1024, cfg.Conversation.ActiveHintFlushBatchSize)
 	require.Equal(t, 5*time.Minute, cfg.Conversation.GroupActiveFanoutInterval)
 	require.Zero(t, cfg.Conversation.GroupActiveFanoutMaxSubscribers)
+}
+
+func TestConfigDefaultsNetworkObservabilityEnabled(t *testing.T) {
+	cfg := validConfig()
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.True(t, cfg.Observability.NetworkEnabled)
 }
 
 func TestConfigAlwaysAppliesLongPollDefaults(t *testing.T) {
@@ -1228,6 +1244,10 @@ func TestConfigPreservesExplicitSendPathTuning(t *testing.T) {
 	cfg.Cluster.DataPlanePoolSize = 8
 	cfg.Cluster.DataPlaneMaxFetchInflight = 16
 	cfg.Cluster.DataPlaneMaxPendingFetch = 16
+	cfg.Cluster.CommitCoordinatorFlushWindow = 500 * time.Microsecond
+	cfg.Cluster.CommitCoordinatorMaxRequests = 32
+	cfg.Cluster.CommitCoordinatorMaxRecords = 512
+	cfg.Cluster.CommitCoordinatorMaxBytes = 512 * 1024
 
 	require.NoError(t, cfg.ApplyDefaultsAndValidate())
 
@@ -1238,6 +1258,10 @@ func TestConfigPreservesExplicitSendPathTuning(t *testing.T) {
 	require.Equal(t, 8, cfg.Cluster.DataPlanePoolSize)
 	require.Equal(t, 16, cfg.Cluster.DataPlaneMaxFetchInflight)
 	require.Equal(t, 16, cfg.Cluster.DataPlaneMaxPendingFetch)
+	require.Equal(t, 500*time.Microsecond, cfg.Cluster.CommitCoordinatorFlushWindow)
+	require.Equal(t, 32, cfg.Cluster.CommitCoordinatorMaxRequests)
+	require.Equal(t, 512, cfg.Cluster.CommitCoordinatorMaxRecords)
+	require.Equal(t, 512*1024, cfg.Cluster.CommitCoordinatorMaxBytes)
 }
 
 func TestConfigRejectsExplicitInvalidSendPathTuning(t *testing.T) {
@@ -1287,6 +1311,34 @@ func TestConfigRejectsExplicitInvalidSendPathTuning(t *testing.T) {
 		cfg.Cluster.SetExplicitFlags(false, false, false, true, false)
 
 		require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "append group commit max records")
+	})
+	t.Run("commit coordinator flush window", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Cluster.CommitCoordinatorFlushWindow = 0
+		cfg.Cluster.SetCommitCoordinatorExplicitFlags(true, false, false, false)
+
+		require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "commit coordinator flush window")
+	})
+
+	t.Run("negative commit coordinator max requests", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Cluster.CommitCoordinatorMaxRequests = -1
+
+		require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "commit coordinator max requests")
+	})
+
+	t.Run("negative commit coordinator max records", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Cluster.CommitCoordinatorMaxRecords = -1
+
+		require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "commit coordinator max records")
+	})
+
+	t.Run("negative commit coordinator max bytes", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.Cluster.CommitCoordinatorMaxBytes = -1
+
+		require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), "commit coordinator max bytes")
 	})
 }
 

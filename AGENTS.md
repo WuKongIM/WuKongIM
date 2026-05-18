@@ -176,6 +176,7 @@ learn_project/           调研/实验代码，非主执行路径
 - 若改动跨层，优先补 `internal/app` 装配测试或入口集成测试。
 - 保持依赖方向清晰：`access -> usecase/runtime`，`usecase -> runtime/pkg`，`app -> all`。
 
-## 项目知识记录
+## 知识积累
 
-发现重要的项目规则或业务知识时，记录到：**`docs/development/PROJECT_KNOWLEDGE.md`** 记录的内容需要简单，清晰，明确 不要啰嗦，保持整个文档内容不要太多
+- 发现重要的项目规则或业务知识时，记录到：**`docs/development/PROJECT_KNOWLEDGE.md`** 记录的内容需要简单，清晰，明确 不要啰嗦，保持整个文档内容不要太多
+- 在做任务过程中发现一些与此任务无关的代码质量问题可以先记录到 **`docs/development/CODE_QUALITY.md`** 然后继续任务不要中断当前任务

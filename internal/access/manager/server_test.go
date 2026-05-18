@@ -2904,7 +2904,7 @@ func TestManagerChannelRuntimeMetaReturnsPagedList(t *testing.T) {
 					Replicas:      []uint64{3, 4},
 					ISR:           []uint64{3},
 					MinISR:        1,
-					MaxMessageSeq: 42,
+					MaxMessageSeq: uint64Ptr(42),
 					Status:        "active",
 				}},
 				HasMore:    true,
@@ -2969,6 +2969,99 @@ func TestManagerChannelRuntimeMetaPassesChannelIDQuery(t *testing.T) {
 		Limit:          15,
 		ChannelIDQuery: "room",
 	}, received)
+}
+
+func TestManagerChannelRuntimeMetaPassesNodeFiltersAndIncludeMaxSeq(t *testing.T) {
+	var received managementusecase.ListChannelRuntimeMetaRequest
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.channel",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{channelRuntimeMetaReqSink: &received},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta?node_id=1&node_scope=replica&include_max_message_seq=true", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, managementusecase.ListChannelRuntimeMetaRequest{
+		Limit:                defaultChannelRuntimeMetaLimit,
+		NodeID:               1,
+		NodeScope:            managementusecase.ChannelRuntimeMetaNodeScopeReplica,
+		IncludeMaxMessageSeq: true,
+	}, received)
+}
+
+func TestManagerChannelRuntimeMetaRejectsInvalidNodeFilters(t *testing.T) {
+	tests := []string{
+		"/manager/channel-runtime-meta?node_id=0",
+		"/manager/channel-runtime-meta?node_id=bad",
+		"/manager/channel-runtime-meta?node_id=1&node_scope=bad",
+		"/manager/channel-runtime-meta?include_max_message_seq=maybe",
+	}
+	for _, path := range tests {
+		t.Run(path, func(t *testing.T) {
+			srv := New(Options{
+				Auth: testAuthConfig([]UserConfig{{
+					Username: "admin",
+					Password: "secret",
+					Permissions: []PermissionConfig{{
+						Resource: "cluster.channel",
+						Actions:  []string{"r"},
+					}},
+				}}),
+				Management: managementStub{},
+			})
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+			srv.Engine().ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusBadRequest, rec.Code)
+		})
+	}
+}
+
+func TestManagerChannelRuntimeMetaOmitsMaxMessageSeqWhenNotIncluded(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin",
+			Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.channel",
+				Actions:  []string{"r"},
+			}},
+		}}),
+		Management: managementStub{
+			channelRuntimeMetaPage: managementusecase.ListChannelRuntimeMetaResponse{
+				Items: []managementusecase.ChannelRuntimeMeta{{
+					ChannelID:   "g2",
+					ChannelType: 2,
+					SlotID:      2,
+					Status:      "active",
+				}},
+			},
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotContains(t, rec.Body.String(), "max_message_seq")
 }
 
 func TestManagerChannelRuntimeMetaReturnsServiceUnavailableWhenAuthoritativeReadUnavailable(t *testing.T) {
@@ -3090,7 +3183,7 @@ func TestManagerChannelClusterUnhealthyReturnsPagedList(t *testing.T) {
 						Replicas:      []uint64{3, 4},
 						ISR:           []uint64{3},
 						MinISR:        2,
-						MaxMessageSeq: 42,
+						MaxMessageSeq: uint64Ptr(42),
 						Status:        "active",
 					},
 					Reasons: []string{
@@ -3184,7 +3277,7 @@ func TestManagerChannelClusterReplicasReturnsDetail(t *testing.T) {
 						Replicas:      []uint64{1, 2},
 						ISR:           []uint64{1},
 						MinISR:        1,
-						MaxMessageSeq: 42,
+						MaxMessageSeq: uint64Ptr(42),
 						Status:        "active",
 					},
 					HashSlot:     123,
@@ -3303,7 +3396,6 @@ func TestManagerChannelClusterRepairReturnsChangedChannel(t *testing.T) {
 			"replicas": [1, 2],
 			"isr": [2],
 			"min_isr": 1,
-			"max_message_seq": 0,
 			"status": "active",
 			"features": 0,
 			"lease_until_ms": 0
@@ -3376,7 +3468,6 @@ func TestManagerChannelClusterLeaderTransferReturnsChangedChannel(t *testing.T) 
 			"replicas": [1, 2],
 			"isr": [1, 2],
 			"min_isr": 1,
-			"max_message_seq": 0,
 			"status": "active",
 			"features": 0,
 			"lease_until_ms": 0
@@ -3575,7 +3666,7 @@ func TestManagerChannelRuntimeMetaDetailReturnsObject(t *testing.T) {
 					Replicas:      []uint64{3, 5, 8},
 					ISR:           []uint64{3, 5},
 					MinISR:        2,
-					MaxMessageSeq: 99,
+					MaxMessageSeq: uint64Ptr(99),
 					Status:        "active",
 				},
 				HashSlot:     129,
@@ -4980,6 +5071,10 @@ func (s managementStub) GetDashboardMetrics(time.Duration, time.Duration) (manag
 type channelRuntimeMetaDetailCall struct {
 	channelID   string
 	channelType int64
+}
+
+func uint64Ptr(value uint64) *uint64 {
+	return &value
 }
 
 func timePtr(value time.Time) *time.Time {

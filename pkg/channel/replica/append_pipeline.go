@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 func (r *replica) applyAppendRequestCommand(cmd machineAppendRequestCommand) machineResult {
@@ -116,13 +117,12 @@ func (r *replica) emitAppendBatchLocked() {
 		return
 	}
 
-	batch := make([]*appendRequest, count)
-	copy(batch, r.appendPending[:count])
+	batch := r.appendPending[:count]
 	copy(r.appendPending, r.appendPending[count:])
 	r.appendPending = r.appendPending[:len(r.appendPending)-count]
 
-	active := make([]*appendRequest, 0, len(batch))
-	activeIDs := make([]uint64, 0, len(batch))
+	active := r.appendInFlightRequests[:0]
+	activeIDs := r.appendInFlightIDs[:0]
 	records := make([]channel.Record, 0, recordCount)
 	for _, req := range batch {
 		if req.completed {
@@ -144,18 +144,21 @@ func (r *replica) emitAppendBatchLocked() {
 
 	r.nextEffectID++
 	effectID := r.nextEffectID
-	r.appendInFlightIDs = append([]uint64(nil), activeIDs...)
+	r.appendInFlightRequests = active
+	r.appendInFlightIDs = activeIDs
 	r.appendInFlightEffectID = effectID
 	effect := appendLeaderBatchEffect{
 		EffectID:       effectID,
-		RequestIDs:     append([]uint64(nil), activeIDs...),
+		RequestIDs:     activeIDs,
 		ChannelKey:     r.state.ChannelKey,
 		Epoch:          r.state.Epoch,
 		LeaderEpoch:    r.meta.LeaderEpoch,
 		RoleGeneration: r.roleGeneration,
 		LeaseUntil:     r.meta.LeaseUntil,
-		Records:        cloneRecords(records),
-		StartedAt:      r.now(),
+		// Records reuses loop-owned payloads from appendRequest.batch; the facade
+		// already deep-copied caller records before they entered the loop.
+		Records:   records,
+		StartedAt: r.now(),
 	}
 	if r.executionPool != nil {
 		if err := r.executionPool.submitAppendEffect(context.Background(), r, effect); err == nil {
@@ -164,7 +167,8 @@ func (r *replica) emitAppendBatchLocked() {
 		for _, req := range active {
 			req.stage = appendRequestQueued
 		}
-		r.appendInFlightIDs = nil
+		r.appendInFlightRequests = active[:0]
+		r.appendInFlightIDs = r.appendInFlightIDs[:0]
 		r.appendInFlightEffectID = 0
 		r.appendPending = append(active, r.appendPending...)
 		r.scheduleAppendFlush()
@@ -176,7 +180,8 @@ func (r *replica) emitAppendBatchLocked() {
 		for _, req := range active {
 			req.stage = appendRequestQueued
 		}
-		r.appendInFlightIDs = nil
+		r.appendInFlightRequests = active[:0]
+		r.appendInFlightIDs = r.appendInFlightIDs[:0]
 		r.appendInFlightEffectID = 0
 		r.appendPending = append(active, r.appendPending...)
 		r.scheduleAppendFlush()
@@ -191,13 +196,41 @@ func (r *replica) runAppendEffect(ctx context.Context, effect appendLeaderBatchE
 	if startedAt.IsZero() {
 		startedAt = r.now()
 	}
+	recordCount, byteCount := appendEffectStats(effect.Records)
+	lockStartedAt := r.now()
 	base, newLEO, err := uint64(0), uint64(0), r.lockDurableMu(ctx)
+	lockDoneAt := r.now()
+	sendtrace.Record(sendtrace.Event{
+		Stage:       sendtrace.StageReplicaLeaderDurableMuWait,
+		At:          lockStartedAt,
+		Duration:    sendtrace.Elapsed(lockStartedAt, lockDoneAt),
+		NodeID:      uint64(r.localNode),
+		ChannelKey:  string(effect.ChannelKey),
+		RecordCount: recordCount,
+		ByteCount:   byteCount,
+		Result:      sendTraceResultFromError(err),
+		ErrorCode:   sendTraceErrorCode(err),
+		Error:       shortTraceError(err),
+	})
 	if err == nil {
 		r.mu.Lock()
 		err = r.validateAppendEffectFenceLocked(effect)
 		r.mu.Unlock()
 		if err == nil {
+			appendStartedAt := r.now()
 			base, newLEO, err = r.durable.AppendLeaderBatch(ctx, effect.Records)
+			sendtrace.Record(sendtrace.Event{
+				Stage:       sendtrace.StageReplicaLeaderDurableAppend,
+				At:          appendStartedAt,
+				Duration:    sendtrace.Elapsed(appendStartedAt, r.now()),
+				NodeID:      uint64(r.localNode),
+				ChannelKey:  string(effect.ChannelKey),
+				RecordCount: recordCount,
+				ByteCount:   byteCount,
+				Result:      sendTraceResultFromError(err),
+				ErrorCode:   sendTraceErrorCode(err),
+				Error:       shortTraceError(err),
+			})
 		}
 		r.durableMu.Unlock()
 	}
@@ -215,12 +248,24 @@ func (r *replica) runAppendEffect(ctx context.Context, effect appendLeaderBatchE
 		LeaderEpoch:      effect.LeaderEpoch,
 		RoleGeneration:   effect.RoleGeneration,
 		LeaseUntil:       effect.LeaseUntil,
-		RequestIDs:       append([]uint64(nil), effect.RequestIDs...),
+		RequestIDs:       effect.RequestIDs,
 		BaseOffset:       base,
 		DurableStartedAt: startedAt,
 		DoneAt:           doneAt,
 		Err:              err,
 	})
+}
+
+func appendEffectStats(records []channel.Record) (recordCount int, byteCount int) {
+	recordCount = len(records)
+	for _, record := range records {
+		if record.SizeBytes > 0 {
+			byteCount += record.SizeBytes
+			continue
+		}
+		byteCount += len(record.Payload)
+	}
+	return recordCount, byteCount
 }
 
 func (r *replica) validateAppendEffectFenceLocked(effect appendLeaderBatchEffect) error {
@@ -297,7 +342,7 @@ func (r *replica) completeAppendRequestLocked(req *appendRequest, result channel
 	req.completed = true
 	previousStage := req.stage
 	req.stage = appendRequestCompleted
-	if previousStage != appendRequestDurable && req.requestID != 0 {
+	if req.requestID != 0 && (previousStage != appendRequestDurable || err == nil) {
 		delete(r.appendRequests, req.requestID)
 	}
 	r.completeAppendWaiter(req.waiter, result, err)
@@ -436,7 +481,11 @@ func (r *replica) removeWaiterLocked(target *appendWaiter) bool {
 func (r *replica) failOutstandingAppendWorkLocked(err error) {
 	pending := r.appendPending
 	r.appendPending = nil
-	inFlightIDs := append([]uint64(nil), r.appendInFlightIDs...)
+	inFlightRequests := r.appendInFlightRequests
+	if len(inFlightRequests) == 0 && len(r.appendInFlightIDs) > 0 {
+		inFlightRequests = r.appendRequestsByIDsLocked(r.appendInFlightIDs)
+	}
+	r.appendInFlightRequests = nil
 	r.appendInFlightIDs = nil
 	r.appendInFlightEffectID = 0
 	waiters := r.waiters
@@ -445,13 +494,14 @@ func (r *replica) failOutstandingAppendWorkLocked(err error) {
 	for _, req := range pending {
 		r.completeAppendRequestLocked(req, channel.CommitResult{}, err)
 	}
-	for _, requestID := range inFlightIDs {
-		req := r.appendRequests[requestID]
+	for _, req := range inFlightRequests {
 		if req == nil {
 			continue
 		}
 		r.completeAppendRequestLocked(req, channel.CommitResult{}, err)
-		delete(r.appendRequests, requestID)
+		if req.requestID != 0 {
+			delete(r.appendRequests, req.requestID)
+		}
 	}
 	for _, waiter := range waiters {
 		if waiter.request != nil {

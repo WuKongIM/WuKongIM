@@ -238,6 +238,7 @@ type fakeReplica struct {
 	becomeLeaderErr            error
 	closeCount                 int
 	appendCalls                int
+	appendOwnedCalls           int
 	retentionCalls             []uint64
 	retentionView              core.RetentionView
 	onLeaderLocalAppend        func()
@@ -316,6 +317,13 @@ func (r *fakeReplica) Append(context.Context, []core.Record) (core.CommitResult,
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.appendCalls++
+	return core.CommitResult{}, nil
+}
+
+func (r *fakeReplica) AppendOwned(context.Context, []core.Record) (core.CommitResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.appendOwnedCalls++
 	return core.CommitResult{}, nil
 }
 

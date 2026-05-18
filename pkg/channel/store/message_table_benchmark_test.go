@@ -25,6 +25,9 @@ func BenchmarkMessageTableAppend(b *testing.B) {
 					b.Fatalf("Batch.Close() error = %v", err)
 				}
 			}
+			elapsed := b.Elapsed().Seconds()
+			b.ReportMetric(float64(b.N)/elapsed, "appends/s")
+			b.ReportMetric(float64(b.N*rowsPerBatch)/elapsed, "rows/s")
 		})
 	}
 }

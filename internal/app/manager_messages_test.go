@@ -12,6 +12,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
@@ -40,6 +41,47 @@ func TestManagerMessageReaderMaxMessageSeqReadsLocalCommittedHW(t *testing.T) {
 	got, err := reader.MaxMessageSeq(context.Background(), id)
 	require.NoError(t, err)
 	require.Equal(t, uint64(55), got)
+}
+
+func TestManagerMessageReaderMaxMessageSeqForMetaReadsLocalCommittedHW(t *testing.T) {
+	id := channel.ChannelID{ID: "g-meta-local", Type: 2}
+	engine, err := channelstore.Open(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, engine.Close()) })
+	store := engine.ForChannel(channelhandler.KeyFromChannelID(id), id)
+	require.NoError(t, store.StoreCheckpoint(channel.Checkpoint{Epoch: 1, HW: 77}))
+	metas := &managerMessageMetasCapture{meta: metadb.ChannelRuntimeMeta{ChannelID: id.ID, ChannelType: int64(id.Type), Leader: 1}}
+	reader := managerMessageReader{localNodeID: 1, channelLog: engine, metas: metas}
+
+	got, err := reader.MaxMessageSeqForMeta(context.Background(), metadb.ChannelRuntimeMeta{ChannelID: id.ID, ChannelType: int64(id.Type), Leader: 1})
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(77), got)
+	require.Zero(t, metas.calls)
+}
+
+func TestManagerMessageReaderMaxMessageSeqForMetaQueriesRemoteLeader(t *testing.T) {
+	id := channel.ChannelID{ID: "g-meta-remote", Type: 2}
+	remote := &managerMessageRemoteCapture{page: accessnode.ChannelMessagesPage{MaxMessageSeq: 88}}
+	metas := &managerMessageMetasCapture{meta: metadb.ChannelRuntimeMeta{ChannelID: id.ID, ChannelType: int64(id.Type), Leader: 9}}
+	reader := managerMessageReader{localNodeID: 1, channelLog: openManagerMessageTestEngine(t), metas: metas, remote: remote}
+
+	got, err := reader.MaxMessageSeqForMeta(context.Background(), metadb.ChannelRuntimeMeta{ChannelID: id.ID, ChannelType: int64(id.Type), Leader: 9})
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(88), got)
+	require.Zero(t, metas.calls)
+	require.Len(t, remote.requests, 1)
+	require.Equal(t, id, remote.requests[0].ChannelID)
+	require.True(t, remote.requests[0].MaxSeqOnly)
+}
+
+func TestManagerMessageReaderMaxMessageSeqForMetaRequiresLeader(t *testing.T) {
+	reader := managerMessageReader{localNodeID: 1, channelLog: openManagerMessageTestEngine(t)}
+
+	_, err := reader.MaxMessageSeqForMeta(context.Background(), metadb.ChannelRuntimeMeta{ChannelID: "g1", ChannelType: 2})
+
+	require.ErrorIs(t, err, raftcluster.ErrNoLeader)
 }
 
 func TestManagerMessageReaderLocalReadsUseRetentionFloor(t *testing.T) {
@@ -124,13 +166,25 @@ func (f managerMessageMetasFake) GetChannelRuntimeMeta(context.Context, string, 
 	return f.meta, f.err
 }
 
+type managerMessageMetasCapture struct {
+	meta  metadb.ChannelRuntimeMeta
+	err   error
+	calls int
+}
+
+func (f *managerMessageMetasCapture) GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error) {
+	f.calls++
+	return f.meta, f.err
+}
+
 type managerMessageRemoteCapture struct {
 	requests []accessnode.ChannelMessagesQuery
+	page     accessnode.ChannelMessagesPage
 }
 
 func (f *managerMessageRemoteCapture) QueryChannelMessages(_ context.Context, _ uint64, req accessnode.ChannelMessagesQuery) (accessnode.ChannelMessagesPage, error) {
 	f.requests = append(f.requests, req)
-	return accessnode.ChannelMessagesPage{}, nil
+	return f.page, nil
 }
 
 func openManagerMessageTestEngine(t *testing.T) *channelstore.Engine {

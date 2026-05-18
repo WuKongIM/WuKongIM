@@ -19,6 +19,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/gateway/testkit"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 	codec "github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,7 @@ const (
 	sendStressDialTimeoutEnv       = "WK_SEND_STRESS_DIAL_TIMEOUT"
 	sendStressAckTimeoutEnv        = "WK_SEND_STRESS_ACK_TIMEOUT"
 	sendStressSeedEnv              = "WK_SEND_STRESS_SEED"
+	sendStressCommitModeEnv        = "WK_SEND_STRESS_COMMIT_MODE"
 	sendStressWarmupAckTimeout     = 12 * time.Second
 	sendStressThroughputInflight   = 32
 	sendStressReplicaVerifyTimeout = 20 * time.Second
@@ -58,6 +60,7 @@ type sendStressConfig struct {
 	DialTimeout          time.Duration
 	AckTimeout           time.Duration
 	Seed                 int64
+	CommitMode           channel.CommitMode
 }
 
 type sendStressLatencySummary struct {
@@ -101,6 +104,7 @@ type sendStressRecord struct {
 	RecipientUID    string
 	ChannelID       string
 	ChannelType     uint8
+	ChannelKey      string
 	ClientSeq       uint64
 	ClientMsgNo     string
 	Payload         []byte
@@ -294,6 +298,10 @@ func loadSendStressConfigFromEnv(lookup func(string) (string, bool)) (sendStress
 	if err != nil {
 		return sendStressConfig{}, err
 	}
+	commitMode, err := sendStressEnvCommitMode(lookup, sendStressCommitModeEnv, channel.CommitModeQuorum)
+	if err != nil {
+		return sendStressConfig{}, err
+	}
 
 	cfg := sendStressConfig{
 		Enabled:              enabled,
@@ -305,6 +313,7 @@ func loadSendStressConfigFromEnv(lookup func(string) (string, bool)) (sendStress
 		AckTimeout:           ackTimeout,
 		Seed:                 seed,
 		MaxInflightPerWorker: 1,
+		CommitMode:           commitMode,
 	}
 	if cfg.Mode == sendStressModeThroughput {
 		maxInflight, err := sendStressEnvInt(lookup, sendStressMaxInflightEnv, sendStressThroughputInflight)
@@ -345,6 +354,48 @@ func sendStressEnvDuration(lookup func(string) (string, bool), name string, fall
 	return parsed, nil
 }
 
+func envDurationNoTest(name string, fallback time.Duration) time.Duration {
+	value, ok := os.LookupEnv(name)
+	if !ok || strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	parsed, err := time.ParseDuration(strings.TrimSpace(value))
+	if err != nil {
+		panic(fmt.Sprintf("parse %s: %v", name, err))
+	}
+	return parsed
+}
+
+func envIntNoTest(name string, fallback int) int {
+	value, ok := os.LookupEnv(name)
+	if !ok || strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		panic(fmt.Sprintf("parse %s: %v", name, err))
+	}
+	return parsed
+}
+
+func applySendStressCommitCoordinatorEnvTuning(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+	if value, ok := os.LookupEnv("WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW"); ok && strings.TrimSpace(value) != "" {
+		cfg.Cluster.CommitCoordinatorFlushWindow = envDurationNoTest("WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW", cfg.Cluster.CommitCoordinatorFlushWindow)
+	}
+	if value, ok := os.LookupEnv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS"); ok && strings.TrimSpace(value) != "" {
+		cfg.Cluster.CommitCoordinatorMaxRequests = envIntNoTest("WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS", cfg.Cluster.CommitCoordinatorMaxRequests)
+	}
+	if value, ok := os.LookupEnv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS"); ok && strings.TrimSpace(value) != "" {
+		cfg.Cluster.CommitCoordinatorMaxRecords = envIntNoTest("WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS", cfg.Cluster.CommitCoordinatorMaxRecords)
+	}
+	if value, ok := os.LookupEnv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES"); ok && strings.TrimSpace(value) != "" {
+		cfg.Cluster.CommitCoordinatorMaxBytes = envIntNoTest("WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES", cfg.Cluster.CommitCoordinatorMaxBytes)
+	}
+}
+
 func sendStressEnvInt(lookup func(string) (string, bool), name string, fallback int) (int, error) {
 	value, ok := lookup(name)
 	if !ok || strings.TrimSpace(value) == "" {
@@ -367,6 +418,21 @@ func sendStressEnvInt64(lookup func(string) (string, bool), name string, fallbac
 		return 0, fmt.Errorf("parse %s: %w", name, err)
 	}
 	return parsed, nil
+}
+
+func sendStressEnvCommitMode(lookup func(string) (string, bool), name string, fallback channel.CommitMode) (channel.CommitMode, error) {
+	value, ok := lookup(name)
+	if !ok || strings.TrimSpace(value) == "" {
+		return fallback, nil
+	}
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "quorum":
+		return channel.CommitModeQuorum, nil
+	case "local":
+		return channel.CommitModeLocal, nil
+	default:
+		return 0, fmt.Errorf("parse %s: must be one of %q or %q, got %q", name, "quorum", "local", strings.TrimSpace(value))
+	}
 }
 
 func validateSendStressConfig(cfg sendStressConfig) error {
@@ -403,6 +469,13 @@ func validateSendStressConfig(cfg sendStressConfig) error {
 	}
 	if cfg.Mode != sendStressModeThroughput {
 		cfg.MaxInflightPerWorker = 1
+	}
+	switch cfg.CommitMode {
+	case 0:
+		cfg.CommitMode = channel.CommitModeQuorum
+	case channel.CommitModeQuorum, channel.CommitModeLocal:
+	default:
+		return fmt.Errorf("%s must be one of %q or %q, got %d", sendStressCommitModeEnv, "quorum", "local", cfg.CommitMode)
 	}
 	return nil
 }
@@ -501,6 +574,7 @@ func (t *sendStressInflightTracker) Complete(sendack *frame.SendackPacket, frame
 			RecipientUID:    attempt.client.target.RecipientUID,
 			ChannelID:       attempt.client.target.ChannelID,
 			ChannelType:     attempt.client.target.ChannelType,
+			ChannelKey:      sendStressChannelKey(attempt.client.target.ChannelID, attempt.client.target.ChannelType),
 			ClientSeq:       attempt.clientSeq,
 			ClientMsgNo:     attempt.clientMsgNo,
 			Payload:         attempt.payload,
@@ -707,6 +781,10 @@ func sendStressUniqueTargetCount(targets []sendStressTarget) int {
 	return len(unique)
 }
 
+func sendStressChannelKey(channelID string, channelType uint8) string {
+	return string(channelhandler.KeyFromChannelID(channel.ChannelID{ID: channelID, Type: channelType}))
+}
+
 func TestSendStressConfigDefaultsAndOverrides(t *testing.T) {
 	acceptance := sendStressAcceptancePreset()
 	clearSendStressConfigEnv(t)
@@ -720,6 +798,7 @@ func TestSendStressConfigDefaultsAndOverrides(t *testing.T) {
 	require.Equal(t, 1, defaultCfg.MaxInflightPerWorker)
 	require.Equal(t, 3*time.Second, defaultCfg.DialTimeout)
 	require.Equal(t, 5*time.Second, defaultCfg.AckTimeout)
+	require.Equal(t, channel.CommitModeQuorum, defaultCfg.CommitMode)
 
 	t.Run("acceptance preset overrides", func(t *testing.T) {
 		clearSendStressConfigEnv(t)
@@ -736,6 +815,7 @@ func TestSendStressConfigDefaultsAndOverrides(t *testing.T) {
 		require.Equal(t, acceptance.Benchmark.DialTimeout, cfg.DialTimeout)
 		require.Equal(t, acceptance.Benchmark.AckTimeout, cfg.AckTimeout)
 		require.EqualValues(t, acceptance.Benchmark.Seed, cfg.Seed)
+		require.Equal(t, acceptance.Benchmark.CommitMode, cfg.CommitMode)
 	})
 
 	enabled, ok, err := parseSendStressEnabled("")
@@ -816,10 +896,56 @@ func TestSelectSendStressThreeNodeRunUsesAcceptancePresetWhenOnlyOptedIn(t *test
 	require.Equal(t, preset.Benchmark.DialTimeout, selection.cfg.DialTimeout)
 	require.Equal(t, preset.Benchmark.AckTimeout, selection.cfg.AckTimeout)
 	require.EqualValues(t, preset.Benchmark.Seed, selection.cfg.Seed)
+	require.Equal(t, preset.Benchmark.CommitMode, selection.cfg.CommitMode)
 	require.Equal(t, preset.MinISR, selection.minISR)
 	expected := preset.Benchmark
 	expected.Enabled = true
 	require.Equal(t, expected, selection.cfg)
+}
+
+func TestSelectSendStressThreeNodeRunKeepsAcceptancePresetWhenOnlyCommitModeChanges(t *testing.T) {
+	clearSendStressConfigEnv(t)
+	t.Setenv(sendStressEnv, "1")
+	t.Setenv(sendStressCommitModeEnv, "local")
+
+	selection := selectSendStressThreeNodeRun(t)
+	preset := sendStressAcceptancePreset()
+
+	require.True(t, selection.useAcceptancePreset)
+	require.Equal(t, preset.Benchmark.Mode, selection.cfg.Mode)
+	require.Equal(t, preset.Benchmark.Duration, selection.cfg.Duration)
+	require.Equal(t, preset.Benchmark.Workers, selection.cfg.Workers)
+	require.Equal(t, preset.Benchmark.Senders, selection.cfg.Senders)
+	require.Equal(t, preset.Benchmark.MaxInflightPerWorker, selection.cfg.MaxInflightPerWorker)
+	require.Equal(t, channel.CommitModeLocal, selection.cfg.CommitMode)
+	require.Equal(t, preset.MinISR, selection.minISR)
+}
+
+func TestSelectSendStressThreeNodeRunKeepsAcceptancePresetWhenOnlyCommitCoordinatorChanges(t *testing.T) {
+	clearSendStressConfigEnv(t)
+	t.Setenv(sendStressEnv, "1")
+	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW", "50us")
+	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS", "32")
+
+	selection := selectSendStressThreeNodeRun(t)
+
+	require.True(t, selection.useAcceptancePreset)
+}
+
+func TestApplySendStressCommitCoordinatorEnvTuningOverridesConfig(t *testing.T) {
+	clearSendStressConfigEnv(t)
+	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW", "100us")
+	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS", "64")
+	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS", "1024")
+	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES", "524288")
+	cfg := validConfig()
+
+	applySendStressCommitCoordinatorEnvTuning(&cfg)
+
+	require.Equal(t, 100*time.Microsecond, cfg.Cluster.CommitCoordinatorFlushWindow)
+	require.Equal(t, 64, cfg.Cluster.CommitCoordinatorMaxRequests)
+	require.Equal(t, 1024, cfg.Cluster.CommitCoordinatorMaxRecords)
+	require.Equal(t, 524288, cfg.Cluster.CommitCoordinatorMaxBytes)
 }
 
 func TestSelectSendStressThreeNodeRunPreservesExplicitEnvSelection(t *testing.T) {
@@ -834,6 +960,7 @@ func TestSelectSendStressThreeNodeRunPreservesExplicitEnvSelection(t *testing.T)
 	t.Setenv(sendStressDialTimeoutEnv, "4s")
 	t.Setenv(sendStressAckTimeoutEnv, "5s")
 	t.Setenv(sendStressSeedEnv, "42")
+	t.Setenv(sendStressCommitModeEnv, "local")
 
 	selection := selectSendStressThreeNodeRun(t)
 
@@ -847,6 +974,7 @@ func TestSelectSendStressThreeNodeRunPreservesExplicitEnvSelection(t *testing.T)
 	require.Equal(t, 4*time.Second, selection.cfg.DialTimeout)
 	require.Equal(t, 5*time.Second, selection.cfg.AckTimeout)
 	require.EqualValues(t, 42, selection.cfg.Seed)
+	require.Equal(t, channel.CommitModeLocal, selection.cfg.CommitMode)
 	require.Equal(t, 3, selection.minISR)
 }
 
@@ -902,6 +1030,27 @@ func TestSendStressConfigDefaultsThroughputModeToMultiInflight(t *testing.T) {
 
 	require.Equal(t, sendStressModeThroughput, cfg.Mode)
 	require.Equal(t, sendStressThroughputInflight, cfg.MaxInflightPerWorker)
+}
+
+func TestSendStressConfigParsesCommitModeOverride(t *testing.T) {
+	clearSendStressConfigEnv(t)
+	t.Setenv(sendStressCommitModeEnv, "local")
+
+	cfg := loadSendStressConfig(t)
+
+	require.Equal(t, channel.CommitModeLocal, cfg.CommitMode)
+}
+
+func TestLoadSendStressConfigRejectsInvalidCommitMode(t *testing.T) {
+	_, err := loadSendStressConfigFromEnv(func(name string) (string, bool) {
+		if name == sendStressCommitModeEnv {
+			return "remote", true
+		}
+		return "", false
+	})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), sendStressCommitModeEnv)
 }
 
 func TestValidateSendStressConfigRejectsInvalidThroughputInflight(t *testing.T) {
@@ -1390,7 +1539,9 @@ func selectSendStressThreeNodeRun(t *testing.T) sendStressThreeNodeRunSelection 
 	expectedAcceptance.Enabled = true
 
 	if !sendStressThreeNodeHasExplicitTuningEnv() || cfg == expectedAcceptance {
+		commitMode := cfg.CommitMode
 		cfg = expectedAcceptance
+		cfg.CommitMode = commitMode
 		return sendStressThreeNodeRunSelection{
 			cfg:                 cfg,
 			preset:              preset,
@@ -1447,6 +1598,7 @@ func clearSendStressConfigEnv(t *testing.T) {
 		sendStressDialTimeoutEnv,
 		sendStressAckTimeoutEnv,
 		sendStressSeedEnv,
+		sendStressCommitModeEnv,
 	} {
 		name := name
 		if value, ok := os.LookupEnv(name); ok {
@@ -1476,6 +1628,12 @@ func applySendStressAcceptanceConfigEnv(t *testing.T, preset sendStressConfig) {
 	t.Setenv(sendStressDialTimeoutEnv, preset.DialTimeout.String())
 	t.Setenv(sendStressAckTimeoutEnv, preset.AckTimeout.String())
 	t.Setenv(sendStressSeedEnv, strconv.FormatInt(preset.Seed, 10))
+	switch preset.CommitMode {
+	case channel.CommitModeQuorum:
+		t.Setenv(sendStressCommitModeEnv, "quorum")
+	case channel.CommitModeLocal:
+		t.Setenv(sendStressCommitModeEnv, "local")
+	}
 }
 
 func buildSendStressVerificationPlan(records []sendStressRecord) (sendStressVerificationPlan, error) {

@@ -180,8 +180,8 @@ type MessageConfig struct {
 	// SystemDeviceID identifies trusted gateway sessions that bypass channel-type-specific
 	// send permissions after sender SendBan has passed.
 	SystemDeviceID string
-	// PermissionCacheTTL enables a bounded node-local send-permission read cache.
-	// Keep zero for strict authorization freshness; benchmark/static-member deployments may set it positive.
+	// PermissionCacheTTL enables a bounded node-local send-permission read cache, including
+	// missing-channel authorization reads. Keep zero for strict authorization freshness.
 	PermissionCacheTTL time.Duration
 	// UserRateLimitEnabled enables node-local UID send token buckets before expensive send-path work.
 	UserRateLimitEnabled bool
@@ -270,6 +270,8 @@ func (c *ChannelMessageRetentionConfig) SetExplicitFlags(scanIntervalSet, channe
 type ObservabilityConfig struct {
 	// MetricsEnabled enables the metrics endpoint and metrics collection.
 	MetricsEnabled bool
+	// NetworkEnabled enables per-packet local network observations for manager network snapshots.
+	NetworkEnabled bool
 	// HealthDetailEnabled includes dependency details in health responses.
 	HealthDetailEnabled bool
 	// HealthDebugEnabled includes debug-oriented health diagnostics.
@@ -278,6 +280,7 @@ type ObservabilityConfig struct {
 	Diagnostics DiagnosticsConfig
 
 	metricsEnabledSet      bool
+	networkEnabledSet      bool
 	healthDetailEnabledSet bool
 	healthDebugEnabledSet  bool
 }
@@ -290,6 +293,14 @@ func (c *ObservabilityConfig) SetExplicitFlags(metricsSet, detailSet, debugSet b
 	c.metricsEnabledSet = metricsSet
 	c.healthDetailEnabledSet = detailSet
 	c.healthDebugEnabledSet = debugSet
+}
+
+// SetNetworkExplicitFlag records whether network observation was explicitly configured.
+func (c *ObservabilityConfig) SetNetworkExplicitFlag(networkSet bool) {
+	if c == nil {
+		return
+	}
+	c.networkEnabledSet = networkSet
 }
 
 // SetDiagnosticsExplicitFlags records which diagnostics values were explicitly configured.
@@ -500,6 +511,14 @@ type ClusterConfig struct {
 	AppendGroupCommitMaxRecords int
 	// AppendGroupCommitMaxBytes is the maximum byte size for one append group commit batch.
 	AppendGroupCommitMaxBytes int
+	// CommitCoordinatorFlushWindow is the maximum delay for cross-channel durable Pebble sync batching.
+	CommitCoordinatorFlushWindow time.Duration
+	// CommitCoordinatorMaxRequests caps logical requests in one cross-channel durable Pebble sync batch.
+	CommitCoordinatorMaxRequests int
+	// CommitCoordinatorMaxRecords caps channel log records in one cross-channel durable Pebble sync batch.
+	CommitCoordinatorMaxRecords int
+	// CommitCoordinatorMaxBytes caps approximate payload bytes in one cross-channel durable Pebble sync batch.
+	CommitCoordinatorMaxBytes int
 	// Nodes lists every cluster node participating in the cluster runtime.
 	Nodes []NodeConfigRef
 	// Seeds lists existing cluster RPC addresses used only to bootstrap dynamic node join.
@@ -530,6 +549,9 @@ type ClusterConfig struct {
 	HeartbeatTick int
 	// DialTimeout is the timeout for node-to-node connection dialing.
 	DialTimeout time.Duration
+	// ManagedSlotsReadyTimeout bounds startup waiting for controller-managed physical slots to become ready.
+	// Increase this for cold multi-node cluster restarts where controller election and slot leader recovery can exceed the default.
+	ManagedSlotsReadyTimeout time.Duration
 	// ControllerLogCompaction controls local Controller Raft snapshot compaction.
 	ControllerLogCompaction ControllerLogCompactionConfig
 	// SlotLogCompaction controls local Slot Raft snapshot compaction.
@@ -548,6 +570,7 @@ type ClusterConfig struct {
 	appendGroupCommitMaxWaitSet         bool
 	appendGroupCommitMaxRecordsSet      bool
 	appendGroupCommitMaxBytesSet        bool
+	commitCoordinatorFlushWindowSet     bool
 	longPollLaneCountSet                bool
 	longPollMaxWaitSet                  bool
 	longPollMaxBytesSet                 bool
@@ -581,6 +604,14 @@ func (c *ClusterConfig) SetReplicationExplicitFlags(longPollLaneCountSet, longPo
 	c.longPollMaxWaitSet = longPollMaxWaitSet
 	c.longPollMaxBytesSet = longPollMaxBytesSet
 	c.longPollMaxChannelsSet = longPollMaxChannelsSet
+}
+
+// SetCommitCoordinatorExplicitFlags records whether durable commit coordinator settings were explicitly configured.
+func (c *ClusterConfig) SetCommitCoordinatorExplicitFlags(flushWindowSet, maxRequestsSet, maxRecordsSet, maxBytesSet bool) {
+	if c == nil {
+		return
+	}
+	c.commitCoordinatorFlushWindowSet = flushWindowSet
 }
 
 // SetControllerLogCompactionExplicitFlags records which Controller log compaction values were explicitly configured.
@@ -1083,6 +1114,18 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	if c.Cluster.AppendGroupCommitMaxBytes <= 0 && c.Cluster.appendGroupCommitMaxBytesSet {
 		return fmt.Errorf("%w: append group commit max bytes must be positive", ErrInvalidConfig)
 	}
+	if c.Cluster.CommitCoordinatorFlushWindow <= 0 && c.Cluster.commitCoordinatorFlushWindowSet {
+		return fmt.Errorf("%w: commit coordinator flush window must be positive", ErrInvalidConfig)
+	}
+	if c.Cluster.CommitCoordinatorMaxRequests < 0 {
+		return fmt.Errorf("%w: commit coordinator max requests must be >= 0", ErrInvalidConfig)
+	}
+	if c.Cluster.CommitCoordinatorMaxRecords < 0 {
+		return fmt.Errorf("%w: commit coordinator max records must be >= 0", ErrInvalidConfig)
+	}
+	if c.Cluster.CommitCoordinatorMaxBytes < 0 {
+		return fmt.Errorf("%w: commit coordinator max bytes must be >= 0", ErrInvalidConfig)
+	}
 	if c.Cluster.LongPollLaneCount <= 0 {
 		if c.Cluster.longPollLaneCountSet {
 			return fmt.Errorf("%w: long poll lane count must be positive", ErrInvalidConfig)
@@ -1109,6 +1152,12 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	}
 	if c.Cluster.LongPollDataNotifyDelay < 0 {
 		return fmt.Errorf("%w: long poll data notify delay must be >= 0", ErrInvalidConfig)
+	}
+	if c.Cluster.ManagedSlotsReadyTimeout < 0 {
+		return fmt.Errorf("%w: managed slots ready timeout must be >= 0", ErrInvalidConfig)
+	}
+	if c.Cluster.ManagedSlotsReadyTimeout == 0 {
+		c.Cluster.ManagedSlotsReadyTimeout = defaultManagedSlotsReadyTimeout
 	}
 
 	if c.Storage.DBPath == "" {
@@ -1251,6 +1300,9 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	}
 	if !c.Observability.metricsEnabledSet {
 		c.Observability.MetricsEnabled = true
+	}
+	if !c.Observability.networkEnabledSet {
+		c.Observability.NetworkEnabled = true
 	}
 	if !c.Observability.healthDetailEnabledSet {
 		c.Observability.HealthDetailEnabled = true
@@ -1429,6 +1481,7 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	c.Cluster.AppendGroupCommitMaxWait = effectiveAppendGroupCommitMaxWait(c.Cluster.AppendGroupCommitMaxWait)
 	c.Cluster.AppendGroupCommitMaxRecords = effectiveAppendGroupCommitMaxRecords(c.Cluster.AppendGroupCommitMaxRecords)
 	c.Cluster.AppendGroupCommitMaxBytes = effectiveAppendGroupCommitMaxBytes(c.Cluster.AppendGroupCommitMaxBytes)
+	c.Cluster.CommitCoordinatorFlushWindow = effectiveCommitCoordinatorFlushWindow(c.Cluster.CommitCoordinatorFlushWindow)
 
 	if staticCluster {
 		nodeSet := make(map[uint64]struct{}, len(c.Cluster.Nodes))
@@ -1635,6 +1688,13 @@ func effectiveAppendGroupCommitMaxBytes(configured int) int {
 		return configured
 	}
 	return 64 * 1024
+}
+
+func effectiveCommitCoordinatorFlushWindow(configured time.Duration) time.Duration {
+	if configured > 0 {
+		return configured
+	}
+	return 200 * time.Microsecond
 }
 
 func effectiveDataPlaneRPCTimeout(configured time.Duration) time.Duration {

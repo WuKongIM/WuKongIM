@@ -319,6 +319,8 @@ type TrafficConfig struct {
 	ChannelRef string `json:"channel_ref" yaml:"channel_ref"`
 	// RatePerChannel is the per-channel send rate for this stream.
 	RatePerChannel Rate `json:"rate_per_channel" yaml:"rate_per_channel"`
+	// Concurrency is the maximum in-flight send operations for this traffic stream; zero preserves sequential sends.
+	Concurrency int `json:"concurrency" yaml:"concurrency"`
 	// SenderPick selects how senders are chosen.
 	SenderPick string `json:"sender_pick" yaml:"sender_pick"`
 	// RecvAck controls whether simulated clients send receive acknowledgements.

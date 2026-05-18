@@ -10,7 +10,7 @@ import (
 const maxLegacyMessageSeq = uint64(^uint32(0))
 
 func (s *service) Append(ctx context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
-	key := KeyFromChannelID(req.ChannelID)
+	key := s.channelKeyForID(req.ChannelID)
 	meta, err := s.metaForKey(key)
 	if err != nil {
 		return channel.AppendResult{}, err
@@ -37,7 +37,9 @@ func (s *service) Append(ctx context.Context, req channel.AppendRequest) (channe
 		return channel.AppendResult{}, channel.ErrNotLeader
 	}
 
-	ctx = channel.WithCommitMode(ctx, req.CommitMode)
+	if req.CommitMode != 0 && req.CommitMode != channel.CommitModeQuorum {
+		ctx = channel.WithCommitMode(ctx, req.CommitMode)
+	}
 	draft := req.Message
 	draft.ChannelID = req.ChannelID.ID
 	draft.ChannelType = req.ChannelID.Type

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -457,7 +458,7 @@ func TestWorkerDefaultRunnerRunsStoredWorkloadsConcurrently(t *testing.T) {
 	done := make(chan error, 1)
 
 	go func() {
-		done <- runner.runPhase(context.Background(), Assignment{RunID: "run-a"}, func(*benchworkload.PersonWorkload, *benchworkload.GroupWorkload) error {
+		done <- runner.runPhase(context.Background(), Assignment{RunID: "run-a"}, func(context.Context, *benchworkload.PersonWorkload, *benchworkload.GroupWorkload) error {
 			if calls.Add(1) == 2 {
 				close(bothStarted)
 			}
@@ -474,6 +475,68 @@ func TestWorkerDefaultRunnerRunsStoredWorkloadsConcurrently(t *testing.T) {
 	}
 	close(release)
 	require.NoError(t, <-done)
+}
+
+func TestWorkerDefaultRunnerRunsPersonAndGroupTrafficConcurrently(t *testing.T) {
+	runner := &defaultWorkloadRunner{
+		runID:           "run-a",
+		metrics:         metrics.NewRegistry(),
+		personWorkloads: []*benchworkload.PersonWorkload{nil},
+		groupWorkloads:  []*benchworkload.GroupWorkload{nil},
+	}
+	var calls atomic.Int32
+	bothStarted := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan error, 1)
+
+	go func() {
+		done <- runner.runPhase(context.Background(), Assignment{RunID: "run-a"}, func(context.Context, *benchworkload.PersonWorkload, *benchworkload.GroupWorkload) error {
+			if calls.Add(1) == 2 {
+				close(bothStarted)
+			}
+			<-release
+			return nil
+		})
+	}()
+
+	select {
+	case <-bothStarted:
+	case <-time.After(50 * time.Millisecond):
+		close(release)
+		t.Fatal("person and group workloads did not start concurrently")
+	}
+	close(release)
+	require.NoError(t, <-done)
+}
+
+func TestWorkerDefaultRunnerCancelsOtherWorkloadsOnPhaseError(t *testing.T) {
+	runner := &defaultWorkloadRunner{
+		runID:           "run-a",
+		metrics:         metrics.NewRegistry(),
+		personWorkloads: []*benchworkload.PersonWorkload{nil},
+		groupWorkloads:  []*benchworkload.GroupWorkload{nil},
+	}
+	phaseErr := errors.New("person failed")
+	groupCanceled := make(chan struct{})
+
+	err := runner.runPhase(context.Background(), Assignment{RunID: "run-a"}, func(ctx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
+		if person != nil {
+			return phaseErr
+		}
+		<-ctx.Done()
+		close(groupCanceled)
+		return ctx.Err()
+	})
+
+	require.ErrorIs(t, err, phaseErr)
+	require.Eventually(t, func() bool {
+		select {
+		case <-groupCanceled:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestWorkerDefaultRunnerPreparesConnectsAndRunsGroupShard(t *testing.T) {

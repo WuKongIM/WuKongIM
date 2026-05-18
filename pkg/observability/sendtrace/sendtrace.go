@@ -16,8 +16,14 @@ const (
 	StageChannelAppendForward          Stage = "channel.append.forward"
 	StageReplicaLeaderQueueWait        Stage = "replica.leader.queue_wait"
 	StageReplicaLeaderLocalDurable     Stage = "replica.leader.local_durable"
+	StageReplicaLeaderDurableMuWait    Stage = "replica.leader.durable_mutex_wait"
+	StageReplicaLeaderDurableAppend    Stage = "replica.leader.durable_append_store"
 	StageReplicaLeaderQuorumWait       Stage = "replica.leader.quorum_wait"
 	StageReplicaFollowerApplyDurable   Stage = "replica.follower.apply_durable"
+	StageStoreCommitQueueWait          Stage = "store.commit.queue_wait"
+	StageStoreCommitBatchCollect       Stage = "store.commit.batch_collect"
+	StageStoreCommitPebbleSync         Stage = "store.commit.pebble_sync"
+	StageStoreCommitPublish            Stage = "store.commit.publish"
 	StageRuntimeFollowerRetryScheduled Stage = "runtime.follower_retry_scheduled"
 	StageRuntimeFetchRequestSend       Stage = "runtime.fetch_request_send"
 	StageRuntimeLanePollRequestSend    Stage = "runtime.lane_poll_request_send"
@@ -73,6 +79,14 @@ type Event struct {
 	Error string
 	// Attempt records the retry or delivery attempt associated with the event.
 	Attempt int
+	// RequestCount records how many logical requests were included in a batch event.
+	RequestCount int
+	// RecordCount records how many durable log records were included in a batch event.
+	RecordCount int
+	// ByteCount records the approximate payload bytes included in a batch event.
+	ByteCount int
+	// QueueDepth records the observed queue depth when a batch event was emitted.
+	QueueDepth int
 }
 
 func (e Event) ContainsMessageSeq(seq uint64) bool {

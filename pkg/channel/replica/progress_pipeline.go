@@ -396,25 +396,38 @@ func (r *replica) takeAppendInFlightResultLocked(ev machineLeaderAppendCommitted
 	}
 	if !appendRequestIDsEqual(r.appendInFlightIDs, ev.RequestIDs) {
 		requests := r.appendRequestsByIDsLocked(r.appendInFlightIDs)
-		r.appendInFlightIDs = nil
+		r.appendInFlightRequests = r.appendInFlightRequests[:0]
+		r.appendInFlightIDs = r.appendInFlightIDs[:0]
 		r.appendInFlightEffectID = 0
 		r.failDurableAppendRequestsLocked(requests, channel.ErrCorruptState)
 		return nil, true, channel.ErrCorruptState
 	}
 
-	requests := make([]*appendRequest, 0, len(ev.RequestIDs))
-	for _, requestID := range ev.RequestIDs {
-		req := r.appendRequests[requestID]
-		if req == nil {
+	requests := r.appendInFlightRequests
+	if len(requests) == 0 && len(ev.RequestIDs) > 0 {
+		requests = r.appendRequestsByIDsLocked(ev.RequestIDs)
+	}
+	if len(requests) != len(ev.RequestIDs) {
+		current := r.appendRequestsByIDsLocked(r.appendInFlightIDs)
+		r.appendInFlightRequests = r.appendInFlightRequests[:0]
+		r.appendInFlightIDs = r.appendInFlightIDs[:0]
+		r.appendInFlightEffectID = 0
+		r.failDurableAppendRequestsLocked(current, channel.ErrCorruptState)
+		return nil, true, channel.ErrCorruptState
+	}
+	for i, requestID := range ev.RequestIDs {
+		req := requests[i]
+		if req == nil || req.requestID != requestID || r.appendRequests[requestID] != req {
 			current := r.appendRequestsByIDsLocked(r.appendInFlightIDs)
-			r.appendInFlightIDs = nil
+			r.appendInFlightRequests = r.appendInFlightRequests[:0]
+			r.appendInFlightIDs = r.appendInFlightIDs[:0]
 			r.appendInFlightEffectID = 0
 			r.failDurableAppendRequestsLocked(current, channel.ErrCorruptState)
 			return nil, true, channel.ErrCorruptState
 		}
-		requests = append(requests, req)
 	}
-	r.appendInFlightIDs = nil
+	r.appendInFlightRequests = r.appendInFlightRequests[:0]
+	r.appendInFlightIDs = r.appendInFlightIDs[:0]
 	r.appendInFlightEffectID = 0
 	return requests, true, nil
 }

@@ -2,6 +2,8 @@ package store
 
 import (
 	"errors"
+	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -12,7 +14,7 @@ import (
 func TestChannelStoreAppendUsesCommitCoordinatorAcrossChannels(t *testing.T) {
 	engine, fs := openCountingCommitCoordinatorTestEngine(t)
 	stores := openTestChannelStoresOnEngine(t, engine, "append-1", "append-2")
-	engine.commitCoordinator().flushWindow = 5 * time.Millisecond
+	engine.commitCoordinator().cfg.FlushWindow = 5 * time.Millisecond
 
 	before := fs.syncCount.Load()
 
@@ -43,6 +45,72 @@ func TestChannelStoreAppendUsesCommitCoordinatorAcrossChannels(t *testing.T) {
 		}
 	}
 
+	if got := fs.syncCount.Load() - before; got != 1 {
+		t.Fatalf("sync count delta = %d, want 1", got)
+	}
+}
+
+func TestChannelStoreAppendBatchesConcurrentSameChannelAppends(t *testing.T) {
+	engine, fs := openCountingCommitCoordinatorTestEngine(t)
+	st := openTestChannelStoresOnEngine(t, engine, "append-same-channel-batch")[0]
+	engine.commitCoordinator().cfg.FlushWindow = 5 * time.Millisecond
+
+	const appendCount = 8
+	before := fs.syncCount.Load()
+	results := make(chan appendResult, appendCount)
+	ready := make(chan struct{}, appendCount)
+	start := make(chan struct{})
+	for i := range appendCount {
+		go func(i int) {
+			ready <- struct{}{}
+			<-start
+			messageID := uint64(i + 1)
+			payload := mustEncodeStoreMessage(t, channel.Message{
+				MessageID:   messageID,
+				ClientMsgNo: fmt.Sprintf("same-channel-%02d", i),
+				FromUID:     "u1",
+				ChannelID:   st.id.ID,
+				ChannelType: st.id.Type,
+				Payload:     []byte(fmt.Sprintf("payload-%02d", i)),
+			})
+			base, err := st.Append([]channel.Record{{ID: messageID, Payload: payload, SizeBytes: len(payload)}})
+			results <- appendResult{base: base, err: err}
+		}(i)
+	}
+	for range appendCount {
+		<-ready
+	}
+	close(start)
+
+	bases := make([]uint64, 0, appendCount)
+	for range appendCount {
+		result := <-results
+		if result.err != nil {
+			t.Fatalf("Append() error = %v", result.err)
+		}
+		bases = append(bases, result.base)
+	}
+	sort.Slice(bases, func(i, j int) bool { return bases[i] < bases[j] })
+	for i, base := range bases {
+		if want := uint64(i); base != want {
+			t.Fatalf("Append() bases = %v, want contiguous bases 0..%d", bases, appendCount-1)
+		}
+	}
+	if got := st.LEO(); got != appendCount {
+		t.Fatalf("LEO() = %d, want %d", got, appendCount)
+	}
+	for seq := uint64(1); seq <= appendCount; seq++ {
+		msg, ok, err := st.GetMessageBySeq(seq)
+		if err != nil {
+			t.Fatalf("GetMessageBySeq(%d) error = %v", seq, err)
+		}
+		if !ok {
+			t.Fatalf("GetMessageBySeq(%d) missing", seq)
+		}
+		if msg.MessageSeq != seq {
+			t.Fatalf("GetMessageBySeq(%d) MessageSeq = %d, want %d", seq, msg.MessageSeq, seq)
+		}
+	}
 	if got := fs.syncCount.Load() - before; got != 1 {
 		t.Fatalf("sync count delta = %d, want 1", got)
 	}
@@ -182,7 +250,7 @@ func TestChannelStoreAppendBatchFailureFailsAllWaiters(t *testing.T) {
 	stores := openTestChannelStoresOnEngine(t, engine, "append-fail-1", "append-fail-2")
 
 	coordinator := engine.commitCoordinator()
-	coordinator.flushWindow = 5 * time.Millisecond
+	coordinator.cfg.FlushWindow = 5 * time.Millisecond
 	coordinator.commit = func(*pebble.Batch) error {
 		return errSyntheticSyncFailure
 	}

@@ -205,6 +205,12 @@ type MessageReader interface {
 	MaxMessageSeq(ctx context.Context, id channel.ChannelID) (uint64, error)
 }
 
+// MessageMetaMaxSeqReader reads max sequence from an already-loaded runtime meta.
+type MessageMetaMaxSeqReader interface {
+	// MaxMessageSeqForMeta returns the maximum committed message sequence without reloading runtime metadata.
+	MaxMessageSeqForMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) (uint64, error)
+}
+
 // RecentConversationSyncer exposes UID-scoped conversation sync for manager read views.
 type RecentConversationSyncer interface {
 	// Sync returns the bounded recent conversation working set for one UID.

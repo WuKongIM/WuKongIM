@@ -14,8 +14,12 @@ type ChannelStore struct {
 	key      channel.ChannelKey
 	id       channel.ChannelID
 	messages messageTable
+	// appendRows is a writeMu-owned scratch buffer for compatibility payload decoding.
+	appendRows []messageRow
 
-	writeMu sync.Mutex
+	writeMu       sync.Mutex
+	appendBatchMu sync.Mutex
+	appendBatch   *sameChannelAppendBatch
 	// checkpointMu serializes monotonic checkpoint writers without queuing them
 	// behind append-only log commits.
 	checkpointMu sync.Mutex

@@ -1925,6 +1925,37 @@ func TestSendPropagatesLocalCommitMode(t *testing.T) {
 	require.Equal(t, channel.CommitModeLocal, cluster.sendRequests[0].CommitMode)
 }
 
+func TestSendHookCanOverrideCommitMode(t *testing.T) {
+	cluster := &fakeChannelCluster{
+		sendReplies: []fakeChannelClusterSendReply{
+			{result: channel.AppendResult{MessageID: 90, MessageSeq: 14}},
+		},
+	}
+	hook := &recordingSendHook{mutate: func(cmd SendCommand) SendCommand {
+		cmd.CommitMode = channel.CommitModeLocal
+		return cmd
+	}}
+	app := New(Options{
+		Now:           fixedNowFn,
+		Cluster:       cluster,
+		MetaRefresher: &fakeMetaRefresher{},
+		SendHook:      hook,
+	})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, frame.ReasonSuccess, result.Reason)
+	require.Len(t, hook.calls, 1)
+	require.Len(t, cluster.sendRequests, 1)
+	require.Equal(t, channel.CommitModeLocal, cluster.sendRequests[0].CommitMode)
+}
+
 func TestSendRecanonicalizesPrecomposedPersonChannelBeforeDurableWrite(t *testing.T) {
 	cluster := &fakeChannelCluster{
 		sendReplies: []fakeChannelClusterSendReply{

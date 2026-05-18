@@ -39,3 +39,25 @@ func TestRecordCarriesFromUID(t *testing.T) {
 	require.Len(t, sink.events, 1)
 	require.Equal(t, "u1", sink.events[0].FromUID)
 }
+
+func TestRecordCarriesBatchMetrics(t *testing.T) {
+	sink := &recordingSink{}
+	restore := SetSink(sink)
+	defer restore()
+
+	Record(Event{
+		Stage:        StageStoreCommitPebbleSync,
+		TraceID:      "trace-batch",
+		RequestCount: 3,
+		RecordCount:  17,
+		ByteCount:    4096,
+		QueueDepth:   12,
+		Result:       ResultOK,
+	})
+
+	require.Len(t, sink.events, 1)
+	require.Equal(t, 3, sink.events[0].RequestCount)
+	require.Equal(t, 17, sink.events[0].RecordCount)
+	require.Equal(t, 4096, sink.events[0].ByteCount)
+	require.Equal(t, 12, sink.events[0].QueueDepth)
+}

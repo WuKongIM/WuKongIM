@@ -30,6 +30,7 @@ target:
 	require.Equal(t, 30*time.Second, cfg.Online.Heartbeat.Interval)
 	require.Equal(t, 5, cfg.Profiles.PersonChannels)
 	require.Equal(t, "sim-u", cfg.Identity.UIDPrefix)
+	require.Equal(t, defaultTrafficConcurrency, cfg.Traffic.Concurrency)
 }
 
 func TestConfigEnvOverrides(t *testing.T) {
@@ -42,13 +43,14 @@ target:
 `), 0o644))
 
 	cfg, err := LoadConfig(path, map[string]string{
-		"WK_SIM_USERS":           "40",
-		"WK_SIM_PERSON_CHANNELS": "6",
-		"WK_SIM_GROUP_CHANNELS":  "3",
-		"WK_SIM_GROUP_MEMBERS":   "12",
-		"WK_SIM_RATE":            "1.5/s",
-		"WK_SIM_VERIFY_RECV":     "none",
-		"WK_SIM_UID_PREFIX":      "dev-u",
+		"WK_SIM_USERS":               "40",
+		"WK_SIM_PERSON_CHANNELS":     "6",
+		"WK_SIM_GROUP_CHANNELS":      "3",
+		"WK_SIM_GROUP_MEMBERS":       "12",
+		"WK_SIM_RATE":                "1.5/s",
+		"WK_SIM_TRAFFIC_CONCURRENCY": "32",
+		"WK_SIM_VERIFY_RECV":         "none",
+		"WK_SIM_UID_PREFIX":          "dev-u",
 	})
 
 	require.NoError(t, err)
@@ -58,6 +60,7 @@ target:
 	require.Equal(t, 12, cfg.Profiles.GroupMembers)
 	require.Equal(t, 1.5, cfg.Traffic.PersonRatePerChannel.PerSecond)
 	require.Equal(t, 1.5, cfg.Traffic.GroupRatePerChannel.PerSecond)
+	require.Equal(t, 32, cfg.Traffic.Concurrency)
 	require.Equal(t, "none", cfg.Traffic.VerifyRecv)
 	require.Equal(t, "dev-u", cfg.Identity.UIDPrefix)
 }
@@ -105,6 +108,7 @@ func TestConfigDerivesBenchInputs(t *testing.T) {
 			PayloadSizeBytes:     128,
 			PersonRatePerChannel: model.Rate{PerSecond: 0.2},
 			GroupRatePerChannel:  model.Rate{PerSecond: 0.3},
+			Concurrency:          16,
 			VerifyRecv:           "sampled",
 			Window:               mustDuration(t, "10s"),
 			Cooldown:             mustDuration(t, "1s"),
@@ -135,8 +139,10 @@ func TestConfigDerivesBenchInputs(t *testing.T) {
 	require.Len(t, inputs.Scenario.Messages.Traffic, 2)
 	require.Equal(t, "sim-person-send", inputs.Scenario.Messages.Traffic[0].Name)
 	require.Equal(t, 0.2, inputs.Scenario.Messages.Traffic[0].RatePerChannel.PerSecond)
+	require.Equal(t, 16, inputs.Scenario.Messages.Traffic[0].Concurrency)
 	require.Equal(t, "sim-group-send", inputs.Scenario.Messages.Traffic[1].Name)
 	require.Equal(t, 0.3, inputs.Scenario.Messages.Traffic[1].RatePerChannel.PerSecond)
+	require.Equal(t, 16, inputs.Scenario.Messages.Traffic[1].Concurrency)
 }
 
 func mustDuration(t *testing.T, raw string) time.Duration {

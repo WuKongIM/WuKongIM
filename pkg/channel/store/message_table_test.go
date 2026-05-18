@@ -28,6 +28,64 @@ func TestChannelStoreGetMessageBySeqFailsOnOrphanPayloadFamily(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestMessageTableAppendSingleRowAllocationBudget(t *testing.T) {
+	st := newTestChannelStore(t)
+	row := messageRowFromChannelMessage(channel.Message{
+		MessageID:   42,
+		ClientMsgNo: "client-1",
+		FromUID:     "u1",
+		ChannelID:   st.id.ID,
+		ChannelType: st.id.Type,
+		Payload:     []byte("one"),
+	})
+	row.MessageSeq = 1
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		batch := st.engine.db.NewBatch()
+		if err := st.messageTable().append(batch, []messageRow{row}); err != nil {
+			t.Fatalf("messageTable.append() error = %v", err)
+		}
+		if err := batch.Close(); err != nil {
+			t.Fatalf("Batch.Close() error = %v", err)
+		}
+	})
+
+	require.LessOrEqual(t, allocs, 1.0)
+}
+
+func TestLookupMessageIDSeqForAppendAvoidsKeyAndValueCopies(t *testing.T) {
+	st := newTestChannelStore(t)
+	row := messageRowFromChannelMessage(channel.Message{
+		MessageID:   42,
+		ClientMsgNo: "client-1",
+		FromUID:     "u1",
+		ChannelID:   st.id.ID,
+		ChannelType: st.id.Type,
+		Payload:     []byte("one"),
+	})
+	row.MessageSeq = 1
+
+	record, err := row.toCompatibilityRecord()
+	if err != nil {
+		t.Fatalf("toCompatibilityRecord() error = %v", err)
+	}
+	if _, err := st.Append([]channel.Record{{ID: row.MessageID, Payload: record.Payload, SizeBytes: record.SizeBytes}}); err != nil {
+		t.Fatalf("ChannelStore.Append() error = %v", err)
+	}
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		seq, ok, err := st.messageTable().lookupMessageIDSeqForAppend(row.MessageID)
+		if err != nil {
+			t.Fatalf("lookupMessageIDSeqForAppend() error = %v", err)
+		}
+		if !ok || seq != row.MessageSeq {
+			t.Fatalf("lookupMessageIDSeqForAppend() = (%d, %v), want (%d, true)", seq, ok, row.MessageSeq)
+		}
+	})
+
+	require.Zero(t, allocs)
+}
+
 func TestChannelStoreListMessagesBySeqFailsOnPayloadHashMismatch(t *testing.T) {
 	st := newTestChannelStore(t)
 	msg := channel.Message{

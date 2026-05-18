@@ -45,6 +45,10 @@ type channel struct {
 	snapshotBytes      int64
 }
 
+type ownedAppendReplica interface {
+	AppendOwned(ctx context.Context, batch []core.Record) (core.CommitResult, error)
+}
+
 func newChannel(
 	key core.ChannelKey,
 	generation uint64,
@@ -117,7 +121,15 @@ func (c *channel) Append(ctx context.Context, records []core.Record) (core.Commi
 	if !meta.LeaseUntil.IsZero() && !c.now().Before(meta.LeaseUntil) {
 		return core.CommitResult{}, core.ErrLeaseExpired
 	}
-	result, err := c.replica.Append(ctx, records)
+	var (
+		result core.CommitResult
+		err    error
+	)
+	if owned, ok := c.replica.(ownedAppendReplica); ok {
+		result, err = owned.AppendOwned(ctx, records)
+	} else {
+		result, err = c.replica.Append(ctx, records)
+	}
 	if err != nil {
 		return core.CommitResult{}, err
 	}

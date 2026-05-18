@@ -245,35 +245,35 @@ func (r *defaultWorkloadRunner) currentRunID() string {
 }
 
 func (r *defaultWorkloadRunner) Warmup(ctx context.Context, assignment Assignment) error {
-	return r.runPhase(ctx, assignment, func(person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
+	return r.runPhase(ctx, assignment, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
 		if person != nil {
-			return person.Warmup(ctx)
+			return person.Warmup(phaseCtx)
 		}
-		return group.Warmup(ctx)
+		return group.Warmup(phaseCtx)
 	})
 }
 
 func (r *defaultWorkloadRunner) Run(ctx context.Context, assignment Assignment) error {
-	return r.runPhase(ctx, assignment, func(person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
+	return r.runPhase(ctx, assignment, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
 		if person != nil {
-			return person.Run(ctx)
+			return person.Run(phaseCtx)
 		}
-		return group.Run(ctx)
+		return group.Run(phaseCtx)
 	})
 }
 
 func (r *defaultWorkloadRunner) Cooldown(ctx context.Context, assignment Assignment) error {
-	err := r.runPhase(ctx, assignment, func(person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
+	err := r.runPhase(ctx, assignment, func(phaseCtx context.Context, person *benchworkload.PersonWorkload, group *benchworkload.GroupWorkload) error {
 		if person != nil {
-			return person.Cooldown(ctx)
+			return person.Cooldown(phaseCtx)
 		}
-		return group.Cooldown(ctx)
+		return group.Cooldown(phaseCtx)
 	})
 	r.closeCurrent(assignment.RunID)
 	return err
 }
 
-func (r *defaultWorkloadRunner) runPhase(ctx context.Context, assignment Assignment, fn func(*benchworkload.PersonWorkload, *benchworkload.GroupWorkload) error) error {
+func (r *defaultWorkloadRunner) runPhase(ctx context.Context, assignment Assignment, fn func(context.Context, *benchworkload.PersonWorkload, *benchworkload.GroupWorkload) error) error {
 	personWorkloads, groupWorkloads, ok := r.snapshot(assignment.RunID)
 	if !ok {
 		if err := r.Connect(ctx, assignment); err != nil {
@@ -284,16 +284,27 @@ func (r *defaultWorkloadRunner) runPhase(ctx context.Context, assignment Assignm
 			return nil
 		}
 	}
+	phaseCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(personWorkloads)+len(groupWorkloads))
+	recordError := func(err error) {
+		if err == nil {
+			return
+		}
+		select {
+		case errCh <- err:
+			cancel()
+		default:
+		}
+	}
 	for _, wl := range personWorkloads {
 		wl := wl
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := fn(wl, nil); err != nil {
-				errCh <- err
-			}
+			recordError(fn(phaseCtx, wl, nil))
 		}()
 	}
 	for _, wl := range groupWorkloads {
@@ -301,9 +312,7 @@ func (r *defaultWorkloadRunner) runPhase(ctx context.Context, assignment Assignm
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := fn(nil, wl); err != nil {
-				errCh <- err
-			}
+			recordError(fn(phaseCtx, nil, wl))
 		}()
 	}
 	wg.Wait()
@@ -381,6 +390,7 @@ func buildPersonWorkloads(assignment Assignment, bundles []personWorkloadBundle,
 			DevicePrefix:     assignment.Scenario.Identity.DevicePrefix,
 			PayloadSizeBytes: assignment.Scenario.Messages.Payload.SizeBytes,
 			Rate:             bundle.traffic.RatePerChannel,
+			MaxConcurrency:   bundle.traffic.Concurrency,
 			RunDuration:      assignment.Scenario.Run.Duration,
 			WarmupDuration:   assignment.Scenario.Run.Warmup,
 			CooldownDuration: assignment.Scenario.Run.Cooldown,

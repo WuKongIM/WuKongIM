@@ -4,12 +4,21 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
+	"unsafe"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
 // decodeCompatibilityRecordPayload decodes one compatibility payload into a structured row.
 func decodeCompatibilityRecordPayload(payload []byte) (messageRow, error) {
+	return decodeCompatibilityRecordPayloadWithMode(payload, false)
+}
+
+func decodeCompatibilityRecordPayloadBorrowed(payload []byte) (messageRow, error) {
+	return decodeCompatibilityRecordPayloadWithMode(payload, true)
+}
+
+func decodeCompatibilityRecordPayloadWithMode(payload []byte, borrow bool) (messageRow, error) {
 	if len(payload) < channel.DurableMessageHeaderSize {
 		return messageRow{}, io.ErrUnexpectedEOF
 	}
@@ -63,6 +72,16 @@ func decodeCompatibilityRecordPayload(payload []byte) (messageRow, error) {
 		return messageRow{}, err
 	}
 
+	if borrow {
+		row.MsgKey = compatibilityStringView(msgKey)
+		row.ClientMsgNo = compatibilityStringView(clientMsgNo)
+		row.StreamNo = compatibilityStringView(streamNo)
+		row.ChannelID = compatibilityStringView(channelID)
+		row.Topic = compatibilityStringView(topic)
+		row.FromUID = compatibilityStringView(fromUID)
+		row.Payload = body
+		return row, nil
+	}
 	row.MsgKey = string(msgKey)
 	row.ClientMsgNo = string(clientMsgNo)
 	row.StreamNo = string(streamNo)
@@ -135,6 +154,7 @@ func (r messageRow) toCompatibilityRecord() (channel.Record, error) {
 }
 
 // structuredRowsFromCompatibilityRecords decodes compatibility records and stamps contiguous message sequences.
+// Returned rows borrow string and payload views from records, so callers must finish encoding rows before mutating records.
 func structuredRowsFromCompatibilityRecords(startSeq uint64, records []channel.Record) ([]messageRow, error) {
 	if len(records) == 0 {
 		return nil, nil
@@ -144,13 +164,20 @@ func structuredRowsFromCompatibilityRecords(startSeq uint64, records []channel.R
 	}
 
 	rows := make([]messageRow, 0, len(records))
+	return appendStructuredRowsFromCompatibilityRecords(rows, startSeq, records)
+}
+
+func appendStructuredRowsFromCompatibilityRecords(rows []messageRow, startSeq uint64, records []channel.Record) ([]messageRow, error) {
+	if startSeq == 0 {
+		return nil, channel.ErrInvalidArgument
+	}
 	for i, record := range records {
 		expectedSeq := startSeq + uint64(i)
 		if record.Index != 0 && record.Index != expectedSeq {
 			return nil, channel.ErrCorruptState
 		}
 
-		row, err := decodeCompatibilityRecordPayload(record.Payload)
+		row, err := decodeCompatibilityRecordPayloadBorrowed(record.Payload)
 		if err != nil {
 			return nil, err
 		}
@@ -161,6 +188,14 @@ func structuredRowsFromCompatibilityRecords(startSeq uint64, records []channel.R
 		rows = append(rows, row)
 	}
 	return rows, nil
+}
+
+// compatibilityStringView returns a read-only string view over compatibility payload bytes.
+func compatibilityStringView(value []byte) string {
+	if len(value) == 0 {
+		return ""
+	}
+	return unsafe.String(&value[0], len(value))
 }
 
 // compatibilityRecordsFromRows materializes structured rows as compatibility records.

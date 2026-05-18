@@ -71,6 +71,9 @@ func TestDiagnosticsRPCBinaryCodecRoundTrip(t *testing.T) {
 			ErrorCode:    diagnostics.ErrorCodeUnknown,
 			Error:        "append failed",
 			Attempt:      2,
+			RequestCount: 3,
+			RecordCount:  17,
+			ByteCount:    4096,
 			QueueDepth:   8,
 			ReplicaRole:  "leader",
 			SampleReason: "sampled",
@@ -84,6 +87,53 @@ func TestDiagnosticsRPCBinaryCodecRoundTrip(t *testing.T) {
 	gotResp, err := decodeDiagnosticsResponse(respBody)
 	require.NoError(t, err)
 	require.Equal(t, resp, gotResp)
+}
+
+func TestDiagnosticsRPCDecodesLegacyV2ResponseEvents(t *testing.T) {
+	eventAt := time.Unix(101, 456).UTC()
+	query := diagnostics.Query{TraceID: "tr-v2", Limit: 10}
+	dst := append([]byte(nil), diagnosticsResponseMagicV2[:]...)
+	dst = appendString(dst, rpcStatusOK)
+	dst = appendString(dst, "local_node")
+	dst = appendUvarint(dst, 2)
+	dst = appendString(dst, "tr-v2")
+	dst = appendString(dst, "")
+	dst = appendString(dst, "group:g1")
+	dst = appendString(dst, "")
+	dst = appendUvarint(dst, 42)
+	dst = appendDiagnosticsQuery(dst, query)
+	dst = appendString(dst, string(diagnostics.StatusOK))
+	dst = appendDiagnosticsTime(dst, time.Time{})
+	dst = appendNodeVarint(dst, 0)
+	dst = appendDiagnosticsSummary(dst, diagnostics.QuerySummary{})
+	dst = append(dst, 1)
+	dst = appendUvarint(dst, 1)
+	dst = appendLegacyDiagnosticsEventV2(dst, diagnostics.Event{
+		TraceID:      "tr-v2",
+		Stage:        diagnostics.Stage("store.commit.pebble_sync"),
+		At:           eventAt,
+		Duration:     3 * time.Millisecond,
+		NodeID:       2,
+		SlotID:       4,
+		ChannelKey:   "group:g1",
+		MessageSeq:   42,
+		Result:       diagnostics.ResultOK,
+		Attempt:      2,
+		QueueDepth:   8,
+		ReplicaRole:  "leader",
+		SampleReason: "sampled",
+	})
+	dst = appendDiagnosticsStringSlice(dst, nil)
+
+	resp, err := decodeDiagnosticsResponse(dst)
+	require.NoError(t, err)
+	require.Equal(t, rpcStatusOK, resp.Status)
+	require.Equal(t, diagnostics.StatusOK, resp.Result.Status)
+	require.Len(t, resp.Result.Events, 1)
+	require.Equal(t, 8, resp.Result.Events[0].QueueDepth)
+	require.Zero(t, resp.Result.Events[0].RequestCount)
+	require.Zero(t, resp.Result.Events[0].RecordCount)
+	require.Zero(t, resp.Result.Events[0].ByteCount)
 }
 
 func TestDiagnosticsRPCRejectsJSONPayload(t *testing.T) {
@@ -220,3 +270,29 @@ func (c *stubDiagnosticsCluster) RPCService(context.Context, multiraft.NodeID, m
 }
 
 func (c *stubDiagnosticsCluster) PeersForSlot(multiraft.SlotID) []multiraft.NodeID { return nil }
+
+func appendLegacyDiagnosticsEventV2(dst []byte, event diagnostics.Event) []byte {
+	dst = appendString(dst, event.TraceID)
+	dst = appendString(dst, event.SpanID)
+	dst = appendString(dst, event.ParentSpanID)
+	dst = appendString(dst, string(event.Stage))
+	dst = appendDiagnosticsTime(dst, event.At)
+	dst = appendNodeVarint(dst, int64(event.Duration))
+	dst = appendUvarint(dst, event.NodeID)
+	dst = appendUvarint(dst, event.PeerNodeID)
+	dst = appendUvarint(dst, uint64(event.SlotID))
+	dst = appendString(dst, event.ChannelKey)
+	dst = appendString(dst, event.ClientMsgNo)
+	dst = appendUvarint(dst, event.MessageSeq)
+	dst = appendUvarint(dst, event.RangeStart)
+	dst = appendUvarint(dst, event.RangeEnd)
+	dst = appendString(dst, event.Service)
+	dst = appendString(dst, string(event.Result))
+	dst = appendString(dst, string(event.ErrorCode))
+	dst = appendString(dst, event.Error)
+	dst = appendNodeInt(dst, event.Attempt)
+	dst = appendNodeInt(dst, event.QueueDepth)
+	dst = appendString(dst, event.ReplicaRole)
+	dst = appendString(dst, event.SampleReason)
+	return dst
+}

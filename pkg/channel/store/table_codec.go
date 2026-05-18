@@ -23,11 +23,22 @@ type messageIndexHit struct {
 }
 
 func encodeKeyspacePrefix(keyspace byte, channelKey channel.ChannelKey) []byte {
-	key := make([]byte, 0, 2+len(channelKey))
-	key = append(key, keyspace)
-	key = binary.AppendUvarint(key, uint64(len(channelKey)))
-	key = append(key, channelKey...)
-	return key
+	return encodeKeyspacePrefixWithExtra(keyspace, channelKey, 0)
+}
+
+func encodeKeyspacePrefixWithExtra(keyspace byte, channelKey channel.ChannelKey, extra int) []byte {
+	key := make([]byte, 0, encodedKeyspacePrefixLen(channelKey)+extra)
+	return appendKeyspacePrefixTo(key, keyspace, channelKey)
+}
+
+func encodedKeyspacePrefixLen(channelKey channel.ChannelKey) int {
+	return 1 + uvarintLen(uint64(len(channelKey))) + len(channelKey)
+}
+
+func appendKeyspacePrefixTo(dst []byte, keyspace byte, channelKey channel.ChannelKey) []byte {
+	dst = append(dst, keyspace)
+	dst = binary.AppendUvarint(dst, uint64(len(channelKey)))
+	return append(dst, channelKey...)
 }
 
 func decodeKeyspaceChannelKey(raw []byte, keyspace byte) (channel.ChannelKey, []byte, error) {
@@ -55,14 +66,29 @@ func decodeKeyspaceChannelKeyParts(raw []byte, keyspace byte) (int, int, []byte,
 }
 
 func encodeTableStatePrefix(channelKey channel.ChannelKey, tableID uint32) []byte {
-	key := encodeKeyspacePrefix(keyspaceTableState, channelKey)
+	return encodeTableStatePrefixWithExtra(channelKey, tableID, 0)
+}
+
+func encodeTableStatePrefixWithExtra(channelKey channel.ChannelKey, tableID uint32, extra int) []byte {
+	key := encodeKeyspacePrefixWithExtra(keyspaceTableState, channelKey, 4+extra)
 	return binary.BigEndian.AppendUint32(key, tableID)
 }
 
 func encodeTableStateKey(channelKey channel.ChannelKey, tableID uint32, primaryKey uint64, familyID uint16) []byte {
-	key := encodeTableStatePrefix(channelKey, tableID)
+	key := encodeTableStatePrefixWithExtra(channelKey, tableID, 8+2)
 	key = binary.BigEndian.AppendUint64(key, primaryKey)
 	return binary.BigEndian.AppendUint16(key, familyID)
+}
+
+func encodedTableStateKeyLen(channelKey channel.ChannelKey) int {
+	return encodedKeyspacePrefixLen(channelKey) + 4 + 8 + 2
+}
+
+func appendTableStateKeyTo(dst []byte, channelKey channel.ChannelKey, tableID uint32, primaryKey uint64, familyID uint16) []byte {
+	dst = appendKeyspacePrefixTo(dst, keyspaceTableState, channelKey)
+	dst = binary.BigEndian.AppendUint32(dst, tableID)
+	dst = binary.BigEndian.AppendUint64(dst, primaryKey)
+	return binary.BigEndian.AppendUint16(dst, familyID)
 }
 
 func decodeTableStateKey(key []byte, channelKey channel.ChannelKey, tableID uint32) (uint64, uint16, error) {
@@ -94,13 +120,27 @@ func encodedTablePrefixLen(key []byte, keyspace byte, channelKey channel.Channel
 }
 
 func encodeTableIndexPrefix(channelKey channel.ChannelKey, tableID uint32, indexID uint16) []byte {
-	key := encodeKeyspacePrefix(keyspaceTableIndex, channelKey)
+	return encodeTableIndexPrefixWithExtra(channelKey, tableID, indexID, 0)
+}
+
+func encodeTableIndexPrefixWithExtra(channelKey channel.ChannelKey, tableID uint32, indexID uint16, extra int) []byte {
+	key := encodeKeyspacePrefixWithExtra(keyspaceTableIndex, channelKey, 4+2+extra)
 	key = binary.BigEndian.AppendUint32(key, tableID)
 	return binary.BigEndian.AppendUint16(key, indexID)
 }
 
+func encodedTableIndexPrefixLen(channelKey channel.ChannelKey) int {
+	return encodedKeyspacePrefixLen(channelKey) + 4 + 2
+}
+
+func appendTableIndexPrefixTo(dst []byte, channelKey channel.ChannelKey, tableID uint32, indexID uint16) []byte {
+	dst = appendKeyspacePrefixTo(dst, keyspaceTableIndex, channelKey)
+	dst = binary.BigEndian.AppendUint32(dst, tableID)
+	return binary.BigEndian.AppendUint16(dst, indexID)
+}
+
 func encodeTableSystemPrefix(channelKey channel.ChannelKey, tableID uint32, systemID uint16) []byte {
-	key := encodeKeyspacePrefix(keyspaceTableSystem, channelKey)
+	key := encodeKeyspacePrefixWithExtra(keyspaceTableSystem, channelKey, 4+2)
 	key = binary.BigEndian.AppendUint32(key, tableID)
 	return binary.BigEndian.AppendUint16(key, systemID)
 }
@@ -123,11 +163,11 @@ func encodeMessageFamiliesWithDesc(row messageRow, table TableDesc) ([]byte, []b
 		payloadHash = hashMessagePayload(row.Payload)
 	}
 
-	families, err := encodeMessageFamilyPayloads(table, row, payloadHash)
+	primary, payload, err := encodeMessageFamilyPayloads(table, row, payloadHash)
 	if err != nil {
 		return nil, nil, err
 	}
-	return families[0], families[1], nil
+	return primary, payload, nil
 }
 
 func decodeMessageFamilies(messageSeq uint64, primary []byte, payload []byte) (messageRow, error) {
@@ -151,61 +191,131 @@ func decodeMessageFamiliesWithDesc(table TableDesc, messageSeq uint64, primary [
 	return row, nil
 }
 
-func encodeMessageFamilyPayloads(table TableDesc, row messageRow, payloadHash uint64) ([][]byte, error) {
+func encodeMessageFamilyPayloads(table TableDesc, row messageRow, payloadHash uint64) ([]byte, []byte, error) {
 	if len(table.Families) != 2 {
-		return nil, channel.ErrInvalidArgument
+		return nil, nil, channel.ErrInvalidArgument
 	}
-	families := make([][]byte, 0, len(table.Families))
-	for _, family := range table.Families {
-		encoded := []byte{messageFamilyCodecVersion}
-		for _, columnID := range family.ColumnIDs {
-			value, err := encodeMessageFamilyColumnValue(row, payloadHash, columnID)
-			if err != nil {
-				return nil, err
-			}
-			encoded = appendFamilyColumn(encoded, columnID, value)
-		}
-		families = append(families, encoded)
+	primary, err := encodeMessageFamilyPayload(table.Families[0], row, payloadHash)
+	if err != nil {
+		return nil, nil, err
 	}
-	return families, nil
+	payload, err := encodeMessageFamilyPayload(table.Families[1], row, payloadHash)
+	if err != nil {
+		return nil, nil, err
+	}
+	return primary, payload, nil
 }
 
-func encodeMessageFamilyColumnValue(row messageRow, payloadHash uint64, columnID uint16) ([]byte, error) {
+func encodeMessageFamilyPayload(family ColumnFamilyDesc, row messageRow, payloadHash uint64) ([]byte, error) {
+	size, err := encodedMessageFamilyPayloadSize(family, row, payloadHash)
+	if err != nil {
+		return nil, err
+	}
+	encoded := make([]byte, 0, size)
+	return appendMessageFamilyPayloadTo(encoded, family, row, payloadHash)
+}
+
+func appendMessageFamilyPayloadTo(dst []byte, family ColumnFamilyDesc, row messageRow, payloadHash uint64) ([]byte, error) {
+	dst = append(dst, messageFamilyCodecVersion)
+	for _, columnID := range family.ColumnIDs {
+		var err error
+		dst, err = appendMessageFamilyColumn(dst, row, payloadHash, columnID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return dst, nil
+}
+
+func encodedMessageFamilyPayloadSize(family ColumnFamilyDesc, row messageRow, payloadHash uint64) (int, error) {
+	size := 1
+	for _, columnID := range family.ColumnIDs {
+		valueLen, err := encodedMessageFamilyColumnValueLen(row, payloadHash, columnID)
+		if err != nil {
+			return 0, err
+		}
+		size += uvarintLen(uint64(columnID)) + uvarintLen(uint64(valueLen)) + valueLen
+	}
+	return size, nil
+}
+
+func encodedMessageFamilyColumnValueLen(row messageRow, payloadHash uint64, columnID uint16) (int, error) {
 	switch columnID {
 	case messageColumnIDMessageID:
-		return encodeFamilyUintBytes(row.MessageID), nil
+		return uvarintLen(row.MessageID), nil
 	case messageColumnIDFramerFlags:
-		return encodeFamilyUintBytes(uint64(row.FramerFlags)), nil
+		return uvarintLen(uint64(row.FramerFlags)), nil
 	case messageColumnIDSetting:
-		return encodeFamilyUintBytes(uint64(row.Setting)), nil
+		return uvarintLen(uint64(row.Setting)), nil
 	case messageColumnIDStreamFlag:
-		return encodeFamilyUintBytes(uint64(row.StreamFlag)), nil
+		return uvarintLen(uint64(row.StreamFlag)), nil
 	case messageColumnIDMsgKey:
-		return []byte(row.MsgKey), nil
+		return len(row.MsgKey), nil
 	case messageColumnIDExpire:
-		return encodeFamilyUintBytes(uint64(row.Expire)), nil
+		return uvarintLen(uint64(row.Expire)), nil
 	case messageColumnIDClientSeq:
-		return encodeFamilyUintBytes(row.ClientSeq), nil
+		return uvarintLen(row.ClientSeq), nil
 	case messageColumnIDClientMsgNo:
-		return []byte(row.ClientMsgNo), nil
+		return len(row.ClientMsgNo), nil
 	case messageColumnIDStreamNo:
-		return []byte(row.StreamNo), nil
+		return len(row.StreamNo), nil
 	case messageColumnIDStreamID:
-		return encodeFamilyUintBytes(row.StreamID), nil
+		return uvarintLen(row.StreamID), nil
 	case messageColumnIDTimestamp:
-		return encodeFamilyIntBytes(int64(row.Timestamp)), nil
+		return uvarintLen(encodeZigZagInt64(int64(row.Timestamp))), nil
 	case messageColumnIDChannelID:
-		return []byte(row.ChannelID), nil
+		return len(row.ChannelID), nil
 	case messageColumnIDChannelType:
-		return encodeFamilyUintBytes(uint64(row.ChannelType)), nil
+		return uvarintLen(uint64(row.ChannelType)), nil
 	case messageColumnIDTopic:
-		return []byte(row.Topic), nil
+		return len(row.Topic), nil
 	case messageColumnIDFromUID:
-		return []byte(row.FromUID), nil
+		return len(row.FromUID), nil
 	case messageColumnIDPayloadHash:
-		return encodeFamilyUintBytes(payloadHash), nil
+		return uvarintLen(payloadHash), nil
 	case messageColumnIDPayload:
-		return row.Payload, nil
+		return len(row.Payload), nil
+	default:
+		return 0, channel.ErrInvalidArgument
+	}
+}
+
+func appendMessageFamilyColumn(dst []byte, row messageRow, payloadHash uint64, columnID uint16) ([]byte, error) {
+	switch columnID {
+	case messageColumnIDMessageID:
+		return appendFamilyUintColumn(dst, columnID, row.MessageID), nil
+	case messageColumnIDFramerFlags:
+		return appendFamilyUintColumn(dst, columnID, uint64(row.FramerFlags)), nil
+	case messageColumnIDSetting:
+		return appendFamilyUintColumn(dst, columnID, uint64(row.Setting)), nil
+	case messageColumnIDStreamFlag:
+		return appendFamilyUintColumn(dst, columnID, uint64(row.StreamFlag)), nil
+	case messageColumnIDMsgKey:
+		return appendFamilyStringColumn(dst, columnID, row.MsgKey), nil
+	case messageColumnIDExpire:
+		return appendFamilyUintColumn(dst, columnID, uint64(row.Expire)), nil
+	case messageColumnIDClientSeq:
+		return appendFamilyUintColumn(dst, columnID, row.ClientSeq), nil
+	case messageColumnIDClientMsgNo:
+		return appendFamilyStringColumn(dst, columnID, row.ClientMsgNo), nil
+	case messageColumnIDStreamNo:
+		return appendFamilyStringColumn(dst, columnID, row.StreamNo), nil
+	case messageColumnIDStreamID:
+		return appendFamilyUintColumn(dst, columnID, row.StreamID), nil
+	case messageColumnIDTimestamp:
+		return appendFamilyIntColumn(dst, columnID, int64(row.Timestamp)), nil
+	case messageColumnIDChannelID:
+		return appendFamilyStringColumn(dst, columnID, row.ChannelID), nil
+	case messageColumnIDChannelType:
+		return appendFamilyUintColumn(dst, columnID, uint64(row.ChannelType)), nil
+	case messageColumnIDTopic:
+		return appendFamilyStringColumn(dst, columnID, row.Topic), nil
+	case messageColumnIDFromUID:
+		return appendFamilyStringColumn(dst, columnID, row.FromUID), nil
+	case messageColumnIDPayloadHash:
+		return appendFamilyUintColumn(dst, columnID, payloadHash), nil
+	case messageColumnIDPayload:
+		return appendFamilyBytesColumn(dst, columnID, row.Payload), nil
 	default:
 		return nil, channel.ErrInvalidArgument
 	}
@@ -428,6 +538,28 @@ func appendFamilyColumn(dst []byte, columnID uint16, value []byte) []byte {
 	return append(dst, value...)
 }
 
+func appendFamilyUintColumn(dst []byte, columnID uint16, value uint64) []byte {
+	dst = binary.AppendUvarint(dst, uint64(columnID))
+	dst = binary.AppendUvarint(dst, uint64(uvarintLen(value)))
+	return binary.AppendUvarint(dst, value)
+}
+
+func appendFamilyIntColumn(dst []byte, columnID uint16, value int64) []byte {
+	return appendFamilyUintColumn(dst, columnID, encodeZigZagInt64(value))
+}
+
+func appendFamilyStringColumn(dst []byte, columnID uint16, value string) []byte {
+	dst = binary.AppendUvarint(dst, uint64(columnID))
+	dst = binary.AppendUvarint(dst, uint64(len(value)))
+	return append(dst, value...)
+}
+
+func appendFamilyBytesColumn(dst []byte, columnID uint16, value []byte) []byte {
+	dst = binary.AppendUvarint(dst, uint64(columnID))
+	dst = binary.AppendUvarint(dst, uint64(len(value)))
+	return append(dst, value...)
+}
+
 func encodeFamilyUintBytes(value uint64) []byte {
 	return binary.AppendUvarint(nil, value)
 }
@@ -458,4 +590,13 @@ func encodeZigZagInt64(v int64) uint64 {
 
 func decodeZigZagInt64(v uint64) int64 {
 	return int64(v>>1) ^ -int64(v&1)
+}
+
+func uvarintLen(value uint64) int {
+	n := 1
+	for value >= 0x80 {
+		value >>= 7
+		n++
+	}
+	return n
 }

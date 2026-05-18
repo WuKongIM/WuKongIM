@@ -55,8 +55,8 @@ type Options struct {
 	PersonWhitelistEnabled bool
 	// SystemDeviceID identifies trusted system-device sessions after SendBan passes.
 	SystemDeviceID string
-	// PermissionCacheTTL enables a bounded read-through permission cache for
-	// benchmark/static-member deployments. Zero keeps permission reads uncached.
+	// PermissionCacheTTL enables a bounded read-through permission cache for channel,
+	// membership, and missing-channel reads. Zero keeps permission reads uncached.
 	PermissionCacheTTL time.Duration
 	// AppendMetrics records durable append attempts without coupling usecases to a metrics backend.
 	AppendMetrics messageAppendMetrics

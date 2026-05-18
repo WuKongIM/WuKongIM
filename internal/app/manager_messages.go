@@ -59,9 +59,17 @@ func (r managerMessageReader) MaxMessageSeq(ctx context.Context, id channel.Chan
 	if err != nil {
 		return 0, err
 	}
+	return r.MaxMessageSeqForMeta(ctx, meta)
+}
+
+func (r managerMessageReader) MaxMessageSeqForMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) (uint64, error) {
+	if r.channelLog == nil {
+		return 0, nil
+	}
 	if meta.Leader == 0 {
 		return 0, raftcluster.ErrNoLeader
 	}
+	id := channel.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}
 	if meta.Leader == r.localNodeID {
 		return channelhandler.LoadCommittedHW(r.channelLog, id)
 	}

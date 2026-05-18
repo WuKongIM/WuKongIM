@@ -164,6 +164,194 @@ func TestAppendPipelineBatchesBurstAppends(t *testing.T) {
 	require.Equal(t, uint64(2), env.replica.Status().LEO)
 }
 
+func TestEmitAppendBatchUsesReusableMetadataBuffers(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0).UTC()
+	r := &replica{
+		localNode: 1,
+		now:       func() time.Time { return now },
+		meta: channel.Meta{
+			Key:         "group-10",
+			Epoch:       7,
+			LeaderEpoch: 70,
+			Leader:      1,
+			ISR:         []channel.NodeID{1},
+			MinISR:      1,
+			LeaseUntil:  now.Add(time.Minute),
+		},
+		state: channel.ReplicaState{
+			ChannelKey:  "group-10",
+			Epoch:       7,
+			Leader:      1,
+			Role:        channel.ReplicaRoleLeader,
+			CommitReady: true,
+		},
+		roleGeneration: 1,
+		appendGroupCommit: appendGroupCommitConfig{
+			maxWait:    time.Hour,
+			maxRecords: 16,
+			maxBytes:   1024,
+		},
+		appendRequests: make(map[uint64]*appendRequest, 4),
+		appendEffects:  make(chan appendLeaderBatchEffect, 1024),
+	}
+
+	ctx := context.Background()
+	reqs := make([]appendRequest, 4)
+	waiters := make([]appendWaiter, len(reqs))
+	pending := make([]*appendRequest, len(reqs))
+	for i := range reqs {
+		req := &reqs[i]
+		req.requestID = uint64(i + 1)
+		req.ctx = ctx
+		req.batch = []channel.Record{{SizeBytes: 1}}
+		req.byteCount = 1
+		req.commitMode = channel.CommitModeLocal
+		req.waiter = &waiters[i]
+		req.enqueuedAt = now
+		waiters[i].request = req
+		pending[i] = req
+		r.appendRequests[req.requestID] = req
+	}
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		for i := range reqs {
+			reqs[i].stage = appendRequestQueued
+			reqs[i].completed = false
+		}
+		r.appendPending = pending[:]
+		r.emitAppendBatchLocked()
+
+		var effect appendLeaderBatchEffect
+		select {
+		case effect = <-r.appendEffects:
+		default:
+			t.Fatal("append batch effect was not emitted")
+		}
+		_, matched, err := r.takeAppendInFlightResultLocked(machineLeaderAppendCommittedEvent{
+			EffectID:   effect.EffectID,
+			RequestIDs: effect.RequestIDs,
+		})
+		require.True(t, matched)
+		require.NoError(t, err)
+	})
+
+	require.LessOrEqual(t, allocs, 2.0)
+}
+
+func TestEmitAppendBatchAvoidsCloningLoopOwnedPayloads(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0).UTC()
+	r := &replica{
+		localNode: 1,
+		now:       func() time.Time { return now },
+		meta: channel.Meta{
+			Key:         "group-10",
+			Epoch:       7,
+			LeaderEpoch: 70,
+			Leader:      1,
+			ISR:         []channel.NodeID{1},
+			MinISR:      1,
+			LeaseUntil:  now.Add(time.Minute),
+		},
+		state: channel.ReplicaState{
+			ChannelKey:  "group-10",
+			Epoch:       7,
+			Leader:      1,
+			Role:        channel.ReplicaRoleLeader,
+			CommitReady: true,
+		},
+		roleGeneration: 1,
+		appendGroupCommit: appendGroupCommitConfig{
+			maxWait:    time.Hour,
+			maxRecords: 16,
+			maxBytes:   1024,
+		},
+		appendRequests: make(map[uint64]*appendRequest, 4),
+		appendEffects:  make(chan appendLeaderBatchEffect, 1024),
+	}
+
+	ctx := context.Background()
+	reqs := make([]appendRequest, 4)
+	waiters := make([]appendWaiter, len(reqs))
+	pending := make([]*appendRequest, len(reqs))
+	for i := range reqs {
+		payload := []byte{byte('a' + i)}
+		req := &reqs[i]
+		req.requestID = uint64(i + 1)
+		req.ctx = ctx
+		req.batch = []channel.Record{{Payload: payload, SizeBytes: len(payload)}}
+		req.byteCount = len(payload)
+		req.commitMode = channel.CommitModeLocal
+		req.waiter = &waiters[i]
+		req.enqueuedAt = now
+		waiters[i].request = req
+		pending[i] = req
+		r.appendRequests[req.requestID] = req
+	}
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		for i := range reqs {
+			reqs[i].stage = appendRequestQueued
+			reqs[i].completed = false
+		}
+		r.appendPending = pending[:]
+		r.emitAppendBatchLocked()
+
+		var effect appendLeaderBatchEffect
+		select {
+		case effect = <-r.appendEffects:
+		default:
+			t.Fatal("append batch effect was not emitted")
+		}
+		for i := range effect.Records {
+			if len(effect.Records[i].Payload) != 1 || effect.Records[i].Payload[0] != byte('a'+i) {
+				t.Fatalf("effect record %d payload = %q", i, effect.Records[i].Payload)
+			}
+		}
+		_, matched, err := r.takeAppendInFlightResultLocked(machineLeaderAppendCommittedEvent{
+			EffectID:   effect.EffectID,
+			RequestIDs: effect.RequestIDs,
+		})
+		require.True(t, matched)
+		require.NoError(t, err)
+	})
+
+	require.LessOrEqual(t, allocs, 2.0)
+}
+
+func TestAppendRequestPoolResetsReusableState(t *testing.T) {
+	req := acquireAppendRequest()
+	waiter := acquireAppendWaiter()
+	req.requestID = 42
+	req.ctx = context.Background()
+	req.batch = []channel.Record{{Payload: []byte("x"), SizeBytes: 1}}
+	req.byteCount = 1
+	req.commitMode = channel.CommitModeLocal
+	req.waiter = waiter
+	req.stage = appendRequestWaitingQuorum
+	req.completed = true
+	waiter.request = req
+	waiter.target = 9
+	waiter.ch <- appendCompletion{result: channel.CommitResult{BaseOffset: 1}}
+
+	releaseAppendRequest(req)
+	reused := acquireAppendRequest()
+	defer releaseAppendRequest(reused)
+
+	if reused.requestID != 0 || reused.ctx != nil || reused.batch != nil || reused.waiter != nil || reused.completed {
+		t.Fatalf("reused request was not reset: %+v", reused)
+	}
+	reusedWaiter := acquireAppendWaiter()
+	defer releaseAppendWaiter(reusedWaiter)
+	select {
+	case completion := <-reusedWaiter.ch:
+		t.Fatalf("reused waiter channel still had completion: %+v", completion)
+	default:
+	}
+	if reusedWaiter.request != nil || reusedWaiter.target != 0 {
+		t.Fatalf("reused waiter was not reset: %+v", reusedWaiter)
+	}
+}
+
 func TestAppendQuorumModeWaitsForHWAdvance(t *testing.T) {
 	env := newThreeReplicaCluster(t)
 	done := make(chan channel.CommitResult, 1)

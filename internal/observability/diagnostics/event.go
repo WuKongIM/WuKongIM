@@ -95,6 +95,12 @@ type Event struct {
 	Error string `json:"error,omitempty"`
 	// Attempt records the retry or delivery attempt associated with the event.
 	Attempt int `json:"attempt,omitempty"`
+	// RequestCount records how many logical requests were included in a batch event.
+	RequestCount int `json:"request_count,omitempty"`
+	// RecordCount records how many durable log records were included in a batch event.
+	RecordCount int `json:"record_count,omitempty"`
+	// ByteCount records the approximate payload bytes included in a batch event.
+	ByteCount int `json:"byte_count,omitempty"`
 	// QueueDepth records queue pressure observed at the event point.
 	QueueDepth int `json:"queue_depth,omitempty"`
 	// ReplicaRole records the channel replica role observed for this event.

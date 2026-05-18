@@ -158,7 +158,7 @@ func (a *App) ListChannelClusterUnhealthy(ctx context.Context, req ListChannelCl
 			if err != nil {
 				return ListChannelClusterUnhealthyResponse{}, err
 			}
-			items, err := a.managerChannelRuntimeMetaItems(ctx, slotID, page)
+			items, err := a.managerChannelRuntimeMetaItems(ctx, slotID, page, true)
 			if err != nil {
 				return ListChannelClusterUnhealthyResponse{}, err
 			}

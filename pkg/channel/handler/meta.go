@@ -19,8 +19,11 @@ type Service interface{ channel.MetaRollbackService }
 type service struct {
 	cfg Config
 
-	mu    sync.RWMutex
+	mu sync.RWMutex
+	// metas holds defensive copies of authoritative channel metadata by runtime key.
 	metas map[channel.ChannelKey]channel.Meta
+	// keys caches logical channel IDs to runtime keys for append/fetch hot paths.
+	keys map[channel.ChannelID]channel.ChannelKey
 }
 
 func New(cfg Config) (Service, error) {
@@ -30,6 +33,7 @@ func New(cfg Config) (Service, error) {
 	return &service{
 		cfg:   cfg,
 		metas: make(map[channel.ChannelKey]channel.Meta),
+		keys:  make(map[channel.ChannelID]channel.ChannelKey),
 	}, nil
 }
 
@@ -45,6 +49,7 @@ func (s *service) ApplyMeta(meta channel.Meta) error {
 	local, ok := s.metas[key]
 	if !ok {
 		s.metas[key] = next
+		s.keys[next.ID] = key
 		return nil
 	}
 	if staleWriteFence(local.WriteFence, next.WriteFence) {
@@ -58,15 +63,18 @@ func (s *service) ApplyMeta(meta channel.Meta) error {
 		return channel.ErrStaleMeta
 	case next.Epoch == local.Epoch && next.LeaderEpoch == local.LeaderEpoch:
 		if metaEqual(local, next) {
+			s.keys[next.ID] = key
 			return nil
 		}
 		if metaEqualExceptRetention(local, next) {
 			s.metas[key] = next
+			s.keys[next.ID] = key
 			return nil
 		}
 		return channel.ErrConflictingMeta
 	default:
 		s.metas[key] = next
+		s.keys[next.ID] = key
 		return nil
 	}
 }
@@ -89,10 +97,11 @@ func (s *service) RestoreMeta(key channel.ChannelKey, meta channel.Meta, ok bool
 		return
 	}
 	s.metas[key] = cloneMeta(meta)
+	s.keys[meta.ID] = key
 }
 
 func (s *service) Status(id channel.ChannelID) (channel.ChannelRuntimeStatus, error) {
-	key := KeyFromChannelID(id)
+	key := s.channelKeyForID(id)
 	meta, err := s.metaForKey(key)
 	if err != nil {
 		return channel.ChannelRuntimeStatus{}, err
@@ -125,7 +134,21 @@ func (s *service) metaForKey(key channel.ChannelKey) (channel.Meta, error) {
 	if !ok {
 		return channel.Meta{}, channel.ErrStaleMeta
 	}
-	return cloneMeta(meta), nil
+	// metaForKey is only used by read-only hot paths; returning the stored slice
+	// headers avoids per-append ISR/replica clones while ApplyMeta still stores
+	// defensive copies at the mutation boundary.
+	return meta, nil
+}
+
+// channelKeyForID returns the cached runtime key installed with authoritative metadata.
+func (s *service) channelKeyForID(id channel.ChannelID) channel.ChannelKey {
+	s.mu.RLock()
+	key, ok := s.keys[id]
+	s.mu.RUnlock()
+	if ok {
+		return key
+	}
+	return KeyFromChannelID(id)
 }
 
 func normalizeMeta(meta channel.Meta) (channel.ChannelKey, channel.Meta, error) {

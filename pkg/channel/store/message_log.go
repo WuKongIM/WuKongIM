@@ -2,6 +2,8 @@ package store
 
 import (
 	"math"
+	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/cockroachdb/pebble/v2"
@@ -18,6 +20,18 @@ type pendingLogAppend struct {
 	base    uint64
 	nextLEO uint64
 	rows    []messageRow
+}
+
+type sameChannelAppendRequest struct {
+	records []channel.Record
+	base    uint64
+	err     error
+}
+
+type sameChannelAppendBatch struct {
+	requests []*sameChannelAppendRequest
+	done     chan struct{}
+	notify   chan struct{}
 }
 
 func (s *ChannelStore) validate() error {
@@ -38,6 +52,9 @@ func (s *ChannelStore) appendRecordsNoSync(records []channel.Record) (uint64, er
 func (s *ChannelStore) appendRecordsWithCommit(records []channel.Record, commitOpts *pebble.WriteOptions, recordCommit bool) (uint64, error) {
 	if err := s.validate(); err != nil {
 		return 0, err
+	}
+	if commitOpts == pebble.Sync && recordCommit && len(records) > 0 {
+		return s.appendRecordsViaSameChannelBatch(records)
 	}
 
 	s.writeMu.Lock()
@@ -78,6 +95,99 @@ func (s *ChannelStore) appendRecordsWithCommit(records []channel.Record, commitO
 	return pending.base, nil
 }
 
+func (s *ChannelStore) appendRecordsViaSameChannelBatch(records []channel.Record) (uint64, error) {
+	req := &sameChannelAppendRequest{records: records}
+
+	s.appendBatchMu.Lock()
+	if batch := s.appendBatch; batch != nil {
+		batch.requests = append(batch.requests, req)
+		close(batch.notify)
+		batch.notify = make(chan struct{})
+		done := batch.done
+		s.appendBatchMu.Unlock()
+		<-done
+		return req.base, req.err
+	}
+	batch := &sameChannelAppendBatch{
+		requests: []*sameChannelAppendRequest{req},
+		done:     make(chan struct{}),
+		notify:   make(chan struct{}),
+	}
+	s.appendBatch = batch
+	s.appendBatchMu.Unlock()
+
+	s.waitForSameChannelAppendBatch(batch)
+
+	s.writeMu.Lock()
+	s.appendBatchMu.Lock()
+	if s.appendBatch == batch {
+		s.appendBatch = nil
+	}
+	s.appendBatchMu.Unlock()
+
+	s.commitSameChannelAppendBatchLocked(batch)
+	s.writeMu.Unlock()
+	close(batch.done)
+	return req.base, req.err
+}
+
+func (s *ChannelStore) waitForSameChannelAppendBatch(batch *sameChannelAppendBatch) {
+	wait := s.sameChannelAppendBatchWait()
+	if batch == nil || wait <= 0 {
+		return
+	}
+
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	for {
+		s.appendBatchMu.Lock()
+		notify := batch.notify
+		s.appendBatchMu.Unlock()
+
+		select {
+		case <-notify:
+			continue
+		case <-timer.C:
+			return
+		}
+	}
+}
+
+func (s *ChannelStore) sameChannelAppendBatchWait() time.Duration {
+	coordinator := s.commitCoordinator()
+	if coordinator == nil {
+		return 0
+	}
+	coordinator.batchMu.Lock()
+	defer coordinator.batchMu.Unlock()
+	return coordinator.cfg.FlushWindow
+}
+
+func (s *ChannelStore) commitSameChannelAppendBatchLocked(batch *sameChannelAppendBatch) {
+	if batch == nil || len(batch.requests) == 0 {
+		return
+	}
+	pending, bases, err := s.prepareSameChannelAppendBatchLocked(batch.requests)
+	if err != nil {
+		for _, req := range batch.requests {
+			req.err = err
+		}
+		return
+	}
+	for i, req := range batch.requests {
+		req.base = bases[i]
+	}
+	if len(pending.rows) == 0 {
+		return
+	}
+	if err := s.appendWithCoordinatorLocked(pending); err != nil {
+		s.failPendingWrite()
+		for _, req := range batch.requests {
+			req.err = err
+		}
+	}
+}
+
 func (s *ChannelStore) prepareCompatibilityAppendLocked(records []channel.Record) (pendingLogAppend, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -90,7 +200,7 @@ func (s *ChannelStore) prepareCompatibilityAppendLocked(records []channel.Record
 		return pendingLogAppend{base: base}, nil
 	}
 
-	rows, err := structuredRowsFromCompatibilityRecords(base+1, records)
+	rows, err := s.appendRowsFromCompatibilityRecordsLocked(base+1, records)
 	if err != nil {
 		return pendingLogAppend{}, err
 	}
@@ -103,18 +213,79 @@ func (s *ChannelStore) prepareCompatibilityAppendLocked(records []channel.Record
 	}, nil
 }
 
+func (s *ChannelStore) prepareSameChannelAppendBatchLocked(requests []*sameChannelAppendRequest) (pendingLogAppend, []uint64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	base, err := s.leoLocked()
+	if err != nil {
+		return pendingLogAppend{}, nil, err
+	}
+	bases := make([]uint64, len(requests))
+	totalRecords := 0
+	for i, req := range requests {
+		bases[i] = base + uint64(totalRecords)
+		if req != nil {
+			totalRecords += len(req.records)
+		}
+	}
+	if totalRecords == 0 {
+		return pendingLogAppend{base: base}, bases, nil
+	}
+
+	rows := make([]messageRow, 0, totalRecords)
+	nextSeq := base + 1
+	for _, req := range requests {
+		if req == nil || len(req.records) == 0 {
+			continue
+		}
+		rows, err = appendStructuredRowsFromCompatibilityRecords(rows, nextSeq, req.records)
+		if err != nil {
+			return pendingLogAppend{}, nil, err
+		}
+		nextSeq += uint64(len(req.records))
+	}
+
+	s.writeInProgress.Store(true)
+	return pendingLogAppend{
+		base:    base,
+		nextLEO: base + uint64(len(rows)),
+		rows:    rows,
+	}, bases, nil
+}
+
+func (s *ChannelStore) appendRowsFromCompatibilityRecordsLocked(startSeq uint64, records []channel.Record) ([]messageRow, error) {
+	if len(records) == 0 {
+		return nil, nil
+	}
+	if cap(s.appendRows) < len(records) {
+		s.appendRows = make([]messageRow, 0, len(records))
+	}
+	rows, err := appendStructuredRowsFromCompatibilityRecords(s.appendRows[:0], startSeq, records)
+	if err != nil {
+		return nil, err
+	}
+	s.appendRows = rows
+	return rows, nil
+}
+
 func (s *ChannelStore) appendWithCoordinatorLocked(pending pendingLogAppend) error {
 	coordinator := s.commitCoordinator()
 	if coordinator == nil {
 		return channel.ErrInvalidArgument
 	}
+	var publishOnce sync.Once
 	return coordinator.submit(commitRequest{
-		channelKey: s.key,
+		channelKey:  s.key,
+		recordCount: len(pending.rows),
+		byteCount:   pending.byteCount(),
 		build: func(writeBatch *pebble.Batch) error {
 			return pending.build(writeBatch, s.messageTable())
 		},
 		publish: func() error {
-			s.publishDurableWrite(pending.nextLEO)
+			publishOnce.Do(func() {
+				s.publishDurableWrite(pending.nextLEO)
+			})
 			return nil
 		},
 	})
@@ -122,6 +293,14 @@ func (s *ChannelStore) appendWithCoordinatorLocked(pending pendingLogAppend) err
 
 func (p pendingLogAppend) build(writeBatch *pebble.Batch, table *messageTable) error {
 	return table.append(writeBatch, p.rows)
+}
+
+func (p pendingLogAppend) byteCount() int {
+	total := 0
+	for _, row := range p.rows {
+		total += len(row.Payload)
+	}
+	return total
 }
 
 func (s *ChannelStore) Read(from uint64, maxBytes int) ([]channel.Record, error) {
