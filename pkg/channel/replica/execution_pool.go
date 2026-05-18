@@ -63,22 +63,24 @@ func NewExecutionPool(cfg ExecutionPoolConfig) (*ExecutionPool, error) {
 		cfg.Workers = runtime.GOMAXPROCS(0)
 	}
 	if cfg.AppendWorkers == 0 {
-		cfg.AppendWorkers = cfg.Workers
+		// Increased from cfg.Workers to cfg.Workers * 2 to reduce append worker blocking
+		cfg.AppendWorkers = cfg.Workers * 2
 	}
 	if cfg.CheckpointWorkers == 0 {
-		cfg.CheckpointWorkers = cfg.Workers / 2
+		// Increased from cfg.Workers / 2 to cfg.Workers to improve checkpoint throughput
+		cfg.CheckpointWorkers = cfg.Workers
 		if cfg.CheckpointWorkers == 0 {
 			cfg.CheckpointWorkers = 1
 		}
 	}
 	if cfg.MailboxSize == 0 {
-		cfg.MailboxSize = 1024
+		cfg.MailboxSize = 2048 // Increased from 1024 to 2048 to reduce mailbox pressure
 	}
 	if cfg.TurnBudget == 0 {
-		cfg.TurnBudget = 8
+		cfg.TurnBudget = 16 // Increased from 8 to 16 to reduce context switching
 	}
 	if cfg.EffectQueueSize == 0 {
-		cfg.EffectQueueSize = 1024
+		cfg.EffectQueueSize = 2048 // Increased from 1024 to 2048 to reduce effect queue blocking
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now

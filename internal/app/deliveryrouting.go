@@ -43,9 +43,10 @@ const (
 	committedRouteRetryAttempts = 3
 	committedRouteRetryBackoff  = 20 * time.Millisecond
 
-	committedDispatchDefaultQueueDepth = 512
-	committedDispatchMinShards         = 4
-	committedDispatchMaxShards         = 32
+	// Increased from 512 to 1000 to reduce backpressure in high-throughput scenarios
+	committedDispatchDefaultQueueDepth = 1000
+	committedDispatchMinShards         = 8  // Increased from 4 to 8
+	committedDispatchMaxShards         = 64 // Increased from 32 to 64
 
 	// deliveryPushRouteChunkSize bounds the route list carried by one remote push RPC.
 	deliveryPushRouteChunkSize = 1000

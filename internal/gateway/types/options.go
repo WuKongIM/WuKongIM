@@ -40,7 +40,7 @@ type SessionOptions struct {
 func DefaultSessionOptions() SessionOptions {
 	return SessionOptions{
 		ReadBufferSize:      4 << 10,
-		WriteQueueSize:      64,
+		WriteQueueSize:      500, // Increased from 64 to 500 to reduce session dequeue blocking
 		MaxInboundBytes:     1 << 20,
 		MaxOutboundBytes:    1 << 20,
 		IdleTimeout:         3 * time.Minute,
