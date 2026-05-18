@@ -60,6 +60,13 @@ func TestChannelStoreAppendBatchesConcurrentSameChannelAppends(t *testing.T) {
 	results := make(chan appendResult, appendCount)
 	ready := make(chan struct{}, appendCount)
 	start := make(chan struct{})
+	st.writeMu.Lock()
+	writeMuLocked := true
+	defer func() {
+		if writeMuLocked {
+			st.writeMu.Unlock()
+		}
+	}()
 	for i := range appendCount {
 		go func(i int) {
 			ready <- struct{}{}
@@ -81,6 +88,26 @@ func TestChannelStoreAppendBatchesConcurrentSameChannelAppends(t *testing.T) {
 		<-ready
 	}
 	close(start)
+
+	deadline := time.After(2 * time.Second)
+	for {
+		st.appendBatchMu.Lock()
+		got := 0
+		if st.appendBatch != nil {
+			got = len(st.appendBatch.requests)
+		}
+		st.appendBatchMu.Unlock()
+		if got == appendCount {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("same-channel append batch size = %d, want %d", got, appendCount)
+		case <-time.After(time.Millisecond):
+		}
+	}
+	st.writeMu.Unlock()
+	writeMuLocked = false
 
 	bases := make([]uint64, 0, appendCount)
 	for range appendCount {
@@ -113,6 +140,43 @@ func TestChannelStoreAppendBatchesConcurrentSameChannelAppends(t *testing.T) {
 	}
 	if got := fs.syncCount.Load() - before; got != 1 {
 		t.Fatalf("sync count delta = %d, want 1", got)
+	}
+}
+
+func TestChannelStoreAppendEntersCommitCoordinatorWithoutSameChannelFlushWait(t *testing.T) {
+	engine := openTestEngine(t)
+	st := openTestChannelStoresOnEngine(t, engine, "append-no-same-channel-wait")[0]
+
+	commitEntered := make(chan commitRequest, 1)
+	installTestCommitCoordinator(t, engine, func(coordinator *commitCoordinator, req commitRequest) {
+		commitEntered <- req
+		req.done <- commitAppendRequest(t, engine, req)
+	})
+	engine.commitCoordinator().cfg.FlushWindow = 500 * time.Millisecond
+
+	done := make(chan appendResult, 1)
+	go func() {
+		payload := mustEncodeStoreMessage(t, channel.Message{MessageID: 1, ClientMsgNo: "commit", FromUID: "u1", ChannelID: st.id.ID, ChannelType: st.id.Type, Payload: []byte("one")})
+		base, err := st.Append([]channel.Record{{Payload: payload, SizeBytes: len(payload)}})
+		done <- appendResult{base: base, err: err}
+	}()
+
+	select {
+	case <-commitEntered:
+	case <-time.After(75 * time.Millisecond):
+		t.Fatal("append waited for same-channel flush window before entering commit coordinator")
+	}
+
+	select {
+	case result := <-done:
+		if result.err != nil {
+			t.Fatalf("Append() error = %v", result.err)
+		}
+		if result.base != 0 {
+			t.Fatalf("Append() base = %d, want 0", result.base)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for append result")
 	}
 }
 
