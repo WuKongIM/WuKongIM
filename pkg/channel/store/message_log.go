@@ -3,7 +3,6 @@ package store
 import (
 	"math"
 	"sync"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/cockroachdb/pebble/v2"
@@ -132,13 +131,10 @@ func (s *ChannelStore) appendRecordsViaSameChannelBatch(records []channel.Record
 }
 
 func (s *ChannelStore) waitForSameChannelAppendBatch(batch *sameChannelAppendBatch) {
-	wait := s.sameChannelAppendBatchWait()
-	if batch == nil || wait <= 0 {
+	if batch == nil {
 		return
 	}
 
-	timer := time.NewTimer(wait)
-	defer timer.Stop()
 	for {
 		s.appendBatchMu.Lock()
 		notify := batch.notify
@@ -147,20 +143,10 @@ func (s *ChannelStore) waitForSameChannelAppendBatch(batch *sameChannelAppendBat
 		select {
 		case <-notify:
 			continue
-		case <-timer.C:
+		default:
 			return
 		}
 	}
-}
-
-func (s *ChannelStore) sameChannelAppendBatchWait() time.Duration {
-	coordinator := s.commitCoordinator()
-	if coordinator == nil {
-		return 0
-	}
-	coordinator.batchMu.Lock()
-	defer coordinator.batchMu.Unlock()
-	return coordinator.cfg.FlushWindow
 }
 
 func (s *ChannelStore) commitSameChannelAppendBatchLocked(batch *sameChannelAppendBatch) {
