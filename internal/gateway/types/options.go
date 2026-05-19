@@ -35,7 +35,7 @@ type SessionOptions struct {
 	WriteTimeout     time.Duration
 	// AsyncSendDispatch enables the bounded SEND worker pool instead of doing durable send work on the transport event loop.
 	AsyncSendDispatch bool
-	// AsyncSendDispatchWorkers sets the SEND worker pool size when AsyncSendDispatch is enabled. Non-positive values use GOMAXPROCS.
+	// AsyncSendDispatchWorkers sets the SEND worker pool size when AsyncSendDispatch is enabled. Non-positive values use an IO-wait-aware adaptive default.
 	AsyncSendDispatchWorkers int
 	CloseOnHandlerError      *bool
 }

@@ -16,7 +16,6 @@ var appWKProtoClients sync.Map
 type sendStressAcceptanceSpec struct {
 	Benchmark                        sendStressConfig
 	GatewaySendTimeout               time.Duration
-	GatewayAsyncSendDispatchWorkers  int
 	FollowerReplicationRetryInterval time.Duration
 	AppendGroupCommitMaxWait         time.Duration
 	AppendGroupCommitMaxRecords      int
@@ -46,7 +45,6 @@ func sendStressAcceptancePreset() sendStressAcceptanceSpec {
 			CommitMode:           channel.CommitModeQuorum,
 		},
 		GatewaySendTimeout:               25 * time.Second,
-		GatewayAsyncSendDispatchWorkers:  512,
 		FollowerReplicationRetryInterval: 250 * time.Millisecond,
 		AppendGroupCommitMaxWait:         2 * time.Millisecond,
 		AppendGroupCommitMaxRecords:      128,

@@ -26,7 +26,12 @@ var (
 	ErrInvalidDecodeStep = errors.New("gateway/core: decode consumed invalid byte count")
 )
 
-const asyncDispatchQueuePerWorker = 1024
+const (
+	asyncDispatchQueuePerWorker = 1024
+	asyncDispatchWorkersPerCPU  = 64
+	minAsyncDispatchWorkers     = 64
+	maxAsyncDispatchWorkers     = 1024
+)
 
 type Server struct {
 	registry   *Registry
@@ -794,9 +799,19 @@ func asyncDispatchWorkerCount(opt gatewaytypes.SessionOptions) int {
 	if opt.AsyncSendDispatchWorkers > 0 {
 		return opt.AsyncSendDispatchWorkers
 	}
-	workers := runtime.GOMAXPROCS(0)
-	if workers <= 0 {
-		return 1
+	return adaptiveAsyncDispatchWorkerCount(runtime.GOMAXPROCS(0))
+}
+
+func adaptiveAsyncDispatchWorkerCount(gomaxprocs int) int {
+	if gomaxprocs <= 0 {
+		return minAsyncDispatchWorkers
+	}
+	workers := gomaxprocs * asyncDispatchWorkersPerCPU
+	if workers < minAsyncDispatchWorkers {
+		return minAsyncDispatchWorkers
+	}
+	if workers > maxAsyncDispatchWorkers {
+		return maxAsyncDispatchWorkers
 	}
 	return workers
 }

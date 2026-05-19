@@ -66,6 +66,33 @@ func TestServerAsyncSendDispatchUsesConfiguredWorkerCount(t *testing.T) {
 	srv.workerWG.Wait()
 }
 
+func TestAsyncDispatchWorkerCountUsesExplicitOverride(t *testing.T) {
+	got := asyncDispatchWorkerCount(gatewaytypes.SessionOptions{AsyncSendDispatchWorkers: 7})
+	if got != 7 {
+		t.Fatalf("worker count = %d, want explicit override 7", got)
+	}
+}
+
+func TestAdaptiveAsyncDispatchWorkerCountScalesAndClamps(t *testing.T) {
+	tests := []struct {
+		name       string
+		gomaxprocs int
+		want       int
+	}{
+		{name: "low clamps to minimum", gomaxprocs: 1, want: 64},
+		{name: "scales by cpu", gomaxprocs: 10, want: 640},
+		{name: "high caps maximum", gomaxprocs: 128, want: 1024},
+		{name: "invalid clamps minimum", gomaxprocs: 0, want: 64},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := adaptiveAsyncDispatchWorkerCount(tt.gomaxprocs); got != tt.want {
+				t.Fatalf("adaptive worker count = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRecordAsyncDispatchWaitIncludesSendClientMsgNo(t *testing.T) {
 	sink := &recordingSendTraceSink{}
 	restore := sendtrace.SetSink(sink)
