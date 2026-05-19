@@ -43,6 +43,7 @@ type appChannelApplyLock struct {
 
 type remoteChannelAppender interface {
 	AppendToLeader(ctx context.Context, nodeID uint64, req channel.AppendRequest) (channel.AppendResult, error)
+	AppendBatchToLeader(ctx context.Context, nodeID uint64, req channel.AppendBatchRequest) (channel.AppendBatchResult, error)
 }
 
 func newAppChannelCluster(
@@ -163,6 +164,45 @@ func (c *appChannelCluster) Append(ctx context.Context, req channel.AppendReques
 		// A known remote leader can still serve the append after local runtime
 		// refresh removes this node from replicas.
 		if forwarded, forwardErr, ok := c.forwardAppendToLeader(ctx, req); ok {
+			result, err = forwarded, forwardErr
+		}
+	}
+	c.observeAppend(err, time.Since(start))
+	return result, err
+}
+
+func (c *appChannelCluster) AppendBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	if c == nil || c.service == nil {
+		return channel.AppendBatchResult{}, channel.ErrInvalidConfig
+	}
+	start := time.Now()
+	result, err := c.service.AppendBatch(ctx, req)
+	if err == nil {
+		for i, item := range result.Items {
+			if item.Err != nil {
+				continue
+			}
+			var msg channel.Message
+			if i < len(req.Messages) {
+				msg = req.Messages[i]
+			}
+			sendtrace.Record(sendtrace.Event{
+				TraceID:     req.TraceID,
+				Stage:       sendtrace.StageChannelAppendLocal,
+				At:          start,
+				Duration:    sendtrace.Elapsed(start, time.Now()),
+				NodeID:      c.localNodeID,
+				ChannelKey:  string(channelhandler.KeyFromChannelID(req.ChannelID)),
+				ClientMsgNo: msg.ClientMsgNo,
+				MessageSeq:  item.MessageSeq,
+				FromUID:     msg.FromUID,
+				Attempt:     req.Attempt,
+				RecordCount: len(result.Items),
+			})
+		}
+	}
+	if errors.Is(err, channel.ErrNotLeader) || errors.Is(err, channel.ErrStaleMeta) {
+		if forwarded, forwardErr, ok := c.forwardAppendBatchToLeader(ctx, req); ok {
 			result, err = forwarded, forwardErr
 		}
 	}
@@ -373,6 +413,90 @@ func (c *appChannelCluster) forwardAppendToLeader(ctx context.Context, req chann
 			Service:     "channel_append",
 			Attempt:     req.Attempt,
 		})
+	}
+	return result, err, true
+}
+
+func (c *appChannelCluster) forwardAppendBatchToLeader(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error, bool) {
+	if len(req.Messages) == 0 {
+		return channel.AppendBatchResult{Items: nil}, nil, true
+	}
+	if c == nil || c.remoteAppender == nil || c.service == nil {
+		return channel.AppendBatchResult{}, nil, false
+	}
+	meta, ok := c.service.MetaSnapshot(channelhandler.KeyFromChannelID(req.ChannelID))
+	if !ok || meta.Leader == 0 {
+		c.appendLogger().Debug("skip forwarding channel append batch without leader metadata",
+			wklog.Event("app.channel.append_batch.forward.skipped"),
+			wklog.NodeID(c.localNodeID),
+			wklog.ChannelID(req.ChannelID.ID),
+			wklog.ChannelType(int64(req.ChannelID.Type)),
+			wklog.Int("recordCount", len(req.Messages)),
+			wklog.Reason("missing_leader_metadata"),
+		)
+		return channel.AppendBatchResult{}, nil, false
+	}
+	leaderID := uint64(meta.Leader)
+	if leaderID == 0 || leaderID == c.localNodeID {
+		c.appendLogger().Debug("skip forwarding channel append batch because local node is still selected as leader",
+			wklog.Event("app.channel.append_batch.forward.skipped"),
+			wklog.NodeID(c.localNodeID),
+			wklog.ChannelID(req.ChannelID.ID),
+			wklog.ChannelType(int64(req.ChannelID.Type)),
+			wklog.Int("recordCount", len(req.Messages)),
+			wklog.Reason("leader_is_local"),
+		)
+		return channel.AppendBatchResult{}, nil, false
+	}
+	c.appendLogger().Debug("forwarding channel append batch to leader",
+		wklog.Event("app.channel.append_batch.forward.triggered"),
+		wklog.NodeID(c.localNodeID),
+		wklog.LeaderNodeID(leaderID),
+		wklog.ChannelID(req.ChannelID.ID),
+		wklog.ChannelType(int64(req.ChannelID.Type)),
+		wklog.Int("recordCount", len(req.Messages)),
+	)
+	startedAt := time.Now()
+	result, err := c.remoteAppender.AppendBatchToLeader(ctx, leaderID, req)
+	completedFields := []wklog.Field{
+		wklog.Event("app.channel.append_batch.forward.completed"),
+		wklog.NodeID(c.localNodeID),
+		wklog.LeaderNodeID(leaderID),
+		wklog.ChannelID(req.ChannelID.ID),
+		wklog.ChannelType(int64(req.ChannelID.Type)),
+		wklog.Int("recordCount", len(req.Messages)),
+		wklog.Duration("duration", time.Since(startedAt)),
+	}
+	if err != nil {
+		completedFields = append(completedFields, wklog.Error(err))
+	}
+	c.appendLogger().Debug("completed forwarded channel append batch", completedFields...)
+	if err == nil {
+		duration := sendtrace.Elapsed(startedAt, time.Now())
+		for i, item := range result.Items {
+			if item.Err != nil {
+				continue
+			}
+			var msg channel.Message
+			if i < len(req.Messages) {
+				msg = req.Messages[i]
+			}
+			sendtrace.Record(sendtrace.Event{
+				TraceID:     req.TraceID,
+				Stage:       sendtrace.StageChannelAppendForward,
+				At:          startedAt,
+				Duration:    duration,
+				NodeID:      c.localNodeID,
+				PeerNodeID:  leaderID,
+				ChannelKey:  string(meta.Key),
+				ClientMsgNo: msg.ClientMsgNo,
+				MessageSeq:  item.MessageSeq,
+				FromUID:     msg.FromUID,
+				Service:     "channel_append",
+				Attempt:     req.Attempt,
+				RecordCount: len(result.Items),
+			})
+		}
 	}
 	return result, err, true
 }

@@ -101,6 +101,127 @@ func sendWithEnsuredMeta(
 	return appendWithMeta(ctx, meta, req)
 }
 
+func sendBatchWithEnsuredMeta(
+	ctx context.Context,
+	localNodeID uint64,
+	now func() time.Time,
+	sendLogger wklog.Logger,
+	cluster ChannelCluster,
+	remote RemoteAppender,
+	refresher MetaRefresher,
+	metrics messageAppendMetrics,
+	req channel.AppendBatchRequest,
+) (channel.AppendBatchResult, error) {
+	logFields := func(event string, extra ...wklog.Field) []wklog.Field {
+		fields := append([]wklog.Field{wklog.Event(event)}, messageLogFields(req.ChannelID, "")...)
+		return append(fields, extra...)
+	}
+	if refresher == nil {
+		sendLogger.Error("meta refresher required", logFields("message.send.refresher.required")...)
+		return channel.AppendBatchResult{}, ErrMetaRefresherRequired
+	}
+	refreshMeta := func() (channel.Meta, error) {
+		meta, err := refresher.RefreshChannelMeta(ctx, req.ChannelID)
+		if err != nil {
+			sendLogger.Error("refresh channel metadata failed", logFields("message.send.refresh.failed", wklog.Error(err))...)
+			return channel.Meta{}, err
+		}
+		return meta, nil
+	}
+	appendWithMeta := func(ctx context.Context, meta channel.Meta, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+		req.ExpectedChannelEpoch = meta.Epoch
+		req.ExpectedLeaderEpoch = meta.LeaderEpoch
+		if meta.Leader != 0 && uint64(meta.Leader) != localNodeID {
+			startedAt := time.Now()
+			path := "remote"
+			result, err := appendBatchRemote(ctx, remote, uint64(meta.Leader), req)
+			if err != nil {
+				sendLogger.Error("forward append batch to leader failed", logFields("message.send.forward_batch.failed",
+					wklog.LeaderNodeID(uint64(meta.Leader)), wklog.Error(err))...)
+			}
+			observeMessageAppend(metrics, path, appendMetricResult(err), time.Since(startedAt))
+			return result, err
+		}
+		startedAt := time.Now()
+		result, err := appendBatchLocal(ctx, cluster, req)
+		if err != nil {
+			sendLogger.Error("local append batch failed", logFields("message.send.append_batch.failed", wklog.Error(err))...)
+		}
+		observeMessageAppend(metrics, "local", appendMetricResult(err), time.Since(startedAt))
+		return result, err
+	}
+
+	meta, err := refreshMeta()
+	if err != nil {
+		return channel.AppendBatchResult{}, err
+	}
+	result, err := appendWithMeta(ctx, meta, req)
+	if err == nil || !isRetryableMetaAppendError(err) {
+		return result, err
+	}
+	if invalidator, ok := refresher.(MetaInvalidator); ok {
+		invalidator.InvalidateChannelMeta(req.ChannelID)
+	}
+	meta, refreshErr := refreshMeta()
+	if refreshErr != nil {
+		return channel.AppendBatchResult{}, refreshErr
+	}
+	return appendWithMeta(ctx, meta, req)
+}
+
+func appendBatchLocal(ctx context.Context, cluster ChannelCluster, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	if batcher, ok := cluster.(ChannelBatchAppender); ok {
+		return batcher.AppendBatch(ctx, req)
+	}
+	items := make([]channel.AppendBatchItemResult, len(req.Messages))
+	for i, msg := range req.Messages {
+		result, err := cluster.Append(ctx, channel.AppendRequest{
+			ChannelID:             req.ChannelID,
+			Message:               msg,
+			SupportsMessageSeqU64: req.SupportsMessageSeqU64,
+			CommitMode:            req.CommitMode,
+			ExpectedChannelEpoch:  req.ExpectedChannelEpoch,
+			ExpectedLeaderEpoch:   req.ExpectedLeaderEpoch,
+			TraceID:               req.TraceID,
+			Attempt:               req.Attempt,
+		})
+		if err != nil {
+			items[i].Err = err
+			continue
+		}
+		items[i] = channel.AppendBatchItemResult{MessageID: result.MessageID, MessageSeq: result.MessageSeq, Message: result.Message}
+	}
+	return channel.AppendBatchResult{Items: items}, nil
+}
+
+func appendBatchRemote(ctx context.Context, remote RemoteAppender, nodeID uint64, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	if remote == nil {
+		return channel.AppendBatchResult{}, ErrRemoteAppenderRequired
+	}
+	if batcher, ok := remote.(RemoteBatchAppender); ok {
+		return batcher.AppendBatchToLeader(ctx, nodeID, req)
+	}
+	items := make([]channel.AppendBatchItemResult, len(req.Messages))
+	for i, msg := range req.Messages {
+		result, err := remote.AppendToLeader(ctx, nodeID, channel.AppendRequest{
+			ChannelID:             req.ChannelID,
+			Message:               msg,
+			SupportsMessageSeqU64: req.SupportsMessageSeqU64,
+			CommitMode:            req.CommitMode,
+			ExpectedChannelEpoch:  req.ExpectedChannelEpoch,
+			ExpectedLeaderEpoch:   req.ExpectedLeaderEpoch,
+			TraceID:               req.TraceID,
+			Attempt:               req.Attempt,
+		})
+		if err != nil {
+			items[i].Err = err
+			continue
+		}
+		items[i] = channel.AppendBatchItemResult{MessageID: result.MessageID, MessageSeq: result.MessageSeq, Message: result.Message}
+	}
+	return channel.AppendBatchResult{Items: items}, nil
+}
+
 type messageAppendMetrics interface {
 	ObserveAppend(path, result string, dur time.Duration)
 }

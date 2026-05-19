@@ -76,6 +76,10 @@ type ChannelCluster interface {
 	Append(ctx context.Context, req channel.AppendRequest) (channel.AppendResult, error)
 }
 
+type ChannelBatchAppender interface {
+	AppendBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error)
+}
+
 type ChannelMessageReader interface {
 	// SyncMessages returns one authoritative legacy-compatible channel message page.
 	SyncMessages(ctx context.Context, query ChannelMessageQuery) (ChannelMessagePage, error)
@@ -95,4 +99,8 @@ type MetaInvalidator interface {
 
 type RemoteAppender interface {
 	AppendToLeader(ctx context.Context, nodeID uint64, req channel.AppendRequest) (channel.AppendResult, error)
+}
+
+type RemoteBatchAppender interface {
+	AppendBatchToLeader(ctx context.Context, nodeID uint64, req channel.AppendBatchRequest) (channel.AppendBatchResult, error)
 }

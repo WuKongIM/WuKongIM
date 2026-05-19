@@ -406,6 +406,18 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
+	asyncSendBatchMaxWait, err := parseDuration(v, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT")
+	if err != nil {
+		return app.Config{}, err
+	}
+	asyncSendBatchMaxRecords, err := parseInt(v, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS")
+	if err != nil {
+		return app.Config{}, err
+	}
+	asyncSendBatchMaxBytes, err := parseInt(v, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES")
+	if err != nil {
+		return app.Config{}, err
+	}
 	gatewayGnetMulticore, err := parseBool(v, "WK_GATEWAY_GNET_MULTICORE")
 	if err != nil {
 		return app.Config{}, err
@@ -840,6 +852,9 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 				IdleTimeout:              idleTimeout,
 				WriteTimeout:             writeTimeout,
 				AsyncSendDispatchWorkers: asyncSendDispatchWorkers,
+				AsyncSendBatchMaxWait:    asyncSendBatchMaxWait,
+				AsyncSendBatchMaxRecords: asyncSendBatchMaxRecords,
+				AsyncSendBatchMaxBytes:   asyncSendBatchMaxBytes,
 				CloseOnHandlerError:      closeOnHandlerError,
 			},
 			Transport: gateway.TransportOptions{

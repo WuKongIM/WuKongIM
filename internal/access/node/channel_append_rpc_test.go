@@ -192,6 +192,71 @@ func TestChannelAppendBinaryCodecRoundTrip(t *testing.T) {
 	require.Equal(t, resp, gotResp)
 }
 
+func TestChannelAppendBatchBinaryCodecRoundTrip(t *testing.T) {
+	req := channelAppendBatchRequest{AppendBatchRequest: channel.AppendBatchRequest{
+		ChannelID: channel.ChannelID{ID: "append-batch-binary", Type: frame.ChannelTypeGroup},
+		Messages: []channel.Message{
+			{
+				MessageID:   7,
+				MessageSeq:  8,
+				Framer:      frame.Framer{FrameType: frame.SEND, RedDot: true, SyncOnce: true},
+				Setting:     frame.SettingReceiptEnabled | frame.SettingTopic,
+				MsgKey:      "key-1",
+				Expire:      60,
+				ClientSeq:   9,
+				ClientMsgNo: "client-1",
+				StreamNo:    "stream-1",
+				StreamID:    10,
+				StreamFlag:  frame.StreamFlagIng,
+				Timestamp:   1777777777,
+				ChannelID:   "append-batch-binary",
+				Topic:       "topic-1",
+				FromUID:     "u1",
+				Payload:     []byte("hello-1"),
+			},
+			{
+				MessageID:   17,
+				MessageSeq:  18,
+				Framer:      frame.Framer{FrameType: frame.SEND, RedDot: true},
+				ClientSeq:   19,
+				ClientMsgNo: "client-2",
+				Timestamp:   1777777778,
+				ChannelID:   "append-batch-binary",
+				FromUID:     "u2",
+				Payload:     []byte("hello-2"),
+			},
+		},
+		SupportsMessageSeqU64: true,
+		CommitMode:            channel.CommitModeLocal,
+		ExpectedChannelEpoch:  11,
+		ExpectedLeaderEpoch:   12,
+	}}
+
+	reqBody, err := encodeChannelAppendBatchRequestBinary(req)
+	require.NoError(t, err)
+	require.True(t, isChannelAppendBatchRequestBinary(reqBody))
+
+	gotReq, err := decodeChannelAppendBatchRequest(reqBody)
+	require.NoError(t, err)
+	require.Equal(t, req, gotReq)
+
+	resp := channelAppendBatchResponse{
+		Status:   rpcStatusOK,
+		LeaderID: 2,
+		Result: channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{
+			{MessageID: 13, MessageSeq: 14, Message: req.AppendBatchRequest.Messages[0]},
+			{MessageID: 15, MessageSeq: 16, Message: req.AppendBatchRequest.Messages[1], Err: channel.ErrIdempotencyConflict},
+		}},
+	}
+	respBody, err := encodeChannelAppendBatchResponse(resp)
+	require.NoError(t, err)
+	require.True(t, isChannelAppendBatchResponseBinary(respBody))
+
+	gotResp, err := decodeChannelAppendBatchResponse(respBody)
+	require.NoError(t, err)
+	require.Equal(t, resp, gotResp)
+}
+
 func TestChannelAppendRPCRejectsJSONPayload(t *testing.T) {
 	adapter := New(Options{ChannelLog: &stubNodeChannelLog{}})
 
@@ -236,6 +301,49 @@ func TestAppendToLeaderRPCAppendsOnTargetNode(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, channel.AppendResult{MessageID: 7, MessageSeq: 8}, result)
 	require.Equal(t, []channel.AppendRequest{req}, channelLog.appendCalls)
+}
+
+func TestAppendBatchToLeaderRPCAppendsBatchOnTargetNode(t *testing.T) {
+	network := newFakeClusterNetwork(
+		map[uint64][]uint64{1: {1, 2}},
+		map[uint64]uint64{1: 1},
+	)
+	node1 := network.cluster(1)
+	node2 := network.cluster(2)
+
+	req := channel.AppendBatchRequest{
+		ChannelID: channel.ChannelID{ID: "group-batch", Type: frame.ChannelTypeGroup},
+		Messages: []channel.Message{
+			{FromUID: "u1", ClientMsgNo: "m1", Payload: []byte("hi-1")},
+			{FromUID: "u2", ClientMsgNo: "m2", Payload: []byte("hi-2")},
+		},
+	}
+	want := channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{
+		{MessageID: 7, MessageSeq: 8, Message: req.Messages[0]},
+		{MessageID: 9, MessageSeq: 10, Message: req.Messages[1]},
+	}}
+	channelLog := &stubNodeChannelLog{
+		status: channel.ChannelRuntimeStatus{
+			ID:     req.ChannelID,
+			Leader: 2,
+		},
+		appendBatchResult: want,
+	}
+	New(Options{
+		Cluster:     node2,
+		Presence:    presence.New(presence.Options{}),
+		Online:      online.NewRegistry(),
+		LocalNodeID: 2,
+		ChannelLog:  channelLog,
+	})
+
+	client := NewClient(node1)
+	result, err := client.AppendBatchToLeader(context.Background(), 2, req)
+
+	require.NoError(t, err)
+	require.Equal(t, want, result)
+	require.Equal(t, []channel.AppendBatchRequest{req}, channelLog.appendBatchCalls)
+	require.Empty(t, channelLog.appendCalls)
 }
 
 func TestAppendToLeaderRPCFollowsLeaderRedirect(t *testing.T) {
@@ -382,12 +490,15 @@ func TestAppendToLeaderRPCLogsRefreshDiagnostics(t *testing.T) {
 }
 
 type stubNodeChannelLog struct {
-	status        channel.ChannelRuntimeStatus
-	statusErr     error
-	appendResult  channel.AppendResult
-	appendErr     error
-	appendCalls   []channel.AppendRequest
-	appendReplies []stubNodeAppendReply
+	status            channel.ChannelRuntimeStatus
+	statusErr         error
+	appendResult      channel.AppendResult
+	appendErr         error
+	appendCalls       []channel.AppendRequest
+	appendBatchResult channel.AppendBatchResult
+	appendBatchErr    error
+	appendBatchCalls  []channel.AppendBatchRequest
+	appendReplies     []stubNodeAppendReply
 }
 
 func (s *stubNodeChannelLog) Status(channel.ChannelID) (channel.ChannelRuntimeStatus, error) {
@@ -406,6 +517,11 @@ func (s *stubNodeChannelLog) Append(_ context.Context, req channel.AppendRequest
 		return reply.result, reply.err
 	}
 	return s.appendResult, s.appendErr
+}
+
+func (s *stubNodeChannelLog) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	s.appendBatchCalls = append(s.appendBatchCalls, req)
+	return s.appendBatchResult, s.appendBatchErr
 }
 
 type stubNodeAppendReply struct {

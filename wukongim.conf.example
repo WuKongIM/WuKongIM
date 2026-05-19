@@ -250,6 +250,10 @@ WK_HEALTH_DEBUG_ENABLE=false
 
 # Optional: SEND worker count; non-positive uses an adaptive IO-wait-aware default.
 # WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS=0
+# Optional: SEND micro-batch collection. Negative wait disables waiting; non-positive bounds use defaults.
+# WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=500us
+# WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=128
+# WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES=524288
 # Optional: enable token authentication when verifier hooks are available.
 # WK_GATEWAY_TOKEN_AUTH_ON=false
 # Optional: gateway session safety and buffering defaults.

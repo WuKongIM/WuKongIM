@@ -36,6 +36,17 @@ func (d dispatcher) frame(state *sessionState, replyToken string, f frame.Frame)
 	return d.handler.OnFrame(d.context(state, replyToken, state.closeReason(), d.requestContext(state)), f)
 }
 
+func (d dispatcher) sendBatch(items []gatewaytypes.SendBatchItem) (bool, error) {
+	if d.handler == nil {
+		return false, nil
+	}
+	handler, ok := d.handler.(gatewaytypes.SendBatchHandler)
+	if !ok {
+		return false, nil
+	}
+	return true, handler.OnSendBatch(items)
+}
+
 func (d dispatcher) sessionError(state *sessionState, reason gatewaytypes.CloseReason, err error) {
 	if d.handler == nil || err == nil {
 		return

@@ -178,6 +178,34 @@ type AppendResult struct {
 	Message    Message
 }
 
+// AppendBatchRequest appends multiple messages to one channel in strict request order.
+type AppendBatchRequest struct {
+	ChannelID             ChannelID
+	Messages              []Message
+	SupportsMessageSeqU64 bool
+	// CommitMode defaults to CommitModeQuorum when unset.
+	CommitMode           CommitMode
+	ExpectedChannelEpoch uint64
+	ExpectedLeaderEpoch  uint64
+	// TraceID is the diagnostics trace identifier propagated with this append request.
+	TraceID string
+	// Attempt records the diagnostics-only append attempt number; it is not persisted or encoded.
+	Attempt int
+}
+
+// AppendBatchResult returns per-message append results aligned with the request.
+type AppendBatchResult struct {
+	Items []AppendBatchItemResult
+}
+
+// AppendBatchItemResult is one append result inside a batch.
+type AppendBatchItemResult struct {
+	MessageID  uint64
+	MessageSeq uint64
+	Message    Message
+	Err        error
+}
+
 type FetchRequest struct {
 	ChannelID            ChannelID
 	FromSeq              uint64

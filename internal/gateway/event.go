@@ -3,6 +3,8 @@ package gateway
 import gatewaytypes "github.com/WuKongIM/WuKongIM/internal/gateway/types"
 
 type Handler = gatewaytypes.Handler
+type SendBatchItem = gatewaytypes.SendBatchItem
+type SendBatchHandler = gatewaytypes.SendBatchHandler
 type SessionActivator = gatewaytypes.SessionActivator
 type Context = gatewaytypes.Context
 type Observer = gatewaytypes.Observer
