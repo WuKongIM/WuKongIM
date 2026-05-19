@@ -45,7 +45,7 @@ func sendStressAcceptancePreset() sendStressAcceptanceSpec {
 			CommitMode:           channel.CommitModeQuorum,
 		},
 		GatewaySendTimeout:               25 * time.Second,
-		FollowerReplicationRetryInterval: 250 * time.Millisecond,
+		FollowerReplicationRetryInterval: 10 * time.Millisecond,
 		AppendGroupCommitMaxWait:         2 * time.Millisecond,
 		AppendGroupCommitMaxRecords:      128,
 		AppendGroupCommitMaxBytes:        256 * 1024,
@@ -55,6 +55,26 @@ func sendStressAcceptancePreset() sendStressAcceptanceSpec {
 		DataPlaneMaxPendingFetch:         16,
 		MinISR:                           2,
 	}
+}
+
+// sendStressHighChannelThreeNodeAcceptancePreset keeps the baseline three-node cluster tuning
+// but raises channel cardinality to exercise ChannelID-based gateway sharding.
+func sendStressHighChannelThreeNodeAcceptancePreset() sendStressAcceptanceSpec {
+	preset := sendStressAcceptancePreset()
+	preset.Benchmark.Senders = 128
+	preset.Benchmark.MaxInflightPerWorker = 16
+	return preset
+}
+
+// sendStressSingleNodeClusterAcceptancePreset keeps cluster semantics while
+// reducing quorum requirements for a one-node send-path comparison.
+func sendStressSingleNodeClusterAcceptancePreset() sendStressAcceptanceSpec {
+	preset := sendStressAcceptancePreset()
+	preset.Benchmark.Senders = 64
+	preset.MinISR = 1
+	preset.AppendGroupCommitMaxWait = 200 * time.Microsecond
+	preset.CommitCoordinatorFlushWindow = 200 * time.Microsecond
+	return preset
 }
 
 func reserveTestTCPAddrs(t *testing.T, count int) map[uint64]string {

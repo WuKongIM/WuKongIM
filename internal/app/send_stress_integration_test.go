@@ -84,6 +84,93 @@ func TestSendStressThreeNode(t *testing.T) {
 	require.Len(t, records, int(outcome.Success))
 }
 
+func TestSendStressHighChannelThreeNode(t *testing.T) {
+	selection := selectSendStressHighChannelThreeNodeRun(t)
+	cfg := selection.cfg
+	preset := selection.preset
+
+	harness := newThreeNodeAppHarnessWithConfigMutator(t, func(appCfg *Config) {
+		if selection.useAcceptancePreset {
+			applySendPathTuning(t, appCfg, preset)
+		}
+	})
+	var traceCollector *sendTraceCollector
+	var restoreTraceSink func()
+	if envBool(sendTraceEnv, false) {
+		traceCollector = &sendTraceCollector{}
+	}
+	applySendStressCommitMode(t, harness, cfg.CommitMode)
+	leaderID := harness.waitForStableLeader(t, 1)
+	if traceCollector != nil {
+		restoreTraceSink = sendtrace.SetSink(traceCollector)
+		defer restoreTraceSink()
+	}
+	leader := harness.apps[leaderID]
+
+	targets := preloadSendStressTargets(t, harness, leader, cfg, selection.minISR, sendStressScenarioMultiTarget)
+	require.Equal(t, cfg.Senders, sendStressUniqueTargetCount(targets))
+	assertSendStressAcceptanceMinISR(t, harness, leader, targets, selection.minISR)
+	outcome, observed, records, failures := runSendStressWorkers(t, harness, targets, cfg, sendStressScenarioMultiTarget)
+	verifySendStressCommittedRecords(t, harness, records)
+	if cfg.Mode == sendStressModeThroughput {
+		t.Logf("send stress high-channel three-node vs pinned baseline: %s", compareSendStressBaseline(observed))
+	}
+	logSendStressTraceSummaries(t, traceCollector)
+
+	t.Logf("send stress high-channel three-node results: total=%d success=%d failed=%d error_rate=%.2f%%", outcome.Total, outcome.Success, outcome.Failed, outcome.ErrorRate())
+	if len(failures) > 0 {
+		t.Logf("send stress high-channel three-node failures: %s", strings.Join(failures, " | "))
+	}
+
+	require.NotZero(t, outcome.Total)
+	require.Equal(t, outcome.Total, outcome.Success)
+	require.Zero(t, outcome.Failed)
+	require.Len(t, records, int(outcome.Success))
+}
+
+func TestSendStressSingleNodeCluster(t *testing.T) {
+	selection := selectSendStressSingleNodeClusterRun(t)
+	cfg := selection.cfg
+	preset := selection.preset
+
+	harness := newSingleNodeClusterAppHarnessWithConfigMutator(t, func(appCfg *Config) {
+		if selection.useAcceptancePreset {
+			applySendPathTuning(t, appCfg, preset)
+		}
+	})
+	var traceCollector *sendTraceCollector
+	var restoreTraceSink func()
+	if envBool(sendTraceEnv, false) {
+		traceCollector = &sendTraceCollector{}
+	}
+	applySendStressCommitMode(t, harness, cfg.CommitMode)
+	leaderID := harness.waitForStableLeader(t, 1)
+	if traceCollector != nil {
+		restoreTraceSink = sendtrace.SetSink(traceCollector)
+		defer restoreTraceSink()
+	}
+	leader := harness.apps[leaderID]
+
+	targets := preloadSendStressTargets(t, harness, leader, cfg, selection.minISR, sendStressScenarioMultiTarget)
+	assertSendStressAcceptanceMinISR(t, harness, leader, targets, selection.minISR)
+	outcome, observed, records, failures := runSendStressWorkers(t, harness, targets, cfg, sendStressScenarioMultiTarget)
+	verifySendStressCommittedRecords(t, harness, records)
+	if cfg.Mode == sendStressModeThroughput {
+		t.Logf("send stress single-node cluster vs pinned three-node baseline: %s", compareSendStressBaseline(observed))
+	}
+	logSendStressTraceSummaries(t, traceCollector)
+
+	t.Logf("send stress single-node cluster results: total=%d success=%d failed=%d error_rate=%.2f%%", outcome.Total, outcome.Success, outcome.Failed, outcome.ErrorRate())
+	if len(failures) > 0 {
+		t.Logf("send stress single-node cluster failures: %s", strings.Join(failures, " | "))
+	}
+
+	require.NotZero(t, outcome.Total)
+	require.Equal(t, outcome.Total, outcome.Success)
+	require.Zero(t, outcome.Failed)
+	require.Len(t, records, int(outcome.Success))
+}
+
 func TestSendStressSingleHotChannelThreeNode(t *testing.T) {
 	selection := selectSendStressThreeNodeRun(t)
 	cfg := selection.cfg
@@ -220,6 +307,8 @@ func preloadSendStressTargets(t *testing.T, harness *threeNodeAppHarness, leader
 	require.NotZero(t, cfg.Senders)
 
 	leaderID := leader.cfg.Node.ID
+	replicaNodeIDs := sendStressHarnessNodeIDs(harness)
+	require.Contains(t, replicaNodeIDs, leaderID)
 	targets := make([]sendStressTarget, 0, cfg.Senders)
 	upsertMeta := func(channelID string, channelType uint8, channelEpoch uint64) {
 		t.Helper()
@@ -229,8 +318,8 @@ func preloadSendStressTargets(t *testing.T, harness *threeNodeAppHarness, leader
 			ChannelType:  int64(channelType),
 			ChannelEpoch: channelEpoch,
 			LeaderEpoch:  channelEpoch,
-			Replicas:     []uint64{1, 2, 3},
-			ISR:          []uint64{1, 2, 3},
+			Replicas:     append([]uint64(nil), replicaNodeIDs...),
+			ISR:          append([]uint64(nil), replicaNodeIDs...),
 			Leader:       leaderID,
 			MinISR:       int64(minISR),
 			Status:       uint8(channel.StatusActive),
@@ -345,6 +434,20 @@ func preloadSendStressTargets(t *testing.T, harness *threeNodeAppHarness, leader
 		t.Fatalf("unknown send stress scenario %q", scenario)
 	}
 	return targets
+}
+
+func sendStressHarnessNodeIDs(harness *threeNodeAppHarness) []uint64 {
+	if harness == nil {
+		return nil
+	}
+	apps := harness.orderedApps()
+	ids := make([]uint64, 0, len(apps))
+	for _, app := range apps {
+		if app != nil {
+			ids = append(ids, app.cfg.Node.ID)
+		}
+	}
+	return ids
 }
 
 func runSendStressWorkers(t *testing.T, harness *threeNodeAppHarness, targets []sendStressTarget, cfg sendStressConfig, scenario sendStressScenario) (sendStressOutcome, sendStressObservedMetrics, []sendStressRecord, []string) {
@@ -817,6 +920,9 @@ func logSendStressTraceSummaries(t *testing.T, collector *sendTraceCollector) {
 		sendtrace.StageReplicaLeaderDurableAppend,
 		sendtrace.StageReplicaLeaderQuorumWait,
 		sendtrace.StageReplicaFollowerApplyDurable,
+		sendtrace.StageRuntimeLanePollRequestSend,
+		sendtrace.StageRuntimeLaneCursorDeltaSend,
+		sendtrace.StageRuntimeFollowerRetryScheduled,
 		sendtrace.StageStoreCommitQueueWait,
 		sendtrace.StageStoreCommitBatchCollect,
 		sendtrace.StageStoreCommitPebbleSync,
