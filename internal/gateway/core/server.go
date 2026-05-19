@@ -527,7 +527,7 @@ func (s *Server) dispatchInboundFrames(listener *listenerRuntime, state *session
 			continue
 		}
 		s.observeFrameIn(state, f)
-		if send, ok := asyncSendPacket(f); ok {
+		if send, ok := isSendPacket(f); ok {
 			s.dispatchSendFrameAsync(state, replyToken, send)
 			continue
 		}
@@ -540,7 +540,7 @@ func (s *Server) dispatchInboundFrames(listener *listenerRuntime, state *session
 	}
 }
 
-func asyncSendPacket(f frame.Frame) (*frame.SendPacket, bool) {
+func isSendPacket(f frame.Frame) (*frame.SendPacket, bool) {
 	send, ok := f.(*frame.SendPacket)
 	if !ok {
 		return nil, false

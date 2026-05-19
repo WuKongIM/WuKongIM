@@ -903,6 +903,59 @@ func TestSelectSendStressThreeNodeRunUsesAcceptancePresetWhenOnlyOptedIn(t *test
 	require.Equal(t, expected, selection.cfg)
 }
 
+func TestSelectSendStressSingleNodeClusterRunUsesAcceptancePresetWhenOnlyOptedIn(t *testing.T) {
+	clearSendStressConfigEnv(t)
+	t.Setenv(sendStressEnv, "1")
+
+	selection := selectSendStressSingleNodeClusterRun(t)
+	preset := sendStressSingleNodeClusterAcceptancePreset()
+
+	require.True(t, selection.useAcceptancePreset)
+	require.Equal(t, preset.Benchmark.Mode, selection.cfg.Mode)
+	require.Equal(t, preset.Benchmark.Duration, selection.cfg.Duration)
+	require.Equal(t, preset.Benchmark.Workers, selection.cfg.Workers)
+	require.Equal(t, preset.Benchmark.Senders, selection.cfg.Senders)
+	require.Equal(t, 64, selection.cfg.Senders)
+	require.Equal(t, preset.Benchmark.MessagesPerWorker, selection.cfg.MessagesPerWorker)
+	require.Equal(t, preset.Benchmark.MaxInflightPerWorker, selection.cfg.MaxInflightPerWorker)
+	require.Equal(t, preset.Benchmark.DialTimeout, selection.cfg.DialTimeout)
+	require.Equal(t, preset.Benchmark.AckTimeout, selection.cfg.AckTimeout)
+	require.EqualValues(t, preset.Benchmark.Seed, selection.cfg.Seed)
+	require.Equal(t, preset.Benchmark.CommitMode, selection.cfg.CommitMode)
+	require.Equal(t, 1, selection.minISR)
+	require.Equal(t, preset.MinISR, selection.preset.MinISR)
+	require.Equal(t, preset.AppendGroupCommitMaxWait, selection.preset.AppendGroupCommitMaxWait)
+	require.Equal(t, preset.CommitCoordinatorFlushWindow, selection.preset.CommitCoordinatorFlushWindow)
+	expected := preset.Benchmark
+	expected.Enabled = true
+	require.Equal(t, expected, selection.cfg)
+}
+
+func TestSelectSendStressHighChannelThreeNodeRunUsesAcceptancePresetWhenOnlyOptedIn(t *testing.T) {
+	clearSendStressConfigEnv(t)
+	t.Setenv(sendStressEnv, "1")
+
+	selection := selectSendStressHighChannelThreeNodeRun(t)
+	preset := sendStressHighChannelThreeNodeAcceptancePreset()
+
+	require.True(t, selection.useAcceptancePreset)
+	require.Equal(t, preset.Benchmark.Mode, selection.cfg.Mode)
+	require.Equal(t, preset.Benchmark.Duration, selection.cfg.Duration)
+	require.Equal(t, preset.Benchmark.Workers, selection.cfg.Workers)
+	require.Equal(t, preset.Benchmark.Senders, selection.cfg.Senders)
+	require.Equal(t, 128, selection.cfg.Senders)
+	require.Equal(t, 16, selection.cfg.MaxInflightPerWorker)
+	require.Equal(t, preset.Benchmark.MessagesPerWorker, selection.cfg.MessagesPerWorker)
+	require.Equal(t, preset.Benchmark.DialTimeout, selection.cfg.DialTimeout)
+	require.Equal(t, preset.Benchmark.AckTimeout, selection.cfg.AckTimeout)
+	require.EqualValues(t, preset.Benchmark.Seed, selection.cfg.Seed)
+	require.Equal(t, preset.Benchmark.CommitMode, selection.cfg.CommitMode)
+	require.Equal(t, preset.MinISR, selection.minISR)
+	expected := preset.Benchmark
+	expected.Enabled = true
+	require.Equal(t, expected, selection.cfg)
+}
+
 func TestSelectSendStressThreeNodeRunKeepsAcceptancePresetWhenOnlyCommitModeChanges(t *testing.T) {
 	clearSendStressConfigEnv(t)
 	t.Setenv(sendStressEnv, "1")
@@ -1538,7 +1591,7 @@ func selectSendStressThreeNodeRun(t *testing.T) sendStressThreeNodeRunSelection 
 	expectedAcceptance := preset.Benchmark
 	expectedAcceptance.Enabled = true
 
-	if !sendStressThreeNodeHasExplicitTuningEnv() || cfg == expectedAcceptance {
+	if !sendStressHasExplicitTuningEnv() || cfg == expectedAcceptance {
 		commitMode := cfg.CommitMode
 		cfg = expectedAcceptance
 		cfg.CommitMode = commitMode
@@ -1558,6 +1611,66 @@ func selectSendStressThreeNodeRun(t *testing.T) sendStressThreeNodeRunSelection 
 	}
 }
 
+func selectSendStressHighChannelThreeNodeRun(t *testing.T) sendStressThreeNodeRunSelection {
+	t.Helper()
+
+	preset := sendStressHighChannelThreeNodeAcceptancePreset()
+	cfg := loadSendStressConfig(t)
+	requireSendStressEnabled(t, cfg)
+
+	expectedAcceptance := preset.Benchmark
+	expectedAcceptance.Enabled = true
+
+	if !sendStressHasExplicitTuningEnv() || cfg == expectedAcceptance {
+		commitMode := cfg.CommitMode
+		cfg = expectedAcceptance
+		cfg.CommitMode = commitMode
+		return sendStressThreeNodeRunSelection{
+			cfg:                 cfg,
+			preset:              preset,
+			minISR:              preset.MinISR,
+			useAcceptancePreset: true,
+		}
+	}
+
+	return sendStressThreeNodeRunSelection{
+		cfg:                 cfg,
+		preset:              preset,
+		minISR:              3,
+		useAcceptancePreset: false,
+	}
+}
+
+func selectSendStressSingleNodeClusterRun(t *testing.T) sendStressSingleNodeClusterRunSelection {
+	t.Helper()
+
+	preset := sendStressSingleNodeClusterAcceptancePreset()
+	cfg := loadSendStressConfig(t)
+	requireSendStressEnabled(t, cfg)
+
+	expectedAcceptance := preset.Benchmark
+	expectedAcceptance.Enabled = true
+
+	if !sendStressHasExplicitTuningEnv() || cfg == expectedAcceptance {
+		commitMode := cfg.CommitMode
+		cfg = expectedAcceptance
+		cfg.CommitMode = commitMode
+		return sendStressSingleNodeClusterRunSelection{
+			cfg:                 cfg,
+			preset:              preset,
+			minISR:              1,
+			useAcceptancePreset: true,
+		}
+	}
+
+	return sendStressSingleNodeClusterRunSelection{
+		cfg:                 cfg,
+		preset:              preset,
+		minISR:              1,
+		useAcceptancePreset: false,
+	}
+}
+
 type sendStressThreeNodeRunSelection struct {
 	cfg                 sendStressConfig
 	preset              sendStressAcceptanceSpec
@@ -1565,7 +1678,14 @@ type sendStressThreeNodeRunSelection struct {
 	useAcceptancePreset bool
 }
 
-func sendStressThreeNodeHasExplicitTuningEnv() bool {
+type sendStressSingleNodeClusterRunSelection struct {
+	cfg                 sendStressConfig
+	preset              sendStressAcceptanceSpec
+	minISR              int
+	useAcceptancePreset bool
+}
+
+func sendStressHasExplicitTuningEnv() bool {
 	for _, name := range []string{
 		sendStressModeEnv,
 		sendStressDurationEnv,

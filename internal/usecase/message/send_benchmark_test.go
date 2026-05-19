@@ -1,0 +1,169 @@
+package message
+
+import (
+	"context"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
+	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
+)
+
+func BenchmarkSend(b *testing.B) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name string
+		env  func(*testing.B) (*App, SendCommand)
+	}{
+		{name: "person_durable_hot_meta", env: newBenchPersonDurableHotMeta},
+		{name: "group_durable_permission_cache", env: newBenchGroupDurablePermissionCache},
+		{name: "request_scoped_realtime", env: newBenchRequestScopedRealtime},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			app, cmd := tc.env(b)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				cmd.ClientSeq = uint64(i + 1)
+				cmd.ClientMsgNo = "bench-" + strconv.Itoa(i)
+				result, err := app.Send(ctx, cmd)
+				if err != nil {
+					b.Fatal(err)
+				}
+				if result.Reason != frame.ReasonSuccess {
+					b.Fatalf("Send().Reason = %v, want %v", result.Reason, frame.ReasonSuccess)
+				}
+			}
+		})
+	}
+}
+
+func newBenchPersonDurableHotMeta(b *testing.B) (*App, SendCommand) {
+	b.Helper()
+	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
+	cluster := &benchmarkChannelCluster{}
+	app := New(Options{
+		Now:                 fixedNowFn,
+		Cluster:             cluster,
+		MetaRefresher:       benchmarkMetaRefresher{meta: benchmarkChannelMeta(channel.ChannelID{ID: channelID, Type: frame.ChannelTypePerson})},
+		CommittedDispatcher: benchmarkCommittedDispatcher{},
+		LocalNodeID:         1,
+	})
+	cmd := benchmarkSendCommand("u1", "u2", frame.ChannelTypePerson)
+	return app, cmd
+}
+
+func newBenchGroupDurablePermissionCache(b *testing.B) (*App, SendCommand) {
+	b.Helper()
+	permissions := newFakePermissionStore()
+	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
+		ChannelID:   "g1",
+		ChannelType: int64(frame.ChannelTypeGroup),
+	}
+	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
+	cluster := &benchmarkChannelCluster{}
+	app := New(Options{
+		Now:                 fixedNowFn,
+		Cluster:             cluster,
+		MetaRefresher:       benchmarkMetaRefresher{meta: benchmarkChannelMeta(channel.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup})},
+		CommittedDispatcher: benchmarkCommittedDispatcher{},
+		PermissionStore:     permissions,
+		PermissionCacheTTL:  benchmarkPermissionCacheTTL,
+		LocalNodeID:         1,
+	})
+	cmd := benchmarkSendCommand("u1", "g1", frame.ChannelTypeGroup)
+	return app, cmd
+}
+
+func newBenchRequestScopedRealtime(b *testing.B) (*App, SendCommand) {
+	b.Helper()
+	app := New(Options{
+		Now:                fixedNowFn,
+		MessageIDs:         &benchmarkMessageIDGenerator{},
+		RealtimeDispatcher: benchmarkRealtimeDispatcher{},
+	})
+	cmd := SendCommand{
+		Framer:             frame.Framer{NoPersist: true, SyncOnce: true},
+		FromUID:            "system",
+		RequestSubscribers: []string{"u1", "u2", "u3", "u2"},
+		Payload:            benchmarkSendPayload,
+		Topic:              "bench-topic",
+	}
+	return app, cmd
+}
+
+var benchmarkSendPayload = []byte("send benchmark payload")
+
+const benchmarkPermissionCacheTTL = 60 * time.Second
+
+func benchmarkSendCommand(fromUID, channelID string, channelType uint8) SendCommand {
+	return SendCommand{
+		FromUID:     fromUID,
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		Payload:     benchmarkSendPayload,
+		Topic:       "bench-topic",
+	}
+}
+
+func benchmarkChannelMeta(id channel.ChannelID) channel.Meta {
+	return channel.Meta{
+		ID:          id,
+		Epoch:       1,
+		LeaderEpoch: 1,
+		Leader:      1,
+		Replicas:    []channel.NodeID{1},
+		ISR:         []channel.NodeID{1},
+		MinISR:      1,
+		Status:      channel.StatusActive,
+	}
+}
+
+type benchmarkChannelCluster struct {
+	messageID  uint64
+	messageSeq uint64
+}
+
+func (c *benchmarkChannelCluster) ApplyMeta(channel.Meta) error { return nil }
+
+func (c *benchmarkChannelCluster) Append(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
+	c.messageID++
+	c.messageSeq++
+	msg := req.Message
+	msg.MessageID = c.messageID
+	msg.MessageSeq = c.messageSeq
+	return channel.AppendResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}, nil
+}
+
+type benchmarkMetaRefresher struct {
+	meta channel.Meta
+}
+
+func (r benchmarkMetaRefresher) RefreshChannelMeta(context.Context, channel.ChannelID) (channel.Meta, error) {
+	return r.meta, nil
+}
+
+type benchmarkCommittedDispatcher struct{}
+
+func (benchmarkCommittedDispatcher) SubmitCommitted(context.Context, messageevents.MessageCommitted) error {
+	return nil
+}
+
+type benchmarkRealtimeDispatcher struct{}
+
+func (benchmarkRealtimeDispatcher) SubmitRealtime(context.Context, messageevents.MessageRealtime) error {
+	return nil
+}
+
+type benchmarkMessageIDGenerator struct {
+	next uint64
+}
+
+func (g *benchmarkMessageIDGenerator) Next() uint64 {
+	g.next++
+	return g.next
+}

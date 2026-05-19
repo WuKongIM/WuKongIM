@@ -171,6 +171,44 @@ func newThreeNodeAppHarness(t *testing.T) *threeNodeAppHarness {
 	return newThreeNodeAppHarnessWithOptions(t, 1, 3, nil)
 }
 
+// newSingleNodeClusterAppHarnessWithConfigMutator starts one node with cluster
+// semantics so send-path stress tests can compare it with the three-node path.
+func newSingleNodeClusterAppHarnessWithConfigMutator(t *testing.T, mutate func(*Config)) *threeNodeAppHarness {
+	t.Helper()
+
+	cfg := testConfig(t)
+	cfg.Cluster.TickInterval = 10 * time.Millisecond
+	cfg.Cluster.ElectionTick = 10
+	cfg.Cluster.HeartbeatTick = 1
+	cfg.Cluster.ForwardTimeout = 2 * time.Second
+	cfg.Cluster.DialTimeout = 2 * time.Second
+	cfg.Cluster.PoolSize = 1
+	cfg.Cluster.DataPlanePoolSize = 8
+	cfg.Cluster.DataPlaneMaxFetchInflight = 16
+	cfg.Cluster.DataPlaneMaxPendingFetch = 16
+	cfg.API.ListenAddr = "127.0.0.1:0"
+	if mutate != nil {
+		mutate(&cfg)
+	}
+	applySendStressCommitCoordinatorEnvTuning(&cfg)
+
+	app, err := New(cfg)
+	require.NoError(t, err)
+	require.NoError(t, app.Start())
+	t.Cleanup(func() {
+		require.NoError(t, app.Stop())
+	})
+
+	return &threeNodeAppHarness{
+		apps: map[uint64]*App{
+			cfg.Node.ID: app,
+		},
+		specs: map[uint64]appNodeSpec{
+			cfg.Node.ID: {cfg: cfg},
+		},
+	}
+}
+
 func newThreeNodeManagedAppHarness(t *testing.T) *threeNodeAppHarness {
 	return newThreeNodeManagedAppHarnessWithLayout(t, 1, 3)
 }
