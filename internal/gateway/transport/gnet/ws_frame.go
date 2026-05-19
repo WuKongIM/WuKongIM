@@ -22,6 +22,8 @@ const (
 	wsCloseInvalidData   = 1007
 )
 
+const wsMaxFrameHeaderBytes = 14
+
 var errWSNeedMoreData = errors.New("need more websocket data")
 
 type wsFrame struct {
@@ -30,6 +32,12 @@ type wsFrame struct {
 	masked  bool
 	maskKey [4]byte
 	payload []byte
+}
+
+// wsWritevFrame keeps the generated frame header and iovec slice alive until gnet consumes AsyncWritev.
+type wsWritevFrame struct {
+	header [wsMaxFrameHeaderBytes]byte
+	bufs   [2][]byte
 }
 
 type wsProtocolError struct {
@@ -60,6 +68,10 @@ func wsCloseCodeForErr(err error) uint16 {
 }
 
 func decodeWSFrame(buf []byte) (wsFrame, int, error) {
+	return decodeWSFrameWithLimit(buf, 0)
+}
+
+func decodeWSFrameWithLimit(buf []byte, maxPayloadBytes int) (wsFrame, int, error) {
 	if len(buf) < 2 {
 		return wsFrame{}, 0, errWSNeedMoreData
 	}
@@ -90,6 +102,9 @@ func decodeWSFrame(buf []byte) (wsFrame, int, error) {
 		payloadLen = int(payloadLen64)
 		offset += 8
 	}
+	if maxPayloadBytes > 0 && payloadLen > maxPayloadBytes {
+		return wsFrame{}, 0, ErrPendingBytesExceeded
+	}
 
 	frame := wsFrame{
 		final:  first&0x80 != 0,
@@ -109,7 +124,7 @@ func decodeWSFrame(buf []byte) (wsFrame, int, error) {
 		return wsFrame{}, 0, errWSNeedMoreData
 	}
 
-	frame.payload = append([]byte(nil), buf[offset:offset+payloadLen]...)
+	frame.payload = buf[offset : offset+payloadLen]
 	if frame.masked {
 		for i := range frame.payload {
 			frame.payload[i] ^= frame.maskKey[i%4]
@@ -129,10 +144,6 @@ func decodeWSFrame(buf []byte) (wsFrame, int, error) {
 }
 
 func encodeWSFrame(frame wsFrame) ([]byte, error) {
-	if isWSControlOpcode(frame.opcode) && len(frame.payload) > 125 {
-		return nil, fmt.Errorf("gateway/transport/gnet: websocket control frame payload is too large")
-	}
-
 	payloadLen := len(frame.payload)
 	headerLen := 2
 	switch {
@@ -142,32 +153,55 @@ func encodeWSFrame(frame wsFrame) ([]byte, error) {
 	default:
 		headerLen += 8
 	}
+
+	buf := make([]byte, 0, headerLen+payloadLen)
+	buf, err := appendWSFrameHeader(buf, frame)
+	if err != nil {
+		return nil, err
+	}
+	buf = append(buf, frame.payload...)
+	return buf, nil
+}
+
+func buildWSWritevFrame(frame wsFrame, writev *wsWritevFrame) error {
+	if writev == nil {
+		return fmt.Errorf("gateway/transport/gnet: websocket writev frame is nil")
+	}
+	header, err := appendWSFrameHeader(writev.header[:0], frame)
+	if err != nil {
+		return err
+	}
+	writev.bufs[0] = header
+	writev.bufs[1] = frame.payload
+	return nil
+}
+
+func appendWSFrameHeader(dst []byte, frame wsFrame) ([]byte, error) {
+	if isWSControlOpcode(frame.opcode) && len(frame.payload) > 125 {
+		return nil, fmt.Errorf("gateway/transport/gnet: websocket control frame payload is too large")
+	}
 	if frame.masked {
-		headerLen += 4
+		return nil, fmt.Errorf("gateway/transport/gnet: masked websocket server frames are not supported")
 	}
 
-	buf := make([]byte, headerLen+payloadLen)
-	buf[0] = frame.opcode
+	payloadLen := len(frame.payload)
+	start := len(dst)
+	dst = append(dst, frame.opcode)
 	if frame.final {
-		buf[0] |= 0x80
+		dst[start] |= 0x80
 	}
 
-	offset := 2
 	switch {
 	case payloadLen < 126:
-		buf[1] = byte(payloadLen)
+		dst = append(dst, byte(payloadLen))
 	case payloadLen <= 0xffff:
-		buf[1] = 126
-		binary.BigEndian.PutUint16(buf[offset:offset+2], uint16(payloadLen))
-		offset += 2
+		dst = append(dst, 126, 0, 0)
+		binary.BigEndian.PutUint16(dst[len(dst)-2:], uint16(payloadLen))
 	default:
-		buf[1] = 127
-		binary.BigEndian.PutUint64(buf[offset:offset+8], uint64(payloadLen))
-		offset += 8
+		dst = append(dst, 127, 0, 0, 0, 0, 0, 0, 0, 0)
+		binary.BigEndian.PutUint64(dst[len(dst)-8:], uint64(payloadLen))
 	}
-
-	copy(buf[offset:], frame.payload)
-	return buf, nil
+	return dst, nil
 }
 
 func buildWSCloseFrame(code uint16, text string) []byte {

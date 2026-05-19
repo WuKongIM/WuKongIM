@@ -46,8 +46,7 @@ func TestServerAsyncSendDispatchUsesBoundedWorkers(t *testing.T) {
 		},
 	}
 	srv, transportFactory := newBenchmarkGatewayServer(t, handler, proto, gateway.SessionOptions{
-		AsyncSendDispatch: true,
-		IdleTimeout:       -1,
+		IdleTimeout: -1,
 	})
 	if err := srv.Start(); err != nil {
 		t.Fatalf("start failed: %v", err)
@@ -118,57 +117,46 @@ func BenchmarkServerOpenIdleSessionBatch(b *testing.B) {
 }
 
 func BenchmarkServerSendDispatch(b *testing.B) {
-	for _, tc := range []struct {
-		name      string
-		asyncSend bool
-	}{
-		{name: "sync", asyncSend: false},
-		{name: "async", asyncSend: true},
-	} {
-		b.Run(tc.name, func(b *testing.B) {
-			handler := &benchmarkGatewayHandler{}
-			proto := &benchmarkGatewayProtocol{
-				name: benchmarkProtocolName,
-				frame: &frame.SendPacket{
-					ClientSeq:   1,
-					ClientMsgNo: "bench-client-message",
-					ChannelID:   "bench-channel",
-					ChannelType: 2,
-					Payload:     make([]byte, 128),
-				},
-			}
-			srv, transportFactory := newBenchmarkGatewayServer(b, handler, proto, gateway.SessionOptions{
-				AsyncSendDispatch: tc.asyncSend,
-				IdleTimeout:       -1,
-			})
-			if err := srv.Start(); err != nil {
-				b.Fatalf("start failed: %v", err)
-			}
-			defer func() {
-				if err := srv.Stop(); err != nil {
-					b.Fatalf("stop failed: %v", err)
-				}
-			}()
-
-			conn := transportFactory.MustOpen(benchmarkListenerName, 1)
-			payload := []byte("x")
-
-			b.ReportAllocs()
-			b.ResetTimer()
-			for sent := 0; sent < b.N; {
-				burst := min(1024, b.N-sent)
-				handler.expectFrames(burst)
-				for i := 0; i < burst; i++ {
-					if err := conn.EmitData(payload); err != nil {
-						b.Fatalf("emit data failed: %v", err)
-					}
-				}
-				handler.waitFrames()
-				sent += burst
-			}
-			b.StopTimer()
-		})
+	handler := &benchmarkGatewayHandler{}
+	proto := &benchmarkGatewayProtocol{
+		name: benchmarkProtocolName,
+		frame: &frame.SendPacket{
+			ClientSeq:   1,
+			ClientMsgNo: "bench-client-message",
+			ChannelID:   "bench-channel",
+			ChannelType: 2,
+			Payload:     make([]byte, 128),
+		},
 	}
+	srv, transportFactory := newBenchmarkGatewayServer(b, handler, proto, gateway.SessionOptions{
+		IdleTimeout: -1,
+	})
+	if err := srv.Start(); err != nil {
+		b.Fatalf("start failed: %v", err)
+	}
+	defer func() {
+		if err := srv.Stop(); err != nil {
+			b.Fatalf("stop failed: %v", err)
+		}
+	}()
+
+	conn := transportFactory.MustOpen(benchmarkListenerName, 1)
+	payload := []byte("x")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for sent := 0; sent < b.N; {
+		burst := min(1024, b.N-sent)
+		handler.expectFrames(burst)
+		for i := 0; i < burst; i++ {
+			if err := conn.EmitData(payload); err != nil {
+				b.Fatalf("emit data failed: %v", err)
+			}
+		}
+		handler.waitFrames()
+		sent += burst
+	}
+	b.StopTimer()
 }
 
 func measureGatewaySessionGoroutines(t *testing.T, sessions int, idleTimeout time.Duration) int {
@@ -187,7 +175,7 @@ func measureGatewaySessionGoroutines(t *testing.T, sessions int, idleTimeout tim
 		transportFactory.MustOpen(benchmarkListenerName, uint64(i+1))
 	}
 	waitForTesting(t, func() bool {
-		return runtime.NumGoroutine() >= base+sessions
+		return srv.SessionSummary().GatewaySessions == sessions
 	})
 	added := runtime.NumGoroutine() - base
 	if err := srv.Stop(); err != nil {

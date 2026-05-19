@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -12,34 +13,73 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
-func TestServerAsyncSendDispatchFallsBackWhenQueueFull(t *testing.T) {
+func TestServerAsyncSendDispatchRejectsWhenQueueFull(t *testing.T) {
 	handler := &countingAsyncFrameHandler{}
 	srv := &Server{dispatcher: newDispatcher(handler)}
-	queue := newAsyncDispatchQueue(1)
+	queue := newAsyncDispatchQueueWithCapacity(1, 1)
 	srv.asyncDispatch = queue
-	queue.tasks <- asyncDispatchTask{}
+	queue.shards[0].tasks <- asyncDispatchTask{}
 	state := &sessionState{
 		server:         srv,
 		closedCh:       make(chan struct{}),
 		requestContext: context.Background(),
 	}
+	state.markOpenDispatched()
 
 	done := make(chan struct{})
 	go func() {
-		srv.dispatchFrameAsync(state, "", &frame.SendPacket{})
+		srv.dispatchSendFrameAsync(state, "", &frame.SendPacket{})
 		close(done)
 	}()
 
 	select {
 	case <-done:
 	case <-time.After(20 * time.Millisecond):
-		<-queue.tasks
+		<-queue.shards[0].tasks
 		<-done
-		t.Fatal("dispatchFrameAsync blocked when async queue was full")
+		t.Fatal("dispatchSendFrameAsync blocked when async queue was full")
 	}
 
-	if got := handler.frames.Load(); got != 1 {
-		t.Fatalf("handler frames = %d, want fallback synchronous dispatch", got)
+	if got := handler.frames.Load(); got != 0 {
+		t.Fatalf("handler frames = %d, want async queue full rejection without synchronous fallback", got)
+	}
+	if !state.isClosed() {
+		t.Fatal("state was not closed after async queue overflow")
+	}
+	errs := handler.sessionErrors()
+	if len(errs) != 1 || !errors.Is(errs[0], gatewaytypes.ErrAsyncDispatchQueueFull) {
+		t.Fatalf("session errors = %v, want ErrAsyncDispatchQueueFull", errs)
+	}
+	reasons := handler.closeReasons()
+	if len(reasons) == 0 || reasons[0] != gatewaytypes.CloseReasonAsyncDispatchQueueFull {
+		t.Fatalf("close reasons = %v, want %q", reasons, gatewaytypes.CloseReasonAsyncDispatchQueueFull)
+	}
+}
+
+func TestServerAsyncSendDispatchRejectsFullQueueBeforePayloadClone(t *testing.T) {
+	srv := &Server{dispatcher: newDispatcher(&countingAsyncFrameHandler{})}
+	queue := newAsyncDispatchQueueWithCapacity(1, 1)
+	srv.asyncDispatch = queue
+	queue.shards[0].tasks <- asyncDispatchTask{}
+
+	payload := make([]byte, 64*1024)
+	packet := &frame.SendPacket{Payload: payload}
+	newState := func() *sessionState {
+		return &sessionState{
+			server:         srv,
+			closedCh:       make(chan struct{}),
+			requestContext: context.Background(),
+		}
+	}
+
+	baseline := testing.AllocsPerRun(1000, func() {
+		newState().close(gatewaytypes.CloseReasonAsyncDispatchQueueFull, gatewaytypes.ErrAsyncDispatchQueueFull)
+	})
+	actual := testing.AllocsPerRun(1000, func() {
+		srv.dispatchSendFrameAsync(newState(), "", packet)
+	})
+	if actual > baseline+0.5 {
+		t.Fatalf("allocs = %.2f, want near close baseline %.2f; full async queue should not clone payload", actual, baseline)
 	}
 }
 
@@ -47,7 +87,6 @@ func TestServerAsyncSendDispatchUsesConfiguredWorkerCount(t *testing.T) {
 	srv := &Server{
 		options: gatewaytypes.Options{
 			DefaultSession: gatewaytypes.SessionOptions{
-				AsyncSendDispatch:        true,
 				AsyncSendDispatchWorkers: 4,
 			},
 		},
@@ -58,8 +97,13 @@ func TestServerAsyncSendDispatchUsesConfiguredWorkerCount(t *testing.T) {
 	if queue == nil {
 		t.Fatal("async dispatcher was not started")
 	}
-	if got, want := cap(queue.tasks), 4*asyncDispatchQueuePerWorker; got != want {
-		t.Fatalf("async dispatch queue capacity = %d, want %d", got, want)
+	if got, want := len(queue.shards), 4; got != want {
+		t.Fatalf("async dispatch shards = %d, want %d", got, want)
+	}
+	for i, shard := range queue.shards {
+		if got, want := cap(shard.tasks), asyncDispatchQueuePerWorker; got != want {
+			t.Fatalf("async dispatch shard %d capacity = %d, want %d", i, got, want)
+		}
 	}
 
 	queue.close()
@@ -122,6 +166,10 @@ func TestRecordAsyncDispatchWaitIncludesSendClientMsgNo(t *testing.T) {
 
 type countingAsyncFrameHandler struct {
 	frames atomic.Uint64
+
+	mu          sync.Mutex
+	sessionErrs []error
+	closeLog    []gatewaytypes.CloseReason
 }
 
 type recordingSendTraceSink struct {
@@ -149,31 +197,56 @@ func (h *countingAsyncFrameHandler) OnFrame(*gatewaytypes.Context, frame.Frame) 
 	h.frames.Add(1)
 	return nil
 }
-func (h *countingAsyncFrameHandler) OnSessionClose(*gatewaytypes.Context) error {
+func (h *countingAsyncFrameHandler) OnSessionClose(ctx *gatewaytypes.Context) error {
+	if ctx != nil {
+		h.mu.Lock()
+		h.closeLog = append(h.closeLog, ctx.CloseReason)
+		h.mu.Unlock()
+	}
 	return nil
 }
-func (h *countingAsyncFrameHandler) OnSessionError(*gatewaytypes.Context, error) {}
+func (h *countingAsyncFrameHandler) OnSessionError(ctx *gatewaytypes.Context, err error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.sessionErrs = append(h.sessionErrs, err)
+	if ctx != nil {
+		h.closeLog = append(h.closeLog, ctx.CloseReason)
+	}
+}
 
-func BenchmarkServerAsyncSendDispatchQueueFullFallback(b *testing.B) {
+func (h *countingAsyncFrameHandler) sessionErrors() []error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]error(nil), h.sessionErrs...)
+}
+
+func (h *countingAsyncFrameHandler) closeReasons() []gatewaytypes.CloseReason {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]gatewaytypes.CloseReason(nil), h.closeLog...)
+}
+
+func BenchmarkServerAsyncSendDispatchQueueFullReject(b *testing.B) {
 	handler := &countingAsyncFrameHandler{}
 	srv := &Server{dispatcher: newDispatcher(handler)}
-	queue := newAsyncDispatchQueue(1)
+	queue := newAsyncDispatchQueueWithCapacity(1, 1)
 	srv.asyncDispatch = queue
-	queue.tasks <- asyncDispatchTask{}
+	queue.shards[0].tasks <- asyncDispatchTask{}
 	state := &sessionState{
 		server:         srv,
 		closedCh:       make(chan struct{}),
 		requestContext: context.Background(),
 	}
+	state.markOpenDispatched()
 	packet := &frame.SendPacket{}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		srv.dispatchFrameAsync(state, "", packet)
+		srv.dispatchSendFrameAsync(state, "", packet)
 	}
 	b.StopTimer()
-	if got := handler.frames.Load(); got != uint64(b.N) {
-		b.Fatalf("handler frames = %d, want %d", got, b.N)
+	if got := handler.frames.Load(); got != 0 {
+		b.Fatalf("handler frames = %d, want 0", got)
 	}
 }

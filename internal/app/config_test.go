@@ -132,7 +132,6 @@ func supportedConfigExampleKeys() []string {
 		"WK_EXTERNAL_TCPADDR",
 		"WK_EXTERNAL_WSADDR",
 		"WK_EXTERNAL_WSSADDR",
-		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH",
 		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS",
 		"WK_GATEWAY_DEFAULT_SESSION_CLOSE_ON_HANDLER_ERROR",
 		"WK_GATEWAY_DEFAULT_SESSION_IDLE_TIMEOUT",
@@ -736,6 +735,51 @@ func TestConfigGatewayDefaultsSendTimeout(t *testing.T) {
 
 	require.NoError(t, cfg.ApplyDefaultsAndValidate())
 	require.Equal(t, defaultGatewaySendTimeout, cfg.Gateway.SendTimeout)
+}
+
+func TestConfigGatewayAllowsZeroValueGnetOptions(t *testing.T) {
+	cfg := validConfig()
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	require.Zero(t, cfg.Gateway.Transport.Gnet.NumEventLoop)
+	require.Zero(t, cfg.Gateway.Transport.Gnet.ReadBufferCap)
+	require.Zero(t, cfg.Gateway.Transport.Gnet.WriteBufferCap)
+}
+
+func TestConfigGatewayRejectsNegativeGnetOptions(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		mutate func(*Config)
+		want   string
+	}{
+		{
+			name: "num event loop",
+			mutate: func(cfg *Config) {
+				cfg.Gateway.Transport.Gnet.NumEventLoop = -1
+			},
+			want: "gateway gnet num event loop",
+		},
+		{
+			name: "read buffer cap",
+			mutate: func(cfg *Config) {
+				cfg.Gateway.Transport.Gnet.ReadBufferCap = -1
+			},
+			want: "gateway gnet read buffer cap",
+		},
+		{
+			name: "write buffer cap",
+			mutate: func(cfg *Config) {
+				cfg.Gateway.Transport.Gnet.WriteBufferCap = -1
+			},
+			want: "gateway gnet write buffer cap",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validConfig()
+			tc.mutate(&cfg)
+			require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), tc.want)
+		})
+	}
 }
 
 func TestConfigValidateRejectsExplicitNonPositiveGatewaySendTimeout(t *testing.T) {

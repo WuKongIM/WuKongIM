@@ -79,6 +79,9 @@ func TestDefaultSessionOptions(t *testing.T) {
 	if opts.CloseOnHandlerError == nil || !*opts.CloseOnHandlerError {
 		t.Fatal("expected CloseOnHandlerError default to be true")
 	}
+	if opts.WriteQueueSize != 64 {
+		t.Fatalf("expected default write queue size 64, got %d", opts.WriteQueueSize)
+	}
 	if opts.IdleTimeout <= 0 || opts.WriteTimeout <= 0 {
 		t.Fatalf("expected positive timeout defaults, got %+v", opts)
 	}

@@ -66,6 +66,36 @@ func TestTCPListenerDeliversOpenDataCloseAndWrite(t *testing.T) {
 	}
 }
 
+func TestTCPListenerWithConfiguredEngineOptionsDeliversOpenDataCloseAndWrite(t *testing.T) {
+	handler := newTCPRecordingHandler(func(conn transport.Conn, data []byte) error {
+		return conn.Write([]byte("ack:" + string(data)))
+	})
+	spec := namedTCPListenerSpecWithAddress("tcp-configured", handler, freeTCPAddress(t))
+	listeners, err := NewFactory(Options{
+		Multicore:      true,
+		NumEventLoop:   2,
+		ReadBufferCap:  4 << 10,
+		WriteBufferCap: 4 << 10,
+	}).Build([]transport.ListenerSpec{spec})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	listener := requireListenerHandle(t, listeners[0])
+	defer func() { _ = listener.Stop() }()
+
+	if err := listener.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	conn := mustDialTCP(t, listener.Addr())
+	writeAndReadExact(t, conn, []byte("ping"), "ack:ping")
+	_ = conn.Close()
+
+	waitUntil(t, time.Second, func() bool {
+		return handler.OpenCount() == 1 && handler.DataCount() == 1 && handler.CloseCount() == 1
+	})
+}
+
 func TestTCPListenersShareOneEngineAndRemainIndependentlyAddressable(t *testing.T) {
 	firstHandler := newTCPRecordingHandler(nil)
 	secondHandler := newTCPRecordingHandler(nil)

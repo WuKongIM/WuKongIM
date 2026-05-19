@@ -248,18 +248,22 @@ WK_DIAGNOSTICS_DEBUG_MATCHES=[]
 WK_HEALTH_DETAIL_ENABLE=true
 WK_HEALTH_DEBUG_ENABLE=false
 
-# Optional: allow gateway send frames on the same connection to dispatch concurrently.
-# WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH=true
-# Optional: SEND worker count when async dispatch is enabled; non-positive uses an adaptive IO-wait-aware default.
+# Optional: SEND worker count; non-positive uses an adaptive IO-wait-aware default.
 # WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS=0
 # Optional: enable token authentication when verifier hooks are available.
 # WK_GATEWAY_TOKEN_AUTH_ON=false
 # Optional: gateway session safety and buffering defaults.
 # WK_GATEWAY_DEFAULT_SESSION_CLOSE_ON_HANDLER_ERROR=true
 # WK_GATEWAY_DEFAULT_SESSION_READ_BUFFER_SIZE=4096
-# WK_GATEWAY_DEFAULT_SESSION_WRITE_QUEUE_SIZE=1024
+# WK_GATEWAY_DEFAULT_SESSION_WRITE_QUEUE_SIZE=64
 # WK_GATEWAY_DEFAULT_SESSION_MAX_INBOUND_BYTES=1048576
 # WK_GATEWAY_DEFAULT_SESSION_MAX_OUTBOUND_BYTES=1048576
+# Optional: gnet transport tuning. Zero values keep gnet defaults and preserve current listener behavior.
+# WK_GATEWAY_GNET_MULTICORE=false
+# WK_GATEWAY_GNET_NUM_EVENT_LOOP=0
+# WK_GATEWAY_GNET_REUSE_PORT=false
+# WK_GATEWAY_GNET_READ_BUFFER_CAP=0
+# WK_GATEWAY_GNET_WRITE_BUFFER_CAP=0
 # Optional: bound how long the gateway waits for durable send completion before failing sendack.
 # WK_GATEWAY_SEND_TIMEOUT=20s
 WK_GATEWAY_DEFAULT_SESSION_IDLE_TIMEOUT=3m

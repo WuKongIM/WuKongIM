@@ -29,3 +29,26 @@ func TestNewRegistersRealTransportFactories(t *testing.T) {
 		t.Fatalf("stdnet transport factory type = %T, want *stdnet.Factory", stdFactory)
 	}
 }
+
+func TestBuildRegistryPassesGnetTransportOptions(t *testing.T) {
+	registry, err := buildRegistry(TransportOptions{
+		Gnet: GnetTransportOptions{
+			NumEventLoop: 7,
+		},
+	})
+	if err != nil {
+		t.Fatalf("buildRegistry: %v", err)
+	}
+
+	transportFactory, err := registry.Transport(gnettransport.Name)
+	if err != nil {
+		t.Fatalf("Transport(%q): %v", gnettransport.Name, err)
+	}
+	gnetFactory, ok := transportFactory.(*gnettransport.Factory)
+	if !ok {
+		t.Fatalf("gnet transport factory type = %T, want *gnet.Factory", transportFactory)
+	}
+	if got := gnetFactory.Options().NumEventLoop; got != 7 {
+		t.Fatalf("gnet num event loop = %d, want 7", got)
+	}
+}

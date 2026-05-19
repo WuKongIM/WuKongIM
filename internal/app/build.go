@@ -960,6 +960,7 @@ func build(cfg Config) (_ *App, err error) {
 		Authenticator:  gateway.NewWKProtoAuthenticator(gateway.WKProtoAuthOptions{TokenAuthOn: cfg.Gateway.TokenAuthOn, NodeID: cfg.Node.ID}),
 		Observer:       gatewayObserver,
 		DefaultSession: cfg.Gateway.DefaultSession,
+		Transport:      cfg.Gateway.Transport,
 		Listeners:      cfg.Gateway.Listeners,
 		Logger:         app.logger.Named("gateway"),
 	})

@@ -402,11 +402,27 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
-	asyncSendDispatch, err := parseBool(v, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH")
+	asyncSendDispatchWorkers, err := parseInt(v, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS")
 	if err != nil {
 		return app.Config{}, err
 	}
-	asyncSendDispatchWorkers, err := parseInt(v, "WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS")
+	gatewayGnetMulticore, err := parseBool(v, "WK_GATEWAY_GNET_MULTICORE")
+	if err != nil {
+		return app.Config{}, err
+	}
+	gatewayGnetNumEventLoop, err := parseInt(v, "WK_GATEWAY_GNET_NUM_EVENT_LOOP")
+	if err != nil {
+		return app.Config{}, err
+	}
+	gatewayGnetReusePort, err := parseBool(v, "WK_GATEWAY_GNET_REUSE_PORT")
+	if err != nil {
+		return app.Config{}, err
+	}
+	gatewayGnetReadBufferCap, err := parseInt(v, "WK_GATEWAY_GNET_READ_BUFFER_CAP")
+	if err != nil {
+		return app.Config{}, err
+	}
+	gatewayGnetWriteBufferCap, err := parseInt(v, "WK_GATEWAY_GNET_WRITE_BUFFER_CAP")
 	if err != nil {
 		return app.Config{}, err
 	}
@@ -823,9 +839,17 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 				MaxOutboundBytes:         maxOutboundBytes,
 				IdleTimeout:              idleTimeout,
 				WriteTimeout:             writeTimeout,
-				AsyncSendDispatch:        asyncSendDispatch,
 				AsyncSendDispatchWorkers: asyncSendDispatchWorkers,
 				CloseOnHandlerError:      closeOnHandlerError,
+			},
+			Transport: gateway.TransportOptions{
+				Gnet: gateway.GnetTransportOptions{
+					Multicore:      gatewayGnetMulticore,
+					NumEventLoop:   gatewayGnetNumEventLoop,
+					ReusePort:      gatewayGnetReusePort,
+					ReadBufferCap:  gatewayGnetReadBufferCap,
+					WriteBufferCap: gatewayGnetWriteBufferCap,
+				},
 			},
 			Listeners: listeners,
 		},

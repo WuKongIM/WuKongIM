@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -330,11 +331,13 @@ func TestServer(t *testing.T) {
 		}
 	})
 
-	t.Run("throughput send frames do not block later frame dispatch on the same connection", func(t *testing.T) {
+	t.Run("throughput send frames always dispatch asynchronously and do not block later frames", func(t *testing.T) {
 		handler := newTestHandler()
 		sendStarted := make(chan struct{})
 		releaseSend := make(chan struct{})
 		pingSeen := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() { releaseOnce.Do(func() { close(releaseSend) }) }
 		handler.onFrame = func(_ *gateway.Context, f frame.Frame) error {
 			switch f.(type) {
 			case *frame.SendPacket:
@@ -356,19 +359,17 @@ func TestServer(t *testing.T) {
 			}},
 			consumed: 1,
 		})
-		proto.pushDecode(decodeResult{})
 		proto.pushDecode(decodeResult{
 			frames:   []frame.Frame{&frame.PingPacket{}},
 			consumed: 1,
 		})
 
-		srv, transportFactory := newTestServer(t, handler, proto, gateway.SessionOptions{
-			AsyncSendDispatch: true,
-		})
+		srv, transportFactory := newTestServer(t, handler, proto, gateway.SessionOptions{})
 		if err := srv.Start(); err != nil {
 			t.Fatalf("start failed: %v", err)
 		}
 		t.Cleanup(func() { _ = srv.Stop() })
+		t.Cleanup(release)
 
 		transportFactory.MustOpen("listener-a", 1)
 		go transportFactory.MustData("listener-a", 1, []byte("s"))
@@ -390,8 +391,103 @@ func TestServer(t *testing.T) {
 			t.Fatal("expected ping to dispatch before throughput send finished")
 		}
 
-		close(releaseSend)
+		release()
 		waitFor(t, func() bool { return handler.frameCount() == 2 })
+	})
+
+	t.Run("async SEND keeps same channel ordered on one shard", func(t *testing.T) {
+		firstStarted := make(chan struct{})
+		releaseFirst := make(chan struct{})
+		secondStarted := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() { releaseOnce.Do(func() { close(releaseFirst) }) }
+
+		var callCount atomic.Int32
+		handler := newTestHandler()
+		handler.onFrame = func(_ *gateway.Context, f frame.Frame) error {
+			switch callCount.Add(1) {
+			case 1:
+				close(firstStarted)
+				<-releaseFirst
+			case 2:
+				close(secondStarted)
+			default:
+				t.Fatalf("unexpected extra frame: %T", f)
+			}
+			return nil
+		}
+
+		proto := newScriptedProtocol("fake-proto")
+		proto.pushDecode(decodeResult{
+			frames:   []frame.Frame{&frame.SendPacket{ChannelID: "room-a", ChannelType: 1, Payload: []byte("one")}},
+			consumed: 1,
+		})
+		proto.pushDecode(decodeResult{
+			frames:   []frame.Frame{&frame.SendPacket{ChannelID: "room-a", ChannelType: 1, Payload: []byte("two")}},
+			consumed: 1,
+		})
+
+		srv, transportFactory := newTestServer(t, handler, proto, gateway.SessionOptions{
+			AsyncSendDispatchWorkers: 2,
+		})
+		if err := srv.Start(); err != nil {
+			t.Fatalf("start failed: %v", err)
+		}
+		t.Cleanup(func() { _ = srv.Stop() })
+		t.Cleanup(release)
+
+		conn := transportFactory.MustOpen("listener-a", 1)
+		if err := conn.EmitData([]byte("a")); err != nil {
+			t.Fatalf("emit first data failed: %v", err)
+		}
+		waitFor(t, func() bool {
+			select {
+			case <-firstStarted:
+				return true
+			default:
+				return false
+			}
+		})
+
+		if err := conn.EmitData([]byte("b")); err != nil {
+			t.Fatalf("emit second data failed: %v", err)
+		}
+		select {
+		case <-secondStarted:
+			t.Fatal("second SEND for same channel started before first finished")
+		case <-time.After(30 * time.Millisecond):
+		}
+
+		release()
+		waitFor(t, func() bool { return handler.frameCount() == 2 })
+	})
+
+	t.Run("complete inbound frame avoids retaining core inbound buffer", func(t *testing.T) {
+		handler := newTestHandler()
+		proto := newScriptedProtocol("fake-proto")
+		proto.pushDecode(decodeResult{
+			frames:   []frame.Frame{&frame.PingPacket{}},
+			consumed: 1,
+		})
+
+		srv, transportFactory := newTestServer(t, handler, proto, gateway.SessionOptions{})
+		if err := srv.Start(); err != nil {
+			t.Fatalf("start failed: %v", err)
+		}
+		t.Cleanup(func() { _ = srv.Stop() })
+
+		conn := transportFactory.MustOpen("listener-a", 1)
+		if err := conn.EmitData([]byte("x")); err != nil {
+			t.Fatalf("emit data failed: %v", err)
+		}
+
+		state := srv.TestState("listener-a", conn.ID())
+		if state == nil {
+			t.Fatal("expected state")
+		}
+		if got := state.TestInboundCapacity(); got != 0 {
+			t.Fatalf("inbound buffer capacity = %d, want 0 for complete frame fast path", got)
+		}
 	})
 
 	t.Run("listener scoped errors go to OnListenerError before a session exists", func(t *testing.T) {
@@ -784,6 +880,18 @@ func TestServerStart(t *testing.T) {
 		}
 		if specs[0].Handler == nil || specs[1].Handler == nil {
 			t.Fatal("expected grouped Build handlers to be populated")
+		}
+		if got, want := specs[0].Options.MaxPendingBytes, gateway.DefaultSessionOptions().MaxInboundBytes; got != want {
+			t.Fatalf("listener-a max pending bytes = %d, want %d", got, want)
+		}
+		if got, want := specs[1].Options.MaxPendingBytes, gateway.DefaultSessionOptions().MaxInboundBytes; got != want {
+			t.Fatalf("listener-b max pending bytes = %d, want %d", got, want)
+		}
+		if got, want := specs[0].Options.MaxOutboundBytes, int64(gateway.DefaultSessionOptions().MaxOutboundBytes); got != want {
+			t.Fatalf("listener-a max outbound bytes = %d, want %d", got, want)
+		}
+		if got, want := specs[1].Options.MaxOutboundBytes, int64(gateway.DefaultSessionOptions().MaxOutboundBytes); got != want {
+			t.Fatalf("listener-b max outbound bytes = %d, want %d", got, want)
 		}
 		if got := srv.ListenerAddr("listener-a"); got != "logical://listener-a" {
 			t.Fatalf("expected listener-a logical addr, got %q", got)

@@ -25,6 +25,9 @@ type connEvent struct {
 	op   byte
 }
 
+// ErrPendingBytesExceeded indicates that transport-owned inbound buffering exceeded its configured limit.
+var ErrPendingBytesExceeded = errors.New("gateway/transport/gnet: pending inbound bytes limit exceeded")
+
 type connMode uint8
 
 const (
@@ -42,19 +45,29 @@ type connState struct {
 	localAddr  string
 	remoteAddr string
 
-	mu          sync.Mutex
-	queue       []connEvent
-	wake        chan struct{}
-	closing     bool
-	notifyClose bool
+	mu               sync.Mutex
+	queue            []connEvent
+	pendingBytes     int
+	maxPendingBytes  int
+	maxOutboundBytes int64
+	wake             chan struct{}
+	closing          bool
+	notifyClose      bool
 
 	mode       connMode
 	wsInbound  []byte
 	wsFragment []byte
 	wsOpcode   byte
-	wsWriteOp  byte
 
+	wsWriteOp   atomic.Uint32
 	wsCloseSent atomic.Bool
+
+	outboundMu            sync.Mutex
+	outboundPendingBytes  int64
+	outboundBufferedBytes int64
+	outboundWriteFrameFree []*wsWritevFrame
+	outboundWriteFrames    []*wsWritevFrame
+	outboundWriteSizes     []int
 }
 
 func newConnState(id uint64, raw gnetv2.Conn, runtime *listenerRuntime) *connState {
@@ -78,6 +91,10 @@ func newConnState(id uint64, raw gnetv2.Conn, runtime *listenerRuntime) *connSta
 		wake:       make(chan struct{}, 1),
 		mode:       mode,
 	}
+	if runtime != nil {
+		state.maxPendingBytes = runtime.opts.MaxPendingBytes
+		state.maxOutboundBytes = runtime.opts.MaxOutboundBytes
+	}
 	state.transport = &stateConn{state: state}
 	return state
 }
@@ -98,19 +115,44 @@ func (s *connState) enqueueOpen() {
 	s.signal()
 }
 
-func (s *connState) enqueueData(data []byte) {
-	s.enqueueDataWithOpcode(0, data)
+func (s *connState) enqueueData(data []byte) bool {
+	return s.enqueueDataWithOpcode(0, data)
 }
 
-func (s *connState) enqueueDataWithOpcode(opcode byte, data []byte) {
+func (s *connState) enqueueDataWithOpcode(opcode byte, data []byte) bool {
 	s.mu.Lock()
 	if s.closing {
 		s.mu.Unlock()
-		return
+		return false
 	}
+	if s.maxPendingBytes > 0 && s.pendingBytes+len(data) > s.maxPendingBytes {
+		s.mu.Unlock()
+		return false
+	}
+	s.pendingBytes += len(data)
 	s.queue = append(s.queue, connEvent{kind: connEventData, data: data, op: opcode})
 	s.mu.Unlock()
 	s.signal()
+	return true
+}
+
+// enqueueCopiedData copies from gnet's transient read buffer only after pending-byte admission succeeds.
+func (s *connState) enqueueCopiedData(data []byte) bool {
+	s.mu.Lock()
+	if s.closing {
+		s.mu.Unlock()
+		return false
+	}
+	if s.maxPendingBytes > 0 && s.pendingBytes+len(data) > s.maxPendingBytes {
+		s.mu.Unlock()
+		return false
+	}
+	payload := append([]byte(nil), data...)
+	s.pendingBytes += len(payload)
+	s.queue = append(s.queue, connEvent{kind: connEventData, data: payload})
+	s.mu.Unlock()
+	s.signal()
+	return true
 }
 
 func (s *connState) enqueueClose(err error) {
@@ -132,6 +174,10 @@ func (s *connState) fail(err error) {
 		return
 	}
 	s.closing = true
+	s.pendingBytes = 0
+	for i := range s.queue {
+		s.queue[i] = connEvent{}
+	}
 	s.queue = append(s.queue[:0], connEvent{kind: connEventClose, err: err})
 	s.mu.Unlock()
 	s.signal()
@@ -157,8 +203,21 @@ func (s *connState) nextEvent() (connEvent, bool) {
 		return connEvent{}, false
 	}
 	event := s.queue[0]
+	s.queue[0] = connEvent{}
 	s.queue = s.queue[1:]
 	return event, true
+}
+
+func (s *connState) releaseEvent(event connEvent) {
+	if len(event.data) == 0 {
+		return
+	}
+	s.mu.Lock()
+	s.pendingBytes -= len(event.data)
+	if s.pendingBytes < 0 {
+		s.pendingBytes = 0
+	}
+	s.mu.Unlock()
 }
 
 func (s *connState) run() {
@@ -183,15 +242,17 @@ func (s *connState) run() {
 			transport.LogConnectSuccess(s.runtime.opts, s.transport)
 		case connEventData:
 			if s.runtime.handler == nil || !s.runtime.shouldDispatch(s) {
+				s.releaseEvent(event)
 				continue
 			}
 			if event.op == wsOpcodeText || event.op == wsOpcodeBinary {
-				s.wsWriteOp = event.op
+				s.wsWriteOp.Store(uint32(event.op))
 			}
 			if err := s.runtime.handler.OnData(s.transport, event.data); err != nil {
 				s.fail(err)
 				_ = s.raw.Close()
 			}
+			s.releaseEvent(event)
 		case connEventClose:
 			if s.runtime.handler != nil && s.shouldNotifyClose() {
 				s.runtime.handler.OnClose(s.transport, event.err)
@@ -205,8 +266,12 @@ func (s *connState) currentMode() connMode {
 	return s.mode
 }
 
-func (s *connState) appendWSInbound(data []byte) {
+func (s *connState) appendWSInbound(data []byte) bool {
+	if s.maxPendingBytes > 0 && len(s.wsInbound)+len(data) > s.maxPendingBytes+wsMaxFrameHeaderBytes {
+		return false
+	}
 	s.wsInbound = append(s.wsInbound, data...)
+	return true
 }
 
 func (s *connState) consumeWSHandshake() (*wsHandshakeResult, *wsHandshakeFailure, bool) {
@@ -234,9 +299,12 @@ type wsTrafficResult struct {
 
 func (s *connState) nextWSResult() (wsTrafficResult, bool) {
 	for {
-		frame, consumed, err := decodeWSFrame(s.wsInbound)
+		frame, consumed, err := decodeWSFrameWithLimit(s.wsInbound, s.maxPendingBytes)
 		if errors.Is(err, errWSNeedMoreData) {
 			return wsTrafficResult{}, false
+		}
+		if errors.Is(err, ErrPendingBytesExceeded) {
+			return wsTrafficResult{closeNow: true, closeErr: err}, true
 		}
 		if err != nil {
 			return wsTrafficResult{
@@ -246,7 +314,11 @@ func (s *connState) nextWSResult() (wsTrafficResult, bool) {
 			}, true
 		}
 
-		s.wsInbound = s.wsInbound[consumed:]
+		if consumed == len(s.wsInbound) {
+			s.wsInbound = s.wsInbound[:0]
+		} else {
+			s.wsInbound = s.wsInbound[consumed:]
+		}
 		if !frame.masked {
 			err := newWSProtocolError(wsCloseProtocolError, "client websocket frames must be masked")
 			return wsTrafficResult{
@@ -266,13 +338,16 @@ func (s *connState) nextWSResult() (wsTrafficResult, bool) {
 					closeErr:   err,
 				}, true
 			}
+			if s.maxPendingBytes > 0 && len(s.wsFragment)+len(frame.payload) > s.maxPendingBytes {
+				return wsTrafficResult{closeNow: true, closeErr: ErrPendingBytesExceeded}, true
+			}
 			s.wsFragment = append(s.wsFragment, frame.payload...)
 			if !frame.final {
 				continue
 			}
-			payload := append([]byte(nil), s.wsFragment...)
+			payload := s.wsFragment
 			opcode := s.wsOpcode
-			s.wsFragment = s.wsFragment[:0]
+			s.wsFragment = nil
 			s.wsOpcode = 0
 			if opcode == wsOpcodeText && !utf8.Valid(payload) {
 				err := newWSProtocolError(wsCloseInvalidData, "invalid utf-8 websocket text payload")
@@ -355,32 +430,235 @@ type stateConn struct {
 	state *connState
 }
 
+// wsWritevPayloadThreshold keeps compact small-message writes while avoiding large websocket payload copies.
+const wsWritevPayloadThreshold = 1024
+
 func (c *stateConn) ID() uint64 {
 	return c.state.id
 }
 
 func (c *stateConn) Write(data []byte) error {
 	if c.state.runtime != nil && c.state.runtime.opts.Network == "websocket" {
-		opcode := c.state.wsWriteOp
-		if opcode != wsOpcodeText && opcode != wsOpcodeBinary {
-			opcode = byte(wsOpcodeBinary)
-			if utf8.Valid(data) {
-				opcode = wsOpcodeText
-			}
-		}
-		framed, err := encodeWSFrame(wsFrame{
-			final:   true,
-			opcode:  opcode,
-			payload: data,
-		})
-		if err != nil {
-			return err
-		}
-		return c.state.raw.AsyncWrite(framed, nil)
+		return c.writeWebSocket(data, transport.WebSocketMessageUnknown)
 	}
 
-	payload := append([]byte(nil), data...)
-	return c.state.raw.AsyncWrite(payload, nil)
+	if c.state.maxOutboundBytes <= 0 || len(data) == 0 {
+		return c.state.raw.AsyncWrite(data, nil)
+	}
+	return c.asyncWriteWithOutboundLimit(len(data), func(callback gnetv2.AsyncCallback) error {
+		return c.state.raw.AsyncWrite(data, callback)
+	})
+}
+
+func (c *stateConn) WriteWebSocketMessage(data []byte, messageType transport.WebSocketMessageType) error {
+	if c.state.runtime == nil || c.state.runtime.opts.Network != "websocket" {
+		return c.Write(data)
+	}
+	if len(data) < wsWritevPayloadThreshold {
+		return c.writeWebSocketCompact(data, messageType)
+	}
+	return c.writeWebSocketVector(data, messageType)
+}
+
+func (c *stateConn) writeWebSocket(data []byte, messageType transport.WebSocketMessageType) error {
+	if len(data) < wsWritevPayloadThreshold {
+		return c.writeWebSocketCompact(data, messageType)
+	}
+	return c.writeWebSocketVector(data, messageType)
+}
+
+func (c *stateConn) writeWebSocketCompact(data []byte, messageType transport.WebSocketMessageType) error {
+	frame := wsFrame{
+		final:   true,
+		opcode:  c.webSocketWriteOpcode(messageType),
+		payload: data,
+	}
+	framed, err := encodeWSFrame(frame)
+	if err != nil {
+		return err
+	}
+	if c.state.maxOutboundBytes <= 0 || len(framed) == 0 {
+		return c.state.raw.AsyncWrite(framed, nil)
+	}
+	return c.asyncWriteWithOutboundLimit(len(framed), func(callback gnetv2.AsyncCallback) error {
+		return c.state.raw.AsyncWrite(framed, callback)
+	})
+}
+
+func (c *stateConn) writeWebSocketVector(data []byte, messageType transport.WebSocketMessageType) error {
+	frame := wsFrame{
+		final:   true,
+		opcode:  c.webSocketWriteOpcode(messageType),
+		payload: data,
+	}
+	framed := c.state.acquireOutboundWriteFrame()
+	err := buildWSWritevFrame(frame, framed)
+	if err != nil {
+		c.state.releaseOutboundWriteFrame(framed)
+		return err
+	}
+	size := len(framed.bufs[0]) + len(framed.bufs[1])
+	if c.state.maxOutboundBytes > 0 {
+		if !c.state.beginOutboundWrite(size) {
+			c.state.releaseOutboundWriteFrame(framed)
+			return transport.ErrOutboundBytesExceeded
+		}
+	}
+	c.state.queueOutboundWriteFrame(framed)
+	err = c.state.raw.AsyncWritev(framed.bufs[:], releaseOutboundWriteCallback)
+	if err != nil {
+		c.state.rollbackOutboundWriteFrame(framed, size)
+	}
+	return err
+}
+
+func (c *stateConn) webSocketWriteOpcode(messageType transport.WebSocketMessageType) byte {
+	switch messageType {
+	case transport.WebSocketMessageText:
+		return wsOpcodeText
+	case transport.WebSocketMessageBinary:
+		return wsOpcodeBinary
+	default:
+	}
+	if opcode := byte(c.state.wsWriteOp.Load()); opcode == wsOpcodeText || opcode == wsOpcodeBinary {
+		return opcode
+	}
+	return wsOpcodeBinary
+}
+
+func (c *stateConn) asyncWriteWithOutboundLimit(size int, write func(gnetv2.AsyncCallback) error) error {
+	if c.state.maxOutboundBytes <= 0 || size <= 0 {
+		return write(nil)
+	}
+	if !c.state.beginOutboundWrite(size) {
+		return transport.ErrOutboundBytesExceeded
+	}
+	err := write(releaseOutboundWriteCallback)
+	if err != nil {
+		c.state.finishNextOutboundWrite(nil, err)
+	}
+	return err
+}
+
+func (s *connState) beginOutboundWrite(size int) bool {
+	if s.maxOutboundBytes <= 0 || size <= 0 {
+		return true
+	}
+
+	s.outboundMu.Lock()
+	defer s.outboundMu.Unlock()
+
+	if s.outboundPendingBytes+s.outboundBufferedBytes+int64(size) > s.maxOutboundBytes {
+		return false
+	}
+	s.outboundPendingBytes += int64(size)
+	s.outboundWriteSizes = append(s.outboundWriteSizes, size)
+	return true
+}
+
+func (s *connState) acquireOutboundWriteFrame() *wsWritevFrame {
+	s.outboundMu.Lock()
+	defer s.outboundMu.Unlock()
+
+	if n := len(s.outboundWriteFrameFree); n > 0 {
+		frame := s.outboundWriteFrameFree[n-1]
+		s.outboundWriteFrameFree[n-1] = nil
+		s.outboundWriteFrameFree = s.outboundWriteFrameFree[:n-1]
+		return frame
+	}
+	return &wsWritevFrame{}
+}
+
+func (s *connState) releaseOutboundWriteFrame(frame *wsWritevFrame) {
+	if frame == nil {
+		return
+	}
+
+	frame.bufs[0] = nil
+	frame.bufs[1] = nil
+
+	s.outboundMu.Lock()
+	s.outboundWriteFrameFree = append(s.outboundWriteFrameFree, frame)
+	s.outboundMu.Unlock()
+}
+
+func (s *connState) queueOutboundWriteFrame(frame *wsWritevFrame) {
+	if frame == nil {
+		return
+	}
+
+	s.outboundMu.Lock()
+	s.outboundWriteFrames = append(s.outboundWriteFrames, frame)
+	s.outboundMu.Unlock()
+}
+
+func (s *connState) rollbackOutboundWriteFrame(frame *wsWritevFrame, size int) {
+	if frame == nil {
+		return
+	}
+
+	s.outboundMu.Lock()
+	if n := len(s.outboundWriteFrames); n > 0 && s.outboundWriteFrames[n-1] == frame {
+		s.outboundWriteFrames[n-1] = nil
+		s.outboundWriteFrames = s.outboundWriteFrames[:n-1]
+	}
+	if s.maxOutboundBytes > 0 && size > 0 && len(s.outboundWriteSizes) > 0 {
+		last := len(s.outboundWriteSizes) - 1
+		if s.outboundWriteSizes[last] == size {
+			s.outboundPendingBytes -= int64(size)
+			if s.outboundPendingBytes < 0 {
+				s.outboundPendingBytes = 0
+			}
+			s.outboundWriteSizes[last] = 0
+			s.outboundWriteSizes = s.outboundWriteSizes[:last]
+		}
+	}
+	s.outboundMu.Unlock()
+	s.releaseOutboundWriteFrame(frame)
+}
+
+func releaseOutboundWriteCallback(conn gnetv2.Conn, err error) error {
+	if conn == nil {
+		return nil
+	}
+	if state, ok := conn.Context().(*connState); ok && state != nil {
+		state.finishNextOutboundWrite(conn, err)
+	}
+	return nil
+}
+
+func (s *connState) finishNextOutboundWrite(conn gnetv2.Conn, err error) {
+	s.outboundMu.Lock()
+	var frame *wsWritevFrame
+	if conn != nil && len(s.outboundWriteFrames) > 0 {
+		frame = s.outboundWriteFrames[0]
+		s.outboundWriteFrames[0] = nil
+		if len(s.outboundWriteFrames) == 1 {
+			s.outboundWriteFrames = s.outboundWriteFrames[:0]
+		} else {
+			s.outboundWriteFrames = s.outboundWriteFrames[1:]
+		}
+	}
+	size := 0
+	if s.maxOutboundBytes > 0 && len(s.outboundWriteSizes) > 0 {
+		size = s.outboundWriteSizes[0]
+		s.outboundWriteSizes[0] = 0
+		if len(s.outboundWriteSizes) == 1 {
+			s.outboundWriteSizes = s.outboundWriteSizes[:0]
+		} else {
+			s.outboundWriteSizes = s.outboundWriteSizes[1:]
+		}
+		s.outboundPendingBytes -= int64(size)
+		if s.outboundPendingBytes < 0 {
+			s.outboundPendingBytes = 0
+		}
+	}
+
+	if conn != nil && err == nil {
+		s.outboundBufferedBytes = int64(conn.OutboundBuffered())
+	}
+	s.outboundMu.Unlock()
+	s.releaseOutboundWriteFrame(frame)
 }
 
 // TransportManagedWriteTimeout reports that gnet AsyncWrite owns write backpressure.
@@ -411,3 +689,4 @@ func (c *stateConn) RemoteAddr() string {
 }
 
 var _ transport.Conn = (*stateConn)(nil)
+var _ transport.WebSocketMessageWriter = (*stateConn)(nil)

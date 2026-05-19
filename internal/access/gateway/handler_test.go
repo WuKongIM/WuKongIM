@@ -10,6 +10,7 @@ import (
 
 	coregateway "github.com/WuKongIM/WuKongIM/internal/gateway"
 	gatewaysession "github.com/WuKongIM/WuKongIM/internal/gateway/session"
+	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
@@ -583,6 +584,40 @@ func TestHandleSendAssignsTraceIDToCommandAndSendTrace(t *testing.T) {
 	require.Equal(t, traceID, ackEvent.TraceID)
 	require.Equal(t, wantKey, ackEvent.ChannelKey)
 	require.Equal(t, "u1", ackEvent.FromUID)
+}
+
+func TestHandleSendSkipsTraceIDWhenSendTraceDisabled(t *testing.T) {
+	restore := sendtrace.SetSink(nil)
+	t.Cleanup(restore)
+
+	sender := newOptionRecordingSession(1, "tcp")
+	sender.SetValue(coregateway.SessionValueUID, "u1")
+	msgs := &fakeMessageUsecase{
+		sendResult: message.SendResult{MessageID: 99, MessageSeq: 7, Reason: frame.ReasonSuccess},
+	}
+	handler := New(Options{Messages: msgs})
+
+	ctx := &coregateway.Context{
+		Session:        sender,
+		Listener:       "tcp",
+		ReplyToken:     "reply-trace-disabled",
+		RequestContext: context.Background(),
+	}
+	pkt := &frame.SendPacket{
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		ClientSeq:   37,
+		ClientMsgNo: "trace-disabled-msg",
+		Payload:     []byte("hi"),
+	}
+
+	require.NoError(t, handler.handleSend(ctx, pkt))
+
+	require.Len(t, msgs.sendCommands, 1)
+	require.Empty(t, msgs.sendCommands[0].TraceID)
+	require.Len(t, msgs.sendContexts, 1)
+	_, ok := tracectx.FromContext(msgs.sendContexts[0])
+	require.False(t, ok)
 }
 
 func TestHandlerOnFrameSendMapsCanceledRequestContextToSendack(t *testing.T) {

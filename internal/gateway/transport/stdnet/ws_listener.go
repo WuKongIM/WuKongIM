@@ -7,7 +7,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode/utf8"
 
 	"github.com/WuKongIM/WuKongIM/internal/gateway/transport"
 	"github.com/gorilla/websocket"
@@ -251,11 +250,23 @@ func (c *wsConn) Write(data []byte) error {
 	messageType := int(c.writeType.Load())
 	if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
 		messageType = websocket.BinaryMessage
-		if utf8.Valid(data) {
-			messageType = websocket.TextMessage
-		}
 	}
 	return c.raw.WriteMessage(messageType, data)
+}
+
+func (c *wsConn) WriteWebSocketMessage(data []byte, messageType transport.WebSocketMessageType) error {
+	if c == nil || c.raw == nil {
+		return nil
+	}
+
+	switch messageType {
+	case transport.WebSocketMessageText:
+		return c.raw.WriteMessage(websocket.TextMessage, data)
+	case transport.WebSocketMessageBinary:
+		return c.raw.WriteMessage(websocket.BinaryMessage, data)
+	default:
+		return c.Write(data)
+	}
 }
 
 func (c *wsConn) Close() error {
@@ -290,3 +301,5 @@ func (c *wsConn) SetWriteDeadline(deadline time.Time) error {
 	}
 	return c.raw.SetWriteDeadline(deadline)
 }
+
+var _ transport.WebSocketMessageWriter = (*wsConn)(nil)

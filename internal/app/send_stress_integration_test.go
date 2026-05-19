@@ -49,9 +49,6 @@ func TestSendStressThreeNode(t *testing.T) {
 		if selection.useAcceptancePreset {
 			applySendPathTuning(t, appCfg, preset)
 		}
-		if cfg.Mode == sendStressModeThroughput {
-			appCfg.Gateway.DefaultSession.AsyncSendDispatch = true
-		}
 	})
 	var traceCollector *sendTraceCollector
 	var restoreTraceSink func()
@@ -96,9 +93,6 @@ func TestSendStressSingleHotChannelThreeNode(t *testing.T) {
 		if selection.useAcceptancePreset {
 			applySendPathTuning(t, appCfg, preset)
 		}
-		if cfg.Mode == sendStressModeThroughput {
-			appCfg.Gateway.DefaultSession.AsyncSendDispatch = true
-		}
 	})
 	applySendStressCommitMode(t, harness, cfg.CommitMode)
 	leaderID := harness.waitForStableLeader(t, 1)
@@ -134,9 +128,6 @@ func TestSendStressHotColdSkewThreeNode(t *testing.T) {
 	harness := newThreeNodeAppHarnessWithConfigMutator(t, func(appCfg *Config) {
 		if selection.useAcceptancePreset {
 			applySendPathTuning(t, appCfg, preset)
-		}
-		if cfg.Mode == sendStressModeThroughput {
-			appCfg.Gateway.DefaultSession.AsyncSendDispatch = true
 		}
 	})
 	applySendStressCommitMode(t, harness, cfg.CommitMode)

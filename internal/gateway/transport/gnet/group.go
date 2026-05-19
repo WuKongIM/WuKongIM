@@ -125,6 +125,7 @@ type engineGroup struct {
 
 	mu            sync.Mutex
 	runtimes      []*listenerRuntime
+	options       Options
 	routes        map[string]*listenerRuntime
 	engine        gnetv2.Engine
 	cycle         *engineCycle
@@ -138,6 +139,10 @@ type engineGroup struct {
 }
 
 func newEngineGroup(specs []transport.ListenerSpec) *engineGroup {
+	return newEngineGroupWithOptions(specs, Options{})
+}
+
+func newEngineGroupWithOptions(specs []transport.ListenerSpec, options Options) *engineGroup {
 	runtimes := make([]*listenerRuntime, 0, len(specs))
 	for _, spec := range specs {
 		runtimes = append(runtimes, &listenerRuntime{
@@ -149,6 +154,7 @@ func newEngineGroup(specs []transport.ListenerSpec) *engineGroup {
 
 	return &engineGroup{
 		runtimes: runtimes,
+		options:  options,
 		routes:   make(map[string]*listenerRuntime, len(runtimes)),
 	}
 }
@@ -304,7 +310,7 @@ func (g *engineGroup) startEngine(runtimes []*listenerRuntime) error {
 	}
 
 	go func() {
-		err := gnetv2.Rotate(g, addrs)
+		err := gnetv2.Rotate(g, addrs, g.gnetOptions()...)
 		cycle.signalBoot(err)
 		cycle.doneCh <- err
 		close(cycle.doneCh)
@@ -329,6 +335,13 @@ func (g *engineGroup) startEngine(runtimes []*listenerRuntime) error {
 	}
 	g.mu.Unlock()
 	return nil
+}
+
+func (g *engineGroup) gnetOptions() []gnetv2.Option {
+	if g == nil {
+		return nil
+	}
+	return g.options.gnetOptions()
 }
 
 func (g *engineGroup) restartEngine(engine gnetv2.Engine, cycle *engineCycle, desired []*listenerRuntime, rollback []*listenerRuntime) error {
@@ -437,8 +450,10 @@ func (g *engineGroup) OnTraffic(c gnetv2.Conn) (action gnetv2.Action) {
 			return gnetv2.None
 		}
 
-		payload := append([]byte(nil), buf...)
-		state.enqueueData(payload)
+		if !state.enqueueCopiedData(buf) {
+			state.fail(ErrPendingBytesExceeded)
+			_ = c.Close()
+		}
 		return gnetv2.None
 	}
 
@@ -456,7 +471,11 @@ func (g *engineGroup) handleWSTraffic(c gnetv2.Conn, state *connState) gnetv2.Ac
 		return gnetv2.None
 	}
 
-	state.appendWSInbound(buf)
+	if !state.appendWSInbound(buf) {
+		state.fail(ErrPendingBytesExceeded)
+		_ = c.Close()
+		return gnetv2.None
+	}
 
 	for {
 		switch state.currentMode() {
@@ -498,7 +517,11 @@ func (g *engineGroup) handleWSTraffic(c gnetv2.Conn, state *connState) gnetv2.Ac
 				}
 			}
 			if len(result.payload) > 0 {
-				state.enqueueDataWithOpcode(result.opcode, result.payload)
+				if !state.enqueueDataWithOpcode(result.opcode, result.payload) {
+					state.fail(ErrPendingBytesExceeded)
+					_ = c.Close()
+					return gnetv2.None
+				}
 			}
 			if len(result.closeWrite) > 0 {
 				if err := c.AsyncWrite(result.closeWrite, func(conn gnetv2.Conn, err error) error {
