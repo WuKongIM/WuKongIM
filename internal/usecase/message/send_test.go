@@ -221,6 +221,62 @@ func TestSendRejectsUnauthenticatedSender(t *testing.T) {
 	require.Equal(t, SendResult{}, result)
 }
 
+func TestSendBatchSingleItemMatchesSend(t *testing.T) {
+	newApp := func() *App {
+		return New(Options{
+			Now: fixedNowFn,
+			Cluster: &fakeChannelCluster{sendReplies: []fakeChannelClusterSendReply{{
+				result: channel.AppendResult{
+					MessageID:  42,
+					MessageSeq: 7,
+					Message:    channel.Message{MessageID: 42, MessageSeq: 7},
+				},
+			}}},
+			MetaRefresher: &fakeMetaRefresher{},
+		})
+	}
+	cmd := SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "u2",
+		ChannelType: frame.ChannelTypePerson,
+		Payload:     []byte("hi"),
+		ClientMsgNo: "single-batch",
+	}
+
+	sendResult, sendErr := newApp().Send(context.Background(), cmd)
+	batchResults := newApp().SendBatch([]SendBatchItem{{Context: context.Background(), Command: cmd}})
+
+	require.Len(t, batchResults, 1)
+	require.Equal(t, sendResult, batchResults[0].Result)
+	require.Equal(t, sendErr, batchResults[0].Err)
+}
+
+func TestSendBatchUsesChannelAppendBatchForSameChannelSegment(t *testing.T) {
+	cluster := &fakeChannelCluster{sendBatchReplies: []fakeChannelClusterSendBatchReply{{
+		result: channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{
+			{MessageID: 101, MessageSeq: 1, Message: channel.Message{MessageID: 101, MessageSeq: 1}},
+			{MessageID: 102, MessageSeq: 2, Message: channel.Message{MessageID: 102, MessageSeq: 2}},
+		}},
+	}}}
+	app := New(Options{Now: fixedNowFn, Cluster: cluster, MetaRefresher: &fakeMetaRefresher{}})
+
+	results := app.SendBatch([]SendBatchItem{
+		{Context: context.Background(), Command: SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, Payload: []byte("one"), ClientMsgNo: "b1"}},
+		{Context: context.Background(), Command: SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, Payload: []byte("two"), ClientMsgNo: "b2"}},
+	})
+
+	require.Len(t, results, 2)
+	require.NoError(t, results[0].Err)
+	require.NoError(t, results[1].Err)
+	require.Equal(t, uint64(1), results[0].Result.MessageSeq)
+	require.Equal(t, uint64(2), results[1].Result.MessageSeq)
+	require.Empty(t, cluster.sendRequests)
+	require.Len(t, cluster.sendBatchRequests, 1)
+	require.Len(t, cluster.sendBatchRequests[0].Messages, 2)
+	require.Equal(t, "b1", cluster.sendBatchRequests[0].Messages[0].ClientMsgNo)
+	require.Equal(t, "b2", cluster.sendBatchRequests[0].Messages[1].ClientMsgNo)
+}
+
 func TestSendReturnsUnsupportedChannelType(t *testing.T) {
 	app := New(Options{Now: fixedNowFn})
 
@@ -2725,13 +2781,22 @@ type fakeChannelClusterSendReply struct {
 	err    error
 }
 
+type fakeChannelClusterSendBatchReply struct {
+	result channel.AppendBatchResult
+	err    error
+}
+
 type fakeChannelCluster struct {
-	appliedMetas []channel.Meta
-	sendRequests []channel.AppendRequest
-	sendContexts []context.Context
-	sendReplies  []fakeChannelClusterSendReply
-	sendFn       func(context.Context, channel.AppendRequest) (channel.AppendResult, error)
-	applyErr     error
+	appliedMetas      []channel.Meta
+	sendRequests      []channel.AppendRequest
+	sendBatchRequests []channel.AppendBatchRequest
+	sendContexts      []context.Context
+	sendBatchContexts []context.Context
+	sendReplies       []fakeChannelClusterSendReply
+	sendBatchReplies  []fakeChannelClusterSendBatchReply
+	sendFn            func(context.Context, channel.AppendRequest) (channel.AppendResult, error)
+	sendBatchFn       func(context.Context, channel.AppendBatchRequest) (channel.AppendBatchResult, error)
+	applyErr          error
 }
 
 func (f *fakeChannelCluster) ApplyMeta(meta channel.Meta) error {
@@ -2750,6 +2815,24 @@ func (f *fakeChannelCluster) Append(ctx context.Context, req channel.AppendReque
 	}
 	reply := f.sendReplies[0]
 	f.sendReplies = f.sendReplies[1:]
+	return reply.result, reply.err
+}
+
+func (f *fakeChannelCluster) AppendBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	f.sendBatchContexts = append(f.sendBatchContexts, ctx)
+	f.sendBatchRequests = append(f.sendBatchRequests, req)
+	if f.sendBatchFn != nil {
+		return f.sendBatchFn(ctx, req)
+	}
+	if len(f.sendBatchReplies) == 0 {
+		items := make([]channel.AppendBatchItemResult, len(req.Messages))
+		for i, msg := range req.Messages {
+			items[i] = channel.AppendBatchItemResult{MessageID: uint64(i + 1), MessageSeq: uint64(i + 1), Message: msg}
+		}
+		return channel.AppendBatchResult{Items: items}, nil
+	}
+	reply := f.sendBatchReplies[0]
+	f.sendBatchReplies = f.sendBatchReplies[1:]
 	return reply.result, reply.err
 }
 

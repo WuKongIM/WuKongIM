@@ -1275,6 +1275,12 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 		return fmt.Errorf("%w: %v", ErrInvalidConfig, err)
 	}
 
+	if c.Gateway.DefaultSession.AsyncSendBatchMaxRecords < 0 {
+		return fmt.Errorf("%w: gateway send batch max records must be non-negative", ErrInvalidConfig)
+	}
+	if c.Gateway.DefaultSession.AsyncSendBatchMaxBytes < 0 {
+		return fmt.Errorf("%w: gateway send batch max bytes must be non-negative", ErrInvalidConfig)
+	}
 	c.Gateway.DefaultSession = gateway.NormalizeSessionOptions(c.Gateway.DefaultSession)
 	if c.Gateway.Transport.Gnet.NumEventLoop < 0 {
 		return fmt.Errorf("%w: gateway gnet num event loop must be non-negative", ErrInvalidConfig)

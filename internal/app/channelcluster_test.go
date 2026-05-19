@@ -291,6 +291,43 @@ func TestAppChannelClusterAppendForwardsToLeaderWhenLocalRuntimeIsMissingAfterRe
 	require.Equal(t, req, remote.calls[0].req)
 }
 
+func TestAppChannelClusterAppendBatchForwardsSingleRemoteBatch(t *testing.T) {
+	req := channel.AppendBatchRequest{
+		ChannelID: channel.ChannelID{ID: "room", Type: 2},
+		Messages: []channel.Message{
+			{FromUID: "u1", ClientMsgNo: "m1", Payload: []byte("hi-1")},
+			{FromUID: "u2", ClientMsgNo: "m2", Payload: []byte("hi-2")},
+		},
+	}
+	want := channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{
+		{MessageID: 9, MessageSeq: 10, Message: req.Messages[0]},
+		{MessageID: 11, MessageSeq: 12, Message: req.Messages[1]},
+	}}
+	service := &stubChannelService{
+		meta: channel.Meta{
+			Key:    channel.ChannelKey("room"),
+			ID:     req.ChannelID,
+			Leader: 2,
+		},
+		appendBatchErr: channel.ErrNotLeader,
+	}
+	remote := &recordingRemoteChannelAppender{batchResult: want}
+	cluster := &appChannelCluster{
+		service:        service,
+		localNodeID:    1,
+		remoteAppender: remote,
+	}
+
+	result, err := cluster.AppendBatch(context.Background(), req)
+
+	require.NoError(t, err)
+	require.Equal(t, want, result)
+	require.Empty(t, remote.calls)
+	require.Len(t, remote.batchCalls, 1)
+	require.Equal(t, uint64(2), remote.batchCalls[0].nodeID)
+	require.Equal(t, req, remote.batchCalls[0].req)
+}
+
 func TestAppChannelClusterAppendLogsForwardDiagnostics(t *testing.T) {
 	req := channel.AppendRequest{
 		ChannelID: channel.ChannelID{ID: "room", Type: 2},
@@ -327,11 +364,13 @@ func TestAppChannelClusterAppendLogsForwardDiagnostics(t *testing.T) {
 }
 
 type stubChannelService struct {
-	meta         channel.Meta
-	appendResult channel.AppendResult
-	appendErr    error
-	fetchResult  channel.FetchResult
-	fetchErr     error
+	meta              channel.Meta
+	appendResult      channel.AppendResult
+	appendErr         error
+	appendBatchResult channel.AppendBatchResult
+	appendBatchErr    error
+	fetchResult       channel.FetchResult
+	fetchErr          error
 }
 
 func (s *stubChannelService) ApplyMeta(meta channel.Meta) error {
@@ -341,6 +380,20 @@ func (s *stubChannelService) ApplyMeta(meta channel.Meta) error {
 
 func (s *stubChannelService) Append(context.Context, channel.AppendRequest) (channel.AppendResult, error) {
 	return s.appendResult, s.appendErr
+}
+
+func (s *stubChannelService) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	if s.appendBatchErr != nil {
+		return s.appendBatchResult, s.appendBatchErr
+	}
+	if len(s.appendBatchResult.Items) > 0 {
+		return s.appendBatchResult, nil
+	}
+	items := make([]channel.AppendBatchItemResult, len(req.Messages))
+	for i, msg := range req.Messages {
+		items[i] = channel.AppendBatchItemResult{MessageID: s.appendResult.MessageID, MessageSeq: s.appendResult.MessageSeq, Message: msg, Err: s.appendErr}
+	}
+	return channel.AppendBatchResult{Items: items}, nil
 }
 
 func (s *stubChannelService) Fetch(context.Context, channel.FetchRequest) (channel.FetchResult, error) {
@@ -379,15 +432,28 @@ type remoteChannelAppendCall struct {
 	req    channel.AppendRequest
 }
 
+type remoteChannelAppendBatchCall struct {
+	nodeID uint64
+	req    channel.AppendBatchRequest
+}
+
 type recordingRemoteChannelAppender struct {
-	calls  []remoteChannelAppendCall
-	result channel.AppendResult
-	err    error
+	calls       []remoteChannelAppendCall
+	batchCalls  []remoteChannelAppendBatchCall
+	result      channel.AppendResult
+	batchResult channel.AppendBatchResult
+	err         error
+	batchErr    error
 }
 
 func (r *recordingRemoteChannelAppender) AppendToLeader(ctx context.Context, nodeID uint64, req channel.AppendRequest) (channel.AppendResult, error) {
 	r.calls = append(r.calls, remoteChannelAppendCall{nodeID: nodeID, req: req})
 	return r.result, r.err
+}
+
+func (r *recordingRemoteChannelAppender) AppendBatchToLeader(ctx context.Context, nodeID uint64, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	r.batchCalls = append(r.batchCalls, remoteChannelAppendBatchCall{nodeID: nodeID, req: req})
+	return r.batchResult, r.batchErr
 }
 
 func requireMetricFamilyByName(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {
