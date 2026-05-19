@@ -5,6 +5,8 @@ import gatewaytypes "github.com/WuKongIM/WuKongIM/internal/gateway/types"
 type Options = gatewaytypes.Options
 type ListenerOptions = gatewaytypes.ListenerOptions
 type SessionOptions = gatewaytypes.SessionOptions
+type TransportOptions = gatewaytypes.TransportOptions
+type GnetTransportOptions = gatewaytypes.GnetTransportOptions
 
 func DefaultSessionOptions() SessionOptions {
 	return gatewaytypes.DefaultSessionOptions()

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/gateway/transport"
+	gnetv2 "github.com/panjf2000/gnet/v2"
 )
 
 func TestFactoryBuildAssignsAllSpecsToOneSharedGroup(t *testing.T) {
@@ -33,6 +34,48 @@ func TestFactoryBuildAssignsAllSpecsToOneSharedGroup(t *testing.T) {
 	}
 	if third.group != first.group {
 		t.Fatal("listener[2] group does not share listener[0] group")
+	}
+}
+
+func TestFactoryBuildCarriesEngineOptions(t *testing.T) {
+	factory := NewFactory(Options{
+		Multicore:      true,
+		NumEventLoop:   4,
+		ReusePort:      true,
+		ReadBufferCap:  8 << 10,
+		WriteBufferCap: 16 << 10,
+	})
+
+	listeners, err := factory.Build([]transport.ListenerSpec{
+		{Options: transport.ListenerOptions{Name: "tcp-a", Network: "tcp", Address: "127.0.0.1:5100"}, Handler: noopHandler{}},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	group := requireListenerHandle(t, listeners[0]).group
+	if group == nil {
+		t.Fatal("listener group is nil")
+	}
+
+	applied := gnetv2.Options{}
+	for _, opt := range group.gnetOptions() {
+		opt(&applied)
+	}
+	if !applied.Multicore {
+		t.Fatal("gnet multicore option was not applied")
+	}
+	if got, want := applied.NumEventLoop, 4; got != want {
+		t.Fatalf("NumEventLoop = %d, want %d", got, want)
+	}
+	if !applied.ReusePort {
+		t.Fatal("gnet reuseport option was not applied")
+	}
+	if got, want := applied.ReadBufferCap, 8<<10; got != want {
+		t.Fatalf("ReadBufferCap = %d, want %d", got, want)
+	}
+	if got, want := applied.WriteBufferCap, 16<<10; got != want {
+		t.Fatalf("WriteBufferCap = %d, want %d", got, want)
 	}
 }
 

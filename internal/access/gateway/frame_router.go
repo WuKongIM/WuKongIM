@@ -54,23 +54,31 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 	}
 	reqCtx, cancel := context.WithTimeout(ctx.RequestContext, h.sendTimeout)
 	defer cancel()
-	reqCtx, traceCtx := tracectx.Ensure(reqCtx, h.now)
-	cmd.TraceID = traceCtx.TraceID
-	channelKey := string(channelhandler.KeyFromChannelID(channel.ChannelID{ID: cmd.ChannelID, Type: cmd.ChannelType}))
+
+	traceEnabled := sendtrace.Enabled()
+	channelKey := ""
+	if traceEnabled {
+		var traceCtx tracectx.Context
+		reqCtx, traceCtx = tracectx.Ensure(reqCtx, h.now)
+		cmd.TraceID = traceCtx.TraceID
+		channelKey = string(channelhandler.KeyFromChannelID(channel.ChannelID{ID: cmd.ChannelID, Type: cmd.ChannelType}))
+	}
 
 	sendStartedAt := h.now()
 	result, err := h.messages.Send(reqCtx, cmd)
-	sendtrace.Record(sendtrace.Event{
-		TraceID:     cmd.TraceID,
-		Stage:       sendtrace.StageGatewayMessagesSend,
-		At:          sendStartedAt,
-		Duration:    sendtrace.Elapsed(sendStartedAt, h.now()),
-		NodeID:      h.localNodeID,
-		ChannelKey:  channelKey,
-		ClientMsgNo: cmd.ClientMsgNo,
-		MessageSeq:  result.MessageSeq,
-		FromUID:     cmd.FromUID,
-	})
+	if traceEnabled {
+		sendtrace.Record(sendtrace.Event{
+			TraceID:     cmd.TraceID,
+			Stage:       sendtrace.StageGatewayMessagesSend,
+			At:          sendStartedAt,
+			Duration:    sendtrace.Elapsed(sendStartedAt, h.now()),
+			NodeID:      h.localNodeID,
+			ChannelKey:  channelKey,
+			ClientMsgNo: cmd.ClientMsgNo,
+			MessageSeq:  result.MessageSeq,
+			FromUID:     cmd.FromUID,
+		})
+	}
 	if err != nil {
 		fields := append([]wklog.Field{
 			wklog.Event("access.gateway.frame.send_failed"),
@@ -80,11 +88,17 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 		h.frameLogger().Warn("send request failed", fields...)
 		if reason, ok := mapSendErrorReason(err); ok {
 			result.Reason = reason
+			if !traceEnabled {
+				return writeSendack(ctx, pkt, result)
+			}
 			return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, cmd.TraceID, channelKey, cmd.FromUID, result)
 		}
 		return err
 	}
 
+	if !traceEnabled {
+		return writeSendack(ctx, pkt, result)
+	}
 	return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, cmd.TraceID, channelKey, cmd.FromUID, result)
 }
 

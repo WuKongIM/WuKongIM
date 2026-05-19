@@ -15,6 +15,7 @@ var (
 	ErrGatewayClosed            = gatewaytypes.ErrGatewayClosed
 	ErrSessionClosed            = gatewaytypes.ErrSessionClosed
 	ErrInboundOverflow          = gatewaytypes.ErrInboundOverflow
+	ErrAsyncDispatchQueueFull   = gatewaytypes.ErrAsyncDispatchQueueFull
 	ErrWriteTimeout             = gatewaytypes.ErrWriteTimeout
 	ErrIdleTimeout              = gatewaytypes.ErrIdleTimeout
 )
@@ -22,14 +23,15 @@ var (
 type CloseReason = gatewaytypes.CloseReason
 
 const (
-	CloseReasonServerStop       = gatewaytypes.CloseReasonServerStop
-	CloseReasonPeerClosed       = gatewaytypes.CloseReasonPeerClosed
-	CloseReasonProtocolError    = gatewaytypes.CloseReasonProtocolError
-	CloseReasonInboundOverflow  = gatewaytypes.CloseReasonInboundOverflow
-	CloseReasonPolicyViolation  = gatewaytypes.CloseReasonPolicyViolation
-	CloseReasonPolicyTimeout    = gatewaytypes.CloseReasonPolicyTimeout
-	CloseReasonWriteQueueFull   = gatewaytypes.CloseReasonWriteQueueFull
-	CloseReasonOutboundOverflow = gatewaytypes.CloseReasonOutboundOverflow
-	CloseReasonIdleTimeout      = gatewaytypes.CloseReasonIdleTimeout
-	CloseReasonHandlerError     = gatewaytypes.CloseReasonHandlerError
+	CloseReasonServerStop             = gatewaytypes.CloseReasonServerStop
+	CloseReasonPeerClosed             = gatewaytypes.CloseReasonPeerClosed
+	CloseReasonProtocolError          = gatewaytypes.CloseReasonProtocolError
+	CloseReasonInboundOverflow        = gatewaytypes.CloseReasonInboundOverflow
+	CloseReasonPolicyViolation        = gatewaytypes.CloseReasonPolicyViolation
+	CloseReasonPolicyTimeout          = gatewaytypes.CloseReasonPolicyTimeout
+	CloseReasonAsyncDispatchQueueFull = gatewaytypes.CloseReasonAsyncDispatchQueueFull
+	CloseReasonWriteQueueFull         = gatewaytypes.CloseReasonWriteQueueFull
+	CloseReasonOutboundOverflow       = gatewaytypes.CloseReasonOutboundOverflow
+	CloseReasonIdleTimeout            = gatewaytypes.CloseReasonIdleTimeout
+	CloseReasonHandlerError           = gatewaytypes.CloseReasonHandlerError
 )

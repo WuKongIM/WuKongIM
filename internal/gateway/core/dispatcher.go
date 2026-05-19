@@ -33,9 +33,7 @@ func (d dispatcher) frame(state *sessionState, replyToken string, f frame.Frame)
 	if d.handler == nil {
 		return nil
 	}
-	ctx, cancel := d.requestContext(state)
-	defer cancel()
-	return d.handler.OnFrame(d.context(state, replyToken, state.closeReason(), ctx), f)
+	return d.handler.OnFrame(d.context(state, replyToken, state.closeReason(), d.requestContext(state)), f)
 }
 
 func (d dispatcher) sessionError(state *sessionState, reason gatewaytypes.CloseReason, err error) {
@@ -69,10 +67,9 @@ func (d dispatcher) context(state *sessionState, replyToken string, reason gatew
 	}
 }
 
-func (d dispatcher) requestContext(state *sessionState) (context.Context, context.CancelFunc) {
-	parent := context.Background()
+func (d dispatcher) requestContext(state *sessionState) context.Context {
 	if state != nil && state.requestContext != nil {
-		parent = state.requestContext
+		return state.requestContext
 	}
-	return context.WithCancel(parent)
+	return context.Background()
 }

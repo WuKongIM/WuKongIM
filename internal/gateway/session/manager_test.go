@@ -60,6 +60,38 @@ func TestSessionCloseIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestSessionLazilyAllocatesWriteQueue(t *testing.T) {
+	sess := newSession(8, "listener-a", "remote-a", "local-a", 2, 10, nil)
+
+	if sess.writeCh != nil {
+		t.Fatal("expected write queue to stay nil before first enqueue")
+	}
+
+	if err := sess.enqueueEncoded([]byte("a")); err != nil {
+		t.Fatalf("first enqueue failed: %v", err)
+	}
+	if sess.writeCh == nil {
+		t.Fatal("expected write queue to be allocated on first enqueue")
+	}
+	if got, want := cap(sess.writeCh), 2; got != want {
+		t.Fatalf("write queue capacity = %d, want %d", got, want)
+	}
+}
+
+func TestSessionCloseBeforeFirstEnqueueDoesNotAllocateWriteQueue(t *testing.T) {
+	sess := newSession(10, "listener-a", "remote-a", "local-a", 2, 10, nil)
+
+	if err := sess.Close(); err != nil {
+		t.Fatalf("close failed: %v", err)
+	}
+	if sess.writeCh != nil {
+		t.Fatal("expected write queue to remain nil after closing an idle session")
+	}
+	if err := sess.enqueueEncoded([]byte("a")); !errors.Is(err, ErrSessionClosed) {
+		t.Fatalf("enqueue after close = %v, want %v", err, ErrSessionClosed)
+	}
+}
+
 func TestManagerRangeVisitsSessions(t *testing.T) {
 	mgr := NewManager()
 	mgr.Add(newTestSession(1))
@@ -79,6 +111,23 @@ func TestManagerRangeVisitsSessions(t *testing.T) {
 	}
 	if _, ok := visited[2]; !ok {
 		t.Fatal("expected session 2 to be visited")
+	}
+}
+
+func TestSessionValueStoresHotAndCustomValues(t *testing.T) {
+	sess := newTestSession(9)
+
+	sess.SetValue("gateway.uid", "u1")
+	sess.SetValue("custom.key", "custom-value")
+
+	if got := sess.Value("gateway.uid"); got != "u1" {
+		t.Fatalf("hot value = %#v, want u1", got)
+	}
+	if got := sess.Value("custom.key"); got != "custom-value" {
+		t.Fatalf("custom value = %#v, want custom-value", got)
+	}
+	if got := sess.Value("gateway.device_id"); got != nil {
+		t.Fatalf("unset hot value = %#v, want nil", got)
 	}
 }
 
@@ -118,7 +167,7 @@ func TestSessionEnqueueEncodedReturnsOutboundOverflow(t *testing.T) {
 	}
 }
 
-func TestSessionDequeueEncodedReleasesOutboundAccounting(t *testing.T) {
+func TestSessionReleaseEncodedReleasesOutboundAccounting(t *testing.T) {
 	queue := mustEncodedQueue(t, New(Config{
 		ID:               14,
 		Listener:         "listener-a",
@@ -138,8 +187,66 @@ func TestSessionDequeueEncodedReleasesOutboundAccounting(t *testing.T) {
 	if string(payload) != "abc" {
 		t.Fatalf("expected payload abc, got %q", payload)
 	}
+	if err := queue.EnqueueEncoded([]byte("d")); !errors.Is(err, ErrOutboundOverflow) {
+		t.Fatalf("expected accounting to remain held until release, got %v", err)
+	}
+	queue.ReleaseEncoded(payload)
 	if err := queue.EnqueueEncoded([]byte("d")); err != nil {
-		t.Fatalf("expected accounting to be released after dequeue, got %v", err)
+		t.Fatalf("expected accounting to be released after explicit release, got %v", err)
+	}
+}
+
+func TestSessionEnqueueEncodedCopiesPayload(t *testing.T) {
+	queue := mustEncodedQueue(t, New(Config{
+		ID:               15,
+		Listener:         "listener-a",
+		RemoteAddr:       "remote-a",
+		LocalAddr:        "local-a",
+		WriteQueueSize:   1,
+		MaxOutboundBytes: 10,
+	}))
+	payload := []byte("abc")
+
+	if err := queue.EnqueueEncoded(payload); err != nil {
+		t.Fatalf("enqueue failed: %v", err)
+	}
+	payload[0] = 'x'
+
+	got, ok := queue.DequeueEncoded()
+	if !ok {
+		t.Fatal("expected payload to be dequeued")
+	}
+	if string(got) != "abc" {
+		t.Fatalf("dequeued payload = %q, want original copy", got)
+	}
+}
+
+func TestSessionEnqueueOwnedEncodedRetainsPayloadBackingArray(t *testing.T) {
+	queue := mustEncodedQueue(t, New(Config{
+		ID:               16,
+		Listener:         "listener-a",
+		RemoteAddr:       "remote-a",
+		LocalAddr:        "local-a",
+		WriteQueueSize:   1,
+		MaxOutboundBytes: 10,
+	}))
+	owned, ok := queue.(interface {
+		EnqueueOwnedEncoded([]byte) error
+	})
+	if !ok {
+		t.Fatalf("session queue %T does not expose owned encoded enqueue", queue)
+	}
+	payload := []byte("abc")
+
+	if err := owned.EnqueueOwnedEncoded(payload); err != nil {
+		t.Fatalf("owned enqueue failed: %v", err)
+	}
+	got, ok := queue.DequeueEncoded()
+	if !ok {
+		t.Fatal("expected payload to be dequeued")
+	}
+	if len(got) == 0 || &got[0] != &payload[0] {
+		t.Fatal("owned enqueue copied payload backing array")
 	}
 }
 

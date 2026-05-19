@@ -7,6 +7,10 @@ type ListenerOptions struct {
 	Network string
 	Address string
 	Path    string
-	OnError func(error)
-	Logger  wklog.Logger
+	// MaxPendingBytes bounds bytes buffered inside the transport before the gateway core consumes them.
+	MaxPendingBytes int
+	// MaxOutboundBytes bounds bytes buffered inside the transport after gateway queue dequeue.
+	MaxOutboundBytes int64
+	OnError          func(error)
+	Logger           wklog.Logger
 }

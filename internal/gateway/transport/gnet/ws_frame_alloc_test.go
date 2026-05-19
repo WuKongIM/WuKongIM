@@ -41,7 +41,7 @@ func TestNextWSResultSingleFrameAllocatesOnePayloadBuffer(t *testing.T) {
 	}
 }
 
-func encodeMaskedTestWSFrame(t *testing.T, final bool, opcode byte, maskKey [4]byte, payload []byte) []byte {
+func encodeMaskedTestWSFrame(t testing.TB, final bool, opcode byte, maskKey [4]byte, payload []byte) []byte {
 	t.Helper()
 
 	var header bytes.Buffer

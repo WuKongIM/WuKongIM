@@ -31,6 +31,7 @@ const (
 	asyncDispatchWorkersPerCPU  = 64
 	minAsyncDispatchWorkers     = 64
 	maxAsyncDispatchWorkers     = 1024
+	writerIdleTimeout           = 50 * time.Millisecond
 )
 
 type Server struct {
@@ -52,7 +53,7 @@ type Server struct {
 	idleTracker *idleTracker
 	// idleMonitorStop stops the shared idle monitor when idle timeouts are enabled.
 	idleMonitorStop chan struct{}
-	// asyncDispatch bounds SEND frame concurrency when AsyncSendDispatch is enabled.
+	// asyncDispatch bounds SEND frame concurrency off the transport event loop.
 	asyncDispatch *asyncDispatchQueue
 	workerWG      sync.WaitGroup
 }
@@ -87,8 +88,10 @@ type sessionState struct {
 	authRequired     bool
 	openDispatched   bool
 
-	closeOnce sync.Once
-	closedCh  chan struct{}
+	openDispatching    atomic.Bool
+	writerStartPending atomic.Bool
+	closeOnce          sync.Once
+	closedCh           chan struct{}
 
 	requestContext       context.Context
 	cancelRequestContext context.CancelFunc
@@ -121,6 +124,7 @@ func NewServer(registry *Registry, opts *gatewaytypes.Options) (*Server, error) 
 		Authenticator:  opts.Authenticator,
 		Observer:       opts.Observer,
 		DefaultSession: opts.DefaultSession,
+		Transport:      opts.Transport,
 		Listeners:      append([]gatewaytypes.ListenerOptions(nil), opts.Listeners...),
 		Logger:         opts.Logger,
 	}
@@ -237,10 +241,12 @@ func (s *Server) buildListeners(runtimes []*listenerRuntime) error {
 			runtime := runtime
 			specs = append(specs, transport.ListenerSpec{
 				Options: transport.ListenerOptions{
-					Name:    runtime.options.Name,
-					Network: runtime.options.Network,
-					Address: runtime.options.Address,
-					Path:    runtime.options.Path,
+					Name:             runtime.options.Name,
+					Network:          runtime.options.Network,
+					Address:          runtime.options.Address,
+					Path:             runtime.options.Path,
+					MaxPendingBytes:  s.options.DefaultSession.MaxInboundBytes,
+					MaxOutboundBytes: int64(s.options.DefaultSession.MaxOutboundBytes),
 					OnError: func(err error) {
 						s.dispatcher.listenerError(runtime.options.Name, err)
 					},
@@ -406,7 +412,6 @@ func (s *Server) onOpen(listener *listenerRuntime, conn transport.Conn) error {
 		}
 	}
 
-	s.startWriter(state)
 	return nil
 }
 
@@ -428,6 +433,33 @@ func (s *Server) onData(listener *listenerRuntime, conn transport.Conn, data []b
 	}
 
 	state.touchReadActivity()
+	if len(state.inbound) == 0 {
+		if limit := s.options.DefaultSession.MaxInboundBytes; limit > 0 && len(data) > limit {
+			state.close(gatewaytypes.CloseReasonInboundOverflow, gatewaytypes.ErrInboundOverflow)
+			return nil
+		}
+
+		frames, consumed, ok := s.decodeInboundFrames(listener, state, data)
+		if state.isClosed() {
+			return nil
+		}
+		if !ok {
+			state.inbound = append(state.inbound, data...)
+			return nil
+		}
+		if err := s.syncSessionProtocol(state); err != nil {
+			s.handleHandlerError(state, err)
+			if state.isClosed() {
+				return nil
+			}
+		}
+		s.dispatchInboundFrames(listener, state, frames)
+		if state.isClosed() || consumed == len(data) {
+			return nil
+		}
+		state.inbound = append(state.inbound, data[consumed:]...)
+	}
+
 	state.inbound = append(state.inbound, data...)
 	if limit := s.options.DefaultSession.MaxInboundBytes; limit > 0 && len(state.inbound) > limit {
 		state.close(gatewaytypes.CloseReasonInboundOverflow, gatewaytypes.ErrInboundOverflow)
@@ -435,20 +467,8 @@ func (s *Server) onData(listener *listenerRuntime, conn transport.Conn, data []b
 	}
 
 	for !state.isClosed() {
-		frames, consumed, err := listener.adapter.Decode(state.session, state.inbound)
-		if err != nil {
-			state.close(gatewaytypes.CloseReasonProtocolError, err)
-			return nil
-		}
-		if consumed < 0 || consumed > len(state.inbound) {
-			state.close(gatewaytypes.CloseReasonProtocolError, ErrInvalidDecodeStep)
-			return nil
-		}
-		if consumed == 0 && len(frames) == 0 {
-			return nil
-		}
-		if consumed == 0 {
-			state.close(gatewaytypes.CloseReasonProtocolError, ErrDecodeNoProgress)
+		frames, consumed, ok := s.decodeInboundFrames(listener, state, state.inbound)
+		if state.isClosed() || !ok {
 			return nil
 		}
 		if err := s.syncSessionProtocol(state); err != nil {
@@ -459,71 +479,94 @@ func (s *Server) onData(listener *listenerRuntime, conn transport.Conn, data []b
 		}
 
 		state.inbound = state.inbound[consumed:]
-		tokens := s.replyTokens(listener, state.session, len(frames))
-		for i, f := range frames {
-			replyToken := ""
-			if i < len(tokens) {
-				replyToken = tokens[i]
-			}
-			handled, err := s.handleAuthFrame(state, replyToken, f)
-			if err != nil {
-				s.handleHandlerError(state, err)
-				if state.isClosed() {
-					return nil
-				}
-				continue
-			}
-			if handled {
-				if state.isClosed() {
-					return nil
-				}
-				continue
-			}
-			s.observeFrameIn(state, f)
-			if asyncFrame, ok := cloneAsyncSendFrame(s.options.DefaultSession.AsyncSendDispatch, f); ok {
-				s.dispatchFrameAsync(state, replyToken, asyncFrame)
-				continue
-			}
-			if err := s.dispatchFrame(state, replyToken, f); err != nil {
-				s.handleHandlerError(state, err)
-				if state.isClosed() {
-					return nil
-				}
-			}
-		}
+		s.dispatchInboundFrames(listener, state, frames)
 	}
 
 	return nil
 }
 
-func cloneAsyncSendFrame(enabled bool, f frame.Frame) (frame.Frame, bool) {
-	if !enabled {
-		return nil, false
+func (s *Server) decodeInboundFrames(listener *listenerRuntime, state *sessionState, data []byte) ([]frame.Frame, int, bool) {
+	frames, consumed, err := listener.adapter.Decode(state.session, data)
+	if err != nil {
+		state.close(gatewaytypes.CloseReasonProtocolError, err)
+		return nil, 0, false
 	}
+	if consumed < 0 || consumed > len(data) {
+		state.close(gatewaytypes.CloseReasonProtocolError, ErrInvalidDecodeStep)
+		return nil, 0, false
+	}
+	if consumed == 0 && len(frames) == 0 {
+		return nil, 0, false
+	}
+	if consumed == 0 {
+		state.close(gatewaytypes.CloseReasonProtocolError, ErrDecodeNoProgress)
+		return nil, 0, false
+	}
+	return frames, consumed, true
+}
 
+func (s *Server) dispatchInboundFrames(listener *listenerRuntime, state *sessionState, frames []frame.Frame) {
+	tokens := s.replyTokens(listener, state.session, len(frames))
+	for i, f := range frames {
+		replyToken := ""
+		if i < len(tokens) {
+			replyToken = tokens[i]
+		}
+		handled, err := s.handleAuthFrame(state, replyToken, f)
+		if err != nil {
+			s.handleHandlerError(state, err)
+			if state.isClosed() {
+				return
+			}
+			continue
+		}
+		if handled {
+			if state.isClosed() {
+				return
+			}
+			continue
+		}
+		s.observeFrameIn(state, f)
+		if send, ok := asyncSendPacket(f); ok {
+			s.dispatchSendFrameAsync(state, replyToken, send)
+			continue
+		}
+		if err := s.dispatchFrame(state, replyToken, f); err != nil {
+			s.handleHandlerError(state, err)
+			if state.isClosed() {
+				return
+			}
+		}
+	}
+}
+
+func asyncSendPacket(f frame.Frame) (*frame.SendPacket, bool) {
 	send, ok := f.(*frame.SendPacket)
 	if !ok {
 		return nil, false
 	}
-
-	cloned := *send
-	cloned.Payload = append([]byte(nil), send.Payload...)
-	return &cloned, true
+	return send, true
 }
 
-func (s *Server) dispatchFrameAsync(state *sessionState, replyToken string, f frame.Frame) {
+func cloneAsyncSendFrame(send *frame.SendPacket) frame.Frame {
+	if send == nil {
+		return nil
+	}
+	cloned := *send
+	cloned.Payload = append([]byte(nil), send.Payload...)
+	return &cloned
+}
+
+func (s *Server) dispatchSendFrameAsync(state *sessionState, replyToken string, send *frame.SendPacket) {
 	if s == nil {
 		return
 	}
 
-	task := asyncDispatchTask{state: state, replyToken: replyToken, frame: f, enqueuedAt: time.Now()}
 	queue := s.asyncDispatcher()
-	if queue != nil && queue.submit(task) {
+	if queue != nil && queue.submitSend(state, replyToken, send) {
 		return
 	}
-	if err := s.dispatchFrame(state, replyToken, f); err != nil {
-		s.handleHandlerError(state, err)
-	}
+	state.close(gatewaytypes.CloseReasonAsyncDispatchQueueFull, gatewaytypes.ErrAsyncDispatchQueueFull)
 }
 
 func (s *Server) dispatchFrame(state *sessionState, replyToken string, f frame.Frame) error {
@@ -653,7 +696,38 @@ func (s *Server) encodeAndQueue(state *sessionState, f frame.Frame, meta session
 		return err
 	}
 	s.observeFrameOut(state, f, len(encoded))
-	return state.queue.EnqueueEncoded(encoded)
+	if s.canDirectWrite(state) {
+		return s.writePayload(state, encoded)
+	}
+	if ownedQueue, ok := state.queue.(session.OwnedEncodedQueue); ok {
+		err = ownedQueue.EnqueueOwnedEncoded(encoded)
+	} else {
+		err = state.queue.EnqueueEncoded(encoded)
+	}
+	if err != nil {
+		return err
+	}
+	if state.openDispatching.Load() {
+		state.writerStartPending.Store(true)
+		return nil
+	}
+	s.startWriter(state)
+	return nil
+}
+
+func (s *Server) canDirectWrite(state *sessionState) bool {
+	if state == nil || state.conn == nil || state.openDispatching.Load() {
+		return false
+	}
+	if policy, ok := state.conn.(transport.WriteTimeoutPolicy); !ok || !policy.TransportManagedWriteTimeout() {
+		return false
+	}
+	if state.session != nil {
+		if pending, ok := state.session.(interface{ HasPendingEncoded() bool }); ok && pending.HasPendingEncoded() {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Server) writeImmediateFrame(state *sessionState, f frame.Frame) error {
@@ -675,8 +749,14 @@ func (s *Server) dispatchSessionOpen(state *sessionState) error {
 	}
 
 	state.markOpenDispatched()
-	if err := s.dispatcher.sessionOpen(state); err != nil {
+	state.openDispatching.Store(true)
+	err := s.dispatcher.sessionOpen(state)
+	state.openDispatching.Store(false)
+	if err != nil {
 		return err
+	}
+	if state.writerStartPending.Swap(false) {
+		s.startWriter(state)
 	}
 	return nil
 }
@@ -685,17 +765,42 @@ func (s *Server) startWriter(state *sessionState) {
 	if state == nil || state.queue == nil || state.conn == nil {
 		return
 	}
+	starter, ok := state.session.(interface{ TryStartWriter() bool })
+	if !ok || !starter.TryStartWriter() {
+		return
+	}
 
+	s.mu.Lock()
+	if s.stopped || state.isClosed() {
+		s.mu.Unlock()
+		if ender, ok := state.session.(interface{ EndWriter() }); ok {
+			ender.EndWriter()
+		}
+		return
+	}
 	s.workerWG.Add(1)
+	s.mu.Unlock()
+
 	go func() {
 		defer s.workerWG.Done()
-		for {
-			payload, ok := state.queue.DequeueEncoded()
-			if !ok {
-				return
+		defer func() {
+			if ender, ok := state.session.(interface{ EndWriter() }); ok {
+				ender.EndWriter()
 			}
-			if err := s.writePayload(state, payload); err != nil {
-				reason := gatewaytypes.CloseReasonPeerClosed
+		}()
+
+		for {
+			payload, ok := dequeueEncodedWithTimeout(state.queue, writerIdleTimeout)
+			if !ok {
+				if stopper, ok := state.session.(interface{ TryStopWriterIfIdle() bool }); ok && stopper.TryStopWriterIfIdle() {
+					return
+				}
+				continue
+			}
+			err := s.writePayload(state, payload)
+			state.queue.ReleaseEncoded(payload)
+			if err != nil {
+				reason := closeReasonForError(err, gatewaytypes.CloseReasonPeerClosed)
 				reportErr := err
 				if isTimeoutError(err) {
 					reason = gatewaytypes.CloseReasonPolicyTimeout
@@ -706,6 +811,20 @@ func (s *Server) startWriter(state *sessionState) {
 			}
 		}
 	}()
+}
+
+type encodedQueueWithTimeout interface {
+	DequeueEncodedWithTimeout(timeout time.Duration) ([]byte, bool)
+}
+
+func dequeueEncodedWithTimeout(queue session.EncodedQueue, timeout time.Duration) ([]byte, bool) {
+	if queue == nil {
+		return nil, false
+	}
+	if timed, ok := queue.(encodedQueueWithTimeout); ok {
+		return timed.DequeueEncodedWithTimeout(timeout)
+	}
+	return queue.DequeueEncoded()
 }
 
 // startIdleMonitor starts one shared deadline monitor for all sessions on this server.
@@ -761,14 +880,14 @@ func (s *Server) closeIdleSessions(now time.Time) {
 	}
 }
 
-// startAsyncDispatcher starts a bounded worker pool for async SEND dispatch.
+// startAsyncDispatcher starts a bounded worker pool for SEND dispatch.
 func (s *Server) startAsyncDispatcher() {
-	if s == nil || !s.options.DefaultSession.AsyncSendDispatch {
+	if s == nil {
 		return
 	}
 
 	workers := asyncDispatchWorkerCount(s.options.DefaultSession)
-	queue := newAsyncDispatchQueue(workers * asyncDispatchQueuePerWorker)
+	queue := newAsyncDispatchQueue(workers)
 
 	s.mu.Lock()
 	if s.stopped || s.asyncDispatch != nil {
@@ -778,16 +897,16 @@ func (s *Server) startAsyncDispatcher() {
 	s.asyncDispatch = queue
 	s.mu.Unlock()
 
-	for i := 0; i < workers; i++ {
+	for i := range queue.shards {
 		s.workerWG.Add(1)
-		go s.runAsyncDispatchWorker(queue)
+		go s.runAsyncDispatchWorker(queue.shards[i].tasks)
 	}
 }
 
-func (s *Server) runAsyncDispatchWorker(queue *asyncDispatchQueue) {
+func (s *Server) runAsyncDispatchWorker(tasks <-chan asyncDispatchTask) {
 	defer s.workerWG.Done()
 
-	for task := range queue.tasks {
+	for task := range tasks {
 		recordAsyncDispatchWait(task)
 		if err := s.dispatchFrame(task.state, task.replyToken, task.frame); err != nil {
 			s.handleHandlerError(task.state, err)
@@ -846,21 +965,36 @@ func recordAsyncDispatchWait(task asyncDispatchTask) {
 	})
 }
 
-// asyncDispatchQueue provides synchronized close/submit around a bounded task channel.
+// asyncDispatchQueue shards SEND work by routing key to avoid a single shared hot queue.
 type asyncDispatchQueue struct {
 	mu     sync.RWMutex
-	tasks  chan asyncDispatchTask
+	shards []asyncDispatchShard
 	closed bool
 }
 
-func newAsyncDispatchQueue(capacity int) *asyncDispatchQueue {
-	if capacity <= 0 {
-		capacity = asyncDispatchQueuePerWorker
-	}
-	return &asyncDispatchQueue{tasks: make(chan asyncDispatchTask, capacity)}
+type asyncDispatchShard struct {
+	tasks chan asyncDispatchTask
 }
 
-func (q *asyncDispatchQueue) submit(task asyncDispatchTask) bool {
+func newAsyncDispatchQueue(shards int) *asyncDispatchQueue {
+	return newAsyncDispatchQueueWithCapacity(shards, asyncDispatchQueuePerWorker)
+}
+
+func newAsyncDispatchQueueWithCapacity(shards, capacityPerShard int) *asyncDispatchQueue {
+	if shards <= 0 {
+		shards = 1
+	}
+	if capacityPerShard <= 0 {
+		capacityPerShard = asyncDispatchQueuePerWorker
+	}
+	queue := &asyncDispatchQueue{shards: make([]asyncDispatchShard, shards)}
+	for i := range queue.shards {
+		queue.shards[i].tasks = make(chan asyncDispatchTask, capacityPerShard)
+	}
+	return queue
+}
+
+func (q *asyncDispatchQueue) submitSend(state *sessionState, replyToken string, send *frame.SendPacket) bool {
 	if q == nil {
 		return false
 	}
@@ -869,12 +1003,62 @@ func (q *asyncDispatchQueue) submit(task asyncDispatchTask) bool {
 	if q.closed {
 		return false
 	}
+	shard := q.shardForSend(state, send)
+	if len(shard.tasks) >= cap(shard.tasks) {
+		return false
+	}
+	task := asyncDispatchTask{
+		state:      state,
+		replyToken: replyToken,
+		frame:      cloneAsyncSendFrame(send),
+		enqueuedAt: time.Now(),
+	}
 	select {
-	case q.tasks <- task:
+	case shard.tasks <- task:
 		return true
 	default:
 		return false
 	}
+}
+
+func (q *asyncDispatchQueue) shardForSend(state *sessionState, send *frame.SendPacket) asyncDispatchShard {
+	if q == nil || len(q.shards) == 0 {
+		return asyncDispatchShard{}
+	}
+	return q.shards[asyncDispatchShardIndex(state, send, len(q.shards))]
+}
+
+func asyncDispatchShardIndex(state *sessionState, f frame.Frame, shards int) int {
+	if shards <= 1 {
+		return 0
+	}
+
+	hash := uint64(1469598103934665603)
+	if send, ok := f.(*frame.SendPacket); ok && send != nil && send.ChannelID != "" {
+		hash = asyncDispatchHashString(hash, send.ChannelID)
+		hash ^= uint64(send.ChannelType)
+		hash *= 1099511628211
+		return int(hash % uint64(shards))
+	}
+
+	var id uint64
+	if state != nil && state.session != nil {
+		id = state.session.ID()
+	} else if state != nil {
+		id = state.key.connID
+	}
+	if id == 0 {
+		return 0
+	}
+	return int(id % uint64(shards))
+}
+
+func asyncDispatchHashString(hash uint64, value string) uint64 {
+	for i := 0; i < len(value); i++ {
+		hash ^= uint64(value[i])
+		hash *= 1099511628211
+	}
+	return hash
 }
 
 func (q *asyncDispatchQueue) close() {
@@ -887,7 +1071,9 @@ func (q *asyncDispatchQueue) close() {
 		return
 	}
 	q.closed = true
-	close(q.tasks)
+	for i := range q.shards {
+		close(q.shards[i].tasks)
+	}
 }
 
 func (s *Server) replyTokens(listener *listenerRuntime, sess session.Session, count int) []string {
@@ -940,11 +1126,11 @@ func (s *Server) writePayload(state *sessionState, payload []byte) error {
 
 	timeout := s.options.DefaultSession.WriteTimeout
 	if timeout <= 0 {
-		return state.conn.Write(payload)
+		return s.writePayloadDirect(state, payload)
 	}
 
 	if policy, ok := state.conn.(transport.WriteTimeoutPolicy); ok && policy.TransportManagedWriteTimeout() {
-		return state.conn.Write(payload)
+		return s.writePayloadDirect(state, payload)
 	}
 
 	if deadlineConn, ok := state.conn.(writeDeadlineConn); ok {
@@ -954,12 +1140,12 @@ func (s *Server) writePayload(state *sessionState, payload []byte) error {
 		defer func() {
 			_ = deadlineConn.SetWriteDeadline(time.Time{})
 		}()
-		return state.conn.Write(payload)
+		return s.writePayloadDirect(state, payload)
 	}
 
 	done := make(chan error, 1)
 	go func() {
-		done <- state.conn.Write(payload)
+		done <- s.writePayloadDirect(state, payload)
 	}()
 
 	timer := time.NewTimer(timeout)
@@ -970,6 +1156,36 @@ func (s *Server) writePayload(state *sessionState, payload []byte) error {
 		return err
 	case <-timer.C:
 		return gatewaytypes.ErrWriteTimeout
+	}
+}
+
+func (s *Server) writePayloadDirect(state *sessionState, payload []byte) error {
+	if writer, ok := state.conn.(transport.WebSocketMessageWriter); ok {
+		if messageType := webSocketMessageTypeForState(state); messageType != transport.WebSocketMessageUnknown {
+			return writer.WriteWebSocketMessage(payload, messageType)
+		}
+	}
+	return state.conn.Write(payload)
+}
+
+func webSocketMessageTypeForState(state *sessionState) transport.WebSocketMessageType {
+	if state == nil || state.listener == nil || state.listener.options.Network != "websocket" {
+		return transport.WebSocketMessageUnknown
+	}
+
+	protocolName := state.listener.options.Protocol
+	if protocolName == "wsmux" && state.session != nil {
+		if selected, _ := state.session.Value(gatewaytypes.SessionValueProtocolName).(string); selected != "" {
+			protocolName = selected
+		}
+	}
+	switch protocolName {
+	case "jsonrpc":
+		return transport.WebSocketMessageText
+	case "wkproto":
+		return transport.WebSocketMessageBinary
+	default:
+		return transport.WebSocketMessageUnknown
 	}
 }
 
@@ -990,9 +1206,13 @@ func isTimeoutError(err error) bool {
 
 func closeReasonForError(err error, fallback gatewaytypes.CloseReason) gatewaytypes.CloseReason {
 	switch {
+	case errors.Is(err, gatewaytypes.ErrAsyncDispatchQueueFull):
+		return gatewaytypes.CloseReasonAsyncDispatchQueueFull
 	case errors.Is(err, session.ErrWriteQueueFull):
 		return gatewaytypes.CloseReasonWriteQueueFull
 	case errors.Is(err, session.ErrOutboundOverflow):
+		return gatewaytypes.CloseReasonOutboundOverflow
+	case errors.Is(err, transport.ErrOutboundBytesExceeded):
 		return gatewaytypes.CloseReasonOutboundOverflow
 	default:
 		return fallback

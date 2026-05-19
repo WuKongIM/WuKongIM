@@ -16,7 +16,7 @@ type Gateway struct {
 }
 
 func New(opts Options) (*Gateway, error) {
-	registry, err := buildRegistry()
+	registry, err := buildRegistry(opts.Transport)
 	if err != nil {
 		return nil, err
 	}
@@ -74,12 +74,17 @@ func (g *Gateway) SessionSummary() core.SessionSummary {
 	return g.server.SessionSummary()
 }
 
-func buildRegistry() (*core.Registry, error) {
+func buildRegistry(options ...TransportOptions) (*core.Registry, error) {
+	transportOptions := TransportOptions{}
+	if len(options) > 0 {
+		transportOptions = options[0]
+	}
+
 	registry := core.NewRegistry()
 	if err := registry.RegisterTransport(stdnet.NewFactory()); err != nil {
 		return nil, err
 	}
-	if err := registry.RegisterTransport(gnettransport.NewFactory()); err != nil {
+	if err := registry.RegisterTransport(gnettransport.NewFactory(gnetOptionsFromGateway(transportOptions.Gnet))); err != nil {
 		return nil, err
 	}
 	if err := registry.RegisterProtocol(protowkproto.New()); err != nil {
@@ -92,4 +97,14 @@ func buildRegistry() (*core.Registry, error) {
 		return nil, err
 	}
 	return registry, nil
+}
+
+func gnetOptionsFromGateway(options GnetTransportOptions) gnettransport.Options {
+	return gnettransport.Options{
+		Multicore:      options.Multicore,
+		NumEventLoop:   options.NumEventLoop,
+		ReusePort:      options.ReusePort,
+		ReadBufferCap:  options.ReadBufferCap,
+		WriteBufferCap: options.WriteBufferCap,
+	}
 }

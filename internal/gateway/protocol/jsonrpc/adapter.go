@@ -15,17 +15,19 @@ import (
 
 const Name = "jsonrpc"
 
-type Adapter struct {
+const replyTokenQueueSessionValue = "gateway.jsonrpc.reply_tokens"
+
+type Adapter struct{}
+
+type replyTokenQueue struct {
 	mu     sync.Mutex
-	tokens map[uint64][]string
+	tokens []string
 }
 
 var _ protocol.ReplyTokenTracker = (*Adapter)(nil)
 
 func New() *Adapter {
-	return &Adapter{
-		tokens: make(map[uint64][]string),
-	}
+	return &Adapter{}
 }
 
 func (a *Adapter) Name() string {
@@ -72,18 +74,15 @@ func (a *Adapter) Encode(_ session.Session, f frame.Frame, meta session.Outbound
 	return pkgjsonrpc.Encode(msg)
 }
 
-func (a *Adapter) OnOpen(session.Session) error {
+func (a *Adapter) OnOpen(sess session.Session) error {
+	if sess != nil {
+		sess.SetValue(replyTokenQueueSessionValue, &replyTokenQueue{})
+	}
 	return nil
 }
 
 func (a *Adapter) OnClose(sess session.Session) error {
-	if a == nil || sess == nil {
-		return nil
-	}
-
-	a.mu.Lock()
-	delete(a.tokens, sess.ID())
-	a.mu.Unlock()
+	replyTokenQueueForSession(sess, false).clear()
 	return nil
 }
 
@@ -92,24 +91,7 @@ func (a *Adapter) TakeReplyTokens(sess session.Session, count int) []string {
 		return nil
 	}
 
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	queue := a.tokens[sess.ID()]
-	if len(queue) == 0 {
-		return nil
-	}
-	if count > len(queue) {
-		count = len(queue)
-	}
-
-	tokens := append([]string(nil), queue[:count]...)
-	if count == len(queue) {
-		delete(a.tokens, sess.ID())
-	} else {
-		a.tokens[sess.ID()] = append([]string(nil), queue[count:]...)
-	}
-	return tokens
+	return replyTokenQueueForSession(sess, false).take(count)
 }
 
 func (a *Adapter) pushReplyToken(sess session.Session, token string) {
@@ -117,7 +99,75 @@ func (a *Adapter) pushReplyToken(sess session.Session, token string) {
 		return
 	}
 
-	a.mu.Lock()
-	a.tokens[sess.ID()] = append(a.tokens[sess.ID()], token)
-	a.mu.Unlock()
+	replyTokenQueueForSession(sess, true).push(token)
+}
+
+type valueLoadOrStorer interface {
+	LoadOrStoreValue(key string, value any) (actual any, loaded bool)
+}
+
+func replyTokenQueueForSession(sess session.Session, create bool) *replyTokenQueue {
+	if sess == nil {
+		return nil
+	}
+	if queue, _ := sess.Value(replyTokenQueueSessionValue).(*replyTokenQueue); queue != nil {
+		return queue
+	}
+	if !create {
+		return nil
+	}
+
+	queue := &replyTokenQueue{}
+	if loader, ok := sess.(valueLoadOrStorer); ok {
+		actual, _ := loader.LoadOrStoreValue(replyTokenQueueSessionValue, queue)
+		if existing, _ := actual.(*replyTokenQueue); existing != nil {
+			return existing
+		}
+	}
+	sess.SetValue(replyTokenQueueSessionValue, queue)
+	return queue
+}
+
+func (q *replyTokenQueue) push(token string) {
+	if q == nil || token == "" {
+		return
+	}
+
+	q.mu.Lock()
+	q.tokens = append(q.tokens, token)
+	q.mu.Unlock()
+}
+
+func (q *replyTokenQueue) take(count int) []string {
+	if q == nil || count <= 0 {
+		return nil
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if len(q.tokens) == 0 {
+		return nil
+	}
+	if count > len(q.tokens) {
+		count = len(q.tokens)
+	}
+
+	tokens := q.tokens[:count:count]
+	if count == len(q.tokens) {
+		q.tokens = nil
+	} else {
+		q.tokens = q.tokens[count:]
+	}
+	return tokens
+}
+
+func (q *replyTokenQueue) clear() {
+	if q == nil {
+		return
+	}
+
+	q.mu.Lock()
+	q.tokens = nil
+	q.mu.Unlock()
 }

@@ -27,7 +27,6 @@ func TestDeliveryTagHundredKGroupProfile(t *testing.T) {
 	preset := sendStressAcceptancePreset()
 	harness := newThreeNodeAppHarnessWithConfigMutator(t, func(appCfg *Config) {
 		applySendPathTuning(t, appCfg, preset)
-		appCfg.Gateway.DefaultSession.AsyncSendDispatch = true
 	})
 	ownerID := harness.waitForStableLeader(t, 1)
 	owner := harness.apps[ownerID]

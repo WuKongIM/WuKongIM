@@ -13,8 +13,29 @@ type Options struct {
 	Authenticator  Authenticator
 	Observer       Observer
 	DefaultSession SessionOptions
+	Transport      TransportOptions
 	Listeners      []ListenerOptions
 	Logger         wklog.Logger
+}
+
+// TransportOptions groups transport-specific gateway runtime tuning.
+type TransportOptions struct {
+	// Gnet configures the gnet transport used by high-throughput TCP and WebSocket listeners.
+	Gnet GnetTransportOptions
+}
+
+// GnetTransportOptions controls gnet engine tuning while preserving zero-value defaults.
+type GnetTransportOptions struct {
+	// Multicore enables gnet's CPU-scaled multi event-loop mode when true.
+	Multicore bool
+	// NumEventLoop sets an explicit gnet event-loop count; zero keeps gnet's default.
+	NumEventLoop int
+	// ReusePort enables SO_REUSEPORT where the operating system and gnet support it.
+	ReusePort bool
+	// ReadBufferCap sets gnet's per-event-loop read buffer cap; zero keeps gnet's default.
+	ReadBufferCap int
+	// WriteBufferCap sets gnet's per-connection static write buffer cap; zero keeps gnet's default.
+	WriteBufferCap int
 }
 
 type ListenerOptions struct {
@@ -33,9 +54,7 @@ type SessionOptions struct {
 	MaxOutboundBytes int
 	IdleTimeout      time.Duration
 	WriteTimeout     time.Duration
-	// AsyncSendDispatch enables the bounded SEND worker pool instead of doing durable send work on the transport event loop.
-	AsyncSendDispatch bool
-	// AsyncSendDispatchWorkers sets the SEND worker pool size when AsyncSendDispatch is enabled. Non-positive values use an IO-wait-aware adaptive default.
+	// AsyncSendDispatchWorkers sets the SEND worker pool size. Non-positive values use an IO-wait-aware adaptive default.
 	AsyncSendDispatchWorkers int
 	CloseOnHandlerError      *bool
 }
@@ -43,7 +62,7 @@ type SessionOptions struct {
 func DefaultSessionOptions() SessionOptions {
 	return SessionOptions{
 		ReadBufferSize:      4 << 10,
-		WriteQueueSize:      500, // Increased from 64 to 500 to reduce session dequeue blocking
+		WriteQueueSize:      64,
 		MaxInboundBytes:     1 << 20,
 		MaxOutboundBytes:    1 << 20,
 		IdleTimeout:         3 * time.Minute,

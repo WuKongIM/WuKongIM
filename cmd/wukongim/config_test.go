@@ -1411,22 +1411,6 @@ func TestLoadConfigParsesHashSlotMigrationGate(t *testing.T) {
 	require.True(t, cfg.Cluster.EnableHashSlotMigration)
 }
 
-func TestLoadConfigParsesGatewayAsyncSendDispatchFromConf(t *testing.T) {
-	dir := t.TempDir()
-	configPath := writeConf(t, dir, "wukongim.conf",
-		"WK_NODE_ID=1",
-		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
-		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
-		"WK_CLUSTER_SLOT_COUNT=1",
-		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH=true",
-		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
-	)
-
-	cfg, err := loadConfig(configPath)
-	require.NoError(t, err)
-	require.True(t, cfg.Gateway.DefaultSession.AsyncSendDispatch)
-}
-
 func TestLoadConfigParsesGatewayAsyncSendDispatchWorkersFromConf(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",
@@ -1434,7 +1418,6 @@ func TestLoadConfigParsesGatewayAsyncSendDispatchWorkersFromConf(t *testing.T) {
 		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
 		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
 		"WK_CLUSTER_SLOT_COUNT=1",
-		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH=true",
 		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS=64",
 		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
 	)
@@ -1442,6 +1425,30 @@ func TestLoadConfigParsesGatewayAsyncSendDispatchWorkersFromConf(t *testing.T) {
 	cfg, err := loadConfig(configPath)
 	require.NoError(t, err)
 	require.Equal(t, 64, cfg.Gateway.DefaultSession.AsyncSendDispatchWorkers)
+}
+
+func TestLoadConfigParsesGatewayGnetOptionsFromConf(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		"WK_GATEWAY_GNET_MULTICORE=true",
+		"WK_GATEWAY_GNET_NUM_EVENT_LOOP=4",
+		"WK_GATEWAY_GNET_REUSE_PORT=true",
+		"WK_GATEWAY_GNET_READ_BUFFER_CAP=8192",
+		"WK_GATEWAY_GNET_WRITE_BUFFER_CAP=16384",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.True(t, cfg.Gateway.Transport.Gnet.Multicore)
+	require.Equal(t, 4, cfg.Gateway.Transport.Gnet.NumEventLoop)
+	require.True(t, cfg.Gateway.Transport.Gnet.ReusePort)
+	require.Equal(t, 8192, cfg.Gateway.Transport.Gnet.ReadBufferCap)
+	require.Equal(t, 16384, cfg.Gateway.Transport.Gnet.WriteBufferCap)
 }
 
 func TestLoadConfigParsesGatewaySendTimeoutFromConf(t *testing.T) {

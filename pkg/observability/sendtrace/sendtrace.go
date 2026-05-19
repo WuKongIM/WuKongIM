@@ -125,6 +125,12 @@ func SetSink(sink Sink) func() {
 	}
 }
 
+// Enabled reports whether send trace events have an active receiver.
+func Enabled() bool {
+	holder := activeSink.Load()
+	return holder != nil && holder.sink != nil
+}
+
 func Record(event Event) {
 	holder := activeSink.Load()
 	if holder == nil || holder.sink == nil {

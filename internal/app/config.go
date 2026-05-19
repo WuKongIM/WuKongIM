@@ -675,6 +675,8 @@ type GatewayConfig struct {
 	SendTimeout time.Duration
 	// DefaultSession defines default session buffering and timeout behavior.
 	DefaultSession gateway.SessionOptions
+	// Transport defines transport-specific runtime tuning for gateway listeners.
+	Transport gateway.TransportOptions
 	// Listeners lists gateway listener bindings.
 	Listeners []gateway.ListenerOptions
 
@@ -1274,6 +1276,15 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 	}
 
 	c.Gateway.DefaultSession = gateway.NormalizeSessionOptions(c.Gateway.DefaultSession)
+	if c.Gateway.Transport.Gnet.NumEventLoop < 0 {
+		return fmt.Errorf("%w: gateway gnet num event loop must be non-negative", ErrInvalidConfig)
+	}
+	if c.Gateway.Transport.Gnet.ReadBufferCap < 0 {
+		return fmt.Errorf("%w: gateway gnet read buffer cap must be non-negative", ErrInvalidConfig)
+	}
+	if c.Gateway.Transport.Gnet.WriteBufferCap < 0 {
+		return fmt.Errorf("%w: gateway gnet write buffer cap must be non-negative", ErrInvalidConfig)
+	}
 	if c.Gateway.SendTimeout <= 0 {
 		c.Gateway.SendTimeout = defaultGatewaySendTimeout
 	}
