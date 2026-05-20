@@ -687,3 +687,34 @@ func TestStatusReportsCommitAndCheckpointWatermarksSeparately(t *testing.T) {
 		requireReplicaStateBoolField(t, st, "CommitReady", true)
 	})
 }
+
+func TestApplyFollowerCursorNormalPathAllocationBudget(t *testing.T) {
+	r := newLeaderReplica(t)
+	defer func() { _ = r.Close() }()
+
+	r.mu.Lock()
+	r.state.LEO = 1 << 20
+	r.setReplicaProgressLocked(r.localNode, r.state.LEO)
+	r.publishStateLocked()
+	epoch := r.state.Epoch
+	channelKey := r.state.ChannelKey
+	r.mu.Unlock()
+
+	var offset uint64
+	allocs := testing.AllocsPerRun(100, func() {
+		offset++
+		err := r.ApplyFollowerCursor(context.Background(), channel.ReplicaFollowerCursorUpdate{
+			ChannelKey:  channelKey,
+			Epoch:       epoch,
+			ReplicaID:   2,
+			MatchOffset: offset,
+			OffsetEpoch: epoch,
+		})
+		if err != nil {
+			t.Fatalf("ApplyFollowerCursor() error = %v", err)
+		}
+	})
+	if allocs > 10 {
+		t.Fatalf("ApplyFollowerCursor() allocations = %.2f, want <= 10", allocs)
+	}
+}
