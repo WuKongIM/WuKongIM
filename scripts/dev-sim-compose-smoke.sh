@@ -21,7 +21,7 @@ Usage: scripts/dev-sim-compose-smoke.sh [options]
 
 Starts the local three-node Compose cluster with the dev-sim profile, waits for
 wk-sim to report running simulated users with non-zero traffic, then checks
-recent logs for simulator traffic and obvious panics.
+recent logs for obvious panics.
 
 Options:
   --no-build          Run docker compose up without --build.
@@ -176,10 +176,6 @@ check_logs() {
   if printf '%s\n' "$logs" | grep -E 'panic:|assignment to entry in nil map' >/dev/null; then
     printf '%s\n' "$logs" >&2
     die 'recent logs contain panic markers'
-  fi
-  if ! printf '%s\n' "$logs" | grep -E 'sim-msg|delivery[.]diag[.]committed_route' >/dev/null; then
-    printf '%s\n' "$logs" >&2
-    die 'recent logs do not show simulator traffic markers'
   fi
 }
 

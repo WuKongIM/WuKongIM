@@ -73,6 +73,18 @@ func TestDevSimComposeSmokeNoBuildOmitsBuildFlag(t *testing.T) {
 	}
 }
 
+func TestDevSimComposeSmokeTrustsStatusCountersForTraffic(t *testing.T) {
+	script := readFile(t, filepath.Join(repoRoot(t), "scripts", "dev-sim-compose-smoke.sh"))
+
+	if strings.Contains(script, "recent logs do not show simulator traffic markers") ||
+		strings.Contains(script, "sim-msg|delivery[.]diag[.]committed_route") {
+		t.Fatal("dev-sim smoke should not require debug log traffic markers after /status reports running traffic")
+	}
+	if !strings.Contains(script, "recent logs contain panic markers") {
+		t.Fatal("dev-sim smoke should still fail on panic markers in recent logs")
+	}
+}
+
 func writeFakeDocker(t *testing.T, path string, callsDir string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
@@ -93,7 +105,7 @@ case "$*" in
     exit 0
     ;;
   "compose --profile dev-sim logs --tail=200 wk-sim wk-node1 wk-node2 wk-node3")
-    echo 'wk-node1 | delivery.diag.committed_route sim-msg-r1'
+    echo 'wk-node1 | normal startup line without traffic debug marker'
     exit 0
     ;;
   *)
@@ -172,11 +184,12 @@ func TestDockerComposeDevSimDefaultsTargetHighTraffic(t *testing.T) {
 	compose := readFile(t, filepath.Join(repoRoot(t), "docker-compose.yml"))
 
 	for _, want := range []string{
-		"WK_SIM_USERS: ${WK_SIM_USERS:-500}",
-		"WK_SIM_PERSON_CHANNELS: ${WK_SIM_PERSON_CHANNELS:-100}",
-		"WK_SIM_GROUP_CHANNELS: ${WK_SIM_GROUP_CHANNELS:-100}",
+		"WK_SIM_USERS: ${WK_SIM_USERS:-1000}",
+		"WK_SIM_PERSON_CHANNELS: ${WK_SIM_PERSON_CHANNELS:-500}",
+		"WK_SIM_GROUP_CHANNELS: ${WK_SIM_GROUP_CHANNELS:-500}",
 		"WK_SIM_GROUP_MEMBERS: ${WK_SIM_GROUP_MEMBERS:-10}",
-		"WK_SIM_RATE: ${WK_SIM_RATE:-5/s}",
+		"WK_SIM_RATE: ${WK_SIM_RATE:-0.25/s}",
+		"WK_SIM_TRAFFIC_CONCURRENCY: ${WK_SIM_TRAFFIC_CONCURRENCY:-128}",
 		"WK_SIM_VERIFY_RECV: ${WK_SIM_VERIFY_RECV:-none}",
 	} {
 		if !strings.Contains(compose, want) {

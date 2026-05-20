@@ -8,6 +8,13 @@
 *.test
 learn_project
 docker/dev-cluster
+docker/dev-observability
+docker/dev-sim
+web/node_modules
+web/dist
+demo
+resources
+logs
 tmp
 docs
 wukongim.conf

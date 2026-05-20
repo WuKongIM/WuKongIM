@@ -481,8 +481,8 @@ func TestWorkerDefaultRunnerRunsPersonAndGroupTrafficConcurrently(t *testing.T) 
 	runner := &defaultWorkloadRunner{
 		runID:           "run-a",
 		metrics:         metrics.NewRegistry(),
-		personWorkloads: []*benchworkload.PersonWorkload{nil},
-		groupWorkloads:  []*benchworkload.GroupWorkload{nil},
+		personWorkloads: []*benchworkload.PersonWorkload{{}},
+		groupWorkloads:  []*benchworkload.GroupWorkload{{}},
 	}
 	var calls atomic.Int32
 	bothStarted := make(chan struct{})
@@ -513,8 +513,8 @@ func TestWorkerDefaultRunnerCancelsOtherWorkloadsOnPhaseError(t *testing.T) {
 	runner := &defaultWorkloadRunner{
 		runID:           "run-a",
 		metrics:         metrics.NewRegistry(),
-		personWorkloads: []*benchworkload.PersonWorkload{nil},
-		groupWorkloads:  []*benchworkload.GroupWorkload{nil},
+		personWorkloads: []*benchworkload.PersonWorkload{{}},
+		groupWorkloads:  []*benchworkload.GroupWorkload{{}},
 	}
 	phaseErr := errors.New("person failed")
 	groupCanceled := make(chan struct{})

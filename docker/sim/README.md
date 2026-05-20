@@ -44,12 +44,11 @@ checks instead of maximum send pressure.
 traffic stream. Increase it when local RTT caps send pressure below the target
 rate, or lower it when debugging on a small laptop.
 
-The default Compose node environment keeps `WK_HEALTH_DEBUG_ENABLE=true` for
-`/debug/pprof`, but disables high-frequency metrics, diagnostics, and manager
-network traffic collectors (`WK_METRICS_ENABLE=false`,
-`WK_DIAGNOSTICS_ENABLE=false`, `WK_NETWORK_OBSERVABILITY_ENABLE=false`) so CPU
-profiles focus on the send/replication path. Set those variables to `true` when
-you need Prometheus/Grafana or manager network charts during a run.
+The default Compose node configs keep `WK_HEALTH_DEBUG_ENABLE=true` for
+`/debug/pprof`, `WK_METRICS_ENABLE=true` for Prometheus/Grafana and manager
+dashboard charts, and `WK_DIAGNOSTICS_ENABLE=true` for diagnostic APIs. Disable
+metrics or diagnostics in `docker/conf/node*.conf` when you want to remove that
+overhead during a pure hot-path run.
 
 The development cluster config uses a `5s` data-plane RPC timeout so local
 leader forwarding has enough headroom during this high-debug workload.
