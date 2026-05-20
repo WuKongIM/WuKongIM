@@ -837,14 +837,15 @@ type localResolveToken struct {
 }
 
 type tagResolveToken struct {
-	tag         deliverytagruntime.DeliveryTag
-	env         deliveryruntime.CommittedEnvelope
-	localUIDs   []string
-	nextIndex   int
-	channelType uint8
-	ephemeral   bool
-	pending     []deliveryruntime.RouteKey
-	done        bool
+	tag deliverytagruntime.DeliveryTag
+	env deliveryruntime.CommittedEnvelope
+	// routableUIDs contains the tag UIDs this resolver should expand for the current delivery.
+	routableUIDs []string
+	nextIndex    int
+	channelType  uint8
+	ephemeral    bool
+	pending      []deliveryruntime.RouteKey
+	done         bool
 }
 
 type deliveryRoutingMetrics interface {
@@ -1085,11 +1086,11 @@ func (r tagDeliveryResolver) BeginResolve(ctx context.Context, key deliveryrunti
 		return nil, err
 	}
 	return &tagResolveToken{
-		tag:         tag,
-		env:         env,
-		localUIDs:   deliveryTagLocalUIDs(tag, r.localNodeID),
-		channelType: key.ChannelType,
-		ephemeral:   !source.ReusableTagState,
+		tag:          tag,
+		env:          env,
+		routableUIDs: deliveryTagRoutableUIDs(tag),
+		channelType:  key.ChannelType,
+		ephemeral:    !source.ReusableTagState,
 	}, nil
 }
 
@@ -1157,8 +1158,8 @@ func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor 
 			resolveToken.tag = refreshed
 		} else if reason == deliverytagruntime.LookupStaleRequest || reason == deliverytagruntime.LookupTagKeyMismatch {
 			resolveToken.tag = refreshed
-			resolveToken.localUIDs = deliveryTagLocalUIDs(refreshed, r.localNodeID)
-			resolveToken.nextIndex = deliveryTagIndexAfterCursor(resolveToken.localUIDs, cursor)
+			resolveToken.routableUIDs = deliveryTagRoutableUIDs(refreshed)
+			resolveToken.nextIndex = deliveryTagIndexAfterCursor(resolveToken.routableUIDs, cursor)
 		}
 	}
 	if resolveToken.done {
@@ -1183,7 +1184,7 @@ func (r tagDeliveryResolver) ResolvePage(ctx context.Context, token any, cursor 
 		pageSize = 128
 	}
 	for len(out) < limit {
-		uids, nextIndex, pageDone := nextDeliveryTagUIDPageAt(resolveToken.localUIDs, resolveToken.nextIndex, minInt(pageSize, limit-len(out)))
+		uids, nextIndex, pageDone := nextDeliveryTagUIDPageAt(resolveToken.routableUIDs, resolveToken.nextIndex, minInt(pageSize, limit-len(out)))
 		pages++
 		resolveToken.nextIndex = nextIndex
 		if len(uids) > 0 {
@@ -1427,13 +1428,23 @@ func nextDeliveryTagUIDPageAt(uids []string, start int, limit int) ([]string, in
 	return uids[start:end], end, end >= len(uids)
 }
 
-func deliveryTagLocalUIDs(tag deliverytagruntime.DeliveryTag, nodeID uint64) []string {
-	for _, partition := range tag.Partitions {
-		if partition.NodeID == nodeID {
-			return partition.UIDs
-		}
+// deliveryTagRoutableUIDs returns every UID available in the current node-local tag body.
+func deliveryTagRoutableUIDs(tag deliverytagruntime.DeliveryTag) []string {
+	if len(tag.Partitions) == 0 {
+		return nil
 	}
-	return nil
+	if len(tag.Partitions) == 1 {
+		return tag.Partitions[0].UIDs
+	}
+	total := 0
+	for _, partition := range tag.Partitions {
+		total += len(partition.UIDs)
+	}
+	uids := make([]string, 0, total)
+	for _, partition := range tag.Partitions {
+		uids = append(uids, partition.UIDs...)
+	}
+	return uids
 }
 
 func deliveryTagIndexAfterCursor(uids []string, cursor string) int {
