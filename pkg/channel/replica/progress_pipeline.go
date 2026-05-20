@@ -38,7 +38,6 @@ func (r *replica) applyCursorCommand(cmd machineCursorCommand) machineResult {
 		oldProgress uint64
 		hw          uint64
 		leo         uint64
-		progress    map[uint64]uint64
 	)
 
 	r.mu.Lock()
@@ -91,21 +90,22 @@ func (r *replica) applyCursorCommand(cmd machineCursorCommand) machineResult {
 	r.setRetentionProgressLocked(cmd.ReplicaID, matchOffset)
 	r.publishStateLocked()
 	outcome = r.advanceHWLocked()
-	progress = r.snapshotProgressLocked()
 	hw = r.state.HW
 	leo = r.state.LEO
 	r.mu.Unlock()
 
-	r.appendLogger().Debug("follower cursor applied",
-		wklog.Event("repl.diag.cursor_applied"),
-		wklog.String("channelKey", string(channelKey)),
-		wklog.Uint64("replicaID", uint64(cmd.ReplicaID)),
-		wklog.Uint64("matchOffset", matchOffset),
-		wklog.Uint64("oldProgress", oldProgress),
-		wklog.Uint64("hw", hw),
-		wklog.Uint64("leo", leo),
-		wklog.Any("progress", progress),
-	)
+	logger := r.appendLogger()
+	if wklog.DebugEnabled(logger) {
+		logger.Debug("follower cursor applied",
+			wklog.Event("repl.diag.cursor_applied"),
+			wklog.String("channelKey", string(channelKey)),
+			wklog.Uint64("replicaID", uint64(cmd.ReplicaID)),
+			wklog.Uint64("matchOffset", matchOffset),
+			wklog.Uint64("oldProgress", oldProgress),
+			wklog.Uint64("hw", hw),
+			wklog.Uint64("leo", leo),
+		)
+	}
 	r.finishHWAdvanceOutcome(outcome)
 	return machineResult{Err: outcome.err}
 }
@@ -227,7 +227,6 @@ func (r *replica) applyLeaderAppendCommittedEvent(ev machineLeaderAppendCommitte
 		channelKey              channel.ChannelKey
 		nextLEO                 uint64
 		hw                      uint64
-		progress                map[uint64]uint64
 	)
 
 	r.mu.Lock()
@@ -345,19 +344,20 @@ func (r *replica) applyLeaderAppendCommittedEvent(ev machineLeaderAppendCommitte
 	notifyLeaderLocalAppend = r.onLeaderLocalAppend
 	channelKey = r.state.ChannelKey
 	hw = r.state.HW
-	progress = r.snapshotProgressLocked()
 	outcome = r.advanceHWLocked()
 	r.mu.Unlock()
 
-	r.appendLogger().Debug("leader local append flushed",
-		wklog.Event("repl.diag.leader_append_flushed"),
-		wklog.String("channelKey", string(channelKey)),
-		wklog.Uint64("leo", nextLEO),
-		wklog.Uint64("hw", hw),
-		wklog.Int("records", recordCount),
-		wklog.Bool("callbackExists", notifyLeaderLocalAppend != nil),
-		wklog.Any("progress", progress),
-	)
+	logger := r.appendLogger()
+	if wklog.DebugEnabled(logger) {
+		logger.Debug("leader local append flushed",
+			wklog.Event("repl.diag.leader_append_flushed"),
+			wklog.String("channelKey", string(channelKey)),
+			wklog.Uint64("leo", nextLEO),
+			wklog.Uint64("hw", hw),
+			wklog.Int("records", recordCount),
+			wklog.Bool("callbackExists", notifyLeaderLocalAppend != nil),
+		)
+	}
 	if notifyLeaderLocalAppend != nil {
 		notifyLeaderLocalAppend()
 	}
@@ -529,14 +529,16 @@ func (r *replica) finishHWAdvanceOutcome(outcome hwAdvanceOutcome) {
 	if !outcome.advanced {
 		return
 	}
-	r.appendLogger().Debug("HW advanced",
-		wklog.Event("repl.diag.hw_advanced"),
-		wklog.String("channelKey", string(outcome.channelKey)),
-		wklog.Uint64("oldHW", outcome.oldHW),
-		wklog.Uint64("newHW", outcome.newHW),
-		wklog.Uint64("leo", outcome.leo),
-		wklog.Any("progress", outcome.progress),
-	)
+	logger := r.appendLogger()
+	if wklog.DebugEnabled(logger) {
+		logger.Debug("HW advanced",
+			wklog.Event("repl.diag.hw_advanced"),
+			wklog.String("channelKey", string(outcome.channelKey)),
+			wklog.Uint64("oldHW", outcome.oldHW),
+			wklog.Uint64("newHW", outcome.newHW),
+			wklog.Uint64("leo", outcome.leo),
+		)
+	}
 	if outcome.notify != nil {
 		outcome.notify()
 	}

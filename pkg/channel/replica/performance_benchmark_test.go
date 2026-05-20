@@ -116,3 +116,31 @@ func benchmarkRecords(n int, payloadBytes int) []channel.Record {
 	}
 	return records
 }
+
+func BenchmarkReplicaApplyFollowerCursor(b *testing.B) {
+	r := newLeaderReplica(b)
+	defer func() { _ = r.Close() }()
+
+	r.mu.Lock()
+	r.state.LEO = 1 << 40
+	r.setReplicaProgressLocked(r.localNode, r.state.LEO)
+	r.publishStateLocked()
+	epoch := r.state.Epoch
+	channelKey := r.state.ChannelKey
+	r.mu.Unlock()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		req := channel.ReplicaFollowerCursorUpdate{
+			ChannelKey:  channelKey,
+			Epoch:       epoch,
+			ReplicaID:   2,
+			MatchOffset: uint64(i + 1),
+			OffsetEpoch: epoch,
+		}
+		if err := r.ApplyFollowerCursor(context.Background(), req); err != nil {
+			b.Fatalf("ApplyFollowerCursor() error = %v", err)
+		}
+	}
+}
