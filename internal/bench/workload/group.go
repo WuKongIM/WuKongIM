@@ -278,7 +278,7 @@ func (w *GroupWorkload) Warmup(ctx context.Context) error {
 	if w.cfg.WarmupDuration <= 0 {
 		return nil
 	}
-	return w.RunWindow(ctx, GroupRunConfig{Phase: "warmup", Duration: w.cfg.WarmupDuration, Rate: warmupRate(w.cfg.LocalRate)})
+	return w.RunWindow(ctx, GroupRunConfig{Phase: "warmup", Duration: w.cfg.WarmupDuration, Rate: warmupRateForDuration(w.cfg.LocalRate, w.cfg.WarmupDuration)})
 }
 
 // Run sends rate-limited group traffic for the configured measured duration.

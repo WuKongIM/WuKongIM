@@ -386,3 +386,44 @@ func TestGroupWorkloadRunHonorsLocalRateDurationPerChannel(t *testing.T) {
 	}
 	require.Equal(t, uint64(3), workload.Metrics().CounterValue("group_send_success_total", nil))
 }
+
+func TestGroupWorkloadWarmupTouchesEveryChannelAtLeastOnce(t *testing.T) {
+	clients := map[string]PersonClient{
+		"u-0": newRecordingPersonClient(),
+		"u-1": newRecordingPersonClient(),
+	}
+	clients["u-0"].(*recordingPersonClient).autoSendack = true
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "many-group",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		WarmupDuration:  10 * time.Second,
+		LocalRate:       model.Rate{PerSecond: 0.25},
+		Channels: []GroupChannel{
+			{ChannelIndex: 0, ChannelID: "run-a-many-group-0", OnlineMembers: []string{"u-0", "u-1"}},
+			{ChannelIndex: 1, ChannelID: "run-a-many-group-1", OnlineMembers: []string{"u-0", "u-1"}},
+			{ChannelIndex: 2, ChannelID: "run-a-many-group-2", OnlineMembers: []string{"u-0", "u-1"}},
+		},
+		Metrics: metrics.NewRegistry(),
+		sleep: func(ctx context.Context, d time.Duration) error {
+			return nil
+		},
+	}, clients)
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Warmup(context.Background()))
+
+	sender := clients["u-0"].(*recordingPersonClient)
+	require.Len(t, sender.sentFrames, 3)
+	require.Equal(t, []string{
+		"run-a-many-group-0",
+		"run-a-many-group-1",
+		"run-a-many-group-2",
+	}, []string{
+		sender.sentFrames[0].ChannelID,
+		sender.sentFrames[1].ChannelID,
+		sender.sentFrames[2].ChannelID,
+	})
+	require.Equal(t, uint64(3), workload.Metrics().CounterValue("group_send_success_total", nil))
+}
