@@ -30,13 +30,18 @@ Worktree: `.worktrees/wk-sim-bughunt-20260520`
 | 2026-05-20 | `GOWORK=off go test ./scripts -run TestDevSimComposeSmokeRejectsStatusErrorCounters -count=1` | Red then pass | Regression test proved the script used to pass when `/status` had `send_errors=2` and `recv_errors=1`; it now waits/fails instead. |
 | 2026-05-20 | `GOWORK=off go test ./scripts -count=1` | Pass | Full script test suite passed after the stricter status gate. |
 | 2026-05-20 | `scripts/dev-sim-compose-smoke.sh --no-up --skip-logs` | Pass | Existing clean Compose stack passed with `send_errors=0` and `recv_errors=0`. |
+| 2026-05-20 | `WK_SIM_RATE=0.5/s WK_SIM_UID_PREFIX=stress-u scripts/dev-sim-compose-smoke.sh --no-build --skip-logs --timeout 180` | Fail | With the old Docker node data-plane settings, 0.5/s produced `send_errors=145` and timed out under the stricter smoke gate. |
+| 2026-05-20 | `GOWORK=off go test ./docker -run TestComposeNodeConfigsUseExplicitDataPlaneConcurrency -count=1` | Red then pass | Regression test failed while node configs pinned data-plane concurrency to `1`, then passed after explicit data-plane settings were added. |
+| 2026-05-20 | `WK_SIM_RATE=0.5/s WK_SIM_UID_PREFIX=stress-u2 scripts/dev-sim-compose-smoke.sh --no-build --skip-logs --timeout 180` | Pass | Clean Compose data plus explicit data-plane concurrency reached traffic with `send_errors=0` and `recv_errors=0`. |
+| 2026-05-20 | `GOWORK=off go test ./docker ./scripts -count=1` | Pass | Focused regression suites passed after Docker config and smoke script changes. |
 
 ## Findings
 
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
 | BUG-001 | Fixed | Docker dev-sim smoke | Default smoke timeout is 90s, but the Compose profile starts 1000 users with inherited `connect_rate: 10/s`; the script times out in `state=waiting` before traffic starts. | Compose overrides workload size but not simulator connect rate, so connection setup alone needs roughly 100s before the first traffic window. | `32ee9de9` |
-| BUG-002 | Fixed | Docker dev-sim smoke | Smoke can report pass while `/status` has non-zero `send_errors` or `recv_errors`; this hid failures observed after dirty-data/restart runs. | The script only gated on `state=running`, `connected_users>0`, and `messages_sent>0`; it parsed neither error counter. | Pending commit |
+| BUG-002 | Fixed | Docker dev-sim smoke | Smoke can report pass while `/status` has non-zero `send_errors` or `recv_errors`; this hid failures observed after dirty-data/restart runs. | The script only gated on `state=running`, `connected_users>0`, and `messages_sent>0`; it parsed neither error counter. | `00429905` |
+| BUG-003 | Fixed | Docker dev-sim performance | 0.5/s stress profile timed out with `send_errors=145`; pprof during the run showed heavy RPC/storage work while Docker node configs still had data-plane pool size `1`. | Docker development configs overrode the app's higher default and did not set explicit data-plane fetch/pending limits, so high-traffic dev-sim runs were bottlenecked by a single data-plane lane. | Pending commit |
 
 ## Active Test Matrix
 
