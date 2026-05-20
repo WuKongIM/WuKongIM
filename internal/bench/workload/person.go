@@ -547,6 +547,13 @@ func (c *matchingPersonClient) ReadFrame(ctx context.Context) (frame.Frame, erro
 }
 
 func (c *matchingPersonClient) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
+	c.mu.Lock()
+	autoAck := c.autoRecvAck
+	c.mu.Unlock()
+	if autoAck {
+		// The matching reader sends the ack when it returns or buffers a recv frame.
+		return nil
+	}
 	return c.client.RecvAck(ctx, messageID, messageSeq)
 }
 
