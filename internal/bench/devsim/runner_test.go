@@ -37,6 +37,33 @@ func TestRunnerWaitsForReadiness(t *testing.T) {
 	require.Equal(t, []string{"prepare", "connect", "run", "cooldown"}, workload.calls)
 }
 
+func TestRunnerClearsTransientReadinessErrorBeforePrepare(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	status := NewStatus("dev-sim-run")
+	var lastErrorAtPrepare string
+	workload := &fakeWorkload{
+		prepareHook: func(context.Context, worker.Assignment) error {
+			lastErrorAtPrepare = status.Snapshot().LastError
+			cancel()
+			return context.Canceled
+		},
+	}
+	runner := NewRunner(RunnerConfig{
+		Config:   testRunnerConfig(),
+		RunID:    "dev-sim-run",
+		Status:   status,
+		Probe:    &fakeProbe{failuresBeforeReady: 1},
+		Workload: workload,
+		Sleep:    noSleep,
+	})
+
+	err := runner.Run(ctx)
+
+	require.NoError(t, err)
+	require.Empty(t, lastErrorAtPrepare)
+}
+
 func TestRunnerKeepsConnectionsAfterRuntimeError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -157,13 +184,17 @@ type fakeWorkload struct {
 	calls           []string
 	preparePrefixes []string
 	resetPrefixes   []string
+	prepareHook     func(context.Context, worker.Assignment) error
 	runHook         func(context.Context, worker.Assignment) error
 	metrics         metrics.SnapshotData
 }
 
-func (w *fakeWorkload) Prepare(_ context.Context, assignment worker.Assignment) error {
+func (w *fakeWorkload) Prepare(ctx context.Context, assignment worker.Assignment) error {
 	w.calls = append(w.calls, "prepare")
 	w.preparePrefixes = append(w.preparePrefixes, assignment.Scenario.Identity.ClientMsgPrefix)
+	if w.prepareHook != nil {
+		return w.prepareHook(ctx, assignment)
+	}
 	return nil
 }
 

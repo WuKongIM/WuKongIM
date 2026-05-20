@@ -277,6 +277,7 @@ func (r *Runner) waitReady(ctx context.Context) error {
 	for {
 		err := r.probe.CheckReady(deadlineCtx)
 		if err == nil {
+			r.status.SetLastError("")
 			return nil
 		}
 		r.status.SetLastError(err.Error())
