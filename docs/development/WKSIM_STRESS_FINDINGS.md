@@ -207,3 +207,38 @@ Verification:
 Status:
 - Corrupt-state defect fixed.
 - Remaining high-rate timeout/churn observation is the next investigation target.
+
+## 2026-05-20 Run 8
+
+Environment:
+- Main worktree after Issue 7 was committed.
+- Existing Compose cluster had accumulated data from repeated default and high-rate `wk-sim` runs.
+- Default and high-rate `wk-sim` profiles were rerun with fresh UID prefixes.
+
+### Issue 8: warmup used measured-run operation timeout for cold channel activation
+
+Evidence:
+- After repeated stress runs, even the default Compose `wk-sim` smoke could stay in `waiting` and then retry before `/status` reached `running`.
+- Node logs showed warmup traffic activating cold person/group runtime metadata, followed by many send failures with `context canceled` after the first sendack timeout canceled the warmup phase.
+- Increasing `WK_SIM_WARMUP` to `40s` still failed on the same accumulated cluster, showing the problem was the per-message wait cutoff rather than only the warmup scheduling window.
+- Regression tests reproduced the issue with a delayed sendack: warmup failed when the measured-run `AckTimeout` was shorter than the warmup duration.
+
+Root cause:
+- Warmup exists to absorb cold runtime metadata bootstrap before measured traffic starts, but person/group workloads reused the same per-message sendack/recv timeout as measured traffic.
+- The default measured timeout is `5s`; on a loaded local Compose cluster, a cold channel activation can exceed that while still being useful warmup work.
+- The first timeout canceled the whole warmup phase, and the supervisor retried from `waiting`, so the smoke never reached measured `running` traffic.
+
+Fix:
+- During warmup, person and group workloads now raise sendack/recv waits to at least the warmup duration while preserving any longer explicit timeout.
+- Measured run behavior keeps the shorter operation timeout.
+- Regression tests: `TestPersonWorkloadWarmupUsesWarmupDurationAsMinimumAckTimeout` and `TestGroupWorkloadWarmupUsesWarmupDurationAsMinimumAckTimeout`.
+- Flow documentation updated in `internal/bench/FLOW.md`.
+
+Verification:
+- The new regression tests failed before the code change with `context deadline exceeded` and passed after the warmup timeout change.
+- Full workload tests passed with `GOWORK=off go test ./internal/bench/workload -count=1`.
+- Focused bench tests passed with `GOWORK=off go test ./internal/bench/... ./cmd/wkbench -count=1`.
+- Rebuilt `wukongim-dev:local` and reran the default Compose `wk-sim` smoke on the accumulated local cluster with prefix `loop-fix8-u`; it reached `running` with `connected_users=1000`, `messages_sent=2239`, `send_errors=0`, `recv_errors=0`.
+
+Status:
+- Fixed and verified on the previously failing default Compose profile.

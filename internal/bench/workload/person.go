@@ -20,6 +20,7 @@ import (
 const (
 	defaultPersonDevicePrefix  = "bench-device"
 	defaultPersonClientPrefix  = "bench-msg"
+	defaultWorkloadTimeout     = 5 * time.Second
 	verifyRecvModeFull         = "full"
 	defaultMatchingBufferLimit = 1024
 )
@@ -229,6 +230,8 @@ func (w *PersonWorkload) Warmup(ctx context.Context) error {
 	if w.cfg.WarmupDuration <= 0 {
 		return nil
 	}
+	restore := w.useWarmupTimeouts()
+	defer restore()
 	return w.RunWindow(ctx, PersonRunConfig{Phase: "warmup", Duration: w.cfg.WarmupDuration, Rate: warmupRateForDuration(w.cfg.Rate, w.cfg.WarmupDuration)})
 }
 
@@ -761,9 +764,34 @@ func (w *PersonWorkload) recordError(name string, err error) {
 
 func (w *PersonWorkload) withTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if timeout <= 0 {
-		return context.WithTimeout(ctx, 5*time.Second)
+		return context.WithTimeout(ctx, defaultWorkloadTimeout)
 	}
 	return context.WithTimeout(ctx, timeout)
+}
+
+func (w *PersonWorkload) useWarmupTimeouts() func() {
+	ackTimeout := w.cfg.AckTimeout
+	recvTimeout := w.cfg.RecvTimeout
+	w.cfg.AckTimeout = warmupOperationTimeout(w.cfg.AckTimeout, w.cfg.WarmupDuration)
+	w.cfg.RecvTimeout = warmupOperationTimeout(w.cfg.RecvTimeout, w.cfg.WarmupDuration)
+	return func() {
+		w.cfg.AckTimeout = ackTimeout
+		w.cfg.RecvTimeout = recvTimeout
+	}
+}
+
+func warmupOperationTimeout(timeout, duration time.Duration) time.Duration {
+	if duration <= 0 {
+		return timeout
+	}
+	base := timeout
+	if base <= 0 {
+		base = defaultWorkloadTimeout
+	}
+	if base < duration {
+		return duration
+	}
+	return base
 }
 
 func scheduledMessageCount(duration time.Duration, perSecond float64, channelCount int) int {

@@ -255,6 +255,15 @@ func newRecordingPersonClient() *recordingPersonClient {
 	return &recordingPersonClient{}
 }
 
+type delayedSendackClient struct {
+	*recordingPersonClient
+	readDelay time.Duration
+}
+
+func newDelayedSendackClient(readDelay time.Duration) *delayedSendackClient {
+	return &delayedSendackClient{recordingPersonClient: newRecordingPersonClient(), readDelay: readDelay}
+}
+
 func (c *recordingPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -271,6 +280,27 @@ func (c *recordingPersonClient) Send(ctx context.Context, pkt *frame.SendPacket)
 		c.sendacks = append(c.sendacks, &frame.SendackPacket{ClientSeq: pkt.ClientSeq, ClientMsgNo: pkt.ClientMsgNo, ReasonCode: frame.ReasonSuccess})
 	}
 	return nil
+}
+
+func (c *delayedSendackClient) Send(ctx context.Context, pkt *frame.SendPacket) error {
+	if err := c.recordingPersonClient.Send(ctx, pkt); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sendacks = append(c.sendacks, &frame.SendackPacket{ClientSeq: pkt.ClientSeq, ClientMsgNo: pkt.ClientMsgNo, ReasonCode: frame.ReasonSuccess})
+	return nil
+}
+
+func (c *delayedSendackClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	timer := time.NewTimer(c.readDelay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-timer.C:
+	}
+	return c.recordingPersonClient.ReadFrame(ctx)
 }
 
 func (c *recordingPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
@@ -455,6 +485,27 @@ func TestAutoRecvAckContinuesAfterIdleReadTimeout(t *testing.T) {
 		return len(raw.recvAckCalls) == 1
 	}, time.Second, 10*time.Millisecond)
 	require.Equal(t, []recvAckCall{{messageID: 43, messageSeq: 8}}, raw.recvAckCalls)
+}
+
+func TestPersonWorkloadWarmupUsesWarmupDurationAsMinimumAckTimeout(t *testing.T) {
+	sender := newDelayedSendackClient(10 * time.Millisecond)
+	recipient := newRecordingPersonClient()
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "person-send",
+		ClientMsgPrefix: "bench-msg",
+		Pairs:           []PersonPair{{ChannelIndex: 0, SenderUID: "u1", RecipientUID: "u2"}},
+		Rate:            model.Rate{PerSecond: 1},
+		MaxConcurrency:  1,
+		WarmupDuration:  50 * time.Millisecond,
+		AckTimeout:      time.Millisecond,
+		Metrics:         metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": recipient})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Warmup(context.Background()))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_send_success_total", nil))
 }
 
 type blockingReadPersonClient struct {

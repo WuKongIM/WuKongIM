@@ -278,6 +278,8 @@ func (w *GroupWorkload) Warmup(ctx context.Context) error {
 	if w.cfg.WarmupDuration <= 0 {
 		return nil
 	}
+	restore := w.useWarmupTimeouts()
+	defer restore()
 	return w.RunWindow(ctx, GroupRunConfig{Phase: "warmup", Duration: w.cfg.WarmupDuration, Rate: warmupRateForDuration(w.cfg.LocalRate, w.cfg.WarmupDuration)})
 }
 
@@ -799,9 +801,20 @@ func (w *GroupWorkload) recordError(name string, err error) {
 
 func (w *GroupWorkload) withTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if timeout <= 0 {
-		return context.WithTimeout(ctx, 5*time.Second)
+		return context.WithTimeout(ctx, defaultWorkloadTimeout)
 	}
 	return context.WithTimeout(ctx, timeout)
+}
+
+func (w *GroupWorkload) useWarmupTimeouts() func() {
+	ackTimeout := w.cfg.AckTimeout
+	recvTimeout := w.cfg.RecvTimeout
+	w.cfg.AckTimeout = warmupOperationTimeout(w.cfg.AckTimeout, w.cfg.WarmupDuration)
+	w.cfg.RecvTimeout = warmupOperationTimeout(w.cfg.RecvTimeout, w.cfg.WarmupDuration)
+	return func() {
+		w.cfg.AckTimeout = ackTimeout
+		w.cfg.RecvTimeout = recvTimeout
+	}
 }
 
 func indexedBenchID(prefix string, index int) string {

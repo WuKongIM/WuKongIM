@@ -290,6 +290,30 @@ func TestGroupWorkloadSampledRecvVerificationIsDeterministic(t *testing.T) {
 	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_recv_success_total", nil))
 }
 
+func TestGroupWorkloadWarmupUsesWarmupDurationAsMinimumAckTimeout(t *testing.T) {
+	sender := newDelayedSendackClient(10 * time.Millisecond)
+	workload, err := NewGroupWorkload(GroupConfig{
+		RunID:           "run-a",
+		ProfileName:     "group-profile",
+		TrafficName:     "group-send",
+		ClientMsgPrefix: "bench-msg",
+		LocalRate:       model.Rate{PerSecond: 1},
+		MaxConcurrency:  1,
+		WarmupDuration:  50 * time.Millisecond,
+		AckTimeout:      time.Millisecond,
+		Channels: []GroupChannel{{
+			ChannelIndex:  0,
+			ChannelID:     "run-a-group-profile-0",
+			OnlineMembers: []string{"u-0"},
+		}},
+		Metrics: metrics.NewRegistry(),
+	}, map[string]PersonClient{"u-0": sender})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Warmup(context.Background()))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_send_success_total", nil))
+}
+
 func groupRecv(clientMsgNo, recipientUID string, messageID int64, messageSeq uint64) *frame.RecvPacket {
 	return &frame.RecvPacket{
 		MessageID:   messageID,
