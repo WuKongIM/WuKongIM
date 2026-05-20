@@ -36,3 +36,33 @@ func TestComposeNodesEnableMetricsByDefault(t *testing.T) {
 		}
 	}
 }
+
+func TestComposeNodeConfigsUseExplicitDataPlaneConcurrency(t *testing.T) {
+	repoRoot := dockerRepoRoot(t)
+	for _, node := range []string{"node1.conf", "node2.conf", "node3.conf"} {
+		confPath := filepath.Join(repoRoot, "docker", "conf", node)
+		confBody, err := os.ReadFile(confPath)
+		if err != nil {
+			t.Fatalf("read %s: %v", confPath, err)
+		}
+		conf := string(confBody)
+		for _, want := range []string{
+			"WK_CLUSTER_DATA_PLANE_POOL_SIZE=8",
+			"WK_CLUSTER_DATA_PLANE_MAX_FETCH_INFLIGHT=16",
+			"WK_CLUSTER_DATA_PLANE_MAX_PENDING_FETCH=16",
+		} {
+			if !strings.Contains(conf, want) {
+				t.Fatalf("%s should contain %s for dev-sim high-traffic data-plane headroom", confPath, want)
+			}
+		}
+	}
+}
+
+func dockerRepoRoot(t *testing.T) string {
+	t.Helper()
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve test file path")
+	}
+	return filepath.Dir(filepath.Dir(filename))
+}

@@ -52,6 +52,9 @@ overhead during a pure hot-path run.
 
 The development cluster config uses a `5s` data-plane RPC timeout so local
 leader forwarding has enough headroom during this high-debug workload.
+It also sets an explicit data-plane pool size of `8` with fetch/pending limits
+of `16` so the high-traffic simulator profile is not bottlenecked by the
+general cluster control-plane pool size.
 
 The simulator also sends heartbeat pings every `30s` so generated users that are
 not currently sending traffic still remain online during long debugging runs.
