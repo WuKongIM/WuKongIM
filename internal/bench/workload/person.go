@@ -229,7 +229,7 @@ func (w *PersonWorkload) Warmup(ctx context.Context) error {
 	if w.cfg.WarmupDuration <= 0 {
 		return nil
 	}
-	return w.RunWindow(ctx, PersonRunConfig{Phase: "warmup", Duration: w.cfg.WarmupDuration, Rate: warmupRate(w.cfg.Rate)})
+	return w.RunWindow(ctx, PersonRunConfig{Phase: "warmup", Duration: w.cfg.WarmupDuration, Rate: warmupRateForDuration(w.cfg.Rate, w.cfg.WarmupDuration)})
 }
 
 // Run sends rate-limited person traffic for the configured measured duration.
@@ -784,11 +784,20 @@ func scheduledMessageInterval(duration time.Duration, totalMessages int) time.Du
 	return time.Duration(int64(duration) / int64(totalMessages))
 }
 
-func warmupRate(rate model.Rate) model.Rate {
+func warmupRateForDuration(rate model.Rate, duration time.Duration) model.Rate {
 	if rate.PerSecond <= 0 {
 		return rate
 	}
-	return model.Rate{PerSecond: rate.PerSecond * 0.1}
+	reduced := rate.PerSecond * 0.1
+	if duration > 0 {
+		// Warmup should activate each assigned channel at least once before the
+		// measured run, even for low per-channel traffic rates.
+		minPerChannel := 1 / duration.Seconds()
+		if reduced < minPerChannel {
+			reduced = minPerChannel
+		}
+	}
+	return model.Rate{PerSecond: reduced}
 }
 
 func normalizePersonPairs(cfg PersonConfig) ([]PersonPair, error) {
