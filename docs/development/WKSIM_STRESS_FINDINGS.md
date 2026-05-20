@@ -133,3 +133,31 @@ Stress checks:
 
 Status:
 - No new reproducible traffic bug was found after the warmup fix. The remaining prepare/connect retries occurred before traffic and recovered automatically.
+
+## 2026-05-20 Run 5
+
+Environment:
+- Fresh isolated worktree `.worktrees/bughunt-wk-sim-20260520-180129`.
+- Existing Compose project name `wksim-bug-hunt-20260520`, restarted with this worktree's bind-mounted config/data paths.
+- Default mixed profile: `1000` users, `500` person channels, `500` group channels, `0.25/s`, concurrency `128`, receive verification `none`, `WK_SIM_WARMUP=10s`.
+
+### Issue 6: low-rate warmup did not activate every default Compose channel
+
+Evidence:
+- Default `wk-sim` smoke passed once `/status` reached `messages_sent=2216`, `send_errors=0`, `recv_errors=0`.
+- Continued polling showed the same run briefly entered `retrying` at `messages_sent=8099`, `send_errors=22`, `last_error="context deadline exceeded\ncontext canceled"`, then recovered and continued sending.
+- Node logs after `/status` switched to `running` showed many `channelmeta.bootstrap` events for previously cold person and group channels.
+- Repeating the same default profile with `WK_SIM_WARMUP=40s` and a new UID prefix reached `messages_sent=29264`, `send_errors=0`, `recv_errors=0`.
+
+Root cause:
+- Warmup used `10%` of the configured per-channel rate. With the default `0.25/s` rate and `10s` warmup, each workload sent only `125` warmup messages for `500` channels.
+- The remaining channels were first activated during measured run windows, so cold runtime metadata bootstrap work could still overlap with traffic and cause sendack timeouts.
+
+Fix:
+- Person and group warmup now preserve the reduced-rate behavior but raise the warmup rate enough to schedule at least one message per assigned channel for the configured warmup duration.
+- Regression tests: `TestPersonWorkloadWarmupTouchesEveryPairAtLeastOnce` and `TestGroupWorkloadWarmupTouchesEveryChannelAtLeastOnce`.
+
+Verification:
+- The regression tests failed before the fix and passed after the warmup rate change.
+- Focused suites passed with `GOWORK=off go test ./internal/bench/workload ./internal/bench/devsim ./internal/bench/worker ./cmd/wkbench -count=1`.
+- Rebuilt `wukongim-dev:local` and reran the default Compose `wk-sim` profile with `WK_SIM_WARMUP=10s` and a new UID prefix; continued polling reached `messages_sent=26930`, `send_errors=0`, `recv_errors=0`.
