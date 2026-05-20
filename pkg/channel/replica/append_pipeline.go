@@ -328,10 +328,7 @@ func (r *replica) failPendingAppendRequestsLocked(err error) {
 	pending := r.appendPending
 	r.appendPending = nil
 	for _, req := range pending {
-		r.completeAppendRequestLocked(req, channel.CommitResult{}, err)
-		if req.requestID != 0 {
-			delete(r.appendRequests, req.requestID)
-		}
+		r.completeAndDeleteAppendRequestLocked(req, channel.CommitResult{}, err)
 	}
 }
 
@@ -346,6 +343,19 @@ func (r *replica) completeAppendRequestLocked(req *appendRequest, result channel
 		delete(r.appendRequests, req.requestID)
 	}
 	r.completeAppendWaiter(req.waiter, result, err)
+}
+
+// completeAndDeleteAppendRequestLocked captures the request ID before
+// publishing completion because successful callers may recycle req immediately.
+func (r *replica) completeAndDeleteAppendRequestLocked(req *appendRequest, result channel.CommitResult, err error) {
+	if req == nil {
+		return
+	}
+	requestID := req.requestID
+	r.completeAppendRequestLocked(req, result, err)
+	if requestID != 0 {
+		delete(r.appendRequests, requestID)
+	}
 }
 
 func appendFailureForState(err error) error {
@@ -492,23 +502,17 @@ func (r *replica) failOutstandingAppendWorkLocked(err error) {
 	r.waiters = nil
 
 	for _, req := range pending {
-		r.completeAppendRequestLocked(req, channel.CommitResult{}, err)
+		r.completeAndDeleteAppendRequestLocked(req, channel.CommitResult{}, err)
 	}
 	for _, req := range inFlightRequests {
 		if req == nil {
 			continue
 		}
-		r.completeAppendRequestLocked(req, channel.CommitResult{}, err)
-		if req.requestID != 0 {
-			delete(r.appendRequests, req.requestID)
-		}
+		r.completeAndDeleteAppendRequestLocked(req, channel.CommitResult{}, err)
 	}
 	for _, waiter := range waiters {
-		if waiter.request != nil {
-			r.completeAppendRequestLocked(waiter.request, channel.CommitResult{}, err)
-			if waiter.request.requestID != 0 {
-				delete(r.appendRequests, waiter.request.requestID)
-			}
+		if req := waiter.request; req != nil {
+			r.completeAndDeleteAppendRequestLocked(req, channel.CommitResult{}, err)
 			continue
 		}
 		r.completeAppendWaiter(waiter, channel.CommitResult{}, err)
