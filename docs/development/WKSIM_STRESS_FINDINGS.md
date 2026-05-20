@@ -173,3 +173,37 @@ Post-fix search:
 Status:
 - No additional functional correctness bug was isolated after Issue 6.
 - The high-rate observations are treated as a local Docker capacity/performance boundary unless reproduced on a clean stack with a required acceptance target.
+
+## 2026-05-20 Run 7
+
+Environment:
+- Main worktree with the default three-node Compose cluster and `wk-sim`.
+- High-rate mixed stress used unique `WK_SIM_UID_PREFIX` values, `WK_SIM_RATE=1/s`, `WK_SIM_TRAFFIC_CONCURRENCY=256`, receive verification `none`, and `WK_SIM_WARMUP=10s`.
+
+### Issue 7: follower durable apply could be hidden by same-leader metadata refresh
+
+Evidence:
+- A high-rate mixed stress run failed with send timeouts and node diagnostics reporting `channel: corrupt state`.
+- Error diagnostics concentrated in `replica.follower.apply_durable` and `replica.leader.durable_append_store`, often after metadata refreshes on the same channel leader.
+- A regression test reproduced the race by blocking follower durable apply, applying same-leader metadata with the same channel epoch and leader, then releasing the already-committed durable write. Before the fix, the apply returned `channel: stale metadata` and runtime LEO stayed behind durable LEO.
+
+Root cause:
+- Follower durable apply validates the effect fence before mutating storage.
+- Same-leader metadata refresh can still increment the local `roleGeneration` while that durable write is in progress.
+- The result path treated any role-generation mismatch as stale, even when channel key, channel epoch, and leader were unchanged. The committed store write was therefore not published back to runtime state, leaving runtime LEO below the durable log. Later append/fetch paths could observe that split-brain state and report `channel: corrupt state`.
+
+Fix:
+- Allow a follower apply result with a role-generation mismatch to publish only when channel key, channel epoch, and leader are unchanged and the replica is still a follower or fenced leader.
+- Epoch and leader changes continue to fence stale durable results.
+- Regression test: `TestApplyFetchResultAfterSameLeaderMetaRefreshPublishesDurableLEO`.
+- Flow documentation updated in `pkg/channel/replica/FLOW.md`.
+
+Verification:
+- Regression test was verified red before the code change with `channel: stale metadata`.
+- Focused tests passed with `GOWORK=off go test ./pkg/channel/replica -run 'TestApplyFetch(ResultAfterSameLeaderMetaRefreshPublishesDurableLEO|StaleResultAfterMetaChangeIsFenced|TruncateResultAfterMetaChangeIsFenced)' -count=1`.
+- Full replica package tests passed with `GOWORK=off go test ./pkg/channel/replica -count=1`.
+- Rebuilt `wukongim-dev:local` and reran the same high-rate mixed stress. The smoke still timed out because the strict gate requires `send_errors=0`, but diagnostics no longer returned corrupt-state errors and node logs did not show `channel: corrupt state`; remaining errors were send timeouts around slot leadership churn.
+
+Status:
+- Corrupt-state defect fixed.
+- Remaining high-rate timeout/churn observation is the next investigation target.

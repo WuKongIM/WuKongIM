@@ -51,3 +51,15 @@ Worktree: `.worktrees/wk-sim-bughunt-20260520`
 - Compose smoke with default dev-sim profile.
 - Bounded stress pass with higher `WK_SIM_RATE` / `WK_SIM_TRAFFIC_CONCURRENCY`.
 - Focused unit/e2e tests for every confirmed code defect.
+
+## Continuation: main worktree Run 7
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-20 | `GOWORK=off go test ./pkg/channel/replica -run 'TestApplyFetch(ResultAfterSameLeaderMetaRefreshPublishesDurableLEO|StaleResultAfterMetaChangeIsFenced|TruncateResultAfterMetaChangeIsFenced)' -count=1` | Pass | Regression and stale-fence checks passed after the follower durable apply fix. |
+| 2026-05-20 | `GOWORK=off go test ./pkg/channel/replica -count=1` | Pass | Full replica package verification passed. |
+| 2026-05-20 | `WK_SIM_RATE=1/s WK_SIM_TRAFFIC_CONCURRENCY=256 WK_SIM_UID_PREFIX=perf2-u scripts/dev-sim-compose-smoke.sh --no-build --timeout 300 --skip-logs` | Partial | Strict smoke still timed out on non-zero send errors, but diagnostics and logs no longer showed `channel: corrupt state`. |
+
+| ID | Status | Area | Symptom | Root Cause | Fix Commit |
+| --- | --- | --- | --- | --- | --- |
+| BUG-008 | Fixed | Channel replica follower apply | High-rate `wk-sim` stress could produce `channel: corrupt state` after follower durable apply overlapped with same-leader metadata refresh. | The durable write was fenced before mutation, but result publication rejected any role-generation mismatch, leaving runtime LEO behind the durable log when channel key, epoch, and leader were unchanged. | Current change |

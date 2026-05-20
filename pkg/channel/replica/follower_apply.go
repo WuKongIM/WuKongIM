@@ -308,8 +308,7 @@ func (r *replica) applyFollowerApplyResultCommand(cmd machineFollowerApplyResult
 	if err := r.applyDurableTruncateResultLocked(cmd); err != nil {
 		return machineResult{Err: err}
 	}
-	if cmd.ChannelKey != r.state.ChannelKey || cmd.Epoch != r.state.Epoch ||
-		cmd.Leader != r.state.Leader || cmd.RoleGeneration != r.roleGeneration {
+	if !r.canPublishFollowerApplyResultLocked(cmd) {
 		return machineResult{Err: channel.ErrStaleMeta}
 	}
 	if cmd.Err != nil {
@@ -342,6 +341,19 @@ func (r *replica) applyFollowerApplyResultCommand(cmd machineFollowerApplyResult
 	r.state.OffsetEpoch = offsetEpochForLEO(r.epochHistory, cmd.StoredLEO)
 	r.publishStateLocked()
 	return machineResult{}
+}
+
+func (r *replica) canPublishFollowerApplyResultLocked(cmd machineFollowerApplyResultCommand) bool {
+	if cmd.ChannelKey != r.state.ChannelKey || cmd.Epoch != r.state.Epoch || cmd.Leader != r.state.Leader {
+		return false
+	}
+	if cmd.RoleGeneration == r.roleGeneration {
+		return true
+	}
+	// A follower metadata refresh can bump roleGeneration while a durable apply is
+	// already in the store. The write was fenced before mutation, so publish it
+	// when the authoritative channel epoch and leader are still unchanged.
+	return r.state.Role == channel.ReplicaRoleFollower || r.state.Role == channel.ReplicaRoleFencedLeader
 }
 
 func (r *replica) applyDurableTruncateResultLocked(cmd machineFollowerApplyResultCommand) error {
