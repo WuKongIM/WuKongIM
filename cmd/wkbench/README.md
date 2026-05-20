@@ -127,15 +127,17 @@ Safe tuning environment variables:
 | `WK_SIM_GROUP_CHANNELS` | Number of group channels. |
 | `WK_SIM_GROUP_MEMBERS` | Members per group channel. |
 | `WK_SIM_RATE` | Per-channel person and group send rate, for example `0.5/s`. |
+| `WK_SIM_TRAFFIC_CONCURRENCY` | Maximum concurrent send+sendack operations per traffic stream. |
 | `WK_SIM_VERIFY_RECV` | Receive verification mode, for example `none` or `sampled`. |
 | `WK_SIM_UID_PREFIX` | Prefix for generated simulator user IDs. |
 
-The Compose profile sets high local-debug defaults: `500` users, `100` person
-channels, `100` group channels, `10` members per group, and `5/s` per channel.
-That targets roughly `1000` ingress messages per second before group fanout and
-sets `WK_SIM_VERIFY_RECV=none` to avoid receive checks throttling local send
-pressure. Override the same `WK_SIM_*` variables to lower or raise the workload;
-use `WK_SIM_VERIFY_RECV=sampled` when sampled receive verification is needed.
+The Compose profile sets high local-debug defaults: `1000` users, `500` person
+channels, `500` group channels, `10` members per group, `0.25/s` per channel,
+`128` traffic concurrency, and `WK_SIM_VERIFY_RECV=none`. That targets roughly
+`250` ingress messages per second before group fanout and avoids receive checks
+throttling local send pressure. Override the same `WK_SIM_*` variables to lower
+or raise the workload; use `WK_SIM_VERIFY_RECV=sampled` when sampled receive
+verification is needed.
 
 The simulator stays within wkbench's black-box boundary: it prepares data through `/bench/v1/*` and sends messages through WKProto gateways. It does not import server internals or bypass cluster paths.
 
