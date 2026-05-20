@@ -121,3 +121,15 @@ Verification:
 - Regression tests: `TestRunnerRunsWarmupBeforeTraffic` and `TestRunnerUsesWarmupMetricsAsCounterBaseline`.
 - Focused tests passed with `GOWORK=off go test ./internal/bench/devsim -count=1` and `GOWORK=off go test ./internal/bench/... ./cmd/wkbench -count=1`.
 - Rebuilt Docker image locally and reran the group-only high-rate profile with `WK_SIM_WARMUP=10s`; measured traffic reached `messages_sent=6096`, `send_errors=0`, `recv_errors=0`, `last_error=""`.
+
+## 2026-05-20 Run 4
+
+Environment:
+- Same rebuilt three-node Compose cluster after Issue 5 fix.
+
+Stress checks:
+- High-rate mixed profile (`500` users, `250` person channels, `250` group channels, `10` group members, `1/s`, concurrency `256`, `WK_SIM_WARMUP=10s`, receive verification `none`) needed several prepare/connect retries on the already-stressed local Compose stack, then reached `running`.
+- When `go test ./...` was run concurrently with that stress profile, the simulator later accumulated send errors. A clean rerun without concurrent Go tests reached `messages_sent=40924`, `send_errors=0`, `recv_errors=0`, `last_error=""`.
+
+Status:
+- No new reproducible traffic bug was found after the warmup fix. The remaining prepare/connect retries occurred before traffic and recovered automatically.
