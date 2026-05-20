@@ -1427,6 +1427,26 @@ func TestLoadConfigParsesGatewayAsyncSendDispatchWorkersFromConf(t *testing.T) {
 	require.Equal(t, 64, cfg.Gateway.DefaultSession.AsyncSendDispatchWorkers)
 }
 
+func TestLoadConfigParsesGatewayAsyncSendBatchOptionsFromConf(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT=750us",
+		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS=64",
+		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES=262144",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, 750*time.Microsecond, cfg.Gateway.DefaultSession.AsyncSendBatchMaxWait)
+	require.Equal(t, 64, cfg.Gateway.DefaultSession.AsyncSendBatchMaxRecords)
+	require.Equal(t, 262144, cfg.Gateway.DefaultSession.AsyncSendBatchMaxBytes)
+}
+
 func TestLoadConfigParsesGatewayGnetOptionsFromConf(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",

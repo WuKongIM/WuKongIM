@@ -12,6 +12,7 @@ import (
 type Cluster interface {
 	ApplyMeta(meta Meta) error
 	Append(ctx context.Context, req AppendRequest) (AppendResult, error)
+	AppendBatch(ctx context.Context, req AppendBatchRequest) (AppendBatchResult, error)
 	Fetch(ctx context.Context, req FetchRequest) (FetchResult, error)
 	Status(id ChannelID) (ChannelRuntimeStatus, error)
 	Close() error
@@ -20,6 +21,7 @@ type Cluster interface {
 type Service interface {
 	ApplyMeta(meta Meta) error
 	Append(ctx context.Context, req AppendRequest) (AppendResult, error)
+	AppendBatch(ctx context.Context, req AppendBatchRequest) (AppendBatchResult, error)
 	Fetch(ctx context.Context, req FetchRequest) (FetchResult, error)
 	Status(id ChannelID) (ChannelRuntimeStatus, error)
 }
@@ -280,6 +282,10 @@ func (c *cluster) lockApplyMeta(key ChannelKey) func() {
 
 func (c *cluster) Append(ctx context.Context, req AppendRequest) (AppendResult, error) {
 	return c.service.Append(ctx, req)
+}
+
+func (c *cluster) AppendBatch(ctx context.Context, req AppendBatchRequest) (AppendBatchResult, error) {
+	return c.service.AppendBatch(ctx, req)
 }
 
 func (c *cluster) Fetch(ctx context.Context, req FetchRequest) (FetchResult, error) {

@@ -17,25 +17,82 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
+// Send processes one message send command and returns the client-facing result.
 func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
+	results := a.SendBatch([]SendBatchItem{{Context: ctx, Command: cmd}})
+	if len(results) == 0 {
+		return SendResult{}, nil
+	}
+	return results[0].Result, results[0].Err
+}
+
+// SendBatch processes multiple send commands while preserving item-aligned results.
+func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
+	results := make([]SendBatchItemResult, len(items))
+	prepared := make([]preparedSend, 0, len(items))
+	for i, item := range items {
+		ctx := item.Context
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		next, done := a.prepareSend(ctx, item.Command)
+		next.index = i
+		next.ctx = ctx
+		if done {
+			results[i] = SendBatchItemResult{Result: next.result, Err: next.err}
+			continue
+		}
+		prepared = append(prepared, next)
+	}
+	for _, segment := range splitDurableSendSegments(prepared) {
+		a.sendDurableSegment(segment, results)
+	}
+	return results
+}
+
+type preparedSend struct {
+	index int
+	ctx   context.Context
+	cmd   SendCommand
+
+	result SendResult
+	err    error
+}
+
+type durableSendSegmentKey struct {
+	channelID             string
+	channelType           uint8
+	commitMode            channel.CommitMode
+	expectedChannelEpoch  uint64
+	expectedLeaderEpoch   uint64
+	supportsMessageSeqU64 bool
+}
+
+type durableSendSegment struct {
+	key   durableSendSegmentKey
+	items []preparedSend
+}
+
+func (a *App) prepareSend(ctx context.Context, cmd SendCommand) (preparedSend, bool) {
 	if cmd.FromUID == "" {
 		fields := append([]wklog.Field{
 			wklog.Event("message.send.unauthenticated.rejected"),
 		}, messageLogFields(channel.ChannelID{ID: cmd.ChannelID, Type: cmd.ChannelType}, cmd.FromUID)...)
 		fields = append(fields, wklog.Error(ErrUnauthenticatedSender))
 		a.sendLogger().Warn("reject unauthenticated sender", fields...)
-		return SendResult{}, ErrUnauthenticatedSender
+		return preparedSend{result: SendResult{}, err: ErrUnauthenticatedSender}, true
 	}
 	if result, limited := a.checkUserSendLimit(cmd); limited {
-		return result, nil
+		return preparedSend{result: result}, true
 	}
 
 	if len(cmd.RequestSubscribers) > 0 {
-		return a.sendRequestScoped(ctx, cmd)
+		result, err := a.sendRequestScoped(ctx, cmd)
+		return preparedSend{result: result, err: err}, true
 	}
 
 	if !isSupportedSendChannelType(cmd.ChannelType) {
-		return SendResult{Reason: frame.ReasonNotSupportChannelType}, nil
+		return preparedSend{result: SendResult{Reason: frame.ReasonNotSupportChannelType}}, true
 	}
 
 	sourceChannelID, alreadyCommandChannel := runtimechannelid.FromCommandChannel(cmd.ChannelID)
@@ -44,13 +101,13 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	if cmd.ChannelType == frame.ChannelTypePerson {
 		channelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
 		if err != nil {
-			return SendResult{}, err
+			return preparedSend{err: err}, true
 		}
 		cmd.ChannelID = channelID
 	} else if cmd.ChannelType == frame.ChannelTypeAgent {
 		channelID, err := normalizeAgentSendChannel(cmd.FromUID, cmd.ChannelID)
 		if err != nil {
-			return SendResult{}, err
+			return preparedSend{err: err}, true
 		}
 		cmd.ChannelID = channelID
 	}
@@ -58,26 +115,27 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	reason, err := a.checkSendPermission(ctx, cmd)
 	if err != nil {
 		if reason != 0 && reason != frame.ReasonSuccess {
-			return SendResult{Reason: reason}, err
+			return preparedSend{result: SendResult{Reason: reason}, err: err}, true
 		}
-		return SendResult{}, err
+		return preparedSend{err: err}, true
 	}
 	if reason != frame.ReasonSuccess {
-		return SendResult{Reason: reason}, nil
+		return preparedSend{result: SendResult{Reason: reason}}, true
 	}
 
 	cmd, hookResult, err := a.beforeSendHook(ctx, cmd)
 	if err != nil || hookResult.Reason != frame.ReasonSuccess {
-		return hookResult, err
+		return preparedSend{result: hookResult, err: err}, true
 	}
 
 	if cmd.Framer.NoPersist {
 		if cmd.Framer.SyncOnce || alreadyCommandChannel {
 			realtimeCmd := cmd
 			realtimeCmd.ChannelID = runtimechannelid.ToCommandChannel(cmd.ChannelID)
-			return a.sendRealtime(ctx, realtimeCmd, nil)
+			result, err := a.sendRealtime(ctx, realtimeCmd, nil)
+			return preparedSend{result: result, err: err}, true
 		}
-		return SendResult{Reason: frame.ReasonSuccess}, nil
+		return preparedSend{result: SendResult{Reason: frame.ReasonSuccess}}, true
 	}
 
 	appendCmd := cmd
@@ -91,10 +149,34 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 		}, messageLogFields(channel.ChannelID{ID: appendCmd.ChannelID, Type: appendCmd.ChannelType}, appendCmd.FromUID)...)
 		fields = append(fields, wklog.Error(ErrClusterRequired))
 		a.sendLogger().Error("message cluster is required", fields...)
-		return SendResult{}, ErrClusterRequired
+		return preparedSend{err: ErrClusterRequired}, true
 	}
 
-	return a.sendDurable(ctx, appendCmd)
+	return preparedSend{ctx: ctx, cmd: appendCmd}, false
+}
+
+func splitDurableSendSegments(items []preparedSend) []durableSendSegment {
+	segments := make([]durableSendSegment, 0, len(items))
+	for _, item := range items {
+		key := durableSegmentKey(item.cmd)
+		if len(segments) > 0 && segments[len(segments)-1].key == key {
+			segments[len(segments)-1].items = append(segments[len(segments)-1].items, item)
+			continue
+		}
+		segments = append(segments, durableSendSegment{key: key, items: []preparedSend{item}})
+	}
+	return segments
+}
+
+func durableSegmentKey(cmd SendCommand) durableSendSegmentKey {
+	return durableSendSegmentKey{
+		channelID:             cmd.ChannelID,
+		channelType:           cmd.ChannelType,
+		commitMode:            commitModeOrDefault(cmd.CommitMode),
+		expectedChannelEpoch:  cmd.ExpectedChannelEpoch,
+		expectedLeaderEpoch:   cmd.ExpectedLeaderEpoch,
+		supportsMessageSeqU64: supportsMessageSeqU64(cmd.ProtocolVersion),
+	}
 }
 
 func (a *App) checkUserSendLimit(cmd SendCommand) (SendResult, bool) {
@@ -225,63 +307,133 @@ func (a *App) sendRealtime(ctx context.Context, cmd SendCommand, messageScopedUI
 }
 
 func (a *App) sendDurable(ctx context.Context, cmd SendCommand) (SendResult, error) {
-	draft := buildDurableMessage(cmd, a.now())
-	channelID := channel.ChannelID{
-		ID:   cmd.ChannelID,
-		Type: cmd.ChannelType,
+	results := make([]SendBatchItemResult, 1)
+	a.sendDurableSegment(durableSendSegment{
+		key: durableSegmentKey(cmd),
+		items: []preparedSend{{
+			index: 0,
+			ctx:   ctx,
+			cmd:   cmd,
+		}},
+	}, results)
+	return results[0].Result, results[0].Err
+}
+
+func (a *App) sendDurableSegment(segment durableSendSegment, results []SendBatchItemResult) {
+	if len(segment.items) == 0 {
+		return
+	}
+	active := make([]preparedSend, 0, len(segment.items))
+	for _, item := range segment.items {
+		if err := item.ctx.Err(); err != nil {
+			results[item.index] = SendBatchItemResult{Err: err}
+			continue
+		}
+		active = append(active, item)
+	}
+	if len(active) == 0 {
+		return
+	}
+
+	channelID := channel.ChannelID{ID: segment.key.channelID, Type: segment.key.channelType}
+	messages := make([]channel.Message, 0, len(active))
+	for _, item := range active {
+		messages = append(messages, buildDurableMessage(item.cmd, a.now()))
 	}
 	startedAt := a.now()
-	result, err := sendWithEnsuredMeta(ctx, a.localNodeID, a.now, a.sendLogger(),
-		a.cluster, a.remoteAppender, a.refresher, a.appendMetrics, channel.AppendRequest{
+	segmentCtx, cancel := segmentContext(active)
+	defer cancel()
+	appendResult, err := sendBatchWithEnsuredMeta(segmentCtx, a.localNodeID, a.now, a.sendLogger(),
+		a.cluster, a.remoteAppender, a.refresher, a.appendMetrics, channel.AppendBatchRequest{
 			ChannelID:             channelID,
-			Message:               draft,
-			SupportsMessageSeqU64: supportsMessageSeqU64(cmd.ProtocolVersion),
-			CommitMode:            commitModeOrDefault(cmd.CommitMode),
-			ExpectedChannelEpoch:  cmd.ExpectedChannelEpoch,
-			ExpectedLeaderEpoch:   cmd.ExpectedLeaderEpoch,
-			TraceID:               cmd.TraceID,
+			Messages:              messages,
+			SupportsMessageSeqU64: segment.key.supportsMessageSeqU64,
+			CommitMode:            segment.key.commitMode,
+			ExpectedChannelEpoch:  segment.key.expectedChannelEpoch,
+			ExpectedLeaderEpoch:   segment.key.expectedLeaderEpoch,
+			TraceID:               active[0].cmd.TraceID,
 			Attempt:               0,
 		})
-	sendtrace.Record(sendtrace.Event{
-		TraceID:     cmd.TraceID,
-		Stage:       sendtrace.StageMessageSendDurable,
-		At:          startedAt,
-		Duration:    sendtrace.Elapsed(startedAt, a.now()),
-		NodeID:      a.localNodeID,
-		ChannelKey:  string(channelhandler.KeyFromChannelID(channelID)),
-		ClientMsgNo: cmd.ClientMsgNo,
-		MessageSeq:  result.MessageSeq,
-		FromUID:     cmd.FromUID,
-	})
+	duration := sendtrace.Elapsed(startedAt, a.now())
 	if err != nil {
-		return SendResult{}, err
+		for _, item := range active {
+			sendtrace.Record(sendtrace.Event{
+				TraceID:     item.cmd.TraceID,
+				Stage:       sendtrace.StageMessageSendDurable,
+				At:          startedAt,
+				Duration:    duration,
+				NodeID:      a.localNodeID,
+				ChannelKey:  string(channelhandler.KeyFromChannelID(channelID)),
+				ClientMsgNo: item.cmd.ClientMsgNo,
+				FromUID:     item.cmd.FromUID,
+			})
+			results[item.index] = SendBatchItemResult{Err: err}
+		}
+		return
 	}
-
-	sendResult := SendResult{
-		MessageID:  int64(result.MessageID),
-		MessageSeq: result.MessageSeq,
-		Reason:     frame.ReasonSuccess,
-	}
-
-	intentSubmitted := a.submitRequestScopedCMDConversationIntent(ctx, result.Message, cmd.RequestSubscribers)
-	if a.dispatcher != nil {
-		if err := a.dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted{
-			Message:                        result.Message,
-			SenderSessionID:                cmd.SenderSessionID,
-			MessageScopedUIDs:              append([]string(nil), cmd.RequestSubscribers...),
-			CMDConversationIntentSubmitted: intentSubmitted,
-		}); err != nil {
-			fields := append([]wklog.Field{
-				wklog.Event("message.send.dispatch_submit.failed"),
-			}, messageLogFields(channelID, cmd.FromUID)...)
-			fields = append(fields, wklog.Error(err))
-			a.sendLogger().Warn("submit committed message failed", fields...)
-			if len(cmd.RequestSubscribers) > 0 {
-				return SendResult{}, err
+	for i, item := range active {
+		if i >= len(appendResult.Items) {
+			results[item.index] = SendBatchItemResult{Err: errors.New("message: append batch result count mismatch")}
+			continue
+		}
+		itemResult := appendResult.Items[i]
+		sendtrace.Record(sendtrace.Event{
+			TraceID:     item.cmd.TraceID,
+			Stage:       sendtrace.StageMessageSendDurable,
+			At:          startedAt,
+			Duration:    duration,
+			NodeID:      a.localNodeID,
+			ChannelKey:  string(channelhandler.KeyFromChannelID(channelID)),
+			ClientMsgNo: item.cmd.ClientMsgNo,
+			MessageSeq:  itemResult.MessageSeq,
+			FromUID:     item.cmd.FromUID,
+		})
+		if itemResult.Err != nil {
+			results[item.index] = SendBatchItemResult{Err: itemResult.Err}
+			continue
+		}
+		sendResult := SendResult{
+			MessageID:  int64(itemResult.MessageID),
+			MessageSeq: itemResult.MessageSeq,
+			Reason:     frame.ReasonSuccess,
+		}
+		intentSubmitted := a.submitRequestScopedCMDConversationIntent(item.ctx, itemResult.Message, item.cmd.RequestSubscribers)
+		if a.dispatcher != nil {
+			if err := a.dispatcher.SubmitCommitted(item.ctx, messageevents.MessageCommitted{
+				Message:                        itemResult.Message,
+				SenderSessionID:                item.cmd.SenderSessionID,
+				MessageScopedUIDs:              append([]string(nil), item.cmd.RequestSubscribers...),
+				CMDConversationIntentSubmitted: intentSubmitted,
+			}); err != nil {
+				fields := append([]wklog.Field{
+					wklog.Event("message.send.dispatch_submit.failed"),
+				}, messageLogFields(channelID, item.cmd.FromUID)...)
+				fields = append(fields, wklog.Error(err))
+				a.sendLogger().Warn("submit committed message failed", fields...)
+				if len(item.cmd.RequestSubscribers) > 0 {
+					results[item.index] = SendBatchItemResult{Err: err}
+					continue
+				}
 			}
 		}
+		results[item.index] = SendBatchItemResult{Result: sendResult}
 	}
-	return sendResult, nil
+}
+
+func segmentContext(items []preparedSend) (context.Context, context.CancelFunc) {
+	if len(items) == 1 && items[0].ctx != nil {
+		return items[0].ctx, func() {}
+	}
+	var earliest time.Time
+	for _, item := range items {
+		if deadline, ok := item.ctx.Deadline(); ok && (earliest.IsZero() || deadline.Before(earliest)) {
+			earliest = deadline
+		}
+	}
+	if earliest.IsZero() {
+		return context.Background(), func() {}
+	}
+	return context.WithDeadline(context.Background(), earliest)
 }
 
 func (a *App) submitRequestScopedCMDConversationIntent(ctx context.Context, msg channel.Message, subscribers []string) bool {

@@ -425,6 +425,95 @@ func TestAppendReturnsExistingEntryOnIdempotentRetry(t *testing.T) {
 	}
 }
 
+func TestAppendBatchAssignsContiguousMessageSeq(t *testing.T) {
+	id := core.ChannelID{ID: "batch", Type: 1}
+	svc, rt, _ := newAppendService(t, id)
+
+	res, err := svc.AppendBatch(context.Background(), core.AppendBatchRequest{
+		ChannelID:             id,
+		SupportsMessageSeqU64: true,
+		Messages: []core.Message{
+			{FromUID: "u1", ClientMsgNo: "m1", Payload: []byte("one")},
+			{FromUID: "u1", ClientMsgNo: "m2", Payload: []byte("two")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("AppendBatch() error = %v", err)
+	}
+	if len(res.Items) != 2 {
+		t.Fatalf("AppendBatch() items = %d, want 2", len(res.Items))
+	}
+	if res.Items[0].Err != nil || res.Items[1].Err != nil {
+		t.Fatalf("AppendBatch() item errors = %v, %v", res.Items[0].Err, res.Items[1].Err)
+	}
+	if res.Items[0].MessageSeq != 1 || res.Items[1].MessageSeq != 2 {
+		t.Fatalf("message seqs = %d,%d want 1,2", res.Items[0].MessageSeq, res.Items[1].MessageSeq)
+	}
+	if rt.channels[KeyFromChannelID(id)].appendCalls != 1 {
+		t.Fatalf("Append() calls = %d, want one batch append", rt.channels[KeyFromChannelID(id)].appendCalls)
+	}
+}
+
+func TestAppendBatchCoalescesDuplicateIdempotencyKey(t *testing.T) {
+	id := core.ChannelID{ID: "batch-idempotent", Type: 1}
+	svc, rt, _ := newAppendService(t, id)
+
+	res, err := svc.AppendBatch(context.Background(), core.AppendBatchRequest{
+		ChannelID:             id,
+		SupportsMessageSeqU64: true,
+		Messages: []core.Message{
+			{FromUID: "u1", ClientMsgNo: "same", Payload: []byte("payload")},
+			{FromUID: "u1", ClientMsgNo: "same", Payload: []byte("payload")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("AppendBatch() error = %v", err)
+	}
+	if len(res.Items) != 2 {
+		t.Fatalf("items = %d, want 2", len(res.Items))
+	}
+	if res.Items[0].Err != nil || res.Items[1].Err != nil {
+		t.Fatalf("item errors = %v, %v", res.Items[0].Err, res.Items[1].Err)
+	}
+	if res.Items[0].MessageID != res.Items[1].MessageID || res.Items[0].MessageSeq != res.Items[1].MessageSeq {
+		t.Fatalf("duplicate results differ: %+v %+v", res.Items[0], res.Items[1])
+	}
+	handle := rt.channels[KeyFromChannelID(id)]
+	if handle.appendCalls != 1 || handle.lastRecordCount != 1 {
+		t.Fatalf("append calls/records = %d/%d, want 1/1", handle.appendCalls, handle.lastRecordCount)
+	}
+}
+
+func TestAppendBatchRejectsConflictingDuplicateIdempotencyKey(t *testing.T) {
+	id := core.ChannelID{ID: "batch-idempotent-conflict", Type: 1}
+	svc, rt, _ := newAppendService(t, id)
+
+	res, err := svc.AppendBatch(context.Background(), core.AppendBatchRequest{
+		ChannelID:             id,
+		SupportsMessageSeqU64: true,
+		Messages: []core.Message{
+			{FromUID: "u1", ClientMsgNo: "same", Payload: []byte("payload-a")},
+			{FromUID: "u1", ClientMsgNo: "same", Payload: []byte("payload-b")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("AppendBatch() error = %v", err)
+	}
+	if len(res.Items) != 2 {
+		t.Fatalf("items = %d, want 2", len(res.Items))
+	}
+	if res.Items[0].Err != nil {
+		t.Fatalf("first item error = %v", res.Items[0].Err)
+	}
+	if !errors.Is(res.Items[1].Err, core.ErrIdempotencyConflict) {
+		t.Fatalf("second item error = %v, want ErrIdempotencyConflict", res.Items[1].Err)
+	}
+	handle := rt.channels[KeyFromChannelID(id)]
+	if handle.appendCalls != 1 || handle.lastRecordCount != 1 {
+		t.Fatalf("append calls/records = %d/%d, want 1/1", handle.appendCalls, handle.lastRecordCount)
+	}
+}
+
 func TestAppendRejectsActiveWriteFence(t *testing.T) {
 	id := core.ChannelID{ID: "room-fenced", Type: 2}
 	key := KeyFromChannelID(id)
@@ -773,11 +862,12 @@ func (r *fakeRuntime) Channel(key core.ChannelKey) (core.HandlerChannel, bool) {
 }
 
 type fakeChannelHandle struct {
-	id          core.ChannelKey
-	status      core.ReplicaState
-	appendCalls int
-	idCalls     int
-	appendFn    func(context.Context, []core.Record) (core.CommitResult, error)
+	id              core.ChannelKey
+	status          core.ReplicaState
+	appendCalls     int
+	lastRecordCount int
+	idCalls         int
+	appendFn        func(context.Context, []core.Record) (core.CommitResult, error)
 }
 
 func (h *fakeChannelHandle) ID() core.ChannelKey {
@@ -789,6 +879,7 @@ func (h *fakeChannelHandle) Meta() core.Meta           { return core.Meta{Key: h
 func (h *fakeChannelHandle) Status() core.ReplicaState { return h.status }
 func (h *fakeChannelHandle) Append(ctx context.Context, records []core.Record) (core.CommitResult, error) {
 	h.appendCalls++
+	h.lastRecordCount = len(records)
 	return h.appendFn(ctx, records)
 }
 

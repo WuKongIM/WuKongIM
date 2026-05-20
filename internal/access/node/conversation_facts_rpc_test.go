@@ -131,6 +131,10 @@ func (notReadyConversationFactsLog) Append(context.Context, channel.AppendReques
 	return channel.AppendResult{}, channel.ErrNotReady
 }
 
+func (notReadyConversationFactsLog) AppendBatch(context.Context, channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	return channel.AppendBatchResult{}, channel.ErrNotReady
+}
+
 type refreshableConversationFactsLog struct {
 	status    channel.ChannelRuntimeStatus
 	fetch     channel.FetchResult
@@ -153,6 +157,10 @@ func (l *refreshableConversationFactsLog) Fetch(context.Context, channel.FetchRe
 
 func (l *refreshableConversationFactsLog) Append(context.Context, channel.AppendRequest) (channel.AppendResult, error) {
 	return channel.AppendResult{}, nil
+}
+
+func (l *refreshableConversationFactsLog) AppendBatch(context.Context, channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	return channel.AppendBatchResult{}, nil
 }
 
 func (l *refreshableConversationFactsLog) markRefreshed() {

@@ -85,6 +85,9 @@
 - Single-node cluster send stress is still a cluster-mode path; benchmark metadata should use the harness node IDs and `MinISR=1`, not hard-coded three-node replicas.
 - In the three-node quorum send stress, lowering long-poll max wait alone does not remove the bottleneck; the current hot path is per-channel async SEND serialization plus leader quorum wait after local durable append.
 - A separate high-channel three-node send stress should keep the original benchmark unchanged; raising channel cardinality alone has only a small QPS effect while leader quorum latency remains high.
+- SEND batching is layered: gateway shards by raw `ChannelID + ChannelType` only to preserve entry ordering and collect micro-batches; message usecase groups adjacent canonical same-channel sends; `pkg/channel.AppendBatch` performs one replica append with contiguous seqs.
+- Remote channel append forwarding supports one-channel batch RPC; falling back to per-message forwarding loses the durable/follower batching benefit for clients connected to non-leader nodes.
+- Single SEND/Append entrypoints are compatibility wrappers; durable send and app channel append internals should route through batch-of-one to avoid split correctness/performance paths.
 
 ## Cluster Membership
 

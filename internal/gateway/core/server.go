@@ -906,12 +906,93 @@ func (s *Server) startAsyncDispatcher() {
 func (s *Server) runAsyncDispatchWorker(tasks <-chan asyncDispatchTask) {
 	defer s.workerWG.Done()
 
-	for task := range tasks {
+	collector := newAsyncSendBatchCollector(tasks, asyncSendBatchLimitsFromOptions(s.options.DefaultSession))
+	for {
+		batch, ok := collector.nextBatch()
+		if !ok {
+			return
+		}
+		if s.dispatchSendBatch(batch) {
+			continue
+		}
+		for _, task := range batch {
+			recordAsyncDispatchWait(task)
+			if err := s.dispatchFrame(task.state, task.replyToken, task.frame); err != nil {
+				s.handleHandlerError(task.state, err)
+			}
+		}
+	}
+}
+
+func asyncSendBatchLimitsFromOptions(opt gatewaytypes.SessionOptions) asyncSendBatchLimits {
+	opt = gatewaytypes.NormalizeSessionOptions(opt)
+	return asyncSendBatchLimits{
+		maxWait:    opt.AsyncSendBatchMaxWait,
+		maxRecords: opt.AsyncSendBatchMaxRecords,
+		maxBytes:   opt.AsyncSendBatchMaxBytes,
+	}
+}
+
+func (s *Server) dispatchSendBatch(batch []asyncDispatchTask) bool {
+	if len(batch) == 0 {
+		return true
+	}
+	items := s.sendBatchItems(batch)
+	if len(items) != len(batch) {
+		return false
+	}
+
+	for _, task := range batch {
 		recordAsyncDispatchWait(task)
-		if err := s.dispatchFrame(task.state, task.replyToken, task.frame); err != nil {
+	}
+	start := time.Now()
+	handled, err := s.dispatcher.sendBatch(items)
+	if !handled {
+		return false
+	}
+	elapsed := time.Since(start)
+	for _, task := range batch {
+		s.observeFrameHandled(task.state, task.frame, elapsed, err)
+	}
+	if err != nil {
+		seen := make(map[*sessionState]struct{}, len(batch))
+		for _, task := range batch {
+			if task.state == nil {
+				continue
+			}
+			if _, ok := seen[task.state]; ok {
+				continue
+			}
+			seen[task.state] = struct{}{}
 			s.handleHandlerError(task.state, err)
 		}
 	}
+	return true
+}
+
+func (s *Server) sendBatchItems(batch []asyncDispatchTask) []gatewaytypes.SendBatchItem {
+	items := make([]gatewaytypes.SendBatchItem, 0, len(batch))
+	for i, task := range batch {
+		send, ok := task.frame.(*frame.SendPacket)
+		if !ok || send == nil {
+			return nil
+		}
+		var reason gatewaytypes.CloseReason
+		requestContext := context.Background()
+		if task.state != nil {
+			reason = task.state.closeReason()
+			requestContext = s.dispatcher.requestContext(task.state)
+		}
+		items = append(items, gatewaytypes.SendBatchItem{
+			Context:    s.dispatcher.context(task.state, task.replyToken, reason, requestContext),
+			ReplyToken: task.replyToken,
+			Frame:      send,
+			Index:      i,
+			EnqueuedAt: task.enqueuedAt,
+			ByteCount:  asyncDispatchTaskByteCount(task),
+		})
+	}
+	return items
 }
 
 func asyncDispatchWorkerCount(opt gatewaytypes.SessionOptions) int {
@@ -949,6 +1030,107 @@ type asyncDispatchTask struct {
 	replyToken string
 	frame      frame.Frame
 	enqueuedAt time.Time
+}
+
+type asyncSendBatchLimits struct {
+	maxWait    time.Duration
+	maxRecords int
+	maxBytes   int
+}
+
+type asyncSendBatchCollector struct {
+	tasks   <-chan asyncDispatchTask
+	limits  asyncSendBatchLimits
+	pending *asyncDispatchTask
+}
+
+func newAsyncSendBatchCollector(tasks <-chan asyncDispatchTask, limits asyncSendBatchLimits) *asyncSendBatchCollector {
+	if limits.maxRecords <= 0 {
+		limits.maxRecords = 1
+	}
+	return &asyncSendBatchCollector{tasks: tasks, limits: limits}
+}
+
+func (c *asyncSendBatchCollector) nextBatch() ([]asyncDispatchTask, bool) {
+	if c == nil {
+		return nil, false
+	}
+	first, ok := c.nextTask()
+	if !ok {
+		return nil, false
+	}
+	return c.collect(first), true
+}
+
+func (c *asyncSendBatchCollector) nextTask() (asyncDispatchTask, bool) {
+	if c.pending != nil {
+		task := *c.pending
+		c.pending = nil
+		return task, true
+	}
+	task, ok := <-c.tasks
+	return task, ok
+}
+
+func (c *asyncSendBatchCollector) collect(first asyncDispatchTask) []asyncDispatchTask {
+	batch := []asyncDispatchTask{first}
+	byteCount := asyncDispatchTaskByteCount(first)
+	if c.limits.maxRecords <= 1 {
+		return batch
+	}
+
+	var timeout <-chan time.Time
+	var timer *time.Timer
+	if c.limits.maxWait > 0 {
+		timer = time.NewTimer(c.limits.maxWait)
+		timeout = timer.C
+		defer timer.Stop()
+	}
+
+	for len(batch) < c.limits.maxRecords {
+		task, ok := c.nextTaskForBatch(timeout)
+		if !ok {
+			return batch
+		}
+		taskBytes := asyncDispatchTaskByteCount(task)
+		if c.limits.maxBytes > 0 && byteCount+taskBytes > c.limits.maxBytes {
+			c.pending = &task
+			return batch
+		}
+		batch = append(batch, task)
+		byteCount += taskBytes
+	}
+	return batch
+}
+
+func (c *asyncSendBatchCollector) nextTaskForBatch(timeout <-chan time.Time) (asyncDispatchTask, bool) {
+	if c.pending != nil {
+		task := *c.pending
+		c.pending = nil
+		return task, true
+	}
+	if timeout != nil {
+		select {
+		case task, ok := <-c.tasks:
+			return task, ok
+		case <-timeout:
+			return asyncDispatchTask{}, false
+		}
+	}
+	select {
+	case task, ok := <-c.tasks:
+		return task, ok
+	default:
+		return asyncDispatchTask{}, false
+	}
+}
+
+func asyncDispatchTaskByteCount(task asyncDispatchTask) int {
+	send, ok := task.frame.(*frame.SendPacket)
+	if !ok || send == nil {
+		return 0
+	}
+	return len(send.Payload)
 }
 
 func recordAsyncDispatchWait(task asyncDispatchTask) {

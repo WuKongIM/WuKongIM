@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,9 +13,43 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func sendBatchOfOneWithEnsuredMeta(
+	ctx context.Context,
+	localNodeID uint64,
+	now func() time.Time,
+	sendLogger wklog.Logger,
+	cluster ChannelCluster,
+	remote RemoteAppender,
+	refresher MetaRefresher,
+	metrics messageAppendMetrics,
+	req channel.AppendRequest,
+) (channel.AppendResult, error) {
+	result, err := sendBatchWithEnsuredMeta(ctx, localNodeID, now, sendLogger, cluster, remote, refresher, metrics, channel.AppendBatchRequest{
+		ChannelID:             req.ChannelID,
+		Messages:              []channel.Message{req.Message},
+		SupportsMessageSeqU64: req.SupportsMessageSeqU64,
+		CommitMode:            req.CommitMode,
+		ExpectedChannelEpoch:  req.ExpectedChannelEpoch,
+		ExpectedLeaderEpoch:   req.ExpectedLeaderEpoch,
+		TraceID:               req.TraceID,
+		Attempt:               req.Attempt,
+	})
+	if err != nil {
+		return channel.AppendResult{}, err
+	}
+	if len(result.Items) == 0 {
+		return channel.AppendResult{}, nil
+	}
+	item := result.Items[0]
+	if item.Err != nil {
+		return channel.AppendResult{}, item.Err
+	}
+	return channel.AppendResult{MessageID: item.MessageID, MessageSeq: item.MessageSeq, Message: item.Message}, nil
+}
+
 func TestSendWithEnsuredMetaRefresherRequired(t *testing.T) {
 	cluster := &fakeChannelCluster{}
-	_, err := sendWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
+	_, err := sendBatchOfOneWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
 		cluster, nil, nil, nil, channel.AppendRequest{
 			ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
 		})
@@ -25,7 +60,7 @@ func TestSendWithEnsuredMetaRefreshFails(t *testing.T) {
 	refreshErr := errors.New("refresh failed")
 	refresher := &fakeMetaRefresher{errs: []error{refreshErr}}
 	cluster := &fakeChannelCluster{}
-	_, err := sendWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
+	_, err := sendBatchOfOneWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
 		cluster, nil, refresher, nil, channel.AppendRequest{
 			ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
 		})
@@ -44,7 +79,7 @@ func TestSendWithEnsuredMetaLocalAppend(t *testing.T) {
 			{result: channel.AppendResult{MessageID: 42, MessageSeq: 3}},
 		},
 	}
-	result, err := sendWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
+	result, err := sendBatchOfOneWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
 		cluster, nil, refresher, nil, channel.AppendRequest{
 			ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
 		})
@@ -69,7 +104,7 @@ func TestSendWithEnsuredMetaRecordsAppendMetrics(t *testing.T) {
 		},
 	}
 
-	_, err := sendWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
+	_, err := sendBatchOfOneWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
 		cluster, nil, refresher, metrics, channel.AppendRequest{
 			ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
 		})
@@ -90,7 +125,7 @@ func TestSendWithEnsuredMetaForwardsToRemoteLeader(t *testing.T) {
 		},
 	}
 	cluster := &fakeChannelCluster{}
-	result, err := sendWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
+	result, err := sendBatchOfOneWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
 		cluster, remote, refresher, nil, channel.AppendRequest{
 			ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
 		})
@@ -109,7 +144,7 @@ func TestSendWithEnsuredMetaRemoteAppenderRequired(t *testing.T) {
 		metas: []channel.Meta{{Leader: 3, Epoch: 7}},
 	}
 	cluster := &fakeChannelCluster{}
-	_, err := sendWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
+	_, err := sendBatchOfOneWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
 		cluster, nil, refresher, nil, channel.AppendRequest{
 			ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
 		})
@@ -126,7 +161,7 @@ func TestSendWithEnsuredMetaLeaderZeroFallsToLocalAppend(t *testing.T) {
 			{result: channel.AppendResult{MessageID: 10, MessageSeq: 1}},
 		},
 	}
-	result, err := sendWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
+	result, err := sendBatchOfOneWithEnsuredMeta(context.Background(), 1, nil, wklog.NewNop(),
 		cluster, nil, refresher, nil, channel.AppendRequest{
 			ChannelID: channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
 		})
@@ -145,7 +180,7 @@ func TestSendWithEnsuredMetaInvalidatesCacheAndRetriesAfterStaleAppend(t *testin
 	cluster := &flakyAppendCluster{errs: []error{channel.ErrStaleMeta}, result: channel.AppendResult{MessageID: 7, MessageSeq: 1}}
 	metrics := &recordingMessageAppendMetrics{}
 
-	result, err := sendWithEnsuredMeta(context.Background(), 1, time.Now, wklog.NewNop(), cluster, nil, refresher, metrics, channel.AppendRequest{
+	result, err := sendBatchOfOneWithEnsuredMeta(context.Background(), 1, time.Now, wklog.NewNop(), cluster, nil, refresher, metrics, channel.AppendRequest{
 		ChannelID: channel.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup},
 		Message:   channel.Message{FromUID: "u1"},
 	})
@@ -167,7 +202,7 @@ func TestSendWithEnsuredMetaInvalidatesCacheAndRetriesAfterWriteFence(t *testing
 	}
 	cluster := &flakyAppendCluster{errs: []error{channel.ErrWriteFenced}, result: channel.AppendResult{MessageID: 9, MessageSeq: 2}}
 
-	result, err := sendWithEnsuredMeta(context.Background(), 1, time.Now, wklog.NewNop(), cluster, nil, refresher, nil, channel.AppendRequest{
+	result, err := sendBatchOfOneWithEnsuredMeta(context.Background(), 1, time.Now, wklog.NewNop(), cluster, nil, refresher, nil, channel.AppendRequest{
 		ChannelID: channel.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup},
 		Message:   channel.Message{FromUID: "u1"},
 	})
@@ -202,14 +237,38 @@ type fakeRemoteAppender struct {
 	replies []fakeRemoteAppenderReply
 }
 
-func (f *fakeRemoteAppender) AppendToLeader(ctx context.Context, nodeID uint64, req channel.AppendRequest) (channel.AppendResult, error) {
-	f.calls = append(f.calls, fakeRemoteAppenderCall{nodeID: nodeID, req: req})
+func (f *fakeRemoteAppender) AppendBatchToLeader(ctx context.Context, nodeID uint64, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	msg := channel.Message{}
+	if len(req.Messages) > 0 {
+		msg = req.Messages[0]
+	}
+	f.calls = append(f.calls, fakeRemoteAppenderCall{nodeID: nodeID, req: channel.AppendRequest{
+		ChannelID:             req.ChannelID,
+		Message:               msg,
+		SupportsMessageSeqU64: req.SupportsMessageSeqU64,
+		CommitMode:            req.CommitMode,
+		ExpectedChannelEpoch:  req.ExpectedChannelEpoch,
+		ExpectedLeaderEpoch:   req.ExpectedLeaderEpoch,
+		TraceID:               req.TraceID,
+		Attempt:               req.Attempt,
+	}})
 	if len(f.replies) == 0 {
-		return channel.AppendResult{}, nil
+		items := make([]channel.AppendBatchItemResult, len(req.Messages))
+		return channel.AppendBatchResult{Items: items}, nil
 	}
 	reply := f.replies[0]
 	f.replies = f.replies[1:]
-	return reply.result, reply.err
+	if reply.err != nil {
+		return channel.AppendBatchResult{}, reply.err
+	}
+	if len(req.Messages) != 1 {
+		return channel.AppendBatchResult{}, fmt.Errorf("fake remote appender expects one message, got %d", len(req.Messages))
+	}
+	return channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{
+		MessageID:  reply.result.MessageID,
+		MessageSeq: reply.result.MessageSeq,
+		Message:    reply.result.Message,
+	}}}, nil
 }
 
 type recordingInvalidatingRefresher struct {
@@ -252,4 +311,20 @@ func (f *flakyAppendCluster) Append(context.Context, channel.AppendRequest) (cha
 		}
 	}
 	return f.result, nil
+}
+
+func (f *flakyAppendCluster) AppendBatch(context.Context, channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	f.appendCalls++
+	if len(f.errs) > 0 {
+		err := f.errs[0]
+		f.errs = f.errs[1:]
+		if err != nil {
+			return channel.AppendBatchResult{}, err
+		}
+	}
+	return channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{
+		MessageID:  f.result.MessageID,
+		MessageSeq: f.result.MessageSeq,
+		Message:    f.result.Message,
+	}}}, nil
 }

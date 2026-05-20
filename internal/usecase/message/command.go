@@ -1,6 +1,7 @@
 package message
 
 import (
+	"context"
 	"errors"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -59,6 +60,22 @@ type SendCommand struct {
 	HookDepth int
 	// SkipPluginHooks bypasses Send hook invocation for trusted internal paths.
 	SkipPluginHooks bool
+}
+
+// SendBatchItem carries one normalized send command with its own cancellation context.
+type SendBatchItem struct {
+	// Context is the per-send request context used for cancellation and timeout.
+	Context context.Context
+	// Command is the normalized send command for this item.
+	Command SendCommand
+}
+
+// SendBatchItemResult is aligned with one SendBatch item.
+type SendBatchItemResult struct {
+	// Result contains the client-facing SEND outcome for this item.
+	Result SendResult
+	// Err contains the infrastructure or business error for this item, if any.
+	Err error
 }
 
 type CommittedMessageEnvelope struct {
