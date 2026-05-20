@@ -159,3 +159,38 @@ func BenchmarkDurableLaneAcquireRelease(b *testing.B) {
 		release()
 	}
 }
+
+func BenchmarkReplicaAppendCloneVsOwned(b *testing.B) {
+	for _, owned := range []bool{false, true} {
+		name := "clone"
+		if owned {
+			name = "owned"
+		}
+		b.Run(name, func(b *testing.B) {
+			env := newTestEnv(b)
+			r := newReplicaFromEnvWithGroupCommit(b, env, time.Hour, 1, 1<<30)
+			defer func() { _ = r.Close() }()
+			meta := activeMetaWithMinISR(7, 1, 1)
+			r.mustApplyMeta(b, meta)
+			if err := r.BecomeLeader(meta); err != nil {
+				b.Fatalf("BecomeLeader() error = %v", err)
+			}
+			records := benchmarkRecords(1, 1024)
+			ctx := channel.WithCommitMode(context.Background(), channel.CommitModeLocal)
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				var err error
+				if owned {
+					_, err = r.AppendOwned(ctx, records)
+				} else {
+					_, err = r.Append(ctx, records)
+				}
+				if err != nil {
+					b.Fatalf("append error = %v", err)
+				}
+			}
+		})
+	}
+}
