@@ -215,7 +215,7 @@ Checkpoint writes are coalesced. A newer pending checkpoint replaces an older qu
 
 Record batches may create a new epoch point, append records, and optionally persist a checkpoint up to `min(LeaderHW, newLEO)`. Heartbeats may also persist an epoch-only boundary when metadata has advanced but no records exist yet, then move LEO/HW safely and store a checkpoint without records. Durable work runs under the `durableMu` durable lane through `ApplyFollowerBatch`, `BeginEpoch`, `TruncateLogAndHistory`, or `StoreCheckpointMonotonic`.
 
-The fenced result publishes LEO, HW, CheckpointHW, OffsetEpoch, and CommitReady. If a durable truncate committed before the result became stale, the loop still reflects that truncation so runtime LEO does not remain above local durable log.
+The fenced result publishes LEO, HW, CheckpointHW, OffsetEpoch, and CommitReady. If a durable truncate committed before the result became stale, the loop still reflects that truncation so runtime LEO does not remain above local durable log. If a follower metadata refresh only bumps the local role generation while the durable apply is already in progress, the committed durable result is still published when channel key, channel epoch, and leader are unchanged; epoch or leader changes continue to fence the stale result.
 
 Follower apply sendtrace records include result/error metadata for durable apply/truncate/checkpoint work, including bounded error summaries and stable error codes for diagnostics.
 

@@ -238,6 +238,55 @@ func TestApplyFetchStaleResultAfterMetaChangeIsFenced(t *testing.T) {
 	require.Equal(t, uint64(0), env.replica.Status().LEO)
 }
 
+func TestApplyFetchResultAfterSameLeaderMetaRefreshPublishesDurableLEO(t *testing.T) {
+	env := newFollowerEnv(t)
+	blocking := &blockingApplyDurableStore{
+		spyDurableStore: spyDurableStore{applyLEO: 1},
+		entered:         make(chan struct{}, 1),
+		release:         make(chan struct{}),
+	}
+	env.replica.durable = blocking
+
+	applied := make(chan error, 1)
+	go func() {
+		applied <- env.replica.ApplyFetch(context.Background(), channel.ReplicaApplyFetchRequest{
+			ChannelKey: "group-10",
+			Epoch:      7,
+			Leader:     1,
+			Records:    []channel.Record{{Index: 1, Payload: []byte("a"), SizeBytes: 1}},
+			LeaderHW:   1,
+		})
+	}()
+	select {
+	case <-blocking.entered:
+	case <-time.After(time.Second):
+		t.Fatal("durable apply did not start")
+	}
+
+	metaApplied := make(chan error, 1)
+	go func() {
+		metaApplied <- env.replica.ApplyMeta(activeMeta(7, 1))
+	}()
+	select {
+	case err := <-metaApplied:
+		require.NoError(t, err)
+	case <-time.After(100 * time.Millisecond):
+		close(blocking.release)
+		t.Fatal("same-leader meta refresh was blocked by durable apply")
+	}
+	close(blocking.release)
+
+	select {
+	case err := <-applied:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("apply fetch did not return after durable release")
+	}
+	require.Equal(t, uint64(7), env.replica.Status().Epoch)
+	require.Equal(t, uint64(1), env.replica.Status().LEO)
+	require.Equal(t, uint64(1), env.replica.Status().HW)
+}
+
 func TestApplyFetchTruncateResultAfterMetaChangeIsFenced(t *testing.T) {
 	env := newFollowerEnv(t)
 	env.replica.state.LEO = 4
