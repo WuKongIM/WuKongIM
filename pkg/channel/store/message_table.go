@@ -24,7 +24,25 @@ type messageIdempotencyKey struct {
 	clientMsgNo string
 }
 
+type messageAppendMode uint8
+
+const (
+	messageAppendStrict messageAppendMode = iota
+	messageAppendTrustedContiguous
+)
+
 func (t *messageTable) append(writeBatch *pebble.Batch, rows []messageRow) error {
+	return t.appendWithMode(writeBatch, rows, messageAppendStrict)
+}
+
+// appendTrustedContiguous writes rows whose caller has already proven they are
+// the next contiguous channel log entries. It still rejects duplicate indexes
+// inside the batch, but avoids per-row Pebble reads for existing index checks.
+func (t *messageTable) appendTrustedContiguous(writeBatch *pebble.Batch, rows []messageRow) error {
+	return t.appendWithMode(writeBatch, rows, messageAppendTrustedContiguous)
+}
+
+func (t *messageTable) appendWithMode(writeBatch *pebble.Batch, rows []messageRow, mode messageAppendMode) error {
 	if err := t.validate(); err != nil {
 		return err
 	}
@@ -32,20 +50,24 @@ func (t *messageTable) append(writeBatch *pebble.Batch, rows []messageRow) error
 		return channel.ErrInvalidArgument
 	}
 	if len(rows) == 1 {
-		return t.appendRow(writeBatch, rows[0], nil, nil)
+		return t.appendRow(writeBatch, rows[0], nil, nil, mode)
 	}
 
 	seenMessageIDs := make(map[uint64]struct{}, len(rows))
 	seenIdempotencyKeys := make(map[messageIdempotencyKey]struct{}, len(rows))
 	for _, row := range rows {
-		if err := t.appendRow(writeBatch, row, seenMessageIDs, seenIdempotencyKeys); err != nil {
+		if err := t.appendRow(writeBatch, row, seenMessageIDs, seenIdempotencyKeys, mode); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (t *messageTable) appendRow(writeBatch *pebble.Batch, row messageRow, seenMessageIDs map[uint64]struct{}, seenIdempotencyKeys map[messageIdempotencyKey]struct{}) error {
+func (m messageAppendMode) checkExistingIndexes() bool {
+	return m != messageAppendTrustedContiguous
+}
+
+func (t *messageTable) appendRow(writeBatch *pebble.Batch, row messageRow, seenMessageIDs map[uint64]struct{}, seenIdempotencyKeys map[messageIdempotencyKey]struct{}, mode messageAppendMode) error {
 	if row.MessageSeq == 0 {
 		return channel.ErrInvalidArgument
 	}
@@ -56,10 +78,12 @@ func (t *messageTable) appendRow(writeBatch *pebble.Batch, row messageRow, seenM
 		seenMessageIDs[row.MessageID] = struct{}{}
 	}
 
-	if existingSeq, ok, err := t.lookupMessageIDSeqForAppend(row.MessageID); err != nil {
-		return err
-	} else if ok && existingSeq != row.MessageSeq {
-		return channel.ErrCorruptState
+	if mode.checkExistingIndexes() {
+		if existingSeq, ok, err := t.lookupMessageIDSeqForAppend(row.MessageID); err != nil {
+			return err
+		} else if ok && existingSeq != row.MessageSeq {
+			return channel.ErrCorruptState
+		}
 	}
 
 	if err := setMessageFamiliesDeferred(writeBatch, t.channelKey, row); err != nil {
@@ -81,10 +105,12 @@ func (t *messageTable) appendRow(writeBatch *pebble.Batch, row messageRow, seenM
 			}
 			seenIdempotencyKeys[key] = struct{}{}
 		}
-		if existing, ok, err := t.lookupIdempotency(row.FromUID, row.ClientMsgNo); err != nil {
-			return err
-		} else if ok && existing.MessageSeq != row.MessageSeq {
-			return channel.ErrCorruptState
+		if mode.checkExistingIndexes() {
+			if existing, ok, err := t.lookupIdempotency(row.FromUID, row.ClientMsgNo); err != nil {
+				return err
+			} else if ok && existing.MessageSeq != row.MessageSeq {
+				return channel.ErrCorruptState
+			}
 		}
 		if err := setMessageIdempotencyIndexValue(writeBatch, t.channelKey, row); err != nil {
 			return err

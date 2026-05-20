@@ -485,16 +485,28 @@ func commitTraceError(err error) string {
 }
 
 func (s *ChannelStore) StoreApplyFetch(req channel.ApplyFetchStoreRequest) (uint64, error) {
-	return s.applyFetchedRecords(req, nil)
+	return s.applyFetchedRecords(req, nil, messageAppendStrict)
 }
 
 // StoreApplyFetchWithEpoch atomically persists fetched records, an optional
 // checkpoint, and an optional epoch boundary in the same Pebble batch.
 func (s *ChannelStore) StoreApplyFetchWithEpoch(req channel.ApplyFetchStoreRequest, epochPoint *channel.EpochPoint) (uint64, error) {
-	return s.applyFetchedRecords(req, epochPoint)
+	return s.applyFetchedRecords(req, epochPoint, messageAppendStrict)
 }
 
-func (s *ChannelStore) applyFetchedRecords(req channel.ApplyFetchStoreRequest, epochPoint *channel.EpochPoint) (uint64, error) {
+// StoreApplyFetchTrusted persists caller-validated fetched records without
+// rereading existing secondary indexes on the write path.
+func (s *ChannelStore) StoreApplyFetchTrusted(req channel.ApplyFetchStoreRequest) (uint64, error) {
+	return s.applyFetchedRecords(req, nil, messageAppendTrustedContiguous)
+}
+
+// StoreApplyFetchTrustedWithEpoch is the trusted append variant of
+// StoreApplyFetchWithEpoch for follower replication.
+func (s *ChannelStore) StoreApplyFetchTrustedWithEpoch(req channel.ApplyFetchStoreRequest, epochPoint *channel.EpochPoint) (uint64, error) {
+	return s.applyFetchedRecords(req, epochPoint, messageAppendTrustedContiguous)
+}
+
+func (s *ChannelStore) applyFetchedRecords(req channel.ApplyFetchStoreRequest, epochPoint *channel.EpochPoint, mode messageAppendMode) (uint64, error) {
 	if err := s.validate(); err != nil {
 		return 0, err
 	}
@@ -568,7 +580,7 @@ func (s *ChannelStore) applyFetchedRecords(req channel.ApplyFetchStoreRequest, e
 			recordCount: len(records),
 			byteCount:   recordByteCount(records),
 			build: func(writeBatch *pebble.Batch) error {
-				return s.writeApplyFetchedRecords(writeBatch, base, records, checkpoint, historyPoint)
+				return s.writeApplyFetchedRecords(writeBatch, base, records, checkpoint, historyPoint, mode)
 			},
 			publish: func() error {
 				s.publishDurableWrite(nextLEO)
@@ -584,7 +596,7 @@ func (s *ChannelStore) applyFetchedRecords(req channel.ApplyFetchStoreRequest, e
 	batch := s.engine.db.NewBatch()
 	defer batch.Close()
 
-	if err := s.writeApplyFetchedRecords(batch, base, records, checkpoint, historyPoint); err != nil {
+	if err := s.writeApplyFetchedRecords(batch, base, records, checkpoint, historyPoint, mode); err != nil {
 		return 0, err
 	}
 	if err := batch.Commit(pebble.Sync); err != nil {
@@ -606,13 +618,13 @@ func recordByteCount(records []channel.Record) int {
 	return total
 }
 
-func (s *ChannelStore) writeApplyFetchedRecords(writeBatch *pebble.Batch, base uint64, records []channel.Record, checkpoint *channel.Checkpoint, epochPoint *channel.EpochPoint) error {
+func (s *ChannelStore) writeApplyFetchedRecords(writeBatch *pebble.Batch, base uint64, records []channel.Record, checkpoint *channel.Checkpoint, epochPoint *channel.EpochPoint, mode messageAppendMode) error {
 	rows, err := s.appendRowsFromCompatibilityRecordsLocked(base+1, records)
 	if err != nil {
 		return err
 	}
 	if len(rows) > 0 {
-		if err := s.messageTable().append(writeBatch, rows); err != nil {
+		if err := s.messageTable().appendWithMode(writeBatch, rows, mode); err != nil {
 			return err
 		}
 	}

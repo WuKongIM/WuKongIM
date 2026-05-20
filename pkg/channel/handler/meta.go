@@ -24,6 +24,8 @@ type service struct {
 	metas map[channel.ChannelKey]channel.Meta
 	// keys caches logical channel IDs to runtime keys for append/fetch hot paths.
 	keys map[channel.ChannelID]channel.ChannelKey
+	// appendIdempotencyLocks serialize unresolved appends that share one idempotency key.
+	appendIdempotencyLocks map[channel.IdempotencyKey]*appendIdempotencyLock
 }
 
 func New(cfg Config) (Service, error) {
@@ -31,9 +33,10 @@ func New(cfg Config) (Service, error) {
 		return nil, channel.ErrInvalidConfig
 	}
 	return &service{
-		cfg:   cfg,
-		metas: make(map[channel.ChannelKey]channel.Meta),
-		keys:  make(map[channel.ChannelID]channel.ChannelKey),
+		cfg:                    cfg,
+		metas:                  make(map[channel.ChannelKey]channel.Meta),
+		keys:                   make(map[channel.ChannelID]channel.ChannelKey),
+		appendIdempotencyLocks: make(map[channel.IdempotencyKey]*appendIdempotencyLock),
 	}, nil
 }
 

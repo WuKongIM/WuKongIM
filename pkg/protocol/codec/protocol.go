@@ -323,7 +323,11 @@ func (l *WKProto) decodeFramerWithConn(conn io.Reader) (frame.Framer, error) {
 	typeAndFlags := b[0]
 	p := FramerFromUint8(typeAndFlags)
 	if p.FrameType != frame.PING && p.FrameType != frame.PONG {
-		p.RemainingLength = uint32(decodeLengthWithConn(conn))
+		remainingLength, err := decodeLengthWithConn(conn)
+		if err != nil {
+			return frame.Framer{}, err
+		}
+		p.RemainingLength = uint32(remainingLength)
 	}
 	return p, nil
 }
@@ -370,12 +374,14 @@ func decodeLength(data []byte) (uint32, uint32, error) {
 	}
 	return rLength, uint32(offset + 1), nil
 }
-func decodeLengthWithConn(r io.Reader) int {
+func decodeLengthWithConn(r io.Reader) (int, error) {
 	var rLength uint32
 	var multiplier uint32
 	for multiplier < 27 { //fix: Infinite '(digit & 128) == 1' will cause the dead loop
 		b := make([]byte, 1)
-		_, _ = io.ReadFull(r, b)
+		if _, err := io.ReadFull(r, b); err != nil {
+			return 0, err
+		}
 		digit := b[0]
 		rLength |= uint32(digit&127) << multiplier
 		if (digit & 128) == 0 {
@@ -383,7 +389,7 @@ func decodeLengthWithConn(r io.Reader) int {
 		}
 		multiplier += 7
 	}
-	return int(rLength)
+	return int(rLength), nil
 }
 
 func encodeBool(b bool) (i int) {

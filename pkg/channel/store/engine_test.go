@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/cockroachdb/pebble/v2/bloom"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,6 +63,24 @@ func TestDefaultPebbleOptionsUseWALMinSyncInterval(t *testing.T) {
 	require.NotNil(t, opts)
 	require.NotNil(t, opts.WALMinSyncInterval)
 	require.Equal(t, defaultChannelWALMinSyncInterval, opts.WALMinSyncInterval())
+}
+
+func TestDefaultPebbleOptionsUseBloomFiltersForPointLookups(t *testing.T) {
+	opts := defaultPebbleOptions()
+	opts.EnsureDefaults()
+
+	require.Equal(t, bloom.FilterPolicy(10).Name(), opts.Levels[0].FilterPolicy.Name())
+}
+
+func TestDefaultPebbleOptionsIncreaseAppendHeavyWriteHeadroom(t *testing.T) {
+	opts := defaultPebbleOptions()
+	opts.EnsureDefaults()
+
+	require.GreaterOrEqual(t, opts.CacheSize, int64(128<<20))
+	require.GreaterOrEqual(t, opts.MemTableSize, uint64(32<<20))
+	require.GreaterOrEqual(t, opts.MemTableStopWritesThreshold, 4)
+	require.GreaterOrEqual(t, opts.L0CompactionThreshold, 8)
+	require.GreaterOrEqual(t, opts.L0StopWritesThreshold, 24)
 }
 
 func TestListChannelKeysAllocatesPerChannelNotPerMessageRow(t *testing.T) {

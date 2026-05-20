@@ -58,6 +58,29 @@ func TestComposeNodeConfigsUseExplicitDataPlaneConcurrency(t *testing.T) {
 	}
 }
 
+func TestComposeNodeConfigsUseExplicitGatewayGnetHeadroom(t *testing.T) {
+	repoRoot := dockerRepoRoot(t)
+	for _, node := range []string{"node1.conf", "node2.conf", "node3.conf"} {
+		confPath := filepath.Join(repoRoot, "docker", "conf", node)
+		confBody, err := os.ReadFile(confPath)
+		if err != nil {
+			t.Fatalf("read %s: %v", confPath, err)
+		}
+		conf := string(confBody)
+		for _, want := range []string{
+			"WK_GATEWAY_GNET_MULTICORE=true",
+			"WK_GATEWAY_GNET_NUM_EVENT_LOOP=4",
+			"WK_GATEWAY_GNET_REUSE_PORT=true",
+			"WK_GATEWAY_GNET_READ_BUFFER_CAP=8192",
+			"WK_GATEWAY_GNET_WRITE_BUFFER_CAP=16384",
+		} {
+			if !strings.Contains(conf, want) {
+				t.Fatalf("%s should contain %s for dev-sim gateway ingress headroom", confPath, want)
+			}
+		}
+	}
+}
+
 func dockerRepoRoot(t *testing.T) string {
 	t.Helper()
 	_, filename, _, ok := runtime.Caller(0)

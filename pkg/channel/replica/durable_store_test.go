@@ -57,6 +57,7 @@ func TestDurableStoreAppendLeaderBatchSyncsAndReturnsLEORange(t *testing.T) {
 	require.Equal(t, uint64(4), newLEO)
 	require.Equal(t, uint64(4), env.log.LEO())
 	require.Equal(t, 1, env.log.appendCount)
+	require.Equal(t, 1, env.log.trustedAppendCount)
 	require.Equal(t, 1, env.log.syncCount)
 }
 

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -511,6 +512,119 @@ func TestAppendBatchRejectsConflictingDuplicateIdempotencyKey(t *testing.T) {
 	handle := rt.channels[KeyFromChannelID(id)]
 	if handle.appendCalls != 1 || handle.lastRecordCount != 1 {
 		t.Fatalf("append calls/records = %d/%d, want 1/1", handle.appendCalls, handle.lastRecordCount)
+	}
+}
+
+func TestAppendSerializesConcurrentSameIdempotencyKey(t *testing.T) {
+	id := core.ChannelID{ID: "concurrent-idempotent", Type: 1}
+	key := KeyFromChannelID(id)
+	engine := openTestEngine(t)
+	st := engine.ForChannel(key, id)
+	firstEnteredAppend := make(chan struct{})
+	releaseFirstAppend := make(chan struct{})
+	var appendCalls atomic.Int32
+
+	handle := &fakeChannelHandle{
+		id: key,
+		status: core.ReplicaState{
+			ChannelKey:  key,
+			Role:        core.ReplicaRoleLeader,
+			CommitReady: true,
+		},
+	}
+	handle.appendFn = func(_ context.Context, records []core.Record) (core.CommitResult, error) {
+		call := appendCalls.Add(1)
+		if call == 1 {
+			close(firstEnteredAppend)
+			<-releaseFirstAppend
+		}
+		base, err := st.Append(records)
+		if err != nil {
+			return core.CommitResult{}, err
+		}
+		handle.status.HW = base + uint64(len(records))
+		return core.CommitResult{BaseOffset: base, NextCommitHW: handle.status.HW, RecordCount: len(records)}, nil
+	}
+	rt := &fakeRuntime{channels: map[core.ChannelKey]*fakeChannelHandle{key: handle}}
+
+	svc, err := New(Config{
+		Runtime:    rt,
+		Store:      engine,
+		MessageIDs: &fakeMessageIDGenerator{},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if err := svc.ApplyMeta(core.Meta{
+		Key:         key,
+		ID:          id,
+		Epoch:       7,
+		LeaderEpoch: 9,
+		Leader:      1,
+		Replicas:    []core.NodeID{1},
+		ISR:         []core.NodeID{1},
+		MinISR:      1,
+		Status:      core.StatusActive,
+		Features:    core.Features{MessageSeqFormat: core.MessageSeqFormatU64},
+	}); err != nil {
+		t.Fatalf("ApplyMeta() error = %v", err)
+	}
+
+	type appendOutcome struct {
+		result core.AppendResult
+		err    error
+	}
+	appendSame := func() appendOutcome {
+		result, err := svc.Append(context.Background(), core.AppendRequest{
+			ChannelID:             id,
+			SupportsMessageSeqU64: true,
+			Message: core.Message{
+				FromUID:     "u1",
+				ClientMsgNo: "same",
+				Payload:     []byte("payload"),
+			},
+		})
+		return appendOutcome{result: result, err: err}
+	}
+
+	firstDone := make(chan appendOutcome, 1)
+	go func() {
+		firstDone <- appendSame()
+	}()
+	<-firstEnteredAppend
+
+	secondDone := make(chan appendOutcome, 1)
+	go func() {
+		secondDone <- appendSame()
+	}()
+
+	var second appendOutcome
+	secondFinishedEarly := false
+	select {
+	case second = <-secondDone:
+		secondFinishedEarly = true
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(releaseFirstAppend)
+	first := <-firstDone
+	if !secondFinishedEarly {
+		second = <-secondDone
+	}
+
+	if secondFinishedEarly {
+		t.Fatal("second append with the same idempotency key completed before the first append committed")
+	}
+	if first.err != nil {
+		t.Fatalf("first Append() error = %v", first.err)
+	}
+	if second.err != nil {
+		t.Fatalf("second Append() error = %v", second.err)
+	}
+	if first.result.MessageID != second.result.MessageID || first.result.MessageSeq != second.result.MessageSeq {
+		t.Fatalf("idempotent results differ: first=%+v second=%+v", first.result, second.result)
+	}
+	if calls := appendCalls.Load(); calls != 1 {
+		t.Fatalf("Append() calls = %d, want 1", calls)
 	}
 }
 

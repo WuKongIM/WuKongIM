@@ -204,7 +204,7 @@ func (r *defaultWorkloadRunner) rebuildTrafficFromManager(assignment Assignment,
 	}
 	var cancelAutoRecvAck context.CancelFunc
 	if assignmentWantsRecvAck(assignment) {
-		cancelAutoRecvAck = benchworkload.StartAutoRecvAck(clients)
+		cancelAutoRecvAck = benchworkload.StartAutoRecvAckWithOptions(clients, autoRecvAckOptionsForAssignment(assignment))
 	}
 	r.store(assignment.RunID, manager, workloads, groupWorkloads, cancelAutoRecvAck)
 	return nil
@@ -648,6 +648,22 @@ func (r *defaultWorkloadRunner) beginRun(runID string, force bool) {
 func assignmentWantsRecvAck(assignment Assignment) bool {
 	for _, traffic := range assignment.Scenario.Messages.Traffic {
 		if traffic.RecvAck {
+			return true
+		}
+	}
+	return false
+}
+
+func autoRecvAckOptionsForAssignment(assignment Assignment) benchworkload.AutoRecvAckOptions {
+	return benchworkload.AutoRecvAckOptions{
+		BufferRecvFrames: assignmentWantsRecvVerification(assignment),
+	}
+}
+
+func assignmentWantsRecvVerification(assignment Assignment) bool {
+	for _, traffic := range assignment.Scenario.Messages.Traffic {
+		switch strings.ToLower(strings.TrimSpace(traffic.Verify.Recv.Mode)) {
+		case "full", "sampled":
 			return true
 		}
 	}

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -84,6 +85,95 @@ func TestLookupMessageIDSeqForAppendAvoidsKeyAndValueCopies(t *testing.T) {
 	})
 
 	require.Zero(t, allocs)
+}
+
+func TestChannelStoreAppendTrustedSkipsExistingIndexLookupsForTrustedRows(t *testing.T) {
+	tests := []struct {
+		name   string
+		poison func(t *testing.T, st *ChannelStore, existing messageRow, next messageRow)
+	}{
+		{
+			name: "message_id",
+			poison: func(t *testing.T, st *ChannelStore, _ messageRow, next messageRow) {
+				value := make([]byte, 8)
+				binary.BigEndian.PutUint64(value, 1)
+				mustSetDBValue(t, st.engine.db, encodeMessageIDIndexKey(st.key, next.MessageID), value)
+			},
+		},
+		{
+			name: "idempotency",
+			poison: func(t *testing.T, st *ChannelStore, existing messageRow, next messageRow) {
+				value := make([]byte, 24)
+				binary.BigEndian.PutUint64(value[0:8], existing.MessageSeq)
+				binary.BigEndian.PutUint64(value[8:16], existing.MessageID)
+				binary.BigEndian.PutUint64(value[16:24], existing.PayloadHash)
+				mustSetDBValue(t, st.engine.db, encodeMessageIdempotencyIndexKey(st.key, next.FromUID, next.ClientMsgNo), value)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := newTestChannelStore(t)
+			existing := messageRowFromChannelMessage(channel.Message{
+				MessageID:   41,
+				ClientMsgNo: "client-1",
+				FromUID:     "u1",
+				ChannelID:   st.id.ID,
+				ChannelType: st.id.Type,
+				Payload:     []byte("one"),
+			})
+			existing.MessageSeq = 1
+			existingRecord, err := existing.toCompatibilityRecord()
+			require.NoError(t, err)
+			_, err = st.Append([]channel.Record{{
+				ID:        existing.MessageID,
+				Index:     existing.MessageSeq,
+				Payload:   existingRecord.Payload,
+				SizeBytes: existingRecord.SizeBytes,
+			}})
+			require.NoError(t, err)
+
+			next := messageRowFromChannelMessage(channel.Message{
+				MessageID:   42,
+				ClientMsgNo: "client-2",
+				FromUID:     "u2",
+				ChannelID:   st.id.ID,
+				ChannelType: st.id.Type,
+				Payload:     []byte("two"),
+			})
+			next.MessageSeq = 2
+			tt.poison(t, st, existing, next)
+
+			nextRecord, err := next.toCompatibilityRecord()
+			require.NoError(t, err)
+			base, err := st.AppendTrusted([]channel.Record{{
+				ID:        next.MessageID,
+				Index:     next.MessageSeq,
+				Payload:   nextRecord.Payload,
+				SizeBytes: nextRecord.SizeBytes,
+			}})
+			require.NoError(t, err)
+			require.Equal(t, uint64(1), base)
+
+			got, ok, err := st.GetMessageBySeq(next.MessageSeq)
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Equal(t, next.MessageID, got.MessageID)
+
+			seq, ok, err := getStoredMessageIDIndexSeq(t, st, next.MessageID)
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Equal(t, next.MessageSeq, seq)
+
+			hit, ok, err := getIndexedIdempotencyHit(t, st, next.FromUID, next.ClientMsgNo)
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Equal(t, next.MessageSeq, hit.MessageSeq)
+			require.Equal(t, next.MessageID, hit.MessageID)
+			require.Equal(t, next.PayloadHash, hit.PayloadHash)
+		})
+	}
 }
 
 func TestChannelStoreListMessagesBySeqFailsOnPayloadHashMismatch(t *testing.T) {

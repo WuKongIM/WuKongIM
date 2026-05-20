@@ -71,18 +71,31 @@ func (s *service) AppendBatch(ctx context.Context, req channel.AppendBatchReques
 	}
 
 	store := s.cfg.Store.ForChannel(key, req.ChannelID)
-	newIndexes := make([]int, 0, len(req.Messages))
 	drafts := make([]channel.Message, len(req.Messages))
-	duplicateOf := make([]int, len(req.Messages))
-	for i := range duplicateOf {
-		duplicateOf[i] = -1
-	}
-	idempotentNew := make(map[channel.IdempotencyKey]int, len(req.Messages))
+	idempotencyKeys := make([]channel.IdempotencyKey, 0, len(req.Messages))
 	for i, msg := range req.Messages {
 		draft := msg
 		draft.ChannelID = req.ChannelID.ID
 		draft.ChannelType = req.ChannelID.Type
 		drafts[i] = draft
+		if draft.FromUID != "" && draft.ClientMsgNo != "" {
+			idempotencyKeys = append(idempotencyKeys, channel.IdempotencyKey{
+				ChannelID:   req.ChannelID,
+				FromUID:     draft.FromUID,
+				ClientMsgNo: draft.ClientMsgNo,
+			})
+		}
+	}
+	unlockIdempotencyKeys := s.lockAppendIdempotencyKeys(idempotencyKeys)
+	defer unlockIdempotencyKeys()
+
+	newIndexes := make([]int, 0, len(req.Messages))
+	duplicateOf := make([]int, len(req.Messages))
+	for i := range duplicateOf {
+		duplicateOf[i] = -1
+	}
+	idempotentNew := make(map[channel.IdempotencyKey]int, len(req.Messages))
+	for i, draft := range drafts {
 		if draft.FromUID == "" || draft.ClientMsgNo == "" {
 			newIndexes = append(newIndexes, i)
 			continue

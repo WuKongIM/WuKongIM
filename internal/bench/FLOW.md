@@ -136,6 +136,8 @@ Each worker keeps its assigned `online.total_users` identity range connected eve
 
 The client wrapper serializes access to each underlying `ReadFrame` call and buffers unmatched frames. This lets concurrent person/group workloads on the same UID wait for different sendack or recv frames without stealing each other's frames.
 
+When any traffic stream sets `recv_ack: true`, the runner starts a background receive-ack drainer for connected clients. The drainer buffers drained recv frames only when receive verification is enabled (`full` or `sampled`); send-only simulator traffic with receive verification disabled acknowledges and drops drained recv frames to avoid building a verification backlog that no workload will consume.
+
 ### Warmup, Run, Cooldown
 
 Warmup, run, and cooldown execute all stored person and group workloads concurrently. Warmup uses a reduced rate but schedules at least one message per assigned channel so cold runtime metadata is activated before measured traffic starts. Warmup also raises per-message sendack/recv waits to at least the warmup duration, preventing cold bootstrap latency from being cut off by the shorter measured-run operation timeout. Run uses each traffic entry's own `rate_per_channel`, adjusted by split traffic partitions for large groups. Cooldown waits for the configured drain period without new sends.

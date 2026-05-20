@@ -191,15 +191,28 @@ func WrapPersonClientsForConcurrentReads(clients map[string]PersonClient) map[st
 	return wrapped
 }
 
+// AutoRecvAckOptions controls how the background recv-ack drainer treats incoming frames.
+type AutoRecvAckOptions struct {
+	// BufferRecvFrames keeps drained recv frames available for explicit verification waiters.
+	BufferRecvFrames bool
+}
+
 // StartAutoRecvAck continuously drains recv frames and sends protocol receive acks.
 func StartAutoRecvAck(clients map[string]PersonClient) context.CancelFunc {
+	return StartAutoRecvAckWithOptions(clients, AutoRecvAckOptions{BufferRecvFrames: true})
+}
+
+// StartAutoRecvAckWithOptions continuously drains recv frames using explicit buffering policy.
+func StartAutoRecvAckWithOptions(clients map[string]PersonClient, opts AutoRecvAckOptions) context.CancelFunc {
 	ctx, cancel := context.WithCancel(context.Background())
 	for _, client := range clients {
-		starter, ok := client.(interface{ startAutoRecvAck(context.Context) })
+		starter, ok := client.(interface {
+			startAutoRecvAckWithOptions(context.Context, AutoRecvAckOptions)
+		})
 		if !ok || starter == nil {
 			continue
 		}
-		starter.startAutoRecvAck(ctx)
+		starter.startAutoRecvAckWithOptions(ctx, opts)
 	}
 	return cancel
 }
@@ -339,10 +352,7 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 	if err != nil {
 		w.recordError("person_send_error", err)
 		w.metrics.IncCounter("person_send_error_total", nil)
-		if errors.Is(err, io.EOF) {
-			return sessionOperationError(pair.SenderUID, "person sendack", err)
-		}
-		return err
+		return sessionOperationError(pair.SenderUID, "person sendack", err)
 	}
 	if ack.ReasonCode != frame.ReasonSuccess {
 		err := fmt.Errorf("person workload: sendack rejected message %q with reason %s", clientMsgNo, ack.ReasonCode)
@@ -528,13 +538,14 @@ type matchingFrameReader interface {
 }
 
 type matchingPersonClient struct {
-	client      PersonClient
-	bufferLimit int
-	mu          sync.Mutex
-	buffer      []frame.Frame
-	reading     bool
-	notify      chan struct{}
-	autoRecvAck bool
+	client                PersonClient
+	bufferLimit           int
+	mu                    sync.Mutex
+	buffer                []frame.Frame
+	reading               bool
+	notify                chan struct{}
+	autoRecvAck           bool
+	autoRecvAckBufferRecv bool
 }
 
 func (c *matchingPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
@@ -608,7 +619,13 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 			c.mu.Unlock()
 			continue
 		}
-		c.bufferFrameLocked(f)
+		dropUnverifiedRecv := false
+		if _, ok := f.(*frame.RecvPacket); ok && autoAck && !c.autoRecvAckBufferRecv {
+			dropUnverifiedRecv = true
+		}
+		if !dropUnverifiedRecv {
+			c.bufferFrameLocked(f)
+		}
 		c.signalLocked()
 		c.mu.Unlock()
 		c.autoAckRecvFrame(ctx, f, autoAck)
@@ -616,12 +633,17 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 }
 
 func (c *matchingPersonClient) startAutoRecvAck(ctx context.Context) {
+	c.startAutoRecvAckWithOptions(ctx, AutoRecvAckOptions{BufferRecvFrames: true})
+}
+
+func (c *matchingPersonClient) startAutoRecvAckWithOptions(ctx context.Context, opts AutoRecvAckOptions) {
 	c.mu.Lock()
 	if c.autoRecvAck {
 		c.mu.Unlock()
 		return
 	}
 	c.autoRecvAck = true
+	c.autoRecvAckBufferRecv = opts.BufferRecvFrames
 	c.mu.Unlock()
 	go c.autoRecvAckLoop(ctx)
 }
@@ -666,6 +688,12 @@ func (c *matchingPersonClient) prefetchFrame(ctx context.Context) error {
 	if _, ok := f.(*frame.PongPacket); ok {
 		c.signalLocked()
 		c.mu.Unlock()
+		return nil
+	}
+	if _, ok := f.(*frame.RecvPacket); ok && !c.autoRecvAckBufferRecv {
+		c.signalLocked()
+		c.mu.Unlock()
+		c.autoAckRecvFrame(ctx, f, true)
 		return nil
 	}
 	c.bufferFrameLocked(f)

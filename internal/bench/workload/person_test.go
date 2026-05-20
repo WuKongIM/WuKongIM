@@ -199,6 +199,27 @@ func TestPersonWorkloadSendOneRecordsFailures(t *testing.T) {
 	require.NotEmpty(t, workload.Metrics().ErrorSamples())
 }
 
+func TestPersonWorkloadSendackReadErrorIdentifiesFailedSession(t *testing.T) {
+	sender := newRecordingPersonClient()
+	sender.readErrors = append(sender.readErrors, context.DeadlineExceeded)
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		SenderUID:       "u1",
+		RecipientUID:    "u2",
+		ClientMsgPrefix: "bench-msg",
+		Metrics:         metrics.NewRegistry(),
+	}, map[string]PersonClient{"u1": sender, "u2": newRecordingPersonClient()})
+	require.NoError(t, err)
+
+	err = workload.SendOne(context.Background(), 1)
+
+	require.Error(t, err)
+	require.Equal(t, []string{"u1"}, SessionErrorUIDs(err))
+	require.True(t, workload.Metrics().CounterValue("person_send_error_total", nil) > 0)
+}
+
 func TestPersonWorkloadConnectsAssignedPairClients(t *testing.T) {
 	sender := newRecordingPersonClient()
 	recipient := newRecordingPersonClient()
@@ -437,6 +458,89 @@ func TestAutoRecvAckDrainsAndBuffersRecvFrames(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, int64(42), got.(*frame.RecvPacket).MessageID)
+}
+
+func TestAutoRecvAckCanDropUnverifiedRecvFrames(t *testing.T) {
+	raw := newRecordingPersonClient()
+	raw.recvFrames = append(raw.recvFrames, &frame.RecvPacket{
+		MessageID:   45,
+		MessageSeq:  10,
+		ClientMsgNo: "msg-drop",
+		FromUID:     "sender",
+		ChannelID:   "channel-a",
+		ChannelType: frame.ChannelTypeGroup,
+	})
+	wrapped := WrapPersonClientsForConcurrentReads(map[string]PersonClient{"u1": raw})["u1"]
+	stop := StartAutoRecvAckWithOptions(map[string]PersonClient{"u1": wrapped}, AutoRecvAckOptions{BufferRecvFrames: false})
+	defer stop()
+
+	require.Eventually(t, func() bool {
+		raw.mu.Lock()
+		defer raw.mu.Unlock()
+		return len(raw.recvAckCalls) == 1
+	}, time.Second, 10*time.Millisecond)
+
+	matching := wrapped.(*matchingPersonClient)
+	matching.mu.Lock()
+	buffered := len(matching.buffer)
+	matching.mu.Unlock()
+	require.Zero(t, buffered)
+}
+
+func TestAutoRecvAckReadMatcherDropsUnverifiedRecvFrames(t *testing.T) {
+	raw := &orderedPersonClient{frames: []frame.Frame{
+		&frame.RecvPacket{
+			MessageID:   46,
+			MessageSeq:  11,
+			ClientMsgNo: "msg-unverified",
+			FromUID:     "sender",
+			ChannelID:   "channel-a",
+			ChannelType: frame.ChannelTypeGroup,
+		},
+		&frame.SendackPacket{
+			ClientSeq:   2,
+			ClientMsgNo: "sendack-a",
+			ReasonCode:  frame.ReasonSuccess,
+		},
+	}}
+	wrapped := &matchingPersonClient{
+		client:                raw,
+		bufferLimit:           defaultMatchingBufferLimit,
+		autoRecvAck:           true,
+		autoRecvAckBufferRecv: false,
+	}
+
+	got, err := readFrameMatching(context.Background(), wrapped, func(f frame.Frame) bool {
+		ack, ok := f.(*frame.SendackPacket)
+		return ok && ack.ClientMsgNo == "sendack-a"
+	})
+	require.NoError(t, err)
+	require.Equal(t, "sendack-a", got.(*frame.SendackPacket).ClientMsgNo)
+	require.Equal(t, []recvAckCall{{messageID: 46, messageSeq: 11}}, raw.recvAckCalls)
+	require.Empty(t, wrapped.buffer)
+}
+
+type orderedPersonClient struct {
+	frames       []frame.Frame
+	recvAckCalls []recvAckCall
+}
+
+func (c *orderedPersonClient) Connect(ctx context.Context, uid, deviceID string) error { return nil }
+func (c *orderedPersonClient) Send(ctx context.Context, pkt *frame.SendPacket) error   { return nil }
+func (c *orderedPersonClient) Close() error                                            { return nil }
+
+func (c *orderedPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	if len(c.frames) == 0 {
+		return nil, io.EOF
+	}
+	f := c.frames[0]
+	c.frames = c.frames[1:]
+	return f, nil
+}
+
+func (c *orderedPersonClient) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
+	c.recvAckCalls = append(c.recvAckCalls, recvAckCall{messageID: messageID, messageSeq: messageSeq})
+	return nil
 }
 
 func TestAutoRecvAckSuppressesDuplicateExplicitRecvAck(t *testing.T) {

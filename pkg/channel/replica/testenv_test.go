@@ -11,25 +11,26 @@ import (
 )
 
 type fakeLogStore struct {
-	mu            sync.Mutex
-	records       []channel.Record
-	leo           uint64
-	leoErr        error
-	retention     channel.RetentionState
-	retentionErr  error
-	adoptErr      error
-	trimErr       error
-	adoptCalls    []uint64
-	trimCalls     []uint64
-	appendCount   int
-	syncCount     int
-	truncateCalls []uint64
-	appendSignal  chan uint64
-	readStarted   chan struct{}
-	readContinue  chan struct{}
-	syncStarted   chan struct{}
-	syncContinue  chan struct{}
-	syncCanceled  chan struct{}
+	mu                 sync.Mutex
+	records            []channel.Record
+	leo                uint64
+	leoErr             error
+	retention          channel.RetentionState
+	retentionErr       error
+	adoptErr           error
+	trimErr            error
+	adoptCalls         []uint64
+	trimCalls          []uint64
+	appendCount        int
+	trustedAppendCount int
+	syncCount          int
+	truncateCalls      []uint64
+	appendSignal       chan uint64
+	readStarted        chan struct{}
+	readContinue       chan struct{}
+	syncStarted        chan struct{}
+	syncContinue       chan struct{}
+	syncCanceled       chan struct{}
 }
 
 func (f *fakeLogStore) LoadRetentionState() (channel.RetentionState, error) {
@@ -101,6 +102,18 @@ func (f *fakeLogStore) Append(records []channel.Record) (uint64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	return f.appendLocked(records)
+}
+
+func (f *fakeLogStore) AppendTrusted(records []channel.Record) (uint64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.trustedAppendCount++
+	return f.appendLocked(records)
+}
+
+func (f *fakeLogStore) appendLocked(records []channel.Record) (uint64, error) {
 	f.appendCount++
 	base := f.leo
 	for _, record := range records {
