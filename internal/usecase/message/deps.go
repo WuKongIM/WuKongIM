@@ -73,10 +73,6 @@ type DeliveryOffline interface {
 
 type ChannelCluster interface {
 	ApplyMeta(meta channel.Meta) error
-	Append(ctx context.Context, req channel.AppendRequest) (channel.AppendResult, error)
-}
-
-type ChannelBatchAppender interface {
 	AppendBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error)
 }
 
@@ -98,9 +94,5 @@ type MetaInvalidator interface {
 }
 
 type RemoteAppender interface {
-	AppendToLeader(ctx context.Context, nodeID uint64, req channel.AppendRequest) (channel.AppendResult, error)
-}
-
-type RemoteBatchAppender interface {
 	AppendBatchToLeader(ctx context.Context, nodeID uint64, req channel.AppendBatchRequest) (channel.AppendBatchResult, error)
 }

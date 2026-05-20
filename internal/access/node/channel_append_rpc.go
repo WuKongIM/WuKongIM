@@ -55,12 +55,18 @@ func (a *Adapter) handleChannelAppendRPC(ctx context.Context, body []byte) ([]by
 		return body, err
 	}
 
-	result, err := a.channelLog.Append(ctx, req.AppendRequest)
+	batchReq := appendRequestAsBatch(req.AppendRequest)
+	result, err := a.channelLog.AppendBatch(ctx, batchReq)
 	if err == nil {
-		return encodeChannelAppendResponse(channelAppendResponse{
-			Status: rpcStatusOK,
-			Result: result,
-		})
+		itemResult, itemErr := appendResultFromBatch(result)
+		if itemErr != nil {
+			err = itemErr
+		} else {
+			return encodeChannelAppendResponse(channelAppendResponse{
+				Status: rpcStatusOK,
+				Result: itemResult,
+			})
+		}
 	}
 	if errors.Is(err, channel.ErrNotLeader) || errors.Is(err, channel.ErrStaleMeta) {
 		if refreshed, refreshErr := a.refreshChannelAppendMeta(ctx, req.AppendRequest.ChannelID); refreshErr == nil {
@@ -76,20 +82,25 @@ func (a *Adapter) handleChannelAppendRPC(ctx context.Context, body []byte) ([]by
 				wklog.Int("isrCount", len(refreshed.ISR)),
 				wklog.Int("minISR", refreshed.MinISR),
 			)
-			req.AppendRequest.ExpectedChannelEpoch = refreshed.Epoch
-			req.AppendRequest.ExpectedLeaderEpoch = refreshed.LeaderEpoch
+			batchReq.ExpectedChannelEpoch = refreshed.Epoch
+			batchReq.ExpectedLeaderEpoch = refreshed.LeaderEpoch
 			if refreshed.Leader != 0 && uint64(refreshed.Leader) != a.localNodeID {
 				return encodeChannelAppendResponse(channelAppendResponse{
 					Status:   rpcStatusNotLeader,
 					LeaderID: uint64(refreshed.Leader),
 				})
 			}
-			result, err = a.channelLog.Append(ctx, req.AppendRequest)
+			result, err = a.channelLog.AppendBatch(ctx, batchReq)
 			if err == nil {
-				return encodeChannelAppendResponse(channelAppendResponse{
-					Status: rpcStatusOK,
-					Result: result,
-				})
+				itemResult, itemErr := appendResultFromBatch(result)
+				if itemErr != nil {
+					err = itemErr
+				} else {
+					return encodeChannelAppendResponse(channelAppendResponse{
+						Status: rpcStatusOK,
+						Result: itemResult,
+					})
+				}
 			}
 		}
 	}
@@ -103,6 +114,34 @@ func (a *Adapter) handleChannelAppendRPC(ctx context.Context, body []byte) ([]by
 		return encodeChannelAppendResponse(channelAppendResponse{Status: rpcStatusRetryableWriteFenced})
 	}
 	return nil, err
+}
+
+func appendRequestAsBatch(req channel.AppendRequest) channel.AppendBatchRequest {
+	return channel.AppendBatchRequest{
+		ChannelID:             req.ChannelID,
+		Messages:              []channel.Message{req.Message},
+		SupportsMessageSeqU64: req.SupportsMessageSeqU64,
+		CommitMode:            req.CommitMode,
+		ExpectedChannelEpoch:  req.ExpectedChannelEpoch,
+		ExpectedLeaderEpoch:   req.ExpectedLeaderEpoch,
+		TraceID:               req.TraceID,
+		Attempt:               req.Attempt,
+	}
+}
+
+func appendResultFromBatch(result channel.AppendBatchResult) (channel.AppendResult, error) {
+	if len(result.Items) == 0 {
+		return channel.AppendResult{}, nil
+	}
+	item := result.Items[0]
+	if item.Err != nil {
+		return channel.AppendResult{}, item.Err
+	}
+	return channel.AppendResult{
+		MessageID:  item.MessageID,
+		MessageSeq: item.MessageSeq,
+		Message:    item.Message,
+	}, nil
 }
 
 func (a *Adapter) handleChannelAppendBatchRPC(ctx context.Context, body []byte) ([]byte, error) {

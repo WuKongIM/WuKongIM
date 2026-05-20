@@ -222,18 +222,19 @@ func TestSendRejectsUnauthenticatedSender(t *testing.T) {
 }
 
 func TestSendBatchSingleItemMatchesSend(t *testing.T) {
-	newApp := func() *App {
-		return New(Options{
-			Now: fixedNowFn,
-			Cluster: &fakeChannelCluster{sendReplies: []fakeChannelClusterSendReply{{
-				result: channel.AppendResult{
-					MessageID:  42,
-					MessageSeq: 7,
-					Message:    channel.Message{MessageID: 42, MessageSeq: 7},
-				},
+	newApp := func() (*App, *fakeChannelCluster) {
+		cluster := &fakeChannelCluster{sendBatchReplies: []fakeChannelClusterSendBatchReply{{
+			result: channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{
+				MessageID:  42,
+				MessageSeq: 7,
+				Message:    channel.Message{MessageID: 42, MessageSeq: 7},
 			}}},
+		}}}
+		return New(Options{
+			Now:           fixedNowFn,
+			Cluster:       cluster,
 			MetaRefresher: &fakeMetaRefresher{},
-		})
+		}), cluster
 	}
 	cmd := SendCommand{
 		FromUID:     "u1",
@@ -243,12 +244,18 @@ func TestSendBatchSingleItemMatchesSend(t *testing.T) {
 		ClientMsgNo: "single-batch",
 	}
 
-	sendResult, sendErr := newApp().Send(context.Background(), cmd)
-	batchResults := newApp().SendBatch([]SendBatchItem{{Context: context.Background(), Command: cmd}})
+	sendApp, sendCluster := newApp()
+	sendResult, sendErr := sendApp.Send(context.Background(), cmd)
+	batchApp, batchCluster := newApp()
+	batchResults := batchApp.SendBatch([]SendBatchItem{{Context: context.Background(), Command: cmd}})
 
 	require.Len(t, batchResults, 1)
 	require.Equal(t, sendResult, batchResults[0].Result)
 	require.Equal(t, sendErr, batchResults[0].Err)
+	require.Zero(t, sendCluster.sendAppendCalls)
+	require.Zero(t, batchCluster.sendAppendCalls)
+	require.Len(t, sendCluster.sendBatchRequests, 1)
+	require.Len(t, batchCluster.sendBatchRequests, 1)
 }
 
 func TestSendBatchUsesChannelAppendBatchForSameChannelSegment(t *testing.T) {
@@ -2416,9 +2423,9 @@ func TestSendDurablePersonPropagatesRequestContextToClusterAndMetaRefresh(t *tes
 	require.NoError(t, err)
 	require.Equal(t, frame.ReasonSuccess, result.Reason)
 	require.Len(t, cluster.sendContexts, 1)
-	require.Same(t, ctx, cluster.sendContexts[0])
+	require.Equal(t, ctx, cluster.sendContexts[0])
 	require.Len(t, refresher.refreshContexts, 1)
-	require.Same(t, ctx, refresher.refreshContexts[0])
+	require.Equal(t, ctx, refresher.refreshContexts[0])
 }
 
 func TestSendDurablePersonReturnsContextCanceled(t *testing.T) {
@@ -2447,8 +2454,8 @@ func TestSendDurablePersonReturnsContextCanceled(t *testing.T) {
 
 	require.ErrorIs(t, err, context.Canceled)
 	require.Equal(t, SendResult{}, result)
-	require.Len(t, cluster.sendContexts, 1)
-	require.Same(t, ctx, cluster.sendContexts[0])
+	require.Empty(t, cluster.sendContexts)
+	require.Empty(t, cluster.sendBatchContexts)
 }
 
 func TestSendReturnsProtocolUpgradeRequiredWhenClusterRejectsLegacyClient(t *testing.T) {
@@ -2792,6 +2799,7 @@ type fakeChannelCluster struct {
 	sendBatchRequests []channel.AppendBatchRequest
 	sendContexts      []context.Context
 	sendBatchContexts []context.Context
+	sendAppendCalls   int
 	sendReplies       []fakeChannelClusterSendReply
 	sendBatchReplies  []fakeChannelClusterSendBatchReply
 	sendFn            func(context.Context, channel.AppendRequest) (channel.AppendResult, error)
@@ -2805,6 +2813,7 @@ func (f *fakeChannelCluster) ApplyMeta(meta channel.Meta) error {
 }
 
 func (f *fakeChannelCluster) Append(ctx context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
+	f.sendAppendCalls++
 	f.sendContexts = append(f.sendContexts, ctx)
 	f.sendRequests = append(f.sendRequests, req)
 	if f.sendFn != nil {
@@ -2821,8 +2830,47 @@ func (f *fakeChannelCluster) Append(ctx context.Context, req channel.AppendReque
 func (f *fakeChannelCluster) AppendBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
 	f.sendBatchContexts = append(f.sendBatchContexts, ctx)
 	f.sendBatchRequests = append(f.sendBatchRequests, req)
+	if len(req.Messages) == 1 {
+		f.sendContexts = append(f.sendContexts, ctx)
+		f.sendRequests = append(f.sendRequests, channel.AppendRequest{
+			ChannelID:             req.ChannelID,
+			Message:               req.Messages[0],
+			SupportsMessageSeqU64: req.SupportsMessageSeqU64,
+			CommitMode:            req.CommitMode,
+			ExpectedChannelEpoch:  req.ExpectedChannelEpoch,
+			ExpectedLeaderEpoch:   req.ExpectedLeaderEpoch,
+			TraceID:               req.TraceID,
+			Attempt:               req.Attempt,
+		})
+	}
 	if f.sendBatchFn != nil {
 		return f.sendBatchFn(ctx, req)
+	}
+	if f.sendFn != nil && len(req.Messages) == 1 {
+		result, err := f.sendFn(ctx, f.sendRequests[len(f.sendRequests)-1])
+		if err != nil {
+			return channel.AppendBatchResult{}, err
+		}
+		return channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{
+			MessageID:  result.MessageID,
+			MessageSeq: result.MessageSeq,
+			Message:    result.Message,
+		}}}, nil
+	}
+	if len(f.sendBatchReplies) == 0 && len(f.sendReplies) > 0 {
+		if len(req.Messages) != 1 {
+			return channel.AppendBatchResult{}, errors.New("fake channel cluster: sendReplies only support one message")
+		}
+		reply := f.sendReplies[0]
+		f.sendReplies = f.sendReplies[1:]
+		if reply.err != nil {
+			return channel.AppendBatchResult{}, reply.err
+		}
+		return channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{
+			MessageID:  reply.result.MessageID,
+			MessageSeq: reply.result.MessageSeq,
+			Message:    reply.result.Message,
+		}}}, nil
 	}
 	if len(f.sendBatchReplies) == 0 {
 		items := make([]channel.AppendBatchItemResult, len(req.Messages))
