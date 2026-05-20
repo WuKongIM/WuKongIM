@@ -37,6 +37,7 @@ traffic:
   person_rate_per_channel: 0.2/s
   group_rate_per_channel: 0.2/s
   verify_recv: sampled
+  warmup: 10s
   window: 10s
   cooldown: 1s
 

@@ -1100,9 +1100,9 @@ func TestDeliveryRoutingUsesTagPartition(t *testing.T) {
 		{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101},
 		{UID: "u3", NodeID: 1, BootID: 11, SessionID: 103},
 	}, page.Routes)
-	require.Equal(t, "u3", page.NextCursor)
+	require.Equal(t, "u2", page.NextCursor)
 	require.True(t, page.Done)
-	require.Equal(t, [][]string{{"u1", "u3"}}, resolver.authority.(*recordingAuthoritative).uidBatches)
+	require.Equal(t, [][]string{{"u1", "u3", "u2"}}, resolver.authority.(*recordingAuthoritative).uidBatches)
 
 	ref, ok := manager.CurrentRef("2:g1")
 	require.True(t, ok)
@@ -1115,6 +1115,52 @@ func TestDeliveryRoutingUsesTagPartition(t *testing.T) {
 		{NodeID: 1, UIDs: []string{"u1", "u3"}},
 		{NodeID: 2, UIDs: []string{"u2"}},
 	}, tag.Partitions)
+}
+
+func TestDeliveryRoutingExpandsAllLeaderTagPartitionsForFanout(t *testing.T) {
+	manager := deliverytagruntime.NewManager(deliverytagruntime.Options{
+		LocalNodeID: 1,
+		NewTagKey:   func() string { return "tag-all" },
+	})
+	resolver := tagDeliveryResolver{
+		localNodeID: 1,
+		tags:        manager,
+		subscribers: deliveryusecase.NewSubscriberResolver(deliveryusecase.SubscriberResolverOptions{
+			Store: &resolverVersionStore{
+				uids:    []string{"u-local", "u-remote"},
+				version: 4,
+			},
+		}),
+		authority: &recordingAuthoritative{
+			batches: map[string][]presence.Route{
+				"u-local":  {{UID: "u-local", NodeID: 1, BootID: 11, SessionID: 101}},
+				"u-remote": {{UID: "u-remote", NodeID: 2, BootID: 22, SessionID: 202}},
+			},
+		},
+		topology: staticDeliveryTagTopology{version: deliverytagruntime.PartitionTopologyVersion{
+			HashSlotTableVersion: 9,
+			SlotAuthorityRefs: []deliverytagruntime.SlotAuthorityRef{
+				{SlotID: 1, LeaderNodeID: 1, ConfigEpoch: 2, BalanceVersion: 3},
+				{SlotID: 2, LeaderNodeID: 2, ConfigEpoch: 2, BalanceVersion: 3},
+			},
+		}},
+		pageSize: 8,
+	}
+
+	token, err := resolver.BeginResolve(context.Background(), deliveryruntime.ChannelKey{
+		ChannelID:   "g1",
+		ChannelType: frame.ChannelTypeGroup,
+	}, deliveryruntime.CommittedEnvelope{})
+	require.NoError(t, err)
+
+	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
+	require.NoError(t, err)
+	require.True(t, page.Done)
+	require.Equal(t, []deliveryruntime.RouteKey{
+		{UID: "u-local", NodeID: 1, BootID: 11, SessionID: 101},
+		{UID: "u-remote", NodeID: 2, BootID: 22, SessionID: 202},
+	}, page.Routes)
+	require.Equal(t, [][]string{{"u-local", "u-remote"}}, resolver.authority.(*recordingAuthoritative).uidBatches)
 }
 
 func TestDeliveryRoutingBypassesTagPartitionForPersonChannels(t *testing.T) {
@@ -1279,7 +1325,7 @@ func TestDeliveryRoutingUsesCachedTagWithoutListingSubscribers(t *testing.T) {
 		{UID: "u1", NodeID: 1, BootID: 11, SessionID: 101},
 		{UID: "u3", NodeID: 1, BootID: 11, SessionID: 103},
 	}, page.Routes)
-	require.Equal(t, "u3", page.NextCursor)
+	require.Equal(t, "u2", page.NextCursor)
 	require.True(t, page.Done)
 	require.Zero(t, store.pageCalls)
 }
@@ -1460,7 +1506,7 @@ func TestDeliveryRoutingRejectsStaleTagResponse(t *testing.T) {
 				{NodeID: 1, UIDs: []string{"stale"}},
 			},
 		},
-		localUIDs: []string{"stale"},
+		routableUIDs: []string{"stale"},
 	}
 
 	page, err := resolver.ResolvePage(context.Background(), token, "", 8)
@@ -3174,9 +3220,9 @@ func TestTagDeliveryResolverPaginatesOfflineUIDsWhenCollecting(t *testing.T) {
 		pageSize:           1,
 	}
 	token := &tagResolveToken{
-		localUIDs:   []string{"offline-1", "offline-2", "offline-3"},
-		channelType: frame.ChannelTypeGroup,
-		ephemeral:   true,
+		routableUIDs: []string{"offline-1", "offline-2", "offline-3"},
+		channelType:  frame.ChannelTypeGroup,
+		ephemeral:    true,
 	}
 
 	page, err := resolver.ResolvePage(context.Background(), token, "", 8)

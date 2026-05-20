@@ -409,6 +409,34 @@ func TestAutoRecvAckDrainsAndBuffersRecvFrames(t *testing.T) {
 	require.Equal(t, int64(42), got.(*frame.RecvPacket).MessageID)
 }
 
+func TestAutoRecvAckSuppressesDuplicateExplicitRecvAck(t *testing.T) {
+	raw := newRecordingPersonClient()
+	raw.recvFrames = append(raw.recvFrames, &frame.RecvPacket{
+		MessageID:   44,
+		MessageSeq:  9,
+		ClientMsgNo: "msg-direct",
+		FromUID:     "sender",
+		ChannelID:   "channel-a",
+		ChannelType: frame.ChannelTypePerson,
+	})
+	wrapped := &matchingPersonClient{
+		client:      raw,
+		bufferLimit: defaultMatchingBufferLimit,
+		autoRecvAck: true,
+	}
+
+	got, err := readFrameMatching(context.Background(), wrapped, func(f frame.Frame) bool {
+		recv, ok := f.(*frame.RecvPacket)
+		return ok && recv.ClientMsgNo == "msg-direct"
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(44), got.(*frame.RecvPacket).MessageID)
+	require.Equal(t, []recvAckCall{{messageID: 44, messageSeq: 9}}, raw.recvAckCalls)
+
+	require.NoError(t, wrapped.RecvAck(context.Background(), 44, 9))
+	require.Equal(t, []recvAckCall{{messageID: 44, messageSeq: 9}}, raw.recvAckCalls)
+}
+
 func TestAutoRecvAckContinuesAfterIdleReadTimeout(t *testing.T) {
 	raw := newRecordingPersonClient()
 	raw.readErrors = append(raw.readErrors, context.DeadlineExceeded)

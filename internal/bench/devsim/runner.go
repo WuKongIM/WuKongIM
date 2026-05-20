@@ -255,7 +255,39 @@ func (r *Runner) updateCounters() {
 	r.status.AddMessagesSent(counterDelta(snapshot, r.last, "person_send_success_total", "group_send_success_total"))
 	r.status.AddSendErrors(counterDelta(snapshot, r.last, "person_send_error_total", "group_send_error_total"))
 	r.status.AddRecvErrors(counterDelta(snapshot, r.last, "person_recv_error_total", "group_recv_error_total"))
-	r.last = snapshot
+	r.last = cloneMetricsSnapshot(snapshot)
+}
+
+func (r *Runner) captureCounterBaseline() {
+	reporter, ok := r.workload.(worker.MetricsReporter)
+	if !ok {
+		return
+	}
+	r.last = cloneMetricsSnapshot(reporter.MetricsSnapshot())
+}
+
+func cloneMetricsSnapshot(snapshot metrics.SnapshotData) metrics.SnapshotData {
+	out := snapshot
+	if snapshot.Counters != nil {
+		out.Counters = make(map[string]uint64, len(snapshot.Counters))
+		for key, value := range snapshot.Counters {
+			out.Counters[key] = value
+		}
+	}
+	if snapshot.Gauges != nil {
+		out.Gauges = make(map[string]float64, len(snapshot.Gauges))
+		for key, value := range snapshot.Gauges {
+			out.Gauges[key] = value
+		}
+	}
+	if snapshot.Histograms != nil {
+		out.Histograms = make(map[string]metrics.HistogramSummary, len(snapshot.Histograms))
+		for key, value := range snapshot.Histograms {
+			out.Histograms[key] = value
+		}
+	}
+	out.Errors = append([]metrics.ErrorSample(nil), snapshot.Errors...)
+	return out
 }
 
 func counterDelta(current, previous metrics.SnapshotData, names ...string) uint64 {
@@ -277,6 +309,7 @@ func (r *Runner) waitReady(ctx context.Context) error {
 	for {
 		err := r.probe.CheckReady(deadlineCtx)
 		if err == nil {
+			r.status.SetLastError("")
 			return nil
 		}
 		r.status.SetLastError(err.Error())
@@ -296,7 +329,17 @@ func (r *Runner) prepareConnect(ctx context.Context, assignment worker.Assignmen
 	if err := r.workload.Prepare(ctx, assignment); err != nil {
 		return err
 	}
-	return r.workload.Connect(ctx, assignment)
+	if err := r.workload.Connect(ctx, assignment); err != nil {
+		return err
+	}
+	if assignment.Scenario.Run.Warmup <= 0 {
+		return nil
+	}
+	if err := r.workload.Warmup(ctx, assignment); err != nil {
+		return err
+	}
+	r.captureCounterBaseline()
+	return nil
 }
 
 func (r *Runner) stop(assignment worker.Assignment) {

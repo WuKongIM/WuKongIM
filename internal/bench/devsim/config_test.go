@@ -49,6 +49,7 @@ target:
 		"WK_SIM_GROUP_MEMBERS":       "12",
 		"WK_SIM_RATE":                "1.5/s",
 		"WK_SIM_TRAFFIC_CONCURRENCY": "32",
+		"WK_SIM_WARMUP":              "3s",
 		"WK_SIM_VERIFY_RECV":         "none",
 		"WK_SIM_UID_PREFIX":          "dev-u",
 	})
@@ -61,6 +62,7 @@ target:
 	require.Equal(t, 1.5, cfg.Traffic.PersonRatePerChannel.PerSecond)
 	require.Equal(t, 1.5, cfg.Traffic.GroupRatePerChannel.PerSecond)
 	require.Equal(t, 32, cfg.Traffic.Concurrency)
+	require.Equal(t, 3*time.Second, cfg.Traffic.Warmup)
 	require.Equal(t, "none", cfg.Traffic.VerifyRecv)
 	require.Equal(t, "dev-u", cfg.Identity.UIDPrefix)
 }
@@ -73,6 +75,7 @@ target:
   api_addrs: ["http://wk-node1:5001"]
   gateway_tcp_addrs: ["wk-node1:5100"]
 traffic:
+  warmup: 750ms
   window: 250ms
   cooldown: 2s
 retry:
@@ -83,6 +86,7 @@ retry:
 	cfg, err := LoadConfig(path, nil)
 
 	require.NoError(t, err)
+	require.Equal(t, 750*time.Millisecond, cfg.Traffic.Warmup)
 	require.Equal(t, 250*time.Millisecond, cfg.Traffic.Window)
 	require.Equal(t, 2*time.Second, cfg.Traffic.Cooldown)
 	require.Equal(t, 3*time.Second, cfg.Retry.ReadinessTimeout)
@@ -110,6 +114,7 @@ func TestConfigDerivesBenchInputs(t *testing.T) {
 			GroupRatePerChannel:  model.Rate{PerSecond: 0.3},
 			Concurrency:          16,
 			VerifyRecv:           "sampled",
+			Warmup:               mustDuration(t, "2s"),
 			Window:               mustDuration(t, "10s"),
 			Cooldown:             mustDuration(t, "1s"),
 		},
@@ -126,6 +131,7 @@ func TestConfigDerivesBenchInputs(t *testing.T) {
 	require.Equal(t, "wk-sim", inputs.Workers[0].ID)
 	require.Equal(t, "dev-sim-1", inputs.Scenario.Run.ID)
 	require.Equal(t, 24*time.Hour, inputs.Scenario.Run.Duration)
+	require.Equal(t, 2*time.Second, inputs.Scenario.Run.Warmup)
 	require.Equal(t, 20, inputs.Scenario.Online.TotalUsers)
 	require.Equal(t, "round_robin", inputs.Scenario.Online.GatewayBalance)
 	require.Equal(t, 30*time.Second, inputs.Scenario.Online.Heartbeat.Interval)
