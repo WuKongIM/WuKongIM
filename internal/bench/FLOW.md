@@ -138,7 +138,7 @@ The client wrapper serializes access to each underlying `ReadFrame` call and buf
 
 ### Warmup, Run, Cooldown
 
-Warmup, run, and cooldown execute all stored person and group workloads concurrently. Warmup uses a reduced rate but schedules at least one message per assigned channel so cold runtime metadata is activated before measured traffic starts. Run uses each traffic entry's own `rate_per_channel`, adjusted by split traffic partitions for large groups. Cooldown waits for the configured drain period without new sends.
+Warmup, run, and cooldown execute all stored person and group workloads concurrently. Warmup uses a reduced rate but schedules at least one message per assigned channel so cold runtime metadata is activated before measured traffic starts. Warmup also raises per-message sendack/recv waits to at least the warmup duration, preventing cold bootstrap latency from being cut off by the shorter measured-run operation timeout. Run uses each traffic entry's own `rate_per_channel`, adjusted by split traffic partitions for large groups. Cooldown waits for the configured drain period without new sends.
 
 ## Planner Flow
 

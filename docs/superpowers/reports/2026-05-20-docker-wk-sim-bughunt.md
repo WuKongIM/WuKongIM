@@ -63,3 +63,16 @@ Worktree: `.worktrees/wk-sim-bughunt-20260520`
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
 | BUG-008 | Fixed | Channel replica follower apply | High-rate `wk-sim` stress could produce `channel: corrupt state` after follower durable apply overlapped with same-leader metadata refresh. | The durable write was fenced before mutation, but result publication rejected any role-generation mismatch, leaving runtime LEO behind the durable log when channel key, epoch, and leader were unchanged. | Current change |
+
+## Continuation: main worktree Run 8
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-20 | `GOWORK=off go test ./internal/bench/workload -run 'Test(Person|Group)WorkloadWarmupUsesWarmupDurationAsMinimumAckTimeout' -count=1` | Red then pass | Regression tests failed with `context deadline exceeded` before the warmup timeout fix and passed after it. |
+| 2026-05-20 | `GOWORK=off go test ./internal/bench/workload -count=1` | Pass | Workload package verification passed. |
+| 2026-05-20 | `GOWORK=off go test ./internal/bench/... ./cmd/wkbench -count=1` | Pass | Focused bench and wkbench CLI verification passed. |
+| 2026-05-20 | `WK_SIM_UID_PREFIX=loop-fix8-u scripts/dev-sim-compose-smoke.sh --no-build --skip-logs --timeout 360` | Pass | Default Compose smoke reached `connected_users=1000`, `messages_sent=2239`, `send_errors=0`, `recv_errors=0` on the accumulated local cluster. |
+
+| ID | Status | Area | Symptom | Root Cause | Fix Commit |
+| --- | --- | --- | --- | --- | --- |
+| BUG-009 | Fixed | wk-sim warmup | Default and high-rate Compose profiles could retry forever before `/status` reached `running` on a dirty/stressed local cluster. | Warmup used the shorter measured-run sendack/recv timeout, so cold channel activation latency could cancel the whole warmup phase before it completed. | Current change |
