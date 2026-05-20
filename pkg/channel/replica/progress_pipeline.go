@@ -293,8 +293,7 @@ func (r *replica) applyLeaderAppendCommittedEvent(ev machineLeaderAppendCommitte
 			continue
 		}
 		if reqCtx.Err() != nil {
-			r.completeAppendRequestLocked(req, channel.CommitResult{}, reqCtx.Err())
-			delete(r.appendRequests, req.requestID)
+			r.completeAndDeleteAppendRequestLocked(req, channel.CommitResult{}, reqCtx.Err())
 			nextLEO = target
 			continue
 		}
@@ -327,8 +326,7 @@ func (r *replica) applyLeaderAppendCommittedEvent(ev machineLeaderAppendCommitte
 			Result:     sendtrace.ResultOK,
 		})
 		if req.commitMode == channel.CommitModeLocal {
-			r.completeAppendRequestLocked(req, req.waiter.result, nil)
-			delete(r.appendRequests, req.requestID)
+			r.completeAndDeleteAppendRequestLocked(req, req.waiter.result, nil)
 			nextLEO = target
 			continue
 		}
@@ -447,10 +445,7 @@ func (r *replica) failDurableAppendRequestsLocked(requests []*appendRequest, err
 		if req == nil {
 			continue
 		}
-		r.completeAppendRequestLocked(req, channel.CommitResult{}, err)
-		if req.requestID != 0 {
-			delete(r.appendRequests, req.requestID)
-		}
+		r.completeAndDeleteAppendRequestLocked(req, channel.CommitResult{}, err)
 	}
 }
 
