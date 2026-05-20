@@ -119,6 +119,8 @@ type TrafficConfig struct {
 	Concurrency int `json:"concurrency" yaml:"concurrency"`
 	// VerifyRecv selects receive verification mode for traffic.
 	VerifyRecv string `json:"verify_recv" yaml:"verify_recv"`
+	// Warmup is the reduced-rate traffic duration before the first measured run window.
+	Warmup time.Duration `json:"warmup" yaml:"warmup"`
 	// Window is the active traffic duration for each supervisor loop.
 	Window time.Duration `json:"window" yaml:"window"`
 	// Cooldown is the drain duration between traffic windows.
@@ -185,6 +187,7 @@ func defaultConfig() Config {
 			GroupRatePerChannel:  model.Rate{PerSecond: 0.2},
 			Concurrency:          defaultTrafficConcurrency,
 			VerifyRecv:           "sampled",
+			Warmup:               10 * time.Second,
 			Window:               10 * time.Second,
 			Cooldown:             time.Second,
 		},
@@ -221,6 +224,13 @@ func applyEnvOverrides(cfg *Config, env map[string]string) error {
 	}
 	if err := applyIntEnv(env, "WK_SIM_TRAFFIC_CONCURRENCY", &cfg.Traffic.Concurrency); err != nil {
 		return err
+	}
+	if raw, ok := lookupEnvValue(env, "WK_SIM_WARMUP"); ok {
+		warmup, err := time.ParseDuration(strings.TrimSpace(raw))
+		if err != nil {
+			return fmt.Errorf("WK_SIM_WARMUP: %w", err)
+		}
+		cfg.Traffic.Warmup = warmup
 	}
 	if raw, ok := lookupEnvValue(env, "WK_SIM_VERIFY_RECV"); ok {
 		cfg.Traffic.VerifyRecv = strings.TrimSpace(raw)
@@ -309,6 +319,9 @@ func validateConfig(cfg Config) error {
 	if cfg.Traffic.Concurrency < 0 {
 		problems = append(problems, "traffic.concurrency must not be negative")
 	}
+	if cfg.Traffic.Warmup < 0 {
+		problems = append(problems, "traffic.warmup must not be negative")
+	}
 	if cfg.Traffic.Window <= 0 {
 		problems = append(problems, "traffic.window must be greater than zero")
 	}
@@ -359,6 +372,7 @@ func (cfg Config) BuildBenchInputs(runID string) (BenchInputs, error) {
 		Version: "wkbench/v1",
 		Run: model.RunConfig{
 			ID:       strings.TrimSpace(runID),
+			Warmup:   cfg.Traffic.Warmup,
 			Duration: devSimRunDuration,
 			Cooldown: cfg.Traffic.Cooldown,
 			FailFast: true,

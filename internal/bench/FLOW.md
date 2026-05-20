@@ -94,9 +94,9 @@ cmd/wkbench dev-sim
        -> planner.Build
        -> poll target /healthz, /readyz, /bench/v1/capabilities
        -> worker.NewDefaultWorkloadRunner
-       -> prepare -> connect
+       -> prepare -> connect -> warmup
        -> loop run windows until canceled
-       -> on prepare/connect target error: record status, back off, retry readiness/connect
+       -> on prepare/connect/warmup target error: record status, back off, retry readiness/connect
        -> on traffic window error: record status, back off, rebuild traffic identity, keep sessions, continue next window
 ```
 

@@ -34,7 +34,7 @@ func TestRunnerWaitsForReadiness(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 3, probe.calls)
-	require.Equal(t, []string{"prepare", "connect", "run", "cooldown"}, workload.calls)
+	require.Equal(t, []string{"prepare", "connect", "warmup", "run", "cooldown"}, workload.calls)
 }
 
 func TestRunnerClearsTransientReadinessErrorBeforePrepare(t *testing.T) {
@@ -62,6 +62,63 @@ func TestRunnerClearsTransientReadinessErrorBeforePrepare(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Empty(t, lastErrorAtPrepare)
+}
+
+func TestRunnerRunsWarmupBeforeTraffic(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfg := testRunnerConfig()
+	cfg.Traffic.Warmup = time.Millisecond
+	workload := &fakeWorkload{runHook: func(context.Context, worker.Assignment) error {
+		cancel()
+		return context.Canceled
+	}}
+	runner := NewRunner(RunnerConfig{
+		Config:   cfg,
+		RunID:    "dev-sim-run",
+		Status:   NewStatus("dev-sim-run"),
+		Probe:    &fakeProbe{},
+		Workload: workload,
+		Sleep:    noSleep,
+	})
+
+	err := runner.Run(ctx)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"prepare", "connect", "warmup", "run", "cooldown"}, workload.calls)
+}
+
+func TestRunnerUsesWarmupMetricsAsCounterBaseline(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfg := testRunnerConfig()
+	cfg.Traffic.Warmup = time.Millisecond
+	workload := &fakeWorkload{metrics: metrics.SnapshotData{Counters: map[string]uint64{}}}
+	workload.warmupHook = func(context.Context, worker.Assignment) error {
+		workload.metrics.Counters["group_send_success_total"] = 10
+		return nil
+	}
+	workload.runHook = func(context.Context, worker.Assignment) error {
+		workload.metrics.Counters["group_send_success_total"] = 12
+		return nil
+	}
+	status := NewStatus("dev-sim-run")
+	runner := NewRunner(RunnerConfig{
+		Config:   cfg,
+		RunID:    "dev-sim-run",
+		Status:   status,
+		Probe:    &fakeProbe{},
+		Workload: workload,
+		Sleep: func(context.Context, time.Duration) error {
+			cancel()
+			return context.Canceled
+		},
+	})
+
+	err := runner.Run(ctx)
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), status.Snapshot().MessagesSent)
 }
 
 func TestRunnerKeepsConnectionsAfterRuntimeError(t *testing.T) {
@@ -97,7 +154,7 @@ func TestRunnerKeepsConnectionsAfterRuntimeError(t *testing.T) {
 	err := runner.Run(ctx)
 
 	require.NoError(t, err)
-	require.Equal(t, []string{"prepare", "connect", "run", "reset", "run", "cooldown"}, workload.calls)
+	require.Equal(t, []string{"prepare", "connect", "warmup", "run", "reset", "run", "cooldown"}, workload.calls)
 	require.Equal(t, []string{"sim-msg"}, workload.preparePrefixes)
 	require.Equal(t, []string{"sim-msg-r1"}, workload.resetPrefixes)
 	require.True(t, sawRetryError)
@@ -185,6 +242,7 @@ type fakeWorkload struct {
 	preparePrefixes []string
 	resetPrefixes   []string
 	prepareHook     func(context.Context, worker.Assignment) error
+	warmupHook      func(context.Context, worker.Assignment) error
 	runHook         func(context.Context, worker.Assignment) error
 	metrics         metrics.SnapshotData
 }
@@ -209,8 +267,11 @@ func (w *fakeWorkload) ResetTraffic(assignment worker.Assignment) error {
 	return nil
 }
 
-func (w *fakeWorkload) Warmup(context.Context, worker.Assignment) error {
+func (w *fakeWorkload) Warmup(ctx context.Context, assignment worker.Assignment) error {
 	w.calls = append(w.calls, "warmup")
+	if w.warmupHook != nil {
+		return w.warmupHook(ctx, assignment)
+	}
 	return nil
 }
 

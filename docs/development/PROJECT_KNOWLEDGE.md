@@ -149,3 +149,4 @@
 - wkbench requires server bench mode (`WK_BENCH_API_ENABLE=true`) and must prepare target data only through `/bench/v1/*`; it must not use Manager APIs for benchmark setup.
 - wkbench traffic with `recv_ack=true` must drain delivered recv frames and send protocol recvack even when receive verification is `none`; otherwise delivery retry will keep re-pushing accepted routes until they expire.
 - Committed delivery routing treats transient channel status errors such as `channel: not ready` as retry signals; warn only after retries are exhausted.
+- `wkbench dev-sim` must run its configured reduced-rate warmup after prepare/connect and before measured run windows; warmup counters are a baseline and must not be counted in `/status` measured traffic.
