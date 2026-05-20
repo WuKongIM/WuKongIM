@@ -2,7 +2,6 @@ package replica
 
 import (
 	"context"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 )
@@ -82,21 +81,7 @@ func (r *replica) validateCheckpointEffectFenceLocked(effect storeCheckpointEffe
 }
 
 func (r *replica) lockDurableMu(ctx context.Context) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	for {
-		if r.durableMu.TryLock() {
-			return nil
-		}
-		timer := time.NewTimer(time.Millisecond)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
-		}
-	}
+	return r.durableMu.LockContext(ctx)
 }
 
 func (r *replica) emitCheckpointEffectLocked() {

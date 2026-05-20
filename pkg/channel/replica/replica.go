@@ -56,7 +56,7 @@ type appendWaiter struct {
 type replica struct {
 	mu sync.RWMutex
 
-	durableMu sync.Mutex
+	durableMu durableLane
 
 	localNode     channel.NodeID
 	onStateChange func()
@@ -198,6 +198,7 @@ func NewReplica(cfg ReplicaConfig) (Replica, error) {
 			CommitReady: true,
 		},
 	}
+	r.initDurableLane()
 	r.publishStateLocked()
 	if err := r.recoverFromStores(); err != nil {
 		return nil, err

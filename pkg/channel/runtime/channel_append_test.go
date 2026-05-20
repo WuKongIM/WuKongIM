@@ -42,4 +42,7 @@ func TestChannelAppendUsesOwnedBatchWhenReplicaSupportsIt(t *testing.T) {
 	if rep.appendCalls != 0 {
 		t.Fatalf("Append() calls = %d, want 0", rep.appendCalls)
 	}
+	if rep.appendOwnedRecordCount != 1 {
+		t.Fatalf("AppendOwned() record count = %d, want 1", rep.appendOwnedRecordCount)
+	}
 }

@@ -239,6 +239,8 @@ type fakeReplica struct {
 	closeCount                 int
 	appendCalls                int
 	appendOwnedCalls           int
+	appendRecordCount          int
+	appendOwnedRecordCount     int
 	retentionCalls             []uint64
 	retentionView              core.RetentionView
 	onLeaderLocalAppend        func()
@@ -313,17 +315,19 @@ func (r *fakeReplica) InstallSnapshot(context.Context, core.Snapshot) error {
 	return nil
 }
 
-func (r *fakeReplica) Append(context.Context, []core.Record) (core.CommitResult, error) {
+func (r *fakeReplica) Append(_ context.Context, records []core.Record) (core.CommitResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.appendCalls++
+	r.appendRecordCount += len(records)
 	return core.CommitResult{}, nil
 }
 
-func (r *fakeReplica) AppendOwned(context.Context, []core.Record) (core.CommitResult, error) {
+func (r *fakeReplica) AppendOwned(_ context.Context, records []core.Record) (core.CommitResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.appendOwnedCalls++
+	r.appendOwnedRecordCount += len(records)
 	return core.CommitResult{}, nil
 }
 
