@@ -21,6 +21,9 @@ type pooledLoopDriver struct {
 
 	mu          sync.Mutex
 	queue       []pooledLoopMessage
+	head        int
+	tail        int
+	size        int
 	queued      bool
 	closed      bool
 	doneCh      chan struct{}
@@ -31,12 +34,17 @@ type pooledLoopDriver struct {
 
 func newPooledLoopDriver(r *replica, cfg ExecutionConfig) *pooledLoopDriver {
 	pool := cfg.Pool
+	mailboxSize := pool.mailboxSize(cfg.MailboxSize)
+	if mailboxSize <= 0 {
+		mailboxSize = 1
+	}
 	return &pooledLoopDriver{
 		replica:     r,
 		pool:        pool,
 		doneCh:      r.loopDone,
-		mailboxSize: pool.mailboxSize(cfg.MailboxSize),
+		mailboxSize: mailboxSize,
 		turnBudget:  pool.turnBudget(cfg.TurnBudget),
+		queue:       make([]pooledLoopMessage, mailboxSize),
 	}
 }
 
@@ -120,6 +128,43 @@ func (d *pooledLoopDriver) done() <-chan struct{} {
 	return d.doneCh
 }
 
+func (d *pooledLoopDriver) queueLenLocked() int {
+	return d.size
+}
+
+func (d *pooledLoopDriver) pushLocked(msg pooledLoopMessage) bool {
+	if d.mailboxSize <= 0 || d.size >= d.mailboxSize {
+		return false
+	}
+	d.queue[d.tail] = msg
+	d.tail = (d.tail + 1) % d.mailboxSize
+	d.size++
+	return true
+}
+
+func (d *pooledLoopDriver) popLocked() (pooledLoopMessage, bool) {
+	if d.size == 0 {
+		return pooledLoopMessage{}, false
+	}
+	msg := d.queue[d.head]
+	d.queue[d.head] = pooledLoopMessage{}
+	d.head = (d.head + 1) % d.mailboxSize
+	d.size--
+	return msg, true
+}
+
+func (d *pooledLoopDriver) undoLastPushLocked() {
+	if d.size == 0 || d.mailboxSize <= 0 {
+		return
+	}
+	d.tail--
+	if d.tail < 0 {
+		d.tail = d.mailboxSize - 1
+	}
+	d.queue[d.tail] = pooledLoopMessage{}
+	d.size--
+}
+
 func (d *pooledLoopDriver) enqueue(ctx context.Context, msg pooledLoopMessage) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -128,12 +173,15 @@ func (d *pooledLoopDriver) enqueue(ctx context.Context, msg pooledLoopMessage) e
 		d.pool.observeEnqueue("closed")
 		return channel.ErrNotLeader
 	}
-	if len(d.queue) >= d.mailboxSize {
+	if d.size >= d.mailboxSize {
 		d.pool.observeEnqueue("queue_full")
 		return channel.ErrNotReady
 	}
 	msg.queuedAt = d.pool.cfg.Now()
-	d.queue = append(d.queue, msg)
+	if !d.pushLocked(msg) {
+		d.pool.observeEnqueue("queue_full")
+		return channel.ErrNotReady
+	}
 	d.pool.observeEnqueue("ok")
 	d.pool.observeQueueDepth()
 	if d.queued {
@@ -146,17 +194,17 @@ func (d *pooledLoopDriver) enqueue(ctx context.Context, msg pooledLoopMessage) e
 		return nil
 	case <-d.pool.stopCh:
 		d.queued = false
-		d.queue = d.queue[:len(d.queue)-1]
+		d.undoLastPushLocked()
 		d.pool.observeEnqueue("closed")
 		return channel.ErrNotLeader
 	case <-ctx.Done():
 		d.queued = false
-		d.queue = d.queue[:len(d.queue)-1]
+		d.undoLastPushLocked()
 		d.pool.observeEnqueue("canceled")
 		return ctx.Err()
 	default:
 		d.queued = false
-		d.queue = d.queue[:len(d.queue)-1]
+		d.undoLastPushLocked()
 		d.pool.observeEnqueue("queue_full")
 		return channel.ErrNotReady
 	}
@@ -166,7 +214,8 @@ func (d *pooledLoopDriver) drain() {
 	processed := 0
 	for {
 		d.mu.Lock()
-		if len(d.queue) == 0 {
+		msg, ok := d.popLocked()
+		if !ok {
 			d.queued = false
 			closed := d.closed
 			d.mu.Unlock()
@@ -175,9 +224,6 @@ func (d *pooledLoopDriver) drain() {
 			}
 			return
 		}
-		msg := d.queue[0]
-		copy(d.queue, d.queue[1:])
-		d.queue = d.queue[:len(d.queue)-1]
 		d.mu.Unlock()
 
 		if !msg.queuedAt.IsZero() {
@@ -191,7 +237,7 @@ func (d *pooledLoopDriver) drain() {
 		processed = 0
 
 		d.mu.Lock()
-		if len(d.queue) == 0 {
+		if d.queueLenLocked() == 0 {
 			d.queued = false
 			closed := d.closed
 			d.mu.Unlock()
