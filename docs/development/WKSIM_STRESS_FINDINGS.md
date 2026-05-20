@@ -242,3 +242,14 @@ Verification:
 
 Status:
 - Fixed and verified on the previously failing default Compose profile.
+
+## 2026-05-20 Run 9
+
+Post-fix search after Issues 7 and 8:
+- Default Compose smoke with prefix `loop-fix8-u` reached `connected_users=1000`, `messages_sent=2239`, `send_errors=0`, `recv_errors=0`.
+- High-rate mixed profile (`1000` users, `500` person channels, `500` groups, `1/s`, concurrency `256`, receive verification `none`) passed the smoke gate with prefix `loop-fix8-stress-u` and continued healthy through `messages_sent=107094`, `send_errors=0`, `recv_errors=0`.
+- Diagnostics query after the high-rate run returned no error events; recent node logs had no `channel: corrupt state`, send timeout, append failure, or panic lines.
+- Reduced sampled mixed profile (`40` users, `10` person channels, `3` groups, `0.5/s`, concurrency `16`, sampled receive verification) reached `messages_sent=453`, `send_errors=0`, `recv_errors=0` during continued polling.
+
+Status:
+- No additional reproducible performance or correctness issue was found in the Docker Compose `wk-sim` profiles exercised in this cycle.

@@ -76,3 +76,11 @@ Worktree: `.worktrees/wk-sim-bughunt-20260520`
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
 | BUG-009 | Fixed | wk-sim warmup | Default and high-rate Compose profiles could retry forever before `/status` reached `running` on a dirty/stressed local cluster. | Warmup used the shorter measured-run sendack/recv timeout, so cold channel activation latency could cancel the whole warmup phase before it completed. | Current change |
+
+## Continuation: main worktree Run 9
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-20 | `WK_SIM_RATE=1/s WK_SIM_TRAFFIC_CONCURRENCY=256 WK_SIM_UID_PREFIX=loop-fix8-stress-u scripts/dev-sim-compose-smoke.sh --no-build --skip-logs --timeout 420` | Pass | High-rate mixed profile reached `messages_sent=7034`, `send_errors=0`, `recv_errors=0` before the smoke gate exited. Continued polling reached `messages_sent=107094` with zero errors. |
+| 2026-05-20 | diagnostics query after high-rate run | Pass | Cluster diagnostics returned no error events and recent node logs had no corrupt-state, timeout, append-failure, or panic lines. |
+| 2026-05-20 | reduced sampled receive `scripts/dev-sim-compose-smoke.sh --no-build --skip-logs --timeout 180` | Pass | Sampled receive profile reached `messages_sent=65` at the smoke gate and `messages_sent=453` during continued polling, with zero send/recv errors. |
