@@ -527,3 +527,46 @@ func TestPersonWorkloadRunHonorsRateDurationPerChannel(t *testing.T) {
 	}
 	require.Equal(t, uint64(4), workload.Metrics().CounterValue("person_send_success_total", nil))
 }
+
+func TestPersonWorkloadWarmupTouchesEveryPairAtLeastOnce(t *testing.T) {
+	clients := map[string]*recordingPersonClient{
+		"u1": newRecordingPersonClient(),
+		"u2": newRecordingPersonClient(),
+		"u3": newRecordingPersonClient(),
+		"u4": newRecordingPersonClient(),
+		"u5": newRecordingPersonClient(),
+		"u6": newRecordingPersonClient(),
+	}
+	for _, client := range clients {
+		client.autoSendack = true
+	}
+	workload, err := NewPersonWorkload(PersonConfig{
+		RunID:           "run-a",
+		ProfileName:     "profile-a",
+		TrafficName:     "traffic-a",
+		ClientMsgPrefix: "bench-msg",
+		WarmupDuration:  10 * time.Second,
+		Rate:            model.Rate{PerSecond: 0.25},
+		Pairs: []PersonPair{
+			{ChannelIndex: 0, SenderUID: "u1", RecipientUID: "u2"},
+			{ChannelIndex: 1, SenderUID: "u3", RecipientUID: "u4"},
+			{ChannelIndex: 2, SenderUID: "u5", RecipientUID: "u6"},
+		},
+		Metrics: metrics.NewRegistry(),
+		sleep: func(ctx context.Context, d time.Duration) error {
+			return nil
+		},
+	}, map[string]PersonClient{
+		"u1": clients["u1"], "u2": clients["u2"],
+		"u3": clients["u3"], "u4": clients["u4"],
+		"u5": clients["u5"], "u6": clients["u6"],
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, workload.Warmup(context.Background()))
+
+	require.Len(t, clients["u1"].sentFrames, 1)
+	require.Len(t, clients["u3"].sentFrames, 1)
+	require.Len(t, clients["u5"].sentFrames, 1)
+	require.Equal(t, uint64(3), workload.Metrics().CounterValue("person_send_success_total", nil))
+}
