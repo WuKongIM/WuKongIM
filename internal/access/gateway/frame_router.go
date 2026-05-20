@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"errors"
 
 	coregateway "github.com/WuKongIM/WuKongIM/internal/gateway"
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx"
@@ -100,6 +101,154 @@ func (h *Handler) handleSend(ctx *coregateway.Context, pkt *frame.SendPacket) er
 		return writeSendack(ctx, pkt, result)
 	}
 	return h.writeSendackWithTrace(ctx, pkt, cmd.ClientMsgNo, cmd.TraceID, channelKey, cmd.FromUID, result)
+}
+
+func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+
+	results := make([]message.SendResult, len(items))
+	contexts := make([]*coregateway.Context, len(items))
+	channelKeys := make([]string, len(items))
+	fromUIDs := make([]string, len(items))
+	clientMsgNos := make([]string, len(items))
+	traceIDs := make([]string, len(items))
+	traceEnabled := sendtrace.Enabled()
+	validIndexes := make([]int, 0, len(items))
+	validItems := make([]message.SendBatchItem, 0, len(items))
+
+	for i, item := range items {
+		ctx := sendBatchGatewayContext(item)
+		contexts[i] = ctx
+		pkt := item.Frame
+		if reason, err := decryptSendPacketIfNeeded(ctx, pkt); err != nil {
+			fields := append([]wklog.Field{
+				wklog.Event("access.gateway.frame.send_decrypt_failed"),
+			}, gatewaySendFields(ctx, pkt.ChannelID, pkt.ChannelType)...)
+			fields = append(fields, wklog.Error(err))
+			h.frameLogger().Warn("reject encrypted send request", fields...)
+			results[i].Reason = reason
+			continue
+		}
+
+		cmd, err := mapSendCommand(ctx, pkt)
+		if err != nil {
+			fields := append([]wklog.Field{
+				wklog.Event("access.gateway.frame.send_rejected"),
+			}, gatewaySendFields(ctx, pkt.ChannelID, pkt.ChannelType)...)
+			fields = append(fields, wklog.Error(err))
+			h.frameLogger().Warn("reject send request", fields...)
+			if errors.Is(err, ErrUnauthenticatedSession) {
+				results[i].Reason = frame.ReasonAuthFail
+				continue
+			}
+			if reason, ok := mapSendErrorReason(err); ok {
+				results[i].Reason = reason
+				continue
+			}
+			return err
+		}
+		if ctx == nil || ctx.RequestContext == nil {
+			results[i].Reason = frame.ReasonSystemError
+			continue
+		}
+
+		reqCtx, cancel := context.WithTimeout(ctx.RequestContext, h.sendTimeout)
+		defer cancel()
+		if traceEnabled {
+			var traceCtx tracectx.Context
+			reqCtx, traceCtx = tracectx.Ensure(reqCtx, h.now)
+			cmd.TraceID = traceCtx.TraceID
+			traceIDs[i] = traceCtx.TraceID
+			channelKeys[i] = string(channelhandler.KeyFromChannelID(channel.ChannelID{ID: cmd.ChannelID, Type: cmd.ChannelType}))
+		}
+		fromUIDs[i] = cmd.FromUID
+		clientMsgNos[i] = cmd.ClientMsgNo
+		validIndexes = append(validIndexes, i)
+		validItems = append(validItems, message.SendBatchItem{Context: reqCtx, Command: cmd})
+	}
+
+	sendStartedAt := h.now()
+	batchResults := h.sendMessageBatch(validItems)
+	sendDuration := sendtrace.Elapsed(sendStartedAt, h.now())
+	for j, itemIndex := range validIndexes {
+		var itemResult message.SendBatchItemResult
+		if j < len(batchResults) {
+			itemResult = batchResults[j]
+		} else {
+			itemResult.Err = errors.New("access/gateway: send batch result count mismatch")
+		}
+		result := itemResult.Result
+		if traceEnabled {
+			sendtrace.Record(sendtrace.Event{
+				TraceID:     traceIDs[itemIndex],
+				Stage:       sendtrace.StageGatewayMessagesSend,
+				At:          sendStartedAt,
+				Duration:    sendDuration,
+				NodeID:      h.localNodeID,
+				ChannelKey:  channelKeys[itemIndex],
+				ClientMsgNo: clientMsgNos[itemIndex],
+				MessageSeq:  result.MessageSeq,
+				FromUID:     fromUIDs[itemIndex],
+			})
+		}
+		if itemResult.Err != nil {
+			fields := append([]wklog.Field{
+				wklog.Event("access.gateway.frame.send_failed"),
+				wklog.SourceModule("message.send"),
+			}, gatewaySendFields(contexts[itemIndex], validItems[j].Command.ChannelID, validItems[j].Command.ChannelType)...)
+			fields = append(fields, wklog.Error(itemResult.Err))
+			h.frameLogger().Warn("send request failed", fields...)
+			if reason, ok := mapSendErrorReason(itemResult.Err); ok {
+				result.Reason = reason
+			} else {
+				return itemResult.Err
+			}
+		}
+		results[itemIndex] = result
+	}
+
+	for i, item := range items {
+		ctx := contexts[i]
+		pkt := item.Frame
+		if traceEnabled {
+			if err := h.writeSendackWithTrace(ctx, pkt, clientMsgNos[i], traceIDs[i], channelKeys[i], fromUIDs[i], results[i]); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := writeSendack(ctx, pkt, results[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *Handler) sendMessageBatch(items []message.SendBatchItem) []message.SendBatchItemResult {
+	if len(items) == 0 {
+		return nil
+	}
+	if batcher, ok := h.messages.(MessageBatchUsecase); ok {
+		return batcher.SendBatch(items)
+	}
+	results := make([]message.SendBatchItemResult, len(items))
+	for i, item := range items {
+		result, err := h.messages.Send(item.Context, item.Command)
+		results[i] = message.SendBatchItemResult{Result: result, Err: err}
+	}
+	return results
+}
+
+func sendBatchGatewayContext(item coregateway.SendBatchItem) *coregateway.Context {
+	if item.Context == nil {
+		return nil
+	}
+	ctx := *item.Context
+	if item.ReplyToken != "" {
+		ctx.ReplyToken = item.ReplyToken
+	}
+	return &ctx
 }
 
 func (h *Handler) handleRecvAck(ctx *coregateway.Context, pkt *frame.RecvackPacket) error {

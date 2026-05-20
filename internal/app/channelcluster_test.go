@@ -227,6 +227,7 @@ func TestAppChannelClusterForwardAppendRecordsTraceID(t *testing.T) {
 	require.Equal(t, "u1", events[0].FromUID)
 	require.Equal(t, 3, events[0].Attempt)
 	require.Equal(t, "channel_append", events[0].Service)
+	require.Equal(t, 1, events[0].RecordCount)
 }
 
 func TestAppChannelClusterAppendForwardsToLeaderWhenLocalReplicaIsFollower(t *testing.T) {
@@ -254,10 +255,11 @@ func TestAppChannelClusterAppendForwardsToLeaderWhenLocalReplicaIsFollower(t *te
 	result, err := cluster.Append(context.Background(), req)
 
 	require.NoError(t, err)
-	require.Equal(t, channel.AppendResult{MessageID: 9, MessageSeq: 10}, result)
-	require.Len(t, remote.calls, 1)
-	require.Equal(t, uint64(2), remote.calls[0].nodeID)
-	require.Equal(t, req, remote.calls[0].req)
+	require.Equal(t, channel.AppendResult{MessageID: 9, MessageSeq: 10, Message: req.Message}, result)
+	require.Empty(t, remote.calls)
+	require.Len(t, remote.batchCalls, 1)
+	require.Equal(t, uint64(2), remote.batchCalls[0].nodeID)
+	require.Equal(t, appendRequestAsBatchForTest(req), remote.batchCalls[0].req)
 }
 
 func TestAppChannelClusterAppendForwardsToLeaderWhenLocalRuntimeIsMissingAfterRefresh(t *testing.T) {
@@ -285,10 +287,48 @@ func TestAppChannelClusterAppendForwardsToLeaderWhenLocalRuntimeIsMissingAfterRe
 	result, err := cluster.Append(context.Background(), req)
 
 	require.NoError(t, err)
-	require.Equal(t, channel.AppendResult{MessageID: 10, MessageSeq: 11}, result)
-	require.Len(t, remote.calls, 1)
-	require.Equal(t, uint64(2), remote.calls[0].nodeID)
-	require.Equal(t, req, remote.calls[0].req)
+	require.Equal(t, channel.AppendResult{MessageID: 10, MessageSeq: 11, Message: req.Message}, result)
+	require.Empty(t, remote.calls)
+	require.Len(t, remote.batchCalls, 1)
+	require.Equal(t, uint64(2), remote.batchCalls[0].nodeID)
+	require.Equal(t, appendRequestAsBatchForTest(req), remote.batchCalls[0].req)
+}
+
+func TestAppChannelClusterAppendBatchForwardsSingleRemoteBatch(t *testing.T) {
+	req := channel.AppendBatchRequest{
+		ChannelID: channel.ChannelID{ID: "room", Type: 2},
+		Messages: []channel.Message{
+			{FromUID: "u1", ClientMsgNo: "m1", Payload: []byte("hi-1")},
+			{FromUID: "u2", ClientMsgNo: "m2", Payload: []byte("hi-2")},
+		},
+	}
+	want := channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{
+		{MessageID: 9, MessageSeq: 10, Message: req.Messages[0]},
+		{MessageID: 11, MessageSeq: 12, Message: req.Messages[1]},
+	}}
+	service := &stubChannelService{
+		meta: channel.Meta{
+			Key:    channel.ChannelKey("room"),
+			ID:     req.ChannelID,
+			Leader: 2,
+		},
+		appendBatchErr: channel.ErrNotLeader,
+	}
+	remote := &recordingRemoteChannelAppender{batchResult: want}
+	cluster := &appChannelCluster{
+		service:        service,
+		localNodeID:    1,
+		remoteAppender: remote,
+	}
+
+	result, err := cluster.AppendBatch(context.Background(), req)
+
+	require.NoError(t, err)
+	require.Equal(t, want, result)
+	require.Empty(t, remote.calls)
+	require.Len(t, remote.batchCalls, 1)
+	require.Equal(t, uint64(2), remote.batchCalls[0].nodeID)
+	require.Equal(t, req, remote.batchCalls[0].req)
 }
 
 func TestAppChannelClusterAppendLogsForwardDiagnostics(t *testing.T) {
@@ -318,20 +358,35 @@ func TestAppChannelClusterAppendLogsForwardDiagnostics(t *testing.T) {
 	_, err := cluster.Append(context.Background(), req)
 
 	require.NoError(t, err)
-	entry := requireCapturedLogEntry(t, logger, "DEBUG", "app.channel.append", "app.channel.append.forward.triggered")
-	require.Equal(t, "forwarding channel append to leader", entry.msg)
+	entry := requireCapturedLogEntry(t, logger, "DEBUG", "app.channel.append", "app.channel.append_batch.forward.triggered")
+	require.Equal(t, "forwarding channel append batch to leader", entry.msg)
 	require.Equal(t, uint64(1), requireCapturedFieldValue[uint64](t, entry, "nodeID"))
 	require.Equal(t, uint64(2), requireCapturedFieldValue[uint64](t, entry, "leaderNodeID"))
 	require.Equal(t, "room", requireCapturedFieldValue[string](t, entry, "channelID"))
-	require.Equal(t, "m1", requireCapturedFieldValue[string](t, entry, "clientMsgNo"))
+	require.Equal(t, 1, requireCapturedFieldValue[int](t, entry, "recordCount"))
+}
+
+func appendRequestAsBatchForTest(req channel.AppendRequest) channel.AppendBatchRequest {
+	return channel.AppendBatchRequest{
+		ChannelID:             req.ChannelID,
+		Messages:              []channel.Message{req.Message},
+		SupportsMessageSeqU64: req.SupportsMessageSeqU64,
+		CommitMode:            req.CommitMode,
+		ExpectedChannelEpoch:  req.ExpectedChannelEpoch,
+		ExpectedLeaderEpoch:   req.ExpectedLeaderEpoch,
+		TraceID:               req.TraceID,
+		Attempt:               req.Attempt,
+	}
 }
 
 type stubChannelService struct {
-	meta         channel.Meta
-	appendResult channel.AppendResult
-	appendErr    error
-	fetchResult  channel.FetchResult
-	fetchErr     error
+	meta              channel.Meta
+	appendResult      channel.AppendResult
+	appendErr         error
+	appendBatchResult channel.AppendBatchResult
+	appendBatchErr    error
+	fetchResult       channel.FetchResult
+	fetchErr          error
 }
 
 func (s *stubChannelService) ApplyMeta(meta channel.Meta) error {
@@ -341,6 +396,23 @@ func (s *stubChannelService) ApplyMeta(meta channel.Meta) error {
 
 func (s *stubChannelService) Append(context.Context, channel.AppendRequest) (channel.AppendResult, error) {
 	return s.appendResult, s.appendErr
+}
+
+func (s *stubChannelService) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	if s.appendBatchErr != nil {
+		return s.appendBatchResult, s.appendBatchErr
+	}
+	if s.appendErr != nil {
+		return s.appendBatchResult, s.appendErr
+	}
+	if len(s.appendBatchResult.Items) > 0 {
+		return s.appendBatchResult, nil
+	}
+	items := make([]channel.AppendBatchItemResult, len(req.Messages))
+	for i, msg := range req.Messages {
+		items[i] = channel.AppendBatchItemResult{MessageID: s.appendResult.MessageID, MessageSeq: s.appendResult.MessageSeq, Message: msg}
+	}
+	return channel.AppendBatchResult{Items: items}, nil
 }
 
 func (s *stubChannelService) Fetch(context.Context, channel.FetchRequest) (channel.FetchResult, error) {
@@ -379,15 +451,31 @@ type remoteChannelAppendCall struct {
 	req    channel.AppendRequest
 }
 
-type recordingRemoteChannelAppender struct {
-	calls  []remoteChannelAppendCall
-	result channel.AppendResult
-	err    error
+type remoteChannelAppendBatchCall struct {
+	nodeID uint64
+	req    channel.AppendBatchRequest
 }
 
-func (r *recordingRemoteChannelAppender) AppendToLeader(ctx context.Context, nodeID uint64, req channel.AppendRequest) (channel.AppendResult, error) {
-	r.calls = append(r.calls, remoteChannelAppendCall{nodeID: nodeID, req: req})
-	return r.result, r.err
+type recordingRemoteChannelAppender struct {
+	calls       []remoteChannelAppendCall
+	batchCalls  []remoteChannelAppendBatchCall
+	result      channel.AppendResult
+	batchResult channel.AppendBatchResult
+	err         error
+	batchErr    error
+}
+
+func (r *recordingRemoteChannelAppender) AppendBatchToLeader(ctx context.Context, nodeID uint64, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	r.batchCalls = append(r.batchCalls, remoteChannelAppendBatchCall{nodeID: nodeID, req: req})
+	if len(r.batchResult.Items) == 0 && len(req.Messages) == 1 {
+		msg := req.Messages[0]
+		return channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{
+			MessageID:  r.result.MessageID,
+			MessageSeq: r.result.MessageSeq,
+			Message:    msg,
+		}}}, r.err
+	}
+	return r.batchResult, r.batchErr
 }
 
 func requireMetricFamilyByName(t *testing.T, families []*dto.MetricFamily, name string) *dto.MetricFamily {

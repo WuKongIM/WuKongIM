@@ -26,6 +26,10 @@ type MessageUsecase interface {
 	SessionClosed(cmd message.SessionClosedCommand) error
 }
 
+type MessageBatchUsecase interface {
+	SendBatch(items []message.SendBatchItem) []message.SendBatchItemResult
+}
+
 type PresenceUsecase interface {
 	Activate(ctx context.Context, cmd presence.ActivateCommand) error
 	Deactivate(ctx context.Context, cmd presence.DeactivateCommand) error

@@ -96,6 +96,10 @@ type SessionActivator interface {
     OnSessionActivate(ctx *Context) (*frame.ConnackPacket, error)
 }
 
+type SendBatchHandler interface {
+    OnSendBatch(items []SendBatchItem) error
+}
+
 type Context struct {
     Session        session.Session
     Listener       string
@@ -109,6 +113,8 @@ type Context struct {
 ```
 
 `SessionActivator` 是可选 hook。WKProto CONNECT 认证成功后、CONNACK 写出前调用它；`internal/access/gateway` 使用该 hook 完成 presence activate。
+
+`SendBatchHandler` 是可选 SEND 微批 hook。实现方必须按 `items` 顺序写回对应 sendack；未实现时 `core` 自动退回逐帧 `OnFrame`，协议语义不变。
 
 ### 4.4 扩展接口
 
@@ -139,6 +145,7 @@ Build([]transport.ListenerSpec) ([]transport.Listener, error)
 | `dispatcher` | `core/dispatcher.go` | 把 session state 转为 `types.Context` 并调用业务 handler |
 | `idleTracker` | `core/idle_tracker.go` | 基于最小堆的读空闲 deadline 调度，避免按 tick 全量扫描 session |
 | `asyncDispatchQueue` | `core/server.go` | SEND 帧异步分发队列，容量有界，满队列时关闭当前 session 形成背压 |
+| `asyncSendBatchCollector` | `core/server.go` | 单个 SEND shard 内的有界微批收集器，按等待时间、条数和 payload 字节数 flush，并用 pending slot 保留超限帧 |
 | `session.Session` | `session/session.go` | 会话抽象，持有 values 和出站 encoded queue |
 | `transport.Conn` | `transport/transport.go` | 底层连接抽象；可选实现 `WriteTimeoutPolicy` 表明 transport 自己处理写超时 |
 | `WKProtoAuthOptions` | `auth.go` | WKProto 认证、访客、封禁、版本协商和加密配置 |
@@ -213,7 +220,9 @@ OnData:
   ⑥ handleAuthFrame 优先处理 WKProto CONNECT
   ⑦ 认证完成后的业务 frame:
      - 记录 OnFrameIn
-     - SEND: clone payload 后入有界队列，由 worker 调用 dispatchFrame
+     - SEND: clone payload 后按原始 `ChannelID + ChannelType` 选择 shard，入有界队列；worker 在 shard 内收集微批，优先调用 `SendBatchHandler.OnSendBatch`
+     - SEND 微批只作为入口批处理 hint；个人频道归一化、权限检查和最终严格顺序仍在 `internal/access/gateway` → `internal/usecase/message` → `pkg/channel` 链路内完成
+     - Handler 未实现 `SendBatchHandler` 时，worker 保持原顺序逐帧调用 `dispatchFrame`
      - 其他 frame: 同步调用 dispatchFrame
      - SEND 队列满: 按 async_dispatch_queue_full 关闭当前 session
 ```
@@ -342,7 +351,7 @@ GOWORK=off go test ./internal -run TestInternalImportBoundaries -count=1
 - 不要在 `internal/gateway` 内写消息发送、频道路由、在线注册等业务规则。
 - 不要新增“单机直写”或“非集群模式”分支；单节点部署仍是单节点集群。
 - 不要让 protocol adapter 持有业务状态；adapter 只处理 wire format 和协议级临时状态。
-- 不要在 transport event loop 上执行长耗时业务；SEND 热路径统一进入有界 async worker pool。
+- 不要在 transport event loop 上执行长耗时业务；SEND 热路径统一进入按 ChannelID 分片的有界 async worker pool，并在 worker 内微批处理。
 - 不要让出站写入刷新 idle timeout；idle 语义以客户端入站活跃为准。
 - 不要绕过 session encoded queue 直接并发写 conn，除认证 CONNACK 这类必须立即响应的握手帧外都走 `WriteFrame`。
 - 新增 listener preset 时保持 `Name`、`Network`、`Address`、`Transport`、`Protocol` 字段完整，并补 `options_test`。

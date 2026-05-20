@@ -133,6 +133,9 @@ func supportedConfigExampleKeys() []string {
 		"WK_EXTERNAL_WSADDR",
 		"WK_EXTERNAL_WSSADDR",
 		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_DISPATCH_WORKERS",
+		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES",
+		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS",
+		"WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT",
 		"WK_GATEWAY_DEFAULT_SESSION_CLOSE_ON_HANDLER_ERROR",
 		"WK_GATEWAY_DEFAULT_SESSION_IDLE_TIMEOUT",
 		"WK_GATEWAY_DEFAULT_SESSION_MAX_INBOUND_BYTES",
@@ -717,6 +720,45 @@ func TestConfigGatewayDefaultsSessionOptions(t *testing.T) {
 	require.NoError(t, cfg.ApplyDefaultsAndValidate())
 	require.NotNil(t, cfg.Gateway.DefaultSession.CloseOnHandlerError)
 	require.True(t, *cfg.Gateway.DefaultSession.CloseOnHandlerError)
+}
+
+func TestConfigGatewayDefaultsSendBatchOptions(t *testing.T) {
+	cfg := validConfig()
+	cfg.Gateway.DefaultSession = gateway.SessionOptions{}
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+	require.Equal(t, 500*time.Microsecond, cfg.Gateway.DefaultSession.AsyncSendBatchMaxWait)
+	require.Equal(t, 128, cfg.Gateway.DefaultSession.AsyncSendBatchMaxRecords)
+	require.Equal(t, 512*1024, cfg.Gateway.DefaultSession.AsyncSendBatchMaxBytes)
+}
+
+func TestConfigGatewayRejectsNegativeSendBatchBounds(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		mutate func(*Config)
+		want   string
+	}{
+		{
+			name: "records",
+			mutate: func(cfg *Config) {
+				cfg.Gateway.DefaultSession.AsyncSendBatchMaxRecords = -1
+			},
+			want: "gateway send batch max records",
+		},
+		{
+			name: "bytes",
+			mutate: func(cfg *Config) {
+				cfg.Gateway.DefaultSession.AsyncSendBatchMaxBytes = -1
+			},
+			want: "gateway send batch max bytes",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validConfig()
+			tc.mutate(&cfg)
+			require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), tc.want)
+		})
+	}
 }
 
 func TestConfigGatewayPreservesExplicitFalseCloseOnHandlerError(t *testing.T) {

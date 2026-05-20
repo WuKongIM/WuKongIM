@@ -110,6 +110,36 @@ func TestServerAsyncSendDispatchUsesConfiguredWorkerCount(t *testing.T) {
 	srv.workerWG.Wait()
 }
 
+func TestAsyncSendBatchOptionsUseDefaults(t *testing.T) {
+	opt := gatewaytypes.NormalizeSessionOptions(gatewaytypes.SessionOptions{})
+	if got, want := opt.AsyncSendBatchMaxWait, 500*time.Microsecond; got != want {
+		t.Fatalf("AsyncSendBatchMaxWait = %s, want %s", got, want)
+	}
+	if got, want := opt.AsyncSendBatchMaxRecords, 128; got != want {
+		t.Fatalf("AsyncSendBatchMaxRecords = %d, want %d", got, want)
+	}
+	if got, want := opt.AsyncSendBatchMaxBytes, 512*1024; got != want {
+		t.Fatalf("AsyncSendBatchMaxBytes = %d, want %d", got, want)
+	}
+}
+
+func TestAsyncSendBatchOptionsCanDisableWaitButNotBounds(t *testing.T) {
+	opt := gatewaytypes.NormalizeSessionOptions(gatewaytypes.SessionOptions{
+		AsyncSendBatchMaxWait:    -time.Microsecond,
+		AsyncSendBatchMaxRecords: -1,
+		AsyncSendBatchMaxBytes:   -1,
+	})
+	if opt.AsyncSendBatchMaxWait != 0 {
+		t.Fatalf("AsyncSendBatchMaxWait = %s, want 0", opt.AsyncSendBatchMaxWait)
+	}
+	if got, want := opt.AsyncSendBatchMaxRecords, 128; got != want {
+		t.Fatalf("AsyncSendBatchMaxRecords = %d, want %d", got, want)
+	}
+	if got, want := opt.AsyncSendBatchMaxBytes, 512*1024; got != want {
+		t.Fatalf("AsyncSendBatchMaxBytes = %d, want %d", got, want)
+	}
+}
+
 func TestAsyncDispatchWorkerCountUsesExplicitOverride(t *testing.T) {
 	got := asyncDispatchWorkerCount(gatewaytypes.SessionOptions{AsyncSendDispatchWorkers: 7})
 	if got != 7 {
@@ -162,6 +192,239 @@ func TestRecordAsyncDispatchWaitIncludesSendClientMsgNo(t *testing.T) {
 	if events[0].Duration <= 0 {
 		t.Fatalf("duration = %s, want > 0", events[0].Duration)
 	}
+}
+
+func TestAsyncSendBatchCollectHonorsMaxRecordsAndOrder(t *testing.T) {
+	tasks := make(chan asyncDispatchTask, 3)
+	tasks <- asyncSendBatchTestTask("m1", 1)
+	tasks <- asyncSendBatchTestTask("m2", 1)
+	tasks <- asyncSendBatchTestTask("m3", 1)
+
+	collector := newAsyncSendBatchCollector(tasks, asyncSendBatchLimits{
+		maxRecords: 2,
+		maxBytes:   1024,
+	})
+	batch, ok := collector.nextBatch()
+	if !ok {
+		t.Fatal("nextBatch returned ok=false")
+	}
+	if got, want := asyncSendBatchClientMsgNos(batch), []string{"m1", "m2"}; !equalStrings(got, want) {
+		t.Fatalf("batch client msg nos = %v, want %v", got, want)
+	}
+	batch, ok = collector.nextBatch()
+	if !ok {
+		t.Fatal("second nextBatch returned ok=false")
+	}
+	if got, want := asyncSendBatchClientMsgNos(batch), []string{"m3"}; !equalStrings(got, want) {
+		t.Fatalf("second batch client msg nos = %v, want %v", got, want)
+	}
+}
+
+func TestAsyncSendBatchCollectStopsBeforeMaxBytesAndPreservesPending(t *testing.T) {
+	tasks := make(chan asyncDispatchTask, 3)
+	tasks <- asyncSendBatchTestTask("m1", 4)
+	tasks <- asyncSendBatchTestTask("m2", 6)
+	tasks <- asyncSendBatchTestTask("m3", 2)
+
+	collector := newAsyncSendBatchCollector(tasks, asyncSendBatchLimits{
+		maxRecords: 8,
+		maxBytes:   8,
+	})
+	batch, ok := collector.nextBatch()
+	if !ok {
+		t.Fatal("nextBatch returned ok=false")
+	}
+	if got, want := asyncSendBatchClientMsgNos(batch), []string{"m1"}; !equalStrings(got, want) {
+		t.Fatalf("batch client msg nos = %v, want %v", got, want)
+	}
+	batch, ok = collector.nextBatch()
+	if !ok {
+		t.Fatal("second nextBatch returned ok=false")
+	}
+	if got, want := asyncSendBatchClientMsgNos(batch), []string{"m2", "m3"}; !equalStrings(got, want) {
+		t.Fatalf("second batch client msg nos = %v, want %v", got, want)
+	}
+}
+
+func TestAsyncSendBatchCollectWithZeroWaitDrainsOnlyReadyTasks(t *testing.T) {
+	tasks := make(chan asyncDispatchTask, 2)
+	tasks <- asyncSendBatchTestTask("ready", 1)
+	collector := newAsyncSendBatchCollector(tasks, asyncSendBatchLimits{
+		maxRecords: 8,
+		maxBytes:   1024,
+	})
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		tasks <- asyncSendBatchTestTask("late", 1)
+	}()
+
+	batch, ok := collector.nextBatch()
+	if !ok {
+		t.Fatal("nextBatch returned ok=false")
+	}
+	if got, want := asyncSendBatchClientMsgNos(batch), []string{"ready"}; !equalStrings(got, want) {
+		t.Fatalf("batch client msg nos = %v, want %v", got, want)
+	}
+}
+
+func TestAsyncSendBatchCollectWaitsForNearFutureTask(t *testing.T) {
+	tasks := make(chan asyncDispatchTask, 2)
+	tasks <- asyncSendBatchTestTask("first", 1)
+	collector := newAsyncSendBatchCollector(tasks, asyncSendBatchLimits{
+		maxWait:    50 * time.Millisecond,
+		maxRecords: 8,
+		maxBytes:   1024,
+	})
+	go func() {
+		time.Sleep(time.Millisecond)
+		tasks <- asyncSendBatchTestTask("second", 1)
+	}()
+
+	batch, ok := collector.nextBatch()
+	if !ok {
+		t.Fatal("nextBatch returned ok=false")
+	}
+	if got, want := asyncSendBatchClientMsgNos(batch), []string{"first", "second"}; !equalStrings(got, want) {
+		t.Fatalf("batch client msg nos = %v, want %v", got, want)
+	}
+}
+
+func TestAsyncSendDispatchUsesBatchHandler(t *testing.T) {
+	handler := &recordingAsyncSendBatchHandler{}
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{DefaultSession: gatewaytypes.SessionOptions{
+			AsyncSendBatchMaxWait:    time.Millisecond,
+			AsyncSendBatchMaxRecords: 8,
+			AsyncSendBatchMaxBytes:   1024,
+		}},
+	}
+	state := &sessionState{
+		server:         srv,
+		closedCh:       make(chan struct{}),
+		requestContext: context.Background(),
+	}
+	tasks := make(chan asyncDispatchTask, 2)
+	tasks <- asyncDispatchTask{state: state, replyToken: "r1", frame: &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m1", Payload: []byte("one")}, enqueuedAt: time.Now()}
+	tasks <- asyncDispatchTask{state: state, replyToken: "r2", frame: &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m2", Payload: []byte("two")}, enqueuedAt: time.Now()}
+	close(tasks)
+
+	srv.workerWG.Add(1)
+	srv.runAsyncDispatchWorker(tasks)
+
+	if got := handler.frameCalls.Load(); got != 0 {
+		t.Fatalf("OnFrame calls = %d, want 0 when batch handler is available", got)
+	}
+	batches := handler.snapshotBatches()
+	if len(batches) != 1 {
+		t.Fatalf("batch calls = %d, want 1", len(batches))
+	}
+	if got := len(batches[0]); got != 2 {
+		t.Fatalf("batch size = %d, want 2", got)
+	}
+	if got, want := []string{batches[0][0].Frame.ClientMsgNo, batches[0][1].Frame.ClientMsgNo}, []string{"m1", "m2"}; !equalStrings(got, want) {
+		t.Fatalf("batch client msg nos = %v, want %v", got, want)
+	}
+	if got, want := []string{batches[0][0].ReplyToken, batches[0][1].ReplyToken}, []string{"r1", "r2"}; !equalStrings(got, want) {
+		t.Fatalf("reply tokens = %v, want %v", got, want)
+	}
+}
+
+func TestAsyncSendDispatchFallsBackToFrameHandler(t *testing.T) {
+	handler := &countingAsyncFrameHandler{}
+	srv := &Server{
+		dispatcher: newDispatcher(handler),
+		options: gatewaytypes.Options{DefaultSession: gatewaytypes.SessionOptions{
+			AsyncSendBatchMaxRecords: 8,
+			AsyncSendBatchMaxBytes:   1024,
+		}},
+	}
+	state := &sessionState{
+		server:         srv,
+		closedCh:       make(chan struct{}),
+		requestContext: context.Background(),
+	}
+	tasks := make(chan asyncDispatchTask, 2)
+	tasks <- asyncDispatchTask{state: state, frame: &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m1"}}
+	tasks <- asyncDispatchTask{state: state, frame: &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m2"}}
+	close(tasks)
+
+	srv.workerWG.Add(1)
+	srv.runAsyncDispatchWorker(tasks)
+
+	if got, want := handler.frames.Load(), uint64(2); got != want {
+		t.Fatalf("OnFrame calls = %d, want %d", got, want)
+	}
+}
+
+func asyncSendBatchTestTask(clientMsgNo string, payloadBytes int) asyncDispatchTask {
+	return asyncDispatchTask{
+		frame: &frame.SendPacket{
+			ClientMsgNo: clientMsgNo,
+			Payload:     make([]byte, payloadBytes),
+		},
+	}
+}
+
+func asyncSendBatchClientMsgNos(batch []asyncDispatchTask) []string {
+	out := make([]string, 0, len(batch))
+	for _, task := range batch {
+		send, _ := task.frame.(*frame.SendPacket)
+		if send == nil {
+			out = append(out, "")
+			continue
+		}
+		out = append(out, send.ClientMsgNo)
+	}
+	return out
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+type recordingAsyncSendBatchHandler struct {
+	frameCalls atomic.Uint64
+
+	mu      sync.Mutex
+	batches [][]gatewaytypes.SendBatchItem
+}
+
+func (h *recordingAsyncSendBatchHandler) OnListenerError(string, error) {}
+func (h *recordingAsyncSendBatchHandler) OnSessionOpen(*gatewaytypes.Context) error {
+	return nil
+}
+func (h *recordingAsyncSendBatchHandler) OnFrame(*gatewaytypes.Context, frame.Frame) error {
+	h.frameCalls.Add(1)
+	return nil
+}
+func (h *recordingAsyncSendBatchHandler) OnSendBatch(items []gatewaytypes.SendBatchItem) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.batches = append(h.batches, append([]gatewaytypes.SendBatchItem(nil), items...))
+	return nil
+}
+func (h *recordingAsyncSendBatchHandler) OnSessionClose(*gatewaytypes.Context) error {
+	return nil
+}
+func (h *recordingAsyncSendBatchHandler) OnSessionError(*gatewaytypes.Context, error) {}
+
+func (h *recordingAsyncSendBatchHandler) snapshotBatches() [][]gatewaytypes.SendBatchItem {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	out := make([][]gatewaytypes.SendBatchItem, len(h.batches))
+	for i := range h.batches {
+		out[i] = append([]gatewaytypes.SendBatchItem(nil), h.batches[i]...)
+	}
+	return out
 }
 
 type countingAsyncFrameHandler struct {

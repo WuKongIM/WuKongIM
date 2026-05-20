@@ -56,18 +56,33 @@ type SessionOptions struct {
 	WriteTimeout     time.Duration
 	// AsyncSendDispatchWorkers sets the SEND worker pool size. Non-positive values use an IO-wait-aware adaptive default.
 	AsyncSendDispatchWorkers int
-	CloseOnHandlerError      *bool
+	// AsyncSendBatchMaxWait bounds how long a SEND shard waits to collect adjacent frames.
+	AsyncSendBatchMaxWait time.Duration
+	// AsyncSendBatchMaxRecords caps SEND frames in one gateway micro-batch.
+	AsyncSendBatchMaxRecords int
+	// AsyncSendBatchMaxBytes caps payload bytes in one gateway micro-batch.
+	AsyncSendBatchMaxBytes int
+	CloseOnHandlerError    *bool
 }
+
+const (
+	defaultAsyncSendBatchMaxWait    = 500 * time.Microsecond
+	defaultAsyncSendBatchMaxRecords = 128
+	defaultAsyncSendBatchMaxBytes   = 512 * 1024
+)
 
 func DefaultSessionOptions() SessionOptions {
 	return SessionOptions{
-		ReadBufferSize:      4 << 10,
-		WriteQueueSize:      64,
-		MaxInboundBytes:     1 << 20,
-		MaxOutboundBytes:    1 << 20,
-		IdleTimeout:         3 * time.Minute,
-		WriteTimeout:        10 * time.Second,
-		CloseOnHandlerError: boolPtr(true),
+		ReadBufferSize:           4 << 10,
+		WriteQueueSize:           64,
+		MaxInboundBytes:          1 << 20,
+		MaxOutboundBytes:         1 << 20,
+		IdleTimeout:              3 * time.Minute,
+		WriteTimeout:             10 * time.Second,
+		AsyncSendBatchMaxWait:    defaultAsyncSendBatchMaxWait,
+		AsyncSendBatchMaxRecords: defaultAsyncSendBatchMaxRecords,
+		AsyncSendBatchMaxBytes:   defaultAsyncSendBatchMaxBytes,
+		CloseOnHandlerError:      boolPtr(true),
 	}
 }
 
@@ -144,6 +159,17 @@ func NormalizeSessionOptions(opt SessionOptions) SessionOptions {
 	}
 	if opt.WriteTimeout == 0 {
 		opt.WriteTimeout = def.WriteTimeout
+	}
+	if opt.AsyncSendBatchMaxWait == 0 {
+		opt.AsyncSendBatchMaxWait = def.AsyncSendBatchMaxWait
+	} else if opt.AsyncSendBatchMaxWait < 0 {
+		opt.AsyncSendBatchMaxWait = 0
+	}
+	if opt.AsyncSendBatchMaxRecords <= 0 {
+		opt.AsyncSendBatchMaxRecords = def.AsyncSendBatchMaxRecords
+	}
+	if opt.AsyncSendBatchMaxBytes <= 0 {
+		opt.AsyncSendBatchMaxBytes = def.AsyncSendBatchMaxBytes
 	}
 	if opt.CloseOnHandlerError == nil {
 		opt.CloseOnHandlerError = def.CloseOnHandlerError

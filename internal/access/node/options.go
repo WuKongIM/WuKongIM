@@ -48,6 +48,7 @@ type ChannelLog interface {
 	Status(id channel.ChannelID) (channel.ChannelRuntimeStatus, error)
 	Fetch(ctx context.Context, req channel.FetchRequest) (channel.FetchResult, error)
 	Append(ctx context.Context, req channel.AppendRequest) (channel.AppendResult, error)
+	AppendBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error)
 }
 
 type ChannelMetaRefresher interface {

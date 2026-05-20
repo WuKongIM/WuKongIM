@@ -119,6 +119,26 @@ func (c *fanoutMessageCluster) Append(_ context.Context, req channel.AppendReque
 	return c.result, nil
 }
 
+func (c *fanoutMessageCluster) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	for _, msg := range req.Messages {
+		c.requests = append(c.requests, channel.AppendRequest{
+			ChannelID:             req.ChannelID,
+			Message:               msg,
+			SupportsMessageSeqU64: req.SupportsMessageSeqU64,
+			CommitMode:            req.CommitMode,
+			ExpectedChannelEpoch:  req.ExpectedChannelEpoch,
+			ExpectedLeaderEpoch:   req.ExpectedLeaderEpoch,
+			TraceID:               req.TraceID,
+			Attempt:               req.Attempt,
+		})
+	}
+	return channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{
+		MessageID:  c.result.MessageID,
+		MessageSeq: c.result.MessageSeq,
+		Message:    c.result.Message,
+	}}}, nil
+}
+
 type fanoutMetaRefresher struct{}
 
 func (fanoutMetaRefresher) RefreshChannelMeta(context.Context, channel.ChannelID) (channel.Meta, error) {

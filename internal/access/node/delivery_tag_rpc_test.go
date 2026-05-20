@@ -351,6 +351,10 @@ func (s *stubDeliveryTagChannelLog) Append(context.Context, channel.AppendReques
 	return channel.AppendResult{}, nil
 }
 
+func (s *stubDeliveryTagChannelLog) AppendBatch(context.Context, channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	return channel.AppendBatchResult{}, nil
+}
+
 func mustEncodeDeliveryTagRequest(t *testing.T, req DeliveryTagRequest) []byte {
 	t.Helper()
 	body, err := encodeDeliveryTagRequestBinary(req)

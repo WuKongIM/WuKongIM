@@ -1015,6 +1015,10 @@ func (s *stubMetaService) Append(context.Context, channel.AppendRequest) (channe
 	return channel.AppendResult{}, errors.New("not implemented")
 }
 
+func (s *stubMetaService) AppendBatch(context.Context, channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	return channel.AppendBatchResult{}, errors.New("not implemented")
+}
+
 func (s *stubMetaService) Fetch(context.Context, channel.FetchRequest) (channel.FetchResult, error) {
 	return channel.FetchResult{}, errors.New("not implemented")
 }

@@ -22,6 +22,7 @@
 type Cluster interface {
     ApplyMeta(meta Meta) error                                         // 控制面下发元数据变更
     Append(ctx context.Context, req AppendRequest) (AppendResult, error) // 追加消息
+    AppendBatch(ctx context.Context, req AppendBatchRequest) (AppendBatchResult, error) // 同一频道批量追加消息
     Fetch(ctx context.Context, req FetchRequest) (FetchResult, error)    // 获取已提交消息
     Status(id ChannelID) (ChannelRuntimeStatus, error)                 // 查询频道状态
     Close() error
@@ -39,15 +40,16 @@ type Cluster interface {
 | `Message` | types.go | 消息：MessageID, MessageSeq, FromUID, ClientMsgNo, Payload |
 | `ReplicaState` | types.go | 副本状态：Role、运行时 CommitHW(`HW`)、持久化 CheckpointHW、`CommitReady`、LEO、Epoch、retention floor |
 | `AppendRequest` | types.go | 追加请求：ChannelID, Message, ExpectedChannelEpoch, ExpectedLeaderEpoch；`TraceID` / `Attempt` 仅用于节点内 diagnostics |
+| `AppendBatchRequest` | types.go | 同一 ChannelID 内按请求顺序追加多条消息；逐项结果与输入下标对齐，单条 `Append` 是其兼容包装 |
 | `Checkpoint` | types.go | 检查点：Epoch + LogStartOffset + HW；用于冷恢复下界与 reconcile 后的持久化提交水位 |
 | `RetentionView` / `RetentionReset` | types.go | retention 规划视图与 follower 低于逻辑 floor 时的 typed reset |
 | `FenceAndDrainRequest` / `DrainResult` | types.go | migration cutover 写栅栏下的 leader drain 请求与证明结果 |
 
 ## 5. 核心流程
 
-### 5.1 消息追加（Append）
+### 5.1 消息追加（Append / AppendBatch）
 
-入口: `channel.go` → `handler/append.go service.Append`
+入口: `channel.go` → `handler/append.go service.Append` / `service.AppendBatch`
 
 ```
 Handler 层:
@@ -57,27 +59,31 @@ Handler 层:
   ③ 若 `FromUID` 和 `ClientMsgNo` 同时存在，则通过 `LookupIdempotency()` 命中
      `uidx_from_uid_client_msg_no`，再用 `GetMessageBySeq()` 取回已落盘消息
      命中且 PayloadHash 匹配 → 返回旧结果；Hash 不匹配 → ErrIdempotencyConflict
+     AppendBatch 会先逐项解析已落盘幂等结果，再在批内按 `(ChannelID, FromUID, ClientMsgNo)` 合并重复项；
+     相同 key 且 PayloadHash 不同的后续项返回 `ErrIdempotencyConflict`，不会进入 replica append
   ③.1 `AppendRequest.TraceID` / `Attempt` 仅透传给节点内 sendtrace/diagnostics，用于排查当前 append 尝试
       它们不参与 message codec、存储、幂等索引或 Phase 1 节点 RPC payload
-  ④ 分配 MessageID → MessageIDGenerator.Next()
-  ⑤ 编码兼容层 DurableMessage → handler/codec.go:encodeMessage
+  ④ 检查 WriteFence 与 legacy U32 剩余 seq 容量；批量请求中不可追加的项写入逐项错误，已落盘幂等命中不受新写 fence 影响
+  ⑤ 对可追加的新消息分配 MessageID → MessageIDGenerator.Next()
+  ⑥ 编码兼容层 DurableMessage → handler/codec.go:encodeMessage
      这份 `[]byte` 只作为 replica/transport 仍在使用的 ingress 表示；磁盘真相已是结构化 `message` 行
 
 Replica 层 (replica/append.go + replica/append_pipeline.go):
-  ⑥ 先检查 leader 是否 `CommitReady=true` 且本地 meta 不带 WriteFence token；若刚启动/刚完成 leader transfer 但尚未完成 reconcile，则直接返回 ErrNotReady；若 migration fence 尚未被权威清除/升级，则返回 ErrWriteFenced
-  ⑦ runtime 对本进程新建的记录批次使用 replica owned append fast path，避免重复深拷贝；facade 将 append request 提交到 replica loop；loop-owned append pipeline 按 1ms/64条/64KB 做 Group Commit
-  ⑧ append effect worker 在 `durableMu` 下执行 Leader LogStore append/sync；底层 store 对同一 channel 的并发 synced Append 先按
+  ⑦ 先检查 leader 是否 `CommitReady=true` 且本地 meta 不带 WriteFence token；若刚启动/刚完成 leader transfer 但尚未完成 reconcile，则直接返回 ErrNotReady；若 migration fence 尚未被权威清除/升级，则返回 ErrWriteFenced
+  ⑧ runtime 对本进程新建的记录批次使用 replica owned append fast path，避免重复深拷贝；facade 将 append request 提交到 replica loop；loop-owned append pipeline 按 1ms/64条/64KB 做 Group Commit
+     AppendBatch 对同一频道一次调用 `group.Append(ctx, []Record)`，让 leader local durable append、quorum waiter 和 follower fetch 天然看到多条连续 record
+  ⑨ append effect worker 在 `durableMu` 下执行 Leader LogStore append/sync；底层 store 对同一 channel 的并发 synced Append 先按
      `store/commit.go` 的 FlushWindow 聚合成一个 channel-local append，再在单 channel `writeMu` 下 prepare 记录并提交给跨频道 coordinator；
      coordinator 用可配置窗口（默认 200µs）合并 Pebble Sync，并可按请求数/记录数/字节数限制单批大小；sync 完成前不发布新的 LEO
-  ⑨ `ChannelStore.prepareAppendLocked()` 会把兼容层 payload 解成 `messageRow`，并由 `messageTable.append()`
+  ⑩ `ChannelStore.prepareAppendLocked()` 会把兼容层 payload 解成 `messageRow`，并由 `messageTable.append()`
      写入 `message` 表的 primary/payload families，同时维护 `message_id` / `client_msg_no`
      / `uidx_from_uid_client_msg_no` 三类索引
-  ⑩ durable result 带 EffectID/Channel/Epoch/LeaderEpoch/RoleGeneration 回到 loop；fence 通过后才发布 LEO，并注册 Quorum Waiter (目标 CommitHW = LEO + recordCount)
+  ⑪ durable result 带 EffectID/Channel/Epoch/LeaderEpoch/RoleGeneration 回到 loop；fence 通过后才发布 LEO，并注册 Quorum Waiter (目标 CommitHW = LEO + recordCount)
       对同 leader 的 lease-only 续租，append effect 入写前和 durable result 回环时都以当前已续租 lease 做最终 fence；
       不能因 effect 创建时捕获的旧 lease 已过期而丢弃已经安全落盘的 append，否则 durable LEO 会领先运行时 LEO
       若 lease 恢复/leader reconcile 已经把这批 in-flight append 的 durable LEO 采纳到运行时，effect 回环按幂等完成原 waiter，不再把较低 BaseOffset 当成损坏
-  ⑪ `progress_pipeline.go:advanceHWLocked` 取 ISR 中第 MinISR 高的 MatchOffset，满足 quorum 后先推进运行时 `HW(CommitHW)`、完成 Waiter / sendack
-  ⑫ Checkpoint 持久化由 checkpoint effect worker 异步 coalescing；写盘成功后才推进 `CheckpointHW`
+  ⑫ `progress_pipeline.go:advanceHWLocked` 取 ISR 中第 MinISR 高的 MatchOffset，满足 quorum 后先推进运行时 `HW(CommitHW)`、完成 Waiter / sendack
+  ⑬ Checkpoint 持久化由 checkpoint effect worker 异步 coalescing；写盘成功后才推进 `CheckpointHW`
 ```
 
 ### 5.2 消息获取（Fetch）
@@ -270,6 +276,7 @@ System (0x17): prefix + key + tableID + systemID + ...
 - **Checkpoint 不再阻塞 sendack**: leader 在 quorum commit 后先完成 Append waiter，Checkpoint 持久化走 checkpoint effect worker coalescing；若 checkpoint 写盘失败会临时置 `CommitReady=false` 并重试。health / metrics 暴露应通过上层观测性窄接口接入，不改变 sendack 语义。
 - **Learner 语义**: `learner = Replicas - ISR`。learner 会接收 steady-state 复制和 catch-up probe，但在进入 `ISR` 前不参与 HW quorum、MinISR 写可用性或 leader promotion 候选。
 - **Append diagnostics 不改变协议语义**: `AppendRequest.TraceID` 和 `Attempt` 是 Phase 1 节点内诊断字段，只服务 sendtrace/diagnostics 查询；不要把它们写入 message payload/store codec/idempotency key，也不要编码进 `channel_append` 节点 RPC payload。
+- **AppendBatch 是同频道优化，不是跨频道事务**: 批内只保证一个 ChannelID 的请求顺序和逐项结果对齐；跨频道分组必须在上层完成。已落盘幂等命中必须先于 WriteFence 返回，新的可写项才参与一次 `group.Append([]Record)`。
 - **leader reconcile 先区分“需要 peer 证明”与“只差本地 checkpoint”**: 若 leader transfer 后只是 `CheckpointHW < HW`、本地没有 `LEO > HW` 的 provisional tail，则会直接做本地 reconcile，不等待 peer probe；若已经拿到足以证明本地 tail 全量 quorum-safe 的 proof，也不会继续卡在离线 ISR peer 上。
 - **Transport RPC 分片**: steady-state lane poll 按 `laneID` 路由，保证同一 `(peer,lane)` 有序；辅助 `Fetch` / `ReconcileProbe` 继续按 FNV-64a(ChannelKey) 路由；app 侧同步 `ProbeClient` 也复用同一个 `ReconcileProbe` service。`ReconcileProbe` request 默认保持 v2 以兼容滚动升级，只有 channel migration 显式请求 v3 时服务端才返回扩展 readiness 字段。见 `transport/session.go` / `transport/probe_client.go`。
 - **Leader lane session 是固定规模资源**: ready queue / parked waiter 的规模与 `peer * laneCount` 成正比，不会退化成 per-channel timer / goroutine。

@@ -243,6 +243,31 @@ func (f *fakeChannelCluster) Append(_ context.Context, req channel.AppendRequest
 	return f.result, f.err
 }
 
+func (f *fakeChannelCluster) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	if f.err != nil {
+		return channel.AppendBatchResult{}, f.err
+	}
+	items := make([]channel.AppendBatchItemResult, len(req.Messages))
+	for i, msg := range req.Messages {
+		f.appendRequests = append(f.appendRequests, channel.AppendRequest{
+			ChannelID:             req.ChannelID,
+			Message:               msg,
+			SupportsMessageSeqU64: req.SupportsMessageSeqU64,
+			CommitMode:            req.CommitMode,
+			ExpectedChannelEpoch:  req.ExpectedChannelEpoch,
+			ExpectedLeaderEpoch:   req.ExpectedLeaderEpoch,
+			TraceID:               req.TraceID,
+			Attempt:               req.Attempt,
+		})
+		items[i] = channel.AppendBatchItemResult{
+			MessageID:  f.result.MessageID,
+			MessageSeq: f.result.MessageSeq,
+			Message:    f.result.Message,
+		}
+	}
+	return channel.AppendBatchResult{Items: items}, nil
+}
+
 func (d *apiRecordingCommittedDispatcher) SubmitCommitted(_ context.Context, event messageevents.MessageCommitted) error {
 	copied := event.Clone()
 	d.calls = append(d.calls, copied)

@@ -211,6 +211,135 @@ func TestHandlerOnFrameSendMapsCommandAndWritesSendack(t *testing.T) {
 	require.Equal(t, "reply-1", write.meta.ReplyToken)
 }
 
+func TestHandlerOnSendBatchWritesAlignedSendacks(t *testing.T) {
+	sender := newOptionRecordingSession(1, "tcp")
+	sender.SetValue(coregateway.SessionValueUID, "u1")
+	msgs := &fakeMessageUsecase{
+		sendBatchResults: []message.SendBatchItemResult{
+			{Result: message.SendResult{MessageID: 101, MessageSeq: 11, Reason: frame.ReasonSuccess}},
+			{Result: message.SendResult{MessageID: 102, MessageSeq: 12, Reason: frame.ReasonSuccess}},
+		},
+	}
+	handler := New(Options{Messages: msgs})
+	items := []coregateway.SendBatchItem{
+		{
+			Context: &coregateway.Context{
+				Session:        sender,
+				Listener:       "tcp",
+				ReplyToken:     "reply-1",
+				RequestContext: context.Background(),
+			},
+			ReplyToken: "reply-1",
+			Frame: &frame.SendPacket{
+				ChannelID:   "u2",
+				ChannelType: frame.ChannelTypePerson,
+				ClientSeq:   21,
+				ClientMsgNo: "batch-1",
+				Payload:     []byte("one"),
+			},
+		},
+		{
+			Context: &coregateway.Context{
+				Session:        sender,
+				Listener:       "tcp",
+				ReplyToken:     "reply-2",
+				RequestContext: context.Background(),
+			},
+			ReplyToken: "reply-2",
+			Frame: &frame.SendPacket{
+				ChannelID:   "u2",
+				ChannelType: frame.ChannelTypePerson,
+				ClientSeq:   22,
+				ClientMsgNo: "batch-2",
+				Payload:     []byte("two"),
+			},
+		},
+	}
+
+	require.NoError(t, handler.OnSendBatch(items))
+
+	require.Len(t, msgs.sendBatchItems, 2)
+	require.Equal(t, "batch-1", msgs.sendBatchItems[0].Command.ClientMsgNo)
+	require.Equal(t, "batch-2", msgs.sendBatchItems[1].Command.ClientMsgNo)
+	require.NotSame(t, msgs.sendBatchItems[0].Context, msgs.sendBatchItems[1].Context)
+	writes := sender.Writes()
+	require.Len(t, writes, 2)
+	first := requireSendackPacket(t, writes[0].f)
+	require.Equal(t, int64(101), first.MessageID)
+	require.Equal(t, uint64(11), first.MessageSeq)
+	require.Equal(t, uint64(21), first.ClientSeq)
+	require.Equal(t, "batch-1", first.ClientMsgNo)
+	require.Equal(t, "reply-1", writes[0].meta.ReplyToken)
+	second := requireSendackPacket(t, writes[1].f)
+	require.Equal(t, int64(102), second.MessageID)
+	require.Equal(t, uint64(12), second.MessageSeq)
+	require.Equal(t, uint64(22), second.ClientSeq)
+	require.Equal(t, "batch-2", second.ClientMsgNo)
+	require.Equal(t, "reply-2", writes[1].meta.ReplyToken)
+}
+
+func TestHandlerOnSendBatchRejectsInvalidItemWithoutBlockingValidItem(t *testing.T) {
+	invalidSender := newOptionRecordingSession(2, "tcp")
+	sender := newOptionRecordingSession(1, "tcp")
+	msgs := &fakeMessageUsecase{
+		sendBatchResults: []message.SendBatchItemResult{
+			{Result: message.SendResult{MessageID: 201, MessageSeq: 31, Reason: frame.ReasonSuccess}},
+		},
+	}
+	handler := New(Options{Messages: msgs})
+	validCtx := &coregateway.Context{
+		Session:        sender,
+		Listener:       "tcp",
+		ReplyToken:     "reply-valid",
+		RequestContext: context.Background(),
+	}
+	validCtx.Session.SetValue(coregateway.SessionValueUID, "u1")
+
+	err := handler.OnSendBatch([]coregateway.SendBatchItem{
+		{
+			Context: &coregateway.Context{
+				Session:        invalidSender,
+				Listener:       "tcp",
+				ReplyToken:     "reply-invalid",
+				RequestContext: context.Background(),
+			},
+			ReplyToken: "reply-invalid",
+			Frame: &frame.SendPacket{
+				ChannelID:   "u2",
+				ChannelType: frame.ChannelTypePerson,
+				ClientSeq:   30,
+				ClientMsgNo: "invalid",
+			},
+		},
+		{
+			Context:    validCtx,
+			ReplyToken: "reply-valid",
+			Frame: &frame.SendPacket{
+				ChannelID:   "u2",
+				ChannelType: frame.ChannelTypePerson,
+				ClientSeq:   31,
+				ClientMsgNo: "valid",
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, msgs.sendBatchItems, 1)
+	require.Equal(t, "valid", msgs.sendBatchItems[0].Command.ClientMsgNo)
+	invalidWrites := invalidSender.Writes()
+	require.Len(t, invalidWrites, 1)
+	rejected := requireSendackPacket(t, invalidWrites[0].f)
+	require.Equal(t, frame.ReasonAuthFail, rejected.ReasonCode)
+	require.Equal(t, "reply-invalid", invalidWrites[0].meta.ReplyToken)
+	writes := sender.Writes()
+	require.Len(t, writes, 1)
+	accepted := requireSendackPacket(t, writes[0].f)
+	require.Equal(t, frame.ReasonSuccess, accepted.ReasonCode)
+	require.Equal(t, int64(201), accepted.MessageID)
+	require.Equal(t, uint64(31), accepted.MessageSeq)
+	require.Equal(t, "reply-valid", writes[0].meta.ReplyToken)
+}
+
 func TestHandlerOnFrameSendPreservesBusinessDenialReason(t *testing.T) {
 	sender := newOptionRecordingSession(1, "tcp")
 	sender.SetValue(coregateway.SessionValueUID, "u1")
@@ -928,16 +1057,18 @@ func mustEncryptSendPacket(t *testing.T, packet *frame.SendPacket, keys wkprotoe
 }
 
 type fakeMessageUsecase struct {
-	sendCommands    []message.SendCommand
-	sendContexts    []context.Context
-	sendFn          func(context.Context, message.SendCommand) (message.SendResult, error)
-	sendResult      message.SendResult
-	sendErr         error
-	sessionClosed   []message.SessionClosedCommand
-	sessionCloseErr error
-	recvAckCalls    int
-	recvAckCommands []message.RecvAckCommand
-	recvAckErr      error
+	sendCommands     []message.SendCommand
+	sendContexts     []context.Context
+	sendFn           func(context.Context, message.SendCommand) (message.SendResult, error)
+	sendResult       message.SendResult
+	sendErr          error
+	sendBatchItems   []message.SendBatchItem
+	sendBatchResults []message.SendBatchItemResult
+	sessionClosed    []message.SessionClosedCommand
+	sessionCloseErr  error
+	recvAckCalls     int
+	recvAckCommands  []message.RecvAckCommand
+	recvAckErr       error
 }
 
 func (f *fakeMessageUsecase) Send(ctx context.Context, cmd message.SendCommand) (message.SendResult, error) {
@@ -947,6 +1078,19 @@ func (f *fakeMessageUsecase) Send(ctx context.Context, cmd message.SendCommand) 
 		return f.sendFn(ctx, cmd)
 	}
 	return f.sendResult, f.sendErr
+}
+
+func (f *fakeMessageUsecase) SendBatch(items []message.SendBatchItem) []message.SendBatchItemResult {
+	f.sendBatchItems = append(f.sendBatchItems, items...)
+	if f.sendBatchResults != nil {
+		return append([]message.SendBatchItemResult(nil), f.sendBatchResults...)
+	}
+	results := make([]message.SendBatchItemResult, len(items))
+	for i, item := range items {
+		result, err := f.Send(item.Context, item.Command)
+		results[i] = message.SendBatchItemResult{Result: result, Err: err}
+	}
+	return results
 }
 
 func (f *fakeMessageUsecase) RecvAck(cmd message.RecvAckCommand) error {
@@ -1037,6 +1181,21 @@ func (f *fakeChannelCluster) ApplyMeta(channel.Meta) error {
 
 func (f *fakeChannelCluster) Append(context.Context, channel.AppendRequest) (channel.AppendResult, error) {
 	return f.result, f.err
+}
+
+func (f *fakeChannelCluster) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	if f.err != nil {
+		return channel.AppendBatchResult{}, f.err
+	}
+	items := make([]channel.AppendBatchItemResult, len(req.Messages))
+	for i := range req.Messages {
+		items[i] = channel.AppendBatchItemResult{
+			MessageID:  f.result.MessageID,
+			MessageSeq: f.result.MessageSeq,
+			Message:    f.result.Message,
+		}
+	}
+	return channel.AppendBatchResult{Items: items}, nil
 }
 
 func newClusterBackedMessageApp(result channel.AppendResult) *message.App {
