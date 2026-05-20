@@ -85,6 +85,17 @@ func TestDevSimComposeSmokeTrustsStatusCountersForTraffic(t *testing.T) {
 	}
 }
 
+func TestDevSimComposeSmokeDefaultTimeoutCoversHighTrafficStartup(t *testing.T) {
+	script := readFile(t, filepath.Join(repoRoot(t), "scripts", "dev-sim-compose-smoke.sh"))
+
+	if !strings.Contains(script, `READY_TIMEOUT="${WK_DEV_SIM_READY_TIMEOUT:-180}"`) {
+		t.Fatal("default dev-sim smoke timeout should cover the 1000-user Compose startup profile")
+	}
+	if !strings.Contains(script, "Default: WK_DEV_SIM_READY_TIMEOUT or 180.") {
+		t.Fatal("usage text should document the default dev-sim smoke timeout")
+	}
+}
+
 func writeFakeDocker(t *testing.T, path string, callsDir string) {
 	t.Helper()
 	script := `#!/usr/bin/env bash

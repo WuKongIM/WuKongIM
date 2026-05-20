@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROFILE="dev-sim"
 STATUS_URL="${WK_DEV_SIM_STATUS_URL:-http://127.0.0.1:19091/status}"
-READY_TIMEOUT="${WK_DEV_SIM_READY_TIMEOUT:-90}"
+READY_TIMEOUT="${WK_DEV_SIM_READY_TIMEOUT:-180}"
 POLL_INTERVAL="${WK_DEV_SIM_POLL_INTERVAL:-2}"
 UP_RETRIES="${WK_DEV_SIM_UP_RETRIES:-3}"
 UP_RETRY_BACKOFF="${WK_DEV_SIM_UP_RETRY_BACKOFF:-2}"
@@ -27,7 +27,7 @@ Options:
   --no-build          Run docker compose up without --build.
   --no-up             Skip compose up and only check an already running stack.
   --skip-logs         Skip recent log inspection.
-  --timeout SECONDS   Status wait timeout. Default: WK_DEV_SIM_READY_TIMEOUT or 90.
+  --timeout SECONDS   Status wait timeout. Default: WK_DEV_SIM_READY_TIMEOUT or 180.
   --poll SECONDS      Status polling interval. Default: WK_DEV_SIM_POLL_INTERVAL or 2.
   --log-tail LINES    Recent log lines to inspect. Default: WK_DEV_SIM_LOG_TAIL or 300.
   -h, --help          Show this help.
