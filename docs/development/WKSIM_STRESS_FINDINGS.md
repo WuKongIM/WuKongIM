@@ -87,3 +87,37 @@ Verification:
 - Targeted routing tests passed with `GOWORK=off go test ./internal/app -run 'TestDeliveryRouting|TestDistributedDeliveryPush|TestLocalDeliveryPush' -count=1`.
 - Broader focused tests passed with `GOWORK=off go test ./internal/app ./internal/bench/... ./cmd/wkbench -count=1`.
 - Rebuilt Compose group-only sampled profile with prefix `groupfix-u` stayed `running` for more than 5 minutes and reached `messages_sent=494`, `send_errors=0`, `recv_errors=0`, `last_error=""`.
+
+## 2026-05-20 Run 3
+
+Environment:
+- Same three-node Compose cluster, rebuilt after `fix: fan out group delivery tag partitions`.
+- Profiles used unique `WK_SIM_UID_PREFIX` values and targeted the `wk-sim` service through Docker Compose.
+
+Healthy checks:
+- Default mixed profile (`1000` users, `500` person channels, `500` group channels, `0.25/s`, concurrency `128`, receive verification `none`) reached `messages_sent=13525`, `send_errors=0`, `recv_errors=0`.
+- Reduced sampled mixed profile (`40` users, `10` person channels, `3` groups, `0.5/s`, concurrency `16`) reached `messages_sent=582`, `send_errors=0`, `recv_errors=0`.
+- Larger sampled group profile (`120` users, `10` groups, `40` members, `0.3/s`, concurrency `32`) reached `messages_sent=269`, `send_errors=0`, `recv_errors=0`.
+
+### Issue 5: dev-sim skipped warmup before high-rate group traffic
+
+Evidence:
+- A person-only high-rate profile (`500` users, `250` person channels, `1/s`, concurrency `256`, receive verification `none`) reached `messages_sent=6002`, `send_errors=0`, `recv_errors=0`.
+- A group-only profile with the same rate shape (`500` users, `250` groups, `10` members, `1/s`, concurrency `256`, receive verification `none`) failed at the first cold run window with `messages_sent=577`, `send_errors=43`, `recv_errors=0`, and `last_error="context deadline exceeded"`.
+- Node logs during the failure showed many cold `channelmeta.bootstrap` operations for new group channels, while the simulator immediately entered measured traffic.
+
+Root cause:
+- `wkbench` worker flows support a `warmup` phase, and group/person workloads already run warmup at a reduced rate.
+- The long-running `dev-sim` supervisor derived no warmup duration and called only prepare/connect before starting repeated measured run windows.
+- High-rate group stress therefore mixed cold channel runtime metadata and delivery-tag materialization with the measured traffic window, causing transient sendack timeouts before the system reached steady state.
+
+Fix:
+- Add `traffic.warmup` to dev-sim config plus `WK_SIM_WARMUP` override, defaulting Compose and `docker/sim/dev-sim.yaml` to `10s`.
+- Run the in-process worker warmup once after prepare/connect and before `/status` transitions to `running`.
+- Capture a fresh metrics baseline after warmup so warmup sends and any warmup-only counters are not reported as measured `/status` traffic.
+- Update `internal/bench/FLOW.md` to document `prepare -> connect -> warmup -> run windows` for dev-sim.
+
+Verification:
+- Regression tests: `TestRunnerRunsWarmupBeforeTraffic` and `TestRunnerUsesWarmupMetricsAsCounterBaseline`.
+- Focused tests passed with `GOWORK=off go test ./internal/bench/devsim -count=1` and `GOWORK=off go test ./internal/bench/... ./cmd/wkbench -count=1`.
+- Rebuilt Docker image locally and reran the group-only high-rate profile with `WK_SIM_WARMUP=10s`; measured traffic reached `messages_sent=6096`, `send_errors=0`, `recv_errors=0`, `last_error=""`.
