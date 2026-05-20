@@ -108,7 +108,7 @@ Live mutable fields are owned by the loop/pipeline handlers while holding `r.mu`
 | `reconcilePending` | leader reconcile pipeline; tracks ISR proof still needed before CommitReady can be restored. |
 | `epochHistory` | startup recovery before workers, then loop-owned epoch/snapshot/apply/reconcile transitions. |
 | `statePointer` | immutable snapshot publication in `publishStateLocked`; `Status()` reads it lock-free. |
-| `durableMu` | serializes log-mutating durable effects outside the loop. |
+| `durableMu` durable lane | serializes log-mutating durable effects outside the loop through a cancellable single-token lane. |
 
 `append.go`, `progress.go`, `fetch.go`, `replication.go`, and `reconcile.go` are facade/read-only helper files. The only read of loop-owned fields in `append.go` is timeout diagnostics, and it snapshots waiter data while still holding `r.mu.RLock()`.
 
@@ -119,7 +119,7 @@ Replica loop work is selected by `ReplicaConfig.Execution.Mode`:
 - `pooled` is the default and uses a shared `ExecutionPool`; each replica owns a bounded mailbox and workers drain one replica at a time with a turn budget.
 - `dedicated` keeps the legacy per-replica loop goroutine plus per-replica append/checkpoint effect workers and remains a rollback mode.
 
-Both modes preserve per-channel single-writer semantics: all commands/results for one replica still pass through `applyLoopEvent()` serially, and all log/history/checkpoint/snapshot mutations remain fenced by the same effect ids, channel key, epoch, leader epoch, role generation, and `durableMu` checks.
+Both modes preserve per-channel single-writer semantics: all commands/results for one replica still pass through `applyLoopEvent()` serially, and all log/history/checkpoint/snapshot mutations remain fenced by the same effect ids, channel key, epoch, leader epoch, role generation, and `durableMu` durable-lane checks.
 
 Dedicated mode consumes two channels:
 
@@ -134,13 +134,13 @@ Durable effects run outside the loop so storage I/O does not block command proce
 
 - dedicated append effects go through `appendEffects` and `startAppendEffectWorker()`;
 - dedicated checkpoint effects go through `checkpointEffects` and `startCheckpointEffectWorker()`;
-- pooled append/checkpoint effects go through shared execution-pool effect queues while preserving each replica's `durableMu` lane and result fencing;
+- pooled append/checkpoint effects go through shared execution-pool effect queues while preserving each replica's `durableMu` durable lane and result fencing;
 - begin-epoch, follower apply, snapshot install, and leader reconcile durable effects are executed by the caller path after a loop command returns the effect;
 - retention adoption/reset and physical trim effects are executed by the caller path after a loop command returns them;
-- all log/history/checkpoint/snapshot mutations take `durableMu` so one replica has a single durable mutation lane;
-- read-log effects do not take `durableMu`, but their result is fenced by channel key, epoch, role generation, and captured leader LEO.
+- all log/history/checkpoint/snapshot mutations enter the `durableMu` durable lane so one replica has a single durable mutation lane;
+- read-log effects do not enter `durableMu`, but their result is fenced by channel key, epoch, role generation, and captured leader LEO.
 
-Every durable result carries an `EffectID` plus channel/epoch/role-generation fences; leader-scoped results also carry leader or leader-epoch fences. Durable effects validate their fence before queuing and revalidate after acquiring `durableMu`, immediately before mutating storage. Stale results are discarded or reported as `ErrStaleMeta`; they must not publish newer state into an old role.
+Every durable result carries an `EffectID` plus channel/epoch/role-generation fences; leader-scoped results also carry leader or leader-epoch fences. Durable effects validate their fence before queuing and revalidate after acquiring the `durableMu` durable lane, immediately before mutating storage. Stale results are discarded or reported as `ErrStaleMeta`; they must not publish newer state into an old role.
 
 ## 6. Core Flows
 
@@ -169,7 +169,7 @@ Recovery loads checkpoint, epoch history, snapshot presence, local retention sta
 
 Loop admission requires leader role, non-expired lease, `CommitReady=true`, no local `WriteFence` token, no drained fail-closed marker, and `len(ISR) >= MinISR`. A present write-fence token returns `ErrWriteFenced` even after its wall-clock TTL; a drained marker also returns `ErrWriteFenced` until a newer fence version is applied. Empty batches complete immediately. Non-empty batches enter `appendPending` and are flushed by size/count or the group-commit timer.
 
-A flush emits one `appendLeaderBatchEffect`. The append worker serializes durable mutation with `durableMu`, calls `AppendLeaderBatch`, syncs the log, verifies the returned LEO range, and sends `machineLeaderAppendCommittedEvent` back to the loop.
+A flush emits one `appendLeaderBatchEffect`. The append worker serializes durable mutation with the `durableMu` durable lane, calls `AppendLeaderBatch`, syncs the log, verifies the returned LEO range, and sends `machineLeaderAppendCommittedEvent` back to the loop.
 
 `FenceAndDrain()` is the migration cutover primitive. It runs through the same single-writer loop and requires local leader or fenced-leader role plus matching channel epoch, leader epoch, and leader. The request carries the authoritative migration fence; the replica accepts it when local metadata already matches it, has not observed that newer fence yet, or still has an older fence from the same task token, but rejects another active or newer local fence. This lets scale-in drain a leader even after Slot ownership moved away from the source and the fence metadata has not propagated locally. It fails queued appends with `ErrWriteFenced`, waits for in-flight durable appends, quorum waiters, uncommitted local tail, reconcile effects, and pending checkpoint writes to settle, then records an in-memory drained marker and returns a `DrainResult` proof containing LEO/HW/checkpoint/fence metadata. Applying metadata with a higher `WriteFenceVersion` clears the drained marker; same-version clears or TTL expiry do not reopen appends.
 
@@ -213,7 +213,7 @@ Checkpoint writes are coalesced. A newer pending checkpoint replaces an older qu
 
 `ApplyFetch()` submits `machineApplyFetchCommand`. The loop accepts follower and fenced-leader roles, fences channel/epoch/leader, rejects concurrent follower apply effects, validates optional `TruncateTo`, trims already-applied duplicate record prefixes, and validates the remaining fetched record indexes are contiguous from `baseLEO+1`.
 
-Record batches may create a new epoch point, append records, and optionally persist a checkpoint up to `min(LeaderHW, newLEO)`. Heartbeats may also persist an epoch-only boundary when metadata has advanced but no records exist yet, then move LEO/HW safely and store a checkpoint without records. Durable work runs under `durableMu` through `ApplyFollowerBatch`, `BeginEpoch`, `TruncateLogAndHistory`, or `StoreCheckpointMonotonic`.
+Record batches may create a new epoch point, append records, and optionally persist a checkpoint up to `min(LeaderHW, newLEO)`. Heartbeats may also persist an epoch-only boundary when metadata has advanced but no records exist yet, then move LEO/HW safely and store a checkpoint without records. Durable work runs under the `durableMu` durable lane through `ApplyFollowerBatch`, `BeginEpoch`, `TruncateLogAndHistory`, or `StoreCheckpointMonotonic`.
 
 The fenced result publishes LEO, HW, CheckpointHW, OffsetEpoch, and CommitReady. If a durable truncate committed before the result became stale, the loop still reflects that truncation so runtime LEO does not remain above local durable log.
 
@@ -243,7 +243,7 @@ Channel replica migration V1 does not use replica snapshot install as an automat
 
 `ApplyRetentionBoundary()` applies an authoritative retained-through sequence. `throughSeq == 0` is a no-op, and lower boundaries never reduce the logical fence. When the fence advances, the loop publishes `RetentionThroughSeq` and recomputes `MinAvailableSeq = EffectiveMinAvailableSeq(RetentionThroughSeq, LogStartOffset)` immediately, before physical deletion.
 
-Durable adoption/reset is emitted when the boundary is ahead of `LocalRetentionThroughSeq`. The adoption effect calls the store under `durableMu`, advances the committed replay cursor, and may raise runtime `LEO` to the retained boundary when the local log is behind; that reset leaves `CommitReady=false` until normal replication/reconcile catches up. Store failures leave the logical fence published and allow the same boundary to retry.
+Durable adoption/reset is emitted when the boundary is ahead of `LocalRetentionThroughSeq`. The adoption effect calls the store under the `durableMu` durable lane, advances the committed replay cursor, and may raise runtime `LEO` to the retained boundary when the local log is behind; that reset leaves `CommitReady=false` until normal replication/reconcile catches up. Store failures leave the logical fence published and allow the same boundary to retry.
 
 Physical trim is separate and may lag adoption. A trim effect is emitted only when `CommitReady=true`, `throughSeq <= CheckpointHW`, `throughSeq <= HW`, `throughSeq <= LEO`, and `throughSeq > PhysicalRetentionThroughSeq`. Successful trim publishes the durable physical boundary returned by the store. Retention never mutates checkpoint `LogStartOffset`; snapshots remain the owner of that floor.
 

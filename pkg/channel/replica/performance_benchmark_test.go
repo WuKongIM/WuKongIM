@@ -144,3 +144,18 @@ func BenchmarkReplicaApplyFollowerCursor(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkDurableLaneAcquireRelease(b *testing.B) {
+	r := &replica{}
+	r.initDurableLane()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		release, err := r.acquireDurableLane(context.Background())
+		if err != nil {
+			b.Fatalf("acquireDurableLane() error = %v", err)
+		}
+		release()
+	}
+}
