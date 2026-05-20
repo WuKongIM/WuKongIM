@@ -172,11 +172,12 @@ func TestDockerComposeDevSimDefaultsTargetHighTraffic(t *testing.T) {
 	compose := readFile(t, filepath.Join(repoRoot(t), "docker-compose.yml"))
 
 	for _, want := range []string{
-		"WK_SIM_USERS: ${WK_SIM_USERS:-500}",
-		"WK_SIM_PERSON_CHANNELS: ${WK_SIM_PERSON_CHANNELS:-100}",
-		"WK_SIM_GROUP_CHANNELS: ${WK_SIM_GROUP_CHANNELS:-100}",
+		"WK_SIM_USERS: ${WK_SIM_USERS:-1000}",
+		"WK_SIM_PERSON_CHANNELS: ${WK_SIM_PERSON_CHANNELS:-500}",
+		"WK_SIM_GROUP_CHANNELS: ${WK_SIM_GROUP_CHANNELS:-500}",
 		"WK_SIM_GROUP_MEMBERS: ${WK_SIM_GROUP_MEMBERS:-10}",
-		"WK_SIM_RATE: ${WK_SIM_RATE:-5/s}",
+		"WK_SIM_RATE: ${WK_SIM_RATE:-0.25/s}",
+		"WK_SIM_TRAFFIC_CONCURRENCY: ${WK_SIM_TRAFFIC_CONCURRENCY:-128}",
 		"WK_SIM_VERIFY_RECV: ${WK_SIM_VERIFY_RECV:-none}",
 	} {
 		if !strings.Contains(compose, want) {
