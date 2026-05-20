@@ -50,14 +50,6 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 	return results
 }
 
-func (a *App) sendOne(ctx context.Context, cmd SendCommand) (SendResult, error) {
-	prepared, done := a.prepareSend(ctx, cmd)
-	if done {
-		return prepared.result, prepared.err
-	}
-	return a.sendDurable(ctx, prepared.cmd)
-}
-
 type preparedSend struct {
 	index int
 	ctx   context.Context
@@ -315,73 +307,20 @@ func (a *App) sendRealtime(ctx context.Context, cmd SendCommand, messageScopedUI
 }
 
 func (a *App) sendDurable(ctx context.Context, cmd SendCommand) (SendResult, error) {
-	draft := buildDurableMessage(cmd, a.now())
-	channelID := channel.ChannelID{
-		ID:   cmd.ChannelID,
-		Type: cmd.ChannelType,
-	}
-	startedAt := a.now()
-	result, err := sendWithEnsuredMeta(ctx, a.localNodeID, a.now, a.sendLogger(),
-		a.cluster, a.remoteAppender, a.refresher, a.appendMetrics, channel.AppendRequest{
-			ChannelID:             channelID,
-			Message:               draft,
-			SupportsMessageSeqU64: supportsMessageSeqU64(cmd.ProtocolVersion),
-			CommitMode:            commitModeOrDefault(cmd.CommitMode),
-			ExpectedChannelEpoch:  cmd.ExpectedChannelEpoch,
-			ExpectedLeaderEpoch:   cmd.ExpectedLeaderEpoch,
-			TraceID:               cmd.TraceID,
-			Attempt:               0,
-		})
-	sendtrace.Record(sendtrace.Event{
-		TraceID:     cmd.TraceID,
-		Stage:       sendtrace.StageMessageSendDurable,
-		At:          startedAt,
-		Duration:    sendtrace.Elapsed(startedAt, a.now()),
-		NodeID:      a.localNodeID,
-		ChannelKey:  string(channelhandler.KeyFromChannelID(channelID)),
-		ClientMsgNo: cmd.ClientMsgNo,
-		MessageSeq:  result.MessageSeq,
-		FromUID:     cmd.FromUID,
-	})
-	if err != nil {
-		return SendResult{}, err
-	}
-
-	sendResult := SendResult{
-		MessageID:  int64(result.MessageID),
-		MessageSeq: result.MessageSeq,
-		Reason:     frame.ReasonSuccess,
-	}
-
-	intentSubmitted := a.submitRequestScopedCMDConversationIntent(ctx, result.Message, cmd.RequestSubscribers)
-	if a.dispatcher != nil {
-		if err := a.dispatcher.SubmitCommitted(ctx, messageevents.MessageCommitted{
-			Message:                        result.Message,
-			SenderSessionID:                cmd.SenderSessionID,
-			MessageScopedUIDs:              append([]string(nil), cmd.RequestSubscribers...),
-			CMDConversationIntentSubmitted: intentSubmitted,
-		}); err != nil {
-			fields := append([]wklog.Field{
-				wklog.Event("message.send.dispatch_submit.failed"),
-			}, messageLogFields(channelID, cmd.FromUID)...)
-			fields = append(fields, wklog.Error(err))
-			a.sendLogger().Warn("submit committed message failed", fields...)
-			if len(cmd.RequestSubscribers) > 0 {
-				return SendResult{}, err
-			}
-		}
-	}
-	return sendResult, nil
+	results := make([]SendBatchItemResult, 1)
+	a.sendDurableSegment(durableSendSegment{
+		key: durableSegmentKey(cmd),
+		items: []preparedSend{{
+			index: 0,
+			ctx:   ctx,
+			cmd:   cmd,
+		}},
+	}, results)
+	return results[0].Result, results[0].Err
 }
 
 func (a *App) sendDurableSegment(segment durableSendSegment, results []SendBatchItemResult) {
 	if len(segment.items) == 0 {
-		return
-	}
-	if len(segment.items) == 1 {
-		item := segment.items[0]
-		result, err := a.sendDurable(item.ctx, item.cmd)
-		results[item.index] = SendBatchItemResult{Result: result, Err: err}
 		return
 	}
 	active := make([]preparedSend, 0, len(segment.items))
@@ -393,12 +332,6 @@ func (a *App) sendDurableSegment(segment durableSendSegment, results []SendBatch
 		active = append(active, item)
 	}
 	if len(active) == 0 {
-		return
-	}
-	if len(active) == 1 {
-		item := active[0]
-		result, err := a.sendDurable(item.ctx, item.cmd)
-		results[item.index] = SendBatchItemResult{Result: result, Err: err}
 		return
 	}
 
@@ -421,14 +354,23 @@ func (a *App) sendDurableSegment(segment durableSendSegment, results []SendBatch
 			TraceID:               active[0].cmd.TraceID,
 			Attempt:               0,
 		})
+	duration := sendtrace.Elapsed(startedAt, a.now())
 	if err != nil {
 		for _, item := range active {
-			result, itemErr := a.sendDurable(item.ctx, item.cmd)
-			results[item.index] = SendBatchItemResult{Result: result, Err: itemErr}
+			sendtrace.Record(sendtrace.Event{
+				TraceID:     item.cmd.TraceID,
+				Stage:       sendtrace.StageMessageSendDurable,
+				At:          startedAt,
+				Duration:    duration,
+				NodeID:      a.localNodeID,
+				ChannelKey:  string(channelhandler.KeyFromChannelID(channelID)),
+				ClientMsgNo: item.cmd.ClientMsgNo,
+				FromUID:     item.cmd.FromUID,
+			})
+			results[item.index] = SendBatchItemResult{Err: err}
 		}
 		return
 	}
-	duration := sendtrace.Elapsed(startedAt, a.now())
 	for i, item := range active {
 		if i >= len(appendResult.Items) {
 			results[item.index] = SendBatchItemResult{Err: errors.New("message: append batch result count mismatch")}
@@ -479,6 +421,9 @@ func (a *App) sendDurableSegment(segment durableSendSegment, results []SendBatch
 }
 
 func segmentContext(items []preparedSend) (context.Context, context.CancelFunc) {
+	if len(items) == 1 && items[0].ctx != nil {
+		return items[0].ctx, func() {}
+	}
 	var earliest time.Time
 	for _, item := range items {
 		if deadline, ok := item.ctx.Deadline(); ok && (earliest.IsZero() || deadline.Before(earliest)) {

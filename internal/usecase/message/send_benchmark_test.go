@@ -139,6 +139,18 @@ func (c *benchmarkChannelCluster) Append(_ context.Context, req channel.AppendRe
 	return channel.AppendResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}, nil
 }
 
+func (c *benchmarkChannelCluster) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	items := make([]channel.AppendBatchItemResult, len(req.Messages))
+	for i, msg := range req.Messages {
+		c.messageID++
+		c.messageSeq++
+		msg.MessageID = c.messageID
+		msg.MessageSeq = c.messageSeq
+		items[i] = channel.AppendBatchItemResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}
+	}
+	return channel.AppendBatchResult{Items: items}, nil
+}
+
 type benchmarkMetaRefresher struct {
 	meta channel.Meta
 }

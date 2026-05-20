@@ -285,7 +285,11 @@ func TestAppendToLeaderRPCAppendsOnTargetNode(t *testing.T) {
 			ID:     req.ChannelID,
 			Leader: 2,
 		},
-		appendResult: channel.AppendResult{MessageID: 7, MessageSeq: 8},
+		appendBatchResult: channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{
+			MessageID:  7,
+			MessageSeq: 8,
+			Message:    req.Message,
+		}}},
 	}
 	New(Options{
 		Cluster:     node2,
@@ -299,8 +303,18 @@ func TestAppendToLeaderRPCAppendsOnTargetNode(t *testing.T) {
 	result, err := client.AppendToLeader(context.Background(), 2, req)
 
 	require.NoError(t, err)
-	require.Equal(t, channel.AppendResult{MessageID: 7, MessageSeq: 8}, result)
-	require.Equal(t, []channel.AppendRequest{req}, channelLog.appendCalls)
+	require.Equal(t, channel.AppendResult{MessageID: 7, MessageSeq: 8, Message: req.Message}, result)
+	require.Empty(t, channelLog.appendCalls)
+	require.Equal(t, []channel.AppendBatchRequest{{
+		ChannelID:             req.ChannelID,
+		Messages:              []channel.Message{req.Message},
+		SupportsMessageSeqU64: req.SupportsMessageSeqU64,
+		CommitMode:            req.CommitMode,
+		ExpectedChannelEpoch:  req.ExpectedChannelEpoch,
+		ExpectedLeaderEpoch:   req.ExpectedLeaderEpoch,
+		TraceID:               req.TraceID,
+		Attempt:               req.Attempt,
+	}}, channelLog.appendBatchCalls)
 }
 
 func TestAppendBatchToLeaderRPCAppendsBatchOnTargetNode(t *testing.T) {
@@ -374,7 +388,11 @@ func TestAppendToLeaderRPCFollowsLeaderRedirect(t *testing.T) {
 			ID:     req.ChannelID,
 			Leader: 3,
 		},
-		appendResult: channel.AppendResult{MessageID: 9, MessageSeq: 10},
+		appendBatchResult: channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{
+			MessageID:  9,
+			MessageSeq: 10,
+			Message:    req.Message,
+		}}},
 	}
 	New(Options{
 		Cluster:     node2,
@@ -395,9 +413,19 @@ func TestAppendToLeaderRPCFollowsLeaderRedirect(t *testing.T) {
 	result, err := client.AppendToLeader(context.Background(), 2, req)
 
 	require.NoError(t, err)
-	require.Equal(t, channel.AppendResult{MessageID: 9, MessageSeq: 10}, result)
+	require.Equal(t, channel.AppendResult{MessageID: 9, MessageSeq: 10, Message: req.Message}, result)
 	require.Empty(t, redirectLog.appendCalls)
-	require.Equal(t, []channel.AppendRequest{req}, leaderLog.appendCalls)
+	require.Empty(t, leaderLog.appendCalls)
+	require.Equal(t, []channel.AppendBatchRequest{{
+		ChannelID:             req.ChannelID,
+		Messages:              []channel.Message{req.Message},
+		SupportsMessageSeqU64: req.SupportsMessageSeqU64,
+		CommitMode:            req.CommitMode,
+		ExpectedChannelEpoch:  req.ExpectedChannelEpoch,
+		ExpectedLeaderEpoch:   req.ExpectedLeaderEpoch,
+		TraceID:               req.TraceID,
+		Attempt:               req.Attempt,
+	}}, leaderLog.appendBatchCalls)
 }
 
 func TestAppendToLeaderRPCReturnsTypedNotLeaderWhenRemoteLeaderChangesBeforeAppend(t *testing.T) {
@@ -521,6 +549,22 @@ func (s *stubNodeChannelLog) Append(_ context.Context, req channel.AppendRequest
 
 func (s *stubNodeChannelLog) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
 	s.appendBatchCalls = append(s.appendBatchCalls, req)
+	if len(s.appendReplies) > 0 {
+		reply := s.appendReplies[0]
+		s.appendReplies = s.appendReplies[1:]
+		if reply.err != nil {
+			return channel.AppendBatchResult{}, reply.err
+		}
+		msg := channel.Message{}
+		if len(req.Messages) > 0 {
+			msg = req.Messages[0]
+		}
+		return channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{
+			MessageID:  reply.result.MessageID,
+			MessageSeq: reply.result.MessageSeq,
+			Message:    msg,
+		}}}, nil
+	}
 	return s.appendBatchResult, s.appendBatchErr
 }
 

@@ -138,8 +138,8 @@ func TestSendLogsPrimaryFailureWithMessageModule(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	entry := requireLogEntry(t, logger, "ERROR", "message.send", "message.send.append.failed")
-	require.Equal(t, "local append failed", entry.msg)
+	entry := requireLogEntry(t, logger, "ERROR", "message.send", "message.send.append_batch.failed")
+	require.Equal(t, "local append batch failed", entry.msg)
 	require.Equal(t, "u2@u1", requireFieldValue[string](t, entry, "channelID"))
 	require.Equal(t, int64(frame.ChannelTypePerson), requireFieldValue[int64](t, entry, "channelType"))
 	require.Equal(t, "u1", requireFieldValue[string](t, entry, "uid"))
