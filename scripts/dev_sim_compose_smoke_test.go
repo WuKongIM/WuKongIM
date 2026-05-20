@@ -73,6 +73,28 @@ func TestDevSimComposeSmokeNoBuildOmitsBuildFlag(t *testing.T) {
 	}
 }
 
+func TestDevSimComposeSmokeRejectsStatusErrorCounters(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	callsDir := t.TempDir()
+	writeFakeDockerNoBuild(t, filepath.Join(binDir, "docker"), callsDir)
+	writeFakeCurlWithTrafficErrors(t, filepath.Join(binDir, "curl"), callsDir)
+
+	cmd := exec.Command("bash", "scripts/dev-sim-compose-smoke.sh", "--no-build", "--skip-logs", "--timeout", "1", "--poll", "0")
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_DEV_SIM_UP_RETRIES=1",
+	)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("script should fail when /status reports send or recv errors:\n%s", output)
+	}
+	if !strings.Contains(string(output), "send_errors=2") || !strings.Contains(string(output), "recv_errors=1") {
+		t.Fatalf("script output should include error counters for diagnostics:\n%s", output)
+	}
+}
+
 func TestDevSimComposeSmokeTrustsStatusCountersForTraffic(t *testing.T) {
 	script := readFile(t, filepath.Join(repoRoot(t), "scripts", "dev-sim-compose-smoke.sh"))
 
@@ -167,6 +189,19 @@ if [[ "$count" -eq 1 ]]; then
 else
   echo '{"state":"running","connected_users":20,"person_channels":5,"group_channels":2,"messages_sent":3,"last_error":""}'
 fi
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFakeCurlWithTrafficErrors(t *testing.T, path string, callsDir string) {
+	t.Helper()
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+calls_dir="` + callsDir + `"
+echo "$*" >> "$calls_dir/curl.calls"
+echo '{"state":"running","connected_users":20,"person_channels":5,"group_channels":2,"messages_sent":3,"send_errors":2,"recv_errors":1,"last_error":"send failed"}'
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
