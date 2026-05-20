@@ -81,6 +81,63 @@ func TestPooledLoopMessageStoresCommandInline(t *testing.T) {
 	}
 }
 
+type testMailboxEvent struct{ id int }
+
+func (testMailboxEvent) isMachineEvent() {}
+
+func TestPooledLoopMailboxRingWrapsWithoutDropping(t *testing.T) {
+	pool := &ExecutionPool{
+		cfg: ExecutionPoolConfig{
+			Now:         time.Now,
+			MailboxSize: 4,
+			TurnBudget:  4,
+		},
+		ready:  make(chan *pooledLoopDriver, 4),
+		stopCh: make(chan struct{}),
+	}
+	r := &replica{loopDone: make(chan struct{})}
+	driver := newPooledLoopDriver(r, ExecutionConfig{Mode: ExecutionModePooled, Pool: pool, MailboxSize: 4, TurnBudget: 4})
+
+	driver.mu.Lock()
+	for i := 0; i < 4; i++ {
+		if !driver.pushLocked(pooledLoopMessage{event: testMailboxEvent{id: i}}) {
+			t.Fatalf("pushLocked(%d) = false, want true", i)
+		}
+	}
+	if driver.pushLocked(pooledLoopMessage{event: testMailboxEvent{id: 99}}) {
+		t.Fatal("pushLocked() accepted a full mailbox")
+	}
+	for i := 0; i < 2; i++ {
+		msg, ok := driver.popLocked()
+		if !ok {
+			t.Fatalf("popLocked(%d) = false, want true", i)
+		}
+		if got := msg.event.(testMailboxEvent).id; got != i {
+			t.Fatalf("popLocked(%d) id = %d, want %d", i, got, i)
+		}
+	}
+	for i := 4; i < 6; i++ {
+		if !driver.pushLocked(pooledLoopMessage{event: testMailboxEvent{id: i}}) {
+			t.Fatalf("wrap pushLocked(%d) = false, want true", i)
+		}
+	}
+
+	var got []int
+	for driver.queueLenLocked() > 0 {
+		msg, ok := driver.popLocked()
+		if !ok {
+			t.Fatal("popLocked() returned false before queueLenLocked reached zero")
+		}
+		got = append(got, msg.event.(testMailboxEvent).id)
+	}
+	driver.mu.Unlock()
+
+	want := []int{2, 3, 4, 5}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("remaining pop order = %v, want %v", got, want)
+	}
+}
+
 func TestPooledAppendFlushDoesNotSpawnTimerGoroutinePerReplica(t *testing.T) {
 	pool, err := NewExecutionPool(ExecutionPoolConfig{
 		Workers:     4,
