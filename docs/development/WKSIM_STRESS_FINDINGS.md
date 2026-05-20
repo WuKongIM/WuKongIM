@@ -161,3 +161,15 @@ Verification:
 - The regression tests failed before the fix and passed after the warmup rate change.
 - Focused suites passed with `GOWORK=off go test ./internal/bench/workload ./internal/bench/devsim ./internal/bench/worker ./cmd/wkbench -count=1`.
 - Rebuilt `wukongim-dev:local` and reran the default Compose `wk-sim` profile with `WK_SIM_WARMUP=10s` and a new UID prefix; continued polling reached `messages_sent=26930`, `send_errors=0`, `recv_errors=0`.
+
+## 2026-05-20 Run 6
+
+Post-fix search:
+- Default mixed profile after Issue 6 fix stayed healthy through `messages_sent=26930`, `send_errors=0`, `recv_errors=0`.
+- Reduced sampled mixed profile (`40` users, `10` person channels, `3` groups, `0.5/s`, concurrency `16`, sampled receive verification) stayed healthy through `messages_sent=840`, `send_errors=0`, `recv_errors=0`.
+- High-rate mixed stress (`500` users, `250` person channels, `250` groups, `1/s`, concurrency `256`) produced intermittent send timeouts after initial traffic and recovered.
+- Accumulated-data `0.5/s` default-sized stress (`1000` users, `500` person channels, `500` groups) did not reach `running` within the smoke timeout on this machine and showed client-canceled send attempts during retry cleanup.
+
+Status:
+- No additional functional correctness bug was isolated after Issue 6.
+- The high-rate observations are treated as a local Docker capacity/performance boundary unless reproduced on a clean stack with a required acceptance target.
