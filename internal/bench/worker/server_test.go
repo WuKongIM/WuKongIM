@@ -371,6 +371,26 @@ func TestWorkerDefaultRunnerStartsAutoRecvAckDrain(t *testing.T) {
 	require.Equal(t, []workerRecvAckCall{{messageID: 88, messageSeq: 9}}, recipient.recvAckCalls)
 }
 
+func TestWorkerAutoRecvAckDropsFramesWhenRecvVerificationDisabled(t *testing.T) {
+	assignment := personShardAssignment()
+	assignment.Scenario.Messages.Traffic[0].RecvAck = true
+	assignment.Scenario.Messages.Traffic[0].Verify.Recv.Mode = "none"
+
+	opts := autoRecvAckOptionsForAssignment(assignment)
+
+	require.False(t, opts.BufferRecvFrames)
+}
+
+func TestWorkerAutoRecvAckBuffersFramesWhenAnyTrafficVerifiesRecv(t *testing.T) {
+	assignment := personShardAssignment()
+	assignment.Scenario.Messages.Traffic[0].RecvAck = true
+	assignment.Scenario.Messages.Traffic[0].Verify.Recv.Mode = "full"
+
+	opts := autoRecvAckOptionsForAssignment(assignment)
+
+	require.True(t, opts.BufferRecvFrames)
+}
+
 func TestWorkerDefaultRunnerConnectsAssignedIdentityRange(t *testing.T) {
 	pool := newWorkerPersonClientPool()
 	runner := NewDefaultWorkloadRunner(pool.newClient)

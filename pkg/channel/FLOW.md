@@ -61,6 +61,9 @@ Handler 层:
      命中且 PayloadHash 匹配 → 返回旧结果；Hash 不匹配 → ErrIdempotencyConflict
      AppendBatch 会先逐项解析已落盘幂等结果，再在批内按 `(ChannelID, FromUID, ClientMsgNo)` 合并重复项；
      相同 key 且 PayloadHash 不同的后续项返回 `ErrIdempotencyConflict`，不会进入 replica append
+     为了支撑 store 的 trusted append 快路径，Handler 会在同一进程内按幂等 key 对“尚未解析落盘结果”的 append
+     加短生命周期互斥锁，覆盖幂等查询、MessageID 分配和 replica append；同 key 并发重试会等第一条提交后再命中旧结果，
+     不依赖 store 写路径再次读取二级索引兜底
   ③.1 `AppendRequest.TraceID` / `Attempt` 仅透传给节点内 sendtrace/diagnostics，用于排查当前 append 尝试
       它们不参与 message codec、存储、幂等索引或 Phase 1 节点 RPC payload
   ④ 检查 WriteFence 与 legacy U32 剩余 seq 容量；批量请求中不可追加的项写入逐项错误，已落盘幂等命中不受新写 fence 影响
@@ -75,9 +78,11 @@ Replica 层 (replica/append.go + replica/append_pipeline.go):
   ⑨ append effect worker 在 `durableMu` 下执行 Leader LogStore append/sync；底层 store 对同一 channel 的并发 synced Append 先按
      `store/commit.go` 的 FlushWindow 聚合成一个 channel-local append，再在单 channel `writeMu` 下 prepare 记录并提交给跨频道 coordinator；
      coordinator 用可配置窗口（默认 200µs）合并 Pebble Sync，并可按请求数/记录数/字节数限制单批大小；sync 完成前不发布新的 LEO
-  ⑩ `ChannelStore.prepareAppendLocked()` 会把兼容层 payload 解成 `messageRow`，并由 `messageTable.append()`
-     写入 `message` 表的 primary/payload families，同时维护 `message_id` / `client_msg_no`
-     / `uidx_from_uid_client_msg_no` 三类索引
+  ⑩ `ChannelStore.prepareAppendLocked()` 会把兼容层 payload 解成 `messageRow`，Replica durable 写入生产路径使用
+     `AppendTrusted` / `StoreApplyFetchTrusted*`，在调用方已经证明记录是下一段连续 log entry 后跳过逐行 Pebble
+     existing-index 读取；严格 `Append` / `StoreApplyFetch` API 仍保留旧的跨落盘索引冲突检查。
+     两种模式都会写入 `message` 表的 primary/payload families，同时维护 `message_id` / `client_msg_no`
+     / `uidx_from_uid_client_msg_no` 三类索引，并继续拒绝同一个批次内重复的 message_id 或幂等 key
   ⑪ durable result 带 EffectID/Channel/Epoch/LeaderEpoch/RoleGeneration 回到 loop；fence 通过后才发布 LEO，并注册 Quorum Waiter (目标 CommitHW = LEO + recordCount)
       对同 leader 的 lease-only 续租，append effect 入写前和 durable result 回环时都以当前已续租 lease 做最终 fence；
       不能因 effect 创建时捕获的旧 lease 已过期而丢弃已经安全落盘的 append，否则 durable LEO 会领先运行时 LEO

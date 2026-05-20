@@ -16,13 +16,15 @@ type LogRecord struct {
 }
 
 type pendingLogAppend struct {
-	base    uint64
-	nextLEO uint64
-	rows    []messageRow
+	base       uint64
+	nextLEO    uint64
+	rows       []messageRow
+	appendMode messageAppendMode
 }
 
 type sameChannelAppendRequest struct {
 	records []channel.Record
+	mode    messageAppendMode
 	base    uint64
 	err     error
 }
@@ -41,25 +43,31 @@ func (s *ChannelStore) validate() error {
 }
 
 func (s *ChannelStore) Append(records []channel.Record) (uint64, error) {
-	return s.appendRecordsWithCommit(records, pebble.Sync, true)
+	return s.appendRecordsWithCommit(records, pebble.Sync, true, messageAppendStrict)
+}
+
+// AppendTrusted appends caller-validated contiguous records without rereading
+// existing secondary indexes on the write path.
+func (s *ChannelStore) AppendTrusted(records []channel.Record) (uint64, error) {
+	return s.appendRecordsWithCommit(records, pebble.Sync, true, messageAppendTrustedContiguous)
 }
 
 func (s *ChannelStore) appendRecordsNoSync(records []channel.Record) (uint64, error) {
-	return s.appendRecordsWithCommit(records, pebble.NoSync, false)
+	return s.appendRecordsWithCommit(records, pebble.NoSync, false, messageAppendStrict)
 }
 
-func (s *ChannelStore) appendRecordsWithCommit(records []channel.Record, commitOpts *pebble.WriteOptions, recordCommit bool) (uint64, error) {
+func (s *ChannelStore) appendRecordsWithCommit(records []channel.Record, commitOpts *pebble.WriteOptions, recordCommit bool, mode messageAppendMode) (uint64, error) {
 	if err := s.validate(); err != nil {
 		return 0, err
 	}
 	if commitOpts == pebble.Sync && recordCommit && len(records) > 0 {
-		return s.appendRecordsViaSameChannelBatch(records)
+		return s.appendRecordsViaSameChannelBatch(records, mode)
 	}
 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	pending, err := s.prepareCompatibilityAppendLocked(records)
+	pending, err := s.prepareCompatibilityAppendLocked(records, mode)
 	if err != nil {
 		return 0, err
 	}
@@ -94,8 +102,8 @@ func (s *ChannelStore) appendRecordsWithCommit(records []channel.Record, commitO
 	return pending.base, nil
 }
 
-func (s *ChannelStore) appendRecordsViaSameChannelBatch(records []channel.Record) (uint64, error) {
-	req := &sameChannelAppendRequest{records: records}
+func (s *ChannelStore) appendRecordsViaSameChannelBatch(records []channel.Record, mode messageAppendMode) (uint64, error) {
+	req := &sameChannelAppendRequest{records: records, mode: mode}
 
 	s.appendBatchMu.Lock()
 	if batch := s.appendBatch; batch != nil {
@@ -174,7 +182,7 @@ func (s *ChannelStore) commitSameChannelAppendBatchLocked(batch *sameChannelAppe
 	}
 }
 
-func (s *ChannelStore) prepareCompatibilityAppendLocked(records []channel.Record) (pendingLogAppend, error) {
+func (s *ChannelStore) prepareCompatibilityAppendLocked(records []channel.Record, mode messageAppendMode) (pendingLogAppend, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -193,9 +201,10 @@ func (s *ChannelStore) prepareCompatibilityAppendLocked(records []channel.Record
 
 	s.writeInProgress.Store(true)
 	return pendingLogAppend{
-		base:    base,
-		nextLEO: base + uint64(len(rows)),
-		rows:    rows,
+		base:       base,
+		nextLEO:    base + uint64(len(rows)),
+		rows:       rows,
+		appendMode: mode,
 	}, nil
 }
 
@@ -221,9 +230,13 @@ func (s *ChannelStore) prepareSameChannelAppendBatchLocked(requests []*sameChann
 
 	rows := make([]messageRow, 0, totalRecords)
 	nextSeq := base + 1
+	mode := messageAppendTrustedContiguous
 	for _, req := range requests {
 		if req == nil || len(req.records) == 0 {
 			continue
+		}
+		if req.mode == messageAppendStrict {
+			mode = messageAppendStrict
 		}
 		rows, err = appendStructuredRowsFromCompatibilityRecords(rows, nextSeq, req.records)
 		if err != nil {
@@ -234,9 +247,10 @@ func (s *ChannelStore) prepareSameChannelAppendBatchLocked(requests []*sameChann
 
 	s.writeInProgress.Store(true)
 	return pendingLogAppend{
-		base:    base,
-		nextLEO: base + uint64(len(rows)),
-		rows:    rows,
+		base:       base,
+		nextLEO:    base + uint64(len(rows)),
+		rows:       rows,
+		appendMode: mode,
 	}, bases, nil
 }
 
@@ -278,7 +292,7 @@ func (s *ChannelStore) appendWithCoordinatorLocked(pending pendingLogAppend) err
 }
 
 func (p pendingLogAppend) build(writeBatch *pebble.Batch, table *messageTable) error {
-	return table.append(writeBatch, p.rows)
+	return table.appendWithMode(writeBatch, p.rows, p.appendMode)
 }
 
 func (p pendingLogAppend) byteCount() int {

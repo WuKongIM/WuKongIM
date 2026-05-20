@@ -7,16 +7,28 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/cockroachdb/pebble/v2"
+	"github.com/cockroachdb/pebble/v2/bloom"
 )
 
-const defaultChannelWALMinSyncInterval = 2 * time.Millisecond
+const (
+	defaultChannelWALMinSyncInterval = 2 * time.Millisecond
+	defaultChannelPebbleCacheSize    = 128 << 20
+	defaultChannelPebbleMemTableSize = 32 << 20
+)
 
 func defaultPebbleOptions() *pebble.Options {
-	return &pebble.Options{
+	opts := &pebble.Options{
+		CacheSize:                   defaultChannelPebbleCacheSize,
+		MemTableSize:                defaultChannelPebbleMemTableSize,
+		MemTableStopWritesThreshold: 4,
+		L0CompactionThreshold:       8,
+		L0StopWritesThreshold:       24,
 		WALMinSyncInterval: func() time.Duration {
 			return defaultChannelWALMinSyncInterval
 		},
 	}
+	opts.Levels[0].FilterPolicy = bloom.FilterPolicy(10)
+	return opts
 }
 
 type Engine struct {

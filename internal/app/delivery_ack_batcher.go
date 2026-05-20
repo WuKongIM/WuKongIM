@@ -88,18 +88,9 @@ func (n *deliveryAckBatchNotifier) NotifyAck(ctx context.Context, nodeID uint64,
 	n.mu.Unlock()
 
 	if len(ready) > 0 {
-		n.flushWaiters(nodeID, ready)
+		go n.flushWaiters(nodeID, ready)
 	}
-
-	select {
-	case err := <-waiter.done:
-		return err
-	case <-ctx.Done():
-		if n.cancelWaiter(nodeID, waiter) {
-			return ctx.Err()
-		}
-		return ctx.Err()
-	}
+	return nil
 }
 
 func (n *deliveryAckBatchNotifier) NotifyOffline(ctx context.Context, nodeID uint64, cmd deliveryevents.SessionClosed) error {

@@ -58,13 +58,14 @@ type ActiveHintCache struct {
 	now            func() time.Time
 	logger         wklog.Logger
 
-	mu       sync.Mutex
-	hints    map[activeHintKey]activeHintEntry
-	barriers map[activeHintKey]deleteBarrierEntry
-	running  bool
-	stopCh   chan struct{}
-	doneCh   chan struct{}
-	cancel   context.CancelFunc
+	mu              sync.Mutex
+	hints           map[activeHintKey]activeHintEntry
+	hintCountsByUID map[string]int
+	barriers        map[activeHintKey]deleteBarrierEntry
+	running         bool
+	stopCh          chan struct{}
+	doneCh          chan struct{}
+	cancel          context.CancelFunc
 }
 
 type activeHintKey struct {
@@ -111,17 +112,18 @@ func NewActiveHintCache(opts ActiveHintCacheOptions) *ActiveHintCache {
 	}
 
 	return &ActiveHintCache{
-		store:          opts.Store,
-		flushInterval:  opts.FlushInterval,
-		hintTTL:        opts.HintTTL,
-		barrierTTL:     opts.BarrierTTL,
-		maxHints:       opts.MaxHints,
-		maxHintsPerUID: opts.MaxHintsPerUID,
-		flushBatchSize: opts.FlushBatchSize,
-		now:            opts.Now,
-		logger:         opts.Logger,
-		hints:          make(map[activeHintKey]activeHintEntry),
-		barriers:       make(map[activeHintKey]deleteBarrierEntry),
+		store:           opts.Store,
+		flushInterval:   opts.FlushInterval,
+		hintTTL:         opts.HintTTL,
+		barrierTTL:      opts.BarrierTTL,
+		maxHints:        opts.MaxHints,
+		maxHintsPerUID:  opts.MaxHintsPerUID,
+		flushBatchSize:  opts.FlushBatchSize,
+		now:             opts.Now,
+		logger:          opts.Logger,
+		hints:           make(map[activeHintKey]activeHintEntry),
+		hintCountsByUID: make(map[string]int),
+		barriers:        make(map[activeHintKey]deleteBarrierEntry),
 	}
 }
 
@@ -197,7 +199,7 @@ func (c *ActiveHintCache) run(ctx context.Context, stopCh <-chan struct{}, doneC
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := c.Flush(ctx); err != nil {
+			if err := c.flushBackgroundBatch(ctx); err != nil {
 				c.logger.Warn("active hint cache flush failed", wklog.Error(err))
 			}
 		case <-stopCh:
@@ -216,6 +218,11 @@ func (c *ActiveHintCache) SubmitHints(_ context.Context, hints []metadb.UserConv
 	defer c.mu.Unlock()
 	c.pruneLocked(now)
 
+	var touchedUIDStack [8]string
+	touchedUIDs := touchedUIDStack[:0]
+	if len(hints) > len(touchedUIDStack) {
+		touchedUIDs = make([]string, 0, len(hints))
+	}
 	for _, hint := range hints {
 		key := keyFromHint(hint)
 		if barrier, ok := c.barriers[key]; ok && hint.MessageSeq <= barrier.barrier.DeletedToSeq {
@@ -225,9 +232,15 @@ func (c *ActiveHintCache) SubmitHints(_ context.Context, hints []metadb.UserConv
 		if ok && !hintNewer(hint, current.hint) {
 			continue
 		}
+		if !ok {
+			c.incrementHintCountLocked(key.uid)
+			touchedUIDs = appendUniqueHintUID(touchedUIDs, key.uid)
+		}
 		c.hints[key] = activeHintEntry{hint: hint, touchedAt: now}
 	}
-	c.enforceCapacityLocked()
+	if len(c.hints) > c.maxHints || len(touchedUIDs) > 0 {
+		c.enforceCapacityLocked(touchedUIDs)
+	}
 	return nil
 }
 
@@ -249,7 +262,7 @@ func (c *ActiveHintCache) RemoveHints(_ context.Context, barriers []metadb.UserC
 			effectiveDeletedToSeq = entry.barrier.DeletedToSeq
 		}
 		if pending, ok := c.hints[key]; ok && hintBlockedByDeleteBarrier(pending.hint, effectiveDeletedToSeq) {
-			delete(c.hints, key)
+			c.deleteHintLocked(key)
 		}
 		if !ok || barrier.DeletedToSeq >= entry.barrier.DeletedToSeq {
 			c.barriers[key] = deleteBarrierEntry{barrier: barrier, expiresAt: now.Add(c.barrierTTL)}
@@ -291,6 +304,19 @@ func (c *ActiveHintCache) Flush(ctx context.Context) error {
 		return nil
 	}
 	snapshot := c.snapshotHotHints()
+	return c.flushEntries(ctx, snapshot)
+}
+
+// flushBackgroundBatch bounds best-effort periodic persistence to one batch.
+func (c *ActiveHintCache) flushBackgroundBatch(ctx context.Context) error {
+	if c == nil || c.store == nil {
+		return nil
+	}
+	snapshot := c.snapshotHotHintsLimit(c.flushBatchSize)
+	return c.flushEntries(ctx, snapshot)
+}
+
+func (c *ActiveHintCache) flushEntries(ctx context.Context, snapshot []activeHintEntry) error {
 	if len(snapshot) == 0 {
 		return nil
 	}
@@ -313,6 +339,14 @@ func (c *ActiveHintCache) Flush(ctx context.Context) error {
 	return nil
 }
 
+func (c *ActiveHintCache) snapshotHotHintsLimit(limit int) []activeHintEntry {
+	entries := c.snapshotHotHints()
+	if limit > 0 && len(entries) > limit {
+		entries = entries[:limit]
+	}
+	return entries
+}
+
 func (c *ActiveHintCache) removeFlushedEntries(entries []activeHintEntry) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -320,7 +354,7 @@ func (c *ActiveHintCache) removeFlushedEntries(entries []activeHintEntry) {
 		key := keyFromHint(entry.hint)
 		current, ok := c.hints[key]
 		if ok && sameHint(current.hint, entry.hint) && current.touchedAt.Equal(entry.touchedAt) {
-			delete(c.hints, key)
+			c.deleteHintLocked(key)
 		}
 	}
 }
@@ -347,7 +381,7 @@ func (c *ActiveHintCache) snapshotHotHints() []activeHintEntry {
 func (c *ActiveHintCache) pruneLocked(now time.Time) {
 	for key, entry := range c.hints {
 		if !entry.touchedAt.Add(c.hintTTL).After(now) {
-			delete(c.hints, key)
+			c.deleteHintLocked(key)
 		}
 	}
 	for key, entry := range c.barriers {
@@ -357,20 +391,49 @@ func (c *ActiveHintCache) pruneLocked(now time.Time) {
 	}
 }
 
-func (c *ActiveHintCache) enforceCapacityLocked() {
+func (c *ActiveHintCache) enforceCapacityLocked(touchedUIDs []string) {
 	for len(c.hints) > c.maxHints {
-		delete(c.hints, lowestActiveHintKey(c.hints, ""))
+		c.deleteHintLocked(lowestActiveHintKey(c.hints, ""))
 	}
-	counts := make(map[string]int)
-	for key := range c.hints {
-		counts[key.uid]++
-	}
-	for uid, count := range counts {
+	for _, uid := range touchedUIDs {
+		count := c.hintCountsByUID[uid]
 		for count > c.maxHintsPerUID {
-			delete(c.hints, lowestActiveHintKey(c.hints, uid))
+			c.deleteHintLocked(lowestActiveHintKey(c.hints, uid))
 			count--
 		}
 	}
+}
+
+func (c *ActiveHintCache) incrementHintCountLocked(uid string) {
+	if c.hintCountsByUID == nil {
+		c.hintCountsByUID = make(map[string]int)
+	}
+	c.hintCountsByUID[uid]++
+}
+
+func (c *ActiveHintCache) deleteHintLocked(key activeHintKey) {
+	if _, ok := c.hints[key]; !ok {
+		return
+	}
+	delete(c.hints, key)
+	if c.hintCountsByUID == nil {
+		return
+	}
+	count := c.hintCountsByUID[key.uid]
+	if count <= 1 {
+		delete(c.hintCountsByUID, key.uid)
+		return
+	}
+	c.hintCountsByUID[key.uid] = count - 1
+}
+
+func appendUniqueHintUID(uids []string, uid string) []string {
+	for _, existing := range uids {
+		if existing == uid {
+			return uids
+		}
+	}
+	return append(uids, uid)
 }
 
 func lowestActiveHintKey(hints map[activeHintKey]activeHintEntry, uid string) activeHintKey {

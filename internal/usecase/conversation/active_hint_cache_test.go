@@ -223,6 +223,99 @@ func TestActiveHintCacheStartStopLifecycle(t *testing.T) {
 	require.NoError(t, cache.Stop())
 }
 
+func TestActiveHintCacheBackgroundFlushIsBoundedToOneBatch(t *testing.T) {
+	store := newActiveHintStoreStub()
+	cache := NewActiveHintCache(ActiveHintCacheOptions{
+		Store:          store,
+		HintTTL:        time.Hour,
+		FlushBatchSize: 2,
+		Now:            func() time.Time { return time.Unix(100, 0) },
+	})
+	require.NoError(t, cache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1},
+		{UID: "u1", ChannelID: "c2", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
+		{UID: "u1", ChannelID: "c3", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
+		{UID: "u1", ChannelID: "c4", ChannelType: 2, ActiveAt: 400, MessageSeq: 4},
+		{UID: "u1", ChannelID: "c5", ChannelType: 2, ActiveAt: 500, MessageSeq: 5},
+	}))
+
+	require.NoError(t, cache.flushBackgroundBatch(context.Background()))
+	store.requireBatches(t, [][]metadb.UserConversationActivePatch{
+		{
+			{UID: "u1", ChannelID: "c5", ChannelType: 2, ActiveAt: 500, MessageSeq: 5},
+			{UID: "u1", ChannelID: "c4", ChannelType: 2, ActiveAt: 400, MessageSeq: 4},
+		},
+	})
+	hints, err := cache.ListHotUserConversationActive(context.Background(), "u1", 10)
+	require.NoError(t, err)
+	require.Equal(t, []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c3", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
+		{UID: "u1", ChannelID: "c2", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1},
+	}, hints)
+}
+
+func TestActiveHintCacheSubmitWithinCapacityAvoidsCountMapAllocations(t *testing.T) {
+	cache := NewActiveHintCache(ActiveHintCacheOptions{
+		HintTTL:        time.Hour,
+		MaxHints:       100,
+		MaxHintsPerUID: 100,
+		Now:            func() time.Time { return time.Unix(100, 0) },
+	})
+	hints := []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1},
+	}
+	require.NoError(t, cache.SubmitHints(context.Background(), hints))
+
+	ctx := context.Background()
+	seq := uint64(1)
+	allocs := testing.AllocsPerRun(100, func() {
+		seq++
+		hints[0].ActiveAt = int64(100 + seq)
+		hints[0].MessageSeq = seq
+		if err := cache.SubmitHints(ctx, hints); err != nil {
+			t.Fatalf("SubmitHints: %v", err)
+		}
+	})
+	require.Zero(t, allocs)
+}
+
+func TestActiveHintCacheMaintainsUIDHintCounts(t *testing.T) {
+	store := newActiveHintStoreStub()
+	cache := NewActiveHintCache(ActiveHintCacheOptions{
+		Store:          store,
+		HintTTL:        time.Hour,
+		FlushBatchSize: 1,
+		Now:            func() time.Time { return time.Unix(100, 0) },
+	})
+	require.NoError(t, cache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 100, MessageSeq: 1},
+		{UID: "u1", ChannelID: "c2", ChannelType: 2, ActiveAt: 200, MessageSeq: 2},
+		{UID: "u2", ChannelID: "c3", ChannelType: 2, ActiveAt: 300, MessageSeq: 3},
+	}))
+	require.Equal(t, 2, activeHintCountForUID(cache, "u1"))
+	require.Equal(t, 1, activeHintCountForUID(cache, "u2"))
+
+	require.NoError(t, cache.SubmitHints(context.Background(), []metadb.UserConversationActiveHint{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, ActiveAt: 150, MessageSeq: 4},
+	}))
+	require.Equal(t, 2, activeHintCountForUID(cache, "u1"))
+
+	require.NoError(t, cache.flushBackgroundBatch(context.Background()))
+	require.Equal(t, 2, activeHintCountForUID(cache, "u1"))
+	require.Zero(t, activeHintCountForUID(cache, "u2"))
+
+	require.NoError(t, cache.RemoveHints(context.Background(), []metadb.UserConversationDeleteBarrier{
+		{UID: "u1", ChannelID: "c2", ChannelType: 2, DeletedToSeq: 10},
+	}))
+	require.Equal(t, 1, activeHintCountForUID(cache, "u1"))
+
+	require.NoError(t, cache.RemoveHints(context.Background(), []metadb.UserConversationDeleteBarrier{
+		{UID: "u1", ChannelID: "c1", ChannelType: 2, DeletedToSeq: 10},
+	}))
+	require.Zero(t, activeHintCountForUID(cache, "u1"))
+}
+
 func TestActiveHintCacheStopContextBoundsBlockedFlush(t *testing.T) {
 	store := newContextBlockingActiveHintStore()
 	cache := NewActiveHintCache(ActiveHintCacheOptions{
@@ -400,6 +493,12 @@ func withHintValues(base metadb.UserConversationActiveHint, activeAt int64, mess
 	base.ActiveAt = activeAt
 	base.MessageSeq = messageSeq
 	return base
+}
+
+func activeHintCountForUID(cache *ActiveHintCache, uid string) int {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	return cache.hintCountsByUID[uid]
 }
 
 type activeHintStoreStub struct {

@@ -48,6 +48,10 @@ type contextSyncLogStore interface {
 	SyncContext(ctx context.Context) error
 }
 
+type trustedAppendLogStore interface {
+	AppendTrusted(records []channel.Record) (base uint64, err error)
+}
+
 type errorLEOLogStore interface {
 	LEOWithError() (uint64, error)
 }
@@ -56,6 +60,14 @@ type errorLEOLogStore interface {
 // persist fetched records, checkpoint, and epoch history in one durable step.
 type combinedApplyFetchStore interface {
 	StoreApplyFetchWithEpoch(req channel.ApplyFetchStoreRequest, epochPoint *channel.EpochPoint) (leo uint64, err error)
+}
+
+type trustedCombinedApplyFetchStore interface {
+	StoreApplyFetchTrustedWithEpoch(req channel.ApplyFetchStoreRequest, epochPoint *channel.EpochPoint) (leo uint64, err error)
+}
+
+type trustedApplyFetchStore interface {
+	StoreApplyFetchTrusted(req channel.ApplyFetchStoreRequest) (leo uint64, err error)
 }
 
 // combinedBeginEpochStore is implemented by production stores that fence and
@@ -239,7 +251,7 @@ func (s *splitDurableReplicaStore) AppendLeaderBatch(ctx context.Context, record
 	if len(records) == 0 {
 		return oldLEO, oldLEO, nil
 	}
-	base, err := s.log.Append(records)
+	base, err := appendLeaderRecords(s.log, records)
 	if err != nil {
 		return oldLEO, oldLEO, err
 	}
@@ -282,6 +294,16 @@ func (s *splitDurableReplicaStore) ApplyFollowerBatch(ctx context.Context, req c
 		if epochPoint.StartOffset != baseLEO {
 			return 0, channel.ErrCorruptState
 		}
+		if trusted, ok := s.applyFetch.(trustedCombinedApplyFetchStore); ok {
+			leo, err := trusted.StoreApplyFetchTrustedWithEpoch(req, epochPoint)
+			if err != nil {
+				return 0, err
+			}
+			if req.Checkpoint != nil && req.Checkpoint.HW > leo {
+				return 0, channel.ErrCorruptState
+			}
+			return leo, nil
+		}
 		if combined, ok := s.applyFetch.(combinedApplyFetchStore); ok {
 			leo, err := combined.StoreApplyFetchWithEpoch(req, epochPoint)
 			if err != nil {
@@ -301,7 +323,7 @@ func (s *splitDurableReplicaStore) ApplyFollowerBatch(ctx context.Context, req c
 	}
 
 	if s.applyFetch != nil {
-		leo, err := s.applyFetch.StoreApplyFetch(req)
+		leo, err := storeApplyFetchRecords(s.applyFetch, req)
 		if err != nil {
 			return 0, err
 		}
@@ -582,6 +604,20 @@ func contextError(ctx context.Context) error {
 		return nil
 	}
 	return ctx.Err()
+}
+
+func appendLeaderRecords(log LogStore, records []channel.Record) (uint64, error) {
+	if trusted, ok := log.(trustedAppendLogStore); ok {
+		return trusted.AppendTrusted(records)
+	}
+	return log.Append(records)
+}
+
+func storeApplyFetchRecords(store ApplyFetchStore, req channel.ApplyFetchStoreRequest) (uint64, error) {
+	if trusted, ok := store.(trustedApplyFetchStore); ok {
+		return trusted.StoreApplyFetchTrusted(req)
+	}
+	return store.StoreApplyFetch(req)
 }
 
 func syncLog(ctx context.Context, log LogStore) error {

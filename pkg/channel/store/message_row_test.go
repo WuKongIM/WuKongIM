@@ -196,13 +196,13 @@ func TestChannelStorePrepareCompatibilityAppendReusesRowBuffer(t *testing.T) {
 	payload := makeCompatibilityRecordPayload(t, msg, hashMessagePayload(msg.Payload))
 	records := []channel.Record{{ID: msg.MessageID, Payload: payload, SizeBytes: len(payload)}}
 
-	pending, err := st.prepareCompatibilityAppendLocked(records)
+	pending, err := st.prepareCompatibilityAppendLocked(records, messageAppendStrict)
 	require.NoError(t, err)
 	require.Len(t, pending.rows, 1)
 	st.failPendingWrite()
 
 	allocs := testing.AllocsPerRun(1000, func() {
-		pending, err := st.prepareCompatibilityAppendLocked(records)
+		pending, err := st.prepareCompatibilityAppendLocked(records, messageAppendStrict)
 		if err != nil {
 			t.Fatalf("prepareCompatibilityAppendLocked() error = %v", err)
 		}

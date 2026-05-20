@@ -397,10 +397,7 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 	if err != nil {
 		w.recordError("group_send_error", err)
 		w.metrics.IncCounter("group_send_error_total", nil)
-		if errors.Is(err, io.EOF) {
-			return sessionOperationError(senderUID, "group sendack", err)
-		}
-		return err
+		return sessionOperationError(senderUID, "group sendack", err)
 	}
 	if ack.ReasonCode != frame.ReasonSuccess {
 		err := fmt.Errorf("group workload: sendack rejected message %q with reason %s", clientMsgNo, ack.ReasonCode)

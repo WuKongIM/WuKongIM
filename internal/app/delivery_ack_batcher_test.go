@@ -35,10 +35,43 @@ func TestDeliveryAckBatchNotifierCoalescesConcurrentAcks(t *testing.T) {
 
 	require.NoError(t, errs[0])
 	require.NoError(t, errs[1])
-	require.Empty(t, sender.singleCalls)
-	require.Len(t, sender.batchCalls, 1)
-	require.Equal(t, uint64(2), sender.batchCalls[0].nodeID)
-	require.ElementsMatch(t, cmds, sender.batchCalls[0].commands)
+	require.Empty(t, sender.singleCallsSnapshot())
+	require.Eventually(t, func() bool {
+		return len(sender.batchCallsSnapshot()) == 1
+	}, time.Second, 10*time.Millisecond)
+	batchCalls := sender.batchCallsSnapshot()
+	require.Equal(t, uint64(2), batchCalls[0].nodeID)
+	require.ElementsMatch(t, cmds, batchCalls[0].commands)
+}
+
+func TestDeliveryAckBatchNotifierReturnsAfterEnqueueBeforeFlush(t *testing.T) {
+	sender := &recordingDeliveryAckBatchSender{}
+	notifier := newDeliveryAckBatchNotifier(sender, deliveryAckBatchNotifierOptions{
+		FlushDelay: time.Hour,
+		MaxBatch:   8,
+	})
+
+	returned := make(chan error, 1)
+	go func() {
+		returned <- notifier.NotifyAck(context.Background(), 2, deliveryevents.RouteAck{
+			UID:        "u1",
+			SessionID:  10,
+			MessageID:  88,
+			MessageSeq: 9,
+		})
+	}()
+
+	select {
+	case err := <-returned:
+		require.NoError(t, err)
+	case <-time.After(50 * time.Millisecond):
+		notifier.Close()
+		t.Fatal("NotifyAck blocked while waiting for a delayed batch flush")
+	}
+
+	require.Empty(t, sender.batchCallsSnapshot())
+	notifier.Close()
+	require.Len(t, sender.batchCallsSnapshot(), 1)
 }
 
 func TestDeliveryAckBatchNotifierFlushesImmediatelyAtMaxBatch(t *testing.T) {
@@ -63,8 +96,10 @@ func TestDeliveryAckBatchNotifierFlushesImmediatelyAtMaxBatch(t *testing.T) {
 	}
 	wg.Wait()
 
-	require.Len(t, sender.batchCalls, 1)
-	require.ElementsMatch(t, cmds, sender.batchCalls[0].commands)
+	require.Eventually(t, func() bool {
+		return len(sender.batchCallsSnapshot()) == 1
+	}, time.Second, 10*time.Millisecond)
+	require.ElementsMatch(t, cmds, sender.batchCallsSnapshot()[0].commands)
 }
 
 type recordingDeliveryAckBatchCall struct {
@@ -97,4 +132,23 @@ func (s *recordingDeliveryAckBatchSender) NotifyAckBatch(_ context.Context, node
 
 func (s *recordingDeliveryAckBatchSender) NotifyOffline(context.Context, uint64, deliveryevents.SessionClosed) error {
 	return nil
+}
+
+func (s *recordingDeliveryAckBatchSender) singleCallsSnapshot() []deliveryevents.RouteAck {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]deliveryevents.RouteAck(nil), s.singleCalls...)
+}
+
+func (s *recordingDeliveryAckBatchSender) batchCallsSnapshot() []recordingDeliveryAckBatchCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]recordingDeliveryAckBatchCall, len(s.batchCalls))
+	for i, call := range s.batchCalls {
+		out[i] = recordingDeliveryAckBatchCall{
+			nodeID:   call.nodeID,
+			commands: append([]deliveryevents.RouteAck(nil), call.commands...),
+		}
+	}
+	return out
 }
