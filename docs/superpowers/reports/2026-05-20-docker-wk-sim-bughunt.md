@@ -418,3 +418,21 @@ This continuation rebuilt after PERF-040 and verified the no-op fetch-progress s
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
 | PERF-041 | Fixed | Channel replica fetch progress result allocations | Post-PERF-040 allocation profiles showed `applyFetchProgressCommand` allocating about `26-28MB` per node while handling successful leader fetch progress. | `machineResult` stored fetch progress through `*machineFetchProgressResult`, and each fetch needing records also allocated `*readLogEffect`; both objects are single-owner loop results and can be copied inline through the reply path. | `4302ce46` |
+
+## Continuation: isolated worktree Run 23
+
+This continuation rebuilt after PERF-041 and targeted gateway startup retained heap. The async SEND dispatcher used CPU-scaled worker shards, but every shard still preallocated a 1024-slot buffered channel, so high-worker nodes retained tens of MB before doing useful work.
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-21 | Continued clean 1/s run `WK_SIM_UID_PREFIX=clean30-fetchresult-u` and `/tmp/wksim-rate1-async-heap-confirm-20260521-172721` heap capture | Evidence | The run reached `messages_sent=203734`, `send_errors=243`, `recv_errors=0`. Heap profiles showed `internal/gateway/core.newAsyncDispatchQueueWithCapacity` retaining about `39.86MB` on node1, `45.74MB` on node2, and `38.83MB` on node3. |
+| 2026-05-21 | `GOWORK=off go test ./internal/gateway/core -run TestAsyncDispatchQueueBoundsBufferedCapacityForManyWorkers -count=1` | Red then pass | Regression test failed before the queue-capacity change with total buffered capacity `1048576`, then passed after total retained SEND queue slots were capped and split across many shards. |
+| 2026-05-21 | `GOWORK=off go test ./internal/gateway/core -count=1` and `GOWORK=off go test -race ./internal/gateway/core -run 'Test(ServerAsyncSendDispatch\|AsyncDispatchQueueBoundsBufferedCapacityForManyWorkers\|AsyncDispatchWorkerCount\|AdaptiveAsyncDispatchWorkerCount)' -count=1` | Pass | Full gateway core tests and race-focused async-dispatch checks passed after the adaptive queue capacity change. |
+| 2026-05-21 | `git diff --check`, `GOWORK=off go test ./internal/gateway ./internal/gateway/core ./internal/app -count=1`, and `GOWORK=off go test ./...` | Pass | Whitespace, focused gateway/app tests, and full unit-test suite passed before rebuilding the local image. |
+| 2026-05-21 | `DOCKER_BUILDKIT=0 docker build --pull=false -t wukongim-dev:local .` | Pass | Rebuilt local image from the async queue change; image ID `e115657091b2`. |
+| 2026-05-21 | Fresh-image clean 1/s after PERF-042, `WK_SIM_UID_PREFIX=clean31-asyncq-u` | Fail | The run reached `messages_sent=88120`, `send_errors=90`, `recv_errors=0` during the profile capture, and later `messages_sent=91243`, `send_errors=143`, `recv_errors=0`; sustained clean 1/s still needs more latency reduction. |
+| 2026-05-21 | `/tmp/wksim-rate1-asyncq-alloc-20260521-174006` alloc/heap/diagnostics capture | Evidence | `newAsyncDispatchQueueWithCapacity` retained about `6.58MB` on node1, `11.14MB` on node2, and `6.58MB` on node3, down from roughly `39-46MB` before the fix. Overall Go heap in this early window was about `175-178MB` per node, with the remaining top allocation/heap owners dominated by Pebble, diagnostics store, WKProto encode/seal, transport RPC encode/decode, idle deadline tracking, and channel fetch/apply paths. |
+
+| ID | Status | Area | Symptom | Root Cause | Fix Commit |
+| --- | --- | --- | --- | --- | --- |
+| PERF-042 | Fixed | Gateway async SEND queue retained heap | Post-PERF-041 heap profiles showed `newAsyncDispatchQueueWithCapacity` retaining roughly `39-46MB` per node at gateway startup. | `newAsyncDispatchQueue` gave every async SEND worker shard a fixed 1024-slot buffered channel, so the CPU-scaled worker count multiplied retained queue slots up to `1024 * 1024` even though the node only needs bounded burst capacity. | `TBD` |
