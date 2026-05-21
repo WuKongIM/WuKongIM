@@ -2257,6 +2257,36 @@ func TestDistributedDeliveryPushBatchesPersonRoutesByRecipientChannelView(t *tes
 	}, viewsByUID)
 }
 
+func TestDistributedDeliveryPushSinglePersonRouteAllocationBudget(t *testing.T) {
+	push := distributedDeliveryPush{
+		localNodeID: 1,
+		client:      benchmarkAcceptAllDeliveryPushClient{},
+		codec:       codec.New(),
+	}
+	cmd := deliveryruntime.PushCommand{
+		Envelope: deliveryruntime.CommittedEnvelope{
+			Message: channel.Message{
+				MessageID:   103,
+				MessageSeq:  11,
+				ChannelID:   channelid.ToCommandChannel("u1@u2"),
+				ChannelType: frame.ChannelTypePerson,
+				FromUID:     "u1",
+				Payload:     []byte("hello single person route"),
+			},
+		},
+		Routes: []deliveryruntime.RouteKey{
+			{UID: "u2", NodeID: 2, BootID: 11, SessionID: 22},
+		},
+	}
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		result, err := push.Push(context.Background(), cmd)
+		require.NoError(t, err)
+		require.Len(t, result.Accepted, 1)
+	})
+	require.LessOrEqual(t, allocs, float64(20), "single-route person delivery should not allocate grouping maps")
+}
+
 func TestDistributedDeliveryPushFallsBackToLegacyForUnreportedBatchRoutes(t *testing.T) {
 	metrics := &recordingDeliveryRoutingMetrics{}
 	client := &recordingDeliveryPushClient{

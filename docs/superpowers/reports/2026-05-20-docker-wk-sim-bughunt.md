@@ -154,3 +154,21 @@ This continuation kept the clean 1/s Docker dev-sim run running as background ev
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
 | PERF-021 | Fixed | Delivery subscriber metadata | Clean 1/s profiles still spent measurable CPU in subscriber metadata `GetChannel` reads during delivery begin-resolve, even for person channels. | `BeginSnapshotWithRequest` read durable subscriber mutation metadata before dispatching by channel type, so derived person/agent/temp subscriber sets paid a Pebble point lookup even though their membership is encoded in the request/channel ID and has no durable subscriber list. | Current change |
+
+## Continuation: isolated worktree Run 13
+
+This continuation rebuilt `wukongim-dev:local` with the legacy Docker builder and local base-image cache because BuildKit metadata lookup against Docker Hub was unavailable. The fresh clean 1/s run confirmed the subscriber metadata hot-path was removed from profiles, then exposed the next allocation-heavy person delivery path.
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-21 | `DOCKER_BUILDKIT=0 docker build --pull=false -t wukongim-dev:local .` | Pass | Rebuilt the local image from committed code without network metadata pulls. |
+| 2026-05-21 | Clean override volume, `WK_SIM_RATE=1/s WK_SIM_TRAFFIC_CONCURRENCY=256 WK_SIM_UID_PREFIX=clean11-derived-u` | Partial | Fresh-image run reached traffic quickly; it stayed at zero errors through about `messages_sent=84629`, then produced sendack bursts while continuing to recover. This keeps sustained 1/s recorded as above local no-error capacity. |
+| 2026-05-21 | `/tmp/wksim-rate1-derived-pprof-20260521-095028` focused subscriber profile | Evidence | `subscriberResolver.channelMutationVersion` no longer appeared above the profile cutoff; remaining cost was dominated by transport RPC, gateway writes, delivery fanout, long-poll, storage commit, and allocation pressure. |
+| 2026-05-21 | `GOWORK=off go test ./internal/app -run TestDistributedDeliveryPushSinglePersonRouteAllocationBudget -count=1` | Red then pass | Regression test measured `29` allocations for the one-route remote person delivery path before the fast path and passed once grouping maps/slices were skipped for single-route delivery. |
+| 2026-05-21 | `GOWORK=off go test ./internal/app -run 'TestDistributedDeliveryPush(SinglePersonRouteAllocationBudget|SingleRemoteNodeUsesCallerGoroutine|BatchesPersonRoutesByRecipientChannelView|RunsRemoteNodesWithBoundedParallelism)|TestLocalDeliveryPushBuildsPersonChannelViewPerRouteUID' -count=1` | Pass | Focused delivery routing behavior and allocation-budget checks passed. |
+| 2026-05-21 | `GOWORK=off go test ./internal/app -run '^$' -bench 'Benchmark(LocalDeliveryPushPersonRoutes|DistributedDeliveryPushPersonRouteViews|DistributedDeliveryPushGroupBatchRoutes|DistributedDeliveryPushGroupFanoutFrameReuse)$' -benchmem -count=3` | Pass | Existing delivery benchmarks remained functional; 256-route benchmark allocation counts were intentionally unchanged because the fix targets the wk-sim one-recipient person route. |
+| 2026-05-21 | `git diff --check` and `GOWORK=off go test ./...` | Pass | Whitespace and full unit-test verification passed before committing the single-route delivery allocation fix. |
+
+| ID | Status | Area | Symptom | Root Cause | Fix Commit |
+| --- | --- | --- | --- | --- | --- |
+| PERF-022 | Fixed | Delivery single-recipient fanout | After derived subscriber metadata reads were removed, profiles still showed significant `runtime.mallocgc` under delivery/gateway paths; wk-sim person channels usually fan out to a single non-sender route. | `distributedDeliveryPush.Push` and `deliveryPushItems` still allocated local/remote grouping maps and route-view maps even when there was only one remote person route; local person delivery also allocated a frame cache map for one route. | Current change |
