@@ -143,7 +143,7 @@ Build([]transport.ListenerSpec) ([]transport.Listener, error)
 | `listenerRuntime` | `core/server.go` | 单个逻辑 listener 的 options、factory、adapter、reply token tracker 和实际 listener |
 | `sessionState` | `core/server.go` | 单连接运行时状态：transport conn、session、inbound buffer、认证状态、close reason、request context |
 | `dispatcher` | `core/dispatcher.go` | 把 session state 转为 `types.Context` 并调用业务 handler |
-| `idleTracker` | `core/idle_tracker.go` | 基于最小堆的读空闲 deadline 调度，避免按 tick 全量扫描 session |
+| `idleTracker` | `core/idle_tracker.go` | 基于最小堆和 session 索引的读空闲 deadline 调度，刷新时原地更新 deadline，避免按 tick 全量扫描 session |
 | `asyncDispatchQueue` | `core/server.go` | SEND 帧异步分发队列，容量有界，满队列时关闭当前 session 形成背压 |
 | `asyncSendBatchCollector` | `core/server.go` | 单个 SEND shard 内的有界微批收集器，按等待时间、条数和 payload 字节数 flush，并用 pending slot 保留超限帧 |
 | `session.Session` | `session/session.go` | 会话抽象，持有 values 和出站 encoded queue |
@@ -207,7 +207,7 @@ OnOpen:
 
 ```text
 OnData:
-  ① 更新读活跃时间，刷新 idle deadline
+  ① 更新读活跃时间，刷新 idle deadline；同一 session 在 idleTracker 中只保留一个可调整的 heap entry
   ② 追加到 state.inbound，超过 MaxInboundBytes 则按 inbound_overflow 关闭
   ③ adapter.Decode(session, inbound) 循环解出 0..N 个 frame
      - consumed==0 且无 frame: 等待更多字节
