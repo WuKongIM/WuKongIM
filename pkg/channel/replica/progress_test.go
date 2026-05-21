@@ -159,6 +159,45 @@ func TestProgressLoopFetchDoesNotRegressProgress(t *testing.T) {
 	r.mu.RUnlock()
 }
 
+func TestProgressLoopFetchSkipsStatePublishWhenReplicaStateUnchanged(t *testing.T) {
+	env := newTestEnv(t)
+	cfg := env.config()
+	publishCount := 0
+	cfg.OnStateChange = func() {
+		publishCount++
+	}
+	got, err := NewReplica(cfg)
+	require.NoError(t, err)
+	r := got.(*replica)
+	env.replica = r
+	meta := activeMetaWithMinISR(7, 1, 1)
+	r.mustApplyMeta(t, meta)
+	require.NoError(t, r.BecomeLeader(meta))
+
+	r.mu.Lock()
+	r.state.LEO = 5
+	r.state.OffsetEpoch = r.state.Epoch
+	r.progress[r.localNode] = 5
+	r.progress[2] = 4
+	r.publishStateLocked()
+	r.mu.Unlock()
+	before := r.Status()
+	publishCount = 0
+
+	result := r.applyLoopEvent(machineFetchProgressCommand{Request: channel.ReplicaFetchRequest{
+		ChannelKey:  before.ChannelKey,
+		Epoch:       before.Epoch,
+		ReplicaID:   2,
+		FetchOffset: 2,
+		OffsetEpoch: before.OffsetEpoch,
+		MaxBytes:    1024,
+	}})
+
+	require.NoError(t, result.Err)
+	require.Equal(t, before, r.Status())
+	require.Zero(t, publishCount)
+}
+
 func TestProgressLoopAppendCommitPublishesLocalProgress(t *testing.T) {
 	r := newLeaderReplica(t)
 	st := r.Status()

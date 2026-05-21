@@ -381,4 +381,23 @@ This continuation rebuilt after PERF-038 and found that the pointer allocation w
 
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
-| PERF-039 | Fixed | Delivery actor route map allocations | After inline route state, `actor.ensureRouteState` still allocated tens of MB per node in fresh clean 1/s profiles. | `dispatch` created a new route-state map for every inflight message, so map bucket allocation/growth remained on the hot route setup path even though route state values were inline. | Current change |
+| PERF-039 | Fixed | Delivery actor route map allocations | After inline route state, `actor.ensureRouteState` still allocated tens of MB per node in fresh clean 1/s profiles. | `dispatch` created a new route-state map for every inflight message, so map bucket allocation/growth remained on the hot route setup path even though route state values were inline. | `64567cab` |
+
+## Continuation: isolated worktree Run 21
+
+This continuation rebuilt after PERF-039, confirmed the route-state map allocation disappeared from fresh profiles, then targeted redundant replica state publication. The state publication path allocates an immutable snapshot and wakes runtime watchers; fetch-progress requests that do not change `ReplicaState` should not publish another identical snapshot.
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-21 | `DOCKER_BUILDKIT=0 docker build --pull=false -t wukongim-dev:local .` | Pass | Rebuilt local image from `64567cab`; image ID `409c9a112606`. |
+| 2026-05-21 | Fresh-image clean 1/s after PERF-039, `WK_SIM_UID_PREFIX=clean28-routemappool-u` | Fail | Capture status was `messages_sent=129333`, `send_errors=159`, `recv_errors=0`; sustained clean 1/s still exceeds the current no-error capacity on this machine. |
+| 2026-05-21 | `/tmp/wksim-rate1-routemappool-alloc-20260521-163255` alloc/heap/diagnostics capture | Evidence | `actor.ensureRouteState` no longer appeared in the matched allocation list. The next confirmed app-level allocation slice was `replica.publishStateLocked`, about `79.51MB` on node1, `76.51MB` on node2, and `66.51MB` on node3; diagnostics still retained only `ok` events, mostly successful long-poll waits around 2s. |
+| 2026-05-21 | `/tmp/wksim-rate1-routemappool-cpu-20260521-163350` CPU capture | Evidence | CPU stayed split across syscalls, allocation, Pebble, gnet, runtime scheduling, and gateway/protocol paths; allocation pressure remained the clearest narrow fix target. |
+| 2026-05-21 | `GOWORK=off go test ./pkg/channel/replica -run TestProgressLoopFetchSkipsStatePublishWhenReplicaStateUnchanged -count=1` | Red then pass | Regression test failed while a no-op fetch progress request still fired `OnStateChange`, then passed after `publishStateLocked` skipped unchanged `ReplicaState` snapshots. |
+| 2026-05-21 | `GOWORK=off go test ./pkg/channel/replica -run 'Test(ProgressLoopFetchSkipsStatePublishWhenReplicaStateUnchanged\|ProgressLoopFetchDoesNotRegressProgress\|StatusReturnsLatestReplicaSnapshot\|StatusIsUpdatedAfterFollowerAckAdvancesHW\|Fetch\|ApplyFetch\|ApplyFollowerCursor)' -count=1` and `GOWORK=off go test -race ./pkg/channel/replica -run TestProgressLoopFetchSkipsStatePublishWhenReplicaStateUnchanged -count=1` | Pass | Focused progress/fetch/status behavior and race verification passed after the no-op publication guard. |
+| 2026-05-21 | `git diff --check` and `GOWORK=off go test ./pkg/channel/replica ./pkg/channel/runtime ./internal/app -count=1` | Pass | Whitespace plus focused replica/runtime/app verification passed before broader validation. |
+| 2026-05-21 | `GOWORK=off go test ./...` | Pass | Full unit-test suite passed before committing the no-op replica state publication guard. |
+
+| ID | Status | Area | Symptom | Root Cause | Fix Commit |
+| --- | --- | --- | --- | --- | --- |
+| PERF-040 | Fixed | Channel replica state publication allocations | Post-PERF-039 clean 1/s allocation profiles showed `replica.publishStateLocked` allocating tens of MB per node while handling frequent fetch/cursor progress. | `applyFetchProgressCommand` published an immutable `ReplicaState` snapshot and notified runtime watchers even when the request only refreshed progress maps and left the externally visible state unchanged. | Current change |
