@@ -104,6 +104,8 @@ flush 触发大量 hash-slot proposal 并抢占前台发送链路。
 本地读取（proxy/store.go:69 GetChannel）:
   hashSlot = HashSlotForKey(channelID)
   → db.ForHashSlot(hashSlot).GetChannel(ctx, ...)  // 直接读本地 Pebble
+  → meta.DB 会对热 Channel 元数据维护节点内有界缓存；Create/Update/Upsert/Delete/AddSubscribers/RemoveSubscribers
+    以及 WriteBatch commit、快照导入会同步更新或清理缓存，保证订阅版本栅栏不绕过本地已应用状态。
 
 权威读取（proxy/store.go:138 GetUser，需线性一致性）:
   slotID = SlotForKey(uid)
