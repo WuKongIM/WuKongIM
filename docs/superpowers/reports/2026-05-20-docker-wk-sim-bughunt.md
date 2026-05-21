@@ -138,3 +138,19 @@ This continuation kept the clean Docker override volume pattern and focused on t
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
 | PERF-020 | Fixed | Conversation active-hint flush fanout | Long clean 0.5/s runs reintroduced active-hint flush deadline warnings and correlated sendack timeouts even after the active-hint hot path was made O(1). | The background flush default of `1024` hints every `2s` could fan out into many UID hash-slot Slot Raft proposals, so a best-effort hint path periodically competed with foreground sends. | Current change |
+
+## Continuation: isolated worktree Run 12
+
+This continuation kept the clean 1/s Docker dev-sim run running as background evidence and targeted the next profile slice with a narrow TDD fix. The running image was not rebuilt for this code change, so Docker counters in this section are diagnostic context, while the fix is verified by focused and full Go tests.
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-21 | Clean override volume, `WK_SIM_RATE=1/s WK_SIM_TRAFFIC_CONCURRENCY=256 WK_SIM_UID_PREFIX=clean10-rate1-u` continued polling | Partial | The run progressed beyond `messages_sent=813689` with `send_errors=43` and `recv_errors=0`; errors did not grow during the last observation window, but the local image predates the latest code change. |
+| 2026-05-21 | `go tool pprof` on `/tmp/wksim-rate1-error-pprof-20260521-092728/node{1,2,3}.cpu.pb.gz` focused on subscriber metadata resolution | Evidence | Error-window profiles showed `tagDeliveryResolver.BeginResolve` spending about `2.25-3.40%` cumulative CPU in `subscriberResolver.channelMutationVersion -> Store.GetChannel -> Pebble DB.Get`; code inspection showed the lookup ran before channel-type dispatch, including person channels whose subscriber set is derived from the channel ID. |
+| 2026-05-21 | `GOWORK=off go test ./internal/usecase/delivery -run TestSubscriberResolverSkipsMetadataForDerivedPersonChannel -count=1` | Red then pass | Regression test failed while person-channel resolution touched metadata (`getChannelCalls=[{u2@u1 1}]`), then passed after derived person/agent/temp sources skipped durable subscriber metadata reads. |
+| 2026-05-21 | `GOWORK=off go test ./internal/usecase/delivery -count=1` | Pass | Full delivery usecase package verification passed after the metadata-read removal. |
+| 2026-05-21 | `git diff --check` and `GOWORK=off go test ./...` | Pass | Whitespace and full unit-test verification passed before committing the subscriber metadata hot-path fix. |
+
+| ID | Status | Area | Symptom | Root Cause | Fix Commit |
+| --- | --- | --- | --- | --- | --- |
+| PERF-021 | Fixed | Delivery subscriber metadata | Clean 1/s profiles still spent measurable CPU in subscriber metadata `GetChannel` reads during delivery begin-resolve, even for person channels. | `BeginSnapshotWithRequest` read durable subscriber mutation metadata before dispatching by channel type, so derived person/agent/temp subscriber sets paid a Pebble point lookup even though their membership is encoded in the request/channel ID and has no durable subscriber list. | Current change |
