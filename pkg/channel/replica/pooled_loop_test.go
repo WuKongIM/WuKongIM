@@ -81,6 +81,30 @@ func TestPooledLoopMessageStoresCommandInline(t *testing.T) {
 	}
 }
 
+func TestPooledLoopDriverDoesNotPreallocateFullMailbox(t *testing.T) {
+	pool := &ExecutionPool{
+		cfg: ExecutionPoolConfig{
+			Now:         time.Now,
+			MailboxSize: 2048,
+			TurnBudget:  64,
+		},
+		ready:  make(chan *pooledLoopDriver, 4),
+		stopCh: make(chan struct{}),
+	}
+	r := &replica{loopDone: make(chan struct{})}
+	driver := newPooledLoopDriver(r, ExecutionConfig{Mode: ExecutionModePooled, Pool: pool, MailboxSize: 2048, TurnBudget: 64})
+
+	if got := cap(driver.queue); got > 16 {
+		t.Fatalf("initial mailbox capacity = %d, want <= 16 to avoid per-replica 2048-slot allocation", got)
+	}
+	if !driver.pushLocked(pooledLoopMessage{event: testMailboxEvent{id: 1}}) {
+		t.Fatal("first pushLocked() = false, want true")
+	}
+	if got := cap(driver.queue); got > 16 {
+		t.Fatalf("mailbox capacity after first push = %d, want <= 16", got)
+	}
+}
+
 type testMailboxEvent struct{ id int }
 
 func (testMailboxEvent) isMachineEvent() {}

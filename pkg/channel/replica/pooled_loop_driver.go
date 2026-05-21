@@ -8,6 +8,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
+const pooledLoopInitialMailboxCapacity = 16
+
 type pooledLoopMessage struct {
 	command    replicaLoopCommand
 	event      machineEvent
@@ -44,7 +46,6 @@ func newPooledLoopDriver(r *replica, cfg ExecutionConfig) *pooledLoopDriver {
 		doneCh:      r.loopDone,
 		mailboxSize: mailboxSize,
 		turnBudget:  pool.turnBudget(cfg.TurnBudget),
-		queue:       make([]pooledLoopMessage, mailboxSize),
 	}
 }
 
@@ -136,8 +137,18 @@ func (d *pooledLoopDriver) pushLocked(msg pooledLoopMessage) bool {
 	if d.mailboxSize <= 0 || d.size >= d.mailboxSize {
 		return false
 	}
+	if len(d.queue) == 0 {
+		capacity := pooledLoopInitialMailboxCapacity
+		if capacity > d.mailboxSize {
+			capacity = d.mailboxSize
+		}
+		d.queue = make([]pooledLoopMessage, capacity)
+	}
+	if d.size == len(d.queue) {
+		d.growLocked()
+	}
 	d.queue[d.tail] = msg
-	d.tail = (d.tail + 1) % d.mailboxSize
+	d.tail = (d.tail + 1) % len(d.queue)
 	d.size++
 	return true
 }
@@ -148,21 +159,50 @@ func (d *pooledLoopDriver) popLocked() (pooledLoopMessage, bool) {
 	}
 	msg := d.queue[d.head]
 	d.queue[d.head] = pooledLoopMessage{}
-	d.head = (d.head + 1) % d.mailboxSize
+	d.head = (d.head + 1) % len(d.queue)
 	d.size--
+	if d.size == 0 {
+		d.head = 0
+		d.tail = 0
+	}
 	return msg, true
 }
 
 func (d *pooledLoopDriver) undoLastPushLocked() {
-	if d.size == 0 || d.mailboxSize <= 0 {
+	if d.size == 0 || len(d.queue) == 0 {
 		return
 	}
 	d.tail--
 	if d.tail < 0 {
-		d.tail = d.mailboxSize - 1
+		d.tail = len(d.queue) - 1
 	}
 	d.queue[d.tail] = pooledLoopMessage{}
 	d.size--
+	if d.size == 0 {
+		d.head = 0
+		d.tail = 0
+	}
+}
+
+func (d *pooledLoopDriver) growLocked() {
+	oldCap := len(d.queue)
+	if oldCap >= d.mailboxSize {
+		return
+	}
+	newCap := oldCap * 2
+	if newCap < 1 {
+		newCap = 1
+	}
+	if newCap > d.mailboxSize {
+		newCap = d.mailboxSize
+	}
+	next := make([]pooledLoopMessage, newCap)
+	for idx := 0; idx < d.size; idx++ {
+		next[idx] = d.queue[(d.head+idx)%oldCap]
+	}
+	d.queue = next
+	d.head = 0
+	d.tail = d.size
 }
 
 func (d *pooledLoopDriver) enqueue(ctx context.Context, msg pooledLoopMessage) error {
