@@ -436,3 +436,21 @@ This continuation rebuilt after PERF-041 and targeted gateway startup retained h
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
 | PERF-042 | Fixed | Gateway async SEND queue retained heap | Post-PERF-041 heap profiles showed `newAsyncDispatchQueueWithCapacity` retaining roughly `39-46MB` per node at gateway startup. | `newAsyncDispatchQueue` gave every async SEND worker shard a fixed 1024-slot buffered channel, so the CPU-scaled worker count multiplied retained queue slots up to `1024 * 1024` even though the node only needs bounded burst capacity. | `8f7889da` |
+
+## Continuation: isolated worktree Run 24
+
+This continuation targeted the remaining gateway idle deadline heap churn. The previous idle tracker avoided full-session scans by appending a new heap entry on every inbound read and invalidating older entries with a sequence number; under long-lived wk-sim sessions, those stale entries stayed resident until they reached the heap root.
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-21 | `/tmp/wksim-rate1-asyncq-alloc-20260521-174006` post-PERF-042 alloc/heap capture | Evidence | The fresh clean 1/s run reached `messages_sent=88120`, `send_errors=90`, `recv_errors=0`. Heap profiles still showed `internal/gateway/core.(*idleDeadlineHeap).push` retaining about `4.41MB` per node, and alloc profiles showed about `0.02GB` per node attributed to repeated idle deadline pushes. |
+| 2026-05-21 | `GOWORK=off go test ./internal/gateway/core -run 'TestIdleTracker(TouchUpdatesExistingDeadlineWithoutGrowingHeap\|RemoveDeletesTrackedDeadline)' -count=1` | Red then pass | Regression tests failed while repeatedly touching one session grew the tracker heap to `1024` entries and `remove` left one heap entry, then passed after the tracker updated/deleted the indexed heap entry in place. |
+| 2026-05-21 | `GOWORK=off go test ./internal/gateway/core -run 'TestIdleTracker\|TestIdleTimeout\|TestInboundTrafficRefreshesIdleTimeout\|TestOutboundTrafficDoesNotRefreshIdleTimeout' -count=1` and race variant | Pass | Focused idle tracker and idle-timeout behavior passed, including race verification for the idle path tests. |
+| 2026-05-21 | `git diff --check`, `GOWORK=off go test ./internal/gateway ./internal/gateway/core ./internal/app -count=1`, and `GOWORK=off go test ./...` | Pass | Whitespace, focused gateway/app tests, and full unit-test suite passed before rebuilding the local image. |
+| 2026-05-21 | `DOCKER_BUILDKIT=0 docker build --pull=false -t wukongim-dev:local .` | Pass | Rebuilt local image from the idle tracker change; image ID `3ae3f03243e6`. |
+| 2026-05-21 | Fresh-image clean 1/s after PERF-043, `WK_SIM_UID_PREFIX=clean32-idleidx-u` | Fail | The run initially retried during prepare, then reached `messages_sent=106245`, `send_errors=95`, `recv_errors=0` during the profile capture; this verification is for the retained heap fix, not a no-error capacity claim. |
+| 2026-05-21 | `/tmp/wksim-rate1-idleidx-alloc-20260521-180032` alloc/heap/diagnostics capture | Evidence | `idleDeadlineHeap.push` no longer appeared in heap or matched alloc-space output. Remaining top owners were Pebble (`manual.New`, `keyspan.Fragmenter.flush`), diagnostics store, bounded async SEND queue retention, WKProto seal/encrypt, `time.newTimer`, delivery ack notifier, presence cache, and channel clone/commit paths. |
+
+| ID | Status | Area | Symptom | Root Cause | Fix Commit |
+| --- | --- | --- | --- | --- | --- |
+| PERF-043 | Fixed | Gateway idle deadline heap churn | Post-PERF-042 profiles showed `idleDeadlineHeap.push` retaining several MB per node and allocating about `0.02GB` per node while wk-sim sessions kept sending inbound frames. | `idleTracker.touch` appended a new heap entry for every read and only invalidated old entries with a sequence number, so active long-lived sessions accumulated stale deadline entries until those entries bubbled to the heap root. | `TBD` |

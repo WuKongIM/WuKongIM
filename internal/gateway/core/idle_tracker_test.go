@@ -39,6 +39,33 @@ func TestIdleTrackerSkipsStaleDeadlineAfterTouch(t *testing.T) {
 	}
 }
 
+func TestIdleTrackerTouchUpdatesExistingDeadlineWithoutGrowingHeap(t *testing.T) {
+	tracker := newIdleTracker(10 * time.Millisecond)
+	now := time.Unix(250, 0)
+	state := testIdleSessionState()
+
+	for i := 0; i < 1024; i++ {
+		tracker.touch(state, now.Add(time.Duration(i)*time.Millisecond))
+	}
+
+	if got := tracker.len(); got != 1 {
+		t.Fatalf("tracker len = %d, want 1 deadline for repeatedly touched session", got)
+	}
+}
+
+func TestIdleTrackerRemoveDeletesTrackedDeadline(t *testing.T) {
+	tracker := newIdleTracker(10 * time.Millisecond)
+	now := time.Unix(260, 0)
+	state := testIdleSessionState()
+
+	tracker.touch(state, now)
+	tracker.remove(state)
+
+	if got := tracker.len(); got != 0 {
+		t.Fatalf("tracker len after remove = %d, want 0", got)
+	}
+}
+
 func TestIdleTrackerNextWaitDoesNotScanAllSessions(t *testing.T) {
 	tracker := newIdleTracker(10 * time.Millisecond)
 	now := time.Unix(300, 0)

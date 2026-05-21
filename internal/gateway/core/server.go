@@ -100,8 +100,6 @@ type sessionState struct {
 	requestContext       context.Context
 	cancelRequestContext context.CancelFunc
 
-	// idleSeq identifies the latest idle-tracker deadline for this state.
-	idleSeq          atomic.Uint64
 	lastReadActivity atomic.Int64
 }
 
