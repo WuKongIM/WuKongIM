@@ -400,4 +400,4 @@ This continuation rebuilt after PERF-039, confirmed the route-state map allocati
 
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
-| PERF-040 | Fixed | Channel replica state publication allocations | Post-PERF-039 clean 1/s allocation profiles showed `replica.publishStateLocked` allocating tens of MB per node while handling frequent fetch/cursor progress. | `applyFetchProgressCommand` published an immutable `ReplicaState` snapshot and notified runtime watchers even when the request only refreshed progress maps and left the externally visible state unchanged. | Current change |
+| PERF-040 | Fixed | Channel replica state publication allocations | Post-PERF-039 clean 1/s allocation profiles showed `replica.publishStateLocked` allocating tens of MB per node while handling frequent fetch/cursor progress. | `applyFetchProgressCommand` published an immutable `ReplicaState` snapshot and notified runtime watchers even when the request only refreshed progress maps and left the externally visible state unchanged. | `43f1e72f` |
