@@ -317,3 +317,19 @@ This continuation investigated sustained sendack timeouts on the fresh image tha
 | PERF-033 | Rejected | wk-sim auto recv-ack read contention | Sustained clean 1/s runs could accumulate wk-sim sendack read timeouts while server diagnostics retained only successful events. | The candidate fix in 346eac5d injected short background read deadlines, but WKProto frame decoding is not restartable after a timeout that may have consumed part of a frame. The experiment made clean 1/s worse and was replaced by BUG-034. | `346eac5d` |
 | BUG-034 | Fixed | wk-sim WKProto stream safety | After 346eac5d, clean 1/s produced early sendack timeouts and a stream decode error (`解码包[SEND]失败`) by about 62k messages. | The auto recv-ack drainer treated an injected read timeout as a harmless idle read, but the underlying `DecodePacketWithConn` may already have consumed a partial frame; continuing on the same TCP stream desynchronized subsequent decodes. | `60f54443` |
 | PERF-035 | Fixed | Delivery tag topology assignment allocations | Clean 1/s allocation profiles after BUG-034 showed `deliveryTagAssignmentBySlot` allocating tens of MB per node while resolving group delivery tags. | `currentDeliveryTagAssignmentBySlot` converted the entire cached controller assignment list into a map on every topology read/validation even though each request only needs the small set of UID hash slots in that tag page. | `d0fc7505` |
+
+## Continuation: isolated worktree Run 17
+
+This continuation used the post-PERF-035 clean 1/s run to pick the next allocation slice in the channel runtime notification path. The fix keeps the monotonic version fast path, but avoids allocating a replacement notification channel when no long-poll waiter is actually parked.
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-21 | Continued `clean24-tagassign-u` polling on image `3a6dcf1376b8` | Fail | The run later reached `messages_sent=999122`, `send_errors=305`, `recv_errors=0`, so sustained clean 1/s remains above current no-error capacity even after PERF-035. |
+| 2026-05-21 | `/tmp/wksim-rate1-aftertagassign-20260521-151411` alloc/heap/diagnostics capture | Evidence | `replicaChangeNotifier.notify` allocated about `0.48GB` on node1, `0.41GB` on node2, and `0.46GB` on node3 while publishing replica state changes; this was the next confirmed allocation slice after delivery-tag assignment filtering. |
+| 2026-05-21 | `GOWORK=off go test ./pkg/channel/runtime -run TestReplicaChangeNotifier -count=1` | Red then pass | Regression coverage failed before the notifier tracked waiter count, then passed after idle `notify()` calls stopped allocating and active waiters were still woken. |
+| 2026-05-21 | `GOWORK=off go test -race ./pkg/channel/runtime -run TestReplicaChangeNotifier -count=1` | Pass | Race verification passed for the waiter-count synchronization around `notify`, `snapshot`, and `wait`. |
+| 2026-05-21 | `git diff --check` and `GOWORK=off go test ./pkg/channel/runtime ./pkg/channel/replica ./internal/app -count=1` | Pass | Whitespace plus focused channel runtime/replica/app verification passed before broader validation. |
+
+| ID | Status | Area | Symptom | Root Cause | Fix Commit |
+| --- | --- | --- | --- | --- | --- |
+| PERF-036 | Fixed | Channel replica change notifications | Clean 1/s allocation profiles after PERF-035 showed `replicaChangeNotifier.notify` allocating roughly `0.41-0.48GB` per node while replica state publication stayed hot. | Every state publication closed the current notification channel and allocated a replacement, even when no long-poll waiter was blocked on that channel; most notifications only need the monotonic version increment. | Current change |
