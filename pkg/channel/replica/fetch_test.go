@@ -2,10 +2,12 @@ package replica
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,6 +37,26 @@ func TestFetchRejectsMismatchedChannelKey(t *testing.T) {
 	require.ErrorIs(t, err, channel.ErrStaleMeta)
 }
 
+func TestFetchSkipsServedFetchDebugFieldsWhenDebugDisabled(t *testing.T) {
+	logger := &debugDisabledReplicaLogger{}
+	env := newFetchEnvWithHistory(t)
+	env.replica.logger = logger
+
+	result, err := env.replica.Fetch(context.Background(), channel.ReplicaFetchRequest{
+		ChannelKey:  "group-10",
+		Epoch:       7,
+		ReplicaID:   2,
+		FetchOffset: 4,
+		OffsetEpoch: 3,
+		MaxBytes:    1024,
+	})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, result.Records)
+	require.Zero(t, logger.namedCalls.Load())
+	require.Zero(t, logger.debugCalls.Load())
+}
+
 func TestFetchReturnsTruncateToWhenOffsetEpochDiverges(t *testing.T) {
 	env := newFetchEnvWithHistory(t)
 	result, err := env.replica.Fetch(context.Background(), channel.ReplicaFetchRequest{
@@ -49,6 +71,26 @@ func TestFetchReturnsTruncateToWhenOffsetEpochDiverges(t *testing.T) {
 	require.NotNil(t, result.TruncateTo)
 	require.Equal(t, uint64(4), *result.TruncateTo)
 }
+
+type debugDisabledReplicaLogger struct {
+	namedCalls atomic.Int64
+	debugCalls atomic.Int64
+}
+
+func (l *debugDisabledReplicaLogger) Debug(string, ...wklog.Field) { l.debugCalls.Add(1) }
+func (l *debugDisabledReplicaLogger) Info(string, ...wklog.Field)  {}
+func (l *debugDisabledReplicaLogger) Warn(string, ...wklog.Field)  {}
+func (l *debugDisabledReplicaLogger) Error(string, ...wklog.Field) {}
+func (l *debugDisabledReplicaLogger) Fatal(string, ...wklog.Field) {}
+func (l *debugDisabledReplicaLogger) With(...wklog.Field) wklog.Logger {
+	return l
+}
+func (l *debugDisabledReplicaLogger) Named(string) wklog.Logger {
+	l.namedCalls.Add(1)
+	return l
+}
+func (l *debugDisabledReplicaLogger) Sync() error        { return nil }
+func (l *debugDisabledReplicaLogger) DebugEnabled() bool { return false }
 
 func TestFetchRejectsFutureOffsetEpoch(t *testing.T) {
 	env := newFetchEnvWithHistory(t)
