@@ -591,6 +591,31 @@ func TestAutoRecvAckContinuesAfterIdleReadTimeout(t *testing.T) {
 	require.Equal(t, []recvAckCall{{messageID: 43, messageSeq: 8}}, raw.recvAckCalls)
 }
 
+func TestAutoRecvAckIdleReadYieldsToForegroundMatcher(t *testing.T) {
+	previousTimeout := autoRecvAckIdleReadTimeout
+	autoRecvAckIdleReadTimeout = 10 * time.Millisecond
+	t.Cleanup(func() { autoRecvAckIdleReadTimeout = previousTimeout })
+
+	raw := newCountingBlockingReadPersonClient()
+	wrapped := WrapPersonClientsForConcurrentReads(map[string]PersonClient{"u1": raw})["u1"]
+	stop := StartAutoRecvAckWithOptions(map[string]PersonClient{"u1": wrapped}, AutoRecvAckOptions{BufferRecvFrames: false})
+	defer stop()
+
+	require.Equal(t, readStart{count: 1, hasDeadline: true}, raw.waitReadStart(t, time.Second))
+
+	foregroundCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := readFrameMatching(foregroundCtx, wrapped, func(frame.Frame) bool { return false })
+		done <- err
+	}()
+
+	require.Equal(t, readStart{count: 2, hasDeadline: false}, raw.waitReadStart(t, time.Second))
+	cancel()
+	require.ErrorIs(t, <-done, context.Canceled)
+}
+
 func TestPersonWorkloadWarmupUsesWarmupDurationAsMinimumAckTimeout(t *testing.T) {
 	sender := newDelayedSendackClient(10 * time.Millisecond)
 	recipient := newRecordingPersonClient()
@@ -640,6 +665,54 @@ func (c *blockingReadPersonClient) ReadFrame(ctx context.Context) (frame.Frame, 
 	c.blockOnce.Do(func() { close(c.blockStarted) })
 	<-ctx.Done()
 	return nil, ctx.Err()
+}
+
+type countingBlockingReadPersonClient struct {
+	starts chan readStart
+	mu     sync.Mutex
+	count  int
+}
+
+type readStart struct {
+	count       int
+	hasDeadline bool
+}
+
+func newCountingBlockingReadPersonClient() *countingBlockingReadPersonClient {
+	return &countingBlockingReadPersonClient{starts: make(chan readStart, 8)}
+}
+
+func (c *countingBlockingReadPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
+	return nil
+}
+func (c *countingBlockingReadPersonClient) Send(ctx context.Context, pkt *frame.SendPacket) error {
+	return nil
+}
+func (c *countingBlockingReadPersonClient) RecvAck(ctx context.Context, messageID int64, messageSeq uint64) error {
+	return nil
+}
+func (c *countingBlockingReadPersonClient) Close() error { return nil }
+
+func (c *countingBlockingReadPersonClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	c.mu.Lock()
+	c.count++
+	count := c.count
+	c.mu.Unlock()
+	_, hasDeadline := ctx.Deadline()
+	c.starts <- readStart{count: count, hasDeadline: hasDeadline}
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func (c *countingBlockingReadPersonClient) waitReadStart(t *testing.T, timeout time.Duration) readStart {
+	t.Helper()
+	select {
+	case start := <-c.starts:
+		return start
+	case <-time.After(timeout):
+		t.Fatal("timed out waiting for ReadFrame to start")
+		return readStart{}
+	}
 }
 
 func TestPersonWorkloadRunHonorsRateDurationPerChannel(t *testing.T) {
