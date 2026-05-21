@@ -31,7 +31,11 @@ const (
 	asyncDispatchWorkersPerCPU  = 64
 	minAsyncDispatchWorkers     = 64
 	maxAsyncDispatchWorkers     = 1024
-	writerIdleTimeout           = 50 * time.Millisecond
+	// asyncDispatchMinQueuePerWorker keeps enough burst room for one default SEND micro-batch per shard.
+	asyncDispatchMinQueuePerWorker = 128
+	// asyncDispatchMaxBufferedTasks caps retained SEND queue slots as worker shards scale up.
+	asyncDispatchMaxBufferedTasks = maxAsyncDispatchWorkers * asyncDispatchMinQueuePerWorker
+	writerIdleTimeout             = 50 * time.Millisecond
 )
 
 type Server struct {
@@ -1159,7 +1163,22 @@ type asyncDispatchShard struct {
 }
 
 func newAsyncDispatchQueue(shards int) *asyncDispatchQueue {
-	return newAsyncDispatchQueueWithCapacity(shards, asyncDispatchQueuePerWorker)
+	return newAsyncDispatchQueueWithCapacity(shards, asyncDispatchQueueCapacityPerShard(shards))
+}
+
+// asyncDispatchQueueCapacityPerShard keeps total buffered SEND slots bounded across many shards.
+func asyncDispatchQueueCapacityPerShard(shards int) int {
+	if shards <= 0 {
+		shards = 1
+	}
+	capacity := (asyncDispatchMaxBufferedTasks + shards - 1) / shards
+	if capacity > asyncDispatchQueuePerWorker {
+		return asyncDispatchQueuePerWorker
+	}
+	if capacity < asyncDispatchMinQueuePerWorker {
+		return asyncDispatchMinQueuePerWorker
+	}
+	return capacity
 }
 
 func newAsyncDispatchQueueWithCapacity(shards, capacityPerShard int) *asyncDispatchQueue {

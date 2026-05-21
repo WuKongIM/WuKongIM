@@ -110,6 +110,24 @@ func TestServerAsyncSendDispatchUsesConfiguredWorkerCount(t *testing.T) {
 	srv.workerWG.Wait()
 }
 
+func TestAsyncDispatchQueueBoundsBufferedCapacityForManyWorkers(t *testing.T) {
+	queue := newAsyncDispatchQueue(maxAsyncDispatchWorkers)
+	if queue == nil {
+		t.Fatal("async dispatch queue was nil")
+	}
+
+	totalCapacity := 0
+	for i, shard := range queue.shards {
+		if got := cap(shard.tasks); got != asyncDispatchMinQueuePerWorker {
+			t.Fatalf("async dispatch shard %d capacity = %d, want %d", i, got, asyncDispatchMinQueuePerWorker)
+		}
+		totalCapacity += cap(shard.tasks)
+	}
+	if totalCapacity > asyncDispatchMaxBufferedTasks {
+		t.Fatalf("async dispatch total capacity = %d, want <= %d", totalCapacity, asyncDispatchMaxBufferedTasks)
+	}
+}
+
 func TestAsyncSendBatchOptionsUseDefaults(t *testing.T) {
 	opt := gatewaytypes.NormalizeSessionOptions(gatewaytypes.SessionOptions{})
 	if got, want := opt.AsyncSendBatchMaxWait, 500*time.Microsecond; got != want {
