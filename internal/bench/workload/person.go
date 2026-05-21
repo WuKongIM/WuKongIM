@@ -25,6 +25,12 @@ const (
 	defaultMatchingBufferLimit = 1024
 )
 
+// autoRecvAckIdleReadTimeout bounds idle background reads so foreground matchers can acquire the shared reader.
+var autoRecvAckIdleReadTimeout = time.Second
+
+// autoRecvAckYieldDelay briefly leaves the reader slot open when foreground matchers are queued.
+var autoRecvAckYieldDelay = time.Millisecond
+
 // PersonClient extends a WKProto connection client with message send and read capabilities.
 type PersonClient interface {
 	ConnectionClient
@@ -538,12 +544,14 @@ type matchingFrameReader interface {
 }
 
 type matchingPersonClient struct {
-	client                PersonClient
-	bufferLimit           int
-	mu                    sync.Mutex
-	buffer                []frame.Frame
-	reading               bool
-	notify                chan struct{}
+	client      PersonClient
+	bufferLimit int
+	mu          sync.Mutex
+	buffer      []frame.Frame
+	reading     bool
+	notify      chan struct{}
+	// foregroundWaiters tracks explicit matchers blocked behind the active read.
+	foregroundWaiters     int
 	autoRecvAck           bool
 	autoRecvAckBufferRecv bool
 }
@@ -588,13 +596,21 @@ func (c *matchingPersonClient) readFrameMatching(ctx context.Context, match func
 		}
 		if c.reading {
 			notify := c.notifyLocked()
+			c.foregroundWaiters++
 			c.mu.Unlock()
+			var waitErr error
 			select {
 			case <-notify:
-				continue
 			case <-ctx.Done():
-				return nil, ctx.Err()
+				waitErr = ctx.Err()
 			}
+			c.mu.Lock()
+			c.foregroundWaiters--
+			c.mu.Unlock()
+			if waitErr != nil {
+				return nil, waitErr
+			}
+			continue
 		}
 		c.reading = true
 		c.mu.Unlock()
@@ -674,10 +690,20 @@ func (c *matchingPersonClient) prefetchFrame(ctx context.Context) error {
 			return ctx.Err()
 		}
 	}
+	if c.foregroundWaiters > 0 {
+		c.mu.Unlock()
+		return waitAutoRecvAckYield(ctx)
+	}
 	c.reading = true
 	c.mu.Unlock()
 
-	f, err := c.client.ReadFrame(ctx)
+	readCtx := ctx
+	cancel := func() {}
+	if autoRecvAckIdleReadTimeout > 0 {
+		readCtx, cancel = context.WithTimeout(ctx, autoRecvAckIdleReadTimeout)
+	}
+	f, err := c.client.ReadFrame(readCtx)
+	cancel()
 	c.mu.Lock()
 	c.reading = false
 	if err != nil {
@@ -701,6 +727,20 @@ func (c *matchingPersonClient) prefetchFrame(ctx context.Context) error {
 	c.mu.Unlock()
 	c.autoAckRecvFrame(ctx, f, true)
 	return nil
+}
+
+func waitAutoRecvAckYield(ctx context.Context) error {
+	if autoRecvAckYieldDelay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(autoRecvAckYieldDelay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (c *matchingPersonClient) autoAckRecvFrame(ctx context.Context, f frame.Frame, enabled bool) {
