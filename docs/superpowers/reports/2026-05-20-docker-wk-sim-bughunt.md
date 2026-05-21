@@ -435,4 +435,4 @@ This continuation rebuilt after PERF-041 and targeted gateway startup retained h
 
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
-| PERF-042 | Fixed | Gateway async SEND queue retained heap | Post-PERF-041 heap profiles showed `newAsyncDispatchQueueWithCapacity` retaining roughly `39-46MB` per node at gateway startup. | `newAsyncDispatchQueue` gave every async SEND worker shard a fixed 1024-slot buffered channel, so the CPU-scaled worker count multiplied retained queue slots up to `1024 * 1024` even though the node only needs bounded burst capacity. | `TBD` |
+| PERF-042 | Fixed | Gateway async SEND queue retained heap | Post-PERF-041 heap profiles showed `newAsyncDispatchQueueWithCapacity` retaining roughly `39-46MB` per node at gateway startup. | `newAsyncDispatchQueue` gave every async SEND worker shard a fixed 1024-slot buffered channel, so the CPU-scaled worker count multiplied retained queue slots up to `1024 * 1024` even though the node only needs bounded burst capacity. | `8f7889da` |
