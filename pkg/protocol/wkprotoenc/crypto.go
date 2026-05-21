@@ -9,12 +9,22 @@ import (
 	"encoding/base64"
 	"errors"
 	"strconv"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	"github.com/valyala/bytebufferpool"
 	"golang.org/x/crypto/curve25519"
 )
 
 const sessionIVSize = 16
+const msgKeyScratchMaxRetained = 64 * 1024
+
+// msgKeyScratchPool reuses short-lived buffers used while calculating packet verification keys.
+var msgKeyScratchPool = sync.Pool{
+	New: func() any {
+		return make([]byte, 0, 256)
+	},
+}
 
 var (
 	// ErrInvalidPublicKey reports an invalid X25519 public key encoding.
@@ -286,20 +296,35 @@ func aesBlockAndIV(keys SessionKeys) (cipher.Block, [aes.BlockSize]byte, error) 
 }
 
 func msgKeyWithCrypto(sign []byte, sessionCrypto *SessionCrypto) (string, error) {
-	encrypted, err := EncryptPayloadWithCrypto(sign, sessionCrypto)
-	if err != nil {
-		return "", err
+	if sessionCrypto == nil || sessionCrypto.block == nil {
+		return "", ErrMissingSessionKey
 	}
-	sum := md5.Sum(encrypted)
-	return string(hexLower(sum[:])), nil
+	padding := pkcs7PaddingSize(len(sign), aes.BlockSize)
+	encrypted := getMsgKeyScratch(len(sign) + padding)
+	defer putMsgKeyScratch(encrypted)
+	copy(encrypted, sign)
+	for i := len(sign); i < len(encrypted); i++ {
+		encrypted[i] = byte(padding)
+	}
+	encryptCBCBlocks(sessionCrypto.block, sessionCrypto.iv, encrypted)
+
+	encoded := getMsgKeyScratch(base64.StdEncoding.EncodedLen(len(encrypted)))
+	defer putMsgKeyScratch(encoded)
+	base64.StdEncoding.Encode(encoded, encrypted)
+
+	sum := md5.Sum(encoded)
+	return hexMD5String(sum), nil
 }
 
 func recvMsgKeyWithCrypto(packet *frame.RecvPacket, sessionCrypto *SessionCrypto) (string, error) {
 	if packet == nil {
 		return "", ErrMsgKeyMismatch
 	}
-	sign := []byte(packet.VerityString())
-	return msgKeyWithCrypto(sign, sessionCrypto)
+	buf := bytebufferpool.Get()
+	defer bytebufferpool.Put(buf)
+	buf.Reset()
+	packet.VerityBytes(buf)
+	return msgKeyWithCrypto(buf.Bytes(), sessionCrypto)
 }
 
 func encryptCBCBlocks(block cipher.Block, iv [aes.BlockSize]byte, data []byte) {
@@ -362,4 +387,31 @@ func hexLower(src []byte) []byte {
 		out[i*2+1] = digits[b&0x0f]
 	}
 	return out
+}
+
+func getMsgKeyScratch(size int) []byte {
+	scratch := msgKeyScratchPool.Get().([]byte)
+	if cap(scratch) >= size {
+		return scratch[:size]
+	}
+	return make([]byte, size)
+}
+
+func putMsgKeyScratch(buf []byte) {
+	if cap(buf) == 0 || cap(buf) > msgKeyScratchMaxRetained {
+		return
+	}
+	whole := buf[:cap(buf)]
+	clear(whole)
+	msgKeyScratchPool.Put(whole[:0])
+}
+
+func hexMD5String(sum [md5.Size]byte) string {
+	const digits = "0123456789abcdef"
+	var out [md5.Size * 2]byte
+	for i, b := range sum {
+		out[i*2] = digits[b>>4]
+		out[i*2+1] = digits[b&0x0f]
+	}
+	return string(out[:])
 }
