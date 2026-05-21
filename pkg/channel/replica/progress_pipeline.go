@@ -143,7 +143,7 @@ func (r *replica) applyFetchProgressCommand(cmd machineFetchProgressCommand) mac
 	if retentionResetDominatesFloor(r.state, req.FetchOffset) {
 		result := retentionResetResult(r.state)
 		r.mu.Unlock()
-		return machineResult{Fetch: &machineFetchProgressResult{
+		return machineResult{HasFetch: true, Fetch: machineFetchProgressResult{
 			Result:      result,
 			LeaderLEO:   r.state.LEO,
 			ChannelKey:  r.state.ChannelKey,
@@ -177,7 +177,7 @@ func (r *replica) applyFetchProgressCommand(cmd machineFetchProgressCommand) mac
 	if needsAdvance {
 		outcome = r.advanceHWLocked()
 	}
-	fetch := &machineFetchProgressResult{
+	fetch := machineFetchProgressResult{
 		Result: channel.ReplicaFetchResult{
 			Epoch:      r.state.Epoch,
 			HW:         visibleCommittedHW(r.state),
@@ -192,7 +192,8 @@ func (r *replica) applyFetchProgressCommand(cmd machineFetchProgressCommand) mac
 		FetchOffset:  req.FetchOffset,
 	}
 	if truncateTo == nil && req.FetchOffset < leaderLEO {
-		fetch.ReadLog = &readLogEffect{
+		fetch.HasReadLog = true
+		fetch.ReadLog = readLogEffect{
 			EffectID:       r.nextLoopEffectID(),
 			ChannelKey:     r.state.ChannelKey,
 			Epoch:          r.state.Epoch,
@@ -206,7 +207,7 @@ func (r *replica) applyFetchProgressCommand(cmd machineFetchProgressCommand) mac
 	r.mu.Unlock()
 
 	r.finishHWAdvanceOutcome(outcome)
-	return machineResult{Fetch: fetch, Err: outcome.err}
+	return machineResult{HasFetch: true, Fetch: fetch, Err: outcome.err}
 }
 
 func (r *replica) applyLeaderAppendCommittedEvent(ev machineLeaderAppendCommittedEvent) machineResult {

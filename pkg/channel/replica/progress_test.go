@@ -198,6 +198,35 @@ func TestProgressLoopFetchSkipsStatePublishWhenReplicaStateUnchanged(t *testing.
 	require.Zero(t, publishCount)
 }
 
+func TestProgressLoopFetchAtLeaderLEOAvoidsResultAllocation(t *testing.T) {
+	r := newLeaderReplica(t)
+	r.mu.Lock()
+	r.state.LEO = 5
+	r.state.OffsetEpoch = r.state.Epoch
+	r.progress[r.localNode] = 5
+	r.progress[2] = 5
+	r.publishStateLocked()
+	st := r.state
+	r.mu.Unlock()
+	cmd := machineFetchProgressCommand{Request: channel.ReplicaFetchRequest{
+		ChannelKey:  st.ChannelKey,
+		Epoch:       st.Epoch,
+		ReplicaID:   2,
+		FetchOffset: st.LEO,
+		OffsetEpoch: st.OffsetEpoch,
+		MaxBytes:    1024,
+	}}
+
+	var result machineResult
+	allocs := testing.AllocsPerRun(100, func() {
+		result = r.applyLoopEvent(cmd)
+	})
+
+	require.NoError(t, result.Err)
+	require.True(t, result.HasFetch)
+	require.Zero(t, allocs)
+}
+
 func TestProgressLoopAppendCommitPublishesLocalProgress(t *testing.T) {
 	r := newLeaderReplica(t)
 	st := r.Status()

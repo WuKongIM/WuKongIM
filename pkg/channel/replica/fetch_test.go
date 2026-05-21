@@ -425,13 +425,13 @@ func TestReadLogResultUsesOwnedRecordPayloads(t *testing.T) {
 		MaxBytes:    1024,
 	}})
 	require.NoError(t, progress.Err)
-	require.NotNil(t, progress.Fetch)
-	require.NotNil(t, progress.Fetch.ReadLog)
+	require.True(t, progress.HasFetch)
+	require.True(t, progress.Fetch.HasReadLog)
 
 	payload := []byte("owned")
 	records := []channel.Record{{Index: 6, Payload: payload, SizeBytes: len(payload)}}
 	result := env.replica.applyReadLogResultCommand(machineReadLogResultCommand{
-		Effect:  *progress.Fetch.ReadLog,
+		Effect:  progress.Fetch.ReadLog,
 		Records: records,
 	})
 	require.NoError(t, result.Err)
