@@ -417,4 +417,4 @@ This continuation rebuilt after PERF-040 and verified the no-op fetch-progress s
 
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
-| PERF-041 | Fixed | Channel replica fetch progress result allocations | Post-PERF-040 allocation profiles showed `applyFetchProgressCommand` allocating about `26-28MB` per node while handling successful leader fetch progress. | `machineResult` stored fetch progress through `*machineFetchProgressResult`, and each fetch needing records also allocated `*readLogEffect`; both objects are single-owner loop results and can be copied inline through the reply path. | Current change |
+| PERF-041 | Fixed | Channel replica fetch progress result allocations | Post-PERF-040 allocation profiles showed `applyFetchProgressCommand` allocating about `26-28MB` per node while handling successful leader fetch progress. | `machineResult` stored fetch progress through `*machineFetchProgressResult`, and each fetch needing records also allocated `*readLogEffect`; both objects are single-owner loop results and can be copied inline through the reply path. | `4302ce46` |
