@@ -198,7 +198,11 @@ func (b *WriteBatch) DeleteChannel(hashSlot uint16, channelID string, channelTyp
 		return err
 	}
 	subscriberPrefix := encodeSubscriberChannelPrefix(hashSlot, channelID, channelType)
-	return b.batch.DeleteRange(subscriberPrefix, nextPrefix(subscriberPrefix), nil)
+	if err := b.batch.DeleteRange(subscriberPrefix, nextPrefix(subscriberPrefix), nil); err != nil {
+		return err
+	}
+	b.rememberChannel(hashSlot, Channel{ChannelID: channelID, ChannelType: channelType}, false)
+	return nil
 }
 
 // UpsertChannelRuntimeMeta encodes and stages a runtime metadata write into the batch.
@@ -857,7 +861,11 @@ func (b *WriteBatch) Commit() error {
 	if err := b.applyChannelMigrationActiveIndexWritesLocked(); err != nil {
 		return err
 	}
-	return b.batch.Commit(pebble.Sync)
+	if err := b.batch.Commit(pebble.Sync); err != nil {
+		return err
+	}
+	b.applyChannelCacheWritesLocked()
+	return nil
 }
 
 // Close releases the batch resources. Safe to call after Commit.
@@ -954,6 +962,16 @@ func (b *WriteBatch) rememberChannel(hashSlot uint16, ch Channel, exists bool) {
 	b.channels[channelBatchKey(hashSlot, ch.ChannelID, ch.ChannelType)] = channelBatchEntry{
 		channel: ch,
 		exists:  exists,
+	}
+}
+
+func (b *WriteBatch) applyChannelCacheWritesLocked() {
+	for key, entry := range b.channels {
+		if entry.exists {
+			b.db.rememberChannelCacheKeyLocked(key, entry.channel)
+			continue
+		}
+		b.db.forgetChannelCacheKeyLocked(key)
 	}
 }
 

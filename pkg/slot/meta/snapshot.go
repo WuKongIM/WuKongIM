@@ -144,7 +144,11 @@ func (db *DB) importHashSlotSnapshot(ctx context.Context, snap SlotSnapshot, pre
 			}
 		}
 
-		return batch.Commit(pebble.Sync)
+		if err := batch.Commit(pebble.Sync); err != nil {
+			return err
+		}
+		db.clearChannelCacheLocked()
+		return nil
 	}
 
 	if err := db.checkContext(ctx); err != nil {
@@ -185,7 +189,11 @@ func (db *DB) importHashSlotSnapshot(ctx context.Context, snap SlotSnapshot, pre
 		}
 	}
 
-	return batch.Commit(pebble.Sync)
+	if err := batch.Commit(pebble.Sync); err != nil {
+		return err
+	}
+	db.clearChannelCacheLocked()
+	return nil
 }
 
 func hashSlotSnapshotReplaceSpans(hashSlot uint16, preserveMigrationMeta bool) []Span {

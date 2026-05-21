@@ -71,7 +71,11 @@ func (s *ShardStore) CreateChannel(ctx context.Context, ch Channel) error {
 	if err := batch.Set(indexKey, indexValue, nil); err != nil {
 		return err
 	}
-	return batch.Commit(pebble.Sync)
+	if err := batch.Commit(pebble.Sync); err != nil {
+		return err
+	}
+	s.db.rememberChannelLocked(primaryKey, ch)
+	return nil
 }
 
 func (s *ShardStore) GetChannel(ctx context.Context, channelID string, channelType int64) (Channel, error) {
@@ -104,6 +108,10 @@ func (s *ShardStore) getChannelLocked(channelID string, channelType int64) (Chan
 }
 
 func (s *ShardStore) getChannelForPrimaryKeyLocked(primaryKey []byte, channelID string, channelType int64) (Channel, bool, error) {
+	if ch, ok := s.db.cachedChannelLocked(primaryKey); ok {
+		return ch, true, nil
+	}
+
 	value, err := s.db.getValue(primaryKey)
 	if err != nil {
 		if err == ErrNotFound {
@@ -116,7 +124,7 @@ func (s *ShardStore) getChannelForPrimaryKeyLocked(primaryKey []byte, channelID 
 	if err != nil {
 		return Channel{}, false, err
 	}
-	return Channel{
+	ch := Channel{
 		ChannelID:                 channelID,
 		ChannelType:               channelType,
 		Ban:                       ban,
@@ -124,7 +132,9 @@ func (s *ShardStore) getChannelForPrimaryKeyLocked(primaryKey []byte, channelID 
 		SendBan:                   sendBan,
 		AllowStranger:             allowStranger,
 		SubscriberMutationVersion: version,
-	}, true, nil
+	}
+	s.db.rememberChannelLocked(primaryKey, ch)
+	return ch, true, nil
 }
 
 func (s *ShardStore) ListChannelsByChannelID(ctx context.Context, channelID string) ([]Channel, error) {
@@ -307,7 +317,11 @@ func (s *ShardStore) UpdateChannel(ctx context.Context, ch Channel) error {
 	if err := batch.Set(indexKey, indexValue, nil); err != nil {
 		return err
 	}
-	return batch.Commit(pebble.Sync)
+	if err := batch.Commit(pebble.Sync); err != nil {
+		return err
+	}
+	s.db.rememberChannelLocked(primaryKey, ch)
+	return nil
 }
 
 func (s *ShardStore) UpsertChannel(ctx context.Context, ch Channel) error {
@@ -345,7 +359,11 @@ func (s *ShardStore) UpsertChannel(ctx context.Context, ch Channel) error {
 	if err := batch.Set(indexKey, indexValue, nil); err != nil {
 		return err
 	}
-	return batch.Commit(pebble.Sync)
+	if err := batch.Commit(pebble.Sync); err != nil {
+		return err
+	}
+	s.db.rememberChannelLocked(primaryKey, ch)
+	return nil
 }
 
 func (s *ShardStore) DeleteChannel(ctx context.Context, channelID string, channelType int64) error {
@@ -389,7 +407,11 @@ func (s *ShardStore) DeleteChannel(ctx context.Context, channelID string, channe
 	if err := batch.DeleteRange(subscriberPrefix, nextPrefix(subscriberPrefix), nil); err != nil {
 		return err
 	}
-	return batch.Commit(pebble.Sync)
+	if err := batch.Commit(pebble.Sync); err != nil {
+		return err
+	}
+	s.db.forgetChannelLocked(primaryKey)
+	return nil
 }
 
 func validateChannel(ch Channel) error {

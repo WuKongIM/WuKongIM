@@ -172,3 +172,20 @@ This continuation rebuilt `wukongim-dev:local` with the legacy Docker builder an
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
 | PERF-022 | Fixed | Delivery single-recipient fanout | After derived subscriber metadata reads were removed, profiles still showed significant `runtime.mallocgc` under delivery/gateway paths; wk-sim person channels usually fan out to a single non-sender route. | `distributedDeliveryPush.Push` and `deliveryPushItems` still allocated local/remote grouping maps and route-view maps even when there was only one remote person route; local person delivery also allocated a frame cache map for one route. | Current change |
+
+## Continuation: isolated worktree Run 14
+
+This continuation observed the fresh-image clean 1/s run after PERF-022, captured a new pprof set, and targeted the next confirmed Pebble point-read slice without changing delivery semantics.
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-21 | Clean override volume, `WK_SIM_RATE=1/s WK_SIM_TRAFFIC_CONCURRENCY=256 WK_SIM_UID_PREFIX=clean12-singlefast-u` continued polling | Fail | Fresh-image clean 1/s improved versus earlier runs but still reached `messages_sent=484552`, `send_errors=222`, `recv_errors=0`; later polling reached `messages_sent=1036854`, `send_errors=593`, so sustained 1/s remains above current local no-error capacity. |
+| 2026-05-21 | `/tmp/wksim-rate1-postsingle-pprof-20260521-101429` focused on `pebble.DB.Get` / slot metadata | Evidence | Profiles showed `subscriberResolver.channelMutationVersion -> Store.GetChannel -> slot/meta.GetChannel` still costing about `1.8-2.6%` cumulative per node for store-backed group tags, plus other channel idempotency and checkpoint reads. |
+| 2026-05-21 | `GOWORK=off go test ./pkg/slot/meta -run TestGetChannelUsesWarmCacheForRepeatedVersionReads -count=1` | Red then pass | Regression test first counted repeated channel-primary Pebble reads (`got 2`) and passed after `meta.DB` cached hot channel metadata and updated it on channel/subscriber writes. |
+| 2026-05-21 | `GOWORK=off go test ./pkg/slot/meta -count=1` | Pass | Full slot meta package verification passed after the cache change. |
+| 2026-05-21 | `GOWORK=off go test ./pkg/slot/... ./internal/usecase/delivery ./internal/app -count=1` | Pass | Focused slot/delivery/app verification passed. |
+| 2026-05-21 | `git diff --check` and `GOWORK=off go test ./...` | Pass | Whitespace and full unit-test verification passed before committing the channel metadata cache fix. |
+
+| ID | Status | Area | Symptom | Root Cause | Fix Commit |
+| --- | --- | --- | --- | --- | --- |
+| PERF-023 | Fixed | Slot channel metadata reads | Store-backed group delivery tags still read durable channel metadata on every begin-resolve to fence subscriber mutation versions, keeping `pebble.DB.Get` visible in clean 1/s profiles after derived-channel reads were removed. | `meta.ShardStore.GetChannel` had no hot metadata cache, so stable group channels repeatedly decoded the same Channel row from Pebble even though channel/subscriber mutations already pass through the same local apply path and carry the new subscriber mutation version. | Current change |

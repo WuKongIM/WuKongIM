@@ -387,6 +387,68 @@ func TestChannelSubscriberMutationVersionRoundTrip(t *testing.T) {
 	}
 }
 
+func TestGetChannelUsesWarmCacheForRepeatedVersionReads(t *testing.T) {
+	ctx := context.Background()
+	db := openTestDB(t)
+	shard := db.ForSlot(7)
+
+	ch := Channel{ChannelID: "group-cache", ChannelType: 2, Ban: 1, SubscriberMutationVersion: 11}
+	if err := shard.CreateChannel(ctx, ch); err != nil {
+		t.Fatalf("CreateChannel(): %v", err)
+	}
+
+	var gets int
+	db.testHooks.beforeGetValue = func(key []byte) {
+		if string(key) == string(encodeChannelPrimaryKey(7, ch.ChannelID, ch.ChannelType, channelPrimaryFamilyID)) {
+			gets++
+		}
+	}
+	if _, err := shard.GetChannel(ctx, ch.ChannelID, ch.ChannelType); err != nil {
+		t.Fatalf("first GetChannel(): %v", err)
+	}
+	if _, err := shard.GetChannel(ctx, ch.ChannelID, ch.ChannelType); err != nil {
+		t.Fatalf("second GetChannel(): %v", err)
+	}
+	if gets != 0 {
+		t.Fatalf("channel primary Pebble reads after repeated GetChannel = %d, want 0", gets)
+	}
+
+	if err := shard.AddSubscribers(ctx, ch.ChannelID, ch.ChannelType, []string{"u1"}, 12); err != nil {
+		t.Fatalf("AddSubscribers(version 12): %v", err)
+	}
+	gets = 0
+	got, err := shard.GetChannel(ctx, ch.ChannelID, ch.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannel() after subscriber mutation: %v", err)
+	}
+	if got.SubscriberMutationVersion != 12 {
+		t.Fatalf("subscriber mutation version after add = %d, want 12", got.SubscriberMutationVersion)
+	}
+	if gets != 0 {
+		t.Fatalf("channel primary Pebble reads after cached subscriber mutation = %d, want 0", gets)
+	}
+
+	wb := db.NewWriteBatch()
+	if err := wb.AddSubscribers(7, ch.ChannelID, ch.ChannelType, []string{"u2"}, 13); err != nil {
+		t.Fatalf("WriteBatch AddSubscribers(version 13): %v", err)
+	}
+	if err := wb.Commit(); err != nil {
+		t.Fatalf("WriteBatch Commit(): %v", err)
+	}
+	wb.Close()
+	gets = 0
+	got, err = shard.GetChannel(ctx, ch.ChannelID, ch.ChannelType)
+	if err != nil {
+		t.Fatalf("GetChannel() after batch subscriber mutation: %v", err)
+	}
+	if got.SubscriberMutationVersion != 13 {
+		t.Fatalf("subscriber mutation version after batch add = %d, want 13", got.SubscriberMutationVersion)
+	}
+	if gets != 0 {
+		t.Fatalf("channel primary Pebble reads after batch cached mutation = %d, want 0", gets)
+	}
+}
+
 func channelKeysForTest(channels []Channel) []string {
 	out := make([]string, 0, len(channels))
 	for _, ch := range channels {

@@ -74,7 +74,13 @@ func (s *ShardStore) AddSubscribers(ctx context.Context, channelID string, chann
 			return err
 		}
 	}
-	return batch.Commit(pebble.Sync)
+	if err := batch.Commit(pebble.Sync); err != nil {
+		return err
+	}
+	if version > 0 {
+		s.db.rememberChannelLocked(encodeChannelPrimaryKey(s.slot, channelID, channelType, channelPrimaryFamilyID), channel)
+	}
+	return nil
 }
 
 func (s *ShardStore) RemoveSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error {
@@ -136,7 +142,13 @@ func (s *ShardStore) RemoveSubscribers(ctx context.Context, channelID string, ch
 			return err
 		}
 	}
-	return batch.Commit(pebble.Sync)
+	if err := batch.Commit(pebble.Sync); err != nil {
+		return err
+	}
+	if version > 0 {
+		s.db.rememberChannelLocked(encodeChannelPrimaryKey(s.slot, channelID, channelType, channelPrimaryFamilyID), channel)
+	}
+	return nil
 }
 
 func (s *ShardStore) ListSubscribersPage(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {

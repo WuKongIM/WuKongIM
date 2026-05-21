@@ -12,13 +12,20 @@ import (
 type DB struct {
 	db *pebble.DB
 	mu sync.RWMutex
+	// channelCache keeps hot channel metadata version fences in memory.
+	channelCacheMu sync.RWMutex
+	channelCache   map[string]Channel
 
 	testHooks dbTestHooks
 }
 
+// channelCacheMaxEntries bounds opportunistic channel metadata caching.
+const channelCacheMaxEntries = 65536
+
 type dbTestHooks struct {
 	afterExistenceCheck func()
 	beforeImportCommit  func() error
+	beforeGetValue      func(key []byte)
 }
 
 func Open(path string) (*DB, error) {
@@ -56,6 +63,9 @@ func (db *DB) ForHashSlots(hashSlots []uint16) []*ShardStore {
 }
 
 func (db *DB) getValue(key []byte) ([]byte, error) {
+	if db.testHooks.beforeGetValue != nil {
+		db.testHooks.beforeGetValue(key)
+	}
 	value, closer, err := db.db.Get(key)
 	if err != nil {
 		if errors.Is(err, pebble.ErrNotFound) {
@@ -78,6 +88,60 @@ func (db *DB) hasKey(key []byte) (bool, error) {
 	}
 	defer closer.Close()
 	return true, nil
+}
+
+func (db *DB) cachedChannelLocked(primaryKey []byte) (Channel, bool) {
+	db.channelCacheMu.RLock()
+	defer db.channelCacheMu.RUnlock()
+
+	if db.channelCache == nil {
+		return Channel{}, false
+	}
+	ch, ok := db.channelCache[string(primaryKey)]
+	return ch, ok
+}
+
+func (db *DB) rememberChannelLocked(primaryKey []byte, ch Channel) {
+	db.rememberChannelCacheKeyLocked(string(primaryKey), ch)
+}
+
+func (db *DB) rememberChannelCacheKeyLocked(key string, ch Channel) {
+	db.channelCacheMu.Lock()
+	defer db.channelCacheMu.Unlock()
+
+	if db.channelCache == nil {
+		db.channelCache = make(map[string]Channel, 1)
+	}
+	if _, exists := db.channelCache[key]; !exists && len(db.channelCache) >= channelCacheMaxEntries {
+		// The cache is an opportunistic hot metadata cache; arbitrary eviction
+		// keeps memory bounded without adding ordering overhead to write paths.
+		for evict := range db.channelCache {
+			delete(db.channelCache, evict)
+			break
+		}
+	}
+	db.channelCache[key] = ch
+}
+
+func (db *DB) forgetChannelLocked(primaryKey []byte) {
+	db.forgetChannelCacheKeyLocked(string(primaryKey))
+}
+
+func (db *DB) forgetChannelCacheKeyLocked(key string) {
+	db.channelCacheMu.Lock()
+	defer db.channelCacheMu.Unlock()
+
+	if db.channelCache == nil {
+		return
+	}
+	delete(db.channelCache, key)
+}
+
+func (db *DB) clearChannelCacheLocked() {
+	db.channelCacheMu.Lock()
+	defer db.channelCacheMu.Unlock()
+
+	db.channelCache = nil
 }
 
 func (db *DB) checkContext(ctx context.Context) error {
@@ -121,7 +185,11 @@ func (db *DB) DeleteHashSlotData(ctx context.Context, hashSlot uint16) error {
 		}
 	}
 
-	return batch.Commit(pebble.Sync)
+	if err := batch.Commit(pebble.Sync); err != nil {
+		return err
+	}
+	db.clearChannelCacheLocked()
+	return nil
 }
 
 func legacySlotIDToHashSlot(slotID uint64) (uint16, error) {
