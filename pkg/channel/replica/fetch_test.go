@@ -371,3 +371,28 @@ func TestFetchReadLogResultAfterSameGenerationLEORegressionIsFenced(t *testing.T
 		t.Fatal("fetch did not return after read was released")
 	}
 }
+
+func TestReadLogResultUsesOwnedRecordPayloads(t *testing.T) {
+	env := newFetchEnvWithHistory(t)
+	progress := env.replica.applyFetchProgressCommand(machineFetchProgressCommand{Request: channel.ReplicaFetchRequest{
+		ChannelKey:  "group-10",
+		Epoch:       7,
+		ReplicaID:   2,
+		FetchOffset: 5,
+		OffsetEpoch: env.replica.state.OffsetEpoch,
+		MaxBytes:    1024,
+	}})
+	require.NoError(t, progress.Err)
+	require.NotNil(t, progress.Fetch)
+	require.NotNil(t, progress.Fetch.ReadLog)
+
+	payload := []byte("owned")
+	records := []channel.Record{{Index: 6, Payload: payload, SizeBytes: len(payload)}}
+	result := env.replica.applyReadLogResultCommand(machineReadLogResultCommand{
+		Effect:  *progress.Fetch.ReadLog,
+		Records: records,
+	})
+	require.NoError(t, result.Err)
+	require.Len(t, result.Fetch.Result.Records, 1)
+	require.Same(t, &payload[0], &result.Fetch.Result.Records[0].Payload[0])
+}
