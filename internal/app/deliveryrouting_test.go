@@ -1419,6 +1419,26 @@ func TestDeliveryTagTopologyReaderUsesCachedAssignmentsWithoutControllerRefresh(
 	}, topology)
 }
 
+func TestCurrentDeliveryTagAssignmentBySlotFiltersCachedAssignmentsToRequiredSlots(t *testing.T) {
+	assignments := make([]controllermeta.SlotAssignment, 128)
+	for i := range assignments {
+		assignments[i] = controllermeta.SlotAssignment{
+			SlotID:         uint32(i),
+			ConfigEpoch:    uint64(i + 100),
+			BalanceVersion: uint64(i + 200),
+		}
+	}
+	cluster := &recordingDeliveryTagCluster{cachedAssignments: assignments}
+
+	got := currentDeliveryTagAssignmentBySlot(context.Background(), cluster, []uint32{3, 7})
+
+	require.Zero(t, cluster.ListSlotAssignmentsCalls())
+	require.Len(t, got, 2)
+	require.Equal(t, uint64(103), got[3].ConfigEpoch)
+	require.Equal(t, uint64(207), got[7].BalanceVersion)
+	require.NotContains(t, got, uint32(0))
+}
+
 func TestDeliveryTagTopologyValidatorUsesCachedAssignmentsWithoutControllerRefresh(t *testing.T) {
 	cluster := &recordingDeliveryTagCluster{
 		leaderBySlot: map[multiraft.SlotID]multiraft.NodeID{

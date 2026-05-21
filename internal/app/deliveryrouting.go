@@ -796,24 +796,39 @@ func currentDeliveryTagAssignmentBySlot(ctx context.Context, cluster deliveryTag
 		return nil
 	}
 	if cached, ok := cluster.(cachedDeliveryTagAssignments); ok {
-		assignmentBySlot := deliveryTagAssignmentBySlot(cached.ListCachedAssignments())
+		assignmentBySlot := deliveryTagAssignmentBySlot(cached.ListCachedAssignments(), requiredSlotIDs)
 		if deliveryTagAssignmentMapCoversSlots(assignmentBySlot, requiredSlotIDs) {
 			return assignmentBySlot
 		}
 	}
 	assignments, _ := cluster.ListSlotAssignments(ctx)
-	return deliveryTagAssignmentBySlot(assignments)
+	return deliveryTagAssignmentBySlot(assignments, requiredSlotIDs)
 }
 
-func deliveryTagAssignmentBySlot(assignments []controllermeta.SlotAssignment) map[uint32]controllermeta.SlotAssignment {
-	if len(assignments) == 0 {
+func deliveryTagAssignmentBySlot(assignments []controllermeta.SlotAssignment, requiredSlotIDs []uint32) map[uint32]controllermeta.SlotAssignment {
+	if len(assignments) == 0 || len(requiredSlotIDs) == 0 {
 		return nil
 	}
-	assignmentBySlot := make(map[uint32]controllermeta.SlotAssignment, len(assignments))
+	assignmentBySlot := make(map[uint32]controllermeta.SlotAssignment, len(requiredSlotIDs))
 	for _, assignment := range assignments {
+		if !deliveryTagSlotRequired(assignment.SlotID, requiredSlotIDs) {
+			continue
+		}
 		assignmentBySlot[assignment.SlotID] = assignment
+		if len(assignmentBySlot) == len(requiredSlotIDs) {
+			break
+		}
 	}
 	return assignmentBySlot
+}
+
+func deliveryTagSlotRequired(slotID uint32, requiredSlotIDs []uint32) bool {
+	for _, requiredSlotID := range requiredSlotIDs {
+		if slotID == requiredSlotID {
+			return true
+		}
+	}
+	return false
 }
 
 func deliveryTagAssignmentMapCoversSlots(assignmentBySlot map[uint32]controllermeta.SlotAssignment, requiredSlotIDs []uint32) bool {
