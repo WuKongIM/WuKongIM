@@ -227,6 +227,14 @@ func (r *replica) appendLogger() wklog.Logger {
 	return r.logger.Named("replica")
 }
 
+// debugAppendLogger returns the named append logger only when debug logs will be emitted.
+func (r *replica) debugAppendLogger() (wklog.Logger, bool) {
+	if r == nil || !wklog.DebugEnabled(r.logger) {
+		return nil, false
+	}
+	return r.appendLogger(), true
+}
+
 func effectiveAppendGroupCommitMaxWait(configured time.Duration) time.Duration {
 	if configured > 0 {
 		return configured

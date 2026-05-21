@@ -17,17 +17,19 @@ func (r *replica) Fetch(ctx context.Context, req channel.ReplicaFetchRequest) (c
 	}
 	result := progress.Fetch.Result
 
-	r.appendLogger().Debug("leader served fetch",
-		wklog.Event("repl.diag.leader_served_fetch"),
-		wklog.String("channelKey", string(progress.Fetch.ChannelKey)),
-		wklog.Uint64("replicaID", uint64(req.ReplicaID)),
-		wklog.Uint64("fetchOffset", req.FetchOffset),
-		wklog.Uint64("matchOffset", progress.Fetch.MatchOffset),
-		wklog.Uint64("oldProgress", progress.Fetch.OldProgress),
-		wklog.Uint64("leaderLEO", progress.Fetch.LeaderLEO),
-		wklog.Uint64("hw", result.HW),
-		wklog.Bool("needsAdvance", progress.Fetch.NeedsAdvance),
-	)
+	if logger, ok := r.debugAppendLogger(); ok {
+		logger.Debug("leader served fetch",
+			wklog.Event("repl.diag.leader_served_fetch"),
+			wklog.String("channelKey", string(progress.Fetch.ChannelKey)),
+			wklog.Uint64("replicaID", uint64(req.ReplicaID)),
+			wklog.Uint64("fetchOffset", req.FetchOffset),
+			wklog.Uint64("matchOffset", progress.Fetch.MatchOffset),
+			wklog.Uint64("oldProgress", progress.Fetch.OldProgress),
+			wklog.Uint64("leaderLEO", progress.Fetch.LeaderLEO),
+			wklog.Uint64("hw", result.HW),
+			wklog.Bool("needsAdvance", progress.Fetch.NeedsAdvance),
+		)
+	}
 	if progress.Fetch.ReadLog == nil {
 		return result, nil
 	}

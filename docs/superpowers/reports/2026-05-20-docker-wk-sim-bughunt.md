@@ -332,4 +332,21 @@ This continuation used the post-PERF-035 clean 1/s run to pick the next allocati
 
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
-| PERF-036 | Fixed | Channel replica change notifications | Clean 1/s allocation profiles after PERF-035 showed `replicaChangeNotifier.notify` allocating roughly `0.41-0.48GB` per node while replica state publication stayed hot. | Every state publication closed the current notification channel and allocated a replacement, even when no long-poll waiter was blocked on that channel; most notifications only need the monotonic version increment. | Current change |
+| PERF-036 | Fixed | Channel replica change notifications | Clean 1/s allocation profiles after PERF-035 showed `replicaChangeNotifier.notify` allocating roughly `0.41-0.48GB` per node while replica state publication stayed hot. | Every state publication closed the current notification channel and allocated a replacement, even when no long-poll waiter was blocked on that channel; most notifications only need the monotonic version increment. | `c72d3fe8` |
+
+## Continuation: isolated worktree Run 18
+
+This continuation rebuilt the local image after PERF-036, verified the notifier allocation disappeared from the fresh profile, then targeted the next confirmed replica fetch allocation caused by eager debug-log field construction while the runtime log level is info.
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-21 | `DOCKER_BUILDKIT=0 docker build --pull=false -t wukongim-dev:local .` | Pass | Rebuilt local image from `c72d3fe8`; image ID `a67c3a283e30`. |
+| 2026-05-21 | Fresh-image clean 1/s after PERF-036, `WK_SIM_UID_PREFIX=clean25-notify-u` | Fail | The run hit early cold-pressure sendack retries (`send_errors=60` at `messages_sent=68995`) and later reached `messages_sent=299992`, `send_errors=213`, `recv_errors=0`; sustained clean 1/s remains above no-error capacity. |
+| 2026-05-21 | `/tmp/wksim-rate1-notify-alloc-20260521-153344` alloc/heap/diagnostics capture | Evidence | `replicaChangeNotifier.notify` no longer appeared in allocation tops. Remaining profiles showed `replica.Fetch` at about `0.13GB` cumulative on node1, including `appendLogger`/`wklog` field allocations while serving long-poll fetches. |
+| 2026-05-21 | `/tmp/wksim-notify-errors-20260521-153901` CPU capture and `/tmp/wksim-notify-diag-20260521-154007` diagnostics | Evidence | CPU stayed split across syscalls, allocation, Pebble, gnet, and runtime scheduling; diagnostics retained only `ok` events, with slow lane poll/cursor/send stages around `237-251ms`. |
+| 2026-05-21 | `GOWORK=off go test ./pkg/channel/replica -run TestFetchSkipsServedFetchDebugFieldsWhenDebugDisabled -count=1` | Red then pass | Regression test failed while a debug-disabled replica logger still received named/debug fetch logging work, then passed after hot-path replica debug logs checked debug enablement before building fields. |
+| 2026-05-21 | `GOWORK=off go test ./pkg/channel/replica -run 'Test(FetchSkipsServedFetchDebugFieldsWhenDebugDisabled\|Fetch\|ApplyFetch\|ApplyFollowerCursor\|StatusReturnsLatestReplicaSnapshot)' -count=1` and `GOWORK=off go test -race ./pkg/channel/replica -run TestFetchSkipsServedFetchDebugFieldsWhenDebugDisabled -count=1` | Pass | Focused replica fetch/follower/cursor behavior and race verification passed before broader validation. |
+
+| ID | Status | Area | Symptom | Root Cause | Fix Commit |
+| --- | --- | --- | --- | --- | --- |
+| PERF-037 | Fixed | Channel replica fetch debug logging | Post-PERF-036 allocation profiles showed `replica.Fetch` still allocating through `appendLogger` and `wklog` field construction while serving high-frequency leader fetch requests. | The hot fetch/cursor/HW debug paths built named loggers and structured fields before checking whether debug logging was enabled; production info-level runs discarded those fields after paying the allocation cost. | Current change |

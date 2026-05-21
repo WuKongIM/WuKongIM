@@ -76,13 +76,15 @@ func (r *replica) applyCursorCommand(cmd machineCursorCommand) machineResult {
 	r.setRetentionProgressLocked(cmd.ReplicaID, matchOffset)
 	if matchOffset <= oldProgress {
 		r.mu.Unlock()
-		r.appendLogger().Debug("follower cursor stale, skipped",
-			wklog.Event("repl.diag.cursor_stale"),
-			wklog.String("channelKey", string(channelKey)),
-			wklog.Uint64("replicaID", uint64(cmd.ReplicaID)),
-			wklog.Uint64("matchOffset", matchOffset),
-			wklog.Uint64("currentProgress", oldProgress),
-		)
+		if logger, ok := r.debugAppendLogger(); ok {
+			logger.Debug("follower cursor stale, skipped",
+				wklog.Event("repl.diag.cursor_stale"),
+				wklog.String("channelKey", string(channelKey)),
+				wklog.Uint64("replicaID", uint64(cmd.ReplicaID)),
+				wklog.Uint64("matchOffset", matchOffset),
+				wklog.Uint64("currentProgress", oldProgress),
+			)
+		}
 		return machineResult{}
 	}
 
@@ -94,8 +96,7 @@ func (r *replica) applyCursorCommand(cmd machineCursorCommand) machineResult {
 	leo = r.state.LEO
 	r.mu.Unlock()
 
-	logger := r.appendLogger()
-	if wklog.DebugEnabled(logger) {
+	if logger, ok := r.debugAppendLogger(); ok {
 		logger.Debug("follower cursor applied",
 			wklog.Event("repl.diag.cursor_applied"),
 			wklog.String("channelKey", string(channelKey)),
@@ -345,8 +346,7 @@ func (r *replica) applyLeaderAppendCommittedEvent(ev machineLeaderAppendCommitte
 	outcome = r.advanceHWLocked()
 	r.mu.Unlock()
 
-	logger := r.appendLogger()
-	if wklog.DebugEnabled(logger) {
+	if logger, ok := r.debugAppendLogger(); ok {
 		logger.Debug("leader local append flushed",
 			wklog.Event("repl.diag.leader_append_flushed"),
 			wklog.String("channelKey", string(channelKey)),
@@ -524,8 +524,7 @@ func (r *replica) finishHWAdvanceOutcome(outcome hwAdvanceOutcome) {
 	if !outcome.advanced {
 		return
 	}
-	logger := r.appendLogger()
-	if wklog.DebugEnabled(logger) {
+	if logger, ok := r.debugAppendLogger(); ok {
 		logger.Debug("HW advanced",
 			wklog.Event("repl.diag.hw_advanced"),
 			wklog.String("channelKey", string(outcome.channelKey)),
