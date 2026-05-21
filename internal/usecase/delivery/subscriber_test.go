@@ -44,6 +44,24 @@ func TestSubscriberResolverReturnsTwoUIDsForPersonChannel(t *testing.T) {
 	require.True(t, done)
 }
 
+func TestSubscriberResolverSkipsMetadataForDerivedPersonChannel(t *testing.T) {
+	store := &fakeAuthoritativeSubscriberStore{}
+	resolver := NewSubscriberResolver(SubscriberResolverOptions{Store: store})
+
+	token, err := resolver.BeginSnapshot(context.Background(), channel.ChannelID{
+		ID:   EncodePersonChannel("u1", "u2"),
+		Type: frame.ChannelTypePerson,
+	})
+	require.NoError(t, err)
+
+	source := token.Source()
+	require.Equal(t, SubscriberSourceKindDerived, source.Kind)
+	require.Zero(t, source.SubscriberMutationVersion)
+	require.Zero(t, source.SourceSubscriberMutationVersion)
+	require.Empty(t, store.getChannelCalls)
+	require.Empty(t, store.permissionCalls)
+}
+
 func TestSubscriberResolverPagesGroupSubscribersFromMetastore(t *testing.T) {
 	store := &fakeSubscriberStore{
 		pageResults: []subscriberListResult{

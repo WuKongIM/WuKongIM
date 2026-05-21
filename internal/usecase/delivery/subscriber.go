@@ -111,12 +111,6 @@ func (r *subscriberResolver) BeginSnapshotWithRequest(ctx context.Context, id ch
 		resolvedID.ID = sourceID
 	}
 
-	currentVersion := r.channelMutationVersion(ctx, id)
-	sourceVersion := currentVersion
-	if derived && id.Type != frame.ChannelTypeVisitors {
-		sourceVersion = r.commandSourceMutationVersion(ctx, resolvedID)
-	}
-
 	token := SnapshotToken{
 		id: id,
 		state: &subscriberSourceState{
@@ -125,8 +119,17 @@ func (r *subscriberResolver) BeginSnapshotWithRequest(ctx context.Context, id ch
 	}
 	token.source.ChannelID = id.ID
 	token.source.ChannelType = id.Type
-	token.source.SubscriberMutationVersion = currentVersion
 	token.source.ReusableTagState = true
+
+	resolveStoreBackedVersions := func() uint64 {
+		currentVersion := r.channelMutationVersion(ctx, id)
+		sourceVersion := currentVersion
+		if derived && id.Type != frame.ChannelTypeVisitors {
+			sourceVersion = r.commandSourceMutationVersion(ctx, resolvedID)
+		}
+		token.source.SubscriberMutationVersion = currentVersion
+		return sourceVersion
+	}
 
 	switch id.Type {
 	case frame.ChannelTypePerson:
@@ -137,7 +140,6 @@ func (r *subscriberResolver) BeginSnapshotWithRequest(ctx context.Context, id ch
 		token.source.Kind = SubscriberSourceKindDerived
 		token.source.SourceChannelID = resolvedID.ID
 		token.source.SourceChannelType = resolvedID.Type
-		token.source.SourceSubscriberMutationVersion = sourceVersion
 		token.state.staticSnapshot = uniqueStrings([]string{left, right})
 		return token, nil
 	case frame.ChannelTypeAgent:
@@ -148,18 +150,18 @@ func (r *subscriberResolver) BeginSnapshotWithRequest(ctx context.Context, id ch
 		token.source.Kind = SubscriberSourceKindDerived
 		token.source.SourceChannelID = resolvedID.ID
 		token.source.SourceChannelType = resolvedID.Type
-		token.source.SourceSubscriberMutationVersion = sourceVersion
 		token.state.staticSnapshot = uniqueStrings([]string{left, right})
 		return token, nil
 	case frame.ChannelTypeTemp:
 		token.source.Kind = SubscriberSourceKindMessageScoped
 		token.source.SourceChannelID = resolvedID.ID
 		token.source.SourceChannelType = resolvedID.Type
-		token.source.SourceSubscriberMutationVersion = sourceVersion
 		token.source.ReusableTagState = false
 		token.state.staticSnapshot = uniqueStrings(req.MessageScopedUIDs)
 		return token, nil
 	case frame.ChannelTypeVisitors:
+		currentVersion := r.channelMutationVersion(ctx, id)
+		token.source.SubscriberMutationVersion = currentVersion
 		token.source.Kind = SubscriberSourceKindOverlayStore
 		token.source.SourceChannelID = resolvedID.ID
 		token.source.SourceChannelType = frame.ChannelTypeCustomerService
@@ -176,6 +178,7 @@ func (r *subscriberResolver) BeginSnapshotWithRequest(ctx context.Context, id ch
 		token.state.overlayUIDs = uniqueStrings([]string{resolvedID.ID})
 		return token, nil
 	case frame.ChannelTypeCustomerService:
+		sourceVersion := resolveStoreBackedVersions()
 		token.source.Kind = SubscriberSourceKindOverlayStore
 		token.source.SourceChannelID = resolvedID.ID
 		token.source.SourceChannelType = resolvedID.Type
@@ -187,6 +190,7 @@ func (r *subscriberResolver) BeginSnapshotWithRequest(ctx context.Context, id ch
 		}
 		return token, nil
 	case frame.ChannelTypeInfo:
+		sourceVersion := resolveStoreBackedVersions()
 		token.source.SourceChannelID = resolvedID.ID
 		token.source.SourceChannelType = resolvedID.Type
 		token.source.SourceSubscriberMutationVersion = sourceVersion
@@ -207,6 +211,7 @@ func (r *subscriberResolver) BeginSnapshotWithRequest(ctx context.Context, id ch
 		}
 		return token, nil
 	case frame.ChannelTypeGroup, frame.ChannelTypeCommunity, frame.ChannelTypeCommunityTopic, frame.ChannelTypeData, frame.ChannelTypeLive, frame.ChannelTypeAgentGroup:
+		sourceVersion := resolveStoreBackedVersions()
 		token.source.SourceChannelID = resolvedID.ID
 		token.source.SourceChannelType = resolvedID.Type
 		token.source.SourceSubscriberMutationVersion = sourceVersion
@@ -219,6 +224,7 @@ func (r *subscriberResolver) BeginSnapshotWithRequest(ctx context.Context, id ch
 		}
 		return token, nil
 	default:
+		sourceVersion := resolveStoreBackedVersions()
 		token.source.SourceChannelID = resolvedID.ID
 		token.source.SourceChannelType = resolvedID.Type
 		token.source.SourceSubscriberMutationVersion = sourceVersion
