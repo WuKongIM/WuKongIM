@@ -93,9 +93,10 @@ func TestPersonWorkloadSendOneMatchesSendackAndVerifiesRecvWhenEnabled(t *testin
 	require.Len(t, recipient.recvAckCalls, 1)
 	require.Equal(t, int64(100), recipient.recvAckCalls[0].messageID)
 	require.Equal(t, uint64(42), recipient.recvAckCalls[0].messageSeq)
-	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_send_success_total", nil))
+	sendLabels := personSendLabels("run", "profile-a", "traffic-a")
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_send_success_total", sendLabels))
 	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_recv_success_total", nil))
-	require.NotEmpty(t, workload.Metrics().LatencyValues("person_send_latency_seconds", nil))
+	require.NotEmpty(t, workload.Metrics().LatencyValues("person_send_latency_seconds", sendLabels))
 	require.NotEmpty(t, workload.Metrics().LatencyValues("person_recv_latency_seconds", nil))
 }
 
@@ -195,7 +196,7 @@ func TestPersonWorkloadSendOneRecordsFailures(t *testing.T) {
 	err = workload.SendOne(context.Background(), 1)
 
 	require.Error(t, err)
-	require.True(t, workload.Metrics().CounterValue("person_send_error_total", nil) > 0)
+	require.True(t, workload.Metrics().CounterValue("person_send_error_total", personSendLabels("run", "profile-a", "traffic-a")) > 0)
 	require.NotEmpty(t, workload.Metrics().ErrorSamples())
 }
 
@@ -217,7 +218,7 @@ func TestPersonWorkloadSendackReadErrorIdentifiesFailedSession(t *testing.T) {
 
 	require.Error(t, err)
 	require.Equal(t, []string{"u1"}, SessionErrorUIDs(err))
-	require.True(t, workload.Metrics().CounterValue("person_send_error_total", nil) > 0)
+	require.True(t, workload.Metrics().CounterValue("person_send_error_total", personSendLabels("run", "profile-a", "traffic-a")) > 0)
 }
 
 func TestPersonWorkloadConnectsAssignedPairClients(t *testing.T) {
@@ -635,7 +636,7 @@ func TestPersonWorkloadWarmupUsesWarmupDurationAsMinimumAckTimeout(t *testing.T)
 	require.NoError(t, err)
 
 	require.NoError(t, workload.Warmup(context.Background()))
-	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_send_success_total", nil))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("person_send_success_total", personSendLabels("warmup", "profile-a", "person-send")))
 }
 
 type blockingReadPersonClient struct {
@@ -770,7 +771,7 @@ func TestPersonWorkloadRunHonorsRateDurationPerChannel(t *testing.T) {
 	for _, d := range sleeps {
 		require.Equal(t, 250*time.Millisecond, d)
 	}
-	require.Equal(t, uint64(4), workload.Metrics().CounterValue("person_send_success_total", nil))
+	require.Equal(t, uint64(4), workload.Metrics().CounterValue("person_send_success_total", personSendLabels("run", "profile-a", "traffic-a")))
 }
 
 func TestPersonWorkloadWarmupTouchesEveryPairAtLeastOnce(t *testing.T) {
@@ -813,5 +814,9 @@ func TestPersonWorkloadWarmupTouchesEveryPairAtLeastOnce(t *testing.T) {
 	require.Len(t, clients["u1"].sentFrames, 1)
 	require.Len(t, clients["u3"].sentFrames, 1)
 	require.Len(t, clients["u5"].sentFrames, 1)
-	require.Equal(t, uint64(3), workload.Metrics().CounterValue("person_send_success_total", nil))
+	require.Equal(t, uint64(3), workload.Metrics().CounterValue("person_send_success_total", personSendLabels("warmup", "profile-a", "traffic-a")))
+}
+
+func personSendLabels(phase, profile, traffic string) metrics.Labels {
+	return metrics.Labels{"phase": phase, "channel_type": "person", "profile": profile, "traffic": traffic}
 }

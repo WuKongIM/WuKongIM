@@ -60,6 +60,22 @@ type Summary struct {
 	RecvMaxWorkerP99 time.Duration `json:"recv_max_worker_p99"`
 }
 
+// SendRunSummary contains measured-run send throughput and latency stats.
+type SendRunSummary struct {
+	// SendSuccess is the successful sendack count during measured run.
+	SendSuccess uint64 `json:"send_success"`
+	// SendErrors is the failed send/sendack count during measured run.
+	SendErrors uint64 `json:"send_errors"`
+	// IngressQPS is SendSuccess divided by measured duration seconds.
+	IngressQPS float64 `json:"ingress_qps"`
+	// SendackP50 is the maximum worker-local run-phase sendack p50 latency.
+	SendackP50 time.Duration `json:"sendack_p50"`
+	// SendackP95 is the maximum worker-local run-phase sendack p95 latency.
+	SendackP95 time.Duration `json:"sendack_p95"`
+	// SendackP99 is the maximum worker-local run-phase sendack p99 latency.
+	SendackP99 time.Duration `json:"sendack_p99"`
+}
+
 // Violation describes one failed or warning benchmark limit.
 type Violation struct {
 	// Name is the stable limit field name.
@@ -287,6 +303,20 @@ func SummaryFromMetrics(snapshot metrics.SnapshotData, workerFailed int) Summary
 	}
 }
 
+// SendRunSummaryFromMetrics derives measured-run send throughput and latency from metrics.
+func SendRunSummaryFromMetrics(snapshot metrics.SnapshotData, duration time.Duration) SendRunSummary {
+	success := counterSumWithPhase(snapshot, "run", "person_send_success_total", "group_send_success_total", "sendack_success_total")
+	errors := counterSumWithPhase(snapshot, "run", "person_send_error_total", "group_send_error_total", "sendack_error_total")
+	return SendRunSummary{
+		SendSuccess: success,
+		SendErrors:  errors,
+		IngressQPS:  qps(success, duration),
+		SendackP50:  maxHistogramPercentileWithPhase(snapshot, "run", 50, "person_send_latency_seconds", "group_send_latency_seconds", "sendack_latency_seconds"),
+		SendackP95:  maxHistogramPercentileWithPhase(snapshot, "run", 95, "person_send_latency_seconds", "group_send_latency_seconds", "sendack_latency_seconds"),
+		SendackP99:  maxHistogramPercentileWithPhase(snapshot, "run", 99, "person_send_latency_seconds", "group_send_latency_seconds", "sendack_latency_seconds"),
+	}
+}
+
 func counterSum(snapshot metrics.SnapshotData, names ...string) uint64 {
 	wanted := make(map[string]struct{}, len(names))
 	for _, name := range names {
@@ -301,11 +331,80 @@ func counterSum(snapshot metrics.SnapshotData, names ...string) uint64 {
 	return sum
 }
 
+func counterSumWithPhase(snapshot metrics.SnapshotData, phase string, names ...string) uint64 {
+	wanted := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		wanted[name] = struct{}{}
+	}
+	var sum uint64
+	for key, value := range snapshot.Counters {
+		if _, ok := wanted[metricName(key)]; ok && seriesHasPhase(key, phase) {
+			sum += value
+		}
+	}
+	return sum
+}
+
 func metricName(key string) string {
 	if idx := strings.IndexByte(key, '{'); idx >= 0 {
 		return strings.TrimSpace(key[:idx])
 	}
 	return strings.TrimSpace(key)
+}
+
+func maxHistogramPercentileWithPhase(snapshot metrics.SnapshotData, phase string, percentile int, names ...string) time.Duration {
+	wanted := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		wanted[name] = struct{}{}
+	}
+	var max float64
+	for key, hist := range snapshot.Histograms {
+		if _, ok := wanted[metricName(key)]; !ok || !seriesHasPhase(key, phase) {
+			continue
+		}
+		var value float64
+		switch percentile {
+		case 50:
+			value = hist.P50Seconds
+		case 95:
+			value = hist.P95Seconds
+		case 99:
+			value = hist.P99Seconds
+		}
+		if value > max {
+			max = value
+		}
+	}
+	return time.Duration(max * float64(time.Second))
+}
+
+func seriesHasPhase(key, phase string) bool {
+	labels := seriesLabels(key)
+	return labels["phase"] == phase
+}
+
+func seriesLabels(key string) map[string]string {
+	labels := map[string]string{}
+	open := strings.IndexByte(key, '{')
+	if open < 0 || !strings.HasSuffix(key, "}") {
+		return labels
+	}
+	raw := strings.TrimSuffix(key[open+1:], "}")
+	for _, part := range strings.Split(raw, ",") {
+		name, value, ok := strings.Cut(part, "=")
+		if !ok {
+			continue
+		}
+		labels[strings.TrimSpace(name)] = strings.TrimSpace(value)
+	}
+	return labels
+}
+
+func qps(count uint64, duration time.Duration) float64 {
+	if count == 0 || duration <= 0 {
+		return 0
+	}
+	return float64(count) / duration.Seconds()
 }
 
 func connectErrorRate(errors, successes, attempts uint64) float64 {

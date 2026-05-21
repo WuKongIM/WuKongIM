@@ -95,6 +95,41 @@ func TestSummaryFromMetricsUsesConnectAttemptsAsRateDenominator(t *testing.T) {
 	}
 }
 
+func TestSendRunSummaryFromMetricsUsesOnlyRunPhase(t *testing.T) {
+	summary := SendRunSummaryFromMetrics(metrics.SnapshotData{
+		Counters: map[string]uint64{
+			"person_send_success_total{channel_type=person,phase=warmup,profile=p,traffic=t}": 100,
+			"person_send_success_total{channel_type=person,phase=run,profile=p,traffic=t}":    200,
+			"group_send_success_total{channel_type=group,phase=run,profile=g,traffic=t}":      100,
+			"person_send_error_total{channel_type=person,phase=run,profile=p,traffic=t}":      1,
+		},
+		Histograms: map[string]metrics.HistogramSummary{
+			"person_send_latency_seconds{channel_type=person,phase=warmup,profile=p,traffic=t}": {Count: 100, P50Seconds: 1, P95Seconds: 1, P99Seconds: 1},
+			"person_send_latency_seconds{channel_type=person,phase=run,profile=p,traffic=t}":    {Count: 200, P50Seconds: 0.010, P95Seconds: 0.030, P99Seconds: 0.050},
+			"group_send_latency_seconds{channel_type=group,phase=run,profile=g,traffic=t}":      {Count: 100, P50Seconds: 0.020, P95Seconds: 0.040, P99Seconds: 0.060},
+		},
+	}, time.Minute)
+
+	if summary.SendSuccess != 300 {
+		t.Fatalf("send_success = %d, want 300", summary.SendSuccess)
+	}
+	if summary.SendErrors != 1 {
+		t.Fatalf("send_errors = %d, want 1", summary.SendErrors)
+	}
+	if summary.IngressQPS != 5 {
+		t.Fatalf("ingress_qps = %v, want 5", summary.IngressQPS)
+	}
+	if summary.SendackP50 != 20*time.Millisecond {
+		t.Fatalf("sendack_p50 = %s, want 20ms", summary.SendackP50)
+	}
+	if summary.SendackP95 != 40*time.Millisecond {
+		t.Fatalf("sendack_p95 = %s, want 40ms", summary.SendackP95)
+	}
+	if summary.SendackP99 != 60*time.Millisecond {
+		t.Fatalf("sendack_p99 = %s, want 60ms", summary.SendackP99)
+	}
+}
+
 func TestSummaryMarkdownLabelsMaxWorkerPercentiles(t *testing.T) {
 	rep := Build(Input{RunID: "run-1", Summary: Summary{SendackMaxWorkerP99: 50 * time.Millisecond, RecvMaxWorkerP99: 70 * time.Millisecond}})
 

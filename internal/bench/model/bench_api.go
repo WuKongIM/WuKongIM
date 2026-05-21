@@ -42,6 +42,24 @@ type BenchSnapshot struct {
 	Counts map[string]int `json:"counts,omitempty"`
 }
 
+// CapacityTarget describes the target node addresses needed by capacity tests.
+type CapacityTarget struct {
+	// Version is the benchmark API version that produced this target document.
+	Version string `json:"version"`
+	// Gateway contains gateway addresses published by this target node.
+	Gateway CapacityTargetGateway `json:"gateway"`
+}
+
+// CapacityTargetGateway contains externally reachable gateway addresses.
+type CapacityTargetGateway struct {
+	// TCPAddr is the WKProto TCP gateway address used by wkbench workers.
+	TCPAddr string `json:"tcp_addr"`
+	// WSAddr is the WebSocket gateway address, reserved for future workers.
+	WSAddr string `json:"ws_addr"`
+	// WSSAddr is the secure WebSocket gateway address, reserved for future workers.
+	WSSAddr string `json:"wss_addr"`
+}
+
 // BatchTokensRequest updates benchmark user tokens in one batch.
 type BatchTokensRequest struct {
 	// RunID identifies the benchmark run that owns this batch.

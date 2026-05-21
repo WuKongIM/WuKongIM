@@ -11,10 +11,27 @@ import (
 
 func (s *Server) registerBenchRoutes() {
 	s.engine.GET("/bench/v1/capabilities", s.handleBenchCapabilities)
+	s.engine.GET("/bench/v1/capacity-target", s.handleBenchCapacityTarget)
 	s.engine.POST("/bench/v1/users/tokens", s.handleBenchTokens)
 	s.engine.POST("/bench/v1/channels", s.handleBenchChannels)
 	s.engine.POST("/bench/v1/channels/subscribers", s.handleBenchSubscribers)
 	s.engine.GET("/bench/v1/snapshot", s.handleBenchSnapshot)
+}
+
+type benchCapacityTargetResponse struct {
+	// Version is the benchmark API version that produced this target document.
+	Version string `json:"version"`
+	// Gateway contains gateway addresses published by this target node.
+	Gateway benchCapacityGatewayResponse `json:"gateway"`
+}
+
+type benchCapacityGatewayResponse struct {
+	// TCPAddr is the externally reachable WKProto TCP gateway address.
+	TCPAddr string `json:"tcp_addr"`
+	// WSAddr is the externally reachable WebSocket gateway address.
+	WSAddr string `json:"ws_addr"`
+	// WSSAddr is the externally reachable secure WebSocket gateway address.
+	WSSAddr string `json:"wss_addr"`
 }
 
 func (s *Server) handleBenchCapabilities(c *gin.Context) {
@@ -23,6 +40,21 @@ func (s *Server) handleBenchCapabilities(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, s.benchData.Capabilities(c.Request.Context()))
+}
+
+func (s *Server) handleBenchCapacityTarget(c *gin.Context) {
+	if c == nil {
+		return
+	}
+	addr := s.legacyRouteExternal
+	c.JSON(http.StatusOK, benchCapacityTargetResponse{
+		Version: "bench/v1",
+		Gateway: benchCapacityGatewayResponse{
+			TCPAddr: addr.TCPAddr,
+			WSAddr:  addr.WSAddr,
+			WSSAddr: addr.WSSAddr,
+		},
+	})
 }
 
 func (s *Server) handleBenchTokens(c *gin.Context) {

@@ -39,6 +39,38 @@ func TestCapabilitiesTriesAPIAddrsInOrder(t *testing.T) {
 	require.Equal(t, "bench/v1", got.Version)
 }
 
+func TestClientCapacityTargetReadsGatewayAddresses(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/bench/v1/capacity-target", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"version":"bench/v1","gateway":{"tcp_addr":"127.0.0.1:15100","ws_addr":"ws://127.0.0.1:15200","wss_addr":""}}`))
+	}))
+	defer ts.Close()
+
+	got, err := NewClient(Config{APIAddrs: []string{ts.URL}}).CapacityTarget(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, "bench/v1", got.Version)
+	require.Equal(t, "127.0.0.1:15100", got.Gateway.TCPAddr)
+	require.Equal(t, "ws://127.0.0.1:15200", got.Gateway.WSAddr)
+}
+
+func TestClientCapacityTargetFallsBackAcrossAPIAddresses(t *testing.T) {
+	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "nope", http.StatusServiceUnavailable)
+	}))
+	defer bad.Close()
+	good := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"version":"bench/v1","gateway":{"tcp_addr":"127.0.0.1:15101"}}`))
+	}))
+	defer good.Close()
+
+	got, err := NewClient(Config{APIAddrs: []string{bad.URL, good.URL}}).CapacityTarget(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, "127.0.0.1:15101", got.Gateway.TCPAddr)
+}
+
 func TestHealthAndReadyUseConfiguredAPIAddress(t *testing.T) {
 	seen := make(map[string]int)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

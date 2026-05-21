@@ -387,26 +387,27 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 		Payload:     payload,
 	}
 
+	sendLabels := w.sendMetricLabels(phase)
 	sendStart := time.Now()
 	if err := sender.Send(ctx, pkt); err != nil {
 		w.recordError("group_send_error", err)
-		w.metrics.IncCounter("group_send_error_total", nil)
+		w.metrics.IncCounter("group_send_error_total", sendLabels)
 		return sessionOperationError(senderUID, "group send", err)
 	}
 	ack, err := w.waitForSendack(ctx, sender, clientSeq, clientMsgNo)
 	if err != nil {
 		w.recordError("group_send_error", err)
-		w.metrics.IncCounter("group_send_error_total", nil)
+		w.metrics.IncCounter("group_send_error_total", sendLabels)
 		return sessionOperationError(senderUID, "group sendack", err)
 	}
 	if ack.ReasonCode != frame.ReasonSuccess {
 		err := fmt.Errorf("group workload: sendack rejected message %q with reason %s", clientMsgNo, ack.ReasonCode)
 		w.recordError("group_send_error", err)
-		w.metrics.IncCounter("group_send_error_total", nil)
+		w.metrics.IncCounter("group_send_error_total", sendLabels)
 		return err
 	}
-	w.metrics.IncCounter("group_send_success_total", nil)
-	w.metrics.ObserveLatency("group_send_latency_seconds", nil, time.Since(sendStart))
+	w.metrics.IncCounter("group_send_success_total", sendLabels)
+	w.metrics.ObserveLatency("group_send_latency_seconds", sendLabels, time.Since(sendStart))
 
 	recipients := w.verificationMembers(ch, senderUID)
 	if len(recipients) == 0 {
@@ -444,6 +445,15 @@ func (w *GroupWorkload) sendOneInPhase(ctx context.Context, phase string, channe
 		w.metrics.ObserveLatency("group_recv_latency_seconds", nil, time.Since(recvStart))
 	}
 	return nil
+}
+
+func (w *GroupWorkload) sendMetricLabels(phase string) metrics.Labels {
+	return metrics.Labels{
+		"phase":        strings.TrimSpace(phase),
+		"channel_type": model.ChannelTypeGroup,
+		"profile":      w.cfg.ProfileName,
+		"traffic":      w.cfg.TrafficName,
+	}
 }
 
 func (w *GroupWorkload) messageIndexForLocalOffset(ch GroupChannel, localOffset int) int {

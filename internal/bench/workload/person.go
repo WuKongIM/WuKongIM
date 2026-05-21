@@ -345,26 +345,27 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 		Payload:     payload,
 	}
 
+	sendLabels := w.sendMetricLabels(phase)
 	sendStart := time.Now()
 	if err := sender.Send(ctx, pkt); err != nil {
 		w.recordError("person_send_error", err)
-		w.metrics.IncCounter("person_send_error_total", nil)
+		w.metrics.IncCounter("person_send_error_total", sendLabels)
 		return sessionOperationError(pair.SenderUID, "person send", err)
 	}
 	ack, err := w.waitForSendack(ctx, sender, clientSeq, clientMsgNo)
 	if err != nil {
 		w.recordError("person_send_error", err)
-		w.metrics.IncCounter("person_send_error_total", nil)
+		w.metrics.IncCounter("person_send_error_total", sendLabels)
 		return sessionOperationError(pair.SenderUID, "person sendack", err)
 	}
 	if ack.ReasonCode != frame.ReasonSuccess {
 		err := fmt.Errorf("person workload: sendack rejected message %q with reason %s", clientMsgNo, ack.ReasonCode)
 		w.recordError("person_send_error", err)
-		w.metrics.IncCounter("person_send_error_total", nil)
+		w.metrics.IncCounter("person_send_error_total", sendLabels)
 		return err
 	}
-	w.metrics.IncCounter("person_send_success_total", nil)
-	w.metrics.ObserveLatency("person_send_latency_seconds", nil, time.Since(sendStart))
+	w.metrics.IncCounter("person_send_success_total", sendLabels)
+	w.metrics.ObserveLatency("person_send_latency_seconds", sendLabels, time.Since(sendStart))
 
 	if !strings.EqualFold(w.cfg.VerifyRecvMode, verifyRecvModeFull) {
 		return nil
@@ -399,6 +400,15 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 	w.metrics.IncCounter("person_recv_success_total", nil)
 	w.metrics.ObserveLatency("person_recv_latency_seconds", nil, time.Since(recvStart))
 	return nil
+}
+
+func (w *PersonWorkload) sendMetricLabels(phase string) metrics.Labels {
+	return metrics.Labels{
+		"phase":        strings.TrimSpace(phase),
+		"channel_type": model.ChannelTypePerson,
+		"profile":      w.cfg.ProfileName,
+		"traffic":      w.cfg.TrafficName,
+	}
 }
 
 func (w *PersonWorkload) isConnected(uid string) bool {

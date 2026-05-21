@@ -56,6 +56,32 @@ func TestWorkerCommandInsecureControlIgnoresEnvToken(t *testing.T) {
 	}
 }
 
+func TestRunCapacityRequiresSubcommand(t *testing.T) {
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"capacity"}, &stderr)
+
+	if code != exitConfig {
+		t.Fatalf("expected config exit code, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), "usage: wkbench capacity <send>") {
+		t.Fatalf("expected capacity usage, got %q", stderr.String())
+	}
+}
+
+func TestRunCapacitySendRequiresAPI(t *testing.T) {
+	var stderr bytes.Buffer
+
+	code := runWithStderr([]string{"capacity", "send"}, &stderr)
+
+	if code != exitConfig {
+		t.Fatalf("expected config exit code, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), "--api is required") {
+		t.Fatalf("expected api error, got %q", stderr.String())
+	}
+}
+
 func TestValidateCommandLoadsConfigsAndBuildsPlanWithoutNetwork(t *testing.T) {
 	targetPath := writeWkbenchTempFile(t, `
 name: target

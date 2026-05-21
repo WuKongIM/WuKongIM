@@ -435,7 +435,7 @@ func TestWorkerDefaultRunnerMetricsSurviveCooldown(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	var snap metrics.SnapshotData
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &snap))
-	require.Equal(t, uint64(1), snap.Counters["person_send_success_total"])
+	require.Equal(t, uint64(1), snap.Counters["person_send_success_total{channel_type=person,phase=run,profile=person-a,traffic=person-send}"])
 }
 
 func TestWorkerDefaultRunnerNewRunResetsConnectMetricsAfterStop(t *testing.T) {
