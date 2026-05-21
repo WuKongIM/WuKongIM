@@ -61,6 +61,34 @@ func TestActorEnsureRouteStateAvoidsPerRouteStateAllocation(t *testing.T) {
 	require.LessOrEqual(t, allocs, float64(10))
 }
 
+func TestRouteStateMapPoolReusesClearedMaps(t *testing.T) {
+	if deliveryRaceEnabled {
+		t.Skip("race instrumentation adds allocations")
+	}
+	routes := make([]RouteKey, 64)
+	for i := range routes {
+		routes[i] = testRoute("u2", 1, 11, uint64(i+1))
+	}
+	warmed := acquireRouteStateMap()
+	for _, route := range routes {
+		warmed[route] = RouteDeliveryState{Attempt: 1, Accepted: true}
+	}
+	releaseRouteStateMap(warmed)
+
+	reused := acquireRouteStateMap()
+	require.Empty(t, reused)
+	releaseRouteStateMap(reused)
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		routesByKey := acquireRouteStateMap()
+		for _, route := range routes {
+			routesByKey[route] = RouteDeliveryState{Attempt: 1}
+		}
+		releaseRouteStateMap(routesByKey)
+	})
+	require.LessOrEqual(t, allocs, float64(1))
+}
+
 func TestActorBindsAckIndexOnlyForAcceptedRoutes(t *testing.T) {
 	runtime, _, pusher := newTestManager()
 	accepted := testRoute("u2", 1, 11, 2)

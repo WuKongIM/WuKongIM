@@ -8,6 +8,13 @@ import (
 
 const recentCompletedMessageCap = 256
 
+// routeStateMapPool reuses per-message route maps after an inflight message completes.
+var routeStateMapPool = sync.Pool{
+	New: func() any {
+		return make(map[RouteKey]RouteDeliveryState, 4)
+	},
+}
+
 type actor struct {
 	mu              sync.Mutex
 	shard           *shard
@@ -127,7 +134,7 @@ func (a *actor) dispatch(ctx context.Context, env CommittedEnvelope) error {
 		MessageSeq:     env.MessageSeq,
 		Envelope:       cloneEnvelope(env),
 		ResolveAttempt: 1,
-		Routes:         make(map[RouteKey]RouteDeliveryState),
+		Routes:         acquireRouteStateMap(),
 	}
 	a.inflight[env.MessageID] = msg
 	a.pushResolvable(msg)
@@ -473,6 +480,9 @@ func (a *actor) notifyOfflineResolvedOutsideLock(ctx context.Context) {
 }
 
 func (a *actor) ensureRouteState(msg *InflightMessage, route RouteKey) {
+	if msg.Routes == nil {
+		msg.Routes = acquireRouteStateMap()
+	}
 	if _, ok := msg.Routes[route]; ok {
 		return
 	}
@@ -531,8 +541,28 @@ func (a *actor) scheduleResolveRetry(msg *InflightMessage, attempt int) {
 }
 
 func (a *actor) completeMessage(messageID uint64) {
+	if msg := a.inflight[messageID]; msg != nil {
+		releaseRouteStateMap(msg.Routes)
+		msg.Routes = nil
+	}
 	a.rememberCompleted(messageID)
 	delete(a.inflight, messageID)
+}
+
+func acquireRouteStateMap() map[RouteKey]RouteDeliveryState {
+	routes, ok := routeStateMapPool.Get().(map[RouteKey]RouteDeliveryState)
+	if !ok || routes == nil {
+		return make(map[RouteKey]RouteDeliveryState, 4)
+	}
+	return routes
+}
+
+func releaseRouteStateMap(routes map[RouteKey]RouteDeliveryState) {
+	if routes == nil {
+		return
+	}
+	clear(routes)
+	routeStateMapPool.Put(routes)
 }
 
 func (a *actor) isIdle(nowUnixNano int64, idleTimeout int64) bool {

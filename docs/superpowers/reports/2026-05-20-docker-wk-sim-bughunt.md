@@ -365,4 +365,20 @@ This continuation rebuilt after PERF-037 and confirmed the replica debug field a
 
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
-| PERF-038 | Fixed | Delivery actor route state allocations | Post-PERF-037 allocation profiles showed `actor.ensureRouteState` allocating tens of MB per node during route push setup. | Each inflight route stored `*RouteDeliveryState` in the route map, forcing a separate heap allocation per message route even though the state is tiny and owned by the actor. | Current change |
+| PERF-038 | Fixed | Delivery actor route state allocations | Post-PERF-037 allocation profiles showed `actor.ensureRouteState` allocating tens of MB per node during route push setup. | Each inflight route stored `*RouteDeliveryState` in the route map, forcing a separate heap allocation per message route even though the state is tiny and owned by the actor. | `11f6ed42` |
+
+## Continuation: isolated worktree Run 20
+
+This continuation rebuilt after PERF-038 and found that the pointer allocation was gone, but map bucket allocation was still attributed to `ensureRouteState` because each inflight message allocated a fresh route-state map.
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-21 | `DOCKER_BUILDKIT=0 docker build --pull=false -t wukongim-dev:local .` | Pass | Rebuilt local image from `11f6ed42`; image ID `274698a51e78`. |
+| 2026-05-21 | Fresh-image clean 1/s after PERF-038, `WK_SIM_UID_PREFIX=clean27-routestate-u` | Fail | The run hit an early retry at `messages_sent=7096`, then continued and reached `messages_sent=218413`, `send_errors=80`, `recv_errors=0` during profile capture. |
+| 2026-05-21 | `/tmp/wksim-rate1-routestate-alloc-20260521-161614` alloc/heap/diagnostics capture | Evidence | `actor.ensureRouteState` still showed about `96.57MB` on node1, `68.55MB` on node2, and `54.54MB` on node3; after PERF-038 this remaining cost is map bucket allocation/growth for per-message route maps. |
+| 2026-05-21 | `GOWORK=off go test ./internal/runtime/delivery -run TestRouteStateMapPoolReusesClearedMaps -count=1` | Red then pass | Regression test first failed to compile before route-state map pooling existed, then passed after completed messages released cleared route-state maps into a small `sync.Pool`. |
+| 2026-05-21 | `GOWORK=off go test ./internal/runtime/delivery -count=1` and `GOWORK=off go test -race ./internal/runtime/delivery -run 'Test(RouteStateMapPoolReusesClearedMaps\|ActorEnsureRouteStateAvoidsPerRouteStateAllocation\|ActorBindsAckIndexOnlyForAcceptedRoutes\|ActorRetryTickRetriesPendingRoutesUntilAcked\|ActorHonorsAckArrivingBeforePushReturns)' -count=1` | Pass | Delivery runtime package and race-focused actor checks passed; the allocation-map reuse assertion is skipped under race instrumentation because race adds allocations. |
+
+| ID | Status | Area | Symptom | Root Cause | Fix Commit |
+| --- | --- | --- | --- | --- | --- |
+| PERF-039 | Fixed | Delivery actor route map allocations | After inline route state, `actor.ensureRouteState` still allocated tens of MB per node in fresh clean 1/s profiles. | `dispatch` created a new route-state map for every inflight message, so map bucket allocation/growth remained on the hot route setup path even though route state values were inline. | Current change |
