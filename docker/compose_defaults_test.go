@@ -81,6 +81,26 @@ func TestComposeNodeConfigsUseExplicitGatewayGnetHeadroom(t *testing.T) {
 	}
 }
 
+func TestComposeNodeConfigsBoundActiveHintFlushFanout(t *testing.T) {
+	repoRoot := dockerRepoRoot(t)
+	for _, node := range []string{"node1.conf", "node2.conf", "node3.conf"} {
+		confPath := filepath.Join(repoRoot, "docker", "conf", node)
+		confBody, err := os.ReadFile(confPath)
+		if err != nil {
+			t.Fatalf("read %s: %v", confPath, err)
+		}
+		conf := string(confBody)
+		for _, want := range []string{
+			"WK_CONVERSATION_ACTIVE_HINT_FLUSH_INTERVAL=10s",
+			"WK_CONVERSATION_ACTIVE_HINT_FLUSH_BATCH_SIZE=32",
+		} {
+			if !strings.Contains(conf, want) {
+				t.Fatalf("%s should contain %s to keep best-effort active-hint flushes from flooding Slot Raft during dev-sim", confPath, want)
+			}
+		}
+	}
+}
+
 func dockerRepoRoot(t *testing.T) string {
 	t.Helper()
 	_, filename, _, ok := runtime.Caller(0)

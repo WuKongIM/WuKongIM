@@ -1026,12 +1026,12 @@ func TestConfigDefaultsConversationActiveHints(t *testing.T) {
 
 	require.NoError(t, cfg.ApplyDefaultsAndValidate())
 
-	require.Equal(t, 2*time.Second, cfg.Conversation.ActiveHintFlushInterval)
+	require.Equal(t, 10*time.Second, cfg.Conversation.ActiveHintFlushInterval)
 	require.Equal(t, 30*time.Minute, cfg.Conversation.ActiveHintTTL)
 	require.Equal(t, 30*time.Minute, cfg.Conversation.ActiveHintBarrierTTL)
 	require.Equal(t, 100000, cfg.Conversation.ActiveHintMaxHints)
 	require.Equal(t, 1000, cfg.Conversation.ActiveHintMaxHintsPerUID)
-	require.Equal(t, 1024, cfg.Conversation.ActiveHintFlushBatchSize)
+	require.Equal(t, 32, cfg.Conversation.ActiveHintFlushBatchSize)
 	require.Equal(t, 5*time.Minute, cfg.Conversation.GroupActiveFanoutInterval)
 	require.Zero(t, cfg.Conversation.GroupActiveFanoutMaxSubscribers)
 }
