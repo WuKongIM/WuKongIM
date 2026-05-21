@@ -63,41 +63,67 @@ func (d *pooledLoopDriver) submitCommand(ctx context.Context, event machineEvent
 		return machineResult{Err: channel.ErrNotLeader}
 	}
 
-	reply := make(chan machineResult, 1)
+	reply := acquirePooledLoopReply()
 	cmd := replicaLoopCommand{event: event, reply: reply}
 	if err := d.enqueue(ctx, pooledLoopMessage{command: cmd, hasCommand: true}); err != nil {
+		releasePooledLoopReply(reply)
 		return machineResult{Err: err}
 	}
 
-	return awaitPooledLoopCommandResult(ctx, reply, d.doneCh, r.stopCh)
+	result, reusable := awaitPooledLoopCommandResult(ctx, reply, d.doneCh, r.stopCh)
+	if reusable {
+		releasePooledLoopReply(reply)
+	}
+	return result
 }
 
-func awaitPooledLoopCommandResult(ctx context.Context, reply <-chan machineResult, done <-chan struct{}, stop <-chan struct{}) machineResult {
+var pooledLoopReplyPool = sync.Pool{
+	New: func() any {
+		return make(chan machineResult, 1)
+	},
+}
+
+func acquirePooledLoopReply() chan machineResult {
+	return pooledLoopReplyPool.Get().(chan machineResult)
+}
+
+func releasePooledLoopReply(reply chan machineResult) {
+	if reply == nil {
+		return
+	}
+	select {
+	case <-reply:
+	default:
+	}
+	pooledLoopReplyPool.Put(reply)
+}
+
+func awaitPooledLoopCommandResult(ctx context.Context, reply <-chan machineResult, done <-chan struct{}, stop <-chan struct{}) (machineResult, bool) {
 	select {
 	case result := <-reply:
-		return result
+		return result, true
 	default:
 	}
 
 	select {
 	case result := <-reply:
-		return result
+		return result, true
 	case <-done:
 		select {
 		case result := <-reply:
-			return result
+			return result, true
 		default:
 		}
-		return machineResult{Err: channel.ErrNotLeader}
+		return machineResult{Err: channel.ErrNotLeader}, false
 	case <-stop:
 		select {
 		case result := <-reply:
-			return result
+			return result, true
 		default:
 		}
-		return machineResult{Err: channel.ErrNotLeader}
+		return machineResult{Err: channel.ErrNotLeader}, false
 	case <-ctx.Done():
-		return machineResult{Err: ctx.Err()}
+		return machineResult{Err: ctx.Err()}, false
 	}
 }
 

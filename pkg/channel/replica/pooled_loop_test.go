@@ -51,10 +51,13 @@ func TestPooledLoopCommandWaitPrefersReadyReplyOverDone(t *testing.T) {
 	close(done)
 	close(stop)
 
-	result := awaitPooledLoopCommandResult(context.Background(), reply, done, stop)
+	result, reusable := awaitPooledLoopCommandResult(context.Background(), reply, done, stop)
 
 	if result.Err != nil {
 		t.Fatalf("awaitPooledLoopCommandResult() error = %v", result.Err)
+	}
+	if !reusable {
+		t.Fatal("awaitPooledLoopCommandResult() reusable = false, want true after receiving a reply")
 	}
 }
 
@@ -64,10 +67,40 @@ func TestPooledLoopCommandWaitReturnsNotLeaderWhenDoneWinsWithoutReply(t *testin
 	stop := make(chan struct{})
 	close(done)
 
-	result := awaitPooledLoopCommandResult(context.Background(), reply, done, stop)
+	result, reusable := awaitPooledLoopCommandResult(context.Background(), reply, done, stop)
 
 	if result.Err != channel.ErrNotLeader {
 		t.Fatalf("awaitPooledLoopCommandResult() error = %v, want %v", result.Err, channel.ErrNotLeader)
+	}
+	if reusable {
+		t.Fatal("awaitPooledLoopCommandResult() reusable = true, want false when no reply was received")
+	}
+}
+
+func TestPooledLoopReplyPoolReusesReadyReplies(t *testing.T) {
+	reply := acquirePooledLoopReply()
+	reply <- machineResult{}
+	result, reusable := awaitPooledLoopCommandResult(context.Background(), reply, make(chan struct{}), make(chan struct{}))
+	if result.Err != nil {
+		t.Fatalf("awaitPooledLoopCommandResult() error = %v", result.Err)
+	}
+	if !reusable {
+		t.Fatal("awaitPooledLoopCommandResult() reusable = false, want true")
+	}
+	releasePooledLoopReply(reply)
+
+	done := make(chan struct{})
+	stop := make(chan struct{})
+	allocs := testing.AllocsPerRun(100, func() {
+		reply := acquirePooledLoopReply()
+		reply <- machineResult{}
+		_, reusable := awaitPooledLoopCommandResult(context.Background(), reply, done, stop)
+		if reusable {
+			releasePooledLoopReply(reply)
+		}
+	})
+	if allocs > 0 {
+		t.Fatalf("pooled ready reply allocations = %v, want 0", allocs)
 	}
 }
 
