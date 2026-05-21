@@ -1511,7 +1511,7 @@ func (p localDeliveryPush) pushEnvelope(env deliveryruntime.CommittedEnvelope, r
 	result := deliveryruntime.PushResult{}
 	var sharedFrame frame.Frame
 	var framesByUID map[string]frame.Frame
-	if env.ChannelType == frame.ChannelTypePerson {
+	if env.ChannelType == frame.ChannelTypePerson && len(routes) > 1 {
 		frameCacheCap := len(routes)
 		if frameCacheCap > 2 {
 			frameCacheCap = 2
@@ -1534,10 +1534,14 @@ func (p localDeliveryPush) pushEnvelope(env deliveryruntime.CommittedEnvelope, r
 			}
 			f := sharedFrame
 			if env.ChannelType == frame.ChannelTypePerson {
-				f = framesByUID[route.UID]
-				if f == nil {
+				if framesByUID == nil {
 					f = buildRealtimeRecvPacket(env.Message, route.UID)
-					framesByUID[route.UID] = f
+				} else {
+					f = framesByUID[route.UID]
+					if f == nil {
+						f = buildRealtimeRecvPacket(env.Message, route.UID)
+						framesByUID[route.UID] = f
+					}
 				}
 			} else if f == nil {
 				f = buildRealtimeRecvPacket(env.Message, "")
@@ -1582,6 +1586,9 @@ type deliveryPushClient interface {
 func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.PushCommand) (deliveryruntime.PushResult, error) {
 	if p.codec == nil {
 		p.codec = codec.New()
+	}
+	if len(cmd.Routes) == 1 {
+		return p.pushSingleRoute(ctx, cmd)
 	}
 
 	localRoutes := make([]deliveryruntime.RouteKey, 0, len(cmd.Routes))
@@ -1636,6 +1643,20 @@ func (p distributedDeliveryPush) Push(ctx context.Context, cmd deliveryruntime.P
 		result.Dropped = append(result.Dropped, remoteResult.Dropped...)
 	}
 	return result, nil
+}
+
+func (p distributedDeliveryPush) pushSingleRoute(ctx context.Context, cmd deliveryruntime.PushCommand) (deliveryruntime.PushResult, error) {
+	route := cmd.Routes[0]
+	if isSenderDeliveryRoute(cmd.Envelope, route) {
+		return deliveryruntime.PushResult{Dropped: cmd.Routes}, nil
+	}
+	if route.NodeID == p.localNodeID {
+		return p.local.pushEnvelope(cmd.Envelope, cmd.Routes), nil
+	}
+	if p.client == nil {
+		return deliveryruntime.PushResult{Retryable: cmd.Routes}, nil
+	}
+	return p.pushRemoteNode(ctx, cmd.Envelope, route.NodeID, cmd.Routes, nil)
 }
 
 func isSenderDeliveryRoute(env deliveryruntime.CommittedEnvelope, route deliveryruntime.RouteKey) bool {
@@ -1822,6 +1843,13 @@ func deliveryPushResponseAcceptedCount(resp accessnode.DeliveryPushResponse) int
 func (p distributedDeliveryPush) deliveryPushItems(env deliveryruntime.CommittedEnvelope, routes []deliveryruntime.RouteKey, sharedFrame []byte) ([]accessnode.DeliveryPushItem, error) {
 	if env.ChannelType != frame.ChannelTypePerson {
 		item, err := p.deliveryPushItemWithFrame(env, routes, sharedFrame)
+		if err != nil {
+			return nil, err
+		}
+		return []accessnode.DeliveryPushItem{item}, nil
+	}
+	if len(routes) == 1 {
+		item, err := p.deliveryPushItem(env, routes, routes[0].UID)
 		if err != nil {
 			return nil, err
 		}
