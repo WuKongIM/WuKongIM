@@ -107,7 +107,7 @@ Live mutable fields are owned by the loop/pipeline handlers while holding `r.mu`
 | `pendingFollowerApplyEffectID`, `pendingSnapshotEffectID`, `pendingLeaderEpochEffectID`, `pendingReconcileEffectID`, `pendingRetentionAdoptEffectID`, `pendingRetentionTrimEffectID` | corresponding effect pipeline. |
 | `reconcilePending` | leader reconcile pipeline; tracks ISR proof still needed before CommitReady can be restored. |
 | `epochHistory` | startup recovery before workers, then loop-owned epoch/snapshot/apply/reconcile transitions. |
-| `statePointer` | immutable snapshot publication in `publishStateLocked`; `Status()` reads it lock-free. |
+| `statePointer` | immutable snapshot publication in `publishStateLocked`; unchanged states are skipped and `Status()` reads the latest snapshot lock-free. |
 | `durableMu` durable lane | serializes log-mutating durable effects outside the loop through a cancellable single-token lane. |
 
 `append.go`, `progress.go`, `fetch.go`, `replication.go`, and `reconcile.go` are facade/read-only helper files. The only read of loop-owned fields in `append.go` is timeout diagnostics, and it snapshots waiter data while still holding `r.mu.RLock()`.

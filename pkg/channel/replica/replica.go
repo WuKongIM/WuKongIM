@@ -345,6 +345,10 @@ func (r *replica) applyRetentionFromMeta(meta channel.Meta) error {
 
 func (r *replica) publishStateLocked() {
 	r.state.MinAvailableSeq = channel.EffectiveMinAvailableSeq(r.state.RetentionThroughSeq, r.state.LogStartOffset)
+	if published := r.statePointer.Load(); published != nil && *published == r.state {
+		return
+	}
+	// Store a fresh immutable snapshot only when Status readers need a new view.
 	snapshot := r.state
 	r.statePointer.Store(&snapshot)
 	if r.onStateChange != nil {
