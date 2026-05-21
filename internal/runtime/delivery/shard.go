@@ -7,10 +7,12 @@ import (
 )
 
 type shard struct {
-	mu      sync.Mutex
-	manager *Manager
-	actors  map[ChannelKey]*actor
-	wheel   *RetryWheel
+	mu           sync.Mutex
+	retryMu      sync.Mutex
+	manager      *Manager
+	actors       map[ChannelKey]*actor
+	wheel        *RetryWheel
+	retryScratch []RetryEntry
 }
 
 func newShard(manager *Manager) *shard {
@@ -77,7 +79,13 @@ func (s *shard) routeOffline(ctx context.Context, binding AckBinding) error {
 }
 
 func (s *shard) processRetryTicks(ctx context.Context) error {
-	due := s.wheel.PopDue(s.manager.clock.Now())
+	s.retryMu.Lock()
+	defer s.retryMu.Unlock()
+	due := s.wheel.PopDueInto(s.manager.clock.Now(), s.retryScratch[:0])
+	defer func() {
+		clear(due)
+		s.retryScratch = due[:0]
+	}()
 	for _, entry := range due {
 		act := s.actor(ChannelKey{ChannelID: entry.ChannelID, ChannelType: entry.ChannelType})
 		if act == nil {

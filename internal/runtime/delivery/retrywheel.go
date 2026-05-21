@@ -29,18 +29,23 @@ func (w *RetryWheel) Schedule(entry RetryEntry) {
 
 // PopDue removes and returns entries whose due time is not after now.
 func (w *RetryWheel) PopDue(now time.Time) []RetryEntry {
+	return w.PopDueInto(now, nil)
+}
+
+// PopDueInto removes due entries and appends them to dst for caller-side buffer reuse.
+func (w *RetryWheel) PopDueInto(now time.Time, dst []RetryEntry) []RetryEntry {
 	if w == nil {
-		return nil
+		return dst[:0]
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	out := dst[:0]
 	if len(w.entries) == 0 {
-		return nil
+		return out
 	}
 	if w.entries[0].When.After(now) {
-		return nil
+		return out
 	}
-	out := make([]RetryEntry, 0)
 	for len(w.entries) > 0 && !w.entries[0].When.After(now) {
 		out = append(out, w.entries[0])
 		last := len(w.entries) - 1
