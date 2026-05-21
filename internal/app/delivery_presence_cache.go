@@ -67,11 +67,37 @@ func (c *deliveryPresenceCache) ReplayAuthoritative(ctx context.Context, cmd pre
 }
 
 func (c *deliveryPresenceCache) EndpointsByUID(ctx context.Context, uid string) ([]presence.Route, error) {
-	routes, err := c.EndpointsByUIDs(ctx, []string{uid})
+	now := c.now()
+	c.mu.RLock()
+	entry, ok := c.entries[uid]
+	if ok && now.Before(entry.expiresAt) {
+		routes := clonePresenceRoutes(entry.routes)
+		c.mu.RUnlock()
+		return routes, nil
+	}
+	c.mu.RUnlock()
+
+	routes, err := c.target.EndpointsByUID(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
-	return routes[uid], nil
+	cached := clonePresenceRoutes(routes)
+	out := clonePresenceRoutes(cached)
+	expiresAt := now.Add(c.ttl)
+	c.mu.Lock()
+	if len(c.entries)+1 > c.maxEntries {
+		c.entries = make(map[string]deliveryPresenceCacheEntry)
+	}
+	if len(cached) == 0 {
+		delete(c.entries, uid)
+	} else {
+		c.entries[uid] = deliveryPresenceCacheEntry{
+			routes:    cached,
+			expiresAt: expiresAt,
+		}
+	}
+	c.mu.Unlock()
+	return out, nil
 }
 
 func (c *deliveryPresenceCache) EndpointsByUIDs(ctx context.Context, uids []string) (map[string][]presence.Route, error) {
