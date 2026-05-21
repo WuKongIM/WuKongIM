@@ -1378,7 +1378,7 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 		c.Conversation.SubscriberPageSize = 512
 	}
 	if c.Conversation.ActiveHintFlushInterval <= 0 {
-		c.Conversation.ActiveHintFlushInterval = 2 * time.Second
+		c.Conversation.ActiveHintFlushInterval = 10 * time.Second
 	}
 	if c.Conversation.ActiveHintTTL <= 0 {
 		c.Conversation.ActiveHintTTL = 30 * time.Minute
@@ -1393,7 +1393,7 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 		c.Conversation.ActiveHintMaxHintsPerUID = 1000
 	}
 	if c.Conversation.ActiveHintFlushBatchSize <= 0 {
-		c.Conversation.ActiveHintFlushBatchSize = 1024
+		c.Conversation.ActiveHintFlushBatchSize = 32
 	}
 	if c.Conversation.GroupActiveFanoutInterval <= 0 {
 		c.Conversation.GroupActiveFanoutInterval = 5 * time.Minute

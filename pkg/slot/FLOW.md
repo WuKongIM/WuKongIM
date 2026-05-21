@@ -90,6 +90,10 @@ Pebble:
   写入 State 键(0x10)主记录 + Index 键(0x11)二级索引
 ```
 
+`Store.TouchUserConversationActiveAt` 是 active hint 的 best-effort 落盘路径。它仍按 UID hash slot
+拆分命令以保持迁移围栏语义；因此上游 cache 的后台 flush batch 需要保持较小，避免一次 best-effort
+flush 触发大量 hash-slot proposal 并抢占前台发送链路。
+
 ### 5.2 读取（本地 vs 权威 RPC）
 
 入口: `proxy/store.go` 各 Get 方法

@@ -191,13 +191,15 @@ WK_PLUGIN_HOT_RELOAD=true
 WK_PLUGIN_FAIL_OPEN=false
 
 # Conversation ActiveAt is a best-effort working-set hint. Cache updates are
-# batched and may be dropped without affecting message durability.
-WK_CONVERSATION_ACTIVE_HINT_FLUSH_INTERVAL=2s
+# batched and may be delayed or dropped without affecting message durability.
+# Keep background flush batches small because each UID hash slot becomes a
+# separate Slot Raft proposal.
+WK_CONVERSATION_ACTIVE_HINT_FLUSH_INTERVAL=10s
 WK_CONVERSATION_ACTIVE_HINT_TTL=30m
 WK_CONVERSATION_ACTIVE_HINT_BARRIER_TTL=30m
 WK_CONVERSATION_ACTIVE_HINT_MAX_HINTS=100000
 WK_CONVERSATION_ACTIVE_HINT_MAX_HINTS_PER_UID=1000
-WK_CONVERSATION_ACTIVE_HINT_FLUSH_BATCH_SIZE=1024
+WK_CONVERSATION_ACTIVE_HINT_FLUSH_BATCH_SIZE=32
 WK_CONVERSATION_GROUP_ACTIVE_FANOUT_INTERVAL=5m
 # Zero disables group subscriber fanout for active hints. Clients still sync
 # active groups through their known conversation set and read-repair paths.

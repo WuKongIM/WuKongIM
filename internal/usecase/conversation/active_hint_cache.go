@@ -11,12 +11,12 @@ import (
 )
 
 const (
-	defaultActiveHintFlushInterval  = 5 * time.Second
+	defaultActiveHintFlushInterval  = 10 * time.Second
 	defaultActiveHintTTL            = time.Minute
 	defaultActiveHintBarrierTTL     = time.Minute
 	defaultActiveHintMaxHints       = 10000
 	defaultActiveHintMaxHintsPerUID = 1000
-	defaultActiveHintFlushBatchSize = 256
+	defaultActiveHintFlushBatchSize = 32
 )
 
 // ActiveHintStore persists recent user conversation activity hints.
