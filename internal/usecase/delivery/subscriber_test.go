@@ -44,6 +44,34 @@ func TestSubscriberResolverReturnsTwoUIDsForPersonChannel(t *testing.T) {
 	require.True(t, done)
 }
 
+func TestSubscriberResolverStaticSnapshotPageAvoidsAllocation(t *testing.T) {
+	resolver := NewSubscriberResolver(SubscriberResolverOptions{})
+	token, err := resolver.BeginSnapshot(context.Background(), channel.ChannelID{
+		ID:   EncodePersonChannel("u1", "u2"),
+		Type: frame.ChannelTypePerson,
+	})
+	require.NoError(t, err)
+
+	var (
+		page   []string
+		cursor string
+		done   bool
+	)
+	allocs := testing.AllocsPerRun(1000, func() {
+		var err error
+		page, cursor, done, err = resolver.NextPage(context.Background(), token, "", 10)
+		if err != nil {
+			panic(err)
+		}
+		if len(page) != 2 || cursor != "u1" || !done {
+			panic("unexpected page")
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("static snapshot page allocations = %.1f/op, want 0/op", allocs)
+	}
+}
+
 func TestSubscriberResolverSkipsMetadataForDerivedPersonChannel(t *testing.T) {
 	store := &fakeAuthoritativeSubscriberStore{}
 	resolver := NewSubscriberResolver(SubscriberResolverOptions{Store: store})

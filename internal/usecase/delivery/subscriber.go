@@ -342,6 +342,10 @@ func nextFilteredSnapshotPage(uids []string, cursor string, limit int, seen map[
 			}
 		}
 	}
+	if len(seen) == 0 {
+		page, nextCursor, done := nextUnfilteredSnapshotPage(uids, cursor, start, limit)
+		return page, nextCursor, done, nil
+	}
 
 	page := make([]string, 0, limit)
 	nextCursor := cursor
@@ -362,6 +366,19 @@ func nextFilteredSnapshotPage(uids []string, cursor string, limit int, seen map[
 		return nil, cursor, true, nil
 	}
 	return page, nextCursor, true, nil
+}
+
+func nextUnfilteredSnapshotPage(uids []string, cursor string, start int, limit int) ([]string, string, bool) {
+	if start >= len(uids) {
+		return nil, cursor, true
+	}
+	end := start + limit
+	if end > len(uids) {
+		end = len(uids)
+	}
+	page := uids[start:end]
+	nextCursor := page[len(page)-1]
+	return page, nextCursor, end >= len(uids)
 }
 
 func hasMoreFilteredSnapshotUIDs(uids []string, start int, seen map[string]struct{}) bool {
