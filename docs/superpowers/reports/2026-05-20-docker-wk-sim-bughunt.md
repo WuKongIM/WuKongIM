@@ -453,4 +453,4 @@ This continuation targeted the remaining gateway idle deadline heap churn. The p
 
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
-| PERF-043 | Fixed | Gateway idle deadline heap churn | Post-PERF-042 profiles showed `idleDeadlineHeap.push` retaining several MB per node and allocating about `0.02GB` per node while wk-sim sessions kept sending inbound frames. | `idleTracker.touch` appended a new heap entry for every read and only invalidated old entries with a sequence number, so active long-lived sessions accumulated stale deadline entries until those entries bubbled to the heap root. | `TBD` |
+| PERF-043 | Fixed | Gateway idle deadline heap churn | Post-PERF-042 profiles showed `idleDeadlineHeap.push` retaining several MB per node and allocating about `0.02GB` per node while wk-sim sessions kept sending inbound frames. | `idleTracker.touch` appended a new heap entry for every read and only invalidated old entries with a sequence number, so active long-lived sessions accumulated stale deadline entries until those entries bubbled to the heap root. | `00613a20` |
