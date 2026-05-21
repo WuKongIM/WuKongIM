@@ -215,7 +215,7 @@ func (r *replica) executeFollowerApplyEffect(ctx context.Context, effect applyFo
 		if err == nil && len(effect.Records) > 0 {
 			applyReq := channel.ApplyFetchStoreRequest{
 				PreviousCommittedHW: effect.PreviousHW,
-				Records:             cloneRecords(effect.Records),
+				Records:             effect.Records,
 				Checkpoint:          cloneCheckpointPointer(effect.Checkpoint),
 			}
 			storedLEO, err = r.durable.ApplyFollowerBatch(ctx, applyReq, cloneEpochPointPointer(effect.EpochPoint))

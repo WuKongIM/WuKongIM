@@ -41,6 +41,43 @@ func (s *blockingApplyDurableStore) TruncateLogAndHistory(ctx context.Context, t
 	return s.spyDurableStore.TruncateLogAndHistory(ctx, to)
 }
 
+type captureApplyDurableStore struct {
+	spyDurableStore
+	payloadPtr *byte
+}
+
+func (s *captureApplyDurableStore) ApplyFollowerBatch(ctx context.Context, req channel.ApplyFetchStoreRequest, epochPoint *channel.EpochPoint) (uint64, error) {
+	if len(req.Records) > 0 && len(req.Records[0].Payload) > 0 {
+		s.payloadPtr = &req.Records[0].Payload[0]
+	}
+	return s.spyDurableStore.ApplyFollowerBatch(ctx, req, epochPoint)
+}
+
+func TestExecuteFollowerApplyEffectUsesOwnedRecordPayloads(t *testing.T) {
+	env := newFollowerEnv(t)
+	store := &captureApplyDurableStore{spyDurableStore: spyDurableStore{applyLEO: 1}}
+	env.replica.durable = store
+
+	payload := []byte("owned")
+	effect := applyFollowerEffect{
+		EffectID:       77,
+		ChannelKey:     env.replica.state.ChannelKey,
+		Epoch:          env.replica.state.Epoch,
+		Leader:         env.replica.state.Leader,
+		RoleGeneration: env.replica.roleGeneration,
+		BaseLEO:        0,
+		NewLEO:         1,
+		PreviousHW:     0,
+		NewHW:          1,
+		CommitReady:    true,
+		Records:        []channel.Record{{Index: 1, Payload: payload, SizeBytes: len(payload)}},
+	}
+	env.replica.pendingFollowerApplyEffectID = effect.EffectID
+
+	require.NoError(t, env.replica.executeFollowerApplyEffect(context.Background(), effect))
+	require.Same(t, &payload[0], store.payloadPtr)
+}
+
 func TestApplyFetchAdvancesCheckpointToMinLeaderHWAndLEO(t *testing.T) {
 	env := newFollowerEnv(t)
 	err := env.replica.ApplyFetch(context.Background(), channel.ReplicaApplyFetchRequest{

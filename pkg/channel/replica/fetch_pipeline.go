@@ -91,7 +91,7 @@ func (r *replica) applyReadLogResultCommand(cmd machineReadLogResultCommand) mac
 		return machineResult{Err: channel.ErrCorruptState}
 	}
 
-	records := cloneRecords(cmd.Records)
+	records := cmd.Records
 	maxVisibleRecords := effect.LeaderLEO - effect.FetchOffset
 	if uint64(len(records)) > maxVisibleRecords {
 		records = records[:int(maxVisibleRecords)]

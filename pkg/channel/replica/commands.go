@@ -74,7 +74,7 @@ func (machineFetchProgressCommand) isMachineCommand() {}
 type machineReadLogResultCommand struct {
 	// Effect is the read-log fence captured by the loop before storage I/O.
 	Effect readLogEffect
-	// Records are the raw records returned by LogStore.Read before loop clipping.
+	// Records are the owned raw records returned by LogStore.Read before loop clipping.
 	Records []channel.Record
 	// Err is the read error, if storage failed before the result returned to the loop.
 	Err error
