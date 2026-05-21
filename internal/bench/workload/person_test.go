@@ -591,17 +591,17 @@ func TestAutoRecvAckContinuesAfterIdleReadTimeout(t *testing.T) {
 	require.Equal(t, []recvAckCall{{messageID: 43, messageSeq: 8}}, raw.recvAckCalls)
 }
 
-func TestAutoRecvAckIdleReadYieldsToForegroundMatcher(t *testing.T) {
-	previousTimeout := autoRecvAckIdleReadTimeout
-	autoRecvAckIdleReadTimeout = 10 * time.Millisecond
-	t.Cleanup(func() { autoRecvAckIdleReadTimeout = previousTimeout })
+func TestAutoRecvAckIdleReadDoesNotInjectReadDeadline(t *testing.T) {
+	previousYieldDelay := autoRecvAckYieldDelay
+	autoRecvAckYieldDelay = time.Millisecond
+	t.Cleanup(func() { autoRecvAckYieldDelay = previousYieldDelay })
 
 	raw := newCountingBlockingReadPersonClient()
 	wrapped := WrapPersonClientsForConcurrentReads(map[string]PersonClient{"u1": raw})["u1"]
 	stop := StartAutoRecvAckWithOptions(map[string]PersonClient{"u1": wrapped}, AutoRecvAckOptions{BufferRecvFrames: false})
 	defer stop()
 
-	require.Equal(t, readStart{count: 1, hasDeadline: true}, raw.waitReadStart(t, time.Second))
+	require.Equal(t, readStart{count: 1, hasDeadline: false}, raw.waitReadStart(t, time.Second))
 
 	foregroundCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -611,6 +611,7 @@ func TestAutoRecvAckIdleReadYieldsToForegroundMatcher(t *testing.T) {
 		done <- err
 	}()
 
+	raw.completeRead(context.DeadlineExceeded)
 	require.Equal(t, readStart{count: 2, hasDeadline: false}, raw.waitReadStart(t, time.Second))
 	cancel()
 	require.ErrorIs(t, <-done, context.Canceled)
@@ -668,9 +669,10 @@ func (c *blockingReadPersonClient) ReadFrame(ctx context.Context) (frame.Frame, 
 }
 
 type countingBlockingReadPersonClient struct {
-	starts chan readStart
-	mu     sync.Mutex
-	count  int
+	starts   chan readStart
+	complete chan error
+	mu       sync.Mutex
+	count    int
 }
 
 type readStart struct {
@@ -679,7 +681,10 @@ type readStart struct {
 }
 
 func newCountingBlockingReadPersonClient() *countingBlockingReadPersonClient {
-	return &countingBlockingReadPersonClient{starts: make(chan readStart, 8)}
+	return &countingBlockingReadPersonClient{
+		starts:   make(chan readStart, 8),
+		complete: make(chan error, 1),
+	}
 }
 
 func (c *countingBlockingReadPersonClient) Connect(ctx context.Context, uid, deviceID string) error {
@@ -700,8 +705,20 @@ func (c *countingBlockingReadPersonClient) ReadFrame(ctx context.Context) (frame
 	c.mu.Unlock()
 	_, hasDeadline := ctx.Deadline()
 	c.starts <- readStart{count: count, hasDeadline: hasDeadline}
+	if count == 1 {
+		select {
+		case err := <-c.complete:
+			return nil, err
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	<-ctx.Done()
 	return nil, ctx.Err()
+}
+
+func (c *countingBlockingReadPersonClient) completeRead(err error) {
+	c.complete <- err
 }
 
 func (c *countingBlockingReadPersonClient) waitReadStart(t *testing.T, timeout time.Duration) readStart {

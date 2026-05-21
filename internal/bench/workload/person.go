@@ -25,9 +25,6 @@ const (
 	defaultMatchingBufferLimit = 1024
 )
 
-// autoRecvAckIdleReadTimeout bounds idle background reads so foreground matchers can acquire the shared reader.
-var autoRecvAckIdleReadTimeout = time.Second
-
 // autoRecvAckYieldDelay briefly leaves the reader slot open when foreground matchers are queued.
 var autoRecvAckYieldDelay = time.Millisecond
 
@@ -697,13 +694,7 @@ func (c *matchingPersonClient) prefetchFrame(ctx context.Context) error {
 	c.reading = true
 	c.mu.Unlock()
 
-	readCtx := ctx
-	cancel := func() {}
-	if autoRecvAckIdleReadTimeout > 0 {
-		readCtx, cancel = context.WithTimeout(ctx, autoRecvAckIdleReadTimeout)
-	}
-	f, err := c.client.ReadFrame(readCtx)
-	cancel()
+	f, err := c.client.ReadFrame(ctx)
 	c.mu.Lock()
 	c.reading = false
 	if err != nil {
