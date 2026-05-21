@@ -138,7 +138,7 @@ The client wrapper serializes access to each underlying `ReadFrame` call and buf
 
 When any traffic stream sets `recv_ack: true`, the runner starts a background receive-ack drainer for connected clients. The drainer buffers drained recv frames only when receive verification is enabled (`full` or `sampled`); send-only simulator traffic with receive verification disabled acknowledges and drops drained recv frames to avoid building a verification backlog that no workload will consume.
 
-The background drainer uses bounded idle reads and yields the shared reader when foreground sendack/recv matchers are queued, so send waits are not hidden behind long idle socket read timeouts.
+The background drainer does not inject short socket read deadlines because a timeout can split a partially read WKProto frame. When a background read returns naturally and foreground sendack/recv matchers are queued, the drainer briefly yields the shared reader instead of immediately reacquiring it.
 
 ### Warmup, Run, Cooldown
 
