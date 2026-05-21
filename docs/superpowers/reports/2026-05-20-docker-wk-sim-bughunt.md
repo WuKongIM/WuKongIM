@@ -189,3 +189,22 @@ This continuation observed the fresh-image clean 1/s run after PERF-022, capture
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
 | PERF-023 | Fixed | Slot channel metadata reads | Store-backed group delivery tags still read durable channel metadata on every begin-resolve to fence subscriber mutation versions, keeping `pebble.DB.Get` visible in clean 1/s profiles after derived-channel reads were removed. | `meta.ShardStore.GetChannel` had no hot metadata cache, so stable group channels repeatedly decoded the same Channel row from Pebble even though channel/subscriber mutations already pass through the same local apply path and carry the new subscriber mutation version. | Current change |
+
+## Continuation: isolated worktree Run 15
+
+This continuation rebuilt the local image after PERF-023, started a fresh clean 1/s run, and captured another profile set. The targeted metadata read disappeared above the profile cutoff, while the remaining allocation profile consistently showed `internal/runtime/delivery.(*AckIndex).Bind` around `2.5-3.0%` of alloc_space on all three nodes.
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-21 | `DOCKER_BUILDKIT=0 docker build --pull=false -t wukongim-dev:local .` | Pass | Rebuilt local image from `af2597ce`; image ID `f26c3eb668db`. |
+| 2026-05-21 | Clean override volume, `WK_SIM_RATE=1/s WK_SIM_TRAFFIC_CONCURRENCY=256 WK_SIM_UID_PREFIX=clean13-chcache-u` | Partial | The run initially accumulated sendack/write errors during early cold pressure and slot leadership churn, then returned to `state=running`; later status reached `messages_sent=365713`, `send_errors=694`, `recv_errors=0` with no recent node WARN/ERROR lines in the last five minutes. |
+| 2026-05-21 | `/tmp/wksim-clean13-followup-20260521-104855` CPU/alloc/diagnostics capture | Evidence | `subscriberResolver.channelMutationVersion` no longer appeared above cutoff. Allocation tops still included `AckIndex.Bind` at about `0.17-0.21GB` per node, and diagnostics during the earlier error window showed send latency dominated by store commit/quorum waits rather than CPU saturation. |
+| 2026-05-21 | `GOWORK=off go test ./internal/runtime/delivery -run TestAckIndexBindSingleOutstandingSessionAllocationBudget -count=1` | Red then pass | Regression test failed before the reverse-index optimization with `147` allocations for 64 single-outstanding session binds, then passed with the inline reverse-key representation and a budget of `<=60` allocations. |
+| 2026-05-21 | `GOWORK=off go test ./internal/runtime/delivery -count=1` | Pass | Full delivery runtime package verification passed after the AckIndex change. |
+| 2026-05-21 | `GOWORK=off go test -race ./internal/runtime/delivery -run TestAckIndex -count=1` | Pass | Race check for the AckIndex behavior tests passed. |
+| 2026-05-21 | `git diff --check` and `GOWORK=off go test ./internal/runtime/delivery ./internal/app -count=1` | Pass | Whitespace, delivery runtime, and app integration-adjacent verification passed. |
+| 2026-05-21 | `GOWORK=off go test ./...` | Pass | Full unit-test suite passed before committing the AckIndex allocation fix. |
+
+| ID | Status | Area | Symptom | Root Cause | Fix Commit |
+| --- | --- | --- | --- | --- | --- |
+| PERF-024 | Fixed | Delivery ack index allocations | Clean 1/s allocation profiles showed `AckIndex.Bind` as a recurring allocation source while most wk-sim routes have only one outstanding client ack per session. | The ack reverse index allocated a per-session `map[ackKey]struct{}` on every first bind, even though the common case only needs one reverse key for session-close cleanup and legacy lookup. | Current change |

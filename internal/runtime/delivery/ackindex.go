@@ -11,13 +11,23 @@ type ackKey struct {
 type AckIndex struct {
 	mu      sync.RWMutex
 	entries map[ackKey]AckBinding
-	reverse map[uint64]map[ackKey]struct{}
+	reverse map[uint64]sessionAckKeys
+}
+
+// sessionAckKeys keeps the common one-outstanding-ack case inline.
+type sessionAckKeys struct {
+	// single is the only reverse key while singleSet is true.
+	single ackKey
+	// singleSet reports whether single contains an active key.
+	singleSet bool
+	// many is allocated only after one session has multiple outstanding acks.
+	many map[ackKey]struct{}
 }
 
 func NewAckIndex() *AckIndex {
 	return &AckIndex{
 		entries: make(map[ackKey]AckBinding),
-		reverse: make(map[uint64]map[ackKey]struct{}),
+		reverse: make(map[uint64]sessionAckKeys),
 	}
 }
 
@@ -29,12 +39,7 @@ func (i *AckIndex) Bind(binding AckBinding) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.entries[key] = binding
-	sessionBindings := i.reverse[binding.SessionID]
-	if sessionBindings == nil {
-		sessionBindings = make(map[ackKey]struct{})
-		i.reverse[binding.SessionID] = sessionBindings
-	}
-	sessionBindings[key] = struct{}{}
+	i.addReverseLocked(binding.SessionID, key)
 }
 
 func (i *AckIndex) refresh(binding AckBinding) bool {
@@ -48,12 +53,7 @@ func (i *AckIndex) refresh(binding AckBinding) bool {
 		return false
 	}
 	i.entries[key] = binding
-	sessionBindings := i.reverse[binding.SessionID]
-	if sessionBindings == nil {
-		sessionBindings = make(map[ackKey]struct{})
-		i.reverse[binding.SessionID] = sessionBindings
-	}
-	sessionBindings[key] = struct{}{}
+	i.addReverseLocked(binding.SessionID, key)
 	return true
 }
 
@@ -114,11 +114,11 @@ func (i *AckIndex) TakeSession(sessionID uint64) []AckBinding {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	keys := i.reverse[sessionID]
-	if len(keys) == 0 {
+	if keys.len() == 0 {
 		return nil
 	}
-	out := make([]AckBinding, 0, len(keys))
-	for key := range keys {
+	out := make([]AckBinding, 0, keys.len())
+	for _, key := range keys.list(nil) {
 		if binding, ok := i.entries[key]; ok {
 			out = append(out, binding)
 			delete(i.entries, key)
@@ -136,18 +136,24 @@ func (i *AckIndex) TakeSessionRoute(uid string, sessionID uint64) []AckBinding {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	keys := i.reverse[sessionID]
-	if len(keys) == 0 {
+	if keys.len() == 0 {
 		return nil
 	}
-	out := make([]AckBinding, 0, len(keys))
-	for key := range keys {
+	out := make([]AckBinding, 0, keys.len())
+	for _, key := range keys.list(nil) {
 		if key.uid != uid {
 			continue
 		}
 		if binding, ok := i.entries[key]; ok {
 			out = append(out, binding)
-			i.removeLocked(key)
+			delete(i.entries, key)
+			keys.remove(key)
 		}
+	}
+	if keys.len() == 0 {
+		delete(i.reverse, sessionID)
+	} else {
+		i.reverse[sessionID] = keys
 	}
 	return out
 }
@@ -159,11 +165,11 @@ func (i *AckIndex) LookupSession(sessionID uint64) []AckBinding {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 	keys := i.reverse[sessionID]
-	if len(keys) == 0 {
+	if keys.len() == 0 {
 		return nil
 	}
-	out := make([]AckBinding, 0, len(keys))
-	for key := range keys {
+	out := make([]AckBinding, 0, keys.len())
+	for _, key := range keys.list(nil) {
 		if binding, ok := i.entries[key]; ok {
 			out = append(out, binding)
 		}
@@ -179,11 +185,11 @@ func (i *AckIndex) LookupSessionRoute(uid string, sessionID uint64) []AckBinding
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 	keys := i.reverse[sessionID]
-	if len(keys) == 0 {
+	if keys.len() == 0 {
 		return nil
 	}
-	out := make([]AckBinding, 0, len(keys))
-	for key := range keys {
+	out := make([]AckBinding, 0, keys.len())
+	for _, key := range keys.list(nil) {
 		if key.uid != uid {
 			continue
 		}
@@ -237,12 +243,20 @@ func (i *AckIndex) removeLocked(key ackKey) {
 		return
 	}
 	delete(i.entries, key)
-	if sessionBindings := i.reverse[binding.SessionID]; sessionBindings != nil {
-		delete(sessionBindings, key)
-		if len(sessionBindings) == 0 {
+	if sessionBindings, ok := i.reverse[binding.SessionID]; ok {
+		sessionBindings.remove(key)
+		if sessionBindings.len() == 0 {
 			delete(i.reverse, binding.SessionID)
+			return
 		}
+		i.reverse[binding.SessionID] = sessionBindings
 	}
+}
+
+func (i *AckIndex) addReverseLocked(sessionID uint64, key ackKey) {
+	sessionBindings := i.reverse[sessionID]
+	sessionBindings.add(key)
+	i.reverse[sessionID] = sessionBindings
 }
 
 func ackKeyFromBinding(binding AckBinding) ackKey {
@@ -265,12 +279,91 @@ func (i *AckIndex) lookupKeyLocked(uid string, sessionID, messageID uint64, exac
 		return key, binding, ok
 	}
 	keys := i.reverse[sessionID]
-	for key := range keys {
-		if key.messageID != messageID {
-			continue
-		}
+	key, ok := keys.findMessage(messageID)
+	if ok {
 		binding, ok := i.entries[key]
 		return key, binding, ok
 	}
 	return ackKey{}, AckBinding{}, false
+}
+
+func (s *sessionAckKeys) add(key ackKey) {
+	if s.many != nil {
+		s.many[key] = struct{}{}
+		return
+	}
+	if !s.singleSet {
+		s.single = key
+		s.singleSet = true
+		return
+	}
+	if s.single == key {
+		return
+	}
+	s.many = map[ackKey]struct{}{
+		s.single: {},
+		key:      {},
+	}
+	s.single = ackKey{}
+	s.singleSet = false
+}
+
+func (s *sessionAckKeys) remove(key ackKey) {
+	if s.many != nil {
+		delete(s.many, key)
+		switch len(s.many) {
+		case 0:
+			s.many = nil
+		case 1:
+			for remaining := range s.many {
+				s.single = remaining
+				s.singleSet = true
+				s.many = nil
+				break
+			}
+		}
+		return
+	}
+	if s.singleSet && s.single == key {
+		s.single = ackKey{}
+		s.singleSet = false
+	}
+}
+
+func (s sessionAckKeys) len() int {
+	if s.many != nil {
+		return len(s.many)
+	}
+	if s.singleSet {
+		return 1
+	}
+	return 0
+}
+
+func (s sessionAckKeys) list(out []ackKey) []ackKey {
+	if s.many != nil {
+		for key := range s.many {
+			out = append(out, key)
+		}
+		return out
+	}
+	if s.singleSet {
+		out = append(out, s.single)
+	}
+	return out
+}
+
+func (s sessionAckKeys) findMessage(messageID uint64) (ackKey, bool) {
+	if s.many != nil {
+		for key := range s.many {
+			if key.messageID == messageID {
+				return key, true
+			}
+		}
+		return ackKey{}, false
+	}
+	if s.singleSet && s.single.messageID == messageID {
+		return s.single, true
+	}
+	return ackKey{}, false
 }
