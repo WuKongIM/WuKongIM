@@ -349,4 +349,20 @@ This continuation rebuilt the local image after PERF-036, verified the notifier 
 
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
-| PERF-037 | Fixed | Channel replica fetch debug logging | Post-PERF-036 allocation profiles showed `replica.Fetch` still allocating through `appendLogger` and `wklog` field construction while serving high-frequency leader fetch requests. | The hot fetch/cursor/HW debug paths built named loggers and structured fields before checking whether debug logging was enabled; production info-level runs discarded those fields after paying the allocation cost. | Current change |
+| PERF-037 | Fixed | Channel replica fetch debug logging | Post-PERF-036 allocation profiles showed `replica.Fetch` still allocating through `appendLogger` and `wklog` field construction while serving high-frequency leader fetch requests. | The hot fetch/cursor/HW debug paths built named loggers and structured fields before checking whether debug logging was enabled; production info-level runs discarded those fields after paying the allocation cost. | `39702bca` |
+
+## Continuation: isolated worktree Run 19
+
+This continuation rebuilt after PERF-037 and confirmed the replica debug field allocations no longer appeared. The next narrow allocation source was the delivery actor's per-route state pointer allocation.
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-21 | `DOCKER_BUILDKIT=0 docker build --pull=false -t wukongim-dev:local .` | Pass | Rebuilt local image from `39702bca`; image ID `451c457f5968`. |
+| 2026-05-21 | Fresh-image clean 1/s after PERF-037, `WK_SIM_UID_PREFIX=clean26-debuglog-u` | Fail | The run stayed at zero errors through about `messages_sent=99680`, then accumulated sendack retries and reached `messages_sent=227256`, `send_errors=157`, `recv_errors=0` during the profile capture. |
+| 2026-05-21 | `/tmp/wksim-rate1-debuglog-alloc-20260521-160126` alloc/heap/diagnostics capture | Evidence | `appendLogger`/`wklog` fetch field allocations disappeared from top lists. The next confirmed app-level allocation source was `internal/runtime/delivery.(*actor).ensureRouteState`, about `96.56MB` on node1 and `63-64MB` on nodes2/3. |
+| 2026-05-21 | `GOWORK=off go test ./internal/runtime/delivery -run TestActorEnsureRouteStateAvoidsPerRouteStateAllocation -count=1` | Red then pass | Regression test failed at `66` allocs/run for 64 route states, then passed after route delivery state was stored inline in the inflight route map instead of allocating one pointer object per route. |
+| 2026-05-21 | `GOWORK=off go test ./internal/runtime/delivery -count=1` and `GOWORK=off go test -race ./internal/runtime/delivery -run 'TestActor(EnsureRouteStateAvoidsPerRouteStateAllocation\|BindsAckIndexOnlyForAcceptedRoutes\|RetryTickRetriesPendingRoutesUntilAcked\|HonorsAckArrivingBeforePushReturns)' -count=1` | Pass | Delivery runtime package and race-focused actor delivery checks passed after the inline route-state change. |
+
+| ID | Status | Area | Symptom | Root Cause | Fix Commit |
+| --- | --- | --- | --- | --- | --- |
+| PERF-038 | Fixed | Delivery actor route state allocations | Post-PERF-037 allocation profiles showed `actor.ensureRouteState` allocating tens of MB per node during route push setup. | Each inflight route stored `*RouteDeliveryState` in the route map, forcing a separate heap allocation per message route even though the state is tiny and owned by the actor. | Current change |
