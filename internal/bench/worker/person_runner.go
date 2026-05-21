@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
@@ -36,6 +37,8 @@ type defaultWorkloadRunner struct {
 	runID string
 	// manager owns the connected benchmark sessions for the active run.
 	manager *benchworkload.ConnectionManager
+	// reconnectedUsers counts repaired sessions across the active run.
+	reconnectedUsers uint64
 	// personWorkloads contains the active person traffic executors for the active run.
 	personWorkloads []*benchworkload.PersonWorkload
 	// groupWorkloads contains the active group traffic executors for the active run.
@@ -121,6 +124,18 @@ func (r *defaultWorkloadRunner) Connect(ctx context.Context, assignment Assignme
 	return nil
 }
 
+// ConnectionStatus returns the current active connection count and reconnect churn.
+func (r *defaultWorkloadRunner) ConnectionStatus() (int, uint64) {
+	r.mu.Lock()
+	manager := r.manager
+	reconnected := atomic.LoadUint64(&r.reconnectedUsers)
+	r.mu.Unlock()
+	if manager == nil {
+		return 0, reconnected
+	}
+	return manager.ActiveCount(), reconnected
+}
+
 // ResetTraffic rebuilds traffic workloads while keeping the active sessions open.
 func (r *defaultWorkloadRunner) ResetTraffic(assignment Assignment) error {
 	manager, err := r.managerForRun(assignment.RunID)
@@ -172,7 +187,11 @@ func (r *defaultWorkloadRunner) repairSessions(ctx context.Context, assignment A
 		}
 		repairUsers = append(repairUsers, user)
 	}
-	return manager.ReconnectUsers(ctx, repairUsers)
+	if err := manager.ReconnectUsers(ctx, repairUsers); err != nil {
+		return err
+	}
+	atomic.AddUint64(&r.reconnectedUsers, uint64(len(repairUsers)))
+	return nil
 }
 
 func (r *defaultWorkloadRunner) rebuildTrafficFromManager(assignment Assignment, manager *benchworkload.ConnectionManager) error {
@@ -640,6 +659,7 @@ func (r *defaultWorkloadRunner) beginRun(runID string, force bool) {
 	}
 	r.runID = runID
 	r.manager = nil
+	atomic.StoreUint64(&r.reconnectedUsers, 0)
 	r.personWorkloads = nil
 	r.groupWorkloads = nil
 	r.metrics = metrics.NewRegistry()

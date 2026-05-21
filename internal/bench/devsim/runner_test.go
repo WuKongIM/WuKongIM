@@ -224,6 +224,37 @@ func TestRunnerCopiesWorkloadMetricsToStatus(t *testing.T) {
 	require.Equal(t, uint64(1), status.Snapshot().RecvErrors)
 }
 
+func TestRunnerSamplesLiveConnectionStatus(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	workload := &fakeWorkloadWithConnectionStatus{
+		fakeWorkload: fakeWorkload{
+			runHook: func(context.Context, worker.Assignment) error {
+				return nil
+			},
+		},
+		activeUsers:      17,
+		reconnectedUsers: 4,
+	}
+	status := NewStatus("dev-sim-run")
+	runner := NewRunner(RunnerConfig{
+		Config:   testRunnerConfig(),
+		RunID:    "dev-sim-run",
+		Status:   status,
+		Probe:    &fakeProbe{},
+		Workload: workload,
+		Sleep: func(context.Context, time.Duration) error {
+			cancel()
+			return context.Canceled
+		},
+	})
+
+	err := runner.Run(ctx)
+
+	require.NoError(t, err)
+	require.Equal(t, 17, status.Snapshot().ActiveUsers)
+	require.Equal(t, uint64(4), status.Snapshot().ReconnectedUsers)
+}
+
 type fakeProbe struct {
 	calls               int
 	failuresBeforeReady int
@@ -254,6 +285,16 @@ func (w *fakeWorkload) Prepare(ctx context.Context, assignment worker.Assignment
 		return w.prepareHook(ctx, assignment)
 	}
 	return nil
+}
+
+type fakeWorkloadWithConnectionStatus struct {
+	fakeWorkload
+	activeUsers      int
+	reconnectedUsers uint64
+}
+
+func (w *fakeWorkloadWithConnectionStatus) ConnectionStatus() (int, uint64) {
+	return w.activeUsers, w.reconnectedUsers
 }
 
 func (w *fakeWorkload) Connect(context.Context, worker.Assignment) error {

@@ -65,5 +65,6 @@ wukongim.conf
 docker/dev-cluster/
 docker/dev-sim/
 docker/dev-observability/
+docs/development/perf-runs/
 tmp/
 node_modules/

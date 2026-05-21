@@ -62,6 +62,7 @@ func NewRunner(cfg RunnerConfig) *Runner {
 	if status == nil {
 		status = NewStatus(runID)
 	}
+	status.SetConfig(cfg.Config.Snapshot())
 	sleep := cfg.Sleep
 	if sleep == nil {
 		sleep = sleepContext
@@ -167,6 +168,7 @@ func (r *Runner) Run(ctx context.Context) error {
 			continue
 		}
 		r.status.SetRunning(r.cfg.Online.TotalUsers, r.cfg.Profiles.PersonChannels, r.cfg.Profiles.GroupChannels)
+		r.updateConnectionStatus()
 		for {
 			if err := r.runWorkload(ctx, assignment); err != nil {
 				if ctx.Err() != nil {
@@ -195,6 +197,7 @@ func (r *Runner) Run(ctx context.Context) error {
 					}
 					assignment = nextAssignment
 					r.status.SetRunning(r.cfg.Online.TotalUsers, r.cfg.Profiles.PersonChannels, r.cfg.Profiles.GroupChannels)
+					r.updateConnectionStatus()
 					continue
 				}
 				if resetter, ok := r.workload.(worker.TrafficResetter); ok {
@@ -205,6 +208,7 @@ func (r *Runner) Run(ctx context.Context) error {
 					}
 					assignment = nextAssignment
 					r.status.SetRunning(r.cfg.Online.TotalUsers, r.cfg.Profiles.PersonChannels, r.cfg.Profiles.GroupChannels)
+					r.updateConnectionStatus()
 					continue
 				}
 				r.cooldown(assignment)
@@ -228,12 +232,12 @@ func (r *Runner) runWorkload(ctx context.Context, assignment worker.Assignment) 
 	for {
 		select {
 		case err := <-done:
-			r.updateCounters()
+			r.updateRuntimeStatus()
 			return err
 		case <-ticker.C:
-			r.updateCounters()
+			r.updateRuntimeStatus()
 		case <-ctx.Done():
-			r.updateCounters()
+			r.updateRuntimeStatus()
 			return ctx.Err()
 		}
 	}
@@ -246,6 +250,11 @@ func (r *Runner) counterInterval() time.Duration {
 	return time.Second
 }
 
+func (r *Runner) updateRuntimeStatus() {
+	r.updateCounters()
+	r.updateConnectionStatus()
+}
+
 func (r *Runner) updateCounters() {
 	reporter, ok := r.workload.(worker.MetricsReporter)
 	if !ok {
@@ -256,6 +265,15 @@ func (r *Runner) updateCounters() {
 	r.status.AddSendErrors(counterDelta(snapshot, r.last, "person_send_error_total", "group_send_error_total"))
 	r.status.AddRecvErrors(counterDelta(snapshot, r.last, "person_recv_error_total", "group_recv_error_total"))
 	r.last = cloneMetricsSnapshot(snapshot)
+}
+
+func (r *Runner) updateConnectionStatus() {
+	reporter, ok := r.workload.(worker.ConnectionStatusReporter)
+	if !ok {
+		return
+	}
+	activeUsers, reconnectedUsers := reporter.ConnectionStatus()
+	r.status.SetConnectionStats(activeUsers, reconnectedUsers)
 }
 
 func (r *Runner) captureCounterBaseline() {

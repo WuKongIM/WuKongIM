@@ -10,4 +10,7 @@ func TestNewDefaultWorkloadRunnerExposesMetricsReporter(t *testing.T) {
 	if _, ok := runner.(MetricsReporter); !ok {
 		t.Fatal("expected default workload runner to expose metrics")
 	}
+	if _, ok := runner.(ConnectionStatusReporter); !ok {
+		t.Fatal("expected default workload runner to expose connection status")
+	}
 }
