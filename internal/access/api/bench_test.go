@@ -24,6 +24,44 @@ func TestBenchRoutesDisabledReturnNotFound(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, rec.Code)
 }
 
+func TestBenchCapacityTargetDisabledReturnNotFound(t *testing.T) {
+	srv := New(Options{})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/bench/v1/capacity-target", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+func TestBenchCapacityTargetReturnsExternalGatewayAddresses(t *testing.T) {
+	srv := New(Options{
+		BenchEnabled: true,
+		BenchData:    benchStub{},
+		LegacyRouteExternal: LegacyRouteAddresses{
+			TCPAddr: "127.0.0.1:15100",
+			WSAddr:  "ws://127.0.0.1:15200",
+			WSSAddr: "wss://127.0.0.1:15300",
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/bench/v1/capacity-target", nil)
+
+	srv.Engine().ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{
+		"version":"bench/v1",
+		"gateway":{
+			"tcp_addr":"127.0.0.1:15100",
+			"ws_addr":"ws://127.0.0.1:15200",
+			"wss_addr":"wss://127.0.0.1:15300"
+		}
+	}`, rec.Body.String())
+}
+
 func TestBenchCapabilitiesRequiresUsecaseWhenEnabled(t *testing.T) {
 	srv := New(Options{BenchEnabled: true, BenchMaxBatchSize: 10, BenchMaxPayloadBytes: 1024})
 

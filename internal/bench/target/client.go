@@ -68,6 +68,15 @@ func (c *Client) Snapshot(ctx context.Context) (model.BenchSnapshot, error) {
 	return out, nil
 }
 
+// CapacityTarget reads the target node address document used by capacity tests.
+func (c *Client) CapacityTarget(ctx context.Context) (model.CapacityTarget, error) {
+	var out model.CapacityTarget
+	if err := c.getAny(ctx, "/bench/v1/capacity-target", &out); err != nil {
+		return model.CapacityTarget{}, fmt.Errorf("bench api capacity target unavailable: %w", err)
+	}
+	return out, nil
+}
+
 // UpsertTokens posts a spec-shaped batch user token request.
 func (c *Client) UpsertTokens(ctx context.Context, req model.BatchTokensRequest) error {
 	return c.postAny(ctx, "/bench/v1/users/tokens", req)

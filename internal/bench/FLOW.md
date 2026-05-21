@@ -10,8 +10,9 @@
 - `coordinator`: top-level run orchestration, preflight, worker assignment, phase polling, failure classification, and report collection.
 - `worker`: HTTP control server plus the default workload runner used by worker processes.
 - `devsim`: long-running development simulator supervisor used by `wkbench dev-sim`; it derives compact simulator config into normal wkbench target/scenario/plan inputs and runs an in-process worker.
+- `capacity`: maximum stable ingress QPS search used by `wkbench capacity send`; it discovers target gateway addresses, generates attempt scenarios, runs a temporary local worker, and writes capacity summaries.
 - `workload`: reusable connection, person traffic, and group traffic executors.
-- `target`: black-box HTTP client for target health, readiness, bench capabilities, snapshot, token, channel, and subscriber APIs.
+- `target`: black-box HTTP client for target health, readiness, bench capabilities, capacity target, snapshot, token, channel, and subscriber APIs.
 - `wkproto`: benchmark WKProto client implementation.
 - `metrics`: worker-local counters, histograms, bounded error samples, and aggregation helpers.
 - `report`: deterministic report construction and report directory writing.
@@ -47,6 +48,27 @@ Coordinator terminal statuses map directly to CLI exit codes:
 - `canceled` or `internal_failed` -> `6`
 
 `PhasePrepare` has one extra coordinator step for split large groups: before normal prepare, the coordinator calls `/v1/prepare/channels` on workers that own split group channels. This creates owner channels before all workers append subscribers.
+
+## Capacity Send Flow
+
+```text
+cmd/wkbench capacity send
+  -> capacity.DiscoverTarget
+       -> target /healthz, /readyz, /bench/v1/capabilities, /bench/v1/capacity-target
+       -> build model.Target with discovered gateway TCP addrs
+  -> start temporary local worker
+  -> capacity.Search
+       -> capacity.BuildScenario per offered QPS
+       -> coordinator.Run
+       -> report.SendRunSummaryFromMetrics
+       -> classify pass/fail by actual QPS, sendack error rate, connect error rate, and p99
+  -> capacity.WriteResult and console summary
+```
+
+`capacity send` does not start Docker Compose, build images, stop services, or
+clean data directories. It only connects to already-running target API nodes.
+The reported QPS is ingress sendack QPS during the measured `run` phase; group
+fanout adds delivery work but is not the primary QPS denominator.
 
 ## Worker Control Flow
 

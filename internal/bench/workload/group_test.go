@@ -237,7 +237,8 @@ func TestGroupWorkloadSendOneBuildsGroupSendAndVerifiesFullReceivers(t *testing.
 	require.Len(t, sender.sentFrames, 1)
 	require.Equal(t, "run-a-huge-group-0", sender.sentFrames[0].ChannelID)
 	require.Equal(t, frame.ChannelTypeGroup, sender.sentFrames[0].ChannelType)
-	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_send_success_total", nil))
+	sendLabels := groupSendLabels("run", "huge-group", "group-send")
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_send_success_total", sendLabels))
 	require.Equal(t, uint64(2), workload.Metrics().CounterValue("group_recv_success_total", nil))
 	require.Empty(t, clients["u-0"].(*recordingPersonClient).recvAckCalls)
 	require.Len(t, clients["u-1"].(*recordingPersonClient).recvAckCalls, 1)
@@ -311,7 +312,7 @@ func TestGroupWorkloadSendackReadErrorIdentifiesFailedSession(t *testing.T) {
 
 	require.Error(t, err)
 	require.Equal(t, []string{"u-0"}, SessionErrorUIDs(err))
-	require.True(t, workload.Metrics().CounterValue("group_send_error_total", nil) > 0)
+	require.True(t, workload.Metrics().CounterValue("group_send_error_total", groupSendLabels("run", "group-profile", "group-send")) > 0)
 }
 
 func TestGroupWorkloadWarmupUsesWarmupDurationAsMinimumAckTimeout(t *testing.T) {
@@ -335,7 +336,7 @@ func TestGroupWorkloadWarmupUsesWarmupDurationAsMinimumAckTimeout(t *testing.T) 
 	require.NoError(t, err)
 
 	require.NoError(t, workload.Warmup(context.Background()))
-	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_send_success_total", nil))
+	require.Equal(t, uint64(1), workload.Metrics().CounterValue("group_send_success_total", groupSendLabels("warmup", "group-profile", "group-send")))
 }
 
 func groupRecv(clientMsgNo, recipientUID string, messageID int64, messageSeq uint64) *frame.RecvPacket {
@@ -432,7 +433,7 @@ func TestGroupWorkloadRunHonorsLocalRateDurationPerChannel(t *testing.T) {
 	for _, d := range sleeps {
 		require.Equal(t, time.Second/3, d)
 	}
-	require.Equal(t, uint64(3), workload.Metrics().CounterValue("group_send_success_total", nil))
+	require.Equal(t, uint64(3), workload.Metrics().CounterValue("group_send_success_total", groupSendLabels("run", "many-group", "group-send")))
 }
 
 func TestGroupWorkloadWarmupTouchesEveryChannelAtLeastOnce(t *testing.T) {
@@ -473,5 +474,9 @@ func TestGroupWorkloadWarmupTouchesEveryChannelAtLeastOnce(t *testing.T) {
 		sender.sentFrames[1].ChannelID,
 		sender.sentFrames[2].ChannelID,
 	})
-	require.Equal(t, uint64(3), workload.Metrics().CounterValue("group_send_success_total", nil))
+	require.Equal(t, uint64(3), workload.Metrics().CounterValue("group_send_success_total", groupSendLabels("warmup", "many-group", "group-send")))
+}
+
+func groupSendLabels(phase, profile, traffic string) metrics.Labels {
+	return metrics.Labels{"phase": phase, "channel_type": "group", "profile": profile, "traffic": traffic}
 }

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/WuKongIM/WuKongIM/internal/bench/capacity"
 	"github.com/WuKongIM/WuKongIM/internal/bench/config"
 	"github.com/WuKongIM/WuKongIM/internal/bench/coordinator"
 	"github.com/WuKongIM/WuKongIM/internal/bench/devsim"
@@ -37,7 +38,7 @@ func run(args []string) int {
 
 func runWithStderr(args []string, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: wkbench <run|worker|validate|doctor|dev-sim|report>")
+		fmt.Fprintln(stderr, "usage: wkbench <run|worker|validate|doctor|dev-sim|capacity|report>")
 		return exitConfig
 	}
 	switch args[0] {
@@ -51,6 +52,8 @@ func runWithStderr(args []string, stderr io.Writer) int {
 		return runBench(args[1:], stderr)
 	case "dev-sim":
 		return runDevSim(args[1:], stderr)
+	case "capacity":
+		return runCapacity(args[1:], stderr)
 	case "report":
 		fmt.Fprintf(stderr, "%s is not implemented yet\n", args[0])
 		return exitInternal
@@ -58,6 +61,95 @@ func runWithStderr(args []string, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "unknown command %q\n", args[0])
 		return exitConfig
 	}
+}
+
+func runCapacity(args []string, stderr io.Writer) int {
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, "usage: wkbench capacity <send>")
+		return exitConfig
+	}
+	switch args[0] {
+	case "send":
+		return runCapacitySend(args[1:], stderr)
+	default:
+		fmt.Fprintln(stderr, "usage: wkbench capacity <send>")
+		return exitConfig
+	}
+}
+
+func runCapacitySend(args []string, stderr io.Writer) int {
+	cfg, code := parseCapacitySendConfig(args, stderr)
+	if code != 0 {
+		return code
+	}
+	discovered, err := capacity.DiscoverTarget(context.Background(), cfg)
+	if err != nil {
+		fmt.Fprintf(stderr, "capacity preflight failed: %v\n", err)
+		return exitPreflight
+	}
+	result, err := capacity.NewRunner(cfg, discovered).Run(context.Background())
+	if writeErr := capacity.WriteResult(result.ReportDir, result); writeErr != nil {
+		fmt.Fprintf(stderr, "capacity report write failed: %v\n", writeErr)
+		return exitInternal
+	}
+	fmt.Fprint(stderr, capacity.ConsoleSummary(result))
+	if err != nil {
+		fmt.Fprintf(stderr, "capacity run failed: %v\n", err)
+		return exitWorker
+	}
+	return result.ExitCode()
+}
+
+func parseCapacitySendConfig(args []string, stderr io.Writer) (capacity.Config, int) {
+	cfg := capacity.DefaultConfig()
+	fs := flag.NewFlagSet("capacity send", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var apiCSV string
+	var gatewayCSV string
+	fs.StringVar(&apiCSV, "api", "", "comma-separated target HTTP API base addresses")
+	fs.StringVar(&gatewayCSV, "gateway", "", "optional comma-separated WKProto TCP gateway addresses")
+	fs.StringVar(&cfg.BenchToken, "bench-token", cfg.BenchToken, "optional bearer token for bench API routes")
+	fs.StringVar(&cfg.Profile, "profile", cfg.Profile, "traffic profile: person, group, or mixed")
+	fs.Float64Var(&cfg.StartQPS, "start-qps", cfg.StartQPS, "first offered ingress QPS")
+	fs.Float64Var(&cfg.MaxQPS, "max-qps", cfg.MaxQPS, "maximum offered ingress QPS")
+	fs.Float64Var(&cfg.StepFactor, "step-factor", cfg.StepFactor, "ramp multiplier after passing attempts")
+	fs.DurationVar(&cfg.Duration, "duration", cfg.Duration, "measured run duration per attempt")
+	fs.DurationVar(&cfg.Warmup, "warmup", cfg.Warmup, "warmup duration per attempt")
+	fs.DurationVar(&cfg.Cooldown, "cooldown", cfg.Cooldown, "cooldown duration per attempt")
+	fs.DurationVar(&cfg.StableP99, "stable-p99", cfg.StableP99, "maximum stable sendack p99 latency")
+	fs.Float64Var(&cfg.MinActualRatio, "min-actual-ratio", cfg.MinActualRatio, "minimum actual/offered QPS ratio")
+	fs.Float64Var(&cfg.MaxSendackErrorRate, "max-sendack-error-rate", cfg.MaxSendackErrorRate, "maximum allowed sendack error rate")
+	fs.Float64Var(&cfg.MaxConnectErrorRate, "max-connect-error-rate", cfg.MaxConnectErrorRate, "maximum allowed connect error rate")
+	fs.BoolVar(&cfg.BinarySearch, "binary-search", cfg.BinarySearch, "enable binary search after first failed ramp attempt")
+	fs.Float64Var(&cfg.BinarySearchMinDeltaRatio, "binary-search-min-delta-ratio", cfg.BinarySearchMinDeltaRatio, "binary search stop ratio")
+	fs.IntVar(&cfg.GroupMembers, "group-members", cfg.GroupMembers, "members per generated group channel")
+	fs.StringVar(&cfg.ReportDir, "report-dir", cfg.ReportDir, "capacity report output directory")
+	if err := fs.Parse(args); err != nil {
+		return capacity.Config{}, exitConfig
+	}
+	cfg.APIAddrs = splitCSV(apiCSV)
+	cfg.GatewayTCPAddrs = splitCSV(gatewayCSV)
+	if len(cfg.APIAddrs) == 0 {
+		fmt.Fprintln(stderr, "--api is required")
+		return capacity.Config{}, exitConfig
+	}
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintf(stderr, "config validation failed: %v\n", err)
+		return capacity.Config{}, exitConfig
+	}
+	return cfg, 0
+}
+
+func splitCSV(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 type devSimCLIConfig struct {

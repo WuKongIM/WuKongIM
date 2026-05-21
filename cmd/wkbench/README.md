@@ -15,6 +15,7 @@ go run ./cmd/wkbench <command> [flags]
 | `doctor` | Validates target and workers, then checks target health, bench API capabilities, worker control APIs, and gateway reachability. |
 | `run` | Runs the full coordinator flow: validate, preflight, assign workers, prepare, connect, warmup, run, cooldown, and report. |
 | `dev-sim` | Runs a long-lived development simulator that keeps users online and emits low-rate person/group messages. |
+| `capacity send` | Searches maximum stable ingress send QPS against already-running target APIs. |
 | `report` | Reserved for future standalone report rendering. It is not implemented yet. |
 
 Exit codes are stable: `0` success, `1` config validation failure, `2` preflight failure, `3` hard limit failure, `4` worker failure, `5` target unavailable, and `6` internal failure.
@@ -26,6 +27,7 @@ The target WuKongIM process must expose the normal health/readiness endpoints an
 - `GET /healthz`
 - `GET /readyz`
 - `GET /bench/v1/capabilities`
+- `GET /bench/v1/capacity-target`
 - `GET /bench/v1/snapshot`
 - `POST /bench/v1/users/tokens`
 - `POST /bench/v1/channels`
@@ -78,6 +80,35 @@ go run ./cmd/wkbench run \
 ```
 
 For a compiled binary, replace `go run ./cmd/wkbench` with the binary path.
+
+## Capacity Send
+
+`capacity send` connects to already-running WuKongIM API nodes, discovers
+gateway TCP addresses through `/bench/v1/capacity-target`, starts a temporary
+local worker, and searches for maximum stable ingress send QPS.
+
+```bash
+wkbench capacity send \
+  --api http://127.0.0.1:15001,http://127.0.0.1:15002,http://127.0.0.1:15003
+```
+
+The command does not start Docker Compose services, build images, stop nodes, or
+clean data directories. Enable `WK_BENCH_API_ENABLE=true` and configure
+`WK_EXTERNAL_TCPADDR` on each target node so the capacity target endpoint returns
+host-reachable gateway addresses.
+
+Useful tuning flags:
+
+```bash
+wkbench capacity send \
+  --api http://127.0.0.1:15001,http://127.0.0.1:15002,http://127.0.0.1:15003 \
+  --profile mixed \
+  --start-qps 100 \
+  --max-qps 5000 \
+  --stable-p99 200ms \
+  --duration 30s \
+  --group-members 10
+```
 
 ## Compose Development Simulator
 
