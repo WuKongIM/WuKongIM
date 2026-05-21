@@ -19,7 +19,9 @@ type machineResult struct {
 	// Drain carries a fence-and-drain proof captured by the leader loop.
 	Drain *channel.DrainResult
 	// Fetch carries the deterministic fetch response snapshot after loop-owned progress updates.
-	Fetch *machineFetchProgressResult
+	Fetch machineFetchProgressResult
+	// HasFetch reports whether Fetch contains a valid response.
+	HasFetch bool
 	Err   error
 }
 
@@ -27,7 +29,9 @@ type machineFetchProgressResult struct {
 	// Result is the public fetch response before records are read from the log.
 	Result channel.ReplicaFetchResult
 	// ReadLog asks the facade to read records under a captured loop fence.
-	ReadLog *readLogEffect
+	ReadLog readLogEffect
+	// HasReadLog reports whether ReadLog contains a valid read request.
+	HasReadLog bool
 	// LeaderLEO fences the subsequent log read so Fetch never exposes newer durable records.
 	LeaderLEO uint64
 	// MatchOffset is the safe follower progress accepted by epoch-lineage rules.

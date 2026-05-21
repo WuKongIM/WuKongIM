@@ -401,3 +401,20 @@ This continuation rebuilt after PERF-039, confirmed the route-state map allocati
 | ID | Status | Area | Symptom | Root Cause | Fix Commit |
 | --- | --- | --- | --- | --- | --- |
 | PERF-040 | Fixed | Channel replica state publication allocations | Post-PERF-039 clean 1/s allocation profiles showed `replica.publishStateLocked` allocating tens of MB per node while handling frequent fetch/cursor progress. | `applyFetchProgressCommand` published an immutable `ReplicaState` snapshot and notified runtime watchers even when the request only refreshed progress maps and left the externally visible state unchanged. | `43f1e72f` |
+
+## Continuation: isolated worktree Run 22
+
+This continuation rebuilt after PERF-040 and verified the no-op fetch-progress state publication was gone. The remaining `publishStateLocked` allocation came from real state transitions, while `applyFetchProgressCommand` still allocated a fetch result object and optional read-log effect for every successful leader fetch.
+
+| Time | Command | Result | Notes |
+| --- | --- | --- | --- |
+| 2026-05-21 | `DOCKER_BUILDKIT=0 docker build --pull=false -t wukongim-dev:local .` | Pass | Rebuilt local image from `821bda19`; image ID `fb7b23aae841`. |
+| 2026-05-21 | Fresh-image clean 1/s after PERF-040, `WK_SIM_UID_PREFIX=clean29-statepub-u` | Fail | Capture status was `messages_sent=107678`, `send_errors=84`, `recv_errors=0`; sustained clean 1/s still needs more allocation/latency reduction. |
+| 2026-05-21 | `/tmp/wksim-rate1-statepub-alloc-20260521-165227` alloc/heap capture | Evidence | `publishStateLocked` dropped to about `34.50MB` on node1, `26MB` on node2, and `34.50MB` on node3, now attributed to real follower-apply/checkpoint/HW/append state transitions instead of fetch-progress no-ops. The next confirmed narrow slice was `applyFetchProgressCommand`, about `26-28MB` per node, with pprof source lines showing `machineFetchProgressResult` and `readLogEffect` pointer allocations. |
+| 2026-05-21 | `GOWORK=off go test ./pkg/channel/replica -run TestProgressLoopFetchAtLeaderLEOAvoidsResultAllocation -count=1` | Red then pass | Regression test failed at `1` alloc/run before fetch results moved inline into `machineResult`, then passed with zero allocations on the at-LEO fetch-progress path. |
+| 2026-05-21 | `GOWORK=off go test ./pkg/channel/replica -run 'Test(ProgressLoopFetchAtLeaderLEOAvoidsResultAllocation\|ProgressLoopFetchSkipsStatePublishWhenReplicaStateUnchanged\|ReadLogResultUsesOwnedRecordPayloads\|Fetch\|ApplyFetch\|ApplyFollowerCursor\|StatusReturnsLatestReplicaSnapshot)' -count=1`, `GOWORK=off go test ./pkg/channel/replica -count=1`, and `GOWORK=off go test -race ./pkg/channel/replica -run 'Test(ProgressLoopFetchAtLeaderLEOAvoidsResultAllocation\|ReadLogResultUsesOwnedRecordPayloads)' -count=1` | Pass | Focused fetch/progress/read-log behavior, full replica package, and race verification passed after changing fetch/read-log result ownership to inline values. |
+| 2026-05-21 | `git diff --check`, `GOWORK=off go test ./pkg/channel/replica ./pkg/channel/runtime ./internal/app -count=1`, and `GOWORK=off go test ./...` | Pass | Whitespace, focused cross-package, and full unit-test verification passed before committing the fetch-result allocation fix. |
+
+| ID | Status | Area | Symptom | Root Cause | Fix Commit |
+| --- | --- | --- | --- | --- | --- |
+| PERF-041 | Fixed | Channel replica fetch progress result allocations | Post-PERF-040 allocation profiles showed `applyFetchProgressCommand` allocating about `26-28MB` per node while handling successful leader fetch progress. | `machineResult` stored fetch progress through `*machineFetchProgressResult`, and each fetch needing records also allocated `*readLogEffect`; both objects are single-owner loop results and can be copied inline through the reply path. | Current change |

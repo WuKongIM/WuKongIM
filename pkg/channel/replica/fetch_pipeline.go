@@ -12,7 +12,7 @@ func (r *replica) Fetch(ctx context.Context, req channel.ReplicaFetchRequest) (c
 	if progress.Err != nil {
 		return channel.ReplicaFetchResult{}, progress.Err
 	}
-	if progress.Fetch == nil {
+	if !progress.HasFetch {
 		return channel.ReplicaFetchResult{}, channel.ErrCorruptState
 	}
 	result := progress.Fetch.Result
@@ -30,11 +30,11 @@ func (r *replica) Fetch(ctx context.Context, req channel.ReplicaFetchRequest) (c
 			wklog.Bool("needsAdvance", progress.Fetch.NeedsAdvance),
 		)
 	}
-	if progress.Fetch.ReadLog == nil {
+	if !progress.Fetch.HasReadLog {
 		return result, nil
 	}
 
-	effect := *progress.Fetch.ReadLog
+	effect := progress.Fetch.ReadLog
 	records, readErr := r.log.Read(effect.FetchOffset, effect.MaxBytes)
 	readResult := r.submitLoopCommand(ctx, machineReadLogResultCommand{
 		Effect:  effect,
@@ -44,7 +44,7 @@ func (r *replica) Fetch(ctx context.Context, req channel.ReplicaFetchRequest) (c
 	if readResult.Err != nil {
 		return channel.ReplicaFetchResult{}, readResult.Err
 	}
-	if readResult.Fetch == nil {
+	if !readResult.HasFetch {
 		return channel.ReplicaFetchResult{}, channel.ErrCorruptState
 	}
 	return readResult.Fetch.Result, nil
@@ -73,7 +73,7 @@ func (r *replica) applyReadLogResultCommand(cmd machineReadLogResultCommand) mac
 		return machineResult{Err: channel.ErrNotLeader}
 	}
 	if retentionResetDominatesFloor(r.state, effect.FetchOffset) {
-		return machineResult{Fetch: &machineFetchProgressResult{
+		return machineResult{HasFetch: true, Fetch: machineFetchProgressResult{
 			Result:      retentionResetResult(r.state),
 			LeaderLEO:   r.state.LEO,
 			ChannelKey:  r.state.ChannelKey,
@@ -100,7 +100,7 @@ func (r *replica) applyReadLogResultCommand(cmd machineReadLogResultCommand) mac
 	}
 	result := effect.Result
 	result.Records = records
-	return machineResult{Fetch: &machineFetchProgressResult{
+	return machineResult{HasFetch: true, Fetch: machineFetchProgressResult{
 		Result:      result,
 		LeaderLEO:   effect.LeaderLEO,
 		ChannelKey:  effect.ChannelKey,
