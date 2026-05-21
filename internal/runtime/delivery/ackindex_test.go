@@ -103,3 +103,27 @@ func TestAckIndexScopesSameSessionAndMessageByUID(t *testing.T) {
 	require.False(t, ok)
 	require.Equal(t, []AckBinding{bindingB}, index.LookupSessionRoute("u3", 2))
 }
+
+func TestAckIndexBindSingleOutstandingSessionAllocationBudget(t *testing.T) {
+	const bindings = 64
+	uids := make([]string, bindings)
+	for n := 0; n < bindings; n++ {
+		uids[n] = "u" + string(rune('a'+n%26))
+	}
+	allocs := testing.AllocsPerRun(50, func() {
+		index := NewAckIndex()
+		for n := 0; n < bindings; n++ {
+			index.Bind(AckBinding{
+				SessionID:   uint64(n + 1),
+				MessageID:   uint64(1000 + n),
+				ChannelID:   "g1",
+				ChannelType: frame.ChannelTypeGroup,
+				Route:       testRoute(uids[n], uint64(n+1), uint64(n+10), uint64(n+1)),
+			})
+		}
+		if index.Len() != bindings {
+			t.Fatalf("Len() = %d, want %d", index.Len(), bindings)
+		}
+	})
+	require.LessOrEqual(t, allocs, float64(60), "single outstanding ack per session should not allocate a reverse map per bind")
+}
