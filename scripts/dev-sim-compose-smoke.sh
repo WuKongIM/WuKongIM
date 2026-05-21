@@ -150,19 +150,21 @@ wait_status() {
   local last_error=''
   while (( SECONDS <= deadline )); do
     if last_status="$(curl -fsS --max-time 2 "$STATUS_URL" 2>&1)"; then
-      local state connected sent send_errors recv_errors error_text
+      local state connected active sent send_errors recv_errors error_text
       state="$(json_string_field "$last_status" state)"
       connected="$(json_number_field "$last_status" connected_users)"
+      active="$(json_number_field "$last_status" active_users)"
       sent="$(json_number_field "$last_status" messages_sent)"
       send_errors="$(json_number_field "$last_status" send_errors)"
       recv_errors="$(json_number_field "$last_status" recv_errors)"
       error_text="$(json_string_field "$last_status" last_error)"
       connected="${connected:-0}"
+      active="${active:-$connected}"
       sent="${sent:-0}"
       send_errors="${send_errors:-0}"
       recv_errors="${recv_errors:-0}"
-      log "status state=${state:-unknown} connected_users=${connected} messages_sent=${sent} send_errors=${send_errors} recv_errors=${recv_errors} last_error=${error_text:-}"
-      if [[ "$state" == "running" ]] && (( connected > 0 )) && (( sent > 0 )) && (( send_errors == 0 )) && (( recv_errors == 0 )); then
+      log "status state=${state:-unknown} connected_users=${connected} active_users=${active} messages_sent=${sent} send_errors=${send_errors} recv_errors=${recv_errors} last_error=${error_text:-}"
+      if [[ "$state" == "running" ]] && (( connected > 0 )) && (( active > 0 )) && (( sent > 0 )) && (( send_errors == 0 )) && (( recv_errors == 0 )); then
         return 0
       fi
     else

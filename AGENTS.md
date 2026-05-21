@@ -24,6 +24,11 @@
 - 显式指定配置文件：`go run ./cmd/wukongim -config ./wukongim.conf`
 - 定向测试：`go test ./internal/... ./pkg/...`
 
+## 性能调试规则
+
+- 分析 `wk-sim`、`wkbench dev-sim` 或三节点 Docker Compose 性能/超时/吞吐问题时，先阅读并遵循 `.codex/skills/wukongim-perf-triage/SKILL.md`。
+- 项目内完整性能排查 runbook 位于 `docs/development/PERF_TRIAGE.md`；采集证据后再分类、假设和实验，不要凭感觉调参或改代码。
+
 ## 必须遵循的规则
 
 - 单元测试不要太耗时，如果模拟真实耗时测试做成集成测试 集成测试通过`go test -tags=integration`运行
@@ -41,6 +46,9 @@
 ## 目录结构
 
 ```text
+.codex/
+  skills/                 项目内 agent skills，记录可复用工作流
+
 cmd/
   wukongim/              程序入口，负责读取配置并启动应用
   wkbench/               wkbench 黑盒 benchmark CLI，提供 validate/doctor/run/worker/dev-sim/report 入口
@@ -123,6 +131,7 @@ pkg/
   wklog/                 通用日志接口与字段封装
 
 docs/
+  development/           项目知识、代码质量记录与性能排查 runbook
   raw/                   草稿、重构提案与原始设计记录
   superpowers/           specs / plans / reports / runbooks
   wiki/                  项目 wiki 与架构文档

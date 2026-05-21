@@ -12,6 +12,7 @@ import (
 func TestServerRoutes(t *testing.T) {
 	status := NewStatus("dev-sim-run")
 	status.SetRunning(20, 5, 2)
+	status.SetConnectionStats(17, 4)
 	srv := NewStatusServer("127.0.0.1:0", status)
 
 	healthReq := httptest.NewRequest(http.MethodGet, "/healthz", nil)
@@ -29,4 +30,6 @@ func TestServerRoutes(t *testing.T) {
 	require.Equal(t, StateRunning, snapshot.State)
 	require.Equal(t, "dev-sim-run", snapshot.RunID)
 	require.Equal(t, 20, snapshot.ConnectedUsers)
+	require.Equal(t, 17, snapshot.ActiveUsers)
+	require.Equal(t, uint64(4), snapshot.ReconnectedUsers)
 }

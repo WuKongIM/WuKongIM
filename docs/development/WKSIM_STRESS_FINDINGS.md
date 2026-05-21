@@ -253,3 +253,26 @@ Post-fix search after Issues 7 and 8:
 
 Status:
 - No additional reproducible performance or correctness issue was found in the Docker Compose `wk-sim` profiles exercised in this cycle.
+
+## 2026-05-21 Group Fanout Triage
+
+Environment:
+- Main worktree at `643083a068f2b757f5d80b0862f6532a04d735e3` with existing uncommitted local changes.
+- Evidence captured by `scripts/dev-sim-perf-triage.sh` under `docs/development/perf-runs/`.
+- Target profile: clean three-node Compose stack, `500` users, `250` group channels, `10` group members, `1/s`, concurrency `256`, receive verification `none`, default warmup.
+
+Evidence:
+- Baseline `smoke-default` and `sampled-correctness` passed before stress isolation.
+- First clean `group-fanout` at `1/s` and concurrency `256` failed once with `messages_sent=26303`, `send_errors=49`, `recv_errors=0`, and a client-side sendack read timeout on `sim-group-158`.
+- One-variable follow-ups passed at `0.5/s` with concurrency `256`, `person-hotpath` at `1/s` with concurrency `256`, and `group-fanout` at `1/s` with concurrency `64`, `128`, `192`, and `256` on clean stacks.
+- During the failing window, node CPU was moderate, simulator CPU was not saturated, channel execution queues were empty at capture time, and pprof was spread across gateway writes, transport RPC, delivery fanout, channel replication, and Pebble writes rather than one dominant hot path.
+- The failing run also had startup Raft election churn and a burst of `channelmeta.bootstrap` before measured traffic, while later identical shape runs recovered and kept running.
+
+Classification:
+- Category: transient startup/load-sensitive sendack timeout in local Docker Compose group fanout, not a deterministic server defect.
+- Confidence: medium. The original failure was real, but it was not reproduced by the same `1/s` + `256` shape after isolated one-variable reruns.
+
+Decision:
+- No code change in this cycle. A regression test would have to assert an exact transient 30s client read timeout, which is not a focused server defect.
+- Keep `smoke-default`, `sampled-correctness`, and clean `group-fanout 1/s concurrency 256` as the current verification set.
+- If this recurs, collect diagnostics around the exact sendack timeout window and test one startup variable only, preferably longer warmup or delayed measured-run start, before changing service config or code.

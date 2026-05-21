@@ -85,22 +85,33 @@ func TestNewLoggerRoutesLevelsToSeparateFiles(t *testing.T) {
 	errBoom := errors.New("boom")
 	logger.Debug("debugging", wklog.Bool("ready", true))
 	logger.Info("starting", wklog.Uint64("nodeID", 1))
+	logger.Warn("slow", wklog.String("component", "delivery"))
 	logger.Error("failed", wklog.Error(errBoom))
 	require.NoError(t, logger.Sync())
 
 	debugContents := readLogFile(t, filepath.Join(dir, "debug.log"))
 	require.Contains(t, debugContents, `"msg":"debugging"`)
 	require.Contains(t, debugContents, `"msg":"starting"`)
+	require.Contains(t, debugContents, `"msg":"slow"`)
 	require.Contains(t, debugContents, `"msg":"failed"`)
 
 	appContents := readLogFile(t, filepath.Join(dir, "app.log"))
 	require.NotContains(t, appContents, `"msg":"debugging"`)
 	require.Contains(t, appContents, `"msg":"starting"`)
+	require.Contains(t, appContents, `"msg":"slow"`)
 	require.Contains(t, appContents, `"msg":"failed"`)
+
+	warnContents := readLogFile(t, filepath.Join(dir, "warn.log"))
+	require.NotContains(t, warnContents, `"msg":"debugging"`)
+	require.NotContains(t, warnContents, `"msg":"starting"`)
+	require.Contains(t, warnContents, `"msg":"slow"`)
+	require.NotContains(t, warnContents, `"msg":"failed"`)
+	require.Contains(t, warnContents, `"component":"delivery"`)
 
 	errorContents := readLogFile(t, filepath.Join(dir, "error.log"))
 	require.NotContains(t, errorContents, `"msg":"debugging"`)
 	require.NotContains(t, errorContents, `"msg":"starting"`)
+	require.NotContains(t, errorContents, `"msg":"slow"`)
 	require.Contains(t, errorContents, `"msg":"failed"`)
 	require.Contains(t, errorContents, `"error":"boom"`)
 }

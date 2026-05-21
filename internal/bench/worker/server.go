@@ -35,6 +35,12 @@ type MetricsReporter interface {
 	MetricsSnapshot() metrics.SnapshotData
 }
 
+// ConnectionStatusReporter exposes live online connection state for dev-sim diagnostics.
+type ConnectionStatusReporter interface {
+	// ConnectionStatus returns the latest active connection count and reconnect churn.
+	ConnectionStatus() (activeUsers int, reconnectedUsers uint64)
+}
+
 // AssignmentStarter receives a hook when the control plane accepts a fresh run assignment.
 type AssignmentStarter interface {
 	// BeginAssignment resets per-run runner state before any phase hook executes.

@@ -102,6 +102,8 @@ cmd/wkbench dev-sim
 
 `devsim` is intentionally a supervisor around existing wkbench primitives. It keeps the same black-box boundary as coordinator/worker runs: target mutation goes through `internal/bench/target`, traffic goes through WKProto clients, and no WuKongIM server internals are imported. `docker compose --profile dev-sim` uses this command for the optional `wk-sim` service; normal `docker compose up` does not start simulator traffic.
 
+The `/status` endpoint distinguishes the configured steady-state online pool (`connected_users`) from the latest sampled live count (`active_users`) and reconnect churn (`reconnected_users`) so disconnect/reconnect flapping is visible during triage.
+
 ## Default Worker Runner Flow
 
 The default runner is assembled by `worker.NewDefaultWorkloadRunner`. The private `worker.newDefaultWorkloadRunner` wrapper is kept for package-local server construction.

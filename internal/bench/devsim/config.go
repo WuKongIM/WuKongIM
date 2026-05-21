@@ -449,10 +449,41 @@ func (cfg Config) BuildBenchInputs(runID string) (BenchInputs, error) {
 	return BenchInputs{Target: target, Workers: workers, Scenario: scenario, Plan: plan}, nil
 }
 
+// Snapshot builds a triage-friendly view of the effective simulator configuration.
+func (cfg Config) Snapshot() ConfigSnapshot {
+	return ConfigSnapshot{
+		TargetAPIAddrs:       nonEmptyStrings(cfg.Target.APIAddrs),
+		GatewayTCPAddrs:      nonEmptyStrings(cfg.Target.GatewayTCPAddrs),
+		UIDPrefix:            strings.TrimSpace(cfg.Identity.UIDPrefix),
+		DevicePrefix:         strings.TrimSpace(cfg.Identity.DevicePrefix),
+		ClientMsgPrefix:      strings.TrimSpace(cfg.Identity.ClientMsgPrefix),
+		TokenMode:            strings.TrimSpace(cfg.Identity.TokenMode),
+		TotalUsers:           cfg.Online.TotalUsers,
+		ConnectRate:          formatRate(cfg.Online.ConnectRate),
+		PersonChannels:       cfg.Profiles.PersonChannels,
+		GroupChannels:        cfg.Profiles.GroupChannels,
+		GroupMembers:         cfg.Profiles.GroupMembers,
+		PayloadSizeBytes:     cfg.Traffic.PayloadSizeBytes,
+		PersonRatePerChannel: formatRate(cfg.Traffic.PersonRatePerChannel),
+		GroupRatePerChannel:  formatRate(cfg.Traffic.GroupRatePerChannel),
+		Concurrency:          cfg.Traffic.Concurrency,
+		VerifyRecv:           strings.TrimSpace(cfg.Traffic.VerifyRecv),
+		Warmup:               cfg.Traffic.Warmup.String(),
+		Window:               cfg.Traffic.Window.String(),
+		Cooldown:             cfg.Traffic.Cooldown.String(),
+		ReadinessTimeout:     cfg.Retry.ReadinessTimeout.String(),
+		RestartBackoff:       cfg.Retry.RestartBackoff.String(),
+	}
+}
+
 func personVerifyMode(mode string) string {
 	mode = strings.TrimSpace(mode)
 	if mode == "sampled" {
 		return "full"
 	}
 	return mode
+}
+
+func formatRate(rate model.Rate) string {
+	return fmt.Sprintf("%g/s", rate.PerSecond)
 }

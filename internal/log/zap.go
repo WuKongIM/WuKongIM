@@ -45,6 +45,13 @@ func NewLogger(cfg Config) (wklog.Logger, error) {
 				return atomicLevel.Enabled(l) && l >= zapcore.ErrorLevel
 			}),
 		),
+		zapcore.NewCore(
+			encoder,
+			newRotateWriter(cfg, "warn.log"),
+			zap.LevelEnablerFunc(func(l zapcore.Level) bool {
+				return atomicLevel.Enabled(l) && l == zapcore.WarnLevel
+			}),
+		),
 	}
 
 	if atomicLevel.Enabled(zapcore.DebugLevel) {

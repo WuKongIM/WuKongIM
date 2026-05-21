@@ -187,7 +187,7 @@ echo "$count" > "$count_file"
 if [[ "$count" -eq 1 ]]; then
   echo '{"state":"waiting","connected_users":0,"messages_sent":0,"last_error":"not ready"}'
 else
-  echo '{"state":"running","connected_users":20,"person_channels":5,"group_channels":2,"messages_sent":3,"last_error":""}'
+  echo '{"state":"running","connected_users":20,"active_users":18,"person_channels":5,"group_channels":2,"messages_sent":3,"last_error":""}'
 fi
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
@@ -201,10 +201,20 @@ func writeFakeCurlWithTrafficErrors(t *testing.T, path string, callsDir string) 
 set -euo pipefail
 calls_dir="` + callsDir + `"
 echo "$*" >> "$calls_dir/curl.calls"
-echo '{"state":"running","connected_users":20,"person_channels":5,"group_channels":2,"messages_sent":3,"send_errors":2,"recv_errors":1,"last_error":"send failed"}'
+echo '{"state":"running","connected_users":20,"active_users":19,"person_channels":5,"group_channels":2,"messages_sent":3,"send_errors":2,"recv_errors":1,"last_error":"send failed"}'
 `
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDevSimComposeSmokeReportsActiveUsers(t *testing.T) {
+	script := readFile(t, filepath.Join(repoRoot(t), "scripts", "dev-sim-compose-smoke.sh"))
+	if !strings.Contains(script, "active_users") {
+		t.Fatal("dev-sim smoke should report active_users from /status")
+	}
+	if !strings.Contains(script, "(( connected > 0 ))") || !strings.Contains(script, "(( active > 0 ))") {
+		t.Fatal("dev-sim smoke should require active users before passing")
 	}
 }
 
