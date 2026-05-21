@@ -323,6 +323,8 @@ type replicaChangeNotifier struct {
 	mu      sync.Mutex
 	version uint64
 	ready   chan struct{}
+	// waiters tracks goroutines currently blocked on ready.
+	waiters int
 }
 
 func newReplicaChangeNotifier() *replicaChangeNotifier {
@@ -415,6 +417,9 @@ func (n *replicaChangeNotifier) notify() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.version++
+	if n.waiters == 0 {
+		return
+	}
 	close(n.ready)
 	n.ready = make(chan struct{})
 }
@@ -438,12 +443,17 @@ func (n *replicaChangeNotifier) wait(ctx context.Context, version uint64) bool {
 		return true
 	}
 	ready := n.ready
+	n.waiters++
 	n.mu.Unlock()
 
+	signaled := false
 	select {
 	case <-ready:
-		return true
+		signaled = true
 	case <-ctx.Done():
-		return false
 	}
+	n.mu.Lock()
+	n.waiters--
+	n.mu.Unlock()
+	return signaled
 }
