@@ -180,7 +180,7 @@ type InflightMessage struct {
 	ResolveAttempt    int
 	ResolveRetryAt    time.Time
 	NextCursor        string
-	Routes            map[RouteKey]*RouteDeliveryState
+	Routes            map[RouteKey]RouteDeliveryState
 	PendingRouteCnt   int
 }
 

@@ -42,6 +42,25 @@ func TestCloneEnvelopeDeepCopiesMessageScopedUIDs(t *testing.T) {
 	require.Equal(t, []string{"u1", "u2"}, env.MessageScopedUIDs)
 }
 
+func TestActorEnsureRouteStateAvoidsPerRouteStateAllocation(t *testing.T) {
+	act := &actor{}
+	routes := make([]RouteKey, 64)
+	for i := range routes {
+		routes[i] = testRoute("u2", 1, 11, uint64(i+1))
+	}
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		msg := &InflightMessage{
+			Routes: make(map[RouteKey]RouteDeliveryState, len(routes)),
+		}
+		for _, route := range routes {
+			act.ensureRouteState(msg, route)
+		}
+	})
+
+	require.LessOrEqual(t, allocs, float64(10))
+}
+
 func TestActorBindsAckIndexOnlyForAcceptedRoutes(t *testing.T) {
 	runtime, _, pusher := newTestManager()
 	accepted := testRoute("u2", 1, 11, 2)

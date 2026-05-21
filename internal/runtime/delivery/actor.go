@@ -127,7 +127,7 @@ func (a *actor) dispatch(ctx context.Context, env CommittedEnvelope) error {
 		MessageSeq:     env.MessageSeq,
 		Envelope:       cloneEnvelope(env),
 		ResolveAttempt: 1,
-		Routes:         make(map[RouteKey]*RouteDeliveryState),
+		Routes:         make(map[RouteKey]RouteDeliveryState),
 	}
 	a.inflight[env.MessageID] = msg
 	a.pushResolvable(msg)
@@ -306,7 +306,8 @@ func (a *actor) pushOutsideLock(ctx context.Context, cmd PushCommand) (PushResul
 }
 
 func (a *actor) pushResultStillCurrent(msg *InflightMessage, route RouteKey) bool {
-	return msg.Routes[route] != nil
+	_, ok := msg.Routes[route]
+	return ok
 }
 
 func (a *actor) dispatchLate(ctx context.Context, env CommittedEnvelope) error {
@@ -335,10 +336,10 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 		result = PushResult{Retryable: pushRoutes}
 	}
 	for _, route := range result.Accepted {
-		if !a.pushResultStillCurrent(msg, route) {
+		state, ok := msg.Routes[route]
+		if !ok {
 			continue
 		}
-		state := msg.Routes[route]
 		state.Attempt = attempt
 		binding := a.ackBinding(msg, route)
 		if state.Accepted {
@@ -354,6 +355,7 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 				a.shard.manager.ackIdx.Bind(binding)
 			}
 		}
+		msg.Routes[route] = state
 		if !a.scheduleRetry(msg, route, attempt) {
 			if err := a.expireRoute(ctx, msg, route, attempt); err != nil {
 				return err
@@ -361,14 +363,15 @@ func (a *actor) applyPush(ctx context.Context, msg *InflightMessage, routes []Ro
 		}
 	}
 	for _, route := range result.Retryable {
-		if !a.pushResultStillCurrent(msg, route) {
+		state, ok := msg.Routes[route]
+		if !ok {
 			continue
 		}
-		state := msg.Routes[route]
 		state.Attempt = attempt
 		if !state.Accepted {
 			a.shard.manager.ackIdx.RemoveRoute(route.UID, route.SessionID, msg.MessageID)
 		}
+		msg.Routes[route] = state
 		if !a.scheduleRetry(msg, route, attempt) {
 			if err := a.expireRoute(ctx, msg, route, attempt); err != nil {
 				return err
@@ -469,16 +472,13 @@ func (a *actor) notifyOfflineResolvedOutsideLock(ctx context.Context) {
 	a.mu.Lock()
 }
 
-func (a *actor) ensureRouteState(msg *InflightMessage, route RouteKey) *RouteDeliveryState {
-	state := msg.Routes[route]
-	if state != nil {
-		return state
+func (a *actor) ensureRouteState(msg *InflightMessage, route RouteKey) {
+	if _, ok := msg.Routes[route]; ok {
+		return
 	}
-	state = &RouteDeliveryState{}
-	msg.Routes[route] = state
+	msg.Routes[route] = RouteDeliveryState{}
 	msg.PendingRouteCnt++
 	a.pendingRouteCnt++
-	return state
 }
 
 func (a *actor) finishRoute(_ context.Context, msg *InflightMessage, route RouteKey) error {
