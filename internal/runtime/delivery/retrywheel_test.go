@@ -58,6 +58,28 @@ func TestRetryWheelPopsMultipleDueEntriesInTimeOrder(t *testing.T) {
 	require.Equal(t, []uint64{4}, retryWheelMessageIDs(later))
 }
 
+func TestRetryWheelPopDueIntoReusesCallerBuffer(t *testing.T) {
+	base := time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)
+	wheel := &RetryWheel{entries: make([]RetryEntry, 0, 2)}
+	buf := make([]RetryEntry, 0, 2)
+
+	allocs := testing.AllocsPerRun(100, func() {
+		wheel.Schedule(RetryEntry{When: base.Add(time.Millisecond), MessageID: 1})
+		wheel.Schedule(RetryEntry{When: base.Add(2 * time.Millisecond), MessageID: 2})
+
+		buf = wheel.PopDueInto(base.Add(3*time.Millisecond), buf[:0])
+		if len(buf) != 2 {
+			t.Fatalf("due entries = %d, want 2", len(buf))
+		}
+		for i := range buf {
+			buf[i] = RetryEntry{}
+		}
+		buf = buf[:0]
+	})
+
+	require.Zero(t, allocs)
+}
+
 func TestRetryWheelAppliesCappedBackoffWithJitter(t *testing.T) {
 	delay := cappedBackoffWithJitter([]time.Duration{time.Second, 2 * time.Second}, 6)
 
