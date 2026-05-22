@@ -58,10 +58,13 @@ func (c *channelCell) tryStart() {
 }
 
 func (c *channelCell) startResolve(cmd *appendCommand) {
-	go func() {
+	err := c.reactor.plane.effects.submit(effectContext(cmd), func() {
 		route, err := c.reactor.plane.opts.Resolver.ResolveRoute(effectContext(cmd), cmd.req.ChannelID)
 		c.reactor.post(reactorEvent{kind: reactorEventResolveComplete, completion: effectCompletion{key: c.key, cmd: cmd, route: route, err: err}})
-	}()
+	})
+	if err != nil {
+		c.handleResolveComplete(effectCompletion{key: c.key, cmd: cmd, err: err})
+	}
 }
 
 func (c *channelCell) handleResolveComplete(done effectCompletion) {
@@ -79,7 +82,7 @@ func (c *channelCell) handleResolveComplete(done effectCompletion) {
 }
 
 func (c *channelCell) startAppend(cmd *appendCommand, route ChannelRoute) {
-	go func() {
+	err := c.reactor.plane.effects.submit(effectContext(cmd), func() {
 		req := route.applyTo(cmd.req)
 		var (
 			res channel.AppendBatchResult
@@ -93,7 +96,10 @@ func (c *channelCell) startAppend(cmd *appendCommand, route ChannelRoute) {
 			err = ErrNoRemoteAppender
 		}
 		c.reactor.post(reactorEvent{kind: reactorEventAppendComplete, completion: effectCompletion{key: c.key, cmd: cmd, route: route, res: res, err: err}})
-	}()
+	})
+	if err != nil {
+		c.handleAppendComplete(effectCompletion{key: c.key, cmd: cmd, route: route, err: err})
+	}
 }
 
 func (c *channelCell) handleAppendComplete(done effectCompletion) {

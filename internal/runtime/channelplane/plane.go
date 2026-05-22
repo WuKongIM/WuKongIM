@@ -17,6 +17,7 @@ type Plane struct {
 	started  bool
 	closed   bool
 	reactors []*reactor
+	effects  *effectExecutor
 	peer     *PeerReactor
 }
 
@@ -26,7 +27,11 @@ func New(opts Options) (*Plane, error) {
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}
-	p := &Plane{opts: opts, reactors: make([]*reactor, opts.ReactorCount)}
+	p := &Plane{
+		opts:     opts,
+		reactors: make([]*reactor, opts.ReactorCount),
+		effects:  newEffectExecutor(effectExecutorOptions{Workers: opts.EffectWorkerCount, QueueSize: opts.EffectQueueSize}),
+	}
 	for i := range p.reactors {
 		p.reactors[i] = newReactor(p, i, opts.ReactorInboxSize)
 	}
@@ -56,6 +61,7 @@ func (p *Plane) Start() error {
 	if p.started {
 		return nil
 	}
+	p.effects.start()
 	if p.peer != nil {
 		if err := p.peer.Start(); err != nil {
 			return err
@@ -96,7 +102,12 @@ func (p *Plane) Stop(ctx context.Context) error {
 		}
 	}
 	if p.peer != nil {
-		return p.peer.Stop(ctx)
+		if err := p.peer.Stop(ctx); err != nil {
+			return err
+		}
+	}
+	if p.effects != nil {
+		return p.effects.stop(ctx)
 	}
 	return nil
 }
