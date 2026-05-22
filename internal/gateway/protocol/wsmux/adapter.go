@@ -19,6 +19,7 @@ type Adapter struct {
 	jsonrpc *protojsonrpc.Adapter
 }
 
+var _ protocol.DecodedFrameOwner = (*Adapter)(nil)
 var _ protocol.ReplyTokenTracker = (*Adapter)(nil)
 
 func New() *Adapter {
@@ -33,6 +34,16 @@ func (a *Adapter) Name() string {
 		return ""
 	}
 	return Name
+}
+
+// OwnsDecodedFrames reports whether every nested protocol can safely retain decoded frames.
+func (a *Adapter) OwnsDecodedFrames() bool {
+	if a == nil {
+		return false
+	}
+	wkOwner, wkOK := any(a.wkproto).(protocol.DecodedFrameOwner)
+	jsonOwner, jsonOK := any(a.jsonrpc).(protocol.DecodedFrameOwner)
+	return wkOK && wkOwner.OwnsDecodedFrames() && jsonOK && jsonOwner.OwnsDecodedFrames()
 }
 
 func (a *Adapter) Decode(sess session.Session, in []byte) ([]frame.Frame, int, error) {

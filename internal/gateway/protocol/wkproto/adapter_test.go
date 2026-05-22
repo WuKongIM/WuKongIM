@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
+	"github.com/WuKongIM/WuKongIM/internal/gateway/protocol"
 	adapterpkg "github.com/WuKongIM/WuKongIM/internal/gateway/protocol/wkproto"
 	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	"github.com/WuKongIM/WuKongIM/internal/gateway/testkit"
@@ -11,6 +12,16 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 )
+
+func TestAdapterOwnsDecodedFrames(t *testing.T) {
+	owner, ok := any(adapterpkg.New()).(protocol.DecodedFrameOwner)
+	if !ok {
+		t.Fatal("wkproto adapter does not implement DecodedFrameOwner")
+	}
+	if !owner.OwnsDecodedFrames() {
+		t.Fatal("wkproto adapter should mark decoded frames as owned")
+	}
+}
 
 func TestAdapterDecodeReturnsZeroUntilFrameIsComplete(t *testing.T) {
 	adapter := adapterpkg.New()

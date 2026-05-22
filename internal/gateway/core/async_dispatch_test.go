@@ -85,6 +85,58 @@ func TestServerAsyncSendDispatchRejectsFullQueueBeforePayloadClone(t *testing.T)
 	}
 }
 
+func TestAsyncDispatchQueueCopiesPayloadWhenAdapterDoesNotOwnDecodedFrames(t *testing.T) {
+	queue := newAsyncDispatchQueueWithCapacity(1, 1)
+	payload := []byte("payload")
+	send := &frame.SendPacket{
+		ChannelID:   "channel-a",
+		ChannelType: 2,
+		Payload:     payload,
+	}
+	state := &sessionState{listener: &listenerRuntime{}}
+
+	if !queue.submitSend(state, "", send) {
+		t.Fatal("submitSend returned false")
+	}
+	payload[0] = 'P'
+
+	queued := queuedAsyncSendPacket(t, queue)
+	if got, want := string(queued.Payload), "payload"; got != want {
+		t.Fatalf("queued payload = %q, want %q", got, want)
+	}
+	if sameBackingArray(queued.Payload, send.Payload) {
+		t.Fatal("queued payload aliases non-owned decoded payload")
+	}
+}
+
+func TestAsyncDispatchQueueAdoptsPayloadWhenAdapterOwnsDecodedFrames(t *testing.T) {
+	queue := newAsyncDispatchQueueWithCapacity(1, 1)
+	payload := []byte("owned")
+	send := &frame.SendPacket{
+		ClientMsgNo: "before",
+		ChannelID:   "channel-a",
+		ChannelType: 2,
+		Payload:     payload,
+	}
+	state := &sessionState{listener: &listenerRuntime{ownsDecodedFrames: true}}
+
+	if !queue.submitSend(state, "", send) {
+		t.Fatal("submitSend returned false")
+	}
+	send.ClientMsgNo = "after"
+
+	queued := queuedAsyncSendPacket(t, queue)
+	if !sameBackingArray(queued.Payload, send.Payload) {
+		t.Fatal("queued payload did not adopt owned decoded payload")
+	}
+	if got, want := cap(queued.Payload), len(queued.Payload); got != want {
+		t.Fatalf("queued payload cap = %d, want %d to prevent appending into adjacent decoded bytes", got, want)
+	}
+	if got, want := queued.ClientMsgNo, "before"; got != want {
+		t.Fatalf("queued ClientMsgNo = %q, want copied metadata %q", got, want)
+	}
+}
+
 func TestServerAsyncSendDispatchUsesConfiguredWorkerCount(t *testing.T) {
 	srv := &Server{
 		options: gatewaytypes.Options{
@@ -436,6 +488,25 @@ func asyncSendBatchTestTask(clientMsgNo string, payloadBytes int) asyncDispatchT
 			Payload:     make([]byte, payloadBytes),
 		},
 	}
+}
+
+func queuedAsyncSendPacket(t *testing.T, queue *asyncDispatchQueue) *frame.SendPacket {
+	t.Helper()
+	select {
+	case task := <-queue.shards[0].tasks:
+		send, ok := task.frame.(*frame.SendPacket)
+		if !ok {
+			t.Fatalf("queued frame = %T, want *frame.SendPacket", task.frame)
+		}
+		return send
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for queued send")
+		return nil
+	}
+}
+
+func sameBackingArray(a, b []byte) bool {
+	return len(a) > 0 && len(b) > 0 && &a[0] == &b[0]
 }
 
 func asyncSendBatchClientMsgNos(batch []asyncDispatchTask) []string {

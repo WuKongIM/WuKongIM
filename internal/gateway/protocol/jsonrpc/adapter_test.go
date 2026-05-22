@@ -12,6 +12,16 @@ import (
 	pkgjsonrpc "github.com/WuKongIM/WuKongIM/pkg/protocol/jsonrpc"
 )
 
+func TestAdapterOwnsDecodedFrames(t *testing.T) {
+	owner, ok := any(adapterpkg.New()).(protocol.DecodedFrameOwner)
+	if !ok {
+		t.Fatal("jsonrpc adapter does not implement DecodedFrameOwner")
+	}
+	if !owner.OwnsDecodedFrames() {
+		t.Fatal("jsonrpc adapter should mark decoded frames as owned")
+	}
+}
+
 func TestAdapterDecodeReturnsReplyTokenForRequest(t *testing.T) {
 	adapter := adapterpkg.New()
 	sess := testkit.NewProtocolSession()

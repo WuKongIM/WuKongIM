@@ -24,6 +24,7 @@ type replyTokenQueue struct {
 	tokens []string
 }
 
+var _ protocol.DecodedFrameOwner = (*Adapter)(nil)
 var _ protocol.ReplyTokenTracker = (*Adapter)(nil)
 
 func New() *Adapter {
@@ -35,6 +36,11 @@ func (a *Adapter) Name() string {
 		return ""
 	}
 	return Name
+}
+
+// OwnsDecodedFrames reports that JSON-RPC Decode returns frames backed by decoder-owned values.
+func (a *Adapter) OwnsDecodedFrames() bool {
+	return a != nil
 }
 
 func (a *Adapter) Decode(sess session.Session, in []byte) ([]frame.Frame, int, error) {

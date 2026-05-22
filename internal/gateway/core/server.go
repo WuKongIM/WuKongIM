@@ -63,13 +63,15 @@ type Server struct {
 }
 
 type listenerRuntime struct {
-	options       gatewaytypes.ListenerOptions
-	factory       transport.Factory
-	adapter       protocol.Adapter
-	tracker       protocol.ReplyTokenTracker
-	listener      transport.Listener
-	eventNetwork  string
-	eventProtocol string
+	options gatewaytypes.ListenerOptions
+	factory transport.Factory
+	adapter protocol.Adapter
+	tracker protocol.ReplyTokenTracker
+	// ownsDecodedFrames allows SEND async dispatch to retain decoded payload bytes without copying.
+	ownsDecodedFrames bool
+	listener          transport.Listener
+	eventNetwork      string
+	eventProtocol     string
 }
 
 type connKey struct {
@@ -156,6 +158,9 @@ func NewServer(registry *Registry, opts *gatewaytypes.Options) (*Server, error) 
 		}
 		if tracker, ok := adapter.(protocol.ReplyTokenTracker); ok {
 			runtime.tracker = tracker
+		}
+		if owner, ok := adapter.(protocol.DecodedFrameOwner); ok && owner.OwnsDecodedFrames() {
+			runtime.ownsDecodedFrames = true
 		}
 		listeners = append(listeners, runtime)
 	}
@@ -550,12 +555,16 @@ func isSendPacket(f frame.Frame) (*frame.SendPacket, bool) {
 	return send, true
 }
 
-func cloneAsyncSendFrame(send *frame.SendPacket) frame.Frame {
+func cloneAsyncSendFrame(send *frame.SendPacket, ownsDecodedFrames bool) frame.Frame {
 	if send == nil {
 		return nil
 	}
 	cloned := *send
-	cloned.Payload = append([]byte(nil), send.Payload...)
+	if ownsDecodedFrames {
+		cloned.Payload = send.Payload[:len(send.Payload):len(send.Payload)]
+	} else {
+		cloned.Payload = append([]byte(nil), send.Payload...)
+	}
 	return &cloned
 }
 
@@ -1138,7 +1147,7 @@ func (q *asyncDispatchQueue) submitSend(state *sessionState, replyToken string, 
 	task := asyncDispatchTask{
 		state:      state,
 		replyToken: replyToken,
-		frame:      cloneAsyncSendFrame(send),
+		frame:      cloneAsyncSendFrame(send, stateOwnsDecodedFrames(state)),
 		enqueuedAt: time.Now(),
 	}
 	select {
@@ -1147,6 +1156,10 @@ func (q *asyncDispatchQueue) submitSend(state *sessionState, replyToken string, 
 	default:
 		return false
 	}
+}
+
+func stateOwnsDecodedFrames(state *sessionState) bool {
+	return state != nil && state.listener != nil && state.listener.ownsDecodedFrames
 }
 
 func (q *asyncDispatchQueue) shardForSend(state *sessionState, send *frame.SendPacket) asyncDispatchShard {

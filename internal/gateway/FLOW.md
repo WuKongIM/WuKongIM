@@ -127,12 +127,17 @@ Encode(session.Session, frame.Frame, session.OutboundMeta) ([]byte, error)
 OnOpen(session.Session) error
 OnClose(session.Session) error
 
+// optional protocol.DecodedFrameOwner
+OwnsDecodedFrames() bool
+
 // transport.Factory
 Name() string
 Build([]transport.ListenerSpec) ([]transport.Listener, error)
 ```
 
 新增 protocol 或 transport 时，要实现以上接口、补测试，并在 `buildRegistry` 注册；不要把业务处理写进 protocol/transport。
+
+协议适配器只有在 `Decode` 返回的 frame 对象与 payload 字节在返回后保持有效且不会被复用/修改时，才可以实现 `DecodedFrameOwner` 并返回 true。`core` 会利用该能力在异步 SEND 路径中跳过 payload 深拷贝；未声明该能力的适配器继续走深拷贝保护。
 
 ## 5. 关键类型
 
@@ -220,7 +225,7 @@ OnData:
   ⑥ handleAuthFrame 优先处理 WKProto CONNECT
   ⑦ 认证完成后的业务 frame:
      - 记录 OnFrameIn
-     - SEND: clone payload 后按原始 `ChannelID + ChannelType` 选择 shard，入有界队列；worker 在 shard 内收集微批，优先调用 `SendBatchHandler.OnSendBatch`
+     - SEND: 浅拷贝 packet 元数据后按原始 `ChannelID + ChannelType` 选择 shard，入有界队列；若协议实现 `DecodedFrameOwner` 则复用 decoded payload 并收紧 slice cap，否则深拷贝 payload；worker 在 shard 内收集微批，优先调用 `SendBatchHandler.OnSendBatch`
        - shard 较多时按总缓冲槽位上限动态降低单 shard 容量，避免 worker 数扩张导致启动期常驻内存线性放大
      - SEND 微批只作为入口批处理 hint；个人频道归一化、权限检查和最终严格顺序仍在 `internal/access/gateway` → `internal/usecase/message` → `pkg/channel` 链路内完成
      - Handler 未实现 `SendBatchHandler` 时，worker 保持原顺序逐帧调用 `dispatchFrame`
