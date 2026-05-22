@@ -143,7 +143,7 @@ func (a *App) prepareSend(ctx context.Context, cmd SendCommand) (preparedSend, b
 		appendCmd.ChannelID = runtimechannelid.ToCommandChannel(cmd.ChannelID)
 	}
 
-	if a.cluster == nil {
+	if a.appender == nil {
 		fields := append([]wklog.Field{
 			wklog.Event("message.send.cluster.required"),
 		}, messageLogFields(channel.ChannelID{ID: appendCmd.ChannelID, Type: appendCmd.ChannelType}, appendCmd.FromUID)...)
@@ -264,7 +264,7 @@ func (a *App) sendRequestScoped(ctx context.Context, cmd SendCommand) (SendResul
 	if a.dispatcher == nil {
 		return SendResult{}, ErrCommittedDispatcherRequired
 	}
-	if a.cluster == nil {
+	if a.appender == nil {
 		channelID := channel.ChannelID{ID: scopedCmd.ChannelID, Type: scopedCmd.ChannelType}
 		fields := append([]wklog.Field{
 			wklog.Event("message.send.cluster.required"),
@@ -343,17 +343,17 @@ func (a *App) sendDurableSegment(segment durableSendSegment, results []SendBatch
 	startedAt := a.now()
 	segmentCtx, cancel := segmentContext(active)
 	defer cancel()
-	appendResult, err := sendBatchWithEnsuredMeta(segmentCtx, a.localNodeID, a.now, a.sendLogger(),
-		a.cluster, a.remoteAppender, a.refresher, a.appendMetrics, channel.AppendBatchRequest{
-			ChannelID:             channelID,
-			Messages:              messages,
-			SupportsMessageSeqU64: segment.key.supportsMessageSeqU64,
-			CommitMode:            segment.key.commitMode,
-			ExpectedChannelEpoch:  segment.key.expectedChannelEpoch,
-			ExpectedLeaderEpoch:   segment.key.expectedLeaderEpoch,
-			TraceID:               active[0].cmd.TraceID,
-			Attempt:               0,
-		})
+	appendReq := channel.AppendBatchRequest{
+		ChannelID:             channelID,
+		Messages:              messages,
+		SupportsMessageSeqU64: segment.key.supportsMessageSeqU64,
+		CommitMode:            segment.key.commitMode,
+		ExpectedChannelEpoch:  segment.key.expectedChannelEpoch,
+		ExpectedLeaderEpoch:   segment.key.expectedLeaderEpoch,
+		TraceID:               active[0].cmd.TraceID,
+		Attempt:               0,
+	}
+	appendResult, err := a.appendDurableBatch(segmentCtx, appendReq)
 	duration := sendtrace.Elapsed(startedAt, a.now())
 	if err != nil {
 		for _, item := range active {
@@ -418,6 +418,48 @@ func (a *App) sendDurableSegment(segment durableSendSegment, results []SendBatch
 		}
 		results[item.index] = SendBatchItemResult{Result: sendResult}
 	}
+}
+
+func (a *App) appendDurableBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	if a == nil || a.appender == nil {
+		return channel.AppendBatchResult{}, ErrClusterRequired
+	}
+	startedAt := time.Now()
+	result, err := a.appender.AppendBatch(ctx, req)
+	if err != nil {
+		fields := append([]wklog.Field{
+			wklog.Event("message.send.append_batch.failed"),
+		}, messageLogFields(req.ChannelID, appendBatchFromUID(req))...)
+		fields = append(fields, wklog.Error(err))
+		a.sendLogger().Error("append batch failed", fields...)
+	}
+	observeMessageAppend(a.appendMetrics, "channelplane", appendMetricResult(err), time.Since(startedAt))
+	return result, err
+}
+
+func appendBatchFromUID(req channel.AppendBatchRequest) string {
+	if len(req.Messages) == 0 {
+		return ""
+	}
+	return req.Messages[0].FromUID
+}
+
+type messageAppendMetrics interface {
+	ObserveAppend(path, result string, dur time.Duration)
+}
+
+func observeMessageAppend(metrics messageAppendMetrics, path, result string, dur time.Duration) {
+	if metrics == nil {
+		return
+	}
+	metrics.ObserveAppend(path, result, dur)
+}
+
+func appendMetricResult(err error) string {
+	if err != nil {
+		return "error"
+	}
+	return "ok"
 }
 
 func segmentContext(items []preparedSend) (context.Context, context.CancelFunc) {

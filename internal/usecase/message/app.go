@@ -29,8 +29,11 @@ var (
 )
 
 type Options struct {
-	IdentityStore       IdentityStore
-	ChannelStore        ChannelStore
+	IdentityStore IdentityStore
+	ChannelStore  ChannelStore
+	// ChannelAppender owns durable channel append routing.
+	ChannelAppender ChannelAppender
+	// Cluster is a legacy alias for ChannelAppender while app wiring moves to channelplane.
 	Cluster             ChannelCluster
 	MessageReader       ChannelMessageReader
 	MetaRefresher       MetaRefresher
@@ -69,10 +72,8 @@ type Options struct {
 type App struct {
 	identities             IdentityStore
 	channels               ChannelStore
-	cluster                ChannelCluster
+	appender               ChannelAppender
 	messageReader          ChannelMessageReader
-	refresher              MetaRefresher
-	remoteAppender         RemoteAppender
 	online                 online.Registry
 	delivery               online.Delivery
 	recipients             RecipientDirectory
@@ -109,15 +110,16 @@ func New(opts Options) *App {
 	if opts.Logger == nil {
 		opts.Logger = wklog.NewNop()
 	}
+	if opts.ChannelAppender == nil {
+		opts.ChannelAppender = opts.Cluster
+	}
 	permissions := newPermissionCache(opts.PermissionStore, opts.PermissionCacheTTL, opts.Now)
 
 	return &App{
 		identities:             opts.IdentityStore,
 		channels:               opts.ChannelStore,
-		cluster:                opts.Cluster,
+		appender:               opts.ChannelAppender,
 		messageReader:          opts.MessageReader,
-		refresher:              opts.MetaRefresher,
-		remoteAppender:         opts.RemoteAppender,
 		online:                 opts.Online,
 		delivery:               opts.Delivery,
 		recipients:             opts.Recipients,
