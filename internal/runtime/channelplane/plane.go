@@ -40,6 +40,7 @@ func New(opts Options) (*Plane, error) {
 			Client:          opts.PeerClient,
 			LaneCount:       opts.PeerLaneCount,
 			MaxBatchWait:    opts.PeerBatchMaxWait,
+			RPCTimeout:      opts.PeerRPCTimeout,
 			MaxBatchRecords: opts.PeerBatchMaxRecords,
 			MaxBatchBytes:   opts.PeerBatchMaxBytes,
 			MaxPending:      opts.PeerMaxPending,

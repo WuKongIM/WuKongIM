@@ -37,6 +37,8 @@ type PeerReactorOptions struct {
 	MaxBatchBytes int
 	// MaxPending bounds queued and inflight appends per peer lane.
 	MaxPending int
+	// RPCTimeout bounds one remote AppendBatches RPC. Zero leaves the caller or parent context deadline unchanged.
+	RPCTimeout time.Duration
 }
 
 type peerLaneKey struct {
@@ -48,6 +50,7 @@ type peerAppendTask struct {
 	ctx      context.Context
 	envelope AppendBatchEnvelope
 	done     chan peerAppendResult
+	once     sync.Once
 }
 
 type peerAppendResult struct {
@@ -175,6 +178,7 @@ func (p *PeerReactor) AppendRemoteBatch(ctx context.Context, nodeID channel.Node
 	case result := <-task.done:
 		return result.result, result.err
 	case <-ctx.Done():
+		lane.complete(task, channel.AppendBatchResult{}, ctx.Err())
 		return channel.AppendBatchResult{}, ctx.Err()
 	}
 }
@@ -302,7 +306,7 @@ func (l *peerLane) run() {
 		batch = nil
 		batchBytes = 0
 		stopTimer()
-		l.flush(tasks)
+		go l.flush(tasks)
 	}
 	for {
 		select {
@@ -356,7 +360,15 @@ func (l *peerLane) flush(tasks []*peerAppendTask) {
 	if len(kept) == 0 {
 		return
 	}
-	resp, err := l.parent.opts.Client.AppendBatches(l.parent.ctx, l.key.nodeID, req)
+	rpcCtx := l.parent.ctx
+	var cancel context.CancelFunc
+	if l.parent.opts.RPCTimeout > 0 {
+		rpcCtx, cancel = context.WithTimeout(rpcCtx, l.parent.opts.RPCTimeout)
+	}
+	if cancel != nil {
+		defer cancel()
+	}
+	resp, err := l.parent.opts.Client.AppendBatches(rpcCtx, l.key.nodeID, req)
 	if err != nil {
 		for _, task := range kept {
 			l.complete(task, channel.AppendBatchResult{}, err)
@@ -377,8 +389,10 @@ func (l *peerLane) flush(tasks []*peerAppendTask) {
 }
 
 func (l *peerLane) complete(task *peerAppendTask, result channel.AppendBatchResult, err error) {
-	l.release()
-	task.done <- peerAppendResult{result: result, err: err}
+	task.once.Do(func() {
+		l.release()
+		task.done <- peerAppendResult{result: result, err: err}
+	})
 }
 
 func appendRemoteResult(result AppendBatchRemoteResult) (channel.AppendBatchResult, error) {

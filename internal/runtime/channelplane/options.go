@@ -56,6 +56,8 @@ type Options struct {
 	PeerLaneCount int
 	// PeerBatchMaxWait bounds how long a peer lane waits before flushing a partial batch.
 	PeerBatchMaxWait time.Duration
+	// PeerRPCTimeout bounds one remote AppendBatches RPC. Zero leaves peer RPCs bound by caller or parent context only.
+	PeerRPCTimeout time.Duration
 	// PeerBatchMaxRecords bounds one remote append RPC by number of channel batches.
 	PeerBatchMaxRecords int
 	// PeerBatchMaxBytes bounds one remote append RPC by estimated serialized size.
