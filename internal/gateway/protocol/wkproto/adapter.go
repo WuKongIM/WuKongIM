@@ -1,6 +1,7 @@
 package wkproto
 
 import (
+	"github.com/WuKongIM/WuKongIM/internal/gateway/protocol"
 	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	gatewaytypes "github.com/WuKongIM/WuKongIM/internal/gateway/types"
 	"github.com/WuKongIM/WuKongIM/internal/gateway/wkprotoenc"
@@ -14,6 +15,8 @@ type Adapter struct {
 	codec *codec.WKProto
 }
 
+var _ protocol.DecodedFrameOwner = (*Adapter)(nil)
+
 func New() *Adapter {
 	return &Adapter{
 		codec: codec.New(),
@@ -25,6 +28,11 @@ func (a *Adapter) Name() string {
 		return ""
 	}
 	return Name
+}
+
+// OwnsDecodedFrames reports that WKProto Decode returns frames backed by immutable input bytes.
+func (a *Adapter) OwnsDecodedFrames() bool {
+	return a != nil
 }
 
 func (a *Adapter) Decode(sess session.Session, in []byte) ([]frame.Frame, int, error) {

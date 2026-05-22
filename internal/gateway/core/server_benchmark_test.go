@@ -45,6 +45,7 @@ func TestServerAsyncSendDispatchUsesBoundedWorkers(t *testing.T) {
 			ChannelType: 2,
 			Payload:     make([]byte, 128),
 		},
+		ownsDecodedFrames: true,
 	}
 	srv, transportFactory := newBenchmarkGatewayServer(t, handler, proto, gateway.SessionOptions{
 		IdleTimeout: -1,
@@ -133,6 +134,7 @@ func BenchmarkServerSendDispatch(b *testing.B) {
 			ChannelType: 2,
 			Payload:     make([]byte, 128),
 		},
+		ownsDecodedFrames: true,
 	}
 	srv, transportFactory := newBenchmarkGatewayServer(b, handler, proto, gateway.SessionOptions{
 		IdleTimeout: -1,
@@ -223,13 +225,18 @@ func newBenchmarkGatewayServer(b testingHelper, handler gateway.Handler, proto *
 }
 
 type benchmarkGatewayProtocol struct {
-	name   string
-	frame  frame.Frame
-	frames []frame.Frame
+	name              string
+	frame             frame.Frame
+	frames            []frame.Frame
+	ownsDecodedFrames bool
 }
 
 func (p *benchmarkGatewayProtocol) Name() string {
 	return p.name
+}
+
+func (p *benchmarkGatewayProtocol) OwnsDecodedFrames() bool {
+	return p != nil && p.ownsDecodedFrames
 }
 
 func (p *benchmarkGatewayProtocol) Decode(_ session.Session, in []byte) ([]frame.Frame, int, error) {
