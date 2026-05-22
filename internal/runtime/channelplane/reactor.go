@@ -18,6 +18,7 @@ type reactor struct {
 
 	submitMu sync.Mutex
 	stopped  bool
+	ready    scheduler
 	cells    map[channel.ChannelKey]*channelCell
 }
 
@@ -93,6 +94,7 @@ func (r *reactor) run() {
 		select {
 		case event := <-r.inbox:
 			r.handle(event)
+			r.drainReady(64)
 		case <-r.stopc:
 			r.failAll(ErrClosed)
 			r.drainInbox(ErrClosed)
@@ -106,8 +108,9 @@ func (r *reactor) handle(event reactorEvent) {
 	case reactorEventAppend:
 		key := channelhandler.KeyFromChannelID(event.cmd.req.ChannelID)
 		cell := r.cell(key)
-		cell.enqueue(event.cmd)
-		cell.tryStart()
+		if cell.enqueue(event.cmd) {
+			r.markReady(key)
+		}
 	case reactorEventResolveComplete:
 		if cell := r.cells[event.completion.key]; cell != nil {
 			cell.handleResolveComplete(event.completion)
@@ -115,6 +118,22 @@ func (r *reactor) handle(event reactorEvent) {
 	case reactorEventAppendComplete:
 		if cell := r.cells[event.completion.key]; cell != nil {
 			cell.handleAppendComplete(event.completion)
+		}
+	}
+}
+
+func (r *reactor) markReady(key channel.ChannelKey) {
+	r.ready.markReady(key)
+}
+
+func (r *reactor) drainReady(limit int) {
+	for i := 0; i < limit; i++ {
+		key, ok := r.ready.pop()
+		if !ok {
+			return
+		}
+		if cell := r.cells[key]; cell != nil {
+			cell.tryStart()
 		}
 	}
 }
