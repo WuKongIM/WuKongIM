@@ -62,6 +62,9 @@ func supportedConfigExampleKeys() []string {
 		"WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE",
 		"WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES",
 		"WK_CHANNEL_MESSAGE_RETENTION_TTL",
+		"WK_CHANNEL_PLANE_PEER_BATCH_MAX_WAIT",
+		"WK_CHANNEL_PLANE_PEER_LANE_COUNT",
+		"WK_CHANNEL_PLANE_REACTOR_COUNT",
 		"WK_CONVERSATION_ACTIVE_HINT_BARRIER_TTL",
 		"WK_CONVERSATION_ACTIVE_HINT_FLUSH_BATCH_SIZE",
 		"WK_CONVERSATION_ACTIVE_HINT_FLUSH_INTERVAL",
@@ -1060,6 +1063,54 @@ func TestConfigDefaultsClusterMaxChannelsToUnlimited(t *testing.T) {
 	require.Zero(t, cfg.Cluster.MaxChannels)
 	require.Zero(t, cfg.Cluster.ChannelIdleTimeout)
 	require.Zero(t, cfg.Cluster.ChannelIdleScanInterval)
+}
+
+func TestConfigChannelPlaneDefaults(t *testing.T) {
+	cfg := validConfig()
+
+	require.NoError(t, cfg.ApplyDefaultsAndValidate())
+
+	require.GreaterOrEqual(t, cfg.ChannelPlane.ReactorCount, 4)
+	require.GreaterOrEqual(t, cfg.ChannelPlane.PeerLaneCount, 1)
+	require.LessOrEqual(t, cfg.ChannelPlane.PeerLaneCount, 8)
+	require.Equal(t, 500*time.Microsecond, cfg.ChannelPlane.PeerBatchMaxWait)
+}
+
+func TestConfigRejectsInvalidChannelPlaneValues(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*Config)
+		wantErr string
+	}{
+		{
+			name: "negative reactor count",
+			mutate: func(cfg *Config) {
+				cfg.ChannelPlane.ReactorCount = -1
+			},
+			wantErr: "channel plane reactor count",
+		},
+		{
+			name: "negative peer lane count",
+			mutate: func(cfg *Config) {
+				cfg.ChannelPlane.PeerLaneCount = -1
+			},
+			wantErr: "channel plane peer lane count",
+		},
+		{
+			name: "negative peer batch max wait",
+			mutate: func(cfg *Config) {
+				cfg.ChannelPlane.PeerBatchMaxWait = -time.Microsecond
+			},
+			wantErr: "channel plane peer batch max wait",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validConfig()
+			tt.mutate(&cfg)
+			require.ErrorContains(t, cfg.ApplyDefaultsAndValidate(), tt.wantErr)
+		})
+	}
 }
 
 func TestConfigDefaultsChannelExecutionModeToPooled(t *testing.T) {

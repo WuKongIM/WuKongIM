@@ -10,6 +10,7 @@ import (
 
 const (
 	apiStopTimeout                  = 5 * time.Second
+	activeHintStopTimeout           = time.Second
 	defaultDataPlaneDialTimeout     = 5 * time.Second
 	defaultManagedSlotsReadyTimeout = 30 * time.Second
 )
@@ -326,13 +327,22 @@ func (a *App) stopConversationActiveHints(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	ctx, cancel := context.WithTimeout(ctx, activeHintStopTimeout)
+	defer cancel()
+	// Active hints are best-effort; a slow flush should not block app shutdown.
 	if a.stopConversationActiveHintsFn != nil {
-		return a.stopConversationActiveHintsFn(ctx)
+		if err := a.stopConversationActiveHintsFn(ctx); err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+			return err
+		}
+		return nil
 	}
 	if a.conversationActiveHints == nil {
 		return nil
 	}
-	return a.conversationActiveHints.StopContext(ctx)
+	if err := a.conversationActiveHints.StopContext(ctx); err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+		return err
+	}
+	return nil
 }
 
 func (a *App) stopDeliveryRuntime(ctx context.Context) error {

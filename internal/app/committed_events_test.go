@@ -70,7 +70,7 @@ func TestSendReturnsSuccessWhenCommittedSubscriberFailsAfterDurableAppend(t *tes
 			return errors.New("subscriber failed")
 		}),
 	}}
-	cluster := &fanoutMessageCluster{result: channel.AppendResult{
+	cluster := &fanoutMessageAppender{result: channel.AppendResult{
 		MessageID:  202,
 		MessageSeq: 8,
 		Message: channel.Message{
@@ -82,8 +82,7 @@ func TestSendReturnsSuccessWhenCommittedSubscriberFailsAfterDurableAppend(t *tes
 		},
 	}}
 	messages := messageusecase.New(messageusecase.Options{
-		Cluster:             cluster,
-		MetaRefresher:       fanoutMetaRefresher{},
+		ChannelAppender:     cluster,
 		CommittedDispatcher: fanout,
 	})
 
@@ -107,19 +106,17 @@ func (f committedSubscriberFunc) SubmitCommitted(ctx context.Context, event mess
 	return f(ctx, event)
 }
 
-type fanoutMessageCluster struct {
+type fanoutMessageAppender struct {
 	result   channel.AppendResult
 	requests []channel.AppendRequest
 }
 
-func (c *fanoutMessageCluster) ApplyMeta(channel.Meta) error { return nil }
-
-func (c *fanoutMessageCluster) Append(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
+func (c *fanoutMessageAppender) Append(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
 	c.requests = append(c.requests, req)
 	return c.result, nil
 }
 
-func (c *fanoutMessageCluster) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+func (c *fanoutMessageAppender) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
 	for _, msg := range req.Messages {
 		c.requests = append(c.requests, channel.AppendRequest{
 			ChannelID:             req.ChannelID,
@@ -137,10 +134,4 @@ func (c *fanoutMessageCluster) AppendBatch(_ context.Context, req channel.Append
 		MessageSeq: c.result.MessageSeq,
 		Message:    c.result.Message,
 	}}}, nil
-}
-
-type fanoutMetaRefresher struct{}
-
-func (fanoutMetaRefresher) RefreshChannelMeta(context.Context, channel.ChannelID) (channel.Meta, error) {
-	return channel.Meta{}, nil
 }

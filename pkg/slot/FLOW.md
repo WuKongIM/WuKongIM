@@ -3,7 +3,7 @@
 ## 1. 职责定位
 
 基于 Multi-Raft 的分布式元数据存储层。集群元数据按 Slot 分片到多个独立 Raft Group 中管理，每个 Slot 负责一部分键空间（用户、频道、订阅者、会话状态等）。
-**不负责**: 消息日志存储（由 channel 负责）、Slot 的副本分配决策（由 controller 负责）。
+**不负责**: 消息日志存储（由 channel 负责）、Slot 的副本分配决策（由 controller 负责）、跨节点 durable send 寻址 / 重路由（由 `internal/runtime/channelplane` 负责）。
 
 ## 2. 子包分工
 
@@ -59,7 +59,7 @@ Runtime.ChangeConfig / TransferLeadership / CompactLog / Status
 | `Status` | multiraft/types.go | Runtime 观测：Leader、Peers、CurrentVoters、Term/Index 等；CurrentVoters 来自当前 Raft conf state |
 | `Storage` interface | multiraft/types.go | Raft 日志存储抽象：InitialState / Entries / Save / MarkApplied |
 | `User` / `Channel` / `Device` | meta/*.go | 业务数据模型；`Channel` 现在持久化 `Ban` / `Disband` / `SendBan` / `AllowStranger` / `SubscriberMutationVersion` |
-| `ChannelRuntimeMeta` | meta/channel_runtime_meta.go | Leader/ISR/Epoch、write-fence 与权威保留边界运行时元数据 |
+| `ChannelRuntimeMeta` | meta/channel_runtime_meta.go | Leader/ISR/Epoch、RouteGeneration、write-fence 与权威保留边界运行时元数据 |
 | `ChannelMigrationTask` | meta/channel_migration_task.go | Channel leader transfer / replica replace 的权威任务、owner lease、进度与 terminal retention 索引 |
 | `CMDConversationState` | meta/cmd_conversation_state.go | UID-owned CMD 离线同步工作集与 read cursor，独立于普通会话状态 |
 | `Raft Logger` | multiraft/logging.go | `wklog` 结构化日志，模块 `slot.raft`，附带 `raftScope=slot` / `nodeID` / `slotID` / `raftEvent`；heartbeat/read-index/probe 类噪声按 Debug 输出 |
@@ -285,8 +285,8 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **迁移期 Delta 是受限例外**: Controller 把迁移推进到 `PhaseDelta` 后，源 Slot 的 `fsm.stateMachine` 会由 `cluster` 注入 delta forwarder，把 live write 包装成 `apply_delta` 转发到目标 Slot；目标 Slot 只对这类 `apply_delta` 放开迁移中的 hash slot，普通命令仍按最终归属校验拒绝。
 - **CreateUser 幂等**: `Store.CreateUser` 先权威 RPC 查询避免重复，但 Raft Apply 层的 `CreateUser` 仍需是幂等的（并发场景下已存在时跳过，不能 fail Slot）。见 `meta/batch.go:CreateUser`。
 - **ListChannelRuntimeMeta 扇出**: `store.go:102` 遍历所有 SlotID 发 RPC，N 个 Slot 就是 N 次 RPC，慎用。
-- **ChannelRuntimeMeta 写入单调保护**: `UpsertChannelRuntimeMeta` 会拒绝更旧的 `ChannelEpoch` / `LeaderEpoch`，同一 epoch 下也不会切换到不同 leader 或缩短 leader lease；已接受的写入不会降低 `RetentionThroughSeq`，相同边界下不会回退 `RetentionUpdatedAtMS`；write-fence 字段是同一通道的权威 fence 状态，`set/renew/reset/clear` 必须通过更高的 `WriteFenceVersion` 表达有效更新，单调写入不能清空或回退已有 fence；repair / bootstrap 必须通过更高 epoch 或更长 lease 表达有效更新。
-- **RuntimeMeta RPC 版本兼容**: `runtime_meta` v2 response 携带 `WriteFence*` 字段；v1 request/response 必须继续可解码，new caller 可先尝试 v2，遇到旧节点不支持 request codec 时回退 v1，responder 必须按 request codec 版本回包。
+- **ChannelRuntimeMeta 写入单调保护**: `UpsertChannelRuntimeMeta` 会拒绝更旧的 `ChannelEpoch` / `LeaderEpoch` / `RouteGeneration`，同一 epoch 下也不会切换到不同 leader 或缩短 leader lease；已接受的写入不会降低 `RetentionThroughSeq`，相同边界下不会回退 `RetentionUpdatedAtMS`；write-fence 字段是同一通道的权威 fence 状态，`set/renew/reset/clear` 必须通过更高的 `WriteFenceVersion` 表达有效更新，单调写入不能清空或回退已有 fence；repair / bootstrap 必须通过更高 epoch、RouteGeneration 或更长 lease 表达有效更新。
+- **RuntimeMeta RPC 版本兼容**: `runtime_meta` v2 response 携带 `RouteGeneration` 和 `WriteFence*` 字段；v1 request/response 必须继续可解码，new caller 可先尝试 v2，遇到旧节点不支持 request codec 时回退 v1，responder 必须按 request codec 版本回包。
 - **Channel 迁移 cutover proof**: `CommitChannelLeaderTransfer` 和 `PromoteLearnerAndRemoveReplica` 必须同时验证活跃 fence、`DrainedFenceVersion == meta.WriteFenceVersion`、`DrainedChannelEpoch == meta.ChannelEpoch`、`DrainedLeaderEpoch == meta.LeaderEpoch`、`DrainedLeaderNode == meta.Leader`，否则按 `stale_meta` 处理，避免过期 drain proof 继续切换。
 - **Channel 迁移恢复/回滚边界**: `ResetChannelWriteFenceToPreCutover` 只能作为已过期 fence 的恢复命令；`PromoteLearnerAndRemoveReplica` 要求 target 仍是 learner（在 `Replicas` 但不在 `ISR`）；`AbortChannelMigration` 只在 replica replace 且 target 仍未进入 `ISR` 时移除 unpromoted learner，leader transfer abort 不删除非 ISR 副本。
 - **Channel 迁移不可逆边界**: drain 后续租 fence 会提升 `WriteFenceVersion` 并清空旧 `Cutover*` / `Drained*` proof，后续 cutover 必须重新 drain；clear 只能从 leader transfer 的 `VerifyNewLeader` 或 replica replace 的 `VerifyMembership` 完成（embedded leader transfer 的 clear 只能回到 `AddLearner`）；abort 只允许在 leader commit / promote 之前的可回滚阶段，且只有已经越过 `AddLearner` 的 replica replace 才会移除 unpromoted learner，不能把已提交 leader transfer 或已 promote 的任务标成 aborted。

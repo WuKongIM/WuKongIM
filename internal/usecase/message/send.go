@@ -145,11 +145,11 @@ func (a *App) prepareSend(ctx context.Context, cmd SendCommand) (preparedSend, b
 
 	if a.appender == nil {
 		fields := append([]wklog.Field{
-			wklog.Event("message.send.cluster.required"),
+			wklog.Event("message.send.channel_appender.required"),
 		}, messageLogFields(channel.ChannelID{ID: appendCmd.ChannelID, Type: appendCmd.ChannelType}, appendCmd.FromUID)...)
-		fields = append(fields, wklog.Error(ErrClusterRequired))
-		a.sendLogger().Error("message cluster is required", fields...)
-		return preparedSend{err: ErrClusterRequired}, true
+		fields = append(fields, wklog.Error(ErrChannelAppenderRequired))
+		a.sendLogger().Error("message channel appender is required", fields...)
+		return preparedSend{err: ErrChannelAppenderRequired}, true
 	}
 
 	return preparedSend{ctx: ctx, cmd: appendCmd}, false
@@ -267,11 +267,11 @@ func (a *App) sendRequestScoped(ctx context.Context, cmd SendCommand) (SendResul
 	if a.appender == nil {
 		channelID := channel.ChannelID{ID: scopedCmd.ChannelID, Type: scopedCmd.ChannelType}
 		fields := append([]wklog.Field{
-			wklog.Event("message.send.cluster.required"),
+			wklog.Event("message.send.channel_appender.required"),
 		}, messageLogFields(channelID, scopedCmd.FromUID)...)
-		fields = append(fields, wklog.Error(ErrClusterRequired))
-		a.sendLogger().Error("message cluster is required", fields...)
-		return SendResult{}, ErrClusterRequired
+		fields = append(fields, wklog.Error(ErrChannelAppenderRequired))
+		a.sendLogger().Error("message channel appender is required", fields...)
+		return SendResult{}, ErrChannelAppenderRequired
 	}
 
 	return a.sendDurable(ctx, scopedCmd)
@@ -422,7 +422,7 @@ func (a *App) sendDurableSegment(segment durableSendSegment, results []SendBatch
 
 func (a *App) appendDurableBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
 	if a == nil || a.appender == nil {
-		return channel.AppendBatchResult{}, ErrClusterRequired
+		return channel.AppendBatchResult{}, ErrChannelAppenderRequired
 	}
 	startedAt := time.Now()
 	result, err := a.appender.AppendBatch(ctx, req)

@@ -27,13 +27,13 @@ func TestSendHookInvokedAfterPermissionAndMutatesDurablePayload(t *testing.T) {
 	permissions := newFakePermissionStore()
 	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{ChannelID: "g1", ChannelType: int64(frame.ChannelTypeGroup)}
 	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
-	cluster := &fakeChannelCluster{sendReplies: []fakeChannelClusterSendReply{{result: channel.AppendResult{MessageID: 501, MessageSeq: 51}}}}
+	cluster := &fakeChannelAppender{sendReplies: []fakeChannelAppenderSendReply{{result: channel.AppendResult{MessageID: 501, MessageSeq: 51}}}}
 	hook := &recordingSendHook{mutate: func(cmd SendCommand) SendCommand {
 		cmd.Payload = []byte("mutated")
 		cmd.Topic = "hook-topic"
 		return cmd
 	}}
-	app := New(Options{Now: fixedNowFn, Cluster: cluster, MetaRefresher: &fakeMetaRefresher{}, PermissionStore: permissions, SendHook: hook})
+	app := New(Options{Now: fixedNowFn, ChannelAppender: cluster, PermissionStore: permissions, SendHook: hook})
 
 	result, err := app.Send(context.Background(), SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, Payload: []byte("original")})
 
@@ -61,12 +61,12 @@ func TestSendHookNotInvokedWhenPermissionRejects(t *testing.T) {
 }
 
 func TestSendHookRequestScopedSyncOnceInvokedExactlyOnce(t *testing.T) {
-	cluster := &fakeChannelCluster{sendReplies: []fakeChannelClusterSendReply{{result: channel.AppendResult{MessageID: 502, MessageSeq: 52}}}}
+	cluster := &fakeChannelAppender{sendReplies: []fakeChannelAppenderSendReply{{result: channel.AppendResult{MessageID: 502, MessageSeq: 52}}}}
 	hook := &recordingSendHook{mutate: func(cmd SendCommand) SendCommand {
 		cmd.Payload = []byte("scoped-mutated")
 		return cmd
 	}}
-	app := New(Options{Now: fixedNowFn, Cluster: cluster, MetaRefresher: &fakeMetaRefresher{}, CommittedDispatcher: &recordingCommittedDispatcher{}, SendHook: hook})
+	app := New(Options{Now: fixedNowFn, ChannelAppender: cluster, CommittedDispatcher: &recordingCommittedDispatcher{}, SendHook: hook})
 
 	result, err := app.Send(context.Background(), SendCommand{Framer: frame.Framer{SyncOnce: true}, FromUID: "system", RequestSubscribers: []string{"u1", "u2"}, Payload: []byte("scoped")})
 
@@ -118,9 +118,9 @@ func TestSendHookUnsupportedChannelTypeDoesNotInvokeHook(t *testing.T) {
 }
 
 func TestSendHookReasonRejectsBeforeAppend(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	hook := &recordingSendHook{reason: frame.ReasonPayloadDecodeError}
-	app := New(Options{Now: fixedNowFn, Cluster: cluster, MetaRefresher: &fakeMetaRefresher{}, SendHook: hook})
+	app := New(Options{Now: fixedNowFn, ChannelAppender: cluster, SendHook: hook})
 
 	result, err := app.Send(context.Background(), SendCommand{FromUID: "u1", ChannelID: "u2", ChannelType: frame.ChannelTypePerson, Payload: []byte("bad")})
 
@@ -132,7 +132,7 @@ func TestSendHookReasonRejectsBeforeAppend(t *testing.T) {
 
 func TestSendHookPluginOriginDepthAndLimit(t *testing.T) {
 	hook := &recordingSendHook{}
-	app := New(Options{Now: fixedNowFn, Cluster: &fakeChannelCluster{}, MetaRefresher: &fakeMetaRefresher{}, SendHook: hook})
+	app := New(Options{Now: fixedNowFn, ChannelAppender: &fakeChannelAppender{}, SendHook: hook})
 
 	_, err := app.Send(context.Background(), SendCommand{Origin: SendOriginPlugin, HookDepth: DefaultPluginSendMaxHookDepth, FromUID: "plugin-a", ChannelID: "u2", ChannelType: frame.ChannelTypePerson, Payload: []byte("loop")})
 	require.ErrorIs(t, err, ErrSendHookDepthExceeded)
@@ -146,9 +146,9 @@ func TestSendHookPluginOriginDepthAndLimit(t *testing.T) {
 }
 
 func TestSendHookSkipPluginHooksBypassesHook(t *testing.T) {
-	cluster := &fakeChannelCluster{sendReplies: []fakeChannelClusterSendReply{{result: channel.AppendResult{MessageID: 503, MessageSeq: 53}}}}
+	cluster := &fakeChannelAppender{sendReplies: []fakeChannelAppenderSendReply{{result: channel.AppendResult{MessageID: 503, MessageSeq: 53}}}}
 	hook := &recordingSendHook{reason: frame.ReasonPayloadDecodeError}
-	app := New(Options{Now: fixedNowFn, Cluster: cluster, MetaRefresher: &fakeMetaRefresher{}, SendHook: hook})
+	app := New(Options{Now: fixedNowFn, ChannelAppender: cluster, SendHook: hook})
 
 	result, err := app.Send(context.Background(), SendCommand{SkipPluginHooks: true, FromUID: "u1", ChannelID: "u2", ChannelType: frame.ChannelTypePerson, Payload: []byte("skip")})
 
@@ -160,10 +160,10 @@ func TestSendHookSkipPluginHooksBypassesHook(t *testing.T) {
 
 func TestSendUserRateLimitRejectsBeforeExpensiveWork(t *testing.T) {
 	permissions := newFakePermissionStore()
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	hook := &recordingSendHook{}
 	limiter := &recordingUserSendLimiter{decision: userlimit.Decision{Allowed: false, Reason: userlimit.ReasonRateExceeded, RetryAfter: time.Second}}
-	app := New(Options{Now: fixedNowFn, Cluster: cluster, MetaRefresher: &fakeMetaRefresher{}, PermissionStore: permissions, SendHook: hook, UserSendLimiter: limiter})
+	app := New(Options{Now: fixedNowFn, ChannelAppender: cluster, PermissionStore: permissions, SendHook: hook, UserSendLimiter: limiter})
 
 	result, err := app.Send(context.Background(), SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, Payload: []byte("hot")})
 
@@ -180,7 +180,7 @@ func TestSendUserRateLimitRejectsBeforeExpensiveWork(t *testing.T) {
 
 func TestSendUserRateLimitPassesSystemUIDAndPluginOrigin(t *testing.T) {
 	limiter := &recordingUserSendLimiter{decision: userlimit.Decision{Allowed: true}}
-	app := New(Options{Now: fixedNowFn, Cluster: &fakeChannelCluster{}, MetaRefresher: &fakeMetaRefresher{}, UserSendLimiter: limiter, SystemUIDs: fakeSystemUIDChecker{"sys": true}})
+	app := New(Options{Now: fixedNowFn, ChannelAppender: &fakeChannelAppender{}, UserSendLimiter: limiter, SystemUIDs: fakeSystemUIDChecker{"sys": true}})
 
 	_, err := app.Send(context.Background(), SendCommand{Origin: SendOriginPlugin, FromUID: "sys", ChannelID: "u2", ChannelType: frame.ChannelTypePerson, Payload: []byte("plugin")})
 
@@ -221,8 +221,8 @@ func TestSendRejectsUnauthenticatedSender(t *testing.T) {
 }
 
 func TestSendBatchSingleItemMatchesSend(t *testing.T) {
-	newApp := func() (*App, *fakeChannelCluster) {
-		cluster := &fakeChannelCluster{sendBatchReplies: []fakeChannelClusterSendBatchReply{{
+	newApp := func() (*App, *fakeChannelAppender) {
+		cluster := &fakeChannelAppender{sendBatchReplies: []fakeChannelAppenderSendBatchReply{{
 			result: channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{
 				MessageID:  42,
 				MessageSeq: 7,
@@ -230,9 +230,8 @@ func TestSendBatchSingleItemMatchesSend(t *testing.T) {
 			}}},
 		}}}
 		return New(Options{
-			Now:           fixedNowFn,
-			Cluster:       cluster,
-			MetaRefresher: &fakeMetaRefresher{},
+			Now:             fixedNowFn,
+			ChannelAppender: cluster,
 		}), cluster
 	}
 	cmd := SendCommand{
@@ -258,13 +257,13 @@ func TestSendBatchSingleItemMatchesSend(t *testing.T) {
 }
 
 func TestSendBatchUsesChannelAppendBatchForSameChannelSegment(t *testing.T) {
-	cluster := &fakeChannelCluster{sendBatchReplies: []fakeChannelClusterSendBatchReply{{
+	cluster := &fakeChannelAppender{sendBatchReplies: []fakeChannelAppenderSendBatchReply{{
 		result: channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{
 			{MessageID: 101, MessageSeq: 1, Message: channel.Message{MessageID: 101, MessageSeq: 1}},
 			{MessageID: 102, MessageSeq: 2, Message: channel.Message{MessageID: 102, MessageSeq: 2}},
 		}},
 	}}}
-	app := New(Options{Now: fixedNowFn, Cluster: cluster, MetaRefresher: &fakeMetaRefresher{}})
+	app := New(Options{Now: fixedNowFn, ChannelAppender: cluster})
 
 	results := app.SendBatch([]SendBatchItem{
 		{Context: context.Background(), Command: SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, Payload: []byte("one"), ClientMsgNo: "b1"}},
@@ -283,8 +282,8 @@ func TestSendBatchUsesChannelAppendBatchForSameChannelSegment(t *testing.T) {
 	require.Equal(t, "b2", cluster.sendBatchRequests[0].Messages[1].ClientMsgNo)
 }
 
-func TestSendDurableUsesChannelAppenderWithoutMetaRefresher(t *testing.T) {
-	appender := &fakeChannelCluster{sendBatchReplies: []fakeChannelClusterSendBatchReply{{
+func TestSendDurableUsesChannelAppenderWithoutMetaRefreshDependency(t *testing.T) {
+	appender := &fakeChannelAppender{sendBatchReplies: []fakeChannelAppenderSendBatchReply{{
 		result: channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{
 			MessageID:  501,
 			MessageSeq: 9,
@@ -324,7 +323,7 @@ func TestSendReturnsUnsupportedChannelType(t *testing.T) {
 	require.Zero(t, result.MessageSeq)
 }
 
-func TestSendReturnsClusterRequiredWhenClusterNotConfigured(t *testing.T) {
+func TestSendReturnsChannelAppenderRequiredWhenAppenderNotConfigured(t *testing.T) {
 	app := New(Options{Now: fixedNowFn})
 
 	result, err := app.Send(context.Background(), SendCommand{
@@ -334,11 +333,11 @@ func TestSendReturnsClusterRequiredWhenClusterNotConfigured(t *testing.T) {
 		Payload:     []byte("hi"),
 	})
 
-	require.ErrorIs(t, err, ErrClusterRequired)
+	require.ErrorIs(t, err, ErrChannelAppenderRequired)
 	require.Equal(t, SendResult{}, result)
 }
 
-func TestSendNoPersistReturnsSuccessWithoutCluster(t *testing.T) {
+func TestSendNoPersistReturnsSuccessWithoutChannelAppender(t *testing.T) {
 	app := New(Options{Now: fixedNowFn})
 
 	result, err := app.Send(context.Background(), SendCommand{
@@ -356,11 +355,11 @@ func TestSendNoPersistReturnsSuccessWithoutCluster(t *testing.T) {
 }
 
 func TestSendNoPersistSkipsDurableAppendAndCommittedDispatch(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	dispatcher := &recordingCommittedDispatcher{}
 	app := New(Options{
 		Now:                 fixedNowFn,
-		Cluster:             cluster,
+		ChannelAppender:     cluster,
 		CommittedDispatcher: dispatcher,
 	})
 
@@ -449,7 +448,7 @@ func TestSendRequestScopedRejectsEmptySubscribers(t *testing.T) {
 
 func TestSendRequestScopedDurableAppendsTempCommandAndDispatchesSubscribers(t *testing.T) {
 	dispatcher := &recordingCommittedDispatcher{}
-	cluster := &fakeChannelCluster{
+	cluster := &fakeChannelAppender{
 		sendFn: func(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
 			msg := req.Message
 			msg.MessageID = 808
@@ -459,8 +458,7 @@ func TestSendRequestScopedDurableAppendsTempCommandAndDispatchesSubscribers(t *t
 	}
 	app := New(Options{
 		Now:                 fixedNowFn,
-		Cluster:             cluster,
-		MetaRefresher:       &fakeMetaRefresher{},
+		ChannelAppender:     cluster,
 		CommittedDispatcher: dispatcher,
 	})
 
@@ -497,7 +495,7 @@ func TestSendRequestScopedDurableAppendsTempCommandAndDispatchesSubscribers(t *t
 func TestSendRequestScopedDurableSubmitsCMDConversationIntent(t *testing.T) {
 	intentSink := &recordingCMDConversationIntentSink{accepted: true}
 	dispatcher := &recordingCommittedDispatcher{}
-	cluster := &fakeChannelCluster{
+	cluster := &fakeChannelAppender{
 		sendFn: func(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
 			msg := req.Message
 			msg.MessageID = 808
@@ -507,8 +505,7 @@ func TestSendRequestScopedDurableSubmitsCMDConversationIntent(t *testing.T) {
 	}
 	app := New(Options{
 		Now:                    fixedNowFn,
-		Cluster:                cluster,
-		MetaRefresher:          &fakeMetaRefresher{},
+		ChannelAppender:        cluster,
 		CommittedDispatcher:    dispatcher,
 		CMDConversationIntents: intentSink,
 	})
@@ -531,7 +528,7 @@ func TestSendRequestScopedDurableSubmitsCMDConversationIntent(t *testing.T) {
 func TestSendRequestScopedDurableLeavesIntentSubmittedFalseOnIntentFailure(t *testing.T) {
 	intentSink := &recordingCMDConversationIntentSink{err: errors.New("remote owner down")}
 	dispatcher := &recordingCommittedDispatcher{}
-	cluster := &fakeChannelCluster{
+	cluster := &fakeChannelAppender{
 		sendFn: func(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
 			msg := req.Message
 			msg.MessageID = 809
@@ -541,8 +538,7 @@ func TestSendRequestScopedDurableLeavesIntentSubmittedFalseOnIntentFailure(t *te
 	}
 	app := New(Options{
 		Now:                    fixedNowFn,
-		Cluster:                cluster,
-		MetaRefresher:          &fakeMetaRefresher{},
+		ChannelAppender:        cluster,
 		CommittedDispatcher:    dispatcher,
 		CMDConversationIntents: intentSink,
 	})
@@ -562,11 +558,10 @@ func TestSendRequestScopedDurableLeavesIntentSubmittedFalseOnIntentFailure(t *te
 }
 
 func TestSendRequestScopedDurableRequiresCommittedDispatcherBeforeAppend(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	app := New(Options{
-		Now:           fixedNowFn,
-		Cluster:       cluster,
-		MetaRefresher: &fakeMetaRefresher{},
+		Now:             fixedNowFn,
+		ChannelAppender: cluster,
 	})
 
 	result, err := app.Send(context.Background(), SendCommand{
@@ -584,15 +579,14 @@ func TestSendRequestScopedDurableRequiresCommittedDispatcherBeforeAppend(t *test
 func TestSendRequestScopedDurableReturnsDispatchError(t *testing.T) {
 	dispatchErr := errors.New("dispatcher stopped")
 	dispatcher := &recordingCommittedDispatcher{err: dispatchErr}
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 810, MessageSeq: 20}},
 		},
 	}
 	app := New(Options{
 		Now:                 fixedNowFn,
-		Cluster:             cluster,
-		MetaRefresher:       &fakeMetaRefresher{},
+		ChannelAppender:     cluster,
 		CommittedDispatcher: dispatcher,
 	})
 
@@ -610,12 +604,12 @@ func TestSendRequestScopedDurableReturnsDispatchError(t *testing.T) {
 }
 
 func TestSendRequestScopedNoPersistDispatchesRealtimeScopedEnvelope(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	realtime := &recordingRealtimeDispatcher{}
 	ids := &sequenceMessageIDGenerator{next: 909}
 	app := New(Options{
 		Now:                fixedNowFn,
-		Cluster:            cluster,
+		ChannelAppender:    cluster,
 		MessageIDs:         ids,
 		RealtimeDispatcher: realtime,
 	})
@@ -663,13 +657,13 @@ func TestSendRequestScopedNoPersistDispatchesRealtimeScopedEnvelope(t *testing.T
 }
 
 func TestSendRequestScopedNoPersistDoesNotSubmitCMDConversationIntent(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	realtime := &recordingRealtimeDispatcher{}
 	intentSink := &recordingCMDConversationIntentSink{accepted: true}
 	ids := &sequenceMessageIDGenerator{next: 911}
 	app := New(Options{
 		Now:                    fixedNowFn,
-		Cluster:                cluster,
+		ChannelAppender:        cluster,
 		MessageIDs:             ids,
 		RealtimeDispatcher:     realtime,
 		CMDConversationIntents: intentSink,
@@ -691,7 +685,7 @@ func TestSendRequestScopedNoPersistDoesNotSubmitCMDConversationIntent(t *testing
 }
 
 func TestSendNoPersistWithSyncOnceDispatchesRealtimeCommandMessage(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	dispatcher := &recordingCommittedDispatcher{}
 	realtime := &recordingRealtimeDispatcher{}
 	ids := &sequenceMessageIDGenerator{next: 910}
@@ -703,7 +697,7 @@ func TestSendNoPersistWithSyncOnceDispatchesRealtimeCommandMessage(t *testing.T)
 	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
 	app := New(Options{
 		Now:                 fixedNowFn,
-		Cluster:             cluster,
+		ChannelAppender:     cluster,
 		CommittedDispatcher: dispatcher,
 		RealtimeDispatcher:  realtime,
 		MessageIDs:          ids,
@@ -815,7 +809,7 @@ func TestSendNoPersistCommandReturnsRealtimeDispatcherError(t *testing.T) {
 }
 
 func TestSendRejectsBannedGroupBeforeDurableAppend(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	permissions := newFakePermissionStore()
 	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
 		ChannelID:   "g1",
@@ -824,7 +818,7 @@ func TestSendRejectsBannedGroupBeforeDurableAppend(t *testing.T) {
 	}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -841,7 +835,7 @@ func TestSendRejectsBannedGroupBeforeDurableAppend(t *testing.T) {
 }
 
 func TestSendRejectsSenderSendBanBeforeDurableAppend(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	permissions := newFakePermissionStore()
 	permissions.channels[permissionKey("u1", int64(frame.ChannelTypePerson))] = metadb.Channel{
 		ChannelID:   "u1",
@@ -850,7 +844,7 @@ func TestSendRejectsSenderSendBanBeforeDurableAppend(t *testing.T) {
 	}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -867,7 +861,7 @@ func TestSendRejectsSenderSendBanBeforeDurableAppend(t *testing.T) {
 }
 
 func TestSendRejectsGroupDisbandBeforeDurableAppend(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	permissions := newFakePermissionStore()
 	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
 		ChannelID:   "g1",
@@ -877,7 +871,7 @@ func TestSendRejectsGroupDisbandBeforeDurableAppend(t *testing.T) {
 	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -894,7 +888,7 @@ func TestSendRejectsGroupDisbandBeforeDurableAppend(t *testing.T) {
 }
 
 func TestSendRejectsGroupSenderInDenylistBeforeDurableAppend(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	permissions := newFakePermissionStore()
 	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
 		ChannelID:   "g1",
@@ -904,7 +898,7 @@ func TestSendRejectsGroupSenderInDenylistBeforeDurableAppend(t *testing.T) {
 	permissions.members[permissionKey(denyID, int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -921,7 +915,7 @@ func TestSendRejectsGroupSenderInDenylistBeforeDurableAppend(t *testing.T) {
 }
 
 func TestSendRejectsGroupSenderThatIsNotSubscriberBeforeDurableAppend(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	permissions := newFakePermissionStore()
 	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
 		ChannelID:   "g1",
@@ -929,7 +923,7 @@ func TestSendRejectsGroupSenderThatIsNotSubscriberBeforeDurableAppend(t *testing
 	}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -946,7 +940,7 @@ func TestSendRejectsGroupSenderThatIsNotSubscriberBeforeDurableAppend(t *testing
 }
 
 func TestSendRejectsGroupSenderNotInNonEmptyAllowlistBeforeDurableAppend(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	permissions := newFakePermissionStore()
 	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
 		ChannelID:   "g1",
@@ -958,7 +952,7 @@ func TestSendRejectsGroupSenderNotInNonEmptyAllowlistBeforeDurableAppend(t *test
 	permissions.members[permissionKey(allowID, int64(frame.ChannelTypeGroup))] = map[string]bool{"u2": true}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -975,8 +969,8 @@ func TestSendRejectsGroupSenderNotInNonEmptyAllowlistBeforeDurableAppend(t *test
 }
 
 func TestSendAllowsGroupSenderWhenSubscriberAndAllowlistEmpty(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 701, MessageSeq: 31}},
 		},
 	}
@@ -988,8 +982,7 @@ func TestSendAllowsGroupSenderWhenSubscriberAndAllowlistEmpty(t *testing.T) {
 	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
-		MetaRefresher:   &fakeMetaRefresher{},
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -1008,13 +1001,13 @@ func TestSendAllowsGroupSenderWhenSubscriberAndAllowlistEmpty(t *testing.T) {
 }
 
 func TestSendRejectsPersonSenderInReceiverDenylistBeforeDurableAppend(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	permissions := newFakePermissionStore()
 	denyID := channelmembers.DenylistChannelID(channelmembers.ChannelKey{ChannelID: "u2", ChannelType: frame.ChannelTypePerson})
 	permissions.members[permissionKey(denyID, int64(frame.ChannelTypePerson))] = map[string]bool{"u1": true}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -1031,16 +1024,15 @@ func TestSendRejectsPersonSenderInReceiverDenylistBeforeDurableAppend(t *testing
 }
 
 func TestSendAllowsPersonSenderWhenReceiverDenylistMisses(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 702, MessageSeq: 32}},
 		},
 	}
 	permissions := newFakePermissionStore()
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
-		MetaRefresher:   &fakeMetaRefresher{},
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -1059,8 +1051,8 @@ func TestSendAllowsPersonSenderWhenReceiverDenylistMisses(t *testing.T) {
 }
 
 func TestSendAllowsPersonSenderWhenPersonWhitelistDisabledByDefault(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 704, MessageSeq: 34}},
 		},
 	}
@@ -1070,8 +1062,7 @@ func TestSendAllowsPersonSenderWhenPersonWhitelistDisabledByDefault(t *testing.T
 	permissions.members[permissionKey(allowID, int64(frame.ChannelTypePerson))] = map[string]bool{"u3": true}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
-		MetaRefresher:   &fakeMetaRefresher{},
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -1090,15 +1081,14 @@ func TestSendAllowsPersonSenderWhenPersonWhitelistDisabledByDefault(t *testing.T
 }
 
 func TestSendRejectsPersonSenderNotInReceiverAllowlistWhenPersonWhitelistEnabled(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	permissions := newFakePermissionStore()
 	allowID := channelmembers.AllowlistChannelID(channelmembers.ChannelKey{ChannelID: "u2", ChannelType: frame.ChannelTypePerson})
 	permissions.hasAny[permissionKey(allowID, int64(frame.ChannelTypePerson))] = true
 	permissions.members[permissionKey(allowID, int64(frame.ChannelTypePerson))] = map[string]bool{"u3": true}
 	app := New(Options{
 		Now:                    fixedNowFn,
-		Cluster:                cluster,
-		MetaRefresher:          &fakeMetaRefresher{},
+		ChannelAppender:        cluster,
 		PermissionStore:        permissions,
 		PersonWhitelistEnabled: true,
 	})
@@ -1116,8 +1106,8 @@ func TestSendRejectsPersonSenderNotInReceiverAllowlistWhenPersonWhitelistEnabled
 }
 
 func TestSendAllowsPersonSenderInReceiverAllowlistWhenPersonWhitelistEnabled(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 705, MessageSeq: 35}},
 		},
 	}
@@ -1127,8 +1117,7 @@ func TestSendAllowsPersonSenderInReceiverAllowlistWhenPersonWhitelistEnabled(t *
 	permissions.members[permissionKey(allowID, int64(frame.ChannelTypePerson))] = map[string]bool{"u1": true}
 	app := New(Options{
 		Now:                    fixedNowFn,
-		Cluster:                cluster,
-		MetaRefresher:          &fakeMetaRefresher{},
+		ChannelAppender:        cluster,
 		PermissionStore:        permissions,
 		PersonWhitelistEnabled: true,
 	})
@@ -1148,8 +1137,8 @@ func TestSendAllowsPersonSenderInReceiverAllowlistWhenPersonWhitelistEnabled(t *
 }
 
 func TestSendAllowsPersonStrangerWhenReceiverAllowsStrangerAndWhitelistEnabled(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 710, MessageSeq: 40}},
 		},
 	}
@@ -1161,8 +1150,7 @@ func TestSendAllowsPersonStrangerWhenReceiverAllowsStrangerAndWhitelistEnabled(t
 	}
 	app := New(Options{
 		Now:                    fixedNowFn,
-		Cluster:                cluster,
-		MetaRefresher:          &fakeMetaRefresher{},
+		ChannelAppender:        cluster,
 		PermissionStore:        permissions,
 		PersonWhitelistEnabled: true,
 	})
@@ -1182,7 +1170,7 @@ func TestSendAllowsPersonStrangerWhenReceiverAllowsStrangerAndWhitelistEnabled(t
 }
 
 func TestSendRejectsPersonDenylistBeforeAllowStranger(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	permissions := newFakePermissionStore()
 	permissions.channels[permissionKey("u2", int64(frame.ChannelTypePerson))] = metadb.Channel{
 		ChannelID:     "u2",
@@ -1193,8 +1181,7 @@ func TestSendRejectsPersonDenylistBeforeAllowStranger(t *testing.T) {
 	permissions.members[permissionKey(denyID, int64(frame.ChannelTypePerson))] = map[string]bool{"u1": true}
 	app := New(Options{
 		Now:                    fixedNowFn,
-		Cluster:                cluster,
-		MetaRefresher:          &fakeMetaRefresher{},
+		ChannelAppender:        cluster,
 		PermissionStore:        permissions,
 		PersonWhitelistEnabled: true,
 	})
@@ -1223,11 +1210,10 @@ func TestSendRejectsSenderSendBanBeforeReceiverAllowStranger(t *testing.T) {
 		ChannelType:   int64(frame.ChannelTypePerson),
 		AllowStranger: 1,
 	}
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	app := New(Options{
 		Now:                    fixedNowFn,
-		Cluster:                cluster,
-		MetaRefresher:          &fakeMetaRefresher{},
+		ChannelAppender:        cluster,
 		PermissionStore:        permissions,
 		PersonWhitelistEnabled: true,
 	})
@@ -1246,11 +1232,10 @@ func TestSendRejectsSenderSendBanBeforeReceiverAllowStranger(t *testing.T) {
 
 func TestSendRejectsPersonStrangerWhenWhitelistEnabledAndReceiverMetadataMissing(t *testing.T) {
 	permissions := newFakePermissionStore()
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	app := New(Options{
 		Now:                    fixedNowFn,
-		Cluster:                cluster,
-		MetaRefresher:          &fakeMetaRefresher{},
+		ChannelAppender:        cluster,
 		PermissionStore:        permissions,
 		PersonWhitelistEnabled: true,
 	})
@@ -1274,15 +1259,14 @@ func TestSendAllowsPersonWhenWhitelistDisabledEvenReceiverDoesNotAllowStranger(t
 		ChannelType:   int64(frame.ChannelTypePerson),
 		AllowStranger: 0,
 	}
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 711, MessageSeq: 41}},
 		},
 	}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
-		MetaRefresher:   &fakeMetaRefresher{},
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -1301,11 +1285,10 @@ func TestSendAllowsPersonWhenWhitelistDisabledEvenReceiverDoesNotAllowStranger(t
 func TestSendReturnsSystemErrorWhenReceiverAllowStrangerLookupFails(t *testing.T) {
 	permissions := newFakePermissionStore()
 	permissions.channelErrs[permissionKey("u2", int64(frame.ChannelTypePerson))] = errors.New("receiver metadata failed")
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	app := New(Options{
 		Now:                    fixedNowFn,
-		Cluster:                cluster,
-		MetaRefresher:          &fakeMetaRefresher{},
+		ChannelAppender:        cluster,
 		PermissionStore:        permissions,
 		PersonWhitelistEnabled: true,
 	})
@@ -1323,8 +1306,8 @@ func TestSendReturnsSystemErrorWhenReceiverAllowStrangerLookupFails(t *testing.T
 }
 
 func TestSendAllowsPersonWhenReceiverIsSystemUID(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 706, MessageSeq: 36}},
 		},
 	}
@@ -1333,8 +1316,7 @@ func TestSendAllowsPersonWhenReceiverIsSystemUID(t *testing.T) {
 	permissions.members[permissionKey(denyID, int64(frame.ChannelTypePerson))] = map[string]bool{"u1": true}
 	app := New(Options{
 		Now:                    fixedNowFn,
-		Cluster:                cluster,
-		MetaRefresher:          &fakeMetaRefresher{},
+		ChannelAppender:        cluster,
 		PermissionStore:        permissions,
 		SystemUIDs:             fakeSystemUIDChecker{"sys": true},
 		PersonWhitelistEnabled: true,
@@ -1355,15 +1337,14 @@ func TestSendAllowsPersonWhenReceiverIsSystemUID(t *testing.T) {
 }
 
 func TestSendSyncOncePlainDurablePersonStillCanonicalizesAndAppendsOnce(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 704, MessageSeq: 34}},
 		},
 	}
 	app := New(Options{
-		Now:           fixedNowFn,
-		Cluster:       cluster,
-		MetaRefresher: &fakeMetaRefresher{},
+		Now:             fixedNowFn,
+		ChannelAppender: cluster,
 	})
 
 	result, err := app.Send(context.Background(), SendCommand{
@@ -1383,8 +1364,8 @@ func TestSendSyncOncePlainDurablePersonStillCanonicalizesAndAppendsOnce(t *testi
 }
 
 func TestSendSyncOnceNormalGroupAppendsToCommandChannelAfterPermissionChecks(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 705, MessageSeq: 35}},
 		},
 	}
@@ -1396,8 +1377,7 @@ func TestSendSyncOnceNormalGroupAppendsToCommandChannelAfterPermissionChecks(t *
 	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
-		MetaRefresher:   &fakeMetaRefresher{},
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -1419,8 +1399,8 @@ func TestSendSyncOnceNormalGroupAppendsToCommandChannelAfterPermissionChecks(t *
 }
 
 func TestSendAlreadyDerivedGroupChecksSourceAndAppendsWithoutDoubleCommandSuffix(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 706, MessageSeq: 36}},
 		},
 	}
@@ -1432,8 +1412,7 @@ func TestSendAlreadyDerivedGroupChecksSourceAndAppendsWithoutDoubleCommandSuffix
 	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
-		MetaRefresher:   &fakeMetaRefresher{},
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -1454,15 +1433,14 @@ func TestSendAlreadyDerivedGroupChecksSourceAndAppendsWithoutDoubleCommandSuffix
 }
 
 func TestSendAlreadyDerivedPersonStripsBeforeNormalizeAndRestoresCommandSuffixOnce(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 707, MessageSeq: 37}},
 		},
 	}
 	app := New(Options{
-		Now:           fixedNowFn,
-		Cluster:       cluster,
-		MetaRefresher: &fakeMetaRefresher{},
+		Now:             fixedNowFn,
+		ChannelAppender: cluster,
 	})
 
 	result, err := app.Send(context.Background(), SendCommand{
@@ -1483,7 +1461,7 @@ func TestSendAlreadyDerivedPersonStripsBeforeNormalizeAndRestoresCommandSuffixOn
 }
 
 func TestSendNoPersistWithoutSyncOnceReturnsSuccessWithoutDurableAppend(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	dispatcher := &recordingCommittedDispatcher{}
 	permissions := newFakePermissionStore()
 	permissions.channels[permissionKey("g1", int64(frame.ChannelTypeGroup))] = metadb.Channel{
@@ -1493,7 +1471,7 @@ func TestSendNoPersistWithoutSyncOnceReturnsSuccessWithoutDurableAppend(t *testi
 	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
 	app := New(Options{
 		Now:                 fixedNowFn,
-		Cluster:             cluster,
+		ChannelAppender:     cluster,
 		CommittedDispatcher: dispatcher,
 		PermissionStore:     permissions,
 	})
@@ -1515,8 +1493,8 @@ func TestSendNoPersistWithoutSyncOnceReturnsSuccessWithoutDurableAppend(t *testi
 }
 
 func TestSendSystemUIDBypassesPermissionChecks(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 703, MessageSeq: 33}},
 		},
 	}
@@ -1535,8 +1513,7 @@ func TestSendSystemUIDBypassesPermissionChecks(t *testing.T) {
 	permissions.members[permissionKey(denyID, int64(frame.ChannelTypeGroup))] = map[string]bool{"sys": true}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
-		MetaRefresher:   &fakeMetaRefresher{},
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 		SystemUIDs:      fakeSystemUIDChecker{"sys": true},
 	})
@@ -1556,8 +1533,8 @@ func TestSendSystemUIDBypassesPermissionChecks(t *testing.T) {
 }
 
 func TestSendSystemDeviceBypassesChannelPermissionChecks(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 707, MessageSeq: 37}},
 		},
 	}
@@ -1571,8 +1548,7 @@ func TestSendSystemDeviceBypassesChannelPermissionChecks(t *testing.T) {
 	permissions.members[permissionKey(denyID, int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
-		MetaRefresher:   &fakeMetaRefresher{},
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 		SystemDeviceID:  "____device",
 	})
@@ -1593,7 +1569,7 @@ func TestSendSystemDeviceBypassesChannelPermissionChecks(t *testing.T) {
 }
 
 func TestSendSystemDeviceDoesNotBypassSenderSendBan(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	permissions := newFakePermissionStore()
 	permissions.channels[permissionKey("u1", int64(frame.ChannelTypePerson))] = metadb.Channel{
 		ChannelID:   "u1",
@@ -1602,7 +1578,7 @@ func TestSendSystemDeviceDoesNotBypassSenderSendBan(t *testing.T) {
 	}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 		SystemDeviceID:  "____device",
 	})
@@ -1621,15 +1597,14 @@ func TestSendSystemDeviceDoesNotBypassSenderSendBan(t *testing.T) {
 }
 
 func TestSendAllowsInfoChannel(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 708, MessageSeq: 38}},
 		},
 	}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
-		MetaRefresher:   &fakeMetaRefresher{},
+		ChannelAppender: cluster,
 		PermissionStore: newFakePermissionStore(),
 	})
 
@@ -1649,15 +1624,14 @@ func TestSendAllowsInfoChannel(t *testing.T) {
 }
 
 func TestSendAllowsCustomerServiceChannel(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 709, MessageSeq: 39}},
 		},
 	}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
-		MetaRefresher:   &fakeMetaRefresher{},
+		ChannelAppender: cluster,
 		PermissionStore: newFakePermissionStore(),
 	})
 
@@ -1677,15 +1651,14 @@ func TestSendAllowsCustomerServiceChannel(t *testing.T) {
 }
 
 func TestSendAllowsAgentChannelParticipantAndNormalizesBareAgentID(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 710, MessageSeq: 40}},
 		},
 	}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
-		MetaRefresher:   &fakeMetaRefresher{},
+		ChannelAppender: cluster,
 		PermissionStore: newFakePermissionStore(),
 	})
 
@@ -1705,10 +1678,10 @@ func TestSendAllowsAgentChannelParticipantAndNormalizesBareAgentID(t *testing.T)
 }
 
 func TestSendRejectsAgentChannelNonParticipant(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
+		ChannelAppender: cluster,
 		PermissionStore: newFakePermissionStore(),
 	})
 
@@ -1725,15 +1698,14 @@ func TestSendRejectsAgentChannelNonParticipant(t *testing.T) {
 }
 
 func TestSendAllowsVisitorsSelfSender(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 711, MessageSeq: 41}},
 		},
 	}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
-		MetaRefresher:   &fakeMetaRefresher{},
+		ChannelAppender: cluster,
 		PermissionStore: newFakePermissionStore(),
 	})
 
@@ -1752,8 +1724,8 @@ func TestSendAllowsVisitorsSelfSender(t *testing.T) {
 }
 
 func TestSendVisitorsNonSelfUsesCustomerServicePermissionLists(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 712, MessageSeq: 42}},
 		},
 	}
@@ -1767,8 +1739,7 @@ func TestSendVisitorsNonSelfUsesCustomerServicePermissionLists(t *testing.T) {
 	permissions.members[permissionKey(allowID, int64(frame.ChannelTypeCustomerService))] = map[string]bool{"cs1": true}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
-		MetaRefresher:   &fakeMetaRefresher{},
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -1787,8 +1758,8 @@ func TestSendVisitorsNonSelfUsesCustomerServicePermissionLists(t *testing.T) {
 }
 
 func TestSendAlreadyDerivedVisitorsChecksCustomerServicePermissionSource(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 940, MessageSeq: 41}},
 		},
 	}
@@ -1796,8 +1767,7 @@ func TestSendAlreadyDerivedVisitorsChecksCustomerServicePermissionSource(t *test
 	permissions.members[permissionKey("visitor1", int64(frame.ChannelTypeCustomerService))] = map[string]bool{"agent1": true}
 	app := New(Options{
 		Now:             fixedNowFn,
-		Cluster:         cluster,
-		MetaRefresher:   &fakeMetaRefresher{},
+		ChannelAppender: cluster,
 		PermissionStore: permissions,
 	})
 
@@ -1817,11 +1787,10 @@ func TestSendAlreadyDerivedVisitorsChecksCustomerServicePermissionSource(t *test
 }
 
 func TestSendPassesTraceIDToChannelAppend(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	app := New(Options{
-		Now:           fixedNowFn,
-		Cluster:       cluster,
-		MetaRefresher: &fakeMetaRefresher{},
+		Now:             fixedNowFn,
+		ChannelAppender: cluster,
 	})
 
 	_, err := app.Send(context.Background(), SendCommand{
@@ -1843,11 +1812,10 @@ func TestSendRecordsDurableTraceWithChannelKey(t *testing.T) {
 	sink := &recordingMessageSendTraceSink{}
 	restore := sendtrace.SetSink(sink)
 	t.Cleanup(restore)
-	cluster := &fakeChannelCluster{sendReplies: []fakeChannelClusterSendReply{{result: channel.AppendResult{MessageID: 99, MessageSeq: 9}}}}
+	cluster := &fakeChannelAppender{sendReplies: []fakeChannelAppenderSendReply{{result: channel.AppendResult{MessageID: 99, MessageSeq: 9}}}}
 	app := New(Options{
-		Now:           fixedNowFn,
-		Cluster:       cluster,
-		MetaRefresher: &fakeMetaRefresher{},
+		Now:             fixedNowFn,
+		ChannelAppender: cluster,
 	})
 
 	_, err := app.Send(context.Background(), SendCommand{
@@ -1876,8 +1844,8 @@ func TestSendRecordsDurableTraceWithChannelKey(t *testing.T) {
 
 func TestSendReturnsSuccessAfterDurableWriteAndSubmitsCommittedMessage(t *testing.T) {
 	dispatcher := &recordingCommittedDispatcher{}
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{
 				MessageID:  99,
 				MessageSeq: 7,
@@ -1903,8 +1871,7 @@ func TestSendReturnsSuccessAfterDurableWriteAndSubmitsCommittedMessage(t *testin
 	}
 	app := New(Options{
 		Now:                 fixedNowFn,
-		Cluster:             cluster,
-		MetaRefresher:       &fakeMetaRefresher{},
+		ChannelAppender:     cluster,
 		CommittedDispatcher: dispatcher,
 	})
 
@@ -1965,15 +1932,14 @@ func TestSendReturnsSuccessAfterDurableWriteAndSubmitsCommittedMessage(t *testin
 }
 
 func TestSendDefaultsToQuorumCommitMode(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 88, MessageSeq: 12}},
 		},
 	}
 	app := New(Options{
-		Now:           fixedNowFn,
-		Cluster:       cluster,
-		MetaRefresher: &fakeMetaRefresher{},
+		Now:             fixedNowFn,
+		ChannelAppender: cluster,
 	})
 
 	_, err := app.Send(context.Background(), SendCommand{
@@ -1988,15 +1954,14 @@ func TestSendDefaultsToQuorumCommitMode(t *testing.T) {
 }
 
 func TestSendPropagatesLocalCommitMode(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 89, MessageSeq: 13}},
 		},
 	}
 	app := New(Options{
-		Now:           fixedNowFn,
-		Cluster:       cluster,
-		MetaRefresher: &fakeMetaRefresher{},
+		Now:             fixedNowFn,
+		ChannelAppender: cluster,
 	})
 
 	_, err := app.Send(context.Background(), SendCommand{
@@ -2012,8 +1977,8 @@ func TestSendPropagatesLocalCommitMode(t *testing.T) {
 }
 
 func TestSendHookCanOverrideCommitMode(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 90, MessageSeq: 14}},
 		},
 	}
@@ -2022,10 +1987,9 @@ func TestSendHookCanOverrideCommitMode(t *testing.T) {
 		return cmd
 	}}
 	app := New(Options{
-		Now:           fixedNowFn,
-		Cluster:       cluster,
-		MetaRefresher: &fakeMetaRefresher{},
-		SendHook:      hook,
+		Now:             fixedNowFn,
+		ChannelAppender: cluster,
+		SendHook:        hook,
 	})
 
 	result, err := app.Send(context.Background(), SendCommand{
@@ -2043,15 +2007,14 @@ func TestSendHookCanOverrideCommitMode(t *testing.T) {
 }
 
 func TestSendRecanonicalizesPrecomposedPersonChannelBeforeDurableWrite(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 88, MessageSeq: 12}},
 		},
 	}
 	app := New(Options{
-		Now:           fixedNowFn,
-		Cluster:       cluster,
-		MetaRefresher: &fakeMetaRefresher{},
+		Now:             fixedNowFn,
+		ChannelAppender: cluster,
 	})
 
 	result, err := app.Send(context.Background(), SendCommand{
@@ -2068,10 +2031,10 @@ func TestSendRecanonicalizesPrecomposedPersonChannelBeforeDurableWrite(t *testin
 }
 
 func TestSendRejectsThirdPartyPrecomposedPersonChannel(t *testing.T) {
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	app := New(Options{
-		Now:     fixedNowFn,
-		Cluster: cluster,
+		Now:             fixedNowFn,
+		ChannelAppender: cluster,
 	})
 
 	result, err := app.Send(context.Background(), SendCommand{
@@ -2088,15 +2051,14 @@ func TestSendRejectsThirdPartyPrecomposedPersonChannel(t *testing.T) {
 
 func TestSendReturnsSuccessWhenCommittedSubmitFails(t *testing.T) {
 	dispatcher := &recordingCommittedDispatcher{err: errors.New("queue full")}
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 101, MessageSeq: 5}},
 		},
 	}
 	app := New(Options{
 		Now:                 fixedNowFn,
-		Cluster:             cluster,
-		MetaRefresher:       &fakeMetaRefresher{},
+		ChannelAppender:     cluster,
 		CommittedDispatcher: dispatcher,
 	})
 
@@ -2119,8 +2081,8 @@ func TestSendReturnsSuccessWhenCommittedSubmitFails(t *testing.T) {
 
 func TestSendSubmitsCommittedMessageFromClusterResult(t *testing.T) {
 	dispatcher := &recordingCommittedDispatcher{}
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{
 				MessageID:  88,
 				MessageSeq: 7,
@@ -2139,8 +2101,7 @@ func TestSendSubmitsCommittedMessageFromClusterResult(t *testing.T) {
 	}
 	app := New(Options{
 		Now:                 fixedNowFn,
-		Cluster:             cluster,
-		MetaRefresher:       &fakeMetaRefresher{},
+		ChannelAppender:     cluster,
 		CommittedDispatcher: dispatcher,
 	})
 
@@ -2171,8 +2132,8 @@ func TestSendDoesNotPerformSynchronousDeliveryAfterDurableWrite(t *testing.T) {
 	}
 	delivery := &recordingDelivery{}
 	remote := &recordingRemoteDelivery{}
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 601, MessageSeq: 22}},
 		},
 	}
@@ -2186,8 +2147,7 @@ func TestSendDoesNotPerformSynchronousDeliveryAfterDurableWrite(t *testing.T) {
 	}
 	app := New(Options{
 		Now:                 fixedNowFn,
-		Cluster:             cluster,
-		MetaRefresher:       &fakeMetaRefresher{},
+		ChannelAppender:     cluster,
 		Online:              reg,
 		Delivery:            delivery,
 		Recipients:          recipients,
@@ -2215,14 +2175,14 @@ func TestSendDoesNotPerformSynchronousDeliveryAfterDurableWrite(t *testing.T) {
 func TestSendDurablePersonPropagatesRequestContextToChannelAppender(t *testing.T) {
 	type ctxKey string
 
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{result: channel.AppendResult{MessageID: 401, MessageSeq: 19}},
 		},
 	}
 	app := New(Options{
-		Now:     fixedNowFn,
-		Cluster: cluster,
+		Now:             fixedNowFn,
+		ChannelAppender: cluster,
 	})
 
 	ctx := context.WithValue(context.Background(), ctxKey("request"), "durable-send")
@@ -2241,16 +2201,15 @@ func TestSendDurablePersonPropagatesRequestContextToChannelAppender(t *testing.T
 }
 
 func TestSendDurablePersonReturnsContextCanceled(t *testing.T) {
-	cluster := &fakeChannelCluster{
+	cluster := &fakeChannelAppender{
 		sendFn: func(ctx context.Context, _ channel.AppendRequest) (channel.AppendResult, error) {
 			<-ctx.Done()
 			return channel.AppendResult{}, ctx.Err()
 		},
 	}
 	app := New(Options{
-		Now:           fixedNowFn,
-		Cluster:       cluster,
-		MetaRefresher: &fakeMetaRefresher{},
+		Now:             fixedNowFn,
+		ChannelAppender: cluster,
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -2271,16 +2230,15 @@ func TestSendDurablePersonReturnsContextCanceled(t *testing.T) {
 }
 
 func TestSendReturnsProtocolUpgradeRequiredWhenClusterRejectsLegacyClient(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{
 			{err: channel.ErrProtocolUpgradeRequired},
 		},
 	}
 	delivery := &recordingDelivery{}
 	app := New(Options{
-		Now:           fixedNowFn,
-		Cluster:       cluster,
-		MetaRefresher: &fakeMetaRefresher{},
+		Now:             fixedNowFn,
+		ChannelAppender: cluster,
 		Online: &fakeRegistry{
 			byUID: map[string][]online.OnlineConn{
 				"u2": {
@@ -2309,7 +2267,7 @@ func TestSendReturnsProtocolUpgradeRequiredWhenClusterRejectsLegacyClient(t *tes
 func TestNewPreservesInjectedCollaborators(t *testing.T) {
 	identities := &fakeIdentityStore{}
 	channels := &fakeChannelStore{}
-	cluster := &fakeChannelCluster{}
+	cluster := &fakeChannelAppender{}
 	reg := &fakeRegistry{}
 	delivery := &recordingDelivery{}
 	dispatcher := &recordingCommittedDispatcher{}
@@ -2325,7 +2283,7 @@ func TestNewPreservesInjectedCollaborators(t *testing.T) {
 		ChannelStore:        channels,
 		PermissionStore:     permissions,
 		SystemUIDs:          systemUIDs,
-		Cluster:             cluster,
+		ChannelAppender:     cluster,
 		Online:              reg,
 		Delivery:            delivery,
 		CommittedDispatcher: dispatcher,
@@ -2589,36 +2547,29 @@ type fakeSystemUIDChecker map[string]bool
 
 func (f fakeSystemUIDChecker) IsSystemUID(uid string) bool { return f[uid] }
 
-type fakeChannelClusterSendReply struct {
+type fakeChannelAppenderSendReply struct {
 	result channel.AppendResult
 	err    error
 }
 
-type fakeChannelClusterSendBatchReply struct {
+type fakeChannelAppenderSendBatchReply struct {
 	result channel.AppendBatchResult
 	err    error
 }
 
-type fakeChannelCluster struct {
-	appliedMetas      []channel.Meta
+type fakeChannelAppender struct {
 	sendRequests      []channel.AppendRequest
 	sendBatchRequests []channel.AppendBatchRequest
 	sendContexts      []context.Context
 	sendBatchContexts []context.Context
 	sendAppendCalls   int
-	sendReplies       []fakeChannelClusterSendReply
-	sendBatchReplies  []fakeChannelClusterSendBatchReply
+	sendReplies       []fakeChannelAppenderSendReply
+	sendBatchReplies  []fakeChannelAppenderSendBatchReply
 	sendFn            func(context.Context, channel.AppendRequest) (channel.AppendResult, error)
 	sendBatchFn       func(context.Context, channel.AppendBatchRequest) (channel.AppendBatchResult, error)
-	applyErr          error
 }
 
-func (f *fakeChannelCluster) ApplyMeta(meta channel.Meta) error {
-	f.appliedMetas = append(f.appliedMetas, meta)
-	return f.applyErr
-}
-
-func (f *fakeChannelCluster) Append(ctx context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
+func (f *fakeChannelAppender) Append(ctx context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
 	f.sendAppendCalls++
 	f.sendContexts = append(f.sendContexts, ctx)
 	f.sendRequests = append(f.sendRequests, req)
@@ -2633,7 +2584,7 @@ func (f *fakeChannelCluster) Append(ctx context.Context, req channel.AppendReque
 	return reply.result, reply.err
 }
 
-func (f *fakeChannelCluster) AppendBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+func (f *fakeChannelAppender) AppendBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
 	f.sendBatchContexts = append(f.sendBatchContexts, ctx)
 	f.sendBatchRequests = append(f.sendBatchRequests, req)
 	if len(req.Messages) == 1 {
@@ -2688,31 +2639,6 @@ func (f *fakeChannelCluster) AppendBatch(ctx context.Context, req channel.Append
 	reply := f.sendBatchReplies[0]
 	f.sendBatchReplies = f.sendBatchReplies[1:]
 	return reply.result, reply.err
-}
-
-type fakeMetaRefresher struct {
-	keys            []channel.ChannelID
-	refreshContexts []context.Context
-	metas           []channel.Meta
-	errs            []error
-}
-
-func (f *fakeMetaRefresher) RefreshChannelMeta(ctx context.Context, key channel.ChannelID) (channel.Meta, error) {
-	f.keys = append(f.keys, key)
-	f.refreshContexts = append(f.refreshContexts, ctx)
-	if len(f.errs) > 0 {
-		err := f.errs[0]
-		f.errs = f.errs[1:]
-		if err != nil {
-			return channel.Meta{}, err
-		}
-	}
-	if len(f.metas) == 0 {
-		return channel.Meta{}, nil
-	}
-	meta := f.metas[0]
-	f.metas = f.metas[1:]
-	return meta, nil
 }
 
 // recordingMessageSendTraceSink captures synchronous sendtrace events emitted by message tests.

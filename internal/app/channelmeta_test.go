@@ -7,13 +7,10 @@ import (
 	"time"
 
 	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
-	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/stretchr/testify/require"
 )
-
-var _ messageusecase.MetaInvalidator = (*channelMetaSync)(nil)
 
 func TestMemoryGenerationStoreConcurrentAccess(t *testing.T) {
 	store := newMemoryGenerationStore()

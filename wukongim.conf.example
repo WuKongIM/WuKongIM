@@ -111,6 +111,12 @@ WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]
 # WK_CLUSTER_ADVERTISE_ADDR=wk-node4:7000
 # WK_CLUSTER_JOIN_TOKEN=change-me
 
+# Channel plane owns durable send route refresh, same-channel append serialization,
+# and remote channel-leader append batching. Zero values use CPU-aware defaults.
+WK_CHANNEL_PLANE_REACTOR_COUNT=0
+WK_CHANNEL_PLANE_PEER_LANE_COUNT=0
+WK_CHANNEL_PLANE_PEER_BATCH_MAX_WAIT=500us
+
 # Channel migration runs on local slot leaders and advances durable channel leader-transfer
 # or replica-replacement tasks created through the manager API.
 WK_CHANNEL_MIGRATION_SCAN_INTERVAL=1s
