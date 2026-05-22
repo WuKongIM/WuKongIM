@@ -20,12 +20,13 @@ func newChannelCell(reactor *reactor, key channel.ChannelKey) *channelCell {
 	return &channelCell{reactor: reactor, key: key}
 }
 
-func (c *channelCell) enqueue(cmd *appendCommand) {
+func (c *channelCell) enqueue(cmd *appendCommand) bool {
 	if len(c.pending) >= c.reactor.plane.opts.MaxPendingPerChannel {
 		cmd.future.complete(channel.AppendBatchResult{}, ErrOverloaded)
-		return
+		return false
 	}
 	c.pending = append(c.pending, cmd)
+	return true
 }
 
 func (c *channelCell) tryStart() {
@@ -70,7 +71,7 @@ func (c *channelCell) handleResolveComplete(done effectCompletion) {
 	if done.err != nil {
 		done.cmd.future.complete(channel.AppendBatchResult{}, done.err)
 		c.inflight = nil
-		c.tryStart()
+		c.scheduleIfPending()
 		return
 	}
 	c.route = &done.route
@@ -109,7 +110,7 @@ func (c *channelCell) handleAppendComplete(done effectCompletion) {
 	observeAppendCompleted(c.reactor.plane.opts.Observer, done.cmd.req, done.route, done.err)
 	done.cmd.future.complete(done.res, done.err)
 	c.inflight = nil
-	c.tryStart()
+	c.scheduleIfPending()
 }
 
 // retryAfterRouteInvalidation gives a command one fresh route lookup after a fenced append attempt.
@@ -131,6 +132,12 @@ func (c *channelCell) cachedRouteExpired(route ChannelRoute) bool {
 		return false
 	}
 	return !c.reactor.plane.opts.Now().Before(route.LeaseUntil)
+}
+
+func (c *channelCell) scheduleIfPending() {
+	if len(c.pending) > 0 {
+		c.reactor.markReady(c.key)
+	}
 }
 
 func (c *channelCell) failAll(err error) {
