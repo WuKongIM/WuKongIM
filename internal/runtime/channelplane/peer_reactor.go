@@ -49,10 +49,11 @@ type peerLaneKey struct {
 }
 
 type peerAppendTask struct {
-	ctx      context.Context
-	envelope AppendBatchEnvelope
-	done     chan peerAppendResult
-	once     sync.Once
+	ctx        context.Context
+	envelope   AppendBatchEnvelope
+	done       chan peerAppendResult
+	onComplete peerAppendCallback
+	once       sync.Once
 }
 
 type peerAppendResult struct {
@@ -60,13 +61,17 @@ type peerAppendResult struct {
 	err    error
 }
 
+type peerAppendCallback func(channel.AppendBatchResult, error)
+
 type peerLane struct {
 	parent *PeerReactor
 	key    peerLaneKey
 	inbox  chan *peerAppendTask
-	stopc  chan struct{}
-	done   chan struct{}
-	rpcSem chan struct{}
+	// rpcQueue bounds flushed batches waiting for this lane's fixed RPC workers.
+	rpcQueue chan []*peerAppendTask
+	stopc    chan struct{}
+	done     chan struct{}
+	rpcWG    sync.WaitGroup
 
 	submitMu sync.Mutex
 	stopped  bool
@@ -150,26 +155,57 @@ func (p *PeerReactor) Stop(ctx context.Context) error {
 			return ctx.Err()
 		}
 	}
+	for _, lane := range lanes {
+		if err := lane.waitRPC(ctx); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 // AppendRemoteBatch enqueues one remote-owner append and waits for its aligned result.
 func (p *PeerReactor) AppendRemoteBatch(ctx context.Context, nodeID channel.NodeID, req channel.AppendBatchRequest, route ChannelRoute) (channel.AppendBatchResult, error) {
+	done := make(chan peerAppendResult, 1)
+	lane, task, err := p.appendRemoteBatch(ctx, nodeID, req, route, func(result channel.AppendBatchResult, err error) {
+		done <- peerAppendResult{result: result, err: err}
+	})
+	if err != nil {
+		return channel.AppendBatchResult{}, err
+	}
+	select {
+	case result := <-done:
+		return result.result, result.err
+	case <-ctx.Done():
+		lane.complete(task, channel.AppendBatchResult{}, ctx.Err())
+		return channel.AppendBatchResult{}, ctx.Err()
+	}
+}
+
+// AppendRemoteBatchAsync enqueues one remote-owner append and completes through onComplete.
+func (p *PeerReactor) AppendRemoteBatchAsync(ctx context.Context, nodeID channel.NodeID, req channel.AppendBatchRequest, route ChannelRoute, onComplete peerAppendCallback) error {
+	_, _, err := p.appendRemoteBatch(ctx, nodeID, req, route, onComplete)
+	return err
+}
+
+func (p *PeerReactor) appendRemoteBatch(ctx context.Context, nodeID channel.NodeID, req channel.AppendBatchRequest, route ChannelRoute, onComplete peerAppendCallback) (*peerLane, *peerAppendTask, error) {
 	if p == nil {
-		return channel.AppendBatchResult{}, ErrNoRemoteAppender
+		return nil, nil, ErrNoRemoteAppender
+	}
+	if onComplete == nil {
+		return nil, nil, channel.ErrInvalidConfig
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if err := ctx.Err(); err != nil {
-		return channel.AppendBatchResult{}, err
+		return nil, nil, err
 	}
 	lane, err := p.lane(nodeID, req.ChannelID)
 	if err != nil {
-		return channel.AppendBatchResult{}, err
+		return nil, nil, err
 	}
 	if !lane.reserve() {
-		return channel.AppendBatchResult{}, ErrPeerBackpressured
+		return nil, nil, ErrPeerBackpressured
 	}
 	task := &peerAppendTask{
 		ctx: ctx,
@@ -177,19 +213,13 @@ func (p *PeerReactor) AppendRemoteBatch(ctx context.Context, nodeID channel.Node
 			RouteEpoch: route.Epoch(),
 			Request:    req,
 		},
-		done: make(chan peerAppendResult, 1),
+		onComplete: onComplete,
 	}
 	if err := lane.submit(ctx, task); err != nil {
 		lane.release()
-		return channel.AppendBatchResult{}, err
+		return nil, nil, err
 	}
-	select {
-	case result := <-task.done:
-		return result.result, result.err
-	case <-ctx.Done():
-		lane.complete(task, channel.AppendBatchResult{}, ctx.Err())
-		return channel.AppendBatchResult{}, ctx.Err()
-	}
+	return lane, task, nil
 }
 
 func (p *PeerReactor) lane(nodeID channel.NodeID, id channel.ChannelID) (*peerLane, error) {
@@ -233,16 +263,20 @@ func (p *PeerReactor) pendingForTest(nodeID channel.NodeID, laneIndex int) int {
 
 func newPeerLane(parent *PeerReactor, key peerLaneKey) *peerLane {
 	return &peerLane{
-		parent: parent,
-		key:    key,
-		inbox:  make(chan *peerAppendTask, parent.opts.MaxPending),
-		stopc:  make(chan struct{}),
-		done:   make(chan struct{}),
-		rpcSem: make(chan struct{}, parent.opts.MaxInflightRPC),
+		parent:   parent,
+		key:      key,
+		inbox:    make(chan *peerAppendTask, parent.opts.MaxPending),
+		rpcQueue: make(chan []*peerAppendTask, parent.opts.MaxInflightRPC),
+		stopc:    make(chan struct{}),
+		done:     make(chan struct{}),
 	}
 }
 
 func (l *peerLane) start() {
+	l.rpcWG.Add(l.parent.opts.MaxInflightRPC)
+	for i := 0; i < l.parent.opts.MaxInflightRPC; i++ {
+		go l.runRPCWorker()
+	}
 	go l.run()
 }
 
@@ -255,6 +289,20 @@ func (l *peerLane) stop() {
 	l.stopped = true
 	l.submitMu.Unlock()
 	close(l.stopc)
+}
+
+func (l *peerLane) waitRPC(ctx context.Context) error {
+	done := make(chan struct{})
+	go func() {
+		l.rpcWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (l *peerLane) reserve() bool {
@@ -293,7 +341,10 @@ func (l *peerLane) submit(ctx context.Context, task *peerAppendTask) error {
 }
 
 func (l *peerLane) run() {
-	defer close(l.done)
+	defer func() {
+		close(l.rpcQueue)
+		close(l.done)
+	}()
 	var batch []*peerAppendTask
 	var batchBytes int
 	var timer *time.Timer
@@ -327,7 +378,7 @@ func (l *peerLane) run() {
 		batch = nil
 		batchBytes = 0
 		stopTimer()
-		go l.flushWhenRPCSlotAvailable(tasks)
+		l.enqueueFlush(tasks)
 	}
 	for {
 		select {
@@ -367,14 +418,30 @@ func (l *peerLane) run() {
 	}
 }
 
-func (l *peerLane) flushWhenRPCSlotAvailable(tasks []*peerAppendTask) {
+func (l *peerLane) enqueueFlush(tasks []*peerAppendTask) {
 	select {
-	case l.rpcSem <- struct{}{}:
-		defer func() { <-l.rpcSem }()
-		l.flush(tasks)
+	case l.rpcQueue <- tasks:
 	case <-l.stopc:
 		for _, task := range tasks {
 			l.complete(task, channel.AppendBatchResult{}, ErrClosed)
+		}
+	default:
+		for _, task := range tasks {
+			l.complete(task, channel.AppendBatchResult{}, ErrPeerBackpressured)
+		}
+	}
+}
+
+func (l *peerLane) runRPCWorker() {
+	defer l.rpcWG.Done()
+	for tasks := range l.rpcQueue {
+		select {
+		case <-l.stopc:
+			for _, task := range tasks {
+				l.complete(task, channel.AppendBatchResult{}, ErrClosed)
+			}
+		default:
+			l.flush(tasks)
 		}
 	}
 }
@@ -424,7 +491,13 @@ func (l *peerLane) flush(tasks []*peerAppendTask) {
 func (l *peerLane) complete(task *peerAppendTask, result channel.AppendBatchResult, err error) {
 	task.once.Do(func() {
 		l.release()
-		task.done <- peerAppendResult{result: result, err: err}
+		if task.onComplete != nil {
+			task.onComplete(result, err)
+			return
+		}
+		if task.done != nil {
+			task.done <- peerAppendResult{result: result, err: err}
+		}
 	})
 }
 

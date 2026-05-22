@@ -216,11 +216,59 @@ func TestPeerReactorDoesNotStartUnboundedRPCFlushes(t *testing.T) {
 	require.NoError(t, <-secondDone)
 }
 
+func TestPeerReactorBoundsQueuedRPCBatchesWhenWorkerBlocked(t *testing.T) {
+	client := newBlockingPeerClient()
+	peer := NewPeerReactor(PeerReactorOptions{
+		Client:          client,
+		LaneCount:       1,
+		MaxBatchWait:    time.Millisecond,
+		MaxBatchRecords: 1,
+		MaxPending:      3,
+		MaxInflightRPC:  1,
+	})
+	require.NoError(t, peer.Start())
+	defer stopPeerReactor(t, peer)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	done1 := startPeerAppendForTest(peer, ctx, "rpc-worker-1")
+	client.waitCall(t)
+
+	done2 := startPeerAppendForTest(peer, ctx, "rpc-worker-2")
+	require.Never(t, func() bool { return client.callCount() > 1 }, 30*time.Millisecond, 5*time.Millisecond)
+
+	shortCtx, shortCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer shortCancel()
+	_, err := peer.AppendRemoteBatch(shortCtx, 2, appendReq("rpc-worker-3", 1), remoteRoute("rpc-worker-3", 2))
+	require.Error(t, err)
+
+	client.completeNext(AppendBatchesResponse{Results: []AppendBatchRemoteResult{{
+		Status: RemoteAppendStatusOK,
+		Result: batchResult(1),
+	}}})
+	require.NoError(t, <-done1)
+	client.waitCall(t)
+	client.completeNext(AppendBatchesResponse{Results: []AppendBatchRemoteResult{{
+		Status: RemoteAppendStatusOK,
+		Result: batchResult(2),
+	}}})
+	require.NoError(t, <-done2)
+}
+
 func stopPeerReactor(t *testing.T, peer *PeerReactor) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	require.NoError(t, peer.Stop(ctx))
+}
+
+func startPeerAppendForTest(peer *PeerReactor, ctx context.Context, id string) <-chan error {
+	done := make(chan error, 1)
+	go func() {
+		_, err := peer.AppendRemoteBatch(ctx, 2, appendReq(id, 1), remoteRoute(id, 2))
+		done <- err
+	}()
+	return done
 }
 
 func batchResult(seq uint64) channel.AppendBatchResult {

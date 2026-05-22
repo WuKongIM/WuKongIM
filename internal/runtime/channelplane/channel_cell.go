@@ -2,6 +2,7 @@ package channelplane
 
 import (
 	"errors"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 )
@@ -10,17 +11,25 @@ const maxRouteInvalidationRetries = 1
 
 type channelCell struct {
 	reactor  *reactor
-	key      channel.ChannelKey
+	key      channel.ChannelID
 	route    *ChannelRoute
 	pending  []*appendCommand
 	inflight *appendCommand
+	// lastActive records the last reactor-owned activity time for idle eviction.
+	lastActive time.Time
 }
 
-func newChannelCell(reactor *reactor, key channel.ChannelKey) *channelCell {
+func newChannelCell(reactor *reactor, key channel.ChannelID) *channelCell {
 	return &channelCell{reactor: reactor, key: key}
 }
 
 func (c *channelCell) enqueue(cmd *appendCommand) bool {
+	if err := effectContext(cmd).Err(); err != nil {
+		c.complete(cmd, channel.AppendBatchResult{}, err, ChannelRoute{})
+		return false
+	}
+	c.touch()
+	c.compactCanceledPending()
 	if len(c.pending) >= c.reactor.plane.opts.MaxPendingPerChannel {
 		c.complete(cmd, channel.AppendBatchResult{}, ErrOverloaded, ChannelRoute{})
 		return false
@@ -34,6 +43,7 @@ func (c *channelCell) tryStart() {
 		return
 	}
 	for len(c.pending) > 0 {
+		c.touch()
 		cmd := c.pending[0]
 		c.pending[0] = nil
 		c.pending = c.pending[1:]
@@ -71,6 +81,7 @@ func (c *channelCell) handleResolveComplete(done effectCompletion) {
 	if c.inflight != done.cmd {
 		return
 	}
+	c.touch()
 	if done.err != nil {
 		c.complete(done.cmd, channel.AppendBatchResult{}, done.err, done.route)
 		c.inflight = nil
@@ -82,19 +93,31 @@ func (c *channelCell) handleResolveComplete(done effectCompletion) {
 }
 
 func (c *channelCell) startAppend(cmd *appendCommand, route ChannelRoute) {
+	if !route.IsLocal(c.reactor.plane.opts.LocalNode) {
+		c.startRemoteAppend(cmd, route)
+		return
+	}
+	c.startLocalAppend(cmd, route)
+}
+
+func (c *channelCell) startLocalAppend(cmd *appendCommand, route ChannelRoute) {
 	err := c.reactor.plane.effects.submit(effectContext(cmd), func() {
 		req := route.applyTo(cmd.req)
-		var (
-			res channel.AppendBatchResult
-			err error
-		)
-		if route.IsLocal(c.reactor.plane.opts.LocalNode) {
-			res, err = c.reactor.plane.opts.LocalOwner.AppendLocalBatch(effectContext(cmd), req)
-		} else if c.reactor.plane.peer != nil {
-			res, err = c.reactor.plane.peer.AppendRemoteBatch(effectContext(cmd), route.Leader, req, route)
-		} else {
-			err = ErrNoRemoteAppender
-		}
+		res, err := c.reactor.plane.opts.LocalOwner.AppendLocalBatch(effectContext(cmd), req)
+		c.reactor.post(reactorEvent{kind: reactorEventAppendComplete, completion: effectCompletion{key: c.key, cmd: cmd, route: route, res: res, err: err}})
+	})
+	if err != nil {
+		c.handleAppendComplete(effectCompletion{key: c.key, cmd: cmd, route: route, err: err})
+	}
+}
+
+func (c *channelCell) startRemoteAppend(cmd *appendCommand, route ChannelRoute) {
+	if c.reactor.plane.peer == nil {
+		c.handleAppendComplete(effectCompletion{key: c.key, cmd: cmd, route: route, err: ErrNoRemoteAppender})
+		return
+	}
+	req := route.applyTo(cmd.req)
+	err := c.reactor.plane.peer.AppendRemoteBatchAsync(effectContext(cmd), route.Leader, req, route, func(res channel.AppendBatchResult, err error) {
 		c.reactor.post(reactorEvent{kind: reactorEventAppendComplete, completion: effectCompletion{key: c.key, cmd: cmd, route: route, res: res, err: err}})
 	})
 	if err != nil {
@@ -106,6 +129,7 @@ func (c *channelCell) handleAppendComplete(done effectCompletion) {
 	if c.inflight != done.cmd {
 		return
 	}
+	c.touch()
 	if isRouteInvalidationError(done.err) && c.route != nil {
 		c.reactor.plane.opts.Resolver.InvalidateRoute(done.cmd.req.ChannelID, done.route.RouteGeneration)
 		c.route = nil
@@ -126,6 +150,7 @@ func (c *channelCell) retryAfterRouteInvalidation(cmd *appendCommand) bool {
 	if err := effectContext(cmd).Err(); err != nil {
 		return false
 	}
+	c.touch()
 	cmd.routeInvalidationRetries++
 	c.startResolve(cmd)
 	return true
@@ -145,10 +170,41 @@ func (c *channelCell) complete(cmd *appendCommand, res channel.AppendBatchResult
 	}
 }
 
+func (c *channelCell) compactCanceledPending() {
+	if len(c.pending) == 0 {
+		return
+	}
+	write := 0
+	for _, cmd := range c.pending {
+		if cmd == nil {
+			continue
+		}
+		if err := effectContext(cmd).Err(); err != nil {
+			c.complete(cmd, channel.AppendBatchResult{}, err, ChannelRoute{})
+			continue
+		}
+		c.pending[write] = cmd
+		write++
+	}
+	for i := write; i < len(c.pending); i++ {
+		c.pending[i] = nil
+	}
+	c.pending = c.pending[:write]
+}
+
 func (c *channelCell) scheduleIfPending() {
+	c.compactCanceledPending()
 	if len(c.pending) > 0 {
 		c.reactor.markReady(c.key)
 	}
+}
+
+func (c *channelCell) touch() {
+	c.lastActive = c.reactor.plane.opts.Now()
+}
+
+func (c *channelCell) idleExpired(now time.Time, ttl time.Duration) bool {
+	return c.inflight == nil && len(c.pending) == 0 && ttl > 0 && !c.lastActive.IsZero() && now.Sub(c.lastActive) >= ttl
 }
 
 func (c *channelCell) failAll(err error) {

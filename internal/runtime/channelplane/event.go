@@ -8,16 +8,18 @@ const (
 	reactorEventAppend reactorEventKind = iota + 1
 	reactorEventResolveComplete
 	reactorEventAppendComplete
+	reactorEventInspect
 )
 
 type reactorEvent struct {
 	kind       reactorEventKind
 	cmd        *appendCommand
 	completion effectCompletion
+	inspect    func()
 }
 
 type effectCompletion struct {
-	key   channel.ChannelKey
+	key   channel.ChannelID
 	cmd   *appendCommand
 	route ChannelRoute
 	res   channel.AppendBatchResult

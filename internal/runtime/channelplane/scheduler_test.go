@@ -9,7 +9,7 @@ import (
 
 func TestSchedulerDeduplicatesReadyKeys(t *testing.T) {
 	var s scheduler
-	key := channel.ChannelKey("1:g1")
+	key := channel.ChannelID{ID: "g1", Type: 1}
 
 	s.markReady(key)
 	s.markReady(key)
@@ -23,8 +23,8 @@ func TestSchedulerDeduplicatesReadyKeys(t *testing.T) {
 
 func TestSchedulerPopsReadyKeysInOrderAndAllowsRequeue(t *testing.T) {
 	var s scheduler
-	first := channel.ChannelKey("1:g1")
-	second := channel.ChannelKey("1:g2")
+	first := channel.ChannelID{ID: "g1", Type: 1}
+	second := channel.ChannelID{ID: "g2", Type: 1}
 
 	s.markReady(first)
 	s.markReady(second)
