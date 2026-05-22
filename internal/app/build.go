@@ -503,6 +503,7 @@ func build(cfg Config) (_ *App, err error) {
 		ReactorCount:     cfg.ChannelPlane.ReactorCount,
 		PeerLaneCount:    cfg.ChannelPlane.PeerLaneCount,
 		PeerBatchMaxWait: cfg.ChannelPlane.PeerBatchMaxWait,
+		PeerRPCTimeout:   cfg.Cluster.DataPlaneRPCTimeout,
 		Resolver:         appChannelPlaneRouteResolver{meta: app.channelMetaSync},
 		LocalOwner:       app.channelLog,
 		PeerClient:       app.nodeClient,

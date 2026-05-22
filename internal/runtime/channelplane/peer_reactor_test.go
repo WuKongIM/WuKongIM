@@ -111,6 +111,58 @@ func TestPeerReactorReturnsTypedBackpressure(t *testing.T) {
 	require.NoError(t, <-firstDone)
 }
 
+func TestPeerReactorReleasesCanceledQueuedTaskWhileRPCBlocked(t *testing.T) {
+	client := newBlockingPeerClient()
+	peer := NewPeerReactor(PeerReactorOptions{
+		Client:          client,
+		LaneCount:       1,
+		MaxBatchWait:    time.Millisecond,
+		MaxBatchRecords: 1,
+		MaxPending:      4,
+	})
+	require.NoError(t, peer.Start())
+	defer stopPeerReactor(t, peer)
+
+	firstCtx, firstCancel := context.WithTimeout(context.Background(), time.Second)
+	defer firstCancel()
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := peer.AppendRemoteBatch(firstCtx, 2, appendReq("blocked-rpc", 1), remoteRoute("blocked-rpc", 2))
+		firstDone <- err
+	}()
+	client.waitCall(t)
+	require.Eventually(t, func() bool { return peer.pendingForTest(2, 0) == 1 }, time.Second, 10*time.Millisecond)
+
+	secondCtx, secondCancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer secondCancel()
+	_, err := peer.AppendRemoteBatch(secondCtx, 2, appendReq("queued-cancel", 1), remoteRoute("queued-cancel", 2))
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Eventually(t, func() bool { return peer.pendingForTest(2, 0) == 1 }, time.Second, 10*time.Millisecond)
+
+	client.completeNext(AppendBatchesResponse{Results: []AppendBatchRemoteResult{{Status: RemoteAppendStatusOK, Result: batchResult(1)}}})
+	require.NoError(t, <-firstDone)
+}
+
+func TestPeerReactorBoundsBlockedRPCWithTimeout(t *testing.T) {
+	client := newBlockingPeerClient()
+	peer := NewPeerReactor(PeerReactorOptions{
+		Client:          client,
+		LaneCount:       1,
+		MaxBatchWait:    time.Millisecond,
+		MaxBatchRecords: 1,
+		MaxPending:      4,
+		RPCTimeout:      20 * time.Millisecond,
+	})
+	require.NoError(t, peer.Start())
+	defer stopPeerReactor(t, peer)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := peer.AppendRemoteBatch(ctx, 2, appendReq("rpc-timeout", 1), remoteRoute("rpc-timeout", 2))
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Eventually(t, func() bool { return peer.pendingForTest(2, 0) == 0 }, time.Second, 10*time.Millisecond)
+}
+
 func stopPeerReactor(t *testing.T, peer *PeerReactor) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -166,6 +218,50 @@ func (c *recordingPeerClient) waitCall(t *testing.T) recordingPeerCall {
 }
 
 func (c *recordingPeerClient) completeNext(resp AppendBatchesResponse) {
+	c.mu.Lock()
+	call := c.calls[0]
+	c.calls = c.calls[1:]
+	c.mu.Unlock()
+	call.resp <- recordingPeerResponse{resp: resp}
+}
+
+type blockingPeerClient struct {
+	mu    sync.Mutex
+	calls []recordingPeerCall
+	wait  chan struct{}
+}
+
+func newBlockingPeerClient() *blockingPeerClient {
+	return &blockingPeerClient{wait: make(chan struct{}, 8)}
+}
+
+func (c *blockingPeerClient) AppendBatches(ctx context.Context, nodeID channel.NodeID, req AppendBatchesRequest) (AppendBatchesResponse, error) {
+	call := recordingPeerCall{nodeID: nodeID, req: req, resp: make(chan recordingPeerResponse, 1)}
+	c.mu.Lock()
+	c.calls = append(c.calls, call)
+	c.mu.Unlock()
+	c.wait <- struct{}{}
+	select {
+	case reply := <-call.resp:
+		return reply.resp, reply.err
+	case <-ctx.Done():
+		return AppendBatchesResponse{}, ctx.Err()
+	}
+}
+
+func (c *blockingPeerClient) waitCall(t *testing.T) recordingPeerCall {
+	t.Helper()
+	select {
+	case <-c.wait:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for peer call")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.calls[len(c.calls)-1]
+}
+
+func (c *blockingPeerClient) completeNext(resp AppendBatchesResponse) {
 	c.mu.Lock()
 	call := c.calls[0]
 	c.calls = c.calls[1:]
