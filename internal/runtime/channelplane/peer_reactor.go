@@ -37,6 +37,8 @@ type PeerReactorOptions struct {
 	MaxBatchBytes int
 	// MaxPending bounds queued and inflight appends per peer lane.
 	MaxPending int
+	// MaxInflightRPC bounds concurrent AppendBatches RPCs per peer lane.
+	MaxInflightRPC int
 	// RPCTimeout bounds one remote AppendBatches RPC. Zero leaves the caller or parent context deadline unchanged.
 	RPCTimeout time.Duration
 }
@@ -59,12 +61,16 @@ type peerAppendResult struct {
 }
 
 type peerLane struct {
-	parent  *PeerReactor
-	key     peerLaneKey
-	inbox   chan *peerAppendTask
-	stopc   chan struct{}
-	done    chan struct{}
-	pending atomic.Int64
+	parent *PeerReactor
+	key    peerLaneKey
+	inbox  chan *peerAppendTask
+	stopc  chan struct{}
+	done   chan struct{}
+	rpcSem chan struct{}
+
+	submitMu sync.Mutex
+	stopped  bool
+	pending  atomic.Int64
 }
 
 // NewPeerReactor constructs the peer batching runtime. Call Start before use.
@@ -89,11 +95,14 @@ func (o *PeerReactorOptions) setDefaults() {
 	if o.MaxPending <= 0 {
 		o.MaxPending = defaultPeerMaxPending
 	}
+	if o.MaxInflightRPC <= 0 {
+		o.MaxInflightRPC = defaultPeerMaxInflightRPC
+	}
 }
 
 // Start enables peer lanes to be created for remote append effects.
 func (p *PeerReactor) Start() error {
-	if p == nil || p.opts.Client == nil || p.opts.LaneCount <= 0 || p.opts.MaxBatchWait <= 0 || p.opts.MaxBatchRecords <= 0 || p.opts.MaxBatchBytes <= 0 || p.opts.MaxPending <= 0 {
+	if p == nil || p.opts.Client == nil || p.opts.LaneCount <= 0 || p.opts.MaxBatchWait <= 0 || p.opts.MaxBatchRecords <= 0 || p.opts.MaxBatchBytes <= 0 || p.opts.MaxPending <= 0 || p.opts.MaxInflightRPC <= 0 {
 		return channel.ErrInvalidConfig
 	}
 	p.mu.Lock()
@@ -229,6 +238,7 @@ func newPeerLane(parent *PeerReactor, key peerLaneKey) *peerLane {
 		inbox:  make(chan *peerAppendTask, parent.opts.MaxPending),
 		stopc:  make(chan struct{}),
 		done:   make(chan struct{}),
+		rpcSem: make(chan struct{}, parent.opts.MaxInflightRPC),
 	}
 }
 
@@ -237,11 +247,14 @@ func (l *peerLane) start() {
 }
 
 func (l *peerLane) stop() {
-	select {
-	case <-l.stopc:
-	default:
-		close(l.stopc)
+	l.submitMu.Lock()
+	if l.stopped {
+		l.submitMu.Unlock()
+		return
 	}
+	l.stopped = true
+	l.submitMu.Unlock()
+	close(l.stopc)
 }
 
 func (l *peerLane) reserve() bool {
@@ -261,13 +274,21 @@ func (l *peerLane) release() {
 }
 
 func (l *peerLane) submit(ctx context.Context, task *peerAppendTask) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	l.submitMu.Lock()
+	defer l.submitMu.Unlock()
+	if l.stopped {
+		return ErrClosed
+	}
 	select {
 	case l.inbox <- task:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-l.stopc:
-		return ErrClosed
+	default:
+		return ErrPeerBackpressured
 	}
 }
 
@@ -306,7 +327,7 @@ func (l *peerLane) run() {
 		batch = nil
 		batchBytes = 0
 		stopTimer()
-		go l.flush(tasks)
+		go l.flushWhenRPCSlotAvailable(tasks)
 	}
 	for {
 		select {
@@ -342,6 +363,18 @@ func (l *peerLane) run() {
 					return
 				}
 			}
+		}
+	}
+}
+
+func (l *peerLane) flushWhenRPCSlotAvailable(tasks []*peerAppendTask) {
+	select {
+	case l.rpcSem <- struct{}{}:
+		defer func() { <-l.rpcSem }()
+		l.flush(tasks)
+	case <-l.stopc:
+		for _, task := range tasks {
+			l.complete(task, channel.AppendBatchResult{}, ErrClosed)
 		}
 	}
 }

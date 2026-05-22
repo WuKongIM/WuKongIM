@@ -16,6 +16,7 @@ const (
 	defaultPeerBatchMaxRecords  = 128
 	defaultPeerBatchMaxBytes    = 256 * 1024
 	defaultPeerMaxPending       = 1024
+	defaultPeerMaxInflightRPC   = 1
 	defaultEffectWorkerCount    = 0
 	defaultEffectQueueSize      = 1024
 )
