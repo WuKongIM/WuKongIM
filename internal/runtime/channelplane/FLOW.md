@@ -26,10 +26,12 @@ Node RPC transport adapters live in `internal/access/node`. This package only sp
 | 组件 | 说明 |
 |------|------|
 | `Plane` | 对外门面：生命周期、`AppendBatch` 入口、reactor 组装 |
-| `Reactor` | Channel hash shard：事件 inbox、active-cell 调度、单 shard 公平推进 |
+| `Reactor` | Channel hash shard：事件 inbox、ready scheduler、单 shard 公平推进 |
+| `Scheduler` | reactor-local ready channel queue：去重、FIFO/round-robin 推进 active cells |
 | `ChannelCell` | 单 channel 状态机：pending 队列、route resolve、effect 执行、future 完成 |
+| `EffectExecutor` | 有界执行 route resolve / local append / remote enqueue 等可能阻塞的 effect，避免请求数驱动 goroutine 无界增长 |
 | `RouteResolver` | 权威路由读取/缓存/失效：singleflight、route generation fencing、metadata refresh |
-| `PeerReactor` | 远端 append 批处理器：按目标节点与 lane 聚合 `AppendBatches` RPC |
+| `PeerReactor` | 远端 append 批处理器：按目标节点与 lane 聚合 `AppendBatches` RPC，RPC flush 异步执行并受 timeout 约束 |
 | `Future` | 请求完成句柄：上下文取消、关闭完成、结果对齐 |
 
 ## 4. 核心流程
@@ -43,11 +45,13 @@ Plane.AppendBatch(ctx, req)
   ↓
 按 ChannelID 哈希到固定 reactor shard
   ↓
-ChannelCell 将请求排入单 channel pending 队列
+ChannelCell 将请求排入单 channel pending 队列并标记 ready
   ↓
-若本地 route 缺失或过期：通过 RouteResolver 读取/刷新 authoritative meta
+Reactor scheduler 按 ready channel 顺序推进，每个 channel 一次最多启动一个 effect
   ↓
-RouteGeneration / ChannelEpoch / LeaderEpoch 通过后进入 effect 执行
+若本地 route 缺失或过期：通过 EffectExecutor 调用 RouteResolver 读取/刷新 authoritative meta
+  ↓
+RouteGeneration / ChannelEpoch / LeaderEpoch 通过后进入有界 effect 执行
   ↓
 本地 leader：调用 LocalOwner.AppendLocalBatch
   ↓
@@ -62,6 +66,7 @@ RouteGeneration / ChannelEpoch / LeaderEpoch 通过后进入 effect 执行
 
 - 旧的或不健康的 route view 会被失效。
 - `InvalidateRoute` 使用 `RouteGeneration` 做代际保护，旧 append effect 不能误删更新的 cached route。
+- resolver 维护 invalidation serial；失效后新的 resolve 不会 join 更早的 in-flight lookup，旧 lookup 返回后也不能重新污染 cache。
 - stale route、not-leader、lease-expired、write-fenced 结果会触发一次权威刷新。
 - 刷新后仍不匹配时，结果会以 typed status 回到调用方，不在 message 层再做 second-hop redirect。
 
@@ -71,6 +76,8 @@ RouteGeneration / ChannelEpoch / LeaderEpoch 通过后进入 effect 执行
 
 - 同一 target node 的多个 channel append 可共用一次 RPC flush。
 - flush 条件由最大等待时间、最大记录数、最大字节数决定。
+- lane event loop 只负责收集与切 batch；`AppendBatches` RPC 异步执行，慢 RPC 不阻塞 lane 继续处理取消、超时或后续任务。
+- RPC 使用 `PeerRPCTimeout` 约束；调用方 ctx 取消会立即释放 pending 预算，后续 lane/RPC completion 通过 once 保证不会重复完成。
 - 队列满时返回 typed backpressure，避免无界积压。
 - RPC 响应会按原始 batch 顺序拆回 owning reactor，保证同 channel 的 future 顺序不乱。
 
@@ -78,6 +85,7 @@ RouteGeneration / ChannelEpoch / LeaderEpoch 通过后进入 effect 执行
 
 - 同一 channel 只允许一个 inflight effect。
 - 后续 append 进入 pending queue，直到前一个 effect 完成。
+- reactor scheduler 对 ready channel 去重并公平推进；completion 后如果 channel 仍有 pending，再重新入队。
 - 这保证同频道 durable append 的结果顺序与请求顺序一致。
 - 不同 channel 仍可在不同 reactor shard 上并行推进。
 
@@ -85,15 +93,16 @@ RouteGeneration / ChannelEpoch / LeaderEpoch 通过后进入 effect 执行
 
 - reactor inbox 有界，防止 channel 热点把调度器打爆。
 - channel cell pending 队列有界，避免单 channel 无限排队。
+- effect executor 有界，避免 route/local/remote effect 按请求数无界派生 goroutine。
 - peer lane 有界，避免远端 leader 慢响应把本地 reactor 阻塞。
 - typed backpressure 会通过 `ErrOverloaded` / `ErrPeerBackpressured` 归一化给上层，message usecase 只看到最终 append 失败，不感知内部 lane 细节。
 
 ## 6. Shutdown
 
 `Stop` 必须：
-- 停止新的 append 接入
-- 关闭 reactor/peer lane 背景循环
-- 以 terminal error 完成所有未决 future
+- 停止新的 append 接入，submit gate 在 stop 后稳定返回 `ErrClosed`
+- 关闭 reactor/peer lane/effect executor 背景循环
+- drain reactor inbox，并以 terminal error 完成所有已接收但未处理的 future
 - 避免把停机过程误判成 route 失败或 leader 失败
 
 ## 7. Tests
