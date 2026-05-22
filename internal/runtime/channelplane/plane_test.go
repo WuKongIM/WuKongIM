@@ -138,6 +138,49 @@ func TestRouteResolverInvalidateRouteKeepsNewerGeneration(t *testing.T) {
 	require.Equal(t, 2, source.callCount())
 }
 
+func TestRouteResolverInvalidationDoesNotJoinOlderInFlightLookup(t *testing.T) {
+	id := channel.ChannelID{ID: "invalidate-inflight", Type: 1}
+	stale := localRoute(id.ID)
+	fresh := stale
+	fresh.RouteGeneration = 8
+	fresh.ChannelEpoch = 10
+	fresh.LeaderEpoch = 12
+	source := &blockingSequenceRouteSource{
+		routes:       []ChannelRoute{stale, fresh},
+		firstEntered: make(chan struct{}),
+		releaseFirst: make(chan struct{}),
+	}
+	resolver := NewRouteResolver(source)
+
+	firstDone := make(chan struct{})
+	go func() {
+		defer close(firstDone)
+		_, _ = resolver.ResolveRoute(context.Background(), id)
+	}()
+	<-source.firstEntered
+
+	resolver.InvalidateRoute(id, stale.RouteGeneration)
+	secondDone := make(chan ChannelRoute, 1)
+	go func() {
+		route, err := resolver.ResolveRoute(context.Background(), id)
+		require.NoError(t, err)
+		secondDone <- route
+	}()
+
+	select {
+	case route := <-secondDone:
+		require.Equal(t, uint64(8), route.RouteGeneration)
+	case <-time.After(100 * time.Millisecond):
+		close(source.releaseFirst)
+		<-firstDone
+		t.Fatal("post-invalidation resolve joined an older blocked route lookup")
+	}
+
+	close(source.releaseFirst)
+	<-firstDone
+	require.Equal(t, 2, source.calls())
+}
+
 func TestChannelPlaneCancelsQueuedFutureOnContextDone(t *testing.T) {
 	owner := newBlockingOwner()
 	p, err := New(Options{ReactorCount: 1, LocalNode: 1, Resolver: staticResolver{route: localRoute("cancel")}, LocalOwner: owner})
@@ -616,4 +659,40 @@ func (p *sequencePlanePeerClient) channelEpochs() []uint64 {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]uint64(nil), p.epochs...)
+}
+
+type blockingSequenceRouteSource struct {
+	mu           sync.Mutex
+	routes       []ChannelRoute
+	count        int
+	firstEntered chan struct{}
+	releaseFirst chan struct{}
+}
+
+func (s *blockingSequenceRouteSource) ResolveRoute(ctx context.Context, _ channel.ChannelID) (ChannelRoute, error) {
+	s.mu.Lock()
+	index := s.count
+	if index >= len(s.routes) {
+		index = len(s.routes) - 1
+	}
+	s.count++
+	if s.count == 1 {
+		close(s.firstEntered)
+	}
+	route := s.routes[index]
+	s.mu.Unlock()
+	if index == 0 {
+		select {
+		case <-s.releaseFirst:
+		case <-ctx.Done():
+			return ChannelRoute{}, ctx.Err()
+		}
+	}
+	return route, nil
+}
+
+func (s *blockingSequenceRouteSource) calls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.count
 }
