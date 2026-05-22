@@ -281,6 +281,126 @@ func TestChannelPlaneUsesPeerReactorForRemoteLeader(t *testing.T) {
 	require.Equal(t, uint64(11), peer.req.Batches[0].Request.ExpectedLeaderEpoch)
 }
 
+func TestChannelPlaneRemoteAppendDoesNotOccupyEffectWorker(t *testing.T) {
+	peer := newBlockingPeerClient()
+	resolver := routeByIDResolver{
+		routes: map[string]ChannelRoute{
+			"remote-worker-blocked": remoteRoute("remote-worker-blocked", 2),
+			"local-worker-free":     localRoute("local-worker-free"),
+		},
+	}
+	owner := newSequenceOwner()
+	p, err := New(Options{
+		ReactorCount:      2,
+		EffectWorkerCount: 1,
+		EffectQueueSize:   1,
+		LocalNode:         1,
+		Resolver:          resolver,
+		LocalOwner:        owner,
+		PeerClient:        peer,
+		PeerBatchMaxWait:  time.Millisecond,
+	})
+	require.NoError(t, err)
+	require.NoError(t, p.Start())
+	defer stopPlane(t, p)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	remoteDone := make(chan error, 1)
+	go func() {
+		_, err := p.AppendBatch(ctx, appendReq("remote-worker-blocked", 1))
+		remoteDone <- err
+	}()
+	peer.waitCall(t)
+
+	localCtx, localCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer localCancel()
+	res, err := p.AppendBatch(localCtx, appendReq("local-worker-free", 1))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), res.Items[0].MessageSeq)
+
+	peer.completeNext(AppendBatchesResponse{Results: []AppendBatchRemoteResult{{
+		Status: RemoteAppendStatusOK,
+		Result: batchResult(1),
+	}}})
+	require.NoError(t, <-remoteDone)
+}
+
+func TestChannelCellDoesNotCountCanceledPendingAgainstLimit(t *testing.T) {
+	owner := newBlockingOwner()
+	p, err := New(Options{
+		ReactorCount:         1,
+		LocalNode:            1,
+		Resolver:             staticResolver{route: localRoute("cancel-slot")},
+		LocalOwner:           owner,
+		MaxPendingPerChannel: 1,
+	})
+	require.NoError(t, err)
+	require.NoError(t, p.Start())
+	defer stopPlane(t, p)
+
+	firstCtx, firstCancel := context.WithTimeout(context.Background(), time.Second)
+	defer firstCancel()
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := p.AppendBatch(firstCtx, appendReq("cancel-slot", 1))
+		firstDone <- err
+	}()
+	owner.waitStarted(t, 1)
+
+	queuedCtx, queuedCancel := context.WithCancel(context.Background())
+	queuedDone := make(chan error, 1)
+	go func() {
+		_, err := p.AppendBatch(queuedCtx, appendReq("cancel-slot", 2))
+		queuedDone <- err
+	}()
+	require.Eventually(t, func() bool {
+		return p.reactors[0].pendingForTest(appendReq("cancel-slot", 1).ChannelID) == 1
+	}, time.Second, 10*time.Millisecond)
+	queuedCancel()
+	require.ErrorIs(t, <-queuedDone, context.Canceled)
+
+	thirdCtx, thirdCancel := context.WithTimeout(context.Background(), time.Second)
+	defer thirdCancel()
+	thirdDone := make(chan error, 1)
+	go func() {
+		_, err := p.AppendBatch(thirdCtx, appendReq("cancel-slot", 3))
+		thirdDone <- err
+	}()
+
+	owner.releaseOne()
+	require.NoError(t, <-firstDone)
+	owner.waitStarted(t, 2)
+	owner.releaseOne()
+	require.NoError(t, <-thirdDone)
+}
+
+func TestReactorEvictsIdleChannelCells(t *testing.T) {
+	now := time.Unix(100, 0)
+	p, err := New(Options{
+		ReactorCount:   1,
+		LocalNode:      1,
+		Resolver:       staticResolver{route: localRoute("idle-cell")},
+		LocalOwner:     noopOwner{},
+		CellIdleTTL:    time.Minute,
+		CellSweepEvery: time.Second,
+		Now:            func() time.Time { return now },
+	})
+	require.NoError(t, err)
+	require.NoError(t, p.Start())
+	defer stopPlane(t, p)
+
+	_, err = p.AppendBatch(context.Background(), appendReq("idle-cell", 1))
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return p.reactors[0].cellCountForTest() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	now = now.Add(2 * time.Minute)
+	p.reactors[0].sweepIdleCellsForTest(now)
+	require.Zero(t, p.reactors[0].cellCountForTest())
+}
+
 func TestChannelCellRefreshesRouteAndRetriesStaleLocalAppend(t *testing.T) {
 	resolver := &sequenceResolver{routes: []ChannelRoute{
 		localRoute("retry-stale"),
@@ -413,7 +533,7 @@ func remoteRoute(id string, leader channel.NodeID) ChannelRoute {
 	return route
 }
 
-func stopPlane(t *testing.T, p *Plane) {
+func stopPlane(t testing.TB, p *Plane) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -426,6 +546,20 @@ func (s staticResolver) ResolveRoute(context.Context, channel.ChannelID) (Channe
 	return s.route, nil
 }
 func (s staticResolver) InvalidateRoute(channel.ChannelID, uint64) {}
+
+type routeByIDResolver struct {
+	routes map[string]ChannelRoute
+}
+
+func (r routeByIDResolver) ResolveRoute(_ context.Context, id channel.ChannelID) (ChannelRoute, error) {
+	route, ok := r.routes[id.ID]
+	if !ok {
+		return ChannelRoute{}, channel.ErrInvalidConfig
+	}
+	return route, nil
+}
+
+func (r routeByIDResolver) InvalidateRoute(channel.ChannelID, uint64) {}
 
 type sequenceResolver struct {
 	mu            sync.Mutex

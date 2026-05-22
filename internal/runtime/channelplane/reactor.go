@@ -3,9 +3,9 @@ package channelplane
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
 )
 
 type reactor struct {
@@ -19,7 +19,7 @@ type reactor struct {
 	submitMu sync.Mutex
 	stopped  bool
 	ready    scheduler
-	cells    map[channel.ChannelKey]*channelCell
+	cells    map[channel.ChannelID]*channelCell
 }
 
 func newReactor(plane *Plane, index int, inboxSize int) *reactor {
@@ -29,7 +29,7 @@ func newReactor(plane *Plane, index int, inboxSize int) *reactor {
 		inbox: make(chan reactorEvent, inboxSize),
 		stopc: make(chan struct{}),
 		done:  make(chan struct{}),
-		cells: make(map[channel.ChannelKey]*channelCell),
+		cells: make(map[channel.ChannelID]*channelCell),
 	}
 }
 
@@ -89,12 +89,25 @@ func (r *reactor) completePostedAfterStop(event reactorEvent) {
 }
 
 func (r *reactor) run() {
-	defer close(r.done)
+	var sweepC <-chan time.Time
+	var sweepTicker *time.Ticker
+	if r.plane.opts.CellIdleTTL > 0 && r.plane.opts.CellSweepEvery > 0 {
+		sweepTicker = time.NewTicker(r.plane.opts.CellSweepEvery)
+		sweepC = sweepTicker.C
+	}
+	defer func() {
+		if sweepTicker != nil {
+			sweepTicker.Stop()
+		}
+		close(r.done)
+	}()
 	for {
 		select {
 		case event := <-r.inbox:
 			r.handle(event)
 			r.drainReady(64)
+		case now := <-sweepC:
+			r.sweepIdleCells(now)
 		case <-r.stopc:
 			r.failAll(ErrClosed)
 			r.drainInbox(ErrClosed)
@@ -106,7 +119,7 @@ func (r *reactor) run() {
 func (r *reactor) handle(event reactorEvent) {
 	switch event.kind {
 	case reactorEventAppend:
-		key := channelhandler.KeyFromChannelID(event.cmd.req.ChannelID)
+		key := event.cmd.req.ChannelID
 		cell := r.cell(key)
 		if cell.enqueue(event.cmd) {
 			r.markReady(key)
@@ -119,10 +132,14 @@ func (r *reactor) handle(event reactorEvent) {
 		if cell := r.cells[event.completion.key]; cell != nil {
 			cell.handleAppendComplete(event.completion)
 		}
+	case reactorEventInspect:
+		if event.inspect != nil {
+			event.inspect()
+		}
 	}
 }
 
-func (r *reactor) markReady(key channel.ChannelKey) {
+func (r *reactor) markReady(key channel.ChannelID) {
 	r.ready.markReady(key)
 }
 
@@ -138,13 +155,59 @@ func (r *reactor) drainReady(limit int) {
 	}
 }
 
-func (r *reactor) cell(key channel.ChannelKey) *channelCell {
+func (r *reactor) cell(key channel.ChannelID) *channelCell {
 	cell := r.cells[key]
 	if cell == nil {
 		cell = newChannelCell(r, key)
 		r.cells[key] = cell
 	}
 	return cell
+}
+
+func (r *reactor) sweepIdleCells(now time.Time) {
+	ttl := r.plane.opts.CellIdleTTL
+	for key, cell := range r.cells {
+		cell.compactCanceledPending()
+		if cell.idleExpired(now, ttl) {
+			cell.failAll(ErrClosed)
+			delete(r.cells, key)
+		}
+	}
+}
+
+func (r *reactor) runOnLoopForTest(fn func()) {
+	done := make(chan struct{})
+	r.post(reactorEvent{kind: reactorEventInspect, inspect: func() {
+		defer close(done)
+		if fn != nil {
+			fn()
+		}
+	}})
+	<-done
+}
+
+func (r *reactor) pendingForTest(id channel.ChannelID) int {
+	pending := 0
+	r.runOnLoopForTest(func() {
+		if cell := r.cells[id]; cell != nil {
+			pending = len(cell.pending)
+		}
+	})
+	return pending
+}
+
+func (r *reactor) cellCountForTest() int {
+	count := 0
+	r.runOnLoopForTest(func() {
+		count = len(r.cells)
+	})
+	return count
+}
+
+func (r *reactor) sweepIdleCellsForTest(now time.Time) {
+	r.runOnLoopForTest(func() {
+		r.sweepIdleCells(now)
+	})
 }
 
 func (r *reactor) failAll(err error) {

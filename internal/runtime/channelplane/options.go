@@ -19,6 +19,8 @@ const (
 	defaultPeerMaxInflightRPC   = 1
 	defaultEffectWorkerCount    = 0
 	defaultEffectQueueSize      = 1024
+	defaultCellIdleTTL          = 10 * time.Minute
+	defaultCellSweepEvery       = time.Minute
 )
 
 // RouteResolver resolves and invalidates authoritative channel write routes.
@@ -69,6 +71,10 @@ type Options struct {
 	EffectWorkerCount int
 	// EffectQueueSize bounds queued route and local append effects before backpressure.
 	EffectQueueSize int
+	// CellIdleTTL bounds how long an idle channel cell keeps cached route state before it can be evicted.
+	CellIdleTTL time.Duration
+	// CellSweepEvery controls how often each reactor scans idle channel cells for eviction.
+	CellSweepEvery time.Duration
 	// Resolver loads authoritative channel write routes.
 	Resolver RouteResolver
 	// LocalOwner appends when this node is the channel leader.
@@ -112,13 +118,19 @@ func (o *Options) setDefaults() {
 	if o.EffectQueueSize <= 0 {
 		o.EffectQueueSize = defaultEffectQueueSize
 	}
+	if o.CellIdleTTL <= 0 {
+		o.CellIdleTTL = defaultCellIdleTTL
+	}
+	if o.CellSweepEvery <= 0 {
+		o.CellSweepEvery = defaultCellSweepEvery
+	}
 	if o.Now == nil {
 		o.Now = time.Now
 	}
 }
 
 func (o Options) validate() error {
-	if o.LocalNode == 0 || o.ReactorCount <= 0 || o.ReactorInboxSize <= 0 || o.MaxPendingPerChannel <= 0 || o.PeerLaneCount <= 0 || o.PeerBatchMaxWait <= 0 || o.PeerBatchMaxRecords <= 0 || o.PeerBatchMaxBytes <= 0 || o.PeerMaxPending <= 0 || o.EffectWorkerCount <= 0 || o.EffectQueueSize <= 0 || o.Resolver == nil || o.LocalOwner == nil {
+	if o.LocalNode == 0 || o.ReactorCount <= 0 || o.ReactorInboxSize <= 0 || o.MaxPendingPerChannel <= 0 || o.PeerLaneCount <= 0 || o.PeerBatchMaxWait <= 0 || o.PeerBatchMaxRecords <= 0 || o.PeerBatchMaxBytes <= 0 || o.PeerMaxPending <= 0 || o.EffectWorkerCount <= 0 || o.EffectQueueSize <= 0 || o.CellIdleTTL <= 0 || o.CellSweepEvery <= 0 || o.Resolver == nil || o.LocalOwner == nil {
 		return channel.ErrInvalidConfig
 	}
 	return nil
