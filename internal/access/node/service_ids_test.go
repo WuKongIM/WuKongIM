@@ -11,6 +11,7 @@ func TestRPCServiceIDsAreUniqueAndNonZero(t *testing.T) {
 		"deliveryOffline":       deliveryOfflineRPCServiceID,
 		"conversationFacts":     conversationFactsRPCServiceID,
 		"channelAppend":         channelAppendRPCServiceID,
+		"channelPlaneAppend":    channelPlaneAppendRPCServiceID,
 		"channelMessages":       channelMessagesRPCServiceID,
 		"channelLeaderRepair":   channelLeaderRepairRPCServiceID,
 		"channelLeaderEvaluate": channelLeaderEvaluateRPCServiceID,

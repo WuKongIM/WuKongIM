@@ -13,6 +13,8 @@ var (
 	ErrInvalidRequest = errors.New("channelplane: invalid request")
 	// ErrNoRemoteAppender reports that a remote channel leader cannot be reached by this plane.
 	ErrNoRemoteAppender = errors.New("channelplane: no remote appender")
+	// ErrPeerBackpressured reports that a remote peer lane cannot accept more appends.
+	ErrPeerBackpressured = errors.New("channelplane: peer backpressured")
 	// ErrStaleRoute reports that an effect completed for a route epoch that is no longer current.
 	ErrStaleRoute = errors.New("channelplane: stale route")
 )

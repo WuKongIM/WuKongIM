@@ -8,6 +8,7 @@ const (
 	deliveryOfflineRPCServiceID       uint8 = 9
 	conversationFactsRPCServiceID     uint8 = 13
 	channelAppendRPCServiceID         uint8 = 33
+	channelPlaneAppendRPCServiceID    uint8 = 57
 	channelMessagesRPCServiceID       uint8 = 36
 	channelLeaderRepairRPCServiceID   uint8 = 37
 	channelLeaderEvaluateRPCServiceID uint8 = 38

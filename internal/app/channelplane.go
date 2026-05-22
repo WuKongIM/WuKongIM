@@ -42,15 +42,3 @@ func appChannelPlaneRouteFromMeta(meta channel.Meta) runtimechannelplane.Channel
 		Status:          meta.Status,
 	}
 }
-
-// appChannelPlaneRemoteAppender keeps the legacy per-channel RPC bridge until peer batching lands.
-type appChannelPlaneRemoteAppender struct {
-	remote remoteChannelAppender
-}
-
-func (a appChannelPlaneRemoteAppender) AppendRemoteBatch(ctx context.Context, nodeID channel.NodeID, req channel.AppendBatchRequest, _ runtimechannelplane.ChannelRoute) (channel.AppendBatchResult, error) {
-	if a.remote == nil {
-		return channel.AppendBatchResult{}, runtimechannelplane.ErrNoRemoteAppender
-	}
-	return a.remote.AppendBatchToLeader(ctx, uint64(nodeID), req)
-}

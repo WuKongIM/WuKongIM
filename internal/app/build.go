@@ -499,10 +499,10 @@ func build(cfg Config) (_ *App, err error) {
 		MetaRefreshObserver: channelMetaObserver,
 	})
 	app.channelPlane, err = runtimechannelplane.New(runtimechannelplane.Options{
-		LocalNode:      channel.NodeID(cfg.Node.ID),
-		Resolver:       appChannelPlaneRouteResolver{meta: app.channelMetaSync},
-		LocalOwner:     app.channelLog,
-		RemoteAppender: appChannelPlaneRemoteAppender{remote: app.nodeClient},
+		LocalNode:  channel.NodeID(cfg.Node.ID),
+		Resolver:   appChannelPlaneRouteResolver{meta: app.channelMetaSync},
+		LocalOwner: app.channelLog,
+		PeerClient: app.nodeClient,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("app: create channel plane: %w", err)

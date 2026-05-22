@@ -78,8 +78,8 @@ func (c *channelCell) startAppend(cmd *appendCommand, route ChannelRoute) {
 		)
 		if route.IsLocal(c.reactor.plane.opts.LocalNode) {
 			res, err = c.reactor.plane.opts.LocalOwner.AppendLocalBatch(effectContext(cmd), req)
-		} else if c.reactor.plane.opts.RemoteAppender != nil {
-			res, err = c.reactor.plane.opts.RemoteAppender.AppendRemoteBatch(effectContext(cmd), route.Leader, req, route)
+		} else if c.reactor.plane.peer != nil {
+			res, err = c.reactor.plane.peer.AppendRemoteBatch(effectContext(cmd), route.Leader, req, route)
 		} else {
 			err = ErrNoRemoteAppender
 		}

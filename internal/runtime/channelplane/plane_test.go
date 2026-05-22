@@ -140,9 +140,9 @@ func TestChannelPlaneCancelsQueuedFutureOnContextDone(t *testing.T) {
 	require.Eventually(t, func() bool { return owner.startedCount() == 1 }, time.Second, 10*time.Millisecond)
 }
 
-func TestChannelPlaneUsesCompatibilityRemoteAppenderForRemoteLeader(t *testing.T) {
-	remote := &recordingRemoteAppender{}
-	p, err := New(Options{ReactorCount: 1, LocalNode: 1, Resolver: staticResolver{route: remoteRoute("remote", 2)}, LocalOwner: noopOwner{}, RemoteAppender: remote})
+func TestChannelPlaneUsesPeerReactorForRemoteLeader(t *testing.T) {
+	peer := &recordingPlanePeerClient{}
+	p, err := New(Options{ReactorCount: 1, LocalNode: 1, Resolver: staticResolver{route: remoteRoute("remote", 2)}, LocalOwner: noopOwner{}, PeerClient: peer, PeerBatchMaxWait: time.Millisecond})
 	require.NoError(t, err)
 	require.NoError(t, p.Start())
 	defer stopPlane(t, p)
@@ -152,9 +152,11 @@ func TestChannelPlaneUsesCompatibilityRemoteAppenderForRemoteLeader(t *testing.T
 	_, err = p.AppendBatch(ctx, appendReq("remote", 1))
 	require.NoError(t, err)
 
-	require.Equal(t, channel.NodeID(2), remote.nodeID)
-	require.Equal(t, uint64(9), remote.req.ExpectedChannelEpoch)
-	require.Equal(t, uint64(11), remote.req.ExpectedLeaderEpoch)
+	require.Equal(t, channel.NodeID(2), peer.nodeID)
+	require.Len(t, peer.req.Batches, 1)
+	require.Equal(t, uint64(7), peer.req.Batches[0].RouteEpoch.RouteGeneration)
+	require.Equal(t, uint64(9), peer.req.Batches[0].Request.ExpectedChannelEpoch)
+	require.Equal(t, uint64(11), peer.req.Batches[0].Request.ExpectedLeaderEpoch)
 }
 
 func appendReq(id string, seq uint64) channel.AppendBatchRequest {
@@ -304,16 +306,16 @@ func (s *countingRouteSource) calls() int {
 	return s.count
 }
 
-type recordingRemoteAppender struct {
+type recordingPlanePeerClient struct {
 	mu     sync.Mutex
 	nodeID channel.NodeID
-	req    channel.AppendBatchRequest
+	req    AppendBatchesRequest
 }
 
-func (r *recordingRemoteAppender) AppendRemoteBatch(_ context.Context, nodeID channel.NodeID, req channel.AppendBatchRequest, _ ChannelRoute) (channel.AppendBatchResult, error) {
+func (r *recordingPlanePeerClient) AppendBatches(_ context.Context, nodeID channel.NodeID, req AppendBatchesRequest) (AppendBatchesResponse, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.nodeID = nodeID
 	r.req = req
-	return channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{MessageSeq: 1}}}, nil
+	return AppendBatchesResponse{Results: []AppendBatchRemoteResult{{Status: RemoteAppendStatusOK, Result: channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{MessageSeq: 1}}}}}}, nil
 }

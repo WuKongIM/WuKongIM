@@ -17,6 +17,7 @@ type Plane struct {
 	started  bool
 	closed   bool
 	reactors []*reactor
+	peer     *PeerReactor
 }
 
 // New constructs a channel append plane without starting reactor goroutines.
@@ -28,6 +29,16 @@ func New(opts Options) (*Plane, error) {
 	p := &Plane{opts: opts, reactors: make([]*reactor, opts.ReactorCount)}
 	for i := range p.reactors {
 		p.reactors[i] = newReactor(p, i, opts.ReactorInboxSize)
+	}
+	if opts.PeerClient != nil {
+		p.peer = NewPeerReactor(PeerReactorOptions{
+			Client:          opts.PeerClient,
+			LaneCount:       opts.PeerLaneCount,
+			MaxBatchWait:    opts.PeerBatchMaxWait,
+			MaxBatchRecords: opts.PeerBatchMaxRecords,
+			MaxBatchBytes:   opts.PeerBatchMaxBytes,
+			MaxPending:      opts.PeerMaxPending,
+		})
 	}
 	return p, nil
 }
@@ -45,6 +56,11 @@ func (p *Plane) Start() error {
 	if p.started {
 		return nil
 	}
+	if p.peer != nil {
+		if err := p.peer.Start(); err != nil {
+			return err
+		}
+	}
 	for _, r := range p.reactors {
 		r.start()
 	}
@@ -56,6 +72,9 @@ func (p *Plane) Start() error {
 func (p *Plane) Stop(ctx context.Context) error {
 	if p == nil {
 		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	p.mu.Lock()
 	if p.closed {
@@ -75,6 +94,9 @@ func (p *Plane) Stop(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+	}
+	if p.peer != nil {
+		return p.peer.Stop(ctx)
 	}
 	return nil
 }
