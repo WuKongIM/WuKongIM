@@ -83,8 +83,8 @@ func (r *reactor) post(event reactorEvent) {
 }
 
 func (r *reactor) completePostedAfterStop(event reactorEvent) {
-	if event.completion.cmd != nil {
-		event.completion.cmd.future.complete(channel.AppendBatchResult{}, ErrClosed)
+	if event.completion.cmd != nil && event.completion.cmd.future.complete(channel.AppendBatchResult{}, ErrClosed) {
+		observeAppendCompleted(r.plane.opts.Observer, event.completion.cmd.req, event.completion.route, ErrClosed)
 	}
 }
 
@@ -167,12 +167,12 @@ func (r *reactor) drainInbox(err error) {
 func (r *reactor) failEvent(event reactorEvent, err error) {
 	switch event.kind {
 	case reactorEventAppend:
-		if event.cmd != nil {
-			event.cmd.future.complete(channel.AppendBatchResult{}, err)
+		if event.cmd != nil && event.cmd.future.complete(channel.AppendBatchResult{}, err) {
+			observeAppendCompleted(r.plane.opts.Observer, event.cmd.req, ChannelRoute{}, err)
 		}
 	case reactorEventResolveComplete, reactorEventAppendComplete:
-		if event.completion.cmd != nil {
-			event.completion.cmd.future.complete(channel.AppendBatchResult{}, err)
+		if event.completion.cmd != nil && event.completion.cmd.future.complete(channel.AppendBatchResult{}, err) {
+			observeAppendCompleted(r.plane.opts.Observer, event.completion.cmd.req, event.completion.route, err)
 		}
 	}
 }
