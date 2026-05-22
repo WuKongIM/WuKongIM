@@ -15,7 +15,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelhandler "github.com/WuKongIM/WuKongIM/pkg/channel/handler"
-	raftcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -282,6 +281,30 @@ func TestSendBatchUsesChannelAppendBatchForSameChannelSegment(t *testing.T) {
 	require.Len(t, cluster.sendBatchRequests[0].Messages, 2)
 	require.Equal(t, "b1", cluster.sendBatchRequests[0].Messages[0].ClientMsgNo)
 	require.Equal(t, "b2", cluster.sendBatchRequests[0].Messages[1].ClientMsgNo)
+}
+
+func TestSendDurableUsesChannelAppenderWithoutMetaRefresher(t *testing.T) {
+	appender := &fakeChannelCluster{sendBatchReplies: []fakeChannelClusterSendBatchReply{{
+		result: channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{
+			MessageID:  501,
+			MessageSeq: 9,
+			Message:    channel.Message{MessageID: 501, MessageSeq: 9},
+		}}},
+	}}}
+	app := New(Options{Now: fixedNowFn, ChannelAppender: appender})
+
+	result, err := app.Send(context.Background(), SendCommand{
+		FromUID:     "u1",
+		ChannelID:   "g-plane",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("hi"),
+		ClientMsgNo: "plane-direct",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(9), result.MessageSeq)
+	require.Len(t, appender.sendBatchRequests, 1)
+	require.Equal(t, "plane-direct", appender.sendBatchRequests[0].Messages[0].ClientMsgNo)
 }
 
 func TestSendReturnsUnsupportedChannelType(t *testing.T) {
@@ -2189,208 +2212,7 @@ func TestSendDoesNotPerformSynchronousDeliveryAfterDurableWrite(t *testing.T) {
 	require.Empty(t, remote.calls)
 }
 
-func TestSendRefreshesMetaThenAppendsLocally(t *testing.T) {
-	dispatcher := &recordingCommittedDispatcher{}
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
-			{result: channel.AppendResult{
-				MessageID:  201,
-				MessageSeq: 7,
-				Message: channel.Message{
-					MessageID:   201,
-					MessageSeq:  7,
-					ChannelID:   "u2@u1",
-					ChannelType: frame.ChannelTypePerson,
-					FromUID:     "u1",
-					ClientMsgNo: "m6",
-					Payload:     []byte("hi"),
-					ClientSeq:   21,
-				},
-			}},
-		},
-	}
-	refresher := &fakeMetaRefresher{
-		metas: []channel.Meta{{
-			ID:          channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
-			Epoch:       11,
-			LeaderEpoch: 3,
-		}},
-	}
-	app := New(Options{
-		Now:                 fixedNowFn,
-		Cluster:             cluster,
-		MetaRefresher:       refresher,
-		CommittedDispatcher: dispatcher,
-	})
-
-	result, err := app.Send(context.Background(), SendCommand{
-		FromUID:     "u1",
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		Payload:     []byte("hi"),
-		ClientSeq:   21,
-		ClientMsgNo: "m6",
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, frame.ReasonSuccess, result.Reason)
-	require.Equal(t, int64(201), result.MessageID)
-	require.Equal(t, uint64(7), result.MessageSeq)
-	require.Len(t, refresher.keys, 1)
-	require.Equal(t, channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson}, refresher.keys[0])
-	require.Empty(t, cluster.appliedMetas)
-	require.Len(t, cluster.sendRequests, 1)
-	require.Equal(t, uint64(11), cluster.sendRequests[0].ExpectedChannelEpoch)
-	require.Equal(t, uint64(3), cluster.sendRequests[0].ExpectedLeaderEpoch)
-	require.Equal(t, []deliveryEnvelopeRecord{{
-		Message: channel.Message{
-			MessageID:   201,
-			MessageSeq:  7,
-			ChannelID:   "u2@u1",
-			ChannelType: frame.ChannelTypePerson,
-			FromUID:     "u1",
-			ClientMsgNo: "m6",
-			Payload:     []byte("hi"),
-			ClientSeq:   21,
-		},
-	}}, dispatcher.calls)
-}
-
-func TestSendBootstrapsAndAppendsLocally(t *testing.T) {
-	dispatcher := &recordingCommittedDispatcher{}
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
-			{result: channel.AppendResult{
-				MessageID:  301,
-				MessageSeq: 4,
-				Message: channel.Message{
-					MessageID:   301,
-					MessageSeq:  4,
-					ChannelID:   "group-1",
-					ChannelType: frame.ChannelTypeGroup,
-					FromUID:     "u1",
-					ClientMsgNo: "bootstrap-1",
-					Payload:     []byte("hi group"),
-					ClientSeq:   33,
-				},
-			}},
-		},
-	}
-	refresher := &fakeMetaRefresher{
-		metas: []channel.Meta{{
-			ID:          channel.ChannelID{ID: "group-1", Type: frame.ChannelTypeGroup},
-			Epoch:       17,
-			LeaderEpoch: 6,
-		}},
-	}
-	app := New(Options{
-		Now:                 fixedNowFn,
-		Cluster:             cluster,
-		MetaRefresher:       refresher,
-		CommittedDispatcher: dispatcher,
-	})
-
-	result, err := app.Send(context.Background(), SendCommand{
-		FromUID:     "u1",
-		ChannelID:   "group-1",
-		ChannelType: frame.ChannelTypeGroup,
-		Payload:     []byte("hi group"),
-		ClientSeq:   33,
-		ClientMsgNo: "bootstrap-1",
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, frame.ReasonSuccess, result.Reason)
-	require.Equal(t, int64(301), result.MessageID)
-	require.Equal(t, uint64(4), result.MessageSeq)
-	require.Equal(t, []channel.ChannelID{{ID: "group-1", Type: frame.ChannelTypeGroup}}, refresher.keys)
-	require.Empty(t, cluster.appliedMetas)
-	require.Len(t, cluster.sendRequests, 1)
-	require.Equal(t, channel.ChannelID{ID: "group-1", Type: frame.ChannelTypeGroup}, cluster.sendRequests[0].ChannelID)
-	require.Equal(t, uint64(17), cluster.sendRequests[0].ExpectedChannelEpoch)
-	require.Equal(t, uint64(6), cluster.sendRequests[0].ExpectedLeaderEpoch)
-	require.Equal(t, []deliveryEnvelopeRecord{{
-		Message: channel.Message{
-			MessageID:   301,
-			MessageSeq:  4,
-			ChannelID:   "group-1",
-			ChannelType: frame.ChannelTypeGroup,
-			FromUID:     "u1",
-			ClientMsgNo: "bootstrap-1",
-			Payload:     []byte("hi group"),
-			ClientSeq:   33,
-		},
-	}}, dispatcher.calls)
-}
-
-func TestSendRefreshDoesNotReapplyMeta(t *testing.T) {
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
-			{result: channel.AppendResult{MessageID: 302, MessageSeq: 8}},
-		},
-		applyErr: channel.ErrStaleMeta,
-	}
-	refresher := &fakeMetaRefresher{
-		metas: []channel.Meta{{
-			ID:          channel.ChannelID{ID: "group-apply-once", Type: frame.ChannelTypeGroup},
-			Epoch:       18,
-			LeaderEpoch: 7,
-		}},
-	}
-	app := New(Options{
-		Now:           fixedNowFn,
-		Cluster:       cluster,
-		MetaRefresher: refresher,
-	})
-
-	result, err := app.Send(context.Background(), SendCommand{
-		FromUID:     "u1",
-		ChannelID:   "group-apply-once",
-		ChannelType: frame.ChannelTypeGroup,
-		Payload:     []byte("hi group"),
-		ClientSeq:   35,
-		ClientMsgNo: "apply-once-1",
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, frame.ReasonSuccess, result.Reason)
-	require.Equal(t, int64(302), result.MessageID)
-	require.Equal(t, uint64(8), result.MessageSeq)
-	require.Equal(t, []channel.ChannelID{{ID: "group-apply-once", Type: frame.ChannelTypeGroup}}, refresher.keys)
-	require.Empty(t, cluster.appliedMetas)
-	require.Len(t, cluster.sendRequests, 1)
-	require.Equal(t, uint64(18), cluster.sendRequests[0].ExpectedChannelEpoch)
-	require.Equal(t, uint64(7), cluster.sendRequests[0].ExpectedLeaderEpoch)
-}
-
-func TestSendFailsWhenRefreshReturnsTopologyError(t *testing.T) {
-	cluster := &fakeChannelCluster{}
-	refresher := &fakeMetaRefresher{
-		errs: []error{raftcluster.ErrNoLeader},
-	}
-	app := New(Options{
-		Now:           fixedNowFn,
-		Cluster:       cluster,
-		MetaRefresher: refresher,
-	})
-
-	result, err := app.Send(context.Background(), SendCommand{
-		FromUID:     "u1",
-		ChannelID:   "group-2",
-		ChannelType: frame.ChannelTypeGroup,
-		Payload:     []byte("hi group"),
-		ClientSeq:   34,
-		ClientMsgNo: "bootstrap-err-1",
-	})
-
-	require.ErrorIs(t, err, raftcluster.ErrNoLeader)
-	require.Equal(t, SendResult{}, result)
-	require.Equal(t, []channel.ChannelID{{ID: "group-2", Type: frame.ChannelTypeGroup}}, refresher.keys)
-	require.Empty(t, cluster.sendRequests)
-	require.Empty(t, cluster.appliedMetas)
-}
-
-func TestSendDurablePersonPropagatesRequestContextToClusterAndMetaRefresh(t *testing.T) {
+func TestSendDurablePersonPropagatesRequestContextToChannelAppender(t *testing.T) {
 	type ctxKey string
 
 	cluster := &fakeChannelCluster{
@@ -2398,17 +2220,9 @@ func TestSendDurablePersonPropagatesRequestContextToClusterAndMetaRefresh(t *tes
 			{result: channel.AppendResult{MessageID: 401, MessageSeq: 19}},
 		},
 	}
-	refresher := &fakeMetaRefresher{
-		metas: []channel.Meta{{
-			ID:          channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
-			Epoch:       12,
-			LeaderEpoch: 4,
-		}},
-	}
 	app := New(Options{
-		Now:           fixedNowFn,
-		Cluster:       cluster,
-		MetaRefresher: refresher,
+		Now:     fixedNowFn,
+		Cluster: cluster,
 	})
 
 	ctx := context.WithValue(context.Background(), ctxKey("request"), "durable-send")
@@ -2424,8 +2238,6 @@ func TestSendDurablePersonPropagatesRequestContextToClusterAndMetaRefresh(t *tes
 	require.Equal(t, frame.ReasonSuccess, result.Reason)
 	require.Len(t, cluster.sendContexts, 1)
 	require.Equal(t, ctx, cluster.sendContexts[0])
-	require.Len(t, refresher.refreshContexts, 1)
-	require.Equal(t, ctx, refresher.refreshContexts[0])
 }
 
 func TestSendDurablePersonReturnsContextCanceled(t *testing.T) {
@@ -2498,8 +2310,6 @@ func TestNewPreservesInjectedCollaborators(t *testing.T) {
 	identities := &fakeIdentityStore{}
 	channels := &fakeChannelStore{}
 	cluster := &fakeChannelCluster{}
-	refresher := &fakeMetaRefresher{}
-	remoteApp := &fakeRemoteAppender{}
 	reg := &fakeRegistry{}
 	delivery := &recordingDelivery{}
 	dispatcher := &recordingCommittedDispatcher{}
@@ -2516,8 +2326,6 @@ func TestNewPreservesInjectedCollaborators(t *testing.T) {
 		PermissionStore:     permissions,
 		SystemUIDs:          systemUIDs,
 		Cluster:             cluster,
-		MetaRefresher:       refresher,
-		RemoteAppender:      remoteApp,
 		Online:              reg,
 		Delivery:            delivery,
 		CommittedDispatcher: dispatcher,
@@ -2533,9 +2341,7 @@ func TestNewPreservesInjectedCollaborators(t *testing.T) {
 	require.Same(t, channels, app.channels)
 	require.Same(t, permissions, app.permissions)
 	require.Equal(t, systemUIDs, app.systemUIDs)
-	require.Same(t, cluster, app.cluster)
-	require.Same(t, refresher, app.refresher)
-	require.Same(t, remoteApp, app.remoteAppender)
+	require.Same(t, cluster, app.appender)
 	require.Same(t, reg, app.online)
 	require.Same(t, delivery, app.delivery)
 	require.Same(t, dispatcher, app.dispatcher)

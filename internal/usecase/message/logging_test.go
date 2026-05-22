@@ -5,7 +5,6 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -139,88 +138,11 @@ func TestSendLogsPrimaryFailureWithMessageModule(t *testing.T) {
 	require.Error(t, err)
 
 	entry := requireLogEntry(t, logger, "ERROR", "message.send", "message.send.append_batch.failed")
-	require.Equal(t, "local append batch failed", entry.msg)
+	require.Equal(t, "append batch failed", entry.msg)
 	require.Equal(t, "u2@u1", requireFieldValue[string](t, entry, "channelID"))
 	require.Equal(t, int64(frame.ChannelTypePerson), requireFieldValue[int64](t, entry, "channelType"))
 	require.Equal(t, "u1", requireFieldValue[string](t, entry, "uid"))
 	require.EqualError(t, requireFieldValue[error](t, entry, "error"), "raft quorum unavailable")
-}
-
-func TestSendLogsResolvedMetaAfterRefresh(t *testing.T) {
-	logger := newRecordingLogger("message")
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{
-			{result: channel.AppendResult{MessageID: 88, MessageSeq: 9}},
-		},
-	}
-	refresher := &fakeMetaRefresher{metas: []channel.Meta{{
-		ID:          channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
-		Epoch:       4,
-		LeaderEpoch: 5,
-	}}}
-	app := New(Options{
-		Now:           fixedNowFn,
-		Logger:        logger,
-		Cluster:       cluster,
-		MetaRefresher: refresher,
-	})
-
-	result, err := app.Send(context.Background(), SendCommand{
-		FromUID:     "u1",
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		Payload:     []byte("hi"),
-	})
-	require.NoError(t, err)
-	require.Equal(t, int64(88), result.MessageID)
-	require.Equal(t, uint64(9), result.MessageSeq)
-
-	entry := requireLogEntry(t, logger, "DEBUG", "message.send", "message.send.meta.resolved")
-	require.Equal(t, "resolved channel metadata", entry.msg)
-	require.Equal(t, "u2@u1", requireFieldValue[string](t, entry, "channelID"))
-	require.Equal(t, "u1", requireFieldValue[string](t, entry, "uid"))
-}
-
-func TestSendLogsResolvedMetaWithLeaderDetails(t *testing.T) {
-	logger := newRecordingLogger("message")
-	remote := &fakeRemoteAppender{
-		replies: []fakeRemoteAppenderReply{
-			{result: channel.AppendResult{MessageID: 88, MessageSeq: 9}},
-		},
-	}
-	refresher := &fakeMetaRefresher{metas: []channel.Meta{{
-		ID:          channel.ChannelID{ID: "u2@u1", Type: frame.ChannelTypePerson},
-		Epoch:       4,
-		LeaderEpoch: 5,
-		Leader:      2,
-		Replicas:    []channel.NodeID{1, 2, 3},
-		ISR:         []channel.NodeID{1, 2, 3},
-		MinISR:      3,
-		LeaseUntil:  fixedSendNow.Add(3 * time.Second),
-	}}}
-	app := New(Options{
-		Now:            fixedNowFn,
-		Logger:         logger,
-		Cluster:        &fakeChannelCluster{},
-		MetaRefresher:  refresher,
-		RemoteAppender: remote,
-	})
-
-	_, err := app.Send(context.Background(), SendCommand{
-		FromUID:     "u1",
-		ChannelID:   "u2",
-		ChannelType: frame.ChannelTypePerson,
-		Payload:     []byte("hi"),
-	})
-	require.NoError(t, err)
-
-	entry := requireLogEntry(t, logger, "DEBUG", "message.send", "message.send.meta.resolved")
-	require.Equal(t, "resolved channel metadata", entry.msg)
-	require.Equal(t, uint64(2), requireFieldValue[uint64](t, entry, "leaderNodeID"))
-	require.Equal(t, uint64(4), requireFieldValue[uint64](t, entry, "channelEpoch"))
-	require.Equal(t, uint64(5), requireFieldValue[uint64](t, entry, "leaderEpoch"))
-	require.Equal(t, 3, requireFieldValue[int](t, entry, "replicaCount"))
-	require.Equal(t, 3*time.Second, requireFieldValue[time.Duration](t, entry, "leaseRemaining"))
 }
 
 func TestSendLogsDispatchSubmitFailureAsWarn(t *testing.T) {
