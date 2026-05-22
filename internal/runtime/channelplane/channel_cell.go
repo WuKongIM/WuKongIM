@@ -145,5 +145,5 @@ func (c *channelCell) failAll(err error) {
 }
 
 func isRouteInvalidationError(err error) bool {
-	return errors.Is(err, ErrStaleRoute) || errors.Is(err, channel.ErrStaleMeta) || errors.Is(err, channel.ErrNotLeader) || errors.Is(err, channel.ErrLeaseExpired)
+	return errors.Is(err, ErrStaleRoute) || errors.Is(err, channel.ErrStaleMeta) || errors.Is(err, channel.ErrNotLeader) || errors.Is(err, channel.ErrLeaseExpired) || errors.Is(err, channel.ErrWriteFenced)
 }

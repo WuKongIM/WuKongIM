@@ -15,7 +15,10 @@ type reactor struct {
 	stopc chan struct{}
 	done  chan struct{}
 	once  sync.Once
-	cells map[channel.ChannelKey]*channelCell
+
+	submitMu sync.Mutex
+	stopped  bool
+	cells    map[channel.ChannelKey]*channelCell
 }
 
 func newReactor(plane *Plane, index int, inboxSize int) *reactor {
@@ -34,30 +37,53 @@ func (r *reactor) start() {
 }
 
 func (r *reactor) stop() {
-	r.once.Do(func() { close(r.stopc) })
+	r.once.Do(func() {
+		r.submitMu.Lock()
+		r.stopped = true
+		r.submitMu.Unlock()
+		close(r.stopc)
+	})
 }
 
 func (r *reactor) submit(ctx context.Context, cmd *appendCommand) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	r.submitMu.Lock()
+	defer r.submitMu.Unlock()
+	if r.stopped {
+		return ErrClosed
+	}
 	select {
 	case r.inbox <- reactorEvent{kind: reactorEventAppend, cmd: cmd}:
 		observeAppendQueued(r.plane.opts.Observer, cmd.req)
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-r.stopc:
-		return ErrClosed
 	default:
 		return ErrOverloaded
 	}
 }
 
 func (r *reactor) post(event reactorEvent) {
+	r.submitMu.Lock()
+	if r.stopped {
+		r.submitMu.Unlock()
+		r.completePostedAfterStop(event)
+		return
+	}
 	select {
 	case r.inbox <- event:
+		r.submitMu.Unlock()
 	case <-r.stopc:
-		if event.completion.cmd != nil {
-			event.completion.cmd.future.complete(channel.AppendBatchResult{}, ErrClosed)
-		}
+		r.submitMu.Unlock()
+		r.completePostedAfterStop(event)
+	}
+}
+
+func (r *reactor) completePostedAfterStop(event reactorEvent) {
+	if event.completion.cmd != nil {
+		event.completion.cmd.future.complete(channel.AppendBatchResult{}, ErrClosed)
 	}
 }
 
@@ -69,6 +95,7 @@ func (r *reactor) run() {
 			r.handle(event)
 		case <-r.stopc:
 			r.failAll(ErrClosed)
+			r.drainInbox(ErrClosed)
 			return
 		}
 	}
@@ -104,6 +131,30 @@ func (r *reactor) cell(key channel.ChannelKey) *channelCell {
 func (r *reactor) failAll(err error) {
 	for _, cell := range r.cells {
 		cell.failAll(err)
+	}
+}
+
+func (r *reactor) drainInbox(err error) {
+	for {
+		select {
+		case event := <-r.inbox:
+			r.failEvent(event, err)
+		default:
+			return
+		}
+	}
+}
+
+func (r *reactor) failEvent(event reactorEvent, err error) {
+	switch event.kind {
+	case reactorEventAppend:
+		if event.cmd != nil {
+			event.cmd.future.complete(channel.AppendBatchResult{}, err)
+		}
+	case reactorEventResolveComplete, reactorEventAppendComplete:
+		if event.completion.cmd != nil {
+			event.completion.cmd.future.complete(channel.AppendBatchResult{}, err)
+		}
 	}
 }
 
