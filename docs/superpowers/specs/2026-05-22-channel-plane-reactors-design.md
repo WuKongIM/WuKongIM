@@ -176,7 +176,7 @@ gateway
 internal/runtime/channelplane/
   plane.go              public facade and lifecycle
   options.go            dependency and tuning options
-  command.go            append/fetch/status commands
+  command.go            append command DTOs
   event.go              reactor event types
   future.go             request futures and cancellation helpers
   reactor.go            channel reactor event loop
@@ -205,16 +205,14 @@ The old `internal/access/node/channel_append_rpc.go` can be removed after the ne
 ### Public facade
 
 ```go
-type Plane interface {
+type ChannelAppender interface {
     Start() error
     Stop(context.Context) error
     AppendBatch(ctx context.Context, req AppendBatchRequest) (AppendBatchResult, error)
-    Fetch(ctx context.Context, req FetchRequest) (FetchResult, error)
-    Status(ctx context.Context, id channel.ChannelID) (ChannelStatus, error)
 }
 ```
 
-The first rollout only requires `AppendBatch`. `Fetch` and `Status` can either remain on existing services or be thin wrappers until the read path is migrated.
+The first rollout only requires this append-only contract. `Fetch` and `Status` stay on existing services or separate admin wrappers until a later read-path phase; they are not part of the Phase 1 send contract.
 
 ### Append request model
 
@@ -228,7 +226,6 @@ type AppendBatchRequest struct {
     CommitMode            channel.CommitMode
     TraceID               string
     SenderSessionID       uint64
-    RequestSubscribers    []string
 }
 
 type AppendBatchResult struct {
@@ -244,6 +241,7 @@ type AppendBatchResult struct {
 - send permission checks
 - plugin before-send hook
 - durable message construction
+- request-scoped subscriber normalization and delivery intent submission
 - committed side-effect submission in the first rollout
 
 `message.App` no longer depends on:
@@ -252,27 +250,28 @@ type AppendBatchResult struct {
 - `RemoteAppender`
 - `ChannelCluster` as a routing primitive
 
-It depends on `channelplane.Plane` or a narrow `ChannelAppender` interface.
+It depends on the narrow `ChannelAppender` interface.
 
 ### Channel route model
 
 ```go
 type ChannelRoute struct {
-    ChannelID    channel.ChannelID
-    Key          channel.ChannelKey
-    SlotID       multiraft.SlotID
-    HashSlot     uint16
-    Leader       uint64
-    ChannelEpoch uint64
-    LeaderEpoch  uint64
-    LeaseUntil   time.Time
-    Replicas     []uint64
-    ISR          []uint64
-    MinISR       int
-    Status       channel.Status
-    Features     channel.Features
-    RetentionThroughSeq uint64
-    WriteFence   channel.WriteFence
+    ChannelID           channel.ChannelID
+    Key                 channel.ChannelKey
+    SlotID              multiraft.SlotID
+    HashSlot            uint16
+    RouteGeneration     uint64
+    Leader              uint64
+    ChannelEpoch        uint64
+    LeaderEpoch         uint64
+    LeaseUntil          time.Time
+    Replicas            []uint64
+    ISR                 []uint64
+    MinISR              int
+    Status              channel.Status
+    Features            channel.Features
+    RetentionThroughSeq  uint64
+    WriteFence          channel.WriteFence
 }
 ```
 
@@ -284,7 +283,9 @@ A route is reusable for writes only when all of these are true:
 - lease is valid beyond a configurable write lead time
 - write fence is empty
 - leader is not known dead or draining
-- route generation matches the current cache entry
+- route generation matches the authoritative route record version stored for this channel
+
+`RouteGeneration` is the authoritative version of the route record. It is persisted with `ChannelRuntimeMeta`, copied into `ChannelRoute`, and compared by local caches and remote owners to reject stale envelopes without adding a second route lookup.
 
 ### ChannelCell
 
@@ -317,6 +318,8 @@ Responsibilities:
 - handle typed append failures and decide whether to retry, refresh route, or complete futures with error
 - complete futures in request order
 - enforce per-channel pending count, pending bytes, and inflight limits
+
+In the first implementation, same-channel append effects are serialized. `Inflight` is effectively binary for append work: `0` means idle, `1` means one append effect is outstanding. Cross-channel concurrency comes from multiple reactors and many active cells, not from concurrent append effects on the same channel. `ChannelMaxInflightAppends` is therefore `1` in Phase 1 and only becomes a future tuning knob if same-channel pipelining is explicitly redesigned.
 
 ### ChannelReactors
 
@@ -400,11 +403,20 @@ type AppendBatchesResponse struct {
 type AppendBatchRemoteResult struct {
     Status string
     LeaderHint uint64
-    ChannelEpoch uint64
-    LeaderEpoch uint64
+    RouteEpoch RouteEpoch
     Result channel.AppendBatchResult
 }
 ```
+
+```go
+type RouteEpoch struct {
+    ChannelEpoch    uint64
+    LeaderEpoch     uint64
+    RouteGeneration uint64
+}
+```
+
+`RouteEpoch` is the append-time snapshot of authoritative route identity. Remote owners validate all three fields against their current route record before accepting a batch.
 
 Statuses:
 
@@ -425,16 +437,17 @@ During the first implementation slices, Channel Plane may use an explicit compat
 
 ### Local owner append
 
-`appChannelCluster` becomes a local owner facade only:
+`appChannelCluster` is split into two paths:
 
+- add `AppendLocalBatch` as the plane-owned local owner path
+- keep `AppendBatch` as the legacy compatibility path until Phase 3
 - keep `ApplyRoutingMeta`
 - keep `EnsureLocalRuntime`
 - keep `RemoveLocalRuntime`
-- keep local `AppendBatch`
-- remove remote forwarding from `AppendBatch`
-- remove `remoteAppender` from this type
+- remove `remoteAppender` from the new local-only path
+- ensure the plane never calls the legacy forwarding `AppendBatch`
 
-Local append validates expected channel and leader epochs through `pkg/channel/handler.AppendBatch` as today. Stale or not-leader results become typed completion events handled by the ChannelCell.
+`AppendLocalBatch` validates expected channel and leader epochs through `pkg/channel/handler.AppendBatch` as today. Stale or not-leader results become typed completion events handled by the ChannelCell. The compatibility `AppendBatch` remains only so older internal callers can keep working until the remote-reactor path fully replaces it.
 
 ### Route resolver and placement
 
@@ -553,9 +566,12 @@ PeerBatchMaxWait
 
 All limits must have metrics and typed errors. The gateway maps expected overload errors to a controlled sendack reason rather than surfacing an opaque system error.
 
+`ChannelMaxInflightAppends` is fixed to `1` in Phase 1 so ordering stays simple and same-channel work remains strictly serialized.
+
 ## Ordering Model
 
 - Same channel: append commands are completed in channel order.
+- Same channel: only one append effect may be in flight at a time in Phase 1.
 - Same channel batches: coalescing must preserve request item order.
 - Cross channel: no ordering guarantee.
 - Remote peer batching: batching across channels must preserve ordering only within each channel envelope.
@@ -621,7 +637,7 @@ The plane can return typed errors directly, and gateway can map those errors to 
 ### Phase 1: Add Channel Plane beside existing path
 
 - Add `internal/runtime/channelplane` with reactor/future skeleton.
-- Implement local append effect over current `appChannelCluster` local append.
+- Implement local append effect over the new `appChannelCluster.AppendLocalBatch` path.
 - Add route resolver using current `channelMetaSync` / store primitives.
 - Add a temporary compatibility remote-owner adapter that reuses the existing single-channel remote append RPC so remote leaders remain writable before peer reactors land.
 - Add tests for reactor enqueue, ordering, future completion, timeout, and local append.
@@ -639,8 +655,8 @@ The plane can return typed errors directly, and gateway can map those errors to 
 
 - Add `AppendBatches` node RPC and binary codec.
 - Add `PeerReactor` and remote append effect.
-- Remove the temporary compatibility remote-owner adapter after peer reactors are stable.
-- Remove remote forwarding from `appChannelCluster`.
+- Remove the temporary compatibility remote-owner adapter in the same Phase 3 cleanup step after `AppendBatches` is wired into `channelplane`, all durable send callers use `PeerReactor`, and the Phase 3 multi-node tests pass.
+- Convert legacy `appChannelCluster.AppendBatch` to a local-only path or delete it once all callers are migrated.
 - Remove or deprecate old `channel_append_rpc.go`.
 - Add multi-node tests for follower gateway send, stale route retry, leader hint retry, peer backpressure, and batch RPC result alignment.
 
