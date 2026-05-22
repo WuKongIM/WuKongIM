@@ -8,11 +8,16 @@ import (
 )
 
 type dispatcher struct {
-	handler gatewaytypes.Handler
+	handler      gatewaytypes.Handler
+	batchHandler gatewaytypes.SendBatchHandler
 }
 
 func newDispatcher(handler gatewaytypes.Handler) dispatcher {
-	return dispatcher{handler: handler}
+	dispatcher := dispatcher{handler: handler}
+	if batchHandler, ok := handler.(gatewaytypes.SendBatchHandler); ok {
+		dispatcher.batchHandler = batchHandler
+	}
+	return dispatcher
 }
 
 func (d dispatcher) listenerError(listener string, err error) {
@@ -37,14 +42,14 @@ func (d dispatcher) frame(state *sessionState, replyToken string, f frame.Frame)
 }
 
 func (d dispatcher) sendBatch(items []gatewaytypes.SendBatchItem) (bool, error) {
-	if d.handler == nil {
+	if d.batchHandler == nil {
 		return false, nil
 	}
-	handler, ok := d.handler.(gatewaytypes.SendBatchHandler)
-	if !ok {
-		return false, nil
-	}
-	return true, handler.OnSendBatch(items)
+	return true, d.batchHandler.OnSendBatch(items)
+}
+
+func (d dispatcher) canSendBatch() bool {
+	return d.batchHandler != nil
 }
 
 func (d dispatcher) sessionError(state *sessionState, reason gatewaytypes.CloseReason, err error) {

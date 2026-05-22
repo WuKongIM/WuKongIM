@@ -145,6 +145,22 @@ func TestStatusReturnsErrStaleMetaWhenCacheMisses(t *testing.T) {
 	}
 }
 
+func TestRestoreMetaRemovesCachedIDWhenMetaIsDeleted(t *testing.T) {
+	id := core.ChannelID{ID: "c-restore-delete", Type: 1}
+	svc, _, _ := newAppendService(t, id)
+	raw := svc.(*service)
+	key := KeyFromChannelID(id)
+
+	raw.RestoreMeta(key, core.Meta{}, false)
+
+	raw.mu.RLock()
+	_, exists := raw.keys[id]
+	raw.mu.RUnlock()
+	if exists {
+		t.Fatalf("expected RestoreMeta delete to remove cached id %v", id)
+	}
+}
+
 func TestStatusReturnsRuntimeAndMetaValues(t *testing.T) {
 	id := core.ChannelID{ID: "c1", Type: 1}
 	svc, rt, _ := newAppendService(t, id)

@@ -231,13 +231,9 @@ func (h *Handler) sendMessageBatch(items []message.SendBatchItem) []message.Send
 	}
 	if batcher, ok := h.messages.(MessageBatchUsecase); ok {
 		return batcher.SendBatch(items)
+	} else {
+		panic("message usecase does not implement MessageBatchUsecase")
 	}
-	results := make([]message.SendBatchItemResult, len(items))
-	for i, item := range items {
-		result, err := h.messages.Send(item.Context, item.Command)
-		results[i] = message.SendBatchItemResult{Result: result, Err: err}
-	}
-	return results
 }
 
 func sendBatchGatewayContext(item coregateway.SendBatchItem) *coregateway.Context {

@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"encoding/binary"
+	"hash/fnv"
 	"reflect"
 	"testing"
 
@@ -126,6 +127,36 @@ func BenchmarkEncodeMessage(b *testing.B) {
 		}
 		if len(encoded) == 0 {
 			b.Fatal("encoded message is empty")
+		}
+	}
+}
+
+func TestHashPayloadHasNoHeapAllocation(t *testing.T) {
+	payload := []byte("append benchmark payload")
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		if hashPayload(payload) == 0 {
+			t.Fatal("hashPayload() returned zero")
+		}
+	})
+
+	if allocs != 0 {
+		t.Fatalf("hashPayload() allocs = %v, want 0", allocs)
+	}
+}
+
+func TestHashPayloadMatchesFNV64a(t *testing.T) {
+	for _, payload := range [][]byte{
+		nil,
+		{},
+		[]byte("append benchmark payload"),
+		[]byte{0, 1, 2, 3, 255},
+	} {
+		hasher := fnv.New64a()
+		_, _ = hasher.Write(payload)
+
+		if got, want := hashPayload(payload), hasher.Sum64(); got != want {
+			t.Fatalf("hashPayload(%q) = %d, want %d", payload, got, want)
 		}
 	}
 }

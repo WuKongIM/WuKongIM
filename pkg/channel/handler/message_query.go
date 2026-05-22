@@ -8,8 +8,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 )
 
-const messageQueryChunkLimit = 256
-
 // QueryMessagesRequest configures one channel-local message page scan.
 type QueryMessagesRequest struct {
 	// ChannelID identifies the channel to scan.
@@ -67,16 +65,6 @@ func QueryMessages(engine *store.Engine, committedHW uint64, req QueryMessagesRe
 	return queryMessagesFromStore(st, committedHW, req)
 }
 
-func queryMessageMatches(message channel.Message, req QueryMessagesRequest) bool {
-	if req.MessageID != 0 && message.MessageID != req.MessageID {
-		return false
-	}
-	if req.ClientMsgNo != "" && message.ClientMsgNo != req.ClientMsgNo {
-		return false
-	}
-	return true
-}
-
 type messageQueryStore interface {
 	GetMessageByMessageID(messageID uint64) (channel.Message, bool, error)
 	ListMessagesByClientMsgNo(clientMsgNo string, beforeSeq uint64, limit int) ([]channel.Message, uint64, bool, error)
@@ -87,27 +75,25 @@ func queryMessagesFromStore(st messageQueryStore, committedHW uint64, req QueryM
 	if st == nil || req.ChannelID.ID == "" || req.ChannelID.Type == 0 || req.Limit <= 0 {
 		return QueryMessagesResult{}, channel.ErrInvalidArgument
 	}
-	if committedHW == 0 {
-		return QueryMessagesResult{}, nil
-	}
-	if committedHW < normalizeMinAvailableSeq(req.MinAvailableSeq) {
+	bounds, ok := newSeqBounds(committedHW, req.MinAvailableSeq)
+	if !ok {
 		return QueryMessagesResult{}, nil
 	}
 	if req.MessageID != 0 {
-		return queryMessagesByMessageID(st, committedHW, req)
+		return queryMessagesByMessageID(st, bounds, req)
 	}
 	if req.ClientMsgNo != "" {
-		return queryMessagesByClientMsgNo(st, committedHW, req)
+		return queryMessagesByClientMsgNo(st, bounds, req)
 	}
-	return queryLatestMessages(st, committedHW, req)
+	return queryLatestMessages(st, bounds, req)
 }
 
-func queryMessagesByMessageID(st messageQueryStore, committedHW uint64, req QueryMessagesRequest) (QueryMessagesResult, error) {
+func queryMessagesByMessageID(st messageQueryStore, bounds seqBounds, req QueryMessagesRequest) (QueryMessagesResult, error) {
 	msg, ok, err := st.GetMessageByMessageID(req.MessageID)
 	if err != nil {
 		return QueryMessagesResult{}, err
 	}
-	if !ok || msg.MessageSeq == 0 || msg.MessageSeq > committedHW || msg.MessageSeq < normalizeMinAvailableSeq(req.MinAvailableSeq) {
+	if !ok || msg.MessageSeq == 0 || !bounds.contains(msg.MessageSeq) {
 		return QueryMessagesResult{}, nil
 	}
 	if req.BeforeSeq > 0 && msg.MessageSeq >= req.BeforeSeq {
@@ -116,16 +102,11 @@ func queryMessagesByMessageID(st messageQueryStore, committedHW uint64, req Quer
 	return QueryMessagesResult{Messages: []channel.Message{msg}}, nil
 }
 
-func queryMessagesByClientMsgNo(st messageQueryStore, committedHW uint64, req QueryMessagesRequest) (QueryMessagesResult, error) {
-	minAvailableSeq := normalizeMinAvailableSeq(req.MinAvailableSeq)
-	if req.BeforeSeq > 0 && req.BeforeSeq <= minAvailableSeq {
+func queryMessagesByClientMsgNo(st messageQueryStore, bounds seqBounds, req QueryMessagesRequest) (QueryMessagesResult, error) {
+	if req.BeforeSeq > 0 && req.BeforeSeq <= bounds.min {
 		return QueryMessagesResult{}, nil
 	}
-	beforeSeq := req.BeforeSeq
-	maxBeforeSeq := committedHW + 1
-	if beforeSeq == 0 || beforeSeq > maxBeforeSeq {
-		beforeSeq = maxBeforeSeq
-	}
+	beforeSeq := bounds.exclusiveUpper(true, req.BeforeSeq)
 	messages, nextBeforeSeq, hasMore, err := st.ListMessagesByClientMsgNo(req.ClientMsgNo, beforeSeq, req.Limit)
 	if err != nil {
 		return QueryMessagesResult{}, err
@@ -133,16 +114,16 @@ func queryMessagesByClientMsgNo(st messageQueryStore, committedHW uint64, req Qu
 	filtered := messages[:0]
 	droppedBelowFloor := false
 	for _, msg := range messages {
-		if msg.MessageSeq == 0 || msg.MessageSeq > committedHW {
+		if msg.MessageSeq == 0 || msg.MessageSeq > bounds.max {
 			continue
 		}
-		if msg.MessageSeq < minAvailableSeq {
+		if msg.MessageSeq < bounds.min {
 			droppedBelowFloor = true
 			continue
 		}
 		filtered = append(filtered, msg)
 	}
-	if nextBeforeSeq <= minAvailableSeq || droppedBelowFloor {
+	if nextBeforeSeq <= bounds.min || droppedBelowFloor {
 		nextBeforeSeq = 0
 		hasMore = false
 	}
@@ -153,22 +134,18 @@ func queryMessagesByClientMsgNo(st messageQueryStore, committedHW uint64, req Qu
 	}, nil
 }
 
-func queryLatestMessages(st messageQueryStore, committedHW uint64, req QueryMessagesRequest) (QueryMessagesResult, error) {
-	minAvailableSeq := normalizeMinAvailableSeq(req.MinAvailableSeq)
-	startSeq := committedHW
+func queryLatestMessages(st messageQueryStore, bounds seqBounds, req QueryMessagesRequest) (QueryMessagesResult, error) {
+	startSeq := bounds.max
 	if req.BeforeSeq > 0 {
-		if req.BeforeSeq <= minAvailableSeq {
+		if req.BeforeSeq <= bounds.min {
 			return QueryMessagesResult{}, nil
 		}
 		startSeq = req.BeforeSeq - 1
-		if startSeq > committedHW {
-			startSeq = committedHW
+		if startSeq > bounds.max {
+			startSeq = bounds.max
 		}
 	}
-	if startSeq == 0 {
-		return QueryMessagesResult{}, nil
-	}
-	if startSeq < minAvailableSeq {
+	if startSeq == 0 || startSeq < bounds.min {
 		return QueryMessagesResult{}, nil
 	}
 
@@ -180,10 +157,10 @@ func queryLatestMessages(st messageQueryStore, committedHW uint64, req QueryMess
 		Messages: make([]channel.Message, 0, minInt(req.Limit, len(messages))),
 	}
 	for _, msg := range messages {
-		if msg.MessageSeq == 0 || msg.MessageSeq > committedHW {
+		if msg.MessageSeq == 0 || msg.MessageSeq > bounds.max {
 			continue
 		}
-		if msg.MessageSeq < minAvailableSeq {
+		if msg.MessageSeq < bounds.min {
 			break
 		}
 		result.Messages = append(result.Messages, msg)
@@ -193,7 +170,7 @@ func queryLatestMessages(st messageQueryStore, committedHW uint64, req QueryMess
 	}
 	result.HasMore = true
 	result.NextBeforeSeq = result.Messages[req.Limit-1].MessageSeq
-	if result.NextBeforeSeq <= minAvailableSeq {
+	if result.NextBeforeSeq <= bounds.min {
 		result.HasMore = false
 		result.NextBeforeSeq = 0
 		return result, nil

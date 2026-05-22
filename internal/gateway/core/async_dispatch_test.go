@@ -17,7 +17,7 @@ func TestServerAsyncSendDispatchRejectsWhenQueueFull(t *testing.T) {
 	handler := &countingAsyncFrameHandler{}
 	srv := &Server{dispatcher: newDispatcher(handler)}
 	queue := newAsyncDispatchQueueWithCapacity(1, 1)
-	srv.asyncDispatch = queue
+	srv.asyncDispatch.Store(queue)
 	queue.shards[0].tasks <- asyncDispatchTask{}
 	state := &sessionState{
 		server:         srv,
@@ -59,7 +59,7 @@ func TestServerAsyncSendDispatchRejectsWhenQueueFull(t *testing.T) {
 func TestServerAsyncSendDispatchRejectsFullQueueBeforePayloadClone(t *testing.T) {
 	srv := &Server{dispatcher: newDispatcher(&countingAsyncFrameHandler{})}
 	queue := newAsyncDispatchQueueWithCapacity(1, 1)
-	srv.asyncDispatch = queue
+	srv.asyncDispatch.Store(queue)
 	queue.shards[0].tasks <- asyncDispatchTask{}
 
 	payload := make([]byte, 64*1024)
@@ -511,7 +511,7 @@ func BenchmarkServerAsyncSendDispatchQueueFullReject(b *testing.B) {
 	handler := &countingAsyncFrameHandler{}
 	srv := &Server{dispatcher: newDispatcher(handler)}
 	queue := newAsyncDispatchQueueWithCapacity(1, 1)
-	srv.asyncDispatch = queue
+	srv.asyncDispatch.Store(queue)
 	queue.shards[0].tasks <- asyncDispatchTask{}
 	state := &sessionState{
 		server:         srv,

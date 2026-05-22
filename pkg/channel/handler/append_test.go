@@ -772,7 +772,7 @@ func TestAppendIdempotencyHitReturnsStoredMessageFromUniqueIndex(t *testing.T) {
 		messageOK: true,
 	}
 
-	result, ok, err := resolveIdempotentAppendFromStore(store, key, core.Message{Payload: []byte("payload")})
+	result, ok, err := resolveIdempotentAppendFromStore(store, key, hashPayload([]byte("payload")))
 	if err != nil {
 		t.Fatalf("resolveIdempotentAppendFromStore() error = %v", err)
 	}

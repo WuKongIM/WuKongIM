@@ -33,6 +33,17 @@ func TestKeyFromChannelIDAllocatesOnlyReturnedKey(t *testing.T) {
 	}
 }
 
+func BenchmarkKeyFromChannelID(b *testing.B) {
+	id := channel.ChannelID{ID: "room-1", Type: 2}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if KeyFromChannelID(id) == "" {
+			b.Fatal("KeyFromChannelID() returned empty key")
+		}
+	}
+}
+
 func TestParseChannelKey(t *testing.T) {
 	key := channel.ChannelKey("channel/2/ZzFAeTI")
 

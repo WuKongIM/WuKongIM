@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"math"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -246,6 +247,31 @@ func TestQueryMessagesLatestClampsPaginationToMinAvailableSeq(t *testing.T) {
 	require.Equal(t, []uint64{6}, queryMessageSeqs(second.Messages))
 }
 
+func TestQueryMessagesClientMsgNoAtMaxCommittedHWUsesOpenEndedBeforeSeq(t *testing.T) {
+	id := channel.ChannelID{ID: "room-max-client", Type: 2}
+	st := &fakeMessageQueryStore{
+		clientPages: map[uint64]fakeClientPage{
+			0: {
+				messages: []channel.Message{
+					{MessageID: 52, MessageSeq: math.MaxUint64, ChannelID: id.ID, ChannelType: id.Type, ClientMsgNo: "same"},
+					{MessageID: 51, MessageSeq: math.MaxUint64 - 1, ChannelID: id.ID, ChannelType: id.Type, ClientMsgNo: "same"},
+				},
+			},
+		},
+	}
+
+	result, err := queryMessagesFromStore(st, math.MaxUint64, QueryMessagesRequest{
+		ChannelID:   id,
+		Limit:       2,
+		ClientMsgNo: "same",
+	})
+
+	require.NoError(t, err)
+	require.False(t, result.HasMore)
+	require.Equal(t, []uint64{math.MaxUint64, math.MaxUint64 - 1}, queryMessageSeqs(result.Messages))
+	require.Equal(t, uint64(0), st.lastClientBeforeSeq)
+}
+
 func openMessageQueryStore(t *testing.T) *channelstore.Engine {
 	t.Helper()
 	store, err := channelstore.Open(t.TempDir())
@@ -271,11 +297,12 @@ func appendQueryMessages(t *testing.T, engine *channelstore.Engine, id channel.C
 }
 
 type fakeMessageQueryStore struct {
-	byID             map[uint64]channel.Message
-	clientPages      map[uint64]fakeClientPage
-	messageIDCalls   int
-	clientMsgNoCalls int
-	seqCalls         int
+	byID                map[uint64]channel.Message
+	clientPages         map[uint64]fakeClientPage
+	messageIDCalls      int
+	clientMsgNoCalls    int
+	seqCalls            int
+	lastClientBeforeSeq uint64
 }
 
 type fakeClientPage struct {
@@ -292,6 +319,7 @@ func (f *fakeMessageQueryStore) GetMessageByMessageID(messageID uint64) (channel
 
 func (f *fakeMessageQueryStore) ListMessagesByClientMsgNo(clientMsgNo string, beforeSeq uint64, limit int) ([]channel.Message, uint64, bool, error) {
 	f.clientMsgNoCalls++
+	f.lastClientBeforeSeq = beforeSeq
 	page, ok := f.clientPages[beforeSeq]
 	if !ok {
 		return nil, 0, false, nil

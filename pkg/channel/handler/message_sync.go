@@ -62,62 +62,44 @@ func syncMessagesFromStore(st messageSyncStore, committedHW uint64, req SyncMess
 	if st == nil || req.ChannelID.ID == "" || req.ChannelID.Type == 0 || req.Limit <= 0 {
 		return SyncMessagesResult{}, channel.ErrInvalidArgument
 	}
-	if committedHW == 0 {
-		return SyncMessagesResult{}, nil
-	}
-	minAvailableSeq := normalizeMinAvailableSeq(req.MinAvailableSeq)
-	if committedHW < minAvailableSeq {
+	bounds, ok := newSeqBounds(committedHW, req.MinAvailableSeq)
+	if !ok {
 		return SyncMessagesResult{}, nil
 	}
 	if req.StartSeq == 0 && req.EndSeq == 0 {
-		return syncLatestMessages(st, committedHW, minAvailableSeq, req.Limit)
+		return syncLatestMessages(st, bounds, req.Limit)
 	}
 	if req.PullMode == SyncPullModeUp {
-		return syncNextMessages(st, committedHW, minAvailableSeq, req)
+		return syncNextMessages(st, bounds, req)
 	}
-	return syncPreviousMessages(st, committedHW, minAvailableSeq, req)
+	return syncPreviousMessages(st, bounds, req)
 }
 
-func syncLatestMessages(st messageSyncStore, committedHW, minAvailableSeq uint64, limit int) (SyncMessagesResult, error) {
-	messages, err := st.ListMessagesBySeq(committedHW, limit+1, math.MaxInt, true)
+func syncLatestMessages(st messageSyncStore, bounds seqBounds, limit int) (SyncMessagesResult, error) {
+	messages, err := st.ListMessagesBySeq(bounds.max, limit+1, math.MaxInt, true)
 	if err != nil {
 		return SyncMessagesResult{}, err
 	}
-	filtered := make([]channel.Message, 0, minInt(limit+1, len(messages)))
-	for _, msg := range messages {
-		if msg.MessageSeq == 0 || msg.MessageSeq > committedHW {
-			continue
-		}
-		if msg.MessageSeq < minAvailableSeq {
-			break
-		}
-		filtered = append(filtered, msg)
-		if len(filtered) > limit {
-			break
-		}
-	}
-	hasMore := len(filtered) > limit
-	if hasMore {
-		filtered = filtered[:limit]
-	}
+	filtered, hasMore := appendBoundedMessages(
+		make([]channel.Message, 0, minInt(limit+1, len(messages))),
+		messages,
+		bounds,
+		limit,
+		seqDirectionReverse,
+		nil,
+	)
+	filtered, _ = trimLimit(filtered, limit)
 	reverseMessages(filtered)
 	return SyncMessagesResult{Messages: filtered, HasMore: hasMore}, nil
 }
 
-func syncNextMessages(st messageSyncStore, committedHW, minAvailableSeq uint64, req SyncMessagesRequest) (SyncMessagesResult, error) {
+func syncNextMessages(st messageSyncStore, bounds seqBounds, req SyncMessagesRequest) (SyncMessagesResult, error) {
 	startSeq := req.StartSeq
-	if startSeq == 0 {
-		startSeq = 1
+	if startSeq == 0 || startSeq < bounds.min {
+		startSeq = bounds.min
 	}
-	if startSeq < minAvailableSeq {
-		startSeq = minAvailableSeq
-	}
-	endExclusive := req.EndSeq
-	maxExclusive := committedHW + 1
-	if endExclusive == 0 || endExclusive > maxExclusive {
-		endExclusive = maxExclusive
-	}
-	if startSeq >= endExclusive {
+	endExclusive := bounds.exclusiveUpper(true, req.EndSeq)
+	if endExclusive != 0 && startSeq >= endExclusive {
 		return SyncMessagesResult{}, nil
 	}
 
@@ -125,45 +107,37 @@ func syncNextMessages(st messageSyncStore, committedHW, minAvailableSeq uint64, 
 	if err != nil {
 		return SyncMessagesResult{}, err
 	}
-	filtered := make([]channel.Message, 0, minInt(req.Limit+1, len(messages)))
-	for _, msg := range messages {
-		if msg.MessageSeq == 0 || msg.MessageSeq > committedHW {
-			continue
-		}
-		if msg.MessageSeq < minAvailableSeq {
-			continue
-		}
-		if msg.MessageSeq >= endExclusive {
-			break
-		}
-		filtered = append(filtered, msg)
-		if len(filtered) > req.Limit {
-			break
-		}
+	stop := func(msg channel.Message) bool {
+		return endExclusive != 0 && msg.MessageSeq >= endExclusive
 	}
-	hasMore := len(filtered) > req.Limit
-	if hasMore {
-		filtered = filtered[:req.Limit]
-	}
+	filtered, hasMore := appendBoundedMessages(
+		make([]channel.Message, 0, minInt(req.Limit+1, len(messages))),
+		messages,
+		bounds,
+		req.Limit,
+		seqDirectionForward,
+		stop,
+	)
+	filtered, _ = trimLimit(filtered, req.Limit)
 	return SyncMessagesResult{Messages: filtered, HasMore: hasMore}, nil
 }
 
-func syncPreviousMessages(st messageSyncStore, committedHW, minAvailableSeq uint64, req SyncMessagesRequest) (SyncMessagesResult, error) {
+func syncPreviousMessages(st messageSyncStore, bounds seqBounds, req SyncMessagesRequest) (SyncMessagesResult, error) {
 	if req.StartSeq == 0 {
 		return SyncMessagesResult{}, nil
 	}
 	startSeq := req.StartSeq
-	if startSeq > committedHW {
-		startSeq = committedHW
+	if startSeq > bounds.max {
+		startSeq = bounds.max
 	}
 	if req.EndSeq != 0 && req.EndSeq > startSeq {
 		return SyncMessagesResult{}, nil
 	}
-	if startSeq < minAvailableSeq {
+	if startSeq < bounds.min {
 		return SyncMessagesResult{}, nil
 	}
 	endSeq := req.EndSeq
-	if floorExclusive := minAvailableSeq - 1; endSeq < floorExclusive {
+	if floorExclusive := bounds.min - 1; endSeq < floorExclusive {
 		endSeq = floorExclusive
 	}
 
@@ -171,39 +145,18 @@ func syncPreviousMessages(st messageSyncStore, committedHW, minAvailableSeq uint
 	if err != nil {
 		return SyncMessagesResult{}, err
 	}
-	filtered := make([]channel.Message, 0, minInt(req.Limit+1, len(messages)))
-	for _, msg := range messages {
-		if msg.MessageSeq == 0 || msg.MessageSeq > committedHW {
-			continue
-		}
-		if msg.MessageSeq < minAvailableSeq {
-			break
-		}
-		if endSeq != 0 && msg.MessageSeq <= endSeq {
-			break
-		}
-		filtered = append(filtered, msg)
-		if len(filtered) > req.Limit {
-			break
-		}
+	stop := func(msg channel.Message) bool {
+		return endSeq != 0 && msg.MessageSeq <= endSeq
 	}
-	hasMore := len(filtered) > req.Limit
-	if hasMore {
-		filtered = filtered[:req.Limit]
-	}
+	filtered, hasMore := appendBoundedMessages(
+		make([]channel.Message, 0, minInt(req.Limit+1, len(messages))),
+		messages,
+		bounds,
+		req.Limit,
+		seqDirectionReverse,
+		stop,
+	)
+	filtered, _ = trimLimit(filtered, req.Limit)
 	reverseMessages(filtered)
 	return SyncMessagesResult{Messages: filtered, HasMore: hasMore}, nil
-}
-
-func normalizeMinAvailableSeq(seq uint64) uint64 {
-	if seq == 0 {
-		return 1
-	}
-	return seq
-}
-
-func reverseMessages(messages []channel.Message) {
-	for left, right := 0, len(messages)-1; left < right; left, right = left+1, right-1 {
-		messages[left], messages[right] = messages[right], messages[left]
-	}
 }

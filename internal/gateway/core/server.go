@@ -47,27 +47,30 @@ type Server struct {
 	nextSessionID atomic.Uint64
 	accepting     atomic.Bool
 
-	mu        sync.Mutex
-	started   bool
-	stopped   bool
-	listeners []*listenerRuntime
-	states    map[connKey]*sessionState
+	lifecycleMu sync.Mutex
+	mu          sync.RWMutex
+	started     bool
+	stopped     bool
+	listeners   []*listenerRuntime
+	states      map[connKey]*sessionState
 
 	// idleTracker schedules read-idle deadlines without scanning all live sessions.
 	idleTracker *idleTracker
 	// idleMonitorStop stops the shared idle monitor when idle timeouts are enabled.
 	idleMonitorStop chan struct{}
 	// asyncDispatch bounds SEND frame concurrency off the transport event loop.
-	asyncDispatch *asyncDispatchQueue
+	asyncDispatch atomic.Pointer[asyncDispatchQueue]
 	workerWG      sync.WaitGroup
 }
 
 type listenerRuntime struct {
-	options  gatewaytypes.ListenerOptions
-	factory  transport.Factory
-	adapter  protocol.Adapter
-	tracker  protocol.ReplyTokenTracker
-	listener transport.Listener
+	options       gatewaytypes.ListenerOptions
+	factory       transport.Factory
+	adapter       protocol.Adapter
+	tracker       protocol.ReplyTokenTracker
+	listener      transport.Listener
+	eventNetwork  string
+	eventProtocol string
 }
 
 type connKey struct {
@@ -149,9 +152,11 @@ func NewServer(registry *Registry, opts *gatewaytypes.Options) (*Server, error) 
 		}
 
 		runtime := &listenerRuntime{
-			options: listener,
-			factory: factory,
-			adapter: adapter,
+			options:       listener,
+			factory:       factory,
+			adapter:       adapter,
+			eventNetwork:  connectionEventNetwork(listener.Network),
+			eventProtocol: connectionEventProtocol(listener.Network),
 		}
 		if tracker, ok := adapter.(protocol.ReplyTokenTracker); ok {
 			runtime.tracker = tracker
@@ -178,6 +183,9 @@ func NewServer(registry *Registry, opts *gatewaytypes.Options) (*Server, error) 
 }
 
 func (s *Server) Start() error {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+
 	s.mu.Lock()
 	if s.stopped {
 		s.mu.Unlock()
@@ -198,18 +206,15 @@ func (s *Server) Start() error {
 		return err
 	}
 
-	started := make([]transport.Listener, 0, len(runtimes))
 	for _, runtime := range runtimes {
 		if err := runtime.listener.Start(); err != nil {
 			s.dispatcher.listenerError(runtime.options.Name, err)
-			_ = runtime.listener.Stop()
-			s.rollbackStart(started)
+			s.rollbackRuntimeListeners(runtimes)
 			s.mu.Lock()
 			s.started = false
 			s.mu.Unlock()
 			return err
 		}
-		started = append(started, runtime.listener)
 	}
 
 	s.startIdleMonitor()
@@ -277,6 +282,9 @@ func (s *Server) buildListeners(runtimes []*listenerRuntime) error {
 }
 
 func (s *Server) Stop() error {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+
 	s.mu.Lock()
 	if s.stopped {
 		s.mu.Unlock()
@@ -297,8 +305,7 @@ func (s *Server) Stop() error {
 	}
 	idleMonitorStop := s.idleMonitorStop
 	s.idleMonitorStop = nil
-	asyncDispatch := s.asyncDispatch
-	s.asyncDispatch = nil
+	asyncDispatch := s.asyncDispatch.Swap(nil)
 	s.mu.Unlock()
 
 	if idleMonitorStop != nil {
@@ -460,9 +467,10 @@ func (s *Server) onData(listener *listenerRuntime, conn transport.Conn, data []b
 			return nil
 		}
 		state.inbound = append(state.inbound, data[consumed:]...)
+	} else {
+		state.inbound = append(state.inbound, data...)
 	}
 
-	state.inbound = append(state.inbound, data...)
 	if limit := s.options.DefaultSession.MaxInboundBytes; limit > 0 && len(state.inbound) > limit {
 		state.close(gatewaytypes.CloseReasonInboundOverflow, gatewaytypes.ErrInboundOverflow)
 		return nil
@@ -480,7 +488,11 @@ func (s *Server) onData(listener *listenerRuntime, conn transport.Conn, data []b
 			}
 		}
 
-		state.inbound = state.inbound[consumed:]
+		if consumed == len(state.inbound) {
+			state.inbound = nil
+		} else {
+			state.inbound = state.inbound[consumed:]
+		}
 		s.dispatchInboundFrames(listener, state, frames)
 	}
 
@@ -848,9 +860,9 @@ func (s *Server) startIdleMonitor() {
 	}
 	stopCh := make(chan struct{})
 	s.idleMonitorStop = stopCh
+	s.workerWG.Add(1)
 	s.mu.Unlock()
 
-	s.workerWG.Add(1)
 	go func() {
 		defer s.workerWG.Done()
 
@@ -892,15 +904,15 @@ func (s *Server) startAsyncDispatcher() {
 	queue := newAsyncDispatchQueue(workers)
 
 	s.mu.Lock()
-	if s.stopped || s.asyncDispatch != nil {
+	if s.stopped || s.asyncDispatch.Load() != nil {
 		s.mu.Unlock()
 		return
 	}
-	s.asyncDispatch = queue
+	s.asyncDispatch.Store(queue)
+	s.workerWG.Add(len(queue.shards))
 	s.mu.Unlock()
 
 	for i := range queue.shards {
-		s.workerWG.Add(1)
 		go s.runAsyncDispatchWorker(queue.shards[i].tasks)
 	}
 }
@@ -938,6 +950,9 @@ func asyncSendBatchLimitsFromOptions(opt gatewaytypes.SessionOptions) asyncSendB
 func (s *Server) dispatchSendBatch(batch []asyncDispatchTask) bool {
 	if len(batch) == 0 {
 		return true
+	}
+	if !s.dispatcher.canSendBatch() {
+		return false
 	}
 	items := s.sendBatchItems(batch)
 	if len(items) != len(batch) {
@@ -1022,9 +1037,7 @@ func (s *Server) asyncDispatcher() *asyncDispatchQueue {
 	if s == nil {
 		return nil
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.asyncDispatch
+	return s.asyncDispatch.Load()
 }
 
 type asyncDispatchTask struct {
@@ -1041,9 +1054,12 @@ type asyncSendBatchLimits struct {
 }
 
 type asyncSendBatchCollector struct {
-	tasks   <-chan asyncDispatchTask
-	limits  asyncSendBatchLimits
-	pending *asyncDispatchTask
+	tasks      <-chan asyncDispatchTask
+	limits     asyncSendBatchLimits
+	batch      []asyncDispatchTask
+	pending    asyncDispatchTask
+	hasPending bool
+	timer      *time.Timer
 }
 
 func newAsyncSendBatchCollector(tasks <-chan asyncDispatchTask, limits asyncSendBatchLimits) *asyncSendBatchCollector {
@@ -1065,9 +1081,10 @@ func (c *asyncSendBatchCollector) nextBatch() ([]asyncDispatchTask, bool) {
 }
 
 func (c *asyncSendBatchCollector) nextTask() (asyncDispatchTask, bool) {
-	if c.pending != nil {
-		task := *c.pending
-		c.pending = nil
+	if c.hasPending {
+		task := c.pending
+		c.pending = asyncDispatchTask{}
+		c.hasPending = false
 		return task, true
 	}
 	task, ok := <-c.tasks
@@ -1075,40 +1092,40 @@ func (c *asyncSendBatchCollector) nextTask() (asyncDispatchTask, bool) {
 }
 
 func (c *asyncSendBatchCollector) collect(first asyncDispatchTask) []asyncDispatchTask {
-	batch := []asyncDispatchTask{first}
+	c.batch = append(c.batch[:0], first)
 	byteCount := asyncDispatchTaskByteCount(first)
 	if c.limits.maxRecords <= 1 {
-		return batch
+		return c.batch
 	}
 
 	var timeout <-chan time.Time
-	var timer *time.Timer
 	if c.limits.maxWait > 0 {
-		timer = time.NewTimer(c.limits.maxWait)
-		timeout = timer.C
-		defer timer.Stop()
+		timeout = c.startTimer(c.limits.maxWait)
+		defer c.stopTimer()
 	}
 
-	for len(batch) < c.limits.maxRecords {
+	for len(c.batch) < c.limits.maxRecords {
 		task, ok := c.nextTaskForBatch(timeout)
 		if !ok {
-			return batch
+			return c.batch
 		}
 		taskBytes := asyncDispatchTaskByteCount(task)
 		if c.limits.maxBytes > 0 && byteCount+taskBytes > c.limits.maxBytes {
-			c.pending = &task
-			return batch
+			c.pending = task
+			c.hasPending = true
+			return c.batch
 		}
-		batch = append(batch, task)
+		c.batch = append(c.batch, task)
 		byteCount += taskBytes
 	}
-	return batch
+	return c.batch
 }
 
 func (c *asyncSendBatchCollector) nextTaskForBatch(timeout <-chan time.Time) (asyncDispatchTask, bool) {
-	if c.pending != nil {
-		task := *c.pending
-		c.pending = nil
+	if c.hasPending {
+		task := c.pending
+		c.pending = asyncDispatchTask{}
+		c.hasPending = false
 		return task, true
 	}
 	if timeout != nil {
@@ -1127,6 +1144,33 @@ func (c *asyncSendBatchCollector) nextTaskForBatch(timeout <-chan time.Time) (as
 	}
 }
 
+func (c *asyncSendBatchCollector) startTimer(d time.Duration) <-chan time.Time {
+	if c.timer == nil {
+		c.timer = time.NewTimer(d)
+		return c.timer.C
+	}
+	if !c.timer.Stop() {
+		select {
+		case <-c.timer.C:
+		default:
+		}
+	}
+	c.timer.Reset(d)
+	return c.timer.C
+}
+
+func (c *asyncSendBatchCollector) stopTimer() {
+	if c.timer == nil {
+		return
+	}
+	if !c.timer.Stop() {
+		select {
+		case <-c.timer.C:
+		default:
+		}
+	}
+}
+
 func asyncDispatchTaskByteCount(task asyncDispatchTask) int {
 	send, ok := task.frame.(*frame.SendPacket)
 	if !ok || send == nil {
@@ -1136,6 +1180,9 @@ func asyncDispatchTaskByteCount(task asyncDispatchTask) int {
 }
 
 func recordAsyncDispatchWait(task asyncDispatchTask) {
+	if !sendtrace.Enabled() {
+		return
+	}
 	send, ok := task.frame.(*frame.SendPacket)
 	if !ok || task.enqueuedAt.IsZero() {
 		return
@@ -1447,8 +1494,8 @@ func (s *Server) unregisterState(state *sessionState) {
 }
 
 func (s *Server) state(listener string, connID uint64) *sessionState {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.states[connKey{listener: listener, connID: connID}]
 }
 
@@ -1474,8 +1521,8 @@ func (s *Server) SessionSummary() SessionSummary {
 		return SessionSummary{SessionsByListener: map[string]int{}}
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	summary := SessionSummary{
 		SessionsByListener:   make(map[string]int),
@@ -1494,13 +1541,21 @@ func (s *Server) rollbackStart(listeners []transport.Listener) {
 	}
 }
 
+func (s *Server) rollbackRuntimeListeners(runtimes []*listenerRuntime) {
+	for i := len(runtimes) - 1; i >= 0; i-- {
+		if runtimes[i] != nil && runtimes[i].listener != nil {
+			_ = runtimes[i].listener.Stop()
+		}
+	}
+}
+
 func (s *Server) ListenerAddr(name string) string {
 	if s == nil || name == "" {
 		return ""
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	for _, runtime := range s.listeners {
 		if runtime != nil && runtime.options.Name == name && runtime.listener != nil {
@@ -1539,7 +1594,9 @@ func (st *sessionState) close(reason gatewaytypes.CloseReason, err error) {
 			}
 		}
 		if st.openWasDispatched() {
-			_ = st.server.dispatcher.sessionClose(st)
+			if closeErr := st.server.dispatcher.sessionClose(st); closeErr != nil {
+				st.server.dispatcher.sessionError(st, reason, closeErr)
+			}
 		}
 		close(st.closedCh)
 	})
@@ -1612,16 +1669,31 @@ func connectionEventForState(state *sessionState) gatewaytypes.ConnectionEvent {
 	if state == nil || state.listener == nil {
 		return gatewaytypes.ConnectionEvent{}
 	}
-	network := strings.ToLower(strings.TrimSpace(state.listener.options.Network))
-	protocol := network
-	if network == "websocket" {
-		protocol = "ws"
+	network := state.listener.eventNetwork
+	if network == "" {
+		network = connectionEventNetwork(state.listener.options.Network)
+	}
+	protocol := state.listener.eventProtocol
+	if protocol == "" {
+		protocol = connectionEventProtocol(state.listener.options.Network)
 	}
 	return gatewaytypes.ConnectionEvent{
 		Listener: state.listener.options.Name,
 		Network:  network,
 		Protocol: protocol,
 	}
+}
+
+func connectionEventNetwork(network string) string {
+	return strings.ToLower(strings.TrimSpace(network))
+}
+
+func connectionEventProtocol(network string) string {
+	protocol := connectionEventNetwork(network)
+	if protocol == "websocket" {
+		return "ws"
+	}
+	return protocol
 }
 
 func framePayloadBytes(f frame.Frame) int {
@@ -1724,8 +1796,10 @@ func (st *sessionState) protocolName() string {
 		return ""
 	}
 	if st.session != nil {
-		if value, _ := st.session.Value(gatewaytypes.SessionValueProtocolName).(string); strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
+		if value, _ := st.session.Value(gatewaytypes.SessionValueProtocolName).(string); value != "" {
+			if protocol := strings.TrimSpace(value); protocol != "" {
+				return protocol
+			}
 		}
 	}
 	if st.listener == nil {

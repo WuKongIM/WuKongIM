@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"math"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -123,10 +124,48 @@ func TestSyncMessagesClampsAllDirectionsToMinAvailableSeq(t *testing.T) {
 	require.Equal(t, []uint64{6, 7, 8}, syncMessageSeqs(down.Messages))
 }
 
+func TestSyncMessagesPullsUpAtMaxCommittedHW(t *testing.T) {
+	st := &fakeMessageSyncStore{
+		messages: []channel.Message{
+			{MessageID: 51, MessageSeq: math.MaxUint64 - 1},
+			{MessageID: 52, MessageSeq: math.MaxUint64},
+		},
+	}
+
+	result, err := syncMessagesFromStore(st, math.MaxUint64, SyncMessagesRequest{
+		ChannelID: channel.ChannelID{ID: "sync-room-max", Type: 2},
+		StartSeq:  math.MaxUint64 - 1,
+		Limit:     3,
+		PullMode:  SyncPullModeUp,
+	})
+
+	require.NoError(t, err)
+	require.False(t, result.HasMore)
+	require.Equal(t, []uint64{math.MaxUint64 - 1, math.MaxUint64}, syncMessageSeqs(result.Messages))
+	require.Equal(t, uint64(math.MaxUint64-1), st.fromSeq)
+	require.False(t, st.reverse)
+}
+
 func syncMessageSeqs(messages []channel.Message) []uint64 {
 	seqs := make([]uint64, 0, len(messages))
 	for _, msg := range messages {
 		seqs = append(seqs, msg.MessageSeq)
 	}
 	return seqs
+}
+
+type fakeMessageSyncStore struct {
+	messages []channel.Message
+	fromSeq  uint64
+	limit    int
+	maxBytes int
+	reverse  bool
+}
+
+func (f *fakeMessageSyncStore) ListMessagesBySeq(fromSeq uint64, limit int, maxBytes int, reverse bool) ([]channel.Message, error) {
+	f.fromSeq = fromSeq
+	f.limit = limit
+	f.maxBytes = maxBytes
+	f.reverse = reverse
+	return f.messages, nil
 }

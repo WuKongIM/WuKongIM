@@ -51,8 +51,7 @@ func (s *service) ApplyMeta(meta channel.Meta) error {
 
 	local, ok := s.metas[key]
 	if !ok {
-		s.metas[key] = next
-		s.keys[next.ID] = key
+		s.storeMetaLocked(key, next)
 		return nil
 	}
 	if staleWriteFence(local.WriteFence, next.WriteFence) {
@@ -70,14 +69,12 @@ func (s *service) ApplyMeta(meta channel.Meta) error {
 			return nil
 		}
 		if metaEqualExceptRetention(local, next) {
-			s.metas[key] = next
-			s.keys[next.ID] = key
+			s.storeMetaLocked(key, next)
 			return nil
 		}
 		return channel.ErrConflictingMeta
 	default:
-		s.metas[key] = next
-		s.keys[next.ID] = key
+		s.storeMetaLocked(key, next)
 		return nil
 	}
 }
@@ -96,11 +93,13 @@ func (s *service) RestoreMeta(key channel.ChannelKey, meta channel.Meta, ok bool
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !ok {
+		if previous, exists := s.metas[key]; exists {
+			delete(s.keys, previous.ID)
+		}
 		delete(s.metas, key)
 		return
 	}
-	s.metas[key] = cloneMeta(meta)
-	s.keys[meta.ID] = key
+	s.storeMetaLocked(key, cloneMeta(meta))
 }
 
 func (s *service) Status(id channel.ChannelID) (channel.ChannelRuntimeStatus, error) {
@@ -152,6 +151,14 @@ func (s *service) channelKeyForID(id channel.ChannelID) channel.ChannelKey {
 		return key
 	}
 	return KeyFromChannelID(id)
+}
+
+func (s *service) storeMetaLocked(key channel.ChannelKey, meta channel.Meta) {
+	if previous, ok := s.metas[key]; ok && previous.ID != meta.ID {
+		delete(s.keys, previous.ID)
+	}
+	s.metas[key] = meta
+	s.keys[meta.ID] = key
 }
 
 func normalizeMeta(meta channel.Meta) (channel.ChannelKey, channel.Meta, error) {

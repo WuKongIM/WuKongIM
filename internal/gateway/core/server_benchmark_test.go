@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	benchmarkListenerName = "listener-a"
-	benchmarkProtocolName = "benchproto"
+	benchmarkListenerName      = "listener-a"
+	benchmarkProtocolName      = "benchproto"
+	sendDispatchBenchmarkBurst = 64
 )
 
 func TestServerIdleMonitorUsesSharedWorker(t *testing.T) {
@@ -146,7 +147,9 @@ func BenchmarkServerSendDispatch(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for sent := 0; sent < b.N; {
-		burst := min(1024, b.N-sent)
+		// Keep a single-channel burst below the minimum shard capacity so the
+		// benchmark measures dispatch cost instead of queue-overflow closure.
+		burst := min(sendDispatchBenchmarkBurst, b.N-sent)
 		handler.expectFrames(burst)
 		for i := 0; i < burst; i++ {
 			if err := conn.EmitData(payload); err != nil {

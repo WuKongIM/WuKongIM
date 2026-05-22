@@ -86,13 +86,6 @@ func fetchMessagesFromStore(st fetchMessageStore, committedSeq, startSeq uint64,
 	return result, nil
 }
 
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func effectiveMinAvailableSeq(state channel.ReplicaState) uint64 {
 	minAvailable := state.MinAvailableSeq
 	computed := channel.EffectiveMinAvailableSeq(state.RetentionThroughSeq, state.LogStartOffset)

@@ -5,11 +5,17 @@ import (
 	"math"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 )
 
 const capacityRatePerChannel = 1.0
+
+const (
+	capacityHeartbeatInterval = 30 * time.Second
+	capacityHeartbeatTimeout  = 5 * time.Second
+)
 
 // Attempt identifies one offered-QPS attempt in the capacity search.
 type Attempt struct {
@@ -59,7 +65,11 @@ func BuildScenario(cfg Config, attempt Attempt) model.Scenario {
 			TotalUsers:     totalUsersForScenario(personChannels, groupChannels, cfg.GroupMembers),
 			ConnectRate:    model.Rate{PerSecond: 1000},
 			GatewayBalance: "round_robin",
-			Heartbeat:      model.HeartbeatConfig{Enabled: true},
+			Heartbeat: model.HeartbeatConfig{
+				Enabled:  true,
+				Interval: capacityHeartbeatInterval,
+				Timeout:  capacityHeartbeatTimeout,
+			},
 		},
 		Messages: model.MessagesConfig{
 			Payload: model.PayloadConfig{SizeBytes: 128, Mode: "deterministic"},
