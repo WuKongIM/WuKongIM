@@ -163,6 +163,59 @@ func TestPeerReactorBoundsBlockedRPCWithTimeout(t *testing.T) {
 	require.Eventually(t, func() bool { return peer.pendingForTest(2, 0) == 0 }, time.Second, 10*time.Millisecond)
 }
 
+func TestPeerReactorStopRejectsLaneSubmitWithoutEnqueue(t *testing.T) {
+	client := newRecordingPeerClient()
+	peer := NewPeerReactor(PeerReactorOptions{Client: client, LaneCount: 1, MaxBatchWait: time.Minute, MaxPending: 8})
+	require.NoError(t, peer.Start())
+	lane, err := peer.lane(2, channel.ChannelID{ID: "stop-submit", Type: 1})
+	require.NoError(t, err)
+	lane.stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	for i := 0; i < 2000; i++ {
+		task := &peerAppendTask{ctx: ctx, envelope: AppendBatchEnvelope{Request: appendReq("stop-submit", uint64(i+1))}, done: make(chan peerAppendResult, 1)}
+		require.ErrorIs(t, lane.submit(ctx, task), ErrClosed)
+		require.Empty(t, lane.inbox)
+	}
+}
+
+func TestPeerReactorDoesNotStartUnboundedRPCFlushes(t *testing.T) {
+	client := newBlockingPeerClient()
+	peer := NewPeerReactor(PeerReactorOptions{
+		Client:          client,
+		LaneCount:       1,
+		MaxBatchWait:    time.Millisecond,
+		MaxBatchRecords: 1,
+		MaxPending:      8,
+		MaxInflightRPC:  1,
+	})
+	require.NoError(t, peer.Start())
+	defer stopPeerReactor(t, peer)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := peer.AppendRemoteBatch(ctx, 2, appendReq("rpc-bound-1", 1), remoteRoute("rpc-bound-1", 2))
+		firstDone <- err
+	}()
+	client.waitCall(t)
+
+	secondDone := make(chan error, 1)
+	go func() {
+		_, err := peer.AppendRemoteBatch(ctx, 2, appendReq("rpc-bound-2", 1), remoteRoute("rpc-bound-2", 2))
+		secondDone <- err
+	}()
+	require.Never(t, func() bool { return client.callCount() > 1 }, 30*time.Millisecond, 5*time.Millisecond)
+
+	client.completeNext(AppendBatchesResponse{Results: []AppendBatchRemoteResult{{Status: RemoteAppendStatusOK, Result: batchResult(1)}}})
+	require.NoError(t, <-firstDone)
+	client.waitCall(t)
+	client.completeNext(AppendBatchesResponse{Results: []AppendBatchRemoteResult{{Status: RemoteAppendStatusOK, Result: batchResult(2)}}})
+	require.NoError(t, <-secondDone)
+}
+
 func stopPeerReactor(t *testing.T, peer *PeerReactor) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -267,4 +320,10 @@ func (c *blockingPeerClient) completeNext(resp AppendBatchesResponse) {
 	c.calls = c.calls[1:]
 	c.mu.Unlock()
 	call.resp <- recordingPeerResponse{resp: resp}
+}
+
+func (c *blockingPeerClient) callCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.calls)
 }
