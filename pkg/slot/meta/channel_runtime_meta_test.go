@@ -37,8 +37,8 @@ func TestShardStoreUpsertAndGetChannelRuntimeMeta(t *testing.T) {
 		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
 	}
 
-	if !reflect.DeepEqual(got, meta) {
-		t.Fatalf("ChannelRuntimeMeta mismatch:\n got: %#v\nwant: %#v", got, meta)
+	if want := normalizeChannelRuntimeMeta(meta); !reflect.DeepEqual(got, want) {
+		t.Fatalf("ChannelRuntimeMeta mismatch:\n got: %#v\nwant: %#v", got, want)
 	}
 }
 
@@ -84,6 +84,54 @@ func TestChannelRuntimeMetaWriteFenceRoundTrip(t *testing.T) {
 	require.Equal(t, meta.WriteFenceUntilMS, got.WriteFenceUntilMS)
 }
 
+func TestChannelRuntimeMetaRouteGenerationRoundTrip(t *testing.T) {
+	shard := newTestShardStore(t, 11)
+	ctx := context.Background()
+	meta := testRuntimeMeta("g-route", 2)
+	meta.RouteGeneration = 42
+
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, meta))
+
+	got, err := shard.GetChannelRuntimeMeta(ctx, meta.ChannelID, meta.ChannelType)
+	require.NoError(t, err)
+	require.Equal(t, uint64(42), got.RouteGeneration)
+}
+
+func TestChannelRuntimeMetaRouteGenerationDefaultsLegacyRecord(t *testing.T) {
+	key := encodeChannelRuntimeMetaPrimaryKey(7, "legacy-route-generation", 2, channelRuntimeMetaPrimaryFamilyID)
+	payload := channelRuntimeMetaRequiredPayload()
+
+	got, err := decodeChannelRuntimeMetaFamilyValue(key, wrapFamilyValue(key, payload))
+	require.NoError(t, err)
+	require.Equal(t, uint64(4), got.RouteGeneration)
+}
+
+func TestChannelRuntimeMetaRouteGenerationBumpsWhenRouteChanges(t *testing.T) {
+	existing := testRuntimeMeta("route-generation-bump", 1)
+	existing.RouteGeneration = 12
+
+	candidate := existing
+	candidate.RouteGeneration = 12
+	candidate.LeaseUntilMS = existing.LeaseUntilMS + 1000
+
+	got, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, true, candidate)
+	require.True(t, shouldWrite)
+	require.Equal(t, uint64(13), got.RouteGeneration)
+}
+
+func TestChannelRuntimeMetaRouteGenerationRejectsLowerGeneration(t *testing.T) {
+	existing := testRuntimeMeta("route-generation-lower", 1)
+	existing.RouteGeneration = 12
+
+	candidate := existing
+	candidate.RouteGeneration = 11
+	candidate.LeaseUntilMS = existing.LeaseUntilMS + 1000
+
+	got, shouldWrite := resolveMonotonicChannelRuntimeMeta(existing, true, candidate)
+	require.False(t, shouldWrite)
+	require.Equal(t, existing, got)
+}
+
 func TestShardStoreAdvanceChannelRetentionThroughSeqOnlyMutatesRetention(t *testing.T) {
 	shard := newTestShardStore(t, 7)
 	ctx := context.Background()
@@ -109,6 +157,7 @@ func TestShardStoreAdvanceChannelRetentionThroughSeqOnlyMutatesRetention(t *test
 	require.NoError(t, err)
 	base.RetentionThroughSeq = 42
 	base.RetentionUpdatedAtMS = 4000
+	base.RouteGeneration = nextChannelRouteGeneration(normalizeChannelRuntimeMeta(base).RouteGeneration)
 	require.Equal(t, normalizeChannelRuntimeMeta(base), got)
 }
 
@@ -220,6 +269,7 @@ func TestShardStoreUpsertChannelRuntimeMetaCanonicalizesSets(t *testing.T) {
 	want := meta
 	want.Replicas = []uint64{1, 2, 3}
 	want.ISR = []uint64{1, 3}
+	want = normalizeChannelRuntimeMeta(want)
 
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("canonical ChannelRuntimeMeta mismatch:\n got: %#v\nwant: %#v", got, want)
@@ -543,6 +593,28 @@ func TestChannelRuntimeMetaWriteFenceEncodingSkipsZeroFenceColumns(t *testing.T)
 	require.NotContains(t, columns, channelRuntimeMetaColumnIDWriteFenceUntilMS)
 }
 
+func TestChannelRuntimeMetaRouteGenerationEncodingSkipsZeroInputButPersistsNormalized(t *testing.T) {
+	shard := newTestShardStore(t, 7)
+	ctx := context.Background()
+	meta := testRuntimeMeta("route-generation-normalized-encode", 1)
+	meta.RouteGeneration = 0
+
+	require.NoError(t, shard.UpsertChannelRuntimeMeta(ctx, meta))
+	key := encodeChannelRuntimeMetaPrimaryKey(7, meta.ChannelID, meta.ChannelType, channelRuntimeMetaPrimaryFamilyID)
+	value, err := shard.db.getValue(key)
+	require.NoError(t, err)
+	_, payload, err := decodeWrappedValue(key, value)
+	require.NoError(t, err)
+
+	columns, err := decodeTestColumnIDs(payload)
+	require.NoError(t, err)
+	require.Contains(t, columns, channelRuntimeMetaColumnIDRouteGeneration)
+
+	got, err := decodeChannelRuntimeMetaFamilyValue(key, value)
+	require.NoError(t, err)
+	require.NotZero(t, got.RouteGeneration)
+}
+
 func TestDecodeChannelRuntimeMetaRejectsKnownWriteFenceWrongType(t *testing.T) {
 	key := encodeChannelRuntimeMetaPrimaryKey(7, "wrong-fence-type", 2, channelRuntimeMetaPrimaryFamilyID)
 
@@ -711,7 +783,7 @@ func TestDecodeChannelRuntimeMetaWriteFenceValidActive(t *testing.T) {
 func TestDecodeChannelRuntimeMetaSkipsUnknownFutureFenceColumn(t *testing.T) {
 	key := encodeChannelRuntimeMetaPrimaryKey(7, "future-fence-column", 2, channelRuntimeMetaPrimaryFamilyID)
 	payload := channelRuntimeMetaRequiredPayload()
-	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDWriteFenceUntilMS+1, channelRuntimeMetaColumnIDLeaseUntilMS, 99)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDRouteGeneration+1, channelRuntimeMetaColumnIDLeaseUntilMS, 99)
 
 	got, err := decodeChannelRuntimeMetaFamilyValue(key, wrapFamilyValue(key, payload))
 	require.NoError(t, err)
@@ -721,6 +793,7 @@ func TestDecodeChannelRuntimeMetaSkipsUnknownFutureFenceColumn(t *testing.T) {
 	require.Zero(t, got.WriteFenceVersion)
 	require.Zero(t, got.WriteFenceReason)
 	require.Zero(t, got.WriteFenceUntilMS)
+	require.Equal(t, uint64(4), got.RouteGeneration)
 }
 
 func TestDecodeChannelRuntimeMetaDefaultsMissingRetentionToZero(t *testing.T) {
@@ -735,6 +808,7 @@ func TestDecodeChannelRuntimeMetaDefaultsMissingRetentionToZero(t *testing.T) {
 	require.Zero(t, got.WriteFenceVersion)
 	require.Zero(t, got.WriteFenceReason)
 	require.Zero(t, got.WriteFenceUntilMS)
+	require.Equal(t, uint64(4), got.RouteGeneration)
 }
 
 func TestWriteBatchUpsertChannelRuntimeMetaRejectsStaleLeaderEpoch(t *testing.T) {
@@ -794,6 +868,7 @@ func TestWriteBatchAdvanceChannelRetentionThroughSeqUpdatesLaterBatchReads(t *te
 	require.NoError(t, err)
 	next.RetentionThroughSeq = 42
 	next.RetentionUpdatedAtMS = 4000
+	next.RouteGeneration = nextChannelRouteGeneration(normalizeChannelRuntimeMeta(base).RouteGeneration)
 	require.Equal(t, normalizeChannelRuntimeMeta(next), got)
 }
 
@@ -1041,7 +1116,7 @@ func TestDBListChannelRuntimeMeta(t *testing.T) {
 
 	got, err := db.ListChannelRuntimeMeta(ctx)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []ChannelRuntimeMeta{first, second}, got)
+	require.ElementsMatch(t, []ChannelRuntimeMeta{normalizeChannelRuntimeMeta(first), normalizeChannelRuntimeMeta(second)}, got)
 }
 
 func decodeTestColumnIDs(payload []byte) ([]uint16, error) {

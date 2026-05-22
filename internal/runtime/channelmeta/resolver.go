@@ -279,6 +279,7 @@ func (s *Sync) ApplyAuthoritativeMeta(meta metadb.ChannelRuntimeMeta) (channel.M
 	if s == nil || s.runtime == nil {
 		return channel.Meta{}, channel.ErrInvalidConfig
 	}
+	meta = metadb.NormalizeChannelRuntimeMeta(meta)
 	rootMeta := ProjectChannelMeta(meta)
 	s.cache.invalidateIfWriteFenceChanged(rootMeta.Key, meta, s.Now())
 	notifyAfterLocalApply := s.shouldNotifyAfterLocalApply(meta)
@@ -741,6 +742,7 @@ func (s *Sync) observeLocalReplicaStateChange(key channel.ChannelKey) {
 
 // ProjectChannelMeta converts authoritative slot metadata into channel runtime metadata.
 func ProjectChannelMeta(meta metadb.ChannelRuntimeMeta) channel.Meta {
+	meta = metadb.NormalizeChannelRuntimeMeta(meta)
 	id := channel.ChannelID{ID: meta.ChannelID, Type: uint8(meta.ChannelType)}
 	var leaseUntil time.Time
 	if meta.LeaseUntilMS > 0 {
@@ -751,16 +753,17 @@ func ProjectChannelMeta(meta metadb.ChannelRuntimeMeta) channel.Meta {
 		fenceUntil = time.UnixMilli(meta.WriteFenceUntilMS).UTC()
 	}
 	return channel.Meta{
-		Key:         channelhandler.KeyFromChannelID(id),
-		ID:          id,
-		Epoch:       meta.ChannelEpoch,
-		LeaderEpoch: meta.LeaderEpoch,
-		Replicas:    projectNodeIDs(meta.Replicas),
-		ISR:         projectNodeIDs(meta.ISR),
-		Leader:      channel.NodeID(meta.Leader),
-		MinISR:      int(meta.MinISR),
-		LeaseUntil:  leaseUntil,
-		Status:      channel.Status(meta.Status),
+		Key:             channelhandler.KeyFromChannelID(id),
+		ID:              id,
+		Epoch:           meta.ChannelEpoch,
+		RouteGeneration: meta.RouteGeneration,
+		LeaderEpoch:     meta.LeaderEpoch,
+		Replicas:        projectNodeIDs(meta.Replicas),
+		ISR:             projectNodeIDs(meta.ISR),
+		Leader:          channel.NodeID(meta.Leader),
+		MinISR:          int(meta.MinISR),
+		LeaseUntil:      leaseUntil,
+		Status:          channel.Status(meta.Status),
 		Features: channel.Features{
 			MessageSeqFormat: channel.MessageSeqFormat(meta.Features),
 		},

@@ -100,6 +100,7 @@ func (c *ActivationCache) StorePositive(key channel.ChannelKey, meta channel.Met
 
 // StoreAuthoritativePositive caches an applied routing view with its authoritative source record.
 func (c *ActivationCache) StoreAuthoritativePositive(key channel.ChannelKey, applied channel.Meta, authoritative metadb.ChannelRuntimeMeta, now time.Time) {
+	authoritative = metadb.NormalizeChannelRuntimeMeta(authoritative)
 	c.storePositiveEntry(key, cachedChannelMeta{
 		meta:             applied,
 		authoritative:    authoritative,
@@ -132,6 +133,7 @@ func (c *ActivationCache) storePositiveEntry(key channel.ChannelKey, entry cache
 }
 
 func (c *ActivationCache) storeAuthoritativePositiveAtGeneration(key channel.ChannelKey, applied channel.Meta, authoritative metadb.ChannelRuntimeMeta, now time.Time, generation ActivationCacheGeneration) {
+	authoritative = metadb.NormalizeChannelRuntimeMeta(authoritative)
 	c.storePositiveEntryAtGeneration(key, cachedChannelMeta{
 		meta:             applied,
 		authoritative:    authoritative,
@@ -299,11 +301,14 @@ func (c *ActivationCache) invalidateIfWriteFenceChanged(key channel.ChannelKey, 
 	if c == nil {
 		return
 	}
+	authoritative = metadb.NormalizeChannelRuntimeMeta(authoritative)
 	shard := c.shard(key)
 	shard.mu.Lock()
 	entry, ok := shard.positive[key]
 	changed := !ok && hasAuthoritativeWriteFence(authoritative)
 	changed = changed || (ok && (!entry.hasAuthoritative ||
+		entry.authoritative.RouteGeneration != authoritative.RouteGeneration ||
+		entry.meta.RouteGeneration != authoritative.RouteGeneration ||
 		entry.authoritative.WriteFenceVersion != authoritative.WriteFenceVersion ||
 		entry.authoritative.WriteFenceToken != authoritative.WriteFenceToken ||
 		entry.authoritative.WriteFenceReason != authoritative.WriteFenceReason ||

@@ -84,6 +84,7 @@ const (
 	tagRuntimeMetaWriteFenceVersion    uint8 = 15
 	tagRuntimeMetaWriteFenceReason     uint8 = 16
 	tagRuntimeMetaWriteFenceUntilMS    uint8 = 17
+	tagRuntimeMetaRouteGeneration      uint8 = 18
 
 	// Channel retention advance field tags.
 	tagRetentionAdvanceChannelID            uint8 = 1
@@ -551,6 +552,7 @@ func EncodeUpsertChannelRuntimeMetaCommand(meta metadb.ChannelRuntimeMeta) []byt
 	buf = appendUint64TLVField(buf, tagRuntimeMetaWriteFenceVersion, meta.WriteFenceVersion)
 	buf = appendUint64TLVField(buf, tagRuntimeMetaWriteFenceReason, uint64(meta.WriteFenceReason))
 	buf = appendInt64TLVField(buf, tagRuntimeMetaWriteFenceUntilMS, meta.WriteFenceUntilMS)
+	buf = appendUint64TLVField(buf, tagRuntimeMetaRouteGeneration, meta.RouteGeneration)
 	return buf
 }
 
@@ -1527,6 +1529,11 @@ func decodeUpsertChannelRuntimeMeta(data []byte) (command, error) {
 				return nil, fmt.Errorf("%w: bad runtime WriteFenceUntilMS length", metadb.ErrCorruptValue)
 			}
 			meta.WriteFenceUntilMS = int64(binary.BigEndian.Uint64(value))
+		case tagRuntimeMetaRouteGeneration:
+			if len(value) != 8 {
+				return nil, fmt.Errorf("%w: bad runtime RouteGeneration length", metadb.ErrCorruptValue)
+			}
+			meta.RouteGeneration = binary.BigEndian.Uint64(value)
 		default:
 			// Unknown tag — skip for forward compatibility.
 		}
@@ -1803,9 +1810,7 @@ func readTLV(data []byte) (uint8, []byte, int, error) {
 }
 
 func canonicalizeChannelRuntimeMeta(meta metadb.ChannelRuntimeMeta) metadb.ChannelRuntimeMeta {
-	meta.Replicas = canonicalizeUint64Set(meta.Replicas)
-	meta.ISR = canonicalizeUint64Set(meta.ISR)
-	return meta
+	return metadb.NormalizeChannelRuntimeMeta(meta)
 }
 
 func canonicalizeUint64Set(values []uint64) []uint64 {

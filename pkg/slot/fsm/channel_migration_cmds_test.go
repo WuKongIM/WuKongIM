@@ -1531,8 +1531,8 @@ func TestStateMachineChannelAdvancePersistsProgressWithoutMetaMutation(t *testin
 	if err != nil {
 		t.Fatalf("GetChannelRuntimeMeta() error = %v", err)
 	}
-	if !reflect.DeepEqual(gotMeta, meta) {
-		t.Fatalf("meta mutated by advance = %#v, want %#v", gotMeta, meta)
+	if want := metadb.NormalizeChannelRuntimeMeta(meta); !reflect.DeepEqual(gotMeta, want) {
+		t.Fatalf("meta mutated by advance = %#v, want %#v", gotMeta, want)
 	}
 }
 

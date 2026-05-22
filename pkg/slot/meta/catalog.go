@@ -59,6 +59,7 @@ const (
 	channelRuntimeMetaColumnIDWriteFenceVersion    uint16 = 15
 	channelRuntimeMetaColumnIDWriteFenceReason     uint16 = 16
 	channelRuntimeMetaColumnIDWriteFenceUntilMS    uint16 = 17
+	channelRuntimeMetaColumnIDRouteGeneration      uint16 = 18
 )
 
 const (

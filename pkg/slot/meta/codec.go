@@ -375,6 +375,7 @@ func decodeChannelIndexValue(key, value []byte) (int64, error) {
 }
 
 func encodeChannelRuntimeMetaFamilyValue(meta ChannelRuntimeMeta, key []byte) []byte {
+	meta = normalizeChannelRuntimeMeta(meta)
 	payload := make([]byte, 0, 160)
 	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDChannelEpoch, 0, meta.ChannelEpoch)
 	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDLeaderEpoch, channelRuntimeMetaColumnIDChannelEpoch, meta.LeaderEpoch)
@@ -387,11 +388,12 @@ func encodeChannelRuntimeMetaFamilyValue(meta ChannelRuntimeMeta, key []byte) []
 	payload = appendIntValue(payload, channelRuntimeMetaColumnIDLeaseUntilMS, channelRuntimeMetaColumnIDFeatures, meta.LeaseUntilMS)
 	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDRetentionThroughSeq, channelRuntimeMetaColumnIDLeaseUntilMS, meta.RetentionThroughSeq)
 	payload = appendIntValue(payload, channelRuntimeMetaColumnIDRetentionUpdatedAtMS, channelRuntimeMetaColumnIDRetentionThroughSeq, meta.RetentionUpdatedAtMS)
-	payload = appendChannelRuntimeMetaWriteFenceValues(payload, meta, channelRuntimeMetaColumnIDRetentionUpdatedAtMS)
+	payload, previousColumnID := appendChannelRuntimeMetaWriteFenceValues(payload, meta, channelRuntimeMetaColumnIDRetentionUpdatedAtMS)
+	payload = appendUint64Value(payload, channelRuntimeMetaColumnIDRouteGeneration, previousColumnID, meta.RouteGeneration)
 	return wrapFamilyValue(key, payload)
 }
 
-func appendChannelRuntimeMetaWriteFenceValues(payload []byte, meta ChannelRuntimeMeta, previousColumnID uint16) []byte {
+func appendChannelRuntimeMetaWriteFenceValues(payload []byte, meta ChannelRuntimeMeta, previousColumnID uint16) ([]byte, uint16) {
 	// Omit zero-value fence fields so ordinary runtime-meta rows stay readable by
 	// older decoders until a migration task actually writes a fence.
 	if meta.WriteFenceToken != "" {
@@ -408,8 +410,9 @@ func appendChannelRuntimeMetaWriteFenceValues(payload []byte, meta ChannelRuntim
 	}
 	if meta.WriteFenceUntilMS != 0 {
 		payload = appendIntValue(payload, channelRuntimeMetaColumnIDWriteFenceUntilMS, previousColumnID, meta.WriteFenceUntilMS)
+		previousColumnID = channelRuntimeMetaColumnIDWriteFenceUntilMS
 	}
-	return payload
+	return payload, previousColumnID
 }
 
 func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta, error) {
@@ -534,6 +537,8 @@ func decodeChannelRuntimeMetaFamilyValue(key, value []byte) (ChannelRuntimeMeta,
 					return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid write fence reason %d", ErrCorruptValue, raw)
 				}
 				meta.WriteFenceReason = uint8(raw)
+			case channelRuntimeMetaColumnIDRouteGeneration:
+				meta.RouteGeneration = raw
 			default:
 				// Unknown columns are skipped for forward compatibility.
 			}
@@ -593,7 +598,8 @@ func channelRuntimeMetaValueColumnType(columnID uint16) (byte, bool) {
 		channelRuntimeMetaColumnIDFeatures,
 		channelRuntimeMetaColumnIDRetentionThroughSeq,
 		channelRuntimeMetaColumnIDWriteFenceVersion,
-		channelRuntimeMetaColumnIDWriteFenceReason:
+		channelRuntimeMetaColumnIDWriteFenceReason,
+		channelRuntimeMetaColumnIDRouteGeneration:
 		return valueTypeUint, true
 	default:
 		return 0, false
