@@ -145,7 +145,7 @@ func (s *Store) callRuntimeMetaRPC(ctx context.Context, slotID multiraft.SlotID,
 	}
 
 	latestReq := req
-	latestReq.CodecVersion = 2
+	latestReq.CodecVersion = 3
 	resp, err := s.callRuntimeMetaRPCWithCodec(ctx, slotID, latestReq)
 	if err == nil {
 		return resp, nil

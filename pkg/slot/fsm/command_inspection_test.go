@@ -60,6 +60,7 @@ func TestDecodeCommandInspectionIncludesRuntimeMetaRetention(t *testing.T) {
 		WriteFenceVersion:    7,
 		WriteFenceReason:     2,
 		WriteFenceUntilMS:    1700000000456,
+		RouteGeneration:      42,
 	}))
 	require.NoError(t, err)
 
@@ -69,6 +70,7 @@ func TestDecodeCommandInspectionIncludesRuntimeMetaRetention(t *testing.T) {
 	require.Equal(t, uint64(7), got.Payload["write_fence_version"])
 	require.Equal(t, uint8(2), got.Payload["write_fence_reason"])
 	require.Equal(t, int64(1700000000456), got.Payload["write_fence_until_ms"])
+	require.Equal(t, uint64(42), got.Payload["route_generation"])
 }
 
 func TestDecodeCommandInspectionIncludesAdvanceChannelRetentionThroughSeq(t *testing.T) {

@@ -67,17 +67,19 @@ type Message struct {
 }
 
 type Meta struct {
-	Key         ChannelKey
-	ID          ChannelID
-	Epoch       uint64
-	LeaderEpoch uint64
-	Leader      NodeID
-	Replicas    []NodeID
-	ISR         []NodeID
-	MinISR      int
-	LeaseUntil  time.Time
-	Status      Status
-	Features    Features
+	Key   ChannelKey
+	ID    ChannelID
+	Epoch uint64
+	// RouteGeneration is the authoritative version of the channel routing record.
+	RouteGeneration uint64
+	LeaderEpoch     uint64
+	Leader          NodeID
+	Replicas        []NodeID
+	ISR             []NodeID
+	MinISR          int
+	LeaseUntil      time.Time
+	Status          Status
+	Features        Features
 	// RetentionThroughSeq is the authoritative highest message sequence hidden by retention.
 	RetentionThroughSeq uint64
 	// WriteFence rejects new appends while a migration owns the channel cutover.

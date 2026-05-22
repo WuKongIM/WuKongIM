@@ -110,3 +110,25 @@ func TestActivationCacheInvalidateDropsOnePositiveEntry(t *testing.T) {
 	require.NoError(t, cache.LoadNegative(negativeKey, now))
 	require.ErrorIs(t, cache.LoadNegative(otherNegative, now), metadb.ErrNotFound)
 }
+
+func TestActivationCacheInvalidatesWhenRouteGenerationChanges(t *testing.T) {
+	cache := &ActivationCache{}
+	key := channel.ChannelKey("channel/1/route-generation")
+	now := time.Date(2026, 5, 22, 12, 0, 0, 0, time.UTC)
+	applied := channel.Meta{
+		Key:             key,
+		Leader:          1,
+		LeaseUntil:      now.Add(time.Minute),
+		Status:          channel.StatusActive,
+		RouteGeneration: 10,
+	}
+	authoritative := metadb.ChannelRuntimeMeta{RouteGeneration: 10}
+	cache.StoreAuthoritativePositive(key, applied, authoritative, now)
+
+	next := authoritative
+	next.RouteGeneration = 11
+	cache.invalidateIfWriteFenceChanged(key, next, now)
+
+	_, ok := cache.LoadPositive(key, now)
+	require.False(t, ok)
+}

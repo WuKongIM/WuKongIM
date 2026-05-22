@@ -214,8 +214,6 @@ func (b *WriteBatch) UpsertChannelRuntimeMeta(hashSlot uint16, meta ChannelRunti
 		return err
 	}
 
-	meta = normalizeChannelRuntimeMeta(meta)
-
 	key := encodeChannelRuntimeMetaPrimaryKey(hashSlot, meta.ChannelID, meta.ChannelType, channelRuntimeMetaPrimaryFamilyID)
 	existing, exists, err := b.loadChannelRuntimeMeta(hashSlot, key, meta.ChannelID, meta.ChannelType)
 	if err != nil {

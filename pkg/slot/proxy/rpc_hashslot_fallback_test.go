@@ -82,7 +82,7 @@ func TestHandleRuntimeMetaRPCComputesHashSlotFromChannelID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, rpcStatusOK, resp.Status)
 	require.NotNil(t, resp.Meta)
-	require.Equal(t, want, *resp.Meta)
+	require.Equal(t, metadb.NormalizeChannelRuntimeMeta(want), *resp.Meta)
 }
 
 func TestHandleSubscriberRPCFallsBackToChannelHashSlot(t *testing.T) {

@@ -191,6 +191,7 @@ func runtimeMetaInspection(commandType string, meta metadb.ChannelRuntimeMeta) C
 		"write_fence_version":     meta.WriteFenceVersion,
 		"write_fence_reason":      meta.WriteFenceReason,
 		"write_fence_until_ms":    meta.WriteFenceUntilMS,
+		"route_generation":        meta.RouteGeneration,
 	})
 }
 

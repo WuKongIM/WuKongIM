@@ -47,16 +47,17 @@ func TestResolverRefreshProjectsLeaderEpochLeaseAndApply(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, channel.Meta{
-		Key:         channelhandler.KeyFromChannelID(channel.ChannelID{ID: "u1", Type: 1}),
-		ID:          channel.ChannelID{ID: "u1", Type: 1},
-		Epoch:       5,
-		LeaderEpoch: 7,
-		Replicas:    []channel.NodeID{2, 3},
-		ISR:         []channel.NodeID{2, 3},
-		Leader:      2,
-		MinISR:      2,
-		LeaseUntil:  leaseUntil,
-		Status:      channel.StatusActive,
+		Key:             channelhandler.KeyFromChannelID(channel.ChannelID{ID: "u1", Type: 1}),
+		ID:              channel.ChannelID{ID: "u1", Type: 1},
+		Epoch:           5,
+		RouteGeneration: 7,
+		LeaderEpoch:     7,
+		Replicas:        []channel.NodeID{2, 3},
+		ISR:             []channel.NodeID{2, 3},
+		Leader:          2,
+		MinISR:          2,
+		LeaseUntil:      leaseUntil,
+		Status:          channel.StatusActive,
 		Features: channel.Features{
 			MessageSeqFormat: channel.MessageSeqFormatU64,
 		},
@@ -73,6 +74,16 @@ func TestProjectChannelMetaIncludesRetentionBoundary(t *testing.T) {
 	}
 	got := ProjectChannelMeta(meta)
 	require.Equal(t, uint64(88), got.RetentionThroughSeq)
+}
+
+func TestProjectChannelMetaIncludesRouteGeneration(t *testing.T) {
+	meta := metadb.ChannelRuntimeMeta{
+		ChannelID: "g-route", ChannelType: 2, ChannelEpoch: 3, LeaderEpoch: 4,
+		Replicas: []uint64{1}, ISR: []uint64{1}, Leader: 1, MinISR: 1,
+		Status: uint8(channel.StatusActive), RouteGeneration: 42,
+	}
+	got := ProjectChannelMeta(meta)
+	require.Equal(t, uint64(42), got.RouteGeneration)
 }
 
 func TestProjectChannelMetaIncludesWriteFence(t *testing.T) {

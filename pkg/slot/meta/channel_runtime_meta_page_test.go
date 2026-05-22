@@ -60,7 +60,7 @@ func TestShardListChannelRuntimeMetaPageReturnsOrderedPage(t *testing.T) {
 	page, cursor, done, err := shard.ListChannelRuntimeMetaPage(ctx, ChannelRuntimeMetaCursor{}, 2)
 	require.NoError(t, err)
 	require.False(t, done)
-	require.Equal(t, []ChannelRuntimeMeta{metas[2], metas[1]}, page)
+	require.Equal(t, []ChannelRuntimeMeta{normalizeChannelRuntimeMeta(metas[2]), normalizeChannelRuntimeMeta(metas[1])}, page)
 	require.Equal(t, ChannelRuntimeMetaCursor{ChannelID: "g1", ChannelType: 2}, cursor)
 }
 
@@ -117,13 +117,13 @@ func TestShardListChannelRuntimeMetaPageContinuesAfterCursor(t *testing.T) {
 	page1, cursor, done, err := shard.ListChannelRuntimeMetaPage(ctx, ChannelRuntimeMetaCursor{}, 2)
 	require.NoError(t, err)
 	require.False(t, done)
-	require.Equal(t, []ChannelRuntimeMeta{metas[0], metas[1]}, page1)
+	require.Equal(t, []ChannelRuntimeMeta{normalizeChannelRuntimeMeta(metas[0]), normalizeChannelRuntimeMeta(metas[1])}, page1)
 	require.Equal(t, ChannelRuntimeMetaCursor{ChannelID: "g1", ChannelType: 2}, cursor)
 
 	page2, cursor, done, err := shard.ListChannelRuntimeMetaPage(ctx, cursor, 2)
 	require.NoError(t, err)
 	require.True(t, done)
-	require.Equal(t, []ChannelRuntimeMeta{metas[2]}, page2)
+	require.Equal(t, []ChannelRuntimeMeta{normalizeChannelRuntimeMeta(metas[2])}, page2)
 	require.Equal(t, ChannelRuntimeMetaCursor{ChannelID: "g2", ChannelType: 1}, cursor)
 }
 

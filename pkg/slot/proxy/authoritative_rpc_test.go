@@ -115,13 +115,13 @@ func TestRuntimeMetaRPCBinaryCodecRoundTrip(t *testing.T) {
 	require.Equal(t, req.ChannelType, gotReq.ChannelType)
 	require.Equal(t, req.After, gotReq.After)
 	require.Equal(t, req.Limit, gotReq.Limit)
-	require.Equal(t, byte(2), gotReq.CodecVersion)
+	require.Equal(t, byte(3), gotReq.CodecVersion)
 
 	resp := runtimeMetaRPCResponse{
 		Status:   rpcStatusOK,
 		LeaderID: 3,
-		Meta:     &metadb.ChannelRuntimeMeta{ChannelID: "g1", ChannelType: 2, ChannelEpoch: 10, LeaderEpoch: 11, Replicas: []uint64{1, 2}, ISR: []uint64{1}, Leader: 1, MinISR: 1, Status: 1, WriteFenceToken: "task-1", WriteFenceVersion: 7, WriteFenceReason: 2, WriteFenceUntilMS: 1710000000000},
-		Metas:    []metadb.ChannelRuntimeMeta{{ChannelID: "g2", ChannelType: 2, ChannelEpoch: 20, LeaderEpoch: 21, Replicas: []uint64{2, 1}, ISR: []uint64{2}, Leader: 2, MinISR: 1, Status: 1, WriteFenceVersion: 8}},
+		Meta:     &metadb.ChannelRuntimeMeta{ChannelID: "g1", ChannelType: 2, ChannelEpoch: 10, LeaderEpoch: 11, Replicas: []uint64{1, 2}, ISR: []uint64{1}, Leader: 1, MinISR: 1, Status: 1, WriteFenceToken: "task-1", WriteFenceVersion: 7, WriteFenceReason: 2, WriteFenceUntilMS: 1710000000000, RouteGeneration: 42},
+		Metas:    []metadb.ChannelRuntimeMeta{{ChannelID: "g2", ChannelType: 2, ChannelEpoch: 20, LeaderEpoch: 21, Replicas: []uint64{2, 1}, ISR: []uint64{2}, Leader: 2, MinISR: 1, Status: 1, WriteFenceVersion: 8, RouteGeneration: 43}},
 		Cursor:   metadb.ChannelRuntimeMetaCursor{ChannelID: "g2", ChannelType: 2},
 		Done:     true,
 	}
@@ -133,10 +133,23 @@ func TestRuntimeMetaRPCBinaryCodecRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, resp.Status, gotResp.Status)
 	require.Equal(t, resp.LeaderID, gotResp.LeaderID)
-	require.Equal(t, resp.Meta, gotResp.Meta)
-	require.Equal(t, resp.Metas, gotResp.Metas)
+	require.Equal(t, metadb.NormalizeChannelRuntimeMeta(*resp.Meta), *gotResp.Meta)
+	require.Equal(t, []metadb.ChannelRuntimeMeta{metadb.NormalizeChannelRuntimeMeta(resp.Metas[0])}, gotResp.Metas)
 	require.Equal(t, resp.Cursor, gotResp.Cursor)
 	require.Equal(t, resp.Done, gotResp.Done)
+}
+
+func TestRuntimeMetaRPCBinaryCodecDefaultsLegacyRouteGeneration(t *testing.T) {
+	resp := runtimeMetaRPCResponse{
+		Status: rpcStatusOK,
+		Meta:   &metadb.ChannelRuntimeMeta{ChannelID: "g1", ChannelType: 2, ChannelEpoch: 10, LeaderEpoch: 11, Replicas: []uint64{1, 2}, ISR: []uint64{1}, Leader: 1, MinISR: 1, Status: 1},
+	}
+	body, err := encodeRuntimeMetaRPCResponseForVersion(resp, 2)
+	require.NoError(t, err)
+
+	got, err := decodeRuntimeMetaRPCResponse(body)
+	require.NoError(t, err)
+	require.Equal(t, uint64(11), got.Meta.RouteGeneration)
 }
 
 func TestRuntimeMetaRPCBinaryCodecDecodesLegacyResponse(t *testing.T) {
@@ -153,7 +166,8 @@ func TestRuntimeMetaRPCBinaryCodecDecodesLegacyResponse(t *testing.T) {
 
 	got, err := decodeRuntimeMetaRPCResponse(body)
 	require.NoError(t, err)
-	require.Equal(t, resp, got)
+	require.Equal(t, uint64(11), got.Meta.RouteGeneration)
+	require.Equal(t, uint64(21), got.Metas[0].RouteGeneration)
 	require.Zero(t, got.Meta.WriteFenceVersion)
 	require.Zero(t, got.Metas[0].WriteFenceVersion)
 }
@@ -204,7 +218,7 @@ func TestRuntimeMetaRPCFallbacksToLegacyRequestForUnsupportedPeer(t *testing.T) 
 				return nil, errors.New("invalid test payload")
 			}
 			versions = append(versions, version)
-			if version == 2 {
+			if version == 3 {
 				return nil, errors.New("nodetransport: remote error: metastore: invalid runtime meta request codec")
 			}
 			return encodeRuntimeMetaRPCResponseForVersion(runtimeMetaRPCResponse{
@@ -224,7 +238,7 @@ func TestRuntimeMetaRPCFallbacksToLegacyRequestForUnsupportedPeer(t *testing.T) 
 	require.NotNil(t, resp.Meta)
 	require.Equal(t, "g1", resp.Meta.ChannelID)
 	require.Zero(t, resp.Meta.WriteFenceVersion)
-	require.Equal(t, []byte{2, 1}, versions)
+	require.Equal(t, []byte{3, 1}, versions)
 }
 
 func TestRuntimeMetaRPCDoesNotFallbackToLegacyOnNonCodecError(t *testing.T) {

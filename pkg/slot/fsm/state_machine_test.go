@@ -10,6 +10,7 @@ import (
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStateMachineEncodeUpsertCommands(t *testing.T) {
@@ -73,6 +74,7 @@ func TestStateMachineEncodeUpsertCommands(t *testing.T) {
 		Features:     9,
 		LeaseUntilMS: 1700000000000,
 	}
+	wantMeta = metadb.NormalizeChannelRuntimeMeta(wantMeta)
 	if !reflect.DeepEqual(mc.meta, wantMeta) {
 		t.Fatalf("decoded runtime meta = %#v, want %#v", mc.meta, wantMeta)
 	}
@@ -161,6 +163,29 @@ func TestDecodeUpsertChannelRuntimeMetaCommandPreservesRetentionFields(t *testin
 	if cmd.meta.RetentionUpdatedAtMS != meta.RetentionUpdatedAtMS {
 		t.Fatalf("RetentionUpdatedAtMS = %d, want %d", cmd.meta.RetentionUpdatedAtMS, meta.RetentionUpdatedAtMS)
 	}
+}
+
+func TestDecodeUpsertChannelRuntimeMetaCommandPreservesRouteGeneration(t *testing.T) {
+	meta := metadb.ChannelRuntimeMeta{
+		ChannelID:       "decode-route-generation",
+		ChannelType:     2,
+		ChannelEpoch:    3,
+		LeaderEpoch:     4,
+		Replicas:        []uint64{2, 1},
+		ISR:             []uint64{1, 2},
+		Leader:          1,
+		MinISR:          2,
+		Status:          2,
+		Features:        1,
+		LeaseUntilMS:    1700000000000,
+		RouteGeneration: 42,
+	}
+
+	decoded, err := decodeCommand(EncodeUpsertChannelRuntimeMetaCommand(meta))
+	require.NoError(t, err)
+	cmd, ok := decoded.(*upsertChannelRuntimeMetaCmd)
+	require.True(t, ok)
+	require.Equal(t, uint64(42), cmd.meta.RouteGeneration)
 }
 
 func TestDecodeUpsertChannelRuntimeMetaCommandDefaultsMissingRetentionFieldsToZero(t *testing.T) {
@@ -320,6 +345,7 @@ func TestStateMachineApplyUpsertsAndDeletesChannelRuntimeMeta(t *testing.T) {
 	want := meta
 	want.Replicas = []uint64{1, 2, 3}
 	want.ISR = []uint64{1, 2}
+	want = metadb.NormalizeChannelRuntimeMeta(want)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("stored runtime meta = %#v, want %#v", got, want)
 	}
@@ -380,6 +406,7 @@ func TestStateMachineApplyUpsertChannelRuntimeMetaPreservesRetentionFields(t *te
 	want := meta
 	want.Replicas = []uint64{1, 2, 3}
 	want.ISR = []uint64{1, 2}
+	want = metadb.NormalizeChannelRuntimeMeta(want)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("stored runtime meta = %#v, want %#v", got, want)
 	}
@@ -443,6 +470,7 @@ func TestStateMachineApplyAdvanceChannelRetentionThroughSeqPreservesTopology(t *
 	want.ISR = []uint64{1, 2}
 	want.RetentionThroughSeq = 42
 	want.RetentionUpdatedAtMS = 1700000002222
+	want.RouteGeneration = metadb.NormalizeChannelRuntimeMeta(base).RouteGeneration + 1
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("stored runtime meta after advance = %#v, want %#v", got, want)
 	}
@@ -1392,6 +1420,7 @@ func TestStateMachineSnapshotRestoreIncludesChannelRuntimeMeta(t *testing.T) {
 	want := meta
 	want.Replicas = []uint64{1, 2, 3}
 	want.ISR = []uint64{1, 2}
+	want = metadb.NormalizeChannelRuntimeMeta(want)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("restored runtime meta = %#v, want %#v", got, want)
 	}

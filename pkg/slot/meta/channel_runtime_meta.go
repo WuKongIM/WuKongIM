@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"slices"
 	"sort"
 
 	"github.com/cockroachdb/pebble/v2"
@@ -14,13 +15,15 @@ type ChannelRuntimeMeta struct {
 	ChannelType  int64
 	ChannelEpoch uint64
 	LeaderEpoch  uint64
-	Replicas     []uint64
-	ISR          []uint64
-	Leader       uint64
-	MinISR       int64
-	Status       uint8
-	Features     uint64
-	LeaseUntilMS int64
+	// RouteGeneration is the authoritative version of the channel routing record.
+	RouteGeneration uint64
+	Replicas        []uint64
+	ISR             []uint64
+	Leader          uint64
+	MinISR          int64
+	Status          uint8
+	Features        uint64
+	LeaseUntilMS    int64
 	// RetentionThroughSeq is the highest channel message sequence that the
 	// authoritative cluster metadata declares unavailable for future reads.
 	RetentionThroughSeq uint64
@@ -101,8 +104,6 @@ func (s *ShardStore) UpsertChannelRuntimeMeta(ctx context.Context, meta ChannelR
 	if err := validateChannelRuntimeMeta(meta); err != nil {
 		return err
 	}
-
-	meta = normalizeChannelRuntimeMeta(meta)
 
 	s.db.mu.Lock()
 	defer s.db.mu.Unlock()
@@ -282,9 +283,11 @@ func advanceChannelRetentionThroughSeq(existing ChannelRuntimeMeta, exists bool,
 	if req.RetentionThroughSeq <= existing.RetentionThroughSeq {
 		return existing, false, nil
 	}
+	existing = normalizeChannelRuntimeMeta(existing)
 	next := existing
 	next.RetentionThroughSeq = req.RetentionThroughSeq
 	next.RetentionUpdatedAtMS = req.RetentionUpdatedAtMS
+	next.RouteGeneration = nextChannelRouteGeneration(existing.RouteGeneration)
 	return next, true, nil
 }
 
@@ -298,14 +301,28 @@ func validateChannelRuntimeMetaChannelID(channelID string) error {
 func normalizeChannelRuntimeMeta(meta ChannelRuntimeMeta) ChannelRuntimeMeta {
 	meta.Replicas = normalizeUint64Set(meta.Replicas)
 	meta.ISR = normalizeUint64Set(meta.ISR)
+	if meta.RouteGeneration == 0 {
+		meta.RouteGeneration = defaultChannelRouteGeneration(meta)
+	}
 	return meta
+}
+
+// NormalizeChannelRuntimeMeta canonicalizes replica sets and fills legacy route generations.
+func NormalizeChannelRuntimeMeta(meta ChannelRuntimeMeta) ChannelRuntimeMeta {
+	return normalizeChannelRuntimeMeta(meta)
 }
 
 // resolveMonotonicChannelRuntimeMeta prevents stale runtime metadata from
 // regressing leadership epochs or shortening a live lease in the same epoch.
 func resolveMonotonicChannelRuntimeMeta(existing ChannelRuntimeMeta, exists bool, candidate ChannelRuntimeMeta) (ChannelRuntimeMeta, bool) {
+	candidateHadRouteGeneration := candidate.RouteGeneration != 0
+	candidate = normalizeChannelRuntimeMeta(candidate)
 	if !exists {
 		return candidate, true
+	}
+	existing = normalizeChannelRuntimeMeta(existing)
+	if candidateHadRouteGeneration && candidate.RouteGeneration < existing.RouteGeneration {
+		return existing, false
 	}
 	switch {
 	case candidate.ChannelEpoch < existing.ChannelEpoch:
@@ -313,13 +330,13 @@ func resolveMonotonicChannelRuntimeMeta(existing ChannelRuntimeMeta, exists bool
 	case candidate.ChannelEpoch > existing.ChannelEpoch:
 		preserveRetentionBoundary(existing, &candidate)
 		preserveWriteFence(existing, &candidate)
-		return candidate, true
+		return resolveMonotonicRouteGeneration(existing, candidate, candidateHadRouteGeneration)
 	case candidate.LeaderEpoch < existing.LeaderEpoch:
 		return existing, false
 	case candidate.LeaderEpoch > existing.LeaderEpoch:
 		preserveRetentionBoundary(existing, &candidate)
 		preserveWriteFence(existing, &candidate)
-		return candidate, true
+		return resolveMonotonicRouteGeneration(existing, candidate, candidateHadRouteGeneration)
 	case candidate.Leader != existing.Leader:
 		return existing, false
 	}
@@ -328,7 +345,58 @@ func resolveMonotonicChannelRuntimeMeta(existing ChannelRuntimeMeta, exists bool
 	}
 	preserveRetentionBoundary(existing, &candidate)
 	preserveWriteFence(existing, &candidate)
+	return resolveMonotonicRouteGeneration(existing, candidate, candidateHadRouteGeneration)
+}
+
+func resolveMonotonicRouteGeneration(existing, candidate ChannelRuntimeMeta, candidateHadRouteGeneration bool) (ChannelRuntimeMeta, bool) {
+	if candidateHadRouteGeneration && candidate.RouteGeneration < existing.RouteGeneration {
+		return existing, false
+	}
+	if !candidateHadRouteGeneration && candidate.RouteGeneration < existing.RouteGeneration {
+		candidate.RouteGeneration = existing.RouteGeneration
+	}
+	if channelRuntimeRouteChanged(existing, candidate) && candidate.RouteGeneration <= existing.RouteGeneration {
+		candidate.RouteGeneration = nextChannelRouteGeneration(existing.RouteGeneration)
+	}
 	return candidate, true
+}
+
+func channelRuntimeRouteChanged(a, b ChannelRuntimeMeta) bool {
+	return a.ChannelEpoch != b.ChannelEpoch ||
+		a.LeaderEpoch != b.LeaderEpoch ||
+		a.Leader != b.Leader ||
+		!slices.Equal(a.Replicas, b.Replicas) ||
+		!slices.Equal(a.ISR, b.ISR) ||
+		a.MinISR != b.MinISR ||
+		a.Status != b.Status ||
+		a.LeaseUntilMS != b.LeaseUntilMS ||
+		a.RetentionThroughSeq != b.RetentionThroughSeq ||
+		a.RetentionUpdatedAtMS != b.RetentionUpdatedAtMS ||
+		a.WriteFenceToken != b.WriteFenceToken ||
+		a.WriteFenceVersion != b.WriteFenceVersion ||
+		a.WriteFenceReason != b.WriteFenceReason ||
+		a.WriteFenceUntilMS != b.WriteFenceUntilMS
+}
+
+func defaultChannelRouteGeneration(meta ChannelRuntimeMeta) uint64 {
+	return maxUint64(meta.ChannelEpoch, meta.LeaderEpoch, meta.WriteFenceVersion, 1)
+}
+
+func nextChannelRouteGeneration(current uint64) uint64 {
+	if current == ^uint64(0) {
+		return current
+	}
+	return current + 1
+}
+
+func maxUint64(values ...uint64) uint64 {
+	var out uint64
+	for _, value := range values {
+		if value > out {
+			out = value
+		}
+	}
+	return out
 }
 
 func preserveRetentionBoundary(existing ChannelRuntimeMeta, candidate *ChannelRuntimeMeta) {
