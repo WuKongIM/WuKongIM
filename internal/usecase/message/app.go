@@ -13,9 +13,7 @@ import (
 
 var (
 	ErrUnauthenticatedSender             = errors.New("usecase/message: unauthenticated sender")
-	ErrClusterRequired                   = errors.New("usecase/message: channel cluster required")
-	ErrMetaRefresherRequired             = errors.New("usecase/message: meta refresher required")
-	ErrRemoteAppenderRequired            = errors.New("usecase/message: remote appender required")
+	ErrChannelAppenderRequired           = errors.New("usecase/message: channel appender required")
 	ErrSyncLoginUIDRequired              = errors.New("login_uid不能为空！")
 	ErrSyncChannelIDRequired             = errors.New("channel_id不能为空！")
 	ErrSyncChannelTypeRequired           = errors.New("channel_type不能为空！")
@@ -32,12 +30,8 @@ type Options struct {
 	IdentityStore IdentityStore
 	ChannelStore  ChannelStore
 	// ChannelAppender owns durable channel append routing.
-	ChannelAppender ChannelAppender
-	// Cluster is a legacy alias for ChannelAppender while app wiring moves to channelplane.
-	Cluster             ChannelCluster
+	ChannelAppender     ChannelAppender
 	MessageReader       ChannelMessageReader
-	MetaRefresher       MetaRefresher
-	RemoteAppender      RemoteAppender
 	Online              online.Registry
 	Delivery            online.Delivery
 	Recipients          RecipientDirectory
@@ -109,9 +103,6 @@ func New(opts Options) *App {
 	}
 	if opts.Logger == nil {
 		opts.Logger = wklog.NewNop()
-	}
-	if opts.ChannelAppender == nil {
-		opts.ChannelAppender = opts.Cluster
 	}
 	permissions := newPermissionCache(opts.PermissionStore, opts.PermissionCacheTTL, opts.Now)
 

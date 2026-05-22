@@ -139,6 +139,18 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		return app.Config{}, err
 	}
 	channelBootstrapDefaultMinISRSet := stringValue(v, "WK_CLUSTER_CHANNEL_BOOTSTRAP_DEFAULT_MIN_ISR") != ""
+	channelPlaneReactorCount, err := parseInt(v, "WK_CHANNEL_PLANE_REACTOR_COUNT")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelPlanePeerLaneCount, err := parseInt(v, "WK_CHANNEL_PLANE_PEER_LANE_COUNT")
+	if err != nil {
+		return app.Config{}, err
+	}
+	channelPlanePeerBatchMaxWait, err := parseDuration(v, "WK_CHANNEL_PLANE_PEER_BATCH_MAX_WAIT")
+	if err != nil {
+		return app.Config{}, err
+	}
 	hashSlotCount, err := parseUint16(v, "WK_CLUSTER_HASH_SLOT_COUNT")
 	if err != nil {
 		return app.Config{}, err
@@ -750,6 +762,11 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			DataPlaneRPCTimeout:       dataPlaneRPCTimeout,
 			DataPlaneMaxFetchInflight: dataPlaneMaxFetchInflight,
 			DataPlaneMaxPendingFetch:  dataPlaneMaxPendingFetch,
+		},
+		ChannelPlane: app.ChannelPlaneConfig{
+			ReactorCount:     channelPlaneReactorCount,
+			PeerLaneCount:    channelPlanePeerLaneCount,
+			PeerBatchMaxWait: channelPlanePeerBatchMaxWait,
 		},
 		ChannelMigration: app.ChannelMigrationConfig{
 			ScanInterval:           channelMigrationScanInterval,

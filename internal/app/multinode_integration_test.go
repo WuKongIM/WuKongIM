@@ -550,7 +550,7 @@ func TestThreeNodeAppGatewaySendFromFollowerAfterLeaseExpiryRecoversViaMetaSync(
 		ID:   channelID,
 		Type: frame.ChannelTypePerson,
 	}
-	initialLeaseUntilMS := time.Now().Add(200 * time.Millisecond).UnixMilli()
+	activeLeaseUntilMS := time.Now().Add(time.Minute).UnixMilli()
 	meta := metadb.ChannelRuntimeMeta{
 		ChannelID:    id.ID,
 		ChannelType:  int64(id.Type),
@@ -562,21 +562,47 @@ func TestThreeNodeAppGatewaySendFromFollowerAfterLeaseExpiryRecoversViaMetaSync(
 		MinISR:       3,
 		Status:       uint8(channel.StatusActive),
 		Features:     uint64(channel.MessageSeqFormatLegacyU32),
-		LeaseUntilMS: initialLeaseUntilMS,
+		LeaseUntilMS: activeLeaseUntilMS,
 	}
 	require.NoError(t, leader.Store().UpsertChannelRuntimeMeta(context.Background(), meta))
+	_, err := leader.channelMetaSync.RefreshChannelMeta(context.Background(), id)
+	require.NoError(t, err)
+
+	seed, err := leader.Message().Send(context.Background(), messageusecase.SendCommand{
+		FromUID:     "sender-expired-lease",
+		ChannelID:   recipientUID,
+		ChannelType: id.Type,
+		ClientSeq:   1,
+		ClientMsgNo: "three-node-expired-lease-seed",
+		Payload:     []byte("seed before lease expiry"),
+	})
+	require.NoError(t, err)
+	for _, app := range harness.orderedApps() {
+		msg := waitForAppCommittedMessage(t, app, id, seed.MessageSeq, 5*time.Second)
+		require.Equal(t, []byte("seed before lease expiry"), msg.Payload)
+	}
+
+	initialLeaseUntilMS := time.Now().Add(200 * time.Millisecond).UnixMilli()
+	expired := meta
+	expired.LeaderEpoch++
+	expired.LeaseUntilMS = initialLeaseUntilMS
+	require.NoError(t, leader.Store().UpsertChannelRuntimeMeta(context.Background(), expired))
+	for _, app := range harness.orderedApps() {
+		app.channelMetaSync.InvalidateChannelMeta(id)
+		_, err := app.channelMetaSync.applyAuthoritativeMeta(expired)
+		require.NoError(t, err)
+	}
 
 	require.Eventually(t, func() bool {
-		got, err := leader.Store().GetChannelRuntimeMeta(context.Background(), id.ID, int64(id.Type))
-		return err == nil && got.LeaseUntilMS > initialLeaseUntilMS
-	}, 5*time.Second, 50*time.Millisecond)
+		return time.Now().UnixMilli() > initialLeaseUntilMS
+	}, time.Second, 10*time.Millisecond)
 
 	conn := connectAppWKProtoClient(t, follower, "sender-expired-lease")
 
 	sendAppWKProtoFrame(t, conn, &frame.SendPacket{
 		ChannelID:   recipientUID,
 		ChannelType: id.Type,
-		ClientSeq:   1,
+		ClientSeq:   2,
 		ClientMsgNo: "three-node-expired-lease-1",
 		Payload:     []byte("hello after lease expiry"),
 	})
@@ -586,6 +612,11 @@ func TestThreeNodeAppGatewaySendFromFollowerAfterLeaseExpiryRecoversViaMetaSync(
 	require.Equal(t, frame.ReasonSuccess, sendack.ReasonCode)
 	require.NotZero(t, sendack.MessageSeq)
 	require.NotZero(t, sendack.MessageID)
+
+	require.Eventually(t, func() bool {
+		got, err := leader.Store().GetChannelRuntimeMeta(context.Background(), id.ID, int64(id.Type))
+		return err == nil && got.LeaseUntilMS > initialLeaseUntilMS
+	}, 5*time.Second, 50*time.Millisecond)
 
 	for _, app := range harness.orderedApps() {
 		msg := waitForAppCommittedMessage(t, app, id, sendack.MessageSeq, 5*time.Second)

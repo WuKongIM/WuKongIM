@@ -101,6 +101,7 @@
 | `deliverytag.Manager` | `runtime/deliverytag/manager.go` | 投递标签缓存：按频道保存 leader 构建的订阅者分区快照 |
 | `online.MemoryRegistry` | `runtime/online/registry.go` | 在线注册表：按 SessionID/UID/SlotID 索引 |
 | `channelmeta` | `runtime/channelmeta/` | Channel 元数据：resolver、缓存、lease、repair |
+| `channelplane` | `runtime/channelplane/` | Channel key reactor 平面：durable append 寻址、同频道串行、peer batching 与 typed backpressure |
 | `messageid` | `runtime/messageid/` | Snowflake 分布式 ID 生成 |
 | `plugin.Runtime` | `runtime/plugin/lifecycle.go` | 节点内插件进程、Unix socket、热重载和期望状态运行时 |
 | `userlimit` | `runtime/userlimit/` | 节点内 UID 发送令牌桶限流，保护 message send 热路径 |
@@ -238,6 +239,7 @@ online.Registry.Connection(sessionID)
    ├─ Conversation（会话投影器）
    ├─ CMDSync（CMD 离线同步用例 + pending conversation updater / intent router）
    ├─ ChannelMetaSync（元数据同步）
+   ├─ ChannelPlane（channel key reactor 平面；durable append 寻址、route refresh、peer batching）
    ├─ Presence（在线状态 + Worker）
    ├─ Delivery（投递管理器）
    ├─ CommittedDispatcher（有界分片队列，异步分发已提交事件）
@@ -260,19 +262,20 @@ online.Registry.Connection(sessionID)
 1. cluster
 2. managed_slots_ready（等待 Slot 就绪，超时 10s）
 3. channelmeta（启动 active-slot leader watcher）
-4. presence（启动 Worker）
-5. conversation_active_hints
-6. conversation_projector
-7. cmd_conversation_updater
-8. plugin_runtime（可选；先于 delivery/committed 相关组件，保证 hook 运行期可用）
-9. delivery_runtime
-10. committed_dispatcher
-11. committed_replay
-12. channel_migration
-13. channel_retention
-14. gateway
-15. api
-16. manager
+4. channelplane（启动 channel reactor shards）
+5. presence（启动 Worker）
+6. conversation_active_hints
+7. conversation_projector
+8. cmd_conversation_updater
+9. plugin_runtime（可选；先于 delivery/committed 相关组件，保证 hook 运行期可用）
+10. delivery_runtime
+11. committed_dispatcher
+12. committed_replay
+13. channel_migration
+14. channel_retention
+15. gateway
+16. api
+17. manager
 ```
 
 ### 4.2 停止流程
@@ -294,18 +297,19 @@ online.Registry.Connection(sessionID)
 11. conversation_projector
 12. conversation_active_hints
 13. presence
-14. channelmeta（StopWithoutCleanup）
-15. managed_slots_ready（no-op）
-16. cluster
+14. channelplane
+15. channelmeta（StopWithoutCleanup）
+16. managed_slots_ready（no-op）
+17. cluster
 
 然后关闭资源:
-17. channelLog.Close
-18. dataPlaneClient.Stop
-19. dataPlanePool.Close
-20. channelLogDB.Close
-21. raftDB.Close
-22. metadb.Close
-23. syncLogger
+18. channelLog.Close
+19. dataPlaneClient.Stop
+20. dataPlanePool.Close
+21. channelLogDB.Close
+22. raftDB.Close
+23. metadb.Close
+24. syncLogger
 ```
 
 ### 4.3 消息发送流程
@@ -338,12 +342,10 @@ message.App.Send(ctx, cmd)
   ├─ durable CMD 分支（SyncOnce 或已寻址 CMD）写入 `source____cmd`
   └─ sendDurable(ctx, appendCmd)
       ├─ buildDurableMessage
-      └─ sendWithEnsuredMeta
-          ├─ 先通过 ChannelMetaSync 获取健康元数据（可命中业务 fast path cache）
-          ├─ local/remote Append 到当前 Channel Leader
-          ├─ 权威元数据缺失时 bootstrap
-          ├─ lease 过期时续租或 repair
-          └─ stale / not-leader / lease-expired / reroute 错误时强制刷新并仅重试一次 Append
+      └─ ChannelPlane.AppendBatch / ChannelAppender
+          ├─ 在 channel reactor 内按 ChannelID 寻址并串行化同频道 append effect
+          ├─ route refresh、lease repair、local owner append 与 peer batching 都在 channelplane 内完成
+          └─ message.usecase 只接收最终 append 结果，不再持有 slot leader / channel leader / remote redirect 细节
       ↓
 request-scoped durable CMD：用 RequestSubscribers 构建 CMD conversation intent，并按 UID owner 路由到 pending updater
       ↓
@@ -585,7 +587,8 @@ handleRecvAck(ctx, pkt)
 | `plugin_committed` | → channel owner | `access/node/plugin_committed_rpc.go` | 转发已提交消息的插件 PersistAfter 副作用到 Channel owner 节点 |
 | `presence` | → slot leader | `access/node/presence_rpc.go` | 权威路由注册/注销/心跳 |
 | `conversation_facts` | → channel leader | `access/node/conversation_facts_rpc.go` | 远程加载会话最新/最近消息 |
-| `channel_append` | → channel leader | `access/node/channel_append_rpc.go` | 非 Leader 副本转发 Durable Append |
+| `channel_plane_append` | → channel leader | `access/node/channel_plane_rpc.go` | Typed `AppendBatches` 批量适配器，供 channelplane peer reactor 调用；只校验 route epoch 并本地 owner append，不做 refresh/redirect |
+| `channel_append` | → channel leader | `access/node/channel_append_rpc.go` | 兼容旧调用的 legacy single/batch bridge；不再作为 durable send 主路径 |
 | `channel_messages` | → channel leader | `access/node/channel_messages_rpc.go` | 管理端消息查询与频道消息同步 |
 | `channel_leader_repair` | → slot leader | `access/node/channel_leader_repair_rpc.go` | 请求权威修复 ChannelRuntimeMeta.Leader |
 | `channel_leader_evaluate` | → candidate replica | `access/node/channel_leader_evaluate_rpc.go` | 评估副本是否可安全接任 channel leader |
@@ -608,7 +611,7 @@ handleRecvAck(ctx, pkt)
 | 错误 | 含义 |
 |------|------|
 | `ErrUnauthenticatedSender` | 发送者未认证（FromUID 为空） |
-| `ErrClusterRequired` | 消息发送需要 Cluster |
+| `ErrChannelAppenderRequired` | 持久化消息发送需要 ChannelAppender |
 | `ErrRouterRequired` | Presence 路由器未注入 |
 | `ErrSessionRequired` | Activate 缺少 Session |
 
@@ -630,11 +633,9 @@ handleRecvAck(ctx, pkt)
 
 ### 🔴 消息发送
 - **Person 频道 ID 规范化**: 必须使用 `NormalizePersonChannel(fromUID, channelID)` 将两个 UID 排序拼接，否则同一对话会产生两个不同的 Channel
-- **sendWithEnsuredMeta 先走健康元数据缓存**: 业务路径只复用 active、epoch/leader epoch 非零、leader lease 足够、leader 非 dead/draining 且 repair policy 健康的 cache entry
-- **sendWithEnsuredMeta 只强制刷新一次**: 遇到 `ErrStaleMeta`、`ErrNotLeader`、`ErrLeaseExpired` 或 `ErrRerouted` 时 invalid cache 并触发一次刷新重试
-- **权威元数据缺失时 bootstrap**: 读到 `ErrNotFound` 时会按 Slot 拓扑 bootstrap 缺失的运行时元数据
-- **lease 过期时续租**: 当前 Channel Leader 所在节点会先尝试权威续租
-- **权威 leader 修复**: 命中 `leader_missing`/`leader_not_replica`/`leader_dead`/`leader_draining`/`leader_lease_expired` 时，由当前 slot leader 选举并持久化新的 channel leader
+- **Durable append 只依赖 ChannelAppender**: message.usecase 只构建 batch，不做 slot leader / channel leader 寻址、metadata refresh、remote redirect 或 lease repair；这些都属于 `internal/runtime/channelplane`
+- **channelplane owns route refresh**: stale route、not-leader、lease-expired、write-fenced 与 peer backpressure 的处理都在 channelplane 内闭环；它通过 `internal/runtime/channelmeta` 做一次权威刷新后再重试，不把刷新细节泄漏到 message usecase
+- **权威元数据是路由输入，不是 message 责任**: `channelMetaSync` 只提供 channelplane 所需的 authoritative view / repair port，不再承担 durable send 的业务重试编排
 
 ### 🔴 投递运行时
 - **Actor 按 Channel 隔离**: 每个 Channel 有独立的 Actor，通过 shard 分片减少锁竞争

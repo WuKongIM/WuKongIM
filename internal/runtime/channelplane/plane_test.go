@@ -110,6 +110,34 @@ func TestRouteResolverSingleflightCoalescesConcurrentMisses(t *testing.T) {
 	require.Equal(t, 1, source.calls())
 }
 
+func TestRouteResolverInvalidateRouteKeepsNewerGeneration(t *testing.T) {
+	id := channel.ChannelID{ID: "invalidate-generation", Type: 1}
+	first := localRoute(id.ID)
+	first.RouteGeneration = 7
+	second := first
+	second.RouteGeneration = 8
+	source := &sequenceResolver{routes: []ChannelRoute{first, second}}
+	resolver := NewRouteResolver(source)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	route, err := resolver.ResolveRoute(ctx, id)
+	require.NoError(t, err)
+	require.Equal(t, uint64(7), route.RouteGeneration)
+
+	resolver.InvalidateRoute(id, 6)
+	route, err = resolver.ResolveRoute(ctx, id)
+	require.NoError(t, err)
+	require.Equal(t, uint64(7), route.RouteGeneration)
+	require.Equal(t, 1, source.callCount())
+
+	resolver.InvalidateRoute(id, 7)
+	route, err = resolver.ResolveRoute(ctx, id)
+	require.NoError(t, err)
+	require.Equal(t, uint64(8), route.RouteGeneration)
+	require.Equal(t, 2, source.callCount())
+}
+
 func TestChannelPlaneCancelsQueuedFutureOnContextDone(t *testing.T) {
 	owner := newBlockingOwner()
 	p, err := New(Options{ReactorCount: 1, LocalNode: 1, Resolver: staticResolver{route: localRoute("cancel")}, LocalOwner: owner})
@@ -159,6 +187,66 @@ func TestChannelPlaneUsesPeerReactorForRemoteLeader(t *testing.T) {
 	require.Equal(t, uint64(11), peer.req.Batches[0].Request.ExpectedLeaderEpoch)
 }
 
+func TestChannelCellRefreshesRouteAndRetriesStaleLocalAppend(t *testing.T) {
+	resolver := &sequenceResolver{routes: []ChannelRoute{
+		localRoute("retry-stale"),
+		{ChannelID: channel.ChannelID{ID: "retry-stale", Type: 1}, Leader: 1, RouteGeneration: 8, ChannelEpoch: 10, LeaderEpoch: 11, Status: channel.StatusActive},
+	}}
+	owner := &epochCheckingOwner{staleEpoch: 9, successEpoch: 10}
+	p, err := New(Options{ReactorCount: 1, LocalNode: 1, Resolver: resolver, LocalOwner: owner})
+	require.NoError(t, err)
+	require.NoError(t, p.Start())
+	defer stopPlane(t, p)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err := p.AppendBatch(ctx, appendReq("retry-stale", 1))
+
+	require.NoError(t, err)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, uint64(99), result.Items[0].MessageSeq)
+	require.Equal(t, []uint64{9, 10}, owner.epochs())
+	require.Equal(t, []uint64{7}, resolver.invalidatedGenerations())
+	require.Equal(t, 2, resolver.callCount())
+}
+
+func TestChannelCellRefreshesExpiredCachedRouteBeforeAppend(t *testing.T) {
+	now := time.UnixMilli(1_700_001_000_000).UTC()
+	clockNow := now
+	firstRoute := localRoute("refresh-expired")
+	firstRoute.LeaseUntil = now.Add(time.Millisecond)
+	freshRoute := firstRoute
+	freshRoute.RouteGeneration = 8
+	freshRoute.ChannelEpoch = 10
+	freshRoute.LeaderEpoch = 12
+	freshRoute.LeaseUntil = now.Add(time.Minute)
+	resolver := &sequenceResolver{routes: []ChannelRoute{firstRoute, freshRoute}}
+	owner := &recordingOwner{}
+	p, err := New(Options{
+		ReactorCount: 1,
+		LocalNode:    1,
+		Resolver:     resolver,
+		LocalOwner:   owner,
+		Now:          func() time.Time { return clockNow },
+	})
+	require.NoError(t, err)
+	require.NoError(t, p.Start())
+	defer stopPlane(t, p)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err = p.AppendBatch(ctx, appendReq("refresh-expired", 1))
+	require.NoError(t, err)
+
+	clockNow = now.Add(2 * time.Millisecond)
+	_, err = p.AppendBatch(ctx, appendReq("refresh-expired", 2))
+
+	require.NoError(t, err)
+	require.Equal(t, []uint64{9, 10}, owner.epochs())
+	require.Equal(t, []uint64{7}, resolver.invalidatedGenerations())
+	require.Equal(t, 2, resolver.callCount())
+}
+
 func appendReq(id string, seq uint64) channel.AppendBatchRequest {
 	return channel.AppendBatchRequest{
 		ChannelID: channel.ChannelID{ID: id, Type: 1},
@@ -190,10 +278,95 @@ func (s staticResolver) ResolveRoute(context.Context, channel.ChannelID) (Channe
 }
 func (s staticResolver) InvalidateRoute(channel.ChannelID, uint64) {}
 
+type sequenceResolver struct {
+	mu            sync.Mutex
+	routes        []ChannelRoute
+	calls         int
+	invalidations []uint64
+}
+
+func (s *sequenceResolver) ResolveRoute(context.Context, channel.ChannelID) (ChannelRoute, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.routes) == 0 {
+		return ChannelRoute{}, channel.ErrInvalidConfig
+	}
+	index := s.calls
+	if index >= len(s.routes) {
+		index = len(s.routes) - 1
+	}
+	s.calls++
+	return s.routes[index], nil
+}
+
+func (s *sequenceResolver) InvalidateRoute(_ channel.ChannelID, routeGeneration uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.invalidations = append(s.invalidations, routeGeneration)
+}
+
+func (s *sequenceResolver) callCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls
+}
+
+func (s *sequenceResolver) invalidatedGenerations() []uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]uint64(nil), s.invalidations...)
+}
+
 type noopOwner struct{}
 
 func (noopOwner) AppendLocalBatch(context.Context, channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
 	return channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{MessageSeq: 1}}}, nil
+}
+
+type epochCheckingOwner struct {
+	mu           sync.Mutex
+	staleEpoch   uint64
+	successEpoch uint64
+	seenEpochs   []uint64
+}
+
+func (o *epochCheckingOwner) AppendLocalBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	o.mu.Lock()
+	o.seenEpochs = append(o.seenEpochs, req.ExpectedChannelEpoch)
+	o.mu.Unlock()
+	switch req.ExpectedChannelEpoch {
+	case o.staleEpoch:
+		return channel.AppendBatchResult{}, channel.ErrStaleMeta
+	case o.successEpoch:
+		return channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{MessageSeq: 99}}}, nil
+	default:
+		return channel.AppendBatchResult{}, channel.ErrInvalidArgument
+	}
+}
+
+func (o *epochCheckingOwner) epochs() []uint64 {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]uint64(nil), o.seenEpochs...)
+}
+
+type recordingOwner struct {
+	mu        sync.Mutex
+	seenEpoch []uint64
+}
+
+func (o *recordingOwner) AppendLocalBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	o.mu.Lock()
+	o.seenEpoch = append(o.seenEpoch, req.ExpectedChannelEpoch)
+	seq := uint64(len(o.seenEpoch))
+	o.mu.Unlock()
+	return channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{MessageSeq: seq}}}, nil
+}
+
+func (o *recordingOwner) epochs() []uint64 {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]uint64(nil), o.seenEpoch...)
 }
 
 type blockingOwner struct {

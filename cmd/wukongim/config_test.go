@@ -852,6 +852,49 @@ func TestLoadConfigPrefersEnvironmentVariablesForChannelMessageRetention(t *test
 	require.Equal(t, 2500, cfg.ChannelMessageRetention.MaxTrimMessages)
 }
 
+func TestLoadConfigParsesChannelPlaneConfig(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_CHANNEL_PLANE_REACTOR_COUNT=12",
+		"WK_CHANNEL_PLANE_PEER_LANE_COUNT=3",
+		"WK_CHANNEL_PLANE_PEER_BATCH_MAX_WAIT=750us",
+	)
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, 12, cfg.ChannelPlane.ReactorCount)
+	require.Equal(t, 3, cfg.ChannelPlane.PeerLaneCount)
+	require.Equal(t, 750*time.Microsecond, cfg.ChannelPlane.PeerBatchMaxWait)
+}
+
+func TestLoadConfigPrefersEnvironmentVariablesForChannelPlane(t *testing.T) {
+	dir := t.TempDir()
+	configPath := writeConf(t, dir, "wukongim.conf",
+		"WK_NODE_ID=1",
+		"WK_NODE_DATA_DIR="+filepath.Join(dir, "node-1"),
+		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
+		"WK_CLUSTER_SLOT_COUNT=1",
+		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
+		"WK_CHANNEL_PLANE_REACTOR_COUNT=12",
+		"WK_CHANNEL_PLANE_PEER_LANE_COUNT=3",
+		"WK_CHANNEL_PLANE_PEER_BATCH_MAX_WAIT=750us",
+	)
+	t.Setenv("WK_CHANNEL_PLANE_REACTOR_COUNT", "16")
+	t.Setenv("WK_CHANNEL_PLANE_PEER_LANE_COUNT", "5")
+	t.Setenv("WK_CHANNEL_PLANE_PEER_BATCH_MAX_WAIT", "1ms")
+
+	cfg, err := loadConfig(configPath)
+	require.NoError(t, err)
+	require.Equal(t, 16, cfg.ChannelPlane.ReactorCount)
+	require.Equal(t, 5, cfg.ChannelPlane.PeerLaneCount)
+	require.Equal(t, time.Millisecond, cfg.ChannelPlane.PeerBatchMaxWait)
+}
+
 func TestLoadConfigParsesMessagePermissionConfig(t *testing.T) {
 	dir := t.TempDir()
 	configPath := writeConf(t, dir, "wukongim.conf",

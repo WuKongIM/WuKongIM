@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,6 +25,8 @@ type Config struct {
 	Storage StorageConfig
 	// Cluster configures controller, slot, and channel replication runtimes.
 	Cluster ClusterConfig
+	// ChannelPlane configures channel-keyed durable append reactors.
+	ChannelPlane ChannelPlaneConfig
 	// ChannelMigration configures the cluster-authoritative channel replica migration executor.
 	ChannelMigration ChannelMigrationConfig
 	// ChannelMessageRetention configures leader-driven channel message expiry.
@@ -82,6 +85,16 @@ type PluginConfig struct {
 	timeoutSet   bool
 	hotReloadSet bool
 	failOpenSet  bool
+}
+
+// ChannelPlaneConfig controls durable send routing reactors and peer batching.
+type ChannelPlaneConfig struct {
+	// ReactorCount is the number of channel-keyed append reactor shards. Zero uses a CPU-aware default.
+	ReactorCount int
+	// PeerLaneCount is the number of remote append batching lanes per target node. Zero uses a CPU-aware default.
+	PeerLaneCount int
+	// PeerBatchMaxWait bounds how long a remote peer lane waits before flushing a partial batch. Zero uses the default.
+	PeerBatchMaxWait time.Duration
 }
 
 // SetExplicitFlags records which plugin values were explicitly configured.
@@ -832,6 +845,24 @@ func (c *Config) ApplyDefaultsAndValidate() error {
 				}
 			}
 		}
+	}
+	if c.ChannelPlane.ReactorCount < 0 {
+		return fmt.Errorf("%w: channel plane reactor count must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelPlane.PeerLaneCount < 0 {
+		return fmt.Errorf("%w: channel plane peer lane count must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelPlane.PeerBatchMaxWait < 0 {
+		return fmt.Errorf("%w: channel plane peer batch max wait must be >= 0", ErrInvalidConfig)
+	}
+	if c.ChannelPlane.ReactorCount == 0 {
+		c.ChannelPlane.ReactorCount = max(4, runtime.GOMAXPROCS(0))
+	}
+	if c.ChannelPlane.PeerLaneCount == 0 {
+		c.ChannelPlane.PeerLaneCount = max(1, min(8, runtime.GOMAXPROCS(0)))
+	}
+	if c.ChannelPlane.PeerBatchMaxWait == 0 {
+		c.ChannelPlane.PeerBatchMaxWait = 500 * time.Microsecond
 	}
 	if c.ChannelMigration.ScanInterval < 0 {
 		return fmt.Errorf("%w: channel migration scan interval must be >= 0", ErrInvalidConfig)

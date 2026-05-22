@@ -13,9 +13,10 @@ type AppendBatchRequest = channel.AppendBatchRequest
 type AppendBatchResult = channel.AppendBatchResult
 
 type appendCommand struct {
-	ctx    context.Context
-	req    channel.AppendBatchRequest
-	future *appendFuture
+	ctx                      context.Context
+	req                      channel.AppendBatchRequest
+	future                   *appendFuture
+	routeInvalidationRetries int
 }
 
 func validateAppendBatchRequest(req channel.AppendBatchRequest) error {

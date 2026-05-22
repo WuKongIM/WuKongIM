@@ -3,7 +3,7 @@
 ## 1. 职责定位
 
 分布式集群编排层。负责 Multi-Raft Slot 的生命周期管理、请求路由与 Leader 转发、Controller 协调（选举 / 任务分配 / 调和）、Hash Slot 迁移调度。
-**不负责**: 单个 Raft Group 内部共识（由 `slot/multiraft` 负责）、元数据状态机与存储（由 `slot/fsm` + `slot/meta` 负责）、Controller 决策逻辑（由 `controller/plane` 负责）。
+**不负责**: 单个 Raft Group 内部共识（由 `slot/multiraft` 负责）、元数据状态机与存储（由 `slot/fsm` + `slot/meta` 负责）、Controller 决策逻辑（由 `controller/plane` 负责）、跨节点 durable send 寻址 / 重路由（由 `internal/runtime/channelplane` 负责）。
 
 ## 2. 核心组件分工
 

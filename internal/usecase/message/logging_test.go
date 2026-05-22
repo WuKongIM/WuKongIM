@@ -119,14 +119,13 @@ func requireFieldValue[T any](t *testing.T, entry recordedLogEntry, key string) 
 
 func TestSendLogsPrimaryFailureWithMessageModule(t *testing.T) {
 	logger := newRecordingLogger("message")
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{{err: errors.New("raft quorum unavailable")}},
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{{err: errors.New("raft quorum unavailable")}},
 	}
 	app := New(Options{
-		Now:           fixedNowFn,
-		Logger:        logger,
-		Cluster:       cluster,
-		MetaRefresher: &fakeMetaRefresher{},
+		Now:             fixedNowFn,
+		Logger:          logger,
+		ChannelAppender: cluster,
 	})
 
 	_, err := app.Send(context.Background(), SendCommand{
@@ -148,14 +147,13 @@ func TestSendLogsPrimaryFailureWithMessageModule(t *testing.T) {
 func TestSendLogsDispatchSubmitFailureAsWarn(t *testing.T) {
 	logger := newRecordingLogger("message")
 	dispatcher := &recordingCommittedDispatcher{err: errors.New("queue full")}
-	cluster := &fakeChannelCluster{
-		sendReplies: []fakeChannelClusterSendReply{{result: channel.AppendResult{MessageID: 101, MessageSeq: 5}}},
+	cluster := &fakeChannelAppender{
+		sendReplies: []fakeChannelAppenderSendReply{{result: channel.AppendResult{MessageID: 101, MessageSeq: 5}}},
 	}
 	app := New(Options{
 		Now:                 fixedNowFn,
 		Logger:              logger,
-		Cluster:             cluster,
-		MetaRefresher:       &fakeMetaRefresher{},
+		ChannelAppender:     cluster,
 		CommittedDispatcher: dispatcher,
 	})
 

@@ -3,7 +3,7 @@
 ## 1. 职责定位
 
 基于 ISR 复制状态机的分布式频道模型。负责消息的追加、获取、多副本复制、持久化存储和故障恢复。
-**不负责**: 频道的 Slot 分配（由 controller 负责）、元数据的分布式存储（由 slot 负责）。
+**不负责**: 频道的 Slot 分配（由 controller 负责）、元数据的分布式存储（由 slot 负责）、跨节点 durable send 寻址 / 重路由（由 `internal/runtime/channelplane` 负责）。
 
 ## 2. 子包分工
 
@@ -36,7 +36,7 @@ type Cluster interface {
 
 | 类型 | 文件 | 说明 |
 |------|------|------|
-| `Meta` | types.go | 频道元数据：Key, Epoch, Leader, Replicas, ISR, MinISR, LeaseUntil, Status, RetentionThroughSeq, WriteFence |
+| `Meta` | types.go | 频道元数据：Key, Epoch, RouteGeneration, Leader, Replicas, ISR, MinISR, LeaseUntil, Status, RetentionThroughSeq, WriteFence |
 | `Message` | types.go | 消息：MessageID, MessageSeq, FromUID, ClientMsgNo, Payload |
 | `ReplicaState` | types.go | 副本状态：Role、运行时 CommitHW(`HW`)、持久化 CheckpointHW、`CommitReady`、LEO、Epoch、retention floor |
 | `AppendRequest` | types.go | 追加请求：ChannelID, Message, ExpectedChannelEpoch, ExpectedLeaderEpoch；`TraceID` / `Attempt` 仅用于节点内 diagnostics |
@@ -50,6 +50,8 @@ type Cluster interface {
 ### 5.1 消息追加（Append / AppendBatch）
 
 入口: `channel.go` → `handler/append.go service.Append` / `service.AppendBatch`
+
+`channelplane` 负责 durable send 的寻址与重路由；`pkg/channel` 只在本地 leader 上执行 append、校验 epoch / fence / 归属并返回结构化结果。
 
 ```
 Handler 层:

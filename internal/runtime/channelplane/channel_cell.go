@@ -6,6 +6,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
+const maxRouteInvalidationRetries = 1
+
 type channelCell struct {
 	reactor  *reactor
 	key      channel.ChannelKey
@@ -40,6 +42,12 @@ func (c *channelCell) tryStart() {
 		}
 		c.inflight = cmd
 		if c.route == nil {
+			c.startResolve(cmd)
+			return
+		}
+		if c.cachedRouteExpired(*c.route) {
+			c.reactor.plane.opts.Resolver.InvalidateRoute(cmd.req.ChannelID, c.route.RouteGeneration)
+			c.route = nil
 			c.startResolve(cmd)
 			return
 		}
@@ -92,13 +100,37 @@ func (c *channelCell) handleAppendComplete(done effectCompletion) {
 		return
 	}
 	if isRouteInvalidationError(done.err) && c.route != nil {
-		c.reactor.plane.opts.Resolver.InvalidateRoute(done.cmd.req.ChannelID, c.route.RouteGeneration)
+		c.reactor.plane.opts.Resolver.InvalidateRoute(done.cmd.req.ChannelID, done.route.RouteGeneration)
 		c.route = nil
+		if c.retryAfterRouteInvalidation(done.cmd) {
+			return
+		}
 	}
 	observeAppendCompleted(c.reactor.plane.opts.Observer, done.cmd.req, done.route, done.err)
 	done.cmd.future.complete(done.res, done.err)
 	c.inflight = nil
 	c.tryStart()
+}
+
+// retryAfterRouteInvalidation gives a command one fresh route lookup after a fenced append attempt.
+func (c *channelCell) retryAfterRouteInvalidation(cmd *appendCommand) bool {
+	if cmd.routeInvalidationRetries >= maxRouteInvalidationRetries {
+		return false
+	}
+	if err := effectContext(cmd).Err(); err != nil {
+		return false
+	}
+	cmd.routeInvalidationRetries++
+	c.startResolve(cmd)
+	return true
+}
+
+// cachedRouteExpired reports whether a remembered route lease can no longer admit a write.
+func (c *channelCell) cachedRouteExpired(route ChannelRoute) bool {
+	if route.LeaseUntil.IsZero() {
+		return false
+	}
+	return !c.reactor.plane.opts.Now().Before(route.LeaseUntil)
 }
 
 func (c *channelCell) failAll(err error) {

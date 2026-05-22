@@ -17,6 +17,8 @@
 - Legacy system UID APIs are backed by the namespaced slot subscriber list `__wk_internal_system_uids__`.
 - Persisted system UID add/remove APIs must refresh node-local caches on peer nodes through node RPC.
 - Message send permission checks live in `internal/usecase/message` before durable append; `pkg/channel` remains business-rule free.
+- Durable message send route selection lives in `internal/runtime/channelplane`; `message.App` only builds durable batches and applies committed side effects, it no longer owns slot/channel leader refresh or remote redirect.
+- `RouteGeneration` is the authoritative route identity for channel runtime metadata and peer RPC fencing; stale route records must be treated as a different append route even if the channel ID is unchanged.
 - Channel status permissions currently include group `Ban`/`Disband` and sender person-channel `SendBan`.
 - `NoPersist` sends still pass validation and send permissions, then skip durable append/committed events and return success with zero message ID/seq.
 - `SyncOnce` 持久化发送写入原频道派生的 `____cmd`，但发送权限仍基于原始频道检查。

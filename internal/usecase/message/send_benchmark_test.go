@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
-	runtimechannelid "github.com/WuKongIM/WuKongIM/internal/runtime/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/slot/meta"
@@ -19,7 +18,7 @@ func BenchmarkSend(b *testing.B) {
 		name string
 		env  func(*testing.B) (*App, SendCommand)
 	}{
-		{name: "person_durable_hot_meta", env: newBenchPersonDurableHotMeta},
+		{name: "person_durable_channel_appender", env: newBenchPersonDurableChannelAppender},
 		{name: "group_durable_permission_cache", env: newBenchGroupDurablePermissionCache},
 		{name: "request_scoped_realtime", env: newBenchRequestScopedRealtime},
 	} {
@@ -42,14 +41,12 @@ func BenchmarkSend(b *testing.B) {
 	}
 }
 
-func newBenchPersonDurableHotMeta(b *testing.B) (*App, SendCommand) {
+func newBenchPersonDurableChannelAppender(b *testing.B) (*App, SendCommand) {
 	b.Helper()
-	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
-	cluster := &benchmarkChannelCluster{}
+	cluster := &benchmarkChannelAppender{}
 	app := New(Options{
 		Now:                 fixedNowFn,
-		Cluster:             cluster,
-		MetaRefresher:       benchmarkMetaRefresher{meta: benchmarkChannelMeta(channel.ChannelID{ID: channelID, Type: frame.ChannelTypePerson})},
+		ChannelAppender:     cluster,
 		CommittedDispatcher: benchmarkCommittedDispatcher{},
 		LocalNodeID:         1,
 	})
@@ -65,11 +62,10 @@ func newBenchGroupDurablePermissionCache(b *testing.B) (*App, SendCommand) {
 		ChannelType: int64(frame.ChannelTypeGroup),
 	}
 	permissions.members[permissionKey("g1", int64(frame.ChannelTypeGroup))] = map[string]bool{"u1": true}
-	cluster := &benchmarkChannelCluster{}
+	cluster := &benchmarkChannelAppender{}
 	app := New(Options{
 		Now:                 fixedNowFn,
-		Cluster:             cluster,
-		MetaRefresher:       benchmarkMetaRefresher{meta: benchmarkChannelMeta(channel.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup})},
+		ChannelAppender:     cluster,
 		CommittedDispatcher: benchmarkCommittedDispatcher{},
 		PermissionStore:     permissions,
 		PermissionCacheTTL:  benchmarkPermissionCacheTTL,
@@ -110,27 +106,12 @@ func benchmarkSendCommand(fromUID, channelID string, channelType uint8) SendComm
 	}
 }
 
-func benchmarkChannelMeta(id channel.ChannelID) channel.Meta {
-	return channel.Meta{
-		ID:          id,
-		Epoch:       1,
-		LeaderEpoch: 1,
-		Leader:      1,
-		Replicas:    []channel.NodeID{1},
-		ISR:         []channel.NodeID{1},
-		MinISR:      1,
-		Status:      channel.StatusActive,
-	}
-}
-
-type benchmarkChannelCluster struct {
+type benchmarkChannelAppender struct {
 	messageID  uint64
 	messageSeq uint64
 }
 
-func (c *benchmarkChannelCluster) ApplyMeta(channel.Meta) error { return nil }
-
-func (c *benchmarkChannelCluster) Append(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
+func (c *benchmarkChannelAppender) Append(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
 	c.messageID++
 	c.messageSeq++
 	msg := req.Message
@@ -139,7 +120,7 @@ func (c *benchmarkChannelCluster) Append(_ context.Context, req channel.AppendRe
 	return channel.AppendResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}, nil
 }
 
-func (c *benchmarkChannelCluster) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+func (c *benchmarkChannelAppender) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
 	items := make([]channel.AppendBatchItemResult, len(req.Messages))
 	for i, msg := range req.Messages {
 		c.messageID++
@@ -149,14 +130,6 @@ func (c *benchmarkChannelCluster) AppendBatch(_ context.Context, req channel.App
 		items[i] = channel.AppendBatchItemResult{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Message: msg}
 	}
 	return channel.AppendBatchResult{Items: items}, nil
-}
-
-type benchmarkMetaRefresher struct {
-	meta channel.Meta
-}
-
-func (r benchmarkMetaRefresher) RefreshChannelMeta(context.Context, channel.ChannelID) (channel.Meta, error) {
-	return r.meta, nil
 }
 
 type benchmarkCommittedDispatcher struct{}

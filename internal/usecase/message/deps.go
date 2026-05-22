@@ -71,11 +71,6 @@ type DeliveryOffline interface {
 	SessionClosed(ctx context.Context, cmd SessionClosedCommand) error
 }
 
-type ChannelCluster interface {
-	ApplyMeta(meta channel.Meta) error
-	AppendBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error)
-}
-
 // ChannelAppender owns durable channel append routing for message sends.
 type ChannelAppender interface {
 	AppendBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error)
@@ -84,20 +79,4 @@ type ChannelAppender interface {
 type ChannelMessageReader interface {
 	// SyncMessages returns one authoritative legacy-compatible channel message page.
 	SyncMessages(ctx context.Context, query ChannelMessageQuery) (ChannelMessagePage, error)
-}
-
-type MetaRefresher interface {
-	// RefreshChannelMeta loads authoritative channel metadata, applies the
-	// refreshed routing/runtime view locally, and returns the applied metadata.
-	RefreshChannelMeta(ctx context.Context, id channel.ChannelID) (channel.Meta, error)
-}
-
-// MetaInvalidator drops cached channel metadata before a forced refresh.
-type MetaInvalidator interface {
-	// InvalidateChannelMeta invalidates cached metadata for one channel.
-	InvalidateChannelMeta(id channel.ChannelID)
-}
-
-type RemoteAppender interface {
-	AppendBatchToLeader(ctx context.Context, nodeID uint64, req channel.AppendBatchRequest) (channel.AppendBatchResult, error)
 }

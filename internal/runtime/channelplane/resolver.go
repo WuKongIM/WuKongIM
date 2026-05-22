@@ -66,12 +66,19 @@ func (r *Resolver) ResolveRoute(ctx context.Context, id channel.ChannelID) (Chan
 	return call.route, call.err
 }
 
-// InvalidateRoute drops cached state for one channel route.
-func (r *Resolver) InvalidateRoute(id channel.ChannelID, _ uint64) {
+// InvalidateRoute drops cached state for one channel route generation.
+func (r *Resolver) InvalidateRoute(id channel.ChannelID, routeGeneration uint64) {
 	if r == nil {
 		return
 	}
 	r.mu.Lock()
-	delete(r.cache, id)
+	if routeGeneration == 0 {
+		delete(r.cache, id)
+		r.mu.Unlock()
+		return
+	}
+	if route, ok := r.cache[id]; ok && route.RouteGeneration <= routeGeneration {
+		delete(r.cache, id)
+	}
 	r.mu.Unlock()
 }

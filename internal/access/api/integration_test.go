@@ -20,14 +20,13 @@ import (
 )
 
 func TestAPIServerSendMessageWithRealMessageApp(t *testing.T) {
-	cluster := &fakeChannelCluster{
+	cluster := &fakeChannelAppender{
 		result: channel.AppendResult{MessageID: 66, MessageSeq: 7},
 	}
 	msgApp := message.New(message.Options{
-		IdentityStore: &fakeIdentityStore{},
-		ChannelStore:  &fakeChannelStore{},
-		MetaRefresher: &fakeMetaRefresher{},
-		Cluster:       cluster,
+		IdentityStore:   &fakeIdentityStore{},
+		ChannelStore:    &fakeChannelStore{},
+		ChannelAppender: cluster,
 	})
 	require.NoError(t, msgApp.OnlineRegistry().Register(online.OnlineConn{
 		SessionID: 2,
@@ -133,13 +132,12 @@ func TestAPIServerSendMessageNoPersistHeaderSkipsClusterRequirement(t *testing.T
 }
 
 func TestAPIServerSendMessageSubscribersWithRealMessageApp(t *testing.T) {
-	cluster := &fakeChannelCluster{
+	cluster := &fakeChannelAppender{
 		result: channel.AppendResult{MessageID: 77, MessageSeq: 0},
 	}
 	dispatcher := &apiRecordingCommittedDispatcher{}
 	msgApp := message.New(message.Options{
-		MetaRefresher:       &fakeMetaRefresher{},
-		Cluster:             cluster,
+		ChannelAppender:     cluster,
 		CommittedDispatcher: dispatcher,
 	})
 	srv := New(Options{
@@ -222,7 +220,7 @@ func (*fakeChannelStore) GetChannel(context.Context, string, int64) (metadb.Chan
 	return metadb.Channel{}, nil
 }
 
-type fakeChannelCluster struct {
+type fakeChannelAppender struct {
 	appendRequests []channel.AppendRequest
 	result         channel.AppendResult
 	err            error
@@ -232,18 +230,12 @@ type apiRecordingCommittedDispatcher struct {
 	calls []messageevents.MessageCommitted
 }
 
-type fakeMetaRefresher struct{}
-
-func (*fakeChannelCluster) ApplyMeta(channel.Meta) error {
-	return nil
-}
-
-func (f *fakeChannelCluster) Append(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
+func (f *fakeChannelAppender) Append(_ context.Context, req channel.AppendRequest) (channel.AppendResult, error) {
 	f.appendRequests = append(f.appendRequests, req)
 	return f.result, f.err
 }
 
-func (f *fakeChannelCluster) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+func (f *fakeChannelAppender) AppendBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
 	if f.err != nil {
 		return channel.AppendBatchResult{}, f.err
 	}
@@ -272,8 +264,4 @@ func (d *apiRecordingCommittedDispatcher) SubmitCommitted(_ context.Context, eve
 	copied := event.Clone()
 	d.calls = append(d.calls, copied)
 	return nil
-}
-
-func (*fakeMetaRefresher) RefreshChannelMeta(context.Context, channel.ChannelID) (channel.Meta, error) {
-	return channel.Meta{}, nil
 }

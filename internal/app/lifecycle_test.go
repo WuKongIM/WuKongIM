@@ -1641,6 +1641,36 @@ func TestAppLifecyclePassesBoundedStopContextToActiveHintsReplayAndDispatcher(t 
 	require.True(t, dispatcherHasDeadline)
 }
 
+func TestAppLifecycleTreatsActiveHintStopTimeoutAsBestEffort(t *testing.T) {
+	var activeHintsHasDeadline bool
+	app := &App{
+		stopConversationActiveHintsFn: func(ctx context.Context) error {
+			_, activeHintsHasDeadline = ctx.Deadline()
+			return context.DeadlineExceeded
+		},
+		closeRaftDBFn: func() error { return nil },
+		closeWKDBFn:   func() error { return nil },
+	}
+	app.conversationHintsOn.Store(true)
+
+	require.NoError(t, app.Stop())
+	require.True(t, activeHintsHasDeadline)
+}
+
+func TestAppLifecyclePropagatesUnexpectedActiveHintStopError(t *testing.T) {
+	stopErr := errors.New("active hint stop failed")
+	app := &App{
+		stopConversationActiveHintsFn: func(context.Context) error {
+			return stopErr
+		},
+		closeRaftDBFn: func() error { return nil },
+		closeWKDBFn:   func() error { return nil },
+	}
+	app.conversationHintsOn.Store(true)
+
+	require.ErrorIs(t, app.Stop(), stopErr)
+}
+
 func TestAppLifecycleStartRollbackPassesBoundedStopContext(t *testing.T) {
 	startErr := errors.New("gateway start failed")
 	var replayHasDeadline bool
