@@ -317,6 +317,7 @@ func New(opts Options) *Adapter {
 		opts.Cluster.RPCMux().Handle(deliveryTagRPCServiceID, adapter.handleDeliveryTagRPC)
 		opts.Cluster.RPCMux().Handle(conversationFactsRPCServiceID, adapter.handleConversationFactsRPC)
 		opts.Cluster.RPCMux().Handle(channelAppendRPCServiceID, adapter.handleChannelAppendRPC)
+		opts.Cluster.RPCMux().Handle(channelPlaneAppendRPCServiceID, adapter.handleChannelPlaneAppendBatchesRPC)
 		opts.Cluster.RPCMux().Handle(channelMessagesRPCServiceID, adapter.handleChannelMessagesRPC)
 		opts.Cluster.RPCMux().Handle(channelLeaderRepairRPCServiceID, adapter.handleChannelLeaderRepairRPC)
 		opts.Cluster.RPCMux().Handle(channelLeaderTransferRPCServiceID, adapter.handleChannelLeaderTransferRPC)

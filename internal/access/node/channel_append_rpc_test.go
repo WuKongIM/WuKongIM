@@ -518,6 +518,7 @@ func TestAppendToLeaderRPCLogsRefreshDiagnostics(t *testing.T) {
 }
 
 type stubNodeChannelLog struct {
+	meta              channel.Meta
 	status            channel.ChannelRuntimeStatus
 	statusErr         error
 	appendResult      channel.AppendResult
@@ -566,6 +567,14 @@ func (s *stubNodeChannelLog) AppendBatch(_ context.Context, req channel.AppendBa
 		}}}, nil
 	}
 	return s.appendBatchResult, s.appendBatchErr
+}
+
+func (s *stubNodeChannelLog) AppendLocalBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	return s.AppendBatch(ctx, req)
+}
+
+func (s *stubNodeChannelLog) MetaSnapshot(channel.ChannelKey) (channel.Meta, bool) {
+	return s.meta, s.meta.Key != ""
 }
 
 type stubNodeAppendReply struct {

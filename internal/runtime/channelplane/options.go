@@ -11,6 +11,11 @@ import (
 const (
 	defaultReactorInboxSize     = 1024
 	defaultMaxPendingPerChannel = 1024
+	defaultPeerLaneCount        = 1
+	defaultPeerBatchMaxWait     = 500 * time.Microsecond
+	defaultPeerBatchMaxRecords  = 128
+	defaultPeerBatchMaxBytes    = 256 * 1024
+	defaultPeerMaxPending       = 1024
 )
 
 // RouteResolver resolves and invalidates authoritative channel write routes.
@@ -24,9 +29,9 @@ type LocalOwnerAppender interface {
 	AppendLocalBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error)
 }
 
-// RemoteAppender is the temporary compatibility bridge for remote channel leaders.
-type RemoteAppender interface {
-	AppendRemoteBatch(ctx context.Context, nodeID channel.NodeID, req channel.AppendBatchRequest, route ChannelRoute) (channel.AppendBatchResult, error)
+// PeerClient sends batched append envelopes to one remote cluster peer.
+type PeerClient interface {
+	AppendBatches(ctx context.Context, nodeID channel.NodeID, req AppendBatchesRequest) (AppendBatchesResponse, error)
 }
 
 // Observer receives lightweight channel plane lifecycle and effect signals.
@@ -45,12 +50,22 @@ type Options struct {
 	ReactorInboxSize int
 	// MaxPendingPerChannel bounds queued append requests for one channel cell.
 	MaxPendingPerChannel int
+	// PeerLaneCount is the number of remote batching lanes per target peer.
+	PeerLaneCount int
+	// PeerBatchMaxWait bounds how long a peer lane waits before flushing a partial batch.
+	PeerBatchMaxWait time.Duration
+	// PeerBatchMaxRecords bounds one remote append RPC by number of channel batches.
+	PeerBatchMaxRecords int
+	// PeerBatchMaxBytes bounds one remote append RPC by estimated serialized size.
+	PeerBatchMaxBytes int
+	// PeerMaxPending bounds queued and inflight appends per peer lane.
+	PeerMaxPending int
 	// Resolver loads authoritative channel write routes.
 	Resolver RouteResolver
 	// LocalOwner appends when this node is the channel leader.
 	LocalOwner LocalOwnerAppender
-	// RemoteAppender temporarily forwards appends to remote channel leaders until peer reactors own RPC batching.
-	RemoteAppender RemoteAppender
+	// PeerClient sends remote owner append batches.
+	PeerClient PeerClient
 	// Observer receives optional metrics and diagnostics callbacks.
 	Observer Observer
 	// Now returns the current wall clock for metrics and tests.
@@ -67,13 +82,28 @@ func (o *Options) setDefaults() {
 	if o.MaxPendingPerChannel <= 0 {
 		o.MaxPendingPerChannel = defaultMaxPendingPerChannel
 	}
+	if o.PeerLaneCount <= 0 {
+		o.PeerLaneCount = defaultPeerLaneCount
+	}
+	if o.PeerBatchMaxWait <= 0 {
+		o.PeerBatchMaxWait = defaultPeerBatchMaxWait
+	}
+	if o.PeerBatchMaxRecords <= 0 {
+		o.PeerBatchMaxRecords = defaultPeerBatchMaxRecords
+	}
+	if o.PeerBatchMaxBytes <= 0 {
+		o.PeerBatchMaxBytes = defaultPeerBatchMaxBytes
+	}
+	if o.PeerMaxPending <= 0 {
+		o.PeerMaxPending = defaultPeerMaxPending
+	}
 	if o.Now == nil {
 		o.Now = time.Now
 	}
 }
 
 func (o Options) validate() error {
-	if o.LocalNode == 0 || o.ReactorCount <= 0 || o.ReactorInboxSize <= 0 || o.MaxPendingPerChannel <= 0 || o.Resolver == nil || o.LocalOwner == nil {
+	if o.LocalNode == 0 || o.ReactorCount <= 0 || o.ReactorInboxSize <= 0 || o.MaxPendingPerChannel <= 0 || o.PeerLaneCount <= 0 || o.PeerBatchMaxWait <= 0 || o.PeerBatchMaxRecords <= 0 || o.PeerBatchMaxBytes <= 0 || o.PeerMaxPending <= 0 || o.Resolver == nil || o.LocalOwner == nil {
 		return channel.ErrInvalidConfig
 	}
 	return nil
