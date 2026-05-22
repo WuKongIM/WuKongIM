@@ -115,11 +115,9 @@ func (t *benchmarkGlobalTokenTracker) take(sess session.Session, count int) []st
 
 func newBenchmarkSession(id uint64) session.Session {
 	return session.New(session.Config{
-		ID:               id,
-		Listener:         "bench-listener",
-		RemoteAddr:       "bench-remote",
-		LocalAddr:        "bench-local",
-		WriteQueueSize:   1,
-		MaxOutboundBytes: 1024,
+		ID:         id,
+		Listener:   "bench-listener",
+		RemoteAddr: "bench-remote",
+		LocalAddr:  "bench-local",
 	})
 }

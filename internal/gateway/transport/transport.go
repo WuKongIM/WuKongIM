@@ -47,11 +47,6 @@ type WebSocketMessageWriter interface {
 // ErrOutboundBytesExceeded indicates that transport-owned outbound buffering exceeded its configured limit.
 var ErrOutboundBytesExceeded = errors.New("gateway/transport: outbound bytes limit exceeded")
 
-// WriteTimeoutPolicy lets transports report that Conn.Write owns timeout/backpressure behavior.
-type WriteTimeoutPolicy interface {
-	TransportManagedWriteTimeout() bool
-}
-
 type ConnHandler interface {
 	OnOpen(conn Conn) error
 	OnData(conn Conn, data []byte) error

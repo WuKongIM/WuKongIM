@@ -56,7 +56,6 @@ func TestHandleWSTrafficAvoidsInboundBufferCopyForSingleFrame(t *testing.T) {
 	state := &connState{
 		mode:      connModeWSFrames,
 		queue:     make([]connEvent, 0, 1),
-		wake:      make(chan struct{}, 1),
 		wsInbound: make([]byte, 0, len(encoded)),
 	}
 	group := &engineGroup{}

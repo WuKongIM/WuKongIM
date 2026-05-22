@@ -48,9 +48,8 @@ func applyRecvStressThroughputTuning(appCfg *Config, cfg recvStressConfig) {
 	if appCfg == nil {
 		return
 	}
-	// Extreme receive benchmarks need enough outbound queue depth to avoid
-	// measuring gateway queue overflow retries instead of local receive throughput.
-	appCfg.Gateway.DefaultSession.WriteQueueSize = max(appCfg.Gateway.DefaultSession.WriteQueueSize, max(1024, cfg.MaxInflightPerWorker*4))
+	// Extreme receive benchmarks need enough transport-owned outbound room to avoid
+	// measuring gateway backpressure retries instead of local receive throughput.
 	appCfg.Gateway.DefaultSession.MaxOutboundBytes = max(appCfg.Gateway.DefaultSession.MaxOutboundBytes, 16<<20)
 }
 

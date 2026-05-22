@@ -12,12 +12,10 @@ import (
 
 func newTestSession(id uint64) Session {
 	return New(Config{
-		ID:               id,
-		Listener:         "listener-a",
-		RemoteAddr:       "remote-a",
-		LocalAddr:        "local-a",
-		WriteQueueSize:   1,
-		MaxOutboundBytes: 1,
+		ID:         id,
+		Listener:   "listener-a",
+		RemoteAddr: "remote-a",
+		LocalAddr:  "local-a",
 	})
 }
 
@@ -60,38 +58,6 @@ func TestSessionCloseIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestSessionLazilyAllocatesWriteQueue(t *testing.T) {
-	sess := newSession(8, "listener-a", "remote-a", "local-a", 2, 10, nil)
-
-	if sess.writeCh != nil {
-		t.Fatal("expected write queue to stay nil before first enqueue")
-	}
-
-	if err := sess.enqueueEncoded([]byte("a")); err != nil {
-		t.Fatalf("first enqueue failed: %v", err)
-	}
-	if sess.writeCh == nil {
-		t.Fatal("expected write queue to be allocated on first enqueue")
-	}
-	if got, want := cap(sess.writeCh), 2; got != want {
-		t.Fatalf("write queue capacity = %d, want %d", got, want)
-	}
-}
-
-func TestSessionCloseBeforeFirstEnqueueDoesNotAllocateWriteQueue(t *testing.T) {
-	sess := newSession(10, "listener-a", "remote-a", "local-a", 2, 10, nil)
-
-	if err := sess.Close(); err != nil {
-		t.Fatalf("close failed: %v", err)
-	}
-	if sess.writeCh != nil {
-		t.Fatal("expected write queue to remain nil after closing an idle session")
-	}
-	if err := sess.enqueueEncoded([]byte("a")); !errors.Is(err, ErrSessionClosed) {
-		t.Fatalf("enqueue after close = %v, want %v", err, ErrSessionClosed)
-	}
-}
-
 func TestManagerRangeVisitsSessions(t *testing.T) {
 	mgr := NewManager()
 	mgr.Add(newTestSession(1))
@@ -131,127 +97,29 @@ func TestSessionValueStoresHotAndCustomValues(t *testing.T) {
 	}
 }
 
-func TestSessionEnqueueEncodedReturnsWriteQueueFull(t *testing.T) {
-	queue := mustEncodedQueue(t, New(Config{
-		ID:               11,
-		Listener:         "listener-a",
-		RemoteAddr:       "remote-a",
-		LocalAddr:        "local-a",
-		WriteQueueSize:   1,
-		MaxOutboundBytes: 10,
-	}))
-
-	if err := queue.EnqueueEncoded([]byte("a")); err != nil {
-		t.Fatalf("first enqueue failed: %v", err)
-	}
-	if err := queue.EnqueueEncoded([]byte("b")); !errors.Is(err, ErrWriteQueueFull) {
-		t.Fatalf("expected write queue full error, got %v", err)
-	}
-}
-
-func TestSessionEnqueueEncodedReturnsOutboundOverflow(t *testing.T) {
-	queue := mustEncodedQueue(t, New(Config{
-		ID:               12,
-		Listener:         "listener-a",
-		RemoteAddr:       "remote-a",
-		LocalAddr:        "local-a",
-		WriteQueueSize:   2,
-		MaxOutboundBytes: 3,
-	}))
-
-	if err := queue.EnqueueEncoded([]byte("abc")); err != nil {
-		t.Fatalf("first enqueue failed: %v", err)
-	}
-	if err := queue.EnqueueEncoded([]byte("d")); !errors.Is(err, ErrOutboundOverflow) {
-		t.Fatalf("expected outbound overflow error, got %v", err)
-	}
-}
-
-func TestSessionReleaseEncodedReleasesOutboundAccounting(t *testing.T) {
-	queue := mustEncodedQueue(t, New(Config{
-		ID:               14,
-		Listener:         "listener-a",
-		RemoteAddr:       "remote-a",
-		LocalAddr:        "local-a",
-		WriteQueueSize:   1,
-		MaxOutboundBytes: 3,
-	}))
-
-	if err := queue.EnqueueEncoded([]byte("abc")); err != nil {
-		t.Fatalf("enqueue failed: %v", err)
-	}
-	payload, ok := queue.DequeueEncoded()
-	if !ok {
-		t.Fatal("expected payload to be dequeued")
-	}
-	if string(payload) != "abc" {
-		t.Fatalf("expected payload abc, got %q", payload)
-	}
-	if err := queue.EnqueueEncoded([]byte("d")); !errors.Is(err, ErrOutboundOverflow) {
-		t.Fatalf("expected accounting to remain held until release, got %v", err)
-	}
-	queue.ReleaseEncoded(payload)
-	if err := queue.EnqueueEncoded([]byte("d")); err != nil {
-		t.Fatalf("expected accounting to be released after explicit release, got %v", err)
-	}
-}
-
-func TestSessionEnqueueEncodedCopiesPayload(t *testing.T) {
-	queue := mustEncodedQueue(t, New(Config{
-		ID:               15,
-		Listener:         "listener-a",
-		RemoteAddr:       "remote-a",
-		LocalAddr:        "local-a",
-		WriteQueueSize:   1,
-		MaxOutboundBytes: 10,
-	}))
-	payload := []byte("abc")
-
-	if err := queue.EnqueueEncoded(payload); err != nil {
-		t.Fatalf("enqueue failed: %v", err)
-	}
-	payload[0] = 'x'
-
-	got, ok := queue.DequeueEncoded()
-	if !ok {
-		t.Fatal("expected payload to be dequeued")
-	}
-	if string(got) != "abc" {
-		t.Fatalf("dequeued payload = %q, want original copy", got)
-	}
-}
-
-func TestSessionEnqueueOwnedEncodedRetainsPayloadBackingArray(t *testing.T) {
-	queue := mustEncodedQueue(t, New(Config{
-		ID:               16,
-		Listener:         "listener-a",
-		RemoteAddr:       "remote-a",
-		LocalAddr:        "local-a",
-		WriteQueueSize:   1,
-		MaxOutboundBytes: 10,
-	}))
-	owned, ok := queue.(interface {
-		EnqueueOwnedEncoded([]byte) error
+func TestSessionWriteFramePassesReplyToken(t *testing.T) {
+	var gotToken string
+	sess := New(Config{
+		ID:         11,
+		Listener:   "listener-a",
+		RemoteAddr: "remote-a",
+		LocalAddr:  "local-a",
+		WriteFrameFn: func(f frame.Frame, meta OutboundMeta) error {
+			gotToken = meta.ReplyToken
+			return nil
+		},
 	})
-	if !ok {
-		t.Fatalf("session queue %T does not expose owned encoded enqueue", queue)
-	}
-	payload := []byte("abc")
 
-	if err := owned.EnqueueOwnedEncoded(payload); err != nil {
-		t.Fatalf("owned enqueue failed: %v", err)
+	if err := sess.WriteFrame(&frame.PingPacket{}, WithReplyToken("reply-1")); err != nil {
+		t.Fatalf("WriteFrame failed: %v", err)
 	}
-	got, ok := queue.DequeueEncoded()
-	if !ok {
-		t.Fatal("expected payload to be dequeued")
-	}
-	if len(got) == 0 || &got[0] != &payload[0] {
-		t.Fatal("owned enqueue copied payload backing array")
+	if gotToken != "reply-1" {
+		t.Fatalf("reply token = %q, want reply-1", gotToken)
 	}
 }
 
 func TestSessionCloseBlocksConcurrentWriteUntilClosed(t *testing.T) {
-	sess := newSession(13, "listener-a", "remote-a", "local-a", 2, 10, nil)
+	sess := newSession(13, "listener-a", "remote-a", "local-a", nil)
 
 	var writeCalls atomic.Int32
 	started := make(chan struct{})
@@ -264,7 +132,7 @@ func TestSessionCloseBlocksConcurrentWriteUntilClosed(t *testing.T) {
 			close(started)
 		}
 		<-release
-		return sess.enqueueEncoded([]byte("x"))
+		return nil
 	}
 
 	writeDone := make(chan error, 1)
@@ -319,13 +187,4 @@ func TestSessionCloseBlocksConcurrentWriteUntilClosed(t *testing.T) {
 	if calls := writeCalls.Load(); calls != 1 {
 		t.Fatalf("expected exactly one writeFrameFn call, got %d", calls)
 	}
-}
-
-func mustEncodedQueue(t *testing.T, sess Session) EncodedQueue {
-	t.Helper()
-	queue, ok := sess.(EncodedQueue)
-	if !ok {
-		t.Fatalf("session does not expose encoded queue operations: %T", sess)
-	}
-	return queue
 }

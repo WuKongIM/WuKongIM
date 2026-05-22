@@ -71,7 +71,7 @@ func TestLoadConfigParsesConfFileIntoAppConfig(t *testing.T) {
 		"WK_CLUSTER_CHANNEL_EXECUTION_WORKERS=8",
 		"WK_CLUSTER_CHANNEL_EXECUTION_QUEUE_SIZE=4096",
 		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
-		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"stdnet","protocol":"wkproto"}]`,
+		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"gnet","protocol":"wkproto"}]`,
 		"WK_API_LISTEN_ADDR=127.0.0.1:8080",
 	)
 
@@ -101,7 +101,7 @@ func TestLoadConfigDefaultsChannelExecutionModeToPooled(t *testing.T) {
 		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
 		"WK_CLUSTER_SLOT_COUNT=1",
 		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
-		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"stdnet","protocol":"wkproto"}]`,
+		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"gnet","protocol":"wkproto"}]`,
 	)
 
 	cfg, err := loadConfig(configPath)
@@ -117,7 +117,7 @@ func TestLoadConfigParsesTestMode(t *testing.T) {
 		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
 		"WK_CLUSTER_SLOT_COUNT=1",
 		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
-		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"stdnet","protocol":"wkproto"}]`,
+		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"gnet","protocol":"wkproto"}]`,
 		"WK_TEST_MODE=true",
 	)
 
@@ -134,7 +134,7 @@ func TestLoadConfigParsesBenchAPIConfig(t *testing.T) {
 		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:11110",
 		"WK_CLUSTER_INITIAL_SLOT_COUNT=1",
 		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:11110"}]`,
-		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"stdnet","protocol":"wkproto"}]`,
+		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"gnet","protocol":"wkproto"}]`,
 		"WK_BENCH_API_ENABLE=true",
 		"WK_BENCH_API_MAX_BATCH_SIZE=123",
 		"WK_BENCH_API_MAX_PAYLOAD_BYTES=456789",
@@ -240,7 +240,7 @@ func TestLoadConfigParsesClusterSeedJoinKeys(t *testing.T) {
 		"WK_CLUSTER_HASH_SLOT_COUNT=256",
 		"WK_CLUSTER_CONTROLLER_REPLICA_N=1",
 		"WK_CLUSTER_SLOT_REPLICA_N=1",
-		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5103","transport":"stdnet","protocol":"wkproto"}]`,
+		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5103","transport":"gnet","protocol":"wkproto"}]`,
 	)
 
 	cfg, err := loadConfig(configPath)
@@ -614,7 +614,7 @@ func TestLoadConfigParsesManagerSettings(t *testing.T) {
 		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
 		"WK_CLUSTER_SLOT_COUNT=1",
 		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
-		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"stdnet","protocol":"wkproto"}]`,
+		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"gnet","protocol":"wkproto"}]`,
 		"WK_MANAGER_LISTEN_ADDR=127.0.0.1:5301",
 		"WK_MANAGER_AUTH_ON=true",
 		"WK_MANAGER_JWT_SECRET=test-secret",
@@ -645,7 +645,7 @@ func TestLoadConfigLeavesManagerDisabledWhenListenAddrIsEmpty(t *testing.T) {
 		"WK_CLUSTER_LISTEN_ADDR=127.0.0.1:7000",
 		"WK_CLUSTER_SLOT_COUNT=1",
 		`WK_CLUSTER_NODES=[{"id":1,"addr":"127.0.0.1:7000"}]`,
-		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"stdnet","protocol":"wkproto"}]`,
+		`WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"gnet","protocol":"wkproto"}]`,
 		"WK_MANAGER_AUTH_ON=true",
 		"WK_MANAGER_JWT_SECRET=test-secret",
 		"WK_MANAGER_JWT_ISSUER=wukongim-manager",

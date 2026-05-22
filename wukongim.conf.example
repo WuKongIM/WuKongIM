@@ -260,8 +260,6 @@ WK_HEALTH_DEBUG_ENABLE=false
 # WK_GATEWAY_TOKEN_AUTH_ON=false
 # Optional: gateway session safety and buffering defaults.
 # WK_GATEWAY_DEFAULT_SESSION_CLOSE_ON_HANDLER_ERROR=true
-# WK_GATEWAY_DEFAULT_SESSION_READ_BUFFER_SIZE=4096
-# WK_GATEWAY_DEFAULT_SESSION_WRITE_QUEUE_SIZE=64
 # WK_GATEWAY_DEFAULT_SESSION_MAX_INBOUND_BYTES=1048576
 # WK_GATEWAY_DEFAULT_SESSION_MAX_OUTBOUND_BYTES=1048576
 # Optional: gnet transport tuning. Zero values keep gnet defaults and preserve current listener behavior.
@@ -273,7 +271,6 @@ WK_HEALTH_DEBUG_ENABLE=false
 # Optional: bound how long the gateway waits for durable send completion before failing sendack.
 # WK_GATEWAY_SEND_TIMEOUT=20s
 WK_GATEWAY_DEFAULT_SESSION_IDLE_TIMEOUT=3m
-# WK_GATEWAY_DEFAULT_SESSION_WRITE_TIMEOUT=5s
 WK_GATEWAY_LISTENERS=[{"name":"tcp-wkproto","network":"tcp","address":"0.0.0.0:5100","transport":"gnet","protocol":"wkproto"},{"name":"ws-gateway","network":"websocket","address":"0.0.0.0:5200","transport":"gnet","protocol":"wsmux"}]
 
 WK_LOG_LEVEL=info

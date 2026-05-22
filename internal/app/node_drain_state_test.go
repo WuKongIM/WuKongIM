@@ -101,7 +101,7 @@ func TestLocalNodeDrainingDisablesGatewayAdmission(t *testing.T) {
 			Name:      "listener-a",
 			Network:   "tcp",
 			Address:   "127.0.0.1:0",
-			Transport: "stdnet",
+			Transport: "gnet",
 			Protocol:  "jsonrpc",
 		}},
 	})
