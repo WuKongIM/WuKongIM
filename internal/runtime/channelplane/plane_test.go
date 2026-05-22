@@ -226,6 +226,42 @@ func TestReactorSubmitAfterStopRejectsWithoutEnqueue(t *testing.T) {
 	}
 }
 
+func TestChannelPlaneObserverCompletesOverloadedAcceptedCommand(t *testing.T) {
+	owner := newBlockingOwner()
+	observer := &countingObserver{}
+	p, err := New(Options{ReactorCount: 1, LocalNode: 1, Resolver: staticResolver{route: localRoute("observer-overload")}, LocalOwner: owner, MaxPendingPerChannel: 1, Observer: observer})
+	require.NoError(t, err)
+	require.NoError(t, p.Start())
+	defer stopPlane(t, p)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := p.AppendBatch(ctx, appendReq("observer-overload", 1))
+		firstDone <- err
+	}()
+	owner.waitStarted(t, 1)
+
+	secondDone := make(chan error, 1)
+	go func() {
+		_, err := p.AppendBatch(ctx, appendReq("observer-overload", 2))
+		secondDone <- err
+	}()
+	require.Eventually(t, func() bool { return observer.queuedCount() >= 2 }, time.Second, 10*time.Millisecond)
+
+	_, err = p.AppendBatch(ctx, appendReq("observer-overload", 3))
+	require.ErrorIs(t, err, ErrOverloaded)
+	require.Eventually(t, func() bool { return observer.completedCount() >= 1 }, 200*time.Millisecond, 10*time.Millisecond)
+
+	owner.releaseOne()
+	require.NoError(t, <-firstDone)
+	owner.waitStarted(t, 2)
+	owner.releaseOne()
+	require.NoError(t, <-secondDone)
+	require.Eventually(t, func() bool { return observer.queuedCount() == observer.completedCount() }, time.Second, 10*time.Millisecond)
+}
+
 func TestChannelPlaneUsesPeerReactorForRemoteLeader(t *testing.T) {
 	peer := &recordingPlanePeerClient{}
 	p, err := New(Options{ReactorCount: 1, LocalNode: 1, Resolver: staticResolver{route: remoteRoute("remote", 2)}, LocalOwner: noopOwner{}, PeerClient: peer, PeerBatchMaxWait: time.Millisecond})
@@ -695,4 +731,34 @@ func (s *blockingSequenceRouteSource) calls() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.count
+}
+
+type countingObserver struct {
+	mu        sync.Mutex
+	queued    int
+	completed int
+}
+
+func (o *countingObserver) OnAppendQueued(AppendEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.queued++
+}
+
+func (o *countingObserver) OnAppendCompleted(AppendEvent) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.completed++
+}
+
+func (o *countingObserver) queuedCount() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.queued
+}
+
+func (o *countingObserver) completedCount() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.completed
 }

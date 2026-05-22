@@ -22,7 +22,7 @@ func newChannelCell(reactor *reactor, key channel.ChannelKey) *channelCell {
 
 func (c *channelCell) enqueue(cmd *appendCommand) bool {
 	if len(c.pending) >= c.reactor.plane.opts.MaxPendingPerChannel {
-		cmd.future.complete(channel.AppendBatchResult{}, ErrOverloaded)
+		c.complete(cmd, channel.AppendBatchResult{}, ErrOverloaded, ChannelRoute{})
 		return false
 	}
 	c.pending = append(c.pending, cmd)
@@ -38,7 +38,7 @@ func (c *channelCell) tryStart() {
 		c.pending[0] = nil
 		c.pending = c.pending[1:]
 		if err := effectContext(cmd).Err(); err != nil {
-			cmd.future.complete(channel.AppendBatchResult{}, err)
+			c.complete(cmd, channel.AppendBatchResult{}, err, ChannelRoute{})
 			continue
 		}
 		c.inflight = cmd
@@ -72,7 +72,7 @@ func (c *channelCell) handleResolveComplete(done effectCompletion) {
 		return
 	}
 	if done.err != nil {
-		done.cmd.future.complete(channel.AppendBatchResult{}, done.err)
+		c.complete(done.cmd, channel.AppendBatchResult{}, done.err, done.route)
 		c.inflight = nil
 		c.scheduleIfPending()
 		return
@@ -113,8 +113,7 @@ func (c *channelCell) handleAppendComplete(done effectCompletion) {
 			return
 		}
 	}
-	observeAppendCompleted(c.reactor.plane.opts.Observer, done.cmd.req, done.route, done.err)
-	done.cmd.future.complete(done.res, done.err)
+	c.complete(done.cmd, done.res, done.err, done.route)
 	c.inflight = nil
 	c.scheduleIfPending()
 }
@@ -140,6 +139,12 @@ func (c *channelCell) cachedRouteExpired(route ChannelRoute) bool {
 	return !c.reactor.plane.opts.Now().Before(route.LeaseUntil)
 }
 
+func (c *channelCell) complete(cmd *appendCommand, res channel.AppendBatchResult, err error, route ChannelRoute) {
+	if cmd.future.complete(res, err) {
+		observeAppendCompleted(c.reactor.plane.opts.Observer, cmd.req, route, err)
+	}
+}
+
 func (c *channelCell) scheduleIfPending() {
 	if len(c.pending) > 0 {
 		c.reactor.markReady(c.key)
@@ -148,11 +153,11 @@ func (c *channelCell) scheduleIfPending() {
 
 func (c *channelCell) failAll(err error) {
 	if c.inflight != nil {
-		c.inflight.future.complete(channel.AppendBatchResult{}, err)
+		c.complete(c.inflight, channel.AppendBatchResult{}, err, ChannelRoute{})
 		c.inflight = nil
 	}
 	for _, cmd := range c.pending {
-		cmd.future.complete(channel.AppendBatchResult{}, err)
+		c.complete(cmd, channel.AppendBatchResult{}, err, ChannelRoute{})
 	}
 	c.pending = nil
 }

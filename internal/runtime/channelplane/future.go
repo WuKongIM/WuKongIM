@@ -18,12 +18,15 @@ func newAppendFuture() *appendFuture {
 	return &appendFuture{done: make(chan struct{})}
 }
 
-func (f *appendFuture) complete(res channel.AppendBatchResult, err error) {
+func (f *appendFuture) complete(res channel.AppendBatchResult, err error) bool {
+	completed := false
 	f.once.Do(func() {
 		f.res = res
 		f.err = err
+		completed = true
 		close(f.done)
 	})
+	return completed
 }
 
 func (f *appendFuture) wait(ctx context.Context) (channel.AppendBatchResult, error) {
