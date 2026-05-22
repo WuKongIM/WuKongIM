@@ -1,11 +1,16 @@
 package capacity
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
+	"github.com/WuKongIM/WuKongIM/internal/bench/model"
 	"github.com/WuKongIM/WuKongIM/internal/bench/report"
+	"github.com/WuKongIM/WuKongIM/internal/bench/worker"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,3 +42,106 @@ func TestEvaluateAttemptClassifiesPassAndFailureReasons(t *testing.T) {
 	require.False(t, got.Passed)
 	require.Equal(t, "sendack_p99_exceeded", got.FailureReason)
 }
+
+func TestRunAttemptReturnsCoordinatorErrorWhenNoAttemptReport(t *testing.T) {
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/healthz", "/readyz":
+			w.WriteHeader(http.StatusOK)
+		case "/bench/v1/capabilities":
+			writeCapacityJSON(t, w, model.BenchCapabilities{Enabled: true, Version: "bench/v1"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer api.Close()
+
+	cfg := DefaultConfig()
+	cfg.APIAddrs = []string{api.URL}
+	cfg.GatewayTCPAddrs = []string{"127.0.0.1:1"}
+	cfg.Profile = ProfilePerson
+	cfg.StartQPS = 1
+	cfg.MaxQPS = 1
+	cfg.Duration = 100 * time.Millisecond
+	cfg.Warmup = 100 * time.Millisecond
+	cfg.Cooldown = 0
+	cfg.StableP99 = time.Second
+	cfg.ReportDir = t.TempDir()
+	runner := NewRunner(cfg, DiscoveredTarget{
+		Target: model.Target{
+			Name:     "capacity-send",
+			API:      model.TargetAPIConfig{Addrs: []string{api.URL}},
+			Gateway:  model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"127.0.0.1:1"}}},
+			BenchAPI: model.BenchAPIConfig{Enabled: true, Addrs: []string{api.URL}},
+		},
+	})
+
+	require.NoError(t, runner.startWorker())
+	defer runner.close()
+	got, err := runner.RunAttempt(context.Background(), Attempt{Index: 0, OfferedQPS: 1})
+
+	require.Error(t, err)
+	require.False(t, got.Passed)
+	require.Equal(t, "preflight_failed", got.FailureReason)
+	require.Contains(t, err.Error(), "target bench api capabilities missing")
+}
+
+func TestRunAttemptStopsWorkerSoNextAttemptCanAssign(t *testing.T) {
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/healthz", "/readyz":
+			w.WriteHeader(http.StatusOK)
+		case "/bench/v1/capabilities":
+			writeCapacityJSON(t, w, model.BenchCapabilities{
+				Enabled: true,
+				Version: "bench/v1",
+				Supports: model.BenchCapabilitiesSupports{
+					UsersTokensBatch:        true,
+					ChannelsBatch:           true,
+					ChannelSubscribersBatch: true,
+					Snapshot:                true,
+					ChannelTypes:            []string{model.ChannelTypeGroup},
+				},
+			})
+		case "/bench/v1/snapshot":
+			writeCapacityJSON(t, w, model.BenchSnapshot{Version: "bench/v1"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer api.Close()
+	workerServer := httptest.NewServer(worker.NewServer(worker.Config{
+		InsecureControl: true,
+		WorkloadRunner:  noopCapacityWorkloadRunner{},
+	}))
+	defer workerServer.Close()
+	cfg := DefaultConfig()
+	cfg.APIAddrs = []string{api.URL}
+	cfg.Profile = ProfilePerson
+	cfg.Duration = time.Millisecond
+	cfg.Warmup = time.Millisecond
+	cfg.Cooldown = 0
+	cfg.ReportDir = t.TempDir()
+	runner := NewRunner(cfg, DiscoveredTarget{
+		Target: model.Target{
+			Name:     "capacity-send",
+			API:      model.TargetAPIConfig{Addrs: []string{api.URL}},
+			Gateway:  model.TargetGatewayConfig{TCP: model.TargetGatewayTCPConfig{Addrs: []string{"127.0.0.1:1"}}},
+			BenchAPI: model.BenchAPIConfig{Enabled: true, Addrs: []string{api.URL}},
+		},
+	})
+	runner.workers = []model.Worker{{ID: "local-capacity-worker", Addr: workerServer.URL, Weight: 1, InsecureControl: true}}
+
+	_, err := runner.RunAttempt(context.Background(), Attempt{Index: 0, OfferedQPS: 1})
+	require.NoError(t, err)
+	_, err = runner.RunAttempt(context.Background(), Attempt{Index: 1, OfferedQPS: 1})
+	require.NoError(t, err)
+}
+
+type noopCapacityWorkloadRunner struct{}
+
+func (noopCapacityWorkloadRunner) Prepare(context.Context, worker.Assignment) error  { return nil }
+func (noopCapacityWorkloadRunner) Connect(context.Context, worker.Assignment) error  { return nil }
+func (noopCapacityWorkloadRunner) Warmup(context.Context, worker.Assignment) error   { return nil }
+func (noopCapacityWorkloadRunner) Run(context.Context, worker.Assignment) error      { return nil }
+func (noopCapacityWorkloadRunner) Cooldown(context.Context, worker.Assignment) error { return nil }

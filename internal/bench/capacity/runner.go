@@ -3,8 +3,10 @@ package capacity
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/coordinator"
@@ -41,13 +43,43 @@ func (r *Runner) Run(ctx context.Context) (Result, error) {
 func (r *Runner) RunAttempt(ctx context.Context, attempt Attempt) (AttemptResult, error) {
 	scenario := BuildScenario(r.cfg, attempt)
 	coord := coordinator.New(coordinator.CoordinatorConfig{Workers: r.workers, Target: r.discovered.Target})
+	defer r.stopWorkers()
 	result, err := coord.Run(ctx, scenario)
 	attemptResult := EvaluateAttempt(r.cfg, attempt, result.Report)
 	attemptResult.ReportDir = scenario.Run.ReportDir
-	if err != nil && result.Report.RunID == "" {
+	if err != nil && result.Status != coordinator.StatusHardLimitFailed {
+		applyCoordinatorFailure(&attemptResult, result)
+	}
+	if err != nil && !hasAttemptReport(result.Report) {
 		return attemptResult, err
 	}
 	return attemptResult, nil
+}
+
+func hasAttemptReport(rep report.Report) bool {
+	return rep.Scenario.Run.ID != "" || len(rep.Metrics.Counters) > 0 || len(rep.Metrics.Histograms) > 0 || len(rep.WorkerMetrics) > 0 || len(rep.WorkerReports) > 0
+}
+
+func applyCoordinatorFailure(attempt *AttemptResult, result coordinator.RunResult) {
+	if attempt == nil {
+		return
+	}
+	switch result.Status {
+	case coordinator.StatusWorkerFailed:
+		if attempt.WorkerFailed == 0 {
+			attempt.WorkerFailed = 1
+		}
+		attempt.Passed = false
+		attempt.FailureReason = "worker_failed"
+	case coordinator.StatusTargetUnavailable:
+		attempt.Passed = false
+		attempt.FailureReason = "target_unavailable"
+	case coordinator.StatusHardLimitFailed:
+		attempt.Passed = false
+	case coordinator.StatusCanceled, coordinator.StatusInternalFailed, coordinator.StatusConfigFailed, coordinator.StatusPreflightFailed:
+		attempt.Passed = false
+		attempt.FailureReason = string(result.Status)
+	}
 }
 
 func (r *Runner) startWorker() error {
@@ -61,10 +93,38 @@ func (r *Runner) startWorker() error {
 }
 
 func (r *Runner) close() {
+	r.stopWorkers()
 	if r.server != nil {
 		r.server.Close()
 		r.server = nil
 	}
+}
+
+func (r *Runner) stopWorkers() {
+	for _, w := range r.workers {
+		if strings.TrimSpace(w.Addr) == "" {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_ = stopWorker(ctx, w)
+		cancel()
+	}
+}
+
+func stopWorker(ctx context.Context, w model.Worker) error {
+	url := strings.TrimRight(strings.TrimSpace(w.Addr), "/") + "/v1/stop"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	if err != nil {
+		return err
+	}
+	if !w.InsecureControl && strings.TrimSpace(w.ControlToken) != "" {
+		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(w.ControlToken))
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	return resp.Body.Close()
 }
 
 // EvaluateAttempt classifies one coordinator report against capacity criteria.

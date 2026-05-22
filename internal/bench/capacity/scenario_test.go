@@ -62,3 +62,14 @@ func TestBuildScenarioGroupOnly(t *testing.T) {
 	require.Equal(t, 7, s.Channels.Profiles[0].Members.Count)
 	require.Equal(t, 84, s.Online.TotalUsers)
 }
+
+func TestBuildScenarioUsesValidHeartbeat(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.APIAddrs = []string{"http://127.0.0.1:15001"}
+
+	s := BuildScenario(cfg, Attempt{Index: 0, OfferedQPS: 100})
+
+	require.True(t, s.Online.Heartbeat.Enabled)
+	require.Greater(t, s.Online.Heartbeat.Interval, time.Duration(0))
+	require.Greater(t, s.Online.Heartbeat.Timeout, time.Duration(0))
+}

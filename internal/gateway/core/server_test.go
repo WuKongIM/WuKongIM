@@ -540,6 +540,34 @@ func TestServer(t *testing.T) {
 		waitFor(t, func() bool { return handler.frameCount() == 1 })
 	})
 
+	t.Run("partial consumed inbound tail is retained once", func(t *testing.T) {
+		handler := newTestHandler()
+		proto := newScriptedProtocol("fake-proto")
+		proto.pushDecode(decodeResult{
+			frames:   []frame.Frame{&frame.PingPacket{}},
+			consumed: 1,
+		})
+		proto.pushDecode(decodeResult{})
+
+		srv, transportFactory := newTestServer(t, handler, proto, gateway.SessionOptions{})
+		if err := srv.Start(); err != nil {
+			t.Fatalf("start failed: %v", err)
+		}
+		t.Cleanup(func() { _ = srv.Stop() })
+
+		transportFactory.MustOpen("listener-a", 1)
+		transportFactory.MustData("listener-a", 1, []byte("ab"))
+		waitFor(t, func() bool { return handler.frameCount() == 1 })
+
+		inputs := proto.decodeInputs()
+		if len(inputs) < 2 {
+			t.Fatalf("decode calls = %d, want at least 2", len(inputs))
+		}
+		if got, want := string(inputs[1]), "b"; got != want {
+			t.Fatalf("retained decode input = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("inbound overflow closes with CloseReasonInboundOverflow", func(t *testing.T) {
 		handler := newTestHandler()
 		proto := newScriptedProtocol("fake-proto")
@@ -826,6 +854,27 @@ func TestServer(t *testing.T) {
 			t.Fatalf("expected protocol OnClose once, got %d", proto.onCloseCalls())
 		}
 	})
+
+	t.Run("session close callback error is reported", func(t *testing.T) {
+		closeErr := errors.New("close boom")
+		handler := newTestHandler()
+		handler.onClose = func(*gateway.Context) error { return closeErr }
+		proto := newScriptedProtocol("fake-proto")
+		srv, transportFactory := newTestServer(t, handler, proto, gateway.SessionOptions{})
+		if err := srv.Start(); err != nil {
+			t.Fatalf("start failed: %v", err)
+		}
+		t.Cleanup(func() { _ = srv.Stop() })
+
+		transportFactory.MustOpen("listener-a", 1)
+		transportFactory.MustClose("listener-a", 1, nil)
+		waitFor(t, func() bool { return handler.closeCount() == 1 })
+
+		errs := handler.sessionErrors()
+		if len(errs) != 1 || !errors.Is(errs[0], closeErr) {
+			t.Fatalf("expected session close error %v, got %v", closeErr, errs)
+		}
+	})
 }
 
 func TestServerStart(t *testing.T) {
@@ -907,10 +956,11 @@ func TestServerStart(t *testing.T) {
 
 		first := &spyListener{addr: "logical://listener-a"}
 		second := &spyListener{addr: "logical://listener-b", startErr: errors.New("start boom")}
+		third := &spyListener{addr: "logical://listener-c"}
 		factory := &buildSpyFactory{
 			name: "grouped-transport",
 			buildFn: func(specs []transport.ListenerSpec) ([]transport.Listener, error) {
-				return []transport.Listener{first, second}, nil
+				return []transport.Listener{first, second, third}, nil
 			},
 		}
 
@@ -926,6 +976,13 @@ func TestServerStart(t *testing.T) {
 				Name:      "listener-b",
 				Network:   "tcp",
 				Address:   "127.0.0.1:9001",
+				Transport: factory.Name(),
+				Protocol:  proto.Name(),
+			},
+			{
+				Name:      "listener-c",
+				Network:   "tcp",
+				Address:   "127.0.0.1:9002",
 				Transport: factory.Name(),
 				Protocol:  proto.Name(),
 			},
@@ -946,6 +1003,12 @@ func TestServerStart(t *testing.T) {
 		}
 		if !second.Stopped() {
 			t.Fatal("expected failing listener to be stopped")
+		}
+		if third.Started() {
+			t.Fatal("expected third listener not to start after second listener failed")
+		}
+		if !third.Stopped() {
+			t.Fatal("expected built but unstarted third listener to be stopped during rollback")
 		}
 	})
 
@@ -1406,15 +1469,16 @@ type decodeResult struct {
 type scriptedProtocol struct {
 	name string
 
-	mu           sync.Mutex
-	decodeQueue  []decodeResult
-	tokenQueue   [][]string
-	encodedBytes []byte
-	encodeFn     func(session.Session, frame.Frame, session.OutboundMeta) ([]byte, error)
-	encodeErr    error
-	openErr      error
-	closeErr     error
-	closeCalls   int
+	mu             sync.Mutex
+	decodeQueue    []decodeResult
+	decodeInputLog [][]byte
+	tokenQueue     [][]string
+	encodedBytes   []byte
+	encodeFn       func(session.Session, frame.Frame, session.OutboundMeta) ([]byte, error)
+	encodeErr      error
+	openErr        error
+	closeErr       error
+	closeCalls     int
 }
 
 func newScriptedProtocol(name string) *scriptedProtocol {
@@ -1423,10 +1487,11 @@ func newScriptedProtocol(name string) *scriptedProtocol {
 
 func (p *scriptedProtocol) Name() string { return p.name }
 
-func (p *scriptedProtocol) Decode(_ session.Session, _ []byte) ([]frame.Frame, int, error) {
+func (p *scriptedProtocol) Decode(_ session.Session, in []byte) ([]frame.Frame, int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	p.decodeInputLog = append(p.decodeInputLog, append([]byte(nil), in...))
 	if len(p.decodeQueue) == 0 {
 		return nil, 0, nil
 	}
@@ -1436,6 +1501,17 @@ func (p *scriptedProtocol) Decode(_ session.Session, _ []byte) ([]frame.Frame, i
 		p.tokenQueue = append(p.tokenQueue, append([]string(nil), step.tokenBatch...))
 	}
 	return append([]frame.Frame(nil), step.frames...), step.consumed, step.err
+}
+
+func (p *scriptedProtocol) decodeInputs() [][]byte {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	out := make([][]byte, len(p.decodeInputLog))
+	for i := range p.decodeInputLog {
+		out[i] = append([]byte(nil), p.decodeInputLog[i]...)
+	}
+	return out
 }
 
 func (p *scriptedProtocol) Encode(sess session.Session, f frame.Frame, meta session.OutboundMeta) ([]byte, error) {

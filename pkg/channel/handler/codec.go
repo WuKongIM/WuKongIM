@@ -3,12 +3,16 @@ package handler
 import (
 	"encoding/binary"
 	"errors"
-	"hash/fnv"
 	"io"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+)
+
+const (
+	fnv64aOffset = 14695981039346656037
+	fnv64aPrime  = 1099511628211
 )
 
 type messageView struct {
@@ -148,9 +152,12 @@ func readSizedBytesView(payload []byte, pos int) ([]byte, int, error) {
 }
 
 func hashPayload(payload []byte) uint64 {
-	hasher := fnv.New64a()
-	_, _ = hasher.Write(payload)
-	return hasher.Sum64()
+	hash := uint64(fnv64aOffset)
+	for _, b := range payload {
+		hash ^= uint64(b)
+		hash *= fnv64aPrime
+	}
+	return hash
 }
 
 func encodedMessageSize(message channel.Message) (int, error) {
