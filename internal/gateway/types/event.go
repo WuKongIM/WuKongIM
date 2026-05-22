@@ -10,16 +10,16 @@ import (
 
 type Handler interface {
 	OnListenerError(listener string, err error)
-	OnSessionOpen(ctx *Context) error
-	OnFrame(ctx *Context, f frame.Frame) error
-	OnSessionClose(ctx *Context) error
-	OnSessionError(ctx *Context, err error)
+	OnSessionOpen(ctx Context) error
+	OnFrame(ctx Context, f frame.Frame) error
+	OnSessionClose(ctx Context) error
+	OnSessionError(ctx Context, err error)
 }
 
 // SendBatchItem carries one asynchronous SEND frame through a gateway micro-batch.
 type SendBatchItem struct {
 	// Context is the per-frame gateway context, including request context and reply token.
-	Context *Context
+	Context Context
 	// ReplyToken preserves the inbound protocol request token for the matching response.
 	ReplyToken string
 	// Frame is the cloned SEND frame for this batch item.

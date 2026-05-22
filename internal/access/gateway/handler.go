@@ -113,12 +113,12 @@ func (h *Handler) OnSessionActivate(ctx *coregateway.Context) (*frame.ConnackPac
 	return nil, h.presence.Activate(requestContextFromContext(ctx), cmd)
 }
 
-func (h *Handler) OnSessionOpen(*coregateway.Context) error {
+func (h *Handler) OnSessionOpen(coregateway.Context) error {
 	return nil
 }
 
-func (h *Handler) OnSessionClose(ctx *coregateway.Context) error {
-	if h == nil || ctx == nil || ctx.Session == nil {
+func (h *Handler) OnSessionClose(ctx coregateway.Context) error {
+	if h == nil || ctx.Session == nil {
 		return nil
 	}
 
@@ -131,12 +131,12 @@ func (h *Handler) OnSessionClose(ctx *coregateway.Context) error {
 		}))
 	}
 	if h.presence != nil {
-		err = errors.Join(err, h.presence.Deactivate(requestContextFromContext(ctx), deactivateCommandFromContext(ctx)))
+		err = errors.Join(err, h.presence.Deactivate(requestContextFromContext(&ctx), deactivateCommandFromContext(&ctx)))
 	}
 	return err
 }
 
-func (h *Handler) OnSessionError(*coregateway.Context, error) {}
+func (h *Handler) OnSessionError(coregateway.Context, error) {}
 
 func (h *Handler) connLogger() wklog.Logger {
 	if h == nil || h.logger == nil {

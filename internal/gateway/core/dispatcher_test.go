@@ -36,19 +36,17 @@ type requestContextCapturingHandler struct {
 
 func (h *requestContextCapturingHandler) OnListenerError(string, error) {}
 
-func (h *requestContextCapturingHandler) OnSessionOpen(*gatewaytypes.Context) error {
+func (h *requestContextCapturingHandler) OnSessionOpen(gatewaytypes.Context) error {
 	return nil
 }
 
-func (h *requestContextCapturingHandler) OnFrame(ctx *gatewaytypes.Context, _ frame.Frame) error {
-	if ctx != nil {
-		h.requestContext = ctx.RequestContext
-	}
+func (h *requestContextCapturingHandler) OnFrame(ctx gatewaytypes.Context, _ frame.Frame) error {
+	h.requestContext = ctx.RequestContext
 	return nil
 }
 
-func (h *requestContextCapturingHandler) OnSessionClose(*gatewaytypes.Context) error {
+func (h *requestContextCapturingHandler) OnSessionClose(gatewaytypes.Context) error {
 	return nil
 }
 
-func (h *requestContextCapturingHandler) OnSessionError(*gatewaytypes.Context, error) {}
+func (h *requestContextCapturingHandler) OnSessionError(gatewaytypes.Context, error) {}

@@ -14,14 +14,14 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-func (h *Handler) OnFrame(ctx *coregateway.Context, f frame.Frame) error {
+func (h *Handler) OnFrame(ctx coregateway.Context, f frame.Frame) error {
 	switch pkt := f.(type) {
 	case *frame.SendPacket:
-		return h.handleSend(ctx, pkt)
+		return h.handleSend(&ctx, pkt)
 	case *frame.RecvackPacket:
-		return h.handleRecvAck(ctx, pkt)
+		return h.handleRecvAck(&ctx, pkt)
 	case *frame.PingPacket:
-		return h.handlePing(ctx)
+		return h.handlePing(&ctx)
 	default:
 		return ErrUnsupportedFrame
 	}
@@ -109,7 +109,7 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 	}
 
 	results := make([]message.SendResult, len(items))
-	contexts := make([]*coregateway.Context, len(items))
+	contexts := make([]coregateway.Context, len(items))
 	channelKeys := make([]string, len(items))
 	fromUIDs := make([]string, len(items))
 	clientMsgNos := make([]string, len(items))
@@ -119,8 +119,8 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 	validItems := make([]message.SendBatchItem, 0, len(items))
 
 	for i, item := range items {
-		ctx := sendBatchGatewayContext(item)
-		contexts[i] = ctx
+		contexts[i] = sendBatchGatewayContext(item)
+		ctx := &contexts[i]
 		pkt := item.Frame
 		if reason, err := decryptSendPacketIfNeeded(ctx, pkt); err != nil {
 			fields := append([]wklog.Field{
@@ -149,7 +149,7 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 			}
 			return err
 		}
-		if ctx == nil || ctx.RequestContext == nil {
+		if ctx.RequestContext == nil {
 			results[i].Reason = frame.ReasonSystemError
 			continue
 		}
@@ -197,7 +197,7 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 			fields := append([]wklog.Field{
 				wklog.Event("access.gateway.frame.send_failed"),
 				wklog.SourceModule("message.send"),
-			}, gatewaySendFields(contexts[itemIndex], validItems[j].Command.ChannelID, validItems[j].Command.ChannelType)...)
+			}, gatewaySendFields(&contexts[itemIndex], validItems[j].Command.ChannelID, validItems[j].Command.ChannelType)...)
 			fields = append(fields, wklog.Error(itemResult.Err))
 			h.frameLogger().Warn("send request failed", fields...)
 			if reason, ok := mapSendErrorReason(itemResult.Err); ok {
@@ -210,7 +210,7 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 	}
 
 	for i, item := range items {
-		ctx := contexts[i]
+		ctx := &contexts[i]
 		pkt := item.Frame
 		if traceEnabled {
 			if err := h.writeSendackWithTrace(ctx, pkt, clientMsgNos[i], traceIDs[i], channelKeys[i], fromUIDs[i], results[i]); err != nil {
@@ -236,15 +236,12 @@ func (h *Handler) sendMessageBatch(items []message.SendBatchItem) []message.Send
 	}
 }
 
-func sendBatchGatewayContext(item coregateway.SendBatchItem) *coregateway.Context {
-	if item.Context == nil {
-		return nil
-	}
-	ctx := *item.Context
+func sendBatchGatewayContext(item coregateway.SendBatchItem) coregateway.Context {
+	ctx := item.Context
 	if item.ReplyToken != "" {
 		ctx.ReplyToken = item.ReplyToken
 	}
-	return &ctx
+	return ctx
 }
 
 func (h *Handler) handleRecvAck(ctx *coregateway.Context, pkt *frame.RecvackPacket) error {

@@ -85,10 +85,10 @@ type ListenerOptions struct {
 ```go
 type Handler interface {
     OnListenerError(listener string, err error)
-    OnSessionOpen(ctx *Context) error
-    OnFrame(ctx *Context, f frame.Frame) error
-    OnSessionClose(ctx *Context) error
-    OnSessionError(ctx *Context, err error)
+    OnSessionOpen(ctx Context) error
+    OnFrame(ctx Context, f frame.Frame) error
+    OnSessionClose(ctx Context) error
+    OnSessionError(ctx Context, err error)
 }
 
 type SessionActivator interface {
@@ -112,6 +112,8 @@ type Context struct {
 ```
 
 `SessionActivator` 是可选 hook。WKProto CONNECT 认证成功后、CONNACK 写出前调用它；`internal/access/gateway` 使用该 hook 完成 presence activate。
+
+`Handler` 的 `Context` 按值传递，避免热路径为每个 Frame 分配 context wrapper；handler 不应依赖 `Context` 指针身份。`SessionActivator` 仍使用指针参数以兼容认证/激活阶段的 nil 检查习惯。
 
 `SendBatchHandler` 是可选 SEND 微批 hook。实现方必须按 `items` 顺序写回对应 sendack；未实现时 `core` 自动退回逐帧 `OnFrame`，协议语义不变。
 

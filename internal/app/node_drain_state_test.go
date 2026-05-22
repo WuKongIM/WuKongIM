@@ -128,13 +128,13 @@ func TestLocalNodeDrainingDisablesGatewayAdmission(t *testing.T) {
 type nopGatewayHandler struct{}
 
 func (nopGatewayHandler) OnListenerError(string, error) {}
-func (nopGatewayHandler) OnSessionOpen(*gatewaytypes.Context) error {
+func (nopGatewayHandler) OnSessionOpen(gatewaytypes.Context) error {
 	return nil
 }
-func (nopGatewayHandler) OnFrame(*gatewaytypes.Context, frame.Frame) error {
+func (nopGatewayHandler) OnFrame(gatewaytypes.Context, frame.Frame) error {
 	return nil
 }
-func (nopGatewayHandler) OnSessionClose(*gatewaytypes.Context) error {
+func (nopGatewayHandler) OnSessionClose(gatewaytypes.Context) error {
 	return nil
 }
-func (nopGatewayHandler) OnSessionError(*gatewaytypes.Context, error) {}
+func (nopGatewayHandler) OnSessionError(gatewaytypes.Context, error) {}

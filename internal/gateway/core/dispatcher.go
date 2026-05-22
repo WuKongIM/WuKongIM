@@ -66,12 +66,12 @@ func (d dispatcher) sessionClose(state *sessionState) error {
 	return d.handler.OnSessionClose(d.context(state, "", state.closeReason(), nil))
 }
 
-func (d dispatcher) context(state *sessionState, replyToken string, reason gatewaytypes.CloseReason, requestContext context.Context) *gatewaytypes.Context {
+func (d dispatcher) context(state *sessionState, replyToken string, reason gatewaytypes.CloseReason, requestContext context.Context) gatewaytypes.Context {
 	if state == nil || state.listener == nil {
-		return &gatewaytypes.Context{CloseReason: reason, ReplyToken: replyToken, RequestContext: requestContext}
+		return gatewaytypes.Context{CloseReason: reason, ReplyToken: replyToken, RequestContext: requestContext}
 	}
 
-	return &gatewaytypes.Context{
+	return gatewaytypes.Context{
 		Session:        state.session,
 		Listener:       state.listener.options.Name,
 		Network:        state.listener.options.Network,

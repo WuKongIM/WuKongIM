@@ -595,7 +595,7 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 	}
 
 	ctx := s.dispatcher.context(state, replyToken, state.closeReason(), nil)
-	result, err := s.options.Authenticator.Authenticate(ctx, connect)
+	result, err := s.options.Authenticator.Authenticate(&ctx, connect)
 	if err != nil {
 		if writeErr := s.writeImmediateFrame(state, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
 			state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonPolicyViolation), writeErr)
@@ -636,7 +636,7 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 
 	ctx = s.dispatcher.context(state, replyToken, state.closeReason(), nil)
 	if activator, ok := s.options.Handler.(gatewaytypes.SessionActivator); ok {
-		override, err := activator.OnSessionActivate(ctx)
+		override, err := activator.OnSessionActivate(&ctx)
 		if err != nil {
 			if writeErr := s.writeImmediateFrame(state, &frame.ConnackPacket{ReasonCode: frame.ReasonSystemError}); writeErr != nil {
 				state.close(closeReasonForError(writeErr, gatewaytypes.CloseReasonPolicyViolation), writeErr)
