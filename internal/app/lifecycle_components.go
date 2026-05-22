@@ -10,6 +10,7 @@ const (
 	appLifecycleCluster                 = "cluster"
 	appLifecycleManagedSlotsReady       = "managed_slots_ready"
 	appLifecycleChannelMeta             = "channelmeta"
+	appLifecycleChannelPlane            = "channelplane"
 	appLifecyclePresence                = "presence"
 	appLifecycleConversationActiveHints = "conversation_active_hints"
 	appLifecycleConversationProjector   = "conversation_projector"
@@ -63,6 +64,9 @@ func (a *App) lifecycleComponents(includeStopOnly bool) []applifecycle.Component
 
 	if a.hasChannelMetaLifecycle(includeStopOnly) {
 		components = append(components, a.channelMetaLifecycleComponent())
+	}
+	if a.hasChannelPlaneLifecycle(includeStopOnly) {
+		components = append(components, a.channelPlaneLifecycleComponent())
 	}
 	if a.hasPresenceLifecycle(includeStopOnly) {
 		components = append(components, a.presenceLifecycleComponent())
@@ -143,6 +147,22 @@ func (a *App) channelMetaLifecycleComponent() applifecycle.Component {
 		},
 		stop: func(context.Context) error {
 			return a.stopChannelMetaSync()
+		},
+	}
+}
+
+func (a *App) channelPlaneLifecycleComponent() applifecycle.Component {
+	return appLifecycleComponent{
+		name: appLifecycleChannelPlane,
+		start: func(context.Context) error {
+			if err := a.startChannelPlane(); err != nil {
+				return err
+			}
+			a.channelPlaneOn.Store(true)
+			return nil
+		},
+		stop: func(ctx context.Context) error {
+			return a.stopChannelPlane(ctx)
 		},
 	}
 }
@@ -359,6 +379,12 @@ func (a *App) hasChannelMetaLifecycle(includeStopOnly bool) bool {
 	return a.channelMetaSync != nil ||
 		a.startChannelMetaSyncFn != nil ||
 		(includeStopOnly && (a.stopChannelMetaSyncFn != nil || a.channelMetaOn.Load()))
+}
+
+func (a *App) hasChannelPlaneLifecycle(includeStopOnly bool) bool {
+	return a.channelPlane != nil ||
+		a.startChannelPlaneFn != nil ||
+		(includeStopOnly && (a.stopChannelPlaneFn != nil || a.channelPlaneOn.Load()))
 }
 
 func (a *App) hasPresenceLifecycle(includeStopOnly bool) bool {

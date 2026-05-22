@@ -129,6 +129,16 @@ func (a *App) startChannelMetaSync() error {
 	return a.channelMetaSync.Start()
 }
 
+func (a *App) startChannelPlane() error {
+	if a.startChannelPlaneFn != nil {
+		return a.startChannelPlaneFn()
+	}
+	if a.channelPlane == nil {
+		return nil
+	}
+	return a.channelPlane.Start()
+}
+
 func (a *App) startAPI() error {
 	if a.startAPIFn != nil {
 		return a.startAPIFn()
@@ -420,6 +430,22 @@ func (a *App) stopChannelMetaSync() error {
 		err = errors.Join(err, a.channelMetaSync.StopWithoutCleanup())
 	}
 	return err
+}
+
+func (a *App) stopChannelPlane(ctx context.Context) error {
+	if !a.channelPlaneOn.Swap(false) {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if a.stopChannelPlaneFn != nil {
+		return a.stopChannelPlaneFn(ctx)
+	}
+	if a.channelPlane == nil {
+		return nil
+	}
+	return a.channelPlane.Stop(ctx)
 }
 
 func (a *App) stopAPI(ctx context.Context) error {

@@ -331,6 +331,33 @@ func TestAppChannelClusterAppendBatchForwardsSingleRemoteBatch(t *testing.T) {
 	require.Equal(t, req, remote.batchCalls[0].req)
 }
 
+func TestAppChannelClusterAppendLocalBatchDoesNotForward(t *testing.T) {
+	req := channel.AppendBatchRequest{
+		ChannelID: channel.ChannelID{ID: "room", Type: 2},
+		Messages:  []channel.Message{{FromUID: "u1", ClientMsgNo: "m1", Payload: []byte("hi")}},
+	}
+	service := &stubChannelService{
+		meta: channel.Meta{
+			Key:    channel.ChannelKey("room"),
+			ID:     req.ChannelID,
+			Leader: 2,
+		},
+		appendBatchErr: channel.ErrNotLeader,
+	}
+	remote := &recordingRemoteChannelAppender{}
+	cluster := &appChannelCluster{
+		service:        service,
+		localNodeID:    1,
+		remoteAppender: remote,
+	}
+
+	_, err := cluster.AppendLocalBatch(context.Background(), req)
+
+	require.ErrorIs(t, err, channel.ErrNotLeader)
+	require.Empty(t, remote.calls)
+	require.Empty(t, remote.batchCalls)
+}
+
 func TestAppChannelClusterAppendLogsForwardDiagnostics(t *testing.T) {
 	req := channel.AppendRequest{
 		ChannelID: channel.ChannelID{ID: "room", Type: 2},

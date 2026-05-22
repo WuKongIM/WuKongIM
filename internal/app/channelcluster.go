@@ -172,31 +172,7 @@ func (c *appChannelCluster) AppendBatch(ctx context.Context, req channel.AppendB
 		return channel.AppendBatchResult{}, channel.ErrInvalidConfig
 	}
 	start := time.Now()
-	result, err := c.service.AppendBatch(ctx, req)
-	if err == nil {
-		for i, item := range result.Items {
-			if item.Err != nil {
-				continue
-			}
-			var msg channel.Message
-			if i < len(req.Messages) {
-				msg = req.Messages[i]
-			}
-			sendtrace.Record(sendtrace.Event{
-				TraceID:     req.TraceID,
-				Stage:       sendtrace.StageChannelAppendLocal,
-				At:          start,
-				Duration:    sendtrace.Elapsed(start, time.Now()),
-				NodeID:      c.localNodeID,
-				ChannelKey:  string(channelhandler.KeyFromChannelID(req.ChannelID)),
-				ClientMsgNo: msg.ClientMsgNo,
-				MessageSeq:  item.MessageSeq,
-				FromUID:     msg.FromUID,
-				Attempt:     req.Attempt,
-				RecordCount: len(result.Items),
-			})
-		}
-	}
+	result, err := c.appendLocalBatch(ctx, req, start)
 	if errors.Is(err, channel.ErrNotLeader) || errors.Is(err, channel.ErrStaleMeta) {
 		if forwarded, forwardErr, ok := c.forwardAppendBatchToLeader(ctx, req); ok {
 			result, err = forwarded, forwardErr
@@ -204,6 +180,46 @@ func (c *appChannelCluster) AppendBatch(ctx context.Context, req channel.AppendB
 	}
 	c.observeAppend(err, time.Since(start))
 	return result, err
+}
+
+func (c *appChannelCluster) AppendLocalBatch(ctx context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	if c == nil || c.service == nil {
+		return channel.AppendBatchResult{}, channel.ErrInvalidConfig
+	}
+	start := time.Now()
+	result, err := c.appendLocalBatch(ctx, req, start)
+	c.observeAppend(err, time.Since(start))
+	return result, err
+}
+
+func (c *appChannelCluster) appendLocalBatch(ctx context.Context, req channel.AppendBatchRequest, start time.Time) (channel.AppendBatchResult, error) {
+	result, err := c.service.AppendBatch(ctx, req)
+	if err != nil {
+		return result, err
+	}
+	for i, item := range result.Items {
+		if item.Err != nil {
+			continue
+		}
+		var msg channel.Message
+		if i < len(req.Messages) {
+			msg = req.Messages[i]
+		}
+		sendtrace.Record(sendtrace.Event{
+			TraceID:     req.TraceID,
+			Stage:       sendtrace.StageChannelAppendLocal,
+			At:          start,
+			Duration:    sendtrace.Elapsed(start, time.Now()),
+			NodeID:      c.localNodeID,
+			ChannelKey:  string(channelhandler.KeyFromChannelID(req.ChannelID)),
+			ClientMsgNo: msg.ClientMsgNo,
+			MessageSeq:  item.MessageSeq,
+			FromUID:     msg.FromUID,
+			Attempt:     req.Attempt,
+			RecordCount: len(result.Items),
+		})
+	}
+	return result, nil
 }
 
 func (c *appChannelCluster) Fetch(ctx context.Context, req channel.FetchRequest) (channel.FetchResult, error) {

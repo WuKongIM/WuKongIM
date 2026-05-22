@@ -38,6 +38,8 @@ func TestNewBuildsDBClusterStoreMessageAndGatewayAdapter(t *testing.T) {
 	require.NotNil(t, app.Cluster())
 	require.NotNil(t, app.Store())
 	require.NotNil(t, app.Message())
+	require.NotNil(t, app.channelPlane)
+	require.Same(t, app.channelPlane, unexportedFieldForTest(t, app.messageApp, "appender"))
 	requireAppFieldNonNil(t, app, "conversationActiveHints")
 	require.NotNil(t, app.GatewayHandler())
 	require.NotNil(t, app.Gateway())
@@ -495,6 +497,44 @@ func TestAppLifecycleStartsPresenceWorkerBeforeGateway(t *testing.T) {
 	require.Equal(t, []string{"cluster.start", "presence.start", "gateway.start"}, calls)
 }
 
+func TestAppLifecycleStartsChannelPlaneAfterChannelMetaBeforeGateway(t *testing.T) {
+	var calls []string
+
+	app := &App{
+		cluster: &appLifecycleTestCluster{},
+		gateway: &gateway.Gateway{},
+		startClusterFn: func() error {
+			calls = append(calls, "cluster.start")
+			return nil
+		},
+		startChannelMetaSyncFn: func() error {
+			calls = append(calls, "channelmeta.start")
+			return nil
+		},
+		startChannelPlaneFn: func() error {
+			calls = append(calls, "channelplane.start")
+			return nil
+		},
+		startPresenceFn: func() error {
+			calls = append(calls, "presence.start")
+			return nil
+		},
+		startGatewayFn: func() error {
+			calls = append(calls, "gateway.start")
+			return nil
+		},
+	}
+
+	require.NoError(t, app.Start())
+	require.Equal(t, []string{
+		"cluster.start",
+		"channelmeta.start",
+		"channelplane.start",
+		"presence.start",
+		"gateway.start",
+	}, calls)
+}
+
 func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 	var calls []string
 
@@ -512,6 +552,10 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 		},
 		startChannelMetaSyncFn: func() error {
 			calls = append(calls, "channelmeta.start")
+			return nil
+		},
+		startChannelPlaneFn: func() error {
+			calls = append(calls, "channelplane.start")
 			return nil
 		},
 		startPresenceFn: func() error {
@@ -569,6 +613,7 @@ func TestAppLifecycleUsesDeclaredComponentOrder(t *testing.T) {
 		"cluster.start",
 		"managed_slots_ready.start",
 		"channelmeta.start",
+		"channelplane.start",
 		"presence.start",
 		"conversation_active_hints.start",
 		"conversation_projector.start",

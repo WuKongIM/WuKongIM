@@ -20,6 +20,7 @@ import (
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	runtimechannelmeta "github.com/WuKongIM/WuKongIM/internal/runtime/channelmeta"
+	runtimechannelplane "github.com/WuKongIM/WuKongIM/internal/runtime/channelplane"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	deliverytagruntime "github.com/WuKongIM/WuKongIM/internal/runtime/deliverytag"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/messageid"
@@ -497,6 +498,15 @@ func build(cfg Config) (_ *App, err error) {
 		AfterLocalApply:     app.channelMetaSync.scheduleLeaderRepairForMeta,
 		MetaRefreshObserver: channelMetaObserver,
 	})
+	app.channelPlane, err = runtimechannelplane.New(runtimechannelplane.Options{
+		LocalNode:      channel.NodeID(cfg.Node.ID),
+		Resolver:       appChannelPlaneRouteResolver{meta: app.channelMetaSync},
+		LocalOwner:     app.channelLog,
+		RemoteAppender: appChannelPlaneRemoteAppender{remote: app.nodeClient},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("app: create channel plane: %w", err)
+	}
 	app.conversationActiveHints = conversationusecase.NewActiveHintCache(conversationusecase.ActiveHintCacheOptions{
 		Store:          app.store,
 		FlushInterval:  cfg.Conversation.ActiveHintFlushInterval,
@@ -778,15 +788,13 @@ func build(cfg Config) (_ *App, err error) {
 		PersonWhitelistEnabled: cfg.Message.PersonWhitelistEnabled,
 		SystemDeviceID:         cfg.Message.SystemDeviceID,
 		PermissionCacheTTL:     cfg.Message.PermissionCacheTTL,
-		Cluster:                app.channelLog,
+		ChannelAppender:        app.channelPlane,
 		MessageReader: managerMessageReader{
 			localNodeID: cfg.Node.ID,
 			channelLog:  app.channelLogDB,
 			metas:       app.store,
 			remote:      app.nodeClient,
 		},
-		MetaRefresher:          app.channelMetaSync,
-		RemoteAppender:         app.nodeClient,
 		AppendMetrics:          messageMetrics,
 		Online:                 onlineRegistry,
 		CommittedDispatcher:    committedDispatcher,

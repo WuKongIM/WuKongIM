@@ -15,6 +15,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/gateway"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	channelmigrationruntime "github.com/WuKongIM/WuKongIM/internal/runtime/channelmigration"
+	runtimechannelplane "github.com/WuKongIM/WuKongIM/internal/runtime/channelplane"
 	appretention "github.com/WuKongIM/WuKongIM/internal/runtime/channelretention"
 	deliveryruntime "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
@@ -54,6 +55,7 @@ type App struct {
 	isrRuntime                channelruntime.Runtime
 	channelLog                *appChannelCluster
 	channelMetaSync           *channelMetaSync
+	channelPlane              *runtimechannelplane.Plane
 	store                     *metastore.Store
 	presenceApp               *presence.App
 	channelApp                *channelusecase.App
@@ -110,6 +112,7 @@ type App struct {
 	stopped                  atomic.Bool
 	clusterOn                atomic.Bool
 	channelMetaOn            atomic.Bool
+	channelPlaneOn           atomic.Bool
 	presenceOn               atomic.Bool
 	conversationHintsOn      atomic.Bool
 	conversationOn           atomic.Bool
@@ -126,6 +129,7 @@ type App struct {
 
 	startClusterFn                 func() error
 	startChannelMetaSyncFn         func() error
+	startChannelPlaneFn            func() error
 	startPresenceFn                func() error
 	startConversationActiveHintsFn func() error
 	startConversationProjectorFn   func() error
@@ -154,6 +158,7 @@ type App struct {
 	stopChannelRetentionFn         func(context.Context) error
 	stopPluginFn                   func(context.Context) error
 	stopPresenceFn                 func() error
+	stopChannelPlaneFn             func(context.Context) error
 	stopChannelMetaSyncFn          func() error
 	stopClusterFn                  func()
 	closeChannelLogDBFn            func() error
