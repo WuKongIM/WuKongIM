@@ -315,7 +315,7 @@ func (h *activationHandler) OnSessionActivate(ctx *gateway.Context) (*frame.Conn
 	return nil, nil
 }
 
-func (h *activationHandler) OnSessionOpen(ctx *gateway.Context) error {
+func (h *activationHandler) OnSessionOpen(ctx gateway.Context) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.order = append(h.order, "open")
@@ -323,9 +323,9 @@ func (h *activationHandler) OnSessionOpen(ctx *gateway.Context) error {
 	return nil
 }
 
-func (h *activationHandler) OnFrame(*gateway.Context, frame.Frame) error { return nil }
-func (h *activationHandler) OnSessionClose(*gateway.Context) error       { return nil }
-func (h *activationHandler) OnSessionError(*gateway.Context, error)      {}
+func (h *activationHandler) OnFrame(gateway.Context, frame.Frame) error { return nil }
+func (h *activationHandler) OnSessionClose(gateway.Context) error       { return nil }
+func (h *activationHandler) OnSessionError(gateway.Context, error)      {}
 
 func (h *activationHandler) deviceID() string {
 	h.mu.Lock()

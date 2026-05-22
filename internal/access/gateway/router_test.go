@@ -10,7 +10,7 @@ import (
 func TestHandlerOnFrameReturnsUnsupportedFrameError(t *testing.T) {
 	handler := New(Options{})
 
-	err := handler.OnFrame(newAuthedContext(t, 1, "u1"), unsupportedFrame{})
+	err := handler.OnFrame(*newAuthedContext(t, 1, "u1"), unsupportedFrame{})
 
 	require.ErrorIs(t, err, ErrUnsupportedFrame)
 }

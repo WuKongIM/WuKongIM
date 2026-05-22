@@ -338,7 +338,7 @@ func TestServer(t *testing.T) {
 		pingSeen := make(chan struct{})
 		var releaseOnce sync.Once
 		release := func() { releaseOnce.Do(func() { close(releaseSend) }) }
-		handler.onFrame = func(_ *gateway.Context, f frame.Frame) error {
+		handler.onFrame = func(_ gateway.Context, f frame.Frame) error {
 			switch f.(type) {
 			case *frame.SendPacket:
 				close(sendStarted)
@@ -404,7 +404,7 @@ func TestServer(t *testing.T) {
 
 		var callCount atomic.Int32
 		handler := newTestHandler()
-		handler.onFrame = func(_ *gateway.Context, f frame.Frame) error {
+		handler.onFrame = func(_ gateway.Context, f frame.Frame) error {
 			switch callCount.Add(1) {
 			case 1:
 				close(firstStarted)
@@ -597,7 +597,7 @@ func TestServer(t *testing.T) {
 	t.Run("handler error closes when CloseOnHandlerError is true", func(t *testing.T) {
 		handlerErr := errors.New("handler boom")
 		handler := newTestHandler()
-		handler.onFrame = func(*gateway.Context, frame.Frame) error { return handlerErr }
+		handler.onFrame = func(gateway.Context, frame.Frame) error { return handlerErr }
 
 		proto := newScriptedProtocol("fake-proto")
 		proto.pushDecode(decodeResult{
@@ -629,7 +629,7 @@ func TestServer(t *testing.T) {
 	t.Run("handler error stays open when CloseOnHandlerError is explicitly false", func(t *testing.T) {
 		handlerErr := errors.New("handler boom")
 		handler := newTestHandler()
-		handler.onFrame = func(*gateway.Context, frame.Frame) error { return handlerErr }
+		handler.onFrame = func(gateway.Context, frame.Frame) error { return handlerErr }
 
 		proto := newScriptedProtocol("fake-proto")
 		proto.pushDecode(decodeResult{
@@ -727,7 +727,7 @@ func TestServer(t *testing.T) {
 
 	t.Run("OnSessionError fires before close on transport outbound overflow", func(t *testing.T) {
 		handler := newTestHandler()
-		handler.onFrame = func(ctx *gateway.Context, f frame.Frame) error {
+		handler.onFrame = func(ctx gateway.Context, f frame.Frame) error {
 			return ctx.WriteFrame(&frame.PingPacket{})
 		}
 
@@ -825,7 +825,7 @@ func TestServer(t *testing.T) {
 	t.Run("session close callback error is reported", func(t *testing.T) {
 		closeErr := errors.New("close boom")
 		handler := newTestHandler()
-		handler.onClose = func(*gateway.Context) error { return closeErr }
+		handler.onClose = func(gateway.Context) error { return closeErr }
 		proto := newScriptedProtocol("fake-proto")
 		srv, transportFactory := newTestServer(t, handler, proto, gateway.SessionOptions{})
 		if err := srv.Start(); err != nil {
@@ -1111,7 +1111,7 @@ func TestOutboundTrafficDoesNotRefreshIdleTimeout(t *testing.T) {
 		})
 	}
 	t.Cleanup(stop)
-	handler.onOpen = func(ctx *gateway.Context) error {
+	handler.onOpen = func(ctx gateway.Context) error {
 		go func() {
 			ticker := time.NewTicker(10 * time.Millisecond)
 			defer ticker.Stop()
@@ -1126,7 +1126,7 @@ func TestOutboundTrafficDoesNotRefreshIdleTimeout(t *testing.T) {
 		}()
 		return nil
 	}
-	handler.onClose = func(*gateway.Context) error {
+	handler.onClose = func(gateway.Context) error {
 		stop()
 		return nil
 	}
@@ -1187,7 +1187,7 @@ func TestInboundTrafficRefreshesIdleTimeout(t *testing.T) {
 
 func TestObserverReceivesGatewayLifecycleEvents(t *testing.T) {
 	handler := newTestHandler()
-	handler.onFrame = func(ctx *gateway.Context, f frame.Frame) error {
+	handler.onFrame = func(ctx gateway.Context, f frame.Frame) error {
 		return ctx.WriteFrame(&frame.RecvPacket{Payload: []byte("ack")})
 	}
 
@@ -1497,10 +1497,10 @@ type testHandler struct {
 	framesSeen     []frame.Frame
 	contextCopies  []gateway.Context
 
-	onOpen     func(*gateway.Context) error
+	onOpen     func(gateway.Context) error
 	onActivate func(*gateway.Context) (*frame.ConnackPacket, error)
-	onFrame    func(*gateway.Context, frame.Frame) error
-	onClose    func(*gateway.Context) error
+	onFrame    func(gateway.Context, frame.Frame) error
+	onClose    func(gateway.Context) error
 }
 
 func newTestHandler() *testHandler { return &testHandler{} }
@@ -1512,12 +1512,10 @@ func (h *testHandler) OnListenerError(listener string, err error) {
 	h.listenerErrs = append(h.listenerErrs, testkit.ListenerError{Listener: listener, Err: err})
 }
 
-func (h *testHandler) OnSessionOpen(ctx *gateway.Context) error {
+func (h *testHandler) OnSessionOpen(ctx gateway.Context) error {
 	h.mu.Lock()
 	h.order = append(h.order, "open")
-	if ctx != nil {
-		h.contextCopies = append(h.contextCopies, *ctx)
-	}
+	h.contextCopies = append(h.contextCopies, ctx)
 	fn := h.onOpen
 	h.mu.Unlock()
 	if fn != nil {
@@ -1541,13 +1539,11 @@ func (h *testHandler) OnSessionActivate(ctx *gateway.Context) (*frame.ConnackPac
 	return fn(ctx)
 }
 
-func (h *testHandler) OnFrame(ctx *gateway.Context, f frame.Frame) error {
+func (h *testHandler) OnFrame(ctx gateway.Context, f frame.Frame) error {
 	h.mu.Lock()
 	h.order = append(h.order, "frame")
-	if ctx != nil {
-		h.contextCopies = append(h.contextCopies, *ctx)
-		h.closeReasonLog = append(h.closeReasonLog, ctx.CloseReason)
-	}
+	h.contextCopies = append(h.contextCopies, ctx)
+	h.closeReasonLog = append(h.closeReasonLog, ctx.CloseReason)
 	h.framesSeen = append(h.framesSeen, f)
 	fn := h.onFrame
 	h.mu.Unlock()
@@ -1557,13 +1553,11 @@ func (h *testHandler) OnFrame(ctx *gateway.Context, f frame.Frame) error {
 	return nil
 }
 
-func (h *testHandler) OnSessionClose(ctx *gateway.Context) error {
+func (h *testHandler) OnSessionClose(ctx gateway.Context) error {
 	h.mu.Lock()
 	h.order = append(h.order, "close")
-	if ctx != nil {
-		h.contextCopies = append(h.contextCopies, *ctx)
-		h.closeReasonLog = append(h.closeReasonLog, ctx.CloseReason)
-	}
+	h.contextCopies = append(h.contextCopies, ctx)
+	h.closeReasonLog = append(h.closeReasonLog, ctx.CloseReason)
 	fn := h.onClose
 	h.mu.Unlock()
 	if fn != nil {
@@ -1572,14 +1566,12 @@ func (h *testHandler) OnSessionClose(ctx *gateway.Context) error {
 	return nil
 }
 
-func (h *testHandler) OnSessionError(ctx *gateway.Context, err error) {
+func (h *testHandler) OnSessionError(ctx gateway.Context, err error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.order = append(h.order, "error")
-	if ctx != nil {
-		h.contextCopies = append(h.contextCopies, *ctx)
-		h.closeReasonLog = append(h.closeReasonLog, ctx.CloseReason)
-	}
+	h.contextCopies = append(h.contextCopies, ctx)
+	h.closeReasonLog = append(h.closeReasonLog, ctx.CloseReason)
 	h.sessionErrs = append(h.sessionErrs, err)
 }
 

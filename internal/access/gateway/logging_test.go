@@ -137,7 +137,7 @@ func TestHandleSendLogsUsecaseInvalidPersonChannel(t *testing.T) {
 	sender.SetValue(coregateway.SessionValueUID, "u1")
 	handler := New(Options{Logger: logger, Messages: &fakeMessageUsecase{sendErr: runtimechannelid.ErrInvalidPersonChannel}})
 
-	err := handler.OnFrame(newSendContext(sender), &frame.SendPacket{
+	err := handler.OnFrame(*newSendContext(sender), &frame.SendPacket{
 		ChannelID:   "u3@u4",
 		ChannelType: frame.ChannelTypePerson,
 		ClientSeq:   2,
@@ -163,7 +163,7 @@ func TestHandleSendLogsContextualWarnWithSourceModule(t *testing.T) {
 	sender.SetValue(coregateway.SessionValueUID, "u1")
 	handler := New(Options{Logger: logger, Messages: &fakeMessageUsecase{sendErr: errors.New("raft quorum unavailable")}})
 
-	err := handler.OnFrame(newSendContext(sender), &frame.SendPacket{
+	err := handler.OnFrame(*newSendContext(sender), &frame.SendPacket{
 		ChannelID:   "u2",
 		ChannelType: frame.ChannelTypePerson,
 		ClientSeq:   13,

@@ -13,11 +13,11 @@ import (
 
 type noopHandler struct{}
 
-func (noopHandler) OnListenerError(string, error)               {}
-func (noopHandler) OnSessionOpen(*gateway.Context) error        { return nil }
-func (noopHandler) OnFrame(*gateway.Context, frame.Frame) error { return nil }
-func (noopHandler) OnSessionClose(*gateway.Context) error       { return nil }
-func (noopHandler) OnSessionError(*gateway.Context, error)      {}
+func (noopHandler) OnListenerError(string, error)              {}
+func (noopHandler) OnSessionOpen(gateway.Context) error        { return nil }
+func (noopHandler) OnFrame(gateway.Context, frame.Frame) error { return nil }
+func (noopHandler) OnSessionClose(gateway.Context) error       { return nil }
+func (noopHandler) OnSessionError(gateway.Context, error)      {}
 
 func TestOptionsValidateRejectsDuplicateListenerNames(t *testing.T) {
 	opts := gateway.Options{

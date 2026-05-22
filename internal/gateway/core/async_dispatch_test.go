@@ -3,11 +3,13 @@ package core
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/gateway/session"
 	gatewaytypes "github.com/WuKongIM/WuKongIM/internal/gateway/types"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -348,6 +350,58 @@ func TestAsyncSendDispatchUsesBatchHandler(t *testing.T) {
 	}
 }
 
+func TestAsyncSendDispatchBatchItemStoresContextByValue(t *testing.T) {
+	handler := &recordingAsyncSendBatchHandler{}
+	srv := &Server{dispatcher: newDispatcher(handler)}
+	requestContext := context.WithValue(context.Background(), struct{}{}, "batch-context")
+	state := &sessionState{
+		server: srv,
+		listener: &listenerRuntime{options: gatewaytypes.ListenerOptions{
+			Name:      "listener-a",
+			Network:   "tcp",
+			Transport: "gnet",
+			Protocol:  "wkproto",
+		}},
+		session:        session.New(session.Config{ID: 1, Listener: "listener-a"}),
+		closedCh:       make(chan struct{}),
+		requestContext: requestContext,
+	}
+
+	handled := srv.dispatchSendBatch([]asyncDispatchTask{{
+		state:      state,
+		replyToken: "reply-1",
+		frame:      &frame.SendPacket{ChannelID: "c1", ClientMsgNo: "m1"},
+		enqueuedAt: time.Now(),
+	}})
+	if !handled {
+		t.Fatal("dispatchSendBatch returned false")
+	}
+
+	batches := handler.snapshotBatches()
+	if len(batches) != 1 || len(batches[0]) != 1 {
+		t.Fatalf("batches = %#v, want one batch with one item", batches)
+	}
+	item := batches[0][0]
+	if got := reflect.TypeOf(item.Context).Kind(); got != reflect.Struct {
+		t.Fatalf("SendBatchItem.Context kind = %s, want struct value", got)
+	}
+	if item.Context.Session == nil {
+		t.Fatal("batch context did not include session")
+	}
+	if got := item.Context.Listener; got != "listener-a" {
+		t.Fatalf("listener = %q, want listener-a", got)
+	}
+	if got := item.Context.ReplyToken; got != "reply-1" {
+		t.Fatalf("context reply token = %q, want reply-1", got)
+	}
+	if got := item.ReplyToken; got != "reply-1" {
+		t.Fatalf("item reply token = %q, want reply-1", got)
+	}
+	if item.Context.RequestContext != requestContext {
+		t.Fatal("batch context did not preserve request context")
+	}
+}
+
 func TestAsyncSendDispatchFallsBackToFrameHandler(t *testing.T) {
 	handler := &countingAsyncFrameHandler{}
 	srv := &Server{
@@ -417,10 +471,10 @@ type recordingAsyncSendBatchHandler struct {
 }
 
 func (h *recordingAsyncSendBatchHandler) OnListenerError(string, error) {}
-func (h *recordingAsyncSendBatchHandler) OnSessionOpen(*gatewaytypes.Context) error {
+func (h *recordingAsyncSendBatchHandler) OnSessionOpen(gatewaytypes.Context) error {
 	return nil
 }
-func (h *recordingAsyncSendBatchHandler) OnFrame(*gatewaytypes.Context, frame.Frame) error {
+func (h *recordingAsyncSendBatchHandler) OnFrame(gatewaytypes.Context, frame.Frame) error {
 	h.frameCalls.Add(1)
 	return nil
 }
@@ -430,10 +484,10 @@ func (h *recordingAsyncSendBatchHandler) OnSendBatch(items []gatewaytypes.SendBa
 	h.batches = append(h.batches, append([]gatewaytypes.SendBatchItem(nil), items...))
 	return nil
 }
-func (h *recordingAsyncSendBatchHandler) OnSessionClose(*gatewaytypes.Context) error {
+func (h *recordingAsyncSendBatchHandler) OnSessionClose(gatewaytypes.Context) error {
 	return nil
 }
-func (h *recordingAsyncSendBatchHandler) OnSessionError(*gatewaytypes.Context, error) {}
+func (h *recordingAsyncSendBatchHandler) OnSessionError(gatewaytypes.Context, error) {}
 
 func (h *recordingAsyncSendBatchHandler) snapshotBatches() [][]gatewaytypes.SendBatchItem {
 	h.mu.Lock()
@@ -471,26 +525,26 @@ func (s *recordingSendTraceSink) snapshot() []sendtrace.Event {
 }
 
 func (h *countingAsyncFrameHandler) OnListenerError(string, error) {}
-func (h *countingAsyncFrameHandler) OnSessionOpen(*gatewaytypes.Context) error {
+func (h *countingAsyncFrameHandler) OnSessionOpen(gatewaytypes.Context) error {
 	return nil
 }
-func (h *countingAsyncFrameHandler) OnFrame(*gatewaytypes.Context, frame.Frame) error {
+func (h *countingAsyncFrameHandler) OnFrame(gatewaytypes.Context, frame.Frame) error {
 	h.frames.Add(1)
 	return nil
 }
-func (h *countingAsyncFrameHandler) OnSessionClose(ctx *gatewaytypes.Context) error {
-	if ctx != nil {
+func (h *countingAsyncFrameHandler) OnSessionClose(ctx gatewaytypes.Context) error {
+	if ctx.CloseReason != "" {
 		h.mu.Lock()
 		h.closeLog = append(h.closeLog, ctx.CloseReason)
 		h.mu.Unlock()
 	}
 	return nil
 }
-func (h *countingAsyncFrameHandler) OnSessionError(ctx *gatewaytypes.Context, err error) {
+func (h *countingAsyncFrameHandler) OnSessionError(ctx gatewaytypes.Context, err error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.sessionErrs = append(h.sessionErrs, err)
-	if ctx != nil {
+	if ctx.CloseReason != "" {
 		h.closeLog = append(h.closeLog, ctx.CloseReason)
 	}
 }

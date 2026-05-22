@@ -270,21 +270,21 @@ func (h *benchmarkGatewayHandler) waitFrames() {
 
 func (h *benchmarkGatewayHandler) OnListenerError(string, error) {}
 
-func (h *benchmarkGatewayHandler) OnSessionOpen(*gateway.Context) error {
+func (h *benchmarkGatewayHandler) OnSessionOpen(gateway.Context) error {
 	return nil
 }
 
-func (h *benchmarkGatewayHandler) OnFrame(*gateway.Context, frame.Frame) error {
+func (h *benchmarkGatewayHandler) OnFrame(gateway.Context, frame.Frame) error {
 	h.frames.Add(1)
 	h.frameWG.Done()
 	return nil
 }
 
-func (h *benchmarkGatewayHandler) OnSessionClose(*gateway.Context) error {
+func (h *benchmarkGatewayHandler) OnSessionClose(gateway.Context) error {
 	return nil
 }
 
-func (h *benchmarkGatewayHandler) OnSessionError(*gateway.Context, error) {}
+func (h *benchmarkGatewayHandler) OnSessionError(gateway.Context, error) {}
 
 type blockingAsyncGatewayHandler struct {
 	started   atomic.Uint64
@@ -294,22 +294,22 @@ type blockingAsyncGatewayHandler struct {
 
 func (h *blockingAsyncGatewayHandler) OnListenerError(string, error) {}
 
-func (h *blockingAsyncGatewayHandler) OnSessionOpen(*gateway.Context) error {
+func (h *blockingAsyncGatewayHandler) OnSessionOpen(gateway.Context) error {
 	return nil
 }
 
-func (h *blockingAsyncGatewayHandler) OnFrame(*gateway.Context, frame.Frame) error {
+func (h *blockingAsyncGatewayHandler) OnFrame(gateway.Context, frame.Frame) error {
 	h.started.Add(1)
 	<-h.release
 	h.processed.Add(1)
 	return nil
 }
 
-func (h *blockingAsyncGatewayHandler) OnSessionClose(*gateway.Context) error {
+func (h *blockingAsyncGatewayHandler) OnSessionClose(gateway.Context) error {
 	return nil
 }
 
-func (h *blockingAsyncGatewayHandler) OnSessionError(*gateway.Context, error) {}
+func (h *blockingAsyncGatewayHandler) OnSessionError(gateway.Context, error) {}
 
 type testingHelper interface {
 	Helper()

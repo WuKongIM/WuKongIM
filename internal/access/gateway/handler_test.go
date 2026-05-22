@@ -96,7 +96,7 @@ func TestHandlerOnSessionOpenIsNoop(t *testing.T) {
 	handler := New(Options{Now: func() time.Time { return time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC) }})
 	ctx := newAuthedContext(t, 1, "u1")
 
-	require.NoError(t, handler.OnSessionOpen(ctx))
+	require.NoError(t, handler.OnSessionOpen(*ctx))
 
 	require.Empty(t, handler.online.ConnectionsByUID("u1"))
 	_, ok := handler.online.Connection(1)
@@ -109,7 +109,7 @@ func TestHandlerOnSessionCloseCallsPresenceDeactivate(t *testing.T) {
 	handler := newHandlerWithPresence(t, presenceUsecase, Options{Messages: msgs})
 	ctx := newAuthedContext(t, 1, "u1")
 
-	require.NoError(t, handler.OnSessionClose(ctx))
+	require.NoError(t, handler.OnSessionClose(*ctx))
 	require.Equal(t, []message.SessionClosedCommand{{
 		UID:       "u1",
 		SessionID: 1,
@@ -142,10 +142,10 @@ func TestHandlerOnSessionErrorDoesNotMutateRegistry(t *testing.T) {
 	handler := New(Options{Now: func() time.Time { return time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC) }})
 	ctx := newAuthedContext(t, 1, "u1")
 
-	require.NoError(t, handler.OnSessionOpen(ctx))
+	require.NoError(t, handler.OnSessionOpen(*ctx))
 	before := handler.online.ConnectionsByUID("u1")
 
-	handler.OnSessionError(ctx, errors.New("boom"))
+	handler.OnSessionError(*ctx, errors.New("boom"))
 
 	after := handler.online.ConnectionsByUID("u1")
 	require.Equal(t, before, after)
@@ -184,7 +184,7 @@ func TestHandlerOnFrameSendMapsCommandAndWritesSendack(t *testing.T) {
 		StreamNo:    "stream-1",
 	}
 
-	require.NoError(t, handler.OnFrame(ctx, pkt))
+	require.NoError(t, handler.OnFrame(*ctx, pkt))
 	require.Len(t, sender.Writes(), 1)
 
 	msgs := handler.messages.(*fakeMessageUsecase)
@@ -223,7 +223,7 @@ func TestHandlerOnSendBatchWritesAlignedSendacks(t *testing.T) {
 	handler := New(Options{Messages: msgs})
 	items := []coregateway.SendBatchItem{
 		{
-			Context: &coregateway.Context{
+			Context: coregateway.Context{
 				Session:        sender,
 				Listener:       "tcp",
 				ReplyToken:     "reply-1",
@@ -239,7 +239,7 @@ func TestHandlerOnSendBatchWritesAlignedSendacks(t *testing.T) {
 			},
 		},
 		{
-			Context: &coregateway.Context{
+			Context: coregateway.Context{
 				Session:        sender,
 				Listener:       "tcp",
 				ReplyToken:     "reply-2",
@@ -287,7 +287,7 @@ func TestHandlerOnSendBatchRejectsInvalidItemWithoutBlockingValidItem(t *testing
 		},
 	}
 	handler := New(Options{Messages: msgs})
-	validCtx := &coregateway.Context{
+	validCtx := coregateway.Context{
 		Session:        sender,
 		Listener:       "tcp",
 		ReplyToken:     "reply-valid",
@@ -297,7 +297,7 @@ func TestHandlerOnSendBatchRejectsInvalidItemWithoutBlockingValidItem(t *testing
 
 	err := handler.OnSendBatch([]coregateway.SendBatchItem{
 		{
-			Context: &coregateway.Context{
+			Context: coregateway.Context{
 				Session:        invalidSender,
 				Listener:       "tcp",
 				ReplyToken:     "reply-invalid",
@@ -362,7 +362,7 @@ func TestHandlerOnFrameSendPreservesBusinessDenialReason(t *testing.T) {
 		ClientMsgNo: "denied-1",
 	}
 
-	require.NoError(t, handler.OnFrame(ctx, pkt))
+	require.NoError(t, handler.OnFrame(*ctx, pkt))
 	require.Len(t, sender.Writes(), 1)
 	ack := requireSendackPacket(t, sender.Writes()[0].f)
 	require.Equal(t, frame.ReasonInBlacklist, ack.ReasonCode)
@@ -386,7 +386,7 @@ func TestHandlerOnFrameSendWritesRateLimitReason(t *testing.T) {
 		Listener:       "tcp",
 		RequestContext: context.Background(),
 	}
-	err := handler.OnFrame(ctx, &frame.SendPacket{
+	err := handler.OnFrame(*ctx, &frame.SendPacket{
 		ChannelID:   "g1",
 		ChannelType: frame.ChannelTypeGroup,
 		Payload:     []byte("hot"),
@@ -435,7 +435,7 @@ func TestHandlerOnFrameSendDecryptsEncryptedPayloadBeforeUsecase(t *testing.T) {
 		AESIV:  []byte("abcdef1234567890"),
 	})
 
-	require.NoError(t, handler.OnFrame(ctx, packet))
+	require.NoError(t, handler.OnFrame(*ctx, packet))
 	require.Len(t, msgs.sendCommands, 1)
 	require.Equal(t, []byte("hi"), msgs.sendCommands[0].Payload)
 	require.Equal(t, "", msgs.sendCommands[0].MsgKey)
@@ -470,7 +470,7 @@ func TestHandlerOnFrameSendRejectsInvalidEncryptedMsgKey(t *testing.T) {
 	})
 	packet.MsgKey = "bad-key"
 
-	require.NoError(t, handler.OnFrame(ctx, packet))
+	require.NoError(t, handler.OnFrame(*ctx, packet))
 	require.Empty(t, msgs.sendCommands)
 	require.Len(t, sender.Writes(), 1)
 	ack := requireSendackPacket(t, sender.Writes()[0].f)
@@ -512,7 +512,7 @@ func TestHandlerOnFrameSendRejectsUndecryptableEncryptedPayload(t *testing.T) {
 	require.NoError(t, err)
 	packet.MsgKey = msgKey
 
-	require.NoError(t, handler.OnFrame(ctx, packet))
+	require.NoError(t, handler.OnFrame(*ctx, packet))
 	require.Empty(t, msgs.sendCommands)
 	require.Len(t, sender.Writes(), 1)
 	ack := requireSendackPacket(t, sender.Writes()[0].f)
@@ -546,7 +546,7 @@ func TestHandlerOnFrameSendBypassesEncryptedSessionWhenPacketDisablesEncryption(
 		ClientMsgNo: "m-no-encrypt",
 	}
 
-	require.NoError(t, handler.OnFrame(ctx, packet))
+	require.NoError(t, handler.OnFrame(*ctx, packet))
 	require.Len(t, msgs.sendCommands, 1)
 	require.Equal(t, []byte("plain"), msgs.sendCommands[0].Payload)
 }
@@ -566,7 +566,7 @@ func TestHandlerOnFrameSendMapsDeviceIdentityToUsecase(t *testing.T) {
 		Listener:       "tcp",
 		RequestContext: context.Background(),
 	}
-	require.NoError(t, handler.OnFrame(ctx, &frame.SendPacket{
+	require.NoError(t, handler.OnFrame(*ctx, &frame.SendPacket{
 		ChannelID:   "u2",
 		ChannelType: frame.ChannelTypePerson,
 	}))
@@ -595,7 +595,7 @@ func TestHandlerOnFrameSendPassesPrecomposedPersonChannelToUsecase(t *testing.T)
 		RequestContext: context.Background(),
 	}
 
-	require.NoError(t, handler.OnFrame(ctx, &frame.SendPacket{
+	require.NoError(t, handler.OnFrame(*ctx, &frame.SendPacket{
 		ChannelID:   "u1@u2",
 		ChannelType: frame.ChannelTypePerson,
 		ClientSeq:   1,
@@ -619,7 +619,7 @@ func TestHandlerOnFrameSendMapsUsecaseInvalidPersonChannelError(t *testing.T) {
 		RequestContext: context.Background(),
 	}
 
-	require.NoError(t, handler.OnFrame(ctx, &frame.SendPacket{
+	require.NoError(t, handler.OnFrame(*ctx, &frame.SendPacket{
 		ChannelID:   "u3@u4",
 		ChannelType: frame.ChannelTypePerson,
 		ClientSeq:   2,
@@ -657,7 +657,7 @@ func TestHandlerOnFrameSendPropagatesRequestContext(t *testing.T) {
 		ClientMsgNo: "ctx-1",
 	}
 
-	require.NoError(t, handler.OnFrame(ctx, pkt))
+	require.NoError(t, handler.OnFrame(*ctx, pkt))
 	require.Len(t, msgs.sendContexts, 1)
 	require.Equal(t, "gateway-send", msgs.sendContexts[0].Value(ctxKey("request")))
 	_, ok := msgs.sendContexts[0].Deadline()
@@ -768,7 +768,7 @@ func TestHandlerOnFrameSendMapsCanceledRequestContextToSendack(t *testing.T) {
 		RequestContext: reqCtx,
 	}
 
-	err := handler.OnFrame(ctx, &frame.SendPacket{
+	err := handler.OnFrame(*ctx, &frame.SendPacket{
 		ChannelID:   "u2",
 		ChannelType: frame.ChannelTypePerson,
 		ClientSeq:   34,
@@ -805,7 +805,7 @@ func TestHandlerOnFrameSendMapsSendTimeoutToSendack(t *testing.T) {
 		RequestContext: context.Background(),
 	}
 
-	err := handler.OnFrame(ctx, &frame.SendPacket{
+	err := handler.OnFrame(*ctx, &frame.SendPacket{
 		ChannelID:   "u2",
 		ChannelType: frame.ChannelTypePerson,
 		ClientSeq:   35,
@@ -886,7 +886,7 @@ func TestHandlerOnFrameSendMapsChannelclusterErrorsToSendack(t *testing.T) {
 				ClientMsgNo: "m4",
 			}
 
-			require.NoError(t, handler.OnFrame(ctx, pkt))
+			require.NoError(t, handler.OnFrame(*ctx, pkt))
 			require.Len(t, sender.Writes(), 1)
 
 			ack := requireSendackPacket(t, sender.Writes()[0].f)
@@ -903,7 +903,7 @@ func TestHandlerOnFrameRecvackRoutesToMessageUsecase(t *testing.T) {
 	msgs := &fakeMessageUsecase{}
 	handler := New(Options{Messages: msgs})
 
-	err := handler.OnFrame(newAuthedContext(t, 1, "u1"), &frame.RecvackPacket{
+	err := handler.OnFrame(*newAuthedContext(t, 1, "u1"), &frame.RecvackPacket{
 		Framer:     frame.Framer{RedDot: true},
 		MessageID:  88,
 		MessageSeq: 9,
@@ -924,7 +924,7 @@ func TestHandlerOnFramePingWritesPong(t *testing.T) {
 	sender.SetValue(coregateway.SessionValueUID, "u1")
 	handler := New(Options{Messages: &fakeMessageUsecase{}})
 
-	err := handler.OnFrame(&coregateway.Context{
+	err := handler.OnFrame(coregateway.Context{
 		Session:        sender,
 		Listener:       "tcp",
 		RequestContext: context.Background(),
@@ -977,7 +977,7 @@ func TestNewSharesOnlineRegistryWithInjectedMessageApp(t *testing.T) {
 	require.Same(t, msgApp.OnlineRegistry(), handler.online)
 	require.Len(t, handler.online.ConnectionsByUID("u2"), 1)
 
-	err := handler.OnFrame(&coregateway.Context{
+	err := handler.OnFrame(coregateway.Context{
 		Session:        sender,
 		Listener:       "tcp",
 		RequestContext: context.Background(),

@@ -44,7 +44,7 @@ func (h *RecordingHandler) OnListenerError(listener string, err error) {
 	h.ListenerErrors = append(h.ListenerErrors, ListenerError{Listener: listener, Err: err})
 }
 
-func (h *RecordingHandler) OnSessionOpen(ctx *gateway.Context) error {
+func (h *RecordingHandler) OnSessionOpen(ctx gateway.Context) error {
 	if h == nil {
 		return nil
 	}
@@ -53,13 +53,11 @@ func (h *RecordingHandler) OnSessionOpen(ctx *gateway.Context) error {
 	defer h.mu.Unlock()
 
 	h.CallOrder = append(h.CallOrder, "open")
-	if ctx != nil {
-		h.Contexts = append(h.Contexts, *ctx)
-	}
+	h.Contexts = append(h.Contexts, ctx)
 	return h.OnSessionOpenErr
 }
 
-func (h *RecordingHandler) OnFrame(ctx *gateway.Context, f frame.Frame) error {
+func (h *RecordingHandler) OnFrame(ctx gateway.Context, f frame.Frame) error {
 	if h == nil {
 		return nil
 	}
@@ -68,16 +66,14 @@ func (h *RecordingHandler) OnFrame(ctx *gateway.Context, f frame.Frame) error {
 	defer h.mu.Unlock()
 
 	h.CallOrder = append(h.CallOrder, "frame")
-	if ctx != nil {
-		h.Contexts = append(h.Contexts, *ctx)
-		h.ReplyTokens = append(h.ReplyTokens, ctx.ReplyToken)
-		h.CloseReasons = append(h.CloseReasons, ctx.CloseReason)
-	}
+	h.Contexts = append(h.Contexts, ctx)
+	h.ReplyTokens = append(h.ReplyTokens, ctx.ReplyToken)
+	h.CloseReasons = append(h.CloseReasons, ctx.CloseReason)
 	h.Frames = append(h.Frames, f)
 	return h.OnFrameErr
 }
 
-func (h *RecordingHandler) OnSessionClose(ctx *gateway.Context) error {
+func (h *RecordingHandler) OnSessionClose(ctx gateway.Context) error {
 	if h == nil {
 		return nil
 	}
@@ -86,14 +82,12 @@ func (h *RecordingHandler) OnSessionClose(ctx *gateway.Context) error {
 	defer h.mu.Unlock()
 
 	h.CallOrder = append(h.CallOrder, "close")
-	if ctx != nil {
-		h.Contexts = append(h.Contexts, *ctx)
-		h.CloseReasons = append(h.CloseReasons, ctx.CloseReason)
-	}
+	h.Contexts = append(h.Contexts, ctx)
+	h.CloseReasons = append(h.CloseReasons, ctx.CloseReason)
 	return h.OnSessionCloseErr
 }
 
-func (h *RecordingHandler) OnSessionError(ctx *gateway.Context, err error) {
+func (h *RecordingHandler) OnSessionError(ctx gateway.Context, err error) {
 	if h == nil {
 		return
 	}
@@ -102,10 +96,8 @@ func (h *RecordingHandler) OnSessionError(ctx *gateway.Context, err error) {
 	defer h.mu.Unlock()
 
 	h.CallOrder = append(h.CallOrder, "error")
-	if ctx != nil {
-		h.Contexts = append(h.Contexts, *ctx)
-		h.CloseReasons = append(h.CloseReasons, ctx.CloseReason)
-	}
+	h.Contexts = append(h.Contexts, ctx)
+	h.CloseReasons = append(h.CloseReasons, ctx.CloseReason)
 	h.SessionErrors = append(h.SessionErrors, err)
 }
 
