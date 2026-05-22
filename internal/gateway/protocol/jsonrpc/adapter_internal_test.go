@@ -10,12 +10,10 @@ import (
 func TestAdapterStoresReplyTokensOnSession(t *testing.T) {
 	adapter := New()
 	sess := session.New(session.Config{
-		ID:               1,
-		Listener:         "fake-listener",
-		RemoteAddr:       "fake-remote",
-		LocalAddr:        "fake-local",
-		WriteQueueSize:   1,
-		MaxOutboundBytes: 1024,
+		ID:         1,
+		Listener:   "fake-listener",
+		RemoteAddr: "fake-remote",
+		LocalAddr:  "fake-local",
 	})
 	payload, err := pkgjsonrpc.Encode(pkgjsonrpc.PingRequest{
 		BaseRequest: pkgjsonrpc.BaseRequest{

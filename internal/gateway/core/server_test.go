@@ -725,73 +725,40 @@ func TestServer(t *testing.T) {
 		}
 	})
 
-	t.Run("OnSessionError fires before close on queue full and outbound overflow", func(t *testing.T) {
-		t.Run("queue full", func(t *testing.T) {
-			handler := newTestHandler()
-			handler.onOpen = func(ctx *gateway.Context) error {
-				if err := ctx.WriteFrame(&frame.PingPacket{}); err != nil {
-					return err
-				}
-				return ctx.WriteFrame(&frame.PingPacket{})
-			}
+	t.Run("OnSessionError fires before close on transport outbound overflow", func(t *testing.T) {
+		handler := newTestHandler()
+		handler.onFrame = func(ctx *gateway.Context, f frame.Frame) error {
+			return ctx.WriteFrame(&frame.PingPacket{})
+		}
 
-			proto := newScriptedProtocol("fake-proto")
-			proto.encodedBytes = []byte("x")
-
-			srv, transportFactory := newTestServer(t, handler, proto, gateway.SessionOptions{
-				WriteQueueSize:   1,
-				MaxOutboundBytes: 16,
-			})
-			if err := srv.Start(); err != nil {
-				t.Fatalf("start failed: %v", err)
-			}
-			t.Cleanup(func() { _ = srv.Stop() })
-
-			transportFactory.MustOpen("listener-a", 1)
-
-			waitFor(t, func() bool { return handler.closeCount() == 1 })
-			if !errors.Is(handler.sessionErrors()[0], session.ErrWriteQueueFull) {
-				t.Fatalf("expected queue full error, got %v", handler.sessionErrors())
-			}
-			if got := handler.closeReasons()[0]; got != gateway.CloseReasonWriteQueueFull {
-				t.Fatalf("expected %q, got %q", gateway.CloseReasonWriteQueueFull, got)
-			}
-			if !reflect.DeepEqual(handler.callOrder(), []string{"open", "error", "close"}) {
-				t.Fatalf("unexpected call order: %v", handler.callOrder())
-			}
+		proto := newScriptedProtocol("fake-proto")
+		proto.encodedBytes = []byte("x")
+		proto.pushDecode(decodeResult{
+			frames:   []frame.Frame{&frame.PingPacket{}},
+			consumed: 1,
 		})
 
-		t.Run("outbound overflow", func(t *testing.T) {
-			handler := newTestHandler()
-			handler.onOpen = func(ctx *gateway.Context) error {
-				return ctx.WriteFrame(&frame.PingPacket{})
-			}
+		srv, transportFactory := newTestServer(t, handler, proto, gateway.SessionOptions{})
+		if err := srv.Start(); err != nil {
+			t.Fatalf("start failed: %v", err)
+		}
+		t.Cleanup(func() { _ = srv.Stop() })
 
-			proto := newScriptedProtocol("fake-proto")
-			proto.encodedBytes = []byte("xx")
+		conn := transportFactory.MustOpen("listener-a", 1)
+		conn.SetWriteErr(transport.ErrOutboundBytesExceeded)
+		transportFactory.MustData("listener-a", 1, []byte("x"))
 
-			srv, transportFactory := newTestServer(t, handler, proto, gateway.SessionOptions{
-				WriteQueueSize:   1,
-				MaxOutboundBytes: 1,
-			})
-			if err := srv.Start(); err != nil {
-				t.Fatalf("start failed: %v", err)
-			}
-			t.Cleanup(func() { _ = srv.Stop() })
-
-			transportFactory.MustOpen("listener-a", 1)
-
-			waitFor(t, func() bool { return handler.closeCount() == 1 })
-			if !errors.Is(handler.sessionErrors()[0], session.ErrOutboundOverflow) {
-				t.Fatalf("expected outbound overflow error, got %v", handler.sessionErrors())
-			}
-			if got := handler.closeReasons()[0]; got != gateway.CloseReasonOutboundOverflow {
-				t.Fatalf("expected %q, got %q", gateway.CloseReasonOutboundOverflow, got)
-			}
-			if !reflect.DeepEqual(handler.callOrder(), []string{"open", "error", "close"}) {
-				t.Fatalf("unexpected call order: %v", handler.callOrder())
-			}
-		})
+		waitFor(t, func() bool { return handler.closeCount() == 1 })
+		if !errors.Is(handler.sessionErrors()[0], transport.ErrOutboundBytesExceeded) {
+			t.Fatalf("expected outbound overflow error, got %v", handler.sessionErrors())
+		}
+		reasons := handler.closeReasons()
+		if got := reasons[len(reasons)-1]; got != gateway.CloseReasonOutboundOverflow {
+			t.Fatalf("expected %q, got %q", gateway.CloseReasonOutboundOverflow, got)
+		}
+		if !reflect.DeepEqual(handler.callOrder(), []string{"open", "frame", "error", "close"}) {
+			t.Fatalf("unexpected call order: %v", handler.callOrder())
+		}
 	})
 
 	t.Run("peer close maps to CloseReasonPeerClosed", func(t *testing.T) {
@@ -1215,44 +1182,6 @@ func TestInboundTrafficRefreshesIdleTimeout(t *testing.T) {
 	reasons := handler.closeReasons()
 	if got := reasons[len(reasons)-1]; got != gateway.CloseReasonIdleTimeout {
 		t.Fatalf("expected %q, got %q", gateway.CloseReasonIdleTimeout, got)
-	}
-}
-
-func TestWriteTimeout(t *testing.T) {
-	handler := newTestHandler()
-	handler.onFrame = func(ctx *gateway.Context, f frame.Frame) error {
-		return ctx.WriteFrame(&frame.PingPacket{})
-	}
-
-	proto := newScriptedProtocol("fake-proto")
-	proto.encodedBytes = []byte("x")
-	proto.pushDecode(decodeResult{
-		frames:   []frame.Frame{&frame.PingPacket{}},
-		consumed: 1,
-	})
-
-	srv, transportFactory := newTestServer(t, handler, proto, gateway.SessionOptions{
-		WriteTimeout: 30 * time.Millisecond,
-	})
-	if err := srv.Start(); err != nil {
-		t.Fatalf("start failed: %v", err)
-	}
-	t.Cleanup(func() { _ = srv.Stop() })
-
-	conn := transportFactory.MustOpen("listener-a", 1)
-	conn.BlockWrites()
-	transportFactory.MustData("listener-a", 1, []byte("x"))
-
-	waitFor(t, func() bool { return handler.closeCount() == 1 })
-	reasons := handler.closeReasons()
-	if got := reasons[len(reasons)-1]; got != gateway.CloseReasonPolicyTimeout {
-		t.Fatalf("expected %q, got %q", gateway.CloseReasonPolicyTimeout, got)
-	}
-	if len(handler.sessionErrors()) != 1 {
-		t.Fatalf("expected one session error, got %d", len(handler.sessionErrors()))
-	}
-	if !errors.Is(handler.sessionErrors()[0], gateway.ErrWriteTimeout) {
-		t.Fatalf("expected write timeout error, got %v", handler.sessionErrors()[0])
 	}
 }
 

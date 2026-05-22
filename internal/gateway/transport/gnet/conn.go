@@ -50,7 +50,8 @@ type connState struct {
 	pendingBytes     int
 	maxPendingBytes  int
 	maxOutboundBytes int64
-	wake             chan struct{}
+	owner            *actorShard // owner serializes handler callbacks for this connection.
+	scheduled        atomic.Bool
 	closing          bool
 	notifyClose      bool
 
@@ -62,9 +63,9 @@ type connState struct {
 	wsWriteOp   atomic.Uint32
 	wsCloseSent atomic.Bool
 
-	outboundMu            sync.Mutex
-	outboundPendingBytes  int64
-	outboundBufferedBytes int64
+	outboundMu             sync.Mutex
+	outboundPendingBytes   int64
+	outboundBufferedBytes  int64
 	outboundWriteFrameFree []*wsWritevFrame
 	outboundWriteFrames    []*wsWritevFrame
 	outboundWriteSizes     []int
@@ -88,7 +89,6 @@ func newConnState(id uint64, raw gnetv2.Conn, runtime *listenerRuntime) *connSta
 		id:         id,
 		localAddr:  localAddr,
 		remoteAddr: raw.RemoteAddr().String(),
-		wake:       make(chan struct{}, 1),
 		mode:       mode,
 	}
 	if runtime != nil {
@@ -97,10 +97,6 @@ func newConnState(id uint64, raw gnetv2.Conn, runtime *listenerRuntime) *connSta
 	}
 	state.transport = &stateConn{state: state}
 	return state
-}
-
-func (s *connState) start() {
-	go s.run()
 }
 
 func (s *connState) enqueueOpen() {
@@ -190,10 +186,10 @@ func (s *connState) shouldNotifyClose() bool {
 }
 
 func (s *connState) signal() {
-	select {
-	case s.wake <- struct{}{}:
-	default:
+	if s == nil || s.owner == nil {
+		return
 	}
+	s.owner.schedule(s)
 }
 
 func (s *connState) nextEvent() (connEvent, bool) {
@@ -220,46 +216,60 @@ func (s *connState) releaseEvent(event connEvent) {
 	s.mu.Unlock()
 }
 
-func (s *connState) run() {
+func (s *connState) processReady() {
 	for {
 		event, ok := s.nextEvent()
 		if !ok {
-			<-s.wake
+			s.mu.Lock()
+			if len(s.queue) == 0 {
+				s.scheduled.Store(false)
+				s.mu.Unlock()
+				return
+			}
+			s.mu.Unlock()
 			continue
 		}
 
-		switch event.kind {
-		case connEventOpen:
-			if s.runtime.handler == nil || !s.runtime.shouldDispatch(s) {
-				continue
-			}
-			if err := s.runtime.handler.OnOpen(s.transport); err != nil {
-				transport.LogConnectFailure(s.runtime.opts, s.transport.ID(), s.transport.LocalAddr(), s.transport.RemoteAddr(), err)
-				s.fail(err)
-				_ = s.raw.Close()
-				continue
-			}
-			transport.LogConnectSuccess(s.runtime.opts, s.transport)
-		case connEventData:
-			if s.runtime.handler == nil || !s.runtime.shouldDispatch(s) {
-				s.releaseEvent(event)
-				continue
-			}
-			if event.op == wsOpcodeText || event.op == wsOpcodeBinary {
-				s.wsWriteOp.Store(uint32(event.op))
-			}
-			if err := s.runtime.handler.OnData(s.transport, event.data); err != nil {
-				s.fail(err)
-				_ = s.raw.Close()
-			}
-			s.releaseEvent(event)
-		case connEventClose:
-			if s.runtime.handler != nil && s.shouldNotifyClose() {
-				s.runtime.handler.OnClose(s.transport, event.err)
-			}
+		if done := s.handleEvent(event); done {
+			s.scheduled.Store(false)
 			return
 		}
 	}
+}
+
+func (s *connState) handleEvent(event connEvent) bool {
+	switch event.kind {
+	case connEventOpen:
+		if s.runtime.handler == nil || !s.runtime.shouldDispatch(s) {
+			return false
+		}
+		if err := s.runtime.handler.OnOpen(s.transport); err != nil {
+			transport.LogConnectFailure(s.runtime.opts, s.transport.ID(), s.transport.LocalAddr(), s.transport.RemoteAddr(), err)
+			s.fail(err)
+			_ = s.raw.Close()
+			return false
+		}
+		transport.LogConnectSuccess(s.runtime.opts, s.transport)
+	case connEventData:
+		if s.runtime.handler == nil || !s.runtime.shouldDispatch(s) {
+			s.releaseEvent(event)
+			return false
+		}
+		if event.op == wsOpcodeText || event.op == wsOpcodeBinary {
+			s.wsWriteOp.Store(uint32(event.op))
+		}
+		if err := s.runtime.handler.OnData(s.transport, event.data); err != nil {
+			s.fail(err)
+			_ = s.raw.Close()
+		}
+		s.releaseEvent(event)
+	case connEventClose:
+		if s.runtime.handler != nil && s.shouldNotifyClose() {
+			s.runtime.handler.OnClose(s.transport, event.err)
+		}
+		return true
+	}
+	return false
 }
 
 func (s *connState) currentMode() connMode {
@@ -659,11 +669,6 @@ func (s *connState) finishNextOutboundWrite(conn gnetv2.Conn, err error) {
 	}
 	s.outboundMu.Unlock()
 	s.releaseOutboundWriteFrame(frame)
-}
-
-// TransportManagedWriteTimeout reports that gnet AsyncWrite owns write backpressure.
-func (c *stateConn) TransportManagedWriteTimeout() bool {
-	return true
 }
 
 func (c *stateConn) Close() error {

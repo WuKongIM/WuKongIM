@@ -1,13 +1,14 @@
 package gateway
 
 import (
+	"errors"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internal/gateway/core"
 	gnettransport "github.com/WuKongIM/WuKongIM/internal/gateway/transport/gnet"
-	"github.com/WuKongIM/WuKongIM/internal/gateway/transport/stdnet"
 )
 
-func TestNewRegistersRealTransportFactories(t *testing.T) {
+func TestBuildRegistryRegistersOnlyGnetTransport(t *testing.T) {
 	registry, err := buildRegistry()
 	if err != nil {
 		t.Fatalf("buildRegistry: %v", err)
@@ -21,12 +22,8 @@ func TestNewRegistersRealTransportFactories(t *testing.T) {
 		t.Fatalf("gnet transport factory type = %T, want *gnet.Factory", gnetFactory)
 	}
 
-	stdFactory, err := registry.Transport(stdnet.Name)
-	if err != nil {
-		t.Fatalf("Transport(%q): %v", stdnet.Name, err)
-	}
-	if _, ok := stdFactory.(*stdnet.Factory); !ok {
-		t.Fatalf("stdnet transport factory type = %T, want *stdnet.Factory", stdFactory)
+	if _, err := registry.Transport("stdnet"); !errors.Is(err, core.ErrTransportFactoryNotFound) {
+		t.Fatalf("Transport(%q) error = %v, want %v", "stdnet", err, core.ErrTransportFactoryNotFound)
 	}
 }
 

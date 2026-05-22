@@ -48,12 +48,9 @@ type ListenerOptions struct {
 }
 
 type SessionOptions struct {
-	ReadBufferSize   int
-	WriteQueueSize   int
 	MaxInboundBytes  int
 	MaxOutboundBytes int
 	IdleTimeout      time.Duration
-	WriteTimeout     time.Duration
 	// AsyncSendDispatchWorkers sets the SEND worker pool size. Non-positive values use an IO-wait-aware adaptive default.
 	AsyncSendDispatchWorkers int
 	// AsyncSendBatchMaxWait bounds how long a SEND shard waits to collect adjacent frames.
@@ -73,12 +70,9 @@ const (
 
 func DefaultSessionOptions() SessionOptions {
 	return SessionOptions{
-		ReadBufferSize:           4 << 10,
-		WriteQueueSize:           64,
 		MaxInboundBytes:          1 << 20,
 		MaxOutboundBytes:         1 << 20,
 		IdleTimeout:              3 * time.Minute,
-		WriteTimeout:             10 * time.Second,
 		AsyncSendBatchMaxWait:    defaultAsyncSendBatchMaxWait,
 		AsyncSendBatchMaxRecords: defaultAsyncSendBatchMaxRecords,
 		AsyncSendBatchMaxBytes:   defaultAsyncSendBatchMaxBytes,
@@ -142,12 +136,6 @@ func NormalizeSessionOptions(opt SessionOptions) SessionOptions {
 	if opt == (SessionOptions{}) {
 		return def
 	}
-	if opt.ReadBufferSize == 0 {
-		opt.ReadBufferSize = def.ReadBufferSize
-	}
-	if opt.WriteQueueSize == 0 {
-		opt.WriteQueueSize = def.WriteQueueSize
-	}
 	if opt.MaxInboundBytes == 0 {
 		opt.MaxInboundBytes = def.MaxInboundBytes
 	}
@@ -156,9 +144,6 @@ func NormalizeSessionOptions(opt SessionOptions) SessionOptions {
 	}
 	if opt.IdleTimeout == 0 {
 		opt.IdleTimeout = def.IdleTimeout
-	}
-	if opt.WriteTimeout == 0 {
-		opt.WriteTimeout = def.WriteTimeout
 	}
 	if opt.AsyncSendBatchMaxWait == 0 {
 		opt.AsyncSendBatchMaxWait = def.AsyncSendBatchMaxWait

@@ -15,7 +15,6 @@ func BenchmarkGnetTCPOnTrafficEnqueue(b *testing.B) {
 	state := &connState{
 		raw:             conn,
 		runtime:         runtime,
-		wake:            make(chan struct{}, 1),
 		mode:            connModeTCP,
 		maxPendingBytes: 1 << 20,
 	}

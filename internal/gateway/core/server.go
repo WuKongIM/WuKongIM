@@ -35,7 +35,6 @@ const (
 	asyncDispatchMinQueuePerWorker = 128
 	// asyncDispatchMaxBufferedTasks caps retained SEND queue slots as worker shards scale up.
 	asyncDispatchMaxBufferedTasks = maxAsyncDispatchWorkers * asyncDispatchMinQueuePerWorker
-	writerIdleTimeout             = 50 * time.Millisecond
 )
 
 type Server struct {
@@ -83,7 +82,6 @@ type sessionState struct {
 	listener *listenerRuntime
 	conn     transport.Conn
 	session  session.Session
-	queue    session.EncodedQueue
 	key      connKey
 
 	inboundMu sync.Mutex
@@ -95,10 +93,8 @@ type sessionState struct {
 	authRequired     bool
 	openDispatched   bool
 
-	openDispatching    atomic.Bool
-	writerStartPending atomic.Bool
-	closeOnce          sync.Once
-	closedCh           chan struct{}
+	closeOnce sync.Once
+	closedCh  chan struct{}
 
 	requestContext       context.Context
 	cancelRequestContext context.CancelFunc
@@ -383,24 +379,16 @@ func (s *Server) onOpen(listener *listenerRuntime, conn transport.Conn) error {
 	state.touchReadActivity()
 
 	sess := session.New(session.Config{
-		ID:               s.nextSessionID.Add(1),
-		Listener:         listener.options.Name,
-		RemoteAddr:       conn.RemoteAddr(),
-		LocalAddr:        conn.LocalAddr(),
-		WriteQueueSize:   s.options.DefaultSession.WriteQueueSize,
-		MaxOutboundBytes: int64(s.options.DefaultSession.MaxOutboundBytes),
+		ID:         s.nextSessionID.Add(1),
+		Listener:   listener.options.Name,
+		RemoteAddr: conn.RemoteAddr(),
+		LocalAddr:  conn.LocalAddr(),
 		WriteFrameFn: func(f frame.Frame, meta session.OutboundMeta) error {
-			return s.encodeAndQueue(state, f, meta)
+			return s.encodeAndWrite(state, f, meta)
 		},
 	})
 
-	queue, ok := sess.(session.EncodedQueue)
-	if !ok {
-		return fmt.Errorf("gateway/core: session %T does not implement encoded queue", sess)
-	}
-
 	state.session = sess
-	state.queue = queue
 	if listener.options.Protocol != "wsmux" {
 		state.session.SetValue(gatewaytypes.SessionValueProtocolName, listener.options.Protocol)
 	}
@@ -700,8 +688,8 @@ func (s *Server) onClose(listener *listenerRuntime, conn transport.Conn, err err
 	state.close(gatewaytypes.CloseReasonPeerClosed, nil)
 }
 
-func (s *Server) encodeAndQueue(state *sessionState, f frame.Frame, meta session.OutboundMeta) error {
-	if state == nil || state.listener == nil || state.queue == nil {
+func (s *Server) encodeAndWrite(state *sessionState, f frame.Frame, meta session.OutboundMeta) error {
+	if state == nil || state.listener == nil {
 		return session.ErrSessionClosed
 	}
 
@@ -710,38 +698,7 @@ func (s *Server) encodeAndQueue(state *sessionState, f frame.Frame, meta session
 		return err
 	}
 	s.observeFrameOut(state, f, len(encoded))
-	if s.canDirectWrite(state) {
-		return s.writePayload(state, encoded)
-	}
-	if ownedQueue, ok := state.queue.(session.OwnedEncodedQueue); ok {
-		err = ownedQueue.EnqueueOwnedEncoded(encoded)
-	} else {
-		err = state.queue.EnqueueEncoded(encoded)
-	}
-	if err != nil {
-		return err
-	}
-	if state.openDispatching.Load() {
-		state.writerStartPending.Store(true)
-		return nil
-	}
-	s.startWriter(state)
-	return nil
-}
-
-func (s *Server) canDirectWrite(state *sessionState) bool {
-	if state == nil || state.conn == nil || state.openDispatching.Load() {
-		return false
-	}
-	if policy, ok := state.conn.(transport.WriteTimeoutPolicy); !ok || !policy.TransportManagedWriteTimeout() {
-		return false
-	}
-	if state.session != nil {
-		if pending, ok := state.session.(interface{ HasPendingEncoded() bool }); ok && pending.HasPendingEncoded() {
-			return false
-		}
-	}
-	return true
+	return s.writePayloadDirect(state, encoded)
 }
 
 func (s *Server) writeImmediateFrame(state *sessionState, f frame.Frame) error {
@@ -754,7 +711,7 @@ func (s *Server) writeImmediateFrame(state *sessionState, f frame.Frame) error {
 		return err
 	}
 	s.observeFrameOut(state, f, len(encoded))
-	return s.writePayload(state, encoded)
+	return s.writePayloadDirect(state, encoded)
 }
 
 func (s *Server) dispatchSessionOpen(state *sessionState) error {
@@ -763,82 +720,7 @@ func (s *Server) dispatchSessionOpen(state *sessionState) error {
 	}
 
 	state.markOpenDispatched()
-	state.openDispatching.Store(true)
-	err := s.dispatcher.sessionOpen(state)
-	state.openDispatching.Store(false)
-	if err != nil {
-		return err
-	}
-	if state.writerStartPending.Swap(false) {
-		s.startWriter(state)
-	}
-	return nil
-}
-
-func (s *Server) startWriter(state *sessionState) {
-	if state == nil || state.queue == nil || state.conn == nil {
-		return
-	}
-	starter, ok := state.session.(interface{ TryStartWriter() bool })
-	if !ok || !starter.TryStartWriter() {
-		return
-	}
-
-	s.mu.Lock()
-	if s.stopped || state.isClosed() {
-		s.mu.Unlock()
-		if ender, ok := state.session.(interface{ EndWriter() }); ok {
-			ender.EndWriter()
-		}
-		return
-	}
-	s.workerWG.Add(1)
-	s.mu.Unlock()
-
-	go func() {
-		defer s.workerWG.Done()
-		defer func() {
-			if ender, ok := state.session.(interface{ EndWriter() }); ok {
-				ender.EndWriter()
-			}
-		}()
-
-		for {
-			payload, ok := dequeueEncodedWithTimeout(state.queue, writerIdleTimeout)
-			if !ok {
-				if stopper, ok := state.session.(interface{ TryStopWriterIfIdle() bool }); ok && stopper.TryStopWriterIfIdle() {
-					return
-				}
-				continue
-			}
-			err := s.writePayload(state, payload)
-			state.queue.ReleaseEncoded(payload)
-			if err != nil {
-				reason := closeReasonForError(err, gatewaytypes.CloseReasonPeerClosed)
-				reportErr := err
-				if isTimeoutError(err) {
-					reason = gatewaytypes.CloseReasonPolicyTimeout
-					reportErr = gatewaytypes.ErrWriteTimeout
-				}
-				state.close(reason, reportErr)
-				return
-			}
-		}
-	}()
-}
-
-type encodedQueueWithTimeout interface {
-	DequeueEncodedWithTimeout(timeout time.Duration) ([]byte, bool)
-}
-
-func dequeueEncodedWithTimeout(queue session.EncodedQueue, timeout time.Duration) ([]byte, bool) {
-	if queue == nil {
-		return nil, false
-	}
-	if timed, ok := queue.(encodedQueueWithTimeout); ok {
-		return timed.DequeueEncodedWithTimeout(timeout)
-	}
-	return queue.DequeueEncoded()
+	return s.dispatcher.sessionOpen(state)
 }
 
 // startIdleMonitor starts one shared deadline monitor for all sessions on this server.
@@ -1361,51 +1243,10 @@ func (s *Server) handleHandlerError(state *sessionState, err error) {
 	s.dispatcher.sessionError(state, reason, err)
 }
 
-type writeDeadlineConn interface {
-	SetWriteDeadline(time.Time) error
-}
-
-func (s *Server) writePayload(state *sessionState, payload []byte) error {
+func (s *Server) writePayloadDirect(state *sessionState, payload []byte) error {
 	if state == nil || state.conn == nil {
 		return session.ErrSessionClosed
 	}
-
-	timeout := s.options.DefaultSession.WriteTimeout
-	if timeout <= 0 {
-		return s.writePayloadDirect(state, payload)
-	}
-
-	if policy, ok := state.conn.(transport.WriteTimeoutPolicy); ok && policy.TransportManagedWriteTimeout() {
-		return s.writePayloadDirect(state, payload)
-	}
-
-	if deadlineConn, ok := state.conn.(writeDeadlineConn); ok {
-		if err := deadlineConn.SetWriteDeadline(time.Now().Add(timeout)); err != nil {
-			return err
-		}
-		defer func() {
-			_ = deadlineConn.SetWriteDeadline(time.Time{})
-		}()
-		return s.writePayloadDirect(state, payload)
-	}
-
-	done := make(chan error, 1)
-	go func() {
-		done <- s.writePayloadDirect(state, payload)
-	}()
-
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	select {
-	case err := <-done:
-		return err
-	case <-timer.C:
-		return gatewaytypes.ErrWriteTimeout
-	}
-}
-
-func (s *Server) writePayloadDirect(state *sessionState, payload []byte) error {
 	if writer, ok := state.conn.(transport.WebSocketMessageWriter); ok {
 		if messageType := webSocketMessageTypeForState(state); messageType != transport.WebSocketMessageUnknown {
 			return writer.WriteWebSocketMessage(payload, messageType)
@@ -1435,29 +1276,10 @@ func webSocketMessageTypeForState(state *sessionState) transport.WebSocketMessag
 	}
 }
 
-func isTimeoutError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, gatewaytypes.ErrWriteTimeout) {
-		return true
-	}
-
-	type timeout interface {
-		Timeout() bool
-	}
-	var te timeout
-	return errors.As(err, &te) && te.Timeout()
-}
-
 func closeReasonForError(err error, fallback gatewaytypes.CloseReason) gatewaytypes.CloseReason {
 	switch {
 	case errors.Is(err, gatewaytypes.ErrAsyncDispatchQueueFull):
 		return gatewaytypes.CloseReasonAsyncDispatchQueueFull
-	case errors.Is(err, session.ErrWriteQueueFull):
-		return gatewaytypes.CloseReasonWriteQueueFull
-	case errors.Is(err, session.ErrOutboundOverflow):
-		return gatewaytypes.CloseReasonOutboundOverflow
 	case errors.Is(err, transport.ErrOutboundBytesExceeded):
 		return gatewaytypes.CloseReasonOutboundOverflow
 	default:

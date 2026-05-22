@@ -8,7 +8,6 @@ import (
 	protowkproto "github.com/WuKongIM/WuKongIM/internal/gateway/protocol/wkproto"
 	protowsmux "github.com/WuKongIM/WuKongIM/internal/gateway/protocol/wsmux"
 	gnettransport "github.com/WuKongIM/WuKongIM/internal/gateway/transport/gnet"
-	"github.com/WuKongIM/WuKongIM/internal/gateway/transport/stdnet"
 )
 
 type Gateway struct {
@@ -81,9 +80,6 @@ func buildRegistry(options ...TransportOptions) (*core.Registry, error) {
 	}
 
 	registry := core.NewRegistry()
-	if err := registry.RegisterTransport(stdnet.NewFactory()); err != nil {
-		return nil, err
-	}
 	if err := registry.RegisterTransport(gnettransport.NewFactory(gnetOptionsFromGateway(transportOptions.Gnet))); err != nil {
 		return nil, err
 	}

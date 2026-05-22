@@ -378,14 +378,6 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 	if err != nil {
 		return app.Config{}, err
 	}
-	readBufferSize, err := parseInt(v, "WK_GATEWAY_DEFAULT_SESSION_READ_BUFFER_SIZE")
-	if err != nil {
-		return app.Config{}, err
-	}
-	writeQueueSize, err := parseInt(v, "WK_GATEWAY_DEFAULT_SESSION_WRITE_QUEUE_SIZE")
-	if err != nil {
-		return app.Config{}, err
-	}
 	maxInboundBytes, err := parseInt(v, "WK_GATEWAY_DEFAULT_SESSION_MAX_INBOUND_BYTES")
 	if err != nil {
 		return app.Config{}, err
@@ -395,10 +387,6 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 		return app.Config{}, err
 	}
 	idleTimeout, err := parseDuration(v, "WK_GATEWAY_DEFAULT_SESSION_IDLE_TIMEOUT")
-	if err != nil {
-		return app.Config{}, err
-	}
-	writeTimeout, err := parseDuration(v, "WK_GATEWAY_DEFAULT_SESSION_WRITE_TIMEOUT")
 	if err != nil {
 		return app.Config{}, err
 	}
@@ -845,12 +833,9 @@ func buildAppConfig(v *viper.Viper) (app.Config, error) {
 			TokenAuthOn: tokenAuthOn,
 			SendTimeout: gatewaySendTimeout,
 			DefaultSession: gateway.SessionOptions{
-				ReadBufferSize:           readBufferSize,
-				WriteQueueSize:           writeQueueSize,
 				MaxInboundBytes:          maxInboundBytes,
 				MaxOutboundBytes:         maxOutboundBytes,
 				IdleTimeout:              idleTimeout,
-				WriteTimeout:             writeTimeout,
 				AsyncSendDispatchWorkers: asyncSendDispatchWorkers,
 				AsyncSendBatchMaxWait:    asyncSendBatchMaxWait,
 				AsyncSendBatchMaxRecords: asyncSendBatchMaxRecords,

@@ -10,7 +10,6 @@ import (
 
 func TestConnStateRejectsDataOverPendingByteLimit(t *testing.T) {
 	state := &connState{
-		wake:            make(chan struct{}, 1),
 		maxPendingBytes: 4,
 	}
 
@@ -167,7 +166,6 @@ func TestGnetTCPOnTrafficRejectsOversizedPayloadBeforeCopy(t *testing.T) {
 	state := &connState{
 		raw:             conn,
 		runtime:         runtime,
-		wake:            make(chan struct{}, 1),
 		mode:            connModeTCP,
 		maxPendingBytes: 4,
 		queue:           make([]connEvent, 0, 1),

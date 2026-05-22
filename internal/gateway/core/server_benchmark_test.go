@@ -96,6 +96,7 @@ func BenchmarkServerOpenIdleSessionBatch(b *testing.B) {
 			b.ReportMetric(sessionsPerBatch, "sessions/op")
 
 			for i := 0; i < b.N; i++ {
+				b.StopTimer()
 				handler := &benchmarkGatewayHandler{}
 				proto := &benchmarkGatewayProtocol{name: benchmarkProtocolName}
 				srv, transportFactory := newBenchmarkGatewayServer(b, handler, proto, gateway.SessionOptions{
@@ -104,20 +105,24 @@ func BenchmarkServerOpenIdleSessionBatch(b *testing.B) {
 				if err := srv.Start(); err != nil {
 					b.Fatalf("start failed: %v", err)
 				}
+				b.StartTimer()
 
 				baseConnID := uint64(i*sessionsPerBatch + 1)
 				for j := 0; j < sessionsPerBatch; j++ {
 					transportFactory.MustOpen(benchmarkListenerName, baseConnID+uint64(j))
 				}
+				b.StopTimer()
 				if err := srv.Stop(); err != nil {
 					b.Fatalf("stop failed: %v", err)
 				}
+				b.StartTimer()
 			}
 		})
 	}
 }
 
 func BenchmarkServerSendDispatch(b *testing.B) {
+	b.StopTimer()
 	handler := &benchmarkGatewayHandler{}
 	proto := &benchmarkGatewayProtocol{
 		name: benchmarkProtocolName,
@@ -135,17 +140,12 @@ func BenchmarkServerSendDispatch(b *testing.B) {
 	if err := srv.Start(); err != nil {
 		b.Fatalf("start failed: %v", err)
 	}
-	defer func() {
-		if err := srv.Stop(); err != nil {
-			b.Fatalf("stop failed: %v", err)
-		}
-	}()
 
 	conn := transportFactory.MustOpen(benchmarkListenerName, 1)
 	payload := []byte("x")
 
 	b.ReportAllocs()
-	b.ResetTimer()
+	b.StartTimer()
 	for sent := 0; sent < b.N; {
 		// Keep a single-channel burst below the minimum shard capacity so the
 		// benchmark measures dispatch cost instead of queue-overflow closure.
@@ -160,6 +160,9 @@ func BenchmarkServerSendDispatch(b *testing.B) {
 		sent += burst
 	}
 	b.StopTimer()
+	if err := srv.Stop(); err != nil {
+		b.Fatalf("stop failed: %v", err)
+	}
 }
 
 func measureGatewaySessionGoroutines(t *testing.T, sessions int, idleTimeout time.Duration) int {
@@ -220,8 +223,9 @@ func newBenchmarkGatewayServer(b testingHelper, handler gateway.Handler, proto *
 }
 
 type benchmarkGatewayProtocol struct {
-	name  string
-	frame frame.Frame
+	name   string
+	frame  frame.Frame
+	frames []frame.Frame
 }
 
 func (p *benchmarkGatewayProtocol) Name() string {
@@ -232,7 +236,11 @@ func (p *benchmarkGatewayProtocol) Decode(_ session.Session, in []byte) ([]frame
 	if p.frame == nil || len(in) == 0 {
 		return nil, 0, nil
 	}
-	return []frame.Frame{p.frame}, len(in), nil
+	if len(p.frames) == 0 {
+		p.frames = make([]frame.Frame, 1)
+	}
+	p.frames[0] = p.frame
+	return p.frames, len(in), nil
 }
 
 func (p *benchmarkGatewayProtocol) Encode(session.Session, frame.Frame, session.OutboundMeta) ([]byte, error) {

@@ -136,6 +136,7 @@ type engineGroup struct {
 	stopEngineFn  func(engine gnetv2.Engine, cycle *engineCycle) error
 
 	nextConnID atomic.Uint64
+	actors     atomic.Pointer[actorPool] // active actor pool for the running engine.
 }
 
 func newEngineGroup(specs []transport.ListenerSpec) *engineGroup {
@@ -297,6 +298,9 @@ func (g *engineGroup) stop(runtime *listenerRuntime) error {
 
 func (g *engineGroup) startEngine(runtimes []*listenerRuntime) error {
 	cycle := newEngineCycle()
+	actors := newActorPool(0)
+	actors.start()
+	g.actors.Store(actors)
 
 	g.mu.Lock()
 	g.cycle = cycle
@@ -317,6 +321,9 @@ func (g *engineGroup) startEngine(runtimes []*listenerRuntime) error {
 	}()
 
 	if err := <-cycle.bootCh; err != nil {
+		if g.actors.CompareAndSwap(actors, nil) {
+			actors.stop()
+		}
 		g.mu.Lock()
 		if g.cycle == cycle {
 			g.cycle = nil
@@ -368,17 +375,23 @@ func (g *engineGroup) restartEngine(engine gnetv2.Engine, cycle *engineCycle, de
 }
 
 func (g *engineGroup) stopEngine(engine gnetv2.Engine, cycle *engineCycle) error {
+	var err error
 	if g.stopEngineFn != nil {
-		return g.stopEngineFn(engine, cycle)
+		err = g.stopEngineFn(engine, cycle)
+	} else {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err = engine.Stop(ctx)
+		cancel()
+
+		if cycle != nil {
+			if runErr, ok := <-cycle.doneCh; ok && err == nil {
+				err = runErr
+			}
+		}
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err := engine.Stop(ctx)
-	cancel()
-
-	if cycle != nil {
-		if runErr, ok := <-cycle.doneCh; ok && err == nil {
-			err = runErr
+	if err == nil {
+		if actors := g.actors.Swap(nil); actors != nil {
+			actors.stop()
 		}
 	}
 	return err
@@ -417,12 +430,19 @@ func (g *engineGroup) OnOpen(c gnetv2.Conn) (out []byte, action gnetv2.Action) {
 	}
 
 	state := newConnState(g.nextConnID.Add(1), c, runtime)
+	actors := g.actors.Load()
+	if actors == nil {
+		return nil, gnetv2.Close
+	}
+	state.owner = actors.shardForConn(state.id)
+	if state.owner == nil {
+		return nil, gnetv2.Close
+	}
 	if !runtime.admitConn(state) {
 		return nil, gnetv2.Close
 	}
 
 	c.SetContext(state)
-	state.start()
 	if runtime.opts.Network == "tcp" {
 		state.enqueueOpen()
 	}

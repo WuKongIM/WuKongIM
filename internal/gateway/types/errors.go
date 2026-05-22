@@ -16,7 +16,6 @@ var (
 	ErrSessionClosed            = errors.New("gateway: session is closed")
 	ErrInboundOverflow          = errors.New("gateway: inbound bytes limit exceeded")
 	ErrAsyncDispatchQueueFull   = errors.New("gateway: async send dispatch queue is full")
-	ErrWriteTimeout             = errors.New("gateway: write timeout")
 	ErrIdleTimeout              = errors.New("gateway: idle timeout")
 )
 
@@ -28,9 +27,7 @@ const (
 	CloseReasonProtocolError          CloseReason = "protocol_error"
 	CloseReasonInboundOverflow        CloseReason = "inbound_overflow"
 	CloseReasonPolicyViolation        CloseReason = "policy_violation"
-	CloseReasonPolicyTimeout          CloseReason = "policy_timeout"
 	CloseReasonAsyncDispatchQueueFull CloseReason = "async_dispatch_queue_full"
-	CloseReasonWriteQueueFull         CloseReason = "write_queue_full"
 	CloseReasonOutboundOverflow       CloseReason = "outbound_overflow"
 	CloseReasonIdleTimeout            CloseReason = "idle_timeout"
 	CloseReasonHandlerError           CloseReason = "handler_error"

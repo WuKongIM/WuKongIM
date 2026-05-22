@@ -4,16 +4,11 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
-var (
-	ErrSessionClosed    = errors.New("gateway/session: session is closed")
-	ErrWriteQueueFull   = errors.New("gateway/session: write queue is full")
-	ErrOutboundOverflow = errors.New("gateway/session: outbound bytes limit exceeded")
-)
+var ErrSessionClosed = errors.New("gateway/session: session is closed")
 
 type Session interface {
 	ID() uint64
@@ -26,18 +21,6 @@ type Session interface {
 
 	SetValue(key string, value any)
 	Value(key string) any
-}
-
-type EncodedQueue interface {
-	EnqueueEncoded(payload []byte) error
-	DequeueEncoded() ([]byte, bool)
-	ReleaseEncoded(payload []byte)
-}
-
-// OwnedEncodedQueue accepts buffers whose ownership has been transferred to the session queue.
-type OwnedEncodedQueue interface {
-	// EnqueueOwnedEncoded queues payload without copying; callers must not mutate it afterwards.
-	EnqueueOwnedEncoded(payload []byte) error
 }
 
 type WriteOption interface {
@@ -61,13 +44,11 @@ func WithReplyToken(token string) WriteOption {
 }
 
 type Config struct {
-	ID               uint64
-	Listener         string
-	RemoteAddr       string
-	LocalAddr        string
-	WriteQueueSize   int
-	MaxOutboundBytes int64
-	WriteFrameFn     WriteFrameFn
+	ID           uint64
+	Listener     string
+	RemoteAddr   string
+	LocalAddr    string
+	WriteFrameFn WriteFrameFn
 }
 
 func New(cfg Config) Session {
@@ -76,8 +57,6 @@ func New(cfg Config) Session {
 		cfg.Listener,
 		cfg.RemoteAddr,
 		cfg.LocalAddr,
-		cfg.WriteQueueSize,
-		cfg.MaxOutboundBytes,
 		cfg.WriteFrameFn,
 	)
 }
@@ -91,16 +70,10 @@ type session struct {
 	hotValues atomic.Pointer[sessionHotValues]
 	values    sync.Map
 
-	writeMu          sync.Mutex
-	closing          atomic.Bool
-	closed           atomic.Bool
-	queueMu          sync.Mutex
-	writeQueueSize   int
-	writeCh          chan []byte
-	writerRunning    bool
-	outboundBytes    int64
-	maxOutboundBytes int64
-	writeFrameFn     WriteFrameFn
+	writeMu      sync.Mutex
+	closing      atomic.Bool
+	closed       atomic.Bool
+	writeFrameFn WriteFrameFn
 }
 
 // These keys mirror gateway/types session value keys without importing that package.
@@ -141,21 +114,13 @@ type sessionHotValues struct {
 	cryptoSet            bool
 }
 
-func newSession(id uint64, listener, remoteAddr, localAddr string, writeQueueSize int, maxOutboundBytes int64, writeFrameFn WriteFrameFn) *session {
-	if writeQueueSize <= 0 {
-		writeQueueSize = 1
-	}
-	if maxOutboundBytes < 0 {
-		maxOutboundBytes = 0
-	}
+func newSession(id uint64, listener, remoteAddr, localAddr string, writeFrameFn WriteFrameFn) *session {
 	return &session{
-		id:               id,
-		listener:         listener,
-		remoteAddr:       remoteAddr,
-		localAddr:        localAddr,
-		writeQueueSize:   writeQueueSize,
-		maxOutboundBytes: maxOutboundBytes,
-		writeFrameFn:     writeFrameFn,
+		id:           id,
+		listener:     listener,
+		remoteAddr:   remoteAddr,
+		localAddr:    localAddr,
+		writeFrameFn: writeFrameFn,
 	}
 }
 
@@ -223,132 +188,7 @@ func (s *session) Close() error {
 		return nil
 	}
 	s.closed.Store(true)
-	s.queueMu.Lock()
-	if s.writeCh != nil {
-		close(s.writeCh)
-	}
-	s.queueMu.Unlock()
 	return nil
-}
-
-// TryStartWriter marks the session writer as running if it is currently idle.
-func (s *session) TryStartWriter() bool {
-	if s == nil {
-		return false
-	}
-
-	s.queueMu.Lock()
-	defer s.queueMu.Unlock()
-	if s.closed.Load() || s.writeCh == nil || s.writerRunning {
-		return false
-	}
-	s.writerRunning = true
-	return true
-}
-
-// EndWriter marks the session writer as idle.
-func (s *session) EndWriter() {
-	if s == nil {
-		return
-	}
-
-	s.queueMu.Lock()
-	s.writerRunning = false
-	s.queueMu.Unlock()
-}
-
-// WriterRunning reports whether the session currently has an active writer goroutine.
-func (s *session) WriterRunning() bool {
-	if s == nil {
-		return false
-	}
-
-	s.queueMu.Lock()
-	running := s.writerRunning
-	s.queueMu.Unlock()
-	return running
-}
-
-// TryStopWriterIfIdle marks the writer idle when there are no queued or in-flight payloads left.
-func (s *session) TryStopWriterIfIdle() bool {
-	if s == nil {
-		return true
-	}
-
-	s.queueMu.Lock()
-	defer s.queueMu.Unlock()
-	if s.closed.Load() {
-		s.writerRunning = false
-		return true
-	}
-	if s.writeCh != nil && (len(s.writeCh) > 0 || s.outboundBytes > 0) {
-		return false
-	}
-	s.writerRunning = false
-	return true
-}
-
-// DequeueEncodedWithTimeout waits for the next encoded payload up to the provided timeout.
-func (s *session) DequeueEncodedWithTimeout(timeout time.Duration) ([]byte, bool) {
-	if s == nil {
-		return nil, false
-	}
-	if s.writeCh == nil {
-		return nil, false
-	}
-	if timeout <= 0 {
-		payload, ok := <-s.writeCh
-		if !ok {
-			return nil, false
-		}
-		return payload, true
-	}
-
-	select {
-	case payload, ok := <-s.writeCh:
-		if !ok {
-			return nil, false
-		}
-		return payload, true
-	default:
-	}
-
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	select {
-	case payload, ok := <-s.writeCh:
-		if !ok {
-			return nil, false
-		}
-		return payload, true
-	case <-timer.C:
-		return nil, false
-	}
-}
-
-// WriteQueueAllocated reports whether the session has created its outbound queue.
-func (s *session) WriteQueueAllocated() bool {
-	if s == nil {
-		return false
-	}
-
-	s.queueMu.Lock()
-	allocated := s.writeCh != nil
-	s.queueMu.Unlock()
-	return allocated
-}
-
-// HasPendingEncoded reports whether the session has buffered or in-flight encoded payloads.
-func (s *session) HasPendingEncoded() bool {
-	if s == nil {
-		return false
-	}
-
-	s.queueMu.Lock()
-	pending := s.writeCh != nil && (len(s.writeCh) > 0 || s.outboundBytes > 0)
-	s.queueMu.Unlock()
-	return pending
 }
 
 func (s *session) SetValue(key string, value any) {
@@ -506,84 +346,4 @@ func (v *sessionHotValues) value(key string) any {
 		}
 	}
 	return nil
-}
-
-func (s *session) enqueueEncoded(payload []byte) error {
-	return s.enqueueOwnedEncoded(append([]byte(nil), payload...))
-}
-
-func (s *session) enqueueOwnedEncoded(payload []byte) error {
-	if s == nil {
-		return ErrSessionClosed
-	}
-	size := int64(len(payload))
-
-	if s.closed.Load() {
-		return ErrSessionClosed
-	}
-	s.queueMu.Lock()
-	defer s.queueMu.Unlock()
-
-	if s.closed.Load() {
-		return ErrSessionClosed
-	}
-	if s.maxOutboundBytes > 0 && s.outboundBytes+size > s.maxOutboundBytes {
-		return ErrOutboundOverflow
-	}
-	if s.writeCh == nil {
-		s.writeCh = make(chan []byte, s.writeQueueSize)
-	}
-
-	select {
-	case s.writeCh <- payload:
-		s.outboundBytes += size
-		return nil
-	default:
-		return ErrWriteQueueFull
-	}
-}
-
-func (s *session) dequeueEncoded() ([]byte, bool) {
-	if s == nil {
-		return nil, false
-	}
-	if s.writeCh == nil {
-		return nil, false
-	}
-
-	payload, ok := <-s.writeCh
-	if !ok {
-		return nil, false
-	}
-
-	return payload, true
-}
-
-func (s *session) releaseEncoded(payload []byte) {
-	if s == nil || len(payload) == 0 {
-		return
-	}
-
-	s.queueMu.Lock()
-	s.outboundBytes -= int64(len(payload))
-	if s.outboundBytes < 0 {
-		s.outboundBytes = 0
-	}
-	s.queueMu.Unlock()
-}
-
-func (s *session) EnqueueEncoded(payload []byte) error {
-	return s.enqueueEncoded(payload)
-}
-
-func (s *session) EnqueueOwnedEncoded(payload []byte) error {
-	return s.enqueueOwnedEncoded(payload)
-}
-
-func (s *session) DequeueEncoded() ([]byte, bool) {
-	return s.dequeueEncoded()
-}
-
-func (s *session) ReleaseEncoded(payload []byte) {
-	s.releaseEncoded(payload)
 }
