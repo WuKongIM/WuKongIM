@@ -168,6 +168,21 @@ func TestChannelPlaneCancelsQueuedFutureOnContextDone(t *testing.T) {
 	require.Eventually(t, func() bool { return owner.startedCount() == 1 }, time.Second, 10*time.Millisecond)
 }
 
+func TestReactorSubmitAfterStopRejectsWithoutEnqueue(t *testing.T) {
+	p, err := New(Options{ReactorCount: 1, LocalNode: 1, Resolver: staticResolver{route: localRoute("stop-submit")}, LocalOwner: noopOwner{}})
+	require.NoError(t, err)
+	r := p.reactors[0]
+	r.stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	for i := 0; i < 2000; i++ {
+		err := r.submit(ctx, &appendCommand{ctx: ctx, req: appendReq("stop-submit", uint64(i+1)), future: newAppendFuture()})
+		require.ErrorIs(t, err, ErrClosed)
+		require.Empty(t, r.inbox)
+	}
+}
+
 func TestChannelPlaneUsesPeerReactorForRemoteLeader(t *testing.T) {
 	peer := &recordingPlanePeerClient{}
 	p, err := New(Options{ReactorCount: 1, LocalNode: 1, Resolver: staticResolver{route: remoteRoute("remote", 2)}, LocalOwner: noopOwner{}, PeerClient: peer, PeerBatchMaxWait: time.Millisecond})
@@ -208,6 +223,61 @@ func TestChannelCellRefreshesRouteAndRetriesStaleLocalAppend(t *testing.T) {
 	require.Equal(t, []uint64{9, 10}, owner.epochs())
 	require.Equal(t, []uint64{7}, resolver.invalidatedGenerations())
 	require.Equal(t, 2, resolver.callCount())
+}
+
+func TestChannelCellRefreshesRouteAndRetriesWriteFencedLocalAppend(t *testing.T) {
+	resolver := &sequenceResolver{routes: []ChannelRoute{
+		localRoute("retry-write-fenced-local"),
+		{ChannelID: channel.ChannelID{ID: "retry-write-fenced-local", Type: 1}, Leader: 1, RouteGeneration: 8, ChannelEpoch: 10, LeaderEpoch: 12, Status: channel.StatusActive},
+	}}
+	owner := &epochErrorOwner{
+		errEpoch:     9,
+		err:          channel.ErrWriteFenced,
+		successEpoch: 10,
+	}
+	p, err := New(Options{ReactorCount: 1, LocalNode: 1, Resolver: resolver, LocalOwner: owner})
+	require.NoError(t, err)
+	require.NoError(t, p.Start())
+	defer stopPlane(t, p)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err := p.AppendBatch(ctx, appendReq("retry-write-fenced-local", 1))
+
+	require.NoError(t, err)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, uint64(100), result.Items[0].MessageSeq)
+	require.Equal(t, []uint64{9, 10}, owner.epochs())
+	require.Equal(t, []uint64{7}, resolver.invalidatedGenerations())
+	require.Equal(t, 2, resolver.callCount())
+}
+
+func TestChannelCellRefreshesRouteAndRetriesWriteFencedRemoteAppend(t *testing.T) {
+	first := remoteRoute("retry-write-fenced-remote", 2)
+	second := first
+	second.RouteGeneration = 8
+	second.ChannelEpoch = 10
+	second.LeaderEpoch = 12
+	resolver := &sequenceResolver{routes: []ChannelRoute{first, second}}
+	peer := &sequencePlanePeerClient{results: []AppendBatchRemoteResult{
+		{Status: RemoteAppendStatusWriteFenced},
+		{Status: RemoteAppendStatusOK, Result: channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{MessageSeq: 200}}}},
+	}}
+	p, err := New(Options{ReactorCount: 1, LocalNode: 1, Resolver: resolver, LocalOwner: noopOwner{}, PeerClient: peer, PeerBatchMaxWait: time.Millisecond})
+	require.NoError(t, err)
+	require.NoError(t, p.Start())
+	defer stopPlane(t, p)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	result, err := p.AppendBatch(ctx, appendReq("retry-write-fenced-remote", 1))
+
+	require.NoError(t, err)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, uint64(200), result.Items[0].MessageSeq)
+	require.Equal(t, []uint64{7}, resolver.invalidatedGenerations())
+	require.Equal(t, 2, resolver.callCount())
+	require.Equal(t, []uint64{9, 10}, peer.channelEpochs())
 }
 
 func TestChannelCellRefreshesExpiredCachedRouteBeforeAppend(t *testing.T) {
@@ -345,6 +415,34 @@ func (o *epochCheckingOwner) AppendLocalBatch(_ context.Context, req channel.App
 }
 
 func (o *epochCheckingOwner) epochs() []uint64 {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]uint64(nil), o.seenEpochs...)
+}
+
+type epochErrorOwner struct {
+	mu           sync.Mutex
+	errEpoch     uint64
+	err          error
+	successEpoch uint64
+	seenEpochs   []uint64
+}
+
+func (o *epochErrorOwner) AppendLocalBatch(_ context.Context, req channel.AppendBatchRequest) (channel.AppendBatchResult, error) {
+	o.mu.Lock()
+	o.seenEpochs = append(o.seenEpochs, req.ExpectedChannelEpoch)
+	o.mu.Unlock()
+	switch req.ExpectedChannelEpoch {
+	case o.errEpoch:
+		return channel.AppendBatchResult{}, o.err
+	case o.successEpoch:
+		return channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{MessageSeq: 100}}}, nil
+	default:
+		return channel.AppendBatchResult{}, channel.ErrInvalidArgument
+	}
+}
+
+func (o *epochErrorOwner) epochs() []uint64 {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return append([]uint64(nil), o.seenEpochs...)
@@ -491,4 +589,31 @@ func (r *recordingPlanePeerClient) AppendBatches(_ context.Context, nodeID chann
 	r.nodeID = nodeID
 	r.req = req
 	return AppendBatchesResponse{Results: []AppendBatchRemoteResult{{Status: RemoteAppendStatusOK, Result: channel.AppendBatchResult{Items: []channel.AppendBatchItemResult{{MessageSeq: 1}}}}}}, nil
+}
+
+type sequencePlanePeerClient struct {
+	mu      sync.Mutex
+	results []AppendBatchRemoteResult
+	epochs  []uint64
+}
+
+func (p *sequencePlanePeerClient) AppendBatches(_ context.Context, _ channel.NodeID, req AppendBatchesRequest) (AppendBatchesResponse, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(req.Batches) != 1 {
+		return AppendBatchesResponse{}, channel.ErrInvalidArgument
+	}
+	p.epochs = append(p.epochs, req.Batches[0].RouteEpoch.ChannelEpoch)
+	if len(p.results) == 0 {
+		return AppendBatchesResponse{}, channel.ErrInvalidConfig
+	}
+	result := p.results[0]
+	p.results = p.results[1:]
+	return AppendBatchesResponse{Results: []AppendBatchRemoteResult{result}}, nil
+}
+
+func (p *sequencePlanePeerClient) channelEpochs() []uint64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]uint64(nil), p.epochs...)
 }
