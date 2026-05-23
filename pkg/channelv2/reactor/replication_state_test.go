@@ -896,6 +896,10 @@ func (t *capturingTransport) Notify(ctx context.Context, node ch.NodeID, req tra
 	return nil
 }
 
+func (t *capturingTransport) PullHint(ctx context.Context, node ch.NodeID, req transport.PullHintRequest) error {
+	return nil
+}
+
 func (t *capturingTransport) LastPull() transport.PullRequest {
 	t.mu.Lock()
 	defer t.mu.Unlock()
