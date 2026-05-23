@@ -70,6 +70,20 @@ func TestEventWorkerResultPriorityBeatsNormalAppendPressure(t *testing.T) {
 	require.Equal(t, EventAppend, events[1].Kind)
 }
 
+func TestEventCancelWaiterPriorityBeatsNormalAppendPressure(t *testing.T) {
+	meta := testMeta("cancel-priority", 1, 1)
+	reactor := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: store.NewMemoryFactory(), MailboxSize: 1})
+	require.NoError(t, reactor.Submit(eventPriority(EventAppend), appendEvent(meta, 1, "normal")))
+
+	err := reactor.Submit(eventPriority(EventCancelWaiter), Event{Kind: EventCancelWaiter, Key: meta.Key, CancelOp: 1})
+	require.NoError(t, err)
+
+	events := reactor.mailbox.Drain(2)
+	require.Len(t, events, 2)
+	require.Equal(t, EventCancelWaiter, events[0].Kind)
+	require.Equal(t, EventAppend, events[1].Kind)
+}
+
 func newUnstartedTestGroup(t *testing.T, reactorCount int, mailboxSize int) *Group {
 	t.Helper()
 	router, err := NewRouter(reactorCount)

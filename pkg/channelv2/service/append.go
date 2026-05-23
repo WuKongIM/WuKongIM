@@ -49,8 +49,11 @@ func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 	case <-ctx.Done():
 		// Cancellation after mailbox admission is cooperative; durable writes already started are not cancelled.
 		cleanup, err := c.group.Submit(context.Background(), key, reactor.Event{Kind: reactor.EventCancelWaiter, Key: key, CancelOp: opID, CancelErr: ctx.Err()})
-		if err == nil {
-			_, _ = cleanup.Await(context.Background())
+		if err != nil {
+			return ch.AppendBatchResult{}, err
+		}
+		if _, err := cleanup.Await(context.Background()); err != nil {
+			return ch.AppendBatchResult{}, err
 		}
 		return ch.AppendBatchResult{}, ctx.Err()
 	}
