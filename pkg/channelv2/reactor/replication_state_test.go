@@ -208,6 +208,40 @@ func TestFollowerPullErrorBacksOff(t *testing.T) {
 	require.Equal(t, 1, net.PullCalls())
 }
 
+func TestFollowerEmptyPullAdvancesHWOnlyToLocalLEOAndSchedulesIdleRetry(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("empty-pull-hw")
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16,
+		ReplicationIdlePollInterval: time.Hour,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 1
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+
+	result := worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:  meta.Key,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			LeaderHW:    99,
+			LeaderLEO:   99,
+		}},
+	}
+	r.handleRPCPullResult(result)
+
+	require.Equal(t, uint64(3), rc.state.HW)
+	require.False(t, rc.replication.ackInflight)
+	require.False(t, rc.replication.pendingAck)
+	require.False(t, rc.replication.nextPullAt.IsZero())
+	require.True(t, rc.replication.nextPullAt.After(time.Now().Add(59*time.Minute)))
+}
+
 func TestFollowerStoreApplyResultSendsAck(t *testing.T) {
 	net := newCapturingTransport()
 	meta := followerTestMeta("a")
@@ -314,6 +348,34 @@ func TestFollowerStoreApplyErrorRetriesSamePendingPull(t *testing.T) {
 	require.NotNil(t, rc.replication.pendingPull)
 	require.Equal(t, uint64(1), rc.replication.pendingPull.Records[0].Index)
 	require.Zero(t, rc.replication.applyOpID)
+}
+
+func TestStaleStoreApplyCompletionDoesNotClearNewerApplyInflight(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("stale-apply")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.pendingPull = &transport.PullResponse{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW:    2,
+		Records:     []ch.Record{{ID: 2, Index: 2, Payload: []byte("new"), SizeBytes: 3}},
+	}
+	rc.replication.applyOpID = 9
+
+	stale := worker.Result{
+		Kind:       worker.TaskStoreApply,
+		Fence:      ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 8},
+		StoreApply: &worker.StoreApplyResult{LEO: 1},
+	}
+	r.handleStoreApplyResult(stale)
+
+	require.Equal(t, ch.OpID(9), rc.replication.applyOpID)
+	require.NotNil(t, rc.replication.pendingPull)
+	require.Equal(t, uint64(2), rc.replication.pendingPull.Records[0].Index)
+	require.Zero(t, rc.state.LEO)
 }
 
 func TestAckPoolFullKeepsPendingAckAndRetriesOnTick(t *testing.T) {
