@@ -5,6 +5,7 @@
 - `GOWORK=off go test ./pkg/channelv2/reactor -run TestObserverSeesAppendBatchAndWorkerResult -count=1`
 - `GOWORK=off go test ./pkg/channelv2 -run '^$' -bench 'BenchmarkAppendSingleNodeHotChannelBatched|BenchmarkAppendSingleNodeManyChannelsAsync|BenchmarkAppendThreeNodeManyChannelsAsync' -benchtime=1s -count=1`
 - `GOWORK=off go test ./pkg/channelv2/reactor ./pkg/channelv2/worker ./pkg/channelv2/service -count=1`
+- `GOWORK=off go test ./pkg/channelv2/reactor -run TestGroupCloseFailsInflightAppendWaiter -count=1`
 - `GOWORK=off go test ./pkg/channelv2/... -count=1`
 - `rg 'pkg/channel"|pkg/channel/store' pkg/channelv2 -g'*.go'`
 - `git diff --check`
@@ -23,3 +24,4 @@ BenchmarkAppendThreeNodeManyChannelsAsync-10        5866    215757 ns/op        
 - The many-channel single-node benchmark mostly flushed one record per channel batch in this run: it reported `1.000 records/batch` and `15.00 bytes/batch`.
 - Observer-derived worker metrics were emitted by the single-node benchmarks: hot-channel reported `0.1309 worker-results/op`, and many-channel reported `1.000 worker-results/op` plus a `6.000 max-worker-queue` sample.
 - Allocation counts from the smoke rows were `27 allocs/op`, `47 allocs/op`, and `55 allocs/op` for the three reported benchmarks.
+- Shutdown hardening now has focused coverage that a blocked inflight append waiter completes with `ErrClosed` when the reactor group closes.

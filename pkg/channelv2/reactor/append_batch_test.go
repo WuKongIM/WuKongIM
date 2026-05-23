@@ -79,6 +79,34 @@ func TestMetadataChangeFailsInflightAppendWaiter(t *testing.T) {
 	factory.unblockAppends()
 }
 
+func TestGroupCloseFailsInflightAppendWaiter(t *testing.T) {
+	factory := newCountingStoreFactory()
+	factory.blockAppends()
+	defer factory.unblockAppends()
+	meta := testMeta("append-close-fails-inflight", 1, 1)
+	g := newAppendBatchTestGroup(t, factory, Config{AppendBatchMaxRecords: 1})
+	requiresClose := true
+	defer func() {
+		if requiresClose {
+			_ = g.Close()
+		}
+	}()
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	future, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "a"))
+	require.NoError(t, err)
+	factory.waitAppendStarted(t)
+
+	closed := make(chan error, 1)
+	go func() { closed <- g.Close() }()
+	awaitCtx, awaitCancel := context.WithTimeout(context.Background(), time.Second)
+	defer awaitCancel()
+	_, err = future.Await(awaitCtx)
+	require.ErrorIs(t, err, ch.ErrClosed)
+	require.NoError(t, <-closed)
+	requiresClose = false
+}
+
 func TestAppendPoolFullKeepsAcceptedRequestPendingAndRetriesOnTick(t *testing.T) {
 	factory := newCountingStoreFactory()
 	factory.blockAppends()
