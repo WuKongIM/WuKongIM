@@ -18,6 +18,7 @@ type ChannelStore interface {
 	ApplyFollower(ctx context.Context, req ApplyFollowerRequest) (ApplyFollowerResult, error)
 	ReadCommitted(ctx context.Context, req ReadCommittedRequest) (ReadCommittedResult, error)
 	ReadLog(ctx context.Context, req ReadLogRequest) (ReadLogResult, error)
+	// StoreCheckpoint durably records checkpoint HW and must ignore regressive HW updates.
 	StoreCheckpoint(ctx context.Context, checkpoint ch.Checkpoint) error
 	Close() error
 }

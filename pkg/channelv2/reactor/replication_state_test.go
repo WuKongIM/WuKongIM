@@ -359,6 +359,54 @@ func TestFollowerStopCheckpointsThenSendsStoppedAckBeforeEvicting(t *testing.T) 
 	require.NotContains(t, r.channels, meta.Key)
 }
 
+func TestFollowerStopEmptyChannelSendsStoppedAckAndEvicts(t *testing.T) {
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+
+	meta := followerTestMeta("stop-empty")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+
+	r.handleRPCPullResult(worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:      meta.Key,
+			Epoch:           meta.Epoch,
+			LeaderEpoch:     meta.LeaderEpoch,
+			LeaderHW:        0,
+			LeaderLEO:       0,
+			ActivityVersion: 1,
+			Control:         transport.PullControlStop,
+		}},
+	})
+
+	checkpoint := sink.awaitResultKind(t, worker.TaskStoreCheckpoint)
+	require.Contains(t, r.channels, meta.Key)
+
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: checkpoint})
+	ack := sink.awaitResultKind(t, worker.TaskRPCAck)
+	require.Contains(t, r.channels, meta.Key)
+	require.Equal(t, transport.AckRequest{
+		ChannelKey:      meta.Key,
+		Epoch:           meta.Epoch,
+		LeaderEpoch:     meta.LeaderEpoch,
+		Follower:        2,
+		MatchOffset:     0,
+		ActivityVersion: 1,
+		Stopped:         true,
+	}, net.LastAck())
+
+	r.handleWorkerResult(Event{Kind: EventWorkerResult, Worker: ack})
+	require.NotContains(t, r.channels, meta.Key)
+}
+
 func TestStoppedAckRetryKeepsStoppedPayloadAndRuntime(t *testing.T) {
 	net := newCapturingTransport()
 	net.SetAckError(ch.ErrNotReady)
@@ -1438,12 +1486,22 @@ func requireNoWorkerResultKind(t *testing.T, results <-chan worker.Result, kinds
 	for _, kind := range kinds {
 		blocked[kind] = struct{}{}
 	}
-	select {
-	case result := <-results:
-		if _, ok := blocked[result.Kind]; ok {
-			t.Fatalf("unexpected worker result kind %v", result.Kind)
+	quiet := time.NewTimer(20 * time.Millisecond)
+	defer quiet.Stop()
+	deadline := time.NewTimer(100 * time.Millisecond)
+	defer deadline.Stop()
+	for {
+		select {
+		case result := <-results:
+			if _, ok := blocked[result.Kind]; ok {
+				t.Fatalf("unexpected worker result kind %v", result.Kind)
+			}
+			resetTimer(quiet, 20*time.Millisecond)
+		case <-quiet.C:
+			return
+		case <-deadline.C:
+			return
 		}
-	case <-time.After(20 * time.Millisecond):
 	}
 }
 
