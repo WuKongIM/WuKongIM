@@ -1,6 +1,8 @@
 package worker
 
 import (
+	"time"
+
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 )
@@ -10,6 +12,8 @@ type Result struct {
 	Kind  TaskKind
 	Fence ch.Fence
 	Err   error
+	// Duration is the worker execution time measured by the owning pool.
+	Duration time.Duration
 
 	StoreAppend        *StoreAppendResult
 	StoreReadCommitted *StoreReadCommittedResult

@@ -37,6 +37,8 @@ type Config struct {
 	AppendQueueMaxBytes int
 	// AppendStoreRetryBackoff delays retry after the store append worker pool rejects a batch.
 	AppendStoreRetryBackoff time.Duration
+	// Observer receives lightweight reactor and worker metrics; nil uses a no-op observer.
+	Observer reactor.Observer
 }
 
 type cluster struct {
@@ -60,6 +62,7 @@ func New(cfg Config) (ch.Cluster, error) {
 		ReplicationMinBackoff:       cfg.ReplicationMinBackoff,
 		ReplicationMaxBackoff:       cfg.ReplicationMaxBackoff,
 		PullMaxBytes:                cfg.PullMaxBytes,
+		Observer:                    cfg.Observer,
 	})
 	if err != nil {
 		return nil, err

@@ -13,9 +13,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 )
 
-// Observer receives reactor metrics and traces; detailed callbacks are added later.
-type Observer interface{}
-
 // Config wires a group of channel-keyed reactors.
 type Config struct {
 	// LocalNode is the node id used when applying channel metadata.
@@ -50,7 +47,7 @@ type Config struct {
 	ReplicationMaxBackoff time.Duration
 	// PullMaxBytes bounds one follower pull response requested from the leader; defaults to 64 KiB.
 	PullMaxBytes int
-	// Observer is reserved for channelv2 reactor metrics.
+	// Observer receives lightweight reactor and worker metrics; nil uses a no-op observer.
 	Observer Observer
 }
 
@@ -85,6 +82,7 @@ func NewGroup(cfg Config) (*Group, error) {
 	if err != nil {
 		return nil, err
 	}
+	pools.SetQueueObserver(cfg.Observer)
 	g.pools = pools
 	for i := range g.reactors {
 		r := NewReactor(ReactorConfig{
@@ -99,6 +97,7 @@ func NewGroup(cfg Config) (*Group, error) {
 			ReplicationMinBackoff:       cfg.ReplicationMinBackoff,
 			ReplicationMaxBackoff:       cfg.ReplicationMaxBackoff,
 			PullMaxBytes:                cfg.PullMaxBytes,
+			Observer:                    cfg.Observer,
 			NextOpID:                    g.NextOpID,
 		})
 		g.reactors[i] = r
@@ -141,6 +140,7 @@ func defaultConfig(cfg Config) Config {
 	if cfg.PullMaxBytes <= 0 {
 		cfg.PullMaxBytes = 64 * 1024
 	}
+	cfg.Observer = defaultObserver(cfg.Observer)
 	return cfg
 }
 
@@ -180,6 +180,9 @@ func (g *Group) Complete(result worker.Result) {
 	err := reactor.SubmitCompletion(Event{Kind: EventWorkerResult, Key: key, Worker: result})
 	if err != nil && !errors.Is(err, ch.ErrClosed) {
 		panic(err)
+	}
+	if err == nil {
+		g.cfg.Observer.ObserveWorkerResult(result.Kind, result.Err, result.Duration)
 	}
 }
 

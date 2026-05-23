@@ -42,6 +42,8 @@ type ReactorConfig struct {
 	ReplicationMaxBackoff time.Duration
 	// PullMaxBytes bounds one follower pull response requested from the leader; defaults to 64 KiB.
 	PullMaxBytes int
+	// Observer receives lightweight reactor metrics; nil uses a no-op observer.
+	Observer Observer
 	// NextOpID allocates reactor-owned batch operation IDs distinct from client operation IDs.
 	NextOpID func() ch.OpID
 }
@@ -77,6 +79,8 @@ type runtimeChannel struct {
 	appendRetryAt time.Time
 	// appendCancelContexts tracks admitted append caller contexts across queued, inflight, and post-store states.
 	appendCancelContexts map[ch.OpID]context.Context
+	// appendTimings tracks accepted append requests until their futures complete.
+	appendTimings map[ch.OpID]appendTiming
 	// replication owns follower pull, apply, and ack scheduling state.
 	replication replicationState
 	// pullWaiters maps leader-side async pull op ids to request futures.
@@ -105,7 +109,9 @@ func (r *Reactor) Submit(priority Priority, event Event) error {
 		return ch.ErrClosed
 	default:
 	}
-	return r.mailbox.Submit(priority, event)
+	err := r.mailbox.Submit(priority, event)
+	r.observeMailboxDepth(priority)
+	return err
 }
 
 // SubmitCompletion blocks until a high-priority worker completion is enqueued or closed.
@@ -120,6 +126,7 @@ func (r *Reactor) SubmitCompletion(event Event) error {
 	}
 	select {
 	case r.mailbox.high <- event:
+		r.observeMailboxDepth(PriorityHigh)
 		return nil
 	case <-r.stop:
 		return ch.ErrClosed
@@ -145,6 +152,7 @@ func (r *Reactor) loop() {
 		default:
 		}
 		events := r.mailbox.Drain(defaultReactorDrain)
+		r.observeAllMailboxDepths()
 		if len(events) == 0 {
 			r.sweepAppendCancellations()
 			r.sweepPullCancellations()
@@ -232,7 +240,7 @@ func (r *Reactor) failPendingWaiters(err error) {
 		return
 	}
 	for _, rc := range r.channels {
-		rc.failWaiters(err)
+		r.failWaiters(rc, err)
 		r.clearAppendCancelContexts(rc)
 		r.clearPullCancelChannel(rc)
 	}
@@ -256,7 +264,7 @@ func (r *Reactor) handleApplyMeta(event Event) {
 			return
 		}
 		rc.failPendingFetchWaiters(ch.ErrStaleMeta)
-		rc.failPendingAppendWaiters(ch.ErrStaleMeta)
+		r.failPendingAppendWaiters(rc, ch.ErrStaleMeta)
 		rc.failPendingPullWaiters(ch.ErrStaleMeta)
 		r.clearPullCancelChannel(rc)
 		r.clearAppendCancelContexts(rc)
@@ -297,11 +305,12 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 	state.HW = initial.HW
 	state.CheckpointHW = initial.CheckpointHW
 	rc := &runtimeChannel{
-		state:        state,
-		store:        cs,
-		waiters:      make(map[ch.OpID]*Future),
-		fetchWaiters: make(map[ch.OpID]struct{}),
-		pullWaiters:  make(map[ch.OpID]*pullWaiter),
+		state:         state,
+		store:         cs,
+		waiters:       make(map[ch.OpID]*Future),
+		fetchWaiters:  make(map[ch.OpID]struct{}),
+		pullWaiters:   make(map[ch.OpID]*pullWaiter),
+		appendTimings: make(map[ch.OpID]appendTiming),
 		appendQ: newAppendQueue(appendQueueConfig{
 			MaxRecords:      r.cfg.AppendBatchMaxRecords,
 			MaxBytes:        r.cfg.AppendBatchMaxBytes,
@@ -367,6 +376,7 @@ func (r *Reactor) handleAppend(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
+	rc.appendTimings[event.OpID] = appendTiming{mode: mode, enqueuedAt: req.enqueuedAt}
 	r.registerAppendCancelContext(rc, event.OpID, event.Context)
 	r.tryFlushAppend(rc, time.Now())
 }
@@ -445,7 +455,7 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 				if future := rc.waiters[req.opID]; future != nil {
 					delete(rc.waiters, req.opID)
 					r.unregisterAppendCancelContext(rc, req.opID)
-					future.Complete(Result{Err: stored.Err})
+					r.completeAppendFuture(rc, req.opID, future, Result{Err: stored.Err})
 				}
 			}
 		}

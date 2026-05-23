@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -10,6 +11,25 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/worker"
 	"github.com/stretchr/testify/require"
 )
+
+func TestObserverSeesAppendBatchAndWorkerResult(t *testing.T) {
+	obs := &captureObserver{}
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, Observer: obs, AppendBatchMaxRecords: 1})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := testMeta("observer", 1, 1)
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	future, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "a"))
+	require.NoError(t, err)
+	_, err = future.Await(context.Background())
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return obs.AppendBatches() > 0 && obs.WorkerResults() > 0
+	}, time.Second, time.Millisecond)
+}
 
 func TestGroupCompleteRoutesWorkerResultToOwningReactor(t *testing.T) {
 	meta := testMeta("complete-route", 1, 1)
@@ -107,7 +127,7 @@ func newUnstartedTestGroup(t *testing.T, reactorCount int, mailboxSize int) *Gro
 	router, err := NewRouter(reactorCount)
 	require.NoError(t, err)
 	g := &Group{
-		cfg:      Config{LocalNode: 1, ReactorCount: reactorCount, MailboxSize: mailboxSize, Store: store.NewMemoryFactory()},
+		cfg:      Config{LocalNode: 1, ReactorCount: reactorCount, MailboxSize: mailboxSize, Store: store.NewMemoryFactory(), Observer: noopObserver{}},
 		router:   router,
 		reactors: make([]*Reactor, reactorCount),
 	}
@@ -115,4 +135,40 @@ func newUnstartedTestGroup(t *testing.T, reactorCount int, mailboxSize int) *Gro
 		g.reactors[i] = NewReactor(ReactorConfig{ID: i, LocalNode: 1, Store: g.cfg.Store, MailboxSize: mailboxSize})
 	}
 	return g
+}
+
+type captureObserver struct {
+	mu            sync.Mutex
+	appendBatches int
+	workerResults int
+}
+
+func (o *captureObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {}
+
+func (o *captureObserver) SetWorkerQueueDepth(pool string, depth int) {}
+
+func (o *captureObserver) ObserveAppendBatch(records int, bytes int, wait time.Duration) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.appendBatches++
+}
+
+func (o *captureObserver) ObserveAppendLatency(mode ch.CommitMode, d time.Duration) {}
+
+func (o *captureObserver) ObserveWorkerResult(kind worker.TaskKind, err error, d time.Duration) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.workerResults++
+}
+
+func (o *captureObserver) AppendBatches() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.appendBatches
+}
+
+func (o *captureObserver) WorkerResults() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.workerResults
 }

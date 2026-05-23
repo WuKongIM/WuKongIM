@@ -90,6 +90,21 @@ func (m *Mailbox) Drain(max int) []Event {
 	return events
 }
 
+// Depth returns the current queued event count for one priority.
+func (m *Mailbox) Depth(priority Priority) int {
+	if m == nil {
+		return 0
+	}
+	switch priority {
+	case PriorityHigh:
+		return len(m.high)
+	case PriorityLow:
+		return len(m.low)
+	default:
+		return len(m.normal)
+	}
+}
+
 func tryRecv(queue <-chan Event) (Event, bool) {
 	select {
 	case event := <-queue:
