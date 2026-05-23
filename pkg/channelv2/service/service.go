@@ -17,6 +17,8 @@ type Config struct {
 	MailboxSize  int
 	Store        store.Factory
 	Transport    transport.Client
+	// MetaResolver lazily loads authoritative metadata before appending to an unloaded channel.
+	MetaResolver ch.MetaResolver
 	// ReplicationIdlePollInterval delays the next follower poll when a leader has no new records; defaults to 10ms.
 	ReplicationIdlePollInterval time.Duration
 	// ReplicationMinBackoff is the first retry delay after pull, apply, or ack failures; defaults to 1ms.
@@ -42,7 +44,8 @@ type Config struct {
 }
 
 type cluster struct {
-	group *reactor.Group
+	group        *reactor.Group
+	metaResolver ch.MetaResolver
 }
 
 // New constructs a v0 channelv2 cluster facade.
@@ -67,7 +70,7 @@ func New(cfg Config) (ch.Cluster, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &cluster{group: group}, nil
+	return &cluster{group: group, metaResolver: cfg.MetaResolver}, nil
 }
 
 func (c *cluster) Tick(ctx context.Context) error {

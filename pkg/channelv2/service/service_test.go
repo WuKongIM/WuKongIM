@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,6 +31,35 @@ func TestSingleNodeAppendFetchCommitted(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, fetchRes.Messages, 1)
 	require.Equal(t, uint64(1), fetchRes.CommittedSeq)
+}
+
+func TestAppendLazyLoadsMetaBeforeSubmittingToReactor(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := ch.Meta{Key: ch.ChannelKey("1:lazy"), ID: ch.ChannelID{ID: "lazy", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	resolver := &countingMetaResolver{meta: meta}
+	cluster, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1, MetaResolver: resolver})
+	require.NoError(t, err)
+	defer cluster.Close()
+
+	appendRes, err := cluster.Append(context.Background(), ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("hello")}})
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), appendRes.MessageSeq)
+	require.Equal(t, int32(1), resolver.calls.Load())
+}
+
+func TestAppendUsesExistingReactorStateWithoutResolvingMetaAgain(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := ch.Meta{Key: ch.ChannelKey("1:cached"), ID: ch.ChannelID{ID: "cached", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 1, Status: ch.StatusActive}
+	resolver := &countingMetaResolver{meta: meta}
+	cluster, err := New(Config{LocalNode: 1, Store: factory, ReactorCount: 1, MetaResolver: resolver})
+	require.NoError(t, err)
+	defer cluster.Close()
+
+	_, err = cluster.Append(context.Background(), ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("first")}})
+	require.NoError(t, err)
+	_, err = cluster.Append(context.Background(), ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("second")}})
+	require.NoError(t, err)
+	require.Equal(t, int32(1), resolver.calls.Load())
 }
 
 func TestHandlePullUsesAllocatedOpIDAndReturnsRecords(t *testing.T) {
@@ -197,6 +227,22 @@ func TestAppendBatchContextCancelReturnsContextErrorWhenCleanupBackpressured(t *
 	require.NoError(t, err)
 	_, err = fillerFuture.Await(waitCtx)
 	require.NoError(t, err)
+}
+
+type countingMetaResolver struct {
+	meta  ch.Meta
+	calls atomic.Int32
+}
+
+func (r *countingMetaResolver) ResolveChannelMeta(ctx context.Context, id ch.ChannelID) (ch.Meta, error) {
+	if err := ctx.Err(); err != nil {
+		return ch.Meta{}, err
+	}
+	if id != r.meta.ID {
+		return ch.Meta{}, ch.ErrChannelNotFound
+	}
+	r.calls.Add(1)
+	return r.meta, nil
 }
 
 func awaitServiceTick(t *testing.T, cluster *cluster, key ch.ChannelKey, now time.Time) bool {

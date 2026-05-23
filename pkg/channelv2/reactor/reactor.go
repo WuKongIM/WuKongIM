@@ -227,6 +227,8 @@ func (r *Reactor) handle(event Event) {
 	switch event.Kind {
 	case EventApplyMeta:
 		r.handleApplyMeta(event)
+	case EventCheckState:
+		r.handleCheckState(event)
 	case EventAppend:
 		r.handleAppend(event)
 	case EventCancelWaiter:
@@ -338,6 +340,11 @@ func (r *Reactor) handleApplyMeta(event Event) {
 		}
 	}
 	event.Future.Complete(Result{Err: decision.Err})
+}
+
+func (r *Reactor) handleCheckState(event Event) {
+	_, err := r.lookup(event.Key)
+	event.Future.Complete(Result{Err: err})
 }
 
 func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {

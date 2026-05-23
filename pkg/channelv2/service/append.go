@@ -31,6 +31,9 @@ func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 		ctx = context.Background()
 	}
 	key := ch.ChannelKeyForID(req.ChannelID)
+	if err := c.ensureAppendChannelState(ctx, key, req.ChannelID); err != nil {
+		return ch.AppendBatchResult{}, err
+	}
 	opID := c.group.NextOpID()
 	future, err := c.group.Submit(ctx, key, reactor.Event{Kind: reactor.EventAppend, Key: key, Append: req, Context: ctx, OpID: opID})
 	if err != nil {
@@ -63,4 +66,31 @@ func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 		}
 		return ch.AppendBatchResult{}, ctx.Err()
 	}
+}
+
+func (c *cluster) ensureAppendChannelState(ctx context.Context, key ch.ChannelKey, id ch.ChannelID) error {
+	loaded, err := c.group.HasChannelState(ctx, key)
+	if err != nil {
+		return err
+	}
+	if loaded {
+		return nil
+	}
+	if c.metaResolver == nil {
+		return ch.ErrChannelNotFound
+	}
+	meta, err := c.metaResolver.ResolveChannelMeta(ctx, id)
+	if err != nil {
+		return err
+	}
+	if meta.ID == (ch.ChannelID{}) {
+		meta.ID = id
+	}
+	if meta.Key == "" {
+		meta.Key = ch.ChannelKeyForID(meta.ID)
+	}
+	if meta.Key != key {
+		return ch.ErrStaleMeta
+	}
+	return c.applyMeta(ctx, meta)
 }

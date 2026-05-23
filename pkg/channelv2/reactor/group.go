@@ -167,6 +167,19 @@ func (g *Group) Submit(ctx context.Context, key ch.ChannelKey, event Event) (*Fu
 	return future, nil
 }
 
+// HasChannelState reports whether the owning reactor already has runtime state for key.
+func (g *Group) HasChannelState(ctx context.Context, key ch.ChannelKey) (bool, error) {
+	future, err := g.Submit(ctx, key, Event{Kind: EventCheckState, Key: key})
+	if err != nil {
+		return false, err
+	}
+	_, err = future.Await(ctx)
+	if errors.Is(err, ch.ErrChannelNotFound) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // Complete routes a blocking worker result back to the owning reactor.
 func (g *Group) Complete(result worker.Result) {
 	if g == nil {

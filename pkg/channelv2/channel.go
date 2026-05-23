@@ -15,6 +15,11 @@ type Cluster interface {
 	Close() error
 }
 
+// MetaResolver loads authoritative metadata for channels that are not yet active in a reactor.
+type MetaResolver interface {
+	ResolveChannelMeta(context.Context, ChannelID) (Meta, error)
+}
+
 // Config contains construction dependencies for the v0 service facade.
 type Config struct {
 	LocalNode    NodeID
@@ -22,6 +27,8 @@ type Config struct {
 	MailboxSize  int
 	Store        any
 	Transport    any
+	// MetaResolver lazily loads metadata when Append reaches an unloaded channel.
+	MetaResolver any
 	// Observer carries a reactor metrics observer for adapters that construct the service facade.
 	Observer any
 	// AppendBatchMaxRecords is the queued record count that triggers a store append flush.
