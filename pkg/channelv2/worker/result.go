@@ -1,13 +1,61 @@
 package worker
 
-import ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+import (
+	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
+)
 
 // Result is the common completion envelope for worker tasks.
 type Result struct {
+	Kind  TaskKind
 	Fence ch.Fence
 	Err   error
-	Value any
+
+	StoreAppend        *StoreAppendResult
+	StoreReadCommitted *StoreReadCommittedResult
+	StoreReadLog       *StoreReadLogResult
+	StoreApply         *StoreApplyResult
+	RPCPull            *RPCPullResult
+	RPCAck             *RPCAckResult
+	Value              any
 }
+
+// StoreAppendResult returns the durable offset range for a leader append.
+type StoreAppendResult struct {
+	// BaseOffset is the first offset assigned to the appended records.
+	BaseOffset uint64
+	// LastOffset is the last offset assigned to the appended records.
+	LastOffset uint64
+}
+
+// StoreReadCommittedResult contains committed messages read from storage.
+type StoreReadCommittedResult struct {
+	// Messages are the committed messages returned by storage.
+	Messages []ch.Message
+	// NextSeq is the next sequence callers should read from.
+	NextSeq uint64
+}
+
+// StoreReadLogResult contains raw log records read for replication.
+type StoreReadLogResult struct {
+	// Records are the raw channel log records returned by storage.
+	Records []ch.Record
+}
+
+// StoreApplyResult returns the follower's durable log end offset.
+type StoreApplyResult struct {
+	// LEO is the follower log end offset after applying records.
+	LEO uint64
+}
+
+// RPCPullResult contains the response returned by a remote pull RPC.
+type RPCPullResult struct {
+	// Response is the leader pull response returned by transport.
+	Response transport.PullResponse
+}
+
+// RPCAckResult marks a completed remote acknowledgement RPC.
+type RPCAckResult struct{}
 
 // CompletionSink receives worker completions for routing back to reactors.
 type CompletionSink interface {
