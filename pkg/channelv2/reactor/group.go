@@ -30,6 +30,18 @@ type Config struct {
 	Transport transport.Client
 	// WorkerPools configures bounded pools for blocking store and RPC effects.
 	WorkerPools worker.PoolsConfig
+	// AppendBatchMaxRecords is the queued record count that triggers a store append flush.
+	AppendBatchMaxRecords int
+	// AppendBatchMaxBytes is the queued payload byte budget that triggers a store append flush.
+	AppendBatchMaxBytes int
+	// AppendBatchMaxWait is the maximum age of the oldest queued append before flushing.
+	AppendBatchMaxWait time.Duration
+	// AppendQueueMaxRequests bounds accepted append requests waiting per channel.
+	AppendQueueMaxRequests int
+	// AppendQueueMaxBytes bounds accepted append payload bytes waiting per channel.
+	AppendQueueMaxBytes int
+	// AppendStoreRetryBackoff delays retry after the store append worker pool rejects a batch.
+	AppendStoreRetryBackoff time.Duration
 	// Observer is reserved for channelv2 reactor metrics.
 	Observer Observer
 }
@@ -55,6 +67,7 @@ func NewGroup(cfg Config) (*Group, error) {
 	if cfg.MailboxSize <= 0 {
 		cfg.MailboxSize = 1024
 	}
+	cfg = defaultAppendConfig(cfg)
 	router, err := NewRouter(cfg.ReactorCount)
 	if err != nil {
 		return nil, err
@@ -66,11 +79,42 @@ func NewGroup(cfg Config) (*Group, error) {
 	}
 	g.pools = pools
 	for i := range g.reactors {
-		r := NewReactor(ReactorConfig{ID: i, LocalNode: cfg.LocalNode, Store: cfg.Store, Pools: pools, MailboxSize: cfg.MailboxSize})
+		r := NewReactor(ReactorConfig{
+			ID: i, LocalNode: cfg.LocalNode, Store: cfg.Store, Pools: pools, MailboxSize: cfg.MailboxSize,
+			AppendBatchMaxRecords:   cfg.AppendBatchMaxRecords,
+			AppendBatchMaxBytes:     cfg.AppendBatchMaxBytes,
+			AppendBatchMaxWait:      cfg.AppendBatchMaxWait,
+			AppendQueueMaxRequests:  cfg.AppendQueueMaxRequests,
+			AppendQueueMaxBytes:     cfg.AppendQueueMaxBytes,
+			AppendStoreRetryBackoff: cfg.AppendStoreRetryBackoff,
+			NextOpID:                g.NextOpID,
+		})
 		g.reactors[i] = r
 		r.start()
 	}
 	return g, nil
+}
+
+func defaultAppendConfig(cfg Config) Config {
+	if cfg.AppendBatchMaxRecords <= 0 {
+		cfg.AppendBatchMaxRecords = 128
+	}
+	if cfg.AppendBatchMaxBytes <= 0 {
+		cfg.AppendBatchMaxBytes = 256 * 1024
+	}
+	if cfg.AppendBatchMaxWait <= 0 {
+		cfg.AppendBatchMaxWait = time.Millisecond
+	}
+	if cfg.AppendQueueMaxRequests <= 0 {
+		cfg.AppendQueueMaxRequests = max(cfg.MailboxSize, 1024)
+	}
+	if cfg.AppendQueueMaxBytes <= 0 {
+		cfg.AppendQueueMaxBytes = 4 * 1024 * 1024
+	}
+	if cfg.AppendStoreRetryBackoff <= 0 {
+		cfg.AppendStoreRetryBackoff = time.Millisecond
+	}
+	return cfg
 }
 
 // Submit routes an event to the owning reactor and returns its future.

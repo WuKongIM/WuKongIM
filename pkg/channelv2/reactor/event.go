@@ -1,6 +1,7 @@
 package reactor
 
 import (
+	"context"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -19,6 +20,8 @@ const (
 	EventWorkerResult
 	// EventTick asks a reactor to perform low-priority maintenance work.
 	EventTick
+	// EventCancelWaiter cooperatively cancels a previously admitted waiter.
+	EventCancelWaiter
 	EventPull
 	EventAck
 	EventApplyRecords
@@ -31,6 +34,7 @@ type Event struct {
 	Key          ch.ChannelKey
 	Meta         ch.Meta
 	Append       ch.AppendBatchRequest
+	Context      context.Context
 	Fetch        ch.FetchRequest
 	Future       *Future
 	Worker       worker.Result
@@ -38,5 +42,7 @@ type Event struct {
 	PullResponse transport.PullResponse
 	Ack          transport.AckRequest
 	OpID         ch.OpID
+	CancelOp     ch.OpID
+	CancelErr    error
 	TickNow      time.Time
 }

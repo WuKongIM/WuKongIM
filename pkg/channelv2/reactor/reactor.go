@@ -3,6 +3,7 @@ package reactor
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
@@ -16,11 +17,26 @@ const defaultReactorDrain = 128
 
 // ReactorConfig wires one reactor.
 type ReactorConfig struct {
-	ID          int
-	LocalNode   ch.NodeID
-	Store       store.Factory
-	Pools       *worker.Pools
+	ID        int
+	LocalNode ch.NodeID
+	Store     store.Factory
+	Pools     *worker.Pools
+	// MailboxSize bounds each priority queue in this reactor.
 	MailboxSize int
+	// AppendBatchMaxRecords is the queued record count that triggers a store append flush.
+	AppendBatchMaxRecords int
+	// AppendBatchMaxBytes is the queued payload byte budget that triggers a store append flush.
+	AppendBatchMaxBytes int
+	// AppendBatchMaxWait is the maximum age of the oldest queued append before flushing.
+	AppendBatchMaxWait time.Duration
+	// AppendQueueMaxRequests bounds accepted append requests waiting per channel.
+	AppendQueueMaxRequests int
+	// AppendQueueMaxBytes bounds accepted append payload bytes waiting per channel.
+	AppendQueueMaxBytes int
+	// AppendStoreRetryBackoff delays retry after the store append worker pool rejects a batch.
+	AppendStoreRetryBackoff time.Duration
+	// NextOpID allocates reactor-owned batch operation IDs distinct from client operation IDs.
+	NextOpID func() ch.OpID
 }
 
 // Reactor owns channel states for one hash partition.
@@ -31,6 +47,7 @@ type Reactor struct {
 	stop     chan struct{}
 	done     chan struct{}
 	once     sync.Once
+	nextOp   atomic.Uint64
 }
 
 type runtimeChannel struct {
@@ -39,10 +56,19 @@ type runtimeChannel struct {
 	waiters map[ch.OpID]*Future
 	// fetchWaiters marks waiter entries that must be fenced by metadata changes.
 	fetchWaiters map[ch.OpID]struct{}
+	// appendQ holds accepted append requests before they are flushed as durable batches.
+	appendQ appendQueue
+	// appendInflight is the currently submitted durable append batch.
+	appendInflight *appendBatch
+	// appendStoreBlocked records store worker-pool backpressure that delays retry.
+	appendStoreBlocked bool
+	// appendRetryAt is the earliest time to retry after store worker-pool backpressure.
+	appendRetryAt time.Time
 }
 
 // NewReactor constructs a reactor.
 func NewReactor(cfg ReactorConfig) *Reactor {
+	cfg = defaultReactorConfig(cfg)
 	return &Reactor{cfg: cfg, mailbox: NewMailbox(MailboxConfig{HighSize: cfg.MailboxSize, NormalSize: cfg.MailboxSize, LowSize: cfg.MailboxSize}), channels: make(map[ch.ChannelKey]*runtimeChannel), stop: make(chan struct{}), done: make(chan struct{})}
 }
 
@@ -96,6 +122,7 @@ func (r *Reactor) loop() {
 		}
 		events := r.mailbox.Drain(defaultReactorDrain)
 		if len(events) == 0 {
+			r.flushDueAppends(time.Now())
 			select {
 			case <-r.stop:
 				return
@@ -115,6 +142,8 @@ func (r *Reactor) handle(event Event) {
 		r.handleApplyMeta(event)
 	case EventAppend:
 		r.handleAppend(event)
+	case EventCancelWaiter:
+		r.handleCancelWaiter(event)
 	case EventFetch:
 		r.handleFetch(event)
 	case EventPull:
@@ -134,12 +163,19 @@ func (r *Reactor) handle(event Event) {
 
 func (r *Reactor) handleWorkerResult(event Event) {
 	switch event.Worker.Kind {
+	case worker.TaskStoreAppend:
+		r.handleStoreAppendResult(event.Worker)
 	case worker.TaskStoreReadCommitted:
 		r.handleStoreReadCommittedResult(event.Worker)
 	}
 }
 
 func (r *Reactor) handleTick(event Event) {
+	now := event.TickNow
+	if now.IsZero() {
+		now = time.Now()
+	}
+	r.flushDueAppends(now)
 	if event.Future != nil {
 		event.Future.Complete(Result{})
 	}
@@ -206,7 +242,19 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 	state.LEO = initial.LEO
 	state.HW = initial.HW
 	state.CheckpointHW = initial.CheckpointHW
-	rc := &runtimeChannel{state: state, store: cs, waiters: make(map[ch.OpID]*Future), fetchWaiters: make(map[ch.OpID]struct{})}
+	rc := &runtimeChannel{
+		state:        state,
+		store:        cs,
+		waiters:      make(map[ch.OpID]*Future),
+		fetchWaiters: make(map[ch.OpID]struct{}),
+		appendQ: newAppendQueue(appendQueueConfig{
+			MaxRecords:      r.cfg.AppendBatchMaxRecords,
+			MaxBytes:        r.cfg.AppendBatchMaxBytes,
+			MaxWait:         r.cfg.AppendBatchMaxWait,
+			MaxPending:      r.cfg.AppendQueueMaxRequests,
+			MaxPendingBytes: r.cfg.AppendQueueMaxBytes,
+		}),
+	}
 	r.channels[key] = rc
 	return rc, nil
 }
@@ -228,34 +276,37 @@ func (r *Reactor) handleAppend(event Event) {
 		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
 		return
 	}
+	if rc.state.Status == ch.StatusDeleted || rc.state.Status == ch.StatusDeleting {
+		event.Future.Complete(Result{Err: ch.ErrChannelNotFound})
+		return
+	}
+	if rc.state.Role != ch.RoleLeader {
+		event.Future.Complete(Result{Err: ch.ErrNotLeader})
+		return
+	}
+	if !rc.state.CommitReady {
+		event.Future.Complete(Result{Err: ch.ErrNotReady})
+		return
+	}
 	records := make([]ch.Record, len(event.Append.Messages))
 	for i, msg := range event.Append.Messages {
 		records[i] = ch.Record{ID: msg.MessageID, Payload: append([]byte(nil), msg.Payload...), SizeBytes: len(msg.Payload)}
 	}
-	decision := rc.state.ProposeAppend(machine.AppendCommand{OpID: event.OpID, CommitMode: event.Append.CommitMode, Records: records})
-	if decision.Err != nil {
-		event.Future.Complete(Result{Err: decision.Err})
+	mode := event.Append.CommitMode
+	if mode == 0 {
+		mode = ch.CommitModeQuorum
+	}
+	req := appendRequest{opID: event.OpID, req: event.Append, future: event.Future, enqueuedAt: time.Now(), records: records, commitMode: mode}
+	if err := rc.appendQ.push(req); err != nil {
+		event.Future.Complete(Result{Err: err})
 		return
 	}
-	if len(decision.Tasks) == 0 {
-		event.Future.Complete(Result{})
+	if err := rc.addWaiter(event.OpID, event.Future); err != nil {
+		rc.appendQ.remove(event.OpID)
+		event.Future.Complete(Result{Err: err})
 		return
 	}
-	appendTask := decision.Tasks[0].StoreAppend
-	stored, err := rc.store.AppendLeader(context.Background(), store.AppendLeaderRequest{Records: appendTask.Records, Sync: appendTask.Sync})
-	result := rc.state.ApplyAppendStored(machine.AppendStoredResult{Fence: decision.Tasks[0].Fence, BaseOffset: stored.BaseOffset, LastOffset: stored.LastOffset, Err: err})
-	if len(result.Replies) == 0 {
-		if err := rc.addWaiter(event.OpID, event.Future); err != nil {
-			event.Future.Complete(Result{Err: err})
-		}
-		return
-	}
-	reply := result.Replies[0]
-	batch := ch.AppendBatchResult{Items: reply.AppendItems}
-	if len(batch.Items) == 0 && reply.Append.MessageSeq > 0 {
-		batch.Items = []ch.AppendBatchItemResult{reply.Append}
-	}
-	event.Future.Complete(Result{AppendBatch: batch, Err: reply.Err})
+	r.tryFlushAppend(rc, time.Now())
 }
 
 func (r *Reactor) handleFetch(event Event) {
@@ -306,6 +357,63 @@ func (r *Reactor) handleStoreReadCommittedResult(result worker.Result) {
 		return
 	}
 	rc.completeStaleFetchIfWaiting(result.Fence.OpID)
+}
+
+func (r *Reactor) handleStoreAppendResult(result worker.Result) {
+	rc, err := r.lookup(result.Fence.ChannelKey)
+	if err != nil {
+		return
+	}
+	current := rc.appendInflight != nil && rc.appendInflight.batchOpID == result.Fence.OpID
+	appendErr := result.Err
+	stored := machine.AppendStoredResult{Fence: result.Fence, Err: appendErr}
+	if result.StoreAppend == nil {
+		if appendErr == nil {
+			stored.Err = ch.ErrInvalidConfig
+		}
+	} else {
+		stored.BaseOffset = result.StoreAppend.BaseOffset
+		stored.LastOffset = result.StoreAppend.LastOffset
+	}
+	decision := rc.state.ApplyAppendStored(stored)
+	completeReplies(rc, decision.Replies, nil)
+	if current {
+		if stored.Err != nil {
+			for _, req := range rc.appendInflight.requests {
+				if future := rc.waiters[req.opID]; future != nil {
+					delete(rc.waiters, req.opID)
+					future.Complete(Result{Err: stored.Err})
+				}
+			}
+		}
+		rc.appendInflight = nil
+		rc.appendQ.storeBlocked = false
+		r.tryFlushAppend(rc, time.Now())
+	}
+}
+
+func (r *Reactor) handleCancelWaiter(event Event) {
+	rc, err := r.lookup(event.Key)
+	if err != nil {
+		if event.Future != nil {
+			event.Future.Complete(Result{})
+		}
+		return
+	}
+	cancelErr := event.CancelErr
+	if cancelErr == nil {
+		cancelErr = context.Canceled
+	}
+	if req, ok := rc.appendQ.remove(event.CancelOp); ok && req.future != nil {
+		delete(rc.waiters, event.CancelOp)
+		req.future.Complete(Result{Err: cancelErr})
+	} else if future := rc.waiters[event.CancelOp]; future != nil {
+		delete(rc.waiters, event.CancelOp)
+		future.Complete(Result{Err: cancelErr})
+	}
+	if event.Future != nil {
+		event.Future.Complete(Result{})
+	}
 }
 
 func (r *Reactor) handlePull(event Event) {
