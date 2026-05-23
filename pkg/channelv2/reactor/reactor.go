@@ -53,10 +53,12 @@ type Reactor struct {
 	channels map[ch.ChannelKey]*runtimeChannel
 	// appendCancelChannels indexes channels that have admitted append contexts to sweep.
 	appendCancelChannels map[ch.ChannelKey]*runtimeChannel
-	stop                 chan struct{}
-	done                 chan struct{}
-	once                 sync.Once
-	nextOp               atomic.Uint64
+	// pullCancelChannels indexes leader pull waiters with cancellable caller contexts.
+	pullCancelChannels map[ch.ChannelKey]*runtimeChannel
+	stop               chan struct{}
+	done               chan struct{}
+	once               sync.Once
+	nextOp             atomic.Uint64
 }
 
 type runtimeChannel struct {
@@ -78,7 +80,14 @@ type runtimeChannel struct {
 	// replication owns follower pull, apply, and ack scheduling state.
 	replication replicationState
 	// pullWaiters maps leader-side async pull op ids to request futures.
-	pullWaiters map[ch.OpID]*Future
+	pullWaiters map[ch.OpID]*pullWaiter
+}
+
+type pullWaiter struct {
+	// future completes the leader-side pull request once the store read is fenced back.
+	future *Future
+	// ctx is the caller context used to cancel the waiter before a blocked store read returns.
+	ctx context.Context
 }
 
 // NewReactor constructs a reactor.
@@ -137,6 +146,8 @@ func (r *Reactor) loop() {
 		}
 		events := r.mailbox.Drain(defaultReactorDrain)
 		if len(events) == 0 {
+			r.sweepAppendCancellations()
+			r.sweepPullCancellations()
 			r.flushDueAppends(time.Now())
 			select {
 			case <-r.stop:
@@ -153,6 +164,7 @@ func (r *Reactor) loop() {
 
 func (r *Reactor) handle(event Event) {
 	r.sweepAppendCancellations()
+	r.sweepPullCancellations()
 	switch event.Kind {
 	case EventApplyMeta:
 		r.handleApplyMeta(event)
@@ -174,6 +186,7 @@ func (r *Reactor) handle(event Event) {
 		r.handleClose(event)
 	}
 	r.sweepAppendCancellations()
+	r.sweepPullCancellations()
 }
 
 func (r *Reactor) handleWorkerResult(event Event) {
@@ -221,6 +234,7 @@ func (r *Reactor) failPendingWaiters(err error) {
 	for _, rc := range r.channels {
 		rc.failWaiters(err)
 		r.clearAppendCancelContexts(rc)
+		r.clearPullCancelChannel(rc)
 	}
 }
 
@@ -244,10 +258,14 @@ func (r *Reactor) handleApplyMeta(event Event) {
 		rc.failPendingFetchWaiters(ch.ErrStaleMeta)
 		rc.failPendingAppendWaiters(ch.ErrStaleMeta)
 		rc.failPendingPullWaiters(ch.ErrStaleMeta)
+		r.clearPullCancelChannel(rc)
 		r.clearAppendCancelContexts(rc)
 	}
 	decision := rc.state.ApplyMeta(event.Meta)
 	if decision.Err == nil {
+		if fencePendingState {
+			rc.replication.reset()
+		}
 		if rc.state.Role == ch.RoleFollower && rc.state.Status == ch.StatusActive {
 			rc.replication.markDirty(time.Now())
 		} else {
@@ -283,7 +301,7 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 		store:        cs,
 		waiters:      make(map[ch.OpID]*Future),
 		fetchWaiters: make(map[ch.OpID]struct{}),
-		pullWaiters:  make(map[ch.OpID]*Future),
+		pullWaiters:  make(map[ch.OpID]*pullWaiter),
 		appendQ: newAppendQueue(appendQueueConfig{
 			MaxRecords:      r.cfg.AppendBatchMaxRecords,
 			MaxBytes:        r.cfg.AppendBatchMaxBytes,
@@ -450,6 +468,7 @@ func (r *Reactor) handleCancelWaiter(event Event) {
 		cancelErr = context.Canceled
 	}
 	r.cancelAppendWaiter(rc, event.CancelOp, cancelErr)
+	r.cancelPullWaiter(rc, event.CancelOp, cancelErr)
 	if event.Future != nil {
 		event.Future.Complete(Result{})
 	}
@@ -458,6 +477,14 @@ func (r *Reactor) handleCancelWaiter(event Event) {
 func (r *Reactor) handlePull(event Event) {
 	rc, err := r.lookup(event.Key)
 	if err != nil {
+		event.Future.Complete(Result{Err: err})
+		return
+	}
+	ctx := event.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
@@ -474,17 +501,19 @@ func (r *Reactor) handlePull(event Event) {
 		return
 	}
 	if rc.pullWaiters == nil {
-		rc.pullWaiters = make(map[ch.OpID]*Future)
+		rc.pullWaiters = make(map[ch.OpID]*pullWaiter)
 	}
 	if _, ok := rc.pullWaiters[event.OpID]; ok {
 		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
 		return
 	}
-	rc.pullWaiters[event.OpID] = event.Future
+	rc.pullWaiters[event.OpID] = &pullWaiter{future: event.Future, ctx: ctx}
+	r.registerPullCancelContext(rc, ctx)
 	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: event.OpID}
-	err = r.submitStoreReadLog(context.Background(), event.Pull.ChannelID, fence, event.Pull.NextOffset, rc.state.LEO, event.Pull.MaxBytes)
+	err = r.submitStoreReadLog(ctx, event.Pull.ChannelID, fence, event.Pull.NextOffset, rc.state.LEO, event.Pull.MaxBytes)
 	if err != nil {
 		delete(rc.pullWaiters, event.OpID)
+		r.unregisterPullCancelContext(rc)
 		event.Future.Complete(Result{Err: err})
 	}
 }

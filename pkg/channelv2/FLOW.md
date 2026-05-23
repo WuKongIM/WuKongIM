@@ -39,10 +39,12 @@ leader EventAck -> AdvanceHW -> complete quorum waiters
 ```
 
 A follower keeps at most one pull RPC in flight, one pending pull response waiting for store apply, and one ACK RPC in flight. Pending ACKs are retried before new pulls, and ACK retries reuse the stored match offset. Leader pull handling is asynchronous through the store-read worker pool so blocked log reads do not block high-priority metadata events.
+Metadata fence changes reset follower pull/apply/ACK inflight and pending state before active followers are marked dirty under the new epoch. Leader-side pull waiters track caller contexts and complete with the context error if a caller cancels before a blocked store read returns; late store completions are ignored after the waiter is removed.
 
 ## Backpressure
 
 Mailboxes, append queues, and worker pools are bounded. Normal request admission returns `ErrBackpressured` when full. Append queue limits reject new requests before they become waiters; store append worker-pool backpressure keeps already accepted requests pending for retry. Fetch and leader pull log reads use the store-read worker pool. Follower pull, apply, and ACK use typed bounded worker tasks; store-apply backpressure keeps a single pending pull response and retries on later ticks rather than issuing duplicate pulls.
+Low-priority tick mailbox events are droppable/coalesced; if a direct tick submit carries a future and is dropped, the future is completed immediately so callers do not hang.
 
 ## Import Boundary
 

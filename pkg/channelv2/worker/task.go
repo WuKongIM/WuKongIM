@@ -25,6 +25,8 @@ const (
 type Task struct {
 	Kind  TaskKind
 	Fence ch.Fence
+	// Context cancels this task when the original caller gives up, in addition to pool shutdown.
+	Context context.Context
 
 	StoreAppend        *StoreAppendTask
 	StoreReadCommitted *StoreReadCommittedTask
@@ -81,9 +83,8 @@ type RPCAckTask struct {
 
 // Run executes the task payload with the provided blocking dependencies.
 func (t Task) Run(ctx context.Context, deps Deps) Result {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx, cancel := taskContext(ctx, t.Context)
+	defer cancel()
 	switch t.Kind {
 	case TaskFunc:
 		if t.RunFunc == nil {
@@ -110,6 +111,28 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 	default:
 		return invalidResult(t)
 	}
+}
+
+func taskContext(parent context.Context, task context.Context) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	if task == nil || task.Done() == nil {
+		return parent, func() {}
+	}
+	ctx, cancel := context.WithCancel(parent)
+	if task.Err() != nil {
+		cancel()
+		return ctx, cancel
+	}
+	go func() {
+		select {
+		case <-task.Done():
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx, cancel
 }
 
 func runStoreAppend(ctx context.Context, deps Deps, t Task) Result {

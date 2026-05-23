@@ -223,11 +223,16 @@ func (r *Reactor) handleStoreReadLogResult(result worker.Result) {
 	if err != nil {
 		return
 	}
-	future := rc.pullWaiters[result.Fence.OpID]
-	if future == nil {
+	waiter := rc.pullWaiters[result.Fence.OpID]
+	if waiter == nil {
 		return
 	}
 	delete(rc.pullWaiters, result.Fence.OpID)
+	r.unregisterPullCancelContext(rc)
+	future := waiter.future
+	if future == nil {
+		return
+	}
 	if result.Fence.Generation != rc.state.Generation || result.Fence.Epoch != rc.state.Epoch || result.Fence.LeaderEpoch != rc.state.LeaderEpoch || rc.state.Role != ch.RoleLeader {
 		future.Complete(Result{Err: ch.ErrStaleMeta})
 		return

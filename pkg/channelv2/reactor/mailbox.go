@@ -56,6 +56,10 @@ func (m *Mailbox) Submit(priority Priority, event Event) error {
 		return nil
 	default:
 		if priority == PriorityLow {
+			// Low-priority tick work is droppable/coalesced; complete futures on drop so direct callers cannot hang.
+			if event.Future != nil {
+				event.Future.Complete(Result{})
+			}
 			return nil
 		}
 		return ch.ErrBackpressured
