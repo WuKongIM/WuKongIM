@@ -8,6 +8,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/machine"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/store"
+	"github.com/WuKongIM/WuKongIM/pkg/channelv2/transport"
 )
 
 const defaultReactorDrain = 128
@@ -31,8 +32,9 @@ type Reactor struct {
 }
 
 type runtimeChannel struct {
-	state *machine.ChannelState
-	store store.ChannelStore
+	state   *machine.ChannelState
+	store   store.ChannelStore
+	waiters map[ch.OpID]*Future
 }
 
 // NewReactor constructs a reactor.
@@ -90,6 +92,12 @@ func (r *Reactor) handle(event Event) {
 		r.handleAppend(event)
 	case EventFetch:
 		r.handleFetch(event)
+	case EventPull:
+		r.handlePull(event)
+	case EventAck:
+		r.handleAck(event)
+	case EventApplyRecords:
+		r.handleApplyRecords(event)
 	}
 }
 
@@ -124,7 +132,7 @@ func (r *Reactor) ensureChannel(meta ch.Meta) (*runtimeChannel, error) {
 	state.LEO = initial.LEO
 	state.HW = initial.HW
 	state.CheckpointHW = initial.CheckpointHW
-	rc := &runtimeChannel{state: state, store: cs}
+	rc := &runtimeChannel{state: state, store: cs, waiters: make(map[ch.OpID]*Future)}
 	r.channels[key] = rc
 	return rc, nil
 }
@@ -146,7 +154,7 @@ func (r *Reactor) handleAppend(event Event) {
 	for i, msg := range event.Append.Messages {
 		records[i] = ch.Record{ID: msg.MessageID, Payload: append([]byte(nil), msg.Payload...), SizeBytes: len(msg.Payload)}
 	}
-	decision := rc.state.ProposeAppend(machine.AppendCommand{OpID: 1, CommitMode: event.Append.CommitMode, Records: records})
+	decision := rc.state.ProposeAppend(machine.AppendCommand{OpID: event.OpID, CommitMode: event.Append.CommitMode, Records: records})
 	if decision.Err != nil {
 		event.Future.Complete(Result{Err: decision.Err})
 		return
@@ -159,7 +167,7 @@ func (r *Reactor) handleAppend(event Event) {
 	stored, err := rc.store.AppendLeader(context.Background(), store.AppendLeaderRequest{Records: appendTask.Records, Sync: appendTask.Sync})
 	result := rc.state.ApplyAppendStored(machine.AppendStoredResult{Fence: decision.Tasks[0].Fence, BaseOffset: stored.BaseOffset, LastOffset: stored.LastOffset, Err: err})
 	if len(result.Replies) == 0 {
-		event.Future.Complete(Result{Err: ch.ErrNotReady})
+		rc.waiters[event.OpID] = event.Future
 		return
 	}
 	reply := result.Replies[0]
@@ -189,8 +197,72 @@ func (r *Reactor) handleFetch(event Event) {
 	read, err := rc.store.ReadCommitted(context.Background(), store.ReadCommittedRequest{FromSeq: readTask.FromSeq, MaxSeq: readTask.MaxSeq, Limit: readTask.Limit, MaxBytes: readTask.MaxBytes})
 	result := rc.state.ApplyReadCommitted(machine.ReadCommittedResult{Fence: decision.Tasks[0].Fence, Messages: read.Messages, NextSeq: read.NextSeq, Err: err})
 	if len(result.Replies) == 0 {
-		event.Future.Complete(Result{Err: ch.ErrNotReady})
+		rc.waiters[event.OpID] = event.Future
 		return
 	}
 	event.Future.Complete(Result{Fetch: result.Replies[0].Fetch})
+}
+
+func (r *Reactor) handlePull(event Event) {
+	rc, err := r.lookup(event.Key)
+	if err != nil {
+		event.Future.Complete(Result{Err: err})
+		return
+	}
+	if rc.state.Role != ch.RoleLeader {
+		event.Future.Complete(Result{Err: ch.ErrNotLeader})
+		return
+	}
+	if event.Pull.Epoch != rc.state.Epoch || event.Pull.LeaderEpoch != rc.state.LeaderEpoch || !rc.state.IsReplica(event.Pull.Follower) {
+		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
+		return
+	}
+	read, err := rc.store.ReadLog(context.Background(), store.ReadLogRequest{FromOffset: event.Pull.NextOffset, MaxOffset: rc.state.LEO, MaxBytes: event.Pull.MaxBytes})
+	if err != nil {
+		event.Future.Complete(Result{Err: err})
+		return
+	}
+	event.Future.Complete(Result{Pull: transport.PullResponse{ChannelKey: rc.state.Key, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, LeaderHW: rc.state.HW, LeaderLEO: rc.state.LEO, Records: read.Records}})
+}
+
+func (r *Reactor) handleAck(event Event) {
+	rc, err := r.lookup(event.Key)
+	if err != nil {
+		event.Future.Complete(Result{Err: err})
+		return
+	}
+	decision := rc.state.ApplyFollowerAck(machine.FollowerAck{Follower: event.Ack.Follower, MatchOffset: event.Ack.MatchOffset})
+	for _, reply := range decision.Replies {
+		future := rc.waiters[reply.OpID]
+		if future == nil {
+			continue
+		}
+		delete(rc.waiters, reply.OpID)
+		future.Complete(Result{AppendBatch: ch.AppendBatchResult{Items: reply.AppendItems}, Err: reply.Err})
+	}
+	event.Future.Complete(Result{})
+}
+
+func (r *Reactor) handleApplyRecords(event Event) {
+	rc, err := r.lookup(event.Key)
+	if err != nil {
+		event.Future.Complete(Result{Err: err})
+		return
+	}
+	if rc.state.Role != ch.RoleFollower {
+		event.Future.Complete(Result{Err: ch.ErrNotReady})
+		return
+	}
+	apply, err := rc.store.ApplyFollower(context.Background(), store.ApplyFollowerRequest{Records: event.PullResponse.Records, LeaderHW: event.PullResponse.LeaderHW})
+	if err != nil {
+		event.Future.Complete(Result{Err: err})
+		return
+	}
+	rc.state.LEO = apply.LEO
+	if event.PullResponse.LeaderHW < rc.state.LEO {
+		rc.state.HW = event.PullResponse.LeaderHW
+	} else {
+		rc.state.HW = rc.state.LEO
+	}
+	event.Future.Complete(Result{ApplyLEO: apply.LEO})
 }
