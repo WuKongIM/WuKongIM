@@ -35,7 +35,7 @@ This path is the reactivation mechanism after eviction.
 - **PullHint**: best-effort leader-to-follower signal that tells a follower to pull now instead of waiting for its previous delay.
 - **Parked follower**: a follower that is caught up and waiting for `NextPullAfter`.
 - **Stopped follower**: a follower that checkpointed, removed local runtime state, and acknowledged `Stopped=true`.
-- **Activity version**: a leader-owned monotonic version that changes on Append and fences stale stop acknowledgements.
+- **Activity version**: the leader-owned durable activity fence for this channel. It is initialized from loaded leader LEO and advances to the new leader LEO after each durable Append, so it survives runtime eviction and reload.
 
 ## Protocol Changes
 
@@ -98,6 +98,8 @@ type AckRequest struct {
 }
 ```
 
+`ActivityVersion` must not be a process-local counter that resets when runtime state is evicted. The first implementation should use the leader's durable LEO after the latest stored append as the activity version. This keeps old stop acknowledgements from matching a reloaded runtime after a later append has advanced LEO.
+
 ## Runtime State
 
 Leader channels track lightweight lifecycle and follower pacing state:
@@ -121,7 +123,7 @@ type followerRuntimeProgress struct {
 }
 ```
 
-Followers track the latest accepted activity version and the leader-provided next pull time. A follower may enter a local parked state, but it must not permanently evict itself unless the leader returns `PullControlStop`.
+Followers track the latest accepted activity version and the leader-provided next pull time. A follower may enter a local parked state, but it must not permanently evict itself unless the leader returns `PullControlStop` and the stopped acknowledgement is delivered successfully.
 
 ## Leader Behavior
 
@@ -138,8 +140,8 @@ Followers track the latest accepted activity version and the leader-provided nex
 When the leader accepts an Append request into the channel runtime:
 
 1. Refresh `LastAppendAt`.
-2. Increment `ActivityVersion`.
-3. Move the channel back to hot if it was cooling or draining.
+2. Cancel any local draining or evicting phase.
+3. After the append is durably stored, set `ActivityVersion` to the new leader LEO.
 4. Clear stale stopped state for followers that need the new records.
 5. Send `PullHint` only to followers that need an immediate pull.
 
@@ -151,6 +153,8 @@ The leader should send PullHint when a follower is:
 - lagging without an active pull/apply/ack cycle known to the leader.
 
 The leader should not send repeated PullHint messages for the same follower and activity version.
+
+PullHint is best-effort, so the leader must retry it while a follower is stopped, never-pulled, or parked and still has `Match < LEO`. Retries are coalesced by follower and activity version and should use the idle eviction check scheduler rather than a tight loop.
 
 ### Pull Handling
 
@@ -197,13 +201,23 @@ For a single-node cluster, there are no follower stop acknowledgements to wait f
 
 ### PullHint
 
-On PullHint:
+`service.HandlePullHint` owns lazy activation before the event reaches the reactor. It must:
 
-1. If the channel runtime is not loaded, resolve metadata and apply it.
-2. Validate `ChannelKey`, `Epoch`, `LeaderEpoch`, and `Leader`.
-3. Ignore stale activity versions.
-4. Cancel any parked wait.
-5. Submit an immediate Pull.
+1. Check whether the owning reactor already has runtime state for the channel.
+2. If unloaded, require a configured `MetaResolver`.
+3. Resolve authoritative metadata by `ChannelID`.
+4. Validate the resolved key, epoch, leader epoch, leader, status, and that the local node is a replica follower.
+5. Apply metadata through the normal `ApplyMeta` path.
+6. Submit the PullHint event to the reactor.
+
+If metadata resolution or validation fails, PullHint returns an error to the transport caller. The sender treats this as a dropped hint and retries later while the follower still needs progress.
+
+On the reactor PullHint event:
+
+1. Validate `ChannelKey`, `Epoch`, `LeaderEpoch`, and `Leader`.
+2. Ignore stale activity versions.
+3. Cancel any parked wait.
+4. Submit an immediate Pull.
 
 PullHint does not carry records and does not change durable state.
 
@@ -225,17 +239,21 @@ When the follower receives `Control=Stop`:
 
 1. Verify local `LEO >= LeaderLEO` and `HW >= LeaderHW`.
 2. Verify no pending pull/apply/ack work remains.
-3. Store a checkpoint.
-4. Delete local runtime state.
-5. ACK with `Stopped=true` and the response `ActivityVersion`.
+3. Store a checkpoint through the store worker pool.
+4. Enter a stopping phase and submit ACK with `Stopped=true` and the response `ActivityVersion`.
+5. Retry the stopped ACK on RPC backpressure or error.
+6. Delete local runtime state only after the stopped ACK succeeds.
+
+This keeps enough state to retry a lost stopped ACK. If the process crashes before the ACK succeeds, the follower reloads from the checkpoint and can stop again after the next leader stop response.
 
 ## Safety Rules
 
 - Append cancels any local draining or evicting phase.
+- ActivityVersion is derived from durable leader LEO and is initialized from store load, so it does not reset across runtime eviction.
 - Stale PullHint, PullResponse stop, or stopped ACK is ignored by activity version and metadata fence.
 - A leader never evicts while any follower is behind leader LEO.
 - A follower never stops until it is locally caught up to the leader stop response.
-- Store checkpoint must happen before deleting runtime state.
+- Store checkpoint and stopped ACK success must happen before deleting follower runtime state.
 - New Append after follower stop reactivates replication by sending PullHint to stopped followers.
 
 ## Scheduling
@@ -257,8 +275,26 @@ Add channelv2 service/reactor config fields with conservative defaults:
 - `IdlePullMinInterval`: minimum no-record pull delay.
 - `IdlePullMaxInterval`: maximum parked pull delay.
 - `IdleEvictCheckInterval`: retry interval while waiting for lagging or unstopped followers.
+- `PullHintRetryInterval`: retry interval for dropped hints while a follower needs immediate progress.
 
 Configuration fields must have detailed English comments when implemented.
+
+Suggested initial defaults:
+
+- `IdleSlowdownAfter`: 30 seconds.
+- `IdleEvictAfter`: 5 minutes.
+- `IdlePullMinInterval`: 10 milliseconds.
+- `IdlePullMaxInterval`: 5 seconds.
+- `IdleEvictCheckInterval`: 1 second.
+- `PullHintRetryInterval`: 1 second.
+
+Unit tests should override these defaults with short durations. Production defaults should favor correctness and low surprise over aggressive eviction.
+
+## Checkpoint Effects
+
+Checkpoint writes must not run synchronously in the reactor loop. Add a `TaskStoreCheckpoint` worker task and route it through a bounded store worker pool. Checkpoint completions return to the owning reactor with the same metadata and activity fences used by append, apply, and pull effects.
+
+Leader and follower eviction both wait for checkpoint success. Checkpoint failure keeps the channel loaded and retries on the lifecycle scheduler.
 
 ## Observability
 
@@ -269,6 +305,7 @@ Extend the reactor observer with lifecycle events or counters:
 - follower parked,
 - follower stopped,
 - PullHint sent,
+- PullHint retry scheduled,
 - PullHint dropped/backpressured,
 - stop control returned,
 - stop ACK received,
@@ -285,10 +322,13 @@ Unit tests should cover:
 - Append sends PullHint to parked followers and does not wait for the old long delay.
 - Append sends PullHint to stopped or never-pulled followers.
 - Append does not spam PullHint for already active followers.
+- Dropped PullHint is retried while the follower remains behind.
+- PullHint reactivates an unloaded follower through the service MetaResolver path.
 - Leader refuses eviction while any replica follower match is behind LEO.
 - Follower ignores stale PullHint or stale stop control.
-- Follower checkpoints and deletes runtime before ACKing stopped.
+- Follower checkpoints, retries stopped ACK on failure, and deletes runtime only after ACK success.
 - Leader evicts only after all followers ACK stopped for the current activity version.
+- ActivityVersion survives leader eviction and reload because it is initialized from durable LEO.
 - New Append after follower stop reloads follower through PullHint and lazy metadata.
 - Reactor maintenance no longer scans every loaded channel on every idle turn.
 
@@ -298,12 +338,14 @@ Integration tests should use the existing channelv2 testkit with a three-node cl
 
 1. Add protocol fields while preserving current behavior.
 2. Rename Notify internals to PullHint, keeping compatibility inside tests as needed.
-3. Add leader-side activity and follower pacing state.
-4. Add follower parking and PullHint interruption.
-5. Add `PullControlStop` and stopped ACK.
-6. Add leader-local eviction after all followers stop.
-7. Replace broad reactor scans with due scheduling.
-8. Update `pkg/channelv2/FLOW.md`.
+3. Wire `MetaResolver` into service-side PullHint lazy activation.
+4. Add leader-side durable activity version and follower pacing state.
+5. Add follower parking, PullHint interruption, and PullHint retry.
+6. Add asynchronous checkpoint worker task.
+7. Add `PullControlStop` and retryable stopped ACK.
+8. Add leader-local eviction after all followers stop.
+9. Replace broad reactor scans with due scheduling.
+10. Update `pkg/channelv2/FLOW.md`.
 
 ## Acceptance Criteria
 
@@ -311,5 +353,6 @@ Integration tests should use the existing channelv2 testkit with a three-node cl
 - Leader runtime state is removed only after follower runtime state has stopped.
 - A new Append to a parked follower triggers immediate PullHint and does not wait for the previous long delay.
 - A new Append to an evicted channel reloads leader state and reactivates followers.
+- Stopped ACK loss does not deadlock leader eviction; followers retry until ACK success or a newer activity version supersedes the stop.
 - Existing append/fetch/replication tests continue to pass.
 - New tests cover stale activity-version races and lagging follower eviction blocks.
