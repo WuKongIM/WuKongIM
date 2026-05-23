@@ -62,6 +62,9 @@ func (q *appendQueue) push(req appendRequest) error {
 	if q == nil {
 		return ch.ErrClosed
 	}
+	if len(req.records) == 0 {
+		return ch.ErrInvalidConfig
+	}
 	reqBytes := recordsBytes(req.records)
 	if q.cfg.MaxPending > 0 && len(q.pending)+1 > q.cfg.MaxPending {
 		return ch.ErrBackpressured

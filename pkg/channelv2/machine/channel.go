@@ -160,7 +160,8 @@ type ChannelState struct {
 	PendingAppends map[ch.OpID]*AppendWaiter
 	// PendingAppendOrder preserves proposal order for append waiters that may complete after later quorum ACKs.
 	PendingAppendOrder []ch.OpID
-	InflightAppend     *AppendOp
+	// InflightAppend is the durable append batch currently waiting for a fenced store result.
+	InflightAppend *AppendOp
 }
 
 // NewChannelState creates an empty local state owned by one reactor.

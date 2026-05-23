@@ -7,6 +7,9 @@ func (s *ChannelState) ApplyMeta(meta ch.Meta) Decision {
 	if err := s.ValidateMeta(meta); err != nil {
 		return Decision{Err: err}
 	}
+	if s.shouldClearAppendStateForMeta(meta) {
+		s.clearAppendState()
+	}
 	s.ID = meta.ID
 	s.Epoch = meta.Epoch
 	s.LeaderEpoch = meta.LeaderEpoch
@@ -27,6 +30,27 @@ func (s *ChannelState) ApplyMeta(meta ch.Meta) Decision {
 	}
 	s.CommitReady = meta.Status == ch.StatusActive || meta.Status == ch.StatusCreating
 	return Decision{}
+}
+
+func (s *ChannelState) shouldClearAppendStateForMeta(meta ch.Meta) bool {
+	nextRole := ch.RoleFollower
+	if meta.Leader == s.LocalNode {
+		nextRole = ch.RoleLeader
+	}
+	return s.Epoch != meta.Epoch ||
+		s.LeaderEpoch != meta.LeaderEpoch ||
+		s.Leader != meta.Leader ||
+		s.Role != nextRole ||
+		s.Status != meta.Status
+}
+
+// clearAppendState aborts local append bookkeeping after an accepted metadata fence change.
+func (s *ChannelState) clearAppendState() {
+	s.InflightAppend = nil
+	for opID := range s.PendingAppends {
+		delete(s.PendingAppends, opID)
+	}
+	s.PendingAppendOrder = nil
 }
 
 // ValidateMeta checks whether metadata can be applied without mutating state.
