@@ -35,6 +35,19 @@ func TestAppendStoredWaitsForQuorumFollowerAck(t *testing.T) {
 	require.Empty(t, state.PendingAppendOrder)
 }
 
+func TestFollowerAckDoesNotRegressProgressOrHW(t *testing.T) {
+	state := leaderState(t, 1, []ch.NodeID{1, 2, 3}, []ch.NodeID{1, 2, 3}, 2)
+	state.HW = 5
+	state.Progress[1] = ReplicaProgress{Match: 5}
+	state.Progress[2] = ReplicaProgress{Match: 5}
+
+	decision := state.ApplyFollowerAck(FollowerAck{Follower: 2, MatchOffset: 3})
+
+	require.Empty(t, decision.Replies)
+	require.Equal(t, uint64(5), state.Progress[2].Match)
+	require.Equal(t, uint64(5), state.HW)
+}
+
 func TestFollowerAckCompletesBatchedWaitersInProposalOrder(t *testing.T) {
 	for iteration := 0; iteration < 200; iteration++ {
 		state := leaderState(t, 1, []ch.NodeID{1, 2, 3}, []ch.NodeID{1, 2, 3}, 2)

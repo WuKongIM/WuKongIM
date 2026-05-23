@@ -9,16 +9,31 @@ import (
 
 // LocalNetwork is an in-memory transport for v0 tests.
 type LocalNetwork struct {
-	mu         sync.RWMutex
-	servers    map[ch.NodeID]Server
-	DropPull   map[ch.NodeID]bool
-	DropAck    map[ch.NodeID]bool
+	mu sync.RWMutex
+	// servers maps node ids to in-memory RPC handlers.
+	servers map[ch.NodeID]Server
+	// DropPull marks target nodes whose pull RPCs should fail; use SetDropPull during concurrent tests.
+	DropPull map[ch.NodeID]bool
+	// DropAck marks target nodes whose ACK RPCs should fail; use SetDropAck during concurrent tests.
+	DropAck map[ch.NodeID]bool
+	// DropNotify marks target nodes whose notify RPCs should fail; use SetDropNotify during concurrent tests.
 	DropNotify map[ch.NodeID]bool
+	// droppedPulls counts pull RPCs dropped by target node.
+	droppedPulls map[ch.NodeID]int
+	// droppedAcks counts ACK RPCs dropped by target node.
+	droppedAcks map[ch.NodeID]int
 }
 
 // NewLocalNetwork creates an empty in-memory network.
 func NewLocalNetwork() *LocalNetwork {
-	return &LocalNetwork{servers: make(map[ch.NodeID]Server), DropPull: make(map[ch.NodeID]bool), DropAck: make(map[ch.NodeID]bool), DropNotify: make(map[ch.NodeID]bool)}
+	return &LocalNetwork{
+		servers:      make(map[ch.NodeID]Server),
+		DropPull:     make(map[ch.NodeID]bool),
+		DropAck:      make(map[ch.NodeID]bool),
+		DropNotify:   make(map[ch.NodeID]bool),
+		droppedPulls: make(map[ch.NodeID]int),
+		droppedAcks:  make(map[ch.NodeID]int),
+	}
 }
 
 // Register installs a node server.
@@ -28,25 +43,51 @@ func (n *LocalNetwork) Register(node ch.NodeID, server Server) {
 	n.servers[node] = server
 }
 
-// SetDropPull toggles pull RPC drops for a target node.
+// SetDropPull toggles pull RPC drops for calls targeting node.
 func (n *LocalNetwork) SetDropPull(node ch.NodeID, drop bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.DropPull[node] = drop
+	if drop {
+		n.DropPull[node] = true
+		return
+	}
+	delete(n.DropPull, node)
 }
 
-// SetDropAck toggles ack RPC drops for a target node.
+// SetDropAck toggles ACK RPC drops for calls targeting node.
 func (n *LocalNetwork) SetDropAck(node ch.NodeID, drop bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.DropAck[node] = drop
+	if drop {
+		n.DropAck[node] = true
+		return
+	}
+	delete(n.DropAck, node)
 }
 
-// SetDropNotify toggles notify RPC drops for a target node.
+// SetDropNotify toggles notify RPC drops for calls targeting node.
 func (n *LocalNetwork) SetDropNotify(node ch.NodeID, drop bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.DropNotify[node] = drop
+	if drop {
+		n.DropNotify[node] = true
+		return
+	}
+	delete(n.DropNotify, node)
+}
+
+// DroppedPulls returns how many pull RPCs were dropped for calls targeting node.
+func (n *LocalNetwork) DroppedPulls(node ch.NodeID) int {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.droppedPulls[node]
+}
+
+// DroppedAcks returns how many ACK RPCs were dropped for calls targeting node.
+func (n *LocalNetwork) DroppedAcks(node ch.NodeID) int {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.droppedAcks[node]
 }
 
 // Client returns the network as a client.
@@ -54,10 +95,13 @@ func (n *LocalNetwork) Client() Client { return n }
 
 // Pull calls a target node server.
 func (n *LocalNetwork) Pull(ctx context.Context, node ch.NodeID, req PullRequest) (PullResponse, error) {
-	n.mu.RLock()
+	n.mu.Lock()
 	server := n.servers[node]
 	drop := n.DropPull[node]
-	n.mu.RUnlock()
+	if drop {
+		n.droppedPulls[node]++
+	}
+	n.mu.Unlock()
 	if drop {
 		return PullResponse{}, ch.ErrNotReady
 	}
@@ -69,10 +113,13 @@ func (n *LocalNetwork) Pull(ctx context.Context, node ch.NodeID, req PullRequest
 
 // Ack calls a target node server.
 func (n *LocalNetwork) Ack(ctx context.Context, node ch.NodeID, req AckRequest) error {
-	n.mu.RLock()
+	n.mu.Lock()
 	server := n.servers[node]
 	drop := n.DropAck[node]
-	n.mu.RUnlock()
+	if drop {
+		n.droppedAcks[node]++
+	}
+	n.mu.Unlock()
 	if drop {
 		return ch.ErrNotReady
 	}

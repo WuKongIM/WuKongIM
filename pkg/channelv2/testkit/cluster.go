@@ -67,11 +67,14 @@ func (h *ClusterHarness) TickAll(ctx context.Context) error {
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	for _, id := range ids {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err := h.Nodes[id].Tick(ctx); err != nil {
 			return err
 		}
 	}
-	return nil
+	return ctx.Err()
 }
 
 // Close closes all nodes.
