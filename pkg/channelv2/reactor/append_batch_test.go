@@ -530,119 +530,119 @@ func TestLeaderActivityVersionTracksDurableLEO(t *testing.T) {
 	meta := testMeta("activity-version", 1, 1)
 	meta.Replicas = []ch.NodeID{1, 2}
 	meta.ISR = []ch.NodeID{1}
-	g := newAppendBatchTestGroup(t, factory, Config{AppendBatchMaxRecords: 1})
-	defer g.Close()
-	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, nil, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
+	require.NoError(t, applyMetaDirect(t, r, meta))
 
-	future, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "a"))
-	require.NoError(t, err)
-	require.NoError(t, awaitFutureResult(t, future).Err)
+	result := appendDirect(t, r, sink, meta, 1, "a")
+	require.NoError(t, result.Err)
 
-	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	rc := r.channels[meta.Key]
 	require.Equal(t, rc.state.LEO, rc.lifecycle.ActivityVersion)
 	require.NotZero(t, rc.lifecycle.LastAppendAt)
 }
 
 func TestAppendSendsPullHintToInactiveFollowersOncePerActivityVersion(t *testing.T) {
 	factory := newCountingStoreFactory()
-	transport := newTask3PullHintTransport()
+	tr := newTask3PullHintTransport()
 	meta := testMeta("append-pull-hint", 1, 1)
 	meta.Replicas = []ch.NodeID{1, 2, 3, 4, 5}
 	meta.ISR = []ch.NodeID{1}
-	g := newAppendBatchTestGroup(t, factory, Config{AppendBatchMaxRecords: 1, Transport: transport})
-	defer g.Close()
-	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
+	require.NoError(t, applyMetaDirect(t, r, meta))
 
-	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	rc := r.channels[meta.Key]
 	now := time.Now()
 	rc.followers[2].Parked = true
 	rc.followers[3].LastPullAt = now
 	rc.followers[4].Stopped = true
 	rc.followers[4].LastPullAt = now
 
-	future, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "a"))
-	require.NoError(t, err)
-	require.NoError(t, awaitFutureResult(t, future).Err)
+	result := appendDirect(t, r, sink, meta, 1, "a")
+	require.NoError(t, result.Err)
 
 	require.Eventually(t, func() bool {
-		return transport.pullHintTargets() == "2,4,5"
+		return tr.pullHintTargets() == "2,4,5"
 	}, time.Second, time.Millisecond)
 	require.Equal(t, uint64(1), rc.followers[2].LastHintVersion)
 	require.Equal(t, uint64(0), rc.followers[3].LastHintVersion)
 	require.Equal(t, uint64(1), rc.followers[4].LastHintVersion)
 	require.Equal(t, uint64(1), rc.followers[5].LastHintVersion)
 
-	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now().Add(time.Hour)}))
-	require.Equal(t, "2,4,5", transport.pullHintTargets())
+	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: time.Now().Add(time.Hour), Future: NewFuture()})
+	require.Equal(t, "2,4,5", tr.pullHintTargets())
 }
 
 func TestAppendSendsPullHintRetryAfterDrop(t *testing.T) {
 	factory := newCountingStoreFactory()
-	transport := newTask3PullHintTransport()
-	transport.setDrop(2, true)
+	tr := newTask3PullHintTransport()
+	tr.setDrop(2, true)
 	meta := testMeta("append-pull-hint-retry", 1, 1)
 	meta.Replicas = []ch.NodeID{1, 2}
 	meta.ISR = []ch.NodeID{1}
-	g := newAppendBatchTestGroup(t, factory, Config{
-		AppendBatchMaxRecords: 1,
-		Transport:             transport,
-		PullHintRetryInterval: time.Millisecond,
-	})
-	defer g.Close()
-	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1, PullHintRetryInterval: time.Millisecond})
+	require.NoError(t, applyMetaDirect(t, r, meta))
 
-	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	rc := r.channels[meta.Key]
 	rc.followers[2].Parked = true
 
-	future, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "a"))
-	require.NoError(t, err)
-	require.NoError(t, awaitFutureResult(t, future).Err)
-	require.Eventually(t, func() bool {
-		return transport.pullHintCount(2) >= 1 && !rc.followers[2].HintRetryAt.IsZero() && !rc.followers[2].HintInflight
-	}, time.Second, time.Millisecond)
-	droppedAttempts := transport.pullHintCount(2)
-	require.Equal(t, uint64(1), rc.followers[2].LastHintVersion)
+	result := appendDirect(t, r, sink, meta, 1, "a")
+	require.NoError(t, result.Err)
+	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
+	require.NotZero(t, rc.followers[2].HintRetryAt)
 	require.False(t, rc.followers[2].HintInflight)
+	droppedAttempts := tr.pullHintCount(2)
+	require.Equal(t, uint64(1), rc.followers[2].LastHintVersion)
 	require.Less(t, rc.followers[2].Match, rc.state.LEO)
 
-	transport.setDrop(2, false)
-	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventTick, Key: meta.Key, TickNow: rc.followers[2].HintRetryAt.Add(time.Millisecond)}))
+	tr.setDrop(2, false)
+	r.handleTick(Event{Kind: EventTick, Key: meta.Key, TickNow: rc.followers[2].HintRetryAt.Add(time.Millisecond), Future: NewFuture()})
 	require.Eventually(t, func() bool {
-		return transport.pullHintCount(2) > droppedAttempts
+		return tr.pullHintCount(2) > droppedAttempts
 	}, time.Second, time.Millisecond)
 }
 
 func TestPullHintInflightAppendSendsCurrentVersionAfterOldSuccess(t *testing.T) {
 	factory := newCountingStoreFactory()
-	transport := newTask3PullHintTransport()
-	transport.blockPullHints()
+	tr := newTask3PullHintTransport()
+	tr.blockPullHints()
 	meta := testMeta("pull-hint-inflight-success", 1, 1)
 	meta.Replicas = []ch.NodeID{1, 2}
 	meta.ISR = []ch.NodeID{1}
-	g := newAppendBatchTestGroup(t, factory, Config{AppendBatchMaxRecords: 1, Transport: transport})
-	defer g.Close()
-	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1})
+	require.NoError(t, applyMetaDirect(t, r, meta))
 
-	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	rc := r.channels[meta.Key]
 	rc.followers[2].Parked = true
 
-	first, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "a"))
-	require.NoError(t, err)
-	require.NoError(t, awaitFutureResult(t, first).Err)
+	first := appendDirect(t, r, sink, meta, 1, "a")
+	require.NoError(t, first.Err)
 	require.Eventually(t, func() bool {
-		return transport.pullHintCount(2) == 1 && rc.followers[2].HintInflight
+		return tr.pullHintCount(2) == 1
 	}, time.Second, time.Millisecond)
-	require.Equal(t, uint64(1), transport.lastPullHintVersion(2))
+	require.True(t, rc.followers[2].HintInflight)
+	require.Equal(t, uint64(1), tr.lastPullHintVersion(2))
 
-	second, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 2, "b"))
-	require.NoError(t, err)
-	require.NoError(t, awaitFutureResult(t, second).Err)
+	second := appendDirect(t, r, sink, meta, 2, "b")
+	require.NoError(t, second.Err)
 	require.Equal(t, uint64(2), rc.lifecycle.ActivityVersion)
-	require.Equal(t, 1, transport.pullHintCount(2))
+	require.Equal(t, 1, tr.pullHintCount(2))
 
-	transport.unblockPullHints()
+	tr.unblockPullHints()
+	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
 	require.Eventually(t, func() bool {
-		return transport.hasPullHintVersion(2, 2)
+		return tr.hasPullHintVersion(2, 2)
 	}, time.Second, time.Millisecond)
 	require.Equal(t, uint64(2), rc.followers[2].LastHintVersion)
 	require.Zero(t, rc.followers[2].PendingHintVersion)
@@ -650,48 +650,75 @@ func TestPullHintInflightAppendSendsCurrentVersionAfterOldSuccess(t *testing.T) 
 
 func TestPullHintInflightAppendSchedulesCurrentVersionRetryAfterOldError(t *testing.T) {
 	factory := newCountingStoreFactory()
-	transport := newTask3PullHintTransport()
-	transport.blockPullHints()
+	tr := newTask3PullHintTransport()
+	tr.blockPullHints()
 	meta := testMeta("pull-hint-inflight-error", 1, 1)
 	meta.Replicas = []ch.NodeID{1, 2}
 	meta.ISR = []ch.NodeID{1}
-	g := newAppendBatchTestGroup(t, factory, Config{
-		AppendBatchMaxRecords: 1,
-		Transport:             transport,
-		PullHintRetryInterval: time.Hour,
-	})
-	defer g.Close()
-	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, tr, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16, AppendBatchMaxRecords: 1, PullHintRetryInterval: time.Hour})
+	require.NoError(t, applyMetaDirect(t, r, meta))
 
-	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	rc := r.channels[meta.Key]
 	rc.followers[2].Parked = true
 
-	first, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 1, "a"))
-	require.NoError(t, err)
-	require.NoError(t, awaitFutureResult(t, first).Err)
+	first := appendDirect(t, r, sink, meta, 1, "a")
+	require.NoError(t, first.Err)
 	require.Eventually(t, func() bool {
-		return transport.pullHintCount(2) == 1 && rc.followers[2].HintInflight
+		return tr.pullHintCount(2) == 1
 	}, time.Second, time.Millisecond)
+	require.True(t, rc.followers[2].HintInflight)
 
-	second, err := g.Submit(context.Background(), meta.Key, appendEvent(meta, 2, "b"))
-	require.NoError(t, err)
-	require.NoError(t, awaitFutureResult(t, second).Err)
-	transport.setDrop(2, true)
-	transport.unblockPullHints()
+	second := appendDirect(t, r, sink, meta, 2, "b")
+	require.NoError(t, second.Err)
+	tr.setDrop(2, true)
+	tr.unblockPullHints()
 
-	require.Eventually(t, func() bool {
-		return !rc.followers[2].HintInflight && !rc.followers[2].HintRetryAt.IsZero()
-	}, time.Second, time.Millisecond)
+	r.handleRPCPullHintResult(sink.awaitResultKind(t, worker.TaskRPCPullHint))
+	require.False(t, rc.followers[2].HintInflight)
+	require.NotZero(t, rc.followers[2].HintRetryAt)
 	require.Equal(t, uint64(1), rc.followers[2].LastHintVersion)
 	require.Equal(t, uint64(2), rc.followers[2].PendingHintVersion)
 	require.Equal(t, uint64(2), rc.lifecycle.ActivityVersion)
 	require.Less(t, rc.followers[2].Match, rc.state.LEO)
 }
 
+func TestStoppedAckDoesNotUpdateFollowerLifecycleDuringTask3(t *testing.T) {
+	factory := newCountingStoreFactory()
+	meta := testMeta("stopped-ack-deferred", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: factory, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc.followers[2])
+	future := NewFuture()
+	r.handleAck(Event{
+		Kind:   EventAck,
+		Key:    meta.Key,
+		Future: future,
+		Ack:    transport.AckRequest{ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, Stopped: true},
+	})
+	require.NoError(t, awaitFutureResult(t, future).Err)
+	require.False(t, rc.followers[2].Stopped)
+	require.Zero(t, rc.followers[2].StopAckVersion)
+}
+
 func appendEventWithFuture(meta ch.Meta, id uint64, payload string, future *Future) Event {
 	event := appendEvent(meta, id, payload)
 	event.Future = future
 	return event
+}
+
+func appendDirect(t *testing.T, r *Reactor, sink captureCompletionSink, meta ch.Meta, id uint64, payload string) Result {
+	t.Helper()
+	future := NewFuture()
+	r.handleAppend(appendEventWithFuture(meta, id, payload, future))
+	r.handleStoreAppendResult(sink.awaitResultKind(t, worker.TaskStoreAppend))
+	return awaitFutureResult(t, future)
 }
 
 func newAppendBatchTestGroup(t *testing.T, factory store.Factory, cfg Config) *Group {
@@ -987,14 +1014,40 @@ func (s captureCompletionSink) awaitResult(t *testing.T) worker.Result {
 	}
 }
 
+func (s captureCompletionSink) awaitResultKind(t *testing.T, kind worker.TaskKind) worker.Result {
+	t.Helper()
+	deadline := time.After(time.Second)
+	var deferred []worker.Result
+	for {
+		select {
+		case result := <-s.results:
+			if result.Kind == kind {
+				for _, item := range deferred {
+					s.results <- item
+				}
+				return result
+			}
+			deferred = append(deferred, result)
+		case <-deadline:
+			t.Fatalf("timed out waiting for worker result kind %v", kind)
+			return worker.Result{}
+		}
+	}
+}
+
 func newDirectTestPools(t *testing.T, factory store.Factory, sink worker.CompletionSink) *worker.Pools {
+	t.Helper()
+	return newDirectTestPoolsWithTransport(t, factory, nil, sink)
+}
+
+func newDirectTestPoolsWithTransport(t *testing.T, factory store.Factory, transport transport.Client, sink worker.CompletionSink) *worker.Pools {
 	t.Helper()
 	pools, err := worker.NewPools(worker.PoolsConfig{
 		StoreAppend: worker.PoolConfig{Name: "append", Workers: 1, QueueSize: 8},
 		StoreRead:   worker.PoolConfig{Name: "read", Workers: 1, QueueSize: 8},
 		StoreApply:  worker.PoolConfig{Name: "apply", Workers: 1, QueueSize: 8},
 		RPC:         worker.PoolConfig{Name: "rpc", Workers: 1, QueueSize: 8},
-	}, worker.Deps{LocalNode: 1, Stores: factory}, sink)
+	}, worker.Deps{LocalNode: 1, Stores: factory, Transport: transport}, sink)
 	require.NoError(t, err)
 	return pools
 }
