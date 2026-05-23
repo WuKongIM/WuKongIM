@@ -24,7 +24,7 @@
 
 ## Fetch
 
-`Fetch` captures the current HW and reads committed messages up to that bound. It never returns records above HW.
+`Fetch` captures the current HW and submits the committed store read to the bounded store-read worker pool. The reactor keeps only a fenced waiter, so high-priority metadata changes can proceed while storage is blocked. A metadata fence change fails pending fetch waiters with `ErrStaleMeta`, and stale worker completions are ignored without leaking the waiter. Fetch never returns records above HW.
 
 ## Replication
 
@@ -42,7 +42,7 @@ The test harness drives ticks in the background. Future production work should r
 
 ## Backpressure
 
-Mailboxes and worker pools are bounded. Normal request admission returns `ErrBackpressured` when full. V0 still has synchronous store execution inside reactors; later phases should move those calls into worker pools before production use.
+Mailboxes and worker pools are bounded. Normal request admission returns `ErrBackpressured` when full. Fetch store reads already use the store-read worker pool; append, follower apply, and leader pull store paths remain synchronous inside reactors until their batching/effect phases move them out.
 
 ## Import Boundary
 

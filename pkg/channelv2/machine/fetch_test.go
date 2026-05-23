@@ -22,3 +22,14 @@ func TestBuildFetchCreatesReadCommittedTask(t *testing.T) {
 	require.Len(t, decision.Tasks, 1)
 	require.Equal(t, uint64(3), decision.Tasks[0].ReadCommitted.MaxSeq)
 }
+
+func TestReadCommittedIgnoresStaleFence(t *testing.T) {
+	state := leaderState(t, 1, []ch.NodeID{1}, []ch.NodeID{1}, 1)
+	state.HW = 3
+	decision := state.ApplyReadCommitted(ReadCommittedResult{
+		Fence:    ch.Fence{ChannelKey: state.Key, Generation: state.Generation, Epoch: state.Epoch, LeaderEpoch: state.LeaderEpoch + 1, OpID: 10},
+		Messages: []ch.Message{{MessageSeq: 1}},
+		NextSeq:  2,
+	})
+	require.Empty(t, decision.Replies)
+}

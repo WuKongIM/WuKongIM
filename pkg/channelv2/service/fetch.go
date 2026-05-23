@@ -12,7 +12,7 @@ func (c *cluster) Fetch(ctx context.Context, req ch.FetchRequest) (ch.FetchResul
 		ctx = context.Background()
 	}
 	key := ch.ChannelKeyForID(req.ChannelID)
-	future, err := c.group.Submit(ctx, key, reactor.Event{Kind: reactor.EventFetch, Key: key, Fetch: req})
+	future, err := c.group.Submit(ctx, key, reactor.Event{Kind: reactor.EventFetch, Key: key, Fetch: req, OpID: c.group.NextOpID()})
 	if err != nil {
 		return ch.FetchResult{}, err
 	}
