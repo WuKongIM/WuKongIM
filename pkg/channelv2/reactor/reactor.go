@@ -54,6 +54,24 @@ func (r *Reactor) Submit(priority Priority, event Event) error {
 	return r.mailbox.Submit(priority, event)
 }
 
+// SubmitCompletion blocks until a high-priority worker completion is enqueued or closed.
+func (r *Reactor) SubmitCompletion(event Event) error {
+	if r == nil || r.mailbox == nil {
+		return ch.ErrClosed
+	}
+	select {
+	case <-r.stop:
+		return ch.ErrClosed
+	default:
+	}
+	select {
+	case r.mailbox.high <- event:
+		return nil
+	case <-r.stop:
+		return ch.ErrClosed
+	}
+}
+
 // Close stops the reactor and fails future work by closing the loop.
 func (r *Reactor) Close() error {
 	r.once.Do(func() { close(r.stop) })
@@ -98,7 +116,30 @@ func (r *Reactor) handle(event Event) {
 		r.handleAck(event)
 	case EventApplyRecords:
 		r.handleApplyRecords(event)
+	case EventWorkerResult:
+		r.handleWorkerResult(event)
+	case EventTick:
+		r.handleTick(event)
+	case EventClose:
+		r.handleClose(event)
 	}
+}
+
+func (r *Reactor) handleWorkerResult(event Event) {
+	// Task 2 only establishes completion routing; concrete result handling follows.
+}
+
+func (r *Reactor) handleTick(event Event) {
+	if event.Future != nil {
+		event.Future.Complete(Result{})
+	}
+}
+
+func (r *Reactor) handleClose(event Event) {
+	if event.Future != nil {
+		event.Future.Complete(Result{})
+	}
+	r.once.Do(func() { close(r.stop) })
 }
 
 func (r *Reactor) handleApplyMeta(event Event) {
