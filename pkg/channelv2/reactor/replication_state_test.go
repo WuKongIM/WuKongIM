@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -232,6 +233,43 @@ func TestFollowerPullErrorBacksOff(t *testing.T) {
 	require.Equal(t, 1, net.PullCalls())
 }
 
+func TestFollowerEmptyPullAdvancesHWOnlyToLocalLEOAndSchedulesIdleRetry(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("empty-pull-hw")
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16,
+		ReplicationIdlePollInterval: time.Hour,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 3
+	rc.state.HW = 1
+	rc.replication.pullInflight = true
+	rc.replication.pullOpID = 7
+
+	result := worker.Result{
+		Kind:  worker.TaskRPCPull,
+		Fence: ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 7},
+		RPCPull: &worker.RPCPullResult{Response: transport.PullResponse{
+			ChannelKey:  meta.Key,
+			Epoch:       meta.Epoch,
+			LeaderEpoch: meta.LeaderEpoch,
+			LeaderHW:    99,
+			LeaderLEO:   99,
+		}},
+	}
+	before := time.Now()
+	r.handleRPCPullResult(result)
+	after := time.Now()
+
+	require.Equal(t, uint64(3), rc.state.HW)
+	require.False(t, rc.replication.ackInflight)
+	require.False(t, rc.replication.pendingAck)
+	require.False(t, rc.replication.nextPullAt.IsZero())
+	require.False(t, rc.replication.nextPullAt.Before(before.Add(time.Hour-10*time.Millisecond)))
+	require.False(t, rc.replication.nextPullAt.After(after.Add(time.Hour+10*time.Millisecond)))
+}
+
 func TestFollowerStoreApplyResultSendsAck(t *testing.T) {
 	net := newCapturingTransport()
 	meta := followerTestMeta("a")
@@ -338,6 +376,34 @@ func TestFollowerStoreApplyErrorRetriesSamePendingPull(t *testing.T) {
 	require.NotNil(t, rc.replication.pendingPull)
 	require.Equal(t, uint64(1), rc.replication.pendingPull.Records[0].Index)
 	require.Zero(t, rc.replication.applyOpID)
+}
+
+func TestStaleStoreApplyCompletionDoesNotClearNewerApplyInflight(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	meta := followerTestMeta("stale-apply")
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.pendingPull = &transport.PullResponse{
+		ChannelKey:  meta.Key,
+		Epoch:       meta.Epoch,
+		LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW:    2,
+		Records:     []ch.Record{{ID: 2, Index: 2, Payload: []byte("new"), SizeBytes: 3}},
+	}
+	rc.replication.applyOpID = 9
+
+	stale := worker.Result{
+		Kind:       worker.TaskStoreApply,
+		Fence:      ch.Fence{ChannelKey: meta.Key, Generation: rc.state.Generation, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, OpID: 8},
+		StoreApply: &worker.StoreApplyResult{LEO: 1},
+	}
+	r.handleStoreApplyResult(stale)
+
+	require.Equal(t, ch.OpID(9), rc.replication.applyOpID)
+	require.NotNil(t, rc.replication.pendingPull)
+	require.Equal(t, uint64(2), rc.replication.pendingPull.Records[0].Index)
+	require.Zero(t, rc.state.LEO)
 }
 
 func TestAckPoolFullKeepsPendingAckAndRetriesOnTick(t *testing.T) {
@@ -467,6 +533,212 @@ func TestLeaderPullWaiterFailsOnMetadataFence(t *testing.T) {
 	require.ErrorIs(t, err, ch.ErrStaleMeta)
 }
 
+func TestLeaderPullMismatchedChannelKeyFailsWithStaleMeta(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := followerTestMeta("pull-key-mismatch")
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	future, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind: EventPull,
+		Key:  meta.Key,
+		OpID: 201,
+		Pull: transport.PullRequest{ChannelKey: "1:other", ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, NextOffset: 1, MaxBytes: 1024},
+	})
+	require.NoError(t, err)
+	_, err = future.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+
+	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	require.Empty(t, rc.pullWaiters)
+}
+
+func TestLeaderPullMismatchedChannelIDFailsWithStaleMeta(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := followerTestMeta("pull-id-mismatch")
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	future, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind: EventPull,
+		Key:  meta.Key,
+		OpID: 202,
+		Pull: transport.PullRequest{ChannelKey: meta.Key, ChannelID: ch.ChannelID{ID: "other", Type: meta.ID.Type}, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, NextOffset: 1, MaxBytes: 1024},
+	})
+	require.NoError(t, err)
+	_, err = future.Await(context.Background())
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+
+	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	require.Empty(t, rc.pullWaiters)
+}
+
+func TestLeaderPullInvalidRangeFailsWithInvalidConfig(t *testing.T) {
+	tests := []struct {
+		name       string
+		nextOffset uint64
+		maxBytes   int
+	}{
+		{name: "zero next offset", nextOffset: 0, maxBytes: 1024},
+		{name: "non positive max bytes", nextOffset: 1, maxBytes: 0},
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			factory := store.NewMemoryFactory()
+			g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
+			require.NoError(t, err)
+			defer g.Close()
+
+			meta := followerTestMeta("pull-invalid-range-" + tt.name)
+			require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+			future, err := g.Submit(context.Background(), meta.Key, Event{
+				Kind: EventPull,
+				Key:  meta.Key,
+				OpID: ch.OpID(210 + i),
+				Pull: transport.PullRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch, Follower: 2, NextOffset: tt.nextOffset, MaxBytes: tt.maxBytes},
+			})
+			require.NoError(t, err)
+			_, err = future.Await(context.Background())
+			require.ErrorIs(t, err, ch.ErrInvalidConfig)
+
+			rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+			require.Empty(t, rc.pullWaiters)
+		})
+	}
+}
+
+func TestLeaderPullWaiterFailsWithErrClosedOnGroupClose(t *testing.T) {
+	factory := newNonCancelingBlockingReadLogFactory()
+	g, err := NewGroup(Config{
+		LocalNode:    1,
+		ReactorCount: 1,
+		MailboxSize:  16,
+		Store:        factory,
+		WorkerPools:  worker.PoolsConfig{StoreRead: worker.PoolConfig{Name: "test-store-read", Workers: 1, QueueSize: 1}},
+	})
+	require.NoError(t, err)
+	closeStarted := false
+	closeCompleted := false
+	defer func() {
+		factory.UnblockReadLogs()
+		if !closeStarted && !closeCompleted {
+			_ = g.Close()
+		}
+	}()
+
+	meta := ch.Meta{Key: "1:pull-close", ID: ch.ChannelID{ID: "pull-close", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	pullFuture, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind: EventPull,
+		Key:  meta.Key,
+		OpID: 89,
+		Pull: transport.PullRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1, Follower: 2, NextOffset: 1, MaxBytes: 1024},
+	})
+	require.NoError(t, err)
+	factory.waitReadLogStarted(t)
+
+	closeDone := make(chan error, 1)
+	closeStarted = true
+	go func() {
+		closeDone <- g.Close()
+	}()
+
+	waitForCloseAfterFailure := func() {
+		factory.UnblockReadLogs()
+		select {
+		case <-closeDone:
+			closeCompleted = true
+		case <-time.After(time.Second):
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	_, err = pullFuture.Await(ctx)
+	cancel()
+	if errors.Is(err, context.DeadlineExceeded) {
+		waitForCloseAfterFailure()
+		t.Fatal("timed out waiting for pull future to fail with ErrClosed")
+	}
+	if !errors.Is(err, ch.ErrClosed) {
+		waitForCloseAfterFailure()
+		t.Fatalf("pull future failed with %v, want %v", err, ch.ErrClosed)
+	}
+
+	factory.UnblockReadLogs()
+	select {
+	case err := <-closeDone:
+		closeCompleted = true
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for group close after unblocking ReadLog")
+	}
+	require.ErrorIs(t, err, ch.ErrClosed)
+}
+
+func TestLeaderPullReadLogPoolFullFailsFuture(t *testing.T) {
+	factory := newBlockingReadLogFactory()
+	g, err := NewGroup(Config{
+		LocalNode:    1,
+		ReactorCount: 1,
+		MailboxSize:  16,
+		Store:        factory,
+		WorkerPools:  worker.PoolsConfig{StoreRead: worker.PoolConfig{Name: "test-store-read", Workers: 1, QueueSize: 1}},
+	})
+	require.NoError(t, err)
+	defer g.Close()
+	defer factory.UnblockReadLogs()
+
+	meta := ch.Meta{Key: "1:pull-backpressure", ID: ch.ChannelID{ID: "pull-backpressure", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+
+	first, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind: EventPull,
+		Key:  meta.Key,
+		OpID: 90,
+		Pull: transport.PullRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1, Follower: 2, NextOffset: 1, MaxBytes: 1024},
+	})
+	require.NoError(t, err)
+	require.Eventually(t, factory.ReadLogStarted, time.Second, time.Millisecond)
+
+	second, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind: EventPull,
+		Key:  meta.Key,
+		OpID: 91,
+		Pull: transport.PullRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1, Follower: 2, NextOffset: 1, MaxBytes: 1024},
+	})
+	require.NoError(t, err)
+	requireFuturePending(t, second)
+	third, err := g.Submit(context.Background(), meta.Key, Event{
+		Kind: EventPull,
+		Key:  meta.Key,
+		OpID: 92,
+		Pull: transport.PullRequest{ChannelKey: meta.Key, ChannelID: meta.ID, Epoch: 1, LeaderEpoch: 1, Follower: 2, NextOffset: 1, MaxBytes: 1024},
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err = third.Await(ctx)
+	require.ErrorIs(t, err, ch.ErrBackpressured)
+	rc := g.reactors[g.router.PickIndex(meta.Key)].channels[meta.Key]
+	require.NotContains(t, rc.pullWaiters, ch.OpID(92))
+
+	factory.UnblockReadLogs()
+	_, err = first.Await(ctx)
+	require.NoError(t, err)
+	_, err = second.Await(ctx)
+	require.NoError(t, err)
+}
+
 func TestLeaderPullContextCancelRemovesWaiterBeforeLateReadLogCompletion(t *testing.T) {
 	factory := newNonCancelingBlockingReadLogFactory()
 	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory})
@@ -519,6 +791,44 @@ func TestLeaderIgnoresAckAfterLeaderEpochBump(t *testing.T) {
 	require.NoError(t, awaitSubmit(g, meta.Key, staleAck))
 
 	future, err := g.Submit(context.Background(), meta.Key, appendQuorumEvent(meta, 1, "requires-current-ack"))
+	require.NoError(t, err)
+	requireFuturePending(t, future)
+}
+
+func TestLeaderIgnoresAckFromUnknownFollower(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, AppendBatchMaxRecords: 1})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := ch.Meta{Key: "1:ack-unknown", ID: ch.ChannelID{ID: "ack-unknown", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	future, err := g.Submit(context.Background(), meta.Key, appendQuorumEvent(meta, 1, "requires-known-follower"))
+	require.NoError(t, err)
+	requireFuturePending(t, future)
+
+	ackFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventAck, Key: meta.Key, Ack: transport.AckRequest{ChannelKey: meta.Key, Epoch: 1, LeaderEpoch: 1, Follower: 99, MatchOffset: 1}})
+	require.NoError(t, err)
+	_, err = ackFuture.Await(context.Background())
+	require.NoError(t, err)
+	requireFuturePending(t, future)
+}
+
+func TestLeaderIgnoresAckWithMismatchedChannelKey(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 1, ReactorCount: 1, MailboxSize: 16, Store: factory, AppendBatchMaxRecords: 1})
+	require.NoError(t, err)
+	defer g.Close()
+
+	meta := ch.Meta{Key: "1:ack-key", ID: ch.ChannelID{ID: "ack-key", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+	require.NoError(t, awaitSubmit(g, meta.Key, Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta}))
+	future, err := g.Submit(context.Background(), meta.Key, appendQuorumEvent(meta, 1, "requires-matching-ack-key"))
+	require.NoError(t, err)
+	requireFuturePending(t, future)
+
+	ackFuture, err := g.Submit(context.Background(), meta.Key, Event{Kind: EventAck, Key: meta.Key, Ack: transport.AckRequest{ChannelKey: "1:other", Epoch: 1, LeaderEpoch: 1, Follower: 2, MatchOffset: 1}})
+	require.NoError(t, err)
+	_, err = ackFuture.Await(context.Background())
 	require.NoError(t, err)
 	requireFuturePending(t, future)
 }

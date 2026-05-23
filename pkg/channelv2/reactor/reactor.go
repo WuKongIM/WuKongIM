@@ -571,11 +571,11 @@ func (r *Reactor) handlePull(event Event) {
 		event.Future.Complete(Result{Err: ch.ErrNotLeader})
 		return
 	}
-	if event.Pull.Epoch != rc.state.Epoch || event.Pull.LeaderEpoch != rc.state.LeaderEpoch || !rc.state.IsReplica(event.Pull.Follower) {
+	if event.Pull.ChannelKey != rc.state.Key || event.Pull.ChannelID != rc.state.ID || event.Pull.Epoch != rc.state.Epoch || event.Pull.LeaderEpoch != rc.state.LeaderEpoch || !rc.state.IsReplica(event.Pull.Follower) {
 		event.Future.Complete(Result{Err: ch.ErrStaleMeta})
 		return
 	}
-	if event.OpID == 0 {
+	if event.OpID == 0 || event.Pull.NextOffset == 0 || event.Pull.MaxBytes <= 0 {
 		event.Future.Complete(Result{Err: ch.ErrInvalidConfig})
 		return
 	}
@@ -603,7 +603,7 @@ func (r *Reactor) handleAck(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
-	if rc.state.Role != ch.RoleLeader || event.Ack.Epoch != rc.state.Epoch || event.Ack.LeaderEpoch != rc.state.LeaderEpoch || !rc.state.IsReplica(event.Ack.Follower) {
+	if rc.state.Role != ch.RoleLeader || event.Ack.ChannelKey != rc.state.Key || event.Ack.Epoch != rc.state.Epoch || event.Ack.LeaderEpoch != rc.state.LeaderEpoch || !rc.state.IsReplica(event.Ack.Follower) {
 		event.Future.Complete(Result{})
 		return
 	}
