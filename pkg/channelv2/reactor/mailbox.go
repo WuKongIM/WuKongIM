@@ -1,6 +1,10 @@
 package reactor
 
-import ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+import (
+	"time"
+
+	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
+)
 
 // Priority selects a mailbox queue.
 type Priority uint8
@@ -68,10 +72,18 @@ func (m *Mailbox) Submit(priority Priority, event Event) error {
 
 // Drain removes up to max events, honoring high before normal before low.
 func (m *Mailbox) Drain(max int) []Event {
-	if m == nil || max <= 0 {
+	if max <= 0 {
 		return nil
 	}
-	events := make([]Event, 0, max)
+	return m.DrainInto(make([]Event, 0, max), max)
+}
+
+// DrainInto removes up to max events into dst, honoring high before normal before low.
+func (m *Mailbox) DrainInto(dst []Event, max int) []Event {
+	if m == nil || max <= 0 {
+		return dst[:0]
+	}
+	events := dst[:0]
 	for len(events) < max {
 		if event, ok := tryRecv(m.high); ok {
 			events = append(events, event)
@@ -88,6 +100,25 @@ func (m *Mailbox) Drain(max int) []Event {
 		break
 	}
 	return events
+}
+
+// WaitOne blocks until one event, stop, or timer is ready.
+func (m *Mailbox) WaitOne(stop <-chan struct{}, timer <-chan time.Time) (Event, bool) {
+	if m == nil {
+		return Event{}, false
+	}
+	select {
+	case event := <-m.high:
+		return event, true
+	case event := <-m.normal:
+		return event, true
+	case event := <-m.low:
+		return event, true
+	case <-stop:
+		return Event{}, false
+	case <-timer:
+		return Event{}, false
+	}
 }
 
 // Depth returns the current queued event count for one priority.

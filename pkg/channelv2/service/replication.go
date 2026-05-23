@@ -29,3 +29,13 @@ func (c *cluster) HandleAck(ctx context.Context, req transport.AckRequest) error
 	_, err = future.Await(ctx)
 	return err
 }
+
+// HandleNotify serves a leader nudge that asks this follower to pull promptly.
+func (c *cluster) HandleNotify(ctx context.Context, req transport.NotifyRequest) error {
+	future, err := c.group.Submit(ctx, req.ChannelKey, reactor.Event{Kind: reactor.EventNotify, Key: req.ChannelKey, Notify: req})
+	if err != nil {
+		return err
+	}
+	_, err = future.Await(ctx)
+	return err
+}

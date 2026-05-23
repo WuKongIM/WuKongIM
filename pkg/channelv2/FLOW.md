@@ -28,10 +28,11 @@
 
 ## Replication
 
-Replication is owned by each channel's reactor runtime. `service.Tick` only calls `group.Tick(ctx)`, which submits low-priority tick events; the reactor decides whether an active local follower should pull, apply, or ack. Follower pull offsets are based on local `LEO + 1`, not committed HW or a service-side fetch. RPC pull, store apply, and ACK completions flow through worker result observer hooks, while three-node async benchmarks exercise the worker-pool path with local transport.
+Replication is owned by each channel's reactor runtime. `service.Tick` only calls `group.Tick(ctx)`, which submits low-priority tick events; the reactor decides whether an active local follower should pull, apply, or ack. Follower pull offsets are based on local `LEO + 1`, not committed HW or a service-side fetch. RPC pull, store apply, and ACK completions flow through worker result observer hooks, while three-node async benchmarks exercise the worker-pool path with local transport. Leader append completion also sends a best-effort notify RPC to non-local replicas. Notify carries no records or commit state; it only marks the follower dirty so the follower-owned reactor can submit an immediate pull. Short-poll idle retry remains the fallback when notify is dropped, backpressured, or races metadata changes.
 
 ```text
-follower reactor Tick -> TaskRPCPull(leader, LEO+1)
+leader append stored -> TaskRPCNotify(followers)
+follower EventNotify/Tick -> TaskRPCPull(leader, LEO+1)
 leader EventPull -> TaskStoreReadLog -> PullResponse(records, leaderHW, leaderLEO)
 follower TaskStoreApply -> local LEO/HW
 follower TaskRPCAck(matchOffset)
@@ -43,7 +44,7 @@ Metadata fence changes reset follower pull/apply/ACK inflight and pending state 
 
 ## Backpressure
 
-Mailboxes, append queues, and worker pools are bounded, and observer hooks sample reactor mailbox depths and worker queue depths after cheap submit/drain points. Normal request admission returns `ErrBackpressured` when full. Append queue limits reject new requests before they become waiters; store append worker-pool backpressure keeps already accepted requests pending for retry. Fetch and leader pull log reads use the store-read worker pool, with fetch fail-fast behavior when that pool rejects the task. Follower pull, apply, and ACK use typed bounded worker tasks; store-apply backpressure keeps a single pending pull response and retries on later ticks rather than issuing duplicate pulls.
+Mailboxes, append queues, and worker pools are bounded, and observer hooks sample reactor mailbox depths and worker queue depths after cheap submit/drain points. Normal request admission returns `ErrBackpressured` when full. Append queue limits reject new requests before they become waiters; store append worker-pool backpressure keeps already accepted requests pending for retry. Fetch and leader pull log reads use the store-read worker pool, with fetch fail-fast behavior when that pool rejects the task. Follower pull, apply, ACK, and notify use typed bounded worker tasks; store-apply backpressure keeps a single pending pull response and retries on later ticks rather than issuing duplicate pulls. Notify failures are observed but do not fail accepted appends because follower short-poll can still catch up.
 Low-priority tick mailbox events are droppable/coalesced; if a direct tick submit carries a future and is dropped, the future is completed immediately so callers do not hang. Benchmarks report allocation counts and selected observer-derived batch/queue metrics but do not assert absolute throughput.
 
 ## Import Boundary

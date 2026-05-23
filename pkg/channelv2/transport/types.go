@@ -10,12 +10,14 @@ import (
 type Client interface {
 	Pull(ctx context.Context, node ch.NodeID, req PullRequest) (PullResponse, error)
 	Ack(ctx context.Context, node ch.NodeID, req AckRequest) error
+	Notify(ctx context.Context, node ch.NodeID, req NotifyRequest) error
 }
 
 // Server handles v0 replication RPCs on a node.
 type Server interface {
 	HandlePull(ctx context.Context, req PullRequest) (PullResponse, error)
 	HandleAck(ctx context.Context, req AckRequest) error
+	HandleNotify(ctx context.Context, req NotifyRequest) error
 }
 
 // PullRequest asks a leader for records starting at NextOffset.
@@ -46,4 +48,14 @@ type AckRequest struct {
 	LeaderEpoch uint64
 	Follower    ch.NodeID
 	MatchOffset uint64
+}
+
+// NotifyRequest nudges a follower to pull a channel after leader append progress.
+type NotifyRequest struct {
+	ChannelKey  ch.ChannelKey
+	ChannelID   ch.ChannelID
+	Epoch       uint64
+	LeaderEpoch uint64
+	Leader      ch.NodeID
+	LeaderLEO   uint64
 }

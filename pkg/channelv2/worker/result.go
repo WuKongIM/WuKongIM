@@ -21,6 +21,7 @@ type Result struct {
 	StoreApply         *StoreApplyResult
 	RPCPull            *RPCPullResult
 	RPCAck             *RPCAckResult
+	RPCNotify          *RPCNotifyResult
 	Value              any
 }
 
@@ -60,6 +61,9 @@ type RPCPullResult struct {
 
 // RPCAckResult marks a completed remote acknowledgement RPC.
 type RPCAckResult struct{}
+
+// RPCNotifyResult marks a completed remote replication notification RPC.
+type RPCNotifyResult struct{}
 
 // CompletionSink receives worker completions for routing back to reactors.
 type CompletionSink interface {

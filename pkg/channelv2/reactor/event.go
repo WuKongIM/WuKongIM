@@ -24,6 +24,7 @@ const (
 	EventCancelWaiter
 	EventPull
 	EventAck
+	EventNotify
 	EventClose
 )
 
@@ -39,6 +40,7 @@ type Event struct {
 	Worker    worker.Result
 	Pull      transport.PullRequest
 	Ack       transport.AckRequest
+	Notify    transport.NotifyRequest
 	OpID      ch.OpID
 	CancelOp  ch.OpID
 	CancelErr error
