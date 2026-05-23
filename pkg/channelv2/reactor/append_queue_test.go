@@ -39,6 +39,17 @@ func TestAppendQueueRejectsPendingLimits(t *testing.T) {
 	require.ErrorIs(t, err, ch.ErrBackpressured)
 }
 
+func TestAppendQueueRejectsEmptyRequestAtIngress(t *testing.T) {
+	q := newAppendQueue(appendQueueConfig{MaxRecords: 10, MaxBytes: 1024, MaxWait: time.Second, MaxPending: 10, MaxPendingBytes: 1024})
+
+	err := q.push(appendRequest{opID: 1})
+
+	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+	require.Empty(t, q.pending)
+	require.Zero(t, q.records)
+	require.Zero(t, q.bytes)
+}
+
 func TestAppendQueuePopBatchHonorsMaxRecordsAndBytes(t *testing.T) {
 	q := newAppendQueue(appendQueueConfig{MaxRecords: 2, MaxBytes: 1024, MaxWait: time.Second, MaxPending: 10, MaxPendingBytes: 1024})
 	require.NoError(t, q.push(appendRequest{opID: 1, records: []ch.Record{{SizeBytes: 1}}}))

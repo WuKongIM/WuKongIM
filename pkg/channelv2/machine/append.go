@@ -55,9 +55,17 @@ func (s *ChannelState) ProposeAppendBatch(cmd AppendBatchCommand) Decision {
 	}
 	waiters := make([]AppendBatchWaiter, 0, len(cmd.Waiters))
 	recordCount := 0
+	seen := make(map[ch.OpID]struct{}, len(cmd.Waiters))
 	for _, waiter := range cmd.Waiters {
 		if len(waiter.Records) == 0 {
 			continue
+		}
+		if _, ok := seen[waiter.OpID]; ok {
+			return Decision{Err: ch.ErrInvalidConfig}
+		}
+		seen[waiter.OpID] = struct{}{}
+		if _, ok := s.PendingAppends[waiter.OpID]; ok {
+			return Decision{Err: ch.ErrNotReady}
 		}
 		waiters = append(waiters, waiter)
 		recordCount += len(waiter.Records)

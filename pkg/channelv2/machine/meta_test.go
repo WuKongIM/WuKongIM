@@ -27,3 +27,33 @@ func TestApplyMetaRejectsInvalidMinISR(t *testing.T) {
 	decision := state.ApplyMeta(ch.Meta{Key: state.Key, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1}, ISR: []ch.NodeID{1}, MinISR: 2, Status: ch.StatusActive})
 	require.ErrorIs(t, decision.Err, ch.ErrInvalidConfig)
 }
+
+func TestApplyMetaLeaderEpochChangeClearsAppendStateWithoutReplies(t *testing.T) {
+	state := leaderState(t, 1, []ch.NodeID{1, 2, 3}, []ch.NodeID{1, 2, 3}, 2)
+	proposed := state.ProposeAppendBatch(AppendBatchCommand{
+		BatchOpID: 100,
+		Waiters: []AppendBatchWaiter{
+			{OpID: 1, Records: []ch.Record{{ID: 10, SizeBytes: 1}}},
+			{OpID: 2, Records: []ch.Record{{ID: 20, SizeBytes: 1}}},
+		},
+	})
+	require.Len(t, proposed.Tasks, 1)
+	require.NotNil(t, state.InflightAppend)
+	require.Len(t, state.PendingAppends, 2)
+	require.Equal(t, []ch.OpID{1, 2}, state.PendingAppendOrder)
+
+	decision := state.ApplyMeta(ch.Meta{Key: state.Key, ID: ch.ChannelID{ID: "a", Type: 1}, Epoch: 1, LeaderEpoch: 2, Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, ISR: []ch.NodeID{1, 2, 3}, MinISR: 2, Status: ch.StatusActive})
+
+	require.NoError(t, decision.Err)
+	require.Empty(t, decision.Replies)
+	require.Nil(t, state.InflightAppend)
+	require.Empty(t, state.PendingAppends)
+	require.Empty(t, state.PendingAppendOrder)
+
+	next := state.ProposeAppendBatch(AppendBatchCommand{
+		BatchOpID: 101,
+		Waiters:   []AppendBatchWaiter{{OpID: 3, Records: []ch.Record{{ID: 30, SizeBytes: 1}}}},
+	})
+	require.NoError(t, next.Err)
+	require.Len(t, next.Tasks, 1)
+}
