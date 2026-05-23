@@ -101,6 +101,24 @@ type ReplicaProgress struct {
 	Match uint64
 }
 
+// AppendBatchWaiter describes one client append request inside a durable batch.
+type AppendBatchWaiter struct {
+	// OpID identifies the client append request that will receive a reply.
+	OpID ch.OpID
+	// CommitMode controls whether this waiter completes after local or quorum commit.
+	CommitMode ch.CommitMode
+	// Records are the client records contributed by this waiter.
+	Records []ch.Record
+}
+
+// AppendBatchCommand asks the leader to append multiple client requests as one durable batch.
+type AppendBatchCommand struct {
+	// BatchOpID fences the durable store append for the whole batch.
+	BatchOpID ch.OpID
+	// Waiters preserves client request order inside the durable batch.
+	Waiters []AppendBatchWaiter
+}
+
 // AppendWaiter tracks one append request waiting for local or quorum commit.
 type AppendWaiter struct {
 	OpID       ch.OpID
@@ -111,8 +129,12 @@ type AppendWaiter struct {
 
 // AppendOp is the currently durable in-flight append batch for one channel.
 type AppendOp struct {
-	OpID    ch.OpID
+	// OpID is the batch operation id copied into the store append fence.
+	OpID ch.OpID
+	// Records is the flattened durable record order for all waiters.
 	Records []ch.Record
+	// WaiterOpIDs preserves deterministic reply order for the batch.
+	WaiterOpIDs []ch.OpID
 }
 
 // ChannelState is the single-writer aggregate for one channel.
