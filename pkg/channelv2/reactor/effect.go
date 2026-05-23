@@ -93,6 +93,22 @@ func (rc *runtimeChannel) failPendingFetchWaiters(err error) {
 	}
 }
 
+// failPendingAppendWaiters completes append waiters that are fenced by accepted metadata.
+func (rc *runtimeChannel) failPendingAppendWaiters(err error) {
+	if rc == nil || len(rc.waiters) == 0 {
+		return
+	}
+	for opID, future := range rc.waiters {
+		if _, ok := rc.fetchWaiters[opID]; ok {
+			continue
+		}
+		delete(rc.waiters, opID)
+		if future != nil {
+			future.Complete(Result{Err: err})
+		}
+	}
+}
+
 func (rc *runtimeChannel) failWaiters(err error) {
 	if rc == nil {
 		return
@@ -108,7 +124,8 @@ func (rc *runtimeChannel) failWaiters(err error) {
 	}
 }
 
-func metadataWouldFenceFetch(state *machine.ChannelState, meta ch.Meta) bool {
+// metadataWouldFenceState reports whether accepted metadata invalidates pending state.
+func metadataWouldFenceState(state *machine.ChannelState, meta ch.Meta) bool {
 	if state == nil {
 		return false
 	}
@@ -116,5 +133,9 @@ func metadataWouldFenceFetch(state *machine.ChannelState, meta ch.Meta) bool {
 	if meta.Leader == state.LocalNode {
 		role = ch.RoleLeader
 	}
-	return state.Epoch != meta.Epoch || state.LeaderEpoch != meta.LeaderEpoch || state.Role != role || state.Status != meta.Status
+	return state.Epoch != meta.Epoch ||
+		state.LeaderEpoch != meta.LeaderEpoch ||
+		state.Leader != meta.Leader ||
+		state.Role != role ||
+		state.Status != meta.Status
 }

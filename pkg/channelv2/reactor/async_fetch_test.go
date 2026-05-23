@@ -200,6 +200,94 @@ func TestFetchApplyMetaRejectedChangeKeepsPendingWaiter(t *testing.T) {
 	require.Contains(t, rc.fetchWaiters, ch.OpID(45))
 }
 
+func TestAppendMetadataChangeFailsPendingQuorumWaiter(t *testing.T) {
+	meta := testMeta("append-stale-meta", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2, 3}
+	meta.ISR = []ch.NodeID{1, 2, 3}
+	meta.MinISR = 2
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: store.NewMemoryFactory(), MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	appendFuture := NewFuture()
+	r.handleAppend(Event{
+		Kind:   EventAppend,
+		Key:    meta.Key,
+		OpID:   77,
+		Future: appendFuture,
+		Append: ch.AppendBatchRequest{
+			ChannelID:  meta.ID,
+			CommitMode: ch.CommitModeQuorum,
+			Messages: []ch.Message{{
+				MessageID:   77,
+				ChannelID:   meta.ID.ID,
+				ChannelType: meta.ID.Type,
+				Payload:     []byte("pending"),
+			}},
+		},
+	})
+
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	require.Contains(t, rc.waiters, ch.OpID(77))
+	require.NotContains(t, rc.fetchWaiters, ch.OpID(77))
+	requireFuturePending(t, appendFuture)
+
+	updated := meta
+	updated.LeaderEpoch++
+	require.NoError(t, applyMetaDirect(t, r, updated))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := appendFuture.Await(ctx)
+	require.ErrorIs(t, err, ch.ErrStaleMeta)
+	require.Empty(t, rc.waiters)
+	require.Empty(t, rc.fetchWaiters)
+	require.Empty(t, rc.state.PendingAppends)
+	require.Nil(t, rc.state.InflightAppend)
+}
+
+func TestAppendMetadataRejectedChangeKeepsPendingQuorumWaiter(t *testing.T) {
+	meta := testMeta("append-stale-meta-rejected", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2, 3}
+	meta.ISR = []ch.NodeID{1, 2, 3}
+	meta.MinISR = 2
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: store.NewMemoryFactory(), MailboxSize: 16})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+
+	appendFuture := NewFuture()
+	r.handleAppend(Event{
+		Kind:   EventAppend,
+		Key:    meta.Key,
+		OpID:   78,
+		Future: appendFuture,
+		Append: ch.AppendBatchRequest{
+			ChannelID:  meta.ID,
+			CommitMode: ch.CommitModeQuorum,
+			Messages: []ch.Message{{
+				MessageID:   78,
+				ChannelID:   meta.ID.ID,
+				ChannelType: meta.ID.Type,
+				Payload:     []byte("pending"),
+			}},
+		},
+	})
+
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	require.Contains(t, rc.waiters, ch.OpID(78))
+
+	rejected := meta
+	rejected.LeaderEpoch++
+	rejected.MinISR = len(rejected.ISR) + 1
+	err := applyMetaDirect(t, r, rejected)
+
+	require.ErrorIs(t, err, ch.ErrInvalidConfig)
+	require.Equal(t, meta.LeaderEpoch, rc.state.LeaderEpoch)
+	require.Contains(t, rc.waiters, ch.OpID(78))
+	require.NotContains(t, rc.fetchWaiters, ch.OpID(78))
+	requireFuturePending(t, appendFuture)
+}
+
 func TestFetchStoreReadErrorCompletesFuture(t *testing.T) {
 	factory := newReadErrorFactory(ch.ErrNotReady)
 	meta := testMeta("async-read-error", 1, 1)
