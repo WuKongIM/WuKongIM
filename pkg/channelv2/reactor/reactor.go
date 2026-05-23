@@ -52,6 +52,7 @@ type ReactorConfig struct {
 type Reactor struct {
 	cfg      ReactorConfig
 	mailbox  *Mailbox
+	drainBuf []Event
 	channels map[ch.ChannelKey]*runtimeChannel
 	// appendCancelChannels indexes channels that have admitted append contexts to sweep.
 	appendCancelChannels map[ch.ChannelKey]*runtimeChannel
@@ -97,7 +98,7 @@ type pullWaiter struct {
 // NewReactor constructs a reactor.
 func NewReactor(cfg ReactorConfig) *Reactor {
 	cfg = defaultReactorConfig(cfg)
-	return &Reactor{cfg: cfg, mailbox: NewMailbox(MailboxConfig{HighSize: cfg.MailboxSize, NormalSize: cfg.MailboxSize, LowSize: cfg.MailboxSize}), channels: make(map[ch.ChannelKey]*runtimeChannel), stop: make(chan struct{}), done: make(chan struct{})}
+	return &Reactor{cfg: cfg, mailbox: NewMailbox(MailboxConfig{HighSize: cfg.MailboxSize, NormalSize: cfg.MailboxSize, LowSize: cfg.MailboxSize}), drainBuf: make([]Event, 0, defaultReactorDrain), channels: make(map[ch.ChannelKey]*runtimeChannel), stop: make(chan struct{}), done: make(chan struct{})}
 }
 
 func (r *Reactor) start() { go r.loop() }
@@ -141,7 +142,10 @@ func (r *Reactor) Close() error {
 }
 
 func (r *Reactor) loop() {
+	idleTimer := time.NewTimer(time.Hour)
+	stopTimer(idleTimer)
 	defer func() {
+		stopTimer(idleTimer)
 		r.failPendingWaiters(ch.ErrClosed)
 		close(r.done)
 	}()
@@ -151,23 +155,70 @@ func (r *Reactor) loop() {
 			return
 		default:
 		}
-		events := r.mailbox.Drain(defaultReactorDrain)
+		events := r.mailbox.DrainInto(r.drainBuf, defaultReactorDrain)
 		r.observeAllMailboxDepths()
 		if len(events) == 0 {
 			r.sweepAppendCancellations()
 			r.sweepPullCancellations()
-			r.flushDueAppends(time.Now())
-			select {
-			case <-r.stop:
-				return
-			case <-time.After(time.Millisecond):
+			now := time.Now()
+			r.flushDueAppends(now)
+			resetTimer(idleTimer, r.idleWait(now))
+			event, ok := r.mailbox.WaitOne(r.stop, idleTimer.C)
+			stopTimer(idleTimer)
+			if !ok {
+				select {
+				case <-r.stop:
+					return
+				default:
+				}
+				continue
 			}
+			r.handle(event)
 			continue
 		}
-		for _, event := range events {
-			r.handle(event)
+		for i := range events {
+			r.handle(events[i])
+			events[i] = Event{}
+		}
+		r.drainBuf = events[:0]
+	}
+}
+
+func resetTimer(timer *time.Timer, d time.Duration) {
+	if d < 0 {
+		d = 0
+	}
+	stopTimer(timer)
+	timer.Reset(d)
+}
+
+func stopTimer(timer *time.Timer) {
+	if timer == nil {
+		return
+	}
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
 		}
 	}
+}
+
+func (r *Reactor) idleWait(now time.Time) time.Duration {
+	wait := time.Millisecond
+	for _, rc := range r.channels {
+		if rc == nil || rc.appendInflight != nil || rc.appendQ.storeBlocked || len(rc.appendQ.pending) == 0 || rc.appendQ.flushDue.IsZero() {
+			continue
+		}
+		dueIn := rc.appendQ.flushDue.Sub(now)
+		if dueIn <= 0 {
+			return 0
+		}
+		if dueIn < wait {
+			wait = dueIn
+		}
+	}
+	return wait
 }
 
 func (r *Reactor) handle(event Event) {
@@ -186,6 +237,8 @@ func (r *Reactor) handle(event Event) {
 		r.handlePull(event)
 	case EventAck:
 		r.handleAck(event)
+	case EventNotify:
+		r.handleNotify(event)
 	case EventWorkerResult:
 		r.handleWorkerResult(event)
 	case EventTick:
@@ -220,8 +273,12 @@ func (r *Reactor) handleTick(event Event) {
 		now = time.Now()
 	}
 	r.flushDueAppends(now)
-	for _, rc := range r.channels {
-		r.tickReplication(rc, now)
+	if event.Key != "" {
+		if rc := r.channels[event.Key]; rc != nil {
+			r.tickReplication(rc, now)
+		}
+	} else {
+		r.tickAllReplication(now)
 	}
 	if event.Future != nil {
 		event.Future.Complete(Result{})
@@ -275,7 +332,7 @@ func (r *Reactor) handleApplyMeta(event Event) {
 			rc.replication.reset()
 		}
 		if rc.state.Role == ch.RoleFollower && rc.state.Status == ch.StatusActive {
-			rc.replication.markDirty(time.Now())
+			rc.replication.markDirty(time.Time{})
 		} else {
 			rc.replication.reset()
 		}
@@ -449,6 +506,11 @@ func (r *Reactor) handleStoreAppendResult(result worker.Result) {
 	}
 	decision := rc.state.ApplyAppendStored(stored)
 	r.completeReplies(rc, decision.Replies, nil)
+	for _, signal := range decision.Signals {
+		if signal.Kind == machine.SignalKindReplicate {
+			r.notifyFollowers(rc)
+		}
+	}
 	if current {
 		if stored.Err != nil {
 			for _, req := range rc.appendInflight.requests {

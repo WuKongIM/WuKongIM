@@ -100,7 +100,7 @@ func (p *Pools) poolFor(kind TaskKind) *Pool {
 		return p.StoreRead
 	case TaskStoreApply:
 		return p.StoreApply
-	case TaskRPCPull, TaskRPCAck:
+	case TaskRPCPull, TaskRPCAck, TaskRPCNotify:
 		return p.RPC
 	default:
 		return nil

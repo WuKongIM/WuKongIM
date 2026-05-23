@@ -12,8 +12,9 @@ import (
 )
 
 type workerTransportServer struct {
-	lastPull transport.PullRequest
-	lastAck  transport.AckRequest
+	lastPull   transport.PullRequest
+	lastAck    transport.AckRequest
+	lastNotify transport.NotifyRequest
 }
 
 func (s *workerTransportServer) HandlePull(ctx context.Context, req transport.PullRequest) (transport.PullResponse, error) {
@@ -30,6 +31,11 @@ func (s *workerTransportServer) HandlePull(ctx context.Context, req transport.Pu
 
 func (s *workerTransportServer) HandleAck(ctx context.Context, req transport.AckRequest) error {
 	s.lastAck = req
+	return nil
+}
+
+func (s *workerTransportServer) HandleNotify(ctx context.Context, req transport.NotifyRequest) error {
+	s.lastNotify = req
 	return nil
 }
 
@@ -154,6 +160,11 @@ func TestTaskRunRPCPullAndAckUseTransportDeps(t *testing.T) {
 	require.NoError(t, ack.Err)
 	require.NotNil(t, ack.RPCAck)
 	require.Equal(t, uint64(9), server.lastAck.MatchOffset)
+
+	notify := Task{Kind: TaskRPCNotify, Fence: fence, RPCNotify: &RPCNotifyTask{Node: 2, Request: transport.NotifyRequest{ChannelKey: "1:a", LeaderLEO: 10}}}.Run(context.Background(), deps)
+	require.NoError(t, notify.Err)
+	require.NotNil(t, notify.RPCNotify)
+	require.Equal(t, uint64(10), server.lastNotify.LeaderLEO)
 }
 
 func TestTaskRunMissingDepsReturnsInvalidConfig(t *testing.T) {
@@ -208,6 +219,7 @@ func TestTaskRunNilTypedPayloadReturnsInvalidConfig(t *testing.T) {
 		{name: "store apply", task: Task{Kind: TaskStoreApply, Fence: fence}},
 		{name: "rpc pull", task: Task{Kind: TaskRPCPull, Fence: fence}},
 		{name: "rpc ack", task: Task{Kind: TaskRPCAck, Fence: fence}},
+		{name: "rpc notify", task: Task{Kind: TaskRPCNotify, Fence: fence}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

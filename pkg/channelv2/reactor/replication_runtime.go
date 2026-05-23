@@ -32,6 +32,15 @@ func (r *Reactor) tickReplication(rc *runtimeChannel, now time.Time) {
 	r.trySubmitPull(rc, now)
 }
 
+func (r *Reactor) tickAllReplication(now time.Time) {
+	if r == nil {
+		return
+	}
+	for _, rc := range r.channels {
+		r.tickReplication(rc, now)
+	}
+}
+
 func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 	if r.cfg.Pools == nil {
 		r.backoffPull(rc, ch.ErrInvalidConfig, now)
@@ -118,6 +127,52 @@ func (r *Reactor) submitAck(rc *runtimeChannel, match uint64, now time.Time) boo
 	rc.replication.ackOpID = opID
 	rc.replication.ackMatch = match
 	return true
+}
+
+func (r *Reactor) notifyFollowers(rc *runtimeChannel) {
+	if r == nil || rc == nil || rc.state == nil || rc.state.Role != ch.RoleLeader || r.cfg.Pools == nil {
+		return
+	}
+	for _, replica := range rc.state.Replicas {
+		if replica == r.cfg.LocalNode {
+			continue
+		}
+		fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: r.nextOpID()}
+		req := transport.NotifyRequest{
+			ChannelKey:  rc.state.Key,
+			ChannelID:   rc.state.ID,
+			Epoch:       rc.state.Epoch,
+			LeaderEpoch: rc.state.LeaderEpoch,
+			Leader:      r.cfg.LocalNode,
+			LeaderLEO:   rc.state.LEO,
+		}
+		_ = r.submitRPCNotify(context.Background(), replica, fence, req)
+	}
+}
+
+func (r *Reactor) handleNotify(event Event) {
+	rc, err := r.lookup(event.Key)
+	if err != nil {
+		if event.Future != nil {
+			event.Future.Complete(Result{})
+		}
+		return
+	}
+	req := event.Notify
+	if rc.state.Role != ch.RoleFollower || rc.state.Status != ch.StatusActive ||
+		req.Epoch != rc.state.Epoch || req.LeaderEpoch != rc.state.LeaderEpoch ||
+		req.Leader != rc.state.Leader {
+		if event.Future != nil {
+			event.Future.Complete(Result{})
+		}
+		return
+	}
+	now := time.Now()
+	rc.replication.markDirty(now)
+	r.tickReplication(rc, now)
+	if event.Future != nil {
+		event.Future.Complete(Result{})
+	}
 }
 
 func (r *Reactor) handleRPCPullResult(result worker.Result) {

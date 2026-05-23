@@ -45,6 +45,30 @@ func TestFollowerTickPullsFromLocalLEOPlusOne(t *testing.T) {
 	}, time.Second, time.Millisecond)
 }
 
+func TestGroupTickScansActiveFollowersWithoutSeparateSchedule(t *testing.T) {
+	net := newCapturingTransport()
+	factory := store.NewMemoryFactory()
+	g, err := NewGroup(Config{LocalNode: 2, ReactorCount: 1, MailboxSize: 16, Store: factory, Transport: net})
+	require.NoError(t, err)
+	defer g.Close()
+
+	leaderMeta := testMeta("tick-scan-follower", 2, 2)
+	require.NoError(t, awaitSubmit(g, leaderMeta.Key, Event{Kind: EventApplyMeta, Key: leaderMeta.Key, Meta: leaderMeta}))
+
+	reactor := g.reactors[g.router.PickIndex(leaderMeta.Key)]
+	rc := reactor.channels[leaderMeta.Key]
+	require.NotNil(t, rc)
+	followerMeta := leaderMeta
+	followerMeta.Leader = 1
+	followerMeta.Replicas = []ch.NodeID{1, 2}
+	followerMeta.ISR = []ch.NodeID{1, 2}
+	require.NoError(t, rc.state.ApplyMeta(followerMeta).Err)
+	rc.replication.markDirty(time.Time{})
+
+	require.NoError(t, g.Tick(context.Background()))
+	require.Eventually(t, func() bool { return net.LastPull().NextOffset == 1 }, time.Second, time.Millisecond)
+}
+
 func TestFollowerPullInflightSuppressesDuplicatePull(t *testing.T) {
 	net := newCapturingTransport()
 	net.BlockPulls()
@@ -556,6 +580,10 @@ func (t *capturingTransport) Ack(ctx context.Context, node ch.NodeID, req transp
 	t.ackCalls++
 	t.lastAck = req
 	return t.ackErr
+}
+
+func (t *capturingTransport) Notify(ctx context.Context, node ch.NodeID, req transport.NotifyRequest) error {
+	return nil
 }
 
 func (t *capturingTransport) LastPull() transport.PullRequest {

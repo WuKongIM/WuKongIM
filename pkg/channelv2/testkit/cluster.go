@@ -2,6 +2,7 @@ package testkit
 
 import (
 	"context"
+	"sort"
 	"testing"
 	"time"
 
@@ -56,6 +57,21 @@ func (h *ClusterHarness) WaitCommitted(t testing.TB, nodeID ch.NodeID, id ch.Cha
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatalf("node %d did not commit seq %d", nodeID, seq)
+}
+
+// TickAll advances every harness node once in stable node-id order.
+func (h *ClusterHarness) TickAll(ctx context.Context) error {
+	ids := make([]ch.NodeID, 0, len(h.Nodes))
+	for id := range h.Nodes {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	for _, id := range ids {
+		if err := h.Nodes[id].Tick(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Close closes all nodes.

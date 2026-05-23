@@ -19,6 +19,7 @@ const (
 	TaskStoreReadLog
 	TaskRPCPull
 	TaskRPCAck
+	TaskRPCNotify
 )
 
 // Task describes blocking work submitted to a bounded pool.
@@ -34,6 +35,7 @@ type Task struct {
 	StoreApply         *StoreApplyTask
 	RPCPull            *RPCPullTask
 	RPCAck             *RPCAckTask
+	RPCNotify          *RPCNotifyTask
 
 	RunFunc func(context.Context) Result
 }
@@ -81,6 +83,12 @@ type RPCAckTask struct {
 	Request transport.AckRequest
 }
 
+// RPCNotifyTask nudges a remote follower to pull leader progress.
+type RPCNotifyTask struct {
+	Node    ch.NodeID
+	Request transport.NotifyRequest
+}
+
 // Run executes the task payload with the provided blocking dependencies.
 func (t Task) Run(ctx context.Context, deps Deps) Result {
 	ctx, cancel := taskContext(ctx, t.Context)
@@ -109,6 +117,8 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		res = runRPCPull(ctx, deps, t)
 	case TaskRPCAck:
 		res = runRPCAck(ctx, deps, t)
+	case TaskRPCNotify:
+		res = runRPCNotify(ctx, deps, t)
 	default:
 		res = invalidResult(t)
 	}
@@ -240,6 +250,15 @@ func runRPCAck(ctx context.Context, deps Deps, t Task) Result {
 	}
 	err := deps.Transport.Ack(ctx, payload.Node, payload.Request)
 	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, RPCAck: &RPCAckResult{}}
+}
+
+func runRPCNotify(ctx context.Context, deps Deps, t Task) Result {
+	payload := t.RPCNotify
+	if payload == nil || deps.Transport == nil {
+		return invalidResult(t)
+	}
+	err := deps.Transport.Notify(ctx, payload.Node, payload.Request)
+	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, RPCNotify: &RPCNotifyResult{}}
 }
 
 func invalidResult(t Task) Result {
