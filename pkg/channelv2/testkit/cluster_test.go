@@ -2,6 +2,7 @@ package testkit
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -54,6 +55,80 @@ func TestLeaderAppendPullHintCommitsWithoutBackgroundTicks(t *testing.T) {
 	require.Equal(t, uint64(1), res.MessageSeq)
 }
 
+func TestPullHintLazyActivatesUnloadedFollowerAndReplicatesWithoutTicks(t *testing.T) {
+	network := transport.NewLocalNetwork()
+	meta := ch.Meta{Key: ch.ChannelKey("1:pull-hint-lazy-replication"), ID: ch.ChannelID{ID: "pull-hint-lazy-replication", Type: 1}, Epoch: 1, LeaderEpoch: 1, Leader: 1, Replicas: []ch.NodeID{1, 2}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+
+	leader, err := service.New(service.Config{
+		LocalNode:                   1,
+		Store:                       store.NewMemoryFactory(),
+		ReactorCount:                1,
+		Transport:                   network.Client(),
+		ReplicationIdlePollInterval: time.Hour,
+	})
+	require.NoError(t, err)
+	defer leader.Close()
+	leaderServer, ok := leader.(transport.Server)
+	require.True(t, ok)
+	network.Register(1, leaderServer)
+
+	resolver := &testkitCountingMetaResolver{meta: meta}
+	follower, err := service.New(service.Config{
+		LocalNode:                   2,
+		Store:                       store.NewMemoryFactory(),
+		ReactorCount:                1,
+		Transport:                   network.Client(),
+		MetaResolver:                resolver,
+		ReplicationIdlePollInterval: time.Hour,
+	})
+	require.NoError(t, err)
+	defer follower.Close()
+	followerServer, ok := follower.(transport.Server)
+	require.True(t, ok)
+	network.Register(2, followerServer)
+
+	require.NoError(t, leader.ApplyMeta(meta))
+	network.SetDropNotify(2, true)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	done := make(chan appendOutcome, 1)
+	go func() {
+		res, err := leader.Append(ctx, ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{Payload: []byte("hello")}})
+		done <- appendOutcome{result: res, err: err}
+	}()
+
+	require.Eventually(t, func() bool {
+		select {
+		case outcome := <-done:
+			t.Fatalf("append completed before pull hint activation: result=%+v err=%v", outcome.result, outcome.err)
+			return false
+		default:
+		}
+		return network.DroppedPullHints(2) > 0
+	}, time.Second, time.Millisecond)
+	network.SetDropNotify(2, false)
+
+	require.NoError(t, network.PullHint(context.Background(), 2, transport.PullHintRequest{
+		ChannelKey:      meta.Key,
+		ChannelID:       meta.ID,
+		Epoch:           meta.Epoch,
+		LeaderEpoch:     meta.LeaderEpoch,
+		Leader:          meta.Leader,
+		LeaderLEO:       1,
+		ActivityVersion: 1,
+		Reason:          transport.PullHintReasonAppend,
+	}))
+
+	select {
+	case outcome := <-done:
+		require.NoError(t, outcome.err)
+		require.Equal(t, uint64(1), outcome.result.MessageSeq)
+	case <-time.After(time.Second):
+		t.Fatal("append did not complete after pull hint lazy activation")
+	}
+	require.Equal(t, int32(1), resolver.calls.Load())
+}
+
 func TestThreeNodeClusterCatchesUpAfterTemporaryPullDrop(t *testing.T) {
 	h := NewClusterHarness(t, []ch.NodeID{1, 2, 3})
 	defer h.Close()
@@ -89,6 +164,22 @@ func TestThreeNodeClusterCatchesUpAfterTemporaryAckDrop(t *testing.T) {
 type appendOutcome struct {
 	result ch.AppendResult
 	err    error
+}
+
+type testkitCountingMetaResolver struct {
+	meta  ch.Meta
+	calls atomic.Int32
+}
+
+func (r *testkitCountingMetaResolver) ResolveChannelMeta(ctx context.Context, id ch.ChannelID) (ch.Meta, error) {
+	if err := ctx.Err(); err != nil {
+		return ch.Meta{}, err
+	}
+	if id != r.meta.ID {
+		return ch.Meta{}, ch.ErrChannelNotFound
+	}
+	r.calls.Add(1)
+	return r.meta, nil
 }
 
 func startAppend(t testing.TB, h *ClusterHarness, nodeID ch.NodeID, id ch.ChannelID, payload []byte) <-chan appendOutcome {

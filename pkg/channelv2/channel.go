@@ -15,7 +15,7 @@ type Cluster interface {
 	Close() error
 }
 
-// MetaResolver loads authoritative metadata for channels that are not yet active in a reactor.
+// MetaResolver loads authoritative metadata for unloaded append targets and PullHint follower activation.
 type MetaResolver interface {
 	ResolveChannelMeta(context.Context, ChannelID) (Meta, error)
 }
@@ -27,7 +27,7 @@ type Config struct {
 	MailboxSize  int
 	Store        any
 	Transport    any
-	// MetaResolver lazily loads metadata when Append reaches an unloaded channel.
+	// MetaResolver lazily loads metadata for unloaded Append targets and PullHint follower activation.
 	MetaResolver any
 	// Observer carries a reactor metrics observer for adapters that construct the service facade.
 	Observer any

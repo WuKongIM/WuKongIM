@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channelv2"
 	"github.com/WuKongIM/WuKongIM/pkg/channelv2/reactor"
@@ -46,7 +47,7 @@ func (c *cluster) HandlePullHint(ctx context.Context, req transport.PullHintRequ
 
 // HandleNotify serves a leader nudge that asks this follower to pull promptly.
 func (c *cluster) HandleNotify(ctx context.Context, req transport.NotifyRequest) error {
-	return c.HandlePullHint(ctx, transport.PullHintRequest{
+	err := c.HandlePullHint(ctx, transport.PullHintRequest{
 		ChannelKey:  req.ChannelKey,
 		ChannelID:   req.ChannelID,
 		Epoch:       req.Epoch,
@@ -55,6 +56,10 @@ func (c *cluster) HandleNotify(ctx context.Context, req transport.NotifyRequest)
 		LeaderLEO:   req.LeaderLEO,
 		Reason:      transport.PullHintReasonAppend,
 	})
+	if errors.Is(err, ch.ErrChannelNotFound) || errors.Is(err, ch.ErrStaleMeta) {
+		return nil
+	}
+	return err
 }
 
 func (c *cluster) ensurePullHintChannelState(ctx context.Context, req transport.PullHintRequest) error {
